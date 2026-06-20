@@ -118,14 +118,24 @@ function selectTargetTokens(consents) {
     return out;
 }
 
-/** FCM 데이터 전용 메시지(알림 표시 없음 — 단말이 판정 후 로컬 알림). 값은 문자열. */
-function buildDataMessage(snapshot) {
+/** FCM 데이터 전용 메시지(알림 표시 없음 — 단말이 판정 후 로컬 알림). 값은 문자열.
+ *  @param demoPos (선택) 시연 위치 {lat,lng,acc}. 있으면 demoLat/demoLng/demoAcc 를 data 에 실어
+ *    단말이 POS_KEY(실제 GPS) 대신 이 위치로 판정하게 한다. 실제 운영 wake 에는 demoPos 가 없어
+ *    단말이 항상 진짜 백그라운드 GPS(POS_KEY)를 사용한다(데모가 실제 판정을 오염시키지 않음). */
+function buildDataMessage(snapshot, demoPos) {
+    const data = {
+        type: 'location_alert_wake',
+        v: '1',
+        snapshot: JSON.stringify(snapshot),
+    };
+    if (demoPos && typeof demoPos === 'object'
+        && Number.isFinite(demoPos.lat) && Number.isFinite(demoPos.lng)) {
+        data.demoLat = String(demoPos.lat);
+        data.demoLng = String(demoPos.lng);
+        data.demoAcc = String(demoPos.acc != null ? demoPos.acc : 0);
+    }
     return {
-        data: {
-            type: 'location_alert_wake',
-            v: '1',
-            snapshot: JSON.stringify(snapshot),
-        },
+        data,
         android: { priority: 'high' },
     };
 }
@@ -163,7 +173,8 @@ async function dispatchWake(activeWarnings, opts = {}) {
     if (tokens.length === 0) return { sent: 0, targets: 0, reason: 'no_targets' };
 
     const sendFn = opts.sendFn || _defaultSendFn;
-    const message = buildDataMessage(snapshot);
+    // 시연(데모) 위치는 메시지 안으로만 전달 — POS_KEY(실제 GPS) 는 건드리지 않는다.
+    const message = buildDataMessage(snapshot, opts.demoPos);
     const result = await sendFn(tokens, message);
     // 발송 이력 + 누적 집계 기록(관리자 '실시간 특보 알림 관리'). 테스트는 opts.record===false 로 생략.
     if (opts.record !== false) {

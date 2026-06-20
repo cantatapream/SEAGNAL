@@ -100,9 +100,9 @@ const initPushNotifications = async () => {
             if (data.type === 'location_alert_wake' && window.LocationAlertRuntime) {
                 const ui = window.LocationAlertUI;
                 if (ui && typeof ui.isNativeCapable === 'function') {
-                    ui.isNativeCapable().then((cap) => { if (!cap) window.LocationAlertRuntime.handleWake(data.snapshot); });
+                    ui.isNativeCapable().then((cap) => { if (!cap) window.LocationAlertRuntime.handleWake(data.snapshot, data); });
                 } else {
-                    window.LocationAlertRuntime.handleWake(data.snapshot);
+                    window.LocationAlertRuntime.handleWake(data.snapshot, data);
                 }
             }
         } catch (e) { console.error('location_alert_wake 처리 실패:', e); }

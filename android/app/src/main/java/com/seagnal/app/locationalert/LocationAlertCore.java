@@ -362,6 +362,10 @@ public final class LocationAlertCore {
     public static final class Message {
         public final String title;
         public final String body;
+        // 진단 주석 — title/body 텍스트에는 영향 없음(JS↔Java buildMessage 는 byte-identical 유지).
+        public String zone;
+        public String tier;
+        public String event;
         Message(String title, String body) { this.title = title; this.body = body; }
     }
 

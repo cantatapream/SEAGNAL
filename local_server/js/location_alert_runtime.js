@@ -57,7 +57,7 @@
                 (f) => f.properties.name !== zoneName && tierOfZone(snapshot, f.properties.name) !== 'severe');
         }
 
-        return core.buildMessage({
+        const msg = core.buildMessage({
             zoneName,
             warnType: z.warnType || '풍랑',
             tier,
@@ -67,6 +67,9 @@
             nearestLower,
             forecast: z.forecast || null,
         });
+        // 진단/표시용 메타 주석(메시지 텍스트는 변경하지 않음 — title/body 동일).
+        if (msg) { msg.zone = zoneName; msg.tier = tier; msg.event = z.event || 'active'; }
+        return msg;
     }
 
     // ── 내장 폴리곤 캐시(1회 로드) ───────────────────────────────────────────
@@ -104,16 +107,45 @@
         } catch (e) { console.error('[LocationAlertRuntime] 알림 표시 실패:', e && e.message); }
     }
 
-    /** 데이터 메시지 수신 처리(표시 셸). snapshotStr = data.snapshot(JSON 문자열). */
-    async function handleWake(snapshotStr) {
+    /** 단말 진단 로그 기록(완전 on-device, 네트워크 없음). localStorage + Capacitor Preferences(미러). */
+    function writeLastMatch(rec) {
+        try {
+            const json = JSON.stringify(rec);
+            try { root.localStorage.setItem('location_alert_last_match', json); } catch (_) { }
+            try {
+                const M = root.LocationAlertBackground && root.LocationAlertBackground.Mirror;
+                if (M && M.set) M.set('location_alert_last_match', json);
+            } catch (_) { }
+        } catch (_) { }
+    }
+
+    /**
+     * 데이터 메시지 수신 처리(표시 셸). snapshotStr = data.snapshot(JSON 문자열).
+     * @param data (선택) FCM data 맵. demoLat/demoLng 가 있으면 시연 위치로 판정(POS_KEY 미사용),
+     *   없으면 실제 백그라운드 GPS(POS_KEY)로 판정 — 실제 운영은 항상 진짜 위치 사용.
+     */
+    async function handleWake(snapshotStr, data) {
         try {
             const snapshot = typeof snapshotStr === 'string' ? JSON.parse(snapshotStr) : snapshotStr;
-            const pos = root.LocationAlertBackground && root.LocationAlertBackground.getPosition
-                ? root.LocationAlertBackground.getPosition() : null;
+            let pos, src;
+            if (data && data.demoLat && data.demoLng) {
+                // 시연(데모): 메시지에 실린 위치 사용 — 실제 저장 위치(POS_KEY)는 건드리지 않음.
+                const dLat = Number(data.demoLat), dLng = Number(data.demoLng);
+                if (Number.isFinite(dLat) && Number.isFinite(dLng)) {
+                    pos = { lat: dLat, lng: dLng, acc: Number(data.demoAcc) || 0 };
+                    src = 'demo';
+                }
+            }
+            if (!pos) {
+                // 실제 운영(또는 데모 좌표가 비정상): 단말의 진짜 백그라운드 GPS 위치로 폴백.
+                pos = root.LocationAlertBackground && root.LocationAlertBackground.getPosition
+                    ? root.LocationAlertBackground.getPosition() : null;
+                src = (pos && pos.src) || 'gps';
+            }
             if (!pos) { console.log('[LocationAlertRuntime] 저장 위치 없음 → skip'); return; }
             const features = await loadFeatures();
             const msg = decideAlert(
-                { lat: pos.lat, lng: pos.lng, accuracyM: pos.acc || 0 }, features, snapshot);
+                { lat: pos.lat, lng: pos.lng, accuracyM: pos.acc || pos.accuracyM || 0 }, features, snapshot);
             // ① 하위 토글 게이트: '위치 기반 특보 정보 받기'(subAlert)가 OFF 면 표출 스킵.
             //   미설정(=기본 ON) 또는 LocationAlertSettings 미로드 시엔 fail-open(기존 동작 유지).
             //   decideAlert 순수성 유지 위해 가드는 표출 셸 handleWake 에 둔다.
@@ -123,7 +155,14 @@
                 return;
             }
             // ② 태풍 반경 엔진은 아직 없음 → subTyphoon 설정은 저장만 하며, 엔진 구축 시 여기 연동.
-            if (msg) await showLocalNotification(msg);
+            if (msg) {
+                // 단말 진단 로그(어느 구역이 판정됐는지 + 위치 출처). on-device 전용.
+                writeLastMatch({
+                    zone: msg.zone || '', lat: pos.lat, lng: pos.lng, src,
+                    tier: msg.tier || '', event: msg.event || '', at: new Date().toISOString(),
+                });
+                await showLocalNotification(msg);
+            }
         } catch (e) { console.error('[LocationAlertRuntime] handleWake 실패:', e && e.message); }
     }
 

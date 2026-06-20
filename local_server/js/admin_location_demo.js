@@ -16,7 +16,10 @@
 
     const ZONE_NAME = '제주도북부앞바다';
     const POS_KEY = 'location_alert_last_pos';
+    const MATCH_KEY = 'location_alert_last_match';
     let _features = null;
+    // 시연(데모) 위치 — 메시지(demoLat/demoLng/demoAcc)로만 전달. POS_KEY(실제 GPS)는 절대 건드리지 않음.
+    let _demoPos = null;
 
     async function loadFeatures() {
         if (_features) return _features;
@@ -76,7 +79,8 @@
     function setStatus(html) { const el = document.getElementById('la-demo-status'); if (el) el.innerHTML = html; }
     function setResult(html) { const el = document.getElementById('la-demo-result'); if (el) el.innerHTML = html; }
 
-    // 시연 위치를 제주도북부앞바다 중심으로 고정(단말 저장 — 실제 판정에 사용)
+    // 시연 위치를 제주도북부앞바다 중심으로 계산 — 메시지로만 전달(_demoPos).
+    //   ※ POS_KEY(실제 GPS) 는 절대 쓰지 않는다(데모가 실제 판정을 오염시키지 않도록).
     window.laDemoSetPosition = async function () {
         try {
             const features = await loadFeatures();
@@ -84,21 +88,19 @@
             if (!f) { setStatus('<span style="color:#fca5a5;">구역(' + ZONE_NAME + ')을 찾지 못했습니다.</span>'); return null; }
             const p = interiorPoint(f);
             if (!p) { setStatus('<span style="color:#fca5a5;">구역 내부점 계산 실패</span>'); return null; }
-            const rec = { lat: p[1], lng: p[0], acc: 20, at: new Date().toISOString() };
-            const json = JSON.stringify(rec);
-            localStorage.setItem(POS_KEY, json);
-            // 네이티브(종료 상태)가 읽도록 @capacitor/preferences(=SharedPreferences "CapacitorStorage")에도
-            // 위치를 미러하고, 시연을 위해 게이팅 플래그(활성/동의)를 ON 으로 둔다(관리자 시연 단말 한정).
+            // 시연 위치는 단말 저장 위치(POS_KEY)와 별개. wake 메시지 demoLat/demoLng/demoAcc 로만 전달.
+            _demoPos = { lat: p[1], lng: p[0], acc: 20 };
+            // 시연을 위해 게이팅 플래그(활성/동의)만 ON 으로 둔다(관리자 시연 단말 한정) — 위치는 미러하지 않음.
             try {
                 const M = window.LocationAlertBackground && window.LocationAlertBackground.Mirror;
                 if (M && M.set) {
-                    M.set(POS_KEY, json);
                     M.set('location_alert_active', 'true');
                     M.set('location_alert_consent', 'true');
                 }
             } catch (_) { }
-            setStatus('시연 위치 고정됨 → <b>' + ZONE_NAME + '</b> (' + rec.lat.toFixed(4) + ', ' + rec.lng.toFixed(4) + ')');
-            return rec;
+            setStatus('시연(데모) 위치 설정됨 → <b>' + ZONE_NAME + '</b> (' + _demoPos.lat.toFixed(4) + ', ' + _demoPos.lng.toFixed(4) + ')'
+                + ' <span style="color:#64748b;">— 메시지로만 전달, 실제 저장 GPS 위치와 별개</span>');
+            return _demoPos;
         } catch (e) { setStatus('<span style="color:#fca5a5;">위치 설정 실패: ' + (e && e.message) + '</span>'); return null; }
     };
 
@@ -108,16 +110,14 @@
         if (!sc) return;
         try {
             const features = await loadFeatures();
-            // 위치 미설정이면 자동 설정
-            let pos = null;
-            try { pos = JSON.parse(localStorage.getItem(POS_KEY)); } catch (_) { }
-            if (!pos) pos = await window.laDemoSetPosition();
-            if (!pos) return;
+            // 시연 위치 미설정이면 자동 설정(_demoPos — POS_KEY 아님)
+            if (!_demoPos) await window.laDemoSetPosition();
+            if (!_demoPos) return;
 
-            // (1) 미리보기 — 단말 판정 로직 그대로
+            // (1) 미리보기 — 단말 판정 로직 그대로(시연 위치 _demoPos 사용, localStorage 아님)
             const snapshot = buildSnapshot(sc.warnings);
             const msg = window.LocationAlertRuntime.decideAlert(
-                { lat: pos.lat, lng: pos.lng, accuracyM: pos.acc || 0 }, features, snapshot);
+                { lat: _demoPos.lat, lng: _demoPos.lng, accuracyM: _demoPos.acc }, features, snapshot);
             if (msg) {
                 setResult(
                     '<div style="margin-top:10px;padding:12px;background:rgba(0,0,0,0.25);border-radius:8px;">'
@@ -139,7 +139,7 @@
             const resp = await fetch('/api/location-alert/demo', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken || '' },
-                body: JSON.stringify({ token, activeWarnings: sc.warnings, delayMs: delayMs || 0 }),
+                body: JSON.stringify({ token, activeWarnings: sc.warnings, delayMs: delayMs || 0, demoPos: _demoPos }),
             });
             const data = await resp.json().catch(() => ({}));
             if (sendEl) {
@@ -159,18 +159,52 @@
         } catch (e) { setResult('<span style="color:#fca5a5;">실행 실패: ' + (e && e.message) + '</span>'); }
     };
 
-    // 마지막 저장 위치 + 이 기기 토큰 표시 갱신
-    window.laDemoRefreshInfo = function () {
+    // Capacitor Preferences(=SharedPreferences "CapacitorStorage") 에서 읽기. 없으면 localStorage.
+    async function readMatch() {
         try {
+            const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+            if (P && P.get) {
+                const r = await P.get({ key: MATCH_KEY });
+                if (r && r.value) return r.value;
+            }
+        } catch (_) { }
+        try { return localStorage.getItem(MATCH_KEY); } catch (_) { return null; }
+    }
+
+    // (1) 실제 저장 위치(real GPS) (2) 시연 위치(_demoPos) (3) 마지막 위치기반 판정(location_alert_last_match) 표시
+    window.laDemoRefreshInfo = async function () {
+        try {
+            // (1) 실제 저장 GPS 위치 — POS_KEY
             const pos = (window.LocationAlertBackground && window.LocationAlertBackground.getPosition)
                 ? window.LocationAlertBackground.getPosition() : null;
             const posEl = document.getElementById('la-demo-pos');
             if (posEl) {
                 if (pos) {
                     const mins = pos.at ? Math.round((Date.now() - Date.parse(pos.at)) / 60000) : '?';
-                    posEl.innerHTML = '마지막 저장 위치: <b>' + Number(pos.lat).toFixed(4) + ', ' + Number(pos.lng).toFixed(4)
-                        + '</b> (±' + (pos.acc != null ? pos.acc : '?') + 'm, ' + mins + '분 전)';
-                } else posEl.innerHTML = '마지막 저장 위치: <span style="color:#fbbf24;">없음</span>';
+                    posEl.innerHTML = '실제 저장 위치(GPS): <b>' + Number(pos.lat).toFixed(4) + ', ' + Number(pos.lng).toFixed(4)
+                        + '</b> (±' + (pos.acc != null ? pos.acc : '?') + 'm, 출처 ' + (pos.src || 'gps') + ', ' + mins + '분 전)';
+                } else posEl.innerHTML = '실제 저장 위치(GPS): <span style="color:#fbbf24;">없음</span>';
+            }
+            // (2) 시연 위치 — _demoPos (메시지로만 전달)
+            const demoEl = document.getElementById('la-demo-demopos');
+            if (demoEl) {
+                if (_demoPos) {
+                    demoEl.innerHTML = '시연 위치(데모, 메시지 전달): <b>' + _demoPos.lat.toFixed(4) + ', ' + _demoPos.lng.toFixed(4)
+                        + '</b> (±' + _demoPos.acc + 'm) — ' + ZONE_NAME;
+                } else demoEl.innerHTML = '시연 위치(데모): <span style="color:#fbbf24;">미설정</span>';
+            }
+            // (3) 마지막 위치기반 판정 — location_alert_last_match
+            const matchEl = document.getElementById('la-demo-match');
+            if (matchEl) {
+                const raw = await readMatch();
+                let rec = null;
+                try { rec = raw ? JSON.parse(raw) : null; } catch (_) { rec = null; }
+                if (rec) {
+                    const mins = rec.at ? Math.round((Date.now() - Date.parse(rec.at)) / 60000) : '?';
+                    matchEl.innerHTML = '마지막 위치기반 판정: 구역 <b>' + (rec.zone || '-') + '</b> / 출처 <b>'
+                        + (rec.src || '-') + '</b> / 단계 <b>' + (rec.tier || '-') + '</b> / '
+                        + (rec.at ? (mins + '분 전') : '시각 미상');
+                } else matchEl.innerHTML = '마지막 위치기반 판정: <span style="color:#64748b;">없음</span>';
             }
             const tk = localStorage.getItem('push_token') || '';
             const tkEl = document.getElementById('la-demo-token');
@@ -196,7 +230,9 @@
             + '<div style="margin-bottom:8px;"><button onclick="laDemoSetPosition()" style="' + btnStyle + '"><i class="fa-solid fa-map-pin"></i> 시연 위치 설정</button>'
             + ' <button onclick="laDemoRefreshInfo()" style="' + btnStyle + '"><i class="fa-solid fa-rotate"></i> 정보 새로고침</button></div>'
             + '<div id="la-demo-status" style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;">위치 미설정</div>'
-            + '<div id="la-demo-pos" style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;">마지막 저장 위치: -</div>'
+            + '<div id="la-demo-pos" style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;">실제 저장 위치(GPS): -</div>'
+            + '<div id="la-demo-demopos" style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;">시연 위치(데모): -</div>'
+            + '<div id="la-demo-match" style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;">마지막 위치기반 판정: -</div>'
             + '<div style="font-size:0.78rem;color:#64748b;margin-bottom:10px;">이 기기 토큰: <code id="la-demo-token" style="color:#94a3b8;">-</code></div>'
             + '<div style="margin:6px 0;">' + rows + '</div>'
             + '<div id="la-demo-result"></div>'

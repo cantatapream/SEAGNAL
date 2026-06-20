@@ -282,3 +282,18 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
   - `js/admin_location_demo.js` — 시나리오별 `forecast` 샘플 추가(태풍 시나리오는 파고-only 예시 포함) + 데모 `buildSnapshot`에 forecast 복사.
 - **네이티브(APK 재빌드 필요)**: `LocationAlertCore.java`(`MessageCtx.forecastDay/forecastSummary` + `forecastLine` + buildMessage 미러 — JS 와 **byte-identical**), `LocationAlertDecider.java`(스냅샷 `forecast` 객체 `{day, summary}` 방어적 파싱 → MessageCtx). 서버/JS 변경분은 재배포로 반영되나, 종료 상태 native 표시는 새 APK 빌드·배포가 필요하다.
 - **테스트**: `scripts/test_location_alert_forecast.js`(19항목 — 최악 선정/풍향 첫 토큰/중기 엄격비교·전용/파고-only 단기/방어성, mock 주입), `scripts/test_location_alert_server.js`(29항목 — forecast 부착·줄 포함/생략·"현재 해역" 제목·day-less 렌더). 모두 통과.
+
+## 15. 데모 위치 격리 + 단말 진단 로그 (2026-06-19)
+- **버그(근본원인)**: 관리자 "위치 기반 특보 시연"이 시연 위치를 **실제 운영과 동일한** `location_alert_last_pos`(POS_KEY)에 써서, 시연이 활성인 동안 **실제 특보** wake 가 시연용 가짜 구역(제주도북부앞바다)으로 판정되어 엉뚱한 구역/발효예정시각 알림이 표출됐다.
+- **수정 1 — 데모 위치 격리**: 시연 위치는 **POS_KEY 에 절대 쓰지 않는다**. 대신 wake 메시지 안으로만 실어 보낸다(`demoLat`/`demoLng`/`demoAcc`, 모두 문자열).
+  - `services/location_alert_dispatch.js` `buildDataMessage(snapshot, demoPos)` — `demoPos`(유한 lat/lng) 있을 때만 data 에 `demoLat/demoLng/demoAcc` 추가. 실제 운영 wake 는 demoPos 가 없어 이 필드가 전혀 없다.
+  - `dispatchWake(active, { ..., demoPos })` → `routes/location_alert.js` `/api/location-alert/demo`(즉시·지연 두 경로 모두)에서 `req.body.demoPos` 전달.
+  - `js/admin_location_demo.js` — 모듈 스코프 `_demoPos`(시연 위치). `laDemoSetPosition`은 내부점을 계산해 `_demoPos`에만 저장하고 POS_KEY/미러 위치는 건드리지 않음(게이팅 플래그 `location_alert_active`/`location_alert_consent`만 ON). 미리보기·POST(`demoPos:_demoPos`)도 `_demoPos` 사용.
+  - **단말 처리**: `js/location_alert_runtime.js` `handleWake(snapshotStr, data)` — `data.demoLat/demoLng` 있으면 그 위치(src='demo'), 없으면 진짜 백그라운드 GPS `getPosition()`(src=pos.src||'gps'). 네이티브 `LocationAlertMessagingService.handleWake(ctx, data)`도 동일(demo 필드 있으면 메시지 위치, 없으면 `LocationAlertStore.getPosition`).
+  - 실제 운영 wake 는 **항상 진짜 백그라운드 GPS**(`location_alert_last_pos`, `savePosition`이 `src:'gps'` 표시)를 사용 → 데모가 실제 판정을 오염시키지 않는다. (GPS 좌표는 단말 밖으로 절대 나가지 않음 — 변동 없음.)
+- **수정 2 — 단말 진단 로그(개인정보 안전)**: 위치 알림을 표출할 때 어느 구역이 판정됐는지 + 위치 출처를 단말 로컬 키 `location_alert_last_match` 에 기록(localStorage + Capacitor Preferences/SharedPreferences "CapacitorStorage"). 형태: `{ zone, lat, lng, src('gps'|'demo'), tier, event, at(ISO-8601) }`. **네트워크 전송 없음(on-device 전용)**, 관리자 시연 탭에서 조회.
+  - `js/location_alert_runtime.js` `decideAlert` 가 반환 메시지에 `zone/tier/event` 주석(텍스트 불변), `handleWake`가 `writeLastMatch`로 기록. 네이티브는 `LocationAlertDecider`가 `Message.zone/tier/event` 주석 + `LocationAlertStore.putLastMatch(ctx, json)`(이 클래스의 유일한 WRITE).
+  - `admin_location_demo.js` 시연 탭은 (1) 실제 저장 위치(real GPS) (2) 시연 위치(_demoPos) (3) 마지막 판정(`location_alert_last_match` — Preferences 우선/없으면 localStorage) 세 가지를 구역/출처(src)/단계(tier)/시각으로 표시.
+- **buildMessage 텍스트 불변**: title/body/예측기상 줄은 변경하지 않음 — JS↔Java buildMessage 출력은 byte-identical 유지. zone/tier/event 는 주석 필드로만 추가.
+- **네이티브(APK 재빌드 필요)**: `LocationAlertMessagingService`(data 맵 수신·demo 위치 분기·진단 기록), `LocationAlertStore`(`putLastMatch`), `LocationAlertCore.Message`(zone/tier/event 필드), `LocationAlertDecider`(주석). 서버/JS 변경은 재배포로 반영되나, 종료 상태 native 표시는 새 APK 빌드·배포 필요.
+- **테스트**: `scripts/test_location_alert_server.js` — `buildDataMessage(snap, {lat,lng,acc})` 가 `demoLat/demoLng/demoAcc` 문자열 포함, `buildDataMessage(snap)` 은 전혀 미포함 검증(35항목 통과). 기존 runtime/core/forecast/ui 테스트 전부 통과.
