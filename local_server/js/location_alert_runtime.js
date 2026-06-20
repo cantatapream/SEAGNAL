@@ -130,10 +130,14 @@
             let pos, src;
             if (data && data.demoLat && data.demoLng) {
                 // 시연(데모): 메시지에 실린 위치 사용 — 실제 저장 위치(POS_KEY)는 건드리지 않음.
-                pos = { lat: Number(data.demoLat), lng: Number(data.demoLng), acc: Number(data.demoAcc) || 0 };
-                src = 'demo';
-            } else {
-                // 실제 운영: 단말의 진짜 백그라운드 GPS 위치.
+                const dLat = Number(data.demoLat), dLng = Number(data.demoLng);
+                if (Number.isFinite(dLat) && Number.isFinite(dLng)) {
+                    pos = { lat: dLat, lng: dLng, acc: Number(data.demoAcc) || 0 };
+                    src = 'demo';
+                }
+            }
+            if (!pos) {
+                // 실제 운영(또는 데모 좌표가 비정상): 단말의 진짜 백그라운드 GPS 위치로 폴백.
                 pos = root.LocationAlertBackground && root.LocationAlertBackground.getPosition
                     ? root.LocationAlertBackground.getPosition() : null;
                 src = (pos && pos.src) || 'gps';
