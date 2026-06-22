@@ -12,7 +12,7 @@
  *   - init(): console.log/info/warn/error 를 래핑해 (1) 원래 출력 그대로 + (2)
  *     타임스탬프(KST) 붙여 메모리 버퍼에 적재. 1초마다 또는 버퍼가 차면 일별 파일에 flush.
  *   - 저장 위치: DATA_DIR/server_logs/YYYY-MM-DD.log  (fly 영속 볼륨 seagnal_data).
- *   - 보관: 3일(당일 포함 최근 3개 일자)만 유지, 오래된 파일 자동 삭제.
+ *   - 보관: 2일(당일 포함 최근 2개 일자)만 유지, 오래된 파일 자동 삭제.
  *   - 용량 상한: 일자별 파일 MAX_DAY_BYTES 초과 시 추가 기록 중단(마커 1회) — 볼륨 보호.
  *   - getLogs({from,to,level,q,limit}): 기간/레벨/검색어 필터링 결과 반환.
  *
@@ -31,8 +31,8 @@ const util = require('util');
 let _initDone = false;
 let LOG_DIR = null;
 
-const RETENTION_DAYS = 3;          // 당일 포함 최근 3개 일자 유지
-const MAX_DAY_BYTES = 12 * 1024 * 1024; // 일자별 파일 상한 12MB (3일 ≈ 36MB 상한)
+const RETENTION_DAYS = 2;          // 당일 포함 최근 2개 일자 유지
+const MAX_DAY_BYTES = 12 * 1024 * 1024; // 일자별 파일 상한 12MB (2일 ≈ 24MB 상한)
 const FLUSH_MS = 1000;             // 1초마다 flush
 const BUFFER_MAX = 200;            // 버퍼가 200줄 차면 즉시 flush
 const QUERY_LIMIT_MAX = 5000;      // 조회 1회 최대 반환 줄 수
@@ -166,7 +166,7 @@ function init() {
     process.on('SIGINT', function () { onExit(); process.exit(0); });
     process.on('SIGTERM', function () { onExit(); process.exit(0); });
 
-    console.log('[server_logger] 서버 로그 파일 기록 시작 (3일 보관, dir=' + LOG_DIR + ')');
+    console.log('[server_logger] 서버 로그 파일 기록 시작 (2일 보관, dir=' + LOG_DIR + ')');
 }
 
 /**

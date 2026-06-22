@@ -7080,7 +7080,7 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
   - 토큰별·조각별 결과 로깅: 성공 시 `[Push/send] OK … msgId=<FCM messageId>`(접수 증거), 실패 시 `FAIL … code=<err.code>`, `DEAD-TOKEN`, 종료 시 `[Push/summary] success/fail`. 토큰은 `_maskTok`(앞6·뒤4)로 PII 최소화.
   - (collapse 고유키는 **제외** — 진짜 원인이 전송실패임이 입증됐고 #995 revert 존중. 추후 로그가 "접수됐는데 미도착"을 보이면 그때 근거 갖고 추가.)
 - **수정 2 (인앱 서버로그 뷰어 — fly.io 로그 대체)**: 통합관리자센터 > **점검 > "서버로그"** 하위탭 신설.
-  - `services/server_logger.js`: `console.*` 를 가로채(원래 출력 유지) KST 타임스탬프+레벨 붙여 영속 볼륨(`data/server_logs/YYYY-MM-DD.log`, fly `seagnal_data`)에 일별 기록. **3일 보관**(초과 자동삭제), 일자별 12MB 상한(볼륨 보호), 1초 버퍼 flush, 절대 throw 안 함. `server.js` 최상단 `init()`.
+  - `services/server_logger.js`: `console.*` 를 가로채(원래 출력 유지) KST 타임스탬프+레벨 붙여 영속 볼륨(`data/server_logs/YYYY-MM-DD.log`, fly `seagnal_data`)에 일별 기록. **2일 보관**(초과 자동삭제), 일자별 12MB 상한(볼륨 보호), 1초 버퍼 flush, 절대 throw 안 함. `server.js` 최상단 `init()`.
   - `GET /api/admin/server-log?from&to&level&q&limit`(`requireAdminToken` 자동 보호): 기간(분 단위)·레벨·검색 필터, 최대 5000줄.
   - UI(`js/admin.js`): 시작/끝 datetime-local(기본 최근 30분), 레벨/검색, "푸시만/에러만" 퀵필터, **조회·복사** 버튼, 모노스페이스 출력. → 휴대폰에서 바로 `[Push/send]` 결과 확인.
 - 검증: mock 단위테스트(일시오류 재시도/dead 즉시종료/비일시 무재시도/마스킹), server_logger 기록·기간/레벨/검색 조회, 4개 파일 `node -c`·모듈 로드. data/ 는 gitignore라 런타임 로그 미커밋.

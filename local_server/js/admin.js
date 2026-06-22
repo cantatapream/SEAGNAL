@@ -4402,7 +4402,7 @@ window.switchMaintenanceSubTab = function (tab) {
 
 // ============================================================================
 // 서버로그 하위탭 — fly.io 로그 대체. 기간(분 단위)·레벨·검색 필터 조회 + 복사.
-//   서버 GET /api/admin/server-log (3일 보관, X-Admin-Token 자동 첨부).
+//   서버 GET /api/admin/server-log (2일 보관, X-Admin-Token 자동 첨부).
 // ============================================================================
 function _slPad(n) { return String(n).padStart(2, '0'); }
 // KST 기준 datetime-local 값('YYYY-MM-DDTHH:mm') 생성 (offsetMin 분 전).
@@ -4417,7 +4417,7 @@ function _slToQuery(v) { return v ? v.replace('T', ' ') : ''; }
 function renderServerLogTab(container) {
     container.innerHTML = `
         <div style="color:#94a3b8;font-size:0.8rem;margin-bottom:10px;line-height:1.5;">
-            <i class="fa-solid fa-circle-info"></i> 서버 로그를 기간(분 단위)으로 조회합니다. 최근 <b>3일</b>치 보관.
+            <i class="fa-solid fa-circle-info"></i> 서버 로그를 기간(분 단위)으로 조회합니다. 최근 <b>2일</b>치 보관.
             <code style="color:#22d3ee;">[Push/send]</code> 로 푸시 발송 결과(messageId/실패코드)를 확인할 수 있습니다.
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;">
