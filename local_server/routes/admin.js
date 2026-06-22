@@ -893,6 +893,27 @@ router.delete('/api/admin/assistant-log', (req, res) => {
     catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// ============================================================================
+// 서버 로그 조회 (점검 > "서버로그" 탭) — fly.io 로그 대체. 3일 보관, 기간/레벨/검색 필터.
+//   쿼리: from, to ('YYYY-MM-DD HH:mm' KST), level(ALL/ERROR/WARN/INFO), q(검색어), limit
+//   (상단 router.use('/api/admin', requireAdminToken) 으로 자동 인증 보호됨)
+// ============================================================================
+router.get('/api/admin/server-log', (req, res) => {
+    try {
+        const logger = require('../services/server_logger');
+        const result = logger.getLogs({
+            from: req.query.from,
+            to: req.query.to,
+            level: req.query.level,
+            q: req.query.q,
+            limit: req.query.limit
+        });
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
 router.get('/api/admin/gemini-status', (req, res) => {
     try {
         const geminiClient = require('../services/gemini_client');
