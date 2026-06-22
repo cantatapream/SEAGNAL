@@ -403,23 +403,84 @@ router.post('/api/push-custom', async (req, res) => {
                     //   그 외는 단건. 동일 url(딥링크) 공유.
                     const isExtend = isManualGroupSend && payload &&
                         (payload.templateId === 'ef_extend' || payload.templateId === 'yn_extend');
-                    const parts = isExtend
+                    let parts = isExtend
                         ? paginateByZoneBlocks(finalTitle, finalBody)
                         : [{ title: finalTitle, body: finalBody }];
+
+                    // [FCM 4-키 한도] FCM notification 메시지는 collapsible 이며, 한 디바이스+앱당
+                    //   "보관"되는 distinct collapse_key 는 최대 4개다(초과 시 가장 오래된 키부터 evict).
+                    //   분할 조각마다 고유 collapse_key 를 부여하므로, 조각이 5개 이상이면 디바이스가
+                    //   오프라인일 때 앞 조각이 밀려 사라질 수 있다. → 조각을 4개 이하로 상한,
+                    //   초과분(5번째~)은 마지막 조각 본문에 병합해 (n/N) 가 항상 4 이하가 되게 한다.
+                    //   (라이브 기상청 데이터 확인: 통상 1~2조각. 14해역·모두 다른 시각쌍 같은
+                    //    극단 케이스에서만 5조각이 되어 이 상한이 발동한다. 165자 권고 한도는
+                    //    분할 본문 길이 상한이며, 병합 조각은 마지막 한 조각에 한해 다소 길어질 수 있으나
+                    //    실데이터에서는 발생하지 않는 방어적 처리다.)
+                    const FCM_COLLAPSE_LIMIT = 4;
+                    if (parts.length > FCM_COLLAPSE_LIMIT) {
+                        const head = parts.slice(0, FCM_COLLAPSE_LIMIT - 1).map(p => p.body);
+                        const mergedBody = parts.slice(FCM_COLLAPSE_LIMIT - 1).map(p => p.body).join('\n');
+                        const bodies = head.concat(mergedBody);
+                        // (n/N) 재번호: paginate 가 매긴 번호가 병합 후 총개수와 어긋나므로 다시 부여.
+                        const N = bodies.length;
+                        parts = bodies.map((b, i) => ({
+                            title: N > 1 ? `${finalTitle} (${i + 1}/${N})` : finalTitle,
+                            body: b
+                        }));
+                    }
+
+                    // [분할 푸시 고유키] 한 발사가 (n/N) 으로 분할(parts.length>1)될 때만
+                    //   조각별로 서로 다른 collapse 식별자를 부여한다.
+                    //   - 단건(parts.length===1) 은 splitBase=null → 기존 덮어쓰기 UX 그대로 보존
+                    //     (collapseKey/tag/apns-collapse-id 미부여 → 발송 바이트 기존과 동일).
+                    //   - base 는 templateId + 발사시각(tmFc>tmEf>tmYn 우선) 으로 한 발사 안정 시드.
+                    //     발사마다 tmFc(발표시각)가 달라 같은 디바이스의 연속 발사끼리 키가 겹치지 않는다.
+                    //     (collapse_key/collapse-id 는 디바이스+앱 단위 스코프라 다른 사용자와는
+                    //      본래 충돌하지 않으나, 시드에 발사정보를 포함해 잔여 키 충돌까지 방지한다.)
+                    const splitBase = (parts.length > 1 && isManualGroupSend && payload)
+                        ? (function () {
+                            const it0 = (payload.items && payload.items[0]) || {};
+                            const seed = String(payload.templateId || 'ext') + ':' +
+                                String(it0.tmFc || it0.tmEf || it0.tmYn || Date.now());
+                            // 영숫자/콜론/언더스코어/하이픈만 남겨 collapse 식별자 안전 문자로 정규화.
+                            return seed.replace(/[^A-Za-z0-9:_-]/g, '');
+                        })()
+                        : null;
+                    // 조각별 고유 식별자 생성기.
+                    //   splitBase 없으면 undefined → notification 메시지 기본(덮어쓰기) 동작 보존.
+                    //   apns-collapse-id 는 ≤64 바이트(ASCII) 제약 → base 를 먼저 자르고 접미사를 붙여
+                    //   절단되어도 인덱스(조각간 고유성)는 항상 보존한다.
+                    const partKey = (idx) => {
+                        if (!splitBase) return undefined;
+                        const suffix = '-' + (idx + 1) + '_' + parts.length; // 예: -1_3, -2_3
+                        const room = 64 - suffix.length;
+                        const head = splitBase.length > room ? splitBase.slice(0, room) : splitBase;
+                        return (head + suffix) || undefined;
+                    };
 
                     if (user.type === 'fcm' && user.token) {
                         // [Lazy] 여기서 처음으로 firebase-admin 이 로딩되고 initializeApp 이 호출됨
                         const admin = getAdmin();
                         if (admin && admin.apps.length > 0) {
-                            for (const part of parts) {
+                            for (let pi = 0; pi < parts.length; pi++) {
+                                const part = parts[pi];
+                                const ck = partKey(pi);
                                 try {
-                                    await admin.messaging().send({
+                                    const msg = {
                                         token: user.token,
                                         notification: { title: part.title, body: part.body },
                                         data: { url: url, type: isManualGroupSend ? 'manual_group' : 'custom_push' },
                                         android: { priority: 'high' },
                                         apns: { headers: { 'apns-priority': '10' } }
-                                    });
+                                    };
+                                    // 분할 시에만 조각별 고유 collapse 식별자 부여.
+                                    //   단건이면 ck === undefined → 아래 블록 미적용 → 기존 동작.
+                                    if (ck) {
+                                        msg.android.collapseKey = ck;
+                                        msg.android.notification = { tag: ck };
+                                        msg.apns.headers['apns-collapse-id'] = ck;
+                                    }
+                                    await admin.messaging().send(msg);
                                     successCount++;
                                 } catch (err) {
                                     failCount++;
@@ -432,9 +493,14 @@ router.post('/api/push-custom', async (req, res) => {
                             }
                         }
                     } else if (user.subscription) {
-                        for (const part of parts) {
+                        for (let pi = 0; pi < parts.length; pi++) {
+                            const part = parts[pi];
+                            const tag = partKey(pi); // 분할 시에만 정의됨
                             try {
-                                const pushPayload = JSON.stringify({ title: part.title, body: part.body, url: url });
+                                // 분할 시에만 payload 에 tag 포함 → sw.js 가 조각별 고유 tag 로 표시.
+                                //   단건이면 tag === undefined → JSON 직렬화 시 키 자체가 빠져
+                                //   sw.js 의 'weather-alert' 기본값(덮어쓰기) 이 그대로 적용된다.
+                                const pushPayload = JSON.stringify({ title: part.title, body: part.body, url: url, tag: tag });
                                 // [Lazy] 첫 호출 시 web-push 로딩 + VAPID 설정
                                 const webpush = getWebPush();
                                 if (!webpush) {
