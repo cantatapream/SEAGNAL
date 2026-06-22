@@ -7087,6 +7087,20 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
 
 ---
 
+### § 7.7.17 §7.7.16 변경의 회귀검토 후속 수정 4건 (다단계 에이전트 파이프라인, 2026-06-22)
+
+§7.7.16(발송 재시도/로깅 + 서버로그 뷰어)을 4개 독립 에이전트로 회귀검토한 결과 위험 4건 발견 → **독립 구현 2 → 병합 1 → 회귀검토 1 → 총합/보고** 파이프라인으로 수정. 변경 파일: `services/server_logger.js`·`routes/push.js`·`server.js`.
+
+- **#1 [심각] 시그널 핸들러 충돌 — graceful shutdown 무력화 (회귀)**: `server_logger.init()` 이 `server.js` 최상단에서 먼저 실행되며 `process.on('SIGINT'/'SIGTERM', ()=>{…process.exit(0)})` 를 등록 → Node 가 시그널 리스너를 등록순으로 호출하므로, **나중에 등록된 `server.js`의 `_gracefulShutdown`(tideBedConfig flush·visitQueue/usageQueue flushSync·build-gzip 자식 정리)이 영영 실행 안 됨**(server_logger 가 먼저 `process.exit(0)` 동기 호출). Fly 재배포 SIGTERM 마다 최대 5초치 통계·설정 유실.
+  - 수정: server_logger 가 **SIGINT/SIGTERM 핸들러를 등록하지 않음**. 잔여 버퍼 flush 는 `process.on('exit', onExit)` 로 보장(`_gracefulShutdown` 의 `process.exit(0)` → 'exit' 동기 발화 → 동기 `_flush`). 종료 주도권을 server.js 로 일원화.
+- **#2 [권장] 로그 용량 상한 도달 시 ERROR 유실 방지**: 기존엔 일자 12MB 초과 시 그날 **모든** 로그 생략 → 정작 장애 ERROR 가 안 남음. → **2단계 상한**: 소프트(`MAX_DAY_BYTES`=12MB) 초과 시 **INFO 만 생략, WARN/ERROR 는 계속 기록**; 하드(`HARD_MAX_DAY_BYTES`=24MB) 초과 시 전부 중단. 각 마커 1회. 레벨은 버퍼 항목에 동봉(`{day,level,line}`), `_flush` 는 라인 단위 누적 바이트로 경계 정확 판정. getLogs 포맷 불변.
+- **#4 [권장] 태풍 자동푸시 경로에도 재시도+로깅 적용**: `/api/push-typhoon` 발송 루프가 §7.7.16 의 헬퍼를 안 타고 옛 침묵 catch 그대로였음 → `_sendFcmPart`/`_sendWebPushPart` 적용(단건이라 part `1/1`). dead 정리·옵트인·master-off·카운터(이중계상 없음) 보존. custom push 경로는 불변.
+- **#5 [경미] 주석 정정**: `server.js` "3일 보관" → "2일 보관".
+- (#3 재시도 backoff 의 발송 지연은 **구글 FCM 전면장애 가정**이라 의도적으로 미적용 — 평상시 영향 없음.)
+- 검증(병합본 재현): #1 종료 시 'exit' flush + graceful shutdown 정상 실행, #2 소프트→INFO만 컷·WARN/ERROR 보존/하드→전체중단·무한증가 없음(delta=0), #4 재시도/dead/이중계상 없음, custom push 바이트 동일. `node -c` 3파일. 회귀검토 종합판정 "진행 가능".
+
+---
+
 # § 8. 부록
 
 본 § 는 시스템의 단일 권위 참조 자료를 한 곳에 모은다. 이전 8,503 줄 단순 concat 문서에서 용어집이 § 1965, § 5276, § 6917, § 8261 의 4 곳에 중복돼 있던 것을 **본 § 8.1 한 곳으로 통일**한다. 다른 § 에서 용어 사용 시 "→ § 8.1 anchor" 식으로 cross-link 한다.
