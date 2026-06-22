@@ -7066,6 +7066,20 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
 
 검증(라이브 MMIS): #1 `(연안바다 추가 발표)`, #2 publish→미발표/active→미발효, #3 자식만 해제예고 신규(부모불변)→정확 1건 "🕐 해제시각 변경 (…만 시각 변경)" / 부모동반→미발사 / set동반→억제 / 깜빡임→0 / self-diff=0. 회귀 전수(한정사 전 분기·부모 lifecycle·예비취소·release·연장·콜드부팅·excludedChildren·dedup·단일푸시) 보존. §4.25 모순 해소.
 
+### § 7.7.16 분할 푸시 "(1/2)" 중 2번째 조각 미수신 — FCM/SW collapse (2026-06-22)
+
+증상: 해제예정시각 연장(yn_extend)이 길어 "(1/2)"로 분할됐는데 **1/2만 수신, 2/2 누락**(기상청 원문 ~13해역 연장). **앱 특보정보(트리)는 정상 반영** — 알림 전달 계층만의 문제.
+
+- 원인(독립 2 + 메타 1 에이전트): 서버는 `paginateByZoneBlocks`로 조각을 만들어 발송 루프에서 **각 조각을 모두 `send()`** 하나(분할기·`isManualGroupSend`·발송 루프 정상), **전달 계층에서 한 건으로 합쳐짐**.
+  - **FCM(네이티브, 1차)**: `notification` 메시지는 항상 collapsible이고 기본 collapse_key=패키지명 → 1/2·2/2가 같은 키라 미전달 중 뒤 조각이 앞을 교체. `routes/push.js` 발송 루프에 `collapseKey`/`apns-collapse-id`/`tag` 부재.
+  - **웹푸시(2차)**: `sw.js`의 고정 `tag:'weather-alert'` → 2/2가 1/2 교체.
+  - MD 모순: §8.5/§8.7 분할 발송은 명세하나 **조각 collapse 방지(고유 식별자) 요구가 누락** — 명세-코드 공백.
+- 수정: **분할(parts>1)일 때만** 조각별 고유 식별자 부여(단건은 기존 "덮어쓰기" UX 보존).
+  - FCM: `android.collapseKey` + `android.notification.tag` + `apns.headers['apns-collapse-id']` = `splitBase-{i}_{N}`. splitBase = `templateId:발사시각(tmFc>tmEf>tmYn)` 정규화. apns-collapse-id ≤64자(base 선절단·인덱스 보존).
+  - 웹푸시: web payload에 조각별 `tag` 추가 + `sw.js`를 `payload.tag || 'weather-alert'`로.
+  - **FCM 4-키 한도 방어**: FCM은 디바이스+앱당 distinct collapse_key 4개만 보관 → 조각 5개+면 오프라인 시 앞 조각 evict 위험. `FCM_COLLAPSE_LIMIT=4` 로 조각을 4개 이하로 상한(초과분은 마지막 조각 본문 병합 + `(n/N)` 재번호). 라이브 실측 통상 1~2조각이라 미발동, 14해역·전부 다른 시각쌍 극단에서만 발동.
+- 검증: 단위 12/12(2·capped 조각 키 상이·≤64, 단건 바이트 동일, 5조각→4상한 내용무손실·재번호, 발사 간 무충돌, sw.js payload.tag 우선). node -c 통과. 단건·다른 templateId·typhoon·dedup·토글·dead-token·web/FCM 일관 전부 보존.
+
 ---
 
 # § 8. 부록

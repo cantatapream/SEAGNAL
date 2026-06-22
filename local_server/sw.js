@@ -213,7 +213,10 @@ self.addEventListener('push', (event) => {
             badge: 'icon-192.png', // 상단바 작은 아이콘
             vibrate: [200, 100, 200],
             data: { url: payload.url || '/' },
-            tag: 'weather-alert', // 중복 알림 덮어쓰기 (원하면 제거)
+            // [분할 푸시] 서버가 (n/N) 분할 시 조각별 고유 tag 를 payload.tag 로 내려준다.
+            //   → 조각마다 다른 tag 라 서로 덮어쓰지 않고 모두 표시된다.
+            //   단건/구버전 payload 는 tag 키가 없어 기존 'weather-alert'(덮어쓰기) 유지.
+            tag: payload.tag || 'weather-alert', // 중복 알림 덮어쓰기 (원하면 제거)
             renotify: true // tag가 같아도 다시 진동/알림
         };
 
