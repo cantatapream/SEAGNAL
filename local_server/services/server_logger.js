@@ -13,7 +13,8 @@
  *     타임스탬프(KST) 붙여 메모리 버퍼에 적재. 1초마다 또는 버퍼가 차면 일별 파일에 flush.
  *   - 저장 위치: DATA_DIR/server_logs/YYYY-MM-DD.log  (fly 영속 볼륨 seagnal_data).
  *   - 보관: 2일(당일 포함 최근 2개 일자)만 유지, 오래된 파일 자동 삭제.
- *   - 용량 상한: 일자별 파일 MAX_DAY_BYTES 초과 시 추가 기록 중단(마커 1회) — 볼륨 보호.
+ *   - 용량 상한: 2단계. 소프트(MAX_DAY_BYTES) 초과 시 INFO 만 생략(WARN/ERROR 보존),
+ *     하드(HARD_MAX_DAY_BYTES) 초과 시 모든 기록 중단(각 마커 1회) — 볼륨 보호.
  *   - getLogs({from,to,level,q,limit}): 기간/레벨/검색어 필터링 결과 반환.
  *
  * [안전성]
@@ -32,14 +33,23 @@ let _initDone = false;
 let LOG_DIR = null;
 
 const RETENTION_DAYS = 2;          // 당일 포함 최근 2개 일자 유지
-const MAX_DAY_BYTES = 12 * 1024 * 1024; // 일자별 파일 상한 12MB (2일 ≈ 24MB 상한)
+const MAX_DAY_BYTES = 12 * 1024 * 1024; // 일자별 소프트 상한 12MB — 초과 시 INFO 만 생략
+// [상한 초과 후에도 장애 진단용 WARN/ERROR 는 보존]
+//   소프트 상한(MAX_DAY_BYTES) 초과 시 INFO 는 버리되 WARN/ERROR 는 계속 기록한다.
+//   다만 WARN/ERROR 도 무한 증가하지 않도록 2차 하드 상한(HARD_MAX_DAY_BYTES)을 둔다.
+//   하드 상한 도달 후엔 모든 추가 기록을 중단한다(볼륨 보호).
+//   값 24MB 근거: 정상 일자 2~8MB, 영속 볼륨 여유 24G → 일자당 24MB(2일 최악 48MB)는
+//   볼륨에 무해하며, 장애 시 INFO 컷 이후에도 WARN/ERROR 를 12MB(=24-12) 만큼 추가
+//   보존할 수 있어 진단 헤드룸을 넉넉히 확보한다.
+const HARD_MAX_DAY_BYTES = 24 * 1024 * 1024; // 일자별 하드 상한 24MB
 const FLUSH_MS = 1000;             // 1초마다 flush
 const BUFFER_MAX = 200;            // 버퍼가 200줄 차면 즉시 flush
 const QUERY_LIMIT_MAX = 5000;      // 조회 1회 최대 반환 줄 수
 
-let _buffer = [];                  // { day, line } 적재
+let _buffer = [];                  // { day, level, line } 적재
 let _dayBytes = {};                // { 'YYYY-MM-DD': bytesWrittenToday }
-let _capMarked = {};               // { day: true } — 상한 도달 마커 1회만
+let _capMarked = {};               // { day: true } — 소프트 상한(INFO 생략) 마커 1회만
+let _hardCapMarked = {};           // { day: true } — 하드 상한(전체 중단) 마커 1회만
 let _flushTimer = null;
 const _origConsole = {};
 
@@ -75,19 +85,28 @@ function _purgeOld() {
             try { fs.unlinkSync(path.join(LOG_DIR, f)); } catch (_e) { /* noop */ }
             delete _dayBytes[f.replace('.log', '')];
             delete _capMarked[f.replace('.log', '')];
+            delete _hardCapMarked[f.replace('.log', '')];
         }
     } catch (_e) { /* noop */ }
 }
 
-/** 버퍼 → 일자별 파일 flush. 절대 throw 하지 않음. */
+/** 버퍼 → 일자별 파일 flush. 절대 throw 하지 않음.
+ *
+ *  [용량 상한 2단계 — 라인 단위 누적 판정]
+ *    - 소프트 상한(MAX_DAY_BYTES) 초과: 이후 INFO 는 생략, WARN/ERROR 는 계속 기록.
+ *    - 하드 상한(HARD_MAX_DAY_BYTES) 초과: WARN/ERROR 포함 모든 추가 기록 중단.
+ *  배치 도중 누적 바이트가 임계를 넘을 수 있으므로 라인마다 _dayBytes 를 갱신하며
+ *  단계를 재판정한다(배치 시작 시점의 1회 판정보다 경계가 정확). 레벨은 버퍼 항목의
+ *  item.level 값을 그대로 사용한다(기록된 라인 재파싱 불필요).
+ */
 function _flush() {
     if (_buffer.length === 0) return;
     const batch = _buffer;
     _buffer = [];
-    // 일자별로 묶어서 append
+    // 일자별로 묶어서 append (라인+레벨 보존 — 상한 도달 후 WARN/ERROR 만 통과시키기 위해)
     const byDay = {};
     for (const item of batch) {
-        (byDay[item.day] = byDay[item.day] || []).push(item.line);
+        (byDay[item.day] = byDay[item.day] || []).push(item);
     }
     for (const day of Object.keys(byDay)) {
         try {
@@ -95,16 +114,41 @@ function _flush() {
                 // 최초: 기존 파일 크기 반영
                 try { _dayBytes[day] = fs.statSync(_dayFile(day)).size; } catch (_e) { _dayBytes[day] = 0; }
             }
-            if (_dayBytes[day] >= MAX_DAY_BYTES) {
-                if (!_capMarked[day]) {
-                    _capMarked[day] = true;
-                    try { fs.appendFileSync(_dayFile(day), `[${_kstStamp()}] [WARN] [server_logger] 일자 로그 용량 상한(${MAX_DAY_BYTES} bytes) 도달 — 이후 기록 생략\n`); } catch (_e) { /* noop */ }
+            // 기록할 라인 선별 (라인 단위로 누적 바이트를 갱신하며 단계 판정).
+            const out = [];
+            for (const it of byDay[day]) {
+                // 하드 상한 도달 — WARN/ERROR 포함 이후 전부 생략(마커 1회).
+                if (_dayBytes[day] >= HARD_MAX_DAY_BYTES) {
+                    if (!_hardCapMarked[day]) {
+                        _hardCapMarked[day] = true;
+                        if (out.length) { try { fs.appendFileSync(_dayFile(day), out.join('')); } catch (_e) { /* noop */ } out.length = 0; }
+                        try {
+                            const mark = `[${_kstStamp()}] [ERROR] [server_logger] 일자 로그 하드 상한(${HARD_MAX_DAY_BYTES} bytes) 도달 — WARN/ERROR 포함 이후 모든 기록 중단\n`;
+                            fs.appendFileSync(_dayFile(day), mark);
+                            _dayBytes[day] += Buffer.byteLength(mark);
+                        } catch (_e) { /* noop */ }
+                    }
+                    break; // 이 날의 남은 라인은 모두 생략
                 }
-                continue;
+                // 소프트 상한 초과 — INFO 류만 생략(마커 1회), WARN/ERROR 는 계속 기록.
+                if (_dayBytes[day] >= MAX_DAY_BYTES && it.level === 'INFO') {
+                    if (!_capMarked[day]) {
+                        _capMarked[day] = true;
+                        if (out.length) { try { fs.appendFileSync(_dayFile(day), out.join('')); } catch (_e) { /* noop */ } out.length = 0; }
+                        try {
+                            const mark = `[${_kstStamp()}] [WARN] [server_logger] 일자 로그 소프트 상한(${MAX_DAY_BYTES} bytes) 도달 — 이후 INFO 생략(WARN/ERROR 는 ${HARD_MAX_DAY_BYTES} bytes 까지 계속 기록)\n`;
+                            fs.appendFileSync(_dayFile(day), mark);
+                            _dayBytes[day] += Buffer.byteLength(mark);
+                        } catch (_e) { /* noop */ }
+                    }
+                    continue;
+                }
+                // 기록 대상 — 누적 바이트 갱신(다음 라인의 상한 판정에 반영).
+                const lineText = it.line + '\n';
+                out.push(lineText);
+                _dayBytes[day] += Buffer.byteLength(lineText);
             }
-            const text = byDay[day].join('\n') + '\n';
-            fs.appendFileSync(_dayFile(day), text);
-            _dayBytes[day] += Buffer.byteLength(text);
+            if (out.length) fs.appendFileSync(_dayFile(day), out.join(''));
         } catch (_e) { /* 파일 IO 실패는 무시 — 콘솔 출력은 이미 끝남 */ }
     }
 }
@@ -122,7 +166,7 @@ function _record(level, args) {
     try {
         const msg = _fmt(args).replace(/\r?\n/g, ' ⏎ '); // 멀티라인 → 한 줄(파싱 단순화)
         const line = `[${_kstStamp()}] [${level}] ${msg}`;
-        _buffer.push({ day: _kstDay(), line });
+        _buffer.push({ day: _kstDay(), level: level, line: line });
         if (_buffer.length >= BUFFER_MAX) _flush();
     } catch (_e) { /* 절대 throw 안 함 */ }
 }
@@ -160,11 +204,17 @@ function init() {
     }, FLUSH_MS);
     if (_flushTimer.unref) _flushTimer.unref();
 
-    // 종료 시 잔여 버퍼 flush
+    // 종료 시 잔여 버퍼 flush.
+    //   [중요] SIGINT/SIGTERM 핸들러는 등록하지 않는다.
+    //   - 이전엔 여기서 process.exit(0) 을 호출해, server.js 의 _gracefulShutdown
+    //     (tideBedConfig/visit/usage 큐 동기 flush·자식정리)이 실행되기도 전에 프로세스를
+    //     종료시켜 통계·설정 flush 가 누락되는 결함이 있었다.
+    //   - 종료 주도는 server.js graceful shutdown 에 맡기고, 우리는 'exit' 이벤트에서
+    //     잔여 버퍼만 동기 flush 한다. _gracefulShutdown 의 process.exit(0) 시 'exit'
+    //     이 동기 발화하므로 종료 직전 로그도 안전하게 기록된다.
+    //     즉 server_logger 는 절대 프로세스 종료를 주도하지 않는다.
     const onExit = function () { try { _flush(); } catch (_e) { /* noop */ } };
     process.on('exit', onExit);
-    process.on('SIGINT', function () { onExit(); process.exit(0); });
-    process.on('SIGTERM', function () { onExit(); process.exit(0); });
 
     console.log('[server_logger] 서버 로그 파일 기록 시작 (2일 보관, dir=' + LOG_DIR + ')');
 }

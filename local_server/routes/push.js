@@ -680,34 +680,45 @@ router.post('/api/push-typhoon', async (req, res) => {
                 if (nightCohort === 'on' && o.night === false) return;   // 야간 OFF 제외
                 if (nightCohort === 'off' && o.night !== false) return;  // 야간 ON 제외
                 try {
+                    // 태풍은 단건 발송(분할 없음) → part='1/1', tid='typhoon'.
+                    //   custom push 경로와 동일하게 _sendFcmPart/_sendWebPushPart 로
+                    //   일시적 오류 재시도 + 토큰/조각 단위 결과 로깅을 적용한다.
+                    //   (이전엔 침묵 catch 로 토큰무효 외 모든 오류가 로그/재시도 없이 묻혔음.)
+                    //   dead-token 즉시 정리 동작은 보존.
                     if (user.type === 'fcm' && user.token) {
                         const admin = getAdmin();
                         if (admin && admin.apps.length > 0) {
-                            try {
-                                await admin.messaging().send({
-                                    token: user.token,
-                                    notification: { title, body },
-                                    data: { url: linkUrl, type: 'typhoon' },
-                                    android: { priority: 'high' },
-                                    apns: { headers: { 'apns-priority': '10' } }
-                                });
+                            const tok = _maskTok(user.token);
+                            const msg = {
+                                token: user.token,
+                                notification: { title, body },
+                                data: { url: linkUrl, type: 'typhoon' },
+                                android: { priority: 'high' },
+                                apns: { headers: { 'apns-priority': '10' } }
+                            };
+                            const r = await _sendFcmPart(admin, msg, { tok, tid: 'typhoon', part: '1/1' });
+                            if (r.ok) {
                                 successCount++;
-                            } catch (err) {
+                            } else {
                                 failCount++;
-                                if (err.code === 'messaging/registration-token-not-registered' || err.code === 'messaging/invalid-registration-token') {
-                                    user._isDead = true; deadSubscriptionsFound = true;
-                                }
+                                if (r.dead) { user._isDead = true; deadSubscriptionsFound = true; }
                             }
                         }
                     } else if (user.subscription) {
-                        try {
-                            const webpush = getWebPush();
-                            if (!webpush) throw new Error('web-push SDK 사용 불가');
-                            await webpush.sendNotification(user.subscription, JSON.stringify({ title, body, url: linkUrl }), { TTL: 86400, urgency: 'high' });
-                            successCount++;
-                        } catch (err) {
+                        const ep = _maskTok(user.subscription && user.subscription.endpoint);
+                        const webpush = getWebPush();
+                        if (!webpush) {
                             failCount++;
-                            if (err.statusCode === 404 || err.statusCode === 410) { user._isDead = true; deadSubscriptionsFound = true; }
+                            console.error(`[Push/web] FAIL ep=${ep} tid=typhoon part=1/1 msg=web-push SDK 사용 불가`);
+                        } else {
+                            const pushPayload = JSON.stringify({ title, body, url: linkUrl });
+                            const r = await _sendWebPushPart(webpush, user.subscription, pushPayload, { tok: ep, tid: 'typhoon', part: '1/1' });
+                            if (r.ok) {
+                                successCount++;
+                            } else {
+                                failCount++;
+                                if (r.dead) { user._isDead = true; deadSubscriptionsFound = true; }
+                            }
                         }
                     }
                 } catch (e) { failCount++; }
