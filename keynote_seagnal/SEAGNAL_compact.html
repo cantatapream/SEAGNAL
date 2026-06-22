@@ -10,9 +10,13 @@
   #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
   #frameWrap{position:relative;width:1920px;height:1080px;transform-origin:center center;}
   iframe{width:1920px;height:1080px;border:0;display:block;background:#000;}
-  #topbar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;padding:0 16px;background:rgba(0,0,0,0.5);backdrop-filter:blur(10px);font-size:13px;letter-spacing:0.04em;z-index:100;opacity:0;transition:opacity 0.2s;}
-  #topbar.show{opacity:1;}
-  #title{color:#FF6B35;font-weight:600;letter-spacing:0.24em;font-size:12px;}
+  #topbar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;padding:0 16px;background:rgba(0,0,0,0.5);backdrop-filter:blur(10px);font-size:13px;letter-spacing:0.04em;z-index:100;opacity:0;pointer-events:none;transition:opacity 0.2s;}
+  #topbar.show{opacity:1;pointer-events:auto;}
+  #title{color:#FF6B35;font-weight:600;letter-spacing:0.24em;font-size:12px;cursor:pointer;user-select:none;}
+  #title:hover{color:#FF8A5C;}
+  .clickZone{position:absolute;top:0;width:50%;height:100%;z-index:50;cursor:pointer;}
+  .clickZone.prev{left:0;}
+  .clickZone.next{right:0;}
   #slideLabel{margin-left:24px;color:#fff;font-weight:500;}
   #help{margin-left:24px;color:rgba(255,255,255,0.4);font-size:11px;}
   #counter{margin-left:auto;color:rgba(255,255,255,0.6);font-variant-numeric:tabular-nums;}
@@ -29,9 +33,13 @@
 </style>
 </head>
 <body>
-<div id="stage"><div id="frameWrap"><iframe id="frame" srcdoc=""></iframe></div></div>
+<div id="stage"><div id="frameWrap">
+  <iframe id="frame" srcdoc=""></iframe>
+  <div class="clickZone prev" id="clickPrev"></div>
+  <div class="clickZone next" id="clickNext"></div>
+</div></div>
 <div id="topbar">
-  <span id="title">SEA:GNAL · 바다 그 날의 신호</span>
+  <span id="title" title="클릭하면 전체화면">SEA:GNAL · 바다 그 날의 신호</span>
   <span id="slideLabel"></span>
   <span id="help">← → 이동 · M 목차 · F 전체화면</span>
   <span id="counter"></span>
@@ -428,6 +436,15 @@ document.addEventListener('mousemove', () => {
   clearTimeout(timer);
   timer = setTimeout(() => document.getElementById('topbar').classList.remove('show'), 2000);
 });
+
+function toggleFullscreen(){
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen();
+  else document.exitFullscreen();
+}
+
+document.getElementById('clickPrev').addEventListener('click', e => { e.stopPropagation(); if(cur > 0) go(cur-1); });
+document.getElementById('clickNext').addEventListener('click', e => { e.stopPropagation(); if(cur < slides.length-1) go(cur+1); });
+document.getElementById('title').addEventListener('click', e => { e.stopPropagation(); toggleFullscreen(); });
 
 buildToc();
 const m = location.hash.match(/^#(\d+)$/);
