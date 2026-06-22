@@ -4364,6 +4364,9 @@ async function renderUnifiedMaintenanceContent(container) {
             <button id="maint-subtab-work" onclick="switchMaintenanceSubTab('work')" style="flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;">
                 <i class="fa-solid fa-helmet-safety"></i> 운영 병행 모드
             </button>
+            <button id="maint-subtab-log" onclick="switchMaintenanceSubTab('log')" style="flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;">
+                <i class="fa-solid fa-file-lines"></i> 서버로그
+            </button>
         </div>
         <div id="maint-subtab-body"></div>
     `;
@@ -4374,20 +4377,138 @@ async function renderUnifiedMaintenanceContent(container) {
 window.switchMaintenanceSubTab = function (tab) {
     const fullBtn = document.getElementById('maint-subtab-full');
     const workBtn = document.getElementById('maint-subtab-work');
+    const logBtn = document.getElementById('maint-subtab-log');
     const body = document.getElementById('maint-subtab-body');
     if (!body) return;
 
     const activeStyle = 'flex:1;padding:12px;background:rgba(255,255,255,0.1);color:#fff;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;';
     const inactiveStyle = 'flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;';
 
+    if (fullBtn) fullBtn.style.cssText = inactiveStyle;
+    if (workBtn) workBtn.style.cssText = inactiveStyle;
+    if (logBtn) logBtn.style.cssText = inactiveStyle;
+
     if (tab === 'full') {
-        fullBtn.style.cssText = activeStyle;
-        workBtn.style.cssText = inactiveStyle;
+        if (fullBtn) fullBtn.style.cssText = activeStyle;
         renderMaintenanceFullTab(body);
+    } else if (tab === 'log') {
+        if (logBtn) logBtn.style.cssText = activeStyle;
+        renderServerLogTab(body);
     } else {
-        fullBtn.style.cssText = inactiveStyle;
-        workBtn.style.cssText = activeStyle;
+        if (workBtn) workBtn.style.cssText = activeStyle;
         renderMaintenanceWorkTab(body);
+    }
+};
+
+// ============================================================================
+// 서버로그 하위탭 — fly.io 로그 대체. 기간(분 단위)·레벨·검색 필터 조회 + 복사.
+//   서버 GET /api/admin/server-log (2일 보관, X-Admin-Token 자동 첨부).
+// ============================================================================
+function _slPad(n) { return String(n).padStart(2, '0'); }
+// KST 기준 datetime-local 값('YYYY-MM-DDTHH:mm') 생성 (offsetMin 분 전).
+function _slKstLocal(offsetMin) {
+    const k = new Date(Date.now() + 9 * 60 * 60 * 1000 - (offsetMin || 0) * 60 * 1000);
+    return k.getUTCFullYear() + '-' + _slPad(k.getUTCMonth() + 1) + '-' + _slPad(k.getUTCDate())
+        + 'T' + _slPad(k.getUTCHours()) + ':' + _slPad(k.getUTCMinutes());
+}
+// datetime-local('YYYY-MM-DDTHH:mm') → 서버 쿼리 포맷('YYYY-MM-DD HH:mm')
+function _slToQuery(v) { return v ? v.replace('T', ' ') : ''; }
+
+function renderServerLogTab(container) {
+    container.innerHTML = `
+        <div style="color:#94a3b8;font-size:0.8rem;margin-bottom:10px;line-height:1.5;">
+            <i class="fa-solid fa-circle-info"></i> 서버 로그를 기간(분 단위)으로 조회합니다. 최근 <b>2일</b>치 보관.
+            <code style="color:#22d3ee;">[Push/send]</code> 로 푸시 발송 결과(messageId/실패코드)를 확인할 수 있습니다.
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;">
+            <div>
+                <label style="display:block;color:#64748b;font-size:0.72rem;margin-bottom:3px;">시작 (KST)</label>
+                <input type="datetime-local" id="sl-from" value="${_slKstLocal(30)}" style="padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0f1b33;color:#fff;font-size:0.8rem;">
+            </div>
+            <div>
+                <label style="display:block;color:#64748b;font-size:0.72rem;margin-bottom:3px;">끝 (KST)</label>
+                <input type="datetime-local" id="sl-to" value="${_slKstLocal(0)}" style="padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0f1b33;color:#fff;font-size:0.8rem;">
+            </div>
+            <div>
+                <label style="display:block;color:#64748b;font-size:0.72rem;margin-bottom:3px;">레벨</label>
+                <select id="sl-level" style="padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0f1b33;color:#fff;font-size:0.8rem;">
+                    <option value="ALL">전체</option>
+                    <option value="ERROR">ERROR</option>
+                    <option value="WARN">WARN</option>
+                    <option value="INFO">INFO</option>
+                </select>
+            </div>
+            <div style="flex:1;min-width:120px;">
+                <label style="display:block;color:#64748b;font-size:0.72rem;margin-bottom:3px;">검색어</label>
+                <input type="text" id="sl-q" placeholder="예: Push/send, 풍랑, FAIL" style="width:100%;padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0f1b33;color:#fff;font-size:0.8rem;box-sizing:border-box;">
+            </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+            <button onclick="loadServerLog()" style="padding:8px 14px;background:#3b82f6;color:#fff;border:none;border-radius:7px;font-size:0.8rem;font-weight:700;cursor:pointer;"><i class="fa-solid fa-magnifying-glass"></i> 조회</button>
+            <button onclick="serverLogQuick('push')" style="padding:8px 12px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:7px;font-size:0.78rem;font-weight:700;cursor:pointer;">푸시만</button>
+            <button onclick="serverLogQuick('error')" style="padding:8px 12px;background:rgba(248,113,113,0.12);color:#f87171;border:1px solid rgba(248,113,113,0.3);border-radius:7px;font-size:0.78rem;font-weight:700;cursor:pointer;">에러만</button>
+            <button onclick="copyServerLog()" style="padding:8px 12px;background:#22d3ee;color:#04263b;border:none;border-radius:7px;font-size:0.78rem;font-weight:700;cursor:pointer;"><i class="fa-solid fa-copy"></i> 복사</button>
+        </div>
+        <div id="sl-status" style="color:#64748b;font-size:0.75rem;margin-bottom:6px;">조회 버튼을 누르세요.</div>
+        <pre id="sl-output" style="margin:0;padding:12px;background:#0a1322;border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#cbd5e1;font-size:0.72rem;line-height:1.45;max-height:55vh;overflow:auto;white-space:pre-wrap;word-break:break-all;"></pre>
+    `;
+    loadServerLog();
+}
+
+window.serverLogQuick = function (kind) {
+    const q = document.getElementById('sl-q');
+    const lv = document.getElementById('sl-level');
+    if (kind === 'push') { if (q) q.value = 'Push/'; if (lv) lv.value = 'ALL'; }
+    else if (kind === 'error') { if (q) q.value = ''; if (lv) lv.value = 'ERROR'; }
+    loadServerLog();
+};
+
+window.loadServerLog = async function () {
+    const status = document.getElementById('sl-status');
+    const out = document.getElementById('sl-output');
+    if (!out) return;
+    const from = _slToQuery((document.getElementById('sl-from') || {}).value);
+    const to = _slToQuery((document.getElementById('sl-to') || {}).value);
+    const level = (document.getElementById('sl-level') || {}).value || 'ALL';
+    const q = (document.getElementById('sl-q') || {}).value || '';
+    if (status) status.textContent = '조회 중…';
+    try {
+        const params = new URLSearchParams();
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        if (level && level !== 'ALL') params.set('level', level);
+        if (q) params.set('q', q);
+        params.set('limit', '5000');
+        const res = await fetch('/api/admin/server-log?' + params.toString());
+        if (!res.ok) { if (status) status.textContent = '조회 실패 (HTTP ' + res.status + ')'; return; }
+        const data = await res.json();
+        const lines = (data && data.lines) || [];
+        out.textContent = lines.length ? lines.join('\n') : '(해당 기간/조건의 로그 없음)';
+        if (status) status.textContent = '총 ' + (data.total || 0) + '건 중 ' + (data.returned || 0) + '건 표시'
+            + (data.total > data.returned ? ' (상한 초과 — 기간을 좁히세요)' : '');
+        out.scrollTop = out.scrollHeight; // 최신(아래)로 스크롤
+    } catch (e) {
+        if (status) status.textContent = '오류: ' + (e && e.message);
+    }
+};
+
+window.copyServerLog = function () {
+    const out = document.getElementById('sl-output');
+    const status = document.getElementById('sl-status');
+    if (!out) return;
+    const text = out.textContent || '';
+    const done = function () { if (status) status.textContent = '복사됨 (' + text.split('\n').length + '줄)'; };
+    const fail = function () { if (status) status.textContent = '복사 실패 — 길게 눌러 직접 선택하세요.'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(fail);
+    } else {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-9999px';
+            document.body.appendChild(ta); ta.focus(); ta.select();
+            const ok = document.execCommand('copy'); document.body.removeChild(ta);
+            ok ? done() : fail();
+        } catch (e) { fail(); }
     }
 };
 

@@ -7068,6 +7068,39 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
 
 ---
 
+### § 7.7.16 분할/단건 푸시 미도착의 진짜 원인 — 조각 전송 침묵 실패 + 무재시도, 그리고 인앱 서버로그 뷰어 (2026-06-22)
+
+배경: "(1/2)만 도착, (2/2) 미도착" 및 "서버는 발송 성공인데 내 기기엔 안 옴"을 다중 에이전트로 재분석. (참고: collapse 가설로 만든 #995는 효과 없어 #996으로 revert됨.)
+
+- **원인 (독립 4-에이전트, 4/4 일치)**: "(1/2) 생존 / (2/2) 소멸"은 **collapse 시그니처와 정반대**다. collapse(덮어쓰기)는 규격상 항상 *나중*((2/2))이 살아남아야 한다(오프라인 collapse_key 보관·온디바이스 tag·sw.js tag 모든 레이어 동일). 관측은 *먼저*((1/2)) 생존 → collapse 기각.
+  - 진짜 원인 = **두 번째 조각의 `admin.messaging().send()` 가 일시적 FCM 오류로 throw** 됐는데(`messaging/internal-error`·`server-unavailable`·`message-rate-exceeded` = HTTP 500/503/429; firebase-admin 13.6.0 규격 대조 확정), `routes/push.js` 발송 catch 가 **토큰무효 2종 외 모든 예외를 로그·재시도 없이 삼킴** → 영구 소멸. 분할 생성(`paginateByZoneBlocks`)은 node 재현으로 **무결**.
+  - **공범**: 상위 `push_sender.js sendToApi` 가 **HTTP 200이면 failCount 무시하고 성공 처리** → 상위 재시도까지 차단. 이 침묵 catch 는 **단건 푸시의 토큰별 실패도 가려** "발송 성공 N명인데 내 기기엔 안 옴"의 동일 공범.
+- **수정 1 (발송 신뢰성·관측성, `routes/push.js`)**:
+  - `_sendFcmPart`/`_sendWebPushPart` 헬퍼: 일시적 오류만 250/500ms 지수 backoff 최대 2회(총 3회) 재시도. 토큰무효(FCM token-not-registered/invalid, web 404/410)는 **재시도 없이 즉시 dead**(기존 동작 보존). 비일시 오류는 무재시도 기록.
+  - 토큰별·조각별 결과 로깅: 성공 시 `[Push/send] OK … msgId=<FCM messageId>`(접수 증거), 실패 시 `FAIL … code=<err.code>`, `DEAD-TOKEN`, 종료 시 `[Push/summary] success/fail`. 토큰은 `_maskTok`(앞6·뒤4)로 PII 최소화.
+  - (collapse 고유키는 **제외** — 진짜 원인이 전송실패임이 입증됐고 #995 revert 존중. 추후 로그가 "접수됐는데 미도착"을 보이면 그때 근거 갖고 추가.)
+- **수정 2 (인앱 서버로그 뷰어 — fly.io 로그 대체)**: 통합관리자센터 > **점검 > "서버로그"** 하위탭 신설.
+  - `services/server_logger.js`: `console.*` 를 가로채(원래 출력 유지) KST 타임스탬프+레벨 붙여 영속 볼륨(`data/server_logs/YYYY-MM-DD.log`, fly `seagnal_data`)에 일별 기록. **2일 보관**(초과 자동삭제), 일자별 12MB 상한(볼륨 보호), 1초 버퍼 flush, 절대 throw 안 함. `server.js` 최상단 `init()`.
+  - `GET /api/admin/server-log?from&to&level&q&limit`(`requireAdminToken` 자동 보호): 기간(분 단위)·레벨·검색 필터, 최대 5000줄.
+  - UI(`js/admin.js`): 시작/끝 datetime-local(기본 최근 30분), 레벨/검색, "푸시만/에러만" 퀵필터, **조회·복사** 버튼, 모노스페이스 출력. → 휴대폰에서 바로 `[Push/send]` 결과 확인.
+- 검증: mock 단위테스트(일시오류 재시도/dead 즉시종료/비일시 무재시도/마스킹), server_logger 기록·기간/레벨/검색 조회, 4개 파일 `node -c`·모듈 로드. data/ 는 gitignore라 런타임 로그 미커밋.
+
+---
+
+### § 7.7.17 §7.7.16 변경의 회귀검토 후속 수정 4건 (다단계 에이전트 파이프라인, 2026-06-22)
+
+§7.7.16(발송 재시도/로깅 + 서버로그 뷰어)을 4개 독립 에이전트로 회귀검토한 결과 위험 4건 발견 → **독립 구현 2 → 병합 1 → 회귀검토 1 → 총합/보고** 파이프라인으로 수정. 변경 파일: `services/server_logger.js`·`routes/push.js`·`server.js`.
+
+- **#1 [심각] 시그널 핸들러 충돌 — graceful shutdown 무력화 (회귀)**: `server_logger.init()` 이 `server.js` 최상단에서 먼저 실행되며 `process.on('SIGINT'/'SIGTERM', ()=>{…process.exit(0)})` 를 등록 → Node 가 시그널 리스너를 등록순으로 호출하므로, **나중에 등록된 `server.js`의 `_gracefulShutdown`(tideBedConfig flush·visitQueue/usageQueue flushSync·build-gzip 자식 정리)이 영영 실행 안 됨**(server_logger 가 먼저 `process.exit(0)` 동기 호출). Fly 재배포 SIGTERM 마다 최대 5초치 통계·설정 유실.
+  - 수정: server_logger 가 **SIGINT/SIGTERM 핸들러를 등록하지 않음**. 잔여 버퍼 flush 는 `process.on('exit', onExit)` 로 보장(`_gracefulShutdown` 의 `process.exit(0)` → 'exit' 동기 발화 → 동기 `_flush`). 종료 주도권을 server.js 로 일원화.
+- **#2 [권장] 로그 용량 상한 도달 시 ERROR 유실 방지**: 기존엔 일자 12MB 초과 시 그날 **모든** 로그 생략 → 정작 장애 ERROR 가 안 남음. → **2단계 상한**: 소프트(`MAX_DAY_BYTES`=12MB) 초과 시 **INFO 만 생략, WARN/ERROR 는 계속 기록**; 하드(`HARD_MAX_DAY_BYTES`=24MB) 초과 시 전부 중단. 각 마커 1회. 레벨은 버퍼 항목에 동봉(`{day,level,line}`), `_flush` 는 라인 단위 누적 바이트로 경계 정확 판정. getLogs 포맷 불변.
+- **#4 [권장] 태풍 자동푸시 경로에도 재시도+로깅 적용**: `/api/push-typhoon` 발송 루프가 §7.7.16 의 헬퍼를 안 타고 옛 침묵 catch 그대로였음 → `_sendFcmPart`/`_sendWebPushPart` 적용(단건이라 part `1/1`). dead 정리·옵트인·master-off·카운터(이중계상 없음) 보존. custom push 경로는 불변.
+- **#5 [경미] 주석 정정**: `server.js` "3일 보관" → "2일 보관".
+- (#3 재시도 backoff 의 발송 지연은 **구글 FCM 전면장애 가정**이라 의도적으로 미적용 — 평상시 영향 없음.)
+- 검증(병합본 재현): #1 종료 시 'exit' flush + graceful shutdown 정상 실행, #2 소프트→INFO만 컷·WARN/ERROR 보존/하드→전체중단·무한증가 없음(delta=0), #4 재시도/dead/이중계상 없음, custom push 바이트 동일. `node -c` 3파일. 회귀검토 종합판정 "진행 가능".
+
+---
+
 # § 8. 부록
 
 본 § 는 시스템의 단일 권위 참조 자료를 한 곳에 모은다. 이전 8,503 줄 단순 concat 문서에서 용어집이 § 1965, § 5276, § 6917, § 8261 의 4 곳에 중복돼 있던 것을 **본 § 8.1 한 곳으로 통일**한다. 다른 § 에서 용어 사용 시 "→ § 8.1 anchor" 식으로 cross-link 한다.
