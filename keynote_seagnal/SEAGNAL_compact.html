@@ -17,6 +17,12 @@
   .clickZone{position:absolute;top:0;width:50%;height:100%;z-index:50;cursor:pointer;}
   .clickZone.prev{left:0;}
   .clickZone.next{right:0;}
+  #cardOverlay{position:absolute;inset:0;pointer-events:none;z-index:60;}
+  .pcard{position:absolute;border:1px solid rgba(255,255,255,0.18);border-radius:12px;padding:36px 32px;background:#000;cursor:pointer;transition:transform 0.5s cubic-bezier(0.32,0.72,0.24,1),opacity 0.35s ease,box-shadow 0.35s ease,border-color 0.2s;box-sizing:border-box;color:#fff;font-family:'Pretendard',sans-serif;overflow:hidden;pointer-events:auto;transform-origin:center center;}
+  .pcard:hover{border-color:rgba(255,255,255,0.4);}
+  .pcard.zoomed{z-index:70;box-shadow:0 40px 100px rgba(0,0,0,0.7);border-color:rgba(255,107,53,0.5);}
+  #zoomBackdrop{position:absolute;inset:0;background:rgba(0,0,0,0.88);z-index:55;cursor:pointer;transition:opacity 0.35s ease;opacity:0;}
+  #zoomBackdrop.show{opacity:1;}
   #slideLabel{margin-left:24px;color:#fff;font-weight:500;}
   #help{margin-left:24px;color:rgba(255,255,255,0.4);font-size:11px;}
   #counter{margin-left:auto;color:rgba(255,255,255,0.6);font-variant-numeric:tabular-nums;}
@@ -37,6 +43,7 @@
   <iframe id="frame" srcdoc=""></iframe>
   <div class="clickZone prev" id="clickPrev"></div>
   <div class="clickZone next" id="clickNext"></div>
+  <div id="cardOverlay"></div>
 </div></div>
 <div id="topbar">
   <span id="title" title="클릭하면 전체화면">SEA:GNAL · 바다 그 날의 신호</span>
@@ -48,7 +55,7 @@
 <div id="progress"><div></div></div>
 
 <script>
-const SLIDE_CSS = `<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"><style>html,body{margin:0;padding:0;overflow:hidden;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#fff;}.slide{position:relative;width:1920px;height:1080px;overflow:hidden;background:#000;}.chap{position:absolute;left:120px;top:96px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;}.accent{position:absolute;width:80px;height:6px;background:#FF6B35;}.foot{position:absolute;left:120px;bottom:60px;right:120px;color:rgba(255,255,255,0.5);font-size:20px;font-weight:500;letter-spacing:0.04em;}</style>`;
+const SLIDE_CSS = `<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"><style>html,body{margin:0;padding:0;overflow:hidden;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#fff;}.slide{position:relative;width:1920px;height:1080px;overflow:hidden;background:#000;}.chap{position:absolute;left:120px;top:96px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;}.accent{position:absolute;width:80px;height:6px;background:#FF6B35;}.foot{position:absolute;left:120px;bottom:60px;right:120px;color:rgba(255,255,255,0.5);font-size:20px;font-weight:500;letter-spacing:0.04em;}[data-target]{font-variant-numeric:tabular-nums;}</style><script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('[data-target]').forEach(function(el){var target=parseFloat(el.dataset.target);var dur=parseInt(el.dataset.dur)||1200;var delay=parseInt(el.dataset.delay)||0;var fmt=el.dataset.fmt||'int';el.textContent=fmt==='comma'?'0':(fmt==='dec1'?'0.0':'0');setTimeout(function(){var start=performance.now();function tick(now){var t=Math.min(1,(now-start)/dur);var eased=1-Math.pow(1-t,3);var val=target*eased;var display;if(fmt==='comma')display=Math.round(val).toLocaleString();else if(fmt==='dec1')display=val.toFixed(1);else display=Math.round(val).toString();el.textContent=display;if(t<1)requestAnimationFrame(tick);}requestAnimationFrame(tick);},delay);});});<\/script>`;
 
 const slides = [
   {
@@ -69,11 +76,11 @@ const slides = [
       <div style="position:absolute;left:120px;top:200px;width:1680px;color:#FFFFFF;font-size:80px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">바다의 시대는 왔는데,</div>
       <div style="position:absolute;left:120px;top:320px;width:1680px;color:#FF6B35;font-size:80px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">신호는 정리되지 않았습니다.</div>
       <div class="accent" style="left:120px;top:520px;"></div>
-      <div style="position:absolute;left:120px;top:600px;width:400px;color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1;">1,012<span style="font-size:48px;color:rgba(255,255,255,0.7);">만</span></div>
+      <div style="position:absolute;left:120px;top:600px;width:400px;color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1;"><span data-target="1012" data-fmt="comma" data-dur="1400">0</span><span style="font-size:48px;color:rgba(255,255,255,0.7);">만</span></div>
       <div style="position:absolute;left:120px;top:740px;width:400px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">연간 해양 활동인구<br>(2023, 해수부)</div>
-      <div style="position:absolute;left:560px;top:600px;width:400px;color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1;">48<span style="font-size:48px;color:rgba(255,255,255,0.7);">%</span></div>
+      <div style="position:absolute;left:560px;top:600px;width:400px;color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1;"><span data-target="48" data-dur="1100" data-delay="150">0</span><span style="font-size:48px;color:rgba(255,255,255,0.7);">%</span></div>
       <div style="position:absolute;left:560px;top:740px;width:400px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">어업인 65세 이상 고령자<br>(2023, 통계청)</div>
-      <div style="position:absolute;left:1000px;top:600px;width:400px;color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1;">7<span style="font-size:48px;color:rgba(255,255,255,0.7);">개+</span></div>
+      <div style="position:absolute;left:1000px;top:600px;width:400px;color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1;"><span data-target="7" data-dur="900" data-delay="300">0</span><span style="font-size:48px;color:rgba(255,255,255,0.7);">개+</span></div>
       <div style="position:absolute;left:1000px;top:740px;width:400px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">바다 정보 사이트 분산<br>기상청·조사원·해경·지자체…</div>
       <div style="position:absolute;left:1440px;top:600px;width:400px;color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1;">외산<span style="font-size:48px;color:rgba(255,255,255,0.7);">앱</span></div>
       <div style="position:absolute;left:1440px;top:740px;width:400px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">Windy 등 의존<br>한국 특보 연동 없음</div>
@@ -87,13 +94,13 @@ const slides = [
       <div style="position:absolute;left:120px;top:200px;width:1680px;color:#FFFFFF;font-size:80px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">기획이 아닙니다. 시제품이 아닙니다.</div>
       <div style="position:absolute;left:120px;top:320px;width:1680px;color:#FF6B35;font-size:80px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">이미 검증됐습니다.</div>
       <div class="accent" style="left:120px;top:520px;"></div>
-      <div style="position:absolute;left:120px;top:600px;width:420px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;">11,000<span style="font-size:60px;color:rgba(255,255,255,0.7);">+</span></div>
+      <div style="position:absolute;left:120px;top:600px;width:420px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;"><span data-target="11000" data-fmt="comma" data-dur="1500">0</span><span style="font-size:60px;color:rgba(255,255,255,0.7);">+</span></div>
       <div style="position:absolute;left:120px;top:760px;width:420px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">누적 이용자<br>(출시 2개월)</div>
-      <div style="position:absolute;left:580px;top:600px;width:420px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;">92.8<span style="font-size:80px;color:rgba(255,255,255,0.7);">%</span></div>
+      <div style="position:absolute;left:580px;top:600px;width:420px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;"><span data-target="92.8" data-fmt="dec1" data-dur="1300" data-delay="150">0.0</span><span style="font-size:80px;color:rgba(255,255,255,0.7);">%</span></div>
       <div style="position:absolute;left:580px;top:760px;width:420px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">설치 유지율<br>(최근 30일)</div>
-      <div style="position:absolute;left:1040px;top:600px;width:420px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;">526<span style="font-size:80px;color:rgba(255,255,255,0.7);">회</span></div>
+      <div style="position:absolute;left:1040px;top:600px;width:420px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;"><span data-target="526" data-dur="1100" data-delay="300">0</span><span style="font-size:80px;color:rgba(255,255,255,0.7);">회</span></div>
       <div style="position:absolute;left:1040px;top:760px;width:420px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">특보 알림 발송<br>(2개월간)</div>
-      <div style="position:absolute;left:1500px;top:600px;width:320px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;">155K<span style="font-size:60px;color:rgba(255,255,255,0.7);">+</span></div>
+      <div style="position:absolute;left:1500px;top:600px;width:320px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;"><span data-target="155" data-dur="1100" data-delay="450">0</span><span style="font-size:60px;color:rgba(255,255,255,0.7);">K+</span></div>
       <div style="position:absolute;left:1500px;top:760px;width:320px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">개별 알림<br>(155,958건)</div>
       <div class="foot">Google Play Store 운영 중 · '바다 그 날' 검색 · 무료</div>
     </div></body></html>`
@@ -104,28 +111,7 @@ const slides = [
       <div class="chap">4개 메인 탭 · 주요 기능</div>
       <div style="position:absolute;left:120px;top:200px;width:1680px;color:#FFFFFF;font-size:72px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">바다의 모든 것을, 4개 탭에.</div>
       <div class="accent" style="left:120px;top:400px;"></div>
-
-      <div style="position:absolute;left:120px;top:480px;width:400px;height:460px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;"></div>
-      <div style="position:absolute;left:152px;top:510px;color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">TAB 1</div>
-      <div style="position:absolute;left:152px;top:550px;color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;">특보 및 전망</div>
-      <div style="position:absolute;left:152px;top:640px;width:360px;color:rgba(255,255,255,0.7);font-size:18px;font-weight:300;line-height:1.6;">· 해상기상전망<br>· 해역별 특보현황<br>· 기상예보<br>· 기상부이<br>· 해상일기도<br>· <span style="color:#FF6B35;">태풍 통합 (발생·이동·소멸)</span></div>
-
-      <div style="position:absolute;left:560px;top:480px;width:400px;height:460px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;"></div>
-      <div style="position:absolute;left:592px;top:510px;color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">TAB 2</div>
-      <div style="position:absolute;left:592px;top:550px;color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;">해양종합정보</div>
-      <div style="position:absolute;left:592px;top:640px;width:360px;color:rgba(255,255,255,0.7);font-size:18px;font-weight:300;line-height:1.6;">· 유향·유속 / 풍 / 파<br>· 기상부이 118<br>· 특보구역 GIS · 해구별기상<br>· 천기·태풍·CCTV 237<br>· 임의 해점 종합 조회<br>· <span style="color:#FF6B35;">물때 바로가기 (갯벌)</span></div>
-
-      <div style="position:absolute;left:1000px;top:480px;width:400px;height:460px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;"></div>
-      <div style="position:absolute;left:1032px;top:510px;color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">TAB 3</div>
-      <div style="position:absolute;left:1032px;top:550px;color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;">해양생활</div>
-      <div style="position:absolute;left:1032px;top:640px;width:360px;color:rgba(255,255,255,0.7);font-size:18px;font-weight:300;line-height:1.6;">· 바다낚시<br>· 서핑<br>· 갯벌체험<br>· 바다갈라짐<br>· 해수욕<br>· 모두 <span style="color:#FF6B35;">실시간 특보 연동</span></div>
-
-      <div style="position:absolute;left:1440px;top:480px;width:400px;height:460px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;"></div>
-      <div style="position:absolute;left:1472px;top:510px;color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">TAB 4</div>
-      <div style="position:absolute;left:1472px;top:550px;color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;">공지사항</div>
-      <div style="position:absolute;left:1472px;top:640px;width:360px;color:rgba(255,255,255,0.7);font-size:18px;font-weight:300;line-height:1.6;">· 운영자 공지<br>· 상단 팝업 알림<br>· 기관·단체 홍보 게시판<br>· 시스템 알림 이력<br>· <span style="color:#FF6B35;">신규 N 배지 표시</span></div>
-
-      <div class="foot"><span style="color:#FF6B35;">주황 표시</span> = 최근 추가/강화된 기능 · AI 어시스턴트 "나리"는 관리자 시범 운영 중 (발전 방향에서 소개)</div>
+      <div class="foot"><span style="color:#FF6B35;">주황 표시</span> = 최근 추가/강화 · 박스 클릭 시 확대 · AI "나리"는 관리자 시범 운영 중</div>
     </div></body></html>`
   },
   {
@@ -158,10 +144,10 @@ const slides = [
 
       <div style="position:absolute;left:1380px;top:420px;width:440px;height:540px;border:1px solid rgba(255,107,53,0.5);border-radius:16px;background:rgba(255,107,53,0.06);padding:36px 32px;">
         <div style="color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;margin-bottom:24px;">평균 효과</div>
-        <div style="color:#FFFFFF;font-size:108px;font-weight:700;letter-spacing:-0.04em;line-height:1;">−76<span style="font-size:60px;color:rgba(255,255,255,0.75);">%</span></div>
-        <div style="color:rgba(255,255,255,0.7);font-size:20px;font-weight:300;margin-top:12px;line-height:1.4;">단계 평균 감소율<br>6.8 단계 → 1.6 단계</div>
+        <div style="color:#FFFFFF;font-size:108px;font-weight:700;letter-spacing:-0.04em;line-height:1;">−<span data-target="76" data-dur="1500">0</span><span style="font-size:60px;color:rgba(255,255,255,0.75);">%</span></div>
+        <div style="color:rgba(255,255,255,0.7);font-size:20px;font-weight:300;margin-top:12px;line-height:1.4;">단계 평균 감소율<br><span data-target="6.8" data-fmt="dec1" data-dur="1300" data-delay="200">0.0</span> 단계 → <span data-target="1.6" data-fmt="dec1" data-dur="1300" data-delay="900">0.0</span> 단계</div>
         <div style="margin-top:48px;height:1px;background:rgba(255,255,255,0.2);"></div>
-        <div style="color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.015em;margin-top:32px;line-height:1.25;">평균 <span style="color:#FF6B35;font-size:56px;">3회</span> 이내</div>
+        <div style="color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.015em;margin-top:32px;line-height:1.25;">평균 <span style="color:#FF6B35;font-size:56px;"><span data-target="3" data-dur="900" data-delay="400">0</span>회</span> 이내</div>
         <div style="color:rgba(255,255,255,0.65);font-size:20px;font-weight:300;margin-top:8px;line-height:1.4;">원하는 정보에 도달</div>
       </div>
 
@@ -186,10 +172,10 @@ const slides = [
         </div>
       </div>
 
-      <div style="position:absolute;left:690px;top:460px;width:540px;height:440px;border:1px solid rgba(255,107,53,0.5);border-radius:12px;background:rgba(255,107,53,0.08);padding:36px 32px;">
-        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">PUSH ② · 핵심</div>
+      <div style="position:absolute;left:690px;top:460px;width:540px;height:440px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;padding:36px 32px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">PUSH ②</div>
         <div style="color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.2;margin-top:20px;">GPS · 특보구역 진입</div>
-        <div style="color:rgba(255,255,255,0.85);font-size:22px;font-weight:300;line-height:1.55;margin-top:24px;">
+        <div style="color:rgba(255,255,255,0.7);font-size:22px;font-weight:300;line-height:1.55;margin-top:24px;">
           · 내 위치가 <strong style="color:#FF6B35;">특보구역 안</strong>에 있으면<br>
           · 발효 즉시 <strong style="color:#FFF;">위치 + 행동 안내</strong> 자동 푸시<br>
           · 어디로 피해야 하는지까지 함께 안내<br>
@@ -260,45 +246,9 @@ const slides = [
     html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
       <div class="chap">발전 방향 · AI 어시스턴트 "나리"</div>
       <div style="position:absolute;left:120px;top:180px;width:1680px;color:#FFFFFF;font-size:64px;font-weight:600;letter-spacing:-0.025em;line-height:1.15;">다음 단계는 음성 어시스턴트입니다.</div>
-      <div style="position:absolute;left:120px;top:290px;width:1680px;color:rgba(255,255,255,0.7);font-size:28px;font-weight:300;letter-spacing:-0.01em;line-height:1.3;">현재 <span style="color:#FF6B35;">관리자 전용 시범 운영</span> · 측정된 품질을 확보한 후 일반 공개 예정.</div>
+      <div style="position:absolute;left:120px;top:290px;width:1680px;color:rgba(255,255,255,0.7);font-size:28px;font-weight:300;letter-spacing:-0.01em;line-height:1.3;">현재 관리자 전용 시범 운영 · 측정된 품질을 확보한 후 일반 공개 예정.</div>
       <div class="accent" style="left:120px;top:400px;"></div>
-
-      <div style="position:absolute;left:120px;top:480px;width:320px;height:440px;">
-        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.2em;font-weight:600;">PHASE 0</div>
-        <div style="color:#FFFFFF;font-size:30px;font-weight:600;margin-top:12px;line-height:1.2;">정합성</div>
-        <div style="color:rgba(255,255,255,0.6);font-size:18px;font-weight:300;line-height:1.5;margin-top:20px;">평가 프레임워크<br>회귀 검증<br>출처 강제</div>
-        <div style="position:absolute;bottom:12px;color:rgba(255,255,255,0.5);font-size:16px;letter-spacing:0.16em;font-weight:500;">완료</div>
-      </div>
-
-      <div style="position:absolute;left:460px;top:480px;width:320px;height:440px;">
-        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.2em;font-weight:600;">PHASE 1</div>
-        <div style="color:#FFFFFF;font-size:30px;font-weight:600;margin-top:12px;line-height:1.2;">정확성</div>
-        <div style="color:rgba(255,255,255,0.6);font-size:18px;font-weight:300;line-height:1.5;margin-top:20px;">Tool Use Brain<br>20+ 도구<br>8 직군 RAG</div>
-        <div style="position:absolute;bottom:12px;color:rgba(255,255,255,0.5);font-size:16px;letter-spacing:0.16em;font-weight:500;">관리자 시범</div>
-      </div>
-
-      <div style="position:absolute;left:800px;top:480px;width:320px;height:440px;">
-        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.2em;font-weight:600;">PHASE 2</div>
-        <div style="color:#FFFFFF;font-size:30px;font-weight:600;margin-top:12px;line-height:1.2;">개인화</div>
-        <div style="color:rgba(255,255,255,0.6);font-size:18px;font-weight:300;line-height:1.5;margin-top:20px;">사용자 기억 v2<br>온디바이스 저장<br>Gemini TTS 음성</div>
-        <div style="position:absolute;bottom:12px;color:rgba(255,255,255,0.5);font-size:16px;letter-spacing:0.16em;font-weight:500;">관리자 시범</div>
-      </div>
-
-      <div style="position:absolute;left:1140px;top:460px;width:320px;height:480px;border:1px solid rgba(255,107,53,0.5);border-radius:12px;background:rgba(255,107,53,0.06);padding:24px 24px 12px;">
-        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.2em;font-weight:600;">PHASE 3</div>
-        <div style="color:#FFFFFF;font-size:30px;font-weight:600;margin-top:12px;line-height:1.2;">일반 공개</div>
-        <div style="color:rgba(255,255,255,0.7);font-size:18px;font-weight:300;line-height:1.5;margin-top:20px;">메인 탭 추가<br>출항 전 자동 브리핑<br>위험 가중 알림</div>
-        <div style="position:absolute;bottom:12px;color:rgba(255,255,255,0.85);font-size:16px;letter-spacing:0.16em;font-weight:500;">단기 목표</div>
-      </div>
-
-      <div style="position:absolute;left:1480px;top:480px;width:320px;height:440px;">
-        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.2em;font-weight:600;">PHASE 4</div>
-        <div style="color:#FFFFFF;font-size:30px;font-weight:600;margin-top:12px;line-height:1.2;">자율 성장</div>
-        <div style="color:rgba(255,255,255,0.6);font-size:18px;font-weight:300;line-height:1.5;margin-top:20px;">현장 피드백 학습<br>지역별 패턴 최적화<br>도구 자동 확장</div>
-        <div style="position:absolute;bottom:12px;color:rgba(255,255,255,0.5);font-size:16px;letter-spacing:0.16em;font-weight:500;">중·장기</div>
-      </div>
-
-      <div class="foot">PASS 86% · 환각 0건 · 직군 Floor 70% — 측정 품질 확보 후 일반 공개로 진입.</div>
+      <div class="foot">박스 클릭 시 확대 · PASS <span data-target="86" data-dur="1100" data-delay="300">0</span>% · 환각 <span data-target="0" data-dur="800">0</span>건 · 직군 Floor <span data-target="70" data-dur="1100" data-delay="500">0</span>% — 측정 품질 확보 후 일반 공개로 진입.</div>
     </div></body></html>`
   },
   {
@@ -313,22 +263,22 @@ const slides = [
         <div style="display:flex;gap:24px;">
           <div style="flex:1;">
             <div style="color:#FFFFFF;font-size:28px;font-weight:600;">어업인</div>
-            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;">9<span style="font-size:24px;color:rgba(255,255,255,0.65);">만</span></div>
+            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;"><span data-target="9" data-dur="1000">0</span><span style="font-size:24px;color:rgba(255,255,255,0.65);">만</span></div>
             <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">V-Pass 사용자 시너지</div>
           </div>
           <div style="flex:1;">
             <div style="color:#FFFFFF;font-size:28px;font-weight:600;">낚시인</div>
-            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;">920<span style="font-size:24px;color:rgba(255,255,255,0.65);">만</span></div>
+            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;"><span data-target="920" data-dur="1300" data-delay="150">0</span><span style="font-size:24px;color:rgba(255,255,255,0.65);">만</span></div>
             <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">물때·포인트·특보</div>
           </div>
           <div style="flex:1;">
             <div style="color:#FFFFFF;font-size:28px;font-weight:600;">관광객</div>
-            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;">연 1,012<span style="font-size:24px;color:rgba(255,255,255,0.65);">만</span></div>
+            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;">연 <span data-target="1012" data-fmt="comma" data-dur="1500" data-delay="300">0</span><span style="font-size:24px;color:rgba(255,255,255,0.65);">만</span></div>
             <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">해수욕·갯벌·바다갈라짐</div>
           </div>
           <div style="flex:1;">
             <div style="color:#FFFFFF;font-size:28px;font-weight:600;">해경 · 해수부</div>
-            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;color:#FF6B35;">현업</div>
+            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;color:#FFFFFF;">현업</div>
             <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">관제·홍보·안전교육</div>
           </div>
         </div>
@@ -339,18 +289,18 @@ const slides = [
         <div style="display:flex;gap:24px;">
           <div style="flex:1;padding:24px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;">
             <div style="color:rgba(255,255,255,0.6);font-size:18px;letter-spacing:0.2em;font-weight:500;">단기 · 6개월</div>
-            <div style="color:#FFFFFF;font-size:28px;font-weight:600;margin-top:8px;">사용자 10만</div>
+            <div style="color:#FFFFFF;font-size:28px;font-weight:600;margin-top:8px;">사용자 <span data-target="10" data-dur="1000" data-delay="500">0</span>만</div>
             <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">iOS 출시 · AI 선제 제안 · 어업인 검증</div>
           </div>
           <div style="flex:1;padding:24px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;">
             <div style="color:rgba(255,255,255,0.6);font-size:18px;letter-spacing:0.2em;font-weight:500;">중기 · 2년</div>
-            <div style="color:#FFFFFF;font-size:28px;font-weight:600;margin-top:8px;">사용자 100만</div>
+            <div style="color:#FFFFFF;font-size:28px;font-weight:600;margin-top:8px;">사용자 <span data-target="100" data-dur="1100" data-delay="700">0</span>만</div>
             <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">다국어 · 자율 성장 · 122 STT 연계</div>
           </div>
-          <div style="flex:1;padding:24px;border:1px solid rgba(255,107,53,0.5);border-radius:12px;background:rgba(255,107,53,0.06);">
-            <div style="color:#FF6B35;font-size:18px;letter-spacing:0.2em;font-weight:500;">장기 · 5년</div>
+          <div style="flex:1;padding:24px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;">
+            <div style="color:rgba(255,255,255,0.6);font-size:18px;letter-spacing:0.2em;font-weight:500;">장기 · 5년</div>
             <div style="color:#FFFFFF;font-size:28px;font-weight:600;margin-top:8px;">K-Marine Safety</div>
-            <div style="color:rgba(255,255,255,0.65);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">동북아 해상안전 표준 · 데이터 허브</div>
+            <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">동북아 해상안전 표준 · 데이터 허브</div>
           </div>
         </div>
       </div>
@@ -379,6 +329,117 @@ const slides = [
 ];
 
 let cur = 0;
+let zoomedCard = null;
+
+const slideCards = {
+  4: [
+    { x: 120, y: 480, w: 400, h: 460, label: 'TAB 1', title: '특보 및 전망',
+      bullets: ['해상기상전망', '해역별 특보현황', '기상예보', '기상부이', '해상일기도', '<span style="color:#FF6B35;">태풍 통합 (발생·이동·소멸)</span>'] },
+    { x: 560, y: 480, w: 400, h: 460, label: 'TAB 2', title: '해양종합정보',
+      bullets: ['유향·유속 / 풍 / 파', '기상부이 118', '특보구역 GIS · 해구별기상', '천기·태풍·CCTV 237', '임의 해점 종합 조회', '<span style="color:#FF6B35;">물때 바로가기 (갯벌)</span>'] },
+    { x: 1000, y: 480, w: 400, h: 460, label: 'TAB 3', title: '해양생활',
+      bullets: ['바다낚시', '서핑', '갯벌체험', '바다갈라짐', '해수욕', '모두 <span style="color:#FF6B35;">실시간 특보 연동</span>'] },
+    { x: 1440, y: 480, w: 400, h: 460, label: 'TAB 4', title: '공지사항',
+      bullets: ['운영자 공지', '상단 팝업 알림', '기관·단체 홍보 게시판', '시스템 알림 이력', '<span style="color:#FF6B35;">신규 N 배지 표시</span>'] }
+  ],
+  9: [
+    { x: 120, y: 480, w: 320, h: 460, label: 'PHASE 0', title: '정합성',
+      bullets: ['평가 프레임워크', '회귀 검증', '출처 강제'], status: '완료' },
+    { x: 460, y: 480, w: 320, h: 460, label: 'PHASE 1', title: '정확성',
+      bullets: ['Tool Use Brain', '20+ 도구', '8 직군 RAG'], status: '관리자 시범' },
+    { x: 800, y: 480, w: 320, h: 460, label: 'PHASE 2', title: '개인화',
+      bullets: ['사용자 기억 v2', '온디바이스 저장', 'Gemini TTS 음성'], status: '관리자 시범' },
+    { x: 1140, y: 480, w: 320, h: 460, label: 'PHASE 3', title: '일반 공개',
+      bullets: ['메인 탭 추가', '출항 전 자동 브리핑', '위험 가중 알림'], status: '단기 목표' },
+    { x: 1480, y: 480, w: 320, h: 460, label: 'PHASE 4', title: '자율 성장',
+      bullets: ['현장 피드백 학습', '지역별 패턴 최적화', '도구 자동 확장'], status: '중·장기' }
+  ]
+};
+
+function renderCards(slideNum){
+  const overlay = document.getElementById('cardOverlay');
+  overlay.innerHTML = '';
+  const cards = slideCards[slideNum];
+  if(!cards) return;
+  cards.forEach((c, i) => {
+    const card = document.createElement('div');
+    card.className = 'pcard';
+    card.style.left = c.x + 'px';
+    card.style.top = c.y + 'px';
+    card.style.width = c.w + 'px';
+    card.style.height = c.h + 'px';
+    let html = '<div style="color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">' + c.label + '</div>';
+    html += '<div style="color:#FFFFFF;font-size:38px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;margin-top:18px;">' + c.title + '</div>';
+    html += '<div style="color:rgba(255,255,255,0.72);font-size:19px;font-weight:300;line-height:1.7;margin-top:30px;">';
+    html += c.bullets.map(b => '· ' + b).join('<br>');
+    html += '</div>';
+    if(c.status){
+      html += '<div style="position:absolute;left:32px;bottom:24px;color:rgba(255,255,255,0.55);font-size:16px;letter-spacing:0.16em;font-weight:500;">' + c.status + '</div>';
+    }
+    card.innerHTML = html;
+    card.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleZoom(card, c);
+    });
+    overlay.appendChild(card);
+  });
+  // Animate cards in (staggered fade)
+  requestAnimationFrame(() => {
+    overlay.querySelectorAll('.pcard').forEach((card, i) => {
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(20px)';
+      setTimeout(() => {
+        card.style.opacity = '';
+        card.style.transform = '';
+      }, 100 + i * 80);
+    });
+  });
+}
+
+function closeZoom(){
+  if(!zoomedCard) return;
+  const card = zoomedCard;
+  card.classList.remove('zoomed');
+  card.style.transform = '';
+  document.querySelectorAll('.pcard').forEach(c => {
+    if(c !== card){ c.style.opacity = ''; c.style.pointerEvents = ''; }
+  });
+  const bd = document.getElementById('zoomBackdrop');
+  if(bd){
+    bd.classList.remove('show');
+    setTimeout(() => bd.remove(), 350);
+  }
+  zoomedCard = null;
+}
+
+function toggleZoom(card, data){
+  if(zoomedCard === card){ closeZoom(); return; }
+  if(zoomedCard) closeZoom();
+  // Compute transform to center+enlarge
+  const cx = data.x + data.w/2;
+  const cy = data.y + data.h/2;
+  const dx = 960 - cx;
+  const dy = 540 - cy;
+  const targetW = 1400;
+  const targetH = 860;
+  const scale = Math.min(targetW/data.w, targetH/data.h);
+  // Backdrop
+  let bd = document.getElementById('zoomBackdrop');
+  if(!bd){
+    bd = document.createElement('div');
+    bd.id = 'zoomBackdrop';
+    bd.addEventListener('click', closeZoom);
+    document.getElementById('frameWrap').appendChild(bd);
+  }
+  requestAnimationFrame(() => bd.classList.add('show'));
+  // Hide other cards
+  document.querySelectorAll('.pcard').forEach(c => {
+    if(c !== card){ c.style.opacity = '0'; c.style.pointerEvents = 'none'; }
+  });
+  card.classList.add('zoomed');
+  card.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + scale + ')';
+  zoomedCard = card;
+}
 
 function buildToc(){
   const toc = document.getElementById('toc');
@@ -401,6 +462,7 @@ function buildToc(){
 }
 
 function go(i){
+  if(zoomedCard) closeZoom();
   cur = i;
   const s = slides[i];
   document.getElementById('frame').srcdoc = s.html;
@@ -408,6 +470,7 @@ function go(i){
   document.getElementById('counter').textContent = (i+1) + ' / ' + slides.length;
   document.querySelector('#progress div').style.width = ((i+1)/slides.length*100) + '%';
   document.querySelectorAll('.tocItem').forEach(el => el.classList.toggle('active', parseInt(el.dataset.idx) === i));
+  renderCards(i+1);
   location.hash = '#' + (i+1);
 }
 
@@ -419,6 +482,7 @@ function fit(){
 
 window.addEventListener('resize', fit);
 window.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){ if(zoomedCard){ closeZoom(); e.preventDefault(); return; } }
   if(e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown'){ if(cur < slides.length-1) go(cur+1); e.preventDefault(); }
   else if(e.key === 'ArrowLeft' || e.key === 'PageUp'){ if(cur > 0) go(cur-1); e.preventDefault(); }
   else if(e.key === 'Home'){ go(0); }
