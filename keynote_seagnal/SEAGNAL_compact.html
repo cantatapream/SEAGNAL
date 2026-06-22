@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>SEA:GNAL — 바다 그 날의 신호 (Compact)</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#000;color:#fff;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;height:100%;}
+  *{box-sizing:border-box;}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  #frameWrap{position:relative;width:1920px;height:1080px;transform-origin:center center;}
+  iframe{width:1920px;height:1080px;border:0;display:block;background:#000;}
+  #topbar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;padding:0 16px;background:rgba(0,0,0,0.5);backdrop-filter:blur(10px);font-size:13px;letter-spacing:0.04em;z-index:100;opacity:0;transition:opacity 0.2s;}
+  #topbar.show{opacity:1;}
+  #title{color:#FF6B35;font-weight:600;letter-spacing:0.24em;font-size:12px;}
+  #slideLabel{margin-left:24px;color:#fff;font-weight:500;}
+  #help{margin-left:24px;color:rgba(255,255,255,0.4);font-size:11px;}
+  #counter{margin-left:auto;color:rgba(255,255,255,0.6);font-variant-numeric:tabular-nums;}
+  #toc{position:fixed;top:0;left:-360px;width:360px;height:100%;background:rgba(0,0,0,0.92);backdrop-filter:blur(20px);overflow-y:auto;transition:left 0.25s;padding:64px 16px 24px;z-index:200;}
+  #toc.show{left:0;}
+  #toc h3{font-size:11px;color:#FF6B35;letter-spacing:0.24em;margin:0 0 12px;padding:0 8px;font-weight:600;}
+  .tocItem{display:flex;padding:10px 8px;font-size:14px;color:rgba(255,255,255,0.65);cursor:pointer;border-radius:4px;align-items:baseline;}
+  .tocItem:hover{background:rgba(255,255,255,0.08);color:#fff;}
+  .tocItem.active{background:rgba(255,107,53,0.16);color:#FF6B35;}
+  .tocItem .num{width:36px;color:rgba(255,255,255,0.4);font-variant-numeric:tabular-nums;font-size:12px;}
+  .tocItem.active .num{color:#FF6B35;}
+  #progress{position:fixed;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.08);z-index:100;}
+  #progress div{height:100%;background:#FF6B35;transition:width 0.2s;}
+</style>
+</head>
+<body>
+<div id="stage"><div id="frameWrap"><iframe id="frame" srcdoc=""></iframe></div></div>
+<div id="topbar">
+  <span id="title">SEA:GNAL · 바다 그 날의 신호</span>
+  <span id="slideLabel"></span>
+  <span id="help">← → 이동 · M 목차 · F 전체화면</span>
+  <span id="counter"></span>
+</div>
+<div id="toc"></div>
+<div id="progress"><div></div></div>
+
+<script>
+const SLIDE_CSS = `<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"><style>html,body{margin:0;padding:0;overflow:hidden;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#fff;}.slide{position:relative;width:1920px;height:1080px;overflow:hidden;background:#000;}.chap{position:absolute;left:120px;top:96px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;}.accent{position:absolute;width:80px;height:6px;background:#FF6B35;}.foot{position:absolute;left:120px;bottom:60px;right:120px;color:rgba(255,255,255,0.5);font-size:20px;font-weight:500;letter-spacing:0.04em;}</style>`;
+
+const slides = [
+  {
+    label: "01 · Title",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div class="chap">SEA:GNAL · 바다 그 날의 신호</div>
+      <div style="position:absolute;left:120px;top:340px;width:1680px;color:#FFFFFF;font-size:200px;font-weight:700;letter-spacing:-0.045em;line-height:1;">SEA:GNAL</div>
+      <div class="accent" style="left:120px;top:600px;"></div>
+      <div style="position:absolute;left:120px;top:640px;width:1680px;color:#FFFFFF;font-size:64px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;">바다 그 날의 신호.</div>
+      <div style="position:absolute;left:120px;top:760px;width:1680px;color:rgba(255,255,255,0.65);font-size:32px;font-weight:300;letter-spacing:-0.01em;line-height:1.3;">흩어진 공공의 바다 정보를, 한 화면으로.</div>
+      <div class="foot">해양경찰청 AI 경진대회 · 개발 및 활용 부문 · 경사 신진섭</div>
+    </div></body></html>`
+  },
+  {
+    label: "02 · 왜 지금인가",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div class="chap">왜 지금인가</div>
+      <div style="position:absolute;left:120px;top:200px;width:1680px;color:#FFFFFF;font-size:80px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">바다의 시대는 왔는데,</div>
+      <div style="position:absolute;left:120px;top:320px;width:1680px;color:#FF6B35;font-size:80px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">신호는 정리되지 않았습니다.</div>
+      <div class="accent" style="left:120px;top:520px;"></div>
+      <div style="position:absolute;left:120px;top:600px;width:400px;color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1;">1,012<span style="font-size:48px;color:rgba(255,255,255,0.7);">만</span></div>
+      <div style="position:absolute;left:120px;top:740px;width:400px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">연간 해양 활동인구<br>(2023, 해수부)</div>
+      <div style="position:absolute;left:560px;top:600px;width:400px;color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1;">48<span style="font-size:48px;color:rgba(255,255,255,0.7);">%</span></div>
+      <div style="position:absolute;left:560px;top:740px;width:400px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">어업인 65세 이상 고령자<br>(2023, 통계청)</div>
+      <div style="position:absolute;left:1000px;top:600px;width:400px;color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1;">7<span style="font-size:48px;color:rgba(255,255,255,0.7);">개+</span></div>
+      <div style="position:absolute;left:1000px;top:740px;width:400px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">바다 정보 사이트 분산<br>기상청·조사원·해경·지자체…</div>
+      <div style="position:absolute;left:1440px;top:600px;width:400px;color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1;">외산<span style="font-size:48px;color:rgba(255,255,255,0.7);">앱</span></div>
+      <div style="position:absolute;left:1440px;top:740px;width:400px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">Windy 등 의존<br>한국 특보 연동 없음</div>
+      <div class="foot">흩어진 신호 · 늙어가는 현장 · 외산 의존 — 빈자리는 우리 손으로.</div>
+    </div></body></html>`
+  },
+  {
+    label: "03 · 이미 운영 중",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div class="chap">이미 운영 중인 실서비스</div>
+      <div style="position:absolute;left:120px;top:200px;width:1680px;color:#FFFFFF;font-size:80px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">기획이 아닙니다. 시제품이 아닙니다.</div>
+      <div style="position:absolute;left:120px;top:320px;width:1680px;color:#FF6B35;font-size:80px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">이미 검증됐습니다.</div>
+      <div class="accent" style="left:120px;top:520px;"></div>
+      <div style="position:absolute;left:120px;top:600px;width:420px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;">11,000<span style="font-size:60px;color:rgba(255,255,255,0.7);">+</span></div>
+      <div style="position:absolute;left:120px;top:760px;width:420px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">누적 이용자<br>(출시 2개월)</div>
+      <div style="position:absolute;left:580px;top:600px;width:420px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;">92.8<span style="font-size:80px;color:rgba(255,255,255,0.7);">%</span></div>
+      <div style="position:absolute;left:580px;top:760px;width:420px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">설치 유지율<br>(최근 30일)</div>
+      <div style="position:absolute;left:1040px;top:600px;width:420px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;">526<span style="font-size:80px;color:rgba(255,255,255,0.7);">회</span></div>
+      <div style="position:absolute;left:1040px;top:760px;width:420px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">특보 알림 발송<br>(2개월간)</div>
+      <div style="position:absolute;left:1500px;top:600px;width:320px;color:#FFFFFF;font-size:140px;font-weight:700;letter-spacing:-0.04em;line-height:1;">155K<span style="font-size:60px;color:rgba(255,255,255,0.7);">+</span></div>
+      <div style="position:absolute;left:1500px;top:760px;width:320px;color:rgba(255,255,255,0.6);font-size:22px;font-weight:300;line-height:1.4;">개별 알림<br>(155,958건)</div>
+      <div class="foot">Google Play Store 운영 중 · '바다 그 날' 검색 · 무료</div>
+    </div></body></html>`
+  },
+  {
+    label: "04 · 4개 탭 · 주요 기능",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div class="chap">4개 메인 탭 · 주요 기능</div>
+      <div style="position:absolute;left:120px;top:200px;width:1680px;color:#FFFFFF;font-size:72px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">바다의 모든 것을, 4개 탭에.</div>
+      <div class="accent" style="left:120px;top:400px;"></div>
+
+      <div style="position:absolute;left:120px;top:480px;width:400px;height:460px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;"></div>
+      <div style="position:absolute;left:152px;top:510px;color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">TAB 1</div>
+      <div style="position:absolute;left:152px;top:550px;color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;">특보 및 전망</div>
+      <div style="position:absolute;left:152px;top:640px;width:360px;color:rgba(255,255,255,0.7);font-size:18px;font-weight:300;line-height:1.6;">· 해상기상전망<br>· 해역별 특보현황<br>· 기상예보<br>· 기상부이<br>· 해상일기도<br>· <span style="color:#FF6B35;">태풍 통합 (발생·이동·소멸)</span></div>
+
+      <div style="position:absolute;left:560px;top:480px;width:400px;height:460px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;"></div>
+      <div style="position:absolute;left:592px;top:510px;color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">TAB 2</div>
+      <div style="position:absolute;left:592px;top:550px;color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;">해양종합정보</div>
+      <div style="position:absolute;left:592px;top:640px;width:360px;color:rgba(255,255,255,0.7);font-size:18px;font-weight:300;line-height:1.6;">· 유향·유속 / 풍 / 파<br>· 기상부이 118<br>· 특보구역 GIS · 해구별기상<br>· 천기·태풍·CCTV 237<br>· 임의 해점 종합 조회<br>· <span style="color:#FF6B35;">물때 바로가기 (갯벌)</span></div>
+
+      <div style="position:absolute;left:1000px;top:480px;width:400px;height:460px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;"></div>
+      <div style="position:absolute;left:1032px;top:510px;color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">TAB 3</div>
+      <div style="position:absolute;left:1032px;top:550px;color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;">해양생활</div>
+      <div style="position:absolute;left:1032px;top:640px;width:360px;color:rgba(255,255,255,0.7);font-size:18px;font-weight:300;line-height:1.6;">· 바다낚시<br>· 서핑<br>· 갯벌체험<br>· 바다갈라짐<br>· 해수욕<br>· 모두 <span style="color:#FF6B35;">실시간 특보 연동</span></div>
+
+      <div style="position:absolute;left:1440px;top:480px;width:400px;height:460px;border:1px solid rgba(255,107,53,0.5);border-radius:12px;background:rgba(255,107,53,0.06);"></div>
+      <div style="position:absolute;left:1472px;top:510px;color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">TAB 4 · AI</div>
+      <div style="position:absolute;left:1472px;top:550px;color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;">어시스턴트 나리</div>
+      <div style="position:absolute;left:1472px;top:640px;width:360px;color:rgba(255,255,255,0.7);font-size:18px;font-weight:300;line-height:1.6;">· "나리야" 호출어<br>· Tool Use Brain<br>· 8 직군 RAG<br>· 사용자 기억 v2<br>· 음성 + 자연어 응답<br>· <span style="color:#FF6B35;">백그라운드 핸즈프리</span></div>
+
+      <div class="foot"><span style="color:#FF6B35;">주황 표시</span> = 최근 추가된 기능</div>
+    </div></body></html>`
+  },
+  {
+    label: "05 · 단계 축소 · 평균 효과",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div class="chap">접속 단계 축소</div>
+      <div style="position:absolute;left:120px;top:170px;width:1680px;color:#FFFFFF;font-size:72px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">3회 이내로 끝납니다.</div>
+      <div class="accent" style="left:120px;top:340px;"></div>
+
+      <table style="position:absolute;left:120px;top:400px;width:1180px;color:#FFFFFF;font-size:22px;border-collapse:collapse;">
+        <thead>
+          <tr style="color:rgba(255,255,255,0.55);font-size:18px;letter-spacing:0.16em;font-weight:600;text-align:left;">
+            <th style="padding:14px 12px;border-bottom:1px solid rgba(255,255,255,0.2);width:38%;">기능</th>
+            <th style="padding:14px 12px;border-bottom:1px solid rgba(255,255,255,0.2);width:20%;">기존 사이트</th>
+            <th style="padding:14px 12px;border-bottom:1px solid rgba(255,255,255,0.2);width:20%;color:#FF6B35;">SEA:GNAL</th>
+            <th style="padding:14px 12px;border-bottom:1px solid rgba(255,255,255,0.2);width:22%;text-align:right;">감소</th>
+          </tr>
+        </thead>
+        <tbody style="font-size:21px;font-weight:400;">
+          <tr><td style="padding:11px 12px;">해상 기상 전망</td><td style="padding:11px 12px;color:rgba(255,255,255,0.7);">6 단계</td><td style="padding:11px 12px;color:#FF6B35;font-weight:600;">2 단계</td><td style="padding:11px 12px;text-align:right;color:rgba(255,255,255,0.85);">−67%</td></tr>
+          <tr><td style="padding:11px 12px;">기상예보</td><td style="padding:11px 12px;color:rgba(255,255,255,0.7);">7 단계</td><td style="padding:11px 12px;color:#FF6B35;font-weight:600;">1 단계</td><td style="padding:11px 12px;text-align:right;color:rgba(255,255,255,0.85);">−86%</td></tr>
+          <tr><td style="padding:11px 12px;">기상부이 조회</td><td style="padding:11px 12px;color:rgba(255,255,255,0.7);">6 단계</td><td style="padding:11px 12px;color:#FF6B35;font-weight:600;">2 단계</td><td style="padding:11px 12px;text-align:right;color:rgba(255,255,255,0.85);">−67%</td></tr>
+          <tr><td style="padding:11px 12px;">유향·유속</td><td style="padding:11px 12px;color:rgba(255,255,255,0.7);">7 단계</td><td style="padding:11px 12px;color:#FF6B35;font-weight:600;">2 단계</td><td style="padding:11px 12px;text-align:right;color:rgba(255,255,255,0.85);">−71%</td></tr>
+          <tr><td style="padding:11px 12px;">해구별 기상전망</td><td style="padding:11px 12px;color:rgba(255,255,255,0.7);">10 단계</td><td style="padding:11px 12px;color:#FF6B35;font-weight:600;">1 단계</td><td style="padding:11px 12px;text-align:right;color:rgba(255,255,255,0.85);">−90%</td></tr>
+          <tr><td style="padding:11px 12px;">천기 전망</td><td style="padding:11px 12px;color:rgba(255,255,255,0.7);">8 단계</td><td style="padding:11px 12px;color:#FF6B35;font-weight:600;">1 단계</td><td style="padding:11px 12px;text-align:right;color:rgba(255,255,255,0.85);">−88%</td></tr>
+          <tr><td style="padding:11px 12px;">임의 해점 종합</td><td style="padding:11px 12px;color:rgba(255,255,255,0.7);">3개 사이트</td><td style="padding:11px 12px;color:#FF6B35;font-weight:600;">1번 클릭</td><td style="padding:11px 12px;text-align:right;color:rgba(255,255,255,0.85);">통합</td></tr>
+          <tr><td style="padding:11px 12px;">CCTV 조회</td><td style="padding:11px 12px;color:rgba(255,255,255,0.7);">6개 기관 사이트</td><td style="padding:11px 12px;color:#FF6B35;font-weight:600;">1개 앱</td><td style="padding:11px 12px;text-align:right;color:rgba(255,255,255,0.85);">통합</td></tr>
+        </tbody>
+      </table>
+
+      <div style="position:absolute;left:1380px;top:420px;width:440px;height:540px;border:1px solid rgba(255,107,53,0.5);border-radius:16px;background:rgba(255,107,53,0.06);padding:36px 32px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;margin-bottom:24px;">평균 효과</div>
+        <div style="color:#FFFFFF;font-size:108px;font-weight:700;letter-spacing:-0.04em;line-height:1;">−76<span style="font-size:60px;color:rgba(255,255,255,0.75);">%</span></div>
+        <div style="color:rgba(255,255,255,0.7);font-size:20px;font-weight:300;margin-top:12px;line-height:1.4;">단계 평균 감소율<br>6.8 단계 → 1.6 단계</div>
+        <div style="margin-top:48px;height:1px;background:rgba(255,255,255,0.2);"></div>
+        <div style="color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.015em;margin-top:32px;line-height:1.25;">평균 <span style="color:#FF6B35;font-size:56px;">3회</span> 이내</div>
+        <div style="color:rgba(255,255,255,0.65);font-size:20px;font-weight:300;margin-top:8px;line-height:1.4;">원하는 정보에 도달</div>
+      </div>
+
+      <div class="foot">고령 사용자도 부담 없는 직관적 접근 — 핵심 설계 원칙.</div>
+    </div></body></html>`
+  },
+  {
+    label: "06 · 위치 기반 자동 알림",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div class="chap">차별점 · 위치 기반 자동 알림</div>
+      <div style="position:absolute;left:120px;top:200px;width:1680px;color:#FFFFFF;font-size:80px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">묻기 전에 알려주는 앱.</div>
+      <div class="accent" style="left:120px;top:380px;"></div>
+
+      <div style="position:absolute;left:120px;top:460px;width:540px;height:440px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;padding:36px 32px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">PUSH ①</div>
+        <div style="color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.2;margin-top:20px;">태풍 통합 알림</div>
+        <div style="color:rgba(255,255,255,0.7);font-size:22px;font-weight:300;line-height:1.55;margin-top:24px;">
+          · 태풍 <strong style="color:#FFF;">발생 · 이동 · 소멸</strong> 자동 푸시<br>
+          · 태풍 위치 기반 영향권 해역 안내<br>
+          · 강도(약~초강력)·반경 변동 추적<br>
+          · 통보문 원문 즉시 열람
+        </div>
+      </div>
+
+      <div style="position:absolute;left:690px;top:460px;width:540px;height:440px;border:1px solid rgba(255,107,53,0.5);border-radius:12px;background:rgba(255,107,53,0.08);padding:36px 32px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">PUSH ② · 핵심</div>
+        <div style="color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.2;margin-top:20px;">GPS · 특보구역 진입</div>
+        <div style="color:rgba(255,255,255,0.85);font-size:22px;font-weight:300;line-height:1.55;margin-top:24px;">
+          · 내 위치가 <strong style="color:#FF6B35;">특보구역 안</strong>에 있으면<br>
+          · 발효 즉시 <strong style="color:#FFF;">위치 + 행동 안내</strong> 자동 푸시<br>
+          · 어디로 피해야 하는지까지 함께 안내<br>
+          · 사고를 "발생 후"가 아닌 "발생 전"에 차단
+        </div>
+      </div>
+
+      <div style="position:absolute;left:1260px;top:460px;width:540px;height:440px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;padding:36px 32px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;">PUSH ③</div>
+        <div style="color:#FFFFFF;font-size:36px;font-weight:600;letter-spacing:-0.02em;line-height:1.2;margin-top:20px;">정확 시각 동기화</div>
+        <div style="color:rgba(255,255,255,0.7);font-size:22px;font-weight:300;line-height:1.55;margin-top:24px;">
+          · 발효·해제 <strong style="color:#FFF;">정확시각 고정</strong><br>
+          · 깜빡임에 의한 가짜 푸시 차단<br>
+          · 연장·자식 해역까지 독립 감지<br>
+          · 누적 526회 알림, 잘못 발송 0건
+        </div>
+      </div>
+
+      <div class="foot">해양경찰 골든타임은 발생 전 — 사고 예방의 시작점.</div>
+    </div></body></html>`
+  },
+  {
+    label: "07 · 발표 목차",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div class="chap">발표 목차</div>
+      <div style="position:absolute;left:120px;top:200px;width:1680px;color:#FFFFFF;font-size:80px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">탭 순서로 시연하겠습니다.</div>
+      <div class="accent" style="left:120px;top:400px;"></div>
+
+      <div style="position:absolute;left:120px;top:480px;width:1680px;color:#FFFFFF;font-size:40px;font-weight:500;letter-spacing:-0.01em;line-height:1.6;">
+        <div style="display:flex;align-items:baseline;margin-bottom:24px;">
+          <span style="color:#FF6B35;font-size:32px;font-weight:600;letter-spacing:0.16em;width:80px;">01</span>
+          <span style="flex:1;">Tab 1 · <span style="color:rgba(255,255,255,0.95);">특보 및 전망</span> <span style="color:rgba(255,255,255,0.5);font-size:24px;font-weight:300;margin-left:16px;">해역별 특보 · 기상예보 · 태풍 통합 등</span></span>
+        </div>
+        <div style="display:flex;align-items:baseline;margin-bottom:24px;">
+          <span style="color:#FF6B35;font-size:32px;font-weight:600;letter-spacing:0.16em;width:80px;">02</span>
+          <span style="flex:1;">Tab 2 · <span style="color:rgba(255,255,255,0.95);">해양종합정보</span> <span style="color:rgba(255,255,255,0.5);font-size:24px;font-weight:300;margin-left:16px;">특보구역 GIS · 임의 해점 · 물때 · CCTV 등</span></span>
+        </div>
+        <div style="display:flex;align-items:baseline;margin-bottom:24px;">
+          <span style="color:#FF6B35;font-size:32px;font-weight:600;letter-spacing:0.16em;width:80px;">03</span>
+          <span style="flex:1;">Tab 3 · <span style="color:rgba(255,255,255,0.95);">해양생활</span> <span style="color:rgba(255,255,255,0.5);font-size:24px;font-weight:300;margin-left:16px;">낚시 · 서핑 · 갯벌체험 · 바다갈라짐</span></span>
+        </div>
+        <div style="display:flex;align-items:baseline;margin-bottom:24px;">
+          <span style="color:#FF6B35;font-size:32px;font-weight:600;letter-spacing:0.16em;width:80px;">04</span>
+          <span style="flex:1;">Tab 4 · <span style="color:rgba(255,255,255,0.95);">AI 어시스턴트 나리</span> <span style="color:rgba(255,255,255,0.5);font-size:24px;font-weight:300;margin-left:16px;">"나리야" 호출 + 자연어 종합 브리핑</span></span>
+        </div>
+        <div style="display:flex;align-items:baseline;margin-top:48px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.18);">
+          <span style="color:rgba(255,255,255,0.6);font-size:32px;font-weight:600;letter-spacing:0.16em;width:80px;">+</span>
+          <span style="flex:1;color:rgba(255,255,255,0.75);">발전 방향 · 사업화 · Q&amp;A</span>
+        </div>
+      </div>
+
+      <div class="foot">시연은 휴대폰으로, 발전 방향은 다시 이 화면으로 돌아와서.</div>
+    </div></body></html>`
+  },
+  {
+    label: "08 · 휴대폰 시연 시작",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div class="chap">실시연</div>
+      <div style="position:absolute;left:120px;top:300px;width:1680px;color:#FFFFFF;font-size:140px;font-weight:600;letter-spacing:-0.035em;line-height:1.05;">지금부터</div>
+      <div style="position:absolute;left:120px;top:440px;width:1680px;color:#FF6B35;font-size:140px;font-weight:600;letter-spacing:-0.035em;line-height:1.05;">휴대폰으로 시연합니다.</div>
+      <div class="accent" style="left:120px;top:680px;"></div>
+      <div style="position:absolute;left:120px;top:740px;width:1680px;color:rgba(255,255,255,0.7);font-size:36px;font-weight:300;letter-spacing:-0.01em;line-height:1.3;">Tab 1 → Tab 2 → Tab 3 → Tab 4 순서로 직접 확인해 드리겠습니다.</div>
+      <div class="foot">⏸ 이 화면은 잠시 대기 — 시연 종료 후 발전 방향으로 돌아옵니다.</div>
+    </div></body></html>`
+  },
+  {
+    label: "09 · AI 나리 발전 로드맵",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div class="chap">발전 방향 · AI 나리 로드맵</div>
+      <div style="position:absolute;left:120px;top:200px;width:1680px;color:#FFFFFF;font-size:72px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">묻는 AI에서, 먼저 알려주는 AI로.</div>
+      <div class="accent" style="left:120px;top:380px;"></div>
+
+      <div style="position:absolute;left:120px;top:460px;width:320px;height:440px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.2em;font-weight:600;">PHASE 0</div>
+        <div style="color:#FFFFFF;font-size:30px;font-weight:600;margin-top:12px;line-height:1.2;">정합성</div>
+        <div style="color:rgba(255,255,255,0.6);font-size:18px;font-weight:300;line-height:1.5;margin-top:20px;">평가 프레임워크<br>회귀 검증<br>출처 강제</div>
+        <div style="position:absolute;bottom:12px;color:rgba(255,255,255,0.5);font-size:16px;letter-spacing:0.16em;font-weight:500;">완료</div>
+      </div>
+
+      <div style="position:absolute;left:460px;top:460px;width:320px;height:440px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.2em;font-weight:600;">PHASE 1</div>
+        <div style="color:#FFFFFF;font-size:30px;font-weight:600;margin-top:12px;line-height:1.2;">정확성</div>
+        <div style="color:rgba(255,255,255,0.6);font-size:18px;font-weight:300;line-height:1.5;margin-top:20px;">Tool Use Brain<br>20+ 도구<br>8 직군 RAG</div>
+        <div style="position:absolute;bottom:12px;color:rgba(255,255,255,0.5);font-size:16px;letter-spacing:0.16em;font-weight:500;">현재 운영</div>
+      </div>
+
+      <div style="position:absolute;left:800px;top:460px;width:320px;height:440px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.2em;font-weight:600;">PHASE 2</div>
+        <div style="color:#FFFFFF;font-size:30px;font-weight:600;margin-top:12px;line-height:1.2;">개인화</div>
+        <div style="color:rgba(255,255,255,0.6);font-size:18px;font-weight:300;line-height:1.5;margin-top:20px;">사용자 기억 v2<br>온디바이스 저장<br>Gemini TTS 음성</div>
+        <div style="position:absolute;bottom:12px;color:rgba(255,255,255,0.5);font-size:16px;letter-spacing:0.16em;font-weight:500;">현재 운영</div>
+      </div>
+
+      <div style="position:absolute;left:1140px;top:440px;width:320px;height:480px;border:1px solid rgba(255,107,53,0.5);border-radius:12px;background:rgba(255,107,53,0.06);padding:24px 24px 12px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.2em;font-weight:600;">PHASE 3</div>
+        <div style="color:#FFFFFF;font-size:30px;font-weight:600;margin-top:12px;line-height:1.2;">선제 제안</div>
+        <div style="color:rgba(255,255,255,0.7);font-size:18px;font-weight:300;line-height:1.5;margin-top:20px;">출항 전 자동 브리핑<br>위험 가중 알림<br>가족·동승자 공유</div>
+        <div style="position:absolute;bottom:12px;color:rgba(255,255,255,0.85);font-size:16px;letter-spacing:0.16em;font-weight:500;">단기 개발</div>
+      </div>
+
+      <div style="position:absolute;left:1480px;top:460px;width:320px;height:440px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.2em;font-weight:600;">PHASE 4</div>
+        <div style="color:#FFFFFF;font-size:30px;font-weight:600;margin-top:12px;line-height:1.2;">자율 성장</div>
+        <div style="color:rgba(255,255,255,0.6);font-size:18px;font-weight:300;line-height:1.5;margin-top:20px;">현장 피드백 학습<br>지역별 패턴 최적화<br>도구 자동 확장</div>
+        <div style="position:absolute;bottom:12px;color:rgba(255,255,255,0.5);font-size:16px;letter-spacing:0.16em;font-weight:500;">중·장기</div>
+      </div>
+
+      <div class="foot">PASS 86% · 환각 0건 · 직군 Floor 70% — 측정된 품질 위에서 진화.</div>
+    </div></body></html>`
+  },
+  {
+    label: "10 · 활용 대상 · 사업화",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div class="chap">활용 대상 · 사업화 로드맵</div>
+      <div style="position:absolute;left:120px;top:200px;width:1680px;color:#FFFFFF;font-size:72px;font-weight:600;letter-spacing:-0.025em;line-height:1.1;">바다를 쓰는 모두에게.</div>
+      <div class="accent" style="left:120px;top:380px;"></div>
+
+      <div style="position:absolute;left:120px;top:440px;width:880px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;margin-bottom:24px;">활용 대상</div>
+        <div style="display:flex;gap:24px;">
+          <div style="flex:1;">
+            <div style="color:#FFFFFF;font-size:28px;font-weight:600;">어업인</div>
+            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;">9<span style="font-size:24px;color:rgba(255,255,255,0.65);">만</span></div>
+            <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">V-Pass 사용자 시너지</div>
+          </div>
+          <div style="flex:1;">
+            <div style="color:#FFFFFF;font-size:28px;font-weight:600;">낚시인</div>
+            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;">920<span style="font-size:24px;color:rgba(255,255,255,0.65);">만</span></div>
+            <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">물때·포인트·특보</div>
+          </div>
+          <div style="flex:1;">
+            <div style="color:#FFFFFF;font-size:28px;font-weight:600;">관광객</div>
+            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;">연 1,012<span style="font-size:24px;color:rgba(255,255,255,0.65);">만</span></div>
+            <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">해수욕·갯벌·바다갈라짐</div>
+          </div>
+          <div style="flex:1;">
+            <div style="color:#FFFFFF;font-size:28px;font-weight:600;">해경 · 해수부</div>
+            <div style="color:#FFFFFF;font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-top:4px;color:#FF6B35;">현업</div>
+            <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">관제·홍보·안전교육</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="position:absolute;left:120px;top:720px;width:1680px;">
+        <div style="color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;margin-bottom:20px;">시기별 로드맵</div>
+        <div style="display:flex;gap:24px;">
+          <div style="flex:1;padding:24px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;">
+            <div style="color:rgba(255,255,255,0.6);font-size:18px;letter-spacing:0.2em;font-weight:500;">단기 · 6개월</div>
+            <div style="color:#FFFFFF;font-size:28px;font-weight:600;margin-top:8px;">사용자 10만</div>
+            <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">iOS 출시 · AI 선제 제안 · 어업인 검증</div>
+          </div>
+          <div style="flex:1;padding:24px;border:1px solid rgba(255,255,255,0.18);border-radius:12px;">
+            <div style="color:rgba(255,255,255,0.6);font-size:18px;letter-spacing:0.2em;font-weight:500;">중기 · 2년</div>
+            <div style="color:#FFFFFF;font-size:28px;font-weight:600;margin-top:8px;">사용자 100만</div>
+            <div style="color:rgba(255,255,255,0.55);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">다국어 · 자율 성장 · 122 STT 연계</div>
+          </div>
+          <div style="flex:1;padding:24px;border:1px solid rgba(255,107,53,0.5);border-radius:12px;background:rgba(255,107,53,0.06);">
+            <div style="color:#FF6B35;font-size:18px;letter-spacing:0.2em;font-weight:500;">장기 · 5년</div>
+            <div style="color:#FFFFFF;font-size:28px;font-weight:600;margin-top:8px;">K-Marine Safety</div>
+            <div style="color:rgba(255,255,255,0.65);font-size:16px;font-weight:300;margin-top:8px;line-height:1.4;">동북아 해상안전 표준 · 데이터 허브</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot">출발점이 0이 아닙니다 — 이미 11,000명의 사용자 위에서.</div>
+    </div></body></html>`
+  },
+  {
+    label: "11 · Hero Sentence",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div class="accent" style="left:120px;top:380px;width:160px;height:8px;"></div>
+      <div style="position:absolute;left:120px;top:420px;width:1680px;color:#FFFFFF;font-size:108px;font-weight:600;letter-spacing:-0.035em;line-height:1.15;">가장 복잡한 바다 정보를,</div>
+      <div style="position:absolute;left:120px;top:580px;width:1680px;color:#FF6B35;font-size:108px;font-weight:600;letter-spacing:-0.035em;line-height:1.15;">가장 단순한 신호로.</div>
+      <div class="foot">SEA:GNAL · 바다 그 날의 신호</div>
+    </div></body></html>`
+  },
+  {
+    label: "12 · 감사합니다",
+    html: `<!doctype html><html lang="ko"><head><meta charset="utf-8">${SLIDE_CSS}</head><body><div class="slide">
+      <div style="position:absolute;left:120px;top:380px;width:1680px;color:#FFFFFF;font-size:200px;font-weight:600;letter-spacing:-0.04em;line-height:1.05;">감사합니다.</div>
+      <div class="accent" style="left:120px;top:680px;"></div>
+      <div style="position:absolute;left:120px;top:740px;width:1680px;color:rgba(255,255,255,0.7);font-size:36px;font-weight:300;letter-spacing:-0.01em;line-height:1.3;">Q&amp;A를 받겠습니다.</div>
+      <div class="foot">SEA:GNAL · 바다 그 날의 신호 · 해양경찰청 경사 신진섭</div>
+    </div></body></html>`
+  }
+];
+
+let cur = 0;
+
+function buildToc(){
+  const toc = document.getElementById('toc');
+  const h = document.createElement('h3');
+  h.textContent = '발표 슬라이드 · 12장';
+  toc.appendChild(h);
+  slides.forEach((s, i) => {
+    const it = document.createElement('div');
+    it.className = 'tocItem';
+    it.dataset.idx = i;
+    const num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = String(i+1).padStart(2,'0');
+    const lbl = document.createElement('span');
+    lbl.textContent = s.label.replace(/^\d+\s*·\s*/, '');
+    it.appendChild(num); it.appendChild(lbl);
+    it.onclick = () => { go(parseInt(it.dataset.idx)); document.getElementById('toc').classList.remove('show'); };
+    toc.appendChild(it);
+  });
+}
+
+function go(i){
+  cur = i;
+  const s = slides[i];
+  document.getElementById('frame').srcdoc = s.html;
+  document.getElementById('slideLabel').textContent = s.label;
+  document.getElementById('counter').textContent = (i+1) + ' / ' + slides.length;
+  document.querySelector('#progress div').style.width = ((i+1)/slides.length*100) + '%';
+  document.querySelectorAll('.tocItem').forEach(el => el.classList.toggle('active', parseInt(el.dataset.idx) === i));
+  location.hash = '#' + (i+1);
+}
+
+function fit(){
+  const w = window.innerWidth, h = window.innerHeight;
+  const s = Math.min(w/1920, h/1080);
+  document.getElementById('frameWrap').style.transform = 'scale(' + s + ')';
+}
+
+window.addEventListener('resize', fit);
+window.addEventListener('keydown', e => {
+  if(e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown'){ if(cur < slides.length-1) go(cur+1); e.preventDefault(); }
+  else if(e.key === 'ArrowLeft' || e.key === 'PageUp'){ if(cur > 0) go(cur-1); e.preventDefault(); }
+  else if(e.key === 'Home'){ go(0); }
+  else if(e.key === 'End'){ go(slides.length-1); }
+  else if(e.key.toLowerCase() === 'm'){ document.getElementById('toc').classList.toggle('show'); }
+  else if(e.key.toLowerCase() === 'f'){
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
+  }
+});
+
+let timer;
+document.addEventListener('mousemove', () => {
+  document.getElementById('topbar').classList.add('show');
+  clearTimeout(timer);
+  timer = setTimeout(() => document.getElementById('topbar').classList.remove('show'), 2000);
+});
+
+buildToc();
+const m = location.hash.match(/^#(\d+)$/);
+go(m ? Math.max(0, Math.min(slides.length-1, parseInt(m[1])-1)) : 0);
+fit();
+</script>
+</body>
+</html>
