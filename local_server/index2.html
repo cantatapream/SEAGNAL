@@ -1,4 +1,21 @@
 <!DOCTYPE html>
+<!--
+  ============================================================================
+  파일명: index2.html
+  역할: SEAGNAL 앱의 '메인 화면' HTML — 사용자가 실제로 보는 단일 페이지 앱의 뼈대
+  ----------------------------------------------------------------------------
+  [이 파일이 하는 일 — 초보자용]
+   - 앱을 켜면 가장 먼저 열리는 페이지입니다. 첫 화면(스플래시)부터 지도·물때·
+     게시판 등 모든 탭의 '틀'을 담고 있습니다.
+   - 화면에 필요한 글꼴·디자인(css)과 기능 코드(js)를 아래 <link>/<script>
+     태그로 불러옵니다. (이 파일 자체는 '뼈대', 실제 동작은 js 파일들이 담당)
+  [어떤 파일과 연결되나]
+   - server.js   : 이 파일이 요청하는 글꼴·이미지·코드 파일을 보내주는 서버.
+                   각 파일을 브라우저에 얼마나 오래 보관할지(캐시)도 server.js 가 정함.
+   - style.css / splash.css : 화면 색·배치·스플래시 등 '겉모습'을 꾸미는 스타일.
+   - js/*.js     : 지도·물때 등 실제 '동작'을 담당하는 기능 코드.
+  ============================================================================
+-->
 <html lang="ko">
 
 <head>
@@ -1803,16 +1820,29 @@
          변경: assets/vendor/fonts/fonts.css (493 @font-face, unicode-range 보존)
          → font-family 이름은 동일 (Inter / Noto Sans KR / Nanum Pen Script)
          → style.css / splash.css 등의 font-family 선언 변경 불필요 -->
+    <!-- ▼ 초보자용 설명 ───────────────────────────────────────────────────
+         [이 한 줄이 하는 일] 예전엔 앱을 처음 열면 'SEA:GNAL' 제목이 잠깐 다른
+         글씨체로 보였다가 원래 글씨체로 바뀌는 깜빡임이 있었습니다. 바로 아래
+         preload 태그는 그 제목에 쓰는 글꼴 파일을 '화면을 그리기 전에 미리 받아둬'
+         라고 브라우저에 알려주어, 처음부터 올바른 글씨체로 보이게 합니다.
+         [연결] 이 글꼴 파일을 얼마나 오래 보관할지는 server.js 의 캐시 정책 함수가
+         정합니다(글꼴은 1년 보관). 그래서 두 번째 방문부터는 다시 받지 않아 빨라집니다.
+         ────────────────────────────────────────────────────────────────── -->
     <!-- [FOUT 방지] 스플래시 타이틀(SEA:GNAL = Inter 700, Latin) 슬라이스를 HTML 파싱
          시점에 미리 받아 첫 페인트부터 정자체로 표시. fonts.css 파싱을 기다리지 않음.
          crossorigin 필수(woff2 는 CORS 모드 페치 — 없으면 @font-face 가 재다운로드). -->
     <link rel="preload" as="font" type="font/woff2" crossorigin
           href="/assets/vendor/fonts/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2">
+    <!-- [B안 캠페인] 스플래시 첫 화면에 즉시 보이는 제목 폰트(Jua)와 마스코트 이미지를
+         파싱 시점에 미리 받아 깜빡임 방지. Jua woff2 는 해시 파일명이라 1년 캐시(재다운로드 없음). -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/assets/vendor/fonts/jua/jua-subset-45ef1e74fa79c4da.woff2">
+    <link rel="preload" as="image" href="images/mascot_lifevest_v1.webp">
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
     <link rel="stylesheet" href="style.css?v=LayerClip_20260612">
-    <link rel="stylesheet" href="splash.css?v=Progress_Bar_20260612">
+    <link rel="stylesheet" href="splash.css?v=Lifevest_20260624">
 
 
     <!-- Font Awesome (자체 호스팅 — A안 단위 2-D 적용)
@@ -2221,13 +2251,20 @@
     <!-- Splash Screen -->
     <div id="splash-screen" class="splash-screen">
         <div class="splash-content">
-            <div class="splash-logo-container">
-                <div class="splash-pulse-ring"></div>
-                <div class="splash-pulse-ring"></div>
-                <div class="splash-pulse-ring"></div>
-                <div class="splash-scanner"></div>
-                <img src="images/splash_icon_transparent.png" alt="SEA:GNAL Logo" class="splash-logo">
-            </div>
+            <!-- [B안 캠페인] 세로 배치: sp-top(여백) → 제목/안내문/마스코트 → sp-bot(여백) → 하단 브랜딩/진행바.
+                 크기·간격은 splash.css 에서 vw 기반 clamp 로 잡아 화면 크기에 비례(적응형). -->
+            <div class="splash-sp-top"></div>
+
+            <!-- 제목 '구명조끼=생명조끼' : 둥근 폰트(Jua) + 심장박동 애니메이션 -->
+            <div class="splash-vest"><span class="v1">구명조끼</span><span class="v2">생명조끼</span></div>
+            <p class="splash-promise">구명조끼, 집으로 돌아가는 <b>확실한 약속</b> <span class="heart">♥</span></p>
+            <!-- 마스코트(해양경찰청 구명조끼) : 통이미지 1장. width/height 명시로 레이아웃 흔들림(CLS) 방지 -->
+            <img class="splash-mascot" src="images/mascot_lifevest_v1.webp" width="820" height="522"
+                 alt="해양경찰 구명조끼를 입은 마스코트와 구명조끼">
+
+            <div class="splash-sp-bot"></div>
+
+            <!-- 하단 브랜딩 (앱 원본 폰트: 손글씨 Nanum Pen Script / Inter) -->
             <p class="splash-subtitle-start">바다 : 그 날의 신호</p>
             <h1 class="splash-title"><span class="splash-sea">SEA</span><span class="splash-accent">:</span><span
                     class="splash-gnal">GNAL</span></h1>
@@ -2241,6 +2278,7 @@
                 </div>
                 <div class="splash-progress-label" id="splash-progress-label">앱 초기화…</div>
             </div>
+            <div class="splash-credit">이미지 출처: 해양경찰청</div>
         </div>
     </div>
     <script>
