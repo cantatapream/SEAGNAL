@@ -7101,6 +7101,17 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
 
 ---
 
+### § 7.7.18 fly 볼륨 ENOSPC(디스크 풀) — 조석 곡선 파일 무한누적 + 자동 retention (2026-06-24)
+
+증상: 프로덕션 로그에 `ENOSPC: no space left on device, write` 다발 → `weather_alerts.json`·`prev snapshot`·`precompute_tide_field`·`KHOA 캐시 백업` 저장 실패 → **특보 데이터 갱신 멈춤**. (메모리 아님 — fly 영속 볼륨 `seagnal_data` 포화.)
+
+- **원인 (전수 매핑)**: `data/tide_field/curves/{anchorId}_{YYYYMMDD}.json` 곡선 파일이 **날짜별로 매일 생성되는데 과거 날짜 파일을 지우는 로직이 전무**(`clearCurves`는 rebuild 시 전량삭제만). 시스템은 윈도우(오늘~+2일, `WINDOW_DAYS=3`) 날짜만 읽으므로 과거 파일은 死데이터인데 영구 잔존 → 앵커수×매일 누적(수백 MB~수 GB)으로 볼륨 포화. `precompute_tide_field.js:writeFileSync` ENOSPC 는 *피해자*(곡선이 공간을 채워 frames.bin 쓸 자리 없음).
+  - **무혐의 확정**: server_logger(2일 로그)는 소프트12/하드24MB 상한+purge 가 실효 → 최대 48MB, 주범 아님. frames.bin 은 단일 덮어쓰기(누적 아님). 해무 CCTV 스틸컷은 디스크 미저장(메모리 캐시). (uploads/reports 제보이미지는 무정리지만 트래픽 의존 2차요인.)
+- **수정 (`tide_field_collector.js`·`server.js`)**: `purgeStaleCurves()` 신설 — 파일명 날짜(mtime 아님)가 `windowDatesKST(WINDOW_DAYS)` 밖이면 삭제(곡선 형식 `_(\d{8})\.json$` 만 대상, 그 외 보존, 절대 throw 안 함). ① **서버 startup(bootstrap 전, ensureBuilt 쓰기 시도 전에 먼저)** 호출 → 볼륨이 꽉 차도 *삭제는 공간 불필요*하므로 **배포 즉시 디스크 회복** ② **수집 사이클마다(spawnPrecompute 직후)** 호출 → 곡선이 영구히 3일치(앵커수×3 ≈ 30~45MB)로 고정, 재발 방지.
+- 검증: 임시 디렉토리 재현 — 윈도우(오늘·+1) 곡선 보존, 과거날짜(20200101/20191231) 삭제, 비곡선(grid_meta 등) 보존. `node -c` 통과.
+
+---
+
 # § 8. 부록
 
 본 § 는 시스템의 단일 권위 참조 자료를 한 곳에 모은다. 이전 8,503 줄 단순 concat 문서에서 용어집이 § 1965, § 5276, § 6917, § 8261 의 4 곳에 중복돼 있던 것을 **본 § 8.1 한 곳으로 통일**한다. 다른 § 에서 용어 사용 시 "→ § 8.1 anchor" 식으로 cross-link 한다.
