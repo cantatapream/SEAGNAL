@@ -745,5 +745,35 @@ function showNetworkErrorPopup() {
     }
 }
 
+// 11. [연결 상태] 메인 특보 호출 결과에 따른 차단 팝업 표시·해제
+//   - 기준: /api/weather-alerts 호출의 성공 여부(특보 유무가 아님).
+//           호출이 정상적으로 이뤄지면 정상, 서버 다운/오프라인으로 호출 자체가
+//           실패하면 비정상으로 본다. (data.js fetchAllData 가 alertsOk 로 전달)
+//   - 정책(옵션①): 호출이 실패해도 화면에 보여줄 특보 데이터가 이미 있으면
+//           모달을 띄우지 않는다(5분 자동갱신의 일시적 실패로 모달이 반복되는 것 방지).
+//           보여줄 데이터가 전혀 없을 때만 차단 팝업을 표시한다.
+function handleConnectivityPopup(alertsOk) {
+    // 1) 호출 성공 → 떠 있던 차단 팝업 제거 (연결 회복)
+    if (alertsOk) {
+        const m = document.getElementById('server-maintenance-popup');
+        if (m) m.remove();
+        const n = document.getElementById('network-error-popup');
+        if (n) n.remove();
+        return;
+    }
+
+    // 2) 호출 실패 → 보여줄 특보 데이터가 이미 있으면 모달 미표시 (옵션①)
+    const hasUsableData = Array.isArray(appState.alerts) && appState.alerts.length > 0;
+    if (hasUsableData) return;
+
+    // 3) 보여줄 데이터가 전혀 없음 → 차단 팝업
+    //    온라인 = 서버 다운/점검(서버 연결 불가) / 오프라인 = 사용자 인터넷 끊김(네트워크 오류)
+    if (navigator.onLine) {
+        if (typeof showMaintenancePopup === 'function') showMaintenancePopup();
+    } else {
+        if (typeof showNetworkErrorPopup === 'function') showNetworkErrorPopup();
+    }
+}
+
 // [참고] showMyLocationWeather는 settings.js에 정의됨
 
