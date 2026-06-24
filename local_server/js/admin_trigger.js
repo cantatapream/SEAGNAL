@@ -96,9 +96,9 @@ function initAdminTrigger() {
 // 2. 앱 실행 시 공지사항 확인 (오프라인 캐싱 기능 추가)
 async function checkNoticeStatus() {
     try {
-        // 서버 연결 확인 (타임아웃 3초)
+        // 서버 연결 확인 (타임아웃 12초 - 느린 위성/저속 해상 연결 대응)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
 
         const response = await fetch(CONFIG.NOTICE_API_URL, {
             signal: controller.signal,
@@ -182,12 +182,13 @@ async function checkNoticeStatus() {
             }
         }
 
-        // 4. 캐시된 공지도 없다면 기존 에러 처리
-        if (navigator.onLine) {
-            showMaintenancePopup(); // 서버 점검/다운
-        } else {
-            showNetworkErrorPopup(); // 사용자 인터넷 끊김
-        }
+        // 4. 캐시된 공지도 없고 공지 조회가 실패/타임아웃된 경우
+        //    공지는 비핵심 기능이므로 차단형 모달(서버 연결 불가/네트워크 오류)을
+        //    띄우지 않고 조용히 건너뛴 뒤 해역 가이드 체크로 진행한다.
+        //    (메인 특보/날씨 데이터가 이미 로딩된 상황에서 공지 부재로 앱 사용을
+        //     막지 않기 위함. showMaintenancePopup/showNetworkErrorPopup 함수 정의
+        //     자체는 관리자 등 다른 용도로 보존하고 여기서의 호출만 제거한다.)
+        if (typeof checkZoneGuide === 'function') checkZoneGuide();
     }
 }
 
