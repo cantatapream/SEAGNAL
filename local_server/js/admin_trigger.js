@@ -96,9 +96,9 @@ function initAdminTrigger() {
 // 2. 앱 실행 시 공지사항 확인 (오프라인 캐싱 기능 추가)
 async function checkNoticeStatus() {
     try {
-        // 서버 연결 확인 (타임아웃 3초)
+        // 서버 연결 확인 (타임아웃 12초 - 느린 위성/저속 해상 연결 대응)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
 
         const response = await fetch(CONFIG.NOTICE_API_URL, {
             signal: controller.signal,
@@ -182,12 +182,13 @@ async function checkNoticeStatus() {
             }
         }
 
-        // 4. 캐시된 공지도 없다면 기존 에러 처리
-        if (navigator.onLine) {
-            showMaintenancePopup(); // 서버 점검/다운
-        } else {
-            showNetworkErrorPopup(); // 사용자 인터넷 끊김
-        }
+        // 4. 캐시된 공지도 없고 공지 조회가 실패/타임아웃된 경우
+        //    공지는 비핵심 기능이므로 차단형 모달(서버 연결 불가/네트워크 오류)을
+        //    띄우지 않고 조용히 건너뛴 뒤 해역 가이드 체크로 진행한다.
+        //    (메인 특보/날씨 데이터가 이미 로딩된 상황에서 공지 부재로 앱 사용을
+        //     막지 않기 위함. showMaintenancePopup/showNetworkErrorPopup 함수 정의
+        //     자체는 관리자 등 다른 용도로 보존하고 여기서의 호출만 제거한다.)
+        if (typeof checkZoneGuide === 'function') checkZoneGuide();
     }
 }
 
@@ -741,6 +742,36 @@ function showNetworkErrorPopup() {
     `;
     if (!document.getElementById('network-error-popup')) {
         document.body.insertAdjacentHTML('beforeend', html);
+    }
+}
+
+// 11. [연결 상태] 메인 특보 호출 결과에 따른 차단 팝업 표시·해제
+//   - 기준: /api/weather-alerts 호출의 성공 여부(특보 유무가 아님).
+//           호출이 정상적으로 이뤄지면 정상, 서버 다운/오프라인으로 호출 자체가
+//           실패하면 비정상으로 본다. (data.js fetchAllData 가 alertsOk 로 전달)
+//   - 정책(옵션①): 호출이 실패해도 화면에 보여줄 특보 데이터가 이미 있으면
+//           모달을 띄우지 않는다(5분 자동갱신의 일시적 실패로 모달이 반복되는 것 방지).
+//           보여줄 데이터가 전혀 없을 때만 차단 팝업을 표시한다.
+function handleConnectivityPopup(alertsOk) {
+    // 1) 호출 성공 → 떠 있던 차단 팝업 제거 (연결 회복)
+    if (alertsOk) {
+        const m = document.getElementById('server-maintenance-popup');
+        if (m) m.remove();
+        const n = document.getElementById('network-error-popup');
+        if (n) n.remove();
+        return;
+    }
+
+    // 2) 호출 실패 → 보여줄 특보 데이터가 이미 있으면 모달 미표시 (옵션①)
+    const hasUsableData = Array.isArray(appState.alerts) && appState.alerts.length > 0;
+    if (hasUsableData) return;
+
+    // 3) 보여줄 데이터가 전혀 없음 → 차단 팝업
+    //    온라인 = 서버 다운/점검(서버 연결 불가) / 오프라인 = 사용자 인터넷 끊김(네트워크 오류)
+    if (navigator.onLine) {
+        if (typeof showMaintenancePopup === 'function') showMaintenancePopup();
+    } else {
+        if (typeof showNetworkErrorPopup === 'function') showNetworkErrorPopup();
     }
 }
 
