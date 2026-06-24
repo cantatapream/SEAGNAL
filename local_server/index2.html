@@ -723,7 +723,16 @@
             border-color: rgba(68, 138, 255, 0.45);
             color: #fff;
         }
-        .ocean-info-panels { text-align: left; }
+        /* 안내 내용 영역: 길면(예: 물빠짐) 모달이 화면을 넘기므로 이 영역만 스크롤.
+           탭바·확인 버튼은 고정되고 본문만 슬라이드해서 본다. */
+        .ocean-info-panels {
+            text-align: left;
+            max-height: 40vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            padding-right: 4px;   /* 스크롤바와 글자 간격 */
+        }
         .ocean-info-panel { display: none; color: #e2e8f0; font-size: 0.9rem; line-height: 1.65; white-space: pre-line; }
         .ocean-info-panel.active { display: block; }
         .ocean-info-panel ol,
@@ -1298,6 +1307,32 @@
         }
         @keyframes mudflat-spin { to { transform: rotate(360deg); } }
 
+        /* 물빠짐 줌 안내 카드 — 표출 줌(바닥선)에 도달할 때까지 화면 중앙에 떠 있다.
+           로딩 스피너와 달리 지도 조작을 막지 않도록 카드 자체만 떠 있고 배경은
+           통과(pointer-events:none). "확대하세요" 안내라 스피너와 아이콘·문구가 다름. */
+        #mudflat-zoom-hint {
+            position: fixed; inset: 0; z-index: 1400;
+            display: none; align-items: center; justify-content: center;
+            pointer-events: none;
+        }
+        #mudflat-zoom-hint.show { display: flex; }
+        .mudflat-zoom-hint-box {
+            display: flex; flex-direction: column; align-items: center; gap: 0.55rem;
+            max-width: 16rem; text-align: center;
+            background: rgba(15, 25, 50, 0.92);
+            border: 1px solid rgba(120, 150, 200, 0.3);
+            border-radius: 0.8rem;
+            padding: 1.1rem 1.4rem;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+        }
+        .mudflat-zoom-hint-icon {
+            color: #4da3ff; font-size: 1.7rem; line-height: 1;
+        }
+        .mudflat-zoom-hint-title {
+            color: #e5edff; font-size: 0.92rem; font-weight: 600; line-height: 1.5;
+            font-family: "Pretendard", sans-serif;
+        }
+
         /* 단기예보 범례 공통 — 어두운 남색 톤 (슬라이더 바와 동일 색상) */
         .shrt-fcst-legend {
             position: absolute;
@@ -1816,11 +1851,11 @@
 
     <!-- Quill Editor (게시판 에디터) — 자체 호스팅 -->
     <link href="/assets/vendor/quill/quill.snow.css" rel="stylesheet">
-    <script defer src="/assets/vendor/quill/quill.min.js"></script>
+    <script src="/assets/vendor/quill/quill.min.js"></script>
 
     <!-- Chart.js — 자체 호스팅 (다운로드 시점 latest = 4.5.1 로 잠금) -->
-    <script defer src="/assets/vendor/chartjs/chart.umd.min.js"></script>
-    <script defer src="/assets/vendor/chartjs/chartjs-plugin-datalabels.min.js"></script>
+    <script src="/assets/vendor/chartjs/chart.umd.min.js"></script>
+    <script src="/assets/vendor/chartjs/chartjs-plugin-datalabels.min.js"></script>
 
     <!-- html2canvas(1.4.1)는 전역 로드하지 않는다(약 200KB). 사용량 통계 대시보드의
          표/카드 PNG 캡처를 관리자가 실제로 호출할 때만 js/admin_collect.js 가
@@ -1829,7 +1864,7 @@
 
     <!-- OpenLayers for Tide Map — 자체 호스팅 -->
     <link rel="stylesheet" href="/assets/vendor/ol/ol.css">
-    <script defer src="/assets/vendor/ol/ol.js"></script>
+    <script src="/assets/vendor/ol/ol.js"></script>
 
     <!-- [제거됨] proj4 (좌표계 변환 라이브러리) — dead dependency
          - 코드에서 proj4 함수 호출 0건 확인 (전체 grep 결과).
@@ -1848,7 +1883,7 @@
          - 향후 항공/위성 베이스맵 도입 시 다시 추가하면 됨 (도메인 락/API key 종속) -->
 
     <!-- SunCalc - 천문 정보 계산 (일출몰, 월령 등) — 자체 호스팅 -->
-    <script defer src="/assets/vendor/suncalc/suncalc.min.js"></script>
+    <script src="/assets/vendor/suncalc/suncalc.min.js"></script>
 
     <!-- [제거됨] Korean Lunar Calendar CDN 의존성 — dead dependency
          - 이 스크립트는 https://cdn.jsdelivr.net/npm/korean-lunar-calendar@0.3.6/lib/...
@@ -2437,13 +2472,13 @@
                     <div class="adv-title-wrap">
                         <i class="fa-solid fa-wand-magic-sparkles adv-wand"></i>
                         <div class="adv-title-col">
-                            <sup class="adv-beta-badge adv-beta-above" aria-label="beta">beta</sup>
+                            <sup class="adv-beta-badge adv-beta-top" aria-label="beta">beta</sup>
                             <div class="adv-title-row">
                                 <h2 class="section-title" style="margin: 0;">해역별 특보 예측</h2>
                                 <button type="button" class="adv-info-btn" aria-label="예측 설명"
                                     onclick="event.stopPropagation(); window.openAdvisoryInfo&amp;&amp;window.openAdvisoryInfo()">i</button>
                             </div>
-                            <div class="adv-basetime-layer" id="adv-basetime-layer"></div>
+                            <span class="adv-basetime-layer" id="adv-basetime-layer"></span>
                         </div>
                     </div>
                     <div class="header-status">
@@ -2632,52 +2667,9 @@
 
             </section>
 
-            <!-- 섹션 2: 해구별 기상정보 -->
-            <section id="sea-zone-section" class="sea-zone-section tab-content">
-                <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-map-location-dot"></i> 해구별 기상정보</h2>
-                    <button class="info-btn" onclick="showSeaZoneInfoPopup()" title="이용안내">
-                        <i class="fa-solid fa-circle-info" style="color: white;"></i>
-                    </button>
-                </div>
-
-                <div class="sea-zone-map-container">
-                    <div class="map-controls">
-                        <button onclick="zoomMap(1.2)" title="확대">+</button>
-                        <button onclick="zoomMap(0.8)" title="축소">−</button>
-                        <button onclick="resetMap()" title="초기화">⟲</button>
-                    </div>
-
-                    <div class="sea-zone-guide-overlay" id="sea-zone-guide-overlay">
-                        <span class="guide-text" id="sea-zone-guide-text">기상을 확인할 해구를 선택해주세요</span>
-                        <button id="sea-zone-my-location-btn" class="my-location-btn-overlay"
-                            onclick="moveSeaZoneMapToMyLocation()" title="내 위치 찾기">
-                            내 위치
-                        </button>
-                    </div>
-                    <div id="sea-zone-map" class="sea-zone-map">
-                        <!-- SVG 지도가 여기에 렌더링됨 -->
-                    </div>
-                </div>
-
-                <!-- 출처 정보 (컨테이너 밖) -->
-                <div class="map-source">
-                    <a href="https://www.fips.go.kr/p/S01030102/#" target="_blank" rel="noopener noreferrer">
-                        <span>해양수산부 수산정보포털 수역도</span>
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                    </a>
-                </div>
-
-                <div id="zone-info-panel" class="zone-info-panel hidden">
-                    <div class="zone-info-header">
-                        <h4 id="zone-info-title">해구 정보</h4>
-                        <button onclick="closeZonePanel()" class="close-btn">&times;</button>
-                    </div>
-                    <div id="zone-info-content" class="zone-info-content">
-                        <!-- 해구 상세 정보 -->
-                    </div>
-                </div>
-            </section>
+            <!-- [제거됨] 섹션 2: 해구별 기상정보(레거시 해구도 이미지 지도) — index2 미표출 잔재로 삭제.
+                 해양종합정보(OpenLayers) 지도로 대체됨. 연계 자산(haegudo.gif)과 seaZones.js
+                 이미지지도 경로(initSeaZoneMap/showZoneOverlay fallback)도 함께 제거. -->
 
 
             <!-- [제거됨] 섹션 3: 태풍정보 — 더 이상 필요 없어 삭제(서브탭/점검 매핑도 함께 제거). -->
@@ -3197,6 +3189,12 @@
                         .tphn-guide-body h4{margin:12px 0 4px;color:#8fc0ff;font-size:13px;}
                         .tphn-guide-body ul{margin:0;padding-left:18px;}
                         .tphn-guide-body li{margin:3px 0;}
+                        /* 행동요령 모달 탭(해상/육상) — 본문 상단, .tphn-modal-btn 색감과 일관 */
+                        .tphn-guide-tabs{display:flex;gap:6px;margin:0 0 6px;}
+                        .tphn-guide-tab{flex:1;background:#0e2552;color:#bcd0f0;border:1px solid rgba(120,150,200,0.4);
+                            border-radius:6px;padding:7px 6px;font-size:12px;font-weight:700;cursor:pointer;line-height:1.2;}
+                        .tphn-guide-tab:hover{background:#143268;}
+                        .tphn-guide-tab.active{background:#2d6cdf;color:#fff;border-color:#2d6cdf;}
                         .tphn-tel{display:inline-block;margin-top:2px;background:#d50000;color:#fff;
                             padding:3px 10px;border-radius:6px;text-decoration:none;font-weight:700;}
                         /* 통보문 안내(i) 버튼 / 이미지(지도) 버튼 */
@@ -3242,12 +3240,19 @@
                         </div>
                     </div>
 
-                    <!-- 태풍 시 해상 종사자 행동요령 팝업 (해양수산부·해경·기상청·수협 기준) -->
+                    <!-- 태풍 시 행동요령 팝업 (해양수산부·해경·기상청·수협·행안부 국민행동요령 기준) -->
                     <div id="tphn-guide-modal" class="tphn-guide-modal" style="display:none;" aria-hidden="true">
                         <div class="tphn-guide-card">
-                            <div class="tphn-guide-head"><span>🌀 태풍 시 해상 종사자 행동요령</span>
+                            <div class="tphn-guide-head"><span>🌀 태풍 시 행동요령</span>
                                 <button id="tphn-guide-close" class="tphn-guide-close" type="button" aria-label="닫기">&times;</button></div>
                             <div class="tphn-guide-body">
+                                <!-- 해상/육상 탭 — 기본 선택은 해상. 전환 로직은 ocean_typhoon.js selectGuideTab -->
+                                <div class="tphn-guide-tabs">
+                                    <button type="button" class="tphn-guide-tab active" data-tab="sea">해상 종사자 행동요령</button>
+                                    <button type="button" class="tphn-guide-tab" data-tab="land">육상에서의 행동요령</button>
+                                </div>
+                                <!-- 해상 탭(기존 내용 보존) -->
+                                <div class="tphn-guide-pane" data-pane="sea">
                                 <h4>사전 준비</h4>
                                 <ul>
                                     <li>기상·태풍 진로를 수시로 확인하고 영향권 진입을 피합니다.</li>
@@ -3271,6 +3276,35 @@
                                     <li>인명 안전을 먼저 확인하고 응급조치합니다.</li>
                                     <li>선박·시설 피해 발생 시 응급조치 후 신고 — <a href="tel:119" class="tphn-tel"><i class="fa-solid fa-phone"></i> 긴급신고 119</a></li>
                                 </ul>
+                                </div>
+                                <!-- 육상 탭(행정안전부 국민행동요령 기준) -->
+                                <div class="tphn-guide-pane" data-pane="land" style="display:none;">
+                                <h4>[태풍 예보 시] 사전 대비</h4>
+                                <ul>
+                                    <li>TV·라디오·스마트폰(안전디딤돌 앱)으로 기상상황을 미리 파악하고 가족·이웃과 공유합니다.</li>
+                                    <li>산간·계곡·하천·방파제에서 야영·물놀이를 멈추고, 저지대·상습침수·산사태위험지역·지하공간·노후건물에서 안전한 곳으로 이동합니다.</li>
+                                    <li>바람에 날아갈 지붕·간판을 결박하고, 창문은 창틀에 단단히 고정합니다.</li>
+                                    <li>하수구·배수구를 점검해 막힌 곳을 뚫고, 침수예상지역엔 모래주머니·물막이판을 설치합니다. 저지대 주차 차량은 옮깁니다.</li>
+                                    <li>비상용품(랜턴·배터리·응급용품)을 준비하고, 단수 대비 욕조에 물을 받아둡니다.</li>
+                                    <li>외출을 자제하고, 어르신·어린이·장애인은 외출하지 않도록 하며 수시로 안부를 확인합니다.</li>
+                                </ul>
+                                <h4>[태풍 특보 중] 실내 안전·외출 금지</h4>
+                                <ul>
+                                    <li>외출을 삼가고 창문 없는 방·집 안쪽에 머무르며, 창문·유리문에서 떨어져 있습니다.</li>
+                                    <li>출입문·창문을 닫고, 가스를 미리 차단하며, 집 안팎 전기시설을 만지지 않습니다. 정전 시 양초 대신 랜턴·휴대폰을 사용합니다.</li>
+                                    <li>침수된 도로·지하차도·교량은 차량 통행을 금지하고, 하천변·해안가 등 급류·침수 위험지역에 접근하지 않습니다.</li>
+                                    <li>공사장·전신주·지하공간에 접근하지 않고, 농촌은 논둑·물꼬를 보러 나가지 않습니다.</li>
+                                    <li>대피 권고를 받거나 위험지역에 있으면 즉시 안전한 곳으로 대피하고, 대피가 어려운 분들을 돕습니다.</li>
+                                </ul>
+                                <h4>[태풍 이후]</h4>
+                                <ul>
+                                    <li>가족·지인의 안전을 확인하고, 실종 의심 시 가까운 경찰서에 신고합니다.</li>
+                                    <li>집에 돌아오면 주택 안전 확인 후 출입하고, 파손 시설은 시·군·구청/주민센터에 신고(복구 전 사진 촬영)합니다.</li>
+                                    <li>침수된 도로·교량·하천 제방에 가까이 가지 않습니다.</li>
+                                    <li>침수된 가스·전기는 차단기 확인 후 한국가스안전공사(<a href="tel:1544-4500" class="tphn-tel"><i class="fa-solid fa-phone"></i> 1544-4500</a>)·한국전기안전공사(<a href="tel:1588-7500" class="tphn-tel"><i class="fa-solid fa-phone"></i> 1588-7500</a>) 또는 전문가 점검 후 사용하고 충분히 환기합니다.</li>
+                                    <li>침수된 식수·음식은 오염·식중독 위험이 있으니 사용하지 않습니다.</li>
+                                </ul>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -4269,102 +4303,110 @@
     <script src="js/render_coastal.js"></script>
     <script src="js/marine.js"></script>
     <script src="js/settings.js"></script>
-    <script defer src="js/forecast.js"></script>
+    <script src="js/location_alert_core.js"></script>
+    <script src="js/location_alert_background.js"></script>
+    <script src="js/location_alert_runtime.js"></script>
+    <script src="js/location_alert_ui.js"></script>
+    <script src="js/forecast.js"></script>
     <script src="js/windy.js?v=BuoyClip_20260612"></script>
     <script src="js/marine_forecast.js"></script>
     <script src="js/advisory_prediction.js"></script>
     <!-- 해상일기도 (KMA 날씨누리 GIF 차트) — 5개 파일 분할
          1: 카탈로그/상태/init/드롭다운/즐겨찾기  2: fetch/render/슬라이더/재생
          3: 전체화면 진입/종료/백버튼  4: 컨트롤 페이드  5: 핀치줌·팬·탭 -->
-    <script defer src="js/marine_chart1.js"></script>
-    <script defer src="js/marine_chart2.js"></script>
-    <script defer src="js/marine_chart3.js"></script>
-    <script defer src="js/marine_chart4.js"></script>
-    <script defer src="js/marine_chart5.js"></script>
-    <script defer src="js/fishing.js"></script>
-    <script defer src="js/surfing1.js"></script>
-    <script defer src="js/surfing2.js"></script>
-    <script defer src="js/surfing3.js"></script>
-    <script defer src="js/surfing4.js"></script>
-    <script defer src="js/surfing5.js"></script>
-    <script defer src="js/sea_parting.js"></script>
-    <script defer src="js/mudflat.js"></script>
-    <script defer src="js/scuba.js"></script>
-    <script defer src="js/ripcurrent.js"></script>
+    <script src="js/marine_chart1.js"></script>
+    <script src="js/marine_chart2.js"></script>
+    <script src="js/marine_chart3.js"></script>
+    <script src="js/marine_chart4.js"></script>
+    <script src="js/marine_chart5.js"></script>
+    <script src="js/fishing.js"></script>
+    <script src="js/surfing1.js"></script>
+    <script src="js/surfing2.js"></script>
+    <script src="js/surfing3.js"></script>
+    <script src="js/surfing4.js"></script>
+    <script src="js/surfing5.js"></script>
+    <script src="js/sea_parting.js"></script>
+    <script src="js/mudflat.js"></script>
+    <script src="js/scuba.js"></script>
+    <script src="js/ripcurrent.js"></script>
 
     <!-- 해양종합정보 (히든 탭) -->
-    <script defer src="js/ocean_map.js"></script>
-    <script defer src="js/ocean_markers.js"></script>
-    <script defer src="js/ocean_bottom_sheet1.js"></script>
+    <script src="js/ocean_map.js"></script>
+    <script src="js/ocean_markers.js"></script>
+    <script src="js/ocean_bottom_sheet1.js"></script>
     <!-- 시트 슬라이더 모듈 — bottom_sheet2.js 가 STL.onRelease 를 wire 하므로 그 전에 로드되어
          OS.SheetTL 이 정의된 상태여야 함. (sheet1.js 가 OS 생성 → 여기서 OS.SheetTL 생성) -->
-    <script defer src="js/ocean_sheet_timeline.js"></script>
-    <script defer src="js/ocean_bottom_sheet2.js"></script>
-    <script defer src="js/ocean_bottom_sheet3.js"></script>
-    <script defer src="js/ocean_bottom_sheet4.js"></script>
-    <script defer src="js/ocean_bottom_sheet5.js"></script>
+    <script src="js/ocean_sheet_timeline.js"></script>
+    <script src="js/ocean_bottom_sheet2.js"></script>
+    <script src="js/ocean_bottom_sheet3.js"></script>
+    <script src="js/ocean_bottom_sheet4.js"></script>
+    <script src="js/ocean_bottom_sheet5.js"></script>
     <!-- 천기 카드 (해점 클릭 시 KMA 단기예보 6 카테고리 종합 표시) — sheet1~5 의존 -->
-    <script defer src="js/ocean_bottom_sheet_weather.js"></script>
+    <script src="js/ocean_bottom_sheet_weather.js"></script>
     <!-- 시정 카드 (수심 오른쪽) — vsby_forecast_layer 의 점 샘플러 재사용 -->
-    <script defer src="js/ocean_bottom_sheet_vsby.js"></script>
-    <script defer src="js/ocean_overlay.js"></script>
+    <script src="js/ocean_bottom_sheet_vsby.js"></script>
+    <script src="js/ocean_overlay.js"></script>
     <!-- 진북(North Up) 회전 컨트롤 — 3-state 사이클 + 잠금 상태 localStorage 보존 -->
-    <script defer src="js/ocean_northup.js"></script>
-    <script defer src="js/ocean_buoy.js"></script>
-    <script defer src="js/ocean_warn_zone.js"></script>
+    <script src="js/ocean_northup.js"></script>
+    <script src="js/ocean_buoy.js"></script>
+    <script src="js/ocean_warn_zone.js"></script>
     <!-- 태풍 진로/예보 오버레이 + 재생 애니메이션 (의존: ocean_map.js + /api/typhoon) -->
-    <script defer src="js/ocean_typhoon.js"></script>
+    <script src="js/ocean_typhoon.js"></script>
     <!-- 활성 특보 색칠 모듈 (5개 파일 분할, 의존: ocean_warn_zone.js + data.js + ocean_map.js) -->
-    <script defer src="js/ocean_warn_active1.js"></script>
-    <script defer src="js/ocean_warn_active2.js"></script>
-    <script defer src="js/ocean_warn_active3.js"></script>
-    <script defer src="js/ocean_warn_active4.js"></script>
-    <script defer src="js/ocean_warn_active5.js"></script>
-    <script defer src="js/ocean_warn_vsby.js?v=VsbyClip_20260612"></script>
-    <script defer src="js/ocean_timeline.js"></script>
+    <script src="js/ocean_warn_active1.js"></script>
+    <script src="js/ocean_warn_active2.js"></script>
+    <script src="js/ocean_warn_active3.js"></script>
+    <script src="js/ocean_warn_active4.js"></script>
+    <script src="js/ocean_warn_active5.js"></script>
+    <script src="js/ocean_warn_vsby.js?v=VsbyErrBadge_20260617"></script>
+    <script src="js/ocean_timeline.js"></script>
     <!-- 천기 (KMA 단기예보 PNG 오버레이): 토글 버튼 + 5개 서브버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 -->
-    <script defer src="js/shrt_forecast_layer.js"></script>
+    <script src="js/shrt_forecast_layer.js"></script>
     <!-- 물빠짐 (서해·남해 갯벌 노출 예측): 토글 버튼 + 시간 슬라이더/재생 + 2색 벡터 레이어 + 클릭 팝업
          (의존: ocean_map.js 의 window.__getOceanMap, /api/tide-field) -->
-    <script defer src="js/tide_field.js"></script>
+    <script src="js/tide_field.js"></script>
     <!-- 시정예측 (KMA RDPS 시정/안개 PNG 오버레이): 토글 버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 (천기 메커니즘 복제) -->
-    <script defer src="js/vsby_forecast_layer.js"></script>
+    <script src="js/vsby_forecast_layer.js"></script>
 
-    <script defer src="js/admin_trigger.js"></script>
-    <script defer src="js/image_compress.js"></script>
+    <script src="js/admin_trigger.js"></script>
+    <script src="js/image_compress.js"></script>
     <script src="js/promo.js"></script>
-    <script defer src="js/promo_comment1.js"></script>
-    <script defer src="js/promo_comment2.js"></script>
-    <script defer src="js/promo_comment3.js"></script>
-    <script defer src="js/promo_comment4.js"></script>
-    <script defer src="js/promo_comment5.js"></script>
+    <script src="js/promo_comment1.js"></script>
+    <script src="js/promo_comment2.js"></script>
+    <script src="js/promo_comment3.js"></script>
+    <script src="js/promo_comment4.js"></script>
+    <script src="js/promo_comment5.js"></script>
     <!-- 공용 페이지네이션 helper (window.renderStandardPagination 노출)
          관리자 리스트 화면(admin.js / admin_collect.js / admin_survey.js / admin_report.js / alert_push.js)에서
          사용하므로 반드시 이 스크립트들보다 먼저 로드되어야 함 -->
-    <script defer src="js/pagination_helper.js"></script>
-    <script defer src="js/admin.js"></script>
-    <script defer src="js/admin_collect.js"></script>
-    <script defer src="js/admin_survey.js"></script>
-    <script defer src="js/admin_report.js"></script>
+    <script src="js/pagination_helper.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/admin_collect.js"></script>
+    <script src="js/admin_survey.js"></script>
+    <script src="js/admin_report.js"></script>
     <!-- [데모 시연] 관리자 센터 데모 특보 슬롯 UI + 관리자 기기 한정 표출 -->
-    <script defer src="js/admin_demo.js"></script>
-    <script defer src="js/demo_alert.js"></script>
-    <script defer src="js/advisory_demo_admin.js"></script>
-    <script defer src="js/advisory_manage_admin.js"></script>
-    <script defer src="js/advisory_demo.js"></script>
-    <script defer src="js/report_user.js"></script>
-    <script defer src="js/survey_user.js"></script>
-    <script defer src="js/zone_guide.js"></script>
-    <script defer src="js/alert_push.js"></script>
-    <script defer src="js/ui_modal.js"></script>
+    <script src="js/admin_demo.js"></script>
+    <script src="js/admin_location_demo.js"></script>
+    <!-- 위치 기반 특보 시연(실제 푸시) 하위탭 -->
+
+    <script src="js/demo_alert.js"></script>
+    <script src="js/advisory_demo_admin.js"></script>
+    <script src="js/typhoon_demo_admin.js"></script>
+    <script src="js/advisory_manage_admin.js"></script>
+    <script src="js/advisory_demo.js"></script>
+    <script src="js/report_user.js"></script>
+    <script src="js/survey_user.js"></script>
+    <script src="js/zone_guide.js"></script>
+    <script src="js/alert_push.js"></script>
+    <script src="js/ui_modal.js"></script>
     <script src="js/app_init.js"></script>
     <script src="js/backbutton.js"></script>
     <!-- AI 비서 바로가기 딥링크(?assistant=ocean&layer=...) → 해양종합정보 레이어 자동 활성화 -->
-    <script defer src="js/assistant_deeplink.js"></script>
+    <script src="js/assistant_deeplink.js"></script>
     <!-- 백그라운드 "나리야" 음성 비서 상태/대화를 화면 하단 오버레이로 표시 -->
-    <script defer src="js/assistant_overlay.js"></script>
+    <script src="js/assistant_overlay.js"></script>
     <!-- HLS.js: 거제시 등 HLS 스트림 재생 (cctv4.js _initCctvHlsPlayer에서 사용) — 자체 호스팅 -->
-    <script defer src="/assets/vendor/hls.js/hls.min.js"></script>
+    <script src="/assets/vendor/hls.js/hls.min.js"></script>
     <!-- ================================================================
          CCTV 기능 (index2 에서는 해양종합에 통합)
          ----------------------------------------------------------------
@@ -4380,9 +4422,9 @@
          - cctv7.js (관리자 위치 편집 도구) — index2 미사용
          [주의] index1(index.html) 은 변함없이 cctv1~7.js 전체를 로드함.
          ================================================================ -->
-    <script defer src="js/cctv1.js"></script>
-    <script defer src="js/cctv4.js"></script>
-    <script defer src="js/ocean_cctv.js"></script>
+    <script src="js/cctv1.js"></script>
+    <script src="js/cctv4.js"></script>
+    <script src="js/ocean_cctv.js?v=VsbyGuide3_20260613"></script>
 
     <!-- index2 전용 패치: 종합기상 탭 + 헤더 유지 -->
     <script src="js/index2_patch.js"></script>
@@ -5082,6 +5124,77 @@
                                     </label>
                                 </div>
                                 <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">연안바다, 평수구역 특보 정보 표출</div>
+                                <div class="setting-item" style="padding: 10px 0 0 0; border: none; background: none;">
+                                    <div class="setting-label" style="font-size: 0.95rem; color: #cbd5e1;">
+                                        태풍 알림 받기
+                                        <i class="fa-solid fa-hurricane"
+                                            style="font-size: 0.8rem; color: #94a3b8; margin-left: 5px;"></i>
+                                    </div>
+                                    <label class="switch" style="transform: scale(0.85);">
+                                        <input type="checkbox" id="push-opt-typhoon">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">태풍 발생·소멸 시 알림</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 위치 기반 기상 정보 제공 (관리자 전용) -->
+                    <div id="location-alert-card" class="notification-settings-card"
+                        style="margin: 0 15px 15px; background: rgba(30, 41, 59, 0.4); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); overflow: hidden; backdrop-filter: blur(10px);">
+                        <div
+                            style="padding: 18px 15px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                            <div style="flex: 1;">
+                                <div
+                                    style="font-size: 1rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <i class="fa-solid fa-location-crosshairs" style="color: var(--accent-blue);"></i>위치 기반 기상 정보 제공
+                                    <span id="location-alert-admin-badge"
+                                        style="display: none; font-size: 0.65rem; font-weight: 600; color: #fbbf24; background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 6px; padding: 2px 6px;">관리자 전용</span>
+                                </div>
+                                <div
+                                    style="font-size: 0.75rem; color: #94a3b8; font-weight: normal; margin-top: 6px; line-height: 1.5;">
+                                    내가 실제로 위치한 해역에 특보가 발효되면 안전 경보를 보내드립니다. 위치정보는 휴대폰 내부에만 저장되며 서버로 전송되지 않습니다.
+                                </div>
+                                <div id="location-alert-status"
+                                    style="font-size: 0.72rem; color: #64748b; margin-top: 8px;">비활성 상태입니다.</div>
+                                <div id="location-alert-update-note"
+                                    style="display: none; font-size: 0.74rem; color: #f87171; font-weight: 600; margin-top: 8px; line-height: 1.5;">
+                                    이 기능을 사용하려면 앱을 최신 버전으로 업데이트해 주세요.</div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="location-alert-toggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <!-- 하위 토글: 동의(상위 토글) ON 시 활성, OFF/게이트 잠금 시 흐림(opacity)+비활성. (#tab-push setting-item 패턴) -->
+                        <div id="location-alert-sub"
+                            style="padding: 0 15px 15px; transition: opacity 0.3s; opacity: 0.4; pointer-events: none;">
+                            <div style="display: flex; flex-direction: column; gap: 4px; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 6px;">
+                                <div class="setting-item" style="padding: 10px 0 0 0; border: none; background: none;">
+                                    <div class="setting-label" style="font-size: 0.95rem; color: #cbd5e1;">
+                                        위치 기반 특보 정보 받기
+                                        <i class="fa-solid fa-triangle-exclamation"
+                                            style="font-size: 0.8rem; color: #94a3b8; margin-left: 5px;"></i>
+                                    </div>
+                                    <label class="switch" style="transform: scale(0.85);">
+                                        <input type="checkbox" id="location-alert-sub-alert" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">내 위치 해역에 해상특보가 발효되면 알림</div>
+                                <div class="setting-item" style="padding: 10px 0 0 0; border: none; background: none;">
+                                    <div class="setting-label" style="font-size: 0.95rem; color: #cbd5e1;">
+                                        위치 기반 태풍 정보 받기
+                                        <i class="fa-solid fa-hurricane"
+                                            style="font-size: 0.8rem; color: #94a3b8; margin-left: 5px;"></i>
+                                    </div>
+                                    <label class="switch" style="transform: scale(0.85);">
+                                        <input type="checkbox" id="location-alert-sub-typhoon" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">내 위치가 태풍 강풍/폭풍반경에 들 것으로 예상되면 알림</div>
                             </div>
                         </div>
                     </div>

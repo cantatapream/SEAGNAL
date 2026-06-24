@@ -136,3 +136,7 @@ local_server/analysis/wave_leadtime/data/prelim_warnings.json
 
 # 특보 예측 운영 누적 저널(분석력 강화용 — Fly 볼륨, append-only)
 local_server/data/advisory_journal.jsonl
+
+# dmdw 통보문 수집 원본(분석 산출물은 별도)
+local_server/analysis/wave_leadtime/data/bulletins.json
+local_server/analysis/wave_leadtime/data/bulletins_*.json

@@ -3230,6 +3230,7 @@ var USAGE_FEATURE_LABELS = {
     'ocean.gugu_forecast': '해구 전망표/그래프',
     'ocean.cctv_open': 'CCTV 팝업',
     'ocean.typhoon': '태풍',
+    'ocean.mudflat': '물빠짐',
     'ocean.basemap.rltm': '배경 · 기본맵',
     'ocean.basemap.enc': '배경 · 전자해도',
     'ocean.basemap.coast': '배경 · 해안도',
@@ -3240,6 +3241,7 @@ var USAGE_FEATURE_LABELS = {
     'shrt.snow': '적설',
     'shrt.sky': '하늘상태',
     'shrt.temp_air': '기온(천기)',
+    'shrt.vsby': '시정',
     // E. 해점 바텀시트 — 바텀시트로 얻은 데이터는 통합 1건으로 집계.
     'sheet.bottom_sheet': '해점 바텀시트',
     // (legacy) 마이그레이션 전 개별 집계분 라벨 — 표시 호환용으로 유지.

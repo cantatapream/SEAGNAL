@@ -70,7 +70,8 @@
         parentBox: null,      // marine_zone_no → [lonMin,latMin,lonMax,latMax]
         parentBoxPromise: null,
         zoneCache: {},        // code → Promise<{cells, baseTm}>
-        summaryCache: {},     // code → {min,max,time} | null(데이터없음) | undefined(미계산/진행중)
+        summaryCache: {},     // code → {min,max,time} | null(데이터없음) | 'error'(서버장애) | undefined(미계산/진행중)
+        errRetryAt: {},       // code → 다음 'error' 재시도 허용 epoch ms (장애 시 폭주 방지 쿨다운)
         refreshTimer: null,   // 요약 도착 후 ZoneAvg.refreshAll 디바운스 타이머
         layer: null,          // 현재 그려진 OL VectorLayer
         activeCode: null,     // 현재 토글 ON 인 특보구역 코드 (없으면 null)
@@ -382,6 +383,13 @@
             return null;
         }
         if (summary === null) return null;   // 데이터 없는 구역 → 시정 미표시
+        if (summary === 'error') {
+            // 기상청 외부 서버 장애(504 등)로 시정 값을 못 받음 → 회색 비활성 "--km"
+            //   뱃지로 표시. (데이터 없음[null]과 달리 뱃지는 띄우되 클릭/색칠은 막는다.)
+            //   쿨다운 경과 시 백그라운드 재시도 — 서버 복구되면 다음 갱신에 정상 표시.
+            _ensureSummary(code);
+            return _makeDisabledBadge(code);
+        }
 
         var val = _badgeText(summary).replace(/^시정\s*/, '');   // "0.2~5km" / "20km"
         var badge = document.createElement('span');
@@ -404,15 +412,43 @@
         return badge;
     }
 
+    /**
+     * 회색 비활성 시정 뱃지 ("--km") — 서버 장애로 값을 못 받은 구역용.
+     *   클릭해도 소해구 팝업은 띄우지 않고, 일시적 장애임을 토스트로만 안내한다.
+     */
+    function _makeDisabledBadge(code) {
+        var badge = document.createElement('span');
+        badge.className = 'zone-avg-badge vsby vsby-disabled';
+        badge.dataset.vsbyCode = code;
+        badge.title = '시정 데이터를 일시적으로 불러올 수 없습니다';
+        badge.innerHTML = '<span class="lbl">시정</span> --km';
+        badge.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (typeof window._showOceanToast === 'function') {
+                window._showOceanToast('시정 데이터를 일시적으로 불러올 수 없습니다.', 'bottom', 1800, false);
+            }
+        });
+        return badge;
+    }
+
     /** 시정 요약을 1회 비동기 로드해 summaryCache 에 저장하고 refreshAll 예약. */
     function _ensureSummary(code) {
-        if (code in state.summaryCache) return;   // 이미 계산됨/진행중 → 중복 요청 방지
+        var cur = state.summaryCache[code];
+        // 진행중(undefined 마커)·정상값·데이터없음(null)은 재요청 불필요.
+        if (code in state.summaryCache && cur !== 'error') return;
+        // 'error'(서버 장애)는 쿨다운(60초) 경과 후에만 재시도해 요청 폭주를 막는다.
+        if (cur === 'error' && Date.now() < (state.errRetryAt[code] || 0)) return;
+
         state.summaryCache[code] = undefined;      // 진행중 마커
         _computeZoneSummary(code).then(function (summary) {
-            state.summaryCache[code] = summary || null;
+            state.summaryCache[code] = summary || null;   // 값 있으면 객체, 없으면 null(데이터없음)
+            delete state.errRetryAt[code];
             _scheduleBadgeRefresh();
         }).catch(function () {
-            state.summaryCache[code] = null;
+            // fetch 실패(504/네트워크 등) → 데이터 없음(null)과 구분해 'error' 로 표시.
+            state.summaryCache[code] = 'error';
+            state.errRetryAt[code] = Date.now() + 60000;   // 60초 후 재시도 허용
+            _scheduleBadgeRefresh();                        // 회색 뱃지로 재합류
         });
     }
 
@@ -639,6 +675,7 @@
 
     function _onBadgeClick(code, badge) {
         if (state.activeCode === code) { _closePopup(); return; }
+        if (window.trackUsage) window.trackUsage('shrt.vsby');  // [사용량] 시정 — 팝업 열릴 때만 1회(같은 코드 토글 닫기 제외)
         _showZonePopup(code).catch(function (e) {
             console.warn('[vsby-badge] 시정 팝업 실패:', e && e.message);
             _closePopup();
@@ -796,6 +833,13 @@
             + '}'
             + '.zone-avg-box .zone-avg-badge.vsby.active{'
             +   'background:rgba(186,104,200,0.5);border-color:#ba68c8;color:#fff;'
+            + '}'
+            // ── 서버 장애 시 회색 비활성 뱃지 ("--km") ──
+            //    보라색 기본 스타일을 덮어쓰도록 셀렉터 specificity 를 한 단계 높임.
+            + '.zone-avg-box .zone-avg-badge.vsby.vsby-disabled{'
+            +   '--zab-strong:rgba(140,150,160,0.85);--zab-faded:rgba(140,150,160,0.15);'
+            +   'background:rgba(140,150,160,0.18);color:#9aa6b2;'
+            +   'border-color:rgba(140,150,160,0.4);cursor:default;opacity:0.8;'
             + '}'
             // ── 시정 팝업(자체 미니 해구도) ──
             + '.vsby-pop-overlay{position:fixed;inset:0;z-index:11000;background:rgba(0,0,0,0.55);'

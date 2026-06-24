@@ -1,0 +1,299 @@
+# 위치 기반 해상특보 안전 경보 — 설계 문서 (합의본)
+
+> 상태: **설계 합의 완료 / 구현 미착수**
+> 본 문서는 대화로 디벨롭·합의한 내용을 정리한 것으로, 구현 작업의 기준이 된다.
+> 작성 맥락: SEAGNAL(한국 연안 해양기상 앱, Android/Play 중심, Node.js+Express 백엔드 + Capacitor 앱).
+
+---
+
+## 1. 목표 (한 줄)
+지금은 일회성으로만 쓰는 GPS 위치를, **앱이 꺼져 있어도 약 15분마다 단말에 갱신 저장하는 공통 위치 토대**로 만들고, 그 위에 **"내가 실제로 있는 해역에 특보가 걸리면 수준별로 단계적 경고"** 를 보내는 기능을 새로 얹는다. (기존 관심해역 구독 푸시와는 **완전히 별개**의 스트림)
+
+위치 토대는 본 기능 전용이 아니라 **여러 기능이 공유하는 범용 인프라**로 설계한다. (예: 갯벌 침수 대피 안내 등 향후 기능에서 동일 위치 데이터 재사용)
+
+---
+
+## 2. 구성요소
+1. **백그라운드 위치 저장소** — 권한 허용자에 한해 앱 종료 상태에서도 약 15분 주기로 위치 확인, **최신 1건만 갱신(overwrite)**, **단말 내부에만** 저장.
+2. **위치 기반 단계적 특보 경고** — 저장된 위치가 어느 특보구역 안인지 판정 → 그 구역 특보를 수준별로 단계적 경고.
+
+---
+
+## 3. 프라이버시 · 법률 (확정)
+- **위치 좌표 = 단말에만 저장, 서버 전송 절대 금지.** (개인정보 부담 회피 + 서버 부하 회피)
+- **동의 기록 = 단말 + 서버 최소 기록.** "누가(푸시 토큰 기준)·언제·어떤 문구 버전에 동의" 만 서버에 남김(증거용). **위치 좌표는 서버에 안 보냄.** 위치 데이터와 동의 사실은 다른 것임에 유의.
+- **한국 위치정보법**: "저장하지 않고 단말 내 처리·외부 미전송"은 위치기반서비스사업 **신고 면제에 유리**(단, 면제는 전문 법률 검토로 최종 확인 권장). 면제와 무관하게 **수집 동의(제15조)·약관 고지(제21조)·최소수집/파기(제18조)** 는 필수.
+- **Google Play**: 백그라운드 위치는 최대 심사 관문. 권한 선언 양식 + prominent disclosure + 시연 영상 + 전경 서비스 location 타입 + 상시 알림 필요. 심사는 한 기능만 보므로 **사유를 "위치 기반 해상특보 안전 경보" 하나로** 집중.
+
+---
+
+## 4. 데이터 소스 (확정)
+- **특보구역 폴리곤**: `local_server/assets/warn_zones.geojson` (메인 44개), 필요 시 `warn_zones_sub.geojson`(연안/평수 49개). GeoJSON, EPSG:4326, 좌표 `[경도, 위도]`, MultiPolygon. 식별자 `WarnCode`/`name`.
+  - **앱에 내장(번들)** 하여 서버 호출 없이 단말에서 판정. (정적·소용량, 거의 불변)
+  - 정밀도: 선분 중앙값 약 690m, 촘촘한 곳 약 195m. 섬·육지를 구멍(hole)으로 파내어 **이미 "바다만" 표현**.
+- **육지 지도(`land_mask_korea.json`) → 폐기.** 한국 해안선 선분 중앙값 약 7.4km로 너무 거칠어 갯바위/방파제 판정 불가. 별도 육지 지도 불필요(특보구역 폴리곤이 육지를 이미 제외).
+- **항·포구 좌표 데이터 = 없음 → 도입 안 함.** (관련 안내는 일반 문구로 처리)
+- **암초·항행장애물·수심·해도(ENC) = 없음.** (장애물 판정 한계의 원인)
+
+---
+
+## 5. 전달 구조 (방식 A — 확정)
+서버가 깨우고, 판단은 단말이 한다.
+1. **(서버) 깨우는 신호**: 특보 발생 시 서버가 **위치기반 동의자**에게 조용한 신호 전송(그 자체로는 사용자에게 안 보임). 기존 특보 수집·푸시 파이프라인 재활용.
+2. **(단말) 맞춤 경고**: 신호를 받은 폰이 내장 폴리곤 + 단말 저장 위치로 "내가 그 해역인가" 판정 → 해당하면 **폰이 직접 맞춤 경고(로컬 알림) 표출**, 아니면 조용히 무시.
+- 결과: 위치가 폰 밖으로 안 나가고, 해당 해역 사용자에게만 경고. 15분 위치 갱신은 "신호 도착 시 최신 위치 준비" 역할.
+- 기존 특보 푸시는 **관심해역 설정자** 대상 / 본 기능은 그와 **별개로 위치기반 동의자** 대상.
+
+---
+
+## 6. 바다/육지 · 구역 판정 로직 (확정)
+- 특보구역 폴리곤으로 **point-in-polygon** 판정 → 어느 구역인지 + 바다/육지 동시 해결.
+- **GPS 오차 반경 활용**: 점이 단순히 구역 안이 아니라, **오차 반경만큼 더 안쪽**으로 들어와 있어야 "해상"으로 인정.
+- **경계 회색지대**(해안 언저리·오차 반경 걸침): 강한 경보 대신 **약한 안내**로 완화.
+- 잔여 한계: 약 200~700m 미만의 작은 방파제·갯바위는 폴리곤에 안 잡힐 수 있음 → 위 오차반경 + 회색지대 규칙으로 흡수.
+
+---
+
+## 7. 최근접 무특보 구역 방위·거리 (확정)
+- 사용자가 특보 구역에 있을 때, **특보 없는 가장 가까운 "이름 있는 구역"** 으로 안내(외해로는 보내지 않음).
+- 각 무특보 구역 경계선에서 사용자 위치에 가장 가까운 점을 찾고, 그중 최단 구역 선택.
+- **방위** = 진북 기준 0~360°(1° 단위) / **거리** = 그 최단 진입점까지 해리(10해리 미만 소수1자리, 이상 정수).
+- 거리가 멀어도 **그대로 표시**(광역특보 별도 문구 전환 없음).
+- **2단계(경보·태풍) 구역**에서는 목표 2개 제공: ① 최근접 **무특보** 해역(완전 안전) + ② 최근접 **"경보·태풍이 아닌(주의보/예비특보)"** 해역(큰 배는 여기까지만 가도 조업 가능할 수 있음, 보통 더 가까움). 두 목표가 같으면 ② 줄 생략.
+- **장애물 표시**: 직선 경로에 **큰 육지·섬이 걸리는지**는 폴리곤 구멍으로 판정 가능(되도록 가로막힘 없는 지점 선택, 그래도 걸리면 표시). **암초·작은 장애물은 데이터 부재로 판정 불가** → "직선은 깨끗하다"고 절대 보증하지 않음. 푸터로 항상 유의 안내.
+- 방위는 진북(해도) 기준. (자북 변환은 선택 사항, 현재 미적용)
+
+---
+
+## 8. 상황별 푸시 문구 (최종 확정)
+
+### 공통 규칙 & 이모지
+- `○○` = 현재 위치한 특보구역명 / `△△·□□` = 안내 대상 구역명
+- 제목 마커 **📍** = 위치기반 알림 / **🚨** = 긴급경보에만(태그 안)
+- 본문: **🕒** 발효 예정시각 · **🧭** 최근접 해역(방위·거리) · **⚠️** 장애물 유의 / **🌊** 항행 안전
+- 미발표 해역 = 특보가 전혀 없는 해역 / 주의보·예비특보 해역 = 경보·태풍이 아닌 한 단계 낮은 해역
+- 태그 2종: **안전정보**(예비·주의보) / **긴급경보**(경보·태풍)
+- 시각: 명확형 `6월 17일 21시` / 범위형 `오늘 밤(21~24시)` 원문 형태
+- 장애물 푸터(방위·거리 주는 메시지만): 큰 육지·섬 걸림 → ⚠️, 없으면 🌊 자동 분기
+- 경계 회색지대 → 약한 안내 / **해제 → 알림 없음**
+- 글자 수: 펼친 알림 한도(안드 약 240자/iOS 약 256자) 내. 접힌 화면 잘림 대비해 핵심(구역·특보·시각) 앞 배치. 긴 법적 장문은 푸시 미포함.
+
+### ① 예비특보 발표 (안전정보 · 구속력 없음 · 방위 없음)
+- **제목**: `📍 [위치기반 안전정보] ○○ 풍랑 예비특보 발표`
+- **내용**:
+  ```
+  현재 위치하신 해역에 풍랑 예비특보가 발표되었습니다.
+  🕒 발효 예정시각 : (수집 데이터 기반 — 명확형 또는 범위형)
+  기상이 악화될 가능성이 있으니, 현지 해상·기상 상황을 살피고 안전에 유의하세요.
+  ```
+
+### ② 풍랑주의보 발효 예정 (안전정보 · 1단계 · 조건부 제한)
+- **제목**: `📍 [위치기반 안전정보] ○○ 풍랑주의보 발효 예정`
+- **내용**:
+  ```
+  현재 위치하신 해역에 풍랑주의보가 6월 17일 21시 발효 예정입니다.
+  발효 시 선박 톤수·운항 시기, 수상레저 종사 여부 등에 따라 조업·활동이 제한될 수 있으니 안전한 해역으로 이동을 고려하세요.
+  🧭 최근접 특보 미발표 해역 : △△ 225° - 8.3해리
+  🌊 항행 안전에 유의하여 항행하세요.
+  ```
+- 변형: 이미 발효 시 "발효 예정/발효될 예정입니다" → "발효/발효 중입니다"
+
+### ③ 풍랑경보·태풍경보·태풍주의보 발표 (긴급경보 · 2단계 · 발효 예정)
+- **제목**: `📍 [위치기반 긴급경보🚨] ○○ 풍랑경보 발표`
+- **내용**:
+  ```
+  현재 위치하신 해역에 풍랑경보가 0월 00일 00시(또는 범위형) 발효 예정입니다.
+  해당 해역에서 조업 및 해상활동이 전면 제한되므로 즉시 안전한 해역·항포구로 이동하세요.
+  🧭 최근접 특보 미발표 해역 : △△ 225° - 12해리
+  🧭 최근접 주의보·예비특보 해역 : □□ 250° - 5.0해리
+  ⚠️ 경로상 육지·섬이 있으니 항행 장애물에 유의하여 항행하세요.
+  ```
+
+### ④ 풍랑경보·태풍경보·태풍주의보 발효 (긴급경보 · 2단계 · 발효 중)
+- **제목**: `📍 [위치기반 긴급경보🚨] ○○ 풍랑경보 발효`
+- **내용**:
+  ```
+  현재 위치하신 해역은 조업 및 해상활동이 전면 제한되는 구역입니다.
+  즉시 안전한 해역·항포구로 이동하세요.
+  🧭 최근접 특보 미발표 해역 : △△ 225° - 12해리
+  🧭 최근접 주의보·예비특보 해역 : □□ 250° - 5.0해리
+  ⚠️ 경로상 육지·섬이 있으니 항행 장애물에 유의하여 항행하세요.
+  ```
+- ③·④ 공통: "풍랑경보" 자리에 태풍경보·태풍주의보 동일 적용 / 두 목표 구역이 같으면 "주의보·예비특보 해역" 줄 생략
+
+### ⑤ 특보 해제
+- **알림 없음**
+
+> 기존 일반 특보 푸시 이모지 체계(참고, `services/push_helpers.js`): 📢 발표 / 🚨 발효 / ✅ 해제 / 🔻 격하 / 🕐 시각변경. 본 위치기반 스트림은 📍 마커로 구분.
+
+---
+
+## 9. 백그라운드 위치 메커니즘 (확정)
+- **검증된 백그라운드 위치 플러그인** 채택(직접 구현·기본 위치기능 대비 우월).
+  - 이유: 앱 종료 상태 지속 동작(Doze·제조사 강제종료 대응), 배터리 최적화, 안드로이드 버전 변화 대응, Play 심사 대응 문서. 안전 기능이라 "어떤 폰에서도 멈추지 않는 신뢰성"이 최우선.
+  - 무료(커뮤니티)/유료(상용) 옵션 존재 → 구체 제품·라이선스는 구현 단계에서 확정.
+- **주기 약 15분** (안드로이드 최소 주기와 일치). 깨어남 → 위치 1건 확인 → 단말 최신 위치 갱신 → 잠듦.
+- **상시 알림(안드로이드 의무)**: 최소화 → **"해상안전을 위해 위치 확인 중"** 만 표시(앱 이름·아이콘은 자동 부착).
+- iOS는 백그라운드 위치 규칙이 더 제약적(현재 앱은 Android 중심이라 안드 기준). iOS 확장 시 별도 검토.
+
+---
+
+## 10. 동의 · 권한 UX 흐름 (확정)
+순서가 중요(사전 고지가 시스템 권한창보다 먼저, 동의도 동시 수령).
+
+> **★ 활성 권한 게이트 (확정)**: 본 기능 토글은 **기본 비활성이며 일반 사용자는 활성할 수 없다.**
+> **관리자 권한으로 등록(로그인)된 휴대폰에서만** 활성 가능. (= `adminAuthenticated` 상태인 단말,
+> 관리자 토큰 `seagnal_admin_token` 보유 기기) 비관리자에게는 토글이 비활성/잠금으로 표시된다.
+> 서버 깨우는 신호(방식 A)도 활성한 관리자 단말의 구독만 대상이 된다. (통제된 단계적 도입 목적)
+
+1. **기본 OFF + 관리자 단말만 활성 가능** — 푸시 설정(관심해역 옆)에 "위치 기반 특보 정보 제공" 토글 추가. opt-in. **비관리자는 잠금(활성 불가).**
+2. **토글 ON → 우리 동의 팝업 먼저** (아래 문안). 위치정보법 동의 + 구글 사전 고지 동시 충족.
+3. **[동의함] → 전경 위치 권한("앱 사용 중 허용") 요청.**
+4. **백그라운드("항상 허용") 안내** — 안드로이드 11+는 권한창에서 바로 못 줌. 설정 화면으로 유도.
+5. **허용 완료 → 기능 ON**, 동의 기록 저장(단말+서버 최소).
+6. **"항상 허용" 거부자 = 아예 동작 안 함.** 허용자만 작동. 거부 시 토글 OFF 유지 + "항상 허용 필요" 1회 안내.
+7. **OFF 시**: 위치 확인 중단 + 상시 알림 제거 + 단말 저장 위치 즉시 삭제.
+
+### 동의·고지 팝업 문안 (초안 — 출시 전 운영 문안으로 재검토)
+```
+[위치 기반 특보 정보 제공 동의]
+
+SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안내해 드리기 위해 위치정보를 이용합니다.
+
+• 수집 항목: 단말기 위치정보(GPS 좌표)
+• 이용 목적: 현재 위치한 해역의 해상특보(예비특보·주의보·경보) 안전 경보 제공
+• 수집 방식: 앱이 종료되어 있거나 사용 중이 아닐 때에도(백그라운드) 약 15분 주기로 위치를 확인합니다.
+• 저장 및 보관: 수집된 위치정보는 이용자의 휴대폰 내부에만 저장되며, 서버 등 외부로 전송·수집되지 않습니다.
+  최신 위치 1건만 갱신·보관하고, 본 기능을 해제하면 즉시 삭제됩니다.
+• 동의 거부 권리: 동의를 거부하거나 설정에서 언제든 해제할 수 있습니다.
+  다만 미동의 시 위치 기반 특보 경보는 제공되지 않습니다.
+
+위 내용에 동의하시면 [동의함]을 선택해 주세요.
+
+[ 동의함 ]   [ 동의하지 않음 ]
+```
+
+---
+
+## 11. Google Play 제출 체크리스트
+- [x] 사전 고지 팝업(10-2) = prominent disclosure
+- [x] 상시 알림(9) = 전경 서비스 location 타입 요건
+- [ ] 권한 선언 양식 제출 (사유 = 위치 기반 해상특보 안전 경보 하나로)
+- [ ] 시연 영상 제출 (사전 고지 팝업 + 경고 동작 장면)
+- [ ] 전경 서비스 타입 `location` 매니페스트 선언 + Play 콘솔(정책>앱 콘텐츠) 선언
+
+---
+
+## 12. 추후 과제 / 미해결
+- 항·포구 좌표 데이터 도입(되면 "○○항 방향 ○해리" 가능) — 현재 보류.
+- 방위 자북 변환(현재 진북) — 선택.
+- 단말 내 "내 활동 유형(어선<15t/≥15t·수상레저·낚시)" 저장으로 문구 맞춤화 — 선택, 단말에만.
+- 어선안전조업법·수상레저안전법 **실제 조문으로 톤수·계절·금지 기준 정밀 검증**(출시 전 필수).
+- 위치정보법 신고 면제 여부 **전문 법률 검토**.
+- warn_zones 해안 경계 약 200~700m 잔여 정밀도 한계(작은 갯바위/방파제) 인지.
+
+---
+
+## 12.5 검토(에이전트) 발견 및 조치 (2026-06-16)
+별도 에이전트로 대화 결정사항 ↔ 코드 대조 검토. 14개 체크리스트 중 ✅11/⚠️3, 버그 4건 발견 → 조치:
+- **[수정] 위험1(치명)**: 동의 토큰 키가 `fcm_token`(미존재)이라 동의가 서버에 한 건도 기록되지 않아 신호 대상이 항상 비던 문제 → 앱 표준 키 **`push_token`**으로 교정(`location_alert_ui.js` `getPushToken()`). 테스트 추가.
+- **[수정] 위험3(설계 어긋남)**: 경계 회색지대에서 예비·주의보까지 전부 묵살되던 것 → **강경보(severe)만 보류**, 예비/주의보(안전정보)는 표출(`location_alert_runtime.js`). 테스트 추가.
+- **[수정] 위험4(일관성)**: 둘째줄 생략 dedup 키 warnCode↔name 혼용 → **name 기준 통일**(`location_alert_core.js`).
+- **[수정] 경미**: `_origFetch`(window 미존재) 폴백 제거, `root.fetch` 사용.
+- **[미해결] 위험2**: 앱 **완전 종료(killed) 상태**의 데이터 메시지 수신은 포그라운드 리스너만 있어 미처리. 네이티브 FCM 서비스 보강 또는 전경 서비스 상시 가동으로 완화 필요(실기기 검증 대상).
+
+## 12.6 시연(테스트) 기능 — 관리자 센터 하위탭 (2026-06-16)
+통합 관리자 센터 > 시연 > **"위치 기반 특보 시연"** 하위탭 추가. **실제 푸시 경로** 검증용.
+- `js/admin_location_demo.js` (`renderLocationAlertDemoTab`): 내 위치를 **제주도북부앞바다** 중심으로 임의 고정(단말 저장) → 시나리오(예비/주의보 발효예정·발효중/경보 발표·발효/태풍경보) 버튼 → ① 단말 미리보기(제목/본문) + ② 서버가 **이 관리자 기기에만** 실제 데이터 메시지 발송.
+- 라우트 `POST /api/location-alert/demo`(`requireAdminToken` 보호): body `{token(기기 push_token), activeWarnings}` → `dispatchWake`로 그 토큰 1개에만 발송.
+- 연결: `js/admin.js` 시연 하위탭 호스트에 'location' 추가, `index2.html` 스크립트 로딩.
+- 2차 검토(에이전트): 직전 버그수정 4건 정확·완전, 회귀 없음 확인. 둘째줄 dedup 전용 테스트 추가(core 15항목).
+- 테스트 총 63 통과(core 15 / ui 18 / server 21 / runtime 9).
+- 실기기: 앱 켜진 상태에서 가장 확실히 수신. `push_token` 없으면 미리보기만 동작.
+
+## 12.7 보강 (2026-06-16) — extract 정합화 / 종료상태 테스트 / 위치·토큰 표시
+- **Q1 해결**: `extractActiveWarnings` 를 **실제 weather_alerts.json 구조**(루트 `empty_tree.json` + `report_alert_processor.js` 확인)에 맞춰 재작성. 지역 중첩 트리를 재귀 순회, 말단 구역 노드의 `current`/`upcoming`(**객체|null**, 필드 `wrnTp/wrnLvl/tmEf/tmFc/tmCc`)에서 추출. children(자식 구역)도 순회. 서버 테스트를 실제 구조로 교체·검증(현 23항목).
+- **종료상태 수신 테스트 수단**: 시연 버튼을 **즉시 / 5분 후** 2종으로. `POST /api/location-alert/demo`에 `delayMs`(0~10분) 추가 — >0이면 서버가 setTimeout 예약 후 즉시 응답. "5분 후" 누르고 앱을 완전 종료해 두면 종료상태 수신을 검증할 수 있음.
+- **Q2(a)**: 시연 탭에 "마지막 저장 위치(위경도·오차·N분 전)" 표시 + 새로고침. 백그라운드 수집 동작 확인용.
+- **Q2(b)**: 시연 탭에 "이 기기 push_token" 표시(외부/교차 발송 테스트 참고용).
+- **Q3**: 매니페스트에 전경 서비스(location) 선언은 플러그인 머지 의존 — **빌드 후 merged AndroidManifest 확인** 주석 추가(블라인드 직접 선언은 머지 충돌 위험이라 지양).
+
+## 12.8 종료상태 네이티브화(하이브리드) + 버전 게이팅 (2026-06-17, 진행 예정)
+- **방향 확정**: 종료(killed) 상태 알림은 **방법 B(안드로이드 네이티브)** 로 구현. 위치 완전 on-device 유지(Play 데이터안전 "수집 안 함"). 웹앱은 그대로 iOS·안드 공통, 이 기능만 네이티브(안드 우선, iOS 추후). A(토픽)·암호화 전송은 위치가 단말 밖으로 나가 원칙 위배 + Play "근사위치 수집" 신고 대상 → 폐기.
+- **구현 방식**: 독립 worktree 2개 에이전트 병렬 구현 → 1개 통합본 병합 → 대화기반 누락검토.
+- **★ 신규 요구(버전 게이팅 — 통합 시 반드시 반영)**:
+  - 위치기반 토글은 **관리자 + "네이티브 지원(최신 앱)"** 둘 다 충족해야 활성.
+  - **앱 미업데이트(네이티브 기능 없음) 단말**: **토글 비활성화** + 토글 **아래 빨간 글씨로 "앱 업데이트 필요"** 안내.
+  - **네이티브 지원 감지 = 앱 버전 정보 기반(확정)**: `@capacitor/app` 의 설치 앱 버전(versionName)을 읽어, 네이티브 기능이 포함된 **최소 버전(NATIVE_MIN_VERSION, 네이티브 APK 출시 시 확정·고정)** 과 비교. 미만이면 토글 `disabled` + 아래 빨간 글씨 "이 기능을 사용하려면 앱을 업데이트해 주세요". (웹 UI는 fly.dev 최신이라 토글은 보이지만, 네이티브는 업데이트된 APK에만 존재하므로 버전으로 가드.)
+  - 활성 조건 = **관리자 게이트(seagnal_admin_token) AND 버전 게이트(versionName ≥ NATIVE_MIN_VERSION)** 둘 다 충족.
+
+## 12.9 네이티브 종료상태 모듈 — 통합 완료 (2026-06-17)
+- 독립 worktree 2개 에이전트(A·B)가 거의 동일 아키텍처로 수렴 → **B를 기준으로 통합**(매니페스트 FCM 서비스 공존을 `tools:node="remove"`+서브클래스로 결정적 처리, firebase-messaging 25.0.1 일치) + **A의 컴파일 안전장치(`implementation project(':capacitor-push-notifications')`) 흡수**.
+- 구성: `android/app/src/main/java/com/seagnal/app/locationalert/`(LocationAlertCore/Decider/Store/WarnZoneAssets/Notifier/MessagingService) + `assets/warn_zones.geojson` 번들 + 매니페스트/`build.gradle` + JS 미러(`location_alert_background.js`·`location_alert_ui.js` → 위치·플래그를 @capacitor/preferences=SharedPreferences "CapacitorStorage"에 미러) + `package.json`(@capacitor/preferences).
+- 두 에이전트 모두 핵심 로직을 JDK로 컴파일·JS와 byte-level 패리티(7케이스) 검증. 위치는 단말 밖 전송 0.
+- **버전 게이팅 구현 완료**: `location_alert_ui.js` `NATIVE_MIN_VERSION='1.1.3'`, `@capacitor/app` versionName 비교(`cmpVersion`). 관리자라도 버전 미만이면 토글 비활성 + `#location-alert-update-note` 빨간 안내("앱을 최신 버전으로 업데이트"). 활성=관리자 AND 버전≥최소. 앱 버전 1.1.2→**1.1.3**(versionCode 4→5).
+- 테스트 65 통과(core15/ui22/server23/runtime9). **남은 검증=실기기**: merged manifest 단일 FCM 서비스·일반 푸시 정상, firebase 버전 충돌 無, killed 수신, Preferences 키(`CapacitorStorage`) 일치.
+
+## 12.10 관리자 통합(발송 이력·집계) + 태풍 하위탭 + 변화감지 (2026-06-17)
+- **위치기반 발송 이력 기록**: `location_alert_dispatch.js` 의 dispatchWake 가 실제 발송 시 `data/custom_push_history.json` 에 `{tab:'location', type:'auto', title:'📍[위치기반] 해상특보 안전 경보 발송', content:구역요약, count:대상수}` 기록 + `push_counter.incrementSend(count)` 누적. (테스트는 `opts.record:false`)
+- **관리자 UI**(`js/alert_push.js`): 카테고리 상단 탭에 **태풍 발생/소멸·위치기반** 추가(태풍은 필터엔 있었으나 상단탭 누락이던 버그 해소). 발송 이력 필터에 **위치기반** 카테고리 추가. 상단 태풍/위치 탭 진입 시 해당 `tab`으로 발송 이력 필터링 표시.
+- **집계**: "총 N회 M개" 는 push_counter 기반이라 위치기반 발송도 자동 누적.
+- **변화 감지**: `dispatchOnLatest` 가 직전 발송 스냅샷 시그니처(`data/location_alert_last_sig.json`)와 비교해 **동일 상황이면 재발송 안 함**(매 크롤 주기 중복 발송/이력 폭주 방지). 데모(`/demo`)는 변화감지 없이 항상 발송.
+- JS/서버 변경 → fly.dev 재배포로 반영(APK 무관). 테스트 69 통과.
+
+## 13. 구현 메모 / 진행 상황
+- 구현 순서(합의): ① 폴리곤 판정·거리·방위·문구 순수 로직 → ② 백그라운드 위치 → ③ 동의/활성 UI → ④ 서버 신호 연동.
+- **① 완료**: `js/location_alert_core.js` (순수 로직: 구역 판정·최근접 구역 방위/거리·경로 육지 판정·상황별 문구). 테스트 `scripts/test_location_alert_core.js` 실제 `warn_zones.geojson`로 13항목 통과.
+  - 섬 제외 판정은 `properties._holedGeometry`(구멍 포함) 사용. 최상위 `geometry`는 구멍 없는 솔리드(외곽 거리 계산용).
+- **③ (UI/동의 흐름) 완료**: `js/location_alert_ui.js` + 푸시 설정 탭 카드(`index2.html` #location-alert-card) + `settings.js`(openSettingsModal에서 `initLocationAlertUI()` 호출).
+  - 관리자 게이트(`seagnal_admin_token` 보유 단말만 활성, 비관리자 잠금+배지), 동의 팝업(앱 내부 저장 명시), 전경 위치 권한, "항상 허용" 안내, 동의 기록(단말 저장 + 서버 최소기록 hook `/api/location-alert/consent`).
+  - 테스트 `scripts/test_location_alert_ui.js` 16항목 통과(게이트/저장/문안).
+- **② (백그라운드 위치 + 단말 수신 핸들러) 코드 완료 / 실기기 검증 대기**:
+  - `js/location_alert_background.js` — `@capacitor-community/background-geolocation`로 전경 서비스(상시 알림 "해상안전을 위해 위치 확인 중") 기반 위치 수집. 최신 1건만 localStorage 저장(약 15분 throttle), 해제 시 즉시 삭제. `window.LocationAlertBackground.start/stop` (③ hook과 연결됨).
+  - `js/location_alert_runtime.js` — `decideAlert(pos, features, snapshot)` 순수 판정(구역·tier·최근접·문구) + `handleWake(snapshot)` 표시 셸(로컬 알림). `capacitor-plugins.js`의 `pushNotificationReceived`에서 `type:'location_alert_wake'` 시 호출.
+  - `@capacitor/local-notifications` 추가, `AndroidManifest.xml`에 `ACCESS_BACKGROUND_LOCATION`·`FOREGROUND_SERVICE_LOCATION` 추가, `package.json` 의존성 추가, `index2.html` 스크립트 로딩.
+  - 테스트 `scripts/test_location_alert_runtime.js` 7항목 통과(decideAlert 순수 로직).
+  - **실기기 필요(이 환경 검증 불가)**: `npm install && npx cap sync`, 백그라운드 위치 권한 흐름, 전경 서비스, Play 백그라운드 위치 심사. **앱 완전 종료(killed) 상태에서 데이터 메시지 수신**은 플랫폼 제약이 있어 별도 검증 필요(전경 서비스 상시 가동으로 완화되나, 필요 시 네이티브 FCM 서비스 보강).
+- **④ (서버 신호 + 동의기록) 완료**:
+  - `services/location_alert_store.js` — 동의 사실 최소 기록(`data/location_alert_consents.json`, 위치 좌표 미저장). upsert/철회/활성조회.
+  - `routes/location_alert.js` — `POST /api/location-alert/consent`(클라이언트 토글이 호출), `GET /api/location-alert/stats`. `server.js`에 등록.
+  - `services/location_alert_dispatch.js` — 활성 특보→스냅샷(`{zones:{구역명:{...,tier}}}`), 동의 단말 타깃 선택, **데이터 전용(조용한) FCM** 메시지, `dispatchOnLatest()`(weather_alerts.json 읽어 전송). tier는 `location_alert_core.classifyTier` 재사용.
+  - 크롤러 hook: `marine_warning_crawler.js` 사용자 푸시 직후 `dispatchOnLatest()` 호출(try/catch로 기존 푸시와 완전 격리).
+  - 테스트 `scripts/test_location_alert_server.js` 21항목 통과(저장소/스냅샷/타깃/페이로드/추출).
+  - **남은 검증/연결점**:
+    - `extractActiveWarnings(weatherTree)` 는 실제 `weather_alerts.json` 구조로 **최종 검증 필요**(개발환경에 파일 없음, 방어적 작성 + hook은 가드됨).
+    - **단말 수신 핸들러 미구현**: 데이터 메시지(`type:'location_alert_wake'`) 수신 시 단말이 `location_alert_core`로 판정→로컬 알림 표출하는 클라이언트 핸들러(②/푸시 핸들러에서 연결).
+- 신규/확장 지점(참고): 푸시 설정 UI(`js/settings.js` 등) + **관리자 게이트(`js/admin.js`의 `adminAuthenticated`/`seagnal_admin_token`)**, 권한 처리(`capacitor-plugins.js`), 특보 수집·푸시(`report_alert_processor.js`, `services/push_helpers.js`, `push_sender.js`, `scheduler.js`), 폴리곤 자산(`assets/warn_zones.geojson`).
+
+## 14. 예측 기상(최악 기상) 줄 추가 (2026-06-17)
+- **목적**: 각 tier 푸시(예비/주의보/경보) 본문에 "특보 기간 중 최악 예측 기상" 한 줄(`🌬️ {일}일 예측 기상 : ...`)을 추가해, 사용자가 악화 정도를 바로 가늠하도록 함.
+- **줄 형식**:
+  - 단기(풍향/풍속 있음): `🌬️ {일}일 예측 기상 : {풍향}풍 {풍속}m/s, 파고 {파고}m` (예: `🌬️ 20일 예측 기상 : 남동풍 4~12m/s, 파고 1.0~2.0m`)
+  - 중기만(파고만): `🌬️ {일}일 예측 기상 : 파고 {파고}m`
+  - `{일}` 없으면 `🌬️ 예측 기상 : ...`, 데이터 없음 → 줄 통째 생략(graceful).
+- **개인정보(핵심)**: 위치기반 경보는 단말 GPS 가 서버로 절대 나가지 않는다. 따라서 "예측 기상"도 단말이 자기 위치로 직접 조회하면 위치(개략)가 유출되므로, **서버가 구역별로 미리 계산하여 스냅샷에 주입**한다(`zones[구역명].forecast = {day, summary}`). 단말은 자기 구역의 forecast 문자열만 꺼내 표시 — 위치로 직접 예보를 받지 않는다(좌표 유출 방지).
+- **데이터 출처(앱 "기상예보" 버튼과 동일)**: 앞바다 `regionalForecastCollector.loadCoastalForecasts()`, 먼바다(구역명에 '먼바다' 포함) `loadMarineForecasts()`. period: `{date:'YYYYMMDD', period:'am'|'pm', wind:'동~남동 / 4~8', weather, waveHeight:'0.5~1.0'}`. 중기(선택, 파고만, 4~10일)는 `dataCache.midTermSeaForecasts`(= `/api/mid-term-sea-forecasts`) + `getMidTermRegId` + `parseMidTermSeaData` 규약 포팅.
+- **최악 선정 규칙**: (1) wind 파싱 — 방향군 첫 토큰이 풍향("동~남동"→"동"), 풍속 범위 유지. (2) 파고 비교는 범위의 최대 수치. (3) 날짜별 am/pm 중 더 나쁜 쪽(파고 max↑, 동률이면 풍속 max↑). (4) 날짜들 중 최악도 동일 기준 = 단기 최악. (5) 중기는 단기 최악보다 파고 max 가 **엄격히 클 때만** 사용(이때 파고만, 풍향/풍속 없음). (6) `{일}` = YYYYMMDD → DD → parseInt(앞 0 제거). (7) 어떤 결손/형식오류에도 throw 없이 null(줄 생략).
+- **구현 파일**:
+  - 신규 `services/location_alert_forecast.js` — `worstForZone(zoneName, deps?)`. deps 주입으로 단위 테스트 가능(데이터 파일은 런타임 생성 — dev 환경엔 부재). 내부 헬퍼는 `_internals` 로 노출.
+  - `services/location_alert_dispatch.js` `buildSnapshot` — 레코드 자체 `forecast`(데모 오버라이드) 우선, 없으면 `worstForZone(zoneName)`(try/catch) → `zones[z].forecast`.
+  - `js/location_alert_core.js` `buildMessage` — `forecastLine(fc)` + tier별 줄 배치. 제목 "현재 해역", prelim 접두("기상이 악화될...") 제거 + 빈 줄, advisory 활성문 선두 "현재" 제거, severe publish "즉시"→"사전에".
+  - `js/location_alert_runtime.js` `decideAlert` — `forecast: z.forecast || null` 전달.
+  - `js/admin_location_demo.js` — 시나리오별 `forecast` 샘플 추가(태풍 시나리오는 파고-only 예시 포함) + 데모 `buildSnapshot`에 forecast 복사.
+- **네이티브(APK 재빌드 필요)**: `LocationAlertCore.java`(`MessageCtx.forecastDay/forecastSummary` + `forecastLine` + buildMessage 미러 — JS 와 **byte-identical**), `LocationAlertDecider.java`(스냅샷 `forecast` 객체 `{day, summary}` 방어적 파싱 → MessageCtx). 서버/JS 변경분은 재배포로 반영되나, 종료 상태 native 표시는 새 APK 빌드·배포가 필요하다.
+- **테스트**: `scripts/test_location_alert_forecast.js`(19항목 — 최악 선정/풍향 첫 토큰/중기 엄격비교·전용/파고-only 단기/방어성, mock 주입), `scripts/test_location_alert_server.js`(29항목 — forecast 부착·줄 포함/생략·"현재 해역" 제목·day-less 렌더). 모두 통과.
+
+## 15. 데모 위치 격리 + 단말 진단 로그 (2026-06-19)
+- **버그(근본원인)**: 관리자 "위치 기반 특보 시연"이 시연 위치를 **실제 운영과 동일한** `location_alert_last_pos`(POS_KEY)에 써서, 시연이 활성인 동안 **실제 특보** wake 가 시연용 가짜 구역(제주도북부앞바다)으로 판정되어 엉뚱한 구역/발효예정시각 알림이 표출됐다.
+- **수정 1 — 데모 위치 격리**: 시연 위치는 **POS_KEY 에 절대 쓰지 않는다**. 대신 wake 메시지 안으로만 실어 보낸다(`demoLat`/`demoLng`/`demoAcc`, 모두 문자열).
+  - `services/location_alert_dispatch.js` `buildDataMessage(snapshot, demoPos)` — `demoPos`(유한 lat/lng) 있을 때만 data 에 `demoLat/demoLng/demoAcc` 추가. 실제 운영 wake 는 demoPos 가 없어 이 필드가 전혀 없다.
+  - `dispatchWake(active, { ..., demoPos })` → `routes/location_alert.js` `/api/location-alert/demo`(즉시·지연 두 경로 모두)에서 `req.body.demoPos` 전달.
+  - `js/admin_location_demo.js` — 모듈 스코프 `_demoPos`(시연 위치). `laDemoSetPosition`은 내부점을 계산해 `_demoPos`에만 저장하고 POS_KEY/미러 위치는 건드리지 않음(게이팅 플래그 `location_alert_active`/`location_alert_consent`만 ON). 미리보기·POST(`demoPos:_demoPos`)도 `_demoPos` 사용.
+  - **단말 처리**: `js/location_alert_runtime.js` `handleWake(snapshotStr, data)` — `data.demoLat/demoLng` 있으면 그 위치(src='demo'), 없으면 진짜 백그라운드 GPS `getPosition()`(src=pos.src||'gps'). 네이티브 `LocationAlertMessagingService.handleWake(ctx, data)`도 동일(demo 필드 있으면 메시지 위치, 없으면 `LocationAlertStore.getPosition`).
+  - 실제 운영 wake 는 **항상 진짜 백그라운드 GPS**(`location_alert_last_pos`, `savePosition`이 `src:'gps'` 표시)를 사용 → 데모가 실제 판정을 오염시키지 않는다. (GPS 좌표는 단말 밖으로 절대 나가지 않음 — 변동 없음.)
+- **수정 2 — 단말 진단 로그(개인정보 안전)**: 위치 알림을 표출할 때 어느 구역이 판정됐는지 + 위치 출처를 단말 로컬 키 `location_alert_last_match` 에 기록(localStorage + Capacitor Preferences/SharedPreferences "CapacitorStorage"). 형태: `{ zone, lat, lng, src('gps'|'demo'), tier, event, at(ISO-8601) }`. **네트워크 전송 없음(on-device 전용)**, 관리자 시연 탭에서 조회.
+  - `js/location_alert_runtime.js` `decideAlert` 가 반환 메시지에 `zone/tier/event` 주석(텍스트 불변), `handleWake`가 `writeLastMatch`로 기록. 네이티브는 `LocationAlertDecider`가 `Message.zone/tier/event` 주석 + `LocationAlertStore.putLastMatch(ctx, json)`(이 클래스의 유일한 WRITE).
+  - `admin_location_demo.js` 시연 탭은 (1) 실제 저장 위치(real GPS) (2) 시연 위치(_demoPos) (3) 마지막 판정(`location_alert_last_match` — Preferences 우선/없으면 localStorage) 세 가지를 구역/출처(src)/단계(tier)/시각으로 표시.
+- **buildMessage 텍스트 불변**: title/body/예측기상 줄은 변경하지 않음 — JS↔Java buildMessage 출력은 byte-identical 유지. zone/tier/event 는 주석 필드로만 추가.
+- **네이티브(APK 재빌드 필요)**: `LocationAlertMessagingService`(data 맵 수신·demo 위치 분기·진단 기록), `LocationAlertStore`(`putLastMatch`), `LocationAlertCore.Message`(zone/tier/event 필드), `LocationAlertDecider`(주석). 서버/JS 변경은 재배포로 반영되나, 종료 상태 native 표시는 새 APK 빌드·배포 필요.
+- **테스트**: `scripts/test_location_alert_server.js` — `buildDataMessage(snap, {lat,lng,acc})` 가 `demoLat/demoLng/demoAcc` 문자열 포함, `buildDataMessage(snap)` 은 전혀 미포함 검증(35항목 통과). 기존 runtime/core/forecast/ui 테스트 전부 통과.

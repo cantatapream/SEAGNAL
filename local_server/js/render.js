@@ -1078,7 +1078,8 @@ function createAlertElement(items) {
                 return;
             }
         }
-        if (typeof showZoneOverlay === 'function') showZoneOverlay(data.zoneName);
+        // [제거됨] 레거시 해구도 이미지 지도 fallback(showZoneOverlay) — index2 미표출 잔재로 삭제.
+        //   매핑 44해역은 위 OL 분기에서 return하므로 영향 없음. 미매핑 해역(울릉도·독도 등)은 no-op.
     });
     actionsContainer.appendChild(zoneViewBtn);
 

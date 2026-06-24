@@ -54,6 +54,9 @@ const THRESHOLDS = {
     WIND_ALARM_KT: 40,  // 경보급(ge5)
     WAVE_ALARM_M: 5.0,
     MIN_BAND_PIXELS: 12,// 구역 maxBand 인정 최소 픽셀
+    // ③ 지속 게이트: onset 후 연속으로 임계를 유지해야 하는 최소 시간(h). 프레임 3h 간격.
+    //   일시적(소나기성) 1~2프레임 신호를 거르고 지속성 악기상만 표출. 0=게이트 끔.
+    SUSTAIN_MIN_H: 12,  // ≈ onset 포함 연속 5프레임(0,3,6,9,12h) 유지
     LEAD_MAX_H: 96,     // 예보지평 실질 한계(4일). 120h는 빈값
     ONSET_GRACE_H: 6,   // 예상시각 경과 후 해소 유예
     RESOLVED_KEEP_H: 24,// '최근 해소' 유지 기간

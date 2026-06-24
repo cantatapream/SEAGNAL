@@ -6995,6 +6995,110 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
 - 수정: `regionalOffice` 도입 — 정적 매핑이 **실제 지방청(≠108)이면 그것**, 아니면(108 폴백/미등록) **ef/list 빈도 휴리스틱(`homeByZone`)으로 실제 발행 지방청 복원**(강원→105). `pick` 1순위를 `regionalOffice(≠108)` 로, 예비특보 `prelimStn` 도 `regionalOffice` 로 통일. → 발표/발효/격상/격하/예비 **전부 지방청 통보문**.
 - 라이브 검증: 30일 ef 이벤트 **114건 전부 지방청 PDF(전국 폴백 0건)**, 강원남부앞바다 `regionalOffice=105`.
 
+### § 7.7.11 "중부" 해역 예비특보 누락 — `_extractParent` 의 '중' 오분할 (2026-06-19)
+
+증상: 기상청이 풍랑 예비특보를 40개 부모 해역에 발표했는데 앱은 **33개만 표출**. 누락 7개가 **전부 이름에 "중부" 포함**: 강원중부앞바다·동해중부안쪽/바깥먼바다·전남중부서해앞바다·서해중부안쪽/바깥먼바다·경남중부남해앞바다. (비-중부 해역은 누락 0.)
+
+- 원인: `marine_warning_crawler.js` `_buildSnapshotFromMarine` 의 warn/ready(예비, 부모+자식 혼재) 분류가 **이름 기반**(`_extractParent(name) === name` 이면 부모, 아니면 자식)이었다. `_extractParent` 는 `lastIndexOf('중')` 로 부모/자식을 가르는데(자식 표기 `부모중자식`), **부모명에 '중'이 든 "중**부**" 권역**(강원**중**부앞바다 등)은 그 '중'에 걸려 `_extractParent("강원중부앞바다") = "강원"` → `"강원" ≠ "강원중부앞바다"` → **부모인데 자식으로 오분류** → `snap.parents` 에서 누락 → leaf `upcoming` 미설정 → 화면 누락.
+- 핵심 사실: MMIS warn/ready 원본엔 7개 모두 **부모 코드 S1…**(S1151200 강원중부앞바다 등)로 정상 존재. 부모=`S1…`, 마린 자식(연안/평수)=`S2…`·`S3…` 로 **코드 접두사가 불변 분류자**(실측 부모 40 / 자식 40 깔끔 분할). 이름 '중부' 함정과 무관.
+- 수정: 부모/자식 분류를 이름 대신 **warn_zone_cd 코드 기반**(`_isChildZoneCode`: `^S[23]`=자식, `^S1`=부모, 코드 부재 시에만 이름 폴백)으로 전환. warn/ready·warn-sasc/ready 두 혼재 루프에 적용. `_extractParent` 는 (실제 자식의) 부모명 추출 용도로만 유지(자식은 마지막 '중'이 구분자라 정상).
+- 라이브 검증: 수정 후 `_buildSnapshotFromMarine` 의 `snap.parents` = **40개**(7개 중부 전부 `풍랑 예비` 부모로 등록), 기상청 발표 40 부모와 일치.
+
+#### § 7.7.11.1 종합 보강 (독립 5중 검토 후 — 2026-06-19)
+
+1차 수정(warn/ready·warn-sasc/ready 분류만 코드 기반 전환) 후, **2개 독립 원인검토 + 2개 독립 수정·회귀검토 + 1개 메타검토**를 거쳐 다음 3개 보완을 추가했다. 핵심: 이번 변경들은 **MD에 이미 명문화된 설계**(§ 2.3 `warn_zone_cd`: `S1`=부모/`S2·S3`=자식, § 1 자식 독립 표출 정책 U-1)를 코드가 못 따르던 빈틈을 정렬한 것이며, 새 규칙을 만든 것이 아니다.
+
+- **(보완1) 분류 코드 기반 전수 통일** — 같은 `_extractParent(name)===name` 이름 분류가 `_enrichSnapshotWithLatest`(warn-sasc/latest·warn/latest)·`_enrichSnapshotWithEfList`(ef GAP) 보강 경로에도 남아 있었다. 중부 부모가 warn/list·warn/ready 없이 latest/ef 로만 들어오는 발표대기(GAP) 타이밍에 동일 누락이 재발할 수 있어, 이 경로들도 `_isChildZoneCode` 로 통일.
+- **(보완2) 자식 부모키 역인덱스(`CHILD_TO_PARENT`)** — 이름에 '중' 구분자가 없는 자식(`울릉도울릉읍/서면/북면연안바다`→`동해중부안쪽먼바다`, `천수만/안면도서쪽/당진/태안·서산북쪽평수구역`→`충남북부앞바다`)은 `_extractParent`가 자기 이름을 부모키로 반환해 **self-key 고아**가 되어 부모 트리에 자식이 안 붙었다(U-1 위반). `PARENT_TO_CHILDREN` 역인덱스(`_parentKeyForChild`)로 진짜 부모키를 산출해 정상 부착.
+- **(보완3) 재배포 1회성 가짜 취소 가드** — prev 스냅샷(구코드: 위 self-key 자식이 부모로 저장)과 신코드 디프 시 배포 첫 사이클에 거짓 `prelim_cancel`(울릉도 등)이 발사될 수 있다. `DiffMatrix.compute` 루프 선두에 `CHILD_TO_PARENT[parent] && !curr.parents.has(parent)` 면 제외하는 1회성 가드 추가(정상 부모는 이 키가 아니므로 정상 해제/예비취소를 삼키지 않음 — 부모키∩자식fullName=∅ 검증).
+
+회귀 검토(12 시나리오): 발효/해제/격상·격하·예비공존·자식변동·콜드부팅 푸시가드·`PARENT_TO_CHILDREN` 합성·`excludedChildren` 게이트·프론트 표출 전부 무영향(PASS). 라이브 재검증: `snap.parents=40`(중부 7/7), 울릉도 3 자식이 `동해중부안쪽먼바다` 아래 정상 부착, self-key 고아 0, 배포 디프 가짜취소 0·정상 publish 7 보존.
+
+### § 7.7.12 자식(연안/평수) 단독 예비특보가 "추가 발효"로 오발송 — 자식 발표(예비) 개념 신설 (2026-06-19)
+
+증상: 자식 해역(연안바다·평수구역)이 **예비특보(발표·미발효)**인데 푸시가 **"풍랑주의보 추가 발효"**로 발송됨(관측: `동해중부안쪽먼바다(울릉도울릉읍연안바다 추가 발효)` — 울릉도 연안바다는 예비). § 7.7.11.1 보완2가 자식을 부모에 정상 부착하면서 이 잠재 문제가 드러남.
+
+- **핵심 발견(독립 2+메타 검토)**: 푸시 경로와 화면 트리는 **별개 데이터원**이다.
+  - 푸시 diff·dedup 은 `StateSnapshot`(`_rowToChildInfo`)으로만 동작하며 자식 `wrnLvlNm='예비'`를 **보존**한다.
+  - `_buildZoneTreeFromSnapshot` 의 자식 `예비→주의보` 정규화(주석 "푸시 dedup 정책")는 **화면(weather_alerts.json) 전용**이며 푸시·dedup 에 무관(실측·grep 확정). "dedup 정책" 주석은 실체 없는 오해.
+- 실제 오발송 원인: `_buildUserPushChanges` 가 신규 자식을 **등급 무시하고 일괄 `CHILD_ADD`** 로 분류 → `push_sender` 가 `CHILD_ADD → additional_active`("추가 발효")로 무조건 매핑. 자식의 '예비'가 묻힘. 부모는 `upcoming`/`current` 분리로 발표/발효를 구분하지만 자식엔 그 개념이 없었던 것.
+- 수정(독립 2개 구현 → 메타 종합, 4파일 +113/-16):
+  1. `_buildUserPushChanges` — 신규 자식을 등급 분기: **예비→신규 `CHILD_PRELIM_ADD`**, 발효(주의보/경보)→기존 `CHILD_ADD`. **예비→발효 전이 감지(`nowActivated`)** 시 그 순간 `CHILD_ADD`("추가 발효") 발사(실제 발효될 때 비로소 발효 통지).
+  2. `push_sender` — `CHILD_PRELIM_ADD → child_prelim` 템플릿(시각=발효예정 `tmEf`).
+  3. `push_helpers` — `child_prelim` 문구("📢 …발표", 한정사 "(…발표 예정)").
+  4. `routes/push.js` — `child_prelim` 을 **발표(announce)+자식(childZones) 양쪽 토글로 게이트**(발효 토글만 끈 사용자는 예비와 무관하므로 정상 수신). 부모 발표(`publish`)·자식 추가발효(`additional_active`) 기존 토글 동작 불변.
+  5. `_buildZoneTreeFromSnapshot` — 자식 `예비` 보존(정규화 제거) → 화면이 시간추정 대신 명시적 '예비'로 표출.
+  (admin 채널 DiffMatrix 도 일관성 위해 `child_prelim` 버킷 분리 — `ADMIN_PUSH_ENABLED=false`라 현재 비활성.)
+- 검증(라이브 + 회귀): 자식 단독 예비 → "발표"(예비, 오발사 0), 자식 예비→발효 전이 → "추가 발효", 자식 직접 발효 → "추가 발효", 일부 해제·혼합·연장·무변화·콜드부팅 가드·부모 7종 전부 불변(PASS). 부모+자식 동시 발표 = **단일 푸시**(중복 없음). 트리 자식 예비 40/40 보존.
+
+### § 7.7.13 예비특보 전체취소가 "주의보 일부해제"+"예비특보 취소" 2건으로 분리 (2026-06-19)
+
+증상: 기상청이 풍랑 **예비특보를 전체 한 번에 취소**(제06-15호)했는데, 앱 푸시가 **2건으로 분리** — 06:00 "✅ 풍랑주의보 일부 해제"(자식 평수/연안) + 06:01 "✅ 풍랑 예비특보 취소"(부모). 기대는 **"예비특보 취소" 1건**.
+
+- 원인(독립 2 + 검토 1 + 수정 1 + 검증 1 = 5에이전트): § 7.7.12(PR #991)가 자식 **발표(add)** 측만 `CHILD_PRELIM_ADD`/`CHILD_ADD`로 등급 분기하고 **해제(release) 측은 비대칭으로 미수정**. `_buildUserPushChanges` 의 `CHILD_RELEASE`(자식 해제)가 prev 자식 등급 무관하게 발사 → 예비 자식 소멸도 `partial_release`("주의보 일부 해제", `push_helpers` 예비→주의보 보정) 로 나가고, 부모 예비 소멸은 다른 사이클에 `UPCOMING_CANCEL`→`prelim_cancel`("예비특보 취소") 로 나가 templateId 상이 + 비동기 소멸(자식블록 게이트 `!upcomingChanged`)로 2건 분리.
+- MD 의도성: **의도 아님.** § 7.7.12는 발표측만 수정 명시(해제측 빈틈), U-1(§1 "동시 해제는 단일 푸시")·S-PRELIM-CANCEL(§4.9 "예비 취소 1건")이 정답.
+- 수정: `_buildUserPushChanges` 자식 해제 분기를 **prev 자식 등급으로 분기** — prev 자식이 '예비'인 소멸은 **무푸시**(부모 단일 `UPCOMING_CANCEL`이 대표), 발효중(주의보/경보) 자식 소멸만 기존 `CHILD_RELEASE`→`partial_release` 유지. 메타 불명('')은 보수적으로 기존 유지(누락 푸시 방지). (1지점, +15/-3)
+- 검증(라이브): 61개 실전이 전수 비교 → 차이 21건 전부 "예비 자식 소멸 → 무푸시"(정상), 나머지 40건 완전 동일. 발효중 자식 일부해제·부모 lifecycle·디바운스·콜드부팅·dedup 불변(PASS).
+
+### § 7.7.14 통보문 "연안바다 제외"인데 예비엔 "포함"→발효 시 "일부해제" 오발송 — 제외 자식 사후정리 (2026-06-19)
+
+증상: 통보문(제06-34호)은 처음부터 **제주도북부앞바다(연안바다 제외)** 07시 발효인데, 앱이 05:06 "발효시각 변경 …제주도북부앞바다**(연안바다 포함)**" → 07:03 "✅ 풍랑주의보 일부 해제 …**(모든 연안바다 해제)**" 발송. § 7.6.6(#829)에서 같은 패턴을 고쳤는데 **재발**.
+
+- 원인(독립 2 + 검토 1 + 수정 1 + 검증 1 = 5에이전트): § 7.6.6의 제외 게이트(`excludedChildren`, warn-sasc/list `warn_lvl=0`)가 **synth(맹목 합성) 분기에만** 있고, **`prev.children` carry(이어받기)·`_applyChildReleaseDebounce` 등 3경로는 무게이트**. 제외메타는 *현재 사이클* 신호인데 carry는 *영속 prev*라, 메타가 1사이클만 늦어 synth가 유령 자식을 1회 시드하면 게이트 ON 이후에도 carry가 무한 영속 → "(연안바다 포함)" 표기, 발효 시 자식 소멸 → "(모든 연안바다 해제)".
+- MD 의도성: § 7.6.6 교정2("carry/디바운스 무게이트는 글리치 방어라 의도적")의 **암묵 가정("유령은 carry 전 차단된다")이 오늘 재발로 반증**. carry의 "글리치 방어"와 "제외 차단"은 별개 역할.
+- 수정: 개별 carry 게이트 대신 **단일 사후정리 `_purgeExcludedChildren(snap)`** — 모든 보강·디바운스 직후, `snap.children` 에서 **(warn-sasc/list level-0 명시 ∩ 이번 사이클 라이브 근거 없음)** 인 유령만 제거.
+  - **핵심 보강(실데이터 반증)**: "level-0 = 제외"는 거짓 — `warn_lvl=0`은 "미포함(제외)"뿐 아니라 **"아직 미발효(예비)"**도 의미(진짜 예비특보 자식도 list에선 level-0). 그래서 비영속 `liveChildren`(이번 사이클 실 row 근거) 화이트리스트를 도입해, level-0 ∩ live 인 진짜 자식(라이브 21건, 그중 예비 7건)을 **보존**하고 유령(level-0 ∩ ¬live)만 제거.
+  - 게이트 소스는 warn-sasc/list 단독(교정1), 글리치(row 부재≠level-0) 방어 보존(교정2와 양립). (+56/-1)
+- 검증(라이브): 진짜 예비 자식 7/7 보존, level-0∩live 21건 전부 보존, 유령 주입 시 정확히 1건 제거(형제·부모 보존). liveChildren add 지점 4곳이 라이브 자식 전 출처 커버(누락 경로 0). 콜드부팅·dedup·일부해제 무영향(PASS).
+
+### § 7.7.15 자식 한정사 문구 2건 + 자식 단독 시각/해제예고 푸시 누락 (2026-06-20)
+
+자식(연안/평수) 푸시 문구·로직 3건을 다중 에이전트 교차검증(독립 구현 4 + 메타 종합 1)으로 수정. 파일: `push_helpers.js`·`marine_warning_crawler.js`·`push_sender.js`·`routes/push.js`·`child_bulletin.js`.
+
+- **#1 (문구) child_prelim "발표 예정" 모순 → "추가 발표"로 통일** — 자식 단독 예비특보 발표 시 한정사가 `(연안바다 발표 예정)`. 제목 "📢 …발표"와 모순. 이 케이스는 **부모가 이미 특보중일 때 자식이 새로 예비로 추가**되는 상황(=`additional_active` "추가 발효"와 대칭)이므로, **"추가 발표"**로 통일: 제목 `📢 풍랑주의보 추가 발표`, 한정사 `(연안바다 추가 발표)`(다자식이면 나열, `additional_active`와 동일 형식), 시각은 **발효예정**(추가 발효의 해제예정과 구분). "추가"라는 동사로 "부모까지 발표된 것"이라는 오해도 제거.
+- **#2 (문구) "미발효" vs "미발표" 단계 미구분** — "부모만, 자식 미포함" 한정사가 단계 무관하게 `(연안바다 미발효)` 고정. 부모가 **발표(예비) 단계면 "미발표"**, **발효 단계면 "미발효"**. → `TIME_KEY_BY_EVENT`(단일 출처) 기준: `tmEf`(발효예정) 계열(publish·time_ef_change)→"미발표", `tmYn`(해제예정) 계열(active·time_yn_change)→"미발효". (도달 eventType 4종 전수 확인.)
+- **#3 (로직) 자식만 해제예고/시각변경 시 푸시 누락** — 통보문이 **자식 해역만 해제예고**(예: 제06-37호 제주도동부앞바다중북동연안바다·제주도서부앞바다중북서연안바다 해제 17시, 부모 불변)인데 푸시 안 나감(앱 표시·데이터는 정상).
+  - 원인: 발송경로 `_buildUserPushChanges` 의 자식 독립 블록이 **자식 set 변화만** 처리하고 **자식 단독 시각/해제예고(tmEf/clrNtcTm) 변경 emit 이 전무**. 시각변경은 부모 기준만 계산 → 부모 불변·자식만 해제예고면 무푸시. **MD §4.25/S-CHILD-TIMECH("🕐 자식 시각 변경") 명세인데 사용자 경로 미구현**(비활성 admin DiffMatrix 에만 존재) — 명세-코드 모순.
+  - 수정: `_buildUserPushChanges` 에 자식 단독 시각/해제예고 검출 → 신규 `CHILD_TIME_EF_CHANGE`/`CHILD_TIME_YN_CHANGE`(자식 전용 templateId `child_time_ef_change`/`child_time_yn_change`) 1건 발사. 자식 해제예고 필드는 실측상 `clr_ntc_tm` 우선.
+  - **정합 4관문(과다발송 방지)**: ① 부모 불변일 때만 ② 자식 set 변화 동반 시 억제(Major-3) ③ 범위↔정확 깜빡임·연장 중복은 `_sameReleaseMoment`/HOLD/연장Set 흡수 ④ 의미있는 변경(없음→값/값→다른모멘트)만. childZones OFF 는 라우트 토글+빈본문 2중 미수신.
+  - 자식 전용 templateId 채택: 부모 `time_*_change` 재사용 시 `addToGroup` 그룹키 충돌·혼합 발사·토글 미게이트 위험 → 분리 키로 차단.
+  - (정제) #1 은 후속 커밋에서 `(연안바다)` → **"추가 발표"**(제목·한정사)로 통일 — 위 #1 항목이 최종.
+
+검증(라이브 MMIS): #1 `(연안바다 추가 발표)`, #2 publish→미발표/active→미발효, #3 자식만 해제예고 신규(부모불변)→정확 1건 "🕐 해제시각 변경 (…만 시각 변경)" / 부모동반→미발사 / set동반→억제 / 깜빡임→0 / self-diff=0. 회귀 전수(한정사 전 분기·부모 lifecycle·예비취소·release·연장·콜드부팅·excludedChildren·dedup·단일푸시) 보존. §4.25 모순 해소.
+
+---
+
+### § 7.7.16 분할/단건 푸시 미도착의 진짜 원인 — 조각 전송 침묵 실패 + 무재시도, 그리고 인앱 서버로그 뷰어 (2026-06-22)
+
+배경: "(1/2)만 도착, (2/2) 미도착" 및 "서버는 발송 성공인데 내 기기엔 안 옴"을 다중 에이전트로 재분석. (참고: collapse 가설로 만든 #995는 효과 없어 #996으로 revert됨.)
+
+- **원인 (독립 4-에이전트, 4/4 일치)**: "(1/2) 생존 / (2/2) 소멸"은 **collapse 시그니처와 정반대**다. collapse(덮어쓰기)는 규격상 항상 *나중*((2/2))이 살아남아야 한다(오프라인 collapse_key 보관·온디바이스 tag·sw.js tag 모든 레이어 동일). 관측은 *먼저*((1/2)) 생존 → collapse 기각.
+  - 진짜 원인 = **두 번째 조각의 `admin.messaging().send()` 가 일시적 FCM 오류로 throw** 됐는데(`messaging/internal-error`·`server-unavailable`·`message-rate-exceeded` = HTTP 500/503/429; firebase-admin 13.6.0 규격 대조 확정), `routes/push.js` 발송 catch 가 **토큰무효 2종 외 모든 예외를 로그·재시도 없이 삼킴** → 영구 소멸. 분할 생성(`paginateByZoneBlocks`)은 node 재현으로 **무결**.
+  - **공범**: 상위 `push_sender.js sendToApi` 가 **HTTP 200이면 failCount 무시하고 성공 처리** → 상위 재시도까지 차단. 이 침묵 catch 는 **단건 푸시의 토큰별 실패도 가려** "발송 성공 N명인데 내 기기엔 안 옴"의 동일 공범.
+- **수정 1 (발송 신뢰성·관측성, `routes/push.js`)**:
+  - `_sendFcmPart`/`_sendWebPushPart` 헬퍼: 일시적 오류만 250/500ms 지수 backoff 최대 2회(총 3회) 재시도. 토큰무효(FCM token-not-registered/invalid, web 404/410)는 **재시도 없이 즉시 dead**(기존 동작 보존). 비일시 오류는 무재시도 기록.
+  - 토큰별·조각별 결과 로깅: 성공 시 `[Push/send] OK … msgId=<FCM messageId>`(접수 증거), 실패 시 `FAIL … code=<err.code>`, `DEAD-TOKEN`, 종료 시 `[Push/summary] success/fail`. 토큰은 `_maskTok`(앞6·뒤4)로 PII 최소화.
+  - (collapse 고유키는 **제외** — 진짜 원인이 전송실패임이 입증됐고 #995 revert 존중. 추후 로그가 "접수됐는데 미도착"을 보이면 그때 근거 갖고 추가.)
+- **수정 2 (인앱 서버로그 뷰어 — fly.io 로그 대체)**: 통합관리자센터 > **점검 > "서버로그"** 하위탭 신설.
+  - `services/server_logger.js`: `console.*` 를 가로채(원래 출력 유지) KST 타임스탬프+레벨 붙여 영속 볼륨(`data/server_logs/YYYY-MM-DD.log`, fly `seagnal_data`)에 일별 기록. **2일 보관**(초과 자동삭제), 일자별 12MB 상한(볼륨 보호), 1초 버퍼 flush, 절대 throw 안 함. `server.js` 최상단 `init()`.
+  - `GET /api/admin/server-log?from&to&level&q&limit`(`requireAdminToken` 자동 보호): 기간(분 단위)·레벨·검색 필터, 최대 5000줄.
+  - UI(`js/admin.js`): 시작/끝 datetime-local(기본 최근 30분), 레벨/검색, "푸시만/에러만" 퀵필터, **조회·복사** 버튼, 모노스페이스 출력. → 휴대폰에서 바로 `[Push/send]` 결과 확인.
+- 검증: mock 단위테스트(일시오류 재시도/dead 즉시종료/비일시 무재시도/마스킹), server_logger 기록·기간/레벨/검색 조회, 4개 파일 `node -c`·모듈 로드. data/ 는 gitignore라 런타임 로그 미커밋.
+
+---
+
+### § 7.7.17 §7.7.16 변경의 회귀검토 후속 수정 4건 (다단계 에이전트 파이프라인, 2026-06-22)
+
+§7.7.16(발송 재시도/로깅 + 서버로그 뷰어)을 4개 독립 에이전트로 회귀검토한 결과 위험 4건 발견 → **독립 구현 2 → 병합 1 → 회귀검토 1 → 총합/보고** 파이프라인으로 수정. 변경 파일: `services/server_logger.js`·`routes/push.js`·`server.js`.
+
+- **#1 [심각] 시그널 핸들러 충돌 — graceful shutdown 무력화 (회귀)**: `server_logger.init()` 이 `server.js` 최상단에서 먼저 실행되며 `process.on('SIGINT'/'SIGTERM', ()=>{…process.exit(0)})` 를 등록 → Node 가 시그널 리스너를 등록순으로 호출하므로, **나중에 등록된 `server.js`의 `_gracefulShutdown`(tideBedConfig flush·visitQueue/usageQueue flushSync·build-gzip 자식 정리)이 영영 실행 안 됨**(server_logger 가 먼저 `process.exit(0)` 동기 호출). Fly 재배포 SIGTERM 마다 최대 5초치 통계·설정 유실.
+  - 수정: server_logger 가 **SIGINT/SIGTERM 핸들러를 등록하지 않음**. 잔여 버퍼 flush 는 `process.on('exit', onExit)` 로 보장(`_gracefulShutdown` 의 `process.exit(0)` → 'exit' 동기 발화 → 동기 `_flush`). 종료 주도권을 server.js 로 일원화.
+- **#2 [권장] 로그 용량 상한 도달 시 ERROR 유실 방지**: 기존엔 일자 12MB 초과 시 그날 **모든** 로그 생략 → 정작 장애 ERROR 가 안 남음. → **2단계 상한**: 소프트(`MAX_DAY_BYTES`=12MB) 초과 시 **INFO 만 생략, WARN/ERROR 는 계속 기록**; 하드(`HARD_MAX_DAY_BYTES`=24MB) 초과 시 전부 중단. 각 마커 1회. 레벨은 버퍼 항목에 동봉(`{day,level,line}`), `_flush` 는 라인 단위 누적 바이트로 경계 정확 판정. getLogs 포맷 불변.
+- **#4 [권장] 태풍 자동푸시 경로에도 재시도+로깅 적용**: `/api/push-typhoon` 발송 루프가 §7.7.16 의 헬퍼를 안 타고 옛 침묵 catch 그대로였음 → `_sendFcmPart`/`_sendWebPushPart` 적용(단건이라 part `1/1`). dead 정리·옵트인·master-off·카운터(이중계상 없음) 보존. custom push 경로는 불변.
+- **#5 [경미] 주석 정정**: `server.js` "3일 보관" → "2일 보관".
+- (#3 재시도 backoff 의 발송 지연은 **구글 FCM 전면장애 가정**이라 의도적으로 미적용 — 평상시 영향 없음.)
+- 검증(병합본 재현): #1 종료 시 'exit' flush + graceful shutdown 정상 실행, #2 소프트→INFO만 컷·WARN/ERROR 보존/하드→전체중단·무한증가 없음(delta=0), #4 재시도/dead/이중계상 없음, custom push 바이트 동일. `node -c` 3파일. 회귀검토 종합판정 "진행 가능".
+
 ---
 
 # § 8. 부록

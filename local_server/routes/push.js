@@ -82,6 +82,107 @@ const HISTORY_FILE = path.join(DATA_DIR, 'custom_push_history.json');
 const pushCounter = require('../services/push_counter');
 
 // ============================================================================
+// [발송 신뢰성 + 관측성] 토큰별·조각별 발송 결과 로깅 + 일시적 오류 재시도
+// ----------------------------------------------------------------------------
+//   배경(다중에이전트 재분석, 4/4 일치): 분할 푸시 "(1/2)만 도착, (2/2) 미도착"의
+//   진짜 원인은 collapse 덮어쓰기(나중 것이 남아야 함 — 관측과 반대)가 아니라, 두 번째
+//   조각의 send() 가 일시적 FCM 오류(internal-error/server-unavailable/message-rate-
+//   exceeded 등, HTTP 500/503/429)로 throw 됐는데 catch 가 토큰무효 외 모든 예외를
+//   "로그도 재시도도 없이" 삼킨 것. 상위 push_sender.sendToApi 도 HTTP 200이면 성공
+//   처리해 재시도조차 안 함. 이 침묵 catch 는 단건 푸시의 토큰별 실패도 가린다.
+//   → (a) 일시적 오류는 지수 backoff 로 재시도, (b) 결과를 토큰(마스킹)·조각 단위로
+//     로깅해 "FCM 접수(messageId) vs 실제 실패(code)"를 운영/인앱 로그에서 확인한다.
+//   (토큰무효 registration-token-not-registered/invalid 는 재시도 없이 즉시 dead 유지.)
+// ============================================================================
+
+/** 토큰 PII 최소화 — 앞6·뒤4만 노출. */
+function _maskTok(t) {
+    if (!t) return 'null';
+    const s = String(t);
+    return s.length <= 12 ? '****' : s.slice(0, 6) + '…' + s.slice(-4);
+}
+
+/** firebase-admin send() 의 일시적(재시도 가치 있음) 오류 코드. */
+const _TRANSIENT_FCM = new Set([
+    'messaging/internal-error',
+    'messaging/server-unavailable',
+    'messaging/quota-exceeded',
+    'messaging/message-rate-exceeded',
+    'messaging/unknown-error',
+    'app/network-error',
+    'app/network-timeout',
+]);
+
+/** firebase-admin 토큰 영구무효 코드 (재시도 무의미 → 즉시 dead). */
+const _DEAD_FCM = new Set([
+    'messaging/registration-token-not-registered',
+    'messaging/invalid-registration-token',
+]);
+
+const _SEND_MAX_RETRY = 2;   // 최초 + 재시도 2회 = 총 3회
+
+/**
+ * FCM 조각 1건 발송 (일시적 오류 재시도 + 결과 로깅).
+ * @returns {Promise<{ok:boolean, dead:boolean, messageId?:string, code?:string}>}
+ */
+async function _sendFcmPart(admin, msg, ctx) {
+    let lastErr = null;
+    for (let attempt = 0; attempt <= _SEND_MAX_RETRY; attempt++) {
+        try {
+            const messageId = await admin.messaging().send(msg);
+            console.log(`[Push/send] OK tok=${ctx.tok} tid=${ctx.tid} part=${ctx.part} msgId=${messageId}${attempt ? ` (retry ${attempt})` : ''}`);
+            return { ok: true, dead: false, messageId };
+        } catch (err) {
+            lastErr = err;
+            if (_DEAD_FCM.has(err.code)) {
+                console.warn(`[Push/send] DEAD-TOKEN tok=${ctx.tok} tid=${ctx.tid} part=${ctx.part} code=${err.code}`);
+                return { ok: false, dead: true, code: err.code };
+            }
+            if (_TRANSIENT_FCM.has(err.code) && attempt < _SEND_MAX_RETRY) {
+                const backoff = 250 * Math.pow(2, attempt); // 250 / 500ms
+                console.warn(`[Push/send] TRANSIENT tok=${ctx.tok} tid=${ctx.tid} part=${ctx.part} code=${err.code} → ${backoff}ms 후 재시도`);
+                await new Promise(r => setTimeout(r, backoff));
+                continue;
+            }
+            break; // 비일시 오류 또는 재시도 소진
+        }
+    }
+    console.error(`[Push/send] FAIL tok=${ctx.tok} tid=${ctx.tid} part=${ctx.part} code=${lastErr && lastErr.code} msg=${lastErr && lastErr.message}`);
+    return { ok: false, dead: false, code: lastErr && lastErr.code };
+}
+
+/**
+ * web-push 조각 1건 발송 (5xx/네트워크 재시도 + 결과 로깅).
+ * @returns {Promise<{ok:boolean, dead:boolean, code?:number}>}
+ */
+async function _sendWebPushPart(webpush, subscription, pushPayload, ctx) {
+    let lastErr = null;
+    for (let attempt = 0; attempt <= _SEND_MAX_RETRY; attempt++) {
+        try {
+            await webpush.sendNotification(subscription, pushPayload, { TTL: 86400, urgency: 'high' });
+            console.log(`[Push/web] OK ep=${ctx.tok} tid=${ctx.tid} part=${ctx.part}${attempt ? ` (retry ${attempt})` : ''}`);
+            return { ok: true, dead: false };
+        } catch (err) {
+            lastErr = err;
+            const sc = err.statusCode;
+            if (sc === 404 || sc === 410) {
+                console.warn(`[Push/web] DEAD-SUB ep=${ctx.tok} tid=${ctx.tid} part=${ctx.part} status=${sc}`);
+                return { ok: false, dead: true, code: sc };
+            }
+            if ((sc >= 500 || sc === 429 || sc == null) && attempt < _SEND_MAX_RETRY) {
+                const backoff = 250 * Math.pow(2, attempt);
+                console.warn(`[Push/web] TRANSIENT ep=${ctx.tok} tid=${ctx.tid} part=${ctx.part} status=${sc || 'net'} → ${backoff}ms 후 재시도`);
+                await new Promise(r => setTimeout(r, backoff));
+                continue;
+            }
+            break;
+        }
+    }
+    console.error(`[Push/web] FAIL ep=${ctx.tok} tid=${ctx.tid} part=${ctx.part} status=${lastErr && lastErr.statusCode} msg=${lastErr && lastErr.message}`);
+    return { ok: false, dead: false, code: lastErr && lastErr.statusCode };
+}
+
+// ============================================================================
 // 구독/해지 이벤트 기록 함수
 // ============================================================================
 
@@ -327,13 +428,15 @@ router.post('/api/push-custom', async (req, res) => {
                     const tid = payload.templateId;
 
                     // 발표 관련 (publish, 격상/격하 발표, 발효시각 변경)
+                    //   child_time_ef_change(수정 #3 자식 단독 발효시각 변경)도 발표(announce) 계열.
                     if (opts.announce === false &&
-                        ['publish', 'level_upgrade_publish', 'level_downgrade_publish', 'time_ef_change'].includes(tid)) {
+                        ['publish', 'level_upgrade_publish', 'level_downgrade_publish', 'time_ef_change', 'child_time_ef_change'].includes(tid)) {
                         return;
                     }
                     // 발효 관련 (active, 격상/격하 발효, 해제시각 변경)
+                    //   child_time_yn_change(수정 #3 자식 단독 해제시각 변경)도 발효(active) 계열.
                     if (opts.active === false &&
-                        ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change'].includes(tid)) {
+                        ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change', 'child_time_yn_change'].includes(tid)) {
                         return;
                     }
                     // 해제 — 예비특보 취소(prelim_cancel)도 ✅ 해제 계열로 묶어 release 토글에 연동.
@@ -341,10 +444,22 @@ router.post('/api/push-custom', async (req, res) => {
                     if (opts.release === false && (tid === 'release' || tid === 'prelim_cancel')) {
                         return;
                     }
-                    // [자식 독립 푸시] additional_active(추가 발효) / partial_release(일부 해제)
-                    //   - 자식(연안바다/평수구역) 전용 알림 → childZones OFF 사용자는 수신 안 함
-                    //   - 추가 발효 ~ 발효 계열 토글, 일부 해제 ~ 해제 계열 토글 적용
-                    if (['additional_active', 'partial_release'].includes(tid) && opts.childZones === false) {
+                    // [자식 독립 푸시] additional_active(추가 발효) / partial_release(일부 해제) /
+                    //   child_prelim(자식 단독 예비 발표)
+                    //   - 모두 자식(연안바다/평수구역) 전용 알림 → childZones OFF 사용자는 수신 안 함
+                    //   - 추가 발효 ~ 발효 계열, 일부 해제 ~ 해제 계열, 자식 예비 발표 ~ 발표 계열 토글
+                    if (['additional_active', 'partial_release', 'child_prelim'].includes(tid) && opts.childZones === false) {
+                        return;
+                    }
+                    // [자식 독립 푸시] child_time_ef_change/child_time_yn_change(수정 #3 자식 단독 시각 변경) →
+                    //   자식(연안바다/평수구역) 전용 시각 변경 → childZones OFF 사용자는 수신 안 함
+                    //   (additional_active/partial_release/child_prelim 과 동일 정책).
+                    if (['child_time_ef_change', 'child_time_yn_change'].includes(tid) && opts.childZones === false) {
+                        return;
+                    }
+                    // 자식 단독 예비 발표 = 발표(예비) → announce(발표 알림) 토글 OFF 면 미수신.
+                    //   (부모 예비 발표 publish 와 동일하게 '발표' 계열로 묶음 — 정확한 구독자군 선택.)
+                    if (opts.announce === false && tid === 'child_prelim') {
                         return;
                     }
                     if (opts.active === false && tid === 'additional_active') {
@@ -393,23 +508,30 @@ router.post('/api/push-custom', async (req, res) => {
                         ? paginateByZoneBlocks(finalTitle, finalBody)
                         : [{ title: finalTitle, body: finalBody }];
 
+                    // [로깅 컨텍스트] 토큰별·조각별 발송 결과 추적용 식별자.
+                    const dbgTid = (isManualGroupSend && payload) ? (payload.templateId || 'group') : 'custom';
+
                     if (user.type === 'fcm' && user.token) {
                         // [Lazy] 여기서 처음으로 firebase-admin 이 로딩되고 initializeApp 이 호출됨
                         const admin = getAdmin();
                         if (admin && admin.apps.length > 0) {
-                            for (const part of parts) {
-                                try {
-                                    await admin.messaging().send({
-                                        token: user.token,
-                                        notification: { title: part.title, body: part.body },
-                                        data: { url: url, type: isManualGroupSend ? 'manual_group' : 'custom_push' },
-                                        android: { priority: 'high' },
-                                        apns: { headers: { 'apns-priority': '10' } }
-                                    });
+                            const tok = _maskTok(user.token);
+                            for (let pi = 0; pi < parts.length; pi++) {
+                                const part = parts[pi];
+                                const msg = {
+                                    token: user.token,
+                                    notification: { title: part.title, body: part.body },
+                                    data: { url: url, type: isManualGroupSend ? 'manual_group' : 'custom_push' },
+                                    android: { priority: 'high' },
+                                    apns: { headers: { 'apns-priority': '10' } }
+                                };
+                                // 일시적 오류 재시도 + 토큰/조각 단위 결과 로깅 (messageId/code).
+                                const r = await _sendFcmPart(admin, msg, { tok, tid: dbgTid, part: `${pi + 1}/${parts.length}` });
+                                if (r.ok) {
                                     successCount++;
-                                } catch (err) {
+                                } else {
                                     failCount++;
-                                    if (err.code === 'messaging/registration-token-not-registered' || err.code === 'messaging/invalid-registration-token') {
+                                    if (r.dead) {
                                         user._isDead = true;
                                         deadSubscriptionsFound = true;
                                         break;
@@ -418,22 +540,23 @@ router.post('/api/push-custom', async (req, res) => {
                             }
                         }
                     } else if (user.subscription) {
-                        for (const part of parts) {
-                            try {
-                                const pushPayload = JSON.stringify({ title: part.title, body: part.body, url: url });
-                                // [Lazy] 첫 호출 시 web-push 로딩 + VAPID 설정
-                                const webpush = getWebPush();
-                                if (!webpush) {
-                                    throw new Error('web-push SDK 사용 불가');
-                                }
-                                await webpush.sendNotification(user.subscription, pushPayload, {
-                                    TTL: 86400,
-                                    urgency: 'high'
-                                });
-                                successCount++;
-                            } catch (err) {
+                        const ep = _maskTok(user.subscription && user.subscription.endpoint);
+                        for (let pi = 0; pi < parts.length; pi++) {
+                            const part = parts[pi];
+                            const pushPayload = JSON.stringify({ title: part.title, body: part.body, url: url });
+                            // [Lazy] 첫 호출 시 web-push 로딩 + VAPID 설정
+                            const webpush = getWebPush();
+                            if (!webpush) {
                                 failCount++;
-                                if (err.statusCode === 404 || err.statusCode === 410) {
+                                console.error(`[Push/web] FAIL ep=${ep} tid=${dbgTid} part=${pi + 1}/${parts.length} msg=web-push SDK 사용 불가`);
+                                break;
+                            }
+                            const r = await _sendWebPushPart(webpush, user.subscription, pushPayload, { tok: ep, tid: dbgTid, part: `${pi + 1}/${parts.length}` });
+                            if (r.ok) {
+                                successCount++;
+                            } else {
+                                failCount++;
+                                if (r.dead) {
                                     user._isDead = true;
                                     deadSubscriptionsFound = true;
                                     break;
@@ -502,7 +625,7 @@ router.post('/api/push-custom', async (req, res) => {
             tab: isManualGroupSend
                 ? (payload.templateId && payload.templateId.startsWith('level_')
                     ? 'level'
-                    : (payload.templateId === 'time_ef_change' || payload.templateId === 'time_yn_change'
+                    : (['time_ef_change', 'time_yn_change', 'child_time_ef_change', 'child_time_yn_change'].includes(payload.templateId)
                         ? 'change-time'
                         : (payload.templateId || 'active')))
                 : 'custom',
@@ -517,9 +640,122 @@ router.post('/api/push-custom', async (req, res) => {
             pushCounter.incrementSend(successCount || 0);
         } catch (_e) { /* counter 실패 무시 */ }
 
+        // [발송 요약] 성공/실패 집계 — 토큰별 상세는 위 [Push/send]·[Push/web] 로그 참조.
+        console.log(`[Push/summary] tid=${isManualGroupSend && payload ? (payload.templateId || 'group') : 'custom'} success=${successCount} fail=${failCount}`);
+
         res.json({ success: true, successCount, failCount });
     } catch (e) {
         console.error('커스텀 푸시 발송 실패:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================================
+// 태풍 발생/소멸 푸시 발송 API (전국 단위 브로드캐스트)
+// ============================================================================
+//   - services/typhoon_notifier.js 가 호출. 특보(zone 기반 개인화)와 달리
+//     구역 매칭 없이 "옵트인 전원"에게 보낸다.
+//   - 수신 대상: master ON + options.typhoon === true (기본 OFF — 옵트인: 켠 사람만 수신)
+//   - 야간 차단은 호출부(notifier)가 코호트로 결정하므로 여기서 시간대 판정은 하지 않는다.
+//       nightCohort 'on'  → 야간수신 ON 사용자만 (야간 즉시 발송)
+//       nightCohort 'off' → 야간수신 OFF 사용자만 (아침 보류분 발송)
+//       (없음)            → 전원(옵트인) (주간 발송)
+router.post('/api/push-typhoon', async (req, res) => {
+    const { title, body, url, nightCohort } = req.body || {};
+    if (!title || !body) return res.status(400).json({ error: 'title/body required' });
+    const linkUrl = url || '/?assistant=ocean&layer=typhoon';
+
+    try {
+        if (!fs.existsSync(SUBS_FILE)) return res.json({ success: true, successCount: 0, failCount: 0 });
+        const subs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
+
+        let successCount = 0, failCount = 0, deadSubscriptionsFound = false;
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < subs.length; i += BATCH_SIZE) {
+            const batch = subs.slice(i, i + BATCH_SIZE);
+            await Promise.all(batch.map(async (user) => {
+                const o = user.options || {};
+                if (o.master === false) return;          // 전체 알림 OFF
+                if (o.typhoon !== true) return;           // 태풍 알림 OFF (기본 OFF — 옵트인: 켠 사람만)
+                if (nightCohort === 'on' && o.night === false) return;   // 야간 OFF 제외
+                if (nightCohort === 'off' && o.night !== false) return;  // 야간 ON 제외
+                try {
+                    // 태풍은 단건 발송(분할 없음) → part='1/1', tid='typhoon'.
+                    //   custom push 경로와 동일하게 _sendFcmPart/_sendWebPushPart 로
+                    //   일시적 오류 재시도 + 토큰/조각 단위 결과 로깅을 적용한다.
+                    //   (이전엔 침묵 catch 로 토큰무효 외 모든 오류가 로그/재시도 없이 묻혔음.)
+                    //   dead-token 즉시 정리 동작은 보존.
+                    if (user.type === 'fcm' && user.token) {
+                        const admin = getAdmin();
+                        if (admin && admin.apps.length > 0) {
+                            const tok = _maskTok(user.token);
+                            const msg = {
+                                token: user.token,
+                                notification: { title, body },
+                                data: { url: linkUrl, type: 'typhoon' },
+                                android: { priority: 'high' },
+                                apns: { headers: { 'apns-priority': '10' } }
+                            };
+                            const r = await _sendFcmPart(admin, msg, { tok, tid: 'typhoon', part: '1/1' });
+                            if (r.ok) {
+                                successCount++;
+                            } else {
+                                failCount++;
+                                if (r.dead) { user._isDead = true; deadSubscriptionsFound = true; }
+                            }
+                        }
+                    } else if (user.subscription) {
+                        const ep = _maskTok(user.subscription && user.subscription.endpoint);
+                        const webpush = getWebPush();
+                        if (!webpush) {
+                            failCount++;
+                            console.error(`[Push/web] FAIL ep=${ep} tid=typhoon part=1/1 msg=web-push SDK 사용 불가`);
+                        } else {
+                            const pushPayload = JSON.stringify({ title, body, url: linkUrl });
+                            const r = await _sendWebPushPart(webpush, user.subscription, pushPayload, { tok: ep, tid: 'typhoon', part: '1/1' });
+                            if (r.ok) {
+                                successCount++;
+                            } else {
+                                failCount++;
+                                if (r.dead) { user._isDead = true; deadSubscriptionsFound = true; }
+                            }
+                        }
+                    }
+                } catch (e) { failCount++; }
+            }));
+        }
+
+        // 만료 토큰 정리 (push-custom 과 동일 패턴)
+        if (deadSubscriptionsFound) {
+            const deadIds = new Set(subs.filter(u => u._isDead).map(u => u.type === 'fcm' ? u.token : (u.subscription ? u.subscription.endpoint : null)));
+            const updated = subs.filter(s => !deadIds.has(s.type === 'fcm' ? s.token : (s.subscription ? s.subscription.endpoint : null)));
+            const expiredCount = subs.length - updated.length;
+            if (expiredCount > 0) {
+                fs.writeFileSync(SUBS_FILE, JSON.stringify(updated, null, 2));
+                recordSubscriberEvent('expired', expiredCount);
+                console.log(`🧹 [Push/Typhoon] 만료된 구독 ${expiredCount}건 정리`);
+            }
+        }
+
+        // 이력 기록 (관리자 발송 이력 탭에 노출)
+        try {
+            let history = fs.existsSync(HISTORY_FILE) ? JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8')) : [];
+            const kstDate = new Date(Date.now() + (9 * 60 * 60 * 1000));
+            const timeStr = kstDate.toISOString().replace('T', ' ').substring(2, 16).replace(/-/g, '.');
+            history.unshift({
+                id: Date.now() + Math.floor(Math.random() * 1000), time: timeStr,
+                // target 은 비움 — 태풍은 해역 단위가 아니므로 이력의 "해역별 구독자 수" 패널 미표시.
+                title, content: body, target: '', count: successCount,
+                status: 'sent', type: 'auto', tab: 'typhoon', tmRef: ''
+            });
+            if (history.length > 500) history = history.slice(0, 500);
+            fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
+        } catch (_e) { /* 이력 실패는 무시 */ }
+        try { pushCounter.incrementSend(successCount || 0); } catch (_e) { /* noop */ }
+
+        res.json({ success: true, successCount, failCount });
+    } catch (e) {
+        console.error('태풍 푸시 발송 실패:', e);
         res.status(500).json({ error: e.message });
     }
 });
@@ -773,3 +1009,7 @@ router.get('/api/subscriber-events', (req, res) => {
 });
 
 module.exports = router;
+// [테스트용] 발송 신뢰성 헬퍼 노출 (라우터에는 영향 없음).
+module.exports._sendFcmPart = _sendFcmPart;
+module.exports._sendWebPushPart = _sendWebPushPart;
+module.exports._maskTok = _maskTok;

@@ -629,6 +629,7 @@
         if (toggleBtn) {
             toggleBtn.addEventListener('click', function (e) {
                 e.stopPropagation();
+                if (!state.active && window.trackUsage) window.trackUsage('shrt.vsby');  // [사용량] 시정 — 켤 때만 1회
                 activate();
             });
         }

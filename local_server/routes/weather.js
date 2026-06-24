@@ -1097,7 +1097,7 @@ router.get('/api/zone-bulletins', async (req, res) => {
                 pdfUrl: fileNm ? (MARINE_PDF_HOST + fileNm) : '',
                 file_nm: fileNm,
                 warn_zone_cd: String(r.warn_zone_cd || '').trim(),       // 발효중 판정용(warn/list 조인)
-                ed_tm: String(r.ed_tm || '').trim(),                      // 발효구간 종료시각(만료 판정용)
+                ed_tm: String(r.ed_tm || '').trim(),                      // [검증됨] ef/list 의 ed_tm = 발효(예정)시각. 미래면 '발표대기'(발표됐으나 발효 전)
                 reportTitle: (titleByFile && titleByFile[fileNm]) || '', // ntfctn 원제목(해제 판정용)
                 national: String(r.prdc_go) === NATIONAL_GO,   // true 면 전국 폴백(연안/평수 미포함 가능)
                 childOnly: false                                // ef/list = 부모 통보문
@@ -1153,34 +1153,61 @@ router.get('/api/zone-bulletins', async (req, res) => {
         }
         const merged = Array.from(seen.values());
         merged.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
-        // [살아있는 특보만] 특보가 해제되면 그 특보는 끝나고 해역도 목록에서 사라진다.
-        //   판정 기준(3개 독립 원인분석 합의):
+        // [살아있는 특보 — 현재 주기 통보문 누적] 특보가 해제되면 그 특보는 끝나고 해역도
+        //   목록에서 사라진다. 한 특보가 살아있는 동안(예비→발표→발효→변경)의 통보문은
+        //   "발효중 1건"만이 아니라 현재 주기 전체를 누적 표출한다.
+        //   판정 기준:
         //   (1) 해제 통보문 제외 — ef/list 의 warn_cmd_nm 은 다중해역 해제 통보문에서 해역별로
         //       '변경'으로 코딩될 수 있어(예: 제06-21호) 신뢰 불가. ntfctn 원제목(reportTitle)의
         //       '해제' 를 함께 본다.
-        //   (2) 발효중 게이트 — warn/list(현재 발효 부모 zone) 에 그 warn_zone_cd 가 있어야 발효중.
-        //       해제·만료된 통보문은 warn/list 에서 빠지므로 자동 제외(핵심). warn/list 조회 실패
-        //       시에만 ed_tm(발효구간 종료) < 현재시각 인 만료 통보문을 폴백으로 제외.
-        //   (3) 예비특보(warn/ready)·자식-only 통보문은 발효중 게이트 대상이 아니며 해제만 제외.
-        const kstNow = new Date(Date.now() + 9 * 3600000);
-        const nowStr = `${kstNow.getUTCFullYear()}.${String(kstNow.getUTCMonth() + 1).padStart(2, '0')}.`
-            + `${String(kstNow.getUTCDate()).padStart(2, '0')} `
-            + `${String(kstNow.getUTCHours()).padStart(2, '0')}:${String(kstNow.getUTCMinutes()).padStart(2, '0')}`;
+        //   (2) 현재 주기 게이트 — 가장 최근 해제시각 이후(>) 의 통보문만이 현재 주기. 그 이전은
+        //       이미 끝난 과거 주기라 제외.
+        //   (3) 해역 생존 게이트(zoneAlive) — 해역이 "지금 살아있나"를 다음 중 하나로 판정:
+        //       • 발효중   : warn/list(effectiveCodes) 에 warn_zone_cd 포함.
+        //       • 발표대기 : ef/list 의 ed_tm(=발효예정시각)이 미래 → 발표됐으나 아직 발효 전.
+        //                    (★ 종전 버그: 이 구간을 warn/list 게이트가 통째로 떨궈 발표~발효
+        //                       사이에 통보문이 사라졌다. 크롤러 _isFutureExactTime 과 동일 정책으로 보강.)
+        //       • 예비특보 : warn/ready(b.prelim). • 자식-only : 크롤러 매칭(b.childOnly).
+        //       해역이 살아있으면 현재 주기의 부모 ef 통보문을 모두 누적, 죽었으면(만료·해제) 숨김.
+        //   (4) 예비특보·자식-only 는 자체로 살아있는 신호라 항상(현재주기·해제아님) 표시.
+        const nowMs = Date.now();
+        // "YYYY.MM.DD HH:mm"(KST) → epoch ms (실패 시 NaN). 문자열 비교의 zero-pad 취약성 제거.
+        const _parseKstMs = (s) => {
+            const m = String(s || '').match(/^(\d{4})[.\-](\d{1,2})[.\-](\d{1,2})\s+(\d{1,2}):(\d{2})/);
+            return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5]) : NaN;   // KST→UTC
+        };
         const isRelease = (b) => /해제/.test(b.title || '') || /해제/.test(b.reportTitle || '');
-        // 가장 최근 해제 시각 — 그 이전(이미 끝난 과거 주기)은 현재 cycle 이 아니다.
-        let lastRelease = '';
-        for (const b of merged) { if (isRelease(b) && String(b.time) > lastRelease) lastRelease = String(b.time); }
-        const inCurrentCycle = (b) => !lastRelease || String(b.time) > lastRelease;
+        // 가장 최근 해제 시각(ms) — 그 이전(이미 끝난 과거 주기)은 현재 cycle 이 아니다.
+        let lastReleaseMs = -Infinity;
+        for (const b of merged) {
+            if (!isRelease(b)) continue;
+            const t = _parseKstMs(b.time);
+            if (!isNaN(t) && t > lastReleaseMs) lastReleaseMs = t;
+        }
+        const inCurrentCycle = (b) => {
+            if (lastReleaseMs === -Infinity) return true;
+            const t = _parseKstMs(b.time);
+            return isNaN(t) ? true : t > lastReleaseMs;   // 파싱 실패는 보수적으로 포함
+        };
+        // 발표대기: ed_tm(=발효예정시각)이 미래 → 발표됐으나 발효 전.
+        const isPending = (b) => { const t = _parseKstMs(b.ed_tm); return !isNaN(t) && t > nowMs; };
+        // 발효중: warn/list(effectiveCodes) 우선. 폴백(warn/list 실패): 발효시각(ed_tm) 이 이미 지난 것.
         const isEffective = (b) => {
             if (effectiveCodes) return b.warn_zone_cd ? effectiveCodes.has(b.warn_zone_cd) : false;
-            return !b.ed_tm || String(b.ed_tm) >= nowStr;   // 폴백: ed_tm 만료 안 된 것만
+            const t = _parseKstMs(b.ed_tm);
+            return isNaN(t) ? true : t <= nowMs;   // 폴백: 발효시각 경과 = 발효중(추정)
         };
+        // 이 해역이 "지금 살아있는가" — 현재주기·해제아닌 통보문 중 발효중/발표대기/예비/자식-only 가 하나라도 있으면.
+        const zoneAlive = merged.some((b) =>
+            inCurrentCycle(b) && !isRelease(b) &&
+            (b.prelim || b.childOnly || isPending(b) || isEffective(b))
+        );
         const alive = merged.filter((b) => {
-            if (b.prelim) return true;                       // 예비특보(warn/ready) — 항상 표시
             if (isRelease(b)) return false;                  // 해제 통보문 제외
             if (!inCurrentCycle(b)) return false;            // 이미 끝난 과거 주기 제외
+            if (b.prelim) return true;                       // 예비특보(warn/ready) — 항상 표시
             if (b.childOnly) return true;                    // 자식-only(현재주기·해제아님) — 표시
-            return isEffective(b);                           // ef 발효 통보문 — 발효중인 zone 만
+            return zoneAlive;                                // 부모 ef 통보문 — 해역 생존 시 현재 주기 전체 누적
         });
         // 각 항목에 통보문 호수(제XX호) 부착 — 같은 file_nm 의 ntfctn 제목에서 추출.
         for (const b of alive) b.reportNo = (reportByFile && reportByFile[b.file_nm]) || '';

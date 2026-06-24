@@ -247,7 +247,8 @@ function _matchInText(text, parent, children) {
 //   → 새 글리치 로직 없이 "확정 푸시 신호"에만 얹는다. (글리치 가짜 등록 방지)
 // ----------------------------------------------------------------------------
 const _CHILD_CHANGE_TYPES = new Set([
-    'CHILD_ADD', 'CHILD_RELEASE', 'CHILD_EF_EXTEND', 'CHILD_YN_EXTEND'
+    'CHILD_ADD', 'CHILD_RELEASE', 'CHILD_EF_EXTEND', 'CHILD_YN_EXTEND',
+    'CHILD_TIME_EF_CHANGE', 'CHILD_TIME_YN_CHANGE'   // 수정 #3 — 자식 단독 시각/해제예고 변경
 ]);
 
 /**
@@ -278,7 +279,9 @@ function registerChildChanges(userChanges, zoneHomeOffice) {
         const changed = []
             .concat(Array.isArray(cs.added) ? cs.added : [])
             .concat(Array.isArray(cs.released) ? cs.released : [])
-            .concat(Array.isArray(cs.extended) ? cs.extended : []);
+            .concat(Array.isArray(cs.extended) ? cs.extended : [])
+            // [수정 #3] 자식 단독 시각/해제예고 변경(CHILD_TIME_*_CHANGE)도 통보문 보강 대상.
+            .concat(Array.isArray(cs.timeChanged) && cs.parentTimeUnchanged === true ? cs.timeChanged : []);
         const uniq = Array.from(new Set(changed.filter(Boolean)));
         if (uniq.length === 0) continue;   // 실제 자식 set 변동 없음(부모만 변동) → 등록 안 함
 

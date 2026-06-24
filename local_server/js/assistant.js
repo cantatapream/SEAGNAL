@@ -818,12 +818,23 @@
         .then(function () { toggleBtn.disabled = false; });
     }
 
+    // [#40] 모델 다운로드 READY 시, 이미 가동 중(폴백)이면 서비스를 재기동해 Vosk 로 자동 전환.
+    //   onCreate 의 엔진 선택은 부팅 시 1회뿐이라 가동 중 READY 가 되어도 재선택되지 않는다.
+    function reEnableForVosk() {
+      toggleBtn.disabled = true;
+      Native.disable()
+        .then(function () { return Native.enable({ serverUrl: location.origin, profile: JSON.stringify(getProfile() || {}) }); })
+        .then(function (r) { running = r ? !!r.running : true; render(); })
+        .catch(function () {})
+        .then(function () { toggleBtn.disabled = false; });
+    }
+
     // Vosk 모델 상태 변경 구독 — 진행률·완료·실패를 다이얼로그에 반영.
     if (Native.addListener) {
       Native.addListener('voskState', function (e) {
         var s = e && e.state;
         if (s === 'DOWNLOADING')      showDialog('progress', { percent: e.progress|0 });
-        else if (s === 'READY')       { hideDialog(); if (!running) doEnable(); }
+        else if (s === 'READY')       { hideDialog(); if (!running) doEnable(); else reEnableForVosk(); }
         else if (s === 'WIFI_REQUIRED') showDialog('wifiRequired', { message: e.message });
         else if (s === 'FAILED')      showDialog('failed', { message: e.message });
       });
@@ -836,7 +847,7 @@
       if (running) {
         toggleBtn.disabled = true;
         Native.disable()
-          .then(function (r) { running = r ? !!r.running : false; render(); })
+          .then(function (r) { running = r ? !!r.running : false; render(); if (window.__nariyaOverlayHide) window.__nariyaOverlayHide(); })
           .catch(function (e) { statusEl.textContent = '오류: ' + (e && e.message ? e.message : ''); })
           .then(function () { toggleBtn.disabled = false; });
         return;

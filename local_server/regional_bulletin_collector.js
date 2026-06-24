@@ -433,6 +433,32 @@ function getCurrentExpectedCycleId(now) {
  *   { reportId, title, publishTime, rawText, summary, collectedAt, fromCache }
  *   또는 null (수집/분석 실패)
  */
+// 통보문 원문에서 해상(풍랑/물결/바람) 전망을 정규식으로 추출 — AI(marineOutlooks)
+//   실패/미설정 시 fallback. crossReference 가 기대하는 형식
+//   {zone, sentence, wind:"9~14"|null, wave:"1.5~3.0"|null} 으로 반환(wind=m/s, wave=m).
+function extractMarineOutlooksRegex(text) {
+    if (!text) return [];
+    const segs = String(text).split(/\n|○/)
+        .filter((s) => /(먼바다|앞바다)/.test(s) && /(물결|바람|풍랑|너울|m\/s|m로)/.test(s));
+    const out = [], seen = new Set();
+    for (const seg of segs) {
+        const zones = [...seg.matchAll(/([가-힣]+(?:안쪽먼바다|바깥먼바다|먼바다|앞바다))/g)].map((m) => m[1]);
+        if (!zones.length) continue;
+        const wm = seg.match(/(\d+(?:\.\d+)?~\d+(?:\.\d+)?|\d+(?:\.\d+)?)\s*m\/s/);     // "9~14m/s"
+        const wind = wm ? wm[1] : null;
+        const vm = seg.match(/물결[이가]?\s*(?:최대\s*)?(\d+(?:\.\d+)?~\d+(?:\.\d+)?|\d+(?:\.\d+)?)\s*m(?!\/s)/);
+        const wave = vm ? vm[1] : null;
+        if (!wind && !wave) continue; // 수치 없는 일반 문장 제외
+        const sentence = seg.replace(/\s+/g, ' ').trim().slice(0, 180);
+        for (const z of zones) {
+            if (seen.has(z)) continue;
+            seen.add(z);
+            out.push({ zone: z, sentence, wind, wave });
+        }
+    }
+    return out;
+}
+
 async function processOneOffice(office) {
     try {
         const found = await findBulletinForOffice(office.code);
@@ -484,6 +510,9 @@ async function processOneOffice(office) {
             aiColored = false;
             marineOutlooks = [];
         }
+        // 해상 전망 fallback — AI/캐시가 marineOutlooks 를 못 채웠으면 원문에서 정규식 추출.
+        //   AI(Gemini) 실패·미설정 시에도 카드에 풍속/물결 수치가 표시되도록 보장.
+        if (!marineOutlooks.length) marineOutlooks = extractMarineOutlooksRegex(rawText);
 
         const result = {
             reportId: found.reportId,

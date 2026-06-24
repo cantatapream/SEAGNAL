@@ -672,10 +672,10 @@ function renderDemoTabWithSubtabs(body) {
     body.innerHTML =
         '<div id="demo-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
         + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
-        + btn('alert', '특보 시연') + btn('advisory', '특보 예측 시연')
+        + btn('alert', '특보 시연') + btn('advisory', '특보 예측 시연') + btn('typhoon', '태풍') + btn('location', '위치 기반 특보 시연')
         + '</div>'
         + '<div id="demo-subtab-body"></div>';
-    switchDemoSubTab(saved === 'advisory' ? 'advisory' : 'alert');
+    switchDemoSubTab(['advisory', 'typhoon', 'location'].indexOf(saved) >= 0 ? saved : 'alert');
 }
 
 window.switchDemoSubTab = function (which) {
@@ -690,7 +690,13 @@ window.switchDemoSubTab = function (which) {
     }
     var sub = document.getElementById('demo-subtab-body');
     if (!sub) return;
-    if (which === 'advisory') {
+    if (which === 'location') {
+        if (typeof renderLocationAlertDemoTab === 'function') renderLocationAlertDemoTab(sub);
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">위치 기반 특보 시연 모듈(admin_location_demo.js)이 로드되지 않았습니다.</div>';
+    } else if (which === 'typhoon') {
+        if (typeof renderTyphoonDemoTab === 'function') renderTyphoonDemoTab(sub);
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">태풍 시연 모듈(typhoon_demo_admin.js)이 로드되지 않았습니다.</div>';
+    } else if (which === 'advisory') {
         if (typeof renderAdvisoryPredictionDemoTab === 'function') renderAdvisoryPredictionDemoTab(sub);
         else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">특보 예측 시연 모듈(advisory_demo_admin.js)이 로드되지 않았습니다.</div>';
     } else {
@@ -705,7 +711,52 @@ window.switchDemoSubTab = function (which) {
 //  보안: 이 탭은 관리자만 진입 가능. AI 도구는 공개/사용자 데이터 한정이며
 //        관리자 기능에는 접근하지 않는다(서버 측 도구 카탈로그에서 제외됨).
 // ============================================================================
+// 전역 디버그 로그 버퍼 — 앱 내 "테스트" 하위탭에서 열람·JSON 복사 (휴대폰-PC 연결 불요).
+//   네이티브 logcat 대신 voskState 이벤트·엔진 선택·권한·에러를 메모리에 적재해 사장님이
+//   관리자 화면에서 바로 보고 JSON 으로 복사·공유한다. 페이지 새로고침 시 소멸(휘발).
+window.SeagnalDebug = window.SeagnalDebug || (function () {
+    var BUF = [], MAX = 300;
+    return {
+        push:  function (tag, data) { try { BUF.push({ ts: Date.now(), tag: String(tag), data: data }); if (BUF.length > MAX) BUF.shift(); } catch (e) {} },
+        all:   function () { return BUF.slice(); },
+        clear: function () { BUF.length = 0; }
+    };
+})();
+
+// AI 탭 호스트 — [AI 비서] / [테스트] 두 하위탭. 시연 탭과 동일한 하위탭 패턴.
 async function renderUnifiedAiTab(container) {
+    var saved = 'assistant';
+    try { saved = localStorage.getItem('seagnal_ai_subtab') || 'assistant'; } catch (e) { /* noop */ }
+    var mkTabBtn = function (id, label) {
+        return '<button data-aisub="' + id + '" onclick="switchAiSubTab(\'' + id + '\')" '
+            + 'style="padding:8px 16px;border:none;border-radius:8px;background:transparent;color:#94a3b8;'
+            + 'font-weight:700;cursor:pointer;font-size:0.86rem;">' + label + '</button>';
+    };
+    container.innerHTML =
+        '<div id="ai-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
+        + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
+        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트')
+        + '</div>'
+        + '<div id="ai-subtab-body"></div>';
+    switchAiSubTab(saved === 'test' ? 'test' : 'assistant');
+}
+
+window.switchAiSubTab = function (which) {
+    try { localStorage.setItem('seagnal_ai_subtab', which); } catch (e) { /* noop */ }
+    var bar = document.getElementById('ai-subtab-bar');
+    if (bar) bar.querySelectorAll('button[data-aisub]').forEach(function (b) {
+        var on = b.dataset.aisub === which;
+        b.style.background = on ? 'rgba(34,211,238,0.18)' : 'transparent';
+        b.style.color = on ? '#67e8f9' : '#94a3b8';
+    });
+    var sub = document.getElementById('ai-subtab-body');
+    if (!sub) return;
+    if (which === 'test') renderAiTestSubtab(sub);
+    else renderAiAssistantSubtab(sub);
+};
+
+// AI 비서 하위탭 — Gemini 호출량 + 권한 + 음성 토글(+현재 엔진) + 테스트 호출 + 대화 내역.
+async function renderAiAssistantSubtab(container) {
     container.innerHTML = `
         <div class="admin-section-title"><i class="fa-solid fa-robot" style="color:#22d3ee;"></i> AI 비서</div>
 
@@ -741,6 +792,7 @@ async function renderUnifiedAiTab(container) {
                 <button id="ai-voice-toggle" style="padding:6px 14px;background:#22d3ee;color:#04263b;border:none;border-radius:8px;font-weight:700;cursor:pointer;">켜기</button>
             </div>
             <div style="font-size:0.72rem;color:#64748b;margin-top:6px;">켜면 백그라운드에서 "나리야" 호출을 대기합니다. (앱에서만 동작)</div>
+            <div id="ai-voice-engine" style="font-size:0.78rem;color:#94a3b8;margin-top:8px;display:none;"></div>
         </div>
 
         <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;">
@@ -811,10 +863,28 @@ async function renderUnifiedAiTab(container) {
         // 음성 비서(나리야) on/off 토글 — Vosk 모델 다운로드 다이얼로그·진행률·연속성 지원
         const st = document.getElementById('ai-voice-status');
         const btn = document.getElementById('ai-voice-toggle');
+        const engineEl = document.getElementById('ai-voice-engine');
         if (!Native) { st.textContent = '앱(안드로이드)에서만 사용 가능'; btn.disabled = true; btn.style.opacity = .5; return; }
         let running = false;
         const render = () => { st.textContent = running ? '켜짐 — "나리야" 대기 중' : '꺼짐'; st.style.color = running ? '#34d399' : '#94a3b8'; btn.textContent = running ? '끄기' : '켜기'; };
-        Native.isEnabled().then(x => { running = !!(x && x.running); render(); }).catch(render);
+
+        // [#39] 현재 실제 선택된 호출어 엔진 표시 — 폴백(안드로이드 기본) 여부를 눈으로 확인.
+        const ENGINE_LABEL = {
+            porcupine: { txt: '현재 엔진: Porcupine ✅ (저전력 호출어)', color: '#34d399' },
+            vosk:      { txt: '현재 엔진: Vosk ✅ (오프라인 한국어)',     color: '#34d399' },
+            android:   { txt: '현재 엔진: 안드로이드 기본 ⚠️ (폴백 — Vosk 모델 미설치)', color: '#fbbf24' }
+        };
+        const refreshEngine = () => {
+            if (!engineEl) return;
+            if (!running || !Native.getCapabilities) { engineEl.style.display = 'none'; return; }
+            Native.getCapabilities().then(cap => {
+                window.SeagnalDebug.push('getCapabilities', cap);
+                const e = ENGINE_LABEL[cap && cap.activeEngine];
+                if (e) { engineEl.textContent = e.txt; engineEl.style.color = e.color; engineEl.style.display = 'block'; }
+                else { engineEl.style.display = 'none'; }
+            }).catch(err => { window.SeagnalDebug.push('getCapabilities.error', String(err && err.message || err)); engineEl.style.display = 'none'; });
+        };
+        Native.isEnabled().then(x => { running = !!(x && x.running); render(); refreshEngine(); }).catch(render);
 
         // ── Vosk 다운로드 다이얼로그 (assistant.js 의 흐름을 admin.js 토글에도 동일 적용) ──
         let dl = null;
@@ -878,26 +948,39 @@ async function renderUnifiedAiTab(container) {
             btn.disabled = true;
             let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) {}
             Native.enable({ serverUrl: location.origin, profile })
-                .then(x => { running = x ? !!x.running : true; render(); })
+                .then(x => { running = x ? !!x.running : true; render(); refreshEngine(); setTimeout(refreshEngine, 600); })
                 .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : '권한/서비스 실패'); st.style.color = '#fbbf24'; })
+                .then(() => { btn.disabled = false; });
+        };
+        // [#40] 모델 다운로드 READY 시, 이미 가동 중(폴백)이면 서비스를 재기동해 Vosk 로 자동 전환.
+        //   onCreate 의 엔진 선택은 부팅 시 1회뿐이라 가동 중 READY 가 되어도 재선택되지 않는다.
+        const reEnableForVosk = () => {
+            btn.disabled = true;
+            Native.disable()
+                .then(() => { let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) {}
+                              return Native.enable({ serverUrl: location.origin, profile }); })
+                .then(x => { running = x ? !!x.running : true; render(); refreshEngine(); setTimeout(refreshEngine, 600); })
+                .catch(() => {})
                 .then(() => { btn.disabled = false; });
         };
         // 모델 상태 이벤트 구독 — 진행률·완료·실패 다이얼로그 반영
         if (Native.addListener) {
             Native.addListener('voskState', e => {
+                window.SeagnalDebug.push('voskState', e);
                 const s = e && e.state;
                 if (s === 'DOWNLOADING')        showDialog('progress', { percent: e.progress|0 });
-                else if (s === 'READY')         { hideDialog(); if (!running) doEnable(); }
+                else if (s === 'READY')         { hideDialog(); if (!running) doEnable(); else reEnableForVosk(); }
                 else if (s === 'WIFI_REQUIRED') showDialog('wifiRequired', { message: e.message });
                 else if (s === 'FAILED')        showDialog('failed', { message: e.message });
             });
         }
 
         btn.addEventListener('click', () => {
+            window.SeagnalDebug.push('voiceToggle.click', { wasRunning: running });
             if (running) {
                 btn.disabled = true;
                 Native.disable()
-                    .then(x => { running = x ? !!x.running : false; render(); })
+                    .then(x => { running = x ? !!x.running : false; render(); refreshEngine(); if (window.__nariyaOverlayHide) window.__nariyaOverlayHide(); })
                     .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : ''); })
                     .then(() => { btn.disabled = false; });
                 return;
@@ -905,6 +988,7 @@ async function renderUnifiedAiTab(container) {
             // ON — capabilities 분기
             if (!Native.getCapabilities) { doEnable(); return; }  // 구버전 호환
             Native.getCapabilities().then(cap => {
+                window.SeagnalDebug.push('getCapabilities', cap);
                 if (cap && cap.porcupineAvailable) { doEnable(); return; }
                 const v = (cap && cap.vosk) || { state: 'NOT_DOWNLOADED' };
                 if (v.state === 'READY')         { doEnable(); return; }
@@ -964,6 +1048,174 @@ async function renderUnifiedAiTab(container) {
     })();
 }
 window.renderUnifiedAiTab = renderUnifiedAiTab;
+
+// ============================================================================
+// 테스트 하위탭 — 디버그 진단 스냅샷 + 이벤트/호출 로그 + JSON 클립보드 복사.
+//   목적: 휴대폰을 PC(adb/logcat)에 연결하지 않고, 관리자 화면에서 음성 엔진·Vosk 모델
+//   상태·권한·이벤트 로그·대화 호출 내역을 한 번에 보고 JSON 으로 복사해 공유한다.
+//   #38 ④ "엔진 로그 확인"을 logcat 없이 이 탭에서 완결할 수 있게 한다.
+// ============================================================================
+async function renderAiTestSubtab(container) {
+    var esc = function (s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]; }); };
+    var fmtTs = function (ms) { try { return new Date(ms).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }); } catch (e) { return String(ms); } };
+
+    container.innerHTML = `
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+                <span style="font-size:0.85rem;color:#94a3b8;"><i class="fa-solid fa-stethoscope"></i> 진단 스냅샷 (음성 엔진 · Vosk 모델 · 권한)</span>
+                <span>
+                    <button id="ait-refresh" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">새로고침</button>
+                    <button id="ait-copy" style="padding:5px 10px;background:#22d3ee;color:#04263b;border:none;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">JSON 전체 복사</button>
+                </span>
+            </div>
+            <div id="ait-summary" style="font-size:0.86rem;color:#e2e8f0;line-height:1.7;margin-bottom:10px;">수집 중…</div>
+            <pre id="ait-json" style="max-height:280px;overflow:auto;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;font-size:0.72rem;color:#cbd5e1;white-space:pre-wrap;word-break:break-all;margin:0;">…</pre>
+            <div id="ait-copy-status" style="font-size:0.72rem;color:#64748b;margin-top:6px;"></div>
+        </div>
+
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <span style="font-size:0.85rem;color:#94a3b8;"><i class="fa-solid fa-bug"></i> 이벤트/디버그 로그 (이번 세션)</span>
+                <span>
+                    <button id="ait-log-refresh" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">새로고침</button>
+                    <button id="ait-log-clear" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">비우기</button>
+                </span>
+            </div>
+            <div id="ait-log-list" style="max-height:240px;overflow-y:auto;font-size:0.78rem;color:#cbd5e1;line-height:1.5;font-family:ui-monospace,Menlo,Consolas,monospace;">…</div>
+            <div style="font-size:0.7rem;color:#64748b;margin-top:6px;">voskState 이벤트·엔진 선택·권한·에러를 메모리에 기록(새로고침/페이지 이탈 시 소멸).</div>
+        </div>
+
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <span style="font-size:0.85rem;color:#94a3b8;"><i class="fa-solid fa-comments"></i> 호출 내역 (나리야 대화)</span>
+                <span>
+                    <button id="ait-call-refresh" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">새로고침</button>
+                    <button id="ait-call-clear" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">비우기</button>
+                </span>
+            </div>
+            <div id="ait-call-list" style="max-height:280px;overflow-y:auto;font-size:0.82rem;color:#cbd5e1;line-height:1.5;">…</div>
+        </div>
+    `;
+
+    var P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
+    var Native = P && P.SeagnalAssistant ? P.SeagnalAssistant : null;
+    var Geo = P && P.Geolocation ? P.Geolocation : null;
+
+    var ENGINE_TXT = { porcupine: 'Porcupine ✅ (저전력 호출어)', vosk: 'Vosk ✅ (오프라인 한국어)', android: '안드로이드 기본 ⚠️ (폴백 — Vosk 모델 미설치)' };
+    var lastSnapshot = null;
+
+    // 진단 스냅샷 수집 — 네이티브 가용성/엔진/Vosk/권한/로그/대화내역을 한 객체로.
+    function collectSnapshot() {
+        var snap = {
+            generatedAt: new Date().toISOString(),
+            environment: {
+                isCapacitor: !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()),
+                platform: (window.Capacitor && window.Capacitor.getPlatform) ? window.Capacitor.getPlatform() : 'web',
+                hasAssistantPlugin: !!Native,
+                origin: location.origin,
+                userAgent: navigator.userAgent
+            },
+            capabilities: null, voiceRunning: null, permissions: {},
+            debugLog: window.SeagnalDebug.all(), assistantLog: null
+        };
+        var jobs = [];
+        if (Native && Native.getCapabilities) jobs.push(Native.getCapabilities().then(function (c) { snap.capabilities = c; }).catch(function (e) { snap.capabilities = { error: String(e && e.message || e) }; }));
+        if (Native && Native.isEnabled) jobs.push(Native.isEnabled().then(function (r) { snap.voiceRunning = !!(r && r.running); }).catch(function () {}));
+        if (Native && Native.checkPermissions) jobs.push(Native.checkPermissions().then(function (r) { snap.permissions.microphone = r && r.microphone; }).catch(function () {}));
+        if (Geo && Geo.checkPermissions) jobs.push(Geo.checkPermissions().then(function (r) { snap.permissions.location = r && r.location; }).catch(function () {}));
+        jobs.push(fetch('/api/admin/assistant-log?n=100').then(function (r) { return r.json(); }).then(function (d) { snap.assistantLog = (d && d.entries) || []; }).catch(function (e) { snap.assistantLog = { error: String(e && e.message || e) }; }));
+        return Promise.all(jobs).then(function () { return snap; });
+    }
+
+    function renderSummary(snap) {
+        var sm = document.getElementById('ait-summary');
+        var jp = document.getElementById('ait-json');
+        if (!sm) return;
+        if (!snap.environment.hasAssistantPlugin) {
+            sm.innerHTML = '<span style="color:#fbbf24;">⚠️ 네이티브 비서 플러그인이 없습니다 — 안드로이드 앱(웹뷰)에서 열어야 음성 엔진/Vosk 진단이 보입니다.</span>';
+        } else {
+            var cap = snap.capabilities || {};
+            var eng = ENGINE_TXT[cap.activeEngine] || (snap.voiceRunning ? '확인 불가' : '미가동(꺼짐)');
+            var vosk = (cap.vosk && cap.vosk.state) || '알수없음';
+            var porc = cap.porcupineAvailable ? '있음' : '없음';
+            sm.innerHTML =
+                '· 음성 비서: <b>' + (snap.voiceRunning ? '켜짐' : '꺼짐') + '</b><br>' +
+                '· 현재 엔진: <b>' + esc(eng) + '</b><br>' +
+                '· Vosk 모델 상태: <b>' + esc(vosk) + '</b>' + (cap.vosk && cap.vosk.progress >= 0 ? ' (' + cap.vosk.progress + '%)' : '') + '<br>' +
+                '· Porcupine assets: ' + porc + ' · 마이크 권한: ' + esc(snap.permissions.microphone || '미상');
+        }
+        if (jp) jp.textContent = JSON.stringify(snap, null, 2);
+    }
+
+    function refreshSnapshot() {
+        var sm = document.getElementById('ait-summary'); if (sm) sm.textContent = '수집 중…';
+        collectSnapshot().then(function (snap) { lastSnapshot = snap; renderSummary(snap); renderEventLog(); });
+    }
+
+    function renderEventLog() {
+        var el = document.getElementById('ait-log-list'); if (!el) return;
+        var rows = window.SeagnalDebug.all();
+        if (!rows.length) { el.textContent = '아직 기록된 이벤트가 없습니다. (음성 토글을 켜거나 다운로드를 시도하면 기록됩니다)'; return; }
+        el.innerHTML = rows.slice().reverse().map(function (r) {
+            var body = '';
+            try { body = typeof r.data === 'object' ? JSON.stringify(r.data) : String(r.data); } catch (e) { body = '[직렬화 실패]'; }
+            return '<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06);">' +
+                '<span style="color:#64748b;">' + esc(fmtTs(r.ts)) + '</span> ' +
+                '<span style="color:#67e8f9;">' + esc(r.tag) + '</span> ' +
+                '<span style="color:#e2e8f0;">' + esc(body) + '</span></div>';
+        }).join('');
+    }
+
+    function renderCallLog() {
+        var el = document.getElementById('ait-call-list'); if (!el) return;
+        el.textContent = '불러오는 중…';
+        fetch('/api/admin/assistant-log?n=100').then(function (r) { return r.json(); }).then(function (d) {
+            var es = (d && d.entries) || [];
+            if (!es.length) { el.textContent = '아직 대화 내역이 없습니다.'; return; }
+            el.innerHTML = es.map(function (e) {
+                var t = fmtTs(e.ts);
+                var tools = e.tools && e.tools.length ? ' · 도구:' + esc(e.tools.join(',')) : '';
+                return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);">' +
+                    '<div style="color:#22d3ee;">Q. ' + esc(e.query) + '</div>' +
+                    '<div style="color:#e2e8f0;margin-top:3px;">A. ' + esc(e.answer) + '</div>' +
+                    '<div style="color:#64748b;font-size:0.72rem;margin-top:3px;">' + t + ' · ' + (e.aiUsed ? 'AI두뇌' : '폴백') + ' · ' + esc(e.zone || '-') + ' · ' + esc(e.intent || '-') + tools + '</div>' +
+                    '</div>';
+            }).join('');
+        }).catch(function (e) { el.textContent = '불러오기 실패: ' + e.message; });
+    }
+
+    // 클립보드 복사 — navigator.clipboard 우선, 웹뷰 폴백(textarea+execCommand).
+    function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+        return new Promise(function (resolve, reject) {
+            try {
+                var ta = document.createElement('textarea');
+                ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-9999px';
+                document.body.appendChild(ta); ta.focus(); ta.select();
+                var ok = document.execCommand('copy'); document.body.removeChild(ta);
+                ok ? resolve() : reject(new Error('execCommand 복사 실패'));
+            } catch (e) { reject(e); }
+        });
+    }
+
+    document.getElementById('ait-refresh').addEventListener('click', refreshSnapshot);
+    document.getElementById('ait-copy').addEventListener('click', function () {
+        var status = document.getElementById('ait-copy-status');
+        var payload = lastSnapshot || { note: '스냅샷 미수집 — 새로고침 후 복사하세요', debugLog: window.SeagnalDebug.all() };
+        copyText(JSON.stringify(payload, null, 2))
+            .then(function () { status.textContent = '✅ JSON 을 클립보드에 복사했습니다 (' + (new Date()).toLocaleTimeString('ko-KR') + ')'; status.style.color = '#34d399'; })
+            .catch(function (e) { status.textContent = '복사 실패: ' + (e && e.message ? e.message : e) + ' — 아래 JSON 을 길게 눌러 직접 복사하세요'; status.style.color = '#fbbf24'; });
+    });
+    document.getElementById('ait-log-refresh').addEventListener('click', renderEventLog);
+    document.getElementById('ait-log-clear').addEventListener('click', function () { window.SeagnalDebug.clear(); renderEventLog(); });
+    document.getElementById('ait-call-refresh').addEventListener('click', renderCallLog);
+    document.getElementById('ait-call-clear').addEventListener('click', function () { fetch('/api/admin/assistant-log', { method: 'DELETE' }).then(renderCallLog); });
+
+    refreshSnapshot();
+    renderEventLog();
+    renderCallLog();
+}
+window.renderAiTestSubtab = renderAiTestSubtab;
 
 // ============================================================================
 // (A-0) 오류 목록 / 수동 입력 (특보 알림 탭 내부에서 사용)
@@ -3637,6 +3889,8 @@ function renderAlertManageSubTab(container) {
         { id: 'active', name: '발효', icon: 'fa-check-circle' },
         { id: 'release', name: '해제', icon: 'fa-check' },
         { id: 'level', name: '격상/격하', icon: 'fa-arrow-up-right-dots' },
+        { id: 'typhoon', name: '태풍 발생/소멸', icon: 'fa-hurricane' },
+        { id: 'location', name: '위치기반', icon: 'fa-location-crosshairs' },
         { id: 'custom', name: '직접 발송', icon: 'fa-paper-plane' },
         { id: 'history', name: '발송 이력', icon: 'fa-history' }
     ];
@@ -4110,6 +4364,9 @@ async function renderUnifiedMaintenanceContent(container) {
             <button id="maint-subtab-work" onclick="switchMaintenanceSubTab('work')" style="flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;">
                 <i class="fa-solid fa-helmet-safety"></i> 운영 병행 모드
             </button>
+            <button id="maint-subtab-log" onclick="switchMaintenanceSubTab('log')" style="flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;">
+                <i class="fa-solid fa-file-lines"></i> 서버로그
+            </button>
         </div>
         <div id="maint-subtab-body"></div>
     `;
@@ -4120,20 +4377,138 @@ async function renderUnifiedMaintenanceContent(container) {
 window.switchMaintenanceSubTab = function (tab) {
     const fullBtn = document.getElementById('maint-subtab-full');
     const workBtn = document.getElementById('maint-subtab-work');
+    const logBtn = document.getElementById('maint-subtab-log');
     const body = document.getElementById('maint-subtab-body');
     if (!body) return;
 
     const activeStyle = 'flex:1;padding:12px;background:rgba(255,255,255,0.1);color:#fff;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;';
     const inactiveStyle = 'flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;';
 
+    if (fullBtn) fullBtn.style.cssText = inactiveStyle;
+    if (workBtn) workBtn.style.cssText = inactiveStyle;
+    if (logBtn) logBtn.style.cssText = inactiveStyle;
+
     if (tab === 'full') {
-        fullBtn.style.cssText = activeStyle;
-        workBtn.style.cssText = inactiveStyle;
+        if (fullBtn) fullBtn.style.cssText = activeStyle;
         renderMaintenanceFullTab(body);
+    } else if (tab === 'log') {
+        if (logBtn) logBtn.style.cssText = activeStyle;
+        renderServerLogTab(body);
     } else {
-        fullBtn.style.cssText = inactiveStyle;
-        workBtn.style.cssText = activeStyle;
+        if (workBtn) workBtn.style.cssText = activeStyle;
         renderMaintenanceWorkTab(body);
+    }
+};
+
+// ============================================================================
+// 서버로그 하위탭 — fly.io 로그 대체. 기간(분 단위)·레벨·검색 필터 조회 + 복사.
+//   서버 GET /api/admin/server-log (2일 보관, X-Admin-Token 자동 첨부).
+// ============================================================================
+function _slPad(n) { return String(n).padStart(2, '0'); }
+// KST 기준 datetime-local 값('YYYY-MM-DDTHH:mm') 생성 (offsetMin 분 전).
+function _slKstLocal(offsetMin) {
+    const k = new Date(Date.now() + 9 * 60 * 60 * 1000 - (offsetMin || 0) * 60 * 1000);
+    return k.getUTCFullYear() + '-' + _slPad(k.getUTCMonth() + 1) + '-' + _slPad(k.getUTCDate())
+        + 'T' + _slPad(k.getUTCHours()) + ':' + _slPad(k.getUTCMinutes());
+}
+// datetime-local('YYYY-MM-DDTHH:mm') → 서버 쿼리 포맷('YYYY-MM-DD HH:mm')
+function _slToQuery(v) { return v ? v.replace('T', ' ') : ''; }
+
+function renderServerLogTab(container) {
+    container.innerHTML = `
+        <div style="color:#94a3b8;font-size:0.8rem;margin-bottom:10px;line-height:1.5;">
+            <i class="fa-solid fa-circle-info"></i> 서버 로그를 기간(분 단위)으로 조회합니다. 최근 <b>2일</b>치 보관.
+            <code style="color:#22d3ee;">[Push/send]</code> 로 푸시 발송 결과(messageId/실패코드)를 확인할 수 있습니다.
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;">
+            <div>
+                <label style="display:block;color:#64748b;font-size:0.72rem;margin-bottom:3px;">시작 (KST)</label>
+                <input type="datetime-local" id="sl-from" value="${_slKstLocal(30)}" style="padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0f1b33;color:#fff;font-size:0.8rem;">
+            </div>
+            <div>
+                <label style="display:block;color:#64748b;font-size:0.72rem;margin-bottom:3px;">끝 (KST)</label>
+                <input type="datetime-local" id="sl-to" value="${_slKstLocal(0)}" style="padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0f1b33;color:#fff;font-size:0.8rem;">
+            </div>
+            <div>
+                <label style="display:block;color:#64748b;font-size:0.72rem;margin-bottom:3px;">레벨</label>
+                <select id="sl-level" style="padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0f1b33;color:#fff;font-size:0.8rem;">
+                    <option value="ALL">전체</option>
+                    <option value="ERROR">ERROR</option>
+                    <option value="WARN">WARN</option>
+                    <option value="INFO">INFO</option>
+                </select>
+            </div>
+            <div style="flex:1;min-width:120px;">
+                <label style="display:block;color:#64748b;font-size:0.72rem;margin-bottom:3px;">검색어</label>
+                <input type="text" id="sl-q" placeholder="예: Push/send, 풍랑, FAIL" style="width:100%;padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0f1b33;color:#fff;font-size:0.8rem;box-sizing:border-box;">
+            </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+            <button onclick="loadServerLog()" style="padding:8px 14px;background:#3b82f6;color:#fff;border:none;border-radius:7px;font-size:0.8rem;font-weight:700;cursor:pointer;"><i class="fa-solid fa-magnifying-glass"></i> 조회</button>
+            <button onclick="serverLogQuick('push')" style="padding:8px 12px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:7px;font-size:0.78rem;font-weight:700;cursor:pointer;">푸시만</button>
+            <button onclick="serverLogQuick('error')" style="padding:8px 12px;background:rgba(248,113,113,0.12);color:#f87171;border:1px solid rgba(248,113,113,0.3);border-radius:7px;font-size:0.78rem;font-weight:700;cursor:pointer;">에러만</button>
+            <button onclick="copyServerLog()" style="padding:8px 12px;background:#22d3ee;color:#04263b;border:none;border-radius:7px;font-size:0.78rem;font-weight:700;cursor:pointer;"><i class="fa-solid fa-copy"></i> 복사</button>
+        </div>
+        <div id="sl-status" style="color:#64748b;font-size:0.75rem;margin-bottom:6px;">조회 버튼을 누르세요.</div>
+        <pre id="sl-output" style="margin:0;padding:12px;background:#0a1322;border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#cbd5e1;font-size:0.72rem;line-height:1.45;max-height:55vh;overflow:auto;white-space:pre-wrap;word-break:break-all;"></pre>
+    `;
+    loadServerLog();
+}
+
+window.serverLogQuick = function (kind) {
+    const q = document.getElementById('sl-q');
+    const lv = document.getElementById('sl-level');
+    if (kind === 'push') { if (q) q.value = 'Push/'; if (lv) lv.value = 'ALL'; }
+    else if (kind === 'error') { if (q) q.value = ''; if (lv) lv.value = 'ERROR'; }
+    loadServerLog();
+};
+
+window.loadServerLog = async function () {
+    const status = document.getElementById('sl-status');
+    const out = document.getElementById('sl-output');
+    if (!out) return;
+    const from = _slToQuery((document.getElementById('sl-from') || {}).value);
+    const to = _slToQuery((document.getElementById('sl-to') || {}).value);
+    const level = (document.getElementById('sl-level') || {}).value || 'ALL';
+    const q = (document.getElementById('sl-q') || {}).value || '';
+    if (status) status.textContent = '조회 중…';
+    try {
+        const params = new URLSearchParams();
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        if (level && level !== 'ALL') params.set('level', level);
+        if (q) params.set('q', q);
+        params.set('limit', '5000');
+        const res = await fetch('/api/admin/server-log?' + params.toString());
+        if (!res.ok) { if (status) status.textContent = '조회 실패 (HTTP ' + res.status + ')'; return; }
+        const data = await res.json();
+        const lines = (data && data.lines) || [];
+        out.textContent = lines.length ? lines.join('\n') : '(해당 기간/조건의 로그 없음)';
+        if (status) status.textContent = '총 ' + (data.total || 0) + '건 중 ' + (data.returned || 0) + '건 표시'
+            + (data.total > data.returned ? ' (상한 초과 — 기간을 좁히세요)' : '');
+        out.scrollTop = out.scrollHeight; // 최신(아래)로 스크롤
+    } catch (e) {
+        if (status) status.textContent = '오류: ' + (e && e.message);
+    }
+};
+
+window.copyServerLog = function () {
+    const out = document.getElementById('sl-output');
+    const status = document.getElementById('sl-status');
+    if (!out) return;
+    const text = out.textContent || '';
+    const done = function () { if (status) status.textContent = '복사됨 (' + text.split('\n').length + '줄)'; };
+    const fail = function () { if (status) status.textContent = '복사 실패 — 길게 눌러 직접 선택하세요.'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(fail);
+    } else {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-9999px';
+            document.body.appendChild(ta); ta.focus(); ta.select();
+            const ok = document.execCommand('copy'); document.body.removeChild(ta);
+            ok ? done() : fail();
+        } catch (e) { fail(); }
     }
 };
 

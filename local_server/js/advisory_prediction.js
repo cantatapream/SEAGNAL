@@ -114,8 +114,30 @@
             '<div class="adv-kma-kt">🛰️ ' + office + '단기전망' + pub + '</div>';
         if (parts.length) html += '<div class="adv-kma-vals">' + period + parts.join(', ') + '</div>';
         if (outlook) html += '<div class="adv-kma-outlook">“' + escapeHtml(outlook) + '”</div>';
+        // ② 통보문 발효율 반영으로 확률이 상향됐으면 근거 표시
+        const adj = it.probAdjust;
+        if (adj && typeof adj.to === 'number' && adj.to > adj.from) {
+            html += '<div class="adv-kma-boost">📈 기상청 해설 반영 — 발효 가능성 ' +
+                adj.from + '% → <b>' + adj.to + '%</b>' +
+                '<span class="adv-kma-pub"> (해설 신호 과거 발효율 ' + adj.hitPct + '%)</span></div>';
+        }
         html += '</div>';
         return html;
+    }
+
+    // ── 위험기상 일기도 보기 — 버튼 + 펼침 컨테이너(이미지는 클릭 시 lazy load) ──
+    //   it.overlay 가 있을 때만(엔진이 생성한 PNG 경로). 없으면 빈 문자열(버튼 숨김).
+    function buildOverlayToggle(it) {
+        const base = (it && typeof it.overlay === 'string' && it.overlay) ? it.overlay : '';
+        if (!base) return '';
+        const blink = (it && typeof it.overlayBlink === 'string' && it.overlayBlink) ? it.overlayBlink : '';
+        return '<div class="adv-ovl">' +
+            '<button type="button" class="adv-ovl-btn" ' +
+            'onclick="window.toggleAdvOverlay&&window.toggleAdvOverlay(this)">' +
+            '🛰️ 위험기상 일기도 보기</button>' +
+            '<div class="adv-ovl-body" data-base="' + escapeHtml(base) + '" ' +
+            'data-blink="' + escapeHtml(blink) + '"></div>' +
+            '</div>';
     }
 
     // ── 헤더 상태배지(카운트) — 앱 기존 .adv-badge(반투명) 재사용 ──
@@ -188,13 +210,13 @@
                     html.push('<span class="adv-zone">' + zone + '</span>');
                     if (chgBadge) html.push(chgBadge);
                     html.push('<span class="adv-badge2 adv-badge2-' + gKey + '">' + badgeTxt + '</span>');
-                    html.push('<span class="adv-card-chev">▼</span>');
                     html.push('</div>');
                     html.push('<div class="adv-card-body">');
                     html.push('<div class="adv-card-hr"></div>');
                     if (chgLine) html.push(chgLine);
                     html.push('<div class="adv-narr">' + buildNarrativeHtml(it) + '</div>');
                     html.push(buildKmaHtml(it));
+                    html.push(buildOverlayToggle(it));
                     html.push('</div></div>');
                 });
                 html.push('</div>');
@@ -221,8 +243,13 @@
     }
 
     // ── DOM 와이어링 ──
+    // 관심해역 토글 즉시 반영용: 마지막으로 렌더에 쓴 data 를 보관해 두고,
+    // 설정 저장 신호가 오면 데이터 재요청 없이 그 data 로 다시 렌더한다.
+    let _lastData = null;
+
     function renderAdvisoryPrediction(data) {
         if (typeof document === 'undefined') return;
+        _lastData = data || _lastData;
         const visFn = function (z) {
             try {
                 if (typeof UserSettings !== 'undefined' && UserSettings &&
@@ -247,6 +274,17 @@
         // 기준시각 레이어(흰색, KST)
         const bt = document.getElementById('adv-basetime-layer');
         if (bt) bt.textContent = formatBaseTime(d.baseTimeKST);
+    }
+
+    // 관심해역 on/off 즉시 반영: 보관된 마지막 data 로 헤더 문구/카드 목록을
+    // 데이터 재요청 없이 다시 렌더한다(설정 저장 신호에 등록됨).
+    function rerenderAdvisoryPrediction() {
+        if (typeof document === 'undefined') return;
+        // 아코디언이 표출 중(헤더가 안 숨겨짐)일 때만 + 보관된 data 가 있을 때만.
+        const h = document.getElementById('advisory-prediction-accordion-header');
+        if (!h || h.style.display === 'none') return;
+        if (!_lastData) return;
+        renderAdvisoryPrediction(_lastData);
     }
 
     // 통합관리자센터 '관리자 모드'가 체크된 기기면 'admin' 모드 표출 인가를 받는다.
@@ -307,6 +345,35 @@
         const card = headEl.closest('.adv-card');
         if (card) card.classList.toggle('open');
     }
+    // 위험기상 일기도 토글 — 펼칠 때 2레이어(base 일기도+구역선 / blink 위험영역 점선)를
+    //   lazy 삽입해 겹친다. 깜빡 레이어가 위(DOM 나중)에 와 특보구역 선 위에서 맥동한다.
+    function toggleAdvOverlay(btn) {
+        if (!btn) return;
+        const body = btn.nextElementSibling;
+        if (!body || typeof body.classList === 'undefined') return;
+        const willOpen = !body.classList.contains('open');
+        body.classList.toggle('open', willOpen);
+        if (willOpen && !body.querySelector('.adv-ovl-stack')) {
+            const base = body.getAttribute('data-base');
+            const blink = body.getAttribute('data-blink');
+            if (base) {
+                const stack = document.createElement('div');
+                stack.className = 'adv-ovl-stack';
+                const img = document.createElement('img');
+                img.className = 'adv-ovl-img'; img.loading = 'lazy';
+                img.alt = '위험기상 일기도'; img.src = base;
+                stack.appendChild(img);
+                if (blink) {
+                    const b = document.createElement('img');
+                    b.className = 'adv-ovl-img adv-ovl-blink'; b.loading = 'lazy';
+                    b.alt = ''; b.src = blink;
+                    stack.appendChild(b);
+                }
+                body.appendChild(stack);
+            }
+        }
+        btn.textContent = willOpen ? '🛰️ 위험기상 일기도 닫기' : '🛰️ 위험기상 일기도 보기';
+    }
     // ⓘ 팝업 열고/닫기 (마크업은 index2.html 의 #adv-info-modal)
     function openAdvisoryInfo() {
         const m = document.getElementById('adv-info-modal');
@@ -321,9 +388,11 @@
         window.toggleAdvisoryPredictionAccordion = toggleAdvisoryPredictionAccordion;
         window.loadAdvisoryPrediction = loadAdvisoryPrediction;
         window.renderAdvisoryPrediction = renderAdvisoryPrediction;
+        window.rerenderAdvisoryPrediction = rerenderAdvisoryPrediction;
         window.buildAdvisoryHtml = buildAdvisoryHtml;
         window.buildHeaderStatus = buildHeaderStatus;
         window.toggleAdvisoryCard = toggleAdvisoryCard;
+        window.toggleAdvOverlay = toggleAdvOverlay;
         window.openAdvisoryInfo = openAdvisoryInfo;
         window.closeAdvisoryInfo = closeAdvisoryInfo;
         window.__advShowAccordion = _setAccordionVisible; // 데모 표출기가 가시성 제어에 사용
@@ -349,6 +418,7 @@
             buildHeaderStatus: buildHeaderStatus,
             buildChangeBadge: buildChangeBadge,
             buildChangeLine: buildChangeLine,
+            buildOverlayToggle: buildOverlayToggle,
             escapeHtml: escapeHtml,
             formatBaseTime: formatBaseTime,
         };

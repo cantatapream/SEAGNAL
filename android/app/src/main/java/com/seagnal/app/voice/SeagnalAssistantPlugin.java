@@ -182,6 +182,10 @@ public class SeagnalAssistantPlugin extends Plugin {
         vosk.put("progress", st == VoskModelManager.State.DOWNLOADING ? mgr.currentProgress() : -1);
         if (mgr.currentMessage() != null) vosk.put("message", mgr.currentMessage());
         ret.put("vosk", vosk);
+        // [#39] 가동 중 서비스가 실제로 고른 엔진 — 관리자 패널 폴백 표시용. 미가동 시 null.
+        ret.put("running", VoiceAssistantService.isRunning);
+        ret.put("activeEngine", VoiceAssistantService.activeEngine == null
+                ? JSObject.NULL : VoiceAssistantService.activeEngine);
         call.resolve(ret);
     }
 

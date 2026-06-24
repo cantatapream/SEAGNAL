@@ -15,6 +15,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
 import com.seagnal.app.voice.SeagnalAssistantPlugin;
+import com.seagnal.app.locationalert.LocationPermPlugin;
 
 /**
  * SEAGNAL Android 앱의 메인 Activity (Capacitor BridgeActivity 확장).
@@ -55,7 +56,7 @@ public class MainActivity extends BridgeActivity {
      *
      *   ⚠️ 서버측 수정을 단말에 강제 반영해야 할 때 이 값을 1 올려 배포한다.
      */
-    private static final int WEBVIEW_CACHE_BUST_TOKEN = 1;
+    private static final int WEBVIEW_CACHE_BUST_TOKEN = 3;
 
     /** 현재 오프라인 에러 페이지가 표시 중인지 여부 — onPageStarted 에서 reset. */
     private boolean isShowingError = false;
@@ -69,6 +70,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SeagnalAssistantPlugin.class);
+        registerPlugin(LocationPermPlugin.class);   // 위치 '항상 허용' 네이티브 권한 요청
         super.onCreate(savedInstanceState);
     }
 

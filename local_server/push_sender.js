@@ -285,6 +285,20 @@ async function processAndSendNotifications(changes, options = {}) {
                 tmYn: curr.tmYn || curr.tmCc
             });
         }
+        // C-b. 자식 단독 예비 발표 — 부모 발효중인데 자식만 "예비(미발효)"로 새로 등장.
+        //   "추가 발효"가 아니라 "발표(예비)". 실제 발효되면 그때 CHILD_ADD(추가 발효)로 전환.
+        //   시각은 발효예정(tmEf). curr.wrnLvl 은 '예비' → child_prelim 템플릿이 '주의보 발표'로 표기.
+        //   (구독 토글: routes/push.js 가 child_prelim 을 announce + childZones 양쪽에 게이트.)
+        else if (type === 'CHILD_PRELIM_ADD') {
+            if (!curr) continue;
+            addToGroup(groups, 'child_prelim', curr.wrnTp, curr.wrnLvl, {
+                zones: [zone],
+                childState,
+                tmFc: curr.tmFc,
+                tmEf: curr.tmEf,
+                tmYn: curr.tmYn || curr.tmCc
+            });
+        }
         else if (type === 'CHILD_RELEASE') {
             if (!prev) continue;
             addToGroup(groups, 'partial_release', prev.wrnTp, prev.wrnLvl, {
@@ -324,6 +338,30 @@ async function processAndSendNotifications(changes, options = {}) {
             addToGroup(groups, 'yn_extend', curr.wrnTp, curr.wrnLvl, {
                 zones: [zone], childState,
                 oldTime: change.oldTime, newTime: change.newTime
+            });
+        }
+        // E. 자식 단독 시각/해제예고 변경 (수정 #3) — 부모 불변, 자식만 발효예정/해제예정 변경.
+        //   childState.parentTimeUnchanged + timeChanged 로 buildChildQualifier 가 "(…만 시각 변경)" 생성.
+        //   별도 templateId(child_time_ef_change/child_time_yn_change)로 부모 time_*_change 그룹과 분리
+        //   (그룹키 충돌 방지) + routes/push.js 의 childZones 게이트를 정확히 거침.
+        else if (type === 'CHILD_TIME_EF_CHANGE') {
+            if (!curr) continue;
+            addToGroup(groups, 'child_time_ef_change', curr.wrnTp, curr.wrnLvl, {
+                zones: [zone],
+                childState,
+                tmFc: curr.tmFc,
+                tmEf: curr.tmEf,
+                tmYn: curr.tmYn || curr.tmCc
+            });
+        }
+        else if (type === 'CHILD_TIME_YN_CHANGE') {
+            if (!curr) continue;
+            addToGroup(groups, 'child_time_yn_change', curr.wrnTp, curr.wrnLvl, {
+                zones: [zone],
+                childState,
+                tmFc: curr.tmFc,
+                tmEf: curr.tmEf,
+                tmYn: curr.tmYn || curr.tmCc
             });
         }
     }

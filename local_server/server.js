@@ -32,6 +32,12 @@
  */
 
 // ============================================================================
+// 0. 서버 로그 파일 기록 시작 (console.* tee → 영속 볼륨, 2일 보관)
+//    관리자센터 > 점검 > "서버로그" 탭에서 조회. 최대한 일찍 init 해 이후 로그를 포착.
+// ============================================================================
+try { require('./services/server_logger').init(); } catch (_e) { /* 로깅 실패해도 서버는 정상 기동 */ }
+
+// ============================================================================
 // 1. 설정 및 서비스 초기화
 // ============================================================================
 const { app, PORT, staticRoot, UPLOAD_DIR } = require('./config/server_config');
@@ -159,25 +165,20 @@ const STATIC_GZIP_OPTS = {
         //   1) js/css/html/json → no-cache: "캐시하되 사용 전 ETag 재검증". 변경 없으면
         //      304(본문 없음)라 저렴하고, 배포 즉시 새 코드 반영 + 버전 스큐 방지.
         //      (벤더 JS/CSS 도 여기 포함 — 콘텐츠 해시가 없으므로 immutable 금지)
-        //   2) 폰트(woff2/woff/ttf/otf/eot) → 1년 immutable: 파일명이 사실상 콘텐츠
-        //      주소(구글 해시명)이고 거의 안 바뀜. 배포(SW 캐시 wipe) 후에도 브라우저
-        //      HTTP 캐시에 잔존 → 재검증·재다운로드 없음, 스플래시 FOUT 재발 방지.
-        //      [주의] fonts.css 자체는 .css(1번)라 no-cache — 폰트 '파일'만 immutable.
-        //      [예외] FontAwesome 폰트는 고정 파일명이라 immutable 금지 → no-cache(아래 별도 분기).
-        //   3) 이미지 → 7일 캐시(가끔 교체되므로 immutable 대신 만료 후 재검증).
+        //   2) 폰트(woff2 등) → 1년 immutable: 파일명이 구글 콘텐츠 해시라 in-place 교체
+        //      불가 → 배포(SW 캐시 wipe) 후에도 HTTP 캐시 잔존, 재검증·재다운로드 없음.
+        //      [예외] FontAwesome 폰트는 고정 파일명(fa-solid-900.woff2 등)이고 css 가
+        //      버전 쿼리 없이 참조 → 업그레이드 시 in-place 교체되므로 immutable 금지(no-cache).
+        //   3) 이미지 → 7일 캐시(가끔 교체되므로 만료 후 재검증).
         //   4) 그 외 → 안전하게 no-cache.
+        //   [주의] fonts.css 자체는 .css(1번)라 no-cache — 폰트 '파일'만 immutable.
         setHeaders: function (res, filePath) {
             var p = filePath.replace(/\.(gz|br)$/i, '');
             if (/\.(js|css|html|json)$/i.test(p)) {
                 res.setHeader('Cache-Control', 'no-cache');
             } else if (/[\\/]fontawesome[\\/].*\.(woff2?|ttf|otf|eot)$/i.test(p)) {
-                // FontAwesome 폰트는 고정 파일명(fa-solid-900.woff2 등)이고 css 가 버전 쿼리
-                // 없이 참조 → 업그레이드 시 in-place 교체된다. immutable 이면 옛 폰트가 1년
-                // 고정(SW wipe 로도 복구 불가, 새 아이콘 깨짐) → no-cache 로 매번 재검증(304,
-                // woff2 3개 합 284KB 소형이라 비용 무시 가능).
                 res.setHeader('Cache-Control', 'no-cache');
             } else if (/\.(woff2?|ttf|otf|eot)$/i.test(p)) {
-                // Inter/Noto/Nanum 은 구글 콘텐츠 해시 파일명 → in-place 교체 불가 → 1년 immutable.
                 res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
             } else if (/\.(png|jpe?g|gif|webp|avif|svg|ico)$/i.test(p)) {
                 res.setHeader('Cache-Control', 'public, max-age=604800');
@@ -256,6 +257,7 @@ app.use(require('./routes/usage'));         // 사용량 통계(Usage Analytics)
 app.use(require('./routes/archive'));
 app.use(require('./routes/push'));
 app.use(require('./routes/push_test'));
+app.use(require('./routes/location_alert'));  // 위치기반 특보 경보 동의 기록 API (④)
 app.use(require('./routes/admin'));
 app.use(require('./routes/survey'));
 app.use(require('./routes/report'));

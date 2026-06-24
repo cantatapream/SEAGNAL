@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -39,11 +40,41 @@
             android:name=".voice.VoskDownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- ════════════════════════════════════════════════════════════════
+             위치기반 해상특보(killed 대응) FCM 수신 서비스.
+
+             @capacitor/push-notifications 의 라이브러리 서비스
+             (com.capacitorjs.plugins.pushnotifications.MessagingService)를 상속한다.
+             FirebaseMessagingService 는 앱당 하나만 메시지를 받으므로:
+               1) 라이브러리 서비스를 tools:node="remove" 로 제거하고
+               2) 그 서브클래스인 우리 서비스를 MESSAGING_EVENT 로 등록한다.
+             우리 서비스는 onMessageReceived 에서 super(=Capacitor 처리)를 항상 호출하므로
+             기존 푸시 기능(포그라운드 리스너/일반 알림/토큰 등록)은 그대로 보존된다.
+             ════════════════════════════════════════════════════════════════ -->
+        <service
+            android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+            tools:node="remove" />
+        <service
+            android:name=".locationalert.LocationAlertMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
     </application>
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- 위치기반 특보 경보(②): 앱 종료 상태에서도 위치 확인 — 백그라운드 위치 + 전경 서비스(위치) -->
+    <!-- [확인필요-빌드후] 전경 서비스 <service android:foregroundServiceType="location"> 선언은
+         @capacitor-community/background-geolocation 플러그인 매니페스트가 머지하여 제공한다.
+         npx cap sync 후 app/build/intermediates/.../AndroidManifest.xml(merged)에서
+         BackgroundGeolocationService + foregroundServiceType="location" 존재를 확인할 것.
+         (여기서 동일 service명을 직접 선언하면 머지 충돌로 빌드 실패 위험 → 머지 결과 부재 시에만 수동 추가) -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 음성 비서: 마이크 + 포그라운드 서비스(상시 청취). 14+(API34)는 마이크 타입 권한 필수 -->

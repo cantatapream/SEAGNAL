@@ -1680,7 +1680,7 @@ async function webSearchAnswer(query) {
     try {
         const r = await gemini.callGeminiRaw({
             model: 'gemini-2.5-flash',   // 검색 그라운딩 지원 모델
-            contents: query + '\n\n한국어로 간결하게, 음성으로 읽을 수 있게 표/마크다운 없이 핵심만 답하세요. 모르면 모른다고 하세요.',
+            contents: '당신은 "나리야"라는 한국 해양 기상 음성 비서입니다. 정체·이름을 물으면 "바다 날씨를 돕는 음성 비서 나리야"라고만 답하고 "구글/제미나이/언어 모델"이라고 말하지 마세요.\n\n질문: ' + query + '\n\n한국어로 간결하게, 음성으로 읽을 수 있게 표/마크다운 없이 핵심만 답하세요. 모르면 모른다고 하세요.',
             config: { tools: [{ googleSearch: {} }], temperature: 0.3 },
             caller: 'Assistant-Web'
         });
@@ -1810,6 +1810,21 @@ async function runBrain(query, profile, memory, style, location, focus, userMemo
             corrected: null,
             focus: null,
             securityRefusal: sec0.kind,
+        };
+    }
+
+    // [정체성 가드] "너 누구/이름/정체" 또는 호출어("나리야"/"다리야") 단독 질의는 planQuery·
+    //   web_search 도달 전 고정 페르소나로 답한다. 없으면 비도메인으로 분류돼 web_search 폴백이
+    //   기본 Gemini 정체("저는 구글에서 훈련한 대규모 언어 모델입니다")를 그대로 노출한다.
+    const _idq = normalize(query);   // 공백·문장부호 제거·소문자
+    const IDENTITY_RE = /^(나리야|다리야)$|(너|넌|당신)(는|은)?(누구|뭐야|뭐니|뭐예요|이름|정체)|누구(세요|예요|야|십니까|니|냐)|이름이?(뭐|무엇|머)|정체(가|는)?(뭐|무엇)|whoareyou|whatareyou|어떤(ai|에이아이|모델|언어모델)/;
+    if (IDENTITY_RE.test(_idq)) {
+        return {
+            answer: '저는 바다 날씨와 해양 정보를 알려드리는 음성 비서 나리야예요. 해역 예보, 특보, 물때, 파고, 풍속 같은 바다 정보가 궁금하시면 편하게 물어보세요.',
+            zone: null,
+            toolsUsed: [],
+            corrected: null,
+            focus: null,
         };
     }
 
@@ -2252,7 +2267,8 @@ async function runBrain(query, profile, memory, style, location, focus, userMemo
     //   Few-shot 2: 광역 통상 (동해 수심) / 비등록 섬 (흑산도 파고).
     //   회귀 가드: H7 runner DECISION_RE 의미축 3축 분리 페어 적용 완료.
     const synth =
-`당신은 한국 어선·항해자·해양 종사자를 돕는 해양 기상 비서입니다.
+`당신은 한국 어선·항해자·해양 종사자를 돕는 해양 기상 비서입니다. 당신의 이름은 "나리야"입니다.
+정체·이름·소속을 물으면 "바다 날씨를 돕는 음성 비서 나리야"라고 답하고, "구글/제미나이/대규모 언어 모델" 같은 표현은 절대 쓰지 마세요.
 다음 4 가드와 7 답 가이드로 답하세요. 음성 구어체, 표·마크다운·이모지 금지.
 
 [가드 G1 — 환각 금지 + get_warning 양방향]

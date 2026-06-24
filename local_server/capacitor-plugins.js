@@ -92,6 +92,20 @@ const initPushNotifications = async () => {
     // 알림 수신 시 (앱이 열려있을 때)
     await PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log('Push received:', notification);
+        // [위치기반 특보] 깨우는 신호(데이터 메시지).
+        //   네이티브 모듈이 있는(최신) 앱은 네이티브가 모든 상태(켜짐/백그라운드/종료)를 처리함이
+        //   실기기에서 확인됨 → JS 경로는 건너뛴다(중복 알림 방지). 구버전 앱(네이티브 없음)만 JS 처리.
+        try {
+            const data = (notification && notification.data) || {};
+            if (data.type === 'location_alert_wake' && window.LocationAlertRuntime) {
+                const ui = window.LocationAlertUI;
+                if (ui && typeof ui.isNativeCapable === 'function') {
+                    ui.isNativeCapable().then((cap) => { if (!cap) window.LocationAlertRuntime.handleWake(data.snapshot, data); });
+                } else {
+                    window.LocationAlertRuntime.handleWake(data.snapshot, data);
+                }
+            }
+        } catch (e) { console.error('location_alert_wake 처리 실패:', e); }
     });
 
     // 알림 클릭 시
@@ -195,6 +209,37 @@ window.openAppSettings = async () => {
             }
         }
     } else {
+    }
+};
+
+// [위치기반 특보] 위치 권한 설정 — 알림 설정이 아니라 "앱 정보(권한)" 화면으로 이동.
+//   여기서 권한 > 위치 > "항상 허용" 까지 설정 가능. (openAppSettings 는 알림 설정으로 감)
+window.openAppLocationSettings = async () => {
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+        const { NativeSettings } = window.Capacitor.Plugins;
+        if (!NativeSettings) return;
+        try {
+            await NativeSettings.open({
+                optionAndroid: 'application_details',
+                optionIOS: 'App'
+            });
+        } catch (e) {
+        }
+    }
+};
+
+// [위치기반 특보] 전경 위치 "권한만" 요청(위치 획득 없이 — 빠름). 동의 흐름의 GPS 대기 지연 제거.
+window.requestForegroundLocationPermission = async () => {
+    if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return 'granted';
+    try {
+        let st = await Geolocation.checkPermissions();
+        const loc = st && st.location;
+        if (loc === 'prompt' || loc === 'prompt-with-rationale' || loc === 'prompt-with-description') {
+            st = await Geolocation.requestPermissions();
+        }
+        return (st && st.location) || 'denied';
+    } catch (e) {
+        return 'denied';
     }
 };
 

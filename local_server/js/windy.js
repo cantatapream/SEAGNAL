@@ -343,7 +343,7 @@ function renderOtherButtonsForStatus(zoneName, container) {
                     return;
                 }
             }
-            if (typeof showZoneOverlay === 'function') showZoneOverlay(zoneName);
+            // [제거됨] 레거시 해구도 이미지 지도 fallback(showZoneOverlay) — index2 미표출 잔재로 삭제.
         });
         btnContainer.appendChild(zoneViewBtn);
 
@@ -745,7 +745,7 @@ function createStatusCard(zoneName) {
                 return;
             }
         }
-        if (typeof showZoneOverlay === 'function') showZoneOverlay(zoneName);
+        // [제거됨] 레거시 해구도 이미지 지도 fallback(showZoneOverlay) — index2 미표출 잔재로 삭제.
     });
     btnContainer.appendChild(zoneViewBtn);
 
