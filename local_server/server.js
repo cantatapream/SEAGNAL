@@ -430,6 +430,13 @@ app.listen(PORT, '0.0.0.0', () => {
         if (process.env.FLY_ALLOC_ID) {
             try {
                 const tideFieldCollector = require('./services/tide_field_collector');
+                // [ENOSPC 회복] 부트스트랩(ensureBuilt 가 디스크 쓰기 시도) 전에, 윈도우 밖
+                //   과거 곡선 파일을 먼저 정리한다. 삭제는 공간이 필요 없으므로 볼륨이 꽉 찼어도
+                //   동작 → 디스크를 즉시 회복시킨 뒤 수집/프리컴퓨트가 정상 쓰기 가능해진다.
+                try {
+                    const purged = tideFieldCollector.purgeStaleCurves();
+                    if (purged > 0) console.log(`🧹 [startup] 윈도우 밖 곡선 파일 ${purged}개 정리(디스크 회복)`);
+                } catch (e) { console.error('[startup] 곡선 정리 실패:', e && e.message); }
                 console.log('🌊 [startup] 물빠짐 예측 부트스트랩 시작 (전처리 보장 → 롤링 수집)...');
                 Promise.resolve(tideFieldCollector.bootstrapTideField())
                     .then(r => console.log(`🌊 [startup] 물빠짐 부트스트랩 결과: ${JSON.stringify(r)}`))

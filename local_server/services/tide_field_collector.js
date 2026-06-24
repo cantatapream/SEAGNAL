@@ -123,6 +123,38 @@ function clearCurves() {
 }
 
 /**
+ * [곡선 retention] 윈도우(오늘~+N-1일, KST) 밖 날짜의 곡선 파일을 삭제한다.
+ *   배경: 곡선 파일은 `{anchorId}_{YYYYMMDD}.json` 로 날짜별 생성되는데, 과거 날짜
+ *   파일을 지우는 로직이 없어 매일 누적 → fly 영속 볼륨 ENOSPC(디스크 풀) 발생.
+ *   시스템(수집/프리컴퓨트/라우트/status)은 windowDatesKST(WINDOW_DAYS) 날짜만 읽으므로,
+ *   윈도우 밖 날짜 파일은 死데이터 → 삭제해도 안전(과거 날짜는 절대 재참조 안 됨).
+ *   - 삭제 기준은 파일명에 박힌 날짜(YYYYMMDD)다 — mtime 이 아님(윈도우 내 파일이
+ *     며칠 전 쓰였어도 오삭제하지 않게 정확히 판정).
+ *   - 곡선 파일 형식(`_(\d{8})\.json$`)이 아닌 파일은 건드리지 않는다(보존).
+ *   - 삭제는 디스크 공간을 요구하지 않으므로 볼륨이 꽉 차도 동작한다(회복 수단).
+ *   - 절대 throw 하지 않는다(파일별 try/catch). 삭제한 파일 수 반환.
+ */
+function purgeStaleCurves(logFn) {
+    const lg = typeof logFn === 'function' ? logFn : ((...a) => console.log('[tide_field]', ...a));
+    let removed = 0, kept = 0;
+    try {
+        const dateSet = new Set(windowDatesKST(CFG.WINDOW_DAYS).map(String));
+        let files = [];
+        try { files = fs.readdirSync(C.CURVES_DIR); } catch (e) { return 0; } // 폴더 없음
+        for (const f of files) {
+            const m = f.match(/_(\d{8})\.json$/);
+            if (!m) continue;                              // 곡선 파일 형식 아님 → 보존
+            if (dateSet.has(m[1])) { kept++; continue; }   // 윈도우 내 → 보존
+            try { fs.unlinkSync(path.join(C.CURVES_DIR, f)); removed++; } catch (e) { /* noop */ }
+        }
+        if (removed > 0) {
+            lg(`곡선 retention 정리: 윈도우 밖 ${removed}개 삭제 (보존 ${kept}개, 윈도우=${[...dateSet].join(',')})`);
+        }
+    } catch (e) { /* 절대 throw 안 함 */ }
+    return removed;
+}
+
+/**
  * (앵커,날짜) 가 이미 완전 수집되었는지 판정.
  * 완전 = 파일 존재 + loadedPages 5개 + failedPages 없음 + 곡선 길이 충분.
  */
@@ -606,6 +638,8 @@ async function _collectTideFieldInner(opts = {}) {
     // 수집 직후 프리컴퓨트(자식 프로세스, fire-and-forget). 회로 차단(aborted)으로
     //   부분 수집됐어도 최신 곡선으로 프레임을 갱신해 두는 편이 낫다(폴백 안전).
     spawnPrecompute(log);
+    // [retention] 수집 직후 윈도우 밖(과거 날짜) 곡선 파일 정리 → 볼륨 누적/ENOSPC 방지.
+    try { purgeStaleCurves(log); } catch (e) { /* 정리 실패는 수집 결과에 영향 없음 */ }
     return { ok: true, collected: done, total: tasks.length, aborted, elapsedSec: +elapsed, byStatus };
 }
 
@@ -717,6 +751,7 @@ module.exports = {
     getStatus,
     getNoGridReport,
     getAnchorReport,
+    purgeStaleCurves,
     // 테스트/라우트용 보조 export
     windowDatesKST, isoDateOf, curvePath, isComplete, loadAnchors, collectOne
 };
