@@ -30,6 +30,8 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+// [데이터 보호] 구독자 등 중요 파일은 원자적(tmp→rename) 저장 — 디스크 풀/크래시에도 손상 방지.
+const { writeFileAtomic } = require('../services/atomic_write');
 // [Lazy] web-push SDK + VAPID 설정도 첫 발송 시점까지 미룬다.
 //        require + setVapidDetails 가 startup 에서 약 2초를 소비하던 것을 절약.
 //        getWebPush() 를 통해 webpush 인스턴스에 접근한다.
@@ -236,7 +238,7 @@ function recordSubscriberEvent(eventType, count) {
         // 해당 이벤트 카운트 증가
         events[todayStr][eventType] = (events[todayStr][eventType] || 0) + count;
 
-        fs.writeFileSync(FILES.SUBSCRIBER_EVENTS, JSON.stringify(events, null, 2), 'utf8');
+        writeFileAtomic(FILES.SUBSCRIBER_EVENTS, JSON.stringify(events, null, 2), 'utf8');
     } catch (e) {
         console.error('[SubscriberEvent] 이벤트 기록 실패:', e.message);
     }
@@ -303,7 +305,7 @@ router.post('/api/subscribe', (req, res) => {
             recordSubscriberEvent('subscribe', 1);
         }
 
-        fs.writeFileSync(SUBS_FILE, JSON.stringify(subs, null, 2));
+        writeFileAtomic(SUBS_FILE, JSON.stringify(subs, null, 2));
         res.json({ success: true, message: '알림 구독 완료' });
     } catch (e) {
         console.error('구독 저장 실패:', e);
@@ -325,7 +327,7 @@ router.post('/api/unsubscribe', (req, res) => {
             // 실제로 삭제된 구독자가 있으면 파일 저장 + 해지 이벤트 기록
             var removedCount = initialLen - subs.length;
             if (removedCount > 0) {
-                fs.writeFileSync(SUBS_FILE, JSON.stringify(subs, null, 2));
+                writeFileAtomic(SUBS_FILE, JSON.stringify(subs, null, 2));
                 recordSubscriberEvent('unsubscribe', removedCount);
             }
         }
@@ -581,7 +583,7 @@ router.post('/api/push-custom', async (req, res) => {
                 return !deadTokens.has(sId);
             });
             var expiredCount = allSubs.length - updatedSubs.length;
-            fs.writeFileSync(SUBS_FILE, JSON.stringify(updatedSubs, null, 2));
+            writeFileAtomic(SUBS_FILE, JSON.stringify(updatedSubs, null, 2));
             console.log(`🧹 [Push/Manual] 만료된 구독 데이터 ${expiredCount}건 정리 완료`);
             // 만료 자동 정리 이벤트 기록
             recordSubscriberEvent('expired', expiredCount);
@@ -731,7 +733,7 @@ router.post('/api/push-typhoon', async (req, res) => {
             const updated = subs.filter(s => !deadIds.has(s.type === 'fcm' ? s.token : (s.subscription ? s.subscription.endpoint : null)));
             const expiredCount = subs.length - updated.length;
             if (expiredCount > 0) {
-                fs.writeFileSync(SUBS_FILE, JSON.stringify(updated, null, 2));
+                writeFileAtomic(SUBS_FILE, JSON.stringify(updated, null, 2));
                 recordSubscriberEvent('expired', expiredCount);
                 console.log(`🧹 [Push/Typhoon] 만료된 구독 ${expiredCount}건 정리`);
             }

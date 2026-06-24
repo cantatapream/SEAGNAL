@@ -118,7 +118,8 @@ window.fetch = function adminAwareFetch(input, init) {
         else if (input && typeof input.url === 'string') url = input.url;
     } catch (_) { /* 무시 */ }
 
-    const isAdminApi = url.indexOf('/api/admin/') !== -1;
+    // /api/admin/* 외에, 관리자 전용으로 보호된 설문 백업/복구 라우트도 토큰 자동 첨부 대상.
+    const isAdminApi = url.indexOf('/api/admin/') !== -1 || url.indexOf('/api/surveys/backup/') !== -1;
     const isExempt = isAdminApi && (
         url.indexOf('/api/admin/login') !== -1 ||
         url.indexOf('/api/admin/maintenance-bypass-verify') !== -1
