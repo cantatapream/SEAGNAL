@@ -50,6 +50,10 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const { DATA_DIR } = require('../config/server_config');
+// [데이터 보호] 설문/응답 파일을 원자적(tmp→rename)으로 저장 — 디스크 풀/크래시 손상 방지.
+const { writeFileAtomic } = require('../services/atomic_write');
+// [보안] 백업/복구 엔드포인트는 관리자 토큰 필요(아래 백업 라우트에 미들웨어로 적용).
+const adminAuth = require('../services/admin_auth');
 
 const SURVEYS_FILE = path.join(DATA_DIR, 'surveys.json');
 
@@ -68,7 +72,7 @@ function readSurveys() {
 
 /** 설문 마스터 목록(전체 설문 메타) 을 SURVEYS_FILE 에 동기 저장. */
 function writeSurveys(surveys) {
-    fs.writeFileSync(SURVEYS_FILE, JSON.stringify(surveys, null, 2), 'utf8');
+    writeFileAtomic(SURVEYS_FILE, JSON.stringify(surveys, null, 2), 'utf8');
 }
 
 /**
@@ -96,7 +100,7 @@ function readResponses(surveyId) {
 
 /** 특정 설문의 응답 배열을 indent 2 로 동기 저장. */
 function writeResponses(surveyId, responses) {
-    fs.writeFileSync(getResponsesFile(surveyId), JSON.stringify(responses, null, 2), 'utf8');
+    writeFileAtomic(getResponsesFile(surveyId), JSON.stringify(responses, null, 2), 'utf8');
 }
 
 // KST 현재 시각 ISO 문자열
@@ -414,8 +418,8 @@ router.post('/api/surveys/:id/respond', (req, res) => {
 // 백업 복구 API (관리자용)
 // ============================================================================
 
-// 복구 가능한 백업 날짜 목록 조회
-router.get('/api/surveys/backup/dates', async (req, res) => {
+// 복구 가능한 백업 날짜 목록 조회 (관리자 전용)
+router.get('/api/surveys/backup/dates', adminAuth.requireAdminToken, async (req, res) => {
     try {
         const restore = require('../cloud_restore');
         const dates = await restore.listBackupDates();
@@ -426,8 +430,8 @@ router.get('/api/surveys/backup/dates', async (req, res) => {
     }
 });
 
-// 특정 날짜 백업의 설문 파일 미리보기
-router.get('/api/surveys/backup/preview/:date', async (req, res) => {
+// 특정 날짜 백업의 설문 파일 미리보기 (관리자 전용)
+router.get('/api/surveys/backup/preview/:date', adminAuth.requireAdminToken, async (req, res) => {
     try {
         const restore = require('../cloud_restore');
         const dateFolder = `backup_${req.params.date}`;
@@ -439,8 +443,8 @@ router.get('/api/surveys/backup/preview/:date', async (req, res) => {
     }
 });
 
-// 설문 데이터가 있는 최신 백업 자동 탐색
-router.get('/api/surveys/backup/latest', async (req, res) => {
+// 설문 데이터가 있는 최신 백업 자동 탐색 (관리자 전용)
+router.get('/api/surveys/backup/latest', adminAuth.requireAdminToken, async (req, res) => {
     try {
         const restore = require('../cloud_restore');
         const latest = await restore.findLatestSurveyBackup();
@@ -454,8 +458,8 @@ router.get('/api/surveys/backup/latest', async (req, res) => {
     }
 });
 
-// 백업에서 설문 데이터 복구 실행
-router.post('/api/surveys/backup/restore/:date', async (req, res) => {
+// 백업에서 설문 데이터 복구 실행 (관리자 전용)
+router.post('/api/surveys/backup/restore/:date', adminAuth.requireAdminToken, async (req, res) => {
     try {
         const restore = require('../cloud_restore');
         const dateFolder = `backup_${req.params.date}`;
