@@ -38,11 +38,6 @@ async function fetchAllData() {
     if (appState.isLoading) return;
     updateLoading(true);
 
-    // [연결 판정] 메인 특보 호출(/api/weather-alerts)이 정상적으로 이뤄졌는지 추적.
-    //   특보 '유무'(개수)가 아니라 서버 호출(경로) 자체의 성공 여부가 기준이다.
-    //   (잔잔한 바다 → 특보 0건이어도 호출이 되면 정상으로 본다.)
-    let alertsOk = false;
-
     // [스플래시] 단계별 진행 표시 — window.SplashProgress 는 index2.html 인라인 정의.
     // 각 단계 시작 시 "그 단계의 상한 %" 를 목표로 올려두면, 다음 단계 호출까지
     // 바가 그 상한을 향해 천천히 차오른다(creep). 스플래시가 이미 사라진 뒤
@@ -73,7 +68,6 @@ async function fetchAllData() {
             const rootData = await alertsResponse.json();
             flattenAlertsData(rootData);
             appState.apiStatus.hub = 'success';
-            alertsOk = true; // 특보 호출 성공 (특보 0건이어도 호출 자체는 정상)
         } else {
             console.warn('Weather alerts fetch failed');
             appState.alerts = [];
@@ -103,11 +97,6 @@ async function fetchAllData() {
 
     // 모든 스플래시 종료 조건 데이터 로드 완료 → 100%
     if (sp) sp.done('완료');
-
-    // [연결 상태 팝업] 메인 특보 호출 성공/실패에 따라 차단 팝업 표시·해제.
-    //   성공 → 떠 있던 팝업 제거(연결 회복) / 실패 + 보여줄 데이터 없음 → 팝업 표시.
-    //   (공지 조회 실패는 더 이상 팝업을 띄우지 않음 — admin_trigger.js 참고)
-    if (typeof handleConnectivityPopup === 'function') handleConnectivityPopup(alertsOk);
 
     // 3. 백그라운드 순차 로딩 (스플래시 종료 후 실행)
     loadBackgroundData();
