@@ -1798,11 +1798,16 @@
          crossorigin 필수(woff2 는 CORS 모드 페치 — 없으면 @font-face 가 재다운로드). -->
     <link rel="preload" as="font" type="font/woff2" crossorigin
           href="/assets/vendor/fonts/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2">
+    <!-- [B안 캠페인] 스플래시 첫 화면에 즉시 보이는 제목 폰트(Jua)와 마스코트 이미지를
+         파싱 시점에 미리 받아 깜빡임 방지. Jua woff2 는 해시 파일명이라 1년 캐시(재다운로드 없음). -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/assets/vendor/fonts/jua/jua-subset-45ef1e74fa79c4da.woff2">
+    <link rel="preload" as="image" href="images/mascot_lifevest_v1.webp">
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
     <link rel="stylesheet" href="style.css?v=LayerClip_20260612">
-    <link rel="stylesheet" href="splash.css?v=Progress_Bar_20260612">
+    <link rel="stylesheet" href="splash.css?v=Lifevest_20260624">
 
 
     <!-- Font Awesome (자체 호스팅 — A안 단위 2-D 적용)
@@ -2211,13 +2216,20 @@
     <!-- Splash Screen -->
     <div id="splash-screen" class="splash-screen">
         <div class="splash-content">
-            <div class="splash-logo-container">
-                <div class="splash-pulse-ring"></div>
-                <div class="splash-pulse-ring"></div>
-                <div class="splash-pulse-ring"></div>
-                <div class="splash-scanner"></div>
-                <img src="images/splash_icon_transparent.png" alt="SEA:GNAL Logo" class="splash-logo">
-            </div>
+            <!-- [B안 캠페인] 세로 배치: sp-top(여백) → 제목/안내문/마스코트 → sp-bot(여백) → 하단 브랜딩/진행바.
+                 크기·간격은 splash.css 에서 vw 기반 clamp 로 잡아 화면 크기에 비례(적응형). -->
+            <div class="splash-sp-top"></div>
+
+            <!-- 제목 '구명조끼=생명조끼' : 둥근 폰트(Jua) + 심장박동 애니메이션 -->
+            <div class="splash-vest"><span class="v1">구명조끼</span><span class="v2">생명조끼</span></div>
+            <p class="splash-promise">구명조끼, 집으로 돌아가는 <b>확실한 약속</b> <span class="heart">♥</span></p>
+            <!-- 마스코트(해양경찰청 구명조끼) : 통이미지 1장. width/height 명시로 레이아웃 흔들림(CLS) 방지 -->
+            <img class="splash-mascot" src="images/mascot_lifevest_v1.webp" width="820" height="522"
+                 alt="해양경찰 구명조끼를 입은 마스코트와 구명조끼">
+
+            <div class="splash-sp-bot"></div>
+
+            <!-- 하단 브랜딩 (앱 원본 폰트: 손글씨 Nanum Pen Script / Inter) -->
             <p class="splash-subtitle-start">바다 : 그 날의 신호</p>
             <h1 class="splash-title"><span class="splash-sea">SEA</span><span class="splash-accent">:</span><span
                     class="splash-gnal">GNAL</span></h1>
@@ -2231,6 +2243,7 @@
                 </div>
                 <div class="splash-progress-label" id="splash-progress-label">앱 초기화…</div>
             </div>
+            <div class="splash-credit">이미지 출처: 해양경찰청</div>
         </div>
     </div>
     <script>
