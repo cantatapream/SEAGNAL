@@ -297,3 +297,20 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
 - **buildMessage 텍스트 불변**: title/body/예측기상 줄은 변경하지 않음 — JS↔Java buildMessage 출력은 byte-identical 유지. zone/tier/event 는 주석 필드로만 추가.
 - **네이티브(APK 재빌드 필요)**: `LocationAlertMessagingService`(data 맵 수신·demo 위치 분기·진단 기록), `LocationAlertStore`(`putLastMatch`), `LocationAlertCore.Message`(zone/tier/event 필드), `LocationAlertDecider`(주석). 서버/JS 변경은 재배포로 반영되나, 종료 상태 native 표시는 새 APK 빌드·배포 필요.
 - **테스트**: `scripts/test_location_alert_server.js` — `buildDataMessage(snap, {lat,lng,acc})` 가 `demoLat/demoLng/demoAcc` 문자열 포함, `buildDataMessage(snap)` 은 전혀 미포함 검증(35항목 통과). 기존 runtime/core/forecast/ui 테스트 전부 통과.
+
+## 16. 위치 수집 견고화 — 자동 재가동 + 주기 갱신 + 낡음 가드 (2026-06-25)
+백그라운드 위치 수집의 세 가지 취약점을 보완한다. 핵심 원칙(좌표는 단말 밖으로 절대 나가지 않음)은 불변.
+
+- **취약점 1 — 자동 재가동 부재**: 백그라운드 워처 `start()`가 활성 토글에서만 호출돼, Android 배터리 최적화가 전경 위치 서비스를 죽이면 사용자가 토글을 다시 켜기 전까지 죽은 채로 남아 저장 위치가 며칠씩 낡았다.
+  - **수정**: `js/location_alert_background.js`에 `ensureStarted()` 추가(public api). 네이티브 + 플러그인 + 기능 활성일 때만 `start()`(idempotent — `root[WATCHER_KEY]` 설정 시 early-return). 활성 판정은 `LocationAlertSettings.get().enabled === true` 우선, 없으면 영속 플래그(`location_alert_active` && `location_alert_consent` 둘 다 `'true'`) 폴백. 절대 throw 안 함.
+  - **호출 지점**: `local_server/capacitor-plugins.js`의 `initPushNotifications()`에서 푸시 리스너 등록 직후, `setTimeout(…, 1500ms)` 지연 + `typeof` 가드로 호출(LocationAlertBackground 미로드 대비). 네이티브에서만, 활성일 때만.
+- **취약점 2 — 정지 시 시간기반 갱신 부재**: 워처는 `distanceFilter: 200`(≥200m 이동 시에만 갱신)이라 정지 단말은 신선화되지 않았다("15분"은 최대 1회/15분 throttle 일 뿐 주기 트리거가 아님).
+  - **수정**: `start()` 성공 시 `root._locationAlertRefreshTimer`에 ~15분 주기 타이머를 건다. 각 tick은 `@capacitor/geolocation`의 `getCurrentPosition({enableHighAccuracy:false, timeout:15000, maximumAge:60000})`로 현재 위치를 읽어 `savePosition` 한다(정지 단말도 신선화). 실패 tick / 플러그인 부재는 try/catch 로 무시(no-op). `stop()`에서 `clearInterval` 후 null.
+  - **한계(killed 상태)**: JS 타이머는 앱이 완전 종료되면 동작하지 않는다 → 종료 상태의 정지 단말은 여전히 "이동(distanceFilter) + 낡음 가드"에 의존한다.
+- **취약점 3 — 낡음 가드 부재**: `handleWake`가 저장 위치의 나이를 보지 않고 사용 → 며칠 지난 위치로 엉뚱한 구역 알림.
+  - **튜닝 상수**: `STALE_MAX_MS = 12 * 60 * 60 * 1000`(12시간, JS·네이티브 동일).
+  - **순수 헬퍼**: `isStale(rec, nowMs, maxMs)` — `rec.at`이 유한 시각이고 `nowMs - parsed > maxMs`일 때만 true. `at` 누락/파싱불가 → false(낡지 않음으로 취급, 유효 알림 억제 방지). `isStale`/`STALE_MAX_MS` export.
+  - **JS `handleWake`(실제 GPS `src==='gps'` 한정, 데모 제외)**: 낡았으면 먼저 전경 fresh fix(`getCurrentPosition({timeout:8000, maximumAge:0})`) 시도 → 성공 시 신선 위치로 교체·저장 후 진행. 실패 시 알림하지 않고 `writeLastMatch({src:'gps-stale', skipped:'stale', ageMin, …})` 진단만 남기고 return. 데모(`src==='demo'`)는 낡음 가드 미적용.
+  - **네이티브 `LocationAlertMessagingService.handleWake`(저장 GPS 한정, 데모 제외)**: `pos.at`(ISO-8601 UTC)을 `SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", UTC)`(초단위 폴백 포함)으로 파싱해 나이 계산. 12h 초과 시 알림 없이 `LocationAlertStore.putLastMatch`로 `{"zone":"","src":"gps-stale","skipped":"stale","ageMin":n,"at":nowIso}` 기록 후 return. 파싱 실패 → 낡지 않음으로 취급(진행). **네이티브 v1은 fresh fix를 시도하지 않음(문서화된 한계 — killed 상태에서 안정적 위치 획득 곤란).**
+- **테스트**: `scripts/test_location_alert_background.js` 신규 — `isStale` 검증(fresh→false, 13h→true, missing at→false, unparseable→false, 12h 경계). 기존 server/forecast/core/runtime/ui 테스트 전부 통과.
+- **네이티브(APK 재빌드 필요)**: `LocationAlertMessagingService`(낡음 가드 + ISO 파싱 헬퍼). 서버/JS 변경은 재배포로 반영되나, 종료 상태 native 표시는 새 APK 빌드·배포가 필요하다.

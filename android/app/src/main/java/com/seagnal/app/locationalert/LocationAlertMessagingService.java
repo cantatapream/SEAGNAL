@@ -33,6 +33,9 @@ public class LocationAlertMessagingService extends MessagingService {
     private static final String TAG = "LocationAlertFCM";
     private static final String WAKE_TYPE = "location_alert_wake";
 
+    // #3 저장 위치를 "낡음"으로 보는 임계(기본 12시간). 튜닝 가능. JS STALE_MAX_MS 와 동일.
+    private static final long STALE_MAX_MS = 12L * 60L * 60L * 1000L;
+
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
         // 1) 위치기반 깨우기 신호면 네이티브가 직접 처리(켜짐/백그라운드/종료 모두에서 안전).
@@ -98,6 +101,34 @@ public class LocationAlertMessagingService extends MessagingService {
             return;
         }
 
+        // ── #3 낡음 가드 (저장 GPS 한정, 데모는 절대 적용 안 함) ──────────────────
+        //   저장 위치(pos.at, ISO-8601 UTC)가 12시간(STALE_MAX_MS)보다 낡았으면 잘못된 구역
+        //   알림을 막는다. 네이티브 v1 은 fresh fix 를 시도하지 않음(문서화된 한계 — killed 상태에서
+        //   안정적인 위치 획득이 어려움) → 낡으면 알림 없이 진단만 남기고 종료.
+        //   파싱 실패는 "낡지 않음"으로 취급(유효 알림 억제 방지). 완전 방어적.
+        if (!isDemo) {
+            try {
+                long ageMs = ageMillis(pos.at);
+                if (ageMs >= 0 && ageMs > STALE_MAX_MS) {
+                    try {
+                        JSONObject diag = new JSONObject();
+                        diag.put("zone", "");
+                        diag.put("src", "gps-stale");
+                        diag.put("skipped", "stale");
+                        diag.put("ageMin", Math.round(ageMs / 60000.0));
+                        diag.put("at", nowIso());
+                        LocationAlertStore.putLastMatch(ctx, diag.toString());
+                    } catch (Throwable t) {
+                        Log.w(TAG, "낡음 진단 기록 실패(무시)", t);
+                    }
+                    Log.d(TAG, "저장 위치 낡음(12h 초과) → skip");
+                    return;
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "낡음 가드 평가 실패 → 진행", t);
+            }
+        }
+
         List<LocationAlertCore.Feature> features = WarnZoneAssets.load(ctx);
         if (features.isEmpty()) {
             Log.w(TAG, "번들 폴리곤 로드 실패 → skip");
@@ -127,6 +158,33 @@ public class LocationAlertMessagingService extends MessagingService {
             }
         } catch (Exception e) {
             Log.e(TAG, "decideAlert 실패", e);
+        }
+    }
+
+    /**
+     * 저장 위치 at(ISO-8601 UTC, 예 2026-06-25T06:45:00.000Z)의 경과 시간(ms).
+     * 파싱 실패/널이면 -1 반환 → 호출부에서 "낡지 않음"으로 취급(유효 알림 억제 방지).
+     * 밀리초 포맷을 우선 시도하고, 실패 시 초 단위 포맷으로 폴백(완전 방어적).
+     */
+    private static long ageMillis(String atIso) {
+        if (atIso == null || atIso.isEmpty()) return -1;
+        long t = parseIsoUtc(atIso, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+        if (t < 0) t = parseIsoUtc(atIso, "yyyy-MM-dd'T'HH:mm:ss'Z'");
+        if (t < 0) return -1;
+        long age = System.currentTimeMillis() - t;
+        return age >= 0 ? age : 0; // 미래 시각(시계 오차)은 0으로 보정(낡지 않음)
+    }
+
+    private static long parseIsoUtc(String s, String pattern) {
+        try {
+            java.text.SimpleDateFormat f =
+                    new java.text.SimpleDateFormat(pattern, java.util.Locale.US);
+            f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+            f.setLenient(true);
+            java.util.Date d = f.parse(s);
+            return d != null ? d.getTime() : -1;
+        } catch (Throwable t) {
+            return -1;
         }
     }
 
