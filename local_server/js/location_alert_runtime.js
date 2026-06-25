@@ -143,6 +143,55 @@
                 src = (pos && pos.src) || 'gps';
             }
             if (!pos) { console.log('[LocationAlertRuntime] 저장 위치 없음 → skip'); return; }
+
+            // ── 낡음(stale) 가드 — 실제 GPS 분기에만 적용(데모는 절대 미적용) ──────────────
+            //   killed 상태에서 정지+타이머 부재로 위치가 며칠 낡으면 잘못된 구역 알림이 나간다.
+            //   먼저 전경에서 즉시 FRESH 픽스를 시도하고, 실패 시 알림하지 않고 진단만 남긴다.
+            const BG = root.LocationAlertBackground;
+            const STALE_MAX_MS = (BG && typeof BG.STALE_MAX_MS === 'number') ? BG.STALE_MAX_MS : (12 * 60 * 60 * 1000);
+            const isStaleFn = (BG && typeof BG.isStale === 'function')
+                ? BG.isStale
+                : function (rec, nowMs, maxMs) {
+                    try {
+                        if (!rec || !rec.at) return false;
+                        const t = Date.parse(rec.at);
+                        if (!Number.isFinite(t)) return false;
+                        return (nowMs - t) > maxMs;
+                    } catch (_) { return false; }
+                };
+            if (src === 'gps' && isStaleFn(pos, Date.now(), STALE_MAX_MS)) {
+                let fresh = null;
+                try {
+                    const G = root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.Geolocation;
+                    if (G && G.getCurrentPosition) {
+                        const p = await G.getCurrentPosition({ timeout: 8000, maximumAge: 0 });
+                        const c = p && p.coords;
+                        if (c && Number.isFinite(c.latitude) && Number.isFinite(c.longitude)) {
+                            fresh = {
+                                lat: c.latitude, lng: c.longitude,
+                                acc: (typeof c.accuracy === 'number' ? c.accuracy : 0),
+                                at: new Date().toISOString(), src: 'gps',
+                            };
+                        }
+                    }
+                } catch (_) { fresh = null; }
+                if (fresh) {
+                    // FRESH 픽스 성공 → 저장하고 신선한 위치로 계속 진행.
+                    try { if (BG && BG.savePosition) BG.savePosition({ latitude: fresh.lat, longitude: fresh.lng, accuracy: fresh.acc }); } catch (_) { }
+                    pos = fresh;
+                } else {
+                    // FRESH 픽스 실패 → 알림하지 않고 진단만 기록.
+                    writeLastMatch({
+                        zone: '', lat: pos.lat, lng: pos.lng, src: 'gps-stale',
+                        tier: '', event: '', skipped: 'stale',
+                        ageMin: Math.round((Date.now() - Date.parse(pos.at)) / 60000),
+                        at: new Date().toISOString(),
+                    });
+                    console.log('[LocationAlertRuntime] 저장 위치 낡음 + FRESH 픽스 실패 → skip');
+                    return;
+                }
+            }
+
             const features = await loadFeatures();
             const msg = decideAlert(
                 { lat: pos.lat, lng: pos.lng, accuracyM: pos.acc || pos.accuracyM || 0 }, features, snapshot);

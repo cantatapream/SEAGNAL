@@ -622,6 +622,28 @@ const checkAppUpdate = async () => {
 initPushNotifications();
 checkAppUpdate();
 
+// [위치기반 특보 #1] 앱 실행 시 백그라운드 위치 watcher 자동 재가동(견고화 #1).
+//   Android 배터리 최적화 등으로 전경 위치 서비스가 죽으면, 사용자가 토글을 다시 켜지 않는 한
+//   위치가 며칠씩 낡는다. 앱을 켤 때 기능이 활성(+동의)이면 idempotent 하게 start() 를 재호출한다.
+//   푸시 리스너 등록(initPushNotifications) 이후에 호출. LocationAlertBackground 가 아직 로드되지
+//   않았을 수 있어 약간 지연(setTimeout ~1500ms). 네이티브에서만 동작하며, 모든 호출은 방어적
+//   (외부/내부 try/catch + setTimeout 콜백 내부에서도 네이티브/typeof 재확인).
+if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+    try {
+        setTimeout(() => {
+            try {
+                if (typeof window !== 'undefined'
+                    && window.Capacitor && window.Capacitor.isNativePlatform
+                    && window.Capacitor.isNativePlatform()
+                    && window.LocationAlertBackground
+                    && typeof window.LocationAlertBackground.ensureStarted === 'function') {
+                    window.LocationAlertBackground.ensureStarted();
+                }
+            } catch (e) { /* 방어적 — 무시 */ }
+        }, 1500);
+    } catch (e) { /* 방어적 — setTimeout 부재 등 무시 */ }
+}
+
 // ============================================================================
 // [외부 링크 처리] Capacitor 앱에서 외부 링크를 시스템 브라우저로 열기
 // ============================================================================
