@@ -138,7 +138,12 @@
     async function start() {
         const BG = plugin();
         if (!isNative() || !BG) { console.log('[LocationAlertBG] 네이티브/플러그인 없음 → skip'); return false; }
-        if (root[WATCHER_KEY]) return true; // 이미 동작 중
+        // [경쟁 가드] WATCHER_KEY 할당이 await(addWatcher) 이후라, 동기 가드만으로는 두 start()가
+        //   겹칠 때 워처가 2개 생성되고 stop() 시 1개가 유령(끌 수 없는 위치 서비스)으로 남는다.
+        //   자동 재가동(ensureStarted)이 토글과 겹치는 경우가 대표적. 시작 진행 플래그로 재진입 차단.
+        if (root[WATCHER_KEY] || root._laStarting) return true;
+        root._laStarting = true;
+        root._laStopRequested = false;
         try {
             const id = await BG.addWatcher(
                 {
@@ -159,6 +164,12 @@
                     savePosition(location);
                 }
             );
+            // 시작 도중 stop()이 중단을 요청했으면, 방금 만든 워처를 즉시 제거(유령 방지) + 비활성 존중.
+            if (root._laStopRequested) {
+                root._laStopRequested = false;
+                try { await BG.removeWatcher({ id }); } catch (_) { }
+                return false;
+            }
             root[WATCHER_KEY] = id;
             startRefreshTimer();   // 정지 상태도 시간 기반(~15분)으로 갱신
             console.log('[LocationAlertBG] started, watcher:', id);
@@ -166,11 +177,15 @@
         } catch (e) {
             console.error('[LocationAlertBG] start 실패:', e && e.message);
             return false;
+        } finally {
+            root._laStarting = false;
         }
     }
 
     async function stop() {
         const BG = plugin();
+        // 시작이 진행 중이면 addWatcher 완료 시 즉시 제거되도록 표시(경쟁 시 유령 워처 방지).
+        if (root._laStarting) root._laStopRequested = true;
         try {
             if (BG && root[WATCHER_KEY]) await BG.removeWatcher({ id: root[WATCHER_KEY] });
         } catch (e) { console.warn('[LocationAlertBG] stop 경고:', e && e.message); }
