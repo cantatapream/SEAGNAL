@@ -3,84 +3,144 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SEA:GNAL — 시안 A · 폰 + 위성 칩</title>
+<title>SEA:GNAL — 시안 A · 폰 + 방사형 기능</title>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <style>
   html,body{margin:0;padding:0;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#fff;overflow:hidden;height:100%;}
   *{box-sizing:border-box;}
   #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
   #wrap{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center;background:#000;overflow:hidden;}
-  #wrap::before{content:'';position:absolute;left:50%;top:58%;transform:translate(-50%,-50%);width:1400px;height:1400px;background:radial-gradient(circle,rgba(255,107,53,0.15) 0%,transparent 55%);pointer-events:none;}
+  /* halo around phone */
+  #wrap::before{content:'';position:absolute;left:50%;top:62%;transform:translate(-50%,-50%);width:1400px;height:1400px;background:radial-gradient(circle,rgba(255,107,53,0.18) 0%,rgba(255,107,53,0.04) 35%,transparent 60%);pointer-events:none;z-index:1;}
 
-  .chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;}
-  .head{position:absolute;left:120px;top:140px;color:#fff;font-size:64px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;}
+  .chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;z-index:20;}
+  .head{position:absolute;left:120px;top:140px;color:#fff;font-size:64px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;z-index:20;}
   .head .em{color:#FF6B35;}
-  .acc{position:absolute;left:120px;top:240px;width:80px;height:6px;background:#FF6B35;}
-  .sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.65);font-size:26px;font-weight:300;}
-  .foot{position:absolute;left:120px;bottom:50px;color:rgba(255,255,255,0.5);font-size:22px;letter-spacing:0.04em;font-weight:500;}
+  .acc{position:absolute;left:120px;top:240px;width:80px;height:6px;background:#FF6B35;z-index:20;}
+  .sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.65);font-size:26px;font-weight:300;z-index:20;}
+  .foot{position:absolute;left:120px;bottom:50px;color:rgba(255,255,255,0.55);font-size:22px;letter-spacing:0.04em;font-weight:500;z-index:20;}
 
-  #phone{position:absolute;left:50%;top:62%;transform:translate(-50%,-50%);width:300px;height:560px;background:linear-gradient(135deg,#1a1a1a,#0a0a0a);border:3px solid rgba(255,255,255,0.75);border-radius:42px;box-shadow:0 0 100px rgba(255,107,53,0.45),inset 0 2px 0 rgba(255,255,255,0.08);}
-  #phone::before{content:'';position:absolute;left:50%;top:14px;transform:translateX(-50%);width:120px;height:22px;background:#000;border-radius:14px;}
-  .ptop{position:absolute;left:20px;top:60px;color:#FF6B35;font-size:11px;letter-spacing:0.32em;font-weight:700;}
-  .plogo{position:absolute;left:20px;right:20px;top:90px;color:#fff;font-size:38px;font-weight:700;letter-spacing:-0.025em;line-height:1.1;}
-  .pscreen{position:absolute;left:20px;right:20px;top:200px;bottom:80px;background:linear-gradient(180deg,rgba(255,107,53,0.14),transparent);border-radius:14px;border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.5);font-size:14px;text-align:center;padding:20px;line-height:1.6;}
-  .ptabs{position:absolute;left:0;right:0;bottom:18px;display:flex;padding:8px 0;border-top:1px solid rgba(255,255,255,0.15);}
-  .ptab{flex:1;text-align:center;color:rgba(255,255,255,0.45);font-size:10px;font-weight:500;}
-  .ptab.act{color:#FF6B35;font-weight:700;}
+  /* Phone with splash image */
+  #phone{position:absolute;left:50%;top:62%;transform:translate(-50%,-50%);width:330px;height:586px;border:3px solid rgba(255,255,255,0.85);border-radius:42px;background:#0a0e1a;overflow:hidden;box-shadow:0 0 100px rgba(255,107,53,0.55),0 0 30px rgba(0,0,0,0.8),inset 0 2px 0 rgba(255,255,255,0.08);z-index:15;}
+  #phone::before{content:'';position:absolute;left:50%;top:14px;transform:translateX(-50%);width:120px;height:22px;background:#000;border-radius:14px;z-index:2;}
+  #phone::after{content:'';position:absolute;inset:0;border-radius:42px;box-shadow:inset 0 0 40px rgba(0,0,0,0.5);pointer-events:none;z-index:3;}
+  #splash{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
 
-  .chip{position:absolute;padding:11px 20px;border-radius:24px;font-size:16px;font-weight:500;letter-spacing:-0.01em;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.5);color:#fff;box-shadow:0 4px 18px rgba(0,0,0,0.5);white-space:nowrap;animation:float 6s ease-in-out infinite;}
-  .chip.s{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.22);font-size:14px;padding:9px 16px;}
-  .chip.hi{background:rgba(255,107,53,0.35);border-color:#FF6B35;font-weight:700;box-shadow:0 4px 28px rgba(255,107,53,0.55);}
-  @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
-  .chip:nth-child(odd){animation-delay:-3s;}
-  .chip:nth-child(3n){animation-duration:7s;}
-  .chip:nth-child(5n){animation-duration:5s;}
+  /* Chips */
+  .chip{position:absolute;padding:9px 17px;border-radius:22px;font-size:15px;font-weight:500;letter-spacing:-0.01em;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.45);color:#fff;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,0.5);transform:translate(-50%,-50%);z-index:10;will-change:transform;}
+  .chip.t0{opacity:1;font-weight:600;font-size:16px;padding:11px 19px;background:rgba(255,107,53,0.16);border-color:rgba(255,107,53,0.6);box-shadow:0 4px 22px rgba(255,107,53,0.3);}
+  .chip.t1{opacity:0.82;font-size:14px;padding:9px 16px;}
+  .chip.t2{opacity:0.52;font-size:13px;padding:8px 15px;background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.18);}
+  .chip.t3{opacity:0.3;font-size:12px;padding:7px 13px;background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.13);}
+
+  @keyframes floatY{0%,100%{transform:translate(-50%,-50%) translateY(0);}50%{transform:translate(-50%,-50%) translateY(-6px);}}
+  @keyframes floatX{0%,100%{transform:translate(-50%,-50%) translateX(0);}50%{transform:translate(-50%,-50%) translateX(5px);}}
+  @keyframes floatXY{0%,100%{transform:translate(-50%,-50%) translate(0,0);}25%{transform:translate(-50%,-50%) translate(3px,-4px);}50%{transform:translate(-50%,-50%) translate(-2px,-6px);}75%{transform:translate(-50%,-50%) translate(-4px,-2px);}}
 </style>
 </head>
 <body>
 <div id="stage"><div id="wrap">
 
   <div class="chap">바다의 모든 것을 · 앱 하나로</div>
-  <div class="head"><span class="em">한 앱</span>에 — 25+개 기능.</div>
+  <div class="head"><span class="em">한 앱</span>에 — 모든 바다 기능을.</div>
   <div class="acc"></div>
-  <div class="sub">흩어진 7개 공공 출처를 통합 — 단 하나의 바다 운영체제.</div>
+  <div class="sub">50+ 기능 · 4개 메인 탭 · 7개 공공 출처 통합 — 단 하나의 바다 운영체제.</div>
 
   <div id="phone">
-    <div class="ptop">SEA:GNAL</div>
-    <div class="plogo">바다<br>그 날의 신호</div>
-    <div class="pscreen">실시간 특보 ·<br>해양 종합정보 ·<br>해양생활 · AI 비서</div>
-    <div class="ptabs">
-      <div class="ptab act">특보전망</div>
-      <div class="ptab">해양종합</div>
-      <div class="ptab">해양생활</div>
-      <div class="ptab">공지사항</div>
-    </div>
+    <img id="splash" src="splash.png" alt="SEA:GNAL 앱 화면">
   </div>
 
-  <div class="chip hi" style="left:50%;top:340px;transform:translateX(-50%);">AI 어시스턴트 "나리"</div>
-
-  <div class="chip" style="left:130px;top:420px;">해상기상전망</div>
-  <div class="chip" style="left:60px;top:520px;">해역별 특보 GIS</div>
-  <div class="chip" style="left:150px;top:620px;">기상예보</div>
-  <div class="chip" style="left:80px;top:720px;">기상부이 118</div>
-  <div class="chip" style="left:200px;top:820px;">해상일기도</div>
-  <div class="chip hi" style="left:120px;top:920px;">태풍 통합 (NEW)</div>
-
-  <div class="chip" style="right:130px;top:420px;">유향 · 유속</div>
-  <div class="chip" style="right:60px;top:520px;">CCTV 237개소</div>
-  <div class="chip hi" style="right:150px;top:620px;">물때 · 갯벌 (NEW)</div>
-  <div class="chip" style="right:80px;top:720px;">임의 해점 종합</div>
-  <div class="chip" style="right:200px;top:820px;">해구별 기상</div>
-  <div class="chip" style="right:120px;top:920px;">위치 자동 알림</div>
-
-  <div class="chip s" style="left:120px;top:990px;">바다낚시 · 서핑 · 갯벌체험</div>
-  <div class="chip s" style="left:50%;top:990px;transform:translateX(-50%);">해수욕 · 바다갈라짐</div>
-  <div class="chip s" style="right:120px;top:990px;">7출처 · 4종 배경지도</div>
+  <div id="chips"></div>
 
   <div class="foot">바다의 모든 기능을 — 한 화면, 한 손에.</div>
 
 </div></div>
+
 <script>
+  // === 기능 목록 (티어별) ===
+  // tier 0: 가장 가깝고 밝음 (핵심 10)
+  // tier 1: 중간 (주요 12)
+  // tier 2: 외곽 (세부 14)
+  // tier 3: 가장 멀리 / 희미 (부가 14)
+  const features = {
+    t0: ['AI 어시스턴트 "나리"', '해상기상전망', '해역별 특보 GIS', '임의 해점 종합', '태풍 통합', '기상부이 118', '물때 · 갯벌', '위치 자동 알림', '회피침로', 'CCTV 237'],
+    t1: ['기상예보', '해상일기도', '유향 · 유속', '풍향속', '파고', '해구별 기상', '태풍 경로', '행동지침', '바다낚시', '서핑', '갯벌체험', '바다갈라짐'],
+    t2: ['물빠짐 예측', '강수량', '강수확률', '적설량', '특보 알림', '태풍 알림', '기온', '시정예측', '하늘상태', '특보구역', '조석정보', '해수욕', '위치 기반 정보', '특보예측'],
+    t3: ['세계지도', '서핑지수', '갯바위 낚시', '스킨스쿠버', '공지사항', 'GPS', '즐겨찾기', '윈디', '제보기능', '기상청 전망', '중기예보', '단기예보', '7출처 통합', '4종 배경지도']
+  };
+
+  // 시드 기반 의사난수 (재현 가능)
+  let seed = 73;
+  function rand(){ seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+
+  // 폰 중심·반각 (1920×1080 캔버스 내)
+  const phone = { cx: 960, cy: 670, halfW: 175, halfH: 305 };
+  const safe = { left: 70, right: 1850, top: 360, bottom: 1010 };
+
+  // 티어별 타원 반경 (rx, ry)
+  const tiers = [
+    { key: 't0', rx: 285, ry: 380 },
+    { key: 't1', rx: 420, ry: 440 },
+    { key: 't2', rx: 590, ry: 490 },
+    { key: 't3', rx: 760, ry: 535 }
+  ];
+
+  const chipsRoot = document.getElementById('chips');
+  const anims = ['floatY', 'floatX', 'floatXY'];
+
+  // 폰 외곽으로 위치 밀어내기 (rect 형태로)
+  function pushOutOfPhone(x, y){
+    const margin = 30;
+    const dx = x - phone.cx, dy = y - phone.cy;
+    const halfW = phone.halfW + margin, halfH = phone.halfH + margin;
+    if(Math.abs(dx) < halfW && Math.abs(dy) < halfH){
+      const ang = Math.atan2(dy, dx);
+      const tx = Math.cos(ang), ty = Math.sin(ang);
+      // 폰 사각형 외곽까지 늘림
+      const sx = Math.abs(tx) > 0.001 ? halfW / Math.abs(tx) : 1e9;
+      const sy = Math.abs(ty) > 0.001 ? halfH / Math.abs(ty) : 1e9;
+      const r = Math.min(sx, sy) + 12;
+      return { x: phone.cx + tx * r, y: phone.cy + ty * r };
+    }
+    return { x, y };
+  }
+
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+
+  tiers.forEach((t, ti) => {
+    const list = features[t.key];
+    const count = list.length;
+    // 시작 각도 jitter
+    const angleStart = ti * 0.7;
+    list.forEach((text, i) => {
+      const baseAng = angleStart + (i / count) * Math.PI * 2;
+      const angJ = (rand() - 0.5) * 0.55; // ±0.275 rad
+      const ang = baseAng + angJ;
+      const jx = 0.78 + rand() * 0.48; // 0.78 ~ 1.26
+      const jy = 0.78 + rand() * 0.48;
+      let x = phone.cx + Math.cos(ang) * t.rx * jx;
+      let y = phone.cy + Math.sin(ang) * t.ry * jy;
+      // 폰 충돌 회피
+      const pushed = pushOutOfPhone(x, y);
+      x = pushed.x; y = pushed.y;
+      // 캔버스 안전영역으로 클램프
+      x = clamp(x, safe.left + 40, safe.right - 40);
+      y = clamp(y, safe.top + 20, safe.bottom - 20);
+
+      const chip = document.createElement('div');
+      chip.className = 'chip ' + t.key;
+      chip.textContent = text;
+      chip.style.left = x + 'px';
+      chip.style.top = y + 'px';
+      // 개별 부유 애니메이션 (속도·딜레이 모두 다름)
+      const anim = anims[Math.floor(rand() * anims.length)];
+      const dur = (5.5 + rand() * 5).toFixed(1);
+      const delay = (-rand() * 8).toFixed(1);
+      chip.style.animation = anim + ' ' + dur + 's ease-in-out ' + delay + 's infinite';
+      chipsRoot.appendChild(chip);
+    });
+  });
+
   function fit(){
     const w = window.innerWidth, h = window.innerHeight;
     const s = Math.min(w/1920, h/1080);
