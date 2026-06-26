@@ -67,12 +67,34 @@ public final class LocationAlertStore {
     /**
      * 단말 진단 로그 기록 — 위치기반 판정 결과(어느 구역/출처/단계)를 SharedPreferences("CapacitorStorage")의
      * "location_alert_last_match" 에 저장. JS 미러 키와 동일 → 관리자 시연 탭에서 조회.
-     * (이 클래스에서 유일한 WRITE. 나머지는 read-only. 완전 on-device — 네트워크 전송 없음.) 방어적.
+     * (read-only 원칙의 예외 WRITE. 완전 on-device — 네트워크 전송 없음.) 방어적.
      */
     public static void putLastMatch(Context ctx, String json) {
         try {
             if (ctx == null || json == null) return;
             prefs(ctx).edit().putString(KEY_MATCH, json).apply();
+        } catch (Throwable ignored) { }
+    }
+
+    /**
+     * 위치 fresh fix 결과를 저장 위치(POS_KEY)에 기록 — JS savePosition 과 동일 JSON 형태
+     * {lat,lng,acc,at,src:'gps'} 로 SharedPreferences("CapacitorStorage")에 쓴다. 따라서 JS
+     * getPosition()이 같은 값을 읽고, 시연 진단 표시·폴백에 쓰인다.
+     * (이벤트 기반 전환 후 네이티브 LocationAlertLocator 가 fresh fix 성공 시 호출.)
+     * 완전 on-device — 네트워크 전송 없음. 방어적.
+     *
+     * @param atIso ISO-8601(UTC) 시각 문자열. null/빈문자면 기록부에 at 누락(낡음 가드는 미적용).
+     */
+    public static void putPosition(Context ctx, double lat, double lng, double accuracyM, String atIso) {
+        try {
+            if (ctx == null) return;
+            JSONObject o = new JSONObject();
+            o.put("lat", lat);
+            o.put("lng", lng);
+            o.put("acc", accuracyM);
+            if (atIso != null && !atIso.isEmpty()) o.put("at", atIso);
+            o.put("src", "gps");
+            prefs(ctx).edit().putString(KEY_POS, o.toString()).apply();
         } catch (Throwable ignored) { }
     }
 

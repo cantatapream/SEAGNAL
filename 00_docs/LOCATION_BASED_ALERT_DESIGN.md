@@ -314,3 +314,25 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
   - **네이티브 `LocationAlertMessagingService.handleWake`(저장 GPS 한정, 데모 제외)**: `pos.at`(ISO-8601 UTC)을 `SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", UTC)`(초단위 폴백 포함)으로 파싱해 나이 계산. 12h 초과 시 알림 없이 `LocationAlertStore.putLastMatch`로 `{"zone":"","src":"gps-stale","skipped":"stale","ageMin":n,"at":nowIso}` 기록 후 return. 파싱 실패 → 낡지 않음으로 취급(진행). **네이티브 v1은 fresh fix를 시도하지 않음(문서화된 한계 — killed 상태에서 안정적 위치 획득 곤란).**
 - **테스트**: `scripts/test_location_alert_background.js` 신규 — `isStale` 검증(fresh→false, 13h→true, missing at→false, unparseable→false, 12h 경계). 기존 server/forecast/core/runtime/ui 테스트 전부 통과.
 - **네이티브(APK 재빌드 필요)**: `LocationAlertMessagingService`(낡음 가드 + ISO 파싱 헬퍼). 서버/JS 변경은 재배포로 반영되나, 종료 상태 native 표시는 새 APK 빌드·배포가 필요하다.
+
+## 17. 이벤트 기반 fresh-fix 전환 — 상시 수집·상시 알림 제거 (2026-06-26)
+상시 백그라운드 GPS 수집(전경 서비스 + 상시 알림 + 15분 주기 타이머)을 제거하고, **특보 발표·변경(wake) 시점에 그 순간 위치 1회(fresh fix)** 를 수집해 판정하는 **이벤트 기반** 구조로 전환한다. 제품 책임자 확인: "특보 발표·변경 시점에 (앱이 켜졌든 꺼졌든) 그 순간 위치 1회 수집 → 그 위치로 특보 구역에 속하는지 계산 → 속하면 알림." **상시 수집 없음·상시 알림 없음.** 개인정보 원칙(좌표는 단말 밖으로 절대 나가지 않음)은 불변.
+
+- **제거된 상시 수집(JS `js/location_alert_background.js`)**:
+  - `@capacitor-community/background-geolocation`의 `addWatcher(...)` 호출 — 전경 서비스 + 상시 알림("해상안전을 위해 위치 확인 중") 트리거 — **제거**.
+  - 15분 주기 갱신 타이머(`startRefreshTimer`/`stopRefreshTimer`/`REFRESH_TIMER_KEY`/`REFRESH_INTERVAL_MS`) — **제거**.
+  - 워처 경쟁 가드 기계장치(`WATCHER_KEY`/`_laStarting`/`_laStopRequested`/`isRunning`/`removeWatcher`) — 더 이상 워처가 없어 **제거**(연결 함수 영향 없음 — `isRunning`은 외부 미사용, 워처 테스트만 사용했음).
+- **공용 fresh-fix 헬퍼 — JS `getFreshPosition()`(export)**: wake/앱오픈 시점에 그 순간 위치 1회 수집.
+  1) `@capacitor/geolocation`의 1회 `getCurrentPosition({enableHighAccuracy:false, timeout:8000, maximumAge:60000})` 시도. 성공 → `savePosition(...)`(새 last 저장, `src:'gps'`) 후 `getPosition()`으로 재읽어 `{lat,lng,acc,at,src}` 반환.
+  2) 실패/플러그인 부재 → `getPosition()`(마지막 저장 위치) 폴백(null 가능).
+  완전 방어적. **향후 태풍 반경 엔진과 공유**(공용 헬퍼).
+- **`start()`/`ensureStarted()` 재정의**: 더 이상 워처를 만들지 않는다. `start()`는 `getFreshPosition()` 1회를 수행해 저장 위치를 즉시 최신화하고 `true` 반환(시연 진단/폴백용). `ensureStarted()`는 네이티브+활성일 때 `start()`를 호출. `stop()`은 제거할 워처/타이머가 없어 `clearPosition()`(해제 시 단말 위치 삭제)만 수행.
+- **JS `handleWake`(실제 GPS 분기, 데모 제외)**: 저장 `getPosition()` 읽기를 **`await getFreshPosition()`** 로 교체 — wake 시점에 그 순간 픽스를 받는다. 데모 분기(`demoLat/demoLng`)는 불변. fresh fix·저장 모두 null 이면 알림하지 않음(null-guard skip). `subAlert` 게이트·`location_alert_last_match` 진단·`buildMessage` 텍스트 불변. 이전의 "낡음→fresh 시도" 블록은 항상 fresh 를 받으므로 단순화(null-guard 만 유지).
+- **UI(`js/location_alert_ui.js`)**: `onToggle` ON 경로의 `start()` 호출은 유지(이제 워처 대신 fresh fix 1회). OFF 경로 `stop()`(저장 위치 삭제) 유지. **동의 + 전경/백그라운드 권한 흐름은 불변** — 종료 상태 wake 시 1회 위치 수집을 위해 `ACCESS_BACKGROUND_LOCATION`("항상 허용")이 계속 필요하다.
+- **네이티브(APK 재빌드 필요)**:
+  - 신규 `LocationAlertLocator.java` — `getFresh(Context)`: ① 권한 게이트(FINE/COARSE) ② **활성 단발 픽스**(API 30+ `LocationManager.getCurrentLocation`, 그 외 `requestSingleUpdate`, GPS→NETWORK, ~8s 타임아웃) ③ `getLastKnownLocation` over GPS/NETWORK/PASSIVE(가장 최근, `VoiceAssistantService.getLastLocation` 패턴 재사용) ④ `LocationAlertStore.getPosition` 저장 폴백. fresh fix 성공 시 `LocationAlertStore.putPosition` 으로 저장 캐시·진단 갱신. **Google Play Services 의존 없음**(`android.location.LocationManager` 만 사용 — 신규 의존성 0).
+  - `LocationAlertStore.java` — `putPosition(ctx, lat, lng, acc, atIso)` 추가: `location_alert_last_pos` 에 JS 와 동일 JSON `{lat,lng,acc,at,src:'gps'}` 기록(JS `getPosition` 이 같은 값 읽음).
+  - `LocationAlertMessagingService.handleWake`(실제 GPS 분기): `LocationAlertStore.getPosition` 을 **`LocationAlertLocator.getFresh(ctx)`** 로 교체. 데모 분기·게이팅·null-skip·`location_alert_last_match` 진단 불변. 낡음 가드는 유지(활성 픽스 실패로 `getLastKnownLocation`/저장 폴백을 쓴 경우의 안전망).
+- **killed 상태 동작 + 한계**: 종료 상태에서도 FCM 으로 `LocationAlertMessagingService` 가 깨어나 `getFresh()` 로 그 순간 위치를 받는다. **한계** — 종료·정지 단말에서는 OS 절전으로 활성 단발 픽스가 throttle 돼 ~8s 내 즉시 반환이 보장되지 않을 수 있다. 이때는 `getLastKnownLocation` 캐시(최근 OS 보유 위치)로 폴백하며, 그 캐시가 12시간(STALE_MAX_MS)보다 낡으면 낡음 가드가 알림을 막는다. 활성 픽스 신뢰도는 기기·안드로이드 버전·절전 상태에 따라 달라진다(미검증 — 실기기 검증 필요).
+- **재빌드**: 서버/JS 변경은 재배포로 반영되나, **네이티브 fresh-fix(종료 상태 표시)는 새 APK 빌드·배포가 필요**하다.
+- **테스트**: `scripts/test_location_alert_background.js`에 `getFreshPosition` 항목 추가(존재→fresh+저장, 부재→저장 폴백, 저장 없음→null). 기존 워처 경쟁 테스트(`test_location_alert_start_race.js`)는 워처 제거로 무효가 되어 **`test_location_alert_fresh_fix.js`로 교체**(getFreshPosition/start/stop 이벤트 기반 동작 + `addWatcher` 0회 호출 검증). 기존 core/forecast/runtime/ui/server 테스트 전부 통과.

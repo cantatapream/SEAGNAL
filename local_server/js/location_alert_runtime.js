@@ -122,7 +122,7 @@
     /**
      * 데이터 메시지 수신 처리(표시 셸). snapshotStr = data.snapshot(JSON 문자열).
      * @param data (선택) FCM data 맵. demoLat/demoLng 가 있으면 시연 위치로 판정(POS_KEY 미사용),
-     *   없으면 실제 백그라운드 GPS(POS_KEY)로 판정 — 실제 운영은 항상 진짜 위치 사용.
+     *   없으면 **그 순간 fresh-fix(현재 위치 1회 수집)** 로 판정 — 실제 운영은 항상 진짜 위치 사용.
      */
     async function handleWake(snapshotStr, data) {
         try {
@@ -137,60 +137,22 @@
                 }
             }
             if (!pos) {
-                // 실제 운영(또는 데모 좌표가 비정상): 단말의 진짜 백그라운드 GPS 위치로 폴백.
-                pos = root.LocationAlertBackground && root.LocationAlertBackground.getPosition
-                    ? root.LocationAlertBackground.getPosition() : null;
+                // 실제 운영(또는 데모 좌표가 비정상): 이벤트 기반 fresh-fix —
+                //   깨우는 신호 시점에 그 순간 위치를 1회 수집(getFreshPosition).
+                //   상시 수집을 제거했으므로 매 wake 마다 신선한 위치를 직접 획득한다.
+                //   getFreshPosition 은 전경 fix 실패 시 마지막 저장 위치로 폴백(없으면 null).
+                const BG = root.LocationAlertBackground;
+                if (BG && typeof BG.getFreshPosition === 'function') {
+                    try { pos = await BG.getFreshPosition(); } catch (_) { pos = null; }
+                } else if (BG && BG.getPosition) {
+                    pos = BG.getPosition();
+                } else {
+                    pos = null;
+                }
                 src = (pos && pos.src) || 'gps';
             }
-            if (!pos) { console.log('[LocationAlertRuntime] 저장 위치 없음 → skip'); return; }
-
-            // ── 낡음(stale) 가드 — 실제 GPS 분기에만 적용(데모는 절대 미적용) ──────────────
-            //   killed 상태에서 정지+타이머 부재로 위치가 며칠 낡으면 잘못된 구역 알림이 나간다.
-            //   먼저 전경에서 즉시 FRESH 픽스를 시도하고, 실패 시 알림하지 않고 진단만 남긴다.
-            const BG = root.LocationAlertBackground;
-            const STALE_MAX_MS = (BG && typeof BG.STALE_MAX_MS === 'number') ? BG.STALE_MAX_MS : (12 * 60 * 60 * 1000);
-            const isStaleFn = (BG && typeof BG.isStale === 'function')
-                ? BG.isStale
-                : function (rec, nowMs, maxMs) {
-                    try {
-                        if (!rec || !rec.at) return false;
-                        const t = Date.parse(rec.at);
-                        if (!Number.isFinite(t)) return false;
-                        return (nowMs - t) > maxMs;
-                    } catch (_) { return false; }
-                };
-            if (src === 'gps' && isStaleFn(pos, Date.now(), STALE_MAX_MS)) {
-                let fresh = null;
-                try {
-                    const G = root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.Geolocation;
-                    if (G && G.getCurrentPosition) {
-                        const p = await G.getCurrentPosition({ timeout: 8000, maximumAge: 0 });
-                        const c = p && p.coords;
-                        if (c && Number.isFinite(c.latitude) && Number.isFinite(c.longitude)) {
-                            fresh = {
-                                lat: c.latitude, lng: c.longitude,
-                                acc: (typeof c.accuracy === 'number' ? c.accuracy : 0),
-                                at: new Date().toISOString(), src: 'gps',
-                            };
-                        }
-                    }
-                } catch (_) { fresh = null; }
-                if (fresh) {
-                    // FRESH 픽스 성공 → 저장하고 신선한 위치로 계속 진행.
-                    try { if (BG && BG.savePosition) BG.savePosition({ latitude: fresh.lat, longitude: fresh.lng, accuracy: fresh.acc }); } catch (_) { }
-                    pos = fresh;
-                } else {
-                    // FRESH 픽스 실패 → 알림하지 않고 진단만 기록.
-                    writeLastMatch({
-                        zone: '', lat: pos.lat, lng: pos.lng, src: 'gps-stale',
-                        tier: '', event: '', skipped: 'stale',
-                        ageMin: Math.round((Date.now() - Date.parse(pos.at)) / 60000),
-                        at: new Date().toISOString(),
-                    });
-                    console.log('[LocationAlertRuntime] 저장 위치 낡음 + FRESH 픽스 실패 → skip');
-                    return;
-                }
-            }
+            // fresh-fix 실패(전경 fix·저장 위치 모두 없음) → 알림하지 않고 종료.
+            if (!pos) { console.log('[LocationAlertRuntime] fresh-fix/저장 위치 없음 → skip'); return; }
 
             const features = await loadFeatures();
             const msg = decideAlert(

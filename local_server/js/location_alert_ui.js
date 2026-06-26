@@ -139,7 +139,7 @@
             'SEAGNAL은 현재 위치하신 해역의 해상특보를 신속히 안내해 드리기 위해 위치정보를 이용합니다.<br><br>' +
             '<b>• 수집 항목</b> : 단말기 위치정보(GPS 좌표)<br>' +
             '<b>• 이용 목적</b> : 현재 위치한 해역의 해상특보(예비특보·주의보·경보) 안전 경보 제공<br>' +
-            '<b>• 수집 방식</b> : 앱이 종료되어 있거나 사용 중이 아닐 때에도(백그라운드) 약 15분 주기로 위치를 확인합니다.<br>' +
+            '<b>• 수집 방식</b> : 해상특보가 발표·변경되는 시점에(앱이 종료되어 있거나 사용 중이 아닐 때에도) 그 순간 위치를 1회 확인합니다. 평상시 상시(백그라운드 연속) 수집은 하지 않습니다.<br>' +
             '<b style="color:#7fd1ff;">• 저장 및 보관</b> : 수집된 위치정보는 <b style="color:#7fd1ff;">이용자의 휴대폰 내부에만 저장되며, 서버 등 외부로 전송·수집되지 않습니다.</b> 최신 위치 1건만 갱신·보관하고, 본 기능을 해제하면 즉시 삭제됩니다.<br>' +
             '<b>• 동의 거부 권리</b> : 동의를 거부하거나 설정에서 언제든 해제할 수 있습니다. 다만 미동의 시 위치 기반 특보 경보는 제공되지 않습니다.' +
             '</div>'
@@ -264,7 +264,7 @@
             updateVisual(false);
             syncSubToggles(false); // 상위 OFF → 하위 토글 잠금(흐림). 선호값 자체는 clear()가 보존.
             syncConsentToServer(false);
-            // TODO(②): 백그라운드 위치 추적 중지 + 단말 저장 위치 삭제
+            // 해제 시 단말 저장 위치 즉시 삭제(이벤트 기반: 상시 watcher 없음 → 삭제만).
             if (root.LocationAlertBackground && root.LocationAlertBackground.stop) root.LocationAlertBackground.stop();
             return;
         }
@@ -333,7 +333,9 @@
             const asked = await requestBackgroundLocation();
             if (!asked) openLocationSettings();
         }
-        // 백그라운드 추적 시작(플러그인 존재 시). '항상 허용'이면 종료 상태에서도 위치 수집.
+        // 이벤트 기반 전환: 활성 시점에 fresh-fix 1회만 수행(상시 watcher/전경 서비스 없음).
+        //   실제 위치 판정은 깨우는 신호(특보 발표·변경) 시점에 handleWake 가 fresh-fix 로 수행.
+        //   '항상 허용'은 종료 상태에서의 1회 위치 획득(killed fresh-fix)을 위해 여전히 필요.
         if (root.LocationAlertBackground && root.LocationAlertBackground.start) {
             root.LocationAlertBackground.start();
         }
