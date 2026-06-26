@@ -62,7 +62,7 @@
   .cheader{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:24px;}
   .cheader .scene{color:rgba(255,255,255,0.85);font-size:18px;letter-spacing:0.12em;font-weight:500;}
   .cheader .meta{color:rgba(255,255,255,0.4);font-size:14px;}
-  .stage-area{position:relative;height:460px;}
+  .stage-area{position:relative;height:480px;}
   .person{position:absolute;width:120px;text-align:center;}
   .person .head{width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:70px;}
   .person .body{width:100px;height:40px;background:rgba(255,255,255,0.04);border:2px solid rgba(255,255,255,0.18);border-bottom:none;border-radius:60px 60px 0 0;margin:6px auto 0;}
@@ -75,9 +75,11 @@
   .pbubble.fl::before{content:'';position:absolute;left:-9px;top:18px;width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-right:11px solid #fff;}
   .pbubble.fr{border-top-right-radius:4px;}
   .pbubble.fr::before{content:'';position:absolute;right:-9px;top:18px;width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:11px solid #fff;}
-  #pb1{left:150px;top:20px;}
-  #pb2{right:150px;top:175px;}
-  #pb3{left:150px;top:330px;}
+  #pb1{left:150px;top:5px;}
+  #pb2{right:150px;top:115px;}
+  #pb3{left:150px;top:225px;}
+  #pb4{right:150px;top:340px;}
+  .pbubble .thought{display:block;font-size:14px;color:rgba(0,0,0,0.5);font-style:italic;margin-top:6px;letter-spacing:-0.005em;}
 
   /* --- OVERLAY TEXT ON BLURRED PANELS --- */
   .panel-overlay{position:absolute;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:18px;background:rgba(0,0,0,0.55);color:#FFFFFF;font-size:38px;font-weight:600;line-height:1.85;letter-spacing:-0.015em;padding:40px;opacity:0;pointer-events:none;transition:opacity 0.6s ease 0.4s;z-index:15;}
@@ -164,14 +166,14 @@
   </div>
 
   <!-- HEADER -->
-  <div class="chap">왜 만들었나 · 답답함에서 시작</div>
+  <div class="chap">왜 만들었나 · 불편함, 번거로움에서 시작</div>
   <div class="headline">선배님들, 혹시 — <span class="em">다들 이런 경험 있으시죠?</span></div>
   <div class="accent"></div>
 
   <!-- LEFT PANEL: KakaoTalk -->
   <div class="panel" id="kakao">
     <div class="kheader">
-      <div class="name">📞 어르신 민원 · 평일 오후</div>
+      <div class="name">📞 고령의 선장님 · 기상특보 발효 중</div>
       <div class="meta">파출소 안내 통화</div>
     </div>
     <div class="msg theirs">
@@ -198,7 +200,7 @@
     <div class="msg mine">
       <div class="time">14:05</div>
       <div class="col" style="align-items:flex-end;">
-        <div class="bubble">아 네… 저희가 찾아서<br>다시 전화드릴게요.</div>
+        <div class="bubble">아 — 네이버에서<br>'날씨누리' 검색하시고<br><span style="color:rgba(0,0,0,0.4);">…(중얼중얼 설명 생략)</span></div>
       </div>
     </div>
   </div>
@@ -206,7 +208,7 @@
   <!-- RIGHT PANEL: Coworker dialog -->
   <div class="panel" id="coworker">
     <div class="cheader">
-      <div class="scene">사무실 · 어느 출근 직후</div>
+      <div class="scene">파출소(중점) 인계인수 직후</div>
       <div class="meta">선배 → 나</div>
     </div>
     <div class="stage-area">
@@ -231,6 +233,11 @@
       <div class="pbubble fl" id="pb3">
         <span class="who">선배</span>
         바다타임 어플 깔아서 확인해 봐.
+      </div>
+      <div class="pbubble fr" id="pb4">
+        <span class="who">나</span>
+        네.
+        <span class="thought">(왜 민간 어플을 사용해야만 하는 거지…?)</span>
       </div>
     </div>
   </div>
@@ -303,7 +310,7 @@
 
   wrap.addEventListener('click', () => {
     if(state < total - 1) setState(state + 1);
-    else setState(0);
+    // 마지막 슬라이드에서는 자동 복귀 없음 (R 키로만 처음 복귀)
   });
   document.addEventListener('keydown', e => {
     if(e.key === ' ' || e.key === 'ArrowRight' || e.key === 'Enter'){ if(state < total-1) setState(state+1); e.preventDefault(); }
