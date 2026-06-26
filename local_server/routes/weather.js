@@ -1105,6 +1105,8 @@ router.get('/api/zone-bulletins', async (req, res) => {
             bulletins.push({
                 time: tmFc,
                 title: (tp + (lvl ? ' ' + lvl : '') + (cmd ? ' ' + cmd : '')).trim(),   // '풍랑 예비특보 발표'
+                cmd: cmd,
+                tp: tp,                                                                  // 종류별 현재 주기 경계 산정용(예비도 주기 시작 신호)
                 pdfUrl: '',
                 file_nm: '',
                 webUrl: prelimUrl,
@@ -1175,10 +1177,15 @@ router.get('/api/zone-bulletins', async (req, res) => {
         //   경계가 되어 과거 주기를 자동으로 잘라낸다. 해제 효력시각이 바뀌어도(예고 10시→20시)
         //   재발표 시점이 경계라 영향이 없다.
         //   • warn_tp 별로 경계를 따로 둔다 — 한 해역에 풍랑·태풍이 공존해도 서로 안 자른다.
-        //   • 예비특보(warn/ready)·자식(연안/평수)은 자체로 현재 신호라 경계와 무관하게 표시.
-        const cycleStartByTp = {};   // warn_tp → 가장 최근 '발표' 시각(ms)
+        //   • 주기 시작 신호 = '발표'(발효 개시) 또는 '예비특보'(다가오는 새 주기 시작). 예비를
+        //     포함하는 이유: 직전 주기가 '변경'-코딩 해제로 끝나고(명시적 '해제' 없음) 아직 새
+        //     '발표' 전인데 새 예비특보만 뜬 GAP 상태에서, 경계가 죽은 과거 주기의 '발표'를
+        //     가리켜 과거 통보문이 누수되던 문제를 막는다. 새 예비가 과거 발표보다 나중이면
+        //     예비 시각이 경계가 되어 과거 주기를 잘라낸다. [회귀검토 B]
+        //   • 자식(연안/평수)은 cmd/tp 가 없어 경계 산정에 기여하지 않고 항상 표시(아래).
+        const cycleStartByTp = {};   // warn_tp → 가장 최근 '주기 시작'(발표 또는 예비) 시각(ms)
         for (const b of merged) {
-            if (String(b.cmd || '') !== '발표') continue;
+            if (String(b.cmd || '') !== '발표' && !b.prelim) continue;   // 발표 또는 예비특보만
             const t = _parseKstMs(b.time);
             if (isNaN(t)) continue;
             const tp = b.tp || '';
