@@ -212,7 +212,8 @@
   #problem-band{position:absolute;left:1030px;top:560px;width:800px;
     opacity:0;transform:scale(0.82);transform-origin:center;
     transition:opacity 0.55s ease 0.3s,transform 0.6s cubic-bezier(0.34,1.3,0.5,1) 0.3s;}
-  #wrap.s6 #problem-band, #wrap.s7 #problem-band{opacity:1;transform:scale(1);}
+  #wrap.s6 #problem-band{opacity:1;transform:translate(-120px,-180px) scale(1.4);}
+  #wrap.s7 #problem-band{opacity:1;transform:scale(1);}
   #problem-band .pb-label{color:#FF6B35;font-size:23px;font-weight:500;letter-spacing:-0.01em;margin-bottom:26px;}
   #problem-band .pb-label .q{color:rgba(255,255,255,0.45);font-size:19px;}
   .pb-stats{display:flex;gap:48px;align-items:flex-start;}
@@ -350,7 +351,7 @@
   .tr-acc{position:absolute;left:120px;top:280px;width:80px;height:6px;background:#FF6B35;opacity:0;transform:scaleX(0);transform-origin:left;transition:transform 0.6s ease 0.55s,opacity 0.4s ease 0.55s;}
 
   /* 사용자 후기 (응원/검증) */
-  .tr-quotes{position:absolute;left:120px;right:120px;top:758px;display:flex;gap:30px;align-items:stretch;}
+  .tr-quotes{position:absolute;left:120px;right:120px;top:760px;display:flex;gap:30px;align-items:stretch;}
   .tr-quote{flex:1;padding:22px 26px;border:1px solid rgba(255,255,255,0.13);border-left:3px solid rgba(255,107,53,0.6);border-radius:14px;background:linear-gradient(140deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));box-sizing:border-box;opacity:0;transform:translateY(14px);transition:opacity 0.6s ease,transform 0.6s ease;}
   #wrap.s13 .tr-quote{opacity:1;transform:translateY(0);}
   #wrap.s13 .tr-quote:nth-child(1){transition-delay:1.34s;}
@@ -359,13 +360,13 @@
   .tr-quote-text::before{content:'“';color:rgba(255,107,53,0.7);font-size:34px;font-weight:700;line-height:0;margin-right:4px;vertical-align:-5px;}
   .tr-quote-text::after{content:'”';color:rgba(255,107,53,0.7);font-size:34px;font-weight:700;line-height:0;margin-left:5px;vertical-align:-12px;}
   .tr-quote-text b{color:#FF6B35;font-weight:600;}
-  .tr-quote-meta{color:rgba(255,255,255,0.5);font-size:15px;font-weight:400;letter-spacing:-0.005em;margin-top:14px;display:block;}
+  .tr-quote-meta{color:rgba(255,255,255,0.55);font-size:18px;font-weight:500;letter-spacing:-0.005em;margin-top:16px;display:block;}
 
   .tr-foot{position:absolute;left:120px;bottom:50px;color:rgba(255,255,255,0.55);font-size:22px;letter-spacing:0.04em;font-weight:500;opacity:0;transition:opacity 0.6s ease 1.2s;}
   #wrap.s13 .tr-chap, #wrap.s13 .tr-head, #wrap.s13 .tr-foot{opacity:1;}
   #wrap.s13 .tr-acc{opacity:1;transform:scaleX(1);}
 
-  .tr-grid{position:absolute;left:120px;right:120px;top:368px;display:flex;gap:30px;height:368px;}
+  .tr-grid{position:absolute;left:120px;right:120px;top:360px;display:flex;gap:30px;height:380px;}
   .tr-section{display:flex;flex-direction:column;}
   .tr-3m{flex:4.2;}
   .tr-1m{flex:1;}
@@ -375,7 +376,7 @@
   .tr-period{color:#fff;font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1;}
   .tr-since{color:rgba(255,255,255,0.55);font-size:17px;font-weight:300;margin-top:6px;letter-spacing:-0.005em;}
   .tr-boxes{display:flex;gap:20px;flex:1;}
-  .tr-box{flex:1;padding:26px 24px;border:1px solid rgba(255,255,255,0.16);border-radius:18px;background:linear-gradient(140deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015));display:flex;flex-direction:column;justify-content:center;opacity:0;transform:translateY(20px);transition:opacity 0.65s ease,transform 0.65s cubic-bezier(0.34,1.2,0.5,1);box-sizing:border-box;}
+  .tr-box{flex:1;padding:24px 22px;border:1px solid rgba(255,255,255,0.16);border-radius:18px;background:linear-gradient(140deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015));display:flex;flex-direction:column;justify-content:center;opacity:0;transform:translateY(20px);transition:opacity 0.65s ease,transform 0.65s cubic-bezier(0.34,1.2,0.5,1);box-sizing:border-box;}
   .tr-box.highlight{border-color:rgba(255,107,53,0.55);background:linear-gradient(140deg,rgba(255,107,53,0.18),rgba(255,107,53,0.04));box-shadow:0 0 40px rgba(255,107,53,0.18);}
   #wrap.s13 .tr-box{opacity:1;transform:translateY(0);}
   #wrap.s13 .tr-3m .tr-boxes .tr-box:nth-child(1){transition-delay:0.82s;}
@@ -383,9 +384,9 @@
   #wrap.s13 .tr-3m .tr-boxes .tr-box:nth-child(3){transition-delay:1.02s;}
   #wrap.s13 .tr-3m .tr-boxes .tr-box:nth-child(4){transition-delay:1.12s;}
   #wrap.s13 .tr-1m .tr-boxes .tr-box{transition-delay:1.22s;}
-  .tr-big{color:#fff;font-size:56px;font-weight:700;letter-spacing:-0.035em;line-height:1;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;flex-wrap:wrap;}
-  .tr-big .u{font-size:28px;color:rgba(255,255,255,0.65);font-weight:600;margin-left:3px;letter-spacing:-0.01em;}
-  .tr-label{color:rgba(255,255,255,0.7);font-size:19px;font-weight:400;margin-top:18px;letter-spacing:-0.01em;line-height:1.3;}
+  .tr-big{color:#fff;font-size:68px;font-weight:700;letter-spacing:-0.035em;line-height:1;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;flex-wrap:wrap;}
+  .tr-big .u{font-size:34px;color:rgba(255,255,255,0.65);font-weight:600;margin-left:3px;letter-spacing:-0.01em;}
+  .tr-label{color:rgba(255,255,255,0.78);font-size:26px;font-weight:500;margin-top:22px;letter-spacing:-0.01em;line-height:1.3;}
 
   /* Progress hint */
 
@@ -581,7 +582,7 @@
 
     <!-- 단계③ : 우측 컴팩트 문제 밴드 -->
     <div id="problem-band">
-      <div class="pb-label">그런데 — 정보는 흩어지고, 민간 앱에 기댑니다 <span class="q">(문제)</span></div>
+      <div class="pb-label">그런데 정보는 흩어져 있어,<br>사람들은 민간 앱을 사용하게 됩니다.</div>
       <div class="pb-stats">
         <div class="pb-stat">
           <div class="num">7<span class="u">개+</span></div>
