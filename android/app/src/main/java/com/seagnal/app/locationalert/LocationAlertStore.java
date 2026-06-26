@@ -29,6 +29,8 @@ public final class LocationAlertStore {
     private static final String KEY_ACTIVE = "location_alert_active";  // "true"/"false"
     private static final String KEY_CONSENT = "location_alert_consent";// "true"/"false"
     private static final String KEY_MATCH = "location_alert_last_match";// 진단: {zone,lat,lng,src,tier,event,at}
+    // [Phase 2b] 태풍 반경 알림 하위 토글. location_alert_ui.js setSub/save 가 미러. 미설정 → fail-open(TRUE).
+    private static final String KEY_SUB_TYPHOON = "location_alert_sub_typhoon"; // "true"/"false"
 
     private LocationAlertStore() { }
 
@@ -44,6 +46,21 @@ public final class LocationAlertStore {
 
     private static boolean isTrue(String v) {
         return v != null && ("true".equalsIgnoreCase(v) || "1".equals(v));
+    }
+
+    /**
+     * [Phase 2b] 태풍 반경 알림 하위 토글이 켜져 있는지. (location_alert_sub_typhoon)
+     *   - 명시적으로 "false"/"0" 일 때만 OFF. 미설정/이상값은 fail-open(TRUE).
+     *   - JS handleTyphoonWake 의 subTyphoon 게이트(OFF→skip, 미설정→fail-open)와 동일 정책.
+     */
+    public static boolean isTyphoonSubOn(Context ctx) {
+        try {
+            String v = prefs(ctx).getString(KEY_SUB_TYPHOON, null);
+            if (v == null) return true;                  // 미설정 → fail-open
+            return !("false".equalsIgnoreCase(v) || "0".equals(v));
+        } catch (Throwable t) {
+            return true; // 읽기 실패 → fail-open
+        }
     }
 
     /** 마지막 저장 위치. 없거나 파싱 실패 시 null. */

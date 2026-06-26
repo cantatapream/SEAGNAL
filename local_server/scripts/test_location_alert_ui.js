@@ -18,6 +18,13 @@ function fakeStore() {
 global.localStorage = fakeStore();
 global.sessionStorage = fakeStore();
 
+// [Phase 2b] @capacitor/preferences 미러 가로채기.
+//   prefsSet(location_alert_ui.js)은 LocationAlertBackground.Mirror.set 을 우선 사용한다.
+//   이걸 노출해 두면 Capacitor 플러그인 없이도 네이티브 미러 키/값을 검증할 수 있다.
+//   (네이티브 LocationAlertStore.isTyphoonSubOn 이 location_alert_sub_typhoon 키를 읽는다.)
+const prefsMirror = new Map();
+global.LocationAlertBackground = { Mirror: { set: (k, v) => prefsMirror.set(k, String(v)) } };
+
 const UI = require('../js/location_alert_ui.js');
 
 let pass = 0, fail = 0;
@@ -75,6 +82,38 @@ check('동일 버전 → 0', UI.cmpVersion('1.1.3', '1.1.3') === 0);
 check('구버전 < 최소 → -1', UI.cmpVersion('1.1.2', UI.NATIVE_MIN_VERSION) === -1, UI.cmpVersion('1.1.2', UI.NATIVE_MIN_VERSION));
 check('상위 버전 → 1', UI.cmpVersion('1.2.0', '1.1.3') === 1);
 check('1.1.10 > 1.1.3 (숫자 비교)', UI.cmpVersion('1.1.10', '1.1.3') === 1);
+
+// [Phase 2b] subTyphoon/subAlert 네이티브 미러(Preferences) — A/B 테스트 케이스 합집합.
+//   setSub('subTyphoon', x) / save() / clear() → location_alert_sub_typhoon|sub_alert 미러.
+//   네이티브(LocationAlertStore.isTyphoonSubOn)가 'location_alert_sub_typhoon' 키를 읽는다.
+console.log('\n[6] subTyphoon/subAlert 네이티브 미러 (location_alert_sub_typhoon/_alert)');
+// (a) clear() 도 save() 를 호출 → 기본 ON 미러.
+S.clear();
+check('clear 후 subTyphoon 미러=true(기본 ON)', prefsMirror.get('location_alert_sub_typhoon') === 'true', prefsMirror.get('location_alert_sub_typhoon'));
+check('clear 후 subAlert 미러=true(기본 ON)', prefsMirror.get('location_alert_sub_alert') === 'true', prefsMirror.get('location_alert_sub_alert'));
+// (b) setSub 토글 → 미러/설정값 반영.
+S.setSub('subTyphoon', false);
+check('subTyphoon OFF → 미러 "false"', prefsMirror.get('location_alert_sub_typhoon') === 'false', prefsMirror.get('location_alert_sub_typhoon'));
+check('subTyphoon OFF → 설정값도 false', S.get().subTyphoon === false);
+check('subTyphoon=false 가 다른 키(subAlert) 불변', prefsMirror.get('location_alert_sub_alert') === 'true', prefsMirror.get('location_alert_sub_alert'));
+S.setSub('subTyphoon', true);
+check('subTyphoon ON → 미러 "true"', prefsMirror.get('location_alert_sub_typhoon') === 'true', prefsMirror.get('location_alert_sub_typhoon'));
+check('subTyphoon ON → 설정값도 true', S.get().subTyphoon === true);
+S.setSub('subAlert', false);
+check('subAlert OFF → 미러 "false"', prefsMirror.get('location_alert_sub_alert') === 'false', prefsMirror.get('location_alert_sub_alert'));
+S.setSub('subAlert', true);
+check('subAlert ON → 미러 "true"', prefsMirror.get('location_alert_sub_alert') === 'true', prefsMirror.get('location_alert_sub_alert'));
+// (c) 잘못된 key 무시(저장/미러 변화 없음).
+const beforeT = prefsMirror.get('location_alert_sub_typhoon');
+S.setSub('bogus', false);
+check('알 수 없는 key 무시(미러 불변)', prefsMirror.get('location_alert_sub_typhoon') === beforeT);
+// (d) 연결 무결성 — active/consent 미러가 하위 토글 미러로 깨지지 않음.
+check('active 미러 키 여전히 존재', typeof prefsMirror.get('location_alert_active') === 'string', prefsMirror.get('location_alert_active'));
+check('consent 미러 키 여전히 존재', typeof prefsMirror.get('location_alert_consent') === 'string', prefsMirror.get('location_alert_consent'));
+// (e) localStorage 본 저장도 그대로 유지(미러가 localStorage 를 안 깸).
+S.setSub('subAlert', false); // 마지막 상태를 false 로 만들어 persist 확인
+const persisted = JSON.parse(global.localStorage.getItem('locationAlertSettings_v1'));
+check('localStorage subAlert=false 유지', persisted.subAlert === false, persisted.subAlert);
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`);
 process.exit(fail ? 1 : 0);

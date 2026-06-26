@@ -6,6 +6,7 @@ import android.util.Log;
 import com.capacitorjs.plugins.pushnotifications.MessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.List;
@@ -32,6 +33,7 @@ public class LocationAlertMessagingService extends MessagingService {
 
     private static final String TAG = "LocationAlertFCM";
     private static final String WAKE_TYPE = "location_alert_wake";
+    private static final String TYPHOON_WAKE_TYPE = "typhoon_radius_wake";
 
     // #3 저장 위치를 "낡음"으로 보는 임계(기본 12시간). 튜닝 가능. JS STALE_MAX_MS 와 동일.
     private static final long STALE_MAX_MS = 12L * 60L * 60L * 1000L;
@@ -45,8 +47,14 @@ public class LocationAlertMessagingService extends MessagingService {
         //    (중복 헤드업이 우려되면 추후 ProcessLifecycleOwner 로 포그라운드면 native skip 가능.)
         try {
             Map<String, String> data = remoteMessage.getData();
-            if (data != null && WAKE_TYPE.equals(data.get("type"))) {
-                handleWake(getApplicationContext(), data);
+            if (data != null) {
+                String type = data.get("type");
+                if (WAKE_TYPE.equals(type)) {
+                    handleWake(getApplicationContext(), data);
+                } else if (TYPHOON_WAKE_TYPE.equals(type)) {
+                    // [Phase 2b] 위치기반 태풍 반경 알림 — killed 포함 모든 상태를 네이티브가 처리.
+                    handleTyphoonWake(getApplicationContext());
+                }
             }
         } catch (Throwable t) {
             Log.e(TAG, "wake 처리 실패", t);
@@ -163,6 +171,73 @@ public class LocationAlertMessagingService extends MessagingService {
             }
         } catch (Exception e) {
             Log.e(TAG, "decideAlert 실패", e);
+        }
+    }
+
+    /**
+     * [Phase 2b] 위치기반 태풍 반경 알림 — killed 포함 모든 상태에서 네이티브가 직접 처리.
+     *   JS location_alert_typhoon_runtime.handleTyphoonWake 와 동일 흐름(완전 on-device 판정):
+     *     ① subTyphoon 게이트(false 면 skip / 미설정은 fail-open)
+     *     ② LocationAlertLocator.getFresh(ctx) — 그 순간 fresh 위치 1회(REUSE). null → skip.
+     *     ③ TyphoonApi.fetchTyphoon() — 공개 /api/typhoon 만 GET. null/빈 → skip.
+     *     ④ decideTyphoonAlerts — 진입한 태풍마다 1건(폭풍 우선/강풍 폴백).
+     *     ⑤ 태풍별 별도 로컬 알림(고유 id + 행동요령 딥링크).
+     *   좌표는 단말 밖으로 절대 나가지 않음. 모든 단계 try/catch — 서비스 절대 크래시 금지.
+     */
+    private void handleTyphoonWake(Context ctx) {
+        try {
+            // ① subTyphoon 게이트 — 명시적 false 만 skip. 미설정/읽기실패는 fail-open(진행).
+            if (!LocationAlertStore.isTyphoonSubOn(ctx)) {
+                Log.d(TAG, "subTyphoon OFF → skip");
+                return;
+            }
+
+            // ② 그 순간 fresh 위치 1회(Phase-1 재사용). null → skip.
+            LocationAlertStore.Position pos = LocationAlertLocator.getFresh(ctx);
+            if (pos == null) {
+                Log.d(TAG, "위치 없음(fresh fix 실패) → 태풍 반경 skip");
+                return;
+            }
+            double[] loc = new double[] { pos.lat, pos.lng };   // {lat, lon=lng}
+
+            // ③ /api/typhoon 재조회(공개 데이터만). null/빈 → skip.
+            JSONObject typhoonJson = TyphoonApi.fetchTyphoon();
+            if (typhoonJson == null) {
+                Log.d(TAG, "/api/typhoon 응답 없음 → skip");
+                return;
+            }
+            JSONArray typhoons = typhoonJson.optJSONArray("typhoons");
+            if (typhoons == null || typhoons.length() == 0) {
+                Log.d(TAG, "활성 태풍 없음 → skip");
+                return;
+            }
+            // 딥링크 dtYear 폴백용 — 응답 최상위 year(JS root.__typhoonYear 대응). 없으면 null.
+            String fallbackYear = (typhoonJson.has("year") && !typhoonJson.isNull("year"))
+                    ? String.valueOf(typhoonJson.opt("year")) : null;
+
+            // ④ 각 태풍 판정 — 진입한 태풍마다 1건.
+            List<TyphoonRadiusDecider.Alert> alerts =
+                    TyphoonRadiusDecider.decideTyphoonAlerts(loc, typhoons, fallbackYear);
+            if (alerts.isEmpty()) {
+                Log.d(TAG, "반경 진입 태풍 없음 → skip");
+                return;
+            }
+
+            // ⑤ 태풍별 별도 로컬 알림(고유 id + 딥링크). 한 건 실패해도 나머지 진행.
+            for (TyphoonRadiusDecider.Alert a : alerts) {
+                try {
+                    TyphoonRadiusDecider.RadiusMessage msg =
+                            TyphoonRadiusDecider.buildRadiusAlert(a.which, a.seq, a.name, a.nameEn, a.etaTmFc);
+                    if (msg == null) continue;
+                    String url = TyphoonRadiusDecider.buildDemoUrl(a.year, a.seq, a.code, true);
+                    LocationAlertNotifier.notify(ctx, msg.title, msg.body,
+                            TyphoonRadiusDecider.notifId(a.seq), url);
+                } catch (Throwable t) {
+                    Log.w(TAG, "태풍 알림 표출 실패(무시)", t);
+                }
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "handleTyphoonWake 실패", t);
         }
     }
 

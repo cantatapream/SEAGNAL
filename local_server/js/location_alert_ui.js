@@ -26,6 +26,9 @@
     // Android SharedPreferences "CapacitorStorage". 종료 상태 네이티브가 활성+동의 확인에 사용.
     const NATIVE_ACTIVE_KEY = 'location_alert_active';   // "true"/"false"
     const NATIVE_CONSENT_KEY = 'location_alert_consent'; // "true"/"false"
+    // 하위 토글 미러 (네이티브 killed 대응). LocationAlertStore.isTyphoonSubOn 이 sub_typhoon 을 읽음.
+    const NATIVE_SUB_ALERT_KEY = 'location_alert_sub_alert';     // "true"/"false"
+    const NATIVE_SUB_TYPHOON_KEY = 'location_alert_sub_typhoon'; // "true"/"false"
 
     // 종료(killed) 상태 알림은 네이티브 모듈이 포함된 APK 에서만 동작한다. 웹 UI 는 fly.dev
     // 최신이 떠서 토글이 보이지만, 구버전 APK(네이티브 미포함)에선 못 쓰므로 앱 버전으로 가드한다.
@@ -52,6 +55,11 @@
         prefsSet(NATIVE_ACTIVE_KEY, enabled ? 'true' : 'false');
         prefsSet(NATIVE_CONSENT_KEY, consented ? 'true' : 'false');
     }
+    /** 하위 토글(특보/태풍) 플래그를 네이티브 미러에 반영(killed 상태 네이티브가 읽음). 기본 ON. */
+    function syncNativeSubFlags(subAlert, subTyphoon) {
+        prefsSet(NATIVE_SUB_ALERT_KEY, subAlert === false ? 'false' : 'true');
+        prefsSet(NATIVE_SUB_TYPHOON_KEY, subTyphoon === false ? 'false' : 'true');
+    }
 
     // ── 설정/동의 상태 (단말 저장) ────────────────────────────────────────────
     const LocationAlertSettings = {
@@ -65,19 +73,24 @@
             } catch (_) { }
             // 기존 활성 단말이 앱 업데이트 후에도 네이티브 플래그를 갖도록 1회 동기화.
             syncNativeFlags(!!this.data.enabled, !!this.data.consent);
+            // 하위 토글 미러도 1회 동기화(미설정 단말은 기본 ON 으로 들어감).
+            syncNativeSubFlags(this.data.subAlert, this.data.subTyphoon);
             return this;
         },
         save() {
             try { ls() && ls().setItem(STORAGE_KEY, JSON.stringify(this.data)); } catch (_) { }
             // 네이티브 게이팅 플래그 미러(활성 + 동의 여부). killed 상태 네이티브가 읽음.
             syncNativeFlags(!!this.data.enabled, !!this.data.consent);
+            // 하위 토글(특보/태풍)도 미러 — 태풍 반경 알림은 네이티브가 직접 처리하므로 subTyphoon 필요.
+            syncNativeSubFlags(this.data.subAlert, this.data.subTyphoon);
         },
         get() { return this.data; },
         setEnabled(v) { this.data.enabled = !!v; this.save(); },
         /** 하위 알림 토글 저장. key ∈ {'subAlert','subTyphoon'}. (enabled/consent 흐름과 독립) */
         setSub(key, v) {
             if (key !== 'subAlert' && key !== 'subTyphoon') return;
-            this.data[key] = !!v; this.save();
+            this.data[key] = !!v;
+            this.save(); // save() 가 syncNativeSubFlags 로 sub_alert/sub_typhoon 을 Preferences 에 미러.
         },
         recordConsent() {
             this.data.consent = { version: CONSENT_VERSION, agreedAt: new Date().toISOString() };
