@@ -1161,12 +1161,25 @@ router.get('/api/zone-bulletins', async (req, res) => {
             if (/해제/.test(b.title || '')) return true;          // cmd 미상(자식 등) 대비 — 자기 제목만
             return false;                                         // 공유 PDF 제목으론 해제 판정 안 함
         };
-        // 가장 최근 해제 시각(ms) — 그 이전(이미 끝난 과거 주기)은 현재 cycle 이 아니다.
+        // [현재 주기 경계] 가장 최근 "부모 종결 해제" 시각(ms). 그 이전은 이미 끝난 과거 주기.
+        //   주기를 끊는(=특보 종결) 해제만 센다. 다음 둘은 종결이 아니므로 제외한다:
+        //   • 자식(연안/평수)-only 해제(b.childOnly) — 부모는 그대로 발효중. 자식 해제가 부모
+        //     주기를 끊으면 부모 통보문이 전멸한다(빈 리스트 사고). [회귀검토 F3]
+        //   • 같은 시각에 발표/변경 등 발효 통보문이 동반된 해제(격상/격하의 옛 등급 해제부) —
+        //     특보는 새 등급으로 계속된다. strict '>' 와 맞물려 동시각 발표가 탈락하던 문제. [회귀검토 H1]
+        const liveTimes = new Set();
+        for (const b of merged) {
+            if (isRelease(b)) continue;
+            const t = _parseKstMs(b.time);
+            if (!isNaN(t)) liveTimes.add(t);   // 발표/변경/연장·예비·자식발표 = "살아있는 신호" 시각
+        }
         let lastReleaseMs = -Infinity;
         for (const b of merged) {
-            if (!isRelease(b)) continue;
+            if (!isRelease(b) || b.childOnly) continue;   // 자식 해제는 부모 주기를 끝내지 않음(F3)
             const t = _parseKstMs(b.time);
-            if (!isNaN(t) && t > lastReleaseMs) lastReleaseMs = t;
+            if (isNaN(t)) continue;
+            if (liveTimes.has(t)) continue;               // 동시각 발효 통보문 동반 = 격상/격하 → 종결 아님(H1)
+            if (t > lastReleaseMs) lastReleaseMs = t;
         }
         const inCurrentCycle = (b) => {
             if (lastReleaseMs === -Infinity) return true;
