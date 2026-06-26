@@ -1137,16 +1137,25 @@ router.get('/api/zone-bulletins', async (req, res) => {
         };
         // file_nm 기준 dedup — 같은 PDF 가 ef(부모)·자식 양쪽으로 들어오면 1건으로. file_nm
         //   없는 항목(ef 폴백 등)은 time|title 로 보조 dedup.
-        //   우선순위: (1) 자식(연안/평수 포함) > 부모, (2) 같은 키면 발효 통보문(발표/변경) > 해제.
-        //   (2)는 격하 시 '변경해제'와 새 등급 '발표'가 같은 file_nm 일 때 해제가 남고 발표가
-        //   사라져 빈 리스트가 되던 dedup×격하 경로를 막는다(발효 통보문을 보존해 표시·신호 유지).
+        //   보존 우선순위:
+        //     (1) 발효 통보문(비-해제) > 해제 — 해제는 화면에서 숨기므로(아래 alive 필터), 같은
+        //         PDF 에 발효 발표와 해제가 섞이면 발표를 잃지 않게 발표를 보존. 이로써
+        //         (a) 격하 시 '변경해제'+새 등급 '발표'가 같은 file_nm 이라 발표가 사라져 빈
+        //         리스트가 되던 경로[검토 C], (b) 자식 '해제'와 부모 '발표'가 같은 file_nm 일 때
+        //         자식 우선 때문에 부모 발표가 가려지던 경로[검토 잔여]를 함께 막는다.
+        //     (2) 같은 해제상태면 자식(연안/평수 세부 포함) > 부모.
         const seen = new Map();
         for (const b of bulletins) {
             const k = b.file_nm ? ('f:' + b.file_nm) : ('t:' + b.time + '|' + b.title);
             const prev = seen.get(k);
             if (!prev) { seen.set(k, b); continue; }
-            if (!prev.childOnly && b.childOnly) seen.set(k, b);                                        // (1) 자식 우선
-            else if (!!prev.childOnly === !!b.childOnly && isRelease(prev) && !isRelease(b)) seen.set(k, b);  // (2) 발효 > 해제
+            const prevR = isRelease(prev), bR = isRelease(b);
+            if (prevR !== bR) {
+                if (prevR && !bR) seen.set(k, b);                       // (1) 해제(prev) → 발효(b) 로 교체
+                // else: prev=발효, b=해제 → prev 유지
+            } else if (!prev.childOnly && b.childOnly) {
+                seen.set(k, b);                                         // (2) 같은 해제상태 → 자식 우선
+            }
         }
         const merged = Array.from(seen.values());
         merged.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
