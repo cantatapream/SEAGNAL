@@ -66,8 +66,12 @@
   .col{display:flex;flex-direction:column;max-width:520px;}
   .col .who{font-size:18px;color:#444;margin-bottom:3px;}
   .bubble{padding:15px 19px;border-radius:18px;font-size:26px;line-height:1.35;font-weight:400;}
-  @keyframes pulseScale{0%,100%{transform:scale(1);}50%{transform:scale(1.18);}}
+  @keyframes pulseScale{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
   .pulse{display:inline-block;animation:pulseScale 1s ease-in-out infinite;transform-origin:center center;}
+  /* 채팅 말풍선 강조 — 패널이 명확한 상태일 때만 펄스 */
+  .pulse-kakao,.pulse-coworker{display:inline-block;transform-origin:center center;}
+  #wrap.s1 .pulse-kakao{animation:pulseScale 1s ease-in-out infinite;}
+  #wrap.s2 .pulse-coworker{animation:pulseScale 1s ease-in-out infinite;}
   .theirs .bubble{background:#fff;color:#000;border-top-left-radius:6px;}
   .mine .bubble{background:#FFEB33;color:#000;border-top-right-radius:6px;}
   .time{font-size:14px;color:rgba(0,0,0,0.4);align-self:flex-end;margin:0 4px 3px;}
@@ -547,7 +551,7 @@
     <div class="msg theirs">
       <div class="avatar">민</div>
       <div class="col">
-        <div class="bubble">그냥 그때그때 전화할게요.<br><b class="pulse" style="font-size:27px;">우리는 그런거 못해~</b></div>
+        <div class="bubble">그냥 그때그때 전화할게요.<br><b class="pulse-kakao" style="font-size:27px;">우리는 그런거 못해~</b></div>
       </div>
       <div class="time">14:06</div>
     </div>
@@ -580,7 +584,7 @@
       </div>
       <div class="pbubble fl" id="pb3">
         <span class="who">선배</span>
-        <b class="pulse">바다타임 어플 깔아서 확인해 봐.</b>
+        <b class="pulse-coworker">바다타임 어플 깔아서 확인해 봐.</b>
       </div>
       <div class="pbubble fr" id="pb4">
         <span class="who">순경 신진섭</span>
@@ -685,11 +689,11 @@
 
     <!-- 단계③ : 우측 컴팩트 문제 밴드 -->
     <div id="problem-band">
-      <div class="pb-label">그런데 정보는 흩어져 있어,<br>사람들은 민간 앱을 사용하게 됩니다.</div>
+      <div class="pb-label">양질의 정보는 흩어져 있어,<br>사람들은 민간 앱을 사용하게 됩니다.</div>
       <div class="pb-stats">
         <div class="pb-stat">
           <div class="num">7<span class="u">개+</span></div>
-          <div class="cap">분산된 공공 출처</div>
+          <div class="cap">분산된<br>해양정보 제공기관</div>
         </div>
         <div class="pb-stat">
           <div class="num">민간<span class="u">앱</span></div>
