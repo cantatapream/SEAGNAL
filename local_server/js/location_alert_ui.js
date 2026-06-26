@@ -33,7 +33,7 @@
     // 종료(killed) 상태 알림은 네이티브 모듈이 포함된 APK 에서만 동작한다. 웹 UI 는 fly.dev
     // 최신이 떠서 토글이 보이지만, 구버전 APK(네이티브 미포함)에선 못 쓰므로 앱 버전으로 가드한다.
     // 네이티브 종료상태 기능이 들어간 최소 앱 버전(=이 기능 출시 버전). versionName 비교 기준.
-    const NATIVE_MIN_VERSION = '1.1.3';
+    const NATIVE_MIN_VERSION = '1.2.0';
 
     // ── 안전 스토리지 접근 ────────────────────────────────────────────────────
     function ls() { try { return root && root.localStorage; } catch (_) { return null; } }
