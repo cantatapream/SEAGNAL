@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>SEA:GNAL — 시안 C · 등대(Lighthouse)</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#fff;overflow:hidden;height:100%;}
+  *{box-sizing:border-box;}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  #wrap{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center;background:linear-gradient(180deg,#000810 0%,#000 80%,#000305 100%);overflow:hidden;}
+
+  .chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;z-index:30;}
+  .head{position:absolute;left:120px;top:140px;color:#fff;font-size:64px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;z-index:30;}
+  .head .em{color:#FF6B35;}
+  .acc{position:absolute;left:120px;top:240px;width:80px;height:6px;background:#FF6B35;z-index:30;}
+  .sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.65);font-size:26px;font-weight:300;z-index:30;}
+  .foot{position:absolute;left:120px;bottom:50px;color:rgba(255,255,255,0.55);font-size:22px;letter-spacing:0.04em;font-weight:500;z-index:30;}
+
+  .sea{position:absolute;left:0;right:0;bottom:0;height:200px;background:linear-gradient(180deg,transparent,rgba(40,80,140,0.15) 30%,rgba(20,50,90,0.3) 100%);}
+  .sea::before{content:'';position:absolute;left:0;right:0;top:20px;height:1px;background:linear-gradient(90deg,transparent,rgba(140,200,255,0.25),transparent);}
+
+  /* Light beams - rotating */
+  .beams{position:absolute;left:960px;top:692px;width:0;height:0;z-index:8;animation:spin 9s linear infinite;}
+  @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  .beam{position:absolute;left:0;top:0;transform-origin:0 0;width:1100px;height:280px;
+    background:linear-gradient(90deg,rgba(255,200,120,0.42),rgba(255,200,120,0.06) 55%,transparent 90%);
+    clip-path:polygon(0 50%,100% 0,100% 100%);}
+  #b1{transform:translateY(-140px) rotate(0deg);}
+  #b2{transform:translateY(-140px) rotate(120deg);}
+  #b3{transform:translateY(-140px) rotate(240deg);}
+
+  #tower{position:absolute;left:50%;top:36%;transform:translateX(-50%);width:0;height:0;z-index:15;}
+  .lamp{position:absolute;left:-65px;top:0;width:130px;height:90px;background:linear-gradient(180deg,#FF9866,#FF6B35);border-radius:50% 50% 12px 12px / 60% 60% 12px 12px;box-shadow:0 0 80px rgba(255,170,80,0.7),0 0 160px rgba(255,140,60,0.4);border:2px solid rgba(255,220,180,0.7);}
+  .lamp::after{content:'';position:absolute;left:50%;top:18px;transform:translateX(-50%);width:36px;height:36px;background:radial-gradient(circle,#FFEAB0,#FF8C3D);border-radius:50%;box-shadow:0 0 30px #FFEAB0;animation:lampPulse 2.4s ease-in-out infinite;}
+  @keyframes lampPulse{0%,100%{box-shadow:0 0 30px #FFEAB0;}50%{box-shadow:0 0 60px #FFEAB0;}}
+  .crown{position:absolute;left:-90px;top:85px;width:180px;height:14px;background:#3a2615;border-radius:4px;border:1px solid rgba(255,255,255,0.25);}
+  .body{position:absolute;left:-46px;top:95px;width:92px;height:260px;background:linear-gradient(180deg,#fff 0%,#fff 20%,#e63b3b 20%,#e63b3b 40%,#fff 40%,#fff 60%,#e63b3b 60%,#e63b3b 80%,#fff 80%);border:2px solid rgba(255,255,255,0.55);border-radius:6px 6px 4px 4px;box-shadow:0 0 30px rgba(0,0,0,0.5);}
+  .base{position:absolute;left:-78px;top:350px;width:156px;height:30px;background:#3a2615;border:2px solid rgba(255,255,255,0.3);border-radius:4px;}
+  .rock{position:absolute;left:-130px;top:380px;width:260px;height:30px;background:linear-gradient(180deg,#222,#0c0c0c);border-radius:50%;opacity:0.85;}
+
+  .tag-name{position:absolute;left:50%;top:33%;transform:translate(-50%,-50%);color:rgba(255,200,120,0.95);font-size:14px;letter-spacing:0.32em;font-weight:700;text-shadow:0 0 12px rgba(255,170,80,0.7);z-index:16;}
+
+  .fn{position:absolute;display:flex;flex-direction:column;align-items:center;z-index:25;}
+  .fn .dot{width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 16px rgba(255,255,255,0.85),0 0 36px rgba(255,200,120,0.5);animation:twinkle 3s ease-in-out infinite;}
+  @keyframes twinkle{0%,100%{opacity:1;}50%{opacity:0.55;}}
+  .fn.lit .dot{width:18px;height:18px;background:#FF6B35;box-shadow:0 0 24px #FF8A50,0 0 48px rgba(255,107,53,0.7);}
+  .fn .lbl{margin-top:8px;font-size:15px;font-weight:600;color:#fff;letter-spacing:-0.005em;white-space:nowrap;text-shadow:0 0 8px rgba(0,0,0,0.9);}
+  .fn.lit .lbl{color:#FFD9B8;font-weight:700;}
+</style>
+</head>
+<body>
+<div id="stage"><div id="wrap">
+
+  <div class="chap">바다의 모든 것을 · 앱 하나로</div>
+  <div class="head"><span class="em">바다의 신호등.</span> 모든 기능을 비춥니다.</div>
+  <div class="acc"></div>
+  <div class="sub">중심에서 360° — 25+개 기능 · 7개 출처 · 4개 탭.</div>
+
+  <div class="sea"></div>
+
+  <div class="beams">
+    <div class="beam" id="b1"></div>
+    <div class="beam" id="b2"></div>
+    <div class="beam" id="b3"></div>
+  </div>
+
+  <div id="tower">
+    <div class="lamp"></div>
+    <div class="crown"></div>
+    <div class="body"></div>
+    <div class="base"></div>
+    <div class="rock"></div>
+  </div>
+  <div class="tag-name">SEA:GNAL</div>
+
+  <div class="fn lit" style="left:1320px;top:380px;"><div class="dot"></div><div class="lbl">해상기상전망</div></div>
+  <div class="fn lit" style="left:1480px;top:460px;"><div class="dot"></div><div class="lbl">해역별 특보 GIS</div></div>
+  <div class="fn lit" style="left:1380px;top:560px;"><div class="dot"></div><div class="lbl">태풍 통합</div></div>
+  <div class="fn" style="left:1560px;top:600px;"><div class="dot"></div><div class="lbl">기상예보</div></div>
+  <div class="fn" style="left:1240px;top:520px;"><div class="dot"></div><div class="lbl">기상부이 118</div></div>
+  <div class="fn" style="left:1600px;top:520px;"><div class="dot"></div><div class="lbl">해상일기도</div></div>
+
+  <div class="fn lit" style="left:480px;top:420px;"><div class="dot"></div><div class="lbl">임의 해점 종합</div></div>
+  <div class="fn lit" style="left:340px;top:520px;"><div class="dot"></div><div class="lbl">CCTV 237</div></div>
+  <div class="fn" style="left:200px;top:440px;"><div class="dot"></div><div class="lbl">유향 · 유속</div></div>
+  <div class="fn" style="left:560px;top:540px;"><div class="dot"></div><div class="lbl">물때 · 갯벌</div></div>
+  <div class="fn" style="left:280px;top:620px;"><div class="dot"></div><div class="lbl">해구별 기상</div></div>
+  <div class="fn" style="left:420px;top:640px;"><div class="dot"></div><div class="lbl">위치 자동 알림</div></div>
+
+  <div class="fn lit" style="left:760px;top:870px;"><div class="dot"></div><div class="lbl">바다낚시</div></div>
+  <div class="fn lit" style="left:900px;top:910px;"><div class="dot"></div><div class="lbl">서핑</div></div>
+  <div class="fn" style="left:1040px;top:880px;"><div class="dot"></div><div class="lbl">갯벌체험</div></div>
+  <div class="fn" style="left:1180px;top:910px;"><div class="dot"></div><div class="lbl">바다갈라짐</div></div>
+  <div class="fn" style="left:640px;top:910px;"><div class="dot"></div><div class="lbl">해수욕</div></div>
+
+  <div class="fn" style="left:150px;top:780px;"><div class="dot"></div><div class="lbl">공지 · 알림</div></div>
+  <div class="fn" style="left:1700px;top:780px;"><div class="dot"></div><div class="lbl">AI 나리</div></div>
+
+  <div class="foot">바다의 모든 기능이 — 하나의 등대에서 빛납니다.</div>
+
+</div></div>
+<script>
+  function fit(){
+    const w = window.innerWidth, h = window.innerHeight;
+    const s = Math.min(w/1920, h/1080);
+    document.getElementById('wrap').style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', fit);
+  fit();
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>SEA:GNAL — 시안 B · Bento Box</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#fff;overflow:hidden;height:100%;}
+  *{box-sizing:border-box;}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  #wrap{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center;background:#000;overflow:hidden;}
+
+  .chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;}
+  .head{position:absolute;left:120px;top:140px;color:#fff;font-size:64px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;}
+  .head .em{color:#FF6B35;}
+  .acc{position:absolute;left:120px;top:240px;width:80px;height:6px;background:#FF6B35;}
+  .sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.65);font-size:26px;font-weight:300;}
+  .foot{position:absolute;left:120px;bottom:30px;color:rgba(255,255,255,0.5);font-size:20px;letter-spacing:0.04em;font-weight:500;}
+
+  .card{position:absolute;border-radius:18px;padding:28px 32px;background:linear-gradient(140deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015));border:1px solid rgba(255,255,255,0.13);box-shadow:inset 0 1px 0 rgba(255,255,255,0.05);overflow:hidden;transition:transform 0.3s ease,box-shadow 0.3s ease;}
+  .card:hover{transform:translateY(-3px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 8px 24px rgba(255,107,53,0.15);}
+  .card.hi{background:linear-gradient(140deg,rgba(255,107,53,0.22),rgba(255,107,53,0.04));border-color:rgba(255,107,53,0.5);}
+  .card.glass{background:linear-gradient(140deg,rgba(80,140,200,0.18),rgba(40,80,140,0.05));border-color:rgba(140,200,255,0.3);}
+  .c-num{color:#FF6B35;font-size:14px;letter-spacing:0.22em;font-weight:600;}
+  .c-title{color:#fff;font-size:32px;font-weight:700;letter-spacing:-0.02em;margin-top:8px;line-height:1.15;}
+  .c-title.lg{font-size:38px;}
+  .c-desc{color:rgba(255,255,255,0.6);font-size:16px;font-weight:300;line-height:1.55;margin-top:14px;}
+  .c-list{color:rgba(255,255,255,0.78);font-size:15px;font-weight:400;line-height:1.7;margin-top:14px;}
+  .c-list b{color:#FF6B35;font-weight:600;}
+  .c-big{font-size:60px;font-weight:700;letter-spacing:-0.035em;color:#fff;margin-top:10px;line-height:1;}
+  .c-big .u{font-size:30px;color:rgba(255,255,255,0.6);margin-left:4px;}
+
+  #cA{left:120px;top:360px;width:780px;height:205px;}
+  #cB{left:920px;top:360px;width:420px;height:205px;}
+  #cC{left:1360px;top:360px;width:440px;height:205px;}
+  #cD{left:120px;top:585px;width:360px;height:190px;}
+  #cE{left:500px;top:585px;width:700px;height:190px;}
+  #cF{left:1220px;top:585px;width:580px;height:190px;}
+  #cG{left:120px;top:795px;width:820px;height:165px;}
+  #cH{left:960px;top:795px;width:840px;height:165px;}
+  #strip{position:absolute;left:120px;top:980px;width:1680px;height:50px;border-radius:14px;background:linear-gradient(90deg,rgba(255,107,53,0.18),rgba(255,107,53,0.05),rgba(255,107,53,0.18));border:1px solid rgba(255,107,53,0.3);display:flex;align-items:center;justify-content:space-around;color:#fff;font-size:18px;font-weight:500;letter-spacing:-0.01em;}
+  #strip .em{color:#FF6B35;font-weight:700;}
+</style>
+</head>
+<body>
+<div id="stage"><div id="wrap">
+
+  <div class="chap">바다의 모든 것을 · 앱 하나로</div>
+  <div class="head">한 화면 · <span class="em">하나의 바다 운영체제.</span></div>
+  <div class="acc"></div>
+  <div class="sub">25+개 기능 · 4개 메인 탭 · 7개 공공 출처 통합.</div>
+
+  <div class="card hi" id="cA">
+    <div class="c-num">TAB 1 · 특보 및 전망</div>
+    <div class="c-title lg">바다의 위험을 가장 먼저.</div>
+    <div class="c-list">· 해상기상전망 &nbsp;·&nbsp; 해역별 특보 GIS &nbsp;·&nbsp; 기상예보<br>· 기상부이 118 &nbsp;·&nbsp; 해상일기도 &nbsp;·&nbsp; <b>태풍 통합 (NEW)</b></div>
+  </div>
+
+  <div class="card glass" id="cB">
+    <div class="c-num">⌖ 핵심 시각화</div>
+    <div class="c-title">해역별 특보 GIS</div>
+    <div class="c-desc">93개 특보구역 실시간<br>색상 표시 + 팝업</div>
+  </div>
+
+  <div class="card" id="cC">
+    <div class="c-num">AI · 관리자 시범 운영</div>
+    <div class="c-title">어시스턴트 "나리"</div>
+    <div class="c-desc">음성 호출 · Tool Use Brain<br>8 직군 RAG · 사용자 기억 v2</div>
+  </div>
+
+  <div class="card" id="cD">
+    <div class="c-num">⊕ 실측</div>
+    <div class="c-big">237<span class="u">개소</span></div>
+    <div class="c-desc">CCTV · 6개 기관 통합</div>
+  </div>
+
+  <div class="card hi" id="cE">
+    <div class="c-num">⊙ TAB 2 · 해양종합정보 · 핵심</div>
+    <div class="c-title">임의 해점 종합 조회</div>
+    <div class="c-list">조석 · 천문 · 월상 · 기상을 — <b>지도 위 한 점 클릭</b>으로 통합.<br>유향·유속 / 풍·파 / 해구별기상 / <b>물때 바로가기 (NEW)</b></div>
+  </div>
+
+  <div class="card" id="cF">
+    <div class="c-num">⚡ 위치 기반 자동 알림</div>
+    <div class="c-title">태풍 통합 + GPS 푸시</div>
+    <div class="c-desc">태풍 발생·이동·소멸 · 내 위치가 특보구역 진입 시<br>위치 + 행동 안내 자동 푸시 — 누적 526회 발송</div>
+  </div>
+
+  <div class="card" id="cG">
+    <div class="c-num">TAB 3 · 해양생활</div>
+    <div class="c-title">레저도 안전부터.</div>
+    <div class="c-list">바다낚시 · 서핑 · 갯벌체험 · 바다갈라짐 · 해수욕 — <b>모두 실시간 특보 연동</b></div>
+  </div>
+
+  <div class="card" id="cH">
+    <div class="c-num">TAB 4 · 공지사항</div>
+    <div class="c-title">운영자 공지 + 기관 홍보 게시판</div>
+    <div class="c-list">상단 팝업 알림 · 시스템 알림 이력 · <b>신규 N 배지</b> 표시</div>
+  </div>
+
+  <div id="strip">
+    <span><span class="em">7개+</span> 공공 출처 통합</span>
+    <span><span class="em">4종</span> 배경지도 (도로 · 위성 · 지형 · 다크)</span>
+    <span><span class="em">93구역</span> 특보 GIS</span>
+    <span><span class="em">155K+</span> 누적 알림</span>
+  </div>
+
+  <div class="foot">바다의 모든 것을 — 한 화면, 한 손에.</div>
+
+</div></div>
+<script>
+  function fit(){
+    const w = window.innerWidth, h = window.innerHeight;
+    const s = Math.min(w/1920, h/1080);
+    document.getElementById('wrap').style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', fit);
+  fit();
+</script>
+</body>
+</html>

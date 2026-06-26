@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>SEA:GNAL — 시안 E · Constellation</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#fff;overflow:hidden;height:100%;}
+  *{box-sizing:border-box;}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  #wrap{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center;background:radial-gradient(ellipse at 50% 60%,#0a1530 0%,#020512 60%,#000 100%);overflow:hidden;}
+  #wrap::before{content:'';position:absolute;left:50%;top:60%;transform:translate(-50%,-50%);width:1800px;height:1000px;background:radial-gradient(ellipse,rgba(80,130,200,0.12) 0%,transparent 60%);pointer-events:none;}
+  #wrap::after{content:'';position:absolute;left:50%;top:60%;transform:translate(-50%,-50%);width:900px;height:600px;background:radial-gradient(ellipse,rgba(255,107,53,0.1) 0%,transparent 60%);pointer-events:none;}
+
+  .chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;z-index:30;}
+  .head{position:absolute;left:120px;top:140px;color:#fff;font-size:64px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;z-index:30;}
+  .head .em{color:#FF6B35;}
+  .acc{position:absolute;left:120px;top:240px;width:80px;height:6px;background:#FF6B35;z-index:30;}
+  .sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.65);font-size:26px;font-weight:300;z-index:30;}
+  .foot{position:absolute;left:120px;bottom:50px;color:rgba(255,255,255,0.6);font-size:22px;letter-spacing:0.04em;font-weight:500;z-index:30;}
+
+  #cons{position:absolute;inset:0;width:100%;height:100%;z-index:10;pointer-events:none;}
+  #cons line{stroke:rgba(180,210,255,0.28);stroke-width:1;}
+  #cons line.bright{stroke:rgba(255,200,140,0.5);stroke-width:1.2;}
+
+  .star{position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 10px rgba(255,255,255,0.8),0 0 24px rgba(180,210,255,0.4);z-index:15;animation:twinkle 4s ease-in-out infinite;transform:translate(-50%,-50%);}
+  @keyframes twinkle{0%,100%{opacity:1;}50%{opacity:0.55;}}
+  .star.big{width:14px;height:14px;box-shadow:0 0 14px rgba(255,255,255,0.95),0 0 36px rgba(180,210,255,0.55);}
+  .star.warm{background:#FFD9B0;box-shadow:0 0 14px #FFD9B0,0 0 36px rgba(255,200,140,0.6);}
+  .star.core{width:32px;height:32px;background:radial-gradient(circle,#fff,#FFE3B8);box-shadow:0 0 30px #fff,0 0 80px rgba(255,200,140,0.7),0 0 160px rgba(255,107,53,0.4);animation:coreGlow 5s ease-in-out infinite;}
+  @keyframes coreGlow{0%,100%{box-shadow:0 0 30px #fff,0 0 80px rgba(255,200,140,0.7),0 0 160px rgba(255,107,53,0.4);}50%{box-shadow:0 0 36px #fff,0 0 120px rgba(255,200,140,0.85),0 0 200px rgba(255,107,53,0.55);}}
+  .star:nth-child(odd){animation-delay:-2s;}
+  .star:nth-child(3n){animation-duration:3s;}
+  .star:nth-child(5n){animation-duration:5s;}
+
+  .lbl{position:absolute;color:rgba(255,255,255,0.85);font-size:13px;font-weight:500;letter-spacing:-0.005em;white-space:nowrap;z-index:16;text-shadow:0 0 6px rgba(0,0,0,0.85);}
+  .gtit{position:absolute;color:rgba(255,200,140,0.85);font-size:15px;letter-spacing:0.28em;font-weight:700;text-shadow:0 0 12px rgba(0,0,0,0.9);z-index:18;}
+  .gsub{position:absolute;color:rgba(255,255,255,0.45);font-size:11px;letter-spacing:0.16em;font-weight:500;z-index:18;}
+  .dust{position:absolute;width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,0.6);z-index:5;}
+</style>
+</head>
+<body>
+<div id="stage"><div id="wrap">
+
+  <div class="chap">바다의 모든 것을 · 앱 하나로</div>
+  <div class="head"><span class="em">바다의 별자리.</span> 네 갈래로 빛납니다.</div>
+  <div class="acc"></div>
+  <div class="sub">25+개 기능을 — 네 개의 별자리로 묶어 한 하늘에.</div>
+
+  <div class="star core" style="left:960px;top:650px;"></div>
+  <div class="lbl" style="left:990px;top:660px;color:#FFE3B8;font-size:18px;font-weight:700;letter-spacing:0.24em;">SEA:GNAL</div>
+  <div class="lbl" style="left:990px;top:685px;color:rgba(255,200,140,0.7);font-size:11px;letter-spacing:0.2em;">CORE</div>
+
+  <!-- 특보 -->
+  <div class="gtit" style="left:200px;top:380px;">특보 및 전망</div>
+  <div class="gsub" style="left:200px;top:408px;">TAB 1</div>
+  <div class="star big warm" style="left:260px;top:460px;"></div><div class="lbl" style="left:285px;top:455px;">해상기상전망</div>
+  <div class="star" style="left:380px;top:500px;"></div><div class="lbl" style="left:400px;top:495px;">해역별 특보 GIS</div>
+  <div class="star" style="left:520px;top:460px;"></div><div class="lbl" style="left:540px;top:455px;">기상예보</div>
+  <div class="star big warm" style="left:440px;top:560px;"></div><div class="lbl" style="left:460px;top:555px;">태풍 통합</div>
+  <div class="star" style="left:320px;top:580px;"></div><div class="lbl" style="left:340px;top:575px;">기상부이 118</div>
+  <div class="star" style="left:200px;top:540px;"></div><div class="lbl" style="left:220px;top:535px;">해상일기도</div>
+
+  <!-- 해양종합 -->
+  <div class="gtit" style="right:200px;top:380px;text-align:right;">해양종합정보</div>
+  <div class="gsub" style="right:200px;top:408px;text-align:right;">TAB 2</div>
+  <div class="star big warm" style="left:1380px;top:470px;"></div><div class="lbl" style="left:1400px;top:465px;">임의 해점 종합</div>
+  <div class="star" style="left:1280px;top:520px;"></div><div class="lbl" style="left:1180px;top:515px;text-align:right;width:90px;">유향·유속</div>
+  <div class="star" style="left:1500px;top:500px;"></div><div class="lbl" style="left:1520px;top:495px;">CCTV 237</div>
+  <div class="star big warm" style="left:1420px;top:580px;"></div><div class="lbl" style="left:1440px;top:575px;">물때 · 갯벌</div>
+  <div class="star" style="left:1580px;top:570px;"></div><div class="lbl" style="left:1600px;top:565px;">해구별 기상</div>
+  <div class="star" style="left:1300px;top:600px;"></div><div class="lbl" style="left:1200px;top:595px;text-align:right;width:90px;">위치 알림</div>
+  <div class="star" style="left:1640px;top:460px;"></div><div class="lbl" style="left:1500px;top:430px;width:130px;text-align:right;">풍 · 파</div>
+
+  <!-- 해양생활 -->
+  <div class="gtit" style="left:200px;top:830px;">해양생활</div>
+  <div class="gsub" style="left:200px;top:858px;">TAB 3</div>
+  <div class="star big" style="left:280px;top:780px;"></div><div class="lbl" style="left:300px;top:775px;">바다낚시</div>
+  <div class="star" style="left:420px;top:810px;"></div><div class="lbl" style="left:440px;top:805px;">서핑</div>
+  <div class="star" style="left:540px;top:770px;"></div><div class="lbl" style="left:560px;top:765px;">갯벌체험</div>
+  <div class="star big" style="left:460px;top:880px;"></div><div class="lbl" style="left:480px;top:875px;">바다갈라짐</div>
+  <div class="star" style="left:320px;top:910px;"></div><div class="lbl" style="left:340px;top:905px;">해수욕</div>
+
+  <!-- 공지·AI -->
+  <div class="gtit" style="right:200px;top:830px;text-align:right;">공지 · AI</div>
+  <div class="gsub" style="right:200px;top:858px;text-align:right;">TAB 4 · 부가</div>
+  <div class="star big" style="left:1400px;top:780px;"></div><div class="lbl" style="left:1420px;top:775px;">공지사항</div>
+  <div class="star" style="left:1540px;top:810px;"></div><div class="lbl" style="left:1560px;top:805px;">기관 홍보</div>
+  <div class="star" style="left:1300px;top:830px;"></div><div class="lbl" style="left:1180px;top:825px;text-align:right;width:110px;">팝업 알림</div>
+  <div class="star big warm" style="left:1480px;top:880px;"></div><div class="lbl" style="left:1500px;top:875px;">AI 나리</div>
+  <div class="star" style="left:1620px;top:870px;"></div><div class="lbl" style="left:1640px;top:865px;">N 배지</div>
+
+  <div class="dust" style="left:160px;top:200px;"></div>
+  <div class="dust" style="left:1820px;top:240px;"></div>
+  <div class="dust" style="left:1750px;top:660px;"></div>
+  <div class="dust" style="left:90px;top:680px;"></div>
+  <div class="dust" style="left:850px;top:980px;"></div>
+  <div class="dust" style="left:1100px;top:990px;"></div>
+  <div class="dust" style="left:680px;top:1010px;"></div>
+  <div class="dust" style="left:1300px;top:980px;"></div>
+  <div class="dust" style="left:200px;top:1010px;"></div>
+  <div class="dust" style="left:1700px;top:1010px;"></div>
+  <div class="dust" style="left:480px;top:340px;"></div>
+  <div class="dust" style="left:1500px;top:340px;"></div>
+
+  <svg id="cons">
+    <line x1="265" y1="465" x2="385" y2="505"/>
+    <line x1="385" y1="505" x2="525" y2="465"/>
+    <line x1="385" y1="505" x2="445" y2="565"/>
+    <line x1="445" y1="565" x2="325" y2="585"/>
+    <line x1="325" y1="585" x2="205" y2="545"/>
+    <line x1="205" y1="545" x2="265" y2="465"/>
+    <line class="bright" x1="445" y1="565" x2="950" y2="650"/>
+
+    <line x1="1385" y1="475" x2="1285" y2="525"/>
+    <line x1="1385" y1="475" x2="1505" y2="505"/>
+    <line x1="1385" y1="475" x2="1425" y2="585"/>
+    <line x1="1425" y1="585" x2="1305" y2="605"/>
+    <line x1="1425" y1="585" x2="1585" y2="575"/>
+    <line x1="1505" y1="505" x2="1645" y2="465"/>
+    <line class="bright" x1="1425" y1="585" x2="970" y2="650"/>
+
+    <line x1="285" y1="785" x2="425" y2="815"/>
+    <line x1="425" y1="815" x2="545" y2="775"/>
+    <line x1="425" y1="815" x2="465" y2="885"/>
+    <line x1="465" y1="885" x2="325" y2="915"/>
+    <line class="bright" x1="465" y1="885" x2="950" y2="660"/>
+
+    <line x1="1405" y1="785" x2="1545" y2="815"/>
+    <line x1="1405" y1="785" x2="1305" y2="835"/>
+    <line x1="1405" y1="785" x2="1485" y2="885"/>
+    <line x1="1485" y1="885" x2="1625" y2="875"/>
+    <line class="bright" x1="1485" y1="885" x2="970" y2="660"/>
+  </svg>
+
+  <div class="foot">밤하늘처럼 — 흩어진 기능을 별자리로 묶었습니다.</div>
+
+</div></div>
+<script>
+  function fit(){
+    const w = window.innerWidth, h = window.innerHeight;
+    const s = Math.min(w/1920, h/1080);
+    document.getElementById('wrap').style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', fit);
+  fit();
+</script>
+</body>
+</html>

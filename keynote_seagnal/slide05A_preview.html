@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>SEA:GNAL — 시안 A · 폰 + 위성 칩</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#fff;overflow:hidden;height:100%;}
+  *{box-sizing:border-box;}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  #wrap{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center;background:#000;overflow:hidden;}
+  #wrap::before{content:'';position:absolute;left:50%;top:58%;transform:translate(-50%,-50%);width:1400px;height:1400px;background:radial-gradient(circle,rgba(255,107,53,0.15) 0%,transparent 55%);pointer-events:none;}
+
+  .chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;}
+  .head{position:absolute;left:120px;top:140px;color:#fff;font-size:64px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;}
+  .head .em{color:#FF6B35;}
+  .acc{position:absolute;left:120px;top:240px;width:80px;height:6px;background:#FF6B35;}
+  .sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.65);font-size:26px;font-weight:300;}
+  .foot{position:absolute;left:120px;bottom:50px;color:rgba(255,255,255,0.5);font-size:22px;letter-spacing:0.04em;font-weight:500;}
+
+  #phone{position:absolute;left:50%;top:62%;transform:translate(-50%,-50%);width:300px;height:560px;background:linear-gradient(135deg,#1a1a1a,#0a0a0a);border:3px solid rgba(255,255,255,0.75);border-radius:42px;box-shadow:0 0 100px rgba(255,107,53,0.45),inset 0 2px 0 rgba(255,255,255,0.08);}
+  #phone::before{content:'';position:absolute;left:50%;top:14px;transform:translateX(-50%);width:120px;height:22px;background:#000;border-radius:14px;}
+  .ptop{position:absolute;left:20px;top:60px;color:#FF6B35;font-size:11px;letter-spacing:0.32em;font-weight:700;}
+  .plogo{position:absolute;left:20px;right:20px;top:90px;color:#fff;font-size:38px;font-weight:700;letter-spacing:-0.025em;line-height:1.1;}
+  .pscreen{position:absolute;left:20px;right:20px;top:200px;bottom:80px;background:linear-gradient(180deg,rgba(255,107,53,0.14),transparent);border-radius:14px;border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.5);font-size:14px;text-align:center;padding:20px;line-height:1.6;}
+  .ptabs{position:absolute;left:0;right:0;bottom:18px;display:flex;padding:8px 0;border-top:1px solid rgba(255,255,255,0.15);}
+  .ptab{flex:1;text-align:center;color:rgba(255,255,255,0.45);font-size:10px;font-weight:500;}
+  .ptab.act{color:#FF6B35;font-weight:700;}
+
+  .chip{position:absolute;padding:11px 20px;border-radius:24px;font-size:16px;font-weight:500;letter-spacing:-0.01em;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.5);color:#fff;box-shadow:0 4px 18px rgba(0,0,0,0.5);white-space:nowrap;animation:float 6s ease-in-out infinite;}
+  .chip.s{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.22);font-size:14px;padding:9px 16px;}
+  .chip.hi{background:rgba(255,107,53,0.35);border-color:#FF6B35;font-weight:700;box-shadow:0 4px 28px rgba(255,107,53,0.55);}
+  @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+  .chip:nth-child(odd){animation-delay:-3s;}
+  .chip:nth-child(3n){animation-duration:7s;}
+  .chip:nth-child(5n){animation-duration:5s;}
+</style>
+</head>
+<body>
+<div id="stage"><div id="wrap">
+
+  <div class="chap">바다의 모든 것을 · 앱 하나로</div>
+  <div class="head"><span class="em">한 앱</span>에 — 25+개 기능.</div>
+  <div class="acc"></div>
+  <div class="sub">흩어진 7개 공공 출처를 통합 — 단 하나의 바다 운영체제.</div>
+
+  <div id="phone">
+    <div class="ptop">SEA:GNAL</div>
+    <div class="plogo">바다<br>그 날의 신호</div>
+    <div class="pscreen">실시간 특보 ·<br>해양 종합정보 ·<br>해양생활 · AI 비서</div>
+    <div class="ptabs">
+      <div class="ptab act">특보전망</div>
+      <div class="ptab">해양종합</div>
+      <div class="ptab">해양생활</div>
+      <div class="ptab">공지사항</div>
+    </div>
+  </div>
+
+  <div class="chip hi" style="left:50%;top:340px;transform:translateX(-50%);">AI 어시스턴트 "나리"</div>
+
+  <div class="chip" style="left:130px;top:420px;">해상기상전망</div>
+  <div class="chip" style="left:60px;top:520px;">해역별 특보 GIS</div>
+  <div class="chip" style="left:150px;top:620px;">기상예보</div>
+  <div class="chip" style="left:80px;top:720px;">기상부이 118</div>
+  <div class="chip" style="left:200px;top:820px;">해상일기도</div>
+  <div class="chip hi" style="left:120px;top:920px;">태풍 통합 (NEW)</div>
+
+  <div class="chip" style="right:130px;top:420px;">유향 · 유속</div>
+  <div class="chip" style="right:60px;top:520px;">CCTV 237개소</div>
+  <div class="chip hi" style="right:150px;top:620px;">물때 · 갯벌 (NEW)</div>
+  <div class="chip" style="right:80px;top:720px;">임의 해점 종합</div>
+  <div class="chip" style="right:200px;top:820px;">해구별 기상</div>
+  <div class="chip" style="right:120px;top:920px;">위치 자동 알림</div>
+
+  <div class="chip s" style="left:120px;top:990px;">바다낚시 · 서핑 · 갯벌체험</div>
+  <div class="chip s" style="left:50%;top:990px;transform:translateX(-50%);">해수욕 · 바다갈라짐</div>
+  <div class="chip s" style="right:120px;top:990px;">7출처 · 4종 배경지도</div>
+
+  <div class="foot">바다의 모든 기능을 — 한 화면, 한 손에.</div>
+
+</div></div>
+<script>
+  function fit(){
+    const w = window.innerWidth, h = window.innerHeight;
+    const s = Math.min(w/1920, h/1080);
+    document.getElementById('wrap').style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', fit);
+  fit();
+</script>
+</body>
+</html>
