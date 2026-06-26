@@ -98,7 +98,7 @@
   .pbubble .thought{display:block;font-size:21px;color:rgba(0,0,0,0.5);font-style:italic;margin-top:8px;letter-spacing:-0.005em;}
 
   /* --- OVERLAY TEXT ON BLURRED PANELS --- */
-  .panel-overlay{position:absolute;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:18px;background:rgba(0,0,0,0.55);color:#FFFFFF;font-size:38px;font-weight:600;line-height:1.85;letter-spacing:-0.015em;padding:40px;opacity:0;pointer-events:none;transition:opacity 0.6s ease 0.4s;z-index:15;}
+  .panel-overlay{position:absolute;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:18px;background:rgba(0,0,0,0.55);color:#FFFFFF;font-size:66px;font-weight:600;line-height:1.55;letter-spacing:-0.02em;padding:40px;opacity:0;pointer-events:none;transition:opacity 0.6s ease 0.4s;z-index:15;}
   .panel-overlay .em{color:#FF6B35;}
   .panel-overlay .ln{display:block;}
   .panel-overlay .ln + .ln{margin-top:14px;}
@@ -440,11 +440,9 @@
   @keyframes cGlow{0%,100%{opacity:0.9;}50%{opacity:1;transform:translateX(-50%) scale(1.04);}}
   #closing .c-horizon{position:absolute;left:0;right:0;bottom:120px;height:2px;background:linear-gradient(90deg,transparent,rgba(255,200,120,0.85),transparent);box-shadow:0 0 30px rgba(255,140,60,0.6);}
   #closing .c-sun{position:absolute;left:50%;bottom:118px;transform:translateX(-50%);width:240px;height:120px;background:radial-gradient(ellipse at center bottom,#FFEAB0 0%,#FF8C3D 50%,transparent 80%);border-top-left-radius:120px;border-top-right-radius:120px;animation:cSunPulse 4s ease-in-out infinite;}
-  /* 일출 안 함정 실루엣 (역광) */
-  #closing .c-vessel{position:absolute;left:50%;bottom:110px;transform:translate(-50%,8px);width:180px;height:60px;opacity:0;z-index:4;pointer-events:none;
-    transition:opacity 1.1s ease, transform 1.1s cubic-bezier(0.22,1,0.36,1);
+  /* 일출 안 함정 실루엣 (역광) — 일출과 함께 처음부터 표시 */
+  #closing .c-vessel{position:absolute;left:50%;bottom:115px;transform:translate(-50%,0);width:180px;height:60px;z-index:4;pointer-events:none;
     filter:drop-shadow(0 0 4px rgba(0,0,0,0.5));}
-  #wrap.s15 #closing .c-vessel{opacity:1;transform:translate(-50%,0);transition-delay:2.0s;}
   @keyframes cSunPulse{0%,100%{opacity:0.95;}50%{opacity:1;filter:brightness(1.1);}}
   /* 텍스트: 기본 opacity 0 + 아래 30px → 떠오르며 등장 */
   #closing .c-line1{position:absolute;left:50%;top:285px;color:#FFFFFF;font-size:104px;font-weight:700;letter-spacing:-0.035em;line-height:1.15;text-align:center;opacity:0;transform:translate(-50%, 30px);transition:opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);}
