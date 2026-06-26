@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>SEA:GNAL — 슬라이드 02 프리뷰</title>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <style>
@@ -542,18 +543,11 @@
 
   function fit(){
     const w = window.innerWidth, h = window.innerHeight;
-    if(h > w){
-      // 세로(휴대폰) — 90° 회전해 화면을 꽉 채움 (폰을 가로로 돌리면 정방향)
-      const s = Math.min(h/1920, w/1080);
-      wrap.style.transform = 'rotate(90deg) scale(' + s + ')';
-    } else {
-      // 가로(PC·태블릿) — 그대로 맞춤
-      const s = Math.min(w/1920, h/1080);
-      wrap.style.transform = 'rotate(0deg) scale(' + s + ')';
-    }
+    const s = Math.min(w/1920, h/1080);
+    wrap.style.transform = 'scale(' + s + ')';
   }
   window.addEventListener('resize', fit);
-  window.addEventListener('orientationchange', fit);
+  window.addEventListener('orientationchange', () => setTimeout(fit, 60));
   fit();
 
   /* === 분자형 7출처 그래프 (s4) 유기적 호흡 애니메이션 === */
