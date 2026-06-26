@@ -418,6 +418,30 @@
   #wrap.s14 .rm-phase.mid{transition-delay:0.95s;}
   #wrap.s14 .rm-phase.long{transition-delay:1.2s;}
 
+  /* ============ S15 · 클로징 (Sunrise) ============ */
+  #closing{position:absolute;inset:0;z-index:55;background:linear-gradient(180deg,#000 0%,#000814 40%,#0a1830 70%,#1a2840 90%,#000 100%);opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
+  #wrap.s15 #closing{opacity:1;}
+  #closing::before{content:'';position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:1700px;height:600px;background:radial-gradient(ellipse at center bottom,rgba(255,107,53,0.55) 0%,rgba(255,107,53,0.18) 25%,transparent 55%);pointer-events:none;animation:cGlow 5s ease-in-out infinite;}
+  @keyframes cGlow{0%,100%{opacity:0.9;}50%{opacity:1;transform:translateX(-50%) scale(1.04);}}
+  #closing .c-horizon{position:absolute;left:0;right:0;bottom:120px;height:2px;background:linear-gradient(90deg,transparent,rgba(255,200,120,0.85),transparent);box-shadow:0 0 30px rgba(255,140,60,0.6);}
+  #closing .c-sun{position:absolute;left:50%;bottom:118px;transform:translateX(-50%);width:240px;height:120px;background:radial-gradient(ellipse at center bottom,#FFEAB0 0%,#FF8C3D 50%,transparent 80%);border-top-left-radius:120px;border-top-right-radius:120px;animation:cSunPulse 4s ease-in-out infinite;}
+  @keyframes cSunPulse{0%,100%{opacity:0.95;}50%{opacity:1;filter:brightness(1.1);}}
+  /* 텍스트: 기본 opacity 0 + 아래 30px → 떠오르며 등장 */
+  #closing .c-line1{position:absolute;left:50%;top:285px;color:#FFFFFF;font-size:104px;font-weight:700;letter-spacing:-0.035em;line-height:1.15;text-align:center;opacity:0;transform:translate(-50%, 30px);transition:opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);}
+  #closing .c-line2{position:absolute;left:50%;top:415px;color:#FF6B35;font-size:104px;font-weight:700;letter-spacing:-0.035em;line-height:1.15;text-align:center;text-shadow:0 0 30px rgba(255,107,53,0.4);opacity:0;transform:translate(-50%, 30px);transition:opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);}
+  #closing .c-accent{position:absolute;left:50%;top:575px;width:100px;height:5px;background:#FF6B35;box-shadow:0 0 20px rgba(255,107,53,0.6);opacity:0;transform:translate(-50%, 30px);transition:opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);}
+  #closing .c-cta{position:absolute;left:50%;top:625px;color:#FFFFFF;font-size:46px;font-weight:600;letter-spacing:-0.015em;text-align:center;opacity:0;transform:translate(-50%, 30px);transition:opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);}
+  #closing .c-cta .em{color:#FF6B35;font-weight:700;}
+  /* 발표자 (우측 하단, 흰색) */
+  #closing .c-presenter{position:absolute;right:60px;bottom:30px;color:#fff;font-size:22px;font-weight:500;letter-spacing:-0.005em;z-index:30;opacity:0;transform:translateY(16px);transition:opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);}
+  /* s15 진입 시 순차 fade-up */
+  #wrap.s15 #closing .c-line1{opacity:1;transform:translate(-50%, 0);transition-delay:0.35s;}
+  #wrap.s15 #closing .c-line2{opacity:1;transform:translate(-50%, 0);transition-delay:0.7s;}
+  #wrap.s15 #closing .c-accent{opacity:1;transform:translate(-50%, 0);transition-delay:1.0s;}
+  #wrap.s15 #closing .c-cta{opacity:1;transform:translate(-50%, 0);transition-delay:1.3s;}
+  #wrap.s15 #closing .c-presenter{opacity:1;transform:translateY(0);transition-delay:1.65s;}
+
+
   .rm-badge{flex:0 0 188px;background:linear-gradient(140deg,rgba(255,107,53,0.18),rgba(255,107,53,0.05));border-right:1px solid rgba(255,107,53,0.32);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;}
   .rm-badge .term{color:#fff;font-size:34px;font-weight:700;letter-spacing:-0.02em;line-height:1;}
   .rm-badge .period{color:rgba(255,255,255,0.65);font-size:16px;font-weight:400;margin-top:8px;letter-spacing:-0.005em;}
@@ -547,8 +571,8 @@
   <!-- s2: 우측 동료 명확 / 좌측 카톡 블러 → 좌측 위에 '왜 민간 어플을 이용해야만' -->
   <div class="panel-overlay" id="overlay-left">
     <div>
-      <span class="ln">왜 <span class="em">민간 어플</span>을 이용해야만</span>
-      <span class="ln">확인할 수 있지?</span>
+      <span class="ln"><span class="em">민간 어플</span>을 이용해야만</span>
+      <span class="ln">확인할 수 있는걸까?</span>
     </div>
   </div>
 
@@ -862,6 +886,18 @@
     <div class="rm-foot">단기 우선순위 ①②는 본 대회 발표 시점 기준 기능. 추가 기능 발굴 병행 진행.</div>
   </div>
 
+  <!-- ============ S15 · 클로징 (Sunrise) ============ -->
+  <div id="closing">
+    <div class="c-line1">가장 복잡한 정보를</div>
+    <div class="c-line2">가장 단순한 신호로</div>
+    <div class="c-accent"></div>
+    <div class="c-cta">검증된 <span class="em">SEA:GNAL</span>과 함께 갑시다.</div>
+    <div class="c-presenter">발표자 : 제주해양경찰서 1505함 경사 신진섭</div>
+    <div class="c-sun"></div>
+    <div class="c-horizon"></div>
+  </div>
+
+
 </div></div>
 
 <div id="steps">1 / 4 · 타이틀 · CLICK 으로 다음</div>
@@ -870,15 +906,15 @@
   const wrap = document.getElementById('wrap');
   const steps = document.getElementById('steps');
   let state = 0;
-  const total = 15;
-  const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들', '단계① 수요(세로)', '단계② 신호 정리안됨·낙수', '단계③ 7개+·민간 압축', '그래서 만들었습니다 (가운데)', '두 가지 원칙 (좌·우)', '한 앱에, 모든 바다 정보', '접속 단계 축소', '시연 안내', '이미 운영 중'];
+  const total = 16;
+  const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들', '단계① 수요(세로)', '단계② 신호 정리안됨·낙수', '단계③ 7개+·민간 압축', '그래서 만들었습니다 (가운데)', '두 가지 원칙 (좌·우)', '한 앱에, 모든 바다 정보', '접속 단계 축소', '시연 안내', '이미 운영 중', '추진계획', '맺음말'];
   let countersRun = false;
   let scNumRun = false;
   let trRun = false;
   let solTimer = null;
   function setState(n){
     state = Math.max(0, Math.min(total-1, n));
-    wrap.classList.remove('s0','s1','s2','s3','s4','s5','s6','s7','s8','s9','s10','s11','s12','s13','s14');
+    wrap.classList.remove('s0','s1','s2','s3','s4','s5','s6','s7','s8','s9','s10','s11','s12','s13','s14','s15');
     wrap.classList.add('s' + state);
     steps.textContent = (state+1) + ' / ' + total + ' · ' + labels[state] + ' · CLICK 으로 다음';
     // s5 진입 시 세로 수치 카운터 1회 실행
