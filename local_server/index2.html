@@ -1,4 +1,21 @@
 <!DOCTYPE html>
+<!--
+  ============================================================================
+  파일명: index2.html
+  역할: SEAGNAL 앱의 '메인 화면' HTML — 사용자가 실제로 보는 단일 페이지 앱의 뼈대
+  ----------------------------------------------------------------------------
+  [이 파일이 하는 일 — 초보자용]
+   - 앱을 켜면 가장 먼저 열리는 페이지입니다. 첫 화면(스플래시)부터 지도·물때·
+     게시판 등 모든 탭의 '틀'을 담고 있습니다.
+   - 화면에 필요한 글꼴·디자인(css)과 기능 코드(js)를 아래 <link>/<script>
+     태그로 불러옵니다. (이 파일 자체는 '뼈대', 실제 동작은 js 파일들이 담당)
+  [어떤 파일과 연결되나]
+   - server.js   : 이 파일이 요청하는 글꼴·이미지·코드 파일을 보내주는 서버.
+                   각 파일을 브라우저에 얼마나 오래 보관할지(캐시)도 server.js 가 정함.
+   - style.css / splash.css : 화면 색·배치·스플래시 등 '겉모습'을 꾸미는 스타일.
+   - js/*.js     : 지도·물때 등 실제 '동작'을 담당하는 기능 코드.
+  ============================================================================
+-->
 <html lang="ko">
 
 <head>
@@ -1803,16 +1820,29 @@
          변경: assets/vendor/fonts/fonts.css (493 @font-face, unicode-range 보존)
          → font-family 이름은 동일 (Inter / Noto Sans KR / Nanum Pen Script)
          → style.css / splash.css 등의 font-family 선언 변경 불필요 -->
+    <!-- ▼ 초보자용 설명 ───────────────────────────────────────────────────
+         [이 한 줄이 하는 일] 예전엔 앱을 처음 열면 'SEA:GNAL' 제목이 잠깐 다른
+         글씨체로 보였다가 원래 글씨체로 바뀌는 깜빡임이 있었습니다. 바로 아래
+         preload 태그는 그 제목에 쓰는 글꼴 파일을 '화면을 그리기 전에 미리 받아둬'
+         라고 브라우저에 알려주어, 처음부터 올바른 글씨체로 보이게 합니다.
+         [연결] 이 글꼴 파일을 얼마나 오래 보관할지는 server.js 의 캐시 정책 함수가
+         정합니다(글꼴은 1년 보관). 그래서 두 번째 방문부터는 다시 받지 않아 빨라집니다.
+         ────────────────────────────────────────────────────────────────── -->
     <!-- [FOUT 방지] 스플래시 타이틀(SEA:GNAL = Inter 700, Latin) 슬라이스를 HTML 파싱
          시점에 미리 받아 첫 페인트부터 정자체로 표시. fonts.css 파싱을 기다리지 않음.
          crossorigin 필수(woff2 는 CORS 모드 페치 — 없으면 @font-face 가 재다운로드). -->
     <link rel="preload" as="font" type="font/woff2" crossorigin
           href="/assets/vendor/fonts/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2">
+    <!-- [B안 캠페인] 스플래시 첫 화면에 즉시 보이는 제목 폰트(Jua)와 마스코트 이미지를
+         파싱 시점에 미리 받아 깜빡임 방지. Jua woff2 는 해시 파일명이라 1년 캐시(재다운로드 없음). -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/assets/vendor/fonts/jua/jua-subset-45ef1e74fa79c4da.woff2">
+    <link rel="preload" as="image" href="images/mascot_lifevest_v1.webp">
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
     <link rel="stylesheet" href="style.css?v=LayerClip_20260612">
-    <link rel="stylesheet" href="splash.css?v=Progress_Bar_20260612">
+    <link rel="stylesheet" href="splash.css?v=Lifevest_20260624">
 
 
     <!-- Font Awesome (자체 호스팅 — A안 단위 2-D 적용)
@@ -2221,13 +2251,20 @@
     <!-- Splash Screen -->
     <div id="splash-screen" class="splash-screen">
         <div class="splash-content">
-            <div class="splash-logo-container">
-                <div class="splash-pulse-ring"></div>
-                <div class="splash-pulse-ring"></div>
-                <div class="splash-pulse-ring"></div>
-                <div class="splash-scanner"></div>
-                <img src="images/splash_icon_transparent.png" alt="SEA:GNAL Logo" class="splash-logo">
-            </div>
+            <!-- [B안 캠페인] 세로 배치: sp-top(여백) → 제목/안내문/마스코트 → sp-bot(여백) → 하단 브랜딩/진행바.
+                 크기·간격은 splash.css 에서 vw 기반 clamp 로 잡아 화면 크기에 비례(적응형). -->
+            <div class="splash-sp-top"></div>
+
+            <!-- 제목 '구명조끼=생명조끼' : 둥근 폰트(Jua) + 심장박동 애니메이션 -->
+            <div class="splash-vest"><span class="v1">구명조끼</span><span class="v2">생명조끼</span></div>
+            <p class="splash-promise">구명조끼, 집으로 돌아가는 <b>확실한 약속</b> <span class="heart">♥</span></p>
+            <!-- 마스코트(해양경찰청 구명조끼) : 통이미지 1장. width/height 명시로 레이아웃 흔들림(CLS) 방지 -->
+            <img class="splash-mascot" src="images/mascot_lifevest_v1.webp" width="820" height="522"
+                 alt="해양경찰 구명조끼를 입은 마스코트와 구명조끼">
+
+            <div class="splash-sp-bot"></div>
+
+            <!-- 하단 브랜딩 (앱 원본 폰트: 손글씨 Nanum Pen Script / Inter) -->
             <p class="splash-subtitle-start">바다 : 그 날의 신호</p>
             <h1 class="splash-title"><span class="splash-sea">SEA</span><span class="splash-accent">:</span><span
                     class="splash-gnal">GNAL</span></h1>
@@ -2241,6 +2278,7 @@
                 </div>
                 <div class="splash-progress-label" id="splash-progress-label">앱 초기화…</div>
             </div>
+            <div class="splash-credit">이미지 출처: 해양경찰청</div>
         </div>
     </div>
     <script>
@@ -3151,6 +3189,12 @@
                         .tphn-guide-body h4{margin:12px 0 4px;color:#8fc0ff;font-size:13px;}
                         .tphn-guide-body ul{margin:0;padding-left:18px;}
                         .tphn-guide-body li{margin:3px 0;}
+                        /* 행동요령 모달 탭(해상/육상) — 본문 상단, .tphn-modal-btn 색감과 일관 */
+                        .tphn-guide-tabs{display:flex;gap:6px;margin:0 0 6px;}
+                        .tphn-guide-tab{flex:1;background:#0e2552;color:#bcd0f0;border:1px solid rgba(120,150,200,0.4);
+                            border-radius:6px;padding:7px 6px;font-size:12px;font-weight:700;cursor:pointer;line-height:1.2;}
+                        .tphn-guide-tab:hover{background:#143268;}
+                        .tphn-guide-tab.active{background:#2d6cdf;color:#fff;border-color:#2d6cdf;}
                         .tphn-tel{display:inline-block;margin-top:2px;background:#d50000;color:#fff;
                             padding:3px 10px;border-radius:6px;text-decoration:none;font-weight:700;}
                         /* 통보문 안내(i) 버튼 / 이미지(지도) 버튼 */
@@ -3196,12 +3240,19 @@
                         </div>
                     </div>
 
-                    <!-- 태풍 시 해상 종사자 행동요령 팝업 (해양수산부·해경·기상청·수협 기준) -->
+                    <!-- 태풍 시 행동요령 팝업 (해양수산부·해경·기상청·수협·행안부 국민행동요령 기준) -->
                     <div id="tphn-guide-modal" class="tphn-guide-modal" style="display:none;" aria-hidden="true">
                         <div class="tphn-guide-card">
-                            <div class="tphn-guide-head"><span>🌀 태풍 시 해상 종사자 행동요령</span>
+                            <div class="tphn-guide-head"><span>🌀 태풍 시 행동요령</span>
                                 <button id="tphn-guide-close" class="tphn-guide-close" type="button" aria-label="닫기">&times;</button></div>
                             <div class="tphn-guide-body">
+                                <!-- 해상/육상 탭 — 기본 선택은 해상. 전환 로직은 ocean_typhoon.js selectGuideTab -->
+                                <div class="tphn-guide-tabs">
+                                    <button type="button" class="tphn-guide-tab active" data-tab="sea">해상 종사자 행동요령</button>
+                                    <button type="button" class="tphn-guide-tab" data-tab="land">육상에서의 행동요령</button>
+                                </div>
+                                <!-- 해상 탭(기존 내용 보존) -->
+                                <div class="tphn-guide-pane" data-pane="sea">
                                 <h4>사전 준비</h4>
                                 <ul>
                                     <li>기상·태풍 진로를 수시로 확인하고 영향권 진입을 피합니다.</li>
@@ -3225,6 +3276,35 @@
                                     <li>인명 안전을 먼저 확인하고 응급조치합니다.</li>
                                     <li>선박·시설 피해 발생 시 응급조치 후 신고 — <a href="tel:119" class="tphn-tel"><i class="fa-solid fa-phone"></i> 긴급신고 119</a></li>
                                 </ul>
+                                </div>
+                                <!-- 육상 탭(행정안전부 국민행동요령 기준) -->
+                                <div class="tphn-guide-pane" data-pane="land" style="display:none;">
+                                <h4>[태풍 예보 시] 사전 대비</h4>
+                                <ul>
+                                    <li>TV·라디오·스마트폰(안전디딤돌 앱)으로 기상상황을 미리 파악하고 가족·이웃과 공유합니다.</li>
+                                    <li>산간·계곡·하천·방파제에서 야영·물놀이를 멈추고, 저지대·상습침수·산사태위험지역·지하공간·노후건물에서 안전한 곳으로 이동합니다.</li>
+                                    <li>바람에 날아갈 지붕·간판을 결박하고, 창문은 창틀에 단단히 고정합니다.</li>
+                                    <li>하수구·배수구를 점검해 막힌 곳을 뚫고, 침수예상지역엔 모래주머니·물막이판을 설치합니다. 저지대 주차 차량은 옮깁니다.</li>
+                                    <li>비상용품(랜턴·배터리·응급용품)을 준비하고, 단수 대비 욕조에 물을 받아둡니다.</li>
+                                    <li>외출을 자제하고, 어르신·어린이·장애인은 외출하지 않도록 하며 수시로 안부를 확인합니다.</li>
+                                </ul>
+                                <h4>[태풍 특보 중] 실내 안전·외출 금지</h4>
+                                <ul>
+                                    <li>외출을 삼가고 창문 없는 방·집 안쪽에 머무르며, 창문·유리문에서 떨어져 있습니다.</li>
+                                    <li>출입문·창문을 닫고, 가스를 미리 차단하며, 집 안팎 전기시설을 만지지 않습니다. 정전 시 양초 대신 랜턴·휴대폰을 사용합니다.</li>
+                                    <li>침수된 도로·지하차도·교량은 차량 통행을 금지하고, 하천변·해안가 등 급류·침수 위험지역에 접근하지 않습니다.</li>
+                                    <li>공사장·전신주·지하공간에 접근하지 않고, 농촌은 논둑·물꼬를 보러 나가지 않습니다.</li>
+                                    <li>대피 권고를 받거나 위험지역에 있으면 즉시 안전한 곳으로 대피하고, 대피가 어려운 분들을 돕습니다.</li>
+                                </ul>
+                                <h4>[태풍 이후]</h4>
+                                <ul>
+                                    <li>가족·지인의 안전을 확인하고, 실종 의심 시 가까운 경찰서에 신고합니다.</li>
+                                    <li>집에 돌아오면 주택 안전 확인 후 출입하고, 파손 시설은 시·군·구청/주민센터에 신고(복구 전 사진 촬영)합니다.</li>
+                                    <li>침수된 도로·교량·하천 제방에 가까이 가지 않습니다.</li>
+                                    <li>침수된 가스·전기는 차단기 확인 후 한국가스안전공사(<a href="tel:1544-4500" class="tphn-tel"><i class="fa-solid fa-phone"></i> 1544-4500</a>)·한국전기안전공사(<a href="tel:1588-7500" class="tphn-tel"><i class="fa-solid fa-phone"></i> 1588-7500</a>) 또는 전문가 점검 후 사용하고 충분히 환기합니다.</li>
+                                    <li>침수된 식수·음식은 오염·식중독 위험이 있으니 사용하지 않습니다.</li>
+                                </ul>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -4223,6 +4303,16 @@
     <script src="js/render_coastal.js"></script>
     <script src="js/marine.js"></script>
     <script src="js/settings.js"></script>
+    <script src="js/location_alert_core.js"></script>
+    <script src="js/location_alert_background.js"></script>
+    <script src="js/location_alert_runtime.js"></script>
+    <script src="js/location_alert_ui.js"></script>
+    <!-- [위치기반 태풍 반경 알림 — Phase 2a] 서버 순수 모듈(typhoon_radius/typhoon_message)을
+         UMD 표출(window.TyphoonRadius/TyphoonMessage)로 단말에서 그대로 재사용 + 태풍 반경 런타임.
+         두 서비스 파일은 런타임보다 먼저 로드돼야 한다(전역이 먼저 정의되어야 함). 특보 런타임과 별 파일 공존. -->
+    <script src="services/typhoon_radius.js"></script>
+    <script src="services/typhoon_message.js"></script>
+    <script src="js/location_alert_typhoon_runtime.js"></script>
     <script src="js/forecast.js"></script>
     <script src="js/windy.js?v=BuoyClip_20260612"></script>
     <script src="js/marine_forecast.js"></script>
@@ -4274,7 +4364,7 @@
     <script src="js/ocean_warn_active3.js"></script>
     <script src="js/ocean_warn_active4.js"></script>
     <script src="js/ocean_warn_active5.js"></script>
-    <script src="js/ocean_warn_vsby.js?v=VsbyClip_20260612"></script>
+    <script src="js/ocean_warn_vsby.js?v=VsbyErrBadge_20260617"></script>
     <script src="js/ocean_timeline.js"></script>
     <!-- 천기 (KMA 단기예보 PNG 오버레이): 토글 버튼 + 5개 서브버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 -->
     <script src="js/shrt_forecast_layer.js"></script>
@@ -4302,8 +4392,12 @@
     <script src="js/admin_report.js"></script>
     <!-- [데모 시연] 관리자 센터 데모 특보 슬롯 UI + 관리자 기기 한정 표출 -->
     <script src="js/admin_demo.js"></script>
+    <script src="js/admin_location_demo.js"></script>
+    <!-- 위치 기반 특보 시연(실제 푸시) 하위탭 -->
+
     <script src="js/demo_alert.js"></script>
     <script src="js/advisory_demo_admin.js"></script>
+    <script src="js/typhoon_demo_admin.js"></script>
     <script src="js/advisory_manage_admin.js"></script>
     <script src="js/advisory_demo.js"></script>
     <script src="js/report_user.js"></script>
@@ -5036,6 +5130,77 @@
                                     </label>
                                 </div>
                                 <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">연안바다, 평수구역 특보 정보 표출</div>
+                                <div class="setting-item" style="padding: 10px 0 0 0; border: none; background: none;">
+                                    <div class="setting-label" style="font-size: 0.95rem; color: #cbd5e1;">
+                                        태풍 알림 받기
+                                        <i class="fa-solid fa-hurricane"
+                                            style="font-size: 0.8rem; color: #94a3b8; margin-left: 5px;"></i>
+                                    </div>
+                                    <label class="switch" style="transform: scale(0.85);">
+                                        <input type="checkbox" id="push-opt-typhoon">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">태풍 발생·소멸 시 알림</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 위치 기반 기상 정보 제공 (관리자 전용) -->
+                    <div id="location-alert-card" class="notification-settings-card"
+                        style="margin: 0 15px 15px; background: rgba(30, 41, 59, 0.4); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); overflow: hidden; backdrop-filter: blur(10px);">
+                        <div
+                            style="padding: 18px 15px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                            <div style="flex: 1;">
+                                <div
+                                    style="font-size: 1rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <i class="fa-solid fa-location-crosshairs" style="color: var(--accent-blue);"></i>위치 기반 기상 정보 제공
+                                    <span id="location-alert-admin-badge"
+                                        style="display: none; font-size: 0.65rem; font-weight: 600; color: #fbbf24; background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 6px; padding: 2px 6px;">관리자 전용</span>
+                                </div>
+                                <div
+                                    style="font-size: 0.75rem; color: #94a3b8; font-weight: normal; margin-top: 6px; line-height: 1.5;">
+                                    내가 실제로 위치한 해역에 특보가 발효되면 안전 경보를 보내드립니다. 위치정보는 휴대폰 내부에만 저장되며 서버로 전송되지 않습니다.
+                                </div>
+                                <div id="location-alert-status"
+                                    style="font-size: 0.72rem; color: #64748b; margin-top: 8px;">비활성 상태입니다.</div>
+                                <div id="location-alert-update-note"
+                                    style="display: none; font-size: 0.74rem; color: #f87171; font-weight: 600; margin-top: 8px; line-height: 1.5;">
+                                    이 기능을 사용하려면 앱을 최신 버전으로 업데이트해 주세요.</div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="location-alert-toggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <!-- 하위 토글: 동의(상위 토글) ON 시 활성, OFF/게이트 잠금 시 흐림(opacity)+비활성. (#tab-push setting-item 패턴) -->
+                        <div id="location-alert-sub"
+                            style="padding: 0 15px 15px; transition: opacity 0.3s; opacity: 0.4; pointer-events: none;">
+                            <div style="display: flex; flex-direction: column; gap: 4px; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 6px;">
+                                <div class="setting-item" style="padding: 10px 0 0 0; border: none; background: none;">
+                                    <div class="setting-label" style="font-size: 0.95rem; color: #cbd5e1;">
+                                        위치 기반 특보 정보 받기
+                                        <i class="fa-solid fa-triangle-exclamation"
+                                            style="font-size: 0.8rem; color: #94a3b8; margin-left: 5px;"></i>
+                                    </div>
+                                    <label class="switch" style="transform: scale(0.85);">
+                                        <input type="checkbox" id="location-alert-sub-alert" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">내 위치 해역에 해상특보가 발효되면 알림</div>
+                                <div class="setting-item" style="padding: 10px 0 0 0; border: none; background: none;">
+                                    <div class="setting-label" style="font-size: 0.95rem; color: #cbd5e1;">
+                                        위치 기반 태풍 정보 받기
+                                        <i class="fa-solid fa-hurricane"
+                                            style="font-size: 0.8rem; color: #94a3b8; margin-left: 5px;"></i>
+                                    </div>
+                                    <label class="switch" style="transform: scale(0.85);">
+                                        <input type="checkbox" id="location-alert-sub-typhoon" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">내 위치가 태풍 강풍/폭풍반경에 들 것으로 예상되면 알림</div>
                             </div>
                         </div>
                     </div>

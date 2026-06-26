@@ -39,6 +39,13 @@
   var layer = params.get('layer') || '';
   var buoyId = params.get('buoy') || '';
   var target = params.get('target') || '';
+  // [태풍 시연 전용] 테스트 푸시는 실제 통보문 식별자(연도/호수/코드)를 함께 실어 보낸다.
+  //   → 실데이터 그대로 로드(라벨·정보·이미지·지도 이동), 버튼 비활성이어도 강제 활성화.
+  var demoTphn = params.get('demoTphn') === '1';
+  var dtYear = params.get('dtYear') || '';
+  var dtSeq = params.get('dtSeq') || '';
+  var dtCode = params.get('dtCode') || '';
+  var dtGuide = params.get('dtGuide') || '';  // '1' 이면 탭 시 행동요령(2탭) 팝업 자동 표출(위치기반 반경 시연)
   var lat = parseFloat(params.get('lat'));
   var lon = parseFloat(params.get('lon'));
   var label = params.get('label') || '';
@@ -132,7 +139,14 @@
       // 탭/지도 초기화 여유를 둔 뒤 레이어 활성화
       setTimeout(function () {
         try {
-          if (OVERLAY_LAYERS[layer]) {
+          if (layer === 'typhoon' && demoTphn && dtCode) {
+            // [태풍 시연] 실제 통보문(연도/호수/코드)을 강제 활성화 표출 + 지도 이동 (버튼 비활성이어도 동작)
+            waitFor(function () { return window.OceanTyphoon && typeof window.OceanTyphoon.demoFocus === 'function'; }, function () {
+              window.OceanTyphoon.demoFocus({ year: dtYear, seq: dtSeq, code: dtCode, openGuide: (dtGuide === '1') });
+              cleanUrl();
+            }, 8000);
+            return; // demoFocus 경로는 자체적으로 cleanUrl 호출
+          } else if (OVERLAY_LAYERS[layer]) {
             activateOverlay(layer);
           } else if (TOGGLE_BTN_IDS[layer]) {
             activateToggle(TOGGLE_BTN_IDS[layer]);

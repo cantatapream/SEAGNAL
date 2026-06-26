@@ -116,7 +116,10 @@ async function performBackup() {
         'notice.json',
         'notices.json',
         'promo.json',
-        'surveys.json'
+        'surveys.json',
+        'subscriptions.json',     // [추가] 푸시 구독자(토큰) — 핵심 자산. 기존 미백업이라 손상 시 복구불가였음.
+        'subscriber_stats.json',  // [추가] 구독자 수 추이(일별 집계) — 통계 보존.
+        'subscriber_events.json'  // [추가] 구독/해지/만료 일별 카운트 — 통계 보존.
     ];
 
     for (const file of targetFiles) {

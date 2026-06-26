@@ -58,6 +58,8 @@
     var _anchorClicks = 0;      // [세션] 앵커 표출 제스처 클릭 수(앱 재시작 시 0으로 리셋)
     var _anchorLayer = null;    // 앵커 포인트 디버그 레이어(세션 한정)
     var _popupOverlay = null;
+    var _popupCell = null;      // 현재 열린 팝업의 셀 — 슬라이더 시점 추종용
+    var _popupPoints = null;    // 그 셀의 깊이 시계열 [{t,dm}] (1회 fetch 후 캐시)
 
     // [줌 바닥선] 갯벌이 표출되는 최소 줌. 이보다 더 줌아웃하면 표출하지 않고 "확대
     //   하세요" 안내만 띄운다. 활성 중 이 줌에 도달하면 minZoom 으로 잠가 더 못 줌아웃
@@ -733,6 +735,7 @@
     }
 
     function updateTooltip(idx) {
+        refreshPopupForFrame(idx);   // 팝업이 열려 있으면 슬라이더 시점에 맞춰 갱신
         var tip = $('mudflat-tooltip');
         var slider = $('mudflat-slider');
         if (!tip || !slider || !_frames[idx]) return;
@@ -871,26 +874,76 @@
         }
         return null;
     }
-    function fetchEta(lat, lon, band, cb) {
+    // 한 지점의 깊이 시계열(전 프레임)을 1회 받아 [{t,dm}] 로 캐시. (슬라이더 추종 재계산용)
+    function fetchSeries(lat, lon, cb) {
         fetch('/api/tide-field/debug?lat=' + lat + '&lon=' + lon)
             .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (j) {
-                if (!j || !j.series) { cb('—'); return; }
-                var mins = _minutesUntilCross(_seriesToPoints(j.series), new Date(_frames[_frameIdx]).getTime(), band);
-                if (mins == null) { cb('예측 범위 내 없음'); return; }
+            .then(function (j) { cb(j && j.series ? _seriesToPoints(j.series) : null); })
+            .catch(function () { cb(null); });
+    }
+
+    // 시계열에서 특정 시각(ms, UTC)의 깊이(dm) — 그 시각 이하 가장 가까운 프레임값.
+    function _depthAt(points, ms) {
+        var best = null;
+        for (var i = 0; i < points.length; i++) {
+            if (points[i].t <= ms) best = points[i]; else break;
+        }
+        if (!best && points.length) best = points[0];
+        return best ? best.dm : null;
+    }
+
+    // 열린 팝업의 동적 내용(기준시각·상태·남은시간)을 주어진 슬라이더 프레임 기준으로
+    //   갱신. updateTooltip 에서 매 프레임 호출 → 재생/슬라이더 이동을 팝업이 따라감.
+    function refreshPopupForFrame(idx) {
+        if (!_popupCell) return;
+        var el = $('mudflat-popup');
+        if (!el || el.style.display === 'none') return;
+        if (idx == null) idx = _frameIdx;
+        var iso = _frames[idx]; if (!iso) return;
+        var fromMs = new Date(iso).getTime();
+
+        // 기준 시각 라벨 (KST "N일 N시 기준")
+        var refEl = el.querySelector('.mudflat-popup-ref');
+        if (refEl) {
+            var kst = new Date(fromMs + 9 * 3600000);
+            refEl.textContent = '(' + kst.getUTCDate() + '일 ' + kst.getUTCHours() + '시 기준)';
+        }
+
+        var stateEl = el.querySelector('.mudflat-popup-state');
+        var etaLabelEl = el.querySelector('.eta-label');
+        var etaEl = $('mudflat-popup-eta');
+        // 시계열 아직 도착 전 — 상태/남은시간은 보류
+        if (!_popupPoints) { if (etaEl) etaEl.textContent = '계산 중…'; return; }
+
+        var dm = _depthAt(_popupPoints, fromMs);
+        var exposed = (dm != null && dm < 0);   // 깊이<0 = 갯벌 노출
+        if (stateEl) stateEl.innerHTML = exposed
+            ? '<b style="color:#d49a5a;">갯벌 노출</b>'
+            : '<b style="color:#5a9ad4;">물에 잠김</b>';
+
+        var mins, label;
+        if (exposed) { label = '물 잠김 남은시간 :'; mins = _minutesUntilCross(_popupPoints, fromMs, 'dry'); }
+        else { label = '갯벌 노출 남은시간 :'; mins = _minutesUntilCross(_popupPoints, fromMs, 'shallow'); }
+        if (etaLabelEl) etaLabelEl.textContent = label;
+        if (etaEl) {
+            if (mins == null) etaEl.textContent = '예측 범위 내 없음';
+            else {
                 var h = Math.floor(mins / 60), m = mins % 60;
-                cb((h < 10 ? '0' : '') + h + '시간 ' + (m < 10 ? '0' : '') + m + '분');
-            }).catch(function () { cb('—'); });
+                etaEl.textContent = (h < 10 ? '0' : '') + h + '시간 ' + (m < 10 ? '0' : '') + m + '분';
+            }
+        }
     }
 
     function showCellPopup(coordinate, cell) {
         ensurePopupOverlay();
         var el = $('mudflat-popup');
         if (!el) return;
+        _popupCell = cell;
+        _popupPoints = null;   // 새 셀 — 시계열 캐시 초기화
         el.innerHTML =
             '<div class="mudflat-popup-close" id="mudflat-popup-close">&times;</div>' +
-            '<div class="mudflat-popup-title">물빠짐 예측 <span class="mudflat-popup-ref">(' + sliderRefLabel() + ')</span></div>' +
-            '<div class="mudflat-popup-row">상태 : <b style="color:#d49a5a;">갯벌 노출</b></div>' +
+            '<div class="mudflat-popup-title">물빠짐 예측 <span class="mudflat-popup-ref"></span></div>' +
+            '<div class="mudflat-popup-row">상태 : <span class="mudflat-popup-state"><b style="color:#d49a5a;">갯벌 노출</b></span></div>' +
             '<div class="mudflat-popup-row mudflat-popup-eta-row">' +
                 '<span class="eta-label">물 잠김 남은시간 :</span>' +
                 '<span class="eta-val" id="mudflat-popup-eta">계산 중…</span></div>' +
@@ -904,8 +957,12 @@
             hidePopup();
             if (window.oceanClearClickPin) window.oceanClearClickPin();   // 팝업 닫으면 핀도 제거
         };
-        fetchEta(cell.lat, cell.lon, 'dry', function (txt) {
-            var etaEl = $('mudflat-popup-eta'); if (etaEl) etaEl.textContent = txt;
+        refreshPopupForFrame(_frameIdx);   // 기준시각 즉시 표시(상태/남은시간은 시계열 도착 후)
+        // 시계열 1회 fetch 후 캐시 → 이후 슬라이더 변화는 로컬 재계산(추가 호출 없음).
+        fetchSeries(cell.lat, cell.lon, function (points) {
+            if (_popupCell !== cell) return;   // 그 사이 다른 셀로 바뀌었으면 무시
+            _popupPoints = points;
+            refreshPopupForFrame(_frameIdx);
         });
     }
 
@@ -932,6 +989,8 @@
         var el = $('mudflat-popup');
         if (el) el.style.display = 'none';
         if (_popupOverlay) _popupOverlay.setPosition(undefined);
+        _popupCell = null;       // 슬라이더 추종 중단
+        _popupPoints = null;
     }
 
     // ====================================================================

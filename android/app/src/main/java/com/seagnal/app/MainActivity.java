@@ -4,8 +4,11 @@ import android.graphics.Bitmap;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.webkit.PermissionRequest;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -15,6 +18,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
 import com.seagnal.app.voice.SeagnalAssistantPlugin;
+import com.seagnal.app.locationalert.LocationPermPlugin;
 
 /**
  * SEAGNAL Android 앱의 메인 Activity (Capacitor BridgeActivity 확장).
@@ -55,12 +59,21 @@ public class MainActivity extends BridgeActivity {
      *
      *   ⚠️ 서버측 수정을 단말에 강제 반영해야 할 때 이 값을 1 올려 배포한다.
      */
-    private static final int WEBVIEW_CACHE_BUST_TOKEN = 1;
+    private static final int WEBVIEW_CACHE_BUST_TOKEN = 6;
 
     /** 현재 오프라인 에러 페이지가 표시 중인지 여부 — onPageStarted 에서 reset. */
     private boolean isShowingError = false;
     /** 마지막으로 실패한 URL — "다시 시도" 버튼이 이 URL 로 재로드 시도. */
     private String lastFailedUrl = null;
+
+    /**
+     * [Phase 2b] 알림 탭 딥링크 extra 키.
+     *   네이티브 태풍 반경 알림(LocationAlertNotifier.notify(...,url))이 절대 URL 을 이 키로 싣는다.
+     *   killed 상태에서 알림을 누르면 MainActivity 가 cold-start 되는데, 이 URL 을 읽어 WebView 를
+     *   해당 통보문/행동요령 화면으로 1회 이동시킨다. (JS localNotificationActionPerformed 는 네이티브
+     *   알림 탭을 받지 못하므로, 딥링크가 실제로 동작하려면 여기서 직접 읽어야 한다.)
+     */
+    private static final String EXTRA_NOTIFICATION_URL = "url";
 
     /**
      * Capacitor 브릿지 초기화 전에 커스텀 플러그인을 등록한다.
@@ -69,6 +82,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SeagnalAssistantPlugin.class);
+        registerPlugin(LocationPermPlugin.class);   // 위치 '항상 허용' 네이티브 권한 요청
         super.onCreate(savedInstanceState);
     }
 
@@ -143,6 +157,57 @@ public class MainActivity extends BridgeActivity {
                     });
                 }
             });
+
+            // [Phase 2b] 알림 탭 딥링크 — cold-start 시 런치 인텐트에 url 이 있으면 그 화면으로 이동.
+            //   (위 WebView 설정/캐시버스트 로직과 독립. url 이 없으면 아무것도 하지 않아 기본 홈 로드 유지.)
+            handleNotificationDeepLink(getIntent());
+        }
+    }
+
+    /**
+     * [Phase 2b] 앱이 이미 떠 있을 때(SINGLE_TOP) 알림을 다시 탭하면 새 인텐트가 여기로 온다.
+     *   같은 딥링크 처리 경로로 WebView 를 이동. 기존 동작에는 영향 없음.
+     */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent); // getIntent() 가 최신 인텐트를 반환하도록 갱신
+        handleNotificationDeepLink(intent);
+    }
+
+    /**
+     * [Phase 2b] 알림 인텐트의 딥링크 URL(extra "url" 또는 data Uri)을 읽어 WebView 를 1회 이동.
+     *   - 완전 방어적: url 없음/빈문자/WebView null/예외 → 아무 동작 없이 기본 앱 열기로 폴백(크래시 금지).
+     *   - 처리 후 extra 를 제거해 onStart 재진입(화면 회전/복귀) 시 재이동을 막는다.
+     *   - 캐시버스트/오프라인 폴백 로직과 무관(같은 WebView.loadUrl 만 호출).
+     */
+    private void handleNotificationDeepLink(Intent intent) {
+        if (intent == null) return;
+        try {
+            String url = intent.getStringExtra(EXTRA_NOTIFICATION_URL);
+            if (TextUtils.isEmpty(url)) {
+                // extra 가 없으면 data Uri 폴백(notify 가 둘 다 싣지만 방어적으로 확인).
+                Uri data = intent.getData();
+                if (data != null) url = data.toString();
+            }
+            if (TextUtils.isEmpty(url)) return;             // 일반 실행 → 기본 홈 유지
+            if (!url.startsWith("http")) return;            // 절대 URL 만 로드(상대경로는 무시 → 기본 홈)
+
+            WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+            if (webView == null) return;
+
+            final String target = url;
+            // 한 번만 이동하도록 extra/ data 소비.
+            intent.removeExtra(EXTRA_NOTIFICATION_URL);
+            intent.setData(null);
+
+            webView.post(new Runnable() {
+                @Override public void run() {
+                    try { webView.loadUrl(target); } catch (Throwable ignore) { /* 기본 앱 열기로 폴백 */ }
+                }
+            });
+        } catch (Throwable ignore) {
+            // 어떤 실패도 기본 앱 열기로 폴백(절대 크래시 금지).
         }
     }
 

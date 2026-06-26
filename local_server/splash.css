@@ -13,6 +13,18 @@
  *   - js/data.js : fetchAllData 진행에 따라 텍스트 갱신 + 완료 시 페이드아웃
  * ============================================================================ */
 
+/* [B안 캠페인] 제목 '구명조끼/생명조끼'용 둥근 한글 폰트(Jua).
+ * 파일명이 콘텐츠 해시(jua-subset-<md5>.woff2)라, server.js 정적 캐시 정책이
+ * 자동으로 1년 immutable 을 적용 → 한 번 받으면 새 버전(=파일명 변경) 전까지
+ * 재다운로드하지 않는다. (Inter/Nanum 등 기존 폰트와 동일한 캐시 메커니즘) */
+@font-face {
+    font-family: 'Jua';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(/assets/vendor/fonts/jua/jua-subset-45ef1e74fa79c4da.woff2) format('woff2');
+}
+
 /* Splash Screen Styles - Advanced Premium */
 .splash-screen {
     position: fixed;
@@ -41,6 +53,11 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    /* [B안] 전체 화면 세로를 sp-top/sp-bot flex 로 분배해 블록 위치를 잡는다 */
+    justify-content: flex-start;
+    width: 100%;
+    height: 100%;
+    padding: 5% 6% 6%;
 }
 
 /* 로고 컨테이너 - 크기 50% 증가 */
@@ -178,7 +195,7 @@
 /* 텍스트 스타일 - 크기 50% 증가 */
 .splash-title {
     font-family: 'Inter', sans-serif;
-    font-size: clamp(2rem, 8vw, 2.7rem);
+    font-size: clamp(2.3rem, 9.5vw, 3.3rem);
     font-weight: 700;
     letter-spacing: clamp(3px, 1vw, 5px);
     margin: 0;
@@ -207,8 +224,8 @@
 
 .splash-subtitle-start {
     font-family: 'Nanum Pen Script', 'Dancing Script', cursive;
-    font-size: clamp(1.55rem, 5.2vw, 2.1rem);
-    /* 헤더보다 조금 더 크게 (30% 증가) */
+    font-size: clamp(1.85rem, 8vw, 2.7rem);
+    /* [B안] 하단 브랜딩 — 더 크게 */
     font-weight: 400;
     color: #e2e8f0;
     -webkit-text-fill-color: #cbd5e1;
@@ -245,7 +262,7 @@
  *   (transition 을 주면 rAF 갱신과 겹쳐 오히려 끊겨 보임)
  * ============================================================================ */
 .splash-progress {
-    margin-top: 34px;
+    margin-top: clamp(16px, 4vw, 26px);
     width: clamp(220px, 70vw, 300px);
     opacity: 0;
     /* 타이틀(0.8s 딜레이)에 이어 자연스럽게 등장 */
@@ -294,4 +311,75 @@
 
 .splash-progress-label.done {
     color: #6ee7b7;
+}
+
+/* ============================================================================
+ * [B안 캠페인] 구명조끼=생명조끼 + 마스코트 (index2.html #splash-screen 와 연계)
+ * ----------------------------------------------------------------------------
+ * - 세로 배치: sp-top(작음) → 제목/안내문/마스코트 → sp-bot(큼) → 하단 브랜딩/진행바
+ *   (sp-top:sp-bot = .55:1 → 콘텐츠 블록이 화면 상단 약 20% 지점에서 시작)
+ * - 크기는 모두 vw 기반 clamp → 휴대폰 화면 크기에 따라 비율 유지(적응형)
+ * - 제목/마스코트는 심장박동(빠르게 2번 → 잠깐 쉼) 애니메이션으로 시선 유도
+ * ============================================================================ */
+.splash-sp-top { flex: .55 1 auto; }
+.splash-sp-bot { flex: 1 1 auto; }
+
+.splash-vest {
+    font-family: 'Jua', 'Noto Sans KR', sans-serif;
+    line-height: 1.05;
+    animation: splashBeat 1.25s ease-in-out infinite;
+}
+.splash-vest span { display: block; font-size: clamp(2.5rem, 17vw, 4.8rem); }
+.splash-vest .v1 { color: #5cc8ff; text-shadow: 0 0 18px rgba(92, 200, 255, .55), 0 3px 0 rgba(0, 40, 80, .45); }
+.splash-vest .v2 { color: #ff8c42; text-shadow: 0 0 18px rgba(255, 140, 66, .55), 0 3px 0 rgba(80, 30, 0, .45); }
+
+.splash-promise {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-weight: 500;
+    font-size: clamp(.8rem, 3.9vw, 1.05rem);
+    color: #dbe6f5;
+    margin-top: 10px;
+}
+.splash-promise b { color: #ff8c42; }
+.splash-promise .heart { color: #ff6b8a; }
+
+.splash-mascot {
+    width: min(74vw, 360px);
+    height: auto;
+    margin-top: 14px;
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .45));
+    animation: splashBeatImg 1.25s ease-in-out infinite;
+    transform-origin: center;
+}
+
+.splash-credit {
+    position: absolute;
+    left: 14px;
+    bottom: 12px;
+    font-size: clamp(8px, 2vw, 10px);
+    color: rgba(200, 215, 235, .16);
+    letter-spacing: .2px;
+}
+
+/* 심장박동: 빠르게 두 번(9%,27%) 수축 → 36~100% 잠깐 쉼 */
+@keyframes splashBeat {
+    0% { transform: scale(1); }
+    9% { transform: scale(1.075); }
+    18% { transform: scale(1); }
+    27% { transform: scale(1.075); }
+    36% { transform: scale(1); }
+    100% { transform: scale(1); }
+}
+@keyframes splashBeatImg {
+    0% { transform: scale(1); }
+    9% { transform: scale(1.045); }
+    18% { transform: scale(1); }
+    27% { transform: scale(1.045); }
+    36% { transform: scale(1); }
+    100% { transform: scale(1); }
+}
+
+/* 접근성: 모션 최소화 선호 시 박동 정지 */
+@media (prefers-reduced-motion: reduce) {
+    .splash-vest, .splash-mascot { animation: none; }
 }

@@ -361,12 +361,38 @@ function generateMessage(filteredPayload) {
         const grouped = groupByTime(items, 'tmYn');
         genBody = formatGroupedMessage(grouped, '해제예정');
     }
+    // 9-b. 자식 단독 발효시각 변경 (수정 #3) — 부모 불변, 자식만 발효예정(tmEf) 변경.
+    //   한정사 "(…만 시각 변경)" 는 decorateZone(buildChildQualifier)가 생성.
+    //   [방어] childZones OFF 사용자는 부모 시각이 안 변해 부모명만 남으면 오해되므로 빈 본문 → 미발송.
+    //   (route 의 childZones 게이트가 1차 차단, 여기 빈본문은 2중 안전망.)
+    else if (templateId === 'child_time_ef_change') {
+        if (!showChildZones) return { title: '', body: '' };
+        genTitle = `🕐 발효시각 변경`;
+        const grouped = groupByTime(items, 'tmEf');
+        genBody = formatGroupedMessage(grouped, '발효예정');
+    }
+    // 9-c. 자식 단독 해제시각 변경 (수정 #3) — 부모 불변, 자식만 해제예정(tmYn/clrNtcTm) 변경.
+    else if (templateId === 'child_time_yn_change') {
+        if (!showChildZones) return { title: '', body: '' };
+        genTitle = `🕐 해제시각 변경`;
+        const grouped = groupByTime(items, 'tmYn');
+        genBody = formatGroupedMessage(grouped, '해제예정');
+    }
     // 10. 추가 발효 (자식 독립 — 부모 발효중 상태에서 자식만 추가)
     //   본문 부모명 옆 한정사 "(북서연안바다 추가 발효)" 는 decorateZone(buildChildQualifier)가 생성.
     else if (templateId === 'additional_active') {
         genTitle = `📢 ${fullTitle} 추가 발효`;
         const grouped = groupByTime(items, 'tmYn');
         genBody = formatGroupedMessage(grouped, '해제예정');
+    }
+    // 10-b. 자식 단독 예비 발표 (부모 발효중 + 자식만 "예비/미발효" 등장)
+    //   "추가 발효"가 아니라 "발표". 부모명 옆 한정사 "(가파도연안바다 발표 예정)" 는 decorateZone 생성.
+    //   시각은 발효예정(tmEf). 실제 발효되면 그때 additional_active("추가 발효")로 전환된다.
+    //   (effectiveLevel 보정으로 fullTitle 은 "풍랑 주의보" — 부모 예비 발표와 동일 표기 규칙.)
+    else if (templateId === 'child_prelim') {
+        genTitle = `📢 ${fullTitle} 추가 발표`;
+        const grouped = groupByTime(items, 'tmEf');
+        genBody = formatGroupedMessage(grouped, '발효예정');
     }
     // 11. 일부 해제 (자식 독립 — 부모 유지 상태에서 자식만 해제)
     //   한정사 "(가파도연안바다만 해제)" 는 decorateZone 가 생성.
@@ -491,6 +517,7 @@ const TIME_LABEL_BY_EVENT = {
     publish: '발효예정',
     active: '해제예정',
     additional_active: '해제예정',
+    child_prelim: '발효예정',     // 자식 단독 예비 발표 — 발효예정 시각(tmEf)
     prelim_cancel: null,        // 시간 없음
     partial_release: null,      // 시간 없음
     release: null,              // 시간 없음
@@ -503,7 +530,9 @@ const TIME_LABEL_BY_EVENT = {
     type_downgrade_publish: '발효예정',
     type_downgrade_active: '해제예정',
     time_ef_change: '발효예정',
-    time_yn_change: '해제예정'
+    time_yn_change: '해제예정',
+    child_time_ef_change: '발효예정',   // 수정 #3 — 자식 단독 발효시각 변경
+    child_time_yn_change: '해제예정'    // 수정 #3 — 자식 단독 해제시각 변경
 };
 
 /** 시간 키 — items 안의 어느 필드를 시간으로 쓰는가 */
@@ -511,6 +540,7 @@ const TIME_KEY_BY_EVENT = {
     publish: 'tmEf',
     active: 'tmYn',
     additional_active: 'tmYn',
+    child_prelim: 'tmEf',        // 자식 단독 예비 발표 — 발효예정(tmEf)
     level_upgrade_publish: 'tmEf',
     level_upgrade_active: 'tmYn',
     level_downgrade_publish: 'tmEf',
@@ -520,7 +550,9 @@ const TIME_KEY_BY_EVENT = {
     type_downgrade_publish: 'tmEf',
     type_downgrade_active: 'tmYn',
     time_ef_change: 'tmEf',
-    time_yn_change: 'tmYn'
+    time_yn_change: 'tmYn',
+    child_time_ef_change: 'tmEf',   // 수정 #3 — 자식 단독 발효시각 변경
+    child_time_yn_change: 'tmYn'    // 수정 #3 — 자식 단독 해제시각 변경
 };
 
 /**
@@ -606,6 +638,18 @@ function buildChildQualifier(parent, childState, eventType) {
             return '';
         }
 
+        // [자식 단독 예비 발표] child_prelim: 발표(예비)된 자식만 "(가파도연안바다)" 로 나열.
+        //   [수정 #1] 제목이 "📢 …주의보 발표"(이미 '발표')·통보문도 "…발표"인데 한정사가 "발표 예정"이면
+        //   '발표(이미 함)'+'발표 예정(아직)' 모순. 실제 '예정'인 것은 발효이며 발효예정 시각은 본문 라벨로
+        //   별도 표시되므로, 한정사는 자식명만 단순·명확히 표기.
+        if (eventType === 'child_prelim') {
+            if (added.length > 0) {
+                const shown = added.map(c => _stripParentPrefix(parent, c));
+                return `(${shown.join(', ')} 추가 발표)`;
+            }
+            return '';
+        }
+
         // 등급/종류 격상·격하 — 자식 동반 X 시 "(X 격상/격하 없음)" (S15/S17/S19/S21)
         const isLevelChange =
             eventType === 'level_upgrade_publish' || eventType === 'level_upgrade_active' ||
@@ -619,16 +663,30 @@ function buildChildQualifier(parent, childState, eventType) {
             return `(${label} ${isDown ? '격하' : '격상'} 없음)`;
         }
 
-        // 자식만 시각 변경 (S24/S25)
-        if ((eventType === 'time_ef_change' || eventType === 'time_yn_change') &&
+        // 자식만 시각 변경 (S24/S25, 수정 #3 S-CHILD-TIMECH)
+        //   사용자 경로는 child_time_ef_change/child_time_yn_change(부모 불변 전용 신규 templateId),
+        //   admin 비활성 경로는 time_ef_change/time_yn_change + parentTimeUnchanged. 둘 다 동일 한정사.
+        //   변경된 자식만 한정해 나열(timeChanged 있으면 그 집합, 없으면 active 전체) — "(가파도연안바다만 시각 변경)".
+        if ((eventType === 'time_ef_change' || eventType === 'time_yn_change' ||
+             eventType === 'child_time_ef_change' || eventType === 'child_time_yn_change') &&
             safe.parentTimeUnchanged === true && active.length > 0) {
-            return `(${label}만 시각 변경)`;
+            const changed = Array.isArray(safe.timeChanged) && safe.timeChanged.length > 0
+                ? safe.timeChanged.filter(c => active.includes(c))
+                : active;
+            const names = (changed.length > 0 ? changed : active).map(c => _stripParentPrefix(parent, c));
+            return `(${names.join(', ')}만 시각 변경)`;
         }
 
         // ----- 발표/발효/시각변경/격상격하 — 자식 발효 매트릭스 -----
-        // 부모만 발효, 자식 미발효
+        // 부모만, 자식 미포함
+        //   [수정 #2] 단계에 따라 "미발표"(예비/발효예정 단계)·"미발효"(효력/발효 단계)를 구분.
+        //   단계 판정은 TIME_KEY_BY_EVENT(단일 출처): tmEf(발효예정) 계열이면 아직 효력 전 → "미발표",
+        //   tmYn(해제예정) 계열이면 이미 효력 발생 → "미발효". (격상격하·자식포함 분기는 위에서 이미
+        //   return 되므로, 이 분기에 도달하는 eventType 은 publish/active/time_ef_change/time_yn_change 뿐이다.)
+        //   · publish(tmEf)·time_ef_change(tmEf) → 미발표   · active(tmYn)·time_yn_change(tmYn) → 미발효
         if (active.length === 0) {
-            return `(${label} 미발효)`;
+            const stageWord = TIME_KEY_BY_EVENT[eventType] === 'tmEf' ? '미발표' : '미발효';
+            return `(${label} ${stageWord})`;
         }
 
         // 부모 + 모든 자식
@@ -819,7 +877,10 @@ function buildAdminTitle(payload) {
         type_downgrade_publish: () => `📢 ${(prevTypeName || '') + (effPrev || '')}→${tp + effLevel} 격하 발표`,
         type_downgrade_active:  () => `🔻 ${(prevTypeName || '') + (effPrev || '')}→${tp + effLevel} 격하 발효`,
         time_ef_change:     () => `🕐 발효시각 변경`,
-        time_yn_change:     () => `🕐 해제시각 변경`
+        time_yn_change:     () => `🕐 해제시각 변경`,
+        // 수정 #3 — 자식 단독 시각 변경 (부모 불변). 한정사 "(…만 시각 변경)" 동반.
+        child_time_ef_change: () => `🕐 발효시각 변경`,
+        child_time_yn_change: () => `🕐 해제시각 변경`
     };
     const fn = TITLE_DISPATCH[eventType];
     return fn ? fn() : `📢 ${full} 알림`;

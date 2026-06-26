@@ -2356,8 +2356,14 @@ async function init() {
     //   - /api/typhoon 응답 → js/ocean_typhoon.js 가 지도 오버레이/애니메이션에 사용.
     //   - 자격증명(KMA_DMDW_USER_ID/PWD) 미설정 시 enabled=false 로 silent disable.
     const typhoonCrawler = require('./typhoon_crawler');
+    // [신규] 태풍 발생/소멸 푸시 알림기 (수집기와 분리). 부팅 시엔 baseline 만 설정(발송 X).
+    const typhoonNotifier = require('./services/typhoon_notifier');
+    // [신규] 위치기반 태풍 반경 알림 디스패치(Phase 2a). 부팅 시엔 baseline 만(발송 X) — dispatchTyphoonOnLatest 내부 처리.
+    const typhoonRadiusDispatch = require('./services/typhoon_radius_dispatch');
     if (typhoonCrawler.enabled) {
-        typhoonCrawler.run().catch(err => log(`⚠️ [typhoon] 초기 수집 오류: ${err.message}`));
+        typhoonCrawler.run()
+            .then(() => { if (typhoonNotifier.enabled) return typhoonNotifier.detectAndNotify({ log }); })
+            .catch(err => log(`⚠️ [typhoon] 초기 수집/알림 오류: ${err.message}`));
     }
 
     // [신규] dmdw 방재기상플랫폼 자식 해역 크롤러
@@ -2524,7 +2530,17 @@ async function init() {
         //   통보문 발표는 보통 수시간 간격이나, 활동기 신규 통보문을 빠르게 반영하려고
         //   10분 주기로 폴링. 모듈 내부에서 이미 캐시된 통보문은 재요청하지 않음.
         if (min % 10 === 7 && !crawlPaused && typhoonCrawler.enabled) {
-            typhoonCrawler.run().catch(err => log(`⚠️ [typhoon] 수집 오류: ${err.message}`));
+            // 수집 완료 후 알림기 호출(.then) → 항상 갓 저장된 typhoon.json 을 읽어 판정(레이스 방지)
+            typhoonCrawler.run()
+                .then(() => { if (typhoonNotifier.enabled) return typhoonNotifier.detectAndNotify({ log }); })
+                // [신규] 위치기반 태풍 반경 알림 신호 디스패치(throw 흡수 — 발생/소멸 체인에 영향 없음).
+                .then(() => typhoonRadiusDispatch.dispatchTyphoonOnLatest({ log }).catch(() => {}))
+                .catch(err => log(`⚠️ [typhoon] 수집/알림 오류: ${err.message}`));
+        }
+
+        // [신규] 태풍 야간 보류분 발송 — 매일 07:00 KST. (실패분은 다음 주간 감지 틱에서 재시도)
+        if (kstDate.getHours() === 7 && min === 0 && typhoonNotifier.enabled) {
+            typhoonNotifier.flushDeferred({ log }).catch(err => log(`⚠️ [typhoon] 보류분 발송 오류: ${err.message}`));
         }
 
         // [특보 예측] 매시 :25 예측 사이클 (엔진→억제→상태). fire-and-forget, throw 격리.

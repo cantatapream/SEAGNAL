@@ -268,6 +268,11 @@ class StateSnapshot {
         //   명시한 자식명 집합 (통보문 '연안바다 제외'에 해당). 매 사이클 재계산되는 일시 필드라
         //   toJSON 영속 대상 아님 — 발표대기 GAP 합성이 유령 자식을 끼워넣지 못하게 막는 용도.
         this.excludedChildren = raw.excludedChildren instanceof Set ? raw.excludedChildren : new Set();
+        // [라이브 자식 집합] 이번 사이클 실제 라이브 row(warn-sasc/list 발효 + warn-sasc/ready 예비
+        //   + warn/ready 자식형)로 들어온 자식명 집합. carry/synth/디바운스로 끼워진 자식과 구분용.
+        //   제외 자식 사후정리가 "라이브 근거 없는 유령"만 제거하도록 하는 화이트리스트.
+        //   매 사이클 재계산되는 일시 필드 — toJSON 영속 대상 아님.
+        this.liveChildren = raw.liveChildren instanceof Set ? raw.liveChildren : new Set();
     }
 
     static fromJSON(obj) {
@@ -329,6 +334,7 @@ class DiffMatrix {
             publish: [],
             active: [],
             additional_active: [],
+            child_prelim: [],          // [자식 예비 보존] 자식 단독 예비 발표(발효 전) — '발표(예비)'
             prelim_cancel: [],
             partial_release: [],
             release: [],
@@ -371,6 +377,21 @@ class DiffMatrix {
 
         for (const parent of allParents) {
             try {
+                // [버그수정 1회성 가드 — 자식이 prev 에서 self-key 부모로 잘못 저장된 경우]
+                //   구코드(_extractParent 이름분할)는 '중' 구분자가 없는 자식
+                //   (울릉도*연안바다 → 동해중부안쪽먼바다, 천수만/안면도/당진/태안·서산북쪽
+                //    평수구역 → 충남북부앞바다)을 self-key 부모로 prev 에 저장했다.
+                //   신코드는 이들을 올바른 부모 아래 자식으로 분류하므로, 배포 첫 사이클에
+                //   "부모(prev)→소멸(curr)" 디프로 보여 거짓 prelim_cancel/release 푸시를
+                //   3건 낼 수 있다. CHILD_TO_PARENT 에 정의된 키(=실제로는 절대 부모일 수
+                //   없는 자식 fullName)가 부모 루프에 들어왔다면, 이는 재분류 아티팩트이므로
+                //   디프에서 제외한다. (정상 부모는 CHILD_TO_PARENT 키가 아니므로 무영향 —
+                //   정상 예비취소/해제를 삼키지 않음. 1회성: 다음 사이클부터 prev 가 신코드로
+                //   재저장되어 이 키는 더 이상 부모로 안 나타남.)
+                if (CHILD_TO_PARENT[parent] && !curr.parents.has(parent)) {
+                    continue;
+                }
+
                 const pPrev = prev.getParent(parent);
                 const pCurr = curr.getParent(parent);
                 const childrenAll = PARENT_TO_CHILDREN[parent] || [];
@@ -536,12 +557,32 @@ class DiffMatrix {
                     }
 
                     // ----- 자식만 변화 -----
-                    // 추가 발효
+                    // [자식 예비 보존] 추가된 자식을 예비(발표 전)/발효로 분리.
+                    //   예비 자식 → child_prelim('발표(예비)'), 발효 자식 → additional_active('추가 발효').
+                    //   과거엔 둘 다 additional_active 로 보내 자식 단독 예비가 "추가 발효"로 오발송됐다.
+                    //   (※ 사용자 채널은 push_sender CHILD_PRELIM_ADD/CHILD_ADD 분기로 동일 처리. 이
+                    //    관리자 채널은 ADMIN_PUSH_ENABLED=false 라 현재 비활성이나 일관성 위해 동기화.)
                     if (childState.added.length > 0) {
-                        matrix.add('additional_active',
-                            { parent, time: pCurr.tmYn, childState },
-                            { wrnTp: pCurr.wrnTp, wrnLvl: pCurr.wrnLvl,
-                              wrnTpNm: pCurr.wrnTpNm, wrnLvlNm: pCurr.wrnLvlNm });
+                        const currChMap2 = curr.children.get(parent) || new Map();
+                        const prelimAdded = childState.added.filter(cn => {
+                            const ci = currChMap2.get(cn);
+                            return ci && ci.wrnLvlNm === '예비';
+                        });
+                        const activeAdded = childState.added.filter(cn => !prelimAdded.includes(cn));
+                        if (prelimAdded.length > 0) {
+                            const csPub = Object.assign({}, childState, { added: prelimAdded });
+                            matrix.add('child_prelim',
+                                { parent, time: pCurr.tmEf, childState: csPub },
+                                { wrnTp: pCurr.wrnTp, wrnLvl: pCurr.wrnLvl,
+                                  wrnTpNm: pCurr.wrnTpNm, wrnLvlNm: pCurr.wrnLvlNm });
+                        }
+                        if (activeAdded.length > 0) {
+                            const csAct = Object.assign({}, childState, { added: activeAdded });
+                            matrix.add('additional_active',
+                                { parent, time: pCurr.tmYn, childState: csAct },
+                                { wrnTp: pCurr.wrnTp, wrnLvl: pCurr.wrnLvl,
+                                  wrnTpNm: pCurr.wrnTpNm, wrnLvlNm: pCurr.wrnLvlNm });
+                        }
                     }
                     // 자식 일부 해제 (부모 유지)
                     if (childState.released.length > 0) {
@@ -573,6 +614,8 @@ class EventDispatcher {
             active:                   (cid, m, info, entries) => dmdwPush.enqueueParentActive(cid, info.wrnTp, info.wrnLvl, entries, info),
             release:                  (cid, m, info, entries) => dmdwPush.enqueueParentRelease(cid, info.wrnTp, info.wrnLvl, entries, info),
             additional_active:        (cid, m, info, entries) => dmdwPush.enqueueAdditionalActive(cid, info.wrnTp, info.wrnLvl, entries, info),
+            // [자식 예비 보존] 자식 단독 예비 발표 = 발표(announce) 계열 → publish enqueue 로 라우팅.
+            child_prelim:             (cid, m, info, entries) => dmdwPush.enqueueParentPublish(cid, info.wrnTp, info.wrnLvl, entries, info),
             prelim_cancel:            (cid, m, info, entries) => dmdwPush.enqueuePrelimCancel(cid, info.wrnTp, entries, info),
             partial_release:          (cid, m, info, entries) => dmdwPush.enqueuePartialRelease(cid, info.wrnTp, info.wrnLvl, entries, info),
             level_upgrade_publish:    (cid, m, info, entries) => dmdwPush.enqueueLevelUpgrade(cid, info.wrnTp, info.prevWrnLvlNm, info.wrnLvl, entries, 'publish', info),
@@ -1125,6 +1168,41 @@ function _applyUpcomingCancelDebounce(prev, curr) {
 }
 
 // ============================================================================
+// [제외 자식 사후정리(post-pass)] 모든 보강(latest/ef)·디바운스가 끝난 직후, snap.children
+//   전체를 순회해 "이번 사이클 라이브 근거가 전혀 없는데 carry/synth 로만 들어온 유령 자식"을
+//   제거한다. 제거 조건 = (warn-sasc/list level-0 으로 명시 제외) AND (이번 사이클 라이브 자식 아님).
+//   - 배경: 제외 게이트가 synth(맹목 합성) 분기에만 있고 carry(prev 이어받기)·해제 디바운스
+//     3경로는 무게이트라, synth 가 1회 시드한 유령 자식이 carry 로 영속하던 문제(제주도북부앞바다
+//     연안바다 오포함). 개별 carry 게이트는 경로가 셋이라 누락 재발 위험 → 단일 사후정리로 통합.
+//   - [라이브 회귀 방지 — 핵심] 제외 소스 excludedChildren(warn-sasc/list level-0) 은 "미포함"뿐
+//     아니라 "아직 미발효(예비)"도 level-0 으로 내려준다(라이브 확인: warn-sasc/ready 의 예비특보
+//     자식이 warn-sasc/list 에선 level-0). 따라서 excludedChildren 만으로 지우면 진짜 예비 자식까지
+//     오삭제된다. → 이번 사이클 실제 row(snap.liveChildren: warn-sasc/list 발효 + warn-sasc/ready
+//     예비 + warn/ready 자식형 + latest/ef 자식 통보문)로 들어온 자식은 항상 보존(화이트리스트).
+//   - 게이트 소스는 warn-sasc/list 단독(excludedChildren). latest 로 넓히면 분별력이 없어 부적합.
+//   - carry 글리치 방어(adab23e) 보존: 글리치(잠깐 row 부재)는 level-0 명시가 아니라 *부재*라
+//     excludedChildren 에 안 들어옴 → 디바운스 carry 유지(무영향).
+//   - 결과적으로 제거되는 건 "list level-0 명시 제외 + 이번 사이클 어떤 라이브 row 도 없음 +
+//     prev carry/synth 로만 존재" = 통보문상 명백히 제외된 유령 자식뿐.
+// ============================================================================
+function _purgeExcludedChildren(snap) {
+    if (!snap || !snap.children || !snap.excludedChildren || snap.excludedChildren.size === 0) return 0;
+    const live = snap.liveChildren instanceof Set ? snap.liveChildren : new Set();
+    let purged = 0;
+    for (const [parent, kids] of snap.children) {
+        for (const childName of Array.from(kids.keys())) {
+            if (!snap.excludedChildren.has(childName)) continue;   // list level-0 제외 명시 아님 → 보존
+            if (live.has(childName)) continue;                     // 이번 사이클 라이브 근거 있음 → 보존(예비 자식 등)
+            kids.delete(childName);
+            purged++;
+            console.log(`[Marine] 제외 자식 사후정리: ${parent} > ${childName} (warn-sasc/list level-0 명시 제외 + 라이브 근거 없음 → 유령 제거)`);
+        }
+        if (kids.size === 0) snap.children.delete(parent);
+    }
+    return purged;
+}
+
+// ============================================================================
 // [발표시각 고정] 발표시각(tmFc)은 "현재 발효중 특보가 최초 발표된 시각"으로 고정.
 //   예비→발표→발효→해제 동안 불변(변경/연장에도 안 바뀜). 격상/격하(등급 변화)·
 //   종류 변화·해제 시에만 새 등급의 발표시각으로 재설정.
@@ -1664,20 +1742,61 @@ function _buildUserPushChanges(prev, curr) {
         if (!upcomingChanged && !activeChanged && c) {
             const addedChildren = currChildren.filter(x => !prevChildren.includes(x));
             const releasedChildren = prevChildren.filter(x => !currChildren.includes(x));
-            if (addedChildren.length > 0) {
+            // [자식 예비 보존] 자식도 부모와 동일하게 발표(예비)/발효 lifecycle 을 갖는다.
+            //   신규 등장 자식을 등급으로 분기:
+            //     · 예비(미발효)      → CHILD_PRELIM_ADD ("발표(예비)") — "추가 발효"로 오발사 금지.
+            //     · 주의보/경보(발효) → CHILD_ADD ("추가 발효").
+            //   snapshot(snap.children, _rowToChildInfo)은 wrnLvlNm='예비'를 보존하므로 여기서 분별 가능
+            //   하다. weather_alerts 트리의 '예비→주의보' 정규화는 표출 dedup 용일 뿐 snapshot 엔 무관.
+            const childLvl = (snap, name) => {
+                const info = childInfoOf(snap, zone, name);
+                return info ? (info.wrnLvlNm || '') : '';
+            };
+            const addedPrelim = addedChildren.filter(x => childLvl(curr, x) === '예비');
+            const addedActive = addedChildren.filter(x => childLvl(curr, x) !== '예비');
+            // [자식 예비→발효 전이] prev·curr 양쪽에 키가 있어 "신규 추가"는 아니지만 등급이
+            //   예비→발효(주의보/경보)로 올라간 자식 = 그 순간이 진짜 "추가 발효". 이 신호가 없으면
+            //   사용자는 자식 발효를 영영 통지받지 못한다(예비 발표만 받고 발효 푸시 누락).
+            //   (발효→예비 격하는 별도 발사 안 함 — 현실에 거의 없고 오분류 위험만 큼.)
+            const nowActivated = currChildren.filter(x =>
+                prevChildren.includes(x) &&
+                childLvl(prev, x) === '예비' &&
+                childLvl(curr, x) !== '예비' && childLvl(curr, x) !== '');
+            if (addedPrelim.length > 0) {
+                changes.push({
+                    type: 'CHILD_PRELIM_ADD',
+                    zone: zone,
+                    curr: childToBlock(childInfoOf(curr, zone, addedPrelim[0])),
+                    childState: { all, active: currChildren, added: addedPrelim, released: [] }
+                });
+            }
+            const activeAdds = addedActive.concat(nowActivated);
+            if (activeAdds.length > 0) {
                 changes.push({
                     type: 'CHILD_ADD',
                     zone: zone,
-                    curr: childToBlock(childInfoOf(curr, zone, addedChildren[0])),
-                    childState: { all, active: currChildren, added: addedChildren, released: [] }
+                    curr: childToBlock(childInfoOf(curr, zone, activeAdds[0])),
+                    childState: { all, active: currChildren, added: activeAdds, released: [] }
                 });
             }
-            if (releasedChildren.length > 0) {
+            // [문제1 — 예비 자식 소멸 비대칭 해소] 해제 자식을 prev 등급으로 분기.
+            //   발표측(PR#991)이 신규 자식을 예비/발효로 분기(CHILD_PRELIM_ADD/CHILD_ADD)한 것과
+            //   대칭이 되도록 해제측도 분기한다.
+            //     · prev 자식이 '주의보'/'경보'(진짜 발효중) → 기존 CHILD_RELEASE("주의보 일부 해제") 유지.
+            //     · prev 자식이 '예비'(미발효 예비 자식)        → "일부 해제" 발사 금지. 예비는 발효된 적이
+            //       없으므로 독립 "주의보 일부 해제"는 오발송이다. 그 부모가 곧/지금 예비취소(UPCOMING_CANCEL)
+            //       되면 단일 prelim_cancel 푸시가 전체를 대표하므로 별도 푸시 불필요. (부모가 예비로 남고
+            //       자식 예비만 소멸하는 희귀 케이스도, "발효 없던 예비 자식의 조용한 소멸"이라 무푸시가 안전.)
+            //   [보수적] prev 등급이 명확히 '예비'일 때만 억제한다. 등급 메타가 비었거나(enrich
+            //   누락) 알 수 없는 경우는 기존대로 partial_release 유지(누락 푸시 방지 — 안전쪽).
+            const releasedActive = releasedChildren.filter(x => childLvl(prev, x) !== '예비');
+            // (releasedPrelim = 나머지 예비 자식 소멸 → 무푸시. 부모 UPCOMING_CANCEL 가 대표.)
+            if (releasedActive.length > 0) {
                 changes.push({
                     type: 'CHILD_RELEASE',
                     zone: zone,
-                    prev: childToBlock(childInfoOf(prev, zone, releasedChildren[0])),
-                    childState: { all, active: currChildren, added: [], released: releasedChildren }
+                    prev: childToBlock(childInfoOf(prev, zone, releasedActive[0])),
+                    childState: { all, active: currChildren, added: [], released: releasedActive }
                 });
             }
 
@@ -1714,6 +1833,82 @@ function _buildUserPushChanges(prev, curr) {
                     oldTime: g.oldTime, newTime: g.newTime,
                     childState: { all, active: currChildren, extended: g.names }
                 });
+            }
+
+            // [자식 단독 시각/해제예고 변경] (수정 #3 — MD §4.25 / S-CHILD-TIMECH) — 부모 블록 불변
+            //   (이 if 조건: !upcomingChanged && !activeChanged) + 자식 set 변화 없음일 때, 유지중인 자식의
+            //   발효예정(tmEf)·해제예정/해제예고(clrNtcTm|tmYn) 가 "의미있게" 바뀌면 자식 전용 1건 푸시.
+            //   (예: 자식만 해제예고시각이 새로 생김/달라짐 — 부모 앞바다는 변동 없음.)
+            //   기존엔 자식 set 변화(추가/해제/예비→발효)와 "범위→더 늦은 범위"(연장)만 처리하고,
+            //   자식 단독 해제예고 신규(없음→정확시각)·정확↔다른정확·앞당김은 무푸시였다(사용자 경로 누락).
+            //   → push_sender 가 child_time_ef_change/child_time_yn_change 로 매핑(부모 time_*_change 와 분리).
+            //
+            //   [정합 4관문]
+            //     ① 부모 불변: 이 블록 자체가 !upcomingChanged && !activeChanged && c 안에 있음.
+            //     ② Major-3(자식 set 변화 동반 억제): 같은 사이클 추가/해제/예비→발효면 그 푸시가 대표 →
+            //        setChanged 일 때 시각 변경 억제(중복/우선순위 충돌 방지).
+            //     ③ 범위↔정확 깜빡임 / HOLD / 연장 중복 제외: _sameReleaseMoment(동일 모멘트) 흡수,
+            //        위 efKids/ynKids 가 가져간 자식(연장)은 제외(이중 발사 방지).
+            //     ④ 의미있는 변경만: (없음→값) 또는 (값→다른 모멘트) 일 때만. 동일값/사라짐/깜빡임 무시.
+            //   등급(wrnLvlNm) 이 바뀐 자식은 격상/격하이지 시각변경이 아니므로 제외(오분류 방지).
+            //   [해제예고 필드] 실측상 자식 해제예고는 clr_ntc_tm(범위형)에 옴, tm_yn 미존재 → clrNtcTm 우선.
+            const childSetChanged =
+                addedChildren.length > 0 || releasedChildren.length > 0 || nowActivated.length > 0;
+            if (!childSetChanged) {
+                // 위 연장 블록이 이미 발사한 자식 — 이중 발사 방지용 집합.
+                const efExtendedNames = new Set();
+                for (const g of Object.values(efKids)) g.names.forEach(n => efExtendedNames.add(n));
+                const ynExtendedNames = new Set();
+                for (const g of Object.values(ynKids)) g.names.forEach(n => ynExtendedNames.add(n));
+
+                const efChangeKids = [];   // 발효예정(tmEf) 변경 자식 (예비 단계)
+                const ynChangeKids = [];   // 해제예정(clrNtcTm/tmYn) 변경 자식 (발효 단계)
+                let efChangeBlock = null, ynChangeBlock = null;
+                for (const cn of currChildren) {
+                    if (!prevChildren.includes(cn)) continue;     // 유지중인 자식만 (추가/해제는 위에서 처리)
+                    const pi = childInfoOf(prev, zone, cn), ci = childInfoOf(curr, zone, cn);
+                    if (!pi || !ci) continue;
+                    if (pi.wrnLvlNm !== ci.wrnLvlNm) continue;    // 등급 변하면 격상/격하 — 시각변경 아님
+                    const isUp = ci.wrnLvlNm === '예비';
+                    if (isUp) {
+                        // 발효예정 시각 변경 (예비 자식)
+                        if (efExtendedNames.has(cn)) continue;             // 연장으로 이미 발사 → 스킵
+                        const oldT = pi.tmEf || '', newT = ci.tmEf || '';
+                        if (!newT) continue;                               // curr 값 없음(사라짐) → 시각변경 아님(무푸시)
+                        if (oldT === newT) continue;                       // 동일값 무시
+                        if (_sameReleaseMoment(oldT, newT)) continue;      // 범위↔정확 깜빡임(동일 모멘트) 흡수
+                        efChangeKids.push(cn);
+                        if (!efChangeBlock) efChangeBlock = childToBlock(ci);
+                    } else {
+                        // 해제예정 시각 변경/신규 (발효 자식) — clrNtcTm 우선, 없으면 tmYn.
+                        if (ynExtendedNames.has(cn)) continue;             // 연장으로 이미 발사 → 스킵
+                        const oldT = pi.clrNtcTm || pi.tmYn || '';
+                        const newT = ci.clrNtcTm || ci.tmYn || '';
+                        if (!newT) continue;                               // 사라짐(해제예고 취소)은 시각변경 아님
+                        if (oldT === newT) continue;                       // 동일값 무시
+                        if (_sameReleaseMoment(oldT, newT)) continue;      // 범위↔정확 깜빡임 흡수
+                        ynChangeKids.push(cn);
+                        if (!ynChangeBlock) ynChangeBlock = childToBlock(ci);
+                    }
+                }
+                if (efChangeKids.length > 0) {
+                    changes.push({
+                        type: 'CHILD_TIME_EF_CHANGE', zone: zone, curr: efChangeBlock,
+                        childState: {
+                            all, active: currChildren,
+                            parentTimeUnchanged: true, timeChanged: efChangeKids.slice()
+                        }
+                    });
+                }
+                if (ynChangeKids.length > 0) {
+                    changes.push({
+                        type: 'CHILD_TIME_YN_CHANGE', zone: zone, curr: ynChangeBlock,
+                        childState: {
+                            all, active: currChildren,
+                            parentTimeUnchanged: true, timeChanged: ynChangeKids.slice()
+                        }
+                    });
+                }
             }
         }
     }
@@ -2074,14 +2269,19 @@ function _buildZoneTreeFromSnapshot(snap) {
         for (const [childName, info] of childMap) {
             if (!Object.prototype.hasOwnProperty.call(leaf.children, childName)) continue;
             if (!info || !info.wrnLvlNm) continue;
-            // 예비는 푸시 dedup 정책 따라 wrnLvlNm '주의보' 정규화 (배지엔 wrnLvl 별도 보존)
-            const lvlNmNorm = info.wrnLvlNm === '예비' ? '주의보' : info.wrnLvlNm;
+            // [자식 예비 보존] 자식 '예비'를 그대로 표출한다. (과거엔 "푸시 dedup 정책"이라 적힌
+            //   채 '주의보'로 강제 정규화했으나, 실제 푸시 diff/dedup 은 StateSnapshot(snap.children)
+            //   으로만 동작하고 이 트리(weather_alerts.json)는 화면 표출 전용이라 dedup 과 무관함을
+            //   라이브 grep + 시뮬로 확인. 정규화를 제거하면 프론트(js/data.js processSingleAlert)가
+            //   level==='예비'를 1순위로 '발표(예비)' 표출 → 시간추정(childEfNotYet) 보정에 의존하지
+            //   않아 더 견고. 실제 발효 시 snapshot 이 '주의보'가 되어 트리도 자동 전환.)
+            const lvlNm = info.wrnLvlNm;
             leaf.children[childName] = {
                 source: 'MARINE_MMIS',
                 wrnTp: info.wrnTpNm || info.wrnTp || '',  // 한글 우선
                 wrnTpNm: info.wrnTpNm || '',
-                wrnLvl: lvlNmNorm || info.wrnLvl || '',    // 한글 우선
-                wrnLvlNm: lvlNmNorm,
+                wrnLvl: lvlNm || info.wrnLvl || '',    // 한글 우선
+                wrnLvlNm: lvlNm,
                 tmFc: normalizeMmisTime(info.tmFc),
                 tmEf: normalizeMmisTime(info.tmEf),       // [표시 = 확정값] 부모와 동일 정책
                 tmYn: normalizeMmisTime(info.tmYn),
@@ -2177,6 +2377,56 @@ function _extractParent(korNm) {
     return s;
 }
 
+// ============================================================================
+// [버그수정 — 중부 부모 누락] 부모/자식 분류·부모키 산출을 코드 기반으로 통일.
+//
+//  근본원인: _extractParent 가 lastIndexOf('중') 로 분할 → "강원중부앞바다" 등
+//   이름에 '중부'가 든 *부모* 해역을 "강원"+"부앞바다" 로 오분할 → 부모를 자식으로
+//   오분류 → snap.parents 누락 → 화면에서 7개 해역(중부) 사라짐.
+//
+//  해결: MMIS warn_zone_cd 는 ^S1=부모, ^S2/^S3=자식 으로 불변 규약(전 93코드 반례 0
+//   검증). 코드가 있으면 코드로 분류하고, 없을 때만 이름폴백(_extractParent===self).
+//
+//  부모키 역인덱스(CHILD_TO_PARENT): PARENT_TO_CHILDREN 의 자식 fullName → 부모.
+//   이름에 '중' 구분자가 없는 자식(울릉도*연안바다→동해중부안쪽먼바다, 천수만/안면도/
+//   당진/태안·서산북쪽 평수구역→충남북부앞바다)은 _extractParent 가 self-key 로 잡아
+//   고아 등록되던 문제를, 역인덱스 우선으로 해소한다.
+// ============================================================================
+const CHILD_TO_PARENT = (() => {
+    const idx = {};
+    for (const parent of Object.keys(PARENT_TO_CHILDREN)) {
+        for (const child of PARENT_TO_CHILDREN[parent]) idx[child] = parent;
+    }
+    return idx;
+})();
+
+/**
+ * warn_zone_cd 기반 자식 여부 판정.
+ *   ^S1 → 부모(false), ^S2/^S3 → 자식(true). 코드 부재/비표준 시 이름폴백.
+ * @param {string} cd   warn_zone_cd (예: 'S1151200', 'S2120500')
+ * @param {string} name 정식 해역명 (이름폴백용)
+ * @returns {boolean} 자식이면 true
+ */
+function _isChildZoneCode(cd, name) {
+    const c = String(cd || '');
+    if (/^S1/.test(c)) return false;        // S1 = 부모(앞바다/먼바다)
+    if (/^S[23]/.test(c)) return true;      // S2/S3 = 자식(평수구역/연안바다)
+    // 코드 부재(L* 육상은 호출 전 allowlist 로 이미 배제) → 이름폴백
+    return name ? _extractParent(name) !== name : false;
+}
+
+/**
+ * 자식 fullName → 부모키.
+ *   1순위: CHILD_TO_PARENT 역인덱스(정의된 모든 자식, '중' 구분자 유무 무관 정확).
+ *   2순위: _extractParent 이름분할(역인덱스에 없는 미지 자식 폴백).
+ * @param {string} childName 자식 정식 해역명
+ * @returns {string} 부모키
+ */
+function _parentKeyForChild(childName) {
+    if (childName && CHILD_TO_PARENT[childName]) return CHILD_TO_PARENT[childName];
+    return _extractParent(childName);
+}
+
 /**
  * [V11 — 등급명 정규화]
  * mmis 실시간 endpoint 는 예비특보를 warn_lvl_nm='예비특보' 로 내려주지만,
@@ -2258,7 +2508,8 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
     const snap = new StateSnapshot();
 
     const addChild = (childName, row) => {
-        const parent = _extractParent(childName);
+        const parent = _parentKeyForChild(childName);   // 역인덱스 우선 (self-key 고아 방지)
+        snap.liveChildren.add(childName);   // [라이브 근거] 실제 row 출처 표식 (사후정리 화이트리스트)
         if (!snap.children.has(parent)) snap.children.set(parent, new Map());
         const m = snap.children.get(parent);
         if (m.has(childName)) return;   // 이미 등록(발효 우선) → skip
@@ -2294,8 +2545,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
         if (!_isTargetRealtimeType(row.warn_tp)) continue;
         const name = _resolveZoneName(row);
         if (!name) continue;
-        const parent = _extractParent(name);
-        if (parent === name) {
+        if (!_isChildZoneCode(row.warn_zone_cd, name)) {
             // 부모형 예비 — 발효중이면 parents 는 유지하되, 예비를 upcomings 에 보관(병렬 표출용).
             //   [B] 과거엔 발효 우선으로 드롭했으나, 다가오는 특보를 별도 트랙으로 보존.
             if (snap.parents.has(name)) {
@@ -2313,7 +2563,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
         if (!_isTargetRealtimeType(row.warn_tp)) continue;
         const childName = _resolveZoneName(row);
         if (!childName) continue;
-        if (_extractParent(childName) === childName) continue;   // 부모형이면 자식 endpoint 에선 skip
+        if (!_isChildZoneCode(row.warn_zone_cd, childName)) continue;   // 부모형이면 자식 endpoint 에선 skip
         addChild(childName, row);
     }
     return snap;
@@ -2364,8 +2614,8 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 통보문 없는 빈 메타행 자동 제외
             const cname = _resolveZoneName(row);
             if (!cname) continue;
-            const parent = _extractParent(cname);
-            if (parent === cname) continue;   // 부모형 행은 warn/latest 루프가 처리
+            if (!_isChildZoneCode(row.warn_zone_cd, cname)) continue;   // 부모형 행은 warn/latest 루프가 처리
+            const parent = _parentKeyForChild(cname);   // 역인덱스 우선 (snap.children 키 일관)
             const cmd = String(row.warn_cmd_nm || '').trim();
 
             if (cmd === '해제') {
@@ -2399,6 +2649,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             cinfo.wrnLvl = cinfo.wrnLvl || '1';
             cinfo.clrNtcTm = childClr;          // 자식 개별 해제예고 (부모 비종속)
             snap.children.get(parent).set(cname, cinfo);
+            snap.liveChildren.add(cname);   // [라이브 근거] 자식 자신의 통보문(발표/변경/연장) → 사후정리 화이트리스트
             sascChildAdded++;
         }
     }
@@ -2438,8 +2689,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
         if (!isPublishCmd && cmd !== '변경해제') continue;
         const tmEf = String(row.tm_ef || '').trim();
         if (!tmEf || !_isFutureExactTime(tmEf)) continue;  // 정확·미래 발효시각만 (발표 발효대기)
-        const parent = _extractParent(name);
-        if (parent === name) {
+        if (!_isChildZoneCode(row.warn_zone_cd, name)) {
             const info = _rowToParentInfo(row);
             info._realLvlNm = info.wrnLvlNm;   // [B] 실제 등급 보존 (예비 덮어쓰기 전) — 공존 격상/격하용
             info.wrnLvlNm = '예비';   // 발효 전 → 예비 취급 (표시·푸시 일관성)
@@ -2500,6 +2750,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             }
         } else {
             // 자식형 행 (warn/latest 가 자식을 주는 경우 — 현재는 거의 없음). 발효중/예비면 그쪽 우선.
+            const parent = _parentKeyForChild(name);   // 역인덱스 우선 (snap.children 키 일관)
             if (!snap.children.has(parent)) snap.children.set(parent, new Map());
             const m = snap.children.get(parent);
             if (m.has(name)) continue;
@@ -2507,6 +2758,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             cinfo.wrnLvlNm = '예비';
             cinfo.wrnLvl = cinfo.wrnLvl || '1';
             m.set(name, cinfo);
+            snap.liveChildren.add(name);   // [라이브 근거] 자식 자신의 통보문(warn/latest 자식행) → 사후정리 화이트리스트
             gapChildAdded++;
         }
     }
@@ -2736,15 +2988,19 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
         // 실시간 endpoint 가 이미 커버(발효중/예비/발표대기/공존)하면 skip — 중복/덮어쓰기 방지.
         if (snap.parents.has(name)) continue;
         if (snap.upcomings && snap.upcomings.has(name)) continue;
-        const parent = _extractParent(name);
         const info = _efRowToInfo(sel.row);
-        if (parent === name) {
+        if (!_isChildZoneCode(sel.row.warn_zone_cd, name)) {
             _addGapParentFromEf(snap, prev, name, info, counters);
         } else {
             // 자식형 행 (드묾) — 부모 컨테이너에 예비로 추가.
+            const parent = _parentKeyForChild(name);   // 역인덱스 우선 (snap.children 키 일관)
             if (!snap.children.has(parent)) snap.children.set(parent, new Map());
             const m = snap.children.get(parent);
-            if (!m.has(name)) { m.set(name, info); counters.gapChildSynth++; }
+            if (!m.has(name)) {
+                m.set(name, info);
+                snap.liveChildren.add(name);   // [라이브 근거] ef/list 자식 자신의 통보문 → 사후정리 화이트리스트
+                counters.gapChildSynth++;
+            }
         }
     }
     if (counters.gapAdded || counters.gapChildCarried || counters.gapChildSynth) {
@@ -2925,6 +3181,13 @@ async function run(opts = {}) {
         //   (ef/list 보강·의심가드 이후, 발표시각고정 이전 — _applyChildReleaseDebounce 와 동일 구역.)
         _applyUpcomingCancelDebounce(prevForDiff, curr);
 
+        // 4-B3) [제외 자식 사후정리] 모든 보강(latest/ef)·디바운스가 curr 를 변형한 직후, MMIS 가
+        //   이번 사이클 warn-sasc/list 에서 level-0(미포함)으로 명시한 자식을 출처불문 제거.
+        //   carry(prev 이어받기) 3경로가 무게이트라 synth 가 시드한 유령 자식이 영속하던 문제
+        //   (제주도북부앞바다 연안바다 오포함)를 단일 사후정리로 차단. 글리치 carry(부재≠level-0)는
+        //   excludedChildren 밖이라 보존. diff·표출 양쪽 반영 위해 발표시각고정·앵커 전에 적용.
+        _purgeExcludedChildren(curr);
+
         // 4-C) [발표시각 고정] 현재 발효 등급의 최초 발표시각으로 tmFc 고정 (변경/연장 불변,
         //   격상/격하·종류변경·해제 시에만 재설정). _buildUserPushChanges·표출 전에 적용.
         _applyAnnounceAnchor(prevForDiff, curr);
@@ -2971,6 +3234,16 @@ async function run(opts = {}) {
                 await pushSender.processChanges(_userChanges, userOpts);
             } catch (e) {
                 console.error('[marine_warning_crawler] 사용자 push 발사 실패 (관리자 push 영향 없음):', e && e.message);
+            }
+        }
+
+        // 5-B1) [위치기반 특보 경보 ④] 활성 특보 변화 → 동의(활성) 단말에 깨우는 신호(데이터 메시지).
+        //   기존 푸시와 완전 독립. 위치 좌표는 서버로 오지 않음(단말이 판정). 실패는 흡수.
+        if (!opts.dryRun) {
+            try {
+                await require('./services/location_alert_dispatch').dispatchOnLatest();
+            } catch (e) {
+                console.error('[marine_warning_crawler] 위치기반 경보 dispatch skip:', e && e.message);
             }
         }
 
@@ -3026,6 +3299,7 @@ module.exports = {
     _buildSnapshotFromMarine,
     _enrichSnapshotWithLatest,
     _enrichSnapshotWithEfList,
+    _purgeExcludedChildren,
     _tryAddCoexistingUpcoming,
     _extractParent,
     _loadPrevSnapshot,

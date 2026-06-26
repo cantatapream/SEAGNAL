@@ -893,6 +893,27 @@ router.delete('/api/admin/assistant-log', (req, res) => {
     catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// ============================================================================
+// 서버 로그 조회 (점검 > "서버로그" 탭) — fly.io 로그 대체. 2일 보관, 기간/레벨/검색 필터.
+//   쿼리: from, to ('YYYY-MM-DD HH:mm' KST), level(ALL/ERROR/WARN/INFO), q(검색어), limit
+//   (상단 router.use('/api/admin', requireAdminToken) 으로 자동 인증 보호됨)
+// ============================================================================
+router.get('/api/admin/server-log', (req, res) => {
+    try {
+        const logger = require('../services/server_logger');
+        const result = logger.getLogs({
+            from: req.query.from,
+            to: req.query.to,
+            level: req.query.level,
+            q: req.query.q,
+            limit: req.query.limit
+        });
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
 router.get('/api/admin/gemini-status', (req, res) => {
     try {
         const geminiClient = require('../services/gemini_client');
@@ -2230,6 +2251,94 @@ router.post('/api/admin/demo/emit', async (req, res) => {
         res.json({ success: true, active, pushResult });
     } catch (e) {
         console.error('[Demo] 표출 오류:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// [태풍 시연] 발생/소멸 테스트 푸시 — 관리자 등록 기기(admin_devices.json)에만 발송.
+//   가짜 좌표를 만들지 않고, 방재기상플랫폼에서 "올해 6호 태풍 장미"의 실제 통보문을 받아 사용한다.
+//     - 발생: 최초 "태풍" 통보문(열대저압부 단계 제외) 위치
+//     - 소멸: 최후 통보문 위치
+//   실제 발송기(typhoon_notifier)와 동일한 문구 빌더(typhoon_message)를 써서 표기가 갈라지지 않음.
+//   탭 시 해당 통보문 위치로 지도가 이동(버튼 비활성이어도 강제 활성화) — buildDemoUrl/assistant_deeplink 처리.
+router.post('/api/admin/demo/typhoon-test', async (req, res) => {
+    try {
+        const { kind } = req.body || {};
+        const k = kind === 'dissipation' ? 'dissipation' : 'onset';
+        const typhoon = require('../typhoon_crawler');
+        const tmsg = require('../services/typhoon_message');
+        if (!typhoon.enabled) {
+            return res.status(503).json({ error: '방재기상플랫폼 자격증명(KMA_DMDW_USER_ID/PWD) 미설정 — 실데이터 조회 불가' });
+        }
+        const SEQ = '6'; // 사용자 지정 기준: 올해 6호 태풍 장미
+        const year = new Date(Date.now() + 9 * 3600 * 1000).getUTCFullYear();
+        const bl = await typhoon.getBulletinList(year, SEQ);
+        if (!bl || !bl.length) {
+            return res.status(404).json({ error: `${year}년 ${SEQ}호 태풍 통보문을 찾을 수 없습니다.` });
+        }
+        // bl[0]=최신(최후), bl[length-1]=가장 이른(최초)
+        let code;
+        if (k === 'onset') {
+            const typs = bl.filter(b => b.kind === 'TYP'); // 태풍단계만 (TD/열대저압부 제외)
+            code = (typs.length ? typs[typs.length - 1] : bl[bl.length - 1]).code; // 가장 이른 태풍 통보문
+        } else {
+            code = bl[0].code; // 최후 통보문
+        }
+        const d = await typhoon.getBulletin(year, code);
+        if (!d || !d.current) {
+            return res.status(404).json({ error: '통보문 위치 정보를 가져오지 못했습니다.' });
+        }
+        const snap = { seq: SEQ, name: d.name, nameEn: d.nameEn, current: d.current, rem: d.rem, tmFc: d.tmFc };
+        const msg = k === 'onset' ? tmsg.buildOnset(snap) : tmsg.buildDissipation(snap);
+        // 탭 시 이 실제 통보문(연도/호수/코드)을 그대로 표출(라벨·정보·이미지·지도 이동)
+        const url = tmsg.buildDemoUrl({ year, seq: SEQ, code });
+        // sendAdminPush → admin_devices.json 대상 (일반 사용자에게는 발송되지 않음)
+        const pushResult = await sendAdminPush(msg.title, msg.body, { url, type: 'typhoon_test' });
+        console.log(`[Typhoon Demo] ${k} 테스트 발송(실데이터 ${SEQ}호): ${msg.title}`);
+        res.json({ success: true, kind: k, title: msg.title, body: msg.body, pushResult });
+    } catch (e) {
+        console.error('[Typhoon Demo] 테스트 발송 오류:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// [위치기반 반경 시연] 고정 위치(30.345,130.625) + 고정 통보문(2026 6호 장미, 제6-20호)
+//   으로 강풍/폭풍반경 진입 ETA 를 계산해 "위치기반 긴급경보" 푸시를 관리자 기기에만 발송.
+//   - 발생/소멸 테스트와 완전 별개. 일반 사용자 발송 경로/라이브 위치 서브시스템 미사용.
+//   - 탭 시: 그 통보문이 선택된 태풍 화면 + 행동요령(2탭) 팝업 자동 표출(dtGuide=1).
+router.post('/api/admin/demo/typhoon-radius-test', async (req, res) => {
+    try {
+        const { kind } = req.body || {};
+        const which = kind === 'storm' ? 'storm' : 'strong';
+        const typhoon = require('../typhoon_crawler');
+        const tmsg = require('../services/typhoon_message');
+        const tr = require('../services/typhoon_radius');
+        if (!typhoon.enabled) {
+            return res.status(503).json({ error: '방재기상플랫폼 자격증명(KMA_DMDW_USER_ID/PWD) 미설정 — 실데이터 조회 불가' });
+        }
+        const LOC = { lat: 30.345, lon: 130.625 };
+        const CODE = '1_202606010400_6_20';
+        const year = 2026, seq = '6';
+        const d = await typhoon.getBulletin(year, CODE);
+        if (!d) {
+            return res.status(404).json({ error: `${year}년 통보문(${CODE})을 찾을 수 없습니다.` });
+        }
+        const frames = [];
+        if (d.current && d.current.lat != null) frames.push(d.current);
+        (d.forecast || []).forEach(f => { if (f.lat != null) frames.push(f); });
+        const entry = tr.radiusEntry(LOC, frames, which);
+        if (!entry) {
+            return res.status(422).json({ error: '해당 반경 진입 프레임 없음' });
+        }
+        const snap = { seq, name: d.name, nameEn: d.nameEn };
+        const { title, body } = tmsg.buildRadiusAlert(which, snap, entry.time);
+        const url = tmsg.buildDemoUrl({ year, seq, code: CODE, guide: true });
+        // sendAdminPush → admin_devices.json 대상 (일반 사용자에게는 발송되지 않음)
+        const pushResult = await sendAdminPush(title, body, { url, type: 'typhoon_radius_test' });
+        console.log(`[Typhoon Demo] 위치기반 ${which} 반경 발송(실데이터 ${CODE}): ${title}`);
+        res.json({ success: true, kind: which, eta: entry.time, title, body, pushResult });
+    } catch (e) {
+        console.error('[Typhoon Demo] 위치기반 반경 발송 오류:', e && e.message);
         res.status(500).json({ error: e.message });
     }
 });

@@ -92,6 +92,32 @@ const initPushNotifications = async () => {
     // 알림 수신 시 (앱이 열려있을 때)
     await PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log('Push received:', notification);
+        // [위치기반 특보] 깨우는 신호(데이터 메시지).
+        //   네이티브 모듈이 있는(최신) 앱은 네이티브가 모든 상태(켜짐/백그라운드/종료)를 처리함이
+        //   실기기에서 확인됨 → JS 경로는 건너뛴다(중복 알림 방지). 구버전 앱(네이티브 없음)만 JS 처리.
+        try {
+            const data = (notification && notification.data) || {};
+            if (data.type === 'location_alert_wake' && window.LocationAlertRuntime) {
+                const ui = window.LocationAlertUI;
+                if (ui && typeof ui.isNativeCapable === 'function') {
+                    ui.isNativeCapable().then((cap) => { if (!cap) window.LocationAlertRuntime.handleWake(data.snapshot, data); });
+                } else {
+                    window.LocationAlertRuntime.handleWake(data.snapshot, data);
+                }
+            }
+            // [위치기반 태풍 반경 알림 — Phase 2b] 깨우는 신호(데이터 메시지).
+            //   ★ Phase 2b 부터 네이티브가 typhoon_radius_wake 를 모든 상태(포그라운드 포함)에서
+            //   처리한다 → native-capable 단말에선 JS 를 skip(중복 알림 방지). 웹/구버전 앱만 JS 처리.
+            //   (location_alert_wake 게이트와 동일 패턴.)
+            if (data.type === 'typhoon_radius_wake' && window.LocationAlertTyphoonRuntime) {
+                const uiT = window.LocationAlertUI;
+                if (uiT && typeof uiT.isNativeCapable === 'function') {
+                    uiT.isNativeCapable().then((cap) => { if (!cap) window.LocationAlertTyphoonRuntime.handleTyphoonWake(data); });
+                } else {
+                    window.LocationAlertTyphoonRuntime.handleTyphoonWake(data);
+                }
+            }
+        } catch (e) { console.error('location_alert_wake 처리 실패:', e); }
     });
 
     // 알림 클릭 시
@@ -117,6 +143,33 @@ const initPushNotifications = async () => {
             }
         }
     });
+
+    // [위치기반 태풍 반경 알림 — Phase 2a] 로컬 알림 탭 라우팅.
+    //   태풍 경보는 LocalNotifications(로컬 알림)로 표출되므로 PushNotifications 의
+    //   actionPerformed 가 아니라 LocalNotifications.localNotificationActionPerformed 로 탭을 받는다.
+    //   기존 push 라우팅과 별개(서로 간섭 없음). 플러그인 부재 시 안전하게 skip.
+    try {
+        const { LocalNotifications } = window.Capacitor.Plugins;
+        if (LocalNotifications && typeof LocalNotifications.addListener === 'function') {
+            await LocalNotifications.addListener('localNotificationActionPerformed', (ev) => {
+                try {
+                    const url = ev && ev.notification && ev.notification.extra && ev.notification.extra.url;
+                    if (!url) return;
+                    // 기존 push 핸들러와 동일한 same-page 처리 스타일 재사용.
+                    const targetUrl = new URL(url, window.location.origin);
+                    const isSamePage = targetUrl.pathname.endsWith('index.html') || targetUrl.pathname === '/';
+                    if (isSamePage && targetUrl.searchParams.get('popup') === 'true') {
+                        window.history.replaceState(null, '', url);
+                        if (typeof window.checkForPushPopup === 'function') window.checkForPushPopup();
+                    } else {
+                        window.location.href = url;
+                    }
+                } catch (_) {
+                    try { if (ev && ev.notification && ev.notification.extra && ev.notification.extra.url) window.location.href = ev.notification.extra.url; } catch (__) { }
+                }
+            });
+        }
+    } catch (e) { console.error('localNotificationActionPerformed 리스너 등록 실패(무시):', e); }
 
     // 2. 권한 확인 및 요청
     let permStatus = await PushNotifications.checkPermissions();
@@ -195,6 +248,37 @@ window.openAppSettings = async () => {
             }
         }
     } else {
+    }
+};
+
+// [위치기반 특보] 위치 권한 설정 — 알림 설정이 아니라 "앱 정보(권한)" 화면으로 이동.
+//   여기서 권한 > 위치 > "항상 허용" 까지 설정 가능. (openAppSettings 는 알림 설정으로 감)
+window.openAppLocationSettings = async () => {
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+        const { NativeSettings } = window.Capacitor.Plugins;
+        if (!NativeSettings) return;
+        try {
+            await NativeSettings.open({
+                optionAndroid: 'application_details',
+                optionIOS: 'App'
+            });
+        } catch (e) {
+        }
+    }
+};
+
+// [위치기반 특보] 전경 위치 "권한만" 요청(위치 획득 없이 — 빠름). 동의 흐름의 GPS 대기 지연 제거.
+window.requestForegroundLocationPermission = async () => {
+    if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return 'granted';
+    try {
+        let st = await Geolocation.checkPermissions();
+        const loc = st && st.location;
+        if (loc === 'prompt' || loc === 'prompt-with-rationale' || loc === 'prompt-with-description') {
+            st = await Geolocation.requestPermissions();
+        }
+        return (st && st.location) || 'denied';
+    } catch (e) {
+        return 'denied';
     }
 };
 
@@ -576,6 +660,29 @@ const checkAppUpdate = async () => {
 
 initPushNotifications();
 checkAppUpdate();
+
+// [위치기반 특보 #1] 앱 실행 시 fresh-fix 1회(이벤트 기반 전환).
+//   상시 watcher/전경 서비스를 제거했으므로 "되살리기"가 아니라, 기능이 활성(+동의)이면
+//   앱을 켤 때 그 시점 위치를 한 번 갱신해(ensureStarted→start→getFreshPosition) 다음 깨우는
+//   신호 전까지의 폴백 정확도를 높인다. 실제 판정은 깨우는 신호 시점의 fresh-fix 가 담당.
+//   푸시 리스너 등록(initPushNotifications) 이후에 호출. LocationAlertBackground 가 아직 로드되지
+//   않았을 수 있어 약간 지연(setTimeout ~1500ms). 네이티브에서만 동작하며, 모든 호출은 방어적
+//   (외부/내부 try/catch + setTimeout 콜백 내부에서도 네이티브/typeof 재확인).
+if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+    try {
+        setTimeout(() => {
+            try {
+                if (typeof window !== 'undefined'
+                    && window.Capacitor && window.Capacitor.isNativePlatform
+                    && window.Capacitor.isNativePlatform()
+                    && window.LocationAlertBackground
+                    && typeof window.LocationAlertBackground.ensureStarted === 'function') {
+                    window.LocationAlertBackground.ensureStarted();
+                }
+            } catch (e) { /* 방어적 — 무시 */ }
+        }, 1500);
+    } catch (e) { /* 방어적 — setTimeout 부재 등 무시 */ }
+}
 
 // ============================================================================
 // [외부 링크 처리] Capacitor 앱에서 외부 링크를 시스템 브라우저로 열기
