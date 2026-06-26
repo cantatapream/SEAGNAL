@@ -108,9 +108,14 @@
   .headline-b .em{color:#FF6B35;}
   .accent-b{position:absolute;left:120px;top:260px;width:80px;height:6px;background:#FF6B35;opacity:0;transform:scaleX(0);transform-origin:left;transition:transform 0.6s ease 0.4s,opacity 0.4s ease 0.4s;}
 
-  #graph-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;opacity:0;transition:opacity 0.8s ease 0.4s;}
+  /* 그래프 레이어 (s4 선명 → s5 블러 배경) */
+  #graph-layer{position:absolute;inset:0;z-index:5;opacity:0;transition:opacity 0.8s ease 0.4s, filter 0.9s ease, transform 0.9s ease;will-change:filter,transform,opacity;}
+  #wrap.s4 #graph-layer, #wrap.s5 #graph-layer{opacity:1;}
+  #wrap.s5 #graph-layer{filter:blur(11px);opacity:0.42;transform:scale(1.08);}
 
-  .gnode{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;border-radius:50%;font-weight:600;line-height:1.2;letter-spacing:-0.015em;will-change:transform,left,top;opacity:0;transition:opacity 0.8s ease;}
+  #graph-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;}
+
+  .gnode{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;border-radius:50%;font-weight:600;line-height:1.2;letter-spacing:-0.015em;will-change:transform,left,top;}
 
   #graph-center{
     width:210px;height:210px;
@@ -145,7 +150,32 @@
 
   #wrap.s4 .chap-b, #wrap.s4 .headline-b{opacity:1;}
   #wrap.s4 .accent-b{opacity:1;transform:scaleX(1);}
-  #wrap.s4 #graph-svg, #wrap.s4 .gnode{opacity:1;}
+
+  /* ============ S5 · 블러 배경 + 헤드라인 + 수치 ============ */
+  #info-overlay{position:absolute;inset:0;z-index:30;padding:120px 120px 80px;display:flex;flex-direction:column;justify-content:center;
+    background:linear-gradient(180deg, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.42) 45%, rgba(0,0,0,0.62) 100%);
+    opacity:0;pointer-events:none;transition:opacity 0.8s ease 0.35s;}
+  #wrap.s5 #info-overlay{opacity:1;}
+
+  .io-chap{color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;margin-bottom:26px;}
+  .io-headline{color:#FFFFFF;font-size:68px;font-weight:600;letter-spacing:-0.028em;line-height:1.18;}
+  .io-headline .em{color:#FF6B35;}
+  .io-accent{width:80px;height:6px;background:#FF6B35;margin:34px 0 0;}
+
+  .io-bands{display:flex;gap:48px;margin-top:48px;}
+  .io-band{flex:1;}
+  .io-band .blabel{font-size:23px;font-weight:400;letter-spacing:-0.01em;line-height:1.4;margin-bottom:26px;}
+  .io-band.demand .blabel{color:rgba(255,255,255,0.82);}
+  .io-band.problem .blabel{color:#FF6B35;font-weight:500;}
+  .io-band .blabel .q{color:rgba(255,255,255,0.45);font-size:19px;}
+
+  .io-stats{display:flex;gap:40px;}
+  .io-stat{min-width:0;}
+  .io-stat .num{color:#FFFFFF;font-size:72px;font-weight:700;letter-spacing:-0.035em;line-height:1;font-variant-numeric:tabular-nums;}
+  .io-stat .num .u{font-size:34px;color:rgba(255,255,255,0.65);font-weight:600;margin-left:2px;}
+  .io-stat .cap{color:rgba(255,255,255,0.6);font-size:19px;font-weight:400;margin-top:12px;line-height:1.35;}
+  .io-stat.alt .num{color:#FF6B35;}
+  .io-divider{width:1px;align-self:stretch;background:rgba(255,255,255,0.16);margin:6px 8px;}
 
   /* Progress hint */
   #steps{position:fixed;right:24px;bottom:24px;color:rgba(255,255,255,0.4);font-size:12px;letter-spacing:0.16em;font-weight:500;z-index:200;}
@@ -270,25 +300,70 @@
   <div class="headline-b">정보는 있습니다. <span class="em">흩어져 있을 뿐…</span></div>
   <div class="accent-b"></div>
 
-  <svg id="graph-svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
-    <line id="line0" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
-    <line id="line1" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
-    <line id="line2" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
-    <line id="line3" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
-    <line id="line4" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
-    <line id="line5" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
-    <line id="line6" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
-  </svg>
+  <div id="graph-layer">
+    <svg id="graph-svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+      <line id="line0" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
+      <line id="line1" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
+      <line id="line2" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
+      <line id="line3" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
+      <line id="line4" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
+      <line id="line5" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
+      <line id="line6" stroke="rgba(255,255,255,0.22)" stroke-width="1.4"/>
+    </svg>
 
-  <div class="gnode" id="graph-center">해양 정보</div>
+    <div class="gnode" id="graph-center">해양 정보</div>
 
-  <div class="gnode outer" id="gnode0"><span class="nname">기상청</span><span class="ndesc">(날씨 · 태풍 등)</span></div>
-  <div class="gnode outer" id="gnode1"><span class="nname">국립<br>해양조사원</span><span class="ndesc">(조석 · 유향속 등)</span></div>
-  <div class="gnode outer" id="gnode2"><span class="nname">한국<br>천문연구원</span><span class="ndesc">(일출몰 등)</span></div>
-  <div class="gnode outer" id="gnode3"><span class="nname">해양기상<br>기후포털</span><span class="ndesc">(예측정보)</span></div>
-  <div class="gnode outer" id="gnode4"><span class="nname">방재기상<br>플랫폼</span><span class="ndesc">(과거 정보)</span></div>
-  <div class="gnode outer" id="gnode5"><span class="nname">지자체<br>정보</span><span class="ndesc">(해안가 등)</span></div>
-  <div class="gnode outer" id="gnode6"><span class="nname">etc.</span></div>
+    <div class="gnode outer" id="gnode0"><span class="nname">기상청</span><span class="ndesc">(날씨 · 태풍 등)</span></div>
+    <div class="gnode outer" id="gnode1"><span class="nname">국립<br>해양조사원</span><span class="ndesc">(조석 · 유향속 등)</span></div>
+    <div class="gnode outer" id="gnode2"><span class="nname">한국<br>천문연구원</span><span class="ndesc">(일출몰 등)</span></div>
+    <div class="gnode outer" id="gnode3"><span class="nname">해양기상<br>기후포털</span><span class="ndesc">(예측정보)</span></div>
+    <div class="gnode outer" id="gnode4"><span class="nname">방재기상<br>플랫폼</span><span class="ndesc">(과거 정보)</span></div>
+    <div class="gnode outer" id="gnode5"><span class="nname">지자체<br>정보</span><span class="ndesc">(해안가 등)</span></div>
+    <div class="gnode outer" id="gnode6"><span class="nname">etc.</span></div>
+  </div>
+
+  <!-- ============ S5 · 블러 배경 위 헤드라인 + 수치 ============ -->
+  <div id="info-overlay">
+    <div class="io-chap">왜 만들었나 · 수요는 큰데, 신호는 흩어져</div>
+    <div class="io-headline">바다의 시대는 왔는데,<br><span class="em">신호는 정리되지 않았습니다.</span></div>
+    <div class="io-accent"></div>
+
+    <div class="io-bands">
+      <div class="io-band demand">
+        <div class="blabel">바다를 쓰는 사람은 — 이렇게 많은데 <span class="q">(수요)</span></div>
+        <div class="io-stats">
+          <div class="io-stat">
+            <div class="num"><span class="cu" data-to="9">0</span><span class="u">만</span></div>
+            <div class="cap">어업인</div>
+          </div>
+          <div class="io-stat">
+            <div class="num"><span class="cu" data-to="920">0</span><span class="u">만</span></div>
+            <div class="cap">낚시인</div>
+          </div>
+          <div class="io-stat">
+            <div class="num">연 <span class="cu" data-to="1012" data-comma="1">0</span><span class="u">만</span></div>
+            <div class="cap">관광객 (연간)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="io-divider"></div>
+
+      <div class="io-band problem">
+        <div class="blabel">그런데 — 정보는 흩어지고, 외산앱에 기댑니다 <span class="q">(문제)</span></div>
+        <div class="io-stats">
+          <div class="io-stat alt">
+            <div class="num"><span class="cu" data-to="7">0</span><span class="u">개+</span></div>
+            <div class="cap">분산된 공공 출처<br>(방금 본 분자)</div>
+          </div>
+          <div class="io-stat alt">
+            <div class="num">외산<span class="u">앱</span></div>
+            <div class="cap">Windy 등 의존<br>한국 특보 연동 없음</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
 </div></div>
 
@@ -298,19 +373,46 @@
   const wrap = document.getElementById('wrap');
   const steps = document.getElementById('steps');
   let state = 0;
-  const total = 5;
-  const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들'];
+  const total = 6;
+  const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들', '수요는 큰데, 신호는 흩어져'];
+  let countersRun = false;
   function setState(n){
     state = Math.max(0, Math.min(total-1, n));
-    wrap.classList.remove('s0','s1','s2','s3','s4');
+    wrap.classList.remove('s0','s1','s2','s3','s4','s5');
     wrap.classList.add('s' + state);
     steps.textContent = (state+1) + ' / ' + total + ' · ' + labels[state] + ' · CLICK 으로 다음';
+    // s5 진입 시 카운터 1회 실행
+    if(state === 5 && !countersRun){ countersRun = true; runCounters(); }
+    if(state !== 5){ countersRun = false; }
   }
+
+  // 수치 카운트업
+  function runCounters(){
+    document.querySelectorAll('#info-overlay .cu').forEach((el, idx) => {
+      const to = parseFloat(el.dataset.to);
+      const comma = el.dataset.comma === '1';
+      const dur = 1300;
+      const delay = 250 + idx * 160;
+      el.textContent = comma ? '0' : '0';
+      setTimeout(() => {
+        const start = performance.now();
+        function tick(now){
+          const t = Math.min(1, (now - start) / dur);
+          const eased = 1 - Math.pow(1 - t, 3);
+          const val = Math.round(to * eased);
+          el.textContent = comma ? val.toLocaleString() : String(val);
+          if(t < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      }, delay);
+    });
+  }
+
   setState(0);
 
   wrap.addEventListener('click', () => {
     if(state < total - 1) setState(state + 1);
-    // 마지막 슬라이드에서는 자동 복귀 없음 (R 키로만 처음 복귀)
+    // 마지막 슬라이드(s5)에서는 자동 복귀 없음 (R 키로만 처음 복귀)
   });
   document.addEventListener('keydown', e => {
     if(e.key === ' ' || e.key === 'ArrowRight' || e.key === 'Enter'){ if(state < total-1) setState(state+1); e.preventDefault(); }
@@ -347,7 +449,18 @@
     });
   }
 
-  function frameGraph(t){
+  let vt = 0;          // 가상 시간(속도 가변 누적)
+  let lastTs = null;
+  let speedMul = 1;    // 현재 속도 배율
+  function frameGraph(ts){
+    if(lastTs === null) lastTs = ts;
+    const dt = ts - lastTs;
+    lastTs = ts;
+    // s5 에서 1.5배속, 그 외 1배속 — 부드럽게 보간
+    const targetSpeed = (state === 5) ? 1.5 : 1.0;
+    speedMul += (targetSpeed - speedMul) * Math.min(1, dt / 350);
+    vt += dt * speedMul;
+    const t = vt;
     for(let i = 0; i < N; i++){
       const n = gnodes[i];
       const distBreath = Math.sin(t * n.distFreq + n.distPhase) * n.distAmp;
