@@ -9,7 +9,7 @@
   html,body{margin:0;padding:0;background:#000;color:#fff;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;height:100%;}
   *{box-sizing:border-box;}
   #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
-  #frameWrap{position:relative;width:1920px;height:1080px;transform-origin:center center;}
+  #frameWrap{position:relative;width:1920px;height:1080px;transform-origin:center center;flex-shrink:0;}
   iframe{width:1920px;height:1080px;border:0;display:block;background:#000;}
   #topbar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;padding:0 16px;background:rgba(0,0,0,0.5);backdrop-filter:blur(10px);font-size:13px;letter-spacing:0.04em;z-index:100;opacity:0;transition:opacity 0.2s;}
   #topbar.show{opacity:1;}
