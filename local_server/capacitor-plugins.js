@@ -105,11 +105,17 @@ const initPushNotifications = async () => {
                     window.LocationAlertRuntime.handleWake(data.snapshot, data);
                 }
             }
-            // [위치기반 태풍 반경 알림 — Phase 2a] 깨우는 신호(데이터 메시지).
-            //   ★ native-capable 게이트 미적용: 네이티브는 location_alert_wake 만 처리하므로,
-            //   태풍 타입은 네이티브 미처리 → JS 가 항상 처리해야 한다(foreground/background).
+            // [위치기반 태풍 반경 알림 — Phase 2b] 깨우는 신호(데이터 메시지).
+            //   ★ Phase 2b 부터 네이티브가 typhoon_radius_wake 를 모든 상태(포그라운드 포함)에서
+            //   처리한다 → native-capable 단말에선 JS 를 skip(중복 알림 방지). 웹/구버전 앱만 JS 처리.
+            //   (location_alert_wake 게이트와 동일 패턴.)
             if (data.type === 'typhoon_radius_wake' && window.LocationAlertTyphoonRuntime) {
-                window.LocationAlertTyphoonRuntime.handleTyphoonWake(data);
+                const uiT = window.LocationAlertUI;
+                if (uiT && typeof uiT.isNativeCapable === 'function') {
+                    uiT.isNativeCapable().then((cap) => { if (!cap) window.LocationAlertTyphoonRuntime.handleTyphoonWake(data); });
+                } else {
+                    window.LocationAlertTyphoonRuntime.handleTyphoonWake(data);
+                }
             }
         } catch (e) { console.error('location_alert_wake 처리 실패:', e); }
     });
