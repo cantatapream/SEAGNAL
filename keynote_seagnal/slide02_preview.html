@@ -323,7 +323,7 @@
   #wrap.s11 #stepcut{opacity:1;}
 
   .sc-chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;opacity:0;transition:opacity 0.6s ease 0.2s;}
-  .sc-note{position:absolute;right:120px;top:88px;color:rgba(255,255,255,0.42);font-size:16px;letter-spacing:-0.005em;font-weight:400;opacity:0;transition:opacity 0.6s ease 0.35s;}
+  .sc-note{position:absolute;right:132px;top:300px;color:rgba(255,255,255,0.42);font-size:16px;letter-spacing:-0.005em;font-weight:400;opacity:0;transition:opacity 0.6s ease 0.35s;text-align:right;}
   #wrap.s11 .sc-note{opacity:1;}
   .sc-head{position:absolute;left:120px;top:140px;color:#fff;font-size:72px;font-weight:700;letter-spacing:-0.028em;line-height:1.1;opacity:0;transition:opacity 0.7s ease 0.3s;}
   .sc-head .em{color:#FF6B35;}
@@ -351,7 +351,8 @@
   .sc-avg-section{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 36px;}
   .sc-avg-label{color:#fff;font-size:28px;font-weight:600;letter-spacing:-0.005em;}
   .sc-avg-big{color:#FF6B35;font-size:132px;font-weight:700;letter-spacing:-0.04em;line-height:1;margin-top:14px;font-variant-numeric:tabular-nums;}
-  .sc-avg-big .u{font-size:66px;color:rgba(255,107,53,0.7);font-weight:600;}
+  .sc-avg-big .u{font-size:66px;color:#fff;font-weight:600;}
+  .sc-avg-big .avg-note{font-size:22px;color:rgba(255,255,255,0.48);font-weight:400;letter-spacing:-0.005em;margin-left:10px;vertical-align:28px;}
   .sc-avg-suffix{color:rgba(255,255,255,0.72);font-size:30px;font-weight:400;margin-top:16px;letter-spacing:-0.01em;}
   .sc-avg-sep{flex:none;height:1px;background:rgba(255,255,255,0.22);margin:0 36px;}
   .sc-avg-row{color:#fff;font-size:35px;font-weight:700;letter-spacing:-0.02em;line-height:1.1;}
@@ -749,7 +750,7 @@
   <!-- ============ S11 · 접속 단계 축소 ============ -->
   <div id="stepcut">
     <div class="sc-chap">정보 획득 단계 축소</div>
-    <div class="sc-note">* 단계 카운트는 PC로 접속 시를 기준으로 자체 집계한 결과임</div>
+    <div class="sc-note">* 기존 사이트 단계 카운트는 PC로 접속 시를 기준으로 자체 집계한 결과임</div>
     <div class="sc-head"><span class="em">3회 이내</span>로 끝납니다.</div>
     <div class="sc-acc"></div>
 
@@ -774,7 +775,7 @@
     <div id="sc-avg">
       <div class="sc-avg-section">
         <div class="sc-avg-label">기존 접속방법 대비</div>
-        <div class="sc-avg-big"><span id="sc-num">0</span><span class="u">%</span></div>
+        <div class="sc-avg-big"><span id="sc-num">0</span><span class="u">%</span><span class="avg-note">(전체 평균)</span></div>
         <div class="sc-avg-suffix">절차 감소</div>
       </div>
       <div class="sc-avg-sep"></div>
