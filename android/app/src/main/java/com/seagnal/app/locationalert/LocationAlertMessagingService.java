@@ -94,17 +94,22 @@ public class LocationAlertMessagingService extends MessagingService {
             }
         }
         if (pos == null) {
-            pos = LocationAlertStore.getPosition(ctx);
+            // ── 이벤트 기반(2026-06-26): 그 순간 FRESH 위치 1회 수집 ───────────────────
+            //   상시 수집을 제거했으므로 wake 시점에 LocationAlertLocator.getFresh()로 직접
+            //   픽스를 받는다(활성 단발 픽스 → getLastKnownLocation → 저장 폴백). 좌표는 단말
+            //   밖으로 절대 나가지 않음. fresh fix 성공 시 LocationAlertStore.putPosition 으로
+            //   저장 캐시·진단을 갱신한다.
+            pos = LocationAlertLocator.getFresh(ctx);
         }
         if (pos == null) {
-            Log.d(TAG, "위치 없음 → skip");
+            Log.d(TAG, "위치 없음(fresh fix 실패) → skip");
             return;
         }
 
-        // ── #3 낡음 가드 (저장 GPS 한정, 데모는 절대 적용 안 함) ──────────────────
-        //   저장 위치(pos.at, ISO-8601 UTC)가 12시간(STALE_MAX_MS)보다 낡았으면 잘못된 구역
-        //   알림을 막는다. 네이티브 v1 은 fresh fix 를 시도하지 않음(문서화된 한계 — killed 상태에서
-        //   안정적인 위치 획득이 어려움) → 낡으면 알림 없이 진단만 남기고 종료.
+        // ── #3 낡음 가드 (실제 GPS 한정, 데모는 절대 적용 안 함) ──────────────────
+        //   이벤트 기반 전환 후엔 getFresh()가 직전 시각으로 at 을 스탬프하므로 보통 낡지 않다.
+        //   다만 활성 픽스 실패로 getLastKnownLocation/저장 폴백을 쓴 경우 pos.at 이 과거일 수
+        //   있어, 12시간(STALE_MAX_MS) 초과면 잘못된 구역 알림을 막는다(진단만 기록 후 종료).
         //   파싱 실패는 "낡지 않음"으로 취급(유효 알림 억제 방지). 완전 방어적.
         if (!isDemo) {
             try {

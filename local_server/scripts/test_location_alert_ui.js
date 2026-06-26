@@ -59,7 +59,9 @@ console.log('\n[3] 동의 문안');
 const html = UI.consentMessageHtml();
 check('문안에 "휴대폰 내부에만 저장" 포함', /휴대폰 내부에만 저장/.test(html));
 check('문안에 "백그라운드" 포함', /백그라운드/.test(html));
-check('문안에 "약 15분" 포함', /약 15분/.test(html));
+// 이벤트 기반 전환: 상시(약 15분 주기) 수집 문구 제거 → 발표·변경 시점 1회 수집 문구.
+check('문안에 "발표·변경" 포함(이벤트 기반)', /발표·변경/.test(html));
+check('문안에 "1회" 포함(상시 수집 아님)', /1회/.test(html));
 check('문안에 "서버 등 외부로 전송" 포함', /서버 등 외부로 전송/.test(html));
 
 console.log('\n[4] 푸시 토큰 키 (push_token — 앱 표준)');

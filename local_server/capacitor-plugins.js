@@ -622,9 +622,10 @@ const checkAppUpdate = async () => {
 initPushNotifications();
 checkAppUpdate();
 
-// [위치기반 특보 #1] 앱 실행 시 백그라운드 위치 watcher 자동 재가동(견고화 #1).
-//   Android 배터리 최적화 등으로 전경 위치 서비스가 죽으면, 사용자가 토글을 다시 켜지 않는 한
-//   위치가 며칠씩 낡는다. 앱을 켤 때 기능이 활성(+동의)이면 idempotent 하게 start() 를 재호출한다.
+// [위치기반 특보 #1] 앱 실행 시 fresh-fix 1회(이벤트 기반 전환).
+//   상시 watcher/전경 서비스를 제거했으므로 "되살리기"가 아니라, 기능이 활성(+동의)이면
+//   앱을 켤 때 그 시점 위치를 한 번 갱신해(ensureStarted→start→getFreshPosition) 다음 깨우는
+//   신호 전까지의 폴백 정확도를 높인다. 실제 판정은 깨우는 신호 시점의 fresh-fix 가 담당.
 //   푸시 리스너 등록(initPushNotifications) 이후에 호출. LocationAlertBackground 가 아직 로드되지
 //   않았을 수 있어 약간 지연(setTimeout ~1500ms). 네이티브에서만 동작하며, 모든 호출은 방어적
 //   (외부/내부 try/catch + setTimeout 콜백 내부에서도 네이티브/typeof 재확인).

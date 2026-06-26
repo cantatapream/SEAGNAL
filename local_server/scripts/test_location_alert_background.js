@@ -44,5 +44,69 @@ console.log('\n[6] 밀리초 단위 경계(>maxMs 엄격) — 12h+1ms → true, 
 check('12h+1ms → true', BG.isStale({ at: new Date(now - (MAX + 1)).toISOString() }, now, MAX) === true);
 check('12h-1ms → false', BG.isStale({ at: new Date(now - (MAX - 1)).toISOString() }, now, MAX) === false);
 
-console.log(`\n결과: ${pass} 통과 / ${fail} 실패`);
-process.exit(fail ? 1 : 0);
+// ── getFreshPosition: 이벤트 기반 fresh-fix 폴백/획득 검증 ──────────────────────
+//   Capacitor/localStorage 전역을 주입해 두 경로를 검증한다(상시 watcher 없음).
+check('getFreshPosition export 됨', typeof BG.getFreshPosition === 'function');
+
+function fakeLocalStorage() {
+    const d = {};
+    return {
+        getItem: (k) => (k in d ? d[k] : null),
+        setItem: (k, v) => { d[k] = String(v); },
+        removeItem: (k) => { delete d[k]; },
+    };
+}
+
+(async () => {
+    console.log('\n[7] Geolocation 없음 → 저장 위치로 폴백');
+    const stored = { lat: 34.5, lng: 128.3, acc: 50, at: new Date(now).toISOString(), src: 'gps' };
+    global.localStorage = fakeLocalStorage();
+    global.localStorage.setItem(BG.POS_KEY, JSON.stringify(stored));
+    // Geolocation 플러그인 부재(absent).
+    global.Capacitor = { isNativePlatform: () => true, Plugins: {} };
+    const fb = await BG.getFreshPosition();
+    check('폴백: 저장 위치 반환', fb && fb.lat === 34.5 && fb.lng === 128.3, JSON.stringify(fb));
+
+    console.log('\n[7b] Geolocation 없음 + 저장 위치도 없음 → null');
+    global.localStorage = fakeLocalStorage();
+    global.Capacitor = { isNativePlatform: () => true, Plugins: {} };
+    const nul = await BG.getFreshPosition();
+    check('폴백 대상 없음 → null', nul === null, JSON.stringify(nul));
+
+    console.log('\n[8] Geolocation 있음 → fresh 위치 획득 + POS_KEY 저장');
+    global.localStorage = fakeLocalStorage();
+    let called = 0;
+    global.Capacitor = {
+        isNativePlatform: () => true,
+        Plugins: {
+            Geolocation: {
+                getCurrentPosition: async (opts) => {
+                    called++;
+                    // 옵션 계약 확인(저전력, 8초 타임아웃).
+                    check('getCurrentPosition opts.timeout=8000', opts && opts.timeout === 8000, JSON.stringify(opts));
+                    check('getCurrentPosition enableHighAccuracy=false', opts && opts.enableHighAccuracy === false);
+                    return { coords: { latitude: 36.7, longitude: 130.1, accuracy: 8 } };
+                },
+            },
+        },
+    };
+    const fresh = await BG.getFreshPosition();
+    check('Geolocation 1회 호출', called === 1, `(${called})`);
+    check('fresh 좌표 반환', fresh && fresh.lat === 36.7 && fresh.lng === 130.1, JSON.stringify(fresh));
+    check('fresh src=gps', fresh && fresh.src === 'gps');
+    const persisted = JSON.parse(global.localStorage.getItem(BG.POS_KEY));
+    check('POS_KEY 저장됨(최신 1건 갱신)', persisted && persisted.lat === 36.7 && persisted.lng === 130.1, JSON.stringify(persisted));
+
+    console.log('\n[9] Geolocation 예외 → 저장 위치로 폴백');
+    global.localStorage = fakeLocalStorage();
+    global.localStorage.setItem(BG.POS_KEY, JSON.stringify(stored));
+    global.Capacitor = {
+        isNativePlatform: () => true,
+        Plugins: { Geolocation: { getCurrentPosition: async () => { throw new Error('timeout'); } } },
+    };
+    const afterErr = await BG.getFreshPosition();
+    check('예외 시 저장 위치 폴백', afterErr && afterErr.lat === 34.5, JSON.stringify(afterErr));
+
+    console.log(`\n결과: ${pass} 통과 / ${fail} 실패`);
+    process.exit(fail ? 1 : 0);
+})();

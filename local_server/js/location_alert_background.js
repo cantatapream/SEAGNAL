@@ -1,34 +1,36 @@
 /**
  * ============================================================================
- * location_alert_background.js — 위치기반 특보: 백그라운드 위치 수집 (② 단계)
+ * location_alert_background.js — 위치기반 특보: 이벤트 기반 위치 수집 (② 단계)
  * ============================================================================
  * 설계 문서: 00_docs/LOCATION_BASED_ALERT_DESIGN.md (§9)
  *
- * 검증된 플러그인 @capacitor-community/background-geolocation 사용.
- *  - 전경 서비스(상시 알림 "해상안전을 위해 위치 확인 중")로 앱 종료 상태에서도 동작.
- *  - 위치 업데이트마다 **단말 localStorage에 최신 1건만 갱신**(누적·서버전송 없음).
- *  - start()/stop() 은 동의/활성 UI(③)의 hook(window.LocationAlertBackground)이 호출.
+ * [이벤트 기반 전환] 상시 GPS 수집(@capacitor-community/background-geolocation 전경
+ *   서비스 + 상시 알림 "해상안전을 위해 위치 확인 중" + 15분 타이머)을 제거하고,
+ *   특보 발표·변경(=깨우는 신호) 시점에 **그 순간 위치를 1회(fresh-fix)** 수집해 판정한다.
+ *  - getFreshPosition(): @capacitor/geolocation 의 현재 위치 1회 획득(저전력) → 성공 시
+ *    최신 1건으로 저장(POS_KEY) 후 반환. 실패/부재 시 마지막 저장 위치(getPosition)로 폴백.
+ *  - 위치는 **단말 localStorage(+Preferences 미러)에 최신 1건만** 갱신(누적·서버전송 없음).
+ *  - start()/stop()/ensureStarted() 은 동의/활성 UI(③)와 앱 실행 hook(capacitor-plugins.js)이 호출.
+ *      · start()      → 즉시 fresh-fix 1회(상시 watcher/전경 서비스 없음).
+ *      · stop()       → 저장 위치 삭제(해제 시 단말 위치 제거).
+ *      · ensureStarted() → 활성 단말 한정, 앱 실행 시 fresh-fix 1회.
  *
- * ⚠️ 네이티브 전용. 실기기에서 npm install + npx cap sync 후 동작.
- *    웹/플러그인 부재 시 안전하게 no-op.
+ * ⚠️ 네이티브 전용. 실기기에서 @capacitor/geolocation + @capacitor/preferences 동작.
+ *    웹/플러그인 부재 시 안전하게 no-op(폴백).
  * ============================================================================
  */
 (function (root) {
     'use strict';
 
-    const POS_KEY = 'location_alert_last_pos';   // {lat,lng,acc,at}
-    const WATCHER_KEY = '_locationAlertWatcherId';
+    const POS_KEY = 'location_alert_last_pos';   // {lat,lng,acc,at,src}
 
     // 낡음(stale) 가드 임계값 — 튜닝 가능. 저장 위치가 이보다 오래되면 "낡음"으로 본다.
-    //   killed 상태에서 정지+JS 타이머 부재로 위치가 갱신되지 못할 때 잘못된 구역 알림을 막는다.
+    //   이벤트 기반 fresh-fix 가 실패해 마지막 저장 위치로 폴백할 때, 위치가 너무 낡으면
+    //   잘못된 구역 알림을 막는 안전망으로 (네이티브/runtime 에서) 사용한다.
     const STALE_MAX_MS = 12 * 60 * 60 * 1000;    // 12시간 (tunable)
 
-    // 주기 갱신 타이머 키 — 앱이 살아있는 동안 정지 상태에서도 위치를 시간 기반으로 갱신.
-    const REFRESH_TIMER_KEY = '_locationAlertRefreshTimer';
-    const REFRESH_INTERVAL_MS = 15 * 60 * 1000;  // ~15분
-
     // ── @capacitor/preferences 미러 (네이티브 killed 대응) ────────────────────
-    //   기존 localStorage 경로는 그대로 두되(앱 켜짐/백그라운드 JS 가 사용), 같은 값을
+    //   기존 localStorage 경로는 그대로 두되(앱 켜짐/JS 가 사용), 같은 값을
     //   @capacitor/preferences(= Android SharedPreferences "CapacitorStorage") 에도 저장한다.
     //   네이티브 FCM 서비스(LocationAlertStore)가 이 SharedPreferences 를 읽어 종료 상태에서도
     //   위치 판정/알림을 수행한다. (위치는 단말 밖으로 절대 나가지 않음 — on-device 미러일 뿐)
@@ -52,10 +54,6 @@
     // 다른 모듈(location_alert_ui.js)이 동일 경로로 플래그를 쓰도록 노출.
     const Mirror = { set: prefsSet, remove: prefsRemove, POS_KEY };
 
-    function plugin() {
-        try { return root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.BackgroundGeolocation; }
-        catch (_) { return null; }
-    }
     function isNative() {
         try { return !!(root.Capacitor && root.Capacitor.isNativePlatform && root.Capacitor.isNativePlatform()); }
         catch (_) { return false; }
@@ -68,7 +66,7 @@
                 lat: loc.latitude, lng: loc.longitude,
                 acc: (typeof loc.accuracy === 'number' ? loc.accuracy : null),
                 at: new Date().toISOString(),
-                src: 'gps',   // 진짜 백그라운드 GPS 고정값 표시(데모 위치와 구분). POS_KEY 오염 방지.
+                src: 'gps',   // 진짜 GPS 고정값 표시(데모 위치와 구분). POS_KEY 오염 방지.
             };
             const json = JSON.stringify(rec);
             root.localStorage.setItem(POS_KEY, json);
@@ -104,99 +102,61 @@
         try {
             const G = root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.Geolocation;
             if (!G || !G.getCurrentPosition) return null;
-            const p = await G.getCurrentPosition({ enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
+            const p = await G.getCurrentPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
             return (p && p.coords) ? p.coords : null;
         } catch (_) { return null; }
     }
 
     /**
-     * 주기 갱신 타이머 시작(~15분). 매 틱마다 CURRENT 위치를 읽어 savePosition.
-     *   - distanceFilter(거리 필터)로는 갱신되지 않는 "정지 상태"도 시간 기반으로 갱신한다.
-     *   - 제약: JS 타이머는 앱이 살아있을 때만 동작한다. 앱이 완전 종료(killed)되고 단말이
-     *     정지해 있으면 이 타이머는 돌지 못하므로, 그 경우엔 (a) 이동 시 watcher 갱신 +
-     *     (b) 낡음 가드(STALE_MAX_MS, isStale) 에 의존한다.
+     * 이벤트 기반 fresh-fix — 깨우는 신호(특보 발표·변경) 시점에 그 순간 위치를 1회 수집.
+     *   1) 전경 fix 시도(@capacitor/geolocation getCurrentPosition). 성공 시 savePosition 으로
+     *      최신 1건 저장(src:'gps') 후, 저장된 레코드를 다시 읽어 {lat,lng,acc,at,src} 반환.
+     *   2) 실패/부재 시 마지막 저장 위치(getPosition)로 폴백(없으면 null).
+     *   완전 방어적(try/catch). 위치는 단말 밖으로 나가지 않음.
+     * @returns {Promise<{lat,lng,acc,at,src}|null>}
      */
-    function startRefreshTimer() {
+    async function getFreshPosition() {
         try {
-            if (root[REFRESH_TIMER_KEY]) return;   // 이미 동작 중(idempotent)
-            root[REFRESH_TIMER_KEY] = setInterval(async function () {
-                try {
-                    const coords = await getCurrentPositionOnce();
-                    if (coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude)) {
-                        savePosition({ latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy });
-                    }
-                } catch (_) { /* 실패 틱은 무시 */ }
-            }, REFRESH_INTERVAL_MS);
-        } catch (_) { /* setInterval 부재 등 — no-op */ }
-    }
-
-    function stopRefreshTimer() {
-        try { if (root[REFRESH_TIMER_KEY]) clearInterval(root[REFRESH_TIMER_KEY]); } catch (_) { }
-        root[REFRESH_TIMER_KEY] = null;
-    }
-
-    async function start() {
-        const BG = plugin();
-        if (!isNative() || !BG) { console.log('[LocationAlertBG] 네이티브/플러그인 없음 → skip'); return false; }
-        // [경쟁 가드] WATCHER_KEY 할당이 await(addWatcher) 이후라, 동기 가드만으로는 두 start()가
-        //   겹칠 때 워처가 2개 생성되고 stop() 시 1개가 유령(끌 수 없는 위치 서비스)으로 남는다.
-        //   자동 재가동(ensureStarted)이 토글과 겹치는 경우가 대표적. 시작 진행 플래그로 재진입 차단.
-        if (root[WATCHER_KEY] || root._laStarting) return true;
-        root._laStarting = true;
-        root._laStopRequested = false;
-        try {
-            const id = await BG.addWatcher(
-                {
-                    // 안드로이드 상시 알림(전경 서비스) — 최소 문구
-                    backgroundMessage: '해상안전을 위해 위치 확인 중',
-                    backgroundTitle: 'SEA:GNAL',
-                    requestPermissions: true,
-                    stale: false,
-                    // 약 15분 주기 취지: 잦은 갱신 방지(거리 필터). 시간 throttle은 콜백에서 보강.
-                    distanceFilter: 200,
-                },
-                function (location, error) {
-                    if (error) { console.warn('[LocationAlertBG] watcher error:', error); return; }
-                    if (!location) return;
-                    // 15분 throttle: 직전 저장 후 15분 미만이면 무시(배터리 절약)
-                    const prev = getPosition();
-                    if (prev && prev.at && (Date.now() - Date.parse(prev.at)) < 15 * 60 * 1000) return;
-                    savePosition(location);
-                }
-            );
-            // 시작 도중 stop()이 중단을 요청했으면, 방금 만든 워처를 즉시 제거(유령 방지) + 비활성 존중.
-            if (root._laStopRequested) {
-                root._laStopRequested = false;
-                try { await BG.removeWatcher({ id }); } catch (_) { }
-                return false;
+            const coords = await getCurrentPositionOnce();
+            if (coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude)) {
+                // 최신 1건으로 저장(src:'gps') — 다음 폴백/진단(POS_KEY)도 이 값으로 갱신.
+                savePosition({ latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy });
+                const saved = getPosition();
+                if (saved) return saved;
+                // getPosition 폴백 실패(스토리지 부재 등) 시 직접 구성해 반환.
+                return {
+                    lat: coords.latitude, lng: coords.longitude,
+                    acc: (typeof coords.accuracy === 'number' ? coords.accuracy : null),
+                    at: new Date().toISOString(), src: 'gps',
+                };
             }
-            root[WATCHER_KEY] = id;
-            startRefreshTimer();   // 정지 상태도 시간 기반(~15분)으로 갱신
-            console.log('[LocationAlertBG] started, watcher:', id);
-            return true;
-        } catch (e) {
-            console.error('[LocationAlertBG] start 실패:', e && e.message);
-            return false;
-        } finally {
-            root._laStarting = false;
-        }
+        } catch (_) { /* fresh-fix 실패 → 저장 위치 폴백 */ }
+        // 폴백: 마지막 저장 위치(may be null).
+        try { return getPosition(); } catch (_) { return null; }
     }
 
-    async function stop() {
-        const BG = plugin();
-        // 시작이 진행 중이면 addWatcher 완료 시 즉시 제거되도록 표시(경쟁 시 유령 워처 방지).
-        if (root._laStarting) root._laStopRequested = true;
+    /**
+     * 활성 시작/앱 실행 hook — 상시 watcher/전경 서비스 없이 fresh-fix 1회 수행.
+     *   토글 ON(③) 또는 앱 실행(ensureStarted) 시 호출되어 즉시 위치를 갱신·저장한다.
+     *   절대 throw 하지 않음(방어적). 네이티브가 아니면 no-op.
+     */
+    async function start() {
         try {
-            if (BG && root[WATCHER_KEY]) await BG.removeWatcher({ id: root[WATCHER_KEY] });
-        } catch (e) { console.warn('[LocationAlertBG] stop 경고:', e && e.message); }
-        root[WATCHER_KEY] = null;
-        stopRefreshTimer();   // 주기 갱신 타이머 정리
-        clearPosition(); // 해제 시 단말 저장 위치 즉시 삭제(설계 §10-7)
-        console.log('[LocationAlertBG] stopped + position cleared');
+            if (!isNative()) { console.log('[LocationAlertBG] 네이티브 아님 → skip'); return false; }
+            await getFreshPosition();   // 즉시 1회 위치 갱신(상시 수집 없음)
+            console.log('[LocationAlertBG] event-driven fresh-fix done');
+            return true;
+        } catch (_) { return false; }
+    }
+
+    /** 해제 시 단말 저장 위치 즉시 삭제(설계 §10-7). 상시 watcher 가 없어 제거할 대상 없음. */
+    async function stop() {
+        try {
+            clearPosition();
+            console.log('[LocationAlertBG] position cleared');
+        } catch (_) { }
         return true;
     }
-
-    function isRunning() { return !!root[WATCHER_KEY]; }
 
     /** 활성+동의 여부 — LocationAlertSettings 우선, 없으면 persisted 플래그(둘 다 'true'). 방어적. */
     function isFeatureEnabled() {
@@ -214,21 +174,20 @@
     }
 
     /**
-     * 앱 실행 시 자동 재가동 — 네이티브 + 플러그인 + 기능 활성일 때 start() 호출(idempotent).
-     *   Android 배터리 최적화 등으로 전경 위치 서비스가 죽었을 때, 사용자가 다시 토글하지 않아도
-     *   앱을 켤 때 watcher 가 되살아나 위치가 며칠씩 낡는 것을 막는다. 절대 throw 하지 않음.
+     * 앱 실행 시 — 네이티브 + 기능 활성일 때 fresh-fix 1회(start()). 절대 throw 하지 않음.
+     *   상시 watcher 가 없으므로 "되살리기"가 아니라, 앱을 켤 때 그 시점 위치를 한 번 갱신해
+     *   다음 깨우는 신호 전까지의 폴백 정확도를 높인다.
      */
     function ensureStarted() {
         try {
-            if (!isNative() || !plugin()) return false;
+            if (!isNative()) return false;
             if (!isFeatureEnabled()) return false;
-            // start() 는 root[WATCHER_KEY] 가 있으면 early-return 하므로 idempotent.
             start();
             return true;
         } catch (_) { return false; }
     }
 
-    const api = { start, stop, ensureStarted, isRunning, getPosition, savePosition, clearPosition, isStale, STALE_MAX_MS, POS_KEY, Mirror };
+    const api = { start, stop, ensureStarted, getFreshPosition, getPosition, savePosition, clearPosition, isStale, STALE_MAX_MS, POS_KEY, Mirror };
     if (root) root.LocationAlertBackground = api;
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));
