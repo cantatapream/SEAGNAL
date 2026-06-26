@@ -278,14 +278,16 @@
 
   #ap-chips{position:absolute;inset:0;z-index:10;opacity:0;transition:opacity 0.8s ease 0.85s;}
   #wrap.s10 #ap-chips{opacity:1;}
-  .apchip{position:absolute;border-radius:22px;font-weight:500;letter-spacing:-0.01em;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.45);color:#fff;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,0.5);transform:translate(-50%,-50%);will-change:transform;}
-  .apchip.t0{opacity:1;font-weight:600;font-size:15px;padding:10px 17px;background:rgba(255,107,53,0.18);border-color:rgba(255,107,53,0.65);box-shadow:0 4px 22px rgba(255,107,53,0.3);}
-  .apchip.t1{opacity:0.82;font-size:13px;padding:8px 14px;}
-  .apchip.t2{opacity:0.5;font-size:12px;padding:7px 13px;background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.2);}
-  .apchip.t3{opacity:0.28;font-size:11px;padding:6px 12px;background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.13);}
-  @keyframes apFloatY{0%,100%{transform:translate(-50%,-50%) translateY(0);}50%{transform:translate(-50%,-50%) translateY(-5px);}}
-  @keyframes apFloatX{0%,100%{transform:translate(-50%,-50%) translateX(0);}50%{transform:translate(-50%,-50%) translateX(4px);}}
-  @keyframes apFloatXY{0%,100%{transform:translate(-50%,-50%) translate(0,0);}25%{transform:translate(-50%,-50%) translate(3px,-3px);}50%{transform:translate(-50%,-50%) translate(-2px,-5px);}75%{transform:translate(-50%,-50%) translate(-3px,-2px);}}
+  .apchip{position:absolute;border-radius:20px;font-weight:500;letter-spacing:-0.01em;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.45);color:#fff;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,0.4);transform:translate(-50%,-50%);will-change:transform;}
+  .apchip.t0{opacity:1;font-weight:600;font-size:15px;padding:9px 15px;background:rgba(255,107,53,0.2);border-color:rgba(255,107,53,0.7);box-shadow:0 3px 18px rgba(255,107,53,0.32);}
+  .apchip.t1{opacity:0.85;font-size:13px;padding:7px 13px;}
+  .apchip.t2{opacity:0.55;font-size:12px;padding:6px 11px;background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.22);}
+  .apchip.t3{opacity:0.32;font-size:11px;padding:5px 10px;background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.15);}
+  /* 큰 진폭·1.5배 빠른 모션 — 배치 마진에 진폭 반영 */
+  @keyframes apFloatY{0%,100%{transform:translate(-50%,-50%) translateY(-11px);}50%{transform:translate(-50%,-50%) translateY(11px);}}
+  @keyframes apFloatX{0%,100%{transform:translate(-50%,-50%) translateX(-10px);}50%{transform:translate(-50%,-50%) translateX(10px);}}
+  @keyframes apFloatXY{0%{transform:translate(-50%,-50%) translate(-9px,-9px);}25%{transform:translate(-50%,-50%) translate(11px,-8px);}50%{transform:translate(-50%,-50%) translate(9px,10px);}75%{transform:translate(-50%,-50%) translate(-10px,8px);}100%{transform:translate(-50%,-50%) translate(-9px,-9px);}}
+  @keyframes apFloatD{0%,100%{transform:translate(-50%,-50%) translate(-8px,7px);}50%{transform:translate(-50%,-50%) translate(8px,-7px);}}
 
   /* Progress hint */
 
@@ -666,120 +668,104 @@
   requestAnimationFrame(frameGraph);
 
 
-  /* === S10 · 50개 기능 방사형 배치 + 충돌 회피 === */
+  /* === S10 · 촘촘 패킹 (나선형 탐색) + 큰 진폭·빠른 모션 === */
   (function(){
     const features = {
       t0: ['AI 어시스턴트 "나리"', '해상기상전망', '해역별 특보 GIS', '임의 해점 종합', '태풍 통합', '기상부이', '물때 · 갯벌', '위치 자동 알림', '회피침로', '해안가 CCTV'],
       t1: ['기상예보', '해상일기도', '유향 · 유속', '풍향속', '파고', '해구별 기상', '태풍 경로', '행동지침', '바다낚시', '서핑', '갯벌체험', '바다갈라짐'],
       t2: ['물빠짐 예측', '강수량', '강수확률', '적설량', '특보 알림', '태풍 알림', '기온', '시정예측', '하늘상태', '특보구역', '조석정보', '해수욕', '위치 기반 정보', '특보예측'],
-      t3: ['세계지도', '서핑지수', '갯바위 낚시', '스킨스쿠버', '공지사항', 'GPS', '즐겨찾기', '윈디', '제보기능', '기상청 전망', '중기예보', '단기예보', '7출처 통합', '4종 배경지도']
+      t3: ['세계지도', '서핑지수', '갯바위 낚시', '스킨스쿠버', '공지사항', 'GPS', '즐겨찾기', '윈디', '제보기능', '기상청 전망', '중기예보', '단기예보', '7출처 통합', '4종 배경지도',
+           '풍속', '풍랑', '돌풍', '습도', '운량', '체감기온', '자외선', '미세먼지', '음력', '월령', '일출', '일몰', '간조', '만조', '항만 정보', '레이더', '위성영상']
     };
-    let seed = 73;
+    let seed = 47;
     function rand(){ seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
-    const phone = { cx: 960, cy: 670, halfW: 160, halfH: 282 };
-    const safe = { left: 50, right: 1870, top: 340, bottom: 1020 };
-    // 타이트하게 — 반경 축소
-    const tiers = [
-      { key: 't0', rx: 250, ry: 340 },
-      { key: 't1', rx: 360, ry: 400 },
-      { key: 't2', rx: 490, ry: 450 },
-      { key: 't3', rx: 630, ry: 490 }
-    ];
+    const phone = { cx: 960, cy: 670, halfW: 156, halfH: 278 };
+    const safe = { left: 30, right: 1890, top: 320, bottom: 1030 };
     const fontByTier = { t0:15, t1:13, t2:12, t3:11 };
-    const padXByTier = { t0:34, t1:28, t2:26, t3:24 };
-    const padYByTier = { t0:20, t1:16, t2:14, t3:12 };
+    const padXByTier = { t0:30, t1:26, t2:22, t3:20 };
+    const padYByTier = { t0:18, t1:14, t2:12, t3:10 };
+    // 모션 진폭 (각 칩의 최대 이동 반경 px) — 충돌 마진에 반영
+    const motionByTier = { t0:13, t1:12, t2:11, t3:10 };
 
     function chipBounds(text, tier){
       const fs = fontByTier[tier];
-      // 한글 문자 한 자 ≈ 0.95·fs px 너비, 라틴/공백 좁음
       let w = 0;
       for(const c of text){
-        if(/[가-힣]/.test(c)) w += fs * 0.98;
+        if(/[가-힣]/.test(c)) w += fs * 0.99;
         else if(/[A-Z]/.test(c)) w += fs * 0.78;
         else if(/[a-z0-9]/.test(c)) w += fs * 0.58;
         else w += fs * 0.4;
       }
       return { w: w + padXByTier[tier], h: fs * 1.4 + padYByTier[tier] };
     }
-    function pushOutOfPhone(x, y, w, h){
-      const mx = phone.halfW + w/2 + 14;
-      const my = phone.halfH + h/2 + 14;
-      const dx = x - phone.cx, dy = y - phone.cy;
-      if(Math.abs(dx) < mx && Math.abs(dy) < my){
-        const ang = Math.atan2(dy, dx);
-        const tx = Math.cos(ang), ty = Math.sin(ang);
-        const sx = Math.abs(tx) > 0.001 ? mx / Math.abs(tx) : 1e9;
-        const sy = Math.abs(ty) > 0.001 ? my / Math.abs(ty) : 1e9;
-        const r = Math.min(sx, sy) + 4;
-        return { x: phone.cx + tx * r, y: phone.cy + ty * r };
-      }
-      return { x, y };
+    function insidePhone(x, y, w, h, mot){
+      const mx = phone.halfW + w/2 + mot + 4;
+      const my = phone.halfH + h/2 + mot + 4;
+      return Math.abs(x - phone.cx) < mx && Math.abs(y - phone.cy) < my;
     }
     function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-    function overlaps(a, b, margin){
-      margin = margin || 6;
-      return Math.abs(a.x - b.x) < (a.w + b.w)/2 + margin &&
-             Math.abs(a.y - b.y) < (a.h + b.h)/2 + margin;
-    }
-    function place(text, tier, baseAng){
-      const b = chipBounds(text, tier.key);
-      // 여러 번 시도
-      for(let att = 0; att < 80; att++){
-        const angJ = (rand() - 0.5) * 0.7;
-        const ang = baseAng + angJ;
-        const expand = 1 + att * 0.025; // 시도마다 살짝씩 외곽으로
-        const jx = (0.85 + rand() * 0.35) * expand;
-        const jy = (0.85 + rand() * 0.35) * expand;
-        let x = phone.cx + Math.cos(ang) * tier.rx * jx;
-        let y = phone.cy + Math.sin(ang) * tier.ry * jy;
-        const pushed = pushOutOfPhone(x, y, b.w, b.h);
-        x = pushed.x; y = pushed.y;
-        x = clamp(x, safe.left + b.w/2, safe.right - b.w/2);
-        y = clamp(y, safe.top + b.h/2, safe.bottom - b.h/2);
-        const cand = { x, y, w: b.w, h: b.h };
-        let conflict = false;
-        for(const p of placed){
-          if(overlaps(cand, p, 8)){ conflict = true; break; }
-        }
-        if(!conflict){
-          placed.push(cand);
-          return cand;
-        }
+    function overlapsAny(cand, list){
+      for(const p of list){
+        // 두 칩의 모션 진폭을 모두 합한 마진
+        const margin = (cand.mot + p.mot) + 3;
+        if(Math.abs(cand.x - p.x) < (cand.w + p.w)/2 + margin &&
+           Math.abs(cand.y - p.y) < (cand.h + p.h)/2 + margin) return true;
       }
-      // 실패 시 가장자리로 강제 배치
-      const ang = baseAng + (rand() - 0.5) * Math.PI;
-      let x = phone.cx + Math.cos(ang) * (tier.rx * 1.8);
-      let y = phone.cy + Math.sin(ang) * (tier.ry * 1.6);
-      const pushed = pushOutOfPhone(x, y, b.w, b.h);
-      x = pushed.x; y = pushed.y;
-      x = clamp(x, safe.left + b.w/2, safe.right - b.w/2);
-      y = clamp(y, safe.top + b.h/2, safe.bottom - b.h/2);
-      const fb = { x, y, w: b.w, h: b.h };
-      placed.push(fb);
-      return fb;
+      return false;
     }
+
+    const all = [];
+    ['t0','t1','t2','t3'].forEach(k => features[k].forEach(t => all.push({text:t, tier:k})));
 
     const placed = [];
-    const root = document.getElementById('ap-chips');
-    const anims = ['apFloatY', 'apFloatX', 'apFloatXY'];
 
-    tiers.forEach((t, ti) => {
-      const list = features[t.key];
-      const angleStart = ti * 0.62 + rand() * 0.5;
-      list.forEach((text, i) => {
-        const baseAng = angleStart + (i / list.length) * Math.PI * 2;
-        const pos = place(text, t, baseAng);
-        const chip = document.createElement('div');
-        chip.className = 'apchip ' + t.key;
-        chip.textContent = text;
-        chip.style.left = pos.x + 'px';
-        chip.style.top = pos.y + 'px';
-        const an = anims[Math.floor(rand() * anims.length)];
-        const dur = (5.5 + rand() * 5).toFixed(1);
-        const dly = (-rand() * 8).toFixed(1);
-        chip.style.animation = an + ' ' + dur + 's ease-in-out ' + dly + 's infinite';
-        root.appendChild(chip);
-      });
+    function tryPlace(item){
+      const b = chipBounds(item.text, item.tier);
+      const mot = motionByTier[item.tier];
+      const startR = { t0: 0, t1: 90, t2: 200, t3: 310 }[item.tier];
+      for(let attempt = 0; attempt < 700; attempt++){
+        const ang = rand() * Math.PI * 2;
+        const r = startR + attempt * 1.4 + (rand() - 0.5) * 30;
+        let x = phone.cx + Math.cos(ang) * r * 1.18;
+        let y = phone.cy + Math.sin(ang) * r * 0.92;
+        x = clamp(x, safe.left + b.w/2 + mot, safe.right - b.w/2 - mot);
+        y = clamp(y, safe.top + b.h/2 + mot, safe.bottom - b.h/2 - mot);
+        if(insidePhone(x, y, b.w, b.h, mot)) continue;
+        const cand = { x, y, w: b.w, h: b.h, mot };
+        if(overlapsAny(cand, placed)) continue;
+        placed.push(cand);
+        return cand;
+      }
+      // 실패 시 가장자리 빈자리 탐색 (마진 점진 완화)
+      for(let relax = 0; relax <= 6; relax += 2){
+        for(let i = 0; i < 200; i++){
+          const x = safe.left + b.w/2 + mot + rand() * (safe.right - safe.left - b.w - 2*mot);
+          const y = safe.top + b.h/2 + mot + rand() * (safe.bottom - safe.top - b.h - 2*mot);
+          if(insidePhone(x, y, b.w, b.h, mot)) continue;
+          const cand = { x, y, w: b.w, h: b.h, mot: Math.max(2, mot - relax) };
+          if(!overlapsAny(cand, placed)){ placed.push(cand); return cand; }
+        }
+      }
+      return null;
+    }
+
+    const root = document.getElementById('ap-chips');
+    const anims = ['apFloatY', 'apFloatX', 'apFloatXY', 'apFloatD'];
+
+    all.forEach(item => {
+      const pos = tryPlace(item);
+      if(!pos) return;
+      const chip = document.createElement('div');
+      chip.className = 'apchip ' + item.tier;
+      chip.textContent = item.text;
+      chip.style.left = pos.x + 'px';
+      chip.style.top = pos.y + 'px';
+      const an = anims[Math.floor(rand() * anims.length)];
+      // 1.5배 빠르게 — 기존 5.5~10.5s를 3.7~7s로
+      const dur = (3.7 + rand() * 3.3).toFixed(1);
+      const dly = (-rand() * 6).toFixed(1);
+      chip.style.animation = an + ' ' + dur + 's ease-in-out ' + dly + 's infinite';
+      root.appendChild(chip);
     });
   })();
 
