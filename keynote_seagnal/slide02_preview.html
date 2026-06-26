@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>SEA:GNAL — 슬라이드 02 프리뷰</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#fff;overflow:hidden;height:100%;}
+  *{box-sizing:border-box;}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  #wrap{position:relative;width:1920px;height:1080px;transform-origin:center center;background:#000;overflow:hidden;cursor:pointer;}
+
+  .chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;opacity:0;transition:opacity 0.6s ease;}
+  .headline{position:absolute;left:120px;top:140px;width:1680px;color:#FFFFFF;font-size:56px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;opacity:0;transition:opacity 0.7s ease 0.1s;}
+  .headline .em{color:#FF6B35;}
+  .accent{position:absolute;left:120px;top:260px;width:80px;height:6px;background:#FF6B35;opacity:0;transform:scaleX(0);transform-origin:left;transition:transform 0.6s ease 0.4s,opacity 0.4s ease 0.4s;}
+
+  /* --- INITIAL: BIG QUESTION MARK --- */
+  #q{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50;cursor:pointer;transition:opacity 0.55s ease,transform 0.55s ease;}
+  #q .mark{font-size:540px;color:#FF6B35;font-weight:700;line-height:1;letter-spacing:-0.04em;animation:pulse 2.4s ease-in-out infinite;text-shadow:0 0 80px rgba(255,107,53,0.35);}
+  #q .hint{margin-top:60px;color:rgba(255,255,255,0.55);font-size:26px;letter-spacing:0.04em;font-weight:300;}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.65;transform:scale(0.97);}}
+
+  /* When state >= 1, content shows; q hides */
+  #wrap.s1 #q, #wrap.s2 #q{opacity:0;transform:scale(0.7);pointer-events:none;}
+  #wrap.s1 .chap, #wrap.s2 .chap{opacity:1;}
+  #wrap.s1 .headline, #wrap.s2 .headline{opacity:1;}
+  #wrap.s1 .accent, #wrap.s2 .accent{opacity:1;transform:scaleX(1);}
+  #wrap.s1 .panel, #wrap.s2 .panel{opacity:1;transform:translateY(0);}
+  #wrap.s2 #concl{opacity:1;transform:translateY(0);}
+
+  /* --- LEFT PANEL: KakaoTalk --- */
+  .panel{position:absolute;opacity:0;transform:translateY(24px);transition:opacity 0.7s ease 0.7s,transform 0.7s ease 0.7s;}
+
+  #kakao{left:120px;top:310px;width:780px;height:580px;background:#a4b8c5;border-radius:18px;padding:24px 22px;overflow:hidden;}
+  .kheader{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid rgba(0,0,0,0.1);margin-bottom:18px;}
+  .kheader .name{color:#000;font-size:20px;font-weight:600;letter-spacing:-0.005em;}
+  .kheader .meta{color:rgba(0,0,0,0.5);font-size:14px;font-weight:400;}
+
+  .msg{display:flex;align-items:flex-end;margin-bottom:14px;gap:8px;}
+  .msg.theirs{justify-content:flex-start;}
+  .msg.mine{justify-content:flex-end;}
+  .avatar{width:48px;height:48px;border-radius:50%;background:#FFD180;color:#5D4037;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;flex-shrink:0;}
+  .col{display:flex;flex-direction:column;max-width:520px;}
+  .col .who{font-size:13px;color:#444;margin-bottom:4px;}
+  .bubble{padding:13px 17px;border-radius:18px;font-size:21px;line-height:1.45;font-weight:400;}
+  .theirs .bubble{background:#fff;color:#000;border-top-left-radius:6px;}
+  .mine .bubble{background:#FFEB33;color:#000;border-top-right-radius:6px;}
+  .time{font-size:11px;color:rgba(0,0,0,0.4);align-self:flex-end;margin:0 4px 3px;}
+
+  /* Stagger bubbles in */
+  #wrap.s1 .msg, #wrap.s2 .msg{animation:msgIn 0.5s ease both;}
+  #wrap.s1 .msg:nth-child(2){animation-delay:0.95s;}
+  #wrap.s1 .msg:nth-child(3){animation-delay:1.4s;}
+  #wrap.s1 .msg:nth-child(4){animation-delay:1.85s;}
+  #wrap.s1 .msg:nth-child(5){animation-delay:2.3s;}
+  #wrap.s2 .msg{animation:none;opacity:1;transform:none;}
+  @keyframes msgIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+  /* --- RIGHT PANEL: Coworker dialog --- */
+  #coworker{left:1020px;top:310px;width:780px;height:580px;border-radius:18px;border:1px solid rgba(255,255,255,0.14);padding:24px 22px;background:rgba(255,255,255,0.02);overflow:hidden;transition-delay:0.85s;}
+  .cheader{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:24px;}
+  .cheader .scene{color:rgba(255,255,255,0.85);font-size:18px;letter-spacing:0.12em;font-weight:500;}
+  .cheader .meta{color:rgba(255,255,255,0.4);font-size:14px;}
+
+  .stage{position:relative;height:460px;}
+  .person{position:absolute;width:120px;text-align:center;}
+  .person .head{width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:70px;}
+  .person .body{width:100px;height:40px;background:rgba(255,255,255,0.04);border:2px solid rgba(255,255,255,0.18);border-bottom:none;border-radius:60px 60px 0 0;margin:6px auto 0;}
+  .person .label{color:rgba(255,255,255,0.55);font-size:16px;margin-top:8px;letter-spacing:0.06em;}
+  .person.left{left:10px;top:30px;}
+  .person.right{right:10px;top:30px;}
+
+  .pbubble{position:absolute;background:#fff;color:#000;padding:13px 17px;border-radius:16px;font-size:20px;line-height:1.4;max-width:340px;box-shadow:0 6px 18px rgba(0,0,0,0.3);font-weight:400;}
+  .pbubble .who{display:block;font-size:12px;color:#888;margin-bottom:4px;letter-spacing:0.04em;}
+  .pbubble.fl{border-top-left-radius:4px;}
+  .pbubble.fl::before{content:'';position:absolute;left:-9px;top:18px;width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-right:11px solid #fff;}
+  .pbubble.fr{border-top-right-radius:4px;}
+  .pbubble.fr::before{content:'';position:absolute;right:-9px;top:18px;width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:11px solid #fff;}
+
+  #pb1{left:150px;top:20px;}
+  #pb2{right:150px;top:175px;}
+  #pb3{left:150px;top:330px;}
+
+  /* Stagger right side bubbles in (state 1) */
+  #wrap.s1 .pbubble{opacity:0;transform:translateY(8px);animation:msgIn 0.5s ease forwards;}
+  #wrap.s1 #pb1{animation-delay:1.0s;}
+  #wrap.s1 #pb2{animation-delay:1.5s;}
+  #wrap.s1 #pb3{animation-delay:2.0s;}
+  #wrap.s2 .pbubble{opacity:1;transform:none;animation:none;}
+
+  /* --- CONCLUSION (state 2) --- */
+  #concl{position:absolute;left:120px;right:120px;top:920px;opacity:0;transform:translateY(14px);transition:opacity 0.8s ease,transform 0.8s ease;}
+  #concl .line{color:rgba(255,255,255,0.7);font-size:28px;font-weight:300;letter-spacing:-0.01em;line-height:1.35;}
+  #concl .punch{color:#FFFFFF;font-size:34px;font-weight:500;letter-spacing:-0.015em;margin-top:6px;}
+  #concl .punch .em{color:#FF6B35;font-weight:600;}
+
+  /* Progress hint */
+  #steps{position:fixed;right:24px;bottom:24px;color:rgba(255,255,255,0.4);font-size:12px;letter-spacing:0.16em;font-weight:500;z-index:200;}
+
+  /* --- DIM PANELS WHEN STATE 2 (focus on conclusion) --- */
+  #wrap.s2 .panel{opacity:0.35;}
+</style>
+</head>
+<body>
+<div id="stage"><div id="wrap" class="s0">
+
+  <div class="chap">왜 만들었나</div>
+  <div class="headline">선배님들, 혹시 — <span class="em">다들 이런 경험 있으시죠?</span></div>
+  <div class="accent"></div>
+
+  <!-- ? overlay -->
+  <div id="q">
+    <div class="mark">?</div>
+    <div class="hint">클릭해 보세요</div>
+  </div>
+
+  <!-- LEFT PANEL: KakaoTalk -->
+  <div class="panel" id="kakao">
+    <div class="kheader">
+      <div class="name">📞 어르신 민원 · 평일 오후</div>
+      <div class="meta">파출소 안내 통화</div>
+    </div>
+
+    <div class="msg theirs">
+      <div class="avatar">민</div>
+      <div class="col">
+        <div class="who">민원인</div>
+        <div class="bubble">제주도 북부 앞바다,<br>특보 언제 해제돼요?</div>
+      </div>
+      <div class="time">14:02</div>
+    </div>
+
+    <div class="msg mine">
+      <div class="time">14:03</div>
+      <div class="col" style="align-items:flex-end;">
+        <div class="bubble">저희도 기상청 정보 보고<br>알려드리는 거예요.<br>혹시 기상청 홈페이지<br>확인해 보셨어요?</div>
+      </div>
+    </div>
+
+    <div class="msg theirs">
+      <div class="avatar">민</div>
+      <div class="col">
+        <div class="bubble">…어떻게 하는데요?</div>
+      </div>
+      <div class="time">14:04</div>
+    </div>
+
+    <div class="msg mine">
+      <div class="time">14:05</div>
+      <div class="col" style="align-items:flex-end;">
+        <div class="bubble">아 네… 저희가 찾아서<br>다시 전화드릴게요.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: Coworker dialog -->
+  <div class="panel" id="coworker">
+    <div class="cheader">
+      <div class="scene">사무실 · 어느 출근 직후</div>
+      <div class="meta">선배 → 나</div>
+    </div>
+
+    <div class="stage">
+      <div class="person left">
+        <div class="head">👨‍✈️</div>
+        <div class="body"></div>
+        <div class="label">선배</div>
+      </div>
+      <div class="person right">
+        <div class="head">🧑‍✈️</div>
+        <div class="body"></div>
+        <div class="label">나</div>
+      </div>
+
+      <div class="pbubble fl" id="pb1">
+        <span class="who">선배</span>
+        조석 정보 좀 업데이트해 놔라.
+      </div>
+      <div class="pbubble fr" id="pb2">
+        <span class="who">나</span>
+        혹시… 어디서 확인합니까?
+      </div>
+      <div class="pbubble fl" id="pb3">
+        <span class="who">선배</span>
+        바다타임 어플 깔아서 확인해 봐.
+      </div>
+    </div>
+  </div>
+
+  <!-- CONCLUSION -->
+  <div id="concl">
+    <div class="line">특보가 발효될 때마다 — 같은 통화가, 같은 묻기가 반복됐습니다.</div>
+    <div class="punch">공공의 데이터가 분명히 있는데, <span class="em">우리만 모르고 있었습니다.</span></div>
+    <div class="punch" style="margin-top:14px;">이 답답함이 — <span class="em">SEA:GNAL의 출발점입니다.</span></div>
+  </div>
+
+</div></div>
+
+<div id="steps">CLICK · SPACE · → 로 단계 진행 (1/3 → 2/3 → 3/3)</div>
+
+<script>
+  const wrap = document.getElementById('wrap');
+  const steps = document.getElementById('steps');
+  let state = 0;
+  const total = 3;
+  function setState(n){
+    state = Math.max(0, Math.min(total-1, n));
+    wrap.classList.remove('s0','s1','s2');
+    wrap.classList.add('s' + state);
+    steps.textContent = (state+1) + ' / ' + total + ' · CLICK 으로 다음';
+  }
+  setState(0);
+
+  wrap.addEventListener('click', () => {
+    if(state < total - 1) setState(state + 1);
+    else setState(0); // loop back
+  });
+  document.addEventListener('keydown', e => {
+    if(e.key === ' ' || e.key === 'ArrowRight' || e.key === 'Enter'){ if(state < total-1) setState(state+1); e.preventDefault(); }
+    else if(e.key === 'ArrowLeft'){ if(state > 0) setState(state-1); e.preventDefault(); }
+    else if(e.key === 'r' || e.key === 'R'){ setState(0); }
+  });
+
+  // Auto-fit to viewport
+  function fit(){
+    const w = window.innerWidth, h = window.innerHeight;
+    const s = Math.min(w/1920, h/1080);
+    wrap.style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+</script>
+</body>
+</html>
