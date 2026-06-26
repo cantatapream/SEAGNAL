@@ -20,7 +20,7 @@
   #title .tfoot{position:absolute;left:120px;bottom:60px;color:rgba(255,255,255,0.5);font-size:20px;font-weight:500;letter-spacing:0.04em;}
   #title .thint{position:absolute;right:120px;bottom:60px;color:rgba(255,255,255,0.4);font-size:18px;letter-spacing:0.12em;font-weight:400;animation:pulse 2.4s ease-in-out infinite;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.55;}}
-  #wrap.s1 #title, #wrap.s2 #title, #wrap.s3 #title{opacity:0;transform:scale(0.96);pointer-events:none;}
+  #wrap:not(.s0) #title{opacity:0;transform:scale(0.96);pointer-events:none;}
 
   /* --- HEADER (states 1+) --- */
   .chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;opacity:0;transition:opacity 0.6s ease;}
