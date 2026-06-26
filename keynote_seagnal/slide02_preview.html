@@ -59,11 +59,11 @@
   .time{font-size:14px;color:rgba(0,0,0,0.4);align-self:flex-end;margin:0 4px 3px;}
 
   /* RIGHT: Coworker */
-  #coworker{left:1020px;top:310px;width:780px;height:660px;border-radius:18px;border:1px solid rgba(255,255,255,0.3);padding:24px 22px;background:rgba(255,255,255,0.08);overflow:hidden;}
+  #coworker{left:1020px;top:310px;width:780px;height:740px;border-radius:18px;border:1px solid rgba(255,255,255,0.3);padding:24px 22px;background:rgba(255,255,255,0.08);overflow:hidden;}
   .cheader{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:24px;}
   .cheader .scene{color:rgba(255,255,255,0.85);font-size:27px;letter-spacing:0.12em;font-weight:500;}
   .cheader .meta{color:rgba(255,255,255,0.4);font-size:21px;}
-  .stage-area{position:relative;height:560px;}
+  .stage-area{position:relative;height:640px;}
   .person{position:absolute;width:120px;text-align:center;}
   .person .head{width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:70px;}
   .person .body{width:100px;height:40px;background:rgba(255,255,255,0.04);border:2px solid rgba(255,255,255,0.18);border-bottom:none;border-radius:60px 60px 0 0;margin:6px auto 0;}
@@ -185,7 +185,7 @@
   .dv-row .cap{font-size:26px;}
 
   /* ── 단계②③ : 좌측 하단 가로 수요 밴드 (s6,s7) ── */
-  #demand-horiz{position:absolute;left:120px;top:600px;width:980px;opacity:0;transition:opacity 0.5s ease;}
+  #demand-horiz{position:absolute;left:120px;top:520px;width:980px;opacity:0;transition:opacity 0.5s ease;}
   #wrap.s6 #demand-horiz, #wrap.s7 #demand-horiz{opacity:1;}
   #wrap.s6 #demand-horiz{animation:popGrow 0.75s cubic-bezier(0.34,1.45,0.5,1);}
   @keyframes popGrow{0%{transform:scale(0.68);}55%{transform:scale(1.12);}100%{transform:scale(1);}}
@@ -219,7 +219,7 @@
   #wrap.s6 #problem-band .pb-stat .num{font-size:132px;}
   #wrap.s6 #problem-band .pb-stat .num .u{font-size:58px;}
   #wrap.s6 #problem-band .pb-stat .cap{font-size:30px;margin-top:26px;line-height:1.4;}
-  #wrap.s7 #problem-band{opacity:1;transform:scale(1);}
+  #wrap.s7 #problem-band{opacity:1;transform:translate(0,-80px);}
   #problem-band .pb-label{color:#fff;font-size:23px;font-weight:500;letter-spacing:-0.01em;margin-bottom:26px;line-height:1.4;transition:font-size 0.6s ease, margin-bottom 0.6s ease;}
   #problem-band .pb-label .q{color:rgba(255,255,255,0.45);font-size:19px;}
   .pb-stats{display:flex;gap:48px;align-items:flex-start;transition:gap 0.6s ease;}
@@ -501,7 +501,7 @@
   <!-- RIGHT PANEL: Coworker dialog -->
   <div class="panel" id="coworker">
     <div class="cheader">
-      <div class="scene">파출소(중점) 인계인수 직후</div>
+      <div class="scene">파출소 인계인수 직후</div>
       <div class="meta">선배 → 나</div>
     </div>
     <div class="stage-area">
@@ -539,6 +539,7 @@
   <!-- s1: 좌측 카톡 명확 / 우측 동료 블러 → 우측 위에 '특보 발표 때마다 같은 민원 반복' -->
   <div class="panel-overlay" id="overlay-right">
     <div>
+      <span class="ln">특보 때마다 걸려오는</span>
       <span class="ln"><span class="em">같은 통화를</span></span>
       <span class="ln">언제까지 반복해야 하는걸까?</span>
     </div>

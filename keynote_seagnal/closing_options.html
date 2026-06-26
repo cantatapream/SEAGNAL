@@ -52,13 +52,20 @@
   #opt-c .c-horizon{position:absolute;left:0;right:0;bottom:120px;height:2px;background:linear-gradient(90deg,transparent,rgba(255,200,120,0.85),transparent);box-shadow:0 0 30px rgba(255,140,60,0.6);}
   #opt-c .c-sun{position:absolute;left:50%;bottom:118px;transform:translateX(-50%);width:240px;height:120px;background:radial-gradient(ellipse at center bottom,#FFEAB0 0%,#FF8C3D 50%,transparent 80%);border-top-left-radius:120px;border-top-right-radius:120px;animation:cSunPulse 4s ease-in-out infinite;}
   @keyframes cSunPulse{0%,100%{opacity:0.95;}50%{opacity:1;filter:brightness(1.1);}}
-  #opt-c .c-greet{position:absolute;left:50%;top:200px;transform:translateX(-50%);color:rgba(255,200,140,0.85);font-size:32px;letter-spacing:0.2em;font-weight:600;text-align:center;text-shadow:0 0 16px rgba(0,0,0,0.8);}
-  #opt-c .c-line1{position:absolute;left:50%;top:310px;transform:translateX(-50%);color:#FFFFFF;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1.15;text-align:center;}
-  #opt-c .c-line2{position:absolute;left:50%;top:430px;transform:translateX(-50%);color:#FF6B35;font-size:96px;font-weight:700;letter-spacing:-0.035em;line-height:1.15;text-align:center;text-shadow:0 0 30px rgba(255,107,53,0.4);}
-  #opt-c .c-accent{position:absolute;left:50%;top:580px;transform:translateX(-50%);width:100px;height:5px;background:#FF6B35;box-shadow:0 0 20px rgba(255,107,53,0.6);}
-  #opt-c .c-cta{position:absolute;left:50%;top:630px;transform:translateX(-50%);color:#FFFFFF;font-size:42px;font-weight:600;letter-spacing:-0.015em;text-align:center;}
+  /* 모든 텍스트: 기본 opacity 0 + 아래로 살짝 내려가 있다가 → 떠오르며 등장 */
+  #opt-c .c-line1{position:absolute;left:50%;top:230px;color:#FFFFFF;font-size:104px;font-weight:700;letter-spacing:-0.035em;line-height:1.15;text-align:center;opacity:0;transform:translate(-50%, 30px);transition:opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);}
+  #opt-c .c-line2{position:absolute;left:50%;top:360px;color:#FF6B35;font-size:104px;font-weight:700;letter-spacing:-0.035em;line-height:1.15;text-align:center;text-shadow:0 0 30px rgba(255,107,53,0.4);opacity:0;transform:translate(-50%, 30px);transition:opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);}
+  #opt-c .c-accent{position:absolute;left:50%;top:520px;width:100px;height:5px;background:#FF6B35;box-shadow:0 0 20px rgba(255,107,53,0.6);opacity:0;transform:translate(-50%, 30px);transition:opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);}
+  #opt-c .c-cta{position:absolute;left:50%;top:570px;color:#FFFFFF;font-size:46px;font-weight:600;letter-spacing:-0.015em;text-align:center;opacity:0;transform:translate(-50%, 30px);transition:opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);}
   #opt-c .c-cta .em{color:#FF6B35;font-weight:700;}
-  #opt-c .c-cta-sub{position:absolute;left:50%;top:710px;transform:translateX(-50%);color:rgba(255,200,140,0.7);font-size:24px;letter-spacing:0.04em;text-align:center;font-weight:500;}
+  /* 발표자 (우측 하단, 흰색) */
+  #opt-c .c-presenter{position:absolute;right:60px;bottom:30px;color:#fff;font-size:22px;font-weight:500;letter-spacing:-0.005em;z-index:30;opacity:0;transform:translateY(16px);transition:opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);}
+  /* Option C 활성화 시 순차 fade-up */
+  #wrap.c #opt-c .c-line1{opacity:1;transform:translate(-50%, 0);transition-delay:0.35s;}
+  #wrap.c #opt-c .c-line2{opacity:1;transform:translate(-50%, 0);transition-delay:0.7s;}
+  #wrap.c #opt-c .c-accent{opacity:1;transform:translate(-50%, 0);transition-delay:1.0s;}
+  #wrap.c #opt-c .c-cta{opacity:1;transform:translate(-50%, 0);transition-delay:1.3s;}
+  #wrap.c #opt-c .c-presenter{opacity:1;transform:translateY(0);transition-delay:1.65s;}
 
   /* Top option switcher */
   #switcher{position:fixed;top:24px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:300;background:rgba(0,0,0,0.6);backdrop-filter:blur(10px);padding:8px;border-radius:24px;border:1px solid rgba(255,255,255,0.12);}
@@ -114,12 +121,11 @@
   <!-- ============ Option C — Sunrise ============ -->
   <div class="opt" id="opt-c">
     <div class="chap">SEA:GNAL · 바다 그 날의 신호</div>
-    <div class="c-greet">바다를 쓰는 모두에게</div>
     <div class="c-line1">가장 복잡한 정보를</div>
-    <div class="c-line2">가장 단순한 신호로.</div>
+    <div class="c-line2">가장 단순한 신호로</div>
     <div class="c-accent"></div>
     <div class="c-cta">검증된 <span class="em">SEA:GNAL</span>과 함께 갑시다.</div>
-    <div class="c-cta-sub">새로운 바다, 새로운 신호 — 함께 떠올라요.</div>
+    <div class="c-presenter">발표자 : 제주해양경찰서 1505함 경사 신진섭</div>
     <div class="c-sun"></div>
     <div class="c-horizon"></div>
   </div>
