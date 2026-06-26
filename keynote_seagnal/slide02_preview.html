@@ -157,13 +157,16 @@
     opacity:0;pointer-events:none;transition:opacity 0.8s ease 0.35s;}
   #wrap.s5 #info-overlay, #wrap.s6 #info-overlay, #wrap.s7 #info-overlay{opacity:1;}
 
-  /* 헤더 (고정) */
+  /* 헤더 */
   .io-chap{position:absolute;left:120px;top:96px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;}
-  .io-headline{position:absolute;left:120px;top:152px;width:1100px;color:#FFFFFF;font-size:68px;font-weight:600;letter-spacing:-0.028em;line-height:1.2;}
+  /* 헤드라인+액센트 그룹 — s5 에서 크게·왼쪽 중앙, s6/s7 에서 작아지며 상단 정위치 */
+  #io-head{position:absolute;left:120px;top:152px;transform-origin:left top;transition:transform 0.8s cubic-bezier(0.33,0,0.2,1);}
+  #wrap.s5 #io-head{transform:translateY(250px) scale(1.5);}
+  .io-headline{width:1100px;color:#FFFFFF;font-size:68px;font-weight:600;letter-spacing:-0.028em;line-height:1.2;}
   .io-line1{color:#FFFFFF;}
   .io-line2{display:inline-block;color:#FF6B35;transition:filter 0.7s ease,opacity 0.7s ease;}
   #wrap.s5 .io-line2{filter:blur(10px);opacity:0.32;}   /* 단계① : 두 번째 줄 블러 */
-  .io-accent{position:absolute;left:120px;top:372px;width:80px;height:6px;background:#FF6B35;}
+  .io-accent{width:80px;height:6px;background:#FF6B35;margin-top:34px;}
 
   /* 공통 수치 스타일 */
   .num{font-weight:700;letter-spacing:-0.035em;line-height:1;font-variant-numeric:tabular-nums;color:#FFFFFF;}
@@ -364,8 +367,10 @@
   <!-- ============ S5~S7 · 블러 배경 위 헤드라인 + 단계별 수치 ============ -->
   <div id="info-overlay">
     <div class="io-chap">왜 만들었나 · 수요는 큰데, 신호는 흩어져</div>
-    <div class="io-headline"><span class="io-line1">바다의 시대는 왔는데,</span><br><span class="io-line2">신호는 정리되지 않았습니다.</span></div>
-    <div class="io-accent"></div>
+    <div id="io-head">
+      <div class="io-headline"><span class="io-line1">바다의 시대는 왔는데,</span><br><span class="io-line2">신호는 정리되지 않았습니다.</span></div>
+      <div class="io-accent"></div>
+    </div>
 
     <!-- 단계① : 우측 세로 수요 -->
     <div id="demand-vert">
