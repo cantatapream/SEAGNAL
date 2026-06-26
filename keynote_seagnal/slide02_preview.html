@@ -142,7 +142,7 @@
     letter-spacing:-0.02em;
     box-shadow:0 0 70px rgba(255,107,53,0.45), inset 0 0 30px rgba(255,255,255,0.18);
     z-index:20;
-    left:960px;top:680px;
+    left:960px;top:638px;
     transform:translate(-50%,-50%);
   }
   #graph-center::after{
@@ -372,7 +372,7 @@
   .tr-chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;opacity:0;transition:opacity 0.6s ease 0.2s;}
   .tr-head{position:absolute;left:120px;top:140px;color:#fff;font-size:60px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;opacity:0;transition:opacity 0.7s ease 0.3s;}
   .tr-head .em{color:#FF6B35;}
-  .tr-acc{position:absolute;left:120px;top:280px;width:80px;height:6px;background:#FF6B35;opacity:0;transform:scaleX(0);transform-origin:left;transition:transform 0.6s ease 0.55s,opacity 0.4s ease 0.55s;}
+  .tr-acc{position:absolute;left:120px;top:230px;width:80px;height:6px;background:#FF6B35;opacity:0;transform:scaleX(0);transform-origin:left;transition:transform 0.6s ease 0.55s,opacity 0.4s ease 0.55s;}
 
   /* 사용자 후기 (응원/검증) */
   .tr-quotes{position:absolute;left:120px;right:120px;top:760px;display:flex;gap:30px;align-items:stretch;}
@@ -541,6 +541,13 @@
       <div class="col" style="align-items:flex-end;">
         <div class="bubble">아 — 네이버에서<br>'날씨누리' 검색하시고<br><span style="color:rgba(0,0,0,0.4);">…(중얼중얼 설명 생략)</span></div>
       </div>
+    </div>
+    <div class="msg theirs">
+      <div class="avatar">민</div>
+      <div class="col">
+        <div class="bubble">그냥 그때그때 전화할게요.<br>우리는 그런거 못해~</div>
+      </div>
+      <div class="time">14:06</div>
     </div>
   </div>
 
@@ -1078,7 +1085,7 @@
   fit();
 
   /* === 분자형 7출처 그래프 (s4) 유기적 호흡 애니메이션 === */
-  const CXG = 960, CYG = 680;
+  const CXG = 960, CYG = 638;
   const BASE_DIST = 285;
   const CENTER_RG = 115;
   const NODE_RG = 95;
