@@ -303,7 +303,7 @@
   #wrap.s11 .sc-acc{opacity:1;transform:scaleX(1);}
 
   /* 표 컨테이너 */
-  #sc-table{position:absolute;left:120px;top:330px;width:1080px;box-sizing:border-box;opacity:0;transform:translateY(20px);transition:opacity 0.7s ease 0.65s, transform 0.7s ease 0.65s;}
+  #sc-table{position:absolute;left:120px;top:330px;width:1080px;box-sizing:border-box;opacity:0;transform:translateY(20px);transition:opacity 0.7s ease 0.65s, transform 0.7s ease 0.65s;border:1px solid transparent;border-radius:24px;}
   #wrap.s11 #sc-table{opacity:1;transform:translateY(0);}
   .sc-row{display:grid;grid-template-columns:1.6fr 1fr 1fr 0.7fr;align-items:center;padding:18px 12px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:26px;box-sizing:border-box;}
   .sc-row.head{color:rgba(255,255,255,0.55);font-size:18px;letter-spacing:0.14em;font-weight:500;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,0.22);padding-bottom:14px;}
@@ -315,17 +315,16 @@
   .sc-row .delta.unify{color:rgba(255,107,53,0.85);}
 
   /* 평균 효과 박스 */
-  #sc-avg{position:absolute;right:80px;top:330px;width:560px;padding:40px 36px;border:1px solid rgba(255,107,53,0.5);border-radius:24px;background:linear-gradient(155deg,rgba(255,107,53,0.12),rgba(255,107,53,0.03));box-shadow:0 0 60px rgba(255,107,53,0.18);box-sizing:border-box;overflow:hidden;opacity:0;transform:translateX(20px) scale(0.96);transition:opacity 0.8s ease 0.8s, transform 0.85s cubic-bezier(0.34,1.25,0.5,1) 0.8s;}
+  #sc-avg{position:absolute;right:60px;top:330px;width:600px;height:660px;padding:36px;border:1px solid rgba(255,107,53,0.5);border-radius:24px;background:linear-gradient(155deg,rgba(255,107,53,0.12),rgba(255,107,53,0.03));box-shadow:0 0 60px rgba(255,107,53,0.18);box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;opacity:0;transform:translateX(20px) scale(0.96);transition:opacity 0.8s ease 0.8s, transform 0.85s cubic-bezier(0.34,1.25,0.5,1) 0.8s;}
   #wrap.s11 #sc-avg{opacity:1;transform:translateX(0) scale(1);}
   .sc-avg-label{color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;}
-  .sc-avg-big{color:#fff;font-size:132px;font-weight:700;letter-spacing:-0.04em;line-height:1;margin-top:12px;font-variant-numeric:tabular-nums;}
+  .sc-avg-big{color:#fff;font-size:132px;font-weight:700;letter-spacing:-0.04em;line-height:1;margin-top:14px;font-variant-numeric:tabular-nums;}
   .sc-avg-big .u{font-size:66px;color:rgba(255,255,255,0.65);font-weight:600;}
-  .sc-avg-cap{color:rgba(255,255,255,0.65);font-size:19px;font-weight:300;margin-top:14px;line-height:1.45;}
-  .sc-avg-cap em{color:rgba(255,255,255,0.92);font-style:normal;font-weight:500;}
-  .sc-avg-sep{margin-top:32px;height:1px;background:rgba(255,255,255,0.18);}
-  .sc-avg-mid{color:#fff;font-size:40px;font-weight:700;letter-spacing:-0.025em;margin-top:28px;line-height:1.15;}
-  .sc-avg-mid .em{color:#FF6B35;}
-  .sc-avg-sub{color:rgba(255,255,255,0.6);font-size:18px;font-weight:400;margin-top:8px;}
+  .sc-avg-sep{height:1px;background:rgba(255,255,255,0.18);}
+  .sc-avg-row{color:#fff;font-size:132px;font-weight:700;letter-spacing:-0.04em;line-height:1;}
+  .sc-avg-row + .sc-avg-row{margin-top:6px;}
+  .sc-avg-row .em{color:#FF6B35;}
+  .sc-avg-sub{color:rgba(255,255,255,0.72);font-size:32px;font-weight:400;margin-top:18px;letter-spacing:-0.01em;}
 
   /* Progress hint */
 
@@ -598,12 +597,16 @@
     </div>
 
     <div id="sc-avg">
-      <div class="sc-avg-label">평균 효과</div>
-      <div class="sc-avg-big">−<span id="sc-num">0</span><span class="u">%</span></div>
-      <div class="sc-avg-cap">단계 평균 감소율<br><em>6.8 단계 → 1.6 단계</em></div>
+      <div>
+        <div class="sc-avg-label">평균 효과</div>
+        <div class="sc-avg-big">−<span id="sc-num">0</span><span class="u">%</span></div>
+      </div>
       <div class="sc-avg-sep"></div>
-      <div class="sc-avg-mid">평균 <span class="em">2회</span> 이내</div>
-      <div class="sc-avg-sub">원하는 정보에 도달</div>
+      <div>
+        <div class="sc-avg-row">평균</div>
+        <div class="sc-avg-row"><span class="em">2회</span> 이내</div>
+        <div class="sc-avg-sub">원하는 정보에 도달</div>
+      </div>
     </div>
 
     <div class="sc-foot">고령 사용자도 부담 없는 직관적 접근 — SEA:GNAL의 핵심 설계 원칙.</div>
