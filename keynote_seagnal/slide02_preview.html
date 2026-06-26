@@ -43,20 +43,20 @@
   #wrap.s3 #kakao, #wrap.s3 #coworker{filter:blur(8px) grayscale(0.85);opacity:0.28;}
 
   /* LEFT: KakaoTalk */
-  #kakao{left:120px;top:310px;width:780px;height:660px;background:#a4b8c5;border-radius:18px;padding:24px 22px;overflow:hidden;}
-  .kheader{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid rgba(0,0,0,0.1);margin-bottom:18px;}
-  .kheader .name{color:#000;font-size:30px;font-weight:600;letter-spacing:-0.005em;}
-  .kheader .meta{color:rgba(0,0,0,0.5);font-size:21px;font-weight:400;}
-  .msg{display:flex;align-items:flex-end;margin-bottom:14px;gap:8px;}
+  #kakao{left:120px;top:310px;width:780px;height:740px;background:#a4b8c5;border-radius:18px;padding:22px 22px;overflow:hidden;}
+  .kheader{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid rgba(0,0,0,0.1);margin-bottom:14px;}
+  .kheader .name{color:#000;font-size:26px;font-weight:600;letter-spacing:-0.005em;}
+  .kheader .meta{color:rgba(0,0,0,0.5);font-size:18px;font-weight:400;}
+  .msg{display:flex;align-items:flex-end;margin-bottom:10px;gap:8px;}
   .msg.theirs{justify-content:flex-start;}
   .msg.mine{justify-content:flex-end;}
-  .avatar{width:64px;height:64px;border-radius:50%;background:#FFD180;color:#5D4037;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:700;flex-shrink:0;}
+  .avatar{width:52px;height:52px;border-radius:50%;background:#FFD180;color:#5D4037;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;flex-shrink:0;}
   .col{display:flex;flex-direction:column;max-width:520px;}
-  .col .who{font-size:20px;color:#444;margin-bottom:4px;}
-  .bubble{padding:18px 22px;border-radius:20px;font-size:32px;line-height:1.45;font-weight:400;}
+  .col .who{font-size:18px;color:#444;margin-bottom:3px;}
+  .bubble{padding:15px 19px;border-radius:18px;font-size:26px;line-height:1.35;font-weight:400;}
   .theirs .bubble{background:#fff;color:#000;border-top-left-radius:6px;}
   .mine .bubble{background:#FFEB33;color:#000;border-top-right-radius:6px;}
-  .time{font-size:17px;color:rgba(0,0,0,0.4);align-self:flex-end;margin:0 4px 3px;}
+  .time{font-size:14px;color:rgba(0,0,0,0.4);align-self:flex-end;margin:0 4px 3px;}
 
   /* RIGHT: Coworker */
   #coworker{left:1020px;top:310px;width:780px;height:660px;border-radius:18px;border:1px solid rgba(255,255,255,0.3);padding:24px 22px;background:rgba(255,255,255,0.08);overflow:hidden;}
@@ -88,8 +88,8 @@
   .panel-overlay .ln{display:block;}
   .panel-overlay .ln + .ln{margin-top:14px;}
 
-  #overlay-right{left:1020px;top:310px;width:780px;height:580px;}
-  #overlay-left{left:120px;top:310px;width:780px;height:580px;}
+  #overlay-right{left:1020px;top:310px;width:780px;height:740px;}
+  #overlay-left{left:120px;top:310px;width:780px;height:740px;}
 
   /* Show right overlay when LEFT clear (s1) */
   #wrap.s1 #overlay-right{opacity:1;}
@@ -98,8 +98,8 @@
 
   /* --- CENTER CONCLUSION (s3) --- */
   #concl-center{position:absolute;left:120px;right:120px;top:50%;transform:translate(0,-50%);text-align:center;color:#FFFFFF;font-size:64px;font-weight:600;letter-spacing:-0.025em;line-height:1.35;padding:60px 80px;opacity:0;pointer-events:none;transition:opacity 0.8s ease 0.3s,transform 0.8s ease 0.3s;z-index:20;}
-  #concl-center .pre{color:rgba(255,255,255,0.7);font-size:32px;font-weight:300;letter-spacing:-0.01em;line-height:1.4;margin-bottom:30px;}
-  #concl-center .punch{font-size:72px;font-weight:600;letter-spacing:-0.03em;line-height:1.25;}
+  #concl-center .pre{color:rgba(255,255,255,0.7);font-size:46px;font-weight:300;letter-spacing:-0.01em;line-height:1.4;margin-bottom:36px;}
+  #concl-center .punch{font-size:104px;font-weight:600;letter-spacing:-0.03em;line-height:1.25;}
   #concl-center .em{color:#FF6B35;font-weight:700;}
   #wrap.s3 #concl-center{opacity:1;}
 
@@ -119,10 +119,10 @@
   .gnode{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;border-radius:50%;font-weight:600;line-height:1.2;letter-spacing:-0.015em;will-change:transform,left,top;}
 
   #graph-center{
-    width:210px;height:210px;
+    width:230px;height:230px;
     background:radial-gradient(circle at 32% 30%, #FF9866 0%, #FF6B35 55%, #C9430E 100%);
     color:#FFFFFF;
-    font-size:36px;
+    font-size:42px;
     font-weight:700;
     letter-spacing:-0.02em;
     box-shadow:0 0 70px rgba(255,107,53,0.45), inset 0 0 30px rgba(255,255,255,0.18);
@@ -138,7 +138,7 @@
   @keyframes halo{0%,100%{transform:scale(1);opacity:0.55;}50%{transform:scale(1.08);opacity:0.2;}}
 
   .gnode.outer{
-    width:160px;height:160px;
+    width:190px;height:190px;
     background:radial-gradient(circle at 32% 30%, rgba(255,107,53,0.22), rgba(255,107,53,0.04));
     border:1.5px solid rgba(255,107,53,0.55);
     color:#FFFFFF;
@@ -146,8 +146,8 @@
     z-index:10;
     padding:10px;
   }
-  .gnode.outer .nname{display:block;font-weight:600;line-height:1.2;}
-  .gnode.outer .ndesc{display:block;font-size:12px;color:rgba(255,255,255,0.65);font-weight:400;margin-top:6px;letter-spacing:0;}
+  .gnode.outer .nname{display:block;font-weight:600;line-height:1.2;font-size:24px;}
+  .gnode.outer .ndesc{display:block;font-size:17px;color:rgba(255,255,255,0.65);font-weight:400;margin-top:6px;letter-spacing:0;}
 
   #wrap.s4 .chap-b, #wrap.s4 .headline-b{opacity:1;}
   #wrap.s4 .accent-b{opacity:1;transform:scaleX(1);}
@@ -247,7 +247,7 @@
 
   /* 두 가지 원칙 — s9에서 등장 */
   #sol-points{position:absolute;left:120px;top:560px;width:1680px;display:flex;gap:60px;}
-  .spt{flex:1;padding:50px 52px;border:1px solid rgba(255,255,255,0.18);border-radius:16px;
+  .spt{flex:1;padding:50px 52px;border:1px solid rgba(255,255,255,0.18);border-radius:16px;display:flex;flex-direction:column;justify-content:center;min-height:380px;
     opacity:0;transform:translateY(28px);transition:opacity 0.7s ease,transform 0.7s cubic-bezier(0.34,1.2,0.5,1);}
   .spt.left, .spt.right{border-color:rgba(255,107,53,0.45);background:rgba(255,107,53,0.05);}
   #wrap.s9 .spt{opacity:1;transform:translateY(0);}
@@ -327,14 +327,14 @@
   /* 위·아래 정확히 반 분할 + 각 섹션 내부 세로 중앙 정렬 */
   .sc-avg-section{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 36px;}
   .sc-avg-label{color:#FF6B35;font-size:28px;font-weight:600;letter-spacing:-0.005em;}
-  .sc-avg-big{color:#fff;font-size:132px;font-weight:700;letter-spacing:-0.04em;line-height:1;margin-top:14px;font-variant-numeric:tabular-nums;}
-  .sc-avg-big .u{font-size:66px;color:rgba(255,255,255,0.65);font-weight:600;}
+  .sc-avg-big{color:#fff;font-size:44px;font-weight:700;letter-spacing:-0.02em;line-height:1;margin-top:10px;font-variant-numeric:tabular-nums;}
+  .sc-avg-big .u{font-size:22px;color:rgba(255,255,255,0.65);font-weight:600;}
   .sc-avg-suffix{color:rgba(255,255,255,0.72);font-size:30px;font-weight:400;margin-top:16px;letter-spacing:-0.01em;}
   .sc-avg-sep{flex:none;height:1px;background:rgba(255,255,255,0.22);margin:0 36px;}
-  .sc-avg-row{color:#fff;font-size:104px;font-weight:700;letter-spacing:-0.03em;line-height:1.02;}
+  .sc-avg-row{color:#fff;font-size:35px;font-weight:700;letter-spacing:-0.02em;line-height:1.1;}
   .sc-avg-row + .sc-avg-row{margin-top:6px;}
   .sc-avg-row .em{color:#FF6B35;}
-  .sc-avg-sub{color:rgba(255,255,255,0.78);font-size:36px;font-weight:400;margin-top:22px;letter-spacing:-0.01em;}
+  .sc-avg-sub{color:rgba(255,255,255,0.72);font-size:30px;font-weight:400;margin-top:14px;letter-spacing:-0.01em;}
 
 
   /* ============ S12 · 시연 안내 ============ */
@@ -369,7 +369,7 @@
   .tr-quote-text::before{content:'“';color:rgba(255,107,53,0.7);font-size:34px;font-weight:700;line-height:0;margin-right:4px;vertical-align:-5px;}
   .tr-quote-text::after{content:'”';color:rgba(255,107,53,0.7);font-size:34px;font-weight:700;line-height:0;margin-left:5px;vertical-align:-12px;}
   .tr-quote-text b{color:#FF6B35;font-weight:600;}
-  .tr-quote-meta{color:rgba(255,255,255,0.55);font-size:18px;font-weight:500;letter-spacing:-0.005em;margin-top:16px;display:block;}
+  .tr-quote-meta{color:rgba(255,255,255,0.6);font-size:22px;font-weight:500;letter-spacing:-0.005em;margin-top:18px;display:block;}
 
   .tr-foot{position:absolute;left:120px;bottom:50px;color:rgba(255,255,255,0.55);font-size:22px;letter-spacing:0.04em;font-weight:500;opacity:0;transition:opacity 0.6s ease 1.2s;}
   #wrap.s13 .tr-chap, #wrap.s13 .tr-head, #wrap.s13 .tr-foot{opacity:1;}
@@ -383,7 +383,7 @@
   .tr-1m .tr-header{transition-delay:0.72s;}
   #wrap.s13 .tr-header{opacity:1;transform:translateY(0);}
   .tr-period{color:#fff;font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1;}
-  .tr-since{color:rgba(255,255,255,0.55);font-size:17px;font-weight:300;margin-top:6px;letter-spacing:-0.005em;}
+  .tr-since{color:rgba(255,255,255,0.55);font-size:20px;font-weight:300;margin-top:6px;letter-spacing:-0.005em;}
   .tr-boxes{display:flex;gap:20px;flex:1;}
   .tr-box{flex:1;padding:24px 22px;border:1px solid rgba(255,255,255,0.16);border-radius:18px;background:linear-gradient(140deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015));display:flex;flex-direction:column;justify-content:center;opacity:0;transform:translateY(20px);transition:opacity 0.65s ease,transform 0.65s cubic-bezier(0.34,1.2,0.5,1);box-sizing:border-box;}
   .tr-box.highlight{border-color:rgba(255,107,53,0.55);background:linear-gradient(140deg,rgba(255,107,53,0.18),rgba(255,107,53,0.04));box-shadow:0 0 40px rgba(255,107,53,0.18);}
@@ -539,9 +539,8 @@
   <!-- s1: 좌측 카톡 명확 / 우측 동료 블러 → 우측 위에 '특보 발표 때마다 같은 민원 반복' -->
   <div class="panel-overlay" id="overlay-right">
     <div>
-      <span class="ln">특보가 발표될 때마다</span>
-      <span class="ln"><span class="em">같은 민원, 같은 통화</span></span>
-      <span class="ln">반복되었습니다.</span>
+      <span class="ln"><span class="em">같은 통화를</span></span>
+      <span class="ln">언제까지 반복해야 하는걸까?</span>
     </div>
   </div>
   <!-- s2: 우측 동료 명확 / 좌측 카톡 블러 → 좌측 위에 '왜 민간 어플을 이용해야만' -->
@@ -987,9 +986,9 @@
 
   /* === 분자형 7출처 그래프 (s4) 유기적 호흡 애니메이션 === */
   const CXG = 960, CYG = 680;
-  const BASE_DIST = 305;
-  const CENTER_RG = 105;
-  const NODE_RG = 80;
+  const BASE_DIST = 285;
+  const CENTER_RG = 115;
+  const NODE_RG = 95;
   const N = 7;
 
   const gnodes = [];
