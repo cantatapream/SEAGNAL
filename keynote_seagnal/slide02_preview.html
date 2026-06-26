@@ -303,9 +303,9 @@
   #wrap.s11 .sc-acc{opacity:1;transform:scaleX(1);}
 
   /* 표 컨테이너 */
-  #sc-table{position:absolute;left:120px;top:330px;width:1180px;opacity:0;transform:translateY(20px);transition:opacity 0.7s ease 0.65s, transform 0.7s ease 0.65s;}
+  #sc-table{position:absolute;left:120px;top:330px;width:1080px;box-sizing:border-box;opacity:0;transform:translateY(20px);transition:opacity 0.7s ease 0.65s, transform 0.7s ease 0.65s;}
   #wrap.s11 #sc-table{opacity:1;transform:translateY(0);}
-  .sc-row{display:grid;grid-template-columns:1.6fr 1fr 1fr 0.7fr;align-items:center;padding:18px 12px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:26px;}
+  .sc-row{display:grid;grid-template-columns:1.6fr 1fr 1fr 0.7fr;align-items:center;padding:18px 12px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:26px;box-sizing:border-box;}
   .sc-row.head{color:rgba(255,255,255,0.55);font-size:18px;letter-spacing:0.14em;font-weight:500;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,0.22);padding-bottom:14px;}
   .sc-row.head .sg{color:#FF6B35;}
   .sc-row .feat{color:#fff;font-weight:500;letter-spacing:-0.01em;}
@@ -315,15 +315,15 @@
   .sc-row .delta.unify{color:rgba(255,107,53,0.85);}
 
   /* 평균 효과 박스 */
-  #sc-avg{position:absolute;right:120px;top:330px;width:540px;padding:48px 44px;border:1px solid rgba(255,107,53,0.5);border-radius:24px;background:linear-gradient(155deg,rgba(255,107,53,0.12),rgba(255,107,53,0.03));box-shadow:0 0 60px rgba(255,107,53,0.18);opacity:0;transform:translateX(20px) scale(0.96);transition:opacity 0.8s ease 0.8s, transform 0.85s cubic-bezier(0.34,1.25,0.5,1) 0.8s;}
+  #sc-avg{position:absolute;right:80px;top:330px;width:560px;padding:40px 36px;border:1px solid rgba(255,107,53,0.5);border-radius:24px;background:linear-gradient(155deg,rgba(255,107,53,0.12),rgba(255,107,53,0.03));box-shadow:0 0 60px rgba(255,107,53,0.18);box-sizing:border-box;overflow:hidden;opacity:0;transform:translateX(20px) scale(0.96);transition:opacity 0.8s ease 0.8s, transform 0.85s cubic-bezier(0.34,1.25,0.5,1) 0.8s;}
   #wrap.s11 #sc-avg{opacity:1;transform:translateX(0) scale(1);}
   .sc-avg-label{color:#FF6B35;font-size:20px;letter-spacing:0.24em;font-weight:600;}
-  .sc-avg-big{color:#fff;font-size:160px;font-weight:700;letter-spacing:-0.04em;line-height:1;margin-top:14px;font-variant-numeric:tabular-nums;}
-  .sc-avg-big .u{font-size:80px;color:rgba(255,255,255,0.65);font-weight:600;}
-  .sc-avg-cap{color:rgba(255,255,255,0.65);font-size:20px;font-weight:300;margin-top:14px;line-height:1.45;}
+  .sc-avg-big{color:#fff;font-size:132px;font-weight:700;letter-spacing:-0.04em;line-height:1;margin-top:12px;font-variant-numeric:tabular-nums;}
+  .sc-avg-big .u{font-size:66px;color:rgba(255,255,255,0.65);font-weight:600;}
+  .sc-avg-cap{color:rgba(255,255,255,0.65);font-size:19px;font-weight:300;margin-top:14px;line-height:1.45;}
   .sc-avg-cap em{color:rgba(255,255,255,0.92);font-style:normal;font-weight:500;}
-  .sc-avg-sep{margin-top:36px;height:1px;background:rgba(255,255,255,0.18);}
-  .sc-avg-mid{color:#fff;font-size:46px;font-weight:700;letter-spacing:-0.025em;margin-top:36px;line-height:1.15;}
+  .sc-avg-sep{margin-top:32px;height:1px;background:rgba(255,255,255,0.18);}
+  .sc-avg-mid{color:#fff;font-size:40px;font-weight:700;letter-spacing:-0.025em;margin-top:28px;line-height:1.15;}
   .sc-avg-mid .em{color:#FF6B35;}
   .sc-avg-sub{color:rgba(255,255,255,0.6);font-size:18px;font-weight:400;margin-top:8px;}
 
@@ -599,7 +599,7 @@
 
     <div id="sc-avg">
       <div class="sc-avg-label">평균 효과</div>
-      <div class="sc-avg-big">−76<span class="u">%</span></div>
+      <div class="sc-avg-big">−<span id="sc-num">0</span><span class="u">%</span></div>
       <div class="sc-avg-cap">단계 평균 감소율<br><em>6.8 단계 → 1.6 단계</em></div>
       <div class="sc-avg-sep"></div>
       <div class="sc-avg-mid">평균 <span class="em">3회</span> 이내</div>
@@ -620,6 +620,7 @@
   const total = 12;
   const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들', '단계① 수요(세로)', '단계② 신호 정리안됨·낙수', '단계③ 7개+·민간 압축', '그래서 만들었습니다 (가운데)', '두 가지 원칙 (좌·우)', '한 앱에, 모든 바다 정보', '접속 단계 축소'];
   let countersRun = false;
+  let scNumRun = false;
   let solTimer = null;
   function setState(n){
     state = Math.max(0, Math.min(total-1, n));
@@ -632,6 +633,26 @@
     // s8(그래서 만들었습니다) 진입 0.5초 후 자동으로 s9(좌상단 이동 + 두 원칙)
     if(solTimer){ clearTimeout(solTimer); solTimer = null; }
     if(state === 8){ solTimer = setTimeout(() => { if(state === 8) setState(9); }, 500); }
+    // s11 진입 시 -76 카운트업 (다다닥 빠르게)
+    if(state === 11 && !scNumRun){
+      scNumRun = true;
+      const el = document.getElementById('sc-num');
+      if(el){
+        el.textContent = '0';
+        const target = 76, dur = 950, delay = 1050;
+        setTimeout(() => {
+          const t0 = performance.now();
+          function tick(now){
+            const k = Math.min(1, (now - t0) / dur);
+            const eased = 1 - Math.pow(1 - k, 2.4);
+            el.textContent = Math.round(target * eased);
+            if(k < 1) requestAnimationFrame(tick);
+          }
+          requestAnimationFrame(tick);
+        }, delay);
+      }
+    }
+    if(state !== 11){ scNumRun = false; }
   }
 
   // 수치 카운트업 (단계① 세로 수치)
