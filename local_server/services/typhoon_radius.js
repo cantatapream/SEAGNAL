@@ -116,7 +116,9 @@ function radiusEntry(loc, frames, which) {
     return null;
 }
 
-module.exports = {
+// [Phase 2a] UMD 표출 — Node(require)에선 module.exports, 브라우저(<script>)에선 window.TyphoonRadius.
+//   기존 require 소비자/자체검증에 영향 없는 비파괴적 추가(브라우저엔 module 이 없으므로 가드).
+var _TyphoonRadius = {
     DIR16_DEG: DIR16_DEG,
     dirToDeg: dirToDeg,
     angDiff: angDiff,
@@ -125,12 +127,14 @@ module.exports = {
     bearingDeg: bearingDeg,
     radiusEntry: radiusEntry
 };
+if (typeof module !== 'undefined' && module.exports) { module.exports = _TyphoonRadius; }
+if (typeof window !== 'undefined') { window.TyphoonRadius = _TyphoonRadius; }
 
 // ---------------------------------------------------------------------------
 // 합성 단위테스트 (이 파일을 직접 실행할 때만: `node services/typhoon_radius.js`)
 //   - require 로 불러올 때(서버/라우트)는 실행되지 않는다.
 // ---------------------------------------------------------------------------
-if (require.main === module) {
+if (typeof require !== 'undefined' && require.main === module) {
     var fails = 0, n = 0;
     function ok(cond, msg) { n++; if (!cond) { fails++; console.error('  [FAIL] ' + msg); } else { console.log('  [PASS] ' + msg); } }
     function eq(a, b, msg) { ok(a === b, msg + ' (got ' + JSON.stringify(a) + ', want ' + JSON.stringify(b) + ')'); }

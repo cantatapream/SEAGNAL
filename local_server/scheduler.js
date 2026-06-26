@@ -2358,6 +2358,8 @@ async function init() {
     const typhoonCrawler = require('./typhoon_crawler');
     // [신규] 태풍 발생/소멸 푸시 알림기 (수집기와 분리). 부팅 시엔 baseline 만 설정(발송 X).
     const typhoonNotifier = require('./services/typhoon_notifier');
+    // [신규] 위치기반 태풍 반경 알림 디스패치(Phase 2a). 부팅 시엔 baseline 만(발송 X) — dispatchTyphoonOnLatest 내부 처리.
+    const typhoonRadiusDispatch = require('./services/typhoon_radius_dispatch');
     if (typhoonCrawler.enabled) {
         typhoonCrawler.run()
             .then(() => { if (typhoonNotifier.enabled) return typhoonNotifier.detectAndNotify({ log }); })
@@ -2531,6 +2533,8 @@ async function init() {
             // 수집 완료 후 알림기 호출(.then) → 항상 갓 저장된 typhoon.json 을 읽어 판정(레이스 방지)
             typhoonCrawler.run()
                 .then(() => { if (typhoonNotifier.enabled) return typhoonNotifier.detectAndNotify({ log }); })
+                // [신규] 위치기반 태풍 반경 알림 신호 디스패치(throw 흡수 — 발생/소멸 체인에 영향 없음).
+                .then(() => typhoonRadiusDispatch.dispatchTyphoonOnLatest({ log }).catch(() => {}))
                 .catch(err => log(`⚠️ [typhoon] 수집/알림 오류: ${err.message}`));
         }
 

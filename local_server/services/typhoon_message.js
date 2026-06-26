@@ -277,7 +277,9 @@ function buildRadiusAlert(which, snap, etaTmFc) {
     };
 }
 
-module.exports = {
+// [Phase 2a] UMD 표출 — Node(require)에선 module.exports, 브라우저(<script>)에선 window.TyphoonMessage.
+//   기존 require 소비자에 영향 없는 비파괴적 추가(브라우저엔 module 이 없으므로 가드).
+const _TyphoonMessage = {
     TYPHOON_DEEPLINK_URL,
     buildOnset,
     buildDissipation,
@@ -290,3 +292,5 @@ module.exports = {
     dissipationReason,
     pureName
 };
+if (typeof module !== 'undefined' && module.exports) { module.exports = _TyphoonMessage; }
+if (typeof window !== 'undefined') { window.TyphoonMessage = _TyphoonMessage; }
