@@ -1075,6 +1075,7 @@ router.get('/api/zone-bulletins', async (req, res) => {
                 time: String(r.tm_fc || '').trim(),
                 title: (tp + lvl + (cmd ? ' ' + cmd : '')).trim(),
                 cmd: cmd,                                                 // warn_cmd_nm(발표/변경/연장/변경해제/해제) — 해제 판정 권위 신호
+                tp: tp,                                                   // warn_tp_nm(풍랑/태풍) — 종류별 현재 주기 경계 산정용
                 pdfUrl: fileNm ? (MARINE_PDF_HOST + fileNm) : '',
                 file_nm: fileNm,
                 warn_zone_cd: String(r.warn_zone_cd || '').trim(),
@@ -1104,6 +1105,8 @@ router.get('/api/zone-bulletins', async (req, res) => {
             bulletins.push({
                 time: tmFc,
                 title: (tp + (lvl ? ' ' + lvl : '') + (cmd ? ' ' + cmd : '')).trim(),   // '풍랑 예비특보 발표'
+                cmd: cmd,
+                tp: tp,                                                                  // 종류별 현재 주기 경계 산정용(예비도 주기 시작 신호)
                 pdfUrl: '',
                 file_nm: '',
                 webUrl: prelimUrl,
@@ -1159,56 +1162,46 @@ router.get('/api/zone-bulletins', async (req, res) => {
         }
         const merged = Array.from(seen.values());
         merged.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
-        // [현재 살아있는 특보의 통보문 누적]
+        // [현재 살아있는 특보의 통보문만 누적]
         //   이 모달은 "지금 살아있는 해역"에서만 열린다 — 특보가 해제되면 그 해역은 메인
         //   아코디언(appState.alerts = 활성/다가오는 것만, render.js createAlertElement)에서
-        //   빠지고 📋 버튼도 사라지기 때문이다. 따라서 라우트가 "이 해역이 살아있나"를 다시
-        //   판정할 필요가 없다(종전 zoneAlive/warn-list 게이트 제거 — 통보문 1건의 해제 오분류가
-        //   모달 전체를 비우던 치명적 사고의 원인이었음).
-        //   남은 일은 하나뿐: ef/list 30일 이력엔 같은 해역의 "이미 끝난 과거 주기"가 섞여
-        //   들어오므로, 가장 최근 해제 이후(=현재 주기)만 남긴다.
-        //   [해제 판정 — 오염 면역] 한 통보문 PDF 가 여러 해역/여러 경보(예: 강풍예비 해제 +
-        //   풍랑주의보 발표)를 묶어 담고, ntfctn 제목엔 해역 식별자가 없다. 그래서 공유 PDF
-        //   제목의 '해제' 로 발표를 해제로 둔갑시키면 안 된다. 해제 판정의 권위 신호는 그 행
-        //   자신의 warn_cmd_nm 이다:
-        //     • '발표'/'연장'        → 절대 해제 아님(발효 개시/연장). 발표대기(미래 ed_tm)도 여기 포함돼 표시됨.
-        //     • cmd 또는 자기 제목에 '해제'(변경해제 등) → 해제.
-        //     • 그 외('변경' 등 애매) → 보수적으로 해제 아님(현재 주기를 끊지 않음).
-        //   이는 "발표를 해제로 오판→전체 소실"이라는 치명적 실패를, "끝난 과거 주기가 조금 더
-        //   보일 수 있음"이라는 무해한 실패로 바꾼다(살아있는 해역에서만 열리므로 안전).
-        // [현재 주기 경계] 가장 최근 "부모 종결 해제" 시각(ms). 그 이전은 이미 끝난 과거 주기.
-        //   주기를 끊는(=특보 종결) 해제만 센다. 다음 둘은 종결이 아니므로 제외한다:
-        //   • 자식(연안/평수)-only 해제(b.childOnly) — 부모는 그대로 발효중. 자식 해제가 부모
-        //     주기를 끊으면 부모 통보문이 전멸한다(빈 리스트 사고). [회귀검토 F3]
-        //   • 같은 시각에 발표/변경 등 발효 통보문이 동반된 해제(격상/격하의 옛 등급 해제부) —
-        //     특보는 새 등급으로 계속된다. strict '>' 와 맞물려 동시각 발표가 탈락하던 문제. [회귀검토 H1]
-        //   liveTimes 는 dedup 이전 raw bulletins 에서 만든다 — dedup 이 같은 file_nm 의 발표를
-        //   떨궈도 그 시각을 "살아있는 신호"로 인식해 H1 이 무력화되지 않게 한다(방어). [회귀검토 C]
-        const liveTimes = new Set();
-        for (const b of bulletins) {
-            if (isRelease(b)) continue;
-            const t = _parseKstMs(b.time);
-            if (!isNaN(t)) liveTimes.add(t);   // 발표/변경/연장·예비·자식발표 = "살아있는 신호" 시각
-        }
-        let lastReleaseMs = -Infinity;
+        //   빠지고 📋 버튼도 사라지기 때문이다. 라우트가 "살아있나"를 다시 판정할 필요는 없고,
+        //   ef/list 30일 이력에 섞여 들어오는 "이미 끝난 과거 주기"만 걸러내면 된다.
+        //
+        //   [현재 주기 경계 = 그 종류의 가장 최근 '발표' 시각]
+        //   KMA 코딩상 cmd='발표' 는 "특보 신규 발효 개시"다(격상/격하=변경/변경해제, 연장=연장,
+        //   해제=해제/변경). 한 (해역·종류)의 특보는 새로 시작될 때만 '발표'로 찍히므로, 그 종류의
+        //   "가장 최근 발표 시각" 이상이 현재 주기, 그 이전은 이미 끝난 과거 주기다.
+        //   이 방식은 ntfctn 통보문 제목(해역 식별자 없음 → 공유제목 '해제' 오염)에 의존하지 않고,
+        //   ef 가 다중해역 해제를 해역별 '변경'으로 오코딩(예: 제06-21/39호)해도 그 다음 새 '발표'가
+        //   경계가 되어 과거 주기를 자동으로 잘라낸다. 해제 효력시각이 바뀌어도(예고 10시→20시)
+        //   재발표 시점이 경계라 영향이 없다.
+        //   • warn_tp 별로 경계를 따로 둔다 — 한 해역에 풍랑·태풍이 공존해도 서로 안 자른다.
+        //   • 주기 시작 신호 = '발표'(발효 개시) 또는 '예비특보'(다가오는 새 주기 시작). 예비를
+        //     포함하는 이유: 직전 주기가 '변경'-코딩 해제로 끝나고(명시적 '해제' 없음) 아직 새
+        //     '발표' 전인데 새 예비특보만 뜬 GAP 상태에서, 경계가 죽은 과거 주기의 '발표'를
+        //     가리켜 과거 통보문이 누수되던 문제를 막는다. 새 예비가 과거 발표보다 나중이면
+        //     예비 시각이 경계가 되어 과거 주기를 잘라낸다. [회귀검토 B]
+        //   • 자식(연안/평수)은 cmd/tp 가 없어 경계 산정에 기여하지 않고 항상 표시(아래).
+        const cycleStartByTp = {};   // warn_tp → 가장 최근 '주기 시작'(발표 또는 예비) 시각(ms)
         for (const b of merged) {
-            if (!isRelease(b) || b.childOnly) continue;   // 자식 해제는 부모 주기를 끝내지 않음(F3)
+            if (String(b.cmd || '') !== '발표' && !b.prelim) continue;   // 발표 또는 예비특보만
             const t = _parseKstMs(b.time);
             if (isNaN(t)) continue;
-            if (liveTimes.has(t)) continue;               // 동시각 발효 통보문 동반 = 격상/격하 → 종결 아님(H1)
-            if (t > lastReleaseMs) lastReleaseMs = t;
+            const tp = b.tp || '';
+            if (!(tp in cycleStartByTp) || t > cycleStartByTp[tp]) cycleStartByTp[tp] = t;
         }
         const inCurrentCycle = (b) => {
-            if (lastReleaseMs === -Infinity) return true;
+            const start = cycleStartByTp[b.tp || ''];
+            if (start == null) return true;                  // 그 종류의 '발표'가 없으면 보수적으로 포함
             const t = _parseKstMs(b.time);
-            return isNaN(t) ? true : t > lastReleaseMs;   // 파싱 실패는 보수적으로 포함
+            return isNaN(t) ? true : t >= start;             // 발표 시각 이상(발표 포함) = 현재 주기
         };
         const alive = merged.filter((b) => {
-            if (isRelease(b)) return false;                  // 해제 통보문 제외
-            if (!inCurrentCycle(b)) return false;            // 이미 끝난 과거 주기 제외
-            if (b.prelim) return true;                       // 예비특보(warn/ready)
-            if (b.childOnly) return true;                    // 자식-only(연안/평수)
-            return true;   // 부모 ef 통보문 — 살아있는 해역(아코디언이 보장)의 현재 주기 누적
+            if (b.prelim) return true;                       // 예비특보(warn/ready) — 현재 신호, 항상
+            if (isRelease(b)) return false;                  // 해제/변경해제 통보문은 화면에서 숨김
+            if (b.childOnly) return true;                    // 자식-only(연안/평수) — 크롤러 큐레이션
+            return inCurrentCycle(b);                         // 부모 ef 통보문 — 현재 주기(최근 발표 이후)만
         });
         // 각 항목에 통보문 호수(제XX호) 부착 — 같은 file_nm 의 ntfctn 제목에서 추출.
         for (const b of alive) b.reportNo = (reportByFile && reportByFile[b.file_nm]) || '';
