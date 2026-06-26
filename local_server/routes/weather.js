@@ -1122,14 +1122,31 @@ router.get('/api/zone-bulletins', async (req, res) => {
                 console.warn('[zone-bulletins] 자식 통보문 병합 실패 (무영향):', e && e.message);
             }
         }
+        // [해제 판정 — 오염 면역] 그 행 자신의 warn_cmd_nm(cmd)이 권위 신호. dedup 보다 먼저
+        //   정의해 "같은 PDF면 발효 통보문 우선" 보존(아래 (2))에 쓴다.
+        const _parseKstMs = (s) => {   // "YYYY.MM.DD HH:mm"(KST) → epoch ms (실패 시 NaN)
+            const m = String(s || '').match(/^(\d{4})[.\-](\d{1,2})[.\-](\d{1,2})\s+(\d{1,2}):(\d{2})/);
+            return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5]) : NaN;   // KST→UTC
+        };
+        const isRelease = (b) => {
+            const cmd = String(b.cmd || '');
+            if (cmd === '발표' || cmd === '연장') return false;   // 발효 개시/연장 = 해제 아님(공유 제목 오염 면역)
+            if (/해제/.test(cmd)) return true;                    // 변경해제 / 해제 (행 자신의 명령)
+            if (/해제/.test(b.title || '')) return true;          // cmd 미상(자식 등) 대비 — 자기 제목만
+            return false;                                         // 공유 PDF 제목으론 해제 판정 안 함
+        };
         // file_nm 기준 dedup — 같은 PDF 가 ef(부모)·자식 양쪽으로 들어오면 1건으로. file_nm
-        //   없는 항목(ef 폴백 등)은 time|title 로 보조 dedup. 중복 시 자식 통보문(연안/평수 포함) 우선.
+        //   없는 항목(ef 폴백 등)은 time|title 로 보조 dedup.
+        //   우선순위: (1) 자식(연안/평수 포함) > 부모, (2) 같은 키면 발효 통보문(발표/변경) > 해제.
+        //   (2)는 격하 시 '변경해제'와 새 등급 '발표'가 같은 file_nm 일 때 해제가 남고 발표가
+        //   사라져 빈 리스트가 되던 dedup×격하 경로를 막는다(발효 통보문을 보존해 표시·신호 유지).
         const seen = new Map();
         for (const b of bulletins) {
             const k = b.file_nm ? ('f:' + b.file_nm) : ('t:' + b.time + '|' + b.title);
             const prev = seen.get(k);
             if (!prev) { seen.set(k, b); continue; }
-            if (!prev.childOnly && b.childOnly) seen.set(k, b);
+            if (!prev.childOnly && b.childOnly) seen.set(k, b);                                        // (1) 자식 우선
+            else if (!!prev.childOnly === !!b.childOnly && isRelease(prev) && !isRelease(b)) seen.set(k, b);  // (2) 발효 > 해제
         }
         const merged = Array.from(seen.values());
         merged.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
@@ -1150,25 +1167,16 @@ router.get('/api/zone-bulletins', async (req, res) => {
         //     • 그 외('변경' 등 애매) → 보수적으로 해제 아님(현재 주기를 끊지 않음).
         //   이는 "발표를 해제로 오판→전체 소실"이라는 치명적 실패를, "끝난 과거 주기가 조금 더
         //   보일 수 있음"이라는 무해한 실패로 바꾼다(살아있는 해역에서만 열리므로 안전).
-        const _parseKstMs = (s) => {   // "YYYY.MM.DD HH:mm"(KST) → epoch ms (실패 시 NaN)
-            const m = String(s || '').match(/^(\d{4})[.\-](\d{1,2})[.\-](\d{1,2})\s+(\d{1,2}):(\d{2})/);
-            return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5]) : NaN;   // KST→UTC
-        };
-        const isRelease = (b) => {
-            const cmd = String(b.cmd || '');
-            if (cmd === '발표' || cmd === '연장') return false;   // 발효 개시/연장 = 해제 아님(공유 제목 오염 면역)
-            if (/해제/.test(cmd)) return true;                    // 변경해제 / 해제 (행 자신의 명령)
-            if (/해제/.test(b.title || '')) return true;          // cmd 미상(자식 등) 대비 — 자기 제목만
-            return false;                                         // 공유 PDF 제목으론 해제 판정 안 함
-        };
         // [현재 주기 경계] 가장 최근 "부모 종결 해제" 시각(ms). 그 이전은 이미 끝난 과거 주기.
         //   주기를 끊는(=특보 종결) 해제만 센다. 다음 둘은 종결이 아니므로 제외한다:
         //   • 자식(연안/평수)-only 해제(b.childOnly) — 부모는 그대로 발효중. 자식 해제가 부모
         //     주기를 끊으면 부모 통보문이 전멸한다(빈 리스트 사고). [회귀검토 F3]
         //   • 같은 시각에 발표/변경 등 발효 통보문이 동반된 해제(격상/격하의 옛 등급 해제부) —
         //     특보는 새 등급으로 계속된다. strict '>' 와 맞물려 동시각 발표가 탈락하던 문제. [회귀검토 H1]
+        //   liveTimes 는 dedup 이전 raw bulletins 에서 만든다 — dedup 이 같은 file_nm 의 발표를
+        //   떨궈도 그 시각을 "살아있는 신호"로 인식해 H1 이 무력화되지 않게 한다(방어). [회귀검토 C]
         const liveTimes = new Set();
-        for (const b of merged) {
+        for (const b of bulletins) {
             if (isRelease(b)) continue;
             const t = _parseKstMs(b.time);
             if (!isNaN(t)) liveTimes.add(t);   // 발표/변경/연장·예비·자식발표 = "살아있는 신호" 시각
