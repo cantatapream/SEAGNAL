@@ -329,17 +329,53 @@
 
   /* ============ S12 · 시연 안내 ============ */
   #demo{position:absolute;inset:0;z-index:50;background:#000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.8s ease;}
-  #wrap.s12 #demo{opacity:1;}
+  #wrap.s13 #demo{opacity:1;}
   #demo::before{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:1400px;height:1400px;background:radial-gradient(circle,rgba(255,107,53,0.18) 0%,rgba(255,107,53,0.04) 38%,transparent 62%);pointer-events:none;}
   .demo-text{position:relative;text-align:center;color:#fff;font-size:88px;font-weight:700;letter-spacing:-0.03em;line-height:1.32;}
   .demo-text .em{color:#FF6B35;}
   .demo-text .ln{display:block;opacity:0;transform:translateY(16px);transition:opacity 0.7s ease, transform 0.7s ease;}
-  #wrap.s12 .demo-text .ln{opacity:1;transform:translateY(0);}
-  #wrap.s12 .demo-text .ln:nth-child(1){transition-delay:0.35s;}
-  #wrap.s12 .demo-text .ln:nth-child(2){transition-delay:0.65s;}
-  #wrap.s12 .demo-text .ln:nth-child(3){transition-delay:0.95s;}
+  #wrap.s13 .demo-text .ln{opacity:1;transform:translateY(0);}
+  #wrap.s13 .demo-text .ln:nth-child(1){transition-delay:0.35s;}
+  #wrap.s13 .demo-text .ln:nth-child(2){transition-delay:0.65s;}
+  #wrap.s13 .demo-text .ln:nth-child(3){transition-delay:0.95s;}
+
+
+  /* ============ S12 · 이미 운영 중 (Traction) ============ */
+  #traction{position:absolute;inset:0;z-index:48;background:#000;opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
+  #wrap.s12 #traction{opacity:1;}
+
+  .tr-chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;opacity:0;transition:opacity 0.6s ease 0.2s;}
+  .tr-head{position:absolute;left:120px;top:140px;color:#fff;font-size:60px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;opacity:0;transition:opacity 0.7s ease 0.3s;}
+  .tr-head .em{color:#FF6B35;}
+  .tr-acc{position:absolute;left:120px;top:280px;width:80px;height:6px;background:#FF6B35;opacity:0;transform:scaleX(0);transform-origin:left;transition:transform 0.6s ease 0.55s,opacity 0.4s ease 0.55s;}
+  .tr-foot{position:absolute;left:120px;bottom:50px;color:rgba(255,255,255,0.55);font-size:22px;letter-spacing:0.04em;font-weight:500;opacity:0;transition:opacity 0.6s ease 1.2s;}
+  #wrap.s12 .tr-chap, #wrap.s12 .tr-head, #wrap.s12 .tr-foot{opacity:1;}
+  #wrap.s12 .tr-acc{opacity:1;transform:scaleX(1);}
+
+  .tr-grid{position:absolute;left:120px;right:120px;top:380px;display:flex;gap:36px;height:580px;}
+  .tr-section{display:flex;flex-direction:column;}
+  .tr-3m{flex:4.2;}
+  .tr-1m{flex:1;}
+  .tr-header{padding:22px 28px;border:1px solid rgba(255,107,53,0.45);border-radius:18px;background:linear-gradient(140deg,rgba(255,107,53,0.12),rgba(255,107,53,0.03));margin-bottom:24px;display:flex;flex-direction:column;justify-content:center;min-height:90px;box-sizing:border-box;opacity:0;transform:translateY(14px);transition:opacity 0.6s ease 0.6s,transform 0.6s ease 0.6s;}
+  .tr-1m .tr-header{transition-delay:0.72s;}
+  #wrap.s12 .tr-header{opacity:1;transform:translateY(0);}
+  .tr-period{color:#fff;font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1;}
+  .tr-since{color:rgba(255,255,255,0.55);font-size:17px;font-weight:300;margin-top:6px;letter-spacing:-0.005em;}
+  .tr-boxes{display:flex;gap:20px;flex:1;}
+  .tr-box{flex:1;padding:32px 28px;border:1px solid rgba(255,255,255,0.16);border-radius:18px;background:linear-gradient(140deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015));display:flex;flex-direction:column;justify-content:center;opacity:0;transform:translateY(20px);transition:opacity 0.65s ease,transform 0.65s cubic-bezier(0.34,1.2,0.5,1);box-sizing:border-box;}
+  .tr-box.highlight{border-color:rgba(255,107,53,0.55);background:linear-gradient(140deg,rgba(255,107,53,0.18),rgba(255,107,53,0.04));box-shadow:0 0 40px rgba(255,107,53,0.18);}
+  #wrap.s12 .tr-box{opacity:1;transform:translateY(0);}
+  #wrap.s12 .tr-3m .tr-boxes .tr-box:nth-child(1){transition-delay:0.82s;}
+  #wrap.s12 .tr-3m .tr-boxes .tr-box:nth-child(2){transition-delay:0.92s;}
+  #wrap.s12 .tr-3m .tr-boxes .tr-box:nth-child(3){transition-delay:1.02s;}
+  #wrap.s12 .tr-3m .tr-boxes .tr-box:nth-child(4){transition-delay:1.12s;}
+  #wrap.s12 .tr-1m .tr-boxes .tr-box{transition-delay:1.22s;}
+  .tr-big{color:#fff;font-size:64px;font-weight:700;letter-spacing:-0.035em;line-height:1;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;flex-wrap:wrap;}
+  .tr-big .u{font-size:32px;color:rgba(255,255,255,0.65);font-weight:600;margin-left:3px;letter-spacing:-0.01em;}
+  .tr-label{color:rgba(255,255,255,0.72);font-size:21px;font-weight:400;margin-top:22px;letter-spacing:-0.01em;line-height:1.3;}
 
   /* Progress hint */
+
 
 
 
@@ -627,7 +663,56 @@
   </div>
 
 
-  <!-- ============ S12 · 시연 안내 ============ -->
+  <!-- ============ S12 · 이미 운영 중 (Traction) ============ -->
+  <div id="traction">
+    <div class="tr-chap">이미 운영 중인 실서비스</div>
+    <div class="tr-head">기획이 아닙니다. <span class="em">이미 검증됐습니다.</span></div>
+    <div class="tr-acc"></div>
+
+    <div class="tr-grid">
+      <div class="tr-section tr-3m">
+        <div class="tr-header">
+          <div class="tr-period">3개월</div>
+          <div class="tr-since">2025. 3. 30. 출시</div>
+        </div>
+        <div class="tr-boxes">
+          <div class="tr-box">
+            <div class="tr-big"><span class="tr-cu" data-target="1.5" data-dec="1">0.0</span><span class="u">만+</span></div>
+            <div class="tr-label">누적 이용자</div>
+          </div>
+          <div class="tr-box">
+            <div class="tr-big"><span class="tr-cu" data-target="1351" data-comma="1">0</span><span class="u">명</span></div>
+            <div class="tr-label">앱 설치 수</div>
+          </div>
+          <div class="tr-box">
+            <div class="tr-big"><span class="tr-cu" data-target="80.6" data-dec="1">0.0</span><span class="u">%</span></div>
+            <div class="tr-label">설치 유지율</div>
+          </div>
+          <div class="tr-box">
+            <div class="tr-big"><span class="tr-cu" data-target="24.8" data-dec="1">0.0</span><span class="u">만+</span></div>
+            <div class="tr-label">특보 알림 발송</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tr-section tr-1m">
+        <div class="tr-header">
+          <div class="tr-period">1개월</div>
+          <div class="tr-since">5. 27.부터 집계</div>
+        </div>
+        <div class="tr-boxes">
+          <div class="tr-box highlight">
+            <div class="tr-big"><span class="tr-cu" data-target="1.1" data-dec="1">0.0</span><span class="u">만+</span></div>
+            <div class="tr-label">해양 정보 제공</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tr-foot">Google Play Store · '바다 그 날' 검색 · 무료</div>
+  </div>
+
+  <!-- ============ S13 · 시연 안내 ============ -->
   <div id="demo">
     <div class="demo-text">
       <span class="ln">지금부터</span>
@@ -644,14 +729,15 @@
   const wrap = document.getElementById('wrap');
   const steps = document.getElementById('steps');
   let state = 0;
-  const total = 13;
-  const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들', '단계① 수요(세로)', '단계② 신호 정리안됨·낙수', '단계③ 7개+·민간 압축', '그래서 만들었습니다 (가운데)', '두 가지 원칙 (좌·우)', '한 앱에, 모든 바다 정보', '접속 단계 축소', '시연 안내'];
+  const total = 14;
+  const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들', '단계① 수요(세로)', '단계② 신호 정리안됨·낙수', '단계③ 7개+·민간 압축', '그래서 만들었습니다 (가운데)', '두 가지 원칙 (좌·우)', '한 앱에, 모든 바다 정보', '접속 단계 축소', '이미 운영 중', '시연 안내'];
   let countersRun = false;
   let scNumRun = false;
+  let trRun = false;
   let solTimer = null;
   function setState(n){
     state = Math.max(0, Math.min(total-1, n));
-    wrap.classList.remove('s0','s1','s2','s3','s4','s5','s6','s7','s8','s9','s10','s11','s12');
+    wrap.classList.remove('s0','s1','s2','s3','s4','s5','s6','s7','s8','s9','s10','s11','s12','s13');
     wrap.classList.add('s' + state);
     steps.textContent = (state+1) + ' / ' + total + ' · ' + labels[state] + ' · CLICK 으로 다음';
     // s5 진입 시 세로 수치 카운터 1회 실행
@@ -661,6 +747,12 @@
     if(solTimer){ clearTimeout(solTimer); solTimer = null; }
     if(state === 8){ solTimer = setTimeout(() => { if(state === 8) setState(9); }, 500); }
     // s11 진입 시 -76 카운트업 (다다닥 빠르게)
+    // s12(이미 운영 중) 진입 시 traction 카운트업
+    if(state === 12 && !trRun){
+      trRun = true;
+      runTraction();
+    }
+    if(state !== 12){ trRun = false; }
     if(state === 11 && !scNumRun){
       scNumRun = true;
       const el = document.getElementById('sc-num');
@@ -698,6 +790,33 @@
           const val = Math.round(to * eased);
           el.textContent = comma ? val.toLocaleString() : String(val);
           if(t < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      }, delay);
+    });
+  }
+
+
+
+  function runTraction(){
+    document.querySelectorAll('#traction .tr-cu').forEach((el, idx) => {
+      const target = parseFloat(el.dataset.target);
+      const dec = parseInt(el.dataset.dec) || 0;
+      const comma = el.dataset.comma === '1';
+      const dur = 1200;
+      const delay = 850 + idx * 110;
+      setTimeout(() => {
+        const t0 = performance.now();
+        function tick(now){
+          const k = Math.min(1, (now - t0) / dur);
+          const eased = 1 - Math.pow(1 - k, 3);
+          const val = target * eased;
+          let display;
+          if(comma) display = Math.round(val).toLocaleString();
+          else if(dec) display = val.toFixed(dec);
+          else display = Math.round(val).toString();
+          el.textContent = display;
+          if(k < 1) requestAnimationFrame(tick);
         }
         requestAnimationFrame(tick);
       }, delay);
