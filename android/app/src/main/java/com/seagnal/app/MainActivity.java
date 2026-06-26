@@ -56,7 +56,7 @@ public class MainActivity extends BridgeActivity {
      *
      *   ⚠️ 서버측 수정을 단말에 강제 반영해야 할 때 이 값을 1 올려 배포한다.
      */
-    private static final int WEBVIEW_CACHE_BUST_TOKEN = 4;
+    private static final int WEBVIEW_CACHE_BUST_TOKEN = 5;
 
     /** 현재 오프라인 에러 페이지가 표시 중인지 여부 — onPageStarted 에서 reset. */
     private boolean isShowingError = false;

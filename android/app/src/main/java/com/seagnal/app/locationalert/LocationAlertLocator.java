@@ -66,13 +66,13 @@ public final class LocationAlertLocator {
             // 2) ACTIVE 단발 fix 시도(GPS → NETWORK 순). 성공 시 저장 후 반환.
             Location active = requestActiveFix(app, lm, fine);
             if (active != null) {
-                return persistAndWrap(app, active);
+                return persistAndWrap(app, active, true);   // ACTIVE = 그 순간 측정 → at=현재시각
             }
 
             // 3) getLastKnownLocation 폴백(GPS/NETWORK/PASSIVE 중 가장 최근).
             Location last = lastKnown(lm);
             if (last != null) {
-                return persistAndWrap(app, last);
+                return persistAndWrap(app, last, false);     // 캐시값 → at=실제 측정시각(낡음 가드 정확)
             }
 
             // 4) 저장 위치 폴백(JS savePosition 미러).
@@ -174,16 +174,37 @@ public final class LocationAlertLocator {
         catch (Throwable t) { return false; }
     }
 
-    /** fresh fix 를 저장(putPosition: POS_KEY 미러 + 진단 갱신)하고 Position 으로 래핑해 반환. */
-    private static LocationAlertStore.Position persistAndWrap(Context app, Location loc) {
+    /** fix 를 저장(putPosition: POS_KEY 미러 + 진단 갱신)하고 Position 으로 래핑해 반환.
+     *  @param isActiveFix true=그 순간 능동 측정(at=현재시각). false=getLastKnownLocation 캐시값
+     *    (at=loc.getTime() 실제 측정시각). 캐시값을 현재시각으로 찍으면 12h 낡음 가드를 우회해
+     *    며칠 정체된 단말이 낡은 위치로 오판정할 수 있으므로, 캐시는 실제 측정시각을 보존한다. */
+    private static LocationAlertStore.Position persistAndWrap(Context app, Location loc, boolean isActiveFix) {
         double lat = loc.getLatitude();
         double lng = loc.getLongitude();
         double acc = loc.hasAccuracy() ? loc.getAccuracy() : 0.0;
-        String nowIso = nowIso();
-        try { LocationAlertStore.putPosition(app, lat, lng, acc, nowIso); } catch (Throwable ignore) { }
+        String at;
+        if (isActiveFix) {
+            at = nowIso();
+        } else {
+            long t = loc.getTime();
+            at = (t > 0) ? isoFromMillis(t) : nowIso();   // 측정시각 불명(0)이면 현재시각으로
+        }
+        try { LocationAlertStore.putPosition(app, lat, lng, acc, at); } catch (Throwable ignore) { }
         LocationAlertStore.Position p = new LocationAlertStore.Position();
-        p.lat = lat; p.lng = lng; p.accuracyM = acc; p.at = nowIso;
+        p.lat = lat; p.lng = lng; p.accuracyM = acc; p.at = at;
         return p;
+    }
+
+    /** epoch millis → ISO-8601(UTC) 문자열 (JS savePosition 의 at 포맷과 동일). */
+    private static String isoFromMillis(long millis) {
+        try {
+            java.text.SimpleDateFormat f =
+                    new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
+            f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+            return f.format(new java.util.Date(millis));
+        } catch (Throwable t) {
+            return nowIso();
+        }
     }
 
     /** ISO-8601(UTC) 현재 시각 — JS savePosition 의 at 포맷과 동일. */
