@@ -108,10 +108,10 @@
   .headline-b .em{color:#FF6B35;}
   .accent-b{position:absolute;left:120px;top:260px;width:80px;height:6px;background:#FF6B35;opacity:0;transform:scaleX(0);transform-origin:left;transition:transform 0.6s ease 0.4s,opacity 0.4s ease 0.4s;}
 
-  /* 그래프 레이어 (s4 선명 → s5 블러 배경) */
+  /* 그래프 레이어 (s4 선명 → s5~s7 블러 배경) */
   #graph-layer{position:absolute;inset:0;z-index:5;opacity:0;transition:opacity 0.8s ease 0.4s, filter 0.9s ease, transform 0.9s ease;will-change:filter,transform,opacity;}
-  #wrap.s4 #graph-layer, #wrap.s5 #graph-layer{opacity:1;}
-  #wrap.s5 #graph-layer{filter:blur(11px);opacity:0.42;transform:scale(1.08);}
+  #wrap.s4 #graph-layer, #wrap.s5 #graph-layer, #wrap.s6 #graph-layer, #wrap.s7 #graph-layer{opacity:1;}
+  #wrap.s5 #graph-layer, #wrap.s6 #graph-layer, #wrap.s7 #graph-layer{filter:blur(11px);opacity:0.42;transform:scale(1.08);}
 
   #graph-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;}
 
@@ -151,31 +151,70 @@
   #wrap.s4 .chap-b, #wrap.s4 .headline-b{opacity:1;}
   #wrap.s4 .accent-b{opacity:1;transform:scaleX(1);}
 
-  /* ============ S5 · 블러 배경 + 헤드라인 + 수치 ============ */
-  #info-overlay{position:absolute;inset:0;z-index:30;padding:120px 120px 80px;display:flex;flex-direction:column;justify-content:center;
+  /* ============ S5~S7 · 블러 배경 + 헤드라인 + 단계별 수치 ============ */
+  #info-overlay{position:absolute;inset:0;z-index:30;
     background:linear-gradient(180deg, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.42) 45%, rgba(0,0,0,0.62) 100%);
     opacity:0;pointer-events:none;transition:opacity 0.8s ease 0.35s;}
-  #wrap.s5 #info-overlay{opacity:1;}
+  #wrap.s5 #info-overlay, #wrap.s6 #info-overlay, #wrap.s7 #info-overlay{opacity:1;}
 
-  .io-chap{color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;margin-bottom:26px;}
-  .io-headline{color:#FFFFFF;font-size:68px;font-weight:600;letter-spacing:-0.028em;line-height:1.18;}
-  .io-headline .em{color:#FF6B35;}
-  .io-accent{width:80px;height:6px;background:#FF6B35;margin:34px 0 0;}
+  /* 헤더 (고정) */
+  .io-chap{position:absolute;left:120px;top:96px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;}
+  .io-headline{position:absolute;left:120px;top:152px;width:1100px;color:#FFFFFF;font-size:68px;font-weight:600;letter-spacing:-0.028em;line-height:1.2;}
+  .io-line1{color:#FFFFFF;}
+  .io-line2{display:inline-block;color:#FF6B35;transition:filter 0.7s ease,opacity 0.7s ease;}
+  #wrap.s5 .io-line2{filter:blur(10px);opacity:0.32;}   /* 단계① : 두 번째 줄 블러 */
+  .io-accent{position:absolute;left:120px;top:372px;width:80px;height:6px;background:#FF6B35;}
 
-  .io-bands{display:flex;gap:48px;margin-top:48px;}
-  .io-band{flex:1;}
-  .io-band .blabel{font-size:23px;font-weight:400;letter-spacing:-0.01em;line-height:1.4;margin-bottom:26px;}
-  .io-band.demand .blabel{color:rgba(255,255,255,0.82);}
-  .io-band.problem .blabel{color:#FF6B35;font-weight:500;}
-  .io-band .blabel .q{color:rgba(255,255,255,0.45);font-size:19px;}
+  /* 공통 수치 스타일 */
+  .num{font-weight:700;letter-spacing:-0.035em;line-height:1;font-variant-numeric:tabular-nums;color:#FFFFFF;}
+  .num .u{color:rgba(255,255,255,0.65);font-weight:600;}
+  .cap{color:rgba(255,255,255,0.6);font-weight:400;}
 
-  .io-stats{display:flex;gap:40px;}
-  .io-stat{min-width:0;}
-  .io-stat .num{color:#FFFFFF;font-size:72px;font-weight:700;letter-spacing:-0.035em;line-height:1;font-variant-numeric:tabular-nums;}
-  .io-stat .num .u{font-size:34px;color:rgba(255,255,255,0.65);font-weight:600;margin-left:2px;}
-  .io-stat .cap{color:rgba(255,255,255,0.6);font-size:19px;font-weight:400;margin-top:12px;line-height:1.35;}
-  .io-stat.alt .num{color:#FF6B35;}
-  .io-divider{width:1px;align-self:stretch;background:rgba(255,255,255,0.16);margin:6px 8px;}
+  /* ── 단계① : 우측 세로 수요 수치 (s5) ── */
+  #demand-vert{position:absolute;left:1030px;top:430px;width:840px;
+    opacity:0;transform:translate(-360px,160px) scale(0.55);
+    transition:opacity 0.7s ease,transform 0.75s cubic-bezier(0.4,0,0.2,1);}
+  #wrap.s5 #demand-vert{opacity:1;transform:translate(0,0) scale(1);}
+  .dv-row{display:flex;align-items:baseline;gap:26px;margin-bottom:34px;}
+  .dv-row .num{font-size:88px;}
+  .dv-row .num .u{font-size:40px;margin-left:2px;}
+  .dv-row .cap{font-size:26px;}
+
+  /* ── 단계②③ : 좌측 하단 가로 수요 밴드 (s6,s7) ── */
+  #demand-horiz{position:absolute;left:120px;top:600px;width:980px;opacity:0;transition:opacity 0.5s ease;}
+  #wrap.s6 #demand-horiz, #wrap.s7 #demand-horiz{opacity:1;}
+  #wrap.s6 #demand-horiz{animation:popGrow 0.75s cubic-bezier(0.34,1.45,0.5,1);}
+  @keyframes popGrow{0%{transform:scale(0.68);}55%{transform:scale(1.12);}100%{transform:scale(1);}}
+  #demand-horiz .dh-label{color:rgba(255,255,255,0.82);font-size:23px;font-weight:400;letter-spacing:-0.01em;margin-bottom:24px;}
+  #demand-horiz .dh-label .q{color:rgba(255,255,255,0.45);font-size:19px;}
+  .dh-stats{display:flex;gap:40px;align-items:flex-end;}
+  .dh-stat .num{font-size:72px;}
+  .dh-stat .num .u{font-size:34px;margin-left:2px;}
+  .dh-stat .cap{font-size:19px;margin-top:12px;}
+
+  /* ── 단계② : 우측 낙수 흐름 (s6) ── */
+  #waterfall{position:absolute;left:1020px;top:392px;width:800px;
+    opacity:0;transform:translate(70px,150px) scale(0.5);transform-origin:center top;
+    transition:opacity 0.6s ease,transform 0.7s cubic-bezier(0.4,0,0.2,1);}
+  #wrap.s6 #waterfall{opacity:1;transform:translate(0,0) scale(1);}
+  .wf-node{position:relative;}
+  .wf-node .wf-main{color:#FFFFFF;font-size:34px;font-weight:600;letter-spacing:-0.02em;line-height:1.25;}
+  .wf-node .wf-sub{color:rgba(255,255,255,0.55);font-size:19px;font-weight:300;margin-top:6px;line-height:1.35;}
+  .wf-node.final .wf-main{color:#FF6B35;font-weight:700;}
+  .wf-arrow{color:rgba(255,107,53,0.7);font-size:26px;line-height:1;margin:14px 0 14px 4px;}
+  .wf-arrow .lbl{color:rgba(255,255,255,0.75);font-size:21px;font-weight:400;margin-left:14px;letter-spacing:-0.01em;}
+
+  /* ── 단계③ : 우측 컴팩트 문제 밴드 (s7) ── */
+  #problem-band{position:absolute;left:1030px;top:560px;width:800px;
+    opacity:0;transform:scale(0.82);transform-origin:center;
+    transition:opacity 0.55s ease 0.15s,transform 0.6s cubic-bezier(0.34,1.3,0.5,1) 0.15s;}
+  #wrap.s7 #problem-band{opacity:1;transform:scale(1);}
+  #problem-band .pb-label{color:#FF6B35;font-size:23px;font-weight:500;letter-spacing:-0.01em;margin-bottom:26px;}
+  #problem-band .pb-label .q{color:rgba(255,255,255,0.45);font-size:19px;}
+  .pb-stats{display:flex;gap:48px;align-items:flex-start;}
+  .pb-stat .num{font-size:72px;color:#FF6B35;}
+  .pb-stat .num .u{font-size:34px;margin-left:2px;color:rgba(255,107,53,0.7);}
+  .pb-stat .cap{font-size:19px;margin-top:12px;line-height:1.35;}
 
   /* Progress hint */
   #steps{position:fixed;right:24px;bottom:24px;color:rgba(255,255,255,0.4);font-size:12px;letter-spacing:0.16em;font-weight:500;z-index:200;}
@@ -322,44 +361,58 @@
     <div class="gnode outer" id="gnode6"><span class="nname">etc.</span></div>
   </div>
 
-  <!-- ============ S5 · 블러 배경 위 헤드라인 + 수치 ============ -->
+  <!-- ============ S5~S7 · 블러 배경 위 헤드라인 + 단계별 수치 ============ -->
   <div id="info-overlay">
     <div class="io-chap">왜 만들었나 · 수요는 큰데, 신호는 흩어져</div>
-    <div class="io-headline">바다의 시대는 왔는데,<br><span class="em">신호는 정리되지 않았습니다.</span></div>
+    <div class="io-headline"><span class="io-line1">바다의 시대는 왔는데,</span><br><span class="io-line2">신호는 정리되지 않았습니다.</span></div>
     <div class="io-accent"></div>
 
-    <div class="io-bands">
-      <div class="io-band demand">
-        <div class="blabel">바다를 쓰는 사람은 — 이렇게 많은데 <span class="q">(수요)</span></div>
-        <div class="io-stats">
-          <div class="io-stat">
-            <div class="num"><span class="cu" data-to="9">0</span><span class="u">만</span></div>
-            <div class="cap">어업인</div>
-          </div>
-          <div class="io-stat">
-            <div class="num"><span class="cu" data-to="920">0</span><span class="u">만</span></div>
-            <div class="cap">낚시인</div>
-          </div>
-          <div class="io-stat">
-            <div class="num">연 <span class="cu" data-to="1012" data-comma="1">0</span><span class="u">만</span></div>
-            <div class="cap">관광객 (연간)</div>
-          </div>
-        </div>
+    <!-- 단계① : 우측 세로 수요 -->
+    <div id="demand-vert">
+      <div class="dv-row"><span class="num"><span class="cu" data-to="9">0</span><span class="u">만</span></span><span class="cap">어업인</span></div>
+      <div class="dv-row"><span class="num"><span class="cu" data-to="920">0</span><span class="u">만</span></span><span class="cap">낚시인</span></div>
+      <div class="dv-row"><span class="num">연 <span class="cu" data-to="1012" data-comma="1">0</span><span class="u">만</span></span><span class="cap">관광객 (연간)</span></div>
+    </div>
+
+    <!-- 단계②③ : 좌측 하단 가로 수요 밴드 -->
+    <div id="demand-horiz">
+      <div class="dh-label">바다를 쓰는 사람은 — 이렇게 많은데 <span class="q">(수요)</span></div>
+      <div class="dh-stats">
+        <div class="dh-stat"><div class="num">9<span class="u">만</span></div><div class="cap">어업인</div></div>
+        <div class="dh-stat"><div class="num">920<span class="u">만</span></div><div class="cap">낚시인</div></div>
+        <div class="dh-stat"><div class="num">연 1,012<span class="u">만</span></div><div class="cap">관광객 (연간)</div></div>
       </div>
+    </div>
 
-      <div class="io-divider"></div>
+    <!-- 단계② : 우측 낙수 흐름 -->
+    <div id="waterfall">
+      <div class="wf-node">
+        <div class="wf-main">양질의 공공 데이터는 있습니다</div>
+        <div class="wf-sub">기상청 · 국립해양조사원 · 천문연구원 · 포털 · 플랫폼…</div>
+      </div>
+      <div class="wf-arrow">▼<span class="lbl">그런데 7개+ 기관에 흩어져 있어</span></div>
+      <div class="wf-node">
+        <div class="wf-main">어디서 봐야 할지 모릅니다</div>
+        <div class="wf-sub">출처마다 형식·주소가 달라 — 찾고 맞추기 어렵다</div>
+      </div>
+      <div class="wf-arrow">▼<span class="lbl">결국</span></div>
+      <div class="wf-node final">
+        <div class="wf-main">민간 앱에 의존하게 됩니다</div>
+        <div class="wf-sub">Windy 등 · 한국 특보 연동 없음 · 유료·광고</div>
+      </div>
+    </div>
 
-      <div class="io-band problem">
-        <div class="blabel">그런데 — 정보는 흩어지고, 외산앱에 기댑니다 <span class="q">(문제)</span></div>
-        <div class="io-stats">
-          <div class="io-stat alt">
-            <div class="num"><span class="cu" data-to="7">0</span><span class="u">개+</span></div>
-            <div class="cap">분산된 공공 출처<br>(방금 본 분자)</div>
-          </div>
-          <div class="io-stat alt">
-            <div class="num">외산<span class="u">앱</span></div>
-            <div class="cap">Windy 등 의존<br>한국 특보 연동 없음</div>
-          </div>
+    <!-- 단계③ : 우측 컴팩트 문제 밴드 -->
+    <div id="problem-band">
+      <div class="pb-label">그런데 — 정보는 흩어지고, 민간 앱에 기댑니다 <span class="q">(문제)</span></div>
+      <div class="pb-stats">
+        <div class="pb-stat">
+          <div class="num">7<span class="u">개+</span></div>
+          <div class="cap">분산된 공공 출처<br>(방금 본 분자)</div>
+        </div>
+        <div class="pb-stat">
+          <div class="num">민간<span class="u">앱</span></div>
+          <div class="cap">Windy 등 의존<br>한국 특보 연동 없음</div>
         </div>
       </div>
     </div>
@@ -373,22 +426,22 @@
   const wrap = document.getElementById('wrap');
   const steps = document.getElementById('steps');
   let state = 0;
-  const total = 6;
-  const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들', '수요는 큰데, 신호는 흩어져'];
+  const total = 8;
+  const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들', '단계① 수요(세로)', '단계② 신호 정리안됨·낙수', '단계③ 7개+·민간 압축'];
   let countersRun = false;
   function setState(n){
     state = Math.max(0, Math.min(total-1, n));
-    wrap.classList.remove('s0','s1','s2','s3','s4','s5');
+    wrap.classList.remove('s0','s1','s2','s3','s4','s5','s6','s7');
     wrap.classList.add('s' + state);
     steps.textContent = (state+1) + ' / ' + total + ' · ' + labels[state] + ' · CLICK 으로 다음';
-    // s5 진입 시 카운터 1회 실행
+    // s5 진입 시 세로 수치 카운터 1회 실행
     if(state === 5 && !countersRun){ countersRun = true; runCounters(); }
     if(state !== 5){ countersRun = false; }
   }
 
-  // 수치 카운트업
+  // 수치 카운트업 (단계① 세로 수치)
   function runCounters(){
-    document.querySelectorAll('#info-overlay .cu').forEach((el, idx) => {
+    document.querySelectorAll('#demand-vert .cu').forEach((el, idx) => {
       const to = parseFloat(el.dataset.to);
       const comma = el.dataset.comma === '1';
       const dur = 1300;
@@ -456,8 +509,8 @@
     if(lastTs === null) lastTs = ts;
     const dt = ts - lastTs;
     lastTs = ts;
-    // s5 에서 1.5배속, 그 외 1배속 — 부드럽게 보간
-    const targetSpeed = (state === 5) ? 1.5 : 1.0;
+    // s5~s7(블러 배경) 에서 1.5배속, 그 외 1배속 — 부드럽게 보간
+    const targetSpeed = (state >= 5) ? 1.5 : 1.0;
     speedMul += (targetSpeed - speedMul) * Math.min(1, dt / 350);
     vt += dt * speedMul;
     const t = vt;
