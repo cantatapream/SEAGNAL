@@ -11,8 +11,14 @@
   #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
   #wrap{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center;background:#000;overflow:hidden;cursor:pointer;}
 
+  /* ===== 배경 영상 (s0~s14, s15에서 숨김) ===== */
+  #bg-sea-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;
+    filter:brightness(0.3) saturate(0.65) blur(2px);transition:opacity 0.7s ease;}
+  #bg-sea-overlay{position:absolute;inset:0;z-index:1;background:rgba(0,0,0,0.5);pointer-events:none;transition:opacity 0.7s ease;}
+  #wrap.s15 #bg-sea-video,#wrap.s15 #bg-sea-overlay{opacity:0;}
+
   /* --- TITLE SLIDE (state 0) --- */
-  #title{position:absolute;inset:0;background:#000;z-index:100;display:flex;flex-direction:column;justify-content:center;padding-left:120px;padding-right:120px;transition:opacity 0.7s ease,transform 0.7s ease;}
+  #title{position:absolute;inset:0;background:transparent;z-index:100;display:flex;flex-direction:column;justify-content:center;padding-left:120px;padding-right:120px;transition:opacity 0.7s ease,transform 0.7s ease;}
   #title .tchap{color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;position:absolute;top:96px;left:120px;}
   #title .logo{color:#FFFFFF;font-size:147px;font-weight:700;letter-spacing:-0.04em;line-height:1;margin-top:-40px;}
   #title .taccent{width:80px;height:6px;background:#FF6B35;margin-top:36px;}
@@ -228,7 +234,7 @@
   .pb-stat .cap{font-size:19px;margin-top:12px;line-height:1.35;transition:font-size 0.6s ease, margin-top 0.6s ease;}
 
   /* ============ S8~S9 · 그래서 만들었습니다 (두 가지 원칙) ============ */
-  #sol{position:absolute;inset:0;z-index:35;background:#000;opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
+  #sol{position:absolute;inset:0;z-index:35;background:rgba(0,0,0,0.55);opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
   #wrap.s8 #sol, #wrap.s9 #sol{opacity:1;}
 
   .sol-chap{position:absolute;left:120px;top:96px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;opacity:0;transition:opacity 0.6s ease 0.5s;}
@@ -264,7 +270,7 @@
 
 
   /* ============ S10 · 한 앱에, 모든 바다 기능 ============ */
-  #appone{position:absolute;inset:0;z-index:40;background:#000;opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
+  #appone{position:absolute;inset:0;z-index:40;background:rgba(0,0,0,0.55);opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
   #wrap.s10 #appone{opacity:1;}
   #appone::before{content:'';position:absolute;left:50%;top:62%;transform:translate(-50%,-50%);width:1400px;height:1400px;background:radial-gradient(circle,rgba(255,107,53,0.18) 0%,rgba(255,107,53,0.04) 35%,transparent 60%);pointer-events:none;z-index:1;}
 
@@ -298,7 +304,7 @@
 
 
   /* ============ S11 · 접속 단계 축소 ============ */
-  #stepcut{position:absolute;inset:0;z-index:45;background:#000;opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
+  #stepcut{position:absolute;inset:0;z-index:45;background:rgba(0,0,0,0.55);opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
   #wrap.s11 #stepcut{opacity:1;}
 
   .sc-chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;opacity:0;transition:opacity 0.6s ease 0.2s;}
@@ -338,7 +344,7 @@
 
 
   /* ============ S12 · 시연 안내 ============ */
-  #demo{position:absolute;inset:0;z-index:50;background:#000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.8s ease;}
+  #demo{position:absolute;inset:0;z-index:50;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.8s ease;}
   #wrap.s12 #demo{opacity:1;}
   #demo::before{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:1400px;height:1400px;background:radial-gradient(circle,rgba(255,107,53,0.18) 0%,rgba(255,107,53,0.04) 38%,transparent 62%);pointer-events:none;}
   .demo-text{position:relative;text-align:center;color:#fff;font-size:88px;font-weight:700;letter-spacing:-0.03em;line-height:1.32;}
@@ -351,7 +357,7 @@
 
 
   /* ============ S12 · 이미 운영 중 (Traction) ============ */
-  #traction{position:absolute;inset:0;z-index:48;background:#000;opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
+  #traction{position:absolute;inset:0;z-index:48;background:rgba(0,0,0,0.55);opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
   #wrap.s13 #traction{opacity:1;}
 
   .tr-chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;opacity:0;transition:opacity 0.6s ease 0.2s;}
@@ -399,7 +405,7 @@
 
 
   /* ============ S14 · 추진계획 (시기별 구현 방향) ============ */
-  #roadmap{position:absolute;inset:0;z-index:52;background:#000;opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
+  #roadmap{position:absolute;inset:0;z-index:52;background:rgba(0,0,0,0.55);opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
   #wrap.s14 #roadmap{opacity:1;}
 
   .rm-chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;opacity:0;transition:opacity 0.6s ease 0.2s;}
@@ -470,6 +476,10 @@
 </head>
 <body>
 <div id="stage"><div id="wrap" class="s0">
+  <video id="bg-sea-video" autoplay muted loop playsinline preload="auto">
+    <source src="assets/bg-sea.mp4" type="video/mp4">
+  </video>
+  <div id="bg-sea-overlay"></div>
 
   <!-- TITLE SLIDE (state 0) -->
   <div id="title">
