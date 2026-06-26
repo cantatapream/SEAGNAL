@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<!-- 홈화면 추가 시 주소창 없는 풀스크린으로 실행 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SEA:GNAL">
+<meta name="theme-color" content="#000000">
 <title>SEA:GNAL — 슬라이드 02 프리뷰</title>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <style>
@@ -1072,7 +1078,16 @@
   function nextState(s){ let n = s + 1; if(n === 7) n = 8; return Math.min(total - 1, n); }
   function prevState(s){ let p = s - 1; if(p === 7) p = 6; return Math.max(0, p); }
 
+  // 첫 탭 시 풀스크린(주소창 숨김) — 모바일 브라우저 한정
+  let fsAsked = false;
+  function tryFullscreen(){
+    if(fsAsked) return; fsAsked = true;
+    const el = document.documentElement;
+    const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if(fn){ try{ fn.call(el).catch(()=>{}); }catch(_){} }
+  }
   wrap.addEventListener('click', (e) => {
+    tryFullscreen();
     const rect = wrap.getBoundingClientRect();
     const isLeftHalf = (e.clientX - rect.left) < rect.width / 2;
     if(isLeftHalf){
