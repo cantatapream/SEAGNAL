@@ -388,7 +388,46 @@
   .tr-big .u{font-size:34px;color:rgba(255,255,255,0.65);font-weight:600;margin-left:3px;letter-spacing:-0.01em;}
   .tr-label{color:rgba(255,255,255,0.78);font-size:26px;font-weight:500;margin-top:22px;letter-spacing:-0.01em;line-height:1.3;}
 
+
+  /* ============ S14 · 추진계획 (시기별 구현 방향) ============ */
+  #roadmap{position:absolute;inset:0;z-index:52;background:#000;opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
+  #wrap.s14 #roadmap{opacity:1;}
+
+  .rm-chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;opacity:0;transition:opacity 0.6s ease 0.2s;}
+  .rm-head{position:absolute;left:120px;top:140px;color:#fff;font-size:60px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;opacity:0;transition:opacity 0.7s ease 0.3s;}
+  .rm-head .em{color:#FF6B35;}
+  .rm-acc{position:absolute;left:120px;top:240px;width:80px;height:6px;background:#FF6B35;opacity:0;transform:scaleX(0);transform-origin:left;transition:transform 0.6s ease 0.55s,opacity 0.4s ease 0.55s;}
+  .rm-sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.65);font-size:24px;font-weight:300;letter-spacing:-0.01em;opacity:0;transition:opacity 0.6s ease 0.65s;}
+  .rm-foot{position:absolute;left:120px;bottom:36px;color:rgba(255,255,255,0.5);font-size:20px;letter-spacing:0.04em;font-weight:500;opacity:0;transition:opacity 0.6s ease 1.6s;}
+  #wrap.s14 .rm-chap, #wrap.s14 .rm-head, #wrap.s14 .rm-sub, #wrap.s14 .rm-foot{opacity:1;}
+  #wrap.s14 .rm-acc{opacity:1;transform:scaleX(1);}
+
+  .rm-stack{position:absolute;left:120px;right:120px;top:344px;display:flex;flex-direction:column;gap:14px;}
+  .rm-phase{display:flex;align-items:stretch;border-radius:16px;border:1px solid rgba(255,255,255,0.16);background:linear-gradient(140deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));overflow:hidden;opacity:0;transform:translateY(20px);transition:opacity 0.7s ease, transform 0.7s cubic-bezier(0.34,1.2,0.5,1);}
+  #wrap.s14 .rm-phase{opacity:1;transform:translateY(0);}
+  #wrap.s14 .rm-phase.short{transition-delay:0.7s;}
+  #wrap.s14 .rm-phase.mid{transition-delay:0.95s;}
+  #wrap.s14 .rm-phase.long{transition-delay:1.2s;}
+
+  .rm-badge{flex:0 0 188px;background:linear-gradient(140deg,rgba(255,107,53,0.18),rgba(255,107,53,0.05));border-right:1px solid rgba(255,107,53,0.32);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;}
+  .rm-badge .term{color:#fff;font-size:34px;font-weight:700;letter-spacing:-0.02em;line-height:1;}
+  .rm-badge .period{color:rgba(255,255,255,0.65);font-size:16px;font-weight:400;margin-top:8px;letter-spacing:-0.005em;}
+  .rm-content{flex:1;padding:22px 28px;display:flex;flex-direction:column;justify-content:center;}
+  .rm-title{color:#FF6B35;font-size:24px;font-weight:600;letter-spacing:-0.015em;margin-bottom:14px;}
+  .rm-items{display:grid;grid-template-columns:1fr 1fr;column-gap:34px;row-gap:10px;}
+  .rm-items.single{grid-template-columns:1fr;}
+  .rm-item{color:rgba(255,255,255,0.86);font-size:19px;font-weight:400;letter-spacing:-0.01em;line-height:1.5;}
+  .rm-item .pri{color:#FF6B35;font-weight:700;margin-right:4px;}
+  .rm-item .lbl{font-weight:600;color:#fff;}
+  .rm-item .tag{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:14px;font-weight:600;letter-spacing:-0.005em;vertical-align:1px;}
+  .rm-item .tag.done{color:#7CD992;background:rgba(124,217,146,0.13);border:1px solid rgba(124,217,146,0.32);}
+  .rm-item .tag.ing{color:#FF8A50;background:rgba(255,107,53,0.16);border:1px solid rgba(255,107,53,0.45);}
+  .rm-item .desc{color:rgba(255,255,255,0.6);font-size:16px;margin-left:6px;}
+
+  .rm-arrow{text-align:center;color:rgba(255,107,53,0.65);font-size:22px;line-height:1;margin:-4px 0;letter-spacing:0.4em;}
+
   /* Progress hint */
+
 
 
 
@@ -715,7 +754,7 @@
           <div class="tr-since">5. 27.부터 집계</div>
         </div>
         <div class="tr-boxes">
-          <div class="tr-box highlight">
+          <div class="tr-box">
             <div class="tr-big"><span class="tr-cu" data-target="1.1" data-dec="1">0.0</span><span class="u">만+</span></div>
             <div class="tr-label">해양 정보 제공</div>
           </div>
@@ -746,6 +785,71 @@
     </div>
   </div>
 
+  <!-- ============ S14 · 추진계획 (시기별 구현 방향) ============ -->
+  <div id="roadmap">
+    <div class="rm-chap">추진계획 · 시기별 구현 방향</div>
+    <div class="rm-head">단기 · 중기 · 장기 — <span class="em">3단계 로드맵.</span></div>
+    <div class="rm-acc"></div>
+    <div class="rm-sub">기존 인프라 재활용 → 지식기반 고도화 → 예측·플랫폼화. 추가 기능 발굴 병행.</div>
+
+    <div class="rm-stack">
+      <div class="rm-phase short">
+        <div class="rm-badge">
+          <div class="term">단기</div>
+          
+        </div>
+        <div class="rm-content">
+          <div class="rm-title">기존 인프라 재활용 — 즉시 체감 단계</div>
+          <div class="rm-items">
+            <div class="rm-item"><span class="pri">①</span><span class="lbl">태풍 단계 알림</span><span class="tag done">개발 완료</span></div>
+            <div class="rm-item"><span class="pri">②</span><span class="lbl">AI · 데이터 기반 특보예측 시스템</span><span class="tag ing">개발 중</span></div>
+            <div class="rm-item"><span class="pri">③</span><span class="lbl">능동 안전 브리핑</span><span class="desc">— 매일·특보 변동 시 선제 음성 알림</span></div>
+            <div class="rm-item"><span class="pri">④</span><span class="lbl">자연어 앱 제어</span><span class="desc">— "○○해역 파고만 켜줘" 음성 명령</span></div>
+            <div class="rm-item"><span class="pri">⑤</span><span class="lbl">RAG 1단계</span><span class="desc">— 어선안전조업법·출항통제 출처 기반 답변</span></div>
+            <div class="rm-item"><span class="pri">⑥</span><span class="lbl">핸즈프리 긴급신고</span><span class="desc">— "나리야 신고" 시 GPS·선박·기상 자동 전송</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rm-arrow">▼</div>
+
+      <div class="rm-phase mid">
+        <div class="rm-badge">
+          <div class="term">중기</div>
+          
+        </div>
+        <div class="rm-content">
+          <div class="rm-title">지식기반 · 개인화 고도화 단계</div>
+          <div class="rm-items">
+            <div class="rm-item"><span class="lbl">지식그래프 / 온톨로지</span><span class="desc">— 직군별 맞춤 조언 (어선·양식·낚시·해경)</span></div>
+            <div class="rm-item"><span class="lbl">양방향 개인화</span><span class="desc">— AI가 먼저 관심사·활동해역을 되묻고 보정</span></div>
+            <div class="rm-item"><span class="lbl">멀티홉 복합 추론</span><span class="desc">— "5톤 어선 60시간 후 조업 가능?" 등 종합 응답</span></div>
+            <div class="rm-item"><span class="lbl">자연 음성 · 다국어</span><span class="desc">— TTS 적용 + 외국인 선원 다국어 응답</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rm-arrow">▼</div>
+
+      <div class="rm-phase long">
+        <div class="rm-badge">
+          <div class="term">장기</div>
+          
+        </div>
+        <div class="rm-content">
+          <div class="rm-title">예측 · 자동대응 · 플랫폼화 단계</div>
+          <div class="rm-items">
+            <div class="rm-item"><span class="lbl">조난 표류 예측</span><span class="desc">— 마지막 위치 + 표류예측 → 구조세력 제공</span></div>
+            <div class="rm-item"><span class="lbl">센서 연동 자동 SOS</span><span class="desc">— 스마트워치·선박센서 전복·익수 자동 신고</span></div>
+            <div class="rm-item"><span class="lbl">GraphRAG 고도화</span><span class="desc">— 추론 본격화로 "해양안전 의사결정 플랫폼" 확장</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rm-foot">단기 우선순위 ①②는 본 대회 발표 시점 기준 기능. 추가 기능 발굴 병행 진행.</div>
+  </div>
+
 </div></div>
 
 <div id="steps">1 / 4 · 타이틀 · CLICK 으로 다음</div>
@@ -754,7 +858,7 @@
   const wrap = document.getElementById('wrap');
   const steps = document.getElementById('steps');
   let state = 0;
-  const total = 14;
+  const total = 15;
   const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들', '단계① 수요(세로)', '단계② 신호 정리안됨·낙수', '단계③ 7개+·민간 압축', '그래서 만들었습니다 (가운데)', '두 가지 원칙 (좌·우)', '한 앱에, 모든 바다 정보', '접속 단계 축소', '시연 안내', '이미 운영 중'];
   let countersRun = false;
   let scNumRun = false;
@@ -762,7 +866,7 @@
   let solTimer = null;
   function setState(n){
     state = Math.max(0, Math.min(total-1, n));
-    wrap.classList.remove('s0','s1','s2','s3','s4','s5','s6','s7','s8','s9','s10','s11','s12','s13');
+    wrap.classList.remove('s0','s1','s2','s3','s4','s5','s6','s7','s8','s9','s10','s11','s12','s13','s14');
     wrap.classList.add('s' + state);
     steps.textContent = (state+1) + ' / ' + total + ' · ' + labels[state] + ' · CLICK 으로 다음';
     // s5 진입 시 세로 수치 카운터 1회 실행
