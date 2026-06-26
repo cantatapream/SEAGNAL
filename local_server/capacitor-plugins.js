@@ -105,6 +105,12 @@ const initPushNotifications = async () => {
                     window.LocationAlertRuntime.handleWake(data.snapshot, data);
                 }
             }
+            // [위치기반 태풍 반경 알림 — Phase 2a] 깨우는 신호(데이터 메시지).
+            //   ★ native-capable 게이트 미적용: 네이티브는 location_alert_wake 만 처리하므로,
+            //   태풍 타입은 네이티브 미처리 → JS 가 항상 처리해야 한다(foreground/background).
+            if (data.type === 'typhoon_radius_wake' && window.LocationAlertTyphoonRuntime) {
+                window.LocationAlertTyphoonRuntime.handleTyphoonWake(data);
+            }
         } catch (e) { console.error('location_alert_wake 처리 실패:', e); }
     });
 
@@ -131,6 +137,33 @@ const initPushNotifications = async () => {
             }
         }
     });
+
+    // [위치기반 태풍 반경 알림 — Phase 2a] 로컬 알림 탭 라우팅.
+    //   태풍 경보는 LocalNotifications(로컬 알림)로 표출되므로 PushNotifications 의
+    //   actionPerformed 가 아니라 LocalNotifications.localNotificationActionPerformed 로 탭을 받는다.
+    //   기존 push 라우팅과 별개(서로 간섭 없음). 플러그인 부재 시 안전하게 skip.
+    try {
+        const { LocalNotifications } = window.Capacitor.Plugins;
+        if (LocalNotifications && typeof LocalNotifications.addListener === 'function') {
+            await LocalNotifications.addListener('localNotificationActionPerformed', (ev) => {
+                try {
+                    const url = ev && ev.notification && ev.notification.extra && ev.notification.extra.url;
+                    if (!url) return;
+                    // 기존 push 핸들러와 동일한 same-page 처리 스타일 재사용.
+                    const targetUrl = new URL(url, window.location.origin);
+                    const isSamePage = targetUrl.pathname.endsWith('index.html') || targetUrl.pathname === '/';
+                    if (isSamePage && targetUrl.searchParams.get('popup') === 'true') {
+                        window.history.replaceState(null, '', url);
+                        if (typeof window.checkForPushPopup === 'function') window.checkForPushPopup();
+                    } else {
+                        window.location.href = url;
+                    }
+                } catch (_) {
+                    try { if (ev && ev.notification && ev.notification.extra && ev.notification.extra.url) window.location.href = ev.notification.extra.url; } catch (__) { }
+                }
+            });
+        }
+    } catch (e) { console.error('localNotificationActionPerformed 리스너 등록 실패(무시):', e); }
 
     // 2. 권한 확인 및 요청
     let permStatus = await PushNotifications.checkPermissions();

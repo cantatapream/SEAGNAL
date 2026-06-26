@@ -485,3 +485,96 @@ time: trimStr(r.ftTm || r.typTm),   // YYYYMMDDHHmm
    - **APK 재빌드 필수**: `versionCode`/`versionName` 상향 + `NATIVE_MIN_VERSION`(location_alert_ui.js) 갱신. **이 환경에선 APK 빌드/서명/실기기 검증 불가 → 빌드 파이프라인(예: 1.1.6 빌드와 동일 경로)에서 수행.**
    - **충돌 주의**: 네이티브 파일(LocationAlertMessagingService 등)은 다른 세션(위치)이 활발 개발 중 → 동시 수정 시 충돌 위험. 네이티브 분기 추가는 그 세션과 조율 또는 동일 영역 최소 침습으로.
 
+---
+
+## 16. Phase 2a 확정 리파인 (구현 반영 — server + JS device, NO native/APK)
+
+> 본 섹션은 제품 오너 리파인을 반영해 **실제 구현된** Phase 2a 동작을 정리한다.
+> §1~14 의 설계 중 아래와 충돌하는 부분(특히 단말측 07:00~22:00 윈도우 + 24h dedup,
+> "가장 이른 진입 1건만")은 **본 섹션이 우선(OVERRIDE)** 한다. 옛 내용은 이력 보존을 위해 남겨 둔다.
+> killed(완전 종료) 네이티브 처리는 §15-3 그대로 **Phase 2b** 로 분리(본 구현 범위 밖).
+
+### 16.1 서버 윈도우 + (날짜·슬롯) 디둡 — **서버가 윈도우를 결정**
+
+- 트리거 윈도우 = 통보문 발표시각(`latestTmFc`, KST) 기준:
+  - **아침 [10:00, 11:00) → slot 'morning'**, **야간 [22:00, 23:00) → slot 'night'**.
+  - 04시/16시 등 그 외 시각은 **skip**(slot=null).
+- 디둡 = **(KST-date, slot)당 1회** 방송. 같은 날·같은 슬롯에서 **첫 자격 통보문**에만 1회 방송.
+  - 같은 슬롯에 복수 태풍이 발표돼도 → **여전히 1회 방송** → 단말은 위치를 1회만 수집해 모든 태풍 평가.
+- 구현(순수 함수, `services/typhoon_radius_dispatch.js`):
+  - `slotOfTmFc(tmFc)` → 'morning' | 'night' | null
+  - `kstDateOfTmFc(tmFc)` → 'YYYYMMDD'
+  - `dedupKey(tmFc)` → `'YYYYMMDD-slot'` | null
+  - 디둡 상태 파일 `data/typhoon_radius_last_sig.json` (`{ key, at }`). **부팅/첫 실행(빈 상태)** 에는
+    baseline 키만 기록하고 방송하지 않음(특보 `dispatchOnLatest` 의 `sig===''` 처리와 동형).
+  - 활성 태풍 0 → 미방송. 동의자 0 → `no_targets`(디둡 키 **미전진** — 동의자 생기면 다음 윈도우에 발송).
+- 스케줄러 hook: **10분 주기 태풍 체인**(`scheduler.js`, `min%10===7`)의
+  `typhoonNotifier.detectAndNotify` 뒤에 `.then(() => typhoonRadiusDispatch.dispatchTyphoonOnLatest({ log }).catch(()=>{}))`
+  1단 추가(throw 흡수). 부팅 체인은 미수정(첫 `dispatchTyphoonOnLatest` 가 baseline 처리).
+- 페이로드 = 신호만: `{ data:{ type:'typhoon_radius_wake', v:'1', sig }, android:{ priority:'high' } }`.
+  좌표·subTyphoon·태풍 프레임은 서버가 모른다(프라이버시). 단말이 공개 `/api/typhoon` 재조회.
+- 이력: `recordHistory` 가 `data/custom_push_history.json` 에 `tab:'typhoon'` 으로 기록(관리자 "태풍 발생/소멸" 탭) + `push_counter.incrementSend`.
+
+### 16.2 단말: **태풍마다 1건** 푸시 + **wake당 위치 1회**
+
+- `js/location_alert_typhoon_runtime.js`(신규, 특보 runtime 과 별 파일 공존). `window.LocationAlertTyphoonRuntime`.
+- `handleTyphoonWake(data)` 플로우:
+  1. **subTyphoon 게이트**: `LocationAlertSettings.get().subTyphoon === false` → skip. 미설정/미로드 = **fail-open**.
+  2. **위치 1회**: `LocationAlertBackground.getFreshPosition()`(Phase 1 이벤트 기반 fresh-fix 재사용). 없으면 skip.
+     `{lat,lng}` → `{lat,lon}` 키 매핑.
+  3. **공개 `/api/typhoon` 재조회**(실패/빈응답 → skip, try/catch).
+  4. **각 활성 태풍 평가**(`decideTyphoonAlerts`): 태풍마다 **폭풍(storm)반경 우선**, 없으면 **강풍(strong)**.
+     어느 반경에도 미진입이면 그 태풍 skip. (옛 "가장 이른 진입 1건만" → **폐기**, 태풍별 다건.)
+  5. 진입한 태풍마다 `buildRadiusAlert(which, snap, entry.time)` → `showLocalNotification` **별도 1건**
+     (seq 기반 고유 알림 id `notifIdForSeq`). 한 wake 의 위치 수집 1회를 모든 태풍에 재사용.
+  6. `showLocalNotification` 은 `notifications[].extra = { url }` 포함(탭 라우팅). url = `buildDemoUrl({ year, seq, code, guide:true })`.
+- 순수부(테스트 가능): `framesOf(typhoon)`, `decideTyphoonAlerts(loc, typhoons)`, `notifIdForSeq(seq)`.
+
+### 16.3 framesOf 반경 키 매핑 (확정)
+
+`typhoon_crawler.js normRow`(`:234~261`)가 통보문 frame(current/forecast)을 이미
+`radiusEntry` 와 **동일한 키 이름**으로 산출한다 — 별도 키 변환 어댑터 불필요. 매핑은 다음과 같다:
+
+| radiusEntry 기대 키 | normRow 산출 키 | normRow 원천(dmdw) |
+|---|---|---|
+| `time` | `time` | `ftTm`/`typTm` (YYYYMMDDHHmm, KST) |
+| `lat` | `lat` | `ftLat`/`typLat`/`tdLat` |
+| `lon` | `lon` (방어적으로 `lng`도 흡수) | `ftLon`/`typLon`/`tdLon` |
+| `radStrong` | `radStrong` (장반경) | `ft15`/`typ15`/`ft15er`/`typ15er` |
+| `radStrongS` | `radStrongS` (단반경) | `ft15er`/`typ15er` |
+| `radStrongD` | `radStrongD` (단반경 방위) | `ft15ed`/`typ15ed` |
+| `radStorm` | `radStorm` | `ft25`/`typ25`/`ft25er`/`typ25er` |
+| `radStormS` | `radStormS` | `ft25er`/`typ25er` |
+| `radStormD` | `radStormD` | `ft25ed`/`typ25ed` |
+
+→ `framesOf` 는 통보문 current+forecast 를 모아 위 키를 그대로 복사(숫자/문자 방어 정규화)하고
+`lng→lon` 만 방어적으로 흡수한다. `/api/typhoon` 응답 = `data/typhoon.json` 원본 그대로(`routes/typhoon.js`)이므로
+키가 일치함이 보장된다. (단, `/api/typhoon` 응답 shape 자체는 크롤러가 비활성(자격증명 미설정)인 환경에선 비어 있을 수 있어,
+단말은 빈 `typhoons` → skip 으로 방어.)
+
+### 16.4 capacitor 수신/탭
+
+- `pushNotificationReceived`: `type==='typhoon_radius_wake'` 분기 추가 — **native-capable 게이트 미적용**
+  (네이티브는 2a 에서 태풍 미처리이므로 JS 가 항상 실행). 특보(`location_alert_wake`) 분기는 무변경.
+- `localNotificationActionPerformed` 리스너 신규(LocalNotifications) — `ev.notification.extra.url` 을 읽어
+  기존 `pushNotificationActionPerformed` 와 동일한 same-page(popup) 라우팅. PushNotifications 경로와 분리되어 상호 간섭 없음.
+
+### 16.5 브라우저에서 서버 순수 모듈 재사용 — **UMD 표출(<script> 직접 로드)**
+
+- `services/typhoon_radius.js` / `services/typhoon_message.js` 는 정적 루트(`local_server/`) 하위에서 그대로
+  서빙되므로(`<script src="services/...">` 해석 가능), 두 파일 끝에 **비파괴적 UMD 푸터**를 추가해 브라우저 전역으로 노출한다:
+  - `var _X = { ... }; if (typeof module !== 'undefined' && module.exports) module.exports = _X; if (typeof window !== 'undefined') window.X = _X;`
+    (`X` = `TyphoonRadius` / `TyphoonMessage`). Node `require` 경로는 동일하게 `module.exports` 를 받고,
+    브라우저는 `window.TyphoonRadius`/`window.TyphoonMessage` 를 받는다.
+  - `typhoon_radius.js` 의 자체검증 블록은 `if (typeof require !== 'undefined' && require.main === module)` 로 가드해
+    브라우저(require 없음)에서 ReferenceError 없이 skip. 21개 self-test 와 기존 require 소비자(typhoon_notifier/admin)는 무영향.
+- `index2.html` 로드 순서: `location_alert_ui.js` 뒤에 **`services/typhoon_radius.js` → `services/typhoon_message.js`
+  → `js/location_alert_typhoon_runtime.js`** 순으로 `<script>` 추가(전역이 런타임보다 먼저 정의됨).
+  런타임의 `getRadius()/getMessage()` 가 `root.TyphoonRadius`/`root.TyphoonMessage` 를 즉시 찾는다.
+  (별도 fetch+eval 셸은 불필요 — 채택 안 함.)
+
+### 16.6 Phase 2b (후속, 본 구현 범위 밖)
+
+- killed(완전 종료) 수신: 네이티브 `MessagingService` 에 `typhoon_radius_wake` 분기 + `radiusEntry`/슬롯·디둡·문구의
+  Java/Kotlin 포팅(`TyphoonRadiusDecider`) + APK 재빌드(`versionCode`/`versionName`/`NATIVE_MIN_VERSION`). §15-3 참조.
+  Phase 2a 는 fly.dev 원격 로드(JS+서버)만으로 출시 가능(네이티브/APK 무변경).
