@@ -200,7 +200,7 @@
   #waterfall{position:absolute;left:1020px;top:392px;width:800px;
     opacity:0;transform:translate(70px,150px) scale(0.5);transform-origin:center top;
     transition:opacity 0.6s ease,transform 0.7s cubic-bezier(0.4,0,0.2,1);}
-  #wrap.s6 #waterfall{opacity:1;transform:translate(0,0) scale(1);}
+  /* waterfall step removed by request */
   .wf-node{position:relative;}
   .wf-node .wf-main{color:#FFFFFF;font-size:34px;font-weight:600;letter-spacing:-0.02em;line-height:1.25;}
   .wf-node .wf-sub{color:rgba(255,255,255,0.55);font-size:19px;font-weight:300;margin-top:6px;line-height:1.35;}
@@ -211,8 +211,8 @@
   /* ── 단계③ : 우측 컴팩트 문제 밴드 (s7) ── */
   #problem-band{position:absolute;left:1030px;top:560px;width:800px;
     opacity:0;transform:scale(0.82);transform-origin:center;
-    transition:opacity 0.55s ease 0.15s,transform 0.6s cubic-bezier(0.34,1.3,0.5,1) 0.15s;}
-  #wrap.s7 #problem-band{opacity:1;transform:scale(1);}
+    transition:opacity 0.55s ease 0.3s,transform 0.6s cubic-bezier(0.34,1.3,0.5,1) 0.3s;}
+  #wrap.s6 #problem-band, #wrap.s7 #problem-band{opacity:1;transform:scale(1);}
   #problem-band .pb-label{color:#FF6B35;font-size:23px;font-weight:500;letter-spacing:-0.01em;margin-bottom:26px;}
   #problem-band .pb-label .q{color:rgba(255,255,255,0.45);font-size:19px;}
   .pb-stats{display:flex;gap:48px;align-items:flex-start;}
@@ -242,7 +242,7 @@
   #sol-points{position:absolute;left:120px;top:560px;width:1680px;display:flex;gap:60px;}
   .spt{flex:1;padding:50px 52px;border:1px solid rgba(255,255,255,0.18);border-radius:16px;
     opacity:0;transform:translateY(28px);transition:opacity 0.7s ease,transform 0.7s cubic-bezier(0.34,1.2,0.5,1);}
-  .spt.right{border-color:rgba(255,107,53,0.45);background:rgba(255,107,53,0.05);}
+  .spt.left, .spt.right{border-color:rgba(255,107,53,0.45);background:rgba(255,107,53,0.05);}
   #wrap.s9 .spt{opacity:1;transform:translateY(0);}
   #wrap.s9 .spt.left{transition-delay:0.7s;}
   #wrap.s9 .spt.right{transition-delay:0.9s;}
@@ -329,50 +329,63 @@
 
   /* ============ S12 · 시연 안내 ============ */
   #demo{position:absolute;inset:0;z-index:50;background:#000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.8s ease;}
-  #wrap.s13 #demo{opacity:1;}
+  #wrap.s12 #demo{opacity:1;}
   #demo::before{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:1400px;height:1400px;background:radial-gradient(circle,rgba(255,107,53,0.18) 0%,rgba(255,107,53,0.04) 38%,transparent 62%);pointer-events:none;}
   .demo-text{position:relative;text-align:center;color:#fff;font-size:88px;font-weight:700;letter-spacing:-0.03em;line-height:1.32;}
   .demo-text .em{color:#FF6B35;}
   .demo-text .ln{display:block;opacity:0;transform:translateY(16px);transition:opacity 0.7s ease, transform 0.7s ease;}
-  #wrap.s13 .demo-text .ln{opacity:1;transform:translateY(0);}
-  #wrap.s13 .demo-text .ln:nth-child(1){transition-delay:0.35s;}
-  #wrap.s13 .demo-text .ln:nth-child(2){transition-delay:0.65s;}
-  #wrap.s13 .demo-text .ln:nth-child(3){transition-delay:0.95s;}
+  #wrap.s12 .demo-text .ln{opacity:1;transform:translateY(0);}
+  #wrap.s12 .demo-text .ln:nth-child(1){transition-delay:0.35s;}
+  #wrap.s12 .demo-text .ln:nth-child(2){transition-delay:0.65s;}
+  #wrap.s12 .demo-text .ln:nth-child(3){transition-delay:0.95s;}
 
 
   /* ============ S12 · 이미 운영 중 (Traction) ============ */
   #traction{position:absolute;inset:0;z-index:48;background:#000;opacity:0;pointer-events:none;transition:opacity 0.7s ease;}
-  #wrap.s12 #traction{opacity:1;}
+  #wrap.s13 #traction{opacity:1;}
 
   .tr-chap{position:absolute;left:120px;top:80px;color:#FF6B35;font-size:22px;letter-spacing:0.32em;font-weight:600;opacity:0;transition:opacity 0.6s ease 0.2s;}
   .tr-head{position:absolute;left:120px;top:140px;color:#fff;font-size:60px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;opacity:0;transition:opacity 0.7s ease 0.3s;}
   .tr-head .em{color:#FF6B35;}
   .tr-acc{position:absolute;left:120px;top:280px;width:80px;height:6px;background:#FF6B35;opacity:0;transform:scaleX(0);transform-origin:left;transition:transform 0.6s ease 0.55s,opacity 0.4s ease 0.55s;}
-  .tr-foot{position:absolute;left:120px;bottom:50px;color:rgba(255,255,255,0.55);font-size:22px;letter-spacing:0.04em;font-weight:500;opacity:0;transition:opacity 0.6s ease 1.2s;}
-  #wrap.s12 .tr-chap, #wrap.s12 .tr-head, #wrap.s12 .tr-foot{opacity:1;}
-  #wrap.s12 .tr-acc{opacity:1;transform:scaleX(1);}
 
-  .tr-grid{position:absolute;left:120px;right:120px;top:380px;display:flex;gap:36px;height:580px;}
+  /* 사용자 후기 (응원/검증) */
+  .tr-quotes{position:absolute;left:120px;right:120px;top:758px;display:flex;gap:30px;align-items:stretch;}
+  .tr-quote{flex:1;padding:22px 26px;border:1px solid rgba(255,255,255,0.13);border-left:3px solid rgba(255,107,53,0.6);border-radius:14px;background:linear-gradient(140deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));box-sizing:border-box;opacity:0;transform:translateY(14px);transition:opacity 0.6s ease,transform 0.6s ease;}
+  #wrap.s13 .tr-quote{opacity:1;transform:translateY(0);}
+  #wrap.s13 .tr-quote:nth-child(1){transition-delay:1.34s;}
+  #wrap.s13 .tr-quote:nth-child(2){transition-delay:1.46s;}
+  .tr-quote-text{color:rgba(255,255,255,0.92);font-size:21px;font-weight:400;line-height:1.55;letter-spacing:-0.01em;display:inline;}
+  .tr-quote-text::before{content:'“';color:rgba(255,107,53,0.7);font-size:34px;font-weight:700;line-height:0;margin-right:4px;vertical-align:-5px;}
+  .tr-quote-text::after{content:'”';color:rgba(255,107,53,0.7);font-size:34px;font-weight:700;line-height:0;margin-left:5px;vertical-align:-12px;}
+  .tr-quote-text b{color:#FF6B35;font-weight:600;}
+  .tr-quote-meta{color:rgba(255,255,255,0.5);font-size:15px;font-weight:400;letter-spacing:-0.005em;margin-top:14px;display:block;}
+
+  .tr-foot{position:absolute;left:120px;bottom:50px;color:rgba(255,255,255,0.55);font-size:22px;letter-spacing:0.04em;font-weight:500;opacity:0;transition:opacity 0.6s ease 1.2s;}
+  #wrap.s13 .tr-chap, #wrap.s13 .tr-head, #wrap.s13 .tr-foot{opacity:1;}
+  #wrap.s13 .tr-acc{opacity:1;transform:scaleX(1);}
+
+  .tr-grid{position:absolute;left:120px;right:120px;top:368px;display:flex;gap:30px;height:368px;}
   .tr-section{display:flex;flex-direction:column;}
   .tr-3m{flex:4.2;}
   .tr-1m{flex:1;}
   .tr-header{padding:22px 28px;border:1px solid rgba(255,107,53,0.45);border-radius:18px;background:linear-gradient(140deg,rgba(255,107,53,0.12),rgba(255,107,53,0.03));margin-bottom:24px;display:flex;flex-direction:column;justify-content:center;min-height:90px;box-sizing:border-box;opacity:0;transform:translateY(14px);transition:opacity 0.6s ease 0.6s,transform 0.6s ease 0.6s;}
   .tr-1m .tr-header{transition-delay:0.72s;}
-  #wrap.s12 .tr-header{opacity:1;transform:translateY(0);}
+  #wrap.s13 .tr-header{opacity:1;transform:translateY(0);}
   .tr-period{color:#fff;font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1;}
   .tr-since{color:rgba(255,255,255,0.55);font-size:17px;font-weight:300;margin-top:6px;letter-spacing:-0.005em;}
   .tr-boxes{display:flex;gap:20px;flex:1;}
-  .tr-box{flex:1;padding:32px 28px;border:1px solid rgba(255,255,255,0.16);border-radius:18px;background:linear-gradient(140deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015));display:flex;flex-direction:column;justify-content:center;opacity:0;transform:translateY(20px);transition:opacity 0.65s ease,transform 0.65s cubic-bezier(0.34,1.2,0.5,1);box-sizing:border-box;}
+  .tr-box{flex:1;padding:26px 24px;border:1px solid rgba(255,255,255,0.16);border-radius:18px;background:linear-gradient(140deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015));display:flex;flex-direction:column;justify-content:center;opacity:0;transform:translateY(20px);transition:opacity 0.65s ease,transform 0.65s cubic-bezier(0.34,1.2,0.5,1);box-sizing:border-box;}
   .tr-box.highlight{border-color:rgba(255,107,53,0.55);background:linear-gradient(140deg,rgba(255,107,53,0.18),rgba(255,107,53,0.04));box-shadow:0 0 40px rgba(255,107,53,0.18);}
-  #wrap.s12 .tr-box{opacity:1;transform:translateY(0);}
-  #wrap.s12 .tr-3m .tr-boxes .tr-box:nth-child(1){transition-delay:0.82s;}
-  #wrap.s12 .tr-3m .tr-boxes .tr-box:nth-child(2){transition-delay:0.92s;}
-  #wrap.s12 .tr-3m .tr-boxes .tr-box:nth-child(3){transition-delay:1.02s;}
-  #wrap.s12 .tr-3m .tr-boxes .tr-box:nth-child(4){transition-delay:1.12s;}
-  #wrap.s12 .tr-1m .tr-boxes .tr-box{transition-delay:1.22s;}
-  .tr-big{color:#fff;font-size:64px;font-weight:700;letter-spacing:-0.035em;line-height:1;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;flex-wrap:wrap;}
-  .tr-big .u{font-size:32px;color:rgba(255,255,255,0.65);font-weight:600;margin-left:3px;letter-spacing:-0.01em;}
-  .tr-label{color:rgba(255,255,255,0.72);font-size:21px;font-weight:400;margin-top:22px;letter-spacing:-0.01em;line-height:1.3;}
+  #wrap.s13 .tr-box{opacity:1;transform:translateY(0);}
+  #wrap.s13 .tr-3m .tr-boxes .tr-box:nth-child(1){transition-delay:0.82s;}
+  #wrap.s13 .tr-3m .tr-boxes .tr-box:nth-child(2){transition-delay:0.92s;}
+  #wrap.s13 .tr-3m .tr-boxes .tr-box:nth-child(3){transition-delay:1.02s;}
+  #wrap.s13 .tr-3m .tr-boxes .tr-box:nth-child(4){transition-delay:1.12s;}
+  #wrap.s13 .tr-1m .tr-boxes .tr-box{transition-delay:1.22s;}
+  .tr-big{color:#fff;font-size:56px;font-weight:700;letter-spacing:-0.035em;line-height:1;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;flex-wrap:wrap;}
+  .tr-big .u{font-size:28px;color:rgba(255,255,255,0.65);font-weight:600;margin-left:3px;letter-spacing:-0.01em;}
+  .tr-label{color:rgba(255,255,255,0.7);font-size:19px;font-weight:400;margin-top:18px;letter-spacing:-0.01em;line-height:1.3;}
 
   /* Progress hint */
 
@@ -540,7 +553,7 @@
 
     <!-- 단계②③ : 좌측 하단 가로 수요 밴드 -->
     <div id="demand-horiz">
-      <div class="dh-label">바다를 쓰는 사람은 — 이렇게 많은데 <span class="q">(수요)</span></div>
+      <div class="dh-label">바다에 사람은 이렇게 많은데 <span class="q">(수요)</span></div>
       <div class="dh-stats">
         <div class="dh-stat"><div class="num">9<span class="u">만</span></div><div class="cap">어업인</div></div>
         <div class="dh-stat"><div class="num">920<span class="u">만</span></div><div class="cap">낚시인</div></div>
@@ -619,7 +632,7 @@
 
     <div id="ap-chips"></div>
 
-    <div class="ap-foot">바다의 모든 기능을 — 한 화면, 한 손에.</div>
+    <div class="ap-foot">바다에 관련된 모든 정보를 — 한 화면, 한 손에.</div>
   </div>
 
 
@@ -709,6 +722,17 @@
       </div>
     </div>
 
+    <div class="tr-quotes">
+      <div class="tr-quote">
+        <span class="tr-quote-text">윈디보다 <b>100배 나은 국산 어플</b> 개발하신다고 고생하십니다!</span>
+        <span class="tr-quote-meta">사용자(넓은조개959) 댓글 (‘26. 5. 3.)</span>
+      </div>
+      <div class="tr-quote">
+        <span class="tr-quote-text">현재버전으로도 <b>충분히 만족</b>하고 사용중입니다. <b>업무에 엄청 많은 도움</b>이 되고 있어요!! 진심 감사드립니다. 급한게 아니니까 제 의견은 뒷전으로 미뤄두셔도 되겠습니다. 커피한잔이라도 후원해드리고 싶은데 후원방법도 나중에 한번 고려해보세요 감사합니다^^</span>
+        <span class="tr-quote-meta">사용자 1:1 문의 (‘26. 6. 11.)</span>
+      </div>
+    </div>
+
     <div class="tr-foot">Google Play Store · '바다 그 날' 검색 · 무료</div>
   </div>
 
@@ -717,7 +741,7 @@
     <div class="demo-text">
       <span class="ln">지금부터</span>
       <span class="ln"><span class="em">핵심 기능</span>을</span>
-      <span class="ln">시연을 통해 소개하겠습니다.</span>
+      <span class="ln">시연하겠습니다.</span>
     </div>
   </div>
 
@@ -730,7 +754,7 @@
   const steps = document.getElementById('steps');
   let state = 0;
   const total = 14;
-  const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들', '단계① 수요(세로)', '단계② 신호 정리안됨·낙수', '단계③ 7개+·민간 압축', '그래서 만들었습니다 (가운데)', '두 가지 원칙 (좌·우)', '한 앱에, 모든 바다 정보', '접속 단계 축소', '이미 운영 중', '시연 안내'];
+  const labels = ['타이틀', '좌측 강조 · 어르신 민원', '우측 강조 · 동료 대화', '결론 · 출발점', '흩어져 있는 정보들', '단계① 수요(세로)', '단계② 신호 정리안됨·낙수', '단계③ 7개+·민간 압축', '그래서 만들었습니다 (가운데)', '두 가지 원칙 (좌·우)', '한 앱에, 모든 바다 정보', '접속 단계 축소', '시연 안내', '이미 운영 중'];
   let countersRun = false;
   let scNumRun = false;
   let trRun = false;
@@ -748,11 +772,11 @@
     if(state === 8){ solTimer = setTimeout(() => { if(state === 8) setState(9); }, 500); }
     // s11 진입 시 -76 카운트업 (다다닥 빠르게)
     // s12(이미 운영 중) 진입 시 traction 카운트업
-    if(state === 12 && !trRun){
+    if(state === 13 && !trRun){
       trRun = true;
       runTraction();
     }
-    if(state !== 12){ trRun = false; }
+    if(state !== 13){ trRun = false; }
     if(state === 11 && !scNumRun){
       scNumRun = true;
       const el = document.getElementById('sc-num');
