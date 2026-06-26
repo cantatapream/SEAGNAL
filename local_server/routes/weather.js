@@ -1193,9 +1193,13 @@ router.get('/api/zone-bulletins', async (req, res) => {
         }
         const inCurrentCycle = (b) => {
             const start = cycleStartByTp[b.tp || ''];
-            if (start == null) return true;                  // 그 종류의 '발표'가 없으면 보수적으로 포함
+            // 그 종류의 주기 시작(발표/예비)이 30일 창에 하나도 없다 = 그 종류 특보의 시작이
+            //   창 이전이고 창 안엔 종료 꼬리(변경/변경해제/해제)만 남은 "이미 끝난 종류"다.
+            //   표시하지 않는다. (예: 남해동부 태풍 — 발표는 창 밖(5월), 창엔 06.02~03 변경해제/
+            //   변경만 → 죽은 태풍이 새어나오던 문제) [후속수정]
+            if (start == null) return false;
             const t = _parseKstMs(b.time);
-            return isNaN(t) ? true : t >= start;             // 발표 시각 이상(발표 포함) = 현재 주기
+            return isNaN(t) ? true : t >= start;             // 발표/예비 시각 이상 = 현재 주기
         };
         const alive = merged.filter((b) => {
             if (b.prelim) return true;                       // 예비특보(warn/ready) — 현재 신호, 항상
