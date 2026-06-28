@@ -40,15 +40,19 @@
     opacity:0;animation:pop 0.9s cubic-bezier(0.34,1.4,0.5,1) 0.5s forwards, breathe 4s ease-in-out 1.4s infinite;}
   .core-orb .nm{font-size:78px;font-weight:800;letter-spacing:-0.02em;line-height:1;}
   .core-orb .role{font-size:23px;font-weight:500;color:rgba(255,255,255,0.9);margin-top:10px;letter-spacing:0.02em;}
-  /* 위성 칩 */
-  .chip{position:absolute;padding:13px 22px;border-radius:30px;border:1px solid rgba(255,255,255,0.2);
+  /* 위성 칩 — 오브 중심 사방 등간격 + 시계방향 회전 */
+  .orbit{position:absolute;left:45px;top:65px;width:470px;height:470px;
+    opacity:0;animation:fadeIn 0.9s ease 1.2s forwards, orbitCW 34s linear infinite;}
+  .sat{position:absolute;width:320px;height:60px;margin-left:-160px;margin-top:-30px;
+    display:flex;align-items:center;justify-content:center;}
+  .sat.s-top{left:50%;top:0;}
+  .sat.s-right{left:100%;top:50%;}
+  .sat.s-bottom{left:50%;top:100%;}
+  .sat.s-left{left:0%;top:50%;}
+  .chip{padding:13px 22px;border-radius:30px;border:1px solid rgba(255,255,255,0.2);
     background:rgba(255,255,255,0.05);font-size:23px;font-weight:500;color:rgba(255,255,255,0.92);white-space:nowrap;
-    backdrop-filter:blur(4px);opacity:0;transform:scale(0.8);}
+    backdrop-filter:blur(4px);animation:orbitCCW 34s linear infinite;}
   .chip .ic{color:#FF6B35;margin-right:8px;font-weight:700;}
-  .chip.c1{left:-8px;top:42px;animation:popChip 0.6s cubic-bezier(0.34,1.4,0.5,1) 1.3s forwards;}
-  .chip.c2{right:-6px;top:112px;animation:popChip 0.6s cubic-bezier(0.34,1.4,0.5,1) 1.5s forwards;}
-  .chip.c3{left:-18px;top:478px;animation:popChip 0.6s cubic-bezier(0.34,1.4,0.5,1) 1.7s forwards;}
-  .chip.c4{right:-12px;top:438px;animation:popChip 0.6s cubic-bezier(0.34,1.4,0.5,1) 1.9s forwards;}
 
   /* 우측 카드 4개 */
   .cards{position:absolute;right:120px;top:344px;width:1020px;display:grid;grid-template-columns:1fr 1fr;gap:24px;}
@@ -63,7 +67,7 @@
   .card .kn .no{width:38px;height:38px;border-radius:11px;background:rgba(255,107,53,0.16);border:1px solid rgba(255,107,53,0.4);
     color:#FF6B35;font-weight:700;font-size:21px;display:flex;align-items:center;justify-content:center;}
   .card .kn .kt{color:#fff;font-size:30px;font-weight:700;letter-spacing:-0.02em;word-break:keep-all;}
-  .card .kd{color:rgba(255,255,255,0.68);font-size:23px;font-weight:300;line-height:1.5;letter-spacing:-0.01em;word-break:keep-all;}
+  .card .kd{color:rgba(255,255,255,0.68);font-size:23px;font-weight:300;line-height:1.5;letter-spacing:-0.035em;word-break:keep-all;}
   .card .kd b{color:#FF8A5C;font-weight:600;}
   .card .stat{margin-top:12px;display:flex;gap:26px;}
   .card .stat .s b{color:#FF6B35;font-size:34px;font-weight:800;letter-spacing:-0.02em;}
@@ -79,9 +83,11 @@
   .future .ftxt b{color:#fff;font-weight:700;}
 
   @keyframes fadeUp{from{opacity:0;transform:translateY(26px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes fadeIn{to{opacity:1;}}
   @keyframes growX{to{transform:scaleX(1);}}
   @keyframes pop{from{opacity:0;transform:translate(-50%,-50%) scale(0.7);}to{opacity:1;transform:translate(-50%,-50%) scale(1);}}
-  @keyframes popChip{to{opacity:1;transform:scale(1);}}
+  @keyframes orbitCW{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  @keyframes orbitCCW{from{transform:rotate(0deg);}to{transform:rotate(-360deg);}}
   @keyframes breathe{0%,100%{box-shadow:0 0 80px rgba(255,107,53,0.5), inset 0 0 36px rgba(255,255,255,0.18);}50%{box-shadow:0 0 110px rgba(255,107,53,0.7), inset 0 0 40px rgba(255,255,255,0.24);}}
   @keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg);}}
 </style>
@@ -102,10 +108,12 @@
       <div class="nm">나리</div>
       <div class="role">Gemini 2.5 기반</div>
     </div>
-    <div class="chip c1"><span class="ic">◆</span>20개 해양 데이터 도구</div>
-    <div class="chip c2"><span class="ic">◆</span>스스로 도구 선택·호출</div>
-    <div class="chip c3"><span class="ic">◆</span>사람의 언어로 안내</div>
-    <div class="chip c4"><span class="ic">◆</span>직군 맞춤 응답</div>
+    <div class="orbit">
+      <div class="sat s-top"><div class="chip"><span class="ic">◆</span>20개 해양 데이터 도구</div></div>
+      <div class="sat s-right"><div class="chip"><span class="ic">◆</span>스스로 도구 선택·호출</div></div>
+      <div class="sat s-bottom"><div class="chip"><span class="ic">◆</span>사람의 언어로 안내</div></div>
+      <div class="sat s-left"><div class="chip"><span class="ic">◆</span>직군 맞춤 응답</div></div>
+    </div>
   </div>
 
   <!-- 우측 카드 -->
@@ -117,7 +125,7 @@
     </div>
     <div class="card k2">
       <div class="kn"><div class="no">2</div><div class="kt">직군 맞춤 제공</div></div>
-      <div class="kd">어업인·낚시인·해경, <b>사용자의 직군을 인식</b>해 그 직군이 중요시하는 정보를 먼저 제공합니다.</div>
+      <div class="kd">어업인·낚시인·해경, <b>사용자의 직군을 인식</b>해<br>그&nbsp;직군이 중요시하는 정보를 먼저 제공합니다.</div>
     </div>
     <div class="card k3">
       <div class="kn"><div class="no">3</div><div class="kt">지식그래프 설계</div></div>
@@ -129,7 +137,7 @@
     </div>
     <div class="card k4">
       <div class="kn"><div class="no">4</div><div class="kt">온디바이스 기억</div></div>
-      <div class="kd">대화 기억은 서버가 아닌 <b>사용자 휴대폰에만</b> 저장. 개인정보를 지키면서 쓸수록 맞춰집니다.</div>
+      <div class="kd">대화 기억은 서버가 아닌 <b>사용자&nbsp;휴대폰에만&nbsp;저장</b>.<br>개인정보를 지키면서 쓸수록 맞춰집니다.</div>
     </div>
   </div>
 
