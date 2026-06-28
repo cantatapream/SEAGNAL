@@ -7,19 +7,25 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 .h{display:flex;align-items:center;gap:20px;}
 .h .no{background:#FF6B35;color:#fff;font-weight:800;font-size:42px;border-radius:15px;padding:7px 20px;box-shadow:0 6px 18px rgba(255,107,53,.35);}
 .h .t{color:#15243a;font-size:50px;font-weight:800;letter-spacing:-.03em;}
-.sub{color:#5b6b80;font-size:24px;font-weight:500;margin:14px 0 32px 2px;letter-spacing:-.01em;}
+.sub{color:#5b6b80;font-size:24px;font-weight:500;margin:14px 0 30px 2px;letter-spacing:-.01em;}
 .sub b{color:#FF6B35;font-weight:700;}
 
-.rstack{display:flex;flex-direction:column;gap:20px;}
+.rstack{display:flex;flex-direction:column;gap:6px;}
 .rphase{display:flex;align-items:stretch;border-radius:18px;overflow:hidden;border:1px solid #d8e2ee;background:#fff;box-shadow:0 10px 26px rgba(30,50,80,.07);}
-.rbadge{flex:0 0 200px;background:linear-gradient(150deg,rgba(255,107,53,.17),rgba(255,107,53,.05));border-right:1px solid rgba(255,107,53,.25);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:22px;}
-.rbadge .term{color:#15243a;font-size:38px;font-weight:800;letter-spacing:-.025em;line-height:1;}
-.rbadge .per{color:#8a98ab;font-size:18px;font-weight:600;margin-top:10px;}
-.rbody{flex:1;padding:24px 30px;display:grid;grid-template-columns:1fr 1fr;column-gap:34px;row-gap:13px;align-content:center;}
-.ritem{position:relative;padding-left:22px;color:#5b6b80;font-size:22px;font-weight:500;line-height:1.4;letter-spacing:-.01em;}
-.ritem::before{content:"";position:absolute;left:2px;top:11px;width:8px;height:8px;border-radius:50%;background:#FF6B35;}
+.rbadge{flex:0 0 178px;background:linear-gradient(150deg,rgba(255,107,53,.17),rgba(255,107,53,.05));border-right:1px solid rgba(255,107,53,.25);display:flex;align-items:center;justify-content:center;}
+.rbadge .term{color:#15243a;font-size:40px;font-weight:800;letter-spacing:-.03em;}
+.rbody{flex:1;padding:22px 32px;display:flex;flex-direction:column;justify-content:center;gap:15px;}
+.rsub{color:#FF6B35;font-size:23px;font-weight:800;letter-spacing:-.02em;}
+.ritems{display:flex;flex-direction:column;gap:13px;}
+.ritem{position:relative;padding-left:24px;color:#5b6b80;font-size:23px;font-weight:500;line-height:1.4;letter-spacing:-.012em;}
+.ritem::before{content:"";position:absolute;left:2px;top:12px;width:9px;height:9px;border-radius:50%;background:#FF6B35;}
 .ritem b{color:#15243a;font-weight:700;}
-.ritem .done{display:inline-block;margin-left:7px;padding:1px 9px;border-radius:10px;font-size:15px;font-weight:700;color:#1f9d57;background:rgba(31,157,87,.1);border:1px solid rgba(31,157,87,.3);vertical-align:2px;}
+.ritem .sm{color:#93a2b5;font-size:17px;font-weight:500;}
+.bdg{display:inline-block;margin-left:7px;padding:1px 10px;border-radius:11px;font-size:15px;font-weight:700;vertical-align:2px;white-space:nowrap;}
+.bdg.done{color:#1f9d57;background:rgba(31,157,87,.1);border:1px solid rgba(31,157,87,.32);}
+.bdg.ing{color:#FF6B35;background:rgba(255,107,53,.13);border:1px solid rgba(255,107,53,.42);}
+.rarrow{text-align:center;color:#FF6B35;font-size:24px;line-height:1;margin:2px 0;}
+
 .foot{color:#93a2b5;font-size:16px;line-height:1.5;margin-top:24px;}
 </style></head><body>
 <div id="card">
@@ -28,28 +34,40 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 
  <div class="rstack">
    <div class="rphase">
-     <div class="rbadge"><div class="term">단기</div><div class="per">~ 2026</div></div>
+     <div class="rbadge"><div class="term">단기</div></div>
      <div class="rbody">
-       <div class="ritem">위치기반 태풍·특보 알림 <span class="done">완료</span></div>
-       <div class="ritem"><b>AI 특보 예측</b></div>
-       <div class="ritem">iOS 출시</div>
-       <div class="ritem">RAG 1단계 — 검색 정밀화</div>
+       <div class="rsub">기존 인프라 재활용 — 즉시 체감</div>
+       <div class="ritems">
+         <div class="ritem"><b>위치 기반 태풍·특보 알림</b><span class="bdg done">개발 완료</span></div>
+         <div class="ritem"><b>AI·데이터 기반 특보 예측</b><span class="bdg ing">개발 중</span></div>
+         <div class="ritem"><b>iOS 출시</b> · <b>RAG</b> 출처 기반 답변</div>
+       </div>
      </div>
    </div>
+
+   <div class="rarrow">▼</div>
+
    <div class="rphase">
-     <div class="rbadge"><div class="term">중기</div><div class="per">2027</div></div>
+     <div class="rbadge"><div class="term">중기</div></div>
      <div class="rbody">
-       <div class="ritem"><b>직군 지식그래프·온톨로지</b></div>
-       <div class="ritem">멀티홉 추론 — 복합 질의 응답</div>
-       <div class="ritem">다국어 음성(TTS) 안내</div>
+       <div class="rsub">지식기반 · 개인화 고도화</div>
+       <div class="ritems">
+         <div class="ritem"><b>직군별 지식그래프</b> — 맞춤 조언</div>
+         <div class="ritem"><b>멀티홉 복합 추론</b> · <b>다국어 음성(TTS)</b></div>
+       </div>
      </div>
    </div>
+
+   <div class="rarrow">▼</div>
+
    <div class="rphase">
-     <div class="rbadge"><div class="term">장기</div><div class="per">2028 ~</div></div>
+     <div class="rbadge"><div class="term">장기</div></div>
      <div class="rbody">
-       <div class="ritem">조난 표류 예측 · 센서 연동 <b>자동 SOS</b></div>
-       <div class="ritem">GraphRAG <b>해양안전 의사결정 플랫폼</b></div>
-       <div class="ritem">파출소·상황실·구조 현장으로 확장</div>
+       <div class="rsub">예측 · 자동대응 · 플랫폼화</div>
+       <div class="ritems">
+         <div class="ritem"><b>조난 표류 예측</b> · <b>센서 연동 자동 SOS</b></div>
+         <div class="ritem"><b>GraphRAG</b> — 해양안전 의사결정 플랫폼</div>
+       </div>
      </div>
    </div>
  </div>
