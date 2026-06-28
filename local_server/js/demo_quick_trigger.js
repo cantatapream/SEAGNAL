@@ -4,14 +4,19 @@
  * 역할: [데모 시연] 메인 페이지 "해역별 특보현황" 헤더 5연타 → 특보 시연 즉시 활성화
  * ============================================================================
  *
- * [동작 개요]
+ * [동작 개요 — 단계 진행식]
  * 관리자 센터(헤더 10연타) → 시연 탭에 들어가지 않고도, 메인 페이지의
  * "해역별 특보현황" 아코디언 헤더(#main-accordion-header)를 짧은 시간 안에
- * 5번 연속 클릭하면 다음을 한 번에 실행한다:
- *   ① 특보 시연 "테스트 모드" ON  (POST /api/admin/demo/testmode)
- *   ② 이 기기에 저장된 데모 특보 슬롯을 모두 표출 (POST /api/admin/demo/emit)
- *      → 각 표출은 관리자 등록 기기에만 푸시 알림을 보낸다(sendAdminPush).
- *   ③ reapplyDemoAlerts() 로 본인 화면에 즉시 반영(폴링 대기 없이).
+ * 5번 연속 클릭할 때마다 다음 단계가 순서대로 실행된다:
+ *   [1단계] 첫 5연타 → 특보 시연 활성화
+ *     ① 테스트 모드 ON (POST /api/admin/demo/testmode)
+ *     ② 저장된 데모 특보 슬롯 전부 표출 (POST /api/admin/demo/emit, 슬롯별 관리자 푸시)
+ *     ③ reapplyDemoAlerts() 로 본인 화면 즉시 반영(폴링 대기 없이)
+ *   [2단계] 다음 5연타 → 태풍 발생/소멸 테스트 푸시
+ *     ④ POST /api/admin/demo/typhoon-test {kind:'onset'}      (발생)
+ *     ⑤ POST /api/admin/demo/typhoon-test {kind:'dissipation'} (소멸)
+ *        → 둘 다 sendAdminPush 로 관리자 등록 기기에만 발송. 위치기반 반경은 제외.
+ *   [3단계 이후] 동작 없음 (추후 기능 추가 예정)
  *
  * [안전 설계 — demo_alert.js 와 동일한 게이트]
  *   ① localStorage.seagnal_admin_mode === 'true' (관리자 모드)
@@ -36,7 +41,8 @@
     var WINDOW_MS = 3000;      // 연속 클릭으로 인정하는 시간창
     var _count = 0;
     var _firstTs = 0;
-    var _busy = false;         // 활성화 진행 중 재진입 방지
+    var _busy = false;         // 동작 진행 중 재진입 방지
+    var _stage = 0;            // 0=특보 시연(1단계), 1=태풍 발생/소멸(2단계), 2+=동작 없음
 
     function _adminMode() {
         try { return localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { return false; }
@@ -117,14 +123,59 @@
             .then(function () { _busy = false; });
     }
 
+    /**
+     * [2단계] 태풍 발생/소멸 테스트 푸시 — 발생 → 소멸 순차 발송.
+     * 둘 다 /api/admin/demo/typhoon-test 가 sendAdminPush 로 관리자 등록 기기에만
+     * 발송한다(위치기반 반경 typhoon-radius-test 는 호출하지 않음 — 제외).
+     */
+    function _sendTyphoonTests() {
+        if (_busy) return;
+        _busy = true;
+        var _post = function (kind) {
+            return fetch('/api/admin/demo/typhoon-test', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kind: kind })
+            }).then(function (r) { return r.json().catch(function () { return {}; }); })
+                .catch(function () { return {}; });
+        };
+        // 발생 → 소멸 순차 (KMA 실데이터 조회가 있어 직렬 처리)
+        _post('onset').then(function (r1) {
+            return _post('dissipation').then(function (r2) {
+                var ok1 = !!(r1 && r1.success), ok2 = !!(r2 && r2.success);
+                if (ok1 && ok2) {
+                    _toast('태풍 발생·소멸 테스트 푸시를 전송했습니다.');
+                } else {
+                    var err = ((r1 && r1.error) || '') + ' ' + ((r2 && r2.error) || '');
+                    _toast('태풍 테스트 발송 실패' + (err.trim() ? ': ' + err.trim() : ''));
+                }
+            });
+        }).catch(function () {
+            _toast('태풍 테스트 발송에 실패했습니다.');
+        }).then(function () { _busy = false; });
+    }
+
+    /** 완성된 5연타 1회 → 현재 단계 동작 실행 후 다음 단계로 진행 */
+    function _dispatch() {
+        if (_busy) return;
+        if (_stage === 0) {
+            _stage = 1;
+            _activate();              // 1단계: 특보 시연 활성화
+        } else if (_stage === 1) {
+            _stage = 2;
+            _sendTyphoonTests();      // 2단계: 태풍 발생/소멸 테스트 푸시
+        }
+        // _stage >= 2 → 동작 없음 (추후 추가 예정)
+    }
+
     function _onHeaderClick() {
         var now = Date.now();
         if (now - _firstTs > WINDOW_MS) { _count = 0; _firstTs = now; }
         _count++;
         if (_count >= NEED_CLICKS) {
             _count = 0;
+            if (_stage >= 2) return;  // 모든 단계 소진 — 불필요한 호출 방지
             // 관리자 등록 기기에서만 발동 — 일반 사용자는 무동작
-            _isAdminDevice().then(function (ok) { if (ok) _activate(); });
+            _isAdminDevice().then(function (ok) { if (ok) _dispatch(); });
         }
     }
 
