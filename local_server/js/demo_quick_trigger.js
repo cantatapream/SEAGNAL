@@ -23,7 +23,13 @@
  *   [A]-2단계로 무장된 뒤, 사용자가 직접 해양종합정보에서 '태풍'을 클릭하면:
  *     - window.OceanTyphoon.demoFocus 로 제6호 '장미' 강제 표출
  *     - 통보문 제6-12호 선택(#tphn-bulletin) + 해역표출 강제(디버그) ON(#tphn-dbg-korea)
+ *     - 이어서 '물빠짐' 클릭 시 지도 이동/자동재생을 "무장"(_mudflatDemoArmed)
  *   무장은 1회성이며 메모리 기반(앱 재시작 시 자동 초기화 — 별도 영속 없음).
+ *
+ * [D] 해양종합정보 '물빠짐' 버튼(#ocean-mudflat-toggle-btn) — 무장 시 1회 자동 동작
+ *   [C]로 태풍 시연이 표출된 뒤, 사용자가 '물빠짐'을 클릭하면:
+ *     - 지정 좌표(37°12'03"N,126°35'06"E·경기만)를 화면 중앙으로 이동(줌 13)
+ *     - 물빠짐 슬라이더 자동 재생(#mudflat-play-btn). 물빠짐 예측 팝업은 열지 않음.
  *
  * [B] "해역별 기상현황" 헤더(#marine-status-accordion-header) — 단계 진행식(1회성)
  *   [1단계] 첫 5연타 → 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만)
@@ -64,6 +70,9 @@
     var _nariyaArmed = false;  // 트리거로 연 AI 시연이 닫힐 때 나리야를 자동 ON 할지
     var _typhoonDemoArmed = false;            // 태풍 푸시(특보현황 2단계) 후 '태풍' 클릭 시 1회 자동 표출 무장
     var TPHN_DEMO = { year: 2026, seq: '6', bno: '12' };  // 제6호 장미 · 통보문 제6-12호
+    var _mudflatDemoArmed = false;            // 태풍 시연 표출 후 '물빠짐' 클릭 시 1회 지도이동+자동재생 무장
+    // 37°12'03"N, 126°35'06"E (≈ 경기만), 줌 13 — 화면 중앙 이동 후 슬라이더 자동 재생
+    var MUDFLAT_DEMO = { lat: 37.20083, lon: 126.585, zoom: 13 };
 
     function _adminMode() {
         try { return localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { return false; }
@@ -294,7 +303,41 @@
             if (!OT || typeof OT.demoFocus !== 'function') return;
             OT.demoFocus({ year: TPHN_DEMO.year, seq: TPHN_DEMO.seq });  // 장미(6호) 강제 표출
             _selectBulletinAndDebug(0);
+            _mudflatDemoArmed = true;   // 이후 '물빠짐' 클릭 시 지정 좌표로 지도 이동 + 자동 재생
         } catch (e) { /* 시연 실패는 조용히 무시 */ }
+    }
+
+    /**
+     * [물빠짐 시연] 무장 상태에서 해양종합정보 '물빠짐' 클릭 시 1회 실행:
+     *   지정 좌표(경기만)를 화면 중앙으로 이동(줌 고정) + 슬라이더 자동 재생.
+     *   ※ 물빠짐 예측 팝업은 열지 않는다(지도 이동·재생만).
+     */
+    function _runMudflatDemo() {
+        // 1) 지도 중앙 이동 + 줌 (moveend 핸들러가 바닥선 통과 시 안내 숨김·렌더 처리)
+        try {
+            var map = window.__getOceanMap && window.__getOceanMap();
+            if (map && window.ol && window.ol.proj) {
+                map.getView().animate({
+                    center: window.ol.proj.fromLonLat([MUDFLAT_DEMO.lon, MUDFLAT_DEMO.lat]),
+                    zoom: MUDFLAT_DEMO.zoom,
+                    duration: 700
+                });
+            }
+        } catch (e) { /* noop */ }
+        // 2) 프레임 준비되면 슬라이더 자동 재생
+        _autoplayMudflat(0);
+    }
+
+    /** 물빠짐 슬라이더(프레임)가 준비되면 자동 재생 시작(정지 상태일 때만). ~8초 폴링. */
+    function _autoplayMudflat(tries) {
+        var slider = document.getElementById('mudflat-slider');
+        var playBtn = document.getElementById('mudflat-play-btn');
+        if (slider && playBtn && (parseInt(slider.max, 10) || 0) > 0) {
+            // 아이콘이 pause 면 이미 재생 중 → 클릭 안 함(토글로 멈추지 않도록)
+            if (String(playBtn.innerHTML).indexOf('fa-pause') < 0) playBtn.click();
+            return;
+        }
+        if (tries < 40) setTimeout(function () { _autoplayMudflat(tries + 1); }, 200);
     }
 
     /** 통보문 라벨("제6-12호")이 드롭다운에 나타날 때까지 ~6초 폴링 후 선택 + 디버그 ON. */
@@ -369,6 +412,16 @@
                 if (!_typhoonDemoArmed) return;
                 _typhoonDemoArmed = false;             // 1회성
                 setTimeout(_runTyphoonDemo, 350);      // 기존 토글/잠금해제 처리 후 실행
+            });
+        }
+        // [D] 해양종합정보 '물빠짐' 버튼 — 태풍 시연 표출 후 무장되면,
+        //     클릭 시 1회 지정 좌표로 지도 중앙 이동 + 슬라이더 자동 재생.
+        var mudBtn = document.getElementById('ocean-mudflat-toggle-btn');
+        if (mudBtn) {
+            mudBtn.addEventListener('click', function () {
+                if (!_mudflatDemoArmed) return;
+                _mudflatDemoArmed = false;             // 1회성
+                setTimeout(_runMudflatDemo, 400);      // activate() 가 레이어/슬라이더 준비한 뒤 실행
             });
         }
     }
