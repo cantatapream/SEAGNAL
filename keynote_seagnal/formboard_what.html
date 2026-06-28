@@ -11,26 +11,28 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 .sub b{color:#FF6B35;font-weight:700;}
 .cardbox{background:#fff;border-radius:24px;box-shadow:0 10px 30px rgba(30,50,80,.08);border:1px solid #d8e2ee;}
 
-/* ── 상단: [박스1] + [박스2] ▶ [박스3] ── */
+/* ── 상단: [박스1] ＋ [박스2] ▶ [박스3] (아이콘 + 간결) ── */
 .flow{display:flex;align-items:stretch;gap:0;}
-.fbox{flex:1;display:flex;flex-direction:column;padding:24px 24px 26px;min-height:330px;}
+.fbox{flex:1;display:flex;flex-direction:column;align-items:flex-start;padding:26px 26px 28px;min-height:296px;}
 .fbox.res{border:2px solid #FF6B35;box-shadow:0 12px 34px rgba(255,107,53,.16);}
-.fbox .step{display:inline-block;align-self:flex-start;background:#f1f5fa;border:1px solid #e0e8f1;border-radius:20px;padding:5px 14px;color:#7c8aa0;font-size:18px;font-weight:700;letter-spacing:-.01em;}
-.fbox.res .step{background:rgba(255,107,53,.12);border-color:rgba(255,107,53,.3);color:#FF6B35;}
-.fbox .ftt{color:#15243a;font-size:26px;font-weight:800;letter-spacing:-.02em;margin:13px 0 15px;line-height:1.25;}
-.fbox .ftt .o{color:#FF6B35;}
-.fbox ul{list-style:none;display:flex;flex-direction:column;gap:12px;}
-.fbox li{position:relative;padding-left:21px;color:#5b6b80;font-size:19px;font-weight:500;line-height:1.45;letter-spacing:-.01em;}
-.fbox li::before{content:"";position:absolute;left:2px;top:10px;width:8px;height:8px;border-radius:50%;background:#FF6B35;}
-.fbox li b{color:#15243a;font-weight:700;}
-.fbox li .o{color:#FF6B35;font-weight:700;}
-.fbox .resline{color:#1f3047;font-size:20px;font-weight:800;line-height:1.4;letter-spacing:-.015em;margin:6px 0 15px;}
-.conn{flex:0 0 52px;display:flex;align-items:center;justify-content:center;color:#FF6B35;font-size:44px;font-weight:800;}
+.fhead{display:flex;align-items:center;gap:13px;margin-bottom:14px;}
+.ficon{flex:0 0 58px;width:58px;height:58px;border-radius:17px;background:rgba(255,107,53,.13);display:flex;align-items:center;justify-content:center;font-size:31px;}
+.fbox.res .ficon{background:rgba(255,107,53,.2);}
+.fstep{display:inline-block;background:#f1f5fa;border:1px solid #e0e8f1;border-radius:20px;padding:6px 15px;color:#7c8aa0;font-size:18px;font-weight:700;letter-spacing:-.01em;}
+.fbox.res .fstep{background:rgba(255,107,53,.12);border-color:rgba(255,107,53,.3);color:#FF6B35;}
+.ftt{color:#15243a;font-size:27px;font-weight:800;letter-spacing:-.02em;margin:4px 0 14px;line-height:1.25;}
+.ftt .o{color:#FF6B35;}
+.fdesc{color:#5b6b80;font-size:20px;font-weight:500;line-height:1.55;letter-spacing:-.01em;}
+.fdesc b{color:#15243a;font-weight:700;}
+.fdesc .o{color:#FF6B35;font-weight:700;}
+.conn{flex:0 0 50px;display:flex;align-items:center;justify-content:center;color:#FF6B35;font-size:42px;font-weight:800;}
 
-/* ── 중앙 큰 화살표 ── */
-.down{display:flex;align-items:center;justify-content:center;gap:16px;margin:14px 0 16px;}
-.down .ar{color:#FF6B35;font-size:42px;font-weight:800;line-height:1;}
-.down .lbl{color:#7c8aa0;font-size:21px;font-weight:700;letter-spacing:-.01em;}
+/* ── 중앙: 아래로 좁아지는 깔때기(넓은 화살표) ── */
+.funnel{margin:14px 0 16px;}
+.fbody{height:90px;background:linear-gradient(180deg,rgba(255,107,53,.16),rgba(255,107,53,.34));clip-path:polygon(0 0,100% 0,66% 100%,34% 100%);display:flex;align-items:center;justify-content:center;}
+.fbody span{color:#15243a;font-size:27px;font-weight:800;letter-spacing:-.02em;}
+.fbody span b{color:#C9430E;}
+.ftip{width:0;height:0;margin:-1px auto 0;border-left:30px solid transparent;border-right:30px solid transparent;border-top:24px solid rgba(255,107,53,.34);}
 
 /* ── 하단: 넓은 박스(주요 기능) ── */
 .wide{padding:28px 34px 32px;}
@@ -47,45 +49,36 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
  <div class="h"><span class="no">02</span><span class="t">무엇을 만들었나</span></div>
  <div class="sub">흩어진 공공 해양정보를 한곳에 모으고(<b>API 통합</b>), AI와 자체 로직으로 가공해, 누구나 쉽게 쓰는 <b>해양안전 플랫폼</b>으로 만들었습니다</div>
 
- <!-- 상단: [박스1] + [박스2] ▶ [박스3] -->
+ <!-- 상단: [박스1] ＋ [박스2] ▶ [박스3] -->
  <div class="flow">
    <div class="cardbox fbox">
-     <span class="step">모으기</span>
-     <div class="ftt">공공기관 해양정보<br><span class="o">API 통합</span></div>
-     <ul>
-       <li><b>기상청</b> (특보·예보·기상부이·태풍·시정)</li>
-       <li><b>국립해양조사원</b> (조석·유향속·수심·해무CCTV·생활지수) 등</li>
-       <li>다출처 공공 <b>실데이터</b>를 직접 수집·통합</li>
-     </ul>
+     <div class="fhead"><div class="ficon">📡</div><span class="fstep">모으기</span></div>
+     <div class="ftt">공공 해양정보 <span class="o">API 통합</span></div>
+     <div class="fdesc">기상청·국립해양조사원 등<br>다출처 공공 <b>실데이터</b>를 직접 수집</div>
    </div>
 
    <div class="conn">＋</div>
 
    <div class="cardbox fbox">
-     <span class="step">가공하기</span>
+     <div class="fhead"><div class="ficon">🤖</div><span class="fstep">가공하기</span></div>
      <div class="ftt">AI <span class="o">+</span> 자체 개발 로직</div>
-     <ul>
-       <li><b>Gemini 2.5</b> 기반 자율 에이전트 <span class="o">'나리'</span>가 <b>16개</b> 해양 데이터 도구를 스스로 호출</li>
-       <li>해역·의도 추출, <b>위치 판정</b>(최단 대피침로), <b>결정론적 처리</b> 등 자체 로직</li>
-     </ul>
+     <div class="fdesc"><b>자율 에이전트 '나리'</b>가 <b>16개</b> 도구를 스스로 호출 · <b>위치 판정</b> 등 자체 로직</div>
    </div>
 
    <div class="conn">▶</div>
 
    <div class="cardbox fbox res">
-     <span class="step">결과물</span>
+     <div class="fhead"><div class="ficon">🛟</div><span class="fstep">결과물</span></div>
      <div class="ftt">통합 해양안전 서비스</div>
-     <div class="resline">"한 앱에서 보고·묻고·먼저 받는<br>통합 해양안전 플랫폼"</div>
-     <ul>
-       <li>흩어진 정보를 한 화면에서 <b>보고</b>(시각화)</li>
-       <li>AI에게 <b>묻고</b>(<span class="o">나리</span>)</li>
-       <li>위험을 <b>먼저 받는다</b>(선제 알림)</li>
-     </ul>
+     <div class="fdesc">한 화면에서 <b>보고</b> · AI에게 <b>묻고</b> · 위험을 <b>먼저 받는다</b></div>
    </div>
  </div>
 
- <!-- 중앙 큰 화살표 -->
- <div class="down"><span class="ar">▼</span><span class="lbl">이 모든 것을 하나의 앱으로 — 주요 기능</span><span class="ar">▼</span></div>
+ <!-- 중앙: 깔때기(넓은 화살표) -->
+ <div class="funnel">
+   <div class="fbody"><span>이 모든 것을 <b>하나의 앱</b>으로</span></div>
+   <div class="ftip"></div>
+ </div>
 
  <!-- 하단: 넓은 박스(주요 기능) -->
  <div class="cardbox wide">
