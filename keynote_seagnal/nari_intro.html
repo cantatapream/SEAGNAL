@@ -56,7 +56,8 @@
   /* 궤도(시계방향) + 칩(반시계로 상쇄 → 항상 수평) */
   .orbit{position:absolute;left:0;top:0;width:0;height:0;animation:orbitCW 100s linear infinite;z-index:2;}
   .sat{position:absolute;width:300px;height:54px;display:flex;align-items:center;justify-content:center;}
-  .sat.t{left:-150px;top:-300px;} .sat.r{left:90px;top:-150px;} .sat.b{left:-150px;top:246px;} .sat.l{left:-385px;top:70px;}
+  /* 4개 칩: 같은 반지름(300px)·90° 등간격 — 박스 중심을 반지름 지점에 정렬 */
+  .sat.t{left:-150px;top:-327px;} .sat.r{left:150px;top:-27px;} .sat.b{left:-150px;top:273px;} .sat.l{left:-450px;top:-27px;}
   .chip{padding:12px 20px;border-radius:30px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.06);font-size:21px;font-weight:500;color:rgba(255,255,255,0.92);white-space:nowrap;backdrop-filter:blur(4px);animation:orbitCCW 100s linear infinite;}
   .chip .ic{color:#FF6B35;margin-right:7px;font-weight:700;}
 
