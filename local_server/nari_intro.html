@@ -15,9 +15,8 @@
   *:focus{outline:none;}
   #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;}
   #wrap{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center;cursor:pointer;
-    background:radial-gradient(ellipse at 26% 36%, rgba(255,107,53,0.10) 0%, transparent 55%), #060708;overflow:hidden;}
+    background:radial-gradient(ellipse at 72% 40%, rgba(255,107,53,0.10) 0%, transparent 55%), #060708;overflow:hidden;}
 
-  /* ===== 슬라이드 공통 ===== */
   .slide{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity 0.55s ease;}
   #wrap.s0 #slide0,#wrap.s1 #slide1,#wrap.s2 #slide2,#wrap.s3 #slide3{opacity:1;pointer-events:auto;}
 
@@ -26,41 +25,44 @@
   .head .em{color:#FF6B35;}
   .acc{position:absolute;left:122px;top:240px;width:88px;height:6px;background:#FF6B35;border-radius:3px;box-shadow:0 0 22px rgba(255,107,53,0.55);}
 
-  /* 진입 애니메이션 유틸 (활성 슬라이드에서만) */
   .rise{opacity:0;transform:translateY(28px);transition:opacity 0.8s ease, transform 0.8s cubic-bezier(0.22,1,0.36,1);}
   .slide.on .rise{opacity:1;transform:translateY(0);}
-  .slide.on .d1{transition-delay:0.15s;} .slide.on .d2{transition-delay:0.3s;} .slide.on .d3{transition-delay:0.45s;}
-  .slide.on .d4{transition-delay:0.6s;} .slide.on .d5{transition-delay:0.75s;} .slide.on .d6{transition-delay:0.9s;}
-  .slide.on .d7{transition-delay:1.05s;} .slide.on .d8{transition-delay:1.2s;}
+  .slide.on .d1{transition-delay:0.12s;} .slide.on .d2{transition-delay:0.24s;} .slide.on .d3{transition-delay:0.36s;}
+  .slide.on .d4{transition-delay:0.5s;} .slide.on .d5{transition-delay:0.64s;} .slide.on .d6{transition-delay:0.78s;}
+  .slide.on .d7{transition-delay:0.92s;} .slide.on .d8{transition-delay:1.06s;}
 
   /* ===== 슬라이드 1 · 표지 ===== */
-  #s0-tagline{position:absolute;left:120px;top:282px;color:rgba(255,255,255,0.66);font-size:30px;font-weight:300;letter-spacing:-0.01em;word-break:keep-all;}
+  #s0-tagline{position:absolute;left:120px;top:282px;width:760px;color:rgba(255,255,255,0.66);font-size:30px;font-weight:300;letter-spacing:-0.01em;word-break:keep-all;}
   #s0-tagline b{color:rgba(255,255,255,0.95);font-weight:600;}
-  /* 코어 */
-  .core{position:absolute;left:1330px;top:520px;}
-  .core-ring{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:360px;height:360px;border-radius:50%;border:1.5px solid rgba(255,107,53,0.25);animation:spin 30s linear infinite;}
-  .core-ring.r2{width:480px;height:480px;border-style:dashed;border-color:rgba(255,107,53,0.16);animation-duration:46s;animation-direction:reverse;}
-  .core-orb{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:250px;height:250px;border-radius:50%;
+  /* 좌측 세로 스탯 (크게, 빈공간 채움) */
+  #s0-stats{position:absolute;left:120px;top:392px;width:780px;display:flex;flex-direction:column;gap:22px;}
+  .s0stat{border:1px solid rgba(255,255,255,0.14);border-radius:20px;background:linear-gradient(150deg,rgba(255,255,255,0.055),rgba(255,255,255,0.015));
+    padding:30px 38px;display:flex;align-items:center;gap:30px;min-height:174px;}
+  .s0stat .v{color:#FF6B35;font-size:74px;font-weight:800;letter-spacing:-0.03em;line-height:1;flex:0 0 280px;font-variant-numeric:tabular-nums;}
+  .s0stat .v .u{font-size:32px;color:rgba(255,255,255,0.55);font-weight:600;margin-left:6px;}
+  .s0stat .r .l{color:#fff;font-size:30px;font-weight:700;letter-spacing:-0.01em;}
+  .s0stat .r .s{color:rgba(255,255,255,0.62);font-size:22px;font-weight:300;margin-top:8px;}
+
+  /* 우측 코어 */
+  .core{position:absolute;left:1410px;top:540px;}
+  .core-ring{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:380px;height:380px;border-radius:50%;border:1.5px solid rgba(255,107,53,0.25);animation:ringSpin 30s linear infinite;}
+  .core-ring.r2{width:500px;height:500px;border-style:dashed;border-color:rgba(255,107,53,0.16);animation-duration:46s;animation-direction:reverse;}
+  .core-orb{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:260px;height:260px;border-radius:50%;
     background:radial-gradient(circle at 34% 30%, #FF9866 0%, #FF6B35 55%, #C9430E 100%);
     box-shadow:0 0 90px rgba(255,107,53,0.5), inset 0 0 40px rgba(255,255,255,0.18);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;animation:breathe 4s ease-in-out infinite;}
-  .core-orb .nm{font-size:86px;font-weight:800;letter-spacing:-0.02em;line-height:1;}
+    display:flex;flex-direction:column;align-items:center;justify-content:center;animation:breathe 4s ease-in-out infinite;z-index:3;}
+  .core-orb .nm{font-size:88px;font-weight:800;letter-spacing:-0.02em;line-height:1;}
   .core-orb .role{font-size:24px;font-weight:500;color:rgba(255,255,255,0.92);margin-top:10px;}
-  .orbit{position:absolute;left:0;top:0;width:0;height:0;animation:spin 120s linear infinite;}
+  /* 궤도(시계방향) + 칩(반시계로 상쇄 → 항상 수평) */
+  .orbit{position:absolute;left:0;top:0;width:0;height:0;animation:orbitCW 100s linear infinite;z-index:2;}
   .sat{position:absolute;width:300px;height:54px;display:flex;align-items:center;justify-content:center;}
-  .sat.t{left:-150px;top:-285px;} .sat.r{left:90px;top:-150px;} .sat.b{left:-150px;top:235px;} .sat.l{left:-360px;top:60px;}
-  .chip{padding:12px 20px;border-radius:30px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);font-size:21px;font-weight:500;color:rgba(255,255,255,0.92);white-space:nowrap;backdrop-filter:blur(4px);animation:spin 120s linear infinite reverse;}
+  .sat.t{left:-150px;top:-300px;} .sat.r{left:90px;top:-150px;} .sat.b{left:-150px;top:246px;} .sat.l{left:-385px;top:70px;}
+  .chip{padding:12px 20px;border-radius:30px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.06);font-size:21px;font-weight:500;color:rgba(255,255,255,0.92);white-space:nowrap;backdrop-filter:blur(4px);animation:orbitCCW 100s linear infinite;}
   .chip .ic{color:#FF6B35;margin-right:7px;font-weight:700;}
-  /* 표지 하단 스탯 */
-  #s0-stats{position:absolute;left:120px;top:740px;display:flex;gap:30px;}
-  .s0stat{border:1px solid rgba(255,255,255,0.14);border-radius:18px;background:linear-gradient(150deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015));padding:26px 34px;min-width:250px;}
-  .s0stat .v{color:#FF6B35;font-size:52px;font-weight:800;letter-spacing:-0.03em;line-height:1;}
-  .s0stat .v .u{font-size:26px;color:rgba(255,255,255,0.55);font-weight:600;margin-left:4px;}
-  .s0stat .l{color:rgba(255,255,255,0.7);font-size:21px;font-weight:400;margin-top:12px;letter-spacing:-0.01em;}
 
-  /* ===== 슬라이드 2 · 작동 원리 파이프라인 ===== */
+  /* ===== 슬라이드 2 · 작동 원리 ===== */
   #s1-sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.6);font-size:26px;font-weight:300;}
-  .pipe{position:absolute;left:120px;right:120px;top:400px;display:flex;align-items:stretch;gap:0;}
+  .pipe{position:absolute;left:120px;right:120px;top:410px;display:flex;align-items:stretch;}
   .stepc{flex:1;border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:30px 28px;min-height:330px;position:relative;
     background:linear-gradient(150deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));display:flex;flex-direction:column;}
   .stepc.brain{border-color:rgba(255,107,53,0.5);background:linear-gradient(150deg,rgba(255,107,53,0.16),rgba(255,107,53,0.03));box-shadow:0 0 40px rgba(255,107,53,0.18);}
@@ -70,47 +72,39 @@
   .stepc .sd b{color:#FF8A5C;font-weight:600;}
   .arrow{flex:0 0 56px;display:flex;align-items:center;justify-content:center;color:rgba(255,107,53,0.7);font-size:40px;}
   .arrow .dot{animation:flow 1.6s ease-in-out infinite;}
-  #s1-foot{position:absolute;left:120px;right:120px;top:790px;display:flex;gap:18px;flex-wrap:wrap;}
-  .fchip{border:1px solid rgba(255,255,255,0.16);border-radius:30px;padding:12px 22px;color:rgba(255,255,255,0.82);font-size:21px;background:rgba(255,255,255,0.04);}
+  #s1-foot{position:absolute;left:120px;right:120px;top:800px;display:flex;gap:20px;flex-wrap:nowrap;}
+  .fchip{border:1px solid rgba(255,255,255,0.16);border-radius:30px;padding:14px 26px;color:rgba(255,255,255,0.82);font-size:22px;background:rgba(255,255,255,0.04);white-space:nowrap;}
   .fchip b{color:#FF8A5C;}
 
   /* ===== 슬라이드 3 · 지식그래프 ===== */
   #s2-sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.6);font-size:26px;font-weight:300;}
-  #graph-wrap{position:absolute;left:90px;top:340px;width:920px;height:660px;}
+  #graph-wrap{position:absolute;left:80px;top:350px;width:900px;height:600px;}
   #graph-svg{width:100%;height:100%;}
   #graph-center-lbl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;}
-  #graph-center-lbl .n{color:#FFFFFF;font-size:72px;font-weight:800;letter-spacing:-0.03em;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 24px rgba(0,0,0,0.7);}
+  #graph-center-lbl .n{color:#FFFFFF;font-size:74px;font-weight:800;letter-spacing:-0.03em;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 24px rgba(0,0,0,0.7);}
   #graph-center-lbl .n .u{font-size:30px;color:rgba(255,255,255,0.7);font-weight:600;margin-left:4px;}
-  #graph-center-lbl .r{color:#FF6B35;font-size:34px;font-weight:700;margin-top:8px;font-variant-numeric:tabular-nums;}
+  #graph-center-lbl .r{color:#FF6B35;font-size:36px;font-weight:700;margin-top:8px;font-variant-numeric:tabular-nums;}
   #graph-center-lbl .r .u{font-size:22px;color:rgba(255,255,255,0.6);font-weight:500;}
-  /* 우측 노드 구성 + 직군 */
-  #s2-side{position:absolute;right:110px;top:360px;width:760px;}
-  .nodebox{border:1px solid rgba(255,255,255,0.14);border-radius:18px;background:linear-gradient(150deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012));padding:24px 28px;margin-bottom:22px;}
+  #graph-verify{position:absolute;left:90px;top:968px;color:rgba(255,255,255,0.5);font-size:18px;font-weight:300;letter-spacing:-0.005em;}
+  #s2-side{position:absolute;right:110px;top:352px;width:760px;}
+  .nodebox{border:1px solid rgba(255,255,255,0.14);border-radius:18px;background:linear-gradient(150deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012));padding:22px 28px;margin-bottom:20px;}
   .nodebox .tt{color:#FF6B35;font-size:22px;font-weight:700;letter-spacing:0.02em;margin-bottom:16px;}
   .ngrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px 18px;}
   .ng{display:flex;align-items:baseline;gap:8px;}
   .ng .gv{color:#fff;font-size:30px;font-weight:800;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;}
   .ng .gl{color:rgba(255,255,255,0.62);font-size:18px;font-weight:400;}
-  .jobs{display:flex;flex-wrap:wrap;gap:10px;}
-  .job{border:1px solid rgba(255,107,53,0.4);background:rgba(255,107,53,0.1);border-radius:24px;padding:9px 18px;color:#FFCBB0;font-size:20px;font-weight:600;}
+  .jobs{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  .job{border:1px solid rgba(255,107,53,0.4);background:rgba(255,107,53,0.1);border-radius:14px;padding:11px 6px;color:#FFCBB0;font-size:20px;font-weight:600;text-align:center;white-space:nowrap;}
 
-  /* ===== 슬라이드 4 · 신뢰 + 로드맵 ===== */
-  #s3-sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.6);font-size:26px;font-weight:300;}
-  #trust{position:absolute;left:120px;top:380px;width:760px;}
-  .trustcard{border:1px solid rgba(255,255,255,0.14);border-radius:20px;background:linear-gradient(150deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));padding:30px 34px;margin-bottom:24px;display:flex;gap:22px;align-items:flex-start;}
-  .trustcard .ti{flex:0 0 64px;height:64px;border-radius:16px;background:rgba(255,107,53,0.16);border:1px solid rgba(255,107,53,0.45);display:flex;align-items:center;justify-content:center;font-size:30px;}
-  .trustcard .th{color:#fff;font-size:28px;font-weight:700;letter-spacing:-0.02em;}
-  .trustcard .td{color:rgba(255,255,255,0.66);font-size:21px;font-weight:300;line-height:1.5;margin-top:8px;word-break:keep-all;}
-  .trustcard .td b{color:#FF8A5C;font-weight:600;}
-  #road{position:absolute;right:110px;top:380px;width:840px;}
-  .roadhead{color:#FF6B35;font-size:24px;font-weight:700;letter-spacing:0.04em;margin-bottom:20px;}
-  .rstage{border:1px solid rgba(255,255,255,0.14);border-radius:18px;background:linear-gradient(150deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012));padding:22px 28px;margin-bottom:18px;display:flex;gap:22px;align-items:center;}
-  .rstage .rbadge{flex:0 0 96px;text-align:center;color:#fff;font-size:26px;font-weight:800;letter-spacing:-0.01em;border-right:1px solid rgba(255,107,53,0.3);padding-right:18px;}
-  .rstage .rbadge span{display:block;color:#FF6B35;font-size:16px;font-weight:600;margin-top:4px;letter-spacing:0.04em;}
-  .rstage .rtxt{color:rgba(255,255,255,0.82);font-size:21px;font-weight:400;line-height:1.45;word-break:keep-all;}
-  .rstage .rtxt b{color:#fff;font-weight:700;}
-  #s3-close{position:absolute;left:120px;right:120px;bottom:56px;text-align:center;color:#fff;font-size:30px;font-weight:600;letter-spacing:-0.01em;}
-  #s3-close .em{color:#FF6B35;font-weight:800;}
+  /* ===== 슬라이드 4 · 신뢰 ===== */
+  #s3-sub{position:absolute;left:120px;top:280px;width:1100px;color:rgba(255,255,255,0.6);font-size:26px;font-weight:300;word-break:keep-all;}
+  #trustgrid{position:absolute;left:120px;right:120px;top:400px;display:grid;grid-template-columns:1fr 1fr;gap:28px;}
+  .tcard{border:1px solid rgba(255,255,255,0.14);border-radius:22px;background:linear-gradient(150deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));padding:36px 40px;min-height:248px;display:flex;gap:26px;align-items:flex-start;}
+  .tcard.key{border-color:rgba(255,107,53,0.45);background:linear-gradient(150deg,rgba(255,107,53,0.13),rgba(255,107,53,0.03));}
+  .tcard .ti{flex:0 0 76px;height:76px;border-radius:18px;background:rgba(255,107,53,0.16);border:1px solid rgba(255,107,53,0.45);display:flex;align-items:center;justify-content:center;font-size:38px;}
+  .tcard .th{color:#fff;font-size:32px;font-weight:700;letter-spacing:-0.02em;word-break:keep-all;}
+  .tcard .td{color:rgba(255,255,255,0.68);font-size:23px;font-weight:300;line-height:1.55;margin-top:14px;word-break:keep-all;}
+  .tcard .td b{color:#FF8A5C;font-weight:600;}
 
   /* ===== 진행 표시 ===== */
   #dots{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);display:flex;gap:14px;z-index:50;}
@@ -118,9 +112,9 @@
   .dot.on{background:#FF6B35;width:34px;border-radius:6px;}
   #pagelbl{position:absolute;right:40px;bottom:30px;color:rgba(255,255,255,0.4);font-size:18px;letter-spacing:0.1em;z-index:50;}
 
-  @keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg);}}
-  .orbit{animation-name:spinO;} @keyframes spinO{to{transform:rotate(360deg);}}
-  .chip{animation-name:spinC;} @keyframes spinC{to{transform:rotate(-360deg);}}
+  @keyframes ringSpin{to{transform:translate(-50%,-50%) rotate(360deg);}}
+  @keyframes orbitCW{from{transform:rotate(0);}to{transform:rotate(360deg);}}
+  @keyframes orbitCCW{from{transform:rotate(0);}to{transform:rotate(-360deg);}}
   @keyframes breathe{0%,100%{box-shadow:0 0 90px rgba(255,107,53,0.5), inset 0 0 40px rgba(255,255,255,0.18);}50%{box-shadow:0 0 130px rgba(255,107,53,0.72), inset 0 0 46px rgba(255,255,255,0.24);}}
   @keyframes flow{0%,100%{opacity:0.35;transform:translateX(-6px);}50%{opacity:1;transform:translateX(6px);}}
 </style>
@@ -133,7 +127,13 @@
     <div class="chap rise">SEA:GNAL · 대화형 해양안전 AI</div>
     <div class="head rise d1">AI 비서 <span class="em">'나리'</span></div>
     <div class="acc rise d2"></div>
-    <div id="s0-tagline" class="rise d3">묻는 말에 답하는 것을 넘어, <b>스스로 판단하고 먼저 챙기는</b> 해양안전 비서</div>
+    <div id="s0-tagline" class="rise d3">묻는 말에 답하는 것을 넘어, <b>스스로 판단하고 챙기는</b> 해양안전 비서</div>
+
+    <div id="s0-stats">
+      <div class="s0stat rise d4"><div class="v">20<span class="u">개</span></div><div class="r"><div class="l">자율 호출 해양 데이터 도구</div><div class="s">질문에 맞는 도구를 스스로 골라 호출</div></div></div>
+      <div class="s0stat rise d5"><div class="v">978<span class="u">노드</span></div><div class="r"><div class="l">지식그래프 · 1,232 관계</div><div class="s">해역·부이·물때·직군·용어를 연결</div></div></div>
+      <div class="s0stat rise d6"><div class="v">8<span class="u">직군</span></div><div class="r"><div class="l">직군 맞춤 응답</div><div class="s">어업인·낚시·해양경찰 등 맞춤 안내</div></div></div>
+    </div>
 
     <div class="core rise d3">
       <div class="core-ring r2"></div>
@@ -145,12 +145,6 @@
         <div class="sat l"><div class="chip"><span class="ic">◆</span>직군 맞춤 응답</div></div>
       </div>
       <div class="core-orb"><div class="nm">나리</div><div class="role">Gemini 2.5 기반</div></div>
-    </div>
-
-    <div id="s0-stats">
-      <div class="s0stat rise d4"><div class="v">20<span class="u">개</span></div><div class="l">자율 호출 해양 데이터 도구</div></div>
-      <div class="s0stat rise d5"><div class="v">978<span class="u">노드</span></div><div class="l">지식그래프 · 1,232 관계</div></div>
-      <div class="s0stat rise d6"><div class="v">8<span class="u">직군</span></div><div class="l">맞춤 응답 (어업·낚시·해경 등)</div></div>
     </div>
   </section>
 
@@ -171,13 +165,13 @@
       <div class="stepc brain rise d4">
         <div class="no">2</div>
         <div class="st">두뇌 · Gemini 2.5</div>
-        <div class="sd">질문을 분석해 <b>실행계획(plan)</b>을 수립 — 어떤 도구가 필요한지 스스로 판단</div>
+        <div class="sd">질문을 분석해 <b>실행계획(plan)</b>을 수립하고, 어떤 도구가 필요한지 스스로 판단</div>
       </div>
       <div class="arrow rise d4"><span class="dot">▶</span></div>
       <div class="stepc rise d5">
         <div class="no">3</div>
         <div class="st">자율 호출</div>
-        <div class="sd">해양 데이터 도구 <b>20개</b> 중 필요한 것만 골라 <b>동시 병렬 호출</b>(최대 6개)</div>
+        <div class="sd">해양 데이터 도구 <b>20개</b> 중 <b>필요한 것만</b> 골라 호출</div>
       </div>
       <div class="arrow rise d5"><span class="dot">▶</span></div>
       <div class="stepc rise d6">
@@ -188,31 +182,31 @@
     </div>
 
     <div id="s1-foot">
-      <div class="fchip rise d6"><b>결정론적 폴백</b> — 키 없거나 한도여도 실데이터로 답</div>
-      <div class="fchip rise d7"><b>멀티턴</b> — 직전 대상(해역·부이·좌표) 자동 기억</div>
-      <div class="fchip rise d7"><b>검색 그라운딩</b> — 못 푸는 질문은 출처 링크까지</div>
-      <div class="fchip rise d8"><b>환각 방지</b> — '주어진 데이터만' 사용</div>
+      <div class="fchip rise d6"><b>멀티턴 대화</b> · 직전 맥락(해역·부이·좌표) 이어가기</div>
+      <div class="fchip rise d7"><b>직군 맞춤</b> · 8개 직군을 인식해 우선 안내</div>
+      <div class="fchip rise d8"><b>환각 방지</b> · 가져온 실데이터만 사용</div>
     </div>
   </section>
 
   <!-- ============ S3 · 지식그래프 ============ -->
   <section class="slide" id="slide2">
     <div class="chap rise">판단의 근거 · 지식그래프</div>
-    <div class="head rise d1">978개의 점, <span class="em">1,232개의 선</span> — 바다를 잇다</div>
+    <div class="head rise d1">978개의 점, <span class="em">1,232개의 선</span>, 바다를 잇다</div>
     <div class="acc rise d2"></div>
     <div id="s2-sub" class="rise d2">해역·부이·물때·직군·전문용어를 엮은 지식그래프 위에서 나리가 판단합니다.</div>
 
     <div id="graph-wrap" class="rise d3">
-      <svg id="graph-svg" viewBox="0 0 920 660" preserveAspectRatio="xMidYMid meet"></svg>
+      <svg id="graph-svg" viewBox="0 0 900 600" preserveAspectRatio="xMidYMid meet"></svg>
       <div id="graph-center-lbl">
         <div class="n"><span id="gnodes">0</span><span class="u">노드</span></div>
         <div class="r"><span id="grels">0</span><span class="u">관계</span></div>
       </div>
     </div>
+    <div id="graph-verify" class="rise d6">※ 앱이 보유한 지식그래프 데이터에서 직접 집계 · 실데이터(해역·부이·조위관측소·전문용어 등)를 노드로, 의미 연결을 관계로 산출</div>
 
     <div id="s2-side">
       <div class="nodebox rise d4">
-        <div class="tt">노드 구성 (코드 검증)</div>
+        <div class="tt">노드 구성 (실데이터 기반)</div>
         <div class="ngrid">
           <div class="ng"><span class="gv">288</span><span class="gl">전문용어</span></div>
           <div class="ng"><span class="gv">165</span><span class="gl">조위관측소</span></div>
@@ -225,51 +219,56 @@
       <div class="nodebox rise d5">
         <div class="tt">8개 직군 맞춤</div>
         <div class="jobs">
-          <span class="job">어업인</span><span class="job">낚시</span><span class="job">레저</span><span class="job">해경</span>
-          <span class="job">해군</span><span class="job">해수부</span><span class="job">지자체</span><span class="job">공공기관</span>
+          <span class="job">어업인</span><span class="job">낚시</span><span class="job">레저</span><span class="job">해양경찰</span>
+          <span class="job">해군</span><span class="job">해양수산부</span><span class="job">지방자치단체</span><span class="job">공공기관</span>
         </div>
       </div>
       <div class="nodebox rise d6">
         <div class="tt">관계로 잇는 의미</div>
         <div style="color:rgba(255,255,255,0.78);font-size:21px;line-height:1.55;word-break:keep-all;">
-          「어떤 <b style="color:#FF8A5C;">직군</b> → 무엇에 <b style="color:#FF8A5C;">관심</b> → 어떤 <b style="color:#FF8A5C;">도구</b>가 답 → 어떤 <b style="color:#FF8A5C;">용어</b>로 설명」을 한 줄로 연결 — 환각 대신 구조화된 사실로 답합니다.
+          「어떤 <b style="color:#FF8A5C;">직군</b> → 무엇에 <b style="color:#FF8A5C;">관심</b> → 어떤 <b style="color:#FF8A5C;">도구</b>가 답 → 어떤 <b style="color:#FF8A5C;">용어</b>로 설명」을 한 줄로 연결해, 환각 대신 구조화된 사실로 답합니다.
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ============ S4 · 신뢰 + 로드맵 ============ -->
+  <!-- ============ S4 · 신뢰 ============ -->
   <section class="slide" id="slide3">
-    <div class="chap rise">신뢰, 그리고 미래</div>
-    <div class="head rise d1">믿을 수 있는 AI, <span class="em">더 똑똑해집니다</span></div>
+    <div class="chap rise">믿고 쓰는 AI · 신뢰 설계</div>
+    <div class="head rise d1">내 정보는 지키고, <span class="em">답은 정직하게</span></div>
     <div class="acc rise d2"></div>
-    <div id="s3-sub" class="rise d2">개인정보는 단말에 지키고, 묻기 전에 먼저 챙기는 능동형 안전 AI로 확장합니다.</div>
+    <div id="s3-sub" class="rise d2">개인정보는 단말에 묶어두고, 검증된 공공 실데이터만으로 답하도록 설계했습니다.</div>
 
-    <div id="trust">
-      <div class="trustcard rise d3">
+    <div id="trustgrid">
+      <div class="tcard key rise d3">
         <div class="ti">🔒</div>
         <div>
           <div class="th">위치는 서버로 가지 않습니다</div>
-          <div class="td">특보 변화 시 <b>특보 스냅샷만</b> 단말에 전송 → 단말이 직접 '내 해역·최단 대피침로'를 판정. <b>사용자 위치는 서버 미전송</b></div>
+          <div class="td">특보 변동 시 <b>특보 스냅샷만</b> 단말에 전송 → '내 해역인지', '가장 가까운 안전 구역의 방위·거리'를 <b>단말이 직접 판정</b>. 사용자 위치는 서버로 전송되지 않습니다.</div>
         </div>
       </div>
-      <div class="trustcard rise d4">
+      <div class="tcard rise d4">
         <div class="ti">🧠</div>
         <div>
           <div class="th">대화 기억도 단말에만</div>
-          <div class="td">프로필·관심사·대화기억을 <b>휴대폰 안에만</b> 저장(온디바이스) — 개인정보를 지키면서 <b>쓸수록 맞춰집니다</b></div>
+          <div class="td">프로필·관심사·대화 기억을 <b>휴대폰 안에만</b> 저장(온디바이스). 개인정보를 지키면서 <b>쓸수록 사용자에게 맞춰집니다</b>.</div>
+        </div>
+      </div>
+      <div class="tcard rise d5">
+        <div class="ti">✅</div>
+        <div>
+          <div class="th">키 없어도 실데이터로 답</div>
+          <div class="td">AI 키가 없거나 한도를 넘겨도 <b>결정론적 폴백</b>으로 전환해, 멈추지 않고 <b>실측·실데이터</b>로 답합니다.</div>
+        </div>
+      </div>
+      <div class="tcard rise d6">
+        <div class="ti">📡</div>
+        <div>
+          <div class="th">공식 공공 데이터 기반</div>
+          <div class="td"><b>기상청·국립해양조사원</b> 등 공식 출처의 실데이터만 사용해, 추측이 아닌 <b>근거 있는 안내</b>를 제공합니다.</div>
         </div>
       </div>
     </div>
-
-    <div id="road">
-      <div class="roadhead rise d4">능동형 해양안전 AI로 — 3단계 로드맵</div>
-      <div class="rstage rise d5"><div class="rbadge">단기<span>SHORT</span></div><div class="rtxt"><b>AI 특보 예측</b> · RAG 1단계 · 자연어 앱 제어 · iOS 출시</div></div>
-      <div class="rstage rise d6"><div class="rbadge">중기<span>MID</span></div><div class="rtxt"><b>직군 온톨로지</b> · 멀티홉 복합 추론 · 다국어 음성(TTS)</div></div>
-      <div class="rstage rise d7"><div class="rbadge">장기<span>LONG</span></div><div class="rtxt"><b>조난 표류 예측</b> · 센서 연동 자동 SOS · GraphRAG '해양안전 의사결정 플랫폼'</div></div>
-    </div>
-
-    <div id="s3-close" class="rise d8">묻기 전에 먼저 위험을 알려주는 — <span class="em">능동형 해양안전 AI, 나리</span></div>
   </section>
 
   <div id="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
@@ -308,30 +307,27 @@
     requestAnimationFrame(tick);
   }
 
-  // ===== 지식그래프 네트워크 SVG 생성 =====
   function buildGraph(){
     const svg = document.getElementById('graph-svg');
-    const W=920,H=660,cx=W/2,cy=H/2;
+    const W=900,H=600,cx=W/2,cy=H/2;
     const NS='http://www.w3.org/2000/svg';
     const cats = [
-      {c:'#FF6B35', n:7, r:[150,210]},   // 허브급
-      {c:'#FF9866', n:14, r:[210,275]},
-      {c:'#7FB0FF', n:16, r:[150,260]},
-      {c:'rgba(255,255,255,0.55)', n:22, r:[170,300]}
+      {c:'#FF6B35', n:7, r:[150,205]},
+      {c:'#FF9866', n:14, r:[200,262]},
+      {c:'#7FB0FF', n:16, r:[150,250]},
+      {c:'rgba(255,255,255,0.55)', n:24, r:[165,285]}
     ];
     const nodes=[];
     cats.forEach(cat=>{
       for(let i=0;i<cat.n;i++){
         const a=Math.random()*Math.PI*2;
         const rr=cat.r[0]+Math.random()*(cat.r[1]-cat.r[0]);
-        const x=cx+Math.cos(a)*rr, y=cy+Math.sin(a)*rr*0.78;
+        const x=cx+Math.cos(a)*rr, y=cy+Math.sin(a)*rr*0.82;
         nodes.push({x,y,c:cat.c,s:2+Math.random()*4});
       }
     });
-    // 엣지: 각 노드를 가까운 노드 1~2개와 연결 + 중심 글로우
     const frag=document.createDocumentFragment();
     for(let i=0;i<nodes.length;i++){
-      // 가까운 노드 찾기
       let best=[];
       for(let j=0;j<nodes.length;j++){ if(i===j)continue; const d=Math.hypot(nodes[i].x-nodes[j].x,nodes[i].y-nodes[j].y); best.push([d,j]); }
       best.sort((a,b)=>a[0]-b[0]);
@@ -345,31 +341,25 @@
         frag.appendChild(ln);
       }
     }
-    // 중심 글로우 원
-    const glow=document.createElementNS(NS,'circle');
-    glow.setAttribute('cx',cx); glow.setAttribute('cy',cy); glow.setAttribute('r','120');
-    glow.setAttribute('fill','url(#gctr)');
-    // defs gradient
     const defs=document.createElementNS(NS,'defs');
     defs.innerHTML='<radialGradient id="gctr"><stop offset="0%" stop-color="rgba(255,107,53,0.45)"/><stop offset="60%" stop-color="rgba(255,107,53,0.10)"/><stop offset="100%" stop-color="rgba(255,107,53,0)"/></radialGradient>';
     svg.appendChild(defs);
+    const glow=document.createElementNS(NS,'circle');
+    glow.setAttribute('cx',cx); glow.setAttribute('cy',cy); glow.setAttribute('r','120'); glow.setAttribute('fill','url(#gctr)');
     svg.appendChild(glow);
     svg.appendChild(frag);
-    // 노드
     nodes.forEach((nd,idx)=>{
       const c=document.createElementNS(NS,'circle');
       c.setAttribute('cx',nd.x.toFixed(1)); c.setAttribute('cy',nd.y.toFixed(1));
       c.setAttribute('r','0'); c.setAttribute('fill',nd.c);
       if(nd.c==='#FF6B35'){ c.setAttribute('filter','drop-shadow(0 0 6px rgba(255,107,53,0.8))'); }
       svg.appendChild(c);
-      const delay=200+idx*12;
-      setTimeout(()=>{ c.style.transition='r 0.5s cubic-bezier(0.34,1.5,0.5,1)'; c.setAttribute('r',nd.s.toFixed(1)); }, delay);
+      setTimeout(()=>{ c.style.transition='r 0.5s cubic-bezier(0.34,1.5,0.5,1)'; c.setAttribute('r',nd.s.toFixed(1)); }, 200+idx*12);
     });
   }
 
   setState(0);
 
-  // ===== 내비게이션: 좌/우 반 클릭, 화살표 키 =====
   wrap.addEventListener('click', (e)=>{
     const rect = wrap.getBoundingClientRect();
     const left = (e.clientX - rect.left) < rect.width/2;
