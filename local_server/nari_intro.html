@@ -11,368 +11,184 @@
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <style>
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#fff;overflow:hidden;height:100%;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
+  html,body{margin:0;padding:0;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#eef1f4;overflow:hidden;height:100%;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
   *:focus{outline:none;}
   #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;}
   #wrap{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center;cursor:pointer;
-    background:radial-gradient(ellipse at 72% 40%, rgba(255,107,53,0.10) 0%, transparent 55%), #060708;overflow:hidden;}
+    background:radial-gradient(ellipse at 78% 30%, rgba(255,107,53,0.12) 0%, transparent 52%), #07080a;overflow:hidden;}
 
-  .slide{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity 0.55s ease;}
-  #wrap.s0 #slide0,#wrap.s1 #slide1,#wrap.s2 #slide2,#wrap.s3 #slide3{opacity:1;pointer-events:auto;}
+  .slide{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity 0.6s ease;}
+  #wrap.s0 #slide0,#wrap.s1 #slide1{opacity:1;pointer-events:auto;}
 
-  .chap{position:absolute;left:120px;top:78px;color:#FF6B35;font-size:24px;letter-spacing:0.3em;font-weight:600;}
-  .head{position:absolute;left:120px;top:130px;color:#fff;font-size:62px;font-weight:700;letter-spacing:-0.03em;line-height:1.14;}
+  .chap{position:absolute;left:130px;top:120px;color:#FF6B35;font-size:26px;letter-spacing:0.3em;font-weight:600;}
+  .head{position:absolute;left:130px;top:178px;color:#fff;font-size:92px;font-weight:800;letter-spacing:-0.035em;line-height:1.1;}
   .head .em{color:#FF6B35;}
-  .acc{position:absolute;left:122px;top:240px;width:88px;height:6px;background:#FF6B35;border-radius:3px;box-shadow:0 0 22px rgba(255,107,53,0.55);}
+  .acc{position:absolute;left:132px;top:316px;width:96px;height:7px;background:#FF6B35;border-radius:4px;box-shadow:0 0 24px rgba(255,107,53,0.6);}
 
-  .rise{opacity:0;transform:translateY(28px);transition:opacity 0.8s ease, transform 0.8s cubic-bezier(0.22,1,0.36,1);}
+  .rise{opacity:0;transform:translateY(30px);transition:opacity 0.85s ease, transform 0.85s cubic-bezier(0.22,1,0.36,1);}
   .slide.on .rise{opacity:1;transform:translateY(0);}
-  .slide.on .d1{transition-delay:0.12s;} .slide.on .d2{transition-delay:0.24s;} .slide.on .d3{transition-delay:0.36s;}
-  .slide.on .d4{transition-delay:0.5s;} .slide.on .d5{transition-delay:0.64s;} .slide.on .d6{transition-delay:0.78s;}
-  .slide.on .d7{transition-delay:0.92s;} .slide.on .d8{transition-delay:1.06s;}
+  .slide.on .d1{transition-delay:0.12s;} .slide.on .d2{transition-delay:0.26s;} .slide.on .d3{transition-delay:0.42s;}
+  .slide.on .d4{transition-delay:0.58s;} .slide.on .d5{transition-delay:0.74s;} .slide.on .d6{transition-delay:0.9s;}
 
-  /* ===== 슬라이드 1 · 표지 ===== */
-  #s0-tagline{position:absolute;left:120px;top:282px;width:1100px;color:rgba(255,255,255,0.66);font-size:30px;font-weight:300;letter-spacing:-0.015em;word-break:keep-all;white-space:nowrap;}
-  #s0-tagline b{color:rgba(255,255,255,0.95);font-weight:600;}
-  /* 좌측 세로 스탯 (크게, 빈공간 채움) */
-  #s0-stats{position:absolute;left:120px;top:392px;width:780px;display:flex;flex-direction:column;gap:22px;}
-  .s0stat{border:1px solid rgba(255,255,255,0.14);border-radius:20px;background:linear-gradient(150deg,rgba(255,255,255,0.055),rgba(255,255,255,0.015));
-    padding:30px 38px;display:flex;align-items:center;gap:30px;min-height:174px;}
-  .s0stat .v{color:#FF6B35;font-size:74px;font-weight:800;letter-spacing:-0.03em;line-height:1;flex:0 0 280px;font-variant-numeric:tabular-nums;}
-  .s0stat .v .u{font-size:32px;color:rgba(255,255,255,0.55);font-weight:600;margin-left:6px;}
-  .s0stat .r .l{color:#fff;font-size:30px;font-weight:700;letter-spacing:-0.01em;}
-  .s0stat .r .s{color:rgba(255,255,255,0.62);font-size:22px;font-weight:300;margin-top:8px;}
+  /* ===== 슬라이드 1 ===== */
+  #s0-sub{position:absolute;left:130px;top:360px;width:980px;color:rgba(255,255,255,0.7);font-size:34px;font-weight:300;letter-spacing:-0.01em;word-break:keep-all;line-height:1.45;}
+  #s0-sub b{color:#fff;font-weight:600;}
 
   /* 우측 코어 */
-  .core{position:absolute;left:1410px;top:540px;}
-  .core-ring{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:380px;height:380px;border-radius:50%;border:1.5px solid rgba(255,107,53,0.25);animation:ringSpin 30s linear infinite;}
-  .core-ring.r2{width:500px;height:500px;border-style:dashed;border-color:rgba(255,107,53,0.16);animation-duration:46s;animation-direction:reverse;}
-  .core-orb{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:260px;height:260px;border-radius:50%;
+  .core{position:absolute;left:1500px;top:330px;}
+  .core-ring{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:330px;height:330px;border-radius:50%;border:1.5px solid rgba(255,107,53,0.28);animation:ringSpin 28s linear infinite;}
+  .core-ring.r2{width:430px;height:430px;border-style:dashed;border-color:rgba(255,107,53,0.16);animation-duration:44s;animation-direction:reverse;}
+  .core-orb{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:280px;height:280px;border-radius:50%;
     background:radial-gradient(circle at 34% 30%, #FF9866 0%, #FF6B35 55%, #C9430E 100%);
-    box-shadow:0 0 90px rgba(255,107,53,0.5), inset 0 0 40px rgba(255,255,255,0.18);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;animation:breathe 4s ease-in-out infinite;z-index:3;}
-  .core-orb .nm{font-size:88px;font-weight:800;letter-spacing:-0.02em;line-height:1;}
-  .core-orb .role{font-size:24px;font-weight:500;color:rgba(255,255,255,0.92);margin-top:10px;}
-  /* 궤도(시계방향) + 칩(반시계로 상쇄 → 항상 수평) */
-  .orbit{position:absolute;left:0;top:0;width:0;height:0;animation:orbitCW 100s linear infinite;z-index:2;}
-  .sat{position:absolute;width:300px;height:54px;display:flex;align-items:center;justify-content:center;}
-  /* 4개 칩: 같은 반지름(300px)·90° 등간격 — 박스 중심을 반지름 지점에 정렬 */
-  .sat.t{left:-150px;top:-327px;} .sat.r{left:150px;top:-27px;} .sat.b{left:-150px;top:273px;} .sat.l{left:-450px;top:-27px;}
-  .chip{padding:12px 20px;border-radius:30px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.06);font-size:21px;font-weight:500;color:rgba(255,255,255,0.92);white-space:nowrap;backdrop-filter:blur(4px);animation:orbitCCW 100s linear infinite;}
-  .chip .ic{color:#FF6B35;margin-right:7px;font-weight:700;}
+    box-shadow:0 0 100px rgba(255,107,53,0.55), inset 0 0 44px rgba(255,255,255,0.18);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;animation:breathe 4.2s ease-in-out infinite;}
+  .core-orb .nm{font-size:92px;font-weight:800;letter-spacing:-0.02em;line-height:1;}
+  .core-orb .role{font-size:25px;font-weight:500;color:rgba(255,255,255,0.92);margin-top:12px;}
 
-  /* ===== 슬라이드 2 · 작동 원리 ===== */
-  #s1-sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.6);font-size:26px;font-weight:300;}
-  .pipe{position:absolute;left:120px;right:120px;top:410px;display:flex;align-items:stretch;}
-  .stepc{flex:1;border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:30px 28px;min-height:330px;position:relative;
-    background:linear-gradient(150deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));display:flex;flex-direction:column;}
-  .stepc.brain{border-color:rgba(255,107,53,0.5);background:linear-gradient(150deg,rgba(255,107,53,0.16),rgba(255,107,53,0.03));box-shadow:0 0 40px rgba(255,107,53,0.18);}
-  .stepc .no{width:46px;height:46px;border-radius:13px;background:rgba(255,107,53,0.18);border:1px solid rgba(255,107,53,0.45);color:#FF6B35;font-weight:800;font-size:24px;display:flex;align-items:center;justify-content:center;}
-  .stepc .st{color:#fff;font-size:30px;font-weight:700;letter-spacing:-0.02em;margin-top:18px;word-break:keep-all;}
-  .stepc .sd{color:rgba(255,255,255,0.66);font-size:21px;font-weight:300;line-height:1.5;margin-top:12px;word-break:keep-all;}
-  .stepc .sd b{color:#FF8A5C;font-weight:600;}
-  .arrow{flex:0 0 56px;display:flex;align-items:center;justify-content:center;color:rgba(255,107,53,0.7);font-size:40px;}
-  .arrow .dot{animation:flow 1.6s ease-in-out infinite;}
-  #s1-foot{position:absolute;left:120px;right:120px;top:800px;display:flex;gap:20px;flex-wrap:nowrap;}
-  .fchip{border:1px solid rgba(255,255,255,0.16);border-radius:30px;padding:14px 26px;color:rgba(255,255,255,0.82);font-size:22px;background:rgba(255,255,255,0.04);white-space:nowrap;}
-  .fchip b{color:#FF8A5C;}
+  /* 4단계 흐름 */
+  #flow{position:absolute;left:130px;right:130px;top:600px;display:flex;align-items:stretch;gap:0;}
+  .fstep{flex:1;border:1px solid rgba(255,255,255,0.12);border-radius:20px;background:linear-gradient(150deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));padding:26px 24px;display:flex;flex-direction:column;min-height:236px;}
+  .fstep.mid{border-color:rgba(255,107,53,0.5);background:linear-gradient(150deg,rgba(255,107,53,0.15),rgba(255,107,53,0.03));box-shadow:0 0 44px rgba(255,107,53,0.16);}
+  .fstep .fn{color:#FF6B35;font-size:19px;font-weight:700;letter-spacing:0.16em;}
+  .fstep .ft{color:#fff;font-size:29px;font-weight:700;letter-spacing:-0.02em;margin-top:14px;word-break:keep-all;line-height:1.2;}
+  .fstep .fd{color:rgba(255,255,255,0.66);font-size:20px;font-weight:300;margin-top:12px;line-height:1.45;word-break:keep-all;}
+  .fstep .fd b{color:#FF8A5C;font-weight:600;}
+  .farrow{flex:0 0 40px;display:flex;align-items:center;justify-content:center;color:rgba(255,107,53,0.7);font-size:34px;}
+  .farrow .d{animation:flow 1.7s ease-in-out infinite;}
+  #s0-foot{position:absolute;left:130px;top:910px;color:rgba(255,255,255,0.5);font-size:23px;font-weight:300;letter-spacing:-0.005em;}
 
-  /* ===== 슬라이드 3 · 지식그래프 ===== */
-  #s2-sub{position:absolute;left:120px;top:280px;color:rgba(255,255,255,0.6);font-size:26px;font-weight:300;}
-  #graph-wrap{position:absolute;left:80px;top:350px;width:900px;height:600px;}
-  #graph-svg{width:100%;height:100%;}
-  #graph-center-lbl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;}
-  #graph-center-lbl .n{color:#FFFFFF;font-size:74px;font-weight:800;letter-spacing:-0.03em;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 24px rgba(0,0,0,0.7);}
-  #graph-center-lbl .n .u{font-size:30px;color:rgba(255,255,255,0.7);font-weight:600;margin-left:4px;}
-  #graph-center-lbl .r{color:#FF6B35;font-size:36px;font-weight:700;margin-top:8px;font-variant-numeric:tabular-nums;}
-  #graph-center-lbl .r .u{font-size:22px;color:rgba(255,255,255,0.6);font-weight:500;}
-  #graph-verify{position:absolute;left:90px;top:968px;color:rgba(255,255,255,0.5);font-size:18px;font-weight:300;letter-spacing:-0.005em;}
-  #s2-side{position:absolute;right:110px;top:332px;width:760px;}
-  .nodebox{border:1px solid rgba(255,255,255,0.14);border-radius:18px;background:linear-gradient(150deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012));padding:20px 26px;margin-bottom:16px;}
-  .nodebox .tt{color:#FF6B35;font-size:22px;font-weight:700;letter-spacing:0.02em;margin-bottom:14px;}
-  /* 데이터 종류 칩 그룹 */
-  .dgroup{margin-bottom:12px;}
-  .dgroup:last-child{margin-bottom:0;}
-  .dgl{color:rgba(255,255,255,0.5);font-size:16px;font-weight:600;margin-bottom:7px;letter-spacing:0.02em;}
-  .dchips{display:flex;flex-wrap:wrap;gap:7px;}
-  .dchips span{border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.05);border-radius:11px;padding:7px 12px;color:rgba(255,255,255,0.88);font-size:17px;font-weight:500;white-space:nowrap;}
-  .jobs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
-  .job{border:1px solid rgba(255,107,53,0.4);background:rgba(255,107,53,0.1);border-radius:14px;padding:10px 6px;color:#FFCBB0;font-size:19px;font-weight:600;text-align:center;white-space:nowrap;}
+  /* ===== 슬라이드 2 ===== */
+  #rows{position:absolute;left:130px;right:130px;top:368px;display:flex;flex-direction:column;gap:22px;}
+  .trow{display:flex;align-items:center;gap:30px;border:1px solid rgba(255,255,255,0.12);border-radius:20px;background:linear-gradient(150deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));padding:26px 42px;}
+  .trow .ti{flex:0 0 78px;height:78px;border-radius:18px;background:rgba(255,107,53,0.16);border:1px solid rgba(255,107,53,0.45);display:flex;align-items:center;justify-content:center;font-size:38px;}
+  .trow .th{color:#fff;font-size:33px;font-weight:700;letter-spacing:-0.02em;}
+  .trow .td{color:rgba(255,255,255,0.68);font-size:25px;font-weight:300;margin-top:7px;line-height:1.4;word-break:keep-all;}
+  .trow .td b{color:#FF8A5C;font-weight:600;}
+  #future{position:absolute;left:130px;right:130px;top:880px;display:flex;align-items:center;gap:24px;padding:30px 44px;border-radius:22px;border:1px solid rgba(255,107,53,0.32);background:linear-gradient(135deg,rgba(255,107,53,0.12),rgba(255,107,53,0.03));}
+  #future .ft{flex:none;color:#FF6B35;font-size:24px;font-weight:800;letter-spacing:0.06em;padding-right:26px;border-right:1px solid rgba(255,107,53,0.32);}
+  #future .fx{color:rgba(255,255,255,0.86);font-size:28px;font-weight:400;letter-spacing:-0.01em;word-break:keep-all;}
+  #future .fx b{color:#fff;font-weight:700;}
 
-  /* ===== 슬라이드 4 · 신뢰 ===== */
-  #s3-sub{position:absolute;left:120px;top:280px;width:1100px;color:rgba(255,255,255,0.6);font-size:26px;font-weight:300;word-break:keep-all;}
-  #trustgrid{position:absolute;left:120px;right:120px;top:400px;display:grid;grid-template-columns:1fr 1fr;gap:28px;}
-  .tcard{border:1px solid rgba(255,255,255,0.14);border-radius:22px;background:linear-gradient(150deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));padding:36px 40px;min-height:248px;display:flex;gap:26px;align-items:flex-start;}
-  .tcard.key{border-color:rgba(255,107,53,0.45);background:linear-gradient(150deg,rgba(255,107,53,0.13),rgba(255,107,53,0.03));}
-  .tcard .ti{flex:0 0 76px;height:76px;border-radius:18px;background:rgba(255,107,53,0.16);border:1px solid rgba(255,107,53,0.45);display:flex;align-items:center;justify-content:center;font-size:38px;}
-  .tcard .th{color:#fff;font-size:32px;font-weight:700;letter-spacing:-0.02em;word-break:keep-all;}
-  .tcard .td{color:rgba(255,255,255,0.68);font-size:23px;font-weight:300;line-height:1.55;margin-top:14px;word-break:keep-all;}
-  .tcard .td b{color:#FF8A5C;font-weight:600;}
-
-  /* ===== 진행 표시 ===== */
-  #dots{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);display:flex;gap:14px;z-index:50;}
-  .dot{width:11px;height:11px;border-radius:50%;background:rgba(255,255,255,0.25);transition:all 0.4s ease;}
-  .dot.on{background:#FF6B35;width:34px;border-radius:6px;}
-  #pagelbl{position:absolute;right:40px;bottom:30px;color:rgba(255,255,255,0.4);font-size:18px;letter-spacing:0.1em;z-index:50;}
+  /* 진행 표시 */
+  #dots{position:absolute;left:50%;bottom:36px;transform:translateX(-50%);display:flex;gap:16px;z-index:50;}
+  .dot{width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.25);transition:all 0.4s ease;}
+  .dot.on{background:#FF6B35;width:38px;border-radius:6px;}
+  #pagelbl{position:absolute;right:44px;bottom:32px;color:rgba(255,255,255,0.4);font-size:19px;letter-spacing:0.1em;z-index:50;}
 
   @keyframes ringSpin{to{transform:translate(-50%,-50%) rotate(360deg);}}
-  @keyframes orbitCW{from{transform:rotate(0);}to{transform:rotate(360deg);}}
-  @keyframes orbitCCW{from{transform:rotate(0);}to{transform:rotate(-360deg);}}
-  @keyframes breathe{0%,100%{box-shadow:0 0 90px rgba(255,107,53,0.5), inset 0 0 40px rgba(255,255,255,0.18);}50%{box-shadow:0 0 130px rgba(255,107,53,0.72), inset 0 0 46px rgba(255,255,255,0.24);}}
-  @keyframes flow{0%,100%{opacity:0.35;transform:translateX(-6px);}50%{opacity:1;transform:translateX(6px);}}
+  @keyframes breathe{0%,100%{box-shadow:0 0 100px rgba(255,107,53,0.55), inset 0 0 44px rgba(255,255,255,0.18);}50%{box-shadow:0 0 140px rgba(255,107,53,0.78), inset 0 0 50px rgba(255,255,255,0.24);}}
+  @keyframes flow{0%,100%{opacity:0.35;transform:translateX(-7px);}50%{opacity:1;transform:translateX(7px);}}
 </style>
 </head>
 <body>
 <div id="stage"><div id="wrap" class="s0">
 
-  <!-- ============ S1 · 표지 ============ -->
+  <!-- ============ 1장 · 정체성 + 작동 ============ -->
   <section class="slide" id="slide0">
     <div class="chap rise">SEA:GNAL · 대화형 해양안전 AI</div>
     <div class="head rise d1">AI 비서 <span class="em">'나리'</span></div>
     <div class="acc rise d2"></div>
-    <div id="s0-tagline" class="rise d3">묻는 말에 답하는 것을 넘어, <b>스스로 판단하고 챙기는</b> 해양안전 비서</div>
+    <div id="s0-sub" class="rise d2">제미나이 2.5를 두뇌로, <b>스스로 판단하는</b> 자율 해양안전 비서</div>
 
-    <div id="s0-stats">
-      <div class="s0stat rise d4"><div class="v">16<span class="u">개</span></div><div class="r"><div class="l">자율 호출 해양 데이터 도구</div><div class="s">질문에 맞는 도구를 스스로 골라 호출</div></div></div>
-      <div class="s0stat rise d5"><div class="v" style="font-size:58px;">다출처</div><div class="r"><div class="l">가져오는 해양 실데이터</div><div class="s">특보·예보·부이·조석·유향·수심·CCTV·태풍 등</div></div></div>
-      <div class="s0stat rise d6"><div class="v">직종<span class="u"> 맞춤</span></div><div class="r"><div class="l">사용자 직종 인식 응답</div><div class="s">직종·관심 해역을 기억해 우선 안내</div></div></div>
-    </div>
-
-    <div class="core rise d3">
+    <div class="core rise d2">
       <div class="core-ring r2"></div>
       <div class="core-ring"></div>
-      <div class="orbit">
-        <div class="sat t"><div class="chip"><span class="ic">◆</span>16개 해양 데이터 도구</div></div>
-        <div class="sat r"><div class="chip"><span class="ic">◆</span>스스로 선택·호출</div></div>
-        <div class="sat b"><div class="chip"><span class="ic">◆</span>사람의 언어로 안내</div></div>
-        <div class="sat l"><div class="chip"><span class="ic">◆</span>직군 맞춤 응답</div></div>
-      </div>
       <div class="core-orb"><div class="nm">나리</div><div class="role">Gemini 2.5 기반</div></div>
     </div>
+
+    <div id="flow">
+      <div class="fstep rise d3">
+        <div class="fn">STEP 1</div>
+        <div class="ft">질문</div>
+        <div class="fd">음성·텍스트로 묻기 <b>(직종·위치 맥락 인식)</b></div>
+      </div>
+      <div class="farrow rise d3"><span class="d">▶</span></div>
+      <div class="fstep mid rise d4">
+        <div class="fn">STEP 2</div>
+        <div class="ft">두뇌 · Gemini 2.5</div>
+        <div class="fd">질문을 분석해 <b>실행계획</b>을 스스로 수립</div>
+      </div>
+      <div class="farrow rise d4"><span class="d">▶</span></div>
+      <div class="fstep rise d5">
+        <div class="fn">STEP 3</div>
+        <div class="ft">도구 자율 호출</div>
+        <div class="fd">해양 데이터 도구 <b>16개</b> 중 필요한 것만 실행</div>
+      </div>
+      <div class="farrow rise d5"><span class="d">▶</span></div>
+      <div class="fstep rise d6">
+        <div class="fn">STEP 4</div>
+        <div class="ft">맞춤 답변</div>
+        <div class="fd"><b>직종 맞춤</b> 안내 + <b>앱 화면 바로가기</b></div>
+      </div>
+    </div>
+    <div id="s0-foot" class="rise d6">특보·예보·부이·조석·유향·수심·해무CCTV·태풍 등 공공 실데이터를 직접 연동</div>
   </section>
 
-  <!-- ============ S2 · 작동 원리 ============ -->
+  <!-- ============ 2장 · 믿음 + 앞으로 ============ -->
   <section class="slide" id="slide1">
-    <div class="chap rise">작동 원리 · 자율 에이전트</div>
-    <div class="head rise d1">묻기만 하세요. <span class="em">도구는 AI가 고릅니다.</span></div>
-    <div class="acc rise d2"></div>
-    <div id="s1-sub" class="rise d2">정해진 시나리오를 따르는 챗봇이 아니라, 질문에서 실행계획을 세워 도구를 스스로 호출합니다.</div>
-
-    <div class="pipe">
-      <div class="stepc rise d3">
-        <div class="no">1</div>
-        <div class="st">입력</div>
-        <div class="sd">음성·텍스트 질문에 <b>직군·위치</b> 맥락을 함께 인식</div>
-      </div>
-      <div class="arrow rise d3"><span class="dot">▶</span></div>
-      <div class="stepc brain rise d4">
-        <div class="no">2</div>
-        <div class="st">두뇌 · Gemini 2.5</div>
-        <div class="sd">질문을 분석해 <b>실행계획(plan)</b>을 수립하고, 어떤 도구가 필요한지 스스로 판단</div>
-      </div>
-      <div class="arrow rise d4"><span class="dot">▶</span></div>
-      <div class="stepc rise d5">
-        <div class="no">3</div>
-        <div class="st">자율 호출</div>
-        <div class="sd">해양 데이터 도구 <b>16개</b> 중 <b>필요한 것만</b> 골라 호출</div>
-      </div>
-      <div class="arrow rise d5"><span class="dot">▶</span></div>
-      <div class="stepc rise d6">
-        <div class="no">4</div>
-        <div class="st">합성</div>
-        <div class="sd"><b>직군 맞춤 답변</b> + 관련 <b>앱 화면 바로가기</b>까지 함께 제시</div>
-      </div>
-    </div>
-
-    <div id="s1-foot">
-      <div class="fchip rise d6"><b>멀티턴 대화</b> · 직전 맥락(해역·부이·좌표) 이어가기</div>
-      <div class="fchip rise d7"><b>직종 맞춤</b> · 사용자 직종을 인식해 우선 안내</div>
-      <div class="fchip rise d8"><b>환각 방지</b> · 가져온 실데이터만 사용</div>
-    </div>
-  </section>
-
-  <!-- ============ S3 · 통합 실데이터 ============ -->
-  <section class="slide" id="slide2">
-    <div class="chap rise">판단의 근거 · 통합 실데이터</div>
-    <div class="head rise d1">흩어진 공공 데이터를, <span class="em">한 곳으로</span></div>
-    <div class="acc rise d2"></div>
-    <div id="s2-sub" class="rise d2">여러 공공기관의 해양 데이터를 직접 수집·통합해, 나리가 실데이터로 답합니다.</div>
-
-    <div id="graph-wrap" class="rise d3">
-      <svg id="graph-svg" viewBox="0 0 900 600" preserveAspectRatio="xMidYMid meet"></svg>
-      <div id="graph-center-lbl">
-        <div class="n"><span id="gnodes">0</span><span class="u">개 도구</span></div>
-        <div class="r" style="font-size:25px;color:rgba(255,255,255,0.62);">다출처 실데이터 연동</div>
-      </div>
-    </div>
-    <div id="graph-verify" class="rise d6">※ 기상청·국립해양조사원·방재기상플랫폼 등 여러 공공기관의 실데이터를 직접 수집·연동(코드 확인 기준)</div>
-
-    <div id="s2-side">
-      <div class="nodebox rise d4">
-        <div class="tt">가져오는 실데이터 (16개 도구)</div>
-        <div class="dgroup">
-          <div class="dgl">예보 · 특보</div>
-          <div class="dchips"><span>해상특보</span><span>해상예보</span><span>해구별 시계열</span><span>중기예보</span><span>태풍 통보문</span></div>
-        </div>
-        <div class="dgroup">
-          <div class="dgl">관측</div>
-          <div class="dchips"><span>기상부이</span><span>파고부이</span><span>시정(가시거리)</span><span>조석·물때</span><span>유향·유속</span><span>수심</span><span>해무 CCTV</span></div>
-        </div>
-        <div class="dgroup">
-          <div class="dgl">생활 · 위치</div>
-          <div class="dchips"><span>낚시지수</span><span>서핑지수</span><span>바다갈라짐</span><span>위치기반(GPS)</span></div>
-        </div>
-      </div>
-      <div class="nodebox rise d5">
-        <div class="tt">직종 맞춤 응답</div>
-        <div style="color:rgba(255,255,255,0.72);font-size:19px;margin:-4px 0 14px;">사용자 직종을 인식해 우선 안내 (예시 직종)</div>
-        <div class="jobs">
-          <span class="job">어업인</span><span class="job">낚시</span><span class="job">레저</span><span class="job">해양경찰</span>
-          <span class="job">해군</span><span class="job">해양수산부</span><span class="job">지방자치단체</span><span class="job">공공기관</span>
-        </div>
-      </div>
-      <div class="nodebox rise d6">
-        <div class="tt" style="color:rgba(255,255,255,0.78);">향후 고도화 계획</div>
-        <div style="color:rgba(255,255,255,0.72);font-size:21px;line-height:1.55;word-break:keep-all;">
-          해역·부이·물때·직종·용어를 잇는 <b style="color:#FF8A5C;">지식그래프</b>와 <b style="color:#FF8A5C;">검색 정밀화·위치 기반 선제 알림</b>을 더해, 묻기 전에 먼저 알려주는 <b style="color:#FF8A5C;">능동형 해양안전 AI</b>로 키워갈 계획입니다.
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ S4 · 신뢰 ============ -->
-  <section class="slide" id="slide3">
-    <div class="chap rise">믿고 쓰는 AI · 신뢰 설계</div>
+    <div class="chap rise">믿고 쓰는 AI · 그리고 앞으로</div>
     <div class="head rise d1">내 정보는 지키고, <span class="em">답은 정직하게</span></div>
     <div class="acc rise d2"></div>
-    <div id="s3-sub" class="rise d2">개인정보는 단말에 묶어두고, 검증된 공공 실데이터만으로 답하도록 설계했습니다.</div>
 
-    <div id="trustgrid">
-      <div class="tcard key rise d3">
+    <div id="rows">
+      <div class="trow rise d3">
         <div class="ti">🔒</div>
         <div>
-          <div class="th">위치는 쓰고, 남기지 않습니다</div>
-          <div class="td">'내 근처·가까운' 질문을 할 때만 위치를 <b>일시적으로</b> 사용해 가까운 부이·해역을 찾고, <b>서버에 저장하지 않습니다</b>. 그 외에는 위치를 보내지 않습니다.</div>
+          <div class="th">개인정보는 단말에</div>
+          <div class="td">대화·프로필은 <b>휴대폰에만 저장</b>. 위치는 '내 근처' 질문을 할 때만 <b>일시적으로</b> 쓰고 저장하지 않습니다.</div>
         </div>
       </div>
-      <div class="tcard rise d4">
-        <div class="ti">🧠</div>
+      <div class="trow rise d4">
+        <div class="ti">✅</div>
         <div>
-          <div class="th">대화 기억도 단말에만</div>
-          <div class="td">프로필·관심사·대화 기억을 <b>휴대폰 안에만</b> 저장(온디바이스). 개인정보를 지키면서 <b>쓸수록 사용자에게 맞춰집니다</b>.</div>
+          <div class="th">실데이터로만 답</div>
+          <div class="td">가져온 <b>실측·공공 데이터</b>에만 근거해 답하고, 없으면 <b>모른다고</b> 솔직히 말합니다.</div>
         </div>
       </div>
-      <div class="tcard rise d5">
-        <div class="ti">⏱️</div>
-        <div>
-          <div class="th">발표 즉시 수집, 최신으로</div>
-          <div class="td">특보·예보·관측값을 <b>발표 시점에 맞춰</b> 즉시 수집·갱신해, 나리는 늘 <b>최신 데이터</b>로 답합니다.</div>
-        </div>
-      </div>
-      <div class="tcard rise d6">
+      <div class="trow rise d5">
         <div class="ti">📡</div>
         <div>
           <div class="th">공식 공공 데이터 기반</div>
-          <div class="td"><b>기상청·국립해양조사원</b> 등 공식 출처의 실데이터만 사용해, 추측이 아닌 <b>근거 있는 안내</b>를 제공합니다.</div>
+          <div class="td"><b>기상청·국립해양조사원</b> 등 검증된 공식 출처의 데이터만 사용합니다.</div>
+        </div>
+      </div>
+      <div class="trow rise d6">
+        <div class="ti">🔄</div>
+        <div>
+          <div class="th">발표주기에 맞춰 최신화</div>
+          <div class="td">특보·예보·관측값을 <b>발표 시점에 맞춰</b> 즉시 수집·갱신해, 늘 <b>최신 데이터</b>로 답합니다.</div>
         </div>
       </div>
     </div>
   </section>
 
-  <div id="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
-  <div id="pagelbl">1 / 4</div>
+  <div id="dots"><div class="dot"></div><div class="dot"></div></div>
+  <div id="pagelbl">1 / 2</div>
 
 </div></div>
 
 <script>
   const wrap = document.getElementById('wrap');
-  const slides = [0,1,2,3].map(i => document.getElementById('slide'+i));
+  const slides = [0,1].map(i => document.getElementById('slide'+i));
   const dots = Array.from(document.querySelectorAll('#dots .dot'));
   const pagelbl = document.getElementById('pagelbl');
-  const total = 4;
+  const total = 2;
   let state = 0;
-  let graphBuilt = false, gNumRun = false;
 
   function setState(n){
     state = Math.max(0, Math.min(total-1, n));
-    wrap.classList.remove('s0','s1','s2','s3');
+    wrap.classList.remove('s0','s1');
     wrap.classList.add('s'+state);
     slides.forEach((el,i)=> el.classList.toggle('on', i===state));
     dots.forEach((d,i)=> d.classList.toggle('on', i===state));
     pagelbl.textContent = (state+1)+' / '+total;
-    if(state===2){ if(!graphBuilt){ buildGraph(); graphBuilt=true; } if(!gNumRun){ gNumRun=true; countUp('gnodes',16,900); } }
   }
-
-  function countUp(id, target, dur){
-    const el = document.getElementById(id);
-    const t0 = performance.now();
-    function tick(now){
-      const k = Math.min(1,(now-t0)/dur);
-      const eased = 1-Math.pow(1-k,2.6);
-      el.textContent = Math.round(target*eased).toLocaleString();
-      if(k<1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-  }
-
-  function buildGraph(){
-    const svg = document.getElementById('graph-svg');
-    const W=900,H=600,cx=W/2,cy=H/2;
-    const NS='http://www.w3.org/2000/svg';
-    const cats = [
-      {c:'#FF6B35', n:7, r:[150,205]},
-      {c:'#FF9866', n:14, r:[200,262]},
-      {c:'#7FB0FF', n:16, r:[150,250]},
-      {c:'rgba(255,255,255,0.55)', n:24, r:[165,285]}
-    ];
-    const nodes=[];
-    cats.forEach(cat=>{
-      for(let i=0;i<cat.n;i++){
-        const a=Math.random()*Math.PI*2;
-        const rr=cat.r[0]+Math.random()*(cat.r[1]-cat.r[0]);
-        const x=cx+Math.cos(a)*rr, y=cy+Math.sin(a)*rr*0.82;
-        nodes.push({x,y,c:cat.c,s:2+Math.random()*4});
-      }
-    });
-    const frag=document.createDocumentFragment();
-    for(let i=0;i<nodes.length;i++){
-      let best=[];
-      for(let j=0;j<nodes.length;j++){ if(i===j)continue; const d=Math.hypot(nodes[i].x-nodes[j].x,nodes[i].y-nodes[j].y); best.push([d,j]); }
-      best.sort((a,b)=>a[0]-b[0]);
-      const k=1+(Math.random()<0.5?1:0);
-      for(let m=0;m<k;m++){
-        const j=best[m][1];
-        const ln=document.createElementNS(NS,'line');
-        ln.setAttribute('x1',nodes[i].x.toFixed(1)); ln.setAttribute('y1',nodes[i].y.toFixed(1));
-        ln.setAttribute('x2',nodes[j].x.toFixed(1)); ln.setAttribute('y2',nodes[j].y.toFixed(1));
-        ln.setAttribute('stroke','rgba(255,255,255,0.10)'); ln.setAttribute('stroke-width','1');
-        frag.appendChild(ln);
-      }
-    }
-    const defs=document.createElementNS(NS,'defs');
-    defs.innerHTML='<radialGradient id="gctr"><stop offset="0%" stop-color="rgba(255,107,53,0.45)"/><stop offset="60%" stop-color="rgba(255,107,53,0.10)"/><stop offset="100%" stop-color="rgba(255,107,53,0)"/></radialGradient>';
-    svg.appendChild(defs);
-    const glow=document.createElementNS(NS,'circle');
-    glow.setAttribute('cx',cx); glow.setAttribute('cy',cy); glow.setAttribute('r','120'); glow.setAttribute('fill','url(#gctr)');
-    svg.appendChild(glow);
-    svg.appendChild(frag);
-    nodes.forEach((nd,idx)=>{
-      const c=document.createElementNS(NS,'circle');
-      c.setAttribute('cx',nd.x.toFixed(1)); c.setAttribute('cy',nd.y.toFixed(1));
-      c.setAttribute('r','0'); c.setAttribute('fill',nd.c);
-      if(nd.c==='#FF6B35'){ c.setAttribute('filter','drop-shadow(0 0 6px rgba(255,107,53,0.8))'); }
-      svg.appendChild(c);
-      setTimeout(()=>{ c.style.transition='r 0.5s cubic-bezier(0.34,1.5,0.5,1)'; c.setAttribute('r',nd.s.toFixed(1)); }, 200+idx*12);
-    });
-  }
-
   setState(0);
 
   wrap.addEventListener('click', (e)=>{
     const rect = wrap.getBoundingClientRect();
     const left = (e.clientX - rect.left) < rect.width/2;
-    if(left){ if(state>0) setState(state-1); }
-    else { if(state<total-1) setState(state+1); }
+    if(left){ if(state>0) setState(state-1); } else { if(state<total-1) setState(state+1); }
   });
   document.addEventListener('keydown', e=>{
     if(e.key===' '||e.key==='ArrowRight'||e.key==='Enter'){ if(state<total-1) setState(state+1); e.preventDefault(); }
