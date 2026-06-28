@@ -22,17 +22,18 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 .fbox.res .fstep{background:rgba(255,107,53,.12);border-color:rgba(255,107,53,.3);color:#FF6B35;}
 .ftt{color:#15243a;font-size:27px;font-weight:800;letter-spacing:-.02em;margin:4px 0 14px;line-height:1.25;}
 .ftt .o{color:#FF6B35;}
-.fdesc{color:#5b6b80;font-size:20px;font-weight:500;line-height:1.55;letter-spacing:-.01em;}
+.fdesc{color:#5b6b80;font-size:22px;font-weight:500;line-height:1.55;letter-spacing:-.01em;}
 .fdesc b{color:#15243a;font-weight:700;}
 .fdesc .o{color:#FF6B35;font-weight:700;}
+.ftags{display:flex;flex-wrap:wrap;gap:9px;margin-top:auto;padding-top:18px;align-self:stretch;}
+.ftag{background:#f1f5fa;border:1px solid #e3e9f1;border-radius:14px;padding:7px 13px;color:#5b6b80;font-size:16.5px;font-weight:600;letter-spacing:-.01em;}
+.fbox.res .ftag{background:rgba(255,107,53,.08);border-color:rgba(255,107,53,.28);color:#C9430E;}
 .conn{flex:0 0 50px;display:flex;align-items:center;justify-content:center;color:#FF6B35;font-size:42px;font-weight:800;}
 
-/* ── 중앙: 아래로 좁아지는 깔때기(넓은 화살표) ── */
-.funnel{margin:14px 0 16px;}
-.fbody{height:90px;background:linear-gradient(180deg,rgba(255,107,53,.16),rgba(255,107,53,.34));clip-path:polygon(0 0,100% 0,66% 100%,34% 100%);display:flex;align-items:center;justify-content:center;}
-.fbody span{color:#15243a;font-size:27px;font-weight:800;letter-spacing:-.02em;}
-.fbody span b{color:#C9430E;}
-.ftip{width:0;height:0;margin:-1px auto 0;border-left:30px solid transparent;border-right:30px solid transparent;border-top:24px solid rgba(255,107,53,.34);}
+/* ── 중앙: 아래로 향하는 곡선 화살표 (부드러운 스웨이) ── */
+.funnel{position:relative;width:100%;height:138px;margin:8px 0 12px;}
+.funnel svg{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.funnel .ftext{position:absolute;left:0;right:0;top:24px;text-align:center;color:#fff;font-size:28px;font-weight:800;letter-spacing:-.02em;text-shadow:0 2px 9px rgba(160,50,10,.4);}
 
 /* ── 하단: 넓은 박스(주요 기능) ── */
 .wide{padding:28px 34px 32px;}
@@ -55,6 +56,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
      <div class="fhead"><div class="ficon">📡</div><span class="fstep">모으기</span></div>
      <div class="ftt">공공 해양정보 <span class="o">API 통합</span></div>
      <div class="fdesc">기상청·국립해양조사원 등<br>다출처 공공 <b>실데이터</b>를 직접 수집</div>
+     <div class="ftags"><span class="ftag">특보·예보</span><span class="ftag">조석·유향속</span><span class="ftag">기상부이</span><span class="ftag">수심·CCTV</span></div>
    </div>
 
    <div class="conn">＋</div>
@@ -62,7 +64,8 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
    <div class="cardbox fbox">
      <div class="fhead"><div class="ficon">🤖</div><span class="fstep">가공하기</span></div>
      <div class="ftt">AI <span class="o">+</span> 자체 개발 로직</div>
-     <div class="fdesc"><b>자율 에이전트 '나리'</b>가 <b>16개</b> 도구를 스스로 호출 · <b>위치 판정</b> 등 자체 로직</div>
+     <div class="fdesc"><b>자율 에이전트 '나리'</b>가<br><b>16개</b> 해양 데이터 도구를 스스로 호출</div>
+     <div class="ftags"><span class="ftag">의도·해역 추출</span><span class="ftag">최단 대피침로</span><span class="ftag">결정론적 처리</span></div>
    </div>
 
    <div class="conn">▶</div>
@@ -70,14 +73,18 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
    <div class="cardbox fbox res">
      <div class="fhead"><div class="ficon">🛟</div><span class="fstep">결과물</span></div>
      <div class="ftt">통합 해양안전 서비스</div>
-     <div class="fdesc">한 화면에서 <b>보고</b> · AI에게 <b>묻고</b> · 위험을 <b>먼저 받는다</b></div>
+     <div class="fdesc">한 앱에서 <b>보고 · 묻고 · 먼저 받는</b><br>통합 해양안전 플랫폼</div>
+     <div class="ftags"><span class="ftag">보고(시각화)</span><span class="ftag">묻고(나리)</span><span class="ftag">먼저 받기(선제 알림)</span></div>
    </div>
  </div>
 
- <!-- 중앙: 깔때기(넓은 화살표) -->
+ <!-- 중앙: 아래로 향하는 곡선 화살표 -->
  <div class="funnel">
-   <div class="fbody"><span>이 모든 것을 <b>하나의 앱</b>으로</span></div>
-   <div class="ftip"></div>
+   <svg viewBox="0 0 1000 200" preserveAspectRatio="none">
+     <defs><linearGradient id="fgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF9A6A"/><stop offset="1" stop-color="#FF6B35"/></linearGradient></defs>
+     <path d="M36,14 L964,14 C700,40 588,104 500,194 C412,104 300,40 36,14 Z" fill="url(#fgrad)"/>
+   </svg>
+   <div class="ftext">이 모든 것을 <b>하나의 앱</b>으로</div>
  </div>
 
  <!-- 하단: 넓은 박스(주요 기능) -->

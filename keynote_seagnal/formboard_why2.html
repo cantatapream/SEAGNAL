@@ -14,16 +14,20 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 .ctt .o{color:#FF6B35;}
 .top{display:flex;gap:28px;align-items:stretch;margin-bottom:28px;}
 
-/* 박스1: 3행 가로 before→after — 행을 세로로 고르게 채워 하단 여백 제거 */
-.minfo{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;margin-top:18px;}
-.mrow{display:flex;align-items:center;gap:16px;padding:14px 2px;border-bottom:1px solid #eef2f7;}
+/* 박스1: 3행 — 기존(좌상) → 현재(우하) 엇갈림 배치로 여백 활용 */
+.minfo{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;margin-top:12px;}
+.mrow{display:flex;flex-direction:column;gap:8px;padding:15px 4px;border-bottom:1px solid #eef2f7;}
 .mrow:last-child{border-bottom:none;}
-.mlbl{flex:0 0 156px;text-align:center;background:#f1f5fa;border:1px solid #e0e8f1;border-radius:22px;padding:11px 0;color:#34465c;font-size:21px;font-weight:700;white-space:nowrap;}
-.mvals{flex:1;display:flex;align-items:baseline;justify-content:center;gap:14px;}
-.mbefore{color:#5b6b80;font-size:29px;font-weight:800;letter-spacing:-.03em;white-space:nowrap;}
-.marr{color:#FF6B35;font-size:24px;font-weight:800;}
-.mafter{color:#FF6B35;font-size:36px;font-weight:800;letter-spacing:-.035em;white-space:nowrap;}
-.myr{font-size:15px;font-weight:700;color:#9aa8bb;margin-left:3px;}
+.mtop{display:flex;align-items:center;gap:14px;}
+.mlbl{flex:0 0 150px;text-align:center;background:#f1f5fa;border:1px solid #e0e8f1;border-radius:22px;padding:10px 0;color:#34465c;font-size:20px;font-weight:700;white-space:nowrap;}
+.mbefore{color:#8a98ab;font-size:26px;font-weight:700;letter-spacing:-.02em;white-space:nowrap;}
+.mbefore .tag{color:#aab6c6;font-size:16px;font-weight:600;margin-right:7px;}
+.mbefore .myr{font-size:14px;font-weight:600;color:#aab6c6;margin-left:3px;}
+.mbot{display:flex;align-items:baseline;justify-content:flex-end;gap:10px;padding-right:16px;}
+.marr{color:#FF6B35;font-size:26px;font-weight:800;}
+.mafter{color:#FF6B35;font-size:44px;font-weight:800;letter-spacing:-.04em;white-space:nowrap;}
+.mafter .tag{color:#FF8A50;font-size:18px;font-weight:700;margin-right:8px;letter-spacing:-.01em;}
+.mafter .myr{font-size:17px;font-weight:700;color:#FF8A50;margin-left:4px;}
 
 /* 박스2: 방사형 — 컨테이너=SVG=노드 좌표계 모두 460x430 고정(정렬 보장) */
 .radial{position:relative;width:460px;height:430px;margin:10px auto 0;}
@@ -53,16 +57,16 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
      <div class="ctt">해양 활동 인구는 <span class="o">매년 증가</span></div>
      <div class="minfo">
        <div class="mrow">
-         <span class="mlbl">낚시 인구</span>
-         <span class="mvals"><span class="mbefore">850만<span class="myr">’18</span></span><span class="marr">→</span><span class="mafter">1,000만<span class="myr">’24</span></span></span>
+         <div class="mtop"><span class="mlbl">낚시 인구</span><span class="mbefore"><span class="tag">기존</span>850만<span class="myr">’18</span></span></div>
+         <div class="mbot"><span class="marr">→</span><span class="mafter"><span class="tag">현재</span>1,000만<span class="myr">’24</span></span></div>
        </div>
        <div class="mrow">
-         <span class="mlbl">수상레저 면허</span>
-         <span class="mvals"><span class="mbefore">11.1만<span class="myr">’11</span></span><span class="marr">→</span><span class="mafter">28.7만<span class="myr">’21</span></span></span>
+         <div class="mtop"><span class="mlbl">수상레저 면허</span><span class="mbefore"><span class="tag">기존</span>11.1만<span class="myr">’11</span></span></div>
+         <div class="mbot"><span class="marr">→</span><span class="mafter"><span class="tag">현재</span>28.7만<span class="myr">’21</span></span></div>
        </div>
        <div class="mrow">
-         <span class="mlbl">해수욕장 이용객</span>
-         <span class="mvals"><span class="mbefore">3,800만<span class="myr">’23</span></span><span class="marr">→</span><span class="mafter">4,110만<span class="myr">’24</span></span></span>
+         <div class="mtop"><span class="mlbl">해수욕장 이용객</span><span class="mbefore"><span class="tag">기존</span>3,800만<span class="myr">’23</span></span></div>
+         <div class="mbot"><span class="marr">→</span><span class="mafter"><span class="tag">현재</span>4,110만<span class="myr">’24</span></span></div>
        </div>
      </div>
    </div>
