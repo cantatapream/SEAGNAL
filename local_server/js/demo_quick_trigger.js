@@ -22,7 +22,7 @@
  * [C] 해양종합정보 '태풍' 버튼(#ocean-typhoon-toggle-btn) — 무장 시 1회 자동 표출
  *   [A]-2단계로 무장된 뒤, 사용자가 직접 해양종합정보에서 '태풍'을 클릭하면:
  *     - window.OceanTyphoon.demoFocus 로 제6호 '장미' 강제 표출
- *     - 통보문 06-16호 선택(#tphn-bulletin) + 해역표출 강제(디버그) ON(#tphn-dbg-korea)
+ *     - 통보문 제6-12호 선택(#tphn-bulletin) + 해역표출 강제(디버그) ON(#tphn-dbg-korea)
  *   무장은 1회성이며 메모리 기반(앱 재시작 시 자동 초기화 — 별도 영속 없음).
  *
  * [B] "해역별 기상현황" 헤더(#marine-status-accordion-header) — 단계 진행식(1회성)
@@ -63,7 +63,7 @@
     var _marineStage = 0;      // [기상현황 헤더] 0=위치기반(1단계), 1=AI 시연 열기(2단계), 2+=동작 없음(1회성)
     var _nariyaArmed = false;  // 트리거로 연 AI 시연이 닫힐 때 나리야를 자동 ON 할지
     var _typhoonDemoArmed = false;            // 태풍 푸시(특보현황 2단계) 후 '태풍' 클릭 시 1회 자동 표출 무장
-    var TPHN_DEMO = { year: 2026, seq: '6', bno: '16' };  // 제6호 장미 · 통보문 6-16호
+    var TPHN_DEMO = { year: 2026, seq: '6', bno: '12' };  // 제6호 장미 · 통보문 제6-12호
 
     function _adminMode() {
         try { return localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { return false; }
@@ -220,7 +220,7 @@
             _activate();              // 1단계: 특보 시연 활성화
         } else if (_stage === 1) {
             _stage = 2;
-            _typhoonDemoArmed = true;  // 이후 해양종합정보 '태풍' 클릭 시 장미·통보문 06-16 자동 표출
+            _typhoonDemoArmed = true;  // 이후 해양종합정보 '태풍' 클릭 시 장미·통보문 제6-12호 자동 표출
             _sendTyphoonTests();      // 2단계: 태풍 발생/소멸 테스트 푸시
         }
         // _stage >= 2 → 동작 없음 (추후 추가 예정)
@@ -284,8 +284,9 @@
 
     /**
      * [태풍 시연] 무장 상태에서 해양종합정보 '태풍' 클릭 시 1회 실행:
-     *   제6호 장미 강제 표출(demoFocus) → 통보문 06-16호 선택 → 해역표출 강제(디버그) ON.
-     * demoFocus 가 실데이터를 비동기 로드하므로, 통보문 드롭다운이 채워질 때까지 폴링.
+     *   제6호 장미 강제 표출(demoFocus) → 통보문 제6-12호 선택 → 해역표출 강제(디버그) ON.
+     * demoFocus 가 실데이터를 비동기 로드(목록이 2단계로 채워질 수 있음)하므로,
+     * 디버그는 즉시 켜고 통보문은 "제6-12호" 옵션이 나타날 때까지 폴링해서 선택한다.
      */
     function _runTyphoonDemo() {
         try {
@@ -296,26 +297,29 @@
         } catch (e) { /* 시연 실패는 조용히 무시 */ }
     }
 
-    /** 통보문 드롭다운에서 6-16호를 골라 선택 + 디버그 체크. 드롭다운 채워질 때까지 ~4초 폴링. */
+    /** 통보문 라벨("제6-12호")이 드롭다운에 나타날 때까지 ~6초 폴링 후 선택 + 디버그 ON. */
     function _selectBulletinAndDebug(tries) {
+        // 디버그(해역표출 강제)는 체크박스가 보이면 통보문 매칭과 무관하게 즉시 켠다.
+        var dbg = document.getElementById('tphn-dbg-korea');
+        if (dbg && !dbg.checked) { dbg.checked = true; dbg.dispatchEvent(new Event('change')); }
+
         var bSel = document.getElementById('tphn-bulletin');
-        if (bSel && bSel.options && bSel.options.length) {
-            // 통보문 code 형식: 1_<tmFc>_<seq>_<bno> → 3·4번째 필드로 6-16 매칭
-            var target = null;
+        var needle = '제' + TPHN_DEMO.seq + '-' + TPHN_DEMO.bno + '호';   // "제6-12호" (라벨 매칭 — code 형식 무관)
+        var target = null;
+        if (bSel && bSel.options) {
             for (var i = 0; i < bSel.options.length; i++) {
-                var p = String(bSel.options[i].value || '').split('_');
-                if (p[2] === TPHN_DEMO.seq && p[3] === TPHN_DEMO.bno) { target = bSel.options[i].value; break; }
+                if (String(bSel.options[i].textContent || '').indexOf(needle) >= 0) { target = bSel.options[i].value; break; }
             }
-            if (target && bSel.value !== target) {
+        }
+        if (target) {
+            if (bSel.value !== target) {
                 bSel.value = target;
                 bSel.dispatchEvent(new Event('change'));  // → selectBulletin 실행
             }
-            // 해역표출 강제(디버그) 체크박스 ON
-            var dbg = document.getElementById('tphn-dbg-korea');
-            if (dbg && !dbg.checked) { dbg.checked = true; dbg.dispatchEvent(new Event('change')); }
             return;
         }
-        if (tries < 25) setTimeout(function () { _selectBulletinAndDebug(tries + 1); }, 150);
+        // 아직 목록에 없으면(로딩 중) 계속 폴링 — 첫 채움에서 멈추지 않는다.
+        if (tries < 40) setTimeout(function () { _selectBulletinAndDebug(tries + 1); }, 150);
     }
 
     /**
@@ -358,7 +362,7 @@
             ));
         }
         // [C] 해양종합정보 '태풍' 버튼 — 특보현황 2단계(태풍 푸시) 후 무장되면,
-        //     클릭 시 1회 한정으로 장미·통보문 06-16 + 디버그 자동 표출. (무장 안 됐으면 무동작)
+        //     클릭 시 1회 한정으로 장미·통보문 제6-12호 + 디버그 자동 표출. (무장 안 됐으면 무동작)
         var tphnBtn = document.getElementById('ocean-typhoon-toggle-btn');
         if (tphnBtn) {
             tphnBtn.addEventListener('click', function () {
