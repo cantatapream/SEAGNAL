@@ -11,106 +11,171 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 .sub b{color:#FF6B35;font-weight:700;}
 .cardbox{background:#fff;border-radius:24px;box-shadow:0 10px 30px rgba(30,50,80,.08);border:1px solid #d8e2ee;}
 
-/* ── 3열 그리드 ── */
-.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;align-items:stretch;}
-.col{display:flex;flex-direction:column;padding:24px 22px 26px;}
+/* ── 세로 3섹션 스택 ── */
+.sec{display:flex;align-items:stretch;gap:34px;padding:30px 34px 32px;margin-bottom:26px;}
+.sec:last-of-type{margin-bottom:0;}
 
 /* 제목 칩 */
-.chip{display:inline-flex;align-items:center;gap:10px;align-self:flex-start;background:rgba(255,107,53,.12);border:1px solid rgba(255,107,53,.28);border-radius:22px;padding:9px 18px 9px 12px;margin-bottom:18px;}
-.chip .cn{flex:0 0 30px;width:30px;height:30px;border-radius:50%;background:#FF6B35;color:#fff;font-size:18px;font-weight:800;display:flex;align-items:center;justify-content:center;}
-.chip .ct{color:#15243a;font-size:21px;font-weight:800;letter-spacing:-.02em;white-space:nowrap;}
+.chip{display:inline-flex;align-items:center;gap:11px;align-self:flex-start;background:rgba(255,107,53,.12);border:1px solid rgba(255,107,53,.28);border-radius:24px;padding:9px 20px 9px 12px;margin-bottom:8px;}
+.chip .cn{flex:0 0 32px;width:32px;height:32px;border-radius:50%;background:#FF6B35;color:#fff;font-size:19px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+.chip .ct{color:#15243a;font-size:22px;font-weight:800;letter-spacing:-.02em;white-space:nowrap;}
+.chip .cs{color:#7c8aa0;font-size:15px;font-weight:600;letter-spacing:-.01em;margin-left:2px;white-space:nowrap;}
 
-/* 폰 이미지 + 마커 오버레이 */
-.phone{position:relative;width:300px;margin:0 auto 22px;border-radius:26px;overflow:hidden;border:6px solid #1f2b3d;box-shadow:0 12px 30px rgba(30,50,80,.22);background:#1f2b3d;}
-.phone img{display:block;width:100%;}
-.mk{position:absolute;width:32px;height:32px;border-radius:50%;background:#FF6B35;color:#fff;font-size:18px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 9px rgba(0,0,0,.4);border:2px solid #fff;transform:translate(-50%,-50%);}
+/* 왼쪽: 폰 프레임(플레이스홀더) */
+.left{flex:0 0 330px;display:flex;flex-direction:column;}
+.phone{position:relative;width:330px;border-radius:30px;border:9px solid #1b2536;background:#1b2536;box-shadow:0 14px 34px rgba(20,30,55,.28);overflow:hidden;}
+/* 플레이스홀더 화면 (다크) */
+.scr{position:relative;width:100%;background:linear-gradient(165deg,#26344b,#1a2436);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:26px 22px;}
+.scr .ico{font-size:40px;margin-bottom:12px;opacity:.92;}
+.scr .lb{color:#cdd8e8;font-size:18px;font-weight:800;letter-spacing:-.01em;line-height:1.35;}
+.scr .sb{color:#7d8ba3;font-size:14px;font-weight:600;margin-top:9px;letter-spacing:-.01em;}
+.scr .dash{margin-top:16px;border:1.5px dashed #46587a;border-radius:14px;padding:7px 16px;color:#8fa0bd;font-size:13px;font-weight:700;background:rgba(13,19,30,.45);}
+.scr .core{background:rgba(13,19,30,.42);border-radius:18px;padding:22px 20px;backdrop-filter:blur(1px);}
+/* 번호 마커 오버레이 */
+.mk{position:absolute;width:30px;height:30px;border-radius:50%;background:#FF6B35;color:#fff;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 9px rgba(0,0,0,.45);border:2px solid #fff;transform:translate(-50%,-50%);z-index:2;}
 
-/* 레전드 */
-.leg{display:flex;flex-direction:column;gap:13px;margin-top:2px;}
-.li{display:flex;align-items:flex-start;gap:12px;}
-.li .n{flex:0 0 26px;width:26px;height:26px;border-radius:50%;background:#FF6B35;color:#fff;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:2px;}
-.li .tx .tt{color:#15243a;font-size:18.5px;font-weight:800;letter-spacing:-.015em;}
-.li .tx .ds{color:#5b6b80;font-size:16px;font-weight:500;line-height:1.4;letter-spacing:-.01em;margin-top:2px;}
+/* 오른쪽: 번호 레전드 */
+.right{flex:1;display:flex;flex-direction:column;justify-content:center;}
+.desc{color:#5b6b80;font-size:17px;font-weight:500;line-height:1.5;letter-spacing:-.01em;margin:2px 0 16px;}
+.desc b{color:#15243a;font-weight:700;}
+.leg{display:flex;flex-direction:column;gap:11px;}
+.li{display:flex;align-items:flex-start;gap:13px;}
+.li .n{flex:0 0 28px;width:28px;height:28px;border-radius:50%;background:#FF6B35;color:#fff;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+.li .tx{display:flex;align-items:baseline;flex-wrap:wrap;gap:9px;}
+.li .tx .tt{color:#15243a;font-size:19px;font-weight:800;letter-spacing:-.015em;}
+.li .tx .ds{color:#5b6b80;font-size:16.5px;font-weight:500;letter-spacing:-.01em;}
+
+/* ③ 13종 그리드 레전드 */
+.gleg{display:grid;grid-template-columns:repeat(3,1fr);gap:11px 18px;}
+.gli{display:flex;align-items:center;gap:10px;}
+.gli .n{flex:0 0 26px;width:26px;height:26px;border-radius:50%;background:#FF6B35;color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+.gli .gt{color:#15243a;font-size:17px;font-weight:700;letter-spacing:-.015em;}
+.gli .gd{color:#7c8aa0;font-size:13.5px;font-weight:500;margin-left:2px;}
+.sumbar{display:flex;align-items:center;gap:12px;margin-top:16px;background:rgba(255,107,53,.09);border:1px solid rgba(255,107,53,.28);border-radius:16px;padding:13px 18px;}
+.sumbar .se{font-size:24px;}
+.sumbar .st{color:#C9430E;font-size:18.5px;font-weight:800;letter-spacing:-.01em;}
+.sumbar .st b{color:#FF6B35;}
+
 .foot{color:#93a2b5;font-size:16px;line-height:1.5;margin-top:24px;}
 </style></head><body>
 <div id="card">
  <div class="h"><span class="no">03</span><span class="t">어떻게 보이나</span></div>
- <div class="sub">특보·해점·지도, 세 화면에서 <b>한눈에 보고</b> 바로 행동할 수 있게 — 번호로 짚어보는 <b>실제 화면</b></div>
+ <div class="sub">앱 화면 그대로 — <b>한 화면에서 보고 · 확인</b>합니다</div>
 
- <div class="cols">
-
-   <!-- ① 특보정보 -->
-   <div class="cardbox col">
-     <div class="chip"><span class="cn">1</span><span class="ct">특보정보</span></div>
+ <!-- ① 특보정보 -->
+ <div class="cardbox sec">
+   <div class="left">
+     <div class="chip"><span class="cn">1</span><span class="ct">특보정보</span><span class="cs">특보구역 상세 + 실제 푸시</span></div>
+     <!-- 실제 이미지로 교체: <img src="screens/how_1.jpg" style="display:block;width:100%;border-radius:21px;"> -->
      <div class="phone">
-       <img src="../local_server/assets/screenshots_upload/08_warn_information.jpg" alt="특보정보">
-       <span class="mk" style="left:24%;top:11%;">1</span>
-       <span class="mk" style="left:74%;top:18%;">2</span>
-       <span class="mk" style="left:30%;top:31%;">3</span>
-       <span class="mk" style="left:72%;top:40%;">4</span>
-       <span class="mk" style="left:26%;top:54%;">5</span>
-       <span class="mk" style="left:50%;top:69%;">6</span>
-       <span class="mk" style="left:75%;top:86%;">7</span>
-     </div>
-     <div class="leg">
-       <div class="li"><span class="n">1</span><div class="tx"><div class="tt">특보구역 선택</div><div class="ds">해역별 특보를 한눈에</div></div></div>
-       <div class="li"><span class="n">2</span><div class="tx"><div class="tt">특보 종류</div><div class="ds">풍랑 주의보·예비 등 즉시 표시</div></div></div>
-       <div class="li"><span class="n">3</span><div class="tx"><div class="tt">기상 요약</div><div class="ds">평균 유의파고·평균 풍속</div></div></div>
-       <div class="li"><span class="n">4</span><div class="tx"><div class="tt">시각 정보</div><div class="ds">발표·발효·해제예정 시각</div></div></div>
-       <div class="li"><span class="n">5</span><div class="tx"><div class="tt">관측부이</div><div class="ds">인근 부이 바로 조회</div></div></div>
-       <div class="li"><span class="n">6</span><div class="tx"><div class="tt">빠른 이동</div><div class="ds">기상예보·해구기상·윈디·종합정보</div></div></div>
-       <div class="li"><span class="n">7</span><div class="tx"><div class="tt">푸시 알림 내역</div><div class="ds">발효·격상·해제 변경을 즉시 통지</div></div></div>
+       <div class="scr" style="height:560px;">
+         <div class="core">
+           <div class="ico">🚨</div>
+           <div class="lb">① 특보정보 화면<br>실제 캡처 삽입 예정</div>
+           <div class="sb">특보구역 상세 + 푸시 알림</div>
+           <div class="dash">screens/how_1.jpg</div>
+         </div>
+       </div>
+       <span class="mk" style="left:16%;top:10%;">1</span>
+       <span class="mk" style="left:82%;top:16%;">2</span>
+       <span class="mk" style="left:14%;top:34%;">3</span>
+       <span class="mk" style="left:84%;top:44%;">4</span>
+       <span class="mk" style="left:14%;top:62%;">5</span>
+       <span class="mk" style="left:84%;top:72%;">6</span>
+       <span class="mk" style="left:16%;top:90%;">7</span>
      </div>
    </div>
-
-   <!-- ② 임의 해점 종합 -->
-   <div class="cardbox col">
-     <div class="chip"><span class="cn">2</span><span class="ct">임의 해점 종합</span></div>
-     <div class="phone">
-       <img src="../local_server/assets/screenshots_upload/06_tide_astronomical_data.jpg" alt="임의 해점 종합정보">
-       <span class="mk" style="left:28%;top:10%;">1</span>
-       <span class="mk" style="left:72%;top:22%;">2</span>
-       <span class="mk" style="left:26%;top:35%;">3</span>
-       <span class="mk" style="left:70%;top:48%;">4</span>
-       <span class="mk" style="left:30%;top:62%;">5</span>
-       <span class="mk" style="left:68%;top:76%;">6</span>
-       <span class="mk" style="left:40%;top:88%;">7</span>
-     </div>
+   <div class="right">
+     <div class="desc">특보구역에 대한 정보(<b>시각·기상·소속 부이·기상예보</b> 등)를 제공하고, 화면 하단의 알림 문구는 <b>실제 특보 발표 시 휴대폰에 수신되는 푸시 알림</b> 그대로입니다.</div>
      <div class="leg">
-       <div class="li"><span class="n">1</span><div class="tx"><div class="tt">위치·일시</div><div class="ds">양·음력, 슬라이더로 시간 이동</div></div></div>
-       <div class="li"><span class="n">2</span><div class="tx"><div class="tt">조석</div><div class="ds">물때(예: 6물)·고조·저조·예상조위</div></div></div>
-       <div class="li"><span class="n">3</span><div class="tx"><div class="tt">천기</div><div class="ds">날씨·강수확률·기온</div></div></div>
-       <div class="li"><span class="n">4</span><div class="tx"><div class="tt">파고 / 풍향·풍속</div><div class="ds">해상 위험도의 기본 지표</div></div></div>
-       <div class="li"><span class="n">5</span><div class="tx"><div class="tt">유향·유속 / 수온</div><div class="ds">조류와 수온을 함께</div></div></div>
-       <div class="li"><span class="n">6</span><div class="tx"><div class="tt">수심 / 시정</div><div class="ds">해당 지점 깊이와 시야</div></div></div>
-       <div class="li"><span class="n">7</span><div class="tx"><div class="tt">천문(일출몰) / 월상</div><div class="ds">해 뜨고 지는 시각·달 위상</div></div></div>
+       <div class="li"><span class="n">1</span><div class="tx"><span class="tt">특보구역 선택</span><span class="ds">해역별 특보를 한눈에</span></div></div>
+       <div class="li"><span class="n">2</span><div class="tx"><span class="tt">특보 종류</span><span class="ds">풍랑 주의보·예비 등 즉시 표시</span></div></div>
+       <div class="li"><span class="n">3</span><div class="tx"><span class="tt">기상 요약</span><span class="ds">평균 유의파고·평균 풍속</span></div></div>
+       <div class="li"><span class="n">4</span><div class="tx"><span class="tt">시각 정보</span><span class="ds">발표·발효·해제예정 시각</span></div></div>
+       <div class="li"><span class="n">5</span><div class="tx"><span class="tt">소속 관측부이</span><span class="ds">인근 부이 바로 조회</span></div></div>
+       <div class="li"><span class="n">6</span><div class="tx"><span class="tt">빠른 이동</span><span class="ds">기상예보·해구기상·종합정보 등</span></div></div>
+       <div class="li"><span class="n">7</span><div class="tx"><span class="tt">실제 푸시 알림</span><span class="ds">특보 발표 시 휴대폰에 수신되는 알림 문구 그대로</span></div></div>
      </div>
    </div>
-
-   <!-- ③ 해양종합정보 지도 -->
-   <div class="cardbox col">
-     <div class="chip"><span class="cn">3</span><span class="ct">해양종합정보 지도</span></div>
-     <div class="phone">
-       <img src="../local_server/assets/screenshots_upload/04_marine_zone_data_10.jpg" alt="해양종합정보 지도">
-       <span class="mk" style="left:32%;top:14%;">1</span>
-       <span class="mk" style="left:70%;top:24%;">2</span>
-       <span class="mk" style="left:28%;top:40%;">3</span>
-       <span class="mk" style="left:74%;top:53%;">4</span>
-       <span class="mk" style="left:30%;top:68%;">5</span>
-       <span class="mk" style="left:66%;top:84%;">6</span>
-     </div>
-     <div class="leg">
-       <div class="li"><span class="n">1</span><div class="tx"><div class="tt">파고 색상맵</div><div class="ds">전 해역 파고를 색으로 (0~5.5m)</div></div></div>
-       <div class="li"><span class="n">2</span><div class="tx"><div class="tt">특보구역 작도</div><div class="ds">VPASS와 동일 구역</div></div></div>
-       <div class="li"><span class="n">3</span><div class="tx"><div class="tt">기상부이 마커</div><div class="ds">눌러서 실측 조회</div></div></div>
-       <div class="li"><span class="n">4</span><div class="tx"><div class="tt">레이어 토글</div><div class="ds">유향유속·풍향·파향·물빠짐·CCTV</div></div></div>
-       <div class="li"><span class="n">5</span><div class="tx"><div class="tt">특보 ON</div><div class="ds">특보 있는 구역만 표시</div></div></div>
-       <div class="li"><span class="n">6</span><div class="tx"><div class="tt">시간 슬라이더</div><div class="ds">예측기상 시계열</div></div></div>
-     </div>
-   </div>
-
  </div>
 
- <div class="foot">※ 스크린샷은 대표 예시(플레이스홀더) — 최종 화면 캡처로 교체 예정. 본 안은 콘텐츠 시안, 최종 디자인은 인공지능전환팀.</div>
+ <!-- ② 해양종합정보 지도 -->
+ <div class="cardbox sec">
+   <div class="left">
+     <div class="chip"><span class="cn">2</span><span class="ct">해양종합정보 지도</span><span class="cs">시각화 표출</span></div>
+     <!-- 실제 이미지로 교체: <img src="screens/how_2.jpg" style="display:block;width:100%;border-radius:21px;"> -->
+     <div class="phone">
+       <div class="scr" style="height:560px;">
+         <div class="core">
+           <div class="ico">🗺️</div>
+           <div class="lb">② 해양종합정보 지도<br>실제 캡처 삽입 예정</div>
+           <div class="sb">풍·유·파고 시각화 + 특보구역</div>
+           <div class="dash">screens/how_2.jpg</div>
+         </div>
+       </div>
+       <span class="mk" style="left:16%;top:12%;">1</span>
+       <span class="mk" style="left:84%;top:22%;">2</span>
+       <span class="mk" style="left:14%;top:40%;">3</span>
+       <span class="mk" style="left:84%;top:52%;">4</span>
+       <span class="mk" style="left:14%;top:72%;">5</span>
+       <span class="mk" style="left:84%;top:88%;">6</span>
+     </div>
+   </div>
+   <div class="right">
+     <div class="desc"><b>풍향·속, 유향·속, 파고</b> 정보의 시각화 표출과 함께 <b>특보 발효 구역</b> 전시, <b>기상부이 위치</b>를 한 지도에 표출합니다.</div>
+     <div class="leg">
+       <div class="li"><span class="n">1</span><div class="tx"><span class="tt">파고 시각화</span><span class="ds">전 해역 파고를 색으로 (범례 0~5.5m)</span></div></div>
+       <div class="li"><span class="n">2</span><div class="tx"><span class="tt">풍향·풍속 시각화</span><span class="ds">바람 흐름 표출</span></div></div>
+       <div class="li"><span class="n">3</span><div class="tx"><span class="tt">유향·유속 시각화</span><span class="ds">해류 흐름 표출</span></div></div>
+       <div class="li"><span class="n">4</span><div class="tx"><span class="tt">특보구역 전시</span><span class="ds">특보 발효 구역 작도(VPASS와 동일)</span></div></div>
+       <div class="li"><span class="n">5</span><div class="tx"><span class="tt">기상부이 위치</span><span class="ds">부이 마커 표출·조회</span></div></div>
+       <div class="li"><span class="n">6</span><div class="tx"><span class="tt">시간 슬라이더</span><span class="ds">예측기상 시계열 이동</span></div></div>
+     </div>
+   </div>
+ </div>
+
+ <!-- ③ 임의 해점 종합정보 -->
+ <div class="cardbox sec">
+   <div class="left">
+     <div class="chip"><span class="cn">3</span><span class="ct">임의 해점 종합정보</span><span class="cs">통합 해양정보 13개</span></div>
+     <!-- 실제 이미지로 교체: <img src="screens/how_3.jpg" style="display:block;width:100%;border-radius:21px;"> -->
+     <div class="phone">
+       <div class="scr" style="height:560px;">
+         <div class="core">
+           <div class="ico">📍</div>
+           <div class="lb">③ 임의 해점 종합정보<br>실제 캡처 삽입 예정</div>
+           <div class="sb">한 화면에 통합 해양정보 13개</div>
+           <div class="dash">screens/how_3.jpg</div>
+         </div>
+       </div>
+       <span class="mk" style="left:16%;top:12%;">1</span>
+       <span class="mk" style="left:84%;top:22%;">2</span>
+       <span class="mk" style="left:14%;top:40%;">3</span>
+       <span class="mk" style="left:84%;top:52%;">4</span>
+       <span class="mk" style="left:14%;top:72%;">5</span>
+       <span class="mk" style="left:84%;top:88%;">6</span>
+     </div>
+   </div>
+   <div class="right">
+     <div class="desc">지도 상 <b>임의 해점을 클릭</b>하면, <b>통합 해양정보 13개</b>를 한 화면에 모아 제공합니다.</div>
+     <div class="gleg">
+       <div class="gli"><span class="n">1</span><span class="gt">위치·일시</span><span class="gd">양·음력·슬라이더</span></div>
+       <div class="gli"><span class="n">2</span><span class="gt">조석(물때)</span><span class="gd">고조·저조·조위</span></div>
+       <div class="gli"><span class="n">3</span><span class="gt">천기</span><span class="gd">날씨·강수·기온</span></div>
+       <div class="gli"><span class="n">4</span><span class="gt">파고</span></div>
+       <div class="gli"><span class="n">5</span><span class="gt">풍향·풍속</span></div>
+       <div class="gli"><span class="n">6</span><span class="gt">유향·유속</span></div>
+       <div class="gli"><span class="n">7</span><span class="gt">수온</span></div>
+       <div class="gli"><span class="n">8</span><span class="gt">수심</span></div>
+       <div class="gli"><span class="n">9</span><span class="gt">시정</span></div>
+       <div class="gli"><span class="n">10</span><span class="gt">천문(일출몰)</span></div>
+       <div class="gli"><span class="n">11</span><span class="gt">월상</span><span class="gd">월령·밝기</span></div>
+       <div class="gli"><span class="n">…</span><span class="gd" style="margin-left:0;">외 종합 표출</span></div>
+     </div>
+     <div class="sumbar"><span class="se">👆</span><span class="st"><b>한 번의 클릭</b>으로 13종 해양정보를 통합 제공</span></div>
+   </div>
+ </div>
+
+ <div class="foot">※ 폰 화면은 교체용 플레이스홀더 — 실제 캡처 삽입 예정.</div>
 </div>
 </body></html>
