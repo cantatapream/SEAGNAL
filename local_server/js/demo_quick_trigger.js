@@ -16,7 +16,14 @@
  *     ④ POST /api/admin/demo/typhoon-test {kind:'onset'}      (발생)
  *     ⑤ POST /api/admin/demo/typhoon-test {kind:'dissipation'} (소멸)
  *        → 둘 다 sendAdminPush 로 관리자 등록 기기에만 발송.
+ *        + 이후 해양종합정보 '태풍' 클릭 시 자동 표출을 "무장"(_typhoonDemoArmed).
  *   [3단계 이후] 동작 없음 (추후 기능 추가 예정)
+ *
+ * [C] 해양종합정보 '태풍' 버튼(#ocean-typhoon-toggle-btn) — 무장 시 1회 자동 표출
+ *   [A]-2단계로 무장된 뒤, 사용자가 직접 해양종합정보에서 '태풍'을 클릭하면:
+ *     - window.OceanTyphoon.demoFocus 로 제6호 '장미' 강제 표출
+ *     - 통보문 06-16호 선택(#tphn-bulletin) + 해역표출 강제(디버그) ON(#tphn-dbg-korea)
+ *   무장은 1회성이며 메모리 기반(앱 재시작 시 자동 초기화 — 별도 영속 없음).
  *
  * [B] "해역별 기상현황" 헤더(#marine-status-accordion-header) — 단계 진행식(1회성)
  *   [1단계] 첫 5연타 → 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만)
@@ -55,6 +62,8 @@
     var _stage = 0;            // [특보현황 헤더] 0=특보 시연(1단계), 1=태풍 발생/소멸(2단계), 2+=동작 없음
     var _marineStage = 0;      // [기상현황 헤더] 0=위치기반(1단계), 1=AI 시연 열기(2단계), 2+=동작 없음(1회성)
     var _nariyaArmed = false;  // 트리거로 연 AI 시연이 닫힐 때 나리야를 자동 ON 할지
+    var _typhoonDemoArmed = false;            // 태풍 푸시(특보현황 2단계) 후 '태풍' 클릭 시 1회 자동 표출 무장
+    var TPHN_DEMO = { year: 2026, seq: '6', bno: '16' };  // 제6호 장미 · 통보문 6-16호
 
     function _adminMode() {
         try { return localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { return false; }
@@ -211,6 +220,7 @@
             _activate();              // 1단계: 특보 시연 활성화
         } else if (_stage === 1) {
             _stage = 2;
+            _typhoonDemoArmed = true;  // 이후 해양종합정보 '태풍' 클릭 시 장미·통보문 06-16 자동 표출
             _sendTyphoonTests();      // 2단계: 태풍 발생/소멸 테스트 푸시
         }
         // _stage >= 2 → 동작 없음 (추후 추가 예정)
@@ -273,6 +283,42 @@
     }
 
     /**
+     * [태풍 시연] 무장 상태에서 해양종합정보 '태풍' 클릭 시 1회 실행:
+     *   제6호 장미 강제 표출(demoFocus) → 통보문 06-16호 선택 → 해역표출 강제(디버그) ON.
+     * demoFocus 가 실데이터를 비동기 로드하므로, 통보문 드롭다운이 채워질 때까지 폴링.
+     */
+    function _runTyphoonDemo() {
+        try {
+            var OT = window.OceanTyphoon;
+            if (!OT || typeof OT.demoFocus !== 'function') return;
+            OT.demoFocus({ year: TPHN_DEMO.year, seq: TPHN_DEMO.seq });  // 장미(6호) 강제 표출
+            _selectBulletinAndDebug(0);
+        } catch (e) { /* 시연 실패는 조용히 무시 */ }
+    }
+
+    /** 통보문 드롭다운에서 6-16호를 골라 선택 + 디버그 체크. 드롭다운 채워질 때까지 ~4초 폴링. */
+    function _selectBulletinAndDebug(tries) {
+        var bSel = document.getElementById('tphn-bulletin');
+        if (bSel && bSel.options && bSel.options.length) {
+            // 통보문 code 형식: 1_<tmFc>_<seq>_<bno> → 3·4번째 필드로 6-16 매칭
+            var target = null;
+            for (var i = 0; i < bSel.options.length; i++) {
+                var p = String(bSel.options[i].value || '').split('_');
+                if (p[2] === TPHN_DEMO.seq && p[3] === TPHN_DEMO.bno) { target = bSel.options[i].value; break; }
+            }
+            if (target && bSel.value !== target) {
+                bSel.value = target;
+                bSel.dispatchEvent(new Event('change'));  // → selectBulletin 실행
+            }
+            // 해역표출 강제(디버그) 체크박스 ON
+            var dbg = document.getElementById('tphn-dbg-korea');
+            if (dbg && !dbg.checked) { dbg.checked = true; dbg.dispatchEvent(new Event('change')); }
+            return;
+        }
+        if (tries < 25) setTimeout(function () { _selectBulletinAndDebug(tries + 1); }, 150);
+    }
+
+    /**
      * 5연타 카운터 생성기 — 헤더마다 독립된 카운트를 갖는다.
      * 5번째 클릭이 완성되면 관리자 등록 기기에서만 onComplete() 를 실행.
      * @param {Function} onComplete 5연타 완성 시 실행할 동작
@@ -310,6 +356,16 @@
                 _dispatchMarineHeader,
                 function () { return _marineStage >= 2; }  // 단계 소진 시 불필요한 호출 방지
             ));
+        }
+        // [C] 해양종합정보 '태풍' 버튼 — 특보현황 2단계(태풍 푸시) 후 무장되면,
+        //     클릭 시 1회 한정으로 장미·통보문 06-16 + 디버그 자동 표출. (무장 안 됐으면 무동작)
+        var tphnBtn = document.getElementById('ocean-typhoon-toggle-btn');
+        if (tphnBtn) {
+            tphnBtn.addEventListener('click', function () {
+                if (!_typhoonDemoArmed) return;
+                _typhoonDemoArmed = false;             // 1회성
+                setTimeout(_runTyphoonDemo, 350);      // 기존 토글/잠금해제 처리 후 실행
+            });
         }
     }
 
