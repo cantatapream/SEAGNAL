@@ -45,3 +45,4 @@ local_server/css/**/*.gz
 local_server/css/**/*.br
 local_server/tide_data/**/*.gz
 local_server/tide_data/**/*.br
+keynote_seagnal/*_embed.html
