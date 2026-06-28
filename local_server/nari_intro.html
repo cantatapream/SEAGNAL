@@ -87,15 +87,17 @@
   #graph-center-lbl .r{color:#FF6B35;font-size:36px;font-weight:700;margin-top:8px;font-variant-numeric:tabular-nums;}
   #graph-center-lbl .r .u{font-size:22px;color:rgba(255,255,255,0.6);font-weight:500;}
   #graph-verify{position:absolute;left:90px;top:968px;color:rgba(255,255,255,0.5);font-size:18px;font-weight:300;letter-spacing:-0.005em;}
-  #s2-side{position:absolute;right:110px;top:352px;width:760px;}
-  .nodebox{border:1px solid rgba(255,255,255,0.14);border-radius:18px;background:linear-gradient(150deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012));padding:22px 28px;margin-bottom:20px;}
-  .nodebox .tt{color:#FF6B35;font-size:22px;font-weight:700;letter-spacing:0.02em;margin-bottom:16px;}
-  .ngrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px 18px;}
-  .ng{display:flex;align-items:baseline;gap:8px;}
-  .ng .gv{color:#fff;font-size:30px;font-weight:800;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;}
-  .ng .gl{color:rgba(255,255,255,0.62);font-size:18px;font-weight:400;}
-  .jobs{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
-  .job{border:1px solid rgba(255,107,53,0.4);background:rgba(255,107,53,0.1);border-radius:14px;padding:11px 6px;color:#FFCBB0;font-size:20px;font-weight:600;text-align:center;white-space:nowrap;}
+  #s2-side{position:absolute;right:110px;top:332px;width:760px;}
+  .nodebox{border:1px solid rgba(255,255,255,0.14);border-radius:18px;background:linear-gradient(150deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012));padding:20px 26px;margin-bottom:16px;}
+  .nodebox .tt{color:#FF6B35;font-size:22px;font-weight:700;letter-spacing:0.02em;margin-bottom:14px;}
+  /* 데이터 종류 칩 그룹 */
+  .dgroup{margin-bottom:12px;}
+  .dgroup:last-child{margin-bottom:0;}
+  .dgl{color:rgba(255,255,255,0.5);font-size:16px;font-weight:600;margin-bottom:7px;letter-spacing:0.02em;}
+  .dchips{display:flex;flex-wrap:wrap;gap:7px;}
+  .dchips span{border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.05);border-radius:11px;padding:7px 12px;color:rgba(255,255,255,0.88);font-size:17px;font-weight:500;white-space:nowrap;}
+  .jobs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  .job{border:1px solid rgba(255,107,53,0.4);background:rgba(255,107,53,0.1);border-radius:14px;padding:10px 6px;color:#FFCBB0;font-size:19px;font-weight:600;text-align:center;white-space:nowrap;}
 
   /* ===== 슬라이드 4 · 신뢰 ===== */
   #s3-sub{position:absolute;left:120px;top:280px;width:1100px;color:rgba(255,255,255,0.6);font-size:26px;font-weight:300;word-break:keep-all;}
@@ -132,8 +134,8 @@
 
     <div id="s0-stats">
       <div class="s0stat rise d4"><div class="v">16<span class="u">개</span></div><div class="r"><div class="l">자율 호출 해양 데이터 도구</div><div class="s">질문에 맞는 도구를 스스로 골라 호출</div></div></div>
-      <div class="s0stat rise d5"><div class="v">283<span class="u">지점</span></div><div class="r"><div class="l">전국 부이·조위관측소 실측 연동</div><div class="s">기상부이 118 · 조위관측소 165</div></div></div>
-      <div class="s0stat rise d6"><div class="v">43<span class="u">구역</span></div><div class="r"><div class="l">해상 특보·예보 구역(해역)</div><div class="s">직종을 인식해 맞춤 안내</div></div></div>
+      <div class="s0stat rise d5"><div class="v" style="font-size:58px;">다출처</div><div class="r"><div class="l">가져오는 해양 실데이터</div><div class="s">특보·예보·부이·조석·유향·수심·CCTV·태풍 등</div></div></div>
+      <div class="s0stat rise d6"><div class="v">직종<span class="u"> 맞춤</span></div><div class="r"><div class="l">사용자 직종 인식 응답</div><div class="s">직종·관심 해역을 기억해 우선 안내</div></div></div>
     </div>
 
     <div class="core rise d3">
@@ -199,19 +201,26 @@
     <div id="graph-wrap" class="rise d3">
       <svg id="graph-svg" viewBox="0 0 900 600" preserveAspectRatio="xMidYMid meet"></svg>
       <div id="graph-center-lbl">
-        <div class="n"><span id="gnodes">0</span><span class="u">지점</span></div>
-        <div class="r"><span id="grels">0</span><span class="u">개 도구로 호출</span></div>
+        <div class="n"><span id="gnodes">0</span><span class="u">개 도구</span></div>
+        <div class="r" style="font-size:25px;color:rgba(255,255,255,0.62);">다출처 실데이터 연동</div>
       </div>
     </div>
-    <div id="graph-verify" class="rise d6">※ 기상부이 118 · 조위관측소 165 · 특보구역 43 등 실측·공공 데이터를 직접 연동(코드 확인 기준)</div>
+    <div id="graph-verify" class="rise d6">※ 기상청·국립해양조사원·방재기상플랫폼 등 여러 공공기관의 실데이터를 직접 수집·연동(코드 확인 기준)</div>
 
     <div id="s2-side">
       <div class="nodebox rise d4">
-        <div class="tt">연동된 실데이터</div>
-        <div class="ngrid">
-          <div class="ng"><span class="gv">118</span><span class="gl">기상부이</span></div>
-          <div class="ng"><span class="gv">165</span><span class="gl">조위관측소</span></div>
-          <div class="ng"><span class="gv">43</span><span class="gl">특보구역</span></div>
+        <div class="tt">가져오는 실데이터 (16개 도구)</div>
+        <div class="dgroup">
+          <div class="dgl">예보 · 특보</div>
+          <div class="dchips"><span>해상특보</span><span>해상예보</span><span>해구별 시계열</span><span>중기예보</span><span>태풍 통보문</span></div>
+        </div>
+        <div class="dgroup">
+          <div class="dgl">관측</div>
+          <div class="dchips"><span>기상부이</span><span>파고부이</span><span>시정(가시거리)</span><span>조석·물때</span><span>유향·유속</span><span>수심</span><span>해무 CCTV</span></div>
+        </div>
+        <div class="dgroup">
+          <div class="dgl">생활 · 위치</div>
+          <div class="dchips"><span>낚시지수</span><span>서핑지수</span><span>바다갈라짐</span><span>위치기반(GPS)</span></div>
         </div>
       </div>
       <div class="nodebox rise d5">
@@ -291,7 +300,7 @@
     slides.forEach((el,i)=> el.classList.toggle('on', i===state));
     dots.forEach((d,i)=> d.classList.toggle('on', i===state));
     pagelbl.textContent = (state+1)+' / '+total;
-    if(state===2){ if(!graphBuilt){ buildGraph(); graphBuilt=true; } if(!gNumRun){ gNumRun=true; countUp('gnodes',283,1100); countUp('grels',16,900); } }
+    if(state===2){ if(!graphBuilt){ buildGraph(); graphBuilt=true; } if(!gNumRun){ gNumRun=true; countUp('gnodes',16,900); } }
   }
 
   function countUp(id, target, dur){
