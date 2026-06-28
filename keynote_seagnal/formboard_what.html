@@ -26,6 +26,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 .fdesc b{color:#15243a;font-weight:700;}
 .fdesc .o{color:#FF6B35;font-weight:700;}
 .ftags{display:flex;flex-wrap:wrap;gap:9px;margin-top:auto;padding-top:18px;align-self:stretch;}
+.ftags.cen{justify-content:center;}
 .ftag{background:#f1f5fa;border:1px solid #e3e9f1;border-radius:14px;padding:7px 13px;color:#5b6b80;font-size:16.5px;font-weight:600;letter-spacing:-.01em;}
 .fbox.res .ftag{background:rgba(255,107,53,.08);border-color:rgba(255,107,53,.28);color:#C9430E;}
 .conn{flex:0 0 50px;display:flex;align-items:center;justify-content:center;color:#FF6B35;font-size:42px;font-weight:800;}
@@ -48,7 +49,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 </style></head><body>
 <div id="card">
  <div class="h"><span class="no">02</span><span class="t">무엇을 만들었나</span></div>
- <div class="sub">흩어진 공공 해양정보를 한곳에 모으고(<b>API 통합</b>), AI와 자체 로직으로 가공해, 누구나 쉽게 쓰는 <b>해양안전 플랫폼</b>으로 만들었습니다</div>
+ <div class="sub">흩어진 공공 해양정보를 한곳에 모으고(<b>API 통합</b>) AI와 자체 로직으로 가공해<br>누구나 쉽게 쓰는 <b>해양안전 플랫폼</b>으로 만들었습니다</div>
 
  <!-- 상단: [박스1] ＋ [박스2] ▶ [박스3] -->
  <div class="flow">
@@ -56,7 +57,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
      <div class="fhead"><div class="ficon">📡</div><span class="fstep">모으기</span></div>
      <div class="ftt">공공 해양정보 <span class="o">API 통합</span></div>
      <div class="fdesc">기상청·국립해양조사원 등<br>다출처 공공 <b>실데이터</b>를 직접 수집</div>
-     <div class="ftags"><span class="ftag">특보·예보</span><span class="ftag">조석·유향속</span><span class="ftag">기상부이</span><span class="ftag">수심·CCTV</span></div>
+     <div class="ftags"><span class="ftag">특보·예보</span><span class="ftag">파고·파향</span><span class="ftag">풍향·풍속</span><span class="ftag">조석·유향속</span><span class="ftag">기상부이</span><span class="ftag">수심·CCTV</span></div>
    </div>
 
    <div class="conn">＋</div>
@@ -64,8 +65,8 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
    <div class="cardbox fbox">
      <div class="fhead"><div class="ficon">🤖</div><span class="fstep">가공하기</span></div>
      <div class="ftt">AI <span class="o">+</span> 자체 개발 로직</div>
-     <div class="fdesc"><b>자율 에이전트 '나리'</b>가<br><b>16개</b> 해양 데이터 도구를 스스로 호출</div>
-     <div class="ftags"><span class="ftag">의도·해역 추출</span><span class="ftag">최단 대피침로</span><span class="ftag">결정론적 처리</span></div>
+     <div class="fdesc"><b>자율 에이전트 '나리'</b>가 <b>16개</b><br>해양 데이터 도구를 스스로 활용</div>
+     <div class="ftags cen"><span class="ftag">의도·해역 추출</span><span class="ftag">최단 대피침로</span><span class="ftag">결정론적 처리</span><span class="ftag">편의성을 위한 데이터 가공·합성</span></div>
    </div>
 
    <div class="conn">▶</div>
@@ -74,7 +75,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
      <div class="fhead"><div class="ficon">🛟</div><span class="fstep">결과물</span></div>
      <div class="ftt">통합 해양안전 서비스</div>
      <div class="fdesc">한 앱에서 <b>보고 · 묻고 · 먼저 받는</b><br>통합 해양안전 플랫폼</div>
-     <div class="ftags"><span class="ftag">보고(시각화)</span><span class="ftag">묻고(나리)</span><span class="ftag">먼저 받기(선제 알림)</span></div>
+     <div class="ftags cen"><span class="ftag">보고(시각화)</span><span class="ftag">묻고(나리)</span><span class="ftag">먼저 받기(선제 알림)</span></div>
    </div>
  </div>
 
@@ -82,7 +83,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
  <div class="funnel">
    <svg viewBox="0 0 1000 200" preserveAspectRatio="none">
      <defs><linearGradient id="fgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF9A6A"/><stop offset="1" stop-color="#FF6B35"/></linearGradient></defs>
-     <path d="M36,14 L964,14 C700,40 588,104 500,194 C412,104 300,40 36,14 Z" fill="url(#fgrad)"/>
+     <path d="M26,14 L974,14 C730,46 660,112 615,176 L385,176 C340,112 270,46 26,14 Z" fill="url(#fgrad)"/>
    </svg>
    <div class="ftext">이 모든 것을 <b>하나의 앱</b>으로</div>
  </div>
@@ -94,17 +95,17 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
      <div class="wtile">
        <div class="ic">🚨</div>
        <div class="tx"><div class="tt">실시간 특보 알림</div>
-         <div class="ds">발표·발효·격상·격하·해제 즉시 푸시 (1분 주기 감지)</div></div>
+         <div class="ds">발표·발효·격상·격하·해제 즉시 푸시<br>(1분 주기 감지)</div></div>
      </div>
      <div class="wtile">
        <div class="ic">🗺️</div>
        <div class="tx"><div class="tt">해양정보 시각화</div>
-         <div class="ds">유향속·파고파향·기상부이·해무CCTV를 한 지도에 레이어</div></div>
+         <div class="ds">유향속·파고파향·기상부이·해안가CCTV를 한 지도에 레이어</div></div>
      </div>
      <div class="wtile">
        <div class="ic">📍</div>
        <div class="tx"><div class="tt">위치기반 안전정보</div>
-         <div class="ds">태풍 내습 예상시간 + 최단 대피 침로 안내</div></div>
+         <div class="ds" style="letter-spacing:-.05em;white-space:nowrap;">태풍 내습 예상시간 + 최단 대피 침로 안내</div></div>
      </div>
      <div class="wtile">
        <div class="ic">🤖</div>
@@ -124,6 +125,5 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
    </div>
  </div>
 
- <div class="foot">※ 본 안은 콘텐츠 시안 · 최종 디자인은 인공지능전환팀. 기능은 실제 구현 기준.</div>
 </div>
 </body></html>
