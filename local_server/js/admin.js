@@ -707,6 +707,73 @@ window.switchDemoSubTab = function (which) {
 };
 
 // ============================================================================
+//  [시연] AI 비서 '나리' 소개 슬라이드 — 가로 전체화면 오버레이
+// ----------------------------------------------------------------------------
+//  AI 탭의 '시연' 버튼에서 호출. 백그라운드 발표자료(별도 브라우저)와 무관하게
+//  앱 안에서 nari_intro.html 을 가로(landscape) 전체화면 iframe 으로 띄운다.
+//  - 화면 방향: @capacitor/screen-orientation 으로 landscape 잠금(앱), 닫으면 portrait 복귀
+//  - 하드웨어 뒤로가기: PopupStack 등록으로 닫힘(앱 종료 방지)
+// ============================================================================
+window.openNariDemo = async function () {
+    // 중복 진입 방지
+    if (document.getElementById('nari-demo-overlay')) return;
+
+    // 1) 화면을 가로로 잠금 (앱 환경에서만 동작; 웹은 무시)
+    try {
+        const P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
+        if (P && P.ScreenOrientation && P.ScreenOrientation.lock) {
+            await P.ScreenOrientation.lock({ orientation: 'landscape' });
+        }
+    } catch (e) { /* 미지원 환경 무시 */ }
+
+    // 2) 전체화면 오버레이 + iframe
+    const ov = document.createElement('div');
+    ov.id = 'nari-demo-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#000;';
+    ov.innerHTML =
+        '<iframe src="/nari_intro.html?ts=' + Date.now() + '" ' +
+        'style="position:absolute;inset:0;width:100%;height:100%;border:none;background:#000;" ' +
+        'allow="fullscreen" allowfullscreen></iframe>' +
+        '<button onclick="window.closeNariDemo()" aria-label="닫기" ' +
+        'style="position:absolute;top:14px;right:14px;z-index:2;width:46px;height:46px;border-radius:50%;' +
+        'background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.35);font-size:1.2rem;cursor:pointer;' +
+        'display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);">' +
+        '<i class="fa-solid fa-xmark"></i></button>';
+    document.body.appendChild(ov);
+
+    // 3) 하드웨어 뒤로가기로 닫힘
+    if (window.PopupStack) {
+        try { window.PopupStack.push('nari-demo-overlay', window.closeNariDemo); } catch (e) {}
+    }
+
+    // 4) 시스템 바 숨김(웹 풀스크린 API; 앱은 orientation lock 으로 충분)
+    try {
+        const el = document.documentElement;
+        const fn = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (fn) { const p = fn.call(el); if (p && p.catch) p.catch(() => {}); }
+    } catch (e) {}
+};
+
+window.closeNariDemo = async function () {
+    const ov = document.getElementById('nari-demo-overlay');
+    if (ov) ov.remove();
+    if (window.PopupStack) {
+        try { window.PopupStack.remove('nari-demo-overlay'); } catch (e) {}
+    }
+    // 화면 방향 세로 복귀
+    try {
+        const P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
+        if (P && P.ScreenOrientation && P.ScreenOrientation.lock) {
+            await P.ScreenOrientation.lock({ orientation: 'portrait' });
+        }
+    } catch (e) {}
+    // 웹 풀스크린 해제
+    try {
+        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
+    } catch (e) {}
+};
+
+// ============================================================================
 // AI 탭 — Gemini 호출량 + AI 비서 테스트 호출 + 음성 권한 토글
 // ----------------------------------------------------------------------------
 //  보안: 이 탭은 관리자만 진입 가능. AI 도구는 공개/사용자 데이터 한정이며
@@ -759,7 +826,13 @@ window.switchAiSubTab = function (which) {
 // AI 비서 하위탭 — Gemini 호출량 + 권한 + 음성 토글(+현재 엔진) + 테스트 호출 + 대화 내역.
 async function renderAiAssistantSubtab(container) {
     container.innerHTML = `
-        <div class="admin-section-title"><i class="fa-solid fa-robot" style="color:#22d3ee;"></i> AI 비서</div>
+        <div class="admin-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <span><i class="fa-solid fa-robot" style="color:#22d3ee;"></i> AI 비서</span>
+            <button onclick="window.openNariDemo()" title="AI 비서 '나리' 소개 슬라이드를 가로 전체화면으로 띄웁니다"
+                    style="padding:7px 16px;background:linear-gradient(135deg,#FF6B35,#C9430E);color:#fff;border:none;border-radius:8px;font-weight:700;font-size:0.78rem;cursor:pointer;display:inline-flex;align-items:center;gap:7px;box-shadow:0 2px 10px rgba(255,107,53,.35);">
+                <i class="fa-solid fa-display"></i> 시연
+            </button>
+        </div>
 
         <div id="ai-usage-box" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
             <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-chart-simple"></i> 오늘 Gemini 호출량 (KST)</div>
