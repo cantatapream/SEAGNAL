@@ -72,34 +72,46 @@
         } catch (e) { /* noop */ }
     }
 
-    /** ① 테스트 모드 ON → ② 저장된 데모 슬롯 전부 표출 → ③ 본인 화면 즉시 반영 */
+    /**
+     * ① 저장된 데모 슬롯 조회(먼저) → ② 슬롯이 있을 때만 테스트 모드 ON
+     * → ③ 슬롯 전부 표출 → ④ 본인 화면 즉시 반영.
+     *
+     * [순서 주의] 테스트 모드를 먼저 켜면 실 특보가 숨겨지는데, 표출할 슬롯이
+     * 0건이면 "빈 화면"으로 남아 관리자 센터에서 수동으로 꺼야만 복구된다.
+     * 그래서 슬롯이 있는 것을 확인한 뒤에만 테스트 모드를 켠다.
+     */
     function _activate() {
         if (_busy) return;
         _busy = true;
-        // ① 테스트 모드 ON
-        fetch('/api/admin/demo/testmode', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled: true })
-        })
-            .then(function () { return fetch('/api/admin/demo/slots', { cache: 'no-cache' }); })
+        fetch('/api/admin/demo/slots', { cache: 'no-cache' })
             .then(function (r) { return r.ok ? r.json() : { slots: [] }; })
             .then(function (data) {
                 var slots = (data && data.slots) || [];
-                if (!slots.length) { _toast('저장된 데모 특보가 없습니다.'); return Promise.resolve(0); }
-                // ② 저장된 슬롯을 순차 표출 (각 표출이 관리자 기기에 푸시 발송)
-                return slots.reduce(function (p, slot) {
-                    return p.then(function () {
-                        return fetch('/api/admin/demo/emit', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ slotId: slot.id })
-                        }).then(function () { }).catch(function () { });
+                if (!slots.length) {
+                    _toast('저장된 데모 특보가 없습니다. (관리자 센터에서 먼저 등록하세요)');
+                    return;
+                }
+                // ② 테스트 모드 ON
+                return fetch('/api/admin/demo/testmode', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: true })
+                })
+                    // ③ 저장된 슬롯을 순차 표출 (각 표출이 관리자 기기에 푸시 발송)
+                    .then(function () {
+                        return slots.reduce(function (p, slot) {
+                            return p.then(function () {
+                                return fetch('/api/admin/demo/emit', {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ slotId: slot.id })
+                                }).then(function () { }).catch(function () { });
+                            });
+                        }, Promise.resolve());
+                    })
+                    // ④ 본인 화면 즉시 반영 (demo_alert.js 폴링을 기다리지 않음)
+                    .then(function () {
+                        if (typeof window.reapplyDemoAlerts === 'function') setTimeout(window.reapplyDemoAlerts, 300);
+                        _toast('특보 시연이 활성화되었습니다. (데모 특보 ' + slots.length + '건 표출)');
                     });
-                }, Promise.resolve()).then(function () { return slots.length; });
-            })
-            .then(function (n) {
-                // ③ 본인 화면 즉시 반영 (demo_alert.js 폴링을 기다리지 않음)
-                if (typeof window.reapplyDemoAlerts === 'function') setTimeout(window.reapplyDemoAlerts, 300);
-                if (n) _toast('특보 시연이 활성화되었습니다. (데모 특보 ' + n + '건 표출)');
             })
             .catch(function () { _toast('특보 시연 활성화에 실패했습니다.'); })
             .then(function () { _busy = false; });
