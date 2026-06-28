@@ -929,7 +929,7 @@
   var obSkip = $('obSkip');
   if (obSkip) obSkip.addEventListener('click', function (e) {
     e.preventDefault();
-    setProfile({}); // 빈 프로필로 저장(=온보딩 완료 표시) → 다음부터 안 물어봄
+    setProfile({ skipped: true }); // 명시적 건너뜀 표시 → 다시 묻지 않음(직종 없는 빈 프로필과 구분)
     finishOnboarding();
   });
 
@@ -1003,8 +1003,10 @@
     micBtn.style.opacity = '.5';
   }
 
-  // 프로필이 없으면 첫 실행 온보딩, 있으면 요약 표시
-  if (getProfile() === null) {
+  // 직종(occupation)이 없으면 온보딩으로 물어본다. 단, 사용자가 명시적으로 '건너뜀(skipped)'을
+  // 선택한 경우에는 다시 묻지 않는다. (과거의 빈 프로필 {} 은 직종도 skipped도 없으므로 다시 물어봄)
+  var _initProfile = getProfile();
+  if (!_initProfile || (!_initProfile.occupation && !_initProfile.skipped)) {
     startOnboarding();
   } else {
     renderProfile();
