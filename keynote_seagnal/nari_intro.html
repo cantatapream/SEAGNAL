@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<title>AI 비서 '나리' 소개</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#000;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;color:#fff;overflow:hidden;height:100%;-webkit-tap-highlight-color:transparent;user-select:none;}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;}
+  #wrap{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center;
+    background:radial-gradient(ellipse at 28% 38%, rgba(255,107,53,0.10) 0%, transparent 55%), #060708;overflow:hidden;}
+
+  /* 상단 헤더 */
+  .chap{position:absolute;left:120px;top:84px;color:#FF6B35;font-size:24px;letter-spacing:0.3em;font-weight:600;
+    opacity:0;animation:fadeUp 0.8s ease 0.1s forwards;}
+  .head{position:absolute;left:120px;top:138px;color:#fff;font-size:66px;font-weight:700;letter-spacing:-0.03em;line-height:1.15;
+    opacity:0;animation:fadeUp 0.85s ease 0.25s forwards;}
+  .head .em{color:#FF6B35;}
+  .acc{position:absolute;left:122px;top:252px;width:88px;height:6px;background:#FF6B35;border-radius:3px;transform:scaleX(0);transform-origin:left;
+    animation:growX 0.7s cubic-bezier(0.22,1,0.36,1) 0.55s forwards;box-shadow:0 0 22px rgba(255,107,53,0.55);}
+  .sub{position:absolute;left:120px;top:288px;color:rgba(255,255,255,0.62);font-size:27px;font-weight:300;letter-spacing:-0.01em;
+    opacity:0;animation:fadeUp 0.8s ease 0.7s forwards;}
+  .sub b{color:rgba(255,255,255,0.92);font-weight:600;}
+
+  /* 좌측 '나리' 코어 비주얼 */
+  .core{position:absolute;left:120px;top:430px;width:560px;height:540px;}
+  .core-ring{position:absolute;left:50%;top:300px;transform:translate(-50%,-50%);width:340px;height:340px;border-radius:50%;
+    border:1.5px solid rgba(255,107,53,0.25);
+    animation:spin 26s linear infinite;}
+  .core-ring.r2{width:440px;height:440px;border-style:dashed;border-color:rgba(255,107,53,0.16);animation-duration:38s;animation-direction:reverse;}
+  .core-orb{position:absolute;left:50%;top:300px;transform:translate(-50%,-50%);width:230px;height:230px;border-radius:50%;
+    background:radial-gradient(circle at 34% 30%, #FF9866 0%, #FF6B35 55%, #C9430E 100%);
+    box-shadow:0 0 80px rgba(255,107,53,0.5), inset 0 0 36px rgba(255,255,255,0.18);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    opacity:0;animation:pop 0.9s cubic-bezier(0.34,1.4,0.5,1) 0.5s forwards, breathe 4s ease-in-out 1.4s infinite;}
+  .core-orb .nm{font-size:78px;font-weight:800;letter-spacing:-0.02em;line-height:1;}
+  .core-orb .role{font-size:23px;font-weight:500;color:rgba(255,255,255,0.9);margin-top:10px;letter-spacing:0.02em;}
+  /* 위성 칩 */
+  .chip{position:absolute;padding:13px 22px;border-radius:30px;border:1px solid rgba(255,255,255,0.2);
+    background:rgba(255,255,255,0.05);font-size:23px;font-weight:500;color:rgba(255,255,255,0.92);white-space:nowrap;
+    backdrop-filter:blur(4px);opacity:0;transform:scale(0.8);}
+  .chip .ic{color:#FF6B35;margin-right:8px;font-weight:700;}
+  .chip.c1{left:-8px;top:54px;animation:popChip 0.6s cubic-bezier(0.34,1.4,0.5,1) 1.3s forwards;}
+  .chip.c2{right:-6px;top:118px;animation:popChip 0.6s cubic-bezier(0.34,1.4,0.5,1) 1.5s forwards;}
+  .chip.c3{left:-18px;top:470px;animation:popChip 0.6s cubic-bezier(0.34,1.4,0.5,1) 1.7s forwards;}
+  .chip.c4{right:-12px;top:430px;animation:popChip 0.6s cubic-bezier(0.34,1.4,0.5,1) 1.9s forwards;}
+
+  /* 우측 카드 4개 */
+  .cards{position:absolute;right:120px;top:430px;width:1020px;display:grid;grid-template-columns:1fr 1fr;gap:26px;}
+  .card{border:1px solid rgba(255,255,255,0.14);border-radius:20px;padding:34px 36px;min-height:200px;box-sizing:border-box;
+    background:linear-gradient(145deg, rgba(255,255,255,0.045), rgba(255,255,255,0.012));
+    opacity:0;transform:translateY(26px);}
+  .card.k1{animation:fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.95s forwards;}
+  .card.k2{animation:fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 1.15s forwards;}
+  .card.k3{animation:fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 1.35s forwards;}
+  .card.k4{animation:fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 1.55s forwards;}
+  .card .kn{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .card .kn .no{width:38px;height:38px;border-radius:11px;background:rgba(255,107,53,0.16);border:1px solid rgba(255,107,53,0.4);
+    color:#FF6B35;font-weight:700;font-size:21px;display:flex;align-items:center;justify-content:center;}
+  .card .kn .kt{color:#fff;font-size:30px;font-weight:700;letter-spacing:-0.02em;}
+  .card .kd{color:rgba(255,255,255,0.68);font-size:23px;font-weight:300;line-height:1.5;letter-spacing:-0.01em;}
+  .card .kd b{color:#FF8A5C;font-weight:600;}
+  .card .stat{margin-top:14px;display:flex;gap:26px;}
+  .card .stat .s b{color:#FF6B35;font-size:34px;font-weight:800;letter-spacing:-0.02em;}
+  .card .stat .s span{color:rgba(255,255,255,0.55);font-size:19px;margin-left:5px;}
+
+  /* 하단 로드맵 바 */
+  .future{position:absolute;left:120px;right:120px;bottom:64px;display:flex;align-items:center;gap:20px;
+    padding:24px 34px;border-radius:18px;border:1px solid rgba(255,107,53,0.3);
+    background:linear-gradient(135deg, rgba(255,107,53,0.1), rgba(255,107,53,0.02));
+    opacity:0;animation:fadeUp 0.8s ease 1.8s forwards;}
+  .future .ftag{flex:none;color:#FF6B35;font-size:22px;font-weight:700;letter-spacing:0.04em;padding-right:24px;border-right:1px solid rgba(255,107,53,0.3);}
+  .future .ftxt{color:rgba(255,255,255,0.82);font-size:25px;font-weight:400;letter-spacing:-0.01em;}
+  .future .ftxt b{color:#fff;font-weight:700;}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(26px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes growX{to{transform:scaleX(1);}}
+  @keyframes pop{from{opacity:0;transform:translate(-50%,-50%) scale(0.7);}to{opacity:1;transform:translate(-50%,-50%) scale(1);}}
+  @keyframes popChip{to{opacity:1;transform:scale(1);}}
+  @keyframes breathe{0%,100%{box-shadow:0 0 80px rgba(255,107,53,0.5), inset 0 0 36px rgba(255,255,255,0.18);}50%{box-shadow:0 0 110px rgba(255,107,53,0.7), inset 0 0 40px rgba(255,255,255,0.24);}}
+  @keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg);}}
+</style>
+</head>
+<body>
+<div id="stage"><div id="wrap">
+
+  <div class="chap">SEA:GNAL · 대화형 해양안전 AI</div>
+  <div class="head">AI 비서 <span class="em">'나리'</span></div>
+  <div class="acc"></div>
+  <div class="sub">묻는 말에 답하는 것을 넘어, <b>스스로 판단하고 먼저 챙기는</b> 해양안전 비서</div>
+
+  <!-- 좌측 코어 -->
+  <div class="core">
+    <div class="core-ring r2"></div>
+    <div class="core-ring"></div>
+    <div class="core-orb">
+      <div class="nm">나리</div>
+      <div class="role">Gemini 2.5 기반</div>
+    </div>
+    <div class="chip c1"><span class="ic">◆</span>20개 해양 데이터 도구</div>
+    <div class="chip c2"><span class="ic">◆</span>스스로 도구 선택·호출</div>
+    <div class="chip c3"><span class="ic">◆</span>사람의 언어로 안내</div>
+    <div class="chip c4"><span class="ic">◆</span>직군 맞춤 응답</div>
+  </div>
+
+  <!-- 우측 카드 -->
+  <div class="cards">
+    <div class="card k1">
+      <div class="kn"><div class="no">1</div><div class="kt">스스로 골라 호출</div></div>
+      <div class="kd"><b>Gemini 2.5</b>를 두뇌로, 직접 수집·구동하는 도구를 질문에 맞게 스스로 선택해 답합니다.</div>
+      <div class="stat"><div class="s"><b>20개</b><span>해양 데이터 도구</span></div></div>
+    </div>
+    <div class="card k2">
+      <div class="kn"><div class="no">2</div><div class="kt">직군 맞춤 제공</div></div>
+      <div class="kd">어업인·낚시인·해경, <b>사용자의 직군을 인식</b>해 그 직군이 중요시하는 정보를 먼저 제공합니다.</div>
+    </div>
+    <div class="card k3">
+      <div class="kn"><div class="no">3</div><div class="kt">지식그래프 설계</div></div>
+      <div class="kd">해역·부이·물때·직군·용어를 연결해 <b>어떤 도구로 답할지</b> 정확히 잇습니다.</div>
+      <div class="stat">
+        <div class="s"><b>1,000</b><span>노드</span></div>
+        <div class="s"><b>1,200</b><span>관계</span></div>
+      </div>
+    </div>
+    <div class="card k4">
+      <div class="kn"><div class="no">4</div><div class="kt">온디바이스 기억</div></div>
+      <div class="kd">대화 기억은 서버가 아닌 <b>사용자 휴대폰에만</b> 저장. 개인정보를 지키면서 쓸수록 맞춰집니다.</div>
+    </div>
+  </div>
+
+  <!-- 하단 로드맵 -->
+  <div class="future">
+    <div class="ftag">NEXT</div>
+    <div class="ftxt">검색 정밀화(RAG) + 위치 기반 선제 알림으로, <b>묻기 전에 먼저 위험을 알려주는 능동형 해양안전 AI</b>로 확장</div>
+  </div>
+
+</div></div>
+
+<script>
+  const wrap = document.getElementById('wrap');
+  function fit(){
+    const s = Math.min(window.innerWidth/1920, window.innerHeight/1080);
+    wrap.style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', () => setTimeout(fit, 60));
+  fit();
+  // 탭 시 풀스크린
+  let fsAsked = false;
+  document.addEventListener('click', () => {
+    if(fsAsked) return; fsAsked = true;
+    const el = document.documentElement;
+    const fn = el.requestFullscreen || el.webkitRequestFullscreen;
+    if(fn){ try{ fn.call(el).catch(()=>{}); }catch(_){} }
+  });
+</script>
+</body>
+</html>
