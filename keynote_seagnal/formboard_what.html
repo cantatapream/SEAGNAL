@@ -32,7 +32,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 .conn{flex:0 0 50px;display:flex;align-items:center;justify-content:center;color:#FF6B35;font-size:42px;font-weight:800;}
 
 /* ── 중앙: 아래로 향하는 곡선 화살표 (부드러운 스웨이) ── */
-.funnel{position:relative;width:100%;height:138px;margin:8px 0 12px;}
+.funnel{position:relative;width:100%;height:152px;margin:8px 0 14px;}
 .funnel svg{position:absolute;inset:0;width:100%;height:100%;display:block;}
 .funnel .ftext{position:absolute;left:0;right:0;top:24px;text-align:center;color:#fff;font-size:28px;font-weight:800;letter-spacing:-.02em;text-shadow:0 2px 9px rgba(160,50,10,.4);}
 
@@ -57,7 +57,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
      <div class="fhead"><div class="ficon">📡</div><span class="fstep">모으기</span></div>
      <div class="ftt">공공 해양정보 <span class="o">API 통합</span></div>
      <div class="fdesc">기상청·국립해양조사원 등<br>다출처 공공 <b>실데이터</b>를 직접 수집</div>
-     <div class="ftags"><span class="ftag">특보·예보</span><span class="ftag">파고·파향</span><span class="ftag">풍향·풍속</span><span class="ftag">조석·유향속</span><span class="ftag">기상부이</span><span class="ftag">수심·CCTV</span></div>
+     <div class="ftags"><span class="ftag">특보·예보</span><span class="ftag">파고·파향</span><span class="ftag">풍향·풍속</span><span class="ftag">조석·유향속</span><span class="ftag">기상부이</span><span class="ftag">수심</span></div>
    </div>
 
    <div class="conn">＋</div>
@@ -65,8 +65,8 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
    <div class="cardbox fbox">
      <div class="fhead"><div class="ficon">🤖</div><span class="fstep">가공하기</span></div>
      <div class="ftt">AI <span class="o">+</span> 자체 개발 로직</div>
-     <div class="fdesc"><b>자율 에이전트 '나리'</b>가 <b>16개</b><br>해양 데이터 도구를 스스로 활용</div>
-     <div class="ftags cen"><span class="ftag">의도·해역 추출</span><span class="ftag">최단 대피침로</span><span class="ftag">결정론적 처리</span><span class="ftag">편의성을 위한 데이터 가공·합성</span></div>
+     <div class="fdesc"><b>자율 에이전트 '나리'</b>가 <b>16개</b><br>해양 데이터 도구를 스스로 활용<br>편의성을 위한 <b>데이터 가공·합성</b></div>
+     <div class="ftags cen"><span class="ftag">의도·해역 추출</span><span class="ftag">최단 대피침로</span><span class="ftag">결정론적 처리</span></div>
    </div>
 
    <div class="conn">▶</div>
@@ -83,7 +83,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
  <div class="funnel">
    <svg viewBox="0 0 1000 200" preserveAspectRatio="none">
      <defs><linearGradient id="fgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF9A6A"/><stop offset="1" stop-color="#FF6B35"/></linearGradient></defs>
-     <path d="M26,14 L974,14 C730,46 660,112 615,176 L385,176 C340,112 270,46 26,14 Z" fill="url(#fgrad)"/>
+     <path d="M24,12 L976,12 C740,46 600,118 520,184 Q500,196 480,184 C400,118 260,46 24,12 Z" fill="url(#fgrad)"/>
    </svg>
    <div class="ftext">이 모든 것을 <b>하나의 앱</b>으로</div>
  </div>
