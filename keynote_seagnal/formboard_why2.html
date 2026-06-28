@@ -13,20 +13,26 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 .ctt{color:#15243a;font-size:30px;font-weight:800;letter-spacing:-.02em;}
 .ctt .o{color:#FF6B35;}
 .top{display:flex;gap:28px;align-items:stretch;margin-bottom:28px;}
-.legend{display:flex;flex-direction:column;gap:11px;margin-top:8px;}
-.lg{display:flex;align-items:center;gap:12px;}
-.lg .dot{width:16px;height:16px;border-radius:50%;flex:0 0 16px;}
-.lg .nm{color:#34465c;font-size:22px;font-weight:700;}
-.lg .vl{color:#15243a;font-size:22px;font-weight:800;margin-left:auto;}
-.lg .vl .o{color:#FF6B35;}
-/* 방사형 */
-.radial{position:relative;height:380px;}
+
+/* 박스1: before -> after 큰 숫자 3열 */
+.cols{display:flex;margin-top:24px;}
+.col{flex:1;text-align:center;padding:0 10px;position:relative;}
+.col + .col::before{content:"";position:absolute;left:0;top:14%;height:72%;width:1px;background:#e3eaf2;}
+.col .lbl{display:inline-block;background:#f1f5fa;border:1px solid #e0e8f1;border-radius:24px;padding:8px 18px;color:#34465c;font-size:23px;font-weight:700;}
+.col .b1{color:#5b6b80;font-size:44px;font-weight:800;letter-spacing:-.03em;margin-top:22px;line-height:1;}
+.col .yr{color:#9aa8bb;font-size:20px;font-weight:600;margin-top:6px;}
+.col .arr{color:#FF6B35;font-size:34px;font-weight:800;margin:8px 0 2px;}
+.col .b2{color:#FF6B35;font-size:60px;font-weight:800;letter-spacing:-.035em;line-height:1;}
+
+/* 박스2: 방사형(균형 배치) */
+.radial{position:relative;height:440px;}
 .node{position:absolute;transform:translate(-50%,-50%);background:#eef2f7;border:1px solid #d3deea;border-radius:24px;padding:11px 16px;color:#34465c;font-weight:700;font-size:21px;white-space:nowrap;box-shadow:0 4px 12px rgba(30,50,80,.06);}
 .center{position:absolute;transform:translate(-50%,-50%);width:150px;height:150px;border-radius:50%;
  background:radial-gradient(circle at 34% 30%,#FF9866,#FF6B35 60%,#C9430E);color:#fff;display:flex;align-items:center;justify-content:center;
- font-size:30px;font-weight:800;box-shadow:0 0 40px rgba(255,107,53,.4);text-align:center;line-height:1.15;}
-.rcap{color:#93a2b5;font-size:20px;text-align:center;margin-top:2px;}
-/* 하단 */
+ font-size:30px;font-weight:800;box-shadow:0 0 40px rgba(255,107,53,.4);text-align:center;line-height:1.15;z-index:2;}
+.rcap{color:#93a2b5;font-size:20px;text-align:center;margin-top:-6px;}
+
+/* 박스3 */
 .bottom{display:flex;align-items:center;gap:26px;padding:30px 40px;}
 .bottom .ic{flex:0 0 78px;height:78px;border-radius:18px;background:rgba(255,107,53,.13);display:flex;align-items:center;justify-content:center;font-size:40px;}
 .bottom .bt{color:#1f3047;font-size:30px;font-weight:500;line-height:1.5;letter-spacing:-.01em;}
@@ -39,60 +45,63 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
  <div class="sub">바다를 쓰는 사람은 <b>매년 늘어나는데</b>, 공공 정보는 <b>여러 기관에 흩어져</b> 있습니다</div>
 
  <div class="top">
-   <!-- 좌: 증가 꺾은선(3요소) -->
-   <div class="cardbox" style="flex:1;padding:30px 34px;">
+   <!-- 좌: 3요소 before -> after 큰 숫자 -->
+   <div class="cardbox" style="flex:1;padding:30px 30px 36px;">
      <div class="ctt">해양 활동 인구, <span class="o">매년 증가</span></div>
-     <svg viewBox="0 0 480 290" width="100%" style="margin:14px 0 4px;">
-       <line x1="50" y1="252" x2="455" y2="252" stroke="#e0e8f1" stroke-width="2"/>
-       <!-- 신규면허(green) -->
-       <polyline points="50,238 151,221 252,203 353,186 454,166" fill="none" stroke="#10b981" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-       <!-- 낚시(orange) -->
-       <polyline points="50,224 151,201 252,176 353,150 454,126" fill="none" stroke="#FF6B35" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-       <!-- 면허누적(blue) -->
-       <polyline points="50,214 151,180 252,140 353,100 454,60" fill="none" stroke="#3b82f6" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-       <circle cx="454" cy="60" r="7" fill="#3b82f6"/><circle cx="454" cy="126" r="7" fill="#FF6B35"/><circle cx="454" cy="166" r="7" fill="#10b981"/>
-       <text x="50" y="276" fill="#93a2b5" font-size="19">과거</text>
-       <text x="455" y="276" fill="#93a2b5" font-size="19" text-anchor="end">현재</text>
-     </svg>
-     <div class="legend">
-       <div class="lg"><span class="dot" style="background:#3b82f6"></span><span class="nm">수상레저 면허(누적)</span><span class="vl">11.1만 → <span class="o">28.7만</span></span></div>
-       <div class="lg"><span class="dot" style="background:#FF6B35"></span><span class="nm">낚시 인구</span><span class="vl">850만 → <span class="o">1,000만</span></span></div>
-       <div class="lg"><span class="dot" style="background:#10b981"></span><span class="nm">신규 면허(연간)</span><span class="vl">1.4만 → <span class="o">2.1만</span></span></div>
+     <div class="cols">
+       <div class="col">
+         <span class="lbl">낚시 인구</span>
+         <div class="b1">850만</div><div class="yr">2018년</div>
+         <div class="arr">↓</div>
+         <div class="b2">1,000만</div><div class="yr">2024년</div>
+       </div>
+       <div class="col">
+         <span class="lbl">수상레저 면허</span>
+         <div class="b1">11.1만</div><div class="yr">2011년</div>
+         <div class="arr">↓</div>
+         <div class="b2">28.7만</div><div class="yr">2021년</div>
+       </div>
+       <div class="col">
+         <span class="lbl">해수욕장 이용객</span>
+         <div class="b1">3,800만</div><div class="yr">2023년</div>
+         <div class="arr">↓</div>
+         <div class="b2">4,110만</div><div class="yr">2024년</div>
+       </div>
      </div>
    </div>
 
-   <!-- 우: 파편화 방사형 -->
+   <!-- 우: 파편화 방사형 (균형) -->
    <div class="cardbox" style="flex:1;padding:30px 34px;">
      <div class="ctt">공공 정보가 <span class="o">여러 기관에 흩어져</span></div>
      <div class="radial">
-       <svg viewBox="0 0 460 380" width="100%" height="100%" style="position:absolute;left:0;top:0;">
+       <svg viewBox="0 0 480 440" width="100%" height="100%" style="position:absolute;left:0;top:0;">
          <g stroke="#c4d2e2" stroke-width="2.5">
-           <line x1="230" y1="190" x2="230" y2="70"/>
-           <line x1="230" y1="190" x2="350" y2="120"/>
-           <line x1="230" y1="190" x2="350" y2="262"/>
-           <line x1="230" y1="190" x2="230" y2="312"/>
-           <line x1="230" y1="190" x2="110" y2="262"/>
-           <line x1="230" y1="190" x2="110" y2="120"/>
+           <line x1="240" y1="210" x2="240" y2="42"/>
+           <line x1="240" y1="210" x2="385" y2="126"/>
+           <line x1="240" y1="210" x2="385" y2="294"/>
+           <line x1="240" y1="210" x2="240" y2="378"/>
+           <line x1="240" y1="210" x2="95" y2="294"/>
+           <line x1="240" y1="210" x2="95" y2="126"/>
          </g>
        </svg>
-       <div class="center" style="left:230px;top:190px;">해양<br>정보</div>
-       <div class="node" style="left:230px;top:62px;">기상청</div>
-       <div class="node" style="left:352px;top:116px;">국립해양조사원</div>
-       <div class="node" style="left:352px;top:266px;">한국천문연구원</div>
-       <div class="node" style="left:230px;top:320px;">지방자치단체</div>
-       <div class="node" style="left:108px;top:266px;">방재기상플랫폼</div>
-       <div class="node" style="left:108px;top:116px;">기타</div>
+       <div class="center" style="left:240px;top:210px;">해양<br>정보</div>
+       <div class="node" style="left:240px;top:42px;">기상청</div>
+       <div class="node" style="left:385px;top:126px;">국립해양조사원</div>
+       <div class="node" style="left:385px;top:294px;">한국천문연구원</div>
+       <div class="node" style="left:240px;top:378px;">지방자치단체</div>
+       <div class="node" style="left:95px;top:294px;">방재기상플랫폼</div>
+       <div class="node" style="left:95px;top:126px;">기타</div>
      </div>
      <div class="rcap">하나로 모인 창구가 없어, 정보가 기관마다 흩어져 있습니다</div>
    </div>
  </div>
 
- <!-- 하단: 해경 부담 -->
+ <!-- 하단 -->
  <div class="cardbox bottom">
    <div class="ic">🛟</div>
-   <div class="bt">그래서 국민은 필요한 해양정보를 <b>한 곳에서 찾기 어렵고</b>,<br>그 정보 제공 부담은 고스란히 <span class="o">해양경찰</span>로 넘어옵니다 <b>(특보·기상정보 문의 민원)</b></div>
+   <div class="bt">국민은 필요한 해양정보를 <b>한 곳에서 찾기 어렵고</b>,<br>그 정보 제공 부담은 고스란히 <span class="o">해양경찰이 짊어지는 중</span> <b>(특보 및 기상정보 문의 민원 등)</b></div>
  </div>
 
- <div class="foot">※ 근거: 낚시 인구 850만(2018)→1,000만(2024 예상, 해양수산부) · 수상레저 조종면허 누적 11.1만(2011)→28.7만(2021) · 신규 면허 1.4만(2012)→2.1만(2021), 해양경찰청. 본 안은 콘텐츠 시안 · 최종 디자인·수치 검증은 인공지능전환팀.</div>
+ <div class="foot">※ 근거: 낚시 인구 850만(2018)→1,000만(2024 예상, 해양수산부) · 수상레저 조종면허 누적 11.1만(2011)→28.7만(2021, 해양경찰청) · 해수욕장 이용객 약 3,800만(2023)→4,110만(2024, 개장기간·전년比 +8.2%, 해양수산부). 본 안은 콘텐츠 시안 · 최종 디자인·수치 검증은 인공지능전환팀.</div>
 </div>
 </body></html>
