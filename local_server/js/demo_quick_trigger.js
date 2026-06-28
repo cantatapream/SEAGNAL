@@ -15,8 +15,15 @@
  *   [2단계] 다음 5연타 → 태풍 발생/소멸 테스트 푸시
  *     ④ POST /api/admin/demo/typhoon-test {kind:'onset'}      (발생)
  *     ⑤ POST /api/admin/demo/typhoon-test {kind:'dissipation'} (소멸)
- *        → 둘 다 sendAdminPush 로 관리자 등록 기기에만 발송. 위치기반 반경은 제외.
- *   [3단계 이후] 동작 없음 (추후 기능 추가 예정)
+ *        → 둘 다 sendAdminPush 로 관리자 등록 기기에만 발송.
+ *   [3단계] 다음 5연타 → 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만)
+ *     ⑥ POST /api/admin/demo/typhoon-radius-test {kind:'strong'} (강풍반경 진입)
+ *     ⑦ POST /api/admin/demo/typhoon-radius-test {kind:'storm'}  (폭풍반경 진입)
+ *     ⑧ 위치기반 특보 시연 6종 즉시 — laDemoSetPosition() + laDemoRun(id,0):
+ *        prelim(예비특보 발표) → adv_pub(풍랑주의보 발효예정) → adv_act(발효중)
+ *        → warn_pub(풍랑경보 발표) → warn_act(풍랑경보 발효) → typhoon(태풍경보 발효)
+ *        (각각 /api/location-alert/demo 가 이 기기 토큰 1대에만 발송)
+ *   [4단계 이후] 동작 없음 (추후 기능 추가 예정)
  *
  * [안전 설계 — demo_alert.js 와 동일한 게이트]
  *   ① localStorage.seagnal_admin_mode === 'true' (관리자 모드)
@@ -42,7 +49,7 @@
     var _count = 0;
     var _firstTs = 0;
     var _busy = false;         // 동작 진행 중 재진입 방지
-    var _stage = 0;            // 0=특보 시연(1단계), 1=태풍 발생/소멸(2단계), 2+=동작 없음
+    var _stage = 0;            // 0=특보 시연(1단계), 1=태풍 발생/소멸(2단계), 2=위치기반(3단계), 3+=동작 없음
 
     function _adminMode() {
         try { return localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { return false; }
@@ -154,6 +161,43 @@
         }).then(function () { _busy = false; });
     }
 
+    /**
+     * [3단계] 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만):
+     *   (A) 태풍 위치기반 반경: 강풍(strong) → 폭풍(storm)  [typhoon-radius-test]
+     *   (B) 위치기반 특보 시연 6종 즉시: 기존 전역 laDemoSetPosition()+laDemoRun(id,0)
+     *       → 각각 /api/location-alert/demo 가 이 기기 토큰 1대에만 발송.
+     */
+    function _sendLocationDemos() {
+        if (_busy) return;
+        _busy = true;
+        var _radius = function (kind) {
+            return fetch('/api/admin/demo/typhoon-radius-test', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kind: kind })
+            }).then(function (r) { return r.json().catch(function () { return {}; }); })
+                .catch(function () { return {}; });
+        };
+        var LA_IDS = ['prelim', 'adv_pub', 'adv_act', 'warn_pub', 'warn_act', 'typhoon'];
+        // (A) 강풍 → 폭풍 반경
+        _radius('strong')
+            .then(function () { return _radius('storm'); })
+            .then(function () {
+                // (B) 위치기반 특보 시연 6종 — 전역 함수 재사용(미로드면 건너뜀)
+                if (typeof window.laDemoRun !== 'function') return;
+                var p = Promise.resolve();
+                if (typeof window.laDemoSetPosition === 'function') {
+                    p = p.then(function () { return window.laDemoSetPosition(); }).catch(function () { });
+                }
+                LA_IDS.forEach(function (id) {
+                    p = p.then(function () { return window.laDemoRun(id, 0); }).catch(function () { });
+                });
+                return p;
+            })
+            .then(function () { _toast('위치기반 특보 시연 푸시를 전송했습니다. (총 8건)'); })
+            .catch(function () { _toast('위치기반 시연 발송에 실패했습니다.'); })
+            .then(function () { _busy = false; });
+    }
+
     /** 완성된 5연타 1회 → 현재 단계 동작 실행 후 다음 단계로 진행 */
     function _dispatch() {
         if (_busy) return;
@@ -163,8 +207,11 @@
         } else if (_stage === 1) {
             _stage = 2;
             _sendTyphoonTests();      // 2단계: 태풍 발생/소멸 테스트 푸시
+        } else if (_stage === 2) {
+            _stage = 3;
+            _sendLocationDemos();     // 3단계: 위치기반 시연 8건 즉시 발송
         }
-        // _stage >= 2 → 동작 없음 (추후 추가 예정)
+        // _stage >= 3 → 동작 없음 (추후 추가 예정)
     }
 
     function _onHeaderClick() {
@@ -173,7 +220,7 @@
         _count++;
         if (_count >= NEED_CLICKS) {
             _count = 0;
-            if (_stage >= 2) return;  // 모든 단계 소진 — 불필요한 호출 방지
+            if (_stage >= 3) return;  // 모든 단계 소진 — 불필요한 호출 방지
             // 관리자 등록 기기에서만 발동 — 일반 사용자는 무동작
             _isAdminDevice().then(function (ok) { if (ok) _dispatch(); });
         }
