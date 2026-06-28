@@ -131,16 +131,16 @@
     <div id="s0-tagline" class="rise d3">묻는 말에 답하는 것을 넘어, <b>스스로 판단하고 챙기는</b> 해양안전 비서</div>
 
     <div id="s0-stats">
-      <div class="s0stat rise d4"><div class="v">20<span class="u">개</span></div><div class="r"><div class="l">자율 호출 해양 데이터 도구</div><div class="s">질문에 맞는 도구를 스스로 골라 호출</div></div></div>
-      <div class="s0stat rise d5"><div class="v">978<span class="u">노드</span></div><div class="r"><div class="l">지식그래프 · 1,232 관계</div><div class="s">해역·부이·물때·직군·용어를 연결</div></div></div>
-      <div class="s0stat rise d6"><div class="v">8<span class="u">직군</span></div><div class="r"><div class="l">직군 맞춤 응답</div><div class="s">어업인·낚시·해양경찰 등 맞춤 안내</div></div></div>
+      <div class="s0stat rise d4"><div class="v">16<span class="u">개</span></div><div class="r"><div class="l">자율 호출 해양 데이터 도구</div><div class="s">질문에 맞는 도구를 스스로 골라 호출</div></div></div>
+      <div class="s0stat rise d5"><div class="v">283<span class="u">지점</span></div><div class="r"><div class="l">전국 부이·조위관측소 실측 연동</div><div class="s">기상부이 118 · 조위관측소 165</div></div></div>
+      <div class="s0stat rise d6"><div class="v">43<span class="u">구역</span></div><div class="r"><div class="l">해상 특보·예보 구역(해역)</div><div class="s">직종을 인식해 맞춤 안내</div></div></div>
     </div>
 
     <div class="core rise d3">
       <div class="core-ring r2"></div>
       <div class="core-ring"></div>
       <div class="orbit">
-        <div class="sat t"><div class="chip"><span class="ic">◆</span>20개 해양 데이터 도구</div></div>
+        <div class="sat t"><div class="chip"><span class="ic">◆</span>16개 해양 데이터 도구</div></div>
         <div class="sat r"><div class="chip"><span class="ic">◆</span>스스로 선택·호출</div></div>
         <div class="sat b"><div class="chip"><span class="ic">◆</span>사람의 언어로 안내</div></div>
         <div class="sat l"><div class="chip"><span class="ic">◆</span>직군 맞춤 응답</div></div>
@@ -172,7 +172,7 @@
       <div class="stepc rise d5">
         <div class="no">3</div>
         <div class="st">자율 호출</div>
-        <div class="sd">해양 데이터 도구 <b>20개</b> 중 <b>필요한 것만</b> 골라 호출</div>
+        <div class="sd">해양 데이터 도구 <b>16개</b> 중 <b>필요한 것만</b> 골라 호출</div>
       </div>
       <div class="arrow rise d5"><span class="dot">▶</span></div>
       <div class="stepc rise d6">
@@ -184,50 +184,48 @@
 
     <div id="s1-foot">
       <div class="fchip rise d6"><b>멀티턴 대화</b> · 직전 맥락(해역·부이·좌표) 이어가기</div>
-      <div class="fchip rise d7"><b>직군 맞춤</b> · 8개 직군을 인식해 우선 안내</div>
+      <div class="fchip rise d7"><b>직종 맞춤</b> · 사용자 직종을 인식해 우선 안내</div>
       <div class="fchip rise d8"><b>환각 방지</b> · 가져온 실데이터만 사용</div>
     </div>
   </section>
 
-  <!-- ============ S3 · 지식그래프 ============ -->
+  <!-- ============ S3 · 통합 실데이터 ============ -->
   <section class="slide" id="slide2">
-    <div class="chap rise">판단의 근거 · 지식그래프</div>
-    <div class="head rise d1">978개의 점, <span class="em">1,232개의 선</span>, 바다를 잇다</div>
+    <div class="chap rise">판단의 근거 · 통합 실데이터</div>
+    <div class="head rise d1">흩어진 공공 데이터를, <span class="em">한 곳으로</span></div>
     <div class="acc rise d2"></div>
-    <div id="s2-sub" class="rise d2">해역·부이·물때·직군·전문용어를 엮은 지식그래프 위에서 나리가 판단합니다.</div>
+    <div id="s2-sub" class="rise d2">여러 공공기관의 해양 데이터를 직접 수집·통합해, 나리가 실데이터로 답합니다.</div>
 
     <div id="graph-wrap" class="rise d3">
       <svg id="graph-svg" viewBox="0 0 900 600" preserveAspectRatio="xMidYMid meet"></svg>
       <div id="graph-center-lbl">
-        <div class="n"><span id="gnodes">0</span><span class="u">노드</span></div>
-        <div class="r"><span id="grels">0</span><span class="u">관계</span></div>
+        <div class="n"><span id="gnodes">0</span><span class="u">지점</span></div>
+        <div class="r"><span id="grels">0</span><span class="u">개 도구로 호출</span></div>
       </div>
     </div>
-    <div id="graph-verify" class="rise d6">※ 앱이 보유한 지식그래프 데이터에서 직접 집계 · 실데이터(해역·부이·조위관측소·전문용어 등)를 노드로, 의미 연결을 관계로 산출</div>
+    <div id="graph-verify" class="rise d6">※ 기상부이 118 · 조위관측소 165 · 특보구역 43 등 실측·공공 데이터를 직접 연동(코드 확인 기준)</div>
 
     <div id="s2-side">
       <div class="nodebox rise d4">
-        <div class="tt">노드 구성 (실데이터 기반)</div>
+        <div class="tt">연동된 실데이터</div>
         <div class="ngrid">
-          <div class="ng"><span class="gv">288</span><span class="gl">전문용어</span></div>
-          <div class="ng"><span class="gv">165</span><span class="gl">조위관측소</span></div>
           <div class="ng"><span class="gv">118</span><span class="gl">기상부이</span></div>
-          <div class="ng"><span class="gv">92</span><span class="gl">데이터격차</span></div>
-          <div class="ng"><span class="gv">64</span><span class="gl">선제규칙</span></div>
-          <div class="ng"><span class="gv">43</span><span class="gl">해역</span></div>
+          <div class="ng"><span class="gv">165</span><span class="gl">조위관측소</span></div>
+          <div class="ng"><span class="gv">43</span><span class="gl">특보구역</span></div>
         </div>
       </div>
       <div class="nodebox rise d5">
-        <div class="tt">8개 직군 맞춤</div>
+        <div class="tt">직종 맞춤 응답</div>
+        <div style="color:rgba(255,255,255,0.72);font-size:19px;margin:-4px 0 14px;">사용자 직종을 인식해 우선 안내 (예시 직종)</div>
         <div class="jobs">
           <span class="job">어업인</span><span class="job">낚시</span><span class="job">레저</span><span class="job">해양경찰</span>
           <span class="job">해군</span><span class="job">해양수산부</span><span class="job">지방자치단체</span><span class="job">공공기관</span>
         </div>
       </div>
       <div class="nodebox rise d6">
-        <div class="tt">관계로 잇는 의미</div>
-        <div style="color:rgba(255,255,255,0.78);font-size:21px;line-height:1.55;word-break:keep-all;">
-          「어떤 <b style="color:#FF8A5C;">직군</b> → 무엇에 <b style="color:#FF8A5C;">관심</b> → 어떤 <b style="color:#FF8A5C;">도구</b>가 답 → 어떤 <b style="color:#FF8A5C;">용어</b>로 설명」을 한 줄로 연결해, 환각 대신 구조화된 사실로 답합니다.
+        <div class="tt" style="color:rgba(255,255,255,0.78);">향후 고도화 계획</div>
+        <div style="color:rgba(255,255,255,0.72);font-size:21px;line-height:1.55;word-break:keep-all;">
+          해역·부이·물때·직종·전문용어를 잇는 <b style="color:#FF8A5C;">지식그래프</b>로 확장해, 더 정교한 맞춤·추론을 제공할 <b style="color:#FF8A5C;">계획</b>입니다.
         </div>
       </div>
     </div>
@@ -293,7 +291,7 @@
     slides.forEach((el,i)=> el.classList.toggle('on', i===state));
     dots.forEach((d,i)=> d.classList.toggle('on', i===state));
     pagelbl.textContent = (state+1)+' / '+total;
-    if(state===2){ if(!graphBuilt){ buildGraph(); graphBuilt=true; } if(!gNumRun){ gNumRun=true; countUp('gnodes',978,1100); countUp('grels',1232,1100); } }
+    if(state===2){ if(!graphBuilt){ buildGraph(); graphBuilt=true; } if(!gNumRun){ gNumRun=true; countUp('gnodes',283,1100); countUp('grels',16,900); } }
   }
 
   function countUp(id, target, dur){
