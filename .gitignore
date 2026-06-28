@@ -140,3 +140,6 @@ local_server/data/advisory_journal.jsonl
 # dmdw 통보문 수집 원본(분석 산출물은 별도)
 local_server/analysis/wave_leadtime/data/bulletins.json
 local_server/analysis/wave_leadtime/data/bulletins_*.json
+
+# 폼보드 폰트 임베드 렌더용 임시본(무거움) — 추적 안 함
+keynote_seagnal/*_embed.html

@@ -20,10 +20,10 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 .col + .col::before{content:"";position:absolute;left:0;top:8%;height:84%;width:1px;background:#e6edf4;}
 .col .lbl{width:172px;text-align:center;background:#f1f5fa;border:1px solid #e0e8f1;border-radius:24px;
  padding:9px 0;color:#34465c;font-size:22px;font-weight:700;white-space:nowrap;}
-.col .b1{height:54px;display:flex;align-items:flex-end;color:#5b6b80;font-size:42px;font-weight:800;letter-spacing:-.03em;margin-top:20px;}
+.col .b1{height:54px;display:flex;align-items:flex-end;justify-content:center;white-space:nowrap;line-height:1;color:#5b6b80;font-size:38px;font-weight:800;letter-spacing:-.03em;margin-top:20px;}
 .col .yr{height:26px;color:#9aa8bb;font-size:20px;font-weight:600;margin-top:4px;}
 .col .arr{height:44px;display:flex;align-items:center;color:#FF6B35;font-size:34px;font-weight:800;}
-.col .b2{height:62px;display:flex;align-items:flex-end;color:#FF6B35;font-size:56px;font-weight:800;letter-spacing:-.035em;}
+.col .b2{height:62px;display:flex;align-items:flex-end;justify-content:center;white-space:nowrap;line-height:1;color:#FF6B35;font-size:46px;font-weight:800;letter-spacing:-.04em;}
 .col .yr2{height:26px;color:#9aa8bb;font-size:20px;font-weight:600;margin-top:4px;}
 
 /* 박스2: 방사형 — 컨테이너=SVG=노드 좌표계 모두 460x430 고정(정렬 보장) */
@@ -51,7 +51,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
  <div class="top">
    <!-- 좌: 3요소 before→after 큰 숫자 -->
    <div class="cardbox" style="flex:1;padding:30px 30px 36px;">
-     <div class="ctt">해양 활동 인구, <span class="o">매년 증가</span></div>
+     <div class="ctt">해양 활동 인구는 <span class="o">매년 증가</span></div>
      <div class="cols">
        <div class="col">
          <span class="lbl">낚시 인구</span>
@@ -76,7 +76,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
 
    <!-- 우: 파편화 방사형(균형) -->
    <div class="cardbox" style="flex:1;padding:30px 34px;">
-     <div class="ctt">공공 정보가 <span class="o">여러 기관에 흩어져</span></div>
+     <div class="ctt">공공 정보는 <span class="o">여러 기관에 흩어져</span></div>
      <div class="radial">
        <svg width="460" height="430" viewBox="0 0 460 430">
          <g stroke="#c4d2e2" stroke-width="2.5">
@@ -103,7 +103,7 @@ html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased
  <!-- 하단 -->
  <div class="cardbox bottom">
    <div class="ic">🛟</div>
-   <div class="bt">국민은 필요한 해양정보를 <b>한 곳에서 찾기 어렵고</b>,<br>그 정보 제공 부담은 고스란히 <span class="o">해양경찰의 몫이 되고 있습니다</span><br><span class="sm">(특보 및 기상정보 문의 민원 등)</span></div>
+   <div class="bt">국민은 필요한 해양정보를 <b>한 곳에서 찾기 어렵고</b>,<br>그 정보 제공은 고스란히 <span class="o">현장의 부담으로 작용</span>하고 있습니다<br><span class="sm">(특보 및 기상정보 문의 민원 등)</span></div>
  </div>
 
  <div class="foot">※ 근거: 낚시 인구 850만(2018)→1,000만(2024 예상, 해양수산부) · 수상레저 조종면허 누적 11.1만(2011)→28.7만(2021, 해양경찰청) · 해수욕장 이용객 약 3,800만(2023)→4,110만(2024, 개장기간·전년比 +8.2%, 해양수산부). 본 안은 콘텐츠 시안 · 최종 디자인·수치 검증은 인공지능전환팀.</div>
