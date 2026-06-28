@@ -45,20 +45,20 @@
   .core-orb .nm{font-size:92px;font-weight:800;letter-spacing:-0.02em;line-height:1;}
   .core-orb .role{font-size:25px;font-weight:500;color:rgba(255,255,255,0.92);margin-top:12px;}
 
-  /* 3단계 흐름 */
-  #flow{position:absolute;left:130px;right:130px;top:620px;display:flex;align-items:stretch;gap:0;}
-  .fstep{flex:1;border:1px solid rgba(255,255,255,0.12);border-radius:22px;background:linear-gradient(150deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));padding:36px 38px;display:flex;flex-direction:column;min-height:250px;}
+  /* 4단계 흐름 */
+  #flow{position:absolute;left:130px;right:130px;top:600px;display:flex;align-items:stretch;gap:0;}
+  .fstep{flex:1;border:1px solid rgba(255,255,255,0.12);border-radius:20px;background:linear-gradient(150deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));padding:26px 24px;display:flex;flex-direction:column;min-height:236px;}
   .fstep.mid{border-color:rgba(255,107,53,0.5);background:linear-gradient(150deg,rgba(255,107,53,0.15),rgba(255,107,53,0.03));box-shadow:0 0 44px rgba(255,107,53,0.16);}
-  .fstep .fn{color:#FF6B35;font-size:22px;font-weight:700;letter-spacing:0.18em;}
-  .fstep .ft{color:#fff;font-size:36px;font-weight:700;letter-spacing:-0.02em;margin-top:18px;word-break:keep-all;line-height:1.2;}
-  .fstep .fd{color:rgba(255,255,255,0.66);font-size:24px;font-weight:300;margin-top:14px;line-height:1.5;word-break:keep-all;}
+  .fstep .fn{color:#FF6B35;font-size:19px;font-weight:700;letter-spacing:0.16em;}
+  .fstep .ft{color:#fff;font-size:29px;font-weight:700;letter-spacing:-0.02em;margin-top:14px;word-break:keep-all;line-height:1.2;}
+  .fstep .fd{color:rgba(255,255,255,0.66);font-size:20px;font-weight:300;margin-top:12px;line-height:1.45;word-break:keep-all;}
   .fstep .fd b{color:#FF8A5C;font-weight:600;}
-  .farrow{flex:0 0 64px;display:flex;align-items:center;justify-content:center;color:rgba(255,107,53,0.7);font-size:46px;}
+  .farrow{flex:0 0 40px;display:flex;align-items:center;justify-content:center;color:rgba(255,107,53,0.7);font-size:34px;}
   .farrow .d{animation:flow 1.7s ease-in-out infinite;}
   #s0-foot{position:absolute;left:130px;top:910px;color:rgba(255,255,255,0.5);font-size:23px;font-weight:300;letter-spacing:-0.005em;}
 
   /* ===== 슬라이드 2 ===== */
-  #rows{position:absolute;left:130px;right:130px;top:400px;display:flex;flex-direction:column;gap:26px;}
+  #rows{position:absolute;left:130px;right:130px;top:440px;display:flex;flex-direction:column;gap:30px;}
   .trow{display:flex;align-items:center;gap:34px;border:1px solid rgba(255,255,255,0.12);border-radius:22px;background:linear-gradient(150deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));padding:34px 44px;}
   .trow .ti{flex:0 0 86px;height:86px;border-radius:20px;background:rgba(255,107,53,0.16);border:1px solid rgba(255,107,53,0.45);display:flex;align-items:center;justify-content:center;font-size:42px;}
   .trow .th{color:#fff;font-size:36px;font-weight:700;letter-spacing:-0.02em;}
@@ -105,17 +105,23 @@
       <div class="farrow rise d3"><span class="d">▶</span></div>
       <div class="fstep mid rise d4">
         <div class="fn">STEP 2</div>
-        <div class="ft">스스로 도구 호출</div>
-        <div class="fd">해양 데이터 도구 <b>16개</b> 중 필요한 것만 골라 실행</div>
+        <div class="ft">두뇌 · Gemini 2.5</div>
+        <div class="fd">질문을 분석해 <b>실행계획</b>을 스스로 수립</div>
       </div>
       <div class="farrow rise d4"><span class="d">▶</span></div>
       <div class="fstep rise d5">
         <div class="fn">STEP 3</div>
+        <div class="ft">도구 자율 호출</div>
+        <div class="fd">해양 데이터 도구 <b>16개</b> 중 필요한 것만 실행</div>
+      </div>
+      <div class="farrow rise d5"><span class="d">▶</span></div>
+      <div class="fstep rise d6">
+        <div class="fn">STEP 4</div>
         <div class="ft">맞춤 답변</div>
-        <div class="fd"><b>직종 맞춤</b>으로 풀어 안내 + <b>앱 화면 바로가기</b></div>
+        <div class="fd"><b>직종 맞춤</b> 안내 + <b>앱 화면 바로가기</b></div>
       </div>
     </div>
-    <div id="s0-foot" class="rise d6">특보·예보·부이·조석·유향·수심·해무CCTV·태풍 등 공공 실데이터를 직접 연동</div>
+    <div id="s0-foot" class="rise d6"><b style="color:#FF8A5C;font-weight:600;">데이터 발표주기에 맞춰 즉시 최신화</b> · 특보·예보·부이·조석·유향·수심·해무CCTV·태풍 등 공공 실데이터를 직접 연동</div>
   </section>
 
   <!-- ============ 2장 · 믿음 + 앞으로 ============ -->
@@ -146,11 +152,6 @@
           <div class="td"><b>기상청·국립해양조사원</b> 등 검증된 공식 출처의 데이터만 사용합니다.</div>
         </div>
       </div>
-    </div>
-
-    <div id="future" class="rise d6">
-      <div class="ft">NEXT</div>
-      <div class="fx">지식그래프와 위치 기반 선제 알림을 더해, <b>묻기 전에 먼저 알려주는 능동형 해양안전 AI</b>로 키워갑니다</div>
     </div>
   </section>
 
