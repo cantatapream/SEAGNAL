@@ -1,13 +1,13 @@
 /**
  * ============================================================================
  * 파일명: js/demo_quick_trigger.js
- * 역할: [데모 시연] 메인 페이지 "해역별 특보현황" 헤더 5연타 → 특보 시연 즉시 활성화
+ * 역할: [데모 시연] 메인 페이지 헤더 5연타 → 특보/태풍/위치기반 시연 즉시 발동
  * ============================================================================
  *
- * [동작 개요 — 단계 진행식]
- * 관리자 센터(헤더 10연타) → 시연 탭에 들어가지 않고도, 메인 페이지의
- * "해역별 특보현황" 아코디언 헤더(#main-accordion-header)를 짧은 시간 안에
- * 5번 연속 클릭할 때마다 다음 단계가 순서대로 실행된다:
+ * 관리자 센터(헤더 10연타) → 시연 탭에 들어가지 않고도, 메인 페이지의 두 헤더를
+ * 각각 짧은 시간 안에 5번 연속 클릭하면 시연이 발동한다.
+ *
+ * [A] "해역별 특보현황" 헤더(#main-accordion-header) — 단계 진행식
  *   [1단계] 첫 5연타 → 특보 시연 활성화
  *     ① 테스트 모드 ON (POST /api/admin/demo/testmode)
  *     ② 저장된 데모 특보 슬롯 전부 표출 (POST /api/admin/demo/emit, 슬롯별 관리자 푸시)
@@ -16,14 +16,16 @@
  *     ④ POST /api/admin/demo/typhoon-test {kind:'onset'}      (발생)
  *     ⑤ POST /api/admin/demo/typhoon-test {kind:'dissipation'} (소멸)
  *        → 둘 다 sendAdminPush 로 관리자 등록 기기에만 발송.
- *   [3단계] 다음 5연타 → 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만)
+ *   [3단계 이후] 동작 없음 (추후 기능 추가 예정)
+ *
+ * [B] "해역별 기상현황" 헤더(#marine-status-accordion-header) — 독립 트리거
+ *   5연타 → 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만, 반복 가능)
  *     ⑥ POST /api/admin/demo/typhoon-radius-test {kind:'strong'} (강풍반경 진입)
  *     ⑦ POST /api/admin/demo/typhoon-radius-test {kind:'storm'}  (폭풍반경 진입)
  *     ⑧ 위치기반 특보 시연 6종 즉시 — laDemoSetPosition() + laDemoRun(id,0):
  *        prelim(예비특보 발표) → adv_pub(풍랑주의보 발효예정) → adv_act(발효중)
  *        → warn_pub(풍랑경보 발표) → warn_act(풍랑경보 발효) → typhoon(태풍경보 발효)
  *        (각각 /api/location-alert/demo 가 이 기기 토큰 1대에만 발송)
- *   [4단계 이후] 동작 없음 (추후 기능 추가 예정)
  *
  * [안전 설계 — demo_alert.js 와 동일한 게이트]
  *   ① localStorage.seagnal_admin_mode === 'true' (관리자 모드)
@@ -46,10 +48,8 @@
 
     var NEED_CLICKS = 5;       // 발동에 필요한 연속 클릭 수
     var WINDOW_MS = 3000;      // 연속 클릭으로 인정하는 시간창
-    var _count = 0;
-    var _firstTs = 0;
-    var _busy = false;         // 동작 진행 중 재진입 방지
-    var _stage = 0;            // 0=특보 시연(1단계), 1=태풍 발생/소멸(2단계), 2=위치기반(3단계), 3+=동작 없음
+    var _busy = false;         // 동작 진행 중 재진입 방지(두 헤더 공유 — 발송 겹침 방지)
+    var _stage = 0;            // [특보현황 헤더] 0=특보 시연(1단계), 1=태풍 발생/소멸(2단계), 2+=동작 없음
 
     function _adminMode() {
         try { return localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { return false; }
@@ -162,7 +162,7 @@
     }
 
     /**
-     * [3단계] 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만):
+     * ["해역별 기상현황" 5연타] 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만):
      *   (A) 태풍 위치기반 반경: 강풍(strong) → 폭풍(storm)  [typhoon-radius-test]
      *   (B) 위치기반 특보 시연 6종 즉시: 기존 전역 laDemoSetPosition()+laDemoRun(id,0)
      *       → 각각 /api/location-alert/demo 가 이 기기 토큰 1대에만 발송.
@@ -198,8 +198,8 @@
             .then(function () { _busy = false; });
     }
 
-    /** 완성된 5연타 1회 → 현재 단계 동작 실행 후 다음 단계로 진행 */
-    function _dispatch() {
+    /** ["해역별 특보현황" 5연타] 현재 단계 동작 실행 후 다음 단계로 진행 */
+    function _dispatchAlertHeader() {
         if (_busy) return;
         if (_stage === 0) {
             _stage = 1;
@@ -207,30 +207,46 @@
         } else if (_stage === 1) {
             _stage = 2;
             _sendTyphoonTests();      // 2단계: 태풍 발생/소멸 테스트 푸시
-        } else if (_stage === 2) {
-            _stage = 3;
-            _sendLocationDemos();     // 3단계: 위치기반 시연 8건 즉시 발송
         }
-        // _stage >= 3 → 동작 없음 (추후 추가 예정)
+        // _stage >= 2 → 동작 없음 (추후 추가 예정)
     }
 
-    function _onHeaderClick() {
-        var now = Date.now();
-        if (now - _firstTs > WINDOW_MS) { _count = 0; _firstTs = now; }
-        _count++;
-        if (_count >= NEED_CLICKS) {
-            _count = 0;
-            if (_stage >= 3) return;  // 모든 단계 소진 — 불필요한 호출 방지
-            // 관리자 등록 기기에서만 발동 — 일반 사용자는 무동작
-            _isAdminDevice().then(function (ok) { if (ok) _dispatch(); });
-        }
+    /**
+     * 5연타 카운터 생성기 — 헤더마다 독립된 카운트를 갖는다.
+     * 5번째 클릭이 완성되면 관리자 등록 기기에서만 onComplete() 를 실행.
+     * @param {Function} onComplete 5연타 완성 시 실행할 동작
+     * @param {Function} [skip] true 를 반환하면 device-status 호출 없이 건너뜀
+     */
+    function _makeCounter(onComplete, skip) {
+        var count = 0, firstTs = 0;
+        return function () {
+            var now = Date.now();
+            if (now - firstTs > WINDOW_MS) { count = 0; firstTs = now; }
+            count++;
+            if (count >= NEED_CLICKS) {
+                count = 0;
+                if (typeof skip === 'function' && skip()) return;
+                // 관리자 등록 기기에서만 발동 — 일반 사용자는 무동작
+                _isAdminDevice().then(function (ok) { if (ok) onComplete(); });
+            }
+        };
     }
 
     function _init() {
-        var header = document.getElementById('main-accordion-header');
-        if (!header) return;
-        // 기존 onclick(toggleMainAccordion) 은 그대로 두고 클릭 카운터만 추가
-        header.addEventListener('click', _onHeaderClick);
+        // [A] 해역별 특보현황 — 단계 진행식(특보 → 태풍)
+        var alertHeader = document.getElementById('main-accordion-header');
+        if (alertHeader) {
+            // 기존 onclick(toggleMainAccordion) 은 그대로 두고 클릭 카운터만 추가
+            alertHeader.addEventListener('click', _makeCounter(
+                _dispatchAlertHeader,
+                function () { return _stage >= 2; }  // 단계 소진 시 불필요한 호출 방지
+            ));
+        }
+        // [B] 해역별 기상현황 — 위치기반 시연(독립, 반복 가능)
+        var marineHeader = document.getElementById('marine-status-accordion-header');
+        if (marineHeader) {
+            marineHeader.addEventListener('click', _makeCounter(_sendLocationDemos));
+        }
     }
 
     if (document.readyState === 'loading') {
