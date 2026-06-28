@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;}
+  #card{width:1080px;min-height:1560px;background:linear-gradient(180deg,#eef3f8 0%,#e3ebf3 100%);padding:64px 60px 56px;position:relative;}
+
+  /* 헤더 */
+  .h{display:flex;align-items:center;gap:22px;margin-bottom:14px;}
+  .h .no{background:#FF6B35;color:#fff;font-weight:800;font-size:46px;border-radius:16px;padding:8px 22px;letter-spacing:-0.02em;box-shadow:0 6px 18px rgba(255,107,53,0.35);}
+  .h .t{color:#15243a;font-size:54px;font-weight:800;letter-spacing:-0.03em;}
+  .sub{color:#5b6b80;font-size:28px;font-weight:500;margin:0 0 40px 2px;letter-spacing:-0.01em;}
+  .sub b{color:#FF6B35;font-weight:700;}
+
+  /* 상단 콜아웃 2개 */
+  .tops{display:flex;gap:40px;margin-bottom:40px;}
+  .top{flex:1;background:#fff;border-radius:24px;padding:34px 32px;box-shadow:0 10px 30px rgba(30,50,80,0.08);border:1px solid #d8e2ee;}
+  .top .pill{display:inline-block;background:#15243a;color:#fff;font-size:24px;font-weight:700;padding:8px 20px;border-radius:30px;letter-spacing:-0.01em;}
+  .top .pill.o{background:#FF6B35;}
+  .top .big{display:flex;align-items:baseline;gap:12px;margin-top:22px;}
+  .top .big .v{color:#15243a;font-size:78px;font-weight:800;letter-spacing:-0.04em;line-height:1;}
+  .top .big .v .u{font-size:38px;color:#FF6B35;font-weight:800;margin-left:2px;}
+  .top .cap{color:#5b6b80;font-size:26px;font-weight:600;margin-top:10px;}
+  .top .src{color:#93a2b5;font-size:18px;font-weight:400;margin-top:8px;}
+
+  /* 체크 요지 */
+  .pts{background:#fff;border-radius:24px;padding:36px 40px;box-shadow:0 10px 30px rgba(30,50,80,0.08);border:1px solid #d8e2ee;margin-bottom:40px;}
+  .pt{display:flex;gap:18px;align-items:flex-start;padding:16px 0;border-bottom:1px dashed #e0e8f1;}
+  .pt:last-child{border-bottom:none;}
+  .pt .ck{flex:0 0 40px;height:40px;border-radius:50%;background:rgba(255,107,53,0.14);color:#FF6B35;font-size:24px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:2px;}
+  .pt .x{color:#1f3047;font-size:30px;font-weight:500;line-height:1.45;letter-spacing:-0.01em;}
+  .pt .x b{color:#15243a;font-weight:800;}
+  .pt .x .o{color:#FF6B35;font-weight:800;}
+
+  /* 하단 수치 타일 */
+  .tiles{display:flex;gap:30px;}
+  .tile{flex:1;background:#fff;border-radius:22px;padding:30px 24px;text-align:center;box-shadow:0 10px 30px rgba(30,50,80,0.08);border:1px solid #d8e2ee;}
+  .tile .ic{font-size:46px;}
+  .tile .v{color:#FF6B35;font-size:58px;font-weight:800;letter-spacing:-0.03em;line-height:1;margin-top:8px;}
+  .tile .v .u{font-size:28px;color:#15243a;}
+  .tile .l{color:#15243a;font-size:27px;font-weight:700;margin-top:12px;}
+  .tile .s{color:#93a2b5;font-size:18px;font-weight:400;margin-top:6px;line-height:1.35;}
+
+  .foot{position:absolute;left:60px;right:60px;bottom:22px;color:#93a2b5;font-size:17px;font-weight:400;letter-spacing:-0.005em;line-height:1.5;}
+</style>
+</head>
+<body>
+<div id="card">
+  <div class="h"><span class="no">01</span><span class="t">왜 필요한가</span></div>
+  <div class="sub">늘어나는 <b>바다 이용</b>, 흩어진 <b>공공 정보</b> — 그 빈자리를 메우지 못한 현장</div>
+
+  <div class="tops">
+    <div class="top">
+      <span class="pill o">해양 활동 인구 ↑</span>
+      <div class="big"><span class="v">920<span class="u">만+</span></span></div>
+      <div class="cap">낚시 인구 (바다를 쓰는 국민 급증)</div>
+      <div class="src">출처: 해양수산부 낚시 실태조사 ※연도 확정 필요</div>
+    </div>
+    <div class="top">
+      <span class="pill">공공 정보 파편화</span>
+      <div class="big"><span class="v">7<span class="u">개+</span></span></div>
+      <div class="cap">해양정보가 흩어진 공공기관</div>
+      <div class="src">기상청·국립해양조사원·천문연·방재기상·해수부·지자체 등</div>
+    </div>
+  </div>
+
+  <div class="pts">
+    <div class="pt"><span class="ck">✓</span><span class="x"><b>해양 활동 인구는 매년 증가</b> — 낚시 약 <span class="o">920만</span>, 어업 약 9만, 연안·해양 관광 연 <span class="o">1천만+</span></span></div>
+    <div class="pt"><span class="ck">✓</span><span class="x">정작 <b>해양정보는 7개+ 공공기관에 분산</b> — 형식·창구가 제각각이라 국민이 직접 찾기 어렵다</span></div>
+    <div class="pt"><span class="ck">✓</span><span class="x">결국 <b>해외 민간앱(윈디)에 의존</b> — 그러나 한국 <span class="o">공식 해상특보는 연동되지 않는다</span></span></div>
+    <div class="pt"><span class="ck">✓</span><span class="x">그 공백은 <b>일선 파출소의 기상·특보 문의 민원</b>으로 반복 — 특보 때마다 같은 통화</span></div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><div class="ic">🎣</div><div class="v">920<span class="u">만+</span></div><div class="l">낚시 인구</div><div class="s">바다를 쓰는 국민 급증</div></div>
+    <div class="tile"><div class="ic">🗂️</div><div class="v">7<span class="u">개+</span></div><div class="l">분산 공공기관</div><div class="s">해양정보 파편화</div></div>
+    <div class="tile"><div class="ic">📵</div><div class="v">0</div><div class="l">특보 연동 민간앱</div><div class="s">윈디 등 한국 특보 미연동</div></div>
+  </div>
+
+  <div class="foot">※ 수치 근거: 낚시 인구 = 해양수산부 낚시 실태조사 / 어업 인구 = 통계청 어업조사 / 관광 = 해양수산부 통계(연도·정의 확정 필요). 분산 기관 = 앱 통합 데이터 출처 기준. 본 안은 콘텐츠 시안이며 최종 디자인·수치 검증은 인공지능전환팀.</div>
+</div>
+</body>
+</html>
