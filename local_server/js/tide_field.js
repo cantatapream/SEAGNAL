@@ -291,6 +291,23 @@
             }).catch(function () { if (typeof toast === 'function') toast('앵커 정보를 불러오지 못했습니다.'); });
     }
 
+    // [특보 시연 연계] 특보 시연 "테스트 모드" ON 여부 (demo_alert.js 가 노출한 게터).
+    //   관리자 등록 기기 + 테스트 모드 ON 일 때만 true. 그 외(일반 사용자)는 항상 false.
+    function _demoTestModeOn() {
+        try {
+            return typeof window.__seagnalDemoTestModeOn === 'function'
+                && window.__seagnalDemoTestModeOn() === true;
+        } catch (e) { return false; }
+    }
+    // 앵커 포인트 명시적 표출/숨김 (시연 모드 자동 표출용 — 토글이 아님).
+    function showAnchorOverlay() {
+        if (_anchorLayer) { _anchorLayer.setVisible(true); return; }
+        toggleAnchorOverlay();   // 레이어 미생성 시 fetch+생성(기본 visible) → 사실상 '표시'
+    }
+    function hideAnchorOverlay() {
+        if (_anchorLayer) _anchorLayer.setVisible(false);
+    }
+
     function bindToggle() {
         var btn = $('ocean-mudflat-toggle-btn');
         if (!btn) return;
@@ -339,6 +356,8 @@
         _active = true;
         if (btn) btn.classList.add('active');
         _layer.setVisible(true);
+        // [시연 모드] 특보 시연 테스트 모드 ON 이면 앵커 포인트(데이터 확보 해점)를 자동 표출.
+        if (_demoTestModeOn()) showAnchorOverlay();
         showLoading();   // 슬라이더·범례·첫 화면 준비될 때까지 중앙 로딩 표시
 
         ensureMeta().then(function (ok) {
@@ -382,6 +401,7 @@
         var btn = $('ocean-mudflat-toggle-btn');
         if (btn) btn.classList.remove('active');
         if (_layer) _layer.setVisible(false);
+        hideAnchorOverlay();   // [시연 모드] 자동 표출했던 앵커 포인트도 함께 숨김
         hideLoading();
         _drawCells = [];
         _currentCells = [];
