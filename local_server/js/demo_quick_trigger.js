@@ -18,14 +18,17 @@
  *        → 둘 다 sendAdminPush 로 관리자 등록 기기에만 발송.
  *   [3단계 이후] 동작 없음 (추후 기능 추가 예정)
  *
- * [B] "해역별 기상현황" 헤더(#marine-status-accordion-header) — 독립 트리거
- *   5연타 → 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만, 반복 가능)
+ * [B] "해역별 기상현황" 헤더(#marine-status-accordion-header) — 단계 진행식(1회성)
+ *   [1단계] 첫 5연타 → 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만)
  *     ⑥ POST /api/admin/demo/typhoon-radius-test {kind:'strong'} (강풍반경 진입)
  *     ⑦ POST /api/admin/demo/typhoon-radius-test {kind:'storm'}  (폭풍반경 진입)
  *     ⑧ 위치기반 특보 시연 6종 즉시 — laDemoSetPosition() + laDemoRun(id,0):
  *        prelim(예비특보 발표) → adv_pub(풍랑주의보 발효예정) → adv_act(발효중)
  *        → warn_pub(풍랑경보 발표) → warn_act(풍랑경보 발효) → typhoon(태풍경보 발효)
  *        (각각 /api/location-alert/demo 가 이 기기 토큰 1대에만 발송)
+ *   [2단계] 다음 5연타 → AI 탭 '시연'(나리 소개 슬라이드) 자동 ON: window.openNariDemo()
+ *     ⑨ 그 시연 화면을 닫으면(closeNariDemo) 음성 비서 '나리야' 자동 ON (앱 전용)
+ *   [3단계 이후] 동작 없음
  *
  * [안전 설계 — demo_alert.js 와 동일한 게이트]
  *   ① localStorage.seagnal_admin_mode === 'true' (관리자 모드)
@@ -50,6 +53,8 @@
     var WINDOW_MS = 3000;      // 연속 클릭으로 인정하는 시간창
     var _busy = false;         // 동작 진행 중 재진입 방지(두 헤더 공유 — 발송 겹침 방지)
     var _stage = 0;            // [특보현황 헤더] 0=특보 시연(1단계), 1=태풍 발생/소멸(2단계), 2+=동작 없음
+    var _marineStage = 0;      // [기상현황 헤더] 0=위치기반(1단계), 1=AI 시연 열기(2단계), 2+=동작 없음(1회성)
+    var _nariyaArmed = false;  // 트리거로 연 AI 시연이 닫힐 때 나리야를 자동 ON 할지
 
     function _adminMode() {
         try { return localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { return false; }
@@ -211,6 +216,62 @@
         // _stage >= 2 → 동작 없음 (추후 추가 예정)
     }
 
+    /** 음성 비서 나리야 ON — 네이티브 플러그인 직접 호출(앱 전용, 웹/플러그인 없으면 무동작). */
+    function _enableNariya() {
+        try {
+            var P = window.Capacitor && window.Capacitor.Plugins;
+            var Native = P && P.SeagnalAssistant;
+            if (!Native || !Native.enable) return;   // 앱 외 환경 — 무동작
+            var profile = '{}';
+            try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) { /* noop */ }
+            Native.enable({ serverUrl: location.origin, profile })
+                .then(function () { _toast('음성 비서 나리야가 켜졌습니다.'); })
+                .catch(function () { /* 권한/모델 미비 등 — 조용히 무시 */ });
+        } catch (e) { /* noop */ }
+    }
+
+    /**
+     * window.closeNariDemo 를 1회 래핑 — 기존 닫기 동작은 그대로 두고,
+     * "트리거로 연 시연"이 닫힐 때만(_nariyaArmed) 나리야를 자동 ON 한다.
+     * 닫기 버튼·하드웨어 뒤로가기(PopupStack) 모두 window.closeNariDemo 를 거치므로 한 곳만 래핑.
+     */
+    function _wrapCloseNariOnce() {
+        if (window.__nariCloseWrappedBySeagnalDemo) return;
+        var orig = window.closeNariDemo;
+        if (typeof orig !== 'function') return;
+        window.closeNariDemo = function () {
+            var r;
+            try { r = orig.apply(this, arguments); } catch (e) { r = undefined; }
+            if (_nariyaArmed) { _nariyaArmed = false; _enableNariya(); }
+            return r;
+        };
+        window.__nariCloseWrappedBySeagnalDemo = true;
+    }
+
+    /** [기상현황 2단계] AI 탭 시연(나리 소개 슬라이드) 열기 + 닫을 때 나리야 ON 무장. */
+    function _openAiDemoAndArm() {
+        if (typeof window.openNariDemo !== 'function') {
+            _toast('AI 시연 모듈이 아직 로드되지 않았습니다.');
+            return;
+        }
+        _wrapCloseNariOnce();   // openNariDemo 가 PopupStack 에 closeNariDemo 를 등록하기 전에 래핑
+        _nariyaArmed = true;
+        try { window.openNariDemo(); } catch (e) { _nariyaArmed = false; }
+    }
+
+    /** ["해역별 기상현황" 5연타] 1차=위치기반 시연, 2차=AI 시연 열기 (1회성). */
+    function _dispatchMarineHeader() {
+        if (_busy) return;
+        if (_marineStage === 0) {
+            _marineStage = 1;
+            _sendLocationDemos();   // 1단계: 위치기반 시연 8건
+        } else if (_marineStage === 1) {
+            _marineStage = 2;
+            _openAiDemoAndArm();    // 2단계: AI 시연 열기 → 닫으면 나리야 ON
+        }
+        // _marineStage >= 2 → 동작 없음 (1회성)
+    }
+
     /**
      * 5연타 카운터 생성기 — 헤더마다 독립된 카운트를 갖는다.
      * 5번째 클릭이 완성되면 관리자 등록 기기에서만 onComplete() 를 실행.
@@ -242,10 +303,13 @@
                 function () { return _stage >= 2; }  // 단계 소진 시 불필요한 호출 방지
             ));
         }
-        // [B] 해역별 기상현황 — 위치기반 시연(독립, 반복 가능)
+        // [B] 해역별 기상현황 — 단계 진행식(위치기반 → AI 시연), 1회성
         var marineHeader = document.getElementById('marine-status-accordion-header');
         if (marineHeader) {
-            marineHeader.addEventListener('click', _makeCounter(_sendLocationDemos));
+            marineHeader.addEventListener('click', _makeCounter(
+                _dispatchMarineHeader,
+                function () { return _marineStage >= 2; }  // 단계 소진 시 불필요한 호출 방지
+            ));
         }
     }
 

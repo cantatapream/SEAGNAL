@@ -205,6 +205,11 @@
             && appState.alerts.some(function (a) { return !a._isDemo; }));
     }
 
+    // [시연 연계] 특보 시연 "테스트 모드" ON 여부를 외부 모듈(tide_field.js 등)에 노출.
+    //   _testMode 는 관리자 등록 기기에서만 서버 폴링으로 갱신되므로, 비관리자 기기에서는
+    //   항상 false 를 반환한다(앵커 포인트 자동 표출이 일반 사용자에게 새지 않음).
+    window.__seagnalDemoTestModeOn = function () { return _testMode === true; };
+
     /**
      * 정식 데이터 재적재(refreshAlertData / fetchAllData) 직후 데모 항목이
      * 사라지므로, 활성 데모가 있으면 다시 얹어준다.
