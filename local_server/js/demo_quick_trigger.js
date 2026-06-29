@@ -32,12 +32,11 @@
  *     - 물빠짐 슬라이더 자동 재생(#mudflat-play-btn). 물빠짐 예측 팝업은 열지 않음.
  *
  * [B] "해역별 기상현황" 헤더(#marine-status-accordion-header) — 단계 진행식(1회성)
- *   [1단계] 첫 5연타 → 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만)
+ *   [1단계] 첫 5연타 → 위치기반 시연 5건 즉시 발송 (모두 관리자 기기에만)
  *     ⑥ POST /api/admin/demo/typhoon-radius-test {kind:'strong'} (강풍반경 진입)
  *     ⑦ POST /api/admin/demo/typhoon-radius-test {kind:'storm'}  (폭풍반경 진입)
- *     ⑧ 위치기반 특보 시연 6종 즉시 — laDemoSetPosition() + laDemoRun(id,0):
- *        prelim(예비특보 발표) → adv_pub(풍랑주의보 발효예정) → adv_act(발효중)
- *        → warn_pub(풍랑경보 발표) → warn_act(풍랑경보 발효) → typhoon(태풍경보 발효)
+ *     ⑧ 위치기반 특보 시연 3종 즉시 — laDemoSetPosition() + laDemoRun(id,0):
+ *        prelim(풍랑 예비특보 발표) → adv_act(풍랑주의보 발효) → warn_act(풍랑경보 발효)
  *        (각각 /api/location-alert/demo 가 이 기기 토큰 1대에만 발송)
  *   [2단계] 다음 5연타 → AI 탭 '시연'(나리 소개 슬라이드) 자동 ON: window.openNariDemo()
  *     ⑨ 그 시연 화면을 닫으면(closeNariDemo) 음성 비서 '나리야' 자동 ON (앱 전용)
@@ -200,7 +199,9 @@
             }).then(function (r) { return r.json().catch(function () { return {}; }); })
                 .catch(function () { return {}; });
         };
-        var LA_IDS = ['prelim', 'adv_pub', 'adv_act', 'warn_pub', 'warn_act', 'typhoon'];
+        // 특보 3종만 발송: 풍랑 예비특보 발표 / 풍랑주의보 발효 / 풍랑경보 발효
+        //   (제외: adv_pub 발효예정, warn_pub 경보발표, typhoon 태풍경보발효)
+        var LA_IDS = ['prelim', 'adv_act', 'warn_act'];
         // (A) 강풍 → 폭풍 반경
         _radius('strong')
             .then(function () { return _radius('storm'); })
@@ -216,7 +217,7 @@
                 });
                 return p;
             })
-            .then(function () { _toast('위치기반 특보 시연 푸시를 전송했습니다. (총 8건)'); })
+            .then(function () { _toast('위치기반 시연 푸시를 전송했습니다. (총 5건)'); })
             .catch(function () { _toast('위치기반 시연 발송에 실패했습니다.'); })
             .then(function () { _busy = false; });
     }
