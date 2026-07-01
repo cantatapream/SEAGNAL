@@ -171,12 +171,39 @@
         try { return localStorage.getItem(MATCH_KEY); } catch (_) { return null; }
     }
 
+    // 실제 저장 위치(POS_KEY) — Preferences 우선, 없으면 localStorage.
+    //   [BUG B] 네이티브(killed) fresh-fix 는 Preferences(CapacitorStorage)에만 위치를 쓰고
+    //   localStorage 에는 쓰지 못한다(네이티브엔 localStorage 없음). 진단이 localStorage 만
+    //   읽으면 낡은 값이 보였다. → Preferences 를 먼저 읽어 최신 네이티브 위치를 반영하고,
+    //   둘 다 있으면 더 최신(at)을 택한다. readMatch() 와 동일 패턴, 완전 방어적.
+    async function readPos() {
+        let prefRec = null, lsRec = null;
+        try {
+            const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+            if (P && P.get) {
+                const r = await P.get({ key: POS_KEY });
+                if (r && r.value) { try { prefRec = JSON.parse(r.value); } catch (_) { prefRec = null; } }
+            }
+        } catch (_) { }
+        try {
+            const raw = (window.LocationAlertBackground && window.LocationAlertBackground.getPosition)
+                ? window.LocationAlertBackground.getPosition()
+                : JSON.parse(localStorage.getItem(POS_KEY));
+            lsRec = raw || null;
+        } catch (_) { lsRec = null; }
+        if (!prefRec) return lsRec;
+        if (!lsRec) return prefRec;
+        // 둘 다 있으면 at 이 더 최신인 쪽. 파싱 불가 시 Preferences(네이티브 권위) 우선.
+        const tp = Date.parse(prefRec.at || ''), tl = Date.parse(lsRec.at || '');
+        if (Number.isFinite(tp) && Number.isFinite(tl)) return tp >= tl ? prefRec : lsRec;
+        return prefRec;
+    }
+
     // (1) 실제 저장 위치(real GPS) (2) 시연 위치(_demoPos) (3) 마지막 위치기반 판정(location_alert_last_match) 표시
     window.laDemoRefreshInfo = async function () {
         try {
-            // (1) 실제 저장 GPS 위치 — POS_KEY
-            const pos = (window.LocationAlertBackground && window.LocationAlertBackground.getPosition)
-                ? window.LocationAlertBackground.getPosition() : null;
+            // (1) 실제 저장 GPS 위치 — POS_KEY. Preferences(네이티브 wake 갱신) 우선 → localStorage.
+            const pos = await readPos();
             const posEl = document.getElementById('la-demo-pos');
             if (posEl) {
                 if (pos) {

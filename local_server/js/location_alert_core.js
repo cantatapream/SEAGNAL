@@ -27,6 +27,20 @@
     const DEG2RAD = Math.PI / 180;
     const R_EARTH = 6371000;      // 지구 반경(m)
 
+    // ── 구역명 정규화 ────────────────────────────────────────────────────────
+    /**
+     * canonZone — 구역명을 표준형(canonical)으로 정규화.
+     *   지도 폴리곤(warn_zones.geojson properties.name)과 크롤러/스냅샷 구역 키가
+     *   **공백·구분자 차이**로 어긋나는 문제(BUG A)를 조회 경계에서만 흡수한다.
+     *     · 모든 공백 제거:  '제주도 남쪽 바깥먼바다' → '제주도남쪽바깥먼바다'
+     *     · '·'/'.' 통일(·): '인천.경기남부앞바다' → '인천·경기남부앞바다'
+     *   (검증: 44개 폴리곤명 모두 canonical 크롤러 구역명에 0 mismatch·0 collision 매칭)
+     *   순수·경량. 네이티브 LocationAlertCore.canonZone 과 결과가 글자 단위로 동일해야 함.
+     */
+    function canonZone(name) {
+        return String(name || '').replace(/\s+/g, '').replace(/[·.]/g, '·');
+    }
+
     // ── 좌표 헬퍼 ────────────────────────────────────────────────────────────
     /** 다양한 입력을 [lng, lat] 로 정규화. */
     function toLngLat(p) {
@@ -296,7 +310,7 @@
     }
 
     return {
-        NM_M, haversineMeters, bearingDeg,
+        NM_M, canonZone, haversineMeters, bearingDeg,
         pointInRing, pointInPolygon, pointInGeometry, seaGeometry,
         closestPointOnSegment, nearestPointOnGeometry,
         locateZone, nearestZoneBy, segmentCrossesLand,

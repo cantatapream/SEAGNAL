@@ -78,6 +78,53 @@
         try { return JSON.parse(root.localStorage.getItem(POS_KEY)); } catch (_) { return null; }
     }
 
+    /** Preferences 에서 POS_KEY 를 1회 읽는다(네이티브 killed wake 가 쓴 최신 위치). 실패/부재 시 null. */
+    async function prefsGet(key) {
+        try {
+            const P = prefsPlugin();
+            if (P && P.get) {
+                const r = await P.get({ key });
+                if (r && r.value != null) return r.value;
+            }
+        } catch (_) { }
+        return null;
+    }
+
+    /**
+     * 앱 실행 시 저장소 desync 해소 — 네이티브(killed) wake 는 위치를 Preferences 에만 쓰므로
+     *   localStorage 는 낡을 수 있다. Preferences 값이 localStorage 보다 최신(at 비교)이면
+     *   그 값을 localStorage 로 채워(adopt) JS 폴백·진단이 같은 위치를 보게 한다.
+     *   at 이 없을 때: localStorage 가 아예 없으면 Preferences 값을 채운다(정보량 증가).
+     *   절대 throw 하지 않음(방어적). 네이티브가 아니거나 플러그인 부재 시 no-op.
+     * @returns {Promise<boolean>} localStorage 를 갱신했으면 true.
+     */
+    async function syncPositionFromPrefs() {
+        try {
+            if (!isNative()) return false;
+            const prefRaw = await prefsGet(POS_KEY);
+            if (!prefRaw) return false;
+            let pref = null;
+            try { pref = JSON.parse(prefRaw); } catch (_) { return false; }
+            if (!pref || pref.lat == null || pref.lng == null) return false;
+            let ls = null;
+            try { ls = JSON.parse(root.localStorage.getItem(POS_KEY)); } catch (_) { ls = null; }
+            let adopt = false;
+            if (!ls) {
+                adopt = true;                      // localStorage 부재 → Preferences 값 채택
+            } else {
+                const tp = pref.at ? Date.parse(pref.at) : NaN;
+                const tl = ls.at ? Date.parse(ls.at) : NaN;
+                if (Number.isFinite(tp) && Number.isFinite(tl)) adopt = tp > tl;   // Preferences 가 더 최신
+                else if (Number.isFinite(tp) && !Number.isFinite(tl)) adopt = true; // Preferences 만 시각 보유
+            }
+            if (adopt) {
+                try { root.localStorage.setItem(POS_KEY, prefRaw); } catch (_) { }
+                return true;
+            }
+        } catch (_) { }
+        return false;
+    }
+
     /**
      * 순수 헬퍼 — 저장 레코드가 "낡음"인지 판정.
      * rec.at 이 유한한 시각으로 파싱되고 (nowMs - 파싱값) > maxMs 일 때만 true.
@@ -143,6 +190,9 @@
     async function start() {
         try {
             if (!isNative()) { console.log('[LocationAlertBG] 네이티브 아님 → skip'); return false; }
+            // 앱 실행 시 저장소 desync 해소 — 네이티브 wake 가 Preferences 에만 쓴 최신 위치를
+            //   localStorage 로 채운다(이후 fresh-fix 성공 시 최신값으로 다시 덮어씀). 방어적.
+            try { await syncPositionFromPrefs(); } catch (_) { }
             await getFreshPosition();   // 즉시 1회 위치 갱신(상시 수집 없음)
             console.log('[LocationAlertBG] event-driven fresh-fix done');
             return true;
@@ -187,7 +237,7 @@
         } catch (_) { return false; }
     }
 
-    const api = { start, stop, ensureStarted, getFreshPosition, getPosition, savePosition, clearPosition, isStale, STALE_MAX_MS, POS_KEY, Mirror };
+    const api = { start, stop, ensureStarted, getFreshPosition, getPosition, savePosition, clearPosition, syncPositionFromPrefs, isStale, STALE_MAX_MS, POS_KEY, Mirror };
     if (root) root.LocationAlertBackground = api;
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));
