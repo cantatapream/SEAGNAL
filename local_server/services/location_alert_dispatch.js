@@ -122,11 +122,27 @@ function selectTargetTokens(consents) {
  *  @param demoPos (선택) 시연 위치 {lat,lng,acc}. 있으면 demoLat/demoLng/demoAcc 를 data 에 실어
  *    단말이 POS_KEY(실제 GPS) 대신 이 위치로 판정하게 한다. 실제 운영 wake 에는 demoPos 가 없어
  *    단말이 항상 진짜 백그라운드 GPS(POS_KEY)를 사용한다(데모가 실제 판정을 오염시키지 않음). */
+// FCM 데이터 메시지 페이로드 한도(약 4KB). 안전 여유를 두고 경고 임계값을 3.8KB 로 둔다.
+const _FCM_DATA_WARN_BYTES = 3800;
+
 function buildDataMessage(snapshot, demoPos) {
+    const snapStr = JSON.stringify(snapshot);
+    // [LIGHT C] FCM 4KB data 한도 근접/초과 안전 경고. 특보 구역이 많으면(전해상 광역 특보)
+    //   스냅샷이 4KB 를 넘을 수 있다. 여기서는 로그만 남기고 절대 구역을 드롭하지 않는다
+    //   (구역 누락은 warned zone 을 무특보로 오판정하는 BUG A 를 재유발하므로 금지).
+    try {
+        const bytes = Buffer.byteLength(snapStr, 'utf8');
+        if (bytes > _FCM_DATA_WARN_BYTES) {
+            const zoneCount = snapshot && snapshot.zones ? Object.keys(snapshot.zones).length : 0;
+            console.warn('[LocationAlertDispatch] ⚠ FCM data snapshot 크기 ' + bytes
+                + 'B (구역 ' + zoneCount + '개) — FCM 4KB 한도 근접/초과 가능. '
+                + '구역 드롭 금지(BUG A 재유발); 향후 페이로드 축약/청크 검토 필요.');
+        }
+    } catch (_) { /* 크기 측정 실패는 무시 */ }
     const data = {
         type: 'location_alert_wake',
         v: '1',
-        snapshot: JSON.stringify(snapshot),
+        snapshot: snapStr,
     };
     if (demoPos && typeof demoPos === 'object'
         && Number.isFinite(demoPos.lat) && Number.isFinite(demoPos.lng)) {

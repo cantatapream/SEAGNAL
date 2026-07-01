@@ -34,6 +34,47 @@ public final class LocationAlertCore {
 
     private LocationAlertCore() { }
 
+    // ── 구역명 정규화 ───────────────────────────────────
+    /**
+     * canonZone — 구역명을 표준형(canonical)으로 정규화.
+     *   JS location_alert_core.js 의 canonZone 과 결과가 글자 단위로 동일해야 함:
+     *     name.replace(/\s+/g,'').replace(/[·.]/g,'·')
+     *   지도 폴리곤명(공백/'.')과 스냅샷 키(무공백/'·') 불일치(BUG A)를 조회 경계에서만 흡수.
+     *     · 모든 공백류(\s) 제거
+     *     · '·'(U+00B7) 및 '.'(마침표) → '·' 통일
+     */
+    public static String canonZone(String name) {
+        if (name == null) return "";
+        StringBuilder sb = new StringBuilder(name.length());
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (isJsWhitespace(c)) continue;              // JS \s 제거
+            if (c == '·' || c == '.') sb.append('·'); // ·/. → ·
+            else sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * JS 정규식 \s 와 동일한 공백류 판정(글자 단위 parity 보장).
+     *   ECMAScript \s = [\t\n\u000b\f\r\u0020\u00a0\u1680\u2000-\u200a
+     *                     \u2028\u2029\u202f\u205f\u3000\ufeff]
+     *   실제 구역명엔 ASCII 공백만 등장하지만, JS canonZone 과 완전 동치를 위해 전체 집합을 명시.
+     */
+    private static boolean isJsWhitespace(char c) {
+        switch (c) {
+            case '\t': case '\n': case '\u000b': case '\f': case '\r':
+            case '\u0020': case '\u00a0': case '\u1680':
+            case '\u2000': case '\u2001': case '\u2002': case '\u2003': case '\u2004':
+            case '\u2005': case '\u2006': case '\u2007': case '\u2008': case '\u2009':
+            case '\u200a': case '\u2028': case '\u2029': case '\u202f': case '\u205f':
+            case '\u3000': case '\ufeff':
+                return true;
+            default:
+                return false;
+        }
+    }
+
     // ── 좌표 헬퍼 ───────────────────────────────────────────────────────────
     /** {lat,lng} → [lng, lat]. */
     public static double[] toLngLat(double lat, double lng) {

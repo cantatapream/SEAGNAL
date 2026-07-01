@@ -20,11 +20,6 @@
         try { return require('./location_alert_core.js'); } catch (_) { return null; }
     }
 
-    function tierOfZone(snapshot, name) {
-        const z = snapshot && snapshot.zones && snapshot.zones[name];
-        return (z && z.tier) || 'none';
-    }
-
     /**
      * 순수 판정 — 표시할 {title, body} 또는 null.
      * @param pos {lat,lng,accuracyM}
@@ -35,11 +30,26 @@
         const core = getCore();
         if (!core || !pos || !features || !snapshot) return null;
 
+        // 폴리곤명(공백·'.') 과 스냅샷 표준 구역명(무공백·'·') 차이를 흡수하기 위한
+        //   정규화 인덱스를 1회 구축. 이것이 없으면 특보구역이 무특보로 오판정되어
+        //   경보가 위험 해역을 안전 해역으로 안내하는 안전-치명 버그가 발생한다.
+        const canon = (typeof core.canonZone === 'function')
+            ? core.canonZone
+            : (n) => String(n || '').replace(/\s+/g, '').replace(/[·.]/g, '·');
+        const zonesRaw = (snapshot && snapshot.zones) || {};
+        const normZones = {};
+        for (const k of Object.keys(zonesRaw)) normZones[canon(k)] = zonesRaw[k];
+        // 정확 일치 우선(안전) → 정규화 조회. 무특보면 'none'.
+        function tierOfZone(name) {
+            const z = zonesRaw[name] || normZones[canon(name)];
+            return (z && z.tier) || 'none';
+        }
+
         const located = core.locateZone({ lat: pos.lat, lng: pos.lng }, features, pos.accuracyM || 0);
         if (!located) return null;                 // 바다 구역 밖(육지/외해)
 
         const zoneName = located.feature.properties.name;
-        const z = snapshot.zones && snapshot.zones[zoneName];
+        const z = zonesRaw[zoneName] || normZones[canon(zoneName)];
         if (!z || z.tier === 'none' || z.tier === 'prelim_none') return null; // 내 구역에 유효 특보 없음
         const tier = z.tier;
 
@@ -47,14 +57,14 @@
         //   예비·주의보(안전정보)는 약한 안내라 그대로 표출(과소 알림 방지).
         if (located.grayZone && tier === 'severe') return null;
 
-        // 최근접 무특보 구역
+        // 최근접 무특보 구역 — 정규화 tierOfZone 사용(특보구역이 무특보로 오판정되지 않도록).
         const nearestClear = core.nearestZoneBy({ lat: pos.lat, lng: pos.lng }, features,
-            (f) => tierOfZone(snapshot, f.properties.name) === 'none');
+            (f) => tierOfZone(f.properties.name) === 'none');
         // 2단계(경보·태풍)면 '경보·태풍이 아닌(주의보/예비)' 최근접도
         let nearestLower = null;
         if (tier === 'severe') {
             nearestLower = core.nearestZoneBy({ lat: pos.lat, lng: pos.lng }, features,
-                (f) => f.properties.name !== zoneName && tierOfZone(snapshot, f.properties.name) !== 'severe');
+                (f) => f.properties.name !== zoneName && tierOfZone(f.properties.name) !== 'severe');
         }
 
         const msg = core.buildMessage({

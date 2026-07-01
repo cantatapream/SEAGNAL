@@ -2,23 +2,50 @@ package com.seagnal.app.locationalert;
 
 import org.json.JSONObject;
 
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * LocationAlertDecider — local_server/js/location_alert_runtime.js 의 decideAlert 포팅.
  *
  * 단말 저장 위치 + 번들 폴리곤 + 스냅샷(zones)으로 표출할 {title, body} 또는 null 결정.
  * JS decideAlert 와 동일한 게이팅/회색지대 규칙을 따른다.
+ *
+ * [안전-치명 수정] 폴리곤명(공백·'.')과 스냅샷 표준 구역명(무공백·'·') 차이 때문에
+ *   특보구역이 무특보로 오판정되던 버그를 LocationAlertCore.canonZone 정규화 인덱스로
+ *   해소한다(JS runtime.decideAlert 와 동일 로직).
  */
 public final class LocationAlertDecider {
 
     private LocationAlertDecider() { }
 
-    /** snapshot.zones[name].tier (없으면 'none'). */
-    private static String tierOfZone(JSONObject snapshot, String name) {
-        JSONObject zones = snapshot.optJSONObject("zones");
-        if (zones == null) return "none";
-        JSONObject z = zones.optJSONObject(name);
+    /** zones 를 canonZone(키)→zone JSON 으로 정규화한 인덱스. (JS normZones 와 동일) */
+    private static Map<String, JSONObject> normIndex(JSONObject zones) {
+        Map<String, JSONObject> m = new HashMap<>();
+        if (zones == null) return m;
+        Iterator<String> it = zones.keys();
+        while (it.hasNext()) {
+            String k = it.next();
+            JSONObject z = zones.optJSONObject(k);
+            if (z != null) m.put(LocationAlertCore.canonZone(k), z);
+        }
+        return m;
+    }
+
+    /** 정확 일치 우선(안전) → 정규화 조회로 zone JSON 을 찾는다. (JS: zonesRaw[name] || normZones[canon(name)]) */
+    private static JSONObject lookupZone(JSONObject zones, Map<String, JSONObject> norm, String name) {
+        if (zones != null) {
+            JSONObject exact = zones.optJSONObject(name);
+            if (exact != null) return exact;
+        }
+        return norm.get(LocationAlertCore.canonZone(name));
+    }
+
+    /** snapshot.zones[name].tier (정규화 조회; 없으면 'none'). JS tierOfZone 와 동일. */
+    private static String tierOfZone(JSONObject zones, Map<String, JSONObject> norm, String name) {
+        JSONObject z = lookupZone(zones, norm, name);
         if (z == null) return "none";
         String tier = z.optString("tier", null);
         return tier != null && !tier.isEmpty() ? tier : "none";
@@ -38,12 +65,16 @@ public final class LocationAlertDecider {
 
         final double[] pt = LocationAlertCore.toLngLat(lat, lng);
 
+        // 폴리곤명↔스냅샷 표준 구역명 차이를 흡수하는 정규화 인덱스를 1회 구축(JS normZones 대응).
+        final JSONObject zones = snapshot.optJSONObject("zones");
+        final Map<String, JSONObject> norm = normIndex(zones);
+
         LocationAlertCore.Located located = LocationAlertCore.locateZone(pt, features, accuracyM);
         if (located == null) return null; // 바다 구역 밖(육지/외해)
 
         final String zoneName = located.feature.name;
-        JSONObject zones = snapshot.optJSONObject("zones");
-        JSONObject z = zones != null ? zones.optJSONObject(zoneName) : null;
+        // 사용자 자기 구역: 정확 일치 우선 → 정규화 조회.
+        JSONObject z = lookupZone(zones, norm, zoneName);
         if (z == null) return null;
         String tier = z.optString("tier", null);
         if (tier == null || tier.isEmpty() || "none".equals(tier) || "prelim_none".equals(tier)) {
@@ -53,17 +84,15 @@ public final class LocationAlertDecider {
         // 경계 회색지대(GPS 오차 반경 내): severe 만 보류. 예비·주의보는 그대로 표출.
         if (located.grayZone && "severe".equals(tier)) return null;
 
-        final JSONObject snap = snapshot;
-
-        // 최근접 무특보 구역
+        // 최근접 무특보 구역 — 정규화 tierOfZone(특보구역이 무특보로 오판정되지 않도록).
         LocationAlertCore.Target nearestClear = LocationAlertCore.nearestZoneBy(pt, features,
-                f -> "none".equals(tierOfZone(snap, f.name)));
+                f -> "none".equals(tierOfZone(zones, norm, f.name)));
 
         // severe 면 '경보·태풍이 아닌(주의보/예비)' 최근접도
         LocationAlertCore.Target nearestLower = null;
         if ("severe".equals(tier)) {
             nearestLower = LocationAlertCore.nearestZoneBy(pt, features,
-                    f -> !f.name.equals(zoneName) && !"severe".equals(tierOfZone(snap, f.name)));
+                    f -> !f.name.equals(zoneName) && !"severe".equals(tierOfZone(zones, norm, f.name)));
         }
 
         LocationAlertCore.MessageCtx ctx = new LocationAlertCore.MessageCtx();
