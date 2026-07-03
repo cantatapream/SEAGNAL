@@ -419,6 +419,10 @@
   .tr-boxes{display:flex;gap:20px;flex:1;}
   .tr-box{flex:1;padding:24px 22px;border:1px solid rgba(255,255,255,0.16);border-radius:18px;background:linear-gradient(140deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015));display:flex;flex-direction:column;justify-content:center;min-height:180px;opacity:0;transform:translateY(20px);transition:opacity 0.65s ease,transform 0.65s cubic-bezier(0.34,1.2,0.5,1);box-sizing:border-box;}
   .tr-box.highlight{border-color:rgba(255,107,53,0.55);background:linear-gradient(140deg,rgba(255,107,53,0.18),rgba(255,107,53,0.04));box-shadow:0 0 40px rgba(255,107,53,0.18);}
+  /* 심장박동(두근두근) 모션 — 구독자 수·푸시 알림 발송 박스 */
+  @keyframes heartbeat{0%{transform:scale(1);}10%{transform:scale(1.05);}20%{transform:scale(1);}32%{transform:scale(1.05);}46%{transform:scale(1);}100%{transform:scale(1);}}
+  #wrap.s13 .tr-box.beat{animation:heartbeat 1.5s ease-in-out 1.7s infinite;}
+  #wrap.s13 .tr-box.beat .tr-big{color:#FF8A5C;}
   #wrap.s13 .tr-box{opacity:1;transform:translateY(0);}
   #wrap.s13 .tr-3m .tr-boxes .tr-box:nth-child(1){transition-delay:0.82s;}
   #wrap.s13 .tr-3m .tr-boxes .tr-box:nth-child(2){transition-delay:0.92s;}
@@ -815,20 +819,20 @@
         </div>
         <div class="tr-boxes">
           <div class="tr-box">
-            <div class="tr-big"><span class="tr-cu" data-target="1.5" data-dec="1">0.0</span><span class="u">만+</span></div>
-            <div class="tr-label">누적 이용자</div>
-          </div>
-          <div class="tr-box">
-            <div class="tr-big"><span class="tr-cu" data-target="1351" data-comma="1">0</span><span class="u">명</span></div>
+            <div class="tr-big"><span class="tr-cu" data-target="1379" data-comma="1">0</span><span class="u">명</span></div>
             <div class="tr-label">안드로이드 앱 설치 수<br><span style="font-size:24px;color:rgba(255,255,255,0.6);letter-spacing:-0.06em;white-space:nowrap;">(해양경찰 자유게시판 홍보 2회)</span></div>
           </div>
-          <div class="tr-box">
-            <div class="tr-big"><span class="tr-cu" data-target="80.6" data-dec="1">0.0</span><span class="u">%</span></div>
-            <div class="tr-label">설치 유지율</div>
+          <div class="tr-box beat">
+            <div class="tr-big"><span class="tr-cu" data-target="1183" data-comma="1">0</span><span class="u">명</span></div>
+            <div class="tr-label">알림 구독자 수</div>
+          </div>
+          <div class="tr-box beat">
+            <div class="tr-big"><span class="tr-cu" data-target="26">0</span><span class="u">만+</span></div>
+            <div class="tr-label">푸시 알림 발송</div>
           </div>
           <div class="tr-box">
-            <div class="tr-big"><span class="tr-cu" data-target="24.8" data-dec="1">0.0</span><span class="u">만+</span></div>
-            <div class="tr-label">특보 알림 발송</div>
+            <div class="tr-big"><span class="tr-cu" data-target="1.5" data-dec="1">0.0</span><span class="u">만+</span></div>
+            <div class="tr-label">누적 이용자</div>
           </div>
         </div>
       </div>
