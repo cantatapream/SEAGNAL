@@ -58,6 +58,7 @@
     var _koreaBuoy = null;     // 우리 해역 진입 시 진로선 최근접 부이 관측 {name,type,obs} (해구도 표출 시에만 사용)
     var _enrichToken = 0;      // 비동기 해구도/부이 enrich 경합 방지 토큰
     var _debugKorea = false;   // [디버그] 트리거/72h게이트/강풍반경 거리 무시하고 최근접 해구·부이 강제 표출
+    var _demoActive = false;   // demoFocus(테스트/시연)로 표출 중인지 — OFF 시 기본 전도(전도 중앙) 복귀 게이트
 
     var _activeData = null;    // /api/typhoon 응답(현재연도 활성 태풍 + 통보문 인라인)
     var _year = null;          // 선택 연도
@@ -1080,6 +1081,13 @@
                 // 직전 베이스맵으로 복원
                 if (_prevBasemap && window.oceanSetBasemap) { window.oceanSetBasemap(_prevBasemap); }
                 _prevBasemap = null;
+                // [태풍 시연 OFF] demoFocus(테스트/데모)로 연 태풍을 끌 때는, 처음 해양종합정보를
+                //   열었을 때처럼 대한민국 전도(한반도 중앙)로 지도를 되돌린다(사용자 요청).
+                //   일반 사용/10탭 잠금해제 경로의 OFF 는 보던 위치를 유지(리셋 안 함).
+                if (_demoActive && typeof window.oceanResetDefaultView === 'function') {
+                    window.oceanResetDefaultView(true);
+                }
+                _demoActive = false;   // 시연 상태 소진(다음 일반 OFF 는 리셋하지 않음)
             }
         }
         applyLayerVisibility();
@@ -1366,6 +1374,7 @@
     function demoFocus(demo) {
         try {
             if (!demo) return;
+            _demoActive = true;      // 시연 표출 중 표시 → 이 태풍을 끄면 기본 전도(전도 중앙)로 복귀
             _unlocked = true;        // 세션 한정 잠금해제 → 버튼 활성화 허용
             _yearLoaded = true;      // setVisible 의 자동 loadYear 중복 호출 방지(아래에서 직접 로드)
             applyAvailability();     // 버튼에서 'tphn-disabled' 제거(활성화)

@@ -309,6 +309,35 @@
     }
 
     /**
+     * [알림 탭 → 인앱 태풍 시연] "태풍 발생/소멸" 테스트 알림을 탭하면, 앱을 재시작(splash)하지
+     *   않고 해양종합정보 탭을 연 뒤 위 직접-버튼(2단계 무장) 경로와 동일하게
+     *   제6호 장미 · 통보문 제6-12호 + 디버그(해역표출)를 강제 표출한다.
+     *   capacitor-plugins.js 의 푸시 탭 핸들러(data.type === 'typhoon_test')에서 호출한다.
+     *   (무장 여부와 무관하게 동작 — 이 알림을 받았다는 것 자체가 2단계 시퀀스를 거쳤다는 의미)
+     */
+    function _runTyphoonDemoFromNotification() {
+        try {
+            // [이중 트리거 방지] 헤더 10연타로 이미 무장(_typhoonDemoArmed)된 상태에서 알림을 탭하면
+            //   버튼 클릭 핸들러를 우회하므로 arm 이 소진되지 않는다. 여기서 미리 소진하지 않으면,
+            //   이후 태풍 버튼을 눌러 "끌" 때 버튼 핸들러가 그제서야 arm 을 소비해 시연을 재실행 →
+            //   방금 끈 태풍이 다시 켜진다. 그래서 알림 경로 진입 시 arm 을 소진한다.
+            _typhoonDemoArmed = false;
+            if (typeof window.switchMainTab === 'function') {
+                window.switchMainTab('ocean-map-section');   // 인앱 전환(페이지 새로고침/스플래시 없음)
+            }
+            _waitTyphoonReady(function () { _runTyphoonDemo(); }, 0);
+        } catch (e) { /* 시연 실패는 조용히 무시 */ }
+    }
+
+    /** OceanTyphoon(지도/버튼)과 태풍 토글 DOM 이 준비될 때까지 ~12초 폴링 후 done() 1회 호출. */
+    function _waitTyphoonReady(done, tries) {
+        var ready = window.OceanTyphoon && typeof window.OceanTyphoon.demoFocus === 'function'
+            && document.getElementById('ocean-typhoon-toggle-btn');
+        if (ready) { setTimeout(done, 350); return; }   // 탭/지도 초기화 여유
+        if (tries < 60) setTimeout(function () { _waitTyphoonReady(done, tries + 1); }, 200);
+    }
+
+    /**
      * [물빠짐 시연] 무장 상태에서 해양종합정보 '물빠짐' 클릭 시 1회 실행:
      *   지정 좌표(경기만)를 화면 중앙으로 이동(줌 고정) + 슬라이더 자동 재생.
      *   ※ 물빠짐 예측 팝업은 열지 않는다(지도 이동·재생만).
@@ -426,6 +455,10 @@
             });
         }
     }
+
+    // [알림 탭 연동] capacitor-plugins.js 의 푸시 탭 핸들러가 호출하는 인앱 태풍 시연 진입점 노출.
+    window.SeagnalDemo = window.SeagnalDemo || {};
+    window.SeagnalDemo.runTyphoonFromNotification = _runTyphoonDemoFromNotification;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _init);

@@ -1401,4 +1401,24 @@
 
     window.getOceanMap = function () { return oceanMap; };
 
+    /**
+     * [기본 뷰 복귀] 해양종합정보 탭을 처음 열었을 때와 동일하게 대한민국 전도(한반도 중앙)가
+     *   화면 중앙에 오도록 지도 중심/줌을 기본값(DEFAULT_CENTER / DEFAULT_ZOOM)으로 되돌린다.
+     *   태풍 시연을 끌 때(테스트/데모 경로) ocean_typhoon.js 가 호출.
+     * @param {boolean} [animate=true] true(기본) 면 부드럽게 이동, false 면 즉시 이동.
+     */
+    window.oceanResetDefaultView = function (animate) {
+        try {
+            if (!oceanMap) return;
+            const view = oceanMap.getView();
+            const center = ol.proj.fromLonLat(DEFAULT_CENTER);
+            if (animate === false) {
+                view.setCenter(center);
+                view.setZoom(DEFAULT_ZOOM);
+            } else {
+                view.animate({ center: center, zoom: DEFAULT_ZOOM, duration: 500 });
+            }
+        } catch (e) { /* noop */ }
+    };
+
 })();
