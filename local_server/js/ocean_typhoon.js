@@ -1157,7 +1157,9 @@
             });
             applyAvailability();
             // 잠긴 사용자도 dmdw on-demand 호출 없이, 파일 캐시만으로 기본(활성 최신) 표출.
-            primeDefaultFromActive();
+            // [가드] demoFocus(시연)가 이미 특정 통보문을 표출/로드 중이면 기본(활성 최신)으로
+            //   되돌려 덮지 않는다(느린 네트워크에서 load() 가 늦게 끝나는 경합 대비).
+            if (!_demoActive) primeDefaultFromActive();
         }).catch(function (e) { console.warn('[OceanTyphoon] load 실패:', e.message); });
     }
 
@@ -1374,6 +1376,15 @@
     function demoFocus(demo) {
         try {
             if (!demo) return;
+            // [초기화 레이스 방어] 해양종합정보 지도는 탭 첫 진입 시 lazy 생성(marine.js 200ms 지연)이고,
+            //   이 모듈의 tryInit 폴러(300ms)가 그 뒤에 _map 을 잡으며 _unlocked/_visible 을 리셋한다.
+            //   그보다 먼저 demoFocus 가 실행되면(알림 인앱 전환 직후 등) _map=null 인 채 절반만 표출되다
+            //   tryInit 리셋에 덮여 "태풍이 아예 안 나오는" 증상이 된다 → 초기화 완료까지 재시도(최대 ~12초).
+            if (!_map) {
+                demo.__waitTries = (demo.__waitTries || 0) + 1;
+                if (demo.__waitTries <= 40) setTimeout(function () { demoFocus(demo); }, 300);
+                return;
+            }
             _demoActive = true;      // 시연 표출 중 표시 → 이 태풍을 끄면 기본 전도(전도 중앙)로 복귀
             _unlocked = true;        // 세션 한정 잠금해제 → 버튼 활성화 허용
             _yearLoaded = true;      // setVisible 의 자동 loadYear 중복 호출 방지(아래에서 직접 로드)
@@ -1394,6 +1405,8 @@
         show: function () { setVisible(true); },
         hide: function () { setVisible(false); },
         isVisible: function () { return _visible; },
+        // 지도·모듈 초기화(tryInit) 완료 여부 — demo_quick_trigger 가 demoFocus 호출 타이밍 게이트로 사용.
+        isReady: function () { return !!_map; },
         demoFocus: demoFocus,   // 관리자 시연: 실제 통보문을 강제 활성화 표출 + 지도 이동
         // 육지 클릭 처리: 태풍 ON + 실제 육지일 때만 강풍반경 도달시간 팝업 표출. consumed 시 true.
         tryHandleLandClick: function (lon, lat) {
