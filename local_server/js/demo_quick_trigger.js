@@ -329,12 +329,26 @@
         } catch (e) { /* 시연 실패는 조용히 무시 */ }
     }
 
-    /** OceanTyphoon(지도/버튼)과 태풍 토글 DOM 이 준비될 때까지 ~12초 폴링 후 done() 1회 호출. */
+    /**
+     * OceanTyphoon 이 "실제로" 준비될 때까지 ~16초 폴링 후 done() 1회 호출.
+     * [중요 — 초기화 레이스] 지도는 탭 진입 시 lazy 생성(marine.js 200ms)이고 ocean_typhoon 의
+     *   tryInit 폴러(300ms)가 그 뒤 _map 을 잡으며 상태(_unlocked/_visible)를 리셋한다.
+     *   demoFocus 존재만 보고 실행하면 그 리셋에 덮여 태풍이 표출되지 않으므로,
+     *   ① 지도 인스턴스 생성 + ② OceanTyphoon.isReady()(tryInit 완료)까지 확인한다.
+     *   콜드스타트 등으로 switchMainTab 이 아직 없어 탭 전환이 누락됐다면 여기서 재시도한다.
+     */
     function _waitTyphoonReady(done, tries) {
-        var ready = window.OceanTyphoon && typeof window.OceanTyphoon.demoFocus === 'function'
+        var map = window.getOceanMap && window.getOceanMap();
+        if (!map && typeof window.switchMainTab === 'function') {
+            // 탭 전환이 아직 안 됐거나(콜드스타트 시 누락) 지도 미생성 → 전환 (map 생기면 더 안 부름)
+            try { window.switchMainTab('ocean-map-section'); } catch (e) { /* noop */ }
+        }
+        var OT = window.OceanTyphoon;
+        var ready = map && OT && typeof OT.demoFocus === 'function'
+            && (typeof OT.isReady !== 'function' || OT.isReady())   // tryInit(레이어/바인딩/상태) 완료
             && document.getElementById('ocean-typhoon-toggle-btn');
-        if (ready) { setTimeout(done, 350); return; }   // 탭/지도 초기화 여유
-        if (tries < 60) setTimeout(function () { _waitTyphoonReady(done, tries + 1); }, 200);
+        if (ready) { setTimeout(done, 250); return; }   // 탭 전환 직후 렌더 여유
+        if (tries < 80) setTimeout(function () { _waitTyphoonReady(done, tries + 1); }, 200);
     }
 
     /**
@@ -392,7 +406,8 @@
             return;
         }
         // 아직 목록에 없으면(로딩 중) 계속 폴링 — 첫 채움에서 멈추지 않는다.
-        if (tries < 40) setTimeout(function () { _selectBulletinAndDebug(tries + 1); }, 150);
+        //   (dmdw 실데이터 로드가 느린 환경 대비 ~12초까지 대기)
+        if (tries < 80) setTimeout(function () { _selectBulletinAndDebug(tries + 1); }, 150);
     }
 
     /**
