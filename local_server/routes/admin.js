@@ -125,8 +125,8 @@ const REVIEW_NEEDED_FILE = path.join(DATA_DIR, 'review_needed.json');
 
 // ============================================================================
 // [시연 나레이션 음성] 5연타 트리거 발동 시 배경 재생할 슬롯별 음성 파일 매핑
-//   - 슬롯: alert1(특보현황 1차) · alert2(특보현황 2차) · mudflat(물빠짐 버튼)
-//           · marine1(기상현황 1차) · marine2(기상현황 2차)
+//   - 슬롯: alert1(특보현황 1차) · alert2(특보현황 2차) · ocean(해양종합정보 탭 5연타)
+//           · mudflat(물빠짐 버튼) · marine1(기상현황 1차) · marine2(기상현황 2차)
 //   - 파일 저장: data/uploads/narration/<slot>_<ts>.<ext>
 //                (UPLOAD_DIR=data/uploads 는 Fly 볼륨 → 배포/재시작에도 영속, 교체형)
 //   - 정적 서빙: server.js 의 app.use('/uploads', express.static(UPLOAD_DIR)) 로
@@ -136,7 +136,7 @@ const REVIEW_NEEDED_FILE = path.join(DATA_DIR, 'review_needed.json');
 // ============================================================================
 const NARRATION_DIR = path.join(DATA_DIR, 'uploads', 'narration');
 const NARRATION_MAP_FILE = path.join(DATA_DIR, 'demo_narration.json');
-const NARRATION_SLOTS = ['alert1', 'alert2', 'mudflat', 'marine1', 'marine2'];
+const NARRATION_SLOTS = ['alert1', 'alert2', 'ocean', 'mudflat', 'marine1', 'marine2'];
 try { if (!fs.existsSync(NARRATION_DIR)) fs.mkdirSync(NARRATION_DIR, { recursive: true }); } catch (e) { /* noop */ }
 
 const _narrationMulter = require('multer');

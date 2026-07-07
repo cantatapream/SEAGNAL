@@ -42,6 +42,10 @@
  *     ⑨ 그 시연 화면을 닫으면(closeNariDemo) 음성 비서 '나리야' 자동 ON (앱 전용)
  *   [3단계 이후] 동작 없음
  *
+ * [E] 메인탭 "해양종합정보"(.tab-btn[data-target="ocean-map-section"]) — 5연타
+ *   [임시 — 발표 나레이션] ocean 슬롯 나레이션만 재생(다른 시연 동작 없음).
+ *   단계 없음 — 5연타마다 재생되어 리허설 반복 가능. 발표 후 제거 예정.
+ *
  * [안전 설계 — demo_alert.js 와 동일한 게이트]
  *   ① localStorage.seagnal_admin_mode === 'true' (관리자 모드)
  *   ② localStorage.push_token 존재
@@ -77,7 +81,7 @@
 
     // ========================================================================
     // [임시 — 발표 나레이션] 트리거 발동 시 배경 음성 재생 (발표 종료 후 제거 예정)
-    //   - 매핑: GET /api/demo/narration → { map: { alert1|alert2|mudflat|marine1|marine2: {url} } }
+    //   - 매핑: GET /api/demo/narration → { map: { alert1|alert2|ocean|mudflat|marine1|marine2: {url} } }
     //     (업로드는 통합관리자센터 > 시연 > 오디오 하위탭 — js/admin_narration.js)
     //   - 재생: 슬롯 URL 을 단일 Audio 엘리먼트로 재생(새 재생 시 이전 재생 중단)
     //   - 언락: 트리거 발동이 비동기(fetch) 뒤라 사용자 제스처 컨텍스트가 끊기므로,
@@ -512,6 +516,16 @@
                 _dispatchMarineHeader,
                 function () { return _marineStage >= 2; }  // 단계 소진 시 불필요한 호출 방지
             ));
+        }
+        // [임시 — 발표 나레이션] 메인탭 "해양종합정보" 5연타 → ocean 슬롯 나레이션 재생.
+        //   특보현황 5연타×2 다음의 "해양종합정보 진입" 발표 단계용. 다른 시연 동작은
+        //   일으키지 않고 음성만 재생한다(단계 없음 — 5연타마다 재생, 리허설 반복 가능).
+        //   _makeCounter 가 관리자 등록 기기 확인을 거치므로 일반 사용자는 무동작.
+        var oceanTab = document.querySelector('button.tab-btn[data-target="ocean-map-section"]');
+        if (oceanTab) {
+            oceanTab.addEventListener('click', _makeCounter(function () {
+                _playNarration('ocean');
+            }));
         }
         // [C] 해양종합정보 '태풍' 버튼 — 특보현황 2단계(태풍 푸시) 후 무장되면,
         //     클릭 시 1회 한정으로 장미·통보문 제6-12호 + 디버그 자동 표출. (무장 안 됐으면 무동작)
