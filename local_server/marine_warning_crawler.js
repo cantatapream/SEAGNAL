@@ -1165,6 +1165,12 @@ function _applyUpcomingCancelDebounce(prev, curr) {
             // N분 경과 — 진짜취소 확정 (이어받기 중단 → diff 가 UPCOMING_CANCEL 발사)
             console.log(`[Marine] 예비취소 확정(디바운스 ${Math.round((now - p.firstMissingAt) / 1000)}초 경과): ${zone}`);
             delete _upcomingCancelPending[zone];
+            // [§7.7.19] 부모 진짜취소 확정 → 보류 중이던 자식 예비취소 펜딩도 함께 폐기.
+            //   부모 UPCOMING_CANCEL(prelim_cancel) 1건이 자식까지 대표(§7.7.13). TTL 에만 기대면
+            //   15분 내 동일 zone 신규 특보 재발표 시 구특보의 자식취소가 뒤늦게 오발사될 수 있음.
+            for (const cpk of Object.keys(_childPrelimCancelPending)) {
+                if (cpk.slice(0, zone.length + 1) === zone + '|') delete _childPrelimCancelPending[cpk];
+            }
         }
     }
 
