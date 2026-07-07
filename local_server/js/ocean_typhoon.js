@@ -68,7 +68,7 @@
     var _selCode = null;       // 선택 통보문 code
     var _curBulletin = null;   // 현재 표출 통보문(rem/other/code 등) — i버튼·이미지 팝업용
     var _tableCache = {};      // (year+'_'+code) -> {current,forecast,...}
-    var _yearLoaded = false;   // 전체 연도 목록(dmdw on-demand) 확장 여부 — 표출 시 1회
+    var _suppressAutoYear = false; // setVisible 의 자동 loadYear 1회 억제 — demoFocus 가 직접 로드할 때 사용
     var _frames = [];          // 선택 통보문의 시계열 프레임 (시각 오름차순)
     var _visible = false;
     var _playing = false;
@@ -1036,13 +1036,16 @@
             if (!_typhoonList.length && _activeData && _activeData.year === year) {
                 _typhoonList = (_activeData.typhoons || []).map(function (t) { return { seq: t.seq, name: t.name, ended: typhoonEnded(t) }; });
             }
-            // [종료 라벨 유지] /api/typhoon/list 응답에는 ended 정보가 없어, 그대로 그리면
+            // [종료 라벨] /api/typhoon/list 응답에는 ended 정보가 없어, 그대로 그리면
             //   먼저 표시된 "(종료)" 라벨이 사라지는 깜빡임이 생긴다. 활성 캐시와 같은
-            //   연도면 통보문 rem 기준 ended 를 병합해 라벨을 안정적으로 유지한다.
+            //   연도면 ended 를 병합해 라벨을 안정적으로 유지한다.
+            //   - 캐시에 있는 태풍: 통보문 rem 기준(typhoonEnded)
+            //   - 캐시에 없는 태풍: 마지막 통보문이 활성 유지창(72h)보다 오래됐다는 뜻
+            //     → 종료로 간주해 "(종료)" 표기 (예: 올해 지난 1~8호 태풍)
             if (_activeData && _activeData.year === year) {
                 _typhoonList.forEach(function (t) {
                     var a = (_activeData.typhoons || []).find(function (x) { return x.seq === t.seq; });
-                    if (a) t.ended = typhoonEnded(a);
+                    t.ended = a ? typhoonEnded(a) : true;
                 });
             }
             populateNames();
@@ -1197,8 +1200,14 @@
                 renderHead(_p);
             }
             focusOnTyphoon();
-            // 표출 첫 회: 현재연도 전체 태풍 목록(dmdw)으로 이름 드롭다운 확장(과거 태풍 포함)
-            if (!_yearLoaded) { _yearLoaded = true; loadYear(_year, _selSeq, _selCode); }
+            // 현재연도 전체 태풍 목록(dmdw)으로 이름 드롭다운 확장(과거 태풍 포함).
+            //   [일부 목록 버그 수정] 재표출 시 위 primeDefaultFromActive() 가 드롭다운을
+            //   활성 캐시(최근 72h 태풍 2~3개)로만 다시 채우는데, 예전엔 첫 표출에만
+            //   확장해서 두 번째 표출부터 일부 목록만 남았다. 매 표출마다 확장한다
+            //   (서버 5분 캐시로 가볍고, 현재 선택은 preferSeq/preferCode 로 유지).
+            //   demoFocus 경로는 직접 loadYear 를 부르므로 1회 억제(_suppressAutoYear).
+            if (_suppressAutoYear) { _suppressAutoYear = false; }
+            else { loadYear(_year, _selSeq, _selCode); }
         } else {
             pause();
         }
@@ -1490,7 +1499,7 @@
             }
             _demoActive = true;      // 시연 표출 중 표시 → 이 태풍을 끄면 기본 전도(전도 중앙)로 복귀
             _unlocked = true;        // 세션 한정 잠금해제 → 버튼 활성화 허용
-            _yearLoaded = true;      // setVisible 의 자동 loadYear 중복 호출 방지(아래에서 직접 로드)
+            _suppressAutoYear = true; // setVisible 의 자동 loadYear 1회 억제(아래에서 직접 로드 — 경합 방지)
             applyAvailability();     // 버튼에서 'tphn-disabled' 제거(활성화)
             setVisible(true);        // 레이어 ON (활성 태풍이 없어도 패널/버튼 표시)
             var year = parseInt(demo.year, 10) || curYearKst();
