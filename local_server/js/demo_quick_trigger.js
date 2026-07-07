@@ -124,7 +124,148 @@
             _narrAudio.currentTime = 0;
             var p = _narrAudio.play();
             if (p && p.catch) p.catch(function () { /* 자동재생 거부 — 조용히 무시 */ });
+            _showPlayer(entry.name || slot);          // 미니 플레이어 표시 (정지/탐색용)
+            _setupMediaSession(entry.name || slot);   // 웹뷰가 지원하면 상태표시줄 미디어 컨트롤
         } catch (e) { /* noop */ }
+    }
+
+    // ── 미니 플레이어 (재생/일시정지 · ±10초 · 슬라이더 탐색 · 닫기) ──
+    //   나레이션 재생 중 화면 하단(탭바 위)에 표시. 발표 중 음성을 중간에
+    //   멈추거나 원하는 지점으로 이동할 수 있게 한다. 관리자 기기에서
+    //   나레이션이 재생될 때만 나타나므로 일반 사용자 화면에는 절대 안 뜸.
+    var _npWrap = null, _npBtn = null, _npSlider = null, _npTime = null, _npTitle = null;
+    var _npSeeking = false;   // 슬라이더 드래그 중 timeupdate 가 값을 덮지 않도록
+
+    function _fmtMMSS(sec) {
+        if (!isFinite(sec) || sec < 0) sec = 0;
+        var m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function _ensurePlayerUI() {
+        if (_npWrap) return;
+        if (!_narrAudio) _narrAudio = new Audio();   // 이벤트 바인딩 대상 보장
+        var w = document.createElement('div');
+        w.id = 'narration-mini-player';
+        w.style.cssText = 'position:fixed;left:10px;right:10px;bottom:88px;z-index:99998;display:none;'
+            + 'background:rgba(15,23,42,0.96);border:1px solid rgba(168,85,247,0.55);border-radius:12px;'
+            + 'padding:8px 12px;box-shadow:0 8px 24px rgba(0,0,0,0.5);color:#e2e8f0;';
+        w.innerHTML = ''
+            + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'
+            + '  <i class="fa-solid fa-volume-high" style="color:#c4b5fd;font-size:0.72rem;"></i>'
+            + '  <span id="np-title" style="flex:1;font-size:0.72rem;color:#c4b5fd;font-weight:700;'
+            + '        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">나레이션</span>'
+            + '  <button id="np-close" style="background:none;border:none;color:#94a3b8;font-size:1rem;'
+            + '        padding:0 2px;cursor:pointer;line-height:1;">&times;</button>'
+            + '</div>'
+            + '<div style="display:flex;align-items:center;gap:8px;">'
+            + '  <button id="np-back" style="background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.4);'
+            + '        border-radius:8px;color:#d8b4fe;width:34px;height:30px;cursor:pointer;font-size:0.7rem;">'
+            + '        <i class="fa-solid fa-rotate-left"></i></button>'
+            + '  <button id="np-toggle" style="background:linear-gradient(135deg,#a855f7,#7c3aed);border:none;'
+            + '        border-radius:8px;color:#fff;width:40px;height:30px;cursor:pointer;font-size:0.8rem;">'
+            + '        <i class="fa-solid fa-pause"></i></button>'
+            + '  <button id="np-fwd" style="background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.4);'
+            + '        border-radius:8px;color:#d8b4fe;width:34px;height:30px;cursor:pointer;font-size:0.7rem;">'
+            + '        <i class="fa-solid fa-rotate-right"></i></button>'
+            + '  <input id="np-slider" type="range" min="0" max="100" step="0.1" value="0"'
+            + '        style="flex:1;accent-color:#a855f7;height:22px;">'
+            + '  <span id="np-time" style="font-size:0.66rem;color:#94a3b8;min-width:66px;text-align:right;">0:00 / 0:00</span>'
+            + '</div>';
+        document.body.appendChild(w);
+        _npWrap = w;
+        _npBtn = w.querySelector('#np-toggle');
+        _npSlider = w.querySelector('#np-slider');
+        _npTime = w.querySelector('#np-time');
+        _npTitle = w.querySelector('#np-title');
+
+        _npBtn.addEventListener('click', function () {
+            if (!_narrAudio) return;
+            if (_narrAudio.paused) { var p = _narrAudio.play(); if (p && p.catch) p.catch(function () { }); }
+            else _narrAudio.pause();
+        });
+        w.querySelector('#np-back').addEventListener('click', function () {
+            if (_narrAudio) _narrAudio.currentTime = Math.max(0, _narrAudio.currentTime - 10);
+        });
+        w.querySelector('#np-fwd').addEventListener('click', function () {
+            if (_narrAudio && isFinite(_narrAudio.duration)) {
+                _narrAudio.currentTime = Math.min(_narrAudio.duration, _narrAudio.currentTime + 10);
+            }
+        });
+        w.querySelector('#np-close').addEventListener('click', function () {
+            try { if (_narrAudio) { _narrAudio.pause(); _narrAudio.currentTime = 0; } } catch (e) { /* noop */ }
+            _hidePlayer();
+        });
+        // 슬라이더 탐색 — 드래그 중에는 timeupdate 갱신을 멈추고, 놓으면 해당 위치로 이동
+        _npSlider.addEventListener('input', function () { _npSeeking = true; });
+        _npSlider.addEventListener('change', function () {
+            _npSeeking = false;
+            if (_narrAudio && isFinite(_narrAudio.duration)) {
+                _narrAudio.currentTime = (parseFloat(_npSlider.value) / 100) * _narrAudio.duration;
+            }
+        });
+
+        // 오디오 이벤트 → UI 반영 (Audio 엘리먼트는 공유 1개라 여기서 1회만 바인딩)
+        _narrAudio.addEventListener('timeupdate', _syncPlayerUI);
+        _narrAudio.addEventListener('durationchange', _syncPlayerUI);
+        _narrAudio.addEventListener('play', _syncPlayerUI);
+        _narrAudio.addEventListener('pause', _syncPlayerUI);
+        _narrAudio.addEventListener('ended', function () {
+            _syncPlayerUI();
+            // 자연 종료 시 2초 뒤 자동 숨김 (다시 듣고 싶으면 그 전에 ⟲/재생 누르면 유지)
+            setTimeout(function () { if (_narrAudio && _narrAudio.ended) _hidePlayer(); }, 2000);
+        });
+    }
+
+    function _syncPlayerUI() {
+        if (!_npWrap || _npWrap.style.display === 'none' || !_narrAudio) return;
+        var dur = isFinite(_narrAudio.duration) ? _narrAudio.duration : 0;
+        var cur = _narrAudio.currentTime || 0;
+        if (!_npSeeking && dur > 0) _npSlider.value = String((cur / dur) * 100);
+        _npTime.textContent = _fmtMMSS(cur) + ' / ' + _fmtMMSS(dur);
+        _npBtn.innerHTML = _narrAudio.paused
+            ? '<i class="fa-solid fa-play"></i>'
+            : '<i class="fa-solid fa-pause"></i>';
+    }
+
+    function _showPlayer(title) {
+        _ensurePlayerUI();
+        if (_npTitle) _npTitle.textContent = title || '나레이션';
+        _npWrap.style.display = 'block';
+        _syncPlayerUI();
+    }
+
+    function _hidePlayer() {
+        if (_npWrap) _npWrap.style.display = 'none';
+    }
+
+    /** 웹뷰가 Media Session API 를 지원하면 상태표시줄 미디어 컨트롤도 등록(미지원 시 무동작). */
+    function _setupMediaSession(title) {
+        try {
+            if (!('mediaSession' in navigator)) return;
+            if (typeof MediaMetadata === 'function') {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: title || '발표 나레이션', artist: 'SEA:GNAL 시연'
+                });
+            }
+            navigator.mediaSession.setActionHandler('play', function () {
+                if (_narrAudio) { var p = _narrAudio.play(); if (p && p.catch) p.catch(function () { }); }
+            });
+            navigator.mediaSession.setActionHandler('pause', function () {
+                if (_narrAudio) _narrAudio.pause();
+            });
+            navigator.mediaSession.setActionHandler('seekbackward', function () {
+                if (_narrAudio) _narrAudio.currentTime = Math.max(0, _narrAudio.currentTime - 10);
+            });
+            navigator.mediaSession.setActionHandler('seekforward', function () {
+                if (_narrAudio && isFinite(_narrAudio.duration)) {
+                    _narrAudio.currentTime = Math.min(_narrAudio.duration, _narrAudio.currentTime + 10);
+                }
+            });
+            navigator.mediaSession.setActionHandler('seekto', function (d) {
+                if (_narrAudio && d && d.seekTime != null) _narrAudio.currentTime = d.seekTime;
+            });
+        } catch (e) { /* 미지원/부분지원 — 조용히 무시 */ }
     }
     // ===================== [임시 — 발표 나레이션 끝] ==========================
 
