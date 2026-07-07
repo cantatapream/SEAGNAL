@@ -10,6 +10,7 @@ on:
   push:
     branches:
       - claude/idea-review-development-bi9ndm
+      - claude/voice-narration-trigger-1usct1   # [임시] 발표 나레이션 네이티브 플레이어 APK 빌드
     paths-ignore:
       - '**.md'
       - '00_docs/**'
