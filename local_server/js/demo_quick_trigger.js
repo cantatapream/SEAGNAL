@@ -70,6 +70,8 @@
     var _typhoonDemoArmed = false;            // 태풍 푸시(특보현황 2단계) 후 '태풍' 클릭 시 1회 자동 표출 무장
     var TPHN_DEMO = { year: 2026, seq: '6', bno: '12' };  // 제6호 장미 · 통보문 제6-12호
     var _mudflatDemoArmed = false;            // 태풍 시연 표출 후 '물빠짐' 클릭 시 1회 지도이동+자동재생 무장
+    var _demoSession = false;                 // 시연 세션 표시(태풍 시연 진입 이후 앱 재시작 전까지 유지)
+                                              //   — tide_field.js 가 물빠짐 확대 안내 카드 억제 판단에 사용
     // 37°12'03"N, 126°35'06"E (≈ 경기만), 줌 13 — 화면 중앙 이동 후 슬라이더 자동 재생
     var MUDFLAT_DEMO = { lat: 37.20083, lon: 126.585, zoom: 13 };
 
@@ -231,6 +233,7 @@
         } else if (_stage === 1) {
             _stage = 2;
             _typhoonDemoArmed = true;  // 이후 해양종합정보 '태풍' 클릭 시 장미·통보문 제6-12호 자동 표출
+            _demoSession = true;       // 시연 세션 진입 — 이후 물빠짐 확대 안내 카드 억제(세션 내내)
             _sendTyphoonTests();      // 2단계: 태풍 발생/소멸 테스트 푸시
         }
         // _stage >= 2 → 동작 없음 (추후 추가 예정)
@@ -305,6 +308,7 @@
             OT.demoFocus({ year: TPHN_DEMO.year, seq: TPHN_DEMO.seq });  // 장미(6호) 강제 표출
             _selectBulletinAndDebug(0);
             _mudflatDemoArmed = true;   // 이후 '물빠짐' 클릭 시 지정 좌표로 지도 이동 + 자동 재생
+            _demoSession = true;        // 시연 세션 표시(알림 탭으로 진입해 헤더 무장 이력이 없어도 성립)
         } catch (e) { /* 시연 실패는 조용히 무시 */ }
     }
 
@@ -474,6 +478,8 @@
     // [알림 탭 연동] capacitor-plugins.js 의 푸시 탭 핸들러가 호출하는 인앱 태풍 시연 진입점 노출.
     window.SeagnalDemo = window.SeagnalDemo || {};
     window.SeagnalDemo.runTyphoonFromNotification = _runTyphoonDemoFromNotification;
+    // 시연 세션 여부 — tide_field.js(물빠짐)가 확대 안내 카드 억제 판단에 사용(일반 사용자 false).
+    window.SeagnalDemo.isDemoSession = function () { return _demoSession; };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _init);
