@@ -1537,9 +1537,11 @@ function _buildUserPushChanges(prev, curr) {
         if (curr.parents) for (const [sz, si] of curr.parents) {
             if (si && si._clrConfirmed && si._clrConfirmed.tmEf) {
                 _clrSeen.set(_clrConfirmKey(sz, si, si._clrConfirmed.tmEf), Date.now());
-                _clrConfirmsDirty = true;
             }
         }
+        // 시드 0건이어도 빈 이력 파일을 1회 기록 — 파일 부재로 재시작마다 시드가 반복되어
+        //   다운타임 중 발행된 통보문 confirm 까지 삼키는 창을 닫는다(구현검증 경미 #3).
+        _clrConfirmsDirty = true;
         _clrConfirmsFirstRun = false;
     }
 
