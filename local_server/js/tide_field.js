@@ -628,7 +628,14 @@
     }
     // 안내 카드: 표출 줌 미만일 때 지속 표시. 표출 줌 도달/비활성 시 숨김.
     //   (.show 토글만 — 숨김 시 display:none 으로 돌아가 오버레이가 남지 않음)
-    function showZoomHint() { ensureZoomHintEl().classList.add('show'); }
+    function showZoomHint() {
+        // [시연 세션 억제] 관리자 시연(태풍 시연 진입) 중에는 중앙 확대 안내 카드를 띄우지
+        //   않는다 — 지점 마커·갯벌 표출 로직은 그대로(카드만 억제). 일반 사용자는 영향 없음.
+        //   (demo_quick_trigger.js 의 세션 플래그 — 앱 재시작 시 원복)
+        if (window.SeagnalDemo && typeof window.SeagnalDemo.isDemoSession === 'function'
+            && window.SeagnalDemo.isDemoSession()) return;
+        ensureZoomHintEl().classList.add('show');
+    }
     function hideZoomHint() {
         var el = document.getElementById('mudflat-zoom-hint');
         if (el) el.classList.remove('show');
