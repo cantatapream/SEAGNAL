@@ -950,6 +950,28 @@
         return !!(b && b.rem && b.rem.indexOf('종료') >= 0);
     }
 
+    // [N 배지] "새 태풍 등장" 신호 — 첫 태풍단계(TYP) 통보문 발표 후 2일(48시간)까지만 표시.
+    var NEW_BADGE_MS = 48 * 3600 * 1000;
+    // 12자리 KST 발표시각("202607071600") → epoch ms (크롤러 tmFcToMs 와 동일 규칙)
+    function tmFcToMs(s) {
+        var d = String(s || '').replace(/[^0-9]/g, '');
+        if (d.length < 12) return 0;
+        return Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +d.slice(8, 10), +d.slice(10, 12)) - 9 * 3600000;
+    }
+    /**
+     * 태풍의 "등장 시각" = 첫 태풍단계(TYP) 통보문 발표시각.
+     * 통보문 목록은 최신순이라 뒤에서부터(오래된 순) 훑으며 TD(열대저압부) 단계는 건너뛴다.
+     * (수집 상한으로 목록이 잘려도, 잘릴 만큼 통보문이 많은 태풍은 이미 2일을
+     *  훌쩍 넘긴 태풍이라 배지 판정 결과는 달라지지 않는다)
+     */
+    function firstTypBulletinMs(t) {
+        var bs = (t && t.bulletins) || [];
+        for (var i = bs.length - 1; i >= 0; i--) {
+            if (bs[i] && bs[i].kind !== 'TD') return tmFcToMs(bs[i].tmFc) || null;
+        }
+        return null;
+    }
+
     /**
      * 기본 선택 태풍 결정 (활성 캐시 인라인 데이터 대상):
      *   ① 활성(미종료) 태풍 우선 — 종료된 태풍이 최신 발생이어도 기본 선택에서 제외
@@ -1188,11 +1210,17 @@
         // 활성 태풍이 있으면 활성. 없을 때는 10회 탭으로 잠금해제(_unlocked, 세션 한정) 시에도 활성.
         var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
         var canShow = has || _unlocked;
-        // N 배지는 "지금 살아있는 태풍" 신호 — 기상청 목록에 남아 있어도 통보문상
-        //   종료된 태풍만 있으면 배지를 끈다(버튼 활성/조회 가능 여부는 has 그대로).
-        var hasLive = has && (_activeData.typhoons || []).some(function (t) { return !typhoonEnded(t); });
+        // N 배지는 "새 태풍 등장" 신호 — 미종료 태풍 중 첫 태풍단계(TYP) 통보문 발표가
+        //   2일(48시간) 이내인 것이 있을 때만 표시. 2일이 지나면 태풍이 계속 활성이어도
+        //   배지를 뗀다(사용자 요구). 종료된 태풍은 시간과 무관하게 제외.
+        //   (버튼 활성/조회 가능 여부는 has 그대로 — 배지와 무관)
+        var hasNew = has && (_activeData.typhoons || []).some(function (t) {
+            if (typhoonEnded(t)) return false;
+            var first = firstTypBulletinMs(t);
+            return !!first && (Date.now() - first) <= NEW_BADGE_MS;
+        });
         var nBadge = document.getElementById('tphn-n-badge');
-        if (nBadge) nBadge.style.display = hasLive ? 'flex' : 'none';
+        if (nBadge) nBadge.style.display = hasNew ? 'flex' : 'none';
         if (!canShow) {
             btn.classList.add('tphn-disabled');
             btn.title = '현재 태풍 없음';
