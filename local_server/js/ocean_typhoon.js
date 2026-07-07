@@ -633,6 +633,18 @@
     //   - 트리거/대상: 강풍반경에 걸친(중심 within radStrong) 해구 중 태풍 중심 최근접 1개.
     //   - 72h 게이트: 해구도 tm 이 프레임시각(±1.6h) 안에 있어야 유효(예측범위 내). 밖이면 보퍼트 유지.
     //   - 부이: 해구도가 표출될 때만, 진로선 최근접 B/C 부이 관측 표출.
+    /**
+     * 팝업에 실제 표시될 관측값이 하나라도 있는지 판정.
+     * 표출 규칙(popupHtml)과 동일 기준 — 파고 3종(유의/최대/평균) 중 하나,
+     * 또는 B타입이면 풍향·풍속 중 하나. 전부 null(QC 결측 등)이면 false.
+     */
+    function buoyObsUsable(o, type) {
+        if (!o) return false;
+        if (o.waveHeightSig != null || o.waveHeightMax != null || o.waveHeightAvg != null) return true;
+        if (type === 'B' && (o.windSpeed != null || o.windDirection != null)) return true;
+        return false;
+    }
+
     function enrichKoreaWaters() {
         var token = ++_enrichToken;
         _koreaBuoy = null;
@@ -643,20 +655,31 @@
         if (!cand.length) { refreshBubbleContents(); return; }
 
         // 진로선 최근접 부이(B/C) 선택 — 좌표는 BUOY_LOCATIONS, 관측은 fetchMarineBuoyData.
+        //   [결측 폴백] 최근접 부이라도 해당 시각 관측값이 전부 결측(QC 탈락 등)이면
+        //   팝업에 헤더만 남는 문제가 있어(예: 남해465), 거리순으로 훑어
+        //   "표시 가능한 실측값이 있는" 첫 부이를 선택한다. 전 부이 결측이면
+        //   _koreaBuoy 를 세팅하지 않아 부이 섹션 자체를 표출하지 않는다.
         try {
             if (typeof BUOY_LOCATIONS === 'object' && typeof fetchMarineBuoyData === 'function') {
-                var best = null;
+                var cands = [];
                 Object.keys(BUOY_LOCATIONS).forEach(function (id) {
                     var b = BUOY_LOCATIONS[id];
                     if (!b || (b.type !== 'B' && b.type !== 'C') || b.lat == null || b.lon == null) return;
-                    var d = pointToTrackKm(b.lat, b.lon);
-                    if (!best || d < best.dist) best = { id: id, name: b.name, type: b.type, dist: d };
+                    cands.push({ id: id, name: b.name, type: b.type, dist: pointToTrackKm(b.lat, b.lon) });
                 });
-                if (best) {
+                cands.sort(function (a, b) { return a.dist - b.dist; });
+                if (cands.length) {
                     fetchMarineBuoyData().then(function (obsMap) {
-                        if (token !== _enrichToken) return;
-                        var obs = obsMap && obsMap[best.id];
-                        if (obs) { _koreaBuoy = { name: best.name, type: best.type, obs: obs }; refreshBubbleContents(); }
+                        if (token !== _enrichToken || !obsMap) return;
+                        for (var i = 0; i < cands.length; i++) {
+                            var c = cands[i];
+                            var obs = obsMap[c.id];
+                            if (buoyObsUsable(obs, c.type)) {
+                                _koreaBuoy = { name: c.name, type: c.type, obs: obs };
+                                refreshBubbleContents();
+                                return;
+                            }
+                        }
                     }).catch(function () { });
                 }
             }
