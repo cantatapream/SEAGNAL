@@ -949,6 +949,32 @@
         var b = t && t.bulletins && t.bulletins[0];
         return !!(b && b.rem && b.rem.indexOf('종료') >= 0);
     }
+
+    /**
+     * 기본 선택 태풍 결정 (활성 캐시 인라인 데이터 대상):
+     *   ① 활성(미종료) 태풍 우선 — 종료된 태풍이 최신 발생이어도 기본 선택에서 제외
+     *   ② 활성이 복수면 최신 통보문의 현재 위치가 제주(33.5N,126.53E)에 가장 가까운
+     *      태풍(한반도에 먼저 도달할 가능성이 높은 것) 선택
+     *   ③ 전부 종료면 목록 첫 태풍(최신 발생) 폴백 — 종료 태풍도 조회는 가능해야 함
+     */
+    var JEJU = { lat: 33.5, lon: 126.53 };
+    function pickDefaultTyphoon(typhoons) {
+        var list = typhoons || [];
+        var actives = list.filter(function (t) { return !typhoonEnded(t); });
+        if (!actives.length) return list[0] || null;
+        if (actives.length === 1) return actives[0];
+        var best = null, bestD = Infinity;
+        actives.forEach(function (t) {
+            var cur = t.bulletins && t.bulletins[0] && t.bulletins[0].current;
+            if (!cur || cur.lat == null || cur.lon == null) return;
+            // 근사 평면 거리(경도는 위도 보정) — 순위 비교 용도로 충분
+            var dLat = cur.lat - JEJU.lat;
+            var dLon = (cur.lon - JEJU.lon) * Math.cos(JEJU.lat * Math.PI / 180);
+            var d = dLat * dLat + dLon * dLon;
+            if (d < bestD) { bestD = d; best = t; }
+        });
+        return best || actives[0];   // 위치 정보가 전무하면 활성 중 최신 발생
+    }
     // 통보문 code → dmdw 통보문 이미지 파일명 (태풍정보 RTKO63 / TD정보 RTKO64, 호수 2자리).
     function bulletinImageName(code) {
         var p = String(code || '').split('_'); // [oTypInfo, oTmFc, oTdSeq, oTmSeq]
@@ -988,9 +1014,30 @@
             if (!_typhoonList.length && _activeData && _activeData.year === year) {
                 _typhoonList = (_activeData.typhoons || []).map(function (t) { return { seq: t.seq, name: t.name, ended: typhoonEnded(t) }; });
             }
+            // [종료 라벨 유지] /api/typhoon/list 응답에는 ended 정보가 없어, 그대로 그리면
+            //   먼저 표시된 "(종료)" 라벨이 사라지는 깜빡임이 생긴다. 활성 캐시와 같은
+            //   연도면 통보문 rem 기준 ended 를 병합해 라벨을 안정적으로 유지한다.
+            if (_activeData && _activeData.year === year) {
+                _typhoonList.forEach(function (t) {
+                    var a = (_activeData.typhoons || []).find(function (x) { return x.seq === t.seq; });
+                    if (a) t.ended = typhoonEnded(a);
+                });
+            }
             populateNames();
-            var seq = (preferSeq && _typhoonList.some(function (t) { return t.seq === preferSeq; }))
-                ? preferSeq : (_typhoonList[0] && _typhoonList[0].seq);
+            // 기본 선택: ① 사용자가 보던 태풍(preferSeq) > ② 활성 우선(복수면 제주 최근접)
+            //           > ③ 병합된 ended 기준 첫 미종료 > ④ 목록 첫 태풍(최신 발생)
+            var seq = null;
+            if (preferSeq && _typhoonList.some(function (t) { return t.seq === preferSeq; })) {
+                seq = preferSeq;
+            } else {
+                var def = (_activeData && _activeData.year === year) ? pickDefaultTyphoon(_activeData.typhoons) : null;
+                if (def && _typhoonList.some(function (t) { return t.seq === def.seq; })) {
+                    seq = def.seq;
+                } else {
+                    var firstActive = _typhoonList.find(function (t) { return t.ended === false; });
+                    seq = (firstActive || _typhoonList[0] || {}).seq;
+                }
+            }
             setSelValue('tphn-name', seq);
             _selSeq = seq || null;
             if (seq) loadTyphoon(year, seq, preferCode);
@@ -1141,8 +1188,11 @@
         // 활성 태풍이 있으면 활성. 없을 때는 10회 탭으로 잠금해제(_unlocked, 세션 한정) 시에도 활성.
         var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
         var canShow = has || _unlocked;
+        // N 배지는 "지금 살아있는 태풍" 신호 — 기상청 목록에 남아 있어도 통보문상
+        //   종료된 태풍만 있으면 배지를 끈다(버튼 활성/조회 가능 여부는 has 그대로).
+        var hasLive = has && (_activeData.typhoons || []).some(function (t) { return !typhoonEnded(t); });
         var nBadge = document.getElementById('tphn-n-badge');
-        if (nBadge) nBadge.style.display = has ? 'flex' : 'none';  // N 배지는 "현재 활성 태풍" 신호 → has 만
+        if (nBadge) nBadge.style.display = hasLive ? 'flex' : 'none';
         if (!canShow) {
             btn.classList.add('tphn-disabled');
             btn.title = '현재 태풍 없음';
@@ -1193,7 +1243,9 @@
         setSelValue('tphn-year', String(_year));
         _typhoonList = _activeData.typhoons.map(function (t) { return { seq: t.seq, name: t.name, ended: typhoonEnded(t) }; });
         populateNames();
-        var t0 = _activeData.typhoons[0];
+        // 활성(미종료) 태풍 우선 — 종료 태풍이 최신 발생이어도 기본으로 띄우지 않는다.
+        //   활성 복수면 제주 최근접(한반도 도달 가능성 우선). 전부 종료면 최신 발생 폴백.
+        var t0 = pickDefaultTyphoon(_activeData.typhoons) || _activeData.typhoons[0];
         _selSeq = t0.seq; setSelValue('tphn-name', _selSeq);
         _bulletinList = (t0.bulletins || []).map(function (b) { return { code: b.code, label: b.label, isLatest: b.isLatest }; });
         populateBulletins();
