@@ -1038,6 +1038,14 @@ const UPCOMING_CANCEL_DEBOUNCE_MS = 3 * 60 * 1000;
 let _upcomingCancelPending = {};                   // zone → { firstMissingAt, block, inParents }
 let _childReleaseNoticeSet = new Set();            // 이번 사이클 해제 통보문 있는 자식 (enrich 가 채움)
 
+// [자식 예비취소 재확인] (§7.7.19) 예비 자식 소멸(releasedPrelim)은 즉발하지 않고 최소
+//   1사이클(60초) 연속 부재 재확인 후 CHILD_PRELIM_CANCEL 발사. 예비 자식은 warn-sasc/list 에서
+//   항상 level-0 이라(§7.7.14 실측) ready 행이 1사이클만 빠져도 purge 가 디바운스 carry 를 즉시
+//   걷어 releasedChildren 에 나타나므로, 복귀(글리치) 시 오발 취소를 여기서 흡수한다.
+const CHILD_PRELIM_CANCEL_CONFIRM_MS = 60 * 1000;        // 최소 1사이클 재확인
+const CHILD_PRELIM_CANCEL_TTL_MS = 15 * 60 * 1000;       // 부모 소멸 등으로 미발사 잔존 시 정리
+let _childPrelimCancelPending = {};                      // "zone|child" → { info, since }
+
 /**
  * curr 를 변형: 해제예고 없이 사라진 자식을 3분간 이어받기. 깜빡임/확정/정상해제 로그.
  * _buildUserPushChanges / _writeWeatherAlertsJson 보다 먼저 호출되어야 함.
@@ -1507,6 +1515,15 @@ function _updateExtensionMemory(curr) {
 function _buildUserPushChanges(prev, curr) {
     const changes = [];
     if (!prev || !curr) return changes;
+
+    // [§7.7.19] 자식 예비취소 펜딩 TTL 정리 — 부모가 함께 소멸(부모 취소 푸시가 대표)해
+    //   zone 루프에서 더 이상 평가되지 않는 잔존 펜딩을 조용히 폐기(발사 없음).
+    for (const pk of Object.keys(_childPrelimCancelPending)) {
+        if (Date.now() - _childPrelimCancelPending[pk].since > CHILD_PRELIM_CANCEL_TTL_MS) {
+            delete _childPrelimCancelPending[pk];
+        }
+    }
+
     const allZones = new Set();
     if (prev.parents) for (const k of prev.parents.keys()) allZones.add(k);
     if (curr.parents) for (const k of curr.parents.keys()) allZones.add(k);
@@ -1783,20 +1800,55 @@ function _buildUserPushChanges(prev, curr) {
             //   발표측(PR#991)이 신규 자식을 예비/발효로 분기(CHILD_PRELIM_ADD/CHILD_ADD)한 것과
             //   대칭이 되도록 해제측도 분기한다.
             //     · prev 자식이 '주의보'/'경보'(진짜 발효중) → 기존 CHILD_RELEASE("주의보 일부 해제") 유지.
-            //     · prev 자식이 '예비'(미발효 예비 자식)        → "일부 해제" 발사 금지. 예비는 발효된 적이
-            //       없으므로 독립 "주의보 일부 해제"는 오발송이다. 그 부모가 곧/지금 예비취소(UPCOMING_CANCEL)
-            //       되면 단일 prelim_cancel 푸시가 전체를 대표하므로 별도 푸시 불필요. (부모가 예비로 남고
-            //       자식 예비만 소멸하는 희귀 케이스도, "발효 없던 예비 자식의 조용한 소멸"이라 무푸시가 안전.)
-            //   [보수적] prev 등급이 명확히 '예비'일 때만 억제한다. 등급 메타가 비었거나(enrich
+            //     · prev 자식이 '예비'(미발효 예비 자식)        → "일부 해제" 발사 금지(예비는 발효된 적 없음).
+            //       대신 CHILD_PRELIM_CANCEL("예비특보 취소") 로 발사한다(§7.7.19). 부모/자식 예비는
+            //       독립 lifecycle 이라 부모가 발효중이거나 부모 예비가 생존한 채 자식 예비만 취소되는
+            //       정상 케이스가 있고, 이때 대표할 부모 UPCOMING_CANCEL 이 없어 무푸시가 되던 결함 수정.
+            //   [보수적] prev 등급이 명확히 '예비'일 때만 신경로. 등급 메타가 비었거나(enrich
             //   누락) 알 수 없는 경우는 기존대로 partial_release 유지(누락 푸시 방지 — 안전쪽).
             const releasedActive = releasedChildren.filter(x => childLvl(prev, x) !== '예비');
-            // (releasedPrelim = 나머지 예비 자식 소멸 → 무푸시. 부모 UPCOMING_CANCEL 가 대표.)
+            const releasedPrelim = releasedChildren.filter(x => childLvl(prev, x) === '예비');
             if (releasedActive.length > 0) {
                 changes.push({
                     type: 'CHILD_RELEASE',
                     zone: zone,
                     prev: childToBlock(childInfoOf(prev, zone, releasedActive[0])),
                     childState: { all, active: currChildren, added: [], released: releasedActive }
+                });
+            }
+            // [자식 예비 단독 취소 — CHILD_PRELIM_CANCEL] (§7.7.19)
+            //   즉발하지 않고 펜딩에 기록 → 아래에서 1사이클 이상 연속 부재 확인 후 발사.
+            //   (예비 자식은 purge 가 디바운스 carry 를 우회시킬 수 있어 1사이클 글리치 오발 방지.)
+            for (const cn of releasedPrelim) {
+                const pk = zone + '|' + cn;
+                if (!_childPrelimCancelPending[pk]) {
+                    const pi = childInfoOf(prev, zone, cn);
+                    if (pi) _childPrelimCancelPending[pk] = { info: Object.assign({}, pi), since: Date.now() };
+                }
+            }
+            // 펜딩 평가: 복귀(글리치)면 폐기, 부모 예비취소 관찰중이면 보류(§7.7.13 — 부모+자식
+            //   동시취소가 디바운스 비대칭으로 2건 갈라지는 것 방지: 부모가 진짜취소로 확정되면
+            //   UPCOMING_CANCEL(prelim_cancel) 1건이 대표하고 이 펜딩은 TTL 로 소멸, 부모가
+            //   글리치 복귀하면 그때 자식 단독 취소로 발사), 재확인 시간 경과 시 발사.
+            const duePrelimCancel = [];
+            let duePrelimInfo = null;
+            for (const pk of Object.keys(_childPrelimCancelPending)) {
+                if (pk.slice(0, zone.length + 1) !== zone + '|') continue;
+                const ent = _childPrelimCancelPending[pk];
+                const cn = pk.slice(zone.length + 1);
+                if (currChildren.includes(cn)) { delete _childPrelimCancelPending[pk]; continue; }   // 복귀=글리치 → 무푸시
+                if (_upcomingCancelPending[zone]) continue;                                          // 부모 취소 관찰중 → 보류
+                if (Date.now() - ent.since < CHILD_PRELIM_CANCEL_CONFIRM_MS) continue;               // 재확인 대기
+                duePrelimCancel.push(cn);
+                if (!duePrelimInfo) duePrelimInfo = ent.info;
+                delete _childPrelimCancelPending[pk];
+            }
+            if (duePrelimCancel.length > 0 && duePrelimInfo) {
+                changes.push({
+                    type: 'CHILD_PRELIM_CANCEL',
+                    zone: zone,
+                    prev: childToBlock(duePrelimInfo),
+                    childState: { all, active: currChildren, added: [], released: duePrelimCancel }
                 });
             }
 

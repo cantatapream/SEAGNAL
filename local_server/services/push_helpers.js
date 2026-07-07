@@ -438,6 +438,18 @@ function generateMessage(filteredPayload) {
         items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
         genBody = `ㅇ${allZones.map(decorateZone).join(', ')}`;
     }
+    // 14-b. 자식 단독 예비 취소 (§7.7.19) — 부모(발효중/예비 생존) 유지 + 자식 예비만 취소.
+    //   제목은 부모 prelim_cancel 과 동일 문구(사용자 학습 유지), 본문 한정사 "(…만 취소)" 는
+    //   buildChildQualifier 가 생성 — 부모가 아직 살아있으므로 "부모 해제" 오해 방지에 필수.
+    //   [방어] childZones OFF 사용자는 한정사 없이 부모명만 남아 오해되므로 빈 본문 → 미발송
+    //   (route 의 childZones 게이트가 1차 차단, 여기 빈본문은 2중 안전망 — child_time_* 와 동일).
+    else if (templateId === 'child_prelim_cancel') {
+        if (!showChildZones) return { title: '', body: '' };
+        genTitle = `✅ ${typeName || '특보'} 예비특보 취소`;
+        const allZones = [];
+        items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
+        genBody = `ㅇ${allZones.map(decorateZone).join(', ')}`;
+    }
     // Fallback
     else {
         genTitle = `📢 ${fullTitle} 알림`;
@@ -519,6 +531,7 @@ const TIME_LABEL_BY_EVENT = {
     additional_active: '해제예정',
     child_prelim: '발효예정',     // 자식 단독 예비 발표 — 발효예정 시각(tmEf)
     prelim_cancel: null,        // 시간 없음
+    child_prelim_cancel: null,  // 시간 없음 (§7.7.19 자식 단독 예비 취소)
     partial_release: null,      // 시간 없음
     release: null,              // 시간 없음
     level_upgrade_publish: '발효예정',
@@ -605,6 +618,16 @@ function buildChildQualifier(parent, childState, eventType) {
 
         // 예비특보 취소: 부모명만 (S10)
         if (eventType === 'prelim_cancel') return '';
+
+        // 자식 단독 예비 취소 (§7.7.19) — 취소된 예비 자식만 "(북동연안바다만 취소)".
+        //   부모는 여전히 발효중/예비 생존이므로 "부모 해제" 오해 방지를 위해 한정사 필수.
+        if (eventType === 'child_prelim_cancel') {
+            if (released.length > 0) {
+                const shown = released.map(c => _stripParentPrefix(parent, c));
+                return `(${shown.join(', ')}만 취소)`;
+            }
+            return '';
+        }
 
         // 자식만 해제 (S11, S12) — partial_release
         if (eventType === 'partial_release') {

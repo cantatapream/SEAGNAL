@@ -443,14 +443,15 @@ router.post('/api/push-custom', async (req, res) => {
                     }
                     // 해제 — 예비특보 취소(prelim_cancel)도 ✅ 해제 계열로 묶어 release 토글에 연동.
                     //   (이전엔 어떤 콘텐츠 토글에도 안 걸려 야간 외엔 무조건 발송되던 비대칭 해소.)
-                    if (opts.release === false && (tid === 'release' || tid === 'prelim_cancel')) {
+                    //   child_prelim_cancel(§7.7.19 자식 단독 예비 취소)도 동일하게 해제 계열.
+                    if (opts.release === false && (tid === 'release' || tid === 'prelim_cancel' || tid === 'child_prelim_cancel')) {
                         return;
                     }
                     // [자식 독립 푸시] additional_active(추가 발효) / partial_release(일부 해제) /
-                    //   child_prelim(자식 단독 예비 발표)
+                    //   child_prelim(자식 단독 예비 발표) / child_prelim_cancel(자식 단독 예비 취소 §7.7.19)
                     //   - 모두 자식(연안바다/평수구역) 전용 알림 → childZones OFF 사용자는 수신 안 함
-                    //   - 추가 발효 ~ 발효 계열, 일부 해제 ~ 해제 계열, 자식 예비 발표 ~ 발표 계열 토글
-                    if (['additional_active', 'partial_release', 'child_prelim'].includes(tid) && opts.childZones === false) {
+                    //   - 추가 발효 ~ 발효 계열, 일부 해제 ~ 해제 계열, 자식 예비 발표/취소 ~ 발표/해제 계열 토글
+                    if (['additional_active', 'partial_release', 'child_prelim', 'child_prelim_cancel'].includes(tid) && opts.childZones === false) {
                         return;
                     }
                     // [자식 독립 푸시] child_time_ef_change/child_time_yn_change(수정 #3 자식 단독 시각 변경) →
