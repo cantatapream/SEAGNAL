@@ -1038,11 +1038,13 @@ const UPCOMING_CANCEL_DEBOUNCE_MS = 3 * 60 * 1000;
 let _upcomingCancelPending = {};                   // zone → { firstMissingAt, block, inParents }
 let _childReleaseNoticeSet = new Set();            // 이번 사이클 해제 통보문 있는 자식 (enrich 가 채움)
 
-// [자식 예비취소 재확인] (§7.7.19) 예비 자식 소멸(releasedPrelim)은 즉발하지 않고 최소
-//   1사이클(60초) 연속 부재 재확인 후 CHILD_PRELIM_CANCEL 발사. 예비 자식은 warn-sasc/list 에서
+// [자식 예비취소 재확인] (§7.7.19) 예비 자식 소멸(releasedPrelim)은 즉발하지 않고 3분(앱 표준
+//   디바운스와 동일) 연속 부재 재확인 후 CHILD_PRELIM_CANCEL 발사. 예비 자식은 warn-sasc/list 에서
 //   항상 level-0 이라(§7.7.14 실측) ready 행이 1사이클만 빠져도 purge 가 디바운스 carry 를 즉시
 //   걷어 releasedChildren 에 나타나므로, 복귀(글리치) 시 오발 취소를 여기서 흡수한다.
-const CHILD_PRELIM_CANCEL_CONFIRM_MS = 60 * 1000;        // 최소 1사이클 재확인
+//   (carry 방식이 아니라 스냅샷 밖 메모 방식이라 purge 의 영향을 받지 않음 — 다사이클 관찰 가능.
+//    부모 예비취소도 3분 관찰 후 발사되므로 부모/자식 타이밍 대칭.)
+const CHILD_PRELIM_CANCEL_CONFIRM_MS = 3 * 60 * 1000;    // 3분 연속 부재 재확인 (표준 디바운스 정합)
 const CHILD_PRELIM_CANCEL_TTL_MS = 15 * 60 * 1000;       // 부모 소멸 등으로 미발사 잔존 시 정리
 let _childPrelimCancelPending = {};                      // "zone|child" → { info, since }
 
@@ -1865,8 +1867,9 @@ function _buildUserPushChanges(prev, curr) {
                 });
             }
             // [자식 예비 단독 취소 — CHILD_PRELIM_CANCEL] (§7.7.19)
-            //   즉발하지 않고 펜딩에 기록 → 아래에서 1사이클 이상 연속 부재 확인 후 발사.
-            //   (예비 자식은 purge 가 디바운스 carry 를 우회시킬 수 있어 1사이클 글리치 오발 방지.)
+            //   즉발하지 않고 펜딩에 기록 → 아래에서 3분 연속 부재 확인 후 발사.
+            //   (예비 자식은 purge 가 디바운스 carry 를 우회시킬 수 있어 글리치 오발 방지 —
+            //    메모는 스냅샷 밖이라 purge 무영향, 표준 3분 디바운스와 동일 관찰 시간.)
             for (const cn of releasedPrelim) {
                 const pk = zone + '|' + cn;
                 if (!_childPrelimCancelPending[pk]) {
