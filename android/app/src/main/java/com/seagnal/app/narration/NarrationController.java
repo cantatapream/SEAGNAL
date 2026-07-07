@@ -81,6 +81,7 @@ public final class NarrationController {
     private AudioFocusRequest focusReq;    // API 26+ 오디오 포커스 핸들
     private String title = "발표 나레이션";
     private boolean prepared = false;
+    private float rate = 1.0f;             // 관리자 설정 재생 배속 (0.5~2.0)
 
     // 포커스 상실 시 일시정지 (발표 중 다른 소리와 충돌 방지)
     private final AudioManager.OnAudioFocusChangeListener focusListener = new AudioManager.OnAudioFocusChangeListener() {
@@ -96,10 +97,11 @@ public final class NarrationController {
     // 공개 제어 API
     // ────────────────────────────────────────────────────────────────────
 
-    /** URL 재생 시작. 이전 재생이 있으면 끊고 새로 시작한다. */
-    public synchronized void play(Context ctx, String url, String narrTitle, final PrepareCallback cb) {
+    /** URL 재생 시작. 이전 재생이 있으면 끊고 새로 시작한다. speed 는 0.5~2.0 배속(그 외 1.0). */
+    public synchronized void play(Context ctx, String url, String narrTitle, float speed, final PrepareCallback cb) {
         appCtx = ctx.getApplicationContext();
         if (narrTitle != null && !narrTitle.isEmpty()) title = narrTitle;
+        rate = (speed >= 0.5f && speed <= 2.0f) ? speed : 1.0f;
         releasePlayerOnly();
         ensureSession();
         ensureChannel();
@@ -125,6 +127,7 @@ public final class NarrationController {
                     prepared = true;
                     requestFocus();
                     p.start();
+                    applySpeed();
                     updateMetadata();
                     updateSessionState();
                     showNotification();
@@ -220,6 +223,17 @@ public final class NarrationController {
         seekTo(mp.getCurrentPosition() + deltaMs);
     }
 
+    /** 관리자 설정 배속 적용 (start() 직후 호출 — 미지원 배속 값은 조용히 무시). */
+    private void applySpeed() {
+        if (mp == null || rate == 1.0f) return;
+        try {
+            mp.setPlaybackParams(mp.getPlaybackParams().setSpeed(rate));
+        } catch (Exception e) {
+            Log.w(TAG, "배속 적용 실패(1.0x 재생): " + e.getMessage());
+            rate = 1.0f;
+        }
+    }
+
     private void releasePlayerOnly() {
         prepared = false;
         if (mp != null) {
@@ -280,7 +294,7 @@ public final class NarrationController {
         session.setPlaybackState(new PlaybackState.Builder()
                 .setActions(actions)
                 .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
-                        pos, playing ? 1.0f : 0f)
+                        pos, playing ? rate : 0f)   // 배속 반영 — 알림 시크바 진행 속도 일치
                 .build());
     }
 

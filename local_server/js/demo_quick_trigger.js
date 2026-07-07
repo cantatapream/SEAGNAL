@@ -124,11 +124,12 @@
             //   알림이 표출된다. 구 APK/웹 환경에서는 웹 오디오 + 인앱 미니 플레이어 폴백.
             var P = window.Capacitor && window.Capacitor.Plugins;
             var Native = P && P.NarrationPlayer;
+            var rate = (entry.rate && isFinite(entry.rate) && entry.rate > 0) ? entry.rate : 1;
             if (Native && Native.play) {
                 try { if (_narrAudio) _narrAudio.pause(); } catch (e) { /* noop */ }
                 _hidePlayer();
                 var abs = entry.url.charAt(0) === '/' ? (location.origin + entry.url) : entry.url;
-                Native.play({ url: abs, title: title })
+                Native.play({ url: abs, title: title, rate: rate })
                     .catch(function () { _playWebNarration(entry, title); });  // 네이티브 실패 → 웹 폴백
                 return;
             }
@@ -141,8 +142,10 @@
         try {
             if (!_narrAudio) _narrAudio = new Audio();
             try { _narrAudio.pause(); } catch (e) { /* noop */ }
+            var rate = (entry.rate && isFinite(entry.rate) && entry.rate > 0) ? entry.rate : 1;
             _narrAudio.src = entry.url;
             _narrAudio.currentTime = 0;
+            _narrAudio.playbackRate = rate;   // 관리자 설정 배속 (피치 보존은 브라우저 기본)
             var p = _narrAudio.play();
             if (p && p.catch) p.catch(function () { /* 자동재생 거부 — 조용히 무시 */ });
             _showPlayer(title);          // 미니 플레이어 표시 (정지/탐색용)

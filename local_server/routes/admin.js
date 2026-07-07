@@ -2076,6 +2076,7 @@ router.post('/api/admin/demo/narration/:slot', (req, res) => {
                 filename: req.file.filename,
                 name: origName,
                 size: req.file.size || 0,
+                rate: (prev && prev.rate) || 1,   // 재생 배속 — 교체 업로드 시 기존 설정 유지
                 updatedAt: new Date().toISOString()
             };
             _saveNarrationMap(map);
@@ -2086,6 +2087,26 @@ router.post('/api/admin/demo/narration/:slot', (req, res) => {
             res.status(500).json({ error: e.message });
         }
     });
+});
+
+// 슬롯별 재생 배속 설정 (body: { rate }) — 0.5~2.0, 0.1 단위 반올림
+router.post('/api/admin/demo/narration/:slot/rate', (req, res) => {
+    var slot = String(req.params.slot || '').trim();
+    if (NARRATION_SLOTS.indexOf(slot) < 0) {
+        return res.status(400).json({ error: '알 수 없는 나레이션 슬롯: ' + slot });
+    }
+    var rate = Number(req.body && req.body.rate);
+    if (!isFinite(rate)) return res.status(400).json({ error: 'rate 값이 필요합니다.' });
+    rate = Math.round(Math.min(2.0, Math.max(0.5, rate)) * 10) / 10;
+    try {
+        var map = _loadNarrationMap();
+        if (!map[slot]) return res.status(404).json({ error: '해당 슬롯에 업로드된 음성이 없습니다.' });
+        map[slot].rate = rate;
+        _saveNarrationMap(map);
+        res.json({ success: true, slot: slot, rate: rate });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // 슬롯별 음성 삭제

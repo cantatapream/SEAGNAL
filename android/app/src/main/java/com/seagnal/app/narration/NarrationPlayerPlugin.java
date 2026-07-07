@@ -31,7 +31,9 @@ public class NarrationPlayerPlugin extends Plugin {
             call.reject("url 이 필요합니다.");
             return;
         }
-        NarrationController.get().play(getContext(), url, title, new NarrationController.PrepareCallback() {
+        Double rateD = call.getDouble("rate");
+        float rate = (rateD != null) ? rateD.floatValue() : 1.0f;
+        NarrationController.get().play(getContext(), url, title, rate, new NarrationController.PrepareCallback() {
             @Override public void onReady() { call.resolve(); }
             @Override public void onError(String message) { call.reject(message); }
         });

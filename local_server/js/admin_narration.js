@@ -45,7 +45,23 @@
         { id: 'marine2', label: '기상현황 2차 (5연타)',  desc: '"해역별 기상현황" 두 번째 5연타 — AI 시연 열기와 동시에 재생' }
     ];
 
-    var _map = {};   // slot → { url, name, size, updatedAt }
+    var _map = {};        // slot → { url, name, size, rate, updatedAt }
+    var _durCache = {};   // url → 원본 길이(초) — <audio> metadata 로 1회 측정 후 캐시
+
+    var RATE_MIN = 0.5, RATE_MAX = 2.0, RATE_STEP = 0.1;
+
+    function _rateOf(slot) {
+        var e = _map[slot];
+        var r = e && Number(e.rate);
+        return (isFinite(r) && r >= RATE_MIN && r <= RATE_MAX) ? r : 1;
+    }
+
+    function _fmtDur(sec) {
+        if (!isFinite(sec) || sec < 0) return '-';
+        var m = Math.floor(sec / 60), s = Math.round(sec % 60);
+        if (s === 60) { m++; s = 0; }
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
 
     function _fmtSize(bytes) {
         if (!bytes && bytes !== 0) return '';
@@ -105,7 +121,15 @@
                       + '    <i class="fa-solid fa-file-audio" style="color:#c4b5fd;"></i> ' + _esc(e.name || e.filename || '')
                       + '    <span style="color:#64748b;"> · ' + _fmtSize(e.size) + ' · ' + _fmtTime(e.updatedAt) + '</span>'
                       + '  </div>'
-                      + '  <audio controls preload="none" src="' + _esc(e.url) + '" style="margin-top:8px;width:100%;max-width:340px;height:32px;"></audio>'
+                      + '  <audio controls preload="metadata" id="narration-preview-' + s.id + '" src="' + _esc(e.url) + '" style="margin-top:8px;width:100%;max-width:340px;height:32px;"></audio>'
+                      // 재생 속도(0.1 단위 ±) + 배속 적용 시 총 길이 표시
+                      + '  <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">'
+                      + '    <span style="color:#94a3b8;font-size:0.72rem;">재생 속도</span>'
+                      + '    <button onclick="narrationRateStep(\'' + s.id + '\',-1)" style="width:26px;height:26px;background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.4);border-radius:6px;color:#d8b4fe;cursor:pointer;font-weight:700;font-size:0.9rem;line-height:1;">−</button>'
+                      + '    <b id="narration-rate-' + s.id + '" style="color:#e2e8f0;font-size:0.8rem;min-width:52px;text-align:center;">' + _rateOf(s.id).toFixed(1) + '배속</b>'
+                      + '    <button onclick="narrationRateStep(\'' + s.id + '\',1)" style="width:26px;height:26px;background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.4);border-radius:6px;color:#d8b4fe;cursor:pointer;font-weight:700;font-size:0.9rem;line-height:1;">+</button>'
+                      + '    <span id="narration-len-' + s.id + '" style="color:#94a3b8;font-size:0.72rem;">길이 계산 중…</span>'
+                      + '  </div>'
                     : '')
                 + '    </div>'
                 + '    <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;">'
@@ -137,7 +161,60 @@
                 _upload(slot, file, container);
             };
         }
+
+        // 업로드된 슬롯: 원본 길이 측정(metadata) + 미리듣기 배속 적용 + 길이 라벨 갱신
+        SLOTS.forEach(function (s) {
+            var e = _map[s.id];
+            if (!e || !e.url) return;
+            var preview = document.getElementById('narration-preview-' + s.id);
+            if (preview) {
+                try { preview.playbackRate = _rateOf(s.id); } catch (err) { /* noop */ }
+                preview.addEventListener('loadedmetadata', function () {
+                    _durCache[e.url] = preview.duration;
+                    _updateLenLabel(s.id);
+                });
+            }
+            if (_durCache[e.url] != null) _updateLenLabel(s.id);
+        });
     }
+
+    /** 배속 적용 길이 라벨 갱신: "배속 적용 mm:ss (원본 mm:ss)" */
+    function _updateLenLabel(slot) {
+        var el = document.getElementById('narration-len-' + slot);
+        var e = _map[slot];
+        if (!el || !e || !e.url) return;
+        var dur = _durCache[e.url];
+        if (dur == null || !isFinite(dur)) { el.textContent = '길이 계산 중…'; return; }
+        var rate = _rateOf(slot);
+        el.innerHTML = '배속 적용 <b style="color:#c4b5fd;">' + _fmtDur(dur / rate) + '</b>'
+            + ' <span style="color:#64748b;">(원본 ' + _fmtDur(dur) + ')</span>';
+    }
+
+    /** ± 버튼 — 0.1 단위 배속 변경 → 서버 저장 + 라벨/미리듣기 즉시 반영 */
+    window.narrationRateStep = function (slot, dir) {
+        var e = _map[slot];
+        if (!e || !e.url) return;
+        var next = Math.round((_rateOf(slot) + dir * RATE_STEP) * 10) / 10;
+        if (next < RATE_MIN || next > RATE_MAX) return;   // 0.5~2.0 범위 제한
+        e.rate = next;   // 낙관적 반영 (서버 실패 시 재조회로 원복)
+        var rateEl = document.getElementById('narration-rate-' + slot);
+        if (rateEl) rateEl.textContent = next.toFixed(1) + '배속';
+        var preview = document.getElementById('narration-preview-' + slot);
+        if (preview) { try { preview.playbackRate = next; } catch (err) { /* noop */ } }
+        _updateLenLabel(slot);
+        fetch('/api/admin/demo/narration/' + encodeURIComponent(slot) + '/rate', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rate: next })
+        }).then(function (r) {
+            if (!r.ok) throw new Error();
+        }).catch(function () {
+            // 저장 실패 → 서버 상태로 원복
+            _fetchMap().then(function () {
+                var c = document.getElementById('demo-subtab-body');
+                if (c) _render(c);
+            });
+        });
+    };
 
     // 업로드 버튼 → 파일 선택 열기
     window.narrationPickFile = function (slot) {
