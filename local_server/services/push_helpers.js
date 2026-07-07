@@ -362,9 +362,12 @@ function generateMessage(filteredPayload) {
         genBody = formatGroupedMessage(grouped, '해제예정');
     }
     // 9-a2. 해제예고 확정 (§7.7.20) — 정식 해제 통보문이 해제시각을 확정 등록.
-    //   기존 해제예정 범위와 같은 모멘트라 '해제시각 변경'으론 잡히지 않는 케이스 전용 1회 안내.
+    //   기존 해제예정 범위와 같은 모멘트라 time_yn_change diff 로는 잡히지 않는 케이스 전용 1회 안내.
+    //   제목/본문은 기존 time_yn_change("🕐 해제시각 변경")와 동일 형식 — 사용자에겐 같은 성격
+    //   (해제시각 변경/등록)의 알림이므로 표기 일관 유지(사용자 확인 반영). templateId 만 분리
+    //   (영속 dedup·게이트 용도).
     else if (templateId === 'time_yn_confirm') {
-        genTitle = `🕐 ${fullTitle} 해제 예정`;
+        genTitle = `🕐 해제시각 변경`;
         const grouped = groupByTime(items, 'tmYn');
         genBody = formatGroupedMessage(grouped, '해제예정');
     }
