@@ -437,8 +437,9 @@ router.post('/api/push-custom', async (req, res) => {
                     }
                     // 발효 관련 (active, 격상/격하 발효, 해제시각 변경)
                     //   child_time_yn_change(수정 #3 자식 단독 해제시각 변경)도 발효(active) 계열.
+                    //   time_yn_confirm(§7.7.20 해제예고 확정)도 해제시각 계열 → active 토글 연동.
                     if (opts.active === false &&
-                        ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change', 'child_time_yn_change'].includes(tid)) {
+                        ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change', 'time_yn_confirm', 'child_time_yn_change'].includes(tid)) {
                         return;
                     }
                     // 해제 — 예비특보 취소(prelim_cancel)도 ✅ 해제 계열로 묶어 release 토글에 연동.

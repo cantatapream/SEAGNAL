@@ -377,6 +377,18 @@ async function processAndSendNotifications(changes, options = {}) {
                 tmYn: curr.tmYn || curr.tmCc
             });
         }
+        // F. 해제예고 확정 (§7.7.20) — 정식 해제 통보문으로 해제시각이 확정 등록됐으나 기존
+        //   범위와 같은 모멘트라 time_yn_change 로는 잡히지 않는 케이스 전용(영속 dedup 1회).
+        else if (type === 'CLR_CONFIRM') {
+            if (!curr) continue;
+            addToGroup(groups, 'time_yn_confirm', curr.wrnTp, curr.wrnLvl, {
+                zones: [zone],
+                childState,
+                tmFc: curr.tmFc,
+                tmEf: curr.tmEf,
+                tmYn: change.newTime || curr.tmYn || curr.tmCc
+            });
+        }
     }
 
     // 그룹이 비어있는지 확인

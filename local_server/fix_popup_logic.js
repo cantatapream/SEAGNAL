@@ -472,6 +472,7 @@ window.checkForPushPopup = async function () {
     const SUPPRESSED_POPUP_STATUSES = [
         'time_ef_change',
         'time_yn_change',
+        'time_yn_confirm',
         'child_time_ef_change',
         'child_time_yn_change',
         'level_upgrade_publish',

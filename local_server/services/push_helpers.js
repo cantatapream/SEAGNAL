@@ -361,6 +361,13 @@ function generateMessage(filteredPayload) {
         const grouped = groupByTime(items, 'tmYn');
         genBody = formatGroupedMessage(grouped, '해제예정');
     }
+    // 9-a2. 해제예고 확정 (§7.7.20) — 정식 해제 통보문이 해제시각을 확정 등록.
+    //   기존 해제예정 범위와 같은 모멘트라 '해제시각 변경'으론 잡히지 않는 케이스 전용 1회 안내.
+    else if (templateId === 'time_yn_confirm') {
+        genTitle = `🕐 ${fullTitle} 해제 예정`;
+        const grouped = groupByTime(items, 'tmYn');
+        genBody = formatGroupedMessage(grouped, '해제예정');
+    }
     // 9-b. 자식 단독 발효시각 변경 (수정 #3) — 부모 불변, 자식만 발효예정(tmEf) 변경.
     //   한정사 "(…만 시각 변경)" 는 decorateZone(buildChildQualifier)가 생성.
     //   [방어] childZones OFF 사용자는 부모 시각이 안 변해 부모명만 남으면 오해되므로 빈 본문 → 미발송.
@@ -544,6 +551,7 @@ const TIME_LABEL_BY_EVENT = {
     type_downgrade_active: '해제예정',
     time_ef_change: '발효예정',
     time_yn_change: '해제예정',
+    time_yn_confirm: '해제예정',        // §7.7.20 — 해제예고 확정 (정식 해제 통보문)
     child_time_ef_change: '발효예정',   // 수정 #3 — 자식 단독 발효시각 변경
     child_time_yn_change: '해제예정'    // 수정 #3 — 자식 단독 해제시각 변경
 };
@@ -564,6 +572,7 @@ const TIME_KEY_BY_EVENT = {
     type_downgrade_active: 'tmYn',
     time_ef_change: 'tmEf',
     time_yn_change: 'tmYn',
+    time_yn_confirm: 'tmYn',        // §7.7.20 — 해제예고 확정
     child_time_ef_change: 'tmEf',   // 수정 #3 — 자식 단독 발효시각 변경
     child_time_yn_change: 'tmYn'    // 수정 #3 — 자식 단독 해제시각 변경
 };

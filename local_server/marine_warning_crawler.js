@@ -1524,6 +1524,19 @@ function _buildUserPushChanges(prev, curr) {
         }
     }
 
+    // [§7.7.20] 해제예고 확정 dedup 첫 실행 시드 — 이력 파일 부재(기능 첫 배포/볼륨 유실) 시
+    //   현재 스냅샷에 이미 등록된 해제예고 통보문을 "알림 완료"로 간주(배포 직후 뒷북 푸시 방지).
+    const _clrSeen = _loadClrConfirms();
+    if (_clrConfirmsFirstRun) {
+        if (curr.parents) for (const [sz, si] of curr.parents) {
+            if (si && si._clrConfirmed && si._clrConfirmed.tmEf) {
+                _clrSeen.set(_clrConfirmKey(sz, si, si._clrConfirmed.tmEf), Date.now());
+                _clrConfirmsDirty = true;
+            }
+        }
+        _clrConfirmsFirstRun = false;
+    }
+
     const allZones = new Set();
     if (prev.parents) for (const k of prev.parents.keys()) allZones.add(k);
     if (curr.parents) for (const k of curr.parents.keys()) allZones.add(k);
@@ -1750,6 +1763,33 @@ function _buildUserPushChanges(prev, curr) {
                 curr: currActive,
                 childState                           // [작업2b] 자식 한정사용
             });
+        }
+
+        // [해제예고 확정 — CLR_CONFIRM] (§7.7.20) 정식 해제 통보문(warn/latest cmd='해제')이
+        //   해제시각을 확정 등록했는데 그 시각이 기존 해제예정 범위와 "같은 모멘트"
+        //   (예: "…21시~24시" ↔ "익일 00:00", _timeKey 동일)라 blockEqual/_debounceTimeValues 의
+        //   깜빡임 흡수에 걸려 무푸시가 되던 빈틈(2026-07-01 제7-4호 사고)을 메운다.
+        //   warn/list 의 tm_yn 이 채워져 clrNtcTm 변화가 diff 에 안 보이는 갈래(M2)도 커버.
+        //   - 통보문 모멘트 키 단위 영속 dedup(_clrConfirms) → 매사이클 재유입·재시작에도 1회만.
+        //   - 이번 사이클 CURRENT_CHANGE/YN_EXTEND 가 발사되면(시각 진짜 변경/연장 등) 그 푸시가
+        //     대표 → 키만 기록하고 발사 생략(이중발송 차단).
+        //   - 디바운스 미확정(새 모멘트 3분 관찰중 — clrNtcTm 이 직전 확정값으로 롤백된 상태)엔
+        //     모멘트 불일치로 발사 보류 → 관찰 확정 시 CURRENT_CHANGE(time_yn_change)가 담당.
+        const cActClr = getAct(curr, zone);
+        if (cActClr && cActClr._clrConfirmed && cActClr._clrConfirmed.tmEf && currActive) {
+            const ck = _clrConfirmKey(zone, cActClr, cActClr._clrConfirmed.tmEf);
+            if (!_clrSeen.has(ck)) {
+                if (activeChanged || ynExtend) {
+                    _clrSeen.set(ck, Date.now()); _clrConfirmsDirty = true;   // 기존 이벤트가 대표 — 기록만
+                } else if ((cActClr.clrNtcTm || '') === cActClr._clrConfirmed.tmEf ||
+                           _sameReleaseMoment(cActClr.clrNtcTm || '', cActClr._clrConfirmed.tmEf)) {
+                    changes.push({
+                        type: 'CLR_CONFIRM', zone: zone, curr: currActive,
+                        newTime: cActClr._clrConfirmed.tmEf, childState
+                    });
+                    _clrSeen.set(ck, Date.now()); _clrConfirmsDirty = true;
+                }
+            }
         }
 
         // [자식 독립 푸시] 부모 블록이 둘 다 안 변했을 때만 — 자식만 추가/해제된 경우 별도 1건.
@@ -2724,6 +2764,9 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             if (!tmEf) continue;
             const info = snap.parents.get(name);
             info.clrNtcTm = tmEf;   // mmis 원형식 유지 — 표시 시 normalize
+            // [§7.7.20] 정식 해제 통보문(cmd='해제')의 해제시각 확정 마킹 — diff 가 소비해
+            //   time_yn_confirm 1회 발사. (같은 모멘트 범위↔정확 흡수로 무푸시 되던 빈틈 메움.)
+            info._clrConfirmed = { tmEf: tmEf };
             snap.parents.set(name, info);
             enriched++;
             continue;
@@ -2892,6 +2935,53 @@ function _pubKey(zone, info) {
     const tp = (info && (info.wrnTpNm || info.wrnTp)) || '';
     const fc = (info && info.tmFc) || '';
     return `${zone}|${tp}|${fc}`;
+}
+
+// ============================================================================
+// [해제예고 확정 dedup] (§7.7.20) 정식 해제 통보문(warn/latest cmd='해제')의 "해제시각 확정"
+//   푸시(time_yn_confirm)를 통보문 모멘트 단위로 1회만 발사하기 위한 영속 이력.
+//   키: "zone|종류|해제모멘트키(_timeKey(tm_ef))" — 같은 해제시각의 재발행·범위↔정확 깜빡임·
+//   매사이클 재유입·서버 재시작 모두 동일 키로 수렴해 재푸시가 없다. TTL 7일.
+//   [초기 시드] 파일이 없으면(기능 첫 배포/볼륨 유실) 현재 스냅샷에 이미 등록된 해제예고
+//   통보문을 "알림 완료"로 시드해 배포 직후 과거 통보문에 대한 뒷북 푸시를 막는다.
+// ============================================================================
+const CLR_CONFIRMS_FILE = path.join(__dirname, 'data', 'marine_clr_confirms.json');
+const CLR_CONFIRM_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // 7일
+let _clrConfirms = null;          // Map(key → lastSeenMs), lazy-load
+let _clrConfirmsDirty = false;
+let _clrConfirmsFirstRun = false; // 파일 부재(첫 배포/유실) → 첫 diff 사이클에 시드
+
+function _loadClrConfirms() {
+    if (_clrConfirms) return _clrConfirms;
+    _clrConfirms = new Map();
+    try {
+        const raw = JSON.parse(fs.readFileSync(CLR_CONFIRMS_FILE, 'utf8'));
+        const now = Date.now();
+        for (const k of Object.keys(raw)) {
+            if (now - raw[k] < CLR_CONFIRM_TTL_MS) _clrConfirms.set(k, raw[k]);
+        }
+    } catch (_) { _clrConfirmsFirstRun = true; /* 파일 없음/파싱실패 → 시드 대상 */ }
+    return _clrConfirms;
+}
+
+function _saveClrConfirms() {
+    if (!_clrConfirms || !_clrConfirmsDirty) return;
+    try {
+        const now = Date.now();
+        const obj = {};
+        for (const [k, ms] of _clrConfirms) if (now - ms < CLR_CONFIRM_TTL_MS) obj[k] = ms;
+        fs.writeFileSync(CLR_CONFIRMS_FILE, JSON.stringify(obj), 'utf8');
+        _clrConfirmsDirty = false;
+    } catch (e) {
+        console.warn('[Marine] clr_confirms 저장 실패:', e && e.message);
+    }
+}
+
+/** 해제예고 확정 키 — zone + 종류 + 해제 모멘트 키(파싱 불가 시 원문). */
+function _clrConfirmKey(zone, info, tmEf) {
+    const tp = (info && (info.wrnTpNm || info.wrnTp)) || '';
+    const mk = _timeKey(tmEf);
+    return `${zone}|${tp}|${mk != null ? mk : tmEf}`;
 }
 
 /** ef/list 의 한글 종류명 → 실시간 문자코드 (스냅샷 일관성용). 대상 외는 ''. */
@@ -3320,6 +3410,7 @@ async function run(opts = {}) {
         _prevSnapshot = curr;
         _savePrevSnapshot(curr);
         _savePushedPubs();   // [발송이력 dedup] 이번 사이클 갱신분 영속화 (재배포에도 유지)
+        _saveClrConfirms();  // [§7.7.20] 해제예고 확정 dedup 영속화 (재배포에도 재푸시 방지)
 
         // 7) [Followup E-2] weather_alerts.json 갱신 — SPEC §4.
         //    dispatch 후 / state 저장 후 / cycle 끝에 한 번. atomic tmp → rename.
