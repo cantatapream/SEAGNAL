@@ -75,6 +75,55 @@
     // 37°12'03"N, 126°35'06"E (≈ 경기만), 줌 13 — 화면 중앙 이동 후 슬라이더 자동 재생
     var MUDFLAT_DEMO = { lat: 37.20083, lon: 126.585, zoom: 13 };
 
+    // ========================================================================
+    // [임시 — 발표 나레이션] 트리거 발동 시 배경 음성 재생 (발표 종료 후 제거 예정)
+    //   - 매핑: GET /api/demo/narration → { map: { alert1|alert2|mudflat|marine1|marine2: {url} } }
+    //     (업로드는 통합관리자센터 > 시연 > 오디오 하위탭 — js/admin_narration.js)
+    //   - 재생: 슬롯 URL 을 단일 Audio 엘리먼트로 재생(새 재생 시 이전 재생 중단)
+    //   - 언락: 트리거 발동이 비동기(fetch) 뒤라 사용자 제스처 컨텍스트가 끊기므로,
+    //     헤더/버튼의 "클릭 순간"(제스처 내)에 무음 재생으로 오디오를 미리 언락한다.
+    // ========================================================================
+    var _narrMap = null;          // 슬롯 → {url,...} 매핑 캐시 (앱 시작 시 1회 로드)
+    var _narrAudio = null;        // 공유 Audio 엘리먼트 (동시 재생 방지)
+    var _narrUnlocked = false;    // 무음 언락 완료 여부
+    // 0.05초 무음 WAV (오디오 정책 언락용)
+    var _SILENT_WAV = 'data:audio/wav;base64,UklGRl4AAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YToAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+
+    /** 나레이션 매핑 로드(1회). 실패해도 조용히 무시 — 시연 자체는 계속 동작. */
+    function _loadNarrationMap() {
+        fetch('/api/demo/narration', { cache: 'no-cache' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) { _narrMap = (d && d.map) || {}; })
+            .catch(function () { _narrMap = _narrMap || {}; });
+    }
+
+    /** [제스처 내 호출 필수] 무음 재생으로 웹뷰 오디오 정책 언락 + Audio 준비. */
+    function _unlockAudio() {
+        if (_narrUnlocked) return;
+        try {
+            if (!_narrAudio) _narrAudio = new Audio();
+            _narrAudio.src = _SILENT_WAV;
+            var p = _narrAudio.play();
+            if (p && p.catch) p.catch(function () { /* 정책 거부 — 다음 제스처에서 재시도 */ });
+            _narrUnlocked = true;
+        } catch (e) { /* noop */ }
+    }
+
+    /** 슬롯에 업로드된 나레이션이 있으면 재생(없으면 무동작). 새 재생은 이전 재생을 끊는다. */
+    function _playNarration(slot) {
+        try {
+            var entry = _narrMap && _narrMap[slot];
+            if (!entry || !entry.url) return;
+            if (!_narrAudio) _narrAudio = new Audio();
+            try { _narrAudio.pause(); } catch (e) { /* noop */ }
+            _narrAudio.src = entry.url;
+            _narrAudio.currentTime = 0;
+            var p = _narrAudio.play();
+            if (p && p.catch) p.catch(function () { /* 자동재생 거부 — 조용히 무시 */ });
+        } catch (e) { /* noop */ }
+    }
+    // ===================== [임시 — 발표 나레이션 끝] ==========================
+
     function _adminMode() {
         try { return localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { return false; }
     }
@@ -229,11 +278,13 @@
         if (_busy) return;
         if (_stage === 0) {
             _stage = 1;
+            _playNarration('alert1');  // [임시] 발표 나레이션 — 특보현황 1차
             _activate();              // 1단계: 특보 시연 활성화
         } else if (_stage === 1) {
             _stage = 2;
             _typhoonDemoArmed = true;  // 이후 해양종합정보 '태풍' 클릭 시 장미·통보문 제6-12호 자동 표출
             _demoSession = true;       // 시연 세션 진입 — 이후 물빠짐 확대 안내 카드 억제(세션 내내)
+            _playNarration('alert2');  // [임시] 발표 나레이션 — 특보현황 2차
             _sendTyphoonTests();      // 2단계: 태풍 발생/소멸 테스트 푸시
         }
         // _stage >= 2 → 동작 없음 (추후 추가 예정)
@@ -287,9 +338,11 @@
         if (_busy) return;
         if (_marineStage === 0) {
             _marineStage = 1;
+            _playNarration('marine1');  // [임시] 발표 나레이션 — 기상현황 1차
             _sendLocationDemos();   // 1단계: 위치기반 시연 8건
         } else if (_marineStage === 1) {
             _marineStage = 2;
+            _playNarration('marine2');  // [임시] 발표 나레이션 — 기상현황 2차
             _openAiDemoAndArm();    // 2단계: AI 시연 열기 → 닫으면 나리야 ON
         }
         // _marineStage >= 2 → 동작 없음 (1회성)
@@ -423,6 +476,11 @@
     function _makeCounter(onComplete, skip) {
         var count = 0, firstTs = 0;
         return function () {
+            // [임시 — 발표 나레이션] 발동은 _isAdminDevice() 비동기 확인 "이후"라 사용자
+            //   제스처 컨텍스트가 끊긴다. 클릭 순간(제스처 내)에 무음 재생으로 미리 언락.
+            //   관리자 모드 기기에서만 수행 — 일반 사용자는 기존과 완전 동일.
+            //   (앱 시작 후 관리자 모드를 켠 경우 대비: 매핑 미로드 상태면 여기서 로드)
+            if (_adminMode()) { _unlockAudio(); if (_narrMap === null) _loadNarrationMap(); }
             var now = Date.now();
             if (now - firstTs > WINDOW_MS) { count = 0; firstTs = now; }
             count++;
@@ -436,6 +494,8 @@
     }
 
     function _init() {
+        // [임시 — 발표 나레이션] 관리자 모드 기기에서만 슬롯 매핑 프리로드(일반 사용자 요청 없음)
+        if (_adminMode()) _loadNarrationMap();
         // [A] 해역별 특보현황 — 단계 진행식(특보 → 태풍)
         var alertHeader = document.getElementById('main-accordion-header');
         if (alertHeader) {
@@ -470,6 +530,7 @@
             mudBtn.addEventListener('click', function () {
                 if (!_mudflatDemoArmed) return;
                 _mudflatDemoArmed = false;             // 1회성
+                _playNarration('mudflat');             // [임시] 발표 나레이션 — 무장 소진되는 "첫 클릭"에만 1회 재생
                 setTimeout(_runMudflatDemo, 400);      // activate() 가 레이어/슬라이더 준비한 뒤 실행
             });
         }

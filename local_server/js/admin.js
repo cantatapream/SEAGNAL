@@ -674,9 +674,10 @@ function renderDemoTabWithSubtabs(body) {
         '<div id="demo-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
         + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
         + btn('alert', '특보 시연') + btn('advisory', '특보 예측 시연') + btn('typhoon', '태풍') + btn('location', '위치 기반 특보 시연')
+        + btn('audio', '오디오')   // [임시 — 발표 나레이션] 5연타 트리거 배경 음성 업로드 (발표 후 제거 예정)
         + '</div>'
         + '<div id="demo-subtab-body"></div>';
-    switchDemoSubTab(['advisory', 'typhoon', 'location'].indexOf(saved) >= 0 ? saved : 'alert');
+    switchDemoSubTab(['advisory', 'typhoon', 'location', 'audio'].indexOf(saved) >= 0 ? saved : 'alert');
 }
 
 window.switchDemoSubTab = function (which) {
@@ -691,7 +692,11 @@ window.switchDemoSubTab = function (which) {
     }
     var sub = document.getElementById('demo-subtab-body');
     if (!sub) return;
-    if (which === 'location') {
+    if (which === 'audio') {
+        // [임시 — 발표 나레이션] 오디오 업로드 하위탭 (js/admin_narration.js)
+        if (typeof renderNarrationAudioTab === 'function') renderNarrationAudioTab(sub);
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">오디오 모듈(admin_narration.js)이 로드되지 않았습니다.</div>';
+    } else if (which === 'location') {
         if (typeof renderLocationAlertDemoTab === 'function') renderLocationAlertDemoTab(sub);
         else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">위치 기반 특보 시연 모듈(admin_location_demo.js)이 로드되지 않았습니다.</div>';
     } else if (which === 'typhoon') {
