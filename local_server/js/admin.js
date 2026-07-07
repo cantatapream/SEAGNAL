@@ -3601,6 +3601,24 @@ async function renderSubscriberTab(container) {
             + '</div>'
             + '</div>';
 
+        // ── 4.5. 태풍 생성·소멸 알림 구독자 카드 ──
+        // 태풍 알림은 해역 단위가 아니라 전국 단위 브로드캐스트(옵트인)라서
+        // 해역별 분포 트리에 넣지 않고 독립 요약 카드로 표출한다.
+        // typhoonOptIn = master ON + options.typhoon === true (발송 필터와 동일 기준)
+        var typhoonCount = (typeof stats.typhoonOptIn === 'number') ? stats.typhoonOptIn : null;
+        var typhoonHtml = '<div style="margin-bottom:20px;padding:14px 16px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);border-radius:12px;display:flex;justify-content:space-between;align-items:center;">'
+            + '<div style="display:flex;align-items:center;gap:10px;">'
+            + '<i class="fa-solid fa-hurricane" style="color:#a78bfa;font-size:1.1rem;"></i>'
+            + '<div>'
+            + '<div style="font-weight:700;color:#fff;font-size:0.9rem;">태풍 생성·소멸 알림 구독자</div>'
+            + '<div style="color:#94a3b8;font-size:0.72rem;margin-top:2px;">전국 단위 발송 · 설정에서 켠 사람만 수신 (옵트인)</div>'
+            + '</div>'
+            + '</div>'
+            + '<span style="color:#a78bfa;font-weight:700;font-size:1.05rem;white-space:nowrap;">'
+            + (typhoonCount !== null ? typhoonCount.toLocaleString() + '명' : 'N/A')
+            + '</span>'
+            + '</div>';
+
         // ── 5. 해역별 구독자 분포 (기존 로직 유지) ──
         var zoneHtml = '<div style="margin-bottom:12px;font-weight:700;color:#fff;font-size:0.95rem;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-map-location-dot" style="color:#3b82f6;"></i> 해역별 구독자 분포</div>';
 
@@ -3658,7 +3676,7 @@ async function renderSubscriberTab(container) {
         }
 
         // ── 6. 전체 HTML 조립 후 렌더링 ──
-        container.innerHTML = topHtml + retentionHtml + filterHtml + zoneHtml;
+        container.innerHTML = topHtml + retentionHtml + filterHtml + typhoonHtml + zoneHtml;
 
         // ── 7. 차트 및 테이블 렌더링 ──
         // 이력 데이터를 날짜순으로 정렬

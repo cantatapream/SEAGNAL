@@ -878,6 +878,7 @@ router.get('/api/push-counter', (req, res) => {
  *   totalSubscribers: 501,       // 전체 구독자 수
  *   fcmCount: 312,               // FCM(앱) 구독자 수
  *   webCount: 189,               // Web Push(브라우저) 구독자 수
+ *   typhoonOptIn: 87,            // 태풍 생성/소멸 알림 수신자 수 (master ON + options.typhoon === true)
  *   zoneCounts: {                // 소분류 해역별 구독자 수 (35개)
  *     "강원북부앞바다": 480,
  *     "제주도서부앞바다": 485,
@@ -902,6 +903,11 @@ router.get('/api/push-subscriber-stats', (req, res) => {
         let fcmCount = 0;
         let webCount = 0;
 
+        // 태풍 생성/소멸 알림 수신 가능자 카운트.
+        //   /api/push-typhoon 발송 필터(master ON + typhoon 옵트인)와 동일한 조건으로 세어
+        //   "실제로 태풍 푸시를 받을 사람 수"와 일치시킨다. (태풍은 해역 무관 전국 단위)
+        let typhoonOptIn = 0;
+
         // 3. 소분류 해역별 구독자 수 집계
         //    - 각 구독자의 zones 배열을 소분류(35개)로 확장
         //    - zones가 비어있으면 "모든 해역 수신" → 35개 전부에 카운트
@@ -921,6 +927,10 @@ router.get('/api/push-subscriber-stats', (req, res) => {
             // FCM/Web 구분
             if (sub.type === 'fcm') fcmCount++;
             else webCount++;
+
+            // 태풍 알림 수신 가능 여부 (발송 필터와 동일 조건)
+            const o = sub.options || {};
+            if (o.master !== false && o.typhoon === true) typhoonOptIn++;
 
             // 해역 확장: 빈 배열이거나 target='all'이면 전체 해역 구독으로 간주
             const isAllZones = (!sub.zones || sub.zones.length === 0) ||
@@ -942,6 +952,7 @@ router.get('/api/push-subscriber-stats', (req, res) => {
             totalSubscribers: subs.length,
             fcmCount,
             webCount,
+            typhoonOptIn,
             zoneCounts
         });
     } catch (e) {
