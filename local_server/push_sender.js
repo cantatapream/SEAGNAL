@@ -309,6 +309,19 @@ async function processAndSendNotifications(changes, options = {}) {
                 tmYn: prev.tmYn || prev.tmCc
             });
         }
+        // C-c. 자식 단독 예비 취소 (§7.7.19) — 부모(발효중/예비 생존) 유지 상태에서 자식 예비만 취소.
+        //   전용 templateId(child_prelim_cancel) — 부모 prelim_cancel 과 그룹키를 분리해
+        //   토글 게이트(childZones)·문구를 자식 전용으로 정확히 적용 (§7.7.15 #3 과 동일 원칙).
+        else if (type === 'CHILD_PRELIM_CANCEL') {
+            if (!prev) continue;
+            addToGroup(groups, 'child_prelim_cancel', prev.wrnTp, prev.wrnLvl, {
+                zones: [zone],
+                childState,
+                tmFc: prev.tmFc,
+                tmEf: prev.tmEf,
+                tmYn: prev.tmYn || prev.tmCc
+            });
+        }
 
         // D. 시각 연장 — 발효예정/해제예정이 더 늦은 시각으로 연장 (기존→변경 후 병기).
         else if (type === 'EF_EXTEND') {
@@ -362,6 +375,18 @@ async function processAndSendNotifications(changes, options = {}) {
                 tmFc: curr.tmFc,
                 tmEf: curr.tmEf,
                 tmYn: curr.tmYn || curr.tmCc
+            });
+        }
+        // F. 해제예고 확정 (§7.7.20) — 정식 해제 통보문으로 해제시각이 확정 등록됐으나 기존
+        //   범위와 같은 모멘트라 time_yn_change 로는 잡히지 않는 케이스 전용(영속 dedup 1회).
+        else if (type === 'CLR_CONFIRM') {
+            if (!curr) continue;
+            addToGroup(groups, 'time_yn_confirm', curr.wrnTp, curr.wrnLvl, {
+                zones: [zone],
+                childState,
+                tmFc: curr.tmFc,
+                tmEf: curr.tmEf,
+                tmYn: change.newTime || curr.tmYn || curr.tmCc
             });
         }
     }
