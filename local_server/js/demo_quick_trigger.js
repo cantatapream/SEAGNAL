@@ -118,14 +118,35 @@
         try {
             var entry = _narrMap && _narrMap[slot];
             if (!entry || !entry.url) return;
+            var title = entry.name || slot;
+            // [네이티브 우선] 새 APK(NarrationPlayer 플러그인 내장)에서는 네이티브
+            //   MediaPlayer 로 재생 — 상태표시줄에 시스템 미디어 컨트롤(⟲/⏯/⟳ + 시크바)
+            //   알림이 표출된다. 구 APK/웹 환경에서는 웹 오디오 + 인앱 미니 플레이어 폴백.
+            var P = window.Capacitor && window.Capacitor.Plugins;
+            var Native = P && P.NarrationPlayer;
+            if (Native && Native.play) {
+                try { if (_narrAudio) _narrAudio.pause(); } catch (e) { /* noop */ }
+                _hidePlayer();
+                var abs = entry.url.charAt(0) === '/' ? (location.origin + entry.url) : entry.url;
+                Native.play({ url: abs, title: title })
+                    .catch(function () { _playWebNarration(entry, title); });  // 네이티브 실패 → 웹 폴백
+                return;
+            }
+            _playWebNarration(entry, title);
+        } catch (e) { /* noop */ }
+    }
+
+    /** 웹 오디오 재생 + 인앱 미니 플레이어 (네이티브 플러그인 없는 환경 폴백). */
+    function _playWebNarration(entry, title) {
+        try {
             if (!_narrAudio) _narrAudio = new Audio();
             try { _narrAudio.pause(); } catch (e) { /* noop */ }
             _narrAudio.src = entry.url;
             _narrAudio.currentTime = 0;
             var p = _narrAudio.play();
             if (p && p.catch) p.catch(function () { /* 자동재생 거부 — 조용히 무시 */ });
-            _showPlayer(entry.name || slot);          // 미니 플레이어 표시 (정지/탐색용)
-            _setupMediaSession(entry.name || slot);   // 웹뷰가 지원하면 상태표시줄 미디어 컨트롤
+            _showPlayer(title);          // 미니 플레이어 표시 (정지/탐색용)
+            _setupMediaSession(title);   // 웹뷰가 지원하면 상태표시줄 미디어 컨트롤
         } catch (e) { /* noop */ }
     }
 
