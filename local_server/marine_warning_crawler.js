@@ -1038,6 +1038,16 @@ const UPCOMING_CANCEL_DEBOUNCE_MS = 3 * 60 * 1000;
 let _upcomingCancelPending = {};                   // zone → { firstMissingAt, block, inParents }
 let _childReleaseNoticeSet = new Set();            // 이번 사이클 해제 통보문 있는 자식 (enrich 가 채움)
 
+// [자식 예비취소 재확인] (§7.7.19) 예비 자식 소멸(releasedPrelim)은 즉발하지 않고 3분(앱 표준
+//   디바운스와 동일) 연속 부재 재확인 후 CHILD_PRELIM_CANCEL 발사. 예비 자식은 warn-sasc/list 에서
+//   항상 level-0 이라(§7.7.14 실측) ready 행이 1사이클만 빠져도 purge 가 디바운스 carry 를 즉시
+//   걷어 releasedChildren 에 나타나므로, 복귀(글리치) 시 오발 취소를 여기서 흡수한다.
+//   (carry 방식이 아니라 스냅샷 밖 메모 방식이라 purge 의 영향을 받지 않음 — 다사이클 관찰 가능.
+//    부모 예비취소도 3분 관찰 후 발사되므로 부모/자식 타이밍 대칭.)
+const CHILD_PRELIM_CANCEL_CONFIRM_MS = 3 * 60 * 1000;    // 3분 연속 부재 재확인 (표준 디바운스 정합)
+const CHILD_PRELIM_CANCEL_TTL_MS = 15 * 60 * 1000;       // 부모 소멸 등으로 미발사 잔존 시 정리
+let _childPrelimCancelPending = {};                      // "zone|child" → { info, since }
+
 /**
  * curr 를 변형: 해제예고 없이 사라진 자식을 3분간 이어받기. 깜빡임/확정/정상해제 로그.
  * _buildUserPushChanges / _writeWeatherAlertsJson 보다 먼저 호출되어야 함.
@@ -1157,6 +1167,12 @@ function _applyUpcomingCancelDebounce(prev, curr) {
             // N분 경과 — 진짜취소 확정 (이어받기 중단 → diff 가 UPCOMING_CANCEL 발사)
             console.log(`[Marine] 예비취소 확정(디바운스 ${Math.round((now - p.firstMissingAt) / 1000)}초 경과): ${zone}`);
             delete _upcomingCancelPending[zone];
+            // [§7.7.19] 부모 진짜취소 확정 → 보류 중이던 자식 예비취소 펜딩도 함께 폐기.
+            //   부모 UPCOMING_CANCEL(prelim_cancel) 1건이 자식까지 대표(§7.7.13). TTL 에만 기대면
+            //   15분 내 동일 zone 신규 특보 재발표 시 구특보의 자식취소가 뒤늦게 오발사될 수 있음.
+            for (const cpk of Object.keys(_childPrelimCancelPending)) {
+                if (cpk.slice(0, zone.length + 1) === zone + '|') delete _childPrelimCancelPending[cpk];
+            }
         }
     }
 
@@ -1507,6 +1523,30 @@ function _updateExtensionMemory(curr) {
 function _buildUserPushChanges(prev, curr) {
     const changes = [];
     if (!prev || !curr) return changes;
+
+    // [§7.7.19] 자식 예비취소 펜딩 TTL 정리 — 부모가 함께 소멸(부모 취소 푸시가 대표)해
+    //   zone 루프에서 더 이상 평가되지 않는 잔존 펜딩을 조용히 폐기(발사 없음).
+    for (const pk of Object.keys(_childPrelimCancelPending)) {
+        if (Date.now() - _childPrelimCancelPending[pk].since > CHILD_PRELIM_CANCEL_TTL_MS) {
+            delete _childPrelimCancelPending[pk];
+        }
+    }
+
+    // [§7.7.20] 해제예고 확정 dedup 첫 실행 시드 — 이력 파일 부재(기능 첫 배포/볼륨 유실) 시
+    //   현재 스냅샷에 이미 등록된 해제예고 통보문을 "알림 완료"로 간주(배포 직후 뒷북 푸시 방지).
+    const _clrSeen = _loadClrConfirms();
+    if (_clrConfirmsFirstRun) {
+        if (curr.parents) for (const [sz, si] of curr.parents) {
+            if (si && si._clrConfirmed && si._clrConfirmed.tmEf) {
+                _clrSeen.set(_clrConfirmKey(sz, si, si._clrConfirmed.tmEf), Date.now());
+            }
+        }
+        // 시드 0건이어도 빈 이력 파일을 1회 기록 — 파일 부재로 재시작마다 시드가 반복되어
+        //   다운타임 중 발행된 통보문 confirm 까지 삼키는 창을 닫는다(구현검증 경미 #3).
+        _clrConfirmsDirty = true;
+        _clrConfirmsFirstRun = false;
+    }
+
     const allZones = new Set();
     if (prev.parents) for (const k of prev.parents.keys()) allZones.add(k);
     if (curr.parents) for (const k of curr.parents.keys()) allZones.add(k);
@@ -1735,6 +1775,33 @@ function _buildUserPushChanges(prev, curr) {
             });
         }
 
+        // [해제예고 확정 — CLR_CONFIRM] (§7.7.20) 정식 해제 통보문(warn/latest cmd='해제')이
+        //   해제시각을 확정 등록했는데 그 시각이 기존 해제예정 범위와 "같은 모멘트"
+        //   (예: "…21시~24시" ↔ "익일 00:00", _timeKey 동일)라 blockEqual/_debounceTimeValues 의
+        //   깜빡임 흡수에 걸려 무푸시가 되던 빈틈(2026-07-01 제7-4호 사고)을 메운다.
+        //   warn/list 의 tm_yn 이 채워져 clrNtcTm 변화가 diff 에 안 보이는 갈래(M2)도 커버.
+        //   - 통보문 모멘트 키 단위 영속 dedup(_clrConfirms) → 매사이클 재유입·재시작에도 1회만.
+        //   - 이번 사이클 CURRENT_CHANGE/YN_EXTEND 가 발사되면(시각 진짜 변경/연장 등) 그 푸시가
+        //     대표 → 키만 기록하고 발사 생략(이중발송 차단).
+        //   - 디바운스 미확정(새 모멘트 3분 관찰중 — clrNtcTm 이 직전 확정값으로 롤백된 상태)엔
+        //     모멘트 불일치로 발사 보류 → 관찰 확정 시 CURRENT_CHANGE(time_yn_change)가 담당.
+        const cActClr = getAct(curr, zone);
+        if (cActClr && cActClr._clrConfirmed && cActClr._clrConfirmed.tmEf && currActive) {
+            const ck = _clrConfirmKey(zone, cActClr, cActClr._clrConfirmed.tmEf);
+            if (!_clrSeen.has(ck)) {
+                if (activeChanged || ynExtend) {
+                    _clrSeen.set(ck, Date.now()); _clrConfirmsDirty = true;   // 기존 이벤트가 대표 — 기록만
+                } else if ((cActClr.clrNtcTm || '') === cActClr._clrConfirmed.tmEf ||
+                           _sameReleaseMoment(cActClr.clrNtcTm || '', cActClr._clrConfirmed.tmEf)) {
+                    changes.push({
+                        type: 'CLR_CONFIRM', zone: zone, curr: currActive,
+                        newTime: cActClr._clrConfirmed.tmEf, childState
+                    });
+                    _clrSeen.set(ck, Date.now()); _clrConfirmsDirty = true;
+                }
+            }
+        }
+
         // [자식 독립 푸시] 부모 블록이 둘 다 안 변했을 때만 — 자식만 추가/해제된 경우 별도 1건.
         //   부모와 동시 이동(발표/발효)은 위 부모 푸시 + 자식 한정사로 이미 처리되므로 중복 방지.
         //   원칙: 자식은 부모 특보 없이 못 옴 → 부모가 현재 존재(c)할 때만 의미.
@@ -1783,20 +1850,56 @@ function _buildUserPushChanges(prev, curr) {
             //   발표측(PR#991)이 신규 자식을 예비/발효로 분기(CHILD_PRELIM_ADD/CHILD_ADD)한 것과
             //   대칭이 되도록 해제측도 분기한다.
             //     · prev 자식이 '주의보'/'경보'(진짜 발효중) → 기존 CHILD_RELEASE("주의보 일부 해제") 유지.
-            //     · prev 자식이 '예비'(미발효 예비 자식)        → "일부 해제" 발사 금지. 예비는 발효된 적이
-            //       없으므로 독립 "주의보 일부 해제"는 오발송이다. 그 부모가 곧/지금 예비취소(UPCOMING_CANCEL)
-            //       되면 단일 prelim_cancel 푸시가 전체를 대표하므로 별도 푸시 불필요. (부모가 예비로 남고
-            //       자식 예비만 소멸하는 희귀 케이스도, "발효 없던 예비 자식의 조용한 소멸"이라 무푸시가 안전.)
-            //   [보수적] prev 등급이 명확히 '예비'일 때만 억제한다. 등급 메타가 비었거나(enrich
+            //     · prev 자식이 '예비'(미발효 예비 자식)        → "일부 해제" 발사 금지(예비는 발효된 적 없음).
+            //       대신 CHILD_PRELIM_CANCEL("예비특보 취소") 로 발사한다(§7.7.19). 부모/자식 예비는
+            //       독립 lifecycle 이라 부모가 발효중이거나 부모 예비가 생존한 채 자식 예비만 취소되는
+            //       정상 케이스가 있고, 이때 대표할 부모 UPCOMING_CANCEL 이 없어 무푸시가 되던 결함 수정.
+            //   [보수적] prev 등급이 명확히 '예비'일 때만 신경로. 등급 메타가 비었거나(enrich
             //   누락) 알 수 없는 경우는 기존대로 partial_release 유지(누락 푸시 방지 — 안전쪽).
             const releasedActive = releasedChildren.filter(x => childLvl(prev, x) !== '예비');
-            // (releasedPrelim = 나머지 예비 자식 소멸 → 무푸시. 부모 UPCOMING_CANCEL 가 대표.)
+            const releasedPrelim = releasedChildren.filter(x => childLvl(prev, x) === '예비');
             if (releasedActive.length > 0) {
                 changes.push({
                     type: 'CHILD_RELEASE',
                     zone: zone,
                     prev: childToBlock(childInfoOf(prev, zone, releasedActive[0])),
                     childState: { all, active: currChildren, added: [], released: releasedActive }
+                });
+            }
+            // [자식 예비 단독 취소 — CHILD_PRELIM_CANCEL] (§7.7.19)
+            //   즉발하지 않고 펜딩에 기록 → 아래에서 3분 연속 부재 확인 후 발사.
+            //   (예비 자식은 purge 가 디바운스 carry 를 우회시킬 수 있어 글리치 오발 방지 —
+            //    메모는 스냅샷 밖이라 purge 무영향, 표준 3분 디바운스와 동일 관찰 시간.)
+            for (const cn of releasedPrelim) {
+                const pk = zone + '|' + cn;
+                if (!_childPrelimCancelPending[pk]) {
+                    const pi = childInfoOf(prev, zone, cn);
+                    if (pi) _childPrelimCancelPending[pk] = { info: Object.assign({}, pi), since: Date.now() };
+                }
+            }
+            // 펜딩 평가: 복귀(글리치)면 폐기, 부모 예비취소 관찰중이면 보류(§7.7.13 — 부모+자식
+            //   동시취소가 디바운스 비대칭으로 2건 갈라지는 것 방지: 부모가 진짜취소로 확정되면
+            //   UPCOMING_CANCEL(prelim_cancel) 1건이 대표하고 이 펜딩은 TTL 로 소멸, 부모가
+            //   글리치 복귀하면 그때 자식 단독 취소로 발사), 재확인 시간 경과 시 발사.
+            const duePrelimCancel = [];
+            let duePrelimInfo = null;
+            for (const pk of Object.keys(_childPrelimCancelPending)) {
+                if (pk.slice(0, zone.length + 1) !== zone + '|') continue;
+                const ent = _childPrelimCancelPending[pk];
+                const cn = pk.slice(zone.length + 1);
+                if (currChildren.includes(cn)) { delete _childPrelimCancelPending[pk]; continue; }   // 복귀=글리치 → 무푸시
+                if (_upcomingCancelPending[zone]) continue;                                          // 부모 취소 관찰중 → 보류
+                if (Date.now() - ent.since < CHILD_PRELIM_CANCEL_CONFIRM_MS) continue;               // 재확인 대기
+                duePrelimCancel.push(cn);
+                if (!duePrelimInfo) duePrelimInfo = ent.info;
+                delete _childPrelimCancelPending[pk];
+            }
+            if (duePrelimCancel.length > 0 && duePrelimInfo) {
+                changes.push({
+                    type: 'CHILD_PRELIM_CANCEL',
+                    zone: zone,
+                    prev: childToBlock(duePrelimInfo),
+                    childState: { all, active: currChildren, added: [], released: duePrelimCancel }
                 });
             }
 
@@ -2672,6 +2775,9 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             if (!tmEf) continue;
             const info = snap.parents.get(name);
             info.clrNtcTm = tmEf;   // mmis 원형식 유지 — 표시 시 normalize
+            // [§7.7.20] 정식 해제 통보문(cmd='해제')의 해제시각 확정 마킹 — diff 가 소비해
+            //   time_yn_confirm 1회 발사. (같은 모멘트 범위↔정확 흡수로 무푸시 되던 빈틈 메움.)
+            info._clrConfirmed = { tmEf: tmEf };
             snap.parents.set(name, info);
             enriched++;
             continue;
@@ -2840,6 +2946,53 @@ function _pubKey(zone, info) {
     const tp = (info && (info.wrnTpNm || info.wrnTp)) || '';
     const fc = (info && info.tmFc) || '';
     return `${zone}|${tp}|${fc}`;
+}
+
+// ============================================================================
+// [해제예고 확정 dedup] (§7.7.20) 정식 해제 통보문(warn/latest cmd='해제')의 "해제시각 확정"
+//   푸시(time_yn_confirm)를 통보문 모멘트 단위로 1회만 발사하기 위한 영속 이력.
+//   키: "zone|종류|해제모멘트키(_timeKey(tm_ef))" — 같은 해제시각의 재발행·범위↔정확 깜빡임·
+//   매사이클 재유입·서버 재시작 모두 동일 키로 수렴해 재푸시가 없다. TTL 7일.
+//   [초기 시드] 파일이 없으면(기능 첫 배포/볼륨 유실) 현재 스냅샷에 이미 등록된 해제예고
+//   통보문을 "알림 완료"로 시드해 배포 직후 과거 통보문에 대한 뒷북 푸시를 막는다.
+// ============================================================================
+const CLR_CONFIRMS_FILE = path.join(__dirname, 'data', 'marine_clr_confirms.json');
+const CLR_CONFIRM_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // 7일
+let _clrConfirms = null;          // Map(key → lastSeenMs), lazy-load
+let _clrConfirmsDirty = false;
+let _clrConfirmsFirstRun = false; // 파일 부재(첫 배포/유실) → 첫 diff 사이클에 시드
+
+function _loadClrConfirms() {
+    if (_clrConfirms) return _clrConfirms;
+    _clrConfirms = new Map();
+    try {
+        const raw = JSON.parse(fs.readFileSync(CLR_CONFIRMS_FILE, 'utf8'));
+        const now = Date.now();
+        for (const k of Object.keys(raw)) {
+            if (now - raw[k] < CLR_CONFIRM_TTL_MS) _clrConfirms.set(k, raw[k]);
+        }
+    } catch (_) { _clrConfirmsFirstRun = true; /* 파일 없음/파싱실패 → 시드 대상 */ }
+    return _clrConfirms;
+}
+
+function _saveClrConfirms() {
+    if (!_clrConfirms || !_clrConfirmsDirty) return;
+    try {
+        const now = Date.now();
+        const obj = {};
+        for (const [k, ms] of _clrConfirms) if (now - ms < CLR_CONFIRM_TTL_MS) obj[k] = ms;
+        fs.writeFileSync(CLR_CONFIRMS_FILE, JSON.stringify(obj), 'utf8');
+        _clrConfirmsDirty = false;
+    } catch (e) {
+        console.warn('[Marine] clr_confirms 저장 실패:', e && e.message);
+    }
+}
+
+/** 해제예고 확정 키 — zone + 종류 + 해제 모멘트 키(파싱 불가 시 원문). */
+function _clrConfirmKey(zone, info, tmEf) {
+    const tp = (info && (info.wrnTpNm || info.wrnTp)) || '';
+    const mk = _timeKey(tmEf);
+    return `${zone}|${tp}|${mk != null ? mk : tmEf}`;
 }
 
 /** ef/list 의 한글 종류명 → 실시간 문자코드 (스냅샷 일관성용). 대상 외는 ''. */
@@ -3268,6 +3421,7 @@ async function run(opts = {}) {
         _prevSnapshot = curr;
         _savePrevSnapshot(curr);
         _savePushedPubs();   // [발송이력 dedup] 이번 사이클 갱신분 영속화 (재배포에도 유지)
+        _saveClrConfirms();  // [§7.7.20] 해제예고 확정 dedup 영속화 (재배포에도 재푸시 방지)
 
         // 7) [Followup E-2] weather_alerts.json 갱신 — SPEC §4.
         //    dispatch 후 / state 저장 후 / cycle 끝에 한 번. atomic tmp → rename.

@@ -574,7 +574,8 @@ window.renderHistoryTab = async function (container) {
         // templateId(time_ef_change/time_yn_change) 두 종류 → '시각변경' 카테고리(change-time)로 통합 매칭.
         // 서버 push.js:460 의 tab 결정이 templateId 를 그대로 쓰기 때문에 정규화가 필요.
         var normalizeTab = function(t) {
-            if (t === 'time_ef_change' || t === 'time_yn_change') return 'change-time';
+            if (t === 'time_ef_change' || t === 'time_yn_change' || t === 'time_yn_confirm' ||
+                t === 'child_time_ef_change' || t === 'child_time_yn_change') return 'change-time';
             return t;
         };
         var filtered = history.filter(function(h) {

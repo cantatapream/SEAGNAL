@@ -467,13 +467,21 @@ window.checkForPushPopup = async function () {
     const status = params.get('status');
 
     // [New] 시각 변경 / 격상·격하 알림인 경우 팝업 표시 및 지도 이동 기능을 모두 생략함
+    // [§7.7.19] 취소류(prelim_cancel/partial_release/child_prelim_cancel)·자식 시각변경도 생략 —
+    //   전용 안내문구가 없어 기본("…가 발생했습니다") 폴백이 정반대 의미로 표출되던 잠복 결함 차단.
     const SUPPRESSED_POPUP_STATUSES = [
         'time_ef_change',
         'time_yn_change',
+        'time_yn_confirm',
+        'child_time_ef_change',
+        'child_time_yn_change',
         'level_upgrade_publish',
         'level_upgrade_active',
         'level_downgrade_publish',
-        'level_downgrade_active'
+        'level_downgrade_active',
+        'prelim_cancel',
+        'partial_release',
+        'child_prelim_cancel'
     ];
     if (SUPPRESSED_POPUP_STATUSES.includes(status)) {
         console.log(`[AlertDetailPopup] ${status} 알림은 팝업 및 화면 이동을 생략합니다.`);
