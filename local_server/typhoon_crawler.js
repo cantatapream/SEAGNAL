@@ -62,7 +62,8 @@ const SESSION_REFRESH_MS = 3 * 60 * 60 * 1000; // 3시간마다 예방적 재로
 const DETAIL_DELAY_MS = 150;                   // 통보문 표 호출 간 간격
 const MAX_BULLETINS = 60;                      // 안전 상한 (한 태풍의 통보문 표 수집 개수)
 const MAX_CHECK_TYPHOONS = 5;                  // 활성 여부를 검사할 최근 태풍 수(최신 seq부터)
-const ACTIVE_WINDOW_HOURS = 48;                // 최신 통보문이 이 시간 내면 "활성"으로 간주
+const ACTIVE_WINDOW_HOURS = 72;                // 최신 통보문이 이 시간 내면 "활성"으로 간주
+                                               //   (태풍 종료 통보문 발표 후에도 3일간 버튼/조회 유지 — 사용자 요구)
 
 const PATHS = {
     MAIN: '/rsw/mfp/mfpMain',
