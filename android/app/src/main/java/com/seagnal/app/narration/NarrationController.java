@@ -6,22 +6,20 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.BitmapFactory;
 import android.graphics.drawable.Icon;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
-import android.media.MediaMetadata;
 import android.media.MediaPlayer;
-import android.media.session.MediaSession;
-import android.media.session.PlaybackState;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import com.seagnal.app.R;
 
 /**
- * [임시 — 발표 나레이션] 네이티브 오디오 재생 + 상태표시줄 미디어 알림 컨트롤러.
+ * [임시 — 발표 나레이션] 네이티브 오디오 재생 + 상태표시줄 컴팩트 알림 컨트롤러.
  *
  * ※ 발표 시연용 임시 기능. 발표 종료 후 narration/ 패키지 3개 파일과
  *   MainActivity 의 registerPlugin(NarrationPlayerPlugin.class),
@@ -29,22 +27,19 @@ import com.seagnal.app.R;
  *
  * [왜 네이티브인가]
  *   WebView 의 HTML5 Audio + Media Session API 로는 안드로이드 상태표시줄에
- *   미디어 알림이 표출되지 않는다(웹뷰 미지원). 발표 중 시연 조작을 하면서
- *   상태바를 내려 나레이션을 정지/탐색해야 하므로, 네이티브 MediaPlayer +
- *   MediaSession + MediaStyle 알림으로 시스템 미디어 컨트롤을 제공한다.
+ *   재생 컨트롤이 표출되지 않는다(웹뷰 미지원). 발표 중 시연 조작을 하면서
+ *   상태바를 내려 나레이션을 정지/탐색해야 하므로 네이티브 MediaPlayer 로 재생한다.
  *
- * [구성]
- *   - MediaPlayer : 서버 업로드 음성(URL) 스트리밍 재생
- *   - MediaSession: 시스템 미디어 컨트롤(알림 시크바 드래그 = onSeekTo) 연동
- *   - MediaStyle 알림: ⟲10초 · 재생/일시정지 · ⟳10초 버튼
- *                     (Android 10+ 는 시크바도 자동 표시 — METADATA duration +
- *                      PlaybackState position/ACTION_SEEK_TO 로 동작)
- *   - 알림 스와이프 삭제(일시정지 상태에서만 가능) = 정지
+ * [컴팩트 알림 — MediaSession 미사용]
+ *   MediaSession/MediaStyle 을 쓰면 시스템(삼성 "실시간 정보" 등)이 큰 미디어 카드를
+ *   자체 렌더링해 상태바를 지나치게 차지한다(사용자 요청: 절반 크기).
+ *   → 일반(Standard) 알림 + 액션 버튼(⟲10초·재생/일시정지·⟳10초)으로 교체.
+ *     시크바 드래그 탐색은 사라지지만 ±10초 버튼과 비대화형 진행바 + 시각
+ *     텍스트("0:06 / 0:18")로 진행 상황을 보여준다. 재생 중 1초 간격 갱신.
  *
  * [호출 경로]
  *   NarrationPlayerPlugin(웹 JS) → play()/toggle()/seekTo()/stop()
  *   NarrationControlReceiver(알림 버튼) → toggle()/rewind()/forward()/stop()
- *   MediaSession.Callback(알림 시크바/미디어키) → onPlay/onPause/onSeekTo/...
  */
 public final class NarrationController {
 
@@ -53,6 +48,7 @@ public final class NarrationController {
     private static final String CHANNEL_NAME = "발표 나레이션";
     private static final int NOTIF_ID = 88231;
     private static final int SKIP_MS = 10_000;   // ⟲/⟳ 버튼 이동량 (10초)
+    private static final int TICK_MS = 1_000;    // 재생 중 알림 진행바 갱신 주기
 
     // 알림 버튼 → NarrationControlReceiver 브로드캐스트 액션
     static final String ACTION_TOGGLE  = "com.seagnal.app.narration.TOGGLE";
@@ -77,11 +73,22 @@ public final class NarrationController {
 
     private Context appCtx;
     private MediaPlayer mp;
-    private MediaSession session;
     private AudioFocusRequest focusReq;    // API 26+ 오디오 포커스 핸들
     private String title = "발표 나레이션";
     private boolean prepared = false;
     private float rate = 1.0f;             // 관리자 설정 재생 배속 (0.5~2.0)
+
+    // 재생 중 알림 진행바 1초 갱신용 타이머 (메인 루퍼)
+    private final Handler ticker = new Handler(Looper.getMainLooper());
+    private final Runnable tickRun = new Runnable() {
+        @Override public void run() {
+            synchronized (NarrationController.this) {
+                if (mp == null || !prepared || !isPlayingUnsafe()) return;
+                showNotification();
+                ticker.postDelayed(this, TICK_MS);
+            }
+        }
+    };
 
     // 포커스 상실 시 일시정지 (발표 중 다른 소리와 충돌 방지)
     private final AudioManager.OnAudioFocusChangeListener focusListener = new AudioManager.OnAudioFocusChangeListener() {
@@ -103,7 +110,6 @@ public final class NarrationController {
         if (narrTitle != null && !narrTitle.isEmpty()) title = narrTitle;
         rate = (speed >= 0.5f && speed <= 2.0f) ? speed : 1.0f;
         releasePlayerOnly();
-        ensureSession();
         ensureChannel();
 
         prepared = false;
@@ -128,9 +134,8 @@ public final class NarrationController {
                     requestFocus();
                     p.start();
                     applySpeed();
-                    updateMetadata();
-                    updateSessionState();
                     showNotification();
+                    startTicker();
                 }
                 if (cb != null) cb.onReady();
             }
@@ -156,40 +161,36 @@ public final class NarrationController {
     /** 재생/일시정지 토글 (알림 가운데 버튼). */
     public synchronized void toggle() {
         if (mp == null || !prepared) return;
-        if (mp.isPlaying()) pauseInternal();
+        if (isPlayingUnsafe()) pauseInternal();
         else resumeInternal();
     }
 
     public synchronized void pause() {
-        if (mp != null && prepared && mp.isPlaying()) pauseInternal();
+        if (mp != null && prepared && isPlayingUnsafe()) pauseInternal();
     }
 
     public synchronized void resume() {
-        if (mp != null && prepared && !mp.isPlaying()) resumeInternal();
+        if (mp != null && prepared && !isPlayingUnsafe()) resumeInternal();
     }
 
     public synchronized void rewind()  { seekBy(-SKIP_MS); }
     public synchronized void forward() { seekBy(SKIP_MS); }
 
-    /** 절대 위치(ms)로 이동 — 알림 시크바 드래그(onSeekTo)/JS seekTo. */
+    /** 절대 위치(ms)로 이동 — JS seekTo(웹 미니 플레이어 슬라이더). */
     public synchronized void seekTo(long posMs) {
         if (mp == null || !prepared) return;
         long dur = mp.getDuration();
         if (posMs < 0) posMs = 0;
         if (dur > 0 && posMs > dur) posMs = dur;
         mp.seekTo((int) posMs);
-        updateSessionState();
         showNotification();
     }
 
-    /** 정지 + 알림/세션/플레이어 정리. */
+    /** 정지 + 알림/플레이어 정리. */
     public synchronized void stop() {
+        stopTicker();
         releasePlayerOnly();
         abandonFocus();
-        if (session != null) {
-            try { session.setActive(false); session.release(); } catch (Exception ignore) { }
-            session = null;
-        }
         if (appCtx != null) {
             NotificationManager nm = (NotificationManager) appCtx.getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null) nm.cancel(NOTIF_ID);
@@ -198,24 +199,29 @@ public final class NarrationController {
 
     /** JS getState() 용 현재 상태. */
     public synchronized boolean isPlaying() {
-        return mp != null && prepared && mp.isPlaying();
+        return mp != null && prepared && isPlayingUnsafe();
     }
 
     // ────────────────────────────────────────────────────────────────────
     // 내부 구현
     // ────────────────────────────────────────────────────────────────────
 
+    /** isPlaying() 이 IllegalStateException 을 던질 수 있는 상태 전이 틈 방어. */
+    private boolean isPlayingUnsafe() {
+        try { return mp != null && mp.isPlaying(); } catch (Exception e) { return false; }
+    }
+
     private void pauseInternal() {
         mp.pause();
-        updateSessionState();
+        stopTicker();
         showNotification();
     }
 
     private void resumeInternal() {
         requestFocus();
         mp.start();
-        updateSessionState();
         showNotification();
+        startTicker();
     }
 
     private void seekBy(long deltaMs) {
@@ -236,6 +242,7 @@ public final class NarrationController {
 
     private void releasePlayerOnly() {
         prepared = false;
+        stopTicker();
         if (mp != null) {
             try { mp.stop(); } catch (Exception ignore) { }
             try { mp.release(); } catch (Exception ignore) { }
@@ -243,59 +250,24 @@ public final class NarrationController {
         }
     }
 
-    private void ensureSession() {
-        if (session != null) return;
-        session = new MediaSession(appCtx, "seagnal_narration");
-        session.setCallback(new MediaSession.Callback() {
-            @Override public void onPlay()  { resume(); }
-            @Override public void onPause() { pause(); }
-            @Override public void onSeekTo(long pos) { seekTo(pos); }
-            @Override public void onRewind() { rewind(); }
-            @Override public void onFastForward() { forward(); }
-            @Override public void onStop()  { stop(); }
-        });
-        session.setActive(true);
+    private void startTicker() {
+        ticker.removeCallbacks(tickRun);
+        ticker.postDelayed(tickRun, TICK_MS);
+    }
+
+    private void stopTicker() {
+        ticker.removeCallbacks(tickRun);
     }
 
     private void ensureChannel() {
         NotificationManager nm = (NotificationManager) appCtx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
         if (nm.getNotificationChannel(CHANNEL_ID) != null) return;
-        // IMPORTANCE_LOW: 미디어 컨트롤 알림 — 소리/진동 없이 조용히 표시
+        // IMPORTANCE_LOW: 재생 컨트롤 알림 — 소리/진동 없이 조용히 표시
         NotificationChannel ch = new NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW);
         ch.setDescription("발표 시연 나레이션 재생 컨트롤");
         ch.setShowBadge(false);
         nm.createNotificationChannel(ch);
-    }
-
-    private void updateMetadata() {
-        if (session == null || mp == null) return;
-        long dur = 0;
-        try { dur = mp.getDuration(); } catch (Exception ignore) { }
-        session.setMetadata(new MediaMetadata.Builder()
-                .putString(MediaMetadata.METADATA_KEY_TITLE, title)
-                .putString(MediaMetadata.METADATA_KEY_ARTIST, "SEA:GNAL 시연")
-                .putLong(MediaMetadata.METADATA_KEY_DURATION, dur)
-                .build());
-    }
-
-    /** PlaybackState 갱신 — 알림 시크바(Android 10+)가 이 position/speed 로 진행된다. */
-    private void updateSessionState() {
-        if (session == null) return;
-        long pos = 0;
-        boolean playing = false;
-        if (mp != null && prepared) {
-            try { pos = mp.getCurrentPosition(); playing = mp.isPlaying(); } catch (Exception ignore) { }
-        }
-        long actions = PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE
-                | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SEEK_TO
-                | PlaybackState.ACTION_REWIND | PlaybackState.ACTION_FAST_FORWARD
-                | PlaybackState.ACTION_STOP;
-        session.setPlaybackState(new PlaybackState.Builder()
-                .setActions(actions)
-                .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
-                        pos, playing ? rate : 0f)   // 배속 반영 — 알림 시크바 진행 속도 일치
-                .build());
     }
 
     private PendingIntent broadcastPI(String action, int reqCode) {
@@ -304,25 +276,38 @@ public final class NarrationController {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
+    /** "m:ss" 형식 (진행 시각 표기용). */
+    private static String fmtTime(long ms) {
+        if (ms < 0) ms = 0;
+        long totalSec = ms / 1000;
+        return (totalSec / 60) + ":" + String.format(java.util.Locale.US, "%02d", totalSec % 60);
+    }
+
+    /**
+     * 컴팩트 알림 표출/갱신.
+     * MediaStyle 미사용 → 시스템 미디어 카드 없이 일반 알림 한 줄 + 액션 버튼만.
+     * 진행 상황은 비대화형 진행바(setProgress) + "0:06 / 0:18" 텍스트로 표시.
+     */
     private void showNotification() {
-        if (appCtx == null || session == null) return;
+        if (appCtx == null) return;
         NotificationManager nm = (NotificationManager) appCtx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
 
-        boolean playing = isPlaying();
+        boolean playing = isPlayingUnsafe();
+        long pos = 0, dur = 0;
+        if (mp != null && prepared) {
+            try { pos = mp.getCurrentPosition(); dur = mp.getDuration(); } catch (Exception ignore) { }
+        }
 
         Notification.Builder b = new Notification.Builder(appCtx, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setLargeIcon(BitmapFactory.decodeResource(appCtx.getResources(), R.mipmap.ic_launcher))
                 .setContentTitle(title)
-                .setContentText("SEA:GNAL 시연 나레이션")
+                .setContentText(fmtTime(pos) + " / " + fmtTime(dur) + " · SEA:GNAL 시연")
                 .setVisibility(Notification.VISIBILITY_PUBLIC)   // 잠금화면에서도 컨트롤 노출
                 .setOnlyAlertOnce(true)
                 .setOngoing(playing)                              // 재생 중 스와이프 삭제 방지
-                .setDeleteIntent(broadcastPI(ACTION_STOP, 3))     // (일시정지 중) 스와이프 = 정지
-                .setStyle(new Notification.MediaStyle()
-                        .setMediaSession(session.getSessionToken())
-                        .setShowActionsInCompactView(0, 1, 2));
+                .setDeleteIntent(broadcastPI(ACTION_STOP, 3));    // (일시정지 중) 스와이프 = 정지
+        if (dur > 0) b.setProgress((int) dur, (int) pos, false);
 
         b.addAction(new Notification.Action.Builder(
                 Icon.createWithResource(appCtx, android.R.drawable.ic_media_rew),
