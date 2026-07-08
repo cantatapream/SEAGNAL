@@ -1795,6 +1795,9 @@ function _buildUserPushChanges(prev, curr) {
             //   (발효 승격이면 currActive 가 차므로 아래 CURRENT_CHANGE 발효 푸시로 처리됨.)
             if (!currUpcoming && prevUpcoming && !currActive) {
                 changes.push({ type: 'UPCOMING_CANCEL', zone: zone, prev: prevUpcoming, childState });
+                // [§7.7.21] 부모 예비취소 확정 = 특보 종료 — 자식 시각 관찰 상태도 일괄 폐기
+                //   (유예 내 동명 재발표 시 stale 확정값 롤백 방지, 회귀검증 M-1).
+                for (const cn of prevChildren) _tcInvalidateChild(zone, cn);
             } else {
                 changes.push({
                     type: 'UPCOMING_CHANGE',
@@ -1821,6 +1824,11 @@ function _buildUserPushChanges(prev, curr) {
                 curr: currActive,
                 childState                           // [작업2b] 자식 한정사용
             });
+            // [§7.7.21] 부모 해제(발효 소멸) = 특보 종료 — 자식 시각 관찰 상태도 일괄 폐기
+            //   (유예 내 동명 재발표 시 stale 확정값이 새 특보 시각을 덮는 것 방지, 회귀검증 M-1).
+            if (!currActive) {
+                for (const cn of prevChildren) _tcInvalidateChild(zone, cn);
+            }
         }
 
         // [해제예고 확정 — CLR_CONFIRM] (§7.7.20) 정식 해제 통보문(warn/latest cmd='해제')이
