@@ -32,12 +32,14 @@
  *     - 물빠짐 슬라이더 자동 재생(#mudflat-play-btn). 물빠짐 예측 팝업은 열지 않음.
  *
  * [B] "해역별 기상현황" 헤더(#marine-status-accordion-header) — 단계 진행식(1회성)
- *   [1단계] 첫 5연타 → 위치기반 시연 5건 즉시 발송 (모두 관리자 기기에만)
- *     ⑥ POST /api/admin/demo/typhoon-radius-test {kind:'strong'} (강풍반경 진입)
- *     ⑦ POST /api/admin/demo/typhoon-radius-test {kind:'storm'}  (폭풍반경 진입)
- *     ⑧ 위치기반 특보 시연 3종 즉시 — laDemoSetPosition() + laDemoRun(id,0):
+ *   [1단계] 첫 5연타 → 위치기반 시연 5건 발송 (모두 관리자 기기에만)
+ *     나레이션(marine1) 진행 위치에 맞춰 2묶음으로 시차 발송 (NARR_PUSH_SYNC 참고):
+ *     ⑥⑦ 음원 6초 지점 — POST /api/admin/demo/typhoon-radius-test
+ *        {kind:'strong'}(강풍반경 진입) → {kind:'storm'}(폭풍반경 진입)
+ *     ⑧ 음원 11초 지점 — 위치기반 특보 시연 3종: laDemoSetPosition() + laDemoRun(id,0):
  *        prelim(풍랑 예비특보 발표) → adv_act(풍랑주의보 발효) → warn_act(풍랑경보 발효)
  *        (각각 /api/location-alert/demo 가 이 기기 토큰 1대에만 발송)
+ *     (나레이션 미업로드 시 두 묶음 모두 즉시 발송 — 기존 동작)
  *   [2단계] 다음 5연타 → AI 탭 '시연'(나리 소개 슬라이드) 자동 ON: window.openNariDemo()
  *     ⑨ 그 시연 화면을 닫으면(closeNariDemo) 음성 비서 '나리야' 자동 ON (앱 전용)
  *   [3단계 이후] 동작 없음
@@ -404,14 +406,20 @@
     }
 
     /**
-     * ["해역별 기상현황" 5연타] 위치기반 시연 8건 즉시 발송 (모두 관리자 기기에만):
-     *   (A) 태풍 위치기반 반경: 강풍(strong) → 폭풍(storm)  [typhoon-radius-test]
-     *   (B) 위치기반 특보 시연 6종 즉시: 기존 전역 laDemoSetPosition()+laDemoRun(id,0)
-     *       → 각각 /api/location-alert/demo 가 이 기기 토큰 1대에만 발송.
+     * ["해역별 기상현황" 5연타] 위치기반 시연 5건 — 나레이션(marine1) 진행 위치에 맞춰 시차 발송:
+     *   (A) 태풍 위치기반 반경 2건(강풍→폭풍)  → 음원 6초  지점 도착 목표 [typhoon-radius-test]
+     *   (B) 위치기반 특보 3건(예비→주의보→경보) → 음원 11초 지점 도착 목표
+     *       (laDemoSetPosition()+laDemoRun(id,0) → /api/location-alert/demo 가 이 기기 1대에만 발송)
+     *
+     * 대기 시간 = 음원 위치(초) ÷ 재생 배속 − FCM 전달 보정(1.5초).
+     *   배속은 서버 저장값(_narrMap['marine1'].rate)을 그대로 사용하므로
+     *   관리자에서 배속을 바꿔도 항상 같은 음성 대목에서 알림이 도착한다.
+     *   나레이션이 미업로드면 기존처럼 즉시 발송.
      */
+    var NARR_PUSH_SYNC = { typhoonAtSec: 6, alertsAtSec: 11, fcmLeadMs: 1500 };
+
     function _sendLocationDemos() {
         if (_busy) return;
-        _busy = true;
         var _radius = function (kind) {
             return fetch('/api/admin/demo/typhoon-radius-test', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -422,24 +430,44 @@
         // 특보 3종만 발송: 풍랑 예비특보 발표 / 풍랑주의보 발효 / 풍랑경보 발효
         //   (제외: adv_pub 발효예정, warn_pub 경보발표, typhoon 태풍경보발효)
         var LA_IDS = ['prelim', 'adv_act', 'warn_act'];
-        // (A) 강풍 → 폭풍 반경
-        _radius('strong')
-            .then(function () { return _radius('storm'); })
-            .then(function () {
-                // (B) 위치기반 특보 시연 6종 — 전역 함수 재사용(미로드면 건너뜀)
-                if (typeof window.laDemoRun !== 'function') return;
-                var p = Promise.resolve();
-                if (typeof window.laDemoSetPosition === 'function') {
-                    p = p.then(function () { return window.laDemoSetPosition(); }).catch(function () { });
-                }
-                LA_IDS.forEach(function (id) {
-                    p = p.then(function () { return window.laDemoRun(id, 0); }).catch(function () { });
-                });
-                return p;
-            })
+
+        // 나레이션 유무/배속 → 발송 대기 시간 산출
+        var entry = _narrMap && _narrMap['marine1'];
+        var rate = (entry && entry.rate && isFinite(entry.rate) && entry.rate > 0) ? entry.rate : 1;
+        var hasNarr = !!(entry && entry.url);
+        var delayTyphoon = hasNarr ? Math.max(0, NARR_PUSH_SYNC.typhoonAtSec * 1000 / rate - NARR_PUSH_SYNC.fcmLeadMs) : 0;
+        var delayAlerts = hasNarr ? Math.max(0, NARR_PUSH_SYNC.alertsAtSec * 1000 / rate - NARR_PUSH_SYNC.fcmLeadMs) : 0;
+
+        var sendTyphoon = function () {
+            return _radius('strong').then(function () { return _radius('storm'); });
+        };
+        var sendAlerts = function () {
+            if (typeof window.laDemoRun !== 'function') return Promise.resolve();
+            var p = Promise.resolve();
+            if (typeof window.laDemoSetPosition === 'function') {
+                p = p.then(function () { return window.laDemoSetPosition(); }).catch(function () { });
+            }
+            LA_IDS.forEach(function (id) {
+                p = p.then(function () { return window.laDemoRun(id, 0); }).catch(function () { });
+            });
+            return p;
+        };
+
+        // 예약 발송 — _busy 는 잡지 않는다(다음 단계 5연타를 막지 않도록,
+        //   중복 발동은 _marineStage 단계 진행으로 이미 차단됨).
+        var pTyphoon = new Promise(function (resolve) {
+            setTimeout(function () {
+                sendTyphoon().catch(function () { }).then(resolve);
+            }, delayTyphoon);
+        });
+        var pAlerts = new Promise(function (resolve) {
+            setTimeout(function () {
+                sendAlerts().catch(function () { }).then(resolve);
+            }, delayAlerts);
+        });
+        Promise.all([pTyphoon, pAlerts])
             .then(function () { _toast('위치기반 시연 푸시를 전송했습니다. (총 5건)'); })
-            .catch(function () { _toast('위치기반 시연 발송에 실패했습니다.'); })
-            .then(function () { _busy = false; });
+            .catch(function () { _toast('위치기반 시연 발송에 실패했습니다.'); });
     }
 
     /** ["해역별 특보현황" 5연타] 현재 단계 동작 실행 후 다음 단계로 진행 */
