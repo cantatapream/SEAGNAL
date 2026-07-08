@@ -411,12 +411,12 @@
      *   (B) 위치기반 특보 3건(예비→주의보→경보) → 음원 11초 지점 도착 목표
      *       (laDemoSetPosition()+laDemoRun(id,0) → /api/location-alert/demo 가 이 기기 1대에만 발송)
      *
-     * 대기 시간 = 음원 위치(초) ÷ 재생 배속 − FCM 전달 보정(1.5초).
+     * 대기 시간 = 음원 위치(초) ÷ 재생 배속 − FCM 전달 보정(1.0초).
      *   배속은 서버 저장값(_narrMap['marine1'].rate)을 그대로 사용하므로
      *   관리자에서 배속을 바꿔도 항상 같은 음성 대목에서 알림이 도착한다.
      *   나레이션이 미업로드면 기존처럼 즉시 발송.
      */
-    var NARR_PUSH_SYNC = { typhoonAtSec: 6, alertsAtSec: 11, fcmLeadMs: 1500 };
+    var NARR_PUSH_SYNC = { typhoonAtSec: 6, alertsAtSec: 11, fcmLeadMs: 1000 };
 
     function _sendLocationDemos() {
         if (_busy) return;
