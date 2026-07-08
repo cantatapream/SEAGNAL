@@ -1456,14 +1456,33 @@ const TC_CHILD_GRACE_MS = 10 * 60 * 1000;
 let _tcConfirmed = {};   // key "zone|field" (부모) · "zone>자식|field" (자식) → 확정 시각값
 let _tcPending = {};      // 동일 키 → { value, since }
 let _tcChildSeenAt = {};  // 자식 키 → 마지막 관측 ts (유예 판정용)
+
+/** [§7.7.21] 확정적으로 끝난(해제/취소 발사) 자식의 시각 관찰 상태를 능동 폐기 — 10분 유예가
+ *  stale 확정값을 붙잡아, 유예 내 동명 자식 재등장(새 특보) 시 옛 시각으로 롤백·오표기하는
+ *  것을 차단한다(회귀검증 A-6). 유예는 "1사이클 깜빡임" 전용으로만 남긴다. */
+function _tcInvalidateChild(zone, childName) {
+    for (const f of ['tmEf', 'clrNtcTm']) {
+        const k = zone + '>' + childName + '|' + f;
+        delete _tcConfirmed[k]; delete _tcPending[k]; delete _tcChildSeenAt[k];
+    }
+}
 function _debounceTimeValues(curr) {
     if (!curr) return;
     const now = Date.now();
     const seen = new Set();
     const gate = (keyBase, info, field, flag) => {
         const cur = info[field];
-        if (!cur) return;
         const key = keyBase + '|' + field;
+        if (!cur) {
+            // [자식 키] 값이 명시적으로 빈값(철회)이면 관찰 상태를 즉시 폐기 — 부모(미관측 즉시
+            //   정리)와 동일 동작 복원. 유예는 "행 자체가 잠깐 사라진" 경우만 보호(그땐 gate
+            //   호출 자체가 없음). 이게 없으면 철회→유예 내 새 값 도래 시 철회된 옛 값으로
+            //   롤백되어 ''→옛값 오발 후 3분 뒤 2건째가 나간다(회귀검증 A-6-2).
+            if (keyBase.indexOf('>') !== -1) {
+                delete _tcConfirmed[key]; delete _tcPending[key]; delete _tcChildSeenAt[key];
+            }
+            return;
+        }
         seen.add(key);
         const conf = _tcConfirmed[key];
         if (conf == null) { _tcConfirmed[key] = cur; delete _tcPending[key]; return; }   // 최초 수락
@@ -1894,6 +1913,9 @@ function _buildUserPushChanges(prev, curr) {
                     prev: childToBlock(childInfoOf(prev, zone, releasedActive[0])),
                     childState: { all, active: currChildren, added: [], released: releasedActive }
                 });
+                // [§7.7.21] 해제 확정 자식의 시각 관찰 상태 능동 폐기 — 유예 내 동명 재등장 시
+                //   옛 확정값 롤백(옛 시각 CHILD_ADD 오표기) 방지.
+                for (const cn of releasedActive) _tcInvalidateChild(zone, cn);
             }
             // [자식 예비 단독 취소 — CHILD_PRELIM_CANCEL] (§7.7.19)
             //   즉발하지 않고 펜딩에 기록 → 아래에서 3분 연속 부재 확인 후 발사.
@@ -2049,6 +2071,8 @@ function _buildUserPushChanges(prev, curr) {
                     prev: childToBlock(duePrelimInfo),
                     childState: { all, active: currChildren, added: [], released: duePrelimCancel }
                 });
+                // [§7.7.21] 취소 확정 자식의 시각 관찰 상태 능동 폐기 (CHILD_RELEASE 와 동일 취지).
+                for (const cn of duePrelimCancel) _tcInvalidateChild(zone, cn);
             }
         }
     }
