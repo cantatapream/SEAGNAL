@@ -1450,16 +1450,20 @@ function _applyUpcomingEfLogic(prev, curr) {
 //   _applyTimeWindowHold(고정) 이후, _buildUserPushChanges 이전에 호출.
 // ============================================================================
 const TIME_CHANGE_DEBOUNCE_MS = 3 * 60 * 1000;   // 3분
-let _tcConfirmed = {};   // key "zone|field" → 확정 시각값
-let _tcPending = {};      // key "zone|field" → { value, since }
+// [§7.7.21] 자식 키("zone>자식|field")는 1사이클 부재(purge/드롭아웃)로 관찰 상태가 리셋되지
+//   않도록 유예를 둔다 — 부모 키는 기존대로 미관측 즉시 정리(특보 종료 시 상태 리셋 보존).
+const TC_CHILD_GRACE_MS = 10 * 60 * 1000;
+let _tcConfirmed = {};   // key "zone|field" (부모) · "zone>자식|field" (자식) → 확정 시각값
+let _tcPending = {};      // 동일 키 → { value, since }
+let _tcChildSeenAt = {};  // 자식 키 → 마지막 관측 ts (유예 판정용)
 function _debounceTimeValues(curr) {
     if (!curr) return;
     const now = Date.now();
     const seen = new Set();
-    const gate = (zone, info, field, flag) => {
+    const gate = (keyBase, info, field, flag) => {
         const cur = info[field];
         if (!cur) return;
-        const key = zone + '|' + field;
+        const key = keyBase + '|' + field;
         seen.add(key);
         const conf = _tcConfirmed[key];
         if (conf == null) { _tcConfirmed[key] = cur; delete _tcPending[key]; return; }   // 최초 수락
@@ -1485,8 +1489,33 @@ function _debounceTimeValues(curr) {
     if (curr.upcomings) for (const [zone, info] of curr.upcomings) {
         if (info && info.wrnLvlNm === '예비') gate(zone, info, 'tmEf', '_efExtend');
     }
-    for (const k of Object.keys(_tcConfirmed)) if (!seen.has(k)) delete _tcConfirmed[k];
-    for (const k of Object.keys(_tcPending)) if (!seen.has(k)) delete _tcPending[k];
+    // [§7.7.21] 자식 시각값도 동일 3분 관찰 — 부모만 관찰하던 비대칭 탓에 통보문 1건의
+    //   부모+자식 동시 시각변경/연장이 "자식 즉발 + 부모 3분후" 2건으로 갈라지고(2026-07-08
+    //   해제시각 실사고 3건), 자식 값 진동이 무제한 재푸시되던 문제 해소. 부모와 같은
+    //   사이클에 확정되면 그 사이클엔 부모 변경으로 자식 독립 블록이 스킵되어 부모 푸시
+    //   1건(자식 한정사 "포함")이 자연 대표. 자식만 변한 경우엔 3분 뒤 자식 전용 푸시.
+    //   (자식엔 _efExtend/_clrExtend 플래그가 없어 flag=null.)
+    if (curr.children) for (const [zone, kids] of curr.children) {
+        for (const [cn, info] of kids) {
+            if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
+            if (info.wrnLvlNm === '예비') gate(zone + '>' + cn, info, 'tmEf', null);
+            else gate(zone + '>' + cn, info, 'clrNtcTm', null);
+        }
+    }
+    for (const k of seen) if (k.indexOf('>') !== -1) _tcChildSeenAt[k] = now;
+    for (const k of Object.keys(_tcConfirmed)) {
+        if (seen.has(k)) continue;
+        if (k.indexOf('>') !== -1 && now - (_tcChildSeenAt[k] || 0) <= TC_CHILD_GRACE_MS) continue;   // 자식 유예
+        delete _tcConfirmed[k];
+    }
+    for (const k of Object.keys(_tcPending)) {
+        if (seen.has(k)) continue;
+        if (k.indexOf('>') !== -1 && now - (_tcChildSeenAt[k] || 0) <= TC_CHILD_GRACE_MS) continue;   // 자식 유예
+        delete _tcPending[k];
+    }
+    for (const k of Object.keys(_tcChildSeenAt)) {
+        if (now - _tcChildSeenAt[k] > TC_CHILD_GRACE_MS) delete _tcChildSeenAt[k];
+    }
 }
 
 /** run() 에서 매 cycle 호출 — 현재 특보 기억 갱신 + 만료 prune. (_buildUserPushChanges 이후)
@@ -1877,31 +1906,9 @@ function _buildUserPushChanges(prev, curr) {
                     if (pi) _childPrelimCancelPending[pk] = { info: Object.assign({}, pi), since: Date.now() };
                 }
             }
-            // 펜딩 평가: 복귀(글리치)면 폐기, 부모 예비취소 관찰중이면 보류(§7.7.13 — 부모+자식
-            //   동시취소가 디바운스 비대칭으로 2건 갈라지는 것 방지: 부모가 진짜취소로 확정되면
-            //   UPCOMING_CANCEL(prelim_cancel) 1건이 대표하고 이 펜딩은 TTL 로 소멸, 부모가
-            //   글리치 복귀하면 그때 자식 단독 취소로 발사), 재확인 시간 경과 시 발사.
-            const duePrelimCancel = [];
-            let duePrelimInfo = null;
-            for (const pk of Object.keys(_childPrelimCancelPending)) {
-                if (pk.slice(0, zone.length + 1) !== zone + '|') continue;
-                const ent = _childPrelimCancelPending[pk];
-                const cn = pk.slice(zone.length + 1);
-                if (currChildren.includes(cn)) { delete _childPrelimCancelPending[pk]; continue; }   // 복귀=글리치 → 무푸시
-                if (_upcomingCancelPending[zone]) continue;                                          // 부모 취소 관찰중 → 보류
-                if (Date.now() - ent.since < CHILD_PRELIM_CANCEL_CONFIRM_MS) continue;               // 재확인 대기
-                duePrelimCancel.push(cn);
-                if (!duePrelimInfo) duePrelimInfo = ent.info;
-                delete _childPrelimCancelPending[pk];
-            }
-            if (duePrelimCancel.length > 0 && duePrelimInfo) {
-                changes.push({
-                    type: 'CHILD_PRELIM_CANCEL',
-                    zone: zone,
-                    prev: childToBlock(duePrelimInfo),
-                    childState: { all, active: currChildren, added: [], released: duePrelimCancel }
-                });
-            }
+            // (펜딩 평가는 이 블록 밖 — zone 루프 말미에서 부모 변경 여부와 무관하게 수행.
+            //  §7.7.21: 블록 안에서만 평가하면 부모 시각변경 확정 사이클마다 발사가 이연되어
+            //  부모가 연속 변경 시 자식 취소가 무기한 밀리는 문제가 있었음.)
 
             // [자식 단독 연장] 부모 불변 + 유지중인 자식의 발효예정/해제예정이 더 늦어짐.
             //   prev·curr 양쪽에 있는 자식만 (추가/해제는 위에서 처리). (기존,변경후) 쌍별 묶음.
@@ -2012,6 +2019,36 @@ function _buildUserPushChanges(prev, curr) {
                         }
                     });
                 }
+            }
+        }
+
+        // [자식 예비취소 펜딩 평가 — §7.7.19·§7.7.21] 자식 독립 블록 밖에서, 부모 변경 여부와
+        //   무관하게 매 사이클 평가한다. (블록 안에서만 평가하면 부모 시각변경 확정 사이클에
+        //   발사가 이연되고, 부모가 연속 변경되면 무기한 밀렸음.)
+        //   - 복귀(글리치) → 폐기(무푸시). 부모 예비취소 관찰중 → 보류(§7.7.13 대표 1건 원칙,
+        //     부모 진짜취소 확정 시 디바운스가 펜딩을 능동 폐기). 3분 연속 부재 → 발사.
+        //   - 부모가 curr 에 존재(c)할 때만 — 부모 자체가 소멸하면 부모 해제/취소 푸시가 대표.
+        if (c) {
+            const duePrelimCancel = [];
+            let duePrelimInfo = null;
+            for (const pk of Object.keys(_childPrelimCancelPending)) {
+                if (pk.slice(0, zone.length + 1) !== zone + '|') continue;
+                const ent = _childPrelimCancelPending[pk];
+                const cn = pk.slice(zone.length + 1);
+                if (currChildren.includes(cn)) { delete _childPrelimCancelPending[pk]; continue; }   // 복귀=글리치 → 무푸시
+                if (_upcomingCancelPending[zone]) continue;                                          // 부모 취소 관찰중 → 보류
+                if (Date.now() - ent.since < CHILD_PRELIM_CANCEL_CONFIRM_MS) continue;               // 재확인 대기
+                duePrelimCancel.push(cn);
+                if (!duePrelimInfo) duePrelimInfo = ent.info;
+                delete _childPrelimCancelPending[pk];
+            }
+            if (duePrelimCancel.length > 0 && duePrelimInfo) {
+                changes.push({
+                    type: 'CHILD_PRELIM_CANCEL',
+                    zone: zone,
+                    prev: childToBlock(duePrelimInfo),
+                    childState: { all, active: currChildren, added: [], released: duePrelimCancel }
+                });
             }
         }
     }
