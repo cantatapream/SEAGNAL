@@ -2017,6 +2017,13 @@ function _buildUserPushChanges(prev, curr) {
                         if (!newT) continue;                               // curr 값 없음(사라짐) → 시각변경 아님(무푸시)
                         if (oldT === newT) continue;                       // 동일값 무시
                         if (_sameReleaseMoment(oldT, newT)) continue;      // 범위↔정확 깜빡임(동일 모멘트) 흡수
+                        // [§7.7.22 부모 대표 억제] 자식의 새 발효예정이 부모의 현재 발효예정과 같은
+                        //   순간이면 생략 — 부모 발표/시각변경 푸시가 그 시각을 이미 알렸으므로
+                        //   "(…만 시각 변경)"은 새 정보 없는 잉여 알림. (2026-07-10 06:09 실사고:
+                        //   GAP 신규 자식의 첫 등록값이 부모와 동일한 09시로 정착하며 '변경' 발사.)
+                        //   자식이 부모와 다른 시각으로 진짜 갈라진 경우에만 발사.
+                        const pEf = currUpcoming ? (currUpcoming.tmEf || '') : '';
+                        if (pEf && (newT === pEf || _sameReleaseMoment(newT, pEf))) continue;
                         efChangeKids.push(cn);
                         if (!efChangeBlock) efChangeBlock = childToBlock(ci);
                     } else {
@@ -2027,6 +2034,10 @@ function _buildUserPushChanges(prev, curr) {
                         if (!newT) continue;                               // 사라짐(해제예고 취소)은 시각변경 아님
                         if (oldT === newT) continue;                       // 동일값 무시
                         if (_sameReleaseMoment(oldT, newT)) continue;      // 범위↔정확 깜빡임 흡수
+                        // [§7.7.22 부모 대표 억제] 자식의 새 해제예정이 부모의 현재 해제예정과 같은
+                        //   순간이면 생략 (발효예정 분기와 동일 취지 — 부모 푸시가 이미 대표).
+                        const pYn = currActive ? (currActive.tmYn || '') : '';
+                        if (pYn && (newT === pYn || _sameReleaseMoment(newT, pYn))) continue;
                         ynChangeKids.push(cn);
                         if (!ynChangeBlock) ynChangeBlock = childToBlock(ci);
                     }
