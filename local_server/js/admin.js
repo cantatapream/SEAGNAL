@@ -674,9 +674,10 @@ function renderDemoTabWithSubtabs(body) {
         '<div id="demo-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
         + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
         + btn('alert', '특보 시연') + btn('advisory', '특보 예측 시연') + btn('typhoon', '태풍') + btn('location', '위치 기반 특보 시연')
+        + btn('audio', '오디오')   // [임시 — 발표 나레이션] 5연타 트리거 배경 음성 업로드 (발표 후 제거 예정)
         + '</div>'
         + '<div id="demo-subtab-body"></div>';
-    switchDemoSubTab(['advisory', 'typhoon', 'location'].indexOf(saved) >= 0 ? saved : 'alert');
+    switchDemoSubTab(['advisory', 'typhoon', 'location', 'audio'].indexOf(saved) >= 0 ? saved : 'alert');
 }
 
 window.switchDemoSubTab = function (which) {
@@ -691,7 +692,11 @@ window.switchDemoSubTab = function (which) {
     }
     var sub = document.getElementById('demo-subtab-body');
     if (!sub) return;
-    if (which === 'location') {
+    if (which === 'audio') {
+        // [임시 — 발표 나레이션] 오디오 업로드 하위탭 (js/admin_narration.js)
+        if (typeof renderNarrationAudioTab === 'function') renderNarrationAudioTab(sub);
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">오디오 모듈(admin_narration.js)이 로드되지 않았습니다.</div>';
+    } else if (which === 'location') {
         if (typeof renderLocationAlertDemoTab === 'function') renderLocationAlertDemoTab(sub);
         else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">위치 기반 특보 시연 모듈(admin_location_demo.js)이 로드되지 않았습니다.</div>';
     } else if (which === 'typhoon') {
@@ -704,6 +709,73 @@ window.switchDemoSubTab = function (which) {
         if (typeof renderDemoAlertTab === 'function') renderDemoAlertTab(sub);
         else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">시연 모듈(admin_demo.js)이 로드되지 않았습니다.</div>';
     }
+};
+
+// ============================================================================
+//  [시연] AI 비서 '나리' 소개 슬라이드 — 가로 전체화면 오버레이
+// ----------------------------------------------------------------------------
+//  AI 탭의 '시연' 버튼에서 호출. 백그라운드 발표자료(별도 브라우저)와 무관하게
+//  앱 안에서 nari_intro.html 을 가로(landscape) 전체화면 iframe 으로 띄운다.
+//  - 화면 방향: @capacitor/screen-orientation 으로 landscape 잠금(앱), 닫으면 portrait 복귀
+//  - 하드웨어 뒤로가기: PopupStack 등록으로 닫힘(앱 종료 방지)
+// ============================================================================
+window.openNariDemo = async function () {
+    // 중복 진입 방지
+    if (document.getElementById('nari-demo-overlay')) return;
+
+    // 1) 화면을 가로로 잠금 (앱 환경에서만 동작; 웹은 무시)
+    try {
+        const P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
+        if (P && P.ScreenOrientation && P.ScreenOrientation.lock) {
+            await P.ScreenOrientation.lock({ orientation: 'landscape' });
+        }
+    } catch (e) { /* 미지원 환경 무시 */ }
+
+    // 2) 전체화면 오버레이 + iframe
+    const ov = document.createElement('div');
+    ov.id = 'nari-demo-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#000;';
+    ov.innerHTML =
+        '<iframe src="/nari_intro.html?ts=' + Date.now() + '" ' +
+        'style="position:absolute;inset:0;width:100%;height:100%;border:none;background:#000;" ' +
+        'allow="fullscreen" allowfullscreen></iframe>' +
+        '<button onclick="window.closeNariDemo()" aria-label="닫기" ' +
+        'style="position:absolute;top:14px;right:14px;z-index:2;width:46px;height:46px;border-radius:50%;' +
+        'background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.35);font-size:1.2rem;cursor:pointer;' +
+        'display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);">' +
+        '<i class="fa-solid fa-xmark"></i></button>';
+    document.body.appendChild(ov);
+
+    // 3) 하드웨어 뒤로가기로 닫힘
+    if (window.PopupStack) {
+        try { window.PopupStack.push('nari-demo-overlay', window.closeNariDemo); } catch (e) {}
+    }
+
+    // 4) 시스템 바 숨김(웹 풀스크린 API; 앱은 orientation lock 으로 충분)
+    try {
+        const el = document.documentElement;
+        const fn = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (fn) { const p = fn.call(el); if (p && p.catch) p.catch(() => {}); }
+    } catch (e) {}
+};
+
+window.closeNariDemo = async function () {
+    const ov = document.getElementById('nari-demo-overlay');
+    if (ov) ov.remove();
+    if (window.PopupStack) {
+        try { window.PopupStack.remove('nari-demo-overlay'); } catch (e) {}
+    }
+    // 화면 방향 세로 복귀
+    try {
+        const P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
+        if (P && P.ScreenOrientation && P.ScreenOrientation.lock) {
+            await P.ScreenOrientation.lock({ orientation: 'portrait' });
+        }
+    } catch (e) {}
+    // 웹 풀스크린 해제
+    try {
+        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
+    } catch (e) {}
 };
 
 // ============================================================================
@@ -759,7 +831,13 @@ window.switchAiSubTab = function (which) {
 // AI 비서 하위탭 — Gemini 호출량 + 권한 + 음성 토글(+현재 엔진) + 테스트 호출 + 대화 내역.
 async function renderAiAssistantSubtab(container) {
     container.innerHTML = `
-        <div class="admin-section-title"><i class="fa-solid fa-robot" style="color:#22d3ee;"></i> AI 비서</div>
+        <div class="admin-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <span><i class="fa-solid fa-robot" style="color:#22d3ee;"></i> AI 비서</span>
+            <button onclick="window.openNariDemo()" title="AI 비서 '나리' 소개 슬라이드를 가로 전체화면으로 띄웁니다"
+                    style="padding:7px 16px;background:linear-gradient(135deg,#FF6B35,#C9430E);color:#fff;border:none;border-radius:8px;font-weight:700;font-size:0.78rem;cursor:pointer;display:inline-flex;align-items:center;gap:7px;box-shadow:0 2px 10px rgba(255,107,53,.35);">
+                <i class="fa-solid fa-display"></i> 시연
+            </button>
+        </div>
 
         <div id="ai-usage-box" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
             <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-chart-simple"></i> 오늘 Gemini 호출량 (KST)</div>
@@ -3523,6 +3601,24 @@ async function renderSubscriberTab(container) {
             + '</div>'
             + '</div>';
 
+        // ── 4.5. 태풍 생성·소멸 알림 구독자 카드 ──
+        // 태풍 알림은 해역 단위가 아니라 전국 단위 브로드캐스트(옵트인)라서
+        // 해역별 분포 트리에 넣지 않고 독립 요약 카드로 표출한다.
+        // typhoonOptIn = master ON + options.typhoon === true (발송 필터와 동일 기준)
+        var typhoonCount = (typeof stats.typhoonOptIn === 'number') ? stats.typhoonOptIn : null;
+        var typhoonHtml = '<div style="margin-bottom:20px;padding:14px 16px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);border-radius:12px;display:flex;justify-content:space-between;align-items:center;">'
+            + '<div style="display:flex;align-items:center;gap:10px;">'
+            + '<i class="fa-solid fa-hurricane" style="color:#a78bfa;font-size:1.1rem;"></i>'
+            + '<div>'
+            + '<div style="font-weight:700;color:#fff;font-size:0.9rem;">태풍 생성·소멸 알림 구독자</div>'
+            + '<div style="color:#94a3b8;font-size:0.72rem;margin-top:2px;">전국 단위 발송 · 설정에서 켠 사람만 수신 (옵트인)</div>'
+            + '</div>'
+            + '</div>'
+            + '<span style="color:#a78bfa;font-weight:700;font-size:1.05rem;white-space:nowrap;">'
+            + (typhoonCount !== null ? typhoonCount.toLocaleString() + '명' : 'N/A')
+            + '</span>'
+            + '</div>';
+
         // ── 5. 해역별 구독자 분포 (기존 로직 유지) ──
         var zoneHtml = '<div style="margin-bottom:12px;font-weight:700;color:#fff;font-size:0.95rem;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-map-location-dot" style="color:#3b82f6;"></i> 해역별 구독자 분포</div>';
 
@@ -3580,7 +3676,7 @@ async function renderSubscriberTab(container) {
         }
 
         // ── 6. 전체 HTML 조립 후 렌더링 ──
-        container.innerHTML = topHtml + retentionHtml + filterHtml + zoneHtml;
+        container.innerHTML = topHtml + retentionHtml + filterHtml + typhoonHtml + zoneHtml;
 
         // ── 7. 차트 및 테이블 렌더링 ──
         // 이력 데이터를 날짜순으로 정렬

@@ -7110,6 +7110,45 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
 - **수정 (`tide_field_collector.js`·`server.js`)**: `purgeStaleCurves()` 신설 — 파일명 날짜(mtime 아님)가 `windowDatesKST(WINDOW_DAYS)` 밖이면 삭제(곡선 형식 `_(\d{8})\.json$` 만 대상, 그 외 보존, 절대 throw 안 함). ① **서버 startup(bootstrap 전, ensureBuilt 쓰기 시도 전에 먼저)** 호출 → 볼륨이 꽉 차도 *삭제는 공간 불필요*하므로 **배포 즉시 디스크 회복** ② **수집 사이클마다(spawnPrecompute 직후)** 호출 → 곡선이 영구히 3일치(앵커수×3 ≈ 30~45MB)로 고정, 재발 방지.
 - 검증: 임시 디렉토리 재현 — 윈도우(오늘·+1) 곡선 보존, 과거날짜(20200101/20191231) 삭제, 비곡선(grid_meta 등) 보존. `node -c` 통과.
 
+### § 7.7.19 자식(연안바다) 예비특보 단독 취소 무푸시 — CHILD_PRELIM_CANCEL 신설 (2026-07-07)
+
+증상(2026-07-01): 부모 제주도동부앞바다 = 발효중 풍랑주의보 유지, 자식 북동연안바다 **예비특보만 취소**(통보문 발표) → 표출은 "특보 없음" 정상 반영, **푸시 0건**.
+
+- **원인 (확정)**: `releasedActive = releasedChildren.filter(x => childLvl(prev,x) !== '예비')` (`_buildUserPushChanges` 자식 독립 블록)가 예비 등급 자식의 소멸을 CHILD_RELEASE 에서 무조건 제외하고, releasedPrelim 은 어떤 change 도 emit 하지 않았다. § 7.7.13 의 원의도(부모+자식 **동시** 예비취소 시 "일부해제+예비취소" 2건 분리 방지 — 부모 UPCOMING_CANCEL 이 대표)가 **자식 단독 취소에까지 과확장**된 것. 부모/자식 예비는 독립 lifecycle 이라 부모가 발효중이거나 부모 예비가 생존한 채 자식 예비만 취소되는 정상 케이스가 있고, 이때 대표할 부모 취소 푸시가 없어(UPCOMING_CANCEL 조건 `!currUpcoming && prevUpcoming && !currActive` 미성립) 완전 무푸시가 됐다.
+- **수정**: releasedChildren 을 `releasedPrelim`(=='예비') / `releasedActive`(!=='예비') 로 이분. 발효분은 기존 CHILD_RELEASE(partial_release) 유지, 예비분은 신규 **`CHILD_PRELIM_CANCEL`** → 전용 templateId **`child_prelim_cancel`** (제목 `✅ …예비특보 취소`, 한정사 `(북동연안바다만 취소)` — 부모 생존 중 "부모 해제" 오해 방지 필수). routes/push.js 의 release·childZones 토글 2중 게이트 + generateMessage 의 childZones OFF 빈본문 2중 안전망.
+- **회귀 방지 2건 (적대적 재검증에서 발견·반영)**:
+  1. **부모+자식 동시취소 디바운스 비대칭 (§ 7.7.13 재발 경로)**: `!upcomingChanged` 가드는 취소 *확정* 사이클(T0+3분)만 막고, 소멸 *관측* 사이클(T0)에는 `_applyUpcomingCancelDebounce` 가 부모를 carry(부모 불변으로 보임) + 자식은 3중 우회(부모부재 skip / 해제통보문 면제 / purge)로 즉시 소멸 → 자식취소 즉발 후 3분 뒤 부모취소 = 2건 분리가 **구조적 기본 동작**이었다. → **`_upcomingCancelPending[zone]` 존재(부모 예비취소 관찰중) 시 자식 취소 발사 보류**: 부모 진짜취소 확정 시 prelim_cancel 1건이 대표하고 **그 순간 해당 zone 의 자식 펜딩을 능동 폐기**(TTL 에만 기대면 15분 내 동일 zone 신규 특보 재발표 시 구특보 자식취소가 뒤늦게 오발사 — 구현검증에서 발견·차단), 부모 글리치 복귀 시 그때 자식 단독 취소 발사. 실사고 케이스(부모 발효중)는 pending 자체가 안 생겨(prevUpZones 는 부모 예비만 수집) 무영향.
+  2. **ready 드롭아웃 글리치 오발**: 예비 자식은 warn-sasc/list 에서 항상 level-0(§ 7.7.14 실측)이라 ready 행이 1사이클만 빠져도 `_purgeExcludedChildren`(디바운스보다 뒤 순번)이 carry 를 즉시 걷어 releasedChildren 에 나타남 → 3분 디바운스가 예비 자식에게 사실상 무력. → **3분 재확인 펜딩**(`_childPrelimCancelPending`, 앱 표준 디바운스와 동일·사용자 확인 반영): 소멸 관측 시 기록만, 3분 연속 부재면 발사, 복귀하면 폐기(무푸시). carry(스냅샷) 방식이 아닌 **스냅샷 밖 메모 방식이라 purge 의 영향을 받지 않아** 다사이클 관찰이 가능 — 부모 예비취소(3분 디바운스)와 타이밍 대칭. 비영속(재시작 = 지연만, 오발 없음).
+- **클라이언트 팝업 (A안)**: 취소류 templateId(`prelim_cancel`/`partial_release`/`child_prelim_cancel`)와 자식 시각변경(`child_time_ef_change`/`child_time_yn_change`)을 `fix_popup_logic.js` SUPPRESSED_POPUP_STATUSES 에 추가 — 전용 안내문구가 없어 기본 폴백 "①…가 **발생**했습니다"(정반대 의미)가 표출되던 잠복 결함 차단(기존 prelim_cancel/partial_release 도 동일 결함이었음 — 함께 수정). 탭 시 팝업 없이 앱 진입만.
+- 무회귀: R1(예비 자식 "일부 해제" 오문구 금지 — partial_release 우회) / R2(동시취소 2건 금지 — 1742 가드 + pending 보류 이중) / R3(releasedActive 분기 무변경) / R4(added/nowActivated/extend/time_change 분기 무변경) / R5(전용 그룹키 `child_prelim_cancel_종류_예비`, _pushedPubs 는 발표 전용, child_bulletin registerChildChanges 는 released 로 자동 등록·무해).
+
+### § 7.7.20 부모 해제예고 통보문 무푸시 — 동일 모멘트 흡수 빈틈 + time_yn_confirm 신설 (2026-07-07)
+
+증상(2026-07-01): 통보문 제7-4호 풍랑주의보 해제(부산청 22:00 발표, 남해동부안쪽/바깥먼바다 07-02 00:00 해제 예정) → 앱 카드에는 해제시각 "00시 00분" 정상 반영, **푸시 0건**. 로그: 22:02~ 매 사이클 `warn/latest 보강: 2 zone clrNtcTm 갱신`, [Push*] 발송 로그 전무.
+
+- **원인 (확정, 2개 독립 에이전트 + 적대적 재검증)**: 무푸시는 발송 단계가 아니라 **diff 단계(change 미생성)**. `_timeKey` 가 범위형은 끝시각·"24시"는 익일 00시로 정규화 → prev "…~24시" 범위와 확정 "2026.07.02 00:00" 의 키가 동일(`_sameReleaseMoment`=true) → `blockEqual`(tmYn)·`_debounceTimeValues` 가 "변화 없음"으로 흡수. 표출은 `normalizeMmisTime(info.clrNtcTm)` 원본 문자열을 그대로 그려(범위 sticky 폐지) 카드만 갱신 — **표출/푸시 비대칭**. 재검증에서 제2 갈래 발견: diff 의 tmYn 은 `info.tmYn || info.clrNtcTm`(warn/list 의 tm_yn 우선)이라 **tm_yn 이 채워져 있으면 clrNtcTm 변화가 diff 에 아예 안 보임**(M2). 당시 어느 갈래였는지는 로그로 판별 불가하나 두 갈래 모두 관측과 정합, 수정은 두 갈래를 동시에 커버. (위치기반 푸시 겹침 가설은 확정 반박 — 완전 독립 경로, 공유 큐/dedup/collapse 없음.)
+- **성격**: `_sameReleaseMoment` 흡수는 warn/latest 범위↔정확 깜빡임 가짜푸시 방지의 의도된 설계가 정상 작동한 것. 그러나 "정식 해제 통보문(cmd='해제') 발행"이라는 통지가치 있는 lifecycle 이벤트를 알릴 통로가 부모 zone 에 없던 것이 실질 빈틈.
+- **수정 (시각 비교 아닌 통보문 신호 기반 — 3안 비교 후 채택)**: ① `_enrichSnapshotWithLatest` cmd='해제' 분기가 `info._clrConfirmed = { tmEf }` 마킹 ② diff 가 소비: 신규 **`CLR_CONFIRM`** change → templateId **`time_yn_confirm`** (제목/본문은 기존 time_yn_change 와 동일 형식 `🕐 해제시각 변경` — 사용자에겐 같은 성격의 알림이므로 표기 일관, templateId 만 dedup·게이트용 분리). 발사 조건 = 영속 dedup 미기록 + 이번 사이클 CURRENT_CHANGE/YN_EXTEND 미발사(발사됐으면 그 푸시가 대표 — 키만 기록, 이중발송 차단) + 확정시각이 현재 clrNtcTm 과 동일 모멘트(디바운스 관찰중 신모멘트면 보류 — 확정 시 time_yn_change 가 담당).
+- **알림 폭탄 방지 (회귀 체크리스트 반영)**: 영속 dedup `data/marine_clr_confirms.json`(키 `zone|종류|해제모멘트키`, TTL 7일, `_pushedPubs` 패턴) → 매사이클 재유입·재발행·범위↔정확 깜빡임·서버 재시작 모두 1회로 수렴. **첫 배포/볼륨 유실 시드**: 이력 파일 부재 시 현재 스냅샷의 기존 해제예고 통보문을 "알림 완료"로 시드(뒷북 푸시 방지). 콜드부팅은 E-1 가드가 diff 이전 return 이라 자연 안전. 토글: active 계열 게이트 연동(time_yn_change 와 동일), 팝업 생략 목록 등재, 관리자 이력 '시각변경' 카테고리 매핑.
+
+### § 7.7.21 시각변경·연장의 부모/자식 2건 분리 — 시각 디바운스 자식 확장 (2026-07-08)
+
+증상(2026-07-08 실사고 3건): 통보문 1건이 부모+자식 해제시각을 함께 갱신 → "(…만 시각 변경)" 자식 푸시 즉발 후 **정확히 ~3분 뒤** "(… 포함)" 부모 푸시 = 1통보문 2푸시 (08:37→08:40 / 10:02→10:05 / 10:04→10:08).
+
+- **원인 (확정, 2개 독립 에이전트 전수점검 교차 일치)**: `_debounceTimeValues`(시각값 3분 관찰)가 **curr.parents·curr.upcomings 만 순회하고 curr.children 은 순회하지 않음**. 통보문이 부모+자식을 동시 갱신하면 그 사이클에 부모 새 값은 3분 보류(롤백 → 부모 불변으로 보임) → 자식 독립 블록 진입 → 자식 시각변경 즉발, 3분 뒤 부모 확정 → 부모 시각변경 2건째. §7.7.19(취소 계열 비대칭)와 같은 가족. 전수점검 결과 동일 구조가 **발효시각 변경(tmEf)·연장(EF/YN_EXTEND vs CHILD_EF/YN_EXTEND)** 에도 그대로 존재(연장은 부모와 같은 templateId 라 체감 중복 최대), 부가로 자식 시각값 진동 시 무제한 재푸시 경로(하류 dedup 없음)도 확인.
+- **수정 1 — 디바운스 자식 확장**: gate 를 keyBase 로 일반화, `curr.children` 순회 추가(예비 자식=tmEf, 발효 자식=clrNtcTm, 키 `zone>자식|field`, 플래그 없음). 부모+자식 동시 갱신 → 두 타이머가 같은 사이클 시작·확정 → 확정 사이클엔 부모 변경으로 자식 블록 스킵 → **부모 푸시 1건(자식 한정사 "포함")이 자연 대표**. 자식만 변한 경우 3분 뒤 자식 전용 1건(부모와 동일 정책·지연). 자식 값 진동도 3분 관찰로 흡수(오발 차단). **자식 키 유예(TC_CHILD_GRACE_MS=10분)**: 예비 자식은 purge/드롭아웃으로 1사이클 부재가 잦아, 부모처럼 미관측 즉시 키를 지우면 관찰 상태가 리셋(복귀 시 최초수락)되므로 자식 키만 10분 유예 후 정리.
+- **수정 2 — 자식 취소 펜딩 평가 위치**: §7.7.19 의 CHILD_PRELIM_CANCEL 펜딩 due 평가가 자식 독립 블록(부모 불변 가드) **안**에 있어, 부모 시각변경 확정 사이클마다 발사가 이연되고 부모 연속 변경 시 무기한 밀리는 문제(전수점검 I-1) → 평가를 블록 밖(zone 루프 말미, `c` 가드)으로 이동해 부모 변경 여부와 무관하게 매 사이클 평가. 복귀 폐기·부모 취소 관찰중 보류·확정 시 능동 폐기 로직은 불변.
+- **수정 3 — stale 관찰 기억 능동 폐기 (회귀검증 A-6/M-1 반영)**: 10분 유예가 "진짜 종료된" 자식의 확정값까지 붙잡아, 유예 내 동명 자식 재등장(새 특보) 시 옛 시각으로 롤백·오표기(CHILD_ADD 옛 시각 + 3분 뒤 보정 푸시)하던 결함 → `_tcInvalidateChild`: ① CHILD_RELEASE·CHILD_PRELIM_CANCEL 발사 시 해당 자식 키 폐기 ② 부모 release(CURRENT_CHANGE curr=null)·UPCOMING_CANCEL 발사 시 그 zone 자식 키 일괄 폐기 ③ 자식 시각값이 명시적 빈값(철회)이면 즉시 폐기(부모와 동일 동작). 유예는 "행 자체가 잠깐 사라진 깜빡임" 전용으로만 유지.
+- 잔여(2차 예정): 격상+해제예정 동시 갱신 시 격상 푸시 옛 시각 표기, 자식 ready 드롭아웃 복귀 CHILD_PRELIM_ADD 오발, 자식판 해제예고 확정(time_yn_confirm) 빈틈, 자식 정확값 고정의 연장 탈출구 부재. 저개연 관찰 대상: 자식 대량소멸 의심가드, 발효자식 purge 우회, 부모 1~2건 글리치 해제, 자식 단독 격상.
+
+### § 7.7.22 자식 시각변경이 부모와 같은 시각으로 수렴 시 잉여 알림 — 부모 대표 억제 (2026-07-10)
+
+증상(2026-07-10, 로그 확정): 06:05 새 통보문(제07-28호, 09시 발효) GAP 반영 → publish "발효예정 09시" 발송. 06:05 첫 등장한 GAP 자식 4개의 발효예정 첫 등록값(최초수락)이 06:06부터 "09시 정확값"으로 바뀜 → §7.7.21 자식 3분 관찰 통과 → **06:09:03 `child_time_ef_change` "(…만 시각 변경) 발효예정 09시" 512명** — 4분 전 발표와 동일한 09시를 "변경"으로 재통지한 잉여 알림. (관찰 장치 자체는 설계대로 1건 수렴 — 문제는 내용의 잉여성.)
+
+- **원인**: 자식 시각변경 감지(efChangeKids/ynChangeKids)가 prev↔curr 비교만 하고, **변경 결과가 부모의 현재 시각과 같은 순간인지**는 확인하지 않음. 부모 발표/시각변경 푸시가 이미 그 시각을 알렸는데(자식은 "포함" 한정사로 대표됨) 자식이 뒤늦게 같은 값으로 정착하면 "(…만 시각 변경)"이 발사됨.
+- **수정 (부모 대표 억제)**: efChange 분기에 `newT ≒ currUpcoming.tmEf`(문자열 일치 또는 `_sameReleaseMoment`)면 skip, ynChange 분기에 `newT ≒ currActive.tmYn`이면 skip. 부모 시각 정보가 없으면(비교 불가) 기존대로 발사(누락 방지, 안전쪽). 자식이 부모와 **다른** 시각으로 진짜 갈라진 경우는 기존대로 발사 — §7.7.15 취지(자식 단독 시각변경 통지) 유지.
+- 연장(CHILD_EF/YN_EXTEND)의 동일 계열 정렬 잉여는 미수정(관찰) — 발생 시 동일 패턴 적용 검토.
+
 ---
 
 # § 8. 부록

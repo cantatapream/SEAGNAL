@@ -4290,7 +4290,7 @@
     <script src="buoyLocations.js"></script>
     <script src="seaZoneCoordinates.js"></script>
     <script src="seaZones.js?v=TimeFormatUpdate_20260204"></script>
-    <script type="module" src="capacitor-plugins.js?v=Patch_20260111_02"></script>
+    <script type="module" src="capacitor-plugins.js?v=Patch_20260706_01"></script>
     <link rel="stylesheet" href="kma_widget.css">
     <!-- [리팩토링] app.js를 15개 모듈로 분할 -->
     <script src="js/config.js"></script>
@@ -4337,7 +4337,7 @@
     <script src="js/ripcurrent.js"></script>
 
     <!-- 해양종합정보 (히든 탭) -->
-    <script src="js/ocean_map.js"></script>
+    <script src="js/ocean_map.js?v=Patch_20260706_01"></script>
     <script src="js/ocean_markers.js"></script>
     <script src="js/ocean_bottom_sheet1.js"></script>
     <!-- 시트 슬라이더 모듈 — bottom_sheet2.js 가 STL.onRelease 를 wire 하므로 그 전에 로드되어
@@ -4357,7 +4357,7 @@
     <script src="js/ocean_buoy.js"></script>
     <script src="js/ocean_warn_zone.js"></script>
     <!-- 태풍 진로/예보 오버레이 + 재생 애니메이션 (의존: ocean_map.js + /api/typhoon) -->
-    <script src="js/ocean_typhoon.js"></script>
+    <script src="js/ocean_typhoon.js?v=Patch_20260707_03"></script>
     <!-- 활성 특보 색칠 모듈 (5개 파일 분할, 의존: ocean_warn_zone.js + data.js + ocean_map.js) -->
     <script src="js/ocean_warn_active1.js"></script>
     <script src="js/ocean_warn_active2.js"></script>
@@ -4370,7 +4370,7 @@
     <script src="js/shrt_forecast_layer.js"></script>
     <!-- 물빠짐 (서해·남해 갯벌 노출 예측): 토글 버튼 + 시간 슬라이더/재생 + 2색 벡터 레이어 + 클릭 팝업
          (의존: ocean_map.js 의 window.__getOceanMap, /api/tide-field) -->
-    <script src="js/tide_field.js"></script>
+    <script src="js/tide_field.js?v=Patch_20260706_03"></script>
     <!-- 시정예측 (KMA RDPS 시정/안개 PNG 오버레이): 토글 버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 (천기 메커니즘 복제) -->
     <script src="js/vsby_forecast_layer.js"></script>
 
@@ -4386,16 +4386,20 @@
          관리자 리스트 화면(admin.js / admin_collect.js / admin_survey.js / admin_report.js / alert_push.js)에서
          사용하므로 반드시 이 스크립트들보다 먼저 로드되어야 함 -->
     <script src="js/pagination_helper.js"></script>
-    <script src="js/admin.js"></script>
+    <script src="js/admin.js?v=Patch_20260707_01"></script>
     <script src="js/admin_collect.js"></script>
     <script src="js/admin_survey.js"></script>
     <script src="js/admin_report.js"></script>
     <!-- [데모 시연] 관리자 센터 데모 특보 슬롯 UI + 관리자 기기 한정 표출 -->
     <script src="js/admin_demo.js"></script>
+    <!-- [임시 — 발표 나레이션] 시연 > 오디오 하위탭 (5연타 트리거 배경 음성 업로드, 발표 후 제거 예정) -->
+    <script src="js/admin_narration.js"></script>
     <script src="js/admin_location_demo.js"></script>
     <!-- 위치 기반 특보 시연(실제 푸시) 하위탭 -->
 
     <script src="js/demo_alert.js"></script>
+    <!-- [데모 시연] 메인 "해역별 특보현황" 헤더 5연타 → 특보 시연 즉시 활성화(관리자 기기 한정) -->
+    <script src="js/demo_quick_trigger.js?v=Patch_20260708_02"></script>
     <script src="js/advisory_demo_admin.js"></script>
     <script src="js/typhoon_demo_admin.js"></script>
     <script src="js/advisory_manage_admin.js"></script>
@@ -4408,7 +4412,7 @@
     <script src="js/app_init.js"></script>
     <script src="js/backbutton.js"></script>
     <!-- AI 비서 바로가기 딥링크(?assistant=ocean&layer=...) → 해양종합정보 레이어 자동 활성화 -->
-    <script src="js/assistant_deeplink.js"></script>
+    <script src="js/assistant_deeplink.js?v=Patch_20260706_01"></script>
     <!-- 백그라운드 "나리야" 음성 비서 상태/대화를 화면 하단 오버레이로 표시 -->
     <script src="js/assistant_overlay.js"></script>
     <!-- HLS.js: 거제시 등 HLS 스트림 재생 (cctv4.js _initCctvHlsPlayer에서 사용) — 자체 호스팅 -->

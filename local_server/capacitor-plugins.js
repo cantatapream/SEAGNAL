@@ -143,7 +143,14 @@ const initPushNotifications = async () => {
                 const targetUrl = new URL(data.url, window.location.origin);
                 const isSamePage = targetUrl.pathname.endsWith('index.html') || targetUrl.pathname === '/';
 
-                if (isSamePage && targetUrl.searchParams.get('popup') === 'true') {
+                if (data.type === 'typhoon_test'
+                    && window.SeagnalDemo && typeof window.SeagnalDemo.runTyphoonFromNotification === 'function') {
+                    // [태풍 발생/소멸 테스트 알림] 앱 재시작(페이지 새로고침·스플래시) 없이 인앱으로
+                    //   해양종합정보 '태풍'을 열고, 직접-버튼(2단계 무장) 경로와 동일하게
+                    //   제6호 장미 · 통보문 제6-12호 + 디버그(해역표출)를 강제 표출한다.
+                    //   (딥링크 URL 은 있으나 window.location 이동을 하지 않아 재시작이 발생하지 않음)
+                    window.SeagnalDemo.runTyphoonFromNotification();
+                } else if (isSamePage && targetUrl.searchParams.get('popup') === 'true') {
                     // URL 파라미터만 업데이트하고 팝업 함수 직접 호출
                     window.history.replaceState(null, '', data.url);
                     if (typeof window.checkForPushPopup === 'function') {

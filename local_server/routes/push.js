@@ -437,20 +437,22 @@ router.post('/api/push-custom', async (req, res) => {
                     }
                     // 발효 관련 (active, 격상/격하 발효, 해제시각 변경)
                     //   child_time_yn_change(수정 #3 자식 단독 해제시각 변경)도 발효(active) 계열.
+                    //   time_yn_confirm(§7.7.20 해제예고 확정)도 해제시각 계열 → active 토글 연동.
                     if (opts.active === false &&
-                        ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change', 'child_time_yn_change'].includes(tid)) {
+                        ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change', 'time_yn_confirm', 'child_time_yn_change'].includes(tid)) {
                         return;
                     }
                     // 해제 — 예비특보 취소(prelim_cancel)도 ✅ 해제 계열로 묶어 release 토글에 연동.
                     //   (이전엔 어떤 콘텐츠 토글에도 안 걸려 야간 외엔 무조건 발송되던 비대칭 해소.)
-                    if (opts.release === false && (tid === 'release' || tid === 'prelim_cancel')) {
+                    //   child_prelim_cancel(§7.7.19 자식 단독 예비 취소)도 동일하게 해제 계열.
+                    if (opts.release === false && (tid === 'release' || tid === 'prelim_cancel' || tid === 'child_prelim_cancel')) {
                         return;
                     }
                     // [자식 독립 푸시] additional_active(추가 발효) / partial_release(일부 해제) /
-                    //   child_prelim(자식 단독 예비 발표)
+                    //   child_prelim(자식 단독 예비 발표) / child_prelim_cancel(자식 단독 예비 취소 §7.7.19)
                     //   - 모두 자식(연안바다/평수구역) 전용 알림 → childZones OFF 사용자는 수신 안 함
-                    //   - 추가 발효 ~ 발효 계열, 일부 해제 ~ 해제 계열, 자식 예비 발표 ~ 발표 계열 토글
-                    if (['additional_active', 'partial_release', 'child_prelim'].includes(tid) && opts.childZones === false) {
+                    //   - 추가 발효 ~ 발효 계열, 일부 해제 ~ 해제 계열, 자식 예비 발표/취소 ~ 발표/해제 계열 토글
+                    if (['additional_active', 'partial_release', 'child_prelim', 'child_prelim_cancel'].includes(tid) && opts.childZones === false) {
                         return;
                     }
                     // [자식 독립 푸시] child_time_ef_change/child_time_yn_change(수정 #3 자식 단독 시각 변경) →
@@ -878,6 +880,7 @@ router.get('/api/push-counter', (req, res) => {
  *   totalSubscribers: 501,       // 전체 구독자 수
  *   fcmCount: 312,               // FCM(앱) 구독자 수
  *   webCount: 189,               // Web Push(브라우저) 구독자 수
+ *   typhoonOptIn: 87,            // 태풍 생성/소멸 알림 수신자 수 (master ON + options.typhoon === true)
  *   zoneCounts: {                // 소분류 해역별 구독자 수 (35개)
  *     "강원북부앞바다": 480,
  *     "제주도서부앞바다": 485,
@@ -902,6 +905,11 @@ router.get('/api/push-subscriber-stats', (req, res) => {
         let fcmCount = 0;
         let webCount = 0;
 
+        // 태풍 생성/소멸 알림 수신 가능자 카운트.
+        //   /api/push-typhoon 발송 필터(master ON + typhoon 옵트인)와 동일한 조건으로 세어
+        //   "실제로 태풍 푸시를 받을 사람 수"와 일치시킨다. (태풍은 해역 무관 전국 단위)
+        let typhoonOptIn = 0;
+
         // 3. 소분류 해역별 구독자 수 집계
         //    - 각 구독자의 zones 배열을 소분류(35개)로 확장
         //    - zones가 비어있으면 "모든 해역 수신" → 35개 전부에 카운트
@@ -921,6 +929,10 @@ router.get('/api/push-subscriber-stats', (req, res) => {
             // FCM/Web 구분
             if (sub.type === 'fcm') fcmCount++;
             else webCount++;
+
+            // 태풍 알림 수신 가능 여부 (발송 필터와 동일 조건)
+            const o = sub.options || {};
+            if (o.master !== false && o.typhoon === true) typhoonOptIn++;
 
             // 해역 확장: 빈 배열이거나 target='all'이면 전체 해역 구독으로 간주
             const isAllZones = (!sub.zones || sub.zones.length === 0) ||
@@ -942,6 +954,7 @@ router.get('/api/push-subscriber-stats', (req, res) => {
             totalSubscribers: subs.length,
             fcmCount,
             webCount,
+            typhoonOptIn,
             zoneCounts
         });
     } catch (e) {

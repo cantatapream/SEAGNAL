@@ -58,6 +58,7 @@
     var _koreaBuoy = null;     // 우리 해역 진입 시 진로선 최근접 부이 관측 {name,type,obs} (해구도 표출 시에만 사용)
     var _enrichToken = 0;      // 비동기 해구도/부이 enrich 경합 방지 토큰
     var _debugKorea = false;   // [디버그] 트리거/72h게이트/강풍반경 거리 무시하고 최근접 해구·부이 강제 표출
+    var _demoActive = false;   // demoFocus(테스트/시연)로 표출 중인지 — OFF 시 기본 전도(전도 중앙) 복귀 게이트
 
     var _activeData = null;    // /api/typhoon 응답(현재연도 활성 태풍 + 통보문 인라인)
     var _year = null;          // 선택 연도
@@ -67,7 +68,7 @@
     var _selCode = null;       // 선택 통보문 code
     var _curBulletin = null;   // 현재 표출 통보문(rem/other/code 등) — i버튼·이미지 팝업용
     var _tableCache = {};      // (year+'_'+code) -> {current,forecast,...}
-    var _yearLoaded = false;   // 전체 연도 목록(dmdw on-demand) 확장 여부 — 표출 시 1회
+    var _suppressAutoYear = false; // setVisible 의 자동 loadYear 1회 억제 — demoFocus 가 직접 로드할 때 사용
     var _frames = [];          // 선택 통보문의 시계열 프레임 (시각 오름차순)
     var _visible = false;
     var _playing = false;
@@ -632,6 +633,18 @@
     //   - 트리거/대상: 강풍반경에 걸친(중심 within radStrong) 해구 중 태풍 중심 최근접 1개.
     //   - 72h 게이트: 해구도 tm 이 프레임시각(±1.6h) 안에 있어야 유효(예측범위 내). 밖이면 보퍼트 유지.
     //   - 부이: 해구도가 표출될 때만, 진로선 최근접 B/C 부이 관측 표출.
+    /**
+     * 팝업에 실제 표시될 관측값이 하나라도 있는지 판정.
+     * 표출 규칙(popupHtml)과 동일 기준 — 파고 3종(유의/최대/평균) 중 하나,
+     * 또는 B타입이면 풍향·풍속 중 하나. 전부 null(QC 결측 등)이면 false.
+     */
+    function buoyObsUsable(o, type) {
+        if (!o) return false;
+        if (o.waveHeightSig != null || o.waveHeightMax != null || o.waveHeightAvg != null) return true;
+        if (type === 'B' && (o.windSpeed != null || o.windDirection != null)) return true;
+        return false;
+    }
+
     function enrichKoreaWaters() {
         var token = ++_enrichToken;
         _koreaBuoy = null;
@@ -642,20 +655,31 @@
         if (!cand.length) { refreshBubbleContents(); return; }
 
         // 진로선 최근접 부이(B/C) 선택 — 좌표는 BUOY_LOCATIONS, 관측은 fetchMarineBuoyData.
+        //   [결측 폴백] 최근접 부이라도 해당 시각 관측값이 전부 결측(QC 탈락 등)이면
+        //   팝업에 헤더만 남는 문제가 있어(예: 남해465), 거리순으로 훑어
+        //   "표시 가능한 실측값이 있는" 첫 부이를 선택한다. 전 부이 결측이면
+        //   _koreaBuoy 를 세팅하지 않아 부이 섹션 자체를 표출하지 않는다.
         try {
             if (typeof BUOY_LOCATIONS === 'object' && typeof fetchMarineBuoyData === 'function') {
-                var best = null;
+                var cands = [];
                 Object.keys(BUOY_LOCATIONS).forEach(function (id) {
                     var b = BUOY_LOCATIONS[id];
                     if (!b || (b.type !== 'B' && b.type !== 'C') || b.lat == null || b.lon == null) return;
-                    var d = pointToTrackKm(b.lat, b.lon);
-                    if (!best || d < best.dist) best = { id: id, name: b.name, type: b.type, dist: d };
+                    cands.push({ id: id, name: b.name, type: b.type, dist: pointToTrackKm(b.lat, b.lon) });
                 });
-                if (best) {
+                cands.sort(function (a, b) { return a.dist - b.dist; });
+                if (cands.length) {
                     fetchMarineBuoyData().then(function (obsMap) {
-                        if (token !== _enrichToken) return;
-                        var obs = obsMap && obsMap[best.id];
-                        if (obs) { _koreaBuoy = { name: best.name, type: best.type, obs: obs }; refreshBubbleContents(); }
+                        if (token !== _enrichToken || !obsMap) return;
+                        for (var i = 0; i < cands.length; i++) {
+                            var c = cands[i];
+                            var obs = obsMap[c.id];
+                            if (buoyObsUsable(obs, c.type)) {
+                                _koreaBuoy = { name: c.name, type: c.type, obs: obs };
+                                refreshBubbleContents();
+                                return;
+                            }
+                        }
                     }).catch(function () { });
                 }
             }
@@ -925,6 +949,54 @@
         var b = t && t.bulletins && t.bulletins[0];
         return !!(b && b.rem && b.rem.indexOf('종료') >= 0);
     }
+
+    // [N 배지] "새 태풍 등장" 신호 — 첫 태풍단계(TYP) 통보문 발표 후 2일(48시간)까지만 표시.
+    var NEW_BADGE_MS = 48 * 3600 * 1000;
+    // 12자리 KST 발표시각("202607071600") → epoch ms (크롤러 tmFcToMs 와 동일 규칙)
+    function tmFcToMs(s) {
+        var d = String(s || '').replace(/[^0-9]/g, '');
+        if (d.length < 12) return 0;
+        return Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +d.slice(8, 10), +d.slice(10, 12)) - 9 * 3600000;
+    }
+    /**
+     * 태풍의 "등장 시각" = 첫 태풍단계(TYP) 통보문 발표시각.
+     * 통보문 목록은 최신순이라 뒤에서부터(오래된 순) 훑으며 TD(열대저압부) 단계는 건너뛴다.
+     * (수집 상한으로 목록이 잘려도, 잘릴 만큼 통보문이 많은 태풍은 이미 2일을
+     *  훌쩍 넘긴 태풍이라 배지 판정 결과는 달라지지 않는다)
+     */
+    function firstTypBulletinMs(t) {
+        var bs = (t && t.bulletins) || [];
+        for (var i = bs.length - 1; i >= 0; i--) {
+            if (bs[i] && bs[i].kind !== 'TD') return tmFcToMs(bs[i].tmFc) || null;
+        }
+        return null;
+    }
+
+    /**
+     * 기본 선택 태풍 결정 (활성 캐시 인라인 데이터 대상):
+     *   ① 활성(미종료) 태풍 우선 — 종료된 태풍이 최신 발생이어도 기본 선택에서 제외
+     *   ② 활성이 복수면 최신 통보문의 현재 위치가 제주(33.5N,126.53E)에 가장 가까운
+     *      태풍(한반도에 먼저 도달할 가능성이 높은 것) 선택
+     *   ③ 전부 종료면 목록 첫 태풍(최신 발생) 폴백 — 종료 태풍도 조회는 가능해야 함
+     */
+    var JEJU = { lat: 33.5, lon: 126.53 };
+    function pickDefaultTyphoon(typhoons) {
+        var list = typhoons || [];
+        var actives = list.filter(function (t) { return !typhoonEnded(t); });
+        if (!actives.length) return list[0] || null;
+        if (actives.length === 1) return actives[0];
+        var best = null, bestD = Infinity;
+        actives.forEach(function (t) {
+            var cur = t.bulletins && t.bulletins[0] && t.bulletins[0].current;
+            if (!cur || cur.lat == null || cur.lon == null) return;
+            // 근사 평면 거리(경도는 위도 보정) — 순위 비교 용도로 충분
+            var dLat = cur.lat - JEJU.lat;
+            var dLon = (cur.lon - JEJU.lon) * Math.cos(JEJU.lat * Math.PI / 180);
+            var d = dLat * dLat + dLon * dLon;
+            if (d < bestD) { bestD = d; best = t; }
+        });
+        return best || actives[0];   // 위치 정보가 전무하면 활성 중 최신 발생
+    }
     // 통보문 code → dmdw 통보문 이미지 파일명 (태풍정보 RTKO63 / TD정보 RTKO64, 호수 2자리).
     function bulletinImageName(code) {
         var p = String(code || '').split('_'); // [oTypInfo, oTmFc, oTdSeq, oTmSeq]
@@ -964,9 +1036,33 @@
             if (!_typhoonList.length && _activeData && _activeData.year === year) {
                 _typhoonList = (_activeData.typhoons || []).map(function (t) { return { seq: t.seq, name: t.name, ended: typhoonEnded(t) }; });
             }
+            // [종료 라벨] /api/typhoon/list 응답에는 ended 정보가 없어, 그대로 그리면
+            //   먼저 표시된 "(종료)" 라벨이 사라지는 깜빡임이 생긴다. 활성 캐시와 같은
+            //   연도면 ended 를 병합해 라벨을 안정적으로 유지한다.
+            //   - 캐시에 있는 태풍: 통보문 rem 기준(typhoonEnded)
+            //   - 캐시에 없는 태풍: 마지막 통보문이 활성 유지창(72h)보다 오래됐다는 뜻
+            //     → 종료로 간주해 "(종료)" 표기 (예: 올해 지난 1~8호 태풍)
+            if (_activeData && _activeData.year === year) {
+                _typhoonList.forEach(function (t) {
+                    var a = (_activeData.typhoons || []).find(function (x) { return x.seq === t.seq; });
+                    t.ended = a ? typhoonEnded(a) : true;
+                });
+            }
             populateNames();
-            var seq = (preferSeq && _typhoonList.some(function (t) { return t.seq === preferSeq; }))
-                ? preferSeq : (_typhoonList[0] && _typhoonList[0].seq);
+            // 기본 선택: ① 사용자가 보던 태풍(preferSeq) > ② 활성 우선(복수면 제주 최근접)
+            //           > ③ 병합된 ended 기준 첫 미종료 > ④ 목록 첫 태풍(최신 발생)
+            var seq = null;
+            if (preferSeq && _typhoonList.some(function (t) { return t.seq === preferSeq; })) {
+                seq = preferSeq;
+            } else {
+                var def = (_activeData && _activeData.year === year) ? pickDefaultTyphoon(_activeData.typhoons) : null;
+                if (def && _typhoonList.some(function (t) { return t.seq === def.seq; })) {
+                    seq = def.seq;
+                } else {
+                    var firstActive = _typhoonList.find(function (t) { return t.ended === false; });
+                    seq = (firstActive || _typhoonList[0] || {}).seq;
+                }
+            }
             setSelValue('tphn-name', seq);
             _selSeq = seq || null;
             if (seq) loadTyphoon(year, seq, preferCode);
@@ -1080,6 +1176,13 @@
                 // 직전 베이스맵으로 복원
                 if (_prevBasemap && window.oceanSetBasemap) { window.oceanSetBasemap(_prevBasemap); }
                 _prevBasemap = null;
+                // [태풍 시연 OFF] demoFocus(테스트/데모)로 연 태풍을 끌 때는, 처음 해양종합정보를
+                //   열었을 때처럼 대한민국 전도(한반도 중앙)로 지도를 되돌린다(사용자 요청).
+                //   일반 사용/10탭 잠금해제 경로의 OFF 는 보던 위치를 유지(리셋 안 함).
+                if (_demoActive && typeof window.oceanResetDefaultView === 'function') {
+                    window.oceanResetDefaultView(true);
+                }
+                _demoActive = false;   // 시연 상태 소진(다음 일반 OFF 는 리셋하지 않음)
             }
         }
         applyLayerVisibility();
@@ -1097,8 +1200,14 @@
                 renderHead(_p);
             }
             focusOnTyphoon();
-            // 표출 첫 회: 현재연도 전체 태풍 목록(dmdw)으로 이름 드롭다운 확장(과거 태풍 포함)
-            if (!_yearLoaded) { _yearLoaded = true; loadYear(_year, _selSeq, _selCode); }
+            // 현재연도 전체 태풍 목록(dmdw)으로 이름 드롭다운 확장(과거 태풍 포함).
+            //   [일부 목록 버그 수정] 재표출 시 위 primeDefaultFromActive() 가 드롭다운을
+            //   활성 캐시(최근 72h 태풍 2~3개)로만 다시 채우는데, 예전엔 첫 표출에만
+            //   확장해서 두 번째 표출부터 일부 목록만 남았다. 매 표출마다 확장한다
+            //   (서버 5분 캐시로 가볍고, 현재 선택은 preferSeq/preferCode 로 유지).
+            //   demoFocus 경로는 직접 loadYear 를 부르므로 1회 억제(_suppressAutoYear).
+            if (_suppressAutoYear) { _suppressAutoYear = false; }
+            else { loadYear(_year, _selSeq, _selCode); }
         } else {
             pause();
         }
@@ -1110,8 +1219,17 @@
         // 활성 태풍이 있으면 활성. 없을 때는 10회 탭으로 잠금해제(_unlocked, 세션 한정) 시에도 활성.
         var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
         var canShow = has || _unlocked;
+        // N 배지는 "새 태풍 등장" 신호 — 미종료 태풍 중 첫 태풍단계(TYP) 통보문 발표가
+        //   2일(48시간) 이내인 것이 있을 때만 표시. 2일이 지나면 태풍이 계속 활성이어도
+        //   배지를 뗀다(사용자 요구). 종료된 태풍은 시간과 무관하게 제외.
+        //   (버튼 활성/조회 가능 여부는 has 그대로 — 배지와 무관)
+        var hasNew = has && (_activeData.typhoons || []).some(function (t) {
+            if (typhoonEnded(t)) return false;
+            var first = firstTypBulletinMs(t);
+            return !!first && (Date.now() - first) <= NEW_BADGE_MS;
+        });
         var nBadge = document.getElementById('tphn-n-badge');
-        if (nBadge) nBadge.style.display = has ? 'flex' : 'none';  // N 배지는 "현재 활성 태풍" 신호 → has 만
+        if (nBadge) nBadge.style.display = hasNew ? 'flex' : 'none';
         if (!canShow) {
             btn.classList.add('tphn-disabled');
             btn.title = '현재 태풍 없음';
@@ -1149,7 +1267,9 @@
             });
             applyAvailability();
             // 잠긴 사용자도 dmdw on-demand 호출 없이, 파일 캐시만으로 기본(활성 최신) 표출.
-            primeDefaultFromActive();
+            // [가드] demoFocus(시연)가 이미 특정 통보문을 표출/로드 중이면 기본(활성 최신)으로
+            //   되돌려 덮지 않는다(느린 네트워크에서 load() 가 늦게 끝나는 경합 대비).
+            if (!_demoActive) primeDefaultFromActive();
         }).catch(function (e) { console.warn('[OceanTyphoon] load 실패:', e.message); });
     }
 
@@ -1160,7 +1280,9 @@
         setSelValue('tphn-year', String(_year));
         _typhoonList = _activeData.typhoons.map(function (t) { return { seq: t.seq, name: t.name, ended: typhoonEnded(t) }; });
         populateNames();
-        var t0 = _activeData.typhoons[0];
+        // 활성(미종료) 태풍 우선 — 종료 태풍이 최신 발생이어도 기본으로 띄우지 않는다.
+        //   활성 복수면 제주 최근접(한반도 도달 가능성 우선). 전부 종료면 최신 발생 폴백.
+        var t0 = pickDefaultTyphoon(_activeData.typhoons) || _activeData.typhoons[0];
         _selSeq = t0.seq; setSelValue('tphn-name', _selSeq);
         _bulletinList = (t0.bulletins || []).map(function (b) { return { code: b.code, label: b.label, isLatest: b.isLatest }; });
         populateBulletins();
@@ -1366,8 +1488,18 @@
     function demoFocus(demo) {
         try {
             if (!demo) return;
+            // [초기화 레이스 방어] 해양종합정보 지도는 탭 첫 진입 시 lazy 생성(marine.js 200ms 지연)이고,
+            //   이 모듈의 tryInit 폴러(300ms)가 그 뒤에 _map 을 잡으며 _unlocked/_visible 을 리셋한다.
+            //   그보다 먼저 demoFocus 가 실행되면(알림 인앱 전환 직후 등) _map=null 인 채 절반만 표출되다
+            //   tryInit 리셋에 덮여 "태풍이 아예 안 나오는" 증상이 된다 → 초기화 완료까지 재시도(최대 ~12초).
+            if (!_map) {
+                demo.__waitTries = (demo.__waitTries || 0) + 1;
+                if (demo.__waitTries <= 40) setTimeout(function () { demoFocus(demo); }, 300);
+                return;
+            }
+            _demoActive = true;      // 시연 표출 중 표시 → 이 태풍을 끄면 기본 전도(전도 중앙)로 복귀
             _unlocked = true;        // 세션 한정 잠금해제 → 버튼 활성화 허용
-            _yearLoaded = true;      // setVisible 의 자동 loadYear 중복 호출 방지(아래에서 직접 로드)
+            _suppressAutoYear = true; // setVisible 의 자동 loadYear 1회 억제(아래에서 직접 로드 — 경합 방지)
             applyAvailability();     // 버튼에서 'tphn-disabled' 제거(활성화)
             setVisible(true);        // 레이어 ON (활성 태풍이 없어도 패널/버튼 표시)
             var year = parseInt(demo.year, 10) || curYearKst();
@@ -1385,6 +1517,8 @@
         show: function () { setVisible(true); },
         hide: function () { setVisible(false); },
         isVisible: function () { return _visible; },
+        // 지도·모듈 초기화(tryInit) 완료 여부 — demo_quick_trigger 가 demoFocus 호출 타이밍 게이트로 사용.
+        isReady: function () { return !!_map; },
         demoFocus: demoFocus,   // 관리자 시연: 실제 통보문을 강제 활성화 표출 + 지도 이동
         // 육지 클릭 처리: 태풍 ON + 실제 육지일 때만 강풍반경 도달시간 팝업 표출. consumed 시 true.
         tryHandleLandClick: function (lon, lat) {

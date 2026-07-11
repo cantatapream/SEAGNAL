@@ -361,6 +361,16 @@ function generateMessage(filteredPayload) {
         const grouped = groupByTime(items, 'tmYn');
         genBody = formatGroupedMessage(grouped, '해제예정');
     }
+    // 9-a2. 해제예고 확정 (§7.7.20) — 정식 해제 통보문이 해제시각을 확정 등록.
+    //   기존 해제예정 범위와 같은 모멘트라 time_yn_change diff 로는 잡히지 않는 케이스 전용 1회 안내.
+    //   제목/본문은 기존 time_yn_change("🕐 해제시각 변경")와 동일 형식 — 사용자에겐 같은 성격
+    //   (해제시각 변경/등록)의 알림이므로 표기 일관 유지(사용자 확인 반영). templateId 만 분리
+    //   (영속 dedup·게이트 용도).
+    else if (templateId === 'time_yn_confirm') {
+        genTitle = `🕐 해제시각 변경`;
+        const grouped = groupByTime(items, 'tmYn');
+        genBody = formatGroupedMessage(grouped, '해제예정');
+    }
     // 9-b. 자식 단독 발효시각 변경 (수정 #3) — 부모 불변, 자식만 발효예정(tmEf) 변경.
     //   한정사 "(…만 시각 변경)" 는 decorateZone(buildChildQualifier)가 생성.
     //   [방어] childZones OFF 사용자는 부모 시각이 안 변해 부모명만 남으면 오해되므로 빈 본문 → 미발송.
@@ -434,6 +444,18 @@ function generateMessage(filteredPayload) {
     //   prelim_cancel 은 시간 없음(EVENT_TIME_FIELD=null), 자식 한정사도 없음(buildChildQualifier '').
     else if (templateId === 'prelim_cancel') {
         genTitle = `✅ ${typeName || '특보'} 예비특보 취소`;   // typeName 누락 방어(관리자 buildAdminTitle 과 동일 폴백)
+        const allZones = [];
+        items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
+        genBody = `ㅇ${allZones.map(decorateZone).join(', ')}`;
+    }
+    // 14-b. 자식 단독 예비 취소 (§7.7.19) — 부모(발효중/예비 생존) 유지 + 자식 예비만 취소.
+    //   제목은 부모 prelim_cancel 과 동일 문구(사용자 학습 유지), 본문 한정사 "(…만 취소)" 는
+    //   buildChildQualifier 가 생성 — 부모가 아직 살아있으므로 "부모 해제" 오해 방지에 필수.
+    //   [방어] childZones OFF 사용자는 한정사 없이 부모명만 남아 오해되므로 빈 본문 → 미발송
+    //   (route 의 childZones 게이트가 1차 차단, 여기 빈본문은 2중 안전망 — child_time_* 와 동일).
+    else if (templateId === 'child_prelim_cancel') {
+        if (!showChildZones) return { title: '', body: '' };
+        genTitle = `✅ ${typeName || '특보'} 예비특보 취소`;
         const allZones = [];
         items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
         genBody = `ㅇ${allZones.map(decorateZone).join(', ')}`;
@@ -519,6 +541,7 @@ const TIME_LABEL_BY_EVENT = {
     additional_active: '해제예정',
     child_prelim: '발효예정',     // 자식 단독 예비 발표 — 발효예정 시각(tmEf)
     prelim_cancel: null,        // 시간 없음
+    child_prelim_cancel: null,  // 시간 없음 (§7.7.19 자식 단독 예비 취소)
     partial_release: null,      // 시간 없음
     release: null,              // 시간 없음
     level_upgrade_publish: '발효예정',
@@ -531,6 +554,7 @@ const TIME_LABEL_BY_EVENT = {
     type_downgrade_active: '해제예정',
     time_ef_change: '발효예정',
     time_yn_change: '해제예정',
+    time_yn_confirm: '해제예정',        // §7.7.20 — 해제예고 확정 (정식 해제 통보문)
     child_time_ef_change: '발효예정',   // 수정 #3 — 자식 단독 발효시각 변경
     child_time_yn_change: '해제예정'    // 수정 #3 — 자식 단독 해제시각 변경
 };
@@ -551,6 +575,7 @@ const TIME_KEY_BY_EVENT = {
     type_downgrade_active: 'tmYn',
     time_ef_change: 'tmEf',
     time_yn_change: 'tmYn',
+    time_yn_confirm: 'tmYn',        // §7.7.20 — 해제예고 확정
     child_time_ef_change: 'tmEf',   // 수정 #3 — 자식 단독 발효시각 변경
     child_time_yn_change: 'tmYn'    // 수정 #3 — 자식 단독 해제시각 변경
 };
@@ -605,6 +630,16 @@ function buildChildQualifier(parent, childState, eventType) {
 
         // 예비특보 취소: 부모명만 (S10)
         if (eventType === 'prelim_cancel') return '';
+
+        // 자식 단독 예비 취소 (§7.7.19) — 취소된 예비 자식만 "(북동연안바다만 취소)".
+        //   부모는 여전히 발효중/예비 생존이므로 "부모 해제" 오해 방지를 위해 한정사 필수.
+        if (eventType === 'child_prelim_cancel') {
+            if (released.length > 0) {
+                const shown = released.map(c => _stripParentPrefix(parent, c));
+                return `(${shown.join(', ')}만 취소)`;
+            }
+            return '';
+        }
 
         // 자식만 해제 (S11, S12) — partial_release
         if (eventType === 'partial_release') {

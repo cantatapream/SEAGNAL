@@ -123,6 +123,56 @@ const DEMO_TESTMODE_FILE = path.join(DATA_DIR, 'demo_testmode.json');
 // [검토 필요 통보문] "내용 없음" 통보문 등 자동 처리 불가 통보문 저장
 const REVIEW_NEEDED_FILE = path.join(DATA_DIR, 'review_needed.json');
 
+// ============================================================================
+// [시연 나레이션 음성] 5연타 트리거 발동 시 배경 재생할 슬롯별 음성 파일 매핑
+//   - 슬롯: alert1(특보현황 1차) · alert2(특보현황 2차) · ocean(해양종합정보 탭 5연타)
+//           · mudflat(물빠짐 버튼) · marine1(기상현황 1차) · marine2(기상현황 2차)
+//   - 파일 저장: data/uploads/narration/<slot>_<ts>.<ext>
+//                (UPLOAD_DIR=data/uploads 는 Fly 볼륨 → 배포/재시작에도 영속, 교체형)
+//   - 정적 서빙: server.js 의 app.use('/uploads', express.static(UPLOAD_DIR)) 로
+//                /uploads/narration/... 접근 가능
+//   - 매핑 저장: demo_narration.json { slot: { url, filename, name, size, updatedAt } }
+//   - 재생 주체: js/demo_quick_trigger.js (관리자 기기 트리거 발동 시 _playNarration)
+// ============================================================================
+const NARRATION_DIR = path.join(DATA_DIR, 'uploads', 'narration');
+const NARRATION_MAP_FILE = path.join(DATA_DIR, 'demo_narration.json');
+const NARRATION_SLOTS = ['alert1', 'alert2', 'ocean', 'mudflat', 'marine1', 'marine2'];
+try { if (!fs.existsSync(NARRATION_DIR)) fs.mkdirSync(NARRATION_DIR, { recursive: true }); } catch (e) { /* noop */ }
+
+const _narrationMulter = require('multer');
+const _narrationUpload = _narrationMulter({
+    storage: _narrationMulter.diskStorage({
+        destination: function (req, file, cb) {
+            try { if (!fs.existsSync(NARRATION_DIR)) fs.mkdirSync(NARRATION_DIR, { recursive: true }); } catch (e) { /* noop */ }
+            cb(null, NARRATION_DIR);
+        },
+        filename: function (req, file, cb) {
+            var slot = String((req.params && req.params.slot) || 'slot').trim();
+            var ext = (path.extname(file.originalname || '') || '.mp3').toLowerCase();
+            if (!/^\.[a-z0-9]+$/.test(ext)) ext = '.mp3';
+            cb(null, slot + '_' + Date.now() + ext);
+        }
+    }),
+    limits: { fileSize: 30 * 1024 * 1024 },   // 30MB (나레이션 음성으로 충분)
+    fileFilter: function (req, file, cb) {
+        var ok = /^audio\//i.test(file.mimetype || '')
+            || /\.(mp3|m4a|aac|wav|ogg|oga|opus|weba)$/i.test(file.originalname || '');
+        cb(ok ? null : new Error('오디오 파일만 업로드할 수 있습니다.'), ok);
+    }
+});
+
+function _loadNarrationMap() {
+    try {
+        if (fs.existsSync(NARRATION_MAP_FILE)) {
+            return JSON.parse(fs.readFileSync(NARRATION_MAP_FILE, 'utf8')) || {};
+        }
+    } catch (e) { /* noop */ }
+    return {};
+}
+function _saveNarrationMap(map) {
+    fs.writeFileSync(NARRATION_MAP_FILE, JSON.stringify(map, null, 2), 'utf8');
+}
+
 /** 관리자 테스트 모드 시 사용할 장부 파일 경로 반환 */
 function getOutputFile(testMode) {
     return testMode ? TEST_ALERTS_FILE : weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
@@ -1993,6 +2043,90 @@ router.get('/api/admin/demo/slots', (req, res) => {
 // 현재 표출 중인 데모 특보 + 테스트 모드 상태 조회 (관리자 기기 클라이언트 폴링용 — 가벼움)
 router.get('/api/admin/demo/active', (req, res) => {
     res.json({ active: _loadDemoActive(), testMode: _loadDemoTestMode() });
+});
+
+// ── [시연 나레이션 음성] 조회/업로드/삭제 ──────────────────────────────────────
+// 조회는 공개(/api/demo/narration): 음성 URL만 반환(민감정보 없음) → 트리거 클라이언트가
+//   admin 토큰 없이도 매핑을 읽어 재생할 수 있게 한다. 업로드/삭제는 /api/admin/* 로
+//   requireAdminToken 보호(위 router.use 로 자동 적용).
+router.get('/api/demo/narration', (req, res) => {
+    res.json({ slots: NARRATION_SLOTS, map: _loadNarrationMap() });
+});
+
+// 슬롯별 음성 업로드 (multipart/form-data, 필드명 'audio')
+router.post('/api/admin/demo/narration/:slot', (req, res) => {
+    var slot = String(req.params.slot || '').trim();
+    if (NARRATION_SLOTS.indexOf(slot) < 0) {
+        return res.status(400).json({ error: '알 수 없는 나레이션 슬롯: ' + slot });
+    }
+    _narrationUpload.single('audio')(req, res, function (err) {
+        if (err) return res.status(400).json({ error: err.message });
+        if (!req.file) return res.status(400).json({ error: '오디오 파일이 없습니다.' });
+        try {
+            var map = _loadNarrationMap();
+            // 같은 슬롯의 이전 업로드 파일 정리 (디스크 누적 방지)
+            var prev = map[slot];
+            if (prev && prev.filename && prev.filename !== req.file.filename) {
+                try { fs.unlinkSync(path.join(NARRATION_DIR, prev.filename)); } catch (e) { /* noop */ }
+            }
+            var origName = req.file.originalname || '';
+            try { origName = Buffer.from(origName, 'latin1').toString('utf8'); } catch (e) { /* noop */ }
+            map[slot] = {
+                url: '/uploads/narration/' + req.file.filename,
+                filename: req.file.filename,
+                name: origName,
+                size: req.file.size || 0,
+                rate: (prev && prev.rate) || 1,   // 재생 배속 — 교체 업로드 시 기존 설정 유지
+                updatedAt: new Date().toISOString()
+            };
+            _saveNarrationMap(map);
+            console.log('[Narration] 업로드: ' + slot + ' → ' + map[slot].url);
+            res.json({ success: true, slot: slot, entry: map[slot] });
+        } catch (e) {
+            console.error('[Narration] 업로드 저장 오류:', e && e.message);
+            res.status(500).json({ error: e.message });
+        }
+    });
+});
+
+// 슬롯별 재생 배속 설정 (body: { rate }) — 0.5~2.0, 0.1 단위 반올림
+router.post('/api/admin/demo/narration/:slot/rate', (req, res) => {
+    var slot = String(req.params.slot || '').trim();
+    if (NARRATION_SLOTS.indexOf(slot) < 0) {
+        return res.status(400).json({ error: '알 수 없는 나레이션 슬롯: ' + slot });
+    }
+    var rate = Number(req.body && req.body.rate);
+    if (!isFinite(rate)) return res.status(400).json({ error: 'rate 값이 필요합니다.' });
+    rate = Math.round(Math.min(2.0, Math.max(0.5, rate)) * 10) / 10;
+    try {
+        var map = _loadNarrationMap();
+        if (!map[slot]) return res.status(404).json({ error: '해당 슬롯에 업로드된 음성이 없습니다.' });
+        map[slot].rate = rate;
+        _saveNarrationMap(map);
+        res.json({ success: true, slot: slot, rate: rate });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 슬롯별 음성 삭제
+router.delete('/api/admin/demo/narration/:slot', (req, res) => {
+    var slot = String(req.params.slot || '').trim();
+    if (NARRATION_SLOTS.indexOf(slot) < 0) {
+        return res.status(400).json({ error: '알 수 없는 나레이션 슬롯: ' + slot });
+    }
+    try {
+        var map = _loadNarrationMap();
+        var prev = map[slot];
+        if (prev && prev.filename) {
+            try { fs.unlinkSync(path.join(NARRATION_DIR, prev.filename)); } catch (e) { /* noop */ }
+        }
+        delete map[slot];
+        _saveNarrationMap(map);
+        res.json({ success: true, slot: slot });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // 테스트 모드 ON/OFF 토글 (body: { enabled: bool })
