@@ -1,0 +1,282 @@
+'use strict';
+
+// ============================================================================
+// bulletin_cancel_scanner.js — [예비특보 취소 판정 보류실] 통보문 취소 문구 스캐너 (§7.7.23)
+// ============================================================================
+//
+// [역할]
+//   예비특보가 MMIS 실황에서 사라졌을 때 "진짜 취소"인지 확정하기 위해, 해당 해역의
+//   관할 지방청 통보문(날씨누리 special-report/list.do)을 가져와 참고사항 섹션에서
+//   취소 문구("…의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다")를 정규식으로 찾는다.
+//   호출 측(marine_warning_crawler 판정 보류실)은 이 결과로만 취소 푸시를 발사한다.
+//
+// [소스 선택 근거 — 2026-07 실측 검증]
+//   - 지방청별 통보문: /w/special-report/list.do?stn=<관서>&kind=<met|pwn>&date=<YYYY-MM-DD>
+//     (전국(108) 통보문에는 연안바다·평수구역이 나오지 않음 — 지방청 페이지 필수. 실측 확인.)
+//   - 특정 통보문 조회는 reportId 단독으로는 무시되고 prevStn+prevKind 를 함께 보내야 반영됨
+//     (누락 시 조용히 최신 통보문으로 폴백 — 응답의 selected 마커로 교차 검증한다).
+//   - 예비특보 통보문은 kind=pwn 별도 목록 → met/pwn 둘 다 조회.
+//   - 무인증 접근 가능. 조회는 보류 건이 열려 있을 때만 수행(평상시 트래픽 0).
+//   [향후] 방재기상플랫폼(dmdw) 통보문 API(V3 정규식 검증 원천과 동일 소스)를 1순위로
+//   추가하고 본 모듈을 폴백으로 두는 확장 여지 — dmdw 응답의 참고사항 필드 위치를
+//   자격증명 있는 운영 환경에서 확인한 뒤 붙인다.
+//
+// [정규식 계보]
+//   V3: 5년(2021-05~2026-05)×10발행처 약 6,200건 통보문 아카이브 전수 분석으로 확정된
+//       10가지 어휘 변형 흡수판 (weather_alerts_crawler.js parseReferenceSection 과 동일 계열).
+//   V4(신규, 보수적): V3 구조에 "특보(자식1, 자식2)" 괄호 자식 표기 캡처만 추가.
+//       괄호형은 과거 조사에서 의도적 제외(V4 후보)였던 패턴 — 실물 검증 전이므로
+//       V3 의 "발표/발효 가능성이 낮아/적어" 접두 강제를 그대로 유지해 오탐을 차단하고,
+//       놓치면 보류실 TTL 이 무푸시+로그로 처리한다(오보 없음). 로그의 참고사항 원문으로
+//       사후 보강한다.
+//
+// [매칭 3단 — 호출 측 계약]
+//   1순위 자식명 직접(괄호 캡처 토큰), 2순위 부모명(부모 취소가 자식을 대표),
+//   3순위 묶음명(ZONE_GROUP_MAP 사전 번역: "동해중부앞바다"=강원북부/중부/남부앞바다).
+//   matchesZone()/matchesChild() 가 이 계약을 구현한다.
+
+const https = require('https');
+const { ZONE_GROUP_MAP } = require('../config/zone_group_map');
+
+const HOST = 'www.weather.go.kr';
+const LIST_PATH = '/w/special-report/list.do';
+const HTTP_TIMEOUT_MS = 10000;
+const FETCH_GAP_MS = 250;                    // 요청 사이 최소 간격
+const SEEN_REPORT_TTL_MS = 24 * 60 * 60 * 1000;   // 스캔 완료 통보문 재조회 억제
+const RELEASE_MEMORY_TTL_MS = 2 * 60 * 60 * 1000; // 발견 취소문구 보존(보류 TTL 1h 이상)
+const KINDS = ['met', 'pwn'];                // 특보 통보문 + 예비특보 통보문
+
+// 스캔 완료 reportKey("stn|kind|reportId") → ts. 재시작 시 재스캔되지만 결과는 멱등(무해).
+const _seenReports = new Map();
+// 발견된 취소 문구 누적 — 보류 등록 "이전"에 발행된 통보문의 취소 문구도 판정에 쓰이도록 보존.
+let _recentReleases = [];
+
+// ---------------------------------------------------------------------------
+// 저수준 fetch (프로덕션: 직결 https — marine_client 와 동일 방식)
+// ---------------------------------------------------------------------------
+let _lastFetchAt = 0;
+function _fetchHtml(path) {
+    return new Promise((resolve, reject) => {
+        const gap = _lastFetchAt + FETCH_GAP_MS - Date.now();
+        setTimeout(() => {
+            _lastFetchAt = Date.now();
+            const req = https.request({
+                method: 'GET', host: HOST, path,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Linux; SEAGNAL/bulletin-scanner)',
+                    'Accept': 'text/html'
+                },
+                timeout: HTTP_TIMEOUT_MS
+            }, res => {
+                if (res.statusCode !== 200) {
+                    res.resume();
+                    return reject(new Error(`GET ${path} HTTP ${res.statusCode}`));
+                }
+                const chunks = [];
+                res.on('data', c => chunks.push(c));
+                res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+            });
+            req.on('timeout', () => { req.destroy(new Error('timeout')); });
+            req.on('error', reject);
+            req.end();
+        }, Math.max(0, gap));
+    });
+}
+
+// ---------------------------------------------------------------------------
+// HTML → 텍스트 / 참고사항 절단 / 문장 분리 (legacy parseReferenceSection 과 동일 정책)
+// ---------------------------------------------------------------------------
+function _htmlToText(html) {
+    return String(html || '')
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&gt;/g, '>')
+        .replace(/&lt;/g, '<')
+        .replace(/&amp;/g, '&')
+        .replace(/[ \t]+/g, ' ');
+}
+
+function _refSection(text) {
+    const i = text.indexOf('참고사항');
+    return i === -1 ? '' : text.substring(i);
+}
+
+// ---------------------------------------------------------------------------
+// 취소 문구 정규식 — V3 + V4(괄호 자식 캡처)
+//   $1 = 해역 구절(앞부분), $2 = 종류(풍랑|태풍), $3 = 괄호 안 자식 나열(없으면 undefined)
+//   V3 대비 변경점은 `특보` 뒤 `(?:\(([^)]{1,120})\))?` 하나뿐 — 접두 강제(가능성이 낮아/적어)
+//   등 오탐 방어 구조는 그대로다.
+// ---------------------------------------------------------------------------
+const RE_RELEASE = /([^.\n]*?(?:의|에)[^.\n]*?)\s*(풍랑|태풍)\s*(?:예비\s*)?특보(?:\(([^)]{1,120})\))?(?:는|를)?\s*[^.\n]*?\s*(?:발표|발효)\s*가능성이?\s*(?:낮아|적어)(?:져)?\s*(?:[^.\n]*?\s*예비\s*특보를?\s*)?해제\s*(?:합니다|함\.?|하나|하였으나|하며)/g;
+
+/**
+ * 참고사항 텍스트에서 취소 문구 추출.
+ * @returns [{ wrnTp:'풍랑'|'태풍', phrase, parenChildren:[], sentence }]
+ */
+function parseCancelPhrases(refText) {
+    const out = [];
+    if (!refText) return out;
+    const sentences = refText.split(/[\.\n\r]+/).map(s => s.trim()).filter(Boolean);
+    for (const sentence of sentences) {
+        RE_RELEASE.lastIndex = 0;
+        let m;
+        while ((m = RE_RELEASE.exec(sentence)) !== null) {
+            const parenChildren = m[3]
+                ? m[3].split(/[,·]/).map(s => s.trim()).filter(Boolean)
+                : [];
+            out.push({ wrnTp: m[2], phrase: m[1] || '', parenChildren, sentence });
+        }
+    }
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+// 해역 매칭 (3단) — 공백 제거 정규화 후 포함 검사
+// ---------------------------------------------------------------------------
+const _norm = s => String(s || '').replace(/\s+/g, '');
+
+/** release 가 부모 zone 을 지목하는가 — 부모명 직접(2순위) 또는 묶음명 번역(3순위). */
+function matchesZone(release, zone) {
+    if (!release || !zone) return false;
+    const hay = _norm(release.phrase) + '|' + _norm(release.sentence);
+    if (hay.indexOf(_norm(zone)) !== -1) return true;
+    for (const key of Object.keys(ZONE_GROUP_MAP)) {
+        if (ZONE_GROUP_MAP[key].indexOf(zone) !== -1 && hay.indexOf(_norm(key)) !== -1) return true;
+    }
+    return false;
+}
+
+/**
+ * release 가 자식(zone 아래 child)을 지목하는가.
+ *   1순위: 괄호 토큰이 자식 단축명과 일치 (+같은 문장에 부모/묶음명 존재 — "연안바다" 같은
+ *          범용 단축명의 타 해역 오귀속 방지)
+ *   2·3순위: 부모명/묶음명 매칭이면 자식도 대표(부모 취소 = 자식 자동 취소 원칙)
+ */
+function matchesChild(release, zone, child) {
+    if (!release || !zone || !child) return false;
+    const shortC = _norm(String(child).split('중').pop());
+    const fullC = _norm(child);
+    const tokenHit = release.parenChildren.some(t => {
+        const nt = _norm(t);
+        return nt === shortC || nt === fullC || (nt.length >= 4 && fullC.indexOf(nt) !== -1);
+    });
+    if (tokenHit && matchesZone(release, zone)) return true;
+    // 괄호 없음/토큰 불일치 → 부모명 대표 (동해권 서식: 자식 명칭 미표기 실측 확정)
+    if (release.parenChildren.length === 0 && matchesZone(release, zone)) return true;
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+// 통보문 목록/상세 조회
+// ---------------------------------------------------------------------------
+function _parseOptions(html) {
+    const out = [];
+    const seen = new Set();
+    const re = /<option\s+value="((?:met|pwn):\d{12}:\d+)"[^>]*>([^<]*)/g;
+    let m;
+    while ((m = re.exec(html)) !== null) {
+        if (seen.has(m[1])) continue;   // 데스크톱/모바일 select 중복 제거
+        seen.add(m[1]);
+        out.push({ reportId: m[1], title: m[2].trim() });
+    }
+    return out;
+}
+
+async function _fetchReportText(stn, kind, date, reportId) {
+    const qs = `prevStn=${stn}&prevKind=${kind}&prevCmtCd=&stn=${stn}&kind=${kind}&date=${date}` +
+        `&reportId=${encodeURIComponent(reportId)}`;
+    const html = await _fetchHtml(`${LIST_PATH}?${qs}`);
+    // [함정 방어] reportId 가 무시되면 조용히 최신 통보문이 온다 — selected 마커로 교차 검증.
+    //   검증 실패 시 이 통보문은 "스캔 안 됨"으로 두고(seen 미기록) 다음 사이클에 재시도.
+    const selRe = new RegExp(`value="${reportId.replace(/[:]/g, '\\:')}"[^>]*selected`);
+    if (!selRe.test(html)) {
+        throw new Error(`reportId 선택 미반영: ${stn}/${reportId}`);
+    }
+    return _htmlToText(html);
+}
+
+// ---------------------------------------------------------------------------
+// 공개 API
+// ---------------------------------------------------------------------------
+
+/**
+ * 보류 중 해역들의 관할 지방청 통보문을 스캔해 취소 문구를 수집한다.
+ * @param {Object} p
+ *   p.offices : Set<string> — 조회할 관서코드 집합 (호출측이 관할청+108(+강원 105) 구성)
+ *   p.dates   : string[]    — 'YYYY-MM-DD' (보통 오늘, 자정 걸침 대비 등록일 포함)
+ * @returns { fetchedAt, releases, scannedCount, rawByOffice } | throw(전체 실패 시)
+ *   releases: 최근 RELEASE_MEMORY_TTL_MS 내 발견 누적(보류 등록 전 발행 통보문 커버).
+ */
+async function scan({ offices, dates }) {
+    const now = Date.now();
+    // seen/누적 TTL 정리
+    for (const [k, ts] of _seenReports) if (now - ts > SEEN_REPORT_TTL_MS) _seenReports.delete(k);
+    _recentReleases = _recentReleases.filter(r => now - r.foundAt < RELEASE_MEMORY_TTL_MS);
+
+    const rawByOffice = {};
+    let scanned = 0;
+    let anySuccess = false, lastErr = null;
+
+    for (const stn of offices) {
+        for (const kind of KINDS) {
+            for (const date of dates) {
+                let options;
+                try {
+                    const listHtml = await _fetchHtml(`${LIST_PATH}?stn=${stn}&kind=${kind}&date=${date}`);
+                    options = _parseOptions(listHtml);
+                    anySuccess = true;
+                } catch (e) { lastErr = e; continue; }
+
+                for (const opt of options) {
+                    const key = `${stn}|${kind}|${opt.reportId}`;
+                    if (_seenReports.has(key)) continue;
+                    let text;
+                    try {
+                        text = await _fetchReportText(stn, kind, date, opt.reportId);
+                    } catch (e) { lastErr = e; continue; }   // seen 미기록 → 다음 사이클 재시도
+                    _seenReports.set(key, Date.now());
+                    scanned++;
+                    const ref = _refSection(text);
+                    if (ref) {
+                        // TTL 만료 로그용 원문 보존 (관서당 최근 1건, 500자)
+                        rawByOffice[stn] = ref.slice(0, 500);
+                        for (const rel of parseCancelPhrases(ref)) {
+                            rel.foundAt = Date.now();
+                            rel.source = `${stn}/${kind}/${opt.reportId}`;
+                            _recentReleases.push(rel);
+                            console.log(`[BulletinScan] 취소 문구 발견: [${rel.wrnTp}] "${rel.sentence.slice(0, 120)}" (${rel.source})`);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (!anySuccess) throw (lastErr || new Error('bulletin scan: 전 관서 조회 실패'));
+    return {
+        fetchedAt: now,
+        releases: _recentReleases.slice(),
+        scannedCount: scanned,
+        rawByOffice
+    };
+}
+
+/** 테스트/리허설용 상태 초기화 */
+function _resetForTest() {
+    _seenReports.clear();
+    _recentReleases = [];
+}
+
+module.exports = {
+    scan,
+    parseCancelPhrases,
+    matchesZone,
+    matchesChild,
+    RE_RELEASE,
+    _htmlToText,
+    _refSection,
+    _parseOptions,
+    _resetForTest
+};
