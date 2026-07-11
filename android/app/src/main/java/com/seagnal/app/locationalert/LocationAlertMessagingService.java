@@ -64,14 +64,45 @@ public class LocationAlertMessagingService extends MessagingService {
         super.onMessageReceived(remoteMessage);
     }
 
+    /**
+     * "마지막 wake 처리" 진단 1건 기록 — {at,src,lat,lng,posAt,outcome,zone}.
+     *   알림 여부와 무관하게 handleWake 의 **모든** 종료 경로에서 호출된다(관측 불가 wake 제거).
+     *   위치가 없으면 lat/lng=null. 활성/동의 플래그를 요구하지 않는다(disabled-skip 가시화).
+     *   완전 on-device — 네트워크 전송 없음. 어떤 실패도 삼킨다(방어적).
+     */
+    private static void writeLastWake(Context ctx, String outcome, String zone,
+            LocationAlertStore.Position pos, boolean isDemo) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("at", nowIso());
+            o.put("src", isDemo ? "demo" : "gps");
+            o.put("lat", pos != null ? pos.lat : JSONObject.NULL);
+            o.put("lng", pos != null ? pos.lng : JSONObject.NULL);
+            o.put("posAt", (pos != null && pos.at != null) ? pos.at : "");
+            o.put("outcome", outcome != null ? outcome : "");
+            o.put("zone", zone != null ? zone : "");
+            LocationAlertStore.putLastWake(ctx, o.toString());
+        } catch (Throwable t) {
+            Log.w(TAG, "last_wake 기록 실패(무시)", t);
+        }
+    }
+
     /** 데이터 메시지(data 맵) → 위치 선택(시연/실제) → 판정 → 네이티브 알림 + 진단 기록. */
     private void handleWake(Context ctx, Map<String, String> data) {
         if (data == null) return;
         String snapshotStr = data.get("snapshot");
-        if (snapshotStr == null || snapshotStr.isEmpty()) return;
+        if (snapshotStr == null || snapshotStr.isEmpty()) {
+            // 스냅샷 없는 비정상 wake 도 처리 시도로 기록(best-effort).
+            writeLastWake(ctx, "suberror", "", null, false);
+            return;
+        }
 
         // 게이팅: 활성+동의 플래그가 있을 때만 동작.
+        //   ★ skip 전에 last_wake 를 먼저 기록 — 플래그 desync(재설치 등으로 Preferences 유실)로
+        //   네이티브가 조용히 skip 하는 상황을 시연 탭에서 볼 수 있게 한다. putLastWake 는
+        //   플래그와 무관하게 동작(위치 수집도 하지 않음 — at+outcome 만).
         if (!LocationAlertStore.isEnabled(ctx)) {
+            writeLastWake(ctx, "disabled-skip", "", null, false);
             Log.d(TAG, "비활성/미동의 → skip");
             return;
         }
@@ -110,6 +141,7 @@ public class LocationAlertMessagingService extends MessagingService {
             pos = LocationAlertLocator.getFresh(ctx);
         }
         if (pos == null) {
+            writeLastWake(ctx, "no-position", "", null, isDemo);
             Log.d(TAG, "위치 없음(fresh fix 실패) → skip");
             return;
         }
@@ -134,6 +166,7 @@ public class LocationAlertMessagingService extends MessagingService {
                     } catch (Throwable t) {
                         Log.w(TAG, "낡음 진단 기록 실패(무시)", t);
                     }
+                    writeLastWake(ctx, "stale-skip", "", pos, false);
                     Log.d(TAG, "저장 위치 낡음(12h 초과) → skip");
                     return;
                 }
@@ -144,16 +177,21 @@ public class LocationAlertMessagingService extends MessagingService {
 
         List<LocationAlertCore.Feature> features = WarnZoneAssets.load(ctx);
         if (features.isEmpty()) {
+            writeLastWake(ctx, "suberror", "", pos, isDemo);
             Log.w(TAG, "번들 폴리곤 로드 실패 → skip");
             return;
         }
 
         try {
             JSONObject snapshot = new JSONObject(snapshotStr);
+            // 진단 오버로드 — 무표출(null) 사유(off-sea/no-warning)를 last_wake 에 남긴다.
+            //   판정 로직·반환 계약은 기존 5-인자와 완전히 동일.
+            LocationAlertDecider.Diag dg = new LocationAlertDecider.Diag();
             LocationAlertCore.Message msg = LocationAlertDecider.decideAlert(
-                    pos.lat, pos.lng, pos.accuracyM, features, snapshot);
+                    pos.lat, pos.lng, pos.accuracyM, features, snapshot, dg);
             if (msg != null) {
                 // 진단 기록(단말 로컬에만 — 네트워크 전송 없음). 완전 방어적.
+                //   last_match 는 기존 그대로 "마지막 성공 판정"만 기록(의미 불변).
                 try {
                     JSONObject diag = new JSONObject();
                     diag.put("zone", msg.zone != null ? msg.zone : "");
@@ -167,9 +205,16 @@ public class LocationAlertMessagingService extends MessagingService {
                 } catch (Throwable t) {
                     Log.w(TAG, "진단 기록 실패(무시)", t);
                 }
+                writeLastWake(ctx, "notified", msg.zone != null ? msg.zone : "", pos, isDemo);
                 LocationAlertNotifier.notify(ctx, msg.title, msg.body);
+            } else {
+                // 무표출 wake 도 반드시 기록 — off-sea(육지/외해) vs no-warning(구역 내 무특보·회색지대).
+                String outcome = "off-sea".equals(dg.reason) ? "off-sea"
+                        : ("no-warning".equals(dg.reason) ? "no-warning" : "no-match");
+                writeLastWake(ctx, outcome, dg.locatedZone, pos, isDemo);
             }
         } catch (Exception e) {
+            writeLastWake(ctx, "suberror", "", pos, isDemo);
             Log.e(TAG, "decideAlert 실패", e);
         }
     }

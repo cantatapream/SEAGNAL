@@ -29,6 +29,9 @@ public final class LocationAlertStore {
     private static final String KEY_ACTIVE = "location_alert_active";  // "true"/"false"
     private static final String KEY_CONSENT = "location_alert_consent";// "true"/"false"
     private static final String KEY_MATCH = "location_alert_last_match";// 진단: {zone,lat,lng,src,tier,event,at}
+    // "마지막 wake 처리" 진단 — 알림 여부와 무관하게 모든 wake 처리 시도를 기록.
+    //   {at,src,lat,lng,posAt,outcome,zone}. JS(location_alert_runtime.js writeLastWake)와 동일 키.
+    private static final String KEY_WAKE = "location_alert_last_wake";
     // [Phase 2b] 태풍 반경 알림 하위 토글. location_alert_ui.js setSub/save 가 미러. 미설정 → fail-open(TRUE).
     private static final String KEY_SUB_TYPHOON = "location_alert_sub_typhoon"; // "true"/"false"
 
@@ -90,6 +93,19 @@ public final class LocationAlertStore {
         try {
             if (ctx == null || json == null) return;
             prefs(ctx).edit().putString(KEY_MATCH, json).apply();
+        } catch (Throwable ignored) { }
+    }
+
+    /**
+     * "마지막 wake 처리" 진단 기록 — 알림 생산 여부와 무관하게 **모든** wake 처리 시도를
+     * "location_alert_last_wake" 에 저장(putLastMatch 와 동일 패턴, 다른 키 — 다른 키를 절대
+     * 건드리지 않음). 활성/동의 플래그와 무관하게 동작해야 한다(disabled-skip 가시화용) —
+     * 여기서는 어떤 게이팅도 하지 않는다. 완전 on-device, 네트워크 전송 없음. 방어적.
+     */
+    public static void putLastWake(Context ctx, String json) {
+        try {
+            if (ctx == null || json == null) return;
+            prefs(ctx).edit().putString(KEY_WAKE, json).apply();
         } catch (Throwable ignored) { }
     }
 

@@ -235,6 +235,44 @@
         } catch (_) { /* fail-soft (서버 라우트는 ④에서 추가) */ }
     }
 
+    // ── 앱 실행 재동기화 (B/C) ────────────────────────────────────────────────
+    /**
+     * (B) 네이티브 게이팅 플래그 재미러 — 앱 실행 시마다 호출(capacitor-plugins.js 훅).
+     * 기존엔 설정 모달 open(init) / 토글(save) 때만 미러돼, 재설치·데이터 유실 후
+     * Preferences 플래그가 비어 네이티브가 모든 wake 를 조용히 스킵할 수 있었다.
+     * LocationAlertSettings.init() 은 멱등(localStorage 의 persisted 상태를 읽어 그대로
+     * syncNativeFlags/syncNativeSubFlags 로 미러)이므로 재사용한다.
+     * ⚠ persisted 상태를 "있는 그대로" 미러할 뿐 — OFF 인 설정을 ON 으로 만들지 않는다
+     *   (토글 흐름과 충돌 없음). 절대 throw 하지 않음.
+     */
+    function resyncNativeFlags() {
+        try {
+            LocationAlertSettings.init(); // persisted 로드 + syncNativeFlags + syncNativeSubFlags
+            return true;
+        } catch (_) { return false; }
+    }
+
+    /**
+     * (C) 동의 사실 서버 재등록 — 앱 실행/토큰 (재)등록 시 호출(capacitor-plugins.js 훅).
+     * 기존엔 토글 시점에만 POST 했고 그 순간 push_token 이 없으면 조용히 무시돼,
+     * 서버 동의 레코드가 현재 토큰과 어긋나면(미등록/토큰 회전) selectTargetTokens 가
+     * 이 단말을 제외 → wake 가 영영 오지 않는 문제가 있었다.
+     * persisted 설정이 활성+동의이고 push_token 이 있을 때만 syncConsentToServer(true)
+     * (서버 /api/location-alert/consent 는 토큰 기준 upsert → 반복 POST 멱등).
+     * 비활성/미동의/토큰 없음이면 조용히 no-op — 동의를 "만들어내지" 않는다.
+     * @returns {boolean} POST 를 시도했으면 true.
+     */
+    function resyncConsentToServer() {
+        try {
+            LocationAlertSettings.init(); // persisted 상태 기준(멱등)
+            const d = LocationAlertSettings.get();
+            if (!d || d.enabled !== true || !d.consent) return false; // OFF/미동의 → no-op
+            if (!getPushToken()) return false;                        // 토큰 없음 → no-op
+            syncConsentToServer(true); // 내부에서 네이티브 가드 + fail-soft POST
+            return true;
+        } catch (_) { return false; }
+    }
+
     // ── 토글 핸들러 / 시각 상태 ──────────────────────────────────────────────
     function updateVisual(enabled) {
         const note = root.document && root.document.getElementById('location-alert-status');
@@ -410,6 +448,7 @@
         CONSENT_VERSION, NATIVE_MIN_VERSION, LocationAlertSettings, isAdminDevice, getPushToken,
         consentMessageHtml, initLocationAlertUI, onToggle, cmpVersion, isNativeCapable,
         syncSubToggles, reflectSubToggleValues,
+        resyncNativeFlags, resyncConsentToServer,
     };
     if (root) { root.LocationAlertSettings = LocationAlertSettings; root.initLocationAlertUI = initLocationAlertUI; root.LocationAlertUI = api; }
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
