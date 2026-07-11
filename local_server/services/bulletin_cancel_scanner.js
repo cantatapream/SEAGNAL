@@ -45,6 +45,16 @@ const FETCH_GAP_MS = 250;                    // 요청 사이 최소 간격
 const SEEN_REPORT_TTL_MS = 24 * 60 * 60 * 1000;   // 스캔 완료 통보문 재조회 억제
 const RELEASE_MEMORY_TTL_MS = 2 * 60 * 60 * 1000; // 발견 취소문구 보존(보류 TTL 1h 이상)
 const KINDS = ['met', 'pwn'];                // 특보 통보문 + 예비특보 통보문
+// [적대검증 5] 한 번의 scan() 이 크롤 주기(1분)를 붙들지 않도록 상세 조회 상한 — 초과분은
+//   _seenReports 미기록 상태로 남아 다음 사이클에 이어서 조회된다(이월).
+const MAX_DETAIL_FETCH_PER_SCAN = 8;
+
+/** reportId("met:202607110930:16")의 발행시각(KST) → epoch ms. 파싱 불가 시 null. */
+function _reportIssuedAtMs(reportId) {
+    const m = /^(?:met|pwn):(\d{4})(\d{2})(\d{2})(\d{2})(\d{2}):/.exec(String(reportId || ''));
+    if (!m) return null;
+    return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5]);   // KST(+9) → UTC ms
+}
 
 // 스캔 완료 reportKey("stn|kind|reportId") → ts. 재시작 시 재스캔되지만 결과는 멱등(무해).
 const _seenReports = new Map();
@@ -100,8 +110,20 @@ function _htmlToText(html) {
 
 function _refSection(text) {
     const i = text.indexOf('참고사항');
-    return i === -1 ? '' : text.substring(i);
+    if (i === -1) return '';
+    let sec = text.substring(i);
+    // [적대검증 3] 페이지 꼬리(footer 안내문 등) 유입 차단 — 알려진 footer 마커에서 절단 + 길이 상한.
+    //   무마침표 장문이 정규식 백트래킹을 폭발시키는 것을 원천 봉쇄 (참고사항 본문은 통상 수백 자).
+    for (const marker of ['관련 페이지 링크', '개인정보처리방침', '기상청 기관 정보']) {
+        const j = sec.indexOf(marker);
+        if (j !== -1) sec = sec.substring(0, j);
+    }
+    return sec.slice(0, 4000);
 }
+
+// [적대검증 3] 문장 길이 상한 — 취소 문구 문장은 통상 100자 내. 상한 초과 문장(마침표 없는
+//   안내 문단 등)은 skip 해 초선형 백트래킹(실측 4.8KB→13초, 동기 블록)을 차단한다.
+const MAX_SENTENCE_LEN = 500;
 
 // ---------------------------------------------------------------------------
 // 취소 문구 정규식 — V3 + V4(괄호 자식 캡처)
@@ -109,7 +131,13 @@ function _refSection(text) {
 //   V3 대비 변경점은 `특보` 뒤 `(?:\(([^)]{1,120})\))?` 하나뿐 — 접두 강제(가능성이 낮아/적어)
 //   등 오탐 방어 구조는 그대로다.
 // ---------------------------------------------------------------------------
-const RE_RELEASE = /([^.\n]*?(?:의|에)[^.\n]*?)\s*(풍랑|태풍)\s*(?:예비\s*)?특보(?:\(([^)]{1,120})\))?(?:는|를)?\s*[^.\n]*?\s*(?:발표|발효)\s*가능성이?\s*(?:낮아|적어)(?:져)?\s*(?:[^.\n]*?\s*예비\s*특보를?\s*)?해제\s*(?:합니다|함\.?|하나|하였으나|하며)/g;
+const RE_RELEASE = /([^.\n]*?(?:의|에)[^.\n]*?)\s*(풍랑|태풍)\s*(?:예비\s*)?특보(?:\s*\(([^)]{1,120})\))?(?:는|를)?\s*[^.\n]*?\s*(?:발표|발효)\s*가능성이?\s*(?:낮아|적어)(?:져)?\s*(?:[^.\n]*?\s*예비\s*특보를?\s*)?해제\s*(?:합니다|함\.?|하나|하였으나|하며)/g;
+
+/** [적대검증 10] 괄호 토큰 중 해역명으로 보이는 것만 채택 — "(19일 05시 발표)" 같은
+ *   비해역 괄호가 자식 매칭을 오염(부모 대표 폴백 차단)하지 않도록. */
+function _plausibleZoneToken(t) {
+    return /바다|연안|평수/.test(t);
+}
 
 /**
  * 참고사항 텍스트에서 취소 문구 추출.
@@ -120,11 +148,12 @@ function parseCancelPhrases(refText) {
     if (!refText) return out;
     const sentences = refText.split(/[\.\n\r]+/).map(s => s.trim()).filter(Boolean);
     for (const sentence of sentences) {
+        if (sentence.length > MAX_SENTENCE_LEN) continue;   // [적대검증 3] ReDoS 상한
         RE_RELEASE.lastIndex = 0;
         let m;
         while ((m = RE_RELEASE.exec(sentence)) !== null) {
             const parenChildren = m[3]
-                ? m[3].split(/[,·]/).map(s => s.trim()).filter(Boolean)
+                ? m[3].split(/[,·]/).map(s => s.trim()).filter(t => t && _plausibleZoneToken(t))
                 : [];
             out.push({ wrnTp: m[2], phrase: m[1] || '', parenChildren, sentence });
         }
@@ -133,37 +162,76 @@ function parseCancelPhrases(refText) {
 }
 
 // ---------------------------------------------------------------------------
-// 해역 매칭 (3단) — 공백 제거 정규화 후 포함 검사
+// 해역 매칭 (3단) — 공백 제거 정규화 후 "유효 언급" 검사
 // ---------------------------------------------------------------------------
 const _norm = s => String(s || '').replace(/\s+/g, '');
 
-/** release 가 부모 zone 을 지목하는가 — 부모명 직접(2순위) 또는 묶음명 번역(3순위). */
+/**
+ * [적대검증 2·4] hay(공백제거 텍스트)에 name 의 "유효한 언급"이 있는가.
+ *   무효 occurrence: ① 바로 뒤가 '중'(자식 정식명 접두 — "제주도북부앞바다중연안바다"는
+ *   부모 언급이 아님), ② 뒤따르는 문맥이 제외 단서("…를 제외한", 대구청 실측 서식 —
+ *   제외된 해역은 취소 대상이 아님). 유효 occurrence 가 1개라도 있으면 참.
+ */
+function _mentions(hay, name) {
+    const n = _norm(name);
+    if (!n) return false;
+    let idx = hay.indexOf(n);
+    while (idx !== -1) {
+        const after = hay.slice(idx + n.length, idx + n.length + 6);
+        const childPrefix = after.charAt(0) === '중';
+        const excluded = /^(?:를|은|는|만)?제외/.test(after);
+        if (!childPrefix && !excluded) return true;
+        idx = hay.indexOf(n, idx + 1);
+    }
+    return false;
+}
+
+/** [적대검증 2] name 이 명시적 제외 문맥("…를 제외")으로 등장하는가 — 묶음 확장보다 우선. */
+function _explicitlyExcluded(hay, name) {
+    const n = _norm(name);
+    if (!n) return false;
+    let idx = hay.indexOf(n);
+    while (idx !== -1) {
+        const after = hay.slice(idx + n.length, idx + n.length + 6);
+        if (/^(?:를|은|는|만)?제외/.test(after)) return true;
+        idx = hay.indexOf(n, idx + 1);
+    }
+    return false;
+}
+
+/** release 가 부모 zone 을 지목하는가 — 부모명 직접(2순위) 또는 묶음명 번역(3순위).
+ *  "A를 제외한 [묶음명]의 …해제" 서식(대구청 실측 계열)에서 A 는 묶음 확장에서도 빠진다. */
 function matchesZone(release, zone) {
     if (!release || !zone) return false;
     const hay = _norm(release.phrase) + '|' + _norm(release.sentence);
-    if (hay.indexOf(_norm(zone)) !== -1) return true;
+    if (_explicitlyExcluded(hay, zone)) return false;   // 명시 제외 — 묶음 확장보다 우선
+    if (_mentions(hay, zone)) return true;
     for (const key of Object.keys(ZONE_GROUP_MAP)) {
-        if (ZONE_GROUP_MAP[key].indexOf(zone) !== -1 && hay.indexOf(_norm(key)) !== -1) return true;
+        if (ZONE_GROUP_MAP[key].indexOf(zone) !== -1 && _mentions(hay, key)) return true;
     }
     return false;
 }
 
 /**
  * release 가 자식(zone 아래 child)을 지목하는가.
+ *   0순위: 자식 정식명이 문장에 직접 등장 ("제주도북부앞바다중연안바다" 등)
  *   1순위: 괄호 토큰이 자식 단축명과 일치 (+같은 문장에 부모/묶음명 존재 — "연안바다" 같은
  *          범용 단축명의 타 해역 오귀속 방지)
  *   2·3순위: 부모명/묶음명 매칭이면 자식도 대표(부모 취소 = 자식 자동 취소 원칙)
+ *          — 단 괄호에 유효 해역 토큰이 있는데 이 자식이 없으면 "지목에서 빠진 것"이므로 비대표.
  */
 function matchesChild(release, zone, child) {
     if (!release || !zone || !child) return false;
+    const hay = _norm(release.phrase) + '|' + _norm(release.sentence);
     const shortC = _norm(String(child).split('중').pop());
     const fullC = _norm(child);
+    if (_mentions(hay, fullC)) return true;   // 0순위 — 정식명 직접
     const tokenHit = release.parenChildren.some(t => {
         const nt = _norm(t);
-        return nt === shortC || nt === fullC || (nt.length >= 4 && fullC.indexOf(nt) !== -1);
+        return nt === shortC || nt === fullC || (fullC.indexOf(nt) !== -1 && nt.length >= 2);
     });
     if (tokenHit && matchesZone(release, zone)) return true;
-    // 괄호 없음/토큰 불일치 → 부모명 대표 (동해권 서식: 자식 명칭 미표기 실측 확정)
+    // 괄호 유효 토큰 없음 → 부모명 대표 (동해권 서식: 자식 명칭 미표기 실측 확정)
     if (release.parenChildren.length === 0 && matchesZone(release, zone)) return true;
     return false;
 }
@@ -232,6 +300,7 @@ async function scan({ offices, dates }) {
                 for (const opt of options) {
                     const key = `${stn}|${kind}|${opt.reportId}`;
                     if (_seenReports.has(key)) continue;
+                    if (scanned >= MAX_DETAIL_FETCH_PER_SCAN) continue;   // [적대검증 5] 이월
                     let text;
                     try {
                         text = await _fetchReportText(stn, kind, date, opt.reportId);
@@ -245,6 +314,8 @@ async function scan({ offices, dates }) {
                         for (const rel of parseCancelPhrases(ref)) {
                             rel.foundAt = Date.now();
                             rel.source = `${stn}/${kind}/${opt.reportId}`;
+                            // [적대검증 1] 통보문 발행시각 — (c) 판정의 시간 축 게이트에 사용.
+                            rel.issuedAtMs = _reportIssuedAtMs(opt.reportId);
                             _recentReleases.push(rel);
                             console.log(`[BulletinScan] 취소 문구 발견: [${rel.wrnTp}] "${rel.sentence.slice(0, 120)}" (${rel.source})`);
                         }
@@ -278,5 +349,7 @@ module.exports = {
     _htmlToText,
     _refSection,
     _parseOptions,
+    _reportIssuedAtMs,
+    _mentions,
     _resetForTest
 };

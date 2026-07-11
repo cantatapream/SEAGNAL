@@ -1084,6 +1084,11 @@ let _childPrelimCancelPending = {};                      // "zone|child" → { i
 //   표출(weather_alerts.json)은 무영향 — MMIS 추종 그대로, 푸시 판단만 보류.
 const CANCEL_VERDICT_TTL_MS = 60 * 60 * 1000;            // 1시간 (통보문은 통상 20분 내 발행)
 const CANCEL_VERDICT_TYPES = ['풍랑', '태풍'];
+// [적대검증 1] (c) 시간 축 게이트 — 취소 문구의 통보문 발행시각이 보류 등록보다 이 유예 이상
+//   과거면 "이전 에피소드의 묵은 문구"로 보고 매칭하지 않는다 (등록 직전 발행 통보문은 허용).
+const CANCEL_PHRASE_GRACE_MS = 30 * 60 * 1000;
+// [적대검증 1] 스캔 신선도 — _lastCancelScan 이 이보다 오래됐으면 (c) 판정 생략 (stale 방지).
+const CANCEL_SCAN_FRESH_MS = 10 * 60 * 1000;
 const CANCEL_VERDICT_FILE = path.join(__dirname, 'data', 'marine_prelim_cancel_verdicts.json');
 const CANCEL_VERDICT_TMP = CANCEL_VERDICT_FILE + '.tmp';
 let _cancelVerdicts = null;        // { parents: {zone: ent}, children: {"zone|child": ent} }, lazy-load
@@ -1135,26 +1140,63 @@ function _cvHasPendings() {
     return Object.keys(v.parents).length > 0 || Object.keys(v.children).length > 0;
 }
 
+/** 자식 info → 푸시 블록 (diff 스코프의 childToBlock 과 동일 매핑 — 흡수 자식 복원용). */
+function _childInfoToBlock(info) {
+    return info ? {
+        wrnTp: info.wrnTpNm || info.wrnTp || '',
+        wrnLvl: info.wrnLvlNm || info.wrnLvl || '',
+        tmFc: info.tmFc || '',
+        tmEf: info.tmEf || '',
+        tmYn: info.tmYn || info.clrNtcTm || ''
+    } : null;
+}
+
 /** 부모 예비취소 보류 등록 — 자식 펜딩 흡수(부모 대표). block = toBlock(prevUpcoming). */
 function _registerParentCancelVerdict(zone, block) {
     const v = _loadCancelVerdicts();
-    v.parents[zone] = { zone, block, registeredAt: Date.now(), evalCycles: 0 };
-    _cancelVerdictsDirty = true;
-    // 같은 zone 자식 예비취소 펜딩·보류 흡수 — 부모 판정 1건이 대표 (부모 없이 자식 없음 원칙)
+    // [적대검증 9] 같은 zone·종류 재등록(재등장↔재소멸 진동)은 registeredAt 승계 — TTL 이
+    //   매번 리셋되어 판정·스캔이 무기한 연장되는 것을 방지. 종류가 다르면 새 에피소드.
+    const prevEnt = v.parents[zone];
+    const sameEpisode = prevEnt && prevEnt.block && block && prevEnt.block.wrnTp === block.wrnTp;
+    const registeredAt = sameEpisode ? prevEnt.registeredAt : Date.now();
+    // [적대검증 6] 흡수하는 자식들을 기록 — 부모가 (a)/(b)로 폐기(취소 아님 판명)될 때
+    //   미복귀 자식을 자식 보류로 복원해 §7.7.19(자식 단독취소 통지) 보장을 유지.
+    const absorbed = sameEpisode ? (prevEnt.absorbed || []) : [];
     for (const pk of Object.keys(_childPrelimCancelPending)) {
-        if (pk.slice(0, zone.length + 1) === zone + '|') delete _childPrelimCancelPending[pk];
+        if (pk.slice(0, zone.length + 1) !== zone + '|') continue;
+        const cn = pk.slice(zone.length + 1);
+        const ent = _childPrelimCancelPending[pk];
+        if (!absorbed.some(a => a.child === cn)) {
+            absorbed.push({ child: cn, block: _childInfoToBlock(ent.info), registeredAt: Date.now() });
+        }
+        delete _childPrelimCancelPending[pk];
     }
     for (const ck of Object.keys(v.children)) {
-        if (v.children[ck] && v.children[ck].zone === zone) { delete v.children[ck]; }
+        const ce = v.children[ck];
+        if (ce && ce.zone === zone) {
+            if (!absorbed.some(a => a.child === ce.child)) {
+                absorbed.push({ child: ce.child, block: ce.block, registeredAt: ce.registeredAt });
+            }
+            delete v.children[ck];
+        }
     }
-    console.log(`[Marine] 예비취소 판정 보류(부모): ${zone} [${block && block.wrnTp}] — 통보문 확인 대기 (TTL ${CANCEL_VERDICT_TTL_MS / 60000}분)`);
+    v.parents[zone] = { zone, block, registeredAt, evalCycles: (sameEpisode ? prevEnt.evalCycles : 0) || 0, absorbed };
+    _cancelVerdictsDirty = true;
+    console.log(`[Marine] 예비취소 판정 보류(부모): ${zone} [${block && block.wrnTp}] — 통보문 확인 대기 (TTL ${CANCEL_VERDICT_TTL_MS / 60000}분${sameEpisode ? ', 기존 판정 승계' : ''})`);
 }
 
 /** 자식 예비취소 보류 등록 — 부모 예비는 살아있는 케이스(§7.7.19). block = childToBlock(info). */
 function _registerChildCancelVerdict(zone, child, block) {
     const v = _loadCancelVerdicts();
     if (v.parents[zone]) return;   // 부모 보류 중이면 부모가 대표 — 자식 등록 불요
-    v.children[zone + '|' + child] = { zone, child, block, registeredAt: Date.now(), evalCycles: 0 };
+    const key = zone + '|' + child;
+    const prevEnt = v.children[key];
+    const sameEpisode = prevEnt && prevEnt.block && block && prevEnt.block.wrnTp === block.wrnTp;
+    v.children[key] = {
+        zone, child, block,
+        registeredAt: sameEpisode ? prevEnt.registeredAt : Date.now(),
+        evalCycles: (sameEpisode ? prevEnt.evalCycles : 0) || 0
+    };
     _cancelVerdictsDirty = true;
     console.log(`[Marine] 예비취소 판정 보류(자식): ${zone} > ${child} [${block && block.wrnTp}] — 통보문 확인 대기`);
 }
@@ -1196,9 +1238,38 @@ function _resetCancelVerdictsForTest() {
 function _evaluateCancelVerdicts(curr, changes, h) {
     const v = _loadCancelVerdicts();
     if (Object.keys(v.parents).length === 0 && Object.keys(v.children).length === 0) return;
-    if (!pushSender || typeof pushSender.processChanges !== 'function') return;
     const now = Date.now();
-    const releases = (_lastCancelScan && _lastCancelScan.releases) || [];
+    // [적대검증 8] (a)(b)(d) 판정은 항상 수행 — pushSender 부재는 (c) "발사"만 막는다.
+    //   (전부 멈추면 보류가 영구 잔존해 매분 스캔이 무기한 지속됐음.)
+    const canFire = !!(pushSender && typeof pushSender.processChanges === 'function');
+    // [적대검증 1] (c) 시간 축 3중 게이트: ① 스캔 신선도, ② 문구의 통보문 발행시각(issuedAtMs,
+    //   없으면 발견시각 foundAt 폴백)이 보류 등록 - 유예(30분) 이후, ③ 발사에 쓴 문구는 소각
+    //   (한 문구가 다른 에피소드를 재확정하는 것 방지). — 묵은 문구 오확정(7/11형 재발) 차단.
+    const scanFresh = _lastCancelScan && (now - _lastCancelScan.fetchedAt) < CANCEL_SCAN_FRESH_MS;
+    const releases = (scanFresh && _lastCancelScan.releases) || [];
+    const timeOk = (r, ent) => {
+        const t = (typeof r.issuedAtMs === 'number') ? r.issuedAtMs : r.foundAt;
+        return typeof t === 'number' && t >= ent.registeredAt - CANCEL_PHRASE_GRACE_MS;
+    };
+    // 소각은 "해역(또는 zone|child) 단위" — 한 문장이 여러 해역을 나열하는 실서식에서
+    //   첫 해역 발사가 문구를 통째로 소각해 나머지 해역을 막지 않도록. 같은 해역의
+    //   에피소드 재확정(묵은 문구 재사용)만 차단한다.
+    const isConsumed = (r, key) => Array.isArray(r.consumedFor) && r.consumedFor.indexOf(key) !== -1;
+    const consume = (r, key) => { r.consumedFor = (r.consumedFor || []).concat(key); };
+    // [적대검증 6] 부모 (a)/(b) 폐기 시 흡수 자식 복원 — 미복귀 자식은 자식 보류로 돌려
+    //   §7.7.19(자식 단독취소 통지) 보장 유지. TTL 이 이미 지난 흡수분은 (d)와 동일 무푸시 로그.
+    const restoreAbsorbed = (zone, ent) => {
+        for (const a of (ent.absorbed || [])) {
+            if (!a || !a.child || !a.block) continue;
+            if (h.childKeys(curr, zone).indexOf(a.child) !== -1) continue;   // 복귀 → 불요
+            if (now - a.registeredAt >= CANCEL_VERDICT_TTL_MS) {
+                console.log(`[Marine] 자식 예비취소 보류 만료(부모 해소 복원 중, 무푸시): ${zone} > ${a.child}`);
+                continue;
+            }
+            v.children[zone + '|' + a.child] = { zone, child: a.child, block: a.block, registeredAt: a.registeredAt, evalCycles: 0 };
+            console.log(`[Marine] 자식 예비취소 보류 복원(부모 취소 아님 판명): ${zone} > ${a.child}`);
+        }
+    };
 
     // ── 부모 보류 판정 ──────────────────────────────────────────────────────
     for (const zone of Object.keys(v.parents)) {
@@ -1213,6 +1284,7 @@ function _evaluateCancelVerdicts(curr, changes, h) {
         if (cUpInfo && (cUpInfo.wrnTpNm || '') === tp) {
             const converted = !!cUpInfo._efBridged || (cUpInfo._realLvlNm && cUpInfo._realLvlNm !== '예비');
             console.log(`[Marine] 예비취소 보류 해소(${converted ? '발표 전환 감지' : '예비 재등장'}): ${zone} — 취소 아님, 무푸시`);
+            restoreAbsorbed(zone, ent);
             delete v.parents[zone];
             continue;
         }
@@ -1220,13 +1292,15 @@ function _evaluateCancelVerdicts(curr, changes, h) {
         const cActInfo = h.getAct(curr, zone);
         if (cActInfo && (cActInfo.wrnTpNm || '') === tp) {
             console.log(`[Marine] 예비취소 보류 해소(발효 승격): ${zone} — 발효 푸시가 대표, 무푸시`);
+            restoreAbsorbed(zone, ent);
             delete v.parents[zone];
             continue;
         }
-        // (c) 통보문 취소 문구 매칭 → 유일한 발사 경로
-        if (bulletinScanner && releases.length > 0) {
-            const hit = releases.find(r => r.wrnTp === tp && bulletinScanner.matchesZone(r, zone));
+        // (c) 통보문 취소 문구 매칭 → 유일한 발사 경로 (시간 축 게이트 + 해역 단위 소각)
+        if (canFire && bulletinScanner && releases.length > 0) {
+            const hit = releases.find(r => !isConsumed(r, zone) && r.wrnTp === tp && timeOk(r, ent) && bulletinScanner.matchesZone(r, zone));
             if (hit) {
+                consume(hit, zone);
                 console.log(`[Marine] ✅ 예비취소 확정(통보문 문구): ${zone} [${tp}] — "${(hit.sentence || '').slice(0, 100)}" (${hit.source || ''})`);
                 changes.push({
                     type: 'UPCOMING_CANCEL', zone, prev: ent.block,
@@ -1254,18 +1328,23 @@ function _evaluateCancelVerdicts(curr, changes, h) {
         const { zone, child } = ent;
         const tp = (ent.block && ent.block.wrnTp) || '';
 
-        // 부모 보류가 뒤늦게 열렸으면 흡수 (부모 대표)
+        // 부모 보류가 뒤늦게 열렸으면 흡수 (부모 대표 — 등록 함수가 absorbed 에 기록함)
         if (v.parents[zone]) { delete v.children[key]; continue; }
-        // (a) 자식 복귀 (글리치/재등록) → 폐기
+        // (a) 자식 복귀 (글리치/재등록) → 폐기. [적대검증 7] 종류 일치할 때만 —
+        //   태풍철 풍랑↔태풍 교대 재등장이 풍랑 취소 판정을 오해소하지 않도록.
         if (h.childKeys(curr, zone).indexOf(child) !== -1) {
-            console.log(`[Marine] 자식 예비취소 보류 해소(복귀): ${zone} > ${child} — 무푸시`);
-            delete v.children[key];
-            continue;
+            const ci = h.childInfoOf ? h.childInfoOf(curr, zone, child) : null;
+            if (!ci || (ci.wrnTpNm || '') === tp) {
+                console.log(`[Marine] 자식 예비취소 보류 해소(복귀): ${zone} > ${child} — 무푸시`);
+                delete v.children[key];
+                continue;
+            }
         }
-        // (c) 통보문 매칭 — 자식명 직접(1순위) 또는 부모명/묶음명 대표(2·3순위)
-        if (bulletinScanner && releases.length > 0) {
-            const hit = releases.find(r => r.wrnTp === tp && bulletinScanner.matchesChild(r, zone, child));
+        // (c) 통보문 매칭 — 자식명 직접(0·1순위) 또는 부모명/묶음명 대표(2·3순위)
+        if (canFire && bulletinScanner && releases.length > 0) {
+            const hit = releases.find(r => !isConsumed(r, key) && r.wrnTp === tp && timeOk(r, ent) && bulletinScanner.matchesChild(r, zone, child));
             if (hit) {
+                consume(hit, key);
                 console.log(`[Marine] ✅ 자식 예비취소 확정(통보문 문구): ${zone} > ${child} — "${(hit.sentence || '').slice(0, 100)}"`);
                 if (!fireByZone.has(zone)) fireByZone.set(zone, { block: ent.block, names: [] });
                 fireByZone.get(zone).names.push(child);
@@ -1273,9 +1352,11 @@ function _evaluateCancelVerdicts(curr, changes, h) {
                 continue;
             }
         }
-        // (d) TTL
+        // (d) TTL — 무푸시 + 원문 로그 (자식 괄호형(V4) 미매치가 바로 보강 재료인 케이스)
         if (now - ent.registeredAt >= CANCEL_VERDICT_TTL_MS) {
-            console.log(`[Marine] 자식 예비취소 보류 만료(무푸시): ${zone} > ${child} — ${ent.evalCycles}사이클 판정, 취소 문구 미발견`);
+            const raw = _lastCancelScan && _lastCancelScan.rawByOffice
+                ? JSON.stringify(_lastCancelScan.rawByOffice).slice(0, 600) : '(스캔 원문 없음)';
+            console.log(`[Marine] 자식 예비취소 보류 만료(무푸시): ${zone} > ${child} — ${ent.evalCycles}사이클 판정, 취소 문구 미발견. 최근 참고사항: ${raw}`);
             delete v.children[key];
         }
     }
@@ -2035,7 +2116,9 @@ function _buildUserPushChanges(prev, curr) {
             //   그 외 종류는 스캐너 정규식 대상 밖이라 기존 즉시 발사 유지.
             //   (발효 승격이면 currActive 가 차므로 아래 CURRENT_CHANGE 발효 푸시로 처리됨.)
             if (!currUpcoming && prevUpcoming && !currActive) {
-                if (bulletinScanner && CANCEL_VERDICT_TYPES.indexOf(prevUpcoming.wrnTp) !== -1) {
+                // 스캐너 로드 실패 시에도 등록한다 — "취소는 통보문 확인 후에만" 원칙 유지,
+                //   (c) 확인이 불가하면 TTL 무푸시로 닫힌다 (구식 즉발 복귀 없음).
+                if (CANCEL_VERDICT_TYPES.indexOf(prevUpcoming.wrnTp) !== -1) {
                     _registerParentCancelVerdict(zone, prevUpcoming);
                 } else {
                     changes.push({ type: 'UPCOMING_CANCEL', zone: zone, prev: prevUpcoming, childState });
@@ -2335,7 +2418,7 @@ function _buildUserPushChanges(prev, curr) {
                 // [§7.7.23] 풍랑·태풍 자식 취소도 즉시 발사하지 않고 보류실 등록 — 통보문 확인 후
                 //   발사 (15분 TTL 대신 부모와 동일한 1시간 판정으로 통일). 그 외 종류는 기존 유지.
                 const dueBlk = childToBlock(duePrelimInfo);
-                if (bulletinScanner && dueBlk && CANCEL_VERDICT_TYPES.indexOf(dueBlk.wrnTp) !== -1) {
+                if (dueBlk && CANCEL_VERDICT_TYPES.indexOf(dueBlk.wrnTp) !== -1) {
                     for (const cn of duePrelimCancel) _registerChildCancelVerdict(zone, cn, dueBlk);
                 } else {
                     changes.push({
@@ -2354,7 +2437,7 @@ function _buildUserPushChanges(prev, curr) {
     // [§7.7.23 판정 보류실] zone 루프 밖 별도 패스 — 보류 건 판정. (c) 확정/대표 발사는
     //   합성 change 를 changes 에 append 해 기존 발송 경로(processChanges)를 그대로 탄다.
     try {
-        _evaluateCancelVerdicts(curr, changes, { getUp, getAct, childKeys });
+        _evaluateCancelVerdicts(curr, changes, { getUp, getAct, childKeys, childInfoOf });
     } catch (e) {
         console.error('[Marine] 예비취소 보류 판정 실패 (다른 푸시 무영향):', e && e.message);
     }
@@ -3713,6 +3796,10 @@ async function run(opts = {}) {
                 _lastCancelScan = null;
                 console.warn('[Marine] 취소판정 통보문 스캔 실패 (이번 사이클 (c) 생략):', e && e.message);
             }
+        } else if (!_cvHasPendings()) {
+            // [적대검증 1] 보류 0건이면 직전 스캔 결과를 비운다 — 다음 에피소드가 묵은
+            //   결과(stale releases)로 판정되는 것 방지 (신선도 게이트의 이중 방어).
+            _lastCancelScan = null;
         }
 
         // 5) diff + dispatch + flush (관리자 push) — [수정1] 관리자 채널 비활성.

@@ -1,0 +1,79 @@
+'use strict';
+// ============================================================================
+// [§7.7.23] bulletin_cancel_scanner 단위 테스트 — node scripts/test_bulletin_cancel_scanner.js
+//   네트워크 없이 파싱·매칭만 검증 (합성 KMA 문구 + 인라인 HTML).
+// ============================================================================
+const sc = require('../services/bulletin_cancel_scanner');
+
+let pass = 0, fail = 0;
+const ok = (name, cond) => { if (cond) { pass++; } else { fail++; console.log('❌ FAIL:', name); } };
+const P = s => sc.parseCancelPhrases('참고사항 o ' + s);
+
+// ── V3 10변형 대표 (5년 6,200건 조사 계보) ─────────────────────────────────
+const V3S = [
+    '동해남부먼바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다',                      // 기본형(의/낮아져/합니다)
+    '남해서부동쪽먼바다에 풍랑특보는 발표 가능성이 적어져 풍랑예비특보를 해제하나, 내일까지 바람이 강하겠습니다', // 에/예비생략/적어져/종결반복/하나
+    '흑산도.홍도의 풍랑 예비특보는 발표 가능성이 낮아 해제합니다',                          // 낮아(-져 생략)
+    '제주도남쪽바깥먼바다의 태풍 예비특보는 발효 가능성이 적어져 해제 합니다',                // 태풍/발효 오기/공백 삽입
+    '울릉도.독도의 풍랑 예비특보는 발표 가능성이 낮아져 해제하였으나, 너울이 유입되겠습니다',   // 하였으나
+    '동해중부앞바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제하며, 동해남부앞바다는 유지됩니다' // 하며
+];
+for (const s of V3S) ok('V3: ' + s.slice(0, 16), P(s).length === 1);
+
+// ── V4 괄호형 (보수적 신설) ────────────────────────────────────────────────
+const v4 = P('제주도동부앞바다의 풍랑 예비특보(북동연안바다, 우도연안바다)는 발표 가능성이 낮아져 해제합니다');
+ok('V4 괄호 자식 캡처', v4.length === 1 && v4[0].parenChildren.join(',') === '북동연안바다,우도연안바다');
+const v4sp = P('제주도동부앞바다의 풍랑 예비특보 (북동연안바다)는 발표 가능성이 낮아져 해제합니다');
+ok('V4 공백+괄호 허용', v4sp.length === 1 && v4sp[0].parenChildren[0] === '북동연안바다');
+const v4date = P('남해동부안쪽먼바다의 풍랑 예비특보(11일 05시 발표)는 발표 가능성이 낮아져 해제합니다');
+ok('V4 비해역 괄호는 토큰 제외(부모 대표 폴백 보존)', v4date.length === 1 && v4date[0].parenChildren.length === 0);
+
+// ── 오탐 방어 ──────────────────────────────────────────────────────────────
+ok('오탐: 해제예고 연장(실물 문구)', P('(1) 남해동부바깥먼바다의 풍랑 특보 해제 시점을 당초 13일 새벽에서 15일 오후로 연장하여 발표합니다').length === 0);
+ok('오탐: 가능성 접두 없음', P('남해동부안쪽먼바다의 풍랑 예비특보는 해제 예고: 15일 늦은 오후').length === 0);
+ok('오탐: 육상 종류', P('한편, 호우예비특보는 해제하나 비가 오겠습니다').length === 0);
+
+// ── [적대검증 3] ReDoS 상한 — 장문 skip + 수행시간 ────────────────────────
+const long = '남해동부의 바다에 ' + '어제와 오늘의 해상 상황에 관한 안내와 '.repeat(200) + ' 풍랑 특보 관련 안내';
+const t0 = Date.now();
+ok('장문(>500자) skip', sc.parseCancelPhrases('참고사항 ' + long).length === 0);
+ok('장문 처리 100ms 미만', Date.now() - t0 < 100);
+const foot = sc._refSection('앞내용 참고사항 o 본문입니다. 관련 페이지 링크 개인정보처리방침 아주긴꼬리'.padEnd(9000, '꼬'));
+ok('참고사항 footer 절단', foot.indexOf('관련 페이지 링크') === -1 && foot.length <= 4000);
+
+// ── 매칭 4단 ──────────────────────────────────────────────────────────────
+const rel = v4[0];
+ok('1순위 괄호 자식명', sc.matchesChild(rel, '제주도동부앞바다', '북동연안바다'));
+ok('1순위 타 자식 비매치', !sc.matchesChild(rel, '제주도서부앞바다', '북서연안바다'));
+ok('1순위 괄호 있으면 미지목 자식 비대표', !sc.matchesChild(rel, '제주도동부앞바다', '남동연안바다'));
+const relFull = P('제주도북부앞바다중연안바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')[0];
+ok('0순위 자식 정식명 직접', sc.matchesChild(relFull, '제주도북부앞바다', '제주도북부앞바다중연안바다'));
+ok('[적대검증 4] 자식 정식명이 부모를 오확정하지 않음', !sc.matchesZone(relFull, '제주도북부앞바다'));
+const relP = P('강원남부앞바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')[0];
+ok('2순위 부모명', sc.matchesZone(relP, '강원남부앞바다'));
+ok('2순위 부모명→자식 대표', sc.matchesChild(relP, '강원남부앞바다', '강원남부앞바다중연안바다'));
+ok('2순위 타 부모 비매치', !sc.matchesZone(relP, '강원북부앞바다'));
+const relU = P('동해중부앞바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')[0];
+ok('3순위 묶음명→강원 3해역', sc.matchesZone(relU, '강원남부앞바다') && sc.matchesZone(relU, '강원북부앞바다') && sc.matchesZone(relU, '강원중부앞바다'));
+ok('3순위 비대상 해역 비매치', !sc.matchesZone(relU, '제주도동부앞바다'));
+const relJ = P('제주도전해상의 풍랑 예비특보는 발표 가능성이 적어져 해제합니다')[0];
+ok('3순위 전해상→제주 먼바다', sc.matchesZone(relJ, '제주도남쪽바깥먼바다'));
+
+// ── [적대검증 2] 제외 단서 부정 처리 ───────────────────────────────────────
+const relEx = P('거제시동부앞바다를 제외한 남해동부앞바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')[0];
+ok('제외된 해역 비매치', !sc.matchesZone(relEx, '거제시동부앞바다'));
+ok('제외 아닌 해역(묶음 번역)은 매치', sc.matchesZone(relEx, '부산앞바다'));
+ok('긍정 언급이 별도로 있으면 매치 유지', sc.matchesZone(P('부산앞바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')[0], '부산앞바다'));
+
+// ── 통보문 목록/발행시각 유틸 ───────────────────────────────────────────────
+const listHtml = '<select><option value="met:202606201000:7" selected="selected">제06-7호</option>' +
+    '<option value="met:202606200800:5">제06-5호</option></select>' +
+    '<select><option value="met:202606201000:7">제06-7호(모바일 중복)</option></select>';
+const opts = sc._parseOptions(listHtml);
+ok('option 파싱+중복 제거', opts.length === 2 && opts[0].reportId === 'met:202606201000:7');
+const ts = sc._reportIssuedAtMs('pwn:202607110930:16');
+ok('[적대검증 1] 발행시각 파싱(KST)', ts === Date.UTC(2026, 6, 11, 0, 30));
+ok('발행시각 파싱 불가 → null', sc._reportIssuedAtMs('garbage') === null);
+
+console.log(`\n[bulletin_cancel_scanner] ${pass} PASS / ${fail} FAIL`);
+process.exit(fail ? 1 : 0);
