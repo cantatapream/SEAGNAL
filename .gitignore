@@ -98,10 +98,6 @@ local_server/data/advisory_prediction.json
 # 상태(빈 메타)라도 명시적으로 커밋 — 운영에서 BADA 로 재생성됨.
 local_server/data/tide_field/curves/*.json
 
-# 특보 예측 시연 런타임 상태(관리자가 토글/표출 — 배치/운영이 생성)
-local_server/data/advisory_demo_testmode.json
-local_server/data/advisory_demo_active.json
-
 # 특보 예측 표출 제어 상태(관리자: 청중 모드 off/admin/all + 구역별 삭제/중지/수정)
 local_server/data/advisory_display.json
 
