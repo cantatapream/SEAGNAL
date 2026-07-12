@@ -2200,6 +2200,16 @@ function _buildUserPushChanges(prev, curr) {
                 //   회귀검증 M-1 · §7.7.23 함정5: 청소를 미루면 새 특보 발표가 "변경"으로 오알림).
                 for (const cn of prevChildren) _tcInvalidateChild(zone, cn);
             } else {
+                // [5차 전수열거 발견1] 예비 소멸인데 남아있는 발효가 "다른 종류"면 승격이 아니다 —
+                //   (태풍 예비 소멸 + 풍랑 주의보 발효 등) 기존엔 등록 게이트(!currActive)가 종류
+                //   무관으로 막아 취소 판정이 무보류·무로그로 증발(침묵)했다. 보류 등록을 추가하되
+                //   기존 UPCOMING_CHANGE(curr=null, push_sender 가 무시하는 no-op) emit 은 그대로
+                //   두어 비취소 출력의 차분 동일성을 보존한다. (같은 종류 발효 = 승격 → 미등록 유지.
+                //   자식 시각 관찰 폐기는 하지 않음 — 남은 타종류 특보의 자식 관찰을 해치지 않도록.)
+                if (!currUpcoming && prevUpcoming && currActive && currActive.wrnTp !== prevUpcoming.wrnTp
+                    && CANCEL_VERDICT_TYPES.indexOf(prevUpcoming.wrnTp) !== -1) {
+                    _registerParentCancelVerdict(zone, prevUpcoming);
+                }
                 changes.push({
                     type: 'UPCOMING_CHANGE',
                     zone: zone,

@@ -147,6 +147,8 @@ function _plausibleZoneToken(t) {
  * 참고사항 텍스트에서 취소 문구 추출.
  * @returns [{ wrnTp:'풍랑'|'태풍', phrase, parenChildren:[], sentence }]
  */
+const RE_KEEP = /([^.\n]{1,60}?)(?:는|은)\s*(풍랑|태풍)\s*예비\s*특보를?\s*유지/g;
+
 function parseCancelPhrases(refText) {
     const out = [];
     if (!refText) return out;
@@ -156,6 +158,18 @@ function parseCancelPhrases(refText) {
     //   해제합니다"(2026-04-04 전국, 실물) 같은 복합 주어 취소 문구를 통째로 놓치게 했다.
     //   한글 사이 마침표만 가운뎃점으로 정규화 — 우리 해상 해역명에는 마침표가 없어 무해.
     const norm = String(refText).replace(/([가-힣])\.([가-힣])/g, '$1·$2');
+    // [5차 전수열거 — 교차문장 유지 선언] "…해제합니다. 한편 B는 예비특보를 유지합니다"처럼
+    //   취소 절의 묶음 확장을 "다른 문장"의 유지 선언이 부정하는 서식 — 참고사항 전체에서
+    //   유지 선언을 수집해 각 release 에 부착, 매칭 단계에서 해당 해역 확정을 금지한다.
+    const keeps = [];
+    RE_KEEP.lastIndex = 0;
+    let km;
+    while ((km = RE_KEEP.exec(norm)) !== null) {
+        // 캡처가 앞 절(취소 주어)까지 삼키지 않도록 마지막 절 경계 이후만 유지 주어로 인정
+        //   ("…해제하나 B는 …유지" → B 만). 경계: 해제/하나/하며/하였으나/쉼표.
+        const clause = km[1].split(/해제|하나|하며|하였으나|,/).pop();
+        keeps.push({ tp: km[2], clause });
+    }
     const sentences = norm.split(/[\.\n\r]+/).map(s => s.trim()).filter(Boolean);
     for (const sentence of sentences) {
         if (sentence.length > MAX_SENTENCE_LEN) continue;   // [적대검증 3] ReDoS 상한
@@ -174,7 +188,12 @@ function parseCancelPhrases(refText) {
             //   "…해제하며, C에는 주의보 발효 중" 같은 부가 절의 해역·묶음명이 취소 대상으로
             //   오인되던(유지라고 적힌 해역에 취소 푸시) 오발사를 원천 차단.
             const clause = sentence.slice(m.index, RE_RELEASE.lastIndex);
-            out.push({ wrnTp: m[2], phrase: m[1] || '', parenChildren, sentence, clause });
+            // [5차 전수열거 발견2] 재발효 회고 차단 — "…해제하였으나 다시 발표되었습니다"는
+            //   과거 취소의 회고(현재는 살아있음). 과거형("되었/됐/하였/했")만 차단하고,
+            //   실물 정당 문구 "…해제하나 …발표될 가능성이 있으니"(미래 안내)는 통과.
+            const tail = sentence.slice(RE_RELEASE.lastIndex, RE_RELEASE.lastIndex + 30);
+            if (/(다시|재)\s*(발표|발효)\s*(되었|됐|하였|했)/.test(tail)) continue;
+            out.push({ wrnTp: m[2], phrase: m[1] || '', parenChildren, sentence, clause, keeps });
         }
     }
     return out;
@@ -252,9 +271,16 @@ function _hayOf(release) {
     return _norm(release.clause || ((release.phrase || '') + '|' + (release.sentence || '')));
 }
 
+/** 참고사항 어딘가에 "zone 는 [종류] 예비특보를 유지" 선언이 있으면 그 해역은 확정 금지. */
+function _keepDeclared(release, zone) {
+    if (!release || !Array.isArray(release.keeps)) return false;
+    return release.keeps.some(k => k.tp === release.wrnTp && _mentions(_norm(k.clause), zone));
+}
+
 function matchesZone(release, zone) {
     if (!release || !zone) return false;
     const hay = _hayOf(release);
+    if (_keepDeclared(release, zone)) return false;     // [5차] 유지 선언 — 직접·묶음 모든 경로 차단
     if (_explicitlyExcluded(hay, zone)) return false;   // 명시 제외 — 묶음 확장보다 우선
     if (_mentions(hay, zone)) return true;
     for (const key of Object.keys(ZONE_GROUP_MAP)) {
@@ -273,6 +299,7 @@ function matchesZone(release, zone) {
  */
 function matchesChild(release, zone, child) {
     if (!release || !zone || !child) return false;
+    if (_keepDeclared(release, zone) || _keepDeclared(release, child)) return false;   // [5차] 유지 선언
     const hay = _hayOf(release);
     const shortC = _norm(String(child).split('중').pop());
     const fullC = _norm(child);

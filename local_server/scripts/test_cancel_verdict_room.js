@@ -237,6 +237,21 @@ console.log('\n[16] [4차 레드팀 1-A/1-B] 취소 절 한정 — 유지·발�
     ok('발효 안내 절 묶음명 오발사 없음', !ch16.some(c => c.type === 'UPCOMING_CANCEL') && mc2._cvHasPendings());
 }
 
+console.log('\n[17] [5차 전수열거 발견1] 예비 소멸 + 타종류 발효 공존 — 보류 등록되어야');
+{
+    mc2._resetCancelVerdictsForTest();
+    mc2._setLastCancelScanForTest(null);
+    // 태풍 예비가 있다가, 태풍 예비는 소멸하고 풍랑 주의보만 발효 중인 상태로 전이
+    const ACT = { wrnTp: 'V', wrnTpNm: '풍랑', wrnLvl: '2', wrnLvlNm: '주의보', tmFc: '2026.07.12 04:00', tmEf: '2026.07.12 06:00', tmYn: '', clrNtcTm: '2026.07.15 09~12시' };
+    const ch17 = mc2._buildUserPushChanges(snap({ [Z]: PRELIM({ wrnTpNm: '태풍', wrnTp: 'T' }) }), snap({ [Z]: ACT }));
+    ok('타종류 발효는 승격 아님 → 태풍 보류 등록', !!mc2._loadCancelVerdicts().parents[Z + '|태풍']);
+    ok('비취소 출력 보존(UPCOMING_CHANGE no-op 유지)', ch17.some(c => c.type === 'UPCOMING_CHANGE' && !c.curr));
+    mc2._setLastCancelScanForTest(freshScan([relOf('남해동부안쪽먼바다의 태풍 예비특보는 발표 가능성이 낮아져 해제합니다')]));
+    const ch17b = mc2._buildUserPushChanges(snap({ [Z]: ACT }), snap({ [Z]: ACT }));
+    ok('태풍 취소 문구로 발사(침묵 해소)', ch17b.some(c => c.type === 'UPCOMING_CANCEL' && c.prev.wrnTp === '태풍'));
+    ok('풍랑 발효는 무영향(발효 change 없음 그대로)', !ch17b.some(c => c.type === 'CURRENT_CHANGE'));
+}
+
 cleanup();
 console.log(`\n[cancel_verdict_room] ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
