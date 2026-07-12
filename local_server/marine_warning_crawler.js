@@ -1082,7 +1082,12 @@ let _childPrelimCancelPending = {};                      // "zone|child" → { i
 //
 // 스코프: 풍랑·태풍만(스캐너 정규식 대상과 일치). 그 외 종류는 기존 즉시 발사 유지.
 //   표출(weather_alerts.json)은 무영향 — MMIS 추종 그대로, 푸시 판단만 보류.
-const CANCEL_VERDICT_TTL_MS = 60 * 60 * 1000;            // 1시간 (통보문은 통상 20분 내 발행)
+const CANCEL_VERDICT_TTL_MS = 60 * 60 * 1000;            // 기본 대기 1시간 (만료 예비 등 데드라인 과거인 경우)
+// [2026-07-12 실측 개정] 대기 데드라인 = max(등록+1h, 예비의 발효예정 끝시각+1h).
+//   근거: KMA 는 발효예정 시각까지 반드시 결론(발표 or 취소 통보문)을 낸다 — 7/12 실사고에서
+//   취소 통보문이 소멸 2시간 55분 뒤(발효예정 11시 직전 10시)에 발행되어 고정 1시간이면 놓쳤음.
+//   폭주 방지: 발효예정이 며칠 뒤인 예비가 소멸해도 보류(=매분 스캔)는 최대 24시간까지만.
+const CANCEL_VERDICT_MAX_HOLD_MS = 24 * 60 * 60 * 1000;
 const CANCEL_VERDICT_TYPES = ['풍랑', '태풍'];
 // [적대검증 1] (c) 시간 축 게이트 — 취소 문구의 통보문 발행시각이 보류 등록보다 이 유예 이상
 //   과거면 "이전 에피소드의 묵은 문구"로 보고 매칭하지 않는다 (등록 직전 발행 통보문은 허용).
@@ -1094,6 +1099,29 @@ const CANCEL_VERDICT_TMP = CANCEL_VERDICT_FILE + '.tmp';
 let _cancelVerdicts = null;        // { parents: {zone: ent}, children: {"zone|child": ent} }, lazy-load
 let _cancelVerdictsDirty = false;
 let _lastCancelScan = null;        // 이번 사이클 스캔 결과 (run 4-G 가 채움)
+
+/** MMIS 시각 문자열의 "끝 모멘트" epoch ms (KST).
+ *   지원: "YYYY.MM.DD HH~HH시"(범위 — 끝시각), "YYYY.MM.DD HH:mm"(정확), "YYYY.MM.DD HH시".
+ *   "24시"는 익일 00시로 자연 정규화(Date.UTC 시간 오버플로). 파싱 불가 → null. */
+function _mmisEndMs(t) {
+    if (!t) return null;
+    const s = String(t).trim();
+    let m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{1,2})\s*~\s*(\d{1,2})시/.exec(s);
+    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[5] - 9, 0);
+    m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{1,2}):(\d{2})/.exec(s);
+    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5]);
+    m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{1,2})시/.exec(s);
+    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, 0);
+    return null;
+}
+
+/** 보류 건의 판정 데드라인 — max(등록+1h, 발효예정 끝+1h), 상한 등록+24h. */
+function _cvDeadline(ent) {
+    const base = ent.registeredAt + CANCEL_VERDICT_TTL_MS;
+    const efEnd = _mmisEndMs(ent.block && ent.block.tmEf);
+    const byEf = (efEnd != null) ? efEnd + CANCEL_VERDICT_TTL_MS : 0;
+    return Math.min(Math.max(base, byEf), ent.registeredAt + CANCEL_VERDICT_MAX_HOLD_MS);
+}
 
 function _loadCancelVerdicts() {
     if (_cancelVerdicts) return _cancelVerdicts;
@@ -1107,8 +1135,8 @@ function _loadCancelVerdicts() {
             for (const k of Object.keys(src)) {
                 const ent = src[k];
                 if (!ent || typeof ent.registeredAt !== 'number') continue;
-                if (now - ent.registeredAt >= CANCEL_VERDICT_TTL_MS) {
-                    // 다운타임 중 TTL 초과 — (d) 와 동일하게 무푸시 종료 (통보문 확인 불가였으므로 보수적)
+                if (now >= _cvDeadline(ent)) {
+                    // 다운타임 중 데드라인 초과 — (d) 와 동일하게 무푸시 종료 (통보문 확인 불가였으므로 보수적)
                     console.log(`[Marine] 예비취소 보류 만료(재시작 복원 중, 무푸시): ${k}`);
                     _cancelVerdictsDirty = true;
                     continue;
@@ -1262,7 +1290,7 @@ function _evaluateCancelVerdicts(curr, changes, h) {
         for (const a of (ent.absorbed || [])) {
             if (!a || !a.child || !a.block) continue;
             if (h.childKeys(curr, zone).indexOf(a.child) !== -1) continue;   // 복귀 → 불요
-            if (now - a.registeredAt >= CANCEL_VERDICT_TTL_MS) {
+            if (now >= _cvDeadline(a)) {
                 console.log(`[Marine] 자식 예비취소 보류 만료(부모 해소 복원 중, 무푸시): ${zone} > ${a.child}`);
                 continue;
             }
@@ -1310,8 +1338,8 @@ function _evaluateCancelVerdicts(curr, changes, h) {
                 continue;
             }
         }
-        // (d) TTL — 무푸시 + 원문 로그 (정규식 사후 보강 재료)
-        if (now - ent.registeredAt >= CANCEL_VERDICT_TTL_MS) {
+        // (d) 데드라인(발효예정 끝+1h, 최소 1h, 최대 24h) — 무푸시 + 원문 로그 (정규식 사후 보강 재료)
+        if (now >= _cvDeadline(ent)) {
             const raw = _lastCancelScan && _lastCancelScan.rawByOffice
                 ? JSON.stringify(_lastCancelScan.rawByOffice).slice(0, 600) : '(스캔 원문 없음)';
             console.log(`[Marine] 예비취소 보류 만료(무푸시): ${zone} [${tp}] — ${ent.evalCycles}사이클 판정, 취소 문구 미발견. 최근 참고사항: ${raw}`);
@@ -1352,8 +1380,8 @@ function _evaluateCancelVerdicts(curr, changes, h) {
                 continue;
             }
         }
-        // (d) TTL — 무푸시 + 원문 로그 (자식 괄호형(V4) 미매치가 바로 보강 재료인 케이스)
-        if (now - ent.registeredAt >= CANCEL_VERDICT_TTL_MS) {
+        // (d) 데드라인 — 무푸시 + 원문 로그 (자식 괄호형(V4) 미매치가 바로 보강 재료인 케이스)
+        if (now >= _cvDeadline(ent)) {
             const raw = _lastCancelScan && _lastCancelScan.rawByOffice
                 ? JSON.stringify(_lastCancelScan.rawByOffice).slice(0, 600) : '(스캔 원문 없음)';
             console.log(`[Marine] 자식 예비취소 보류 만료(무푸시): ${zone} > ${child} — ${ent.evalCycles}사이클 판정, 취소 문구 미발견. 최근 참고사항: ${raw}`);
@@ -3943,6 +3971,9 @@ module.exports = {
     _cvScanTargets,
     _setLastCancelScanForTest,
     _resetCancelVerdictsForTest,
+    _mmisEndMs,
+    _cvDeadline,
     _CANCEL_VERDICT_FILE: CANCEL_VERDICT_FILE,
-    CANCEL_VERDICT_TTL_MS
+    CANCEL_VERDICT_TTL_MS,
+    CANCEL_VERDICT_MAX_HOLD_MS
 };

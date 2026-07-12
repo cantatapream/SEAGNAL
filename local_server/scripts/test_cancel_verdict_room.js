@@ -153,6 +153,34 @@ delete require.cache[require.resolve(path.join(__dirname, '..', 'marine_warning_
 const mc2 = require(path.join(__dirname, '..', 'marine_warning_crawler.js'));
 ok('재시작 후 보류 복원', mc2._cvHasPendings());
 
+console.log('\n[14] [2026-07-12 실사고 리허설] 발효예정 기반 데드라인 — 통보문이 3시간 뒤에 나와도 잡는다');
+{
+    // _mmisEndMs 파싱
+    const kst = (y, mo, d, h, mi = 0) => Date.UTC(y, mo - 1, d, h - 9, mi);
+    if (mc._mmisEndMs('2026.07.12 11~11시') !== kst(2026, 7, 12, 11)) { fail++; console.log('  ❌ FAIL: 범위형 끝시각 파싱'); } else { pass++; console.log('  ✅ 범위형 끝시각 파싱'); }
+    if (mc._mmisEndMs('2026.07.11 18~24시') !== kst(2026, 7, 12, 0)) { fail++; console.log('  ❌ FAIL: 24시→익일 00시'); } else { pass++; console.log('  ✅ 24시→익일 00시'); }
+    if (mc._mmisEndMs('2026.07.11 11:30') !== kst(2026, 7, 11, 11, 30)) { fail++; console.log('  ❌ FAIL: 정확형 파싱'); } else { pass++; console.log('  ✅ 정확형 파싱'); }
+    if (mc._mmisEndMs('이상한값') !== null) { fail++; console.log('  ❌ FAIL: 파싱불가 null'); } else { pass++; console.log('  ✅ 파싱불가 null'); }
+    // 데드라인: 발효예정이 미래(+3h)면 1시간 넘어도 대기 유지, 발효예정+1h 지나면 만료
+    const now = Date.now();
+    // ms(KST 순간) → MMIS 범위형 문자열 "YYYY.MM.DD HH~HH시"
+    const tmEfOf = (ms) => {
+        const k = new Date(ms + 9 * 3600 * 1000);
+        const p = (n) => String(n).padStart(2, '0');
+        const H = p(k.getUTCHours());
+        return `${k.getUTCFullYear()}.${p(k.getUTCMonth() + 1)}.${p(k.getUTCDate())} ${H}~${H}시`;
+    };
+    const entFut = { registeredAt: now - 2 * 3600 * 1000, block: { tmEf: '' } };   // tmEf 파싱불가 → 기본 1h
+    ok('기본: 등록+1h 만료', now >= mc._cvDeadline(entFut));
+    // 7/12 실사고 형상: 07시 소멸(등록), 발효예정 11시(+수시간), 취소 통보문 10시 —
+    //   등록 2시간 경과 시점에도 데드라인(발효예정+1h) 전이므로 대기 유지 → 10시 문구를 잡는다.
+    const entHold = { registeredAt: now - 2 * 3600 * 1000, block: { tmEf: tmEfOf(now + 3 * 3600 * 1000) } };
+    ok('발효예정 미래(+3h): 2시간 경과에도 대기 유지', now < mc._cvDeadline(entHold));
+    // 상한: 발효예정이 3일 뒤여도 보류는 최대 24h
+    const entFar = { registeredAt: now, block: { tmEf: tmEfOf(now + 72 * 3600 * 1000) } };
+    ok('상한 24h 캡', mc._cvDeadline(entFar) === now + mc.CANCEL_VERDICT_MAX_HOLD_MS);
+}
+
 console.log('\n[13] 스캔 대상 구성 — 관할청 + 108 + 강원 105');
 mc2._resetCancelVerdictsForTest();
 mc2._registerParentCancelVerdict('강원남부앞바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '', tmYn: '' });
