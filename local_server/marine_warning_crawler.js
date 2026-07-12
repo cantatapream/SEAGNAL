@@ -1091,7 +1091,10 @@ const CANCEL_VERDICT_MAX_HOLD_MS = 24 * 60 * 60 * 1000;
 const CANCEL_VERDICT_TYPES = ['풍랑', '태풍'];
 // [적대검증 1] (c) 시간 축 게이트 — 취소 문구의 통보문 발행시각이 보류 등록보다 이 유예 이상
 //   과거면 "이전 에피소드의 묵은 문구"로 보고 매칭하지 않는다 (등록 직전 발행 통보문은 허용).
-const CANCEL_PHRASE_GRACE_MS = 30 * 60 * 1000;
+//   [레드팀 2-B] 30분 → 60분: KMA 가 취소 통보문을 먼저 내고 MMIS ready 반영이 30분+ 지연되는
+//   날(장애일)에 진짜 취소를 묵은 문구로 오차단하지 않도록 확대. 묵은 문구 재사용 위험은
+//   해역 단위 소각 + 스캔 신선도 + 보류 0건 시 결과 폐기가 계속 방어한다.
+const CANCEL_PHRASE_GRACE_MS = 60 * 60 * 1000;
 // [적대검증 1] 스캔 신선도 — _lastCancelScan 이 이보다 오래됐으면 (c) 판정 생략 (stale 방지).
 const CANCEL_SCAN_FRESH_MS = 10 * 60 * 1000;
 const CANCEL_VERDICT_FILE = path.join(__dirname, 'data', 'marine_prelim_cancel_verdicts.json');
@@ -1099,6 +1102,7 @@ const CANCEL_VERDICT_TMP = CANCEL_VERDICT_FILE + '.tmp';
 let _cancelVerdicts = null;        // { parents: {zone: ent}, children: {"zone|child": ent} }, lazy-load
 let _cancelVerdictsDirty = false;
 let _lastCancelScan = null;        // 이번 사이클 스캔 결과 (run 4-G 가 채움)
+let _cvSuppressFireThisCycle = false;   // [4차 통합검증 4] 관리자 테스트 사이클 (c) 발사 이월
 
 /** MMIS 시각 문자열의 "끝 모멘트" epoch ms (KST).
  *   지원: "YYYY.MM.DD HH~HH시"·"HH시~HH시"·전각 ∼ (범위 — 끝시각), "YYYY.MM.DD HH:mm"(정확),
@@ -1150,7 +1154,13 @@ function _loadCancelVerdicts() {
                     _cancelVerdictsDirty = true;
                     continue;
                 }
-                _cancelVerdicts[bucket][k] = ent;
+                // [레드팀 2-A] 부모 키 구식(zone 단독) → zone|종류 마이그레이션
+                let key = k;
+                if (bucket === 'parents' && k.indexOf('|') === -1) {
+                    key = k + '|' + ((ent.block && ent.block.wrnTp) || '');
+                    _cancelVerdictsDirty = true;
+                }
+                _cancelVerdicts[bucket][key] = ent;
             }
         }
         const np = Object.keys(_cancelVerdicts.parents).length, nc = Object.keys(_cancelVerdicts.children).length;
@@ -1188,21 +1198,31 @@ function _childInfoToBlock(info) {
     } : null;
 }
 
-/** 부모 예비취소 보류 등록 — 자식 펜딩 흡수(부모 대표). block = toBlock(prevUpcoming). */
+/** [레드팀 2-A] 부모 보류 키 — zone 단독이면 풍랑↔태풍 교대 시 서로 덮어써 앞선 종류의
+ *  취소 판정이 흡수·보존 없이 소멸(침묵 살해)한다. 자식(zone|child)과 동형으로 종류를 키에 포함. */
+function _cvParentKey(zone, tp) { return zone + '|' + (tp || ''); }
+
+/** 부모 예비취소 보류 등록 — 같은 종류의 자식 펜딩 흡수(부모 대표). block = toBlock(prevUpcoming). */
 function _registerParentCancelVerdict(zone, block) {
     const v = _loadCancelVerdicts();
+    const tp = (block && block.wrnTp) || '';
+    const pkey = _cvParentKey(zone, tp);
     // [적대검증 9] 같은 zone·종류 재등록(재등장↔재소멸 진동)은 registeredAt 승계 — TTL 이
-    //   매번 리셋되어 판정·스캔이 무기한 연장되는 것을 방지. 종류가 다르면 새 에피소드.
-    const prevEnt = v.parents[zone];
-    const sameEpisode = prevEnt && prevEnt.block && block && prevEnt.block.wrnTp === block.wrnTp;
+    //   매번 리셋되어 판정·스캔이 무기한 연장되는 것을 방지. (종류가 다르면 키가 달라
+    //   별도 에피소드로 공존 — 레드팀 2-A)
+    const prevEnt = v.parents[pkey];
+    const sameEpisode = !!(prevEnt && prevEnt.block);
     const registeredAt = sameEpisode ? prevEnt.registeredAt : Date.now();
     // [적대검증 6] 흡수하는 자식들을 기록 — 부모가 (a)/(b)로 폐기(취소 아님 판명)될 때
     //   미복귀 자식을 자식 보류로 복원해 §7.7.19(자식 단독취소 통지) 보장을 유지.
+    //   흡수는 같은 종류만 — 타 종류 자식 판정은 독립 지속.
     const absorbed = sameEpisode ? (prevEnt.absorbed || []) : [];
     for (const pk of Object.keys(_childPrelimCancelPending)) {
         if (pk.slice(0, zone.length + 1) !== zone + '|') continue;
-        const cn = pk.slice(zone.length + 1);
         const ent = _childPrelimCancelPending[pk];
+        const iTp = (ent.info && (ent.info.wrnTpNm || ent.info.wrnTp)) || '';
+        if (iTp && iTp !== tp) continue;   // 타 종류 펜딩은 그대로
+        const cn = pk.slice(zone.length + 1);
         if (!absorbed.some(a => a.child === cn)) {
             absorbed.push({ child: cn, block: _childInfoToBlock(ent.info), registeredAt: Date.now() });
         }
@@ -1210,24 +1230,24 @@ function _registerParentCancelVerdict(zone, block) {
     }
     for (const ck of Object.keys(v.children)) {
         const ce = v.children[ck];
-        if (ce && ce.zone === zone) {
+        if (ce && ce.zone === zone && ce.block && ce.block.wrnTp === tp) {
             if (!absorbed.some(a => a.child === ce.child)) {
                 absorbed.push({ child: ce.child, block: ce.block, registeredAt: ce.registeredAt });
             }
             delete v.children[ck];
         }
     }
-    v.parents[zone] = { zone, block, registeredAt, evalCycles: (sameEpisode ? prevEnt.evalCycles : 0) || 0, absorbed };
+    v.parents[pkey] = { zone, block, registeredAt, evalCycles: (sameEpisode ? prevEnt.evalCycles : 0) || 0, absorbed };
     _cancelVerdictsDirty = true;
-    const ddl = _cvDeadline(v.parents[zone]);
+    const ddl = _cvDeadline(v.parents[pkey]);
     const efNote = (block && block.tmEf && _mmisEndMs(block.tmEf) == null) ? ', 발효예정 파싱불가→기본 1h' : '';
-    console.log(`[Marine] 예비취소 판정 보류(부모): ${zone} [${block && block.wrnTp}] — 통보문 확인 대기 (데드라인 ${Math.round((ddl - Date.now()) / 60000)}분 후${sameEpisode ? ', 기존 판정 승계' : ''}${efNote})`);
+    console.log(`[Marine] 예비취소 판정 보류(부모): ${zone} [${tp}] — 통보문 확인 대기 (데드라인 ${Math.round((ddl - Date.now()) / 60000)}분 후${sameEpisode ? ', 기존 판정 승계' : ''}${efNote})`);
 }
 
 /** 자식 예비취소 보류 등록 — 부모 예비는 살아있는 케이스(§7.7.19). block = childToBlock(info). */
 function _registerChildCancelVerdict(zone, child, block) {
     const v = _loadCancelVerdicts();
-    if (v.parents[zone]) return;   // 부모 보류 중이면 부모가 대표 — 자식 등록 불요
+    if (v.parents[_cvParentKey(zone, (block && block.wrnTp) || '')]) return;   // 같은 종류 부모 보류 중이면 부모가 대표
     const key = zone + '|' + child;
     const prevEnt = v.children[key];
     const sameEpisode = prevEnt && prevEnt.block && block && prevEnt.block.wrnTp === block.wrnTp;
@@ -1250,7 +1270,7 @@ function _cvScanTargets() {
         if (zone.indexOf('강원') === 0) offices.add('105');   // 강원 3해역: 관할 미확정(108 폴백) — 강원청 병행
         dayMs.add(registeredAt);
     };
-    for (const z of Object.keys(v.parents)) addZone(z, v.parents[z].registeredAt);
+    for (const k of Object.keys(v.parents)) addZone(v.parents[k].zone, v.parents[k].registeredAt);
     for (const k of Object.keys(v.children)) addZone(v.children[k].zone, v.children[k].registeredAt);
     // KST 날짜: 오늘 + 등록일(자정 걸침 대비)
     const kst = ms => new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
@@ -1280,7 +1300,13 @@ function _evaluateCancelVerdicts(curr, changes, h) {
     const now = Date.now();
     // [적대검증 8] (a)(b)(d) 판정은 항상 수행 — pushSender 부재는 (c) "발사"만 막는다.
     //   (전부 멈추면 보류가 영구 잔존해 매분 스캔이 무기한 지속됐음.)
-    const canFire = !!(pushSender && typeof pushSender.processChanges === 'function');
+    // [4차 통합검증 3·4] (c) 발사는 실제로 사용자에게 전달될 수 있을 때만 — 점검모드(blockPush)
+    //   면 processChanges 가 pending 저장 없이 false 를 반환해 확정 취소가 유실됐고, 관리자
+    //   테스트 사이클이면 관리자 기기로만 나가고 보류가 소진됐다. 두 경우 모두 발사를 미루면
+    //   보류가 유지되어 다음 정상 사이클에 (c)가 다시 잡는다.
+    const canFire = !!(pushSender && typeof pushSender.processChanges === 'function')
+        && !_cvSuppressFireThisCycle
+        && !(pushSender && typeof pushSender.isPushBlocked === 'function' && pushSender.isPushBlocked());
     // [적대검증 1] (c) 시간 축 3중 게이트: ① 스캔 신선도, ② 문구의 통보문 발행시각(issuedAtMs,
     //   없으면 발견시각 foundAt 폴백)이 보류 등록 - 유예(30분) 이후, ③ 발사에 쓴 문구는 소각
     //   (한 문구가 다른 에피소드를 재확정하는 것 방지). — 묵은 문구 오확정(7/11형 재발) 차단.
@@ -1310,9 +1336,10 @@ function _evaluateCancelVerdicts(curr, changes, h) {
         }
     };
 
-    // ── 부모 보류 판정 ──────────────────────────────────────────────────────
-    for (const zone of Object.keys(v.parents)) {
-        const ent = v.parents[zone];
+    // ── 부모 보류 판정 (키 = zone|종류 — 레드팀 2-A) ─────────────────────────
+    for (const pkey of Object.keys(v.parents)) {
+        const ent = v.parents[pkey];
+        const zone = ent.zone;
         ent.evalCycles = (ent.evalCycles || 0) + 1;
         _cancelVerdictsDirty = true;
         const tp = (ent.block && ent.block.wrnTp) || '';
@@ -1324,7 +1351,7 @@ function _evaluateCancelVerdicts(curr, changes, h) {
             const converted = !!cUpInfo._efBridged || (cUpInfo._realLvlNm && cUpInfo._realLvlNm !== '예비');
             console.log(`[Marine] 예비취소 보류 해소(${converted ? '발표 전환 감지' : '예비 재등장'}): ${zone} — 취소 아님, 무푸시`);
             restoreAbsorbed(zone, ent);
-            delete v.parents[zone];
+            delete v.parents[pkey];
             continue;
         }
         // (b) 발효 승격 (같은 종류)
@@ -1332,7 +1359,7 @@ function _evaluateCancelVerdicts(curr, changes, h) {
         if (cActInfo && (cActInfo.wrnTpNm || '') === tp) {
             console.log(`[Marine] 예비취소 보류 해소(발효 승격): ${zone} — 발효 푸시가 대표, 무푸시`);
             restoreAbsorbed(zone, ent);
-            delete v.parents[zone];
+            delete v.parents[pkey];
             continue;
         }
         // (c) 통보문 취소 문구 매칭 → 유일한 발사 경로 (시간 축 게이트 + 해역 단위 소각)
@@ -1345,7 +1372,7 @@ function _evaluateCancelVerdicts(curr, changes, h) {
                     type: 'UPCOMING_CANCEL', zone, prev: ent.block,
                     childState: { all: PARENT_TO_CHILDREN[zone] || [], active: h.childKeys(curr, zone), added: [], released: [] }
                 });
-                delete v.parents[zone];
+                delete v.parents[pkey];
                 continue;
             }
         }
@@ -1357,7 +1384,7 @@ function _evaluateCancelVerdicts(curr, changes, h) {
             // [3차 검증 중간] 부모(만료형, 짧은 데드라인)와 흡수 자식(발효예정 미래, 긴 데드라인)이
             //   어긋날 수 있음 — 부모 만료 시에도 미복귀 자식은 복원해 자기 데드라인까지 판정 지속.
             restoreAbsorbed(zone, ent);
-            delete v.parents[zone];
+            delete v.parents[pkey];
         }
     }
 
@@ -1370,8 +1397,8 @@ function _evaluateCancelVerdicts(curr, changes, h) {
         const { zone, child } = ent;
         const tp = (ent.block && ent.block.wrnTp) || '';
 
-        // 부모 보류가 뒤늦게 열렸으면 흡수 (부모 대표 — 등록 함수가 absorbed 에 기록함)
-        if (v.parents[zone]) { delete v.children[key]; continue; }
+        // 같은 종류의 부모 보류가 뒤늦게 열렸으면 흡수 (부모 대표 — 등록 함수가 absorbed 에 기록함)
+        if (v.parents[_cvParentKey(zone, tp)]) { delete v.children[key]; continue; }
         // (a) 자식 복귀 (글리치/재등록) → 폐기. [적대검증 7] 종류 일치할 때만 —
         //   태풍철 풍랑↔태풍 교대 재등장이 풍랑 취소 판정을 오해소하지 않도록.
         if (h.childKeys(curr, zone).indexOf(child) !== -1) {
@@ -1408,6 +1435,9 @@ function _evaluateCancelVerdicts(curr, changes, h) {
             childState: { all: PARENT_TO_CHILDREN[zone] || [], active: h.childKeys(curr, zone), added: [], released: g.names }
         });
     }
+    // [4차 통합검증 5] (c) 소진 직후 즉시 영속화 — run 6단계 저장 전에 프로세스가 죽으면
+    //   재시작 재스캔이 같은 문구로 재확정해 취소가 2회 발사되던 크래시 창을 닫는다.
+    _saveCancelVerdicts();
 }
 
 /**
@@ -2449,8 +2479,8 @@ function _buildUserPushChanges(prev, curr) {
                 const cn = pk.slice(zone.length + 1);
                 if (currChildren.includes(cn)) { delete _childPrelimCancelPending[pk]; continue; }   // 복귀=글리치 → 무푸시
                 if (_upcomingCancelPending[zone]) continue;                                          // 부모 취소 관찰중 → 보류
-                // [§7.7.23] 부모가 판정 보류실에 있으면 흡수 — 부모 판정 1건이 자식까지 대표.
-                if (_loadCancelVerdicts().parents[zone]) { delete _childPrelimCancelPending[pk]; continue; }
+                // [§7.7.23] 같은 종류의 부모가 판정 보류실에 있으면 흡수 — 부모 판정 1건이 자식까지 대표.
+                if (_loadCancelVerdicts().parents[_cvParentKey(zone, (ent.info && (ent.info.wrnTpNm || ent.info.wrnTp)) || '')]) { delete _childPrelimCancelPending[pk]; continue; }
                 if (Date.now() - ent.since < CHILD_PRELIM_CANCEL_CONFIRM_MS) continue;               // 재확인 대기
                 duePrelimCancel.push(cn);
                 if (!duePrelimInfo) duePrelimInfo = ent.info;
@@ -3680,6 +3710,9 @@ function _isSnapshotEmpty(snap) {
 //   리셋 직후 run({force}) 가 마침 진행중인 cron 과 겹쳐 early-return 되어도,
 //   이 플래그가 남아 다음 사이클(또는 즉시 run)이 강제 baseline 푸시를 보장한다.
 let _forceBaselinePending = false;
+// [4차 통합검증 1 — 치명] 예약이 cron 에 넘어갈 때 관리자 토큰이 유실되어 "관리자 기기 테스트"
+//   가 전체 사용자 브로드캐스트로 둔갑하던 문제 — 겹침(early-return) 시 토큰을 함께 보존한다.
+let _forceBaselineAdminToken = undefined;
 
 function resetState() {
     _prevSnapshot = new StateSnapshot();
@@ -3694,7 +3727,10 @@ function resetState() {
 
 async function run(opts = {}) {
     if (_runInProgress) {
-        // 중복 실행 방지
+        // 중복 실행 방지. [4차 통합검증 1] 관리자 테스트 run 이 진행중 cron 과 겹쳐 여기서
+        //   반환되면 resetState 의 예약 플래그만 남는다 — 토큰을 보존해 다음 사이클(cron)이
+        //   예약을 소비할 때 전체 브로드캐스트가 아닌 관리자 기기 한정으로 발사되게 한다.
+        if (opts.forceBaselinePush && opts.adminToken) _forceBaselineAdminToken = opts.adminToken;
         return [];
     }
     if (!marineClient) {
@@ -3780,8 +3816,12 @@ async function run(opts = {}) {
         if (forceBaseline && _isSnapshotEmpty(_prevSnapshot)) {
             console.log('[Marine] ⚠️ 강제 baseline 푸시 모드 — E-1 가드 우회, 현재 활성 특보를 신규로 발사');
         }
-        // 예약 플래그는 이번 사이클에서 소비 (1회성)
+        // 예약 플래그는 이번 사이클에서 소비 (1회성).
+        // [4차 통합검증 1] cron 이 예약을 소비하는 경우(opts 에 토큰 없음) 보존해둔 관리자
+        //   토큰을 이어받아 사용 — 테스트 예약이 전체 발송으로 둔갑하지 않도록.
+        const _baselineTokenCarry = (!opts.adminToken && _forceBaselinePending) ? _forceBaselineAdminToken : undefined;
         _forceBaselinePending = false;
+        _forceBaselineAdminToken = undefined;
 
         // 4) [D-medium 인터랙티브] 의심 가드 — mmis 빈 응답 / 부분 누락 폭주 차단.
         //    clr_ntc_tm 미등록 zone 이 SUSPICIOUS_THRESHOLD 이상 사라지면
@@ -3866,12 +3906,17 @@ async function run(opts = {}) {
         let _userChanges = null;
         if (!opts.dryRun && pushSender && typeof pushSender.processChanges === 'function') {
             try {
+                // [4차 통합검증 4] 관리자 테스트 사이클(adminToken)에는 (c) 확정 발사를 이월 —
+                //   실사용자 대상 취소가 관리자 기기로만 나가고 보류가 소진되는 것 방지.
+                _cvSuppressFireThisCycle = !!(opts.adminToken || _baselineTokenCarry);
                 _userChanges = _buildUserPushChanges(prevForDiff, curr);
+                _cvSuppressFireThisCycle = false;
                 // [P2] 변화 0 일 때도 호출 — push_sender 의 pending retry 보장
                 // (옛 weather_alerts_crawler 동일 패턴)
                 // [테스트 푸시] opts.adminToken 이 있으면 그 토큰(관리자 기기)에게만 발송.
                 //   장부 초기화(테스트 푸시) 버튼이 forceBaselinePush + adminToken 으로 호출.
-                const userOpts = opts.adminToken ? { adminToken: opts.adminToken } : {};
+                const userOpts = opts.adminToken ? { adminToken: opts.adminToken }
+                    : (_baselineTokenCarry ? { adminToken: _baselineTokenCarry } : {});
                 await pushSender.processChanges(_userChanges, userOpts);
             } catch (e) {
                 console.error('[marine_warning_crawler] 사용자 push 발사 실패 (관리자 push 영향 없음):', e && e.message);

@@ -58,6 +58,10 @@ function _reportIssuedAtMs(reportId) {
 
 // 스캔 완료 reportKey("stn|kind|reportId") → ts. 재시작 시 재스캔되지만 결과는 멱등(무해).
 const _seenReports = new Map();
+// [4차 통합검증 6] reportId 별 상세 조회 실패 횟수 — 페이지 구조 변화 등으로 selected 검증이
+//   계속 실패하는 통보문을 매 사이클 무한 재시도하지 않도록 5회 후 포기(seen 처리).
+const _failCounts = new Map();
+const MAX_DETAIL_FAILS = 5;
 // 발견된 취소 문구 누적 — 보류 등록 "이전"에 발행된 통보문의 취소 문구도 판정에 쓰이도록 보존.
 let _recentReleases = [];
 
@@ -158,10 +162,19 @@ function parseCancelPhrases(refText) {
         RE_RELEASE.lastIndex = 0;
         let m;
         while ((m = RE_RELEASE.exec(sentence)) !== null) {
+            // [레드팀 1-C] 과거 회고 차단 — "지난 10일 …의 예비특보는 …해제하였으나 다시
+            //   발효되었습니다" 같은 회고 문장은 현재 취소가 아니다. 주어 절($1)에 과거
+            //   표지가 있으면 폐기. (정당 문구는 "당초 오늘(N일)…" 형 — 영향 없음)
+            if (/지난|어제|전날/.test(m[1] || '')) continue;
             const parenChildren = m[3]
                 ? m[3].split(/[,·]/).map(s => s.trim()).filter(t => t && _plausibleZoneToken(t))
                 : [];
-            out.push({ wrnTp: m[2], phrase: m[1] || '', parenChildren, sentence });
+            // [레드팀 1-A/1-B] clause = 정규식이 실제로 매치한 "취소 절"(주어~해제 종결어).
+            //   해역 매칭은 이 절 안에서만 수행 — "…해제하나 B는 유지합니다"의 대조 절이나
+            //   "…해제하며, C에는 주의보 발효 중" 같은 부가 절의 해역·묶음명이 취소 대상으로
+            //   오인되던(유지라고 적힌 해역에 취소 푸시) 오발사를 원천 차단.
+            const clause = sentence.slice(m.index, RE_RELEASE.lastIndex);
+            out.push({ wrnTp: m[2], phrase: m[1] || '', parenChildren, sentence, clause });
         }
     }
     return out;
@@ -233,9 +246,15 @@ function _mentionsAsGroup(hay, key) {
 
 /** release 가 부모 zone 을 지목하는가 — 부모명 직접(2순위) 또는 묶음명 번역(3순위).
  *  "A를 제외한 [묶음명]의 …해제" 서식(대구청 실측 계열)에서 A 는 묶음 확장에서도 빠진다. */
+/** 매칭 검사 범위 — [레드팀 1-A/1-B] 취소 절(clause)만. sentence 전체를 쓰면 대조·부가
+ *  절("…하나 B는 유지", "…하며 C에는 발효 중")의 해역이 취소로 오발사된다. */
+function _hayOf(release) {
+    return _norm(release.clause || ((release.phrase || '') + '|' + (release.sentence || '')));
+}
+
 function matchesZone(release, zone) {
     if (!release || !zone) return false;
-    const hay = _norm(release.phrase) + '|' + _norm(release.sentence);
+    const hay = _hayOf(release);
     if (_explicitlyExcluded(hay, zone)) return false;   // 명시 제외 — 묶음 확장보다 우선
     if (_mentions(hay, zone)) return true;
     for (const key of Object.keys(ZONE_GROUP_MAP)) {
@@ -254,7 +273,7 @@ function matchesZone(release, zone) {
  */
 function matchesChild(release, zone, child) {
     if (!release || !zone || !child) return false;
-    const hay = _norm(release.phrase) + '|' + _norm(release.sentence);
+    const hay = _hayOf(release);
     const shortC = _norm(String(child).split('중').pop());
     const fullC = _norm(child);
     if (_mentions(hay, fullC)) return true;   // 0순위 — 정식명 직접
@@ -312,7 +331,7 @@ async function _fetchReportText(stn, kind, date, reportId) {
 async function scan({ offices, dates }) {
     const now = Date.now();
     // seen/누적 TTL 정리
-    for (const [k, ts] of _seenReports) if (now - ts > SEEN_REPORT_TTL_MS) _seenReports.delete(k);
+    for (const [k, ts] of _seenReports) if (now - ts > SEEN_REPORT_TTL_MS) { _seenReports.delete(k); _failCounts.delete(k); }
     _recentReleases = _recentReleases.filter(r => now - r.foundAt < RELEASE_MEMORY_TTL_MS);
 
     const rawByOffice = {};
@@ -329,14 +348,26 @@ async function scan({ offices, dates }) {
                     anySuccess = true;
                 } catch (e) { lastErr = e; continue; }
 
+                let attempted = 0;   // [4차 통합검증 6] 실패도 계수 — 전건 실패 시 무상한 재조회 방지
                 for (const opt of options) {
                     const key = `${stn}|${kind}|${opt.reportId}`;
                     if (_seenReports.has(key)) continue;
-                    if (scanned >= MAX_DETAIL_FETCH_PER_SCAN) continue;   // [적대검증 5] 이월
+                    if (scanned + attempted >= MAX_DETAIL_FETCH_PER_SCAN) continue;   // [적대검증 5] 이월
                     let text;
                     try {
                         text = await _fetchReportText(stn, kind, date, opt.reportId);
-                    } catch (e) { lastErr = e; continue; }   // seen 미기록 → 다음 사이클 재시도
+                    } catch (e) {
+                        lastErr = e;
+                        attempted++;
+                        const fc = (_failCounts.get(key) || 0) + 1;
+                        _failCounts.set(key, fc);
+                        if (fc >= MAX_DETAIL_FAILS) {
+                            _seenReports.set(key, Date.now());   // 포기 — 더는 재시도하지 않음
+                            console.warn(`[BulletinScan] 상세 조회 ${fc}회 실패 — 포기: ${key} (${e && e.message})`);
+                        }
+                        continue;   // 미포기 건은 다음 사이클 재시도
+                    }
+                    _failCounts.delete(key);
                     _seenReports.set(key, Date.now());
                     scanned++;
                     const ref = _refSection(text);

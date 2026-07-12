@@ -39,7 +39,7 @@ mc._resetCancelVerdictsForTest();
 let changes = mc._buildUserPushChanges(snap({ [Z]: PRELIM() }), snap({}));
 ok('UPCOMING_CANCEL 즉발 없음', !changes.some(c => c.type === 'UPCOMING_CANCEL'));
 ok('보류 등록', mc._cvHasPendings());
-ok('블록 캡처', mc._loadCancelVerdicts().parents[Z].block.wrnTp === '풍랑');
+ok('블록 캡처', mc._loadCancelVerdicts().parents[Z + '|풍랑'].block.wrnTp === '풍랑');
 
 console.log('\n[2] 발표 전환(7/11 09:35 오보 리허설) → 폐기, 무푸시');
 changes = mc._buildUserPushChanges(snap({}), snap({ [Z]: PRELIM({ _efBridged: true, _realLvlNm: '주의보', tmEf: '2026.07.11 11:30' }) }));
@@ -59,7 +59,7 @@ console.log('\n[4] 만료 소멸(7/10 06:01 오보 리허설) → TTL 무푸시'
 mc._resetCancelVerdictsForTest();
 mc._setLastCancelScanForTest(null);
 mc._buildUserPushChanges(snap({ [Z]: PRELIM() }), snap({}));
-mc._loadCancelVerdicts().parents[Z].registeredAt = Date.now() - mc.CANCEL_VERDICT_TTL_MS - 1000;
+mc._loadCancelVerdicts().parents[Z + '|풍랑'].registeredAt = Date.now() - mc.CANCEL_VERDICT_TTL_MS - 1000;
 changes = mc._buildUserPushChanges(snap({}), snap({}));
 ok('TTL 무푸시 종료', !changes.some(c => c.type === 'UPCOMING_CANCEL') && !mc._cvHasPendings());
 
@@ -87,7 +87,7 @@ mc._setLastCancelScanForTest(freshScan([multi]));
 changes = mc._buildUserPushChanges(snap({}), snap({}));
 ok('두 해역 모두 발사', changes.filter(c => c.type === 'UPCOMING_CANCEL').length === 2);
 mc._buildUserPushChanges(snap({ '남해서부서쪽먼바다': PRELIM() }), snap({}));   // 같은 해역 재등록(다음 에피소드 가정)
-mc._loadCancelVerdicts().parents['남해서부서쪽먼바다'].registeredAt = Date.now();   // 승계 무력화(신규 에피소드 흉내)
+mc._loadCancelVerdicts().parents['남해서부서쪽먼바다|풍랑'].registeredAt = Date.now();   // 승계 무력화(신규 에피소드 흉내)
 changes = mc._buildUserPushChanges(snap({}), snap({}));
 ok('소각된 문구로 재확정 불가', !changes.some(c => c.type === 'UPCOMING_CANCEL'));
 
@@ -106,10 +106,10 @@ ok('발효 승격 → 폐기', !mc._cvHasPendings());
 console.log('\n[8] [적대검증 9] 재등록 시 registeredAt 승계 (TTL 무한 연장 방지)');
 mc._resetCancelVerdictsForTest();
 mc._buildUserPushChanges(snap({ [Z]: PRELIM() }), snap({}));
-const firstAt = mc._loadCancelVerdicts().parents[Z].registeredAt;
-mc._loadCancelVerdicts().parents[Z].registeredAt = firstAt - 5000;   // 시간 경과 흉내
+const firstAt = mc._loadCancelVerdicts().parents[Z + '|풍랑'].registeredAt;
+mc._loadCancelVerdicts().parents[Z + '|풍랑'].registeredAt = firstAt - 5000;   // 시간 경과 흉내
 mc._registerParentCancelVerdict(Z, { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '', tmYn: '' });
-ok('같은 종류 재등록 → 승계', mc._loadCancelVerdicts().parents[Z].registeredAt === firstAt - 5000);
+ok('같은 종류 재등록 → 승계', mc._loadCancelVerdicts().parents[Z + '|풍랑'].registeredAt === firstAt - 5000);
 
 console.log('\n[9] 자식 보류 — 4단 매칭·종류·복원');
 mc._resetCancelVerdictsForTest();
@@ -134,10 +134,10 @@ console.log('\n[10-B] [3차 검증] 부모 (d) 만료 시에도 흡수 자식 �
     const futureEf = (() => { const k = new Date(Date.now() + 10 * 3600e3 + 9 * 3600e3); const p = n => String(n).padStart(2, '0'); const H = p(k.getUTCHours()); return `${k.getUTCFullYear()}.${p(k.getUTCMonth() + 1)}.${p(k.getUTCDate())} ${H}~${H}시`; })();
     mc._registerChildCancelVerdict(Z, '남해동부안쪽먼바다중연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: futureEf, tmYn: '' });
     mc._buildUserPushChanges(snap({ [Z]: PRELIM({ tmEf: '' }) }), snap({}));   // 부모(발효예정 미상→기본 1h) 등록·흡수
-    mc._loadCancelVerdicts().parents[Z].registeredAt = Date.now() - 61 * 60e3;   // 부모 만료
+    mc._loadCancelVerdicts().parents[Z + '|풍랑'].registeredAt = Date.now() - 61 * 60e3;   // 부모 만료
     mc._buildUserPushChanges(snap({}), snap({}));
     const vX = mc._loadCancelVerdicts();
-    ok('부모 만료 후 자식 보류 복원(자기 데드라인 지속)', !vX.parents[Z] && !!vX.children[Z + '|남해동부안쪽먼바다중연안바다']);
+    ok('부모 만료 후 자식 보류 복원(자기 데드라인 지속)', !vX.parents[Z + '|풍랑'] && !!vX.children[Z + '|남해동부안쪽먼바다중연안바다']);
 }
 
 console.log('\n[10] [적대검증 6] 부모 (a) 폐기 시 흡수 자식 복원');
@@ -147,7 +147,7 @@ mc._buildUserPushChanges(snap({ [Z]: PRELIM() }), snap({}));   // 부모 등록 
 ok('흡수 후 자식 보류 0', Object.keys(mc._loadCancelVerdicts().children).length === 0);
 mc._buildUserPushChanges(snap({}), snap({ [Z]: PRELIM() }));   // 부모 재등장(자식은 미복귀) → (a) 폐기
 const vr = mc._loadCancelVerdicts();
-ok('부모 폐기 + 자식 보류 복원', !vr.parents[Z] && !!vr.children[Z + '|남해동부안쪽먼바다중연안바다']);
+ok('부모 폐기 + 자식 보류 복원', !vr.parents[Z + '|풍랑'] && !!vr.children[Z + '|남해동부안쪽먼바다중연안바다']);
 
 console.log('\n[11] 부모 확정 시 부모명 1건 대표 (자식 별도 없음)');
 mc._resetCancelVerdictsForTest();
@@ -161,7 +161,7 @@ console.log('\n[12] 영속화 — 파일 저장·복원·TTL 벽시계 연속');
 mc._resetCancelVerdictsForTest();
 mc._buildUserPushChanges(snap({ [Z]: PRELIM() }), snap({}));
 mc._saveCancelVerdicts();
-ok('파일 생성 + registeredAt 저장', fs.existsSync(mc._CANCEL_VERDICT_FILE) && typeof JSON.parse(fs.readFileSync(mc._CANCEL_VERDICT_FILE, 'utf8')).parents[Z].registeredAt === 'number');
+ok('파일 생성 + registeredAt 저장', fs.existsSync(mc._CANCEL_VERDICT_FILE) && typeof JSON.parse(fs.readFileSync(mc._CANCEL_VERDICT_FILE, 'utf8')).parents[Z + '|풍랑'].registeredAt === 'number');
 delete require.cache[require.resolve(path.join(__dirname, '..', 'marine_warning_crawler.js'))];
 const mc2 = require(path.join(__dirname, '..', 'marine_warning_crawler.js'));
 ok('재시작 후 보류 복원', mc2._cvHasPendings());
@@ -206,6 +206,36 @@ mc2._registerParentCancelVerdict('제주도동부앞바다', { wrnTp: '풍랑', 
 const t = mc2._cvScanTargets();
 ok('108/105/184 포함', t.offices.has('108') && t.offices.has('105') && t.offices.has('184'));
 ok('KST 날짜 형식', t.dates.every(d => /^\d{4}-\d{2}-\d{2}$/.test(d)));
+
+console.log('\n[15] [4차 레드팀 2-A] 종류 교대 — 풍랑·태풍 보류 공존, 덮어쓰기 없음');
+{
+    mc2._resetCancelVerdictsForTest();
+    mc2._setLastCancelScanForTest(null);
+    // step1: 풍랑 예비 소멸 → 풍랑 보류
+    mc2._buildUserPushChanges(snap({ [Z]: PRELIM() }), snap({}));
+    // step2: 태풍 예비 등장 → (풍랑 보류 유지) → step3: 태풍 예비도 소멸 → 태풍 보류 등록
+    mc2._buildUserPushChanges(snap({}), snap({ [Z]: PRELIM({ wrnTpNm: '태풍', wrnTp: 'T' }) }));
+    mc2._buildUserPushChanges(snap({ [Z]: PRELIM({ wrnTpNm: '태풍', wrnTp: 'T' }) }), snap({}));
+    const vv = mc2._loadCancelVerdicts();
+    ok('풍랑·태풍 보류 공존(덮어쓰기 없음)', !!vv.parents[Z + '|풍랑'] && !!vv.parents[Z + '|태풍']);
+    // 풍랑 취소 문구 → 풍랑만 발사, 태풍 보류 잔존
+    mc2._setLastCancelScanForTest(freshScan([relOf('남해동부안쪽먼바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')]));
+    const ch15 = mc2._buildUserPushChanges(snap({}), snap({}));
+    ok('풍랑 취소 발사(침묵 살해 해소)', ch15.some(c => c.type === 'UPCOMING_CANCEL' && c.prev.wrnTp === '풍랑'));
+    ok('태풍 보류는 잔존', !!mc2._loadCancelVerdicts().parents[Z + '|태풍']);
+}
+
+console.log('\n[16] [4차 레드팀 1-A/1-B] 취소 절 한정 — 유지·발효 절의 해역은 오발사 금지');
+{
+    mc2._resetCancelVerdictsForTest();
+    mc2._buildUserPushChanges(snap({ [Z]: PRELIM() }), snap({}));   // Z(남해동부안쪽먼바다) 보류
+    mc2._setLastCancelScanForTest(freshScan([relOf('동해남부남쪽바깥먼바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제하나 남해동부안쪽먼바다는 풍랑 예비특보를 유지합니다')]));
+    let ch16 = mc2._buildUserPushChanges(snap({}), snap({}));
+    ok('유지 절 해역 오발사 없음', !ch16.some(c => c.type === 'UPCOMING_CANCEL') && mc2._cvHasPendings());
+    mc2._setLastCancelScanForTest(freshScan([relOf('부산앞바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제하나 남해동부먼바다에는 풍랑주의보가 발효 중입니다')]));
+    ch16 = mc2._buildUserPushChanges(snap({}), snap({}));
+    ok('발효 안내 절 묶음명 오발사 없음', !ch16.some(c => c.type === 'UPCOMING_CANCEL') && mc2._cvHasPendings());
+}
 
 cleanup();
 console.log(`\n[cancel_verdict_room] ${pass} PASS / ${fail} FAIL`);

@@ -424,7 +424,12 @@ async function processAndSendNotifications(changes, options = {}) {
     }
 
     // 실패한 건이 있으면 pending으로 저장
-    if (failedPayloads.length > 0) {
+    // [4차 통합검증 2] 관리자 테스트 발송(adminToken)의 실패건은 pending 에 넣지 않는다 —
+    //   재시도 경로(retryPendingPushes → sendToApi(payload))가 토큰을 보존하지 않아
+    //   테스트 푸시가 전체 사용자 브로드캐스트로 둔갑하던 문제. 테스트 푸시는 재시도 불필요.
+    if (failedPayloads.length > 0 && options.adminToken) {
+        console.warn(`[PushSender] 관리자 테스트 발송 실패 ${failedPayloads.length}건 — 재시도 없이 폐기 (전체 재발송 둔갑 방지)`);
+    } else if (failedPayloads.length > 0) {
         console.error(`[PushSender] ⚠️ ${failedPayloads.length}건 발송 실패 → pending 저장 (다음 크롤링 시 재시도)`);
         const existing = loadPendingPushes();
         // 최대 20건까지만 보관 (오래된 건은 버림)
@@ -438,6 +443,18 @@ async function processAndSendNotifications(changes, options = {}) {
 /**
  * 미발송 건 재시도
  */
+/** [4차 통합검증 3] 점검모드(blockPush) 여부 — §7.7.23 보류실이 (c) 확정 발사를 미루는 데 사용.
+ *  (점검 중 발사하면 processChanges 가 false 를 반환하며 보류만 소진돼 확정 취소가 유실됐음) */
+function isPushBlocked() {
+    try {
+        if (fs.existsSync(MAINTENANCE_FILE)) {
+            const config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8'));
+            return !!(config.active && config.blockPush !== false);
+        }
+    } catch (_) {}
+    return false;
+}
+
 async function retryPendingPushes() {
     const pending = loadPendingPushes();
     if (pending.length === 0) return true;
@@ -543,4 +560,5 @@ async function sendToApi(payload, adminToken = null) {
 module.exports = {
     processChanges: processAndSendNotifications,
     retryPendingPushes
+    ,isPushBlocked
 };
