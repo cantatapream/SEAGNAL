@@ -146,7 +146,13 @@ function _plausibleZoneToken(t) {
 function parseCancelPhrases(refText) {
     const out = [];
     if (!refText) return out;
-    const sentences = refText.split(/[\.\n\r]+/).map(s => s.trim()).filter(Boolean);
+    // [아카이브 실물 보정 2026-07-12] 도서명 연결 마침표("울릉도.독도", "흑산도.홍도")가
+    //   ① 문장 분리를 섬 이름 한가운데서 끊고 ② 정규식의 [^.\n] 클래스를 막아,
+    //   "…동해중부안쪽먼바다의 풍랑특보와 울릉도.독도의 강풍특보는 발표가능성이 낮아져
+    //   해제합니다"(2026-04-04 전국, 실물) 같은 복합 주어 취소 문구를 통째로 놓치게 했다.
+    //   한글 사이 마침표만 가운뎃점으로 정규화 — 우리 해상 해역명에는 마침표가 없어 무해.
+    const norm = String(refText).replace(/([가-힣])\.([가-힣])/g, '$1·$2');
+    const sentences = norm.split(/[\.\n\r]+/).map(s => s.trim()).filter(Boolean);
     for (const sentence of sentences) {
         if (sentence.length > MAX_SENTENCE_LEN) continue;   // [적대검증 3] ReDoS 상한
         RE_RELEASE.lastIndex = 0;
