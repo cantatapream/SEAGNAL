@@ -291,19 +291,7 @@
             }).catch(function () { if (typeof toast === 'function') toast('앵커 정보를 불러오지 못했습니다.'); });
     }
 
-    // [특보 시연 연계] 특보 시연 "테스트 모드" ON 여부 (demo_alert.js 가 노출한 게터).
-    //   관리자 등록 기기 + 테스트 모드 ON 일 때만 true. 그 외(일반 사용자)는 항상 false.
-    function _demoTestModeOn() {
-        try {
-            return typeof window.__seagnalDemoTestModeOn === 'function'
-                && window.__seagnalDemoTestModeOn() === true;
-        } catch (e) { return false; }
-    }
-    // 앵커 포인트 명시적 표출/숨김 (시연 모드 자동 표출용 — 토글이 아님).
-    function showAnchorOverlay() {
-        if (_anchorLayer) { _anchorLayer.setVisible(true); return; }
-        toggleAnchorOverlay();   // 레이어 미생성 시 fetch+생성(기본 visible) → 사실상 '표시'
-    }
+    // 앵커 포인트 숨김 (15회 클릭 제스처로 표출한 디버그 레이어 정리용).
     function hideAnchorOverlay() {
         if (_anchorLayer) _anchorLayer.setVisible(false);
     }
@@ -356,8 +344,6 @@
         _active = true;
         if (btn) btn.classList.add('active');
         _layer.setVisible(true);
-        // [시연 모드] 특보 시연 테스트 모드 ON 이면 앵커 포인트(데이터 확보 해점)를 자동 표출.
-        if (_demoTestModeOn()) showAnchorOverlay();
         showLoading();   // 슬라이더·범례·첫 화면 준비될 때까지 중앙 로딩 표시
 
         ensureMeta().then(function (ok) {
@@ -401,7 +387,7 @@
         var btn = $('ocean-mudflat-toggle-btn');
         if (btn) btn.classList.remove('active');
         if (_layer) _layer.setVisible(false);
-        hideAnchorOverlay();   // [시연 모드] 자동 표출했던 앵커 포인트도 함께 숨김
+        hideAnchorOverlay();   // 15회 클릭으로 표출한 앵커 포인트도 함께 숨김
         hideLoading();
         _drawCells = [];
         _currentCells = [];
@@ -629,11 +615,6 @@
     // 안내 카드: 표출 줌 미만일 때 지속 표시. 표출 줌 도달/비활성 시 숨김.
     //   (.show 토글만 — 숨김 시 display:none 으로 돌아가 오버레이가 남지 않음)
     function showZoomHint() {
-        // [시연 세션 억제] 관리자 시연(태풍 시연 진입) 중에는 중앙 확대 안내 카드를 띄우지
-        //   않는다 — 지점 마커·갯벌 표출 로직은 그대로(카드만 억제). 일반 사용자는 영향 없음.
-        //   (demo_quick_trigger.js 의 세션 플래그 — 앱 재시작 시 원복)
-        if (window.SeagnalDemo && typeof window.SeagnalDemo.isDemoSession === 'function'
-            && window.SeagnalDemo.isDemoSession()) return;
         ensureZoomHintEl().classList.add('show');
     }
     function hideZoomHint() {

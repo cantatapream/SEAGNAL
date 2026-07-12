@@ -30,11 +30,6 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- [임시 — 발표 나레이션] 상태표시줄 미디어 알림 버튼 수신 (발표 후 제거 예정) -->
-        <receiver
-            android:name=".narration.NarrationControlReceiver"
-            android:exported="false" />
-
         <!-- 음성 비서 백그라운드 상시 청취 서비스 (호출어 "나리야") -->
         <service
             android:name=".voice.VoiceAssistantService"

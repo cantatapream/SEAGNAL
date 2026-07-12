@@ -1517,9 +1517,9 @@
         show: function () { setVisible(true); },
         hide: function () { setVisible(false); },
         isVisible: function () { return _visible; },
-        // 지도·모듈 초기화(tryInit) 완료 여부 — demo_quick_trigger 가 demoFocus 호출 타이밍 게이트로 사용.
+        // 지도·모듈 초기화(tryInit) 완료 여부 — 딥링크(assistant_deeplink)가 demoFocus 호출 타이밍 게이트로 사용.
         isReady: function () { return !!_map; },
-        demoFocus: demoFocus,   // 관리자 시연: 실제 통보문을 강제 활성화 표출 + 지도 이동
+        demoFocus: demoFocus,   // 위치기반 태풍 반경 알림 탭: 실제 통보문을 강제 활성화 표출 + 지도 이동
         // 육지 클릭 처리: 태풍 ON + 실제 육지일 때만 강풍반경 도달시간 팝업 표출. consumed 시 true.
         tryHandleLandClick: function (lon, lat) {
             if (!_visible || _frames.length === 0) return false;

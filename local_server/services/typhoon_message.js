@@ -252,9 +252,9 @@ function buildDemoUrl(ref) {
 }
 
 /**
- * [위치기반 반경 시연] "내 위치가 강풍/폭풍반경에 든다"는 긴급경보 문구를 만든다.
- *   - 관리자 시연 전용. 일반 발생/소멸 빌더와 별개. url 은 호출부가 buildDemoUrl 로 따로 생성.
- *   - 호출: routes/admin.js 의 /api/admin/demo/typhoon-radius-test.
+ * [위치기반 반경 알림] "내 위치가 강풍/폭풍반경에 든다"는 긴급경보 문구를 만든다.
+ *   - 일반 발생/소멸 빌더와 별개. url 은 호출부가 buildDemoUrl 로 따로 생성.
+ *   - 호출: 단말 런타임(js/location_alert_typhoon_runtime.js) 및 네이티브 TyphoonRadiusDecider.
  * @param {'strong'|'storm'} which 강풍/폭풍 구분
  * @param {{seq, name, nameEn}} snap 태풍 스냅샷(호수/이름)
  * @param {string} etaTmFc 진입(ETA) 프레임 시각 "YYYYMMDDHHmm"
