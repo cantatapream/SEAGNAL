@@ -199,6 +199,24 @@ function _explicitlyExcluded(hay, name) {
     return false;
 }
 
+/** [강원청 서식, 2026-07-12 아카이브 실측] 묶음명이 괄호를 동반하면("동해중부앞바다(강원남부앞바다)")
+ *  괄호 안 개별 부모 목록이 권위 — 묶음 확장 금지. 괄호 없는 유효 occurrence 가 있을 때만 확장 허용.
+ *  (괄호에 나열된 부모는 직접 언급 매칭으로 이미 잡히므로 누락 없음.) */
+function _mentionsAsGroup(hay, key) {
+    const n = _norm(key);
+    if (!n) return false;
+    let idx = hay.indexOf(n);
+    while (idx !== -1) {
+        const after = hay.slice(idx + n.length, idx + n.length + 6);
+        const childPrefix = after.charAt(0) === '중';
+        const parenFollows = after.charAt(0) === '(';
+        const excluded = /^(?:를|은|는|만)?제외/.test(after);
+        if (!childPrefix && !parenFollows && !excluded) return true;
+        idx = hay.indexOf(n, idx + 1);
+    }
+    return false;
+}
+
 /** release 가 부모 zone 을 지목하는가 — 부모명 직접(2순위) 또는 묶음명 번역(3순위).
  *  "A를 제외한 [묶음명]의 …해제" 서식(대구청 실측 계열)에서 A 는 묶음 확장에서도 빠진다. */
 function matchesZone(release, zone) {
@@ -207,7 +225,7 @@ function matchesZone(release, zone) {
     if (_explicitlyExcluded(hay, zone)) return false;   // 명시 제외 — 묶음 확장보다 우선
     if (_mentions(hay, zone)) return true;
     for (const key of Object.keys(ZONE_GROUP_MAP)) {
-        if (ZONE_GROUP_MAP[key].indexOf(zone) !== -1 && _mentions(hay, key)) return true;
+        if (ZONE_GROUP_MAP[key].indexOf(zone) !== -1 && _mentionsAsGroup(hay, key)) return true;
     }
     return false;
 }
