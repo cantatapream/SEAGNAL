@@ -1267,7 +1267,7 @@ function _cvScanTargets() {
     const dayMs = new Set();
     const addZone = (zone, registeredAt) => {
         offices.add(ZONE_HOME_OFFICE[zone] || '108');
-        if (zone.indexOf('강원') === 0) offices.add('105');   // 강원 3해역: 관할 미확정(108 폴백) — 강원청 병행
+        if (zone.indexOf('강원') === 0) offices.add('105');   // 강원 3해역: 매핑 105 확정(2026-07-12 내용검증) — 이중 방어로 유지
         dayMs.add(registeredAt);
     };
     for (const k of Object.keys(v.parents)) addZone(v.parents[k].zone, v.parents[k].registeredAt);
@@ -1415,8 +1415,11 @@ function _evaluateCancelVerdicts(curr, changes, h) {
             if (hit) {
                 consume(hit, key);
                 console.log(`[Marine] ✅ 자식 예비취소 확정(통보문 문구): ${zone} > ${child} — "${(hit.sentence || '').slice(0, 100)}"`);
-                if (!fireByZone.has(zone)) fireByZone.set(zone, { block: ent.block, names: [] });
-                fireByZone.get(zone).names.push(child);
+                // [6차] zone|종류 로 묶음 — 같은 zone 의 풍랑·태풍 자식이 같은 사이클에 확정될 때
+                //   한 change 에 종류가 섞여 "풍랑 취소" 제목에 태풍 자식이 실리는 혼합 방지.
+                const fzKey = zone + '|' + tp;
+                if (!fireByZone.has(fzKey)) fireByZone.set(fzKey, { zone, block: ent.block, names: [] });
+                fireByZone.get(fzKey).names.push(child);
                 delete v.children[key];
                 continue;
             }
@@ -1429,10 +1432,10 @@ function _evaluateCancelVerdicts(curr, changes, h) {
             delete v.children[key];
         }
     }
-    for (const [zone, g] of fireByZone) {
+    for (const g of fireByZone.values()) {
         changes.push({
-            type: 'CHILD_PRELIM_CANCEL', zone, prev: g.block,
-            childState: { all: PARENT_TO_CHILDREN[zone] || [], active: h.childKeys(curr, zone), added: [], released: g.names }
+            type: 'CHILD_PRELIM_CANCEL', zone: g.zone, prev: g.block,
+            childState: { all: PARENT_TO_CHILDREN[g.zone] || [], active: h.childKeys(curr, g.zone), added: [], released: g.names }
         });
     }
     // [4차 통합검증 5] (c) 소진 직후 즉시 영속화 — run 6단계 저장 전에 프로세스가 죽으면
