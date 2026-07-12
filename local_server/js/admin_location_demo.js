@@ -17,6 +17,19 @@
     const ZONE_NAME = '제주도북부앞바다';
     const POS_KEY = 'location_alert_last_pos';
     const MATCH_KEY = 'location_alert_last_match';
+    // 관측성(A): "마지막 wake 처리" — 알림 성공 여부와 무관하게 모든 wake 처리 시도 기록.
+    const WAKE_KEY = 'location_alert_last_wake';
+    // outcome 한글 라벨 (runtime/native 가 기록하는 outcome 값과 합의).
+    const WAKE_OUTCOME_LABELS = {
+        'notified': '알림',
+        'off-sea': '육지(무시)',
+        'no-warning': '특보없음',
+        'no-match': '육지/특보없음',
+        'no-position': '위치실패',
+        'stale-skip': '낡음',
+        'disabled-skip': '비활성',
+        'suberror': '오류',
+    };
     let _features = null;
     // 시연(데모) 위치 — 메시지(demoLat/demoLng/demoAcc)로만 전달. POS_KEY(실제 GPS)는 절대 건드리지 않음.
     let _demoPos = null;
@@ -160,16 +173,19 @@
     };
 
     // Capacitor Preferences(=SharedPreferences "CapacitorStorage") 에서 읽기. 없으면 localStorage.
-    async function readMatch() {
+    async function readPrefFirst(key) {
         try {
             const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
             if (P && P.get) {
-                const r = await P.get({ key: MATCH_KEY });
+                const r = await P.get({ key });
                 if (r && r.value) return r.value;
             }
         } catch (_) { }
-        try { return localStorage.getItem(MATCH_KEY); } catch (_) { return null; }
+        try { return localStorage.getItem(key); } catch (_) { return null; }
     }
+    async function readMatch() { return readPrefFirst(MATCH_KEY); }
+    // 관측성(A): 마지막 wake 처리 — 네이티브(killed)가 Preferences 에만 쓰므로 Preferences 우선.
+    async function readWake() { return readPrefFirst(WAKE_KEY); }
 
     // 실제 저장 위치(POS_KEY) — Preferences 우선, 없으면 localStorage.
     //   [BUG B] 네이티브(killed) fresh-fix 는 Preferences(CapacitorStorage)에만 위치를 쓰고
@@ -233,6 +249,29 @@
                         + (rec.at ? (mins + '분 전') : '시각 미상');
                 } else matchEl.innerHTML = '마지막 위치기반 판정: <span style="color:#64748b;">없음</span>';
             }
+            // (3b) 마지막 wake 처리 — location_alert_last_wake (관측성 A).
+            //   알림이 안 떠도 wake 가 "처리는 됐는지"(육지/무특보/위치실패/비활성 등)를 보여준다.
+            const wakeEl = document.getElementById('la-demo-wake');
+            if (wakeEl) {
+                const rawW = await readWake();
+                let w = null;
+                try { w = rawW ? JSON.parse(rawW) : null; } catch (_) { w = null; }
+                if (w) {
+                    const mins = w.at ? Math.round((Date.now() - Date.parse(w.at)) / 60000) : null;
+                    const label = WAKE_OUTCOME_LABELS[w.outcome] || (w.outcome || '-');
+                    const coords = (w.lat != null && w.lng != null)
+                        ? (Number(w.lat).toFixed(4) + ', ' + Number(w.lng).toFixed(4)) : '-';
+                    const posMins = w.posAt && Number.isFinite(Date.parse(w.posAt))
+                        ? (Math.round((Date.now() - Date.parse(w.posAt)) / 60000) + '분 전') : '-';
+                    wakeEl.innerHTML = '마지막 wake 처리: '
+                        + (mins != null && Number.isFinite(mins) ? ('<b>' + mins + '분 전</b>') : '시각 미상')
+                        + ' / 결과 <b>' + label + '</b>'
+                        + ' / 출처 <b>' + (w.src || '-') + '</b>'
+                        + ' / 좌표 ' + coords
+                        + ' / 위치시각 ' + posMins
+                        + (w.zone ? (' / 구역 ' + w.zone) : '');
+                } else wakeEl.innerHTML = '마지막 wake 처리: <span style="color:#64748b;">없음 — wake 가 이 단말에서 처리된 적 없음</span>';
+            }
             const tk = localStorage.getItem('push_token') || '';
             const tkEl = document.getElementById('la-demo-token');
             if (tkEl) tkEl.textContent = tk ? (tk.slice(0, 18) + '…' + tk.slice(-6)) : '(없음 — 앱에서 푸시 등록 필요)';
@@ -260,6 +299,7 @@
             + '<div id="la-demo-pos" style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;">실제 저장 위치(GPS): -</div>'
             + '<div id="la-demo-demopos" style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;">시연 위치(데모): -</div>'
             + '<div id="la-demo-match" style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;">마지막 위치기반 판정: -</div>'
+            + '<div id="la-demo-wake" style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;">마지막 wake 처리: -</div>'
             + '<div style="font-size:0.78rem;color:#64748b;margin-bottom:10px;">이 기기 토큰: <code id="la-demo-token" style="color:#94a3b8;">-</code></div>'
             + '<div style="margin:6px 0;">' + rows + '</div>'
             + '<div id="la-demo-result"></div>'

@@ -21,6 +21,17 @@ public final class LocationAlertDecider {
 
     private LocationAlertDecider() { }
 
+    /**
+     * 진단 out-param — decideAlert 가 null 을 반환한 사유를 노출(JS diag 와 동일 개념).
+     *   locatedZone: 위치가 속한 바다 구역명("" = 바다 구역 밖).
+     *   reason: "notified" | "off-sea" | "no-warning"(무특보·회색지대 보류) | "invalid".
+     * 반환 계약(Message|null)은 불변 — 기존 호출부는 5-인자 오버로드를 그대로 사용.
+     */
+    public static final class Diag {
+        public String locatedZone = "";
+        public String reason = "";
+    }
+
     /** zones 를 canonZone(키)→zone JSON 으로 정규화한 인덱스. (JS normZones 와 동일) */
     private static Map<String, JSONObject> normIndex(JSONObject zones) {
         Map<String, JSONObject> m = new HashMap<>();
@@ -60,8 +71,22 @@ public final class LocationAlertDecider {
     public static LocationAlertCore.Message decideAlert(
             double lat, double lng, double accuracyM,
             List<LocationAlertCore.Feature> features, JSONObject snapshot) {
+        // 기존 공개 계약(5-인자) 유지 — 진단 불필요 호출부는 그대로.
+        return decideAlert(lat, lng, accuracyM, features, snapshot, null);
+    }
 
-        if (features == null || features.isEmpty() || snapshot == null) return null;
+    /**
+     * 진단 오버로드 — diag(nullable)에 locatedZone/reason 을 채운다(JS decideAlert 의
+     * 선택적 diag out-param 과 동일). 판정 로직·반환값은 5-인자와 완전히 동일.
+     */
+    public static LocationAlertCore.Message decideAlert(
+            double lat, double lng, double accuracyM,
+            List<LocationAlertCore.Feature> features, JSONObject snapshot, Diag diag) {
+
+        if (features == null || features.isEmpty() || snapshot == null) {
+            if (diag != null) diag.reason = "invalid";
+            return null;
+        }
 
         final double[] pt = LocationAlertCore.toLngLat(lat, lng);
 
@@ -70,19 +95,31 @@ public final class LocationAlertDecider {
         final Map<String, JSONObject> norm = normIndex(zones);
 
         LocationAlertCore.Located located = LocationAlertCore.locateZone(pt, features, accuracyM);
-        if (located == null) return null; // 바다 구역 밖(육지/외해)
+        if (located == null) { // 바다 구역 밖(육지/외해)
+            if (diag != null) { diag.locatedZone = ""; diag.reason = "off-sea"; }
+            return null;
+        }
 
         final String zoneName = located.feature.name;
+        if (diag != null) diag.locatedZone = zoneName != null ? zoneName : "";
         // 사용자 자기 구역: 정확 일치 우선 → 정규화 조회.
         JSONObject z = lookupZone(zones, norm, zoneName);
-        if (z == null) return null;
+        if (z == null) {
+            if (diag != null) diag.reason = "no-warning"; // 내 구역에 유효 특보 없음
+            return null;
+        }
         String tier = z.optString("tier", null);
         if (tier == null || tier.isEmpty() || "none".equals(tier) || "prelim_none".equals(tier)) {
+            if (diag != null) diag.reason = "no-warning";
             return null; // 내 구역에 유효 특보 없음
         }
 
         // 경계 회색지대(GPS 오차 반경 내): severe 만 보류. 예비·주의보는 그대로 표출.
-        if (located.grayZone && "severe".equals(tier)) return null;
+        //   진단상 '유효 특보 억제(no-warning)'로 기록(회색지대 보류 = 표출 없음).
+        if (located.grayZone && "severe".equals(tier)) {
+            if (diag != null) diag.reason = "no-warning";
+            return null;
+        }
 
         // 최근접 무특보 구역 — 정규화 tierOfZone(특보구역이 무특보로 오판정되지 않도록).
         LocationAlertCore.Target nearestClear = LocationAlertCore.nearestZoneBy(pt, features,
@@ -114,6 +151,7 @@ public final class LocationAlertDecider {
         LocationAlertCore.Message msg = LocationAlertCore.buildMessage(ctx);
         // 진단 주석(텍스트는 변경하지 않음). 단말 last_match 기록 + 시연 탭 표시용.
         if (msg != null) { msg.zone = zoneName; msg.tier = tier; msg.event = ctx.event; }
+        if (diag != null) diag.reason = msg != null ? "notified" : "no-warning"; // buildMessage null(비정상)도 무표출로 기록
         return msg;
     }
 

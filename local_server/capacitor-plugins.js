@@ -82,6 +82,20 @@ const initPushNotifications = async () => {
     await PushNotifications.addListener('registration', (token) => {
         console.log('Push Registration Success. Token:', token.value);
         window.subscribeUser(token.value);
+        // [위치기반 특보 C] 신규/회전(rotate) 토큰 즉시 동의 재등록.
+        //   토큰이 바뀌면 서버 consent 기록(토큰 기준 upsert)이 새 토큰에 없어 wake 대상에서
+        //   빠진다 → subscribeUser 가 push_token 을 저장한 직후 재등록(활성+동의 단말만 POST).
+        //   약간 지연: subscribeUser 의 localStorage 저장 완료 + UI 모듈 로드 보장. 완전 방어적.
+        try {
+            setTimeout(() => {
+                try {
+                    if (window.LocationAlertUI
+                        && typeof window.LocationAlertUI.resyncConsentToServer === 'function') {
+                        window.LocationAlertUI.resyncConsentToServer();
+                    }
+                } catch (_) { /* 방어적 — 무시 */ }
+            }, 500);
+        } catch (_) { /* 방어적 — 무시 */ }
     });
 
     // 실패 시
@@ -687,7 +701,33 @@ if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.is
                     window.LocationAlertBackground.ensureStarted();
                 }
             } catch (e) { /* 방어적 — 무시 */ }
+            // [위치기반 특보 B] 네이티브 게이팅 플래그 재미러 — 매 앱 실행마다.
+            //   재설치/데이터 유실로 Preferences(location_alert_active/consent)가 비면 네이티브가
+            //   매 wake 를 조용히 skip 했다(설정 모달을 열기 전까지 재미러 경로가 없었음).
+            //   resyncNativeFlags 는 localStorage 의 "현재 저장 상태"만 미러 — OFF 를 ON 으로
+            //   뒤집지 않는다. 멱등이라 설정 모달 init 과 중복 실행돼도 무해.
+            try {
+                if (window.LocationAlertUI
+                    && typeof window.LocationAlertUI.resyncNativeFlags === 'function') {
+                    window.LocationAlertUI.resyncNativeFlags();
+                }
+            } catch (e) { /* 방어적 — 무시 */ }
         }, 1500);
+        // [위치기반 특보 C] 동의 사실 서버 재등록 — 매 앱 실행마다(활성+동의 단말만 POST).
+        //   토글 시점에 push_token 이 없었거나 이후 토큰이 회전하면 서버 consent 기록이 현재
+        //   토큰에 없어 wake 대상에서 빠진다. 푸시 등록(subscribeUser)이 push_token 을 저장할
+        //   시간을 주기 위해 ~2.5초 지연. 서버 recordConsent 는 토큰 기준 upsert(멱등).
+        setTimeout(() => {
+            try {
+                if (typeof window !== 'undefined'
+                    && window.Capacitor && window.Capacitor.isNativePlatform
+                    && window.Capacitor.isNativePlatform()
+                    && window.LocationAlertUI
+                    && typeof window.LocationAlertUI.resyncConsentToServer === 'function') {
+                    window.LocationAlertUI.resyncConsentToServer();
+                }
+            } catch (e) { /* 방어적 — 무시 */ }
+        }, 2500);
     } catch (e) { /* 방어적 — setTimeout 부재 등 무시 */ }
 }
 
