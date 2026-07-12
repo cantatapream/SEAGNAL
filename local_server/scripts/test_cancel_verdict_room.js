@@ -127,6 +127,19 @@ ok('태풍으로 복귀한 동명 자식은 풍랑 보류 유지', mc._cvHasPend
 mc._buildUserPushChanges(snap({}), snap({ [Z]: PRELIM() }, { [Z]: { '남해동부안쪽먼바다중연안바다': PRELIM() } }));
 ok('풍랑으로 복귀 → 폐기', !mc._cvHasPendings());
 
+console.log('\n[10-B] [3차 검증] 부모 (d) 만료 시에도 흡수 자식 복원 (데드라인 불일치)');
+{
+    mc._resetCancelVerdictsForTest();
+    mc._setLastCancelScanForTest(null);
+    const futureEf = (() => { const k = new Date(Date.now() + 10 * 3600e3 + 9 * 3600e3); const p = n => String(n).padStart(2, '0'); const H = p(k.getUTCHours()); return `${k.getUTCFullYear()}.${p(k.getUTCMonth() + 1)}.${p(k.getUTCDate())} ${H}~${H}시`; })();
+    mc._registerChildCancelVerdict(Z, '남해동부안쪽먼바다중연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: futureEf, tmYn: '' });
+    mc._buildUserPushChanges(snap({ [Z]: PRELIM({ tmEf: '' }) }), snap({}));   // 부모(발효예정 미상→기본 1h) 등록·흡수
+    mc._loadCancelVerdicts().parents[Z].registeredAt = Date.now() - 61 * 60e3;   // 부모 만료
+    mc._buildUserPushChanges(snap({}), snap({}));
+    const vX = mc._loadCancelVerdicts();
+    ok('부모 만료 후 자식 보류 복원(자기 데드라인 지속)', !vX.parents[Z] && !!vX.children[Z + '|남해동부안쪽먼바다중연안바다']);
+}
+
 console.log('\n[10] [적대검증 6] 부모 (a) 폐기 시 흡수 자식 복원');
 mc._resetCancelVerdictsForTest();
 mc._registerChildCancelVerdict(Z, '남해동부안쪽먼바다중연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '', tmYn: '' });
@@ -159,6 +172,11 @@ console.log('\n[14] [2026-07-12 실사고 리허설] 발효예정 기반 데드�
     const kst = (y, mo, d, h, mi = 0) => Date.UTC(y, mo - 1, d, h - 9, mi);
     if (mc._mmisEndMs('2026.07.12 11~11시') !== kst(2026, 7, 12, 11)) { fail++; console.log('  ❌ FAIL: 범위형 끝시각 파싱'); } else { pass++; console.log('  ✅ 범위형 끝시각 파싱'); }
     if (mc._mmisEndMs('2026.07.11 18~24시') !== kst(2026, 7, 12, 0)) { fail++; console.log('  ❌ FAIL: 24시→익일 00시'); } else { pass++; console.log('  ✅ 24시→익일 00시'); }
+    // [3차 검증 치명] 자정넘김 "18~00시" (warn-sasc/ready 실측 형식) → 익일 00시
+    if (mc._mmisEndMs('2026.07.11 18~00시') !== kst(2026, 7, 12, 0)) { fail++; console.log('  ❌ FAIL: 자정넘김 18~00시'); } else { pass++; console.log('  ✅ 자정넘김 18~00시→익일 00시'); }
+    if (mc._mmisEndMs('2026.07.11 23~03시') !== kst(2026, 7, 12, 3)) { fail++; console.log('  ❌ FAIL: 자정넘김 23~03시'); } else { pass++; console.log('  ✅ 자정넘김 23~03시→익일 03시'); }
+    if (mc._mmisEndMs('2026.07.11 18시~24시') !== kst(2026, 7, 12, 0)) { fail++; console.log('  ❌ FAIL: 시 병기 변형'); } else { pass++; console.log('  ✅ "18시~24시" 병기 변형'); }
+    if (mc._mmisEndMs('2026.06.02 23∼23시') !== kst(2026, 6, 2, 23)) { fail++; console.log('  ❌ FAIL: 전각 ∼'); } else { pass++; console.log('  ✅ 전각 ∼ 허용'); }
     if (mc._mmisEndMs('2026.07.11 11:30') !== kst(2026, 7, 11, 11, 30)) { fail++; console.log('  ❌ FAIL: 정확형 파싱'); } else { pass++; console.log('  ✅ 정확형 파싱'); }
     if (mc._mmisEndMs('이상한값') !== null) { fail++; console.log('  ❌ FAIL: 파싱불가 null'); } else { pass++; console.log('  ✅ 파싱불가 null'); }
     // 데드라인: 발효예정이 미래(+3h)면 1시간 넘어도 대기 유지, 발효예정+1h 지나면 만료

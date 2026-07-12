@@ -43,7 +43,7 @@ const LIST_PATH = '/w/special-report/list.do';
 const HTTP_TIMEOUT_MS = 10000;
 const FETCH_GAP_MS = 250;                    // 요청 사이 최소 간격
 const SEEN_REPORT_TTL_MS = 24 * 60 * 60 * 1000;   // 스캔 완료 통보문 재조회 억제
-const RELEASE_MEMORY_TTL_MS = 2 * 60 * 60 * 1000; // 발견 취소문구 보존(보류 TTL 1h 이상)
+const RELEASE_MEMORY_TTL_MS = 2 * 60 * 60 * 1000; // 발견 취소문구 보존 — (c)가 발견 즉시 소비하므로 2h 로 충분(보류가 24h 여도 스캔은 매분 계속됨)
 const KINDS = ['met', 'pwn'];                // 특보 통보문 + 예비특보 통보문
 // [적대검증 5] 한 번의 scan() 이 크롤 주기(1분)를 붙들지 않도록 상세 조회 상한 — 초과분은
 //   _seenReports 미기록 상태로 남아 다음 사이클에 이어서 조회된다(이월).
@@ -199,9 +199,12 @@ function _explicitlyExcluded(hay, name) {
     return false;
 }
 
-/** [강원청 서식, 2026-07-12 아카이브 실측] 묶음명이 괄호를 동반하면("동해중부앞바다(강원남부앞바다)")
- *  괄호 안 개별 부모 목록이 권위 — 묶음 확장 금지. 괄호 없는 유효 occurrence 가 있을 때만 확장 허용.
- *  (괄호에 나열된 부모는 직접 언급 매칭으로 이미 잡히므로 누락 없음.) */
+/** [강원청 서식, 2026-07-12 아카이브 실측] 묶음명이 "해역 나열 괄호"를 동반하면
+ *  ("동해중부앞바다(강원남부앞바다)") 괄호 안 개별 부모 목록이 권위 — 묶음 확장 금지.
+ *  (괄호에 나열된 부모는 직접 언급 매칭으로 이미 잡히므로 누락 없음.)
+ *  [3차 검증 보정] 괄호 내용이 해역 나열이 아니면(시각·요약 "(12일 05시 발표)", 제외 단서
+ *  "(먼바다 제외)") 권위 목록이 아니므로 확장을 막지 않는다 — 막으면 개별 매칭도 성립하지
+ *  않아 전 해역 침묵 누락. 제외 단서의 개별 해역 배제는 _explicitlyExcluded 가 담당. */
 function _mentionsAsGroup(hay, key) {
     const n = _norm(key);
     if (!n) return false;
@@ -209,9 +212,14 @@ function _mentionsAsGroup(hay, key) {
     while (idx !== -1) {
         const after = hay.slice(idx + n.length, idx + n.length + 6);
         const childPrefix = after.charAt(0) === '중';
-        const parenFollows = after.charAt(0) === '(';
         const excluded = /^(?:를|은|는|만)?제외/.test(after);
-        if (!childPrefix && !parenFollows && !excluded) return true;
+        let authoritativeParen = false;
+        if (after.charAt(0) === '(') {
+            const close = hay.indexOf(')', idx + n.length + 1);
+            const inner = close !== -1 ? hay.slice(idx + n.length + 1, close) : '';
+            authoritativeParen = /바다|연안|평수/.test(inner) && inner.indexOf('제외') === -1;
+        }
+        if (!childPrefix && !authoritativeParen && !excluded) return true;
         idx = hay.indexOf(n, idx + 1);
     }
     return false;

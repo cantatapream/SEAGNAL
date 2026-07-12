@@ -1101,16 +1101,25 @@ let _cancelVerdictsDirty = false;
 let _lastCancelScan = null;        // 이번 사이클 스캔 결과 (run 4-G 가 채움)
 
 /** MMIS 시각 문자열의 "끝 모멘트" epoch ms (KST).
- *   지원: "YYYY.MM.DD HH~HH시"(범위 — 끝시각), "YYYY.MM.DD HH:mm"(정확), "YYYY.MM.DD HH시".
- *   "24시"는 익일 00시로 자연 정규화(Date.UTC 시간 오버플로). 파싱 불가 → null. */
+ *   지원: "YYYY.MM.DD HH~HH시"·"HH시~HH시"·전각 ∼ (범위 — 끝시각), "YYYY.MM.DD HH:mm"(정확),
+ *   "YYYY.MM.DD HH시". "24시"는 익일 00시로 자연 정규화(Date.UTC 시간 오버플로).
+ *   [3차 검증 치명] 자정넘김 표기 "18~00시"(실측: warn-sasc/ready 2026-07-11) — 끝시가
+ *   시작시보다 작으면 익일 보정(+24h). 이 보정이 없으면 끝이 18시간 과거로 계산되어
+ *   데드라인이 기본 1h 로 붕괴(저녁 예비 소멸 → 익일 새벽 취소 통보문을 놓치는 7/12 형).
+ *   파싱 불가 → null (호출측 기본 1h — 등록 로그로 가시화). */
 function _mmisEndMs(t) {
     if (!t) return null;
     const s = String(t).trim();
-    let m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{1,2})\s*~\s*(\d{1,2})시/.exec(s);
-    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[5] - 9, 0);
+    let m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{1,2})\s*시?\s*[~∼]\s*(\d{1,2})\s*시/.exec(s);
+    if (m) {
+        const start = +m[4];
+        let end = +m[5];
+        if (end < start) end += 24;   // 자정넘김 "18~00시" → 익일 00시
+        return Date.UTC(+m[1], +m[2] - 1, +m[3], end - 9, 0);
+    }
     m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{1,2}):(\d{2})/.exec(s);
     if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5]);
-    m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{1,2})시/.exec(s);
+    m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{1,2})\s*시/.exec(s);
     if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, 0);
     return null;
 }
@@ -1210,7 +1219,9 @@ function _registerParentCancelVerdict(zone, block) {
     }
     v.parents[zone] = { zone, block, registeredAt, evalCycles: (sameEpisode ? prevEnt.evalCycles : 0) || 0, absorbed };
     _cancelVerdictsDirty = true;
-    console.log(`[Marine] 예비취소 판정 보류(부모): ${zone} [${block && block.wrnTp}] — 통보문 확인 대기 (TTL ${CANCEL_VERDICT_TTL_MS / 60000}분${sameEpisode ? ', 기존 판정 승계' : ''})`);
+    const ddl = _cvDeadline(v.parents[zone]);
+    const efNote = (block && block.tmEf && _mmisEndMs(block.tmEf) == null) ? ', 발효예정 파싱불가→기본 1h' : '';
+    console.log(`[Marine] 예비취소 판정 보류(부모): ${zone} [${block && block.wrnTp}] — 통보문 확인 대기 (데드라인 ${Math.round((ddl - Date.now()) / 60000)}분 후${sameEpisode ? ', 기존 판정 승계' : ''}${efNote})`);
 }
 
 /** 자식 예비취소 보류 등록 — 부모 예비는 살아있는 케이스(§7.7.19). block = childToBlock(info). */
@@ -1343,6 +1354,9 @@ function _evaluateCancelVerdicts(curr, changes, h) {
             const raw = _lastCancelScan && _lastCancelScan.rawByOffice
                 ? JSON.stringify(_lastCancelScan.rawByOffice).slice(0, 600) : '(스캔 원문 없음)';
             console.log(`[Marine] 예비취소 보류 만료(무푸시): ${zone} [${tp}] — ${ent.evalCycles}사이클 판정, 취소 문구 미발견. 최근 참고사항: ${raw}`);
+            // [3차 검증 중간] 부모(만료형, 짧은 데드라인)와 흡수 자식(발효예정 미래, 긴 데드라인)이
+            //   어긋날 수 있음 — 부모 만료 시에도 미복귀 자식은 복원해 자기 데드라인까지 판정 지속.
+            restoreAbsorbed(zone, ent);
             delete v.parents[zone];
         }
     }
