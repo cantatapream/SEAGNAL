@@ -48,6 +48,11 @@ catch (e) { console.warn('[child-bulletin] pdf-parse 미설치 — 자식 통보
 
 const MARINE_PDF_HOST = 'https://marine.kma.go.kr';
 const NATIONAL_GO = '108';   // 본청(전국) — 연안/평수 미포함이라 자식 매칭 대상 아님
+// [2026-07-12 실측] MMIS 통보사서함(warn/ntfctn/list)에 항목이 없는 관서 — 조회해도 영원히
+//   0건이라 펜딩이 6h 하드캡까지 무익 폴링만 남긴다. 105(강원청): 최근 1개월·겨울 모두 0건
+//   실측 + 강원청 통보문은 자식 연안·평수 명칭 자체를 표기하지 않아(내용 실측) 이중 무의미.
+//   (zone_home_office 의 105 는 날씨누리 스캔·통보문 딥링크용으로는 유효 — 소비자별 분리.)
+const NTFCTN_ABSENT_OFFICES = new Set(['105']);
 
 // 영속 파일 — 타 크롤러 state 와 동일 디렉터리/atomic write 패턴.
 const _DATA_DIR = path.join(__dirname, '..', 'data');
@@ -273,7 +278,7 @@ function registerChildChanges(userChanges, zoneHomeOffice) {
         const parent = ch.zone;
         // 관할청이 없거나 108(전국 폴백)이면 ntfctn 으로 좁혀 받을 수 없어 펜딩 무의미 → skip.
         const home = homeNormMap[_norm(parent)];
-        if (!home || home === NATIONAL_GO) continue;
+        if (!home || home === NATIONAL_GO || NTFCTN_ABSENT_OFFICES.has(home)) continue;
 
         const cs = ch.childState || {};
         const changed = []
@@ -458,7 +463,7 @@ async function tick(deps) {
     const officeToPendings = new Map();
     for (const [key, p] of Object.entries(st.pendings)) {
         const home = homeNormMap[_norm(p.parent)];
-        if (!home || home === NATIONAL_GO) continue;
+        if (!home || home === NATIONAL_GO || NTFCTN_ABSENT_OFFICES.has(home)) continue;
         if (!officeToPendings.has(home)) officeToPendings.set(home, []);
         officeToPendings.get(home).push([key, p]);
     }
