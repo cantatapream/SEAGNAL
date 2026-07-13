@@ -5,3 +5,4 @@ apk_build
 android
 local_server/node_modules
 local_server/data
+archive/
