@@ -1312,4 +1312,4 @@ SEAGNAL/                   ← 저장소를 열면 가장 먼저 보이는 최�
 | 생성 시점 | Phase 2b — 루트 3문서(README·ARCHITECTURE·DEVELOPMENT_GUIDE)와 CLAUDE.md 를 같은 시점에 생성. §9~§12 의 규칙·템플릿을 실제 경로 기준으로 옮겨 담아 독립 문서화 |
 | 관계 | 본 제안서(계획) → ARCHITECTURE.md(현재 도면) + DEVELOPMENT_GUIDE.md(미래 규칙) 로 역할 분리 |
 | 유지 | 지침 자체를 바꿀 때는 반드시 사용자 승인 (구조 원칙의 변경이므로) |
-| CLAUDE.md | 루트 CLAUDE.md 에 "코드 작성·수정 전 DEVELOPMENT_GUIDE.md 필독" 1줄 명시 |
+| CLAUDE.md | 루트 CLAUDE.md 에 ① "코드 작성·수정 전 DEVELOPMENT_GUIDE.md 필독" 지시 + ② **핵심 규칙 요약 병기**(배치 결정 트리 5문항 + 8항목 체크리스트 축약본) — CLAUDE.md 는 세션 시작 시 자동 주입되므로, 만에 하나 가이드 원문을 읽지 않아도 핵심 규칙이 이미 컨텍스트에 존재하게 하는 이중 안전장치. 최후의 그물망은 check_headers.js·V2~V4 (지침 준수를 성실성이 아닌 기계 검증으로 보장) |
