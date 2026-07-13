@@ -175,7 +175,7 @@ SEAGNAL/
 │   │   app_init, config, capacitor-plugins, backbutton, auto_refresh, index2_patch
 │   │
 │   ├── shared/                      공용 재료
-│   │   ├── ui/                      ui_modal, pagination_helper, image_compress
+│   │   ├── ui/                      ui_modal
 │   │   ├── utils/                   utils, mappings
 │   │   ├── geo/                     seaZones, seaZonesData, seaZoneCoordinates,
 │   │   │                            zoneOverlayConfig, gridCalibrationData, buoyLocations
@@ -201,7 +201,7 @@ SEAGNAL/
 │       │   ├── mudflat/  sea-parting/  ripcurrent/
 │       │
 │       ├── notice/                  [탭4] 공지사항
-│       │   promo, promo_comment1~5
+│       │   board/ (promo, image_compress)  comments/ (promo_comment1~5)
 │       │
 │       ├── push/                    ⚡ 횡단: alert_push
 │       ├── location-alert/          ⚡ 횡단: location_alert_core/background/runtime/ui
@@ -288,9 +288,12 @@ SEAGNAL/
 Phase 0  보안: 서비스 계정 키 rotate + 정적 루트 밖으로 + .gitignore     [즉시]
 Phase 1  루트 청소: 리포트/실험파일/옛 Maven → 00_docs, archive          [반나절]
 Phase 2  = 안 A: js/ 기능별 폴더화 + index2.html 경로 수정               [1일]
+         └ 폴더 이동과 동시에 폴더별 README.md 생성 (§9 템플릿 기준)
 Phase 3  = 안 B: client/server 분리, staticRoot 변경, 크롤러 → jobs/     [1~2일]
 Phase 4  (선택) index.html 탭별 분할, style.css 기능별 분할, scheduler 분할
 ```
+
+> 파일별 상세 배치는 §8, 폴더별 README 문서화 규칙은 §9 참고.
 
 각 Phase 완료 시마다 스테이징(fly.staging) 배포 → 4개 탭 + 푸시 + 위치경보 동작 확인 후 다음 단계로.
 
@@ -382,3 +385,336 @@ features/push/push_ios.js 처럼 접미사로 구분하고 진입점에서 선�
 4. **서버↔프론트 겸용 파일**: `services/typhoon_radius.js`, `services/typhoon_message.js`는 서버가 require하면서 index2.html도 script로 로드. 이동 시 양쪽 경로 모두 수정 (안 B에서는 `shared/` 또는 심볼릭 유지, 안 C에서는 `packages/typhoon/`)
 5. **Fly.io 볼륨 경로**: `data/`, `uploads/` 등 런타임 쓰기 폴더는 볼륨 마운트 경로와 연결 → server_config의 경로 상수 확인 후 이동
 6. **git 이력 보존**: 이동은 `git mv`로 수행해야 blame/이력 추적 유지
+
+---
+
+## 8. 세부 기능 폴더 상세 배치표 (파일 하나하나의 새 주소)
+
+> 원칙: **메인탭 폴더 안에서도 세부 기능마다 폴더를 만든다.**
+> 파일이 1개뿐인 기능(예: 갯벌체험)도 반드시 자기 폴더를 가진다 — 폴더가 곧 "기능의 단위"이고,
+> README.md와 향후 추가 파일이 들어갈 자리이기 때문.
+> 각 폴더에는 해당 JS 파일들 + `README.md`(§9)가 들어간다.
+
+### 8.1 core/ — 앱 구동
+
+```
+client/core/
+├── README.md
+├── app_init.js          앱 초기화, 시간 표시, 폰트 크기, 방문자 카운터
+├── config.js            전역 설정(CONFIG), 해역 상수, 해역 분류 체계
+├── backbutton.js        하드웨어 뒤로가기 버튼 처리 + 팝업 스택 관리
+├── auto_refresh.js      주기적 자동 새로고침
+├── fix_popup_logic.js   팝업 동작 보정 패치
+├── index2_patch.js      런타임 패치 모음
+└── native/
+    ├── README.md
+    └── capacitor-plugins.js   Capacitor 플러그인 브리지 (푸시 토큰, 위치, 알림 권한 등)
+```
+
+### 8.2 shared/ — 여러 기능이 공유하는 재료
+
+```
+client/shared/
+├── ui/
+│   ├── README.md
+│   └── ui_modal.js            공통 UI 모달 (기상청 iframe, 시스템 모달)
+├── utils/
+│   ├── README.md
+│   ├── utils.js               전역 상태(appState), 날짜/시간 포맷 유틸
+│   └── mappings.js            연안바다/평수구역 매핑, 부이 위치·타입 정의
+├── geo/                       ★ 해역·좌표 데이터 (현재 local_server 루트에 흩어져 있던 것)
+│   ├── README.md
+│   ├── seaZones.js  seaZonesData.js  seaZoneCoordinates.js
+│   ├── zoneOverlayConfig.js  gridCalibrationData.js  buoyLocations.js
+│   └── land_mask_korea.json  marine_zone_area.json
+└── tide/                      ★ 조석 계산 (특보탭·해양지도·해양생활이 모두 사용)
+    ├── README.md
+    └── tide.js  tide_calendar.js  tide_helpers.js  tide_exception.js
+```
+
+### 8.3 features/forecast/ — [탭1] 특보 및 전망
+
+```
+client/features/forecast/
+├── README.md                  탭 전체 개요 (하위 기능 안내)
+├── alerts/                    ◆ 해역별 특보 현황
+│   ├── README.md
+│   ├── data.js                특보 데이터 수집(fetchAllData), 부이 데이터, API 상태
+│   ├── render.js              메인 UI 렌더링 (renderApp, createAlertElement)
+│   ├── render_coastal.js      연안 구역 렌더링, 부이 데이터 표시
+│   ├── zone_avg.js            해역 평균 파고/풍속 모듈
+│   ├── alert_history.js       특보 히스토리 팝업 (해역별 통보문 이력)
+│   └── marine.js              해구별 기상정보 모달, 해양 차트 렌더링
+├── prediction/                ◆ 해역별 특보 예측
+│   ├── README.md
+│   └── advisory_prediction.js 특보 예측 아코디언 렌더러
+├── outlook/                   ◆ 해상 전망
+│   ├── README.md
+│   ├── forecast.js            해상예보 테이블, 정보 팝업(해구별/특보/조석)
+│   ├── marine_forecast.js     기상청 해상 기상 전망 로드/렌더링
+│   └── windy.js               Windy 팝업, 상태 카드
+└── marine-chart/              ◆ 해상일기도 (서브탭)
+    ├── README.md
+    ├── marine_chart1.js       카탈로그/상태/DOM 바인딩/드롭다운
+    ├── marine_chart2.js       데이터 fetch / 이미지 렌더 / 재생 컨트롤
+    ├── marine_chart3.js       전체화면 진입/종료
+    ├── marine_chart4.js       전체화면 컨트롤 자동 페이드
+    └── marine_chart5.js       전체화면 제스처 (핀치줌·팬·탭)
+```
+
+### 8.4 features/ocean-map/ — [탭2] 해양종합정보
+
+```
+client/features/ocean-map/
+├── README.md
+├── map/                       ◆ 지도 코어
+│   ├── README.md
+│   ├── ocean_map.js           지도 초기화 + 베이스맵 전환 + 기본 인터랙션
+│   ├── ocean_markers.js       조석 표준항 마커 + 클릭 처리
+│   ├── ocean_overlay.js       해류/바람/파고 캔버스 오버레이 + 파티클 애니메이션
+│   └── ocean_northup.js       진북(North Up) 회전 컨트롤
+├── bottom-sheet/              ◆ 해점 클릭 바텀시트
+│   ├── README.md
+│   ├── ocean_bottom_sheet1.js 코어/네임스페이스/진입점/공용 유틸
+│   ├── ocean_bottom_sheet2.js 헤더 — 날짜 네비 + 음력 + 토글
+│   ├── ocean_bottom_sheet3.js 조석 카드 (TideBED 폴링 + 3모드 렌더)
+│   ├── ocean_bottom_sheet4.js 동해 북부 IDW 보간 + 천문 카드
+│   ├── ocean_bottom_sheet5.js 6개 일반 카드 + 저질 분석 + 오케스트레이터
+│   ├── ocean_bottom_sheet_weather.js  천기 카드 (KMA 단기예보 종합)
+│   ├── ocean_bottom_sheet_vsby.js     시정 카드
+│   └── ocean_sheet_timeline.js        바텀시트 내부 시간 슬라이더
+├── warnings/                  ◆ 지도 위 특보 표시
+│   ├── README.md
+│   ├── ocean_warn_zone.js     KMA 예특보구역 폴리곤 outline
+│   ├── ocean_warn_active1~5.js  활성 특보 색칠 (1:상수 2:계산 3:스타일 4:토글 5:정보박스)
+│   └── ocean_warn_vsby.js     특보 카드 시정 뱃지
+├── layers/                    ◆ 예측 오버레이 레이어
+│   ├── README.md
+│   ├── shrt_forecast_layer.js KMA 단기예보(천기) 오버레이
+│   ├── vsby_forecast_layer.js KMA RDPS 시정예측 raster 오버레이
+│   └── tide_field.js          서해·남해 물빠짐(갯벌 노출) 예측 레이어
+├── observation/               ◆ 관측 장비
+│   ├── README.md
+│   └── ocean_buoy.js          기상부이 + 주요지명 격자 샘플링 레이어
+├── cctv/                      ◆ 연안 CCTV
+│   ├── README.md
+│   ├── cctv1.js               CCTV 제공기관별 데이터 정의
+│   ├── cctv4.js               클릭 핸들러 + 모달 + 즐겨찾기
+│   └── ocean_cctv.js          지도 CCTV 레이어
+└── timeline/                  ◆ 72시간 예측 타임라인
+    ├── README.md
+    └── ocean_timeline.js      해양현황 타임라인 슬라이더
+```
+
+### 8.5 features/marine-life/ — [탭3] 해양생활 (요청하신 세부 기능별 분리)
+
+```
+client/features/marine-life/
+├── README.md                  탭 개요 + 공통 패턴 설명 (지도형 지수 UI 공통 구조)
+├── fishing/                   ◆ 바다낚시
+│   ├── README.md
+│   └── fishing.js             바다낚시 지수 전체 로직 (지도/마커/바텀시트)
+├── surfing/                   ◆ 서핑
+│   ├── README.md
+│   ├── surfing1.js            기본 구조/상태/지도 초기화/데이터 로드
+│   ├── surfing2.js            마커 렌더링/범례/"서핑지수란?" 팝업
+│   ├── surfing3.js            팝업 열기/닫기 + 날짜 네비게이션
+│   ├── surfing4.js            팝업 콘텐츠 렌더링 (지수 테이블)
+│   └── surfing5.js            해상특보 맵 구축 + 특보 HTML 생성
+├── swimming/                  ◆ 해수욕 (시즌제)
+│   └── README.md              ※ 현재 전용 JS 없음 — 개장기간 안내만 표시.
+│                                 향후 해수욕장 지수 로직이 생기면 이 폴더에 추가
+├── scuba/                     ◆ 스킨스쿠버
+│   ├── README.md
+│   └── scuba.js               스킨스쿠버 지수 전체 로직
+├── mudflat/                   ◆ 갯벌체험
+│   ├── README.md
+│   └── mudflat.js             갯벌체험 지수 전체 로직 (지도형)
+├── sea-parting/               ◆ 바다갈라짐
+│   ├── README.md              (§9.3 에 실제 예시 수록)
+│   └── sea_parting.js         바다갈라짐 시간 전체 로직
+└── ripcurrent/                ◆ 이안류 (현재 탭 숨김 상태)
+    ├── README.md
+    └── ripcurrent.js          이안류 지수 전체 로직 (지도형)
+```
+
+### 8.6 features/notice/ — [탭4] 공지사항
+
+```
+client/features/notice/
+├── README.md
+├── board/                     ◆ 게시판
+│   ├── README.md
+│   ├── promo.js               게시판 렌더링/검색/파일첨부/관리자 편집
+│   └── image_compress.js      게시글 에디터(Quill) 이미지 자동 압축
+└── comments/                  ◆ 댓글 시스템
+    ├── README.md
+    ├── promo_comment1.js      공통 유틸 (닉네임, 기기ID)
+    ├── promo_comment2.js      댓글 렌더링
+    ├── promo_comment3.js      등록/수정/삭제
+    ├── promo_comment4.js      답글 + 관리자 전용 기능
+    └── promo_comment5.js      초기화 진입점 + 새로고침
+```
+
+### 8.7 features/ — 횡단 기능 (탭에 속하지 않는 것)
+
+```
+client/features/
+├── push/                      ◆ 푸시 알림
+│   ├── README.md
+│   └── alert_push.js          해양특보 알림 관리 모달 (발표/발효/해제/격상/이력)
+├── location-alert/            ◆ 위치기반 특보 경보
+│   ├── README.md
+│   ├── location_alert_core.js        순수 판정 로직 (좌표→해역 매칭)
+│   ├── location_alert_background.js  이벤트 기반 위치 수집 (백그라운드)
+│   ├── location_alert_runtime.js     깨우는 신호 처리·재동기화
+│   └── location_alert_ui.js          동의·활성 UI
+├── typhoon/                   ◆ 태풍 (지도 오버레이 + 반경 알림)
+│   ├── README.md
+│   ├── ocean_typhoon.js               지도 태풍 오버레이 + 재생 애니메이션
+│   ├── location_alert_typhoon_runtime.js  태풍 반경 알림 런타임
+│   └── (typhoon_radius.js / typhoon_message.js — 서버와 공용, §7-4 참고)
+├── assistant/                 ◆ AI 음성 비서
+│   ├── README.md
+│   ├── assistant.js           음성 비서 프론트 (호출어 + STT + TTS)
+│   ├── assistant_deeplink.js  답변 "바로가기" → 해당 지도 레이어 딥링크
+│   ├── assistant_overlay.js   백그라운드 비서 상태/대화 오버레이
+│   └── memory/
+│       ├── README.md
+│       ├── user_memory_bridge.js  사용자 기억 v2 — WebView↔네이티브 다리
+│       └── user_memory_web.js     사용자 기억 v2 — 웹 IndexedDB 어댑터
+├── settings/                  ◆ 설정
+│   ├── README.md
+│   ├── settings.js            탭 시스템, 사용자 설정, 알림 설정, 위치 검색
+│   └── zone_guide.js          관심 해역 설정 유도 팝업 (1회성)
+├── engagement/                ◆ 사용자 참여 (제보/설문)
+│   ├── README.md
+│   ├── report_user.js         사용자 제보 (작성/답변 팝업/차단 확인)
+│   └── survey_user.js         설문조사 팝업 (자동 표시/재표시 방지)
+└── admin/                     ◆ 관리자 센터
+    ├── README.md
+    ├── admin.js               통합 관리자 (인증, 대시보드, 특보 관리)
+    ├── admin_collect.js       특보 수집 테스트, 방문자 통계 차트
+    ├── admin_survey.js        설문조사 탭 (생성/현황/결과분석)
+    ├── admin_report.js        제보 관리 + 차단 관리
+    ├── admin_trigger.js       관리자 트리거(15회 클릭), 공지/점검 팝업
+    ├── admin_location_status.js  "위치 기반" 탭
+    ├── advisory_manage_admin.js  특보 관리 → 특보 예측 탭
+    ├── pagination_helper.js   관리자 리스트 공용 페이지네이션
+    └── cctv7.js               CCTV 위치 편집 도구 (개발용 — index2에 미로드)
+```
+
+### 8.8 배치 애매 파일 판정 기록
+
+| 파일 | 판정 | 이유 |
+|------|------|------|
+| `marine.js` | forecast/alerts/ | 해구별 기상정보 모달 — 특보 현황 화면에서 호출 |
+| `windy.js` | forecast/outlook/ | Windy 전망 팝업 — 특보탭 소속 |
+| `ocean_warn_vsby.js` | ocean-map/warnings/ | 특보 "카드"에 붙지만 코드가 지도 특보군과 한 몸 |
+| `image_compress.js` | notice/board/ | 게시글 에디터 전용 (다른 곳에서 쓰게 되면 shared/ui로 승격) |
+| `pagination_helper.js` | admin/ | 관리자 리스트 전용 (동일 — 공용화되면 shared/ui로 승격) |
+| `user_memory_*.js` | assistant/memory/ | AI 비서의 사용자 기억 기능 |
+| `location_alert_typhoon_runtime.js` | typhoon/ | 위치경보 계열이지만 태풍 도메인이 본질 |
+| `run_advisory_render_test.js` + 테스트 json | server/scripts/tests/ | 브라우저 코드 아님 (node 테스트 하네스) |
+| `cctv7.js` | admin/ (또는 archive/) | index2.html에 로드되지 않는 편집 도구 |
+
+> 승격 규칙: 한 기능 전용 파일이 나중에 **두 번째 기능에서도 쓰이게 되는 순간** `shared/`로 이동한다. 처음부터 shared에 넣지 않는다 (shared 비대화 방지).
+
+---
+
+## 9. 폴더별 README 문서화 규칙 (초보자용 설명서)
+
+### 9.1 규칙
+
+1. **모든 기능 폴더에 `README.md` 필수** — `features/*/*/`, `shared/*/`, `core/` 전부
+2. 설명 대상 독자는 **"이 코드를 처음 보는 사람"** — 용어를 아는 사람 기준으로 쓰지 않는다
+3. 파일·함수를 수정하면 **같은 커밋에서 README도 갱신** (PR 체크리스트 항목화)
+4. 탭 폴더 최상위 README(예: `features/marine-life/README.md`)는 하위 기능들의 **목차 + 공통 패턴** 설명
+5. 이미 각 JS 파일 머리에 `역할:` 주석이 잘 달려 있으므로, 이것을 README의 시드(초안)로 활용한다
+
+### 9.2 README 표준 템플릿
+
+```markdown
+# <기능 이름>  `client/features/<탭>/<기능>/`
+
+## 1. 이 기능은 무엇인가요?
+(초보자용 한 문단 — 사용자 입장에서 무엇이 보이고 무엇을 할 수 있는지)
+
+## 2. 화면에서 찾아가는 방법
+(예: 하단 메인탭 [해양생활] → 상단 서브탭 [바다갈라짐])
+
+## 3. 파일 구성
+| 파일 | 역할 | 로드 순서 |
+|------|------|-----------|
+(※ 로드 순서는 index.html의 script 순서와 반드시 일치시킬 것)
+
+## 4. 주요 함수 설명
+| 함수 | 하는 일 | 입력 | 출력/효과 | 호출하는 곳 |
+|------|---------|------|-----------|--------------|
+
+## 5. 데이터 흐름
+(사용자 조작 → 함수 → 서버 API → 화면 갱신 순서를 화살표로)
+
+## 6. 연계 파일
+- 서버: routes/..., services/...
+- 공용: shared/...
+- 마크업: index.html 의 #<섹션 id>
+
+## 7. 수정할 때 주의사항
+(전역 변수, 로드 순서 의존, 캐시 등 함정 목록)
+```
+
+### 9.3 작성 예시 — `features/marine-life/sea-parting/README.md`
+
+```markdown
+# 바다갈라짐  `client/features/marine-life/sea-parting/`
+
+## 1. 이 기능은 무엇인가요?
+진도 신비의 바닷길처럼 썰물 때 바닷길이 열리는 명소들의 "갈라짐 시간표"를
+보여주는 기능입니다. 장소를 선택하면 날짜별 갈라짐 시작/종료 시각, 지속
+시간, 날씨를 카드로 보여주고, 자주 보는 장소는 즐겨찾기로 저장됩니다.
+
+## 2. 화면에서 찾아가는 방법
+하단 메인탭 [해양생활] → 상단 서브탭 [바다갈라짐]
+
+## 3. 파일 구성
+| 파일 | 역할 | 로드 순서 |
+|------|------|-----------|
+| sea_parting.js | 이 기능의 전체 로직 (단일 파일) | surfing 다음, mudflat 이전 |
+
+## 4. 주요 함수 설명
+| 함수 | 하는 일 | 입력 | 출력/효과 | 호출하는 곳 |
+|------|---------|------|-----------|--------------|
+| `_renderDropdown()` | 장소 선택 드롭다운을 만든다 | 없음(내부 데이터) | 드롭다운 DOM 생성 | 초기화 시 |
+| `_autoSelectPlace()` | 즐겨찾기/기본 장소를 자동 선택 | 없음 | `_selectPlace()` 호출 | 초기화 시 |
+| `_selectPlace(placeName)` | 특정 장소를 선택 상태로 만든다 | 장소 이름 | 데이터 렌더 트리거 | 드롭다운 클릭 |
+| `_renderData(placeName, container)` | 갈라짐 시간표 카드를 그린다 | 장소, 컨테이너 | 날짜별 카드 DOM | `_selectPlace()` |
+| `_getFavorite()` / `_setFavorite()` | 즐겨찾기 조회/저장 | -/장소 이름 | localStorage 읽기/쓰기 | 별 버튼 클릭 |
+| `_openGuidePopup()` / `_closeGuidePopup()` | "바다갈라짐이란?" 안내 팝업 | 없음 | 팝업 표시/닫기 | ⓘ 버튼 |
+| `_calcDuration(startStr, endStr)` | 갈라짐 지속 시간 계산 | 시작/종료 시각 | "N시간 M분" 문자열 | `_renderData()` |
+| `_getWeatherIcon(weather)` | 날씨 문자열 → 이모지 아이콘 | 날씨 텍스트 | 아이콘 문자 | `_renderData()` |
+
+## 5. 데이터 흐름
+[서브탭 클릭] → 초기화 → _renderDropdown() → _autoSelectPlace()
+→ _selectPlace("진도") → 서버 API 조회 → _renderData() → 화면에 날짜별 카드
+→ (별 클릭) _setFavorite() → 다음 방문 때 _autoSelectPlace()가 그 장소를 먼저 선택
+
+## 6. 연계 파일
+- 서버: routes/tide.js (조석/갈라짐 데이터)
+- 공용: shared/tide/ (조석 계산), shared/utils/utils.js (날짜 포맷)
+- 마크업: index.html 의 #sea-parting-section
+
+## 7. 수정할 때 주의사항
+- 모든 함수가 `_` 접두사 내부 함수 — 전역 오염을 막는 클로저 구조이므로
+  바깥에서 직접 호출할 수 없음. 진입점만 전역으로 노출됨
+- 즐겨찾기는 localStorage 사용 — 키 이름을 바꾸면 기존 사용자 설정이 초기화됨
+```
+
+### 9.4 생성 및 유지 전략
+
+| 단계 | 내용 |
+|------|------|
+| 초안 생성 | Phase 2(폴더 이동) 때 각 파일의 `역할:` 헤더 주석 + 함수 목록을 추출해 폴더별 README 초안을 일괄 생성 (Claude로 자동화 가능) |
+| 검수 | 기능별로 실제 화면과 대조하며 "찾아가는 방법"과 데이터 흐름 확인 |
+| 유지 | PR 템플릿에 "□ 수정한 폴더의 README를 갱신했는가" 체크 항목 추가 |
+| 서버 측 | 동일 규칙을 `server/routes/`, `server/services/`, `server/jobs/`에도 적용 (파일 수가 많으므로 폴더 단위 README 1개씩) |
