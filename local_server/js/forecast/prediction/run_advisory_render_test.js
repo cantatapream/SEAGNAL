@@ -3,6 +3,12 @@
  * 역할  : node 렌더 테스트 하네스 — advisory_prediction(v6) 렌더 함수 검증 (브라우저 불필요)
  *   advisory_prediction(v6) 의 buildAdvisoryHtml / buildHeaderStatus / formatBaseTime 검증.
  *
+ * [연계]
+ *  - 사용하는 파일 : prediction/advisory_prediction.js (require 로 순수 함수 로드)
+ *  - 서버 API      : 없음 (node 로 도는 테스트 하네스 — 브라우저·네트워크 불필요)
+ *  - 마크업        : 없음 (DOM 없이 문자열 HTML 검증)
+ *  - 나를 쓰는 곳  : 개발자/CI 가 node 로 직접 실행 (verify 스크립트)
+ *
  * 실행: node /home/user/SEAGNAL/local_server/js/run_advisory_render_test.js
  * 결과: js/advisory_render_test.json
  */
