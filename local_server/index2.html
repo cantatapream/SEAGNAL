@@ -4293,9 +4293,9 @@
     <script type="module" src="capacitor-plugins.js?v=Patch_20260706_01"></script>
     <link rel="stylesheet" href="kma_widget.css">
     <!-- [리팩토링] app.js를 15개 모듈로 분할 -->
-    <script src="js/config.js"></script>
-    <script src="js/mappings.js"></script>
-    <script src="js/utils.js"></script>
+    <script src="js/core/config.js"></script>
+    <script src="js/shared/utils/mappings.js"></script>
+    <script src="js/shared/utils/utils.js"></script>
     <script src="js/forecast/alerts/data.js"></script>
     <script src="js/forecast/alerts/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
     <script src="js/forecast/alerts/render.js?v=BuoyClip_20260612"></script>
@@ -4397,9 +4397,9 @@
     <script src="js/engagement/survey_user.js"></script>
     <script src="js/settings/zone_guide.js"></script>
     <script src="js/push/alert_push.js"></script>
-    <script src="js/ui_modal.js"></script>
-    <script src="js/app_init.js"></script>
-    <script src="js/backbutton.js"></script>
+    <script src="js/shared/ui/ui_modal.js"></script>
+    <script src="js/core/app_init.js"></script>
+    <script src="js/core/backbutton.js"></script>
     <!-- AI 비서 바로가기 딥링크(?assistant=ocean&layer=...) → 해양종합정보 레이어 자동 활성화 -->
     <script src="js/assistant/assistant_deeplink.js?v=Patch_20260706_01"></script>
     <!-- 백그라운드 "나리야" 음성 비서 상태/대화를 화면 하단 오버레이로 표시 -->
@@ -4426,7 +4426,7 @@
     <script src="js/ocean-map/cctv/ocean_cctv.js?v=VsbyGuide3_20260613"></script>
 
     <!-- index2 전용 패치: 종합기상 탭 + 헤더 유지 -->
-    <script src="js/index2_patch.js"></script>
+    <script src="js/core/index2_patch.js"></script>
 
     <!-- 선택적 차단 표시용 스타일 (버튼 자물쇠 배지 / 해상일기도·바텀시트 점검중) -->
     <style>
