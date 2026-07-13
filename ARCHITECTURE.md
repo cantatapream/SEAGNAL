@@ -170,7 +170,7 @@ local_server/js/
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |
 | `admin_trigger.js` | 관리자 트리거(15회 클릭), 공지/점검/오류 팝업 |
 | `advisory_manage_admin.js` | 관리자 "특보 관리 → 특보 예측" 운영 UI (청중 모드 토글·예측 목록 관리) |
-| `cctv7.js` | (역할 헤더 미작성 — STEP 6 대상) |
+| `cctv7.js` | 마커 좌표가 잘못된 경우 지도 상에서 직접 위치를 교정합니다. |
 | `pagination_helper.js` | 관리자 리스트 화면용 공용 페이지네이션 UI helper |
 
 ### `local_server/js/assistant/`
@@ -195,7 +195,7 @@ local_server/js/
 | `app_init.js` | 앱 초기화, 시간 표시, 폰트 크기, 헤더 새로고침, 방문자 카운터 |
 | `backbutton.js` | 하드웨어 뒤로가기 버튼 처리 + 팝업 스택 관리 |
 | `config.js` | 전역 설정(CONFIG), 해역 상수, 윈디 매핑, 해역 분류 체계 |
-| `index2_patch.js` | (역할 헤더 미작성 — STEP 6 대상) |
+| `index2_patch.js` | 1. 하단 탭 바 구조에 맞춰 탭 그룹 매핑 데이터를 오버라이드 |
 
 ### `local_server/js/engagement/`
 
@@ -315,7 +315,7 @@ local_server/js/
 | `ocean_bottom_sheet3.js` | 바텀시트 조석 카드 — TideBED 폴링 + 3모드 렌더링(loading/error/detail) |
 | `ocean_bottom_sheet4.js` | 동해 북부(36°N+128°E+) IDW 보간 + 천문 카드 (SunCalc) |
 | `ocean_bottom_sheet5.js` | 6개 일반 카드 + 저질 분석 + 전체 오케스트레이터 |
-| `ocean_bottom_sheet_vsby.js` | (역할 헤더 미작성 — STEP 6 대상) |
+| `ocean_bottom_sheet_vsby.js` | 클릭한 해점(lat/lon)이 속한 '소해구'의 래스터 시정 시계열을 받아, |
 | `ocean_bottom_sheet_weather.js` | 바텀시트 천기 카드 — 클릭한 해점의 KMA 단기예보 6 카테고리 종합 표시 |
 | `ocean_sheet_timeline.js` | 해양종합정보 바텀시트 내부의 시간 이동 슬라이더 |
 
@@ -323,9 +323,9 @@ local_server/js/
 
 | 파일 | 역할 |
 |------|------|
-| `cctv1.js` | (역할 헤더 미작성 — STEP 6 대상) |
-| `cctv4.js` | (역할 헤더 미작성 — STEP 6 대상) |
-| `ocean_cctv.js` | (역할 헤더 미작성 — STEP 6 대상) |
+| `cctv1.js` | CCTV 제공기관(KBS, 거제시, 추후 지자체·중앙부처)을 키로 구분하여 |
+| `cctv4.js` | 1. 지도 마커 클릭 이벤트를 처리합니다. |
+| `ocean_cctv.js` | index2 (종합기상 > 해양종합) 에서 CCTV 기능을 oceanMap 위에 통합하는 모듈. |
 
 ### `local_server/js/ocean-map/layers/`
 

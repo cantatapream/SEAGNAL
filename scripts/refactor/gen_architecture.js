@@ -13,10 +13,39 @@ const ROOT = path.join(__dirname, '..', '..');
 const JS = path.join(ROOT, 'local_server', 'js');
 
 function roleOf(file) {
-    const head = fs.readFileSync(file, 'utf8').split('\n').slice(0, 25);
+    const head = fs.readFileSync(file, 'utf8').split('\n').slice(0, 30);
+    // ① "역할: ..." (콜론 스타일 — 같은 줄, 없으면 다음 줄)
+    for (let i = 0; i < head.length; i++) {
+        const m = head[i].match(/역할\s*[:：]\s*(.*)/);
+        if (m) {
+            let txt = m[1].trim();
+            if (!txt) {
+                for (let j = i + 1; j < head.length; j++) {
+                    const t = head[j].replace(/^[\s*/]+/, '').trim();
+                    if (t) { txt = t; break; }
+                }
+            }
+            if (txt) return txt.replace(/\*\/\s*$/, '').trim().slice(0, 70);
+        }
+    }
+    // ② "[역할] ..." 같은 줄, 또는 "[역할]" 다음 줄에 설명 (대괄호 스타일)
+    for (let i = 0; i < head.length; i++) {
+        const m = head[i].match(/\[역할\]\s*(.*)/);
+        if (m) {
+            let txt = m[1].trim();
+            if (!txt) { // 다음 줄에서 설명 찾기
+                for (let j = i + 1; j < head.length; j++) {
+                    const t = head[j].replace(/^[\s*/]+/, '').trim();
+                    if (t) { txt = t; break; }
+                }
+            }
+            if (txt) return txt.replace(/\*\/\s*$/, '').trim().slice(0, 70);
+        }
+    }
+    // ③ 제목 줄 "파일명.js — 설명"
     for (const l of head) {
-        const m = l.match(/역할\s*[:：]\s*(.+)/);
-        if (m) return m[1].trim().replace(/\*\/\s*$/, '').trim().slice(0, 70);
+        const m = l.match(/\.js\s*[—-]\s*(.+)/);
+        if (m && m[1].trim()) return m[1].trim().replace(/\*\/\s*$/, '').trim().slice(0, 70);
     }
     return '(역할 헤더 미작성 — STEP 6 대상)';
 }
