@@ -277,9 +277,12 @@ SEAGNAL/
 | 리스크 | 매우 낮음 | 중간 (경로 3곳) | 높음 (빌드 도구 전제) |
 | 문제 해결 범위 | js 평면구조만 | 루트 혼재까지 전부 | 전부 + 공유코드 정식화 |
 | 향후 확장성 | 낮음 | 좋음 | 최고 |
+| iOS 확장 대응 | 불가 (서버코드 혼재로 번들링 불가) | **가능 (client/ 복사 = 번들)** | 가능하나 과함 |
 | 지금 필요한가 | — | **적정** | 과함 |
 
 **권장: 안 B를 목표로, 안 A를 1단계로 삼아 점진 진행** (안 A의 폴더 구분이 안 B에 그대로 승계되므로 버리는 작업이 없음)
+
+> iOS 확장 계획이 있는 경우 안 B는 사실상 전제 조건 — 상세는 §6 참고. iOS 자체는 안 B 구조에 `ios/` 폴더 하나가 추가되는 것으로 흡수되며, 모노레포(안 C)까지 갈 필요 없음.
 
 ```
 Phase 0  보안: 서비스 계정 키 rotate + 정적 루트 밖으로 + .gitignore     [즉시]
@@ -293,7 +296,85 @@ Phase 4  (선택) index.html 탭별 분할, style.css 기능별 분할, schedule
 
 ---
 
-## 6. 주의사항 (이 코드베이스 특유의 제약)
+## 6. 안 B + iOS 확장 시나리오
+
+> 결론부터: **iOS를 추가해도 안 C(모노레포)로 갈 필요가 없습니다.**
+> Capacitor는 네이티브 셸을 "플랫폼 폴더"로 추가하는 방식이라, 안 B 구조에서
+> 루트에 `ios/`가 하나 늘어나는 것이 전부입니다. `client/`는 3개 플랫폼이 100% 공유합니다.
+
+### 6.1 iOS 추가 후 전체 구조
+
+```
+SEAGNAL/
+│
+├── client/                      ★ 웹·Android·iOS가 100% 공유 (안 B와 동일, 변경 없음)
+│   ├── core/
+│   │   └── native/              capacitor-plugins.js 등 네이티브 브리지 코드 모음
+│   │                            → 플랫폼 분기(Capacitor.getPlatform())가 여기 집중
+│   ├── shared/
+│   └── features/                (탭 4개 + 횡단 기능, 안 B와 동일)
+│
+├── server/                      (안 B와 동일, 변경 없음)
+│   └── push/                    이미 FCM(firebase-admin) 기반 → iOS도 거의 그대로 사용
+│
+├── android/                     Android 네이티브 셸
+├── ios/                         ★ 신설: npx cap add ios 로 생성되는 iOS 네이티브 셸
+│   └── App/App/Info.plist       위치·알림 권한 문구 (Android의 AndroidManifest 대응)
+│
+├── capacitor.config.json        ← 루트 고정 (아래 6.2 참고)
+└── scripts/
+    └── build_www.js             (선택) client/ → www/ 복사 — App Store 번들 대응 (6.3)
+```
+
+### 6.2 왜 `ios/`는 루트에 두는가 (Capacitor 제약)
+
+- Capacitor는 네이티브 프로젝트 경로를 **`capacitor.config.json`이 있는 위치 기준 `./android`, `./ios`로 고정**합니다. 커스텀 경로 설정을 공식 지원하지 않으므로, `apps/mobile/` 같은 하위 폴더로 옮기면 `cap sync`가 깨집니다.
+- 따라서 "네이티브 셸 = 루트의 `android/`, `ios/`" / "공유 웹 코드 = `client/`" / "백엔드 = `server/`" 라는 3분할이 Capacitor 하이브리드 앱의 사실상 표준 구조입니다.
+
+### 6.3 ⚠️ iOS에서 가장 큰 이슈: 원격 로딩과 App Store 심사
+
+현재 `capacitor.config.json`은 `server.url = https://seagnal-server.fly.dev` 로 **모든 UI를 원격에서 로드**합니다. Android(Play Store)는 통과했지만, **Apple 심사는 "웹사이트 래퍼" 성격의 원격 로딩 앱을 거절하는 경우가 많습니다** (최소 기능성 가이드라인 4.2 등).
+
+대응 전략 — 안 B의 `client/` 분리가 정확히 이 토대가 됩니다:
+
+| 전략 | 내용 | 비고 |
+|------|------|------|
+| ① 번들링 | 빌드 시 `client/` → `www/` 복사 후 `cap sync ios` 로 **앱에 웹 자산을 내장** | 심사 안전. API만 서버 호출 |
+| ② 번들 + 라이브 업데이트 | ①에 Capgo/Ionic Appflow 등을 더해 스토어 재심사 없이 웹 자산 갱신 | 현재의 "서버 배포=즉시 반영" 운영감 유지 |
+| ③ 원격 로딩 유지 | 지금 방식 그대로 iOS 제출 | 거절 리스크 있음, 비권장 |
+
+- 현재 구조(`local_server/` 안에 서버 코드·크롤러·비밀키까지 혼재)에서는 ①이 불가능하지만(서버 코드가 번들에 딸려 들어감), **안 B로 `client/`를 분리하면 폴더 하나를 복사하는 것으로 번들이 완성**됩니다. → iOS 계획이 있다면 안 B는 선택이 아니라 사실상 전제 조건입니다.
+- ①로 가면 Android도 동일하게 번들링으로 통일하는 것을 권장 (오프라인 초기 화면 개선 효과도 있음).
+
+### 6.4 iOS 확장 시 기능별 영향 점검
+
+| 기능 | 현재 상태 | iOS 대응 |
+|------|-----------|----------|
+| 푸시 알림 | firebase-admin(FCM) 발송 | Firebase 콘솔에 **APNs 키 등록**만 하면 서버 코드 유지. 구독 저장 시 `platform: 'ios'` 필드 추가 권장 |
+| 위치기반 경보 | @capacitor-community/background-geolocation | iOS 지원됨. Info.plist에 위치 권한 문구 + Background Modes(location) 필요. iOS는 백그라운드 위치 정책이 엄격 → 심사 대비 사용 사유 문구 중요 |
+| 로컬 알림 | @capacitor/local-notifications | iOS 지원됨 |
+| safe-area | CSS에서 `env(safe-area-inset-bottom)` 이미 사용 중 | 노치/다이나믹아일랜드 대응 준비됨 ✅ |
+| 화면 방향 | @capacitor/screen-orientation | iOS 지원됨 |
+| 뒤로가기 | js/backbutton.js (Android 물리키) | iOS는 물리 뒤로가기 없음 → 스와이프 제스처/UI 뒤로가기 확인 필요 |
+| WebView | Android WebView 기준 개발 | iOS는 WKWebView — 스크롤/바운스/오디오 자동재생 등 미세 차이 QA 필요 |
+
+### 6.5 플랫폼 분기 코드 배치 규칙
+
+```
+원칙: "플랫폼 분기는 core/native/ 에 모으고, feature 코드는 플랫폼을 모른다"
+
+client/core/native/
+├── capacitor-plugins.js     이미 isNativePlatform() 분기가 잘 되어 있음 ✅
+├── platform.js              (신설 권장) getPlatform() 래퍼 — 'web' | 'android' | 'ios'
+└── ...
+
+feature 안에서 분기가 불가피할 때만:
+features/push/push_ios.js 처럼 접미사로 구분하고 진입점에서 선택 로드
+```
+
+---
+
+## 7. 주의사항 (이 코드베이스 특유의 제약)
 
 1. **script 로드 순서 의존성**: 번들러 없이 `<script>` 태그 순서로 전역 스코프에 로드됨. **파일을 옮겨도 index2.html 내 로드 순서는 절대 바꾸지 말 것** (예: `surfing1→5`, `config→utils→data→render` 순서)
 2. **sw.js 위치**: 서비스워커의 scope 규칙 때문에 정적 루트 최상단에 있어야 함. `js/` 안으로 옮기면 안 됨
