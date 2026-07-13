@@ -394,9 +394,9 @@ features/push/push_ios.js 처럼 접미사로 구분하고 진입점에서 선�
 > 파일이 1개뿐인 기능(예: 갯벌체험)도 반드시 자기 폴더를 가진다 — 폴더가 곧 "기능의 단위"이고,
 > README와 향후 추가 파일이 들어갈 자리이기 때문.
 >
-> 각 폴더에는: 해당 JS 파일들 + 폴더 개요 `README.md` + **코드 파일마다 `<파일명>.README.md`**(§9)
-> 아래 트리의 `README.md` 표기는 지면상 폴더 개요만 적은 것 — 실제로는 각 코드 파일 옆에
-> `<파일명>.README.md`가 하나씩 함께 생성된다. (분할 모듈은 대표 1개: 예 `surfing.README.md`)
+> 각 폴더에는: 해당 JS 파일들 + `README.md` + (코드가 여러 개면) 파일/모듈별 `<파일명>.guide.md`(§9)
+> 아래 트리의 `README.md` 표기는 지면상 대표만 적은 것 — 실제 문서 개수는 §9.1 규칙
+> (코드 1개면 README 하나로 통합, 여러 개면 개요 + guide, 분할 모듈은 대표 1개)을 따른다.
 
 ### 8.1 core/ — 앱 구동
 
@@ -627,45 +627,51 @@ client/features/
 
 ## 9. 폴더별 README 문서화 규칙 (초보자용 설명서)
 
-### 9.1 규칙 (2단 구조: 폴더 개요 + 파일별 설명서)
+### 9.1 규칙 (문서 3종 — 이름만 봐도 특성이 드러나게)
 
 ```
-문서 3종의 위치와 단위 — 혼동 방지 정리
+문서 3종의 이름·위치·단위
 
-① <파일명>.README.md   코드 파일마다 1개 — 해당 코드와 같은 폴더에 나란히 놓임
-                        예: sea_parting.js 옆에 sea_parting.README.md
-② README.md            기능 폴더마다 1개 — 폴더 개요 + 파일 목차 + 로드 순서
-③ docs/                기능 폴더마다 1개 — 설계·추진배경·검증 리포트 보관함 (§10)
-                        ※ 파일마다가 아님. 해당 기능의 설계 문서들을 모아두는 곳
+① README.md            기능 폴더마다 1개 — 폴더 개요 + 파일 목차 + 로드 순서
+                        (이 이름을 유지하는 이유: GitHub/GitLab이 폴더를 열면
+                         자동으로 본문에 표시해 주는 유일한 파일명)
+② <파일명>.guide.md     코드 파일(또는 분할 모듈)마다 1개 — 코드와 같은 폴더에
+                        예: sea_parting.js 옆에 sea_parting.guide.md
+                        "guide" = 초보자용 사용·구조 설명서라는 특성이 이름에 드러남
+③ <주제>.design.md      설계·추진배경·검증 리포트 — 코드와 같은 폴더에
+                        예: location_alert.design.md
+                        "design" = 왜 이렇게 만들었나(시점 기록)라는 특성이 드러남
+                        ※ 설계 문서가 3개 이상으로 많은 기능만 docs/ 폴더로 묶음 (§10)
 ```
 
-1. **모든 코드 파일에는 같은 폴더 안에 `<파일명>.README.md`가 함께 있어야 한다**
-   - `sea_parting.js` → `sea_parting.README.md` (같은 폴더)
-   - 여러 파일이 한 몸인 분할 모듈은 대표 1개로 묶어서 작성 가능:
-     `surfing1~5.js` → `surfing.README.md` (파일 구성 표에 1~5 각각의 역할 명시)
-2. **모든 기능 폴더에 폴더 개요 `README.md` 필수** — 하위 파일별 README의 목차 역할
+1. **중복 금지 — 문서 개수는 필요한 만큼만**
+   - 코드 파일이 1개뿐인 기능: `README.md` 하나로 통합 (폴더 개요 + 파일 설명서 겸용).
+     `<파일명>.guide.md`를 따로 만들지 않는다 — 내용이 사실상 같아지기 때문
+   - 코드 파일이 여러 개인 기능: `README.md`(짧은 개요+목차) + 파일/모듈별 `<파일명>.guide.md`
+   - 분할 모듈(한 몸인 1~5 파일)은 대표 1개: `surfing1~5.js` → `surfing.guide.md`
+2. 모든 문서는 **설명 대상 코드와 같은 폴더에** 있어야 한다 (콜로케이션)
 3. 설명 대상 독자는 **"이 코드를 처음 보는 사람"** — 용어를 아는 사람 기준으로 쓰지 않는다
-4. 파일·함수를 수정하면 **같은 커밋에서 해당 `<파일명>.README.md`도 갱신** (PR 체크리스트 항목화)
+4. 파일·함수를 수정하면 **같은 커밋에서 해당 guide도 갱신** (PR 체크리스트 항목화)
 5. 탭 폴더 최상위 README(예: `features/marine-life/README.md`)는 하위 기능들의 **목차 + 공통 패턴** 설명
-6. 이미 각 JS 파일 머리에 `역할:` 주석이 잘 달려 있으므로, 이것을 README의 시드(초안)로 활용한다
+6. 이미 각 JS 파일 머리에 `역할:` 주석이 잘 달려 있으므로, 이것을 guide의 시드(초안)로 활용한다
 
-배치 예시 (한 폴더의 완성 모습):
+배치 예시 (문서 개수가 기능 규모에 따라 달라지는 모습):
 
 ```
-features/marine-life/sea-parting/
-├── README.md                  ② 폴더 개요 (이 기능이 뭔지 + 파일 목차)
-├── sea_parting.js             코드
-├── sea_parting.README.md      ① 이 파일의 설명서 (코드 바로 옆)
-└── docs/                      ③ 설계·추진배경 (있는 경우에만)
-    └── ...설계 문서...
+[코드 1개 기능 — 문서도 1개]              [코드 여러 개 기능 — 개요 + 모듈 guide]
+features/marine-life/sea-parting/         features/marine-life/surfing/
+├── README.md     개요+설명서 통합         ├── README.md        짧은 개요 + 목차
+├── sea_parting.js                        ├── surfing1.js ~ surfing5.js
+└── sea_parting.design.md  설계(있으면)    └── surfing.guide.md  5개 묶은 설명서
 
-features/marine-life/surfing/
-├── README.md                  ② 폴더 개요
-├── surfing1.js ~ surfing5.js  코드 (한 몸인 분할 모듈)
-└── surfing.README.md          ① 5개 파일을 묶은 대표 설명서
+[설계 문서가 많은 기능 — 그때만 docs/]
+features/assistant/
+├── README.md
+├── assistant*.js + assistant.guide.md
+└── docs/phases/              ← 설계 이력 80여 개는 폴더로 묶어야 안 어지러움
 ```
 
-### 9.2 파일별 README 표준 템플릿 (`<파일명>.README.md`)
+### 9.2 파일별 설명서 표준 템플릿 (`<파일명>.guide.md` — 단일 파일 기능은 README.md에 동일 양식 적용)
 
 ```markdown
 # <파일명>.js 설명서  `client/features/<탭>/<기능>/<파일명>.js`
@@ -697,7 +703,8 @@ features/marine-life/surfing/
 (전역 변수, 로드 순서 의존, 캐시 등 함정 목록)
 ```
 
-### 9.3 작성 예시 — `features/marine-life/sea-parting/sea_parting.README.md`
+### 9.3 작성 예시 — `features/marine-life/sea-parting/README.md`
+(코드 1개 기능이므로 규칙 1에 따라 README에 통합)
 
 ```markdown
 # sea_parting.js 설명서 (바다갈라짐)  `client/features/marine-life/sea-parting/sea_parting.js`
@@ -747,7 +754,7 @@ features/marine-life/surfing/
 
 | 단계 | 내용 |
 |------|------|
-| 초안 생성 | Phase 2(폴더 이동) 때 각 파일의 `역할:` 헤더 주석 + 함수 목록을 추출해 **파일별 `<파일명>.README.md`** 초안과 폴더 개요 README를 일괄 생성 (Claude로 자동화 가능) |
+| 초안 생성 | Phase 2(폴더 이동) 때 각 파일의 `역할:` 헤더 주석 + 함수 목록을 추출해 **파일/모듈별 `<파일명>.guide.md`** 초안과 폴더 README를 일괄 생성 (Claude로 자동화 가능) |
 | 검수 | 기능별로 실제 화면과 대조하며 "찾아가는 방법"과 데이터 흐름 확인 |
 | 유지 | PR 템플릿에 "□ 수정한 폴더의 README를 갱신했는가" 체크 항목 추가 |
 | 서버 측 | 동일 규칙을 `server/routes/`, `server/services/`, `server/jobs/`에도 적용 (파일 수가 많으므로 폴더 단위 README 1개씩) |
@@ -765,33 +772,37 @@ features/marine-life/surfing/
 
 ```
 1. 문서는 "설명 대상 코드"와 같은 폴더로 간다  (콜로케이션)
-   → 각 기능 폴더에 docs/ 서브폴더를 두고 설계·배경·이력 문서를 수납
 
-2. README.md 와 docs/ 의 역할 구분
-   README.md : "지금 코드가 어떻게 생겼나" (입문 설명서, §9 — 항상 최신 유지)
-   docs/     : "왜 이렇게 만들었나"      (설계 배경, 추진 경위, 검증 리포트 — 시점 기록)
+2. README/guide 와 design 의 역할 구분 (§9.1 문서 3종)
+   README.md / <파일명>.guide.md : "지금 코드가 어떻게 생겼나" (입문 설명서 — 항상 최신 유지)
+   <주제>.design.md              : "왜 이렇게 만들었나" (설계 배경, 추진 경위, 검증 — 시점 기록)
 
-3. 기능이 클라이언트+서버에 걸치면 → 주 구현이 있는 쪽에 두고, 반대쪽 README에서 링크
+3. docs/ 폴더는 필수가 아니다 — 설계 문서가 1~2개면 폴더 없이 <주제>.design.md 로
+   코드 옆에 바로 놓고, 3개 이상으로 많을 때만 docs/ 폴더로 묶는다
+   (예: 어시스턴트 설계 이력 80여 개, 특보 세분화 설계 56개 → docs/ 필요.
+    위치기반 경보 설계서 1개 → location_alert.design.md 로 코드 옆에)
 
-4. 특정 기능에 속하지 않는 문서(리팩토링 로그, 홍보, 배포 절차) → 루트 docs/project/
+4. 기능이 클라이언트+서버에 걸치면 → 주 구현이 있는 쪽에 두고, 반대쪽 README에서 링크
+
+5. 특정 기능에 속하지 않는 문서(리팩토링 로그, 홍보, 배포 절차) → 루트 docs/project/
 ```
 
 ### 10.2 기존 문서 → 새 위치 매핑표
 
 | 현재 위치 | 문서 성격 | 새 위치 |
 |-----------|-----------|---------|
-| `00_docs/LOCATION_BASED_ALERT_DESIGN.md` | 위치기반 경보 설계 | `client/features/location-alert/docs/` |
-| `00_docs/TYPHOON_LOCATION_RADIUS_ENGINE_DESIGN.md` | 태풍 반경 엔진 설계 | `client/features/typhoon/docs/` |
+| `00_docs/LOCATION_BASED_ALERT_DESIGN.md` | 위치기반 경보 설계 | `client/features/location-alert/location_alert.design.md` (1개 — 폴더 없이 코드 옆) |
+| `00_docs/TYPHOON_LOCATION_RADIUS_ENGINE_DESIGN.md` | 태풍 반경 엔진 설계 | `client/features/typhoon/typhoon_radius_engine.design.md` |
 | `00_docs/SUBREGION_ALERT/` (로직·데이터모델·운영·구현·감사 56개) | 특보 세분화(자식 통보문) 설계 일체 | `server/advisory/docs/subregion/` (주 구현이 서버 — child_bulletin 등) |
-| `SYNTHESIS_Q_REPORT.md` (루트) | 부모 푸시+자식 정보 통합 설계 종합 | `server/push/docs/` |
-| `BOOST_REPORT.md` (루트) | weather_alerts 갱신 안전성 보강 리포트 | `server/jobs/docs/` |
-| `CRITICAL_FIX_REPORT.md` (루트) | 해구별 시간 형식 수정 리포트 | `client/features/forecast/alerts/docs/` |
-| `docs/MARINE_MMIS_HISTORY.md` | **MMIS 특보 시스템 단일 권위 문서** | `client/features/forecast/alerts/docs/` (탭1 대표 문서) |
-| `00_docs/GEOJE_CCTV_CAMERA_LIST.md` + `ongjin_cctv_mapping.csv` | CCTV 카메라 목록/매핑 | `client/features/ocean-map/cctv/docs/` |
+| `SYNTHESIS_Q_REPORT.md` (루트) | 부모 푸시+자식 정보 통합 설계 종합 | `server/push/parent_push_children.design.md` |
+| `BOOST_REPORT.md` (루트) | weather_alerts 갱신 안전성 보강 리포트 | `server/jobs/weather_alerts_boost.design.md` |
+| `CRITICAL_FIX_REPORT.md` (루트) | 해구별 시간 형식 수정 리포트 | `client/features/forecast/alerts/fmttime_fix.design.md` |
+| `docs/MARINE_MMIS_HISTORY.md` | **MMIS 특보 시스템 단일 권위 문서** | `client/features/forecast/alerts/mmis_history.design.md` (탭1 대표 문서) |
+| `00_docs/GEOJE_CCTV_CAMERA_LIST.md` + `ongjin_cctv_mapping.csv` | CCTV 카메라 목록/매핑 | `client/features/ocean-map/cctv/` (camera_list.design.md + 매핑 csv) |
 | `local_server/analysis/wave_leadtime/` (검증 리포트 30+) | 특보 예측 리드타임 분석 | `server/advisory/analysis/` (기존 구조 유지한 채 이동) |
 | `local_server/knowledge/phases/*.md` (설계 80+) | AI 비서 "나리야" 고도화 설계 이력 | `client/features/assistant/docs/phases/` |
 | `local_server/knowledge/jikgun/`, `graph/` | ⚠️ 문서가 아니라 **서버 런타임이 읽는 지식 데이터** | `server/knowledge/` 로 유지 (이동 전 gemini_client/topic_embedding 참조 경로 확인 필수) |
-| `local_server/scripts/TIDE_FIELD_README.md` | 물빠짐 예측 기능 문서 | `client/features/ocean-map/layers/docs/` |
+| `local_server/scripts/TIDE_FIELD_README.md` | 물빠짐 예측 기능 문서 | `client/features/ocean-map/layers/tide_field.design.md` |
 | `local_server/scripts/DEPLOY_CHECKLIST.md` | 배포 절차 | `docs/project/` |
 | `00_docs/APP_PROMOTION_GUIDE.md` | 앱 홍보 가이드 | `docs/project/` |
 | `00_docs/REFACTORING_*.md` + 본 제안서 | 리팩토링 이력/계획 | `docs/project/refactoring/` |
@@ -804,16 +815,15 @@ features/marine-life/surfing/
 ```
 client/features/location-alert/               ← "기능의 모든 것이 한 폴더에"
 ├── README.md                                 폴더 개요 (파일 목차 + 로드 순서)
-├── docs/                                     설계·추진 배경 (기능당 1개 보관함)
-│   └── LOCATION_BASED_ALERT_DESIGN.md
+├── location_alert.design.md                  설계·추진 배경 (1개라서 폴더 없이 코드 옆)
 ├── location_alert_core.js                    코드 (헤더 주석 표준 §11 적용)
-├── location_alert_core.README.md             ← 코드 파일마다 옆에 설명서
+├── location_alert_core.guide.md              ← 파일 설명서 (코드 바로 옆)
 ├── location_alert_background.js
-├── location_alert_background.README.md
+├── location_alert_background.guide.md
 ├── location_alert_runtime.js
-├── location_alert_runtime.README.md
+├── location_alert_runtime.guide.md
 ├── location_alert_ui.js
-└── location_alert_ui.README.md
+└── location_alert_ui.guide.md
 ```
 
 ---
