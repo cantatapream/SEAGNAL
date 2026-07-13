@@ -11,7 +11,7 @@ BASE="${1:-HEAD~1}"
 
 # 허용 목록: 이동의 물리적 결과로 수정될 수밖에 없는 파일 (§13.1 유일한 예외)
 # .gitignore/.dockerignore: 이동된 폴더의 추적·배포 제외 설정도 같은 범주
-ALLOW_MODIFY_RE='^(local_server/index2\.html|local_server/sw\.js|client/index\.html|client/sw\.js|scripts/refactor/|\.gitignore|\.dockerignore)'
+ALLOW_MODIFY_RE='^(local_server/index2\.html|local_server/assistant\.html|local_server/sw\.js|client/index\.html|client/sw\.js|scripts/refactor/|\.gitignore|\.dockerignore)'
 
 echo "[verify_move] 검사 범위: ${BASE}..HEAD"
 VIOLATIONS=0

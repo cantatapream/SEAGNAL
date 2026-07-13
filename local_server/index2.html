@@ -4302,7 +4302,7 @@
     <script src="js/alert_history.js"></script>
     <script src="js/render_coastal.js"></script>
     <script src="js/marine.js"></script>
-    <script src="js/settings.js"></script>
+    <script src="js/settings/settings.js"></script>
     <script src="js/location_alert_core.js"></script>
     <script src="js/location_alert_background.js"></script>
     <script src="js/location_alert_runtime.js"></script>
@@ -4374,7 +4374,7 @@
     <!-- 시정예측 (KMA RDPS 시정/안개 PNG 오버레이): 토글 버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 (천기 메커니즘 복제) -->
     <script src="js/vsby_forecast_layer.js"></script>
 
-    <script src="js/admin_trigger.js"></script>
+    <script src="js/admin/admin_trigger.js"></script>
     <script src="js/notice/board/image_compress.js"></script>
     <script src="js/notice/board/promo.js"></script>
     <script src="js/notice/comments/promo_comment1.js"></script>
@@ -4385,25 +4385,25 @@
     <!-- 공용 페이지네이션 helper (window.renderStandardPagination 노출)
          관리자 리스트 화면(admin.js / admin_collect.js / admin_survey.js / admin_report.js / alert_push.js)에서
          사용하므로 반드시 이 스크립트들보다 먼저 로드되어야 함 -->
-    <script src="js/pagination_helper.js"></script>
-    <script src="js/admin.js?v=Patch_20260707_01"></script>
-    <script src="js/admin_collect.js"></script>
-    <script src="js/admin_survey.js"></script>
-    <script src="js/admin_report.js"></script>
-    <script src="js/advisory_manage_admin.js"></script>
+    <script src="js/admin/pagination_helper.js"></script>
+    <script src="js/admin/admin.js?v=Patch_20260707_01"></script>
+    <script src="js/admin/admin_collect.js"></script>
+    <script src="js/admin/admin_survey.js"></script>
+    <script src="js/admin/admin_report.js"></script>
+    <script src="js/admin/advisory_manage_admin.js"></script>
     <!-- [위치 기반] 관리자 센터 위치 기반 탭: 이 기기 수집 GPS 위치 + 해상/육상 + 지도 팝업 -->
-    <script src="js/admin_location_status.js"></script>
-    <script src="js/report_user.js"></script>
-    <script src="js/survey_user.js"></script>
-    <script src="js/zone_guide.js"></script>
+    <script src="js/admin/admin_location_status.js"></script>
+    <script src="js/engagement/report_user.js"></script>
+    <script src="js/engagement/survey_user.js"></script>
+    <script src="js/settings/zone_guide.js"></script>
     <script src="js/alert_push.js"></script>
     <script src="js/ui_modal.js"></script>
     <script src="js/app_init.js"></script>
     <script src="js/backbutton.js"></script>
     <!-- AI 비서 바로가기 딥링크(?assistant=ocean&layer=...) → 해양종합정보 레이어 자동 활성화 -->
-    <script src="js/assistant_deeplink.js?v=Patch_20260706_01"></script>
+    <script src="js/assistant/assistant_deeplink.js?v=Patch_20260706_01"></script>
     <!-- 백그라운드 "나리야" 음성 비서 상태/대화를 화면 하단 오버레이로 표시 -->
-    <script src="js/assistant_overlay.js"></script>
+    <script src="js/assistant/assistant_overlay.js"></script>
     <!-- HLS.js: 거제시 등 HLS 스트림 재생 (cctv4.js _initCctvHlsPlayer에서 사용) — 자체 호스팅 -->
     <script src="/assets/vendor/hls.js/hls.min.js"></script>
     <!-- ================================================================
