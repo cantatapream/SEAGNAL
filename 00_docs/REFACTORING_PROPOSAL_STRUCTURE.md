@@ -718,3 +718,134 @@ client/features/
 | 검수 | 기능별로 실제 화면과 대조하며 "찾아가는 방법"과 데이터 흐름 확인 |
 | 유지 | PR 템플릿에 "□ 수정한 폴더의 README를 갱신했는가" 체크 항목 추가 |
 | 서버 측 | 동일 규칙을 `server/routes/`, `server/services/`, `server/jobs/`에도 적용 (파일 수가 많으므로 폴더 단위 README 1개씩) |
+
+---
+
+## 10. 설계·추진배경 문서의 기능 폴더 배치
+
+### 10.1 현황과 원칙
+
+저장소 전수 조사 결과 설계/배경/이력 문서가 **약 200개**, 4곳에 흩어져 있음:
+`00_docs/`(60+), 저장소 루트(3), `docs/`(1), `local_server/knowledge/phases/`(80+), `local_server/analysis/`(30+)
+
+배치 원칙:
+
+```
+1. 문서는 "설명 대상 코드"와 같은 폴더로 간다  (콜로케이션)
+   → 각 기능 폴더에 docs/ 서브폴더를 두고 설계·배경·이력 문서를 수납
+
+2. README.md 와 docs/ 의 역할 구분
+   README.md : "지금 코드가 어떻게 생겼나" (입문 설명서, §9 — 항상 최신 유지)
+   docs/     : "왜 이렇게 만들었나"      (설계 배경, 추진 경위, 검증 리포트 — 시점 기록)
+
+3. 기능이 클라이언트+서버에 걸치면 → 주 구현이 있는 쪽에 두고, 반대쪽 README에서 링크
+
+4. 특정 기능에 속하지 않는 문서(리팩토링 로그, 홍보, 배포 절차) → 루트 docs/project/
+```
+
+### 10.2 기존 문서 → 새 위치 매핑표
+
+| 현재 위치 | 문서 성격 | 새 위치 |
+|-----------|-----------|---------|
+| `00_docs/LOCATION_BASED_ALERT_DESIGN.md` | 위치기반 경보 설계 | `client/features/location-alert/docs/` |
+| `00_docs/TYPHOON_LOCATION_RADIUS_ENGINE_DESIGN.md` | 태풍 반경 엔진 설계 | `client/features/typhoon/docs/` |
+| `00_docs/SUBREGION_ALERT/` (로직·데이터모델·운영·구현·감사 56개) | 특보 세분화(자식 통보문) 설계 일체 | `server/advisory/docs/subregion/` (주 구현이 서버 — child_bulletin 등) |
+| `SYNTHESIS_Q_REPORT.md` (루트) | 부모 푸시+자식 정보 통합 설계 종합 | `server/push/docs/` |
+| `BOOST_REPORT.md` (루트) | weather_alerts 갱신 안전성 보강 리포트 | `server/jobs/docs/` |
+| `CRITICAL_FIX_REPORT.md` (루트) | 해구별 시간 형식 수정 리포트 | `client/features/forecast/alerts/docs/` |
+| `docs/MARINE_MMIS_HISTORY.md` | **MMIS 특보 시스템 단일 권위 문서** | `client/features/forecast/alerts/docs/` (탭1 대표 문서) |
+| `00_docs/GEOJE_CCTV_CAMERA_LIST.md` + `ongjin_cctv_mapping.csv` | CCTV 카메라 목록/매핑 | `client/features/ocean-map/cctv/docs/` |
+| `local_server/analysis/wave_leadtime/` (검증 리포트 30+) | 특보 예측 리드타임 분석 | `server/advisory/analysis/` (기존 구조 유지한 채 이동) |
+| `local_server/knowledge/phases/*.md` (설계 80+) | AI 비서 "나리야" 고도화 설계 이력 | `client/features/assistant/docs/phases/` |
+| `local_server/knowledge/jikgun/`, `graph/` | ⚠️ 문서가 아니라 **서버 런타임이 읽는 지식 데이터** | `server/knowledge/` 로 유지 (이동 전 gemini_client/topic_embedding 참조 경로 확인 필수) |
+| `local_server/scripts/TIDE_FIELD_README.md` | 물빠짐 예측 기능 문서 | `client/features/ocean-map/layers/docs/` |
+| `local_server/scripts/DEPLOY_CHECKLIST.md` | 배포 절차 | `docs/project/` |
+| `00_docs/APP_PROMOTION_GUIDE.md` | 앱 홍보 가이드 | `docs/project/` |
+| `00_docs/REFACTORING_*.md` + 본 제안서 | 리팩토링 이력/계획 | `docs/project/refactoring/` |
+
+> ⚠️ `knowledge/` 폴더처럼 **코드가 실제로 읽는 파일**과 순수 문서를 구분할 것.
+> 이동 전 `grep -rn "폴더명" server/` 로 참조 여부를 반드시 확인한다.
+
+### 10.3 배치 후 기능 폴더의 완성형
+
+```
+client/features/location-alert/          ← "기능의 모든 것이 한 폴더에"
+├── README.md                            ① 입문 설명서 (§9 템플릿)
+├── docs/
+│   └── LOCATION_BASED_ALERT_DESIGN.md   ② 설계·추진 배경
+├── location_alert_core.js               ③ 코드 (헤더 주석 표준 §11 적용)
+├── location_alert_background.js
+├── location_alert_runtime.js
+└── location_alert_ui.js
+```
+
+---
+
+## 11. 코드 주석 표준 (파일 헤더 · 함수 주석 · 연계 명시)
+
+### 11.1 현황 (전수 조사)
+
+| 항목 | 현재 상태 |
+|------|-----------|
+| 파일 서두 `역할:` 헤더 | 92개 중 **83개 보유** (9개 누락) — 문화가 이미 있음 ✅ |
+| 파일 간 `[연계]` 명시 | 92개 중 **31개만 보유** (61개 보강 필요) |
+| 함수별 초보자용 주석 | 파일마다 편차 큼 — 표준 없음 |
+
+→ 새로 만드는 규칙이 아니라 **이미 있는 문화를 표준화하고 빈 곳을 채우는 작업**.
+
+### 11.2 파일 헤더 표준 (모든 JS/CSS/HTML 파일 필수)
+
+```javascript
+/**
+ * ============================================================================
+ * 파일명: client/features/marine-life/sea-parting/sea_parting.js
+ * 역할  : 바다갈라짐 명소의 갈라짐 시간표 표시 (장소 선택 → 날짜별 카드 렌더링,
+ *         즐겨찾기 저장, "바다갈라짐이란?" 안내 팝업)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : shared/tide/tide.js        (조석 계산)
+ *                    shared/utils/utils.js      (날짜 포맷 fmtDate)
+ *  - 서버 API      : routes/tide.js             GET /api/sea-parting
+ *  - 마크업        : index.html                 #sea-parting-section
+ *  - 나를 쓰는 곳  : core/app_init.js 가 initSeaParting() 호출 (탭 진입 시)
+ * [로드 순서] surfing5.js 다음 · mudflat.js 이전 — 순서 변경 금지
+ * [저장소]   localStorage 키: seaparting_favorite (변경 시 사용자 설정 초기화됨)
+ * ============================================================================
+ */
+```
+
+핵심 규칙:
+1. `역할:` — 초보자가 읽고 "아, 이 파일이 그거구나" 할 수 있는 1~3줄
+2. `[연계]` 4종 세트 필수 — **사용하는 파일 / 서버 API / 마크업 / 나를 쓰는 곳**
+   (연계가 없으면 "없음"이라고 적는다 — 빈칸과 "확인 안 함"을 구분하기 위해)
+3. `[로드 순서]` — 앞뒤 파일명을 명시 (번들러가 없는 이 앱에서는 생명줄)
+
+### 11.3 함수 주석 표준 (모든 최상위 함수 필수)
+
+```javascript
+/**
+ * 갈라짐 지속 시간을 계산한다.
+ * 예: "09:10" ~ "11:40" → "2시간 30분"
+ *
+ * @param {string} startStr - 갈라짐 시작 시각 ("HH:MM")
+ * @param {string} endStr   - 갈라짐 종료 시각 ("HH:MM")
+ * @returns {string} "N시간 M분" 문자열 (계산 불가 시 "-")
+ * [호출처] _renderData() 가 날짜 카드를 그릴 때마다 사용
+ */
+function _calcDuration(startStr, endStr) { ... }
+```
+
+핵심 규칙:
+1. 첫 줄 = "무엇을 한다" 를 우리말 동사로. 두 번째 줄 = **구체적인 예시** (초보자 이해의 핵심)
+2. `@param` / `@returns` — 타입과 형태("HH:MM" 같은 실제 모양)를 함께
+3. `[호출처]` — 이 함수를 누가 부르는지 (연계의 함수 단위 버전)
+4. 함수 내부 주석은 "왜 이렇게 했는지"가 필요한 곳에만 (한 줄마다 달지 않는다)
+
+### 11.4 적용 및 검증 계획
+
+| 단계 | 내용 |
+|------|------|
+| Phase 2 통합 | 폴더 이동 시 파일을 한 번씩 만지므로, **이동과 동시에** 헤더를 표준 템플릿으로 정비 (역할 누락 9개 신규 작성, 연계 61개 보강 — Claude 자동화 가능, 사람 검수 필수) |
+| 함수 주석 | 기능 폴더 단위로 순차 적용 (README §9 작성과 같은 회차에 — 함수 표를 만들며 주석도 함께) |
+| 검증 스크립트 | `server/scripts/check_headers.js` 신설 — 모든 JS의 헤더에 `역할:`·`[연계]` 존재 여부 검사, 누락 파일 목록 출력 (CI/배포 체크리스트에 포함) |
+| 유지 | PR 체크리스트: "□ 새/수정 파일에 표준 헤더가 있는가" "□ 연계가 바뀌었으면 헤더의 [연계]도 갱신했는가" |
