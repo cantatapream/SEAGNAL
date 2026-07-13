@@ -1078,11 +1078,17 @@
             // 통보문 목록은 "태풍단계(TYP)"만 노출 — 열대저압부(TD) 단계는 아직 태풍이 아니므로 제외.
             _bulletinList = (inline.bulletins || []).filter(function (b) { return b.kind !== 'TD'; }).map(function (b) { return { code: b.code, label: b.label, isLatest: b.isLatest }; });
             (inline.bulletins || []).forEach(function (b) { if (b.code) _tableCache[year + '_' + b.code] = b; });
-            populateBulletins();
-            var code0 = pickCode(preferCode);
-            setSelValue('tphn-bulletin', code0);
-            if (code0) selectBulletin(year, code0); else clearTrack();
-            return Promise.resolve();
+            // 활성 캐시에 태풍단계 통보문이 하나라도 있으면 그대로 표출.
+            //   단, 캐시가 승격 전(TD만) 상태라 TYP 통보문이 0개면 → 아래 신선 조회로 폴백한다.
+            //   (TD→태풍 승격 직후, 앱이 옛 캐시를 붙들고 있어 "빈 목록+빈 지도"로 보이던 문제 해결.)
+            if (_bulletinList.length) {
+                populateBulletins();
+                var code0 = pickCode(preferCode);
+                setSelValue('tphn-bulletin', code0);
+                if (code0) selectBulletin(year, code0); else clearTrack();
+                return Promise.resolve();
+            }
+            // (폴백) 캐시엔 TD 통보문뿐 → 서버에서 최신 통보문 목록을 다시 받아온다(승격분 반영).
         }
         return fetchJSON('/api/typhoon/bulletins?year=' + year + '&seq=' + seq).then(function (j) {
             // 통보문 목록은 "태풍단계(TYP)"만 노출 — 열대저압부(TD) 단계 제외.
