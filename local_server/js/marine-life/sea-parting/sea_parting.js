@@ -1,7 +1,18 @@
 /**
  * ============================================================================
- * 파일명: js/sea_parting.js
- * 역할: 바다갈라짐 시간 프론트엔드 전체 로직
+ * 파일명: js/marine-life/sea-parting/sea_parting.js
+ * 역할  : 바다갈라짐(썰물 때 바닷길이 열리는 명소)의 갈라짐 시간표를 보여준다.
+ *         장소 선택 → 날짜별 갈라짐 시작/종료·소요시간·날씨 카드 렌더링,
+ *         즐겨찾기 저장, "체험지수란?" 안내 팝업.
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : shared/utils/utils.js (날짜 포맷 등 공용 유틸)
+ *  - 서버 API      : routes/fishing.js  GET /api/sea-split-index (갈라짐 예보 데이터)
+ *  - 마크업        : index.html  #sea-parting-section (+ style.css 의 .sp-* 클래스)
+ *  - 나를 쓰는 곳  : js/forecast/alerts/marine.js 가 해양생활 서브탭 진입 시
+ *                    _onSectionActivated('sea-parting-section') 에서 initSeaParting() 호출
+ * [로드 순서] marine-life/surfing/surfing5.js 다음 · marine-life/mudflat/mudflat.js 이전 — 변경 금지
+ * [저장소]   localStorage 키: 즐겨찾기 장소 1개 저장 (변경 시 사용자 설정 초기화됨)
  * ============================================================================
  *
  * [설명]
@@ -13,12 +24,6 @@
  * - 미발생 지역 안내 + 면책 문구
  * - fade 애니메이션으로 데이터 전환
  * - 체험지수란? 이미지 팝업 (로딩 스피너 포함)
- *
- * [연계 파일]
- * - index.html → #sea-parting-section 내 HTML 요소들
- * - style.css → .sp-* 클래스 스타일
- * - routes/fishing.js (서버) → GET /api/sea-split-index 데이터 제공
- * - js/marine.js → _onSectionActivated('sea-parting-section') 시 initSeaParting() 호출
  *
  * [데이터 구조] (서버 응답)
  * {
@@ -536,9 +541,12 @@
     // ========================================================================
 
     /**
-     * 체험시간의 소요시간을 계산
-     * 예: '09:00', '15:25' → '6시간 25분'
-     * 예: '17:57', '18:00' → '03분'
+     * 갈라짐 지속(체험) 시간을 계산한다.
+     * 예: '09:00' ~ '15:25' → '6시간 25분'  /  '17:57' ~ '18:00' → '03분'
+     * @param {string} startStr - 갈라짐 시작 시각 ("HH:MM")
+     * @param {string} endStr   - 갈라짐 종료 시각 ("HH:MM")
+     * @returns {string} "N시간 M분" 문자열 (형식 오류 시 빈 문자열)
+     * [연계] ← _renderData() (같은 파일): 날짜 카드의 "소요시간" 칸을 채우려고 카드마다 호출
      */
     function _calcDuration(startStr, endStr) {
         var sParts = startStr.split(':');

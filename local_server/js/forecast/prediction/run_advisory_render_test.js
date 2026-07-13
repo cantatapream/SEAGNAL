@@ -1,5 +1,6 @@
 /**
  * run_advisory_render_test.js — node 렌더 테스트 하네스 (브라우저 불필요).
+ * 역할  : node 렌더 테스트 하네스 — advisory_prediction(v6) 렌더 함수 검증 (브라우저 불필요)
  *   advisory_prediction(v6) 의 buildAdvisoryHtml / buildHeaderStatus / formatBaseTime 검증.
  *
  * 실행: node /home/user/SEAGNAL/local_server/js/run_advisory_render_test.js

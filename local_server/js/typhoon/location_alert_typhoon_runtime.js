@@ -1,8 +1,9 @@
 /**
  * ============================================================================
  * location_alert_typhoon_runtime.js — 위치기반 태풍 반경 알림: 단말 런타임 (Phase 2a)
+ * 역할  : 위치기반 태풍 반경 알림 단말 런타임 (서버 wake 신호 → 반경 판정 → 알림)
  * ============================================================================
- * 설계 문서: 00_docs/TYPHOON_LOCATION_RADIUS_ENGINE_DESIGN.md (Phase 2a 확정 리파인)
+ * 설계 문서: typhoon_radius_engine.design.md (같은 폴더) (Phase 2a 확정 리파인)
  *
  * 서버의 데이터 메시지(type:'typhoon_radius_wake', sig)를 받으면:
  *   1) subTyphoon 게이트(OFF면 skip, 미설정/미로드는 fail-open)
