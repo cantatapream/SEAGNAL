@@ -140,17 +140,8 @@
       setTimeout(function () {
         try {
           if (layer === 'typhoon' && demoTphn && dtCode) {
-            // [태풍 발생/소멸 테스트 딥링크 — relaunch 폴백]
-            //   원래는 알림 탭이 인앱(SeagnalDemo)으로 재시작 없이 처리되지만, 그게 안 잡혀
-            //   window.location.href 로 여기까지 온 경우(폴백)에도 결과를 알림 탭과 동일하게 맞춘다.
-            //   반경 시연(dtGuide=1)이 아니면 → 고정 통보문 제6-12호 + 디버그(직접-버튼 경로)로 표출.
-            //   (반경 시연은 아래에서 기존대로 실제 통보문 dtCode + 행동요령 표출)
-            if (dtGuide !== '1' && window.SeagnalDemo && typeof window.SeagnalDemo.runTyphoonFromNotification === 'function') {
-              window.SeagnalDemo.runTyphoonFromNotification();
-              cleanUrl();
-              return;
-            }
-            // [태풍 시연] 실제 통보문(연도/호수/코드)을 강제 활성화 표출 + 지도 이동 (버튼 비활성이어도 동작)
+            // [위치기반 태풍 반경 알림 탭] 알림에 실린 실제 통보문(연도/호수/코드)을 강제 활성화
+            //   표출 + 지도 이동 (버튼 비활성이어도 동작). dtGuide=1 이면 행동요령(2탭) 팝업 자동 표출.
             waitFor(function () { return window.OceanTyphoon && typeof window.OceanTyphoon.demoFocus === 'function'; }, function () {
               window.OceanTyphoon.demoFocus({ year: dtYear, seq: dtSeq, code: dtCode, openGuide: (dtGuide === '1') });
               cleanUrl();

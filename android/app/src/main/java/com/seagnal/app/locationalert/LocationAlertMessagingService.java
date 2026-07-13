@@ -71,11 +71,11 @@ public class LocationAlertMessagingService extends MessagingService {
      *   완전 on-device — 네트워크 전송 없음. 어떤 실패도 삼킨다(방어적).
      */
     private static void writeLastWake(Context ctx, String outcome, String zone,
-            LocationAlertStore.Position pos, boolean isDemo) {
+            LocationAlertStore.Position pos) {
         try {
             JSONObject o = new JSONObject();
             o.put("at", nowIso());
-            o.put("src", isDemo ? "demo" : "gps");
+            o.put("src", "gps");
             o.put("lat", pos != null ? pos.lat : JSONObject.NULL);
             o.put("lng", pos != null ? pos.lng : JSONObject.NULL);
             o.put("posAt", (pos != null && pos.at != null) ? pos.at : "");
@@ -87,13 +87,13 @@ public class LocationAlertMessagingService extends MessagingService {
         }
     }
 
-    /** 데이터 메시지(data 맵) → 위치 선택(시연/실제) → 판정 → 네이티브 알림 + 진단 기록. */
+    /** 데이터 메시지(data 맵) → fresh-fix 위치 수집 → 판정 → 네이티브 알림 + 진단 기록. */
     private void handleWake(Context ctx, Map<String, String> data) {
         if (data == null) return;
         String snapshotStr = data.get("snapshot");
         if (snapshotStr == null || snapshotStr.isEmpty()) {
             // 스냅샷 없는 비정상 wake 도 처리 시도로 기록(best-effort).
-            writeLastWake(ctx, "suberror", "", null, false);
+            writeLastWake(ctx, "suberror", "", null);
             return;
         }
 
@@ -102,82 +102,53 @@ public class LocationAlertMessagingService extends MessagingService {
         //   네이티브가 조용히 skip 하는 상황을 시연 탭에서 볼 수 있게 한다. putLastWake 는
         //   플래그와 무관하게 동작(위치 수집도 하지 않음 — at+outcome 만).
         if (!LocationAlertStore.isEnabled(ctx)) {
-            writeLastWake(ctx, "disabled-skip", "", null, false);
+            writeLastWake(ctx, "disabled-skip", "", null);
             Log.d(TAG, "비활성/미동의 → skip");
             return;
         }
 
-        // 위치 선택: demoLat/demoLng 가 있으면 시연 위치(메시지 동봉) — 실제 저장 위치(POS_KEY) 미사용.
-        //   없으면 단말 진짜 백그라운드 GPS(POS_KEY).
-        boolean isDemo = false;
-        LocationAlertStore.Position pos = null;
-        String demoLat = data.get("demoLat");
-        String demoLng = data.get("demoLng");
-        if (demoLat != null && demoLng != null) {
-            try {
-                LocationAlertStore.Position dp = new LocationAlertStore.Position();
-                dp.lat = Double.parseDouble(demoLat);
-                dp.lng = Double.parseDouble(demoLng);
-                double acc = 0.0;
-                String demoAcc = data.get("demoAcc");
-                if (demoAcc != null) {
-                    try { acc = Double.parseDouble(demoAcc); } catch (Exception ignore) { acc = 0.0; }
-                }
-                dp.accuracyM = acc;
-                pos = dp;
-                isDemo = true;
-            } catch (Exception e) {
-                Log.w(TAG, "demoPos 파싱 실패 → 실제 위치 사용", e);
-                pos = null;
-                isDemo = false;
-            }
-        }
+        // ── 이벤트 기반(2026-06-26): 그 순간 FRESH 위치 1회 수집 ───────────────────
+        //   상시 수집을 제거했으므로 wake 시점에 LocationAlertLocator.getFresh()로 직접
+        //   픽스를 받는다(활성 단발 픽스 → getLastKnownLocation → 저장 폴백). 좌표는 단말
+        //   밖으로 절대 나가지 않음. fresh fix 성공 시 LocationAlertStore.putPosition 으로
+        //   저장 캐시·진단을 갱신한다.
+        LocationAlertStore.Position pos = LocationAlertLocator.getFresh(ctx);
         if (pos == null) {
-            // ── 이벤트 기반(2026-06-26): 그 순간 FRESH 위치 1회 수집 ───────────────────
-            //   상시 수집을 제거했으므로 wake 시점에 LocationAlertLocator.getFresh()로 직접
-            //   픽스를 받는다(활성 단발 픽스 → getLastKnownLocation → 저장 폴백). 좌표는 단말
-            //   밖으로 절대 나가지 않음. fresh fix 성공 시 LocationAlertStore.putPosition 으로
-            //   저장 캐시·진단을 갱신한다.
-            pos = LocationAlertLocator.getFresh(ctx);
-        }
-        if (pos == null) {
-            writeLastWake(ctx, "no-position", "", null, isDemo);
+            writeLastWake(ctx, "no-position", "", null);
             Log.d(TAG, "위치 없음(fresh fix 실패) → skip");
             return;
         }
 
-        // ── #3 낡음 가드 (실제 GPS 한정, 데모는 절대 적용 안 함) ──────────────────
+        // ── #3 낡음 가드 ──────────────────────────────────────────────────────────
         //   이벤트 기반 전환 후엔 getFresh()가 직전 시각으로 at 을 스탬프하므로 보통 낡지 않다.
         //   다만 활성 픽스 실패로 getLastKnownLocation/저장 폴백을 쓴 경우 pos.at 이 과거일 수
         //   있어, 12시간(STALE_MAX_MS) 초과면 잘못된 구역 알림을 막는다(진단만 기록 후 종료).
         //   파싱 실패는 "낡지 않음"으로 취급(유효 알림 억제 방지). 완전 방어적.
-        if (!isDemo) {
-            try {
-                long ageMs = ageMillis(pos.at);
-                if (ageMs >= 0 && ageMs > STALE_MAX_MS) {
-                    try {
-                        JSONObject diag = new JSONObject();
-                        diag.put("zone", "");
-                        diag.put("src", "gps-stale");
-                        diag.put("skipped", "stale");
-                        diag.put("ageMin", Math.round(ageMs / 60000.0));
-                        diag.put("at", nowIso());
-                        LocationAlertStore.putLastMatch(ctx, diag.toString());
-                    } catch (Throwable t) {
-                        Log.w(TAG, "낡음 진단 기록 실패(무시)", t);
-                    }
-                    writeLastWake(ctx, "stale-skip", "", pos, false);
-                    Log.d(TAG, "저장 위치 낡음(12h 초과) → skip");
-                    return;
+        try {
+            long ageMs = ageMillis(pos.at);
+            if (ageMs >= 0 && ageMs > STALE_MAX_MS) {
+                try {
+                    JSONObject diag = new JSONObject();
+                    diag.put("zone", "");
+                    diag.put("src", "gps-stale");
+                    diag.put("skipped", "stale");
+                    diag.put("ageMin", Math.round(ageMs / 60000.0));
+                    diag.put("at", nowIso());
+                    LocationAlertStore.putLastMatch(ctx, diag.toString());
+                } catch (Throwable t) {
+                    Log.w(TAG, "낡음 진단 기록 실패(무시)", t);
                 }
-            } catch (Throwable t) {
-                Log.w(TAG, "낡음 가드 평가 실패 → 진행", t);
+                writeLastWake(ctx, "stale-skip", "", pos);
+                Log.d(TAG, "저장 위치 낡음(12h 초과) → skip");
+                return;
             }
+        } catch (Throwable t) {
+            Log.w(TAG, "낡음 가드 평가 실패 → 진행", t);
         }
 
         List<LocationAlertCore.Feature> features = WarnZoneAssets.load(ctx);
         if (features.isEmpty()) {
-            writeLastWake(ctx, "suberror", "", pos, isDemo);
+            writeLastWake(ctx, "suberror", "", pos);
             Log.w(TAG, "번들 폴리곤 로드 실패 → skip");
             return;
         }
@@ -197,7 +168,7 @@ public class LocationAlertMessagingService extends MessagingService {
                     diag.put("zone", msg.zone != null ? msg.zone : "");
                     diag.put("lat", pos.lat);
                     diag.put("lng", pos.lng);
-                    diag.put("src", isDemo ? "demo" : "gps");
+                    diag.put("src", "gps");
                     diag.put("tier", msg.tier != null ? msg.tier : "");
                     diag.put("event", msg.event != null ? msg.event : "");
                     diag.put("at", nowIso());
@@ -205,16 +176,16 @@ public class LocationAlertMessagingService extends MessagingService {
                 } catch (Throwable t) {
                     Log.w(TAG, "진단 기록 실패(무시)", t);
                 }
-                writeLastWake(ctx, "notified", msg.zone != null ? msg.zone : "", pos, isDemo);
+                writeLastWake(ctx, "notified", msg.zone != null ? msg.zone : "", pos);
                 LocationAlertNotifier.notify(ctx, msg.title, msg.body);
             } else {
                 // 무표출 wake 도 반드시 기록 — off-sea(육지/외해) vs no-warning(구역 내 무특보·회색지대).
                 String outcome = "off-sea".equals(dg.reason) ? "off-sea"
                         : ("no-warning".equals(dg.reason) ? "no-warning" : "no-match");
-                writeLastWake(ctx, outcome, dg.locatedZone, pos, isDemo);
+                writeLastWake(ctx, outcome, dg.locatedZone, pos);
             }
         } catch (Exception e) {
-            writeLastWake(ctx, "suberror", "", pos, isDemo);
+            writeLastWake(ctx, "suberror", "", pos);
             Log.e(TAG, "decideAlert 실패", e);
         }
     }

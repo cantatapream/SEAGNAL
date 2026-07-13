@@ -11,12 +11,12 @@
  *   - 이 파일은 인터넷 통신이나 파일 저장을 전혀 하지 않습니다. 오직 "값 → 글자" 변환만 합니다.
  *     이런 함수를 '순수 함수(pure function)'라고 하며, 똑같이 넣으면 항상 똑같이 나와서
  *     테스트하기 쉽고 버그가 적습니다.
- *   - 실제 발송기(typhoon_notifier.js)와 관리자 테스트 발송(routes/admin.js)이
- *     "둘 다 이 파일의 함수를 호출"하기 때문에, 두 곳의 알림 문구가 절대 달라지지 않습니다.
+ *   - 실제 발송기(typhoon_notifier.js)와 위치기반 반경 알림(location_alert_typhoon_runtime.js)이
+ *     "둘 다 이 파일의 함수를 호출"하기 때문에, 여러 곳의 알림 문구가 절대 달라지지 않습니다.
  *
  * [누가 이 파일을 사용하나 — 연관 파일]
- *   - services/typhoon_notifier.js  → 실제 사용자에게 보낼 때 buildOnset/buildDissipation 호출
- *   - routes/admin.js               → 관리자 시연: dmdw 실데이터(6호 장미)로 문구 + buildDemoUrl 호출
+ *   - services/typhoon_notifier.js         → 발생/소멸 시 buildOnset/buildDissipation 호출
+ *   - js/location_alert_typhoon_runtime.js → 위치기반 반경 알림: buildRadiusAlert + buildDemoUrl 호출
  *
  * [입력으로 받는 "스냅샷" 형태]  (typhoon.json 의 태풍/통보문에서 골라 정리한 값)
  *   {
@@ -193,7 +193,7 @@ function namePhrase(snap) {
 /**
  * [태풍 발생] 알림 문구를 만든다.
  *   - 조립: 호수 + 이름 + 발표/관측 시각 + 제주 기준 위치 + "앱에서 예상 진로를 확인하세요."
- *   - 호출: typhoon_notifier.detectAndNotify() / routes/admin.js(실데이터 테스트 발송).
+ *   - 호출: typhoon_notifier.detectAndNotify().
  * @param {object} snap 스냅샷(파일 상단 설명 참고)
  * @returns {{title:string, body:string, url:string}}
  */
@@ -211,7 +211,7 @@ function buildOnset(snap) {
 /**
  * [태풍 소멸] 알림 문구를 만든다(안내문구는 넣지 않음 — 소멸 후엔 볼 게 없으므로).
  *   - 조립: 호수 + 이름 + 시각 + 제주 기준 위치 + 소멸 사유 + "소멸했습니다."
- *   - 호출: typhoon_notifier.detectAndNotify() / routes/admin.js(실데이터 테스트 발송).
+ *   - 호출: typhoon_notifier.detectAndNotify().
  * @param {object} snap 스냅샷(파일 상단 설명 참고)
  * @returns {{title:string, body:string, url:string}}
  */
@@ -230,14 +230,14 @@ function buildDissipation(snap) {
 }
 
 /**
- * 탭 시 "해당 실제 통보문을 표출 + 지도 이동 + 태풍 버튼 강제 활성화"를 위한 시연 딥링크 URL.
+ * 탭 시 "해당 실제 통보문을 표출 + 지도 이동 + 태풍 버튼 강제 활성화"를 위한 딥링크 URL.
  *   - 실제 통보문 식별자(연도/호수/코드)를 실어 보낸다(가짜 좌표를 만들지 않는다).
  *     → 클라이언트가 dmdw 실데이터를 그대로 로드해 라벨·정보(ⓘ)·통보문 이미지·진로·지도까지 표출.
  *   - code 가 없으면 일반 태풍 화면(TYPHOON_DEEPLINK_URL)으로만 연결.
- *   - 사용처: routes/admin.js 의 태풍 테스트 발송(실데이터 기반).
+ *   - 사용처: 위치기반 태풍 반경 알림(js/location_alert_typhoon_runtime.js)의 알림 탭 URL.
  *   - 처리: js/assistant_deeplink.js 가 demoTphn/dtYear/dtSeq/dtCode[/dtGuide] 를 읽어 ocean_typhoon.demoFocus 호출.
  *   - ref.guide 가 truthy 면 끝에 &dtGuide=1 을 붙여, 탭 시 행동요령(2탭) 팝업까지 자동 표출.
- *     (위치기반 반경 시연 전용. 기존 발생/소멸 호출은 guide 미지정이라 동작 불변.)
+ *     (위치기반 반경 알림 전용. 기존 발생/소멸 호출은 guide 미지정이라 동작 불변.)
  * @param {object} ref { year, seq, code, guide? } 실제 통보문 식별자
  * @returns {string}
  */
@@ -252,9 +252,9 @@ function buildDemoUrl(ref) {
 }
 
 /**
- * [위치기반 반경 시연] "내 위치가 강풍/폭풍반경에 든다"는 긴급경보 문구를 만든다.
- *   - 관리자 시연 전용. 일반 발생/소멸 빌더와 별개. url 은 호출부가 buildDemoUrl 로 따로 생성.
- *   - 호출: routes/admin.js 의 /api/admin/demo/typhoon-radius-test.
+ * [위치기반 반경 알림] "내 위치가 강풍/폭풍반경에 든다"는 긴급경보 문구를 만든다.
+ *   - 일반 발생/소멸 빌더와 별개. url 은 호출부가 buildDemoUrl 로 따로 생성.
+ *   - 호출: 단말 런타임(js/location_alert_typhoon_runtime.js) 및 네이티브 TyphoonRadiusDecider.
  * @param {'strong'|'storm'} which 강풍/폭풍 구분
  * @param {{seq, name, nameEn}} snap 태풍 스냅샷(호수/이름)
  * @param {string} etaTmFc 진입(ETA) 프레임 시각 "YYYYMMDDHHmm"

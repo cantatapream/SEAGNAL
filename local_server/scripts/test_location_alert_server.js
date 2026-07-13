@@ -97,18 +97,9 @@ const msg = dispatch.buildDataMessage(snap);
 check('데이터 메시지 type=location_alert_wake', msg.data.type === 'location_alert_wake');
 check('snapshot은 문자열(JSON)', typeof msg.data.snapshot === 'string' && JSON.parse(msg.data.snapshot).zones['울산앞바다']);
 check('android priority high', msg.android.priority === 'high');
-// demoPos 없으면 demo 필드 전혀 없음(실제 운영 wake)
-check('demoPos 없음 → demoLat/demoLng/demoAcc 미포함',
+// 실제 운영 wake — demo 필드 없음(데모 주입 기능 제거됨)
+check('demoLat/demoLng/demoAcc 미포함',
     !('demoLat' in msg.data) && !('demoLng' in msg.data) && !('demoAcc' in msg.data), JSON.stringify(msg.data));
-// demoPos 있으면 문자열로 실림(시연 wake)
-const msgDemo = dispatch.buildDataMessage(snap, { lat: 33.5, lng: 126.5, acc: 20 });
-check('demoPos → demoLat 문자열', msgDemo.data.demoLat === '33.5', msgDemo.data.demoLat);
-check('demoPos → demoLng 문자열', msgDemo.data.demoLng === '126.5', msgDemo.data.demoLng);
-check('demoPos → demoAcc 문자열', msgDemo.data.demoAcc === '20', msgDemo.data.demoAcc);
-check('demoPos 있어도 type/snapshot 유지', msgDemo.data.type === 'location_alert_wake' && typeof msgDemo.data.snapshot === 'string');
-// acc 누락 시 '0'
-const msgDemoNoAcc = dispatch.buildDataMessage(snap, { lat: 33.5, lng: 126.5 });
-check('demoPos acc 누락 → demoAcc="0"', msgDemoNoAcc.data.demoAcc === '0', msgDemoNoAcc.data.demoAcc);
 
 console.log('\n[4] dispatchWake (mock)');
 let sentTo = null, sentMsg = null;

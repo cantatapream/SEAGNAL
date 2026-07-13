@@ -25,7 +25,8 @@
  *   radiusEntry(loc, frames, which) → { time, frame } | null
  *
  * [사용처]
- *   routes/admin.js 의 POST /api/admin/demo/typhoon-radius-test (관리자 시연).
+ *   단말 런타임(js/location_alert_typhoon_runtime.js) 및 네이티브 TyphoonRadiusDecider —
+ *   위치기반 태풍 반경 알림 판정.
  * ============================================================================
  */
 'use strict';

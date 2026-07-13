@@ -316,7 +316,6 @@
 
     async function loadAdvisoryPrediction() {
         if (typeof fetch === 'undefined') return;
-        if (typeof window !== 'undefined' && window.__advisoryDemoActive) return;
         try {
             const auth = _adminAuth();
             const r = await fetch('/api/advisory-prediction' + auth.query, { headers: auth.headers });
@@ -395,7 +394,6 @@
         window.toggleAdvOverlay = toggleAdvOverlay;
         window.openAdvisoryInfo = openAdvisoryInfo;
         window.closeAdvisoryInfo = closeAdvisoryInfo;
-        window.__advShowAccordion = _setAccordionVisible; // 데모 표출기가 가시성 제어에 사용
     }
 
     if (typeof document !== 'undefined') {

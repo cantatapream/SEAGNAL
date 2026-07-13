@@ -179,24 +179,15 @@
 
     /**
      * 데이터 메시지 수신 처리(표시 셸). snapshotStr = data.snapshot(JSON 문자열).
-     * @param data (선택) FCM data 맵. demoLat/demoLng 가 있으면 시연 위치로 판정(POS_KEY 미사용),
-     *   없으면 **그 순간 fresh-fix(현재 위치 1회 수집)** 로 판정 — 실제 운영은 항상 진짜 위치 사용.
+     * 깨우는 신호 시점에 **그 순간 fresh-fix(현재 위치 1회 수집)** 로 판정한다.
      */
     async function handleWake(snapshotStr, data) {
         // pos/src 를 try 밖에 두어 suberror 기록 시에도 가용 정보를 최대한 남긴다(best-effort).
         let pos = null, src = 'gps';
         try {
             const snapshot = typeof snapshotStr === 'string' ? JSON.parse(snapshotStr) : snapshotStr;
-            if (data && data.demoLat && data.demoLng) {
-                // 시연(데모): 메시지에 실린 위치 사용 — 실제 저장 위치(POS_KEY)는 건드리지 않음.
-                const dLat = Number(data.demoLat), dLng = Number(data.demoLng);
-                if (Number.isFinite(dLat) && Number.isFinite(dLng)) {
-                    pos = { lat: dLat, lng: dLng, acc: Number(data.demoAcc) || 0 };
-                    src = 'demo';
-                }
-            }
             if (!pos) {
-                // 실제 운영(또는 데모 좌표가 비정상): 이벤트 기반 fresh-fix —
+                // 이벤트 기반 fresh-fix —
                 //   깨우는 신호 시점에 그 순간 위치를 1회 수집(getFreshPosition).
                 //   상시 수집을 제거했으므로 매 wake 마다 신선한 위치를 직접 획득한다.
                 //   getFreshPosition 은 전경 fix 실패 시 마지막 저장 위치로 폴백(없으면 null).

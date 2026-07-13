@@ -529,8 +529,7 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'maintenance', name: '점검', icon: 'fa-wrench' },
         { id: 'version', name: '버전 관리', icon: 'fa-code-branch' },
         { id: 'storage', name: '외부 저장소', icon: 'fa-cloud' },
-        { id: 'ai', name: 'AI', icon: 'fa-robot' },
-        { id: 'demo', name: '시연', icon: 'fa-flask' }
+        { id: 'ai', name: 'AI', icon: 'fa-robot' }
     ];
 
     const modal = document.createElement('div');
@@ -651,131 +650,8 @@ window.switchUnifiedAdminTab = function (tabId) {
             renderUnifiedStorageContent(body);
         } else if (tabId === 'ai') {
             renderUnifiedAiTab(body);
-        } else if (tabId === 'demo') {
-            renderDemoTabWithSubtabs(body);
         }
     }, 100);
-};
-
-// ============================================================================
-// [시연] "시연" 메인탭을 두 하위탭으로 분리: 특보 시연 / 특보 예측 시연.
-//   각 하위 시연은 자체 테스트모드 on/off 를 독립적으로 가진다.
-//   하위탭 바(#demo-subtab-bar)는 유지되고, 콘텐츠만 #demo-subtab-body 에 교체.
-// ============================================================================
-function renderDemoTabWithSubtabs(body) {
-    var saved = 'alert';
-    try { saved = localStorage.getItem('seagnal_demo_subtab') || 'alert'; } catch (e) { /* noop */ }
-    var btn = function (id, label) {
-        return '<button data-subtab="' + id + '" onclick="switchDemoSubTab(\'' + id + '\')" '
-            + 'style="padding:8px 16px;border:none;border-radius:8px;background:transparent;color:#94a3b8;'
-            + 'font-weight:700;cursor:pointer;font-size:0.86rem;">' + label + '</button>';
-    };
-    body.innerHTML =
-        '<div id="demo-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
-        + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
-        + btn('alert', '특보 시연') + btn('advisory', '특보 예측 시연') + btn('typhoon', '태풍') + btn('location', '위치 기반 특보 시연')
-        + btn('audio', '오디오')   // [임시 — 발표 나레이션] 5연타 트리거 배경 음성 업로드 (발표 후 제거 예정)
-        + '</div>'
-        + '<div id="demo-subtab-body"></div>';
-    switchDemoSubTab(['advisory', 'typhoon', 'location', 'audio'].indexOf(saved) >= 0 ? saved : 'alert');
-}
-
-window.switchDemoSubTab = function (which) {
-    try { localStorage.setItem('seagnal_demo_subtab', which); } catch (e) { /* noop */ }
-    var bar = document.getElementById('demo-subtab-bar');
-    if (bar) {
-        bar.querySelectorAll('button[data-subtab]').forEach(function (b) {
-            var on = b.dataset.subtab === which;
-            b.style.background = on ? 'rgba(168,85,247,0.18)' : 'transparent';
-            b.style.color = on ? '#d8b4fe' : '#94a3b8';
-        });
-    }
-    var sub = document.getElementById('demo-subtab-body');
-    if (!sub) return;
-    if (which === 'audio') {
-        // [임시 — 발표 나레이션] 오디오 업로드 하위탭 (js/admin_narration.js)
-        if (typeof renderNarrationAudioTab === 'function') renderNarrationAudioTab(sub);
-        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">오디오 모듈(admin_narration.js)이 로드되지 않았습니다.</div>';
-    } else if (which === 'location') {
-        if (typeof renderLocationAlertDemoTab === 'function') renderLocationAlertDemoTab(sub);
-        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">위치 기반 특보 시연 모듈(admin_location_demo.js)이 로드되지 않았습니다.</div>';
-    } else if (which === 'typhoon') {
-        if (typeof renderTyphoonDemoTab === 'function') renderTyphoonDemoTab(sub);
-        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">태풍 시연 모듈(typhoon_demo_admin.js)이 로드되지 않았습니다.</div>';
-    } else if (which === 'advisory') {
-        if (typeof renderAdvisoryPredictionDemoTab === 'function') renderAdvisoryPredictionDemoTab(sub);
-        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">특보 예측 시연 모듈(advisory_demo_admin.js)이 로드되지 않았습니다.</div>';
-    } else {
-        if (typeof renderDemoAlertTab === 'function') renderDemoAlertTab(sub);
-        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">시연 모듈(admin_demo.js)이 로드되지 않았습니다.</div>';
-    }
-};
-
-// ============================================================================
-//  [시연] AI 비서 '나리' 소개 슬라이드 — 가로 전체화면 오버레이
-// ----------------------------------------------------------------------------
-//  AI 탭의 '시연' 버튼에서 호출. 백그라운드 발표자료(별도 브라우저)와 무관하게
-//  앱 안에서 nari_intro.html 을 가로(landscape) 전체화면 iframe 으로 띄운다.
-//  - 화면 방향: @capacitor/screen-orientation 으로 landscape 잠금(앱), 닫으면 portrait 복귀
-//  - 하드웨어 뒤로가기: PopupStack 등록으로 닫힘(앱 종료 방지)
-// ============================================================================
-window.openNariDemo = async function () {
-    // 중복 진입 방지
-    if (document.getElementById('nari-demo-overlay')) return;
-
-    // 1) 화면을 가로로 잠금 (앱 환경에서만 동작; 웹은 무시)
-    try {
-        const P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
-        if (P && P.ScreenOrientation && P.ScreenOrientation.lock) {
-            await P.ScreenOrientation.lock({ orientation: 'landscape' });
-        }
-    } catch (e) { /* 미지원 환경 무시 */ }
-
-    // 2) 전체화면 오버레이 + iframe
-    const ov = document.createElement('div');
-    ov.id = 'nari-demo-overlay';
-    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#000;';
-    ov.innerHTML =
-        '<iframe src="/nari_intro.html?ts=' + Date.now() + '" ' +
-        'style="position:absolute;inset:0;width:100%;height:100%;border:none;background:#000;" ' +
-        'allow="fullscreen" allowfullscreen></iframe>' +
-        '<button onclick="window.closeNariDemo()" aria-label="닫기" ' +
-        'style="position:absolute;top:14px;right:14px;z-index:2;width:46px;height:46px;border-radius:50%;' +
-        'background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.35);font-size:1.2rem;cursor:pointer;' +
-        'display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);">' +
-        '<i class="fa-solid fa-xmark"></i></button>';
-    document.body.appendChild(ov);
-
-    // 3) 하드웨어 뒤로가기로 닫힘
-    if (window.PopupStack) {
-        try { window.PopupStack.push('nari-demo-overlay', window.closeNariDemo); } catch (e) {}
-    }
-
-    // 4) 시스템 바 숨김(웹 풀스크린 API; 앱은 orientation lock 으로 충분)
-    try {
-        const el = document.documentElement;
-        const fn = el.requestFullscreen || el.webkitRequestFullscreen;
-        if (fn) { const p = fn.call(el); if (p && p.catch) p.catch(() => {}); }
-    } catch (e) {}
-};
-
-window.closeNariDemo = async function () {
-    const ov = document.getElementById('nari-demo-overlay');
-    if (ov) ov.remove();
-    if (window.PopupStack) {
-        try { window.PopupStack.remove('nari-demo-overlay'); } catch (e) {}
-    }
-    // 화면 방향 세로 복귀
-    try {
-        const P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
-        if (P && P.ScreenOrientation && P.ScreenOrientation.lock) {
-            await P.ScreenOrientation.lock({ orientation: 'portrait' });
-        }
-    } catch (e) {}
-    // 웹 풀스크린 해제
-    try {
-        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
-    } catch (e) {}
 };
 
 // ============================================================================
@@ -831,12 +707,8 @@ window.switchAiSubTab = function (which) {
 // AI 비서 하위탭 — Gemini 호출량 + 권한 + 음성 토글(+현재 엔진) + 테스트 호출 + 대화 내역.
 async function renderAiAssistantSubtab(container) {
     container.innerHTML = `
-        <div class="admin-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div class="admin-section-title">
             <span><i class="fa-solid fa-robot" style="color:#22d3ee;"></i> AI 비서</span>
-            <button onclick="window.openNariDemo()" title="AI 비서 '나리' 소개 슬라이드를 가로 전체화면으로 띄웁니다"
-                    style="padding:7px 16px;background:linear-gradient(135deg,#FF6B35,#C9430E);color:#fff;border:none;border-radius:8px;font-weight:700;font-size:0.78rem;cursor:pointer;display:inline-flex;align-items:center;gap:7px;box-shadow:0 2px 10px rgba(255,107,53,.35);">
-                <i class="fa-solid fa-display"></i> 시연
-            </button>
         </div>
 
         <div id="ai-usage-box" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">

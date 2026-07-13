@@ -111,39 +111,42 @@ const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
     check('diag 가 객체 아니면 무시(non-breaking)',
         !!RT.decideAlert(p, features, snapSevere, 'not-an-object'));
 
-    // ── [1] notified (demo 위치) ──────────────────────────────────────────
-    console.log('\n[1] handleWake: notified (demo)');
+    // ── [1] notified (fresh-fix 위치) ─────────────────────────────────────
+    console.log('\n[1] handleWake: notified (fresh-fix)');
     resetWake(); scheduled.length = 0;
-    await RT.handleWake(snapStr, { demoLat: String(upt[1]), demoLng: String(upt[0]), demoAcc: '30' });
+    freshPos = { lat: upt[1], lng: upt[0], acc: 30, at: '2026-07-11T01:02:03.000Z', src: 'gps' };
+    await RT.handleWake(snapStr, {});
     let r = readWake();
     check('last_wake 기록됨', !!r);
     check('outcome=notified', r && r.outcome === 'notified', r && r.outcome);
-    check('src=demo', r && r.src === 'demo', r && r.src);
+    check('src=gps', r && r.src === 'gps', r && r.src);
     check('zone=울산앞바다', r && r.zone === ZONE, r && r.zone);
-    check('lat/lng = demo 좌표', r && Math.abs(r.lat - upt[1]) < 1e-9 && Math.abs(r.lng - upt[0]) < 1e-9);
+    check('lat/lng = 수집 좌표', r && Math.abs(r.lat - upt[1]) < 1e-9 && Math.abs(r.lng - upt[0]) < 1e-9);
     check('at ISO 형식', r && ISO_RE.test(r.at), r && r.at);
-    check('posAt "" (demo pos 는 at 없음)', r && r.posAt === '', r && JSON.stringify(r.posAt));
+    check('posAt=위치 자체 시각 전파', r && r.posAt === '2026-07-11T01:02:03.000Z', r && JSON.stringify(r.posAt));
     check('Preferences 미러에도 동일 JSON', prefsMirror.get(WAKE_KEY) === global.localStorage.getItem(WAKE_KEY));
     check('로컬 알림 1건 표출', scheduled.length === 1, String(scheduled.length));
     const lm = JSON.parse(global.localStorage.getItem(MATCH_KEY));
-    check('last_match 도 기존대로 기록(성공 판정)', lm && lm.zone === ZONE && lm.src === 'demo');
+    check('last_match 도 기존대로 기록(성공 판정)', lm && lm.zone === ZONE);
 
     // ── [2] off-sea (육지) ────────────────────────────────────────────────
     console.log('\n[2] handleWake: off-sea (육지/외해)');
     resetWake(); scheduled.length = 0;
     const matchBefore2 = global.localStorage.getItem(MATCH_KEY);
-    await RT.handleWake(snapStr, { demoLat: '37.5665', demoLng: '126.9780', demoAcc: '30' });
+    freshPos = { lat: 37.5665, lng: 126.9780, acc: 30, at: '2026-07-11T01:02:03.000Z', src: 'gps' };
+    await RT.handleWake(snapStr, {});
     r = readWake();
     check('outcome=off-sea', r && r.outcome === 'off-sea', r && r.outcome);
     check('zone="" (바다 구역 밖)', r && r.zone === '', r && r.zone);
-    check('src=demo', r && r.src === 'demo');
+    check('src=gps', r && r.src === 'gps');
     check('알림 표출 없음', scheduled.length === 0);
     check('last_match 불변(성공 판정만 기록)', global.localStorage.getItem(MATCH_KEY) === matchBefore2);
 
     // ── [3] no-warning (바다 구역이나 무특보) ─────────────────────────────
     console.log('\n[3] handleWake: no-warning (구역 내 무특보)');
     resetWake(); scheduled.length = 0;
-    await RT.handleWake(JSON.stringify({ zones: {} }), { demoLat: String(upt[1]), demoLng: String(upt[0]), demoAcc: '30' });
+    freshPos = { lat: upt[1], lng: upt[0], acc: 30, at: '2026-07-11T01:02:03.000Z', src: 'gps' };
+    await RT.handleWake(JSON.stringify({ zones: {} }), {});
     r = readWake();
     check('outcome=no-warning', r && r.outcome === 'no-warning', r && r.outcome);
     check('zone=판정된 구역명(diag.locatedZone)', r && r.zone === ZONE, r && r.zone);
@@ -152,7 +155,8 @@ const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
     // ── [3b] no-warning (회색지대 — severe 보류도 no-warning 으로 기록) ───
     console.log('\n[3b] handleWake: no-warning (회색지대 severe 보류)');
     resetWake(); scheduled.length = 0;
-    await RT.handleWake(snapStr, { demoLat: String(upt[1]), demoLng: String(upt[0]), demoAcc: '999999' });
+    freshPos = { lat: upt[1], lng: upt[0], acc: 999999, at: '2026-07-11T01:02:03.000Z', src: 'gps' };
+    await RT.handleWake(snapStr, {});
     r = readWake();
     check('outcome=no-warning(회색지대 보류)', r && r.outcome === 'no-warning', r && r.outcome);
     check('zone=판정된 구역명 유지', r && r.zone === ZONE, r && r.zone);
@@ -184,8 +188,9 @@ const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
     console.log('\n[6] handleWake: disabled-skip (subAlert OFF)');
     resetWake(); scheduled.length = 0;
     const matchBefore6 = global.localStorage.getItem(MATCH_KEY);
+    freshPos = { lat: upt[1], lng: upt[0], acc: 30, at: '2026-07-11T01:02:03.000Z', src: 'gps' };
     global.LocationAlertSettings = { get: () => ({ subAlert: false }) };
-    await RT.handleWake(snapStr, { demoLat: String(upt[1]), demoLng: String(upt[0]), demoAcc: '30' });
+    await RT.handleWake(snapStr, {});
     delete global.LocationAlertSettings;
     r = readWake();
     check('outcome=disabled-skip', r && r.outcome === 'disabled-skip', r && r.outcome);
@@ -196,7 +201,7 @@ const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
     // ── [7] suberror (스냅샷 파싱 실패 등 예외) ───────────────────────────
     console.log('\n[7] handleWake: suberror (예외 경로)');
     resetWake(); scheduled.length = 0;
-    await RT.handleWake('{{{not-json', { demoLat: String(upt[1]), demoLng: String(upt[0]) });
+    await RT.handleWake('{{{not-json', {});
     r = readWake();
     check('outcome=suberror', r && r.outcome === 'suberror', r && r.outcome);
     check('알림 표출 없음', scheduled.length === 0);
