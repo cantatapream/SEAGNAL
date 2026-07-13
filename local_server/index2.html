@@ -4303,16 +4303,16 @@
     <script src="js/render_coastal.js"></script>
     <script src="js/marine.js"></script>
     <script src="js/settings/settings.js"></script>
-    <script src="js/location_alert_core.js"></script>
-    <script src="js/location_alert_background.js"></script>
-    <script src="js/location_alert_runtime.js"></script>
-    <script src="js/location_alert_ui.js"></script>
+    <script src="js/location-alert/location_alert_core.js"></script>
+    <script src="js/location-alert/location_alert_background.js"></script>
+    <script src="js/location-alert/location_alert_runtime.js"></script>
+    <script src="js/location-alert/location_alert_ui.js"></script>
     <!-- [위치기반 태풍 반경 알림 — Phase 2a] 서버 순수 모듈(typhoon_radius/typhoon_message)을
          UMD 표출(window.TyphoonRadius/TyphoonMessage)로 단말에서 그대로 재사용 + 태풍 반경 런타임.
          두 서비스 파일은 런타임보다 먼저 로드돼야 한다(전역이 먼저 정의되어야 함). 특보 런타임과 별 파일 공존. -->
     <script src="services/typhoon_radius.js"></script>
     <script src="services/typhoon_message.js"></script>
-    <script src="js/location_alert_typhoon_runtime.js"></script>
+    <script src="js/typhoon/location_alert_typhoon_runtime.js"></script>
     <script src="js/forecast.js"></script>
     <script src="js/windy.js?v=BuoyClip_20260612"></script>
     <script src="js/marine_forecast.js"></script>
@@ -4357,7 +4357,7 @@
     <script src="js/ocean_buoy.js"></script>
     <script src="js/ocean_warn_zone.js"></script>
     <!-- 태풍 진로/예보 오버레이 + 재생 애니메이션 (의존: ocean_map.js + /api/typhoon) -->
-    <script src="js/ocean_typhoon.js?v=Patch_20260707_03"></script>
+    <script src="js/typhoon/ocean_typhoon.js?v=Patch_20260707_03"></script>
     <!-- 활성 특보 색칠 모듈 (5개 파일 분할, 의존: ocean_warn_zone.js + data.js + ocean_map.js) -->
     <script src="js/ocean_warn_active1.js"></script>
     <script src="js/ocean_warn_active2.js"></script>
@@ -4396,7 +4396,7 @@
     <script src="js/engagement/report_user.js"></script>
     <script src="js/engagement/survey_user.js"></script>
     <script src="js/settings/zone_guide.js"></script>
-    <script src="js/alert_push.js"></script>
+    <script src="js/push/alert_push.js"></script>
     <script src="js/ui_modal.js"></script>
     <script src="js/app_init.js"></script>
     <script src="js/backbutton.js"></script>

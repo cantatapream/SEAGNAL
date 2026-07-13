@@ -12,7 +12,7 @@
 global.TyphoonRadius = require('../services/typhoon_radius.js');
 global.TyphoonMessage = require('../services/typhoon_message.js');
 
-const RT = require('../js/location_alert_typhoon_runtime.js');
+const RT = require('../js/typhoon/location_alert_typhoon_runtime.js');
 
 let pass = 0, fail = 0;
 function check(name, cond, extra) {

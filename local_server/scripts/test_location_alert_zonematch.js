@@ -24,8 +24,8 @@
 const fs = require('fs');
 const path = require('path');
 
-global.LocationAlertCore = require('../js/location_alert_core.js');
-const RT = require('../js/location_alert_runtime.js');
+global.LocationAlertCore = require('../js/location-alert/location_alert_core.js');
+const RT = require('../js/location-alert/location_alert_runtime.js');
 const core = global.LocationAlertCore;
 const canonZone = core.canonZone;
 

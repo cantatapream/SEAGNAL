@@ -67,7 +67,7 @@ check('forecast 미보유 + 데이터 없음 → null',
     JSON.stringify(snapNoFc.zones['존재하지않는해역XYZ'].forecast));
 
 console.log('\n[2c] buildMessage 예측 기상 줄');
-const core = require('../js/location_alert_core.js');
+const core = require('../js/location-alert/location_alert_core.js');
 const msgWithFc = core.buildMessage({
     zoneName: '제주도북부앞바다', warnType: '풍랑', tier: 'advisory', event: 'active',
     forecast: { day: '20', summary: '남동풍 4~12m/s, 파고 1.0~2.0m' },
