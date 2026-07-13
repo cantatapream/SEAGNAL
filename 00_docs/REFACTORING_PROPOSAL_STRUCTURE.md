@@ -1314,3 +1314,36 @@ SEAGNAL/                   ← 저장소를 열면 가장 먼저 보이는 최�
 | 관계 | 본 제안서(계획) → ARCHITECTURE.md(현재 도면) + DEVELOPMENT_GUIDE.md(미래 규칙) 로 역할 분리 |
 | 유지 | 지침 자체를 바꿀 때는 반드시 사용자 승인 (구조 원칙의 변경이므로) |
 | CLAUDE.md | 루트 CLAUDE.md 에 ① "코드 작성·수정 전 DEVELOPMENT_GUIDE.md 필독" 지시 + ② **핵심 규칙 요약 병기**(배치 결정 트리 5문항 + 8항목 체크리스트 축약본) — CLAUDE.md 는 세션 시작 시 자동 주입되므로, 만에 하나 가이드 원문을 읽지 않아도 핵심 규칙이 이미 컨텍스트에 존재하게 하는 이중 안전장치. 최후의 그물망은 check_headers.js·V2~V4 (지침 준수를 성실성이 아닌 기계 검증으로 보장) |
+
+---
+
+## 16. 실행 기록 (2026-07-13)
+
+계획 대비 실제 실행 결과 요약. 상세는 각 커밋 메시지 참고.
+
+| 계획 | 실행 결과 |
+|------|-----------|
+| STEP 0 보안 | ✅ 키 3종 → secrets/ (git 미추적). 구 URL 404 확인. 키 rotate 는 사용자 후속 조치 |
+| STEP 1 도구·기준선 | ✅ V1~V4 + verify_all/check_comment_only/find_unused/gen_* 제작, 기준선 11/11 |
+| STEP 2 루트 청소 | ✅ 옛 Maven·실험파일·중복 이미지 94파일 → archive/, docs/project/ |
+| STEP 3 이동 7배치 | ✅ js/ 90파일 기능별 폴더화. 92개 JS 내용 해시 이동 전과 100% 동일 |
+| STEP 4 검증 | ✅ 스테이징 미사용 방침 → verify_all 강화 검증으로 대체 |
+| STEP 4b 데드코드 | ✅ 3인 에이전트 만장일치 2건만 격리(964KB). JS 후보 4건은 전원 '데드 아님' |
+| STEP 5 문서 | ✅ 루트 4문서 + 폴더 README 30 + 설계문서 콜로케이션 5 |
+| STEP 6 주석 | ✅ 역할 92/92 · [연계] 92/92. check_comment_only 로 로직 무변경 보증 |
+| STEP 7 분리 | ✅ **변형 실행**: 안 B 의 server/ 개명 대신 **local_server 유지** (사용자 선택 ①) |
+
+### STEP 7 변형 사유와 결과
+
+- fly.toml 볼륨 마운트가 `/app/local_server/data` 고정 → 개명 시 배포 검증 불가 위험
+- 따라서 브라우저 자산만 `client/` 로 분리, 서버는 `local_server/` 유지 (볼륨·start 무변경)
+- 부수 보안 개선: 이전에는 routes/services/scheduler 등 **서버 소스 전체가 정적 서빙**되어
+  다운로드 가능했음 → 분리 후 서버 코드 404 (services 공용 모듈 2종만 명시적 알리아스)
+- URL 무변경 원칙: 디스크 배치만 바뀌고 모든 URL 동일 → 시뮬레이션 기준선 그대로 유효
+
+### 남은 사용자 액션
+
+1. Firebase/GCS 키 재발급(rotate) + 새 키를 secrets/ 에 배치
+2. 배포 PC 에 secrets/ 수동 배치 (git 미추적이므로 pull 로 안 옴)
+3. main 머지 및 배포 후: archive/deadcode_20260713 1~2주 관찰 → 삭제
+4. (선택) 실기기에서 푸시·위치경보·음성비서 확인
