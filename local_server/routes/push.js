@@ -504,11 +504,28 @@ router.post('/api/push-custom', async (req, res) => {
                     const BASE_URL = 'https://seagnal-server.fly.dev';
                     const url = `${BASE_URL}/?tab=weather-alert-section&${params.toString()}`;
 
-                    // [연장 분할] ef_extend/yn_extend 는 본문이 길면 (n/N) 으로 나눠 다건 발송.
-                    //   그 외는 단건. 동일 url(딥링크) 공유.
-                    const isExtend = isManualGroupSend && payload &&
-                        (payload.templateId === 'ef_extend' || payload.templateId === 'yn_extend');
-                    const parts = isExtend
+                    // [본문 분할] 여러 해역(ㅇ 블록)을 담아 길어질 수 있는 계열은 본문이 한도를
+                    //   넘으면 (n/N) 으로 나눠 다건 발송. 짧으면 paginateByZoneBlocks 가 그대로
+                    //   1건을 반환하므로 기존과 동일. 동일 url(딥링크) 공유.
+                    //   [2026-07-13 실사고] 당초 ef_extend/yn_extend 에만 걸려 있어, 전국 구독자가
+                    //   여러 해역 동시 "발표"(publish)를 받을 때 본문이 잘려 "..." 로 표시되던
+                    //   문제 — 다해역 블록 본문을 만드는 전 계열로 명시 확장(B안).
+                    const PAGINATE_TIDS = [
+                        'publish', 'active', 'release',
+                        'additional_active', 'partial_release',
+                        'prelim_cancel', 'child_prelim', 'child_prelim_cancel',
+                        'level_upgrade_publish', 'level_upgrade_active',
+                        'level_downgrade_publish', 'level_downgrade_active',
+                        'type_upgrade_publish', 'type_upgrade_active',
+                        'type_downgrade_publish', 'type_downgrade_active',
+                        'time_ef_change', 'time_yn_change',
+                        'child_time_ef_change', 'child_time_yn_change',
+                        'time_yn_confirm',
+                        'ef_extend', 'yn_extend'
+                    ];
+                    const shouldPaginate = isManualGroupSend && payload &&
+                        PAGINATE_TIDS.includes(payload.templateId);
+                    const parts = shouldPaginate
                         ? paginateByZoneBlocks(finalTitle, finalBody)
                         : [{ title: finalTitle, body: finalBody }];
 

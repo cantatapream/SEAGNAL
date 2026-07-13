@@ -1034,18 +1034,50 @@ function buildSplitPushes(eventType, parentEntries, opts = {}) {
  *   기존 PushSplitter 와 동일한 165자 한도/(n/N) 규칙. ㅇ 블록은 쪼개지 않음.
  *   @returns {{title, body}[]}
  */
+/** [2026-07-13 실사고 보강] 한 블록(한 시간그룹)이 단독으로 한도를 넘는 경우 —
+ *  해역 목록을 쉼표 단위로 쪼개 여러 블록으로 나누고, 시각 줄("- 발효예정 : …")은
+ *  각 조각에 복제한다. 자식 한정사 괄호 안의 쉼표("(북동연안바다, 우도연안바다 포함)")
+ *  는 괄호 깊이 추적으로 보호. 단일 해역이 스스로 큰 경우는 그대로 둔다(폴백). */
+function _splitOversizedBlock(block, EFF) {
+    if (block.length <= EFF || !block.startsWith('ㅇ')) return [block];
+    const nl = block.indexOf('\n');
+    const head = nl === -1 ? block : block.slice(0, nl);   // 'ㅇ해역1(한정사), 해역2, …'
+    const tail = nl === -1 ? '' : block.slice(nl);          // '\n   - 발효예정 : …' (여러 줄 가능)
+    const zones = [];
+    let cur = '', depth = 0;
+    for (const ch of head.slice(1)) {
+        if (ch === '(') depth++;
+        else if (ch === ')') depth = Math.max(0, depth - 1);
+        if (ch === ',' && depth === 0) { if (cur.trim()) zones.push(cur.trim()); cur = ''; }
+        else cur += ch;
+    }
+    if (cur.trim()) zones.push(cur.trim());
+    if (zones.length <= 1) return [block];
+    const lenOf = (arr) => ('ㅇ' + arr.join(', ') + tail).length;
+    const chunks = [];
+    let buf = [];
+    for (const z of zones) {
+        if (buf.length && lenOf(buf.concat(z)) > EFF) { chunks.push(buf); buf = [z]; }
+        else buf.push(z);
+    }
+    if (buf.length) chunks.push(buf);
+    return chunks.map(c => 'ㅇ' + c.join(', ') + tail);
+}
+
 function paginateByZoneBlocks(baseTitle, body, opts = {}) {
     const EFF = opts.effectiveMax || 165;
     if (!body) return [{ title: baseTitle, body: '' }];
     // ㅇ 로 시작하는 줄을 블록 시작으로 — 블록 = ㅇ줄 + 뒤따르는 비-ㅇ줄
     const lines = body.split('\n');
-    const blocks = [];
+    let blocks = [];
     let cur = null;
     for (const ln of lines) {
         if (ln.startsWith('ㅇ')) { if (cur) blocks.push(cur); cur = ln; }
         else { cur = cur == null ? ln : cur + '\n' + ln; }
     }
     if (cur != null) blocks.push(cur);
+    // [실사고 보강] 단독 초과 블록은 해역 단위로 선분할 (시각 줄 복제)
+    blocks = blocks.flatMap(b => _splitOversizedBlock(b, EFF));
     // greedy 패킹
     const pages = [];
     let buf = '';
