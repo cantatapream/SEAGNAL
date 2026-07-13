@@ -529,7 +529,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'maintenance', name: '점검', icon: 'fa-wrench' },
         { id: 'version', name: '버전 관리', icon: 'fa-code-branch' },
         { id: 'storage', name: '외부 저장소', icon: 'fa-cloud' },
-        { id: 'ai', name: 'AI', icon: 'fa-robot' }
+        { id: 'ai', name: 'AI', icon: 'fa-robot' },
+        { id: 'locstatus', name: '위치 기반', icon: 'fa-location-dot' }
     ];
 
     const modal = document.createElement('div');
@@ -650,6 +651,10 @@ window.switchUnifiedAdminTab = function (tabId) {
             renderUnifiedStorageContent(body);
         } else if (tabId === 'ai') {
             renderUnifiedAiTab(body);
+        } else if (tabId === 'locstatus') {
+            // [위치 기반] 이 기기가 수집·저장한 최신 GPS 위치 + 해상/육상 + 지도 팝업 (js/admin_location_status.js)
+            if (typeof renderLocationStatusTab === 'function') renderLocationStatusTab(body);
+            else body.innerHTML = '<div style="padding:20px;color:#fca5a5;">위치 기반 모듈(admin_location_status.js)이 로드되지 않았습니다.</div>';
         }
     }, 100);
 };
