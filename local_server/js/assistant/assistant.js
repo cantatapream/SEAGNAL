@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/assistant.js
  * 역할: SEAGNAL 음성 비서 프론트엔드 (호출어 "누구야" + STT + TTS + 텍스트 폴백)
+ * [연계]
+ *  - 사용하는 파일 : assistant_deeplink.js(답변 바로가기), user_memory_bridge.js
+ *                    (window.SeagnalMemory — 배선 대기), Capacitor 플러그인
+ *  - 서버 API      : /api/assistant/* (질의응답·로그)
+ *  - 마크업        : assistant.html (#assistant-* 오버레이/입력 요소)
+ *  - 나를 쓰는 곳  : assistant.html 이 로드하는 진입 파일 (자가 초기화)
  * ============================================================================
  *
  * [흐름]
