@@ -392,8 +392,11 @@ features/push/push_ios.js 처럼 접미사로 구분하고 진입점에서 선�
 
 > 원칙: **메인탭 폴더 안에서도 세부 기능마다 폴더를 만든다.**
 > 파일이 1개뿐인 기능(예: 갯벌체험)도 반드시 자기 폴더를 가진다 — 폴더가 곧 "기능의 단위"이고,
-> README.md와 향후 추가 파일이 들어갈 자리이기 때문.
-> 각 폴더에는 해당 JS 파일들 + `README.md`(§9)가 들어간다.
+> README와 향후 추가 파일이 들어갈 자리이기 때문.
+>
+> 각 폴더에는: 해당 JS 파일들 + 폴더 개요 `README.md` + **코드 파일마다 `<파일명>.README.md`**(§9)
+> 아래 트리의 `README.md` 표기는 지면상 폴더 개요만 적은 것 — 실제로는 각 코드 파일 옆에
+> `<파일명>.README.md`가 하나씩 함께 생성된다. (분할 모듈은 대표 1개: 예 `surfing.README.md`)
 
 ### 8.1 core/ — 앱 구동
 
@@ -624,18 +627,48 @@ client/features/
 
 ## 9. 폴더별 README 문서화 규칙 (초보자용 설명서)
 
-### 9.1 규칙
+### 9.1 규칙 (2단 구조: 폴더 개요 + 파일별 설명서)
 
-1. **모든 기능 폴더에 `README.md` 필수** — `features/*/*/`, `shared/*/`, `core/` 전부
-2. 설명 대상 독자는 **"이 코드를 처음 보는 사람"** — 용어를 아는 사람 기준으로 쓰지 않는다
-3. 파일·함수를 수정하면 **같은 커밋에서 README도 갱신** (PR 체크리스트 항목화)
-4. 탭 폴더 최상위 README(예: `features/marine-life/README.md`)는 하위 기능들의 **목차 + 공통 패턴** 설명
-5. 이미 각 JS 파일 머리에 `역할:` 주석이 잘 달려 있으므로, 이것을 README의 시드(초안)로 활용한다
+```
+문서 3종의 위치와 단위 — 혼동 방지 정리
 
-### 9.2 README 표준 템플릿
+① <파일명>.README.md   코드 파일마다 1개 — 해당 코드와 같은 폴더에 나란히 놓임
+                        예: sea_parting.js 옆에 sea_parting.README.md
+② README.md            기능 폴더마다 1개 — 폴더 개요 + 파일 목차 + 로드 순서
+③ docs/                기능 폴더마다 1개 — 설계·추진배경·검증 리포트 보관함 (§10)
+                        ※ 파일마다가 아님. 해당 기능의 설계 문서들을 모아두는 곳
+```
+
+1. **모든 코드 파일에는 같은 폴더 안에 `<파일명>.README.md`가 함께 있어야 한다**
+   - `sea_parting.js` → `sea_parting.README.md` (같은 폴더)
+   - 여러 파일이 한 몸인 분할 모듈은 대표 1개로 묶어서 작성 가능:
+     `surfing1~5.js` → `surfing.README.md` (파일 구성 표에 1~5 각각의 역할 명시)
+2. **모든 기능 폴더에 폴더 개요 `README.md` 필수** — 하위 파일별 README의 목차 역할
+3. 설명 대상 독자는 **"이 코드를 처음 보는 사람"** — 용어를 아는 사람 기준으로 쓰지 않는다
+4. 파일·함수를 수정하면 **같은 커밋에서 해당 `<파일명>.README.md`도 갱신** (PR 체크리스트 항목화)
+5. 탭 폴더 최상위 README(예: `features/marine-life/README.md`)는 하위 기능들의 **목차 + 공통 패턴** 설명
+6. 이미 각 JS 파일 머리에 `역할:` 주석이 잘 달려 있으므로, 이것을 README의 시드(초안)로 활용한다
+
+배치 예시 (한 폴더의 완성 모습):
+
+```
+features/marine-life/sea-parting/
+├── README.md                  ② 폴더 개요 (이 기능이 뭔지 + 파일 목차)
+├── sea_parting.js             코드
+├── sea_parting.README.md      ① 이 파일의 설명서 (코드 바로 옆)
+└── docs/                      ③ 설계·추진배경 (있는 경우에만)
+    └── ...설계 문서...
+
+features/marine-life/surfing/
+├── README.md                  ② 폴더 개요
+├── surfing1.js ~ surfing5.js  코드 (한 몸인 분할 모듈)
+└── surfing.README.md          ① 5개 파일을 묶은 대표 설명서
+```
+
+### 9.2 파일별 README 표준 템플릿 (`<파일명>.README.md`)
 
 ```markdown
-# <기능 이름>  `client/features/<탭>/<기능>/`
+# <파일명>.js 설명서  `client/features/<탭>/<기능>/<파일명>.js`
 
 ## 1. 이 기능은 무엇인가요?
 (초보자용 한 문단 — 사용자 입장에서 무엇이 보이고 무엇을 할 수 있는지)
@@ -664,10 +697,10 @@ client/features/
 (전역 변수, 로드 순서 의존, 캐시 등 함정 목록)
 ```
 
-### 9.3 작성 예시 — `features/marine-life/sea-parting/README.md`
+### 9.3 작성 예시 — `features/marine-life/sea-parting/sea_parting.README.md`
 
 ```markdown
-# 바다갈라짐  `client/features/marine-life/sea-parting/`
+# sea_parting.js 설명서 (바다갈라짐)  `client/features/marine-life/sea-parting/sea_parting.js`
 
 ## 1. 이 기능은 무엇인가요?
 진도 신비의 바닷길처럼 썰물 때 바닷길이 열리는 명소들의 "갈라짐 시간표"를
@@ -714,7 +747,7 @@ client/features/
 
 | 단계 | 내용 |
 |------|------|
-| 초안 생성 | Phase 2(폴더 이동) 때 각 파일의 `역할:` 헤더 주석 + 함수 목록을 추출해 폴더별 README 초안을 일괄 생성 (Claude로 자동화 가능) |
+| 초안 생성 | Phase 2(폴더 이동) 때 각 파일의 `역할:` 헤더 주석 + 함수 목록을 추출해 **파일별 `<파일명>.README.md`** 초안과 폴더 개요 README를 일괄 생성 (Claude로 자동화 가능) |
 | 검수 | 기능별로 실제 화면과 대조하며 "찾아가는 방법"과 데이터 흐름 확인 |
 | 유지 | PR 템플릿에 "□ 수정한 폴더의 README를 갱신했는가" 체크 항목 추가 |
 | 서버 측 | 동일 규칙을 `server/routes/`, `server/services/`, `server/jobs/`에도 적용 (파일 수가 많으므로 폴더 단위 README 1개씩) |
@@ -769,14 +802,18 @@ client/features/
 ### 10.3 배치 후 기능 폴더의 완성형
 
 ```
-client/features/location-alert/          ← "기능의 모든 것이 한 폴더에"
-├── README.md                            ① 입문 설명서 (§9 템플릿)
-├── docs/
-│   └── LOCATION_BASED_ALERT_DESIGN.md   ② 설계·추진 배경
-├── location_alert_core.js               ③ 코드 (헤더 주석 표준 §11 적용)
+client/features/location-alert/               ← "기능의 모든 것이 한 폴더에"
+├── README.md                                 폴더 개요 (파일 목차 + 로드 순서)
+├── docs/                                     설계·추진 배경 (기능당 1개 보관함)
+│   └── LOCATION_BASED_ALERT_DESIGN.md
+├── location_alert_core.js                    코드 (헤더 주석 표준 §11 적용)
+├── location_alert_core.README.md             ← 코드 파일마다 옆에 설명서
 ├── location_alert_background.js
+├── location_alert_background.README.md
 ├── location_alert_runtime.js
-└── location_alert_ui.js
+├── location_alert_runtime.README.md
+├── location_alert_ui.js
+└── location_alert_ui.README.md
 ```
 
 ---
