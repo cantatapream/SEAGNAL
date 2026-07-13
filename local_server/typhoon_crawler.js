@@ -384,13 +384,17 @@ async function run() {
                 // rem 필드가 없는(구버전) 캐시는 재수집해 rem/other 를 보강한다.
                 if (prevMap[key] && Array.isArray(prevMap[key].forecast) && prevMap[key].forecast.length && prevMap[key].rem !== undefined) {
                     const cached = Object.assign({}, prevMap[key], { label: trimStr(opt.value), isLatest: i === 0 });
-                    if (cached.nameEn) nameEn = cached.nameEn;
+                    // 영문명은 "최신 태풍단계(TYP)" 통보문에서 취한다. 목록은 최신→과거 순이라
+                    //   먼저 만난 TYP(=최신) 값만 채택하고, 이후 과거·TD 통보문이 덮어쓰지 않게 한다.
+                    //   (과거 TD 통보문의 tdEn='TD' 등이 최종 nameEn 을 덮어써 'TD'로 남던 버그 방지.)
+                    if (meta.kind === 'TYP' && !nameEn && cached.nameEn) nameEn = cached.nameEn;
                     bulletins.push(cached);
                     continue;
                 }
                 try {
                     const data = await fetchBulletin(year, code);
-                    if (data.nameEn) nameEn = data.nameEn;
+                    // 영문명은 최신 TYP 통보문 기준(위 캐시 분기와 동일 규칙 — TD 덮어쓰기 방지).
+                    if (meta.kind === 'TYP' && !nameEn && data.nameEn) nameEn = data.nameEn;
                     bulletins.push({
                         code, label: trimStr(opt.value), kind: meta.kind, tmFc: meta.tmFc, seq: meta.tmSeq,
                         isLatest: i === 0, nameEn: data.nameEn, current: data.current, forecast: data.forecast,
