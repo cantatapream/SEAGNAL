@@ -42,8 +42,8 @@ function _ensureJimp() {
 }
 
 const ROOT = path.join(__dirname, '..');
-const GEO_PATH = path.join(ROOT, 'marine_zone_area.json');
-const MAP_PATH = path.join(ROOT, 'assets', 'zone_grid_map.json');
+const GEO_PATH = path.join(ROOT, '..', 'client', 'marine_zone_area.json'); // STEP 7: client/ 로 이동
+const MAP_PATH = path.join(ROOT, '..', 'client', 'assets', 'zone_grid_map.json'); // STEP 7
 const DATA_DIR = path.join(ROOT, 'data');
 const CACHE_PATH = path.join(DATA_DIR, 'vsby_smallzone.json.gz');
 

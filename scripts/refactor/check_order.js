@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
-const INDEX = path.join(ROOT, 'local_server', 'index2.html');
+const INDEX = path.join(ROOT, 'client', 'index2.html');
 const SNAP = path.join(__dirname, 'baseline', 'order_snapshot.json');
 
 function currentOrder() {

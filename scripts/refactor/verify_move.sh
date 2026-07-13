@@ -4,14 +4,14 @@
 # 역할  : [V1 이동 무결성] 지정 커밋 범위의 변경이 "내용 무변경 순수 이동"인지
 #         검사한다. rename(R100) 과 index.html 계열 경로 수정 외의 변경이
 #         있으면 실패 — 대원칙 "이동 ≠ 수정"의 기계적 검증.
-# 사용  : bash scripts/refactor/|local_server/scripts/test_[a-z_]*\.js|local_server/scripts/build_warn_zones_holed\.js|local_server/services/location_alert_dispatch\.jsverify_move.sh [기준커밋]   (기본: HEAD~1)
+# 사용  : bash scripts/refactor/verify_move.sh [기준커밋]   (기본: HEAD~1)
 # ============================================================================
 set -euo pipefail
 BASE="${1:-HEAD~1}"
 
 # 허용 목록: 이동의 물리적 결과로 수정될 수밖에 없는 파일 (§13.1 유일한 예외)
 # .gitignore/.dockerignore: 이동된 폴더의 추적·배포 제외 설정도 같은 범주
-ALLOW_MODIFY_RE='^(local_server/index2\.html|local_server/assistant\.html|local_server/sw\.js|client/index\.html|client/sw\.js|scripts/refactor/|local_server/scripts/test_[a-z_]*\.js|local_server/scripts/build_warn_zones_holed\.js|local_server/services/location_alert_dispatch\.js|\.gitignore|\.dockerignore)'
+ALLOW_MODIFY_RE='^(local_server/index2\.html|local_server/assistant\.html|local_server/sw\.js|client/index2\.html|client/index\.html|client/assistant\.html|client/sw\.js|scripts/refactor/|local_server/scripts/test_[a-z_]*\.js|local_server/scripts/build_warn_zones_holed\.js|local_server/services/location_alert_dispatch\.js|\.gitignore|\.dockerignore)'
 
 echo "[verify_move] 검사 범위: ${BASE}..HEAD"
 VIOLATIONS=0

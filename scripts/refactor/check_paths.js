@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
-const STATIC_ROOT = path.join(ROOT, 'local_server'); // Phase 3 에서 client/ 로 변경
+const STATIC_ROOT = path.join(ROOT, 'client'); // STEP 7: client/ 분리 완료
 const INDEX = path.join(STATIC_ROOT, 'index2.html');
 const SW = path.join(STATIC_ROOT, 'sw.js');
 
@@ -45,6 +45,10 @@ function isExternal(p) {
     return /^(https?:)?\/\//.test(p) || p.startsWith('data:');
 }
 
+// STEP 7: staticRoot 는 client/ 지만, 아래 URL 은 서버가 명시적 알리아스로 서빙
+// (server.js 의 /services/typhoon_*.js sendFile — 서버·클라 공용 모듈)
+const SERVER_ALIASES = new Set(['services/typhoon_radius.js', 'services/typhoon_message.js']);
+
 // 기준선 철학(§13.2): 리팩토링 이전부터 끊어져 있던 경로는 허용 목록으로 관리하고,
 // "새로 생긴" 끊어진 경로만 회귀로 판정한다. --snapshot 으로 허용 목록 생성.
 const ALLOW = path.join(__dirname, 'baseline', 'paths_allowlist.json');
@@ -56,8 +60,13 @@ for (const r of refs) {
     if (isExternal(r.raw)) continue;
     const rel = stripQuery(r.raw).replace(/^\//, '');
     if (!rel) continue;
-    const abs = path.join(STATIC_ROOT, rel);
     checked++;
+    if (SERVER_ALIASES.has(rel)) {
+        // 알리아스 대상이 서버 폴더에 실존하는지 확인
+        if (!fs.existsSync(path.join(ROOT, 'local_server', rel))) broken.push(`${r.kind}(alias): ${r.raw}`);
+        continue;
+    }
+    const abs = path.join(STATIC_ROOT, rel);
     if (!fs.existsSync(abs)) broken.push(`${r.kind}: ${r.raw}`);
 }
 const uniqueBroken = [...new Set(broken)].sort();

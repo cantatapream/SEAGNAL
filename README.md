@@ -22,10 +22,13 @@ bash scripts/refactor/verify_all.sh  # 구조 검증 (경로·로드순서·시�
 ## 폴더 한눈에
 
 ```
-local_server/
-├── js/          프론트엔드 — 기능별 폴더 (core/ shared/ + 탭 4개 + 횡단 기능)
+client/          🌐 프론트엔드 (정적 서빙 루트)
+├── js/          기능별 폴더 — core/ shared/ + 탭 4개(forecast·ocean-map·marine-life·notice) + 횡단 기능
+├── index2.html  단일 페이지 셸          sw.js  서비스워커
+└── assets/ images/ tide_data/ css 등 브라우저 자산 전부
+local_server/    ⚙️ 서버 전용 (Node — 더 이상 정적 서빙되지 않음)
 ├── routes/      서버 API 라우트        services/  서버 서비스
-├── advisory/    특보 예측 엔진          index2.html  단일 페이지 셸
+├── advisory/    특보 예측 엔진          data/  런타임 데이터(Fly 볼륨)
 android/         Capacitor 안드로이드 네이티브 셸
 secrets/         서비스 계정 키 (git 미추적)
 scripts/refactor/  리팩토링 검증·생성 도구

@@ -14,8 +14,8 @@ SEAGNAL(바다날씨)은 해양 기상특보·해양종합정보·해양생활·
 
 ## 2. 설계 중점 사항 (5원칙)
 
-1. **3분리**: `client/`(브라우저) · `server/`(Node) · `android/·ios/`(네이티브 셸).
-   ※ 현재는 client 가 `local_server/` 안에 있으며 STEP 7 에서 분리 예정.
+1. **3분리**: `client/`(브라우저 — 정적 서빙 루트) · `local_server/`(Node 서버 전용) ·
+   `android/·ios/`(네이티브 셸). ※ STEP 7 완료 — 서버 코드는 더 이상 정적 서빙되지 않음.
 2. **client 3계층**: `core/`(구동) · `shared/`(공용) · `features/`(기능).
    판단 — 없으면 앱이 안 뜨면 core, 여럿이 쓰면 shared, 하나의 기능이면 features.
 3. **기능 폴더 = 자기완결 단위**: 코드 + README + (필요 시) guide/design 콜로케이션.
@@ -25,7 +25,7 @@ SEAGNAL(바다날씨)은 해양 기상특보·해양종합정보·해양생활·
 ## 3. 전체 구조 도면 (프론트 js/)
 
 ```
-local_server/js/
+client/js/
 ├── admin/  ← ⚡ 관리자 센터
 │   ├── admin_collect.js
 │   ├── admin_location_status.js
@@ -159,7 +159,7 @@ local_server/js/
 
 > "역할" 문구는 각 파일 헤더의 `역할:` 첫 줄과 동일 — 코드와 도면이 어긋나면 check_headers 가 잡음.
 
-### `local_server/js/admin/`
+### `client/js/admin/`
 
 | 파일 | 역할 |
 |------|------|
@@ -173,7 +173,7 @@ local_server/js/
 | `cctv7.js` | 마커 좌표가 잘못된 경우 지도 상에서 직접 위치를 교정합니다. |
 | `pagination_helper.js` | 관리자 리스트 화면용 공용 페이지네이션 UI helper |
 
-### `local_server/js/assistant/`
+### `client/js/assistant/`
 
 | 파일 | 역할 |
 |------|------|
@@ -181,14 +181,14 @@ local_server/js/
 | `assistant_deeplink.js` | AI 비서 답변의 "바로가기" 버튼 → 해양종합정보 페이지의 해당 레이어를 |
 | `assistant_overlay.js` | 백그라운드 "나리야" 음성 비서의 상태/대화를 앱 화면에 동적 오버레이로 표시. |
 
-### `local_server/js/assistant/memory/`
+### `client/js/assistant/memory/`
 
 | 파일 | 역할 |
 |------|------|
 | `user_memory_bridge.js` | 사용자 기억 v2 — E3 통합 다리. 채팅(WebView) ↔ 자바 Plugin/IndexedDB 의 |
 | `user_memory_web.js` | SEAGNAL 사용자 기억 v2 — 웹(브라우저) 측 IndexedDB 어댑터 (E2 트랙) |
 
-### `local_server/js/core/`
+### `client/js/core/`
 
 | 파일 | 역할 |
 |------|------|
@@ -197,14 +197,14 @@ local_server/js/
 | `config.js` | 전역 설정(CONFIG), 해역 상수, 윈디 매핑, 해역 분류 체계 |
 | `index2_patch.js` | 1. 하단 탭 바 구조에 맞춰 탭 그룹 매핑 데이터를 오버라이드 |
 
-### `local_server/js/engagement/`
+### `client/js/engagement/`
 
 | 파일 | 역할 |
 |------|------|
 | `report_user.js` | 사용자 제보 기능 (제보 작성, 답변 팝업, 차단 상태 확인) |
 | `survey_user.js` | 사용자 설문조사 팝업 (앱 접속 시 자동 표시, 완료 시 재표시 방지) |
 
-### `local_server/js/forecast/alerts/`
+### `client/js/forecast/alerts/`
 
 | 파일 | 역할 |
 |------|------|
@@ -215,7 +215,7 @@ local_server/js/
 | `render_coastal.js` | 연안 구역 렌더링, 부이 데이터 표시, 로딩/시간 업데이트 |
 | `zone_avg.js` | 특보구역별로 매핑된 대해구의 3시간 예보 wh/ws 평균을 계산해 노란 점선 박스 생성 |
 
-### `local_server/js/forecast/marine-chart/`
+### `client/js/forecast/marine-chart/`
 
 | 파일 | 역할 |
 |------|------|
@@ -225,7 +225,7 @@ local_server/js/
 | `marine_chart4.js` | 해상일기도 — 전체화면 컨트롤 자동 페이드 (동영상 플레이어 패턴) |
 | `marine_chart5.js` | 해상일기도 — 전체화면 제스처 (핀치줌·팬·탭 토글) |
 
-### `local_server/js/forecast/outlook/`
+### `client/js/forecast/outlook/`
 
 | 파일 | 역할 |
 |------|------|
@@ -233,14 +233,14 @@ local_server/js/
 | `marine_forecast.js` | 기상청 해상 기상 전망 데이터 로드 및 렌더링 |
 | `windy.js` | Windy 팝업, 상태 카드 시스템 |
 
-### `local_server/js/forecast/prediction/`
+### `client/js/forecast/prediction/`
 
 | 파일 | 역할 |
 |------|------|
 | `advisory_prediction.js` | "해역별 특보 예측" 아코디언 렌더러. |
 | `run_advisory_render_test.js` | node 렌더 테스트 하네스 — advisory_prediction(v6) 렌더 함수 검증 (브라우저 불필요) |
 
-### `local_server/js/location-alert/`
+### `client/js/location-alert/`
 
 | 파일 | 역할 |
 |------|------|
@@ -249,37 +249,37 @@ local_server/js/
 | `location_alert_runtime.js` | 위치기반 특보: 깨우는 신호 처리·경고 표시 (② 단계) |
 | `location_alert_ui.js` | 위치 기반 기상 정보 제공: 동의·활성 UI (③ 단계) |
 
-### `local_server/js/marine-life/fishing/`
+### `client/js/marine-life/fishing/`
 
 | 파일 | 역할 |
 |------|------|
 | `fishing.js` | 바다낚시 지수 프론트엔드 전체 로직 |
 
-### `local_server/js/marine-life/mudflat/`
+### `client/js/marine-life/mudflat/`
 
 | 파일 | 역할 |
 |------|------|
 | `mudflat.js` | 갯벌체험 지수 프론트엔드 전체 로직 (지도형 — 바다낚시/스킨스쿠버 방식) |
 
-### `local_server/js/marine-life/ripcurrent/`
+### `client/js/marine-life/ripcurrent/`
 
 | 파일 | 역할 |
 |------|------|
 | `ripcurrent.js` | 이안류 지수 프론트엔드 전체 로직 (지도형 — 스킨스쿠버 방식) |
 
-### `local_server/js/marine-life/scuba/`
+### `client/js/marine-life/scuba/`
 
 | 파일 | 역할 |
 |------|------|
 | `scuba.js` | 스킨스쿠버 지수 프론트엔드 전체 로직 |
 
-### `local_server/js/marine-life/sea-parting/`
+### `client/js/marine-life/sea-parting/`
 
 | 파일 | 역할 |
 |------|------|
 | `sea_parting.js` | 바다갈라짐(썰물 때 바닷길이 열리는 명소)의 갈라짐 시간표를 보여준다. |
 
-### `local_server/js/marine-life/surfing/`
+### `client/js/marine-life/surfing/`
 
 | 파일 | 역할 |
 |------|------|
@@ -289,14 +289,14 @@ local_server/js/
 | `surfing4.js` | 서핑지수 프론트엔드 - 팝업 콘텐츠 렌더링 (서핑지수 테이블 + 상세정보) |
 | `surfing5.js` | 서핑지수 프론트엔드 - 해상특보 맵 구축 + 해상특보 HTML 생성 |
 
-### `local_server/js/notice/board/`
+### `client/js/notice/board/`
 
 | 파일 | 역할 |
 |------|------|
 | `image_compress.js` | 관리자 게시글 에디터(Quill) 의 이미지 자동 압축 유틸리티 |
 | `promo.js` | 홍보 게시판 (렌더링, 검색, 파일첨부, 관리자 편집) |
 
-### `local_server/js/notice/comments/`
+### `client/js/notice/comments/`
 
 | 파일 | 역할 |
 |------|------|
@@ -306,7 +306,7 @@ local_server/js/
 | `promo_comment4.js` | 게시글 댓글 시스템 - 답글 입력 및 관리자 전용 기능 (원문 보기) |
 | `promo_comment5.js` | 게시글 댓글 시스템 - 댓글 섹션 초기화 진입점 및 새로고침 |
 
-### `local_server/js/ocean-map/bottom-sheet/`
+### `client/js/ocean-map/bottom-sheet/`
 
 | 파일 | 역할 |
 |------|------|
@@ -319,7 +319,7 @@ local_server/js/
 | `ocean_bottom_sheet_weather.js` | 바텀시트 천기 카드 — 클릭한 해점의 KMA 단기예보 6 카테고리 종합 표시 |
 | `ocean_sheet_timeline.js` | 해양종합정보 바텀시트 내부의 시간 이동 슬라이더 |
 
-### `local_server/js/ocean-map/cctv/`
+### `client/js/ocean-map/cctv/`
 
 | 파일 | 역할 |
 |------|------|
@@ -327,7 +327,7 @@ local_server/js/
 | `cctv4.js` | 1. 지도 마커 클릭 이벤트를 처리합니다. |
 | `ocean_cctv.js` | index2 (종합기상 > 해양종합) 에서 CCTV 기능을 oceanMap 위에 통합하는 모듈. |
 
-### `local_server/js/ocean-map/layers/`
+### `client/js/ocean-map/layers/`
 
 | 파일 | 역할 |
 |------|------|
@@ -335,7 +335,7 @@ local_server/js/
 | `tide_field.js` | "서해·남해 물빠짐(갯벌 노출) 예측" 프론트 레이어 (Phase 3) |
 | `vsby_forecast_layer.js` | KMA RDPS 시정예측 (visibility, 안개) PNG raster 오버레이 + |
 
-### `local_server/js/ocean-map/map/`
+### `client/js/ocean-map/map/`
 
 | 파일 | 역할 |
 |------|------|
@@ -344,19 +344,19 @@ local_server/js/
 | `ocean_northup.js` | 해양종합정보 지도의 "진북(North Up)" 회전 컨트롤 |
 | `ocean_overlay.js` | 해양현황 캔버스 오버레이 (해류/바람/파고 색상 + 파티클 애니메이션) |
 
-### `local_server/js/ocean-map/observation/`
+### `client/js/ocean-map/observation/`
 
 | 파일 | 역할 |
 |------|------|
 | `ocean_buoy.js` | 해양종합 지도 – 기상부이 + 주요지명 격자 샘플링 레이어 (INDEX2 전용) |
 
-### `local_server/js/ocean-map/timeline/`
+### `client/js/ocean-map/timeline/`
 
 | 파일 | 역할 |
 |------|------|
 | `ocean_timeline.js` | 해양현황 타임라인 슬라이더 (72시간 예측) |
 
-### `local_server/js/ocean-map/warnings/`
+### `client/js/ocean-map/warnings/`
 
 | 파일 | 역할 |
 |------|------|
@@ -368,33 +368,33 @@ local_server/js/
 | `ocean_warn_vsby.js` | 해역별 특보 현황 아코디언의 각 특보구역 카드에 "시정(visibility) 뱃지" |
 | `ocean_warn_zone.js` | 해양종합정보 지도에 KMA 해상 예특보구역 폴리곤 outline 표출 |
 
-### `local_server/js/push/`
+### `client/js/push/`
 
 | 파일 | 역할 |
 |------|------|
 | `alert_push.js` | 해양특보 알림 관리 모달 (발표/발효/해제/격상/직접발송/이력) |
 
-### `local_server/js/settings/`
+### `client/js/settings/`
 
 | 파일 | 역할 |
 |------|------|
 | `settings.js` | 탭 시스템, 스타일 주입, 사용자 설정, 알림 설정, 위치 기반 검색 |
 | `zone_guide.js` | 관심 해역 설정 유도 팝업 (1회성 넛지) |
 
-### `local_server/js/shared/ui/`
+### `client/js/shared/ui/`
 
 | 파일 | 역할 |
 |------|------|
 | `ui_modal.js` | 공통 UI 모달 (기상청 iframe, SEAGNAL 시스템 모달) |
 
-### `local_server/js/shared/utils/`
+### `client/js/shared/utils/`
 
 | 파일 | 역할 |
 |------|------|
 | `mappings.js` | 연안바다/평수구역 매핑, 부이 위치 매핑, 부이 타입 정의 |
 | `utils.js` | 전역 상태(appState), 유틸리티 함수, 날짜/시간 포맷팅 |
 
-### `local_server/js/typhoon/`
+### `client/js/typhoon/`
 
 | 파일 | 역할 |
 |------|------|
@@ -408,7 +408,9 @@ local_server/js/
 - `local_server/services/` (35) — 서버 서비스(캐시·푸시·수집 등)
 - `local_server/advisory/` — 특보 예측 엔진
 - `local_server/scheduler.js` — 크롤러·수집 스케줄러
-- 상세 분리(client/server, jobs/)는 STEP 7 에서 진행.
+- `local_server/data/` — 런타임 데이터 (Fly 볼륨 /app/local_server/data — 경로 변경 금지)
+- 예외: `services/typhoon_radius.js`·`typhoon_message.js` 는 서버·클라 공용 —
+  server.js 가 이 2개 URL 만 명시적으로 서빙.
 
 ## 6. 규칙 문서
 

@@ -7,10 +7,10 @@
 
 ## 배치 결정 트리 (새 코드의 자리)
 
-1. 없으면 앱이 안 뜨나? → `local_server/js/core/`
-2. 둘 이상 기능이 함께 쓰나? → `local_server/js/shared/<utils|ui|geo|tide>/`
-3. 4개 탭 중 하나의 화면 기능? → `local_server/js/<forecast|ocean-map|marine-life|notice>/<기능>/`
-4. 탭 밖 독립 기능(푸시·위치·태풍·AI·설정·관리자)? → `local_server/js/<기능>/`
+1. 없으면 앱이 안 뜨나? → `client/js/core/`
+2. 둘 이상 기능이 함께 쓰나? → `client/js/shared/<utils|ui|geo|tide>/`
+3. 4개 탭 중 하나의 화면 기능? → `client/js/<forecast|ocean-map|marine-life|notice>/<기능>/`
+4. 탭 밖 독립 기능(푸시·위치·태풍·AI·설정·관리자)? → `client/js/<기능>/`
 5. 서버 코드? → `local_server/routes|services|advisory/`
 
 ## 반드시 지킬 것

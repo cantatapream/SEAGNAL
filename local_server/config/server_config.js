@@ -119,11 +119,10 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 const IS_FLY_IO = !!process.env.FLY_APP_NAME;
 const PORT = 3001;
 
-// 정적 파일 루트 경로 결정
-// Fly.io 환경과 로컬 환경 모두 대응
-const staticRoot = process.env.FLY_ALLOC_ID
-    ? SERVER_ROOT
-    : (fs.existsSync(path.join(SERVER_ROOT, 'index2.html')) ? SERVER_ROOT : path.join(SERVER_ROOT, '..'));
+// 정적 파일 루트 경로 결정 — STEP 7 분리: 브라우저 자산은 client/ 로 이동
+// (repo/client — Fly 에서는 /app/client, 로컬에서는 <repo>/client)
+// 서버 코드(routes/services 등)는 더 이상 정적으로 서빙되지 않는다 (보안 개선).
+const staticRoot = path.join(SERVER_ROOT, '..', 'client');
 
 // ============================================================================
 // 데이터 파일 경로 상수 (JSON 파일들)

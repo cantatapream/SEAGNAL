@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
-const JS = path.join(ROOT, 'local_server', 'js');
+const JS = path.join(ROOT, 'client', 'js');
 const WRITE = process.argv.includes('--write');
 
 function roleOf(file) {

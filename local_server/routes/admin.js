@@ -1368,7 +1368,7 @@ router.post('/api/admin/maintenance', (req, res) => {
 // 앱 버전 관리
 // ============================================================================
 
-const APP_VERSION_FILE = path.join(__dirname, '..', 'app_version.json');
+const APP_VERSION_FILE = path.join(__dirname, '..', '..', 'client', 'app_version.json'); // STEP 7: 브라우저 fetch 대상이므로 client/
 
 /** 앱 버전 정보 수정 */
 router.post('/api/admin/app-version', (req, res) => {

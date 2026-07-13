@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
-const JS = path.join(ROOT, 'local_server', 'js');
+const JS = path.join(ROOT, 'client', 'js');
 
 function roleOf(file) {
     const head = fs.readFileSync(file, 'utf8').split('\n').slice(0, 30);
@@ -118,8 +118,8 @@ SEAGNAL(바다날씨)은 해양 기상특보·해양종합정보·해양생활·
 
 ## 2. 설계 중점 사항 (5원칙)
 
-1. **3분리**: \`client/\`(브라우저) · \`server/\`(Node) · \`android/·ios/\`(네이티브 셸).
-   ※ 현재는 client 가 \`local_server/\` 안에 있으며 STEP 7 에서 분리 예정.
+1. **3분리**: \`client/\`(브라우저 — 정적 서빙 루트) · \`local_server/\`(Node 서버 전용) ·
+   \`android/·ios/\`(네이티브 셸). ※ STEP 7 완료 — 서버 코드는 더 이상 정적 서빙되지 않음.
 2. **client 3계층**: \`core/\`(구동) · \`shared/\`(공용) · \`features/\`(기능).
    판단 — 없으면 앱이 안 뜨면 core, 여럿이 쓰면 shared, 하나의 기능이면 features.
 3. **기능 폴더 = 자기완결 단위**: 코드 + README + (필요 시) guide/design 콜로케이션.
@@ -129,7 +129,7 @@ SEAGNAL(바다날씨)은 해양 기상특보·해양종합정보·해양생활·
 ## 3. 전체 구조 도면 (프론트 js/)
 
 \`\`\`
-local_server/js/
+client/js/
 ${tree(JS).trimEnd()}
 \`\`\`
 
@@ -144,7 +144,9 @@ ${indexTables(JS)}
 - \`local_server/services/\` (35) — 서버 서비스(캐시·푸시·수집 등)
 - \`local_server/advisory/\` — 특보 예측 엔진
 - \`local_server/scheduler.js\` — 크롤러·수집 스케줄러
-- 상세 분리(client/server, jobs/)는 STEP 7 에서 진행.
+- \`local_server/data/\` — 런타임 데이터 (Fly 볼륨 /app/local_server/data — 경로 변경 금지)
+- 예외: \`services/typhoon_radius.js\`·\`typhoon_message.js\` 는 서버·클라 공용 —
+  server.js 가 이 2개 URL 만 명시적으로 서빙.
 
 ## 6. 규칙 문서
 

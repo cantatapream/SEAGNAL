@@ -24,7 +24,9 @@ SMOKE=("/api/health:200" "/api/app-version:200" "/:200" "/sw.js:200" "/style.css
        "/js/ocean-map/map/ocean_map.js:200" "/js/marine-life/surfing/surfing1.js:200"
        "/js/notice/comments/promo_comment1.js:200" "/js/typhoon/ocean_typhoon.js:200"
        "/js/location-alert/location_alert_core.js:200" "/js/shared/utils/utils.js:200"
-       "/serviceAccountKey.json:404")
+       "/services/typhoon_radius.js:200" "/services/typhoon_message.js:200"
+       "/marine_zone_area.json:200" "/.well-known/assetlinks.json:200"
+       "/serviceAccountKey.json:404" "/server.js:404" "/routes/weather.js:404" "/scheduler.js:404")
 for pair in "${SMOKE[@]}"; do
   ep="${pair%:*}"; want="${pair##*:}"
   got=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3001$ep")
