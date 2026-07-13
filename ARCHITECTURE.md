@@ -165,11 +165,11 @@ local_server/js/
 |------|------|
 | `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 |
-| `admin_location_status.js` | (역할 헤더 미작성 — STEP 6 대상) |
+| `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — 이 기기가 수집·저장한 최신 GPS 위치 표시 |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |
 | `admin_trigger.js` | 관리자 트리거(15회 클릭), 공지/점검/오류 팝업 |
-| `advisory_manage_admin.js` | (역할 헤더 미작성 — STEP 6 대상) |
+| `advisory_manage_admin.js` | 관리자 "특보 관리 → 특보 예측" 운영 UI (청중 모드 토글·예측 목록 관리) |
 | `cctv7.js` | (역할 헤더 미작성 — STEP 6 대상) |
 | `pagination_helper.js` | 관리자 리스트 화면용 공용 페이지네이션 UI helper |
 
@@ -213,7 +213,7 @@ local_server/js/
 | `marine.js` | 해구별 기상정보 모달, 해양 차트 렌더링 |
 | `render.js` | 메인 UI 렌더링 (renderApp, createAlertElement) |
 | `render_coastal.js` | 연안 구역 렌더링, 부이 데이터 표시, 로딩/시간 업데이트 |
-| `zone_avg.js` | (역할 헤더 미작성 — STEP 6 대상) |
+| `zone_avg.js` | 특보구역별로 매핑된 대해구의 3시간 예보 wh/ws 평균을 계산해 노란 점선 박스 생성 |
 
 ### `local_server/js/forecast/marine-chart/`
 
@@ -238,16 +238,16 @@ local_server/js/
 | 파일 | 역할 |
 |------|------|
 | `advisory_prediction.js` | "해역별 특보 예측" 아코디언 렌더러. |
-| `run_advisory_render_test.js` | (역할 헤더 미작성 — STEP 6 대상) |
+| `run_advisory_render_test.js` | node 렌더 테스트 하네스 — advisory_prediction(v6) 렌더 함수 검증 (브라우저 불필요) |
 
 ### `local_server/js/location-alert/`
 
 | 파일 | 역할 |
 |------|------|
-| `location_alert_background.js` | (역할 헤더 미작성 — STEP 6 대상) |
-| `location_alert_core.js` | (역할 헤더 미작성 — STEP 6 대상) |
-| `location_alert_runtime.js` | (역할 헤더 미작성 — STEP 6 대상) |
-| `location_alert_ui.js` | (역할 헤더 미작성 — STEP 6 대상) |
+| `location_alert_background.js` | 위치기반 특보: 이벤트 기반 위치 수집 (② 단계) |
+| `location_alert_core.js` | 위치 기반 해상특보 안전 경보: 순수 지오/문구 계산 로직 (외부 의존 없음) |
+| `location_alert_runtime.js` | 위치기반 특보: 깨우는 신호 처리·경고 표시 (② 단계) |
+| `location_alert_ui.js` | 위치 기반 기상 정보 제공: 동의·활성 UI (③ 단계) |
 
 ### `local_server/js/marine-life/fishing/`
 
@@ -277,7 +277,7 @@ local_server/js/
 
 | 파일 | 역할 |
 |------|------|
-| `sea_parting.js` | 바다갈라짐 시간 프론트엔드 전체 로직 |
+| `sea_parting.js` | 바다갈라짐(썰물 때 바닷길이 열리는 명소)의 갈라짐 시간표를 보여준다. |
 
 ### `local_server/js/marine-life/surfing/`
 
@@ -398,7 +398,7 @@ local_server/js/
 
 | 파일 | 역할 |
 |------|------|
-| `location_alert_typhoon_runtime.js` | (역할 헤더 미작성 — STEP 6 대상) |
+| `location_alert_typhoon_runtime.js` | 위치기반 태풍 반경 알림 단말 런타임 (서버 wake 신호 → 반경 판정 → 알림) |
 | `ocean_typhoon.js` | 해양종합 지도(OpenLayers)에 "태풍" 오버레이 + 재생 애니메이션을 표출. |
 
 
