@@ -2,6 +2,12 @@
  * ============================================================================
  * js/advisory_manage_admin.js — 관리자 "특보 관리 → 특보 예측" 운영 UI
  * 역할  : 관리자 "특보 관리 → 특보 예측" 운영 UI (청중 모드 토글·예측 목록 관리)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : 없음 (window.showToast 있으면 사용 — 없으면 console 폴백)
+ *  - 서버 API      : /api/admin/advisory-display/* (state·stats·mode·hide·restore·resolve·edit·clear-edit·clear-resolved)
+ *  - 마크업        : index2.html 관리자 컨테이너에 동적 주입 (#advm-grade-sel, #advm-prob-inp, #advm-narr-inp 등)
+ *  - 나를 쓰는 곳  : admin.js ('특보 예측' 관리 진입 시 window.renderAdvisoryDisplayManageTab 호출)
  * ============================================================================
  *  - 청중 모드 토글: OFF / 관리자 기기에만 / 전체 사용자  (마스터 스위치)
  *  - 현재 생성된 예측 목록: 구역별 [삭제][표출중지/복귀][수정]

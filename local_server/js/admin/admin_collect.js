@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/admin_collect.js
  * 역할: 특보 수집 테스트, 결과 팝업, 방문자 통계 차트
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : admin.js(관리자 토큰/showUnifiedAdminModal), Chart.js(CDN — 방문자 통계 차트)
+ *  - 서버 API      : /api/admin/report-collect·forecast-collect·crawl-status·crawl-toggle·collect-failures·processed-reports·storage-usage, /api/stats/visitors(/csv)·usage(/csv/image), /api/boards, /api/promo, /api/weather-alerts
+ *  - 마크업        : index2.html #api-management-modal, #atm-content, #alert-test-modal-overlay, #atm-* (수집 테스트 모달 요소)
+ *  - 나를 쓰는 곳  : admin.js (관리자 센터에서 showCollectTestModal/renderVisitorChart 호출) — 또한 window.showAlertManagementModal 을 여기서 재정의
  * ============================================================================
  *
  * [설명]

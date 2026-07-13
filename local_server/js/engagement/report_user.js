@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/report_user.js
  * 역할: 사용자 제보 기능 (제보 작성, 답변 팝업, 차단 상태 확인)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : survey_user.js (seagnal_device_id 기기ID 키 공유)
+ *  - 서버 API      : /api/reports(/*), /api/reports/pending-answer·pending-count·dismiss-answer, /api/blocks/check/*, /api/comment-reports/pending-count
+ *  - 마크업        : index2.html #report-modal, #header-report-btn, #report-answer-popup, #report-badge, #report-panel-write/history 등
+ *  - 나를 쓰는 곳  : index2.html(#header-report-btn onclick)·core/backbutton.js (window.openReportModal), 자체 initReport 로 버튼 표시 제어
  * ============================================================================
  *
  * [설명]

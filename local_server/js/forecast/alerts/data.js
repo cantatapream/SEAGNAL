@@ -2,6 +2,17 @@
  * ============================================================================
  * 파일명: js/data.js
  * 역할: 데이터 수집(fetchAllData), 부이 데이터, API 상태 관리
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : shared/utils/utils.js(appState·trackUsage) ·
+ *                   core/config.js(부이 API URL 상수) ·
+ *                   shared/utils/mappings.js(BUOY_TYPES) ·
+ *                   render.js(renderApp) · outlook/marine_forecast.js(loadMarineForecast)
+ *  - 서버 API      : GET /api/weather-alerts · /api/buoys · /api/marine-buoys ·
+ *                   /api/marine-wh-buoys · /api/marine-lh-buoys ·
+ *                   /api/kma-buoys(DEPRECATED, 호출 주석 처리) · /api/marine-vs(캐시만)
+ *  - 마크업        : #api-rolling-list · #main-accordion-header/body (API 상태 롤링 표시)
+ *  - 나를 쓰는 곳  : core/app_init.js · notice/board/promo.js 가 fetchAllData() 호출
  * ============================================================================
  *
  * [설명]

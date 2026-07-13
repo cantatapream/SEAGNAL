@@ -2,6 +2,15 @@
  * ============================================================================
  * location_alert_background.js — 위치기반 특보: 이벤트 기반 위치 수집 (② 단계)
  * 역할  : 위치기반 특보: 이벤트 기반 위치 수집 (② 단계)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : @capacitor/geolocation, @capacitor/preferences 플러그인
+ *                    (프로젝트 JS 의존 없음)
+ *  - 서버 API      : 없음 (수집한 위치는 서버로 전송하지 않음 — on-device)
+ *  - 마크업        : 없음
+ *  - 나를 쓰는 곳  : capacitor-plugins.js(앱 실행 hook), location_alert_ui.js,
+ *                    location_alert_runtime.js, location_alert_typhoon_runtime.js,
+ *                    admin_location_status.js, scripts 테스트
  * ============================================================================
  * 설계 문서: location_alert.design.md (같은 폴더) (§9)
  *

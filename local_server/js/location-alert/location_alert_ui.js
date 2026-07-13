@@ -2,6 +2,16 @@
  * ============================================================================
  * location_alert_ui.js — 위치 기반 기상 정보 제공: 동의·활성 UI (③ 단계)
  * 역할  : 위치 기반 기상 정보 제공: 동의·활성 UI (③ 단계)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : js/location-alert/location_alert_background.js(Mirror/start/stop),
+ *                    js/admin/admin.js(seagnal_admin_token 키 공유)
+ *  - 서버 API      : /api/location-alert/consent (동의 기록)
+ *  - 마크업        : 푸시 설정 탭 #location-alert-toggle, #location-alert-card,
+ *                    #location-alert-status, #location-alert-sub-alert,
+ *                    #location-alert-sub-typhoon, #location-alert-admin-badge 등
+ *  - 나를 쓰는 곳  : js/settings/settings.js(initLocationAlertUI 호출),
+ *                    capacitor-plugins.js, scripts 테스트
  * ============================================================================
  * 설계 문서: location_alert.design.md (같은 폴더) (§10)
  *

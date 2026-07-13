@@ -2,6 +2,14 @@
  * ============================================================================
  * location_alert_typhoon_runtime.js — 위치기반 태풍 반경 알림: 단말 런타임 (Phase 2a)
  * 역할  : 위치기반 태풍 반경 알림 단말 런타임 (서버 wake 신호 → 반경 판정 → 알림)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : services/typhoon_radius.js(radiusEntry),
+ *                    services/typhoon_message.js(buildRadiusAlert),
+ *                    js/location-alert/location_alert_background.js(getFreshPosition)
+ *  - 서버 API      : GET /api/typhoon (활성 태풍 재조회)
+ *  - 마크업        : 없음 (로컬 알림 표시 셸)
+ *  - 나를 쓰는 곳  : capacitor-plugins.js(typhoon_radius_wake 신호 라우팅), scripts 테스트
  * ============================================================================
  * 설계 문서: typhoon_radius_engine.design.md (같은 폴더) (Phase 2a 확정 리파인)
  *

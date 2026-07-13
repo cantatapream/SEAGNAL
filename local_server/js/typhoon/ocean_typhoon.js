@@ -2,6 +2,16 @@
  * ============================================================================
  * 파일명: js/ocean_typhoon.js
  * 역할 : 해양종합 지도(OpenLayers)에 "태풍" 오버레이 + 재생 애니메이션을 표출.
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : js/ocean-map/map/ocean_map.js(window.getOceanMap),
+ *                    OpenLayers(ol) 벤더, PopupStack(js/core/backbutton.js)
+ *  - 서버 API      : GET /api/typhoon, /api/typhoon/list, /api/typhoon/bulletins,
+ *                    /api/typhoon/bulletin, /api/typhoon/image, /api/ocean/zone-forecasts
+ *  - 마크업        : index2.html #ocean-typhoon-toggle-btn, #ocean-typhoon-panel,
+ *                    #tphn-* (스크러버·통보문·이미지·가이드 모달 등)
+ *  - 나를 쓰는 곳  : window.OceanTyphoon 소비 — ocean_map.js,
+ *                    ocean_bottom_sheet1.js, assistant_deeplink.js
  * ============================================================================
  *
  * [데이터 출처] GET /api/typhoon (routes/typhoon.js → data/typhoon.json)

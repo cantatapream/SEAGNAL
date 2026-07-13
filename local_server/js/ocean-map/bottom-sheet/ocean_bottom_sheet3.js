@@ -2,6 +2,13 @@
  * ============================================================================
  * 파일명: js/ocean_bottom_sheet3.js
  * 역할: 바텀시트 조석 카드 — TideBED 폴링 + 3모드 렌더링(loading/error/detail)
+ * [연계]
+ *  - 사용하는 파일 : tide.js(computeMulddae 등), ocean_bottom_sheet4.js(OS.tryEastSeaIdw),
+ *                    ocean_cctv.js(window.oceanFav.locationFindNear), ocean_bottom_sheet1.js(OS 공용 유틸)
+ *  - 서버 API      : POST /api/save_tide_input, GET /data/{filename}
+ *  - 마크업        : index2.html #ocean-card-tide
+ *  - 나를 쓰는 곳  : OS.fetchTideForSheet(ocean_bottom_sheet5.js loadAllForDate),
+ *                    OS.refreshTideGaugeForTime(ocean_bottom_sheet2.js SheetTL.onRelease)
  * ============================================================================
  *
  * [표시 형식 (이미지 기반)]

@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/promo.js
  * 역할: 홍보 게시판 (렌더링, 검색, 파일첨부, 관리자 편집)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : image_compress.js(compressImageToJpeg/blobToDataURL), promo_comment5.js(loadPromoComments), admin.js(showUnifiedLoginModal·adminAuthenticated), admin/pagination_helper.js
+ *  - 서버 API      : /api/promo(/*), /api/boards, /api/comments/counts, /api/reactions(/counts), /api/upload, /api/upload-file
+ *  - 마크업        : index2.html #promo-list(-pagination), #promo-detail-modal, #promo-editor-modal, #promo-tabs-container, #promo-attachment-list 등
+ *  - 나를 쓰는 곳  : 자체 초기화 및 탭/검색 시 renderPromoPosts 호출; admin_trigger.js·댓글 파일들이 promo 전역·상세보기 참조
  * ============================================================================
  *
  * [설명]

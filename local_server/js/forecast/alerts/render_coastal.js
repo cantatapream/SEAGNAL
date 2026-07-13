@@ -2,6 +2,14 @@
  * ============================================================================
  * 파일명: js/render_coastal.js
  * 역할: 연안 구역 렌더링, 부이 데이터 표시, 로딩/시간 업데이트
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : shared/utils/utils.js(appState·trackUsage) ·
+ *                   shared/utils/mappings.js(BUOY_TYPES)
+ *  - 서버 API      : 없음 (appState.buoyData 를 표시만 — 수집은 data.js가 담당)
+ *  - 마크업        : #loading-indicator · #alert-content
+ *  - 나를 쓰는 곳  : render.js(createCoastalElement·displayBuoyInfo) ·
+ *                   outlook/windy.js(displayBuoyInfo) · data.js(updateLoading)
  * ============================================================================
  *
  * [설명]

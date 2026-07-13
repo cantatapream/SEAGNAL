@@ -3,6 +3,13 @@
  * 파일명: js/ocean_warn_active2.js  (2/5 — 데이터 계산)
  * 역할 : appState.alerts 배열을 부모 zoneName 단위로 묶어 "활성 맵(activeMap)"
  *        을 구축. 색상 결정 / 단계 결정 / 자식해역 → 부모 역색인 헬퍼 포함.
+ * [연계]
+ *  - 사용하는 파일 : ocean_warn_active1.js(window.OceanWarnActive 네임스페이스·_state·_const),
+ *                    data.js(window.appState.alerts, window.appState.coastalAlerts)
+ *  - 서버 API      : 없음
+ *  - 마크업        : 없음
+ *  - 나를 쓰는 곳  : ns._buildActiveMap / _resolvePaletteKey / _buildChildInfoForStyle 등 —
+ *                    ocean_warn_active3.js(styler)·active4.js(_renderLegend/_renderButton)가 참조
  * ============================================================================
  *
  * [핵심 출력] state.activeMap

@@ -2,6 +2,14 @@
  * ============================================================================
  * location_alert_runtime.js — 위치기반 특보: 깨우는 신호 처리·경고 표시 (②)
  * 역할  : 위치기반 특보: 깨우는 신호 처리·경고 표시 (② 단계)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : js/location-alert/location_alert_core.js(getCore, 순수 판정),
+ *                    js/location-alert/location_alert_background.js(저장 위치)
+ *  - 서버 API      : GET /api/warn-zones (특보구역 폴리곤)
+ *  - 마크업        : 없음 (로컬 알림 표시 셸)
+ *  - 나를 쓰는 곳  : capacitor-plugins.js(wake 신호 라우팅), admin_location_status.js,
+ *                    scripts 테스트
  * ============================================================================
  * 설계 문서: location_alert.design.md (같은 폴더) (§5, §6, §8)
  *

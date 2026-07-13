@@ -6,6 +6,15 @@
  *   - 해역 카드: 닫힌 아코디언(탭하면 펼침), 등급색 하이라이트, 확률 차등(51~70%)
  *   - 교차참조: 발표청명 + 발표시각 + kt(m/s) 병기
  *  ※ 기상청 공식 특보가 아닌, 위험기상일기도 분석 + 과거 특보 데이터 기반 자체 예측.
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : settings/settings.js(UserSettings — 해역 필터 상태)
+ *  - 서버 API      : GET /api/advisory-prediction
+ *  - 마크업        : #advisory-prediction-accordion-header/body · #advisory-prediction-wrap ·
+ *                   #adv-active-list · #adv-basetime-layer · #adv-info-modal · #adv-badge-*
+ *  - 나를 쓰는 곳  : 자체 DOMContentLoaded 자동 init + 5분 interval(loadAdvisoryPrediction) ·
+ *                   settings/settings.js(필터 변경 → rerenderAdvisoryPrediction) ·
+ *                   run_advisory_render_test.js(node 테스트가 순수 함수 require)
  *
  * [순수 함수(노드 테스트)] buildAdvisoryHtml / buildHeaderStatus / formatBaseTime / escapeHtml
  * ============================================================================

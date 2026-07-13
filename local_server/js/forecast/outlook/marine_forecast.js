@@ -2,6 +2,14 @@
  * ============================================================================
  * 파일명: js/marine_forecast.js
  * 역할: 기상청 해상 기상 전망 데이터 로드 및 렌더링
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : shared/utils/utils.js(trackUsage) · settings/settings.js(사용자 발표청 설정)
+ *  - 서버 API      : GET /api/marine-forecast · /api/regional-forecast
+ *  - 마크업        : #marine-forecast-accordion-header/body · #ultra-short-forecast-body ·
+ *                   #short-term-forecast-body · #regional-forecast-title/body · #office-settings-panel
+ *  - 나를 쓰는 곳  : forecast/alerts/data.js(fetchAllData → loadMarineForecast) ·
+ *                   index2.html(아코디언 토글 onclick)
  * ============================================================================
  *
  * [설명]

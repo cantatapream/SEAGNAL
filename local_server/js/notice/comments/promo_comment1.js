@@ -3,6 +3,12 @@
  * 파일명: js/promo_comment1.js
  * 역할: 게시글 댓글 시스템 - 공통 유틸리티 (닉네임, 기기ID, 헬퍼)
  * 로딩 순서: promo.js 다음 (promo_comment2~5.js 보다 먼저)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : 없음 (기반 유틸 — seagnal_device_id 기기ID 키 재사용)
+ *  - 서버 API      : 없음
+ *  - 마크업        : 없음
+ *  - 나를 쓰는 곳  : promo_comment2~5.js (isAdminMode/formatCommentDate/getCommentDeviceId/_NICKNAME_* 전역 사용), admin/admin_report.js(_NICKNAME_* 재사용)
  * ============================================================================
  *
  * [이 파일이 담당하는 것]

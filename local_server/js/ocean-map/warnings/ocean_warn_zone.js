@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/ocean_warn_zone.js
  * 역할: 해양종합정보 지도에 KMA 해상 예특보구역 폴리곤 outline 표출
+ * [연계]
+ *  - 사용하는 파일 : ocean_map.js(window.getOceanMap), mappings.js(COASTAL_MAPPING — 매핑 근거), OpenLayers(ol.*)
+ *  - 서버 API      : GET /api/warn-zones, GET /api/warn-zones-sub
+ *  - 마크업        : index2.html #ocean-warn-zone-toggle-btn
+ *  - 나를 쓰는 곳  : window.OceanWarnZone(ocean_warn_active3~5.js), window.setWarnZoneVisible(forecast/alerts/render.js·
+ *                    forecast/outlook/windy.js·ocean_warn_active4.js); 토글 버튼은 이 파일이 자체 바인딩
  * ============================================================================
  *
  * [개요]

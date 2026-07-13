@@ -4,6 +4,14 @@
  * 역할: 사용자 기억 v2 — E3 통합 다리. 채팅(WebView) ↔ 자바 Plugin/IndexedDB 의
  *       단일 진입점. 채널을 자동 검출해 안드로이드는 Capacitor Plugin,
  *       웹/PWA 는 user_memory_web.js (E2) 로 위임한다.
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : Capacitor SeagnalAssistant 플러그인(네이티브 채널) /
+ *                    window.SeagnalMemoryWeb(웹 채널 위임) — 단, 현재 user_memory_web.js 는
+ *                    SeagnalUserMemory 로 노출되어 전역명 불일치(확인 필요)
+ *  - 서버 API      : 없음
+ *  - 마크업        : 없음
+ *  - 나를 쓰는 곳  : assistant.js (window.SeagnalMemory 소비) — 현재 index2.html 에 미로드(배선 대기)
  * ============================================================================
  *
  * [설계 출처]

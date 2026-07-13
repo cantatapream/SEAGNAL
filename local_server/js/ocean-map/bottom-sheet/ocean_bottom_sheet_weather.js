@@ -2,6 +2,13 @@
  * ============================================================================
  * 파일명: js/ocean_bottom_sheet_weather.js
  * 역할: 바텀시트 천기 카드 — 클릭한 해점의 KMA 단기예보 6 카테고리 종합 표시
+ * [연계]
+ *  - 사용하는 파일 : shrt_forecast_layer.js(window._shrtForecastSamplePointAt, _shrtForecastNearestFctTm),
+ *                    ocean_bottom_sheet1.js(OS 네임스페이스)
+ *  - 서버 API      : 없음 (직접 fetch 없음 — shrt 샘플러 경유로 /api/kma-png-proxy 간접 사용)
+ *  - 마크업        : index2.html #ocean-card-weather, #ocean-val-wx-sky, #ocean-val-wx-rain, #ocean-val-wx-sno, #ocean-val-wx-tmp
+ *  - 나를 쓰는 곳  : OS.loadWeatherCard(ocean_bottom_sheet5.js loadAllForDate, ocean_bottom_sheet2.js onTimelineChanged),
+ *                    OS.hideWeatherCard(ocean_bottom_sheet1.js closeSheet)
  * ============================================================================
  *
  * [한 줄 설명]

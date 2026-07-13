@@ -2,6 +2,14 @@
  * ============================================================================
  * 파일명: js/ocean_bottom_sheet5.js
  * 역할: 6개 일반 카드 + 저질 분석 + 전체 오케스트레이터
+ * [연계]
+ *  - 사용하는 파일 : ocean_bottom_sheet3.js(OS.fetchTideForSheet), ocean_bottom_sheet4.js(OS.renderAstroCard/renderMoonCard),
+ *                    ocean_bottom_sheet_weather/vsby.js(OS.loadWeatherCard/loadVsbyCard), ocean_bottom_sheet1.js(OS 유틸)
+ *  - 서버 API      : GET /api/ocean/depth
+ *  - 마크업        : index2.html #ocean-card-{tide,astro,moon,depth,temp,current,wind,wave,vsby},
+ *                    #ocean-val-{depth,temp,current,wind,wave,vsby}, #ocean-icon-{current,wind}
+ *  - 나를 쓰는 곳  : OS.loadAllForDate — ocean_bottom_sheet1.js(showOceanBottomSheet),
+ *                    ocean_bottom_sheet2.js(goPrev/goNext/SheetTL.onRelease)
  * ============================================================================
  *
  * [오케스트레이터 loadAllForDate]

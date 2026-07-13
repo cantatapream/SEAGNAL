@@ -7,6 +7,13 @@
  *   클릭한 해점(lat/lon)이 속한 '소해구'의 래스터 시정 시계열을 받아,
  *   현재 선택 시각에 가장 가까운 값을 시정 카드(수심 오른쪽)로 표출.
  *
+ * [연계]
+ *  - 사용하는 파일 : ocean_bottom_sheet1.js(OS.setCardValue), ocean_bottom_sheet2.js(OS.state.date)
+ *  - 서버 API      : GET /api/vsby-smallzone/point
+ *  - 마크업        : index2.html #ocean-card-vsby, #ocean-val-vsby
+ *  - 나를 쓰는 곳  : OS.loadVsbyCard(ocean_bottom_sheet5.js loadAllForDate, ocean_bottom_sheet2.js onTimelineChanged),
+ *                    OS.hideVsbyCard(ocean_bottom_sheet1.js closeSheet)
+ *
  * 데이터 경로:
  *   1) GET /api/vsby-smallzone/point?lat&lon
  *        → {success, cell:"144-9", baseTm, series:[{t:"2026.06.12 02:00", v:<km>}, ...], cached}

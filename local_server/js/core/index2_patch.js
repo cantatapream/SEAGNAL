@@ -14,6 +14,14 @@
  * 4. 본문(콘텐츠/지도) 터치 시 서브탭 자동 닫힘 (capture 리스너)
  * 5. enterOceanMapSection / exitOceanMapSection 오버라이드
  *
+ * [연계]
+ *  - 사용하는 파일 : js/forecast/alerts/marine.js (switchMainTab/switchSubTab/
+ *                    TAB_GROUP_DEFAULTS 등), js/settings/settings.js (탭 버튼 바인딩)
+ *  - 서버 API      : 없음
+ *  - 마크업        : index2.html #bottom-tab-bar, .bottom-sub-tabs, #ocean-map-section,
+ *                    :root CSS 변수 --main-tab-height / --sub-tab-height
+ *  - 나를 쓰는 곳  : 없음 (index2 로드 시 자가 실행되는 패치 스크립트)
+ *
  * [로드 순서] settings.js, marine.js 이후에 로드되어야 함
  *
  * [연계 파일]

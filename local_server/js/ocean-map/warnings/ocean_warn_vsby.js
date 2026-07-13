@@ -4,6 +4,12 @@
  * 역할 : 해역별 특보 현황 아코디언의 각 특보구역 카드에 "시정(visibility) 뱃지"
  *        를 부착하고, 뱃지 클릭 시 그 특보구역의 소해구(小海區) 폴리곤을 시정
  *        값에 따라 색칠/텍스트 표시하는 클라이언트 모듈.
+ * [연계]
+ *  - 사용하는 파일 : ocean_map.js(window.__getOceanMap), OpenLayers(ol.*)
+ *                    (색상 stop 은 vsby_forecast_layer.js VSBY_STOPS 와 동일값 — 코드 의존 아님)
+ *  - 서버 API      : GET /api/vsby-smallzone (정적: /assets/zone_grid_map.json, /marine_zone_area.json)
+ *  - 마크업        : 해역별 특보 현황 아코디언의 특보구역 카드(동적 뱃지 부착), 지도 전용 VectorLayer
+ *  - 나를 쓰는 곳  : window.OceanWarnVsby.makeBadge — js/forecast/alerts/zone_avg.js
  * ============================================================================
  *
  * [로드 방식]

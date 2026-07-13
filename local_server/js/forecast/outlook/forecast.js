@@ -2,6 +2,15 @@
  * ============================================================================
  * 파일명: js/forecast.js
  * 역할: 해상예보 테이블, 정보 팝업(해구별/특보/조석)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : 없음 (자체 상수·매핑·팝업 함수 위주)
+ *  - 서버 API      : GET /api/forecasts · /api/mid-term-sea-forecasts ·
+ *                   /api/regional-coastal-forecast · /api/regional-marine-forecast
+ *  - 마크업        : #sea-forecast-modal · #sea-zone-info-modal ·
+ *                   #weather-alert-info-modal · #tide-info-modal
+ *  - 나를 쓰는 곳  : render.js · outlook/windy.js · settings/settings.js 가 showSeaForecastTable() 등 호출 ·
+ *                   core/backbutton.js (showSeaZoneInfoPopup 래핑)
  * ============================================================================
  *
  * [설명]

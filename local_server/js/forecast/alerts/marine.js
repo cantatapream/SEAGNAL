@@ -2,6 +2,17 @@
  * ============================================================================
  * 파일명: js/marine.js
  * 역할: 해구별 기상정보 모달, 해양 차트 렌더링
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : shared/utils/utils.js(appState) · seaZoneCoordinates.js(해구 좌표) ·
+ *                   marine-chart/marine_chart1.js(window.MarineChart.init 호출) ·
+ *                   외부 Chart.js(해양 기상 차트 렌더)
+ *  - 서버 API      : GET /api/marine-zone-forecasts/{zoneId} ·
+ *                   /api/vsby-smallzone/major · /api/vsby-smallzone/cell (시정)
+ *  - 마크업        : #sea-zone-modal · #zone-modal-title · #zone-modal-body ·
+ *                   #marineChart(canvas) · #zone-windy-modal
+ *  - 나를 쓰는 곳  : ocean-map/map/ocean_map.js · settings/settings.js 가 getMarineZoneData() 호출 ·
+ *                   core/backbutton.js (openZoneWindy 래핑)
  * ============================================================================
  *
  * [설명]

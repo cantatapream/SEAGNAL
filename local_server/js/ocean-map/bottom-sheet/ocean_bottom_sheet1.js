@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/ocean_bottom_sheet1.js
  * 역할: 해양종합정보 바텀시트 — 코어/네임스페이스/진입점/공용 유틸
+ * [연계]
+ *  - 사용하는 파일 : tide.js(전역 조석/천문 함수), ocean_bottom_sheet2~5.js·ocean_sheet_timeline.js(OS 네임스페이스 공유),
+ *                    backbutton.js(window.PopupStack), ocean_typhoon.js(window.OceanTyphoon), SunCalc(CDN)
+ *  - 서버 API      : GET /api/ocean/zone-forecasts
+ *  - 마크업        : index2.html #ocean-bottom-sheet, .ocean-sheet-handle, #ocean-sheet-typhoon-eta, #ocean-timeline-slider
+ *  - 나를 쓰는 곳  : window.showOceanBottomSheet — ocean_map.js(handleMapClick)·ocean_markers.js·ocean_buoy.js·ocean_cctv.js·assistant_deeplink.js
  * ============================================================================
  *
  * [설명]

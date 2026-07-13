@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/admin_trigger.js
  * 역할: 관리자 트리거(15회 클릭), 공지/점검/오류 팝업
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : admin.js(showUnifiedLoginModal), config.js(CONFIG.API_BASE)
+ *  - 서버 API      : /api/notices, /api/notice/*, /api/promo, /api/promo/* (공지·연동 홍보글 조회)
+ *  - 마크업        : index2.html #main-notice-popup, #server-maintenance-popup, #network-error-popup, #splash-screen, #admin-modal-overlay 등
+ *  - 나를 쓰는 곳  : core/backbutton.js(showNoticePopup), settings/settings.js(showMyLocationWeather) — initAdminTrigger 는 주석 처리됨(비활성)
  * ============================================================================
  *
  * [설명]

@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/promo_comment3.js
  * 역할: 게시글 댓글 시스템 - 댓글 등록/수정/삭제 (사용자 액션)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : promo_comment1.js(isAdminMode·getCommentDeviceId·_currentCommentPostId), promo_comment5.js(refreshComments)
+ *  - 서버 API      : /api/comments, /api/comments/* (등록·수정·삭제), /api/comment-reports (신고)
+ *  - 마크업        : index2.html #comment-input-textarea, #comment-char-count, #comment-secret-check, #comment-report-modal
+ *  - 나를 쓰는 곳  : promo_comment5.js(renderCommentInput 호출), promo_comment2.js(수정/삭제 버튼)
  * ============================================================================
  *
  * [이 파일이 담당하는 것]

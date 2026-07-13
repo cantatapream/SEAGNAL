@@ -2,6 +2,17 @@
  * ============================================================================
  * 파일명: js/render.js
  * 역할: 메인 UI 렌더링 (renderApp, createAlertElement)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : shared/utils/utils.js(appState) · settings/settings.js(UserSettings) ·
+ *                   render_coastal.js(createCoastalElement·displayBuoyInfo) ·
+ *                   zone_avg.js(ZoneAvg.createBox·onReady) ·
+ *                   outlook/windy.js(WINDY_URL_MAPPING) · outlook/forecast.js(showSeaForecastTable)
+ *  - 서버 API      : 없음 (appState 데이터를 렌더만 — 수집은 data.js가 담당)
+ *  - 마크업        : #east-sea-list·#west-sea-list·#south-sea-list·#jeju-sea-list ·
+ *                   #east-count 등 카운트 · #main-accordion-* · #marine-status-accordion-* ·
+ *                   #alert-item-template · #alert-content
+ *  - 나를 쓰는 곳  : forecast/alerts/data.js · settings/settings.js 가 renderApp() 호출
  * ============================================================================
  *
  * [설명]

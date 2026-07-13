@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/alert_push.js
  * 역할: 해양특보 알림 관리 모달 (발표/발효/해제/격상/직접발송/이력)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : admin.js(관리자 인증/토큰·showUnifiedAdminModal), admin/pagination_helper.js
+ *  - 서버 API      : /api/push-custom, /api/push-history(/*), /api/push-subscriber-stats
+ *  - 마크업        : index2.html #alert-management-modal, #alert-admin-inner-content, #custom-push-confirm-overlay, #zone-selection-area 등
+ *  - 나를 쓰는 곳  : admin.js·admin_collect.js (관리자 센터 '특보 관리' 진입 시 window.showAlertManagementModal 호출)
  * ============================================================================
  *
  * [설명]

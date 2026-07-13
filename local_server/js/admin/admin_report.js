@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/admin_report.js
  * 역할: 관리자 제보 관리 + 차단 관리 UI
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : notice/comments/promo_comment1.js(_NICKNAME_ADJECTIVES/_NICKNAME_NOUNS 전역 재사용), admin/pagination_helper.js
+ *  - 서버 API      : /api/reports(/*·/bulk-delete), /api/comment-reports(/*), /api/blocks(/*), /api/comments/*
+ *  - 마크업        : index2.html #report-list(-pagination), #block-list, #block-user-modal, #comment-report-list, #image-viewer-modal 등
+ *  - 나를 쓰는 곳  : admin.js ('제보 관리'/'차단 관리' 탭 → renderUnifiedReportContent/renderUnifiedBlockContent)
  * ============================================================================
  *
  * [설명]

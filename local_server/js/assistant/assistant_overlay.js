@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/assistant_overlay.js
  * 역할: 백그라운드 "나리야" 음성 비서의 상태/대화를 앱 화면에 동적 오버레이로 표시.
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : 없음 (Capacitor SeagnalAssistant 플러그인의 assistantState 이벤트만 구독)
+ *  - 서버 API      : 없음
+ *  - 마크업        : 동적 생성 #nariya-overlay (+ 스타일 #nariya-overlay-style)
+ *  - 나를 쓰는 곳  : 없음 (index2 + Capacitor 플러그인 존재 시 이벤트 구독으로 자가 실행)
  * ============================================================================
  *  네이티브 VoiceAssistantService → SeagnalAssistantPlugin.emitState() →
  *  'assistantState' 이벤트(state, query, answer)를 구독.

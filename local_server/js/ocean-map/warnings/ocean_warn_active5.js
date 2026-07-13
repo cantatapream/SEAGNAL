@@ -3,6 +3,12 @@
  * 파일명: js/ocean_warn_active5.js  (5/5 — 클릭 정보박스 + 초기화)
  * 역할 : 부모 zone 클릭 시 어두운 남색 정보 박스 표출, 외부 클릭 자동 close,
  *        모듈 부트스트랩(이벤트 listener 등록 + 버튼 바인딩 polling).
+ * [연계]
+ *  - 사용하는 파일 : ocean_warn_active1~4.js(네임스페이스/_state/styler/버튼),
+ *                    ocean_warn_zone.js(getMainLayer/getSubLayer/getSubFullName/getMainZoneName/refresh), data.js(seagnal:alerts-changed)
+ *  - 서버 API      : 없음
+ *  - 마크업        : 정보 박스(동적 생성), index2.html 지도 컨테이너
+ *  - 나를 쓰는 곳  : window.OceanWarnActive.tryHandleClick — ocean_map.js handleMapClick; 자체 부트스트랩(이벤트 listener 등록)
  * ============================================================================
  *
  * [클릭 흐름]

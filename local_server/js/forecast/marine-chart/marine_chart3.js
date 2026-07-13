@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/marine_chart3.js
  * 역할: 해상일기도 — 전체화면 진입/종료 (SEAGNAL 통합 PopupStack 패턴)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : marine_chart1.js(window.MarineChart state·el) · core/backbutton.js(전역 PopupStack)
+ *  - 서버 API      : 없음
+ *  - 마크업        : #mc-fullscreen (풀스크린 오버레이) · 인라인 GIF <img>
+ *  - 나를 쓰는 곳  : 인라인 이미지 클릭 → enterFullscreen() · PopupStack.popLast() → exitFullscreen()
  * ============================================================================
  *
  * [개요]

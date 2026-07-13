@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/admin.js
  * 역할: 통합 관리자 시스템 (인증, 대시보드, 특보 관리)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : admin_collect.js·admin_survey.js·admin_report.js·advisory_manage_admin.js·admin_location_status.js (각 탭 렌더러), push/alert_push.js(특보 알림 모달), admin/pagination_helper.js
+ *  - 서버 API      : /api/admin/login·manual-alert(-release)·maintenance*·work-mode·device-status·weather-alerts-json 등 /api/admin/* 다수, /api/assistant/ask, /api/stats/*, /api/push-*
+ *  - 마크업        : index2.html 관리자 센터 모달 (#admin-modal, #alert-admin-inner-content, #ait-* 등)
+ *  - 나를 쓰는 곳  : admin_trigger.js·notice/board/promo.js(showUnifiedLoginModal 트리거), core/backbutton.js
  * ============================================================================
  *
  * [설명]

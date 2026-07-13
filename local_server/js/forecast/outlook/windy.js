@@ -2,6 +2,17 @@
  * ============================================================================
  * 파일명: js/windy.js
  * 역할: Windy 팝업, 상태 카드 시스템
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : shared/utils/utils.js(appState) ·
+ *                   core/config.js(WINDY_URL_MAPPING·getWindyEmbedUrl) ·
+ *                   zone_avg.js(ZoneAvg.createBox·onReady) ·
+ *                   render_coastal.js(displayBuoyInfo) · outlook/forecast.js(showSeaForecastTable)
+ *  - 서버 API      : 없음 (Windy 임베드는 외부 iframe · 상태 카드는 appState 데이터 사용)
+ *  - 마크업        : #windy-modal(동적 생성) · #marine-status-accordion-* ·
+ *                   #status-east-sea-list 등 해역별 리스트 · #status-east-count 등 카운트
+ *  - 나를 쓰는 곳  : render.js · ocean-map/warnings/ocean_warn_vsby.js 가 createStatusCard 등 호출 ·
+ *                   core/backbutton.js (showWindyPopup 래핑)
  * ============================================================================
  *
  * [설명]

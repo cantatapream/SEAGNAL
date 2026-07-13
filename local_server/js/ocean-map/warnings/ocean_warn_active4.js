@@ -3,6 +3,13 @@
  * 파일명: js/ocean_warn_active4.js  (4/5 — 토글 버튼 + 활성/비활성 전환)
  * 역할 : 우측 컨트롤 스택의 "🚨 ON/OFF" 토글 버튼을 바인딩하고,
  *        활성 진입(_activate) / 종료(_deactivate) 시점의 부수효과를 모두 처리.
+ * [연계]
+ *  - 사용하는 파일 : ocean_warn_active1.js(네임스페이스), ocean_warn_active3.js(ns._styler),
+ *                    ocean_warn_zone.js(setActiveStyler/setSubMinZoomDisabled), window.setWarnZoneVisible,
+ *                    window.oceanSetBasemap/oceanGetBasemap
+ *  - 서버 API      : 없음
+ *  - 마크업        : index2.html #ocean-warn-zone-toggle-btn, 우측 컨트롤 "🚨" 토글 버튼
+ *  - 나를 쓰는 곳  : ns._activate/_deactivate/_renderButton/_renderLegend — ocean_warn_active5.js 부트스트랩(버튼 바인딩 polling)·특보 갱신 이벤트
  * ============================================================================
  *
  * [버튼 3-state 표시]

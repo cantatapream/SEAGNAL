@@ -2,6 +2,14 @@
  * ============================================================================
  * 파일명: js/ocean_bottom_sheet2.js
  * 역할: 바텀시트 헤더 — 날짜 네비게이션 + 음력 표시 + 📍 토글 + ✕ 닫기
+ * [연계]
+ *  - 사용하는 파일 : tide.js(getLunarDate), ocean_bottom_sheet5.js(OS.loadAllForDate),
+ *                    ocean_sheet_timeline.js(OS.SheetTL), ocean_bottom_sheet_weather/vsby.js(OS.loadWeatherCard/loadVsbyCard)
+ *  - 서버 API      : 없음
+ *  - 마크업        : index2.html #ocean-sheet-solar, #ocean-sheet-lunar, #ocean-sheet-prev, #ocean-sheet-next,
+ *                    #ocean-sheet-loc-toggle, #ocean-sheet-close, #ocean-sheet-coord
+ *  - 나를 쓰는 곳  : OS.renderHeader/bindControls(ocean_bottom_sheet1.js showOceanBottomSheet),
+ *                    OS.onTimelineChanged(ocean_timeline.js), SheetTL.onRelease(이 파일 내부 wire)
  * ============================================================================
  *
  * [표시 형식]

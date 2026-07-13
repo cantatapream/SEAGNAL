@@ -3,6 +3,12 @@
  * 파일명: js/vsby_forecast_layer.js
  * 역할: KMA RDPS 시정예측 (visibility, 안개) PNG raster 오버레이 +
  *       범례 + 슬라이더/재생 + 클릭 시 픽셀 샘플링 팝업
+ * [연계]
+ *  - 사용하는 파일 : OpenLayers(ol.*), index2_patch.js(window._showOceanToast), ocean_map.js(window.__getOceanMap)
+ *  - 서버 API      : GET /api/kma-png-proxy (RDPS imgList 는 marine.kma.go.kr 외부 직접 호출)
+ *  - 마크업        : index2.html #ocean-vsby-toggle-btn, 슬라이더/재생/범례 스택
+ *  - 나를 쓰는 곳  : window.initVsbyForecastLayer(index2.html 지도 init),
+ *                    window._vsbyForecastTryHandleClick(ocean_map.js handleMapClick)
  * ============================================================================
  *
  * [한 줄 설명]

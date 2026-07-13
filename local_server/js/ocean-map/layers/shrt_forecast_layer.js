@@ -3,6 +3,13 @@
  * 파일명: js/shrt_forecast_layer.js
  * 역할: KMA 단기예보 (천기 — 강수확률/강수량/적설/하늘상태/강수형태) 오버레이 +
  *       범례 + 슬라이더 + 클릭 시 점데이터 종합 팝업
+ * [연계]
+ *  - 사용하는 파일 : OpenLayers(ol.*), index2_patch.js(window._showOceanToast), ocean_map.js(window.__getOceanMap)
+ *  - 서버 API      : GET /api/kma-png-proxy (KMA imgList 는 marine.kma.go.kr 외부 직접 호출)
+ *  - 마크업        : index2.html #ocean-other-wx-toggle-btn(+6개 서브버튼), 슬라이더/범례 스택
+ *  - 나를 쓰는 곳  : window.initShrtForecastLayer(index2.html 지도 init),
+ *                    window._shrtForecastTryHandleClick(ocean_map.js handleMapClick),
+ *                    window._shrtForecastSamplePointAt(ocean_bottom_sheet_weather.js)
  * ============================================================================
  *
  * [한 줄 설명]

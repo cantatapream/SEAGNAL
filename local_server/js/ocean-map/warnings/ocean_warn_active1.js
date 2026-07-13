@@ -3,6 +3,11 @@
  * 파일명: js/ocean_warn_active1.js  (1/5 — 네임스페이스·상수·공유 상태)
  * 역할 : 해양종합정보 지도 위에 "현재 활성/다가오는 특보"를 색칠하고,
  *        부모 특보구역 클릭 시 정보 박스를 띄우는 모듈의 공통 기반.
+ * [연계]
+ *  - 사용하는 파일 : ocean_warn_zone.js(window.OceanWarnZone), data.js(seagnal:alerts-changed 이벤트·window.appState.alerts)
+ *  - 서버 API      : 없음
+ *  - 마크업        : index2.html 우측 컨트롤 "🚨" 토글 버튼(#ocean-warn-zone-toggle-btn 연동)
+ *  - 나를 쓰는 곳  : window.OceanWarnActive 네임스페이스 — active2~5.js 가 확장, 공개 API(tryHandleClick 등)는 active5.js 부착
  * ============================================================================
  *
  * [전체 모듈 개요]

@@ -3,6 +3,12 @@
  * 파일명: js/ocean_warn_active3.js  (3/5 — 폴리곤 색상 스타일러)
  * 역할 : OceanWarnZone.setActiveStyler 에 등록할 스타일 함수 구현.
  *        부모/자식 feature 별로 활성 맵을 조회해 색칠 또는 기본 outline fallback.
+ * [연계]
+ *  - 사용하는 파일 : ocean_warn_active1.js(네임스페이스), ocean_warn_active2.js(활성 맵/_buildChildInfoForStyle),
+ *                    ocean_warn_zone.js(buildSubZoneTextStyle/getSubFullName/getMainZoneName), OpenLayers(ol.style.*)
+ *  - 서버 API      : 없음
+ *  - 마크업        : 없음 (폴리곤 OL Style 만 반환)
+ *  - 나를 쓰는 곳  : ns._styler — ocean_warn_active4.js _activate 가 OceanWarnZone.setActiveStyler(ns._styler)로 등록
  * ============================================================================
  *
  * [등록 흐름]

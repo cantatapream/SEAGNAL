@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/promo_comment4.js
  * 역할: 게시글 댓글 시스템 - 답글 입력 및 관리자 전용 기능 (원문 보기)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : promo_comment1.js(isAdminMode·getCommentDeviceId·_currentCommentPostId), promo_comment5.js(refreshComments)
+ *  - 서버 API      : /api/comments (답글 등록 — parentId 포함)
+ *  - 마크업        : index2.html #comment-original-modal (삭제 댓글 원문 보기 팝업)
+ *  - 나를 쓰는 곳  : promo_comment2.js (답글 버튼 openReplyInput, 관리자 원문보기 showOriginalComment)
  * ============================================================================
  *
  * [이 파일이 담당하는 것]

@@ -2,6 +2,13 @@
  * ============================================================================
  * 파일명: js/ocean_bottom_sheet4.js
  * 역할: 동해 북부(36°N+128°E+) IDW 보간 + 천문 카드 (SunCalc)
+ * [연계]
+ *  - 사용하는 파일 : tide.js(loadTideData, getClientAdjacentDates, findNearestStationsWithData,
+ *                    interpolateTideByIDW, convertIDWToTideBedFormat, getAstronomyInfo, getLunarDate), SunCalc(CDN)
+ *  - 서버 API      : 없음
+ *  - 마크업        : index2.html #ocean-card-astro, #ocean-card-moon
+ *  - 나를 쓰는 곳  : OS.tryEastSeaIdw(ocean_bottom_sheet3.js fetchTideForSheet),
+ *                    OS.renderAstroCard/renderMoonCard(ocean_bottom_sheet5.js loadAllForDate)
  * ============================================================================
  *
  * [동해 북부 IDW 우회]

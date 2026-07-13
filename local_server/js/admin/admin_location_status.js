@@ -2,6 +2,12 @@
  * ============================================================================
  * admin_location_status.js — 관리자 센터 "위치 기반" 탭
  * 역할  : 관리자 센터 "위치 기반" 탭 — 이 기기가 수집·저장한 최신 GPS 위치 표시
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : location-alert/location_alert_core.js(LocationAlertCore.locateZone 재사용), OpenLayers+OSM(CDN — 팝업 지도), Capacitor Preferences(네이티브 저장 위치 읽기)
+ *  - 서버 API      : 없음 (완전 온-디바이스 — localStorage/Preferences 만 읽음)
+ *  - 마크업        : index2.html 탭 컨테이너에 주입 (#locstat-coords, #locstat-map, #locstat-sealand, #locstat-wake 등)
+ *  - 나를 쓰는 곳  : admin.js ('위치 기반' 탭 선택 시 window.renderLocationStatusTab 호출)
  * ============================================================================
  * 이 관리자 기기가 위치기반 특보(④)를 위해 수집·저장한 최신 GPS 위치를 보여준다.
  *   - 저장 위치: POS_KEY(location_alert_last_pos) = {lat,lng,acc,at,src}

@@ -2,6 +2,16 @@
  * ============================================================================
  * 파일명: js/app_init.js
  * 역할: 앱 초기화, 시간 표시, 폰트 크기, 헤더 새로고침, 방문자 카운터
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : js/shared/utils/utils.js (appState)
+ *  - 서버 API      : GET /api/visit (방문자 카운터), GET /api/admin/collect-failures ·
+ *                    /api/admin/review-needed (관리자 알림 배지)
+ *  - 마크업        : index2.html #current-time, #current-date, #today-count,
+ *                    #total-count, #admin-alert-banner, .header-content
+ *  - 나를 쓰는 곳  : DOMContentLoaded 자가 실행 + 다수 feature 공용 —
+ *                    FontSizeManager 는 settings.js·ocean_timeline.js 가,
+ *                    updateVisitorStats()·updateTimeDisplay() 등은 data.js·marine.js 등이 호출
  * ============================================================================
  *
  * [설명]

@@ -3,6 +3,16 @@
  * 파일명: js/assistant_deeplink.js
  * 역할: AI 비서 답변의 "바로가기" 버튼 → 해양종합정보 페이지의 해당 레이어를
  *       켜진 상태로 열어주는 딥링크 핸들러.
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : js/forecast/alerts/marine.js (switchMainTab),
+ *                    js/ocean-map/map/ocean_overlay.js, js/ocean-map/observation/ocean_buoy.js,
+ *                    js/typhoon/ocean_typhoon.js (window.OceanTyphoon),
+ *                    js/ocean-map/cctv/ocean_cctv.js, js/core/config.js (showBuoyLocationOnMap)
+ *  - 서버 API      : 없음 (URL 쿼리 파라미터만 소비)
+ *  - 마크업        : index2.html #ocean-map-section, .ocean-overlay-btn[data-layer],
+ *                    #ocean-buoy-toggle-btn, #ocean-typhoon-toggle-btn, #ocean-cctv-toggle-btn
+ *  - 나를 쓰는 곳  : 없음 (index2 로드 시 URL 파라미터 감지해 자가 실행)
  * ============================================================================
  *
  * [동작]

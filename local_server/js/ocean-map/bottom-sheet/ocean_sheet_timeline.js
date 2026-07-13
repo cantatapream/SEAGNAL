@@ -2,6 +2,12 @@
  * ============================================================================
  * 파일명: js/ocean_sheet_timeline.js
  * 역할: 해양종합정보 바텀시트 내부의 시간 이동 슬라이더
+ * [연계]
+ *  - 사용하는 파일 : ocean_bottom_sheet1.js(OS.state, OS.renderHeader)
+ *  - 서버 API      : 없음
+ *  - 마크업        : index2.html #ocean-sheet-slider-wrap, #ocean-sheet-slider, #ocean-sheet-tooltip
+ *  - 나를 쓰는 곳  : OS.SheetTL.init/setMaxHours(ocean_bottom_sheet1.js showOceanBottomSheet),
+ *                    STL.syncToStateDate(ocean_bottom_sheet2.js goPrev/goNext), STL.onRelease(ocean_bottom_sheet2.js 가 wire)
  * ============================================================================
  *
  * [위치]

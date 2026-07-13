@@ -17,6 +17,13 @@
 //    - init()                      : 데이터 비동기 로드
 //    - createBox(zoneName, opts)   : DOM 노드 반환 (없으면 null)
 //    - refreshAll()                : 화면의 모든 .zone-avg-box 갱신
+// ------------------------------------------------------------
+// [연계]
+//  - 사용하는 파일 : 없음 (window 전역 외 다른 파일 전역에 의존하지 않음)
+//  - 서버 API      : GET /zone_grid_map.json (assets 정적) · GET /api/marine-zone-forecasts
+//  - 마크업        : .zone-avg-box · .zone-avg-tooltip (동적 생성 DOM 노드, 고정 #id 없음)
+//  - 나를 쓰는 곳  : outlook/windy.js · forecast/alerts/render.js ·
+//                   ocean-map/warnings/ocean_warn_vsby.js 가 ZoneAvg.createBox/refreshAll/onReady 호출
 // ============================================================
 (function () {
     const STATE = {

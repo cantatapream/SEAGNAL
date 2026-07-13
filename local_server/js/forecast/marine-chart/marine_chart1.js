@@ -2,6 +2,13 @@
  * ============================================================================
  * 파일명: js/marine_chart1.js
  * 역할: 해상일기도(KMA 날씨누리) — 카탈로그/상태/DOM 바인딩/드롭다운
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : 없음 (자체 정의 — marine_chart2~5.js 가 이 파일의 window.MarineChart 확장)
+ *  - 서버 API      : 없음 (직접 호출 없음 — 목록 fetch 는 marine_chart2.js 가 /api/marine-chart/list)
+ *  - 마크업        : #marine-chart-section · #mc-fullscreen · #mc-area · #mc-category-tabs ·
+ *                   #mc-controls-wave/surge/current/sst 등 드롭다운·컨트롤
+ *  - 나를 쓰는 곳  : forecast/alerts/marine.js 의 서브탭 진입 훅에서 MarineChart.init() 호출
  * ============================================================================
  *
  * [개요]
