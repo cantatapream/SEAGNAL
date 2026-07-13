@@ -9,7 +9,7 @@ const { Storage } = require('@google-cloud/storage');
 const path = require('path');
 const fs = require('fs');
 
-const KEY_FILE_PATH = path.join(__dirname, 'serviceAccountKey_Backup.json');
+const KEY_FILE_PATH = path.join(__dirname, '..', 'secrets', 'serviceAccountKey_Backup.json');
 const BUCKET_NAME = 'seagnal-server-backup';
 const DATA_DIR = path.join(__dirname, 'data');
 

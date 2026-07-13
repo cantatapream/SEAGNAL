@@ -1596,7 +1596,7 @@ router.get('/api/admin/storage-usage', async (req, res) => {
     // ── Google Cloud Storage 사용량 조회 ──
     // cloud_backup.js의 버킷에서 파일 목록을 가져와 크기를 합산
     try {
-        const backupKeyPath = path.join(__dirname, '..', 'serviceAccountKey_Backup.json');
+        const backupKeyPath = path.join(__dirname, '..', '..', 'secrets', 'serviceAccountKey_Backup.json');
         if (fs.existsSync(backupKeyPath)) {
             const { Storage } = require('@google-cloud/storage');
             const keyData = JSON.parse(fs.readFileSync(backupKeyPath, 'utf8'));

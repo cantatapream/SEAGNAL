@@ -136,3 +136,9 @@ local_server/data/advisory_journal.jsonl
 # dmdw 통보문 수집 원본(분석 산출물은 별도)
 local_server/analysis/wave_leadtime/data/bulletins.json
 local_server/analysis/wave_leadtime/data/bulletins_*.json
+
+# ── 보안: 서비스 계정 키 (리팩토링 STEP 0, 2026-07-13) ──
+# 키 파일은 secrets/ 에 두며 git 에 절대 커밋하지 않는다
+secrets/
+serviceAccountKey*.json
+googla_cloud_api_backup_bot_key/
