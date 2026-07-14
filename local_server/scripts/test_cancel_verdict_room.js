@@ -275,6 +275,94 @@ console.log('\n[18] [실물 2026-07-14 제07-17호] "묶음명 중 평수구역"
     ok('보류실 소진', !mc2._cvHasPendings());
 }
 
+console.log('\n[18] [2026-07-14 실사고] 제외 단서(c2) — 부모 발표 유지 + 평수구역만 취소');
+{
+    mc._resetCancelVerdictsForTest();
+    // 부모(경북남부앞바다) 예비 생존 + 평수구역 자식만 소멸 → 자식 보류 등록 상황
+    mc._registerChildCancelVerdict('경북남부앞바다', '경북남부앞바다중평수구역', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '2026.07.15 00:00', tmYn: '' });
+    mc._registerChildCancelVerdict('경북남부앞바다', '경북남부앞바다중연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '2026.07.15 00:00', tmYn: '' });
+    // 22:00 통보문의 제외 단서 주입 (참고사항 취소 문구는 없음 — releases 빈 배열)
+    const exc = sc.parseExclusions('(3) 풍랑주의보 발표 : 동해남부앞바다(경북남부앞바다) o 경북남부앞바다(평수구역 제외)')[0];
+    exc.foundAt = Date.now(); exc.issuedAtMs = Date.now() - 6 * 60 * 1000; exc.source = 'test/met:xx';
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [exc], scannedCount: 1, rawByOffice: {} });
+    const P18 = PRELIM({ tmEf: '2026.07.15 00:00' });
+    changes = mc._buildUserPushChanges(snap({ '경북남부앞바다': P18 }), snap({ '경북남부앞바다': P18 }));
+    const c18 = changes.find(c => c.type === 'CHILD_PRELIM_CANCEL');
+    ok('평수구역만 취소 발사', !!c18 && c18.childState.released.length === 1 && c18.childState.released[0] === '경북남부앞바다중평수구역');
+    ok('연안바다 자식 보류는 잔존', !!mc._loadCancelVerdicts().children['경북남부앞바다|경북남부앞바다중연안바다']);
+    ok('부모 취소는 발사되지 않음', !changes.some(c => c.type === 'UPCOMING_CANCEL'));
+    // 소각 — 같은 단서로 재발사 없음
+    changes = mc._buildUserPushChanges(snap({ '경북남부앞바다': P18 }), snap({ '경북남부앞바다': P18 }));
+    ok('소각(재발사 없음)', !changes.some(c => c.type === 'CHILD_PRELIM_CANCEL'));
+    // 시간축 — 2시간 전 발행 제외 단서는 새 보류를 확정 못 함
+    mc._resetCancelVerdictsForTest();
+    mc._registerChildCancelVerdict('경북남부앞바다', '경북남부앞바다중평수구역', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '', tmYn: '' });
+    const excOld = sc.parseExclusions('o 경북남부앞바다(평수구역 제외)')[0];
+    excOld.foundAt = Date.now() - 2 * 3600 * 1000; excOld.issuedAtMs = Date.now() - 2 * 3600 * 1000;
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [excOld], scannedCount: 0, rawByOffice: {} });
+    changes = mc._buildUserPushChanges(snap({ '경북남부앞바다': P18 }), snap({ '경북남부앞바다': P18 }));
+    ok('묵은 제외 단서(2h 전 발행) 비확정', !changes.some(c => c.type === 'CHILD_PRELIM_CANCEL') && mc._cvHasPendings());
+}
+
+console.log('\n[19] [실물 2026-07-14 제주 서식] 지정 단서(c3) — 발표가 북동만 지목, 남동·우도 취소');
+{
+    mc._resetCancelVerdictsForTest();
+    // 예비(부모+자식3) → 주의보 발표가 "제주도동부앞바다( 북동연안바다 )"만 지목:
+    //   북동은 발효 전환(보류 없음), 남동·우도 예비만 소멸해 자식 보류 등록된 상황
+    mc._registerChildCancelVerdict('제주도동부앞바다', '제주도동부앞바다중남동연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '2026.07.15 00:00', tmYn: '' });
+    mc._registerChildCancelVerdict('제주도동부앞바다', '제주도동부앞바다중우도연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '2026.07.15 00:00', tmYn: '' });
+    const des19 = sc.parseDesignations('해당구역 (1) 풍랑주의보 발표 : 제주도동부앞바다( 북동연안바다 )')[0];
+    des19.foundAt = Date.now(); des19.issuedAtMs = Date.now() - 6 * 60 * 1000; des19.source = 'test/met:jeju';
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [], designations: [des19], scannedCount: 1, rawByOffice: {} });
+    const ACT19 = { wrnTp: 'V', wrnTpNm: '풍랑', wrnLvl: '2', wrnLvlNm: '주의보', tmFc: '2026.07.13 04:05', tmEf: '', tmYn: '' };
+    changes = mc._buildUserPushChanges(snap({ '제주도동부앞바다': ACT19 }), snap({ '제주도동부앞바다': ACT19 }));
+    const c19 = changes.find(c => c.type === 'CHILD_PRELIM_CANCEL');
+    ok('빠진 자식 2곳(남동·우도) 취소 발사', !!c19 && c19.childState.released.length === 2
+        && c19.childState.released.indexOf('제주도동부앞바다중남동연안바다') !== -1
+        && c19.childState.released.indexOf('제주도동부앞바다중우도연안바다') !== -1);
+    ok('부모(주의보 발표로 생존) 취소 미발사', !changes.some(c => c.type === 'UPCOMING_CANCEL'));
+    ok('보류실 소진', !mc._cvHasPendings());
+    // 소각 — 같은 지정 단서로 재발사 없음
+    mc._registerChildCancelVerdict('제주도동부앞바다', '제주도동부앞바다중우도연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '2026.07.15 00:00', tmYn: '' });
+    changes = mc._buildUserPushChanges(snap({ '제주도동부앞바다': ACT19 }), snap({ '제주도동부앞바다': ACT19 }));
+    ok('소각(같은 단서 재확정 차단)', !changes.some(c => c.type === 'CHILD_PRELIM_CANCEL') && mc._cvHasPendings());
+    // 종류 불일치 — (c3)는 tp 엄격 일치(부재 기반 근거의 높은 문턱)
+    mc._resetCancelVerdictsForTest();
+    mc._registerChildCancelVerdict('제주도동부앞바다', '제주도동부앞바다중우도연안바다', { wrnTp: '태풍', wrnLvl: '예비', tmFc: '', tmEf: '', tmYn: '' });
+    const des19b = sc.parseDesignations('해당구역 (1) 풍랑주의보 발표 : 제주도동부앞바다( 북동연안바다 )')[0];
+    des19b.foundAt = Date.now(); des19b.issuedAtMs = Date.now() - 6 * 60 * 1000;
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [], designations: [des19b], scannedCount: 1, rawByOffice: {} });
+    changes = mc._buildUserPushChanges(snap({}), snap({}));
+    ok('종류 불일치 지정 단서 비확정(엄격 tp)', !changes.some(c => c.type === 'CHILD_PRELIM_CANCEL') && mc._cvHasPendings());
+}
+
+console.log('\n[20] [적대검증(c3) 결함4·6] 최신 지정 권위 + 미지 토큰 가드');
+{
+    // 결함4: 묵은 지정(우도 미나열, 50분 전)과 최신 지정(우도 재나열, 5분 전)이 공존 —
+    //   최신이 우도를 나열하므로 우도 취소는 발사되면 안 된다.
+    mc._resetCancelVerdictsForTest();
+    mc._registerChildCancelVerdict('제주도동부앞바다', '제주도동부앞바다중우도연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '2026.07.15 00:00', tmYn: '' });
+    const dOld = sc.parseDesignations('해당구역 (1) 풍랑주의보 발표 : 제주도동부앞바다( 북동연안바다 )')[0];
+    dOld.foundAt = Date.now() - 50 * 60 * 1000; dOld.issuedAtMs = Date.now() - 50 * 60 * 1000; dOld.source = 'old/met:1';
+    const dNew = sc.parseDesignations('해당구역 (1) 풍랑주의보 변경 : 제주도동부앞바다( 북동연안바다, 우도연안바다 )')[0];
+    dNew.foundAt = Date.now() - 5 * 60 * 1000; dNew.issuedAtMs = Date.now() - 5 * 60 * 1000; dNew.source = 'new/met:2';
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [], designations: [dOld, dNew], scannedCount: 2, rawByOffice: {} });
+    changes = mc._buildUserPushChanges(snap({}), snap({}));
+    ok('묵은 지정이 최신 확대를 못 이김(무발사·보류 유지)', !changes.some(c => c.type === 'CHILD_PRELIM_CANCEL') && mc._cvHasPendings());
+    // 대조: 최신 지정만 있고 우도 미나열이면 정상 발사
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [], designations: [dOld], scannedCount: 1, rawByOffice: {} });
+    changes = mc._buildUserPushChanges(snap({}), snap({}));
+    ok('단독 지정(우도 미나열)은 정상 발사', changes.some(c => c.type === 'CHILD_PRELIM_CANCEL'));
+    // 결함6: 나열 토큰이 이 부모의 알려진 자식과 대응 안 되면(표기 변형 의심) 판정 불사용
+    mc._resetCancelVerdictsForTest();
+    mc._registerChildCancelVerdict('제주도동부앞바다', '제주도동부앞바다중북동연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '', tmYn: '' });
+    const dVar = sc.parseDesignations('해당구역 (1) 풍랑주의보 발표 : 제주도동부앞바다( 북동쪽연안바다 )')[0];
+    dVar.foundAt = Date.now(); dVar.issuedAtMs = Date.now() - 6 * 60 * 1000;
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [], designations: [dVar], scannedCount: 1, rawByOffice: {} });
+    changes = mc._buildUserPushChanges(snap({}), snap({}));
+    ok('미지 토큰(표기 변형) 지정은 불사용(무발사·보류 유지)', !changes.some(c => c.type === 'CHILD_PRELIM_CANCEL') && mc._cvHasPendings());
+}
+
 cleanup();
 console.log(`\n[cancel_verdict_room] ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
