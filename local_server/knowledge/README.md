@@ -21,6 +21,15 @@ local_server/knowledge/
 │   ├── public_org.md      ← 공공기관
 │   ├── angler.md          ← 기타(낚시객)
 │   └── _SCHEMA.md         ← 직군 파일 공통 스키마(필수 준수)
+├── legal/                 ← 해양법률 위키 (LLM Wiki 패턴, 시행일 기준 자동 편입)
+│   ├── _SCHEMA.md         ← 사서(ingest) 스키마 = 프롬프트 원본(필수 준수)
+│   ├── raw/               ← 국가법령정보센터 API 원문 (불변)
+│   ├── draft/              ← 사서 작성 초안(미승인)
+│   ├── wiki/               ← 승인된 정본(statutes/concepts/comparisons/annexes)
+│   ├── _dashboard/         ← 자동 점검 리포트 + 사람 승인 대기(REVIEW 플래그)
+│   ├── _legacy/            ← 폐지·구법 조문(삭제 대신 보관)
+│   ├── index.md            ← 위키 카탈로그
+│   └── log.md               ← ingest/query/lint 이력
 └── phases/                ← 단계별 산출물(요약/결과 리포트)
     ├── phase0_diagnostics.md  ← Phase 0 진단 배터리 결과
     └── plan_review.md         ← 마스터 플랜 독립 검토 리포트
@@ -58,6 +67,8 @@ local_server/knowledge/
 | 마스터 플랜 | Phase 0~4 상세 설계·상태(v2) | `local_server/knowledge/00_MASTER_PLAN.md` |
 | 플랜 검토 리포트 | 독립 검토(적합성 72/100)·권고 | `local_server/knowledge/phases/plan_review.md` |
 | 직군 공통 스키마 | 8종 형식·규칙ID·트리거 규약 | `local_server/knowledge/jikgun/_SCHEMA.md` |
+| 해양법률 위키 스키마 | 사서(ingest) 절차·페이지 형식·REVIEW 플래그 규칙 (= 사서 프롬프트) | `local_server/knowledge/legal/_SCHEMA.md` |
+| 해양법률 위키 인덱스 | 승인된 법률·개념·비교표·별표 카탈로그 | `local_server/knowledge/legal/index.md` |
 | Phase 0 진단 | 나리야 데이터 적재 진단 결과 | `local_server/knowledge/phases/phase0_diagnostics.md` |
 | 직군: 해양경찰 | 관심사·매핑·선제규칙·GAP | `local_server/knowledge/jikgun/coast_guard.md` |
 | 직군: 어업종사자 | 〃 | `local_server/knowledge/jikgun/fishery.md` |
