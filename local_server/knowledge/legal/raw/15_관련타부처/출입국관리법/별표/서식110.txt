@@ -1,0 +1,58 @@
+강제퇴거명령서
+
+■ 출입국관리법 시행규칙 [별지 제110호서식]                                             
+                                                                                                            
+  강제퇴거명령서                                                                                            
+  DEPORTATION ORDER                                                                                         
+                                                                                                            
+                                      Date     .    .    .                                                  
+───────┬──────────────────────────────────────────────
+  대상자      │성    명                                                                                    
+  Subject of  │Name in Full                                                                                
+  Deportation ├──────────────┬───────────────────────────────
+  Order       │생년월일                    │성 별           [ ] 남   [ ] 여                               
+              │Date of Birth               │Sex               [ ] M    [ ] F                              
+              ├──────────────┼───────────────────────────────
+              │국적                        │직 업                                                         
+              │Nationality                 │Occupation                                                    
+              ├──────────────┴───────────────────────────────
+              │대한민국 내 주소                                                                            
+              │Address in Korea                                                                            
+───────┴────────┬─────────────────────────────────────
+  강제퇴거 이유(적용 법규정)    │                                                                          
+  Reason for Deportation        │                                                                          
+  (Applicable Provision)        │                                                                          
+────────────────┼─────────────────────────────────────
+  집행방법                      │                                                                          
+  Mode of Execution             │                                                                          
+────────────────┼─────────────────────────────────────
+  송환국                        │                                                                          
+  Country of Repatriation       │                                                                          
+────────────────┴─────────────────────────────────────
+                                                                                                            
+     1. 「출입국관리법」 제59조에 따라 위와 같이 강제퇴거명령서를 발급합니다.                               
+        In accordance with Article 59 of the Immigration Act, the deportation order is issued to the        
+  person above.                                                                                             
+     2. 귀하는 이 명령서를 받은 날부터 7일 이내에 법무부장관에게 이의신청을 하거나, 90일                    
+  이내에 행정심판 또는 행정소송을 제기할 수 있습니다.                                                       
+       ※ 행정심판을 청구할 때에는 온라인행정심판(www.simpan.go.kr), 행정소송을 청구할 때에는 전자          
+  소송(ecfs.scourt.go.kr)을 통하여 온라인으로도 청구할 수 있습니다.                                         
+       A person who has an objection to the above disposition may file an objection with the Minister       
+  of Justice within 7 days after receipt of the deportation order or file an administrative appeal or an    
+  administrative litigation within 90 days from the date of receiving the deportation order.                
+      ※ You may file an administrative appeal online (www.simpan.go.kr) and an administrative litigation   
+  on the Internet (ecfs.scourt.go.kr)                                                                       
+                                                                                                            
+                                          ┏━━┓                                                          
+    ○○출입국ㆍ외국인청(사무소ㆍ출장소)장┃직인┃                                                          
+                                          ┗━━┛                                                          
+  CHIEF, ○○IMMIGRATION OFFICE                                                                             
+───────────┬─────────┬────────────────────────────────
+  집행결과            │집행자            │서명                                                            
+  Result of Execution │Executing Official│Signature                                                       
+───────────┼─────────┼────────────────────────────────
+                      │                  │                                                                
+───────────┴─────────┴────────────────────────────────
+                                                                                                            
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                    210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

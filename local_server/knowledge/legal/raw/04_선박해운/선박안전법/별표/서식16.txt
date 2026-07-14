@@ -1,0 +1,427 @@
+국제액화가스산적운송적합증서
+
+[별지 제16호의2서식]                                                                                
+                                                                                                                        
+                                                                                                                        
+  증서번호  제                   호                                                                                     
+  Cert. No.                                                                                                             
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+  국 제 액 화 가 스 산 적 운 송 적 합 증 서                                                                             
+  INTERNATIONAL CERTIFICATE OF FITNESS FOR THE CARRIAGE                                                                 
+  OF LIQUEFIED GASES IN BULK                                                                                            
+                                                                                                                        
+  대     한     민     국                                                                                               
+  REPUBLIC OF KOREA                                                                                                     
+                                                                                                                        
+  「국제액화가스산적운송코드」[해사안전위원회 결의 17(58)에 의해 개정된 해사안전위원회 결의 5(48)]에 따라 대한민국      
+  정부의 권한으로 발행합니다.                                                                                           
+  Issued under the provisions of the International Code for the Construction and Equipment of Ships Carrying            
+  Liquefied Gases in Bulk(resolution MSC.5(48) as amended by resolution MSC.17(58)) under the authority of the          
+  Government of the Republic of Korea by                                           .                                    
+                                                                                                                        
+┌───────┬──────────┬────────┬──────┬─────┬─────────────────┐
+│선          명│선 박 번 호         │선  적  항      │화 물 용 적 │선    형  │IMO 번호                          │
+│Name of Ship  │Distinctive Number  │Port of Registry│Cargo       │Ship Type │IMO                               │
+│              │or Letters          │                │Capacity(m3)│          │Number                            │
+├───────┼──────────┼────────┼──────┼─────┼─────────────────┤
+│              │                    │                │            │          │                                  │
+└───────┴──────────┴────────┴──────┴─────┴─────────────────┘
+                                                                                                                        
+  용골을 거치한 날짜, 이와 동등한 건조단계에 도달한 날짜 또는 액화가스산적운송선으로의 개조가 시작된 날짜(개조선인 경   
+  우) :.                                                                                                                
+  Date on which keel was laid or ship was at a similar stage of construction or, (in the case of a converted ship)      
+  date on which conversion to a gas carrier was co㎜enced :                              ,                              
+                                                                                                                        
+  이 선박은 규칙의 다음 개정에 대하여 충분히 적합함:                                                                    
+  The ship also complies fully with the following amendments to the Code:                                               
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+  이 선박은 규칙 중 다음 규정의 적용이 면제됨:                                                                          
+  The ship is exempted from compliance with the following provisions of the Code:                                       
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+  이 증서는 다음의 사항을 증명합니다:                                                                                   
+  THIS IS TO CERTIFY:                                                                                                   
+                                                                                                                        
+  1  .1 이 선박은 규칙 1.5절에 따라 검사를 하였음;                                                                      
+     That the ship has been surveyed in accordance with the provisions of section 1.5 of the Code;                      
+                                                                                                                        
+      .2 검사의 결과, 이 선박의 구조, 설비, 부착물, 장치 및 재료와 이들의 상태가 모든 점에서 만족하며 또한 이 선박      
+  은  같은 규칙의 관련 규정에 적합함                                                                                    
+      That the survey showed that the structure, equipment, fittings, arrangements and materials of the ship and        
+  the conditions thereof are in all respects satisfactory and that the ship complies with the relevant                  
+  provisions of the Code.                                                                                               
+                                                                                                                        
+                                                                                                              
+  2. 다음의 설계 기준이 적용됨:                                                                               
+     That the following design criteria have been used:                                                       
+                                                                                                              
+     .1 주위의 대기 온도                                                                                      
+        ambient air temperature                            ℃                                                 
+                                                                                                              
+     .2 주위의 물 온도                                                                                        
+        ambient water temperature                          ℃                                                 
+     .3                                                                                                       
+┌──────────┬───────┬─────┬────────────────────────────┐
+│탱크 형식 및 번호   │응 력 계 수   │재  료    │안 전 밸 브 의 최 대                                    │
+│Tank type and number│Stress factors│Materials │허 용 설 정 압 력                                       │
+│                    ├─┬─┬─┬─┤          │MARVS                                                   │
+│                    │A │B │C │D │          │                                                        │
+├──────────┼─┼─┼─┼─┼─────┼────────────────────────────┤
+│                    │  │  │  │  │          │                                                        │
+├──────────┼─┼─┼─┼─┼─────┼────────────────────────────┤
+│화  물  관          │  │  │  │  │          │                                                        │
+│Cargo piping        │  │  │  │  │          │                                                        │
+└──────────┴─┴─┴─┴─┴─────┴────────────────────────────┘
+      주의: 이 표에 기재되어 있는 탱크 번호는 서명 및 날짜가 적힌 별지 2의 탱크 배치도에 명시되어 있음        
+   NB: Tank numbers referred to in this list are identified on the attachment 2, signed and dated tank plan.  
+                                                                                                              
+     .4 화물 탱크 재료의 기계적 성질은                                        ℃ 에서 결정되었음              
+        Mechanical properties of the cargo tank material were determined at                          ℃.      
+                                                                                                              
+                                                                                                                                  
+  3. 이 선박은 규칙의 모든 관련 작업 요건이 준수될 것을 조건으로 다음 화물의 산적 운송에 적합함                                   
+     That the ship is suitable for the carriage in bulk of the following products, provided that all relevant                     
+  operational provisions of the Code are observed.                                                                                
+                                                                                                                                  
+┌────┬──────────────────────────────────────────────────────────┐
+│화    물│운 송 조 건†                                                                                                       │
+│Products│Conditions of carriage†                                                                                            │
+│        ├──────┬──────┬────┬────┬──────────────────────────────────┤
+│        │탱크번호    │최저온도    │최대압력│최대밀도│탱크 적하 조건                                                      │
+│        │Tank Numbers│Minimum     │Maximum │Maximum │Tank Loading                                                        │
+│        │            │Temperature │Pressure│Density │Condition                                                           │
+│        │            │(℃)        │(kg/m2) │        │                                                                    │
+├────┼──────┼──────┼────┼────┼──────────────────────────────────┤
+│        │            │            │        │        │                                                                    │
+├────┴──────┴──────┴────┴────┴──────────────────────────────────┤
+│* 서명 및 날짜가 적힌 별지 1에 계속됨                                                                                         │
+│  Continued on attachment 1, signed and dated sheets.                                                                         │
+│                                                                                                                              │
+│* 이 표에 기재되어 있는 탱크번호는 서명 및 날짜가 적힌 별지 2의 탱크 배치도에 명시되어 있음                                   │
+│  Tank numbers referred to in this list are identified on attachment 2, signed and dated tank plan.                           │
+│                                                                                                                              │
+│†이 란에는 적하화물에 대한 탱크번호, 최저온도, 최대압력, 최대밀도 및 적하 조건이 명확하게 적혀야 함                          │
+│  Tank numbers, min. temperature, max. pressure, max. density and tank loading conditions are to be specified in this column. │
+└───────────────────────────────────────────────────────────────┘
+                                                                                                                                  
+                                                                                                                                  
+                                                                                                                                  
+  * 해당되지 아니하는 것은 지울 것                                                                                                
+    Delete as appropriate.                                                                                                        
+                                                                                                                                  
+                                                                                                                                  
+  4. 규칙 1.4*/2.8.2*에 따라 이 선박에 대한 규칙의 규정이 다음과 같은 방법으로 수정되었음:                                        
+    That, in accordance with 1.4*/2.8.2*, the provisions of the Code are modified in respect of the ship in the                   
+  following manner:                                                                                                               
+                                                                                                                                  
+                                                                                                                                  
+                                                                                                                                  
+  5. 승인된 적하 및 복원성 자료가 규칙 2.2.5에 따라 본선에 제공되고 있음:                                                         
+      That the loading and stability information booklet required by paragraph 2.2.5 of the Code has been supplied                
+  to the ship in an approved form:                                                                                                
+  6. 이 선박은 다음과 같이 적하되어야 함:                                                                                         
+       That the ship must be loaded:                                                                                              
+    .1* 규칙 2.2.6에 따라 설치된 승인받은 복원성 계산기기를 사용하여 손상/비손상 복원성 요건을 갖추었음이 검증된                  
+  조건에서만 적하되어야 함.                                                                                                       
+        only in accordance with loading conditions verified compliant with intact and damage stability requirements               
+  using the approved stability instrument fitted in accordance with paragraph 2.2.6 of the Code.                                  
+    .2* 규칙 2.2.7에 의해 2.2.6의 요구사항이 면제되거나, 규칙 2.2.6에 의해 요구되는 승인된 복원성 계산기기가 설치                 
+  되지 않은 경우에는 다음의 승인된 한 가지 이상의 방법으로 적하되어야 함.                                                         
+       where a dispensation permitted by paragraph 2.2.7 of the Code applies and the approved stability instrument                
+  required by paragraph 2.2.6 of the Code not fitted, loading shall be made in accordance with one or more                        
+  of the following approved methods.                                                                                              
+       .1)* 위 제5호에 따른 승인된 적하 및 복원성 자료에 제시된 조건에 따라 적하; 또는                                            
+           in accordance with the loading conditions provided in the approved loading and stability information                   
+  booklet referred to in 5 above; or                                                                                              
+       .2)* 승인된 방법에 의해 원격으로 검증된 조건에 따라 적하; 또는                                                             
+           in accordance with loading conditions verified remotely using an approved means; or                                    
+       .3)* 위 제5호에 따른 승인된 적하 및 복원성 자료에 규정되어 있는 승인된 범위 내의 조건에 따라 적하; 또는                    
+           in accordance with a loading condition which lies within an approved range of conditions defined in the                
+  approved loading and stability information booklet referred to in 5 above; or                                                   
+       .4)* 위 제5호에 따른 승인된 적하 및 복원성 자료에 규정되어 있는 승인된 KG/GM 값을 사용하여 검증된 조건                     
+  에 따라 적하;                                                                                                                   
+           in accordance with a loading condition verified using approved critical KG/GM data defined in the                      
+  approved loading and stability information booklet referred to in 5 above;                                                      
+    .3* 이 증서에 부가된 적하 제한 조건을 따라야 함.                                                                              
+       in accordance with the loading limitations appended to this Certificate.                                                   
+                                                                                                                                  
+                                                                                                                                  
+  만약 위의 적하자료에 의한 것 이외의 방법으로 적하하려는 경우는 그 적하 조건의 판별에 필요한 계산서를 미리 주                    
+  관청 또는 주관청에 의하여 인정된 기관에 제출하여 승인을 얻어야 함**                                                             
+  Where it is required to load the ship other than in accordance with the above instruction, then the necessary                   
+  calculations to justify the proposed loading conditions should be co㎜unicated to the certifying Administration                 
+  who may authorize in writing the adoption of the proposed loading condition.**                                                  
+                                                                                                                                  
+  이 증서는 규칙 제1.5절에 따른 검사를 받는 것을 조건으로          년      월       일까지 유효합니다.                            
+  This certificate is valid until          day of                            subject to surveys in accordance with 1.5 of         
+  the Code.                                                                                                                       
+                                                                                                                                  
+  이 증서 발급을 위한 검사완료일:                                                                                                 
+  Completion date of the survey on which this certificate is based:                                                               
+                                                                                                                                  
+          년       월      일                                에서 발행합니다.                                                     
+  Issued at                           on the           day of                                 .                                   
+                                                                                                                                  
+                                                                                                                                  
+                                                                                                                                  
+      ─────────────────────                                                                                  
+         해  양  수  산  부  장  관                                                                                               
+        Minister of Oceans and Fisheries                                                                                          
+         한국해양교통안전공단(한글 및 영문)                                                                                       
+         선   급   법   인    명(한글 및 영문)                                                                                    
+                                                                                                                                  
+                                                                                                                                  
+    * 해당되지 아니하는 것은 지울 것                                                                                              
+      Delete as appropriate.                                                                                                      
+   ** 승인을 받은 다른 적하자료를 이 증서에 포함시키는 대신 서명 및 날짜가 적힌 별지로 이 증서에 첨부할 수 있음                   
+      Instead of being incorporated in the Certificate, this text may be appended to the Certificate if duly signed and stamped.  
+                                                                                                                                  
+  210㎜ x 297㎜[보존용지(1종) 220g/㎡]                                                                                            
+                                                                                                                                  
+                                                                                                              
+  검  사  의   확  인                                                                                         
+                                                                                                              
+  ENDORSEMENT FOR ANNUAL AND INTERMEDIATE SURVEYS                                                             
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  이 증서는 선박이 제1.5.2항에 따른 검사 결과 관련 규정에 적합함을 증명합니다.                                
+  THIS IS TO CERTIFY That, at a survey required by 1.5.2 of the Code, the ship was found to comply with the   
+  relevant provisions of the Code.                                                                            
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  연 차 검 사                                서 명                                                            
+  Annual Survey:               Signed:                                                                        
+                                                                                                              
+  장 소                                                                                                       
+  Place:                                                                                                      
+                                                                                                              
+  날 짜                                                                                                       
+  Date:                                                                                                       
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  연차*/중간* 검사                     서 명                                                                  
+  Annual*/Intermediate* Survey:      Signed:                                                                  
+                                                                                                              
+  장 소                                                                                                       
+  Place:                                                                                                      
+                                                                                                              
+  날 짜                                                                                                       
+  Date:                                                                                                       
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  연차*/중간* 검사                     서 명                                                                  
+  Annual*/Intermediate* Survey:      Signed:                                                                  
+                                                                                                              
+  장 소                                                                                                       
+  Place:                                                                                                      
+                                                                                                              
+  날 짜                                                                                                       
+  Date:                                                                                                       
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  연 차 검 사                                서 명                                                            
+  Annual Survey:               Signed:                                                                        
+                                                                                                              
+  장 소                                                                                                       
+  Place:                                                                                                      
+                                                                                                              
+  날 짜                                                                                                       
+  Date:                                                                                                       
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  * 해당되지 아니하는 것은 지울 것                                                                            
+    Delete as appropriate.                                                                                    
+                                                                                                              
+                                                                                                                        
+  제1.5.6.8.3항에 따른 연차 검사/중간 검사                                                                              
+  Annual/intermediate survey in accordance with 1.5.6.8.3                                                               
+                                                                                                                        
+                                                                                                                        
+  이 증서는 선박이 규칙 제1.5.6.8.3항에 따른 연차*/중간*검사 결과 규칙의 관련 요건에 적합함을 증명합니다.               
+  THIS IS TO CERTIFY that, at an annual*/intermediate* survey in accordance with 1.5.6.8.3 of the Code, the             
+  ship was found to comply with the relevant provisions  of the Code.                                                   
+                                                                                                                        
+  서 명                                                                                                                 
+  Signed:                                                                                                               
+                                                                                                                        
+  장 소                                                                                                                 
+  Place:                                                                                                                
+                                                                                                                        
+  날 짜                                                                                                                 
+  Date:                                                                                                                 
+                                                                                                                        
+                                                                                                                        
+  제1.5.6.3항이 적용되는 경우 증서의 유효기간이                                                                         
+  5년 미만일 때 증서의 유효기간을 연장하기 위한 이서                                                                    
+  Endorsement to extend the certificate if valid for less than 5 years where 1.5.6.3 applies                            
+                                                                                                                        
+                                                                                                                        
+  이 증서는 선박이 규칙의 관련 요건에 적합하므로 규칙의 제1.5.6.3항에 따라                               까지 유효      
+  한 것으로 인정합니다.                                                                                                 
+  The ship complies with the relevant provisions of the Code, and this certificate should, in accordance with 1.6.6.3   
+  of the Code, be accepted as valid until                                       .                                       
+                                                                                                                        
+  서 명                                                                                                                 
+  Signed:                                                                                                               
+                                                                                                                        
+  장 소                                                                                                                 
+  Place:                                                                                                                
+                                                                                                                        
+  날 짜                                                                                                                 
+  Date:                                                                                                                 
+                                                                                                                        
+                                                                                                                        
+  정기 검사 완료 후 제1.5.6.4항이 적용되는 경우의 이서                                                                  
+   Endorsement where the renewal survey has been completed and 1.5.6.4 applies                                          
+                                                                                                                        
+                                                                                                                        
+  이 증서는 선박이 규칙의 관련 요건에 적합하므로 규칙의 1.5.6.4항에 따라                                 까지 유효      
+  한 것으로 인정합니다.                                                                                                 
+  The ship complies with the relevant provisions of the Code, and this certificate shall, in accordance with 1.5.6.4    
+  of the Code, be accepted as valid until                                         .                                     
+                                                                                                                        
+  서 명                                                                                                                 
+  Signed:                                                                                                               
+                                                                                                                        
+  장 소                                                                                                                 
+  Place:                                                                                                                
+                                                                                                                        
+  날 짜                                                                                                                 
+  Date:                                                                                                                 
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+   * 해당되지 아니하는 것은 지울 것                                                                                     
+     Delete as appropriate                                                                                              
+                                                                                                                        
+                                                                                                                                  
+  제1.5.6.5/1.5.6.6항이 적용되는 경우 검사 예정 항에 도착 시까지                                                                  
+  또는 유예기간까지 증서의 유효기간을 연장하기 위한 이서                                                                          
+  Endorsement to extend the validity of the certificate until reaching the                                                        
+  port of survey or for a period of grace where 1.5.6.5/1.5.6.6 applies                                                           
+                                                                                                                                  
+                                                                                                                                  
+  이 증서는 규칙 제1.5.6.5*/1.5.6.6* 항에 따라                                           까지 유효한 것으로 인정합니다.           
+  This certificate should, in accordance with 1.6.6.5*/1.6.6.6* of the Code, be accepted as valid until                       .   
+                                                                                                                                  
+  서 명                                                                                                                           
+  Signed:                                                                                                                         
+                                                                                                                                  
+  장 소                                                                                                                           
+  Place:                                                                                                                          
+                                                                                                                                  
+  날 짜                                                                                                                           
+  Date:                                                                                                                           
+                                                                                                                                  
+                                                                                                                                  
+                                                                                                                                  
+  제1.5.6.8항이 적용되는 경우 연차일을 앞당기는 것에 대한 이서                                                                    
+  Endorsement for advancement of anniversary date where 1.5.6.8 applies                                                           
+                                                                                                                                  
+                                                                                                                                  
+  규칙 제 1.5.6.8항에 따라 새로운 연차일은                                                               이다.                    
+  In accordance with 1.5.6.8 of the Code, the new anniversary date is                                        .                    
+                                                                                                                                  
+  서 명                                                                                                                           
+  Signed:                                                                                                                         
+                                                                                                                                  
+  장 소                                                                                                                           
+  Place:                                                                                                                          
+                                                                                                                                  
+  날 짜                                                                                                                           
+  Date:                                                                                                                           
+                                                                                                                                  
+                                                                                                                                  
+                                                                                                                                  
+  규칙 제 1.5.6.8항에 따라 새로운 연차일은                                                               이다.                    
+  In accordance with 1.5.6.8 of the Code, the new anniversary date is                                         .                   
+                                                                                                                                  
+  서 명                                                                                                                           
+  Signed:                                                                                                                         
+                                                                                                                                  
+  장 소                                                                                                                           
+  Place:                                                                                                                          
+                                                                                                                                  
+  날 짜                                                                                                                           
+  Date:                                                                                                                           
+                                                                                                                                  
+                                                                                                                                  
+                                                                                                                                  
+   * 해당되지 아니하는 것은 지울 것                                                                                               
+     Delete as appropriate.                                                                                                       
+                                                                                                                                  
+                                                                                                      
+                                                                                                      
+  국제액화가스산적운송적합증서 별지 1                                                                 
+  ATTACHMENT 1 TO THE INTERNATIONAL CERTIFICATE OF FITNESS                                            
+  FOR THE CARRIAGE OF LIQUEFIED GASES IN BULK                                                         
+                                                                                                      
+                                                                                                      
+  이 별지는 전 3항에 기재된 화물 및 운송조건에서 계속됨                                               
+  Continued list of products to those specified in section 3, and the conditions of their carriage.   
+┌────┬────────────────────────────────────────────┐
+│화    물│운  송  조  건  ( 탱  크  번  호   등 )                                                 │
+│Products│Conditions of carriage (tank numbers, etc.)                                             │
+├────┼────────────────────────────────────────────┤
+│        │                                                                                        │
+├────┴────────────────────────────────────────────┤
+│                                                                                                  │
+│날 짜                                                                                             │
+│Date:                                                                                             │
+│                                                 ─────────────────────       │
+│                                                    해  양  수  산  부  장  관                    │
+│                                                   Minister of Oceans and Fisheries               │
+│                                                    한국해양교통안전공단(한글 및 영문)            │
+│                                                    선   급   법   인    명(한글 및 영문)         │
+│                                                                                                  │
+└─────────────────────────────────────────────────┘
+                                                                                                
+  국제액화가스산적운송적합증서 별지 2                                                           
+  ATTACHMENT 2 TO THE INTERNATIONAL CERTIFICATE OF FITNESS                                      
+  FOR THE CARRIAGE OF LIQUEFIED GASES IN BULK                                                   
+                                                                                                
+                                                                                                
+                                                                                                
+  탱    크    배    치    도                                                                    
+  TANK  PLAN                                                                                    
+                                                                                                
+                                                                                                
+                                                                                                
+  선        명                                                                                  
+  Name of ship:                                                                                 
+                                                                                                
+  선박번호 또는 호출부호                                                                        
+  Distinctive Number or Letters:                                                                
+                                                                                                
+                                                                                                
+                                                                                                
+                                                                                                
+                                                                                                
+                                                                                                
+                                                                                                
+                                                                                                
+                                                                                                
+                                                                                                
+  날 짜                                                                                         
+  Date:                                                                                         
+                                                                                                
+  ─────────────────────                                                    
+     해  양  수  산  부  장  관                                                                 
+     Minister of Oceans and Fisheries                                                           
+     한국해양교통안전공단(한글 및 영문)                                                         
+     선   급   법   인    명(한글 및 영문)

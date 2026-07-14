@@ -1,0 +1,74 @@
+국제방사능핵연료화물운송적합증서
+
+[별지 제25호서식]                                                                                   
+                                                                                                                        
+  증서번호   제              호                                                                                         
+  Cert No.                                                                                                              
+                                                                                                                        
+                                                                                                                        
+  국 제 방 사 능 핵 연 료 화 물 운 송 적 합 증 서                                                                       
+  INTERNATIONAL CERTIFICATE OF FITNESS                                                                                  
+  FOR THE CARRIAGE OF INF CARGO                                                                                         
+                                                                                                                        
+  대     한    민     국                                                                                                
+  REPUBLIC OF KOREA                                                                                                     
+                                                                                                                        
+                                                                                                                        
+  이 증서는 「국제방사능핵연료 화물운송코드(INF CODE)」에 따라 대한민국 정부의 권한으로 발행합니다.                     
+  Issued under the provision of THE INTERNATIONAL CODE FOR THE SAFE CARRIAGE OF PACKAGED                                
+  IRRADIATED NUCLEAR FUEL, PLUTONIUM AND HIGH-LEVEL RADIOACTIVE WASTES ON BOARD SHIPS                                   
+  under the authority of the Government of the Republic of Korea by                                    .                
+                                                                                                                        
+┌───────────────────┬────┬────────┬────┬────┬──────────────┐
+│선   명                               │선박번  │선 적 항        │총톤수  │IMO 번호│INF등급                     │
+│Name of Ship                          │호 또는 │Port of Registry│Gross   │IMO     │INF class  of ship          │
+│                                      │호출부  │                │tonnage │Number  │(1.1.2 of the Code)         │
+│                                      │호      │                │        │        │                            │
+│                                      │Distinc │                │        │        │                            │
+│                                      │tive    │                │        │        │                            │
+│                                      │Numbe   │                │        │        │                            │
+│                                      │r       │                │        │        │                            │
+│                                      │or      │                │        │        │                            │
+│                                      │Letters │                │        │        │                            │
+├───────────────────┼────┼────────┼────┼────┼──────────────┤
+│                                      │        │                │        │        │                            │
+└───────────────────┴────┴────────┴────┴────┴──────────────┘
+   이 증서는 다음 사항을 증명합니다:                                                                                    
+   THIS IS TO CERTIFY:                                                                                                  
+                                                                                                                        
+   .1 이 선박은 코드의 1.3.1항에 따라 검사를 받았으며; 그리고                                                           
+      that the ship has been surveyed in accordance with the provisions of 1.3.1 of the Code; and                       
+                                                                                                                        
+   .2 검사 결과 이 선박의 구조, 설비 및 재료는 코드의 적용 요건에 적합함을 확인함                                       
+      that the survey showed that the structure, equipment, fittings, arrangements and material of the ship complied    
+  with the applicable provision of the code.                                                                            
+                                                                                                                        
+     이 증서는 코드의 1.3.4의 규정을 조건으로 발급합니다.                                                               
+     This certificate is issued subject to the provisions of 1.3.4 of the Code.                                         
+                                                                                                                        
+                                                                                                                        
+  이 증서 발급을 위한 검사완료일:                                                                                       
+  Completion date of the survey on which this certificate is based:                                                     
+                                                                                                                        
+                                                                                                                        
+    이 증서는     년     월     일     에서 발행되었다.                                                                 
+                                                                                                                        
+              ──   ──   ──   ──                                                                                 
+   Issued at                             .                                                                              
+                  on the      day of                                                                                    
+             ──        ──        ──                                                                               
+                                                                                                                        
+                                                                                                                        
+   서명자는 이 증서를 발행할 때 위의 정부로부터 정당한 권한을 부여받았음을 선언합니다.                                  
+   The undersigned declares that he is duly authorized by the said Government to issue this Certificate.                
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                ──────────────────────                                            
+                                   해  양  수  산  부  장  관                                                           
+                                  Minister of Oceans and Fisheries                                                      
+                                   한국해양교통안전공단(한글  및  영문)                                                 
+                                   선   급   법   인  명 (한글  및  영문)                                               
+                                                                                                                        
+                                                                                                                        
+  210㎜ x 297㎜[보존용지(1종) 220g/㎡]

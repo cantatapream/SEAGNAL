@@ -1,0 +1,30 @@
+분담유(제3조 관련)
+
+■ 유류오염손해배상 보장법 시행령 [별표 1]                     
+  분담유(제3조 관련)                                                              
+  「산업표준화법」 제12조에 따른 한국산업표준의 원유 및 석유제품의 운동점성       
+  계수 시험방법 및 석유제품 점도지수 계산방법에 따라 시험하였을 때에 섭씨         
+  37.8도에서의 운동점성계수가 5.8센티스토크스(cSt) 이상인 중유로서 다음 각 호의   
+  유류를 말한다.                                                                  
+  1. 원유(Crude Oils)                                                             
+    천연유출 원유(All naturally occurring crude oils)                             
+    토핑 원유(Topped crudes)                                                      
+    스파이크 원유(Spiked crudes)                                                  
+    재조성 원유(Reconstituted crudes)                                             
+  2. 제품유(Finished Products)                                                    
+    ASTM 4번 중유[No. 4 fuel(ASTM)]                                               
+    해군용 연료유(Navy special fuel)                                              
+    경질 연료유(Light fuel oil)                                                   
+    ASTM 5번 중유[No. 5 fuel(ASTM)-light]                                         
+    중질 연료유(Medium fuel oil)                                                  
+    ASTM 5번 중질유[No. 5 fuel(ASTM)-heavy]                                       
+    벙커C유(Bunker C fuel oil)                                                    
+    고중질연료유(Heavy fuel oil)                                                  
+    해상연료유(Marine fuel oil)                                                   
+    ASTM 6번 중유[No. 6 fuel oil(ASTM)]                                           
+    점도 또는 유황함량에 의한 혼합 연료유(Blended fuel oils by viscosity or       
+  sulphur content)                                                                
+    ※ ASTM: American Society for Testing Materials                               
+  3. 반제품 또는 혼합 가공유(Intermediate or Process Stocks)                      
+    혼합 연료유(Fuel oil blend stocks)                                            
+  4. 그 밖에 국제기금총회에서 결정하여 유류수령인에게 통보한 유류

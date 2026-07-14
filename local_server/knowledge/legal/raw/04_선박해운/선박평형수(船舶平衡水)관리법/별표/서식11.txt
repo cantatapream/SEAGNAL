@@ -1,0 +1,292 @@
+선박평형수처리설비 형식승인서
+
+■ 선박평형수(船舶平衡水) 관리법 시행규칙 [별지 제11호의2서식]                                 
+                                                                                        (제1쪽)                     
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                    
+  증서번호  제          호                                                                                          
+  Cert. No.                                                                                                         
+                                                                                                                    
+                                                                                                                    
+                                                                                                                    
+                                                                                                                    
+  선박평형수처리설비 형식승인서                                                                                     
+  TYPE APPROVAL CERTIFICATE OF BALLAST WATER MANAGEMENT SYSTEM                                                      
+                                                                                                                    
+                                                                                                                    
+  대   한   민   국                                                                                                 
+  REPUBLIC OF KOREA                                                                                                 
+                                                                                                                    
+                                                                                                                    
+  이 증서는 국제해사기구(IMO) 결의서 MEPC.174(58)에 포함된 지침서의 상세요건에 따라서 아래의 선박                   
+  평형수처리설비가 검사/시험되었음을 증명합니다. 다만, 이 증서는 아래에 기재된 선박평형수처리설비                   
+  에 한하여 유효합니다.                                                                                             
+   This is to certify that the Ballast Water Management System listed below has been examined and tested in         
+  accordance with the requirements of the specifications contained in the Guidelines contained in IMO resolution    
+  MEPC 174(58). This certificate is valid only for the Ballast Water Management System referred to below.           
+                                                                                                                    
+  선박평형수처리설비의 공급자                                                                                       
+  Ballast Water Management System supplied by                                                                       
+  형식 및 모델명                                                                                                    
+  Under type and model designation and incorporating                                                                
+  선박평형수처리설비의 제조자                                                                                       
+  Ballast Water Management System manufactured by                                                                   
+  장비 및 조립도면번호                                                         날짜                                 
+  to equipment/assembly drawing No.                                date                                             
+  그 밖의 장비의 제조자                                                                                             
+  Other equipment manufactured by                                                                                   
+  장비 및 조립도면번호                                                         날짜                                 
+  to equipment/assembly drawing No.                                date                                             
+  정격처리용량                                                                                                      
+  Treatment Rated Capacity                                                                               ㎥/h       
+                                                                                                                    
+  이 형식승인증서의 사본은 선박평형수처리설비를 설치한 선박에 항상 비치해야 합니다. 선박검사 시 관련                
+  형식승인시험계획서와 형식승인시험결과보고서 사본을 제시해야 합니다. 형식승인증서가 타 주관청의                    
+  승인에 기초해서 발행된 경우에는 그 형식승인증서도 첨부해야 합니다.                                                
+  A copy of this Type Approval Certificate, should be carried on board a vessel fitted with this Ballast            
+  Water Management System at all times. A reference to the test protocol and a copy of the test results             
+  should be available for inspection on board the vessel. If the Type Approval Certificate is issued based          
+  on approval by another Administration, reference to that Type Approval Certificate shall be made.                 
+                                                                                                                    
+  승인제한 조건은 이 증서의 추록에 기술되어 있습니다.                                                               
+  Limiting Conditions imposed are described in the appendix to this document.                                       
+                                                                                                                    
+                                       서명                                                                         
+  Official stamp                            Signed.                                                                 
+                                       주관청                                                                       
+                                            Administration of.                                                      
+                                       날짜                                                                         
+                                            Dated this day of.                                                      
+                                                                                                                    
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                    
+                                210mm×297mm[백상지(80g/㎡)]                                                        
+                                                                                                                    
+                                                                                                                                
+                                                                                                                                
+  (제2쪽)                                                                                                                       
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                                
+  선박평형수처리설비 형식승인서 추록                                                                                            
+  SUPPLEMENT TO THE TYPE APPROVAL CERTIFICATE OF BALLAST WATER MANAGEMENT SYSTEM                                                
+                                                                                                                                
+  승 인 번 호                                                                                                                   
+  Certificate No.                                                                                                               
+                                                                                                                                
+  선박평형수처리설비에 대한 시험결과와 육상ㆍ선상시험의 세부사항은 국제해사기구(IMO) 결의서                                     
+  MEPC.174(58)에 따라서 수행된 것입니다.                                                                                        
+  Test results and details of land and shipboard tests conducted on the ballast water management system in                      
+  accordance with IMO Resolution MEPC.174(58).                                                                                  
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┑
+┃1. 선박평형수처리설비의 형식                                                                                                │
+┃Type of Ballast Water Management System:                                                                                    │
+┃   정격처리용량                                                                                                             │
+┃Treatment rated capacity:                                                                           m3/h                    │
+┃   제조사                                                                                                                   │
+┃Manufactured by                                                                                                             │
+┃                                                                                                                            │
+┃2. 처리물질의 종류                                                                                                          │
+┃The Active Substance                                                                                                        │
+┃                                                                                                                            │
+┃                                                                                                                            │
+┃2.1 처리물질의 최대 사용량(또는 UV 방식의 경우 최대 조사량)                                                                 │
+┃Maximum dosage of the Active Substance(or Maximum radiation dosage:                                                         │
+┃2.2 처리물질의 최저 사용량(또는 UV 방식의 경우 최저 조사량)                                                                 │
+┃Minimum dosage of the Active Substance(or Minimum radiation dosage):                                                        │
+┃                                                                                                                            │
+┃3. 중화제의 종류                                                                                                            │
+┃Substance for Neutralization of the Active Substance                                                                        │
+┃                                                                                                                            │
+┃4. 배출시 허용되는 최대 TRO 농도(UV 방식의 경우 조사량 허용범위)                                                            │
+┃Maximum Allowable Discharge Concentration of TRO(or Permitted range of radiation dosage at discharge):                      │
+┃                                                                                                                            │
+┃4.1 그 밖의 사용물질(해당할 경우만)                                                                                         │
+┃Substances for any other use                                                                                                │
+┃                                                                                                                            │
+┃5. 유입해수의 허용 온도 및 염도 범위                                                                                        │
+┃Permitted range of temperature and salinity of seawater inlet                     /                                         │
+┃                                                                                                                            │
+┃6. 육상시험 결과 요약                                                                                                       │
+┃Summary of the land based test results                                                                                      │
+┃6.1 시험이 수행된 형식승인시험기관                                                                                          │
+┃Organization conducting the test                                                                                            │
+┃6.2 시험된 선박평형수처리설비의 정격처리용량                                                                                │
+┃Treatment rated capacity of Ballast Water Management System tested:                                 m3/h                    │
+┃6.3 시험수의 온도 및 염도 범위                                                                                              │
+┃Range of temperature and salinity of test water                            /                                                │
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┥
+┃6.4 시험결과 요약                                                                                                           │
+┃Summary of the land based test results                                                                                      │
+┃6.4.1 고염도 조건                                                                                                           │
+┃Condition of High Salinity: (           PSU)                                                                                │
+┃┌────────────────────┬────────┬──────────┬─────────┐                    │
+┃│시험결과                                │주입 조건       │미처리수 배출       │처리수 배출       │                    │
+┃│Test results                            │Uptake Condition│Discharge Controlled│Discharge Treated │                    │
+┃│                                        ├──┬──┬──┼──┬──┬────┼──┬──┬───┤                    │
+┃│                                        │평균│최대│최소│평균│최대│최소    │평균│최대│최소  │                    │
+┃│                                        │Mean│Max.│Min.│Mean│Max.│Min.    │Mean│Max.│Min.  │                    │
+┃├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤                    │
+┃│50μm 이상인 생물                       │    │    │    │    │    │        │    │    │      │                    │
+┃│Organisms≥50μm(individuals/㎥)        │    │    │    │    │    │        │    │    │      │                    │
+┃├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤                    │
+┃│10μm이상 50μm 미만인 생물             │    │    │    │    │    │        │    │    │      │                    │
+┃│Organisms≥10 and <50μm(individuals/mL)│    │    │    │    │    │        │    │    │      │                    │
+┃├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤                    │
+┃│종속영양세균                            │    │    │    │    │    │        │    │    │      │                    │
+┃│Heterotrophic bacteria(cfu/mL)          │    │    │    │    │    │        │    │    │      │                    │
+┃├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤                    │
+┃│대장균                                  │    │    │    │    │    │        │    │    │      │                    │
+┃│Escherichia coli(cfu/100mL)             │    │    │    │    │    │        │    │    │      │                    │
+┃├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤                    │
+┃│장구균                                  │    │    │    │    │    │        │    │    │      │                    │
+┃│Enterococci(cfu/100mL)                  │    │    │    │    │    │        │    │    │      │                    │
+┃├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤                    │
+┃│독성 비브리오 콜레라                    │    │    │    │    │    │        │    │    │      │                    │
+┃│Toxicogenic Vibrio cholerae(O1,         │    │    │    │    │    │        │    │    │      │                    │
+┃│O139)(cfu/100mL)                        │    │    │    │    │    │        │    │    │      │                    │
+┃└────────────────────┴──┴──┴──┴──┴──┴────┴──┴──┴───┘                    │
+┃※ cfu(colony forming unit): 군체형성단위                                                                                   │
+┖──────────────────────────────────────────────────────────────┘
+                                                                                                            
+                                                                                                            
+  (제3쪽)                                                                                                   
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                            
+                                                                                                            
+  6.4.2 저염도 조건                                                                                         
+  Condition of Low Salinity: (           PSU)                                                               
+  ┌────────────────────┬────────┬──────────┬─────────┐  
+  │시험결과                                │주입 조건       │미처리수 배출       │처리수 배출       │  
+  │Test results                            │Uptake Condition│Discharge Controlled│Discharge Treated │  
+  │                                        ├──┬──┬──┼──┬──┬────┼──┬──┬───┤  
+  │                                        │평균│최대│최소│평균│최대│최소    │평균│최대│최소  │  
+  │                                        │Mean│Max.│Min │Mean│Max.│Min.    │Mean│Max.│Min.  │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │50μm 이상인 생물                       │    │    │    │    │    │        │    │    │      │  
+  │Organisms≥50μm(individuals/㎥)        │    │    │    │    │    │        │    │    │      │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │10μm이상 50μm 미만인 생물             │    │    │    │    │    │        │    │    │      │  
+  │Organisms≥10 and <50μm(individuals/mL)│    │    │    │    │    │        │    │    │      │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │종속영양세균                            │    │    │    │    │    │        │    │    │      │  
+  │Heterotrophic bacteria(cfu/mL)          │    │    │    │    │    │        │    │    │      │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │대장균                                  │    │    │    │    │    │        │    │    │      │  
+  │Escherichia coli(cfu/100mL)             │    │    │    │    │    │        │    │    │      │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │장구균                                  │    │    │    │    │    │        │    │    │      │  
+  │Enterococci(cfu/100mL)                  │    │    │    │    │    │        │    │    │      │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │독성 비브리오 콜레라                    │    │    │    │    │    │        │    │    │      │  
+  │Toxicogenic Vibrio cholerae(O1,         │    │    │    │    │    │        │    │    │      │  
+  │O139)(cfu/100mL)                        │    │    │    │    │    │        │    │    │      │  
+  └────────────────────┴──┴──┴──┴──┴──┴────┴──┴──┴───┘  
+  7. 선상시험 결과 요약                                                                                     
+  Summary of the ship-based test results                                                                    
+  7.1 시험이 수행된 형식승인시험기관                                                                        
+  Organization conducting the test:                                                                         
+  7.2 시험장소                                                                                              
+  Place of test:                                                                                            
+  7.3 시험된 선박평형수처리설비의 정격처리용량                                                              
+  Treatment rated capacity of Ballast Water Management System tested:                                       
+  m3/h                                                                                                      
+  7.4 시험수의 온도 및 염도 범위                                                                            
+  Range of temperature and salinity of test water                            /                              
+  7.5 시험결과 요약                                                                                         
+  Summary of the Ship based test results                                                                    
+  ┌────────────────────┬────────┬──────────┬─────────┐  
+  │시험결과                                │주입 조건       │미처리수 배출       │처리수 배출       │  
+  │Test results                            │Uptake Condition│Discharge Controled │Discharge Treated │  
+  │                                        ├──┬──┬──┼──┬──┬────┼──┬──┬───┤  
+  │                                        │평균│최대│최소│평균│최대│최소    │평균│최대│최소  │  
+  │                                        │Mean│Max.│Min.│Mean│Max.│Min.    │Mean│Max.│Min.  │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │50μm 이상인 생물                       │    │    │    │    │    │        │    │    │      │  
+  │Organisms≥50μm(individuals/㎥)        │    │    │    │    │    │        │    │    │      │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │10μm이상 50μm 미만인 생물             │    │    │    │    │    │        │    │    │      │  
+  │Organisms≥10 and <50μm(individuals/mL)│    │    │    │    │    │        │    │    │      │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │종속영양세균                            │    │    │    │    │    │        │    │    │      │  
+  │Heterotrophic bacteria(cfu/mL)          │    │    │    │    │    │        │    │    │      │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │대장균                                  │    │    │    │    │    │        │    │    │      │  
+  │Escherichia coli(cfu/100mL)             │    │    │    │    │    │        │    │    │      │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │장구균                                  │    │    │    │    │    │        │    │    │      │  
+  │Enterococci(cfu/100mL)                  │    │    │    │    │    │        │    │    │      │  
+  ├────────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤  
+  │독성 비브리오 콜레라                    │    │    │    │    │    │        │    │    │      │  
+  │Toxicogenic Vibrio cholerae(O1,         │    │    │    │    │    │        │    │    │      │  
+  │O139)(cfu/100mL)                        │    │    │    │    │    │        │    │    │      │  
+  └────────────────────┴──┴──┴──┴──┴──┴────┴──┴──┴───┘  
+                                                                                                            
+  7.6 수질 조건                                                                                             
+  Water quality conditions                                                                                  
+  ┌───────────────────┬────────┬──────────┬─────────┐    
+  │변수                                  │주입 조건       │미처리수 배출       │처리수 배출       │    
+  │(Parameter)                           │Uptake Condition│Discharge Controled │Discharge Treated │    
+  │                                      ├──┬──┬──┼──┬──┬────┼──┬──┬───┤    
+  │                                      │평균│최대│최소│평균│최대│최소    │평균│최대│최소  │    
+  │                                      │Mean│Max.│Min.│Mean│Max.│Min.    │Mean│Max.│Min.  │    
+  ├───────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤    
+  │염도                                  │    │    │    │    │    │        │    │    │      │    
+  │Salinity(psu)                         │    │    │    │    │    │        │    │    │      │    
+  ├───────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤    
+  │온도                                  │    │    │    │    │    │        │    │    │      │    
+  │Water temp.(℃)                       │    │    │    │    │    │        │    │    │      │    
+  ├───────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤    
+  │총부유물질량                          │    │    │    │    │    │        │    │    │      │    
+  │Total Suspended Solids(TSS)(mg/L)     │    │    │    │    │    │        │    │    │      │    
+  ├───────────────────┼──┼──┼──┼──┼──┼────┼──┼──┼───┤    
+  │입자성 유기탄소량                     │    │    │    │    │    │        │    │    │      │    
+  │Particulate Organic Carbon(POC)(mg/L) │    │    │    │    │    │        │    │    │      │    
+  └───────────────────┴──┴──┴──┴──┴──┴────┴──┴──┴───┘    
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+  (제4쪽)                                                                                                   
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                            
+                                                                                                            
+                                                                                                            
+  8. 승인된 선박평형수처리설비의 구성품 목록                                                                
+  Components list of BWMS approved                                                                          
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+  9. 장비 및 조립 도면번호                                                                                  
+  Equipment/assembly drawing No.                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+  10. 비고                                                                                                  
+  Remark                                                                                                    
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                       서명                                                                 
+  Official stamp                            Signed.                                                         
+                                       주관청                                                               
+                                            Administration of.                                              
+                                       날짜                                                                 
+                                            Dated this day of.

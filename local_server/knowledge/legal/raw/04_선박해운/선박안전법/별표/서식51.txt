@@ -1,0 +1,51 @@
+제조(정비)확인서
+
+[별지 제51호서식]                                                       
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃제    호                                                                                ┃
+┃ Certificate No.                                                                        ┃
+┃제조(정비)확인서                                                                        ┃
+┃CERTIFICATE of MANUFACTURING                                                            ┃
+┃(MAINTENANCE) VERIFICATION                                                              ┃
+┃                                                                                        ┃
+┠────┬──────┬────────────────────────────────┨
+┃사 업 자│①상    호  │                                                                ┃
+┃        │Company     │                                                                ┃
+┃        ├──────┼────────┬─────────┬─────────────┨
+┃        │②대 표 자  │                │③사업자등록번호  │                          ┃
+┃        │Name        │                │Registration No.  │                          ┃
+┃        ├──────┼────────┴─────────┴─────────────┨
+┃        │④주    소  │                                                                ┃
+┃        │Address     │                                                                ┃
+┠────┴──────┼────────────────────────────────┨
+┃⑤사업장 주소         │                                                                ┃
+┃Factory Address       │                                                                ┃
+┠───────────┴────────────────────────────────┨
+┃선박용물건 또는 소형선박의 내용                                                         ┃
+┃Particular of Articles                                                                  ┃
+┠──────────┬────┬────┬────┬────┬────────┬────┨
+┃⑥ 형식승인증서 번호│⑦ 품명 │⑧ 규격 │⑨ 형식 │⑩  수량│⑪제조(정비)번호│⑫비  고┃
+┃Type Approval       │Articles│Size    │Type    │Quantity│Manufacturer    │Remarks ┃
+┃Certificate No.     │        │        │        │        │Serial No.      │        ┃
+┠──────────┼────┼────┼────┼────┼────────┼────┨
+┃                    │        │        │        │        │                │        ┃
+┠──────────┴────┴────┴────┴────┴────────┴────┨
+┃                                                                                        ┃
+┃「선박안전법」 제20조제6항 및 같은 법 시행규칙 제50조제3항에 따라 대한민국 정부         ┃
+┃의 권한으로 증서를 발급합니다.                                                          ┃
+┃  This certificate is issued under Article 20.6 of the Ship Safety Act and              ┃
+┃Article 50.3 Enforcement Decree of the Ship Safety Act under the authority of           ┃
+┃the Government of Republic of Korea.                                                    ┃
+┃                                                                                        ┃
+┃년        월        일                                                                  ┃
+┃Y        M        D                                                                     ┃
+┃                                                                                        ┃
+┃해  양  수  산  부  장  관                                                              ┃
+┃Minister of Oceans and Fisheries                                                        ┃
+┃(한 국 해 양 교 통 안 전 공 단 이 사 장)                                                ┃
+┃(President of Korea Maritime Transportation Safety Authority)                           ┃
+┃(선    급    법    인    의    장)                                                      ┃
+┃   (President of Classification Society)                                                ┃
+┃                                                                                        ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜ × 297㎜[보존용지(1종) 220g/㎡]

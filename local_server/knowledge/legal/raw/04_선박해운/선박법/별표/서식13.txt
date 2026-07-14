@@ -1,0 +1,39 @@
+CERTIFICATE OF VESSEL’S NATIONALITY(PROVISIONAL)
+
+[별지 제13호서식]                                                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃CERTIFICATE OF VESSEL’S NATIONALITY(PROVISIONAL)                                 ┃
+┃Cert. No                                                                          ┃
+┠───┬─────────────────────────────────────┨
+┃Owners│Name(Company):                                                            ┃
+┃      │Address:                                                                  ┃
+┠───┴───────────────┬─────────────────────┨
+┃Kind of Vessel                        │Where Built                               ┃
+┃Name of Vessel                        │Name of Builders                          ┃
+┃Port of Registry                      │Date of Launch                            ┃
+┃Material of Hull                      ├─────┬───────────────┨
+┃Riggings(if a Sailing Vessel)         │Main      │Length          metres        ┃
+┃Type and number of Engines            │Dimensions│Breadth         metres        ┃
+┃Type and number of Propellers         │          │Depth           metres        ┃
+┃                                      ├─────┴───────────────┨
+┃                                      │Gross Tonnage                   ton       ┃
+┠───────────────────┴─────────────────────┨
+┃     It is hereby certified that the above mentioned vessel is of Korean          ┃
+┃Nationality.                                                                      ┃
+┃The         day         of                                                        ┃
+┃                                    REPUBLIC OF KOREA                             ┃
+┠─────────────────────────────────────────┨
+┃     It is hereby certified that the above is a true translation of "Certificate  ┃
+┃of Vessel's Nationality(Provisional) of the above mentioned vessel.               ┃
+┃                            The         day   of                                  ┃
+┃                            (Signature)                                           ┃
+┃                            (Official Position)                                   ┃
+┃                                                                                  ┃
+┃                                                                                  ┃
+┃                                                                                  ┃
+┃                                                                                  ┃
+┃                                                                                  ┃
+┃                                                                                  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜×297㎜                                                                        
+  (보존용지(1종) 120g/㎡)

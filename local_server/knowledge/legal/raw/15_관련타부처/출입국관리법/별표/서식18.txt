@@ -1,0 +1,88 @@
+사증발급확인서 VISA GRANT NOTICE
+
+■ 출입국관리법 시행규칙 [별지 제18호의2서식]                                                                          
+                                                                                                                                            
+  사증발급확인서                                                                                                                            
+  VISA GRANT NOTICE                                                                                                                         
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+  Visa No. (사증번호) : AB0000000000                (출력일시) 2020.00.00. 00:00                                                            
+──────────────────────────────────────────────────────────────────────
+                                                                                                                                            
+──────────────────────────────────────────────────────────────────────
+  1. DETAILS OF APPLICANT 신청자 정보                                                                                                       
+┌───────┬───────────────┬────────────────────────────────────────────┐
+│사진          │ 성 Family Name               │                                                                                        │
+│PHOTO         │ 명 Given Names               │                                                                                        │
+│(35㎜×45㎜)  ├───────────────┼───────┬────┬───────────────────────────────┤
+│              │ 생년월일 Date of Birth       │ (yyyy/mm/dd) │성별 Sex│ Male / Female                                                │
+│              ├───────────────┼───────┴────┴───────────────────────────────┤
+│              │ 국적 Nationality             │                                                                                        │
+│              ├───────────────┼────────────────────────────────────────────┤
+│              │ 여권번호 Passport No.        │                                                                                        │
+│              ├───────────────┼────────────────────────────────────────────┤
+│              │ 여권만료일                   │ (yyyy/mm/dd)                                                                           │
+│              │ Passport Expiration Date     │                                                                                        │
+└───────┴───────────────┴────────────────────────────────────────────┘
+                                                                                                                                            
+──────────────────────────────────────────────────────────────────────
+  2. 사증 사항 VISA DETAILS                                                                                                                 
+────────┬──────┬────────┬──────┬─────────┬────────────────────────────
+  체류자격      │            │체류기간        │(yyyy/mm/dd)│사증 종류         │                                                        
+  Status of Stay│            │Period of Stay  │            │Number of Entries │                                                        
+────────┼──────┼────────┼──────┼─────────┼────────────────────────────
+  발급일        │(yyyy/mm/dd)│사증 유효기간   │(yyyy/mm/dd)│발급 기관         │                                                        
+  Date of Issue │            │Validity Period │            │Issuing Authority │                                                        
+                │            │of Visa         │            │                  │                                                        
+────────┼──────┴────────┴──────┴─────────┴────────────────────────────
+  비고 Remarks  │                                                                                                                          
+────────┴─────────────────────────────────────────────────────────────
+                                                                                                                                            
+──────────────────────────────────────────────────────────────────────
+  This document confirms that the above applicant’s Korean visa application has been approved and that the visa is                         
+  currently valid in accordance with Article 7(Entry of Aliens) of the Immigration Act.                                                     
+  대한민국 「출입국관리법」 제7조(외국인의 입국)에 따라 기재된 신청인에 대하여 사증이 발급되었으며 해당 사증이 유효함                       
+  을 확인합니다.                                                                                                                            
+  Minister of Justice, Republic of Korea                                                                                                    
+  대한민국 법무부 장관                                                                                                                      
+──────────────────────────────────────────────────────────────────────
+                                                                                                                                            
+                                                                                                                                            
+──────────────────────────────────────────────────────────────────────
+                                                                                                                          
+──────────────────────────────────────────────────────────────────────
+   1. 이 사증발급확인서는 신청인에 대하여 대한민국 사증이 유효하게 발급되었음을 증명하는 서류입니다. 이 확인                                
+  서를 소지한 사람은 본 서류에 사진이 인쇄되지 않았더라도, 대한민국 사증발급 여부를 확인받기 위한 공식 증명으로 활                          
+  용할 수 있습니다. 본 서류의 유효성은 인터넷 비자포털(www.visa.go.kr)에서 확인할 수 있습니다.                                              
+  This document is a proof that a valid visa of the Republic of Korea (ROK) has been issued to the above                                    
+  applicant. The holder of this document may use it as an official proof to verify the issuance of the ROK visa,                            
+  even without a photo on it. The validity of this document can be verified on the KOREA VISA PORTAL website                                
+  (www.visa.go.kr).                                                                                                                         
+   2. 이 확인서를 소지한 신청인은 위에 기재된 사증 유효기간 동안에 출입국관리공무원의 입국심사를 받은 후 대한민국에 입국                    
+  하여 기재된 체류기간 동안 체류할 수 있습니다. 다만, 사증을 발급받았더라도 입국심사 과정에서 출입국관리법에 따라 대한민국                  
+  입국이 불허되거나 체류기간이 변경될 수 있으며 입국일로부터 90일을 초과하여 체류하려는 경우, ‘외국인등록’을 하여야 합니다.               
+     ※ ‘외국인등록’을 위한 출입국·외국인관서 방문 시 하이코리아 홈페이지(www.hikorea.go.kr)에서 미리 방문예약을 신청하시기 바랍니다.    
+       - 방문예약 : 민원인이 편리한 날짜와 시간을 지정하여 체류지 관할 출입국·외국인관서 방문일정을 예약하는 제도                          
+  The holder of this document may enter the ROK during the Validity period of Visa stipulated above after going                             
+  through immigration inspection by Korean Immigration authorities, and may stay during the Period of Stay. Nevertheless,                   
+  a visa holder may be denied entry into the ROK in the process of immigration inspection, and the Period of Stay can                       
+  be changed by immigration authorities in accordance with the Immigration Act. And foreigners intending to stay in Korea                   
+  for more than 90 days from the date of entry are required to register as foreigners.                                                      
+     ※ When planning to visit an immigration office for foreigner registration, please apply for an online Visit                           
+  Reservation in advance at the HiKorea website (www.hikorea.go.kr).                                                                        
+       - ‘Visit Reservation’ is a system where applicants designate a convenient date and time to schedule a visit to a                   
+  jurisdictional immigration office.                                                                                                        
+   3. 이 서류를 위조·변조하거나, 허위의 사실을 제시하여 이 서류를 발급받은 경우 대한민국 관계 법령에 따라 처벌받을                         
+  수 있으며, 향후 입국이 제한될 수 있습니다.                                                                                                
+  Forging or falsifying this document, or stating false information to obtain this document is strictly                                     
+  prohibited and may result in punishment and entry denial under the relevant laws and regulations of the ROK.                              
+   4. 확인서에 기재된 여권의 정보(여권번호, 유효기간 등)가 변경되는 경우, 재외공관에 방문하여 여권 변경 사                                  
+  항을 신고하고 확인서를 재발급 받아야 합니다.                                                                                              
+  In case the passport information (Passport Number, Date of Expiry, etc.) indicated in this document changes,                              
+  applicants are required to visit Consular Offices of the ROK to report the changes and have a visa grant notice re-issued.                
+   5. 이 확인서에 기재된 여권 정보와 소지한 여권의 정보가 다른 경우 대한민국 입국이 제한될 수 있습니다.                                     
+  Entry may be denied should the passport information on this document differ from that shown on the applicant’s                           
+  passport.                                                                                                                                 
+──────────────────────────────────────────────────────────────────────
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

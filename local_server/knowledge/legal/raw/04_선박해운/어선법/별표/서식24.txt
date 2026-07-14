@@ -1,0 +1,110 @@
+국제톤수확인서TONNAGE CERTIFICATE
+
+■ 어선법시행규칙 [별지 제24호서식]                                                              
+                                                                                                                    
+                                                                                             (앞쪽)                 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  국제톤수확인서                                                                                                    
+  TONNAGE CERTIFICATE                                                                                               
+                                                                                                                    
+                                                                                                                    
+    증 서 번 호 :        제       -       호                                                                        
+    Certificate No. :                                                                                               
+                                                                                                                    
+                                                                                                                    
+   대한민국의 권한으로                             발행합니다.                                                      
+    Issued under the authority of the Government of the Republic of Korea by                      .                 
+                                                                                                                    
+─────────────┬───────────────┬────────┬───────────────────
+  어선의 명칭             │어선번호 또는 호출번호        │선적항          │연월일(주)                            
+  Name of Ship            │Distinctive Number or Letters │Port of Registry│*Date                                 
+─────────────┼───────────────┼────────┼───────────────────
+                          │                              │                │                                      
+─────────────┴───────────────┴────────┴───────────────────
+    (주) 용골(선체 중앙 뼈대)이 거치되었거나 유사한 건조단계에 있었던 일자[협약 제2조(6)] 또는 선박에 중요          
+  한 변경 또는 개조를 한 일자[협약 제3조(2)(b)]                                                                     
+    * Date on which the keel was laid or the ship was at similar stage construction [Article 2(6)] or date on       
+  which the ship underwent alterations or modifications of a major character[Article 3(2)(b)], as appropriate.      
+                                                                                                                    
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  주 요 치 수                                                                                                       
+  MAIN DIMENSIONS                                                                                                   
+────────────┬──────────────┬──────────────────────────────
+  길이 [협약 제2조(8)]  │너비 [협약부속서 제2규칙(3)]│선박의 중앙에서 상갑판까지의 깊이 [협약부속서 제2규칙(2)]   
+  Length [article 2(8)] │Breadth [Regulation2(3)]    │Moulded Depth amidships to the Upper Deck                   
+                        │                            │[Regulation2(3)]                                            
+────────────┼──────────────┼──────────────────────────────
+                        │                            │                                                            
+────────────┴──────────────┴──────────────────────────────
+                                                                                                                    
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  선박의 톤수                                                                                                       
+  THE TONNAGE OF THE SHIP ARE                                                                                       
+──────────────────────────────────────────────────────────
+                                                                                                                    
+    국제총톤수               순  톤  수                                                                             
+    GROSS TONNAGE            NET TONNAGE                                                                            
+                  ──                   ──                                                                       
+                                                                                                                    
+    이 증서는 1969년 선박톤수증서에관한국제협약에 따라 이 선박의 톤수가 결정되었음을 증명합니다.                    
+    This is to certify that the tonnages of this ship have been determined in accordance with the                   
+  provisions of International Convention of Tonnage Measurement of Ships, 1969.                                     
+                                                                                                                    
+                          년      월      일                               에서 발행합니다.                         
+                                  (발행일자)                (증서의 발행장소)                                       
+                  Issued at                           , the                  day of                                 
+                              (Place of issue of certificate)         (date of issue)                               
+                                                                                                                    
+  해양수산부장관                                                                                                    
+  Minister of Oceans and Fisheries                                                                                  
+                                                                                                                    
+    서명자는 이 증서를 발행함에 있어서 위의 정부로부터 정당한 권한을 부여 받았음을 선언합니다.                      
+  The under signed declares that he is duly authorized by the said Government to issue this certificate.            
+                                                                                                                    
+  한국해양교통안전공단이사장                                                                                        
+  President of Korea Maritime Transportation Safety Authority                                                       
+                                                                                                                    
+  한국선급회장                                                                                                      
+  President of Korean Register of Shipping                                                                          
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210mm×297mm[인쇄용지(특급) 120g/㎡]                                                                              
+                                                                                                                    
+                                                                                                                              
+                                                                                                                              
+                                                                                                                              
+                                                                                             (뒤쪽)                           
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  톤수에 포함되는 장소                                                                                                        
+  SPACES INCLUDED IN TONNAGE                                                                                                  
+───────────────────────────────┬───────────────────────────────
+  국제총톤수                                                  │순 톤 수                                                      
+  GROSS TONNAGE                                               │NET TONNAGE                                                   
+────────┬────┬─────────────────┼───────┬────┬──────────────────
+  장소의 명칭   │위    치│길    이                          │장소의 명칭   │위    치│길    이                            
+  Name of Space │Location│Length                            │Name of Space │Location│Length                              
+────────┼────┼─────────────────┼───────┼────┼──────────────────
+                │        │                                  │              │        │                                    
+                │        │                                  ├───────┴────┴──────────────────
+                │        │                                  │여객의 정원수(협약부속서 제4규칙(1))                          
+                │        │                                  │Number of passengers(Regulation 4(1))                         
+                │        │                                  │정원 8인이하의 여객실의 여객정원수                            
+                │        │                                  │Number of passengers in cabins with not more than 8 berths    
+                │        │                                  │그 밖의 여객정원수                                            
+                │        │                                  │Number of other passengers                                    
+────────┴────┴─────────────────┼───────────────────────────────
+  제외장소[협약부속서 제2규칙(5)]                             │형흘수[협약부속서 제4규칙(2)]                                 
+  Excluded spaces [Regulation 2(5)]                           │Moulded draught [Regulation 4(2)]                             
+  위 장소 중 폐위장소 및 제외장소에 모두 해당되               │                                                              
+  는 곳은 별표(*)로 표시합니다.                               │                                                              
+  An asterisk(*) should be added to those spaces listed above │                                                              
+  which comprise both enclosed and excluded spaces.           │                                                              
+────────────────────────┬──────┴───────────────────────────────
+  최초의 측정일자 및 장소                       │                                                                            
+  Date and place of original measurement        │                                                                            
+────────────────────────┼──────────────────────────────────────
+  전회의 측정일자 및 장소                       │                                                                            
+  Date and place of last previous remeasurement │                                                                            
+────────────────────────┼──────────────────────────────────────
+  비      고                                    │                                                                            
+  REMARKS                                       │                                                                            
+────────────────────────┴──────────────────────────────────────

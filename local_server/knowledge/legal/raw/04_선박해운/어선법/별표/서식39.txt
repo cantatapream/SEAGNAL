@@ -1,0 +1,69 @@
+CERTIFICATE OF VESSEL'S NATIONALITY
+
+■ 어선법시행규칙 [별지 제39호서식]                                                                 
+                                                                                                                    
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                    
+  CERTIFICATE OF VESSEL'S NATIONALITY                                                                               
+                                                                                                                    
+                                                                                                                    
+  Cert. No.                                                                                                         
+────┬───────────┬─────────────────────────────────────────
+  Owners│Name                  │                                                                                  
+        │(Company)             │                                                                                  
+        ├───────────┼─────────────────────────────────────────
+        │Address               │                                                                                  
+        │                      │                                                                                  
+────┴───────────┴─────────────────────────────────────────
+                                                                                                                    
+────────────────┬────────┬──────────┬─────────────────────
+  Official Number               │                │Total Capacity of   │cubic meters                              
+────────────────┼────────┤Enclosed spaces     │                                          
+  Name of Vessel                │                │                    │                                          
+────────────────┼────────┼──────────┼─────────────────────
+  Signal Letters                │                │Under the Upper Deck│cubic meters                              
+────────────────┼────────┼──────────┴─────────────────────
+  Kind of Vessel                │                │Closed-in Spaces above the upper                                
+────────────────┼────────┼──────────┬─────────────────────
+  Material of Hull              │                │deck                │cubic meters                              
+────────────────┼────────┼──────────┼─────────────────────
+  Port of Registry              │                │Forecastle          │cubic meters                              
+────────────────┼────────┼──────────┼─────────────────────
+  Riggings                      │                │Bridge              │cubic meters                              
+  (If a Sailing Vessel)         │                │                    │                                          
+────────────────┼────────┼──────────┼─────────────────────
+  Type and Number of Engines    │                │Poop                │cubic meters                              
+────────────────┼────────┼──────────┼─────────────────────
+  Type and Number of Propellers │                │Deck Houses         │cubic meters                              
+────────────────┼────────┼──────────┼─────────────────────
+  Where Built                   │                │Other Spaces        │cubic meters                              
+────────────────┼────────┼──────────┼─────────────────────
+  Name of Builders              │                │Total Capacity of   │cubic meters                              
+                                │                │Exempted spaces     │                                          
+────────────────┼────────┼──────────┼─────────────────────
+  Date of Launch                │                │Forecastle          │cubic meters                              
+────────────────┼────────┼──────────┼─────────────────────
+  Main Dimension                │Length    meters│Bridge              │cubic meters                              
+                                ├────────┼──────────┼─────────────────────
+                                │Breadth   meters│Poop                │cubic meters                              
+                                ├────────┼──────────┼─────────────────────
+                                │Depth     meters│Deck Houses         │cubic meters                              
+────────────────┼────────┼──────────┼─────────────────────
+  Gross Tonnge                  │ton             │Other Spaces        │cubic meters                              
+────────────────┴────────┴──────────┴─────────────────────
+                                                                                                                    
+──────────────────────────────────────────────────────────
+      It is hereby certified that the above described particulars are exact in all respect, and that the            
+  above-mentioned vessel is of Korean Nationality.                                                                  
+  The          day      of    .                                                                                     
+                      ┏━━┓                                                                                      
+    REPUBLIC OF KOREA ┃직인┃                                                                                      
+                      ┗━━┛                                                                                      
+──────────────────────────────────────────────────────────
+      It is hereby certified that the above is a true translation of "Certificate of Vessel's Nationality" of the   
+  above-mentioned Vessel.                                                                                           
+                                           The      day  of     ,     .                                             
+                                    (Signature)                                                                     
+                                    (Official Position)                                                             
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210mm×297mm[인쇄용지(특급) 120g/㎡]

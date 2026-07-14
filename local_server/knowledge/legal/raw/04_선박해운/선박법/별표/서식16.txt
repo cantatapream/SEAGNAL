@@ -1,0 +1,110 @@
+국제톤수확인서
+
+[별지 제16호서식]     (앞쪽)                                      
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  증서번호 제     호                                                              ┃
+┃  Certificate No.                                                                 ┃
+┃국제톤수확인서                                                                    ┃
+┃TONNAGE CERTIFICATE                                                               ┃
+┃  대한민국정부의 권한으로                         발행합니다.                     ┃
+┃  Issued under the authority of the Government of the Republic of Korea by        ┃
+┃                                        .                                         ┃
+┃┌──────┬────────────┬────┬────┬────────┐  ┃
+┃│선명        │선박번호 또는 호출번호  │IMO 번호│선적항  │연월일(주)      │  ┃
+┃│Name of Ship│Distinctive Number or   │IMO     │Port of │*Date           │  ┃
+┃│            │Letters                 │Number  │Registry│                │  ┃
+┃├──────┼────────────┼────┼────┼────────┤  ┃
+┃│            │                        │        │        │                │  ┃
+┃└──────┴────────────┴────┴────┴────────┘  ┃
+┃  (주) 킬이 거치되었거나 또는 유사한 건조단계에 있었던 날짜[협약 제2조(6)] 또는 선박에 ┃
+┃중요한 변경 또는 개조를 한 날짜[협약 제3조(2)(b)]                                 ┃
+┃  *Date on which the keel was laid or the ship was at similar stage               ┃
+┃construction[Article 2(6)], or date on which the ship underwent alterations or    ┃
+┃modifications of a major character[Article 3(2)(b)], as appropriate.              ┃
+┃주요 치수                                                                         ┃
+┃MAIN DIMENSIONS                                                                   ┃
+┃┌────────┬───────────┬─────────────────┐  ┃
+┃│길이            │너비[협약 부속서      │선박의 중앙에서 상갑판까지의 깊이 │  ┃
+┃│[협약 제2조(8)] │제2규칙(3)]           │[협약의 부속서 제2규칙(2)]        │  ┃
+┃│Length          │Breadth[Regulation    │Moulded depth amidships to the    │  ┃
+┃│[Article 2(8)]  │2(3)]                 │Upper Deck[Regulation 2(2)]       │  ┃
+┃├────────┼───────────┼─────────────────┤  ┃
+┃│                │                      │                                  │  ┃
+┃└────────┴───────────┴─────────────────┘  ┃
+┃선박의 톤수                                                                       ┃
+┃THE TONNAGE OF THE SHIP ARE                                                       ┃
+┃  국제총톤수                                                                      ┃
+┃  GROSS TONNAGE                                                                   ┃
+┃  순톤수                                                                          ┃
+┃  NET TONNAGE                                                                     ┃
+┃  이 증서는 「1969년 선박톤수 측정에 관한 국제협약」의 규정에 따라 이 선박의 톤수 ┃
+┃가 결정되었음을 증명합니다.                                                       ┃
+┃  This is to certify that the tonnages of this ship have been determined in       ┃
+┃accordance with the Provisions of the International Convention of Tonnage         ┃
+┃Measurement of Ships, 1969.                                                       ┃
+┃        년         월        일            에서 발행하였습니다.                   ┃
+┃        (증서의 발행 장소)        (발행일)                                        ┃
+┃  Issued at                           , the              day of                   ┃
+┃         (Place of issue of certificate)      (day of issue)                      ┃
+┃해양수산부장관(지방해양수산청장)                                                  ┃
+┃                     Minister of Oceans and Fisheries                             ┃
+┃                     (Regional Office of Oceans and Fisheries)                    ┃
+┃  서명자는 이 증서를 발행함에 있어서 위의 정부로부터 정당한 권한을 부여받았음을   ┃
+┃선언합니다.                                                                       ┃
+┃  The undesigned declares that he is duly authorized by the said Government to    ┃
+┃issue this certificate.                                                           ┃
+┃한국해양교통안전공단이사장                                                        ┃
+┃ President of Korea Maritime Transportation Safety Authority                      ┃
+┃한국선급회장                                                                      ┃
+┃President of Korean Register of Shipping                                          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜×297㎜                                                                        
+  (인쇄용지(특급) 120g/㎡)                                                            
+                                                                                      
+                                                                                        
+  (뒤쪽)                                                                                
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃톤수에 포함되는 장소                                                                ┃
+┃SPACES INCLUDED IN TONNAGE                                                          ┃
+┠───────────────────┬──────────────────────┨
+┃국제총톤수                            │순톤수                                      ┃
+┃GROSS TONNAGE                         │NET TONNAGE                                 ┃
+┠───────┬────┬──────┼───────┬────┬─────────┨
+┃장소의 명칭   │위치    │길이        │장소의 명칭   │위치    │길이              ┃
+┃Name of Space │Location│Length      │Name of Space │Location│Length            ┃
+┠───────┼────┼──────┼───────┼────┼─────────┨
+┃              │        │            │              │        │                  ┃
+┃              │        │            │              │        │                  ┃
+┃              │        │            │              │        │                  ┃
+┃              │        │            │              │        │                  ┃
+┃              │        │            │              │        │                  ┃
+┃              │        │            │              │        │                  ┃
+┃              │        │            ├───────┴────┴─────────┨
+┃              │        │            │여객의 정원수(협약의 부속서 제4규칙(1))     ┃
+┃              │        │            │Number of passengers(Regulation 4(1))       ┃
+┃              │        │            │정원이 8명 이하인 여객실의 여객 정원수      ┃
+┃              │        │            │Number of passengers in cabins with not     ┃
+┃              │        │            │more than 8 berths                          ┃
+┃              │        │            │그 밖의 여객 정원수                         ┃
+┃              │        │            │Number of other passengers                  ┃
+┠───────┴────┴──────┼──────────────────────┨
+┃제외 장소[협약의 부속서Ⅰ제2규칙(5)]  │형 흘수[협약의 부속서Ⅰ제4규칙(2)]          ┃
+┃Excluded spaces [Regulation 2(5)]     │Moulded draught [Regulation 4(2)]           ┃
+┃위 장소 중 폐위 장소 및 제외 장소에   │                                            ┃
+┃모두 해당되는 곳은 별표(*)로 표시한다.│                                            ┃
+┃An asterisk(*) should be added to     │                                            ┃
+┃those spaces listed above which       │                                            ┃
+┃comprise both enclosed and excluded   │                                            ┃
+┃spaces.                               │                                            ┃
+┠───────────────────┴──────────────────────┨
+┃최초의 측정일 및 측정 장소                                                          ┃
+┃Date and place of original measurement                                              ┃
+┠──────────────────────────────────────────┨
+┃전회의 측정일 및 측정 장소                                                          ┃
+┃Date and place of last previous remeasurement                                       ┃
+┠──────────────────────────────────────────┨
+┃비고                                                                                ┃
+┃REMARKS:                                                                            ┃
+┃                                                                                    ┃
+┃                                                                                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

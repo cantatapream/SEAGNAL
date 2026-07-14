@@ -1,0 +1,290 @@
+선박평형수관리설비검사증서
+
+■ 선박평형수(船舶平衡水) 관리법 시행규칙 [별지 제9호서식]                                        
+                                                                                  (제1쪽)                             
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+  증서번호 제            호                                                                                           
+  Cert. No.                                                                                                           
+                                                                                                                      
+                                                                                                                      
+  선박평형수관리설비검사증서                                                                                          
+  INTERNATIONAL BALLAST WATER MANAGEMENT                                                                              
+  CERTIFICATE                                                                                                         
+  대 한 민 국                                                                                                         
+  REPUBLIC OF KOREA                                                                                                   
+                                                                                                                      
+    「선박평형수(船舶平衡水) 관리법 시행규칙」 제22조제3항 및 「선박평형수 관리협약」(이하 “협약”                   
+  이라 한다)에 따라 대한민국 정부의 권한으로                         이 발급합니다.                                   
+    Issued under the provisions of the International Convention for the Control and Management of  Ship’s            
+  Ballast Water and Sediments(hereinafter referred to as “the Convention”) under the authority of the               
+  Government of Republic of Korea by                                .                                                 
+                                                                                                                      
+   선박의 명세                                                                                                        
+   Particulars of ship                                                                                                
+  ┌──────┬───────────┬────────┬────┬──────┐                                  
+  │선   박   명│선박번호 또는 호출부호│선  적  항      │총 톤 수│IMO번호     │                                  
+  │Name of Ship│Distinctive Number    │Port of Registry│Gross   │IMO Number* │                                  
+  │            │or Letters            │                │Tonnage │            │                                  
+  ├──────┼───────────┼────────┼────┼──────┤                                  
+  │            │                      │                │        │            │                                  
+  └──────┴───────────┴────────┴────┴──────┘                                  
+    건조일                                                                                                            
+    Date of Construction:                                                                                             
+    선박평형수 용량(㎥)                                                                                               
+    Ballast Water Capacity(in cubic meters):                                                                          
+                                                                                                                      
+   사용된 선박평형수관리 방법의 상세 설명                                                                             
+   Details of Ballast Water Management method(s) used                                                                 
+                                                                                                                      
+    사용된 선박평형수관리 방법                                                                                        
+    Method of Ballast Water Management used:                                                                          
+      설치일                                                                                                          
+      Date installed(if applicable):                                                                                  
+      제조업체                                                                                                        
+      Name of manufacturer(if applicable):                                                                            
+                                                                                                                      
+    선박에 적용된 주요 선박평형수관리방법은                                                                           
+    The principal Ballast Water Management method(s) employed on this ship is/are:                                    
+      □ 제D-1규칙과 일치하여                                                                                         
+         in accordance with regulation D-1                                                                            
+      □ 제D-2규칙과 일치하여                                                                                         
+         in accordance with regulation D-2                                                                            
+         (설명)                                                                                                       
+          (describe)                                                                                                  
+      □ 선박은 제D-4규칙에 적용된다.                                                                                 
+         the ship is subject to regulation D-4.                                                                       
+      □                           의 규칙에 따른 다른 관리 방법                                                      
+         other approach in accordance with regulation                                                                 
+                                                                                                                      
+  *  결의안 A.1117(30)에 따라 기구에서 채택한 IMO 선박식별번호체계(개정되는 내용을 포함한다)                          
+     IMO Ship Identification Number Scheme adopted by the Organization by resolution A.1117(30), as may be amended.   
+                                                                                                                      
+                                                                                                                  
+                                                                                                                  
+    (제2쪽)                                                                                                       
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+   이 증서는 다음 사항을 증명한다.                                                                                
+   THIS IS TO CERTIFY.                                                                                            
+                                                                                                                  
+   1.이 선박은 협약 부속서의 제E-1규칙에 따라 검사를 받았으며,                                                    
+     That the ship has been surveyed in accordance with regulation E-1 of the Annex to the         Convention;    
+  and                                                                                                             
+                                                                                                                  
+   2.해당 선박의 검사 결과 이 선박의 선박평형수관리는 이 협약 부속서에 적합함을 증명한다.                         
+     That the survey shows that Ballast Water Management on the ship complies with the Annex to   the Conventio   
+  n.                                                                                                              
+                                                                                                                  
+                                                                                                                  
+   이 증서는 협약 부속서 제E-1규칙에 따라 검사를 받아야 하는                       까지 유효하다.                 
+   This Certificate is valid until   subject to surveys in accordance with regulation E-1.                        
+                                                                                                                  
+   이 증서 발급을 위한 검사 완료일(dd/mm/yyyy):                                                                   
+   Completion date of the survey on which this Certificate is based(dd/mm/yyyy):                                  
+                                                                                                                  
+   증서발급 장소                                                                                                  
+   Issued at                                                                                                      
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+    해   양   수   산   부   장   관  (인)                                                                        
+    Minister of Oceans and Fisheries                                                                              
+    한국해양교통안전공단(한글 및 영문)                                                                            
+    선  급  법  인  명(한글 및 영문)                                                                              
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+  210㎜×297㎜[백상지(120g/㎡)]                                                                                   
+                                                                                                                  
+                                                                                                                
+                                                                                                                
+                                    (제3쪽)                                                                     
+                                                                                                                
+                                                                                                                
+  제1종/제2종 중간검사를 위한 이서                                                                              
+  ENDORSEMENT FOR ANNUAL AND INTERMEDIATE SURVEY(S)                                                             
+                                                                                                                
+   이 증서는 선박이 협약 부속서 제E-1규칙에 따라 요구되는 검사결과 협약의 관련 규정에 적합함을 증명             
+  한다.:                                                                                                        
+   THIS IS TO CERTIFY that at a survey required by regulation E-1 of the Annex to the Convention the ship was   
+  found to comply with the relevant provisions of the Convention.:                                              
+                                                                                                                
+                                                                                                                
+   제2종 중간검사:                서명                                                                          
+   Annual Survey:                 Signed:                                                                       
+                                  장소                                                                          
+                                  Place:                                                                        
+                                  날짜                                                                          
+                                  Date(dd/mm/yyyy):                                                             
+                                                                                                                
+                                                                                                                
+                                                                                                                
+   제2종 /제1종* 중간검사:        서명                                                                          
+   Annual/Intermediate* Survey:   Signed:                                                                       
+                                  장소                                                                          
+                                  Place:                                                                        
+                                  날짜                                                                          
+                                  Date(dd/mm/yyyy):                                                             
+                                                                                                                
+                                                                                                                
+                                                                                                                
+   제2종 /제1종* 중간검사:        서명                                                                          
+   Annual/Intermediate* Survey:   Signed:                                                                       
+                                  장소                                                                          
+                                  Place:                                                                        
+                                  날짜                                                                          
+                                  Date(dd/mm/yyyy):                                                             
+                                                                                                                
+                                                                                                                
+                                                                                                                
+   제2종 중간검사:                서명                                                                          
+   Annual Survey:                 Signed:                                                                       
+                                  장소                                                                          
+                                  Place:                                                                        
+                                  날짜                                                                          
+                                  Date(dd/mm/yyyy):                                                             
+                                                                                                                
+                                                                                                                
+                                                                                                                
+                                                                                                                
+  * 해당되지 아니하면 지울 것.                                                                                  
+     Delete as appropriate.                                                                                     
+                                                                                                                
+                                                                                                                      
+                                                                                                                      
+                                      (제4쪽)                                                                         
+                                                                                                                      
+  제E-5.8.3규칙에 따른 제2종/제1종* 중간검사                                                                          
+  ANNUAL/INTERMEDIA* SURVEY IN ACCORDANCE WITH REGULATION E-5.8.3                                                     
+                                                                                                                      
+  이 증서는 선박이 협약 부속서 제E-5.8.3규칙에서 요구하는 제2종/제1종* 중간검사의 결과 협약의 관련                    
+  요건에 적합함을 증명한다.:                                                                                          
+  THIS IS TO CERTIFY that at an annual/intermediate* survey in accordance with regulation E-5.8.3 of the Anne         
+  x to the Convention, the ship was found to comply with the relevant provisions of the Convention.:                  
+                                                                                                                      
+                                    서명                                                                              
+                                    Signed:                                                                           
+                                    장소                                                                              
+                                    Place:                                                                            
+                                    날짜                                                                              
+                                    Date(dd/mm/yyyy):                                                                 
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+  제E-5.3규칙이 적용되는 경우 증서의 유효기간이 5년 미만일 때 증서의 유효기간을                                       
+  연장하기 위한 이서                                                                                                  
+  ENDORSEMENT TO EXTEND THE CERTIFICATE IF VALID FOR LESS THEN 5 YEARS WHERE REGULATION E-5.3 APPLI                   
+  ES                                                                                                                  
+                                                                                                                      
+  이 증서는 선박이 협약 부속서 제E-5.3규칙에 따라                   까지 유효한 것으로 인정한다.                      
+  The ship complies with the relevant provisions of the Convention, and this Certificate shall, in accordance         
+  with regulation with E-5.3 of the Annex to the Convention, be accepted as valid until                               
+                             .                                                                                        
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+                                    서명                                                                              
+                                    Signed:                                                                           
+                                    장소                                                                              
+                                    Place:                                                                            
+                                    날짜                                                                              
+                                    Date(dd/mm/yyyy):                                                                 
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+  정기검사 완료 후 제E-5.4규칙이 적용되는 경우의 이서                                                                 
+  ENDORSEMENT WHERE THE RENEWAL SURVEY HAS BEEN COMPLETED AND REGULATION E-5.4                                        
+  APPLIES                                                                                                             
+                                                                                                                      
+  이 증서는 선박이 협약의 관련요건에 적합하므로, 이 협약의 부속서 제E-5.4규칙에 따라                                  
+                    까지 유효한 것으로 인정한다.                                                                      
+  This ship complies with the relevant provisions of the Convention and this Certificate shall, in accordance with    
+  regulation E-5.4 of the Annex to the Convention, be accepted as valid until                        .                
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+                                    서명                                                                              
+                                    Signed:                                                                           
+                                    장소                                                                              
+                                    Place:                                                                            
+                                    날짜                                                                              
+                                    Date(dd/mm/yyyy):                                                                 
+                                                                                                                      
+                                                                                                                      
+  * 해당되지 않는 사항은 지울 것.                                                                                     
+     Delete as appropriate.                                                                                           
+                                                                                                                      
+                                                                                                                      
+                                      (제5쪽)                                                                         
+                                                                                                                      
+  제E-5.5규칙이나 제E-5.6규칙이 적용되는 경우, 검사 예정항구에 도착 시까지 또는                                       
+  유예기간까지 증서의 유효기간을 연장하기 위한 이서                                                                   
+  ENDORSEMENT TO EXTEND THE VALIDITY OF THE CERTIFICATE UNTIL REACHING THE PORT OF                                    
+  SURVEY OR FOR A PERIOD OF GRACE WHERE REGULATION E-5.5 OR E-5.6 APPLIES                                             
+                                                                                                                      
+  이 증서는 협약 부속서 제E-5.5규칙과 제E-5.6규칙*에 따라                    까지 유효한 것으로                       
+  인정한다.                                                                                                           
+  This Certificate shall, in accordance with regulation E-5.5. of E-5.6* of the Annex to the Convention, be           
+  accepted as valid until                     .                                                                       
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+                                    서명                                                                              
+                                    Signed:                                                                           
+                                    장소                                                                              
+                                    Place:                                                                            
+                                    날짜                                                                              
+                                    Date(dd/mm/yyyy):                                                                 
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+  제E-5.8규칙이 적용되는 경우, 제2종 중간검사를 앞당기는 것에 대한 이서                                               
+  ENDORSEMENT FOR ADVANCEMENT OF ANNIVERSARY DATE WHERE REGULATION E-5.8 APPLIES                                      
+                                                                                                                      
+  이 협약의 제E-5.8규칙에 따라 새로운 제2종 중간검사일은                      이다.                                   
+  This ship complies with the relevant provisions of the Convention and this Certificate shall, in accordance with    
+  regulation E-5.4 of the Annex to the Convention, be accepted as valid until                                         
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+                                    서명                                                                              
+                                    Signed:                                                                           
+                                    장소                                                                              
+                                    Place:                                                                            
+                                    날짜                                                                              
+                                    Date(dd/mm/yyyy):                                                                 
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+  이 협약의 제E-5.8규칙에 따라 새로운 제2종 중간검사일은                      이다.                                   
+  This ship complies with the relevant provisions of the Convention and this Certificate shall, in accordance with    
+  regulation E-5.4 of the Annex to the Convention, be accepted as valid until                     .                   
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+                                    서명                                                                              
+                                    Signed:                                                                           
+                                    장소                                                                              
+                                    Place:                                                                            
+                                    날짜                                                                              
+                                    Date(dd/mm/yyyy):                                                                 
+                                                                                                                      
+                                                                                                                      
+  *  해당되지 않는 사항은 지울 것.                                                                                    
+      Delete as appropriate.

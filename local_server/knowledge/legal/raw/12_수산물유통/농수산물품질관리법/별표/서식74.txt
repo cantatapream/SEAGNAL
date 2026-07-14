@@ -1,0 +1,67 @@
+검정증명서
+
+[별지 제74호서식]                                                                     
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                                      ┃
+┃제     호                                                                                             ┃
+┃(Certificate Number:  )                                                                               ┃
+┃                                                                                                      ┃
+┃검 정 증 명 서                                                                                        ┃
+┃(Certificate of Analysis)                                                                             ┃
+┠──────┬──────────────────┬─────────────────────────┨
+┃신청인      │성명(법인의 경우에는 명칭)          │생년월일(법인등록번호)                            ┃
+┃(Applicant) │(Name/Organization)                 │(I.D. number)                                     ┃
+┃            ├──────────────────┼─────────────────────────┨
+┃            │주소(Address)                       │전화번호(Tel.):                                   ┃
+┠──────┴──────────────────┴─────────────────────────┨
+┃                                                                                                      ┃
+┠────────────┬──────────────────────────────────────┨
+┃검정 목적               │                                                                            ┃
+┃(Analytical Purpose)    │                                                                            ┃
+┠────────────┼──────────────────────────────────────┨
+┃검정 품목               │                                                                            ┃
+┃(Sample Description)    │                                                                            ┃
+┠────────────┼──────────────────────────────────────┨
+┃검정 항목               │                                                                            ┃
+┃(Analyzed Items)        │                                                                            ┃
+┠────────────┼──────────────────────────────────────┨
+┃시료 점수 및 중량       │                                                                            ┃
+┃(Quantity of Samples)   │                                                                            ┃
+┠────────────┼──────────────────────────────────────┨
+┃검정 기간               │                                                                            ┃
+┃(Date of Test)          │                                                                            ┃
+┠────────────┼──────────────────────────────────────┨
+┃검정 방법               │                                                                            ┃
+┃(Analytical Method used)│                                                                            ┃
+┠────────────┼─────┬───┬──────────────┬─────────────┨
+┃검정 결과               │결과      │단위  │잔류허용기준                │검토의견                  ┃
+┃(Analytical Results)    │(Results) │(Unit)│(MRL)                       │(Remarks)                 ┃
+┃                        │          │      ├───────┬──────┤                          ┃
+┃                        │          │      │대한민국      │수출국명    │                          ┃
+┃                        │          │      │(Republic of  │(Exporting  │                          ┃
+┃                        │          │      │Korea)        │country)    │                          ┃
+┃                        ├─────┼───┼───────┼──────┼─────────────┨
+┃                        │          │      │              │            │                          ┃
+┃                        ├─────┴───┴───────┴──────┴─────────────┨
+┃                        │※ 농가에서 제출한 농약사용기록대장을 확인하였음(수출용에 한함)             ┃
+┃                        │   [Confirmed the pesticide use records submitted by farms(Only for export)]┃
+┠────────────┼───────────┬──────────────────────────┨
+┃확인                    │작성자(Tested by Name)│검토자(Approved by Name)                            ┃
+┃(Affirmation)           │성  명:        (서명) │성  명:         (서명)                              ┃
+┠────────────┴───────────┴──────────────────────────┨
+┃ 「농수산물 품질관리법」 제98조 및 같은 법 시행규칙 제126조에 따라 검정한 시료에 대한 검정성적        ┃
+┃임을 위와 같이 증명합니다.                                                                            ┃
+┃ (We hereby certify that the above mentioned samples have been analyzed in accordance with the        ┃
+┃provisions of Article 98 of the Agricultural  and fishery Products Quality Management Act, and Article 126 ┃
+┃of the Enforcement Rule of the Act.)                                                                  ┃
+┃                                                                                                      ┃
+┃                                    년        월        일                                            ┃
+┃Date of Issue: day. month. year                                                                       ┃
+┃                ┏━━┓                                                                              ┃
+┃  ㅇ  ㅇ  ㅇ 장 ┃직인┃                                                                              ┃
+┃                ┗━━┛                                                                              ┃
+┃예시)  Chief of 000 Provincial Office     [seal]                                                      ┃
+┃National Fishery Products Quality Management Service,                                                 ┃
+┃Ministry of Oceans and Fisheries, Republic of Korea                                                   ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210mm×297mm[백상지 80g/㎡]

@@ -1,0 +1,104 @@
+여객선비상수색구조계획서(On-Board SAR Plan)
+
+■ 수상에서의 수색ㆍ구조 등에 관한 법률 시행규칙 [별지 제1호서식]     (앞 쪽)                               
+                                                                                                                                
+  여객선비상수색구조계획서                                                                                                      
+  (On-Board SAR Plan)                                                                                                           
+                                                                                                                                
+                                                                                                                                
+──────────────┬─────────┬─────────────┬─────────────────────────
+  접수번호                  │접수일            │처리일                    │처리기간     5일                                  
+──────────────┴─────────┴─────────────┴─────────────────────────
+                                                                                                                                
+──────────────┬─────────────────────────────────────────────────
+  선명(Ship's Name)         │                                                                                                  
+──────────────┼─────────┬────────────┬──────────────────────────
+  선박번호(Registry No.)    │                  │선적항(Port of Registry)│                                                    
+──────────────┼─────────┼────────────┼──────────────────────────
+  선박소유자                │                  │선박임차인              │                                                    
+  (Ship's Owner)            │                  │(Ship's Charterer)      │                                                    
+──────────────┼─────────┴────────────┴──────────────────────────
+  위성전화번호              │                                                                                                  
+  (Satellite Tel. No.)      │                                                                                                  
+──────────────┴─────────────────────────────────────────────────
+                                                                                                                                
+                                                                                                                                
+  1. 선장은 승무원ㆍ여객 또는 해당 선박이 중대하고 급박한 수색구조 위험에 처하거나 처할 우려가 있는                             
+  경우 아래에 적힌 해양경찰기관 중 가장 가까운 해양경찰기관과 가장 효과적인 수단으로 연락을 하여야                              
+  한다.                                                                                                                         
+     Master of international passenger ship should contact with the nearest SAR Service enlisted as                             
+  below when the vessel, crews or passengers are in grave and imminent danger, or in apprehension                               
+  of grave and imminent danger by means of the most effective measures.                                                         
+──────────────┬────────┬─────┬─────────┬────────────────────────
+  연락처                    │전화            │팩스      │텔렉스            │기타                                            
+  (Contact point of SAR ser │(Telephone No.) │(Fax No.) │(Telex No.)       │(Remarks)                                       
+  vice)                     │                │          │                  │                                                
+──────────────┼────────┼─────┼─────────┼────────────────────────
+                            │                │          │                  │                                                
+──────────────┼────────┼─────┼─────────┼────────────────────────
+                            │                │          │                  │                                                
+──────────────┼────────┼─────┼─────────┼────────────────────────
+                            │                │          │                  │                                                
+──────────────┼────────┼─────┼─────────┼────────────────────────
+                            │                │          │                  │                                                
+──────────────┴────────┴─────┴─────────┴────────────────────────
+   ※ 뒤쪽의 준수사항(제2호 ~ 제4호)을 참고하시기 바랍니다.                                                                     
+────────────────────────────────────────────────────────────────
+                                                                                                                                
+                                                                                                                                
+  위의 사실이 틀림없음을 확인함.                                                                                                
+  Approved by the Chief, Coast Guard Station.                                                                                   
+  년      월      일                                                                                                            
+  Year    Month    Date                                                                                                         
+                                                                                                                                
+                              ┏━━┓                                                                                          
+    해양경찰서장              ┃직인┃                                                                                          
+    Chief, Coast Guard Station┃    ┃                                                                                          
+                              ┗━━┛                                                                                          
+────────────────────────────────────────────────────────────────
+                                                                                                                                
+─────┬──────────────────────────────────────────────────────────
+  첨부서류│1. 구명설비배치도                                                                                                   
+─────┴──────────────────────────────────────────────────────────
+                                                                                                                                
+────────────────────────────────────────────────────────────────
+                                                                                                                                
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  처리절차                                                                                                                      
+────────────────────────────────────────────────────────────────
+  ┌──────┐  ┌──┐  ┌──┐  ┌────┐  ┌──┐  ┌──────┐                                                
+  │계획서 작성 │?│접수│?│검토│?│대장기재│?│결재│?│계획서 교부 │                                                
+  └──────┘  └──┘  └──┘  └────┘  └──┘  └──────┘                                                
+                                                                                                                                
+                                                                                                                                
+            제출인             해양경찰서           해양경찰서          해양경찰서           해양경찰서           제출인        
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210㎜×297㎜[백상지(80g/㎡) 또는 중질지(80g/㎡)]                                                                              
+                                                                                                                                
+                                                                                                          
+  (뒤 쪽)                                                                                                 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                          
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  준수사항                                                                                                
+─────────────────────────────────────────────────────
+  2. 가장 가까운 해양경찰기관과 연락을 할 경우, 가능한 한 다음 사항을 포함시켜야 한다.                    
+     For the master of international passenger ship to make available to contact with SAR Service, the    
+  following contents shall be included, if possible, in the report.                                       
+    ①선명 ②선박번호 ③일시 ④위치 ⑤해난의 종류 및 손상상태 ⑥사상자 유무 ⑦기상상태                    
+    ①Ship's Name ②Register Number ③Date ④Location(Latitude, Longitude) ⑤Nature of disaster ⑥        
+  Whether the dead or injured persons are on board ⑦Condition of weather and sea state                   
+                                                                                                          
+  3. 선박소유자는 다음 사항을 포함한 구명설비배치도를 작성하여 비치하여야 한다.                           
+     The ship’s Owner shall furnish layout of life-saving apparatus including followings.                
+     ①각종 구명설비의 위치 ②탈출경로 ③신호장치                                                         
+     ①locations of life-saving apparatus   ②routes of emergency escape ③signal appratus.               
+                                                                                                          
+  4. 선박소유자는 비상수색구조상황을 가정한 여객선비상수색구조 훈련을 연 1회 이상 선장의 지휘로 실        
+  시하여야 하며, 훈련 시기와 방법은 관할 해양경찰서장 또는 소방서장과 협의하여 정해야 한다.               
+     Shipowner shall practice the emergency SAR exercise which assume the emergency situation at          
+  least once a year under the control of the master, and a period and way of excercise shall be           
+  arranged by conferring with the head of regional coast guard station and fire station.                  
+                                                                                                          
+                                                                                                          
+─────────────────────────────────────────────────────

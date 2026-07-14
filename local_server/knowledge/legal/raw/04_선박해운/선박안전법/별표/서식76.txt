@@ -1,0 +1,62 @@
+예인선항해검사증서
+
+[별지 제76호서식]                                                           
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 제          호                                                                             ┃
+┃  Certificate No.:                                                                          ┃
+┃예 인 선 항 해 검 사 증 서                                                                  ┃
+┃TOWING  CERTIFICATE                                                                         ┃
+┃                                                                                            ┃
+┠──────────┬──────────┬────────┬───────────────┨
+┃①선        명      │                    │②선 박 번 호   │                              ┃
+┃Name of Ship        │                    │  Official      │                              ┃
+┃                    │                    │Number          │                              ┃
+┠──────────┼──────────┼────────┼───────────────┨
+┃③선   적   항      │                    │④선        질  │                              ┃
+┃Port of Registry    │                    │  Ship's        │                              ┃
+┃                    │                    │Material        │                              ┃
+┠──────────┼──────────┼────────┼───────────────┨
+┃⑤총   톤   수      │                 톤 │⑥용        도  │                              ┃
+┃Gross tonnage       │                    │   Type of Ship │                              ┃
+┃                    │              tons  │                │                              ┃
+┠──────────┼──────────┴────────┴───────────────┨
+┃⑦추 진 기 관       │       기관         [kW]          [PS]            대                  ┃
+┃  Main Engine       │        기관         [kW]          [PS]    Number of Units            ┃
+┃                    │        Type          Output                                          ┃
+┠──────────┼──────────┬────────┬───────────────┨
+┃⑧선 박 길 이       │               미터 │⑨무 선 설 비   │                              ┃
+┃  Ship's Length     │                m   │Radio Equipment │                              ┃
+┠──────────┼──────────┴────────┴───────────────┨
+┃⑩항 해 구 역       │                                                                      ┃
+┃Navigation Area     │                                                                      ┃
+┠──────────┼───────────────────────────────────┨
+┃⑪최대승선인원      │      명(여객:      명,  선원:     명,  임시승선자:       명)         ┃
+┃Max. Number of      │ Total    p(Passenger:     p, Crew:     p, Special Personnel:     p)  ┃
+┃Allowable Persons   │                                                                      ┃
+┃on board            │                                                                      ┃
+┠──────────┼───────────────────────────────────┨
+┃⑫항해와 관련한 조건│                                                                      ┃
+┃Condition for       │                                                                      ┃
+┃Navigation          │                                                                      ┃
+┠──────────┼───────────────────────────────────┨
+┃ ⑬유 효 기 간      │        년    월    일부터             년    월   일까지              ┃
+┃Validity            │ This certificate is valid from   .   .    .   until     .     .    . ┃
+┠──────────┴───────────────────────────────────┨
+┃                                                                                            ┃
+┃  「선박안전법」 제43조제2항 및 같은 법 시행규칙 제81조제5항에 따라 대한민국                ┃
+┃정부의 권한으로 이 증서를 발급합니다.                                                       ┃
+┃  This certificate is issued under Article 43.2 of Ship Safety Act. and Article             ┃
+┃81.5  of Enforcement Decree of Ship Safety Act. Issued under the authority of               ┃
+┃the Government of Republic of Korea.                                                        ┃
+┃                                                                                            ┃
+┃                                         년        월        일                             ┃
+┃                                         Y        M        D                                ┃
+┃                                                                                            ┃
+┃해  양  수  산  부  장  관                                                                  ┃
+┃Minister of Oceans and Fisheries                                                            ┃
+┃(한 국 해 양 교 통 안 전 공 단 이 사 장)                                                    ┃
+┃(President of Korea Maritime Transportation Safety Authority)                               ┃
+┃(선    급    법    인    의    장)                                                          ┃
+┃   (President of Classification Society)                                                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜ × 297㎜[보존용지(1종) 220g/㎡]

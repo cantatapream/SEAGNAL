@@ -1,0 +1,64 @@
+별도건조검사증서SPECIAL SHIP-BUILDING SURVEY CERTIFICATE
+
+■ 어선법시행규칙 [별지 제47호서식]                                                   
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                          
+  별도건조검사증서                                                                                        
+  SPECIAL SHIP-BUILDING SURVEY CERTIFICATE                                                                
+                                                                                                          
+                                                                                                          
+                                                                                                          
+    제        호                                                                                          
+    Certificate No.                                                                                       
+                                                                                                          
+─────┬───────────────────────────────────────────────
+  건조자  │성명(법인명)                                                                                  
+  Builder │Nave(Company)                                                                                 
+          ├───────────────────────────────────────────────
+          │주  소                                                                                        
+          │Address                                                                                       
+─────┴───────────────────────────────────────────────
+                                                                                                          
+──────────────┬───┬──────────┬───────────────────────
+  어선의 명칭               │      │건조번호            │                                              
+  Name of Ship              │      │Building No.        │                                              
+──────────────┼───┼──────────┼───────────────────────
+  선 적 항                  │      │선    질            │                                              
+  Port of Registry          │      │Ship Material       │                                              
+──────────────┼───┼──────────┼───────────────────────
+  어업의 종류               │      │계획총톤수          │톤                                            
+  Type of Fishery           │      │Desing Gross Tonnage│tons                                          
+──────────────┼───┴──────────┴───────────────────────
+  주요치수                  │길이:           미터,   너비:            미터,   깊이:            미터      
+  Principal Dimensions      │Length :          m,    Breadth :          m,   Depth             m         
+──────────────┼──────────────────────────────────────
+  추진기관                  │기관  [킬로와트(kW)]     [마력(PS)]   대                                    
+  Main Engine               │Type           Output                 Nos.                                  
+──────────────┼──────────────────────────────────────
+  비    고                  │                                                                            
+  Remarks                   │                                                                            
+──────────────┴──────────────────────────────────────
+                                                                                                          
+─────────────────────────────────────────────────────
+  「어선법」제22조 및 같은 법 시행규칙 제53조제3항에 따라 대한민국 정부의 권한으로 이 증서를 발급합니다.  
+    This certificate is issued in accordance with Article 22 of the Fishing Vessels Act and Article       
+  53.3 of the Enforcement Decree of the Fishing Vessels Act under the authority of the government         
+  of the Republic of Korea.                                                                               
+                                                                                                          
+                                                                                                          
+                                                 년      월      일                                       
+                                                          Y     M      D                                  
+                                                                                                          
+                                                                                                          
+                                                                                                          
+                                                                ┏━━┓                                  
+    해양수산부장관                                              ┃직인┃                                  
+    Minister of Oceans and Fisheries                            ┃    ┃                                  
+    (한국해양교통안전공단이사장)                                ┃    ┃                                  
+    President of Korea Maritime Transportation Safety Authority ┃    ┃                                  
+    (한국선급회장)                                              ┃    ┃                                  
+    President of Korean Register of Shipping                    ┃    ┃                                  
+                                                                ┗━━┛                                  
+                                                                                                          
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210mm×297mm[인쇄용지(특급) 120g/㎡]

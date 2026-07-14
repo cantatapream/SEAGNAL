@@ -1,0 +1,43 @@
+CERTIFICATE OF VESSEL’S NATIONALITY
+
+[별지 제12호서식]                                                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃CERTIFICATE OF VESSEL’S NATIONALITY                                              ┃
+┃Cert. No                                                                          ┃
+┠───┬─────────────────────────────────────┨
+┃Owners│Name(Company):                                                            ┃
+┃      │Address:                                                                  ┃
+┠───┴───────────────┬─────────────────────┨
+┃Official Number                       │Gross Tonnage                  tons       ┃
+┃IMO Number                            │Total Capacity of Enclosed Spaces         ┃
+┃Signal Letters                        │                        cubic metres      ┃
+┃Kind of Vessel                        │ Under the Upper Deck                     ┃
+┃Name of Vessel                        │                        cubic metres      ┃
+┃Port of Registry                      │Closed-in Spaces above the Upper          ┃
+┃Material of Hull                      │Deck                   cubic metres       ┃
+┃Riggings(if a Sailing Vessel)         │  Forecastle            cubic metres      ┃
+┃Type and Number of Engines            │  Bridge                cubic metres      ┃
+┃Kind and Number of Propellers         │  Poop                 cubic metres       ┃
+┃Where Built                           │  Deck House          cubic metres        ┃
+┃Name of Builders                      │  Other Spaces         cubic metres       ┃
+┃Date of Launch                        │Total Capacity of Exempted Spaces         ┃
+┠─────┬─────────────┤                        cubic metres      ┃
+┃Main      │Length          metres    │  Forecastle            cubic metres      ┃
+┃Dimensions│Breadth         metres    │  Bridge                cubic metres      ┃
+┃          │Depth           metres    │  Poop                 cubic metres       ┃
+┃          │                          │  Deck Houses          cubic metres       ┃
+┃          │                          │  Other Spaces         cubic metres       ┃
+┠─────┴─────────────┴─────────────────────┨
+┃     It is hereby certified that the above described particulars are exact in     ┃
+┃all respect, and the above mentioned vessel is of Korean Nationality.             ┃
+┃The         day         of                                                        ┃
+┃                                    REPUBLIC OF KOREA                             ┃
+┠─────────────────────────────────────────┨
+┃     It is hereby certified that the above is a true translation of “Certificate ┃
+┃of Vessel’s Nationality” of the above mentioned vessel.                         ┃
+┃                            The         day   of                                  ┃
+┃                            (Signature)                                           ┃
+┃                            (Official Position)                                   ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜×297㎜                                                                        
+  (보존용지(1종) 120g/㎡)
