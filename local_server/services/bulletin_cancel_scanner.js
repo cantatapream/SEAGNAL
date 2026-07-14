@@ -202,15 +202,31 @@ function parseDesignations(fullText) {
         if (inner.indexOf('제외') !== -1 || inner.indexOf('포함') !== -1) continue;   // ① 제외형/병기형
         const toks = inner.split(/[,·]/).map(s => s.trim()).filter(Boolean);
         if (toks.length === 0 || !toks.every(_plausibleZoneToken)) continue;          // ③ 전원 해역명
-        const before = txt.slice(Math.max(0, m.index - 120), m.index);
-        const acts = before.match(/(발표|변경|해제|취소|예고|유지)/g);
-        const act = acts ? acts[acts.length - 1] : '';
-        if (act !== '발표' && act !== '변경') continue;                                // ② 발표/변경 문맥만
-        const tpWin = txt.slice(Math.max(0, m.index - 200), m.index);
-        const tpm = tpWin.match(/(풍랑|태풍)(?!.*(?:풍랑|태풍))/s) || tpWin.match(/.*(풍랑|태풍)/s);
+        // ② 발표/변경 문맥만 — [적대검증(c3) 결함2] 앞 창의 "괄호 병기"("(19일 05시 발표)")를
+        //   먼저 제거해야 해제 절이 발표로 둔갑하지 않는다. 캡션("발표구역")·산문("발표 가능성",
+        //   "발표된/되었" 회고)도 동작어로 치지 않고, 회고 표지(지난/어제/전날)면 통째 폐기.
+        //   채택 동작어와 지정 사이에 콜론이 있어야(헤더 서식 "발표 : Z( A )" 강제).
+        const before = txt.slice(Math.max(0, m.index - 120), m.index).replace(/\([^)]*\)/g, ' ');
+        if (/지난|어제|전날/.test(before)) continue;
+        let act = '', actIdx = -1;
+        for (const am of before.matchAll(/발표(?!구역|된|되었|\s*가능)|변경(?!된|되었)|해제|취소|예고|유지/g)) {
+            act = am[0]; actIdx = am.index;
+        }
+        if (act !== '발표' && act !== '변경') continue;
+        if (!/[:：]/.test(before.slice(actIdx))) continue;
+        // [적대검증(c3) 결함3] 종류(tp)는 동작어 "직전 15자"에서만 — 헤더 서식("풍랑주의보 발표 :")
+        //   의 종류 자리다. 창 전체 역추적은 산문("제12호 태풍 북상의 영향으로")에 오귀속됐다.
+        //   미상('')이면 (c3)의 엄격 tp 일치가 발사를 막는다(안전 침묵).
+        const tpm = before.slice(Math.max(0, actIdx - 15), actIdx).match(/(풍랑|태풍)(?!.*(?:풍랑|태풍))/s);
         out.push({ parent: m[1], listed: toks, tp: tpm ? tpm[1] : '' });
     }
     return out;
+}
+
+/** 지정 단서가 이 부모 해역의 것인가(부모명 정규화 일치) — (c3)에서 "같은 부모의 최신 지정만
+ *  권위" 대조에 쓴다. [연계] ← marine_warning_crawler.js _evaluateCancelVerdicts (c3) */
+function designationAppliesTo(des, zone) {
+    return !!des && !!zone && _norm(des.parent) === _norm(zone);
 }
 
 /**
@@ -323,7 +339,7 @@ const _norm = s => String(s || '').replace(/\s+/g, '');
  *   부모 언급이 아님), ② 뒤따르는 문맥이 제외 단서("…를 제외한", 대구청 실측 서식 —
  *   제외된 해역은 취소 대상이 아님). 유효 occurrence 가 1개라도 있으면 참.
  */
-function _mentions(hay, name) {
+function _mentions(hay, name, keepMode) {
     const n = _norm(name);
     if (!n) return false;
     let idx = hay.indexOf(n);
@@ -334,7 +350,10 @@ function _mentions(hay, name) {
         // ③ [2026-07-14 대구 실물형] 지정 괄호 — "경북남부앞바다(평수구역)의 …해제"는
         //   괄호 안 자식"만"의 취소이지 부모 전체 언급이 아니다(부모 오확정 차단).
         //   제외("평수구역 제외")·병기("연안바다 포함")·비해역 괄호는 종전대로 유효 언급.
-        const desig = _designationParenAt(hay, idx + n.length);
+        //   [적대검증(c3) 결함1] 단, 유지(keep) 선언 검사(keepMode)에서는 ③을 끈다 —
+        //   "강원북부앞바다(연안바다)는 …유지"의 괄호가 유지 선언을 무력화해 유지라고
+        //   적힌 해역에 취소가 발사되던 회귀. 유지 판정은 넓을수록 안전(취소 차단 방향).
+        const desig = keepMode ? null : _designationParenAt(hay, idx + n.length);
         if (!childPrefix && !excluded && !desig) return true;
         idx = hay.indexOf(n, idx + 1);
     }
@@ -438,7 +457,9 @@ function _hayOf(release) {
 /** 참고사항 어딘가에 "zone 는 [종류] 예비특보를 유지" 선언이 있으면 그 해역은 확정 금지. */
 function _keepDeclared(release, zone) {
     if (!release || !Array.isArray(release.keeps)) return false;
-    return release.keeps.some(k => k.tp === release.wrnTp && _mentions(_norm(k.clause), zone));
+    // [적대검증(c3) 결함1] keepMode=true — 유지 절의 "Z(자식)" 지정 괄호도 Z 의 유지 선언으로
+    //   인정(넓은 유지 = 취소 차단 방향 = 안전).
+    return release.keeps.some(k => k.tp === release.wrnTp && _mentions(_norm(k.clause), zone, true));
 }
 
 function matchesZone(release, zone) {
@@ -485,14 +506,17 @@ function matchesChild(release, zone, child) {
     // 0.7순위 — [2026-07-14 대구 실물형] 부모명에 직접 붙은 지정 괄호("경북남부앞바다(평수구역)의
     //   …해제")는 취소 범위의 권위: 나열된 자식만 확정, 빠진 자식은 부모 대표 금지.
     //   (부모 자체의 오확정 차단은 _mentions ③ 이 담당 — 여기는 자식 방향)
+    //   [적대검증(c3) 결함5] 같은 zone 이 비지정 괄호("Z(13일 05시 발표)")와 지정 괄호를 함께
+    //   달고 나올 수 있어 첫 occurrence 에서 멈추지 않고 지정 괄호가 나올 때까지 전부 훑는다.
     {
         const zn = _norm(zone);
-        const zi = hay.indexOf(zn + '(');
-        if (zi !== -1) {
+        let zi = hay.indexOf(zn + '(');
+        while (zi !== -1) {
             const toks = _designationParenAt(hay, zi + zn.length);
             if (toks) {
                 return toks.some(t => t === shortC || t === fullC || (fullC.indexOf(t) !== -1 && t.length >= 2));
             }
+            zi = hay.indexOf(zn + '(', zi + 1);
         }
     }
     const tokenHit = release.parenChildren.some(t => {
@@ -651,6 +675,7 @@ module.exports = {
     matchesChildExclusion,
     parseDesignations,
     matchesChildDesignation,
+    designationAppliesTo,
     matchesZone,
     matchesChild,
     RE_RELEASE,

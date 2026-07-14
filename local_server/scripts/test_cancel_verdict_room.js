@@ -336,6 +336,33 @@ console.log('\n[19] [실물 2026-07-14 제주 서식] 지정 단서(c3) — 발�
     ok('종류 불일치 지정 단서 비확정(엄격 tp)', !changes.some(c => c.type === 'CHILD_PRELIM_CANCEL') && mc._cvHasPendings());
 }
 
+console.log('\n[20] [적대검증(c3) 결함4·6] 최신 지정 권위 + 미지 토큰 가드');
+{
+    // 결함4: 묵은 지정(우도 미나열, 50분 전)과 최신 지정(우도 재나열, 5분 전)이 공존 —
+    //   최신이 우도를 나열하므로 우도 취소는 발사되면 안 된다.
+    mc._resetCancelVerdictsForTest();
+    mc._registerChildCancelVerdict('제주도동부앞바다', '제주도동부앞바다중우도연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '2026.07.15 00:00', tmYn: '' });
+    const dOld = sc.parseDesignations('해당구역 (1) 풍랑주의보 발표 : 제주도동부앞바다( 북동연안바다 )')[0];
+    dOld.foundAt = Date.now() - 50 * 60 * 1000; dOld.issuedAtMs = Date.now() - 50 * 60 * 1000; dOld.source = 'old/met:1';
+    const dNew = sc.parseDesignations('해당구역 (1) 풍랑주의보 변경 : 제주도동부앞바다( 북동연안바다, 우도연안바다 )')[0];
+    dNew.foundAt = Date.now() - 5 * 60 * 1000; dNew.issuedAtMs = Date.now() - 5 * 60 * 1000; dNew.source = 'new/met:2';
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [], designations: [dOld, dNew], scannedCount: 2, rawByOffice: {} });
+    changes = mc._buildUserPushChanges(snap({}), snap({}));
+    ok('묵은 지정이 최신 확대를 못 이김(무발사·보류 유지)', !changes.some(c => c.type === 'CHILD_PRELIM_CANCEL') && mc._cvHasPendings());
+    // 대조: 최신 지정만 있고 우도 미나열이면 정상 발사
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [], designations: [dOld], scannedCount: 1, rawByOffice: {} });
+    changes = mc._buildUserPushChanges(snap({}), snap({}));
+    ok('단독 지정(우도 미나열)은 정상 발사', changes.some(c => c.type === 'CHILD_PRELIM_CANCEL'));
+    // 결함6: 나열 토큰이 이 부모의 알려진 자식과 대응 안 되면(표기 변형 의심) 판정 불사용
+    mc._resetCancelVerdictsForTest();
+    mc._registerChildCancelVerdict('제주도동부앞바다', '제주도동부앞바다중북동연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '', tmYn: '' });
+    const dVar = sc.parseDesignations('해당구역 (1) 풍랑주의보 발표 : 제주도동부앞바다( 북동쪽연안바다 )')[0];
+    dVar.foundAt = Date.now(); dVar.issuedAtMs = Date.now() - 6 * 60 * 1000;
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [], designations: [dVar], scannedCount: 1, rawByOffice: {} });
+    changes = mc._buildUserPushChanges(snap({}), snap({}));
+    ok('미지 토큰(표기 변형) 지정은 불사용(무발사·보류 유지)', !changes.some(c => c.type === 'CHILD_PRELIM_CANCEL') && mc._cvHasPendings());
+}
+
 cleanup();
 console.log(`\n[cancel_verdict_room] ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
