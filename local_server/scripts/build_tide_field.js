@@ -60,7 +60,7 @@ function warn(...a) { console.warn('[build_tide_field]', ...a); }
 // tide_data/tide_data_{year}.js 는 브라우저 전역(window.TIDE_DATA_STORAGE) 에
 // 데이터를 싣는다. Node 에서는 최소 window 셰임을 만들고 vm 으로 평가해 읽는다.
 function loadTideTable(year) {
-    const file = path.join(__dirname, '..', 'tide_data', `tide_data_${year}.js`);
+    const file = path.join(__dirname, '..', '..', 'client', 'tide_data', `tide_data_${year}.js`); // STEP 7
     if (!fs.existsSync(file)) {
         warn(`조석표 파일 없음: ${file}`);
         return null;

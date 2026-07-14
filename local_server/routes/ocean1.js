@@ -460,7 +460,7 @@ router.get('/api/ocean/khoa-stream-nearest', async (req, res) => {
 // land_mask_korea.json: 사전 클리핑된 정적 파일 (CDN 다운로드 불필요)
 // 재생성: node local_server/scripts/generate_land_mask.js
 
-const _LAND_MASK_PATH = path.join(__dirname, '..', 'land_mask_korea.json');
+const _LAND_MASK_PATH = path.join(__dirname, '..', '..', 'client', 'land_mask_korea.json'); // STEP 7
 let _landMaskData = null; // 서버 기동 후 최초 1회 파일 읽기 후 메모리 유지
 
 /**

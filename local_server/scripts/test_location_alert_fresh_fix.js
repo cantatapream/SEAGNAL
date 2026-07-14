@@ -55,8 +55,8 @@ function makeCapacitor(withGeo) {
 (async () => {
     // ── [1] Geolocation 존재 → 활성 fresh fix + 저장 ──────────────────────────
     global.Capacitor = makeCapacitor(true);
-    delete require.cache[require.resolve('../js/location_alert_background.js')];
-    let BG = require('../js/location_alert_background.js');
+    delete require.cache[require.resolve('../js/location-alert/location_alert_background.js')];
+    let BG = require('../js/location-alert/location_alert_background.js');
     console.log('[1] Geolocation 존재 → fresh fix 수집·저장');
     const fresh = await BG.getFreshPosition();
     check('fresh 반환됨', !!fresh, JSON.stringify(fresh));

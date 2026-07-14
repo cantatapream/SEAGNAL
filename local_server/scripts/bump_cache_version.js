@@ -39,7 +39,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 치환 대상 파일
-const SW_PATH = path.join(__dirname, '..', 'sw.js');
+const SW_PATH = path.join(__dirname, '..', '..', 'client', 'sw.js'); // STEP 7
 
 // 치환 대상 토큰 (sw.js 에서 const CACHE_VERSION = '__CACHE_VERSION__' 형태)
 const PLACEHOLDER = '__CACHE_VERSION__';

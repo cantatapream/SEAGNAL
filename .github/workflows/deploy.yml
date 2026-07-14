@@ -17,6 +17,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # [STEP 0 후속] 서비스 계정 키는 보안상 git 에서 제거됨 (secrets/ 는 gitignore).
+      # 배포 시점에 GitHub Actions Secrets 금고에서 꺼내 secrets/ 에 생성한다.
+      # → 저장소 Settings > Secrets and variables > Actions 에
+      #   FIREBASE_SERVICE_ACCOUNT / GCS_BACKUP_SERVICE_ACCOUNT 두 항목 필요.
+      - name: Write service account keys
+        run: |
+          mkdir -p secrets
+          if [ -n "$FIREBASE_KEY" ]; then
+            printf '%s' "$FIREBASE_KEY" > secrets/serviceAccountKey.json
+            echo "✅ serviceAccountKey.json 생성"
+          else
+            echo "⚠️ FIREBASE_SERVICE_ACCOUNT 시크릿 없음 — FCM 푸시 비활성 상태로 배포됨"
+          fi
+          if [ -n "$BACKUP_KEY" ]; then
+            printf '%s' "$BACKUP_KEY" > secrets/serviceAccountKey_Backup.json
+            echo "✅ serviceAccountKey_Backup.json 생성"
+          else
+            echo "⚠️ GCS_BACKUP_SERVICE_ACCOUNT 시크릿 없음 — 클라우드 백업 비활성 상태로 배포됨"
+          fi
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          BACKUP_KEY: ${{ secrets.GCS_BACKUP_SERVICE_ACCOUNT }}
+
       # superfly/flyctl-actions@master 아카이브를 GitHub codeload 가 내려받지 못해
       # 배포가 시작 전 실패하던 문제 → 공식 설치 스크립트로 flyctl 직접 설치(액션 의존 제거).
       - name: Install flyctl
