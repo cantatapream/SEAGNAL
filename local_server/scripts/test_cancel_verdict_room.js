@@ -252,6 +252,29 @@ console.log('\n[17] [5차 전수열거 발견1] 예비 소멸 + 타종류 발효
     ok('풍랑 발효는 무영향(발효 change 없음 그대로)', !ch17b.some(c => c.type === 'CURRENT_CHANGE'));
 }
 
+console.log('\n[18] [실물 2026-07-14 제07-17호] "묶음명 중 평수구역" 자식 취소 — 전남 평수 7해역 e2e');
+{
+    mc2._resetCancelVerdictsForTest();
+    const BLOCK714 = { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '2026.07.14 04:00', tmEf: '2026.07.14 06~12시', tmYn: '' };
+    const PENDING714 = [
+        ['전남북부서해앞바다', '전남북부서해앞바다중평수구역'],
+        ['전남중부서해앞바다', '전남중부서해앞바다중먼평수구역'],
+        ['전남중부서해앞바다', '전남중부서해앞바다중앞평수구역'],
+        ['전남남부서해앞바다', '전남남부서해앞바다중평수구역'],
+        ['전남서부남해앞바다', '전남서부남해앞바다중평수구역'],
+        ['전남동부남해앞바다', '전남동부남해앞바다중서부평수구역'],
+        ['전남동부남해앞바다', '전남동부남해앞바다중동부평수구역'],
+    ];
+    for (const [z, c] of PENDING714) mc2._registerChildCancelVerdict(z, c, BLOCK714);
+    mc2._setLastCancelScanForTest(freshScan([relOf('당초 오늘(14일) 오전으로 예정되었던 서해남부앞바다 중 평수구역과 남해서부앞바다 중 평수구역의 풍랑 예비특보는 발표 가능성이 낮아져 해제하나, 오후에 풍랑특보가 발표될 가능성이 있으니 앞으로 발표되는 기상정보를 참고하시기 바랍니다')]));
+    const ch18 = mc2._buildUserPushChanges(snap({}), snap({}));
+    const fired18 = ch18.filter(c => c.type === 'CHILD_PRELIM_CANCEL');
+    const released18 = fired18.flatMap(c => c.childState.released);
+    ok('전남 평수 7해역 전부 확정 발사', released18.length === 7 && fired18.length === 5);
+    ok('부모 오발사 없음(주의보 발표로 살아있는 부모)', !ch18.some(c => c.type === 'UPCOMING_CANCEL'));
+    ok('보류실 소진', !mc2._cvHasPendings());
+}
+
 cleanup();
 console.log(`\n[cancel_verdict_room] ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

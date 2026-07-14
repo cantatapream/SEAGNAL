@@ -30,7 +30,9 @@
 //       놓치면 보류실 TTL 이 무푸시+로그로 처리한다(오보 없음). 로그의 참고사항 원문으로
 //       사후 보강한다.
 //
-// [매칭 3단 — 호출 측 계약]
+// [매칭 4단 — 호출 측 계약]
+//   0.5순위 "묶음명/부모명 중 단축자식명" 직접 지목(2026-07-14 제07-17호 실물 보강:
+//   "서해남부앞바다 중 평수구역과 남해서부앞바다 중 평수구역의 풍랑 예비특보는 …해제"),
 //   1순위 자식명 직접(괄호 캡처 토큰), 2순위 부모명(부모 취소가 자식을 대표),
 //   3순위 묶음명(ZONE_GROUP_MAP 사전 번역: "동해중부앞바다"=강원북부/중부/남부앞바다).
 //   matchesZone()/matchesChild() 가 이 계약을 구현한다.
@@ -217,7 +219,7 @@ function _mentions(hay, name) {
     while (idx !== -1) {
         const after = hay.slice(idx + n.length, idx + n.length + 6);
         const childPrefix = after.charAt(0) === '중';
-        const excluded = /^(?:를|은|는|만)?제외/.test(after);
+        const excluded = /^(?:를|을|은|는|만)?제외/.test(after);
         if (!childPrefix && !excluded) return true;
         idx = hay.indexOf(n, idx + 1);
     }
@@ -231,7 +233,7 @@ function _explicitlyExcluded(hay, name) {
     let idx = hay.indexOf(n);
     while (idx !== -1) {
         const after = hay.slice(idx + n.length, idx + n.length + 6);
-        if (/^(?:를|은|는|만)?제외/.test(after)) return true;
+        if (/^(?:를|을|은|는|만)?제외/.test(after)) return true;
         idx = hay.indexOf(n, idx + 1);
     }
     return false;
@@ -250,7 +252,7 @@ function _mentionsAsGroup(hay, key) {
     while (idx !== -1) {
         const after = hay.slice(idx + n.length, idx + n.length + 6);
         const childPrefix = after.charAt(0) === '중';
-        const excluded = /^(?:를|은|는|만)?제외/.test(after);
+        const excluded = /^(?:를|을|은|는|만)?제외/.test(after);
         let authoritativeParen = false;
         if (after.charAt(0) === '(') {
             const close = hay.indexOf(')', idx + n.length + 1);
@@ -259,6 +261,31 @@ function _mentionsAsGroup(hay, key) {
         }
         if (!childPrefix && !authoritativeParen && !excluded) return true;
         idx = hay.indexOf(n, idx + 1);
+    }
+    return false;
+}
+
+/** [2026-07-14 실물 누락 보강] "묶음명/부모명 중 단축자식명" 서식 — "서해남부앞바다 중
+ *  평수구역과 남해서부앞바다 중 평수구역의 풍랑 예비특보는 …해제하나"(제07-17호, 전남 평수
+ *  7해역 취소 미확정 실측). 괄호도 자식 정식명도 없이 지목하는 서식이라 0·1순위가 못 잡고,
+ *  '중' 가드가 부모 확정을 (옳게) 차단해 2·3순위도 못 잡았다. '중' 바로 뒤 해역 토큰을
+ *  추출해 자식 단축명과 대조한다 — 제외 문맥("…중 평수구역을 제외")은 무효. */
+function _mentionsChildViaGroup(hay, prefixName, shortC) {
+    const p = _norm(prefixName);
+    if (!p) return false;
+    let idx = hay.indexOf(p + '중');
+    while (idx !== -1) {
+        const tail = hay.slice(idx + p.length + 1, idx + p.length + 1 + 24);
+        const tm = tail.match(/^[가-힣·]{1,18}?(?:구역|바다)/);   // 최단 매치 — "평수구역과…" → "평수구역"
+        if (tm) {
+            const token = tm[0];
+            const after = tail.slice(token.length, token.length + 6);
+            const excluded = /^(?:를|을|은|는|만)?제외/.test(after);
+            const named = token === shortC ||
+                (token.length >= 2 && _plausibleZoneToken(token) && shortC.indexOf(token) !== -1);
+            if (!excluded && named) return true;
+        }
+        idx = hay.indexOf(p + '중', idx + 1);
     }
     return false;
 }
@@ -292,6 +319,9 @@ function matchesZone(release, zone) {
 /**
  * release 가 자식(zone 아래 child)을 지목하는가.
  *   0순위: 자식 정식명이 문장에 직접 등장 ("제주도북부앞바다중연안바다" 등)
+ *   0.5순위: "묶음명/부모명 중 단축명" 직접 지목 ("서해남부앞바다 중 평수구역의 …해제" —
+ *          2026-07-14 제07-17호 실물. 이 zone 이 속한 묶음명(또는 zone 자신)+중+토큰이
+ *          이 자식의 단축명을 가리키면 확정)
  *   1순위: 괄호 토큰이 자식 단축명과 일치 (+같은 문장에 부모/묶음명 존재 — "연안바다" 같은
  *          범용 단축명의 타 해역 오귀속 방지)
  *   2·3순위: 부모명/묶음명 매칭이면 자식도 대표(부모 취소 = 자식 자동 취소 원칙)
@@ -304,6 +334,9 @@ function matchesChild(release, zone, child) {
     const shortC = _norm(String(child).split('중').pop());
     const fullC = _norm(child);
     if (_mentions(hay, fullC)) return true;   // 0순위 — 정식명 직접
+    // 0.5순위 — 묶음명/부모명 + 중 + 단축명 (취소 절 안에서만: hay 가 이미 clause 한정)
+    const prefixes = [zone].concat(Object.keys(ZONE_GROUP_MAP).filter(k => ZONE_GROUP_MAP[k].indexOf(zone) !== -1));
+    if (prefixes.some(p => _mentionsChildViaGroup(hay, p, shortC))) return true;
     const tokenHit = release.parenChildren.some(t => {
         const nt = _norm(t);
         return nt === shortC || nt === fullC || (fullC.indexOf(nt) !== -1 && nt.length >= 2);
