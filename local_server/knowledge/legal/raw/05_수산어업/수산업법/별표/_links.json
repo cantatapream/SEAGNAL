@@ -1,47 +1,270 @@
 {
-  "별표 1": {
+  "시행령 별표 1": {
+    "제목": "관리선으로 사용할 수 있는 어선(제14조제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067639",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067643"
+    ]
+  },
+  "시행령 별표 2": {
+    "제목": "어업별 어구의 규모ㆍ형태ㆍ재질ㆍ사용량 및 사용방법(제21조제2항, 제22조제2항, 제23조제2항 및 제38조제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067645",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067649",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067651",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067653",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067655",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067657",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067659",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067661",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067663",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067665",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067667",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067669",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067671",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067673",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067675",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067677",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067679",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067681",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067683",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067685",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067687",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067689",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067691",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067693",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067695",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067697",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067699",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067701",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067703",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067705",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067707",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067709",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067711",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067713",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067715",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067717",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067719",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067721",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067723",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067725",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067727",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067729",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067731",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067733",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067735",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067737",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067739",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067741",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067743",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067745",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067747",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067749",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067751",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067753",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067755",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067757",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067759",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067761",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067763",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067765",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067767",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067769",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067771",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067773",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067775",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067777",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067779",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067781",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067783",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067785",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067787",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067789",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067791",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067793",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067795",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067797",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067799",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067801",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067803",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067805",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067807",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067809",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067811",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067813",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067815",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067817",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067819"
+    ]
+  },
+  "시행령 별표 3": {
+    "제목": "혼획이 허용되는 어업의 종류와 수산동물 및 혼획의 허용 범위(제24조제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067821",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067825"
+    ]
+  },
+  "시행령 별표 4": {
+    "제목": "어획물운반업자의 자격기준 및 어획물운반업의 등록기준(제28조제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067827",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067831",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067833"
+    ]
+  },
+  "시행령 별표 5": {
+    "제목": "근해어업의 조업구역 및 허가정수(제31조제1항 본문 관련), 잠수기어선의 공동조업구역도",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067835",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067839",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067841",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067843",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067845"
+    ]
+  },
+  "시행령 별표 6": {
+    "제목": "어업허가를 받은 어선에 대한 선복량의 한계(제37조제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067847",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067851",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067853"
+    ]
+  },
+  "시행령 별표 7": {
+    "제목": "어업의 종류별 어구사용의 금지구역 및 금지기간(제38조제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067855",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067859",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067861",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067863",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067865",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067867",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067869",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067871",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067873",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067875",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067877",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067879",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067881",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067883",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067885",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067887",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067889",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067891",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067893",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067895",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067897"
+    ]
+  },
+  "시행령 별표 8": {
+    "제목": "어업의 종류별 그물코 규격의 제한(제38조제3항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067899",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067903",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067905",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067907",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067909",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067911"
+    ]
+  },
+  "시행령 별표 9": {
+    "제목": "어업 종류별 어구의 규모등의 제한 범위(제39조제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067913",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067917"
+    ]
+  },
+  "시행령 별표 10": {
+    "제목": "어업보상에 대한 손실액의 산출방법, 산출기준 및 손실액산출기관 등(제55조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067919",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067923",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067925",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067927",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067929",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067931",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067933",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067935"
+    ]
+  },
+  "시행령 별표 11": {
+    "제목": "과징금의 부과기준(제69조제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067937",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067941",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067943"
+    ]
+  },
+  "시행령 별표 12": {
+    "제목": "과태료의 부과기준(제78조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067945",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067949",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067951",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067953",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067955",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067957",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067959"
+    ]
+  },
+  "시행령 서식 0": {
+    "제목": "어업감독 공무원의 증표(제45조제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067961",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067965"
+    ]
+  },
+  "시행령 별도 0": {
+    "제목": "어업의 종류별 어구사용의 금지구역(제38조제2항 및 별표 7 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067967",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166067971"
+    ]
+  },
+  "시행규칙 별표 1": {
     "제목": "어장기본도의 작성방법(제2조제3항 전단 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914055",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914059"
     ]
   },
-  "별표 2": {
+  "시행규칙 별표 2": {
     "제목": "수면의 위치 및 구역도의 작성례(제2조제5항제2호 및 제7조제2항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914061",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914065"
     ]
   },
-  "별표 3": {
+  "시행규칙 별표 3": {
     "제목": "수산동물의 포획ㆍ채취방법(제11조 각 호 외의 부분 단서 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914067",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914071"
     ]
   },
-  "별표 4": {
+  "시행규칙 별표 4": {
     "제목": "관리선의 규모(제21조제1항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914073",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914077"
     ]
   },
-  "별표 5": {
+  "시행규칙 별표 5": {
     "제목": "정치망어업 및 마을어업 보호구역의 범위(제23조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914079",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914083"
     ]
   },
-  "별표 6": {
+  "시행규칙 별표 6": {
     "제목": "어업허가 등의 번호 부여 방법(제38조제1항 각 호 외의 부분, 제54조제4항 및 제64조제3항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914085",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914089"
     ]
   },
-  "별표 7": {
+  "시행규칙 별표 7": {
     "제목": "근해어업의 종류별 어선 기관의 마력 및 부속선의 수와 규모 등(제41조제1항 본문 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914091",
     "이미지": [
@@ -49,7 +272,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914097"
     ]
   },
-  "별표 8": {
+  "시행규칙 별표 8": {
     "제목": "연안어업의 종류별 허가정수 및 부속선에 관한 사항(제41조제2항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914099",
     "이미지": [
@@ -59,7 +282,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914109"
     ]
   },
-  "별표 9": {
+  "시행규칙 별표 9": {
     "제목": "구획어업의 종류별 허가정수(제41조제3항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914111",
     "이미지": [
@@ -67,35 +290,35 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914117"
     ]
   },
-  "별표 10": {
+  "시행규칙 별표 10": {
     "제목": "어업허가가 취소된 자와 그 어선 또는 어구에 대한 어업허가의 제한기간(제42조제6항 각 호 외의 부분 본문 및 제43조제1항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914119",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914123"
     ]
   },
-  "별표 11": {
+  "시행규칙 별표 11": {
     "제목": "어업허가의 제한 및 조건(제48조 본문 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914125",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914129"
     ]
   },
-  "별표 12": {
+  "시행규칙 별표 12": {
     "제목": "어획물운반업의 등록이 취소된 자와 해당 어선에 대한 어획물운반업 등록의 제한기간(제66조제1항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914131",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914135"
     ]
   },
-  "별표 13": {
+  "시행규칙 별표 13": {
     "제목": "어획물운반업 등록의 제한 및 조건(제68조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914137",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914141"
     ]
   },
-  "별표 14": {
+  "시행규칙 별표 14": {
     "제목": "어구생산업자등에 대한 영업정지 및 영업폐쇄명령 기준(제80조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914143",
     "이미지": [
@@ -103,14 +326,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914149"
     ]
   },
-  "별표 15": {
+  "시행규칙 별표 15": {
     "제목": "어구의 표시 방법(제83조제2항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914151",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914155"
     ]
   },
-  "별표 16": {
+  "시행규칙 별표 16": {
     "제목": "어구보증금(제85조의3 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914157",
     "이미지": [
@@ -118,7 +341,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914163"
     ]
   },
-  "별표 17": {
+  "시행규칙 별표 17": {
     "제목": "미환급보증금 산출 계산식(제85조의5제1항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914165",
     "이미지": [
@@ -126,28 +349,28 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914171"
     ]
   },
-  "서식 1": {
+  "시행규칙 서식 1": {
     "제목": "어장이용개발계획서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914173",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914177"
     ]
   },
-  "서식 2": {
+  "시행규칙 서식 2": {
     "제목": "어장이용개발계획 승인(협의) 요청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914179",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914183"
     ]
   },
-  "서식 3": {
+  "시행규칙 서식 3": {
     "제목": "외국인(외국법인)에 대한 어업면허ㆍ어업허가 협의요청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914185",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914189"
     ]
   },
-  "서식 4": {
+  "시행규칙 서식 4": {
     "제목": "어업면허 우선순위의 결정을 위한 심의자료표",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914191",
     "이미지": [
@@ -155,14 +378,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914197"
     ]
   },
-  "서식 5": {
+  "시행규칙 서식 5": {
     "제목": "어업면허ㆍ어업허가 공동신청[지분 변경, 대표자의 (선정,변경)]신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914199",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914203"
     ]
   },
-  "서식 6": {
+  "시행규칙 서식 6": {
     "제목": "어업면허의 우선순위 결정신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914205",
     "이미지": [
@@ -170,21 +393,21 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914211"
     ]
   },
-  "서식 7": {
+  "시행규칙 서식 7": {
     "제목": "어업면허의 우선순위 결정통지서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914213",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914217"
     ]
   },
-  "서식 8": {
+  "시행규칙 서식 8": {
     "제목": "어업면허 신청서 제출기간의 연장신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914219",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914223"
     ]
   },
-  "서식 9": {
+  "시행규칙 서식 9": {
     "제목": "어업면허 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914225",
     "이미지": [
@@ -192,49 +415,49 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914231"
     ]
   },
-  "서식 10": {
+  "시행규칙 서식 10": {
     "제목": "어업면허증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914233",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914237"
     ]
   },
-  "서식 11": {
+  "시행규칙 서식 11": {
     "제목": "어업권 관리대장",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914239",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914243"
     ]
   },
-  "서식 12": {
+  "시행규칙 서식 12": {
     "제목": "어장관리 실태조사서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914245",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914249"
     ]
   },
-  "서식 13": {
+  "시행규칙 서식 13": {
     "제목": "정치망어업의 가두리시설 설치통지서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914251",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914255"
     ]
   },
-  "서식 14": {
+  "시행규칙 서식 14": {
     "제목": "가두리시설 설치증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914257",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914261"
     ]
   },
-  "서식 15": {
+  "시행규칙 서식 15": {
     "제목": "정치망어업의 가두리시설 설치대장",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914263",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914267"
     ]
   },
-  "서식 16": {
+  "시행규칙 서식 16": {
     "제목": "어업면허 유효기간 연장허가 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914269",
     "이미지": [
@@ -242,28 +465,28 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914275"
     ]
   },
-  "서식 17": {
+  "시행규칙 서식 17": {
     "제목": "어업면허 유효기간의 연장승인(협의) 요청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914277",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914281"
     ]
   },
-  "서식 18": {
+  "시행규칙 서식 18": {
     "제목": "어업면허 유효기간 연장허가증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914283",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914287"
     ]
   },
-  "서식 19": {
+  "시행규칙 서식 19": {
     "제목": "어업권 포기신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914289",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914293"
     ]
   },
-  "서식 20": {
+  "시행규칙 서식 20": {
     "제목": "이전인가 신청서(어업권, 지분)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914295",
     "이미지": [
@@ -271,21 +494,21 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914301"
     ]
   },
-  "서식 21": {
+  "시행규칙 서식 21": {
     "제목": "어업권(지분) 이전인가 신청에 대한 조사서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914303",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914307"
     ]
   },
-  "서식 22": {
+  "시행규칙 서식 22": {
     "제목": "어업권(지분) 이전인가증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914309",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914313"
     ]
   },
-  "서식 23": {
+  "시행규칙 서식 23": {
     "제목": "어업권 분할인가 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914315",
     "이미지": [
@@ -293,21 +516,21 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914321"
     ]
   },
-  "서식 24": {
+  "시행규칙 서식 24": {
     "제목": "어업권 분할(변경)인가 신청에 대한 조사서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914323",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914327"
     ]
   },
-  "서식 25": {
+  "시행규칙 서식 25": {
     "제목": "어업권 분할(변경)인가증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914329",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914333"
     ]
   },
-  "서식 26": {
+  "시행규칙 서식 26": {
     "제목": "어업권 변경인가 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914335",
     "이미지": [
@@ -315,7 +538,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914341"
     ]
   },
-  "서식 27": {
+  "시행규칙 서식 27": {
     "제목": "면허사항 변경신고서(성명, 주소, 대표자, 선박 명칭)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914343",
     "이미지": [
@@ -323,14 +546,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914349"
     ]
   },
-  "서식 28": {
+  "시행규칙 서식 28": {
     "제목": "(어업면허증, 관리선 사용지정(사용승인)증)재발급신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914351",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914355"
     ]
   },
-  "서식 29": {
+  "시행규칙 서식 29": {
     "제목": "(관리선 사용지정, 관리선 사용승인)신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914357",
     "이미지": [
@@ -338,49 +561,49 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914363"
     ]
   },
-  "서식 30": {
+  "시행규칙 서식 30": {
     "제목": "관리선 사용지정(사용승인) 대장",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914365",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914369"
     ]
   },
-  "서식 31": {
+  "시행규칙 서식 31": {
     "제목": "관리선 사용지정(사용승인)증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914371",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914375"
     ]
   },
-  "서식 32": {
+  "시행규칙 서식 32": {
     "제목": "관리선 사용지정(사용승인)사항 변경신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914377",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914381"
     ]
   },
-  "서식 33": {
+  "시행규칙 서식 33": {
     "제목": "어업휴업 신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914383",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914387"
     ]
   },
-  "서식 34": {
+  "시행규칙 서식 34": {
     "제목": "어업재개 신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914389",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914393"
     ]
   },
-  "서식 35": {
+  "시행규칙 서식 35": {
     "제목": "어업면허처분 상황보고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914395",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914399"
     ]
   },
-  "서식 36": {
+  "시행규칙 서식 36": {
     "제목": "어업허가 신청서(근해어업, 연안어업, 구획어업)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914401",
     "이미지": [
@@ -388,14 +611,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914407"
     ]
   },
-  "서식 37": {
+  "시행규칙 서식 37": {
     "제목": "어업허가증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914409",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914413"
     ]
   },
-  "서식 38": {
+  "시행규칙 서식 38": {
     "제목": "한시어업 허가증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914415",
     "이미지": [
@@ -403,7 +626,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914421"
     ]
   },
-  "서식 39": {
+  "시행규칙 서식 39": {
     "제목": "어업 변경허가 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914423",
     "이미지": [
@@ -411,28 +634,28 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914429"
     ]
   },
-  "서식 40": {
+  "시행규칙 서식 40": {
     "제목": "어업허가 유예신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914431",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914435"
     ]
   },
-  "서식 41": {
+  "시행규칙 서식 41": {
     "제목": "어업폐업 신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914437",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914441"
     ]
   },
-  "서식 42": {
+  "시행규칙 서식 42": {
     "제목": "어업불허가 통지서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914443",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914447"
     ]
   },
-  "서식 43": {
+  "시행규칙 서식 43": {
     "제목": "한시어업허가 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914449",
     "이미지": [
@@ -440,7 +663,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914455"
     ]
   },
-  "서식 44": {
+  "시행규칙 서식 44": {
     "제목": "한시어업 허가연장신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914457",
     "이미지": [
@@ -448,14 +671,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914463"
     ]
   },
-  "서식 45": {
+  "시행규칙 서식 45": {
     "제목": "접수증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914465",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914469"
     ]
   },
-  "서식 46": {
+  "시행규칙 서식 46": {
     "제목": "어업허가 지위승계 신고서(근해어업, 연안어업. 구획어업)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914471",
     "이미지": [
@@ -463,7 +686,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914477"
     ]
   },
-  "서식 47": {
+  "시행규칙 서식 47": {
     "제목": "시험어업 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914479",
     "이미지": [
@@ -471,7 +694,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914485"
     ]
   },
-  "서식 48": {
+  "시행규칙 서식 48": {
     "제목": "시험어업실적",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914487",
     "이미지": [
@@ -479,42 +702,42 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914493"
     ]
   },
-  "서식 49": {
+  "시행규칙 서식 49": {
     "제목": "어업신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914495",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914499"
     ]
   },
-  "서식 50": {
+  "시행규칙 서식 50": {
     "제목": "어업신고증명서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914501",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914505"
     ]
   },
-  "서식 51": {
+  "시행규칙 서식 51": {
     "제목": "어업허가사항 변경신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914507",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914511"
     ]
   },
-  "서식 52": {
+  "시행규칙 서식 52": {
     "제목": "어업신고사항 변경신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914513",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914517"
     ]
   },
-  "서식 53": {
+  "시행규칙 서식 53": {
     "제목": "(어업허가증, 어업신고증명서)재발급신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914519",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914523"
     ]
   },
-  "서식 54": {
+  "시행규칙 서식 54": {
     "제목": "어업허가대장(근해어업ㆍ연안어업ㆍ구획어업)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914525",
     "이미지": [
@@ -522,28 +745,28 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914531"
     ]
   },
-  "서식 55": {
+  "시행규칙 서식 55": {
     "제목": "어업휴업 신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914533",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914537"
     ]
   },
-  "서식 56": {
+  "시행규칙 서식 56": {
     "제목": "어업재개 신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914539",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914543"
     ]
   },
-  "서식 57": {
+  "시행규칙 서식 57": {
     "제목": "어획물운반업 등록신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914545",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914549"
     ]
   },
-  "서식 58": {
+  "시행규칙 서식 58": {
     "제목": "어획물운반업등록증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914551",
     "이미지": [
@@ -551,42 +774,42 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914557"
     ]
   },
-  "서식 59": {
+  "시행규칙 서식 59": {
     "제목": "어획물운반업등록증 재발급신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914559",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914563"
     ]
   },
-  "서식 60": {
+  "시행규칙 서식 60": {
     "제목": "어획물운반업 휴업신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914565",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914569"
     ]
   },
-  "서식 61": {
+  "시행규칙 서식 61": {
     "제목": "어획물운반업 재개신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914571",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914575"
     ]
   },
-  "서식 62": {
+  "시행규칙 서식 62": {
     "제목": "어획물운반업 등록사항 변경신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914577",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914581"
     ]
   },
-  "서식 63": {
+  "시행규칙 서식 63": {
     "제목": "어획물운반업 폐업신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914583",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914587"
     ]
   },
-  "서식 64": {
+  "시행규칙 서식 64": {
     "제목": "어획물운반업 등록대장",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914589",
     "이미지": [
@@ -594,42 +817,56 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914595"
     ]
   },
-  "서식 65": {
+  "시행규칙 서식 65": {
     "제목": "조업수역 조정신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914597",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914601"
     ]
   },
-  "서식 66": {
+  "시행규칙 서식 66": {
     "제목": "어구의 규모등의 확인 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914603",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914607"
     ]
   },
-  "서식 67": {
+  "시행규칙 서식 67": {
     "제목": "어구의 규모등의 확인서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914609",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914613"
     ]
   },
-  "서식 68": {
+  "시행규칙 서식 68": {
     "제목": "어구ㆍ시설물의 철거기간 연장승인 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914615",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914619"
     ]
   },
-  "서식 69": {
+  "시행규칙 서식 69": {
+    "제목": "어구ㆍ시설물의 철거의무 면제신청서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914621",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914625"
+    ]
+  },
+  "시행규칙 서식 69의2": {
+    "제목": "어구ㆍ시설물의 보관대장",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914627",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914631"
+    ]
+  },
+  "시행규칙 서식 69의3": {
     "제목": "어구ㆍ시설물 반환신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914633",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914637"
     ]
   },
-  "서식 70": {
+  "시행규칙 서식 70": {
     "제목": "어구생산업ㆍ어구판매업(신규, 변경, 폐업)신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914639",
     "이미지": [
@@ -637,70 +874,114 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914645"
     ]
   },
-  "서식 71": {
+  "시행규칙 서식 71": {
     "제목": "어구생산업ㆍ어구판매업 신고증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914647",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914651"
     ]
   },
-  "서식 72": {
+  "시행규칙 서식 72": {
+    "제목": "어구생산ㆍ수입ㆍ판매 장부",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914653",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914657",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914659"
+    ]
+  },
+  "시행규칙 서식 72의2": {
+    "제목": "어구관리기록부",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914661",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914665",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914667"
+    ]
+  },
+  "시행규칙 서식 72의3": {
     "제목": "유실어구 신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914669",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914673"
     ]
   },
-  "서식 73": {
+  "시행규칙 서식 73": {
+    "제목": "폐어구 및 유실어구의 관리대장",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914675",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914679"
+    ]
+  },
+  "시행규칙 서식 73의2": {
+    "제목": "어구보증금 환급 신청서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914681",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914685"
+    ]
+  },
+  "시행규칙 서식 73의3": {
+    "제목": "어구보증금 환급여부 통지서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914687",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914691"
+    ]
+  },
+  "시행규칙 서식 73의4": {
+    "제목": "미환급보증금의 사용계획 및 실적 보고서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914693",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914697"
+    ]
+  },
+  "시행규칙 서식 73의5": {
     "제목": "재정적ㆍ기술적 지원 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914699",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914703"
     ]
   },
-  "서식 74": {
+  "시행규칙 서식 74": {
     "제목": "손실보상청구서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914705",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914709"
     ]
   },
-  "서식 75": {
+  "시행규칙 서식 75": {
     "제목": "손실액산출기관 지정신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914711",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914715"
     ]
   },
-  "서식 76": {
+  "시행규칙 서식 76": {
     "제목": "손실액산출기관지정서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914717",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914721"
     ]
   },
-  "서식 77": {
+  "시행규칙 서식 77": {
     "제목": "재결신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914723",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914727"
     ]
   },
-  "서식 78": {
+  "시행규칙 서식 78": {
     "제목": "재결신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914729",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914733"
     ]
   },
-  "서식 79": {
+  "시행규칙 서식 79": {
     "제목": "재결서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914735",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914739"
     ]
   },
-  "서식 80": {
+  "시행규칙 서식 80": {
     "제목": "허가어업의 조업상황 등의 보고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914741",
     "이미지": [
@@ -708,7 +989,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914747"
     ]
   },
-  "서식 81": {
+  "시행규칙 서식 81": {
     "제목": "허가어업의 조업상황 등의 보고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914749",
     "이미지": [
@@ -716,7 +997,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914755"
     ]
   },
-  "서식 82": {
+  "시행규칙 서식 82": {
     "제목": "(근해어업, 연안어업, 구획어업)허가어업에 관한 처분 현황",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914757",
     "이미지": [
@@ -725,7 +1006,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914765"
     ]
   },
-  "서식 83": {
+  "시행규칙 서식 83": {
     "제목": "한시어업 및 신고어업 등에 관한 처분 현황 등의 제출",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166914767",
     "이미지": [

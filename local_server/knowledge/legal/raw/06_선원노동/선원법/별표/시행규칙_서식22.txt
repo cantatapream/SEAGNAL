@@ -1,0 +1,71 @@
+[시행규칙] 서식22 — 승무정원증서
+
+[별지 제22호서식]                                                                                   
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 증서번호                                                                                                           ┃
+┃ (CERTIFICATE NO.)                                                                                                  ┃
+┃승무정원증서                                                                                                        ┃
+┃ SAFE MANNING DOCUMENT                                                                                              ┃
+┠──────┬─────┬────┬─────┬─────┬──────────┬──────┬──────────┨
+┃선박명      │선박부호  │IMO번호 │선적항    │선 종     │항행구역            │총톤수      │주기관출력          ┃
+┃(NAME OF    │(OFFICIAL │(IMO    │(PORT OF  │ (TYPE OF │(TRADING            │(GROSS      │MAIN ENGINE         ┃
+┃SHIP)       │NO.)      │NO.)    │REGISTRY) │VESSEL)   │AREA)               │TONNAGE)    │POWER(KW)           ┃
+┠──────┼─────┼────┼─────┼─────┼──────────┼──────┼──────────┨
+┃            │          │        │          │          │                    │(IT :     ) │                    ┃
+┠──────┴─────┴────┴─────┴─────┴──────────┴──────┴──────────┨
+┃승무정원(계 :    명)                                                                                                ┃
+┃SHIP'S COMPLEMENT(TOTAL :        PERSONS)                                                                           ┃
+┠─────┬───────┬──────┬─────┬───────┬────┬─────┬───────┬────┨
+┃등급/직   │면허증        │인원수      │등급/직무 │면허증        │인원수  │등급/직무 │면허증        │인원수  ┃
+┃무        │(CERTIFICATE  │(NUMBER OF  │(GRADE/   │(CERTIFICATE  │(NUMBER │(GRADE/   │(CERTIFICATE  │(NUMBER ┃
+┃(GRADE/   │; STCW        │PERSONS)    │CAPACITY) │; STCW        │OF      │CAPACITY) │; STCW        │OF      ┃
+┃CATACITY) │REGULATION)   │            │          │REGULATION)   │PERSONS)│          │REGULATION)   │PERSONS)┃
+┠─────┼───────┼──────┼─────┼───────┼────┼─────┼───────┼────┨
+┃          │              │            │          │              │        │          │              │        ┃
+┠─────┼───────┼──────┼─────┼───────┼────┼─────┼───────┼────┨
+┃          │              │            │          │              │        │          │              │        ┃
+┠─────┼───────┼──────┼─────┼───────┼────┼─────┼───────┼────┨
+┃          │              │            │          │              │        │          │              │        ┃
+┠─────┼───────┼──────┼─────┼───────┼────┼─────┼───────┼────┨
+┃          │              │            │          │              │        │          │              │        ┃
+┠─────┼───────┼──────┼─────┼───────┼────┼─────┼───────┼────┨
+┃          │              │            │          │              │        │          │              │        ┃
+┠─────┴───────┴──────┴─────┴───────┴────┴─────┴───────┴────┨
+┃ * Periodically unattended machinery space            yes/no                                                        ┃
+┠──────────────────────────────────────────────────────────┨
+┃   (관청기사란 OFFICIAL REMARKS)                                                                                    ┃
+┃ 1. 부가적 자격을 요하는 인원 : 총      명                                                                          ┃
+┃  THE NUMBER OF PERSONNEL REQUIRED OF ADDITIONAL QUALIFICATIONS :                                                   ┃
+┃  TOTAL             PERSONS                                                                                         ┃
+┃  ○의료관리자 :      명(PERSON IN CHARGE OF MEDICAL CARE :                   PERSONS)                              ┃
+┃   ○응급처치담당자 :       명(PERSON IN CHARGE OF MEDICAL FIRST AID :        PERSONS)                              ┃
+┃  ○위험물적재선박 승무자격자 : 선박직원       명, 부원       명                                                    ┃
+┃   (QUALIFIED PERSONS ON SHIPS CARRYING HAZARDOUS CARGOES :                                                         ┃
+┃    SHIP-OFFICERS         PERSONS, RATING          PERSONS)                                                         ┃
+┃  ○구명정 조종사(고속구조정 조종사)자격자 :        명                                                              ┃
+┃   (PROFICIENT PERSONS IN SURVIVAL CRAFT AND RESCUE BOAT :         PERSONS)                                         ┃
+┃  ○여객안전관리선원 :        명                                                                                    ┃
+┃   (PERSON IN CHARGE OF PASSENGERS' SAFETY :                       PERSONS)                                         ┃
+┃ 2. 비고(REMARKS) :                                                                                                 ┃
+┠──────────────────────────────────────────────────────────┨
+┃  「선원법」 제65조 및 제66조에 따라 위와 같이 승무정원 증서를 발급합니다.                                          ┃
+┃   This Safe Manning Document is issued under the provision of Article 65 and 66 in Seafarers                       ┃
+┃Act.                                                                                                                ┃
+┃ 발급일시 :                                                                                                         ┃
+┃ (DATE OF ISSUE)                                                                                                    ┃
+┃ 발급기관 :                                                                                                         ┃
+┃ (ISSUED BY)                                                                                                        ┃
+┃                                           ┏━━┓                                                                 ┃
+┃   대  한  민  국                          ┃직인┃                                                                 ┃
+┃                  지방해양수산청장         ┃    ┃                                                                 ┃
+┃                       제주해양수산관리단장┃    ┃                                                                 ┃
+┃                       해양수산사무소장    ┃    ┃                                                                 ┃
+┃                                           ┗━━┛                                                                 ┃
+┃                                     SIGNED                                                                         ┃
+┃                                                                                                                    ┃
+┃DIRECTOR GENERAL                                                                                                    ┃
+┃                   REGIONAL OFFICE OF OCEANS AND FISHERIES(JEJU OCEANS AND FISHERIES MANAGEMENT                     ┃
+┃OFFICE or DISTRICT OFFICE OF OCEANS AND FISHERIES)                                                                  ┃
+┃                   REPUBLIC OF KOREA                                                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210mm×297mm[백상지 120g/㎡]

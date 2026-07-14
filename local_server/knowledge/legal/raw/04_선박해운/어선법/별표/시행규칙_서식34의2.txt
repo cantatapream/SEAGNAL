@@ -1,0 +1,42 @@
+[시행규칙] 서식34의2 — 어선등록말소확인서
+
+■ 어선법 시행규칙 [별지 제34호의2서식]                                                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃어선등록말소확인서                                                                                                  ┃
+┃CONFIRMATION OF CANCELLATION OF FISHING VESSEL’S NATIONALITY                                                       ┃
+┠────────────┬─────────────────────────────────────────────┨
+┃소유자                  │성명(법인명)                                                                              ┃
+┃(Owner)                 │Name(Company)                                                                             ┃
+┃                        ├─────────────────────────────────────────────┨
+┃                        │주소                                                                                      ┃
+┃                        │(Address)                                                                                 ┃
+┠────────────┼┬─────────┬──────────────────────────────────┨
+┃어선번호                ││어선의 명칭       │                                                                    ┃
+┃(Distinctive Number)    ││(Name of Ship)    │                                                                    ┃
+┠────────────┼┼─────────┼──────────────────────────────────┨
+┃어선의 종류             ││선 적 항          │                                                                    ┃
+┃(Kind of Ship)          ││(Port of Registry)│                                                                    ┃
+┠────────────┼┼─────────┼──────────────────────────────────┨
+┃총톤수                  ││어업의 종류       │                                                                    ┃
+┃(Gross Tonnage)         ││(Type of Fishery) │                                                                    ┃
+┠────────────┼┴─────────┴──────────────────────────────────┨
+┃말소일자                │                                                                                          ┃
+┃(Date of Cancellation   │                                                                                          ┃
+┃of Registration)        │                                                                                          ┃
+┠────────────┼─────────────────────────────────────────────┨
+┃말소사유                │                                                                                          ┃
+┃(Reason of Cancellation │                                                                                          ┃
+┃of Registration)        │                                                                                          ┃
+┠────────────┴─────────────────────────────────────────────┨
+┃ 「어선법 시행규칙」 제29조제3항에 따라 위와 같이 확인합니다.                                                       ┃
+┃   It is hereby confirmed that the above described fishing vessel was canceled from Nationality of the Republic of  ┃
+┃Korea in accordance with Paragraph 3 of Article 29 of the Enforcement Rule of the Fishing vessels Act.              ┃
+┃                                                                                                                    ┃
+┃                                                   년      월      일                                               ┃
+┃                                                           Y        M         D                                     ┃
+┃                                                  ┏━━┓                                                          ┃
+┃  특별자치시장ㆍ특별자치도지사ㆍ시장ㆍ군수ㆍ구청장┃직인┃                                                          ┃
+┃  (Official Position)                             ┃    ┃                                                          ┃
+┃                                                  ┗━━┛                                                          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210mm×297mm[백상지(150g/㎡)]

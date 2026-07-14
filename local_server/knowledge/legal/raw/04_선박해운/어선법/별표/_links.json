@@ -1,5 +1,53 @@
 {
-  "별표 1": {
+  "시행령 별표 1": {
+    "제목": "어선건조ㆍ개조업의 등록기준(제1조의3제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218585",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218589",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218591"
+    ]
+  },
+  "시행령 별표 1의2": {
+    "제목": "과징금의 부과기준(제6조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218593",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218597",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218599"
+    ]
+  },
+  "시행령 별표 1의3": {
+    "제목": "대행업무 정지처분의 기준(제16조의2 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218601",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218605"
+    ]
+  },
+  "시행령 별표 2": {
+    "제목": "과태료의 부과기준(제19조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218607",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218611",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218613",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218615",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159218617"
+    ]
+  },
+  "시행규칙 별표 1": {
+    "제목": "복원성 승인 면제 대상(제3조의2제1항제4호 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732833",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732837"
+    ]
+  },
+  "시행규칙 별표 1의2": {
+    "제목": "어선건조ㆍ개조업자에 대한 행정처분의 세부 기준(제10조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732839",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732843",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732845"
+    ]
+  },
+  "시행규칙 별표 1의3": {
     "제목": "어선번호의 부여방법(제21조제3항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732847",
     "이미지": [
@@ -7,7 +55,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732853"
     ]
   },
-  "별표 2": {
+  "시행규칙 별표 2": {
     "제목": "건조검사 시 수행하는 선체 압력시험방법(제50조제2항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732855",
     "이미지": [
@@ -15,7 +63,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732861"
     ]
   },
-  "별표 3": {
+  "시행규칙 별표 3": {
     "제목": "예비검사를 받을 수 있는 어선용품(제52조제1항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732863",
     "이미지": [
@@ -27,7 +75,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732877"
     ]
   },
-  "별표 4": {
+  "시행규칙 별표 4": {
     "제목": "팽창식 구명설비의 수리 또는 정비에 따른 시설 등의 기준(제52조제4항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732879",
     "이미지": [
@@ -36,7 +84,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732887"
     ]
   },
-  "별표 5": {
+  "시행규칙 별표 5": {
     "제목": "별도건조검사 시 수행하는 선체 압력시험방법(제53조제2항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732889",
     "이미지": [
@@ -44,7 +92,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732895"
     ]
   },
-  "별표 6": {
+  "시행규칙 별표 6": {
     "제목": "검사종류별 관련 도면(제3조의2제2항 및 제54조제1항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732897",
     "이미지": [
@@ -57,14 +105,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732913"
     ]
   },
-  "별표 7": {
+  "시행규칙 별표 7": {
     "제목": "복원성 승인 표시, 도면승인 표시 및 건조검사, 예비검사, 검정, 건조(제조ㆍ정비) 확인의 합격표시(제3조의2제3항, 제54조제2항 및 제65조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732915",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732919"
     ]
   },
-  "별표 8": {
+  "시행규칙 별표 8": {
     "제목": "정기검사 준비사항(제55조제1항제1호 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732921",
     "이미지": [
@@ -75,7 +123,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732933"
     ]
   },
-  "별표 9": {
+  "시행규칙 별표 9": {
     "제목": "중간검사 준비사항(제55조제1항제2호 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732935",
     "이미지": [
@@ -83,28 +131,28 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732941"
     ]
   },
-  "별표 10": {
+  "시행규칙 별표 10": {
     "제목": "임시항행검사 준비사항(제55조제1항제5호 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732943",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732947"
     ]
   },
-  "별표 11": {
+  "시행규칙 별표 11": {
     "제목": "건조검사 준비사항(제55조제1항제6호 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732949",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732953"
     ]
   },
-  "별표 12": {
+  "시행규칙 별표 12": {
     "제목": "별도건조검사 준비사항(제55조제1항제7호 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732955",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732959"
     ]
   },
-  "별표 13": {
+  "시행규칙 별표 13": {
     "제목": "예비검사 준비사항(제55조제1항제8호 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732961",
     "이미지": [
@@ -112,7 +160,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732967"
     ]
   },
-  "별표 14": {
+  "시행규칙 별표 14": {
     "제목": "선체두께 측정범위 및 측정방법 등(제55조제3항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732969",
     "이미지": [
@@ -120,7 +168,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732975"
     ]
   },
-  "별표 15": {
+  "시행규칙 별표 15": {
     "제목": "수중검사준비와 그 검사방법 등(제56조제5항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732977",
     "이미지": [
@@ -128,7 +176,21 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732983"
     ]
   },
-  "별표 16": {
+  "시행규칙 별표 16": {
+    "제목": "검사준비 및 서류제출의 완화 등(제56조제6항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732985",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732989",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732991",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732993",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732995",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732997",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159732999",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733001",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733003"
+    ]
+  },
+  "시행규칙 별표 16의2": {
     "제목": "형식승인 및 형식승인시험기관에 대한 처분 기준(제59조의4제1항 및 제59조의7제1항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733005",
     "이미지": [
@@ -136,7 +198,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733011"
     ]
   },
-  "별표 17": {
+  "시행규칙 별표 17": {
     "제목": "지정사업장의 지정기준 등(제60조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733013",
     "이미지": [
@@ -160,7 +222,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733051"
     ]
   },
-  "별표 18": {
+  "시행규칙 별표 18": {
+    "제목": "자체검사 합격표시(제60조의4제4항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733053",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733057"
+    ]
+  },
+  "시행규칙 별표 18의2": {
     "제목": "지정사업장의 지정 취소 및 효력정지 처분의 기준(제60조의5제1항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733059",
     "이미지": [
@@ -168,7 +237,24 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733065"
     ]
   },
-  "별표 19": {
+  "시행규칙 별표 19": {
+    "제목": "하역설비에 대한 제한하중등을 확인하기 위한 기준(제61조제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733067",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733071",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733073",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733075",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733077",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733079",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733081",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733083",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733085",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733087",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733089",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733091"
+    ]
+  },
+  "시행규칙 별표 19의2": {
     "제목": "행정처분기준(제69조의6 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733093",
     "이미지": [
@@ -176,7 +262,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733099"
     ]
   },
-  "별표 20": {
+  "시행규칙 별표 20": {
     "제목": "어선의 건조ㆍ개조허가 등의 수수료(제73조의2 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733101",
     "이미지": [
@@ -184,7 +270,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733107"
     ]
   },
-  "서식 1": {
+  "시행규칙 서식 1": {
     "제목": "어선(건조, 건조발주)허가신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733109",
     "이미지": [
@@ -192,7 +278,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733115"
     ]
   },
-  "서식 2": {
+  "시행규칙 서식 2": {
     "제목": "어선(개조, 개조발주)허가신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733117",
     "이미지": [
@@ -200,7 +286,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733123"
     ]
   },
-  "서식 3": {
+  "시행규칙 서식 3": {
     "제목": "어선(건조, 건조발주, 개조, 개조발주)허가사항변경허가신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733125",
     "이미지": [
@@ -208,42 +294,42 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733131"
     ]
   },
-  "서식 4": {
+  "시행규칙 서식 4": {
     "제목": "어선건조(건조발주)허가서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733133",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733137"
     ]
   },
-  "서식 5": {
+  "시행규칙 서식 5": {
     "제목": "어선개조(개조발주)허가서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733139",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733143"
     ]
   },
-  "서식 6": {
+  "시행규칙 서식 6": {
     "제목": "어선건조(건조발주ㆍ개조ㆍ개조발주)허가사항 변경허가서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733145",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733149"
     ]
   },
-  "서식 7": {
+  "시행규칙 서식 7": {
     "제목": "어선건조ㆍ개조업 (등록, 변경등록) 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733151",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733155"
     ]
   },
-  "서식 8": {
+  "시행규칙 서식 8": {
     "제목": "어선건조ㆍ개조업 등록증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733157",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733161"
     ]
   },
-  "서식 9": {
+  "시행규칙 서식 9": {
     "제목": "어선건조ㆍ개조업 등록대장",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733163",
     "이미지": [
@@ -251,77 +337,77 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733169"
     ]
   },
-  "서식 10": {
+  "시행규칙 서식 10": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733171",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733175"
     ]
   },
-  "서식 11": {
+  "시행규칙 서식 11": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733177",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733181"
     ]
   },
-  "서식 12": {
+  "시행규칙 서식 12": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733183",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733187"
     ]
   },
-  "서식 13": {
+  "시행규칙 서식 13": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733189",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733193"
     ]
   },
-  "서식 14": {
+  "시행규칙 서식 14": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733195",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733199"
     ]
   },
-  "서식 15": {
+  "시행규칙 서식 15": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733201",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733205"
     ]
   },
-  "서식 16": {
+  "시행규칙 서식 16": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733207",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733211"
     ]
   },
-  "서식 17": {
+  "시행규칙 서식 17": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733213",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733217"
     ]
   },
-  "서식 18": {
+  "시행규칙 서식 18": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733219",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733223"
     ]
   },
-  "서식 19": {
+  "시행규칙 서식 19": {
     "제목": "삭제 &lt;2009.12.14&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733225",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733229"
     ]
   },
-  "서식 20": {
+  "시행규칙 서식 20": {
     "제목": "어선 총톤수(측정, 재측정)신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733231",
     "이미지": [
@@ -329,14 +415,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733237"
     ]
   },
-  "서식 21": {
+  "시행규칙 서식 21": {
     "제목": "어선총톤수측정증명서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733239",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733243"
     ]
   },
-  "서식 22": {
+  "시행규칙 서식 22": {
     "제목": "국제톤수(증서, 확인서) 발급신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733245",
     "이미지": [
@@ -344,7 +430,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733251"
     ]
   },
-  "서식 23": {
+  "시행규칙 서식 23": {
     "제목": "국제톤수증서(1969)INTERNATIONAL TONNAGE CERTIFICATE(1969)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733253",
     "이미지": [
@@ -352,7 +438,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733259"
     ]
   },
-  "서식 24": {
+  "시행규칙 서식 24": {
     "제목": "국제톤수확인서TONNAGE CERTIFICATE",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733261",
     "이미지": [
@@ -360,7 +446,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733267"
     ]
   },
-  "서식 25": {
+  "시행규칙 서식 25": {
     "제목": "재화중량톤수증서발급신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733269",
     "이미지": [
@@ -368,14 +454,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733275"
     ]
   },
-  "서식 26": {
+  "시행규칙 서식 26": {
     "제목": "재화중량톤수증서DEADWEIGHT THONNAGE CERTIFICATE",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733277",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733281"
     ]
   },
-  "서식 27": {
+  "시행규칙 서식 27": {
     "제목": "(어선(등록, 변경등록), 어업 변경허가)신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733283",
     "이미지": [
@@ -383,7 +469,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733289"
     ]
   },
-  "서식 28": {
+  "시행규칙 서식 28": {
     "제목": "어선원부",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733291",
     "이미지": [
@@ -391,49 +477,57 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733297"
     ]
   },
-  "서식 29": {
+  "시행규칙 서식 29": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733299",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733303"
     ]
   },
-  "서식 30": {
+  "시행규칙 서식 30": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733305",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733309"
     ]
   },
-  "서식 31": {
+  "시행규칙 서식 31": {
     "제목": "삭제 &lt;2012.6.7&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733311",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733315"
     ]
   },
-  "서식 32": {
+  "시행규칙 서식 32": {
     "제목": "삭제 &lt;1999.5.17&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733317",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733321"
     ]
   },
-  "서식 33": {
+  "시행규칙 서식 33": {
     "제목": "삭제 &lt;2012.6.7&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733323",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733327"
     ]
   },
-  "서식 34": {
+  "시행규칙 서식 34": {
+    "제목": "어선등록말소신청서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733329",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733333",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733335"
+    ]
+  },
+  "시행규칙 서식 34의2": {
     "제목": "어선등록말소확인서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733337",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733341"
     ]
   },
-  "서식 35": {
+  "시행규칙 서식 35": {
     "제목": "선박국적증서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733343",
     "이미지": [
@@ -441,7 +535,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733349"
     ]
   },
-  "서식 36": {
+  "시행규칙 서식 36": {
     "제목": "선적증서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733351",
     "이미지": [
@@ -449,7 +543,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733357"
     ]
   },
-  "서식 37": {
+  "시행규칙 서식 37": {
     "제목": "등록필증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733359",
     "이미지": [
@@ -457,21 +551,21 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733365"
     ]
   },
-  "서식 38": {
+  "시행규칙 서식 38": {
     "제목": "선박국적증서영역서 발급신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733367",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733371"
     ]
   },
-  "서식 39": {
+  "시행규칙 서식 39": {
     "제목": "CERTIFICATE OF VESSEL'S NATIONALITY",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733373",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733377"
     ]
   },
-  "서식 40": {
+  "시행규칙 서식 40": {
     "제목": "어선검사신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733379",
     "이미지": [
@@ -479,7 +573,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733385"
     ]
   },
-  "서식 41": {
+  "시행규칙 서식 41": {
     "제목": "중간검사시기연기신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733387",
     "이미지": [
@@ -487,14 +581,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733393"
     ]
   },
-  "서식 42": {
+  "시행규칙 서식 42": {
     "제목": "계선사유서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733395",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733399"
     ]
   },
-  "서식 43": {
+  "시행규칙 서식 43": {
     "제목": "건조(별도건조) 검사신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733401",
     "이미지": [
@@ -502,7 +596,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733407"
     ]
   },
-  "서식 44": {
+  "시행규칙 서식 44": {
     "제목": "예비검사신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733409",
     "이미지": [
@@ -510,7 +604,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733415"
     ]
   },
-  "서식 45": {
+  "시행규칙 서식 45": {
     "제목": "팽창식 구명설비 정비시설 등 확인신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733417",
     "이미지": [
@@ -518,21 +612,21 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733423"
     ]
   },
-  "서식 46": {
+  "시행규칙 서식 46": {
     "제목": "팽창식 구명설비 정비시설 등 확인서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733425",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733429"
     ]
   },
-  "서식 47": {
+  "시행규칙 서식 47": {
     "제목": "별도건조검사증서SPECIAL SHIP-BUILDING SURVEY CERTIFICATE",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733431",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733435"
     ]
   },
-  "서식 48": {
+  "시행규칙 서식 48": {
     "제목": "도면승인(변경)신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733437",
     "이미지": [
@@ -540,7 +634,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733443"
     ]
   },
-  "서식 49": {
+  "시행규칙 서식 49": {
     "제목": "(형식승인, 형식승인사항변경승인) 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733445",
     "이미지": [
@@ -548,14 +642,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733451"
     ]
   },
-  "서식 50": {
+  "시행규칙 서식 50": {
     "제목": "형식승인증서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733453",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733457"
     ]
   },
-  "서식 51": {
+  "시행규칙 서식 51": {
     "제목": "검정신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733459",
     "이미지": [
@@ -563,21 +657,49 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733465"
     ]
   },
-  "서식 52": {
+  "시행규칙 서식 52": {
     "제목": "삭제 &lt;2012.6.7&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733467",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733471"
     ]
   },
-  "서식 53": {
+  "시행규칙 서식 53": {
+    "제목": "형식승인사항 변경승인서CERTIFICATE OF CHANGE OF TYPE APPROVAL CONTENTS",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733473",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733477"
+    ]
+  },
+  "시행규칙 서식 53의2": {
+    "제목": "형식승인시험기관 지정신청서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733479",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733483"
+    ]
+  },
+  "시행규칙 서식 53의3": {
+    "제목": "형식승인시험기관 지정서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733485",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733489"
+    ]
+  },
+  "시행규칙 서식 53의4": {
+    "제목": "지정기준 인정신청서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733491",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733495"
+    ]
+  },
+  "시행규칙 서식 53의5": {
     "제목": "지정기준 인정서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733497",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733501"
     ]
   },
-  "서식 54": {
+  "시행규칙 서식 54": {
     "제목": "지정사업장 지정(변경)신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733503",
     "이미지": [
@@ -585,14 +707,14 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733509"
     ]
   },
-  "서식 55": {
+  "시행규칙 서식 55": {
     "제목": "지정사업장 지정서CERTIFICATE OF RECOGNIZED MANUFACTURING(MAINTENANCE) FACTORY",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733511",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733515"
     ]
   },
-  "서식 56": {
+  "시행규칙 서식 56": {
     "제목": "확인신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733517",
     "이미지": [
@@ -600,28 +722,28 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733523"
     ]
   },
-  "서식 57": {
+  "시행규칙 서식 57": {
     "제목": "자체검사 합격증서CERTIFICATE OF SHIP-BUILDING (MANUFACTURINGㆍMAINTENANCE) APPROVED USE",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733525",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733529"
     ]
   },
-  "서식 58": {
+  "시행규칙 서식 58": {
     "제목": "제한하중등 확인신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733531",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733535"
     ]
   },
-  "서식 59": {
+  "시행규칙 서식 59": {
     "제목": "제한하중등 확인증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733537",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733541"
     ]
   },
-  "서식 60": {
+  "시행규칙 서식 60": {
     "제목": "하역설비검사기록부",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733543",
     "이미지": [
@@ -630,7 +752,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733551"
     ]
   },
-  "서식 61": {
+  "시행규칙 서식 61": {
     "제목": "어선검사증서FISHING VESSEL SURVEY CERTIFICATE",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733553",
     "이미지": [
@@ -638,7 +760,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733559"
     ]
   },
-  "서식 62": {
+  "시행규칙 서식 62": {
     "제목": "어선검사증서FISHING VESSEL SURVEY CERTIFICATE",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733561",
     "이미지": [
@@ -646,49 +768,49 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733567"
     ]
   },
-  "서식 63": {
+  "시행규칙 서식 63": {
     "제목": "어선특별검사증서FISHING VESSEL SPECIAL SURVEY CERTIFICATE",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733569",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733573"
     ]
   },
-  "서식 64": {
+  "시행규칙 서식 64": {
     "제목": "임시항행검사증서TEMPORARY NAVIGATION CERTIFICATE",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733575",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733579"
     ]
   },
-  "서식 65": {
+  "시행규칙 서식 65": {
     "제목": "건조검사증서SHIP-BUILDING SURVEY CERTIFICATE",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733581",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733585"
     ]
   },
-  "서식 66": {
+  "시행규칙 서식 66": {
     "제목": "예비검사증서CERTIFICATE OF ARTICLES FOR SHIP USE",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733587",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733591"
     ]
   },
-  "서식 67": {
+  "시행규칙 서식 67": {
     "제목": "검정증서CERTIFICATE OF SHIP EQUIPMENT INSPECTION FOR SHIP USE OF APPROVED TYPE",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733593",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733597"
     ]
   },
-  "서식 68": {
+  "시행규칙 서식 68": {
     "제목": "건조(제조ㆍ정비)확인증CERTIFICATE OF SHIP-BUILDING(MANUFACTURINGㆍMAINTENANCE) VERIFICATION",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733599",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733603"
     ]
   },
-  "서식 69": {
+  "시행규칙 서식 69": {
     "제목": "어선검사증서 유효기간 연장신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733605",
     "이미지": [
@@ -696,49 +818,94 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733611"
     ]
   },
-  "서식 70": {
+  "시행규칙 서식 70": {
     "제목": "어선검사증서(국제협약검사증서) 유효기간 연장승인서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733613",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733617"
     ]
   },
-  "서식 71": {
+  "시행규칙 서식 71": {
+    "제목": "재검사등신청서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733619",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733623",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733625"
+    ]
+  },
+  "시행규칙 서식 71의2": {
+    "제목": "어선거래정보이용신청서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733627",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733631"
+    ]
+  },
+  "시행규칙 서식 71의3": {
+    "제목": "어선거래정보이용대장",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733633",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733637"
+    ]
+  },
+  "시행규칙 서식 71의4": {
+    "제목": "어선중개업(등록, 변경등록)신청서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733639",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733643",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733645"
+    ]
+  },
+  "시행규칙 서식 71의5": {
+    "제목": "어선중개업 등록증",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733647",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733651"
+    ]
+  },
+  "시행규칙 서식 71의6": {
+    "제목": "어선중개업 등록대장",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733653",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733657",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733659"
+    ]
+  },
+  "시행규칙 서식 71의7": {
     "제목": "(휴업, 폐업, 재개업, 휴업연장) 신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733661",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733665"
     ]
   },
-  "서식 72": {
+  "시행규칙 서식 72": {
     "제목": "어선결함신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733667",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733671"
     ]
   },
-  "서식 73": {
+  "시행규칙 서식 73": {
     "제목": "어선결함신고기록부",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733673",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733677"
     ]
   },
-  "서식 74": {
+  "시행규칙 서식 74": {
     "제목": "어선결함신고자명부",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733679",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733683"
     ]
   },
-  "서식 75": {
+  "시행규칙 서식 75": {
     "제목": "출항정지명령서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733685",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733689"
     ]
   },
-  "서식 76": {
+  "시행규칙 서식 76": {
     "제목": "증서등 재발급신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159733691",
     "이미지": [

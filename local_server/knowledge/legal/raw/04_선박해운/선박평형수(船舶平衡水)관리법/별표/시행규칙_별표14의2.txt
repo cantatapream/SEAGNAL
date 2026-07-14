@@ -1,0 +1,85 @@
+[시행규칙] 별표14의2 — 처리물질을 사용하는 선박평형수처리설비의 승인을 위한 제출서류(제37조의2제4항 관련)
+
+처리물질을 사용하는 선박평형수처리설비의 승인을 위한 제출서류                           
+  (제37조의2제4항 관련)                                                                   
+                                                                                          
+                                                                                          
+  1. 일반 서류                                                                            
+    가. 선상(on board)에서 선박평형수와 관련하여 생성되는 모든 물질의 화학적 성분에       
+  대한 상세사항을 포함하고, 모든 관련 화학물질(relevant chemicals)에 대해 화학적          
+  식별(chemical identification)을 적은 서류                                               
+    나. 처리물질 및 조제물(preparation)에 대한 다음의 서류                                
+      1) 조제물을 구성하는 임의의 성분에 따른 반응이나 속성에 대한 다음의 자료 일체       
+        가) 수중식물, 무척추동물, 어류 및 그 밖에 민감하고 대표적인 유기체(sensitive      
+  and representative organisms)를 포함하는 생물종에 대한 영향에 관한 다음의               
+  자료                                                                                    
+          (1) 수중생물에 대한 급성 독성(acute aquatic toxicity)                           
+          (2) 수중생물에 대한 만성 독성(chronic aquatic toxicity)                         
+          (3) 내분비파괴(endocrine disruption)                                            
+          (4) 침전물독성(sediment toxicity)                                               
+          (5) 생체이용율(bioavailability), 생물간의 확대(biomagnification) 및 생물농축    
+  (bioconcentration)                                                                      
+          (6) 먹이망(food web) 및 개체군 효과(population effects)                         
+        나) 포유류에 대한 독성에 관한 다음의 자료                                         
+          (1) 급성 독성(acute toxicity)                                                   
+          (2) 피부 및 눈에 대한 영향                                                      
+          (3) 만성 및 장기간 독성(chronic and long-term toxicity)                         
+          (4) 발생 및 생식 독성(developmental and reproductive toxicity)                  
+          (5) 발암성(carcinogenicity)                                                     
+          (6) 변이원성(變異原性, mutagenicity)                                            
+        다) 호기성(好氣性) 및 혐기성(嫌氣性) 조건에서의 환경적 운명(environmental fate)   
+  및 영향에 대한 다음의 자료                                                              
+          (1) 생물 또는 무생물의 분해 형태(modes of degradation)                          
+          (2) 생물축적성(bioaccumulation), 분배계수(partition coefficient) 및 옥타놀/물   
+  분배계수(octanol/water partition coefficient)                                           
+          (3) 선박평형수, 해수 또는 담수 등 관련 매개체(relevant media)에서의 주대사      
+  물질의 잠복성(persistence) 및 식별(identification)                                      
+          (4) 유기물질과의 반응성                                                         
+          (5) 야생 및 저서생물(低棲生物: 바다ㆍ늪ㆍ하천ㆍ호수 따위의 밑바닥에 사는 생     
+  물) 서식지에 대한 잠재적ㆍ물리적 영향                                                   
+          (6) 수산물에의 잠재적 잔류성                                                    
+          (7) 그 밖에 이미 알려진 상호작용 효과                                           
+        라) 처리물질ㆍ조제물 및 처리된 선박평형수에 대한 물리적 화학적 속성(해당되는      
+  경우로 한정한다)에 관한 다음의 자료                                                     
+          (1) 녹는점                                                                      
+          (2) 끓는점                                                                      
+          (3) 가연성                                                                      
+          (4) 밀도(상대밀도)                                                              
+          (5) 증기압 및 증기밀도                                                          
+          (6) 수용성 및 해리상수(解離常數, dissociation constant)(pKa)                    
+          (7) 산화 및 환원전위                                                            
+          (8) 정상적인 선박 건조에 사용되는 재료 및 설비에 대한 부식성                    
+          (9) 자연발화 온도                                                               
+          (10) 그 밖에 이미 알려진 물리ㆍ화학적 위험요소                                  
+        마) 환경관련 농도에서의 분석방법(analytical methods at environmentally            
+  relevant concentrations)에 관한 자료                                                    
+      2) 시험과정과 관련하여 다음의 내용을 포함하는 품질관리(Quality Control) 및 품질     
+  보증(Quality Assurance) 체제에 관한 서류. 이 경우 품질관리계획서(QMP) 및 품             
+  질보증과제계획서(QAPP)와 각 계획서의 준비에 관한 지침서는 다른 지침서 및 일             
+  반적인 품질관리 정보와 같이 국제표준화기구(ISO)에서 사용하는 양식(문서 또는             
+  전자문서를 포함한다)을 사용할 수 있다.                                                  
+        가) 시험기관(협력업체 및 외부시험기관을 포함한다)의 품질관리/품질경영체제 및      
+  방침을 기재한 품질관리계획서(QMP)                                                       
+        나) 품질보증과제계획서(QAPP)                                                      
+      3) 처리물질 및 조제물의 평가를 위하여 국제기구가 요구할 수 있는 요건을 충족시킬     
+  수 있는 화학물질 등재 시 사용된 관계 서류                                               
+      4) 요구되는 투여량 및 유지시간을 포함하여 선박평형수 관리에 필요한 조제물의 적      
+  용 방법에 관한 서류                                                                     
+      5) 물질안전보건자료(MSDS)                                                           
+    다. 시험성적서의 품질, 유해특성 및 평가와 연계된 불확실성의 검토에 관한 사항을 포     
+  함한 평가보고서                                                                         
+                                                                                          
+  2. 유해특성 관련 서류                                                                   
+    가. 잠복성, 생물축적성 및 독성에 관한 서류                                            
+       잠복성, 생물축적성 및 독성 등 처리물질 및 조제물의 고유특성에 대한 다음의 시험     
+  에 관한 서류                                                                            
+      1) 잠복성시험                                                                       
+         잠복성은 가능한 한 관련된 조건들 아래에서 반감기(half-life)를 결정하기 위한      
+  가상시험 방법(simulation test system)으로 평가하고, 생물적 분해                         
+  (biodegradation) 시험은 물질들이 용이하게 분해 가능한지를 보여주는데 사용할             
+  수 있다. 반감기의 결정에는 관련 화학물질에 대한 평가를 포함하여야 한다.                 
+      2) 생물축적성시험                                                                   
+        (잠재적)생물축적성에 대한 시험은 해양(또는 담수) 생물의 생물농축계수(BCF:         
+  bioconcentration factors)를 사용하여야 한다. 이러한 시험이 적용되지 아니하거나          
+  상용로그 옥타놀/물 분배계수(Log Pow: logarithm of the octanol/water                     
+  partition coefficient)가 3 미만(Log Pow 

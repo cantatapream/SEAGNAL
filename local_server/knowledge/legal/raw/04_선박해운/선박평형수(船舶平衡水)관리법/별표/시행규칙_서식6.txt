@@ -1,0 +1,291 @@
+[시행규칙] 서식6 — 선박평형수관리기록부BALLAST WATER RECORD BOOK
+
+■ 선박평형수(船舶平衡水) 관리법 시행규칙 [별지 제6호서식]                  
+                                                                                  (제1쪽)       
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                            ┃
+┃                                                                                            ┃
+┃선박평형수관리기록부                                                                        ┃
+┃BALLAST WATER RECORD BOOK                                                                   ┃
+┃                                                                                            ┃
+┃                                                                                            ┃
+┃선박평형수관리협약                                                                          ┃
+┃INTERNATIONAL CONVENTION FOR THE CONTROL AND MANAGEMENT OF SHIP'S BALLAST                   ┃
+┃WATER AND SEDIMENTS                                                                         ┃
+┃                                                                                            ┃
+┃                                                                                            ┃
+┃                                                                                            ┃
+┃선박명                                                                                      ┃
+┃Name of ship :                                                                              ┃
+┃                                                                                            ┃
+┃IMO번호, 식별 번호 또는 문자                                                                ┃
+┃IMO number, distinctive numbers or letters :                                                ┃
+┃                                                                                            ┃
+┃총톤수                                                                                      ┃
+┃Gross tonnage :                                                                             ┃
+┃                                                                                            ┃
+┃국적                                                                                        ┃
+┃Flag :                                                                                      ┃
+┃                                                                                            ┃
+┃선박평형수 총 용량 (㎥)                                                                     ┃
+┃Total ballast water capacity (in cubic metres) :                                            ┃
+┃                                                                                            ┃
+┃선박평형수관리설비검사증서 번호                                                             ┃
+┃Number of the International Ballast Water Management Certificate :                          ┃
+┃                                                                                            ┃
+┃기간 :         부터          까지                                                           ┃
+┃Period : From          to                                                                   ┃
+┃                                                                                            ┃
+┃선박평형수관리계획서와 부합하고, 선박평형수를 운반할 수 있도록 설계된 다목적 탱크,          ┃
+┃공간 또는 구획을 포함하는 선박평형수 탱크 표시 도면은 동 선박평형수관리기록부의 일          ┃
+┃부가 되어야 함.                                                                             ┃
+┃A diagram identifying the ballast tanks of the ship, corresponding to the Ballast Water     ┃
+┃Management Plan, including any multi-use tank, space or compartment designed to allow       ┃
+┃carriage of ballast water, is integral to and shall be a part of this Ballast Water Record  ┃
+┃Book.                                                                                       ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                
+                                                                                                
+    210㎜×297㎜[백상지(80g/㎡)]                                                                
+                                                                                                
+                                                                                                              
+                                                                                                              
+    (제2쪽)                                                                                                   
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃소개                                                                                                      ┃
+┃Introduction                                                                                              ┃
+┃                                                                                                          ┃
+┃ 선박평형수관리협약 부속서 제B-2규칙에 따라 이 기록부에는 각각의 선박평형수 작업 내용을 기록하여야 한     ┃
+┃다. 이 기록부는 해양과 수용시설에 배출하는 것을 포함한다.                                                 ┃
+┃In accordance with regulation B-2 of the annex to the International Convention for the Control and        ┃
+┃Management of Ships' Ballast Water and Sediments, a record is to be kept of each ballast water            ┃
+┃operation. This includes discharges at sea and to reception facilities.                                   ┃
+┃                                                                                                          ┃
+┃ 선박평형수는 선박의 종경사, 횡경사, 흘수, 복원성 또는 선체 응력을 통제하기 위하여 선박에 싣고 있는 물 및 ┃
+┃물에 포함된 물질을 말한다. 선박평형수 관리는 승인된 선박평형수관리계획서에 따라야 하며, 국제해사기구가    ┃
+┃개발한 지침서를 고려하여야 한다.                                                                          ┃
+┃"Ballast water" means water with its suspended matter taken on board a ship to control trim, list,        ┃
+┃draught, stability, or stresses of a ship. Management of ballast water shall be in accordance with an     ┃
+┃approved Ballast Water Management Plan and taking into account guidelines developed by the                ┃
+┃Organization.                                                                                             ┃
+┃                                                                                                          ┃
+┃선박평형수기록부 기재는 국제해사기구가 개발한 지침서를 고려하여 작성되어야 한다.                          ┃
+┃The Ballast Water Record Book entries should be completed taking into account any guidelines to be        ┃
+┃developed by the Organization.                                                                            ┃
+┃                                                                                                          ┃
+┃  선박평형수의 양은 ㎥로 산정되어야 한다. 선박평형수의 양 산정의 정확성은 해석에 따라 달라질 수 있다.     ┃
+┃The volume of ballast water on board should be estimated in cubic metres. It is recognized that the       ┃
+┃accuracy of estimating volumes of ballast is left to interpretation.                                      ┃
+┃                                                                                                          ┃
+┃선박평형수관리기록부 기재                                                                                 ┃
+┃ENTRIES IN THE BALLAST WATER RECORD BOOK                                                                  ┃
+┃                                                                                                          ┃
+┃  선박평형수기록부 기재는 다음의 경우에 따른다.                                                           ┃
+┃Entries in the Ballast Water Record Book shall be made on each of the following occasions:                ┃
+┃                                                                                                          ┃
+┃(A) 선박평형수를 해양에서 주입하는 경우 (발라스트 작업)                                                   ┃
+┃    When ballast water is taken on board from the aquatic environment (ballasting operation)              ┃
+┃   1. 시작 시간 및 위치 (주입 항 또는 위도/경도)                                                          ┃
+┃      Start time and location (port of uptake or latitude/longitude)                                      ┃
+┃   2. 종료 시간 및 위치 (주입 항 또는 위도/경도 및 최소 수심)                                             ┃
+┃      Completion time and location (port of uptake or latitude/longitude and minimum depth of water       ┃
+┃during uptake)                                                                                            ┃
+┃   3. 관련 탱크의 식별                                                                                    ┃
+┃      The identity of the tanks affected                                                                  ┃
+┃   4. 주입량 및 최종 보유량(㎥)                                                                           ┃
+┃      Estimated volume of uptake and final total quantity retained in cubic metres                        ┃
+┃   5. 승인된 선박평형수관리계획서에 따른 이행 여부                                                        ┃
+┃      Whether conducted in accordance with the approved Ballast Water Management Plan                     ┃
+┃   6. 선박평형수 처리 방법                                                                                ┃
+┃      Ballast water treatment method                                                                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                            
+                                                                                                            
+    (제3쪽)                                                                                                 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃(B) 선박평형수를 해양으로 배출하는 경우 (디발라스트 작업)                                               ┃
+┃    When ballast water is discharged into the aquatic environment (deballasting operation)              ┃
+┃   1. 시작 시간 및 위치 (배출 항 또는 위도/경도)                                                        ┃
+┃      Start time and location (port of discharge or latitude/longitude)                                 ┃
+┃   2. 종료 시간 및 위치 (배출 항 또는 위도/경도 및 수심)                                                ┃
+┃      Completion time and location (port of discharge or latitude/longitude and minimum depth of water  ┃
+┃during discharge)                                                                                       ┃
+┃   3. 관련 탱크의 식별                                                                                  ┃
+┃      The identity of the tanks affected                                                                ┃
+┃   4. 배출량 및 최종 보유량(㎥)                                                                         ┃
+┃      Estimated volume of discharge and final total quantity retained in cubic metres                   ┃
+┃   5. 승인된 선박평형수관리계획서에 따른 이행 여부                                                      ┃
+┃      Whether conducted in accordance with the approved Ballast Water Management Plan                   ┃
+┃   6. 선박평형수 처리 방법                                                                              ┃
+┃      Ballast water treatment method                                                                    ┃
+┃                                                                                                        ┃
+┃(C) 선박평형수를 교환하거나, 내부순환을 통해 처리하거나 탱크 내 처리하는 경우                           ┃
+┃    Whenever ballast water is exchanged, treated through internal circulation or treated in tank        ┃
+┃   1. 선박평형수 교환                                                                                   ┃
+┃      Ballast water exchange                                                                            ┃
+┃      .1 시작 시간 및 위치 (위도/경도)                                                                  ┃
+┃         Start time and location (latitude/longitude)                                                   ┃
+┃      .2 종료 시간 및 위치 (위도/경도)                                                                  ┃
+┃         Completion time and location (latitude/longitude)                                              ┃
+┃      .3 교환하는 동안 가장 가까운 육지로부터의 거리, 최소 수심, 해당되는 경우, 선박평형수관리협약 부속 ┃
+┃서 제B-4.2규칙에 따라 지정된 선박평형수 교환수역 식별                                                   ┃
+┃         Minimum distance from the nearest land and minimum depth of water during the exchange or,      ┃
+┃if applicable, identify the designated exchange area in accordance with regulation B-4.2                ┃
+┃      .4 승인된 선박평형수관리계획서에 따른 이행 여부 및 선박평형수교환 방법 (배출 후 주입, 넘침, 또는  ┃
+┃희석)                                                                                                   ┃
+┃         Whether conducted in accordance with the Ballast Water Management Plan and state the           ┃
+┃ballast water exchange method (Sequential or Flow-through or Dilution) used                             ┃
+┃      .5 관련 탱크의 식별                                                                               ┃
+┃         The identity of the tanks affected                                                             ┃
+┃      .6 교환된 총량 및 최종 보유량(㎥)                                                                 ┃
+┃         Total quantity exchanged and final total quantity on board in cubic metres                     ┃
+┃      .7 주입되는 선박평형수에 대한 처리방법                                                            ┃
+┃         Treatment method for the incoming ballast water                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                            
+                                                                                                            
+    (제4쪽)                                                                                                 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃   2. 탱크내 처리 또는 처리를 위해 선박평형수 내부 순환                                                 ┃
+┃      Ballast water internal circulation for treatment or in-tank treatment                             ┃
+┃      .1 시작 시간                                                                                      ┃
+┃         Start time                                                                                     ┃
+┃      .2 종료 시간                                                                                      ┃
+┃         Completion time                                                                                ┃
+┃      .3 관련 탱크의 식별 (해당되는 경우, 순환의 근원 및 도착 탱크)                                     ┃
+┃         The identity of the tanks affected (identifying source and destination tanks if applicable)    ┃
+┃      .4 처리된 선박평형수(탱크 내 처리 또는 내부순환을 통하여) 총량 (㎥)                               ┃
+┃         Total quantity treated (through circulation or in tank) in cubic metres                        ┃
+┃      .5 선박평형수 처리 방법                                                                           ┃
+┃         Ballast water treatment method                                                                 ┃
+┃                                                                                                        ┃
+┃(D) 처리시설로부터 선박평형수를 주입하거나 처리시설에 선박평형수를 배출하는 경우                        ┃
+┃    Uptake or discharge of ballast water from/to a port-based or reception facility                     ┃
+┃   1. 주입/배출의 시작 시간 및 위치 (처리시설 이름)                                                     ┃
+┃      Start time and location of uptake/discharge (state facility name)                                 ┃
+┃   2. 종료 시간                                                                                         ┃
+┃      Completion time                                                                                   ┃
+┃   3. 수행한 작업 (주입 또는 배출 여부)                                                                 ┃
+┃      Operation carried out (whether uptake or discharge)                                               ┃
+┃   4. 관련 탱크의 식별                                                                                  ┃
+┃      The identity of the tanks affected                                                                ┃
+┃   5. 선박평형수 총량 및 최종 보유량 (㎥)                                                               ┃
+┃      Total quantity in cubic metres and final quantity retained on board                               ┃
+┃   6. 승인된 선박평형수관리계획서에 따른 이행 여부                                                      ┃
+┃      Whether conducted in accordance with the approved Ballast Water Management Plan                   ┃
+┃   7. 선내 선박평형수 처리방법                                                                          ┃
+┃      Onboard ballast water treatment method                                                            ┃
+┃                                                                                                        ┃
+┃(E) 우발적 배출/침수 또는 그 밖의 사유로 인해 예외적으로 선박평형수를 주입하거나 또는 배출할 때         ┃
+┃    Accidental discharge/ingress or other exceptional uptake or discharge of ballast water              ┃
+┃   1. 침수/주입/배출의 시작 시간 및 위치 (항구명 또는 위도/경도)                                        ┃
+┃      Start time and location of ingress/uptake/discharge (port name or latitude/longitude)             ┃
+┃   2. 종료 시간                                                                                         ┃
+┃      Completion time                                                                                   ┃
+┃   3. 수행한 작업 (침수, 주입 또는 배출 여부)                                                           ┃
+┃      Operation carried out (whether ingress, uptake or discharge)                                      ┃
+┃   4. 관련 탱크의 식별                                                                                  ┃
+┃      The identity of the tanks affected                                                                ┃
+┃   5. 선박평형수의 총량 (㎥)                                                                            ┃
+┃      Total quantity of ballast water in cubic metres                                                   ┃
+┃   6. 침수, 주입, 배출 또는 손실의 배경, 그에 따른 이유, 사용한 처리방법 및 일반사항 서술               ┃
+┃      State the circumstances of ingress, uptake, discharge or loss, the reason thereof, any treatment  ┃
+┃method used and general remarks                                                                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                                
+                                                                                                                
+    (제5쪽)                                                                                                     
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃(F) 선박평형수관리설비의 고장 및 조작불능*                                                                  ┃
+┃    Failures and inoperabilities* of the ballast water management system                                    ┃
+┃     * 고장 및 조작불능은 선박평형수관리설비의 고장을 나타내는 오작동, 정지 또는 치명적인 알람을 포함       ┃
+┃하며, 이는 선박평형수관리협약 부속서 D-2규칙에 불만족함을 의미할 수도 있다.(일상적인 정보 및 경             ┃
+┃고는 제외)                                                                                                  ┃
+┃     * Failures and inoperabilities include malfunctions, shutdowns or critical alarms indicating a failure ┃
+┃of the ballast water management system which may indicate non-compliance with the D-2                       ┃
+┃standard (except routine information and warnings).                                                         ┃
+┃   1. 선박평형수관리설비가 고장난 시간 및 위치 (항구명 또는 위도/경도)                                      ┃
+┃      Time and location (port name or latitude/longitude) of failure of the ballast water management        ┃
+┃system                                                                                                      ┃
+┃   2. 수행한 작업 (주입 또는 배출 여부)                                                                     ┃
+┃      Operation carried out (state whether uptake or discharge)                                             ┃
+┃   3. 문제 설명 (예: 알람의 종류 또는 기타 상황에 대해 서술)                                                ┃
+┃      Description of the issue (e.g. kind of alarm or other description of circumstances)                   ┃
+┃   4. 선박평형수관리설비가 정상으로 복구된 시간 및 위치 (항구명 또는 위도/경도)                             ┃
+┃      Time and location (port name or latitude/longitude) when the ballast water management system          ┃
+┃has been made operational                                                                                   ┃
+┃                                                                                                            ┃
+┃(G) 선박평형수 탱크 청소/플러싱, 탱크내 침전물의 제거 및 처분                                               ┃
+┃    Ballast tank cleaning/flushing, removal and disposal of sediments                                       ┃
+┃   1. 선박평형수 탱크 청소/플러싱, 침전물의 제거 및 처분을 시작한 시간 및 위치 (항구명 또는 위도/경도)      ┃
+┃      Time and ship's location on commencement of ballast tank cleaning/flushing, removal or disposal       ┃
+┃of sediments (port name or latitude/longitude)                                                              ┃
+┃   2. 선박평형수 탱크 청소/플러싱, 침전물의 제거 및 처분을 종료한 시간 및 위치 (항구명 또는 위도/경도)      ┃
+┃      Time and ship's location on completion of ballast tank cleaning/flushing, removal or disposal of      ┃
+┃sediments (port name or latitude/longitude)                                                                 ┃
+┃   3. 탱크(들) 식별 (선박평형수관리계획서에 따른 선박평형수 탱크의 이름)                                    ┃
+┃      Tank(s) identification (name of the ballast tanks as per the Ballast Water Management Plan)           ┃
+┃   4. 처리시설로 배출 또는 처분 (처리시설 이름과 배출량(㎥))                                                ┃
+┃      Discharge or disposal to a reception facility (state quantity in cubic metres and name of the         ┃
+┃facility)                                                                                                   ┃
+┃   5. 선박평형수관리계획서에 따라 해양으로 배출 또는 처분한 정보(배출 또는 처분양(㎥), 가장 가까운 육지     ┃
+┃로부터의 거리(해리) 및 최소 수심(m))                                                                        ┃
+┃      Disposal or discharge to the aquatic environment as per Ballast Water Management Plan (state          ┃
+┃quantity in cubic metres, minimum distance from the nearest land in nm and minimum depth of                 ┃
+┃water in metres)                                                                                            ┃
+┃                                                                                                            ┃
+┃(H) 추가 작업 절차 및 일반 비고                                                                             ┃
+┃    Additional operational procedures and general remarks                                                   ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                                        
+                                                                                                                        
+    (제6쪽)                                                                                                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃선박평형수관리기록부 양식                                                                                           ┃
+┃Sample Ballast Water Record Book Page                                                                               ┃
+┃선박명                                                                                                              ┃
+┃Name of ship :                                                                                                      ┃
+┃                                                                                                                    ┃
+┃IMO 번호, 선박번호 또는 문자                                                                                        ┃
+┃IMO number, distinctive numbers or letters :                                                                        ┃
+┃                                                                                                                    ┃
+┃┌──┬────┬────┬─────────────────────────────┐                            ┃
+┃│일시│코드    │항목    │작업기록 / 책임사관 서명                                  │                            ┃
+┃│Date│(문자)  │(번호)  │Record of operations / signature of officer in charge     │                            ┃
+┃│    │Code    │Item    │                                                          │                            ┃
+┃│    │(letter)│(number)│                                                          │                            ┃
+┃├──┼────┼────┼─────────────────────────────┤                            ┃
+┃│    │        │        │                                                          │                            ┃
+┃├──┼────┼────┼─────────────────────────────┤                            ┃
+┃│    │        │        │                                                          │                            ┃
+┃├──┼────┼────┼─────────────────────────────┤                            ┃
+┃│    │        │        │                                                          │                            ┃
+┃├──┼────┼────┼─────────────────────────────┤                            ┃
+┃│    │        │        │                                                          │                            ┃
+┃├──┼────┼────┼─────────────────────────────┤                            ┃
+┃│    │        │        │                                                          │                            ┃
+┃├──┼────┼────┼─────────────────────────────┤                            ┃
+┃│    │        │        │                                                          │                            ┃
+┃├──┼────┼────┼─────────────────────────────┤                            ┃
+┃│    │        │        │                                                          │                            ┃
+┃├──┼────┼────┼─────────────────────────────┤                            ┃
+┃│    │        │        │                                                          │                            ┃
+┃├──┼────┼────┼─────────────────────────────┤                            ┃
+┃│    │        │        │                                                          │                            ┃
+┃├──┼────┼────┼─────────────────────────────┤                            ┃
+┃│    │        │        │                                                          │                            ┃
+┃├──┼────┼────┼─────────────────────────────┤                            ┃
+┃│    │        │        │                                                          │                            ┃
+┃┕━━┷━━━━┷━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┙                            ┃
+┃                              선장의 서명:                                                                          ┃
+┃                              Signature of master                                                                   ┃
+┃                                                                                                                    ┃
+┃                                                                                                                    ┃
+┃                                                                                                                    ┃
+┃비고                                                                                                                ┃
+┃Remark                                                                                                              ┃
+┃  선박평형수관리기록부는 선장 및 직원이 일반적으로 사용하는 언어로 기록하고, 그 언어가 영어가 아닐 경우에는 영어로  ┃
+┃된 번역문을 포함할 것.                                                                                              ┃
+┃  The entries in the Ballast Water Record Book shall be maintained in the language commonly used by the master      ┃
+┃and officers. If this language is not English, an English translation shall also be provided.                       ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

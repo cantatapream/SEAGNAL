@@ -1,0 +1,36 @@
+[시행규칙] 서식25의3 — 교육훈련이수증(CERTIFICATE)
+
+■ 선원법 시행규칙 [별지 제25호의3서식]                                 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃교육훈련이수증                                          이수교육                        ┃
+┃(CERTIFICATE)                                           (COURSE COMPLETED)              ┃
+┃                    ┌───────┐                ┌────┬────┬─────┐┃
+┃선원수첩번호        │사진          │                │이수과정│교육기간│유효기간  │┃
+┃(SEAFARERS BOOK NO.)│              │                │(COURSE)│(PERIOD)│(VALIDITY)│┃
+┃                    │              │                ├────┼────┼─────┤┃
+┃생년월일            │(3.5cm×4.5cm)│                │        │        │          │┃
+┃(DATE OF BIRTH)     │              │                ├────┼────┼─────┤┃
+┃                    │              │                │        │        │          │┃
+┃성명                │              │                ├────┼────┼─────┤┃
+┃(NAME)              │              │                │        │        │          │┃
+┃                    │              │                ├────┼────┼─────┤┃
+┃                    └───────┘                │        │        │          │┃
+┃다음의 교육과정을 이수하였음을 증명함                 ├────┼────┼─────┤┃
+┃                                                      │        │        │          │┃
+┃Every training course described hereafter has         ├────┼────┼─────┤┃
+┃been conducted in accordance with the related         │        │        │          │┃
+┃provisions of Regulations of '78 STCW and '95         ├────┼────┼─────┤┃
+┃amended                                               │        │        │          │┃
+┃┏━━┓                                              ├────┼────┼─────┤┃
+┃┃직인┃                                              │        │        │          │┃
+┃┗━━┛                                              ├────┼────┼─────┤┃
+┃해양수산부장관 또는 위탁교육기관의 장                 │        │        │          │┃
+┃                                                      ├────┼────┼─────┤┃
+┃                                                      │        │        │          │┃
+┃                                                      ├────┼────┼─────┤┃
+┃PRESIDENT                                             │        │        │          │┃
+┃Ministry of Oceans and Fisheries, Republic of Korea.  └────┴────┴─────┘┃
+┃or Recognized Education and Training Institute, ent                                     ┃
+┃rusted from the Minister of Oceans and Fisheries, Re                                    ┃
+┃public of Korea.                                                                        ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

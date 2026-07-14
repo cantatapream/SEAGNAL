@@ -1,0 +1,58 @@
+[시행규칙] 서식41 — 형식승인시험합격증서
+
+[별지 제41호서식]                                                                 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃제     호                                                                       ┃
+┃Certificate No.:                                                                ┃
+┃형 식 승 인 시 험 합 격 증 서                                                   ┃
+┃CERTIFICATE OF TYPE APPROVAL TEST                                               ┃
+┠───────┬─────────┬──────────────────────┨
+┃신청인        │①상      호      │                                            ┃
+┃Applicant     │Company           │                                            ┃
+┃              ├─────────┼──────────────────────┨
+┃              │②대  표  자      │                                            ┃
+┃              │Name              │                                            ┃
+┃              ├─────────┼──────────────────────┨
+┃              │③ 사업자등록번호 │                                            ┃
+┃              │Registration No.  │                                            ┃
+┃              ├─────────┼──────────────────────┨
+┃              │④주      소      │                                            ┃
+┃              │Address           │                                            ┃
+┠───────┼─────────┼──────────────────────┨
+┃제조자        │⑤상       호     │                                            ┃
+┃Manufacturer  │Company           │                                            ┃
+┃              ├─────────┼──────────────────────┨
+┃              │⑥주       소     │                                            ┃
+┃              │Address           │                                            ┃
+┠───────┼─────────┼──────────────────────┨
+┃선박 또는     │⑦품      명      │                                            ┃
+┃선박용물건    │Name of Articles  │                                            ┃
+┃Particular of ├─────────┼──────────────────────┨
+┃Article       │⑧규      격      │                                            ┃
+┃              │Size              │                                            ┃
+┃              ├─────────┼──────────────────────┨
+┃              │⑨형      식      │                                            ┃
+┃              │Type              │                                            ┃
+┠───────┼─────────┴──────────────────────┨
+┃⑩ 비  고     │                                                                ┃
+┃Remarks       │                                                                ┃
+┠───────┴────────────────────────────────┨
+┃                                                                                ┃
+┃                                                                                ┃
+┃「선박안전법 시행규칙」 제38조제4항에 따라 대한민국 정부의 권한으로 이 증서를   ┃
+┃발급합니다.                                                                     ┃
+┃ This is to certify that the above article has been satisfactorily examined and ┃
+┃tested in accordance with the requirements of Article 38.4 of the Enforcement   ┃
+┃Decree of the Ship Safety Act under the authority of the Government of          ┃
+┃Republic of Korea.                                                              ┃
+┃                                                                                ┃
+┃년        월        일                                                          ┃
+┃Y        M        D                                                             ┃
+┃                                                                                ┃
+┃                                                                                ┃
+┃형식승인시험기관의 장  ??                                                     ┃
+┃Director of Type Approval Testing Institute                                     ┃
+┃                                                                                ┃
+┃                                                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+   210㎜ × 297㎜[보존용지(1종) 220g/㎡]

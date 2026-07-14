@@ -1,0 +1,51 @@
+[시행규칙] 서식19 — 선박평형수처리설비 형식승인시험기관 지정서
+
+■ 선박평형수(船舶平衡水) 관리법 시행규칙 [별지 제19호서식]                        
+                                                                                                      
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃지정번호 제         호                                                                            ┃
+┃Cert. No.:                                                                                        ┃
+┃                                                                                                  ┃
+┃                                                                                                  ┃
+┃선박평형수처리설비 형식승인시험기관 지정서                                                        ┃
+┃CERTIFICATE OF SHIP'S BALLAST WATER MANAGEMENT                                                    ┃
+┃SYSTEM TYPE APPROVAL TESTING LABORATORY                                                           ┃
+┃                                                                                                  ┃
+┠────────────────┬────────────────────────────────┨
+┃ 명칭(상호)                     │                                                                ┃
+┃ Company                        │                                                                ┃
+┠────────────────┼─┬─────────┬────────────────────┨
+┃ 성명(대표자)                   │  │ 사업자등록번호   │                                        ┃
+┃ Name                           │  │ Registration No. │                                        ┃
+┠────────────────┼─┴─────────┴────────────────────┨
+┃ 주소(사무소)                   │                                                                ┃
+┃ Address                        │                                                                ┃
+┠────────────────┼────────────────────────────────┨
+┃ 지정받은 형식승인시험의 종류   │                                                                ┃
+┃ Kind of Type Approval Testing  │                                                                ┃
+┃Laboratory                      │                                                                ┃
+┠────────────────┼────────────────────────────────┨
+┃ 비고                           │                                                                ┃
+┃ Remark                         │                                                                ┃
+┠────────────────┴────────────────────────────────┨
+┃                                                                                                  ┃
+┃   「선박평형수(船舶平衡水) 관리법」 제19조제2항 및 같은 법 시행규칙 제36조제2항ㆍ제5항에 따라    ┃
+┃형식승인시험기관으로 지정합니다.                                                                  ┃
+┃    This is to certify that above laboratory is designated as Type-Approval Testing Laboratory in ┃
+┃accordance with Article 19.2 of the Ship's Ballast Water Management Act and Article 36.2ㆍ36.5 of ┃
+┃the Enforcement Decree of the Ship's Ballast Water Management Act.                                ┃
+┃                                                                                                  ┃
+┃                                                                                                  ┃
+┃                                                                                                  ┃
+┃년      월      일                                                                                ┃
+┃Y        M        D                                                                               ┃
+┃                                                                                                  ┃
+┃                                                                                                  ┃
+┃                ┏━━┓                                                                          ┃
+┃  해양수산부장관┃직인┃                                                                          ┃
+┃                ┗━━┛                                                                          ┃
+┃Minister of Oceans and Fisheries                                                                  ┃
+┃                                                                                                  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                      
+                                      210㎜×297㎜[백상지(120g/㎡)]

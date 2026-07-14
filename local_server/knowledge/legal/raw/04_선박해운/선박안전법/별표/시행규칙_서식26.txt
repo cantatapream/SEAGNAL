@@ -1,0 +1,728 @@
+[시행규칙] 서식26 — 특수목적선안전증서 SPECIAL PURPOSE SHIP SAFETY CERTIFICATE
+
+■ 선박안전법 시행규칙 [별지 제26호서식]    (1면)                                               
+                                                                                                                    
+                                                                                                                    
+                                                                                                                    
+  증서번호 제                호                                                                                     
+  Cert. No.                                                                                                         
+                                                                                                                    
+                                                                                                                    
+  특 수 목 적 선 안 전 증 서                                                                                        
+  SPECIAL PURPOSE SHIP SAFETY CERTIFICATE                                                                           
+                                                                                                                    
+  대     한     민     국                                                                                           
+  REPUBLIC OF KOREA                                                                                                 
+                                                                                                                    
+  이 증서에는 설비기록부(양식 SPS)를 첨부해야 합니다.                                                               
+  This Certificate shall be supplemented by a Record of Equipment(Form SPS).                                        
+                                                                                                                    
+  이 증서는 결의서 MSC.266(84)에 의해 채택된 2008 특수목적선안전코드에 따라 대한민국 정부의 권한으로 발행되         
+  었습니다.                                                                                                         
+  Issued in compliance with provisions of the CODE OF SAFETY FOR SPECIAL PURPOSE SHIPS, 2008, as                    
+  adopted by resolution MSC.266(84) under the authority of the Government of Republic of Korea by                   
+                                              .                                                                     
+                                                                                                                    
+┌───────┬──────────┬────────────┬───────┬────────────────┐
+│선          명│선 박 번 호         │선  적  항              │총  톤  수    │IMO 번호*                       │
+│              │Distinctive Number  │                        │              │                                │
+│Name of Ship  │or Letters          │Port of Registry        │Gross tonnage │IMO number*                     │
+├───────┼──────────┼────────────┼───────┼────────────────┤
+│              │                    │                        │              │                                │
+└───────┴──────────┴────────────┴───────┴────────────────┘
+                                                                                                                    
+  선박의 특수용도                                                                                                   
+  Ship's special purpose                                                                                            
+                                                                                                                    
+  운항 허용 해역(「해상에서의 인명 안전을 위한 국제협약」제4장 제2규칙)**                                           
+  Sea areas in which ships is certificated to operate(SOLAS regulation IV/2)**                                      
+                                                                                                                    
+                                                                                                                    
+  용골 거치일                                                                                                       
+  Date on which keel was laid or ship was at a similar stage of construction or, where applicable, date on          
+  which work for a conversion or an alteration or modification of a major character was co㎜enced                   
+         .                                                                                                          
+                                                                                                                    
+  이 증서는 다음 사항을 증명함:                                                                                     
+  THIS IS TO CERTIFY:                                                                                               
+                                                                                                                    
+  1. 이 선박은 코드 제1.6항에 따라 검사를 받았음.                                                                   
+  That the ship has been surveyed in accordance with the requirement of regulation 1.6 of the Code.                 
+                                                                                                                    
+  2. 이 선박의 검사결과는 다음과 같음:                                                                              
+  That the survey showed that:                                                                                      
+                                                                                                                    
+  2.1 이 선박은 아래와 같이 코드의 규정에 적합함;                                                                   
+     the ship complied with the provisions of the Code as regards;                                                  
+                                                                                                                    
+      .1 구조, 주기관 및 보조기관, 보일러 및 기타 압력용기들;                                                       
+         the structure, main and auxiliary machinery, boilers and other pressure vessels;                           
+      .2 수밀수직구역의 배치 및 상세;                                                                               
+         the watertight subdivision arrangements and details;                                                       
+                                                                                                                    
+  2.2 이 선박은 방화구조, 화재안전 장치 및 설비, 화재제어도에 관한 코드의 규정에 적합함;                            
+  the ship complied with the provisions of the Code as regards structural fire protection, fire safety              
+  system and appliances and fire control plans;                                                                     
+                                                                                                                    
+  *  총회 결의서 A.1117(30)에 의해 기구가 채택한 IMO 선박식별번호 체계에 따름                                       
+     In accordance with IMO ship identification number scheme adopted by the Organization by resolution A1117(30).  
+  **  A3 해역 내에서 종사하는 선박의 경우, 인정된 이동식 위성 서비스를 괄호 안에 표시한다.                          
+     For a ship certified to operate in sea area A3, indicate the recognized mobile satellite service in brackets.  
+                                                                                                                    
+                                                                                                                    
+                                                                                                                          
+  (2면)                                                                                                                   
+                                                                                                                          
+  2.3 구명설비와 구명정, 구명뗏목, 구조정의 의장품이 코드의 규정에 따라 비치되어 있음;                                    
+  the life-saving appliance and the equipment of the lifeboats, liferafts and rescue boats were provided                  
+  in accordance with the provisions of the Code;                                                                          
+                                                                                                                          
+  2.4 구명줄 발사기가 코드의 규정에 따라 비치되어 있음;                                                                   
+  the ship was provided with a line-throwing appliance in accordance with the provisions of the Code;                     
+                                                                                                                          
+  2.5 이 선박은 무선설비에 관한 코드의 규정에 적합함;                                                                     
+  the ship complied with the provisions of the Code as regards radio installations;                                       
+                                                                                                                          
+  2.6 구명설비용 무선설비의 공급과 기능이 코드의 규정에 적합함;                                                           
+  the provision and the functioning of the radio installations used in life-saving appliance complied                     
+  with the provisions of the Code.                                                                                        
+                                                                                                                          
+  2.7 선박용 항해설비, 도선사용 승하선장치 및 해사 간행물에 관한 코드의 규정에 적합함;                                    
+  the ship complied with the provisions of the Code as regards shipborne navigational equipment,                          
+  means of embarkation for pilots and nautical publications;                                                              
+                                                                                                                          
+  2.8 이 코드 및 현행 국제해상충돌예방규칙의 규정에 따라 음향신호와 조난신호의 수단, 등화 및 형상물이 비치되              
+  어 있음;                                                                                                                
+  the ship was provided with lights, shapes, means of making sound signals and distress signals, in                       
+  accordance with the provisions of the Code and the International Regulations for Preventing                             
+  Collisions at Sea in Force;                                                                                             
+                                                                                                                          
+  2.9 그 밖의 모든 점에서 이 선박은 코드의 관련 규정에 적합함.                                                            
+  in all other respects the ship complied with the relevant provisions of the Code.                                       
+                                                                                                                          
+                                                                                                                          
+  3. 면제증서가 발행되었음/ 발행되지 않았음.*                                                                             
+  That an Exemption Certificate has/ has not* been issued.                                                                
+                                                                                                                          
+                                                                                                                          
+  4. 이 선박은 「해상에서의 인명 안전에 대한 국제협약」(개정 포함)에 따라 발행된 증서를 소지하고/ 소지하지 않고 있음.*    
+   That the ship has/has not* been provided with Certificates issued under SOLAS, as amended.                             
+                                                                                                                          
+                                                                                                                          
+  이 증서는     년     월    일까지 유효합니다.                                                                           
+                                                                                                                          
+            ──   ──  ──                                                                                             
+  This certificate is valid until     day of          .                                                                   
+                                                                                                                          
+                                  ──      ── ──                                                                     
+                                                                                                                          
+                                                                                                                          
+  이 증서 발급을 위한 검사완료일:                                                                                         
+  Completion date of the survey on which this certificate is based :                                                      
+                                                                                                                          
+                                                                                                                          
+      년     월     일     에서 발행합니다.                                                                               
+                                                                                                                          
+  ──   ──   ──   ──                                                                                               
+  Issued at     on the     day of           .                                                                             
+                                                                                                                          
+            ──       ──       ──  ──                                                                              
+                                                                                                                          
+                                                                                                                          
+                                                                                                                          
+                                                                                                                          
+                                                                                                                          
+                                                                                                                          
+                                                                                                                          
+                                                                                                                          
+                                                                                                                          
+    ──────────────────────                                                                          
+      해  양  수  산  부  장  관                                                                                          
+      Minister of Oceans and Fisheries                                                                                    
+      한국해양교통안전공단(한 글  및  영 문)                                                                              
+      선   급   법   인   명(한 글  및  영 문)                                                                            
+                                                                                                                          
+                                                                                                                          
+                                                                                                                          
+                                                                                                                          
+  * 해당하지 않는 것은 지울 것                                                                                            
+    Delete as appropriate.                                                                                                
+                                                                                                                          
+  210㎜ x 297㎜[보존용지(1종) 220g/㎡]                                                                                    
+                                                                                                                          
+                                                                                                            
+  (3면)                                                                                                     
+                                                                                                            
+  본 증서 제2.1항에 해당하는 선체, 기관 및 설비의 연차검사에 대한 이서                                      
+  ENDORSEMENT FOR ANNUAL SURVEYS RELATING TO HULL, MACHINERY                                                
+  AND EQUIPMENT REFERRED TO IN SECTION 2.1 OF THIS CERTIFICATE                                              
+                                                                                                            
+  이 증서는 코드 제1.6항에 따른 검사결과 선박이 코드의 관련 규정에 적합함을 증명합니다.                     
+  THIS IS TO CERTIFY that at a survey required by 1.6 of the Code, the ship was found to comply with the    
+  relevant provisions of the Code.                                                                          
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+  연 차 검 사                                서 명                                                          
+  Annual Survey:               Signed:                                                                      
+                                                                                                            
+  장 소                                                                                                     
+  Place:                                                                                                    
+                                                                                                            
+  날 짜                                                                                                     
+  Date:                                                                                                     
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+  연 차 검 사                       서 명                                                                   
+  Annual Survey:       Signed:                                                                              
+                                                                                                            
+  장 소                                                                                                     
+  Place:                                                                                                    
+                                                                                                            
+  날 짜                                                                                                     
+  Date:                                                                                                     
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+  연 차 검 사                      서 명                                                                    
+  Annual Survey:      Signed:                                                                               
+                                                                                                            
+  장 소                                                                                                     
+  Place:                                                                                                    
+                                                                                                            
+  날 짜                                                                                                     
+  Date:                                                                                                     
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+  연 차 검 사                                서 명                                                          
+  Annual Survey:               Signed:                                                                      
+                                                                                                            
+  장 소                                                                                                     
+  Place:                                                                                                    
+                                                                                                            
+  날 짜                                                                                                     
+  Date:                                                                                                     
+                                                                                                            
+                                                                                                            
+                                                                                                        
+  (4면)                                                                                                 
+                                                                                                        
+  본 증서 2.2, 2.3, 2.4, 2.6, 2.8 및 2.9항에 해당하는 구명설비 및                                       
+  그 밖의 설비의 연차검사 및 정기적 검사에 대한 이서                                                    
+  ENDORSEMENT FOR ANNUAL AND PERIODICAL SURVEYS RELATING TO                                             
+  LIFE-SAVING APPLIANCES AND OTHER EQUIPMENT REFERRED TO IN                                             
+  SECTION 2.2, 2.3, 2.4, 2.6, 2.7, 2.8 AND 2.9 OF THIS CERTIFICATE                                      
+                                                                                                        
+                                                                                                        
+                                                                                                        
+  이 증서는 코드 제1.6항에 따른 검사결과, 선박이 코드의 관련 규정에 적합함을 증명합니다.                
+  THIS IS TO CERTIFY that, at a survey required by 1.6 of the Code, the ship was found to comply with   
+  the relevant provisions of the Code.                                                                  
+                                                                                                        
+                                                                                                        
+                                                                                                        
+  연 차 검 사                                서 명                                                      
+  Annual Survey:               Signed:                                                                  
+                                                                                                        
+  장 소                                                                                                 
+  Place:                                                                                                
+                                                                                                        
+  날 짜                                                                                                 
+  Date:                                                                                                 
+                                                                                                        
+                                                                                                        
+                                                                                                        
+  연차/정기적* 검사                     서 명                                                           
+  Annual/Periodical* Survey:      Signed:                                                               
+  장 소                                                                                                 
+  Place:                                                                                                
+                                                                                                        
+  날 짜                                                                                                 
+  Date:                                                                                                 
+                                                                                                        
+                                                                                                        
+                                                                                                        
+  연차/정기적* 검사                     서 명                                                           
+  Annual/Periodical* Survey:      Signed:                                                               
+                                                                                                        
+  장 소                                                                                                 
+  Place:                                                                                                
+                                                                                                        
+  날 짜                                                                                                 
+  Date:                                                                                                 
+                                                                                                        
+                                                                                                        
+                                                                                                        
+  연 차 검 사                                서 명                                                      
+  Annual Survey:               Signed:                                                                  
+                                                                                                        
+  장 소                                                                                                 
+  Place:                                                                                                
+                                                                                                        
+  날 짜                                                                                                 
+  Date:                                                                                                 
+                                                                                                        
+                                                                                                        
+                                                                                                        
+                                                                                                        
+                                                                                                        
+                                                                                                        
+  * 해당하지 않는 것은 지울 것                                                                          
+    Delete as appropriate.                                                                              
+                                                                                                        
+                                                                                                                  
+  (5면)                                                                                                           
+                                                                                                                  
+  본 증서 2.5항에 해당하는 무선설비의 정기적 검사에 대한 이서                                                     
+  ENDORSEMENT FOR PERIODICAL SURVEYS RELATING TO RADIO                                                            
+  INSTALLATIONS REFERRED TO IN SECTION 2.5 OF THIS CERTIFICATE                                                    
+                                                                                                                  
+                                                                                                                  
+  이 증서는 코드 제1.6항에 따른 검사결과, 선박이 코드의 관련 규정에 적합함을 증명합니다.                          
+  THIS IS TO CERTIFY that at a survey required by 1.6 of the Code, the ship was found to comply with the          
+  relevant provisions of the Code.                                                                                
+                                                                                                                  
+  정기적 검사                              서 명                                                                  
+  Periodical Survey:               Signed:                                                                        
+                                                                                                                  
+  장 소                                                                                                           
+  Place:                                                                                                          
+                                                                                                                  
+  날 짜                                                                                                           
+  Date:                                                                                                           
+                                                                                                                  
+                                                                                                                  
+  정기적 검사                              서 명                                                                  
+  Periodical Survey:Signed:                                                                                       
+                                                                                                                  
+  장 소                                                                                                           
+  Place:                                                                                                          
+                                                                                                                  
+  날 짜                                                                                                           
+  Date:                                                                                                           
+                                                                                                                  
+                                                                                                                  
+  정기적 검사                              서 명                                                                  
+  Periodical Survey:      Signed:                                                                                 
+                                                                                                                  
+  장 소                                                                                                           
+  Place:                                                                                                          
+                                                                                                                  
+  날 짜                                                                                                           
+  Date:                                                                                                           
+                                                                                                                  
+                                                                                                                  
+  연 차 검 사                               서 명                                                                 
+  Annual Survey:               Signed:                                                                            
+                                                                                                                  
+  장 소                                                                                                           
+  Place:                                                                                                          
+                                                                                                                  
+  날 짜                                                                                                           
+  Date:                                                                                                           
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+  증서의 유효기간 연장을 위한 이서                                                                                
+  Endorsement for the extension of the certificate                                                                
+                                                                                                                  
+                                                                                                                  
+  선박이 코드의 관련 규정에 적합하므로, 본 증서는 코드 제1.7.3에 따라                              까지 유효한    
+  것으로 인정됩니다.                                                                                              
+  The ship complies with the relevant Provisions of the Code, and this certificate should, in accordance with     
+  1.7.3, be accepted as valid until                                                               .               
+                                                                                                                  
+                                             서  명                                                               
+                                Signed:                                                                           
+                                                                                                                  
+  장 소                                                                                                           
+  Place:                                                                                                          
+                                                                                                                  
+  날 짜                                                                                                           
+  Date:                                                                                                           
+                                                                                                                  
+                                                                                                                                  
+  (6면)                                                                                                                           
+                                                                                                                                  
+  특수목적선안전증서에 대한 설비기록부(양식 SPS)                                                                                  
+  Record of Equipment for the Special Purpose Ship Safety Certificate(Form SPS)                                                   
+                                                                                                                                  
+  이 기록부는 특수목적선안전증서에 영구적으로 첨부하여야 합니다.                                                                  
+  This Record Shall be permanently attached to the Special Purpose Ship Safety                                                    
+  Certificate.                                                                                                                    
+                                                                                                                                  
+  1.  선박의 세부사항                                                                                                             
+      Particular of ship                                                                                                          
+                                                                                                                                  
+     선박명                                                                                                                       
+     Name of ship                                                                                                                 
+                                                                                                                                  
+     선박번호                                                                                                                     
+     Distinctive number or letters                                                                                                
+                                                                                                                                  
+     특수용도 승선자 수(여객 포함)                                                                                                
+     Number of special personnel on board(including passengers) for which certified                                               
+                                                                                                                                  
+     무선설비 조작에 필요한 자격을 갖춘 최소 승선인원                                                                             
+     Minimum number of persons on board with required qualifications to operate the radio installations                           
+                                                                                                                                  
+                                                                                                                                  
+  2. 구명설비의 상세                                                                                                              
+     Details of life-saving appliances                                                                                            
+                                                                                                                                  
+┌─────────────────────────────────────┬─────────────────────────┐
+│ 1. 구명설비가 제공되는 총인원                                            │.................                                 │
+│    Total number of persons for which life-saving appliances are provided │                                                  │
+├─────────────────────────────────────┼────────────┬────────────┤
+│                                                                          │좌현                    │우현                    │
+│                                                                          │Port Side               │Starboard Side          │
+│ 2. 구명정 총수                                                           ├────────────┼────────────┤
+│    Total number of lifeboats                                             │                        │                        │
+│                                                                          │........................│........................│
+│ 2.1 구명정에 수용되는 인원                                               │                        │                        │
+│     Total number of persons acco㎜odated by them                         │........................│........................│
+│                                                                          │                        │                        │
+│ 2.2 부분폐형 구명정의 수(제3장 제31규칙 및 LSA 코드, 4.5절)              │........................│                        │
+│     Number of partially enclosed lifeboats(regulation III/31 and LSA     │                        │........................│
+│     Code, section 4.5)                                                   │........................│                        │
+│                                                                          │                        │                        │
+│ 2.3 전폐형의 구명정의 수(제3장 제31규칙 및 LSA 코드, 4.6절)              │........................│........................│
+│     Number of totally enclosed lifeboats(regulation III/31 and LSA Code, │                        │                        │
+│     section 4.6)                                                         │                        │........................│
+│                                                                          │........................│                        │
+│ 2.4 그 밖의 구명정                                                       │                        │                        │
+│     Other lifeboats                                                      │                        │........................│
+│                                                                          │....................... │                        │
+│ 2.4.1 구명정의 수                                                        │                        │                        │
+│      Number                                                              │                        │........................│
+│                                                                          │........................│                        │
+│ 2.4.2 형식                                                               │                        │                        │
+│      Type                                                                │........................│........................│
+│                                                                          │                        │                        │
+│ 3. 모터 구명정의 수(위의 구명정 총수에 포함)                             │........................│........................│
+│    Number of motor lifeboats(included in the total lifeboats shown above)│                        │                        │
+│                                                                          │                        │........................│
+│ 3.1 탐조등이 장치된 구명정의 수                                          │........................│                        │
+│     Number of lifeboats fitted with searchlights                         │                        │                        │
+│                                                                          │                        │........................│
+│ 4.  구조정의 수                                                          │                        │                        │
+│     Number of rescue boats                                               │                        │                        │
+│                                                                          │                        │                        │
+│ 4.1 위의 구명정 총수에 포함되는 구조정의 수                              │                        │                        │
+│     Number of boats which are included in the total lifeboats shown      │                        │                        │
+│above                                                                     │                        │                        │
+└─────────────────────────────────────┴────────────┴────────────┘
+(7면)
+┌──────────────────────────────────┬─────────────┐
+│                                                                    │                          │
+│ 5.  구명뗏목                                                       │                          │
+│     Liferafts                                                      │..........................│
+│                                                                    │                          │
+│ 5.1 승인된 진수장치가 필요한 것                                    │                          │
+│     Those for which approved launching appliance are required      │..........................│
+│                                                                    │                          │
+│ 5.1.1 구명뗏목의 수                                                │                          │
+│       Number of liferafts                                          │..........................│
+│                                                                    │                          │
+│ 5.1.2 수용인원의 수                                                │                          │
+│       Number of persons acco㎜odated by them                       │..........................│
+│                                                                    │                          │
+│ 5.2 승인된 진수장치가 필요 없는 것                                 │                          │
+│     Those for which approved launching appliance are not required  │..........................│
+│                                                                    │                          │
+│ 5.2.1 구명뗏목의 수                                                │                          │
+│       Number of liferafts                                          │..........................│
+│                                                                    │                          │
+│ 5.2.2 수용인원의 수                                                │                          │
+│       Number of persons acco㎜odated by them                       │..........................│
+│                                                                    │                          │
+│ 6. 구명부환(救命浮環)의 수                                         │                          │
+│    Number of lifebuoys                                             │..........................│
+│                                                                    │                          │
+│ 7. 구명조끼의 수                                                   │                          │
+│    Number of lifejackets                                           │..........................│
+│                                                                    │                          │
+│ 8. 방수복                                                          │                          │
+│    I㎜ersion suits                                                 │..........................│
+│                                                                    │                          │
+│ 8.1 총 수량                                                        │..........................│
+│     Total number                                                   │                          │
+│                                                                    │                          │
+│ 8.2 구명조끼의 요건을 갖춘 방수복의 수                             │                          │
+│     Number of suits complying with the requirements for lifejackets│..........................│
+│                                                                    │                          │
+│ 9. 보온기구의 수*                                                  │                          │
+│     Number of thermal protective aids*                             │..........................│
+│                                                                    │                          │
+│                                                                    │                          │
+└──────────────────────────────────┴─────────────┘
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+  * LSA코드 제4.1.5.1.24항, 제4.4.8.31항 및 제5.1.2.2.13항에서 요구되는 것은 제외함                 
+    Excluding those required by the LSA Code, paragraphs 4.1.5.1.24, 4.4.8.31 and 5.1.2.2.13.       
+                                                                                                    
+                                                                                                                                            
+  (8면)                                                                                                                                     
+  3. 무선설비의 상세                                                                                                                        
+     Details of radio facilities                                                                                                            
+┌─────────────────┬──────────────┬─────────────────────┬─────────────┐
+│항목                              │실제조치                    │항목                                      │실제조치                  │
+│Item                              │Actual provision            │Item                                      │Actual provision          │
+├─────────────────┼──────────────┼─────────────────────┼─────────────┤
+│                                  │                            │                                          │                          │
+│1   기본장치                      │                            │3  해사안전정보 및 수색·구조 관련 정보   │                          │
+│    Primary systems               │                            │   수신을 위한 설비                       │                          │
+│                                  │                            │   Facilities for reception of MSI and    │                          │
+│1.1  VHF 무선설비                 │                            │search and rescue related                 │                          │
+│     VHF radio installation       │..........................  │   information                            │..........................│
+│                                  │                            │                                          │                          │
+│1.1.1 디지털선택호출장치 인코더   │                            │4  비상위치지시용 무선표지설비(EPIRB)     │                          │
+│     DSC encoder                  │..........................  │   Emergency Position Indication Radio    │                          │
+│                                  │                            │Beacon(EPIRB)                             │..........................│
+│1.1.2 디지털선택호출장치 수신기   │                            │                                          │                          │
+│     DSC watch receiver           │..........................  │5  양방향 VHF 무선전화장비                │                          │
+│                                  │                            │   Two-way VHF radiotelephone             │                          │
+│1.1.3 무선전화                    │                            │   apparatus                              │..........................│
+│     Radiotelephony               │..........................  │                                          │                          │
+│                                  │                            │5.1 휴대용 양방향 VHF 무선전화장비        │                          │
+│1.2 MF 무선설비                   │                            │    Portable two-way VHF                  │                          │
+│    MF radio installation         │..........................  │    radiotelephone apparatus              │......................... │
+│                                  │                            │                                          │                          │
+│1.2.1 디지털선택호출장치 인코더   │                            │5.2 생존정에 장착된 쌍방향 VHF 무선전화   │                          │
+│     DSC encoder                  │..........................  │    장비                                  │                          │
+│                                  │                            │    Two-way VHF radiotelephone            │                          │
+│1.2.2 디지털선택호출장치 수신기   │                            │    apparatus fitted in survival craft    │..........................│
+│     DSC watch receiver           │..........................  │                                          │                          │
+│                                  │                            │6  선박의 수색 및 구조 위치확인장치       │                          │
+│1.2.3 무선전화                    │                            │   Ship's search and rescue locating      │                          │
+│     Radiotelephony               │..........................  │   device                                 │..........................│
+│                                  │                            │                                          │                          │
+│1.3 MF/HF 무선설비                │                            │6.1 생존정에 신속하게 배치할 수 있도록    │                          │
+│    MF/HF radio installation      │..........................  │비치된  레이더 수색 및 구조 트랜스폰더    │.                         │
+│                                  │                            │    Radar search and rescue               │                          │
+│1.3.1 디지털선택호출장치 인코더   │                            │    transponder (SART) stowed for         │                          │
+│     DSC encoder                  │..........................  │    rapid placement in survival craft     │......................... │
+│                                  │                            │                                          │                          │
+│1.3.2 디지털선택호출장치 수신기   │                            │6.2 생존정에 비치된 레이더 수색 및 구조   │                          │
+│     DSC watch receiver           │..........................  │    트랜스폰더                            │                          │
+│                                  │                            │    Radar search and rescue               │                          │
+│1.3.3 무선전화                    │                            │    transponder (SART) stowed for in      │                          │
+│     Radiotelephony               │..........................  │    survival craft                        │..........................│
+│                                  │                            │                                          │                          │
+│1.4 인정된 이동식 위성 서비스     │                            │6.3 생존정에 신속하게 배치할 수 있도록    │                          │
+│    선박지구국                    │                            │비치된  AIS 수색 및 구조 송신기           │                          │
+│    Recognized mobile satellite   │                            │    AIS search and rescue transmitters    │                          │
+│service ship earth station        │..........................  │(AIS-SART) stowed for rapid               │                          │
+│                                  │                            │placement in survival craft               │..........................│
+│2  선박-해안 간 조난 경보 전송    │                            │                                          │                          │
+│을 개시하는 제2차 경보장치        │                            │6.4 생존정에 비치된 AIS 수색 및 구조      │                          │
+│   Secondary means of             │                            │송신기                                    │                          │
+│   initiating the transmission of │                            │    AIS search and rescue transmitters    │                          │
+│   ship-to-shore distress alerts  │..........................  │(AIS-SART) stowed in survival craft       │......................... │
+└─────────────────┴──────────────┴─────────────────────┴─────────────┘
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+  4. 무선설비의 이용 가능성을 확보하기 위해 사용되는 방법(「해상에서의 인명 안전에 대한 국제협약」 제IV장 제15                              
+  규칙 6항 및 7항)                                                                                                                          
+     Methods used to ensure availability of radio facilities(SOLAS regulation IV/15.6 and 15.7)                                             
+                                                                                                                                            
+     4.1 설비의 이중화                                                                                                                      
+         Duplication of equipment                                                                                                           
+                                                                                                                                            
+     4.2 육상정비                                                                                                                           
+         Shore-based maintenance                                                                                                            
+                                                                                                                                            
+     4.3 선상정비능력                                                                                                                       
+         At-sea maintenance capability                                                                                                      
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                  
+  (9면)                                                                                                                           
+  5. 항해장비 및 설비의 상세                                                                                                      
+     Details of navigational systems and equipment                                                                                
+  ┌────────────────────┬────────┰──────────────────────┬─────────┐
+  │항목                                    │실제조치        ┃항목                                        │실제조치          │
+  │Item                                    │Actual provision┃Item                                        │Actual            │
+  │                                        │                ┃                                            │provision         │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 1.1 기준 자기 컴퍼스*                  │                ┃ 3.5 자동추적장치*                          │                  │
+  │      Standard magnetic compass*        │                ┃  Automatic tracking aid*                   │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 1.2 예비의 자기 컴퍼스*                │                ┃ 3.6 제2 자동추적장치*                      │                  │
+  │      Spare magnetic compass*           │                ┃     Second automatic tracking aid*         │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 1.3 자이로 컴퍼스*                     │                ┃ 3.7 플로팅설비*                            │                  │
+  │      Gyro compass*                     │                ┃      Electronic plotting aid*              │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 1.4 자이로 컴퍼스 선수 리피터*         │                ┃ 4   자동식별장치                           │                  │
+  │      Gyro compass heading repeater*    │                ┃      Automatic identification system(AIS)  │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 1.5 자이로 컴퍼스 방위 리피터*         │                ┃ 5.1 항해자료기록장치**                     │                  │
+  │      Gyro compass bearing repeater*    │                ┃      Voyage data recorder(VDR)**           │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 1.6 선수 또는 항적 제어장치*           │                ┃ 5.2 간이항해자료기록장치**                 │                  │
+  │      Heading or track control system*  │                ┃      Simplified Voyage data recorder       │                  │
+  │                                        │                ┃      (S-VDR)**                             │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 1.7 방위환 또는 컴퍼스 방위장치*       │                ┃ 6.1 선속거리계(대수속력)*                  │                  │
+  │      Pelorus or compass bearing device*│                ┃      Speed and distance measuring          │                  │
+  │                                        │                ┃device(through the water)*                  │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 1.8 선수방위 수정 장치                 │                ┃ 6.2 선속거리계(대지속력)*                  │                  │
+  │      Means of correcting heading       │                ┃      Speed and distance  measuring         │                  │
+  │and bearings                            │                ┃device(over the ground in the               │                  │
+  │                                        │                ┃forward and athwartship direction)*         │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 1.9 선수방위 발신기*                   │                ┃ 6.3 음향측심기*                            │                  │
+  │      Transmitting heading device(THD)* │                ┃      Echo sounding device*                 │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 2.1 해도/전자해도 표시 및 정보         │                ┃ 7.1 타각지시기 등*                         │                  │
+  │시스템 (ECDIS)**                        │                ┃      Rudder, propeller, thrust, pitch and  │                  │
+  │      Nautical chart/Electronic chart   │                ┃operational mode indicator*                 │                  │
+  │display and information system          │                ┃                                            │                  │
+  │(ECDIS)**                               │                ┃                                            │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 2.2 ECDIS의 이중화                     │                ┃ 7.2 회두각 속도계*                         │                  │
+  │      Back up arrangement for           │                ┃      Rate of turn indicator*               │                  │
+  │ECDIS                                   │                ┃                                            │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 2.3 항해용간행물                       │                ┃ 8. 음향수신장치*                           │                  │
+  │      Nautical publications             │                ┃     Sound reception system*                │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 2.4 전자 항해용간행물의 이중화         │                ┃ 9. 비상조타실의 전화*                      │                  │
+  │      Back-up arrangements for          │                ┃    Telephone to emergency steering         │                  │
+  │electronic  nautical publications       │                ┃position*                                   │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 3.1 위성항법장치/지상파무선항해        │                ┃ 10. 주간신호등*                            │                  │
+  │장치용 수신기/다중무선항해              │                ┃      Daylight signalling lamp*             │                  │
+  │장치용 수신기*, **                      │                ┃                                            │                  │
+  │      Receiver for a global  navigation │                ┃                                            │                  │
+  │satellite system/terrestrial radio      │                ┃                                            │                  │
+  │navigation system/multi-system          │                ┃                                            │                  │
+  │shipborneradio navigation receiver *, **│                ┃                                            │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 3.2 9GHz 항해용 레이더*                │                ┃ 11. 레이더 반사기*                         │                  │
+  │     9GHz radar*                        │                ┃      Radar reflector*                      │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 3.3 제2항해용 레이더(3GHz/             │                ┃ 12. 국제신호서                             │                  │
+  │9GHz**)*                                │                ┃      International code of signals         │                  │
+  │      Second radar(3GHz/9GHz**)*        │                ┃                                            │                  │
+  ├────────────────────┼────────╂──────────────────────┼─────────┤
+  │ 3.4 자동충돌예방보조장치*              │                ┃ 13. 국제항공 및 해상수색구조 매뉴얼 제3권  │                  │
+  │      Automatic radar plotting          │                ┃     IAMSAR Manual, Volume III              │                  │
+  │aid(ARPA)*                              │                ┃                                            │                  │
+  └────────────────────┴────────┸──────────────────────┴─────────┘
+                                                                                                                                  
+  ────────────────────────────────────────────────────────────────
+                                                                                                                                  
+    *  제5장 19규칙에 따라 이 요건을 충족하는 대체설비는 허용됨. 그 밖의 설비의 경우에는 이를 구체적으로 명시할 것                
+       Alternative means of meeting this requirement are permitted under regulation V/19. In case of other means they shall be    
+    specified.                                                                                                                    
+    **  해당하지 않는 것은 지울 것                                                                                                
+        Delete as appropriate.                                                                                                    
+                                                                                                                                  
+                                                                                                                                  
+                                                                                                                                  
+                                                                                                        
+                                                                                        
+  (10면)                                                                                
+                                                                                        
+  이 기록부는 모든 점에서 정확함을 증명합니다.                                          
+  THIS IS TO CERTIFY that this Record is correct in all respects.                       
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                년        월       일                        에서 발행합니다.           
+  Issued at                           on the             day of                     .   
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+    ──────────────────────                                        
+      해  양  수  산  부  장  관                                                        
+      Minister of Oceans and Fisheries                                                  
+      한국해양교통안전공단(한 글  및  영 문)                                            
+      선   급   법   인   명(한 글  및  영 문)                                          
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+  210㎜ x 297㎜[보존용지(1종) 220g/㎡]

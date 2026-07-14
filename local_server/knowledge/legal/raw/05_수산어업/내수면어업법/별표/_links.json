@@ -1,40 +1,58 @@
 {
-  "별표 1": {
+  "시행령 별표 1": {
+    "제목": "내수면 수산자원의 포획ㆍ채취가 금지되는 기간ㆍ구역 및 체장(제17조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=165002321",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=165002325",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=165002327",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=165002329",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=165002331"
+    ]
+  },
+  "시행령 별표 2": {
+    "제목": "과태료의 부과기준(제18조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=165002333",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=165002337",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=165002339"
+    ]
+  },
+  "시행규칙 별표 1": {
     "제목": "수면의 위치 및 구역도의 작성례(제2조제3항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768955",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768959"
     ]
   },
-  "별표 2": {
+  "시행규칙 별표 2": {
     "제목": "내수면 면허어업의 명칭ㆍ방법 및 규모(제4조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768961",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768965"
     ]
   },
-  "별표 3": {
+  "시행규칙 별표 3": {
     "제목": "내수면 허가어업의 규모 및 방법(제7조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768967",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768971"
     ]
   },
-  "별표 4": {
+  "시행규칙 별표 4": {
     "제목": "어업면허 등의 번호 부여 방법(제10조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768973",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768977"
     ]
   },
-  "별표 5": {
+  "시행규칙 별표 5": {
     "제목": "어업면허 등의 번호부여 방법(제10조관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768979",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768983"
     ]
   },
-  "서식 1": {
+  "시행규칙 서식 1": {
     "제목": "내수면어업 면허신청서(정치망어업용)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768985",
     "이미지": [
@@ -42,21 +60,21 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768991"
     ]
   },
-  "서식 2": {
+  "시행규칙 서식 2": {
     "제목": "내수면어업 면허신청서(공동어업용)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768993",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768997"
     ]
   },
-  "서식 3": {
+  "시행규칙 서식 3": {
     "제목": "어업시설 제거 등 조치 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124768999",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769003"
     ]
   },
-  "서식 4": {
+  "시행규칙 서식 4": {
     "제목": "내수면어업 허가신청서(자망어업ㆍ종묘채포어업ㆍ연승어업ㆍ패류채취어업ㆍ낭장망어업 및 각망어업용)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769005",
     "이미지": [
@@ -64,112 +82,134 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769011"
     ]
   },
-  "서식 5": {
+  "시행규칙 서식 5": {
     "제목": "삭제 &lt;2012.10.5&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769013",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769017"
     ]
   },
-  "서식 6": {
+  "시행규칙 서식 6": {
+    "제목": "내수면어업신고서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769019",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769023",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769025"
+    ]
+  },
+  "시행규칙 서식 6의2": {
+    "제목": "사유수면에서의 신고어업권 현황",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769027",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769031"
+    ]
+  },
+  "시행규칙 서식 6의3": {
+    "제목": "삭제 &lt;2020. 8. 28.&gt;",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769033",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769037"
+    ]
+  },
+  "시행규칙 서식 6의4": {
     "제목": "삭제 &lt;2021. 4. 22.&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769039",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769043"
     ]
   },
-  "서식 7": {
+  "시행규칙 서식 7": {
     "제목": "내수면어업면허 연장허가 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769045",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769049"
     ]
   },
-  "서식 8": {
+  "시행규칙 서식 8": {
     "제목": "내수면어업면허증(정치망어업용)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769051",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769055"
     ]
   },
-  "서식 9": {
+  "시행규칙 서식 9": {
     "제목": "내수면어업면허증(공동어업용)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769057",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769061"
     ]
   },
-  "서식 10": {
+  "시행규칙 서식 10": {
     "제목": "내수면어업허가증(자망어업ㆍ종묘채포어업ㆍ연승어업ㆍ패류채취어업ㆍ낭장망어업 및 각망어업용)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769063",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769067"
     ]
   },
-  "서식 11": {
+  "시행규칙 서식 11": {
     "제목": "삭제 &lt;2012.10.5&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769069",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769073"
     ]
   },
-  "서식 12": {
+  "시행규칙 서식 12": {
     "제목": "내수면어업 신고증명서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769075",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769079"
     ]
   },
-  "서식 13": {
+  "시행규칙 서식 13": {
     "제목": "내수면어업면허 연장허가증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769081",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769085"
     ]
   },
-  "서식 14": {
+  "시행규칙 서식 14": {
     "제목": "어업면허증ㆍ허가증ㆍ신고증명서 재발급신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769087",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769091"
     ]
   },
-  "서식 15": {
+  "시행규칙 서식 15": {
     "제목": "유해어법의 사용허가신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769093",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769097"
     ]
   },
-  "서식 16": {
+  "시행규칙 서식 16": {
     "제목": "유해어법 사용허가증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769099",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769103"
     ]
   },
-  "서식 17": {
+  "시행규칙 서식 17": {
     "제목": "어도시설 설치협의서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769105",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769109"
     ]
   },
-  "서식 18": {
+  "시행규칙 서식 18": {
     "제목": "어도시설 설치결과서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769111",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769115"
     ]
   },
-  "서식 19": {
+  "시행규칙 서식 19": {
     "제목": "어도시설 사후관리부",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769117",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769121"
     ]
   },
-  "서식 20": {
+  "시행규칙 서식 20": {
     "제목": "명령이행 통보서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=124769123",
     "이미지": [

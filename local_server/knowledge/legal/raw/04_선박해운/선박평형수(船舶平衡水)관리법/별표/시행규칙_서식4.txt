@@ -1,0 +1,150 @@
+[시행규칙] 서식4 — 선박평형수 입항 보고서BALLAST WATER REPORTING FORM
+
+■ 선박평형수(船舶平衡水) 관리법 시행규칙 [별지 제4호서식]                                                                  
+  (제1쪽)                                                                                                                                       
+                                                                                                                                                
+  선박평형수 입항 보고서                                                                                                                        
+  BALLAST WATER REPORTING FORM                                                                                                                  
+                                                                                                                                                
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━┯━━━━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━┓                    
+  ┃제출일자(dd/MMM/yyyy) :           /      /      │제출시간(24:00 UTC):  │보고서 수정 여부:        신규□       수정□┃                    
+  ┃Date of submission(dd/MMM/yyyy)                 │Time of submission    │Report type:             New     Amended    ┃                    
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━┛                    
+  ┌──────────────┬─────────────────────────┬───────────────────────────┐  
+  │1. 선박 정보                │2. 항해 정보                                      │3. 선박평형수 사용 및 용량                            │  
+  │SHIP INFORMATION            │VOYAGE INFORMATION                                │BALLAST WATER USAGE AND CAPACITY                      │  
+  ├─────┬────────┼─────────────────────────┼───────────────────────────┤  
+  │선명:     │국적:           │도착항 UN/LOCODE (또는 항구, 주/현 및 국가):      │총 선박평형수 보유량                                  │  
+  │Ship name │Flag            │Arrival port UN/LOCODE                            │Total ballast water on board                          │  
+  │          │                │(or port, State/province and country)             │┌───┬───┬────────┬────────┐│  
+  ├─────┼────────┼─────────────────────────┤│부피  │단위  │선박평형수      │선박평형수      ││  
+  │IMO 번호: │MMSI 번호:      │도착일(dd/MMM/yyyy):                              ││Volume│Units │탱크 수         │화물창 수       ││  
+  │IMO Number│MMSI Number     │Arrival date (dd/MMM/yyyy)                        ││      │      │No. of tanks in │No. of holds in ││  
+  ├─────┴────────┼─────────────────────────┤│      │      │ballast         │ballast         ││  
+  │고유 번호/문자 또는 콜사인: │대리점:                                           │├───┼───┼────────┼────────┤│  
+  │Distinctive Numbers/Letters │Agent                                             ││      │m3    │                │                ││  
+  │or Call Sign                │                                                  │└───┴───┴────────┴────────┘│  
+  ├──────────────┼─────────────────────────┼───────────────────────────┤  
+  │선박소유자:                 │이전 항구 UN/LOCODE (또는 항구, 주/현 및 국가):   │선박평형수 수용 용량                                  │  
+  │Owner                       │Last port UN/LOCODE                               │Total ballast water capacity:                         │  
+  │                            │(or port, State/province and country)             │┌───┬───┬───────┬───────┐    │  
+  ├──────────────┼─────────────────────────┤│부피  │단위  │선박평형수    │선박평형수    │    │  
+  │ISM 회사명 및 번호:         │다음 항구 UN/LOCODE (또는 항구, 주/현 및 국가):   ││Volume│Units │탱크 수       │화물창 수     │    │  
+  │ISM Company name and number:│Next port UN/LOCODE                               ││      │      │Total no. of  │Total no. of  │    │  
+  │                            │(or port, State/province and country)             ││      │      │ballast tanks │holds         │    │  
+  ├─────┬────────┼─────────────────────────┤├───┼───┼───────┼───────┤    │  
+  │선종:     │총톤수:         │다음 항구(2) UN/LOCODE (또는 항구, 주/현 및 국가):││      │m3    │              │              │    │  
+  │Type      │GT              │Next port (2) UN/LOCODE                           │└───┴───┴───────┴───────┘    │  
+  │          │                │(or port, State/province and country)             │                                                      │  
+  ├─────┴────────┼─────────────────────────┤                                                      │  
+  │건조일자(dd/MMM/yyyy)       │다음 항구(3) UN/LOCODE (또는 항구, 주/현 및 국가):│                                                      │  
+  │Date of construction        │Next port (3) UN/LOCODE                           │                                                      │  
+  │                            │(or port, State/province and country)             │                                                      │  
+  └──────────────┴─────────────────────────┴───────────────────────────┘  
+                                                                                                                                                
+                                                                                                                                                                                              
+  (제2쪽)                                                                                                                                                                                     
+                                                                                                                                                                                              
+  4. 선박평형수 관리                                                                                                                                                                          
+  BALLAST WATER MANAGEMENT                                                                                                                                                                    
+  ┌───────────────────────────────────────────────────────────────────────────────────────────┐  
+  │선박에서 사용한 주요 선박평형수 관리방법:                                                                                                                                             │  
+  │The principal ballast water management method(s) employed on this ship is/are                                                                                                         │  
+  │                                                                                                                                                                                      │  
+  │?? 제D-1규칙에 따름                            ??제D-2규칙에 따름(설명):                                                                                                          │  
+  │   in accordance with regulation D-1               in accordance with regulation D-2 (describe)                                                                                       │  
+  │                                                                                                                                                                                      │  
+  │??제D-4규칙을 조건으로 함                     ??규정에 따른 기타 방법(설명):                                                                                                      │  
+  │   subject to regulation D-4                       other approach in accordance with regulation (describe)                                                                            │  
+  ├───────────────────────────────────────────────────────────────────────────────────────────┤  
+  │배출할 선박평형수 탱크/화물창의 전체 수량:                                                                                                                                            │  
+  │Total no. of ballast water tanks/holds to be discharged                                                                                                                               │  
+  │                                                                                                                                                                                      │  
+  │다음의 방법에 따라 배출할 탱크/화물창의 수:                                                                                                                                           │  
+  │Of tanks/holds to be discharged, how many were managed in accordance with:                                                                                                            │  
+  │                                                                                                                                                                                      │  
+  │제D-1규칙                 제D-2규칙                 제D-1규칙 및 제D-2규칙              기타 방법          (설명 및 사유 기재)                                관리하지 않음           │  
+  │Regulation D-1             Regulation D-2            Both regulations D-1 and D-2         other method(describe and state reason)                                 not managed         │  
+  │                                                                                                                                                                                      │  
+  │탱크/화물창을 관리하지 않은 경우, 사유를 작성:                                                                                                                                        │  
+  │If any tanks/holds not managed, state reason(s) why not                                                                                                                               │  
+  │                                                                                                                                                                                      │  
+  │BWMS 사용한 경우, 제조사:                      모델:                       전체 BWMS 운전 여부   ??예 ??아니오           마지막 우회운전일(dd/MMM/yyyy):                          │  
+  │BWMS used, if any Manufacturer                 Model                       Fully operational?        Yes   No              Last bypass date (dd/MMM/yyyy)                             │  
+  ├───────────────────────────────────────────────────────────────────────────────────────────┤  
+  │선박에 승인받은 선박평형수관리계획서를 비치하였는가? ??예  ??아니오                   선박평형수관리계획서를 이행하였는가?         ??예  ??아니오                             │  
+  │Approved Ballast Water Management Plan on board?   Yes    No                       Ballast Water Management Plan implemented?  Yes  No                                                │  
+  │                                                                                                                                                                                      │  
+  │선박평형수관리계획서에 비상조치방안이 있는가?                            ??없음     ??D-1     ?? 기타(설명):                                                                    │  
+  │Contingency measure(s) included in the Ballast Water Management Plan?    None        D-1        Other (describe)                                                                      │  
+  │                                                                                                                                                                                      │  
+  │비상조치방안을 배치하였는가?     ??예   ??아니오      선박평형수 수용 시설에 연결하기 위한 인터페이스를 본선에서 이용할 수 있는가?   ??예   ??아니오                          │  
+  │Contingency measure(s) deployed?  Yes    No          Interface available on ship for coupling to ballast water reception facility?         Yes      No                                │  
+  ├───────────────────────────────────────────────────────────────────────────────────────────┤  
+  │선박에 선박평형수관리기록부를 비치하였는가?    ??예  ??아니오                                                                                                                     │  
+  │ Ballast Water Record Book on board?            Yes    No                                                                                                                             │  
+  │                                                                                                                                                                                      │  
+  │선박이 국제선박평형수관리증서를 가지고 있는가?                      ??예  ??아니오             증서를 발급한 당국:                                                                │  
+  │Does ship carry an International Ballast Water Management Certificate  Yes   No                  Authority that issued Certificate                                                    │  
+  │                                                                                                                                                                                      │  
+  │발급일자(dd/MMM/yyyy):                                만료일자(dd/MMM/yyyy):                             발급장소:                                                                    │  
+  │Date of issue (dd/MMM/yyyy)                           Expiry date (dd/MMM/yyyy)                          Place of issue                                                               │  
+  │                                                                                                                                                                                      │  
+  │마지막 검사/이서 일자(dd/MMM/yyyy):                                                                    검사당국:                                                                      │  
+  │Last survey/endorsement date (dd/MMM/yyyy)                                                             Surveying authority                                                            │  
+  └───────────────────────────────────────────────────────────────────────────────────────────┘  
+                                                                                                                                                                                              
+                                                                                                                                                                                              
+                                                                                                                                                                                              
+                                                                                                                                                                                                                    
+  (제3쪽)                                                                                                                                                                                                           
+                                                                                                                                                                                                                    
+  5. 선박평형수 이력 : 부록(선박평형수 이력표)에는 선박의 종경사, 횡경사, 흘수, 복원성 또는 선체응력을 제어하기 위해 선내에 취수되는 물(배출 여부에 관계없이 취수되는 물을 말한다)을 적재하                         
+  는 모든 탱크 및 화물창에 대하여 기재할 것.   주석: 선박평형수 주입원은 선박평형수 관리를 수행하기 전 가장 최근에 주입한 선박평형수에 대해 기재                                                                    
+     BALLAST WATER HISTORY: In the appendix, RECORD ALL TANKS/HOLDS that may contain water taken on board to control trim, list, draught, stability or stresses of the ship,                                        
+  regardless of ballast water discharge intentions, including empty tanks/holds. Note: BW sources are the last BW uptakes prior to any ballast water management practices.                                          
+                                                                                                                                                                                                                    
+  6. 책임 사관의 이름 및 직위:                               이메일:                                전화번호:                                                                                                       
+  RESPONSIBLE OFFICERS NAME AND TITLE                   Email                                       Phone number                                                                                                    
+                                                                                                                                                                                                                    
+  부록: 선박평형수 이력표                                                                                                                                                                                           
+  APPENDIX: BALLAST WATER HISTORY                                                                                                                                                                                   
+  ┌────────────────────────┬───────────────────────────────────────────────┬─────────────────────────────┐  
+  │선명:                                           │IMO 번호 (해당하지 않는 경우, 고유 번호/문자, 콜사인 또는 MMSI):                              │도착일(dd/MMM/yyyy):                                      │  
+  │Ship name                                       │IMO Number (if not applicable, Distinctive Numbers / Letters, Call Sign or MMSI)              │Arrival date (dd/MMM/yyyy):                               │  
+  ├────────┬────┬──────────┼────┬──────────────────────────────────────────┼─────────────────────────────┤  
+  │탱크/화물창     │탱크    │선박평형수 주입원   │현재    │선박평형수 관리 수행사항                                                            │BW 배출 제안                                              │  
+  │(수원/탱크별    │용량    │BW sources          │용량    │BW MANAGEMENT PRACTICES                                                             │PROPOSED BW DISCHARGE                                     │  
+  │로 구분하여     │Tank    ├────┬─────┤Current ├────┬──────┬─────┬─────┬────┬─────┬───────┼────┬────────┬───────────────┤  
+  │기재)           │capacity│일자    │UN/LOCODE │volume  │일자    │시작지점*   │종료지점* │최소 수심*│사용된  │교환율*   │방법          │일자    │UN/LOCODE       │용량                          │  
+  │Tanks/Holds     │(m3)    │Date    │또는      │(m3)    │Date    │위도·경도  │위도·경도│Min.      │용량*   │Exchange* │Method(s)     │Date    │또는 위도·경도 │Volume                        │  
+  │(List multiple  │        │(dd/MMM │위도·경도│        │(dd/MMM │Start point*│End point*│depth*    │Volume  │(%)       │(DE, SE, FE,  │(dd/MMM │UN/LOCODE       │(m3)                          │  
+  │sources/tanks   │        │/yyyy)  │UN/LOCODE │        │/yyyy)  │Lat./Long.  │Lat./Long.│(m)       │used*   │          │SWF, OT,      │/yyyy)  │or Lat./Long.   │                              │  
+  │separately)     │        │        │or        │        │        │            │          │          │(m3)    │          │PBU, PRF,     │        │                │                              │  
+  │                │        │        │Lat./Long.│        │        │            │          │          │        │          │NM)           │        │                │                              │  
+  ├────────┼────┼────┼─────┼────┼────┼──────┼─────┼─────┼────┼─────┼───────┼────┼────────┼───────────────┤  
+  │                │        │        │          │        │        │            │          │          │        │          │              │        │                │                              │  
+  ├────────┼────┼────┼─────┼────┼────┼──────┼─────┼─────┼────┼─────┼───────┼────┼────────┼───────────────┤  
+  │                │        │        │          │        │        │            │          │          │        │          │              │        │                │                              │  
+  ├────────┼────┼────┼─────┼────┼────┼──────┼─────┼─────┼────┼─────┼───────┼────┼────────┼───────────────┤  
+  │                │        │        │          │        │        │            │          │          │        │          │              │        │                │                              │  
+  ├────────┼────┼────┼─────┼────┼────┼──────┼─────┼─────┼────┼─────┼───────┼────┼────────┼───────────────┤  
+  │                │        │        │          │        │        │            │          │          │        │          │              │        │                │                              │  
+  ├────────┼────┼────┼─────┼────┼────┼──────┼─────┼─────┼────┼─────┼───────┼────┼────────┼───────────────┤  
+  │                │        │        │          │        │        │            │          │          │        │          │              │        │                │                              │  
+  ├────────┼────┼────┼─────┼────┼────┼──────┼─────┼─────┼────┼─────┼───────┼────┼────────┼───────────────┤  
+  │                │        │        │          │        │        │            │          │          │        │          │              │        │                │                              │  
+  ├────────┼────┼────┼─────┼────┼────┼──────┼─────┼─────┼────┼─────┼───────┼────┼────────┼───────────────┤  
+  │                │        │        │          │        │        │            │          │          │        │          │              │        │                │                              │  
+  ├────────┴────┴────┴─────┴────┴────┴──────┴─────┴─────┴────┴─────┴───────┴────┴────────┴───────────────┤  
+  │ 비고                                                                                                                                                                                                       │  
+  │ 1. “탱크/화물창”란은 선박평형수탱크의 구분에 따라 다음의 선박평형수탱크 코드(Ballast Water Tank Code)를 사용하여 기재한다.                                                                               │  
+  │   Ballast water tank codes : Forepeak = FP, Aftpeak = AP, Double bottom = DB, Wing = WT, Topside = TS, Cargo hold = CH, Other = O                                                                          │  
+  │ 2. 위치는 도, 분, 초의 형식으로 기재한다. 북위 00 00 000 또는 남위 00 00 000 (위도) 그리고 서경 000 00 000 또는 동경 000 00 000 (경도).                                                                    │  
+  │   Enter positions in degrees, minutes and seconds in the format: 00 00 000 N or 00 00 000 S (latitude) and 000 00 000 W or 000 00 000 E (longitude).                                                       │  
+  │ 3. "방법"란은 다음의 코드에 따라 선박평형수관리 방법을 기재한다.                                                                                                                                           │  
+  │   Methods: DE = Dilution exchange, SE = Sequential exchange, FE = Flow-through exchange, SWF = Saltwater flushing, OT = Onboard treatment, PBU = Uptake from port-based facility, PRF = Discharge to port  │  
+  │reception facility, NM = No Management                                                                                                                                                                      │  
+  │ 4. *표시가 있는 란은 선박평형수를 교환하거나 플러싱을 수행한 경우에만 작성한다.                                                                                                                            │  
+  │   Complete columns with (*) only if exchange or flushing was conducted.                                                                                                                                    │  
+  └──────────────────────────────────────────────────────────────────────────────────────────────────────┘

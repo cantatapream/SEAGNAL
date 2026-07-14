@@ -1,0 +1,68 @@
+[시행규칙] 서식14의2 — 대한민국 어획증명서
+
+■ 원양산업발전법 시행규칙 [별지 제14호의2서식]                                                      
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃대한민국 어획증명서                                                                                                   ┃
+┃(THE REPUBLIC OF KOREA CATCH CERTIFICATE)                                                                             ┃
+┠────────────────────────────┬──────────────────────────────┨
+┃1. 발급번호 Issuance number                             │2. 승인당국(기관명, 주소, 연락처)                           ┃
+┃                                                        │Validating authority(name, address, contact details)        ┃
+┃                                                        │                                                            ┃
+┠────────────┬───────────────┼──────────┬───────────────────┨
+┃3. 조업 선박명          │4. 조업 선박의 국적           │5. 국제해사기구 번호│6. 국제무선호출부호                   ┃
+┃Name of fishing vessel  │Nationality of fishing vessel │IMO No.             │IRCS                                  ┃
+┃                        │                              │                    │                                      ┃
+┠────────────┴──┬────────────┼──────────┴───────────────────┨
+┃7. 조업 선박의 선장           │서명 Signature          │8. 조업 선박의 운영자 및 연락 정보                          ┃
+┃Master of fishing vessel      │                        │Operator of fishing vessel and contact details              ┃
+┃                              │                        │                                                            ┃
+┠───────────────┴────────────┼──────────────────────────────┨
+┃9. 조업허가 번호 Fishing authorization number           │10. 조업허가 당국 Issuing authority of fishing authorization┃
+┃                                                        │                                                            ┃
+┠──────────────┬─────────────┴───┬──────────────────────────┨
+┃11. 조업 기간               │12. 조업 수역                     │13. 어구종류                                        ┃
+┃Period of fishing operation │Area of fishing operation         │Type of fishing gear                                ┃
+┃                            │                                  │                                                    ┃
+┠──────────────┼─────────────────┼──────────────────────────┨
+┃14. 어종 Species            │15. 어획중량(㎏)/가공중량(㎏)     │16. 제품유형 Type of Products                       ┃
+┃                            │ Weight(㎏) / Processed weight(㎏)│                                                    ┃
+┠──────────────┴──────────────┬──┴──────────────────────────┨
+┃17. 양륙항 Name of landing port                           │18. 가공장소 Place of Processing                          ┃
+┠─────────────────────────────┴─────────────────────────────┨
+┃19. 전재 정보 transshipment at sea                                                                                    ┃
+┠─────────────┬─────────────────┬─────────────┬─────────────┨
+┃전재일자/위치             │전재 중량(㎏)                     │수취 선박의 선장          │서명 및 날인              ┃
+┃Transshipment date/Position│Weight of catches transshipped(㎏)│Master of receiving vessel│Signature and Seal        ┃
+┃                          │                                  │                          │                          ┃
+┃                          │                                  │                          │                          ┃
+┠─────────────┼─────────────────┼─────────────┼─────────────┨
+┃수취 선박명               │수취 선박의 기국                  │국제해사기구 번호         │국제무선호출부호          ┃
+┃Name of receiving vessel  │Flag of receiving vessel          │IMO No.                   │IRCS                      ┃
+┃                          │                                  │                          │                          ┃
+┠─────────────┴─────────────────┴─────────────┴─────────────┨
+┃20. 양륙 정보 Landing in a foreign port                                                                               ┃
+┠────────────┬───────────────┬─────────────────┬────────────┨
+┃성명 Officer`s Name     │당국 Authority                │서명 Signature                    │주소 Address            ┃
+┃                        │                              │                                  │                        ┃
+┠────────────┼───────────────┼─────────────────┼────────────┨
+┃전화번호 Telephone      │양륙항구                      │양륙일                            │날인 Seal(stamp)        ┃
+┃                        │Name of Landing port          │Landing date                      │                        ┃
+┃                        │                              │                                  │                        ┃
+┠────────────┴───────────────┴─────────────────┴────────────┨
+┃21. 수출자 성명/서명/연락 정보 Exporter name/Signature/Contact details                                                ┃
+┃                                                                                                                      ┃
+┠───────────────────────────────────────────────────────────┨
+┃22. 수입자 성명/연락 정보 Importer name/Contact details                                                               ┃
+┠───────────────────────────────────────────────────────────┨
+┃23. 당국 승인 Validation by the competent authority                                                                   ┃
+┠────────────┬───────────────┬─────┬────────────────────────┨
+┃성명/직위               │서명 Signature                │날짜 Date │날인 Seal(stamp)                                ┃
+┃Officer`s Name/Position │                              │          │                                                ┃
+┃                        │                              │          │                                                ┃
+┠────────────┴───────────────┴─────┴────────────────────────┨
+┃※ 이송정보 Transport details                                                                                         ┃
+┠──────────────────────────────┬────────────────────────────┨
+┃선박명 및 기국 Vessel name and flag                         │컨테이너번호 Container number(s)                        ┃
+┃                                                            │목록 첨부 List attached                                 ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210mm×297mm[백상지(80g/㎡)]

@@ -1,0 +1,68 @@
+[시행규칙] 서식26 — 재화중량톤수증서DEADWEIGHT THONNAGE CERTIFICATE
+
+■ 어선법시행규칙 [별지 제26호서식]                                                              
+                                                                                                                    
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  재화중량톤수증서                                                                                                  
+  DEADWEIGHT THONNAGE CERTIFICATE                                                                                   
+                                                                                                                    
+                                                                                                                    
+    증 서 번 호 :        제       -       호                                                                        
+    Certificate No. :                                                                                               
+                                                                                                                    
+                                                                                                                    
+   대한민국의 권한으로                             발행합니다.                                                      
+    Issued under the authority of the Government of the Republic of Korea by                      .                 
+───────┬───────────────┬─────────┬───────┬────────────────
+  어선의 명칭 │어선번호 또는 호출번호        │선적항            │총톤수        │연월일(주)                      
+  Name of Ship│Distinctive Number or Letters │Port of Registry  │Gross Tonnage │*Date                           
+───────┼───────────────┼─────────┼───────┼────────────────
+              │                              │                  │              │                                
+───────┴───────────────┴─────────┴───────┴────────────────
+    (주) 용골(선체 중앙 뼈대)이 거치되었거나 유사한 건조단계에 있었던 일자 또는 개조를 한 일자                      
+    * Date on which the keel was laid or the ship was at similar stage of construction or date on which the         
+  ship underwent alterations or modifications of a major character, as appropriate.                                 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  주 요 치 수                                                                                                       
+  MAIN DIMENSIONS                                                                                                   
+─────┬────┬─────────────────────┬─────────────────────────
+  길이    │너비    │선박의 중앙에서 상갑판까지의 형깊이       │선박의 중앙에서 기준흘수선까지의 형깊이           
+  Length  │Breadth │Moulded depth amid ships to the Upper Deck│Moulded depth amid ships to the Summer Load Line  
+─────┼────┼─────────────────────┼─────────────────────────
+          │        │                                          │                                                  
+─────┴────┴─────────────────────┴─────────────────────────
+                                                                                                                    
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  재화중량톤수                                                                                                      
+  DEADWEIGHT TONNAGE                                                                                                
+──────────────────────────────────────────────────────────
+                                                                                                                    
+    국제총톤수               순  톤  수                                                                             
+    GROSS TONNAGE            NET TONNAGE                                                                            
+                  ──                   ──                                                                       
+                                                                                                                    
+    이 증서는 대한민국정부의 권한으로 재화중량톤수가 결정되었음을 증명합니다.                                       
+    This is to certify that the deadweight tonnages of this ship have been determined under the                     
+  authority of the Government of the Republic of Korea.                                                             
+                                                                                                                    
+                      년      월      일                               에서 발행합니다.                             
+                             (발행일자)                (증서의 발행장소)                                            
+              Issued at                           , the                  day of                                     
+                                           (Place of issue of certificate)                   (date of issue)        
+                                                                                                                    
+                                                                                                                    
+  해양수산부장관                                                                                                    
+  Minister of Oceans and Fisheries                                                                                  
+  대한민국영사                                                                                                      
+  The Consul of the Republic of Korea                                                                               
+                                                                                                                    
+    서명자는 이 증서를 발행함에 있어서 위의 정부로부터 정당한 권한을 부여 받았음을 선언합니다.                      
+  The under signed declares that he is duly authorized by the said Government to issue this certificate.            
+                                                                                                                    
+  한국해양교통안전공단이사장                                                                                        
+  President of Korea Maritime Transportation Safety Authority                                                       
+                                                                                                                    
+  한국선급회장                                                                                                      
+  President of Korean Register of Shipping                                                                          
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210mm×297mm[인쇄용지(특급) 120g/㎡]

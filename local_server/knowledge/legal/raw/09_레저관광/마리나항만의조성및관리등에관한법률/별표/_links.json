@@ -1,5 +1,37 @@
 {
-  "별표 1": {
+  "시행령 별표 1": {
+    "제목": "안전점검의 실시 시기(제26조의2제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445659",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445663",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445665"
+    ]
+  },
+  "시행령 별표 1의2": {
+    "제목": "마리나업의 등록기준(제32조의2제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445667",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445671",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445673"
+    ]
+  },
+  "시행령 별표 1의3": {
+    "제목": "마리나선박 정비사의 자격취소 및 자격정지처분의 세부기준(제32조의8 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445675",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445679"
+    ]
+  },
+  "시행령 별표 2": {
+    "제목": "과태료의 부과기준(제36조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445681",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445685",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445687",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445689"
+    ]
+  },
+  "시행규칙 별표 1": {
     "제목": "마리나업 등록취소 및 영업정지 기준(제28조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668675",
     "이미지": [
@@ -7,7 +39,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668681"
     ]
   },
-  "별표 2": {
+  "시행규칙 별표 2": {
     "제목": "전문인력 양성기관 지정취소 및 업무정지 기준(제33조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668683",
     "이미지": [
@@ -15,28 +47,28 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668689"
     ]
   },
-  "별표 3": {
+  "시행규칙 별표 3": {
     "제목": "행정처분의 기준(제35조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668691",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668695"
     ]
   },
-  "별표 4": {
+  "시행규칙 별표 4": {
     "제목": "삭제 &lt;2020. 8. 19.&gt;",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668697",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668701"
     ]
   },
-  "서식 1": {
+  "시행규칙 서식 1": {
     "제목": "출입증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668703",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668707"
     ]
   },
-  "서식 2": {
+  "시행규칙 서식 2": {
     "제목": "공사 등의 착수신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668709",
     "이미지": [
@@ -44,7 +76,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668715"
     ]
   },
-  "서식 3": {
+  "시행규칙 서식 3": {
     "제목": "실시계획 승인신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668717",
     "이미지": [
@@ -52,21 +84,28 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668723"
     ]
   },
-  "서식 4": {
+  "시행규칙 서식 4": {
+    "제목": "실시계획변경 승인신청서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668725",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668729"
+    ]
+  },
+  "시행규칙 서식 4의2": {
     "제목": "선수금 승인신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668731",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668735"
     ]
   },
-  "서식 5": {
+  "시행규칙 서식 5": {
     "제목": "허가증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668737",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668741"
     ]
   },
-  "서식 6": {
+  "시행규칙 서식 6": {
     "제목": "공사준공 보고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668743",
     "이미지": [
@@ -74,21 +113,21 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668749"
     ]
   },
-  "서식 7": {
+  "시행규칙 서식 7": {
     "제목": "준공확인증명서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668751",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668755"
     ]
   },
-  "서식 8": {
+  "시행규칙 서식 8": {
     "제목": "준공 전 사용신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668757",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668761"
     ]
   },
-  "서식 9": {
+  "시행규칙 서식 9": {
     "제목": "귀속시설 등의 무상 사용ㆍ수익 신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668763",
     "이미지": [
@@ -96,7 +135,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668769"
     ]
   },
-  "서식 10": {
+  "시행규칙 서식 10": {
     "제목": "마리나항만시설 사용허가 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668771",
     "이미지": [
@@ -104,7 +143,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668777"
     ]
   },
-  "서식 11": {
+  "시행규칙 서식 11": {
     "제목": "마리나선박 대여업 등록신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668779",
     "이미지": [
@@ -112,7 +151,15 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668785"
     ]
   },
-  "서식 12": {
+  "시행규칙 서식 12": {
+    "제목": "마리나선박 보관ㆍ계류업 등록신청서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668787",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668791",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668793"
+    ]
+  },
+  "시행규칙 서식 12의2": {
     "제목": "마리나선박 정비업 등록신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668795",
     "이미지": [
@@ -120,7 +167,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668801"
     ]
   },
-  "서식 13": {
+  "시행규칙 서식 13": {
     "제목": "마리나선박 대여업 등록증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668803",
     "이미지": [
@@ -128,7 +175,15 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668809"
     ]
   },
-  "서식 14": {
+  "시행규칙 서식 14": {
+    "제목": "마리나선박 보관ㆍ계류업 등록증",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668811",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668815",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668817"
+    ]
+  },
+  "시행규칙 서식 14의2": {
     "제목": "마리나선박 정비업 등록증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668819",
     "이미지": [
@@ -136,7 +191,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668825"
     ]
   },
-  "서식 15": {
+  "시행규칙 서식 15": {
     "제목": "변경등록신청서(마리나선박 대여업, 마리나선박 보관ㆍ계류업, 마리나선박 정비업)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668827",
     "이미지": [
@@ -144,7 +199,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668833"
     ]
   },
-  "서식 16": {
+  "시행규칙 서식 16": {
     "제목": "마리나선박(대여업, 보관ㆍ계류업, 정비업)갱신등록신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668835",
     "이미지": [
@@ -152,7 +207,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668841"
     ]
   },
-  "서식 17": {
+  "시행규칙 서식 17": {
     "제목": "마리나선박(대여업, 보관ㆍ계류업, 정비업)지위승계 신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668843",
     "이미지": [
@@ -160,7 +215,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668849"
     ]
   },
-  "서식 18": {
+  "시행규칙 서식 18": {
     "제목": "마리나선박 대여업(휴업, 재개업, 폐업)신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668851",
     "이미지": [
@@ -168,7 +223,15 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668857"
     ]
   },
-  "서식 19": {
+  "시행규칙 서식 19": {
+    "제목": "마리나선박 보관ㆍ계류업(휴업, 폐업, 재개업)신고서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668859",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668863",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668865"
+    ]
+  },
+  "시행규칙 서식 19의2": {
     "제목": "마리나선박 정비업(휴업, 폐업, 재개업)신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668867",
     "이미지": [
@@ -176,7 +239,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668873"
     ]
   },
-  "서식 20": {
+  "시행규칙 서식 20": {
     "제목": "마리나선박 대여업 이용약관(신고서, 변경신고서)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668875",
     "이미지": [
@@ -184,7 +247,15 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668881"
     ]
   },
-  "서식 21": {
+  "시행규칙 서식 21": {
+    "제목": "마리나선박 보관ㆍ계류업 이용약관(신고서, 변경신고서)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668883",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668887",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668889"
+    ]
+  },
+  "시행규칙 서식 21의2": {
     "제목": "마리나선박 정비업 이용약관(신고서, 변경신고서)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668891",
     "이미지": [
@@ -192,7 +263,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668897"
     ]
   },
-  "서식 22": {
+  "시행규칙 서식 22": {
     "제목": "마리나업 전문인력 양성기관 지정신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668899",
     "이미지": [
@@ -200,7 +271,43 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668905"
     ]
   },
-  "서식 23": {
+  "시행규칙 서식 23": {
+    "제목": "마리나업 전문인력 양성기관 지정서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668907",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668911"
+    ]
+  },
+  "시행규칙 서식 23의2": {
+    "제목": "마리나선박 출항ㆍ입항 기록ㆍ관리대장",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668913",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668917"
+    ]
+  },
+  "시행규칙 서식 23의3": {
+    "제목": "승선신고서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668919",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668923"
+    ]
+  },
+  "시행규칙 서식 23의4": {
+    "제목": "마리나선박 정비사 자격증 발급신청서",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668925",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668929",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668931"
+    ]
+  },
+  "시행규칙 서식 23의5": {
+    "제목": "마리나선박 정비사 자격증",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668933",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668937"
+    ]
+  },
+  "시행규칙 서식 23의6": {
     "제목": "마리나선박 정비사 자격증 재발급신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668939",
     "이미지": [
@@ -208,7 +315,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668945"
     ]
   },
-  "서식 24": {
+  "시행규칙 서식 24": {
     "제목": "마리나선박 제조사 고유식별코드 발급신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668947",
     "이미지": [
@@ -216,7 +323,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668953"
     ]
   },
-  "서식 25": {
+  "시행규칙 서식 25": {
     "제목": "마리나선박 제조사 고유식별코드 증명서(Manufacturer Identification Code certificate of registration)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668955",
     "이미지": [
@@ -224,7 +331,7 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668961"
     ]
   },
-  "서식 26": {
+  "시행규칙 서식 26": {
     "제목": "마리나선박 제조사 고유식별코드 변경발급 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668963",
     "이미지": [

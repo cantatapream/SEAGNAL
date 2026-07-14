@@ -1,0 +1,49 @@
+[시행규칙] 서식25 — CONFIRMATION OF CANCELLATION OF VESSEL'S NATIONALITY
+
+■ 선박법 시행규칙 [별지 제25호서식]                          
+                                                                                
+                                                                                
+  CONFIRMATION OF CANCELLATION OF VESSEL'S                                      
+  NATIONALITY                                                                   
+                                                                                
+  Confirmation Number :                                                         
+┏━━━┯━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃Owner │Name            │                                                  ┃
+┃      │(Company)       │                                                  ┃
+┃      ├────────┼─────────────────────────┨
+┃      │Address         │                                                  ┃
+┠───┴────────┼─────┬──────────┬────────┨
+┃Official Number         │          │Gross Tonnage       │tons            ┃
+┠────────────┼─────┼──────────┼────────┨
+┃IMO Number              │          │Signal Letters      │                ┃
+┠────────────┼─────┼──────────┼────────┨
+┃Kind of Vessel          │          │Name of Vessel      │                ┃
+┠────────────┼─────┼──────────┼────────┨
+┃Port of Registry        │          │Material of Hull    │                ┃
+┠────────────┼─────┼──────────┼────────┨
+┃Riggings                │          │Type and Number of  │                ┃
+┃(if a Sailing Vessel)   │          │Engines             │                ┃
+┠────────────┼─────┼──────────┼────────┨
+┃Kind and Number of      │          │Where Built         │                ┃
+┃Propellers              │          │                    │                ┃
+┠────────────┼─────┼──────────┼────────┨
+┃Name of Builders        │          │Date of Launch      │                ┃
+┠────────────┼───┬─┼────┬─────┼───┬────┨
+┃Main Dimensions         │Length│m │Breadth │m         │Depth │m       ┃
+┠────────────┼───┴─┴────┴─────┴───┴────┨
+┃Date of Cancellation    │                                                  ┃
+┃of Registration         │                                                  ┃
+┠────────────┼─────────────────────────┨
+┃Reason of Cancellation  │                                                  ┃
+┃of Registration         │                                                  ┃
+┠────────────┴─────────────────────────┨
+┃   It is hereby confirmed that the above described vessel was canceled from ┃
+┃Nationality of the Republic of Korea in accordance with Ship Act            ┃
+┃Enforcement Regulations, Article 23.                                        ┃
+┃                                                                            ┃
+┃                           The         day   of                             ┃
+┃                           (Signature)                                      ┃
+┃                           (Official Position)                              ┃
+┃                                                                            ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜×297㎜(백상지 120g/㎡)

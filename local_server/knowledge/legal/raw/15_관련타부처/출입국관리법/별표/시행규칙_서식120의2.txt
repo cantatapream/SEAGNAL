@@ -1,0 +1,74 @@
+[시행규칙] 서식120의2 — 의견진술 기회 부여 확인서
+
+■ 출입국관리법 시행규칙 [별지 제120호의2서식]                                              
+                                                                                                                
+  의견진술 기회 부여 확인서                                                                                     
+  (CONFIRMATION OF NOTICE OF OPPORTUNITY                                                                        
+  TO MAKE A STATEMENT)                                                                                          
+  ※ [ ]에는 해당되는 곳에 √표를 합니다.                                                                       
+  Please place a check mark (V) in the applicable boxes [  ].                                                   
+──────┬──────────────────┬──────────────────────────────
+  확인자    │성 명                               │생년월일                                                    
+  Confirmed │Full Name                           │Date of Birth                                               
+  by        ├──────────────────┼──────────────────────────────
+            │성 별           [ ] 남      [ ] 여  │ 국적                                                       
+            │Gender         [ ] Male   [ ] Female│ Nationality                                                
+            ├──────────────────┴──────────────────────────────
+            │대한민국 내 주소                                                                                  
+            │Address in Korea                                                                                  
+            │ (전화번호:                            )                                                          
+            │(Telephone:                         )                                                             
+──────┼─────────────────────────────────────────────────
+  조치      │[  ] ?출입국관리법? 제51조제1항 또는 제5항에 따른 보호명령서 발급                               
+  예정 사항 │     Issuance of Detention Order pursuant to Article 51(1) or (5) of the Immigration Act          
+  Planned   │[  ] ?출입국관리법? 제52조제1항 단서에 따른 보호기간 연장 허가                                  
+  Actions   │    Approval for extension of detention period pursuant to the proviso to Article 52(1) of the    
+            │Immigration Act                                                                                   
+            │[  ] ?출입국관리법? 제63조제1항에 따른 강제퇴거명령을 받은 사람의 보호                          
+            │    Detention of a person subject to a Deportation Order pursuant to Article 63(1) of the         
+            │Immigration Act                                                                                   
+            │[  ] ?출입국관리법? 제63조제2항에 따른 보호기간 연장 승인의 신청                                
+            │    Application for approval to extend the detention period pursuant to Article 63(2) of the      
+            │Immigration Act                                                                                   
+            │[  ] ?출입국관리법? 제63조의3제1항에 따른 보호해제된 사람의 재보호                              
+            │   Re-detention of a person released from detention pursuant to 63-3(1) of the Immigration        
+            │Act                                                                                               
+            │[  ] ?출입국관리법? 제63조의3제2항에 따른 보호기간 연장 승인의 신청                             
+            │    Application for approval to extend the detention period pursuant to Article 63-3(2) of the    
+            │Immigration Act                                                                                   
+            │[  ] ?출입국관리법? 제66조제1항에 따른 보호 일시해제의 취소                                     
+            │    Revocation of Temporary Release from Detention pursuant to Article 66(1) of the               
+            │Immigration Act                                                                                   
+──────┴─────────────────────────────────────────────────
+  귀하는 ?출입국관리법? 제66조의3에 따라 귀하에 대해 위 조치를 하기 전에 지방출입국ㆍ외국인관서의 장          
+  에게 의견을 진술할 수 있습니다.                                                                               
+  In accordance with Article 66-3 of the Immigration Act, you may make a statement to the Chief of the          
+  Immigration Office prior to the implementation of any of the above planned actions.                           
+────────────────────────────────────────────────────────
+                                                                                                                
+────────────────────────────────────────────────────────
+    본인은 위와 같은 내용을 안내받았음을 확인하며,                                                              
+  위 조치 여부에 대한 의견진술을 [  ] 희망합니다. / [  ] 희망하지 않습니다.                                     
+  I hereby confirm that I have been informed of the details stated above.                                       
+  I [ ] wish / [ ] do not wish to make a statement regarding the above planned actions.                         
+                                                                                                                
+  년         월         일                                                                                      
+  (Year)       (Month)     (Day)                                                                                
+                                                                                                                
+  확인자                                                       (서명 또는 인)                                   
+  Confirmed by                                                Signature/Seal                                    
+────────────────────────────────────────────────────────
+                                                                                                                
+────────────────────────────────────────────────────────
+  위 사람에게 의견을 진술할 기회가 있다는 사실을 고지했으나 정당한 이유 없이 서명 또는 기명날인을 거부함        
+  Though informed of the opportunity to make a statement, he/she refuses to sign or seal without a              
+  legitimate reason                                                                                             
+                                                                                                                
+    ※ 서명 또는 기명날인 거부 사유:                                                                            
+    ? The reason for the refusal of sign or seal:                                                              
+                                                                                                                
+  년         월         일                                                                                      
+   (Year)       (Month)     (Day)                                                                               
+                                                                                                                
+  ○○출입국ㆍ외국인청/사무소(출장소)   출입국관리공무원       (서명 또는 인)                                   
+  ○○IMMIGRATION OFFICE                Immigration Officer   Signature/Seal

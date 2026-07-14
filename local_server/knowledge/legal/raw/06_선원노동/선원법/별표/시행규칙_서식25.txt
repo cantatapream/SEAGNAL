@@ -1,0 +1,129 @@
+[시행규칙] 서식25 — 표준의료보고서
+
+■ 선원법 시행규칙 [별지 제25호서식]                                          
+                                                                                                  
+                                                                              (제2쪽 중 1쪽)      
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃표 준 의 료 보 고 서                                                                          ┃
+┃Standards  Medical  Report  Form                                                              ┃
+┠───────────────────┬───────────────────────────┨
+┃선내 선원의 상병 발생시, 의료관리자나 │주의. 이 표준의료보고서의 원본은 선내 보관하고, 선장(또┃
+┃선장, 그리고 육상의 병원 및 의료진에  │는 그 대리인), 육상 병원 의료진 등에는 이 표준의료보고┃
+┃의해서 작성되어야 하며, 비밀이 유지되 │서의 사본을 제출 할 수 있다.                          ┃
+┃어야 한다.                            │Note, Copies of this form should be provided for the  ┃
+┃For completion by a person in charge  │seafarer's medical records, ship's Master (or his     ┃
+┃of medical care or master, and        │representatives), and hospital/doctor ashore.         ┃
+┃hospital or doctor ashore, in case of │                                                      ┃
+┃illness or injury affecting seafarers │                                                      ┃
+┃and this form should be kept          │                                                      ┃
+┃confidential.                         │                                                      ┃
+┠───────────────────┼───────────────────────────┨
+┃선장 또는 의료관리자 작성 사항        │일자 Date? :                                         ┃
+┃For completion by ship's master or a  │                                                      ┃
+┃person in charge of medical care      │                                                      ┃
+┠───────────────────┴───────────────────────────┨
+┃환자성명 Surname of patient, other name :                                                     ┃
+┃                                                                                              ┃
+┠───────────────────┬───────────────────────────┨
+┃생년월일 Date of birth :              │선명 Name of ship :                                   ┃
+┃                                      │                                                      ┃
+┠───────────────────┼───────────────────────────┨
+┃국적 Nationality:                     │선주 Shipowner :                                      ┃
+┃                                      │                                                      ┃
+┠───────────────────┼───────────────────────────┨
+┃선원수첩번호 Seafarer's Book number : │직책 Shipboard position held :                        ┃
+┃                                      │                                                      ┃
+┠───────────────────┼───────────────────────────┨
+┃선박대리인 또는 대리점                │선박대리인, 대리점 주소 및 연락처                     ┃
+┃Name of ship's representative / Agent │Address and telephone number of ship's representative ┃
+┃on shore :                            │on shore :                                            ┃
+┃                                      │                                                      ┃
+┃                                      │                                                      ┃
+┠───────────────────┴───────────────────────────┨
+┃환자의 질병, 손상정도 및 선박에서의 치료사항 (필요시 밀봉)                                    ┃
+┃Details of illness or injury. Treatment received on board ship (enclose attachments if ) :    ┃
+┃                                                                                              ┃
+┃                                                                                              ┃
+┠───────────────────┬───────────────────────────┨
+┃질병발생일 Date of onset of illness : │상병발생일 Date injury occurred :                     ┃
+┃                                      │                                                      ┃
+┠───────────────────┼────────────────┬──────────┨
+┃직무수행 불능기간 Date of ceased work │의료관리자 서명 Signature of a  │                    ┃
+┃on board :                            │person in charge of medical care│                    ┃
+┃                                      ├────────────────┼──────────┨
+┃                                      │선장 서명                       │                    ┃
+┃                                      │Signature of ship's master      │                    ┃
+┗━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━┷━━━━━━━━━━┛
+  210mm×297mm[백상지 120g/㎡]                                                                    
+                                                                                                  
+                                                                                                                            
+                                                                                                                            
+                                                                                                                            
+                                                                              (제2쪽 중 2쪽)                                
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃육상 의료진 작성사항                                                                                                    ┃
+┃For completion by hospital or examining doctor on shore                                                                 ┃
+┠────────────────────────────────────────────────────────────┨
+┃진단명 Diagnosis :                                                                                                      ┃
+┃                                                                                                                        ┃
+┠────────────────────────────────────────────────────────────┨
+┃환자검사일 Date when patient first examined :                                                                           ┃
+┃                                                                                                                        ┃
+┠────────────────────────────────────────────────────────────┨
+┃검사 세부사항 Details of specialized examinations :                                                                     ┃
+┃                                                                                                                        ┃
+┠────────────────────────────────────────────────────────────┨
+┃투약 및 처치 (상품명의 약, 조제, 일반적 처치 기록) Treatment given (generic names of drugs, dosage,                     ┃
+┃route of administration) :                                                                                              ┃
+┃                                                                                                                        ┃
+┠────────────────────────────────────────────────────────────┨
+┃이후 선박에서의 치료 요구사항 Further treatment to be given on board ship                                               ┃
+┃                                                                                                                        ┃
+┠────────────────────────────────────────────────────────────┨
+┃선박에서의 주의사항 Precaution to be taken on board ship :                                                              ┃
+┃                                                                                                                        ┃
+┠────────────────────────────────────────────────────────────┨
+┃진료의료진의 기타 관찰 사항 Other observation of hospital or examining doctor :                                         ┃
+┃                                                                                                                        ┃
+┠──────────────┬───────┬─────────────────────────────────────┨
+┃추가 의료진료 필요유무      │yes     no    │필요한 진료과목, 날짜 When? Specify speciality, if necessary:             ┃
+┃Should see another doctor?  ├───────┤                                                                          ┃
+┃                            │ [   ]  [   ] │                                                                          ┃
+┠──────────────┼───────┼─────────────────────────────────────┨
+┃전염성 질환 유무            │ [   ]  [   ] │질병의 치유에 소요될 것으로 예상되는 기간 Estimated duration of illness : ┃
+┃Is the illness contagious   │              │                                                                          ┃
+┃or infectious?              │              │                                                                          ┃
+┠──────────────┼───────┼─────────────────────────────────────┨
+┃근무가능 유무               │ [   ]  [   ] │                                                                          ┃
+┃Fit for normal work now     │              │                                                                          ┃
+┠──────────────┼───────┴─────────────────────────────────────┨
+┃근무 가능한 일              │                                                                                          ┃
+┃Fit for normal work from    │                                             (날짜지정) (indicate date)                   ┃
+┠──────────────┼───────┬─────────────────────────────────────┨
+┃근무 조정 필요 유무         │ [   ]  [   ] │구체적으로 Specify :                                                      ┃
+┃Fit for restricted work     │              │                                                                          ┃
+┠──────────────┼───────┼─────────────────────────────────────┨
+┃근무 불가 유무              │ [   ]  [   ] │필요한 일수? For how many days?                                           ┃
+┃Unfit for work              │              │                                                                          ┃
+┠──────────────┼───────┼─────────────────────────────────────┨
+┃요양 필요 유무              │ [   ]  [   ] │필요한 일수? For how many days?                                           ┃
+┃Bed rest necessary          │              │                                                                          ┃
+┠──────────────┼───────┼─────────────┬───────────────────────┨
+┃추가 사항 Recommended to be │              │항공기 송환   YES    NO   │동반 필요 유무    YES    NO                   ┃
+┃송환 필요 유무  repatriated │              │Air transport             │Should be                                     ┃
+┃인원 치료 필요 hospitalized │              │recommended?              │accompanied?                                  ┃
+┠──────────────┴───────┴─┬───────────┴───────────────────────┨
+┃의사 성명 (대문자 기록 또는 스템프 명시),       │                                                                      ┃
+┃담당, 주소, 전화번호                            │                                                                      ┃
+┃Name of doctor (in capital letters, written or  │                                                                      ┃
+┃stamped), position held, address, telephone     │                                                                      ┃
+┃number                                          │                                                                      ┃
+┃                                                │                                                                      ┃
+┠────────────────────────┼──────────┬────────────────────────┨
+┃장소 및 일자 Place and date :                   │의료진 서명         │                                                ┃
+┃                                                │Signature of doctor │                                                ┃
+┃                                                ├──────────┼────────────────────────┨
+┃                                                │선장 서명           │                                                ┃
+┃                                                │Signature of ship's │                                                ┃
+┃                                                │master              │                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━┛

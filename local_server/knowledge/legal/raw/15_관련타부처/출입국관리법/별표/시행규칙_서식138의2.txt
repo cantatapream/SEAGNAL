@@ -1,0 +1,166 @@
+[시행규칙] 서식138의2 — 사실증명 발급ㆍ열람 신청서 APPLICATION FOR ISSUANCE OF / ACCESS TO CERTIFICATE OF FACT
+
+(앞쪽)                                      
+  ■ 출입국관리법 시행규칙 [별지 제138호의2서식]                                                        
+                                                                                                                          
+  사실증명 발급ㆍ열람 신청서                                                                                              
+  APPLICATION FOR ISSUANCE OF / ACCESS TO CERTIFICATE OF FACT                                                             
+  (약칭: 사실증명신청서, 약호:A322)                                                                                       
+                                                                                                                          
+    ※ 본인이 직접 증명발급을 신청하는 경우 정부24(www.gov.kr)에서 무료로 발급받을 수 있으며, 방문 신청 시에는 신         
+  청서를 작성하지 않고 신분증만 제시하면 됩니다.                                                                          
+       Free online application available at the government website (www.gov.kr) for the issuance of your own Certificate of Fact.   
+  Those visiting an immigration office will be required to present only their ID cards without having to complete this form.  
+                                                                                                                          
+   ※ 뒤쪽의 유의사항을 참고하여 작성하기 바랍니다.(Please fill out this form by referring to the notes on the back page.)  
+───────────┬───────────┬─────────────┬───────────────────────
+  접수번호            │접수일                │발급일                    │처리기간                즉시                  
+  (Receipt No.)       │(Date of Receipt)     │(Date of Issuance)        │(Processing Period)     (Immediately)         
+───────────┴───────────┴─────────────┴───────────────────────
+                                                                                                                          
+─────────┬─────────────────────────┬─────────────────────────
+  발급대상자      │성명 (Full Name)                                  │연락처 (Phone No.)                                
+  (위임한 사람)   │                                                  │                                                  
+  Principal       ├─────────────────────────┴─────────────────────────
+  (Authorizing    │주민등록번호(외국인등록번호 또는 국내거소신고번호) Resident Registration No.(Foreign Resident Registration No. or   
+  Person)         │Overseas Korean Resident No.)                                                                         
+─────────┴───────────────────────────────────────────────────
+                                                                                                                          
+─────────┬───────────────────────────────────────────────────
+  증명종류        │ [ ] 출입국에 관한 사실증명 (  )통 Certificate of Fact on Entry and Departure (  ) copy(ies)          
+  Type of         │ [ ] 외국인등록 사실증명 (  )통 Certificate of Fact on Foreign Resident Registration (  ) copy(ies)   
+  Certificate     │ [ ] 외국인등록 열람 (  )건 Access to Foreign Resident Registration (  ) time(s)                      
+─────────┴─────────────────────────┬─────────────────────────
+  출입국에 관한 사실증명의 영문 성명 병기 신청 여부 (국민만 해당)     │[  ]포함 [  ]미포함                               
+   * This field is only for Korean citizens.                          │                                                  
+───────────────────────────────────┼─────────────────────────
+  외국인등록 사실증명의 경우, 과거 등록번호(주민등록번호·외국인      │과거 등록번호 Previous Registration Number        
+  등록번호ㆍ국내거소신고번호), 성명, 체류지 및 체류자격 변경 이력     │ [  ]포함 Yes [  ]미포함 No                       
+  포함 여부, 체류지 영문표기 여부                                     │과거 성명 변경 사항 Previous Name                 
+                                                                      │ [  ]포함 Yes [  ]미포함 No                       
+  Previous registration number (Resident registration number, Foreign │과거 체류지 변동 사항 Previous Address            
+  resident registration number or Overseas Korean Resident number),   │ [  ]포함 Yes [  ]미포함 No                       
+  name, address or status of sojourn, address in English to be shown  │과거 체류자격 변동 사항 Previous Status of Sojourn  
+  on the Certificate of Fact on Foreign Resident Registration         │ [  ]포함 Yes [  ]미포함 No                       
+                                                                      │체류지 영문표기 여부 Address in English           
+                                                                      │ [  ]표기 Yes [  ]미표기 No                       
+───────────────────────────────────┴─────────────────────────
+  출입국 조회기간 (Reference Period for Entry and Departure Record)                                                       
+       .    .    . 부터(from)       .    .    . 까지(to)                                                                  
+─────────────────────────────────────────────────────────────
+  용도 (Purpose)                                                                                                          
+─────────────────────────────────────────────────────────────
+                                                                                                                          
+─────────┬─────────────────────────┬─────────────────────────
+  신청인          │성명 (Full Name)                                  │생년월일(Date of Birth)                           
+  (위임받은 사람) ├─────────────────────────┼─────────────────────────
+  Applicant       │연락처 (Phone No.)                                │발급대상자와의 관계 (Relationship to Principal)   
+  (Authorized     │                                                  │                                                  
+  Person)         │                                                  │                                                  
+─────────┴─────────────────────────┴─────────────────────────
+  「출입국관리법」 제88조 및 같은 법 시행규칙 제75조에 따라 위와 같이 사실증명의 발급ㆍ열람을 신청합니다.                 
+   I hereby apply for the issuance of / access to Certificate of Fact in accordance with Article 88 of                    
+  the Immigration Act and Article 75 of the Enforcement Rule of the Immigration Act.                                      
+                                                                                                                          
+  년(Year)     월(Month)     일(Day)                                                                                      
+                                                                                                                          
+  신청인 (Name of Applicant)                   (서명 또는 인)(Signature or Seal)                                          
+                                                                                                                          
+  ○○출입국ㆍ외국인청(사무소ㆍ출장소)장 / ○○시장ㆍ군수ㆍ구청장 또는 읍ㆍ면ㆍ동의 장 / 재외공관장 귀하                  
+  To the Chief of ○○ Immigration Office(Branch Office) / the Head of ○○ SiㆍGunㆍGu or EupㆍMyeonㆍ                   
+  Dong / the Head of Overseas Diplomatic Mission                                                                          
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                          
+─────────────────────────────────────────────────────────────
+  위 임 장 (Power of Attorney)                                                                                            
+─────────────────────────────────────────────────────────────
+   위 발급대상자(위임한 사람)는 위와 같은 사실증명의 발급ㆍ열람 신청 및 수령에 관한 사항을 위 신청인(위임                 
+  받은 사람)에게 위임합니다.                                                                                              
+   I, the above Principal (authorizing person), hereby authorize the above applicant (authorized person) to               
+  apply for and receive the issuance of / access to the Certificate of Fact.                                              
+                                                                                                                          
+   년(Year)          월(Month)          일(Day)                                                                           
+                                                                                                                          
+                      발급ㆍ열람 대상자(위임한 사람)                            (서명 또는 인)                            
+                      Name of Principal(Authorizing Person)                     (Signature or Seal)                       
+─────────────────────────────────────────────────────────────
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]                                                                      
+                                                                                                                          
+                                                                                                                                                        
+                                                                                                                                                        
+  (뒤쪽)                                                                                                                                                
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  행정정보 공동이용 동의서(Consent for Administrative Information Sharing)                                                                              
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                                                        
+   본인은 사실증명 발급 또는 열람 수수료 면제와 관련해 담당 공무원이  ?전자정부법? 제36조제1항에 따른 행정정보의 공동이용을 통해                      
+  전자적으로 구비서류를 확인하는 것에 동의합니다.                                                                                                       
+    * 담당 공무원의 확인에 동의하지 않는 경우에는 신청인이 직접 관련 서류를 제출해야 합니다.                                                            
+   I hereby consent to the electronic verification of the applicant’s required documents, in relation to the exemption of fees for the                 
+  issuance of or access to certificate of fact, through the shared use of administrative information by the public official in charge                   
+  in accordance with Article 36 Paragraph 1 of the Electronic Government Act.                                                                           
+    * In case of refusal to consent to the verification by the public official in charge, the applicant must submit the relevant documents              
+  in person.                                                                                                                                            
+                                                                                                                                                        
+  신청인(Name of Applicant)   (서명 또는 인)(Signature or Seal)                                                                                         
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  유의사항 Notice                                                                                                                                       
+────────────────────────────────────────────────────────────────────────────
+  1. 색상이 어두운 란은 신청인이 작성하지 않으며, [ ]에는 해당되는 곳에 ‘점검표(V)’로 표시합니다.                                                     
+     Do not complete the shaded sections, and please place a check mark for applicable brackets[ ].                                                     
+  2. 신청인이 법인인 경우에는 앞쪽 신청인의 성명란에 법인명 및 대표자 성명을, 주민등록번호란에 법인등록번호를, 전화번호란에 연락                        
+  가능한 담당자의 성명과 전화번호를 각각 적기 바랍니다.                                                                                                 
+     If you are a corporate applicant, please write the name of the corporation and the president for the “Full Name“ of applicant, corporati         
+  on registration number for “Resident Registration No.”, and name and telephone number of the person in charge for “Telephone No.”                 
+  on the front side of the application form.                                                                                                            
+  3. 사실증명의 발급 신청 및 외국인등록 열람은 본인이나 그 법정대리인 또는 그로부터 위임을 받은 사람만 신청할 수 있습니다.                              
+     Eligible applicants for the issuance of Certificate of Fact or access to Foreign Resident Registration shall be limited to the                     
+  principal, his/her legal representative or authorized person.                                                                                         
+  4. 다음의 경우에는 「출입국관리법 시행규칙」 제75조제3항 및 제4항에 따라 다음의 사람이 출입국에 관한 사실증명의 발급이나 외국인등록                   
+  사실증명의 발급ㆍ열람을 신청할 수 있습니다.                                                                                                           
+     In accordance with Article 75(3, 4) of the Enforcement Rule of the Immigration Act, those falling under the following categories                   
+  may apply for the issuance of Certificate of Fact on Entry and Departure or for the issuance of or access to Certificate of Fact                      
+  on Foreign Resident Registration.                                                                                                                     
+    가. 행방불명, 사망 등으로 본인이 의사표시를 할 수 없는 상태이거나 명백하게 본인의 이익을 위해 사용될 것으로 인정되는 경우                           
+      1) 본인의 배우자, 본인의 직계 존ㆍ비속 또는 형제ㆍ자매                                                                                            
+      2) 본인의 배우자의 직계 존ㆍ비속 또는 형제ㆍ자매[본인의 배우자가 사망한 경우로서 1)에 해당하는 사람이 없는 경우만 해당한다]                       
+       Where a principal is incapable of expressing intentions due to his/her unknown whereabouts or death, or where it is obvious that                 
+  the certificate will be used for benefits of the principal:                                                                                           
+         1) Spouse, immediate relatives or siblings of the principal                                                                                    
+         2) Immediate relatives or siblings of the principal’s spouse [only when the spouse is deceased and the principal does not have any of those   
+  listed in the category 1)]                                                                                                                            
+    나. 본인인 외국인이 완전 출국한 경우: 본인인 외국인을 고용하였던 자 또는 그 대리인                                                                  
+       Where a non-Korean principal has permanently left Korea:                                                                                         
+        - An employer of the principal or the authorized agent of the employer                                                                          
+    다. 채권ㆍ채무관계에 관한 재판에서 승소판결이 확정된 경우, 「주민등록법 시행령」 별표 2 제3호 각 목의 어느 하나에 해당하는                          
+  금융회사 등이 연체채권 회수를 위하여 필요로 하는 경우, 해당 외국인과 채권ㆍ채무 관계에 있는 경우(기한 경과나 기한의 이익 상실                         
+  등으로 변제기가 도래한 경우에 한정하며, 채무금액이 100만 원 이하인 경우는 제외합니다) : 외국인등록 사실증명을 발급받거나 열람하려                     
+  는 채권자                                                                                                                                             
+       Where a favorable ruling is confirmed in a trial on a debtor and creditor relationship, where the Certification is needed                        
+  by financial companies that fall under any of the items of the subparagraph 3 of the attached table 2 of the Enforceme                                
+  nt Decree of Resident Registration Act for the purpose of collecting overdue debts, or where there is a debtor and creditor                           
+  relationship with the foreigner concerned (only when a debt becomes overdue or an event of default occurs that allows a lender                        
+  to demand full repayment earlier than an original due date, and the amount of debt is more than 1 million KRW):                                       
+         - Creditor who intend to receive or access the Certificate of Fact on Foreign Resident Registration of the foreigner concerned                 
+       ※ 채권ㆍ채무 관계를 입증할 수 있는 계약서, 차용증, 어음 등은 송금 영수증, 공증, 확정일자 등의 공적 증거를 담보할 수 있는 서류를 함께            
+  첨부해야 합니다.                                                                                                                                      
+       ※ The contract paper, promissory note and note that prove the debtor and creditor relationship shall be attached by the collateral              
+  documents that may guarantee official evidence such as remittance receipt, notarization and fixed date stamp affixed on the                           
+  agreement, etc.                                                                                                                                       
+    라. 그 밖에 법무부장관이 공익상 필요하다고 인정하는 사람                                                                                            
+       Other persons deemed necessary by the Minister of Justice for the public interest.                                                               
+  5. 위임을 받은 경우에는 위임장과 위임한 사람의 신분증(사본)을 첨부하고 신청인의 신분증을 제시해야 합니다.                                             
+     Authorized persons shall present his/her own ID card and the application shall be presented with the Power of Attorney and                         
+  the ID card (or a copy) of the authorizing person.                                                                                                    
+       ※ 다른 사람의 서명 또는 인장의 도용 등으로 허위의 위임장을 작성하여 증명서를 신청 또는 수령한 경우에는 관련 법률에 따라                         
+  처벌받을 수 있습니다.                                                                                                                                 
+       ※ You may be subject to punishment under applicable laws, if you apply for or receive the Certificate of Fact by submitting a                   
+  fraudulent Power of Attorney signed by another individual or falsely done with a stolen seal.                                                         
+  6. 위임은 작성한 날부터 6개월까지만 유효합니다.                                                                                                       
+     The Power of Attorney shall remain effective for six months from the day of authorization.                                                         
+  7. 국민은 1961.1.1.부터, 외국인은 1979.1.1.부터 출입국에 관한 사실증명이 가능합니다.                                                                  
+     Records on this certificate only cover the entry/departures from January 1, 1961, for Korean nationals and from January                            
+  1, 1979, for Foreigners.                                                                                                                              
+                                                                                                                                                        
+────────────────────────────────────────────────────────────────────────────
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

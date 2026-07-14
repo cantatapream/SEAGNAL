@@ -1,0 +1,59 @@
+[시행규칙] 서식17 — 검정합격증명서
+
+■ 선박평형수(船舶平衡水) 관리법 시행규칙 [별지 제17호서식]                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 제        호                                                                                 ┃
+┃ Certificate No.                                                                              ┃
+┃                                                                                              ┃
+┃검정합격증명서                                                                                ┃
+┃CERTIFICATE OF INSPECTION ON BALLAST WATER MANAGEMENT SYSTEM                                  ┃
+┃                                                                                              ┃
+┃                                                                                              ┃
+┃1. 품명 :                                                                                     ┃
+┃   Name of Article                                                                            ┃
+┃                                                                                              ┃
+┃2. 형식 및 모델 :                                                                             ┃
+┃   TypeㆍModel                                                                                ┃
+┃                                                                                              ┃
+┃3. 정격처리 용량 :                                                                            ┃
+┃   Treatment Rated Capacity                                                                   ┃
+┃                                                                                              ┃
+┃4. 수량 및 일련번호:                                                                          ┃
+┃   Quantity and Serial No.                                                                    ┃
+┃                                                                                              ┃
+┃5. 형식승인번호:                                                                              ┃
+┃   Type Approval No.                                                                          ┃
+┃                                                                                              ┃
+┃6. 형식승인 연월일:                                                                           ┃
+┃   Date of Type Approval                                                                      ┃
+┃                                                                                              ┃
+┃7. 제조자(수입자) 성명:                                                                       ┃
+┃   Name of Manufacturer or Importer                                                           ┃
+┃                                                                                              ┃
+┃8. 제조자(수입자) 주소:                                                                       ┃
+┃   Address of Manufacturer or Importer                                                        ┃
+┃                                                                                              ┃
+┃9. 제조(수입) 연월일:                                                                         ┃
+┃   Date of Manufacture or Import                                                              ┃
+┃                                                                                              ┃
+┃10. 제조번호:                                                                                 ┃
+┃   No. of manufacture                                                                         ┃
+┃                                                                                              ┃
+┃                                                                                              ┃
+┃ 「선박평형수(船舶平衡水) 관리법」 제17조제8항 및 같은 법 시행규칙 제33조제2항에 따라 검정에  ┃
+┃합격하였음을 증명합니다.                                                                      ┃
+┃This Certificate is issued under the Article 17.8 of the Ship's Ballast Water Management Act  ┃
+┃and Article 33.2 of the Enforcement Decree of the Ship's Ballast Water Management Act of the  ┃
+┃Republic of Korea.                                                                            ┃
+┃년      월      일                                                                            ┃
+┃Y       M      D                                                                              ┃
+┃                                                                                              ┃
+┃  해양수산부장관   (서명 또는 인)                                                             ┃
+┃  (Minister of Oceans and Fisheries)                                                          ┃
+┃  한국해양교통안전공단 이사장 (서명 또는 인)                                                  ┃
+┃  (President of Korea Maritime Transportation Safety Authority)                               ┃
+┃  선급법인의장 (서명 또는 인)                                                                 ┃
+┃  (President of Classification Society)                                                       ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                  
+  210㎜×297㎜[백상지(120g/㎡)]

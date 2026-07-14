@@ -1,12 +1,49 @@
 {
-  "서식 1": {
+  "시행령 별표 1": {
+    "제목": "조사계획서에 포함되어야 할 사항(제2조제1항관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942047",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942051",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942053"
+    ]
+  },
+  "시행령 별표 2": {
+    "제목": "해양과학조사 기항계획서에 포함되어야 할 사항(제11조의2제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942055",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942059"
+    ]
+  },
+  "시행령 별표 2의2": {
+    "제목": "외국해역조사계획서에 포함되어야 할 사항(제11조의3제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942061",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942065"
+    ]
+  },
+  "시행령 별표 2의3": {
+    "제목": "공해 등 조사계획서에 포함되어야 할 사항(제11조의3제4항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942067",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942071",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942073"
+    ]
+  },
+  "시행령 별표 3": {
+    "제목": "조사자료의 관리범위(제13조제1항관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942075",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156942079"
+    ]
+  },
+  "시행규칙 서식 1": {
     "제목": "해양과학조사(허가, 동의)신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104414357",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=104414361"
     ]
   },
-  "서식 2": {
+  "시행규칙 서식 2": {
     "제목": "해양과학조사(허가, 동의)서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104414363",
     "이미지": [

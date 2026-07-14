@@ -1,0 +1,60 @@
+[시행규칙] 서식67 — 검정증서CERTIFICATE OF SHIP EQUIPMENT INSPECTION FOR SHIP USE OF APPROVED TYPE
+
+■ 어선법시행규칙 [별지 제67호서식]                                                               
+                                                                                                                      
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                      
+  검정증서                                                                                                            
+  CERTIFICATE OF SHIP EQUIPMENT INSPECTION FOR SHIP USE OF APPROVED TYPE                                              
+                                                                                                                      
+                                                                                                                      
+    제        호                                                                                                      
+    Certificate No.                                                                                                   
+                                                                                                                      
+──────┬────────────────────────────────────────────────────
+  신청인    │성명(법인명)                                                                                            
+  Applicant │Nave(Company)                                                                                           
+            ├────────────────────────────────────────────────────
+            │생년월일(법인등록번호)                                                                                  
+            │Registration No.                                                                                        
+            ├────────────────────────────────────────────────────
+            │주소                                                                                                    
+            │Address                                                                                                 
+──────┴────────────────────────────────────────────────────
+                                                                                                                      
+───────────────────────────────────────────────────────────
+  형식승인대상물건의 내용                                                                                             
+  Particular of Articles                                                                                              
+─────────┬────────┬────┬─────┬────┬────────────┬───────────
+  형식승인증서번호│품    명        │규    격│형     식 │수    량│제조번호                │제조일자              
+  Type Approval   │Name of Articles│Size    │Type      │Quantity│Manufacturer Serial No. │Date of Manufacturer  
+  Certificate No. │                │        │          │        │                        │                      
+─────────┼────────┼────┼─────┼────┼────────────┼───────────
+                  │                │        │          │        │                        │                      
+─────────┼────────┴────┴─────┴────┴────────────┴───────────
+  비    고        │                                                                                                  
+  Remarks         │                                                                                                  
+─────────┴─────────────────────────────────────────────────
+                                                                                                                      
+───────────────────────────────────────────────────────────
+  「어선법」제27조제1항 및 같은 법 시행규칙 제63조제1항에 따라 대한민국 정부의 권한으로 이 증서를 발급합니다.         
+    This certificate is issued in accordance with Article 27.1 of the Fishing Vessels Act and Article 63.1 of the     
+  Enforcement Decree of the Fishing Vessels Act and the provisions of ([  ] IMO Res. [  ] SOLAS [  ] LSA              
+  Code [  ] COLREG) under the authority of the Government of Republic of Korea.                                       
+                                                                                                                      
+                                                 년       월       일                                                 
+                                                           Y         M          D                                     
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+                                                                ┏━━┓                                              
+    해양수산부장관                                              ┃직인┃                                              
+    Minister of Oceans and Fisheriess                           ┃    ┃                                              
+    (한국해양교통안전공단이사장)                                ┃    ┃                                              
+    President of Korea Maritime Transportation Safety Authority ┃    ┃                                              
+    (한국선급회장)                                              ┃    ┃                                              
+    President of Korean Register of Shipping                    ┃    ┃                                              
+                                                                ┗━━┛                                              
+                                                                                                                      
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210mm×297mm[보존용지(1종) 220g/㎡]

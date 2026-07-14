@@ -1,0 +1,89 @@
+[시행규칙] 서식23의2 — 건강진단서
+
+■ 선원법 시행규칙 [별지 제23호의2서식]                                                                                                         
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃건강진단서                                                                                                                                                    ┃
+┃CERTIFICATE OF MEDICAL EXAMINATION                                                                                                                            ┃
+┠─────────────────────────┬────────────┬──────┬────────────────────┬────────────┨
+┃신청인                                            │성명(Name)              │            │성별(Sex)                               │                        ┃
+┃(Applicants                                       ├────────────┼──────┼────────────────────┼────────────┨
+┃)                                                 │생년월일                │            │국  적                                  │                        ┃
+┃                                                  │(Date of Birth)         │            │(Nationality)                           │                        ┃
+┠─────────────────────────┼────────────┼──────┼────────────────────┼────────────┨
+┃건강진단실시결과(Results)                         │신장(Height)            │cm          │혈압(Blood Pressure)                    │                        ┃
+┃                                                  ├────────────┼──────┼────────────────────┼────────────┨
+┃                                                  │체중(Weight)            │kg          │혈액형(Blood Type)                      │                        ┃
+┃                                                  ├────────────┼──────┼────────────────────┼────────────┨
+┃                                                  │청력(Hearing)           │좌LT :      │시력(Visual acuity)                     │좌LT :                  ┃
+┃                                                  │                        │우RT :      │                                        │우RT :                  ┃
+┃                                                  ├────────────┼──────┼────────────────────┼────────────┨
+┃                                                  │색각(Colour Vision)     │            │흉 위(Circumference of Chest)           │cm                      ┃
+┃                                                  ├────────────┼──────┼────────────────────┼────────────┨
+┃                                                  │혈액/조혈계             │            │감염병(Infections)                      │                        ┃
+┃                                                  │(Blood disorders)       │            │                                        │                        ┃
+┃                                                  ├────────────┼──────┼────────────────────┼────────────┨
+┃                                                  │정신계                  │            │피부질환                                │                        ┃
+┃                                                  │(Mental disorders)      │            │(Skin disorders)                        │                        ┃
+┃                                                  ├────────────┼──────┼────────────────────┼────────────┨
+┃                                                  │순환계                  │            │신경계                                  │                        ┃
+┃                                                  │(Cardiovascular system) │            │ (Nervous system)                       │                        ┃
+┃                                                  ├────────────┼──────┼────────────────────┼────────────┨
+┃                                                  │생식및비뇨계            │            │소화계                                  │                        ┃
+┃                                                  │(Genito-urinary         │            │(Digestive system)                      │                        ┃
+┃                                                  │conditions)             │            │                                        │                        ┃
+┃                                                  ├────────────┼──────┼────────────────────┼────────────┨
+┃                                                  │당뇨(Diabetes)          │            │간장(Liver)                             │                        ┃
+┃                                                  ├────────────┴──────┼────────────────────┴────────────┨
+┃                                                  │호흡계 및 흉부X선검사                 │                                                                  ┃
+┃                                                  │(Respiratory disorders & Chest-X Ray) │                                                                  ┃
+┃                                                  ┢━━━━━━━━━━━━┯━━━━━━┷━━━━━━━━━━━━━━━━━━━━┯━━━━━━━━━━━━┫
+┃                                                  ┃특수건강진단에 한함     │빈혈(Anemia)                                          │                        ┃
+┃                                                  ┃(Special Examination    ├───────────────────────────┼────────────┨
+┃                                                  ┃Only)                   │소변 및 매독(Urine and Syphilis)                      │                        ┃
+┠─────────────────────────╄━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━┿━━━━━━━━━━━━┫
+┃공인된 전문의의 선언                              │검사 시 피검사자 신분 확인 여부(Confirmation that identification                │[ ]예(Yes)[ ]아니오(No) ┃
+┃                                                  │documents were checked at the point of examination)                             │                        ┃
+┃(Declaration of the recognized medical practioner)├────────────────────────────────────────┼────────────┨
+┃                                                  │청력 충족 여부(Hearing meets the standards in the section A-1/9?)               │[ ]예(Yes)[ ]아니오(No) ┃
+┃                                                  ├────────────────────────────────────────┼────────────┨
+┃                                                  │보조기 미착용시 청력 충족 여부(Unaided Hearing satisfactory?)                   │[ ]예(Yes)[ ]아니오(No) ┃
+┃                                                  ├────────────────────────────────────────┼────────────┨
+┃                                                  │시력 충족 여부(Visual acuity meets the standards in the section A-1/9?)         │[ ]예(Yes)[ ]아니오(No) ┃
+┃                                                  ├────────────────────────────────────────┼────────────┨
+┃                                                  │색각 충족 여부(Colour Vision meets the standards in the section A-1/9?)         │[ ]예(Yes)[ ]아니오(No) ┃
+┃                                                  │                                                                                                          ┃
+┃                                                  │  최근 색각검사일(Date of last colour vision test)           년   월   일                                 ┃
+┃                                                  ├────────────────────────────────────────┬────────────┨
+┃                                                  │경계업무 적합성(Fit for lookout duties)                                         │[ ]예(Yes)[ ]아니오(No) ┃
+┃                                                  ├────────────────────────────────────────┼────────────┨
+┃                                                  │건강에 제한이나 제약사항이 있는가?(Any limitations or restrictions on fitness?) │[ ]예(Yes)[ ]아니오(No) ┃
+┃                                                  │                                                                                                          ┃
+┃                                                  │  제한이나 제약사항 기술(If "Yes", specify limitations or restrictions)                                   ┃
+┃                                                  ├────────────────────────────────────────┬────────────┨
+┃                                                  │선원이 승선이후 승무가 부적합하게 되거나 타인의 건강을 위해할 가능성이          │[ ]예(Yes)[ ]아니오(No) ┃
+┃                                                  │있는 증상이 있는가?(Is the seafarer suffering from any medical condition        │                        ┃
+┃                                                  │likely to be aggravated by service at sea or to render the seafarer unfit       │                        ┃
+┃                                                  │for such service or to endanger the health of other persons on board?)          │                        ┃
+┃                                                  ├────────────────────────────────────────┼────────────┨
+┃                                                  │건강진단 실시일(Date of Exam)                                                   │년   월   일            ┃
+┃                                                  ├────────────────────────────────────────┼────────────┨
+┃                                                  │유효기간만료일(Date of Expiry)                                                  │년   월   일            ┃
+┠─────────────────────────┴────────────┬──────┬────────────────────┼────────────┨
+┃선원의 서명                                                                 │            │검사 의사명 및 서명                     │                        ┃
+┃(Seafarer's signature)                                                      │            │(Name and Signature of Examine)         │                        ┃
+┠──────────────────────────────────────┴──────┴────────────────────┴────────────┨
+┃본인은 이 진단서의 내용과 STCW 협약 A-I/9조 제6항에 따라 진단서 내용에 대하여 재검토를 받을 권                                                                ┃
+┃리가 있다는 설명을 들었습니다.(I have been informed the content of the certificate and of the                                                                 ┃
+┃right to review in accordance with paragraph 6 of section A-I/9 of the STCW Code)                                                                             ┃
+┠───────────────────────────────────────────────────────────────────────────────┨
+┃「선원법 시행규칙」 제54조의2에 따라 STCW 협약과 해사노동협약의 관계 기준을 충족하였기에 이 건강                                                              ┃
+┃진단서를 발급합니다.(It is issued, under the article 54-2 of the enforcement ordinance of the Seafarers' Act, to                                              ┃
+┃meet the requirements of both the 1978 STCW Convention as amended and the Maritime Labour Convention, 2006.)                                                  ┃
+┃                                                                                                                                                              ┃
+┃발급일(Date of Issue) :                년        월        일                                                                                                 ┃
+┃                                                                                                                                                              ┃
+┃발급 의료기관명(Official name of issuing Authority)       직인(Stamp)                                                                                         ┃
+┃                                                                                                                                                              ┃
+┃                           (전화번호)                                                                                                                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210mm×297mm(백상지 80g/㎡)

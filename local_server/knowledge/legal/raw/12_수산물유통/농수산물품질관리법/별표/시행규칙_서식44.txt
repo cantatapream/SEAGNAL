@@ -1,0 +1,107 @@
+[시행규칙] 서식44 — 위해요소중점관리기준 이행증명서
+
+■ 농산물품질관리법 시행규칙 [별지 제44호서식]                           
+                                                                                          
+                                                                                          
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃대한민국 해양수산부 국립수산물품질관리원                                              ┃
+┃National Fishery Products Quality Management Service                                  ┃
+┃Ministry of Oceans and Fisheries                                                      ┃
+┃Republic of Korea                                                                     ┃
+┃위해요소중점관리기준 이행증명서                                                       ┃
+┃HACCP COMPLIANCE CERTIFICATE                                                          ┃
+┃                                                                                      ┃
+┃발행번호                                발행일                                        ┃
+┃Serial No.:                                 Date :                                    ┃
+┃신청인                                                                                ┃
+┃Applicant:                                                                            ┃
+┃주소                                                                                  ┃
+┃Address:                                                                              ┃
+┃                                                                                      ┃
+┃  아래의 수산물은 「농수산물 품질관리법」 제70조제4항 및 같은 법 시행규칙 제85조      ┃
+┃에 따라 위해요소중점관리기준(HACCP) 및 위생프로그램을 이행하여 생산하였음을 증        ┃
+┃명합니다.                                                                             ┃
+┃  This is to verify that the HACCP and sanitary programs are implemented by the       ┃
+┃company in the production of the following fishery products in accordance with        ┃
+┃Agricultural & Fishery products quality management law.                               ┃
+┃                                                                                      ┃
+┃품명                                                                                  ┃
+┃Commodity:                                                                            ┃
+┃수량                                                                                  ┃
+┃Quantity:                                                                             ┃
+┃포장                                                                                  ┃
+┃Packing:                                                                              ┃
+┃생산지                                                                                ┃
+┃Produced Distric :                                                                    ┃
+┃생산기간                                                                              ┃
+┃Produced Term(Date):                                                                  ┃
+┃수입자    주소                                                                        ┃
+┃Importer Address:                                                                     ┃
+┃          성명(회사)                                                                  ┃
+┃          Name(Company):                                                              ┃
+┃                                                                                      ┃
+┃Stamp:                                                                                ┃
+┃SIGNATURE                                                                             ┃
+┃                                                                                      ┃
+┃국립수산물품질관리원장 ??                                                           ┃
+┃           Chief of National Fishery Products Quality Management Service              ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                          
+  210mm×297mm[백상지 80g/㎡]                                                             
+                                                                                          
+                                                    
+                                                    
+                                                    
+  (뒤 쪽)                                           
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                    
+                                                    
+                                                    
+                                                    
+                                                    
+                                                    
+                                                    
+                                                    
+                                                    
+                                                    
+                                                    
+                                                    
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+  처리절차                                          
+──────────────────────────
+                                                    
+                                                    
+    이 신청서는 아래와 같이 처리됩니다.             
+┌────────┬───────────────┐
+│신 청 인        │처리기관                      │
+│                ├───────────────┤
+│                │국립수산물품질관리원          │
+├────────┼───────────────┤
+│                │                              │
+│┌───┐      │      ┌──────────┐│
+││신  청│      │    ▶│접  수              ││
+││      │      │      │                    ││
+││      ├───┼──  │                    ││
+││      │      │      │                    ││
+│└───┘      │      └─┬────────┘│
+│                │          │                  │
+│                │          │                  │
+│                │                              │
+│                │          ▼                  │
+│                │      ┌──────────┐│
+│                │      │서류 검토           ││
+│                │      └─┬────────┘│
+│                │          │                  │
+│                │          │                  │
+│                │                              │
+│                │          ▼                  │
+│┌───┐      │      ┌──────────┐│
+││발  급│◀    │      │위해요소중점관리기준││
+││      │      │      │이행증명서 작성     ││
+││      │  ──┼───┤                    ││
+││      │      │      │                    ││
+│└───┘      │      └──────────┘│
+│                │                              │
+│                │                              │
+│                │                              │
+└────────┴───────────────┘
