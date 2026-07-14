@@ -275,6 +275,35 @@ console.log('\n[18] [실물 2026-07-14 제07-17호] "묶음명 중 평수구역"
     ok('보류실 소진', !mc2._cvHasPendings());
 }
 
+console.log('\n[18] [2026-07-14 실사고] 제외 단서(c2) — 부모 발표 유지 + 평수구역만 취소');
+{
+    mc._resetCancelVerdictsForTest();
+    // 부모(경북남부앞바다) 예비 생존 + 평수구역 자식만 소멸 → 자식 보류 등록 상황
+    mc._registerChildCancelVerdict('경북남부앞바다', '경북남부앞바다중평수구역', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '2026.07.15 00:00', tmYn: '' });
+    mc._registerChildCancelVerdict('경북남부앞바다', '경북남부앞바다중연안바다', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '2026.07.15 00:00', tmYn: '' });
+    // 22:00 통보문의 제외 단서 주입 (참고사항 취소 문구는 없음 — releases 빈 배열)
+    const exc = sc.parseExclusions('(3) 풍랑주의보 발표 : 동해남부앞바다(경북남부앞바다) o 경북남부앞바다(평수구역 제외)')[0];
+    exc.foundAt = Date.now(); exc.issuedAtMs = Date.now() - 6 * 60 * 1000; exc.source = 'test/met:xx';
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [exc], scannedCount: 1, rawByOffice: {} });
+    const P18 = PRELIM({ tmEf: '2026.07.15 00:00' });
+    changes = mc._buildUserPushChanges(snap({ '경북남부앞바다': P18 }), snap({ '경북남부앞바다': P18 }));
+    const c18 = changes.find(c => c.type === 'CHILD_PRELIM_CANCEL');
+    ok('평수구역만 취소 발사', !!c18 && c18.childState.released.length === 1 && c18.childState.released[0] === '경북남부앞바다중평수구역');
+    ok('연안바다 자식 보류는 잔존', !!mc._loadCancelVerdicts().children['경북남부앞바다|경북남부앞바다중연안바다']);
+    ok('부모 취소는 발사되지 않음', !changes.some(c => c.type === 'UPCOMING_CANCEL'));
+    // 소각 — 같은 단서로 재발사 없음
+    changes = mc._buildUserPushChanges(snap({ '경북남부앞바다': P18 }), snap({ '경북남부앞바다': P18 }));
+    ok('소각(재발사 없음)', !changes.some(c => c.type === 'CHILD_PRELIM_CANCEL'));
+    // 시간축 — 2시간 전 발행 제외 단서는 새 보류를 확정 못 함
+    mc._resetCancelVerdictsForTest();
+    mc._registerChildCancelVerdict('경북남부앞바다', '경북남부앞바다중평수구역', { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: '', tmYn: '' });
+    const excOld = sc.parseExclusions('o 경북남부앞바다(평수구역 제외)')[0];
+    excOld.foundAt = Date.now() - 2 * 3600 * 1000; excOld.issuedAtMs = Date.now() - 2 * 3600 * 1000;
+    mc._setLastCancelScanForTest({ fetchedAt: Date.now(), releases: [], exclusions: [excOld], scannedCount: 0, rawByOffice: {} });
+    changes = mc._buildUserPushChanges(snap({ '경북남부앞바다': P18 }), snap({ '경북남부앞바다': P18 }));
+    ok('묵은 제외 단서(2h 전 발행) 비확정', !changes.some(c => c.type === 'CHILD_PRELIM_CANCEL') && mc._cvHasPendings());
+}
+
 cleanup();
 console.log(`\n[cancel_verdict_room] ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

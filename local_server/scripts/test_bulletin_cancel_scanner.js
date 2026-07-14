@@ -108,6 +108,18 @@ const rel714ex = P('전남북부서해앞바다 중 평수구역을 제외한 �
 ok('0.5순위: "중 평수구역을 제외" 문맥은 비확정(을 조사 가드)', rel714ex.length === 1
     && !sc.matchesChild(rel714ex[0], '전남북부서해앞바다', '전남북부서해앞바다중평수구역'));
 
+// ── [실물 2026-07-14 제07-45호] 해당구역 절 제외 단서 → 자식 취소 긍정 근거 ──
+const bull714 = '발효시각 (3) 풍랑주의보 발표 : 2026년 07월 15일 00시 00분 해당구역 (2) 풍랑주의보 발표 : 동해남부앞바다(경북북부앞바다) (3) 풍랑주의보 발표 : 동해남부앞바다(경북남부앞바다) o 경북남부앞바다(평수구역 제외) 내용 (3) 풍랑주의보 발표 o 해제 예고: 15일 늦은 오후(15시~18시)';
+const excs = sc.parseExclusions(bull714);
+ok('제외 단서 파싱(실물)', excs.length === 1 && excs[0].parent === '경북남부앞바다' && excs[0].excluded.join(',') === '평수구역' && excs[0].tp === '풍랑');
+ok('제외 단서 → 평수구역 자식 확정', sc.matchesChildExclusion(excs[0], '경북남부앞바다', '경북남부앞바다중평수구역'));
+ok('제외 단서: 연안바다 자식은 비확정', !sc.matchesChildExclusion(excs[0], '경북남부앞바다', '경북남부앞바다중연안바다'));
+ok('제외 단서: 타 부모 비확정', !sc.matchesChildExclusion(excs[0], '경북북부앞바다', '경북북부앞바다중평수구역'));
+ok('비해역 괄호 제외("시각 제외") 무시', sc.parseExclusions('동해남부앞바다(15일 09시 제외)').length === 0);
+ok('괄호 없는 "를 제외한"은 제외 단서 아님', sc.parseExclusions('거제시동부앞바다를 제외한 남해동부앞바다의 풍랑 예비특보').length === 0);
+const excMulti = sc.parseExclusions('풍랑주의보 발표 : 부산앞바다(동부평수구역, 서부평수구역 제외)');
+ok('복수 제외 토큰', excMulti.length === 1 && excMulti[0].excluded.length === 2 && sc.matchesChildExclusion(excMulti[0], '부산앞바다', '부산앞바다중동부평수구역'));
+
 // ── [적대검증 2] 제외 단서 부정 처리 ───────────────────────────────────────
 const relEx = P('거제시동부앞바다를 제외한 남해동부앞바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')[0];
 ok('제외된 해역 비매치', !sc.matchesZone(relEx, '거제시동부앞바다'));

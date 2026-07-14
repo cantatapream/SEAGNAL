@@ -66,6 +66,10 @@ const _failCounts = new Map();
 const MAX_DETAIL_FAILS = 5;
 // 발견된 취소 문구 누적 — 보류 등록 "이전"에 발행된 통보문의 취소 문구도 판정에 쓰이도록 보존.
 let _recentReleases = [];
+// [2026-07-14 실사고] 해당구역 절의 "부모명(자식 제외)" 단서 누적 — 부모는 발표되고 자식만
+//   대상에서 빠지는 서식(대구청 6/20·7/14 실물). 자식 취소 보류의 "긍정 확정 근거"로만 사용
+//   (부모 판정에는 불사용 — 제외 단서는 부모가 살아있음을 전제하는 표현).
+let _recentExclusions = [];
 
 // ---------------------------------------------------------------------------
 // 저수준 fetch (프로덕션: 직결 https — marine_client 와 동일 방식)
@@ -138,6 +142,43 @@ const MAX_SENTENCE_LEN = 500;
 //   등 오탐 방어 구조는 그대로다.
 // ---------------------------------------------------------------------------
 const RE_RELEASE = /([^.\n]*?(?:의|에)[^.\n]*?)\s*(풍랑|태풍)\s*(?:예비\s*)?특보(?:\s*\(([^)]{1,120})\))?(?:는|를)?\s*[^.\n]*?\s*(?:발표|발효)\s*가능성이?\s*(?:낮아|적어)(?:져)?\s*(?:[^.\n]*?\s*예비\s*특보를?\s*)?해제\s*(?:합니다|함\.?|하나|하였으나|하며)/g;
+
+// ---------------------------------------------------------------------------
+// [2026-07-14 실사고] 해당구역 절 제외 단서 — "경북남부앞바다(평수구역 제외)"
+//   부모가 발표/변경되면서 특정 자식만 대상에서 빠질 때의 표준 서식(참고사항 아님).
+//   자식 취소 보류의 긍정 확정 근거. 종류(풍랑/태풍)는 매치 앞 200자에서 역추적
+//   (하위 불릿 "o 부모명(자식 제외)"에는 종류가 없고 상위 줄에 있음), 미상이면 ''.
+// ---------------------------------------------------------------------------
+const RE_EXCLUSION = /([가-힣·]{2,20}?(?:앞바다|먼바다))\s*\(\s*([^)]{1,60}?)\s*제외\s*\)/g;
+
+function parseExclusions(fullText) {
+    const out = [];
+    if (!fullText) return out;
+    const txt = String(fullText).slice(0, 6000).replace(/([가-힣])\.([가-힣])/g, '$1·$2');
+    RE_EXCLUSION.lastIndex = 0;
+    let m;
+    while ((m = RE_EXCLUSION.exec(txt)) !== null) {
+        const excluded = m[2].split(/[,·]/).map(s => s.trim()).filter(t => t && _plausibleZoneToken(t));
+        if (excluded.length === 0) continue;   // 비해역 괄호("...시각 제외" 류) 무시
+        const before = txt.slice(Math.max(0, m.index - 200), m.index);
+        const tpm = before.match(/(풍랑|태풍)(?!.*(?:풍랑|태풍))/s) || before.match(/.*(풍랑|태풍)/s);
+        out.push({ parent: m[1], excluded, tp: tpm ? tpm[1] : '' });
+    }
+    return out;
+}
+
+/** 제외 단서가 자식(zone 아래 child)의 취소를 확정하는가 — 부모명 "직접 일치" + 자식
+ *  단축명 토큰 일치만 인정(묶음 확장 없음 — 실물 서식이 개별 부모명이며 보수 우선). */
+function matchesChildExclusion(exc, zone, child) {
+    if (!exc || !zone || !child) return false;
+    if (_norm(exc.parent) !== _norm(zone)) return false;
+    const shortC = _norm(String(child).split('중').pop());
+    const fullC = _norm(child);
+    return (exc.excluded || []).some(t => {
+        const nt = _norm(t);
+        return nt === shortC || nt === fullC || (fullC.indexOf(nt) !== -1 && nt.length >= 2);
+    });
+}
 
 /** [적대검증 10] 괄호 토큰 중 해역명으로 보이는 것만 채택 — "(19일 05시 발표)" 같은
  *   비해역 괄호가 자식 매칭을 오염(부모 대표 폴백 차단)하지 않도록. */
@@ -410,6 +451,7 @@ async function scan({ offices, dates }) {
     // seen/누적 TTL 정리
     for (const [k, ts] of _seenReports) if (now - ts > SEEN_REPORT_TTL_MS) { _seenReports.delete(k); _failCounts.delete(k); }
     _recentReleases = _recentReleases.filter(r => now - r.foundAt < RELEASE_MEMORY_TTL_MS);
+    _recentExclusions = _recentExclusions.filter(r => now - r.foundAt < RELEASE_MEMORY_TTL_MS);
 
     const rawByOffice = {};
     let scanned = 0;
@@ -447,6 +489,14 @@ async function scan({ offices, dates }) {
                     _failCounts.delete(key);
                     _seenReports.set(key, Date.now());
                     scanned++;
+                    // [2026-07-14] 해당구역 절 제외 단서 수집 (참고사항 밖 — 전문에서)
+                    for (const exc of parseExclusions(text)) {
+                        exc.foundAt = Date.now();
+                        exc.issuedAtMs = _reportIssuedAtMs(opt.reportId);
+                        exc.source = `${stn}/${kind}/${opt.reportId}`;
+                        _recentExclusions.push(exc);
+                        console.log(`[BulletinScan] 제외 단서 발견: ${exc.parent}(${exc.excluded.join(',')} 제외) [${exc.tp || '종류미상'}] (${exc.source})`);
+                    }
                     const ref = _refSection(text);
                     if (ref) {
                         // TTL 만료 로그용 원문 보존 (관서당 최근 1건, 500자)
@@ -469,6 +519,7 @@ async function scan({ offices, dates }) {
     return {
         fetchedAt: now,
         releases: _recentReleases.slice(),
+        exclusions: _recentExclusions.slice(),
         scannedCount: scanned,
         rawByOffice
     };
@@ -477,12 +528,16 @@ async function scan({ offices, dates }) {
 /** 테스트/리허설용 상태 초기화 */
 function _resetForTest() {
     _seenReports.clear();
+    _failCounts.clear();
     _recentReleases = [];
+    _recentExclusions = [];
 }
 
 module.exports = {
     scan,
     parseCancelPhrases,
+    parseExclusions,
+    matchesChildExclusion,
     matchesZone,
     matchesChild,
     RE_RELEASE,

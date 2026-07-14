@@ -1424,6 +1424,24 @@ function _evaluateCancelVerdicts(curr, changes, h) {
                 continue;
             }
         }
+        // (c2) [2026-07-14 실사고] 해당구역 절의 제외 단서 — "경북남부앞바다(평수구역 제외)".
+        //   부모는 발표/변경되면서 자식만 대상에서 빠지는 서식(참고사항에 취소 문구 없음)의
+        //   긍정 확정 근거. 부모 판정에는 불사용(제외 = 부모 생존 전제). 시간축·소각·신선도
+        //   게이트는 (c)와 동일. 종류 미상('') 단서는 보수적으로 종류 일치 요구를 통과시키되
+        //   부모명 직접 일치 + 자식 단축명 토큰 일치가 모두 필요해 오귀속 여지가 없다.
+        const exclusions = (scanFresh && _lastCancelScan && _lastCancelScan.exclusions) || [];
+        if (canFire && bulletinScanner && typeof bulletinScanner.matchesChildExclusion === 'function' && exclusions.length > 0) {
+            const ex = exclusions.find(x => !isConsumed(x, key) && (x.tp === '' || x.tp === tp) && timeOk(x, ent) && bulletinScanner.matchesChildExclusion(x, zone, child));
+            if (ex) {
+                consume(ex, key);
+                console.log(`[Marine] ✅ 자식 예비취소 확정(제외 단서): ${zone} > ${child} — "${ex.parent}(${(ex.excluded || []).join(',')} 제외)" (${ex.source || ''})`);
+                const fzKey = zone + '|' + tp;
+                if (!fireByZone.has(fzKey)) fireByZone.set(fzKey, { zone, block: ent.block, names: [] });
+                fireByZone.get(fzKey).names.push(child);
+                delete v.children[key];
+                continue;
+            }
+        }
         // (d) 데드라인 — 무푸시 + 원문 로그 (자식 괄호형(V4) 미매치가 바로 보강 재료인 케이스)
         if (now >= _cvDeadline(ent)) {
             const raw = _lastCancelScan && _lastCancelScan.rawByOffice
