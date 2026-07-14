@@ -126,6 +126,35 @@ ok('제외된 해역 비매치', !sc.matchesZone(relEx, '거제시동부앞바�
 ok('제외 아닌 해역(묶음 번역)은 매치', sc.matchesZone(relEx, '부산앞바다'));
 ok('긍정 언급이 별도로 있으면 매치 유지', sc.matchesZone(P('부산앞바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')[0], '부산앞바다'));
 
+// ── [실물 2026-07-14 제주 제07-33·36·44호] 지정 단서(c3) — "부모( 남는 자식만 )" ──
+const bullJeju36 = '제07-36호 풍랑주의보 발표 발효시각 (1) 풍랑주의보 발표 : 2026년 07월 11일 18시 00분 해당구역 (1) 풍랑주의보 발표 : 제주도동부앞바다( 북동연안바다 ), 제주도서부앞바다( 북서연안바다 ) 내용 (1) 풍랑주의보 발표 o 해제 예고: 15일 오전(09시~12시)';
+const desg = sc.parseDesignations(bullJeju36);
+ok('지정 단서 파싱(발표 문맥, 2건·공백 괄호)', desg.length === 2 && desg[0].parent === '제주도동부앞바다'
+    && desg[0].listed.join(',') === '북동연안바다' && desg[0].tp === '풍랑' && desg[1].parent === '제주도서부앞바다');
+ok('지정 단서 → 나열에서 빠진 자식 확정(남동·우도)', sc.matchesChildDesignation(desg[0], '제주도동부앞바다', '제주도동부앞바다중남동연안바다')
+    && sc.matchesChildDesignation(desg[0], '제주도동부앞바다', '제주도동부앞바다중우도연안바다'));
+ok('지정 단서: 나열된 자식은 비확정(북동)', !sc.matchesChildDesignation(desg[0], '제주도동부앞바다', '제주도동부앞바다중북동연안바다'));
+ok('지정 단서: 타 부모 비확정', !sc.matchesChildDesignation(desg[0], '제주도서부앞바다', '제주도서부앞바다중차귀도연안바다'));
+const bullJeju44 = '제07-44호 풍랑주의보 해제 발효시각 (1) 풍랑주의보 해제 : 2026년 07월 13일 05시 00분 해당구역 (1) 풍랑주의보 해제 : 제주도동부앞바다( 북동연안바다 ), 제주도서부앞바다( 북서연안바다 )';
+ok('해제 문맥 지정형 비수집(07-44호 실물 — 해제의 부재는 유지)', sc.parseDesignations(bullJeju44).length === 0);
+ok('취소 문맥 지정형 비수집', sc.parseDesignations('풍랑 예비특보 취소 : 제주도동부앞바다( 북동연안바다 )').length === 0);
+ok('시각 괄호 비수집', sc.parseDesignations('풍랑주의보 발표 : 동해남부앞바다(15일 09시~12시)').length === 0);
+ok('제외 괄호는 지정 아님((c2) 소관)', sc.parseDesignations('풍랑주의보 발표 : 경북남부앞바다(평수구역 제외)').length === 0);
+ok('포함 병기 괄호는 지정 아님', sc.parseDesignations('풍랑주의보 발표 : 울산앞바다(연안바다 포함)').length === 0);
+ok('동작어 없는 문맥 비수집(발효 중 회고 등)', sc.parseDesignations('현재 제주도동부앞바다( 북동연안바다 )에 풍랑주의보 발효 중').length === 0);
+const desgGrp = sc.parseDesignations('(2) 풍랑주의보 발표 : 동해남부앞바다(경북북부앞바다)');
+ok('묶음명 지정(부모 나열)은 실해역 부모 불일치로 불활성', desgGrp.length === 1
+    && !sc.matchesChildDesignation(desgGrp[0], '경북북부앞바다', '경북북부앞바다중평수구역')
+    && !sc.matchesChildDesignation(desgGrp[0], '경북남부앞바다', '경북남부앞바다중평수구역'));
+
+// ── [실물 대구형] 취소 절 안의 지정 괄호 — "경북남부앞바다(평수구역)의 …해제" ──
+const relDaegu = P('경북남부앞바다(평수구역)의 풍랑예비특보는 발표 가능성이 낮아져 해제하나, 오후에 동풍이 강해지면서 풍랑특보가 발표될 가능성이 있으니 유의 바랍니다')[0];
+ok('절 내 지정: 나열 자식 확정(평수구역)', sc.matchesChild(relDaegu, '경북남부앞바다', '경북남부앞바다중평수구역'));
+ok('절 내 지정: 빠진 자식 비확정(부모 대표 금지)', !sc.matchesChild(relDaegu, '경북남부앞바다', '경북남부앞바다중연안바다'));
+ok('절 내 지정: 부모 오확정 차단(_mentions ③)', !sc.matchesZone(relDaegu, '경북남부앞바다'));
+ok('제외 괄호 부모 언급은 유효 유지', sc.matchesZone(P('경북남부앞바다(평수구역 제외)의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')[0], '경북남부앞바다'));
+ok('비해역 괄호 부모 언급 유효([적대검증 10] 유지)', sc.matchesZone(P('울산앞바다(19일 05시 발표)의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')[0], '울산앞바다'));
+
 // ── 통보문 목록/발행시각 유틸 ───────────────────────────────────────────────
 const listHtml = '<select><option value="met:202606201000:7" selected="selected">제06-7호</option>' +
     '<option value="met:202606200800:5">제06-5호</option></select>' +

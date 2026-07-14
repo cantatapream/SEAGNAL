@@ -1442,6 +1442,24 @@ function _evaluateCancelVerdicts(curr, changes, h) {
                 continue;
             }
         }
+        // (c3) [2026-07-14 제주 실물, 제07-33·36·44호] 해당구역 절의 지정 단서 —
+        //   "제주도동부앞바다( 북동연안바다 )": 발표/변경이 괄호로 "남는 자식만" 지목하는
+        //   서식((c2) 제외형의 반대 방향). 나열에서 빠진 이 자식은 대상 제외 = 취소 확정.
+        //   게이트는 (c2)와 동일(시간축·소각·신선도·부모 판정 불사용)하되, 부재(omission)
+        //   기반 근거라 문턱을 한 단 높여 종류(tp) 일치를 반드시 요구한다('' 통과 없음).
+        const designations = (scanFresh && _lastCancelScan && _lastCancelScan.designations) || [];
+        if (canFire && bulletinScanner && typeof bulletinScanner.matchesChildDesignation === 'function' && designations.length > 0) {
+            const dg = designations.find(x => !isConsumed(x, key) && x.tp === tp && timeOk(x, ent) && bulletinScanner.matchesChildDesignation(x, zone, child));
+            if (dg) {
+                consume(dg, key);
+                console.log(`[Marine] ✅ 자식 예비취소 확정(지정 단서): ${zone} > ${child} — "${dg.parent}(${(dg.listed || []).join(',')})" 나열에서 제외 (${dg.source || ''})`);
+                const fzKey = zone + '|' + tp;
+                if (!fireByZone.has(fzKey)) fireByZone.set(fzKey, { zone, block: ent.block, names: [] });
+                fireByZone.get(fzKey).names.push(child);
+                delete v.children[key];
+                continue;
+            }
+        }
         // (d) 데드라인 — 무푸시 + 원문 로그 (자식 괄호형(V4) 미매치가 바로 보강 재료인 케이스)
         if (now >= _cvDeadline(ent)) {
             const raw = _lastCancelScan && _lastCancelScan.rawByOffice

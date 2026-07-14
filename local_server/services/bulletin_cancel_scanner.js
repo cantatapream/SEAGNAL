@@ -70,6 +70,7 @@ let _recentReleases = [];
 //   대상에서 빠지는 서식(대구청 6/20·7/14 실물). 자식 취소 보류의 "긍정 확정 근거"로만 사용
 //   (부모 판정에는 불사용 — 제외 단서는 부모가 살아있음을 전제하는 표현).
 let _recentExclusions = [];
+let _recentDesignations = [];
 
 // ---------------------------------------------------------------------------
 // 저수준 fetch (프로덕션: 직결 https — marine_client 와 동일 방식)
@@ -167,6 +168,75 @@ function parseExclusions(fullText) {
     return out;
 }
 
+// ---------------------------------------------------------------------------
+// [2026-07-14 제주 실물, 제07-33·36·44호] 해당구역 절 지정 단서 — "제주도동부앞바다( 북동연안바다 )"
+//   발표/변경이 괄호로 "남는 자식만" 지목하는 서식 — (c2) 제외형("평수구역 제외")의 반대 방향.
+//   나열에서 빠진 자식 = 대상에서 빠진 것이므로 자식 취소 보류의 긍정 확정 근거가 된다.
+//   부정 조건 3중:
+//   ① 괄호 안 '제외'는 제외형(parseExclusions 담당), '포함'은 병기 장식 — 지정이 아니므로 배제
+//   ② 앞 문맥(120자)의 최근접 동작어가 '발표|변경'일 때만 채택 — '해제|취소|예고|유지'가
+//      최근접이면 폐기. "풍랑주의보 해제 : Z( A )"(07-44호 실물)는 A만 해제한다는 뜻이라
+//      부재 자식의 취소 근거가 될 수 없다(나머지는 무언급 = 유지).
+//   ③ 괄호 토큰 "전원"이 해역명일 때만 — "(09시~12시)" 시각 괄호·혼합 괄호 오인 방지
+// ---------------------------------------------------------------------------
+const RE_DESIGNATION = /([가-힣·]{2,20}?(?:앞바다|먼바다))\s*\(\s*([^)]{1,60}?)\s*\)/g;
+
+/**
+ * 통보문 전문에서 "부모( 자식 나열 )" 지정 단서를 추출한다.
+ * 예: parseDesignations('풍랑주의보 발표 : 제주도동부앞바다( 북동연안바다 )')
+ *     → [{ parent:'제주도동부앞바다', listed:['북동연안바다'], tp:'풍랑' }]
+ * @param {string} fullText - 통보문 텍스트 전문 (참고사항 아님 — 해당구역 절 포함)
+ * @returns {Array<{parent:string, listed:string[], tp:string}>} 발표/변경 문맥의 지정 단서만
+ * [연계] ← scan (이 파일) — 통보문마다 호출해 _recentDesignations 에 누적한다
+ *        → _plausibleZoneToken (이 파일) — 괄호 토큰이 해역명인지 판별
+ *        누가: marine_warning_crawler._evaluateCancelVerdicts (c3) 가 이 결과를 소비한다
+ */
+function parseDesignations(fullText) {
+    const out = [];
+    if (!fullText) return out;
+    const txt = String(fullText).slice(0, 6000).replace(/([가-힣])\.([가-힣])/g, '$1·$2');
+    RE_DESIGNATION.lastIndex = 0;
+    let m;
+    while ((m = RE_DESIGNATION.exec(txt)) !== null) {
+        const inner = m[2];
+        if (inner.indexOf('제외') !== -1 || inner.indexOf('포함') !== -1) continue;   // ① 제외형/병기형
+        const toks = inner.split(/[,·]/).map(s => s.trim()).filter(Boolean);
+        if (toks.length === 0 || !toks.every(_plausibleZoneToken)) continue;          // ③ 전원 해역명
+        const before = txt.slice(Math.max(0, m.index - 120), m.index);
+        const acts = before.match(/(발표|변경|해제|취소|예고|유지)/g);
+        const act = acts ? acts[acts.length - 1] : '';
+        if (act !== '발표' && act !== '변경') continue;                                // ② 발표/변경 문맥만
+        const tpWin = txt.slice(Math.max(0, m.index - 200), m.index);
+        const tpm = tpWin.match(/(풍랑|태풍)(?!.*(?:풍랑|태풍))/s) || tpWin.match(/.*(풍랑|태풍)/s);
+        out.push({ parent: m[1], listed: toks, tp: tpm ? tpm[1] : '' });
+    }
+    return out;
+}
+
+/**
+ * 지정 단서가 자식(zone 아래 child)의 취소를 확정하는가 — 부모명 "직접 일치"에서
+ * 자식이 나열에 "빠져" 있으면 참(부재 = 대상 제외). 묶음 확장 없음, (c2)와 동일하게 보수 우선.
+ * 예: matchesChildDesignation({parent:'제주도동부앞바다', listed:['북동연안바다']},
+ *     '제주도동부앞바다', '제주도동부앞바다중우도연안바다') → true (우도가 나열에 없음)
+ * @param {Object} des - parseDesignations 결과 항목 ({ parent, listed, tp })
+ * @param {string} zone - 부모 해역명
+ * @param {string} child - 자식 정식명 (예: '제주도동부앞바다중우도연안바다')
+ * @returns {boolean} 이 지정 단서가 해당 자식의 취소(대상 제외)를 확정하면 true
+ * [연계] ← marine_warning_crawler.js _evaluateCancelVerdicts (c3) — 자식 보류 판정에서 부른다
+ *          (true 면 CHILD_PRELIM_CANCEL 발사 — (c2) 제외 단서와 같은 발사 경로)
+ */
+function matchesChildDesignation(des, zone, child) {
+    if (!des || !zone || !child) return false;
+    if (_norm(des.parent) !== _norm(zone)) return false;
+    const shortC = _norm(String(child).split('중').pop());
+    const fullC = _norm(child);
+    const listed = (des.listed || []).some(t => {
+        const nt = _norm(t);
+        return nt === shortC || nt === fullC || (fullC.indexOf(nt) !== -1 && nt.length >= 2);
+    });
+    return !listed;
+}
+
 /** 제외 단서가 자식(zone 아래 child)의 취소를 확정하는가 — 부모명 "직접 일치" + 자식
  *  단축명 토큰 일치만 인정(묶음 확장 없음 — 실물 서식이 개별 부모명이며 보수 우선). */
 function matchesChildExclusion(exc, zone, child) {
@@ -261,10 +331,27 @@ function _mentions(hay, name) {
         const after = hay.slice(idx + n.length, idx + n.length + 6);
         const childPrefix = after.charAt(0) === '중';
         const excluded = /^(?:를|을|은|는|만)?제외/.test(after);
-        if (!childPrefix && !excluded) return true;
+        // ③ [2026-07-14 대구 실물형] 지정 괄호 — "경북남부앞바다(평수구역)의 …해제"는
+        //   괄호 안 자식"만"의 취소이지 부모 전체 언급이 아니다(부모 오확정 차단).
+        //   제외("평수구역 제외")·병기("연안바다 포함")·비해역 괄호는 종전대로 유효 언급.
+        const desig = _designationParenAt(hay, idx + n.length);
+        if (!childPrefix && !excluded && !desig) return true;
         idx = hay.indexOf(n, idx + 1);
     }
     return false;
+}
+
+/** hay[at] 이 "순수 지정 괄호"(전원 해역 토큰, 제외/포함 없음)의 시작이면 그 토큰 배열을,
+ *  아니면 null 을 반환. _mentions ③ 과 matchesChild 지정 게이트가 공용.
+ *  [연계] ← _mentions · matchesChild (이 파일) */
+function _designationParenAt(hay, at) {
+    if (hay.charAt(at) !== '(') return null;
+    const close = hay.indexOf(')', at + 1);
+    if (close === -1) return null;
+    const inner = hay.slice(at + 1, close);
+    if (!inner || inner.indexOf('제외') !== -1 || inner.indexOf('포함') !== -1) return null;
+    const toks = inner.split(/[,·]/).filter(Boolean);
+    return (toks.length > 0 && toks.every(_plausibleZoneToken)) ? toks : null;
 }
 
 /** [적대검증 2] name 이 명시적 제외 문맥("…를 제외")으로 등장하는가 — 묶음 확장보다 우선. */
@@ -395,6 +482,19 @@ function matchesChild(release, zone, child) {
     // 0.5순위 — 묶음명/부모명 + 중 + 단축명 (취소 절 안에서만: hay 가 이미 clause 한정)
     const prefixes = [zone].concat(Object.keys(ZONE_GROUP_MAP).filter(k => ZONE_GROUP_MAP[k].indexOf(zone) !== -1));
     if (prefixes.some(p => _mentionsChildViaGroup(hay, p, shortC))) return true;
+    // 0.7순위 — [2026-07-14 대구 실물형] 부모명에 직접 붙은 지정 괄호("경북남부앞바다(평수구역)의
+    //   …해제")는 취소 범위의 권위: 나열된 자식만 확정, 빠진 자식은 부모 대표 금지.
+    //   (부모 자체의 오확정 차단은 _mentions ③ 이 담당 — 여기는 자식 방향)
+    {
+        const zn = _norm(zone);
+        const zi = hay.indexOf(zn + '(');
+        if (zi !== -1) {
+            const toks = _designationParenAt(hay, zi + zn.length);
+            if (toks) {
+                return toks.some(t => t === shortC || t === fullC || (fullC.indexOf(t) !== -1 && t.length >= 2));
+            }
+        }
+    }
     const tokenHit = release.parenChildren.some(t => {
         const nt = _norm(t);
         return nt === shortC || nt === fullC || (fullC.indexOf(nt) !== -1 && nt.length >= 2);
@@ -452,6 +552,7 @@ async function scan({ offices, dates }) {
     for (const [k, ts] of _seenReports) if (now - ts > SEEN_REPORT_TTL_MS) { _seenReports.delete(k); _failCounts.delete(k); }
     _recentReleases = _recentReleases.filter(r => now - r.foundAt < RELEASE_MEMORY_TTL_MS);
     _recentExclusions = _recentExclusions.filter(r => now - r.foundAt < RELEASE_MEMORY_TTL_MS);
+    _recentDesignations = _recentDesignations.filter(r => now - r.foundAt < RELEASE_MEMORY_TTL_MS);
 
     const rawByOffice = {};
     let scanned = 0;
@@ -497,6 +598,14 @@ async function scan({ offices, dates }) {
                         _recentExclusions.push(exc);
                         console.log(`[BulletinScan] 제외 단서 발견: ${exc.parent}(${exc.excluded.join(',')} 제외) [${exc.tp || '종류미상'}] (${exc.source})`);
                     }
+                    // [2026-07-14 제주 실물] 해당구역 절 지정 단서 수집 ("부모( 남는 자식만 )")
+                    for (const des of parseDesignations(text)) {
+                        des.foundAt = Date.now();
+                        des.issuedAtMs = _reportIssuedAtMs(opt.reportId);
+                        des.source = `${stn}/${kind}/${opt.reportId}`;
+                        _recentDesignations.push(des);
+                        console.log(`[BulletinScan] 지정 단서 발견: ${des.parent}(${des.listed.join(',')}) [${des.tp || '종류미상'}] (${des.source})`);
+                    }
                     const ref = _refSection(text);
                     if (ref) {
                         // TTL 만료 로그용 원문 보존 (관서당 최근 1건, 500자)
@@ -520,6 +629,7 @@ async function scan({ offices, dates }) {
         fetchedAt: now,
         releases: _recentReleases.slice(),
         exclusions: _recentExclusions.slice(),
+        designations: _recentDesignations.slice(),
         scannedCount: scanned,
         rawByOffice
     };
@@ -531,6 +641,7 @@ function _resetForTest() {
     _failCounts.clear();
     _recentReleases = [];
     _recentExclusions = [];
+    _recentDesignations = [];
 }
 
 module.exports = {
@@ -538,6 +649,8 @@ module.exports = {
     parseCancelPhrases,
     parseExclusions,
     matchesChildExclusion,
+    parseDesignations,
+    matchesChildDesignation,
     matchesZone,
     matchesChild,
     RE_RELEASE,
