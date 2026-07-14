@@ -265,11 +265,20 @@ function _mentionsAsGroup(hay, key) {
     return false;
 }
 
-/** [2026-07-14 실물 누락 보강] "묶음명/부모명 중 단축자식명" 서식 — "서해남부앞바다 중
- *  평수구역과 남해서부앞바다 중 평수구역의 풍랑 예비특보는 …해제하나"(제07-17호, 전남 평수
- *  7해역 취소 미확정 실측). 괄호도 자식 정식명도 없이 지목하는 서식이라 0·1순위가 못 잡고,
- *  '중' 가드가 부모 확정을 (옳게) 차단해 2·3순위도 못 잡았다. '중' 바로 뒤 해역 토큰을
- *  추출해 자식 단축명과 대조한다 — 제외 문맥("…중 평수구역을 제외")은 무효. */
+/**
+ * hay(공백 제거된 취소 절)에서 "묶음명/부모명 + 중 + 단축자식명" 직접 지목을 찾는다.
+ * 예: hay "…서해남부앞바다중평수구역과…" + prefixName "서해남부앞바다" + shortC "평수구역" → true
+ * @param {string} hay - 공백 제거된 취소 절 텍스트 (_hayOf 결과)
+ * @param {string} prefixName - 묶음명 또는 부모 해역명 (예: "서해남부앞바다")
+ * @param {string} shortC - 자식 단축명 (정식명의 마지막 '중' 뒤 부분, 예: "먼평수구역")
+ * @returns {boolean} 유효한 지목이 1곳이라도 있으면 true — 단 제외 문맥("…중 평수구역을 제외")은 무효
+ * [연계] ← matchesChild (이 파일) — 0.5순위 자식 판정을 위해 부른다
+ *        → _norm · _plausibleZoneToken (이 파일) — 공백 정규화 / 해역 토큰 판별을 위해 부른다
+ * [실물 근거 2026-07-14] 제07-17호 "서해남부앞바다 중 평수구역과 남해서부앞바다 중 평수구역의
+ *   풍랑 예비특보는 …해제하나" — 괄호도 자식 정식명도 없이 지목하는 서식이라 0·1순위가 못 잡고,
+ *   '중' 가드가 부모 확정을 (옳게) 차단해 2·3순위도 못 잡아 전남 평수 7해역 취소가 침묵 누락됐다.
+ *   이 함수가 그 서식을 전담한다.
+ */
 function _mentionsChildViaGroup(hay, prefixName, shortC) {
     const p = _norm(prefixName);
     if (!p) return false;
@@ -326,6 +335,14 @@ function matchesZone(release, zone) {
  *          범용 단축명의 타 해역 오귀속 방지)
  *   2·3순위: 부모명/묶음명 매칭이면 자식도 대표(부모 취소 = 자식 자동 취소 원칙)
  *          — 단 괄호에 유효 해역 토큰이 있는데 이 자식이 없으면 "지목에서 빠진 것"이므로 비대표.
+ * 예: "제주도동부앞바다의 풍랑 예비특보(북동연안바다)는 …해제" + child "북동연안바다" → true
+ * @param {Object} release - parseCancelPhrases 결과 항목 ({ wrnTp, clause, parenChildren, keeps … })
+ * @param {string} zone - 부모 해역명 (예: "전남북부서해앞바다")
+ * @param {string} child - 자식 정식명 (예: "전남북부서해앞바다중평수구역")
+ * @returns {boolean} 이 취소 문구가 해당 자식을 지목하면 true
+ * [연계] ← marine_warning_crawler.js _evaluateCancelVerdicts — 보류실 (c) 자식 판정에서 부른다
+ *          (true 면 그 자식의 예비취소가 확정되어 CHILD_PRELIM_CANCEL 푸시가 발사됨)
+ *        → matchesZone · _mentionsChildViaGroup · _mentions · _keepDeclared (이 파일)
  */
 function matchesChild(release, zone, child) {
     if (!release || !zone || !child) return false;
