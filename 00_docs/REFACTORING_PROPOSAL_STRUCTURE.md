@@ -1341,9 +1341,17 @@ SEAGNAL/                   ← 저장소를 열면 가장 먼저 보이는 최�
   다운로드 가능했음 → 분리 후 서버 코드 404 (services 공용 모듈 2종만 명시적 알리아스)
 - URL 무변경 원칙: 디스크 배치만 바뀌고 모든 URL 동일 → 시뮬레이션 기준선 그대로 유효
 
-### 남은 사용자 액션
+### 남은 사용자 액션 (자동 배포 환경 기준 — deploy.yml 이 main push 시 자동 배포)
 
-1. Firebase/GCS 키 재발급(rotate) + 새 키를 secrets/ 에 배치
-2. 배포 PC 에 secrets/ 수동 배치 (git 미추적이므로 pull 로 안 옴)
-3. main 머지 및 배포 후: archive/deadcode_20260713 1~2주 관찰 → 삭제
-4. (선택) 실기기에서 푸시·위치경보·음성비서 확인
+⚠️ **머지 = 자동 배포** 이므로, 머지 전에 ①②를 먼저 완료해야 푸시 알림이 유지된다.
+
+1. **GitHub Secrets 등록 (머지 전 필수)** — 저장소 Settings → Secrets and variables
+   → Actions → New repository secret:
+   - `FIREBASE_SERVICE_ACCOUNT`: Firebase 콘솔에서 **새로 발급**한 키 JSON 내용 붙여넣기
+     (새 키 발급 + 콘솔에서 옛 키 삭제 = 키 rotate 도 이때 함께 완료)
+   - `GCS_BACKUP_SERVICE_ACCOUNT`: 백업용 키 JSON (git 과거 커밋에서 복사 가능,
+     추후 GCP 콘솔에서 rotate 권장)
+2. deploy.yml 의 키 주입 단계가 이 시크릿을 배포 시점에 secrets/ 로 생성 (코드 반영됨)
+3. main 머지 → 자동 배포 → 배포 로그에서 "✅ serviceAccountKey.json 생성" 확인
+4. 배포 후: /server.js 가 404 인지 확인(보안 적용 증거) + 실기기 푸시 1건 테스트
+5. archive/deadcode_20260713 은 1~2주 관찰 후 삭제
