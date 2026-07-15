@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 const BBOX = [118, 24, 142, 46]; // [minLon, minLat, maxLon, maxLat]
-const OUT_PATH = path.join(__dirname, '..', 'land_mask_korea.json');
+const OUT_PATH = path.join(__dirname, '..', '..', 'client', 'land_mask_korea.json'); // STEP 7
 
 function fetchJson(url) {
     return new Promise((resolve, reject) => {

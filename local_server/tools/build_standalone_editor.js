@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..', 'client'); // STEP 7: 정적 자산은 client/
 const read = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 let h = read('zone_editor.html');

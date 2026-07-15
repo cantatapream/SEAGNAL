@@ -238,6 +238,12 @@ function reloadAllStaticGzipMiddlewares() {
 // /uploads — 동적 업로드 파일은 사전 압축 대상이 아니므로 그대로 express.static.
 // compression() 필터(/assets·/js·/css·/images·/tide_data 만 제외)에는 포함되어
 // 텍스트형 업로드(예: .json) 응답 시 실시간 압축이 정상 적용된다.
+// [STEP 7 호환] index2.html 이 <script src="services/..."> 로 로드하는 서버·클라
+// 공용 모듈 2종만 명시적으로 서빙. staticRoot 가 client/ 로 분리되어 server 코드는
+// 더 이상 통째로 정적 서빙되지 않으므로(보안 개선), 이 2개 URL 만 유지한다.
+app.get('/services/typhoon_radius.js', (req, res) => res.sendFile(path.join(__dirname, 'services', 'typhoon_radius.js')));
+app.get('/services/typhoon_message.js', (req, res) => res.sendFile(path.join(__dirname, 'services', 'typhoon_message.js')));
+
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use('/uploads/reports', express.static(path.join(UPLOAD_DIR, 'reports')));
 

@@ -94,7 +94,7 @@ async function fetchTideTimes(lat, lon) {
 // ============================================================================
 const BUOY_BY_ID = [];   // [{ id, name, nname, lat, lon, type }]
 try {
-    const raw = fs.readFileSync(path.join(__dirname, '..', 'buoyLocations.js'), 'utf8');
+    const raw = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'buoyLocations.js'), 'utf8') /* STEP 7: client/ */;
     // 형식: "22103": { name: "거문도", lon: 127.5, lat: 34.0, type: "B" }
     const re = /"(\d+)":\s*\{\s*name:\s*"([^"]+)",\s*lon:\s*([-\d.]+),\s*lat:\s*([-\d.]+)(?:,\s*type:\s*"([^"]*)")?/g;
     let m;
@@ -255,7 +255,7 @@ function guardExcludesScan(text) {
 // ============================================================================
 const TIDE_STATIONS = [];        // [{ name, nname, lat, lon }]
 try {
-    const raw = fs.readFileSync(path.join(__dirname, '..', 'tide.js'), 'utf8');
+    const raw = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'tide.js'), 'utf8') /* STEP 7: client/ */;
     const re = /name:\s*"([^"]+)",\s*lat:\s*([-\d.]+),\s*lon:\s*([-\d.]+)/g;
     let m;
     while ((m = re.exec(raw)) !== null) {
@@ -268,7 +268,7 @@ try {
 
 const ZONE_COORDS = {};          // code → { lat, lon }
 try {
-    const raw = fs.readFileSync(path.join(__dirname, '..', 'seaZoneCoordinates.js'), 'utf8');
+    const raw = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'seaZoneCoordinates.js'), 'utf8') /* STEP 7: client/ */;
     const re = /'([0-9A-Z]+)':\s*\{[\s\S]*?lat:\s*([-\d.]+),\s*lon:\s*([-\d.]+)/g;
     let m;
     while ((m = re.exec(raw)) !== null) {

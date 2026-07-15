@@ -19,7 +19,7 @@ const path = require('path');
 const fs = require('fs');
 
 // 백업 봇 인증키 경로
-const KEY_FILE_PATH = path.join(__dirname, 'serviceAccountKey_Backup.json');
+const KEY_FILE_PATH = path.join(__dirname, '..', 'secrets', 'serviceAccountKey_Backup.json');
 const BUCKET_NAME = 'seagnal-server-backup'; // 사용자 버킷 이름
 const DATA_DIR = path.join(__dirname, 'data');
 

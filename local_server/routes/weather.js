@@ -256,7 +256,7 @@ router.get('/api/weather-alerts', (req, res) => {
 //                  → assets/ 디렉터리에서 읽어야 production 에서도 노출됨.
 router.get('/api/warn-zones', (req, res) => {
     try {
-        const filePath = path.join(__dirname, '..', 'assets', 'warn_zones.geojson');
+        const filePath = path.join(__dirname, '..', '..', 'client', 'assets', 'warn_zones.geojson'); // STEP 7
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'warn_zones.geojson not found' });
         }
@@ -283,7 +283,7 @@ router.get('/api/warn-zones', (req, res) => {
 //               marine.kma.go.kr 와 외곽선이 다름 → KMA 원본 폴리곤으로 보정.
 router.get('/api/sea-sterm-zones', (req, res) => {
     try {
-        const filePath = path.join(__dirname, '..', 'assets', 'sea_sterm_zones.geojson');
+        const filePath = path.join(__dirname, '..', '..', 'client', 'assets', 'sea_sterm_zones.geojson'); // STEP 7
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'sea_sterm_zones.geojson not found' });
         }
@@ -299,7 +299,7 @@ router.get('/api/sea-sterm-zones', (req, res) => {
 //      특보구역 토글이 켜진 상태에서 충분히 줌인하면 표시됨.
 router.get('/api/warn-zones-sub', (req, res) => {
     try {
-        const filePath = path.join(__dirname, '..', 'assets', 'warn_zones_sub.geojson');
+        const filePath = path.join(__dirname, '..', '..', 'client', 'assets', 'warn_zones_sub.geojson'); // STEP 7
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'warn_zones_sub.geojson not found' });
         }

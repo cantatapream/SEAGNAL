@@ -46,7 +46,7 @@ const zlib = require('zlib');
 // ---------------------------------------------------------------------------
 // 설정값
 // ---------------------------------------------------------------------------
-const ROOT = __dirname;                                     // local_server/
+const ROOT = path.join(__dirname, '..', 'client');          // STEP 7: 정적 자산은 client/
 const TARGET_DIRS = ['assets', 'images', 'js', 'css', 'tide_data'];
 const TARGET_EXTS = new Set(['.js', '.css', '.json', '.svg', '.woff2', '.html']);
 const MIN_SIZE = 1024;                                      // 1KB 미만은 스킵

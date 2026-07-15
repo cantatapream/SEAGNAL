@@ -45,8 +45,8 @@ global.Capacitor = {
 const gj = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'assets', 'warn_zones.geojson'), 'utf8'));
 global.fetch = async () => ({ json: async () => gj });
 
-global.LocationAlertCore = require('../js/location_alert_core.js');
-const RT = require('../js/location_alert_runtime.js');
+global.LocationAlertCore = require('../js/location-alert/location_alert_core.js');
+const RT = require('../js/location-alert/location_alert_runtime.js');
 const core = global.LocationAlertCore;
 const features = gj.features;
 

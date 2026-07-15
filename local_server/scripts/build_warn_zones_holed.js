@@ -68,7 +68,7 @@ try {
 const ROOT = path.resolve(__dirname, '..', '..');                  // /home/user/SEAGNAL
 const PARENT_PATH = path.join(ROOT, 'local_server/assets/warn_zones.geojson');
 const SUB_PATH    = path.join(ROOT, 'local_server/assets/warn_zones_sub.geojson');
-const MAPPINGS_PATH = path.join(ROOT, 'local_server/js/mappings.js');
+const MAPPINGS_PATH = path.join(ROOT, 'local_server/js/shared/utils/mappings.js');
 
 // ============================================================================
 // 1단계: COASTAL_MAPPING 로드 (mappings.js 가 브라우저 const 정의라 vm 으로 평가)

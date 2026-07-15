@@ -59,10 +59,8 @@ local_server/data/subscriber_stats.json
 # 5순위: 정적 자원 사전 압축 산출물 (build-gzip.js 가 prestart 에서 생성)
 # 원본에서 항상 재생성 가능하므로 추적 제외. uploads/ 디렉토리는 동적 업로드
 # 디렉토리라 사전 압축 대상이 아니어서 이 패턴에 걸리지 않는다.
-local_server/assets/**/*.gz
-local_server/assets/**/*.br
-local_server/images/**/*.gz
-local_server/images/**/*.br
+client/**/*.gz
+client/**/*.br
 local_server/js/**/*.gz
 local_server/js/**/*.br
 local_server/css/**/*.gz
@@ -137,3 +135,9 @@ local_server/data/advisory_journal.jsonl
 # dmdw 통보문 수집 원본(분석 산출물은 별도)
 local_server/analysis/wave_leadtime/data/bulletins.json
 local_server/analysis/wave_leadtime/data/bulletins_*.json
+
+# ── 보안: 서비스 계정 키 (리팩토링 STEP 0, 2026-07-13) ──
+# 키 파일은 secrets/ 에 두며 git 에 절대 커밋하지 않는다
+secrets/
+serviceAccountKey*.json
+googla_cloud_api_backup_bot_key/

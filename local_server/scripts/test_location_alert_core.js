@@ -6,7 +6,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const C = require('../js/location_alert_core.js');
+const C = require('../js/location-alert/location_alert_core.js');
 
 const gj = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'assets', 'warn_zones.geojson'), 'utf8'));
 const features = gj.features;

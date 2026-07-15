@@ -69,8 +69,8 @@ function getAdmin() {
         // 이미 다른 경로로 initializeApp 이 호출됐을 수 있으므로 중복 호출 방지
         if (admin.apps && admin.apps.length === 0) {
             try {
-                // 인증키 파일은 local_server/serviceAccountKey.json (services/ 의 부모)
-                const keyPath = path.join(__dirname, '..', 'serviceAccountKey.json');
+                // 인증키 파일은 secrets/serviceAccountKey.json (저장소 루트 — 정적 서빙 경로 밖)
+                const keyPath = path.join(__dirname, '..', '..', 'secrets', 'serviceAccountKey.json');
                 const serviceAccount = require(keyPath);
                 admin.initializeApp({
                     credential: admin.credential.cert(serviceAccount)

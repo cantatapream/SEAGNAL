@@ -1424,6 +1424,59 @@ function _evaluateCancelVerdicts(curr, changes, h) {
                 continue;
             }
         }
+        // (c2) [2026-07-14 실사고] 해당구역 절의 제외 단서 — "경북남부앞바다(평수구역 제외)".
+        //   부모는 발표/변경되면서 자식만 대상에서 빠지는 서식(참고사항에 취소 문구 없음)의
+        //   긍정 확정 근거. 부모 판정에는 불사용(제외 = 부모 생존 전제). 시간축·소각·신선도
+        //   게이트는 (c)와 동일. 종류 미상('') 단서는 보수적으로 종류 일치 요구를 통과시키되
+        //   부모명 직접 일치 + 자식 단축명 토큰 일치가 모두 필요해 오귀속 여지가 없다.
+        const exclusions = (scanFresh && _lastCancelScan && _lastCancelScan.exclusions) || [];
+        if (canFire && bulletinScanner && typeof bulletinScanner.matchesChildExclusion === 'function' && exclusions.length > 0) {
+            const ex = exclusions.find(x => !isConsumed(x, key) && (x.tp === '' || x.tp === tp) && timeOk(x, ent) && bulletinScanner.matchesChildExclusion(x, zone, child));
+            if (ex) {
+                consume(ex, key);
+                console.log(`[Marine] ✅ 자식 예비취소 확정(제외 단서): ${zone} > ${child} — "${ex.parent}(${(ex.excluded || []).join(',')} 제외)" (${ex.source || ''})`);
+                const fzKey = zone + '|' + tp;
+                if (!fireByZone.has(fzKey)) fireByZone.set(fzKey, { zone, block: ent.block, names: [] });
+                fireByZone.get(fzKey).names.push(child);
+                delete v.children[key];
+                continue;
+            }
+        }
+        // (c3) [2026-07-14 제주 실물, 제07-33·36·44호] 해당구역 절의 지정 단서 —
+        //   "제주도동부앞바다( 북동연안바다 )": 발표/변경이 괄호로 "남는 자식만" 지목하는
+        //   서식((c2) 제외형의 반대 방향). 나열에서 빠진 이 자식은 대상 제외 = 취소 확정.
+        //   게이트는 (c2)와 동일(시간축·소각·신선도·부모 판정 불사용)하되, 부재(omission)
+        //   기반 근거라 문턱을 한 단 높여 종류(tp) 일치를 반드시 요구한다('' 통과 없음).
+        //   [적대검증(c3) 결함4] 같은 부모+종류의 지정이 여럿이면 "최신 발행분만" 권위 —
+        //   묵은 지정(자식 미나열)이 신규 확대 통보(자식 재나열)를 이기고 오발사하지 않도록.
+        //   [적대검증(c3) 결함6] 나열 토큰에 이 부모의 알려진 자식과 대응 안 되는 이름이
+        //   섞여 있으면(표기 변형 의심) 그 지정은 판정 불사용 — 변형 1글자로 인한 오발사 차단.
+        const designations = (scanFresh && _lastCancelScan && _lastCancelScan.designations) || [];
+        if (canFire && bulletinScanner && typeof bulletinScanner.matchesChildDesignation === 'function'
+            && typeof bulletinScanner.designationAppliesTo === 'function' && designations.length > 0) {
+            const knownKids = (PARENT_TO_CHILDREN[zone] || []).map(k => String(k).replace(/\s+/g, ''));
+            const tokenKnown = t => {
+                const nt = String(t).replace(/\s+/g, '');
+                return knownKids.some(k => {
+                    const short = k.split('중').pop();
+                    return k.indexOf(nt) !== -1 || short === nt || nt.indexOf(short) !== -1;
+                });
+            };
+            const applicable = designations.filter(x => x.tp === tp && timeOk(x, ent) && bulletinScanner.designationAppliesTo(x, zone));
+            const newest = applicable.length > 0 ? applicable.reduce((a, b) =>
+                (((b.issuedAtMs || b.foundAt || 0) >= (a.issuedAtMs || a.foundAt || 0)) ? b : a)) : null;
+            const dg = (newest && !isConsumed(newest, key) && (newest.listed || []).every(tokenKnown)
+                && bulletinScanner.matchesChildDesignation(newest, zone, child)) ? newest : null;
+            if (dg) {
+                consume(dg, key);
+                console.log(`[Marine] ✅ 자식 예비취소 확정(지정 단서): ${zone} > ${child} — "${dg.parent}(${(dg.listed || []).join(',')})" 나열에서 제외 (${dg.source || ''})`);
+                const fzKey = zone + '|' + tp;
+                if (!fireByZone.has(fzKey)) fireByZone.set(fzKey, { zone, block: ent.block, names: [] });
+                fireByZone.get(fzKey).names.push(child);
+                delete v.children[key];
+                continue;
+            }
+        }
         // (d) 데드라인 — 무푸시 + 원문 로그 (자식 괄호형(V4) 미매치가 바로 보강 재료인 케이스)
         if (now >= _cvDeadline(ent)) {
             const raw = _lastCancelScan && _lastCancelScan.rawByOffice

@@ -44,7 +44,7 @@ let _zoneCoordsCache = null;
 function getZoneCoords() {
     if (_zoneCoordsCache !== null) return _zoneCoordsCache;
     try {
-        const p = path.join(__dirname, '..', 'zone_coords.json');
+        const p = path.join(__dirname, '..', '..', 'client', 'zone_coords.json'); // STEP 7
         _zoneCoordsCache = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
     } catch (e) { _zoneCoordsCache = {}; }
     return _zoneCoordsCache;
