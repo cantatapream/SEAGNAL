@@ -3,7 +3,8 @@ node_modules/
 backups/
 .gemini/
 .agent/
-.claude/
+.claude/*
+!.claude/skills/
 
 # 환경 변수 (비밀번호 등 포함 가능성)
 .env
