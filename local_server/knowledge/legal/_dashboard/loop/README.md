@@ -17,3 +17,8 @@
 - 빌드: `full_build.js`(풀깊이)·`wiki_build.js`·`topicmap.js`·`sonnet_pilot.js`(모델 검증)
 - lint: `lint_index.py`·`lint_build.py`·`lint_hubs.js`·`lint2.js`(색인·그래프·백본·테마허브)
 - 프로토타입: `chatbot_proto.py`(순수코드 검색+점진공개 검증용)
+
+## 정리(cleanup) 정책
+- **루프 진행 중에는 삭제 금지** — 이 폴더가 컨테이너 소멸 대비 안전망.
+- **루프 완료(phase=done) 후**: 일회성 상태(`audit_loop_state.json`·`audit_missing.json`·`audit_rerun.json`)만 삭제 가능. 재사용 기계(`audit_sim.js`·`fix_wiki.js`·`collect_*.py`·`lint_*`·`gen_index.py`)는 Phase D 재수집·개정 diff 재인제스트·미래 재감사에 다시 쓰므로 유지.
+- 참고: git 작업트리에서 지워도 히스토리엔 남아 레포 용량은 줄지 않는다("메모리 확보" 효과 미미). 삭제의 실익은 정리(깔끔함)뿐.
