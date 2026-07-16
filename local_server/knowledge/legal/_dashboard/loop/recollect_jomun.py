@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""조문 텍스트 재추출: 벌칙/과태료 등 '호 직속' 조문의 chapeau(형량 도입문) 누락 버그 수정.
+   기존 추출기는 조문내용을 버려서 '다음 각 호의 ...에 처한다' 형량 문장이 사라졌음.
+   → 조문내용을 항상 기록하도록 전체 재생성(법률/시행령/시행규칙). 별표는 이미 수정됨(건드리지 않음)."""
+import json,urllib.request,time,os,re,glob
+
+OC='hyoo1431'
+ROOT='/home/user/SEAGNAL/local_server/knowledge/legal/raw'
+KINDS=[('법률','법률.txt'),('시행령','시행령.txt'),('시행규칙','시행규칙.txt')]
+
+def api(url):
+    for _ in range(4):
+        try:
+            with urllib.request.urlopen(url,timeout=45) as r: return json.load(r)
+        except Exception: time.sleep(1.5)
+    return None
+
+def L(x):  # 리스트 정규화
+    if x is None: return []
+    return x if isinstance(x,list) else [x]
+
+def s(x):  # 문자열 강제(리스트면 join)
+    if x is None: return ''
+    if isinstance(x,list): return '\n'.join(s(i) for i in x)
+    return str(x)
+
+def strip_title(jo_no,jo_ga,content):
+    """조문내용 앞 '제N조(제목)'/'제N조의M(제목)' 프리픽스 제거 → chapeau만 남김."""
+    if not content: return ''
+    pat=r'^제'+re.escape(str(int(jo_no)))+r'조'
+    if jo_ga and str(jo_ga).strip('0'): pat+=r'의'+re.escape(str(int(jo_ga)))
+    pat+=r'(\([^)]*\))?\s*'
+    return re.sub(pat,'',content,count=1).strip()
+
+def build_text(body):
+    try: jos=L(body['법령']['조문']['조문단위'])
+    except (KeyError,TypeError): return None
+    out=[]
+    for a in jos:
+        if a.get('조문여부')!='조문':  # 편/장/절 표제
+            t=s(a.get('조문내용')).strip()
+            if t: out.append(t)
+            continue
+        no=s(a.get('조문번호')); ga=s(a.get('조문가지번호'))
+        label='제%s조'%no + ('의%s'%str(int(ga)) if ga and ga.strip('0') else '')
+        title=s(a.get('조문제목'))
+        siheng=s(a.get('조문시행일자')); typ=s(a.get('조문제개정유형'))
+        head=f"[{label}] {title}".rstrip()
+        meta=' · '.join([x for x in [('시행 '+siheng) if siheng else '', typ] if x])
+        if meta: head+=f" ({meta})"
+        out.append('\n'+head)
+        chap=strip_title(no,ga,s(a.get('조문내용')))
+        if chap: out.append(chap)          # ★ 누락되던 chapeau(형량 도입문 등) 복구
+        for h in L(a.get('항')):
+            hn=s(h.get('항번호')).strip()
+            hc=s(h.get('항내용')).strip()
+            if hc: out.append(hc if hn and hc.startswith(hn) else ((hn+' ' if hn else '')+hc))
+            for x in L(h.get('호')):
+                xc=s(x.get('호내용')).strip()
+                if xc: out.append('   '+xc)
+                for m in L(x.get('목')):
+                    mc=s(m.get('목내용')).strip()
+                    if mc: out.append('      '+mc)
+        # 항이 없고 호가 조 직속인 경우 위 루프의 빈 항(항번호 None)이 호를 담고 있음 → 이미 처리됨
+    return '\n'.join(out).strip()+'\n'
+
+def run():
+    metas=sorted(glob.glob(os.path.join(ROOT,'*','*','_meta.json')))
+    print(f"대상 {len(metas)}개 계열",flush=True)
+    ok=err=files=0; errs=[]
+    for mp in metas:
+        base=os.path.dirname(mp); meta=json.load(open(mp,encoding='utf-8'))
+        fams=meta.get('families',{}); good=True
+        for kind,fn in KINDS:
+            if kind not in fams: continue
+            mst=fams[kind].get('MST')
+            if not mst: continue
+            body=api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=eflaw&type=JSON&MST={mst}")
+            if not body: good=False; continue
+            txt=build_text(body)
+            if not txt: good=False; continue
+            with open(os.path.join(base,fn),'w',encoding='utf-8') as f: f.write(txt)
+            files+=1; time.sleep(0.25)
+        meta['조문재추출']='2026-07-14(chapeau복구)'
+        json.dump(meta,open(mp,'w',encoding='utf-8'),ensure_ascii=False,indent=2)
+        if good: ok+=1
+        else: err+=1; errs.append(meta.get('법령명',base))
+        print(f"✓ {meta.get('법령명','?')[:24]}"+("" if good else " ⚠일부실패"),flush=True)
+    print(f"\n=== 조문 재추출 완료: {ok} OK · {err} 일부실패 · 파일 {files}개 ===",flush=True)
+    if errs: print("일부실패:",', '.join(errs),flush=True)
+
+if __name__=='__main__': run()

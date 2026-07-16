@@ -1,0 +1,123 @@
+export const meta = {
+  name: 'wiki-qa-audit',
+  description: '위키 커버리지 감사: 법별로 중복없는 질문 100+개 생성→위키만으로 답변 시도→구멍 분류',
+  phases: [{ title: '감사', detail: '법마다 에이전트가 질문 생성·답변·구멍 분류, 상세는 파일 저장' }],
+}
+const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+
+const SCHEMA = {
+  type: 'object', required: ['law', 'total_questions', 'verdicts', 'method_compliance'],
+  properties: {
+    law: { type: 'string' },
+    total_questions: { type: 'integer' },
+    by_type: { type: 'object' },  // T1..T7 개수
+    verdicts: {  // 판정별 개수
+      type: 'object',
+      properties: {
+        full: { type: 'integer' }, thin: { type: 'integer' }, missing: { type: 'integer' },
+        collection_hole: { type: 'integer' }, awkward: { type: 'integer' },
+      },
+    },
+    // 답변방식 준수 감사 — 우리가 요구한 답변 규칙이 위키에 반영됐나. 각 값 'ok'|'weak'|'missing'|'na'
+    method_compliance: {
+      type: 'object',
+      properties: {
+        정의우선: { type: 'string' },        // 정의·적용범위·적용제외 3조각 최상단
+        행정처분차수: { type: 'string' },     // 1/2/3/4차 escalation 표(별표대로)
+        벌칙항별구간: { type: 'string' },     // 같은 조문 항별 형량 분리
+        처벌정밀도: { type: 'string' },       // 조·항·호·금액 정확
+        타법연결: { type: 'string' },         // 타법 연결 표(정밀인용/포괄준용/위임)
+        프로필조건: { type: 'string' },       // 적용범위·예외에 톤수·조업형태 조건 컬럼
+        점진공개구조: { type: 'string' },     // 다차수 처벌을 통상1차→확장으로 나눠 답할 데이터 구조
+        출처표기: { type: 'string' },         // 모든 서술에 (법령 제N조, 시행일)
+      },
+    },
+    method_notes: { type: 'array', items: { type: 'string' } },     // 답변방식 미흡 구체 지적
+    wiki_gaps: { type: 'array', items: { type: 'string' } },        // 위키에 없는/얇은 주제
+    collection_holes: { type: 'array', items: { type: 'string' } }, // 별표·고시 등 원문 수집 구멍
+    answer_issues: { type: 'array', items: { type: 'string' } },    // 답변 구조/매끄러움 문제
+    audit_file: { type: 'string' },
+  },
+}
+
+function prompt(l, round) {
+  const r2 = round >= 2 ? `
+
+## ★재감사(${round}라운드) — 더 깊고 넓게
+이전 감사(\`${LEGAL}/_dashboard/audit/${l.slug}.md\`가 있으면 Read해 **이미 물은 질문과 겹치지 않게**)를 딛고, 이번엔 **목표 150개 이상**. 관점을 둘 다 섞는다:
+- **전문가 관점**(변호사·행정사·어업지도공무원): 조문 간 충돌·해석 경계·절차 하자·행정처분 감경가중·양벌규정·소급 등 정밀 질문.
+- **일반인 관점**(처음 배 산 사람·초보 낚시인·귀어인): 막연하고 구어적인 질문, 오해하기 쉬운 지점.
+수정·보완이 실제로 구멍을 막았는지 **회귀 확인**도 포함(지난 라운드 missing/thin 항목을 다시 질문).` : ''
+  return `너는 SEAGNAL 해양법률 위키의 품질감사관이다. \`${LEGAL}/_SCHEMA.md\`와 \`${LEGAL}/_CHATBOT.md\`를 먼저 읽어 답변 규칙(정의우선·처벌 조·항·호·금액·점진공개·인용만·환각0)을 숙지한다.
+${r2}
+## 대상: 「${l.name}」
+
+## 1단계 — 자료 파악 (직접 Read/Grep)
+- 위키: \`${LEGAL}/wiki/concepts/\`에서 \`${l.slug}__\`로 시작하는 개념 파일 전부(Grep/ls).
+- 원문: \`${l.raw}/\`의 법률.txt·시행령.txt·시행규칙.txt·별표/·행정규칙(고시)/.
+
+## 2단계 — 중복 없는 질문 100개 이상 생성
+실제 사용자(어민·낚시인·레저인·사업자)가 물을 법한 질문을, **서로 겹치지 않게** 유형별로 폭넓게. 유형 태그:
+- T1 단순 의무/절차 ("언제 신고해?")
+- T2 단순 벌칙/과태료 ("안 하면 얼마?")
+- T3 **별표까지 봐야 답** ("3차 적발이면? 톤수별 기준은?")
+- T4 적용범위/정의 갈림 ("5톤 미만도 적용? 낚시어선도?")
+- T5 예외/조건(프로필) ("야간엔? 특정해역은? 양식장이면?")
+- T6 **타법 연결** ("이건 다른 법에도 걸리나?")
+- T7 구어/애매 ("조개껍데기 버려도 돼?")
+각 조문·별표·고시가 규율하는 실제 논점을 빠짐없이 훑어 질문화(이 법의 규제 표면 전체 커버가 목표).
+
+## 3단계 — 위키만으로 답변 시도 + 판정
+각 질문을 **위키 개념 페이지 내용만으로** 답해보고 아래 하나로 판정:
+- ✅ full: 위키만으로 정확·완전히 답됨(출처 조문까지)
+- ⚠ thin: 위키에 있으나 얇음/부정확/일부 누락
+- ❌ missing: 위키에 아예 없음(개념 페이지 부재)
+- 📛 collection_hole: 위키가 "고시/별표로 정함"이라는데 그 원문 수치가 없음(=수집 구멍)
+- 〰 awkward: 답은 되나 구조·점진공개·인용 규율이 매끄럽지 않음
+
+## ★4단계 — 답변방식 준수 감사 (이번 감사의 중점)
+질문 답변과 별개로, **우리가 대화로 요구한 답변 규칙이 이 법의 위키에 제대로 반영됐는지** 항목별로 점검한다. 각 항목 'ok'/'weak'/'missing'/'na'(해당없음):
+- **정의우선**: 각 개념이 정의·적용범위·적용제외 3조각을 최상단에 두는가.
+- **행정처분차수**: 행정처분(영업정지·자격정지·취소)이 있는 법이면 \`## 행정처분 체계\`에 **1/2/3/4차 escalation**을 별표대로 옮겼는가. (점진적 공개의 데이터 원천)
+- **벌칙항별구간**: 같은 벌칙 조문이라도 항별로 형량이 다르면 그 구간을 분리했는가.
+- **처벌정밀도**: 처벌이 조·항·호·금액까지 정확한가(뭉개기 없나).
+- **타법연결**: \`## 타법 연결\` 표(정밀인용/포괄준용/위임)가 있는가.
+- **프로필조건**: 적용범위·예외 표에 **톤수·조업형태·지역** 조건 컬럼이 있어 프로필 필터가 바로 쓰는가.
+- **점진공개구조**: 다차수/조건분기 처벌을 "통상 1차 → 되물음 → 확장"으로 나눠 답할 수 있게 데이터가 구조화됐는가.
+- **출처표기**: 모든 서술에 (법령 제N조, 시행일) 출처가 붙는가.
+근거가 되는 미흡 사례는 method_notes에 구체적으로 적는다(예: "행정처분 차수표에 4차 누락", "톤수 조건 컬럼 없음").
+
+## 5단계 — 상세 로그 저장 + 요약 반환
+- 전체 질문·판정·근거 + **답변방식 준수 체크표**를 \`${LEGAL}/_dashboard/audit/${l.slug}.md\`에 저장.
+- 반환(JSON): law, total_questions, by_type{T1..T7}, verdicts{...}, **method_compliance{정의우선,행정처분차수,벌칙항별구간,처벌정밀도,타법연결,프로필조건,점진공개구조,출처표기}**, method_notes[], wiki_gaps[], collection_holes[], answer_issues[], audit_file.
+
+정직하게 — 위키가 답 못 하거나 규칙 미반영이면 솔직히 missing/weak로 찍는다. 이 감사의 목적은 구멍을 찾는 것이다.`
+}
+
+let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
+let laws = cfg.laws || []
+if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
+  // 미리 그룹별로 쪼갠 파일에서 해당 그룹 배열을 '그대로' 반환(필터링 없음 → 안정적)
+  const boot = await agent(
+    `\`${cfg.groupsPath}\`(JSON: {"0":[...],"1":[...],...})를 Read로 읽어 반환: {laws: 키 "${cfg.groupIndex}"의 배열 전체(객체 그대로, 필터·가공 금지)}.`,
+    { label: `boot-g${cfg.groupIndex}`, phase: '감사', model: 'sonnet', effort: 'low',
+      schema: { type: 'object', required: ['laws'], properties: { laws: { type: 'array', items: { type: 'object' } } } } })
+  if (boot) laws = boot.laws || []
+}
+const round = cfg.round || 1
+log(`위키 감사 대상 ${laws.length}개 법 (Sonnet, ${round}라운드)`)
+phase('감사')
+const res = (await parallel(laws.map(l => () =>
+  agent(prompt(l, round), { label: `audit${round}:${l.name.slice(0, 12)}`, phase: '감사', model: 'sonnet', effort: 'high', schema: SCHEMA })
+))).filter(Boolean)
+
+// 집계
+const sum = k => res.reduce((s, r) => s + ((r.verdicts && r.verdicts[k]) || 0), 0)
+return {
+  audited: res.length,
+  total_questions: res.reduce((s, r) => s + (r.total_questions || 0), 0),
+  verdicts: { full: sum('full'), thin: sum('thin'), missing: sum('missing'), collection_hole: sum('collection_hole'), awkward: sum('awkward') },
+  per_law: res.map(r => ({ law: r.law, q: r.total_questions, gaps: (r.wiki_gaps || []).length, holes: (r.collection_holes || []).length })),
+  all_wiki_gaps: res.flatMap(r => (r.wiki_gaps || []).map(g => `${r.law}: ${g}`)),
+  all_collection_holes: res.flatMap(r => (r.collection_holes || []).map(g => `${r.law}: ${g}`)),
+}

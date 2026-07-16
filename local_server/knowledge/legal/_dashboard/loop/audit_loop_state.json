@@ -1,0 +1,16 @@
+{
+  "phase": "audit2",
+  "round": 2,
+  "run_ids": [
+    "wf_1e71467f-345",
+    "wf_4fd5d61a-38c",
+    "wf_33bb72e6-82b",
+    "wf_6b32162f-6f5",
+    "wf_7baf825c-35a"
+  ],
+  "groupsPath": "/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratchpad/audit_groups.json",
+  "audit_script": "/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratchpad/audit_sim.js",
+  "fix_script": "/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratchpad/fix_wiki.js",
+  "tier1_total": 65,
+  "note": "2차 감사 착수했으나 세션한도로 0/65(boot만 성공, audit 에이전트 전부 실패). 리셋 09:20 UTC(18:20 KST). 리셋 후 5개 audit2 워크플로를 resumeFromRunId+args{groupsPath:audit_groups.json,groupIndex:0..4,round:2}로 재개(boot 캐시+실패분 재실행). run_ids 동일."
+}
