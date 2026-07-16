@@ -1,0 +1,38 @@
+형식승인증서
+
+[별지 제35호서식]                                      
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃제           호                                                       ┃
+┃(Cert. No.     )                                                      ┃
+┃                                                                      ┃
+┃형식승인증서                                                          ┃
+┃(CERTIFICATE OF TYPE APPROVAL)                                        ┃
+┃                                                                      ┃
+┃1. 제작자 또는 주된 영업소의 주소:                                    ┃
+┃  (Address of Manufacturer)                                           ┃
+┃2. 제작자(수입자)의 성명:                                             ┃
+┃  (Name of Manufacturer of Importer)                                  ┃
+┃  (법인의 경우에는 그 명칭)                                           ┃
+┃3. 설비의 품명:                                                       ┃
+┃  (Name of Article)                                                   ┃
+┃4. 설비의 형식 및 용량:                                               ┃
+┃  (Type & Capacity of Article)                                        ┃
+┃5. 설비의 성능시험합격증명서                                          ┃
+┃  (Certificate of Performance Test)                                   ┃
+┃  번호:                                                               ┃
+┃  (No. of Certificate & Test report)                                  ┃
+┃  발급연월일:                                                         ┃
+┃  (Date of Issue)                                                     ┃
+┃6. 형식승인일:                                                        ┃
+┃  (Date of Type Approval)                                             ┃
+┃                                                                      ┃
+┃「해양환경관리법」제110조 및 「선박에서의 오염방지에 관한 규칙」제57  ┃
+┃조제1항에 따라 형식승인을 합니다.                                     ┃
+┃  (This is to certify that the above article has been examined and    ┃
+┃satisfactorily tested in accordance with the provisions of MARPOL     ┃
+┃73/78.)                                                               ┃
+┃년     월     일(    .    .    .)                                     ┃
+┃지방해양수산청장  ??                                                ┃
+┃   Administrator of the Regional Maritime Affairs & Fisheries Office  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+    210㎜ × 297㎜[보존용지(1종) 220g/㎡]

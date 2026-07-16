@@ -1,0 +1,54 @@
+전자기록부 적합확인서
+
+■ 선박에서의 오염방지에 관한 규칙 [별지 제4호의3서식]                         
+┌───────────────────────────────────────────────┐
+│전자기록부 적합확인서                                                                         │
+│(Declaration of Electric Record Book)                                                         │
+│                                                                                              │
+│선박으로부터의 오염방지를 위한 국제협약(MARPOL)의 요건에 따라 대한민국 정부의 권한에 의하여   │
+│발행 됨.                                                                                      │
+│Issued under the authority of the Government of Republic of Korea In reference to the         │
+│requirements set out in the International Convention for the Prevention of Pollution from     │
+│Ships(MARPOL)                                                                                 │
+│                                                                                              │
+│                                                                                              │
+│선명(Ship's name):                                                                            │
+│                                                                                              │
+│국제해사기구 번호(IMO No.):                                                                   │
+│                                                                                              │
+│선박 기국(Flag State of Ship):                                                                │
+│                                                                                              │
+│총톤수(Gross tonnage):                                                                        │
+│                                                                                              │
+│이 적합확인서는 전자기록시스템이 국제협약 부속서에 명시한 요건..... 충족함을 대한민국 정부에  │
+│의해 평가되었음을 선언하기 위한 것이며 이는 국제해사기구가 개발한 지침과 일치한다.            │
+│This is to declare that the electronic system designed to record entries in accordance with   │
+│MARPOL Annex(es) ……….. installed on board the ship listed above has been assessed by       │
+│this                                                                                          │
+│Administration to meet the relevant requirements as set out in MARPOL and is consistent       │
+│with the Guidelines developed by the International Maritime Organization (IMO).               │
+│                                                                                              │
+│전자기록부 제조사 :                                                                           │
+│Electronic Record Book Manufacturer                                                           │
+│전자기록부 공급자 :                                                                           │
+│Electronic Record Book Supplier                                                               │
+│전자기록부 설치자 :                                                                           │
+│Electronic Record Book Installer                                                              │
+│전자기록부 소프트웨어 명칭 및 버전 :                                                          │
+│Electronic Record Book Software Name/Version                                                  │
+│해양환경보호위원회 결의서 번호 :                                                              │
+│Electronic Record Book is in accordance with MEPC. Resolution/s                               │
+│전자기록부 설치일자 :                                                                         │
+│Date of installation(dd/mm/yy)                                                                │
+│                                                                                              │
+│이 적합확인서의 사본은 전자기록부사 설치된 선박에 항시 보관되어야 합니다.                     │
+│A copy of this declaration should be carried on board a ship fitted with this Electronic      │
+│Record Book at all times.                                                                     │
+├───────────────────────────────────────────────┤
+│년      월      일                                                                            │
+│   Year    Month    Day                                                                       │
+│                                                                                              │
+│                              해양수산부장관  ??                                            │
+│Minister of Oceans and Fisheries                                                              │
+└───────────────────────────────────────────────┘
+  210mm×297mm(백상지 80g/㎡)
