@@ -65,6 +65,13 @@ const type = cfg.type
 if (!l || !type) { log('법 또는 유형 누락'); return { error: 'no law/type', cfg } }
 const typeCode = { '①타법연결': 'tabeop', '②일반법연결': 'ilbanbeop', '③별표전량이관': 'byeolpyo', 'thin심화': 'thin', '풀빌드(신규기준법)': 'fullbuild' }[type] || 'x'
 
+// 중복 launch 방지: 이미 .done 마커가 있으면 비싼 fix 에이전트를 띄우지 않고 조기 종료
+const dupe = await agent(
+  `Bash로 \`test -f "${MARK}/${l.slug}__${typeCode}.done" && echo DONE || echo TODO\` 실행. 출력이 DONE이면 {done:true}, 아니면 {done:false} 반환.`,
+  { label: `dupechk:${l.name.slice(0, 8)}`, phase: '수정', model: 'sonnet', effort: 'low',
+    schema: { type: 'object', required: ['done'], properties: { done: { type: 'boolean' } } } })
+if (dupe && dupe.done) { log(`이미 완료됨(마커 존재) → 조기종료: 「${l.name}」/${type}`); return { law: l.name, type, status: 'already_done_skipped', marker_written: true } }
+
 log(`수정 원자작업: 「${l.name}」 / ${type}`)
 phase('수정')
 const prompt = `너는 SEAGNAL 해양법률 위키 사서다. \`${LEGAL}/_SCHEMA.md\`와 \`${LEGAL}/_CHATBOT.md\`의 규칙(정의우선·처벌 조·항·호·금액·인용만·환각0·출처표기·외과수술식 최소수정)을 숙지한다.
