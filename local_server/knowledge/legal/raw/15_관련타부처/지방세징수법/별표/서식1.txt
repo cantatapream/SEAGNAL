@@ -1,0 +1,137 @@
+지방세 납세증명(신청)서
+
+■ 지방세징수법 시행규칙 [별지 제1호서식]    정부24(www.gov.kr)에서도 신청할 수 있습니다.    
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+  지방세 납세증명(신청)서                                                                                         
+  Local Tax Payment Certificate (Application)                                                                     
+                                                                                                                  
+  (앞쪽)                                                                                                          
+─────────────────────┬────────────┬──────────────────────
+  발급번호                                │접수일시                │처리기간            즉시                    
+  Issuance No.                            │Time and Date of receipt│Processing Time    Immediately              
+─────────────────────┴────────────┴──────────────────────
+                                                                                                                  
+───────┬───────────────────────┬─────────────────────────
+  납세자      │성명(법인명)                                  │주민(법인ㆍ외국인)등록번호                        
+  Taxpayer    │Resident Name (Corporation Name)              │Resident (CorporationㆍForeign) Registration No.  
+              ├───────────────────────┴─────────────────────────
+              │주소(영업소)                                                                                      
+              │Resident Address (Business Address)                                                               
+              ├─────────────────────────────────────────────────
+              │전화번호(휴대전화)                                                                                
+              │Phone No. (Mobile Phone No.)                                                                      
+───────┴─────────────────────────────────────────────────
+                                                                                                                  
+───────┬──────────────┬──────────────────────────────────
+  증명서의    │[ ] 대금수령                │대금 지급자                                                         
+  사용 목적   │    Billing                 │Payer                                                               
+   Purpose    ├──────────────┼──────────────────────────────────
+  of          │[ ] 해외이주                │이주번호            해외이주 신고일           년     월      일     
+  Certificate │Emigration                  │Emigration No.    Date of the Report        Year   Month   Day      
+              ├──────────────┼──────────────────────────────────
+              │[ ] 부동산 신탁등기         │신탁 부동산의 표시 (소재지, 건물명칭 및 번호)                       
+              │Registration for            │Information of Real Estate Trust (Location, Building Name and No.)  
+              │Real Estate Trust           │                                                                    
+              ├──────────────┼──────────────────────────────────
+              │[ ] 그 밖의 목적            │                                                                    
+              │Others                      │                                                                    
+───────┴──────────────┴──────────────────────────────────
+                                                                                                                  
+──────────────────────┬──────────────────────────────────
+  증명서 신청부수                           │                              부                                    
+  Copies of Certificate                     │                    Copy (Copies)                                   
+──────────────────────┴──────────────────────────────────
+  「지방세징수법」 제5조 및 같은 법 시행령 제6조제1항에 따라 발급일 현재 「지방세징수법                           
+  시행령」 제2조 각 호의 금액을 제외하고는 다른 체납액이 없음을 증명하여 주시기 바랍니다.                         
+  Please certify that there are no other taxes on arrears as of the date of issuance except for the amounts       
+  stipulated in each subparagraph of Article 2 of the Enforcement Decree of the Local Tax Collection Act in       
+  accordance with Article 5 of the Local Tax Collection Act and Article 6 (1) of its Enforcement Decree.          
+                                                                                                                  
+  년(Year)      월(Month)      일(Day)                                                                            
+                                                                                                                  
+                  신청인(납세자)                                        (서명 또는 인)                            
+                  Applicant (Taxpayer)                                  (Signature or Stamp)                      
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                  
+─────────────────────────────────────────────────────────
+  징수유예등 또는 체납처분유예 등 명세  Deferred Tax Collection or Deferred Disposition of Tax on Arrears         
+────────┬───────────┬────┬────┬────────────┬─────┬───────
+  유예종류      │유예기간              │과세연도│세목    │납부기한                │지방세    │가산금        
+  Type of       │Period of             │Tax Year│Tax Item│Due Date for Tax Payment│Tax Amount│Penalty Tax   
+  Deferment     │Deferment             │        │        │                        │          │              
+────────┼───────────┼────┼────┼────────────┼─────┼───────
+                │                      │        │        │                        │          │              
+────────┼───────────┼────┼────┼────────────┼─────┼───────
+                │                      │        │        │                        │          │              
+────────┴───────────┴────┴────┴────────────┴─────┴───────
+  물적납세의무 체납 명세  Tax-in-kind Liabilities in Tax Arrears                                                  
+────────────────────┬────┬────┬────────────┬─────┬───────
+  위탁자ㆍ양도담보설정자ㆍ명의신탁자    │과세연도│세목    │납부기한                │지방세    │가산금        
+  TrustorㆍDebtor in Security Interestㆍ│Tax Year│Tax Item│Due Date for Tax Payment│Tax Amount│Penalty Tax   
+  Title Truster                         │        │        │                        │          │              
+────────────────────┼────┼────┼────────────┼─────┼───────
+                                        │        │        │                        │          │              
+────────────────────┼────┼────┼────────────┼─────┼───────
+                                        │        │        │                        │          │              
+────────────────────┴────┴────┴────────────┴─────┴───────
+  「지방세징수법」 제5조 및 같은 법 시행령 제6조제2항에 따라 발급일 현재 「지방세징수법                           
+  시행령」 제2조 각 호의 금액을 제외하고는 다른 체납액이 없음을 증명합니다.                                       
+  I hereby certify that there are no other taxes on arrears as of the date of issuance except for the amounts     
+  stipulated in each subparagraph of Article 2 of the Enforcement Decree of the Local Tax Collection Act in       
+  accordance with Article 5 of the Local Tax Collection Act and Article 6 (2) of its Enforcement Decree.          
+                                                                                                                  
+  1. 증명서 유효기간:               년(Year)      월(Month)      일(Day)                                          
+     Validity Period:                                                                                             
+  2. 유효기간을 정한 사유:                                                                                        
+     Reason for validity Period:                                                                                  
+                                                                                                                  
+                        년(Year)      월(Month)      일(Day)                                                      
+                                                                  ┏━━┓                                        
+                     지방자치단체의 장                            ┃직인┃                                        
+                                                                  ┗━━┛                                        
+                                 MayorㆍCounty ChiefㆍDistrict Chief                                              
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                      
+  (뒤쪽)                                                                                              
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+──────────────┬───────────────────────────┬────────
+  담당 공무원 확인사항      │해외이주 신고 확인서 사본 1부                         │수수료 없음     
+  Matter to be confirmed    │(해외이주여권 발급 신청의 경우)                       │Free of Charge  
+  by the official in charge │Copy of Emigration Report Notification                │                
+                            │(In case you are applying for an Emigration passport) │                
+──────────────┴───────────────────────────┴────────
+                                                                                                      
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  동의서 (Consent)                                                                                    
+───────────────────────────────────────────────────
+  본인은 이 건 업무 처리와 관련하여 담당 공무원이 「전자정부법」 제36조제1항에 따른 행정정보의 공동이용을 통하여 위의 담당 공무원   
+  확인 사항을 확인하는 것에 동의합니다.  * 담당 공무원의 확인에 동의하지 아니하는 경우에는 신청인이 직접 관련 서류를 제출하여야 합니다.   
+  I hereby agree that the official in charge will verify the above ‘Matter to be confirmed by the official in charge’ through the   
+  co-use of administrative information according the Article 36 (1) of the E-Government Act in relation to the processing of this   
+  application.                                                                                        
+  *If the applicant does not agree to the verification by the official in charge, the applicant must submit the relevant document   
+  directly.                                                                                           
+                                                                                                      
+    납세자                        (서명 또는 인)                                                      
+    Taxpayer                      (Signature or Stamp)                                                
+───────────────────────────────────────────────────
