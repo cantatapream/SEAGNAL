@@ -8,7 +8,7 @@ MARK=os.path.join(LEGAL,'_dashboard/fix3')
 os.makedirs(MARK, exist_ok=True)
 args=[a for a in sys.argv[1:]]
 R=int(args[0]) if args and args[0].isdigit() else 4
-N=25  # 사용자 지시(2026-07-17): 12→25 상향 시험.
+N=35  # 사용자 지시(2026-07-17): 25→35 상향.
 nums=[int(a) for a in args if a.isdigit()]
 if len(nums)>=2: N=nums[1]
 reserve='--reserve' in sys.argv
