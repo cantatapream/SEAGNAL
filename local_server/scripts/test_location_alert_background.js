@@ -6,7 +6,7 @@
  */
 'use strict';
 
-const BG = require('../js/location-alert/location_alert_background.js');
+const BG = require('../../client/js/location-alert/location_alert_background.js');
 
 let pass = 0, fail = 0;
 function check(name, cond, extra) {

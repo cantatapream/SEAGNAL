@@ -25,7 +25,7 @@ global.sessionStorage = fakeStore();
 const prefsMirror = new Map();
 global.LocationAlertBackground = { Mirror: { set: (k, v) => prefsMirror.set(k, String(v)) } };
 
-const UI = require('../js/location-alert/location_alert_ui.js');
+const UI = require('../../client/js/location-alert/location_alert_ui.js');
 
 let pass = 0, fail = 0;
 function check(name, cond, extra) {

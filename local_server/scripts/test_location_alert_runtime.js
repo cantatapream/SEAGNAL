@@ -8,11 +8,11 @@ const fs = require('fs');
 const path = require('path');
 
 // 런타임이 코어를 require로 찾도록(브라우저 전역 없음)
-global.LocationAlertCore = require('../js/location-alert/location_alert_core.js');
-const RT = require('../js/location-alert/location_alert_runtime.js');
+global.LocationAlertCore = require('../../client/js/location-alert/location_alert_core.js');
+const RT = require('../../client/js/location-alert/location_alert_runtime.js');
 const core = global.LocationAlertCore;
 
-const gj = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'assets', 'warn_zones.geojson'), 'utf8'));
+const gj = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'client', 'assets', 'warn_zones.geojson'), 'utf8'));
 const features = gj.features;
 
 let pass = 0, fail = 0;
