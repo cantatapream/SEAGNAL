@@ -47,6 +47,13 @@ function prompt(l) {
 
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
 let laws = cfg.laws || []
+if (!laws.length && cfg.listPath && cfg.idx !== undefined) {
+  const boot = await agent(
+    `\`${cfg.listPath}\`(JSON: {"laws":[...]})를 Read로 읽어 반환: {laws: 그 배열의 인덱스 ${cfg.idx}번 원소 **하나만** 담은 길이1 배열(객체 그대로, 가공 금지)}.`,
+    { label: `boot-${cfg.idx}`, phase: '수정보완', model: 'sonnet', effort: 'low',
+      schema: { type: 'object', required: ['laws'], properties: { laws: { type: 'array', items: { type: 'object' } } } } })
+  if (boot) laws = boot.laws || []
+}
 if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
   const boot = await agent(
     `\`${cfg.groupsPath}\`(JSON: {"0":[...],"1":[...],...})를 Read로 읽어 반환: {laws: 키 "${cfg.groupIndex}"의 배열 전체(객체 그대로, 필터·가공 금지)}.`,
