@@ -62,7 +62,7 @@ if (!laws.length && cfg.allLawsPath && cfg.lawName) {
 }
 const l = laws[0]
 const type = cfg.type
-if (!l || !type) { log('법 또는 유형 누락'); return { error: 'no law/type', cfg } }
+if (!l || !l.name || !l.slug || !type) { log('법 또는 유형 누락(boot 실패)'); return { error: 'no law/type', cfg } }
 const typeCode = { '①타법연결': 'tabeop', '②일반법연결': 'ilbanbeop', '③별표전량이관': 'byeolpyo', 'thin심화': 'thin', '풀빌드(신규기준법)': 'fullbuild' }[type] || 'x'
 
 // 중복 launch 방지: 이미 .done 마커가 있으면 비싼 fix 에이전트를 띄우지 않고 조기 종료
