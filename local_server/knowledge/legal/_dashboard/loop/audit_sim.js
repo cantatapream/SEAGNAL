@@ -95,8 +95,9 @@ ${r2}
 - **출처표기**: 모든 서술에 (법령 제N조, 시행일) 출처가 붙는가.
 근거가 되는 미흡 사례는 method_notes에 구체적으로 적는다(예: "행정처분 차수표에 4차 누락", "톤수 조건 컬럼 없음").
 
-## 5단계 — 상세 로그 저장 + 요약 반환
+## 5단계 — 상세 로그 저장 + 마커 + 요약 반환
 - 전체 질문·판정·근거 + **답변방식 준수 체크표**를 \`${LEGAL}/_dashboard/audit/${l.slug}.md\`에 저장.
+- ★완료 마커(필수): Bash로 \`mkdir -p ${LEGAL}/_dashboard/fix3 && printf 'r${round} done\\n' > "${LEGAL}/_dashboard/fix3/audit_r${round}_${l.slug}.done"\` 생성(라운드별 커버리지 추적용).
 - 반환(JSON): law, total_questions, by_type{T1..T7}, verdicts{...}, **method_compliance{정의우선,행정처분차수,벌칙항별구간,처벌정밀도,타법연결,프로필조건,점진공개구조,출처표기}**, method_notes[], wiki_gaps[], collection_holes[], answer_issues[], audit_file.
 
 정직하게 — 위키가 답 못 하거나 규칙 미반영이면 솔직히 missing/weak로 찍는다. 이 감사의 목적은 구멍을 찾는 것이다.`
