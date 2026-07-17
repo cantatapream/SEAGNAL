@@ -418,6 +418,10 @@ class DiffMatrix {
                     currActiveChildren.length === 0 &&
                     childrenAll.length > 0 &&
                     prevActiveChildren.length === childrenAll.length;
+                // [2026-07-18 실사고] GAP 보강 부모(전이 창)의 자식 '미상' 전파 — 한정사 단정 금지
+                if (currActiveChildren.length === 0 && pCurr && pCurr._childUnknown === true) {
+                    childState.unknown = true;
+                }
 
                 // ----- 부모 단위 신규 발효 -----
                 if (!pPrev && pCurr && pCurr.wrnLvlNm && pCurr.wrnLvlNm !== '해제') {
@@ -2160,6 +2164,11 @@ function _buildUserPushChanges(prev, curr) {
         const prevChildren = childKeys(prev, zone);
         const currChildren = childKeys(curr, zone);
         const childState = { all, active: currChildren, added: [], released: [] };
+        // [2026-07-18 실사고] GAP 보강 부모(전이 창)의 자식 '미상' 전파 — 자식 목록이 비어 있어도
+        //   "미발표 확정"이 아니므로 한정사 단정 금지 플래그를 싣는다 (push_helpers 가 소비).
+        if (currChildren.length === 0 && ((cUp && cUp._childUnknown) || (cAct && cAct._childUnknown))) {
+            childState.unknown = true;
+        }
 
         const upcomingChanged = !blockEqual(prevUpcoming, currUpcoming);
         const activeChanged = !blockEqual(prevActive, currActive);
@@ -3418,6 +3427,10 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
                     }
                 }
             }
+            // [2026-07-18 실사고] 자식이 전혀 못 실린 GAP 부모 — 전이 창 '미상' 표식
+            //   (_addGapParentFromEf 의 동일 표식과 한 쌍 — 푸시 한정사 "미발표" 단정 억제 전용).
+            if ((!snap.children.has(name) || snap.children.get(name).size === 0)
+                && (PARENT_TO_CHILDREN[name] || []).length > 0) info._childUnknown = true;
         } else {
             // 자식형 행 (warn/latest 가 자식을 주는 경우 — 현재는 거의 없음). 발효중/예비면 그쪽 우선.
             const parent = _parentKeyForChild(name);   // 역인덱스 우선 (snap.children 키 일관)
@@ -3588,7 +3601,11 @@ function _addGapParentFromEf(snap, prev, name, info, counters) {
     if (snap.parents.has(name)) return;        // 발효중/예비면 그쪽 우선
     snap.parents.set(name, info);
     counters.gapAdded++;
-    if (snap.children.has(name)) return;
+    if (snap.children.has(name)) {
+        // [2026-07-18 실사고] 컨테이너가 있어도 비어 있으면 자식 정보 '미상' — 아래 주석 참조
+        if (snap.children.get(name).size === 0 && (PARENT_TO_CHILDREN[name] || []).length > 0) info._childUnknown = true;
+        return;
+    }
     const pkids = (prev && prev.children) ? prev.children.get(name) : null;
     if (pkids && pkids.size > 0) {
         const m = new Map();
@@ -3619,6 +3636,12 @@ function _addGapParentFromEf(snap, prev, name, info, counters) {
             counters.gapChildSynth += m.size;
         }
     }
+    // [2026-07-18 실사고] carry 0·synth 0 으로 자식이 전혀 못 실린 GAP 부모 — 전이 창의 '미상' 표식.
+    //   이 창에서는 sasc/list 의 제외행(warn_lvl=0)조차 미확정이다 (7/18 05:12 "미포함" 표기가
+    //   2분 뒤 포함 4자식 합류로 뒤집힘 실측). 푸시 한정사의 "미발표" 단정 억제 전용 —
+    //   특보 판정·발송 분기(디바운스·보류실·dedup)에는 불사용.
+    if ((!snap.children.has(name) || snap.children.get(name).size === 0)
+        && (PARENT_TO_CHILDREN[name] || []).length > 0) info._childUnknown = true;
 }
 
 /**

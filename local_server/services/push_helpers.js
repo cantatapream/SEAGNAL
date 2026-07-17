@@ -625,6 +625,15 @@ function buildChildQualifier(parent, childState, eventType) {
         const added = Array.isArray(safe.added) ? safe.added : [];
         const released = Array.isArray(safe.released) ? safe.released : [];
 
+        // [2026-07-18 실사고] 자식 정보 '미상' 게이트 — 부모가 GAP 보강(ef/list·warn/latest)으로만
+        //   먼저 알려진 전이 창에서는 자식 목록이 빈 것이 "미발표 확정"이 아니라 "아직 안 옴"이다
+        //   (7/18 05:12 "(평수구역 미발표)" 발송 2분 뒤 자식 4곳 합류 실측 — 오표기).
+        //   미상이면 어떤 단정 한정사("미발표/미발효/격상 없음")도 붙이지 않는다 — 모르면 침묵.
+        //   자식이 하나라도 확인되면(active>0) 이 게이트는 통과하지 않으므로 기존 표기 전부 불변.
+        if (safe.unknown === true && active.length === 0 && added.length === 0 && released.length === 0) {
+            return '';
+        }
+
         // 부모+자식 동시 해제: 부모명만, 한정사 없음 (S13)
         if (eventType === 'release') return '';
 
