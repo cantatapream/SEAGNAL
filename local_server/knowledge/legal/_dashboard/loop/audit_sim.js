@@ -104,6 +104,14 @@ ${r2}
 
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
 let laws = cfg.laws || []
+if (!laws.length && cfg.allLawsPath && cfg.lawName) {
+  // 법명으로 찾기(인덱스 오카운트 위험 없음): 파일에서 name==lawName인 객체 하나 반환
+  const boot = await agent(
+    `\`${cfg.allLawsPath}\`(JSON 배열: [{name,slug,raw,...},...])를 Read로 읽어, name이 정확히 "${cfg.lawName}"인 원소 **하나만** 담은 길이1 배열을 반환: {laws:[그 객체 그대로]}. 없으면 {laws:[]}.`,
+    { label: `boot:${cfg.lawName.slice(0,10)}`, phase: '감사', model: 'sonnet', effort: 'low',
+      schema: { type: 'object', required: ['laws'], properties: { laws: { type: 'array', items: { type: 'object' } } } } })
+  if (boot) laws = boot.laws || []
+}
 if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
   // 미리 그룹별로 쪼갠 파일에서 해당 그룹 배열을 '그대로' 반환(필터링 없음 → 안정적)
   const boot = await agent(
