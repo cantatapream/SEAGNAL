@@ -1,7 +1,7 @@
 export const meta = {
   name: 'wiki-qa-audit',
-  description: '위키 커버리지 감사: 법별로 중복없는 질문 100+개 생성→위키만으로 답변 시도→구멍 분류',
-  phases: [{ title: '감사', detail: '법마다 에이전트가 질문 생성·답변·구멍 분류, 상세는 파일 저장' }],
+  description: '위키 커버리지 감사(3차+): 법별 300문항(변호사·일반인·해양종사자 3페르소나, 직전 미흡분 재질문+신규)→위키만으로 답변 시도→구멍 분류',
+  phases: [{ title: '감사', detail: '법마다 에이전트가 300문항 생성·답변·구멍 분류, 상세는 파일 저장' }],
 }
 const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
 
