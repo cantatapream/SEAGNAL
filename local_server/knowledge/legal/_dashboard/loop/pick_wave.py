@@ -6,7 +6,7 @@ S='/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratch
 LEGAL='/home/user/SEAGNAL/local_server/knowledge/legal'
 MARK=os.path.join(LEGAL,'_dashboard/fix3')
 os.makedirs(MARK, exist_ok=True)
-N=35
+N=70
 for a in sys.argv[1:]:
     if a.isdigit(): N=int(a)
 reserve='--reserve' in sys.argv
