@@ -50,6 +50,13 @@ function prompt(it) {
 }
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
 let items = cfg.items || []
+if (!items.length && cfg.listPath) {
+  const boot = await agent(
+    `\`${cfg.listPath}\`(JSON: {"items":[...]})를 Read로 읽어 반환: {items: 그 배열 전체(원소 객체 그대로, 필터·가공·생략 금지)}.`,
+    { label: 'boot-ocr', phase: 'OCR', model: 'sonnet', effort: 'low',
+      schema: { type: 'object', required: ['items'], properties: { items: { type: 'array', items: { type: 'object' } } } } })
+  if (boot) items = boot.items || []
+}
 log(`OCR 대상 ${items.length}건`)
 phase('OCR')
 const res = (await parallel(items.map(it => () =>
