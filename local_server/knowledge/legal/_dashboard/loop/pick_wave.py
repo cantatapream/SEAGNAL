@@ -6,7 +6,7 @@ S='/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratch
 LEGAL='/home/user/SEAGNAL/local_server/knowledge/legal'
 MARK=os.path.join(LEGAL,'_dashboard/fix3')
 os.makedirs(MARK, exist_ok=True)
-N=12  # 지속가능 파도크기(서버 동시요청 한도). 65 동시=서버 rate-limit(토큰과 무관)→0진척. 실측 안전대역.
+N=25  # 사용자 지시(2026-07-17): 12→25 상향 시험. 서버 rate-limit 관찰하며.
 for a in sys.argv[1:]:
     if a.isdigit(): N=int(a)
 reserve='--reserve' in sys.argv
