@@ -22,7 +22,7 @@ for jf in glob.glob(os.path.join(D,"*","journal.jsonl")):
             v=r.get('verdicts',{})
             mt=os.path.getmtime(jf)
             if law not in best or mt>best[law][0]:
-                best[law]=(mt, r.get('wiki_gaps',[]) or [], r.get('collection_holes',[]) or [], v)
+                best[law]=(mt, r.get('all_wiki_gaps',[]) or r.get('wiki_gaps',[]) or [], r.get('all_collection_holes',[]) or r.get('collection_holes',[]) or [], v)
     except: pass
 
 GEN=['형법','행정절차법','질서위반행위규제법','공소시효','행정심판','행정소송','미수','경합','양벌','개인정보','국가배상','일반법']

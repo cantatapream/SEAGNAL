@@ -6,7 +6,7 @@ S='/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratch
 LEGAL='/home/user/SEAGNAL/local_server/knowledge/legal'
 MARK=os.path.join(LEGAL,'_dashboard/fix3')
 os.makedirs(MARK, exist_ok=True)
-N=35  # 사용자 지시(2026-07-17): 25→35 상향. 서버 rate-limit 관찰하며.
+N=25  # fix 파도: 검증된 안전치 25(0 실패). 감사(300문항)는 무거워 35에서 429 전멸 → fix도 보수적 유지.
 for a in sys.argv[1:]:
     if a.isdigit(): N=int(a)
 reserve='--reserve' in sys.argv
