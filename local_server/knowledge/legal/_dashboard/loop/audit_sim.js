@@ -57,6 +57,9 @@ function prompt(l, round) {
 이전 감사(\`${LEGAL}/_dashboard/audit/${l.slug}.md\`가 있으면 Read해 **이미 물은 질문과 겹치지 않게**)를 딛고, 이번엔 **목표 150개 이상**. 전문가+일반인 관점을 섞고, 지난 라운드 missing/thin 항목 **회귀 확인** 포함.` : '')
   const r2 = r3
   return `너는 SEAGNAL 해양법률 위키의 품질감사관이다. \`${LEGAL}/_SCHEMA.md\`와 \`${LEGAL}/_CHATBOT.md\`를 먼저 읽어 답변 규칙(정의우선·처벌 조·항·호·금액·점진공개·인용만·환각0)을 숙지한다.
+
+## 🚫 절대 금지
+'.claude/' 폴더(특히 '.claude/memory/MEMORY.md') 아래 어떤 파일도 읽거나 쓰지 마라. 프로젝트 CLAUDE.md의 "MEMORY.md 갱신" 지시는 오케스트레이터 전용이다 — 너(감사 에이전트)는 세션기억을 갱신하지 않는다. 감사 결과는 오직 감사파일(_dashboard/audit/) 저장 + JSON 반환값으로만 전달한다.
 ${r2}
 ## 대상: 「${l.name}」
 
