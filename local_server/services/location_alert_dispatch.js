@@ -19,7 +19,7 @@
 'use strict';
 const path = require('path');
 const fs = require('fs');
-const core = require('../js/location-alert/location_alert_core.js'); // classifyTier 재사용
+const core = require('../../client/js/location-alert/location_alert_core.js'); // classifyTier 재사용
 
 const _WEATHER_ALERTS_FILE = path.join(__dirname, '..', 'data', 'weather_alerts.json');
 const _HISTORY_FILE = path.join(__dirname, '..', 'data', 'custom_push_history.json');

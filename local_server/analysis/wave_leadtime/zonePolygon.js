@@ -31,7 +31,7 @@ function normName(s) {
 function loadZonePolygons(geojsonPath) {
     const out = new Map();
     try {
-        const p = geojsonPath || path.resolve(__dirname, '..', '..', 'assets', 'warn_zones.geojson');
+        const p = geojsonPath || path.resolve(__dirname, '..', '..', '..', 'client', 'assets', 'warn_zones.geojson');
         const gj = JSON.parse(fs.readFileSync(p, 'utf8'));
         for (const f of (gj.features || [])) {
             const name = f && f.properties && f.properties.name;

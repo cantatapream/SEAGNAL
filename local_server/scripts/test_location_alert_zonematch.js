@@ -24,8 +24,8 @@
 const fs = require('fs');
 const path = require('path');
 
-global.LocationAlertCore = require('../js/location-alert/location_alert_core.js');
-const RT = require('../js/location-alert/location_alert_runtime.js');
+global.LocationAlertCore = require('../../client/js/location-alert/location_alert_core.js');
+const RT = require('../../client/js/location-alert/location_alert_runtime.js');
 const core = global.LocationAlertCore;
 const canonZone = core.canonZone;
 
@@ -55,7 +55,7 @@ function loadCanonicalZoneNames() {
 const canonicalNames = loadCanonicalZoneNames();
 const canonicalSet = new Set([...canonicalNames].map(canonZone));
 
-const gj = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'assets', 'warn_zones.geojson'), 'utf8'));
+const gj = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'client', 'assets', 'warn_zones.geojson'), 'utf8'));
 const features = gj.features;
 const polyNames = features.map(f => f.properties.name);
 

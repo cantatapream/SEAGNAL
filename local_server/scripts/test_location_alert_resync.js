@@ -31,7 +31,7 @@ global.Capacitor = { isNativePlatform: () => isNative, Plugins: {} };
 const fetchCalls = [];
 global.fetch = (url, opts) => { fetchCalls.push({ url, opts }); return Promise.resolve({ ok: true }); };
 
-const UI = require('../js/location-alert/location_alert_ui.js');
+const UI = require('../../client/js/location-alert/location_alert_ui.js');
 const S = UI.LocationAlertSettings;
 
 const STORAGE_KEY = 'locationAlertSettings_v1';
