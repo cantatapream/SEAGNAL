@@ -120,7 +120,13 @@ source_tier: 2
 }
 
 // args.only(단일 kw) 지정 시 그 기준만 빌드 → 각 기준을 별도 최상위 워크플로로 띄워 진짜 병렬(35파도식) 가능.
-const onlyKw = args && args.only
+// args가 객체/문자열 어느 쪽으로 와도 견디게 파싱(문자열이면 JSON.parse, 그래도 안되면 그 자체를 kw로).
+let parsedArgs = args
+if (typeof args === 'string') {
+  try { parsedArgs = JSON.parse(args) } catch (e) { parsedArgs = { only: args } }
+}
+const onlyKw = parsedArgs && parsedArgs.only
+log(`tech-standard-wiki: onlyKw=${onlyKw || '(전체)'} · argsType=${typeof args}`)
 const TARGETS = onlyKw ? STANDARDS.filter((s) => s.kw === onlyKw) : STANDARDS
 
 phase('Build')
