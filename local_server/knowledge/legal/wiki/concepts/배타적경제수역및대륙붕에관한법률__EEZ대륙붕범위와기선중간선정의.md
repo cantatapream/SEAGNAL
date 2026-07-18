@@ -4,6 +4,7 @@ status: draft
 updated: 2026-07-17
 kind: definition-hub
 소관부처: 외교부
+연락처: 02-2100-7531 (국제법규과, DRF law 조회 2026-07-18)
 tier: 2
 ---
 
