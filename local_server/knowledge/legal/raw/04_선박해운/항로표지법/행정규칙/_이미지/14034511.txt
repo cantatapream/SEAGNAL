@@ -1,0 +1,2 @@
+[도해]
+Dayboard Length vs Range 그래프 - 표지판 길이(Length, m)에 따른 가시거리(Range, km)를 시인거리 1~10 nmi Vis 별 곡선으로 나타낸 차트
