@@ -119,9 +119,13 @@ source_tier: 2
 작업 후 스키마대로 결과를 반환한다(page_path는 ROOT 기준 상대경로).`
 }
 
+// args.only(단일 kw) 지정 시 그 기준만 빌드 → 각 기준을 별도 최상위 워크플로로 띄워 진짜 병렬(35파도식) 가능.
+const onlyKw = args && args.only
+const TARGETS = onlyKw ? STANDARDS.filter((s) => s.kw === onlyKw) : STANDARDS
+
 phase('Build')
 const results = await parallel(
-  STANDARDS.map((s) => () =>
+  TARGETS.map((s) => () =>
     agent(promptFor(s), {
       label: `tech:${s.kw}`,
       phase: 'Build',
