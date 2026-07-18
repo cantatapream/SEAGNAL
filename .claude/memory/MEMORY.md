@@ -108,3 +108,10 @@
 - **이미지 파이프라인 실증**: <img id="N"> = law.go.kr flDownload.do?flSeq=N로 다운로드(GIF)→PIL PNG변환→비전 Read OCR 정상(공급전압표 수치 정확판독). dl_byl_images.sh(다운로드·원본보존) + byl_image_ocr_cell.js(비전OCR·표수치전사/도해캡션·재개가능·파일당1에이전트=병렬안전).
 - **전체 규모**: raw 전역 <img> 1,604개(200파일). 기준법도메인 128파일+타법 72파일. 이미지 평균 15KB→전체 ~23MB.
 - **★저장방식 확인(사용자 질문)**: 전부 Git→GitHub(디스크·버전). **Fly.io RAM 무관**(서버는 corpus 메모리 미적재, legal 참조 16곳 전부 오프라인 빌드도구). Dockerfile COPY . .가 legal 146MB를 배포이미지 디스크에 넣음(RAM 아님). 결론: 메모리 폭발 없음. 배포최적화=raw·이미지 .dockerignore 제외+wiki만 배포+이미지 GitHub raw 서빙(Phase F, MASTER_PLAN 반영).
+
+### 2026-07-18 (KST) ★별표 이미지 OCR 완료(35파도) + raw 병합
+- **스코프 확정·검증**: 기준법 128파일 이미지 960개 IN-SCOPE(전량), 타법 행정규칙·지자체고시 597개 제외(수집곤란). 다운로드 960/960 100%.
+- **35-wide 비전 OCR**: 이미지 1,000개를 35청크로 분할→35 워크플로 동시(sidecar 방식=경합없음·재개가능). 표·수치는 텍스트 전사, 도해는 캡션+원본png 보존. 백지/깨진 이미지는 정직하게 [판독불가]. 안전·처벌 직결 수치는 (⚠REVIEW) 태그.
+- **병합**: merge_byl_ocr.py로 sidecar를 raw <img> 뒤에 【이미지판독 N】(원본이미지 경로+전사텍스트) 블록으로 삽입(128파일·1,000블록·단독실행=안전). → raw만으로 수치 읽기+도해 표시 가능.
+- 도구: dl_byl_images.sh(다운로드) · byl_image_ocr_cell.js(비전OCR·청크) · merge_byl_ocr.py(병합).
+- args는 워크플로에 문자열로 전달됨(probe 확인)→JSON.parse 필수.
