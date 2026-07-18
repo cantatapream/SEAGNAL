@@ -1,0 +1,9 @@
+[산식]
+[ ∏(i=1..n) fi { Σ(i=1..nME) PME(i)・CFME(i)・SFCME(i) } + (PAE・CFAE・SFCAE)
+  + { ∏(j=1..nPTI) fj Σ(i=1..nPTI) PPTI(i) - Σ(i=1..neff) feff(i)・PAEeff(i) } CFAE・SFCAE
+  - Σ(i=1..neff) feff(i)・Peff(i)・CFME・SFCME ]
+─────────────────────────────────────────────
+fi・fc・fl・운송능력・fw・Vref・fm
+
+여기서, CF, Vref, 운송능력, P, SFC, feff(i), fj, fi, fc, fw, fl, fm은 별표 ○과 같다.
+(⚠REVIEW: 에너지효율설계지수(EEDI) 관련 복합 산식, 첨자·기호 다수로 원본 도면 확인 권장)
