@@ -64,3 +64,7 @@
 - **용량 분석**: legal/ 134MB(raw 105·wiki 15·_dashboard 14). 챗봇 런타임 ≈ wiki 15MB + 임베딩 8~32MB. 앱/서버 영향 ≈ 0(지식은 서버측, 폰엔 프로필 몇 KB, 절대량 작음).
 - **브랜치**: 모든 챗봇 작업은 feature 브랜치에만(main 미머지). ARCHITECTURE.md는 gen_architecture.js가 knowledge/legal 미스캔 → 머지 시 생성기 확장 필요(지금은 그대로 둠).
 - 방구조·단계별계획 총정리: `_dashboard/STATUS_ROOMS_PLAN.md`.
+
+### 2026-07-18 (KST) 추가 지침
+- **35파도 램프업**(사용자 지시): collect6를 개별 Workflow 35개 동시까지 올림(warm 20→35, 점진). 처리속도↑.
+- **★서식(별지) 원버튼 다운로드**(사용자 지시, 필수 반영): 챗봇 답변에 관련 별지 서식이 있으면 **다운로드 버튼** 제공. 서식은 텍스트 전사뿐 아니라 **다운로드 원본(HWP/PDF)·law.go.kr 링크 보존**(원본 미보관 원칙의 예외). 반영: `_CHATBOT.md` 5-5, `_SCHEMA.md` 0-A 서식규칙, `MASTER_PLAN.md` Phase E/F.
