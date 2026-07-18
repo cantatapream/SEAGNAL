@@ -1,0 +1,5 @@
+[표]
+CCPXXXXX.EEE | CC : 전자해도 생산국가(한국은 KR)
+예)KRF2K20.001 | P : 항해목적(1~6)
+| XXXXX : 전자해도 Cell별 유일식별번호
+| EEE : Update Number

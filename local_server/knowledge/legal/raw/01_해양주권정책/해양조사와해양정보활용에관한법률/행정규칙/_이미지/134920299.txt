@@ -1,0 +1,5 @@
+[표]
+CCPXXXXX.EEE
+CC : 전자해도 생산국가(한국은 KR)
+PXXXXX : 식별자(데이터셋과 유사하게)
+EEE : TIF, TXT

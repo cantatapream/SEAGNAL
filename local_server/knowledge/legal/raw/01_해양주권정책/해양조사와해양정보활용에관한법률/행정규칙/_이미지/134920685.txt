@@ -1,0 +1,7 @@
+[표]
+| 데이터 종류 | 생산 목적 | Cell 분류 |
+|---|---|---|
+| New Data Set | 동일한 목적으로 해당지역의 처음 만들어진 경우 | Basic Cell File |
+| Re-issue of a Data Set | New Data Set과 현재까지의 Update 된 모든 것을 재발행 하는 경우 | Basic Cell File |
+| A new edition of a Data Set | 이미 ENC가 간행된 구역에서 New Data Set을 새로이 간행하는 경우 | Update Cell File |
+| Update | 현행하는 Data Set의 일부정보를 변환 | Update Cell File |
