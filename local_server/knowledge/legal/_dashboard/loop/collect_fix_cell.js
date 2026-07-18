@@ -63,6 +63,12 @@ const prompt = `너는 SEAGNAL 해양법률 위키 사서다. \`${LEGAL}/_SCHEMA
 \`${SCOPE}/${l.slug}.md\`를 **반드시 Read**한다. 이 매니페스트의 표에서 **보유여부가 "미수집"인 모든 행**이 네가 수집해야 할 체크리스트다(각 행에 "수집경로: DRF target·검색어"가 적혀 있다). 매니페스트가 없으면 status="no_manifest"로 반환하고 종료.
 - 각 미수집 항목을 하나씩 처리하고, 처리 결과를 **checklist[]에 항목별로** 기록한다(item + result: collected|already_present|failed|uncollectable|out_of_scope + saved_to + note). **누락 없이 매니페스트 미수집 행 수만큼** 기록한다.
 
+## 0.5단계 — 기준법 시행령·시행규칙은 **전문(전 조문) 전량** 확인 (★필수)
+이 법(기준법 「${l.name}」)의 **시행령·시행규칙은 반드시 전문 전체**를 보유해야 한다(일부 조문만 발췌하는 것은 타법에만 해당). 다음을 실제로 확인:
+- \`${l.raw}/시행령.txt\`·\`${l.raw}/시행규칙.txt\`가 존재하는지, 그리고 **현행 DRF본과 조문 수·마지막 조문번호가 일치하는지** 대조(\`lawSearch.do?...target=law&query=${l.name} 시행령\` → MST → \`lawService.do\`로 조문 수 확인).
+- 만약 raw의 시행령/시행규칙이 **일부 조문만 있거나 없으면**, DRF 현행본 **전문 전체**를 받아 \`시행령.txt\`/\`시행규칙.txt\`를 완전판으로 저장(⚠REVIEW 헤더, 원문 불변). 이건 매니페스트에 "미수집"으로 안 적혀 있어도 반드시 한다 — 기준법 라인 전량이 원칙.
+- 확인·보완 결과를 checklist[]에 "기준법 시행령 전문(전 N조)"·"기준법 시행규칙 전문(전 N조)" 항목으로 기록(result: already_present=이미 전문 / collected=전문 보완수집 / failed).
+
 ## 1단계 — 각 미수집 항목을 law.go.kr DRF로 실제 수집 (OC=hyoo1431)
 먼저 대상 경로에 **이미 파일이 있는지 확인**(다른 셀이 먼저 수집했을 수 있음 — 특히 \`raw/15_관련타부처/\` 공용 타법). 있으면 그 조문이 실제 들어있는지 grep으로 확인 후 result="already_present". 없으면 Bash \`curl\`로 국가법령정보센터 Open API 수집:
 - **법령 본문**(시행령·시행규칙·타법): \`lawSearch.do?OC=hyoo1431&target=law&type=JSON&query=<법령명>\` → MST → \`lawService.do?OC=hyoo1431&target=law&MST=<MST>&type=JSON\` (조문 전문). 타법은 **인용된 그 조문만 발췌** 저장(전체 개념화 금지).
