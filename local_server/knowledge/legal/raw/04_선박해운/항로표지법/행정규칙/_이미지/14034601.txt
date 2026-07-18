@@ -1,0 +1,2 @@
+[도해]
+등명기 광학계 구성도 - Condenser System(집광계)과 Night Filter(적색/녹색 필터), Projection System(투사계)로 구성된 광선 경로 모식도
