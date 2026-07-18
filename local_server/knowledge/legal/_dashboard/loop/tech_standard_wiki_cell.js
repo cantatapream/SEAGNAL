@@ -39,12 +39,12 @@ const SCHEMA = {
     page_path: { type: 'string' },
     status: { type: 'string', enum: ['done', 'partial', 'failed'] },
     raw_source: { type: 'string' },
-    적용범위_요약: { type: 'string' },
-    의무항목수: { type: 'number' },
-    별표수: { type: 'number' },
-    서식수: { type: 'number' },
-    처벌연결: { type: 'string' },
-    소관부서: { type: 'string' },
+    scope_summary: { type: 'string' },      // 적용범위 요약(선종·톤수)
+    duty_items: { type: 'number' },         // 의무항목 수
+    tables: { type: 'number' },             // 별표 수
+    forms: { type: 'number' },              // 서식 수
+    penalty_link: { type: 'string' },       // 처벌연결(상위법 벌칙조문)
+    dept: { type: 'string' },               // 소관부서·연락처
     still_missing: { type: 'array', items: { type: 'string' } },
     note: { type: 'string' },
   },
