@@ -1,0 +1,5 @@
+[표]
+| 닻의 부분 | 재료 | 재료기호 |
+|---|---|---|
+| 앵커보디(Anchor body) | 국내단체표준 "탄소강주강품" (SPS-KFCA-D4101-5004) | SC480 |
+| 앵커생크(Anchor shank), 앵커스톡(Anchor stock) 및 앵커링(Anchorring) | 한국산업표준 "탄소강단강품" (KS D 3710) | SF440A |
