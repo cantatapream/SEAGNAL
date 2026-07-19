@@ -122,3 +122,5 @@
 - **★⚠REVIEW 인간검증 UI(설계)**: 관리센터 AI/챗봇탭에 검증대기 리스트 — 원문이미지 vs AI추출 대조, 이미지 전체화면 확대, 국가법령정보센터 링크+봐야할 위치 명시, 승인/반려. 챗봇 실가동 단계에서 배선. MASTER_PLAN Phase F.
 - **★개정 시 매니페스트 재생성→뿌리 재수집**: 개정감지→매니페스트 map_scope 재생성→재수집→재빌드→재감사 전사이클 자동. MASTER_PLAN Phase G.
 - **위키 전면 재빌드 완료 73/73**(71갱신+2무변경). rebuild-with-context로 감사정제 보존. 마커 _wiki_rebuild.done.
+
+- [2026-07-19] 6차 감사 착수: 위키 전면 재빌드(73/73) 완료 후, 70법 감사를 18개 워크플로(그룹당 ~4법, cap2/wf⇒~36동시)로 롤링 실행. groupsPath=scratchpad/audit6_groups.json, round=6. 마커 audit_r6_<slug>.done. 완료 시 집계→_wiki_audit6.done→스코프내 full률로 DoD90% 판정. (nproc=4라 워크플로당 동시 2 — 35폭은 다워크플로로 확보)
