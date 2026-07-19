@@ -25,7 +25,10 @@ const MANIFEST = {
     links_added: { type: 'integer', description: '[[링크]]·타법연결·역링크 추가 건수' },
     concepts_created: { type: 'integer' },
     hub_needs: { type: 'array', items: { type: 'string' }, description: '공유허브(comparisons/정의허브) 신설 필요 목록 → 단독 lint 단계로 넘김' },
-    left_alone: { type: 'array', items: { type: 'string' }, description: '손대지 않은 것(진짜 수집구멍·스코프밖·⚠REVIEW)과 사유' },
+    collectable_holes: { type: 'array', items: { type: 'string' }, description: 'H-12③ 재수집 큐 대상: raw 미수집이나 **수집 가능**한 것(admrul 등재 고시·타법 거쳐간 조문·별표). 미제정·자치법규·원문자체부재는 제외(그건 left_alone).' },
+    promoted_canonical: { type: 'integer', description: 'H-12② canonical로 승격한 페이지 수' },
+    meta_review_flagged: { type: 'integer', description: 'H-12① 출처미확인으로 ⚠REVIEW 부착한 메타 필드 수' },
+    left_alone: { type: 'array', items: { type: 'string' }, description: '손대지 않은 것(미제정·자치법규·원문부재 수집구멍·스코프밖·⚠REVIEW)과 사유' },
     important: { type: 'array', items: { type: 'string' }, description: '★사용자 에스컬레이션 대상만(엄격): ①시스템/아키텍처·데이터구조에 영향 ②사용자 결정이 반드시 필요(자동 판단 불가) ③수정·보완 범위를 넘어선 큰 문제. 일상적 gap(wiki_lag·연결·수집구멍·스코프밖)은 절대 넣지 말 것(로그만).' },
     note: { type: 'string' },
   },
@@ -50,6 +53,16 @@ function prompt(l, round) {
 - **스코프밖(판례·법리·입법공백)** → left_alone에 기록.
 - **⚠REVIEW 미검증값**(별표 이미지 OCR 판독 등) → canonical로 승격 금지. 그대로 ⚠REVIEW 유지. left_alone에 기록.
 
+## 2-A) 메타 출처 검증 (H-12 ①, 필수)
+- 담당 법 concept/statute의 frontmatter \`소관부서\`·\`연락처\`(부서명·전화번호)가 있으면, **raw(\`${l.raw}/_meta.json\`·법률/시행령/시행규칙.txt)에 그 값의 근거가 있는지 grep으로 대조**한다.
+- **출처가 없으면 삭제하지 말고** 그 필드에 \`⚠REVIEW(출처미확인)\`를 부착한다(사람 검증 UI 대상). raw에 소관부처(예: 해양수산부)만 있고 부서명·전화번호가 없으면 그 세부값은 미확인이다. (재빌드 배치가 환각 주입한 정황 있음 — 스키마 9절 출처원칙 준수)
+
+## 2-B) draft→canonical 승인 이원화 (H-12 ②, 필수)
+- 담당 법의 concept 페이지 status를 다음 규칙으로 처리:
+  - **처벌·과태료·형량·금액·안전수치·⚠REVIEW를 포함하는 페이지 = \`status: draft\` 유지**(반드시 사람 승인 — 건드리지 말 것).
+  - **그 외 순수 정의·절차·서술 페이지 = 이번 통합수정으로 gap이 메워지고 출처가 갖춰졌으면 \`status: canonical\`로 승격**(변경이력에 "6R 검증·통합수정 통과로 canonical 승격" 근거 남김).
+  - 애매하면 draft 유지(과대 승격 금지).
+
 ## 3) 절대 규칙
 - 🚫 **자기 법 파일만 쓴다**: \`wiki/concepts/${l.slug}__*.md\`·\`wiki/statutes/${l.slug}.md\`·\`wiki/annexes/${l.slug}__*.md\`. 그 외(다른 법 파일·graph.json·_glossary·comparisons/·draft/·.claude/)는 **읽기만, 쓰기 금지**.
 - **공유허브(comparisons 비교표·정의허브)가 필요하면 직접 만들지 말고 hub_needs에 기록** → 단독 lint 단계가 처리(경합위험).
@@ -59,7 +72,7 @@ function prompt(l, round) {
 
 ## 4) 완료 마커 + 반환
 - ★완료 마커(필수): Bash로 \`mkdir -p ${LEGAL}/_dashboard/fix3 && printf 'r${round} fixed\\n' > "${LEGAL}/_dashboard/fix3/fix_r${round}_${l.slug}.done"\` (자율 루프 상태추적용).
-- 반환(JSON): law, status, edits(수정파일수), wiki_lag_fixed, links_added, concepts_created, hub_needs[], left_alone[], important[], note.
+- 반환(JSON): law, status, edits, wiki_lag_fixed, links_added, concepts_created, hub_needs[], **collectable_holes[]**(H-12③ 수집가능한 미수집 원문), **promoted_canonical**(H-12② 승격 페이지수), **meta_review_flagged**(H-12① 출처미확인 REVIEW 부착수), left_alone[], important[], note.
   - **important[] 판단(엄격)**: 아래 3가지에만 넣는다. 그 외는 전부 빈배열(로그만, 사용자 안 알림):
     ①**시스템/아키텍처·데이터구조에 영향**(예: 스키마 자체가 틀림, 대량 파일 구조 재편 필요, 파이프라인 결함).
     ②**사용자 결정이 반드시 필요**(자동으로 못 정하는 정책 갈림 — 예: 상충하는 두 처벌 수치 중 무엇이 맞는지 원문으로 확정 불가, 안전값 모순).
@@ -93,6 +106,9 @@ return {
   links_added: res.reduce((s, r) => s + (r.links_added || 0), 0),
   concepts_created: res.reduce((s, r) => s + (r.concepts_created || 0), 0),
   hub_needs: res.flatMap(r => (r.hub_needs || []).map(h => `${r.law}: ${h}`)),
+  collectable_holes: res.flatMap(r => (r.collectable_holes || []).map(h => `${r.law}: ${h}`)),
+  promoted_canonical: res.reduce((s, r) => s + (r.promoted_canonical || 0), 0),
+  meta_review_flagged: res.reduce((s, r) => s + (r.meta_review_flagged || 0), 0),
   important: res.flatMap(r => (r.important || []).map(i => `${r.law}: ${i}`)),
   per_law: res.map(r => ({ law: r.law, status: r.status, edits: r.edits, lag: r.wiki_lag_fixed, links: r.links_added })),
 }
