@@ -124,3 +124,8 @@
 - **위키 전면 재빌드 완료 73/73**(71갱신+2무변경). rebuild-with-context로 감사정제 보존. 마커 _wiki_rebuild.done.
 
 - [2026-07-19] 6차 감사 착수: 위키 전면 재빌드(73/73) 완료 후, 70법 감사를 18개 워크플로(그룹당 ~4법, cap2/wf⇒~36동시)로 롤링 실행. groupsPath=scratchpad/audit6_groups.json, round=6. 마커 audit_r6_<slug>.done. 완료 시 집계→_wiki_audit6.done→스코프내 full률로 DoD90% 판정. (nproc=4라 워크플로당 동시 2 — 35폭은 다워크플로로 확보)
+- [2026-07-19] 지식그래프·LINT(신경망) 심화결정 → MASTER_PLAN H절 신설: ①연결고리=graph.json+[[링크]]+타법연결+comparisons+백본, LINT=무결성검사기(dangling/asym/미등록노드/허브공백, lint2·lint_hubs·lint_index 기존존재) ②md→graph 파생(진실원천 md) ③3층 점진성장(백본 정의허브·테마허브·역링크) ④챗봇 멀티홉 리트리버·연결고리 노출·관리자 그래프뷰.
+- [2026-07-19] H-7 감사→통합수정(content+lint 동시)→재감사 루프 확정: 감사 gap을 입력으로 wiki_lag(옮기기)+연결결손(링크/백링크/허브/타법표)을 한 에이전트가 동시수정, 공유허브는 단독 재봉합. 7차부터 표준. audit_fix_cell 신규 필요. (구멍 재발 원인=rebuild만으론 연결 안 꿰맴)
+- [2026-07-19] H-8 ⚠REVIEW 채점보류: 감사는 미검증 ⚠REVIEW값 의존 질문을 채점 안 함→review_pending 별도집계. 인간검증 UI 후 재편입. audit_sim.js에 review_pending 추가.
+- [2026-07-19] H-9 lint를 자율(무인)루프 편입: 폰 꺼져도 자율사이클=감사→통합수정(content+lint)→공유허브 lint단독재봉합→재감사. AUTO_RUN_LOG에 lint 성과 복명. 트리거 프롬프트·G절 재인제스트에 lint 단계 추가 대상.
+- [2026-07-19] 6차 감사 운영: 그룹워크플로(4법묶음) 실패→사용자 지시대로 1법=1워크플로로 표준화. 구35 단일법배치+신35 재투입. 429/타임아웃 다수→부하낮을때 소규모 재투입으로 수렴. 중간집계(42법): raw full 11%(적대적재질문 원점수, DoD아님)·답변가능(full+thin) 48%·miss 다수가 wiki_lag(연결구멍).
