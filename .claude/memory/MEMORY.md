@@ -129,3 +129,4 @@
 - [2026-07-19] H-8 ⚠REVIEW 채점보류: 감사는 미검증 ⚠REVIEW값 의존 질문을 채점 안 함→review_pending 별도집계. 인간검증 UI 후 재편입. audit_sim.js에 review_pending 추가.
 - [2026-07-19] H-9 lint를 자율(무인)루프 편입: 폰 꺼져도 자율사이클=감사→통합수정(content+lint)→공유허브 lint단독재봉합→재감사. AUTO_RUN_LOG에 lint 성과 복명. 트리거 프롬프트·G절 재인제스트에 lint 단계 추가 대상.
 - [2026-07-19] 6차 감사 운영: 그룹워크플로(4법묶음) 실패→사용자 지시대로 1법=1워크플로로 표준화. 구35 단일법배치+신35 재투입. 429/타임아웃 다수→부하낮을때 소규모 재투입으로 수렴. 중간집계(42법): raw full 11%(적대적재질문 원점수, DoD아님)·답변가능(full+thin) 48%·miss 다수가 wiki_lag(연결구멍).
+- [2026-07-19] 6차 감사 완료 70/70 + 스코프-내 full률 산출(synth_scope 10워크플로). 결과: 원점수 full 9.8%·스코프-내 full률 11.0%(DoD 90% 미달)·full+thin 45.5%·스코프밖 11.4%. 원인=miss 대다수가 in-scope wiki_lag/연결결손(재료있음,조립미완). 편차 큼(수산부산물71%~수상레저기구등록0%). 마커 _wiki_audit6.done, 기록 _dashboard/AUDIT6_RESULT.md. 다음=7차 H-7 통합수정(content+lint)으로 상승.
