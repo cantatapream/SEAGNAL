@@ -3,4 +3,5 @@
 별표서식파일링크: https://law.go.kr/LSW/flDownload.do?flSeq=162376721
 별표서식PDF파일링크: https://law.go.kr/LSW/flDownload.do?flSeq=162376725
 
-[별표 1] 시설물 안전점검 업무흐름도
+[별표 1]
+시설물 안전점검 업무흐름도
