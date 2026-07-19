@@ -85,6 +85,7 @@ ${r2}
 - ❌ missing: 위키에 아예 없음(개념 페이지 부재)
 - 📛 collection_hole: 위키가 "고시/별표로 정함"이라는데 그 원문 수치가 없음(=수집 구멍)
 - 〰 awkward: 답은 되나 구조·점진공개·인용 규율이 매끄럽지 않음
+- 🔒 **review_pending(채점 보류)**: 아직 **사람이 검증하지 않은 ⚠REVIEW 데이터**(별표 이미지 OCR 판독값·판독수치 등)에 의존하는 질문은 **full/thin/missing/hole 어느 것으로도 채점하지 않고** 이 항목으로 **별도 집계**한다(정답으로도 오답으로도 세지 않음). 사유: 인간 검증 UI 미구축이라 그 값의 정오를 신뢰할 수 없음. 이 질문들은 **인간 검증 UI 완료·승인 후 재질문** 대상이다(지금 채점하면 미검증 값으로 위키를 잘못 판정하게 됨).
 
 ## ★4단계 — 답변방식 준수 감사 (이번 감사의 중점)
 질문 답변과 별개로, **우리가 대화로 요구한 답변 규칙이 이 법의 위키에 제대로 반영됐는지** 항목별로 점검한다. 각 항목 'ok'/'weak'/'missing'/'na'(해당없음):
@@ -101,7 +102,7 @@ ${r2}
 ## 5단계 — 상세 로그 저장 + 마커 + 요약 반환
 - 전체 질문·판정·근거 + **답변방식 준수 체크표**를 \`${LEGAL}/_dashboard/audit/${l.slug}.md\`에 저장.
 - ★완료 마커(필수): Bash로 \`mkdir -p ${LEGAL}/_dashboard/fix3 && printf 'r${round} done\\n' > "${LEGAL}/_dashboard/fix3/audit_r${round}_${l.slug}.done"\` 생성(라운드별 커버리지 추적용).
-- 반환(JSON): law, total_questions, by_type{T1..T7}, verdicts{...}, **method_compliance{정의우선,행정처분차수,벌칙항별구간,처벌정밀도,타법연결,프로필조건,점진공개구조,출처표기}**, method_notes[], wiki_gaps[], collection_holes[], answer_issues[], audit_file.
+- 반환(JSON): law, total_questions, by_type{T1..T7}, verdicts{...}, **review_pending**(⚠REVIEW 미검증 데이터라 채점 보류한 질문 수), **method_compliance{정의우선,행정처분차수,벌칙항별구간,처벌정밀도,타법연결,프로필조건,점진공개구조,출처표기}**, method_notes[], wiki_gaps[], collection_holes[], review_pending_items[](보류 질문 요지), answer_issues[], audit_file.
 
 정직하게 — 위키가 답 못 하거나 규칙 미반영이면 솔직히 missing/weak로 찍는다. 이 감사의 목적은 구멍을 찾는 것이다.`
 }
