@@ -1,6 +1,7 @@
 ---
 id: concept.배타적경제수역및대륙붕에관한법률.EEZ대륙붕범위와기선중간선정의
-status: canonical
+status: review-pending
+review_reason: 처벌·안전값 포함 — 사람 승인 대기(H-12② 소급, 2026-07-19)
 updated: 2026-07-19
 kind: definition-hub
 소관부처: 외교부
