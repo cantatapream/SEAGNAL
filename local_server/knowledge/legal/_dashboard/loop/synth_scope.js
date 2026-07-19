@@ -57,10 +57,13 @@ law, total_q(${law.q}), full(${law.full}), out_scope_q, out_breakdown{판례법�
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
 // 법 목록: 에이전트가 raw json 읽음
 const BOOT = { type: 'object', required: ['laws'], properties: { laws: { type: 'array', items: { type: 'object' } } } }
+const grp = (cfg.group !== undefined && cfg.group !== null) ? cfg.group : null
+const ng = cfg.ngroups || 10
+const filt = grp !== null ? `단, 법명을 가나다순 정렬 후 인덱스 i에 대해 i%${ng}==${grp}인 것만` : ''
 const boot = await agent(
   `\`${cfg.rawPath}\`(JSON: {법명: {q,full,thin,missing,collection_hole,awkward}, ...})와 \`${cfg.allLawsPath}\`(JSON 배열 [{name,slug},...])를 Read로 읽어라.
-반환(JSON): { laws: 두 파일을 조인해 [{name, slug, q, full, thin, missing, collection_hole, awkward}] 배열(rawPath의 각 법명을 allLawsPath에서 slug 매칭). rawPath에 있는 모든 법 포함(70개 목표) }.`,
-  { label: 'boot', phase: '스코프분류', schema: BOOT, effort: 'low' })
+반환(JSON): { laws: 두 파일을 조인해 [{name, slug, q, full, thin, missing, collection_hole, awkward}] 배열(rawPath의 각 법명을 allLawsPath에서 slug 매칭). ${filt} }.`,
+  { label: `boot-g${grp}`, phase: '스코프분류', schema: BOOT, effort: 'low' })
 const laws = (boot && boot.laws) || []
 log(`스코프분류 대상 ${laws.length}법`)
 
