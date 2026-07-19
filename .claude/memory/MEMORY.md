@@ -115,3 +115,10 @@
 - **병합**: merge_byl_ocr.py로 sidecar를 raw <img> 뒤에 【이미지판독 N】(원본이미지 경로+전사텍스트) 블록으로 삽입(128파일·1,000블록·단독실행=안전). → raw만으로 수치 읽기+도해 표시 가능.
 - 도구: dl_byl_images.sh(다운로드) · byl_image_ocr_cell.js(비전OCR·청크) · merge_byl_ocr.py(병합).
 - args는 워크플로에 문자열로 전달됨(probe 확인)→JSON.parse 필수.
+
+### 2026-07-18~19 (KST) ★자율실행·검증UI·자동재개 (사용자 확정)
+- **★세션 시작 시 자동복명(필수)**: 대화 시작하면 먼저 `local_server/knowledge/legal/_dashboard/AUTO_RUN_LOG.md`의 "미보고" 항목을 읽어, 자율 트리거가 사용자 부재 중 한 일(문제·수정·결과)을 **누락없이 총괄 복명** 후 "보고완료"로 옮긴다.
+- **★자동재개 트리거**: Routine(예약 트리거)로 2시간마다 이 세션 발화 → 마커기반(_wiki_rebuild/_wiki_synth/_wiki_audit6.done)으로 재빌드→종합→감사 자동 진행, 완료 시 자기삭제. 서버 발화라 폰 꺼도 됨. 매 자율사이클은 AUTO_RUN_LOG에 기록.
+- **★⚠REVIEW 인간검증 UI(설계)**: 관리센터 AI/챗봇탭에 검증대기 리스트 — 원문이미지 vs AI추출 대조, 이미지 전체화면 확대, 국가법령정보센터 링크+봐야할 위치 명시, 승인/반려. 챗봇 실가동 단계에서 배선. MASTER_PLAN Phase F.
+- **★개정 시 매니페스트 재생성→뿌리 재수집**: 개정감지→매니페스트 map_scope 재생성→재수집→재빌드→재감사 전사이클 자동. MASTER_PLAN Phase G.
+- **위키 전면 재빌드 완료 73/73**(71갱신+2무변경). rebuild-with-context로 감사정제 보존. 마커 _wiki_rebuild.done.
