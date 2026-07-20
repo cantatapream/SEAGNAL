@@ -285,6 +285,7 @@ app.use(require('./routes/vsby_smallzone')); // 해구별예측(소해구) 시�
 app.use(require('./routes/ocean5'));        // 해저지형/기타 해양 API
 app.use(require('./routes/tide_field'));    // 서해·남해 물빠짐(갯벌 노출) 예측 API (Phase 2)
 app.use(require('./routes/assistant'));     // AI 음성/텍스트 비서 (자연어 질문 → 실데이터 답변)
+app.use(require('./routes/legal'));          // 해양법령 챗봇(나리야) — 관리자 리뷰 검증 API + 현 DB 답변
 
 // ============================================================================
 // 4. 정기 작업 (Daily Cloud Backup)
