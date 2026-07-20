@@ -36,8 +36,11 @@ for path in glob.glob(f'{WIKI}/statutes/*.md')+glob.glob(f'{WIKI}/concepts/*.md'
     # 처벌 신호
     pen=bool(re.search(r'징역|벌금|과태료|영업정지|면허취소|자격정지',txt))
     themes=[t for t,ks in THEMES.items() if any(k in txt for k in ks)]
+    # status(승급상태): 챗봇 답변엔진 canonical 필터용. frontmatter 없으면 보수적으로 draft.
+    sm=re.search(r'^status:\s*(\S+)',txt,re.M)
+    status=sm.group(1).strip() if sm else 'draft'
     pages.append({'file':fn,'kind':kind,'slug':slug,'law':SLUG2NAME.get(slug,slug),
-                  'topic':topic,'cited':cited,'links':links,'byls':byls,'penalty':pen,'themes':themes})
+                  'topic':topic,'status':status,'cited':cited,'links':links,'byls':byls,'penalty':pen,'themes':themes})
 
 # 1) 테마 → 페이지 (2법 이상 걸린 테마만 허브 대상)
 theme_pages=collections.defaultdict(list)

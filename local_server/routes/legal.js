@@ -126,17 +126,33 @@ router.get('/api/legal/reviews', (req, res) => {
 const CONFIG_FILE = path.join(LEGAL_DIR, '_dashboard', 'nariya_config.json');
 function readConfig() {
   try { if (fs.existsSync(CONFIG_FILE)) return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch (_) {}
-  return { exposure: 'off' };
+  return {};
+}
+// 정규화: exposure는 off|admin|user(기본 off) · answerCanonicalOnly는 검증완료 후 켜는 스위치(기본 false).
+//   answerCanonicalOnly=false → 현행 동작(모든 페이지 검색). true → canonical만 답변 근거로(미검증 draft 차단).
+//   ⚠ true로 켜기 전 반드시 index.json을 status 포함 재빌드(lint_index.py)할 것 — 안 그러면 status 미기재로 전부 제외됨.
+function normConfig(c) {
+  return {
+    exposure: ['off', 'admin', 'user'].includes(c.exposure) ? c.exposure : 'off',
+    answerCanonicalOnly: c.answerCanonicalOnly === true,
+  };
 }
 router.get('/api/legal/config', (req, res) => {
-  const c = readConfig();
-  res.json({ ok: true, exposure: ['off', 'admin', 'user'].includes(c.exposure) ? c.exposure : 'off' });
+  res.json(Object.assign({ ok: true }, normConfig(readConfig())));
 });
 router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
-  const exposure = (req.body && req.body.exposure) || 'off';
-  if (!['off', 'admin', 'user'].includes(exposure)) return res.status(400).json({ ok: false, error: 'exposure는 off|admin|user' });
-  withLock(async () => { writeFileAtomic(CONFIG_FILE, JSON.stringify({ exposure, updatedAt: new Date().toISOString() }, null, 1)); return exposure; })
-    .then(v => res.json({ ok: true, exposure: v })).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
+  const b = req.body || {};
+  if (b.exposure !== undefined && !['off', 'admin', 'user'].includes(b.exposure))
+    return res.status(400).json({ ok: false, error: 'exposure는 off|admin|user' });
+  if (b.answerCanonicalOnly !== undefined && typeof b.answerCanonicalOnly !== 'boolean')
+    return res.status(400).json({ ok: false, error: 'answerCanonicalOnly는 true|false' });
+  withLock(async () => {
+    const cur = normConfig(readConfig());                       // 기존 필드 보존(머지) — 한 필드 갱신이 다른 필드 삭제 안 하게
+    if (b.exposure !== undefined) cur.exposure = b.exposure;
+    if (b.answerCanonicalOnly !== undefined) cur.answerCanonicalOnly = b.answerCanonicalOnly;
+    writeFileAtomic(CONFIG_FILE, JSON.stringify(Object.assign(cur, { updatedAt: new Date().toISOString() }), null, 1));
+    return cur;
+  }).then(v => res.json(Object.assign({ ok: true }, normConfig(v)))).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
 });
 
 // GET /api/legal/reviews/stats — 카운트
@@ -243,17 +259,22 @@ router.post('/api/legal/ask', (req, res) => {
     const q = String((req.body && req.body.query) || '').trim();
     if (!q) return res.status(400).json({ ok: false, error: 'query 필요' });
     const idx = loadIndex();
-    const pages = idx.pages || [];
+    let pages = idx.pages || [];
+    // ── canonical 안전필터(스위치) ──
+    //   answerCanonicalOnly=true면 **검증된 canonical 페이지만** 근거로 삼는다(미검증 draft가 사용자 답변에 새는 것 차단).
+    //   기본 false라 현행과 동일(전체 검색). 검증(초안승급) 충분히 쌓인 뒤 관리자가 config로 켠다. 취지: MASTER_PLAN E절.
+    const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
+    if (canonicalOnly) pages = pages.filter(p => p.kind !== 'concept' || p.status === 'canonical'); // statute는 통과, concept는 canonical만
     const terms = q.replace(/[^가-힣a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter(t => t.length >= 2);
     const scored = pages.map(p => {
       const hay = ((p.law || '') + ' ' + (p.topic || '') + ' ' + (p.file || '') + ' ' + (p.themes || []).join(' '));
       let s = 0; for (const t of terms) if (hay.includes(t)) s += (p.law && p.law.includes(t)) ? 2 : 1;
       return { p, s };
     }).filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 5);
-    res.json({ ok: true, query: q,
-      // ⚠ 현 단계는 검색 결과(근거 후보)만 반환. 실제 답변 합성(Gemini)·canonical 필터는 후속.
-      sources: scored.map(x => ({ file: x.p.file, law: x.p.law, topic: x.p.topic, kind: x.p.kind, score: x.s })),
-      note: '현 DB 검색 기반 근거 후보(답변 합성 LLM 연결은 후속 단계)' });
+    res.json({ ok: true, query: q, canonicalOnly,
+      // ⚠ 현 단계는 검색 결과(근거 후보)만 반환. 실제 답변 합성(Gemini)은 후속. canonical 필터는 위 스위치로 제어.
+      sources: scored.map(x => ({ file: x.p.file, law: x.p.law, topic: x.p.topic, kind: x.p.kind, status: x.p.status || null, score: x.s })),
+      note: canonicalOnly ? '검증(canonical) 근거만 반환' : '현 DB 검색 기반 근거 후보(canonical 필터 OFF·후속 단계)' });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
