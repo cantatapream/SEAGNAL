@@ -40,3 +40,8 @@ _(자율 사이클이 여기에 append. 예: "2026-07-19T14:27Z 종합단계: gl
 - [미보고 straggler] collect_r7 도선법 1건 미완(raw전용·비차단), xref_r7 해사안전기본법 1건 마커누락(내용은 이전 라운드 반영 추정, 재확인 대상). → 다음 fire에서 픽업.
 - [챗봇 UI] 사용자 요구로 CHATBOT_UI_PLAN.md 원장화 + 1화면 목업(client/mockups/ai_chat_rooms.html) 제작·게시. 승인 대기.
 - 다음: audit r7 70/70 완료시 synth_scope로 스코프내 full률 산출→6차(11.0%) 대비 집계·보고.
+
+## 2026-07-20 12:14 KST · 자율루프 fire — B안 앱구현 병행, 감사 오프타임 이월
+- 실측: fix_r8(A안 raw→위키 반영) **70/70 완료** · graph 재생성(88노드/index 996p) · _wiki_lint8 마킹(r7 전수린트+보강린트로 충분).
+- **audit_r8 이월**: KST 12시=활용시간(H-14→1워크스페이스만 허용, 비효율). 14M토큰급 전수감사는 **비활용(23시~)에 10x 병렬**로 돌리는 게 효율적 + 지금은 사용자 지시 B안 앱구현이 포그라운드 우선. → 다음 비활용 fire에서 audit_r8 착수(A안 효과 측정).
+- **B안 앱구현 진행**(포그라운드): 서버 routes/legal.js(리뷰 승인·교정→위키 canonical 반영) + index2.html AI탭 배선 완료 · 클라이언트 ai_chat.js/css 생성 중.
