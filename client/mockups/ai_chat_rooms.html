@@ -219,13 +219,26 @@
   .lawitem .lw-src{font-family:var(--mono); font-size:9.5px; color:#8296ac; font-weight:500}
   .lawitem .lw-c{font-size:11.8px; color:#bccbde; margin-top:5px; line-height:1.55}
   .lawitem .lw-more{margin-top:6px; font-size:10.5px; color:#a9c6ff}
-  /* 경위도 좌표 구역 → 지도 폴리곤 + 해양종합정보 연계 */
-  .zonemap{margin-top:10px; border-radius:10px; overflow:hidden; border:1px solid rgba(68,138,255,.3)}
-  .zonemap-canvas{position:relative; height:132px; background:linear-gradient(160deg,#0f2942,#0a1b2e); cursor:zoom-in}
+  /* 경위도 좌표 구역 → 지도 배경 위 폴리곤 + 탭하면 확대 팝업 */
+  .zonemap{margin-top:10px; border-radius:11px; overflow:hidden; border:1px solid rgba(105,240,174,.3)}
+  .zonemap-canvas{position:relative; height:150px; cursor:zoom-in; background:#0c2033}
   .zonemap-canvas svg{position:absolute; inset:0; width:100%; height:100%; display:block}
-  .zonemap-cap{font-size:10.5px; color:#a9c6ff; padding:7px 10px; background:rgba(68,138,255,.08); display:flex; align-items:center; gap:5px}
-  .zonemap-link{display:flex; align-items:center; justify-content:space-between; width:100%; border:none; border-top:1px solid rgba(255,255,255,.08); background:rgba(68,138,255,.16); color:#a9c6ff; font-family:inherit; font-size:11.5px; font-weight:700; padding:10px 12px; cursor:pointer}
-  .zonemap-link:active{background:rgba(68,138,255,.28)}
+  .zonemap-tap{position:absolute; top:8px; right:8px; font-size:10.5px; font-weight:700; color:#cfe0f5; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:4px 9px; z-index:2}
+  .zonemap-cap{font-size:10.5px; color:#a9c6ff; padding:8px 10px; background:rgba(105,240,174,.07); line-height:1.5}
+  /* 확대 팝업(핀치줌) */
+  .mapmodal{position:fixed; inset:0; z-index:2000; display:none; flex-direction:column; background:#06121f}
+  .mapmodal.open{display:flex}
+  .mapmodal-bar{display:flex; align-items:center; gap:8px; padding:11px 12px; background:rgba(9,20,34,.96); border-bottom:1px solid var(--border-color)}
+  .mapmodal-tabs{display:flex; gap:6px; flex:1}
+  .mm-tab{border:1px solid var(--border-color); background:rgba(255,255,255,.05); color:var(--text-sub); font-family:inherit; font-size:12px; font-weight:600; padding:8px 12px; border-radius:16px; cursor:pointer; white-space:nowrap}
+  .mm-tab.on{background:rgba(105,240,174,.16); border-color:#69f0ae; color:#8fe6bb}
+  .mapmodal-x{width:34px;height:34px;flex:0 0 auto;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:#cfe2f3;font-size:16px;cursor:pointer}
+  .mapmodal-stage{flex:1; overflow:hidden; position:relative; touch-action:none; background:#0c2033}
+  .mapmodal-inner{position:absolute; inset:0; transform-origin:0 0; will-change:transform}
+  .mapmodal-inner svg{width:100%; height:100%; display:block}
+  .mapmodal-hint{position:absolute; left:0; right:0; bottom:12px; text-align:center; font-size:11px; color:#8296ac; pointer-events:none}
+  .mapmodal-zoom{position:absolute; right:12px; bottom:40px; display:flex; flex-direction:column; gap:6px}
+  .mapmodal-zoom button{width:38px;height:38px;border-radius:10px;border:1px solid var(--border-color);background:rgba(9,20,34,.9);color:#cfe2f3;font-size:19px;cursor:pointer}
   .sk-line{height:9px; border-radius:5px; margin-bottom:7px; background:linear-gradient(90deg,rgba(255,255,255,.08) 25%,rgba(255,255,255,.18) 37%,rgba(255,255,255,.08) 63%); background-size:400% 100%; animation:sk 1.3s ease infinite}
   .sk-line:last-of-type{margin-bottom:0}
   @keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
@@ -291,6 +304,22 @@
     <button class="tab"><span class="em">📢</span><span>공지사항</span></button>
     <button class="tab active"><span class="em">🤖</span><span>AI 챗봇</span></button>
   </nav>
+</div>
+
+<!-- 좌표 구역 확대 지도 팝업(핀치줌 + 해양종합정보 연계) -->
+<div class="mapmodal" id="mapModal">
+  <div class="mapmodal-bar">
+    <div class="mapmodal-tabs">
+      <button class="mm-tab on" data-mm="here">📍 현재 화면에서 보기</button>
+      <button class="mm-tab" data-mm="ocean">🗺 해양종합정보 탭에서 보기</button>
+    </div>
+    <button class="mapmodal-x" id="mapModalX">✕</button>
+  </div>
+  <div class="mapmodal-stage" id="mapStage">
+    <div class="mapmodal-inner" id="mapInner"></div>
+    <div class="mapmodal-zoom"><button data-z="in">＋</button><button data-z="out">－</button></div>
+    <div class="mapmodal-hint">두 손가락으로 확대·축소 · 드래그로 이동</div>
+  </div>
 </div>
 
 <div class="chat-wrap" id="chatWrap">
@@ -468,6 +497,21 @@ document.getElementById('fab').addEventListener('click',function(){ wrap.classLi
 document.getElementById('chatX').addEventListener('click',function(){ wrap.classList.remove('open'); });
 var body=document.getElementById('chatBody'), input=document.getElementById('chatInput');
 var STEPS=['생각하고 있습니다','관련 법령을 찾고 있습니다','조문 구조를 확인하고 있습니다','답변을 정리하고 있습니다'];
+// 재사용 지도 SVG: 해안선 + 위경도 격자 + 좌표 폴리곤(정교) + 좌표 라벨
+var MAPSVG='<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">'+
+  '<rect width="320" height="180" fill="#0c2033"/>'+
+  '<path d="M0,0 L58,0 Q92,38 66,72 Q48,96 80,128 Q98,158 72,180 L0,180 Z" fill="#173245" stroke="rgba(120,190,150,.45)" stroke-width="1.2"/>'+
+  '<g stroke="rgba(160,190,220,.10)" stroke-width="1"><line x1="90" y1="0" x2="90" y2="180"/><line x1="160" y1="0" x2="160" y2="180"/><line x1="230" y1="0" x2="230" y2="180"/><line x1="0" y1="60" x2="320" y2="60"/><line x1="0" y1="120" x2="320" y2="120"/></g>'+
+  '<text x="162" y="12" fill="#6f8aa3" font-size="8" font-family="monospace">128°30′E</text>'+
+  '<text x="232" y="12" fill="#6f8aa3" font-size="8" font-family="monospace">129°00′E</text>'+
+  '<text x="3" y="58" fill="#6f8aa3" font-size="8" font-family="monospace">38°34′N</text>'+
+  '<text x="3" y="118" fill="#6f8aa3" font-size="8" font-family="monospace">38°10′N</text>'+
+  '<polygon points="150,44 236,58 250,112 172,134 126,86" fill="rgba(105,240,174,.22)" stroke="#69f0ae" stroke-width="2"/>'+
+  '<text x="182" y="94" fill="#8fe6bb" font-size="11" font-weight="bold" font-family="sans-serif">조업 가능</text>'+
+  '<g fill="#ff6b6b" stroke="#fff" stroke-width="1"><circle cx="150" cy="44" r="3.6"/><circle cx="236" cy="58" r="3.6"/><circle cx="250" cy="112" r="3.6"/><circle cx="172" cy="134" r="3.6"/><circle cx="126" cy="86" r="3.6"/></g>'+
+  '<text x="150" y="37" fill="#e6f1ff" font-size="7.5" font-family="monospace" text-anchor="middle">38°34′09″N 128°30′06″E</text>'+
+  '<text x="16" y="150" fill="#9fceb0" font-size="9.5" font-family="sans-serif">강원 연안</text>'+
+  '</svg>';
 function send(){
   var q=(input.value||'').trim(); if(!q) q='특정해역에서 야간 조업 제한이 있어?';
   var me=document.createElement('div'); me.className='krow me';
@@ -489,15 +533,8 @@ function send(){
         '<div class="lawitem"><div class="lw-t"><span>해상교통안전법 제5조 (교통안전특정해역)</span><span class="lw-src">시행 24.7.26</span></div><div class="lw-c">"해양수산부장관은 해상교통량이 많거나 위험화물운반선의 통항이 잦은 해역으로서… 교통안전특정해역으로 지정할 수 있다."</div><div class="lw-more">원문 보기 ›</div></div>'+
         '<div class="lawitem"><div class="lw-t"><span>수산업법 — 어업 조정 (관련)</span><span class="lw-src">연계</span></div><div class="lw-c">특정해역 내 어업 제한은 수산업법상 조업수역·어업조정 명령과 연계됩니다.</div><div class="lw-more">원문 보기 ›</div></div>'+
       '</div></div>'+
-      '<div class="zonemap"><div class="zonemap-canvas">'+
-        '<svg viewBox="0 0 300 132" preserveAspectRatio="none">'+
-          '<g stroke="rgba(255,255,255,.05)" stroke-width="1"><line x1="75" y1="0" x2="75" y2="132"/><line x1="150" y1="0" x2="150" y2="132"/><line x1="225" y1="0" x2="225" y2="132"/><line x1="0" y1="44" x2="300" y2="44"/><line x1="0" y1="88" x2="300" y2="88"/></g>'+
-          '<path d="M0,0 L70,0 Q95,35 60,60 T90,132 L0,132 Z" fill="rgba(105,240,174,.10)" stroke="rgba(105,240,174,.35)" stroke-width="1.5"/>'+
-          '<polygon points="150,26 232,42 246,92 168,110 128,66" fill="rgba(68,138,255,.30)" stroke="#448aff" stroke-width="2"/>'+
-          '<circle cx="190" cy="66" r="4.5" fill="#ffe14d" stroke="#231c00" stroke-width="1"/>'+
-        '</svg></div>'+
-        '<div class="zonemap-cap">📍 교통안전특정해역 · 시행령 별표1 경위도 좌표 기반 · 탭하면 확대</div>'+
-        '<button class="zonemap-link">🗺 해양종합정보 탭에서 위치 보기 <span>›</span></button>'+
+      '<div class="zonemap"><div class="zonemap-canvas" data-mapopen="1">'+MAPSVG+'<span class="zonemap-tap">⤢ 탭하면 확대</span></div>'+
+        '<div class="zonemap-cap">📍 별표3(조업한계선 인근) · <b>GPS 경위도로 정의된 구역</b>이라 실제 지도 위에 폴리곤 표시 · 탭하면 확대(핀치줌)·해양종합정보 연계</div>'+
       '</div>'+
       '<div class="tel">📞 소관: 해양수산부 해사안전정책과 044-200-XXXX</div>'+
       '<div class="disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요. · 해상교통안전법 2024-07-26 기준</div>'+
@@ -507,15 +544,36 @@ function send(){
 }
 document.getElementById('chatSend').addEventListener('click',send);
 input.addEventListener('keydown',function(e){ if(e.key==='Enter') send(); });
-// 답변 근거 법령 아코디언 토글 + 해양종합정보 딥링크(동적 답변 포함 — 위임)
+// 답변 근거 법령 아코디언 토글 + 지도 구역 탭→확대팝업(동적 답변 포함 — 위임)
 body.addEventListener('click',function(e){
   var h=e.target.closest('.lawacc-h'); if(h){ h.parentElement.classList.toggle('open'); return; }
-  var z=e.target.closest('.zonemap-link'); if(z){                       // 경위도 구역 → 해양종합정보 탭 연계
-    wrap.classList.remove('open');
-    var tabs=document.querySelectorAll('.tabbar .tab'); tabs.forEach(function(t){t.classList.remove('active')});
-    if(tabs[1]) tabs[1].classList.add('active');
-  }
+  var mo=e.target.closest('[data-mapopen]'); if(mo){ openMap(); }
 });
+
+/* 좌표 구역 지도 팝업 + 핀치/드래그 줌 */
+var mapModal=document.getElementById('mapModal'), mapInner=document.getElementById('mapInner'), mapStage=document.getElementById('mapStage');
+var mScale=1,mX=0,mY=0;
+function applyMap(){ mapInner.style.transform='translate('+mX+'px,'+mY+'px) scale('+mScale+')'; }
+function resetMap(){ mScale=1;mX=0;mY=0;applyMap(); }
+function openMap(){ mapInner.innerHTML=MAPSVG; resetMap(); mapModal.classList.add('open'); }
+document.getElementById('mapModalX').addEventListener('click',function(){ mapModal.classList.remove('open'); });
+document.querySelectorAll('.mm-tab').forEach(function(b){ b.addEventListener('click',function(){
+  if(b.dataset.mm==='ocean'){ mapModal.classList.remove('open'); wrap.classList.remove('open');   // 해양종합정보 탭으로 이동(폴리곤 표시 상태)
+    var tabs=document.querySelectorAll('.tabbar .tab'); tabs.forEach(function(t){t.classList.remove('active')}); if(tabs[1]) tabs[1].classList.add('active');
+  } else { document.querySelectorAll('.mm-tab').forEach(function(x){x.classList.remove('on')}); b.classList.add('on'); }
+}); });
+document.querySelectorAll('.mapmodal-zoom button').forEach(function(b){ b.addEventListener('click',function(){ mScale=Math.max(1,Math.min(6, mScale*(b.dataset.z==='in'?1.35:1/1.35))); applyMap(); }); });
+var pts={}, startDist=0, startScale=1, lastX=0,lastY=0, dragging=false;
+function dist(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
+mapStage.addEventListener('pointerdown',function(e){ mapStage.setPointerCapture(e.pointerId); pts[e.pointerId]={x:e.clientX,y:e.clientY};
+  var ids=Object.keys(pts); if(ids.length===2){ startDist=dist(pts[ids[0]],pts[ids[1]]); startScale=mScale; } else { dragging=true; lastX=e.clientX; lastY=e.clientY; } });
+mapStage.addEventListener('pointermove',function(e){ if(!pts[e.pointerId]) return; pts[e.pointerId]={x:e.clientX,y:e.clientY};
+  var ids=Object.keys(pts);
+  if(ids.length===2){ var d=dist(pts[ids[0]],pts[ids[1]]); if(startDist>0){ mScale=Math.max(1,Math.min(6,startScale*d/startDist)); applyMap(); } }
+  else if(dragging){ mX+=e.clientX-lastX; mY+=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY; applyMap(); } });
+function endPtr(e){ delete pts[e.pointerId]; if(Object.keys(pts).length<2) startDist=0; if(Object.keys(pts).length===0) dragging=false; }
+mapStage.addEventListener('pointerup',endPtr); mapStage.addEventListener('pointercancel',endPtr);
+mapStage.addEventListener('wheel',function(e){ e.preventDefault(); mScale=Math.max(1,Math.min(6, mScale*(e.deltaY<0?1.12:1/1.12))); applyMap(); },{passive:false});
 
 /* 초기 렌더 */
 renderRoomPills('원문'); renderRoom('원문');
