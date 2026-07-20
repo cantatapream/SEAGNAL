@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>나리야 법령 리뷰 검토</title>
+<!--
+  역할: 관리자가 ⚠REVIEW(사람 검증 대기) 항목을 폰·PC 브라우저에서 크고 읽기 좋게 확인하고
+        승인/반려/값교정하는 독립 페이지. 앱 관리자센터보다 가독성 우선.
+  [연계] 서버 GET /api/legal/reviews · POST /api/legal/reviews/:id/approve · POST /api/admin/login
+  [인증] X-Admin-Token(localStorage 'seagnal_admin_token' 공유). 없으면 비밀번호 로그인.
+  경로: staticRoot=client → /legal_review.html 로 서빙됨.
+-->
+<style>
+  :root{
+    --bg:#0b1220; --card:#161d30; --card2:#1b2338; --line:rgba(255,255,255,.1);
+    --txt:#eaf1fb; --sub:#93a4bd; --blue:#5a9bff; --green:#69f0ae; --yellow:#ffd740; --red:#ff6b6b;
+    --font:'Inter','Noto Sans KR',system-ui,-apple-system,sans-serif; --mono:'Roboto Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:radial-gradient(120% 90% at 50% 0%,#1a2440,#0b1220 60%) fixed,#0b1220; color:var(--txt);
+    font-family:var(--font); line-height:1.6; font-size:16px; -webkit-text-size-adjust:100%}
+  .wrap{max-width:820px; margin:0 auto; padding:16px 16px 80px}
+  a{color:var(--blue)}
+  /* 헤더 */
+  header{position:sticky; top:0; z-index:10; background:rgba(11,18,32,.92); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line); margin:0 -16px 14px; padding:14px 16px}
+  .h-top{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .h-mark{width:34px;height:34px;border-radius:10px;flex:0 0 auto;display:grid;place-items:center;
+    background:linear-gradient(135deg,#5a9bff,#22d3ee);color:#04122e;font-weight:800}
+  .h-t{font-size:18px;font-weight:800}
+  .h-s{font-size:12.5px;color:var(--sub)}
+  .stats{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap}
+  .stat{font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:20px; border:1px solid var(--line)}
+  .stat.pend{color:var(--yellow); background:rgba(255,215,64,.1); border-color:rgba(255,215,64,.3)}
+  .stat.done{color:var(--green); background:rgba(105,240,174,.1); border-color:rgba(105,240,174,.3)}
+  .stat.all{color:var(--sub); background:rgba(255,255,255,.04)}
+  .toolbar{display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap}
+  .seg{display:flex; gap:4px; background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:10px; padding:4px}
+  .seg button{border:none;background:none;color:var(--sub);font:inherit;font-size:13px;font-weight:700;padding:7px 13px;border-radius:7px;cursor:pointer}
+  .seg button.on{background:var(--blue);color:#04122e}
+  .btn{border:none; border-radius:9px; font:inherit; font-weight:700; cursor:pointer; padding:8px 13px}
+  .btn.ghost{background:rgba(255,255,255,.06); color:var(--txt); border:1px solid var(--line)}
+  /* 로그인 */
+  #login{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; max-width:420px; margin:40px auto; text-align:center}
+  #login h2{margin:0 0 6px; font-size:17px}
+  #login p{color:var(--sub); font-size:13px; margin:0 0 16px}
+  #login input{width:100%; background:#0e1524; border:1px solid var(--line); border-radius:10px; padding:12px 14px; color:#fff; font:inherit; font-size:16px; outline:none; margin-bottom:10px}
+  #login input:focus{border-color:var(--blue)}
+  #login button{width:100%; background:var(--blue); color:#04122e; padding:12px; border-radius:10px; border:none; font:inherit; font-weight:800; font-size:16px; cursor:pointer}
+  #login .err{color:var(--red); font-size:13px; min-height:18px; margin-top:8px}
+  /* 리뷰 카드 */
+  .rv{background:var(--card); border:1px solid var(--line); border-radius:15px; padding:16px 16px 14px; margin-bottom:16px; box-shadow:0 4px 14px rgba(0,0,0,.25)}
+  .rv.done{opacity:.62}
+  .rv-top{display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-bottom:8px}
+  .rv-id{font-family:var(--mono); font-size:11px; color:#04122e; background:var(--yellow); border-radius:6px; padding:3px 8px; font-weight:700}
+  .rv-law{font-size:12.5px; color:var(--blue); font-weight:700; background:rgba(90,155,255,.12); border:1px solid rgba(90,155,255,.3); border-radius:14px; padding:3px 10px}
+  .rv-st{margin-left:auto; font-size:11.5px; font-weight:800; padding:4px 10px; border-radius:12px}
+  .rv-st.wait{color:var(--yellow); background:rgba(255,215,64,.12)}
+  .rv-st.ok{color:var(--green); background:rgba(105,240,174,.14)}
+  .rv-st.no{color:var(--red); background:rgba(255,107,107,.14)}
+  .rv-title{font-size:17px; font-weight:800; line-height:1.4; margin:2px 0 12px; word-break:keep-all}
+  /* 구조 필드 */
+  .fld{display:flex; gap:9px; padding:9px 0; border-top:1px solid rgba(255,255,255,.06)}
+  .fld-k{flex:0 0 auto; font-size:12.5px; font-weight:800; color:var(--sub); width:96px}
+  .fld-v{flex:1; font-size:14.5px; color:#dbe7f6; word-break:break-word}
+  .fld-v.ai{color:#cfe0ff}
+  .pages{font-family:var(--mono); font-size:12px; color:#9fb4d6}
+  /* 검증 링크 */
+  .links{display:flex; flex-direction:column; gap:6px; margin-top:4px}
+  .links a{display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; text-decoration:none;
+    color:#8bd0ff; background:rgba(90,155,255,.1); border:1px solid rgba(90,155,255,.28); border-radius:9px; padding:8px 11px; word-break:break-all}
+  .links a.img{color:var(--green); background:rgba(105,240,174,.08); border-color:rgba(105,240,174,.28)}
+  /* 교정 입력 + 액션 */
+  .correct{margin-top:13px; background:rgba(90,155,255,.06); border:1px solid rgba(90,155,255,.25); border-radius:11px; padding:12px}
+  .correct label{font-size:12.5px; font-weight:800; color:var(--sub); display:block; margin-bottom:7px}
+  .correct .hint{font-size:12px; color:var(--sub); margin-bottom:9px; line-height:1.5}
+  .correct input{width:100%; background:#0e1524; border:1.5px solid var(--blue); border-radius:9px; padding:11px 13px; color:#fff; font-family:var(--mono); font-size:17px; font-weight:700; outline:none}
+  .correct input:focus{border-color:var(--green); box-shadow:0 0 0 3px rgba(105,240,174,.15)}
+  .acts{display:flex; gap:9px; margin-top:12px}
+  .acts button{flex:1; border:none; border-radius:10px; font:inherit; font-weight:800; font-size:15px; padding:13px 0; cursor:pointer}
+  .b-ok{background:var(--green); color:#053824}
+  .b-no{background:rgba(255,107,107,.15); color:#ff9e9e; border:1px solid rgba(255,107,107,.4) !important}
+  .res{margin-top:11px; font-size:13.5px; padding:11px 13px; border-radius:10px; line-height:1.5; display:none}
+  .res.show{display:block}
+  .res.ok{color:#bfe9d4; background:rgba(105,240,174,.08); border:1px solid rgba(105,240,174,.28)}
+  .res.warn{color:#ffe082; background:rgba(255,215,64,.08); border:1px solid rgba(255,215,64,.3)}
+  .res.err{color:#ff9e9e; background:rgba(255,107,107,.08); border:1px solid rgba(255,107,107,.3)}
+  .empty{text-align:center; color:var(--sub); padding:60px 20px; font-size:15px}
+  .foot{text-align:center; color:#5b6b86; font-size:12px; padding:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="h-top">
+      <div class="h-mark">나</div>
+      <div style="flex:1;min-width:0"><div class="h-t">나리야 법령 리뷰 검토</div><div class="h-s">⚠REVIEW 사람 검증 · 승인/교정 시 위키에 자동 반영</div></div>
+      <button class="btn ghost" id="logoutBtn" style="display:none">로그아웃</button>
+    </div>
+    <div class="stats" id="stats" style="display:none">
+      <span class="stat pend" id="st-pend">대기 –</span>
+      <span class="stat done" id="st-done">승인 –</span>
+      <span class="stat all" id="st-all">전체 –</span>
+    </div>
+    <div class="toolbar" id="toolbar" style="display:none">
+      <div class="seg"><button data-f="pending" class="on">검토 대기</button><button data-f="approved">승인됨</button><button data-f="all">전체</button></div>
+      <button class="btn ghost" id="refreshBtn">↻ 새로고침</button>
+    </div>
+  </header>
+
+  <div id="login">
+    <h2>🔒 관리자 확인</h2>
+    <p>리뷰 검토는 관리자 전용입니다. 관리자 비밀번호를 입력하세요.</p>
+    <input type="password" id="pw" placeholder="관리자 비밀번호" autocomplete="current-password">
+    <button id="loginBtn">로그인</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+
+  <div id="list"></div>
+  <div class="foot" id="foot" style="display:none">나리야 법령 리뷰 · 승인은 review_queue 기록 + 위키 canonical 승격 + 확정값 반영으로 이어집니다.</div>
+</div>
+
+<script>
+(function(){
+  var TKEY='seagnal_admin_token';
+  var token=null; try{ token=localStorage.getItem(TKEY); }catch(e){}
+  var curFilter='pending';
+  var $=function(id){return document.getElementById(id);};
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  function api(path, opts){
+    opts=opts||{}; opts.headers=opts.headers||{};
+    if(token) opts.headers['X-Admin-Token']=token;
+    if(opts.body && typeof opts.body!=='string'){ opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(opts.body); }
+    return fetch(path, opts).then(function(r){ return r.json().then(function(j){ return {status:r.status, j:j}; }); });
+  }
+
+  // ── 로그인 ──
+  function showLogin(msg){ $('login').style.display='block'; $('stats').style.display='none'; $('toolbar').style.display='none';
+    $('foot').style.display='none'; $('logoutBtn').style.display='none'; $('list').innerHTML=''; if(msg) $('loginErr').textContent=msg; }
+  function showApp(){ $('login').style.display='none'; $('stats').style.display='flex'; $('toolbar').style.display='flex';
+    $('foot').style.display='block'; $('logoutBtn').style.display='inline-block'; }
+  function doLogin(){
+    var pw=$('pw').value; $('loginErr').textContent='';
+    fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw,longTerm:true})})
+      .then(function(r){return r.json().then(function(j){return {status:r.status,j:j};});})
+      .then(function(x){ if(x.status===200 && x.j.token){ token=x.j.token; try{localStorage.setItem(TKEY,token);}catch(e){} showApp(); load(); }
+        else $('loginErr').textContent=(x.j&&x.j.error)||'로그인 실패'; })
+      .catch(function(){ $('loginErr').textContent='서버에 연결할 수 없습니다.'; });
+  }
+  $('loginBtn').onclick=doLogin;
+  $('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') doLogin(); });
+  $('logoutBtn').onclick=function(){ token=null; try{localStorage.removeItem(TKEY);}catch(e){} showLogin(); };
+
+  // ── 통계 ──
+  function loadStats(){ api('/api/legal/reviews/stats').then(function(x){ if(x.j&&x.j.ok){
+    $('st-pend').textContent='대기 '+x.j.pending; $('st-done').textContent='승인 '+x.j.approved; $('st-all').textContent='전체 '+x.j.total; } }); }
+
+  // ── 목록 로드/렌더 ──
+  function load(){
+    loadStats();
+    $('list').innerHTML='<div class="empty">불러오는 중…</div>';
+    api('/api/legal/reviews?status='+curFilter).then(function(x){
+      if(x.status===401||x.status===403){ showLogin('세션이 만료됐습니다. 다시 로그인하세요.'); return; }
+      if(!x.j||!x.j.ok){ $('list').innerHTML='<div class="empty">'+esc((x.j&&x.j.error)||'불러오기 실패')+'</div>'; return; }
+      var rv=x.j.reviews||[];
+      if(!rv.length){ $('list').innerHTML='<div class="empty">'+(curFilter==='pending'?'검토 대기 항목이 없습니다 🎉':'항목이 없습니다')+'</div>'; return; }
+      $('list').innerHTML=rv.map(card).join('');
+      bind();
+    }).catch(function(){ $('list').innerHTML='<div class="empty">서버에 연결할 수 없습니다.</div>'; });
+  }
+
+  var FIELD_ICON={'AI 연결 내용':'🧠 AI 분석','문제':'🧠 AI 분석','확인 필요':'🔍 확인 필요','근거':'📎 근거','필요 조치':'🛠 필요 조치','still_missing':'⏳ 미수집'};
+  var FIELD_ORDER=['AI 연결 내용','문제','확인 필요','근거','필요 조치','still_missing'];
+  function card(r){
+    var f=r.fields||{}; var rows='';
+    var seen={};
+    FIELD_ORDER.forEach(function(k){ if(f[k]&&!seen[FIELD_ICON[k]]){ seen[FIELD_ICON[k]]=1;
+      rows+='<div class="fld"><div class="fld-k">'+esc(FIELD_ICON[k]||k)+'</div><div class="fld-v'+(FIELD_ICON[k]&&FIELD_ICON[k].indexOf('AI')>=0?' ai':'')+'">'+esc(f[k])+'</div></div>'; } });
+    // 대상 페이지
+    if(r.targetPages&&r.targetPages.length)
+      rows+='<div class="fld"><div class="fld-k">📄 대상</div><div class="fld-v pages">'+esc(r.targetPages.join(' · '))+'</div></div>';
+    // 검증 링크
+    var links='';
+    (r.urls||[]).forEach(function(u){ var isImg=/flDownload|\.(png|jpe?g|gif|hwp|pdf)(\?|$)/i.test(u);
+      links+='<a href="'+esc(u)+'" target="_blank" rel="noopener" class="'+(isImg?'img':'')+'">'+(isImg?'🖼 원본/이미지 열기':'🔗 원문 링크')+'</a>'; });
+    if(links) rows+='<div class="fld"><div class="fld-k">🔗 검증</div><div class="fld-v"><div class="links">'+links+'</div></div></div>';
+    // 승인/반려 or 상태
+    var body;
+    if(r.approved){ body='<div class="rv-st ok" style="margin:0">✓ 승인·canonical</div>'; }
+    else {
+      body='<div class="correct"><label>확정 값 (원본 확인 후 필요하면 수정)</label>'+
+        '<div class="hint">AI 판독/추론값이 맞으면 그대로, 틀리면 올바른 값으로 고쳐 승인하세요.</div>'+
+        '<input class="cin" placeholder="예: 10 (또는 값 없이 승인)"></div>'+
+        '<div class="acts"><button class="b-ok" data-id="'+esc(r.id)+'">✓ 승인 (입력값 확정)</button>'+
+        '<button class="b-no" data-id="'+esc(r.id)+'">✗ 반려</button></div>'+
+        '<div class="res" data-res="'+esc(r.id)+'"></div>';
+    }
+    return '<div class="rv'+(r.approved?' done':'')+'" data-card="'+esc(r.id)+'">'+
+      '<div class="rv-top"><span class="rv-id">'+esc(r.id)+'</span><span class="rv-law">'+esc(r.law)+'</span>'+
+      '<span class="rv-st '+(r.approved?'ok':'wait')+'">'+(r.approved?'승인됨':'검토 대기')+'</span></div>'+
+      '<div class="rv-title">'+esc(r.title)+'</div>'+rows+body+'</div>';
+  }
+
+  function bind(){
+    document.querySelectorAll('.b-ok').forEach(function(b){ b.onclick=function(){ act(b,'approve'); }; });
+    document.querySelectorAll('.b-no').forEach(function(b){ b.onclick=function(){ act(b,'reject'); }; });
+  }
+  function act(btn, decision){
+    var id=btn.dataset.id; var card=document.querySelector('[data-card="'+CSS.escape(id)+'"]');
+    var input=card.querySelector('.cin'); var val=input?input.value.trim():'';
+    var res=card.querySelector('[data-res="'+CSS.escape(id)+'"]');
+    card.querySelectorAll('button').forEach(function(x){x.disabled=true;});
+    api('/api/legal/reviews/'+encodeURIComponent(id)+'/approve',{method:'POST',body:{decision:decision,correctedValue:val,by:'관리자'}})
+      .then(function(x){
+        if(x.status===401||x.status===403){ showLogin('세션 만료 — 다시 로그인'); return; }
+        var j=x.j||{};
+        if(!j.ok){ res.className='res show err'; res.textContent='실패: '+(j.error||x.status); card.querySelectorAll('button').forEach(function(y){y.disabled=false;}); return; }
+        if(decision==='reject'){ res.className='res show warn'; res.textContent='↩ 반려 처리 (재검토 큐 유지)'; }
+        else if((j.promotedCount||0)>0){ res.className='res show ok'; res.textContent='✓ 승인 — '+j.promotedCount+'개 페이지 canonical 승격'+(val?(' · 확정값: '+val):'')+' · '+(j.note||''); }
+        else { res.className='res show warn'; res.textContent='⚠ '+(j.note||'승인은 기록됐으나 승격된 페이지 0건 — 대상 페이지 확인 필요'); }
+        var st=card.querySelector('.rv-st'); if(st){ st.className='rv-st '+(decision==='reject'?'no':'ok'); st.textContent=decision==='reject'?'반려':'승인됨'; }
+        loadStats();
+      }).catch(function(){ res.className='res show err'; res.textContent='서버 연결 실패'; card.querySelectorAll('button').forEach(function(y){y.disabled=false;}); });
+  }
+
+  // 필터/새로고침
+  document.querySelectorAll('.seg button').forEach(function(b){ b.onclick=function(){
+    document.querySelectorAll('.seg button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); curFilter=b.dataset.f; load(); }; });
+  $('refreshBtn').onclick=load;
+
+  // 시작
+  if(token){ showApp(); load(); } else { showLogin(); }
+})();
+</script>
+</body>
+</html>
