@@ -62,10 +62,13 @@ function parseReviewQueue() {
   const entries = [];
   let cur = null;
   for (const line of lines) {
-    const m = line.match(/^###\s+(REVIEW-(.+?)-(\d+)):\s*(.*)$/);
+    // 헤더 id는 콜론 앞 전체(끝이 -숫자가 아니어도 인식: 예 'REVIEW-야간운항-3법')
+    const m = line.match(/^###\s+(REVIEW-.+?):\s*(.*)$/);
     if (m) {
       if (cur) entries.push(cur);
-      cur = { id: m[1], law: m[2], num: m[3], title: m[4].trim(), targetPages: [], body: '', approved: false, approvedMeta: '' };
+      const id = m[1];
+      const law = id.replace(/^REVIEW-/, '').replace(/-\d+$/, '');
+      cur = { id, law, title: m[2].trim(), targetPages: [], body: '', approved: false, approvedMeta: '' };
       continue;
     }
     if (!cur) continue;
@@ -110,18 +113,27 @@ router.get('/api/legal/reviews/stats', (req, res) => {
  */
 function applyToWikiPages(targetPages, correctedValue, reviewId, by, dateStr) {
   const changed = [];
-  for (const raw of targetPages) {
-    // "wiki/concepts/파일.md" 또는 "파일" 형태 모두 허용
-    let base = raw.replace(/^wiki\/concepts\//, '').replace(/\.md$/, '').trim();
+  let lastLawSlug = '';
+  const root = path.resolve(CONCEPTS_DIR) + path.sep;
+  const escId = reviewId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const rawTp of targetPages) {
+    // 파일 경로만 추출: "wiki/concepts/" 접두 제거 + ".md" 이후 주석("(신규)"·설명) 절단
+    let base = String(rawTp).replace(/^wiki\/concepts\//, '').trim();
+    base = base.replace(/\.md\b[\s\S]*$/, '').trim();
+    if (!base) continue;
+    // 멀티페이지 약칭("__개념" — 법 접두사 없음)은 직전 페이지의 법 slug 상속
+    if (base.startsWith('__') && lastLawSlug) base = lastLawSlug + base;
+    else lastLawSlug = base.split('__')[0];
     const fp = path.join(CONCEPTS_DIR, base + '.md');
+    if (!path.resolve(fp).startsWith(root)) continue;        // 경로 봉쇄(../ 상위 탈출 차단)
     if (!fs.existsSync(fp)) continue;
     let md = fs.readFileSync(fp, 'utf8');
     // frontmatter status 승격(review-pending/draft → canonical)
     md = md.replace(/^(status:\s*)(review-pending|draft)\s*$/m, '$1canonical');
-    // 확정 블록 각인(중복 방지: 같은 reviewId 이미 있으면 스킵)
-    const stamp = `\n> ✅ 사람검증 확정(${dateStr}, ${by}) · ${reviewId}` +
+    // 확정 각인: 이 reviewId의 기존 확정줄 제거 후 새로 append(재승인 시 값 갱신)
+    md = md.replace(new RegExp('^> ✅ 사람검증 확정[^\\n]*' + escId + '[^\\n]*\\n?', 'm'), '');
+    md += `\n> ✅ 사람검증 확정(${dateStr}, ${by}) · ${reviewId}` +
       (correctedValue != null && correctedValue !== '' ? ` · 확정값: **${String(correctedValue)}**` : '') + `\n`;
-    if (!md.includes(reviewId)) md += stamp;
     writeFileAtomic(fp, md);
     changed.push(base + '.md');
   }
@@ -148,7 +160,8 @@ router.post('/api/legal/reviews/:id/approve', (req, res) => {
     // 해당 엔트리 블록 내부의 "- 승인:" 라인만 교체
     const escId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const blockRe = new RegExp('(###\\s+' + escId + ':[\\s\\S]*?)-\\s*승인:\\s*\\[[ xX]\\][^\\n]*', 'm');
-    if (blockRe.test(txt)) txt = txt.replace(blockRe, '$1' + mark);
+    // 함수 치환: correctedValue/by의 '$' 특수시퀀스($1·$&·$$)가 원장을 손상시키지 않도록
+    if (blockRe.test(txt)) txt = txt.replace(blockRe, (mm, p1) => p1 + mark);
     else return { httpStatus: 500, body: { ok: false, error: '승인 라인 없음: ' + id } };
     writeFileAtomic(REVIEW_QUEUE, txt);
 
@@ -162,19 +175,23 @@ router.post('/api/legal/reviews/:id/approve', (req, res) => {
     log.push({ id, decision, correctedValue, by, at: now.toISOString(), targetPages: entry.targetPages, changedFiles });
     writeFileAtomic(APPROVALS_LOG, JSON.stringify(log, null, 1));
 
-    return { httpStatus: 200, body: { ok: true, id, decision, correctedValue, changedFiles,
-      note: decision === 'approve'
-        ? '승인 완료 · 대상 페이지 canonical 승격 · 확정값 반영(인덱스 재빌드는 배치)'
-        : '반려 처리(재검토 큐 유지)' } };
+    // 정직한 note: 실제 승격 페이지 수 기준(무음 성공 금지)
+    const note = decision === 'reject' ? '반려 처리(재검토 큐 유지)'
+      : (changedFiles.length ? `승인 완료 · ${changedFiles.length}개 페이지 canonical 승격·확정값 반영(인덱스 재빌드는 배치)`
+        : '⚠ 승인은 기록됐으나 대상 위키 페이지를 찾지 못해 승격 0건 — 리뷰의 "대상 페이지" 표기를 확인하세요');
+    return { httpStatus: 200, body: { ok: true, id, decision, correctedValue, changedFiles, promotedCount: changedFiles.length, note } };
   }).then(r => res.status(r.httpStatus).json(r.body))
     .catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
 });
 
 // ── 현 DB 기반 답변(기초): index.json 키워드 검색 → 상위 canonical 개념 스니펫 ──
-let _idxCache = null;
+let _idxCache = null, _idxMtime = 0;
 function loadIndex() {
-  if (_idxCache) return _idxCache;
-  try { _idxCache = JSON.parse(fs.readFileSync(INDEX_JSON, 'utf8')); } catch (_) { _idxCache = { pages: [] }; }
+  try {
+    const mt = fs.statSync(INDEX_JSON).mtimeMs;   // 재빌드 감지: mtime 바뀌면 캐시 무효화(스테일 방지)
+    if (_idxCache && mt === _idxMtime) return _idxCache;
+    _idxCache = JSON.parse(fs.readFileSync(INDEX_JSON, 'utf8')); _idxMtime = mt;
+  } catch (_) { if (!_idxCache) _idxCache = { pages: [] }; }
   return _idxCache;
 }
 // POST /api/legal/ask — { query } → 위키 검색 기반 근거 페이지(LLM 합성은 후속 단계)
