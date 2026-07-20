@@ -151,6 +151,33 @@
 - 전 70법 반복 패스 남발 금지 — 마커로 미완법만 추적해 재개.
 - 한도/크레딧 실패는 마커를 안 남기므로 리셋 후 **미완만 자동 재개**.
 
+### 4-5-1. 작업 스크립트별 모델 매핑표 (★2026-07-20 실측, `_dashboard/loop/*.js` grep 결과 — 코드의 진실을 문서화)
+아래는 각 워크플로 스크립트가 실제로 쓰는 모델·effort다(하드코딩 확인). fable을 쓰는 스크립트는 없음(전부 sonnet으로 통일돼 있었음 — **크레딧 소진은 review_resolve·draft_reverify 최초 버전에만 fable을 썼기 때문**, 나머지 스크립트는 애초부터 sonnet이었다).
+
+| 스크립트 | 용도 | 부트(목록읽기) | 본작업 |
+|---|---|---|---|
+| `audit_fix_cell.js` | 통합수정(감사gap→위키반영) | sonnet·low | sonnet·**high** |
+| `audit_sim.js` | 감사(질문셋 시뮬레이션) | sonnet·low | sonnet·**high** |
+| `auto_promote.js` | 1차 자동승급(비민감 draft) | sonnet·low | sonnet·**medium** |
+| `collect_fix_cell.js` | DRF 재수집(원문 보강) | sonnet·low | sonnet·**high** |
+| `collect_raw.js` | 원문 재수집 | sonnet·low | sonnet·**high** |
+| `draft_reverify.js` | ★초안 grounding 재검증 | sonnet·low | sonnet·**medium**(원래 fable·high였다가 크레딧소진 후 교체) |
+| `fix_cell.js` / `fix_wiki.js` | 위키 개별 수정 | sonnet·low | sonnet·**high** |
+| `full_build.js` | 법 풀깊이 신규 빌드 | sonnet·low | sonnet·**high** |
+| `lint_full.js` / `lint_xref.js` | 전수/보강 린트 | sonnet·low | sonnet·**medium** |
+| `map_scope_cell.js` | 수집범위 확정 | sonnet·low | sonnet·**high** |
+| `ocr_wiki.js` | 별표 이미지 OCR→위키 | sonnet·low | sonnet·**high** |
+| `review_gen.js` | 리뷰 제안값 카드 생성 | sonnet·low | sonnet·**medium** |
+| `review_resolve.js` | ★리뷰큐 grounding 재검증 | (그룹 자체가 부트 겸함) | sonnet·**medium**(원래 fable·high였다가 교체) |
+| `shared_refs_cell.js` | 공용 타법 수집 | sonnet·low | sonnet·**high** |
+| `stub_rules_cell.js` | 기술기준 스텁 전문화 | — | sonnet·**high** |
+| `synth_lint.js` | 허브 lint 종합 | — | sonnet·**high** |
+| `synth_scope.js` | 스코프 분류 | — | sonnet·**medium** |
+| `sonnet_pilot.js` | 생성(sonnet)→심판(**opus**) 이원 | — | 생성 sonnet·high, 심판 **opus·high** |
+| `byl_image_ocr_cell.js` / `tech_standard_wiki_cell.js` | 이미지OCR·기준법 위키 | — | `claude-sonnet-5`(모델ID 직접 지정) |
+
+**패턴 요약**: 부트(목록 파싱)는 항상 `sonnet·low`. 본작업은 **원문 생성·감사·수집처럼 "새로 만들어내는" 작업 = high**, **재검증·린트·분류처럼 "판정만 하는" 작업 = medium**. **opus는 유일하게 sonnet_pilot의 "심판"(다른 에이전트 결과를 검증)에만 사용** — 가장 엄격한 판정이 필요한 자리. **fable은 애초 이 스크립트들에 없었고, 이번 세션에 review_resolve·draft_reverify를 fable로 새로 만들 때만 잠깐 썼다가 크레딧 소진 후 sonnet으로 되돌림(L-12).** 즉 "작업별 적합 모델"의 기존 확립된 관례는 **처음부터 sonnet 계열(부트=low, 판정=medium, 생성=high, 최종심판=opus)이었고, fable은 그 관례에서 벗어난 예외적 시도였다가 폐기됐다.**
+
 ### 4-6. 병렬/직렬 판단 기준 (반복 적용된 패턴)
 - **병렬 안전**: 각 에이전트가 **자기 소유 파일만** 쓸 때(예: 법별 concept 파일, 법별 review_gen partial). 그룹을 잘게 쪼갤수록(예: 7법→4법) 동시성이 올라가 처리량 증가(단, 에이전트 수 총량과 크레딧 고려).
 - **직렬 필수(⚠경합위험)**: review_queue.md(공유), raw/15_관련타부처(공유 타법), graph.json/comparisons(공유 허브), log.md(공유 로그). 이런 건 **여러 에이전트가 각자 판정만 반환**하고, **메인(나)이 한 곳에서 순서대로 적용**한다(예: `apply_resolutions.py`, `merge_review_gen.py`).
