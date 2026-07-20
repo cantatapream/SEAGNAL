@@ -219,6 +219,13 @@
   .lawitem .lw-src{font-family:var(--mono); font-size:9.5px; color:#8296ac; font-weight:500}
   .lawitem .lw-c{font-size:11.8px; color:#bccbde; margin-top:5px; line-height:1.55}
   .lawitem .lw-more{margin-top:6px; font-size:10.5px; color:#a9c6ff}
+  /* 경위도 좌표 구역 → 지도 폴리곤 + 해양종합정보 연계 */
+  .zonemap{margin-top:10px; border-radius:10px; overflow:hidden; border:1px solid rgba(68,138,255,.3)}
+  .zonemap-canvas{position:relative; height:132px; background:linear-gradient(160deg,#0f2942,#0a1b2e); cursor:zoom-in}
+  .zonemap-canvas svg{position:absolute; inset:0; width:100%; height:100%; display:block}
+  .zonemap-cap{font-size:10.5px; color:#a9c6ff; padding:7px 10px; background:rgba(68,138,255,.08); display:flex; align-items:center; gap:5px}
+  .zonemap-link{display:flex; align-items:center; justify-content:space-between; width:100%; border:none; border-top:1px solid rgba(255,255,255,.08); background:rgba(68,138,255,.16); color:#a9c6ff; font-family:inherit; font-size:11.5px; font-weight:700; padding:10px 12px; cursor:pointer}
+  .zonemap-link:active{background:rgba(68,138,255,.28)}
   .sk-line{height:9px; border-radius:5px; margin-bottom:7px; background:linear-gradient(90deg,rgba(255,255,255,.08) 25%,rgba(255,255,255,.18) 37%,rgba(255,255,255,.08) 63%); background-size:400% 100%; animation:sk 1.3s ease infinite}
   .sk-line:last-of-type{margin-bottom:0}
   @keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
@@ -482,6 +489,16 @@ function send(){
         '<div class="lawitem"><div class="lw-t"><span>해상교통안전법 제5조 (교통안전특정해역)</span><span class="lw-src">시행 24.7.26</span></div><div class="lw-c">"해양수산부장관은 해상교통량이 많거나 위험화물운반선의 통항이 잦은 해역으로서… 교통안전특정해역으로 지정할 수 있다."</div><div class="lw-more">원문 보기 ›</div></div>'+
         '<div class="lawitem"><div class="lw-t"><span>수산업법 — 어업 조정 (관련)</span><span class="lw-src">연계</span></div><div class="lw-c">특정해역 내 어업 제한은 수산업법상 조업수역·어업조정 명령과 연계됩니다.</div><div class="lw-more">원문 보기 ›</div></div>'+
       '</div></div>'+
+      '<div class="zonemap"><div class="zonemap-canvas">'+
+        '<svg viewBox="0 0 300 132" preserveAspectRatio="none">'+
+          '<g stroke="rgba(255,255,255,.05)" stroke-width="1"><line x1="75" y1="0" x2="75" y2="132"/><line x1="150" y1="0" x2="150" y2="132"/><line x1="225" y1="0" x2="225" y2="132"/><line x1="0" y1="44" x2="300" y2="44"/><line x1="0" y1="88" x2="300" y2="88"/></g>'+
+          '<path d="M0,0 L70,0 Q95,35 60,60 T90,132 L0,132 Z" fill="rgba(105,240,174,.10)" stroke="rgba(105,240,174,.35)" stroke-width="1.5"/>'+
+          '<polygon points="150,26 232,42 246,92 168,110 128,66" fill="rgba(68,138,255,.30)" stroke="#448aff" stroke-width="2"/>'+
+          '<circle cx="190" cy="66" r="4.5" fill="#ffe14d" stroke="#231c00" stroke-width="1"/>'+
+        '</svg></div>'+
+        '<div class="zonemap-cap">📍 교통안전특정해역 · 시행령 별표1 경위도 좌표 기반 · 탭하면 확대</div>'+
+        '<button class="zonemap-link">🗺 해양종합정보 탭에서 위치 보기 <span>›</span></button>'+
+      '</div>'+
       '<div class="tel">📞 소관: 해양수산부 해사안전정책과 044-200-XXXX</div>'+
       '<div class="disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요. · 해상교통안전법 2024-07-26 기준</div>'+
       '</div><span class="ktime">지금</span></div></div>';
@@ -490,8 +507,15 @@ function send(){
 }
 document.getElementById('chatSend').addEventListener('click',send);
 input.addEventListener('keydown',function(e){ if(e.key==='Enter') send(); });
-// 답변 근거 법령 아코디언 토글(동적 답변 포함 — 위임)
-body.addEventListener('click',function(e){ var h=e.target.closest('.lawacc-h'); if(h) h.parentElement.classList.toggle('open'); });
+// 답변 근거 법령 아코디언 토글 + 해양종합정보 딥링크(동적 답변 포함 — 위임)
+body.addEventListener('click',function(e){
+  var h=e.target.closest('.lawacc-h'); if(h){ h.parentElement.classList.toggle('open'); return; }
+  var z=e.target.closest('.zonemap-link'); if(z){                       // 경위도 구역 → 해양종합정보 탭 연계
+    wrap.classList.remove('open');
+    var tabs=document.querySelectorAll('.tabbar .tab'); tabs.forEach(function(t){t.classList.remove('active')});
+    if(tabs[1]) tabs[1].classList.add('active');
+  }
+});
 
 /* 초기 렌더 */
 renderRoomPills('원문'); renderRoom('원문');
