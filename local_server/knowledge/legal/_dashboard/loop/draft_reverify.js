@@ -76,7 +76,7 @@ if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
 log(`초안 재검증 대상 ${laws.length}법`)
 phase('초안재검증')
 const res = (await parallel(laws.map(l => () =>
-  agent(prompt(l), { label: `reverify:${l.name.slice(0, 12)}`, phase: '초안재검증', model: 'fable', effort: 'high', schema: SCHEMA })
+  agent(prompt(l), { label: `reverify:${l.name.slice(0, 12)}`, phase: '초안재검증', model: 'sonnet', effort: 'medium', schema: SCHEMA })
 ))).filter(Boolean)
 
 return {

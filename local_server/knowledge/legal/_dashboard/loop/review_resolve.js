@@ -63,7 +63,7 @@ else if (cfg.idxs) slices = [cfg.idxs]
 log(`재검증 ${slices.length}그룹 (총 ${slices.reduce((s, a) => s + a.length, 0)}건)`)
 phase('재검증')
 const res = (await parallel(slices.map((idxs, gi) => () =>
-  agent(prompt(idxs), { label: `resolve:g${gi}`, phase: '재검증', model: 'fable', effort: 'high', schema: SCHEMA })
+  agent(prompt(idxs), { label: `resolve:g${gi}`, phase: '재검증', model: 'sonnet', effort: 'medium', schema: SCHEMA })
 ))).filter(Boolean)
 
 const all = res.flatMap(r => r.decisions || [])
