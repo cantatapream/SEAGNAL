@@ -190,12 +190,20 @@
     // 승인/반려 or 상태
     var body;
     if(r.approved){ body='<div class="rv-st ok" style="margin:0">✓ 승인·canonical</div>'; }
-    else {
-      body='<div class="correct"><label>확정 값 (원본 확인 후 필요하면 수정)</label>'+
-        '<div class="hint">AI 판독/추론값이 맞으면 그대로, 틀리면 올바른 값으로 고쳐 승인하세요.</div>'+
-        '<input class="cin" placeholder="예: 10 (또는 값 없이 승인)"></div>'+
-        '<div class="acts"><button class="b-ok" data-id="'+esc(r.id)+'">✓ 승인 (입력값 확정)</button>'+
+    else if(f['AI 제안값']){   // 값 확정형: 별표 OCR 수치·처벌 금액 → 원본 대조 후 값 입력
+      body='<div class="correct"><label>확정 값 (원본 이미지·조문 확인 후)</label>'+
+        '<div class="hint">💡 AI 제안값이 맞으면 비워두고 승인, 틀리면 올바른 값으로 고쳐 승인하세요.</div>'+
+        '<input class="cin" placeholder="예: 300만원 (맞으면 비워두고 승인)"></div>'+
+        '<div class="acts"><button class="b-ok" data-id="'+esc(r.id)+'">✓ 승인 (값 확정)</button>'+
         '<button class="b-no" data-id="'+esc(r.id)+'">✗ 반려</button></div>'+
+        '<div class="res" data-res="'+esc(r.id)+'"></div>';
+    }
+    else {   // 해석·판단형: 수치가 아니라 AI 분석의 타당성 판단 → 승인/기각(+선택 메모)
+      body='<div class="correct"><label>판단 (메모는 선택)</label>'+
+        '<div class="hint">🧠 AI 분석이 타당하면 승인, 아니면 기각. 필요하면 메모를 남기세요(수치 입력 아님).</div>'+
+        '<input class="cin" placeholder="메모(선택) — 예: 사전통지 비적용 해석 맞음"></div>'+
+        '<div class="acts"><button class="b-ok" data-id="'+esc(r.id)+'">✓ 승인 (판단 인정)</button>'+
+        '<button class="b-no" data-id="'+esc(r.id)+'">✗ 기각</button></div>'+
         '<div class="res" data-res="'+esc(r.id)+'"></div>';
     }
     return '<div class="rv'+(r.approved?' done':'')+'" data-card="'+esc(r.id)+'">'+
