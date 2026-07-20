@@ -263,6 +263,10 @@
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-20 23:28 KST] ✅완료 — 관리자 검토센터 실데이터 연동
+초안승인 탭 하드코딩(842) 발견·제거. 서버 GET /api/legal/admin/stats·GET /api/legal/drafts 신규(index.json 기반). 클라 refreshAdminStats+renderDraftCards로 5개 서브탭 전부 실데이터 연동(피드백/새지식후보/개정검토는 실제 0건이라 표시값은 그대로지만 이제 실측). node_modules 미설치 환경이라 서버 기동 E2E는 못했고, 동일 로직을 node로 직접 실행해 index.json 대조 검증(draft145 일치). 다음: D단계 재수집 진행 중(묶음1).
+
+
 ### [2026-07-20 23:18 KST] 🟢착수 — D단계 마무리: needs_collect 재수집 착수
 collect_queue.json holes86+review_resolve_collect12=98건. ⚠경합위험(raw/15 공용타법 쓰기)이라 단독 에이전트 6묶음 순차 처리(병렬 금지). 모델 sonnet(session 기본, fable 미사용). 묶음1: holes[0:17].
 
