@@ -264,6 +264,10 @@
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-21 01:04 KST] 🟢착수 — H-20 문서화: 파이프라인 순서 확정 + L-13 시행착오 기록
+MASTER_PLAN.md에 H-20(재수집→wiki_rebuild→lint→reverify→audit 표준순서) 추가, _LESSONS.md에 L-13(오늘밤 lint 누락 근접사고) 추가.
+
+
 ### [2026-07-21 00:57 KST] ✅완료 — 밤샘 파이프라인 계획 수정: lint 단계 추가
 사용자 지적(정확함): 위키 재빌드 후 그래프/링크 lint 없이 바로 감사하면 안 됨. Phase3을 lint_xref.js+lint_full.js(13법 대상, sonnet·medium, AI 에이전트·병렬안전)+lint_index.py+lint_build.py(graph.json 재생성)+human_workload.py로 확장. Phase1(재빌드) 진행 중, 완료되면 Phase2(재검증)→Phase3(신규 lint 포함)→Phase4(8차 감사) 순서로 자동 진행.
 
