@@ -142,7 +142,17 @@
   .cmp-h.ai{color:#8bb6ff}
   .cmp-img{width:100%; height:88px; border-radius:6px; background:repeating-linear-gradient(45deg,#0f1626,#0f1626 8px,#131c30 8px,#131c30 16px); display:grid; place-items:center; color:#5b6b86; font-size:10px; border:1px solid var(--border-color); cursor:zoom-in}
   .cmp-val{font-family:var(--mono); font-size:13px; color:#dfe7f5; margin-top:7px; line-height:1.5}
-  .cmp-val b{color:#69f0ae}
+  .cmp-val b{color:#ff8a8a}
+  /* 리뷰 값 교정(사람이 직접 수정) */
+  .correct{background:rgba(68,138,255,.07); border:1px solid rgba(68,138,255,.28); border-radius:9px; padding:11px; margin:0 0 11px}
+  .correct-q{font-size:12px; color:#cdd8ee; line-height:1.55; margin-bottom:9px}
+  .correct-q b{color:#ffe082}
+  .correct-row{display:flex; align-items:center; gap:8px}
+  .correct-row label{font-size:11px; color:var(--text-sub); font-weight:600; flex:0 0 auto}
+  .correct-in{flex:1; background:#0e1524; border:1.5px solid var(--accent-blue); border-radius:8px; padding:9px 11px; color:#fff; font-family:var(--mono); font-size:15px; font-weight:700; outline:none}
+  .correct-in:focus{border-color:#69f0ae; box-shadow:0 0 0 3px rgba(105,240,174,.15)}
+  .correct-unit{font-family:var(--mono); font-size:12px; color:var(--text-sub); flex:0 0 auto}
+  .correct-hint{font-size:10.5px; color:#69f0ae; margin-top:7px}
   .src-line{font-size:11px; color:var(--text-sub); margin:9px 0 12px; line-height:1.5}
   .src-line a{color:#8bb6ff; text-decoration:none}
   .rv-actions{display:flex; gap:8px}
@@ -345,10 +355,13 @@ function renderRoom(k){
 var reviewCards =
   '<div class="dual-note">⚠ <b>승인 이원화</b>: 처벌·과태료·안전수치·⚠REVIEW 포함 페이지는 <b>사람 승인 필수</b>. 순수 정의/절차 페이지만 AI 자동 승격.</div>'+
   '<div class="rv open"><div class="rv-head"><span class="rv-id">R-선박안전법-07</span><div class="rv-t">만재흘수선 표시 세부 수치<small>시행규칙 별표6 · 이미지 판독값(OCR)</small></div><span class="rv-st wait">검증 대기</span></div>'+
-    '<div class="rv-body"><div class="cmp"><div class="cmp-col"><div class="cmp-h">① 원본 별표 이미지</div><div class="cmp-img">🖼 별표6 (클릭 확대)</div></div><div class="cmp-col"><div class="cmp-h ai">② AI 추출값</div><div class="cmp-val">건현: <b>540 mm</b><br>계절: 하기만재흘수선</div></div></div>'+
+    '<div class="rv-body"><div class="cmp"><div class="cmp-col"><div class="cmp-h">① 원본 별표 이미지</div><div class="cmp-img">🖼 별표6 (클릭 확대)</div></div><div class="cmp-col"><div class="cmp-h ai">② AI(OCR) 추출값</div><div class="cmp-val">건현: <b>540</b> mm<br>계절: 하기만재흘수선</div></div></div>'+
       '<div class="src-line">📍 출처: 국가법령정보센터 · <a href="#">flDownload.do?flSeq=151748…</a> · 별표6, 3행</div>'+
-      '<div class="rv-actions"><button class="btn-ok">✓ 승인 (값 확정)</button><button class="btn-no">✗ 반려 (재OCR)</button></div>'+
-      '<div class="chain"><div class="chain-step"><span class="n">1</span> review_queue.md 승인 마킹 · 이력 보존</div><div class="chain-step"><span class="n">2</span> 값 확정 · ⚠REVIEW 플래그 해제</div><div class="chain-step"><span class="n">3</span> status: review-pending → <b style="color:#69f0ae">canonical</b> 승격</div><div class="chain-step"><span class="n">4</span> 임베딩·그래프 인덱스 재빌드 → 챗봇 인용 가능</div></div></div></div>'+
+      '<div class="correct"><div class="correct-q">🔍 <b>검토</b>: 왼쪽 원본 이미지의 값을 확인하세요. AI가 <b>540</b>으로 읽었습니다. 원본과 다르면(예: 실제는 <b>540</b>이 아니라 다른 값이면) 아래 칸을 직접 고쳐 주세요.</div>'+
+        '<div class="correct-row"><label>확정 값</label><input class="correct-in" value="540" inputmode="decimal"><span class="correct-unit">mm</span></div>'+
+        '<div class="correct-hint">그대로 맞으면 값 유지 후 승인 · 틀리면 올바른 값 입력 후 승인</div></div>'+
+      '<div class="rv-actions"><button class="btn-ok">✓ 승인 (입력값으로 확정)</button><button class="btn-no">✗ 반려 (재OCR)</button></div>'+
+      '<div class="chain"><div class="chain-step"><span class="n">1</span> review_queue.md 승인 마킹 · 이력 보존</div><div class="chain-step"><span class="n">2</span> <b class="chain-val" style="color:#69f0ae">540</b> mm 로 값 확정 · ⚠REVIEW 플래그 해제</div><div class="chain-step"><span class="n">3</span> status: review-pending → <b style="color:#69f0ae">canonical</b> 승격</div><div class="chain-step"><span class="n">4</span> 임베딩·그래프 인덱스 재빌드 → 챗봇 인용 가능</div></div></div></div>'+
   '<div class="rv"><div class="rv-head"><span class="rv-id">R-수산업법-12</span><div class="rv-t">허가어업 톤수 구간표<small>시행령 별표2 · 판독값</small></div><span class="rv-st wait">검증 대기</span></div><div class="rv-body"></div></div>'+
   '<div class="rv"><div class="rv-head"><span class="rv-id">R-어선법-05</span><div class="rv-t">어선 만재흘수선 기준<small>이미 승인됨(예시)</small></div><span class="rv-st done">✓ 승인·canonical</span></div><div class="rv-body"></div></div>';
 
@@ -396,7 +409,12 @@ function renderAdmin(k){
 function bindAcc(){ document.querySelectorAll('.acc-head').forEach(function(h){ h.onclick=function(){ h.parentElement.classList.toggle('open'); }; }); }
 function bindReview(){
   document.querySelectorAll('.rv-head').forEach(function(h){ h.onclick=function(){ h.parentElement.classList.toggle('open'); }; });
-  document.querySelectorAll('.btn-ok').forEach(function(b){ b.onclick=function(){ var rv=b.closest('.rv'); rv.classList.add('approved'); var st=rv.querySelector('.rv-st'); st.className='rv-st done'; st.textContent='✓ 승인·canonical'; }; });
+  document.querySelectorAll('.btn-ok').forEach(function(b){ b.onclick=function(){ var rv=b.closest('.rv');
+    var inp=rv.querySelector('.correct-in'); var vEl=rv.querySelector('.chain-val');
+    if(inp && vEl) vEl.textContent=inp.value;             // 사용자가 입력·수정한 값으로 확정
+    rv.classList.add('approved');
+    var st=rv.querySelector('.rv-st'); st.className='rv-st done'; st.textContent='✓ 승인·canonical';
+  }; });
 }
 document.querySelectorAll('.vswitch button').forEach(function(b){ b.addEventListener('click',function(){
   document.querySelectorAll('.vswitch button').forEach(function(x){x.classList.remove('active')}); b.classList.add('active');
