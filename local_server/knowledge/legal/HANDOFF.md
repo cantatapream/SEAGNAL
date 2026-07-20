@@ -264,6 +264,10 @@
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-21 00:57 KST] ✅완료 — 밤샘 파이프라인 계획 수정: lint 단계 추가
+사용자 지적(정확함): 위키 재빌드 후 그래프/링크 lint 없이 바로 감사하면 안 됨. Phase3을 lint_xref.js+lint_full.js(13법 대상, sonnet·medium, AI 에이전트·병렬안전)+lint_index.py+lint_build.py(graph.json 재생성)+human_workload.py로 확장. Phase1(재빌드) 진행 중, 완료되면 Phase2(재검증)→Phase3(신규 lint 포함)→Phase4(8차 감사) 순서로 자동 진행.
+
+
 ### [2026-07-21 00:54 KST] 🟢착수 — 밤샘 자동 파이프라인 착수(사용자 승인·감독 없이 끝까지 자동 진행)
 사용자가 오늘 밤 무인 진행을 명시적으로 지시(승인/확인 요청 금지, 필요한 권한은 지금 전부 위임됨 — main 반영·배포 포함). 계획: Phase1 wiki_rebuild(D단계 영향 13법, rebuild13_groups.json 2그룹) → Phase2 draft_reverify(같은 13법) → Phase3 merge_review_gen/lint_index/human_workload → Phase4 8차 감사(전체 73법, audit8_groups.json 11그룹, round=8) → Phase5 종합·보고. 각 단계 완료 알림 오는 대로 다음 단계 자동 착수. 커밋·main반영 매 단계 수행. TaskList #8~12로 진행상황 추적.
 
