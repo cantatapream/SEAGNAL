@@ -184,7 +184,7 @@
 
 ---
 
-## 5. 현재 상태 스냅샷 (마지막 실측: 2026-07-20, 재검증 진행 중 — 아래 수치는 계속 갱신됨)
+## 5. 현재 상태 스냅샷 (마지막 실측: 2026-07-20 22:54 KST, 재검증 완료·후속 파이프라인 완료)
 
 ### 완료된 것
 - 데이터층(A~D): 70법 수집·무결성검증 완료, concept 923개, 감사 5차(70/70).
@@ -194,17 +194,13 @@
 - 서식 원본(flSeq 280개) 보존 완료.
 - 인계인수 시스템(HANDOFF.md, handoff.py) 구축 완료.
 - 모델정책(fable 금지, sonnet·medium) 스크립트 반영 완료.
+- **초안 재검증(draft_reverify.js) 70/70 완료**(마커 전수 확인). wiki/concepts 923건 중 **canonical 764(82.8%) / draft 145(15.7%) / review-pending 14**.
+- **후속 파이프라인 3종 완료**: ①`merge_review_gen.py`(review_gen 33파일 전수, 신규 10카드 병합 후 멱등화) ②`lint_index.py`(index.json 재빌드 — **스크립트에 세션별 scratchpad 하드코딩 버그 있어 `_dashboard/loop/build_data.json` 상대경로로 수정함**, index.json canonical 490→764로 최신화) ③`human_workload.py`(재집계).
+- **최종 사람 검수 대상: 155건**(8절 표 참조, 재검증으로 132→155로 증가 — 재검증이 별표OCR 등 새 카드를 추가로 만들어냈기 때문).
 
-### 진행 중 (완료 시 아래로 갱신 예정)
-- **초안 재검증(draft_reverify.js)**: 70법 대상. 진행률은 커밋 로그·`_dashboard/fix3/reverify_*.done` 마커 개수로 확인(`ls _dashboard/fix3/reverify_*.done | wc -l`). **이 문서 작성 시점 기준 58/70, canonical 677, draft 222** — 계속 오르는 중. 남은 법들이 완료되면 **canonical이 최종적으로 더 크게 증가**할 것으로 예상(패턴상 법당 평균 5~10건 승급).
-- 재검증이 만드는 **별표 OCR 수치카드**가 `_dashboard/review_gen/<slug>.md`에 계속 쌓이는 중 — 완료 후 `merge_review_gen.py`로 리뷰큐에 일괄 병합 필요(아직 안 함 또는 부분만 함, **재확인 필수**).
-
-### 재검증 완료 후 반드시 실행해야 할 후속 (순서, 전부 로컬·모델 불필요)
-1. `python3 _dashboard/loop/merge_review_gen.py` — 남은 OCR 수치카드 전부 리뷰큐에 병합(직렬, 이미 병합된 카드는 자동 스킵 — 멱등).
-2. `python3 _dashboard/loop/lint_index.py` — index.json status 재빌드(canonical 필터 데이터 최신화).
-3. `python3 _dashboard/loop/human_workload.py` — 최종 분야별 사람 검수량 재집계(아래 표는 재검증 완료 전 값이므로 **완료 후 반드시 재실행**해서 갱신할 것).
-4. `needs_collect` 수집 트랙 착수(아래 6절).
-5. 위 전부 끝나면 canonical 최종 수치·사람 검수 최종 수치를 사용자에게 보고.
+### 다음 단계 (진행 중인 것 없음 — 아래 6절 우선순위대로 진행)
+- needs_collect 수집 트랙(holes 86 + review_resolve_collect 12)이 미착수 상태. ⚠경합위험(raw/15 공용 타법 쓰기) — 단독 직렬 필수.
+- canonical 필터 ON 여부는 사용자 상의 필요(4-3절 절차).
 
 ---
 
@@ -234,21 +230,20 @@
 
 ---
 
-## 8. 분야별 사람 검수량 (★재검증 진행 중이라 잠정치 — 완료 후 `human_workload.py` 재실행 필수)
+## 8. 분야별 사람 검수량 (★최종 확정치 — 2026-07-20 22:54 KST, 재검증 70/70 완료 후 `human_workload.py` 재실행 결과)
 
-아래는 재검증 진행 중(58/70) 시점의 **잠정 스냅샷**이다. 최종 수치가 아니다.
-
-| 분야 | 건수(잠정) | 성격 |
+| 분야 | 건수 | 성격 |
 |---|---|---|
-| 별표 OCR 값확정 | 66+ (계속 증가 중) | 원본 이미지/조문 대조 후 값 확정 — 진짜 사람 필요 |
-| 법리·유권해석 | ~9 | 법제처 유권해석·실무 판단 |
-| 판례 확인 | ~6 | 판례·해석례 필요 |
-| 입법연혁(의도 vs 누락) | ~3 | 개정이유·입법공백 판단 |
-| 제품설계 판단 | ~1 | 좌표매핑 등 |
-| (수집대기) | ~25+12 | ※AI 수집 트랙 — 사람 몫 아님, 제외하고 집계 |
-| 기타 해석 | ~22 | 재분류 필요(카테고리 세분화 여지 있음) |
+| 별표 OCR 값확정 | 89 | 원본 이미지/조문 대조 후 값 확정 — 진짜 사람 필요 |
+| 법리·유권해석 | 9 | 법제처 유권해석·실무 판단 |
+| 판례 확인 | 6 | 판례·해석례 필요 |
+| 입법연혁(의도 vs 누락) | 3 | 개정이유·입법공백 판단 |
+| 제품설계 판단 | 1 | 좌표매핑 등 |
+| 수집대기 | 25 | ※AI 수집 트랙(needs_collect) — 사람 몫 아님, 아래 합계엔 포함해 표시하나 실제 사람필요는 130건 |
+| 기타 해석 | 22 | 재분류 필요(카테고리 세분화 여지 있음) |
+| **합계** | **155** | (수집대기 25건 제외한 순수 사람검수는 130건) |
 
-**다음 세션은 반드시 `python3 _dashboard/loop/human_workload.py`를 재실행해서 위 표를 최신화한 뒤 사용자에게 보고할 것.** (사용자가 "각 분야별로 얼마나 되는지" 명시적으로 요청했음 — 3절 12번)
+재검증(draft_reverify) 완료로 총 검수 대상이 132→155로 늘어난 이유: 재검증이 별표 등 새 grounding 대조 과정에서 이전엔 안 보이던 카드(OCR값·해석형)를 추가로 만들어냈기 때문(승급 대상과 별표OCR류는 별개 축).
 
 ---
 
@@ -267,6 +262,14 @@
 
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
+
+### [2026-07-20 22:57 KST] ✅완료 — 재검증 완료 후속 파이프라인 실행
+merge_review_gen.py(신규10카드 병합→멱등)·lint_index.py(canonical필터 index.json 490→764 재빌드, 세션별 scratchpad 하드코딩버그를 상대경로로 수정)·human_workload.py(132→155 재집계) 순서대로 완료. 최종: canonical764/draft145/review-pending14(wiki concepts 923). 사람검수 155건(수집대기25 제외시 순수130). HANDOFF 5·8절, README 5-1절 최신화. 다음: needs_collect(holes86+12) 수집 착수 여부/canonical필터ON 여부 사용자 상의.
+
+
+### [2026-07-20 22:54 KST] 🟢착수 — 재검증 완료 후속 파이프라인 실행
+실측 결과: draft_reverify 70/70 완료 확인(마커 전수), wiki/concepts 실제 canonical 764/draft 145/review-pending 14(923). merge_review_gen.py 실행(신규 10카드 병합, 이제 멱등/중복0). index.json은 stale(canonical 490/996 - 21시경 스냅샷)이라 lint_index.py 재빌드 필요. 이어서 human_workload.py 재집계 진행.
+
 
 ### [2026-07-20 22:50 KST] ✅완료 — draft_reverify 완료
 5개 법령(선박교통관제·해양레저관광·항만재개발·농수산물품질·배타적경제수역) 처리 완료. 28개 페이지 canonical 승격, 1개 review_gen 카드 생성. canonical 764/800 도달(95.5%). 다음: merge_review_gen→lint_index→human_workload

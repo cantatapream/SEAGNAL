@@ -82,13 +82,13 @@ SEAGNAL(어민·낚시인·레저인 앱) 안의 **텍스트 법률 챗봇** —
 | 항목 | 상태 |
 |---|---|
 | **B안 관리자 검토 서버·UI** | ✅ `routes/legal.js`(리뷰 승인·값교정→canonical 승격 + 원본 서빙 `/api/legal/src`) · `legal_review.html`(리뷰 전용 페이지) · 앱 AI탭 서브탭 배선. main 머지 완료 |
-| **① draft→canonical 자동승급** | ✅ 70/70 1차 + grounding 재검증 적용 → **canonical 81→240**(draft 793→635) |
-| **③ 리뷰큐 자동 트리아지** | ✅ 미승인 97건 fable5 재검증 → **resolved 31(자동확정)·needs_collect 12(수집트랙)·human 54(유지)** → 사람 큐 97→66 |
+| **① draft→canonical 자동승급** | ✅ 70/70 1차 + grounding 재검증(`draft_reverify.js`) **전 70법 완료** → **canonical 81→764**(wiki/concepts 923건 중 82.8%) |
+| **③ 리뷰큐 자동 트리아지** | ✅ 미승인 97건 재검증 → resolved 31(자동확정)·needs_collect 12(수집트랙)·human 유지. 재검증으로 리뷰큐 최종 **155건**(카테고리 분해는 8절 참조) |
 | **리뷰 카드 재설계** | ✅ 유형별 입력(값형=값입력 / 해석형=승인·기각), 질문·AI분석·근거·원문 3단 표시, 원본 이미지/조문 링크 |
-| **canonical 안전필터** | ✅ **선구축·스위치 OFF**(`answerCanonicalOnly`). 검증 쌓인 뒤 index 재빌드+ON |
+| **canonical 안전필터** | ✅ 선구축·스위치 OFF(`answerCanonicalOnly`). index.json 재빌드 완료(status 최신), ON 여부는 사용자 상의 대기 |
 | **서식 원본 보존** | ✅ `forms_manifest.json`(flSeq 280개/45법) — Phase E 서식 다운로드 대비 |
-| **진행 중** | 🔄 초안(draft 635) 원문 grounding 재검증(`draft_reverify.js`) · needs_collect 12 수집 트랙 |
-| **다음** | ⏳ 검증 충분 시 canonical 필터 ON → Phase E 답변엔진(되물음·다중법·점진공개) 착수 |
+| **완료** | ✅ 초안 원문 grounding 재검증(`draft_reverify.js`) 70/70 · `merge_review_gen.py`·`lint_index.py`·`human_workload.py` 후속 파이프라인 실행 완료 |
+| **다음** | ⏳ needs_collect(holes 86+재검증수집 12) 재수집 → canonical 필터 ON 여부 상의 → Phase E 답변엔진(되물음·다중법·점진공개) 착수 |
 
 > 대전환 요지: 진짜 병목은 "수집·연결"이 아니라 **승급**(위키 86%가 미승급 draft라 챗봇이 못 씀)이었다. 사람 검토 대상도 재검증하면 대부분 AI가 원문 grounding으로 처리 가능 — **사람은 별표 OCR 수치·법리판단만**. 상세 시행착오는 `_LESSONS.md`.
 

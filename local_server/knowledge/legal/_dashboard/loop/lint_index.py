@@ -8,7 +8,7 @@ WIKI=f'{LEGAL}/wiki'
 DASH=f'{LEGAL}/_dashboard'
 
 def load_names():
-    d=json.load(open('/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratchpad/build_data.json'))
+    d=json.load(open(f'{os.path.dirname(__file__)}/build_data.json'))
     return {x['slug']:x['name'] for x in d['all']}
 SLUG2NAME=load_names()
 
