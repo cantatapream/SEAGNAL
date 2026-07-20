@@ -181,12 +181,6 @@ window.showUnifiedLoginModal = function (mode, title, icon) {
     modal.id = 'unified-admin-login-modal';
     modal.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease-out;';
 
-    // "비밀번호 저장" 체크 여부: 직전에 영구 저장된 토큰이 있던 사용자에겐
-    // 체크박스가 미리 체크되어 있도록 기본값 결정 (UX — 본인 기기 사용자 편의).
-    const rememberDefault = !!(function(){
-        try { return localStorage.getItem(ADMIN_TOKEN_KEY); } catch(_) { return null; }
-    })();
-
     modal.innerHTML = `
         <div style="background:#1e2435;border-radius:12px;padding:20px;max-width:320px;width:90%;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.08);">
             <h3 style="color:#fff;margin:0 0 15px;font-size:1.1rem;display:flex;align-items:center;justify-content:center;gap:8px;">
@@ -194,14 +188,7 @@ window.showUnifiedLoginModal = function (mode, title, icon) {
             </h3>
             <input type="password" id="unified-admin-password" placeholder="관리자 비밀번호"
                    style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(0,0,0,0.3);color:#fff;font-size:1rem;box-sizing:border-box;margin-bottom:10px;outline:none;text-align:center;">
-            <!-- [Phase 4-B] "비밀번호 저장" 체크박스 — 체크 시 토큰을 localStorage 에
-                  영구 저장하고 만료를 30 일로 연장 (본 기기에서만 사용한다는 전제) -->
-            <label style="display:flex;align-items:center;justify-content:center;gap:6px;
-                          color:#aaa;font-size:0.85rem;margin-bottom:15px;cursor:pointer;user-select:none;">
-                <input type="checkbox" id="unified-admin-remember" ${rememberDefault ? 'checked' : ''}
-                       style="width:14px;height:14px;cursor:pointer;accent-color:${iconColor};">
-                이 기기에서 비밀번호 저장 (30일)
-            </label>
+            <div style="font-size:0.78rem;color:#788;margin:0 0 15px;">로그인하면 이 기기에 30일간 유지됩니다.</div>
             <div style="display:flex;gap:10px;">
                 <button onclick="document.getElementById('unified-admin-login-modal').remove();"
                         style="flex:1;padding:10px;background:rgba(255,255,255,0.05);border:none;border-radius:6px;color:#aaa;cursor:pointer;transition:background 0.2s;">취소</button>
@@ -246,8 +233,9 @@ window.verifyUnifiedAdminPassword = async function (mode) {
     if (!input) return;
 
     const password = input.value;
-    const rememberCb = document.getElementById('unified-admin-remember');
-    const longTerm = !!(rememberCb && rememberCb.checked);
+    // 항상 30일 지속 토큰으로 발급(체크박스와 무관) — 관리자 검토센터를 매번
+    // 재로그인 없이 쓰기 위함(사용자 확정 2026-07-20). 비밀번호 자체는 여전히 필요.
+    const longTerm = true;
 
     try {
         // [중요] 원본 fetch 사용 — fetch 래퍼는 login URL 예외 처리하지만
