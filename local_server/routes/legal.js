@@ -95,6 +95,9 @@ function extractStructured(body) {
     if (m) { const k = m[1].trim(); if (k !== '승인' && !fields[k]) fields[k] = m[2].trim(); }
     let um; const re = /(https?:\/\/[^\s)"'<>]+)/g;
     while ((um = re.exec(line)) !== null) urls.push(um[1].replace(/[.,]$/, ''));
+    // 로컬 원본 서빙 상대링크(별표 OCR 이미지·조문 원문)도 검증 링크로 노출 — 같은 오리진이라 상대경로가 정답
+    let sm; const sre = /(\/api\/legal\/src\?p=[^\s)"'<>]+)/g;
+    while ((sm = sre.exec(line)) !== null) urls.push(sm[1].replace(/[.,]$/, ''));
   }
   return { fields, urls: [...new Set(urls)] };
 }
@@ -252,6 +255,24 @@ router.post('/api/legal/ask', (req, res) => {
       sources: scored.map(x => ({ file: x.p.file, law: x.p.law, topic: x.p.topic, kind: x.p.kind, score: x.s })),
       note: '현 DB 검색 기반 근거 후보(답변 합성 LLM 연결은 후속 단계)' });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// ── 원본 서빙(읽기전용): 리뷰 카드에서 AI가 본 별표 OCR 이미지·조문 원문을 그대로 보여주기 위함 ──
+// raw/ 하위(공개 법령 데이터: law.go.kr 수집분)만, 안전 확장자만, 경로이탈 차단. <img>/<a>로 열리게 무인증.
+const RAW_DIR = path.join(LEGAL_DIR, 'raw');
+const SRC_MIME = { '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif' };
+router.get('/api/legal/src', (req, res) => {
+  try {
+    const rel = String((req.query && req.query.p) || '').trim();
+    if (!rel) return res.status(400).send('p 필요');
+    const ext = path.extname(rel).toLowerCase();
+    if (!SRC_MIME[ext]) return res.status(415).send('허용 안 된 형식');
+    const full = path.resolve(RAW_DIR, rel);
+    if (full !== RAW_DIR && !full.startsWith(RAW_DIR + path.sep)) return res.status(403).send('경로 이탈'); // 샌드박스
+    if (!fs.existsSync(full) || !fs.statSync(full).isFile()) return res.status(404).send('없음');
+    res.type(SRC_MIME[ext]).sendFile(full);
+  } catch (e) { res.status(500).send(String(e.message || e)); }
 });
 
 module.exports = router;

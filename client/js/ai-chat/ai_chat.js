@@ -497,10 +497,12 @@
 
   // 리뷰 카드에서 우선 노출할 구조화 필드(라벨·아이콘). 존재하는 것만 순서대로 렌더.
   var FIELD_VIEW = [
+    { keys: ['AI 제안값', 'AI 제안', '제안값'], icon: '💡', label: 'AI 제안값' },
     { keys: ['AI 연결 내용', 'AI 연결·판단 내용', 'AI 판단', 'AI 유추', 'AI 연결', '정의 사슬 추적'], icon: '🧠', label: 'AI 분석 내용' },
     { keys: ['문제'], icon: '❗', label: '문제' },
     { keys: ['확인 필요', '확인'], icon: '🔍', label: '확인 필요' },
     { keys: ['근거'], icon: '📎', label: '근거' },
+    { keys: ['원문 조문', '원문'], icon: '📜', label: '원문 조문' },
     { keys: ['필요 조치', '필요조치'], icon: '🛠', label: '필요 조치' },
     { keys: ['still_missing', '미확보', '미수집'], icon: '🚧', label: '미수집/미확보' }
   ];

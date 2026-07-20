@@ -172,8 +172,8 @@
     }).catch(function(){ $('list').innerHTML='<div class="empty">서버에 연결할 수 없습니다.</div>'; });
   }
 
-  var FIELD_ICON={'AI 연결 내용':'🧠 AI 분석','문제':'🧠 AI 분석','확인 필요':'🔍 확인 필요','근거':'📎 근거','필요 조치':'🛠 필요 조치','still_missing':'⏳ 미수집'};
-  var FIELD_ORDER=['AI 연결 내용','문제','확인 필요','근거','필요 조치','still_missing'];
+  var FIELD_ICON={'AI 제안값':'💡 AI 제안값','AI 연결 내용':'🧠 AI 분석','문제':'🧠 AI 분석','확인 필요':'🔍 확인 필요','근거':'📎 근거','원문 조문':'📜 원문 조문','필요 조치':'🛠 필요 조치','still_missing':'⏳ 미수집'};
+  var FIELD_ORDER=['AI 제안값','AI 연결 내용','문제','확인 필요','근거','원문 조문','필요 조치','still_missing'];
   function card(r){
     var f=r.fields||{}; var rows='';
     var seen={};
