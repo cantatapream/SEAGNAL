@@ -189,27 +189,37 @@
   .chat-on{font-size:11px; color:#69f0ae; margin-top:1px; display:flex; align-items:center; gap:4px}
   .chat-on::before{content:"";width:6px;height:6px;border-radius:50%;background:#69f0ae}
   .chat-x{margin-left:auto; background:none; border:none; color:var(--text-sub); font-size:22px; cursor:pointer; line-height:1}
-  .chat-body{flex:1; overflow-y:auto; padding:15px 13px; display:flex; flex-direction:column; gap:10px; background:linear-gradient(180deg,#0b1220,#0e1524)}
-  .msg{max-width:80%; padding:10px 13px; border-radius:15px; font-size:13.5px; line-height:1.55; white-space:pre-wrap}
-  .msg.me{align-self:flex-end; background:var(--accent-blue); color:#04122e; border-bottom-right-radius:5px; font-weight:500}
-  .msg.ai{align-self:flex-start; background:#1c2436; color:#e8eefb; border:1px solid var(--border-color); border-bottom-left-radius:5px}
-  .msg.ai .src{margin-top:8px; padding-top:8px; border-top:1px solid var(--border-color); font-size:11px; color:var(--text-sub)}
-  .msg.ai .chips{margin-top:8px}
-  .msg.ai .tel{margin-top:8px; font-size:11px; color:#69f0ae}
-  .msg.ai .disc{margin-top:6px; font-size:10px; color:#5b6b86}
-  .think{align-self:flex-start; max-width:80%; padding:11px 13px; border-radius:15px; border-bottom-left-radius:5px; background:#1c2436; border:1px solid var(--border-color)}
-  .sk-line{height:9px; border-radius:5px; margin-bottom:7px; background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.14) 37%,rgba(255,255,255,.06) 63%); background-size:400% 100%; animation:sk 1.3s ease infinite}
+  /* ===== 카카오톡 채팅방(다크) — 노랑 내말풍선·프로필·이름·시각 ===== */
+  .chat-body{flex:1; overflow-y:auto; padding:14px 12px; display:flex; flex-direction:column; gap:11px; background:#1c2a38}
+  .krow{display:flex; align-items:flex-end; gap:7px; max-width:100%}
+  .krow.me{flex-direction:row-reverse; align-self:flex-end}
+  .kava{width:36px;height:36px;flex:0 0 auto}
+  .kcol{display:flex; flex-direction:column; max-width:76%}
+  .kwho{font-size:11.5px; color:#b8c6da; margin:0 0 4px 3px}
+  .kbrow{display:flex; align-items:flex-end; gap:5px}
+  .krow.me .kbrow{flex-direction:row-reverse}
+  .kbub{padding:9px 12px; font-size:13.5px; line-height:1.52; white-space:pre-wrap; border-radius:4px 16px 16px 16px; word-break:break-word}
+  .kbub.ai{background:#33475b; color:#eef4fb}
+  .kbub.ai b{color:#ffe14d}
+  .krow.me .kbub{border-radius:16px 4px 16px 16px; background:#ffe14d; color:#231c00; font-weight:500}
+  .ktime{font-size:9.5px; color:#8296ac; flex:0 0 auto; margin-bottom:2px; white-space:nowrap}
+  .kbub .chips{display:flex; flex-wrap:wrap; gap:5px; margin-top:9px}
+  .kbub .chip{font-size:10.5px; color:#a9c6ff; background:rgba(68,138,255,.16); border:1px solid rgba(68,138,255,.32); border-radius:12px; padding:2px 8px}
+  .kbub .tel{margin-top:9px; font-size:11.5px; color:#8fe6bb}
+  .kbub .disc{margin-top:6px; font-size:10px; color:#93a4b9}
+  .sk-line{height:9px; border-radius:5px; margin-bottom:7px; background:linear-gradient(90deg,rgba(255,255,255,.08) 25%,rgba(255,255,255,.18) 37%,rgba(255,255,255,.08) 63%); background-size:400% 100%; animation:sk 1.3s ease infinite}
   .sk-line:last-of-type{margin-bottom:0}
   @keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
-  .think-status{display:flex; align-items:center; gap:7px; margin-top:9px; font-size:11.5px; color:#8bb6ff}
+  .think-status{display:flex; align-items:center; gap:7px; margin-top:9px; font-size:11.5px; color:#a9c6ff}
   .think-dots{display:inline-flex; gap:3px}
-  .think-dots i{width:5px;height:5px;border-radius:50%;background:#8bb6ff;animation:blink 1s infinite}
+  .think-dots i{width:5px;height:5px;border-radius:50%;background:#a9c6ff;animation:blink 1s infinite}
   .think-dots i:nth-child(2){animation-delay:.2s}.think-dots i:nth-child(3){animation-delay:.4s}
   @keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
-  .chat-input{display:flex; gap:8px; padding:11px 13px; border-top:1px solid var(--border-color); background:rgba(15,20,35,.9)}
-  .chat-input input{flex:1; background:rgba(255,255,255,.05); border:1px solid var(--border-color); border-radius:20px; padding:11px 15px; color:#fff; font-family:inherit; font-size:14px; outline:none}
-  .chat-input input:focus{border-color:var(--accent-blue)}
-  .chat-send{width:44px;height:44px;flex:0 0 auto;border-radius:50%;border:none;background:var(--accent-blue);color:#04122e;font-size:17px;cursor:pointer}
+  .chat-input{display:flex; gap:8px; align-items:center; padding:10px 12px; border-top:1px solid rgba(255,255,255,.08); background:#17222e}
+  .chat-plus{width:34px;height:34px;flex:0 0 auto;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:#b8c6da;font-size:19px;cursor:pointer;line-height:1}
+  .chat-input input{flex:1; background:#28394a; border:none; border-radius:19px; padding:11px 15px; color:#fff; font-family:inherit; font-size:14px; outline:none}
+  .chat-input input::placeholder{color:#8296ac}
+  .chat-send{width:40px;height:40px;flex:0 0 auto;border-radius:50%;border:none;background:#ffe14d;color:#231c00;font-size:16px;cursor:pointer;font-weight:800}
   .foot-note{text-align:center; color:#5b6b86; font-size:11px; padding:14px 20px 4px; line-height:1.6}
   .tabbar{position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:600px; z-index:60; display:flex; background:rgba(15,20,35,.95); backdrop-filter:blur(12px); border-top:1px solid var(--border-color);}
   .tab{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:8px 0 10px; min-height:var(--tab-h); color:var(--text-sub); font-size:11px; line-height:1.2; border-top:3px solid transparent; background:none; cursor:pointer; font-family:inherit}
@@ -272,15 +282,11 @@
       <button class="chat-x" id="chatX">×</button>
     </div>
     <div class="chat-body" id="chatBody">
-      <div class="msg ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div>
-      <div class="msg me">1.5톤 어선인데 구명조끼 꼭 입어야 해?</div>
-      <div class="msg ai">네. 어선은 <b>승선자 전원이 구명조끼(구명동의)를 착용</b>해야 합니다. 특히 기상특보 발효·야간 항해 시 의무입니다.
-        <div class="chips"><span class="chip">어선안전조업법 §22</span><span class="chip">구명조끼 착용</span><span class="chip">↔ 수상레저안전법</span></div>
-        <div class="tel">📞 소관: 해양수산부 어선안전정책과 044-200-XXXX</div>
-        <div class="disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요. · 어선안전조업법 2024-01-01 기준</div>
-      </div>
+      <div class="krow ai"><div class="kava"><div class="orb"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div><span class="ktime">오후 2:11</span></div></div></div>
+      <div class="krow me"><div class="kbrow"><div class="kbub">1.5톤 어선인데 구명조끼 꼭 입어야 해?</div><span class="ktime">오후 2:12</span></div></div>
+      <div class="krow ai"><div class="kava"><div class="orb"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">네. 어선은 <b>승선자 전원이 구명조끼(구명동의)를 착용</b>해야 합니다. 특히 기상특보 발효·야간 항해 시 의무입니다.<div class="chips"><span class="chip">어선안전조업법 §22</span><span class="chip">구명조끼 착용</span><span class="chip">↔ 수상레저안전법</span></div><div class="tel">📞 소관: 해양수산부 어선안전정책과 044-200-XXXX</div><div class="disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요. · 어선안전조업법 2024-01-01 기준</div></div><span class="ktime">오후 2:12</span></div></div></div>
     </div>
-    <div class="chat-input"><input id="chatInput" placeholder="메시지를 입력하세요…" /><button class="chat-send" id="chatSend">➤</button></div>
+    <div class="chat-input"><button class="chat-plus" title="첨부">＋</button><input id="chatInput" placeholder="메시지 입력" /><button class="chat-send" id="chatSend">➤</button></div>
   </div>
 </div>
 
@@ -445,20 +451,25 @@ var body=document.getElementById('chatBody'), input=document.getElementById('cha
 var STEPS=['생각하고 있습니다','관련 법령을 찾고 있습니다','조문 구조를 확인하고 있습니다','답변을 정리하고 있습니다'];
 function send(){
   var q=(input.value||'').trim(); if(!q) q='특정해역에서 야간 조업 제한이 있어?';
-  var me=document.createElement('div'); me.className='msg me'; me.textContent=q; body.appendChild(me); input.value=''; body.scrollTop=body.scrollHeight;
-  var th=document.createElement('div'); th.className='think';
-  th.innerHTML='<div style="display:flex;gap:11px;align-items:center"><div class="orb think big"></div>'+
-    '<div style="flex:1"><div class="sk-line" style="width:88%"></div><div class="sk-line" style="width:66%"></div></div></div>'+
-    '<div class="think-status"><span class="ts">생각하고 있습니다</span><span class="think-dots"><i></i><i></i><i></i></span></div>';
+  var me=document.createElement('div'); me.className='krow me';
+  me.innerHTML='<div class="kbrow"><div class="kbub"></div><span class="ktime">지금</span></div>';
+  me.querySelector('.kbub').textContent=q;
+  body.appendChild(me); input.value=''; body.scrollTop=body.scrollHeight;
+  var th=document.createElement('div'); th.className='krow ai';
+  th.innerHTML='<div class="kava"><div class="orb think"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">'+
+    '<div class="sk-line" style="width:130px"></div><div class="sk-line" style="width:90px"></div>'+
+    '<div class="think-status"><span class="ts">생각하고 있습니다</span><span class="think-dots"><i></i><i></i><i></i></span></div></div></div></div>';
   body.appendChild(th); body.scrollTop=body.scrollHeight;
   var orb=document.getElementById('chatOrb'); if(orb) orb.classList.add('think');   // 헤더 오브도 생각 모드
   var i=0, tsEl=th.querySelector('.ts'); var iv=setInterval(function(){ i++; if(i<STEPS.length) tsEl.textContent=STEPS[i]; },850);
   setTimeout(function(){ clearInterval(iv); th.remove(); if(orb) orb.classList.remove('think');
-    var a=document.createElement('div'); a.className='msg ai';
-    a.innerHTML='특정해역(교통안전특정해역)에서는 <b>어업이 제한</b>될 수 있고, 야간에는 <b>항해등 점등·항법 준수</b> 의무가 있습니다. 해역·톤수별 세부 기준이 달라 되물어 확인이 필요합니다.'+
+    var a=document.createElement('div'); a.className='krow ai';
+    a.innerHTML='<div class="kava"><div class="orb"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">'+
+      '특정해역(교통안전특정해역)에서는 <b>어업이 제한</b>될 수 있고, 야간에는 <b>항해등 점등·항법 준수</b> 의무가 있습니다. 해역·톤수별 세부 기준이 달라 되물어 확인이 필요합니다.'+
       '<div class="chips"><span class="chip">해상교통안전법 §5</span><span class="chip">교통안전특정해역</span><span class="chip">↔ 수산업법</span></div>'+
       '<div class="tel">📞 소관: 해양수산부 해사안전정책과 044-200-XXXX</div>'+
-      '<div class="disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요. · 해상교통안전법 2024-07-26 기준</div>';
+      '<div class="disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요. · 해상교통안전법 2024-07-26 기준</div>'+
+      '</div><span class="ktime">지금</span></div></div>';
     body.appendChild(a); body.scrollTop=body.scrollHeight;
   }, 850*STEPS.length+300);
 }
