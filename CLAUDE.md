@@ -14,6 +14,13 @@
 **코드를 추가·수정하기 전에 반드시 [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) 를 먼저 읽고 그 절차를 따르세요.**
 현재 구조는 [ARCHITECTURE.md](ARCHITECTURE.md) 참고.
 
+## ★작업 착수 전 관련 마크다운 정독 (필수, 사용자 확정 2026-07-20)
+- **어떤 작업이든 착수 전에 관련 마크다운을 먼저 정독한다.** 특히 법률 챗봇(나리야) 작업은
+  `local_server/knowledge/legal/`의 **`MASTER_PLAN.md`·`README.md`·`_SCHEMA.md`·`_CHATBOT.md`·`_LESSONS.md`**를 먼저 읽고,
+  진행현황·확정 결정·과거 시행착오를 파악한 뒤 진행한다. (오케스트레이터는 이 `CLAUDE.md`·`MASTER_PLAN.md`도.)
+- **`_LESSONS.md`(시행착오 로그)를 반드시 확인**해 같은 실수를 반복하지 않는다. 새 실수·교훈이 생기면 그 즉시 `_LESSONS.md`에 append.
+- 정독 없이 추측으로 진행하지 않는다(카파시 1번과 동일 취지). 지시가 애매하면 조용히 고르지 말고 확인한다.
+
 아래는 가이드의 핵심 요약(전체는 위 문서). 이것만으로 판단하지 말고 가이드 원문을 확인하세요.
 
 ## 배치 결정 트리 (새 코드의 자리)
