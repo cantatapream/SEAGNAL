@@ -263,6 +263,10 @@
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-20 23:18 KST] 🟢착수 — D단계 마무리: needs_collect 재수집 착수
+collect_queue.json holes86+review_resolve_collect12=98건. ⚠경합위험(raw/15 공용타법 쓰기)이라 단독 에이전트 6묶음 순차 처리(병렬 금지). 모델 sonnet(session 기본, fable 미사용). 묶음1: holes[0:17].
+
+
 ### [2026-07-20 22:57 KST] ✅완료 — 재검증 완료 후속 파이프라인 실행
 merge_review_gen.py(신규10카드 병합→멱등)·lint_index.py(canonical필터 index.json 490→764 재빌드, 세션별 scratchpad 하드코딩버그를 상대경로로 수정)·human_workload.py(132→155 재집계) 순서대로 완료. 최종: canonical764/draft145/review-pending14(wiki concepts 923). 사람검수 155건(수집대기25 제외시 순수130). HANDOFF 5·8절, README 5-1절 최신화. 다음: needs_collect(holes86+12) 수집 착수 여부/canonical필터ON 여부 사용자 상의.
 
