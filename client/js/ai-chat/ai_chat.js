@@ -472,6 +472,18 @@
   var DRAFT_NOTE = '<div class="nrya-dual-note">순수 정의·절차 초안은 <b>재검증 파이프라인이 자동 승격</b>. 처벌·안전값 포함 초안은 ⚠수치검증 방에서 사람이 승인합니다.</div>';
 
   /**
+   * 서버 401/403(토큰 만료·없음) 시 보일 잠금 화면. "관리자 모드" 체크박스는 켜져 있어도
+   * 서버 인증 토큰과는 별개(체크박스=클라 표시설정, 토큰=실제 인증)라 여기서 재로그인 버튼을 바로 준다.
+   * @returns {string}
+   */
+  function adminLockHTML() {
+    return '<div class="nrya-notice-box"><span class="nrya-em">🔒</span>관리자 로그인 필요' +
+      '<br><span style="font-size:11.5px;color:var(--nrya-text-sub)">관리자 모드가 켜져 있어도 인증 토큰이 없거나 만료되면 다시 로그인해야 합니다.</span>' +
+      '<div style="margin-top:10px"><button class="nrya-btn-ok" style="padding:8px 18px;border-radius:8px;border:none;font-weight:700;cursor:pointer" ' +
+      'onclick="showUnifiedLoginModal(\'ai\',\'AI 챗봇 관리자 로그인\',\'fa-robot\')">다시 로그인</button></div></div>';
+  }
+
+  /**
    * 미승인 초안(draft) 목록을 서버에서 불러와 카드로 렌더한다(읽기전용).
    * [연계] → GET /api/legal/drafts.
    * @param {HTMLElement} host - 카드를 담을 컨테이너
@@ -481,7 +493,7 @@
     host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>초안 목록을 불러오는 중…</div>';
     legalGet('/api/legal/drafts').then(function (res) {
       if (res.status === 401 || res.status === 403) {
-        host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">🔒</span>관리자 로그인 필요<br><span style="font-size:11.5px;color:var(--nrya-text-sub)">통합관리자 센터에서 로그인 후 다시 열어주세요.</span></div>';
+        host.innerHTML = DRAFT_NOTE + adminLockHTML();
         return null;
       }
       return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
@@ -522,7 +534,7 @@
     host.innerHTML = DUAL_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>검증 대기 목록을 불러오는 중…</div>';
     legalGet('/api/legal/reviews?status=pending').then(function (res) {
       if (res.status === 401 || res.status === 403) {
-        host.innerHTML = DUAL_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">🔒</span>관리자 로그인 필요<br><span style="font-size:11.5px;color:var(--nrya-text-sub)">통합관리자 센터에서 로그인 후 다시 열어주세요.</span></div>';
+        host.innerHTML = DUAL_NOTE + adminLockHTML();
         return null;
       }
       return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
