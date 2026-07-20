@@ -1,0 +1,200 @@
+{
+ "0": [
+  {
+   "name": "도선법",
+   "slug": "도선법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "soban": "해양수산부",
+   "byl": 33,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/04_선박해운/도선법",
+   "group": 1
+  },
+  {
+   "name": "선박직원법",
+   "slug": "선박직원법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "soban": "해양수산부",
+   "byl": 36,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/04_선박해운/선박직원법",
+   "group": 1
+  },
+  {
+   "name": "선박안전법",
+   "slug": "선박안전법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "soban": "해양수산부",
+   "byl": 147,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/04_선박해운/선박안전법",
+   "group": 1
+  },
+  {
+   "name": "어선법",
+   "slug": "어선법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "soban": "해양수산부",
+   "byl": 116,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/04_선박해운/어선법",
+   "group": 3
+  },
+  {
+   "name": "유선 및 도선 사업법",
+   "slug": "유선및도선사업법",
+   "domain": "10_항만물류",
+   "tier": 2,
+   "soban": "행정안전부",
+   "byl": 36,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법",
+   "group": 4
+  },
+  {
+   "name": "해양경비법",
+   "slug": "해양경비법",
+   "domain": "02_해양경비구조",
+   "tier": 1,
+   "soban": "해양경찰청",
+   "byl": 1,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/해양경비법",
+   "group": 3
+  },
+  {
+   "name": "수상에서의 수색ㆍ구조 등에 관한 법률",
+   "slug": "수상에서의수색ㆍ구조등에관한법률",
+   "domain": "02_해양경비구조",
+   "tier": 1,
+   "soban": "해양경찰청",
+   "byl": 39,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률",
+   "group": 4
+  }
+ ],
+ "1": [
+  {
+   "name": "해양과학조사법",
+   "slug": "해양과학조사법",
+   "domain": "01_해양주권정책",
+   "tier": 1,
+   "soban": "해양수산부",
+   "byl": 7,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/01_해양주권정책/해양과학조사법",
+   "group": 1
+  },
+  {
+   "name": "항로표지법",
+   "slug": "항로표지법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "soban": "해양수산부",
+   "byl": 39,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/04_선박해운/항로표지법",
+   "group": 3
+  },
+  {
+   "name": "항만법",
+   "slug": "항만법",
+   "domain": "10_항만물류",
+   "tier": 1,
+   "soban": "해양수산부",
+   "byl": 30,
+   "txt": [
+    "법률.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/항만법",
+   "group": 0
+  },
+  {
+   "name": "국제항해선박 등에 대한 해적행위 피해예방에 관한 법률",
+   "slug": "국제항해선박등에대한해적행위피해예방에관한법률",
+   "domain": "03_해상교통안전",
+   "tier": 1,
+   "soban": "해양수산부",
+   "byl": 31,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박등에대한해적행위피해예방에관한법률",
+   "group": 0
+  },
+  {
+   "name": "수상레저기구의 등록 및 검사에 관한 법률",
+   "slug": "수상레저기구의등록및검사에관한법률",
+   "domain": "09_레저관광",
+   "tier": 1,
+   "soban": "해양경찰청",
+   "byl": 31,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/09_레저관광/수상레저기구의등록및검사에관한법률",
+   "group": 4
+  },
+  {
+   "name": "수산종자산업육성법",
+   "slug": "수산종자산업육성법",
+   "domain": "05_수산어업",
+   "tier": 1,
+   "soban": "해양수산부",
+   "byl": 43,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법",
+   "group": 0
+  }
+ ]
+}
