@@ -264,6 +264,10 @@
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-21 01:05 KST] ✅완료 — H-20 문서화: 파이프라인 순서 확정 + L-13 시행착오 기록
+MASTER_PLAN.md H-20 + _LESSONS.md L-13 작성·커밋·푸시 완료(03183971, 작업브랜치). 문서 전용 변경이라 main 머지는 생략(배포 불필요). Phase1(wiki_rebuild) 백그라운드 에이전트 완료 대기 재개.
+
+
 ### [2026-07-21 01:04 KST] 🟢착수 — H-20 문서화: 파이프라인 순서 확정 + L-13 시행착오 기록
 MASTER_PLAN.md에 H-20(재수집→wiki_rebuild→lint→reverify→audit 표준순서) 추가, _LESSONS.md에 L-13(오늘밤 lint 누락 근접사고) 추가.
 
