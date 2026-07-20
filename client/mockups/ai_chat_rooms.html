@@ -173,8 +173,18 @@
   .chat-wrap{position:fixed; inset:0; z-index:1000; display:none; justify-content:center; align-items:flex-end; background:rgba(0,0,0,.55)}
   .chat-wrap.open{display:flex}
   .chat{width:100%; max-width:600px; height:82vh; background:#0e1524; border-radius:18px 18px 0 0; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border-color); border-bottom:none}
-  .chat-top{display:flex; align-items:center; gap:10px; padding:13px 15px; background:rgba(15,20,35,.9); border-bottom:1px solid var(--border-color)}
-  .chat-ava{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#448aff,#22d3ee); color:#04122e; font-weight:800; display:grid; place-items:center; font-size:15px}
+  .chat-top{display:flex; align-items:center; gap:11px; padding:13px 15px; background:rgba(15,20,35,.9); border-bottom:1px solid var(--border-color)}
+  /* Gemini 풍 그라데이션 오브 (assistant_overlay_preview.html 이식·앱팔레트 튜닝) */
+  .orb{width:36px;height:36px;border-radius:50%;flex:0 0 auto;position:relative;
+    background:conic-gradient(from 0deg,#4f8cff,#22d3ee,#9b6bff,#ff6bcb,#4f8cff);
+    animation:nvSpin 4s linear infinite, nvBreathe 2.4s ease-in-out infinite;}
+  .orb::after{content:"";position:absolute;inset:6px;border-radius:50%;background:#0e1524;box-shadow:inset 0 0 10px rgba(0,0,0,.5);}
+  .orb::before{content:"";position:absolute;inset:-5px;border-radius:50%;z-index:-1;background:inherit;filter:blur(11px);opacity:.55;}
+  .orb.think{animation-duration:1.2s,1.9s;filter:hue-rotate(15deg) saturate(1.2)}
+  .orb.big{width:52px;height:52px}
+  .orb.big::after{inset:8px}
+  @keyframes nvSpin{to{transform:rotate(360deg)}}
+  @keyframes nvBreathe{0%,100%{transform:scale(.92)}50%{transform:scale(1.06)}}
   .chat-name{font-size:14.5px; font-weight:700}
   .chat-on{font-size:11px; color:#69f0ae; margin-top:1px; display:flex; align-items:center; gap:4px}
   .chat-on::before{content:"";width:6px;height:6px;border-radius:50%;background:#69f0ae}
@@ -257,7 +267,7 @@
 <div class="chat-wrap" id="chatWrap">
   <div class="chat">
     <div class="chat-top">
-      <div class="chat-ava">나</div>
+      <div class="orb" id="chatOrb"></div>
       <div><div class="chat-name">나리야</div><div class="chat-on">해양법령 도우미 · 온라인</div></div>
       <button class="chat-x" id="chatX">×</button>
     </div>
@@ -437,10 +447,13 @@ function send(){
   var q=(input.value||'').trim(); if(!q) q='특정해역에서 야간 조업 제한이 있어?';
   var me=document.createElement('div'); me.className='msg me'; me.textContent=q; body.appendChild(me); input.value=''; body.scrollTop=body.scrollHeight;
   var th=document.createElement('div'); th.className='think';
-  th.innerHTML='<div class="sk-line" style="width:90%"></div><div class="sk-line" style="width:75%"></div><div class="sk-line" style="width:55%"></div><div class="think-status"><span class="ts">생각하고 있습니다</span><span class="think-dots"><i></i><i></i><i></i></span></div>';
+  th.innerHTML='<div style="display:flex;gap:11px;align-items:center"><div class="orb think big"></div>'+
+    '<div style="flex:1"><div class="sk-line" style="width:88%"></div><div class="sk-line" style="width:66%"></div></div></div>'+
+    '<div class="think-status"><span class="ts">생각하고 있습니다</span><span class="think-dots"><i></i><i></i><i></i></span></div>';
   body.appendChild(th); body.scrollTop=body.scrollHeight;
+  var orb=document.getElementById('chatOrb'); if(orb) orb.classList.add('think');   // 헤더 오브도 생각 모드
   var i=0, tsEl=th.querySelector('.ts'); var iv=setInterval(function(){ i++; if(i<STEPS.length) tsEl.textContent=STEPS[i]; },850);
-  setTimeout(function(){ clearInterval(iv); th.remove();
+  setTimeout(function(){ clearInterval(iv); th.remove(); if(orb) orb.classList.remove('think');
     var a=document.createElement('div'); a.className='msg ai';
     a.innerHTML='특정해역(교통안전특정해역)에서는 <b>어업이 제한</b>될 수 있고, 야간에는 <b>항해등 점등·항법 준수</b> 의무가 있습니다. 해역·톤수별 세부 기준이 달라 되물어 확인이 필요합니다.'+
       '<div class="chips"><span class="chip">해상교통안전법 §5</span><span class="chip">교통안전특정해역</span><span class="chip">↔ 수산업법</span></div>'+
