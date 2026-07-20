@@ -264,6 +264,10 @@
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-21 00:54 KST] 🟢착수 — 밤샘 자동 파이프라인 착수(사용자 승인·감독 없이 끝까지 자동 진행)
+사용자가 오늘 밤 무인 진행을 명시적으로 지시(승인/확인 요청 금지, 필요한 권한은 지금 전부 위임됨 — main 반영·배포 포함). 계획: Phase1 wiki_rebuild(D단계 영향 13법, rebuild13_groups.json 2그룹) → Phase2 draft_reverify(같은 13법) → Phase3 merge_review_gen/lint_index/human_workload → Phase4 8차 감사(전체 73법, audit8_groups.json 11그룹, round=8) → Phase5 종합·보고. 각 단계 완료 알림 오는 대로 다음 단계 자동 착수. 커밋·main반영 매 단계 수행. TaskList #8~12로 진행상황 추적.
+
+
 ### [2026-07-21 00:45 KST] ✅완료 — D단계 재수집 전체 완료 + 관리자 로그인 지속시간 개선
 ①D단계 needs_collect 완료: holes86+review_resolve_collect14=100건 전수 처리(6묶음 순차). 대부분 stale(이미수집) 확인, 신규수집 다수(경찰관직무집행법·폐기물관리법시행령·재난안전기본법시행령·법원조직법·경비업법·민사집행규칙·교육기본법 등), uncollectable 소수(admrul/ordin 미등재 재확인). ②사용자가 '관리자기기등록=인증'으로 오해 → 코드 확인 결과 그 버튼은 FCM 푸시토큰이고 서버라우트에 인증미들웨어 자체가 없어(공개API) 인증대용시 오히려 더 취약해짐을 확인·정정 설명. ③실제 채택한 안전한 해법: 로그인 시 체크박스 무관 항상 30일 지속토큰 발급으로 재로그인 빈도 최소화(admin.js). ④main 반영·배포 완료. 다음: canonical 필터 ON 검토 또는 Phase E 착수 여부 사용자와 상의.
 
