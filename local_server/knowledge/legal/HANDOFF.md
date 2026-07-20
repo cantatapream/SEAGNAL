@@ -268,6 +268,10 @@
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-20 22:50 KST] ✅완료 — draft_reverify 완료
+5개 법령(선박교통관제·해양레저관광·항만재개발·농수산물품질·배타적경제수역) 처리 완료. 28개 페이지 canonical 승격, 1개 review_gen 카드 생성. canonical 764/800 도달(95.5%). 다음: merge_review_gen→lint_index→human_workload
+
+
 ### [2026-07-20 22:49 KST] ✅완료 — 재검증: 항만재개발및주변지역발전에관한법률
 draft/review-pending 14건 전수 raw grounding 대조. 13건 canonical 승격(정의·수치·처벌·과태료·행정처분기준·산정식 등이 raw 법률/시행령/시행규칙/별표/행정규칙 텍스트와 EXACT 일치 확인), 1건(환지)은 본문에 AI 추정 연결(REVIEW 미해소, 원문 불명)이 남아있어 draft 유지. 카드 생성 없음(OCR 이미지 값 없음, 모두 텍스트 raw). reverify_항만재개발법.done 마커 생성 완료.
 
