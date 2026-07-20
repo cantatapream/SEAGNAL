@@ -22,6 +22,8 @@
  *                    GET  /api/legal/reviews?status=pending    (검증 대기 목록)
  *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
+ *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토 실카운트)
+ *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
  *                    POST /api/legal/ask {query}               (질문→근거 법령 검색)
  *  - 마크업        : #unified-admin-body(콘솔 마운트 지점, admin.js 소유),
  *                    body 에 스스로 주입하는 #nrya-overlays(FAB·채팅·지도 팝업)
@@ -45,6 +47,8 @@
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
   var statsCache = null;                       // {total,pending,approved} — 배지용
+  var adminStatsCache = null;                  // {draft,feedback,candidates,amendments} — 서브탭 배지용
+  var curAdminSubtab = '⚠수치검증';            // renderSubtabs가 마지막으로 그린 활성 탭(재갱신 시 유지용)
 
   // ── 소도구 ────────────────────────────────────────────────────────────
 
@@ -212,23 +216,18 @@
   var ROOM_N = { 원문: true, 위키개념: true };
 
   // ============================================================================
-  // 관리자 검토 데이터 모델 (⚠수치검증만 서버 연동, 나머지는 골격)
+  // 관리자 검토 데이터 모델 (5개 서브탭 전부 서버 연동 — 배지: refreshAdminStats/refreshStats,
+  //   목록: 초안승인=renderDraftCards·⚠수치검증=renderReviewCards, 나머지는 실데이터 0건이라 골격 안내만)
   // ============================================================================
-  function draftCards() {
-    return '<div class="nrya-dual-note">순수 정의·절차 초안은 <b>AI 자동 승격</b> 가능(감사 통과 시). 처벌·안전값 포함 초안만 여기서 <b>사람 승인</b>.</div>' +
-      ['연안체험활동 신고 절차|연안사고예방법|정의·절차(자동승격 후보)',
-       '양식업 위반 처벌 구간|양식산업발전법|처벌 포함 → 사람승인']
-      .map(function (x) { var p = x.split('|'); return '<div class="nrya-rv"><div class="nrya-rv-head"><span class="nrya-rv-id">draft</span><div class="nrya-rv-t">' + esc(p[0]) + '<small>' + esc(p[1]) + ' · ' + esc(p[2]) + '</small></div><span class="nrya-rv-st nrya-wait">검토 대기</span></div><div class="nrya-rv-body"></div></div>'; }).join('');
-  }
   function skelRoom(emoji, title, flow) {
-    return '<div class="nrya-skel-box"><div class="nrya-skel-emoji">' + emoji + '</div><div class="nrya-skel-t">' + esc(title) + '</div><div style="font-size:12px;color:var(--nrya-text-sub);line-height:1.6">아직 등록된 항목이 없습니다(골격). 실배선 시 아래 흐름으로 채워집니다.</div>' +
+    return '<div class="nrya-skel-box"><div class="nrya-skel-emoji">' + emoji + '</div><div class="nrya-skel-t">' + esc(title) + '</div><div style="font-size:12px;color:var(--nrya-text-sub);line-height:1.6">아직 등록된 항목이 없습니다(실데이터 0건). 실배선 시 아래 흐름으로 채워집니다.</div>' +
       '<div class="nrya-skel-flow">' + flow.map(function (s, i) { return (i ? '<span class="nrya-arw">→</span>' : '') + '<span class="nrya-s">' + esc(s) + '</span>'; }).join('') + '</div></div>';
   }
   var ADMIN = {
-    초안승인: { n: '842', desc: '사서(AI)가 만든 <b>미승인 초안(draft)</b> 대기실. 순수 정의·절차는 감사 통과 시 자동 승격, 처벌·안전값 포함분은 여기서 사람이 승인해야 canonical이 됩니다.', render: draftCards },
-    피드백: { n: '0', desc: '답변 <b>👍/👎 익명 로그</b>를 모아 원인 분류(triage) 후 관리자에게 올리는 방. 👎가 쌓인 주제 → 위키 보강으로 연결.', render: function () { return skelRoom('👍', '피드백 처리 (_feedback)', ['챗봇 👎', '익명 로그', 'AI 원인분류', '관리자 검토', '위키 보강']); } },
-    새지식후보: { n: '0', desc: '대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).', render: function () { return skelRoom('💡', '새 지식 후보 (_candidates)', ['미존재 질문 감지', '검색·생성', '공식출처 대조', '관리자 승인', '위키 편입']); } },
-    개정검토: { n: '0', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 시행일·MST diff로 신설·삭제·금액·조번재편을 적재.', render: function () { return skelRoom('📌', '개정 검토 (_amendments)', ['개정 감지(시행일 diff)', '변경 적재', '관리자 검토', '재수집·재빌드', '옛 조문 _legacy 이동']); } },
+    초안승인: { n: '…', desc: '사서(AI)가 만든 <b>미승인 초안(draft)</b> 대기실. 순수 정의·절차는 재검증 파이프라인이 자동 승격, 처벌·안전값 포함분은 ⚠수치검증 방에서 사람이 승인해야 canonical이 됩니다.', render: null /* 서버 연동: renderDraftCards */ },
+    피드백: { n: '…', desc: '답변 <b>👍/👎 익명 로그</b>를 모아 원인 분류(triage) 후 관리자에게 올리는 방. 👎가 쌓인 주제 → 위키 보강으로 연결.', render: function () { return skelRoom('👍', '피드백 처리 (_feedback)', ['챗봇 👎', '익명 로그', 'AI 원인분류', '관리자 검토', '위키 보강']); } },
+    새지식후보: { n: '…', desc: '대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).', render: function () { return skelRoom('💡', '새 지식 후보 (_candidates)', ['미존재 질문 감지', '검색·생성', '공식출처 대조', '관리자 승인', '위키 편입']); } },
+    개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 시행일·MST diff로 신설·삭제·금액·조번재편을 적재.', render: function () { return skelRoom('📌', '개정 검토 (_amendments)', ['개정 감지(시행일 diff)', '변경 적재', '관리자 검토', '재수집·재빌드', '옛 조문 _legacy 이동']); } },
     '⚠수치검증': { n: '…', desc: '별표 <b>이미지 판독값(OCR)·조번호 재편</b> 및 처벌·안전수치를 사람이 검증하는 방(가장 급함). 서버 review_queue.md 의 검증 대기 항목을 불러와 승인/반려한다.', render: null /* 서버 연동: renderReviewCards */ }
   };
   var ADMIN_ORDER = ['초안승인', '피드백', '새지식후보', '개정검토', '⚠수치검증'];
@@ -310,6 +309,7 @@
     // 서버에서 노출설정·통계를 받아 토글/배지 갱신
     fetchConfig();
     refreshStats();
+    refreshAdminStats();
   }
 
   /**
@@ -416,12 +416,18 @@
     bindAcc();
   }
 
+  // 서브탭 배지가 참조할 adminStatsCache 필드명(⚠수치검증은 statsCache.pending을 따로 씀)
+  var ADMIN_STAT_KEY = { 초안승인: 'draft', 피드백: 'feedback', 새지식후보: 'candidates', 개정검토: 'amendments' };
+
   /** 서브탭(관리자 검토 5개 방)을 그린다. @param {string} active */
   function renderSubtabs(active) {
+    curAdminSubtab = active;
     var el = document.getElementById('nryaSubtabs'); if (!el) return; el.innerHTML = '';
     ADMIN_ORDER.forEach(function (k) {
       var a = ADMIN[k];
-      var cnt = (k === '⚠수치검증' && statsCache) ? String(statsCache.pending) : a.n;
+      var cnt = a.n;
+      if (k === '⚠수치검증' && statsCache) cnt = String(statsCache.pending);
+      else if (ADMIN_STAT_KEY[k] && adminStatsCache) cnt = String(adminStatsCache[ADMIN_STAT_KEY[k]]);
       var b = document.createElement('div'); b.className = 'nrya-subtab' + (k === active ? ' nrya-active' : '');
       b.innerHTML = esc(k) + '<span class="nrya-qn">' + esc(cnt) + '</span>';
       b.addEventListener('click', function () { renderSubtabs(k); renderAdmin(k); });
@@ -429,13 +435,16 @@
     });
   }
 
-  /** 선택한 관리자 방을 그린다(⚠수치검증만 서버 연동). @param {string} k */
+  /** 선택한 관리자 방을 그린다(초안승인·⚠수치검증은 서버 연동). @param {string} k */
   function renderAdmin(k) {
     var a = ADMIN[k]; var host = document.getElementById('nryaAdminContent'); if (!host) return;
     var intro = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">🛠</div><div><div class="nrya-intro-name">' + esc(k) + '</div><div class="nrya-intro-tag">관리자 검토 방 · 승인→자동반영</div></div></div><div class="nrya-intro-desc">' + a.desc + '</div></div>';
     if (k === '⚠수치검증') {
       host.innerHTML = intro + '<div class="nrya-panel" id="nryaReviewHost" style="padding:6px 0 4px"></div>';
       renderReviewCards(document.getElementById('nryaReviewHost'));
+    } else if (k === '초안승인') {
+      host.innerHTML = intro + '<div class="nrya-panel" id="nryaDraftHost" style="padding:6px 0 4px"></div>';
+      renderDraftCards(document.getElementById('nryaDraftHost'));
     } else {
       host.innerHTML = intro + a.render();
       bindReviewStatic();
@@ -454,6 +463,46 @@
     var host = document.getElementById('nryaAdminContent'); if (!host) return;
     host.querySelectorAll('.nrya-rv-head').forEach(function (h) {
       h.onclick = function () { h.parentElement.classList.toggle('nrya-open'); };
+    });
+  }
+
+  // ============================================================================
+  // 초안승인 — 서버 연동(목록만, 읽기전용 — 승인 액션은 ⚠수치검증/재검증 파이프라인이 처리)
+  // ============================================================================
+  var DRAFT_NOTE = '<div class="nrya-dual-note">순수 정의·절차 초안은 <b>재검증 파이프라인이 자동 승격</b>. 처벌·안전값 포함 초안은 ⚠수치검증 방에서 사람이 승인합니다.</div>';
+
+  /**
+   * 미승인 초안(draft) 목록을 서버에서 불러와 카드로 렌더한다(읽기전용).
+   * [연계] → GET /api/legal/drafts.
+   * @param {HTMLElement} host - 카드를 담을 컨테이너
+   */
+  function renderDraftCards(host) {
+    if (!host) return;
+    host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>초안 목록을 불러오는 중…</div>';
+    legalGet('/api/legal/drafts').then(function (res) {
+      if (res.status === 401 || res.status === 403) {
+        host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">🔒</span>관리자 로그인 필요<br><span style="font-size:11.5px;color:var(--nrya-text-sub)">통합관리자 센터에서 로그인 후 다시 열어주세요.</span></div>';
+        return null;
+      }
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }).then(function (data) {
+      if (data === null) return;
+      if (!data || !data.ok) {
+        host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>' + esc((data && data.error) || '목록을 불러오지 못했습니다.') + '</div>';
+        return;
+      }
+      var list = data.drafts || [];
+      if (!list.length) {
+        host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">✅</span>대기 중인 초안이 없습니다.</div>';
+        return;
+      }
+      host.innerHTML = DRAFT_NOTE + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">총 ' + list.length + '건</div>' +
+        list.map(function (d) {
+          var st = d.penalty ? '<span class="nrya-rv-st nrya-warn">처벌 포함·사람승인</span>' : '<span class="nrya-rv-st nrya-wait">자동승격 대상</span>';
+          return '<div class="nrya-rv"><div class="nrya-rv-head"><span class="nrya-rv-id">draft</span><div class="nrya-rv-t">' + esc(d.topic || d.file) + '<small>' + esc(d.law || '') + '</small></div>' + st + '</div></div>';
+        }).join('');
+    }).catch(function (e) {
+      host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>';
     });
   }
 
@@ -692,6 +741,21 @@
       var badge = document.getElementById('nryaVbBadge'); if (badge) badge.textContent = String(data.pending);
       var subs = document.querySelectorAll('#nryaSubtabs .nrya-subtab');
       subs.forEach(function (s) { if (s.textContent.indexOf('⚠수치검증') === 0) { var qn = s.querySelector('.nrya-qn'); if (qn) qn.textContent = String(data.pending); } });
+    }).catch(function () { /* 무시 */ });
+  }
+
+  /**
+   * 초안승인·피드백·새지식후보·개정검토 서브탭 배지를 서버 실카운트로 갱신한다.
+   * [연계] → GET /api/legal/admin/stats. 실패는 조용히 무시(배지만 미갱신, 기존 표시 유지).
+   */
+  function refreshAdminStats() {
+    legalGet('/api/legal/admin/stats').then(function (res) {
+      if (!res.ok) return null;
+      return res.json().catch(function () { return null; });
+    }).then(function (data) {
+      if (!data || !data.ok) return;
+      adminStatsCache = { draft: data.draft, feedback: data.feedback, candidates: data.candidates, amendments: data.amendments };
+      renderSubtabs(curAdminSubtab); // 현재 보고 있는 탭을 유지한 채 배지만 최신화
     }).catch(function () { /* 무시 */ });
   }
 

@@ -12,6 +12,8 @@
  *  - GET  /api/legal/reviews          → 검증 대기 목록(review_queue.md 파싱)
  *  - GET  /api/legal/reviews/stats    → 대기/승인 카운트
  *  - POST /api/legal/reviews/:id/approve → 승인(+교정값 확정) 또는 반려 → 서버 반영
+ *  - GET  /api/legal/admin/stats      → 관리자 검토센터 서브탭(초안·피드백·새지식후보·개정검토) 실카운트
+ *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
  *  - POST /api/legal/ask              → 현 위키 DB 검색 기반 답변(기초)
  *
  * [연계 파일]
@@ -253,6 +255,31 @@ function loadIndex() {
   } catch (_) { if (!_idxCache) _idxCache = { pages: [] }; }
   return _idxCache;
 }
+
+// GET /api/legal/admin/stats — 관리자 검토센터 서브탭(초안승인·피드백·새지식후보·개정검토) 실카운트.
+//   ⚠수치검증은 /api/legal/reviews/stats 를 그대로 재사용(기존 클라 로직 유지).
+router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const pages = loadIndex().pages || [];
+    const countFiles = (dir) => { try { return fs.readdirSync(dir).filter(f => f !== 'README.md').length; } catch (_) { return 0; } };
+    res.json({ ok: true,
+      draft: pages.filter(p => p.kind === 'concept' && p.status === 'draft').length,
+      feedback: countFiles(path.join(LEGAL_DIR, '_feedback')),
+      candidates: countFiles(path.join(LEGAL_DIR, '_candidates')),
+      amendments: countFiles(path.join(LEGAL_DIR, '_amendments')) });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/drafts — 초안승인 탭 목록(index.json의 status=draft 개념 페이지, 법·주제·처벌포함여부)
+router.get('/api/legal/drafts', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const drafts = (loadIndex().pages || [])
+      .filter(p => p.kind === 'concept' && p.status === 'draft')
+      .map(p => ({ file: p.file, law: p.law, topic: p.topic, penalty: !!p.penalty }))
+      .sort((a, b) => (a.law || '').localeCompare(b.law || ''));
+    res.json({ ok: true, count: drafts.length, drafts });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
 // POST /api/legal/ask — { query } → 위키 검색 기반 근거 페이지(LLM 합성은 후속 단계)
 router.post('/api/legal/ask', (req, res) => {
   try {
