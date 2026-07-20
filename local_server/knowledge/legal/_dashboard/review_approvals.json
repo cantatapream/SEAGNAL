@@ -67,5 +67,48 @@
    "신항만건설촉진법__정의.md",
    "신항만건설촉진법__사업시행자지정.md"
   ]
+ },
+ {
+  "id": "REVIEW-해운법-02",
+  "decision": "approve",
+  "correctedValue": "테스트확정값42",
+  "by": "검증관리자",
+  "at": "2026-07-20T03:52:25.292Z",
+  "targetPages": [
+   "wiki/concepts/해운법__벌칙과태료행정처분체계총괄.md"
+  ],
+  "changedFiles": [
+   "해운법__벌칙과태료행정처분체계총괄.md"
+  ]
+ },
+ {
+  "id": "REVIEW-해운법-02",
+  "decision": "approve",
+  "correctedValue": "테스트확정값42",
+  "by": "검증관리자",
+  "at": "2026-07-20T03:52:25.303Z",
+  "targetPages": [
+   "wiki/concepts/해운법__벌칙과태료행정처분체계총괄.md"
+  ],
+  "changedFiles": [
+   "해운법__벌칙과태료행정처분체계총괄.md"
+  ]
+ },
+ {
+  "id": "REVIEW-신항만건설촉진법-04",
+  "decision": "approve",
+  "correctedValue": "X99",
+  "by": "t",
+  "at": "2026-07-20T03:52:25.313Z",
+  "targetPages": [
+   "wiki/concepts/신항만건설촉진법__시설의귀속.md(신규)",
+   "__정의.md(권한의 위임 절 추가)",
+   "__사업시행자지정.md(원문에 규정이 없는 사항 절 추가)"
+  ],
+  "changedFiles": [
+   "신항만건설촉진법__시설의귀속.md",
+   "신항만건설촉진법__정의.md",
+   "신항만건설촉진법__사업시행자지정.md"
+  ]
  }
 ]

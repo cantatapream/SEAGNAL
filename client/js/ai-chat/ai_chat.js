@@ -1,28 +1,34 @@
 /**
  * ============================================================================
  * 파일명: client/js/ai-chat/ai_chat.js
- * 역할  : AI 챗봇(나리야) 탭의 인앱 모듈. 승인된 목업(client/mockups/
- *         ai_chat_rooms.html)을 실제 앱에 이식한 것. (1) 지식 방 브라우저,
- *         (2) 관리자 검토센터(원본 vs AI 추출값 + 교정입력 + 승인/반려 + 반영사슬),
- *         (3) 우측 하단 FAB로 여는 카카오톡풍 채팅 팝업(생각중·스켈레톤·근거법령
- *         아코디언·좌표 미니지도+핀치줌)을 그린다. 서버 /api/legal/* 에 연결된다.
- *         (초보자용: 이 파일이 나리야 탭 화면 전체와 챗봇 버튼을 만든다)
+ * 역할  : 해양법령 챗봇(나리야) 인앱 모듈. 두 갈래로 나뉜다.
+ *         (A) 관리자 콘솔 — 통합관리자 센터의 "나리야 법령" 탭이 부르는
+ *             window.NariyaChat.renderAdminInto(container) 로, 지식 방 브라우저
+ *             (원문/위키개념/법령/비교허브/별표/지식그래프 + 역할설명 인트로카드)
+ *             + 관리자 검토센터(5개 서브탭·원본 vs AI값·교정입력·승인/반려·반영사슬)
+ *             + 챗봇 노출 토글(서버 전역 설정)을 렌더한다.
+ *         (B) 사용자 챗봇 — 우측 하단 FAB + 카카오톡풍 채팅 팝업(생각중·스켈레톤·
+ *             근거법령 아코디언·좌표 미니지도 핀치줌). #nrya-overlays(body) 에 산다.
+ *         FAB 는 (1) 앱 메인 특보 탭일 때만, (2) 서버 노출설정이 허용할 때만 보인다.
+ *         (초보자용: 이 파일이 관리자용 나리야 콘솔과 사용자용 챗봇 버튼/창을 만든다)
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : css/ai_chat.css (스타일), js/admin/admin.js (관리자 토큰 저장소
- *                    'seagnal_admin_token' 을 재사용해 리뷰 API 인증)
+ *  - 사용하는 파일 : css/ai_chat.css (스타일), js/admin/admin.js
+ *                    (통합관리자 'nariya' 탭이 renderAdminInto 호출 · 관리자 토큰
+ *                    저장소 'seagnal_admin_token' 재사용)
  *  - 서버 API      : routes/legal.js
- *                    GET  /api/legal/reviews?status=pending  (검증 대기 목록)
- *                    GET  /api/legal/reviews/stats           (대기/승인 카운트)
- *                    POST /api/legal/reviews/:id/approve      (승인/반려 + 교정값 확정)
- *                    POST /api/legal/ask                      (질문→근거 법령 검색)
- *  - 마크업        : index2.html #ai-chat-section (섹션 콘텐츠 렌더 대상),
- *                    body 에 #nrya-overlays 를 스스로 주입(FAB·채팅·지도 팝업)
+ *                    GET  /api/legal/config                   (노출설정 조회, 기본 off)
+ *                    POST /api/legal/config {exposure}         (노출설정 저장, 관리자)
+ *                    GET  /api/legal/reviews?status=pending    (검증 대기 목록)
+ *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
+ *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
+ *                    POST /api/legal/ask {query}               (질문→근거 법령 검색)
+ *  - 마크업        : #unified-admin-body(콘솔 마운트 지점, admin.js 소유),
+ *                    body 에 스스로 주입하는 #nrya-overlays(FAB·채팅·지도 팝업)
  *  - 나를 쓰는 곳  : index2.html <script src="js/ai-chat/ai_chat.js"> — 자가 실행.
- *                    탭 활성화(body[data-active-tab]='ai-chat-section' 또는 섹션
- *                    .active)를 MutationObserver 로 감지해 최초 1회 지연 렌더.
- * [로드 순서] admin.js 이후(관리자 토큰 저장소 정의 후) 로드 권장. 자가 실행이라
- *            로드 순서 의존은 약함 — 다른 스크립트 뒤 어디든 안전.
+ *                    admin.js switchUnifiedAdminTab('nariya') → renderAdminInto.
+ * [로드 순서] admin.js 이후 로드 권장(관리자 토큰 저장소·콘솔 호출부 정의 후).
+ *            자가 실행이라 로드 순서 의존은 약함.
  * ============================================================================
  */
 (function () {
@@ -32,14 +38,13 @@
   if (window.NariyaChat && window.NariyaChat.__loaded) return;
 
   // ── 상수 ──────────────────────────────────────────────────────────────
-  var SECTION_ID = 'ai-chat-section';       // 렌더 대상 섹션
-  var GROUP_VALUE = 'ai-chat-section';       // body[data-active-tab] 활성값(SECTION_TO_GROUP 미등록이라 섹션ID 그대로)
-  var LS_EXPOSURE = 'nrya_exposure';         // FAB 노출 상태(user/admin/off) 저장키
-  var LS_ADMIN = 'seagnal_admin_mode';       // 관리자 모드 플래그(앱 공용)
-  var LS_ADMIN_TOKEN = 'seagnal_admin_token';// 관리자 토큰(admin.js와 공유)
+  var MAIN_TAB_GROUP = 'weather-group';       // FAB 이 보이는 유일한 메인 탭(특보)
+  var LS_ADMIN = 'seagnal_admin_mode';         // 관리자 모드 플래그(앱 공용)
+  var LS_ADMIN_TOKEN = 'seagnal_admin_token';  // 관리자 토큰(admin.js와 공유)
 
-  var rendered = false;                      // 섹션 콘텐츠 1회 렌더 가드
-  var statsCache = null;                     // {total,pending,approved} — 배지 표시용
+  var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
+  var configLoaded = false;                    // /config 최초 로드 완료 여부
+  var statsCache = null;                       // {total,pending,approved} — 배지용
 
   // ── 소도구 ────────────────────────────────────────────────────────────
 
@@ -48,7 +53,6 @@
    * 예: esc('<b>5톤</b>') → '&lt;b&gt;5톤&lt;/b&gt;'
    * @param {*} s - 임의 값
    * @returns {string} 이스케이프된 문자열
-   * [연계] → 리뷰카드/답변 렌더 함수들이 서버·사용자 텍스트를 넣기 전에 호출.
    */
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -59,29 +63,22 @@
   /** 관리자 모드 여부(로컬 저장 플래그). @returns {boolean} */
   function isAdmin() { try { return localStorage.getItem(LS_ADMIN) === 'true'; } catch (_) { return false; } }
 
-  /** FAB 노출 상태를 읽는다(기본 'admin'). @returns {'user'|'admin'|'off'} */
-  function getExposure() { try { return localStorage.getItem(LS_EXPOSURE) || 'admin'; } catch (_) { return 'admin'; } }
-
-  /** FAB 노출 상태를 저장한다. @param {string} v */
-  function setExposure(v) { try { localStorage.setItem(LS_EXPOSURE, v); } catch (_) {} }
-
   /** 관리자 토큰을 로컬/세션에서 읽는다(admin.js 저장 규약과 동일). @returns {string|null} */
   function getAdminToken() {
     try { return localStorage.getItem(LS_ADMIN_TOKEN) || sessionStorage.getItem(LS_ADMIN_TOKEN) || null; } catch (_) { return null; }
   }
 
   /**
-   * /api/legal/* 호출 래퍼. 리뷰 API(admin-token-gated)에는 X-Admin-Token 을 직접
-   * 붙인다(앱 전역 fetch 래퍼는 /api/admin/* 만 처리하고 /api/legal/* 은 안 붙이므로).
+   * /api/legal/* 호출 래퍼. admin-token-gated 경로(reviews·config)에는 X-Admin-Token
+   * 을 직접 붙인다(앱 전역 fetch 래퍼는 /api/admin/* 만 처리하고 /api/legal/* 은 안 붙임).
    * 예: legalFetch('/api/legal/reviews?status=pending') → Promise<Response>
    * @param {string} url - 요청 경로
    * @param {object} [opts] - fetch 옵션
    * @returns {Promise<Response>}
-   * [연계] → 서버 routes/legal.js. reviews 계열만 인증 헤더 부착.
    */
   function legalFetch(url, opts) {
     opts = opts || {};
-    if (url.indexOf('/api/legal/reviews') !== -1) {
+    if (url.indexOf('/api/legal/reviews') !== -1 || url.indexOf('/api/legal/config') !== -1) {
       var token = getAdminToken();
       if (token) {
         var headers = Object.assign({}, opts.headers || {});
@@ -108,7 +105,7 @@
   }
 
   // ============================================================================
-  // 지식 방 데이터 모델 (목업 이식 · nrya- 접두어)
+  // 지식 방 데이터 모델 (대표 정적 콘텐츠 · nrya- 접두어)
   // ============================================================================
   var accHTML =
     '<div class="nrya-acc nrya-open"><div class="nrya-acc-head"><div style="flex:1;min-width:0"><div class="nrya-acc-name">해상교통안전법</div><div class="nrya-acc-dom">03 해상교통안전 · 해양수산부</div></div><div class="nrya-eff"><span class="nrya-lbl">시행</span>2024. 7. 26.</div><div class="nrya-chev">▼</div></div>' +
@@ -210,7 +207,7 @@
   var ROOM_N = { 원문: true, 위키개념: true };
 
   // ============================================================================
-  // 관리자 검토 데이터 모델 (⚠수치검증만 서버 연동, 나머지는 목업 골격)
+  // 관리자 검토 데이터 모델 (⚠수치검증만 서버 연동, 나머지는 골격)
   // ============================================================================
   function draftCards() {
     return '<div class="nrya-dual-note">순수 정의·절차 초안은 <b>AI 자동 승격</b> 가능(감사 통과 시). 처벌·안전값 포함 초안만 여기서 <b>사람 승인</b>.</div>' +
@@ -232,100 +229,160 @@
   var ADMIN_ORDER = ['초안승인', '피드백', '새지식후보', '개정검토', '⚠수치검증'];
 
   // ============================================================================
-  // 섹션 렌더링 (지식 방 / 관리자 검토)
+  // 관리자 콘솔 렌더링 — 통합관리자 센터 컨테이너(#unified-admin-body)에 마운트
   // ============================================================================
 
   /**
-   * #ai-chat-section 안에 헤더 + 두 뷰(지식 방/관리자 검토)의 골격을 1회 렌더하고
-   * 초기 방/서브탭을 그린다. 이후 탭/방/서브탭 전환은 이벤트로 부분 갱신.
-   * [연계] ← maybeRender(활성 감지). → renderRoom/renderAdmin/updateFabVisibility.
+   * 통합관리자 센터의 "나리야 법령" 탭이 부르는 진입점. 주어진 컨테이너에 나리야
+   * 관리자 콘솔 전체(지식 방 브라우저 + 관리자 검토센터 + 노출 토글)를 렌더한다.
+   * 탭을 열 때마다 새로 불려도 안전하도록 매번 innerHTML 을 재구성한다.
+   * @param {HTMLElement} container - 콘솔을 담을 컨테이너(예: #unified-admin-body)
+   * [연계] ← admin.js switchUnifiedAdminTab('nariya'). → renderRoom/renderAdmin/initSeg.
    */
-  function renderSection() {
-    var sec = document.getElementById(SECTION_ID);
-    if (!sec) return;
-    rendered = true;
+  function renderAdminInto(container) {
+    if (!container) return;
 
-    sec.innerHTML =
-      '<div class="nrya-app">' +
-        '<div class="nrya-env-ribbon"><span class="nrya-dot"></span>테스트 빌드 · 관리자 전용(일반 사용자 챗봇 버튼 미노출)</div>' +
-        '<div class="nrya-header">' +
-          '<div class="nrya-h-row"><div class="nrya-h-mark">나</div><div><div class="nrya-h-title">AI 챗봇 · 나리야</div><div class="nrya-h-sub">해양법령 지식베이스 관리</div></div></div>' +
-          '<div class="nrya-vswitch" id="nryaVswitch">' +
-            '<button class="nrya-active" data-view="rooms">💬 지식 방</button>' +
-            '<button data-view="admin">🛠 관리자 검토 <span class="nrya-vb-badge" id="nryaVbBadge">…</span></button>' +
-          '</div>' +
-        '</div>' +
-        '<div id="nryaViewRooms">' +
-          '<div class="nrya-rooms" id="nryaRoomPills"></div>' +
-          '<div id="nryaRoomContent"></div>' +
-        '</div>' +
-        '<div id="nryaViewAdmin" class="nrya-hidden">' +
-          '<div class="nrya-panel">' +
-            '<div class="nrya-card">' +
-              '<div class="nrya-card-lab"><span class="nrya-pipe"></span>AI 챗봇 노출 설정</div>' +
-              '<div class="nrya-seg" id="nryaSeg">' +
-                '<button data-exp="user">사용자 노출</button>' +
-                '<button data-exp="admin">관리자 전용</button>' +
-                '<button data-exp="off">미표출</button>' +
-              '</div>' +
-              '<div class="nrya-seg-help" id="nryaSegHelp"></div>' +
+    container.innerHTML =
+      '<div class="nrya-console">' +
+        '<div class="nrya-app">' +
+          '<div class="nrya-env-ribbon"><span class="nrya-dot"></span>나리야 법령 콘솔 · 챗봇 노출은 서버 전역 설정(기본: 비노출)</div>' +
+          '<div class="nrya-header">' +
+            '<div class="nrya-h-row"><div class="nrya-h-mark">나</div><div><div class="nrya-h-title">AI 챗봇 · 나리야</div><div class="nrya-h-sub">해양법령 지식베이스 관리</div></div></div>' +
+            '<div class="nrya-vswitch" id="nryaVswitch">' +
+              '<button class="nrya-active" data-view="rooms">💬 지식 방</button>' +
+              '<button data-view="admin">🛠 관리자 검토 <span class="nrya-vb-badge" id="nryaVbBadge">…</span></button>' +
             '</div>' +
-            '<div class="nrya-card-lab" style="padding:0 2px"><span class="nrya-pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>' +
-            '<div class="nrya-subtabs" id="nryaSubtabs"></div>' +
-            '<div id="nryaAdminContent"></div>' +
+          '</div>' +
+          '<div id="nryaViewRooms">' +
+            '<div class="nrya-rooms" id="nryaRoomPills"></div>' +
+            '<div id="nryaRoomContent"></div>' +
+          '</div>' +
+          '<div id="nryaViewAdmin" class="nrya-hidden">' +
+            '<div class="nrya-panel">' +
+              '<div class="nrya-card">' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>AI 챗봇 노출 설정 (서버 전역)</div>' +
+                '<div class="nrya-seg" id="nryaSeg">' +
+                  '<button data-exp="user">일반 노출</button>' +
+                  '<button data-exp="admin">관리자만</button>' +
+                  '<button data-exp="off">비노출</button>' +
+                '</div>' +
+                '<div class="nrya-seg-help" id="nryaSegHelp">노출 설정을 불러오는 중…</div>' +
+                '<div class="nrya-seg-err nrya-hidden" id="nryaSegErr"></div>' +
+              '</div>' +
+              '<div class="nrya-card-lab" style="padding:0 2px"><span class="nrya-pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>' +
+              '<div class="nrya-subtabs" id="nryaSubtabs"></div>' +
+              '<div id="nryaAdminContent"></div>' +
+            '</div>' +
           '</div>' +
         '</div>' +
       '</div>';
 
+    var root = container.querySelector('.nrya-console');
+
     // 뷰 전환(지식 방 / 관리자 검토)
-    sec.querySelector('#nryaVswitch').addEventListener('click', function (e) {
+    var vsw = root.querySelector('#nryaVswitch');
+    vsw.addEventListener('click', function (e) {
       var b = e.target.closest('button[data-view]'); if (!b) return;
       this.querySelectorAll('button').forEach(function (x) { x.classList.remove('nrya-active'); });
       b.classList.add('nrya-active');
       var v = b.dataset.view;
-      sec.querySelector('#nryaViewRooms').classList.toggle('nrya-hidden', v !== 'rooms');
-      sec.querySelector('#nryaViewAdmin').classList.toggle('nrya-hidden', v !== 'admin');
+      root.querySelector('#nryaViewRooms').classList.toggle('nrya-hidden', v !== 'rooms');
+      root.querySelector('#nryaViewAdmin').classList.toggle('nrya-hidden', v !== 'admin');
     });
 
-    // 노출 3-state 세그먼트
-    initSeg(sec);
+    // 노출 3-state 토글(서버 전역 설정)
+    initSeg(root);
 
     // 초기 렌더
     renderRoomPills('원문'); renderRoom('원문');
     renderSubtabs('⚠수치검증'); renderAdmin('⚠수치검증');
 
-    // 통계(대기 카운트)로 배지 갱신
+    // 서버에서 노출설정·통계를 받아 토글/배지 갱신
+    fetchConfig();
     refreshStats();
   }
 
   /**
-   * 노출 토글(user/admin/off)의 현재 상태를 반영하고, 클릭 시 저장 + 안내문 + FAB 갱신.
-   * [연계] → setExposure/updateFabVisibility. FAB 표시 규칙의 사용자 진입점.
+   * 노출 토글(일반노출/관리자만/비노출)의 상태를 서버 설정으로 그리고, 클릭 시
+   * POST /api/legal/config 로 저장한 뒤 FAB 표시를 재평가한다.
+   * @param {HTMLElement} root - .nrya-console 루트
+   * [연계] → setConfig/paintSeg. 서버 전역 노출 규칙의 관리자 진입점.
    */
-  function initSeg(sec) {
-    var seg = sec.querySelector('#nryaSeg');
-    var help = sec.querySelector('#nryaSegHelp');
-    var HELP = {
-      user: '<b>사용자 노출</b> — 모든 사용자 메인에 챗봇 버튼(우측 하단 원형)이 표시됩니다.',
-      admin: '현재 <b>관리자 전용</b> — 일반 사용자에겐 챗봇 버튼이 표시되지 않습니다(관리자 모드일 때만 보임).',
-      off: '<b>미표출</b> — 관리자에게도 진입 버튼이 숨겨집니다.'
-    };
-    function paint() {
-      var exp = getExposure();
-      seg.querySelectorAll('button').forEach(function (x) {
-        var on = x.dataset.exp === exp;
-        x.classList.toggle('nrya-on', on);
-        x.classList.toggle('nrya-warn', on && exp === 'admin');
-      });
-      help.innerHTML = HELP[exp] || HELP.admin;
-    }
+  function initSeg(root) {
+    var seg = root.querySelector('#nryaSeg');
     seg.addEventListener('click', function (e) {
       var b = e.target.closest('button[data-exp]'); if (!b) return;
-      setExposure(b.dataset.exp);
-      paint();
+      setConfig(b.dataset.exp);
+    });
+    paintSeg(); // 현재 알고 있는 serverExposure 로 즉시 1차 페인트
+  }
+
+  /**
+   * 현재 마운트된 노출 토글 UI를 serverExposure 값에 맞춰 칠하고 안내문을 갱신한다.
+   * 콘솔이 안 떠 있으면 아무 것도 하지 않는다(안전).
+   */
+  function paintSeg() {
+    var seg = document.getElementById('nryaSeg'); if (!seg) return;
+    var help = document.getElementById('nryaSegHelp');
+    var HELP = {
+      user: '<b>일반 노출</b> — 모든 사용자에게 챗봇 버튼이 노출됩니다(특보 탭에서만). 서버 전역 설정입니다.',
+      admin: '<b>관리자만</b> — 관리자 모드 기기에서만 챗봇 버튼이 보입니다. 일반 사용자에겐 노출되지 않습니다(특보 탭에서만).',
+      off: '<b>비노출(기본값)</b> — 아무에게도 챗봇 버튼이 노출되지 않습니다. 테스트 완료 후 노출로 전환하세요.'
+    };
+    seg.querySelectorAll('button').forEach(function (x) {
+      var on = x.dataset.exp === serverExposure;
+      x.classList.toggle('nrya-on', on);
+      x.classList.toggle('nrya-warn', on && (serverExposure === 'admin' || serverExposure === 'off'));
+    });
+    if (help) help.innerHTML = (configLoaded ? '' : '<span style="color:#94a3b8">(서버 조회 전 · 기본값 표시) </span>') + (HELP[serverExposure] || HELP.off);
+  }
+
+  /** 노출 토글 저장 실패 등 인라인 오류 표시. @param {string} msg */
+  function segError(msg) {
+    var el = document.getElementById('nryaSegErr'); if (!el) return;
+    el.style.display = 'block'; el.classList.remove('nrya-hidden'); el.textContent = msg;
+  }
+  function segClearError() { var el = document.getElementById('nryaSegErr'); if (!el) return; el.style.display = 'none'; el.textContent = ''; }
+
+  /**
+   * 서버의 챗봇 노출 설정을 조회해 serverExposure 를 갱신하고, 토글/ FAB 를 재평가한다.
+   * 실패 시 기본값(off)을 유지한다(안전 — 노출 안 됨).
+   * [연계] → GET /api/legal/config. ← boot(로드 시), renderAdminInto(콘솔 열 때).
+   */
+  function fetchConfig() {
+    return legalGet('/api/legal/config').then(function (res) {
+      return res.json().catch(function () { return null; });
+    }).then(function (data) {
+      if (data && data.ok && ['off', 'admin', 'user'].indexOf(data.exposure) !== -1) {
+        serverExposure = data.exposure;
+      }
+      configLoaded = true;
+      paintSeg();
+      updateFabVisibility();
+    }).catch(function () {
+      configLoaded = true; // 실패해도 기본 off 로 확정
+      paintSeg();
       updateFabVisibility();
     });
-    paint();
+  }
+
+  /**
+   * 노출 설정을 서버에 저장(관리자 전용)하고 성공 시 FAB 를 재평가한다.
+   * @param {'user'|'admin'|'off'} exp
+   * [연계] → POST /api/legal/config. ← initSeg 클릭.
+   */
+  function setConfig(exp) {
+    segClearError();
+    legalPost('/api/legal/config', { exposure: exp }).then(function (res) {
+      if (res.status === 401 || res.status === 403) return { _denied: true };
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }).then(function (data) {
+      if (data._denied) { segError('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'); return; }
+      if (!data || !data.ok) { segError((data && data.error) || '노출 설정 저장 실패'); return; }
+      serverExposure = data.exposure || exp;
+      paintSeg();
+      updateFabVisibility();
+    }).catch(function (e) { segError('네트워크 오류: ' + String(e && e.message || e)); });
   }
 
   /** 방 pill 목록을 그린다(활성 방 표시 + N 배지). @param {string} active */
@@ -396,7 +453,7 @@
   var DUAL_NOTE = '<div class="nrya-dual-note">⚠ <b>승인 이원화</b>: 처벌·과태료·안전수치·⚠REVIEW 포함 페이지는 <b>사람 승인 필수</b>. 순수 정의/절차 페이지만 AI 자동 승격.</div>';
 
   /**
-   * 검증 대기 목록을 서버에서 불러와 리뷰 카드로 렌더(목업 하드코딩 대체).
+   * 검증 대기 목록을 서버에서 불러와 리뷰 카드로 렌더한다.
    * 401 → "관리자 로그인 필요", 오류 → 오류 박스, 빈 목록 → 안내. 절대 빈 화면 없음.
    * @param {HTMLElement} host - 카드를 담을 컨테이너
    * [연계] → GET /api/legal/reviews?status=pending, bindReviewCard.
@@ -459,8 +516,8 @@
 
   /**
    * 리뷰 카드 1장에 헤더 토글 + 승인/반려 동작을 바인딩한다.
-   * 승인: POST approve(decision:'approve') → 성공 시 반영사슬 표시 + canonical 마킹.
-   * 반려: POST approve(decision:'reject') → 반려 상태 표시. 실패는 인라인 오류.
+   * 승인: POST approve(decision:'approve') → promotedCount>0 이면 초록 성공, 0 이면
+   *       경고(승격 0건)로 표시. 반려: decision:'reject'. 실패는 인라인 오류.
    * @param {HTMLElement} card
    * [연계] → POST /api/legal/reviews/:id/approve.
    */
@@ -476,58 +533,79 @@
     function showErr(msg) { if (!errBox) return; errBox.style.display = 'block'; errBox.classList.remove('nrya-hidden'); errBox.textContent = msg; }
     function clearErr() { if (!errBox) return; errBox.style.display = 'none'; errBox.textContent = ''; }
     function setBusy(b) { if (okBtn) okBtn.disabled = b; if (noBtn) noBtn.disabled = b; }
+    function resetOk() { if (okBtn) okBtn.textContent = '✓ 승인 (입력값으로 확정)'; }
 
     function submit(decision) {
       clearErr();
       var input = card.querySelector('.nrya-correct-in');
       var val = input ? input.value.trim() : '';
       setBusy(true);
-      if (okBtn) okBtn.textContent = decision === 'approve' ? '처리 중…' : okBtn.textContent;
+      if (okBtn && decision === 'approve') okBtn.textContent = '처리 중…';
       legalPost('/api/legal/reviews/' + encodeURIComponent(id) + '/approve', { decision: decision, correctedValue: val, by: '관리자' })
         .then(function (res) {
           if (res.status === 401 || res.status === 403) return { _denied: true };
           return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
         })
         .then(function (data) {
-          if (data._denied) { showErr('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'); setBusy(false); if (okBtn) okBtn.textContent = '✓ 승인 (입력값으로 확정)'; return; }
-          if (!data || !data.ok) { showErr((data && data.error) || '처리에 실패했습니다.'); setBusy(false); if (okBtn) okBtn.textContent = '✓ 승인 (입력값으로 확정)'; return; }
+          if (data._denied) { showErr('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'); setBusy(false); resetOk(); return; }
+          if (!data || !data.ok) { showErr((data && data.error) || '처리에 실패했습니다.'); setBusy(false); resetOk(); return; }
           if (decision === 'reject') { markRejected(card, data); }
           else { markApproved(card, val, data); }
           refreshStats(); // 대기 카운트 배지 갱신
         })
-        .catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); setBusy(false); if (okBtn) okBtn.textContent = '✓ 승인 (입력값으로 확정)'; });
+        .catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); setBusy(false); resetOk(); });
     }
 
     if (okBtn) okBtn.onclick = function () { submit('approve'); };
     if (noBtn) noBtn.onclick = function () { submit('reject'); };
   }
 
-  /** 승인 성공 시: 상태 배지 canonical + 반영사슬(확정값·변경파일·서버 note) 표시. */
+  /**
+   * 승인 응답 처리. promotedCount(승격 건수)를 기준으로 초록 성공 또는 경고로 표시한다.
+   * 서버 note 를 항상 관리자에게 노출한다. changedFiles 목록도 함께 보여준다.
+   * @param {HTMLElement} card @param {string} val 확정값 @param {object} data 승인 응답
+   */
   function markApproved(card, val, data) {
+    var promoted = (typeof data.promotedCount === 'number') ? data.promotedCount : ((data.changedFiles || []).length);
     var st = card.querySelector('.nrya-rv-st');
-    if (st) { st.className = 'nrya-rv-st nrya-done'; st.textContent = '✓ 승인·canonical'; }
-    card.classList.add('nrya-approved');
     var chain = card.querySelector('.nrya-chain');
+    card.classList.add('nrya-approved');
+    var files = data.changedFiles || [];
+    var filesTxt = files.length ? files.map(esc).join(', ') : '(변경 파일 없음)';
     var valTxt = (val && val !== '') ? esc(val) : '(값 없음 — 연결·해석 확정)';
-    var files = (data.changedFiles || []);
-    var filesTxt = files.length ? files.map(esc).join(', ') : '대상 페이지 갱신';
-    if (chain) {
-      chain.innerHTML =
-        '<div class="nrya-chain-step"><span class="nrya-n">1</span> review_queue.md 승인 마킹 · 이력 보존(review_approvals.json)</div>' +
-        '<div class="nrya-chain-step"><span class="nrya-n">2</span> 확정값: <b style="color:#69f0ae">' + valTxt + '</b> · ⚠REVIEW 플래그 해제</div>' +
-        '<div class="nrya-chain-step"><span class="nrya-n">3</span> status: review-pending → <b style="color:#69f0ae">canonical</b> 승격 (' + filesTxt + ')</div>' +
-        '<div class="nrya-chain-step"><span class="nrya-n">4</span> ' + esc(data.note || '임베딩·그래프 인덱스 재빌드 → 챗봇 인용 가능(배치)') + '</div>';
+    var note = esc(data.note || '');
+
+    if (promoted === 0) {
+      // 경고: 승인은 기록됐지만 canonical 승격이 일어나지 않음
+      if (st) { st.className = 'nrya-rv-st nrya-warn'; st.textContent = '⚠ 승인(승격 0건)'; }
+      if (chain) {
+        chain.classList.add('nrya-warn-chain');
+        chain.innerHTML =
+          '<div class="nrya-chain-step"><span class="nrya-n nrya-warnn">!</span> 승인은 기록됐지만 <b style="color:#ffe082">canonical 승격 0건</b> 입니다.</div>' +
+          '<div class="nrya-chain-step"><span class="nrya-n nrya-warnn">!</span> 확정값: <b style="color:#ffe082">' + valTxt + '</b> · 변경 파일: ' + filesTxt + '</div>' +
+          '<div class="nrya-chain-step"><span class="nrya-n nrya-warnn">!</span> ' + (note || '대상 페이지가 없거나 이미 canonical 이라 승격되지 않았을 수 있습니다. 확인 필요.') + '</div>';
+      }
+    } else {
+      if (st) { st.className = 'nrya-rv-st nrya-done'; st.textContent = '✓ 승인·canonical'; }
+      if (chain) {
+        chain.classList.remove('nrya-warn-chain');
+        chain.innerHTML =
+          '<div class="nrya-chain-step"><span class="nrya-n">1</span> review_queue.md 승인 마킹 · 이력 보존(review_approvals.json)</div>' +
+          '<div class="nrya-chain-step"><span class="nrya-n">2</span> 확정값: <b style="color:#69f0ae">' + valTxt + '</b> · ⚠REVIEW 플래그 해제</div>' +
+          '<div class="nrya-chain-step"><span class="nrya-n">3</span> status → <b style="color:#69f0ae">canonical</b> 승격 ' + promoted + '건 (' + filesTxt + ')</div>' +
+          '<div class="nrya-chain-step"><span class="nrya-n">4</span> ' + (note || '임베딩·그래프 인덱스 재빌드 → 챗봇 인용 가능(배치)') + '</div>';
+      }
     }
   }
 
-  /** 반려 처리 시: 상태 배지를 '반려'로 바꾸고 액션을 숨긴다. */
+  /** 반려 처리 시: 상태 배지를 '반려'로 바꾸고 액션을 숨긴다. 서버 note 노출. */
   function markRejected(card, data) {
     var st = card.querySelector('.nrya-rv-st');
     if (st) { st.className = 'nrya-rv-st nrya-rej'; st.textContent = '✗ 반려'; }
     var actions = card.querySelector('.nrya-rv-actions');
     if (actions) actions.style.display = 'none';
     var chain = card.querySelector('.nrya-chain');
-    if (chain) { chain.style.display = 'block'; chain.innerHTML = '<div class="nrya-chain-step"><span class="nrya-n" style="background:#ff8a8a;color:#3a0000">✗</span> ' + esc(data.note || '반려 처리 · 재검토 큐 유지') + '</div>'; }
+    if (chain) { chain.classList.add('nrya-warn-chain'); chain.style.display = 'block'; chain.innerHTML = '<div class="nrya-chain-step"><span class="nrya-n nrya-warnn">✗</span> ' + esc(data.note || '반려 처리 · 재검토 큐 유지') + '</div>'; }
   }
 
   /**
@@ -542,14 +620,13 @@
       if (!data || !data.ok) return;
       statsCache = { total: data.total, pending: data.pending, approved: data.approved };
       var badge = document.getElementById('nryaVbBadge'); if (badge) badge.textContent = String(data.pending);
-      // ⚠수치검증 서브탭이 현재 그려져 있으면 카운트 갱신
       var subs = document.querySelectorAll('#nryaSubtabs .nrya-subtab');
       subs.forEach(function (s) { if (s.textContent.indexOf('⚠수치검증') === 0) { var qn = s.querySelector('.nrya-qn'); if (qn) qn.textContent = String(data.pending); } });
     }).catch(function () { /* 무시 */ });
   }
 
   // ============================================================================
-  // 바디 오버레이: FAB + 채팅 팝업 + 좌표 지도 팝업
+  // 사용자 챗봇: FAB + 채팅 팝업 + 좌표 지도 팝업 (#nrya-overlays)
   // ============================================================================
   var STEPS = ['생각하고 있습니다', '관련 법령을 찾고 있습니다', '조문 구조를 확인하고 있습니다', '답변을 정리하고 있습니다'];
 
@@ -570,12 +647,11 @@
     '</svg>';
 
   var overlaysBuilt = false;
-  // 지도 팝업 상태
-  var mScale = 1, mX = 0, mY = 0;
+  var mScale = 1, mX = 0, mY = 0; // 지도 팝업 줌 상태
 
   /**
    * body 에 #nrya-overlays(FAB + 채팅 팝업 + 지도 팝업)를 1회 주입하고 이벤트를 건다.
-   * 탭과 무관하게 항상 존재하되 FAB 표시는 노출 설정으로 게이트한다.
+   * FAB 표시는 updateFabVisibility 가 탭/서버설정으로 게이트한다(초기값 숨김).
    * [연계] → updateFabVisibility, bindChat, bindMap.
    */
   function ensureOverlays() {
@@ -585,7 +661,7 @@
     var wrap = document.createElement('div');
     wrap.id = 'nrya-overlays';
     wrap.innerHTML =
-      '<button class="nrya-fab" id="nryaFab" title="나리야에게 물어보기"><div class="nrya-orb"></div><span class="nrya-fab-badge">N</span></button>' +
+      '<button class="nrya-fab" id="nryaFab" title="나리야에게 물어보기" style="display:none"><div class="nrya-orb"></div><span class="nrya-fab-badge">N</span></button>' +
       // 채팅 팝업
       '<div class="nrya-chat-wrap" id="nryaChatWrap">' +
         '<div class="nrya-chat">' +
@@ -623,15 +699,18 @@
   }
 
   /**
-   * FAB 표시 여부를 노출 설정 + 관리자 모드로 판정해 적용한다.
-   * 규칙: 'user' → 항상 표시 · 'admin' → 관리자 모드일 때만 · 'off' → 항상 숨김.
-   * [연계] ← initSeg(토글 변경), storage 이벤트, init.
+   * FAB 표시 여부를 (1) 메인 특보 탭인지 (2) 서버 노출설정이 허용하는지 로 판정해 적용한다.
+   * 규칙: 최종표시 = tabIsMain && exposureAllows.
+   *   tabIsMain    : body[data-active-tab] === 'weather-group' (없으면 초기값이므로 참으로 취급)
+   *   exposureAllows: 'user'→항상 · 'admin'→관리자 모드일 때만 · 'off'→절대 안 됨(기본)
+   * [연계] ← boot, body[data-active-tab] 옵저버, storage 이벤트, fetchConfig, setConfig.
    */
   function updateFabVisibility() {
     var fab = document.getElementById('nryaFab'); if (!fab) return;
-    var exp = getExposure();
-    var show = (exp === 'user') || (exp === 'admin' && isAdmin());
-    fab.style.display = show ? 'grid' : 'none';
+    var t = null; try { t = document.body.getAttribute('data-active-tab'); } catch (_) {}
+    var tabIsMain = (t === null || t === undefined || t === '' || t === MAIN_TAB_GROUP);
+    var exposureAllows = (serverExposure === 'user') || (serverExposure === 'admin' && isAdmin());
+    fab.style.display = (tabIsMain && exposureAllows) ? 'grid' : 'none';
   }
 
   // ── 채팅 팝업 바인딩 ──
@@ -793,42 +872,28 @@
   }
 
   // ============================================================================
-  // 활성화 감지 + 부트스트랩
+  // 부트스트랩
   // ============================================================================
 
-  /** 섹션이 현재 활성인지(.active 또는 body[data-active-tab]) 판정. @returns {boolean} */
-  function sectionActive() {
-    var sec = document.getElementById(SECTION_ID);
-    if (sec && sec.classList.contains('active')) return true;
-    try { if (document.body.getAttribute('data-active-tab') === GROUP_VALUE) return true; } catch (_) {}
-    return false;
-  }
-
-  /** 활성 상태면 최초 1회 섹션을 렌더한다(이미 렌더됐으면 무시). */
-  function maybeRender() { if (rendered) return; if (sectionActive()) renderSection(); }
-
-  /** 부트스트랩: 오버레이 주입 + 활성 감지 옵저버 등록 + 최초 렌더 시도. */
+  /** 부트스트랩: 오버레이 주입 + 서버 노출설정 로드 + 탭 변화 옵저버 등록. */
   function boot() {
     ensureOverlays();
 
-    // body[data-active-tab] 변화 감지
+    // 서버 노출설정 로드(기본 off) → FAB 재평가
+    fetchConfig();
+
+    // body[data-active-tab] 변화 감지 → FAB 표시 재평가(메인 특보 탭에서만 노출)
     try {
-      var moBody = new MutationObserver(function () { maybeRender(); updateFabVisibility(); });
+      var moBody = new MutationObserver(function () { updateFabVisibility(); });
       moBody.observe(document.body, { attributes: true, attributeFilter: ['data-active-tab'] });
     } catch (_) {}
-    // 섹션 .active 클래스 변화 감지
-    try {
-      var sec = document.getElementById(SECTION_ID);
-      if (sec) { var moSec = new MutationObserver(maybeRender); moSec.observe(sec, { attributes: true, attributeFilter: ['class'] }); }
-    } catch (_) {}
 
-    // 다른 탭/창에서 관리자 모드·노출 설정이 바뀌면 FAB 갱신
+    // 다른 탭/창에서 관리자 모드가 바뀌면(=admin 노출조건 변동) FAB 재평가
     window.addEventListener('storage', function (e) {
-      if (!e || e.key === LS_ADMIN || e.key === LS_EXPOSURE) updateFabVisibility();
+      if (!e || e.key === LS_ADMIN) updateFabVisibility();
     });
 
-    // 이미 활성이면 즉시 렌더
-    maybeRender();
+    updateFabVisibility();
   }
 
   if (document.readyState === 'loading') {
@@ -837,16 +902,18 @@
     boot();
   }
 
-  // ── 공개 표면(디버그/외부 트리거용) ──
+  // ── 공개 표면 ──
   window.NariyaChat = {
     __loaded: true,
-    /** 수동으로 섹션 렌더를 강제(테스트용). */
-    render: function () { rendered = false; renderSection(); },
-    /** 채팅 팝업 열기. */
+    /** 통합관리자 센터가 부르는 진입점: 주어진 컨테이너에 관리자 콘솔 전체를 렌더(재호출 안전). */
+    renderAdminInto: renderAdminInto,
+    /** 채팅 팝업 열기(테스트/외부 트리거용). */
     open: function () { ensureOverlays(); var w = document.getElementById('nryaChatWrap'); if (w) w.classList.add('nrya-open'); },
     /** ⚠수치검증 목록 새로고침(현재 열려 있을 때). */
     refreshReviews: function () { var h = document.getElementById('nryaReviewHost'); if (h) renderReviewCards(h); },
-    /** FAB 표시 재평가(관리자 모드/노출 변경 후 호출). */
+    /** 서버 노출설정 재조회 + FAB 재평가. */
+    refreshConfig: fetchConfig,
+    /** FAB 표시 재평가(관리자 모드/탭/노출 변경 후 호출). */
     updateFab: updateFabVisibility
   };
 })();
