@@ -207,6 +207,18 @@
   .kbub .chip{font-size:10.5px; color:#a9c6ff; background:rgba(68,138,255,.16); border:1px solid rgba(68,138,255,.32); border-radius:12px; padding:2px 8px}
   .kbub .tel{margin-top:9px; font-size:11.5px; color:#8fe6bb}
   .kbub .disc{margin-top:6px; font-size:10px; color:#93a4b9}
+  /* 답변 하단 근거 법령 아코디언(법령명만이 아니라 펼치면 조문 내용) */
+  .lawacc{margin-top:10px; border-top:1px solid rgba(255,255,255,.12); padding-top:9px}
+  .lawacc-h{font-size:11.8px; font-weight:700; color:#a9c6ff; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none}
+  .lawacc-h .arw{font-size:9px; transition:transform .25s}
+  .lawacc.open .lawacc-h .arw{transform:rotate(90deg)}
+  .lawacc-b{display:none; margin-top:8px}
+  .lawacc.open .lawacc-b{display:block}
+  .lawitem{background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09); border-radius:9px; padding:9px 11px; margin-top:7px}
+  .lawitem .lw-t{font-size:11.8px; font-weight:700; color:#dbe7f6; display:flex; align-items:center; justify-content:space-between; gap:8px}
+  .lawitem .lw-src{font-family:var(--mono); font-size:9.5px; color:#8296ac; font-weight:500}
+  .lawitem .lw-c{font-size:11.8px; color:#bccbde; margin-top:5px; line-height:1.55}
+  .lawitem .lw-more{margin-top:6px; font-size:10.5px; color:#a9c6ff}
   .sk-line{height:9px; border-radius:5px; margin-bottom:7px; background:linear-gradient(90deg,rgba(255,255,255,.08) 25%,rgba(255,255,255,.18) 37%,rgba(255,255,255,.08) 63%); background-size:400% 100%; animation:sk 1.3s ease infinite}
   .sk-line:last-of-type{margin-bottom:0}
   @keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
@@ -284,7 +296,7 @@
     <div class="chat-body" id="chatBody">
       <div class="krow ai"><div class="kava"><div class="orb"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div><span class="ktime">오후 2:11</span></div></div></div>
       <div class="krow me"><div class="kbrow"><div class="kbub">1.5톤 어선인데 구명조끼 꼭 입어야 해?</div><span class="ktime">오후 2:12</span></div></div>
-      <div class="krow ai"><div class="kava"><div class="orb"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">네. 어선은 <b>승선자 전원이 구명조끼(구명동의)를 착용</b>해야 합니다. 특히 기상특보 발효·야간 항해 시 의무입니다.<div class="chips"><span class="chip">어선안전조업법 §22</span><span class="chip">구명조끼 착용</span><span class="chip">↔ 수상레저안전법</span></div><div class="tel">📞 소관: 해양수산부 어선안전정책과 044-200-XXXX</div><div class="disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요. · 어선안전조업법 2024-01-01 기준</div></div><span class="ktime">오후 2:12</span></div></div></div>
+      <div class="krow ai"><div class="kava"><div class="orb"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">네. 어선은 <b>승선자 전원이 구명조끼(구명동의)를 착용</b>해야 합니다. 특히 기상특보 발효·야간 항해 시 의무입니다.<div class="lawacc"><div class="lawacc-h"><span class="arw">▶</span>📖 근거 법령 2건 (펼쳐서 조문 보기)</div><div class="lawacc-b"><div class="lawitem"><div class="lw-t"><span>어선안전조업법 제22조 (구명조끼 착용)</span><span class="lw-src">시행 24.1.1</span></div><div class="lw-c">"어선의 소유자와 선장은 승선하는 모든 사람에게 구명조끼를 착용하게 하여야 한다. 다만, 기상특보가 발효 중이거나 야간에 항해하는 경우에는 반드시 착용하게 하여야 한다."</div><div class="lw-more">원문 보기 ›</div></div><div class="lawitem"><div class="lw-t"><span>수상레저안전법 제18조 (안전장비) — 관련</span><span class="lw-src">연계</span></div><div class="lw-c">수상레저활동자에 대한 구명조끼 착용 의무 규정(어선과 별개 규율).</div><div class="lw-more">원문 보기 ›</div></div></div></div><div class="tel">📞 소관: 해양수산부 어선안전정책과 044-200-XXXX</div><div class="disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요. · 어선안전조업법 2024-01-01 기준</div></div><span class="ktime">오후 2:12</span></div></div></div>
     </div>
     <div class="chat-input"><button class="chat-plus" title="첨부">＋</button><input id="chatInput" placeholder="메시지 입력" /><button class="chat-send" id="chatSend">➤</button></div>
   </div>
@@ -466,7 +478,10 @@ function send(){
     var a=document.createElement('div'); a.className='krow ai';
     a.innerHTML='<div class="kava"><div class="orb"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">'+
       '특정해역(교통안전특정해역)에서는 <b>어업이 제한</b>될 수 있고, 야간에는 <b>항해등 점등·항법 준수</b> 의무가 있습니다. 해역·톤수별 세부 기준이 달라 되물어 확인이 필요합니다.'+
-      '<div class="chips"><span class="chip">해상교통안전법 §5</span><span class="chip">교통안전특정해역</span><span class="chip">↔ 수산업법</span></div>'+
+      '<div class="lawacc"><div class="lawacc-h"><span class="arw">▶</span>📖 근거 법령 2건 (펼쳐서 조문 보기)</div><div class="lawacc-b">'+
+        '<div class="lawitem"><div class="lw-t"><span>해상교통안전법 제5조 (교통안전특정해역)</span><span class="lw-src">시행 24.7.26</span></div><div class="lw-c">"해양수산부장관은 해상교통량이 많거나 위험화물운반선의 통항이 잦은 해역으로서… 교통안전특정해역으로 지정할 수 있다."</div><div class="lw-more">원문 보기 ›</div></div>'+
+        '<div class="lawitem"><div class="lw-t"><span>수산업법 — 어업 조정 (관련)</span><span class="lw-src">연계</span></div><div class="lw-c">특정해역 내 어업 제한은 수산업법상 조업수역·어업조정 명령과 연계됩니다.</div><div class="lw-more">원문 보기 ›</div></div>'+
+      '</div></div>'+
       '<div class="tel">📞 소관: 해양수산부 해사안전정책과 044-200-XXXX</div>'+
       '<div class="disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요. · 해상교통안전법 2024-07-26 기준</div>'+
       '</div><span class="ktime">지금</span></div></div>';
@@ -475,6 +490,8 @@ function send(){
 }
 document.getElementById('chatSend').addEventListener('click',send);
 input.addEventListener('keydown',function(e){ if(e.key==='Enter') send(); });
+// 답변 근거 법령 아코디언 토글(동적 답변 포함 — 위임)
+body.addEventListener('click',function(e){ var h=e.target.closest('.lawacc-h'); if(h) h.parentElement.classList.toggle('open'); });
 
 /* 초기 렌더 */
 renderRoomPills('원문'); renderRoom('원문');
