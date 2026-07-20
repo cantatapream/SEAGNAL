@@ -96,6 +96,24 @@ router.get('/api/legal/reviews', (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
+// ── 노출 설정(서버 저장): 챗봇 FAB를 일반/관리자만/비노출 중 무엇으로 할지 ──
+//   기본 'off'(비노출). GET은 공개(클라가 FAB 노출여부 판단), POST는 관리자 전용.
+const CONFIG_FILE = path.join(LEGAL_DIR, '_dashboard', 'nariya_config.json');
+function readConfig() {
+  try { if (fs.existsSync(CONFIG_FILE)) return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch (_) {}
+  return { exposure: 'off' };
+}
+router.get('/api/legal/config', (req, res) => {
+  const c = readConfig();
+  res.json({ ok: true, exposure: ['off', 'admin', 'user'].includes(c.exposure) ? c.exposure : 'off' });
+});
+router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
+  const exposure = (req.body && req.body.exposure) || 'off';
+  if (!['off', 'admin', 'user'].includes(exposure)) return res.status(400).json({ ok: false, error: 'exposure는 off|admin|user' });
+  withLock(async () => { writeFileAtomic(CONFIG_FILE, JSON.stringify({ exposure, updatedAt: new Date().toISOString() }, null, 1)); return exposure; })
+    .then(v => res.json({ ok: true, exposure: v })).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
+});
+
 // GET /api/legal/reviews/stats — 카운트
 router.get('/api/legal/reviews/stats', (req, res) => {
   try {

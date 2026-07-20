@@ -536,6 +536,7 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'version', name: '버전 관리', icon: 'fa-code-branch' },
         { id: 'storage', name: '외부 저장소', icon: 'fa-cloud' },
         { id: 'ai', name: 'AI', icon: 'fa-robot' },
+        { id: 'nariya', name: '나리야 법령', icon: 'fa-scale-balanced' },
         { id: 'locstatus', name: '위치 기반', icon: 'fa-location-dot' }
     ];
 
@@ -657,6 +658,10 @@ window.switchUnifiedAdminTab = function (tabId) {
             renderUnifiedStorageContent(body);
         } else if (tabId === 'ai') {
             renderUnifiedAiTab(body);
+        } else if (tabId === 'nariya') {
+            // [나리야 법령] 법령 챗봇 관리자 콘솔 — 지식 방 브라우저 + 리뷰 검토센터(승인/교정) + 노출토글 (js/ai-chat/ai_chat.js)
+            if (window.NariyaChat && window.NariyaChat.renderAdminInto) window.NariyaChat.renderAdminInto(body);
+            else body.innerHTML = '<div style="padding:20px;color:#fca5a5;">나리야 모듈(js/ai-chat/ai_chat.js)이 로드되지 않았습니다.</div>';
         } else if (tabId === 'locstatus') {
             // [위치 기반] 이 기기가 수집·저장한 최신 GPS 위치 + 해상/육상 + 지도 팝업 (js/admin_location_status.js)
             if (typeof renderLocationStatusTab === 'function') renderLocationStatusTab(body);
