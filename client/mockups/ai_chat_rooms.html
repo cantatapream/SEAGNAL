@@ -1,0 +1,296 @@
+<title>나리야 AI 챗봇 — 방 브라우저(목업)</title>
+<style>
+  /* ── SEAGNAL "Midnight Blue" 토큰 (client/style.css 실측 이식) ── */
+  :root{
+    --bg-grad-start:#080a0f; --bg-grad-mid:#1c2640; --bg-grad-end:#080a0f;
+    --card-bg:#161b2d; --card-hover:#1f263b; --sea-section-bg:#111525; --sea-header-bg:#1a2238;
+    --text-main:#ffffff; --text-sub:#94a3b8;
+    --accent-blue:#448aff; --accent-red:#ff5252; --accent-green:#69f0ae; --accent-yellow:#ffd740;
+    --border-color:rgba(255,255,255,.1);
+    --font:'Inter','Noto Sans KR',system-ui,-apple-system,sans-serif;
+    --mono:'Roboto Mono','SFMono-Regular',ui-monospace,monospace;
+    --tab-h:66px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0}
+  body{
+    background:radial-gradient(140% 100% at 50% 0%,var(--bg-grad-mid) 0%,var(--bg-grad-start) 55%,var(--bg-grad-end) 100%) fixed,#0a101f;
+    color:var(--text-main); font-family:var(--font); line-height:1.45;
+    font-size:15px; -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:600px; margin:0 auto; min-height:100vh; position:relative; padding-bottom:calc(var(--tab-h) + 12px);}
+
+  /* 테스트/관리자 리본 */
+  .env-ribbon{display:flex; align-items:center; gap:8px; justify-content:center;
+    background:linear-gradient(90deg,rgba(255,215,64,.14),rgba(255,215,64,.06));
+    border-bottom:1px solid rgba(255,215,64,.25); color:#ffe082;
+    font-size:12px; font-weight:600; padding:7px 12px; letter-spacing:.02em;}
+  .env-ribbon .dot{width:6px;height:6px;border-radius:50%;background:#ffd740;box-shadow:0 0 8px #ffd740}
+
+  /* 헤더 */
+  header{position:sticky; top:0; z-index:20; backdrop-filter:blur(12px);
+    background:rgba(15,20,35,.85); border-bottom:1px solid var(--border-color); padding:14px 16px 10px;}
+  .h-row{display:flex; align-items:center; gap:10px}
+  .h-mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(135deg,#448aff,#22d3ee); color:#04122e; font-weight:800; font-size:15px;
+    box-shadow:0 3px 10px rgba(68,138,255,.4)}
+  .h-title{font-size:17px;font-weight:700;letter-spacing:-.01em}
+  .h-sub{font-size:12px;color:var(--text-sub);margin-top:1px}
+
+  /* 방 선택 pill (공지 .promo-tab-btn 재사용 스타일) */
+  .rooms{display:flex; gap:8px; overflow-x:auto; padding:12px 16px 4px; scrollbar-width:none;}
+  .rooms::-webkit-scrollbar{display:none}
+  .room{position:relative; flex:0 0 auto; padding:8px 15px; border-radius:20px;
+    background:rgba(255,255,255,.05); border:1px solid var(--border-color);
+    color:var(--text-sub); font-size:13.5px; font-weight:600; white-space:nowrap; cursor:pointer;
+    transition:all .18s;}
+  .room:active{transform:scale(.96)}
+  .room.active{background:rgba(68,138,255,.2); border-color:var(--accent-blue); color:#8bb6ff}
+  .room .cnt{font-family:var(--mono); font-size:11px; opacity:.75; margin-left:5px}
+  /* 공지 N 뱃지 (client/style.css .new-badge 이식) — 우측 상단 */
+  .new-badge{position:absolute; top:-6px; right:-6px; display:inline-flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,#ff6b6b,#f03e3e); color:#fff; font-size:9px; font-weight:800;
+    font-family:var(--font); border-radius:6px; padding:0 4px; height:15px; min-width:15px; line-height:1;
+    box-shadow:0 2px 4px rgba(240,62,62,.45); animation:badgePulse 2s infinite;}
+  @keyframes badgePulse{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,107,107,.7)}
+    70%{transform:scale(1.05);box-shadow:0 0 0 6px rgba(255,107,107,0)}
+    100%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,107,107,0)}}
+
+  .room-meta{padding:6px 18px 2px; font-size:12px; color:var(--text-sub);
+    display:flex; align-items:center; gap:6px}
+  .room-meta .k{font-family:var(--mono); color:#8bb6ff}
+
+  /* 원문 아코디언 (.sea-section 이식) */
+  .list{padding:8px 14px 4px; display:flex; flex-direction:column; gap:8px}
+  .acc{background:var(--sea-section-bg); border:1px solid var(--border-color); border-radius:12px; overflow:hidden;
+    box-shadow:0 4px 6px rgba(0,0,0,.2);}
+  .acc-head{display:flex; align-items:center; gap:10px; padding:13px 14px; cursor:pointer;
+    background:linear-gradient(to right,#1a2238,#151a2e);}
+  .acc.open .acc-head{background:#1a2238; border-bottom:1px solid var(--border-color)}
+  .acc-ic{width:26px;height:26px;flex:0 0 auto;border-radius:7px;display:grid;place-items:center;
+    background:rgba(68,138,255,.14); color:#8bb6ff; font-size:12px;}
+  .acc-name{flex:1; min-width:0; font-size:14.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .acc-dom{font-size:11px; color:var(--text-sub); font-weight:500; margin-top:2px}
+  .eff{font-family:var(--mono); font-size:11px; color:#9fb4d6; background:rgba(68,138,255,.1);
+    border:1px solid rgba(68,138,255,.22); border-radius:7px; padding:3px 7px; white-space:nowrap; flex:0 0 auto}
+  .eff .lbl{color:var(--text-sub); margin-right:4px}
+  .chev{color:var(--text-sub); flex:0 0 auto; transition:transform .3s cubic-bezier(.4,0,.2,1); font-size:12px}
+  .acc.open .chev{transform:rotate(180deg)}
+  .acc-body{max-height:0; overflow:hidden; opacity:0; transition:max-height .4s cubic-bezier(.4,0,.2,1),opacity .3s,padding .3s; padding:0 14px}
+  .acc.open .acc-body{max-height:820px; opacity:1; padding:12px 14px 14px}
+
+  .file{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px;
+    background:rgba(255,255,255,.03); border:1px solid var(--border-color); margin-bottom:7px; cursor:pointer}
+  .file:active{background:var(--card-hover)}
+  .file-ic{width:22px;height:22px;flex:0 0 auto;border-radius:6px;display:grid;place-items:center;font-size:11px;
+    background:rgba(105,240,174,.12); color:#69f0ae}
+  .file-ic.rule{background:rgba(255,215,64,.12); color:#ffd740}
+  .file-nm{flex:1; font-size:13.5px; font-weight:500}
+  .file-eff{font-family:var(--mono); font-size:10.5px; color:var(--text-sub)}
+  .file-amd{font-size:10px; color:#8bb6ff; margin-left:6px}
+
+  .byl-title{font-size:11.5px; color:var(--text-sub); font-weight:600; margin:10px 2px 7px; letter-spacing:.02em;
+    display:flex; align-items:center; gap:6px}
+  .byl-title::before{content:""; width:3px; height:12px; border-radius:2px; background:var(--accent-blue)}
+  .byl{display:flex; align-items:flex-start; gap:8px; padding:8px 9px; border-radius:8px;
+    background:rgba(255,255,255,.02); border:1px dashed rgba(255,255,255,.12); margin-bottom:6px}
+  .byl-no{font-family:var(--mono); font-size:10px; color:#ffd740; background:rgba(255,215,64,.1);
+    border-radius:5px; padding:2px 6px; flex:0 0 auto; margin-top:1px}
+  .byl-nm{flex:1; font-size:12.5px; color:#dfe7f5}
+  .dl{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
+  .dl a{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:600; text-decoration:none;
+    color:#8bb6ff; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.25);
+    border-radius:14px; padding:3px 9px}
+  .dl a.img{color:#69f0ae; background:rgba(105,240,174,.08); border-color:rgba(105,240,174,.25)}
+  .review-flag{font-size:10px; color:#ffd740; background:rgba(255,215,64,.1); border:1px solid rgba(255,215,64,.25);
+    border-radius:6px; padding:2px 7px; margin-top:6px; display:inline-block}
+
+  /* 챗봇 진입 FAB (노출 토글이 허용할 때만 — 목업에선 표시) */
+  .fab{position:fixed; right:calc(50% - 300px + 16px); bottom:calc(var(--tab-h) + 16px); z-index:55;
+    width:54px;height:54px;border-radius:50%; border:none; cursor:pointer;
+    background:linear-gradient(135deg,#448aff,#22d3ee); color:#04122e; font-size:22px; font-weight:800;
+    box-shadow:0 6px 20px rgba(68,138,255,.5); display:grid; place-items:center;}
+  @media(max-width:632px){.fab{right:16px}}
+  .fab .fab-badge{position:absolute; top:-2px; right:-2px; background:linear-gradient(135deg,#ff6b6b,#f03e3e);
+    color:#fff; font-size:9px; font-weight:800; border-radius:8px; min-width:16px; height:16px; padding:0 4px;
+    display:grid; place-items:center; box-shadow:0 2px 5px rgba(240,62,62,.5)}
+
+  /* 하단 탭바 (#bottom-tab-bar 이식) — AI 탭 신설 */
+  .tabbar{position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:600px; z-index:60;
+    display:flex; background:rgba(15,20,35,.95); backdrop-filter:blur(12px);
+    border-top:1px solid var(--border-color);}
+  .tab{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    padding:8px 0 10px; min-height:var(--tab-h); color:var(--text-sub); font-size:11px; line-height:1.2;
+    border-top:3px solid transparent; background:none; cursor:pointer; font-family:inherit}
+  .tab i{font-size:19px}
+  .tab.active{color:var(--accent-blue); border-top-color:var(--accent-blue); font-weight:600}
+  .tab .em{font-style:normal}
+
+  .foot-note{text-align:center; color:#5b6b86; font-size:11px; padding:14px 20px 4px; line-height:1.6}
+</style>
+
+<div class="app">
+  <div class="env-ribbon"><span class="dot"></span>테스트 빌드 · 관리자 전용 (일반 사용자 미노출)</div>
+
+  <header>
+    <div class="h-row">
+      <div class="h-mark">나</div>
+      <div>
+        <div class="h-title">AI 챗봇 · 나리야</div>
+        <div class="h-sub">해양법령 지식베이스 · 방(Room) 브라우저</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 방 선택 pill + N 뱃지 -->
+  <div class="rooms">
+    <div class="room active">원문<span class="cnt">70법</span><span class="new-badge">N</span></div>
+    <div class="room">위키개념<span class="cnt">919</span></div>
+    <div class="room">법령<span class="cnt">73</span></div>
+    <div class="room">비교허브<span class="cnt">26</span></div>
+    <div class="room">별표·서식<span class="cnt">98</span></div>
+    <div class="room">리뷰대기<span class="cnt">99</span><span class="new-badge">N</span></div>
+    <div class="room">지식그래프<span class="cnt">88</span></div>
+  </div>
+  <div class="room-meta">📁 <b>원문(RAW)</b> · <span class="k">70개 법령 · 7,203 원문</span> · 국가법령정보센터 아카이브(불변)</div>
+
+  <!-- 원문 아코디언 -->
+  <div class="list">
+
+    <!-- 펼쳐진 예시 -->
+    <div class="acc open">
+      <div class="acc-head">
+        <div class="acc-ic">⚓</div>
+        <div style="flex:1;min-width:0">
+          <div class="acc-name">해상교통안전법</div>
+          <div class="acc-dom">03 해상교통안전 · 해양수산부</div>
+        </div>
+        <div class="eff"><span class="lbl">시행</span>2024. 7. 26.</div>
+        <div class="chev">▼</div>
+      </div>
+      <div class="acc-body">
+        <div class="file">
+          <div class="file-ic">법</div>
+          <div class="file-nm">법률<span class="file-amd">· 일부개정</span></div>
+          <div class="file-eff">시행 2024. 7. 26.</div>
+        </div>
+        <div class="file">
+          <div class="file-ic rule">령</div>
+          <div class="file-nm">시행령<span class="file-amd">· 일부개정</span></div>
+          <div class="file-eff">시행 2025. 5. 20.</div>
+        </div>
+        <div class="file">
+          <div class="file-ic rule">칙</div>
+          <div class="file-nm">시행규칙</div>
+          <div class="file-eff">시행 2024. 7. 26.</div>
+        </div>
+
+        <div class="byl-title">별표 · 별지 서식 (64건)</div>
+        <div class="byl">
+          <span class="byl-no">령 별표1</span>
+          <div style="flex:1">
+            <div class="byl-nm">교통안전특정해역의 범위(제5조 관련)</div>
+            <div class="dl">
+              <a href="#">⬇ HWP 원본</a>
+              <a href="#" class="img">🖼 이미지</a>
+              <a href="#">📄 본문(텍스트)</a>
+            </div>
+          </div>
+        </div>
+        <div class="byl">
+          <span class="byl-no">칙 별표3</span>
+          <div style="flex:1">
+            <div class="byl-nm">해양사고 관련 보고 서식 및 기준</div>
+            <div class="dl">
+              <a href="#">⬇ HWP 원본</a>
+              <a href="#">📄 본문(텍스트)</a>
+            </div>
+            <div class="review-flag">⚠ 이미지 판독값 — 사람 검증 대기(리뷰대기 방)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 접힌 예시들 -->
+    <div class="acc">
+      <div class="acc-head">
+        <div class="acc-ic">🚢</div>
+        <div style="flex:1;min-width:0">
+          <div class="acc-name">선박안전법</div>
+          <div class="acc-dom">02 선박 · 해양수산부 · 별표 147</div>
+        </div>
+        <div class="eff"><span class="lbl">시행</span>2025. 1. 24.</div>
+        <div class="chev">▼</div>
+      </div>
+      <div class="acc-body"></div>
+    </div>
+
+    <div class="acc">
+      <div class="acc-head">
+        <div class="acc-ic">🎣</div>
+        <div style="flex:1;min-width:0">
+          <div class="acc-name">수산업법</div>
+          <div class="acc-dom">06 수산 · 해양수산부 · 별표 122</div>
+        </div>
+        <div class="eff"><span class="lbl">시행</span>2024. 12. 20.</div>
+        <div class="chev">▼</div>
+      </div>
+      <div class="acc-body"></div>
+    </div>
+
+    <div class="acc">
+      <div class="acc-head">
+        <div class="acc-ic">🌊</div>
+        <div style="flex:1;min-width:0">
+          <div class="acc-name">해양환경관리법</div>
+          <div class="acc-dom">09 해양환경 · 해양수산부</div>
+        </div>
+        <div class="eff"><span class="lbl">시행</span>2025. 7. 25.</div>
+        <div class="chev">▼</div>
+      </div>
+      <div class="acc-body"></div>
+    </div>
+
+    <div class="acc">
+      <div class="acc-head">
+        <div class="acc-ic">🏝️</div>
+        <div style="flex:1;min-width:0">
+          <div class="acc-name">수상레저안전법</div>
+          <div class="acc-dom">05 레저 · 해양경찰청</div>
+        </div>
+        <div class="eff"><span class="lbl">시행</span>2024. 7. 31.</div>
+        <div class="chev">▼</div>
+      </div>
+      <div class="acc-body"></div>
+    </div>
+
+  </div>
+
+  <div class="foot-note">목업 · 샘플 데이터 · 실제 시행일/별표는 <span style="font-family:var(--mono)">_meta.json</span>·<span style="font-family:var(--mono)">별표/_links.json</span>에서 로드됩니다.<br>스타일은 앱 <span style="font-family:var(--mono)">client/style.css</span> 토큰을 그대로 사용.</div>
+
+  <!-- 챗봇 진입 FAB (노출 토글 = '사용자 노출'일 때만 일반 화면에 표시) -->
+  <button class="fab" title="나리야에게 물어보기">💬<span class="fab-badge">N</span></button>
+
+  <!-- 하단 탭바 (AI 챗봇 탭 신설·활성) -->
+  <nav class="tabbar">
+    <button class="tab"><i class="em">⚠️</i><span>특보정보</span></button>
+    <button class="tab"><i class="em">🌤️</i><span>해양종합정보</span></button>
+    <button class="tab"><i class="em">🐟</i><span>해양생활</span></button>
+    <button class="tab"><i class="em">📢</i><span>공지사항</span></button>
+    <button class="tab active"><i class="em">🤖</i><span>AI 챗봇</span></button>
+  </nav>
+</div>
+
+<script>
+  // 아코디언 토글 (앱 .sea-section .open 패턴)
+  document.querySelectorAll('.acc-head').forEach(function(h){
+    h.addEventListener('click',function(){ h.parentElement.classList.toggle('open'); });
+  });
+  // 방 pill 선택
+  document.querySelectorAll('.room').forEach(function(r){
+    r.addEventListener('click',function(){
+      document.querySelectorAll('.room').forEach(function(x){x.classList.remove('active')});
+      r.classList.add('active');
+    });
+  });
+</script>
