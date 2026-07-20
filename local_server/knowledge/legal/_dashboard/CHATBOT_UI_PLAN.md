@@ -70,13 +70,27 @@
 
 ---
 
-## C. 앱 스타일 그라운딩 (기존 앱과 어우러지도록 — R6)
-> 프런트 분석 결과를 여기에 채운다(색 hex·폰트·탭바·**공지 N 뱃지 마크업/CSS**·버튼·아코디언). 분석 에이전트 결과 반영 예정. 핵심: 공지 N 뱃지를 방 버튼(R2)에 그대로 재사용.
-- 메인 HTML 셸: (분석 후 경로 기입, 예: index2.html)
-- 4탭(예보·오션맵·해양생물·공지) 구조 + 탭 전환 방식: (기입)
-- 디자인 토큰(색/폰트/라운드/그림자): (기입)
-- **공지 "N" 뱃지 마크업·CSS·JS**(복붙용): (기입) — R2 재사용 원천
-- 재사용 컴포넌트(버튼/카드/아코디언/모달·드로어): (기입)
+## C. 앱 스타일 그라운딩 (기존 앱과 어우러지도록 — R6) — 2026-07-20 프런트 분석 확정
+> 테마: "Premium Midnight Blue" 다크·모바일 우선. 목업은 **`client/style.css` 토큰**을 따른다(assistant.html 프로토타입 팔레트 아님).
+- **메인 HTML 셸**: `client/index2.html`(5,581줄, 페이지 CSS 상당수 인라인 `<style>` + 공용 `client/style.css`). 앱 컨테이너 `.app-container` `max-width:600px` 중앙정렬.
+- **탭바**: 하단 고정 `nav#bottom-tab-bar.main-tabs.bottom-main-tabs`. 현재 4탭(**특보정보 / 해양종합정보 / 해양생활 / 공지사항**), AI 탭 없음. 버튼 = 아이콘(fa-solid) 위 라벨. 전환 = `window.switchMainTab(targetId)`(core/index2_patch.js 268행 래핑), `body[data-active-tab]` + `.tab-content.active` 토글. 높이 `--main-tab-height:68px`. z-index 60.
+  - **AI 탭 추가법**: `#bottom-tab-bar`에 `<button class="tab-btn" data-target="ai-chat-section"><i class="fa-solid fa-robot tab-btn-icon"></i><span class="tab-btn-label">AI 챗봇</span></button>` + `<section id="ai-chat-section" class="tab-content">` 추가 후 switchMainTab로 연결.
+- **디자인 토큰**(`client/style.css` :root 24–60행):
+  - 배경 그라디언트 `--bg-grad-start:#080a0f · --bg-grad-mid:#1c2640 · --bg-grad-end:#080a0f`, body `#0a101f`.
+  - 카드 `--card-bg:#161b2d` / hover `#1f263b` / 섹션 `#111525` / 섹션헤더 `#1a2238`. 헤더 글래스 `rgba(15,20,35,0.85)`.
+  - 텍스트 `--text-main:#fff` / `--text-sub:#94a3b8`.
+  - **액센트(주 인터랙션 = 파랑) `--accent-blue:#448aff`**, 위험 `--accent-red:#ff5252`, 성공 `--accent-green:#69f0ae`, 경고 `--accent-yellow:#ffd740`.
+  - 보더 `rgba(255,255,255,0.1)`. 폰트 `'Inter','Noto Sans KR',sans-serif`(+브랜딩 Nanum Pen Script, 숫자 Roboto Mono). 라운드 6/8/10–12/20(pill)px. 그림자 `--shadow-soft/-card`. 아이콘 Font Awesome(self-host).
+- **공지 "N" 뱃지(R2 재사용 원천)** — `client/style.css` `.new-badge`(3868행~) + `client/js/notice/board/promo.js`(209–252행):
+  - CSS: `background:linear-gradient(135deg,#ff6b6b,#f03e3e); color:#fff; font:800 10px Inter; border-radius:6px; padding:0 4px; height:16px; min-width:16px; margin-left:4px; box-shadow:0 2px 4px rgba(240,62,62,.4); animation:badgePulse 2s infinite;` (@keyframes badgePulse: scale 1→1.05 + 링 확산).
+  - HTML: `<span class="new-badge">N</span>`.
+  - JS 패턴(방 버튼에 그대로): `btn.querySelector('.new-badge')?.remove(); if(hasNew[room]){const b=document.createElement('span');b.className='new-badge';b.textContent='N';btn.appendChild(b);}` — **2행 탭 버튼은 `.tab-btn-label` 안에 append**(안 그러면 3번째 flex 컬럼 되어 깨짐), pill 버튼은 직접 append. CSS-only 변형 `.tphn-n-badge`(::after content:'N')도 존재.
+- **방 선택 버튼 = pill(`.promo-tab-btn`) 재사용**(R1): `.promo-tabs`(가로 스크롤 flex, gap 8px) 안에 `.promo-tab-btn`(padding 8/16, radius 20, 비활성 `rgba(255,255,255,.05)`/`#94a3b8`, 활성 `rgba(68,138,255,.2)`+`#448aff`). **공지에서 이미 이 pill에 N뱃지가 붙어 있음** → R2 그대로 이식.
+- **아코디언(R3 원문 리스트)** = `.sea-section`/`.sea-header`/`.alert-list`(style.css 305–395) 또는 리치형 `.main-accordion-header/body`(1080–1300, radius 12). 토글 = `.open` 클래스 → `max-height` 트랜지션 + chevron 180° 회전. 상태 그라디언트 변형(alert/safe/marine/slate) 있음.
+- **버튼**: `.admin-btn`(radius 6) + `.btn-save`(#2563eb 주)/`.btn-delete`(#dc2626)/`.btn-cancel`(#475569). 아이콘버튼 36px/radius 8. 카운트칩 `.count-badge`(주황 그라디언트, `.zero` 변형).
+- **모달**: `.modal`(inset 0, `rgba(0,0,0,.7)`)/`.modal-content`(card-bg, radius 12, max 500px/90%)/`.modal-header`/`.modal-close`. **z-index 사다리**: 탭 60 < 팝업/모달 999–1000 < 관리자 10000 < 시스템경보 40000. 새 오버레이는 60 위.
+- **반응형**: viewport `viewport-fit=cover`, 안전영역 `env(safe-area-inset-bottom)`, 브레이크포인트 768/480px, `clamp()` 유동 타이포, Capacitor 안드로이드 WebView.
+- **기존 나리야(주의)**: `client/assistant.html`+`client/js/assistant/*`에 **음성비서 나리야 프로토타입**이 별도 존재(웨이크워드 STT/TTS, `/api/assistant/ask|tts|transcribe|style-digest`, on-device `window.SeagnalMemory`). **단, 자체 팔레트(청록 #38bdf8)를 써서 메인 앱과 안 맞음** → 목업은 메인 style.css 토큰을 따를 것. 답변 출처칩 `.badge.ai`("AI") 존재. deeplink(`assistant_deeplink.js`)로 답변→앱내 이동.
 
 ---
 
@@ -99,11 +113,29 @@
 
 ---
 
-## E. 리뷰 승인 → 자동 반영 메커니즘 (R4 근거·설계)
-- **리뷰 목록 원천**: `_dashboard/review_queue.md` — "승인 대기 목록(REVIEW)" **99건**, 각 `### REVIEW-<법>-NN:` 헤더 + 대상 위키 페이지 + 근거(감사 리포트) + `- 승인: [ ] 대기` 체크박스. 이게 관리자 UI가 열거할 정본 목록.
-- **보조 신호**: `wiki/concepts` frontmatter `status:` — draft 842 / **review-pending 77** / canonical(annex 등). 인라인 `⚠REVIEW` 369파일·`편입예정` 75파일.
-- **승인 시 동작(설계)**: 관리자가 리뷰 건 승인 → ① `review_queue.md`의 해당 항목 `- 승인: [x]`로 마킹 → ② 대상 위키 페이지 frontmatter `status: review-pending → canonical` 승격 → ③ 인라인 `⚠REVIEW` 해제(또는 "사람승인 <날짜>" 주석으로 치환) → ④ 그래프/인덱스 재생성 반영. (H-12② 소급 완료분과 정합.)
-- ⚠경합위험: 승인 반영이 `review_queue.md`·공유 인덱스에 동시 쓰기면 단독 처리(병렬 금지).
+## E. 리뷰 승인 → 자동 반영 메커니즘 (R4 근거·설계) — MASTER_PLAN Phase F / _SCHEMA §5 / H-12②·H-16
+### E-0. 2상태 모델(_SCHEMA §5)
+- `canonical` = 승인됨, **챗봇 인용 가능**. `draft` = 사서작성·미승인, **챗봇 인용 금지**. `review-pending` = REVIEW 플래그, 사람승인 대기.
+- **승인 이원화(H-12②)**: 처벌·과태료·형량·금액·안전수치·⚠REVIEW **없는** 순수 정의/절차/서술 페이지 → AI 자체 draft→canonical 승격 허용(감사통과+변경이력 근거). 이 값들을 **포함**하면 → **Phase F 관리자 검증 UI 승인 필수**(AI 자체승격 금지).
+- **H-16 소급 완료**: 처벌·안전·REVIEW 포함 canonical **83개를 review-pending으로 소급 강등**(챗봇 인용 차단, 관리자 승인 대기). 순수 좌표/주파수/인증 참조표 **8개만 canonical** 잔존.
+
+### E-1. 관리자 검토 센터 = 1탭 + 5 서브탭(사용자 확정, UI만 통합·데이터 방은 분리)
+5개 리뷰 스트림이 **같은 게이트**(관리자 검토→승인/반려→위키 반영)를 공유하므로 UI는 한 탭에 통합, 데이터 폴더는 분리 유지:
+1. **초안승인**(`draft` 842) 2. **피드백처리**(`_feedback` 👍/👎) 3. **새지식후보**(`_candidates`) 4. **개정검토**(`_amendments`) 5. **⚠수치검증**(REVIEW 큐).
+
+### E-2. 리뷰 목록 원천(열거 대상)
+- **정본 목록**: `_dashboard/review_queue.md` — "승인 대기(REVIEW)" **99건**, `### REVIEW-<법>-NN:` + 대상 위키페이지 + 근거(감사 리포트) + `- 승인: [ ] 대기` 체크박스.
+- **⚠수치검증 큐**(Phase F 핵심): 별표 이미지 판독 수치 **408건** + 조번호재편 **35건** 등, `_이미지/<id>.png`(원본)·`<id>.txt`(AI추출)·`【이미지판독 N】(⚠REVIEW)` 집계. 리스트 항목 = {법·별표번호, ①원본이미지, ②AI추출, 승인/반려, REVIEW사유}. 항목 클릭 → **원본이미지 vs AI추출 나란히**, 이미지 클릭 → 전체화면 핀치줌 + 국가법령정보센터 출처링크(`flDownload.do?flSeq=<id>`)+조문위치.
+- **보조 신호(뱃지용)**: frontmatter `status:` draft 842 / review-pending 77 / canonical. 인라인 `⚠REVIEW` 369파일·`편입예정` 75파일. H-15 소관부서 `⚠REVIEW(출처미확인)` 113+파일. H-17 타법연결 미링크(전수린트로 대부분 해소).
+
+### E-3. **승인 시 자동 전파 체인(R4 핵심)** — Phase F/G DoD
+관리자가 한 건 승인 → 아래가 자동으로 흐른다:
+1. `review_queue.md` 해당 항목 `- 승인: [x] (관리자, YYYY-MM-DD)` 마킹.
+2. ⚠수치 승인이면 **값 확정·플래그 해제**(반려면 재OCR/수정 큐로). 페이지 승격이면 frontmatter `status: review-pending → canonical`(+변경이력 근거).
+3. 인라인 `⚠REVIEW` → "사람승인 <날짜>" 주석 치환.
+4. **승인분만 main 머지**(특히 처벌·금액) → **임베딩 재생성 + 검색/그래프 인덱스 자동 재빌드** → 챗봇 인용 가능.
+5. (H-8 연동) 그 값에 의존해 **채점 보류(review_pending)**했던 감사 질문들이 승인 후 감사에 재편입됨.
+- **승인 이력 보존**. ⚠경합위험: `review_queue.md`·공유 인덱스 동시쓰기면 단독 처리(병렬 금지).
 
 ---
 
