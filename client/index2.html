@@ -4147,6 +4147,9 @@
 
             </section>
 
+            <!-- AI 챗봇(나리야) 섹션 — 내용은 js/ai-chat/ai_chat.js 가 렌더(관리자 검토센터+법령 챗봇) -->
+            <section id="ai-chat-section" class="tab-content"></section>
+
         </main>
 
         <!-- ================================================================
@@ -4246,6 +4249,11 @@
                 <i class="fa-solid fa-bullhorn tab-btn-icon" aria-hidden="true"></i>
                 <span class="tab-btn-label">공지사항</span>
             </button>
+            <!-- AI 챗봇(나리야): 로봇 아이콘 · 독립 섹션탭(ai-chat-section) · 관리자 검토센터+법령 챗봇 -->
+            <button class="tab-btn" data-target="ai-chat-section">
+                <i class="fa-solid fa-robot tab-btn-icon" aria-hidden="true"></i>
+                <span class="tab-btn-label">AI 챗봇</span>
+            </button>
         </nav>
 
     </div>
@@ -4292,6 +4300,7 @@
     <script src="seaZones.js?v=TimeFormatUpdate_20260204"></script>
     <script type="module" src="capacitor-plugins.js?v=Patch_20260706_01"></script>
     <link rel="stylesheet" href="kma_widget.css">
+    <link rel="stylesheet" href="css/ai_chat.css"><!-- AI 챗봇(나리야) 탭 스타일 -->
     <!-- [리팩토링] app.js를 15개 모듈로 분할 -->
     <script src="js/core/config.js"></script>
     <script src="js/shared/utils/mappings.js"></script>
@@ -4424,6 +4433,9 @@
     <script src="js/ocean-map/cctv/cctv1.js"></script>
     <script src="js/ocean-map/cctv/cctv4.js"></script>
     <script src="js/ocean-map/cctv/ocean_cctv.js?v=VsbyGuide3_20260613"></script>
+
+    <!-- AI 챗봇(나리야): 관리자 검토센터+법령 챗봇 · ai-chat-section 렌더 (index2_patch 앞) -->
+    <script src="js/ai-chat/ai_chat.js"></script>
 
     <!-- index2 전용 패치: 종합기상 탭 + 헤더 유지 -->
     <script src="js/core/index2_patch.js"></script>
