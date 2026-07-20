@@ -45,8 +45,8 @@ def resolve(link):
     # (편입예정)/(편입 예정) 꼬리표 붙은 링크는 제외 처리 대상
     t=re.sub(r'\(편입\s*예정\)','',t).strip()
     if not t: return True
-    # 앵커/구간 제거
-    t=t.split('|')[0].strip()
+    # 표 셀 내 이스케이프 파이프(\|) 정규화 후 별칭(|)·앵커 제거
+    t=t.replace('\\|','|').split('|')[0].split('#')[0].strip()
     cands=[t, f'concepts/{t}', f'statutes/{t}', f'comparisons/{t}', f'annexes/{t}',
            t.replace('concept_',''), t.replace('statute_','')]
     for c in cands:
@@ -60,10 +60,10 @@ for fn,p in pages.items():
     marked=set(re.findall(r'\[\[([^\]]+?)\]\]\(편입\s*예정\)',p['txt']))
     marked|=set(re.findall(r'편입\s*예정[^\n]*?\[\[([^\]]+?)\]\]',p['txt']))
     for lk in set(p['links']):
-        base=lk.split('|')[0]
+        base=lk.replace('\\|','|').split('|')[0].strip()
         if base in marked: continue
         if '(편입' in lk: continue
-        if lk in ('링크','비교표'): continue  # 설명용 리터럴
+        if base in ('링크','비교표','statutes/법명','statute.법명','대상','법명') or base.startswith('법명'): continue  # 설명용 리터럴/예시
         if not resolve(lk):
             dangling.append(f'{fn}: [[{lk}]]')
 
@@ -73,7 +73,7 @@ law_links=collections.defaultdict(set)   # srcslug -> set(dstslug)
 for fn,p in pages.items():
     src=p['slug']
     for lk in p['links']:
-        base=lk.split('|')[0].split('(')[0].strip()
+        base=lk.replace('\\|','|').split('|')[0].split('(')[0].strip()
         base=re.sub(r'^(concepts/|statutes/|comparisons/|concept_|statute_)','',base)
         dst=base.split('__')[0]
         if dst in our_slugs and dst!=src:
@@ -93,7 +93,7 @@ for fn,p in pages.items():
     # 이 페이지가 링크한 슬러그
     page_link_slugs=set()
     for lk in p['links']:
-        base=re.sub(r'^(concepts/|statutes/|comparisons/|concept_|statute_)','',lk.split('|')[0].split('(')[0].strip())
+        base=re.sub(r'^(concepts/|statutes/|comparisons/|concept_|statute_)','',lk.replace('\\|','|').split('|')[0].split('(')[0].strip())
         page_link_slugs.add(base.split('__')[0])
     for cn in p['cited']:
         dst=normname2slug.get(cn)

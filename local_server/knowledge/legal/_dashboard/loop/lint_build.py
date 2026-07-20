@@ -21,12 +21,24 @@ for p in idx:
         for lawname in list(nodes):
             if re.sub(r'\s+','',lawname)==c and lawname!=src:
                 edges.append({'from':src,'to':lawname,'kind':'cite'}); break
-# 중복 제거
-uniq=set(); ed2=[]
+# [[위키링크]]도 엣지로 편입(H-3: md 링크가 신경망의 실제 엣지). slug→법명으로 대상 법 해석.
+slug2law={p['slug']:p['law'] for p in idx}
+for p in idx:
+    src=p['law']
+    for lk in p.get('links',[]):
+        base=lk.replace('\\|','|').split('|')[0].split('#')[0].split('(')[0].strip()
+        base=re.sub(r'^(concepts/|statutes/|comparisons/|annexes/|concept_|statute_)','',base)
+        tgt_slug=base.split('__')[0]
+        tgt_law=slug2law.get(tgt_slug)
+        if tgt_law and tgt_law!=src:
+            edges.append({'from':src,'to':tgt_law,'kind':'link'})
+# 중복 제거: 방향쌍(from,to) 단위로 유일화(cite·link 둘 다면 kind 병합) → 인접 과다계수 방지
+bykey={}
 for e in edges:
-    k=(e['from'],e['to'],e['kind'])
-    if k in uniq: continue
-    uniq.add(k); ed2.append(e)
+    k=(e['from'],e['to'])
+    if k not in bykey: bykey[k]=set()
+    bykey[k].add(e['kind'])
+ed2=[{'from':f,'to':t,'kind':'+'.join(sorted(ks))} for (f,t),ks in bykey.items()]
 json.dump({'nodes':list(nodes.values()),'edges':ed2},open(f'{WIKI}/graph.json','w'),ensure_ascii=False,indent=1)
 
 # --- _backbone.md: 여러 법이 공통 의존하는 허브 법 지도 ---
