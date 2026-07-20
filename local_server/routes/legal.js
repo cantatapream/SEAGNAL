@@ -82,6 +82,23 @@ function parseReviewQueue() {
   return entries;
 }
 
+/**
+ * 리뷰 body(장황한 자유서술)를 카드 가독성용 구조 필드 + 클릭가능 URL로 분해한다.
+ * `- 근거:` `- 확인 필요:` `- AI 연결 내용:` `- 문제:` `- 필요 조치:` 등 라벨 라인을 키:값으로,
+ * 본문 내 http(s) URL을 urls[]로 추출한다(원본 이미지/고시 링크 검증용).
+ * @returns {{fields:Object, urls:string[]}}
+ */
+function extractStructured(body) {
+  const fields = {}; const urls = [];
+  for (const line of body.split('\n')) {
+    const m = line.match(/^\s*-\s*([^:：]{1,24})[:：]\s*(.+)$/);
+    if (m) { const k = m[1].trim(); if (k !== '승인' && !fields[k]) fields[k] = m[2].trim(); }
+    let um; const re = /(https?:\/\/[^\s)"'<>]+)/g;
+    while ((um = re.exec(line)) !== null) urls.push(um[1].replace(/[.,]$/, ''));
+  }
+  return { fields, urls: [...new Set(urls)] };
+}
+
 // GET /api/legal/reviews — 검증 대기 목록(옵션: ?status=pending|approved|all)
 router.get('/api/legal/reviews', (req, res) => {
   try {
@@ -89,10 +106,15 @@ router.get('/api/legal/reviews', (req, res) => {
     let list = parseReviewQueue();
     if (status === 'pending') list = list.filter(e => !e.approved);
     else if (status === 'approved') list = list.filter(e => e.approved);
-    res.json({ ok: true, count: list.length, reviews: list.map(e => ({
-      id: e.id, law: e.law, title: e.title, targetPages: e.targetPages, body: e.body.trim(),
-      approved: e.approved, approvedMeta: e.approvedMeta,
-    })) });
+    res.json({ ok: true, count: list.length, reviews: list.map(e => {
+      const s = extractStructured(e.body);
+      return {
+        id: e.id, law: e.law, title: e.title, targetPages: e.targetPages, body: e.body.trim(),
+        fields: s.fields,           // {근거, 확인 필요, AI 연결 내용, 문제, 필요 조치, ...} 가독성용
+        urls: s.urls,               // 검증용 원문/이미지 링크(클라에서 클릭 가능하게)
+        approved: e.approved, approvedMeta: e.approvedMeta,
+      };
+    }) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
