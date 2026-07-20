@@ -104,6 +104,11 @@
     return ap + ' ' + hh + ':' + (m < 10 ? '0' + m : m);
   }
 
+  // 나리야 캐릭터(투명 PNG). 예전 conic-gradient orb 를 이 캐릭터 아바타로 전면 교체.
+  var NARIYA_IMG = 'images/nariya_character.png';
+  /** 나리야 캐릭터 원형 아바타 HTML. @param {string} [extra] 추가 클래스 @returns {string} */
+  function avatarHTML(extra) { return '<div class="nrya-ava' + (extra ? ' ' + extra : '') + '"><img src="' + NARIYA_IMG + '" alt="나리야"></div>'; }
+
   // ============================================================================
   // 지식 방 데이터 모델 (대표 정적 콘텐츠 · nrya- 접두어)
   // ============================================================================
@@ -485,9 +490,60 @@
     });
   }
 
+  // 리뷰 카드에서 우선 노출할 구조화 필드(라벨·아이콘). 존재하는 것만 순서대로 렌더.
+  var FIELD_VIEW = [
+    { keys: ['AI 연결 내용', 'AI 연결·판단 내용', 'AI 판단', 'AI 유추', 'AI 연결', '정의 사슬 추적'], icon: '🧠', label: 'AI 분석 내용' },
+    { keys: ['문제'], icon: '❗', label: '문제' },
+    { keys: ['확인 필요', '확인'], icon: '🔍', label: '확인 필요' },
+    { keys: ['근거'], icon: '📎', label: '근거' },
+    { keys: ['필요 조치', '필요조치'], icon: '🛠', label: '필요 조치' },
+    { keys: ['still_missing', '미확보', '미수집'], icon: '🚧', label: '미수집/미확보' }
+  ];
+
+  /** URL 이 원본 이미지(별표 스캔·flDownload)인지 판정. @param {string} u @returns {boolean} */
+  function isImageUrl(u) { return /flDownload|\.(png|jpe?g|gif|webp|bmp|tiff?)(\?|#|$)/i.test(u); }
+
   /**
-   * 리뷰 1건을 카드 HTML로 만든다(제목·법·body(pre) + 교정입력 + 승인/반려 + 반영사슬).
-   * @param {object} rv - {id,law,title,targetPages,body,approved,approvedMeta}
+   * 서버가 파싱해 준 fields(구조화 항목) + urls(검증 링크)로 스캔 가능한 카드 본문을 만든다.
+   * fields 가 비면 긴 body 를 잘라서 폴백 표시한다.
+   * @param {object} rv - {fields, urls, body}
+   * @returns {string} 본문 HTML
+   */
+  function reviewFieldsHTML(rv) {
+    var fields = rv.fields || {};
+    var used = {};
+    var rows = '';
+    FIELD_VIEW.forEach(function (fv) {
+      for (var i = 0; i < fv.keys.length; i++) {
+        var k = fv.keys[i];
+        if (fields[k] && !used[k]) {
+          used[k] = 1;
+          rows += '<div class="nrya-rv-field"><div class="nrya-rv-flab">' + fv.icon + ' ' + esc(fv.label) + '</div><div class="nrya-rv-fval">' + esc(fields[k]) + '</div></div>';
+          break;
+        }
+      }
+    });
+    if (!rows) {
+      // 폴백: 구조화 필드가 없으면 body 를 잘라 보여줌(장문 방지)
+      var b = String(rv.body || '').trim();
+      if (b.length > 480) b = b.slice(0, 480) + ' …';
+      rows = '<div class="nrya-rv-field"><div class="nrya-rv-fval nrya-rv-fval-pre">' + esc(b || '(본문 없음)') + '</div></div>';
+    }
+    var urls = rv.urls || [];
+    if (urls.length) {
+      rows += '<div class="nrya-rv-links"><div class="nrya-rv-flab">🔗 원문/이미지 링크 (검증)</div>' +
+        urls.map(function (u) {
+          var img = isImageUrl(u);
+          return '<a class="nrya-rv-link' + (img ? ' nrya-img' : '') + '" href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + (img ? '🖼 원본 이미지 열기' : '🔗 원문 링크 열기') + '</a>';
+        }).join('') + '</div>';
+    }
+    return rows;
+  }
+
+  /**
+   * 리뷰 1건을 카드 HTML로 만든다. 헤더(title+law) + 구조화 필드(AI 분석/확인 필요/근거)
+   * + 클릭 가능한 검증 링크 + 교정입력 + 승인/반려 + 반영사슬.
+   * @param {object} rv - {id,law,title,targetPages,body,fields,urls,approved,approvedMeta}
    * @param {boolean} open - 최초 펼침 여부
    * @returns {string} 카드 HTML
    */
@@ -499,10 +555,10 @@
       : '<span class="nrya-rv-st nrya-wait">검증 대기</span>';
     var body =
       '<div class="nrya-rv-body">' +
-        '<div class="nrya-rv-pre">' + esc(rv.body || '(본문 없음)') + '</div>' +
+        reviewFieldsHTML(rv) +
         (pages ? '<div class="nrya-src-line">📍 대상 페이지: ' + pages + '</div>' : '') +
         '<div class="nrya-correct">' +
-          '<div class="nrya-correct-q">🔍 <b>검토</b>: 위 본문(원본 vs AI 연결·추출값)을 확인하고, 확정할 값이 있으면 아래 칸에 직접 입력하세요. 값이 없는 검토는 빈 칸으로 승인하면 됩니다.</div>' +
+          '<div class="nrya-correct-q">🔍 <b>검토</b>: 위 AI 분석 내용과 원본 링크를 확인하고, 확정할 값이 있으면 아래 칸에 직접 입력하세요. 값이 없는 검토는 빈 칸으로 승인하면 됩니다.</div>' +
           '<div class="nrya-correct-row"><label>확정 값</label><input class="nrya-correct-in" value="" placeholder="예: 540 (mm) · 필요 시 입력"></div>' +
           '<div class="nrya-correct-hint">그대로 맞으면 값 유지/빈칸 후 승인 · 틀리면 올바른 값 입력 후 승인</div>' +
         '</div>' +
@@ -511,7 +567,7 @@
         '<div class="nrya-chain"></div>' +
       '</div>';
     return '<div class="nrya-rv' + (open ? ' nrya-open' : '') + (approved ? ' nrya-approved' : '') + '" data-id="' + esc(rv.id) + '">' +
-      '<div class="nrya-rv-head"><span class="nrya-rv-id">' + esc(rv.id) + '</span><div class="nrya-rv-t">' + esc(rv.title || rv.id) + '<small>' + esc(rv.law || '') + (pages ? ' · ' + (rv.targetPages || []).length + '개 페이지' : '') + '</small></div>' + st + '</div>' + body + '</div>';
+      '<div class="nrya-rv-head"><span class="nrya-rv-id">' + esc(rv.id) + '</span><div class="nrya-rv-t">' + esc(rv.title || rv.id) + '<small><b>' + esc(rv.law || '') + '</b>' + (pages ? ' · ' + (rv.targetPages || []).length + '개 페이지' : '') + '</small></div>' + st + '</div>' + body + '</div>';
   }
 
   /**
@@ -661,17 +717,17 @@
     var wrap = document.createElement('div');
     wrap.id = 'nrya-overlays';
     wrap.innerHTML =
-      '<button class="nrya-fab" id="nryaFab" title="나리야에게 물어보기" style="display:none"><div class="nrya-orb"></div><span class="nrya-fab-badge">N</span></button>' +
+      '<button class="nrya-fab" id="nryaFab" title="나리야에게 물어보기" style="display:none"><span class="nrya-fab-inner"><img src="' + NARIYA_IMG + '" alt="나리야"><span class="nrya-fab-label">AI 챗봇</span></span><span class="nrya-fab-badge">N</span></button>' +
       // 채팅 팝업
       '<div class="nrya-chat-wrap" id="nryaChatWrap">' +
         '<div class="nrya-chat">' +
           '<div class="nrya-chat-top">' +
-            '<div class="nrya-orb" id="nryaChatOrb"></div>' +
+            '<div class="nrya-ava" id="nryaChatOrb"><img src="' + NARIYA_IMG + '" alt="나리야"></div>' +
             '<div><div class="nrya-chat-name">나리야</div><div class="nrya-chat-on">해양법령 도우미 · 온라인</div></div>' +
             '<button class="nrya-chat-x" id="nryaChatX">×</button>' +
           '</div>' +
           '<div class="nrya-chat-body" id="nryaChatBody">' +
-            '<div class="nrya-krow nrya-ai"><div class="nrya-kava"><div class="nrya-orb"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div><span class="nrya-ktime">' + nowLabel() + '</span></div></div></div>' +
+            '<div class="nrya-krow nrya-ai"><div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div><span class="nrya-ktime">' + nowLabel() + '</span></div></div></div>' +
           '</div>' +
           '<div class="nrya-chat-input"><button class="nrya-chat-plus" title="첨부">＋</button><input id="nryaChatInput" placeholder="메시지 입력" /><button class="nrya-chat-send" id="nryaChatSend">➤</button></div>' +
         '</div>' +
@@ -713,17 +769,78 @@
     fab.style.display = (tabIsMain && exposureAllows) ? 'grid' : 'none';
   }
 
-  // ── 채팅 팝업 바인딩 ──
+  // ── 채팅 팝업: 온스크린 키보드 대응(visualViewport) + 하드웨어 백(PopupStack) ──
+  var _vvBound = false;
+
+  /** 채팅 메시지 영역을 맨 아래로 스크롤한다. */
+  function _scrollChatBottom() { var b = document.getElementById('nryaChatBody'); if (b) b.scrollTop = b.scrollHeight; }
+
+  /**
+   * 채팅 카드가 항상 visualViewport(키보드 위 남은 화면) 안에 들어오도록 top/height 를
+   * 계산해 고정 크기 플로팅 카드로 유지한다. 키보드가 뜨면 카드가 밀려나는 대신
+   * 메시지 영역(flex:1)이 그만큼 줄어든다.
+   * [연계] ← _onVV(visualViewport resize/scroll), openChat, 입력창 focus.
+   */
+  function fitChat() {
+    var chat = document.querySelector('#nryaChatWrap .nrya-chat'); if (!chat) return;
+    var margin = 12;
+    var vv = window.visualViewport;
+    if (vv) {
+      var h = Math.max(240, vv.height - margin * 2);
+      chat.style.height = h + 'px';
+      chat.style.top = (vv.offsetTop + margin) + 'px';
+    } else {
+      chat.style.height = Math.max(240, (window.innerHeight - margin * 2)) + 'px';
+      chat.style.top = margin + 'px';
+    }
+  }
+
+  function _onVV() { fitChat(); }
+  function addVV() {
+    if (_vvBound) return; _vvBound = true;
+    if (window.visualViewport) { window.visualViewport.addEventListener('resize', _onVV); window.visualViewport.addEventListener('scroll', _onVV); }
+    window.addEventListener('resize', _onVV);
+  }
+  function removeVV() {
+    if (!_vvBound) return; _vvBound = false;
+    if (window.visualViewport) { window.visualViewport.removeEventListener('resize', _onVV); window.visualViewport.removeEventListener('scroll', _onVV); }
+    window.removeEventListener('resize', _onVV);
+  }
+
+  /**
+   * 채팅 팝업을 연다: 뷰포트에 맞춰 크기 조정 + visualViewport 리스너 등록 +
+   * 하드웨어 백 스택 등록(PopupStack) + 입력창 포커스.
+   * [연계] → PopupStack.push('nrya-chat', closeChat).
+   */
+  function openChat() {
+    ensureOverlays();
+    var wrap = document.getElementById('nryaChatWrap'); if (!wrap) return;
+    wrap.classList.add('nrya-open');
+    fitChat(); addVV(); _scrollChatBottom();
+    var input = document.getElementById('nryaChatInput'); if (input) setTimeout(function () { input.focus(); }, 80);
+    if (window.PopupStack) window.PopupStack.push('nrya-chat', closeChat);
+  }
+
+  /** 채팅 팝업을 닫는다(백스택에서 제거 + 리스너 해제). PopupStack.remove 는 멱등. */
+  function closeChat() {
+    if (window.PopupStack) window.PopupStack.remove('nrya-chat');
+    var wrap = document.getElementById('nryaChatWrap'); if (wrap) wrap.classList.remove('nrya-open');
+    removeVV();
+  }
+
   function bindChat() {
-    var wrap = document.getElementById('nryaChatWrap');
     var body = document.getElementById('nryaChatBody');
     var input = document.getElementById('nryaChatInput');
     var fab = document.getElementById('nryaFab');
 
-    if (fab) fab.addEventListener('click', function () { wrap.classList.add('nrya-open'); if (input) setTimeout(function () { input.focus(); }, 60); });
-    var x = document.getElementById('nryaChatX'); if (x) x.addEventListener('click', function () { wrap.classList.remove('nrya-open'); });
+    if (fab) fab.addEventListener('click', openChat);
+    var x = document.getElementById('nryaChatX'); if (x) x.addEventListener('click', closeChat);
     var send = document.getElementById('nryaChatSend'); if (send) send.addEventListener('click', doSend);
-    if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSend(); });
+    if (input) {
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSend(); });
+      // 포커스(키보드 등장) 시: 뷰포트 재계산 + 초기 메시지가 가리지 않게 맨 아래로
+      input.addEventListener('focus', function () { fitChat(); setTimeout(function () { fitChat(); _scrollChatBottom(); }, 250); });
+    }
 
     // 답변 내 근거법령 아코디언 토글 + 지도 구역 탭 → 확대 팝업(동적 답변 포함, 위임)
     if (body) body.addEventListener('click', function (e) {
@@ -753,7 +870,7 @@
 
     // 생각중(스켈레톤 + 상태 텍스트)
     var th = document.createElement('div'); th.className = 'nrya-krow nrya-ai';
-    th.innerHTML = '<div class="nrya-kava"><div class="nrya-orb nrya-think"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">' +
+    th.innerHTML = '<div class="nrya-kava"><div class="nrya-ava nrya-think"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">' +
       '<div class="nrya-sk-line" style="width:130px"></div><div class="nrya-sk-line" style="width:90px"></div>' +
       '<div class="nrya-think-status"><span class="nrya-ts">생각하고 있습니다</span><span class="nrya-think-dots"><i></i><i></i><i></i></span></div></div></div></div>';
     body.appendChild(th); body.scrollTop = body.scrollHeight;
@@ -771,7 +888,7 @@
       clearInterval(iv); th.remove(); if (orb) orb.classList.remove('nrya-think');
       var data = arr[0];
       var a = document.createElement('div'); a.className = 'nrya-krow nrya-ai';
-      a.innerHTML = '<div class="nrya-kava"><div class="nrya-orb"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">' + answerHTML(q, data) + '</div><span class="nrya-ktime">지금</span></div></div></div>';
+      a.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">' + answerHTML(q, data) + '</div><span class="nrya-ktime">지금</span></div></div></div>';
       body.appendChild(a); body.scrollTop = body.scrollHeight;
     });
   }
@@ -820,25 +937,31 @@
   function applyMap() { var inner = document.getElementById('nryaMapInner'); if (inner) inner.style.transform = 'translate(' + mX + 'px,' + mY + 'px) scale(' + mScale + ')'; }
   function resetMap() { mScale = 1; mX = 0; mY = 0; applyMap(); }
 
-  /** 좌표 지도 확대 팝업을 연다(내부에 MAPSVG 주입 + 줌 리셋). */
+  /** 좌표 지도 확대 팝업을 연다(내부에 MAPSVG 주입 + 줌 리셋 + 백스택 등록). */
   function openMap() {
     var inner = document.getElementById('nryaMapInner'), modal = document.getElementById('nryaMapModal');
     if (!inner || !modal) return;
     inner.innerHTML = MAPSVG; resetMap(); modal.classList.add('nrya-open');
+    if (window.PopupStack) window.PopupStack.push('nrya-map', closeMap);
+  }
+
+  /** 좌표 지도 팝업을 닫는다(백스택에서 제거). PopupStack.remove 는 멱등. */
+  function closeMap() {
+    if (window.PopupStack) window.PopupStack.remove('nrya-map');
+    var modal = document.getElementById('nryaMapModal'); if (modal) modal.classList.remove('nrya-open');
   }
 
   function bindMap() {
     var modal = document.getElementById('nryaMapModal');
     var stage = document.getElementById('nryaMapStage');
     var x = document.getElementById('nryaMapX');
-    if (x) x.addEventListener('click', function () { modal.classList.remove('nrya-open'); });
+    if (x) x.addEventListener('click', closeMap);
 
     document.querySelectorAll('#nrya-overlays .nrya-mm-tab').forEach(function (b) {
       b.addEventListener('click', function () {
         if (b.dataset.mm === 'ocean') {
           // 해양종합정보 탭으로 이동(챗봇/지도 팝업 닫고 실제 탭 전환)
-          modal.classList.remove('nrya-open');
-          var wrap = document.getElementById('nryaChatWrap'); if (wrap) wrap.classList.remove('nrya-open');
+          closeMap(); closeChat();
           try { if (typeof window.switchMainTab === 'function') window.switchMainTab('ocean-map-section'); } catch (_) {}
         } else {
           document.querySelectorAll('#nrya-overlays .nrya-mm-tab').forEach(function (t) { t.classList.remove('nrya-on'); });
@@ -908,7 +1031,7 @@
     /** 통합관리자 센터가 부르는 진입점: 주어진 컨테이너에 관리자 콘솔 전체를 렌더(재호출 안전). */
     renderAdminInto: renderAdminInto,
     /** 채팅 팝업 열기(테스트/외부 트리거용). */
-    open: function () { ensureOverlays(); var w = document.getElementById('nryaChatWrap'); if (w) w.classList.add('nrya-open'); },
+    open: openChat,
     /** ⚠수치검증 목록 새로고침(현재 열려 있을 때). */
     refreshReviews: function () { var h = document.getElementById('nryaReviewHost'); if (h) renderReviewCards(h); },
     /** 서버 노출설정 재조회 + FAB 재평가. */
