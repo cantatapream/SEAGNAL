@@ -196,11 +196,12 @@
 - 모델정책(fable 금지, sonnet·medium) 스크립트 반영 완료.
 - **초안 재검증(draft_reverify.js) 70/70 완료**(마커 전수 확인). wiki/concepts 923건 중 **canonical 764(82.8%) / draft 145(15.7%) / review-pending 14**.
 - **후속 파이프라인 3종 완료**: ①`merge_review_gen.py`(review_gen 33파일 전수, 신규 10카드 병합 후 멱등화) ②`lint_index.py`(index.json 재빌드 — **스크립트에 세션별 scratchpad 하드코딩 버그 있어 `_dashboard/loop/build_data.json` 상대경로로 수정함**, index.json canonical 490→764로 최신화) ③`human_workload.py`(재집계).
-- **최종 사람 검수 대상: 155건**(8절 표 참조, 재검증으로 132→155로 증가 — 재검증이 별표OCR 등 새 카드를 추가로 만들어냈기 때문).
+- **155건 검수대상 적대적 재검증 완료(2026-07-21 00시대)**: 4갈래 병렬(읽기전용) 재검증 결과 genuinely_human 105·ai_resolvable_now 41·needs_more_collection 9. 41건 자동확정+canonical 승격 적용(3건 신규, 37건은 이미 canonical이던 부기지연), 9건 중 2건 collect_queue.json 신규 추가. **사람 검수 대상 155→114건**으로 실감소. canonical 767.
+- **D단계 needs_collect 재수집 전수 완료(2026-07-21 00시대)**: holes 86건 + review_resolve_collect 14건(원래 12+재검증에서 2건 추가) = 100건, 6묶음 단독순차 처리. 대부분(60~90%) stale(이미 수집돼 있었으나 큐만 안 갱신)로 확인, 신규수집 다수 확보(경찰관직무집행법·폐기물관리법시행령·재난안전관리기본법시행령·법원조직법·경비업법·민사집행규칙·교육기본법·항만법 항만시설사용료 현행본 등), uncollectable 소수(admrul/ordin 자체 미등재 재확인 — 반복 재시도 불필요 결론).
+- **관리자 검토센터 실데이터 연동 + 인증 버그 수정**: 초안승인 탭 하드코딩(842) 제거·실데이터 연동. 이 과정에서 발견된 인증 버그 2건 수정: ①신규 엔드포인트에 클라 토큰첨부 누락(legalFetch 화이트리스트 확장) ②로그인 토큰이 자주 만료돼 반복 로그인 필요 → 항상 30일 지속토큰 발급으로 변경. **"관리자 기기 등록" 버튼을 인증 대용으로 쓰자는 제안은 조사 후 기각**(그건 인증 미들웨어 없는 공개 FCM 푸시토큰 등록 API라 오히려 취약해짐 — 4-7절 참조 필요시 신설).
 
 ### 다음 단계 (진행 중인 것 없음 — 아래 6절 우선순위대로 진행)
-- needs_collect 수집 트랙(holes 86 + review_resolve_collect 12)이 미착수 상태. ⚠경합위험(raw/15 공용 타법 쓰기) — 단독 직렬 필수.
-- canonical 필터 ON 여부는 사용자 상의 필요(4-3절 절차).
+- D단계(needs_collect) 완료. 다음은 canonical 필터 ON 여부 사용자 상의(4-3절 절차) 또는 Phase E(챗봇 검색엔진) 착수.
 
 ---
 
@@ -262,6 +263,10 @@
 
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
+
+### [2026-07-21 00:45 KST] ✅완료 — D단계 재수집 전체 완료 + 관리자 로그인 지속시간 개선
+①D단계 needs_collect 완료: holes86+review_resolve_collect14=100건 전수 처리(6묶음 순차). 대부분 stale(이미수집) 확인, 신규수집 다수(경찰관직무집행법·폐기물관리법시행령·재난안전기본법시행령·법원조직법·경비업법·민사집행규칙·교육기본법 등), uncollectable 소수(admrul/ordin 미등재 재확인). ②사용자가 '관리자기기등록=인증'으로 오해 → 코드 확인 결과 그 버튼은 FCM 푸시토큰이고 서버라우트에 인증미들웨어 자체가 없어(공개API) 인증대용시 오히려 더 취약해짐을 확인·정정 설명. ③실제 채택한 안전한 해법: 로그인 시 체크박스 무관 항상 30일 지속토큰 발급으로 재로그인 빈도 최소화(admin.js). ④main 반영·배포 완료. 다음: canonical 필터 ON 검토 또는 Phase E 착수 여부 사용자와 상의.
+
 
 ### [2026-07-20 23:58 KST] ✅완료 — 155건 검수대상 적대적 재검증 + 관리자 재로그인 버튼
 ①4갈래 병렬(읽기전용) 재검증: genuinely_human105·ai_resolvable_now41·needs_more_collection9. 41건 review_queue.md 자동확정+canonical승격(3건 신규승격, 37건은 이전에 이미 canonical이었으나 카드만 미승인 부기지연). 9건 중 2건 collect_queue.json 신규추가(7건은 이미 있었음). 사람검수 155→114건. ②사용자가 초안승인 탭에서 '관리자 로그인 필요' 봄 → 원인: '관리자모드' 체크박스(클라 표시설정)≠서버 인증토큰. adminLockHTML()에 showUnifiedLoginModal 재로그인 버튼 추가. ③main에 push·배포 완료(사용자 확인 후 fast-forward).
