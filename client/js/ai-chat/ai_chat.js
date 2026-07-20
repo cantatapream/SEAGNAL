@@ -73,8 +73,11 @@
   }
 
   /**
-   * /api/legal/* 호출 래퍼. admin-token-gated 경로(reviews·config)에는 X-Admin-Token
-   * 을 직접 붙인다(앱 전역 fetch 래퍼는 /api/admin/* 만 처리하고 /api/legal/* 은 안 붙임).
+   * /api/legal/* 호출 래퍼. 저장된 관리자 토큰이 있으면 모든 /api/legal/* 요청에
+   * X-Admin-Token 을 붙인다(reviews·config·drafts·admin/stats 등 서버가 토큰을
+   * 요구하는 경로 전부를 커버 — 앱 전역 fetch 래퍼는 /api/admin/* 만 처리하고
+   * /api/legal/* 은 안 붙이므로 여기서 직접 붙여야 한다. 토큰이 불필요한 공개
+   * 경로(config GET·ask)에 붙여도 서버가 무시하므로 안전).
    * 예: legalFetch('/api/legal/reviews?status=pending') → Promise<Response>
    * @param {string} url - 요청 경로
    * @param {object} [opts] - fetch 옵션
@@ -82,7 +85,7 @@
    */
   function legalFetch(url, opts) {
     opts = opts || {};
-    if (url.indexOf('/api/legal/reviews') !== -1 || url.indexOf('/api/legal/config') !== -1) {
+    if (url.indexOf('/api/legal/') !== -1) {
       var token = getAdminToken();
       if (token) {
         var headers = Object.assign({}, opts.headers || {});
