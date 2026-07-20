@@ -497,10 +497,12 @@
 
   // 리뷰 카드에서 우선 노출할 구조화 필드(라벨·아이콘). 존재하는 것만 순서대로 렌더.
   var FIELD_VIEW = [
+    { keys: ['AI 제안값', 'AI 제안', '제안값'], icon: '💡', label: 'AI 제안값' },
     { keys: ['AI 연결 내용', 'AI 연결·판단 내용', 'AI 판단', 'AI 유추', 'AI 연결', '정의 사슬 추적'], icon: '🧠', label: 'AI 분석 내용' },
     { keys: ['문제'], icon: '❗', label: '문제' },
     { keys: ['확인 필요', '확인'], icon: '🔍', label: '확인 필요' },
     { keys: ['근거'], icon: '📎', label: '근거' },
+    { keys: ['원문 조문', '원문'], icon: '📜', label: '원문 조문' },
     { keys: ['필요 조치', '필요조치'], icon: '🛠', label: '필요 조치' },
     { keys: ['still_missing', '미확보', '미수집'], icon: '🚧', label: '미수집/미확보' }
   ];
@@ -558,16 +560,23 @@
     var st = approved
       ? '<span class="nrya-rv-st nrya-done">✓ 승인·canonical</span>'
       : '<span class="nrya-rv-st nrya-wait">검증 대기</span>';
+    // 유형 분기: 'AI 제안값'이 있으면 값확정형(수치 입력), 없으면 해석·판단형(승인/기각+선택 메모)
+    var isValue = !!((rv.fields || {})['AI 제안값']);
+    var correctBlock = isValue
+      ? '<div class="nrya-correct">' +
+          '<div class="nrya-correct-q">💡 <b>값 확정</b>: 원본 이미지·조문을 확인하고, AI 제안값이 맞으면 비워두고 승인, 틀리면 올바른 값으로 고쳐 승인하세요.</div>' +
+          '<div class="nrya-correct-row"><label>확정 값</label><input class="nrya-correct-in" value="" placeholder="예: 300만원 (맞으면 비워두고 승인)"></div>' +
+        '</div>'
+      : '<div class="nrya-correct">' +
+          '<div class="nrya-correct-q">🧠 <b>판단</b>: 위 AI 분석이 타당하면 승인, 아니면 기각. 필요하면 메모를 남기세요(수치 입력 아님).</div>' +
+          '<div class="nrya-correct-row"><label>메모(선택)</label><input class="nrya-correct-in" value="" placeholder="예: 사전통지 비적용 해석 맞음"></div>' +
+        '</div>';
     var body =
       '<div class="nrya-rv-body">' +
         reviewFieldsHTML(rv) +
         (pages ? '<div class="nrya-src-line">📍 대상 페이지: ' + pages + '</div>' : '') +
-        '<div class="nrya-correct">' +
-          '<div class="nrya-correct-q">🔍 <b>검토</b>: 위 AI 분석 내용과 원본 링크를 확인하고, 확정할 값이 있으면 아래 칸에 직접 입력하세요. 값이 없는 검토는 빈 칸으로 승인하면 됩니다.</div>' +
-          '<div class="nrya-correct-row"><label>확정 값</label><input class="nrya-correct-in" value="" placeholder="예: 540 (mm) · 필요 시 입력"></div>' +
-          '<div class="nrya-correct-hint">그대로 맞으면 값 유지/빈칸 후 승인 · 틀리면 올바른 값 입력 후 승인</div>' +
-        '</div>' +
-        '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 승인 (입력값으로 확정)</button><button class="nrya-btn-no">✗ 반려 (재검토)</button></div>' +
+        correctBlock +
+        '<div class="nrya-rv-actions"><button class="nrya-btn-ok">' + (isValue ? '✓ 승인 (값 확정)' : '✓ 승인 (판단 인정)') + '</button><button class="nrya-btn-no">✗ ' + (isValue ? '반려' : '기각') + '</button></div>' +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
         '<div class="nrya-chain"></div>' +
       '</div>';
@@ -594,7 +603,7 @@
     function showErr(msg) { if (!errBox) return; errBox.style.display = 'block'; errBox.classList.remove('nrya-hidden'); errBox.textContent = msg; }
     function clearErr() { if (!errBox) return; errBox.style.display = 'none'; errBox.textContent = ''; }
     function setBusy(b) { if (okBtn) okBtn.disabled = b; if (noBtn) noBtn.disabled = b; }
-    function resetOk() { if (okBtn) okBtn.textContent = '✓ 승인 (입력값으로 확정)'; }
+    function resetOk() { if (okBtn) okBtn.textContent = '✓ 승인'; }
 
     function submit(decision) {
       clearErr();
