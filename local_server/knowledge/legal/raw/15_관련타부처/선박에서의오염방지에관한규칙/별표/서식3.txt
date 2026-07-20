@@ -1,0 +1,775 @@
+기름기록부
+
+[별지 제3호서식]    (제1쪽)             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                      ┃
+┃                                                      ┃
+┃기름기록부                                            ┃
+┃OIL RECORD BOOK                                       ┃
+┃                                                      ┃
+┃                                                      ┃
+┃기관구역에서의 작업                                   ┃
+┃Machinery space operations                            ┃
+┃                                                      ┃
+┃                                                      ┃
+┃(모든 선박)                                           ┃
+┃(All ships)                                           ┃
+┃                                                      ┃
+┃선명:                                                 ┃
+┃Name of ship                                          ┃
+┃                                                      ┃
+┃선박번호 또는 신호부자:                               ┃
+┃Distinctive number or letters                         ┃
+┃                                                      ┃
+┃총톤수:                                               ┃
+┃Gross tonnage                                         ┃
+┃                                                      ┃
+┃                                                      ┃
+┃                                                      ┃
+┃                                                      ┃
+┃기간:                    부터                     까지┃
+┃Period: from                  to                      ┃
+┃                                                      ┃
+┃                                                      ┃
+┃                                                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜ × 297㎜[인쇄용지(특) 100g/㎡]                    
+                                                          
+                                                                                    
+  (제2쪽)                                                                           
+┏━━┯━━━━━━┯━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━┓
+┃일자│부호(문자)  │항목(번호)  │작업기록 및 작업책임자의 서명                 ┃
+┃Date│Code(letter)│Item(number)│Record of Operations/Signature of Officer in  ┃
+┃    │            │            │Charge                                        ┃
+┠──┼──────┼──────┼───────────────────────┨
+┃    │            │            │                                              ┃
+┠──┼──────┼──────┼───────────────────────┨
+┃    │            │            │                                              ┃
+┠──┼──────┼──────┼───────────────────────┨
+┃    │            │            │                                              ┃
+┠──┼──────┼──────┼───────────────────────┨
+┃    │            │            │                                              ┃
+┠──┼──────┼──────┼───────────────────────┨
+┃    │            │            │                                              ┃
+┠──┼──────┼──────┼───────────────────────┨
+┃    │            │            │                                              ┃
+┠──┼──────┼──────┼───────────────────────┨
+┃    │            │            │                                              ┃
+┠──┴──────┴──────┴───────────────────────┨
+┃기름오염방지관리인의 서명:                                                      ┃
+┃Signature of officer in charge of the  prevention of oil pollution              ┃
+┃(기름오염방지관리인이 선임된 선박만 해당한다)                                   ┃
+┃(Applicable only to the ship for which the above officer is                     ┃
+┃designated)                                                                     ┃
+┃                                  ─────────────────            ┃
+┃                                                                                ┃
+┃                                                                                ┃
+┃선장의 서명:                                                                    ┃
+┃Signature of Master               ─────────────────            ┃
+┃                                                                                ┃
+┃                                                                                ┃
+┃                                                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                            
+  (제3쪽)                                                                                                   
+                                                                                                            
+  비고                                                                                                      
+   1. 다음 표에 기재된 작업을 행한 경우에 그 일자와 해당 작업의 내용을 표시하는 부호 및 번호를 기록하       
+  고 필요한 상세사항을 작업기록 및 해당 작업책임자의 서명란에 적을 것                                       
+      Whenever any of the operation described in the table below take place in the ship, the date,          
+  operational code and item number shall be inserted in the appropriate columns and the                     
+  required particular shall be recorded chronologically in the column of Record of                          
+  operations/signature of officer in charge.                                                                
+   2. 기름기록부는 한글로 기록하여야 하며 IOPP증서를 소지하는 선박은 영어로 기록하거나 병기할  것           
+      The entries in the Oil Record Book shall be in Korean, and, for ships holding an IOPP                 
+  Certificate, in English in parallel with Korean or in English only.                                       
+                                                                                                            
+  기록하여야 할 작업의 내용과 그 부호 및 항목                                                               
+  Contents of Work, Code and Item to be Recorded                                                            
+┏━━━┯━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃부 호 │항 목 │기록할 사항의 목록                                                                      ┃
+┃Code  │Item  │List of Items to be Recorded                                                            ┃
+┠───┼───┼────────────────────────────────────────────┨
+┃(A)   │      │연료유탱크에 평형수의 적재 또는 연료유탱크의 세정                                       ┃
+┃      │      │Ballasting or cleaning of oil fuel tanks                                                ┃
+┃      │1     │평형수를 적재한 탱크의 식별기호                                                         ┃
+┃      │      │Identity of tank(s) ballasted.                                                          ┃
+┃      │2     │최후로 기름을 적재한 후 세정하였는가? 세정하지 아니한 경우에는 탱크에 적재되어          ┃
+┃      │      │있던 기름의 종류                                                                        ┃
+┃      │      │Whether cleaned since they last contained oil and, if not, type of oil previously       ┃
+┃      │      │carried.                                                                                ┃
+┃      │3     │세정절차                                                                                ┃
+┃      │      │Cleaning process                                                                        ┃
+┃      │    .1│세정을 시작하고 완료한 시각과 선박의 위치                                               ┃
+┃      │      │position of ship and time at the start and completion of cleaning                       ┃
+┃      │    .2│한가지 또는 다른 방법이 채택된 탱크의 식별기호(헹구어내기, 스팀분사, 화학 약품으로 세정 ┃
+┃      │      │: 사용된 화학약품의 형식 및 양, ㎥)                                                     ┃
+┃      │      │identify tank(s) in which one or another method has been employed(rinsing through,      ┃
+┃      │      │steaming, cleaning with chemicals; type and quantity of chemicals used, in ㎥)          ┃
+┃      │    .3│세정수가 이송된 탱크의 식별기호 및 양 ㎥                                                ┃
+┃      │      │identity of tank(s) into which cleaning water was transferred, and the quantity in ㎥.  ┃
+┃      │4     │평형수 적재                                                                             ┃
+┃      │      │Ballasting                                                                              ┃
+┃      │    .1│평형수 적재를을 시작하고 완료한 당시의 시각과 선박의 위치                               ┃
+┃      │      │position of ship and time at start and end of ballasting                                ┃
+┃      │    .2│탱크가 세정되지 않는 경우 평형수의 양(㎥)                                               ┃
+┃      │      │quantity of ballast if tanks are not cleaned, in ㎥                                     ┃
+┃      │      │                                                                                        ┃
+┃(B)   │      │위 (A)에 언급된 연료유탱크로부터 선박평형수 또는 세정수의 배출                          ┃
+┃      │      │Discharge of dirty ballast or cleaning water from oil fuel tanks referred to            ┃
+┃      │      │under section(A)                                                                        ┃
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                    
+  (제4쪽)                                                                                           
+                                                                                                    
+┃    │5     │탱크의 식별기호                                                                   ┃
+┃    │      │Identity of tank(s)                                                               ┃
+┃    │6     │배출을 시작한 당시의 선박의 위치                                                  ┃
+┃    │      │Position of ship at start of discharge                                            ┃
+┃    │7     │배출을 종료한 당시의 선박의 위치                                                  ┃
+┃    │      │Position of ship on completion of discharge                                       ┃
+┃    │8     │배출중의 선박의 속력                                                              ┃
+┃    │      │Ship‘s speed(s) during discharge                                                 ┃
+┃    │9     │배출방법                                                                          ┃
+┃    │      │Method of discharge                                                               ┃
+┃    │    .1│15 ppm 장치를 통한 배출                                                           ┃
+┃    │      │through 15 ppm equipment                                                          ┃
+┃    │    .2│수용시설에의 배출                                                                 ┃
+┃    │      │to reception facilities                                                           ┃
+┃    │10    │배출한 양(㎥)                                                                     ┃
+┃    │      │Quantity discharged, in ㎥                                                        ┃
+┃    │      │                                                                                  ┃
+┃(C) │      │유성찌꺼기(슬러지 및 그 밖의 유성잔류물)의 저장, 이송 및 처분                     ┃
+┃    │      │Collection, transfer and disposal of oil residues(sludge)                         ┃
+┃    │11    │유성찌꺼기의 저장                                                                 ┃
+┃    │      │선내에 저장된 유성찌꺼기의 양. 그 양은 주 단위로 기록되어야 한다.주1)(이는 항해가 ┃
+┃    │      │일주일 넘게 지속된다 할지라도 일주일에 한번은 기록되어야 함을 의미한다.           ┃
+┃    │      │Quantities of oil residues (sludge) retained on board. The quantity should be     ┃
+┃    │      │recorded weekly1): (This means that the quantity must be recorded once a          ┃
+┃    │      │week even if the voyage lasts more than one week)                                 ┃
+┃    │    .1│- 탱크의 식별기호                                                                 ┃
+┃    │      │ - identity of tank(s)                                                            ┃
+┃    │    .2│ - 탱크의 용량(㎥)                                                                ┃
+┃    │      │ - capacity of tank(s)(㎥)                                                        ┃
+┃    │    .3│ - 총 저장량(㎥)                                                                  ┃
+┃    │      │ - total quantity of retention(㎥)                                                ┃
+┃    │   .4 │ - 수동 작업으로 저장한 잔류물의 양(㎥)                                           ┃
+┃    │      │   (조작자가 유성찌꺼기를 유성찌꺼기 저장탱크로 이송하는 수동조작 저장을 개시하   ┃
+┃    │      │였음)                                                                             ┃
+┃    │      │ - quantity of residue collected by manual operation(㎥)                          ┃
+┃    │      │   (Operator initiated manual collections where oil residue (sludge) is           ┃
+┃    │      │transferred into the oil residue (sludge) holding tank(s))                        ┃
+┃    │12    │유성찌꺼기의 처분방법                                                             ┃
+┃    │      │Methods of disposal of oil residues (sludge)                                      ┃
+┃    │      │                                                                                  ┃
+                                                                                                    
+                                                                                                    
+  (제5쪽)                                                                                           
+                                                                                                    
+┃    │      │이송되거나 처분된 유성잔류물의 양, 비어있는 탱크 및 계속 보유되는 내용물의 총량   ┃
+┃    │      │을 기록한다(㎥)                                                                   ┃
+┃    │      │State quantity of oil residues transferred or disposed of, the tank(s) emptied    ┃
+┃    │      │and the quantity of contents retained in ㎥                                       ┃
+┃    │    .1│수용시설에의 처분(항구명을 표시할 것)주2)                                         ┃
+┃    │      │to reception facilities (identify port)2)                                         ┃
+┃    │    .2│다른 탱크로(탱크 및 탱크에 저장된 총량을 표시할 것)                               ┃
+┃    │      │to another (other) tank(s) (indicate tank(s) and the total content of tank(s))    ┃
+┃    │    .3│소각(소각기의 총 작동시간을 표시할 것)                                            ┃
+┃    │      │incinerated (indicate total time of operation)                                    ┃
+┃    │    .4│그 밖의 방법(기술할 것)                                                           ┃
+┃    │      │other method (state which)                                                        ┃
+┃    │      │                                                                                  ┃
+┃(D) │      │기관구역 빌지의 비자동시동방식에 의한 선외배출 또는 그 밖의 방법에 의한 이송 또   ┃
+┃    │      │는 처분                                                                           ┃
+┃    │      │Non-automatic starting of discharge overboard, transfer or disposal otherwise     ┃
+┃    │      │of bilge water which has accumulated in machinery spaces                          ┃
+┃    │13    │배출 또는 이송한 양 또는 처분한 양(㎥)주3)                                        ┃
+┃    │      │Quantity discharged, transferred or disposed of, in ㎥3)                          ┃
+┃    │14    │배출, 이송 또는 처분시각(시각 및 종료)                                            ┃
+┃    │      │Time of discharge, transfer, or disposal (start and stop)                         ┃
+┃    │15    │배출, 이송 또는 처분방법                                                          ┃
+┃    │      │Method of discharge, transfer, or disposal                                        ┃
+┃    │    .1│15ppm 장치를 통한 배출(시작 및 종료한 당시의 위치를 기술할 것)                    ┃
+┃    │      │through 15ppm equipment (state position at start and end)                         ┃
+┃    │    .2│수용시설에의 처분(항구명을 표시할 것)주2)                                         ┃
+┃    │      │to reception facilities (identify port)2)                                         ┃
+┃    │    .3│혼합물탱크, 저장탱크 또는 다른 탱크로(탱크의 식별기호를 표시할 것 ; 탱크에 남아   ┃
+┃    │      │있는 총량을 기술할 것, ㎥)                                                        ┃
+┃    │      │to slop tank or holding tank or other tank(s) (indicate tank(s); state the total  ┃
+┃    │      │quantity retained in tank(s), in m3)                                              ┃
+┃    │      │                                                                                  ┃
+┃(E) │      │기관구역 빌지의 자동시동방식에 의한 선외배출 또는 그 밖의 방법에 의한 처분        ┃
+┃    │      │Automatic starting of discharge overboard or disposal otherwise of bilge water    ┃
+┃    │      │which has accumulated in machinery spaces                                         ┃
+┃    │16    │15ppm 설비를 통해 선외배출을 위하여 장치를 자동작동방식으로 한 시각 및 선박의     ┃
+┃    │      │위치                                                                              ┃
+┃    │      │Time and position of ship at which the system has been put into automatic         ┃
+┃    │      │mode of operation for discharge overboard, through 15ppm Equipment                ┃
+┃    │      │                                                                                  ┃
+                                                                                                    
+                                                                                                    
+  (제6쪽)                                                                                           
+                                                                                                    
+┃    │17    │빌지를 저장탱크로 이송하기 위하여 장치를 자동작동방식으로 한 시각                 ┃
+┃    │      │(탱크의 식별기호를 표시할 것)                                                     ┃
+┃    │      │Time when the system has been put into automatic mode of operation for            ┃
+┃    │      │transfer of bilge water to holding tank (identify tank)                           ┃
+┃    │18    │장치를 수동 작업으로 한 시각                                                      ┃
+┃    │      │Time when the system has been put into manual operation                           ┃
+┃    │      │                                                                                  ┃
+┃(F) │      │기름여과장치의 상태                                                               ┃
+┃    │      │Condition of the oil filtering equipment                                          ┃
+┃    │19    │장치가 고장난 시각주4)                                                            ┃
+┃    │      │Time of system failure4)                                                          ┃
+┃    │20    │장치가 작동 가능한 상태로 된 시각                                                 ┃
+┃    │      │Time when system has been made operational                                        ┃
+┃    │21    │고장원인                                                                          ┃
+┃    │      │Reasons for failure                                                               ┃
+┃    │      │                                                                                  ┃
+┃(G) │      │사고 그 밖의 사유로 인한 예외적인 기름의 배출                                     ┃
+┃    │      │Accidental or other exceptional discharges of oil                                 ┃
+┃    │22    │배출시각                                                                          ┃
+┃    │      │Time of occurrence                                                                ┃
+┃    │23    │배출 당시의 선박의 위치 또는 장소                                                 ┃
+┃    │      │Place or position of ship at time of occurrence                                   ┃
+┃    │24    │기름의 종류 및 추정량                                                             ┃
+┃    │      │Approximate quantity and type of oil                                              ┃
+┃    │25    │배출 또는 유출 상황 및 원인과 일반적인 사항                                       ┃
+┃    │      │Circumstances of discharge or escape, the reasons therefor and general            ┃
+┃    │      │remarks.                                                                          ┃
+┃    │      │                                                                                  ┃
+┃(H) │      │연료 또는 산적 윤활유의 적재                                                      ┃
+┃    │      │Bunkering of fuel or bulk lubricating oil                                         ┃
+┃    │26    │연료유 적재:                                                                      ┃
+┃    │      │Bunkering:                                                                        ┃
+┃    │    .1│연료유 적재 장소.                                                                 ┃
+┃    │      │Place of bunkering.                                                               ┃
+┃    │    .2│연료유 적재 시간.                                                                 ┃
+┃    │      │Time of bunkering.                                                                ┃
+┃    │    .3│연료유 형식 및 양과 탱크의 식별기호.(추가된 양 및 탱크의 총량을 톤 단위로 기재할  ┃
+┃    │      │것)                                                                               ┃
+┃    │      │Type and quantity of fuel oil and identity of tank(s)                             ┃
+┃    │    .4│(state quantity added, in tonnes and total content of tank(s))                    ┃
+┃    │      │윤활유의 형식 및 양과 탱크의 식별기호.(추가된 양 및 탱크의 총 보유량을 톤 단위로  ┃
+┃    │      │기재할 것)                                                                        ┃
+┃    │      │Type and quantity of lubricating oil and identity of tank(s)                      ┃
+┃    │      │(state quantity added, in tonnes and total content of tank(s))                    ┃
+                                                                                                    
+                                                                                              
+  (제7쪽)                                                                                     
+                                                                                              
+┃(I) ││그 밖의 작동절차 및 일반사항                                                      ┃
+┃    ││Additional operational procedures and general remarks                             ┃
+┃    ││                                                                                  ┃
+┃    ││주1) 슬러지를 위해 사용되는 IOPP 증서 추록 서식 A 및 B의 제3.1항에 기입되어       ┃
+┃    ││있는 탱크에만 적용                                                                ┃
+┃    ││     Tanks listed in item 3.1 of form A and B of the supplement in the IOPP       ┃
+┃    ││Certificate used for sludge                                                       ┃
+┃    ││주2) 선장은 부선 및 탱크트럭을 포함하는 수용시설의 운항자로부터 이송일자 및 시    ┃
+┃    ││각의 기록과 함께 이송된 탱크 세정수, 오염된 평형수, 잔유물 또는 유성혼합물        ┃
+┃    ││을 상세히 기술한 영수증 또는 증서를 받아야 한다.  증서 또는 영수증이 기름         ┃
+┃    ││기록부에 첨부되어 있는 경우, 증서 또는 영수증은 선장이 해당 선박이 추정된         ┃
+┃    ││오염사고에 연루되지 않았음을 증명하는데 도움이 되기도 한다. 이 영수증 또는        ┃
+┃    ││증서는 기름기록부와 함께 보관되어야 한다.                                         ┃
+┃    ││     Ships‘ masters should obtain from the operator of the reception facilities, ┃
+┃    ││which include barges and tank trucks, a receipt or certificate detailing          ┃
+┃    ││the quantity of tank washings, dirty ballast, residues or oily mixtures           ┃
+┃    ││transferred, together with the time and date of the transfer. This receipt        ┃
+┃    ││or certificate, if attached to the Oil Record Book, may aid the master of         ┃
+┃    ││the ship in proving that his ship was not involved in an alleged pollution        ┃
+┃    ││incident. The receipt or certificate should be kept together with the Oil         ┃
+┃    ││Record Book.                                                                      ┃
+┃    ││주3) 저장탱크로부터 빌지수를 배출 또는 처분한 경우 식별기호, 저장탱크의 용량, 저  ┃
+┃    ││장 탱크에 저장된 양을 기재한다.                                                   ┃
+┃    ││     In case of discharge or disposal of bilge water from holding tank(s),        ┃
+┃    ││state identity and capacity of holding tank(s) and quantity retained in           ┃
+┃    ││holding tank.                                                                     ┃
+┃    ││주4) 해당되는 경우, 기름여과장치에는 경보장치와 자동정지장치도 포함된다.          ┃
+┃    ││     The condition of the oil filtering equipment covers also the alarm and       ┃
+┃    ││automatic stopping devices, if applicable.                                        ┃
+┗━━┷┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                          
+  (제8쪽)                                                 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                      ┃
+┃                                                      ┃
+┃                                                      ┃
+┃기름기록부                                            ┃
+┃OIL RECORD BOOK                                       ┃
+┃                                                      ┃
+┃                                                      ┃
+┃화물유 및 평형수에 관한 작업                          ┃
+┃Cargo/ballast operations                              ┃
+┃                                                      ┃
+┃                                                      ┃
+┃(유조선)                                              ┃
+┃(Oil tankers)                                         ┃
+┃                                                      ┃
+┃                                                      ┃
+┃                                                      ┃
+┃선명:                                                 ┃
+┃Name of ship                                          ┃
+┃                                                      ┃
+┃선박번호 또는 신호부자:                               ┃
+┃Distinctive number or letters                         ┃
+┃                                                      ┃
+┃총톤수:                                               ┃
+┃Gross tonnage                                         ┃
+┃                                                      ┃
+┃기간:                   부터                      까지┃
+┃Period : from                 to                      ┃
+┃                                                      ┃
+┃                                                      ┃
+┃                                                      ┃
+┃                                                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜ × 297㎜[인쇄용지(특) 100g/㎡]                    
+                                                          
+                                                                                                  
+  (제9쪽)                                                                                         
+                                                                                                  
+  화물창 및 슬롭탱크의 평면도                                                                     
+  PLAN VIEW OF CARGO AND SLOP TANKS                                                               
+                                                                                                  
+  (선 안에서 기재할 것)                                                                           
+  (to be completed on board)                                                                      
+                                                                                                  
+                                                                                                  
+                                 ┌──────────────┬─────────┐             
+                                 │탱크의 식별번호             │용량              │             
+          ┌─────┐         │Identification of the tanks │Capacity          │             
+          │          │         ├──────────────┼─────────┤             
+          ├─────┤         │                            │                  │             
+          │펌프실    │         ├──────────────┼─────────┤             
+          │pump room │         │                            │                  │             
+          └─────┘         ├──────────────┼─────────┤             
+                                 │                            │                  │             
+            ───               ├──────────────┼─────────┤             
+                                 │                            │                  │             
+                                 ├──────────────┼─────────┤             
+                                 │                            │                  │             
+                                 ├──────────────┼─────────┤             
+                                 │슬롭탱크의 깊이             │                  │             
+                                 │Depth of slop tank(s):      │                  │             
+                                 └──────────────┴─────────┘             
+                                   (각 탱크의 용량 및 슬롭탱크의 깊이를 표시할 것)                
+                                   (Give the capacity of each tank and the depth                  
+                                   of slop tank(s))                                               
+                                                                                                  
+                                                                                                  
+                                                                                                  
+                                                                                                  
+                                                                        
+  (제10쪽)                                                              
+┏━━┯━━━━━━┯━━━━━━┯━━━━━━━━━━━━━━━━━┓
+┃일자│부호(문자)  │항목(번호)  │작업기록 및 작업책임자의 서명     ┃
+┃Date│Code(Letter)│Item(Number)│Record of Operations/Signature of ┃
+┃    │            │            │Officer in Charge                 ┃
+┠──┼──────┼──────┼─────────────────┨
+┃    │            │            │                                  ┃
+┠──┼──────┼──────┼─────────────────┨
+┃    │            │            │                                  ┃
+┠──┼──────┼──────┼─────────────────┨
+┃    │            │            │                                  ┃
+┠──┼──────┼──────┼─────────────────┨
+┃    │            │            │                                  ┃
+┠──┼──────┼──────┼─────────────────┨
+┃    │            │            │                                  ┃
+┠──┼──────┼──────┼─────────────────┨
+┃    │            │            │                                  ┃
+┠──┼──────┼──────┼─────────────────┨
+┃    │            │            │                                  ┃
+┠──┴──────┴──────┴─────────────────┨
+┃기름오염방지관리인의 서명:                                          ┃
+┃Signature of officer in charge of the  prevention of oil pollution  ┃
+┃(기름오염방지관리인이 선임된 선박만 해당한다)                       ┃
+┃(Applicable only to the ship for which the above officer is         ┃
+┃designated)                                                         ┃
+┃                                  ─────────────────┃
+┃                                                                    ┃
+┃                                                                    ┃
+┃                                                                    ┃
+┃선장의 서명:                      ─────────────────┃
+┃Signature of Master                                                 ┃
+┃                                                                    ┃
+┃                                                                    ┃
+┃                                                                    ┃
+┃                                                                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                        
+                                                                        
+                                                                                                          
+  (제11쪽)                                                                                                
+                                                                                                          
+  비고                                                                                                    
+   1. 다음 표에 기재된 작업이 선박에서 발생한 경우에는 그 일자와 해당 작업의 내용을 표시하는 부호 및 번   
+  호를 기록하고 필요한 상세사항을 작업 기록 및 해당 작업 책임자의 서명란에 적을 것                        
+      Whenever any of the operation described in the table below take place in the ship, the date,        
+  operational code and item number shall be inserted in the appropriate columns and the required          
+  particular shall be recorded chronologically in the column of Record of operations/signature of         
+  officer in charge.                                                                                      
+   2. 기름기록부는 한글로 기록하여야 하며 IOPP증서를 소지하는 선박은 영어로 기록하거나 병기할  것         
+      The entries in the Oil Record Book shall be in Korean, and, for ships holding an IOPP               
+  Certificate, in English in parallel with Korean or in English only.                                     
+                                                                                                          
+                                                                                                          
+  기록하여야 할 작업의 내용과 그 부호 및 항목                                                             
+  Contents of Work, Code and Item to be Recorded                                                          
+  ┏━━┯━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓      
+  ┃부호│항목  │기록할 사항의 목록                                                              ┃      
+  ┃Code│Item  │List of Items to be Recorded                                                    ┃      
+  ┠──┼───┼────────────────────────────────────────┨      
+  ┃(A) │      │화물유의 적재                                                                   ┃      
+  ┃    │      │Loading of oil cargo                                                            ┃      
+  ┃    │1     │적재장소                                                                        ┃      
+  ┃    │      │Place of loading                                                                ┃      
+  ┃    │2     │적재한 기름의 종류 및 탱크의 식별기호                                           ┃      
+  ┃    │      │Type of oil loaded and identity of tank(s)                                      ┃      
+  ┃    │3     │적재한 기름의 총량(15℃에서 추가된 양 및 탱크의 총보유량을 기재할 것 ,㎥)       ┃      
+  ┃    │      │Total quantity of oil loaded (state quantity added, in ㎥ at 15℃ and the total ┃      
+  ┃    │      │content of tank(s), in ㎥)                                                      ┃      
+  ┃    │      │                                                                                ┃      
+  ┃(B) │      │항해 중에 실시한 화물유의 선내이송                                              ┃      
+  ┃    │      │Internal transfer of oil cargo during voyage                                    ┃      
+  ┃    │4     │탱크의 식별기호                                                                 ┃      
+  ┃    │      │Identity of the tank(s)                                                         ┃      
+  ┃    │   .1 │어느 탱크에서                                                                   ┃      
+  ┃    │      │from                                                                            ┃      
+  ┃    │   .2 │어느 탱크로: (이송된 양 및 탱크의 총용량을 기재할 것, ㎥)                       ┃      
+  ┃    │      │to: (state quantity transferred and total quantity of tank(s), in ㎥)           ┃      
+  ┃    │5     │4.1의 탱크는 완전히 비었는가?(그렇지 않다면, 보관되고 있는 양을 기재할 것, ㎥)  ┃      
+  ┃    │      │Was(were) the tank(s) in 4.1 emptied ? (If not, state quantity retained., in ㎥)┃      
+  ┃    │      │                                                                                ┃      
+  ┃(C) │      │화물유의 양하                                                                   ┃      
+  ┃    │      │Unloading of oil cargo                                                          ┃      
+  ┃    │6     │양하장소                                                                        ┃      
+  ┃    │      │Place of unloading                                                              ┃      
+  ┃    │7     │기름을 양하한 탱크의 식별기호                                                   ┃      
+  ┃    │      │Identity of tank(s) unloaded                                                    ┃      
+                                                                                                          
+                                                                                                          
+                                                                                                    
+  (제12쪽)                                                                                          
+                                                                                                    
+┃    │8     │탱크는 완전히 비었는가?(그렇지 않다면, 보관되고 있는 양을 기재할 것, ㎥)          ┃
+┃    │      │Was(were) the tank(s) emptied?(If not, state the quantity retained., in ㎥)       ┃
+┃    │      │                                                                                  ┃
+┃(D) │      │원유세정(원유세정방식으로 운항하는 원유조선에만 적용)                             ┃
+┃    │      │Crude oil washing(COW tankers only)                                               ┃
+┃    │      │(원유세정을 실시하는 탱크마다 기재할 것)                                          ┃
+┃    │      │(To be completed for each tank being crude oil washed)                            ┃
+┃    │9     │원유세정을 실시한 항구 또는 화물을 양하한 2항구 사이에서 원유세정이 실시된 경우   ┃
+┃    │      │에는 원유세정을 실시한 당시의 선박의 위치                                         ┃
+┃    │      │Port where crude oil washing was carried out or ship‘s position if carried out   ┃
+┃    │      │between two discharge ports                                                       ┃
+┃    │10    │세정한 탱크의 식별기호주1)                                                        ┃
+┃    │      │Identity of tank(s) washed1)                                                      ┃
+┃    │11    │사용한 세정기의 수                                                                ┃
+┃    │      │Number of machines in use                                                         ┃
+┃    │12    │세정을 시작한 시각                                                                ┃
+┃    │      │Time of start of washing                                                          ┃
+┃    │13    │사용한 세정방식주2)                                                               ┃
+┃    │      │Washing pattern employed2)                                                        ┃
+┃    │14    │세정관의 압력                                                                     ┃
+┃    │      │Washing line pressure                                                             ┃
+┃    │15    │세정을 종료하거나 정지한 시각                                                     ┃
+┃    │      │Time washing was completed of stopped                                             ┃
+┃    │16    │탱크가 비어졌음을 확인한 방법                                                     ┃
+┃    │      │State method of establishing that tank(s) was(were) dry                           ┃
+┃    │17    │비고주3)                                                                          ┃
+┃    │      │Remarks3)                                                                         ┃
+┃    │      │                                                                                  ┃
+┃(E) │      │화물창에의 평형수의 적재                                                          ┃
+┃    │      │Ballasting of cargo tanks                                                         ┃
+┃    │18    │평형수의 적재 시작 및 종료 시 선박의 위치                                         ┃
+┃    │      │Position of ship at start and end of ballasting                                   ┃
+┃    │19    │평형수의 절차                                                                     ┃
+┃    │      │Ballasting process                                                                ┃
+┃    │    .1│평형수를 적재한 탱크의 식별기호                                                   ┃
+┃    │      │identity of tank(s) ballasted                                                     ┃
+┃    │    .2│시작과 종료 시의 시각                                                             ┃
+┃    │      │time of start and end                                                             ┃
+┃    │    .3│받은 평형수의 양, 평형수 작업에 관계된 각 탱크에 대해서 평형수의 총량을 기재할 것 ┃
+┃    │      │quantity of ballast received. Indicate total quantity of ballast for each tank    ┃
+┃    │      │involved in the operation                                                         ┃
+                                                                                                    
+                                                                                                      
+  (제13쪽)                                                                                            
+                                                                                                      
+┃(F) │      │맑은평형수탱크에의 평형수의 적재(맑은평형수방식으로 운항하는 유조선에만 적용)       ┃
+┃    │      │Ballasting of dedicated clean ballast tanks(CBT tankers only)                       ┃
+┃    │20    │평형수를 적재한 탱크의 식별기호                                                     ┃
+┃    │      │Identity of tank(s) ballasted                                                       ┃
+┃    │21    │맑은평형수탱크에 세정용 물을 넣었거나 항내에서 평형수를 적재한 당시의 선박의 위치   ┃
+┃    │      │Position of ship when water intended for flushing, or port ballast was taken to     ┃
+┃    │      │dedicated clean ballast tank(s)                                                     ┃
+┃    │22    │슬롭탱크로 통하는 펌프 및 관을 세정한 당시의 선박의 위치                            ┃
+┃    │      │Position of ship when pump(s) and lines were flushed to slop tank                   ┃
+┃    │23    │관의 세정 후 슬롭탱크 또는 슬롭이 최초로 저장된 화물창으로 이송된 유성혼합물의      ┃
+┃    │      │양. 총량을 기재할 것(㎥)                                                            ┃
+┃    │      │Quantity of the oily water which, after line flushing, is transferred to the slop   ┃
+┃    │      │tank(s) or cargo tank(s) in which slop is preliminarily stored (identify tank(s)).  ┃
+┃    │      │State the total quantity, in ㎥                                                     ┃
+┃    │24    │맑은평형수탱크에 추가로 평형수를 적재한 당시의 선박의 위치                          ┃
+┃    │      │Position of ship when additional ballast water was taken to dedicated clean         ┃
+┃    │      │ballast tank(s)                                                                     ┃
+┃    │25    │화물유관 및 스트리핑관으로부터 맑은평형수탱크를 분리하는 밸브를 폐쇄한 시각 및      ┃
+┃    │      │당시의 선박의 위치                                                                  ┃
+┃    │      │Time and position of ship when valves separating the dedicated clean ballast        ┃
+┃    │      │tanks from cargo and stripping lines were closed                                    ┃
+┃    │26    │선내에 적재된 맑은평형수의 양(㎥)                                                   ┃
+┃    │      │Quantity of clean ballast taken on board, in ㎥                                     ┃
+┃    │      │                                                                                    ┃
+┃(G) │      │화물창의 세정                                                                       ┃
+┃    │      │Cleaning of cargo tanks                                                             ┃
+┃    │27    │세정한 탱크의 식별기호                                                              ┃
+┃    │      │Identity of tank(s) cleaned                                                         ┃
+┃    │28    │항구 또는 선박의 위치                                                               ┃
+┃    │      │Port or ship‘s  position                                                           ┃
+┃    │29    │세정에 소요된 시간                                                                  ┃
+┃    │      │Duration of cleaning                                                                ┃
+┃    │30    │세정방식주4)                                                                        ┃
+┃    │      │Method of cleaning4)                                                                ┃
+┃    │31    │탱크 세정수는                                                                       ┃
+┃    │      │Tank washings transferred to                                                        ┃
+┃    │    .1│수용시설에 처분하였다(항구 및 양을 기재할 것, ㎥)주5)                               ┃
+┃    │      │reception facilities(state port and quantity, in ㎥)5)                              ┃
+┃    │    .2│슬롭탱크 또는 슬롭탱크로 지정된 화물창에 이송하였다(탱크의 식별기호를 표시할 것;    ┃
+┃    │      │이송된 양 및 총량을 기재할 것, ㎥)                                                  ┃
+┃    │      │slop tank(s) or cargo tank(s) designated as slop tank(s)                            ┃
+┃    │      │(identify tank(s);state quantity transferred and total quantity, in ㎥)             ┃
+┃    │      │                                                                                    ┃
+                                                                                                      
+                                                                                                      
+  (제14쪽)                                                                                            
+                                                                                                      
+┃(H) │  │오염된 평형수의 배출                                                                    ┃
+┃    │  │Discharge of dirty ballast                                                              ┃
+┃    │32│탱크의 식별기호                                                                         ┃
+┃    │  │Identity of tank(s)                                                                     ┃
+┃    │33│해양에 배출을 시작한 당시의 시각 및 선박의 위치                                         ┃
+┃    │  │Time and position of ship at start of discharge into the sea                            ┃
+┃    │34│해양에 배출을 종료한 당시의 시각 및 선박의 위치                                         ┃
+┃    │  │Time and position of ship on completion of discharge into the sea                       ┃
+┃    │35│해양에 배출한 양(㎥)                                                                    ┃
+┃    │  │Quantity discharged into the sea, in ㎥                                                 ┃
+┃    │36│배출 중 선박의 속도                                                                     ┃
+┃    │  │Ship's speed(s) during discharge                                                        ┃
+┃    │37│배출 중에 평형수용 기름배출감시제어장치는 작동하고 있었는가?                            ┃
+┃    │  │Was the discharge monitoring and control system in operation during the                 ┃
+┃    │  │discharge?                                                                              ┃
+┃    │38│배출 중에 오염된 평형수 및 배출장소의 해면에 대한 정기적인 감시를 계속하였는가?         ┃
+┃    │  │Was a regular check kept on the effluent and the surface of the water in the            ┃
+┃    │  │locality of the discharge?                                                              ┃
+┃    │39│슬롭탱크에 이송된 유성혼합물의 양(슬롭탱크의 식별기호를 표시할 것).                     ┃
+┃    │  │총량을 기재할 것(㎥)                                                                    ┃
+┃    │  │Quantity of oily water transferred to slop tank(s) (identify slop tank(s)).             ┃
+┃    │  │State total quantity, in ㎥                                                             ┃
+┃    │40│육상수용시설에의 처분(항구명 및 처분된 양을 표시할 것, ㎥)주5)                          ┃
+┃    │  │Discharged to shore reception facilities (identify port and quantity involved, in ㎥)5) ┃
+┃    │41│슬롭탱크의 식별기호                                                                     ┃
+┃    │  │Identity of slop tanks                                                                  ┃
+┃    │  │                                                                                        ┃
+┃(I) │  │슬롭탱크로부터의 물의 배출                                                              ┃
+┃    │  │Discharge of water from slop tanks into the sea                                         ┃
+┃    │42│잔류물을 최후로 넣은 후의 침전 시간, 또는                                               ┃
+┃    │  │Time of settling from last entry of residues, or                                        ┃
+┃    │43│전회의 배출로부터 침전 시간                                                             ┃
+┃    │  │Time of settling from last discharge                                                    ┃
+┃    │44│배출을 시작한 시각 및 당해 배출을 시작한 당시의 선박의 위치                             ┃
+┃    │  │Time and position of ship at start of discharge                                         ┃
+┃    │45│배출을 시작한 시각에 있어서 내용물의 얼리지                                             ┃
+┃    │  │Ullage of total contents at start of discharge.                                         ┃
+┃    │46│배출을 시작한 시각에 있어서 유수경계면의 얼리지                                         ┃
+┃    │  │Ullage of oil/water interface at start of discharge                                     ┃
+┃    │47│최종단계 전에 배출한 양(㎥) 및 배출율(시간당 ㎥)                                        ┃
+┃    │  │Bulk quantity discharged, in ㎥ and rate of discharge, in ㎥/hour                       ┃
+┃    │48│최종단계에서 배출한 양(㎥) 및 배출율(시간당 ㎥)                                         ┃
+┃    │  │Final quantity discharged, in ㎥ and rate of discharge, in ㎥/hour                      ┃
+                                                                                                      
+                                                                                                    
+  (제15쪽)                                                                                          
+                                                                                                    
+┃    │49    │배출을 종료한 시각 및 당해 배출을 종료한 당시의 선박의 위치                       ┃
+┃    │      │Time and position of ship on completion of discharge                              ┃
+┃    │50    │배출 중에 평형수 배출감시제어장치는 작동하고 있었는가?                            ┃
+┃    │      │Was the discharge monitoring and control system in operation during the           ┃
+┃    │      │discharge?                                                                        ┃
+┃    │51    │배출을 종료한 시각에 있어서 유수경계면의 얼리지(m)                                ┃
+┃    │      │Ullage of oil/water interface on completion of discharge, in m                    ┃
+┃    │52    │배출 중의 선박의 속력                                                             ┃
+┃    │      │Ship's speed(s) during discharge                                                  ┃
+┃    │53    │유출액 및 배출장소의 해면에 대한 정기적인 감시는 계속하였는가?                    ┃
+┃    │      │Was a regular check kept on the effluent and the surface of the water in the      ┃
+┃    │      │locality of the discharge?                                                        ┃
+┃    │54    │슬롭탱크로부터의 배출을 종료한 시각에 선박의 관장치에 관련된 모든 밸브가 폐쇄되   ┃
+┃    │      │었음을 확인할 것                                                                  ┃
+┃    │      │Confirm that all applicable valves in the ship's piping  system have been         ┃
+┃    │      │closed on completion of discharge from the slop tanks                             ┃
+┃    │      │                                                                                  ┃
+┃(J) │      │그 밖의 방법으로 처리할 수 없는 잔류물 및 유성혼합물의 저장, 이송 및 처분         ┃
+┃    │      │Collection, transfer and disposal of residues and oily mixtures not otherwise     ┃
+┃    │      │dealt with                                                                        ┃
+┃    │55    │탱크의 식별기호                                                                   ┃
+┃    │      │Identity of tank(s)                                                               ┃
+┃    │56    │각 탱크로부터 이송 또는 처분한 양(보관되고 있는 양을 표시할 것, ㎥)               ┃
+┃    │      │Quantity transferred or disposed of from each tank.(State the quantity retained,  ┃
+┃    │      │in ㎥.)                                                                           ┃
+┃    │57    │이송 또는 처분방법                                                                ┃
+┃    │      │Method of transfer or disposal                                                    ┃
+┃    │    .1│수용시설에의 처분(항구명 및 처분된 양을 표시할 것)주5)                            ┃
+┃    │      │disposal to reception facilities (identify port and quantity involved)5)          ┃
+┃    │    .2│화물유와의 혼합(양을 표시할 것)                                                   ┃
+┃    │      │mixed with cargo (state quantity)                                                 ┃
+┃    │    .3│기관구역의 유성찌꺼기탱크 및 선저폐수저장탱크로부터의 이송을 포함하여, 다른 탱크  ┃
+┃    │      │로 이송 또는 다른 탱크로부터의 이송(탱크의 식별기호를 표시할 것; 이송된 양과 탱   ┃
+┃    │    .4│크안의 총량을 표시할 것, ㎥)                                                      ┃
+┃    │      │transferred to or from (an)other tank(s) including transfer from machinery        ┃
+┃    │      │space oil residue (sludge) and oily bilge water tanks (identify tank(s)); state   ┃
+┃    │      │quantity transferred and total quantity in tank(s), in ㎥)                        ┃
+┃    │      │그 밖의 방법(방법을 표시할 것); 처분된 양을 표시할 것(㎥)                         ┃
+┃    │      │other method (state which); state quantity disposed of, in ㎥                     ┃
+┃(K) │      │화물창에 적재되어 있는 맑은평형수의 배출                                          ┃
+┃    │58    │Discharge of clean ballast contained in cargo tanks                               ┃
+┃    │      │맑은평형수의 배출을 시작한 당시의 선박의 위치                                     ┃
+┃    │59    │Position of ship at start of discharge of clean ballast                           ┃
+┃    │      │맑은평형수를 배출한 탱크의 식별기호                                               ┃
+┃    │60    │Identity of tank(s) discharged                                                    ┃
+┃    │      │배출을 종료한 당시 탱크는 비었는가?                                               ┃
+┃    │      │Was(were) the tank(s) empty on completion?                                        ┃
+                                                                                                    
+                                                                                                  
+  (제16쪽)                                                                                        
+                                                                                                  
+┃    │61    │배출을 종료한 당시의 선박의 위치(58항의 위치와 다른 경우에 한함).               ┃
+┃    │      │Position of ship on completion if different from 58.                            ┃
+┃    │62    │배출중의 맑은평형수 및 배출장소의 해면에 대한 정기적인 감시는 계속하였는가?     ┃
+┃    │      │Was a regular check kept on the effluent and the surface of the water in the    ┃
+┃    │      │locality of the discharge?                                                      ┃
+┃    │      │                                                                                ┃
+┃(L) │      │맑은평형수탱크로부터 평형수의 배출(맑은평형수방식으로 운항하는 유조선에만 적용) ┃
+┃    │      │Discharge of ballast from dedicated clean ballast tanks(CBT tankers only)       ┃
+┃    │63    │배출한 탱크의 식별기호                                                          ┃
+┃    │      │Identity of tank(s) discharged                                                  ┃
+┃    │64    │해양에 맑은평형수의 배출을 시작한 시각 및 시작한 당시의 선박의 위치             ┃
+┃    │      │Time and position of ship at start of discharge of clean ballast into the sea   ┃
+┃    │65    │해양에 배출을 종료한 시각 및 종료한 당시의 선박의 위치                          ┃
+┃    │      │Time and position of ship on completion of discharge into the sea               ┃
+┃    │66    │배출한 양(㎥)                                                                   ┃
+┃    │      │Quantity discharged, in ㎥                                                      ┃
+┃    │    .1│해양에 배출한 양; 또는                                                          ┃
+┃    │      │into the sea; or                                                                ┃
+┃    │    .2│수용시설에 처분한 양(항구명을 표시할 것)                                        ┃
+┃    │      │to reception facility (identify port)                                           ┃
+┃    │67    │평형수의 배출전 또는 배출중 기름에 의한 오염이 확인되었는가?                    ┃
+┃    │      │Was there any indication of oil contamination of the ballast water before or    ┃
+┃    │      │during discharge into the sea?                                                  ┃
+┃    │68    │배출은 유분농도계로 감시되었는가?                                               ┃
+┃    │      │Was the discharge monitored by an oil content meter?                            ┃
+┃    │69    │평형수의 배출 종료시 화물유관 및 스트리핑관으로부터 맑은평형수탱크를 분리하는   ┃
+┃    │      │밸브를 폐쇄한 당시의 선박의 위치                                                ┃
+┃    │      │Time and position of ship when valves separating dedicated clean ballast tanks  ┃
+┃    │      │from the cargo and stripping lines were closed on completion of deballasting    ┃
+┃    │      │                                                                                ┃
+┃(M) │      │평형수 배출감시제어장치의 상태                                                  ┃
+┃    │      │Condition of oil discharge monitoring and control system                        ┃
+┃    │      │장치가 고장난 시각                                                              ┃
+┃    │70    │Time of system failure                                                          ┃
+┃    │      │장치가 작동 가능한 상태로 된 시각                                               ┃
+┃    │71    │Time when system has been made operational                                      ┃
+┃    │      │고장의 원인                                                                     ┃
+┃    │72    │Reasons for failure                                                             ┃
+┃    │      │                                                                                ┃
+┃(N) │      │사고 그 밖의 사유로 인한 예외적인 기름의 배출                                   ┃
+┃    │      │Accidental or other exceptional discharges of oil                               ┃
+                                                                                                  
+                                                                                            
+  (제17쪽)                                                                                  
+                                                                                            
+┃│73│배출시각                                                                          ┃
+┃│  │Time of occurrence                                                                ┃
+┃│74│배출 당시의 선박의 위치 또는 항구명                                               ┃
+┃│  │Port or ship‘s position at time of occurrence                                    ┃
+┃│75│배출된 기름의 종류 및 추정량(㎥)                                                  ┃
+┃│  │Approximate quantity, in ㎥, and type of oil                                      ┃
+┃│76│배출 또는 유실의 상황과 원인 및 일반적인 사항                                     ┃
+┃│  │Circumstances of discharge or escape, the reasons therefore and general           ┃
+┃│  │remarks                                                                           ┃
+┃│  │그 밖의 조작 및 일반적인 사항                                                     ┃
+┃│  │Additional operational procedures and general remarks                             ┃
+┃│  │                                                                                  ┃
+┃│  │주 1) 조작 및 설비지침서에 기재되어 있는 동시조작이 가능한 것보다 많은 세정기가   ┃
+┃│  │개개의 탱크에 설치되어 있는 경우에는 원유세정을 실시한 부분(예를 들면             ┃
+┃│  │No. 2 센터탱크의 전방부분)을 표시할 것                                            ┃
+┃│  │      When an individual tank has more machines than can be operated              ┃
+┃│  │simultaneously, as described in the Operations and Equipment Manual,              ┃
+┃│  │then the section being crude oil washed should be identified, e.g. No.2           ┃
+┃│  │centre, forward section                                                           ┃
+┃│  │주 2) 조작 및 설비지침서에 따라서 사용한 세정방식이 1단계 세정방식인가 또는 다    ┃
+┃│  │단식 세정방식인가를 기재할 것. 다단식의 세정방식을 사용한 경우에는 단계마         ┃
+┃│  │다 세정기가 세정한 수직방향의 각도 및 횟수를 기재할 것                            ┃
+┃│  │      In accordance with the Operations and Equipment Manual, enter whether       ┃
+┃│  │single-stage of multi-stage method of washing is employed. If                     ┃
+┃│  │multi-stage method is used, give the vertical arc covered by the                  ┃
+┃│  │machines and the number of times that arc is covered for that particular          ┃
+┃│  │stage of the programme                                                            ┃
+┃│  │주 3) 조작 및 설비지침서에 기재되어 있는 세정절차에 따르지 아니하는 경우에는 그   ┃
+┃│  │사유를 비고란에 기재할 것                                                         ┃
+┃│  │      If the programmes given in the Operations and Equipment Manual are not      ┃
+┃│  │followed, then the reasons must be given under Remarks                            ┃
+┃│  │주 4) 호스에 의한 세정인가, 기계에 의한 세정인가, 화학약품에 의한 세정인가, 또는  ┃
+┃│  │이들을 병용한 세정인가를 기재할 것. 화학약품에 의한 세정인 경우에는 화학          ┃
+┃│  │약품명 및 사용량을 기재할 것                                                      ┃
+┃│  │      Hand-hosing, machine washing and/or chemical cleaning. Where                ┃
+┃│  │chemically cleaned, the chemical concerned and amount used should be              ┃
+┃│  │stated                                                                            ┃
+┃│  │주 5) 선장은 부선 및 탱크트럭을 포함하는 수용시설의 운항자로부터 이송일자 및 시   ┃
+┃│  │각과 함께 이송된 탱크 세정수, 오염된 평형수, 잔류물 또는 유성혼합물을 상세        ┃
+┃│  │히 기술하는 영수증 또는 증서를 받아야 한다. 증서 또는 영수증이 기름기록부         ┃
+┃│  │에 첨부되어 있는 경우, 증서 또는 영수증은 선장이 해당 선박이 추정된 오염사        ┃
+┃│  │고에 연루되지 않았음을 증명하는데 도움이 되기도 한다. 이 영수증 또는 증서         ┃
+┃│  │는 기름기록부와 함께 보관되어야 한다.                                             ┃
+                                                                                            
+                                                                                                
+  (제18쪽)                                                                                      
+                                                                                                
+┃    │  │ Ship's masters should obtain from the operator of the reception facilities,      ┃
+┃    │  │which include barges and tank trucks, a receipt or certificate detailing the      ┃
+┃    │  │quantity of tank washings, dirty ballast, residues or oily mixtures transferred,  ┃
+┃    │  │together with the time and date of the transfer. This receipt or certificate, if  ┃
+┃    │  │attached to the Oil Record Book, may aid the master of the ship in proving        ┃
+┃    │  │that his ship was not involved in an alleged pollution incident. The receipt or   ┃
+┃    │  │certificate should be kept together with the Oil Record Book.                     ┃
+┠──┴─┴─────────────────────────────────────────┨
+┃특수한 운항에 종사하는 유조선                                                               ┃
+┃TANKERS ENGAGED IN SPECIFIC TRADES                                                          ┃
+┠──┬─┬─────────────────────────────────────────┨
+┃(P) │  │평형수의 적재                                                                     ┃
+┃    │  │Loading of ballast water                                                          ┃
+┃    │77│평형수를 적재한 탱크의 식별기호                                                   ┃
+┃    │  │Identity of tank(s) ballasted                                                     ┃
+┃    │78│평형수를 적재한 당시의 선박의 위치                                                ┃
+┃    │  │Position of ship when ballasted                                                   ┃
+┃    │79│적재한 평형수의 총량(입방미터로 표시할 것)                                        ┃
+┃    │  │Total quantity of ballast loaded in cubic metres                                  ┃
+┃    │80│비고                                                                              ┃
+┃    │  │Remarks                                                                           ┃
+┃    │  │                                                                                  ┃
+┃(Q) │  │평형수의 선내이송                                                                 ┃
+┃    │  │Re-allocation of ballast water within the ship                                    ┃
+┃    │81│선내 이송한 사유                                                                  ┃
+┃    │  │Reasons for re-allocation.                                                        ┃
+┃    │  │                                                                                  ┃
+┃(R) │  │평형수의 수용시설에의 처분                                                        ┃
+┃    │  │Ballast water discharge to reception facility                                     ┃
+┃    │82│평형수를 처분한 항구명                                                            ┃
+┃    │  │Port(s) where ballast water was discharged                                        ┃
+┃    │83│수용시설의 명칭                                                                   ┃
+┃    │  │Name or designation of reception facility                                         ┃
+┃    │84│배출된 평형수의 총량(입방미터로 표시할 것)                                        ┃
+┃    │  │Total quantity of ballast water discharged in cubic metres                        ┃
+┃    │85│기재일, 항만당국의 직원의 서명 및 검인                                            ┃
+┃    │  │Date, signature and stamp of port authority official                              ┃
+┗━━┷━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

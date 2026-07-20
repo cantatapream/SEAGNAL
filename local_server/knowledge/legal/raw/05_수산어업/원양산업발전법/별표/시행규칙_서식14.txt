@@ -1,0 +1,147 @@
+[시행규칙] 서식14 — 해외 어획물 적재 선박 입항신고서
+
+■ 원양산업발전법 시행규칙 [별지 제14호서식]                                        
+                                                                                                        
+  해외 어획물 적재 선박 입항신고서                                                                      
+  (Entry Notification for Vessels with Fish and Fish Products Caught                                    
+  in Waters outside Korea’s Judicial Waters)                                                           
+                                                                                                        
+  ※ 작성방법을 읽고 작성해 주시기 바랍니다.                              (앞쪽)                        
+─────────────┬──────────────────────────────────────
+  접수번호                │접수일                                                                      
+─────────────┴──────────────────────────────────────
+                                                                                                        
+────────────┬───────────────────────────────────────
+  1. 선박제원           │선박명(Name of Vessel)                                                        
+  (name and description │                                                                              
+  of Vessel)            ├───────────────────────────────────────
+                        │선박국적(Nationality of Vessel)                                               
+                        │                                                                              
+                        ├───────────────────────────────────────
+                        │호출부호, 선박번호 또는 IMO번호(Call sign, Official No. or IMO No.)           
+                        │                                                                              
+                        ├───────────────────────────────────────
+                        │선박 종류(Type of Vessel)                                                     
+                        │                                                                              
+────────────┴───────────────────────────────────────
+    2. 입항 일시(Date-time of arrival)                                                                  
+                                                                                                        
+       년(yyyy)    월(mm)    일(dd)    시(hh)    분(mm)                                                 
+────────────────────────────────────────────────────
+   3. 입항예정 항구(Port of Intended Entry)/선박계선장소[선석(선박을 매어두는 위치) 및 장               
+  소][Position of the Vessel(Berth and Station)]                                                        
+────────────────────────────────────────────────────
+   4. 최초출항지/최종목적지(Port of First Departure/Final Port of Destination)                          
+                                                                                                        
+────────────────────────────────────────────────────
+   5. 선사 또는 대리점의 이름, 부호, 주소[Name, Code and Address of Owner(Operator) or Agent of Ship]   
+                                                                                                        
+────────────────────────────────────────────────────
+                                                                                                        
+────────────────────────────────────────────────────
+  6. 어획물 적재 내역(Information on Fish on Board)                                                     
+────────────┬───────────┬───────────┬───────────────
+  품명                  │적재중량(kg)          │조업/전재기간         │어획/전재지역                 
+  (Species)             │(weight of catches on │(Period of            │(Catch/Transshipment          
+                        │board)                │Fishing/Transshipment)│area)                         
+────────────┼───────────┼───────────┼───────────────
+                        │                      │                      │                              
+────────────┼───────────┼───────────┼───────────────
+                        │                      │                      │                              
+────────────┼───────────┼───────────┼───────────────
+                        │                      │                      │                              
+────────────┼───────────┼───────────┼───────────────
+                        │                      │                      │                              
+────────────┼───────────┼───────────┼───────────────
+                        │                      │                      │                              
+────────────┼───────────┼───────────┼───────────────
+                        │                      │                      │                              
+────────────┼───────────┼───────────┼───────────────
+                        │                      │                      │                              
+────────────┼───────────┼───────────┼───────────────
+                        │                      │                      │                              
+────────────┼───────────┼───────────┼───────────────
+                        │                      │                      │                              
+────────────┼───────────┼───────────┼───────────────
+                        │                      │                      │                              
+────────────┼───────────┼───────────┼───────────────
+                        │                      │                      │                              
+────────────┴───────────┴───────────┴───────────────
+  210mm×297mm[백상지 80g/㎡]                                                                           
+                                                                                                        
+                                                                                                                                                      
+                                                                                                                                                      
+                                                                                                                                                      
+  (뒤쪽)                                                                                                                                              
+───────────────────────────────────────────────────────────────────────────
+    「원양산업발전법」 제14조제1항 및 같은 법 시행규칙 제23조제1항에 따라 위와 같이 해외 어획물 적재 선                                               
+  박의 입항을 신청합니다.                                                                                                                             
+    Pursuant to paragraph 1 of Article 14 of the Distant Water Fisheries Development Act and paragraph 1                                              
+  of Article 23 of the Enforcement Rule of the Distant Water Fisheries Development Act, I hereby notify                                               
+  the entry of the vessel with fish and fish products caught in waters outside Korea’s Judicial Waters                                               
+                                                                                                                                                      
+  년      월      일                                                                                                                                  
+  yyyy.   mm.    dd.                                                                                                                                  
+                                                                                                                                                      
+  신고인(선장 또는 해운대리점)                    (서명 또는 인)                                                                                      
+  Notifying person (master or authorized agent)   signature or seal                                                                                   
+                                                                                                                                                      
+  국립수산물품질관리원장  귀하                                                                                                                        
+  Attn. Director general of the National Fishery Products Quality Management Service                                                                  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                                                      
+                                                                                                                                                      
+────────┬───────────────────────────────────────────────────────┬──────────
+  첨부서류      │1. 국제수산기구에서 정하고 있는 어획증명 관련 서류 1부(국제수산기구가 어획증명에 관한 보존관                  │수수료 없음         
+  (Attachments) │리조치를 채택하여 관리하는 어종을 적재한 경우만 해당합니다)                                                   │(No fees required)  
+                │1. In case where the vessel has on board the fish species managed by international/regional                   │                    
+                │fisheries management organizations (RFMOs), a catch document required by the relevant                         │                    
+                │RFMO that certifies the catches should be attached.                                                           │                    
+                │                                                                                                              │                    
+                │2. 합법적으로 어획되었다는 사실을 증명할 수 있는 서류 1부(외국과 체결한 불법ㆍ비보고ㆍ비규제                  │                    
+                │어업 방지협정 등의 이행을 위하여 해양수산부장관이 정하여 고시한 어종을 적재한 경우만 해당합                   │                    
+                │니다)                                                                                                         │                    
+                │2. In case where the vessel has on board fish species that were caught in the waters of a                     │                    
+                │State with which Korea signed an agreement to prevent IUU fishing and that are listed in                      │                    
+                │the notification issued by the Minister of Oceans and Fisheries, a document that proves                       │                    
+                │the legitimacy of the Catches should be attached.                                                             │                    
+                │                                                                                                              │                    
+                │3. 꽁치, 긴가이석태 또는 영상가이석태를 포획ㆍ채취한 선박의 기국의 권한 있는 기관이 발급                      │                    
+                │한 「원양산업발전법 시행규칙」 별지 제14호의2서식의 어획증명서. 다만, 해당 선박의 총톤                        │                    
+                │수가 20톤 미만인 경우에는 「원양산업발전법 시행규칙」 별지 제14호의3서식의 간편 어획                          │                    
+                │증명서를 제출합니다.(해외수역에서 포획ㆍ채취한 꽁치, 긴가이석태 또는 영상가이석태를 적                        │                    
+                │재한 경우만 해당합니다)                                                                                       │                    
+                │3. In the case where the vessel has on board Cololabis saira, Pseudotolithus elongatus and/or                 │                    
+                │Pseudotolithus typus harvested or gathered in the waters outside of Korea's jurisdiction, a catch certificate │                    
+                │issued by the competent authorities of the flag state of the fishing vessel in the format                     │                    
+                │prescribed by the Appendix 14/2 of the Enforcement Rule of the Distant Water Fisheries                        │                    
+                │Development Act shall be accompanied. If the fishing vessel is measured less than 20GT, the                   │                    
+                │simplified catch certificate set forth in the Appendix 14/3 of the Enforcement Rule of the Distant            │                    
+                │Water Fisheries Development Act shall be accompanied.                                                         │                    
+────────┴───────────────────────────────────────────────────────┴──────────
+                                                                                                                                                      
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  처리절차                                                                                                                                            
+───────────────────────────────────────────────────────────────────────────
+                                                                                                                                                      
+┌────────┐  ┌────────┐  ┌────────┐  ┌─────────┐  ┌────────────────────────────┐
+│신고서 작성     │?│접 수           │?│검토            │?│항만국 검색 대상  │?│항만국 검색                                             │
+│                │  │                │  │                │  │선박 결정         │  │                                                        │
+└────────┘  └────────┘  └────────┘  └─────────┘  └────────────────────────────┘
+  신고인                국립수산물품질        국립수산물품질        국립수산물품질          국립수산물품질관리원                                      
+                        관리원(각 지원)       관리원(각 지원)       관리원(각 지원)         (항만국 검색관)                                           
+                                                                                                                                                      
+                                                                                                                                                      
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  작성방법                                                                                                                                            
+───────────────────────────────────────────────────────────────────────────
+  1. "선박제원"란에는 입항신청 선박의 제원을 적습니다.                                                                                                
+  2. "입항일시"란에는 입항날짜 및 시간을 적습니다.                                                                                                    
+  3. "입항예정 항구/선박계선장소(선석 및 장소)"란에는 선박이 입항하고자 하는 예정 항구명과 선박이 접안하는 장소를 적습니다.                           
+  4. "최초출항지/최종목적지"란에는 선박의 최초출항지와 최종목적지를 적습니다.                                                                         
+  5. "선사 또는 대리점의 이름, 부호, 주소"란에는 입항신고서를 제출하는 업체(신고인)를 적습니다.                                                       
+  6. "어획물 적재 내역"란은 선박의 종류에 따라 다음과 같이 적습니다.                                                                                  
+    1) 어선 또는 어선으로부터 어획물을 직접 전재 받은 선박: 품명(어종), 적재중량, 조업/전재기간 및 어획/전재지역을 적습니다.                          
+    2) 그 밖의 선박: 1)과 동일하게 적는 것을 원칙으로 하고, 적재내역의 작성이 어려운 경우에는 대표 품종(어종) 및 적재 총중량을                        
+  적재내역에 적습니다.                                                                                                                                
+───────────────────────────────────────────────────────────────────────────

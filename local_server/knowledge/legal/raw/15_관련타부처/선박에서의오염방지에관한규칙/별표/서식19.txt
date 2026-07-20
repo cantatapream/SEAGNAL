@@ -1,0 +1,249 @@
+방오시스템검사증서
+
+■ 선박에서의 오염방지에 관한 규칙 [별지 제19호서식]                                             
+                    (4쪽 중 1쪽)                                                                                    
+                                                                                                                    
+  증서번호 제            호                                                                                         
+  Cert. No.                                                                                                         
+                                                                                                                    
+                                                                                                                    
+                                                                                                                    
+  방오시스템검사증서                                                                                                
+  INTERNATIONAL ANTI-FOULING SYSTEM CERTIFICATE                                                                     
+  대  한  민  국                                                                                                    
+  REPUBLIC OF KOREA                                                                                                 
+                                                                                                                    
+    선박유해방오시스템의 규제에 관한 국제협약에 따라 대한민국 정부의 권한으로 _________________                     
+  _________________발행합니다.                                                                                      
+    Issued under the provisions of the International Convention on the Control of Harmful Anti-Fouling              
+  Systems on Ships under the authority of the Government of the Republic of Korea by                                
+  __________________________________.                                                                               
+                                                                                                                    
+    증서가 이전에 발행된 때에는 이 증서가 _______년___월___일에 발행된 증서를 대체한다.                             
+    When a Certificate has been previously issued, this Certificate replaces the certificate                        
+  dated____________.                                                                                                
+                                                                                                                    
+┏━━━━━━┯━━━━━━━━━┯━━━━━━━━┯━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━┓
+┃선명        │선박번호          │선적항          │총톤수        │IMO 번호1)                                  ┃
+┃Name of Ship│Distinctive Number│Port of Registry│Gross Tonnage │IMO Number1)                                ┃
+┃            │or Letters        │                │              │                                            ┃
+┠──────┼─────────┼────────┼───────┼──────────────────────┨
+┃            │                  │                │              │                                            ┃
+┗━━━━━━┷━━━━━━━━━┷━━━━━━━━┷━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                                    
+    살생물제로 사용되는 유기주석화합물을 이 선박의 제조 중 또는 제조 후에 적용한 적이 없다.                         
+    Organotin compounds which act as biocides has not been applied during or after construction of this             
+  ship □                                                                                                           
+                                                                                                                    
+    살생물제로 작용하는 유기주석화합물을 이전에 이 선박에 적용한 적이 있었으나, _____________________(해당          
+  회사명을 기재)에 의하여 _______년_____월_____일(일자) 제거되었다.                                                 
+    Organotin compounds which act as biocides has been applied on this ship previously, but has                     
+  been removed by_____________________(insert name of the facility) on_________________(date)□                     
+                                                                                                                    
+    살생물제로 작용하는 유기주석화합물을 이전에 이 선박에 적용한 적이 있었으나, _____________________(해당          
+  회사명을 기재)에 의하여 _______년_____월_____일(일자) 밀봉도장으로 덮어 씌웠다.                                   
+    Organotin compounds which act as biocides has been applied on this ship previously, but has been                
+  covered with a sealer coat applied by_____________________(insert name of the facility)                           
+  on_________________(date) □                                                                                      
+                                                                                                                    
+    시부트린을 이 선박의 제조 중 또는 제조 후에 적용한 적이 없다.                                                   
+    Cybutryne has not been applied during or after construction of this ship □                                     
+                                                                                                                    
+    시부트린을 이전에 이 선박에 적용한 적이 있으나 _____________________, (해당 회사명을 기재)에 의하여             
+  _______년_____월_____일(일자) 제거되었다.                                                                         
+    Cybutryne has been applied on this ship previously, but has been removed                                        
+  by_____________________(insert name of the facility) on_________________(date)□                                  
+                                                                                                                    
+    시부트린을 이전에 이 선박에 적용한 적이 있으나 _____________________, (해당 회사명을 기재)에 의하여             
+  _______년_____월_____일(일자) 밀봉도장으로 덮어 씌웠다.                                                           
+    Cybutryne has been applied on this ship previously, but has been covered with a sealer coat applied             
+  by_____________________(insert name of the facility)  on_________________(date) □                                
+                                                                                                                    
+  ____________________                                                                                              
+  1) IMO에서 Res. A.600(15)로 채택된 IMO 선박식별번호계획에 따를 것                                                 
+     In accordance with IMO ship identification number scheme adopted by the Organization by resolution A.600(15).  
+                                                                                                                    
+  210㎜ × 297㎜[보존용지(1종) 220g/㎡]                                                                             
+                                                                                                                    
+                                                                                                                
+                                                       (4쪽 중 2쪽)                                             
+                                                                                                                
+                                                                                                                
+    시부트린을 이전에 이 선박에 적용한 적이 있었으나, 2023년 1월 1일 기준으로 선체, 외부 부품 또는 표면의       
+  외부 코팅층에 적용되지 않았다.                                                                                
+    Cybutryne has been applied on this ship previously, but is not in the external coating layer of the hull    
+  or external part or surfaces on 1 January 2023 □                                                             
+                                                                                                                
+    시부트린을 이 선박에 2023년 1월 1일 이전에 적용하였으나, _______년_____월_____일(날짜)2)전에 제거되거나     
+  밀봉도장으로 덮어져야 한다.                                                                                   
+    Cybutryne was applied on this ship prior to 1 January 2023, but must be removed or covered with a           
+  sealer coat prior to________________(date)2) □                                                               
+                                                                                                                
+                                                                                                                
+   이 증서는 다음 사항을 증명한다:                                                                              
+    THIS IS TO CERTIFY THAT:                                                                                    
+                                                                                                                
+    1. 이 선박은 협약 부속서 4 제 1 규칙에 의해서 검사를 받았음.                                                
+    1. the ship has been surveyed in accordance with regulation 1 of Annex 4 to the Convention;                 
+                                                                                                                
+    2. 검사 결과 선박 방오시스템이 협약 부속서 1의 해당 요건에 적합함.                                          
+    2. the survey shows that the anti-fouling system on the ship complies with the applicable                   
+  requirements of Annex 1 to the Convention.                                                                    
+                                                                                                                
+                                                                                                                
+           년        월        일                      에서 발행합니다.                                         
+    Issued at                on the         day of                .                                             
+                                                                                                                
+                                                                                                                
+                                                                                                                
+                                                                                                                
+  지방해양수산청장 ??                                                                                         
+  (Administrator of the Regional Maritime Affairs & Fisheries Office)                                           
+  한국해양교통안전공단이사장 ??                                                                               
+  (President of Korea Maritime Transportation Safety Authority)                                                 
+  선급법인의 장 ??                                                                                            
+  (President of Classification Society)                                                                         
+                                                                                                                
+                                                                                                                
+    이 증서 발급을 위한 검사 완료일:________________                                                            
+    Date of completion of the survey on which this certificate is issued: ________________                      
+                                                                                                                
+                                                                                                                
+                                                                                                                
+  ____________________                                                                                          
+  2) 부속서 1 에 언급된 이행 만기일                                                                             
+     Date of expiration of any implementation period specified in Annex 1.                                      
+                                                                                                                
+                                                                                                                
+                                                                                                                
+                                                                                                      
+    (제3쪽)                                                                                           
+                                                                                                      
+  방오시스템 기록부                                                                                   
+  RECORD OF ANTI-FOULING SYSTEMS                                                                      
+                                                                                                      
+    이 기록부는 국제방오시스템증서에 영구적으로 첨부하여야 한다.                                      
+    This Record shall be permanently attached to the International Anti-Fouling System Certificate.   
+                                                                                                      
+    선박의 명세                                                                                       
+    Particulars of ship                                                                               
+     선명:                                                                                            
+     Name of ship:                                                                                    
+     선박번호 또는 신호부자:                                                                          
+     Distinctive number or letters:                                                                   
+     IMO 번호:                                                                                        
+     IMO number:                                                                                      
+                                                                                                      
+    적용된 방오시스템의 세부 사항                                                                     
+    Details of anti-fouling system(s) applied                                                         
+                                                                                                      
+     사용된 방오시스템의 형식:                                                                        
+     Type(s) of anti-fouling system(s) used                                                           
+                                                                                                      
+     방오시스템의 적용일자:                                                                           
+     Date(s) of application of anti-fouling system(s)                                                 
+                                                                                                      
+     적용한 장소/설비 및 회사명:                                                                      
+     Name(s) of company(ies) and facility(ies)/location(s) where applied                              
+                                                                                                      
+     방오시스템 제조자명:                                                                             
+     Name(s) of anti-fouling system manufacturer(s)                                                   
+                                                                                                      
+     방오시스템 명칭과 색상:                                                                          
+     Name(s) and colour(s) and colour(s) of anti-fouling system(s)                                    
+                                                                                                      
+     활성 성분과 CAS 번호:                                                                            
+     Active ingredient(s) and their Chemical Abstract Services Registry Number(s) (CAS number(s))     
+                                                                                                      
+                                                                                                      
+                                                                                                      
+     적용한 경우, 씰러코트의 형식:                                                                    
+     Type(s) of sealer coat, if applicable                                                            
+                                                                                                      
+     적용한 경우, 적용된 씰러코트명과 색상:                                                           
+     Name(s) and colour(s) of sealer coat applied, if applicable                                      
+                                                                                                      
+                                                                                                      
+     씰러코트의 적용일:                                                                               
+     Date of application of sealer coat                                                               
+                                                                                                      
+    이 기록은 모든 점에서 틀림없음을 증명한다.                                                        
+    THIS IS TO CERTIFY that this Record is correct in all respects                                    
+                                                                                                      
+           년        월        일                      에서 발행합니다.                               
+    Issued at                on the         day of                .                                   
+                                                                                                      
+  지방해양수산청장  ??                                                                              
+  (Administrator of the Regional Maritime Affairs & Fisheries Office)                                 
+  한국해양교통안전공단이사장 ??                                                                     
+  (President of Korea Maritime Transportation Safety Authority)                                       
+  선급법인의 장 ??                                                                                  
+  (President of Classification Society)                                                               
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+    (제4쪽)                                                                                           
+                                                                                                      
+  기록의 이서4)                                                                                       
+  Endorsement of the Records4)                                                                        
+                                                                                                      
+    이 증서는 선박이 협약 부속서 4의 제 1(1)(b) 규칙에 의하여 요구되는 검사 결과 협약의 관련 규정에   
+  적합함을 증명한다.                                                                                  
+    THIS IS TO CERTIFY that a survey required in accordance with regulation 1(1)(b) of Annex 4        
+  to the Convention found that the ship was in compliance with the Convention                         
+                                                                                                      
+    적용된 방오시스템의 세부 사항                                                                     
+    Details of anti-fouling system(s) applied                                                         
+                                                                                                      
+     사용된 방오시스템의 형식:                                                                        
+     Type(s) of anti-fouling system(s) used                                                           
+                                                                                                      
+     방오시스템의 적용일자:                                                                           
+     Date(s) of application of anti-fouling system(s)                                                 
+                                                                                                      
+     적용한 장소/설비 및 회사명:                                                                      
+     Name(s) of company(ies) and facility(ies) location(s) there applied                              
+                                                                                                      
+                                                                                                      
+     방오시스템 제조자명:                                                                             
+     Name(s) of anti-fouling system(s) manufacturer(s                                                 
+                                                                                                      
+                                                                                                      
+     방오시스템 명칭과 색상:                                                                          
+     Name(s) and colour(s) of anti-fouling system(s)                                                  
+                                                                                                      
+     활성 성분과 CAS 번호:                                                                            
+     Active ingredient9s) and their Chemical Abstract Services Registry Number(s)(CAS number(s))      
+                                                                                                      
+                                                                                                      
+                                                                                                      
+     적용한 경우, 씰러코트의 형식:                                                                    
+     Type(s) of sealer coat, if applicable                                                            
+                                                                                                      
+                                                                                                      
+     적용한 경우, 적용된 씰러코트명과 색상:                                                           
+     Name(s) and colour(s) of sealer coat applied, if applicable                                      
+                                                                                                      
+                                                                                                      
+     씰러코트의 적용일:                                                                               
+     Date of application of sealer coat                                                               
+                                                                                                      
+                                                                                                      
+                                                                                                      
+                                               서명:                                                  
+                                               Signed:                                                
+                                               (기록 발행에 관한 권한을 위임받은 직원의 서명)         
+                                               (Signature of authorized official issuing the Record)  
+                                               장소:                                                  
+                                               Place:                                                 
+                                               날짜:6)                                                
+                                               Date6:                                                 
+                                               (권한자의 인장)                                        
+                                               (Seal or stamp of the authority)                       
+  ____________________                                                                                
+  5) 기록부의 이 페이지는 주관청이 필요하다고 여기면 복사하여 사용하고, 기록부에 첨부하도록 한다.     
+     This page of record shall be reproduced and added to the Record as considered necessary by the   
+  Administration                                                                                      
+  6) 이서를 하기 위한 검사 종료일                                                                     
+     Date of completion of the survey on which this endorsement is made.

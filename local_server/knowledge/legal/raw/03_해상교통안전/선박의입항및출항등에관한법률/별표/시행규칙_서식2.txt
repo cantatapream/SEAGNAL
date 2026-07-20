@@ -1,0 +1,202 @@
+[시행규칙] 서식2 — 외항선 출입 신고서
+
+■ 선박의 입항 및 출항 등에 관한 법률 시행규칙 [별지 제2호서식]    항만운영정보시스템(www.portmis.go.kr)에서도   
+                                                                                      신청할 수 있습니다.                           
+                                                                                                                                    
+  외항선 출입 신고서                                                                                                                
+                                                                                                                                    
+   [  ]신고 Declaration [  ]허가 Permission / [  ]입항 Arrival [  ]출항 Departure                                                   
+                                                                                                                                    
+  [  ]최초 Notice     [  ]변경 Change     [  ]최종 Final     [  ]취소 Cancel                                                        
+                                                                                                                                    
+   ※ 작성방법을 읽고 작성하여 주시기 바라며, [  ]에는 해당하는 곳에 √ 표시를 합니다.    (3쪽 중 제1쪽)                            
+──────┬──────────────────────────┬─────────┬──────────────────────
+  접수번호  │접수일                                              │발급일            │처리기간    즉시                            
+──────┴──────────────────────────┴─────────┴──────────────────────
+                                                                                                                                    
+                                                                                                                                    
+                                                                                                                                    
+──────────────────────────────────────────────────────────────────
+  제출번호(적하목록 No.: MRN)                                                                                                       
+─────────────────────────────────┬────────────────────────────────
+  1.선박 제원 name and description of ship                        │2. 입항/출항 일시(Date-time of arrival/departure)               
+   - 선박명 Name of Ship:                                         │     년(yyyy)    월(mm)    일(dd)    시(hh)    분(mm)           
+   - 선박국적 Nationality of Ship:                                ├────────────────────────────────
+   - 호출부호 Call sign:                                          │3. 최초출항지/ 최종목적지                                       
+   - 선박번호 Official No.:                                       │   Port of Provenance / Final Port of Destination               
+   - IMO번호  IMO No.:                                            ├────────────────────────────────
+   - 국제총톤수 International Gross Tonnage:                      │4. 선사의 이름, 부호, 주소, 유선전화, 휴대전화 번호             
+   - 선박 종류 Kind of Ship:                                      │   Name, Code, Address, Phone number, Mobile of Owner           
+                                                                  │(Operator)                                                      
+                                                                  ├────────────────────────────────
+                                                                  │5. 대리점의 이름, 부호, 주소, 유선전화, 휴대전화 번호           
+                                                                  │   Name, Code, Address, Phone number, Mobile of Agent of        
+                                                                  │Ship                                                            
+─────────────────────────────────┴────────────────────────────────
+  6. 선박계선장소[선석, 장소] Position of the ship (Berth or Station)                                                               
+──────────────────────────────────────────────────────────────────
+  7. 항해기록 Brief Particulars of Voyage                                                                                           
+   - 전 출항지 및 출항일시 Time, Date of Departure from last Port:           /      년(yyyy)   월(mm)   일(dd)   시(hh)   분(mm)    
+   - 경유지 Stopovers:                    /                  /                  /                    /                              
+   - 경유지 출항일 Date of Departure of Stopovers:   -   -   /   -   -   /   -   -   /   -   -   /   -   -   / yyyy/mm/dd           
+   - 출항예정일시 Estimated Date and Time of Departure:         년(yyyy)    월(mm)    일(dd)    시(hh)    분(mm)                    
+   - 차항지 Next port of Cal:                                                                                                       
+─────────────────────────────────┬────────────────────────────────
+  8. 화물명세 Brief Description of Cargo                          │9. 승무원 수 Number of Crew                                     
+   - 화물명 Name of Cargo(Unit: ton):                             │ - 전체 Total:                 명                               
+   - 적재 톤수 Total Cargo:                                       │ - 한국인 Korean:             명                                
+   - 양하ㆍ적하 톤수 Load/Unload Cargo:                           │ - 외국인 Foreigner:           명                               
+   - 위험물 톤수 Dangerous Cargo:                                 │                                                                
+   - 환적(換績) 톤수 Transshipment Cargo:                         │                                                                
+─────────────────────────────────┼────────────────────────────────
+  10. 승객 수 Number of Passenger                                 │11. 입항목적 Purpose of Arrival                                 
+   - 전체 Total:                        명 (6세 이상:     명)     ├────────────────────────────────
+   - 한국인 Korean:                    명 (6세 이상:     명)      │12. 항해 구분 Classification of Voyage                          
+   - 외국인 Foreigner:                   명 (6세 이상:     명)    ├────────────────────────────────
+   ※ 국내항 간 편승/상륙                                         │13. 검역 구분 Type of Quarantine                                
+     Coastal Travellers / Alien permitted landing while the ship  ├────────────────────────────────
+  is  In Korea:     /    명                                       │14. 해당 연도 입항횟수 Number of arrival this year              
+─────────────────────────────────┴────────────────────────────────
+  15. 항만시설 사용료 할인율 및 할인 사유 Rate & Basis for Port Charge                                                              
+      할인율 Rate: ［           ］        할인 사유 Basis: ［                                              ］                       
+──────────────────────────────────────────────────────────────────
+  16. 예선 사용 및 도선 요청 여부 Any Request of Tug Boat & Pilot                                                                   
+      [  ]예선 Tug Boat   [  ]예선 면제 Tug Boat Exemption    [  ]도선 Pilot    [  ]도선 면제 Pilot Exemption                       
+──────────────────────────────────────────────────────────────────
+  17. C.I.Q. 수속 장소 및 일시 Date/Place of C.I.Q. Processing                                                                      
+──────────────────────────────────────────────────────────────────
+  18. 승무원 및 승객의 변동 유무 Any Change in Passenger or Crew? ［  ］(Yes/ No)                                                   
+    ○ 외지에서의 한국승무원 변동사항 Change of Korean crew in foreign ports                                                        
+     - 승선 Embarked:            명       전선 Transference:                명                                                      
+     - 하선 Disembarked:         명       낙오 Quit or missed ship:         명                                                      
+    ○ 이 항구에서 승선ㆍ하선한 승무원 / 승객 Number of Crew or Passenger Embarked / Disembarked at this port                       
+     - 승무원 Crew                                                                                                                  
+      ㆍ승선 출국 Embarked:      명      ㆍ하선 입국 Disembarked:          명                                                       
+      ㆍ전입 Embarkation for ship to ship movement:            명                                                                   
+      ㆍ전선 Disembarkation for ship to ship movement:         명                                                                   
+     - 승객 Passenger                                                                                                               
+      ㆍ승선 Embarked:          명         ㆍ하선 Disembarked:    명                                                                
+──────────────────────────────────────────────────────────────────
+  210mm×297mm[백상지(80g/㎡) 또는 중질지(80g/㎡)]                                                                                  
+                                                                                                                                    
+                                                                                                                            
+  (3쪽 중 제2쪽)                                                                                                            
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                            
+──────────────────────────────────────────────────────────────
+   19. 비고 Remarks                                                                                                         
+    ○ 사회안전위해물품 소지 여부 (Yes/No)                                                                                  
+       Are there any articles on board deemed hazardous to public safety?                                                   
+      - 마약류 Illicit drugs［    ］     ㆍ총기 및 도검류 Arms ［    ］                                                     
+    ○ 승무원의 면세품 소지 여부 [    ］(Yes/No)                                                                            
+       Any crew having duty free items?                                                                                     
+    ○ 면세 선용품 적재 여부 [    ］(Yes/No)                                                                                
+       Any duty free supplies for ship?                                                                                     
+    ○ 외지 선용품 구입/외지 수리 여부 [    ］(Yes/No)                                                                      
+       Any ship's supplies purchased or repair from outside of Korea?                                                       
+    ○ 승무원 복수항 상륙 허가자 또는 복수 승무원 상륙 허가자 승선 여부 [    ］(Yes/No)                                     
+       Any crew members with landing permission during ship's staying in Korea or with multiple landing permit?             
+    ○ 검역전염병 등 환자/사망자 발생 여부 [    ］(Yes/No)                                                                  
+       Any infectious diseases or deaths on board?                                                                          
+    ○ 국적 취득 조건부 나용선 여부 [    ］(Yes/No)                                                                         
+       Is this ship a type of a Bare Boat Charter Hire Purchase?                                                            
+    ○ 유류오염 손해배상을 위한 보장계약 체결 여부 [    ］(Yes/No)                                                          
+       Any insurance of other financial security to cover the liability for oil pollution damage?                           
+    ○ 유효한 보장계약증명서 또는 손해배상 보장계약증명서의 비치 여부  [    ］(Yes/No)                                      
+       CLC Certificate or Bunker Convention Certificate on board?                                                           
+    ○ 유조선의 이중선체 여부 [            ］(Yes/No)                                                                       
+       Is tanker a double hull type?                                                                                        
+    ○ 북한으로 반입되는 화물 또는 북한으로부터 반출되는 화물 적재 여부 [    ］(Yes/No)                                     
+       Loading of cargoes originating from or destined for the Democratic People’s Republic of Korea ?                     
+    ○ 최근 1년 이내에 북한기항 여부 [            ］(Yes/No), 기항한 경우 기항한 북한 항만명 [            ］                
+       Is this ship called a port of the Democratic People’s Republic of Korea within 1 year from now? In case what name   
+  of the port is?                                                                                                           
+    ○ 부선 호출부호 [            ］                                                                                        
+       Call sign of Ship towed or Barge with no power                                                                       
+──────────────────────────────────────────────────────────────
+                                                                                                                            
+                                                                                                                            
+  「선박의 입항 및 출항 등에 관한 법률」 제4조제1항 및 같은 법 시행규칙 제3조제2항에 따라 위와                              
+  같이 신고합니다                                                                                                           
+                                                                                                                            
+         년(yyyy)          월(mm)         일(dd)                                                                            
+                                                                                                                            
+                    신고자[선장(기장) 또는 해운대리점]    (서명 또는 인)                                                    
+                    the Master or authorized agent        (Signature)                                                       
+                                                                                                                            
+    지방해양수산청장, 시ㆍ도지사 또는 항만공사 사장 귀하                                                                    
+  TO.  Administrator of          Regional Oceans & Fisheries Office                                                         
+                  (The Provincial Governor or Mayor, President of Port Authority)                                           
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                            
+────────┬────────────────────────────────┬────────────────────
+  첨부서류      │ 1. 승무원 명부 Crew List［ ］ 2. 승객 명부 Passenger List［ ］ │수수료                                  
+  Supplementary │ 3. 선용품 목록 Ship's Stores List［ ］                         │없음                                    
+  Documents     │ 4. 승무원 휴대품 목록 Crew's Effects List［ ］                 │                                        
+────────┴────────────────────────────────┴────────────────────
+                                                                                                                            
+                                                                                                                            
+                                                                                  
+  (3쪽 중 제3쪽)                                                                  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  작성방법                                                                        
+─────────────────────────────────────────
+   ○ 입항ㆍ출항 24시간 전에는 "최초"란에, 입항ㆍ출항을 확정할 때에는 "최종"란에, 변경할 때에는 "변경"란에, 취소할 때에는 "취소"란에   
+  각각 표시해 주시기 바랍니다.                                                    
+   ○ "선박계선장소(선석, 장소)"란에는 선박의 접안 또는 계선 장소를 적습니다.     
+   ○ "경유지" 및 "경유지 출항일"에는 모든 경유지를 대상으로 최초 출항지로부터 경유한 역순으로 적습니다.  
+   ○ "화물명"에는 「통일상품명 및 부호체계에 관한 국제협약 및 개정의정서」에 따른 통일체계품목분류표(HS 코드) 중 대표화물 두 자  
+  리 코드를 적고, 총 적재화물 중 양하ㆍ적하/위험물/환적에 해당하는 톤수를 적습니다.  
+   ○ "※ 국내항 간 편승/상륙"에는 국내항 간의 승선 허가자와 입국허가를 받은 동승 출항 예정 외국인의 수를 적습니다.  
+   ○ "입항목적"란에는 다음 중 해당하는 코드를 적습니다.                          
+      1. 양하ㆍ적하   2. 양하   3. 적하  4. 선박수리  5. 해양사고  6. 승무원 교대  7. 여객 상륙   8. 급유   9. 선용품 적재   99. 기타  
+   ○ "항해구분"란에는 다음 중 해당하는 선박만 코드를 적습니다.                   
+      1. 외국 국적 내항선   2. 일시 외항   3. 내항ㆍ외항 자격 변경   4. 나포선박   5. 개인항해   6. 신조선(新造船)     
+      7. 수출선박   8. 선박명 변경   9. 폐선 예정   10. 남북한 출입   11. 실습선 또는 관공선(官公船)   12. 원양조업선  
+   ○ "검역구분"란에는 다음 중 해당하는 코드를 적습니다.                          
+      1. 승선검역   2. 무전검역   3. 특별검역   4. 검역면제   5. 검역완료         
+   ○ "항만시설사용료 할인율 및 사유"란에는 다음 중 해당하는 코드를 각각 적습니다.  
+     - 할인: 1. 10%   2. 15%   3. 50%   4. 80%   5. 100%                          
+     - 사유: 1. 군함 2. 관공선(官公船) 3. 수리 4. 해양사고 5. 투자비 보전 6. 기타  
+   ○ "수속 장소 및 일시"란에는 입항ㆍ출항하기 전에 세관ㆍ출입국관리ㆍ검역(C.I.Q.) 기관의 수속을 받으려는 예정 장소 및 일시를 적습  
+  니다.  1. 항구명   2. 내항   3. 외항                                            
+   ○ "이 항구에서 승선ㆍ하선한 승무원/승객"란에는 입항의 경우에는 승선ㆍ하선 예정 인원수를, 출항의 경우에는 승선ㆍ하선 인원  
+  수를 각각 적습니다.                                                             
+   ○ 첨부서류 중 "선용품 목록" 및 "승무원 휴대품 목록"은 세관장이 필요하다고 인정할 때에는 현지 확인하여 받습니다.  
+   ○ 서면으로 제출하는 경우에는 입항ㆍ출항할 때마다 다음 표에 따른 부수의 서면을 제출합니다.  
+     Copies of submit (every time of arrival or departure respectively)           
+  ────────────────┬─────────┬────┬─────────┬──────────  
+    제출서류                      │지방해양수산청    │세관    │출입국관리사무소  │검역소                
+                                  │Regional Oceans & │Customs │Immigration Office│Quarantine Office     
+                                  │Fisheries Office  │        │                  │                      
+  ────────────────┼─────────┼────┼─────────┼──────────  
+    외항선 출입 신고서(허가신청서)│1                 │1       │1                 │1                     
+    General Declaration           │                  │        │                  │                      
+  ────────────────┼─────────┼────┼─────────┼──────────  
+    승무원 명부 Crew List         │1                 │1       │1                 │1                     
+  ────────────────┼─────────┼────┼─────────┼──────────  
+    승객 명부 Passenger List      │1                 │1       │1                 │1                     
+  ────────────────┼─────────┼────┼─────────┼──────────  
+    선용품 목록                   │                  │1       │                  │                      
+    Ship's Stores List            │                  │        │                  │                      
+  ────────────────┼─────────┼────┼─────────┼──────────  
+    승무원 휴대품 목록            │                  │1       │                  │                      
+    Crew's Effects List           │                  │        │                  │                      
+  ────────────────┴─────────┴────┴─────────┴──────────  
+─────────────────────────────────────────
+                                                                                  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  처리절차                                                                        
+─────────────────────────────────────────
+                                                                                  
+  ┌──────┐    ┌───┐    ┌───┐    ┌─────┐                  
+  │신고서 작성 │  ?│접 수 │  ?│검 토 │  ?│신고 수리 │                  
+  │            ├─  │      ├─  │      ├─  │          │                  
+  │            │    │      │    │      │    │          │                  
+  └──────┘    └───┘    └───┘    └─────┘                  
+                                                                                  
+    신고인      지방해양수산청, 시    지방해양수산청, 시    지방해양수산청, 시    
+                ㆍ도 또는 항만공사    ㆍ도 또는 항만공사    ㆍ도 또는 항만공사    
+─────────────────────────────────────────

@@ -695,10 +695,10 @@ async function renderUnifiedAiTab(container) {
     container.innerHTML =
         '<div id="ai-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
         + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
-        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트')
+        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트') + mkTabBtn('chatbot', 'AI 챗봇')
         + '</div>'
         + '<div id="ai-subtab-body"></div>';
-    switchAiSubTab(saved === 'test' ? 'test' : 'assistant');
+    switchAiSubTab(['test', 'chatbot'].includes(saved) ? saved : 'assistant');
 }
 
 window.switchAiSubTab = function (which) {
@@ -712,6 +712,11 @@ window.switchAiSubTab = function (which) {
     var sub = document.getElementById('ai-subtab-body');
     if (!sub) return;
     if (which === 'test') renderAiTestSubtab(sub);
+    else if (which === 'chatbot') {
+        // [AI 챗봇] 나리야 법령 챗봇 관리 콘솔 — 지식 방 브라우저 + 리뷰 검토센터(승인/교정) + 노출토글 (js/ai-chat/ai_chat.js)
+        if (window.NariyaChat && window.NariyaChat.renderAdminInto) window.NariyaChat.renderAdminInto(sub);
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">나리야 모듈(js/ai-chat/ai_chat.js)이 로드되지 않았습니다.</div>';
+    }
     else renderAiAssistantSubtab(sub);
 };
 

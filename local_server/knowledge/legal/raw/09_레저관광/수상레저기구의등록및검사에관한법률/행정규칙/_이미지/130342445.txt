@@ -1,0 +1,3 @@
+[표]
+LWT 차이 | LCG 차이
+2.0퍼센트 LWT | 0.5퍼센트 수선간 길이(LBP, Length Between Perpendiculars)

@@ -1,0 +1,7 @@
+[표]
+ENC_ROOT
+├── <1> README file
+├── <1> Catalogue file
+├── <R> Data set file
+├── <R> Text file
+└── <R> Picture file

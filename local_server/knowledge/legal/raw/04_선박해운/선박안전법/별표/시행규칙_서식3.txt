@@ -1,0 +1,87 @@
+[시행규칙] 서식3 — 건조(별도검조)검사증서 SHIP-BUILDING (SPECIAL SHIP-BUILDING) SURVEY CERTIFICATE
+
+■ 선박안전법 시행규칙[별지 제3호서식]                                            
+                                                              (앞 쪽)                                 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                                  ┃
+┃ 제          호                                                                                   ┃
+┃ Certificate No. :                                                                                ┃
+┃건 조(별 도 건 조) 검 사 증 서                                                                    ┃
+┃SHIP-BUILDING (SPECIAL SHIP-BUILDING) SURVEY                                                      ┃
+┃CERTIFICATE                                                                                       ┃
+┃                                                                                                  ┃
+┠───┬─────┬───────────────────────────────────────┨
+┃건    │성  명    │                                                                              ┃
+┃조    │(대표자명)│                                                                              ┃
+┃자    │Name      │                                                                              ┃
+┃Builde├─────┼───────────────────────────────────────┨
+┃r     │상   호   │                                                                              ┃
+┃      │Company   │                                                                              ┃
+┠───┴─────┼────────┬───────────┬──────────────────┨
+┃선        명      │                │건 조 번 호           │                                    ┃
+┃Name of Ship      │                │Building No.          │                                    ┃
+┠─────────┼────────┼───────────┼──────────────────┨
+┃선   적   항      │                │선        질          │                                    ┃
+┃Port of Registry  │                │Ship Material         │                                    ┃
+┠─────────┼────────┼───────────┼──────────────────┨
+┃용        도      │                │계획총톤수            │                  톤                ┃
+┃Type of Ship      │                │Design Gross          │                                    ┃
+┃                  │                │Tonnage               │tons                                ┃
+┠─────────┼────────┴───────────┴──────────────────┨
+┃주 요 치 수       │ 길이:      미터,   너비:       미터,   깊이:        미터                     ┃
+┃Principal         │ Length:      m,   Breadth:        m,     Depth:           m                  ┃
+┃Dimensions        │                                                                              ┃
+┠─────────┼───────┬──────────────────┬────────────┨
+┃추 진 기 관       │          기관│     [킬로와트(kW)]       [마력(PS)]│   대                   ┃
+┃Main Engine       │          기관│     [킬로와트(kW)]       [마력(PS)]│    대                  ┃
+┃                  │              │        Output                      │Nos.                    ┃
+┃                  │Type          │                                    │                        ┃
+┠─────────┼───────┴──────────────────┴────────────┨
+┃비      고        │                                                                              ┃
+┃Remarks           │                                                                              ┃
+┠─────────┴───────────────────────────────────────┨
+┃                                                                                                  ┃
+┃「선박안전법」 제7조제2항 및 제4항, 같은 법 시행규칙 제10조제4항 및 제11                          ┃
+┃조제3항에 따라   대한민국 정부의 권한으로 이 증서를 발급합니다.                                   ┃
+┃      This certificate is issued in accordance with Article 7.2 and 7.4 of the Ship Safety Act    ┃
+┃and Article 10.4 and 11.3 of the Enforcement Decree of the Ship Safety Act under the authority of ┃
+┃the government of the Republic of Korea.                                                          ┃
+┃                                                                                                  ┃
+┃                                                                                                  ┃
+┃                                  년        월        일                                          ┃
+┃                                      Y          M         D                                      ┃
+┃                                                                                                  ┃
+┃                                                                                                  ┃
+┃  해 양 수 산 부 장 관                                                                            ┃
+┃  Minister of Oceans and Fisheries      ┏━━┓                                                  ┃
+┃  (한국해양교통안전공단이사장)          ┃직인┃                                                  ┃
+┃  (President of Korea Maritime          ┗━━┛                                                  ┃
+┃  Transportation Safety Authority)                                                                ┃
+┃  (선 급 법 인 의 장)                                                                             ┃
+┃  (President of Classification Society)                                                           ┃
+┃                                                                                                  ┃
+┃                                                                                                  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210mm×297mm[백상지 150g/㎡]                                                                        
+                                                                                                      
+                                                                
+                                             (뒤 쪽)            
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃검    사    기    록                                        ┃
+┃Survey   Records                                            ┃
+┠───────┬────────┬─────────────┨
+┃검사완료일    │검사장소        │선박검사관 (검사원)의 성명┃
+┃Date of Survey│Place of Survey │Name of Surveyor          ┃
+┠───────┼────────┼─────────────┨
+┃              │                │                          ┃
+┠───────┼────────┼─────────────┨
+┃              │                │                          ┃
+┠───────┼────────┼─────────────┨
+┃              │                │                          ┃
+┠───────┴────────┴─────────────┨
+┃                                                            ┃
+┃비  고                                                      ┃
+┃Remarks                                                     ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

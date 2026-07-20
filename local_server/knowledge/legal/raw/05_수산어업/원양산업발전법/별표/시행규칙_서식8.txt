@@ -1,0 +1,56 @@
+[시행규칙] 서식8 — 해외합작원양어업 신고확인증
+
+■ 원양산업발전법 시행규칙 [별지 제8호서식]                                       
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃해외합작원양어업 신고확인증                                                                       ┃
+┃(Certificate of Joint Venture for Distant Water Fishing)                                          ┃
+┠──────┬───────────┬──────────────────────────────┨
+┃사업자      │① 주소(Address)      │                                                            ┃
+┃(Business   ├───────────┼┬──────────┬──────────────────┨
+┃Proprietor) │② 상호               ││③ 전화번호         │                                    ┃
+┃            │  (Company Name)      ││  (Telephone)       │                                    ┃
+┃            ├───────────┼┴──────────┴──────────────────┨
+┃            │④ 성명(Name)         │                                                            ┃
+┠──────┼───────────┼──────────────────────────────┨
+┃합작대상자  │⑤ 국명               │                                                            ┃
+┃(Joint      │  (Country Name)      │                                                            ┃
+┃Counterpart)├───────────┼──────────────────────────────┨
+┃            │⑥ 주소(Address)      │                                                            ┃
+┃            ├───────────┼┬──────────┬──────────────────┨
+┃            │⑦ 상호               ││⑧ 전화번호         │                                    ┃
+┃            │  (Company Name)      ││  (Telephone)       │                                    ┃
+┃            ├───────────┼┴──────────┴──────────────────┨
+┃            │⑨ 성명(Name)         │                                                            ┃
+┠──────┼───────────┼──────────────────────────────┨
+┃합작사업개요│⑩ 합작법인명         │                                                            ┃
+┃(Project    │  (Joint Venture      │                                                            ┃
+┃Summary)    │  Company Name)       │                                                            ┃
+┃            ├───────────┼──────────────────────────────┨
+┃            │⑪사업장소재지        │                                                            ┃
+┃            │(Business Address)    │                                                            ┃
+┃            ├───────────┼┬──────────┬──────────────────┨
+┃            │⑫ 포획 어종          ││⑬ 어업 방법        │                                    ┃
+┃            │  (Target Species)    ││ (Fishing Method)   │                                    ┃
+┃            ├───────────┼┼──────────┼──────────────────┨
+┃            │⑭ 투자 규모          ││⑮ 투자 비율        │                                    ┃
+┃            │  (Investment Scale)  ││  (Investment Ratio)│                                    ┃
+┃            ├───────────┼┴──────────┴──────────────────┨
+┃            │? 사용 어선          │                                                            ┃
+┃            │  (Fishing Boat)      │                                                            ┃
+┠──────┴───────────┴──────────────────────────────┨
+┃   「원양산업발전법」 제6조제7항과 같은 법 시행규칙 제15조제5항에 따라 위와 같이 해외합작원양     ┃
+┃어업의 신고를 하였음을 증명합니다.                                                                ┃
+┃   This is to certify that we acknowledge the above-mentioned firm as distant water fisheries in  ┃
+┃conformity with paragraph 7 of Article 6 of the Distant Water Fisheries Development Act and       ┃
+┃paragraph 5 of Article 15 of the Enforcement Rule of the Distant Water Fisheries Development      ┃
+┃Act.                                                                                              ┃
+┃년      월      일                                                                                ┃
+┃yyyy.    mm.    dd.                                                                               ┃
+┃                                                                                                  ┃
+┃                          ━━━┓                                                                ┃
+┃  대한민국 해양수산부장관 ┃직인┃                                                                ┃
+┃                          ━━━┛                                                                ┃
+┃Minister of Oceans and Fisheries, Republic of Korea                                               ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                      
+  210mm×297mm[백상지 120g/㎡]

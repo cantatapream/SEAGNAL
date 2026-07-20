@@ -1,0 +1,13 @@
+{
+  "조약명": "1973년 선박으로부터의 오염방지를 위한 국제협약에 관한 1978년 의정서 (MARPOL PROT, 1978)",
+  "영문명": "Protocol of 1978 relating to the International Convention for the Prevention of Pollution from Ships, 1973",
+  "도메인": "15_관련타부처",
+  "조약일련번호": "303",
+  "조약번호": "847",
+  "발효일자": "19841023",
+  "국회비준동의일자": "19840710",
+  "families": { "조약(발췌)": { "조문범위": "제1조(일반의무)만 발췌. 협약명 전체 열거 인용(특정조 미지정)이라 폭발방지 원칙에 따라 최소발췌", "파일": "조약.txt" } },
+  "수집방식": "국가법령정보센터 DRF lawSearch(target=trty) → lawService(target=trty, ID=303)",
+  "수집일": "2026-07-18",
+  "분류": "타법 — 선박안전법 시행령 제16조①6(항만국통제 대상협약) 열거. CLC/FUND/BUNKERS(유류오염 배상책임, 이미 raw 보유)와 별개 협약."
+}

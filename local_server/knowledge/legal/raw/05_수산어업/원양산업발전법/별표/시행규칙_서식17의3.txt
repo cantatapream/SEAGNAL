@@ -1,0 +1,64 @@
+[시행규칙] 서식17의3 — 해외 양륙 결과보고서
+
+■ 원양산업발전법 시행규칙 [별지 제17호의3서식]                                                        
+                                                                                                                            
+  해외 양륙 결과보고서                                                                                                      
+  (Post-landing Report for Fishing Vessel landing into a Foreign Port)                                                      
+                                                                                                                            
+  ※ 색상이 어두운 난은 보고자가 작성하지 않습니다. The shaded fields are for official use only.                            
+────────────────────────────┬─────────────────────────────────
+  접수번호(Receipt No.): 연도-일련번호(yyyy-serial No.) │접수일자(Date of Receipt): 년 월 일(yyyy. mm. dd.)                
+                                                        │                                                                  
+────────────────────────────┴─────────────────────────────────
+                                                                                                                            
+─────┬────────────────┬─────────────┬─────────────────────────
+  조업선  │선박명 Vessel Name              │국제무선호출부호 IRCS     │국제해사기구 번호 IMO No.                         
+  Fishing ├────────────────┼─────────────┼─────────────────────────
+  Vessel  │어업종류 Fishery Type           │허가번호 License No.      │허가기간 Fishing Authorization Period             
+━━━━━┿━━━━━━━━━━━━━━━━┿━━━━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━
+  운반선  │선박명 Vessel Name              │국제무선호출부호 IRCS     │국제해사기구 번호 IMO No.                         
+  Carrier ├────────────────┼─────────────┴─────────────────────────
+  Vessel  │전재기간 Period of Transshipment│전재위치 Location of Transshipment (use latitude & longitude, if at sea; in   
+          │                                │port/in EEZ/in high seas)                                                     
+━━━━━┿━━━━━━━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  양륙정보│양륙기간 Period of Landing      │양륙항구/국가 Port/Country of Landing                                         
+  Landing │                                │                                                                              
+─────┴────────────────┴───────────────────────────────────────
+                                                                                                                            
+──────────────────────────────────────────────────────────────
+  양륙내역 Landing Details                                                                                                  
+──────┬───────┬──────┬───────┬─────┬──────┬─────────┬─────────
+  어종      │조업기간      │조업수역    │처리형태      │포장형태  │양륙량(Kg)  │양륙 후           │비고              
+  Species   │Fishing Period│Fishing Area│Presentation  │Packaging │Quantities  │적재량(kg)        │Others            
+            │              │            │              │Type      │Landed(kg)  │Quantities        │                  
+            │              │            │              │          │            │Retained onboard  │                  
+            │              │            │              │          │            │after Landing(kg) │                  
+──────┼───────┼──────┼───────┼─────┼──────┼─────────┼─────────
+            │              │            │              │          │            │                  │                  
+──────┼───────┼──────┼───────┼─────┼──────┼─────────┼─────────
+            │              │            │              │          │            │                  │                  
+──────┼───────┼──────┼───────┼─────┼──────┼─────────┼─────────
+            │              │            │              │          │            │                  │                  
+──────┼───────┼──────┼───────┼─────┼──────┼─────────┼─────────
+            │              │            │              │          │            │                  │                  
+──────┼───────┼──────┼───────┼─────┼──────┼─────────┼─────────
+            │              │            │              │          │            │                  │                  
+──────┼───────┼──────┼───────┼─────┼──────┼─────────┼─────────
+            │              │            │              │          │            │                  │                  
+──────┴───────┴──────┴───────┴─────┼──────┼─────────┼─────────
+  합 계 Total Quantities(㎏)                                          │            │                  │                  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━┷━━━━━━━━━┷━━━━━━━━━
+                                                                                                                            
+                                                                                                                            
+   「원양산업발전법」 제16조제1항 및 같은 법 시행규칙 제25조제3항에 따라 해외 양륙 결과를 보고합니다.                       
+  I hereby submit this post-landing report pursuant to Article 16(1) of the Distant Water Fisheries                         
+  Development Act and Article 25(3) of the Enforcement Regulation of the same Act.                                          
+                                                                                 년         월        일                    
+                                                                               year     month      date                     
+  보고자:                        (날인 또는 서명)                                                                           
+                               Name of Submitter                        (Seal or Signature)                                 
+                                                                                                                            
+    동해어업관리단장 귀하                                                                                                   
+  Attn: Director-General of East Sea Fisheries Management Service                                                           
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210mm×297mm[백상지 80g/㎡]

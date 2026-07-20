@@ -1,0 +1,61 @@
+[시행규칙] 서식5 — 재화중량톤수증서
+
+[별지 제5호서식]                                            
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  증서번호 제     호                                                        ┃
+┃  Certificate No.                                                           ┃
+┃재화중량톤수증서                                                            ┃
+┃DEADWEIGHT TONNAGE CERTIFICATE                                              ┃
+┃  대한민국정부의 권한으로           발행합니다.                             ┃
+┃  Issued under the authority of the Government of the Republic of Korea by  ┃
+┃                                                                            ┃
+┃                                                                            ┃
+┃┌────┬──────────┬────┬────┬────┬─────┐┃
+┃│선명    │선박번호 또는       │IMO 번호│선적항  │총톤수  │연월일(주)│┃
+┃│Name    │호출번호            │IMO     │Port of │Gross   │*Date     │┃
+┃│of Ship │Distinctive Number  │Number  │Registry│Tonnage │          │┃
+┃│        │or Letters          │        │        │        │          │┃
+┃├────┼──────────┼────┼────┼────┼─────┤┃
+┃│        │                    │        │        │        │          │┃
+┃└────┴──────────┴────┴────┴────┴─────┘┃
+┃  (주) 킬이 거치되었거나 또는 유사한 건조단계에 있었던 일자 또는 개조를 한 날짜┃
+┃  *Date on which the keel was laid or the ship was at similar stage of      ┃
+┃construction or date on which the ship underwent alterations or             ┃
+┃modifications of a major character, as appropriate.                         ┃
+┃주요 치수                                                                   ┃
+┃MAIN DIMENSIONS                                                             ┃
+┃┌───┬────┬─────────────┬─────────────┐┃
+┃│길이  │너비    │선박의 중앙에서 상갑판까지│선박의 중앙에서 기준흘수선│┃
+┃│Length│Breadth │의 형 깊이                │까지의 형 깊이            │┃
+┃│      │        │Moulded depth amid ships  │Moulded Depth amid ships  │┃
+┃│      │        │to the Upper Deck         │to the Summer Load Line   │┃
+┃├───┼────┼─────────────┼─────────────┤┃
+┃│      │        │                          │                          │┃
+┃└───┴────┴─────────────┴─────────────┘┃
+┃선박의 톤수                                                                 ┃
+┃THE TONNAGE OF THE SHIP ARE                                                 ┃
+┃  재화중량톤수                                                              ┃
+┃  DEADWEIGHT TONNAGE                                                        ┃
+┃  이 증서는 대한민국정부의 권한으로 재화중량톤수가 결정되었음을 증명합니다. ┃
+┃  This is to certify that the deadweight tonnages of this ship have been    ┃
+┃determined under the authority of the Government of the Republic of Korea.  ┃
+┃        년         월        일            에서 발행합니다.                 ┃
+┃        (증서의 발행 장소) (발행일)                                         ┃
+┃  Issued at             , the          day of       .           ,           ┃
+┃         (Place of issue of certificate)  (date of issue)                   ┃
+┃해양수산부장관(지방해양수산청장)                                            ┃
+┃                     Minister of Oceans and Fisheries                       ┃
+┃                     (Regional Office of Oceans and Fisheries)              ┃
+┃                     대한민국영사                                           ┃
+┃                     The Consul of the Republic of Korea                    ┃
+┃  서명자는 이 증서를 발행함에 있어서 위의 정부로부터 정당한 권한을 부여받   ┃
+┃았음을 선언합니다.                                                          ┃
+┃  The undesigned declares that he is duly authorized by the said            ┃
+┃Government to issue this certificate.                                       ┃
+┃한국해양교통안전공단이사장                                                  ┃
+┃President of Korea Maritime Transportation Safety Authority                 ┃
+┃한국선급회장                                                                ┃
+┃President of Korean Register of Shipping                                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜×297㎜                                                                  
+  (인쇄용지(특급) 120g/㎡)

@@ -1,0 +1,581 @@
+<title>나리야 AI 챗봇 — 통합 목업</title>
+<style>
+  :root{
+    --bg-grad-start:#080a0f; --bg-grad-mid:#1c2640; --bg-grad-end:#080a0f;
+    --card-bg:#161b2d; --card-hover:#1f263b; --sea-section-bg:#111525; --sea-header-bg:#1a2238;
+    --text-main:#fff; --text-sub:#94a3b8;
+    --accent-blue:#448aff; --accent-red:#ff5252; --accent-green:#69f0ae; --accent-yellow:#ffd740;
+    --border-color:rgba(255,255,255,.1);
+    --font:'Inter','Noto Sans KR',system-ui,-apple-system,sans-serif;
+    --mono:'Roboto Mono',ui-monospace,monospace; --tab-h:66px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0}
+  body{background:radial-gradient(140% 100% at 50% 0%,var(--bg-grad-mid) 0%,var(--bg-grad-start) 55%,var(--bg-grad-end) 100%) fixed,#0a101f;
+    color:var(--text-main); font-family:var(--font); line-height:1.45; font-size:15px; -webkit-font-smoothing:antialiased;}
+  .app{max-width:600px; margin:0 auto; min-height:100vh; position:relative; padding-bottom:calc(var(--tab-h) + 12px);}
+  .hidden{display:none !important}
+
+  .env-ribbon{display:flex; align-items:center; gap:8px; justify-content:center; background:linear-gradient(90deg,rgba(255,215,64,.14),rgba(255,215,64,.06));
+    border-bottom:1px solid rgba(255,215,64,.25); color:#ffe082; font-size:12px; font-weight:600; padding:7px 12px;}
+  .env-ribbon .dot{width:6px;height:6px;border-radius:50%;background:#ffd740;box-shadow:0 0 8px #ffd740}
+
+  header{position:sticky; top:0; z-index:20; backdrop-filter:blur(12px); background:rgba(15,20,35,.85); border-bottom:1px solid var(--border-color); padding:14px 16px 0;}
+  .h-row{display:flex; align-items:center; gap:10px}
+  .h-mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,#448aff,#22d3ee); color:#04122e; font-weight:800; font-size:15px; box-shadow:0 3px 10px rgba(68,138,255,.4)}
+  .h-title{font-size:17px;font-weight:700;letter-spacing:-.01em}
+  .h-sub{font-size:12px;color:var(--text-sub);margin-top:1px}
+  .vswitch{display:flex; gap:4px; margin:12px 0 0; background:rgba(255,255,255,.04); border:1px solid var(--border-color); border-radius:11px; padding:4px;}
+  .vswitch button{flex:1; border:none; background:none; color:var(--text-sub); font-family:inherit; font-size:13.5px; font-weight:600; padding:8px 0; border-radius:8px; cursor:pointer; transition:all .18s; display:flex; align-items:center; justify-content:center; gap:6px}
+  .vswitch button.active{background:var(--accent-blue); color:#04122e}
+  .vswitch .vb-badge{background:linear-gradient(135deg,#ff6b6b,#f03e3e); color:#fff; font-size:9px; font-weight:800; border-radius:6px; min-width:15px; height:15px; padding:0 4px; display:grid; place-items:center}
+  .vswitch button.active .vb-badge{box-shadow:0 0 0 2px rgba(255,255,255,.3)}
+
+  .rooms{display:flex; gap:8px; overflow-x:auto; padding:12px 16px 4px; scrollbar-width:none;}
+  .rooms::-webkit-scrollbar{display:none}
+  .room{position:relative; flex:0 0 auto; padding:8px 15px; border-radius:20px; background:rgba(255,255,255,.05); border:1px solid var(--border-color); color:var(--text-sub); font-size:13.5px; font-weight:600; white-space:nowrap; cursor:pointer; transition:all .18s;}
+  .room:active{transform:scale(.96)}
+  .room.active{background:rgba(68,138,255,.2); border-color:var(--accent-blue); color:#8bb6ff}
+  .room .cnt{font-family:var(--mono); font-size:11px; opacity:.75; margin-left:5px}
+  .new-badge{position:absolute; top:-6px; right:-6px; display:inline-flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#ff6b6b,#f03e3e); color:#fff; font-size:9px; font-weight:800; font-family:var(--font); border-radius:6px; padding:0 4px; height:15px; min-width:15px; line-height:1; box-shadow:0 2px 4px rgba(240,62,62,.45); animation:badgePulse 2s infinite;}
+  @keyframes badgePulse{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,107,107,.7)}70%{transform:scale(1.05);box-shadow:0 0 0 6px rgba(255,107,107,0)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,107,107,0)}}
+
+  /* 방 설명 인트로 카드 (클릭 시 먼저 뜸) */
+  .intro{margin:12px 14px 6px; padding:14px 15px; border-radius:13px; background:linear-gradient(135deg,rgba(68,138,255,.12),rgba(34,211,238,.05)); border:1px solid rgba(68,138,255,.28);}
+  .intro-h{display:flex; align-items:center; gap:9px; margin-bottom:7px}
+  .intro-ic{width:30px;height:30px;flex:0 0 auto;border-radius:9px;display:grid;place-items:center;font-size:16px;background:rgba(68,138,255,.2)}
+  .intro-name{font-size:15.5px; font-weight:700}
+  .intro-tag{font-size:10.5px; font-family:var(--mono); color:#8bb6ff; margin-top:1px}
+  .intro-desc{font-size:12.8px; color:#cdd8ee; line-height:1.55}
+  .intro-meta{margin-top:9px; display:flex; gap:6px; flex-wrap:wrap}
+  .intro-meta span{font-size:10.5px; font-family:var(--mono); color:#9fb4d6; background:rgba(255,255,255,.05); border:1px solid var(--border-color); border-radius:12px; padding:3px 9px}
+  .intro-meta span.warn{color:#ffe082; border-color:rgba(255,215,64,.3); background:rgba(255,215,64,.08)}
+  .intro-meta span.skel{color:#ff9e9e; border-color:rgba(255,82,82,.3); background:rgba(255,82,82,.07)}
+
+  .list{padding:6px 14px 4px; display:flex; flex-direction:column; gap:8px}
+  /* 아코디언(원문) */
+  .acc{background:var(--sea-section-bg); border:1px solid var(--border-color); border-radius:12px; overflow:hidden; box-shadow:0 4px 6px rgba(0,0,0,.2);}
+  .acc-head{display:flex; align-items:center; gap:10px; padding:13px 14px; cursor:pointer; background:linear-gradient(to right,#1a2238,#151a2e);}
+  .acc.open .acc-head{background:#1a2238; border-bottom:1px solid var(--border-color)}
+  .acc-name{flex:1; min-width:0; font-size:14.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .acc-dom{font-size:11px; color:var(--text-sub); font-weight:500; margin-top:2px}
+  .eff{font-family:var(--mono); font-size:11px; color:#9fb4d6; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.22); border-radius:7px; padding:3px 7px; white-space:nowrap; flex:0 0 auto}
+  .eff .lbl{color:var(--text-sub); margin-right:4px}
+  .chev{color:var(--text-sub); flex:0 0 auto; transition:transform .3s; font-size:12px}
+  .acc.open .chev{transform:rotate(180deg)}
+  .acc-body{max-height:0; overflow:hidden; opacity:0; transition:max-height .4s cubic-bezier(.4,0,.2,1),opacity .3s,padding .3s; padding:0 14px}
+  .acc.open .acc-body{max-height:820px; opacity:1; padding:12px 14px 14px}
+  .file{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; background:rgba(255,255,255,.03); border:1px solid var(--border-color); margin-bottom:7px; cursor:pointer}
+  .file-ic{width:22px;height:22px;flex:0 0 auto;border-radius:6px;display:grid;place-items:center;font-size:11px; background:rgba(105,240,174,.12); color:#69f0ae}
+  .file-ic.rule{background:rgba(255,215,64,.12); color:#ffd740}
+  .file-nm{flex:1; font-size:13.5px; font-weight:500}
+  .file-amd{font-size:10px; color:#8bb6ff; margin-left:6px}
+  .file-eff{font-family:var(--mono); font-size:10.5px; color:var(--text-sub)}
+  .byl-title{font-size:11.5px; color:var(--text-sub); font-weight:600; margin:10px 2px 7px; display:flex; align-items:center; gap:6px}
+  .byl-title::before{content:""; width:3px; height:12px; border-radius:2px; background:var(--accent-blue)}
+  .byl{display:flex; align-items:flex-start; gap:8px; padding:8px 9px; border-radius:8px; background:rgba(255,255,255,.02); border:1px dashed rgba(255,255,255,.12); margin-bottom:6px}
+  .byl-no{font-family:var(--mono); font-size:10px; color:#ffd740; background:rgba(255,215,64,.1); border-radius:5px; padding:2px 6px; flex:0 0 auto; margin-top:1px}
+  .byl-nm{flex:1; font-size:12.5px; color:#dfe7f5}
+  .dl{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
+  .dl a{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:600; text-decoration:none; color:#8bb6ff; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.25); border-radius:14px; padding:3px 9px}
+  .dl a.img{color:#69f0ae; background:rgba(105,240,174,.08); border-color:rgba(105,240,174,.25)}
+
+  /* 일반 리스트 아이템(개념·법령·비교·별표) */
+  .item{display:flex; align-items:center; gap:10px; padding:12px 13px; border-radius:11px; background:var(--card-bg); border:1px solid var(--border-color); cursor:pointer}
+  .item:active{background:var(--card-hover)}
+  .item-b{flex:1; min-width:0}
+  .item-t{font-size:13.8px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .item-s{font-size:11px; color:var(--text-sub); margin-top:2px}
+  .stbadge{font-size:9.5px; font-weight:700; padding:3px 8px; border-radius:10px; white-space:nowrap; flex:0 0 auto}
+  .st-can{color:#69f0ae; background:rgba(105,240,174,.12); border:1px solid rgba(105,240,174,.3)}
+  .st-rev{color:#ffd740; background:rgba(255,215,64,.12); border:1px solid rgba(255,215,64,.3)}
+  .st-draft{color:#94a3b8; background:rgba(255,255,255,.05); border:1px solid var(--border-color)}
+  .chips{display:flex; flex-wrap:wrap; gap:5px; margin-top:2px}
+  .chip{font-size:10px; color:#8bb6ff; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.22); border-radius:11px; padding:2px 8px}
+
+  /* 그래프 방 미니 통계 */
+  .g-stats{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px}
+  .g-stat{background:var(--card-bg); border:1px solid var(--border-color); border-radius:11px; padding:12px; text-align:center}
+  .g-num{font-family:var(--mono); font-size:22px; font-weight:800; color:#8bb6ff}
+  .g-lab{font-size:11px; color:var(--text-sub); margin-top:3px}
+  .g-canvas{height:150px; border-radius:11px; border:1px solid var(--border-color); background:radial-gradient(circle at 30% 40%,rgba(68,138,255,.12),transparent 40%),radial-gradient(circle at 70% 60%,rgba(34,211,238,.1),transparent 40%),#0d1424; position:relative; overflow:hidden}
+  .g-node{position:absolute; width:9px;height:9px;border-radius:50%;background:#448aff;box-shadow:0 0 8px #448aff}
+  .g-edge{position:absolute; height:1px; background:linear-gradient(90deg,rgba(68,138,255,.5),rgba(68,138,255,.1)); transform-origin:left center}
+
+  /* 빈 방(골격) 안내 */
+  .skel-box{background:var(--card-bg); border:1px dashed rgba(255,255,255,.18); border-radius:12px; padding:16px; text-align:center}
+  .skel-emoji{font-size:26px; opacity:.6}
+  .skel-t{font-size:13.5px; font-weight:700; margin:8px 0 4px; color:#cdd8ee}
+  .skel-flow{display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; margin-top:11px}
+  .skel-flow .s{font-size:10.5px; color:#8bb6ff; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.25); border-radius:12px; padding:4px 9px}
+  .skel-flow .arw{color:var(--text-sub); font-size:11px}
+
+  /* 관리자 검토 */
+  .panel{padding:12px 16px 4px}
+  .card{background:var(--card-bg); border:1px solid var(--border-color); border-radius:12px; padding:14px; margin-bottom:12px; box-shadow:0 4px 6px rgba(0,0,0,.2)}
+  .card-lab{font-size:11px; color:var(--text-sub); font-weight:700; letter-spacing:.04em; text-transform:uppercase; margin-bottom:9px; display:flex; align-items:center; gap:6px}
+  .card-lab .pipe{width:3px;height:12px;border-radius:2px;background:var(--accent-blue)}
+  .seg{display:flex; gap:4px; background:rgba(255,255,255,.04); border:1px solid var(--border-color); border-radius:10px; padding:4px}
+  .seg button{flex:1; border:none; background:none; color:var(--text-sub); font-family:inherit; font-size:12.5px; font-weight:600; padding:9px 4px; border-radius:7px; cursor:pointer; transition:all .18s}
+  .seg button.on{background:var(--accent-blue); color:#04122e}
+  .seg button.on.warn{background:var(--accent-yellow); color:#3a2e00}
+  .seg-help{font-size:11.5px; color:var(--text-sub); margin-top:9px; line-height:1.5}
+  .seg-help b{color:#ffe082}
+  .subtabs{display:flex; gap:7px; overflow-x:auto; padding:2px 0 10px; scrollbar-width:none}
+  .subtabs::-webkit-scrollbar{display:none}
+  .subtab{position:relative; flex:0 0 auto; padding:7px 13px; border-radius:18px; background:rgba(255,255,255,.05); border:1px solid var(--border-color); color:var(--text-sub); font-size:12.5px; font-weight:600; white-space:nowrap; cursor:pointer}
+  .subtab.active{background:rgba(68,138,255,.2); border-color:var(--accent-blue); color:#8bb6ff}
+  .subtab .qn{font-family:var(--mono); font-size:10px; margin-left:4px; color:#ff8a8a}
+  .rv{background:var(--sea-section-bg); border:1px solid var(--border-color); border-radius:11px; margin-bottom:10px; overflow:hidden}
+  .rv-head{display:flex; align-items:center; gap:9px; padding:12px 13px; cursor:pointer}
+  .rv-id{font-family:var(--mono); font-size:10px; color:#ffd740; background:rgba(255,215,64,.1); border-radius:5px; padding:2px 7px; flex:0 0 auto}
+  .rv-t{flex:1; font-size:13.5px; font-weight:600}
+  .rv-t small{display:block; font-weight:400; color:var(--text-sub); font-size:11px; margin-top:2px}
+  .rv-st{font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:12px; white-space:nowrap; flex:0 0 auto}
+  .rv-st.wait{color:#ffd740; background:rgba(255,215,64,.12); border:1px solid rgba(255,215,64,.3)}
+  .rv-st.done{color:#69f0ae; background:rgba(105,240,174,.12); border:1px solid rgba(105,240,174,.35)}
+  .rv-body{border-top:1px solid var(--border-color); padding:13px; display:none}
+  .rv.open .rv-body{display:block}
+  .cmp{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:11px}
+  .cmp-col{background:rgba(255,255,255,.03); border:1px solid var(--border-color); border-radius:9px; padding:9px}
+  .cmp-h{font-size:10.5px; font-weight:700; color:var(--text-sub); margin-bottom:7px; text-transform:uppercase}
+  .cmp-h.ai{color:#8bb6ff}
+  .cmp-img{width:100%; height:88px; border-radius:6px; background:repeating-linear-gradient(45deg,#0f1626,#0f1626 8px,#131c30 8px,#131c30 16px); display:grid; place-items:center; color:#5b6b86; font-size:10px; border:1px solid var(--border-color); cursor:zoom-in}
+  .cmp-val{font-family:var(--mono); font-size:13px; color:#dfe7f5; margin-top:7px; line-height:1.5}
+  .cmp-val b{color:#ff8a8a}
+  /* 리뷰 값 교정(사람이 직접 수정) */
+  .correct{background:rgba(68,138,255,.07); border:1px solid rgba(68,138,255,.28); border-radius:9px; padding:11px; margin:0 0 11px}
+  .correct-q{font-size:12px; color:#cdd8ee; line-height:1.55; margin-bottom:9px}
+  .correct-q b{color:#ffe082}
+  .correct-row{display:flex; align-items:center; gap:8px}
+  .correct-row label{font-size:11px; color:var(--text-sub); font-weight:600; flex:0 0 auto}
+  .correct-in{flex:1; background:#0e1524; border:1.5px solid var(--accent-blue); border-radius:8px; padding:9px 11px; color:#fff; font-family:var(--mono); font-size:15px; font-weight:700; outline:none}
+  .correct-in:focus{border-color:#69f0ae; box-shadow:0 0 0 3px rgba(105,240,174,.15)}
+  .correct-unit{font-family:var(--mono); font-size:12px; color:var(--text-sub); flex:0 0 auto}
+  .correct-hint{font-size:10.5px; color:#69f0ae; margin-top:7px}
+  .src-line{font-size:11px; color:var(--text-sub); margin:9px 0 12px; line-height:1.5}
+  .src-line a{color:#8bb6ff; text-decoration:none}
+  .rv-actions{display:flex; gap:8px}
+  .rv-actions button{flex:1; border:none; border-radius:8px; font-family:inherit; font-weight:700; font-size:13px; padding:10px 0; cursor:pointer}
+  .btn-ok{background:var(--accent-green); color:#053824}
+  .btn-no{background:rgba(255,82,82,.15); color:#ff8a8a; border:1px solid rgba(255,82,82,.35) !important}
+  .chain{margin-top:11px; padding:11px; border-radius:9px; background:rgba(105,240,174,.06); border:1px solid rgba(105,240,174,.25); display:none}
+  .rv.approved .chain{display:block}
+  .rv.approved .rv-actions{display:none}
+  .chain-step{display:flex; align-items:center; gap:8px; font-size:12px; color:#bfe9d4; padding:3px 0}
+  .chain-step .n{width:17px;height:17px;border-radius:50%;background:var(--accent-green);color:#053824;font-size:10px;font-weight:800;display:grid;place-items:center;flex:0 0 auto}
+  .dual-note{font-size:11px;color:var(--text-sub);background:rgba(255,215,64,.06);border:1px solid rgba(255,215,64,.2);border-radius:8px;padding:9px 11px;margin-bottom:11px;line-height:1.5}
+  .dual-note b{color:#ffe082}
+
+  .fab{position:fixed; right:calc(50% - 300px + 16px); bottom:calc(var(--tab-h) + 16px); z-index:55; width:54px;height:54px;border-radius:50%; border:none; cursor:pointer; background:linear-gradient(135deg,#448aff,#22d3ee); color:#04122e; font-size:22px; font-weight:800; box-shadow:0 6px 20px rgba(68,138,255,.5); display:grid; place-items:center;}
+  @media(max-width:632px){.fab{right:16px}}
+  .fab .fab-badge{position:absolute; top:-2px; right:-2px; background:linear-gradient(135deg,#ff6b6b,#f03e3e); color:#fff; font-size:9px; font-weight:800; border-radius:8px; min-width:16px; height:16px; padding:0 4px; display:grid; place-items:center; box-shadow:0 2px 5px rgba(240,62,62,.5)}
+  .chat-wrap{position:fixed; inset:0; z-index:1000; display:none; justify-content:center; align-items:flex-end; background:rgba(0,0,0,.55)}
+  .chat-wrap.open{display:flex}
+  .chat{width:100%; max-width:600px; height:82vh; background:#0e1524; border-radius:18px 18px 0 0; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border-color); border-bottom:none}
+  .chat-top{display:flex; align-items:center; gap:11px; padding:13px 15px; background:rgba(15,20,35,.9); border-bottom:1px solid var(--border-color)}
+  /* Gemini 풍 그라데이션 오브 (assistant_overlay_preview.html 이식·앱팔레트 튜닝) */
+  .orb{width:36px;height:36px;border-radius:50%;flex:0 0 auto;position:relative;
+    background:conic-gradient(from 0deg,#4f8cff,#22d3ee,#9b6bff,#ff6bcb,#4f8cff);
+    animation:nvSpin 4s linear infinite, nvBreathe 2.4s ease-in-out infinite;}
+  .orb::after{content:"";position:absolute;inset:6px;border-radius:50%;background:#0e1524;box-shadow:inset 0 0 10px rgba(0,0,0,.5);}
+  .orb::before{content:"";position:absolute;inset:-5px;border-radius:50%;z-index:-1;background:inherit;filter:blur(11px);opacity:.55;}
+  .orb.think{animation-duration:1.2s,1.9s;filter:hue-rotate(15deg) saturate(1.2)}
+  .orb.big{width:52px;height:52px}
+  .orb.big::after{inset:8px}
+  @keyframes nvSpin{to{transform:rotate(360deg)}}
+  @keyframes nvBreathe{0%,100%{transform:scale(.92)}50%{transform:scale(1.06)}}
+  .chat-name{font-size:14.5px; font-weight:700}
+  .chat-on{font-size:11px; color:#69f0ae; margin-top:1px; display:flex; align-items:center; gap:4px}
+  .chat-on::before{content:"";width:6px;height:6px;border-radius:50%;background:#69f0ae}
+  .chat-x{margin-left:auto; background:none; border:none; color:var(--text-sub); font-size:22px; cursor:pointer; line-height:1}
+  /* ===== 카카오톡 채팅방(다크) — 노랑 내말풍선·프로필·이름·시각 ===== */
+  .chat-body{flex:1; overflow-y:auto; padding:14px 12px; display:flex; flex-direction:column; gap:11px; background:#1c2a38}
+  .krow{display:flex; align-items:flex-end; gap:7px; max-width:100%}
+  .krow.me{flex-direction:row-reverse; align-self:flex-end}
+  .kava{width:36px;height:36px;flex:0 0 auto}
+  .kcol{display:flex; flex-direction:column; max-width:76%}
+  .kwho{font-size:11.5px; color:#b8c6da; margin:0 0 4px 3px}
+  .kbrow{display:flex; align-items:flex-end; gap:5px}
+  .krow.me .kbrow{flex-direction:row-reverse}
+  .kbub{padding:9px 12px; font-size:13.5px; line-height:1.52; white-space:pre-wrap; border-radius:4px 16px 16px 16px; word-break:break-word}
+  .kbub.ai{background:#33475b; color:#eef4fb}
+  .kbub.ai b{color:#ffe14d}
+  .krow.me .kbub{border-radius:16px 4px 16px 16px; background:#ffe14d; color:#231c00; font-weight:500}
+  .ktime{font-size:9.5px; color:#8296ac; flex:0 0 auto; margin-bottom:2px; white-space:nowrap}
+  .kbub .chips{display:flex; flex-wrap:wrap; gap:5px; margin-top:9px}
+  .kbub .chip{font-size:10.5px; color:#a9c6ff; background:rgba(68,138,255,.16); border:1px solid rgba(68,138,255,.32); border-radius:12px; padding:2px 8px}
+  .kbub .tel{margin-top:9px; font-size:11.5px; color:#8fe6bb}
+  .kbub .disc{margin-top:6px; font-size:10px; color:#93a4b9}
+  /* 답변 하단 근거 법령 아코디언(법령명만이 아니라 펼치면 조문 내용) */
+  .lawacc{margin-top:10px; border-top:1px solid rgba(255,255,255,.12); padding-top:9px}
+  .lawacc-h{font-size:11.8px; font-weight:700; color:#a9c6ff; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none}
+  .lawacc-h .arw{font-size:9px; transition:transform .25s}
+  .lawacc.open .lawacc-h .arw{transform:rotate(90deg)}
+  .lawacc-b{display:none; margin-top:8px}
+  .lawacc.open .lawacc-b{display:block}
+  .lawitem{background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09); border-radius:9px; padding:9px 11px; margin-top:7px}
+  .lawitem .lw-t{font-size:11.8px; font-weight:700; color:#dbe7f6; display:flex; align-items:center; justify-content:space-between; gap:8px}
+  .lawitem .lw-src{font-family:var(--mono); font-size:9.5px; color:#8296ac; font-weight:500}
+  .lawitem .lw-c{font-size:11.8px; color:#bccbde; margin-top:5px; line-height:1.55}
+  .lawitem .lw-more{margin-top:6px; font-size:10.5px; color:#a9c6ff}
+  /* 경위도 좌표 구역 → 지도 배경 위 폴리곤 + 탭하면 확대 팝업 */
+  .zonemap{margin-top:10px; border-radius:11px; overflow:hidden; border:1px solid rgba(105,240,174,.3)}
+  .zonemap-canvas{position:relative; height:150px; cursor:zoom-in; background:#0c2033}
+  .zonemap-canvas svg{position:absolute; inset:0; width:100%; height:100%; display:block}
+  .zonemap-tap{position:absolute; top:8px; right:8px; font-size:10.5px; font-weight:700; color:#cfe0f5; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:4px 9px; z-index:2}
+  .zonemap-cap{font-size:10.5px; color:#a9c6ff; padding:8px 10px; background:rgba(105,240,174,.07); line-height:1.5}
+  /* 확대 팝업(핀치줌) */
+  .mapmodal{position:fixed; inset:0; z-index:2000; display:none; flex-direction:column; background:#06121f}
+  .mapmodal.open{display:flex}
+  .mapmodal-bar{display:flex; align-items:center; gap:8px; padding:11px 12px; background:rgba(9,20,34,.96); border-bottom:1px solid var(--border-color)}
+  .mapmodal-tabs{display:flex; gap:6px; flex:1}
+  .mm-tab{border:1px solid var(--border-color); background:rgba(255,255,255,.05); color:var(--text-sub); font-family:inherit; font-size:12px; font-weight:600; padding:8px 12px; border-radius:16px; cursor:pointer; white-space:nowrap}
+  .mm-tab.on{background:rgba(105,240,174,.16); border-color:#69f0ae; color:#8fe6bb}
+  .mapmodal-x{width:34px;height:34px;flex:0 0 auto;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:#cfe2f3;font-size:16px;cursor:pointer}
+  .mapmodal-stage{flex:1; overflow:hidden; position:relative; touch-action:none; background:#0c2033}
+  .mapmodal-inner{position:absolute; inset:0; transform-origin:0 0; will-change:transform}
+  .mapmodal-inner svg{width:100%; height:100%; display:block}
+  .mapmodal-hint{position:absolute; left:0; right:0; bottom:12px; text-align:center; font-size:11px; color:#8296ac; pointer-events:none}
+  .mapmodal-zoom{position:absolute; right:12px; bottom:40px; display:flex; flex-direction:column; gap:6px}
+  .mapmodal-zoom button{width:38px;height:38px;border-radius:10px;border:1px solid var(--border-color);background:rgba(9,20,34,.9);color:#cfe2f3;font-size:19px;cursor:pointer}
+  .sk-line{height:9px; border-radius:5px; margin-bottom:7px; background:linear-gradient(90deg,rgba(255,255,255,.08) 25%,rgba(255,255,255,.18) 37%,rgba(255,255,255,.08) 63%); background-size:400% 100%; animation:sk 1.3s ease infinite}
+  .sk-line:last-of-type{margin-bottom:0}
+  @keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
+  .think-status{display:flex; align-items:center; gap:7px; margin-top:9px; font-size:11.5px; color:#a9c6ff}
+  .think-dots{display:inline-flex; gap:3px}
+  .think-dots i{width:5px;height:5px;border-radius:50%;background:#a9c6ff;animation:blink 1s infinite}
+  .think-dots i:nth-child(2){animation-delay:.2s}.think-dots i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
+  .chat-input{display:flex; gap:8px; align-items:center; padding:10px 12px; border-top:1px solid rgba(255,255,255,.08); background:#17222e}
+  .chat-plus{width:34px;height:34px;flex:0 0 auto;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:#b8c6da;font-size:19px;cursor:pointer;line-height:1}
+  .chat-input input{flex:1; background:#28394a; border:none; border-radius:19px; padding:11px 15px; color:#fff; font-family:inherit; font-size:14px; outline:none}
+  .chat-input input::placeholder{color:#8296ac}
+  .chat-send{width:40px;height:40px;flex:0 0 auto;border-radius:50%;border:none;background:#ffe14d;color:#231c00;font-size:16px;cursor:pointer;font-weight:800}
+  .foot-note{text-align:center; color:#5b6b86; font-size:11px; padding:14px 20px 4px; line-height:1.6}
+  .tabbar{position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:600px; z-index:60; display:flex; background:rgba(15,20,35,.95); backdrop-filter:blur(12px); border-top:1px solid var(--border-color);}
+  .tab{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:8px 0 10px; min-height:var(--tab-h); color:var(--text-sub); font-size:11px; line-height:1.2; border-top:3px solid transparent; background:none; cursor:pointer; font-family:inherit}
+  .tab .em{font-style:normal; font-size:19px}
+  .tab.active{color:var(--accent-blue); border-top-color:var(--accent-blue); font-weight:600}
+</style>
+
+<div class="app">
+  <div class="env-ribbon"><span class="dot"></span>테스트 빌드 · 관리자 전용 (일반 사용자 미노출)</div>
+  <header>
+    <div class="h-row">
+      <div class="h-mark">나</div>
+      <div><div class="h-title">AI 챗봇 · 나리야</div><div class="h-sub">해양법령 지식베이스 관리</div></div>
+    </div>
+    <div class="vswitch">
+      <button class="active" data-view="rooms">💬 지식 방</button>
+      <button data-view="admin">🛠 관리자 검토 <span class="vb-badge">99</span></button>
+    </div>
+  </header>
+
+  <!-- VIEW A: 지식 방 -->
+  <div id="view-rooms">
+    <div class="rooms" id="roomPills"></div>
+    <div id="roomContent"></div>
+  </div>
+
+  <!-- VIEW B+C: 관리자 검토 -->
+  <div id="view-admin" class="hidden">
+    <div class="panel">
+      <div class="card">
+        <div class="card-lab"><span class="pipe"></span>AI 챗봇 노출 설정</div>
+        <div class="seg">
+          <button data-exp="user">사용자 노출</button>
+          <button data-exp="admin" class="on warn">관리자 전용</button>
+          <button data-exp="off">미표출</button>
+        </div>
+        <div class="seg-help">현재 <b>관리자 전용</b> — 일반 사용자 메인 화면에 챗봇 진입 버튼(우측 하단 원형)이 <b>표시되지 않습니다</b>. 테스트 완료 후 '사용자 노출'로 전환하세요.</div>
+      </div>
+      <div class="card-lab" style="padding:0 2px"><span class="pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>
+      <div class="subtabs" id="subtabs"></div>
+      <div id="adminContent"></div>
+    </div>
+  </div>
+
+  <button class="fab" id="fab" title="나리야에게 물어보기">💬<span class="fab-badge">N</span></button>
+  <nav class="tabbar">
+    <button class="tab"><span class="em">⚠️</span><span>특보정보</span></button>
+    <button class="tab"><span class="em">🌤️</span><span>해양종합정보</span></button>
+    <button class="tab"><span class="em">🐟</span><span>해양생활</span></button>
+    <button class="tab"><span class="em">📢</span><span>공지사항</span></button>
+    <button class="tab active"><span class="em">🤖</span><span>AI 챗봇</span></button>
+  </nav>
+</div>
+
+<!-- 좌표 구역 확대 지도 팝업(핀치줌 + 해양종합정보 연계) -->
+<div class="mapmodal" id="mapModal">
+  <div class="mapmodal-bar">
+    <div class="mapmodal-tabs">
+      <button class="mm-tab on" data-mm="here">📍 현재 화면에서 보기</button>
+      <button class="mm-tab" data-mm="ocean">🗺 해양종합정보 탭에서 보기</button>
+    </div>
+    <button class="mapmodal-x" id="mapModalX">✕</button>
+  </div>
+  <div class="mapmodal-stage" id="mapStage">
+    <div class="mapmodal-inner" id="mapInner"></div>
+    <div class="mapmodal-zoom"><button data-z="in">＋</button><button data-z="out">－</button></div>
+    <div class="mapmodal-hint">두 손가락으로 확대·축소 · 드래그로 이동</div>
+  </div>
+</div>
+
+<div class="chat-wrap" id="chatWrap">
+  <div class="chat">
+    <div class="chat-top">
+      <div class="orb" id="chatOrb"></div>
+      <div><div class="chat-name">나리야</div><div class="chat-on">해양법령 도우미 · 온라인</div></div>
+      <button class="chat-x" id="chatX">×</button>
+    </div>
+    <div class="chat-body" id="chatBody">
+      <div class="krow ai"><div class="kava"><div class="orb"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div><span class="ktime">오후 2:11</span></div></div></div>
+      <div class="krow me"><div class="kbrow"><div class="kbub">1.5톤 어선인데 구명조끼 꼭 입어야 해?</div><span class="ktime">오후 2:12</span></div></div>
+      <div class="krow ai"><div class="kava"><div class="orb"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">네. 어선은 <b>승선자 전원이 구명조끼(구명동의)를 착용</b>해야 합니다. 특히 기상특보 발효·야간 항해 시 의무입니다.<div class="lawacc"><div class="lawacc-h"><span class="arw">▶</span>📖 근거 법령 2건 (펼쳐서 조문 보기)</div><div class="lawacc-b"><div class="lawitem"><div class="lw-t"><span>어선안전조업법 제22조 (구명조끼 착용)</span><span class="lw-src">시행 24.1.1</span></div><div class="lw-c">"어선의 소유자와 선장은 승선하는 모든 사람에게 구명조끼를 착용하게 하여야 한다. 다만, 기상특보가 발효 중이거나 야간에 항해하는 경우에는 반드시 착용하게 하여야 한다."</div><div class="lw-more">원문 보기 ›</div></div><div class="lawitem"><div class="lw-t"><span>수상레저안전법 제18조 (안전장비) — 관련</span><span class="lw-src">연계</span></div><div class="lw-c">수상레저활동자에 대한 구명조끼 착용 의무 규정(어선과 별개 규율).</div><div class="lw-more">원문 보기 ›</div></div></div></div><div class="tel">📞 소관: 해양수산부 어선안전정책과 044-200-XXXX</div><div class="disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요. · 어선안전조업법 2024-01-01 기준</div></div><span class="ktime">오후 2:12</span></div></div></div>
+    </div>
+    <div class="chat-input"><button class="chat-plus" title="첨부">＋</button><input id="chatInput" placeholder="메시지 입력" /><button class="chat-send" id="chatSend">➤</button></div>
+  </div>
+</div>
+
+<script>
+/* ── 방 데이터 모델: 각 방의 역할 설명 + 대표 내용 렌더 ── */
+var accHTML =
+  '<div class="acc open"><div class="acc-head"><div style="flex:1;min-width:0"><div class="acc-name">해상교통안전법</div><div class="acc-dom">03 해상교통안전 · 해양수산부</div></div><div class="eff"><span class="lbl">시행</span>2024. 7. 26.</div><div class="chev">▼</div></div>'+
+    '<div class="acc-body">'+
+      '<div class="file"><div class="file-ic">법</div><div class="file-nm">법률<span class="file-amd">· 일부개정</span></div><div class="file-eff">시행 2024. 7. 26.</div></div>'+
+      '<div class="file"><div class="file-ic rule">령</div><div class="file-nm">시행령<span class="file-amd">· 일부개정</span></div><div class="file-eff">시행 2025. 5. 20.</div></div>'+
+      '<div class="file"><div class="file-ic rule">칙</div><div class="file-nm">시행규칙</div><div class="file-eff">시행 2024. 7. 26.</div></div>'+
+      '<div class="byl-title">별표 · 별지 서식 (64건)</div>'+
+      '<div class="byl"><span class="byl-no">령 별표1</span><div style="flex:1"><div class="byl-nm">교통안전특정해역의 범위(제5조 관련)</div><div class="dl"><a href="#">⬇ HWP 원본</a><a href="#" class="img">🖼 이미지</a><a href="#">📄 본문(텍스트)</a></div></div></div>'+
+      '<div class="byl"><span class="byl-no">칙 별표3</span><div style="flex:1"><div class="byl-nm">해양사고 관련 보고 서식</div><div class="dl"><a href="#">⬇ HWP 원본</a><a href="#">📄 본문</a></div></div></div>'+
+    '</div></div>'+
+  ['선박안전법|02 선박 · 별표 147|2025. 1. 24.','수산업법|06 수산 · 별표 122|2024. 12. 20.','해양환경관리법|09 해양환경|2025. 7. 25.','수상레저안전법|05 레저 · 해양경찰청|2024. 7. 31.']
+   .map(function(x){var p=x.split('|');return '<div class="acc"><div class="acc-head"><div style="flex:1;min-width:0"><div class="acc-name">'+p[0]+'</div><div class="acc-dom">'+p[1]+'</div></div><div class="eff"><span class="lbl">시행</span>'+p[2]+'</div><div class="chev">▼</div></div><div class="acc-body"></div></div>';}).join('');
+
+function items(arr){ return '<div class="list">'+arr.join('')+'</div>'; }
+function concept(t,s,st,stc,chips){ return '<div class="item"><div class="item-b"><div class="item-t">'+t+'</div><div class="item-s">'+s+'</div>'+(chips?'<div class="chips">'+chips.map(function(c){return '<span class="chip">'+c+'</span>';}).join('')+'</div>':'')+'</div><span class="stbadge '+stc+'">'+st+'</span></div>'; }
+
+var ROOMS = {
+  원문:{ic:'📁',tag:'raw/ · 원문 보관실',n:'70법 · 7,203 원문',desc:'국가법령정보센터 <b>원문 아카이브(불변)</b>입니다. 위키의 재료가 되는 1층. 법률·시행령·시행규칙 전문 + 별표·서식 + 고시(행정규칙)를 법령별로 보관합니다. 누르면 법령별 아코디언 → 시행일·별표 다운로드.',meta:['불변','15 도메인','별표·고시 포함'],
+    render:function(){return items([accHTML]);}},
+  위키개념:{ic:'📗',tag:'wiki/concepts/ · 답변 근거실',n:'919 개념',desc:'원문을 엮은 <b>개념 페이지</b>. 챗봇이 실제 답변에 사용하는 핵심 근거(2층). 정의우선·처벌 3축·타법연결을 담습니다. status(승인상태)에 따라 챗봇 인용 여부가 결정됩니다.',meta:['canonical 8','review-pending 83','draft 842'],
+    render:function(){return items([
+      concept('음주운항조타','해상교통안전법 · 혈중알코올 0.03% 기준','canonical','st-can',['처벌 3축','↔ 수상레저']),
+      concept('어선등록총톤수','어선법 · 등록·검사 정의','canonical','st-can',['정의우선']),
+      concept('만재흘수선복원성','선박안전법 · 안전수치 포함','review-pending','st-rev',['⚠ 사람승인 대기']),
+      concept('허가어업','수산업법 · 톤수 구간·처벌','review-pending','st-rev',['처벌 포함']),
+      concept('연안출입통제구역','연안사고예방법 · 초안','draft','st-draft',['미승인'])]);}},
+  법령:{ic:'📘',tag:'wiki/statutes/ · 법령 허브',n:'73 법령',desc:'각 법의 <b>허브 페이지</b>(2층). 목차·타법연결 표·처벌 요약을 한 곳에 모아, 그 법의 전체 그림과 다른 법과의 연결을 봅니다. 개념 페이지들의 착지점.',meta:['70 기준법 + 교차참조'],
+    render:function(){return items([
+      concept('해상교통안전법','타법연결 12 · 개념 22','','st-can',['허브']),
+      concept('수산업법','타법연결 28 · 개념 19','','st-can',['최대 백본']),
+      concept('선박안전법','타법연결 · 별표 147','','st-can',[]),
+      concept('영해 및 접속수역법','정의 백본 · 19법이 인용','','st-can',['정의 허브'])]);}},
+  비교허브:{ic:'🔀',tag:'wiki/comparisons/ · 테마 비교실',n:'26 허브',desc:'여러 법을 <b>하나의 축으로 비교</b>하는 방(신경망 허브). "음주운항 처벌은 법마다 어떻게 다른가" 같은 교차 질문에 답합니다. 톤수·조업형태·지역 조건 컬럼으로 프로필 필터와 연결.',meta:['교차법 비교','신경망 허브'],
+    render:function(){return items([
+      concept('음주운항_측정거부','5개 법 · 0.03% 기준 비교','','st-can',['처벌축']),
+      concept('형사절차_일반','공소시효·미수·경합범','','st-can',[]),
+      concept('신고_허가_면허','행정행위 강도 3분해','','st-can',['조건 컬럼']),
+      concept('폐기물_해양오염','배출·투기 규제 비교','','st-can',[])]);}},
+  '별표·서식':{ic:'📊',tag:'wiki/annexes/ · 별표·서식실',n:'98 정리본',desc:'별표(표·기준)와 별지 서식의 <b>정리본</b>. 원문 이미지/HWP를 표로 정리하고, 서식은 원버튼 다운로드를 제공합니다. 이미지 판독 수치는 ⚠REVIEW로 사람 검증 대기.',meta:['표 정리','서식 다운로드','⚠REVIEW 일부'],
+    render:function(){return items([
+      concept('수상레저안전법 시행규칙 별표6','조종면허 취소·정지 세부기준','','st-can',['⬇ 다운로드']),
+      concept('선박안전법 별표1의2','대행검사기관 협정내용','review-pending','st-rev',['⚠ 판독값']),
+      concept('해상교통안전법 별표1','교통안전특정해역 좌표','','st-can',['🗺 지도'])]);}},
+  지식그래프:{ic:'🕸️',tag:'wiki/graph.json · 신경망',n:'88 노드 · 1,310 엣지',desc:'법·개념을 <b>노드</b>, 인용·[[링크]]를 <b>엣지</b>로 본 신경망(그래프층). 챗봇 멀티홉 검색이 이 인접구조를 타고 근거를 확장합니다. 관리자는 고립노드·비대칭·허브결손을 눈으로 점검.',meta:['멀티홉 기반','cite+link 639','link 395'],
+    render:function(){
+      var g='<div class="g-stats"><div class="g-stat"><div class="g-num">88</div><div class="g-lab">노드(법)</div></div><div class="g-stat"><div class="g-num">1,310</div><div class="g-lab">엣지(인용·링크)</div></div></div>';
+      var canvas='<div class="g-canvas">';
+      var pos=[[15,30],[45,20],[75,35],[30,65],[60,70],[85,60],[50,45],[20,50]];
+      pos.forEach(function(p){canvas+='<div class="g-node" style="left:'+p[0]+'%;top:'+p[1]+'%"></div>';});
+      [[0,6],[1,6],[2,6],[6,3],[6,4],[4,5],[7,0],[7,3]].forEach(function(e){var a=pos[e[0]],b=pos[e[1]];var dx=(b[0]-a[0]),dy=(b[1]-a[1]);var len=Math.sqrt(dx*dx+dy*dy);var ang=Math.atan2(dy*1.5,dx*6)*180/Math.PI;canvas+='<div class="g-edge" style="left:'+a[0]+'%;top:'+a[1]+'%;width:'+len*5.5+'px;transform:rotate('+ang+'deg)"></div>';});
+      canvas+='</div>';
+      return '<div class="list">'+g+canvas+'<div class="skel-box" style="text-align:left"><div class="skel-t">그래프 뷰 · 골격</div><div style="font-size:12px;color:var(--text-sub);line-height:1.6">실배선 시: 노드 탭 → 그 법의 인접 법·개념 하이라이트, 고립노드 빨강 표시, 비대칭 링크 경고. 관리자가 ⚠REVIEW·개정 큐와 연동해 점검.</div></div></div>';
+    }},
+};
+var ROOM_ORDER=['원문','위키개념','법령','비교허브','별표·서식','지식그래프'];
+var ROOM_N={원문:true,위키개념:true}; // N 뱃지 표시 방
+
+function renderRoomPills(active){
+  var el=document.getElementById('roomPills'); el.innerHTML='';
+  ROOM_ORDER.forEach(function(k){
+    var r=ROOMS[k];
+    var b=document.createElement('div'); b.className='room'+(k===active?' active':'');
+    b.innerHTML=k+'<span class="cnt">'+r.n.split(' ')[0]+'</span>'+(ROOM_N[k]?'<span class="new-badge">N</span>':'');
+    b.addEventListener('click',function(){ renderRoomPills(k); renderRoom(k); });
+    el.appendChild(b);
+  });
+}
+function renderRoom(k){
+  var r=ROOMS[k];
+  var intro='<div class="intro"><div class="intro-h"><div class="intro-ic">'+r.ic+'</div><div><div class="intro-name">'+k+' 방</div><div class="intro-tag">'+r.tag+'</div></div></div>'+
+    '<div class="intro-desc">'+r.desc+'</div><div class="intro-meta">'+r.meta.map(function(m){return '<span>'+m+'</span>';}).join('')+'</div></div>';
+  document.getElementById('roomContent').innerHTML=intro+r.render()+'<div class="foot-note">목업 · 실제 데이터는 해당 방 폴더에서 로드됩니다.</div>';
+  bindAcc();
+}
+
+/* ── 관리자 검토: 5개 방 각각 설명 + 내용 ── */
+var reviewCards =
+  '<div class="dual-note">⚠ <b>승인 이원화</b>: 처벌·과태료·안전수치·⚠REVIEW 포함 페이지는 <b>사람 승인 필수</b>. 순수 정의/절차 페이지만 AI 자동 승격.</div>'+
+  '<div class="rv open"><div class="rv-head"><span class="rv-id">R-선박안전법-07</span><div class="rv-t">만재흘수선 표시 세부 수치<small>시행규칙 별표6 · 이미지 판독값(OCR)</small></div><span class="rv-st wait">검증 대기</span></div>'+
+    '<div class="rv-body"><div class="cmp"><div class="cmp-col"><div class="cmp-h">① 원본 별표 이미지</div><div class="cmp-img">🖼 별표6 (클릭 확대)</div></div><div class="cmp-col"><div class="cmp-h ai">② AI(OCR) 추출값</div><div class="cmp-val">건현: <b>540</b> mm<br>계절: 하기만재흘수선</div></div></div>'+
+      '<div class="src-line">📍 출처: 국가법령정보센터 · <a href="#">flDownload.do?flSeq=151748…</a> · 별표6, 3행</div>'+
+      '<div class="correct"><div class="correct-q">🔍 <b>검토</b>: 왼쪽 원본 이미지의 값을 확인하세요. AI가 <b>540</b>으로 읽었습니다. 원본과 다르면(예: 실제는 <b>540</b>이 아니라 다른 값이면) 아래 칸을 직접 고쳐 주세요.</div>'+
+        '<div class="correct-row"><label>확정 값</label><input class="correct-in" value="540" inputmode="decimal"><span class="correct-unit">mm</span></div>'+
+        '<div class="correct-hint">그대로 맞으면 값 유지 후 승인 · 틀리면 올바른 값 입력 후 승인</div></div>'+
+      '<div class="rv-actions"><button class="btn-ok">✓ 승인 (입력값으로 확정)</button><button class="btn-no">✗ 반려 (재OCR)</button></div>'+
+      '<div class="chain"><div class="chain-step"><span class="n">1</span> review_queue.md 승인 마킹 · 이력 보존</div><div class="chain-step"><span class="n">2</span> <b class="chain-val" style="color:#69f0ae">540</b> mm 로 값 확정 · ⚠REVIEW 플래그 해제</div><div class="chain-step"><span class="n">3</span> status: review-pending → <b style="color:#69f0ae">canonical</b> 승격</div><div class="chain-step"><span class="n">4</span> 임베딩·그래프 인덱스 재빌드 → 챗봇 인용 가능</div></div></div></div>'+
+  '<div class="rv"><div class="rv-head"><span class="rv-id">R-수산업법-12</span><div class="rv-t">허가어업 톤수 구간표<small>시행령 별표2 · 판독값</small></div><span class="rv-st wait">검증 대기</span></div><div class="rv-body"></div></div>'+
+  '<div class="rv"><div class="rv-head"><span class="rv-id">R-어선법-05</span><div class="rv-t">어선 만재흘수선 기준<small>이미 승인됨(예시)</small></div><span class="rv-st done">✓ 승인·canonical</span></div><div class="rv-body"></div></div>';
+
+function draftCards(){
+  return '<div class="dual-note">순수 정의·절차 초안은 <b>AI 자동 승격</b> 가능(감사 통과 시). 처벌·안전값 포함 초안만 여기서 <b>사람 승인</b>.</div>'+
+    ['연안체험활동 신고 절차|연안사고예방법|정의·절차(자동승격 후보)|st-draft',
+     '양식업 위반 처벌 구간|양식산업발전법|처벌 포함 → 사람승인|st-rev']
+    .map(function(x){var p=x.split('|');return '<div class="rv"><div class="rv-head"><span class="rv-id">draft</span><div class="rv-t">'+p[0]+'<small>'+p[1]+' · '+p[2]+'</small></div><span class="rv-st wait">검토 대기</span></div><div class="rv-body"></div></div>';}).join('');
+}
+function skelRoom(emoji,title,flow){
+  return '<div class="skel-box"><div class="skel-emoji">'+emoji+'</div><div class="skel-t">'+title+'</div><div style="font-size:12px;color:var(--text-sub);line-height:1.6">아직 등록된 항목이 없습니다(골격). 실배선 시 아래 흐름으로 채워집니다.</div>'+
+    '<div class="skel-flow">'+flow.map(function(s,i){return (i?'<span class="arw">→</span>':'')+'<span class="s">'+s+'</span>';}).join('')+'</div></div>';
+}
+var ADMIN = {
+  초안승인:{n:'842',desc:'사서(AI)가 만든 <b>미승인 초안(draft)</b> 대기실. 순수 정의·절차는 감사 통과 시 자동 승격, 처벌·안전값 포함분은 여기서 사람이 승인해야 canonical이 됩니다.',
+    render:draftCards},
+  피드백:{n:'0',desc:'답변 <b>👍/👎 익명 로그</b>를 모아 원인 분류(triage) 후 관리자에게 올리는 방. 👎가 쌓인 주제 → 위키 보강으로 연결.',
+    render:function(){return skelRoom('👍','피드백 처리 (_feedback)',['챗봇 👎','익명 로그','AI 원인분류','관리자 검토','위키 보강']);}},
+  새지식후보:{n:'0',desc:'대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).',
+    render:function(){return skelRoom('💡','새 지식 후보 (_candidates)',['미존재 질문 감지','검색·생성','공식출처 대조','관리자 승인','위키 편입']);}},
+  개정검토:{n:'0',desc:'법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 시행일·MST diff로 신설·삭제·금액·조번재편을 적재.',
+    render:function(){return skelRoom('📌','개정 검토 (_amendments)',['개정 감지(시행일 diff)','변경 적재','관리자 검토','재수집·재빌드','옛 조문 _legacy 이동']);}},
+  '⚠수치검증':{n:'99',desc:'별표 <b>이미지 판독값(OCR)·조번호 재편</b>을 사람이 검증하는 방(가장 급함). 원본 이미지와 AI 추출값을 나란히 보고 승인/반려.',
+    render:function(){return reviewCards;}},
+};
+var ADMIN_ORDER=['초안승인','피드백','새지식후보','개정검토','⚠수치검증'];
+function renderSubtabs(active){
+  var el=document.getElementById('subtabs'); el.innerHTML='';
+  ADMIN_ORDER.forEach(function(k){
+    var a=ADMIN[k];
+    var b=document.createElement('div'); b.className='subtab'+(k===active?' active':'');
+    b.innerHTML=k+'<span class="qn">'+a.n+'</span>';
+    b.addEventListener('click',function(){ renderSubtabs(k); renderAdmin(k); });
+    el.appendChild(b);
+  });
+}
+function renderAdmin(k){
+  var a=ADMIN[k];
+  var intro='<div class="intro"><div class="intro-h"><div class="intro-ic">🛠</div><div><div class="intro-name">'+k+'</div><div class="intro-tag">관리자 검토 방 · 승인→자동반영</div></div></div><div class="intro-desc">'+a.desc+'</div></div>';
+  document.getElementById('adminContent').innerHTML=intro+a.render();
+  bindReview();
+}
+
+/* ── 바인딩 ── */
+function bindAcc(){ document.querySelectorAll('.acc-head').forEach(function(h){ h.onclick=function(){ h.parentElement.classList.toggle('open'); }; }); }
+function bindReview(){
+  document.querySelectorAll('.rv-head').forEach(function(h){ h.onclick=function(){ h.parentElement.classList.toggle('open'); }; });
+  document.querySelectorAll('.btn-ok').forEach(function(b){ b.onclick=function(){ var rv=b.closest('.rv');
+    var inp=rv.querySelector('.correct-in'); var vEl=rv.querySelector('.chain-val');
+    if(inp && vEl) vEl.textContent=inp.value;             // 사용자가 입력·수정한 값으로 확정
+    rv.classList.add('approved');
+    var st=rv.querySelector('.rv-st'); st.className='rv-st done'; st.textContent='✓ 승인·canonical';
+  }; });
+}
+document.querySelectorAll('.vswitch button').forEach(function(b){ b.addEventListener('click',function(){
+  document.querySelectorAll('.vswitch button').forEach(function(x){x.classList.remove('active')}); b.classList.add('active');
+  var v=b.dataset.view;
+  document.getElementById('view-rooms').classList.toggle('hidden', v!=='rooms');
+  document.getElementById('view-admin').classList.toggle('hidden', v!=='admin');
+}); });
+document.querySelectorAll('.seg button').forEach(function(b){ b.addEventListener('click',function(){
+  document.querySelectorAll('.seg button').forEach(function(x){x.classList.remove('on','warn')}); b.classList.add('on');
+  if(b.dataset.exp==='admin') b.classList.add('warn');
+  var h=b.parentElement.nextElementSibling, map={user:'<b>사용자 노출</b> — 모든 사용자 메인에 챗봇 버튼이 표시됩니다.',admin:'현재 <b>관리자 전용</b> — 일반 사용자에겐 챗봇 버튼이 표시되지 않습니다.',off:'<b>미표출</b> — 관리자에게도 진입 버튼이 숨겨집니다.'};
+  h.innerHTML=map[b.dataset.exp]; document.getElementById('fab').style.display=(b.dataset.exp==='off')?'none':'grid';
+}); });
+var wrap=document.getElementById('chatWrap');
+document.getElementById('fab').addEventListener('click',function(){ wrap.classList.add('open'); });
+document.getElementById('chatX').addEventListener('click',function(){ wrap.classList.remove('open'); });
+var body=document.getElementById('chatBody'), input=document.getElementById('chatInput');
+var STEPS=['생각하고 있습니다','관련 법령을 찾고 있습니다','조문 구조를 확인하고 있습니다','답변을 정리하고 있습니다'];
+// 재사용 지도 SVG: 해안선 + 위경도 격자 + 좌표 폴리곤(정교) + 좌표 라벨
+var MAPSVG='<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">'+
+  '<rect width="320" height="180" fill="#0c2033"/>'+
+  '<path d="M0,0 L58,0 Q92,38 66,72 Q48,96 80,128 Q98,158 72,180 L0,180 Z" fill="#173245" stroke="rgba(120,190,150,.45)" stroke-width="1.2"/>'+
+  '<g stroke="rgba(160,190,220,.10)" stroke-width="1"><line x1="90" y1="0" x2="90" y2="180"/><line x1="160" y1="0" x2="160" y2="180"/><line x1="230" y1="0" x2="230" y2="180"/><line x1="0" y1="60" x2="320" y2="60"/><line x1="0" y1="120" x2="320" y2="120"/></g>'+
+  '<text x="162" y="12" fill="#6f8aa3" font-size="8" font-family="monospace">128°30′E</text>'+
+  '<text x="232" y="12" fill="#6f8aa3" font-size="8" font-family="monospace">129°00′E</text>'+
+  '<text x="3" y="58" fill="#6f8aa3" font-size="8" font-family="monospace">38°34′N</text>'+
+  '<text x="3" y="118" fill="#6f8aa3" font-size="8" font-family="monospace">38°10′N</text>'+
+  '<polygon points="150,44 236,58 250,112 172,134 126,86" fill="rgba(105,240,174,.22)" stroke="#69f0ae" stroke-width="2"/>'+
+  '<text x="182" y="94" fill="#8fe6bb" font-size="11" font-weight="bold" font-family="sans-serif">조업 가능</text>'+
+  '<g fill="#ff6b6b" stroke="#fff" stroke-width="1"><circle cx="150" cy="44" r="3.6"/><circle cx="236" cy="58" r="3.6"/><circle cx="250" cy="112" r="3.6"/><circle cx="172" cy="134" r="3.6"/><circle cx="126" cy="86" r="3.6"/></g>'+
+  '<text x="150" y="37" fill="#e6f1ff" font-size="7.5" font-family="monospace" text-anchor="middle">38°34′09″N 128°30′06″E</text>'+
+  '<text x="16" y="150" fill="#9fceb0" font-size="9.5" font-family="sans-serif">강원 연안</text>'+
+  '</svg>';
+function send(){
+  var q=(input.value||'').trim(); if(!q) q='특정해역에서 야간 조업 제한이 있어?';
+  var me=document.createElement('div'); me.className='krow me';
+  me.innerHTML='<div class="kbrow"><div class="kbub"></div><span class="ktime">지금</span></div>';
+  me.querySelector('.kbub').textContent=q;
+  body.appendChild(me); input.value=''; body.scrollTop=body.scrollHeight;
+  var th=document.createElement('div'); th.className='krow ai';
+  th.innerHTML='<div class="kava"><div class="orb think"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">'+
+    '<div class="sk-line" style="width:130px"></div><div class="sk-line" style="width:90px"></div>'+
+    '<div class="think-status"><span class="ts">생각하고 있습니다</span><span class="think-dots"><i></i><i></i><i></i></span></div></div></div></div>';
+  body.appendChild(th); body.scrollTop=body.scrollHeight;
+  var orb=document.getElementById('chatOrb'); if(orb) orb.classList.add('think');   // 헤더 오브도 생각 모드
+  var i=0, tsEl=th.querySelector('.ts'); var iv=setInterval(function(){ i++; if(i<STEPS.length) tsEl.textContent=STEPS[i]; },850);
+  setTimeout(function(){ clearInterval(iv); th.remove(); if(orb) orb.classList.remove('think');
+    var a=document.createElement('div'); a.className='krow ai';
+    a.innerHTML='<div class="kava"><div class="orb"></div></div><div class="kcol"><div class="kwho">나리야</div><div class="kbrow"><div class="kbub ai">'+
+      '특정해역(교통안전특정해역)에서는 <b>어업이 제한</b>될 수 있고, 야간에는 <b>항해등 점등·항법 준수</b> 의무가 있습니다. 해역·톤수별 세부 기준이 달라 되물어 확인이 필요합니다.'+
+      '<div class="lawacc"><div class="lawacc-h"><span class="arw">▶</span>📖 근거 법령 2건 (펼쳐서 조문 보기)</div><div class="lawacc-b">'+
+        '<div class="lawitem"><div class="lw-t"><span>해상교통안전법 제5조 (교통안전특정해역)</span><span class="lw-src">시행 24.7.26</span></div><div class="lw-c">"해양수산부장관은 해상교통량이 많거나 위험화물운반선의 통항이 잦은 해역으로서… 교통안전특정해역으로 지정할 수 있다."</div><div class="lw-more">원문 보기 ›</div></div>'+
+        '<div class="lawitem"><div class="lw-t"><span>수산업법 — 어업 조정 (관련)</span><span class="lw-src">연계</span></div><div class="lw-c">특정해역 내 어업 제한은 수산업법상 조업수역·어업조정 명령과 연계됩니다.</div><div class="lw-more">원문 보기 ›</div></div>'+
+      '</div></div>'+
+      '<div class="zonemap"><div class="zonemap-canvas" data-mapopen="1">'+MAPSVG+'<span class="zonemap-tap">⤢ 탭하면 확대</span></div>'+
+        '<div class="zonemap-cap">📍 별표3(조업한계선 인근) · <b>GPS 경위도로 정의된 구역</b>이라 실제 지도 위에 폴리곤 표시 · 탭하면 확대(핀치줌)·해양종합정보 연계</div>'+
+      '</div>'+
+      '<div class="tel">📞 소관: 해양수산부 해사안전정책과 044-200-XXXX</div>'+
+      '<div class="disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요. · 해상교통안전법 2024-07-26 기준</div>'+
+      '</div><span class="ktime">지금</span></div></div>';
+    body.appendChild(a); body.scrollTop=body.scrollHeight;
+  }, 850*STEPS.length+300);
+}
+document.getElementById('chatSend').addEventListener('click',send);
+input.addEventListener('keydown',function(e){ if(e.key==='Enter') send(); });
+// 답변 근거 법령 아코디언 토글 + 지도 구역 탭→확대팝업(동적 답변 포함 — 위임)
+body.addEventListener('click',function(e){
+  var h=e.target.closest('.lawacc-h'); if(h){ h.parentElement.classList.toggle('open'); return; }
+  var mo=e.target.closest('[data-mapopen]'); if(mo){ openMap(); }
+});
+
+/* 좌표 구역 지도 팝업 + 핀치/드래그 줌 */
+var mapModal=document.getElementById('mapModal'), mapInner=document.getElementById('mapInner'), mapStage=document.getElementById('mapStage');
+var mScale=1,mX=0,mY=0;
+function applyMap(){ mapInner.style.transform='translate('+mX+'px,'+mY+'px) scale('+mScale+')'; }
+function resetMap(){ mScale=1;mX=0;mY=0;applyMap(); }
+function openMap(){ mapInner.innerHTML=MAPSVG; resetMap(); mapModal.classList.add('open'); }
+document.getElementById('mapModalX').addEventListener('click',function(){ mapModal.classList.remove('open'); });
+document.querySelectorAll('.mm-tab').forEach(function(b){ b.addEventListener('click',function(){
+  if(b.dataset.mm==='ocean'){ mapModal.classList.remove('open'); wrap.classList.remove('open');   // 해양종합정보 탭으로 이동(폴리곤 표시 상태)
+    var tabs=document.querySelectorAll('.tabbar .tab'); tabs.forEach(function(t){t.classList.remove('active')}); if(tabs[1]) tabs[1].classList.add('active');
+  } else { document.querySelectorAll('.mm-tab').forEach(function(x){x.classList.remove('on')}); b.classList.add('on'); }
+}); });
+document.querySelectorAll('.mapmodal-zoom button').forEach(function(b){ b.addEventListener('click',function(){ mScale=Math.max(1,Math.min(6, mScale*(b.dataset.z==='in'?1.35:1/1.35))); applyMap(); }); });
+var pts={}, startDist=0, startScale=1, lastX=0,lastY=0, dragging=false;
+function dist(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
+mapStage.addEventListener('pointerdown',function(e){ mapStage.setPointerCapture(e.pointerId); pts[e.pointerId]={x:e.clientX,y:e.clientY};
+  var ids=Object.keys(pts); if(ids.length===2){ startDist=dist(pts[ids[0]],pts[ids[1]]); startScale=mScale; } else { dragging=true; lastX=e.clientX; lastY=e.clientY; } });
+mapStage.addEventListener('pointermove',function(e){ if(!pts[e.pointerId]) return; pts[e.pointerId]={x:e.clientX,y:e.clientY};
+  var ids=Object.keys(pts);
+  if(ids.length===2){ var d=dist(pts[ids[0]],pts[ids[1]]); if(startDist>0){ mScale=Math.max(1,Math.min(6,startScale*d/startDist)); applyMap(); } }
+  else if(dragging){ mX+=e.clientX-lastX; mY+=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY; applyMap(); } });
+function endPtr(e){ delete pts[e.pointerId]; if(Object.keys(pts).length<2) startDist=0; if(Object.keys(pts).length===0) dragging=false; }
+mapStage.addEventListener('pointerup',endPtr); mapStage.addEventListener('pointercancel',endPtr);
+mapStage.addEventListener('wheel',function(e){ e.preventDefault(); mScale=Math.max(1,Math.min(6, mScale*(e.deltaY<0?1.12:1/1.12))); applyMap(); },{passive:false});
+
+/* 초기 렌더 */
+renderRoomPills('원문'); renderRoom('원문');
+renderSubtabs('⚠수치검증'); renderAdmin('⚠수치검증');
+</script>

@@ -1,0 +1,52 @@
+[시행규칙] 서식56 — 예비검사증서
+
+[별지 제56호서식]                                                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                              ┃
+┃제            호                                                                              ┃
+┃Certificate No.:                                                                              ┃
+┃                                                                                              ┃
+┃예   비   검   사   증   서                                                                   ┃
+┃CERTIFICATE OF ARTICLES FOR SHIP USE                                                          ┃
+┃                                                                                              ┃
+┠─────┬─────────┬───────┬────────┬──────────────┨
+┃ 신 청 인 │①성명(대표자명)  │              │②사업자등록번호│                            ┃
+┃ Applicant│Name              │              │Registration No.│                            ┃
+┃          ├─────────┼───────┴────────┴──────────────┨
+┃          │③상    호        │                          (전화(Tel.):              )         ┃
+┃          │Company           │                                                              ┃
+┠─────┴─────────┴───────────────────────────────┨
+┃선박용물건 또는 소형선박의 내용                                                               ┃
+┃PARTICULAR OF ARTICLES                                                                        ┃
+┠────────┬───────┬─────┬────┬───────────┬───────┨
+┃④ 품  명       │⑤규  격      │⑥형    식│⑦수 량 │⑧제 조 번 호         │⑨검사번호    ┃
+┃Name of Articles│Size          │Type      │Quantity│ManufacturerSerial No.│Inspection No.┃
+┠────────┼───────┼─────┼────┼───────────┼───────┨
+┃                │              │          │        │                      │              ┃
+┃                │              │          │        │                      │              ┃
+┃                │              │          │        │                      │              ┃
+┠─────┬──┴───────┴─────┴────┴───────────┴───────┨
+┃⑩비  고  │                                                                                  ┃
+┃Remarks   │                                                                                  ┃
+┠─────┴─────────────────────────────────────────┨
+┃                                                                                              ┃
+┃「선박안전법」 제22조제3항 및 같은 법 시행규칙 제54조제7항에 따라 대한민                      ┃
+┃국 정부의 권한으로 이 증서를 발급합니다.                                                      ┃
+┃  This certificate is issued in accordance with Article 22.3 of the Ship Safety               ┃
+┃Act and Article 54.7 of the Enforcement Decree of the Ship Safety Act and                     ┃
+┃the provisions of (□ IMO Res. □ SOLAS □ LSA Code □ COLREG) under                          ┃
+┃the authority of the Government of Republic of Korea.                                         ┃
+┃                                                                                              ┃
+┃년        월        일                                                                        ┃
+┃Y        M        D                                                                           ┃
+┃                                                                                              ┃
+┃해  양  수  산  부  장  관                                                                    ┃
+┃Minister of Oceans and Fisheries                                                              ┃
+┃(한 국 해 양 교 통 안 전 공 단 이 사 장)                                                      ┃
+┃(President of Korea Maritime Transportation Safety Authority)                                 ┃
+┃(선    급    법    인    의    장)                                                            ┃
+┃   (President of Classification Society)                                                      ┃
+┃                                                                                              ┃
+┃                                                                                              ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜ × 297㎜[보존용지(1종) 220g/㎡]

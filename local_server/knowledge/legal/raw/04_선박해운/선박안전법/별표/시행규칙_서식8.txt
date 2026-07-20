@@ -1,0 +1,58 @@
+[시행규칙] 서식8 — 임시변경증
+
+[별지 제8호서식]                                                                  
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                                  ┃
+┃  제           호                                                                                 ┃
+┃  Certificate No. :                                                                               ┃
+┃임    시    변    경    증                                                                        ┃
+┃TEMPORARY ALTERATION CERTIFICATE                                                                  ┃
+┠────────┬──────────┬─────────┬───────────────────┨
+┃① 선    명     │                    │② 선 박 번 호    │                                      ┃
+┃   Name of Ship │                    │  Official Number │                                      ┃
+┠────────┼──────────┼─────────┼───────────────────┨
+┃③ 선 적 항     │                    │④ 선      질     │                                      ┃
+┃    Port of     │                    │  Ship's Material │                                      ┃
+┃Registry        │                    │                  │                                      ┃
+┠────────┼──────────┼─────────┼───────────────────┨
+┃⑤ 총 톤 수     │             톤     │⑥ 선 박 길 이    │           미터                       ┃
+┃   Gross Tonnage│            tons    │  Ship's Length   │           m                          ┃
+┠────────┴─────────┬┴─────────┴───────────────────┨
+┃ ⑦ 선박검사증서의 번호             │                                                            ┃
+┃ No. of Ship's Survey               │                                                            ┃
+┃Certificate                         │                                                            ┃
+┠──────┬───────────┼──────────────────────────────┨
+┃⑧임  시    │항해구역              │                                                            ┃
+┃변경사항    │Navigation            │                                                            ┃
+┃Temporary   │Area                  │                                                            ┃
+┃Alterations ├───────────┼──────────────────────────────┨
+┃            │최대승선인원          │    명(여객 :   명,  선원:   명,  임시승선자 :     명)      ┃
+┃            │Max. Number of        │ Total  p(Passenger     p, Crew      p, Special             ┃
+┃            │Allowable Persons on  │Personnel      p)                                           ┃
+┃            │board                 │                                                            ┃
+┃            ├───────────┼──────────────────────────────┨
+┃            │기   타               │-                                                           ┃
+┃            │Others                │                                                            ┃
+┠──────┴───────────┼──────────────────────────────┨
+┃⑨유  효 기 간                      │        년    월    일부터       년    월   일까지          ┃
+┃Validity                            │  This certificate is valid from    .    .    . until    .  ┃
+┃                                    │  .     .                                                   ┃
+┠──────────────────┴──────────────────────────────┨
+┃「선박안전법」 제10조제3항과 같은 법 시행규칙 제21조제9항에 따라 대한민국 정                      ┃
+┃부의 권한으로 이 증서를 발급합니다.                                                               ┃
+┃  This certificate is issued in accordance with Article 10.3 of the Ship Safety                   ┃
+┃Act and Article 21.9 of the Enforcement Decree of the Ship Safety Act under                       ┃
+┃the authority of the government of the Republic of Korea.                                         ┃
+┃                                                                                                  ┃
+┃                                                                                                  ┃
+┃                                         년        월        일                                   ┃
+┃                                         Y        M        D                                      ┃
+┃                                                                                                  ┃
+┃해  양  수  산  부  장  관                                                                        ┃
+┃Minister of Oceans and Fisheries                                                                  ┃
+┃(한국해양교통안전공단이사장)                                                                      ┃
+┃(President of Korea Maritime Transportation Safety Authority)                                     ┃
+┃(선    급    법    인    의    장)                                                                ┃
+┃   (President of Classification Society)                                                          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+   210㎜ × 297㎜[보존용지(1종) 220g/㎡]

@@ -1,0 +1,53 @@
+[시행규칙] 서식67 — 수산물ㆍ수산가공품 검사합격증명서
+
+■ 농수산물 품질관리법 시행규칙 [별지 제67호서식]                            
+┌─────────────────────────────────────────────┐
+│대한민국 해양수산부 국립수산물품질관리원                                                  │
+│National Fishery Products Quality Management Service                                      │
+│MINISTRY of OCEANS and FISHERIES                                                          │
+│REPUBLIC OF KOREA                                                                         │
+│수산물ㆍ수산가공품 검사합격증명서                                                         │
+│INSPECTION CERTIFICATE OF FISHERY PRODUCTS                                                │
+│발행번호                                                                                  │
+│Serial No.                                                                                │
+├─────┬───────────────────────────────────────┤
+│신청인    │성명                                                                          │
+│Applicant │Name                                                                          │
+│          ├───────────────────────────────────────┤
+│          │주소                                                                          │
+│          │Address                                                                       │
+├─────┼────────────┬────────┬─────────────────┤
+│검사항목  │                        │생산지          │                                  │
+│Item of   │                        │Area of Products│                                  │
+│Inspection│                        ├────────┼─────────────────┤
+│          │                        │목적지          │                                  │
+│          │                        │Destination     │                                  │
+├─────┴───┬───┬────┼────────┼─────────────────┤
+│품명              │등급  │수량    │1개의 내용량    │비고                              │
+│Commodity         │Grade │Quantity│Net Wt. Per Each│Remarks                           │
+├─────────┼───┼────┼────────┼─────────────────┤
+│                  │      │        │                │                                  │
+├─────────┼───┴────┼────────┼─────────────────┤
+│검사일            │                │포장의 종류     │                                  │
+│Date of Inspection│                │Packing         │                                  │
+├─────────┴────────┴────────┴─────────────────┤
+│  위의 수산물은 위생적으로 생산ㆍ가공되어 「농수산물 품질관리법」 에 따른 검사            │
+│에 합격하였음을 증명합니다.                                                               │
+│  This is to certify that the fishery products specified above have produced              │
+│and/or processed under sanitary conditions and passed the test in accordance              │
+│with Agricultural & Fishery products quality management law.                              │
+│                                                                                          │
+│                                                                                          │
+│                                                                  발행일                  │
+│                                                         Date :       년       월       일│
+│                                                                                          │
+│                                                                                          │
+│Stamp :                                                                                   │
+│SIGNATURE                                                                                 │
+│국립수산물품질관리원장 ??                                                               │
+│수산물 지정검사기관의 장 ??                                                             │
+│Chief of National Fishery Products Quality Management Service                             │
+│                 Chief of Appointed Fishery products Inspection Agency                    │
+└─────────────────────────────────────────────┘
+                                                                                              
+  210mm×297mm[백상지 80g/㎡]

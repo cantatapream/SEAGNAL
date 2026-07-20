@@ -1,0 +1,52 @@
+[시행규칙] 서식11 — 허가(승인)사항의 변경신고증
+
+[별지 제11호서식]                                            
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃허가(승인)사항의 변경신고증                                               ┃
+┃(Report Certificate of Alterations in a License[Authorization])           ┃
+┃                                                                          ┃
+┃  1. 허가증(승인증)번호                                                   ┃
+┃                        ───────                                    ┃
+┃   (No. of License[Authorization])                                        ┃
+┃                                  ──                                    ┃
+┃  2. 허가(승인)를 받은 자                                                 ┃
+┃   (License(Authorization) Bearer)                                        ┃
+┃                                                                          ┃
+┃   소속ㆍ성명 또는 기관명                                                 ┃
+┃                          ──────                                    ┃
+┃   (Name and Affiliation)                                                 ┃
+┃                          ──────                                    ┃
+┃   주소                                                                   ┃
+┃        ───────────────                                    ┃
+┃   (Address)                                                              ┃
+┃            ─────────────                                    ┃
+┃  3. 변경허가(승인) 내용                                                  ┃
+┃   (Contents of Alteration)                                               ┃
+┃                                                                          ┃
+┃                                                                          ┃
+┃  ──────────────────                                    ┃
+┃                                                                          ┃
+┃  ──────────────────                                    ┃
+┃    「배타적 경제수역에서의 외국인어업 등에 대한 주권적 권리의 행사에 관  ┃
+┃한 법률」 제5조제1항 또는 제8조제1항에 따라 허가(승인)받은 사항에 대      ┃
+┃하여 같은 법 시행규칙 제12조제2항에 따라 위와 같이 허가(승인)사항의 변    ┃
+┃경신고증을 발급합니다.                                                    ┃
+┃    (This is to certify in accordance with Paragraph 2, Article 12 of the ┃
+┃regulations of the Act that the alterations in the contents of the        ┃
+┃license[authorization] which was issued in accordance with Paragraph 1,   ┃
+┃Article 5 or Paragraph 1, Article 8 of the Act on the Exercise of         ┃
+┃Sovereign Rights on Foreigner's Fishing, Etc. within the Exclusive        ┃
+┃Economic Zone.)                                                           ┃
+┃년          월         일                                                 ┃
+┃(Date:                  )                                                 ┃
+┃대한민국 해양수산부장관                      ??                         ┃
+┃   (Ministry of Oceans and Fisheries) (Official seal)                     ┃
+┃                                                                          ┃
+┃  신청인                            귀하                                  ┃
+┃          ─────────────                                      ┃
+┃  (Applicant)                                                             ┃
+┃              ───────────                                      ┃
+┃                                                                          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                              210㎜×297㎜                                    
+                              (일반용지 60g/㎡(재활용품))

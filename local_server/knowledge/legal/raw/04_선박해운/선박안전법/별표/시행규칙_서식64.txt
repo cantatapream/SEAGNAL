@@ -1,0 +1,54 @@
+[시행규칙] 서식64 — 컨테이너검정증서
+
+[별지 제64호서식]                                                                 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  제       호                                                                                     ┃
+┃                                                                                                  ┃
+┃컨 테 이 너 검 정 증 서                                                                           ┃
+┃CERTIFICATE OF INSPECTION ON ARTICLES                                                             ┃
+┃FOR SHIP USE OF APPROVED TYPE                                                                     ┃
+┃                                                                                                  ┃
+┠─────┬────────┬──────────────────────────────────┨
+┃신청인    │①상  호        │                                                                    ┃
+┃          │  Company       │                                                                    ┃
+┃Applicant ├────────┼──────────────────────────────────┨
+┃          │②대표자        │                                                                    ┃
+┃          │Name            │                                                                    ┃
+┃          ├────────┼──────────────────────────────────┨
+┃          │③사업자등록번호│                                                                    ┃
+┃          │Registration No.│                                                                    ┃
+┃          ├────────┼──────────────────────────────────┨
+┃          │④ 주  소       │                                                                    ┃
+┃          │Address         │                                                                    ┃
+┠─────┴────────┴──────────────────────────────────┨
+┃컨테이너의 내용(PARTICULAR OF ARTICLES)                                                           ┃
+┠──────────┬────┬─────┬────┬───────────┬──────────┨
+┃⑤형식승인증서 번호 │⑥규격  │⑦형   식 │⑧수  량│⑨제조번호            │⑩제조일자          ┃
+┃Type Approval       │Size    │Type      │Quantity│Manufacturer.SerialNo.│DateofManufacturer. ┃
+┃Certificate No.     │        │          │        │                      │                    ┃
+┠──────────┼────┼─────┼────┼───────────┼──────────┨
+┃                    │        │          │        │                      │                    ┃
+┠──────┬───┴────┴─────┴────┴───────────┴──────────┨
+┃⑪비고      │                                                                                    ┃
+┃Remarks     │                                                                                    ┃
+┠──────┴──────────────────────────────────────────┨
+┃                                                                                                  ┃
+┃    「선박안전법」 제23조제7항 및 같은 법 시행규칙 제59조제2항에 따라 대한민                      ┃
+┃국 정부의 권한으로 이 증서를 발급합니다.                                                          ┃
+┃ This certificate is issued in accordance with Article 23.7 of the Ship Safety                    ┃
+┃Act and Article 59.2 Enforcement Decree of the Ship Safety Act and the                            ┃
+┃provisions of CSC under the authority of the Government of Republic of Korea.                     ┃
+┃                                                                                                  ┃
+┃년        월        일                                                                            ┃
+┃Y        M        D                                                                               ┃
+┃                                                                                                  ┃
+┃해  양  수  산  부  장  관                                                                        ┃
+┃Minister of Oceans and Fisheries                                                                  ┃
+┃(한 국 해 양 교 통 안 전 공 단 이 사 장)                                                          ┃
+┃(President of Korea Maritime Transportation Safety Authority)                                     ┃
+┃(선    급    법    인    의    장)                                                                ┃
+┃   (President of Classification Society)                                                          ┃
+┃                                                                                                  ┃
+┃                                                                                                  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜ × 297㎜[보존용지(1종) 220g/㎡]

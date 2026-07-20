@@ -1,0 +1,300 @@
+에너지효율검사증서
+
+■ 선박에서의 오염방지에 관한 규칙 [별지 제21호의4서식]                                       
+                                                                                (5쪽 중 제1쪽)                    
+                                                                                                                  
+  증서번호 제              호                                                                                     
+  Cert. No.                                                                                                       
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+  에너지효율검사증서                                                                                              
+  INTERNATIONAL ENERGY EFFICIENCY CERTIFICATE                                                                     
+                                                                                                                  
+  대   한   민   국                                                                                               
+  REPUBLIC OF KOREA                                                                                               
+                                                                                                                  
+                                                                                                                  
+  「1978년 의정서 및 1997년 의정서에 따라 개정된 1973년 선박으로부터의 오염방지를 위한 국제협약」(이하 “협       
+  약“이라 한다)에 따라 대한민국정부의 권한으로                                   발행합니다.                     
+    Issued under the provisions of the Protocol of 1997, as amended, to amend the International Convention for    
+  the Prevention of Pollution by Ships, 1973, as modified by the Protocol of 1978 related thereto (hereinafter    
+  referred to as “the Convention“) under the authority of the Government of Republic of Korea by                
+                          .                                                                                       
+                                                                                                                  
+  선박의 명세                                                                                                     
+  Particulars of ship           .                                                                                 
+  ┌──────┬───────────┬────────┬───────┬──────┐                        
+  │선    명    │선박번호 또는         │선 적 항        │총톤수        │IMO 번호*   │                        
+  │Name of Ship│호출부호              │Port of Registry│Gross Tonnage │IMO Number* │                        
+  │            │Distinctive Number or │                │              │            │                        
+  │            │Letters               │                │              │            │                        
+  ├──────┼───────────┼────────┼───────┼──────┤                        
+  │            │                      │                │              │            │                        
+  └──────┴───────────┴────────┴───────┴──────┘                        
+  이 증서는 다음 사항을 증명합니다.:                                                                              
+  THIS IS TO CERTIFY:                                                                                             
+                                                                                                                  
+  1. 이 선박은 협약 부속서 VI의 제5.4규칙에 따라 검사되었음.                                                      
+     That the ship has been surveyed in accordance with Regulation 5.4 of Annex VI to the Convention, and         
+                                                                                                                  
+  2. 검사의 결과, 이 선박은 제22규칙, 제23규칙, 제24규칙, 제25규칙 및 제26규칙의 해당 요건에 적합함.              
+     That the survey shows that the ship complies with the applicable requirements in regulation 22, 23,          
+  24, 25 and 26.                                                                                                  
+                                                                                                                  
+  이 증서 발급을 위한 검사완료일:                                                                                 
+  Completion date of the survey on which this certificate is based:                                               
+                                                                                                                  
+      년     월     일     에서 발행합니다.                                                                       
+                                                                                                                  
+  ──   ──   ──   ──                                                                                       
+  Issued at     on the     day of           .                                                                     
+                                                                                                                  
+            ──       ──       ──  ──                                                                      
+                                                                                                                  
+                                                                                                                  
+    ─────────────────────────────────                                            
+      해    양    수    산    부    장   관 (인)                                                                  
+      (Minister of Oceans and Fisheries)                                                                          
+      한 국 해 양 교 통 안 전 공 단 이 사 장 (인)                                                                 
+      (President of Korea Maritime Transportation Safety Authority)                                               
+      선      급      법      인      의      장 (인)                                                             
+      (President of Classification Society)                                                                       
+                                                                                                                  
+                                                                                                                  
+  *  IMO 선박식별번호계획에 따를 것[결의서 A.1117(30)].                                                           
+     In accordance with IMO ship identification number scheme(resolution A.1117(30)].                             
+                                                                                                                  
+                                                                                                                  
+                                      210㎜×297㎜[백상지 120g/㎡]                                                
+                                                                                                                  
+                                                                                                                                      
+                                                                                                                                      
+      (5쪽 중 제2쪽)                                                                                                                  
+                                                                                                                                      
+  에너지효율검사증서추록                                                                                                              
+  SUPPLEMENT TO THE INTERNATIONAL ENERGY EFFICIENCY CERTIFICATE (IEE CERTIFICATE)                                                     
+                                                                                                                                      
+  에너지효율과 관련된 구조의 기록부                                                                                                   
+  RECORD OF CONSTRUCTION RELATING TO ENERGY EFFICIENCY                                                                                
+  ┌────────────────────────────────────────────────┐                                
+  │                                                                                                │                                
+  │주 :                                                                                            │                                
+  │Note :                                                                                          │                                
+  │                                                                                                │                                
+  │이 기록부는 에너지효율검사증서에 영구적으로 첨부되어야 한다. 에너지효율검사증서는 언제나        │                                
+  │선내에 비치하여야 한다.                                                                         │                                
+  │   This Record shall be permanently attached to the IEE Certificate. The IEE Certificate shall  │                                
+  │be available on board the ship at all times.                                                    │                                
+  │                                                                                                │                                
+  │2. 이 기록부는 적어도 영어, 프랑스어 또는 스페인어 중 하나로 작성되어야 한다. 만일 발행하는     │                                
+  │당사국의 공식 언어가 사용되는 경우, 논쟁이 있거나 불일치한 경우가 발생하면 이 공식 언어가       │                                
+  │우선한다.                                                                                       │                                
+  │   The Record shall be at least in English, French or Spanish. If an official language of the   │                                
+  │issuing Party is also used, this shall prevail in case of a dispute or discrepancy.             │                                
+  │                                                                                                │                                
+  │3. 네모 빈칸에는 답이 “예”와 “적용”인 경우에는 “X”로, “아니요”와 “비적용”의 경우에는  │                                
+  │“-”으로 적절히 표기하여야 한다.                                                               │                                
+  │   Entries in boxes shall be made by inserting either: a cross (x) for the answers“yes”and    │                                
+  │“applicable”; or a dash (-) for the answers“no”and “not applicable”, as appropriate.      │                                
+  │                                                                                                │                                
+  │4. 별도로 기술하지 아니하면, 이 기록부에서 규칙이란 협약 부속서 VI의 규칙을 말하며, 결의서나    │                                
+  │회람이란 국제해사기구에서 채택된 것을 말한다.                                                   │                                
+  │   Unless otherwise stated, regulations mentioned in this Record refer to regulations in Annex  │                                
+  │VI of the Convention, and resolutions or circulars refer to those adopted by the International  │                                
+  │Maritime Organization                                                                           │                                
+  │                                                                                                │                                
+  └────────────────────────────────────────────────┘                                
+                                                                                                                                      
+  1. 선박의 중요 항목:                                                                                                                
+     PARTICULARS OF SHIP:                                                                                                             
+                                                                                                                                      
+    1.1 선명:                                                                                                                         
+         Name of ship:                                                                                                                
+    1.2 IMO 번호:                                                                                                                     
+         IMO number:                                                                                                                  
+    1.3 건조 계약일:                                                                                                                  
+         Date of building contract:                                                                                                   
+    1.4 주요개조일(적용되는 경우):                                                                                                    
+         Date of major conversion(if applicable):                                                                                     
+    1.5 총톤수:                                                                                                                       
+         Gross tonnage:                                                                                                               
+    1.6 재화중량:                                                                                                                     
+         Deadweight:                                                                                                                  
+    1.7 선박의 종류*:                                                                                                                 
+         Type of ship                                                                                                                 
+                                                                                                                                      
+                                                                                                                                      
+  *  제1규칙에 규정된 정의에 따라 선박의 종류를 기입할 것. 제2규칙에서 정의한 선박의 종류들 중 하나 이상에 해당하는 경우에는          
+  가장 엄격한 요구 에너지효율지수를 가진 선박의 종류를 적용해야 한다. 선박이 제2규칙에 정의된 선박의 종류에 해당하지 않을             
+  경우에는 "제2규칙에서 정의한 선박 종류 이외의 선박"이라고 기입한다.                                                                 
+     Insert ship type in accordance with definitions specified in regulation 2. Ships falling into more than one of the ship types    
+  defined in regulation 2 should be considered as being the ship type with the most stringent (the lowest) required EEDI. If ship     
+  does not fall into the ship types defined in regulation 2, insert "Ship other than any of the ship type defined in regulation 2".   
+                                                                                                                                      
+                                                                                                                                      
+                                                                                                                                      
+                                                                                                                                      
+                                                                                                                    
+      (5쪽 중 제3쪽)                                                                                                
+                                                                                                                    
+  2. 추진 시스템의 유형                                                                                             
+     TYPE OF PROPULSION SYSTEM                                                                                      
+                                                                                                                    
+    2.1 디젤 추진                                                                                                   
+         Diesel propulsion  □                                                                                      
+    2.2 디젤-전기 추진                                                                                              
+         Diesel-electric propulsion  □                                                                             
+    2.3 터빈 추진                                                                                                   
+         Turbine propulsion  □                                                                                     
+    2.4 하이브리드 추진                                                                                             
+         Hybrid propulsion  □                                                                                      
+    2.5 기타 추진 시스템                                                                                            
+         Propulsion system other than any of the above □                                                           
+                                                                                                                    
+  3. 선박에너지효율설계지수 (EEDI)                                                                                  
+     ATTAINED ENERGY EFFICIENCY DESIGN INDEX (EEDI)                                                                 
+                                                                                                                    
+    3.1 제22.1규칙에 따른 선박에너지효율설계지수는 선박에너지효율설계지수 계산 과정을 보여주는                      
+  기술 파일에 포함된 정보를 기준으로 계산된다.:                                                                     
+       The Attained EEDI in accordance with regulation 22.1 is calculated based on the information contained in     
+  the technical file which also shows the process of calculating the Attained EEDI:                                 
+                                                                                                                    
+      선박에너지효율설계지수는:                            g-CO2/tonne-mile 이다.                                   
+      The Attained EEDI is:                               g-CO2/tonne-mile                                          
+                                                                                                                    
+    3.2 다음의 이유로 선박에너지효율설계지수를 계산하지 않는다:                                                     
+        The attained EEDI is not calculated as:                                                                     
+      3.2.1 해당 선박이 제2.2.18규칙에 정의된 신선이 아니므로 제22.1규칙에 따라 제외된다.                           
+             the ship is exempt under regulation 22.1 as it is not a new ship as defined in regulation 2.2.18   □  
+      3.2.2 추진시스템의 종류가 제19.3규칙에 따라 제외된다.                                                         
+             the type of propulsion system is exempt in accordance with regulation 19.3  □                         
+      3.2.3 제22규칙의 요구사항이 제19.4규칙에 따라 해당 선박의 주관청에 의해 제외된다.                             
+             the requirement of regulation 22 is waived by the ship's Administration in accordance with             
+  regulation 19.4  □                                                                                               
+      3.2.4 선박의 종류가 제22.1규칙에 따라 제외된다.                                                               
+             the type of ship is exempt in accordance with regulation 22.1  □                                      
+                                                                                                                    
+  4. 선박에너지효율설계지수 허용값                                                                                  
+     REQUIRED EEDI                                                                                                  
+                                                                                                                    
+    4.1 선박에너지효율설계지수 허용값은:                         g-CO2/tonne-mile 이다.                             
+         Required EEDI is:                            g-CO2/tonne-mile                                              
+                                                                                                                    
+    4.2 다음의 이유로 선박에너지효율설계지수 허용값을 적용하지 않는다:                                              
+       The required EEDI is not applicable, as:                                                                     
+      4.2.1 해당 선박이 제2.2.18규칙에 정의된 신선이 아니므로 제24.1규칙에 따라 제외된다.                           
+             the ship is exempt under regulation 24.1 as it is not a new ship as defined in regulation 2.2.18 □    
+      4.2.2 추진시스템의 종류가 제19.3규칙에 따라 제외된다.                                                         
+             the type of propulsion system is exempt in accordance with regulation 19.3  □                         
+      4.2.3 제24규칙의 요구사항이 제19.4규칙에 따라 해당 선박의 주관청에 의해 제외된다.                             
+             the requirement of regulation 24 is waived by the ship's Administration in accordance with             
+  regulation 19.4  □                                                                                               
+                                                                                                                    
+                                                                                                                    
+                                                                                                                    
+                                                                                                                    
+                                                                                                                                            
+      (5쪽 중 제4쪽)                                                                                                                        
+                                                                                                                                            
+      4.2.4 선박의 종류가 제24.1규칙에 따라 제외된다.                                                                                       
+             the type of ship is exempt in accordance with regulation 24.1  □                                                              
+       4.2.5 선박의 용량이 제24.2규칙의 표 1의 최소 용량 기준 미만이다.                                                                     
+             the ship's capacity is below the minimum capacity threshold in Table 1 of regulation 24.2 □                                   
+                                                                                                                                            
+  5. 선박에너지효율지수(EEXI)                                                                                                               
+     Attained Energy Efficiency Existing Ship Index (EEXI)                                                                                  
+                                                                                                                                            
+    5.1 제23.1규칙에 따른 선박에너지효율지수는 기구에 의해 개발된 지침서*에 따라 계산된다.                                                  
+         The attained EEXI in accordance with regulation 23.1is calculated taking into account the guidelines                               
+  developed by the Organization  □                                                                                                         
+                                                                                                                                            
+        선박에너지효율지수는:                             gram-CO2/tonne-mile 이다.                                                         
+        The attained EEXI is ..............grams-CO2/tonne-mile                                                                             
+                                                                                                                                            
+                                                                                                                                            
+    5.2 다음의 이유로 선박에너지효율지수를 계산하지 않는다:                                                                                 
+         The attained EEXI is not calculated, as:                                                                                           
+      5.2.1 추진시스템의 종류가 제19.3규칙에 따라 제외된다.                                                                                 
+             the type of propulsion system is exempt in accordance with regulation 19.3  □                                                 
+      5.2.2 선박의 종류가 제23.1규칙에 따라 제외된다.                                                                                       
+             the type of ship is exempt in accordance with regulation 23.1  □                                                              
+                                                                                                                                            
+  6. 선박에너지효율지수 허용값                                                                                                              
+    Required EEXI                                                                                                                           
+                                                                                                                                            
+    6.1 제25규칙에 따라 선박에너지효율지수 허용값은:                       g-CO2/tonne-mile 이다.                                           
+        The required EEXI is:.............grams-CO2/tonne-mile in accordance with regulation 25                                             
+    6.2 다음의 이유로 선박에너지효율지수 허용값을 적용하지 않는다:                                                                          
+        The required EEXI is not applicable, as:                                                                                            
+      6.2.1 추진시스템의 종류가 제19규칙에 따라 제외된다.                                                                                   
+             the type of propulsion system is exempt in accordance with regulation 19  □                                                   
+      6.2.2 선박의 종류가 제25.1규칙에 따라 제외된다.                                                                                       
+             the type of ship is exempt in accordance with regulation 25.1  □                                                              
+      6.2.3 선박의 용량이 제25.1규칙의 표 3의 최소 용량 기준 미만이다.                                                                      
+             the ship's capacity is below the minimum capacity threshold in table 3 of regulation 25.1  □                                  
+                                                                                                                                            
+  7. 선박에너지효율관리계획서                                                                                                               
+     SHIP ENERGY EFFICIENCY MANAGEMENT PLAN                                                                                                 
+                                                                                                                                            
+    7.1 이 선박은 제26규칙에 따라 선박에너지효율관리계획서(SEEMP)가 제공된다.                                                               
+        The ship is provided with a Ship Energy Efficiency Management Plan (SEEMP) in compliance with                                       
+  regulation 26  □                                                                                                                         
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+  *  선박에너지효율지수 계산에 관한 2022 지침서 참조[결의서. MEPC.350(78)]                                                                  
+     In Refer to the 2022 Guidelines on the method of calculation of the attained Energy Efficiency Existing Ship Index (EEXI)[resolution   
+  MEPC.350(78)]                                                                                                                             
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                
+      (5쪽 중 제5쪽)                                                                                            
+                                                                                                                
+  8. 선박에너지효율설계지수 기술 파일                                                                           
+     EEDI TECHNICAL FILE                                                                                        
+                                                                                                                
+    8.1 제22.1규칙에서 요구되는 선박에너지효율설계지수에 대한 기술 파일은 에너지효율증서와 함께                 
+  유지되어야 한다.                                                                                              
+        The IEE Certificate is accompanied by the EEDI technical file in compliance with regulation 22.1  □    
+      8.1.1 선박에너지효율설계지수 기술 파일 식별/검증 번호                                                     
+             The EEDI technical file identification/verification number                                         
+      8.1.2 선박에너지효율설계지수 기술 파일 검증일                                                             
+             The EEDI technical file verification date                                                          
+                                                                                                                
+  9. 선박에너지효율지수 기술 파일                                                                               
+     EEXI TECHNICAL FILE                                                                                        
+                                                                                                                
+    9.1 제23.1규칙에서 요구되는 선박에너지효율지수에 대한 기술 파일은 에너지효율증서와 함께 유지                
+  되어야 한다.                                                                                                  
+        The IEE Certificate is accompanied by the EEXI technical file in compliance with regulation 23.1  □    
+      9.1.1 선박에너지효율지수 기술 파일 식별/검증 번호                                                         
+             The EEXI technical file identification/verification number                                         
+      9.1.2 선박에너지효율지수 기술 파일 검증일                                                                 
+             The EEXI technical file verification date                                                          
+    9.2 선박에너지효율지수 값의 대안으로 선박에너지효율설계지수 값이 사용되기 때문에, 선박에너지                
+  효율지수에 대한 기술파일은 에너지효율증서와 함께 유지되지 않는다.                                             
+         The IEE Certificate is not accompanied by the EEXI technical file as the attained EEDI is used as      
+  an alternative to the attained EEXI □                                                                        
+                                                                                                                
+  이 기록은 모든 점에서 틀림없음을 증명합니다.                                                                  
+  This is to certify that this record is correct in all respects.                                               
+                                                                                                                
+      년     월     일     에서 발행합니다.                                                                     
+                                                                                                                
+  ──   ──   ──   ──                                                                                     
+  Issued at     on the     day of           .                                                                   
+                                                                                                                
+            ──       ──       ──  ──                                                                    
+                                                                                                                
+                                                                                                                
+    해양수산부장관  (인)                                                                                        
+    (Minister of Oceans and Fisheries)                                                                          
+    한국해양교통안전공단이사장  (인)                                                                            
+    (President of Korea Maritime Transportation Safety Authority)                                               
+    선급법인의 장  (인)                                                                                         
+    (President of Classification Society)

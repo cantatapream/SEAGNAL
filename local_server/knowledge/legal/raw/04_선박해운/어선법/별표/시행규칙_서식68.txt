@@ -1,0 +1,59 @@
+[시행규칙] 서식68 — 건조(제조ㆍ정비)확인증CERTIFICATE OF SHIP-BUILDING(MANUFACTURINGㆍMAINTENANCE) VERIFICATION
+
+■ 어선법시행규칙 [별지 제68호서식]                                                         
+                                                                                                                
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                
+  건조(제조ㆍ정비)확인증                                                                                        
+  CERTIFICATE OF SHIP-BUILDING(MANUFACTURINGㆍMAINTENANCE) VERIFICATION                                         
+                                                                                                                
+                                                                                                                
+    제        호                                                                                                
+    Certificate No.                                                                                             
+                                                                                                                
+─────────┬──────────────────────────────────────────────
+  사업자          │성명(법인명)                                                                                
+                  │Nave(Company)                                                                               
+                  ├──────────────────────────────────────────────
+                  │생년월일(법인등록번호)                                                                      
+                  │Registration No.                                                                            
+                  ├──────────────────────────────────────────────
+                  │주소                                                                                        
+                  │Address                                                                                     
+─────────┼──────────────────────────────────────────────
+  사업장 주소     │                                                                                            
+  Factory Address │                                                                                            
+─────────┴──────────────────────────────────────────────
+                                                                                                                
+────────────────────────────────────────────────────────
+  지정대상물건의 내용                                                                                           
+  Particular of Articles                                                                                        
+──────────┬────────┬────┬─────┬────┬────────────┬───────
+  형식승인증서번호  │품    명        │규    격│형     식 │수    량│제조(정비)번호          │비  고        
+  Type Approval     │Name of Articles│Size    │Type      │Quantity│Manufacturer Serial No. │Remarks       
+  Certificate No.   │                │        │          │        │                        │              
+──────────┼────────┼────┼─────┼────┼────────────┼───────
+                    │                │        │          │        │                        │              
+──────────┴────────┴────┴─────┴────┴────────────┴───────
+                                                                                                                
+────────────────────────────────────────────────────────
+  「어선법」제27조제1항 및 같은 법 시행규칙 제63조제1항에 따라 대한민국 정부의 권한으로 이 증서를 발급합니다.   
+    This certificate is issued under Article 27.1 of the Fishing Vessels Act and Article 63.1 Enforcement       
+  Decree of the Fishing Vessels Act under the authority of the Government of Republic of Korea.                 
+                                                                                                                
+                                                 년       월      일                                            
+                                                           Y         M         D                                
+                                                                                                                
+                                                                                                                
+                                                                                                                
+                                                                ┏━━┓                                        
+    해양수산부장관                                              ┃직인┃                                        
+    Minister of Oceans and Fisheries                            ┃    ┃                                        
+    (한국해양교통안전공단이사장)                                ┃    ┃                                        
+    President of Korea Maritime Transportation Safety Authority ┃    ┃                                        
+    (한국선급회장)                                              ┃    ┃                                        
+    President of Korean Register of Shipping                    ┃    ┃                                        
+                                                                ┗━━┛                                        
+                                                                                                                
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210mm×297mm[보존용지(1종) 220g/㎡]

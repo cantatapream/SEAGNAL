@@ -1,0 +1,119 @@
+[시행규칙] 서식23 — 보안합의서
+
+[별지 제23호서식]                                                 (앞쪽)      
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  Declaration of Security                                                                     ┃
+┃  (보안합의서)                                                                                ┃
+┃                                                                                              ┃
+┃  Name of Ship(선박명):                                                                       ┃
+┃                                            ─────────────────────────┨
+┃  Port of Registry(선적항):                                                                   ┃
+┃                                            ─────────────────────────┨
+┃  IMO Number(IMO번호):                                                                        ┃
+┃                                            ─────────────────────────┨
+┃  Name of Port Facility(항만시설명):                                                          ┃
+┃                                            ─────────────────────────┨
+┃ 이 보안합의서는 아래의 보안등급 하에서        부터               까지 다                     ┃
+┃음의 활동에 대하여 유효합니다.                                                                ┃
+┃ This Declaration of Security is valid from             until           for                   ┃
+┃the following activities                 .                                                    ┃
+┃                                                                                              ┃
+┃ Security Levels(보안등급):                                                                   ┃
+┃                                            ─────────────────────────┨
+┃Ship Security Level(선박보안등급):                                                            ┃
+┃                                            ─────────────────────────┨
+┃ Port Facility Security Level(항만보안등급):                                                  ┃
+┃                                            ─────────────────────────┨
+┃ 선박 및 항만시설은 「국제선박 및 항만시설 보안규칙」의 요건에 적합함을                       ┃
+┃보장하기 위하여 다음과 같은 보안조치 및 책임에 대하여 상호 동의합니다.                        ┃
+┃The port facility and ship agree to the following security measures and                       ┃
+┃responsibilities to ensure compliance with the requirements of Part A of the                  ┃
+┃International Code for the Security of Ships and of Port Facilities.                          ┃
+┃                                                                                              ┃
+┃선박보안책임자 또는 항만시설보안책임자는 아래 내용 중 해당 활동사항에 대                      ┃
+┃하여 각각 표시하여야 합니다.                                                                  ┃
+┃The affixing of the initials of the SSO or PFSO under these columns indicates                 ┃
+┃that the activity will be done, in accordance with relevant approved plan, by                 ┃
+┠───────────────────────────────┬─────────┬─────┨
+┃Activity(보안활동)                                            │The port facility:│The ship: ┃
+┃                                                              │(항만시설)        │(선박)    ┃
+┠───────────────────────────────┼─────────┼─────┨
+┃모든 보안활동 업무에 대한 시행의 확인                         │                  │          ┃
+┃Ensuring the performance of all security duties               │                  │          ┃
+┠───────────────────────────────┼─────────┼─────┨
+┃제한구역에 대해 접근을 허용 받은 자만이 접근할 수 있는지      │                  │          ┃
+┃에 대한 감시                                                  │                  │          ┃
+┃Monitoring restricted areas to ensure that only               │                  │          ┃
+┃authorized personnel have access                              │                  │          ┃
+┠───────────────────────────────┼─────────┼─────┨
+┃항만시설에 대한 접근 통제                                     │                  │          ┃
+┃Controlling access to the port facility                       │                  │          ┃
+┠───────────────────────────────┼─────────┼─────┨
+┃선박에 대한 접근 통제                                         │                  │          ┃
+┃Controlling access to the ship                                │                  │          ┃
+┠───────────────────────────────┼─────────┼─────┨
+┃선박주변지역을 포함하는 항만시설에 대한 감시                  │                  │          ┃
+┃Monitoring of the port facility, including berthing areas and │                  │          ┃
+┃areas surrounding the ship                                    │                  │          ┃
+┠───────────────────────────────┼─────────┼─────┨
+┃선박주변지역을 포함하는 선박에 대한 감시                      │                  │          ┃
+┃Monitoring of the ship, including berthing areas and          │                  │          ┃
+┃areas surrounding the ship                                    │                  │          ┃
+┠───────────────────────────────┼─────────┼─────┨
+┃화물의 취급                                                   │                  │          ┃
+┃Handling of cargo                                             │                  │          ┃
+┠───────────────────────────────┼─────────┼─────┨
+┃선용품의 인도                                                 │                  │          ┃
+┃Delivery of ship’s stores                                    │                  │          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━┷━━━━━┛
+  210㎜×297㎜[일반용지 60g/㎡(재활용품)]                                                         
+                                                                                                  
+                                                                                                    
+  (뒤쪽)                                                                                            
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━┯┯━━━━━━━━━━━━━━━━━━━━┓
+┃위탁 수화물의 취급                                  ││                                        ┃
+┃Handling unaccompanied baggage                      ││                                        ┃
+┠──────────────────────────┼┼────────────────────┨
+┃사람과 그들 물품의 탑승 통제                        ││                                        ┃
+┃Controlling the embarkation of                      ││                                        ┃
+┃persons and their effects                           ││                                        ┃
+┠──────────────────────────┼┼────────────────────┨
+┃항만시설과 선박 간 보안통신이 즉시 사용             ││                                        ┃
+┃가능한 것에 대한 보증                               ││                                        ┃
+┃Ensuring that security communication is             ││                                        ┃
+┃readily available between the ship and              ││                                        ┃
+┃port facility                                       ││                                        ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━┷┷━━━━━━━━━━━━━━━━━━━━┛
+  이 합의서의 서명자들은 해당 선박 및 해당 항만에 대한 보안조치 및 계획이 특                        
+  정활동 동안 각자의 승인계획 또는 동의한 특정 합의사항에 이미 명확하게 기록                        
+  되어 첨부된 부속서에 마련된 규정에 따라서 시행될 협약 제11-2장 및 코드 A편                        
+  의 규정에 이의가 없음을 증명합니다.                                                               
+                                                                                                    
+  The signatories to this  agreement certify that security measures and                             
+  arrangements for both the port facility and the ship during the specified                         
+  activities meet the provisions of chapter XI-2 and Part A of Code that will be                    
+  implemented in accordance with the provisions already stipulated in their                         
+  approved plan or the specific arrangements agreed to and set out in the                           
+  attached annex.                                                                                   
+    Dated:              on the                                                                      
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃Signed for and on behalf of (대리 서명)                                                         ┃
+┠──────────────────────────┬─────────────────────┨
+┃ the port facility(항만시설):                       │ the ship(선박):                          ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━┫
+┃Name and title of person who signed (서명자 직책 및 이름)                                       ┃
+┠──────────────────────────┬─────────────────────┨
+┃Name(이름):                                         │Name(이름):                               ┃
+┠──────────────────────────┼─────────────────────┨
+┃Title(직책):                                        │Title(직책):                              ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━┫
+┃Contact Details (구체적인 연락방법)                                                             ┃
+┃(전화번호 혹은 무선주파수 등을 포함하여 상세하게 기술)                                          ┃
+┠──────────────────────────┬─────────────────────┨
+┃ for the port facility(항만시설):                   │ for the ship(선박):                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━┛
+   Port Facility(항만시설):                              Master(선장):                              
+                                                         Ship Security Officer(선박보안책임자):     
+   Port Facility Security Officer(항만시설보안책임자):                                              
+                                                         Company(회사):                             
+                                                         Company Security Officer(총괄보안책임자):

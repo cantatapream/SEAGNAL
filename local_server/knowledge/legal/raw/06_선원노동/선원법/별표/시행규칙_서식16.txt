@@ -1,0 +1,1201 @@
+[시행규칙] 서식16 — 대한민국선원수첩
+
+■ 선원법 시행규칙 [별지 제16호서식]    
+                                                            
+  (앞표지 바깥쪽)                                           
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                        ┃
+┃대  한  민  국                                          ┃
+┃선 원 수 첩                                             ┃
+┃                                                        ┃
+┃                                                        ┃
+┃                                                        ┃
+┃                                                        ┃
+┃                                                        ┃
+┃                                                        ┃
+┃                                                        ┃
+┃                                                        ┃
+┃                                                        ┃
+┃                                                        ┃
+┃                                                        ┃
+┃                                                        ┃
+┃SEAFARER’S BOOK                                        ┃
+┃REPUBLIC OF KOREA                                       ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+   88㎜×125㎜ (지질 0.3㎜ 크로스지)                        
+                                                            
+   (앞표지 안쪽)                                            
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                        ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                  
+                                                                  
+                                                                  
+   (내지 1쪽)                                                     
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃   이 수첩의 소지인인 선원의 직무를 위하여                    ┃
+┃모든 편의를 제공하여 주시고 보호하여 주실                     ┃
+┃것을 요청합니다.                                              ┃
+┃                                                              ┃
+┃   I hereby request all those whom it                         ┃
+┃may concern to provide the bearer, a seafarer                 ┃
+┃of the Republic of Korea, with every possible                 ┃
+┃courtesy and protection.                                      ┃
+┃                                                              ┃
+┃                                                              ┃
+┃                                                              ┃
+┃                                                              ┃
+┃MINISTER OF OCEANS AND FISHERIES                              ┃
+┃REPUBLIC OF KOREA                                             ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  88㎜×125㎜(특수용지 95g/㎡)                                    
+                                                                  
+   (내지 2쪽)                                                     
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                              ┃
+┃                                                              ┃
+┃대한민국 / REPUBLIC OF KOREA                                  ┃
+┃                                                              ┃
+┃                                                              ┃
+┃┌──────────┐                                      ┃
+┃│                    │  수첩번호 /Seafarer’s Book Number   ┃
+┃│                    │                                      ┃
+┃│                    │───────────────────┃
+┃│                    │                                      ┃
+┃│                    │───────────────────┃
+┃│                    │  국적 /Nationality                   ┃
+┃│                    │───────────────────┃
+┃│                    │                                      ┃
+┃│                    │───────────────────┃
+┃│                    │  생년월일 /Date of Birth             ┃
+┃│                    │───────────────────┃
+┃│                    │                                      ┃
+┃└──────────┘───────────────────┃
+┃  성명(한글)                                                  ┃
+┃───────────────────────────────┃
+┃  Surname /Given name                                         ┃
+┃                                                              ┃
+┃                                                              ┃
+┃                                                              ┃
+┃                                                              ┃
+┃───────────────────────────────┃
+┃  성별 /Sex               발급일 /Date of Issue               ┃
+┃───────────────────────────────┃
+┃                                                              ┃
+┃───────────────────────────────┃
+┃  발급관청 /Authority                                         ┃
+┃───────────────────────────────┃
+┃                                                              ┃
+┃───────────────────────────────┃
+┃                                                              ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                                                                                              
+  (내지 3쪽부터 10쪽까지)                                                                                                                                                     
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│ 건강진단서                                                                                                                                                               │
+│ CERTIFICATE OF MEDICAL EXAMINATION                년   월   일                                                                                                           │
+├─────────────────────────┬──────────────┬────┬────────────┬──────────────────────────┤
+│건강진단실시결과(Results)                         │신장                        │cm      │혈압                    │                                                    │
+│                                                  │(Height)                    │        │(Blood Pressure)        │                                                    │
+│                                                  ├──────────────┼────┼────────────┼──────────────────────────┤
+│                                                  │체중                        │kg      │혈 액 형                │                                                    │
+│                                                  │(Weight)                    │        │(Blood Type)            │                                                    │
+│                                                  ├──────────────┼────┼────────────┼──────────────────────────┤
+│                                                  │청력                        │좌LT:   │시력                    │좌LT:                                               │
+│                                                  │(Hearing)                   │우RT:   │(Visual acuity)         │우RT:                                               │
+│                                                  ├──────────────┼────┼────────────┼──────────────────────────┤
+│                                                  │색각                        │        │흉 위                   │cm                                                  │
+│                                                  │(Colour Vision)             │        │(Circumference of Chest)│                                                    │
+│                                                  ├──────────────┼────┼────────────┼──────────────────────────┤
+│                                                  │혈액/조혈계                 │        │감 염 병                │                                                    │
+│                                                  │(Blood disorders)           │        │(Infections)            │                                                    │
+│                                                  ├──────────────┼────┼────────────┼──────────────────────────┤
+│                                                  │정신계                      │        │피부질환                │                                                    │
+│                                                  │(Mental disorders)          │        │(Skin disorders)        │                                                    │
+│                                                  ├──────────────┼────┼────────────┼──────────────────────────┤
+│                                                  │순환계                      │        │신경계                  │                                                    │
+│                                                  │(Cardiovascular system)     │        │ (Nervous system)       │                                                    │
+│                                                  ├──────────────┼────┼────────────┼──────────────────────────┤
+│                                                  │생식 및 비뇨계              │        │소화계                  │                                                    │
+│                                                  │(Genito-urinary conditions) │        │(Digestive system)      │                                                    │
+│                                                  ├──────────────┼────┼────────────┼──────────────────────────┤
+│                                                  │당 뇨                       │        │간 장                   │                                                    │
+│                                                  │(Diabetes)                  │        │(Liver)                 │                                                    │
+│                                                  ├──────────────┴────┼────────────┴──────────────────────────┤
+│                                                  │호흡계 및 흉부X선검사                 │                                                                              │
+│                                                  │(Respiratory disorders & Chest-X Ray) │                                                                              │
+│                                                  ┢━━━━━━━━━━━━━━┯━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━┯━━━━━━━━━━━━━┥
+│                                                  ┃특수건강진단에 한함         │빈혈(Anemia)                                                │                          │
+│                                                  ┃(Special Examination Only)  ├──────────────────────────────┼─────────────┤
+│                                                  ┃                            │소변 및 매독(Urine and Syphilis)                            │                          │
+├─────────────────────────╄━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┿━━━━━━━━━━━━━┥
+│공인된 전문의의 선언                              │검사 시 피검사자 신분 확인 여부(Confirmation that identification                          │[ ]예(Yes) [ ]아니오(No)  │
+│                                                  │documents were checked at the point of examination)                                       │                          │
+│(Declaration of the recognized medical practioner)├─────────────────────────────────────────────┼─────────────┤
+│                                                  │청력 충족 여부(Hearing meets the standards in the section A-1/9?)                         │[ ]예(Yes) [ ]아니오(No)  │
+│                                                  ├─────────────────────────────────────────────┼─────────────┤
+│                                                  │보조기 미착용시 청력 충족 여부(Unaided Hearing satisfactory?)                             │[ ]예(Yes) [ ]아니오(No)  │
+│                                                  ├─────────────────────────────────────────────┼─────────────┤
+│                                                  │시력 충족 여부(Visual acuity meets the standards in the section A-1/9?)                   │[ ]예(Yes) [ ]아니오(No)  │
+│                                                  ├─────────────────────────────────────────────┼─────────────┤
+│                                                  │색각 충족 여부(Colour Vision meets the standards in the section A-1/9?)                   │[ ]예(Yes) [ ]아니오(No)  │
+│                                                  │                                                                                                                      │
+│                                                  │  최근 색각검사일(Date of last colour vision test)           년   월   일                                             │
+│                                                  ├─────────────────────────────────────────────┬─────────────┤
+│                                                  │경계업무 적합성(Fit for lookout duties)                                                   │[ ]예(Yes) [ ]아니오(No)  │
+│                                                  ├─────────────────────────────────────────────┼─────────────┤
+│                                                  │건강에 제한이나 제약사항이 있는가?(Any limitations or restrictions on fitness?)           │[ ]예(Yes) [ ]아니오(No)  │
+│                                                  │                                                                                                                      │
+│                                                  │  제한이나 제약사항 기술(If "Yes", specify limitations or restrictions)                                               │
+│                                                  ├─────────────────────────────────────────────┬─────────────┤
+│                                                  │선원이 승선이후 승무가 부적합하게 되거나 타인의 건강을 위해할 가능성이 있는 증상이 있는가?│[ ]예(Yes) [ ]아니오(No)  │
+│                                                  │(Is the seafarer suffering from any medical condition likely to be                        │                          │
+│                                                  │aggravated by service at sea or to render the seafarer unfit for such                     │                          │
+│                                                  │service or to endanger the health of other persons on board?)                             │                          │
+│                                                  ├─────────────────────────────────────────────┼─────────────┤
+│                                                  │건강진단 실시일(Date of Examination)                                                      │년   월   일              │
+│                                                  ├─────────────────────────────────────────────┼─────────────┤
+│                                                  │유효기간 만료일(Date of Expiry)                                                           │년   월   일              │
+├─────────────────────────┴──────────────┬┬─────────────────────────────┼─────────────┤
+│선원의 서명                                                                     ││검사 의사명 및 서명                                       │                          │
+│(Seafarer's signature)                                                          ││(Name and Signature of Examiner)                          │                          │
+└────────────────────────────────────────┴┴─────────────────────────────┴─────────────┘
+                                                                                
+  (내지 11쪽)                                                                   
+┌──────────────────────────────────────┐
+│선원건강진단 항목                                                           │
+├──────────────────────────────────────┤
+│〈일반건강진단〉                                                            │
+│○대상: 평수구역ㆍ연해구역 또는 근해구역을 항해구역으로 하는 선박에 승      │
+│무하려는 사람                                                               │
+│○유효기간: 1년                                                             │
+│○검사항목                                                                  │
+│  1. 감각기, 순환기, 호흡기 및 신경계 그 밖의 기관의 임상의학적 검사        │
+│  2. 시력ㆍ색각(「선박직원법」 제2조제3호에 따른 선박직원 및 갑판부         │
+│당직 부원만 해당함)ㆍ청력의 검사                                            │
+│  3. 운동기능검사                                                           │
+│  4.신장ㆍ체중ㆍ흉위ㆍ흉위차ㆍ폐활량ㆍ혈압ㆍ혈당(당뇨)검사ㆍ간장검사        │
+│(SGOTㆍSGPT) 및 비형간염항원검사                                            │
+│  5. 엑스선검사ㆍ적혈구침강속도검사ㆍ객담검사 및 결핵에 관한 엑스선흉부검사 │
+│  6. 매독반응검사                                                           │
+│  7. 소변 및 대변검사                                                       │
+│  8. 정신질환 및 감염병 검사                                                │
+│ ※ 제4호부터 제7호까지에 따른 검사 중 건강진단을 행하는 의사가 필요없다고  │
+│인정하는 것은 그 검사를 받지 아니할 수 있음. 다만, 혈압검사ㆍ혈당검         │
+│사ㆍ간장검사ㆍ비형간염항원검사ㆍ엑스선검사 및 소변검사는 그러하지 아니      │
+│함.                                                                         │
+│                                                                            │
+│〈특수건강진단〉                                                            │
+│○대상: 원양구역을 항해구역으로 하는 선박에 승무하려는 사람은 일반건        │
+│강진단 외에 다음의 검사를 추가로 받아야 함.                                 │
+│○유효기간: 2년 (18세 미만의 사람은 1년)                                    │
+│○검사항목                                                                  │
+│  1. 씨비씨(빈혈)검사                                                       │
+│  2. 소변검사(특별검사)                                                     │
+│  3. 매독반응특별검사                                                       │
+└──────────────────────────────────────┘
+                                        
+  (내지 12쪽부터 32쪽까지 중 짝수 쪽)   
+┌──────────────────┐
+│근  로  계  약  관  계              │
+│(CONTRACT OF EMPLOYMENT)            │
+├───────────┬──────┤
+│선박명                │            │
+│(Name of Vessel)      │            │
+├───────────┼──────┤
+│선박부호              │            │
+│(Official No.)        │            │
+├───────────┼──────┤
+│총톤수                │            │
+│(Gross Tonnage)       │            │
+├───────────┼──────┤
+│주기관출력            │            │
+│(Main Engine Power)   │            │
+├───────────┼──────┤
+│선종                  │            │
+│(Type of Vessel)      │            │
+├───────────┼──────┤
+│업종                  │            │
+│(Type of Business)    │            │
+├───────────┼──────┤
+│선박소유자명          │            │
+│(Name of Shipowner)   │            │
+├───────────┼──────┤
+│선적항                │            │
+│(Port of Registry)    │            │
+├───────────┼──────┤
+│항해구역              │            │
+│(Navigation Area)     │            │
+├───────────┼──────┤
+│직책                  │            │
+│(Duty)                │            │
+├───────────┼──────┤
+│승선지                │            │
+│(Place of Embarkation)│            │
+├───────────┼──────┤
+│승선일                │            │
+│(Date of Embarkation) │            │
+├───────────┼──────┤
+│승선계약기간          │            │
+│(Period of Employment)│            │
+├───────────┼──────┤
+│관청승인              │            │
+│(Official Stamp)      │            │
+└───────────┴──────┘
+                                                                                
+  (내지 12쪽부터 33쪽까지 중 홀수 쪽)                                           
+┌──────────────────────────────────────┐
+│근로계약의 갱신 또는 변경사항                                               │
+│(DESCRIPTION FOR RENEWAL OR                                                 │
+│AMENDMENT OF EMPLOYMENT CONTRACT)                                           │
+├────────────────┬───────────┬─────────┤
+│    갱신 또는 변경 사유         │    공 인 일          │   관 인          │
+│    Description for             │      Date of Approval│    Approval Stamp│
+│    Renewal  or Amendment       │                      │                  │
+├────────────────┼───────────┼─────────┤
+│                                │                      │                  │
+├────────────────┼───────────┼─────────┤
+│    하  선  사  유              │                      │                  │
+│      Reason for Disembarkation │                      │                  │
+├────────────────┼───────────┤                  │
+│    하    선    지              │                      │                  │
+│      Place of Disembarkation   │                      │                  │
+├────────────────┼───────────┤                  │
+│    하 선 연 월 일              │                      │                  │
+│      Date of Disembarkation    │                      │                  │
+└────────────────┴───────────┴─────────┘
+                                                                
+  (내지 34쪽)                                                   
+┌──────────────────────────────┐
+│면  허  관  계                                              │
+├────┬───────────┬──────┬──────┤
+│명   칭 │유 효 기 간           │취 득 기 관 │특 기 사 항 │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+├────┼───────────┼──────┼──────┤
+│        │          .    .    . │            │            │
+│        │          .    .    . │            │            │
+└────┴───────────┴──────┴──────┘
+                                                                        
+  (내지 35쪽)                                                           
+┌──────────────────────────────────┐
+│   자격증번호:                                                      │
+│   (CERTIFICATE NO.)                                                │
+│                                                                    │
+│                                                                    │
+│                                                                    │
+│의 료 관 리 자  자 격 증                                            │
+│CERTIFICATE OF QUALIFICATION                                        │
+│TO PROVIDE MEDICAL CARE                                             │
+│                                                                    │
+│                                                                    │
+│ 성명_________________    생년월일_________________                 │
+│ (NAME)                   (DATE OF　BIRTH)                          │
+│                                                                    │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관한       │
+│국제협약」 및 「선원법」 제85조에 따라 의료관리자의 자격이          │
+│있는 사람임을 증명합니다.                                           │
+│                                                                    │
+│ Under the provisions of paragraph 2 of Regulation VI/4 in          │
+│the International Convention on Standards of Training,              │
+│Certification and Watchkeeping for Seafarers, 1978, as amended,     │
+│and the article 85 of Seafarers Act, it is certified that the above │
+│mentioned person is qualified to provide medical care on            │
+│board.                                                              │
+│                                                                    │
+│발급일                                                              │
+│(DATE OF ISSUE)                                                     │
+│                                                                    │
+│발급기관    「선원법」 제158조에 따라 해양수산부장관의 위탁을 받은  │
+│(ISSUED BY)    한국해양수산연수원장  ??                           │
+│                                                                    │
+│                                                                    │
+│          SIGNED                                                    │
+│                                                                    │
+│    PRESIDENT OF THE KOREA INSTITUTE OF MARITIME                    │
+│AND FISHERIES TECHNOLOGY, AUTHORIZED BY THE                         │
+│MINISTER OF OCEANS AND FISHERIES, THE REPUBLIC OF                   │
+│KOREA, IN ACCORDANCE WITH ARTICLE 158 OF THE                        │
+│SEAFARERS ACT.                                                      │
+│                                                                    │
+│                                                                    │
+└──────────────────────────────────┘
+                                                                                    
+  (내지 36쪽)                                                                       
+┌────────────────────────────────────────┐
+│   자격증번호:                                                                  │
+│   (CERTIFICATE NO.)                                                            │
+│                                                                                │
+│                                                                                │
+│                                                                                │
+│기초 유조선 및 케미컬탱커 승무자격증                                            │
+│CERTIFICATE OF PROFICIENCY IN BASIC                                             │
+│OIL AND CHEMICAL TANKER CARGO OPERATIONS                                        │
+│                                                                                │
+│                                                                                │
+│ 성명_________________    생년월일_________________                             │
+│ (NAME)                   (DATE OF　BIRTH)                                      │
+│                                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관한                   │
+│국제협약」 및 「선원법」 제64조에 따라 기초 유조선 및 케미컬                    │
+│탱커 하역을 위한 승무자격이 있는 사람임을 증명합니다.                           │
+│                                                                                │
+│ Under the Provisions of paragraph 2 of Regulation V/1-1 in                     │
+│the International Convention on Standards of Training,                          │
+│Certification and Watchkeeping for Seafarers, 1978, as                          │
+│amended, and the article 64 of Seafarers Act, it is certified                   │
+│that the above mentioned person is qualified in basic oil                       │
+│and chemical tanker cargo operations.                                           │
+│                                                                                │
+│발급일            이 승무자격증의 유효기간을                                    │
+│(ISSUED ON)       ..............................................까지 연장함.    │
+│                  The Validity of this endorsement is hereby                    │
+│유효기간 만료일   extended until ...............................................│
+│(Date of Expiry)  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                  이 승무자격증의 유효기간을                                    │
+│                  ..............................................까지 연장함.    │
+│발급기관          The Validity of this endorsement is hereby                    │
+│(ISSUED BY)       extended until ...............................................│
+│                  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                                                                                │
+│  대  한  민  국                                                                │
+│                  지방해양수산청장      ??                                    │
+│                 제주해양수산관리단장                                           │
+│                 해양수산사무소장                                               │
+│                                                                                │
+│                  SIGNED                                                        │
+│                                                                                │
+│  DIRECTOR GENERAL                                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,                    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,                │
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,                     │
+│                                                                                │
+│  THE REPUBLIC OF KOREA                                                         │
+│                                                                                │
+│                                                                                │
+└────────────────────────────────────────┘
+                                                                                    
+  (내지 37쪽)                                                                       
+┌────────────────────────────────────────┐
+│   자격증번호:                                                                  │
+│   (CERTIFICATE NO.)                                                            │
+│                                                                                │
+│                                                                                │
+│                                                                                │
+│상급 유조선 승무자격증                                                          │
+│CERTIFICATE OF PROFICIENCY IN ADVANCED                                          │
+│OIL TANKER CARGO OPERATIONS                                                     │
+│                                                                                │
+│ 성명_________________    생년월일_________________                             │
+│ (NAME)                   (DATE OF　BIRTH)                                      │
+│                                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관한                   │
+│국제협약」 및 「선원법」 제64조에 따라 상급 유조선 하역을 위                    │
+│한 승무자격이 있는 사람임을 증명합니다.                                         │
+│                                                                                │
+│ Under the Provisions of paragraph 4 of Regulation V/1-1 in the                 │
+│International Convention on Standards of Training, Certification and            │
+│Watchkeeping for Seafarers, 1978, as amended, and the article 64                │
+│of Seafarers Act, it is certified that the above mentioned person               │
+│is qualified in advanced oil tanker cargo operations.                           │
+│                                                                                │
+│발급일            이 승무자격증의 유효기간을                                    │
+│(ISSUED ON)       ..............................................까지 연장함.    │
+│                  The Validity of this endorsement is hereby                    │
+│유효기간 만료일   extended until .............................................  │
+│(Date of Expiry)  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                  이 승무자격증의 유효기간을                                    │
+│                  ..............................................까지 연장함.    │
+│발급기관          The Validity of this endorsement is hereby                    │
+│(ISSUED BY)       extended until .............................................. │
+│                  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                                                                                │
+│  대  한  민  국                                                                │
+│                  지방해양수산청장      ??                                    │
+│                 제주해양수산관리단장                                           │
+│                 해양수산사무소장                                               │
+│                                                                                │
+│                  SIGNED                                                        │
+│                                                                                │
+│  DIRECTOR GENERAL                                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,                    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,                │
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,                     │
+│                                                                                │
+│  THE REPUBLIC OF KOREA                                                         │
+│                                                                                │
+│                                                                                │
+└────────────────────────────────────────┘
+                                                                                    
+  (내지 38쪽)                                                                       
+┌────────────────────────────────────────┐
+│   자격증번호:                                                                  │
+│   (CERTIFICATE NO.)                                                            │
+│                                                                                │
+│                                                                                │
+│                                                                                │
+│상급 케미컬탱커 승무자격증                                                      │
+│CERTIFICATE OF PROFICIENCY IN ADVANCED                                          │
+│CHEMICAL TANKER CARGO OPERATIONS                                                │
+│                                                                                │
+│ 성명_________________    생년월일_________________                             │
+│ (NAME)                   (DATE OF　BIRTH)                                      │
+│                                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관                     │
+│한 국제협약」 및 「선원법」 제64조에 따라 상급 케미컬탱                         │
+│커 하역을 위한 승무자격이 있는 사람임을 증명합니다.                             │
+│                                                                                │
+│ Under the Provisions of paragraph 6 of Regulation V/1-1 in the                 │
+│International Convention on Standards of Training, Certification and            │
+│Watchkeeping for Seafarers, 1978, as amended, and the article 64                │
+│of Seafarers Act, it is certified that the above mentioned person               │
+│is qualified in advanced chemical tanker cargo operations.                      │
+│                                                                                │
+│발급일            이 승무자격증의 유효기간을                                    │
+│(ISSUED ON)       ..............................................까지 연장함.    │
+│                  The Validity of this endorsement is hereby                    │
+│유효기간 만료일   extended until ...............................................│
+│(Date of Expiry)  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│발급기관          이 승무자격증의 유효기간을                                    │
+│(ISSUED BY)       ..............................................까지 연장함.    │
+│                  The Validity of this endorsement is hereby                    │
+│                  extended until ...............................................│
+│                  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│  대  한  민  국                                                                │
+│                  지방해양수산청장      ??                                    │
+│                 제주해양수산관리단장                                           │
+│                 해양수산사무소장                                               │
+│                                                                                │
+│                  SIGNED                                                        │
+│                                                                                │
+│  DIRECTOR GENERAL                                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,                    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,                │
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,                     │
+│                                                                                │
+│  THE REPUBLIC OF KOREA                                                         │
+│                                                                                │
+│                                                                                │
+└────────────────────────────────────────┘
+                                                                                    
+  (내지 39쪽)                                                                       
+┌────────────────────────────────────────┐
+│   자격증번호:                                                                  │
+│   (CERTIFICATE NO.)                                                            │
+│                                                                                │
+│                                                                                │
+│                                                                                │
+│기초 액화가스탱커 승무자격증                                                    │
+│CERTIFICATE OF PROFICIENCY IN BASIC                                             │
+│LIQUEFIED GAS TANKER CARGO OPERATIONS                                           │
+│                                                                                │
+│ 성명_________________    생년월일_________________                             │
+│ (NAME)                   (DATE OF　BIRTH)                                      │
+│                                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관                     │
+│한 국제협약」 및 「선원법」 제64조에 따라 기초 액화가스탱                       │
+│커 하역을 위한 승무자격이 있는 사람임을 증명합니다.                             │
+│                                                                                │
+│ Under the Provisions of paragraph 2 of Regulation V/1-2 in the                 │
+│International Convention on Standards of Training, Certification and            │
+│Watchkeeping for Seafarers, 1978, as amended, and the article 64                │
+│of Seafarers Act, it is certified that the above mentioned person               │
+│is qualified in basic liquefied tanker cargo operations.                        │
+│                                                                                │
+│발급일            이 승무자격증의 유효기간을                                    │
+│(ISSUED ON)       ..............................................까지 연장함.    │
+│                  The Validity of this endorsement is hereby                    │
+│유효기간 만료일   extended until ...............................................│
+│(Date of Expiry)  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                  이 승무자격증의 유효기간을                                    │
+│                  ..............................................까지 연장함.    │
+│발급기관          The Validity of this endorsement is hereby                    │
+│(ISSUED BY)       extended until ...............................................│
+│                  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                                                                                │
+│  대  한  민  국                                                                │
+│                  지방해양수산청장      ??                                    │
+│                 제주해양수산관리단장                                           │
+│                 해양수산사무소장                                               │
+│                                                                                │
+│                  SIGNED                                                        │
+│                                                                                │
+│  DIRECTOR GENERAL                                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,                    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,                │
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,                     │
+│                                                                                │
+│  THE REPUBLIC OF KOREA                                                         │
+│                                                                                │
+│                                                                                │
+└────────────────────────────────────────┘
+                                                                                    
+  (내지 40쪽)                                                                       
+┌────────────────────────────────────────┐
+│   자격증번호:                                                                  │
+│   (CERTIFICATE NO.)                                                            │
+│                                                                                │
+│                                                                                │
+│                                                                                │
+│상급 액화가스탱커 승무자격증                                                    │
+│CERTIFICATE OF PROFICIENCY IN ADVANCED                                          │
+│LIQUEFIED GAS TANKER CARGO OPERATIONS                                           │
+│                                                                                │
+│ 성명_________________    생년월일_________________                             │
+│ (NAME)                   (DATE OF　BIRTH)                                      │
+│                                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관                     │
+│한 국제협약」 및 「선원법」 제64조에 따라 상급 액화가스탱                       │
+│커 하역을 위한 승무자격이 있는 사람임을 증명합니다.                             │
+│                                                                                │
+│ Under the Provisions of paragraph 4 of Regulation V/1-2 in the                 │
+│International Convention on Standards of Training, Certification and            │
+│Watchkeeping for Seafarers, 1978, as amended, and the article 64                │
+│of Seafarers Act, it is certified that the above mentioned person               │
+│is qualified in advanced liquefied tanker cargo operations.                     │
+│                                                                                │
+│발급일            이 승무자격증의 유효기간을                                    │
+│(ISSUED ON)       ..............................................까지 연장함.    │
+│                  The Validity of this endorsement is hereby                    │
+│유효기간 만료일   extended until ...............................................│
+│(Date of Expiry)  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│발급기관          이 승무자격증의 유효기간을                                    │
+│(ISSUED BY)       ..............................................까지 연장함.    │
+│                  The Validity of this endorsement is hereby                    │
+│                  extended until ...............................................│
+│                  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│  대  한  민  국                                                                │
+│                  지방해양수산청장      ??                                    │
+│                 제주해양수산관리단장                                           │
+│                 해양수산사무소장                                               │
+│                                                                                │
+│                  SIGNED                                                        │
+│                                                                                │
+│  DIRECTOR GENERAL                                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,                    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,                │
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,                     │
+│                                                                                │
+│  THE REPUBLIC OF KOREA                                                         │
+│                                                                                │
+│                                                                                │
+└────────────────────────────────────────┘
+                                                                                    
+  (내지 41쪽)                                                                       
+┌────────────────────────────────────────┐
+│   자격증번호:                                                                  │
+│   (CERTIFICATE NO.)                                                            │
+│                                                                                │
+│                                                                                │
+│                                                                                │
+│구 명 정 조 종 사 자 격 증                                                      │
+│CERTIFICATE OF PROFICIENCY IN SURVIVAL CRAFT                                    │
+│AND RESCUE BOATS OTHER THAN FAST RESCUE BOATS                                   │
+│                                                                                │
+│ 성명_________________    생년월일_________________                             │
+│ (NAME)                   (DATE OF　BIRTH)                                      │
+│                                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관                     │
+│한 국제협약」 및 「선원법」 제64조에 따라 구명정조종사 자                       │
+│격이 있는 사람임을 증명합니다.                                                  │
+│                                                                                │
+│ Under the provisions of paragraph 1 of Regulation VI/2 in the                  │
+│International Convention on Standards of Training, Certification and            │
+│Watchkeeping for Seafarers, 1978, as amended, and the article 64 of             │
+│Seafarers Act, it is certified that the above mentioned person is               │
+│qualified in survival craft and rescue boats other than fast rescue boats.      │
+│                                                                                │
+│발급일            이 승무자격증의 유효기간을                                    │
+│(ISSUED ON)       ..............................................까지 연장함.    │
+│                  The Validity of this endorsement is hereby                    │
+│유효기간 만료일   extended until ...............................................│
+│(Date of Expiry)  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                  이 승무자격증의 유효기간을                                    │
+│                  ..............................................까지 연장함.    │
+│발급기관          The Validity of this endorsement is hereby                    │
+│(ISSUED BY)       extended until ...............................................│
+│                  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                                                                                │
+│  대  한  민  국                                                                │
+│                  지방해양수산청장      ??                                    │
+│                 제주해양수산관리단장                                           │
+│                 해양수산사무소장                                               │
+│                                                                                │
+│                  SIGNED                                                        │
+│                                                                                │
+│  DIRECTOR GENERAL                                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,                    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,                │
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,                     │
+│                                                                                │
+│  THE REPUBLIC OF KOREA                                                         │
+│                                                                                │
+│                                                                                │
+└────────────────────────────────────────┘
+                                                                                    
+  (내지 42쪽)                                                                       
+┌────────────────────────────────────────┐
+│   자격증번호:                                                                  │
+│   (CERTIFICATE NO.)                                                            │
+│                                                                                │
+│                                                                                │
+│                                                                                │
+│고 속 구 조 정 조 종 사 자 격 증                                                │
+│CERTIFICATE OF PROFICIENCY IN FAST RESCUE BOATS                                 │
+│                                                                                │
+│ 성명_________________    생년월일_________________                             │
+│ (NAME)                   (DATE OF　BIRTH)                                      │
+│                                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관                     │
+│한 국제협약」 및 「선원법 시행규칙」 제43조의2에 따라                           │
+│고속구조정조종사 자격이 있는 사람임을 증명합니다.                               │
+│                                                                                │
+│ Under the provisions of paragraph 2 of Regulation VI/2 in the                  │
+│International Convention on Standards of Training, Certification                │
+│and Watchkeeping for Seafarers, 1978, as amended, and the                       │
+│article 43-2 of Enforcement Ordinance of the Seafarers’ Act                    │
+│it is certified that the above mentioned person is qualified in fast            │
+│rescue boats.                                                                   │
+│                                                                                │
+│발급일            이 승무자격증의 유효기간을                                    │
+│(ISSUED ON)       ..............................................까지 연장함.    │
+│                  The Validity of this endorsement is hereby                    │
+│유효기간 만료일   extended until ...............................................│
+│(Date of Expiry)  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                  이 승무자격증의 유효기간을                                    │
+│                  ..............................................까지 연장함.    │
+│발급기관          The Validity of this endorsement is hereby                    │
+│(ISSUED BY)       extended until ...............................................│
+│                  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                                                                                │
+│  대  한  민  국                                                                │
+│                  지방해양수산청장      ??                                    │
+│                 제주해양수산관리단장                                           │
+│                 해양수산사무소장                                               │
+│                                                                                │
+│                  SIGNED                                                        │
+│                                                                                │
+│  DIRECTOR GENERAL                                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,                    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,                │
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,                     │
+│                                                                                │
+│  THE REPUBLIC OF KOREA                                                         │
+│                                                                                │
+│                                                                                │
+└────────────────────────────────────────┘
+                                                                          
+  (내지 43쪽)                                                             
+┌───────────────────────────────────┐
+│   자격증번호:                                                        │
+│   (CERTIFICATE NO.)                                                  │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│갑판당직 부원 자격증                                                  │
+│CERTIFICATE OF QUALIFICATION                                          │
+│FOR NAVIGATIONAL WATCHKEEPING SERVICE                                 │
+│                                                                      │
+│ 성명_________________    생년월일_________________                   │
+│ (NAME)                   (DATE OF　BIRTH)                            │
+│                                                                      │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관           │
+│한 국제협약」 및 「선원법」 제64조에 따라 갑판당직 부                 │
+│원으로 근무할 자격이 있는 사람임을 증명합니다.                        │
+│                                                                      │
+│ Under the provisions of paragraph 2 of Regulation Ⅱ/4 in the        │
+│International Convention on Standards of Training, Certification and  │
+│Watchkeeping for Seafarers, 1978, as amended, and the article 64 of   │
+│Seafarers Act, it is certified that the above mentioned rating is     │
+│qualified to engage in Navigational Watchkeeping.                     │
+│                                                                      │
+│발급일                                                                │
+│(ISSUED ON)                                                           │
+│                                                                      │
+│발급기관                                                              │
+│(ISSUED BY)                                                           │
+│                                                                      │
+│  대  한  민  국                                                      │
+│                  지방해양수산청장      ??                          │
+│                 제주해양수산관리단장                                 │
+│                 해양수산사무소장                                     │
+│                                                                      │
+│                  SIGNED                                              │
+│                                                                      │
+│  DIRECTOR GENERAL                                                    │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,          │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,      │
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,           │
+│                                                                      │
+│  THE REPUBLIC OF KOREA                                               │
+│                                                                      │
+│                                                                      │
+└───────────────────────────────────┘
+                                                                    
+  (내지 44쪽)                                                       
+┌────────────────────────────────┐
+│   자격증번호:                                                  │
+│   (CERTIFICATE NO.)                                            │
+│                                                                │
+│                                                                │
+│                                                                │
+│기관당직 부원 자격증                                            │
+│CERTIFICATE OF QUALIFICATION                                    │
+│FOR ENGINE ROOM WATCHKEEPING SERVICE                            │
+│                                                                │
+│ 성명_________________    생년월일_________________             │
+│ (NAME)                   (DATE OF　BIRTH)                      │
+│                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관     │
+│한 국제협약」 및 「선원법」 제64조에 따라 기관당직 부           │
+│원으로 근무할 자격이 있는 사람임을 증명합니다.                  │
+│                                                                │
+│ Under the provisions of paragraph 2 of Regulation Ⅲ/4         │
+│in the International Convention on Standards of Training,       │
+│Certification and Watchkeeping for Seafarers, 1978, as          │
+│amended, and the article 64 of Seafarers Act, it is certified   │
+│that the above mentioned rating is qualified to engage in       │
+│Engine Room Watchkeeping.                                       │
+│                                                                │
+│발급일                                                          │
+│(ISSUED ON)                                                     │
+│                                                                │
+│발급기관                                                        │
+│(ISSUED BY)                                                     │
+│                                                                │
+│  대  한  민  국                                                │
+│                  지방해양수산청장      ??                    │
+│                 제주해양수산관리단장                           │
+│                 해양수산사무소장                               │
+│                                                                │
+│                  SIGNED                                        │
+│                                                                │
+│  DIRECTOR GENERAL                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,│
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,     │
+│                                                                │
+│  THE REPUBLIC OF KOREA                                         │
+│                                                                │
+│                                                                │
+└────────────────────────────────┘
+                                                                      
+  (내지 45쪽 )                                                        
+┌─────────────────────────────────┐
+│   자격증번호:                                                    │
+│   (CERTIFICATE NO.)                                              │
+│                                                                  │
+│                                                                  │
+│                                                                  │
+│운항당직 부원 자격증                                              │
+│CERTIFICATE OF QUALIFICATION                                      │
+│FOR GENERAL WATCHKEEPING SERVICE                                  │
+│                                                                  │
+│ 성명_________________    생년월일_________________               │
+│ (NAME)                   (DATE OF　BIRTH)                        │
+│                                                                  │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관       │
+│한 국제협약」 및 「선원법」 제64조에 따라 운항당직 부             │
+│원으로 근무할 자격이 있는 사람임을 증명합니다.                    │
+│                                                                  │
+│ Under the provisions of the International Convention on          │
+│Standards of Training, Certification and Watchkeeping for         │
+│Seafarers, 1978, as amended, and the article 64 of Seafarers Act, │
+│it is certified that the above mentioned rating is qualified to   │
+│engage in General Watchkeeping.                                   │
+│                                                                  │
+│발급일                                                            │
+│(ISSUED ON)                                                       │
+│                                                                  │
+│발급기관                                                          │
+│(ISSUED BY)                                                       │
+│                                                                  │
+│  대  한  민  국                                                  │
+│                  지방해양수산청장      ??                      │
+│                 제주해양수산관리단장                             │
+│                 해양수산사무소장                                 │
+│                                                                  │
+│                  SIGNED                                          │
+│                                                                  │
+│  DIRECTOR GENERAL                                                │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,      │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,  │
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,       │
+│                                                                  │
+│  THE REPUBLIC OF KOREA                                           │
+│                                                                  │
+│                                                                  │
+└─────────────────────────────────┘
+                                                                    
+  (내지 46쪽)                                                       
+┌────────────────────────────────┐
+│   자격증번호:                                                  │
+│   (CERTIFICATE NO.)                                            │
+│                                                                │
+│                                                                │
+│                                                                │
+│갑판유능부원 자격증                                             │
+│CERTIFICATE OF QUALIFICATION                                    │
+│AS ABLE SEAFARER DECK                                           │
+│                                                                │
+│ 성명_________________    생년월일_________________             │
+│ (NAME)                   (DATE OF　BIRTH)                      │
+│                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관     │
+│한 국제협약」 및 「선원법」 제2조제6호의2에 따라 갑판유         │
+│능부원으로 근무할 자격이 있는 사람임을 증명합니다.              │
+│                                                                │
+│ Under  the provisions of paragraph 2 of Regulation Ⅱ/5        │
+│in the International Convention on Standards of Training,       │
+│Certification and Watchkeeping for Seafarers, 1978, as          │
+│amended, and the subparagraph 6-2 of article 2 of               │
+│Seafarers Act, it is certified that the above mentioned         │
+│rating is qualified to serve as a able seafarer deck.           │
+│                                                                │
+│발급일                                                          │
+│(ISSUED ON)                                                     │
+│                                                                │
+│발급기관                                                        │
+│(ISSUED BY)                                                     │
+│                                                                │
+│  대  한  민  국                                                │
+│                  지방해양수산청장      ??                    │
+│                 제주해양수산관리단장                           │
+│                 해양수산사무소장                               │
+│                                                                │
+│                  SIGNED                                        │
+│                                                                │
+│  DIRECTOR GENERAL                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,│
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,     │
+│                                                                │
+│  THE REPUBLIC OF KOREA                                         │
+│                                                                │
+│                                                                │
+└────────────────────────────────┘
+                                                                    
+  (내지 47쪽)                                                       
+┌────────────────────────────────┐
+│   자격증번호:                                                  │
+│   (CERTIFICATE NO.)                                            │
+│                                                                │
+│                                                                │
+│                                                                │
+│기관유능부원 자격증                                             │
+│CERTIFICATE OF QUALIFICATION                                    │
+│AS ABLE SEAFARER ENGINE                                         │
+│                                                                │
+│ 성명_________________    생년월일_________________             │
+│ (NAME)                   (DATE OF　BIRTH)                      │
+│                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관     │
+│한 국제협약」 및 「선원법」 제2조제6호의2에 따라 기관유         │
+│능부원으로 근무할 자격이 있는 사람임을 증명합니다.              │
+│                                                                │
+│ Under  the provisions of paragraph 2 of Regulation Ⅲ/5 in     │
+│the International Convention on Standards of Training,          │
+│Certification and Watchkeeping for Seafarers, 1978, as amended, │
+│and the subparagraph 6-2 of article 2 of Seafarers Act, it is   │
+│certified that the above mentioned rating is qualified to serve │
+│as a able seafarer engine.                                      │
+│                                                                │
+│발급일                                                          │
+│(ISSUED ON)                                                     │
+│                                                                │
+│발급기관                                                        │
+│(ISSUED BY)                                                     │
+│                                                                │
+│  대  한  민  국                                                │
+│                  지방해양수산청장      ??                    │
+│                 제주해양수산관리단장                           │
+│                 해양수산사무소장                               │
+│                                                                │
+│                  SIGNED                                        │
+│                                                                │
+│  DIRECTOR GENERAL                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,│
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,     │
+│                                                                │
+│  THE REPUBLIC OF KOREA                                         │
+│                                                                │
+│                                                                │
+└────────────────────────────────┘
+                                                                    
+  (내지 48쪽)                                                       
+┌────────────────────────────────┐
+│   자격증번호:                                                  │
+│   (CERTIFICATE NO.)                                            │
+│                                                                │
+│                                                                │
+│                                                                │
+│운항유능부원 자격증                                             │
+│CERTIFICATE OF QUALIFICATION                                    │
+│AS ABLE SEAFARER GENERAL                                        │
+│                                                                │
+│ 성명_________________    생년월일_________________             │
+│ (NAME)                   (DATE OF　BIRTH)                      │
+│                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준에 관     │
+│한 국제협약」 및 「선원법」 제2조제6호의2에 따라 운항유         │
+│능부원으로 근무할 자격이 있는 사람임을 증명합니다.              │
+│                                                                │
+│ Under  the provisions of paragraph 4 of Regulation A-VII/2 in  │
+│the International Convention on Standards of Training,          │
+│Certification and Watchkeeping for Seafarers, 1978, as amended, │
+│and the subparagraph 6-2 of article 2 of Seafarers Act, it is   │
+│certified that the above mentioned rating is qualified to serve │
+│as a able seafarer general.                                     │
+│                                                                │
+│발급일                                                          │
+│(ISSUED ON)                                                     │
+│                                                                │
+│발급기관                                                        │
+│(ISSUED BY)                                                     │
+│                                                                │
+│  대  한  민  국                                                │
+│                  지방해양수산청장      ??                    │
+│                 제주해양수산관리단장                           │
+│                 해양수산사무소장                               │
+│                                                                │
+│                  SIGNED                                        │
+│                                                                │
+│  DIRECTOR GENERAL                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,│
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,     │
+│                                                                │
+│  THE REPUBLIC OF KOREA                                         │
+│                                                                │
+│                                                                │
+└────────────────────────────────┘
+                                                                                    
+  (내지 49쪽)                                                                       
+┌────────────────────────────────────────┐
+│   자격증번호:                                                                  │
+│   (CERTIFICATE NO.)                                                            │
+│                                                                                │
+│                                                                                │
+│                                                                                │
+│기초 가스연료추진선박 승무자격증                                                │
+│CERTIFICATE OF PROFICIENCY IN BASIC TRAINING                                    │
+│FOR SERVICE ON SHIPS SUBJECT TO THE IGF CODE                                    │
+│                                                                                │
+│ 성명_________________    생년월일_________________                             │
+│ (NAME)                   (DATE OF　BIRTH)                                      │
+│                                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준                          │
+│에 관한 국제협약」 및 「선원법 시행규칙」 제42조의2에                           │
+│따라 기초 가스연료추진선박 승무를 위한 자격이 있는 사                           │
+│람임을 증명합니다.                                                              │
+│                                                                                │
+│ Under the Provisions of paragraph 4 of Regulation V/3 in the                   │
+│International Convention on Standards of Training, Certification and            │
+│Watchkeeping for Seafarers, 1978, as amended, and the article                   │
+│42-2 Enforcement Ordinance of the of Seafarers Act, it is                       │
+│certified that the above mentioned person is qualified in basic                 │
+│training for service on ships subject to the IGF Code                           │
+│                                                                                │
+│발급일            이 승무자격증의 유효기간을                                    │
+│(ISSUED ON)       ..............................................까지 연장함.    │
+│                  The Validity of this endorsement is hereby                    │
+│유효기간 만료일   extended until ...............................................│
+│(Date of Expiry)  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                  이 승무자격증의 유효기간을                                    │
+│                  ..............................................까지 연장함.    │
+│발급기관          The Validity of this endorsement is hereby                    │
+│(ISSUED BY)       extended until ...............................................│
+│                  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                                                                                │
+│  대  한  민  국                                                                │
+│                  지방해양수산청장      ??                                    │
+│                 제주해양수산관리단장                                           │
+│                 해양수산사무소장                                               │
+│                                                                                │
+│                  SIGNED                                                        │
+│                                                                                │
+│  DIRECTOR GENERAL                                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,                    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,                │
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,                     │
+│                                                                                │
+│  THE REPUBLIC OF KOREA                                                         │
+│                                                                                │
+│                                                                                │
+└────────────────────────────────────────┘
+                                                                                    
+  (내지 50쪽)                                                                       
+┌────────────────────────────────────────┐
+│   자격증번호:                                                                  │
+│   (CERTIFICATE NO.)                                                            │
+│                                                                                │
+│                                                                                │
+│                                                                                │
+│상급 가스연료추진선박 승무자격증                                                │
+│CERTIFICATE OF PROFICIENCY IN ADVANCED TRAINING                                 │
+│FOR SERVICE ON SHIPS SUBJECT TO THE IGF CODE                                    │
+│                                                                                │
+│ 성명_________________    생년월일_________________                             │
+│ (NAME)                   (DATE OF　BIRTH)                                      │
+│                                                                                │
+│  위 사람은 「선원의 훈련, 자격증명 및 당직근무의 기준                          │
+│에 관한 국제협약」 및 「선원법 시행규칙」 제42조의2에                           │
+│따라 상급 가스연료추진선박 승무를 위한 자격이 있는                              │
+│사람임을 증명합니다.                                                            │
+│                                                                                │
+│ Under the Provisions of paragraph 7 of Regulation V/3 in the                   │
+│International Convention on Standards of Training, Certification and            │
+│Watchkeeping for Seafarers, 1978, as amended, and the article                   │
+│42-2 Enforcement Ordinance of the of Seafarers Act, it is                       │
+│certified that the above mentioned person is qualified in advanced              │
+│training for service on ships subject to the IGF Code                           │
+│                                                                                │
+│발급일            이 승무자격증의 유효기간을                                    │
+│(ISSUED ON)       ..............................................까지 연장함.    │
+│                  The Validity of this endorsement is hereby                    │
+│유효기간 만료일   extended until ...............................................│
+│(Date of Expiry)  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                  이 승무자격증의 유효기간을                                    │
+│                  ..............................................까지 연장함.    │
+│발급기관          The Validity of this endorsement is hereby                    │
+│(ISSUED BY)       extended until ...............................................│
+│                  갱신일(Date of revalidation)                                  │
+│                                               관인(Stamp)                      │
+│                                                                                │
+│                                                                                │
+│  대  한  민  국                                                                │
+│                  지방해양수산청장      ??                                    │
+│                 제주해양수산관리단장                                           │
+│                 해양수산사무소장                                               │
+│                                                                                │
+│                  SIGNED                                                        │
+│                                                                                │
+│  DIRECTOR GENERAL                                                              │
+│                    REGIONAL OFFICE OF OCEANS AND FISHERIES,                    │
+│                    JEJU OCEANS AND FISHERIES MANAGEMENT OFFICE,                │
+│                   DISTRICT OFFICE OF OCEANS AND FISHERIES,                     │
+│                                                                                │
+│  THE REPUBLIC OF KOREA                                                         │
+│                                                                                │
+│                                                                                │
+└────────────────────────────────────────┘
+                            
+  (내지 51쪽부터 54쪽까지)  
+┌────────────┐
+│관    청    기    재    │
+│OFFICIAL DESCRIPTIONS   │
+├────────────┤
+│                        │
+└────────────┘
+                                                                      
+  (뒤표지 안쪽)                                                       
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                  ┃
+┃유   의   사   항                                                 ┃
+┃                                                                  ┃
+┃1. 선원수첩에 공인받은 승선ㆍ하선 이력은 승무경력증명서           ┃
+┃류(정본)이므로 잘 보관하여야 합니다.                              ┃
+┃                                                                  ┃
+┃2. 승선계약이 성립 또는 종료된 때에는 즉시 선원수첩에             ┃
+┃승선ㆍ하선공인을 받으시기 바랍니다.                               ┃
+┃                                                                  ┃
+┃3. 이 선원수첩은 승선취업 중에는 선장이 보관하여야 합니다.        ┃
+┃                                                                  ┃
+┃4. 선원수첩이 사용불가능하게 된 때 또는 여백이 없게               ┃
+┃된 때에는 즉시 재발급을 받으시기 바랍니다.                        ┃
+┃                                                                  ┃
+┃5. 선원이 외국에서 하선공인을 받지 않고 귀국한 때에는 선          ┃
+┃박소유자 또는 선원관리사업자는 25일 이내에 지방해양수             ┃
+┃산청장(제주해양수산관리단장 또는 해양수산사무소장)에              ┃
+┃게 신고하고 선원수첩의 공인을 받아야 합니다.                      ┃
+┃                                                                  ┃
+┃6. 선원수첩을 발급한 날 또는 하선한 날부터 5년 이내에             ┃
+┃승선하지 않은 선원의 선원수첩은 실효가 됩니다.                    ┃
+┃                                                                  ┃
+┃7. 위의 절차를 게을리하거나 거짓 그 밖의 부정한 방법으로          ┃
+┃선원수첩을 사용 또는 훼손한 경우에는 관계 규정에 따라             ┃
+┃불이익을 받게 됩니다.                                             ┃
+┃                                                                  ┃
+┃                    이 선원수첩은 총 54쪽임.                      ┃
+┃                            This book contains 54 numbered pages. ┃
+┠─────────────────────────────────┨
+┃소지인의 서명                                                     ┃
+┃Signature of Bearer                                               ┃
+┃                                                                  ┃
+┃소지인 연락처(Information on Bearer)                              ┃
+┃                                                                  ┃
+┃  주소(Address)                                                   ┃
+┃                                                                  ┃
+┃  전화번호(Telephone No.)                                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                    
+   (뒤표지 바깥쪽)  
+┏━━━━━━━━┓
+┃                ┃
+┗━━━━━━━━┛

@@ -1,0 +1,77 @@
+[시행규칙] 서식17의18 — 전재 결과보고서
+
+■ 원양산업발전법 시행규칙 [별지 제17호의18서식]                                               
+                                                                                                                    
+  전재 결과보고서                                                                                                   
+  (Post-transshipment Report Fishing Vessel Transshipping at sea)                                                   
+                                                                                                                    
+  ※ 색상이 어두운 난은 보고자가 작성하지 않으며, "검증"란은 필요한 경우에만 작성합니다. The shaded fields are for official   
+  use only and the "verification section" is filled in by the relevant port authorities only when necessary.        
+────────────────────────────┬─────────────────────────────
+  접수번호(Receipt No.): yyyy-serial No.                │접수일자(Date of Receipt): 년 월 일 yyyy. mm. dd.         
+                                                        │                                                          
+────────────────────────────┴─────────────────────────────
+                                                                                                                    
+─────────┬────────────────────┬───────────────────────────
+  조업선          │선박명 Vessel Name                      │국제무선호출부호 IRCS                                 
+  (Fishing Vessel)├────────────────────┼───────────────────────────
+                  │선장명 Name of Master                   │국제해사기구 번호 IMO No.                             
+─────────┴────────────────────┴───────────────────────────
+                                                                                                                    
+─────────┬────────────────────┬───────────────────────────
+  운반선          │선박명 Vessel Name                      │선장명 Name of Master                                 
+  (Carrier Vessel)├────────────┬───────┴───────┬───────────────────
+                  │선박기국 Flag           │국제무선호출부호 IRCS         │국제해사기구 번호 IMO No.             
+─────────┴────────────┴───────────────┴───────────────────
+                                                                                                                    
+─────────┬────────────────────────────────────────────────
+  전재활동        │전재 허가번호 Transshipment Authorization No.                                                   
+  (Transshipment) │                                                                                                
+                  ├────────────────────┬───────────────────────────
+                  │전재기간 Period of Transshipment        │전재위치 Location of Transshipment                    
+─────────┴────────────────────┴───────────────────────────
+                                                                                                                    
+──────────────────────────────────────────────────────────
+  전 재 내 역 Transshipment Details                                                                                 
+─────┬───────┬───────┬──────┬───────┬───────┬────────┬────
+  어종    │조업기간      │조업수역      │처리형태    │전재 전       │전재량(kg)    │전재 후         │비고    
+  Species │Fishing Period│Fishing Area  │Presentation│적재량(kg)    │Transshipped  │적재량(kg)      │Others  
+          │              │              │            │Quantities    │Quantities(kg)│Quantities      │        
+          │              │              │            │on-board      │              │on-board after  │        
+          │              │              │            │before        │              │Transshipment   │        
+          │              │              │            │Transshipment │              │(kg)            │        
+          │              │              │            │(kg)          │              │                │        
+─────┼───────┼───────┼──────┼───────┼───────┼────────┼────
+          │              │              │            │              │              │                │        
+─────┼───────┼───────┼──────┼───────┼───────┼────────┼────
+          │              │              │            │              │              │                │        
+─────┼───────┼───────┼──────┼───────┼───────┼────────┼────
+          │              │              │            │              │              │                │        
+─────┼───────┼───────┼──────┼───────┼───────┼────────┼────
+          │              │              │            │              │              │                │        
+─────┼───────┼───────┼──────┼───────┼───────┼────────┼────
+          │              │              │            │              │              │                │        
+─────┴───────┴───────┴──────┼───────┼───────┼────────┼────
+  합 계 Total Quantities(㎏)                            │              │              │                │        
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━┷━━━━━━━┷━━━━━━━━┷━━━━
+  검증(Verification)/항구 내 전재(In-Port Transshipment Authorization)                                              
+─────────┬──────────┬────────┬───────────────┬────────────
+  성명 Name       │당국Port Authorities│서명 Signature  │주소 Address                  │전화번호 Tel.           
+                  │                    │                │                              │                        
+─────────┴──────┬───┴────────┴───────┬───────┴────────────
+  전재항구 Port of Transshipment│전재일 Date of Transshipment            │날인 Seal                               
+                                │                                        │                                        
+────────────────┴────────────────────┴────────────────────
+  「원양산업발전법」 제16조제1항 및 같은 법 시행규칙 제25조의3제1항에 따라 전재 결과를 보고합니다.                  
+   I hereby submit this post-transshipment report pursuant to Article 16(1) of the Distant Water Fisheries          
+  Development Act and Article 25-3(1) of the Enforcement Regulation of the same Act.                                
+                                                                                                                    
+                                                                               년        월       일                
+                                                                            year     month     date                 
+                                                                                                                    
+  보고자:                        (날인 또는 서명)                                                                   
+                               Name of Submitter                        (Seal or Signature)                         
+    동해어업관리단장 귀하                                                                                           
+  Attn: Director-General of East Sea Fisheries Management Service                                                   
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210mm×297mm[백상지 80g/㎡]
