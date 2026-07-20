@@ -263,6 +263,10 @@
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-20 23:58 KST] ✅완료 — 155건 검수대상 적대적 재검증 + 관리자 재로그인 버튼
+①4갈래 병렬(읽기전용) 재검증: genuinely_human105·ai_resolvable_now41·needs_more_collection9. 41건 review_queue.md 자동확정+canonical승격(3건 신규승격, 37건은 이전에 이미 canonical이었으나 카드만 미승인 부기지연). 9건 중 2건 collect_queue.json 신규추가(7건은 이미 있었음). 사람검수 155→114건. ②사용자가 초안승인 탭에서 '관리자 로그인 필요' 봄 → 원인: '관리자모드' 체크박스(클라 표시설정)≠서버 인증토큰. adminLockHTML()에 showUnifiedLoginModal 재로그인 버튼 추가. ③main에 push·배포 완료(사용자 확인 후 fast-forward).
+
+
 ### [2026-07-20 23:28 KST] ✅완료 — 관리자 검토센터 실데이터 연동
 초안승인 탭 하드코딩(842) 발견·제거. 서버 GET /api/legal/admin/stats·GET /api/legal/drafts 신규(index.json 기반). 클라 refreshAdminStats+renderDraftCards로 5개 서브탭 전부 실데이터 연동(피드백/새지식후보/개정검토는 실제 0건이라 표시값은 그대로지만 이제 실측). node_modules 미설치 환경이라 서버 기동 E2E는 못했고, 동일 로직을 node로 직접 실행해 index.json 대조 검증(draft145 일치). 다음: D단계 재수집 진행 중(묶음1).
 
