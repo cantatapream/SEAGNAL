@@ -24,7 +24,10 @@ def region(nm):
     return m.group(1) if m else '기타'
 
 def fetch(mst):
-    d=api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=ordin&type=JSON&ID={mst}")
+    # ★버그수정(2026-07-21, 어촌ㆍ어항법 C그룹 재확인 세션): lawService.do?target=ordin은
+    # 자치법규일련번호를 MST= 파라미터로 받아야 한다. 기존 ID= 파라미터는 전혀 다른 필드
+    # (자치법규ID)로 해석되어 엉뚱한 조례가 반환됨(raw/_자치법규 84/115개 파일 오염 확인, _LESSONS.md L-18 참조).
+    d=api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=ordin&type=JSON&MST={mst}")
     if not d: return ''
     b=d.get('OrdinService') or d.get('LawService') or {}
     return s(b.get('조문내용') or b.get('조문')).strip()
