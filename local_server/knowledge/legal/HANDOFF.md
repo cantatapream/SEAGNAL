@@ -415,6 +415,10 @@ Stage C-2(draft_reverify+lint)   미착수 ← 다음 작업
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-22 01:04 KST] 🟢착수 — Stage C-2: draft_reverify 배치1(12법) 착수
+Stage C wiki_rebuild 36/36 완료 확인 후 다음 단계(draft_reverify.js, 같은 36법 grounding재검증) 착수. draft_reverify.js 프롬프트 그대로 가져와 법당 1 Agent(sonnet)로 배치1(12법: 농수산물의원산지표시등에관한법률·도선법·수산물유통의관리및지원에관한법률·내수면어업법·수산업ㆍ어촌발전기본법·선박평형수관리법·갯벌법·농수산물품질관리법·선박안전법·수산업협동조합법·선원법·수산업법) 병렬 디스패치. 각 법의 draft/review 상태 concept을 raw grounding 대조해 promote/card/keep 3분류, 완료시 fix3/reverify_<slug>.done 마커 생성.
+
+
 ### [2026-07-22 01:03 KST] ✅완료 — ★★Stage C wiki_rebuild 배치3(12/12) 전체 완료 — Stage C 36/36법 전부 종료
 해양조사와해양정보활용에관한법률 완료(Stage B 신규부칙 6종 반영, 재정경제부/기획재정부 AI추론형 REVIEW를 원문grounding으로 정정). 이로써 배치3(유선및도선사업법·항로표지법·항만운송사업법·항만재개발및주변지역발전에관한법률·해양경비법·해양생태계의보전및관리에관한법률·해양수산발전기본법·해양수산생명자원의확보ㆍ관리및이용등에관한법률·해양조사와해양정보활용에관한법률·해양치유자원의관리및활용에관한법률·해양폐기물및해양오염퇴적물관리법·해양환경관리법) 12/12 전부 완료. 배치1(12)+배치2(12)+배치3(12)=Stage C 대상 36법 전부 완료. ★다음 단계(HANDOFF §6/사용자 승인된 논스톱 파이프라인): draft_reverify.js(같은 36법, grounding재검증)→lint_xref.js/lint_full.js→lint_index.py→lint_build.py(순서 필수)→human_workload.py→9차 감사(전체 73법, 300문항+scope_out+H-23 3페르소나). 이번 세션 신규발견(미해결): L-20 11번째 사례(해양환경관리법 부칙 raw 전체 미수집, _LESSONS.md 기록완료) — 다음 Stage B 세션 인계.
 
