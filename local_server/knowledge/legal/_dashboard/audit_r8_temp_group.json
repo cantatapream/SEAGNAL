@@ -1,0 +1,107 @@
+{
+  "0": [
+    {
+      "name": "해사안전기본법",
+      "slug": "해사안전기본법",
+      "domain": "03_해상교통안전",
+      "tier": 1,
+      "soban": "해양수산부",
+      "byl": 5,
+      "txt": [
+        "법률.txt",
+        "시행령.txt",
+        "시행규칙.txt"
+      ],
+      "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/03_해상교통안전/해사안전기본법",
+      "group": 0
+    },
+    {
+      "name": "수산업협동조합법",
+      "slug": "수산업협동조합법",
+      "domain": "05_수산어업",
+      "tier": 1,
+      "soban": "해양수산부",
+      "byl": 5,
+      "txt": [
+        "법률.txt",
+        "시행규칙.txt"
+      ],
+      "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법",
+      "group": 0
+    },
+    {
+      "name": "수산종자산업육성법",
+      "slug": "수산종자산업육성법",
+      "domain": "05_수산어업",
+      "tier": 1,
+      "soban": "해양수산부",
+      "byl": 43,
+      "txt": [
+        "법률.txt",
+        "시행령.txt",
+        "시행규칙.txt"
+      ],
+      "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법",
+      "group": 0
+    },
+    {
+      "name": "원양산업발전법",
+      "slug": "원양산업발전법",
+      "domain": "05_수산어업",
+      "tier": 1,
+      "soban": "해양수산부",
+      "byl": 52,
+      "txt": [
+        "법률.txt",
+        "시행령.txt",
+        "시행규칙.txt"
+      ],
+      "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/원양산업발전법",
+      "group": 0
+    },
+    {
+      "name": "낚시 관리 및 육성법",
+      "slug": "낚시관리및육성법",
+      "domain": "09_레저관광",
+      "tier": 1,
+      "soban": "해양수산부",
+      "byl": 38,
+      "txt": [
+        "법률.txt",
+        "시행령.txt",
+        "시행규칙.txt"
+      ],
+      "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/09_레저관광/낚시관리및육성법",
+      "group": 0
+    },
+    {
+      "name": "어촌ㆍ어항법",
+      "slug": "어촌ㆍ어항법",
+      "domain": "10_항만물류",
+      "tier": 1,
+      "soban": "해양수산부",
+      "byl": 25,
+      "txt": [
+        "법률.txt",
+        "시행령.txt",
+        "시행규칙.txt"
+      ],
+      "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법",
+      "group": 0
+    },
+    {
+      "name": "항만법",
+      "slug": "항만법",
+      "domain": "10_항만물류",
+      "tier": 1,
+      "soban": "해양수산부",
+      "byl": 30,
+      "txt": [
+        "법률.txt",
+        "시행규칙.txt"
+      ],
+      "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/항만법",
+      "group": 0
+    }
+  ]
+}

@@ -68,3 +68,27 @@ _(자율 사이클이 여기에 append. 예: "2026-07-19T14:27Z 종합단계: gl
 - 판단: 크레딧 소진 이력 + 워크플로 in-flight → 추가 launch 시 재소진·중복 위험. **비차단으로 실행중 2그룹 완주 대기**, 지금 fire는 모델 미사용 정리만.
 - 모델정책(사용자 확정): fable 금지, 검증=sonnet·medium (자율루프 프롬프트의 "Sonnet high"보다 사용자 최신 지시 우선).
 - 다음: 2그룹 완료 알림 시 → 카드병합·index재빌드 → 나머지 3그룹 → 집계. (미보고 없음: 사용자와 방금까지 대화)
+
+## [2026-07-21 09:43] collect_queue 98건 처리 대기
+- collect_queue.json 비지 않음 (4개 법령·86개 holes)
+- collect_fix_cell.js 병렬 실행 필요 (단독 처리, DRF 수집)
+- Status: **pending** — 다음 fire에서 실행
+
+
+
+## [2026-07-21 09:45] 자율루프 fire 요약
+- fix_r7: ✅ 70/70 완료
+- collect: ⏳ 98건 대기 (다음 fire)
+- lint_r7/r8: ✅ 완료
+- audit_r8: 🔄 진행 중 (7법, 활용시간 스로틀 1WS) — Task w6ssle1sd
+- synth: ⏳ audit_r8 완료 후
+
+
+
+## [2026-07-21 09:46] 미보고: audit_r8 boot 실패
+- 증상: Workflow 실행 시 agent boot 미실행 (audited:0)
+- 원인: args 형식 이슈 또는 boot agent 타임아웃 추정
+- 상태: **pending** — 다음 fire에서 직접 agent 호출로 재시도 필요
+- 마커: audit_r8_*.done 0/7 (진행 안 됨)
+
+
