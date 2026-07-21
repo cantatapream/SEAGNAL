@@ -275,6 +275,10 @@
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-21 09:32 KST] ✅완료 — 수상레저안전법 위키 콘텐츠 보완(remediation)
+wiki_lag 3건 반영(정원산출식 cross-ref·마리나비교표 신설·annex 17개 canonical 승급), collection_hole 4건 확인(자동차손배법 별표2 오매칭은 8R 판정 정정불요로 재확인), 구조적공백 6건 재확인, 연락처 H-21 정리 1페이지(수상레저안전법.md 담당과·전화 삭제), L-15 재확인 결과 1페이지 1건(안전준수의무.md 워터파크=내수면 REVIEW) canonical→draft 환원. 상세는 _dashboard/audit/수상레저안전법.md §11, _LESSONS.md L-15 22번째 사례.
+
+
 ### [2026-07-21 09:28 KST] ✅완료 — 수중레저활동안전법 8R gap remediation 완료
 8R 감사(_dashboard/audit/수중레저활동의안전및활성화등에관한법률.md) 기반 gap remediation. wiki_lag 전환 2건: ①제26조 수수료 collection_hole(6라운드 연속)을 별지 제2호서식 '수수료: 없음' 확인해 해소(concepts/수중레저사업등록및행정처분.md·statutes 허브 동시 정정) ②임대업(서식 공식명칭, 별지2·3호서식)/대여업(위키 통칭) 동의어 4개 페이지+_glossary.md에 병기. 구조개선: 이수증(별지3호서식) '유효기간' 필드가 이수증 자체가 아니라 응시자 기존 민간자격 참고란임을 사업자안전조치와교육자배치.md에 명시(0-D), 대여확인서(고시) 미작성시 제30조3호 처벌연결 불명확 REVIEW 신규 등재(T3). 연락처 정리(H-21): statutes 허브 frontmatter의 raw 근거 없는 '해양수산부 해양레저관광과' 담당과명 삭제(부처명만 유지), 반면 concepts 6페이지의 '해양경찰청(수상레저과) 032-835-2551'은 raw 행정규칙 고시(안전관리규정·금지구역고시) ID로 grounding 확인되어 유지(L-16 그라운드 케이스). L-15 재확인: 6개 canonical 페이지 전수 grep(REVIEW/AI가/추정/반대해석 등) — AI 재검증 승급 footnote 있는 4페이지 포함 전부 재검토했으나 위반 없음(전부 단일조문 반대해석 또는 정직 declination형, '확인불가/REVIEW' 명시). collection_hole 5건은 감사 기재 그대로 유지(admrul 미제정, 재수집 필요). 변경이력 갱신 완료(3개 concepts 페이지 + statutes 허브).
 
