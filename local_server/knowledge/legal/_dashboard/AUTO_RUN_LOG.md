@@ -84,3 +84,11 @@ _(자율 사이클이 여기에 append. 예: "2026-07-19T14:27Z 종합단계: gl
 - synth: ⏳ audit_r8 완료 후
 
 
+
+## [2026-07-21 09:46] 미보고: audit_r8 boot 실패
+- 증상: Workflow 실행 시 agent boot 미실행 (audited:0)
+- 원인: args 형식 이슈 또는 boot agent 타임아웃 추정
+- 상태: **pending** — 다음 fire에서 직접 agent 호출로 재시도 필요
+- 마커: audit_r8_*.done 0/7 (진행 안 됨)
+
+
