@@ -415,6 +415,10 @@ Stage C-2(draft_reverify+lint)   미착수 ← 다음 작업
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-22 05:00 KST] 🟢착수 — Stage C-2 draft_reverify 배치1 — 정체된 Routine에서 직접 인계받아 재개
+이전 착수(01:04 KST)가 hourly Routine에 의해 시작됐으나 4시간+ 무진전(마커·커밋 갱신 없음) 확인. 사용자 요청으로 이 세션이 직접 인계받아 draft_reverify.js 프롬프트 그대로 Agent 12개(sonnet·medium) 병렬 디스패치 재개. 대상: 배치1과 동일 12법(농수산물의원산지표시등에관한법률·도선법·수산물유통의관리및지원에관한법률·내수면어업법·수산업ㆍ어촌발전기본법·선박평형수관리법·갯벌법·농수산물품질관리법·선박안전법·수산업협동조합법·선원법·수산업법). 각 법 draft/review 페이지를 raw grounding 대조해 promote/card/keep 3분류, 마커 reverify_<slug>.done 갱신(멱등— 이미 처리됐으면 그대로 보고).
+
+
 ### [2026-07-22 01:04 KST] 🟢착수 — Stage C-2: draft_reverify 배치1(12법) 착수
 Stage C wiki_rebuild 36/36 완료 확인 후 다음 단계(draft_reverify.js, 같은 36법 grounding재검증) 착수. draft_reverify.js 프롬프트 그대로 가져와 법당 1 Agent(sonnet)로 배치1(12법: 농수산물의원산지표시등에관한법률·도선법·수산물유통의관리및지원에관한법률·내수면어업법·수산업ㆍ어촌발전기본법·선박평형수관리법·갯벌법·농수산물품질관리법·선박안전법·수산업협동조합법·선원법·수산업법) 병렬 디스패치. 각 법의 draft/review 상태 concept을 raw grounding 대조해 promote/card/keep 3분류, 완료시 fix3/reverify_<slug>.done 마커 생성.
 
