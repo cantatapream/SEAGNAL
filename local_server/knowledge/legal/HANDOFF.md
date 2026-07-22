@@ -415,6 +415,10 @@ Stage C-2(draft_reverify+lint)   미착수 ← 다음 작업
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-22 10:41 KST] ✅완료 — Stage C-2 draft_reverify - 해양조사와해양정보활용법·해양환경관리법 완료(배치2 웨이브B)
+해양조사와해양정보활용법: 6개 draft 전부 keep(L-15 sweep 신규위반없음). 해양환경관리법: draft 0건(전부 canonical), L-15 sweep 7건 검출했으나 전부 OCR정직caveat/EXACT인용 대조군 확인, 위반없음. 웨이브B 진행률: 12법 중 11/12 완료, 유선및도선사업법만 남음.
+
+
 ### [2026-07-22 10:40 KST] ✅완료 — 해양조사와해양정보활용에관한법률 draft 재검증 완료(keep 6건, 승급 0)
 draft 6건 전수 raw grounding 재대조 결과 전부 keep 유지가 정당함을 재확인(2026-07-21 L-15 remediation 판정 그대로 확정, Stage C 부칙보강도 이 6건의 AI법리추론형 REVIEW를 해소하지 못함 — 제56조 청문열거 미포함/제36조·52조 결격임원유예기간 명문없음/경력증재발급 조문없음/품질관리 나머지3종 별도고시없음 전부 raw 재확인으로 진짜 gap 확정). 정의허브의 OCR수치 REVIEW(기준면성과·산식)는 이미 review_gen 카드 801·802로 등록돼 있어 신규카드 불요. L-15 sweep: 이 법 canonical 14페이지 전수 REVIEW grep → 7페이지에서 마커 발견했으나 전부 정직한 declination/OCR caveat(대통령령 세부미규정 확인·타법확인필요·개별사안판단필요 등)로 L-15 위반 아님 확인(21번째 사례 아님, 대조군으로만 기록). 마커 갱신: reverify_해양조사와해양정보활용에관한법률.done.
 
