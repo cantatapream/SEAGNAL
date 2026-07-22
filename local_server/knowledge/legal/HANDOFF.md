@@ -415,6 +415,10 @@ Stage C-2(draft_reverify+lint)   미착수 ← 다음 작업
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-22 10:46 KST] 🟢착수 — Stage C-2 후속 lint 파이프라인 착수 — lint_xref+lint_full 통합(36법, 3웨이브)
+draft_reverify 36/36법 완료 후 lint 단계 착수. lint_xref.js(타법연결 표 링크화)와 lint_full.js(비대칭 역링크·허브링크·dangling 정리)는 둘 다 자기법 파일만 쓰는 병렬안전 스크립트이고 서로 충돌 없어, 효율을 위해 법당 1개 Agent에 두 작업을 통합한 프롬프트로 디스패치(36법을 12×3웨이브). all_laws.json(73법)을 이 세션 scratchpad에 재생성해 사용. 완료 후 lint_index.py→lint_build.py(그래프 재생성, 순서 필수)→human_workload.py는 직접 Bash 실행.
+
+
 ### [2026-07-22 10:45 KST] ✅완료 — ★★Stage C-2 draft_reverify 배치2 웨이브B(12/12법) 전체 완료 — draft_reverify 36/36법 전체 종료
 마지막 유선및도선사업법 완료: draft 1건 확인(안전검사및선원인력, keep+카드갱신), L-15 sweep으로 신규 위반 2건 발견·canonical→draft 환원(사업면허및신고·승선정원및승객준수사항, L-15 31번째 확인 사례). review_queue.md REVIEW-유선및도선사업법-01·02 신규등록. 이로써 배치2 웨이브B(유선및도선사업법·항로표지법·항만운송사업법·항만재개발법·해양경비법·해양생태계보전법·해양수산발전기본법·해양수산생명자원법·해양조사와해양정보활용법·해양치유자원법·해양폐기물오염퇴적물법·해양환경관리법) 12/12 전부 완료. **draft_reverify(Stage C-2) 36/36법 전체 완료**(배치1 12+배치2웨이브A 12+배치2웨이브B 12). 이번 라운드 L-15 신규발견 누적: 27번째(양식산업발전법)~31번째(유선및도선사업법) 총 5건. 다음: lint 파이프라인(lint_xref.js/lint_full.js→lint_index.py→lint_build.py 순서 필수→human_workload.py) → 9차 감사.
 
