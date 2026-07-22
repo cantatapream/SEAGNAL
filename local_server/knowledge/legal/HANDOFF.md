@@ -415,6 +415,10 @@ Stage C-2(draft_reverify+lint)   미착수 ← 다음 작업
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-22 10:45 KST] ✅완료 — ★★Stage C-2 draft_reverify 배치2 웨이브B(12/12법) 전체 완료 — draft_reverify 36/36법 전체 종료
+마지막 유선및도선사업법 완료: draft 1건 확인(안전검사및선원인력, keep+카드갱신), L-15 sweep으로 신규 위반 2건 발견·canonical→draft 환원(사업면허및신고·승선정원및승객준수사항, L-15 31번째 확인 사례). review_queue.md REVIEW-유선및도선사업법-01·02 신규등록. 이로써 배치2 웨이브B(유선및도선사업법·항로표지법·항만운송사업법·항만재개발법·해양경비법·해양생태계보전법·해양수산발전기본법·해양수산생명자원법·해양조사와해양정보활용법·해양치유자원법·해양폐기물오염퇴적물법·해양환경관리법) 12/12 전부 완료. **draft_reverify(Stage C-2) 36/36법 전체 완료**(배치1 12+배치2웨이브A 12+배치2웨이브B 12). 이번 라운드 L-15 신규발견 누적: 27번째(양식산업발전법)~31번째(유선및도선사업법) 총 5건. 다음: lint 파이프라인(lint_xref.js/lint_full.js→lint_index.py→lint_build.py 순서 필수→human_workload.py) → 9차 감사.
+
+
 ### [2026-07-22 10:41 KST] ✅완료 — Stage C-2 draft_reverify - 해양조사와해양정보활용법·해양환경관리법 완료(배치2 웨이브B)
 해양조사와해양정보활용법: 6개 draft 전부 keep(L-15 sweep 신규위반없음). 해양환경관리법: draft 0건(전부 canonical), L-15 sweep 7건 검출했으나 전부 OCR정직caveat/EXACT인용 대조군 확인, 위반없음. 웨이브B 진행률: 12법 중 11/12 완료, 유선및도선사업법만 남음.
 
