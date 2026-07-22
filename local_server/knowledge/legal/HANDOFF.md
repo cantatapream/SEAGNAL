@@ -415,6 +415,10 @@ Stage C-2(draft_reverify+lint)   미착수 ← 다음 작업
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-22 15:48 KST] 🟢착수 — Stage C-2 후속 lint 파이프라인(lint_xref+lint_full 통합) 실행 재개
+이전 세션이 착수 로그만 남기고 실제 디스패치 전에 종료됨(HEAD=4322255b). 이번 세션이 이어받아 36법을 12법×3웨이브로 sonnet Agent 디스패치 시작. 웨이브1(12법): 갯벌및그주변지역의지속가능한관리와복원에관한법률·내수면어업법·농수산물의원산지표시등에관한법률·농수산물품질관리법·도선법·선박안전법·선박평형수(船舶平衡水)관리법·선원법·수산물유통의관리및지원에관한법률·수산업ㆍ어촌발전기본법·수산업법·수산업협동조합법. all_laws.json(73법)을 이 세션 scratchpad에 재생성함.
+
+
 ### [2026-07-22 10:46 KST] 🟢착수 — Stage C-2 후속 lint 파이프라인 착수 — lint_xref+lint_full 통합(36법, 3웨이브)
 draft_reverify 36/36법 완료 후 lint 단계 착수. lint_xref.js(타법연결 표 링크화)와 lint_full.js(비대칭 역링크·허브링크·dangling 정리)는 둘 다 자기법 파일만 쓰는 병렬안전 스크립트이고 서로 충돌 없어, 효율을 위해 법당 1개 Agent에 두 작업을 통합한 프롬프트로 디스패치(36법을 12×3웨이브). all_laws.json(73법)을 이 세션 scratchpad에 재생성해 사용. 완료 후 lint_index.py→lint_build.py(그래프 재생성, 순서 필수)→human_workload.py는 직접 Bash 실행.
 
