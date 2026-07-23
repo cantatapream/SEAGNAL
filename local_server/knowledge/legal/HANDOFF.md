@@ -416,6 +416,10 @@ Stage C-2(draft_reverify+lint)   완료(2026-07-23 14:04 KST, 36/36 + lint_index
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-23 19:00 KST] ✅완료 — 9차 감사 웨이브1 - 공유수면관리및매립법 완료
+332문항(41회귀+291신규): full 268·thin 46·missing 14·awkward 6·collection_hole 0·scope_out 0. 직전 F1~F4 결함 33/41건 이미 당일 수정 확인. method_compliance 출처표기 weak(매립면허·점용사용허가 L-15 canonical 재승격 보류 미해소). 잔여 gap: 물양장 glossary 8라운드째 미등재, 방치선박 소유권이전 처벌·비용승계 불명. 완료 마커 생성, 커밋 6f5bb120. 웨이브1 3/8 완료(내수면어업법·해적행위피해예방법·공유수면관리및매립법).
+
+
 ### [2026-07-23 18:59 KST] ✅완료 — 9차 감사 웨이브1 - 해적행위피해예방법 완료
 320문항(296재확인/재분류+24신규): full 21·thin 9·missing 6·awkward 3·collection_hole 0·scope_out 0·review_pending 0. 직전 최우선 결함(canonical/draft 배너 모순 17페이지)이 커밋 76ec8199로 완전 해소 확인. 연락처 REVIEW 4건도 커밋 8184e23b 정직표기 전환으로 해소. 신규 missing 6건(통항보고 전자시스템명·결격사유 조회주체 등). 완료 마커 생성, 커밋 c6eda801. 웨이브1 나머지 6법 진행 중(내수면어업법·해적행위피해예방법 2/8 완료).
 
