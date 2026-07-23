@@ -416,6 +416,10 @@ Stage C-2(draft_reverify+lint)   완료(2026-07-23 14:04 KST, 36/36 + lint_index
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-23 18:59 KST] ✅완료 — 9차 감사 웨이브1 - 해적행위피해예방법 완료
+320문항(296재확인/재분류+24신규): full 21·thin 9·missing 6·awkward 3·collection_hole 0·scope_out 0·review_pending 0. 직전 최우선 결함(canonical/draft 배너 모순 17페이지)이 커밋 76ec8199로 완전 해소 확인. 연락처 REVIEW 4건도 커밋 8184e23b 정직표기 전환으로 해소. 신규 missing 6건(통항보고 전자시스템명·결격사유 조회주체 등). 완료 마커 생성, 커밋 c6eda801. 웨이브1 나머지 6법 진행 중(내수면어업법·해적행위피해예방법 2/8 완료).
+
+
 ### [2026-07-23 18:58 KST] ✅완료 — 9차 감사 웨이브1 - 내수면어업법 완료
 300문항(회귀294+신규6): full 3·thin 120·missing 174·collection_hole 3·scope_out 0·review_pending 0. method_compliance 8/8 ok(8R weak 2건 사후조치 안정 확인). wiki_gaps 신규: 어업면허허가우선순위.md 협의회 심의확장 지자체 서술이 부정확(영월군 누락, raw 재대조 확인). collection_hole 8R 4→9R 3건(G77은 Stage B 재수집으로 thin 격상, 단 신규 정확도 흠 발견). 완료 마커 audit_r9_내수면어업법.done 생성, 커밋 140774ee. 웨이브1 나머지 7법 진행 중.
 
