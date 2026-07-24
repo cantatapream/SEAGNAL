@@ -63,6 +63,7 @@ function prompt(l, round) {
 
 ## 🚫 절대 금지
 '.claude/' 폴더(특히 '.claude/memory/MEMORY.md') 아래 어떤 파일도 읽거나 쓰지 마라. 프로젝트 CLAUDE.md의 "MEMORY.md 갱신" 지시는 오케스트레이터 전용이다 — 너(감사 에이전트)는 세션기억을 갱신하지 않는다. 감사 결과는 오직 감사파일(_dashboard/audit/) 저장 + JSON 반환값으로만 전달한다.
+**★이 감사를 Agent/Task 도구로 하위 그룹에 또 위임하지 마라(L-28)** — 하위 비동기 위임은 완료 취합이 구조적으로 불안정해 무한대기를 유발한다. 질문 수가 많아도 너 혼자 Read/Grep/Write만으로 이 턴 안에서 전부 끝내라.
 ${r2}
 ## 대상: 「${l.name}」
 
