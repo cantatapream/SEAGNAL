@@ -432,6 +432,10 @@ Stage C-2(draft_reverify+lint)   완료(2026-07-23 14:04 KST, 36/36 + lint_index
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-27 00:59 KST] ✅완료 — 통합수정(fix3 r9) — 수산종자산업육성법
+H-26 5종 재분류+인라인마커+연락처 자동수집 반영 완료. 핵심: 7라운드(2R~8R) 연속 collection_hole이던 '진흥센터 시설기준 고시(분자표지분석 등)'를 law.go.kr DRF lsDelegated+admrul API 재조회로 해소(구버전 ID 2100000181169→현행 ID 2100000186055, 제2조의2·별표1 확보, raw+wiki 반영). 나머지 3개 위임고시(시행령 제8조④·17조②, 시행규칙 제33조③)는 lsDelegated API로 위임행정규칙 자체 없음을 재확인해 genuine 미제정으로 재확정(재수집 종료 권고). contacts_collected.json(2026-07-26 자동수집)으로 13개 concept+statute 페이지 소관부서·연락처 갱신(해양수산부 양식산업과 051-773-5683,5642 — 8R이 '무관 차용'으로 삭제했던 값이 실제로는 families 자체의 정당한 DRF 값이었음을 재확인). review_queue.md REVIEW-01·03·04·06을 위키 본문 해당 문장에 ⚠REVIEW-수산종자산업육성법-NN 인라인마커 9건 부착(L-15 완화책). canonical/draft 상태는 8R 그대로 유지(5개 draft: 정의허브·협회설립·생산업허가·유통품질표시·수수료및면제 — REVIEW 미해결로 draft 정당). thin/collection_hole 재분류 결과는 전부 genuine(미제정)이거나 이번에 uncollected→해소. 시행령 부칙 제27245호의 종묘생산어업↔수산종자생산업 대응표(img id 24902539/24902540)는 이미지 다운로드+OCR 필요해 collectable_holes로 재수집 큐 이관. git add/commit/push는 오케스트레이터 처리 예정.
+
+
 ### [2026-07-27 00:52 KST] ✅완료 — r9 통합수정(섬발전촉진법)
 9차 감사(r9) gap remediation 완료. ①contacts_collected.json(law.go.kr DRF 자동수집)으로 연락처 실값(균형발전진흥과 044-205-3524) 반영해 8~9라운드 미검증 연락처 REVIEW 해소(statute+concept 2건) ②statute '확인된 규정 공백' 표에 4건 신규 편입(제척기피/임원결격임기/회계결산/회의공개) ③statute에 '범위 밖 안내' 신규 절 추가(scope_out 16건 중 6주제 반영) ④개발대상섬지정.md에 간출지·간척지 정의 신규 REVIEW 등록 + 지정완료시 자동해제 규정없음 확정 + 법적성질·무효취소 scope_out 안내 ⑤교통편의증진지원.md에 승선정원·기상특보/감염병 예외 규정없음 확정 ⑥statute 페이지 draft→canonical 승격(H-12②, 처벌·REVIEW 없는 순수 정의절차 페이지). 두 concept 페이지·annex는 AI추론형 REVIEW 보유로 draft 유지(정상). left_alone: _glossary.md 매핑(쓰기범위 밖), Q51 6라운드 미해소(장식적 REVIEW, 관리자 확정종결 권고 누적), 자치법규 collection_hole 2건(불변), comparisons 신규허브 불필요(hub_needs 없음).
 
