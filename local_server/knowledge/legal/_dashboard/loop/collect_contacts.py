@@ -108,18 +108,27 @@ def _collect_one_law(slug, raw_dir, law_result, failures):
             meta = {}
 
         for fam_name, fam in (meta.get("families") or {}).items():
-            mst = fam.get("MST")
-            if not mst:
-                failures.append({"law": slug, "layer": fam_name, "reason": "MST 없음"})
-                continue
-            try:
-                contacts = extract_law_contacts(mst)
-                law_result["families"][fam_name] = contacts
-                if not contacts:
-                    failures.append({"law": slug, "layer": fam_name, "reason": "API 응답에 연락부서/전화번호 필드 자체가 없음"})
-            except Exception as e:
-                failures.append({"law": slug, "layer": fam_name, "reason": f"API 호출 실패: {e}"})
-            time.sleep(0.3)
+            # 일부 법(예: 해양경찰법)은 하나의 family가 단일 dict가 아니라
+            # 위임근거별로 분산된 대통령령 여러 건(list)이거나, "없음"(str)일 수 있음.
+            if isinstance(fam, str):
+                continue  # "없음 — ..." 같은 설명문, 실제 항목 아님
+            if fam_name == "행정규칙" and isinstance(fam, dict) and "MST" not in fam:
+                continue  # 일부 법(예: 해운법)은 families.행정규칙이 개수·비고 요약일 뿐 — 실제 항목은 _admrul.json에서 별도 처리
+            sub_items = fam if isinstance(fam, list) else [fam]
+            for idx, sub in enumerate(sub_items):
+                sub_label = fam_name if len(sub_items) == 1 else f"{fam_name}[{idx}:{sub.get('법령명', '')}]"
+                mst = sub.get("MST") if isinstance(sub, dict) else None
+                if not mst:
+                    failures.append({"law": slug, "layer": sub_label, "reason": "MST 없음"})
+                    continue
+                try:
+                    contacts = extract_law_contacts(mst)
+                    law_result["families"][sub_label] = contacts
+                    if not contacts:
+                        failures.append({"law": slug, "layer": sub_label, "reason": "API 응답에 연락부서/전화번호 필드 자체가 없음"})
+                except Exception as e:
+                    failures.append({"law": slug, "layer": sub_label, "reason": f"API 호출 실패: {e}"})
+                time.sleep(0.3)
 
         admrul_path = f"{raw_dir}/행정규칙/_admrul.json"
         try:

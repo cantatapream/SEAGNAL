@@ -3,5 +3,55 @@
     "law": "마리나항만의조성및관리등에관한법률",
     "layer": "시행령",
     "reason": "API 호출 실패: <urlopen error [Errno 104] Connection reset by peer>"
+  },
+  {
+    "law": "양식산업발전법",
+    "layer": "행정규칙:패류양식업 및 어류등양식업 중 대기업 및 그 계열기업 등이 양식 가능한 품종",
+    "reason": "API 응답에 담당부서 정보 없음"
+  },
+  {
+    "law": "양식산업발전법",
+    "layer": "행정규칙:양식업 면허 심사·평가 방법 및 절차 등에 관한 규정",
+    "reason": "API 응답에 담당부서 정보 없음"
+  },
+  {
+    "law": "양식산업발전법",
+    "layer": "행정규칙:양식장·어장 표지시설의 설치 기준",
+    "reason": "API 응답에 담당부서 정보 없음"
+  },
+  {
+    "law": "선박직원법",
+    "layer": "행정규칙:지정교육기관기준",
+    "reason": "API 응답에 담당부서 정보 없음"
+  },
+  {
+    "law": "선박직원법",
+    "layer": "행정규칙:해기품질기준",
+    "reason": "API 응답에 담당부서 정보 없음"
+  },
+  {
+    "law": "해양경찰법",
+    "layer": "전체",
+    "reason": "예상치 못한 오류로 이 법 스킵: 'list' object has no attribute 'get'"
+  },
+  {
+    "law": "항만운송사업법",
+    "layer": "행정규칙:당진화력발전소 항만시설 지정",
+    "reason": "API 호출 실패: <urlopen error [Errno 104] Connection reset by peer>"
+  },
+  {
+    "law": "해운법",
+    "layer": "행정규칙",
+    "reason": "MST 없음"
+  },
+  {
+    "law": "항로표지법",
+    "layer": "행정규칙:위성항법보정시스템 전국망구축 및 운영에 관한 규정",
+    "reason": "API 호출 실패: <urlopen error [Errno 104] Connection reset by peer>"
+  },
+  {
+    "law": "항로표지법",
+    "layer": "행정규칙:(포항지방해양수산청) 공사구역을 표시하는 항로표지 등의 설치·관리 수역 지정에 관한 고시",
+    "reason": "API 호출 실패: <urlopen error Tunnel connection failed: 502 Bad Gateway>"
   }
 ]
