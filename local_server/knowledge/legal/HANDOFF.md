@@ -411,6 +411,10 @@ Stage C(재수집분 wiki반영+lint)  미착수
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-26 21:40 KST] ✅완료 — Stage C - lint_index.py/lint_build.py/human_workload.py 재생성 완료
+Stage C wiki_rebuild 36법 반영 후 공유 인덱스 재생성: index.json(개념926/법88/도메인16), graph.json(88노드 1363엣지), _backbone.md(40허브법), build_index.md. 사람검수 대상 재집계: 총201건(별표OCR56·법리유권해석79·판례확인7·입법연혁6·제품설계2·수집대기31·기타20). 다음: draft_reverify/lint_xref/lint_full(36법, 개별 에이전트) 진행 여부 결정 필요 — 규모가 매우 커서(36법×3단계) 사용자 확인 후 진행.
+
+
 ### [2026-07-26 21:39 KST] ✅완료 — ★Stage C wiki_rebuild 배치3(12/12법) 전체 완료 — Stage C wiki_rebuild 36법 전체 종료
 해양조사와해양정보활용에관한법률: 부칙 15건 반영(정의허브 등 15개 concept), 실질오류 정정(제39조① 재정경제부장관 표기가 2025.10.1 개정으로 원상복귀됐음을 부칙 근거로 확인·REVIEW 해소). 이로써 Stage C wiki_rebuild 배치1~3(36법) 전체 완료. 다음: lint 파이프라인(draft_reverify→lint_xref/lint_full→lint_index→lint_build→human_workload).
 
