@@ -55,15 +55,35 @@ def main():
     for k in sorted(groups.keys(), key=int):
         laws.extend(groups[k])
 
-    results = {}
-    failures = []
+    try:
+        results = json.load(open(OUT_FILE, encoding="utf-8"))
+    except Exception:
+        results = {}
+    try:
+        failures = json.load(open(FAIL_FILE, encoding="utf-8"))
+    except Exception:
+        failures = []
     total = len(laws)
     for i, law in enumerate(laws, 1):
         slug = law["slug"]
         raw_dir = law["raw"]
+        if slug in results:
+            print(f"[{i}/{total}] {slug} — 이미 완료(재개 skip)", flush=True)
+            continue
         print(f"[{i}/{total}] {slug}", flush=True)
         law_result = {"families": {}, "행정규칙": {}}
+        try:
+            _collect_one_law(slug, raw_dir, law_result, failures)
+        except Exception as e:
+            failures.append({"law": slug, "layer": "전체", "reason": f"예상치 못한 오류로 이 법 스킵: {e}"})
+        results[slug] = law_result
+        json.dump(results, open(OUT_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+        json.dump(failures, open(FAIL_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 
+    print(f"완료: {len(results)}법, 실패건 {len(failures)}건")
+
+
+def _collect_one_law(slug, raw_dir, law_result, failures):
         meta_path = f"{raw_dir}/_meta.json"
         try:
             meta = json.load(open(meta_path, encoding="utf-8"))
@@ -91,6 +111,8 @@ def main():
         except Exception:
             admruls = {}
         for title, entry in admruls.items():
+            if title.startswith("_") or not isinstance(entry, dict):
+                continue  # 메모성 키(_미확인 등) — 실제 admrul 항목 아님
             aid = entry.get("ID")
             if not aid:
                 continue
@@ -103,13 +125,6 @@ def main():
             except Exception as e:
                 failures.append({"law": slug, "layer": f"행정규칙:{title}", "reason": f"API 호출 실패: {e}"})
             time.sleep(0.3)
-
-        results[slug] = law_result
-        # 중간 저장(중단돼도 이어볼 수 있게)
-        json.dump(results, open(OUT_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-        json.dump(failures, open(FAIL_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-
-    print(f"완료: {len(results)}법, 실패건 {len(failures)}건")
 
 if __name__ == "__main__":
     main()
