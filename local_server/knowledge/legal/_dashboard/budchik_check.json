@@ -1,0 +1,1051 @@
+{
+  "배타적경제수역및대륙붕에관한법률": {
+    "법률": {
+      "raw_has_budchik": true
+    }
+  },
+  "서해5도지원특별법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    }
+  },
+  "무인도서의보전및관리에관한법률": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "농수산물의원산지표시등에관한법률": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "선박평형수(船舶平衡水)관리법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "섬발전촉진법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "도선법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "수산업ㆍ어촌발전기본법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "선박직원법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "독도의지속가능한이용에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "선박법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "수산종자산업육성법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "국제항해선박등에대한해적행위피해예방에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "내수면어업법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "국제항해선박및항만시설의보안에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "수산물유통의관리및지원에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "수산업협동조합법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    }
+  },
+  "마리나항만의조성및관리등에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "어선안전조업및어선원의안전ㆍ보건증진등에관한법률": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "선원법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "농수산물품질관리법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "공유수면관리및매립에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "선박안전법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "영해및접속수역법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    }
+  },
+  "물환경보전법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "유류오염손해배상보장법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "갯벌및그주변지역의지속가능한관리와복원에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "선박교통관제에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "수상레저기구의등록및검사에관한법률": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "낚시관리및육성법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "선박의입항및출항등에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "수산업법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "수중레저활동의안전및활성화등에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "어촌ㆍ어항법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "신항만건설촉진법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해사안전기본법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "수산자원관리법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "수산부산물재활용촉진에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해양경비법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "해양경찰법": {
+    "법률": {
+      "raw_has_budchik": true
+    }
+  },
+  "한국해양교통안전공단법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "수상에서의수색ㆍ구조등에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해양레저관광진흥법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "한국해양수산연수원법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해양생태계의보전및관리에관한법률": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "해양수산발전기본법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    }
+  },
+  "해양수산생명자원의확보ㆍ관리및이용등에관한법률": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "유선및도선사업법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해양조사와해양정보활용에관한법률": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "수상레저안전법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "어선원및어선재해보상보험법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해양치유자원의관리및활용에관한법률": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    }
+  },
+  "어선법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "양식산업발전법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "폐기물관리법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "원양산업발전법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "연안관리법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "항만법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해양환경보전및활용에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "항로표지법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "연안사고예방에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "항만운송사업법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해양공간계획및관리에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "출입국관리법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "항만재개발및주변지역발전에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해상교통안전법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해양과학조사법": {
+    "법률": {
+      "raw_has_budchik": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해양사고의조사및심판에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해운법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해양환경관리법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해수욕장의이용및관리에관한법률": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  },
+  "해양폐기물및해양오염퇴적물관리법": {
+    "법률": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행령": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    },
+    "시행규칙": {
+      "raw_has_budchik": false,
+      "api_has_budchik": true,
+      "mismatch": true
+    }
+  }
+}
