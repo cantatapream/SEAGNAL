@@ -5,8 +5,9 @@
        실패기록: _dashboard/contacts_collect_failures.json
 [로드 순서] 단독 실행(python3 collect_contacts.py). Workflow/Agent 불필요(순수 API 호출).
 """
-import json, glob, time, sys
+import json, glob, time, sys, threading
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 OC = "hyoo1431"
 LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
@@ -49,7 +50,30 @@ def extract_admrul_contact(admrul_id):
         "상위부처명": info.get("상위부처명"),
     }
 
-def main():
+_lock = threading.Lock()
+
+def _save(results, failures):
+    with _lock:
+        json.dump(results, open(OUT_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+        json.dump(failures, open(FAIL_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+
+def _worker(i, total, law, results, failures):
+    slug = law["slug"]
+    raw_dir = law["raw"]
+    print(f"[{i}/{total}] {slug} 시작", flush=True)
+    law_result = {"families": {}, "행정규칙": {}}
+    local_failures = []
+    try:
+        _collect_one_law(slug, raw_dir, law_result, local_failures)
+    except Exception as e:
+        local_failures.append({"law": slug, "layer": "전체", "reason": f"예상치 못한 오류로 이 법 스킵: {e}"})
+    with _lock:
+        results[slug] = law_result
+        failures.extend(local_failures)
+    _save(results, failures)
+    print(f"[{i}/{total}] {slug} 완료", flush=True)
+
+def main(workers=20):
     groups = json.load(open(TARGET_LAWS_FILE, encoding="utf-8"))
     laws = []
     for k in sorted(groups.keys(), key=int):
@@ -63,24 +87,16 @@ def main():
         failures = json.load(open(FAIL_FILE, encoding="utf-8"))
     except Exception:
         failures = []
-    total = len(laws)
-    for i, law in enumerate(laws, 1):
-        slug = law["slug"]
-        raw_dir = law["raw"]
-        if slug in results:
-            print(f"[{i}/{total}] {slug} — 이미 완료(재개 skip)", flush=True)
-            continue
-        print(f"[{i}/{total}] {slug}", flush=True)
-        law_result = {"families": {}, "행정규칙": {}}
-        try:
-            _collect_one_law(slug, raw_dir, law_result, failures)
-        except Exception as e:
-            failures.append({"law": slug, "layer": "전체", "reason": f"예상치 못한 오류로 이 법 스킵: {e}"})
-        results[slug] = law_result
-        json.dump(results, open(OUT_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-        json.dump(failures, open(FAIL_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 
-    print(f"완료: {len(results)}법, 실패건 {len(failures)}건")
+    todo = [(i, law) for i, law in enumerate(laws, 1) if law["slug"] not in results]
+    print(f"전체 {len(laws)}법 중 미완료 {len(todo)}법을 워커 {workers}개로 병렬 수집", flush=True)
+
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = [ex.submit(_worker, i, len(laws), law, results, failures) for i, law in todo]
+        for f in as_completed(futs):
+            f.result()  # 예외 있으면 여기서 raise
+
+    print(f"완료: {len(results)}법, 실패건 {len(failures)}건", flush=True)
 
 
 def _collect_one_law(slug, raw_dir, law_result, failures):
