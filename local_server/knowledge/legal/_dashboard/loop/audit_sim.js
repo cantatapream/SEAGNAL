@@ -17,6 +17,13 @@ const SCHEMA = {
         full: { type: 'integer' }, thin: { type: 'integer' }, missing: { type: 'integer' },
         collection_hole: { type: 'integer' }, awkward: { type: 'integer' },
         scope_out: { type: 'integer' }, // H-21: 원래 이 위키 목적이 아닌 질문(강학상 이론·타법 세부실무·판례해석) — 결함 아님, full율 분모에서 제외. _SCHEMA.md §6-A 기준
+        // H-26(2026-07-26, 사용자 확정): 판정 5종 원인 세분화 — _SCHEMA.md §6-B 기준
+        thin_wiki_lag: { type: 'integer' },        // thin 중 원문엔 있는데 위키 미반영(재수집 불필요, 즉시 반영 가능)
+        thin_content_gap: { type: 'integer' },      // thin 중 원문 자체에도 부족(재수집 필요/원문한계)
+        collection_hole_genuine: { type: 'integer' },   // 위임근거는 있으나 하위 고시 자체가 미제정(진짜 원문공백)
+        collection_hole_structural: { type: 'integer' },// 관보·타 정부시스템 소관이라 구조적으로 수집 불가(H-22)
+        collection_hole_uncollected: { type: 'integer' },// 수집 가능한데 아직 수집 안 함(재수집 트랙 대상)
+        scope_out_answered_gracefully: { type: 'integer' }, // scope_out 중 위키가 "범위밖/규정없음, 소관부서 문의" 안내를 실제로 제공할 수 있는 것(=정상동작, success로 재평가)
       },
     },
     // 답변방식 준수 감사 — 우리가 요구한 답변 규칙이 위키에 반영됐나. 각 값 'ok'|'weak'|'missing'|'na'
@@ -54,6 +61,7 @@ function prompt(l, round) {
   - **해양종사자**(약 1/3): 실제 조업·운항·양식 현장의 실무 질문(신고 타이밍·장비·구역·단속 대응 등).
 - **★300문항은 매 라운드 하드 목표다(H-21 사용자 확정)**. "누적으로 이미 300 넘었으니 이번엔 적게 내도 된다"는 판단은 틀렸다 — 카파시 padding금지 원칙은 "가짜 중복질문을 지어내지 말라"는 뜻이지 "사용자가 정한 수치목표를 스스로 낮춰도 된다"는 뜻이 아니다. T1~T7×3페르소나 조합으로 이 법 조문·별표·고시를 훑으면 300개는 대개 뽑힌다. 위키 페이지 자체가 1~2개뿐인 극소수 tier2 참고법만 예외(사유를 감사파일에 명시).
 - **★scope_out 판정 추가(H-21, \`_SCHEMA.md\` §6-A)**: 질문이 이 법 조문에 없는 강학상 이론비교·타법 세부실무·판례해석 심층분석이면 missing이 아니라 \`scope_out\`으로 판정(결함 아님, 반환 verdicts에 \`scope_out\` 필드로 집계). 애매하면 scope_out 남용하지 말고 missing으로 정직하게 남긴다.
+- **★scope_out 재평가(H-26, 2026-07-26 사용자 확정, \`_SCHEMA.md\` §6-B)**: scope_out으로 판정한 질문마다, 위키가 그 질문에 **"이 부분은 범위 밖입니다/규정이 없습니다, ○○부서에 문의하세요"류의 정직한 안내를 실제로 제공할 수 있는지** 추가로 확인한다. 제공 가능하면 그건 결함이 아니라 **정상 동작**이므로 \`scope_out_answered_gracefully\`에 카운트(단순 제외가 아니라 success 취급). 위키에 그런 안내 문구 자체가 없다면 "안내문구 부재"라는 별도 유형의 gap으로 wiki_gaps에 기록한다.
 - **판정에 페르소나 태그**(police/layperson/worker)를 함께 남겨, 어느 층에서 못 답하는지 보이게 한다.` : (round >= 2 ? `
 
 ## ★재감사(${round}라운드) — 더 깊고 넓게
@@ -85,10 +93,10 @@ ${r2}
 ## 3단계 — 위키만으로 답변 시도 + 판정
 각 질문을 **위키 개념 페이지 내용만으로** 답해보고 아래 하나로 판정:
 - ✅ full: 위키만으로 정확·완전히 답됨(출처 조문까지)
-- ⚠ thin: 위키에 있으나 얇음/부정확/일부 누락
+- ⚠ thin: 위키에 있으나 얇음/부정확/일부 누락. **★H-26(2026-07-26 사용자 확정) — 반드시 원인을 둘로 구분해 표시(단순 "thin"만 찍지 말 것)**: **(a) wiki_lag** — raw 원문(법률·시행령·시행규칙·별표·고시)엔 그 내용이 실제로 있는데 위키에 옮기지 않았을 뿐인 경우(재수집 불필요, 위키 사서 패스로 즉시 반영 가능) **(b) content_gap** — raw 원문 자체에도 그 내용이 부족/없는 경우(재수집 필요 또는 원문한계). 판정 시 raw 파일을 직접 열어 확인한 뒤 (a)/(b) 태그를 wiki_gaps 서술에 명시(예: "[wiki_lag] ..." / "[content_gap] ...").
 - ❌ missing: 위키에 아예 없음(개념 페이지 부재)
-- 📛 collection_hole: 위키가 "고시/별표로 정함"이라는데 그 원문 수치가 없음(=수집 구멍)
-- 〰 awkward: 답은 되나 구조·점진공개·인용 규율이 매끄럽지 않음
+- 📛 collection_hole: 위키가 "고시/별표로 정함"이라는데 그 원문 수치가 없음(=수집 구멍). **★H-26 — 반드시 셋으로 구분**: **(a) genuine**(위임근거는 있으나 그 하위 고시·별표가 실제로 미제정 — admrul 전수검색으로 재확인 후 확정, 재수집해도 안 나옴) **(b) structural**(관보(gwanbo.go.kr)·타 정부시스템(codil.or.kr 등) 소관이라 law.go.kr API로 원천 접근 불가, `_SCHEMA.md` §5-3 4번·H-22 기준) **(c) uncollected**(admrul 제목/본문 검색이 불충분했거나 시도 자체를 안 해서 놓친 것 — 진짜 재수집 백로그). collection_holes 서술에 (a)/(b)/(c) 태그 명시.
+- 〰 awkward: 답은 되나 구조·점진공개·인용 규율이 매끄럽지 않음(내용은 맞으나 `_CHATBOT.md` 답변방식 규칙 미준수가 원인 — 4단계 method_compliance와 연동해서 어떤 규칙을 안 지켰는지 answer_issues에 구체 명시).
 - 🔒 **review_pending(채점 보류)**: 아직 **사람이 검증하지 않은 ⚠REVIEW 데이터**(별표 이미지 OCR 판독값·판독수치 등)에 의존하는 질문은 **full/thin/missing/hole 어느 것으로도 채점하지 않고** 이 항목으로 **별도 집계**한다(정답으로도 오답으로도 세지 않음). 사유: 인간 검증 UI 미구축이라 그 값의 정오를 신뢰할 수 없음. 이 질문들은 **인간 검증 UI 완료·승인 후 재질문** 대상이다(지금 채점하면 미검증 값으로 위키를 잘못 판정하게 됨).
 
 ## ★4단계 — 답변방식 준수 감사 (이번 감사의 중점)
@@ -141,7 +149,12 @@ const sum = k => res.reduce((s, r) => s + ((r.verdicts && r.verdicts[k]) || 0), 
 return {
   audited: res.length,
   total_questions: res.reduce((s, r) => s + (r.total_questions || 0), 0),
-  verdicts: { full: sum('full'), thin: sum('thin'), missing: sum('missing'), collection_hole: sum('collection_hole'), awkward: sum('awkward') },
+  verdicts: {
+    full: sum('full'), thin: sum('thin'), missing: sum('missing'), collection_hole: sum('collection_hole'), awkward: sum('awkward'), scope_out: sum('scope_out'),
+    thin_wiki_lag: sum('thin_wiki_lag'), thin_content_gap: sum('thin_content_gap'),
+    collection_hole_genuine: sum('collection_hole_genuine'), collection_hole_structural: sum('collection_hole_structural'), collection_hole_uncollected: sum('collection_hole_uncollected'),
+    scope_out_answered_gracefully: sum('scope_out_answered_gracefully'),
+  },
   per_law: res.map(r => ({ law: r.law, q: r.total_questions, gaps: (r.wiki_gaps || []).length, holes: (r.collection_holes || []).length })),
   all_wiki_gaps: res.flatMap(r => (r.wiki_gaps || []).map(g => `${r.law}: ${g}`)),
   all_collection_holes: res.flatMap(r => (r.collection_holes || []).map(g => `${r.law}: ${g}`)),
