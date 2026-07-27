@@ -11,7 +11,7 @@ export const meta = {
   phases: [{ title: '보강린트', detail: '법별 1에이전트: 타법연결 표 링크화 + dangling 수리' }],
 }
 const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
-const ALL = '/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratchpad/all_laws.json'
+const DATA = `${LEGAL}/_dashboard/loop/build_data.json`
 
 const SCHEMA = {
   type: 'object', required: ['law', 'status'],
@@ -30,7 +30,7 @@ function prompt(l) {
 - 내 법 페이지: \`ls ${LEGAL}/wiki/concepts/${l.slug}__*.md\` + \`${LEGAL}/wiki/statutes/${l.slug}.md\`
 
 ## 0) 먼저 읽을 것
-- \`${ALL}\`(Read) — 우리 위키 70개 법의 {name, slug} 목록. **여기 있는 법명만 "우리 법"**이고 [[링크]] 대상이다. 목록에 없는 법(민법·형법·국토기본법 등 외부법)은 [[링크]] 대상 아님.
+- \`${DATA}\`(Read, JSON) — 구조 \`{all:[{name,slug,...}], ...}\`. \`all\` 배열의 {name,slug} 목록이 **"우리 법"**이고 [[링크]] 대상이다. 목록에 없는 법(민법·형법·국토기본법 등 외부법)은 [[링크]] 대상 아님.
 
 ## 1) 타법연결 표 링크화 (핵심 — 조문별 신경망 편입)
 - 내 법 페이지의 \`## 타법 연결\` 표(및 \`관련 개념\`/본문의 명확한 조문 교차참조)에서 **「우리70법명」이 평문으로만** 적혀 있고 그 법으로의 [[링크]]가 그 행/문장에 없으면, 법명을 [[링크]]로 전환한다.
