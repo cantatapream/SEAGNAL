@@ -33,7 +33,9 @@ const MANIFEST = {
 }
 
 function rebuildPrompt(law) {
+  const hint = law.hint ? `\n## 0-A) 이번에 raw에서 구체적으로 바뀐 부분(우선 확인)\n${law.hint}\n` : ''
   return `너는 SEAGNAL 해양법률 위키의 **재빌드 사서**다. 담당 법의 위키를 현재 raw 기준으로 최신화한다.
+${hint}
 
 ## 0) 반드시 먼저 읽을 것
 1. \`${LEGAL}/_SCHEMA.md\` — 사서 스키마(절대 규칙). 특히 최근 추가된 규칙을 빠짐없이 적용:
@@ -72,14 +74,20 @@ if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg) } catch (e) { cfg = {
 // 법 목록 로드(에이전트가 build_data.json 읽음 — 스크립트는 파일 못 읽음)
 const onlySlug = cfg.only || null
 const groupIdx = (cfg.group !== undefined && cfg.group !== null) ? cfg.group : null
+const slugsArg = Array.isArray(cfg.slugs) ? cfg.slugs : null
 const BOOT = { type: 'object', required: ['laws'], properties: { laws: { type: 'array', items: { type: 'object' } } } }
-const filt = onlySlug ? `slug이 "${onlySlug}"인 것 1개만` : (groupIdx !== null ? `group 필드가 정확히 ${groupIdx}인 것 전부` : '전부')
+const filt = slugsArg ? `slug이 다음 목록에 있는 것 전부: ${JSON.stringify(slugsArg)}`
+  : onlySlug ? `slug이 "${onlySlug}"인 것 1개만`
+  : (groupIdx !== null ? `group 필드가 정확히 ${groupIdx}인 것 전부` : '전부')
 const boot = await agent(
   `\`${DATA}\` 파일(JSON)을 Read로 읽어라. 구조 {all:[{name,slug,domain,tier,soban,byl,txt,raw,group}], ...}.
 반환(JSON): { laws: all 중 ${filt}(해당 객체를 필드 그대로, 가공·요약·생략 없이) }.`,
   { label: `boot`, phase: '재빌드', schema: BOOT, effort: 'low' })
-const laws = (boot && boot.laws) || []
-log(`재빌드 대상 ${laws.length}개 법 (only=${onlySlug}, group=${groupIdx})`)
+let laws = (boot && boot.laws) || []
+if (cfg.hints) {
+  laws = laws.map(law => ({ ...law, hint: cfg.hints[law.slug] || null }))
+}
+log(`재빌드 대상 ${laws.length}개 법 (only=${onlySlug}, group=${groupIdx}, slugs=${slugsArg ? slugsArg.length : null})`)
 
 phase('재빌드')
 const manifests = (await parallel(laws.map(law => () =>
