@@ -172,6 +172,10 @@ raw 갱신 62법(부칙 반영 54법 ∪ admrul 갱신 34법)의 `wiki_rebuild.j
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-27 15:06 KST] 🟢착수 — 10차 감사 착수 — 73법 10개 워크플로 병렬 디스패치
+사용자 확정: H-27(구체적 역할·상황 부여 페르소나 질문) 반영 후 진행. 착수 전 audit_sim.js에 미이스케이프 백틱 버그 발견·수정(H-26 편집 시 생긴 것, Workflow 파서가 거부 — node --check는 통과해서 못 잡았던 것, 첫 시도 실패 후 발견). audit10_groups.json(73법 10그룹, 7~8법씩) 생성. Task ID: wbatwxxfs, wbxj41j8x, wfzwvujjk, wn8qa93v5, wmqfxrin3, wnwy7e0bd, w3tqpvfpe, whsp6m6ly, w8fixk5ml, wnqkn2rod. 완료마다 커밋. 법당 300문항(3페르소나: 해양경찰관·일반인·해양종사자, 각 ~100문항, 구체적 역할·상황 포함) × 73법 = 예상 21,900문항.
+
+
 ### [2026-07-27 14:35 KST] ✅완료 — lint 파이프라인(H-20) 전체 완료 — wiki_rebuild→lint_xref→lint_full→lint_index→lint_build→human_workload
 62법 wiki_rebuild(+오염raw 정정) → lint_xref(61법, 타법연결 링크화) → lint_full(61법, 비대칭역링크+허브링크+dangling) → lint_index.py → lint_build.py → human_workload.py 전부 완료·커밋·푸시. graph.json 88노드 1527엣지(직전 1310에서 증가). 사람검수 203건 변동없음. 비대칭 링크갭 2067건 남아있음(61법 범위 밖 12법·전체 73법 완전 스윕은 이번 범위 아니었음 — 다음 라운드 참고). 다음: 사용자 지시 대기(10차 감사 여부 등, CLAUDE.md 자율진행 예외).
 
