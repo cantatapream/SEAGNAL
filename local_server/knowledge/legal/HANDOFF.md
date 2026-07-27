@@ -172,6 +172,10 @@ raw 갱신 62법(부칙 반영 54법 ∪ admrul 갱신 34법)의 `wiki_rebuild.j
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-27 17:52 KST] ✅완료 — collection_hole 68법 재검증 완료 — H-26 a/b/c 통합 리포트
+7개 워크플로우 병렬(그룹0~6)+사전14법으로 68법·387건 전부 재검증 완료. 결과: resolved 185(이미 해소, 감사 오판정 다수 포함)·a_genuine 110(진짜 원문공백)·c_uncollected 34(진짜 재수집 백로그)·b_structural 32(API 구조적 접근불가)·unclear 26(API 계층 한계로 사람 확인 필요). action별: recollect 37건·wiki_sync 20건(이미 수집됐는데 위키 미반영)·reclassify_note 11건. 리포트: _dashboard/collection_hole_reclass_report.md. 병렬성 이슈: 단일 워크플로우 parallel()이 16분간 16/68만 시작해 실효 병렬성이 낮다는 사용자 지적으로 중단→7개 그룹으로 재분할 후 8~19분씩 병렬 완료(체감 속도 개선 확인). 사용자가 로드맵 2건 추가 제안: ①감사 대신 73법 전 조문 위임체인 전수조사(로직 우선+애매한 것만 AI, 의견 제시함) ②법령/고시 최신성 변동감지 시스템(날짜범위 필터 API로 광역질의 후 매치된 것만 딥다이브, 의견 제시함) — 둘 다 사용자 결정 대기 중, 아직 CLAUDE.md/MASTER_PLAN.md 미반영. 다음: 사용자에게 (1)전수조사 지금 시작할지 vs 원래 계획대로 missing/thin 통합수정으로 갈지 (2)로드맵 문서 반영 여부 확인 필요.
+
+
 ### [2026-07-27 17:32 KST] 🟢착수 — collection_hole 재검증 — 7개 워크플로우 병렬 재분할
 단일 워크플로우(68법 parallel())가 16분간 16개만 시작(10개 완료)에 그쳐 실효 병렬성이 낮음을 사용자가 지적, 로그(journal.jsonl started/result 카운트)로 확인 후 중단. 완료된 14법 결과는 보존(scratchpad/hole_done_14.json), 남은 54법을 7개 그룹(그룹당 6~8법)으로 나눠 별도 Workflow 7개를 동시 디스패치(w5sj0a9gv/wdym4bb8k/w9qwhgank/w9p3389ah/w871rie8m/w88e9kpfp/w1rzxi74p). 각 그룹은 자기 법 폴더만 읽는 병렬 재검증만 수행(리포트 미작성). 전부 완료되면 14+54=68건을 합쳐 통합리포트 1회(직렬) 작성 예정.
 
