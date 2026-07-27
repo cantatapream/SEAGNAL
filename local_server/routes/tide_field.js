@@ -75,7 +75,13 @@ function loadMetaIfNeeded() {
     if (!fs.existsSync(C.GRID_META_PATH)) { _meta = null; return false; }
     let stat;
     try { stat = fs.statSync(C.GRID_META_PATH); } catch (e) { return false; }
-    if (_meta && stat.mtimeMs === _metaMtime) return true; // 캐시 유효
+    if (_meta && stat.mtimeMs === _metaMtime) {
+        // grid_meta 는 그대로여도 frames.bin/frames_meta.json 은 매일 밤 갱신되므로
+        // 여기서도 별도로 확인해야 한다 — 안 그러면 서버 재시작 전까지 프리컴퓨트
+        // 갱신분이 영영 반영되지 않는다(자체 mtime 비교라 실제 변경 없으면 저비용).
+        loadFramesIfNeeded(false);
+        return true; // 캐시 유효
+    }
 
     try {
         _meta = JSON.parse(fs.readFileSync(C.GRID_META_PATH, 'utf8'));
