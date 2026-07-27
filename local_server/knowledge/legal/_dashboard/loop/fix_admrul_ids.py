@@ -21,7 +21,9 @@ def api_get(id_):
         return json.loads(resp.read().decode("utf-8"))
 
 def safe_filename(title):
-    return re.sub(r'[\\/:*?"<>|]', '', title).strip()
+    # collect_admrul.py의 safe()와 동일 규칙(공백 제거·60자 절단)이어야 raw 폴더의
+    # 기존 파일명과 일치해 '덮어쓰기'가 되고, 다른 이름의 중복 파일이 새로 생기지 않는다.
+    return re.sub(r'[\\/:*?"<>|]', '', title).replace(' ', '')[:60]
 
 def build_text(node, title, new_id):
     info = node.get("행정규칙기본정보", {})
