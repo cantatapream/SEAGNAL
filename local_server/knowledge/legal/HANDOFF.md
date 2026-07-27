@@ -172,6 +172,10 @@ raw 갱신 62법(부칙 반영 54법 ∪ admrul 갱신 34법)의 `wiki_rebuild.j
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-27 17:01 KST] 🟢착수 — collection_hole 247건 H-26 기준 a/b/c 재검증(68법)
+10차 감사에서 📛collection_hole로 찍힌 68개 법을 대상으로, 각 법 폴더만 읽는 병렬 워크플로우(w5ah7a12l)로 (a)genuine/(b)structural/(c)uncollected 재분류 진행. MST 위임조회(lsDelegated) API로 실제 위임 행정규칙 존재 여부를 재검증해 '진짜 원문공백'과 '검색 부실로 놓친 재수집 백로그'를 구분. 완료 후 _dashboard/collection_hole_reclass_report.md 생성 예정. 완료되면 자동으로 3단계(missing/thin 통합수정, thin_wiki_lag 우선)로 이어감(사용자 확정, 재확인 없이 자동 진행).
+
+
 ### [2026-07-27 16:45 KST] ✅완료 — 10차 감사 73/73법 전체 완료
 H-27(구체적 역할·상황 부여) 반영 후 10개 워크플로+단독재시도 1건으로 전체 완료. 총 20,254문항(scope_out 488 제외 분모 19,170) 중 full 4,134(21.6%)·thin 6,986(36.4%)·missing 7,669(40.0%)·collection_hole 247(1.3%)·awkward 134(0.7%). H-27 구체적 역할 질문이 실제로 여러 법(신항만건설촉진법·해양경비법·항만재개발법 등)에서 기존 라운드가 못 찾던 신규 gap을 발견함(효과 확인됨). 대부분의 missing/thin은 재수집 불필요한 wiki_lag이거나 원문 자체 공백(genuine/content_gap)으로 이미 원인 분류돼 있어 다음 통합수정 단계 작업목록이 명확함. 완료 중 부수 발견: 선박직원법 감사에서 wiki/index.md 파괴 의심 제보(미확인, 후속 점검 필요). 다음: 사용자 지시 대기(통합수정 착수 여부 등, 9차감사 완료 예외에 준해 자동 진행 안 함).
 
