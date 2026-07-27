@@ -172,6 +172,10 @@ raw 갱신 62법(부칙 반영 54법 ∪ admrul 갱신 34법)의 `wiki_rebuild.j
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-27 17:32 KST] 🟢착수 — collection_hole 재검증 — 7개 워크플로우 병렬 재분할
+단일 워크플로우(68법 parallel())가 16분간 16개만 시작(10개 완료)에 그쳐 실효 병렬성이 낮음을 사용자가 지적, 로그(journal.jsonl started/result 카운트)로 확인 후 중단. 완료된 14법 결과는 보존(scratchpad/hole_done_14.json), 남은 54법을 7개 그룹(그룹당 6~8법)으로 나눠 별도 Workflow 7개를 동시 디스패치(w5sj0a9gv/wdym4bb8k/w9qwhgank/w9p3389ah/w871rie8m/w88e9kpfp/w1rzxi74p). 각 그룹은 자기 법 폴더만 읽는 병렬 재검증만 수행(리포트 미작성). 전부 완료되면 14+54=68건을 합쳐 통합리포트 1회(직렬) 작성 예정.
+
+
 ### [2026-07-27 17:01 KST] 🟢착수 — collection_hole 247건 H-26 기준 a/b/c 재검증(68법)
 10차 감사에서 📛collection_hole로 찍힌 68개 법을 대상으로, 각 법 폴더만 읽는 병렬 워크플로우(w5ah7a12l)로 (a)genuine/(b)structural/(c)uncollected 재분류 진행. MST 위임조회(lsDelegated) API로 실제 위임 행정규칙 존재 여부를 재검증해 '진짜 원문공백'과 '검색 부실로 놓친 재수집 백로그'를 구분. 완료 후 _dashboard/collection_hole_reclass_report.md 생성 예정. 완료되면 자동으로 3단계(missing/thin 통합수정, thin_wiki_lag 우선)로 이어감(사용자 확정, 재확인 없이 자동 진행).
 
