@@ -172,6 +172,10 @@ raw 갱신 62법(부칙 반영 54법 ∪ admrul 갱신 34법)의 `wiki_rebuild.j
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-27 14:16 KST] ✅완료 — lint_xref.js 61법 전체 완료
+7개 워크플로 전부 완료·커밋. 대부분 이전 라운드에서 이미 타법연결 링크화가 돼 있어 이번엔 재확인+누락분 소수 반영(신규 링크 다수, dangling 수리 다수, 이스케이프 파이프 형식오류 등). 상세는 각 커밋 참조. 다음: lint_full.js(같은 61법, 비대칭 역링크+허브링크+dangling)로 이어감.
+
+
 ### [2026-07-27 13:59 KST] 🟢착수 — lint_xref.js — 61법(재빌드분) 대상 7개 워크플로 병렬 디스패치
 H-20 표준순서(lint_xref/full→lint_index→lint_build→human_workload) 첫 단계. 법당 자기 파일만 쓰므로 병렬안전(사용자 확인). lint_xref.js의 낡은 scratchpad ALL 경로(세션마다 사라짐)를 build_data.json 참조로 수정(b9b71bfc). 61법을 9/9/9/9/9/8/8로 쪼개 디스패치, Task ID(L-35 교훈 반영, 정지 필요시 사용): w5qtp6u0z, wz0ny0wlo, weozo74rl, woy9txe0w, w35x34f6k, wkll49auo, wmfaxrsrs. 완료되는 대로 커밋, 전부 끝나면 lint_full.js(같은 61법)로 이어감.
 
