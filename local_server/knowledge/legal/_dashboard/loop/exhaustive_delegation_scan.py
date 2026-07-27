@@ -158,14 +158,24 @@ def main():
         families = meta.get('families', {})
         admrul_ids = load_admrul_ids(raw_dir)
 
+        # families 값은 dict(단일)·list(복수 대통령령 등으로 분산)·str("없음") 등 형태가 섞여 있어 평탄화한다.
+        flat_mst = []  # [(층이름, MST), ...]
+        for fam, info in families.items():
+            if isinstance(info, dict):
+                mst = info.get('MST')
+                if mst:
+                    flat_mst.append((fam, mst))
+            elif isinstance(info, list):
+                for sub in info:
+                    if isinstance(sub, dict) and sub.get('MST'):
+                        flat_mst.append((fam, sub['MST']))
+            # str("없음" 등)이면 스킵
+
         delegations = []
         api_status = {}
-        for fam, info in families.items():
-            mst = info.get('MST')
-            if not mst:
-                continue
+        for fam, mst in flat_mst:
             entries, status = scan_delegation(mst)
-            api_status[fam] = status
+            api_status[f'{fam}:{mst}'] = status
             for e in entries:
                 e['출처계층'] = fam
                 delegations.append(e)
@@ -186,7 +196,12 @@ def main():
             if struct_label:
                 structural.append({**e, '구조유형': struct_label})
 
-        family_files = [v.get('파일', '').replace('.json', '.txt') for v in families.values()]
+        family_files = []
+        for info in families.values():
+            items = info if isinstance(info, list) else [info]
+            for it in items:
+                if isinstance(it, dict) and it.get('파일'):
+                    family_files.append(it['파일'].replace('.json', '.txt'))
         notice_clauses = scan_raw_text_for_notice_clauses(raw_dir, family_files)
         delegated_articles = {e['조문번호'] for e in delegations if e['위임구분'] == '위임행정규칙'}
         genuine_candidates = [n for n in notice_clauses if n['조문번호'] not in delegated_articles]
