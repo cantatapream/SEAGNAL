@@ -61,18 +61,25 @@ def normalize_law_name(name):
 
 
 def load_admrul_ids(law_raw_dir):
-    path = os.path.join(law_raw_dir, '행정규칙', '_admrul.json')
+    """이미 수집된 행정규칙의 ID 집합과 제목(정규화) 집합을 함께 반환한다.
+    ★ID만으로 대조하면 오탐이 난다(2026-07-27 발견) — 잦은 개정(세칙·고시)은 개정될 때마다
+    admrul 일련번호(ID)가 바뀌는데, lsDelegated는 위임 시점의 ID를 가리켜 우리가 나중에
+    수집한 최신판 ID와 다를 수 있다(제목은 동일). 그래서 ID 불일치만으론 '미수집'을 단정하지
+    않고, 제목이 일치하면 '이미 수집됨(개정판 차이)'으로 본다."""
     ids = set()
+    titles = set()
+    path = os.path.join(law_raw_dir, '행정규칙', '_admrul.json')
     if os.path.exists(path):
         try:
             d = json.load(open(path, encoding='utf-8'))
             if isinstance(d, dict):
-                for v in d.values():
+                for k, v in d.items():
+                    titles.add(normalize_law_name(k))
                     if isinstance(v, dict) and v.get('ID'):
                         ids.add(str(v['ID']))
         except Exception:
             pass
-    return ids
+    return ids, titles
 
 
 def scan_delegation(mst):
@@ -90,23 +97,49 @@ def scan_delegation(mst):
         return out, 'empty'
     for u in units:
         jo = s((u.get('조정보') or {}).get('조문번호'))
-        jomok = ''
         for w in L(u.get('위임정보')):
             kinds = L(w.get('위임구분'))
-            titles = L(w.get('위임법령제목'))
-            ids = L(w.get('위임법령일련번호'))
-            for wj in L(w.get('위임법령조문정보')):
-                line = s(wj.get('라인텍스트'))
-                jomok2 = s(wj.get('조항호목')) or jomok
-                for idx, kind in enumerate(kinds or ['']):
+
+            # ★스키마 분기(2026-07-27 실제 API 응답으로 확인): 위임구분='위임행정규칙'인 블록은
+            # 위임법령제목/위임법령일련번호/위임법령조문정보가 아예 없고, 대신 '위임행정규칙조문정보'
+            # 배열의 각 항목 안에 위임행정규칙제목·위임행정규칙일련번호가 직접 들어있다(별개 필드셋).
+            if '위임행정규칙' in kinds:
+                for aj in L(w.get('위임행정규칙조문정보')):
                     out.append({
                         '조문번호': jo,
-                        '조항호목': jomok2,
-                        '위임구분': kind,
-                        '대상제목': titles[idx] if idx < len(titles) else (titles[0] if titles else ''),
-                        '대상ID': ids[idx] if idx < len(ids) else (ids[0] if ids else ''),
-                        '라인텍스트': line,
+                        '조항호목': s(aj.get('조항호목')) or '',
+                        '위임구분': '위임행정규칙',
+                        '대상제목': s(aj.get('위임행정규칙제목')),
+                        '대상ID': s(aj.get('위임행정규칙일련번호')),
+                        '라인텍스트': s(aj.get('라인텍스트')),
                     })
+                continue
+
+            titles = L(w.get('위임법령제목'))
+            ids = L(w.get('위임법령일련번호'))
+            wjs = L(w.get('위임법령조문정보'))
+
+            def pick(lst, idx):
+                if not lst:
+                    return ''
+                if len(lst) == len(wjs):
+                    return lst[idx]
+                if len(lst) == 1:
+                    return lst[0]
+                return lst[idx] if idx < len(lst) else lst[-1]
+
+            # 위임구분/위임법령제목/위임법령일련번호와 위임법령조문정보는 같은 위임정보 블록 안에서
+            # 인덱스로 1:1 대응한다(교차곱 금지) — 다중 대상(예: 인용법령 2건)일 때 잘못 짝지으면
+            # 카운트가 부풀려지는 버그가 났었다(2026-07-27 발견·수정).
+            for idx, wj in enumerate(wjs):
+                out.append({
+                    '조문번호': jo,
+                    '조항호목': s(wj.get('조항호목')) or '',
+                    '위임구분': pick(kinds, idx),
+                    '대상제목': pick(titles, idx),
+                    '대상ID': pick(ids, idx),
+                    '라인텍스트': s(wj.get('라인텍스트')),
+                })
     return out, 'ok'
 
 
@@ -156,7 +189,7 @@ def main():
             continue
         meta = json.load(open(meta_path, encoding='utf-8'))
         families = meta.get('families', {})
-        admrul_ids = load_admrul_ids(raw_dir)
+        admrul_ids, admrul_titles = load_admrul_ids(raw_dir)
 
         # families 값은 dict(단일)·list(복수 대통령령 등으로 분산)·str("없음") 등 형태가 섞여 있어 평탄화한다.
         flat_mst = []  # [(층이름, MST), ...]
@@ -190,7 +223,9 @@ def main():
                 if aid in seen_ids:
                     continue
                 seen_ids.add(aid)
-                if aid not in admrul_ids:
+                title_norm = normalize_law_name(e.get('대상제목', ''))
+                # ID 불일치만으론 미수집으로 단정하지 않는다 — 제목이 일치하면 개정판 차이(이미 수집됨)
+                if aid not in admrul_ids and title_norm not in admrul_titles:
                     uncollected.append(e)
             struct_label = classify_structural(e.get('라인텍스트', ''))
             if struct_label:
