@@ -5,7 +5,7 @@
        출력: raw/<법>/행정규칙/<제목>.txt 덮어쓰기(현행 ID로 재수집) + _admrul.json의 ID 갱신
 [로드 순서] 단독 실행. AI 불필요(순수 API 대조·재수집). 재실행 안전(status=fixed면 skip).
 """
-import json, re, time, threading, urllib.request
+import json, os, re, time, threading, urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 OC = "hyoo1431"
@@ -50,6 +50,16 @@ def _worker(slug, raw_dir, row, log):
     admrul_dir = f"{raw_dir}/행정규칙"
     fname = safe_filename(title) + ".txt"
     path = f"{admrul_dir}/{fname}"
+    old_content = ""
+    if os.path.exists(path):
+        old_content = open(path, encoding="utf-8").read()
+        # L-29: 첨부 PDF를 pdftotext로 전사해 수집한 파일은 API 조문내용이 안 담고 있으므로
+        # 자동 덮어쓰기 대상에서 제외한다(스킵). 단순 재확인용 재실행에도 안전(멱등).
+        if "전사" in old_content[:1000] or "pdftotext" in old_content or len(old_content) > 20000:
+            with _lock:
+                log[key] = {"status": "skipped_attachment_type", "reason": "첨부파일 전사본으로 추정 — 자동 덮어쓰기 제외(L-29)"}
+            _save(log)
+            return
     try:
         d = api_get(new_id)
         node = d.get("AdmRulService", {})
@@ -59,6 +69,12 @@ def _worker(slug, raw_dir, row, log):
             _save(log)
             return
         text = build_text(node, title, new_id)
+        # 안전장치: 기존 파일이 있는데 새 본문이 절반 이하로 줄어들면 유실 의심 — 덮어쓰지 않고 스킵.
+        if old_content and len(old_content) > 1000 and len(text) < len(old_content) * 0.5:
+            with _lock:
+                log[key] = {"status": "skipped_shrink_guard", "reason": f"본문 축소 감지({len(old_content)}->{len(text)}자) — 유실 의심, 사람 확인 필요"}
+            _save(log)
+            return
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
         with _lock:
