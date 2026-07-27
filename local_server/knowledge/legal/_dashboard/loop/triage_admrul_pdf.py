@@ -32,6 +32,24 @@ def download(url, path):
         f.write(data)
     return len(data)
 
+BAD_NAME_KEYWORDS = ("이유서", "신구대조표", "취지")
+
+def pick_fulltext_pdf(links, names):
+    """첨부파일 중 '조문별제개정이유서'·'신구대조표' 등 본문이 아닌 부속서류를 제외하고,
+    본문 후보가 여러 개면 실제로 받아 크기를 비교해 가장 큰(=가장 완전한) 것을 고른다."""
+    candidates = [i for i, n in enumerate(names)
+                  if n.lower().endswith(".pdf") and not any(kw in n for kw in BAD_NAME_KEYWORDS)]
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+    sizes = []
+    for i in candidates:
+        req = urllib.request.Request(links[i], headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            sizes.append((i, len(resp.read())))
+    return max(sizes, key=lambda x: x[1])[0]
+
 _lock = threading.Lock()
 def _save(results):
     with _lock:
@@ -75,7 +93,7 @@ def _worker(key, new_id, results):
             links = [links]
         if isinstance(names, str):
             names = [names]
-        pdf_idx = next((i for i, n in enumerate(names) if n.lower().endswith(".pdf")), None)
+        pdf_idx = pick_fulltext_pdf(links, names)
         jomun = node.get("조문내용")
         jomun_len = len(jomun) if isinstance(jomun, str) else 0
         if pdf_idx is None:

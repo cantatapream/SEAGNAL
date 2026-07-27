@@ -1,1589 +1,7871 @@
 [고시/행정규칙] 국외반출 승인대상 해양수산생명자원 지정 고시
-ID:2100000101036 · 위임근거: 법률 제22조(제22조제5항); 시행령 제21조(제21조제1항제5호)
+ID:2100000231716 · 위임근거: 제22조,제21조
+⚠REVIEW / 출처: 국가법령정보센터(law.go.kr) 행정규칙 첨부파일 전사 / 시행일: 20231122 (해양수산부고시 제2023-166호, 일부개정)
+소관부서: 해양수산부(해양수산생명자원과) · 전화 051-773-5676
 
-제1조(목적) 이 고시는 「해양수산생명자원의 확보·관리 및 이용에 등에 관한 법률」 제22조제3항 및 같은 법 시행령 제21조제1항제5호의 규정에 따라 국외반출 승인대상 해양수산생명자원의 종류, 반출용도 및 수량을 정하는 것을 목적으로 한다.
-제2조(국외반출 승인대상 해양수산생명자원 종류) 법 제22조제3항에 따른 국외반출 승인대상 해양수산생명자원 종류는 별표와 같다.
-제3조(반출용도) 제2조에서 정한 국외반출 승인대상 해양수산생명자원의 해외반출용도는 연구목적인 경우로 한정한다.
-제4조(반출수량) 해양수산부장관은 제2조에서 정한 국외반출 승인대상 해양수산생명자원의 해외반출수량은 국내 해양수산생명자원의 다양성을 해치지 아니하는 범위에서 「해양수산생명자원의 확보·관리 및 이용 등에 관한 법률 시행령」 제4항의 관계 국공립 연구기관의 장의 의견을 반영하여 결정한다.
-제5조(재검토기한) 해양수산부장관은「훈령·예규 등의 발령 및 관리에 관한 규정」에 따라 이 고시에 대하여 2018년 1월 1일 기준으로 매3년이 되는 시점(매 3년째의 12월 31일까지를 말한다)마다 그 타당성을 검토하여 개선 등의 조치를 하여야 한다.
+※ 전사 방법 안내: 첨부파일 "(231122) 국외반출 승인대상 해양수산생명자원 지정 고시 개정 전문(해양수산부고시 제2023-166호¸ 2023.11.22.).pdf"(총 50쪽)를 PyMuPDF로 텍스트 추출한 전문입니다. 표·서식의 2차원 시각적 배치는 줄바꿈으로 근사될 수 있습니다.
 
+================================================================================
+해양수산부 고시 제2023-166호(2023.11.22.)
 
-[별표] 국외반출 승인대상 해양수산생명자원 목록(제2조 관련)
+ 국외반출 승인대상 해양수산생명자원 지정 고시
 
-[OCR 2026-07-17 · ⚠REVIEW 처벌·금액·수치는 사람확인 필요]
-(원본: 별표서식파일링크 HWP, flSeq=31893041 — 국가법령정보센터 admrul API의 별표내용 필드 자체가 빈 값이라 이미지 대신 원본 HWP를 pyhwp로 직접 구조 추출함. 표 셀 단위로 전사, 지어내지 않음.)
-총 11개 분류군(어류~완족동물), 일련번호 있는 종 1,127건 + 과(科) 소제목行 391건.
-⚠ 원문 자체의 오류로 보이는 항목: "2. 해면동물 > 예쁜이해면과"에서 43번(보라예쁜이해면) 다음 항목이 44번이어야 할 자리에 "33"으로 표기되어 있음(원문 그대로 전사, 임의수정 안 함) — 사람 확인 필요.
+제정 2017.10.31. 해양수산부고시 제2017-149호
+개정 2018.06.26. 해양수산부고시 제2018- 74호
+개정 2019.02.28. 해양수산부고시 제2019- 38호
+개정 2020.10.21. 해양수산부고시 제2020-174호
+개정 2022.02.23. 해양수산부고시 제2022- 29호
+개정 2023.11.22. 해양수산부고시 제2023-166호
 
-### 1. 어류
+제1조(목적) 이 고시는 「해양수산생명자원의 확보ㆍ관리 및 이용 등에
 
-| 일련번호 | 국명 | 학명 | 비고 |
-|---|---|---|---|
-| | **돛양태과(Callionymidae)** | | |
-| 1 | 참돛양태 | Repomucenus koreanus Nakabo, Jeon and Li, 1987 |  |
-| 2 | 흰점양태 | Repomucenus leucopoecilus (Frike and Lee, 1993) |  |
-| 3 | 강주걱양태 | Repomucenus olidus (Günther, 1873) |  |
-| | **망둑어과(Gobiidae)** | | |
-| 4 | 점줄망둑 | Acentrogobius pellidebilis Lee and Kim, 1992 |  |
-| 5 | 짱뚱어 | Boleophthalmus pectinirostris (Linnaeus, 1758) |  |
-| 6 | 날망둑 | Gymnogobius breunigii (Steindachner, 1880) |  |
-| 7 | 사백어 | Leucopsarion petersii Hilgendorf, 1880 |  |
-| 8 | 제주모치망둑 | Mugilogobius notospilus (Günther, 1877)(=Mugilogobius fontinalis (Jordan & Seale)) |  |
-| 9 | 큰볏말뚝망둥어 | Periophthalmus magnuspinnatus Lee, Choi & Ryu, 1995 |  |
-| 10 | 말뚝망둥어 | Periophthalmus modestus Cantor, 1842 |  |
-| | **바다빙어과(Osmeridae)** | | |
-| 11 | 둥근물뱀 | Ophichthus rotundus Lee and Asano, 1997 |  |
-| 12 | 날빙어 | Hypomesus japonicus (Brevoort, 1856) |  |
-| 13 | 젓뱅어 | Neosalanx jordani Wakiya & Takahashi, 1937 |  |
-| | **장갱이과(Stichaeidae)** | | |
-| 14 | 민그물베도라치 | Dictyosoma tongyeongensis Ji and Kim 2012 |  |
-| 15 | 우베도라치 | Zoarchias uchidai Matsubara, 1932 |  |
-| | **바다뱀과(Ophichthidae)** | | |
-| 16 | 상주물뱀 | Pisodonophis sangjuensis Ji and Kim 2011 |  |
-| | **줄가시치과(Eulophiidae)** | | |
-| 17 | 줄가시치 | Eulophias koreanus Kwun and Kim 2012 |  |
-| | **여을멸과(Albulidae)** | | |
-| 18 | 황줄뺨여을멸 | Albula koreana Kwun and Kim 2011 |  |
+관한 법률」 제22조제3항 및 같은 법 시행령 제21조제1항제5호에 따
 
-### 2. 해면동물
+라 국외반출 승인대상 해양수산생명자원의 종류, 반출용도 및 수량을
 
-| 일련번호 | 국명 | 학명 | 비고 |
-|---|---|---|---|
-| | **시루해면과(Pachastrellidae)** | | |
-| 1 | 시루해면 | Poecillastra japonica (Thiele, 1898) |  |
-| 2 | 체시루해면 | Pachastrella cribrum Lebwohl, 1914 |  |
-| | **유두해면과(Tetillidae)** | | |
-| 3 | 화순유두해면 | Tetilla hwasunensis Shim & Sim, 2011 |  |
-| | **호박해면과(Clionaidae)** | | |
-| 4 | 호박해면 | Cliona celata Grant, 1826 |  |
-| | **나선별해면과(Spirastrellidae)** | | |
-| 5 | 가는나선별해면 | Spirastrella abata Tanita, 1961 |  |
-| 6 | 굵은나선별해면 | Spirastrella insignis Thiele, 1898 |  |
-| | **침곤봉해면과(Stylocordyidae)** | | |
-| 7 | 한국침곤봉해면 | Stylocordyla koreana Sim & Kim, 2002 |  |
-| | **코르크해면과(Suberitidae)** | | |
-| 8 | 조개코르크해면 | Suberites caminatus Ridley & Dendy, 1886 |  |
-| 9 | 코르크해면 | Suberites excellens (Thiele, 1898) |  |
-| 10 | 집게코르크해면 | Suberites ficus (Johnston, 1842) |  |
-| 11 | 무우코르크해면 | Suberites virgultosus (Johnston, 1842) |  |
-| | **딸기해면과(Tethyidae)** | | |
-| 12 | 오렌지둥글해면 | Tethya aurantium (Pallas, 1766) |  |
-| 13 | 바다둥글해면 | Tethya japonica Sollas, 1888 |  |
-| | **꼬는해면과(Theonellidae)** | | |
-| 14 | 판가죽해면 | Discodermia japonica Döderlein, 1884 |  |
-| | **강해면과(Coelosphaeridae)** | | |
-| 15 | 뇌산호끈적해면 | Lissodendoryx (Lissodendoryx) firma (Lambe, 1895) |  |
-| | **발톱해면과(Esperiopsidae)** | | |
-| 16 | 진도발톱해면 | Esperiopsis chindoensis Sim, 1995 |  |
-| 17 | 관발톱해면 | Amphilectus unciger (Topsent, 1928) |  |
-| | **HYMEDESMIIDAE** | | |
-| 18 | 미끈이해면 | Phorbas tokushima (Tanita, 1970) |  |
-| | **유령해면과(Microcionidae)** | | |
-| 19 | 한국유령해면 | Clathria (Clathria) koreana Sim & Lee, 1998 |  |
-| 20 | 침유령해면 | Clathria (Clathria) spinispicula Tanita, 1968 |  |
-| 21 | 창살유령해면 | Clathria (Clathria) terraenovae Dendy, 1924 |  |
-| | **깃해면과(Mycalidae)** | | |
-| 22 | 깃해면 | Mycale (Aegogropila) adhaerens (Lambe, 1893) |  |
-| 23 | 죽도깃해면 | Mycale (Aegogropila) jukdoensis Kang & Sim, 2005 |  |
-| 24 | 추자깃해면 | Mycale (Mycale) chujaensis Kang & Sim, 2005 |  |
-| 25 | 울릉깃바늘뼈해면 | Mycale (Naviculina) ulleungensis Sim & Kang, 2004 |  |
-| 26 | 능걸깃바늘뼈해면 | Mycale (Naviculina) neunggulensis Sim & Kang, 2004 |  |
-| 27 | 한국간상바늘뼈해면 | Mycale (Oxymycale) koreana Sim, 1982 |  |
-| | **끈적해면과(Myxillidae)** | | |
-| 28 | 긴끈적해면 | Myxilla (Myxilla) productus Hoshino, 1981 |  |
-| 29 | 넓적끈적해면 | Myxilla (Myxilla) setoensis Tanita, 1961 |  |
-| | **털해면과(Raspailidae)** | | |
-| 30 | 곤봉뿔해면 | Ceratopsion clavatum (Thiele, 1898) |  |
-| 31 | 털많은가지해면 | Raspailia (Raspaxilla) hirsuta Thiele, 1898 |  |
-| 32 | 잎사귀해면 | Raspailia (Raspaxilla) folium Thiele, 1898 |  |
-| | **축해면과(Axinellidae)** | | |
-| 33 | 축해면 | Axinella copiosa Thiele, 1898 |  |
-| 34 | 맵시해면 | Phakellia elegans Thiele, 1898 |  |
-| | **가시해면과(Dictyonellidae)** | | |
-| 35 | 뿔가지가시해면 | Acanthella branchia Sim, Kim & Byeon, 1990 |  |
-| | **해변해면과(Halichondridae)** | | |
-| 36 | 사수숨은축해면 | Ciocalypta sasuensis Kang & Sim, 2008 |  |
-| 37 | 진주별해면 | Topsentia salomonensis (Dendy, 1922) |  |
-| 38 | 가거해변해면 | Halichondria (Halichondria) gageoenesis Kang & Sim, 2008 |  |
-| 39 | 홍도해변해면 | Halichondria hongdoensis Kang and Sim, 2008 |  |
-| 40 | 무안해변해면 | Halichondria (Halichondria) muanensis Kang & Sim, 2008 |  |
-| 41 | 울릉해변해면 | Halichondria ulleungensis Kang and Sim, 2008 |  |
-| 42 | 노랑해변해면 | Hymeniacidon flavia Sim & Lee, 2003 |  |
-| | **예쁜이해면과(Callyspongiidae)** | | |
-| 43 | 보라예쁜이해면 | Callyspongia confoederata (sensu Ridley, 1884) |  |
-| 33 | 예쁜이해면 | Callyspongia (Callyspongia) elegans (Lendenfeld, 1887) |  |
-| 45 | 뿔예쁜이해면 | Callyspongia (Callyspongia) differentiata (Dendy, 1922) |  |
-| 46 | 길쭉예쁜이해면 | Callyspongia (Callyspongia) serpentina (Lamarck, 1814) |  |
-| 47 | 묵리예쁜이해면 | Callyspongia mookriensis Kang and Sim, 2008 |  |
-| | **보라해면과(Chalinidae)** | | |
-| 48 | 솜덩이해면 | Haliclona (Gellius) angulata (Bowerbank, 1866) |  |
-| 49 | 한국솜덩이해면 | Haliclona (Gellius) coreana Kim & Sim, 2004 |  |
-| 50 | 눈보라해면 | Haliclona (Haliclona) oculata (Linnaeus, 1759) |  |
-| 51 | 울진보라해면 | Haliclona (Haliclona) uljinensis Kang & Sim, 2007 |  |
-| 52 | 홍도보라해면 | Haliclona (Reniera) hongdoensis Kang & Sim, 2007 |  |
-| 53 | 신여보라해면 | Haliclona (Reniera) sinyeoensis Kang, Lee & Sim, 2013 |  |
-| 54 | 대포톡사해면 | Haliclona daepoensis (Sim & Lee, 1997) |  |
-| | **바위해면과(Petrosiidae)** | | |
-| 55 | 불똥해면 | Petrosia (Strongylophora) corticata (Wilson, 1925) |  |
-| | **가는실해면과(Irciniidae)** | | |
-| 56 | 가거모래해면 | Psammocinia gageoensis Sim & Lee, 2001 |  |
-| 57 | 제주모래해면 | Psammocinia jejuensis Sim, 1998 |  |
-| 58 | 유두모래해면 | Psammocinia mammiformis Sim, 1998 |  |
-| 59 | 모슬모래해면 | Psammocinia mosulpia Sim, 1998 |  |
-| 60 | 빨강모래해면 | Psammocinia rubra Sim & Lee, 2002 |  |
-| 61 | 삼양모래해면 | Psammocinia samyangensis Sim & Lee, 1998 |  |
-| 62 | 완도모래해면 | Psammocinia wandoensis Sim & Lee, 1998 |  |
-| 63 | 가파육질실해면 | Sarcotragus gapaensis Sim & Lee, 2000 |  |
-| 64 | 마라육질실해면 | Sarcotragus maraensis Sim & Lee, 2000 |  |
+정함을 목적으로 한다.
 
-### 3. 자포동물
+제2조(국외반출 승인대상 해양수산생명자원 종류) 「해양수산생명자원
 
-| 일련번호 | 국명 | 학명 | 비고 |
-|---|---|---|---|
-| | **뿔산호과(Melithaeidae)** | | |
-| 1 | 양색바늘산호 | Melithaea bicolor (Nutting, 1908) |  |
-| 2 | 바늘산호 | Melithaea harbereri (Kükenthal, 1908) |  |
-| 3 | 가는바늘산호 | Melithaea tenuis (Kükenthal, 1908) |  |
-| 4 | 물결바늘산호 | Melithaea undulata (Kükenthal, 1908) |  |
-| 5 | 빽빽산호 | Melithaea japonica (Verrill, 1865)(=Melithaea densa Kükenthal 1908) |  |
-| 6 | 원통뿔산호 | Melithaea flabellifera cylindrata Kükenthal, 1908 |  |
-| 7 | 부채뿔산호 | Melithaea flabellifera flabellifera Kükenthal, 1908 |  |
-| 8 | 그물뿔산호 | Melithaea flabellifera reticulata Kükenthal, 1908 |  |
-| | **균형산호과(Parisididae)** | | |
-| 9 | 작은균형산호 | Parisis minor Wright & Studer, 1889 |  |
-| | **가시산호과(Acanthogorgiidae)** | | |
-| 10 | 큰민가시산호 | Acanthogorgia grandiflora Kükenthal & Gorzawsky, 1908 |  |
-| 11 | 민가시산호 | Acanthogorgia inermis (Hedlund, 1890) |  |
-| 12 | 가는민가시산호 | Acanthogorgia irregularis Kükenthal & Gorzawsky, 1908 |  |
-| 13 | 방사민가시산호 | Acanthogorgia radians Kükenthal & Gorzawsky, 1908 |  |
-| 14 | 가는가시산호 | Acanthogorgia gracillima Kükenthal, 1909 |  |
-| 15 | 다가시산호 | Acanthogorgia multispina Kükenthal & Gorzawsky, 1908 |  |
-| 16 | 숲가시산호 | Acanthogorgia spissa Kükenthal, 1909 |  |
-| 17 | 둥근컵산호 | Calicogorgia granulosa Kükenthal & Gorzawsky, 1908 |  |
-| | **총산호과(Plexauridae)** | | |
-| 18 | 측긴맵시산호 | Menella praelonga (Ridley, 1884)(=Plexauroidea praelonga (Ridley, 1884)) |  |
-| 19 | 곧은맵시산호 | Menella rigida (Kükenthal, 1908)(=Plexauroidea rigida Kükenthal, 1908) |  |
-| 20 | 수풀산호 | Villogorgia antillarum Aurivillius, 1931 |  |
-| 21 | 꽃총산호 | Anthoplexaura dimorpha Kükenthal, 1908 |  |
-| 22 | 불나무진총산호 | Euplexaura abietina Kükenthal, 1908 |  |
-| 23 | 유착진총산호 | Euplexaura anastomosans Brundin, 1896 |  |
-| 24 | 곧은진총산호 | Euplexaura recta (Nutting, 1910) |  |
-| | **회초리산호과(Ellisellidae)** | | |
-| 25 | 붉은회초리산호 | Ellisella rubra (Wright & Studer, 1889) |  |
-| 26 | 회초리산호 | Ellisella limbaughi (Bayer, 1960) |  |
-| 27 | 혹가시산호 | Verrucella umbraculum (Ellis & Solander, 1786) |  |
-| | **폴립산호과(Primnoidae)** | | |
-| 28 | 곧은깃산호 | Plumarella rigida Kükenthal & Gorzawsky, 1908 |  |
-| | **해변말미잘과(Actiniidae)** | | |
-| 29 | 해변말미잘 | Actinia equina (Linnaeus, 1758) |  |
-| 30 | 풀색꽃해변말미잘 | Anthopleura fuscoviridis Carlgren, 1949(=Anthopleura midori Uchida & Muramatsu, 1958) |  |
-| 31 | 갈색꽃해변말미잘 | Anthopleura japonica Verrill, 1899 |  |
-| 32 | 검정꽃해변말미잘 | Anthopleura kurogane Uchida & Muramatsu, 1958 |  |
-| 33 | 태평양꽃해변말미잘 | Anthopleura nigrescens (Verrill, 1928)(=Anthopleura pacifica Uchida, 1938) |  |
-| 34 | 모래해변말미잘 | Dofleinia armata Wassilieff, 1908 |  |
-| 35 | 큰산호말미잘 | Entacmaea quadricolor (Leuckart in Rüppell & Leuckart, 1828) |  |
-| 36 | 얼룩갈기해변말미잘 | Epiactis japonica (Verrill, 1869) |  |
-| 37 | 측해변말미잘 | Paracondylactis hertwigi (Wassilieff, 1908) |  |
-| 38 | 민가죽해변말미잘 | Urticina crassicornis (Müller, 1776) |  |
-| 39 | 가죽해변말미잘 | Urticina coriacea (Cuvier, 1798) |  |
-| | **빛말미잘과(Actinostolidae)** | | |
-| 40 | 빛말미잘 | Actinostola carlgreni Wassilieff, 1908 |  |
-| 41 | 호리병말미잘 | Exocoelactis actinostoloides (Wassilieff, 1908)(=Parasicyonis actinostoloides Wassilieff, 1908) |  |
-| | **꽃말미잘과(Cerianthidae)** | | |
-| 42 | 실꽃말미잘 | Cerianthus filiformis Carlgren, 1924 |  |
-| | **Corallimorphidae과** | | |
-| 43 | 보석말미잘 | Corynactis viridis Allman, 1846 |  |
-| | **벌레붙이말미발과(Edwardsiidae)** | | |
-| 44 | 벌레붙이말미잘 | Edwardsia japonica Carlgren, 1931(=Edwardsioides japonica Carlgren, 1931) |  |
-| | **끈말미잘과(Hormathiidae)** | | |
-| 45 | 집게말미잘 | Calliactis japonica Carlgren, 1928 |  |
-| 46 | 폴립집게말미잘 | Calliactis polypus (Forsskål, 1775) |  |
-| | **유사돌말미잘과(Isophelliidae)** | | |
-| 47 | 꽃골풀말미잘 | Flosmaris mutsuensis (Uchida, 1938) |  |
-| | **섬유세닐말미잘과(Metridiidae)** | | |
-| 48 | 섬유세닐말미잘 | Metridium dianthus (Ellis, 1768)(=Metridium senile (Linnaeus, 1761)) |  |
-| | **담홍말미잘과(Nemanthidae)** | | |
-| 49 | 담홍말미잘 | Nemanthus nitidus (Wassilieff, 1908) |  |
-| | **사가트말미잘과(Sagartiidae)** | | |
-| 50 | 집게손말미잘 | Verrillactis paguri (Stimpson in Verrill, 1869) |  |
-| | **열말미잘과(Stichodactylidae)** | | |
-| 51 | 융단열말미잘 | Stichodactyla tapetum (Hemprich & Ehrenberg in Ehrenberg, 1834) |  |
-| | **종히드라과(Campanulariidae)** | | |
-| 52 | 혹히드라 | Obelia geniculata (Linnaeus, 1758) |  |
-| | **곤봉산호과(Clavulariidae)** | | |
-| 53 | 송이곤봉산호 | Clavularia racemosa Utinomi, 1950 |  |
-| | **곤봉히드라과(Corynidae)** | | |
-| 54 | 곤봉히드라 | Coryne pusilla Gaertner, 1774 |  |
-| | **꽃모자해파리과(Olindiasidae)** | | |
-| 55 | 꽃모자해파리 | Olindias formosus (Goto, 1903) |  |
-| | **깃히드라과(Plumulariidae)** | | |
-| 56 | 솜털깃히드라 | Aglaophenia pluma (Linnaeus, 1758) |  |
-| 57 | 주발깃히드라 | Aglaophenia suensonii Jäderholm, 1896 |  |
-| 58 | 흰깃히드라 | Aglaophenia whiteleggei Bale, 1888 |  |
-| 59 | 둥글깃히드라 | Antennellopsis integerrima Jäderholm, 1919(=Antennella integerrima (Jäderholm, 1896) |  |
-| 60 | 민숭이깃히드라 | Gymnangium hians (Busk, 1852) |  |
-| 61 | 자색깃히드라 | Macrorhynchia phoenicea (Busk, 1852) |  |
-| 62 | 촉각깃히드라 | Nemertesia antennina (Linnaeus, 1758) |  |
-| 63 | 검정깃히드라 | Lytocarpia nigra (Nutting, 1906)(=Thecocarpus niger Nutting, 1905) |  |
-| | **테히드라과(Sertulariidae)** | | |
-| 64 | 가로테히드라 | Sertularella miurensis Stechow, 1921 |  |
-| | **산호붙이히드라과(Solanderiidae)** | | |
-| 65 | 큰산호붙이히드라 | Solanderia misakinensis (Inaba, 1892) |  |
-| 66 | 산호붙이히드라 | Solanderia secunda (Inaba, 1892) |  |
-| 67 | 가시산호붙이히드라 | Solanderia spinosa (Carter, 1892) |  |
-| | **쌍컵히드라과(Syntheciidae)** | | |
-| 68 | 나팔쌍컵히드라 | Synthecium tubithecum (Allman, 1877) |  |
-| | **바다맨드라미과(Alcyoniidae)** | | |
-| 69 | 곤봉바다딸기 | Eleutherobia rigida (Pütter, 1900)(=Bellonella rigida Pütter, 1900) |  |
-| 70 | 빨강바다딸기 | Eleutherobia unicolor (Kükenthal, 1906)(=Bellonella unicolor (Kükenthal, 1906)) |  |
-| | **꽃이끼과(Cornulariidae)** | | |
-| 71 | 꽃이끼산호 | Cervera komaii (Utinomi, 1950) |  |
-| | **가시선인장과(Echinoptillidae)** | | |
-| 72 | 가시선인장 | Echinoptilum macintoshi Hubrecht, 1885 |  |
-| | **곤봉바다맨드라미과(Nephtheidae)** | | |
-| 73 | 큰수지맨드라미 | Dendronephthya gigantea Verrill, 1864 |  |
-| 74 | 가시수지맨드라미 | Dendronephthya spinulosa Gray, 1862 |  |
-| 75 | 빗살수지맨드라미 | Dendronephthya pectinata Holm, 1895 |  |
-| 76 | 분홍바다맨드라미 | Scleronephthya gracillimum (Kükenthal, 1906)(=Alcyonium gracillimum Kükenthal, 1906) |  |
-| 77 | 빨강해면맨드라미 | Chromonephthea hirotai (Utinomi, 1951)(=Umbellulifera hirotai (Utinomi, 1951)) (=Paraspongodes hirotai (Utinomi, 1951) |  |
-| 78 | 침해면맨드라미 | Chromonephthea serratospiculata (Utinomi, 1951)(=Umbellulifera spiculosa (Kükenthal, 1906)) (=Paraspongodes spiculosa (Kükenthal, 1906) |  |
-| | **관산호과(Nidaliidae)** | | |
-| 79 | 등색관산호 | Siphonogorgia dofleini Kükenthal, 1906 |  |
-| | **의소지산호과(Pseudochonidae)** | | |
-| 80 | 의소지산호 | Pseudocladochonus hicksoni Versluys, 1907 |  |
-| | **바다선인장과(Veretillidae)** | | |
-| 81 | 바다선인장 | Cavernularia obesa Valenciennes in Milne Edwards & Haime, 1850(=Cavernularia obesa Milne-Edwards & Haime, 1850) |  |
-| | **가시조름과(Pteroeididae)** | | |
-| 82 | 가시조름 | Pteroeides sparmanni Kölliker, 1869 |  |
-| 83 | 긴가시조름 | Pteroeides tenerum Kölliker, 1869 |  |
-| | **바다조름과(Pennatulidae)** | | |
-| 84 | 바다조름 | Pennatula fimbriata Herklot, 1858 (=Leioptilus fimbriatus (Herklots, 1858)) |  |
-| | **버들조름과(Virgulariidae)** | | |
-| 85 | 버들조름 | Virgularia gustaviana (Herklots, 1863) |  |
-| 86 | 바다버들조름 | Virgularia halisceptrum Broch, 1910 |  |
-| 87 | 골풀버들조름 | Virgularia juncea (Pallas, 1766) |  |
-| 88 | 뱀버들조름 | Scytalium splendens (Thompson & Henderson, 1906) |  |
-| 89 | 긴버들조름 | Balticina willemoesi (Kölliker, 1880) |  |
-| | **해송과(Antipathidae)** | | |
-| 90 | 빗자루해송 | Antipathes densa Silberfeld, 1909 |  |
-| 91 | 망해송 | Antipathes dubia (Brook, 1889) |  |
-| 92 | 큰꽃해송 | Antipathes grandiflora Silberfeld, 1909 |  |
-| 93 | 실해송 | Cirrhipathes anguina (Dana, 1846) |  |
-| 94 | 나선실해송 | Cirrhipathes spiralis (Linnaeus, 1758) |  |
-| 95 | 실선해송 | Stichopathes filiformis Gray, 1868 |  |
-| | **다해송과(Myriopathidae)** | | |
-| 96 | 이엽해송 | Myriopathes bifaria (Brook, 1889) |  |
-| 97 | 잔가지해송 | Myriopathes panamensis (Verrill, 1869) |  |
-| | **단풍돌산호과(Acroporidae)** | | |
-| 98 | 빛단풍돌산호 | Montipora efflorescens Bernard, 1897(=Montipora trabeculata Bernard, 1897) |  |
-| | **덩어리산호과(Thamnasteriidae)** | | |
-| 99 | 그물코돌산호 | Psammocora profundacella Gardiner, 1898 |  |
-| 100 | 작은그물코돌산호 | Psammocora albopicta Benzoni, 2006 |  |
-| | **버섯돌산호과(Agariciidae)** | | |
-| 101 | 버섯판열돌산호 | Leptoseris mycetoseroides Wells, 1954 |  |
-| | **정향돌산호과(Caryophyllidae)** | | |
-| 102 | 정향돌산호 | Caryophyllia (Caryophyllia) japonica Marenzeller, 1888 |  |
-| 103 | 이형컵돌산호 | Heterocyathus aequicostatus Milne Edwards & Haime, 1848 |  |
-| 104 | 긴다리돌산호 | Stephanocyathus (Acinocyathus) spiniger (Marenzeller, 1888) |  |
-| 105 | 덤불각돌산호 | Goniocorella dumosa (Alcock, 1902) |  |
-| 106 | 찻잔돌산호 | Phyllangia hayamaensis (Eguchi, 1968) |  |
-| | **구멍돌산호과(Poritidae)** | | |
-| 107 | 거품돌산호 | Alveopora japonica Eguchi, 1968 |  |
-| | **뿔빗돌산호과(Faviidae)** | | |
-| 108 | 별빗돌산호 | Oulastrea crispata (Lamarck, 1816) |  |
-| | **근생돌산호과(Rhizangiidae)** | | |
-| 109 | 혹돌산호 | Culicia stellata Dana, 1846(=Culicia japonica Yabe & Eguchi, 1936) |  |
-| | **부채돌산호과(Flabellidae)** | | |
-| 110 | 부채돌산호 | Flabellum (F.) pavonium Lesson, 1831 |  |
-| 111 | 쐐기통부채돌산호 | Truncatoflabellum carinatum Cairns, 1989 |  |
-| 112 | 횡주름부채돌산호 | Truncatoflabellum formosum Cairns, 1989 |  |
-| 113 | 나팔꽃돌산호 | Javania insignis Duncan, 1876 |  |
-| | **나무돌산호과(Dendrophylliidae)** | | |
-| 114 | 작은팽이돌산호 | Balanophyllia (Balanophyllia) cumingii Milne Edwards & Haime, 1848 |  |
-| 115 | 둔한팽이돌산호 | Balanophyllia (Balanophyllia) vanderhorsti Cairns, 2001 |  |
-| 116 | 타원가지돌산호 | Cladopsammia eguchii (Wells, 1982) |  |
-| 117 | 단순가지돌산호 | Cladopsammia gracilis (Milne Edwards & Haime, 1848) |  |
-| 118 | 관목나무돌산호 | Dendrophyllia arbuscula van der Horst, 1922 |  |
-| 119 | 보슈마나무돌산호 | Dendrophyllia boschmai van der Horst, 1926 |  |
-| 120 | 컵보슈마나무돌산호 | Dendrophyllia cyathoheloides Eguchi, 1965 (=Dendrophyllia boschmai cyathohelioides Yabe and Eguchi, 1965) |  |
-| 121 | 타원나무돌산호 | Cladopsammia eguchii (Wells, 1982) |  |
-| 122 | 꽃나무돌산호 | Dendrophyllia florulenta Alcock, 1902 |  |
-| 123 | 먼협나팔돌산호 | Tubastraea faulkneri Wells, 1982 |  |
-| 124 | 잔가지나팔돌산호 | Tubastraea micranthus (Ehrenberg, 1834) |  |
+의 확보ㆍ관리 및 이용 등에 관한 법률」 제22조제3항에 따른 국외반
 
-### 4. 연체동물
+출 승인대상 해양수산생명자원의 종류는 별표와 같다.
 
-| 일련번호 | 국명 | 학명 | 비고 |
-|---|---|---|---|
-| | **국자조개과(Cuspidariidae)** | | |
-| 1 | 등주름국자조개 | Cuspidaria hindsiana (A. Adams, 1864)(=Cuspidaria (Cuspidaria) hindsiana A. Adams) |  |
-| 2 | 긴자루국자조개 | Cuspidaria macrorhynchus E. A. Smith, 1895(=Cuspidaria (Cuspidaria) macrorhynchus E. A. Smith) |  |
-| 3 | 짧은자루국자조개 | Cuspidaria obtusirostris Okutani, 1962(=Cuspidaria (Cuspidaria) obtusirostris Okutani) |  |
-| | **가시벌레조개과(Chaetodermatidae)** | | |
-| 4 | 참가시벌레조개 | Chaetoderma japonicum (Heath, 1911) |  |
-| | **따가리과(Mopaliidae)** | | |
-| 5 | 왕털군부 | Amicula amiculata (Pallas, 1787) |  |
-| 6 | 따가리 | Placiphorella stimpsoni (Gould, 1859) |  |
-| 7 | 말군부 | Cryptochiton stelleri (Middendorff, 1847)(=Cryptochiton stelleri stelleri (Middendorff, 1847)) |  |
-| | **군부과(Chitonidae)** | | |
-| 8 | 군부 | Liolophura japonica (Lischke, 1873)(=Acanthopleura japonica (Lischke, 1873)) |  |
-| 9 | 비단군부 | Onithochiton hirasei Pilsbry, 1901 |  |
-| | **전복과(Haliotidae)** | | |
-| 10 | 말전복 | Haliotis gigantea Gmelin, 1791(=Nordotis gigantea Gmelin, 1791) |  |
-| 11 | 왕전복 | Haliotis madaka (Habe, 1977)(=Nordotis madaka Habe, 1977) |  |
-| 12 | 마대오분자기 | Haliotis diversicolor Reeve, 1846(=Sulculus diversicolor diversicolor (Reeve)) |  |
-| 13 | 오분자기 | Haliotis diversicolor Reeve, 1846(=Suculus diversicolor supertexta (Lischke, 1870)) |  |
-| | **구멍삿갓조개과(Fissurellidae)** | | |
-| 14 | 뿔럭지삿갓조개 | Scelidotoma gigas (Martens, 1881)(=Tugalina (Scelidotoma) gigas (V. Martens, 1881)) |  |
-| | **애기삿갓조개과(Nacellidae)** | | |
-| 15 | 흑색배말 | Cellana nigrolineata (Reeve, 1854) |  |
-| | **두드럭배말과(Lottiidae)** | | |
-| 16 | 두드럭배말 | Lottia dorsuosa (Gould, 1859)(=Lottia (Lottia) dorsuosa (Gould)) |  |
-| | **소라과(Turbinidae)** | | |
-| 17 | 잔뿔소라 | Bolma modesta (Reeve, 1843)(=Bolma (Harisazaea) modesta (Reeve, 1843)) |  |
-| 18 | 월계관납작소라 | Guildfordia triumphans (Philippi, 1841) |  |
-| 19 | 납작소라 | Pomaulax japonicus (Dunker, 1845) |  |
-| 20 | 예쁜눈알고둥 | Turbo excellens G. B. Sowerby III, 1914(=Turbo (Carswellena) excellens (G. B. Sowerby III, 1914)) |  |
-| | **밤고둥과 (Trochidae)** | | |
-| 21 | 가시방석고둥 | Tristichotrochus aculeatus (G. B. Sowerby III, 1912))(=Calliostoma aculeatum (G. B. Sowerby III, 1912)) |  |
-| 22 | 주홍방석고둥 | Tristichotrochus consors (Lischke, 1872)(=Calliostoma consors (Lischke, 1872)) |  |
-| | **갈고둥과(Neritidae)** | | |
-| 23 | 큰입술갈고둥 | Nerita albicilla Linnaeus, 1758(=Nerita (Theliostyla) albicilla (Linnaeus, 1758)) |  |
-| | **감생이고둥과(Cancellariidae)** | | |
-| 24 | 주름감생이 | Cancellaria (Habesolatia) nodulifera G. B. Sowerby I, 1825(=Habesolatia nodulifera (G. B. Sowerby I, 1825)) |  |
-| | **갯고둥과(Batillariidae)** | | |
-| 25 | 갯고둥 | Batillaria multiformis (Lischke, 1869) |  |
-| | **동다리과(Potamididae)** | | |
-| 26 | 동다리 | Cerithidea rhizophorarum A. Adams, 1855 |  |
-| | **긴고둥과(Fasciolariidae)** | | |
-| 27 | 큰긴뿔고둥 | Fusinus forceps (Perry, 1811)(=Fusinus forceps forceps Perry) |  |
-| | **구슬우렁이과(Naticidae)** | | |
-| 28 | 큰돌우렁이 | Cryptonatica wakkanaiensis Habe & Ito, 1976(=Cryptonatica (Cryptonatica) wakkanaiensis Habe & Ito) |  |
-| | **목주림고둥과(Truncatellidae)** | | |
-| 29 | 목주림고둥 | Truncatella guerinii (A. Villa & J. Villa, 1841) |  |
-| 30 | 분홍목주림고둥 | Truncatella pfeifferi (V. Martens, 1860) |  |
-| | **표주박고둥과(Ficidae)** | | |
-| 31 | 표주박고둥 | Ficus ficus (Linnaeus, 1758)(=Ficus subintermedia (d'Orbigny, 1852)) |  |
-| | **수정고둥과(Strombidae)** | | |
-| 32 | 수정고둥 | Doxander vittatus japonicus (Reeve, 1851) |  |
-| | **개오지과(Cypraeidae)** | | |
-| 33 | 마노석개오지 | Erronea onyx (Linnaeus, 1758)(=Adusta onyx (Linnaeus, 1758)) |  |
-| 34 | 은하수개오지 | Erosaria erosa (Linnaeus, 1758) |  |
-| 35 | 처녀개오지 | Erosaria helvola (Linnaeus, 1758) |  |
-| 36 | 눈송이개오지 | Erosaria labrolineata (Gaskoin, 1849) |  |
-| 37 | 함박눈송이개오지 | Erosaria miliaris (Gmelin, 1791) |  |
-| 38 | 검은점줄개오지 | Luria isabella (Linnaeus, 1758) |  |
-| 39 | 제주개오지 | Lyncina vitellus (Linnaeus, 1758)(=Lyncina (Mystaponda) vitellus (Linnaeus, 1758)) |  |
-| 40 | 홍옥수개오지 | Lyncina carneola (Linnaeus, 1758)(=Lyncina (Ponda) carneola (Linnaeus, 1758)) |  |
-| 41 | 별개오지 | Monetaria caputserpentis (Linnaeus, 1758)(=Ravitrona caputserpentis (Linnaeus, 1758)) |  |
-| 42 | 흰점보라개오지 | Staphylaea limacina (Lamarck, 1810)(=Staphylaea (Staphylaea) limacina (Lamarck)) |  |
-| 43 | 흰점진보라개오지 | Staphylaea staphylaea (Linnaeus, 1758)(=Staphylaea (Staphylaea) staphylaea (Linnaeus)) |  |
-| | **흰구슬개오지과(Triviidae)** | | |
-| 44 | 흰구슬개오지 | Trivirostra oryza (Lamarck, 1810)(=Trivia (Trivirostra) oryza (Lamarck, 1810)) |  |
-| 45 | 가는줄흰구슬개오지 | Trivirostra pellucidula (Reeve, 1846)(=Trivia (Trivirostra) pellucidula (Reeve, 1846)) |  |
-| | **개오지붙이과(Ovulidae)** | | |
-| 46 | 뾰족토끼고둥 | Cuspivolva cuspis (Cate, 1973)(=Crenovolva (Cuspivolva) cuspis (Cate, 1973)) |  |
-| 47 | 진한무늬토끼고둥 | Crenavolva (Cuspivolva) myrakeenae (Azuma & Cate, 1971) |  |
-| 48 | 호랑이무늬토끼고둥 | Cuspivolva tigris (Yamamoto, 1971) |  |
-| 49 | 카누두루마리고둥 | Calcarovula longirostrata (Sowerby I, 1828)(=Phenacovolva (Calcarrovula) longirostrata (Sowerby I, 1828)) |  |
-| 50 | 곧은부리두루마리고둥 | Phenacovolva nectarea Iredale, 1930(=Phenacovolva (Calcarrovula) tokioi (Cate, 1973)) |  |
-| 51 | 잘린두루마리고둥 | Pellasimnia improcera (Azuma & Cate, 1971)(=Phenacovolva (Pellasimnia) improcera (Azuma & Cate, 1971)) |  |
-| 52 | 우아한두루마리고둥 | Phenacovolva pseudogracilis Cate & Azuma in Cate, 1973(=Phenacovolva (Pellasimnia) pseudogracilis (Cate & Azuma in Cate, 1973)) |  |
-| 53 | 구름무늬두루마리고둥 | Phenacovolva lahainaensis (Cate, 1969)(=Phenacovolva (Phenacovolva) lahainaensis (Cate)) |  |
-| 54 | 가시토끼고둥(가시두루마리고둥) | Phenacovolva rosea (A. Adams, 1855)(=Phenacovolva (Phenacovolva) rosea rosea (A. Adams)) |  |
-| 55 | 두툼꽈배기두루마리고둥 | Phenacovolva brevirostris (Schumacher, 1817)(=Phenacovolva (Turbovula) brevirostris (Schumacher, 1817)) |  |
-| 56 | 흰띠작은두루마리고둥 | Phenacovolva dancei Cate, 1973(=Phenacovolva (Turbovula) dancei Cate, 1973)) |  |
-| 57 | 작은구름무늬두루마리고둥 | Phenacovolva fusula Cate & Azuma in Cate, 1973(=Phenacovolva (Turbovula) fusula (Cate & Azuma in Cate, 1973)) |  |
-| 58 | 누렁꼭지두루마리고둥 | Quasisimnia hirasei (Pilsbry, 1913)(=Phenacovolva (Turbovula) hirasei (Pilsbry, 1913)) |  |
-| 59 | 고랑두루마리고둥 | Pellasimnia maccoyi (Tenison-Woods, 1878)(=Phenacovolva maccoyi (Tenison-Woods, J. E., 1878)) |  |
-| 60 | 보라파도무늬두루마리고둥 | Phenacovolva poppei Fehse, 2000 |  |
-| 61 | 주홍토끼고둥 | Sandalia triticea (Lamarck, 1810)(=Sandalia rhodia (A. Adams, 1854)) |  |
-| 62 | 계란두루마리고둥 | Volva habei Oyama, 1961(=Volva volva habei (Oyama, 1961)) |  |
-| | **계란고둥과(Cassidae)** | | |
-| 63 | 점박이계란고둥 | Semicassis bisulcata (Schubert & J. A. Wagner, 1829)(=Semicassis bisulcata persimilis (Kira, 1959)) |  |
-| | **수염고둥과(Renellidae)** | | |
-| 64 | 각시수염고둥 | Monoplex parthenopeus (Salis Marschlins, 1793)(=Cymatium (Monoplex) parthenopeum echo (Kuroda & Habe, 1961)) |  |
-| | **뿔소라과(Muricidae)** | | |
-| 65 | 지느러미뿔고둥(넓은지느러미뿔고둥) | Boreotrophon candelabrum (Reeve, 1848)(=Boreotrophon paucicostatus Habe & Ito) |  |
-| 66 | 입뿔고둥 | Ceratostoma burnetti (Adams & Reeve, 1849) |  |
-| 67 | 대롱뿔고둥 | Ocinebrellus falcatus (G. B. Sowerby II, 1834)(=Pteropurpura (Ocinebrellus) falcata falcata Sowerby II, 1840) |  |
-| 68 | 꼬마흑점밀알고둥 | Maculotriton serriale (Deshayes, 1834)(=Maculotriton serriale serriale Deshayes) |  |
-| 69 | 두드럭고둥 | Reishia bronni (Dunker, 1860)(=Thais (Reishia) bronni (Dunker, 1860)) |  |
-| 70 | 산호살이딸기고둥 | Mipus arbutum (Woolacott, 1954) |  |
-| | **매부리고둥과(Capulidae)** | | |
-| 71 | 누더기모자고둥 | Trichotropis bicarinata (Sowerby I, 1825) |  |
-| 72 | 작은고리나팔고둥 | Trichamathina nobilis (A. Adams, 1867) |  |
-| | **물레고둥과(Buccinidae)** | | |
-| 73 | 큰물레고둥 | Buccinum tenuissimum (Kuroda in Teramachi, 1933) |  |
-| 74 | 또아리물레고둥 | Japelion latus (Dall, 1918)(=Japelion metaiapelion latus (Dall, 1918)) |  |
-| 75 | 넓은입물레고둥 | Volutopsius middendorffi (Dall, 1891)(=Volutopsius middendorffi middendorffi Dall) |  |
-| 76 | 무명실타래물레고둥 | Lussivolutopsius furukawai (Oyama, 1951) |  |
-| 77 | 관절매물고둥 | Neptunea arthritica (Valenciennes, 1858)(=Neptunea (Barbitonia) arthritica (Valenciennes, 1858)) |  |
-| 78 | 갈색띠매물고둥 | Neptunea cumingii Crosse, 1862(=Neptunea (Barbitonia) cumingii Crosse, 1862) |  |
-| 79 | 상투매물고둥 | Neptunea subdilatata (Yen, 1936)(=Neptunea (Barbitonia) subdilatata (Yen, 1936)) |  |
-| 80 | 명주매물고둥 | Neptunea constricta (Dall, 1907)(=Neptunea (Neptunea) constricta (Dall)) |  |
-| 81 | 굵은고리매물고둥 | Neptunea elegantula (Ito & Habe, 1965)(=Neptunea (Neptunea) elegantula Ito & Habe) |  |
-| 82 | 북방명주매물고둥 | Neptunea eulimata (Dall, 1907)(=Neptunea (Neptunea) eulimata Dall) |  |
-| 83 | 북방매물고둥 | Neptunea polycostata polycostata Scarlato, 1955(=Neptunea (Neptunea) polycostata polycostata Scarlato) |  |
-| 84 | 보라세로주름고둥 | Plicifusus scissuratus Dall, 1918(=Plicifusus (Plicifusus) scissuratus Dall) |  |
-| 85 | 돼지고둥 | Siphonalia cassidariaeformis (Reeve, 1846) |  |
-| 86 | 긴뿔매물고둥 | Searlesia modesta (Gould, 1860) |  |
-| 87 | 잔고리물레고둥 | Buccinum zelotes Dall, 1907 |  |
-| 88 | 세고리물레고둥 | Buccinum verkruzeni Kobelt, 1882 |  |
-| 89 | 군산물레고둥 | Buccinum yokomaruae Yamashita & Habe, 1965 |  |
-| 90 | 뾰족물레고둥 | Buccinum acutispiratum Dall, 1907(=Reticubuccinum acutispiratum (Dall, 1907)) |  |
-| | **털탑고둥과(Melongenidae)** | | |
-| 91 | 두드럭털탑고둥 | Hemifusus crassicauda (Philippi, 1849) (=Pugilina (Semifusus) crassicaudus (Philippi, 1849)) |  |
-| 92 | 털탑고둥 | Hemifusus tuba (Gmelin, 1791)(=Pugilina (Semifusus) tuba (Gmelin, 1791)) |  |
-| 93 | 배달긴고둥 | Fusolatirus coreanicus (E. A. Smith, 1879) |  |
-| | **홍줄고둥과(Volutidae)** | | |
-| 94 | 남방홍줄고둥 | Fulgoraria hamillei (Crosse, 1869)(=Fulgoraria (Fulgoraria) hamillei hamillei (Crosse)) |  |
-| 95 | 홍줄고둥 | Fulgoraria kaneko Hirase, 1922(=Fulgoraria (Psephaea) kaneko (Hirase, 1922)) |  |
-| 96 | 대추홍줄고둥 | Lyria cassidula (Reeve, 1849) |  |
-| | **청자고둥과(Conidae)** | | |
-| 97 | 청자고둥 | Conus fulmen Reeve, 1843 |  |
-| 98 | 계단꼭지청자고둥 | Conus lischkeanus Weinkauff, 1875 |  |
-| 99 | 혹줄청자고둥 | Conasprella orbignyi (Audouin, 1831)(=Conus orbignyi Audouin, 1831) |  |
-| | **송곳고둥과(Terebridae)** | | |
-| 100 | 고운무늬송곳고둥 | Duplicaria koreana (Yoo, 1976)(=Diplomeriza koreana (Yoo, 1976)) |  |
-| 101 | 대마디송곳고둥 | Terebra amanda Hinds, 1844 |  |
-| 102 | 미남송곳고둥 | Cinguloterebra lima (Deshayes, 1857)(=Terebra lima Deshayes, 1857) |  |
-| | **실꾸리고둥과(Epitoniidae)** | | |
-| 103 | 긴탑무명실꾸리고둥 | Amaea magnifica (G. B. Sowerby II, 1844)(=Amaea (Amaea) magnifica (Sowerby Ⅱ)) |  |
-| 104 | 각시실꾸리고둥 | Amaea thielei (de Boury, 1913)Amaea (Amaea) thielei Boury |  |
-| 105 | 긴실꾸리고둥 | Epitonium stigmaticum (Pilsbry, 1911)(=Glabriscala stigmatica Pilsbry, 1911) |  |
-| 106 | 농갈색띠실꾸리고둥 | Epitonium harimaense Makiyama, 1924(=Papyriscala harimaense Makiyama, 1924) |  |
-| | **물고둥과(Aplustridae)** | | |
-| 107 | 줄물고둥 | Hydatina physis (Linnaeus, 1758) |  |
-| | **군소과(Aplysiidae)** | | |
-| 108 | 말군소 | Aplysia juliana Quoy & Gaimard, 1832(=Aplysia (Aplysia) juliana Quoy & Gaimard) |  |
-| 109 | 군소 | Aplysia kurodai Baba, 1937(=Aplysia (Varria) kurodai (Baba, 1937)) |  |
-| | **대추귀고둥과(Ellobiidae)** | | |
-| 110 | 밤색귀고둥 | Melampus nuxcastaneus (Kuroda, 1949)(=Melampus (Melampus) nuxcastaneus Kuroda) |  |
-| 111 | 낮은탑대추귀고둥 | Melampus sincaporensis L. Pfeiffer, 1855(=Melampus (Melampus) sincaporensis Pfeiffer) |  |
-| 112 | 노랑띠대추귀고둥 | Melampus fasciatus (Deshayes, 1830)(=Melampus (Pira) fasciatus (Deshayes, 1830)) |  |
-| 113 | 뾰족탑대추귀고둥 | Melampus taeniolatus (Hombron & Jacquinot, 1854)(=Melampus (Pira) taeniolus Hombron & Jacquinot, 1854) |  |
-| | **애호두조개과(Nuculidae)** | | |
-| 114 | 호두조개 | Acila divaricata (Hinds, 1843)(=Acila (Acila) divaricata (Hinds)) |  |
-| 115 | 민호두조개 | Acila vigilia Schenck, 1936(=Acila divaricata vigila Schenck, 1936)(=Acila (Acila) divaricata vigila Schenck) |  |
-| | **반달조개과(Yoldiidae)** | | |
-| 116 | 반질이반달조개 | Yoldia amygdalea Valenciennes, 1846(=Yoldia (Yoldia) amygdalea (Valenciennes)) |  |
-| 117 | 날개맵시조개 | Yoldia limatula (Say, 1831)(=Yoldia (Yoldia) limatula (Say)) |  |
-| | **돌조개과(Arcidae)** | | |
-| 118 | 어긋물린새꼬막 | Anadara inaequivalvis (Bruguière, 1789)(=Scapharca inaequivalvis (Bruguière, 1789)) |  |
-| 119 | 큰이랑피조개 | Anadara satowi (Dunker, 1882)(=Scapharca satowi (Dunker, 1882)) |  |
-| | **홍합과(Mytilidae)** | | |
-| 120 | 비로드긴꼬리담치 | Adula californiensis (Philippi, 1847) |  |
-| 121 | 세로잔주름담치 | Adula falcatoides Habe, 1955 |  |
-| 122 | 동해담치 | Crenomytilus grayanus (Dunker, 1853) |  |
-| 123 | 비단담치 | Jolya elongata (Swainson, 1821)(=Modiolus (Modiolusia) elongatus (Swaison, 1821)) |  |
-| | **진조조개과(Pteriidae)** | | |
-| 124 | 갈색띠진주조개 | Pinctada albina (Lamarck, 1819) |  |
-| 125 | 줄무늬진주조개 | Pterelectroma physoides (Lamarck, 1819)(=Pterelectroma zebra (Reeve, 1857)) |  |
-| 126 | 산호살이조개 | Pteria heteroptera (Lamarck, 1819)(=Pteria brevialata (Dunker, 1872)) |  |
-| 127 | 부푼산호살이조개 | Pteria gregata (Reeve, 1857)(=Pteria loveni (Dunker, 1872)) |  |
-| | **가리비과(Pectinidae)** | | |
-| 128 | 해가리비 | Ylistrum japonicum (Gmelin, 1791)(=Amusium japonicum japonicum (Gmelin, 1791)) |  |
-| 129 | 고랑가리비 | Swiftopecten swiftii (Bernardi, 1858)(=Chlamys (Swiftopecten) swiftii (Bernardi, 1858)) |  |
-| | **굴과(Ostreidae)** | | |
-| 130 | 갓굴 | Crassostrea ariakensis (Fujita & Wakiya, 1913) |  |
-| 131 | 톱니턱굴 | Dendostrea sandvichensis (G. B. Sowerby II, 1871)(=Dendostrea crenulifera (Sowerby, 1871)) |  |
-| 132 | 토굴 | Ostrea denselamellosa Lischke, 1869 |  |
-| 133 | 태생굴 | Ostrea circumpicta Pilsbry, 1904(=Striostrea circumpicta (Pilsbry, 1904)) |  |
-| | **말발조개과(Thyasiridae)** | | |
-| 134 | 큰말발조개 | Conchocele bisecta (Conrad, 1849)(=Conchocele disjuncta (Gabb, 1866)) |  |
-| | **새조개과(Cardiidae)** | | |
-| 135 | 소쿠리조개 | Acrosterigma burchardi (Dunker, 1877)(=Acrosterigma (Vasticardium) burchardi (Dunker, 1877)) |  |
-| 136 | 새조개 | Fulvia mutica (Reeve, 1844) |  |
-| 137 | 금붕어조개 | Nemocardium bechei (Reeve, 1847)(=Nemocardium (Nemocardium) bechei (Reeve)) |  |
-| | **개량조개과(Mactridae)** | | |
-| 138 | 봉황조개 | Lutraria maxima Jonas, 1844(=Lutraria (Psammophila) maxima (Jonas, 1844)) |  |
-| | **접시조개과(Tellinidae)** | | |
-| 139 | 남방접시조개 | Megangulus luteus (W. Wood, 1828) |  |
-| 140 | 접시조개 | Megangulus venulosus (Schrenck, 1861) |  |
-| 141 | 붉은속비단조개 | Megangulus zyonoensis (Hatai & Nishiyama, 1939) |  |
-| 142 | 흰대양조개 | Rexithaerus sectior (Oyama, 1950) |  |
-| | **자패과(Psammobiidae)** | | |
-| 143 | 검정껍질빛조개 | Nuttalina commoda (Yokoyama, 1925) |  |
-| 144 | 자패 | Hiatula boeddinghausi (Lischke, 1870))(=Soletellina boeddinghausi (Lischke, 1870)) |  |
-| | **발가리맛조개과(Solecurtidae)** | | |
-| 145 | 돼지가리맛 | Solecurtus divaricatus (Lischke, 1869) |  |
-| | **작두콩가리맛조개과(Pharidae)** | | |
-| 146 | 비단가리맛 | Siliqua albida (Adams & Reeve, 1850) |  |
-| 147 | 보라맛조개 | Siliqua alta (Broderip & Sowerby, 1829) |  |
-| | **죽합과(Solenidae)** | | |
-| 148 | 북방맛조개 | Solen krusensterni Schrenck, 1867(=Solen (Ensisolen) krusensterni (Schrenck, 1867)) |  |
-| 149 | 붉은맛 | Solen gordonis Yokoyama, 1920(=Solen (Solen) gordonis Yokoyama) |  |
-| 150 | 대맛조개 | Solen grandis Dunker, 1862(=Solen (Solen) grandis Dunker) |  |
-| | **백합과(Veneridae)** | | |
-| 151 | 할미조개 | Clementia papyracea (Gmelin, 1791)(=Clementia vatheliti (Mabille, 1901)) |  |
-| 152 | 비단백합 | Sunetta menstrualis (Menke, 1843)(=Cyclosunetta menstrualis (Menke, 1843)) |  |
-| 153 | 주름떡조개 | Dosinia corrugata (Reeve, 1850)(=Dosinella Cyclosunetta menstrualis (Menke)corrugata (Reeve)) |  |
-| 154 | 대복 | Gomphina (Macridiscus) veneriformis (Lamarck, 1818) |  |
-| 155 | 민무늬백합 | Meretrix lamarckii Deshayes, 1853 |  |
-| 156 | 농조개 | Paratapes undulatus (Born, 1778)(=Paphia (Neotapes) undulata (Born, 1788)) |  |
-| 157 | 밭고랑행달조개 | Paphia amabilis (Philippi, 1847)(=Paphia (Paphia) amabilis (Philippi)) |  |
-| 158 | 행달조개 | Paphia euglypta (Philippi, 1847)(=Paphia (Paphia) euglypta (Philippi)) |  |
-| 159 | 매끈이행달조개 | Paphia schnelliana (Dunker, 1865)(=Paphia (Paphia) schnelliana (Dunker)) |  |
-| 160 | 붉은행달조개 | Paphia vernicosa (Gould, 1861)(=Paphia (Paphia) vernicosa (Gould)) |  |
-| 161 | 떡조개 | Dosinia japonica (Reeve, 1850)(=Phacosoma japonicus (Reeve, 1850)) |  |
-| 162 | 둥근떡조개 | Dosinia troscheli Lischke, 1873(=Phacosoma troscheli (Lischke, 1873)) |  |
-| 163 | 부리떡조개 | Dosinia abyssicola Habe, 1961(=Phacosoma abyssicolum (Habe, 1961)) |  |
-| 164 | 살조개 | Leukoma jedoensis (Lischke, 1874)(=Protothaca (Notochione) jedoensis (Lischke, 1874)) |  |
-| 165 | 등뿔조개 | Timoclea marica (Linnaeus, 1758)(=Timoclea (Glycodonta) marica (Linnaeus, 1758)) |  |
-| 166 | 솜털백합 | Venus cassinaeformis (Yokoyama, 1926)(=Venus (Ventricoloidea) cassinaeformis (Yokoyama, 1926)) |  |
-| | **우럭과(Myidae)** | | |
-| 167 | 우럭 | Mya arenaria Linnaeus, 1758(=Mya (Arenomya) arenaria oonogai (Makiyama, 1935)) |  |
-| | **족사부착쇄조개과(Hiatellidae)** | | |
-| 168 | 북방코끼리조개 | Panomya norvegica (Spengler, 1793)(=Panomya arctica (Lamarck, 1818)) |  |
-| 169 | 두언덕코끼리조개 | Panomya priapus (Tilesius, 1822) |  |
-| | **석공조개과(Pholadidae)** | | |
-| 170 | 둥글레조개 | Barnea davidi (Deshayes, 1874)(=Barnea (Anchomasa) davidi (Deshayes, 1874)) |  |
-| 171 | 우줄기 | Barnea dilatata (Souleyet, 1843)(=Barnea (Umitakea) dilatata (Souleyet, 1843)) |  |
-| | **안쪽인대조개과(Lyonsiidae)** | | |
-| 172 | 안쪽인대조개 | Entodesma navicula (Adams & Reeve, 1850)(=Agriodesma navicula (A. Adams & Reeve, 1850)) |  |
-| | **뿔조개과(Dentaliidae)** | | |
-| 173 | 뿔조개 | Antalis weinkauffi (Dunker, 1877) |  |
-| 174 | 여덟모뿔조개 | Dentalium octangulatum Donovan, 1804(=Dentalium (Paradentalium) octangulatum (Donovan, 1804)) |  |
-| 175 | 쇠뿔조개 | Pictodentalium vernedei (Hanley in G. B. Sowerby II, 1860)(=Fissidentalium (Pictodentalium) vernedei (Sowerby Ⅱ, 1860)) |  |
+제3조(반출용도) ① 제2조에서 정한 국외반출 승인대상 해양수산생명자
 
-### 5. 절지동물
+원의 해외반출용도는 학술용, 의학용, 상업용 및 그 밖의 용도로 한다.
 
-| 일련번호 | 국명 | 학명 | 비고 |
-|---|---|---|---|
-| | **부처손과(Scalpellidae)** | | |
-| 1 | 대한부처손 | Abathescalpellum koreanum (Hiro, 1933)(=Scalpellum koreanum Hiro, 1933) |  |
-| | **조개삿갓붙이과(Heteralepadidae)** | | |
-| 2 | 매끈조개삿갓붙이 | Paralepas phyllacanthusi Kim & Kim, 1988 |  |
-| | **조무래기따개비과(Chthamalidae)** | | |
-| 3 | 제주조무래기따개비 | Euraphia pilsbryi (Hiro, 1936) |  |
-| 4 | 팔각따개비 | Pseudoctomeris sulcata (Nilsson-Cantell, 1932)(=Octomeris sulcata Nilsson-Cantell, 1932) |  |
-| | **사각따개비과(Tetraclitidae)** | | |
-| 5 | 구멍따개비 | Tetraclitella chinensis (Nilsson-Cantell, 1921) |  |
-| 6 | 납작사각따개비 | Tetraclitella darwini (Pilsbry, 1928) |  |
-| | **옛따개비과(Archaeobalanidae)** | | |
-| 7 | 바다맨드라미속살이 | Acasta alcyonicola Utinomi, 1953 |  |
-| 8 | 제주해면따개비 | Acasta chejudoensis Kim & Kim, 1988 |  |
-| 9 | 돌기해면따개비 | Acasta paraspinifera Kim & Kim, 1988 |  |
-| 10 | 털해면따개비 | Euacasta dofleini (Kruger, 1911) |  |
-| 11 | 막따개비 | Membranobalanus koreanus Kim & Kim, 1983 |  |
-| 12 | 주름따개비 | Hesperibalanus hesperius hesperius (Pilsbry, 1916) |  |
-| | **따개비과(Balanidae)** | | |
-| 13 | 봉우리따개비 | Balanus rostratus Hoek, 1883 |  |
-| | **맵시장수노벌레(Ameiridae)** | | |
-| 14 | 수려장수노벌레 | Nitokra koreanus Chang, 2007 |  |
-| | **딱정장수노벌레과(Canthocamptidae)** | | |
-| 15 | 모래무지노벌레 | Itunella arenaria Lee & Chang, 2008 |  |
-| | **가혹노벌레과(Laophontidae)** | | |
-| 16 | 해삼이 | Microchelonia koreensis (Kim I.H., 1991) (=Namakosiramia koreensis Kim I.H., 1991) |  |
-| | **부요정노벌레과(Parastenheliidae)** | | |
-| 17 | 배부요정노벌레 | Parastenhelia pyriformis Song, Kim W. & Chang, 2003 |  |
-| | **갑옷장수노벌레과(Peltidiidae)** | | |
-| 18 | 우리비고노벌레 | Alteuthoides affinis Kim S.H. & Kim W., 1998 |  |
-| | **딱정노벌레과(Porcellidiidae)** | | |
-| 19 | 두갈래딱정노벌레 | Dilatatiocauda bipartita (Kim I.H. & H.S. Kim, 1997) |  |
-| 20 | 뾰족뿔딱정노벌레 | Kensakia acuta (Kim I.H. & Kim H.S., 1997)(=Porcellidium acutum Kim I.H. & Kim H.S., 1997) |  |
-| 21 | 닮은꼴딱정노벌레 (집게딱정노벌레) | Kioloaria similis (Kim & Kim, 1996)(=Porcellidium similis Kim S.H. & Kim W., 1996) (=Acutiramus similis Kim S.H. & Kim W., 1996) |  |
-| 22 | 완도딱정벌레 | Porcellidium wandoensis Kim I.H. & Kim H.S., 1997 |  |
-| | **장군여왕노벌레과(Thalestridae)** | | |
-| 23 | 긴꼬리가나무속살이노벌레 | Pseudonsiella longicaudata Kim S.H. & Kim W., 1997 |  |
-| | **가날래장수노벌레과(Pseudotachidiidae)** | | |
-| 24 | 긴더듬이썩은나무속살이노벌레 | Xylora longiantennulata Kim S.H. & Kim W., 1997 |  |
-| 25 | 털부장군여왕노벌레 | Parathalestris parviseta Chang & Song, 1997 |  |
-| | **멍게벌레과(Ascidicolidae)** | | |
-| 26 | 멍게벌레 | Ascidicola secundus Kim I.H. & Moon, 2011 |  |
-| | **발톱벌레과(Botryllophilidae)** | | |
-| 27 | 한국발톱벌레 | Botryllophilus koreensis Seo & Lee, 1995 |  |
-| 28 | 대한외장충 | Haplostoma kimi Seo & Lee, 2001 |  |
-| | **멍게장충과(Enteropsidae)** | | |
-| 29 | 매끈멍게장충 | Enteropsis nudus Kim I.H. & Moon, 2011 |  |
-| 30 | 털굽장충 | Mychophilus capillatus Kim I.H. & Moon, 2011 |  |
-| | **멍게숨이과(Notodelphyidae)** | | |
-| 31 | 양포멍게숨이 | Bonnierilla yangpoensis Kim I.H. & Moon, 2011 |  |
-| 32 | 호씨납작숨이 | Doropygus hoi Seo & Lee, 1997 |  |
-| 33 | 막대벌레 | Janstockia truncata Kim I.H. & Moon, 2011 |  |
-| 34 | 가시해초속살이 | Pachypygus spinosus Kim I.H. & Moon, 2011 |  |
-| 35 | 갈고리해초속살이 | Paranotodelphys unguifer Kim I.H. & Moon, 2011 |  |
-| 36 | 뿔멍게벌레 | Pholeterides pilosa Kim I.H. & Moon, 2011 |  |
-| | **삿갓노벌레과(Artotrogidae)** | | |
-| 37 | 뾰족배삿갓노벌레 | Artotrogus acutus Kim I.H., 1996 |  |
-| 38 | 멍게삿갓노벌레 | Artotrogus halocynthiae Kim I.H., 1996 |  |
-| 39 | 두돌기삿갓노벌레 | Artotrogus incidentus Kim I.H., 1996 |  |
-| 40 | 작은삿갓노벌레 | Artotrogus rotundus Kim I.H., 1996 |  |
-| 41 | 오목개멍게이 | Ascidipontius concavus Kim I.H., 1996 |  |
-| 42 | 드문개멍게이 | Ascidipontius rarus Kim I.H., 1996 |  |
-| 43 | 몽당털완보노벌레 | Bradypontius crassisetus Kim I.H., 1996 |  |
-| 44 | 멍게완보노벌레 | Bradypontius halocynthiae Kim I.H., 1996 |  |
-| 45 | 넓적완보노벌레 | Bradypontius heteroporus Kim I.H., 1996 |  |
-| 46 | 멍게외다리노벌레 | Cryptopontius ascidius Kim I.H., 1996 |  |
-| 47 | 흔적다리노벌레 | Cryptopontius digitatus Kim I.H., 1996 |  |
-| 48 | 보통외다리노벌레 | Cryptopontius donghaensis Kim I.H., 1996 |  |
-| 49 | 오강모외다리노벌레 | Cryptopontius quinquesetus Kim I.H., 1996 |  |
-| 50 | 요정침노벌레 | Myzopontius venustus Kim I.H., 1996 |  |
-| 51 | 세마디날개노벌레 | Pteropontius trimerus Kim I.H., 1996 |  |
-| 52 | 납작벼룩노벌레 | Pulicitrogus compressus Kim I.H., 1998 |  |
-| | **물이과(Caligidae)** | | |
-| 53 | 몽당털더듬이노벌레 | Acontiophorus pilosus Kim I.H. & Je, 2000 |  |
-| 54 | 갈래산호겉살이 | Asteropontius bifurcatus Kim I.H. & Je, 2000 |  |
-| 55 | 짧은꼬리홀쭉노벌레 | Collocheres brevipes Shin & Kim I.H., 2004 |  |
-| 56 | 튼튼홀쭉노벌레 | Collocheres solidus Shin & Kim I.H., 2004 |  |
-| 57 | 탐라홀쭉노벌레 | Collocheres tamladus Shin & Kim I.H., 2004 |  |
-| 58 | 긴꼬리넓은가슴노벌레 | Orecturus longicaudatus Kim I.H. & Song, 2003 |  |
-| | **불가사리이과(Asterocheridae)** | | |
-| 59 | 넓은가슴노벌레 | Orecturus similis Kim I.H. & Song, 2003 |  |
-| 60 | 투명물이 | Caligus parvilatus Kim I.H., 1998 |  |
-| 61 | 혹장님물이 | Lepeophtheirus tuberculatus Kim I.H., 1993 |  |
-| 62 | 둥근이 | Sphaeronella squamosa Yoo & Lim, 1996 |  |
-| | **꽃조개살이과(Anthessiidae)** | | |
-| 63 | 키조개꽃조개살이 | Anthessius atrinae Suh & Choi, 1991 |  |
-| 64 | 긴다리꽃조개살이 | Anthessius longipedis Ho & Kim I.H., 1992 |  |
-| 65 | 돌기꽃조개살이 | Anthessius kimjensis Suh, 1993(=Anthessius projectus Kim I.H., 1993) |  |
-| | **도둑노벌레과(Bomolochidae)** | | |
-| 66 | 어렝놀래기도둑노벌레 | Orbitacolax pteragogi Kim I.H. & Moon, 2013 |  |
-| 67 | 갈치눈도둑노벌레 | Orbitacolax trichiuri Kim I.H. & Moon, 2013 |  |
-| 68 | 붉독눈도둑노벌레 | Orbitacolax unguifer Kim I.H. & Moon, 2013 |  |
-| | **옛천장입요각과(Clausidiidae)** | | |
-| 69 | 서해조개이(서해조개살이) | Conchyliurus inchonensis Kim I.H., 1997 |  |
-| 70 | 잎검물벼룩 | Foliomolgus cucullus Kim I.H., 2001 |  |
-| 71 | 남해검물벼룩 | Hemadona clavicrura Ho & Kim I.H., 2004 |  |
-| 72 | 막검물벼룩붙이 | Hemicyclops membranatus Moon & Kim I.H., 2010 |  |
-| 73 | 코검물벼룩붙이 | Hemicyclops nasutus Moon & Kim I.H., 2010 |  |
-| 74 | 쏙벌레 | Hemicyclops parilis Moon & Kim I.H., 2010 |  |
-| 75 | 돌검물벼룩붙이 | Hemicyclops saxatilis Ho & Kim I.H., 1991 |  |
-| 76 | 납작검물벼룩붙이 | Hemicyclops ventriplanus Kim I.H., 2000 |  |
-| 77 | 나도검물벼룩붙이 | Hersiliodes exiguus Kim I.H. & Stock, 1996 |  |
-| | **긴배검물벼룩과(Clausiidae)** | | |
-| 78 | 뿔검물벼룩 | Likroclausia namhaensis Ho & Kim I.H., 2003 |  |
-| 79 | 넓적배검물벼룩 | Rhodinicola laticauda Ho & Kim I.H., 2003 |  |
-| | **구멍벌레과(Kelleriidae)** | | |
-| 80 | 큰털구멍벌레 | Kelleria grandisetiger Kim I.H., 2006 |  |
-| 81 | 항구구멍벌레 | Kelleria portiviva Kim I.H., 2006 |  |
-| 82 | 열한가시구멍벌레 | Kelleria undecidentata Kim I.H., 2006 |  |
-| 83 | 떠돌이구멍벌레 | Kelleria vaga Kim I.H., 2000 |  |
-| | **살갗살이과(Lichomolgidae)** | | |
-| 84 | 가시살갗살이 | Dontimolgus brevicaudatus Moon & Kim I.H., 2011 |  |
-| 85 | 훈수허만속살이 | Herrmannella hoonsooi Kim I.H., 1992 |  |
-| 86 | 맛조개허만속살이 | Herrmannella soleni Kim I.H. & Ho, 1991 |  |
-| 87 | 주머니살갗살이 | Lichomolgus bullatus Kim I.H., 2000 |  |
-| 88 | 물렁살갗살이 | Lichomolgus infirmus Moon & Kim I.H., 2011 |  |
-| 89 | 빗살갗살이 | Lichomolgus pectinatus Moon & Kim I.H., 2011 |  |
-| 90 | 대합살이 | Lichomolgus similis Ho & Kim I.H., 1991 |  |
-| 91 | 털담치속살이 | Modiolicola avdeevi Kim I.H., 1995 |  |
-| 92 | 두줄살갗살이 | Protomolgus duplex Moon & Kim I.H., 2011 |  |
-| 93 | 외줄살갗살이 | Protomolgus singularis Moon & Kim I.H., 2011 |  |
-| 94 | 불가사리속살이 | Synstellicola paracarens Kim I.H., 1992 |  |
-| 95 | 군체멍게살갗살이 | Zygomolgus dentatus Kim I.H., 2006 |  |
-| | **큰손벌레과(Macrochironidae)** | | |
-| 96 | 털큰손벌레 | Macrochiron anomalum Kim I.H., 2000 |  |
-| 97 | 헛큰손벌레 | Pseudomacrochiron urostenum Kim I.H., 2000 |  |
-| | **조개속살이과(Myicolidae)** | | |
-| 98 | 서해뚱보속살이 | Myicola intumidus Kim I.H., 1997 |  |
-| | **괴벌레과(Philichthyidae)** | | |
-| 99 | 군평선이괴벌레 | Colobomatus floridus Kim I.H. & Moon, 2013 |  |
-| 100 | 동양괴벌레 | Colobomatus orientalis Kim I.H. & Moon, 2013 |  |
-| 101 | 놀래기괴벌레 | Colobomatus recticaudatus Kim I.H. & Moon, 2013 |  |
-| 102 | 망상어괴벌레 | Colobomatus similis Kim I.H., 1995 |  |
-| 103 | 황노래기괴벌레 | Colobomatus unimanus Kim I.H. & Moon, 2013 |  |
-| | **뿔고둥속살이과(Philoblennidae)** | | |
-| 104 | 뿔고둥속살이 | Philoblenna bupulda Ho & Kim I.H., 1992 |  |
-| | **가시노벌레과(Poilyankyliidae)** | | |
-| 105 | 가시노벌레 | Polyankylis orientalis Ho & Kim I.H., 1997 |  |
-| | **산호이과(Rhynchomolgidae)** | | |
-| 106 | 녹색말미잘속살이 | Critomolgus anthopleurus Kim I.H., 1996 |  |
-| 107 | 갈색말미잘속살이 | Critomolgus malmizalus Kim I.H., 1996 |  |
-| 108 | 녹색말미잘이 | Critomolgus vicinus Kim I.H., 1996 |  |
-| 109 | 바다조름이 | Critomolgus nudus Kim I.H., 2000 |  |
-| 110 | 갑옷갯민숭달팽이살이 | Doridicola portincola Kim I.H., 2007 |  |
-| 111 | 올빼미군소붙이살이 | Doridicola virgatus Kim I.H., 2007 |  |
-| 112 | 개펄말미잘이 | Lutumidomus tertius (Kim I.H., 2000) |  |
-| 113 | 민다리뿔산호벌레 | Paramolgus nudipes Kim I.H., 2006 |  |
-| 114 | 왕가슴말미잘이 | Verutipes scutatus Kim I.H., 2006 |  |
-| 115 | 턱돌기벌레 | Zamolgus cavernularius Kim I.H., 2000 |  |
-| | **갯지렁이살이과(Sabelliphilidae)** | | |
-| 116 | 동양오가시갯지렁이살이 | Eupolymniphilus orientalis Kim I.H., 2006 |  |
-| 117 | 갯지렁이집벌레 | Myxomolgus invulgus Kim I.H., 2001 |  |
-| 118 | 유령갯지렁이벌레 | Terebelliphilus simplex Kim I.H., 2001 |  |
-| | **개펄노벌레과(Synaptiphilidae)** | | |
-| 119 | 거미불가사리노벌레 | Presynaptiphilus paraminutus Shin & Kim I.H., 2003 |  |
-| | **띠아가미이과(Taeniacanthidae)** | | |
-| 120 | 민부치띠아가미이 | Taeniacanthus singularis Kim I.H. & Moon, 2013 |  |
-| 121 | 개소겡띠아가미이 | Triacanthus luteus Kim I.H. & Moon, 2013 |  |
-| 122 | 쥐치아가미벌레 | Umazuracola geminus Kim I.H. & Moon, 2013 |  |
-| | **모래무지벌레과(Cirolanidae)** | | |
-| 123 | 얼룩모래무지벌레 | Cirolana koreana Kwon, 1998 |  |
-| | **잔벌레과(Sphaeromatidae)** | | |
-| 124 | 제주잔벌레 | Gnorimosphaeroma chejuense Kim & Kim, 1988 |  |
-| | **주걱벌레붙이과(Holognathidae)** | | |
-| 125 | 민꼬리주걱벌레붙이 | Cleantioides emarginata Kwon & Kim, 1992 |  |
-| 126 | 털보주걱벌레붙이 | Cleantioides poorei Kwon & Kim, 1992 |  |
-| | **짧은꼬리옆새우과(Amphilochidae)** | | |
-| 127 | 거제짧은꼬리옆새우 | Hourstonius geojeensis Kim, Hendrycks & Lee, 2010 |  |
-| 128 | 짧은꼬리옆새우 | Hourstonius koreana Kim and Kim, 1992 |  |
-| | **참옆새우과(Ampithoidae)** | | |
-| 129 | 짧은손참옆새우 | Ampithoe brevipalma Kim & Kim, 1988 |  |
-| 130 | 큰손참옆새우 | Ampithoe koreana Kim & Kim, 1988 |  |
-| 131 | 둥근손참옆새우 | Ampithoe youngsanensis Kim & Kim, 1988 |  |
-| 132 | 백령도참옆새우 | Sunamphitoe baegryeongensis (Kim & Kim, 1988)(=Peramphithoe baegryeongensis Kim and Kim, 1988) |  |
-| 133 | 남해참옆새우 | Sunamphitoe namhaensis (Kim & Kim, 1988)(=Peramphithoe namhaensis Kim and Kim, 1988) |  |
-| 134 | 추자도참옆새우 | Sunamphitoe chujaensis (Kim, Hong, Conlan & Lee, 2012)(=Peramphithoe chujaensis Kim et al. 2012) |  |
-| 135 | 매끈참옆새우 | Sunamphitoe sineplumosa Kim & Kim, 1991 |  |
-| | **해면살이옆새우과(Colomastigidae)** | | |
-| 136 | 가시해면살이옆새우 | Colomastix prionotos Kim and Kim, 1991 |  |
-| | **육질꼬리옆새우과(Corophiidae)** | | |
-| 137 | 한강뱀옆새우 | Sinocorophium hangangense Kim, 2012 |  |
-| | **붙은꼬리옆새우과(Dexaminidae)** | | |
-| 138 | 남해붙은꼬리옆새우 | Guernea namhaensis Kim, Hendrycks & Lee, 2011 |  |
-| 139 | 제주붙은꼬리옆새우 | Guernea jejuensis Kim, Hendrycks & Lee, 2011 |  |
-| 140 | 진도옆가시붙은꼬리옆새우 | Paradexamine jindoensis Kim & Lee, 2008 |  |
-| | **모래옆새우과(Dogielinotidae)** | | |
-| 141 | 한꼬리모래옆새우 | Haustorioides indivisus Jo, 1988 |  |
-| 142 | 긴털모래옆새우 | Haustorioides koreanus Jo, 1988 |  |
-| 143 | 짧은채찍모래옆새우 | Haustorioides latipalpus Jo, 1988 |  |
-| 144 | 다도해모래옆새우 | Haustorioides nesogenes Jo, 1988 |  |
-| | **모래무지옆새우과(Haustoriidae)** | | |
-| 145 | 긴발가락모래무지옆새우 | Eohaustorius longidactylus Jo, 1990 |  |
-| 146 | 털보모래무지옆새우 | Eohaustorius setulosus Jo, 1990 |  |
-| 147 | 가시발모래무지옆새우 | Eohaustorius spinigerus Jo, 1990 |  |
-| 148 | 긴가시모래무지옆새우 | Eohaustorius stocki Jo, 1990 |  |
-| | **해조숨이옆새우과(Hyalidae)** | | |
-| 149 | 털채찍해조숨이옆새우 | Ptilohyale bisaeta Kim and Kim, 1991(=Hyale bisaeta Kim and Kim, 1991) |  |
-| | **육질꼬리옆새우붙이과(Ischyroceridae)** | | |
-| 150 | 가시손육질꼬리옆새우붙이 | Ventojassa dentipalma Kim & Kim, 1991 |  |
-| | **공생옆새우과(Leucothoidae)** | | |
-| 151 | 곰보병신옆새우 | Paranamixis denticulus Kim & Kim, 1991 |  |
-| | **릴예보옆새우과(Liljeborgiidae)** | | |
-| 152 | 황해릴예보옆새우 | Liljeborgia hwanghaensis Kim & Kim, 1990 |  |
-| | **긴팔옆새우과(Lysianassidae)** | | |
-| 153 | 통영긴팔옆새우 (민손긴팔옆새우) | Socarnes tongyeongensis Kim & Hendrycks, 2013 |  |
-| | **마에라옆새우과(Maeridae)** | | |
-| 154 | 가시옷멜리타옆새우 | Ceradocus (Denticeradocus) koreanus Kim & Kim, 1989 |  |
-| 155 | 한국멜리타옆새우 | Elasmopus koreanus Kim & Kim, 1991 |  |
-| 156 | 짧은가시멜리타옆새우 | Maeropsis brevispina (Kim & Kim, 1991) |  |
-| | **붙은눈옆새우과(Oedicerotidae)** | | |
-| 157 | 굳은이붙은눈옆새우 | Chitonomandibulum emargicoxa Jo, 1990 |  |
-| 158 | 납작뿔붙은눈옆새우 | Eochelidium carinorostrum (Jo, 1990) |  |
-| 159 | 남해붙은눈옆새우 | Imbachoculodes namhaensis Kim, Hendrycks & Lee, 2012 |  |
-| 160 | 가시다리붙은눈옆새우 | Monoculodes dentimanus Jo, 1990 |  |
-| 161 | 뾰족뿔붙은눈옆새우 | Monoculodes koreanus Jo, 1990 |  |
-| 162 | 무딘뿔붙은눈옆새우 | Monoculodes muwoni Jo, 1990 |  |
-| 163 | 한국붙은눈옆새우 | Orthomanus koreanus Kim, Hendrycks & Lee, 2012 |  |
-| 164 | 둥근꼬리붙은눈옆새우 | Perioculodes seohae Jo, 1990 |  |
-| 165 | 황해붙은눈옆새우 | Sinoediceros hwanghaensi Kim, Hendrycks & Lee, 2012 |  |
-| 166 | 세주머니붙은눈옆새우 | Synchelidium trioostegitum Jo, 1990 |  |
-| | **긴배옆새우과(Podoceridae)** | | |
-| 167 | 등뿔긴배옆새우 | Podocerus hoonsooi Kim & Kim, 1991 |  |
-| 168 | 가시손긴배옆새우 | Podocerus ulreungensis Kim & Kim, 1991 |  |
-| | **긴뿔옆새우과(Phoxocephalidae)** | | |
-| 169 | 민가시긴뿔옆새우 | Grandifoxus bangpoensis Jo, 1989 |  |
-| 170 | 네가시긴뿔옆새우 | Grandifoxus cuspis Jo, 1989 |  |
-| 171 | 두가시긴뿔옆새우 | Grandifoxus malipoensis Jo, 1989 |  |
-| 172 | 세가시긴뿔옆새우 | Mandibulophoxus hongae Jo, 1989 |  |
-| 173 | 일곱가시긴뿔옆새우 | Mandibulophoxus mai Jo, 1989 |  |
-| | **도약옆새우과(Talitridae)** | | |
-| 174 | 털발아시아도약옆새우 | Pyatakovestia gageoensis (Kim & Min, 2013) |  |
-| 175 | 가는몸도약옆새우 | Platorchestia munmui Jo, 1988 |  |
-| 176 | 긴꼬리도약옆새우 | Trinorchestia longiramus Jo, 1988 |  |
-| 177 | 볼록더듬이도약옆새우 (유사태평양도약옆새우) | Platorchestia parapacifica Kim, Jung & Min, 2013 |  |
-| | **모래무지옆새우사촌과(Urothoidae)** | | |
-| 178 | 볼록손모래무지옆새우사촌 | Urothoe convexa Kim & Kim, 1991 |  |
-| | **바다대벌레과(Caprellidae)** | | |
-| 179 | 두드러기바다대벌레 | Caprella multituberculum Lee & Lee, 1996 |  |
-| 180 | 돌기머리세아가미불구다리원시바다대벌레 | Perotripus koreanus Lee & Hong, 2010 |  |
-| | **긴꼬리올챙이새우과(Diastylidae)** | | |
-| 181 | 민긴꼬리올챙이새우 | Diastylis inplicata Park & Hong, 1999 |  |
-| 182 | 털보긴꼬리올챙이새우 | Diastylis koreana Calman, 1911 |  |
-| 183 | 가슴줄긴꼬리올챙이새우 | Diastylis paratricinta Kang & Lee, 1996 |  |
-| 184 | 짧은주름이형올챙이새우 | Dimorphostylis breviplicata Lee and Lee, 2012 |  |
-| 185 | 꼬리작은가시이형올챙이새우 | Dimorphostylis namhaedoensis Lin & Lee, 2002 |  |
-| | **꼬마올챙이새우과(Nannastacidae)** | | |
-| 186 | 매끈등옆올챙이새우 | Cumella levitergus Lee and Lee, 2012 |  |
-| | **끄덕새우과(Rhynchocinetidae)** | | |
-| 187 | 끄덕새우 | Rhynchocinetes uritai Kubo, 1942 |  |
-| | **징거미새우과(Palaemonidae)** | | |
-| 188 | 예쁜점유령새우 | Actinimenes ornatus (Bruce, 1969)(=Periclimenes ornatus (Bruce, 1969)) |  |
-| 189 | 큰다리유령새우 | Cuapetes grandis (Stimpson, 1860) |  |
-| 190 | 예쁜이해면속살이새우 | Isopericlimenaeus gorgonidarum (Balss, 1913)(=Periclimenaeus gorgonidarum (Balss, 1913) |  |
-| 191 | 꼬마발톱새우 | Onycocaris callyspongiae Fujino & Miyake, 1969 |  |
-| 192 | 붉은줄참새우 | Palaemon macrodactylus Rathbun, 1902 |  |
-| 193 | 태평줄새우 | Palaemon pacificus (Stimpson, 1860) |  |
-| 194 | 줄새우아재비 | Palaemon serrifer (Stimpson, 1860) |  |
-| | **딱총새우과(Alpheidae)** | | |
-| 195 | 긴발딱총새우 | Alpheus japonicus Miers, 1879 |  |
-| 196 | 옴발딱총새우 | Betaeus granulimanus Yokoya, 1927 |  |
-| 197 | 가는손가락딱총새우 | Salmoneus gracilipes Miya, 1972 |  |
-| 198 | 큰발톱세이마뿔딱총새우 | Synalpheus neomeris (de Man, 1897) |  |
-| | **Thoridae과** | | |
-| 199 | 절좁은뿔꼬마새우 | Heptacarpus futilirostris (Spence Bate, 1888) |  |
-| 200 | 톱등큰꼬마새우 | Spirontocaris arcuata Rathbun, 1902 |  |
-| | **Lysmatidae과** | | |
-| 201 | 예쁜줄무늬꼬마새우 (예쁜이새우) | Lysmata amboinensis (de Man, 1888) |  |
-| | **자주새우과(Crangonidae)** | | |
-| 202 | 두가시자주새우 | Neocrangon communis (Rathbun, 1899)(=Crangon communis Rathbun, 1899) |  |
-| | **가재아재비과(Axiidae)** | | |
-| 203 | 가재아재비 | Allaxius princeps (Boas, 1880)(=Axiopsis princeps Boas, 1880) |  |
-| | **쏙붙이과(Callianassidae)** | | |
-| 204 | 쏙붙이 | Nihonotrypaea japonica (Ortmann, 1891)(=Callianassa japonica Ortmann, 1891) |  |
-| | **가재붙이과(Laomediidae)** | | |
-| 205 | 가재붙이 | Laomedia astacina De Haan, 1841 |  |
-| | **세모손참집게과(Paguridae)** | | |
-| 206 | 세모손참집게 | Pagurus trigonocheirus (Stimpson, 1858) |  |
-| | **매미새우과(Scyllaridae)** | | |
-| 207 | 꼬마매미새우 | Galearctus kitanoviriosus (Harada, 1962)(=Scyllarus kitanoviriosus Harada, 1962) |  |
-| 208 | 매미새우 | Scyllarides haanii (De Haan, 1841) |  |
-| | **넓적왼손집게과(Diogenidae)** | | |
-| 209 | 청색가위집게 | Clibanarius virescens (Krauss, 1843) |  |
-| 210 | 털줄왼손집게 | Dardanus arrosor (Herbst, 1796) |  |
-| 211 | 벽돌길왼손집게 | Dardanus crassimanus (H. Milne Edwards, 1836) |  |
-| 212 | 두드러기왼손집게 | Dardanus impressus (De Haan, 1849) |  |
-| 213 | 넓적왼손집게 | Diogenes edwardsii (De Haan, 1849) |  |
-| | **왕게과(Lithodidae)** | | |
-| 214 | 날개어리게 | Cryptolithodes expansus Miers, 1879 |  |
-| 215 | 조각어리게 | Sculptolithodes derjugini Makarov, 1934 |  |
-| | **어리게과(Hapalogastridae)** | | |
-| 216 | 가시투성어리게 | Hapalogaster dentata (De Haan, 1849) |  |
-| 217 | 두드러기어리게 | Oedignathus inermis (Stimpson, 1860) |  |
-| | **집게과(Paguridae)** | | |
-| 218 | 오목손참집게 | Elassochirus cavimanus (Miers, 1879) |  |
-| 219 | 작은배참집게 | Labidochirus anomalus (Balss, 1913) |  |
-| 220 | 대롱집게 | Orthopagurus minimus (Holmes, 1900) |  |
-| 221 | 제집참집게 | Pagurus constans (Stimpson, 1858) |  |
-| 222 | 참집게 | Pagurus filholi (de Man, 1887)(=Pagurus geminus McLaughlin, 1976) |  |
-| 223 | 붉은눈자루참집게 | Pagurus japonicus (Stimpson, 1858) |  |
-| 224 | 긴다리참집게 | Pagurus middendorffii Brandt, 1851 |  |
-| 225 | 북방참집게 | Pagurus ochotensis Brandt, 1851 |  |
-| 226 | 붉은얼룩참집게 | Pagurus rubrior Komai, 2003 |  |
-| 227 | 세모손참집게 | Pagurus trigonocheirus Stimpson, 1858 |  |
-| | **새우아재비과(Chirostylidae)** | | |
-| 228 | 제주새우아재비 | Uroptychus zezuensis Kim, 1972 |  |
-| | **게붙이과(Porcellanidae)** | | |
-| 229 | 가시게붙이 | Enosteoides ornatus (Stimpson, 1858) |  |
-| 230 | 갯가게붙이 | Petrolisthes japonicus (De Haan, 1849) |  |
-| | **게가재과(Blepharipodidae)** | | |
-| 231 | 게가재 | Blepharipoda liberata Shen, 1949 |  |
-| 232 | 북방게가재 | Lophomastix japonica (Duruflé, 1889) |  |
-| | **해면치레과(Dromiidae)** | | |
-| 233 | 갯가해면치레 | Cryptodromia tumida Stimpson, 1858 |  |
-| 234 | 털보해면치레 | Lewindromia unidentata (Rüppell, 1830)(=Dromidia unidentata Rüppell, 1830) |  |
-| 235 | 해면치레 | Lauridromia dehaani (Rathbun, 1923)(=Dromia dehaani Rathbun, 1923) |  |
-| 236 | 갯솜묻히 | Paradromia japonica (Henderson, 1888) |  |
-| | **꼬마조개치레과(Cyclodorippidae)** | | |
-| 237 | 꼬마조개치레 | Tymolus japonicus Stimpson, 1858 |  |
-| | **사슴게과(Latreilliidae)** | | |
-| 238 | 사슴게 | Eplumula phalangium (De Haan, 1839)(=Latreillia phalangium De Haan, 1839) |  |
-| 239 | 얼룩다리사슴게 | Latreillia valida De Haan, 1839 |  |
-| | **닭게과(Raninidae)** | | |
-| 240 | 비파게 | Lyreidus stenops Wood-Mason, 1887 |  |
-| 241 | 닭게 | Ranina ranina Linnaeus, 1758 |  |
-| | **금게과(Calappidae)** | | |
-| 242 | 톱만두게 | Calappa clypeata Borradaile, 1903 |  |
-| 243 | 범무늬만두게 | Calappa lophos (Herbst, 1782) |  |
-| 244 | 안경만두게 | Calappa philargius (Linnaeus, 1758) |  |
-| 245 | 세가시금게붙이 | Mursia trispinosa Parisi, 1914 |  |
-| | **Matutidae과** | | |
-| 246 | 금게 | Ashtoret lunaris (Forskål, 1775) |  |
-| 247 | 그물무늬금게 | Matuta planipes Fabricius, 1798 |  |
-| | **청소새우과(Stenopodidae)** | | |
-| 248 | 청소새우 | Stenopus hispidus (Olivier, 1811) |  |
-| | **범게과(Orithyiidae)** | | |
-| 249 | 범게 | Orithyia sinica (Linnaeus, 1771) |  |
-| | **밤게과(Leucosiidae)** | | |
-| 250 | 가시투성밤게 | Arcania globata Stimpson, 1858 |  |
-| 251 | 둥근무늬밤게 | Euclosiana obtusifrons (De Haan, 1841) |  |
-| 252 | 긴이마밤게 | Leucosia anatum (Herbst, 1783) |  |
-| 253 | 마름모밤게 | Lyphira heterograna (Ortmann, 1892) |  |
-| 254 | 세모밤게 | Merocryptus lambriformis A. Milne-Edwards, 1873 |  |
-| 255 | 두드러기밤게 | Philyra kanekoi Sakai, 1934 |  |
-| 256 | 밤게 | Pyrhila pisum (De Haan, 1841) |  |
-| 257 | 납작손밤게 | Philyra syndactyla Ortmann, 1892 |  |
-| 258 | 붉은점밤게 | Urnalana haematosticta (Adams in Belcher, 1848) |  |
-| | **거미다리게과(Inachidae)** | | |
-| 259 | 거미다리게 | Platymaia wyvillethomsoni Miers, 1885 |  |
-| | **물맞이게과(Majidae)** | | |
-| 260 | 뭉툭가시뿔게 | Prismatopus longispinus (De Haan, 1839)(=Chlorinoides longispinus (De Haan, 1839)) |  |
-| | **뿔물맞이게과(Epialtidae)** | | |
-| 261 | 외뿔게 | Huenia heraldica (De Haan, 1837) |  |
-| 262 | 뿔게 | Hyastenus diacanthus (De Haan, 1839) |  |
-| 263 | 박뿔게 | Hyastenus elongatus Ortmann, 1893 |  |
-| 264 | 어리물맞이게 | Pisoides bidentatus (A. Milne-Edwards, 1873) |  |
-| 265 | 뿔물맞이게 | Pugettia quadridens (De Haan, 1839)(=Pugettia quadridens quadridens (De Haan, 1839)) |  |
-| | **긴집게발게과(Oregoniidae)** | | |
-| 266 | 바이올린두꺼비게 | Hyas alutaceus J. F. Brandt in Middendorf, 1851 |  |
-| 267 | 두꺼비게 | Hyas coarctatus Leach, 1816 |  |
-| | **말랑게과(Hymenosomatidae)** | | |
-| 268 | 세모게 | Trigonoplax unguiformis (De Haan, 1839) |  |
-| | **뿔밤송이게과(Trichopeltariidae)** | | |
-| 269 | 뿔밤송이게 | Trichopeltarion balssi (Rathbun, 1932) |  |
-| | **은행게과(Cancridae)** | | |
-| 270 | 은행게 | Anatolikos japonicus (Ortmann, 1893)(=Cancer japonicus Ortmann, 1893) |  |
-| | **꽃게과(Portunidae)** | | |
-| 271 | 매끈꽃게 | Carupa tenuipes Dana, 1852 |  |
-| 272 | 얼룩민꽃게 | Charybdis (Charybdis) sagamiensis Parisi, 1916(=Charybdis (Charybdis) riversandersoni Alcock, 1899) |  |
-| 273 | 꼬마두드러기꽃게 | Portunus (Monomia) argentatus (A. Milne-Edwards, 1861)(=Portunus argentatus Milne Edwards and Haime) |  |
-| 274 | 두드러기꽃게 | Portunus (Monomia) gladiator Fabricius, 1798(=Portunus gladiator Fabricius, 1798) |  |
-| 275 | 톱날꽃게 | Scylla paramamosain Estampador, 1950(=Scylla serrata Forskål, 1775) |  |
-| 276 | 여섯갈래민꽃게 | Thalamita pelsarti Montgomery, 1931(=Thalamita prymna (Herbst, 1803)) |  |
-| | **원숭이게과(Goneplacidae)** | | |
-| 277 | 원숭이게 | Carcinoplax longimanus (De Haan, 1833) |  |
-| 278 | 털보원숭이게 | Entricoplax vestita (De Haan, 1835)(=Carcinoplax vestita (De Haan, 1835)) |  |
-| | **무딘이빨게과(Euryplacidae)** | | |
-| 279 | 무딘이빨게 | Eucrate crenata (De Haan, 1835) |  |
-| | **부채게과(Xanthidae)** | | |
-| 280 | 옴부채게 | Actaea semblatae Guinot, 1976 |  |
-| 281 | 매끈이송편게 | Atergatis floridus (Linnaeus, 1767) |  |
-| 282 | 주름송편게 | Atergatis reticulatus (De Haan, 1835) |  |
-| 283 | 반구부채게 | Banareia subglobosa (Stimpson, 1858) |  |
-| 284 | 산호숨이부채게 | Calvactaea tumida Ward, 1933 |  |
-| 285 | 털부채게 | Gaillardiellus orientalis (Odhner, 1925) |  |
-| 286 | 두드러기부채게 | Medaeops granulosus (Haswell, 1882) |  |
-| 287 | 꼬마부채게 | Nanocassiope granulipes (Sakai, 1939) |  |
-| 288 | 꼬마매끈이송편게 | Neoliomera insularis (Adams & White, 1849) |  |
-| 289 | 줄무늬부채게 | Neoxanthops lineatus (A. Milne-Edwards, 1867) |  |
-| 290 | 접시부채게 | Palapedia integra (De Haan, 1835) |  |
-| 291 | 검은손부채게 | Pilodius miersi (Ward, 1936) |  |
-| | **애기털보부채게과(Pilumnidae)** | | |
-| 292 | 콩알부채게 | Actumnus marissinicus Takeda & Kim, 1977 |  |
-| 293 | 갯고사리게 | Harrovia elegans de Man, 1887 |  |
-| 294 | 깃갯고사리게 | Harrovia japonica Balss, 1921 |  |
-| 295 | 털보부채게 | Heteropilumnus ciliatus (Stimpson, 1858) |  |
-| 296 | 민이마부채게 | Neoactumnus convexus Sakai, 1965 |  |
-| 297 | 긴다리털보부채게 | Pilumnus longicornis Hilgendorf, 1878 |  |
-| 298 | 두드러기네톱니부채게 | Pilumnopeus makianus (Rathbun, 1931) |  |
-| 299 | 긴발둥글게 | Zehntneriana amakusae (Takeda & Miyake, 1969) |  |
-| | **비단부채게과(Menippidae)** | | |
-| 300 | 비단부채게 | Sphaerozius nitidus Stimpson, 1858 |  |
-| | **참게과(Varunidae)** | | |
-| 301 | 애기비단게 | Acmaeopleura parvula Stimpson, 1858 |  |
-| 302 | 비단게 | Cyclograpsus intermedius Ortmann, 1894 |  |
-| 303 | 동남참게(남방참게) | Eriocheir japonica (De Haan, 1835)(=Eriocheir rectus Stimpson, 1858) |  |
-| 304 | 참게 | Eriocheir sinensis H. Milne Edwards, 1853 |  |
-| 305 | 납작게 | Gaetice depressus (De Haan, 1833) |  |
-| 306 | 수동방게 | Helicana japonica (K. Sakai & Yatsuzuka, 1980) |  |
-| 307 | 참방게 | Helice tridens sheni Sakai, 1939 (=Helice tridens wuana Rathbun) |  |
-| 308 | 갈게 | Helice tientsinensis Rathbun, 1931(=Helice tridens tientsinensis Rathbun) |  |
-| 309 | 방게 | Helice tridens (De Haan, 1835)(=Helice tridens tridens De Haan) |  |
-| 310 | 긴종아리풀게 | Hemigrapsus longitarsis (Miers, 1879) |  |
-| 311 | 풀게 | Hemigrapsus penicillatus (De Haan, 1835) |  |
-| 312 | 무늬발게 | Hemigrapsus sanguineus (De Haan, 1835) |  |
-| 313 | 애기참게 | Neoeriocheir leptognathus (Rathbun, 1913)(=Eriocheir leptognathus Rathbun, 1913) |  |
-| | **바위게과(Grapsidae)** | | |
-| 314 | 바위게 | Pachygrapsus crassipes Randall, 1840 |  |
-| | **톱장절게과(Plagusiidae)** | | |
-| 315 | 톱장절게 | Guinusia dentipes (De Haan, 1835)(=Plagusia dentipes De Haan, 1835) |  |
-| | **사각게과(Sesarmidae)** | | |
-| 316 | 도둑게 | Chiromantes haematocheir (De Haan, 1833)(=Sesarma haematocheir (De Haan, 1833)) |  |
-| 317 | 꼬마사각게 | Nanosesarma minutum (de Man, 1887) |  |
-| 318 | 가지게 | Parasesarma plicatum (Latreille, 1803)(=Sesarma plicatum (Latreille, 1803)) |  |
-| 319 | 붉은발사각게 | Parasesarma tripectinis (Shen, 1940)(=Sesarma erythrodactyla Hess, 1865) |  |
-| 320 | 말똥게 | Sesarma dehaani H. Milne Edwards, 1853 |  |
-| | **속살이게과(Pinnotheridae)** | | |
-| 321 | 융단속살이게 | Pinnaxodes major Ortmann, 1894 |  |
-| 322 | 흰해삼속살이게 | Pinnixa tumida Stimpson, 1858 |  |
-| 323 | 섭속살이게 | Pinnotheres pholadis De Haan, 1835 |  |
-| 324 | 임포옆길게 | Sakaina koreensis Kim & Sakai, 1972 |  |
-| | **여섯니세스랑게과(Camptandriidae)** | | |
-| 325 | 세스랑게 | Cleistostoma dilatatum (De Haan, 1833) |  |
-| | **달랑게과(Ocypodidae)** | | |
-| 326 | 농게 | Tubuca arcuata (De Haan, 1835)(=Uca arcuata De Haan, 1835) |  |
-| | **콩게과(Dotillidae)** | | |
-| 327 | 펄콩게 | Ilyoplax deschampsi (Rathbun, 1913) |  |
-| 328 | 엽낭게 | Scopimera globosa (De Haan, 1835) |  |
-| 329 | 발콩게 | Scopimera longidactyla Shen, 1932 |  |
-| | **칠게과(Macrophthalmidae)** | | |
-| 330 | 높은등옆길게 | Tritodynamia horvathi (Nobili, 1905) |  |
-| 331 | 길게 | Macrophthalmus (Macrophthalmus) abbreviatus Manning & Holthuis, 1981(=Macrophthalmus dilatatus (De Haan)) |  |
-| | **여섯발게과(Hexapodidae)** | | |
-| 332 | 여섯발게 | Mariaplax anfracta (Rathbun, 1909)(=Hexapus sexpes (Fabricius, 1798)) |  |
+② 용도에 따른 국외반출을 승인할지는 「해양수산생명자원의 확보ㆍ
 
-### 6. 해조류
+관리 및 이용 등에 관한 법률 시행령」(이하 "영"이라 한다) 제21조제
 
-| 일련번호 | 국명 | 학명 | 비고 |
-|---|---|---|---|
-| | **잎맥말과(Anadomenaceae)** | | |
-| 1 | 잎맥말 | Microdictyon japonicum Setchell 1925 |  |
-| | **깃털말과(Bryopsidaceae)** | | |
-| 2 | 술깃털말 | Bryopsis corymbosa J. Agardh 1842 |  |
-| 3 | 이끼깃털말 | Bryopsis hypnoides J.V. Lamouroux 1809 |  |
-| 4 | 왕깃털말(큰깃털말) | Bryopsis maxima Okamura ex Sagawa 1956 |  |
-| 5 | 참깃털말 | Bryopsis plumosa (Hudson) C. Agardh 1823 |  |
-| 6 | 헛뿌리깃털말 | Bryopsis stolonifera W.J. Lee, S.M. Boo & I.K. Lee 1991 |  |
-| | **옥덩굴과(Caulerpaceae)** | | |
-| 7 | 옥덩굴 | Caulerpa okamurae Weber-van Bosse (in Okamura 1897) |  |
-| | **청각과(Codiaceae)** | | |
-| 8 | 떡청각 | Codium arabicum Küetzing 1856 |  |
-| 9 | 누운청각 | Codium coactum Okamura 1902 |  |
-| 10 | 몽우리청각 | Codium contractum Kjellman 1897 |  |
-| 11 | 기둥청각 | Codium cylindricum Holmes 1896 |  |
-| 12 | 넓청각 | Codium latum Suringar 1867 |  |
-| 13 | 구슬청각 | Codium minus (Schmidt) P.C. Silva 1962 |  |
-| 14 | 가시청각 | Codium spinulosum Y. Lee 2008 |  |
-| 15 | 말청각 | Codium subtubulosum Okamura 1902 |  |
-| 16 | 우단청각 | Codium tenuifolium S. Shimada, T. Tadano & J. Tanaka 2007 |  |
-| | **좀대롱말과(Boodleaceae)** | | |
-| 17 | 대마디붙이 | Cladophora herpestica (Montagne) Kützing 1849 |  |
-| | **엉킨실과(Derbesiaceae)** | | |
-| 18 | 초록엉킨실 | Derbesia marina (Lyngbye) Solier 1846 |  |
-| | **대마디말과(Cladophoraceae)** | | |
-| 19 | 곱슬염주말(굵은염주말) | Chaetomorpha crassa (C. Agardh) Kützing 1845 |  |
-| 20 | 염주말 | Chaetomorpha moniligera Kjellman 1897 |  |
-| 21 | 나선염주말 | Chaetomorpha spiralis Okamura 1903 |  |
-| 22 | 솜대마디말 | Cladophora albida (Nees) Kützing 1843 |  |
-| 23 | 큰대마디말 | Cladophora japonica var. kajimurae C. Hoek & M. Chihara 2000 |  |
-| 24 | 흐린대마디말 | Cladophora opaca Sakai 1964 |  |
-| 25 | 바위대마디말 | Cladophora rupestris (Linnaeus) Küetzing 1843 |  |
-| 26 | 명주대마디말 | Cladophora stimpsonii Harvey 1860 |  |
-| 27 | 갈색대마디말 | Cladophora wrightiana var. minor C. Hoek & M. Chihara 2000 |  |
-| | **헛대마디말과(Pseudocladophoraceae)** | | |
-| 28 | 고둥옷헛대마디말 | Pseudocladophora conchopheria (Sakai) Boedeker & Leliaert 2012 |  |
-| | **초록혹과(Gomontiaceae)** | | |
-| 29 | 공초록혹 | Collinsiella cava (Yendo) Printz 1927 |  |
-| 30 | 보목초록혹 | Collinsiella japonica (Yendo) Printz 1927 |  |
-| 31 | 참홑파래 | Monostroma nitidum Wittrock 1866 |  |
-| | **초록실과(Ulotrichaceae)** | | |
-| 32 | 초록실 | Ulothrix flacca (Dillwyn) Thuret 1863 |  |
-| | **홑파래사촌과(Kornmanniaceae)** | | |
-| 33 | 홑파래사촌 | Kornmannia leptoderma (Kjellman) Bliding 1969 |  |
-| | **갈파래과(Ulvaceae)** | | |
-| 34 | 모란갈파래 | Ulva conglobata Kjellman 1897 |  |
-| 35 | 초록갈파래 | Umbraulva japonica (Holmes) Bae & I.K. Lee 2001 |  |
-| | **채찍말과(Cutleriaceae)** | | |
-| 36 | 겹부채채찍말 | Cutleria adspersa (Mertens ex Roth) De Notaris 1842 |  |
-| 37 | 회초리말(채찍말) | Mutimo cylindricus (Okamura) H.Kawai & T.Kitayama 2012 |  |
-| | **산말과(Desmarestiaceae)** | | |
-| 38 | 참산말 | Desmarestia ligulata (Stackhouse) J.V. Lamouroux 1813 |  |
-| 39 | 담배잎산말 | Desmarestia tabacoides Okamura 1908 |  |
-| 40 | 쇠꼬리산말 | Desmarestia viridis (Müller) J.V. Lamouroux 1813 |  |
-| | **그물바탕말과(Dictyotaceae)** | | |
-| 41 | 미끈뼈대그물말 | Dictyopteris divaricata (Okamura) Okamura 1932 |  |
-| 42 | 넓은뼈대그물말 | Dictyopteris latiuscula (Okamura) Okamura 1932 |  |
-| 43 | 참가시그물바탕말 | Dictyopteris pacifica (Yendo) I.K. Hwang, H.-S. Kim & W.J. Lee 2004 |  |
-| 44 | 그물바탕말 | Dictyota dichotoma (Hudson) J.V. Lamouroux 1809 |  |
-| 45 | 실그물바탕말 | Dictyota linearis (C. Agardh) Greville 1830 |  |
-| 46 | 가시뼈대그물말 | Dictyopteris prolifera (Okamura) Okamura 1930 |  |
-| 47 | 주름뼈대그물말 | Dictyopteris undulata Holmes 1896 |  |
-| 48 | 참가죽그물바탕말 | Dictyota coriacea (Holmes) I.K. Hwang, H.-S. Kim & W.J. Lee 2004 |  |
-| 49 | 두켜부채 | Distromium decumbens (Okamura) Lerving 1940 |  |
-| 50 | 부챗말 | Padina arborescense Holmes 1896 |  |
-| 51 | 분부챗말 | Padina gymnospora (Kützing) Sonder 1871(=Padina crassa Yamada 1931) |  |
-| 52 | 애기부챗말 | Padina minor Yamada 1925 |  |
-| 53 | 개그물바탕말 | Rugulopteryx okamurae (Dawson) I.K. Hwang, W.J. Lee & H.-S. Kim 2009 |  |
-| 54 | 반주름말 | Zonaria diesingiana J. Agardh 1841 |  |
-| | **솜털과(Ectocarpaceae)** | | |
-| 55 | 참솜털 | Ectocarpus siliculosus (Dillwyn) Lyngbye 1819 |  |
-| | **민가지말과(Chordariaceae)** | | |
-| 56 | 민가지말 | Chordaria flagelliformis (O.F. Müller) C. Agardh 1817 |  |
-| 57 | 작은혹부스럼말(작은혹바위두둑) | Corynophlaea verruculiformis (Y.P. Lee & I.K. Lee) Y.P. Lee: 2008 |  |
-| 58 | 잘록모자반털 | Elachista flaccida (Dillwyn) Fries 1835 |  |
-| 59 | 호미모자반털 | Elachista falcata Y.P. Lee 2000 |  |
-| 60 | 바위두둑 | Leathesia marina (Lyngbye) Decaisne 1842 |  |
-| 61 | 가는모자반털 | Neoleptonema yongpilii E.-Y. Lee & I.K. Lee 2002 |  |
-| 62 | 연두털말 | Papenfussiella kuromo (Yendo) Inagaki 1958 |  |
-| 63 | 부푼말 | Tinocladia crassa (Suringar) Kylin 1940 |  |
-| 64 | 넓은미역쇠(넓미역쇠) | Punctaria latifolia Greville 1830 |  |
-| 65 | 댕기넓은미역쇠(질경이넓미역쇠) | Punctaria plantaginea (Roth) Greville 1830 |  |
-| | **바위주름과(Petrospongiaceae)** | | |
-| 66 | 바위주름 | Petrospongium rugosum (Okamura) Setchell & N.L. Gardner 1924 |  |
-| | **고리매과(Scytosiphonaceae)** | | |
-| 67 | 긴불레기말 | Colpomenia bullosa (D.A. Saunders) Yamada 1948 |  |
-| 68 | 불레기말 | Colpomenia sinuosa (Mertens ex Roth) Derbès & Solier 1851 |  |
-| 69 | 대롱불레기말 | Colpomenia phaeodactyla M.J. Wynne & J.N. Norris 1976 |  |
-| 70 | 그물바구니 | Hydroclathrus clathratus (C. Agardh) M. Howe 1920 |  |
-| 71 | 바위수염 | Myelophycus simplex (Harvey) Papenfuss 1967 |  |
-| 72 | 개미역쇠 | Petalonia fascia (O.F. Müller) Kuntze 1898 |  |
-| 73 | 잘록이고리매(고리매) | Scytosiphon lomentaria (Lyngbye) Link 1833 |  |
-| | **모자반과(Sargassaceae)** | | |
-| 74 | 외톨개모자반 | Myagropsis myagroides (Mertens ex Turner) Fensholt 1955 |  |
-| 75 | 싸리비모자반 | Sargassum autumnale Yoshida 1983 |  |
-| 76 | 알쏭이모자반 | Sargassum confusum C. Agardh 1824 |  |
-| 77 | 큰잎모자반 | Sargassum coreanum J. Agardh 1889 |  |
-| 78 | 고사리모자반 | Sargassum filicinum Harvey 1860 |  |
-| 79 | 짝잎모자반 | Sargassum hemiphyllum (Turner) C. Agardh 1820 |  |
-| 80 | 괭생이모자반 | Sargassum horneri (Turner) C. Agardh 1820 |  |
-| 81 | 큰열매모자반 | Sargassum macrocarpum C. Agardh 1820 |  |
-| 82 | 잔가시모자반 | Sargassum micracanthum (Küetzing) Endlicher 1843 |  |
-| 83 | 검둥모자반 | Sargassum nigrifolium Yendo 1907 |  |
-| 84 | 꼬마모자반 | Sargassum nipponicum Yendo 1907 |  |
-| 85 | 새끼실모자반 | Sargassum okamurae Yoshida & T.Konno 1983 |  |
-| 86 | 큰잎알쏭이모자반 | Sargassum pallidum (Turner) C. Agardh 1820 |  |
-| 87 | 쌍발이모자반 | Sargassum patens C. Agardh 1820 |  |
-| 88 | 구슬모자반 | Sargassum piluliferum (Turner) C. Agardh 1820 |  |
-| 89 | 비틀대모자반 | Sargassum sagamianum Yendo 1907 |  |
-| 90 | 톱니모자반 | Sargassum serratifolium (C. Agardh) C. Agardh 1820 |  |
-| 91 | 꽈배기모자반 | Sargassum siliquastrum (Mertens ex Turner) C. Agardh 1820 |  |
-| 92 | 지충이 | Sargassum thunbergii (Mertens ex Roth) Kuntze 1880 |  |
-| 93 | 꼰실모자반 | Sargassum yamadae Yoshida & T. Konno 1983 |  |
-| | **패과(Ishigeaceae)** | | |
-| 94 | 넓패 | Ishige foliacea Okamura (in Segawa) 1935 |  |
-| 95 | 패 | Ishige okamurae Yendo 1907 |  |
-| | **나래미역과(Alariaceae)** | | |
-| 96 | 다실미역 | Undaria crenata Y.P. Lee & J.T. Yoon 1998 |  |
-| 97 | 넓미역 | Undaria peterseniana (Kjellman) Okamura 1915 |  |
-| | **끈말과(Chordaceae)** | | |
-| 98 | 끈말 | Chorda asiatica Sasaki & Kawai 2007 |  |
-| | **쇠미역과(Costariaceae)** | | |
-| 99 | 구멍쇠미역 | Agarum clathratum subsp. yakishiriense Yamada ex G.H. Boo & P.C. Silva 2011 |  |
-| | **다시마과(Laminariaceae)** | | |
-| 100 | 개다시마 | Saccharina sculpera (Miyabe) C.E. Lane, C. Mayes, Druehl & G.W. Saunders 2006 |  |
-| | **바위딱지과(Ralfsiaceae)** | | |
-| 101 | 바위딱지 | Ralfsia verrucosa (Areschoug) Areschoug 1845 |  |
-| | **갯쇠털과(Sphacelariaceae)** | | |
-| 102 | 굵은갯쇠털 | Sphacelaria californica (Sauvageau) Setchell & N.L. Gardener 1925 |  |
-| 103 | 가위갯쇠털 | Sphacelaria rigidula Küetzing 1843 |  |
-| | **물잔털과(Stypocaulaceae)** | | |
-| 104 | 바다깃꼴 | Halopteris filicina (Grateloup) Kützing 1843 |  |
-| | **털비말과(Sporochnaceae)** | | |
-| 105 | 줄의관말(열매의관말) | Carpomitra costata (Stackhouse) Batters 1902 |  |
-| 106 | 털비말(참털비말) | Sporochnus radiciformis (R. Brown ex Turner) C. Agardh 1817 |  |
-| | **김파래과(Bangiaceae)** | | |
-| 107 | 김파래 | Bangia fuscopurpurea (Dillwyn) Lyngbye 1819(=Bangia atropurpurea (Roth) C. Agardh) |  |
-| 108 | 비단잎돌김 | Pyropia koreana (M.S. Hwang & I.K. Lee) M.S. Hwang, H.G. Choi, Y.S. Oh & I.K. Lee 2011 |  |
-| 109 | 패돌김 | Pyropia ishigecola (A. Miura) N. Kikuchi & M. Miyata 2011 |  |
-| | **산호말과(Corallinaceae)** | | |
-| 110 | 참화살깃산호말 | Alatocladia modesta (Yendo) Johansen 1969 |  |
-| 111 | 넓은게발 | Amphiroa anceps (Lamarck) Decaisne 1842 |  |
-| 112 | 작은구슬산호말 | Corallina pilulifera Postels & Ruprecht 1840 |  |
-| 113 | 참산호말 | Corallina officinalis Linnaeus 1758 |  |
-| 114 | 덩이애기산호말 | Jania adhaerens J.V. Lamouroux 1816 |  |
-| 115 | 혹돌잎 | Lithophyllum okamurae Foslie 1900 |  |
-| 116 | 낭과쩍 | Synarthrophyton chejuensis J.H. Kim, H. Chung, D.S. Choi & I.K. Lee 2004 |  |
-| | **붉은솜과(Acrochaetiaceae)** | | |
-| 117 | 제주붉은솜(제주나룻말) | Acrochaetium inkyui Y.-P. Lee 1987 |  |
-| 118 | 상투붉은솜 | Acrochaetium terminale (Nakamura) Y.P. Lee 1987 |  |
-| | **가위손말과(Galaxauraceae)** | | |
-| 119 | 여린두가닥바닷말(여린가위손말) | Dichotomaria falcata (Kjellman) A. Kurihara & Masuda 2005(=Galaxaura falcata Kjellman 1900) |  |
-| 120 | 제주민가락말 | Tricleocarpa jejuensis J. Wiriyadamarikul, Geraldino, Huisman, Lewmanomont & Boo 2013 |  |
-| | **분홍국수말과(Liagoraceae)** | | |
-| 121 | 참국수나물 | Nemalion vermiculare Suringar 1874 |  |
-| | **흐늘풀과(Scinaiaceae)** | | |
-| 122 | 부채흐늘풀 | Scinaia flabellata Kajimura 1988 |  |
-| 123 | 외흐늘풀 | Scinaia japonica Setchell 1914 |  |
-| 124 | 넓은흐늘풀 | Scinaia latifrons Howe 1911 |  |
-| 125 | 매끈흐늘풀(매끈껍질) | Scinaia okamurae (Setchell) Huisman 1985 |  |
-| 126 | 완장흐늘풀 | Scinaia okiensis Kajimura 1988 |  |
-| 127 | 탕건흐늘풀 | Scinaia tokidae Kajimura 1988 |  |
-| | **갈고리풀과(Bonnemaisoniaceae)** | | |
-| 128 | 바다고리풀 | Asparagopsis taxiformis (Delile) Trevisan 1845 |  |
-| 129 | 참갈고리풀 | Bonnemaisonia hamifera Hariot 1891 |  |
-| 130 | 나도꿩꼬리 | Delisea pulchra (Greville) Montagne 1844 |  |
-| 131 | 제주꿩나래(제주나도꿩꼬리) | Ptilonia okadae Yamada 1933 |  |
-| | **외깃풀과(Callithamniaceae)** | | |
-| 132 | 엇깃풀 | Aglaothamnion callophyllidicola (Yamada) S.M. Boo, I.K. Lee, Rueness & Yoshida 1991 |  |
-| 133 | 제주참깃풀 | Antithamnion aglandum G.-H. Kim & I.K. Lee (in G.-H. Kim, O.K. Chah & I.K. Lee) 1996 |  |
-| 134 | 참깃풀 | Antithamnion nipponicum Yamada & Inagaki 1935 |  |
-| 135 | 굵은석묵 | Campylaephora crassa (Okamura) Nakamura 1950 |  |
-| 136 | 석묵 | Campylaephora hypnaeoides J. Agardh 1851 |  |
-| 137 | 인규비단풀 | Ceramium inkyui T.O. Cho, S. Fredericq & S.M. Boo 2003 |  |
-| 138 | 깃꼴비단풀 | Ceramium japonica Okamura 1896 |  |
-| 139 | 비단풀 | Ceramium kondoi Yendo 1920 |  |
-| 140 | 잇바디가지 | Herpochondria dentata (Okamura) Itono 1977 |  |
-| 141 | 각시잇바디가지 | Herpochondria elegans (Okamura) Itono 1977 |  |
-| 142 | 날개깃말 | Pterothamnion yezoense (Inagaki) Athanasiadis & Kraft 1994 |  |
-| | **다홍풀과(Dasyaceae)** | | |
-| 143 | 털다지다홍풀 | Dasya villosa Harvey 1844 |  |
-| 144 | 제주분홍풀 | Dasysiphonia chejuensis I.K. Lee & J. West 1980 |  |
-| 145 | 엇가지분홍풀(엇가지풀) | Dasysiphonia japonica (Yendo) H.-S. Kim 2012(=Heterosiphonia japonica Yendo 1920) |  |
-| 146 | 털엇가지풀 | Heterosiphonia pulchra (Okamura) Falkenberg 1901 |  |
-| | **보라잎과(Delesseriaceae)** | | |
-| 147 | 갈고리분홍잎 | Acrosorium ciliolatum (Harvey) Kylin 1924 |  |
-| 148 | 잔금분홍잎 | Acrosorium polyneurum Okamura 1936 |  |
-| 149 | 누은분홍잎 | Acrosorium yendoi Yamada 1930 |  |
-| 150 | 민잎맥 | Cryptopleura membranacea Yamada 1935 |  |
-| 151 | 톱니보라잎사촌(보라잎) | Cumathamnion serrulatum (Harvey) M.J. Wynne & G.W. Saunders 2012(=Delesseria serrulata Harvey 1857) |  |
-| 152 | 꼬마붉은혀 | Erythroglossum minimum Okamura 1932 |  |
-| 153 | 날개붉은혀 | Erythroglossum pinnatum Okamura 1932 |  |
-| 154 | 참빗살잎 | Hypoglossum barbatum Okamura 1901 |  |
-| 155 | 쌍빗살잎 | Hypoglossum geminatum Okamura 1908 |  |
-| 156 | 나도참빗살잎 | Hypoglossum simulans M.J. Wynne, Price & Ballantine 1989 |  |
-| 157 | 명주비단망사 | Martensia albida Y.P. Lee 2006 |  |
-| 158 | 비바리비단망사 | Martensia bibarii Y.P. Lee 2004 |  |
-| 159 | 비단망사 | Martensia denticulata Harvey 1855 |  |
-| 160 | 두불비단망사 | Martensia fragilis Harvey 1854 |  |
-| 161 | 민비단망사 | Martensia flammifolia Y.P. Lee 2006 |  |
-| 162 | 제주비단망사 | Martensia jejuensis Y.P. Lee 2004 |  |
-| 163 | 조막손비단망사 | Martensia palmata Y.P. Lee 2005 |  |
-| 164 | 도톨비단망사 | Martensia projecta Y.P. Lee 2005 |  |
-| 165 | 줄엷은잎 | Myriogramme livida (J.D. Hooker & Harvey) Kylin 1924 |  |
-| 166 | 개바다참나무잎 | Neoholmesia japonica (Okamura) Mikami 1972 |  |
-| 167 | 바다참나무잎 | Phycodrys fimbriata (Kuntze) Kylin 1924 |  |
-| 168 | 난쟁이갈래줄잎 | Schizoseris bombayensis (Børgesen) S.-M. Lin 2002 |  |
-| 169 | 참갈래줄잎 | Schizoseris subdichotoma (Segawa) Yamada 1944 |  |
-| 170 | 기는분홍잎사촌 | Sorella repens (Okamura) Hollenberg 1943 |  |
-| 171 | 털댕기잎(수염갈래혀) | Yoshidaphycus ciliatus (Okamura) Mikami 1992 |  |
-| | **빨간검둥이과(Rhodomelaceae)** | | |
-| 172 | 다홍나래풀 | Ardissonula regularis (Okamura) De Toni 1936 |  |
-| 173 | 제주개서실 | Chondria chejuensis Y.P. Lee 1996 |  |
-| 174 | 개서실 | Chondria crassicaulis Harvey 1860 |  |
-| 175 | 맑은개서실(맑은서실) | Chondria pellucida Y.P. Lee 1996 |  |
-| 176 | 새고들서실 | Chondrophycus kangjaewonii (Nam & Sohn) Garbary & J.T. Harper 1998 |  |
-| 177 | 혹고들서실 | Chondrophycus undulatus (Yamada) Garbary & Harper 1998 |  |
-| 178 | 사이서실 | Laurencia intercalaris Nam 1994 |  |
-| 179 | 큰서실 | Laurencia nipponica Yamada 1931 |  |
-| 180 | 쌍발이서실 | Laurencia okamurae Yamada 1931 |  |
-| 181 | 깃꼴서실 | Laurencia pinnata Yamada 1931 |  |
-| 182 | 몽다리서실 | Laurencia succulenta K.W. Nam 2006 |  |
-| 183 | 반달타래 | Leveillea jungermannioides (Hering & G. Martens) Harvey 1855 |  |
-| 184 | 새빨간검둥이 | Neorhodomela aculeata (Perestenko) Masuda 1982 |  |
-| 185 | 황해새붉은실 | Neosiphonia flavimarina M.S. Kim & I.K. Lee 1999 |  |
-| 186 | 참빗풀 | Odonthalia corymbifera (Gmelin) Greville 1830 |  |
-| 187 | 민털보라색우무 | Symphyocladia glabra J.C. Kang & M.S. Kim 2013 |  |
-| 188 | 제주보라색우무 | Symphyocladia jejuinsula S.Y. Kim, W. Nelson & M.S. Kim 2012 |  |
-| 189 | 보라색우무털 | Symphyocolax koreana M.S. Kim 2010 |  |
-| 190 | 참보라색우무 | Symphyocladia latiuscula (Harvey) Yamada 1941 |  |
-| 191 | 가는보라색우무 | Symphyocladia linearis (Okamura) Falkenberg 1901 |  |
-| 192 | 잔디보라색우무 | Symphyocladia lithophila M.S. Kim, S.Y. Kim & W. Nelson 2010 |  |
-| 193 | 넓은보라색우무 | Symphyocladia marchantioides (Harvey) Falkenberg 1897 |  |
-| | **깃복슬털과(Wrangeliaceae)** | | |
-| 194 | 고운비단잘록이 | Griffithsia venusta Yamada 1944 |  |
-| 195 | 새외포자비단풀 | Monosporus inkyui G.-H. Kim & D.S. Choi 1996 |  |
-| | **우뭇가사리과(Gelidiaceae)** | | |
-| 196 | 새발 | Gelidium yoshidae G.H. Boo & R. Terada (in Boo et al. 2016)(=Acanthopeltis japonica Okamura (in Yatabe 1892)) |  |
-| 197 | 긴잎새발 | Gelidium longiramulosum (Lee & Kim) G.H. Boo (in Boo et al. 2016)(=Acanthopeltis longiramulosa Y.P. Lee & B.S. Kim 2003) |  |
-| 198 | 참우뭇가사리 | Gelidium coreanum K.M. Kim, I.K. Hwnag, H.S. Yoon & S.M. Boo 2012 |  |
-| 199 | 뿔우뭇가사리 | Gelidium eucorneum K.M. Kim, I.K. Hwang, J.K. Park & S.M. Boo 2011 |  |
-| 200 | 제주우뭇가사리 | Gelidium jejuensis K.M. Kim, I.K. Hwang, H.S. Yoon & S.M. Boo 2012 |  |
-| 201 | 작은우뭇가사리 | Gelidium minimum K.M. Kim, I.K. Hwang, H.S. Yoon & S.M. Boo 2012 |  |
-| 202 | 누운우뭇가사리 | Gelidium prostratum K.M. Kim, I.K. Hwang, H.S. Yoon & S.M. Boo 2012 |  |
-| 203 | 애기우뭇가사리 | Gelidiophycus freshwateri G.H. Boo, J.K. Park & S.M. Boo 2013(=Gelidium divaricatum G. Martens 1866) |  |
-| | **개우무과(Pterocladiaceae)** | | |
-| 204 | 개우무 | Pterocladiella capillacea (S.G. Gmelin) Santelices & Hommersand 1997 |  |
-| | **가시덤불과(Caulacanthaceae)** | | |
-| 205 | 애기가시덤불 | Caulacanthus ustulatus (Mertens ex Turner) Kützing 1843 |  |
-| | **가시우무과(Cystocloniaceae)** | | |
-| 206 | 참가시우무 | Hypnea asiatica P.J.L. Geraldino, E.C. Yang & S.M. Boo 2009 (=Hypnea charoides J.V. Lamouroux 1813) |  |
-| 207 | 갈고리가시우무 | Hypnea japonica Tanaka 1941 |  |
-| 208 | 사이다가시우무 | Hypnea saidana Holmes 1896 |  |
-| | **미끌풀과(Dumontiaceae)** | | |
-| 209 | 자주비로드 | Dudresnaya japonica Okamura 1902 |  |
-| 210 | 좀진자주비로드 | Dudresnaya kuroshioensis Kajimura 1994 |  |
-| 211 | 미끌풀 | Dumontia simplex A.D. Cotton 1906 |  |
-| | **풀가사리과(Endocladiaceae)** | | |
-| 212 | 애기풀가사리 | Gloiopeltis complanata (Harvey) Yamada 1932 |  |
-| 213 | 불등풀가사리 | Gloiopeltis furcata (Postels & Ruprecht) J. Agardh 1851 |  |
-| 214 | 참풀가사리 | Gloiopeltis tenax (Turner) Decaisne 1842 |  |
-| | **곱단이과(Furcellariaceae)** | | |
-| 215 | 매끈곱단이 | Halarachnion latissimum Okamura 1933 |  |
-| | **돌가사리과(Gigartinaceae)** | | |
-| 216 | 애기돌가사리 | Chondracanthus intermedius (Suringar) Hommersand (in Hommersand Hommersand, Guiry, Fredericq & Leister). |  |
-| 217 | 가시돌가사리 | Chondracanthus teedei (Mertens ex Roth) Kützing 1843 |  |
-| 218 | 돌가사리 | Chondracanthus tenellus (Harvey) Hommersand 1993 |  |
-| 219 | 가시깃꼴진두발 | Chondrus armatus (Harvey) Okamura 1930 |  |
-| 220 | 가락진두발 | Chondrus nipponicus Yendo 1920 |  |
-| 221 | 진두발 | Chondrus ocellatus Holmes 1896 |  |
-| 222 | 깃꼴진두발 | Chondrus pinnulatus (Harvey) Okamura 1930 |  |
-| | **실풀과(Gloiosiphoniaceae)** | | |
-| 223 | 분홍염주마디풀 | Gloeophycus koreanus I.K. Lee & S.A. Yoo 1979 |  |
-| | **붉은땀띠과(Kallymeniaceae)** | | |
-| 224 | 좁은붉은잎 | Callophyllis adhaerens Yamada 1932 |  |
-| 225 | 볏붉은잎 | Callophyllis japonica Okamura 1895 |  |
-| 226 | 팔손이붉은잎 | Callophyllis palmata Yamada 1930 |  |
-| 227 | 붉은땀띠 | Kallymenia crassiuscula Okamura 1934 |  |
-| | **꿩꼬리풀과(Phacelocarpaceae)** | | |
-| 228 | 꿩꼬리풀 | Phacelocarpus japonicus Okamura 1902 |  |
-| | **부챗살과(Phyllophoraceae)** | | |
-| 229 | 부챗살 | Ahnfeltiopsis flabelliformis (Harvey) Masuda 1993 |  |
-| 230 | 가는줄풀 | Stenogramma interrupta (C. Agardh) Montagne 1846 |  |
-| | **끈적살과(Solieriaceae)** | | |
-| 231 | 갈래곰보 | Meristotheca papulosa (Montagne) J. Agardh 1872 |  |
-| | **꼬시래기과(Gracilariaceae)** | | |
-| 232 | 큰꼬시래기 | Gracilaria gigas Harvey 1860 |  |
-| 233 | 꼬불꼬시래기 | Gracilaria incurvata Okamura 1931 |  |
-| 234 | 꼬시래기 | Gracilaria vermiculophylla (Ohmi) Papenfuss 1967(=Gracilariopsis longissima (Gmelin) Steentoft, Irvine & Farnham) |  |
-| 235 | 잎꼬시래기 | Gracilaria textorii (Suringar) De Toni 1895 |  |
-| | **도박과(Halymeniaceae)** | | |
-| 236 | 왕지누아리(지누아리사촌) | Grateloupia acuminata Holmes 1896 |  |
-| 237 | 붉은뼈까막살 | Grateloupia angusta (Okamura) S. Kawaguchi & H.W. Wang 2001 |  |
-| 238 | 붉은까막살 | Grateloupia cornea Okamura 1913 |  |
-| 239 | 뼈지누아리 | Grateloupia divaricata Okamura 1895 |  |
-| 240 | 빈참지누아리 | Grateloupia porracea Kützing  1843 |  |
-| 241 | 참개도박(참도박) | Pachymeniopsis elliptica (Holmes) Yamada 1958(=Grateloupia elliptica Holmes 1896) |  |
-| 242 | 개도박(가는개도박) | Pachymeniopsis lanceolata (K. Okamura) Y. Yamada ex S. Kawabata 1954Grateloupia lanceolata (Okamura) Kawaguchi  1997 |  |
-| 243 | 미끌도박(미끌지누아리) | Grateloupia turuturu Yamada 1941 |  |
-| 244 | 참까막살 | Polyopes affinis (Harvey) Kawaguchi & Wang 2002 |  |
-| 245 | 털지누아리 | Polyopes lancifolius (Harvey) Kawaguchi & Wang 2002 |  |
-| 246 | 다지까막살 | Polyopes polyideoides Okamura 1895 |  |
-| | **바다표고과(Peyssonneliaceae)** | | |
-| 247 | 자루바다표고 | Peyssonnelia capensis Okamura 1899 |  |
-| | **곱슬이과(Plocamiaceae)** | | |
-| 248 | 가는곱슬이 | Plocamium cartilagineum (Linnaeus) Dixon 1967 |  |
-| | **갈래잎과(Schizymeniaceae)** | | |
-| 249 | 갈래잎 | Schizymenia dubyi (Chauvin) J. Agardh 1851 |  |
-| | **사슬풀과(Champiaceae)** | | |
-| 250 | 두갈래사슬풀 | Champia bifida Okamura 1901 (=Champia compressa Harvey 1838) |  |
-| 251 | 넓은사슬풀 | Champia expansa Yendo 1903 |  |
-| 252 | 참사슬풀 | Champia parvula (C. Agardh) Harvey 1853 |  |
-| | **마디잘록이과(Lomentariaceae)** | | |
-| 253 | 마디잘록이 | Lomentaria catenata Harvey 1857 |  |
-| 254 | 애기마디잘록이 | Lomentaria hakodatensis Yendo 1920 |  |
-| | **분홍치과(Rhodymeniaceae)** | | |
-| 255 | 누른끈적이 | Chrysymenia wrightii (Harvey) Yamada 1932 |  |
-| 256 | 두갈래분홍치 | Rodymenia intricata (Okamura) Okamura 1930 |  |
-| 257 | 구멍분홍치 | Sparlingia pertusa (Postels & Ruprecht) G.W. Saunders, I. Strachan & Kraft 1999 |  |
-| | **미끌부채과(Sebdeniaceae)** | | |
-| 258 | 미끌부채(가지미끌부채) | Sebdenia flabellata (J. Agardh) P.G. Parkinson 1980 |  |
+1항에 따라 관계 국공립 연구기관의 장의 검토의견을 반영하여 결정
 
-### 7. 극피동물
+한다.
 
-| 일련번호 | 국명 | 학명 | 비고 |
-|---|---|---|---|
-| | **돌기발갯고사리과(Colobometridae)** | | |
-| 1 | 범얼룩갯고사리 | Decametra tigrina AH Clark, 1907 |  |
-| | **가시불가사리과(Astropectinidae)** | | |
-| 2 | 울퉁작은불가사리 | Leptychaster anomalus Fisher, 1906 |  |
-| 3 | 모서리불가사리 | Craspidaster hesperus (Muller & Troschel, 1840) |  |
-| 4 | 전갈가시불가사리 | Astropecten scoparius Müller & Troschel, 1842 (=Astropecten scorparius Valenciennes) |  |
-| 5 | 가시불가사리 | Astropecten polyacanthus Müller & Troschel, 1842 |  |
-| 6 | 마른불가사리 | Dipsacaster hesperus Müller et Troschel, 1842 |  |
-| | **빗살판불가사리과(Ctenodiscidae)** | | |
-| 7 | 빗살판불가사리 | Ctenodiscus crispatus (Retzius, 1805) |  |
-| | **별불가사리과(Asterinidae)** | | |
-| 8 | 볼록별불가사리 | Aquilonastra batheri (Goto, 1914) |  |
-| | **뾰족불가사리과(Goniasteridae)** | | |
-| 9 | 장미모양불가사리 | Rosaster symbolicus (Sladen, 1889) |  |
-| 10 | 별모양불가사리 | Stellaster childreni Gray, 1840 |  |
-| | **긴팔불가사리과(Ophidiasteridae)** | | |
-| 11 | 빨강불가사리 | Certonardoa semiregularis (Muller & Troschel, 1842) |  |
-| 12 | 긴팔불가사리 | Ophidiaster cribrarius Lütken, 1871 |  |
-| | **오각불가사리과(Oreasteridae)** | | |
-| 13 | 오각관불가사리 | Pentaceraster regulus (Müller & Troschel, 1842) |  |
-| | **부푼불가사리과(Poraniidae)** | | |
-| 14 | 부푼불가사리 | Poraniopsis inflata (Fisher, 1906) |  |
-| | **헛불가사리과(Pseudarchasteridae)** | | |
-| 15 | 헛불가사리 | Pseudarchaster parelii (Düben & Koren, 1846) |  |
-| | **입방불가사리과(Pterasteridae)** | | |
-| 16 | 입방불가사리 | Pteraster tesselatus Ives, 1888 |  |
-| | **햇님불가사리과(Solasteridae)** | | |
-| 17 | 주름불가사리 | Crossaster papposus (Linnaeus, 1767) |  |
-| 18 | 넓은햇님불가사리 | Solaster endeca (Linnaeus, 1771) |  |
-| | **애기불가사리과(Echiniasteridae)** | | |
-| 19 | 미끈애기불가사리 | Henricia leviuscula (Stimpson, 1857) |  |
-| 20 | 육질애기불가사리 | Henricia pachyderma Hayashi, 1940 |  |
-| 21 | 콩팥애기불가사리 | Henricia reniossa Hayashi, 1940 |  |
-| 22 | 애기불가사리 | Henricia nipponica Uchida, 1928 |  |
-| 23 | 네모애기불가사리 | Henricia regularis Hayashi, 1940 |  |
-| | **불가사리과(Asteriidae)** | | |
-| 24 | 단단불가사리 | Sclerasterias satsumana (Döderlein, 1902) |  |
-| 25 | 팔손이불가사리 | Coscinasterias acutispina (Stimpson, 1862) |  |
-| 26 | 검은불가사리 | Lethasterias fusca Djakonov, 1931 |  |
-| 27 | 극검은불가사리 | Lethasterias nanimensis chelifera (Verrill, 1914) |  |
-| 28 | 가시그물불가사리 | Evasterias echinosoma Fisher, 1926 |  |
-| | **외극불가사리과(Labidiasteridae)** | | |
-| 29 | 문어다리불가사리 | Plazaster borealis (Uchida, 1928) |  |
-| 30 | 왕관불가사리 | Coronaster volsellatus (Sladen, 1889) |  |
-| | **차극불가사리과(Pedicellasteridae)** | | |
-| 31 | 동양차극불가사리 | Pedicellaster orientalis Fisher, 1928 (=Pedicellaster magister orientalis Fisher) |  |
-| | **두터운불가사리과(Pycnopodiidae)** | | |
-| 32 | 유연불가사리 | Lysastrosoma anthosticta Fisher, 1922 |  |
-| | **넓적거미불가사리과(Euryalidae)** | | |
-| 33 | 고려별거미불가사리 | Astroceras annulatum Mortensen, 1933 |  |
-| | **삼천발이과(Gorgonocephalidae)** | | |
-| 34 | 나무거미불가사리 | Astrodendrum sagaminum (Döderlein, 1902) |  |
-| 35 | 띠가지거미불가사리 | Astrocladus annulatus (Matsumoto, 1912) |  |
-| 36 | 곰거미불가사리 | Astroboa arctos Matsumoto, 1915 |  |
-| 37 | 긴자루삼천발이 | Gorgonocephalus dolichodactylus Döderlein, 1911 |  |
-| 38 | 혹삼천발이 | Gorgonocephalus tuberosus Döderlein, 1902 |  |
-| | **피부거미불가사리과(Ophiomyxidae)** | | |
-| 39 | 피부거미불가사리 | Ophiomyxa australis Lütken, 1869 |  |
-| | **빗살거미불가사리과(Ophiuridae)** | | |
-| 40 | 아기지붕거미불가사리 | Stegophiura vivipara Matsumoto, 1915 |  |
-| | **양편거미불가사리과(Amphiuridae)** | | |
-| 41 | 긴팔거미불가사리 | Amphiura (Fellaria) sinicola Matsumoto, 1941 |  |
-| | **뱀털거미불가사리과(Ophiocomidae)** | | |
-| 42 | 빨간등거미불가사리 | Ophiomastix mixta Lütken, 1869 |  |
-| | **딱지거미불가사리과(Ophionereididae)** | | |
-| 43 | 둥근딱지거미불가사리 | Ophionereis eurybrachiplax H.L. Clark, 1911 |  |
-| | **가죽거미불가사리과(Ophiodermatidae)** | | |
-| 44 | 빗거미불가사리 | Ophiopsammus anchista (H.L. Clark, 1911) |  |
-| 45 | 뱀거미불가사리 | Ophiarachnella gorgonia (Müller & Troschel, 1842) |  |
-| | **왕관성게과(Diadematidae)** | | |
-| 46 | 가시왕관성게 | Diadema setosum (Leske, 1778) |  |
-| | **관극성게과(Cidaroidea)** | | |
-| 47 | 가는관극성게 | Phalacrocidaris japonica (Döderlein, 1885) |  |
-| 48 | 모서리관극성게 | Goniocidaris (Petalocidaris) biserialis (Döderlein, 1885) |  |
-| 49 | 톱니관극성게 | Prionocidaris baculosa (Lamarck, 1816)  (=Prionocidaris baculosa (A. Agassiz, 1868)) |  |
-| | **능치성게과(Arbaciidae)** | | |
-| 50 | 파동측강성게 | Coelopleurus undulatus Mortensen, 1934 |  |
-| | **분지성게과(Temnopleuridae)** | | |
-| 51 | 분지성게 | Temnopleurus toreumaticus (Leske, 1778) |  |
-| | **주발성게과(Toxopneustidae)** | | |
-| 52 | 흰수염성게 | Tripneustes gratilla (Linnaeus, 1758) |  |
-| 53 | 주발성게 | Toxopneustes pileolus (Lamarck, 1816) |  |
-| | **만두성게과(Echinometridae)** | | |
-| 54 | 보라성게 | Heliocidaris crassispina (A. Agassiz, 1864) |  |
-| 55 | 만두성게 | Echinometra mathaei (Blainville, 1825) |  |
-| | **둥근성게과(Strongylocentrotidae)** | | |
-| 56 | 분홍성게 | Pseudocentrotus depressus (A. Agassiz, 1864) |  |
-| 57 | 새치성게 | Strongylocentrotus intermedius (A. Agassiz, 1864) |  |
-| 58 | 말똥성게 | Hemicentrotus pulcherrimus (A. Agassiz, 1864) |  |
-| | **연잎성게과(Clypeasteridae)** | | |
-| 59 | 방패연잎성게 | Clypeaster japonicus Döderlein, 1885 |  |
-| | **납작연잎성게과(Laganidae)** | | |
-| 60 | 브로지연잎성게 | Peronella japonica Mortensen, 1948 |  |
-| | **쟁반연잎성게과(Scutellidae)** | | |
-| 61 | 연잎성게 | Scaphechinus mirabilis A. Agassiz, 1864 |  |
-| | **구멍연잎성게과(Astriclypeidae)** | | |
-| 62 | 구멍연잎성게 | Astriclypeus mannii Verrill, 1867 |  |
-| | **균열염통성게과(Schizasteridae)** | | |
-| 63 | 낮은염통성게 | Brisaster latifrons (A. Agassiz, 1898) |  |
-| 64 | 염통성게 | Schizaster lacunosus (Linnaeus, 1758) |  |
-| | **큰염통성게과(Brissidae)** | | |
-| 65 | 큰염통성게 | Brissus agassizii Döderlein, 1885 |  |
-| | **닻해삼과(Synaptidae)** | | |
-| 66 | 가시닻해삼 | Protankyra bidentata (Woodward & Barrett, 1858) |  |
-| | **꼬리해삼과(Caudinidae)** | | |
-| 67 | 꼬리해삼 | Caudina similis (Augustin, 1908) |  |
-| 68 | 흰해삼 | Paracaudina chilensis (Müller, 1850) |  |
-| | **해삼과(Psolidae)** | | |
-| 69 | 점해삼 | Holothuria (Lessonothuria) pardalis Selenka, 1867 |  |
-| 70 | 눈해삼 | Holothuria (Holothuria) tubulosa Gmelin, 1791(=Holothuria (Stauropora) pervicax (Selenka)) |  |
-| | **광삼과(Cucumariidae)** | | |
-| 71 | 오각광삼 | Eupentacta quinquesemita (Selenka, 1867)(=Eupentacha chronhjelmi Théel, 1886) |  |
-| | **비늘해삼과(Psolidae)** | | |
-| 72 | 비늘해삼 | Psolus squamatus (O.F. Müller, 1776) |  |
-| | **환꼬리해삼과(Sclerodactylidae)** | | |
-| 73 | 거진꼬리해삼 | Havelockia kojinensis Won & Rho, 1998(=Pentathyone kojinensis Won and Rho, 1998) |  |
+제4조(반출수량) 해양수산부장관은 제2조에서 정한 국외반출 승인대상
 
-### 8. 환형동물
+
+해양수산생명자원의 반출수량을 국내 해양수산생명자원의 다양성을
 
-| 일련번호 | 국명 | 학명 | 비고 |
-|---|---|---|---|
-| | **부채발갯지렁이과(Phyllodocidae)** | | |
-| 1 | 한국부채발갯지렁이 | Phyllodoce koreana (Lee & Jae, 1985) |  |
-| 2 | 심장부채발갯지렁이 | Eumida sanguinea (Örsted, 1843) |  |
-| | **미갑갯지렁이과(Glyceridae)** | | |
-| 3 | 다발아가미미갑갯지렁이 | Glycera dentribranchia Lee, 1985 |  |
-| 4 | 청동미갑갯지렁이 | Glycera subaenea Grube, 1878 |  |
-| | **고리갯지렁이과(Goniadidae)** | | |
-| 5 | 작은갈매기고리갯지렁이 | Goniada maculata Örsted, 1843 |  |
-| | **수염갯지렁이과(Hesionidae)** | | |
-| 6 | 그물등수염갯지렁이 | Hesione reticulata Marenzeller, 1879 |  |
-| | **염주발갯지렁이과(Syllidae)** | | |
-| 7 | 볼록염주발갯지렁이 | Opisthosyllis convexa Lee & Rho, 1994 |  |
-| 8 | 등촉수염주발갯지렁이 | Syllis cirrita Lee & Rho, 1994 |  |
-| | **참갯지렁이과(Nereididae)** | | |
-| 9 | 목도리참갯지렁이 | Cheilonereis cyclurus (Harrington, 1897) |  |
-| 10 | 경남넓적발참갯지렁이 | Nectoneanthes oxypoda (Marenzeller, 1879) |  |
-| 11 | 눈썹참갯지렁이 | Perinereis nuntia (Lamarck, 1818) |  |
-| 12 | 두토막눈썹참갯지렁이 | Perinereis linea (Treadwell, 1936) |  |
-| 13 | 실참갯지렁이 | Tylorrhynchus osawai Izuka, 1903(=Tylorrhynchus heterochaetus Quatrefages, 1866) |  |
-| | **백금갯지렁이과(Nephtyidae)** | | |
-| 14 | 꼬마백금갯지렁이 | Micronephthys sphaerocirrata orientalis Lee & Jae, 1983 (=Micronephthys sphaerocirrata (Wesenberg-Lund, 1949)) |  |
-| 15 | 남방백금갯지렁이 (광염백금갯지렁이) | Nephtys polybranchia Southern, 1921 |  |
-| | **고슴도치갯지렁이과(Aphrodididae)** | | |
-| 16 | 매끈고슴도치갯지렁이 | Laetmonice japonica McIntosh, 1885 |  |
-| 17 | 가시고슴도치갯지렁이 | Aphrodita aculeata Linnaeus, 1758 |  |
-| 18 | 무딘고슴도치갯지렁이 | Aphrodita watasei Izuka, 1912 |  |
-| 19 | 갈고리고슴도치갯지렁이 | Aphrodita japonica Marenzeller, 1879 |  |
-| 20 | 예쁜이고슴도치갯지렁이 | Aphrodita aphroditoides (McIntosh, 1885) |  |
-| 21 | 톱니고슴도치갯지렁이 | Pontogenia mcintoshi Monro, 1924 |  |
-| | **비늘갯지렁이과(Polynoidae)** | | |
-| 22 | 가시수염비늘갯지렁이 | Eunoe senta (Moore, 1902) |  |
-| 23 | 짧은미륵비늘갯지렁이 | Halosydna brevisetosa Kinberg, 1856 |  |
-| 24 | 긴예쁜이비늘갯지렁이 | Lepidonotus elongatus Marenzeller, 1902 |  |
-| 25 | 송곳예쁜이비늘갯지렁이 | Lepidonotus helotypus (Grube, 1877) |  |
-| 26 | 벌거숭이비늘갯지렁이 | Perolepis stylolepis Willey, 1907(=Lepidasthenia stylolepis Willey in Lloyd, 1907) |  |
-| | **양목갯지렁이과 (Amphinomidae)** | | |
-| 27 | 노란풀양목갯지렁이 | Chloeia flava (Pallas, 1766) |  |
-| | **갈구리갯지렁이과(Euphrosinidae)** | | |
-| 28 | 등갈구리갯지렁이 | Euphrosine superba Marenzeller, 1879 |  |
-| | **집갯지렁이과(Onuphidae)** | | |
-| 29 | 털보집갯지렁이 | Diopatra sugokai Izuka, 1907 (=Diopatra bilobata Imajima, 1967) |  |
-| 30 | 수염집갯지렁이 | Protodiopatra willemoesii (McIntosh, 1885) |  |
-| | **털갯지렁이과(Eunicida)** | | |
-| 31 | 왕털갯지렁이 | Eunice aphroditois (Pallas, 1788) |  |
-| 32 | 바위털갯지렁이 | Marphysa sanguinea (Montagu, 1813) |  |
-| 33 | 민머리털갯지렁이 | Marphysa tamurai Okuda, 1934 |  |
-| | **송곳갯지렁이과(Lumbrineridae)** | | |
-| 34 | 짧은다리송곳갯지렁이 | Lumbrineris nipponica Imajima & Higuchi, 1975 |  |
-| 35 | 긴다리송곳갯지렁이 | Kuwaita heteropoda (Marenzeller, 1879)(=Lumbrineris heteropoda Marenzeller, 1879) |  |
-| | **검은갯지렁이과(Arenicolidae)** | | |
-| 36 | 큰검은갯지렁이 | Abarenicola pacifica Healy & Wells, 1959 |  |
-| | **대나무갯지렁이과(Maldanidae)** | | |
-| 37 | 한국대나무갯지렁이 | Clymenella koreana Lee & Paik, 1986 |  |
-| 38 | 꼬마대나무갯지렁이 | Microclymene propecaudata Lee & Paik, 1986 |  |
-| 39 | 톱대나무갯지렁이 | Petaloproctus macrodentatus Lee & Paik, 1986 |  |
-| | **유령갯지렁이과(Terebellidae)** | | |
-| 40 | 괴물유령갯지렁이 | Loimia medusa (Savigny in Lamarck, 1818) |  |
-| | **꽃갯지렁이과(Sabellidae)** | | |
-| 41 | 안점꽃갯지렁이 | Pseudopotamilla occelata Moore, 1905 |  |
-| 42 | 남색꽃갯지렁이 | Sabellastarte spectabilis (Grube, 1878)(=Sabellastarte indica Savigny, 1818) |  |
-| | **석회관갯지렁이과(Serpulidae)** | | |
-| 43 | 가는석회관갯지렁이 | Salmacina dysteri (Huxley, 1855) |  |
+해치지 않는 범위에서 영 제21조제4항의 관계 국공립 연구기관의 장
 
-### 9. 태형동물
+의 의견을 반영하여 결정한다.
 
-| 일련번호 | 국명 | 학명 | 비고 |
-|---|---|---|---|
-| | **수염이끼벌레과(Crisiidae)** | | |
-| 1 | 흰수염이끼벌레 | Crisia eburneodenticulata Smitt ms in Busk, 1875(=Crisia eburneodenticulata Smitt, 1865) |  |
-| | **아데오넬라과(Adeonellidae)** | | |
-| 2 | 넓적부리이끼벌레 | Adeonella lichenoides (Lamarck, 1816) |  |
-| | **사탕이끼벌레과(Candidae)** | | |
-| 3 | 막대이은이끼벌레 | Amastigia rudis (Busk, 1852) |  |
-| 4 | 볼록이은이끼벌레 | Amastigia xishaensis Liu, 1984 |  |
-| 5 | 보리이끼벌레 | Caberea boryi (Audouin, 1826) |  |
-| 6 | 갈색가시이끼벌레 | Cauloramphus korensis Seo, 2001 |  |
-| | **막이끼벌레과(Membraniporidae)** | | |
-| 7 | 유연두겹막이끼벌레 | Biflustra perfragilis MacGillivray, 1881 |  |
-| 8 | 육각이끼벌레 | Conopeum hexagonum Seo, 1996 |  |
-| | **연쇄방이끼벌레과(Catenicellidae)** | | |
-| 9 | 미끈이이끼벌레 | Catenicella elegans Busk, 1852 |  |
-| | **마디이끼벌레과(Cellariidae)** | | |
-| 10 | 마디이끼벌레 | Cellaria punctata (Busk, 1852) |  |
-| | **섬유이끼벌레과(Celleporariidae)** | | |
-| 11 | 세모섬유이끼벌레 | Celleporaria triangula Seo, 1994 |  |
-| | **소공이끼벌레과(Candidae)** | | |
-| 12 | 방사이끼벌레 | Fenestrulina malusii (Audouin, 1826) |  |
-| 13 | 변이방사이끼벌레 | Fenestrulina mutabilis (Hastings, 1932) |  |
-| | **꼬인이끼벌레과(Flustridae)** | | |
-| 14 | 바구니이끼벌레 | Gregarinidra corbula Seo, 1996 |  |
-| | **연구멍이끼벌레과(Phidoloporidae)** | | |
-| 15 | 빨간망이끼벌레 | Iodictyum axillare (Ortmann, 1890) |  |
-| 16 | 태양연구멍이끼벌레 | Phidolopora pacifica (Robertson, 1908) |  |
-| 17 | 등색망이끼벌레 | Reteporellina denticulata (Busk, 1884) |  |
-| | **입이끼벌레과(Smittinidae)** | | |
-| 18 | 반향측입이끼벌레 | Parasmittina contraria Seo, 1992 |  |
-| 19 | 배조두체측입이끼벌레 | Parasmittina pyriformis Seo, 2002 |  |
-| | **안방이끼벌레과(Thalamoporellidae)** | | |
-| 20 | 미끈안방이끼벌레 | Thalamoporella lioticha (Ortmann, 1890) |  |
-| | **물구멍이끼벌레과(Watersiporidae)** | | |
-| 21 | 큰입이끼벌레 | Watersipora platypora Seo, 1999 |  |
-| 22 | 자주빛이끼벌레 | Watersipora subtorquata(d’Orbigny, 1852) |  |
-| | **중앙조두체이끼벌레과(Bitectiporidae)** | | |
-| 23 | 중앙조두체이끼벌레(작은조두체종이끼벌레) | Metroperiella parviavicularia (Rho & Seo, 1988) |  |
-| | **Flustrellidridae과** | | |
-| 24 | 무사이끼벌레 | Flustrellidra armata Grischenko, Seo & Min, 2010 |  |
+제5조(재검토기한) 해양수산부장관은 이 고시에 대하여 「훈령ㆍ예규
 
-### 10. 척삭동물
+등의 발령 및 관리에 관한 규정」에 따라 2023년 7월 1일 기준으로 매
 
-| 일련번호 | 국명 | 학명 | 비고 |
-|---|---|---|---|
-| | **만두멍게과(Polyclinidae)** | | |
-| 1 | 만두멍게 | Aplidium pliciferum (Redikorzev, 1927) |  |
-| 2 | 회색만두멍게 | Polyclinum saturnium Savigny, 1816 |  |
-| 3 | 곤봉만두멍게 | Synoicum clavatum (Oka, 1927) |  |
-| | **만두멍게붙이과(Pseudodistoma)** | | |
-| 4 | 딸기만두멍게 | Pseudodistoma antinboja Tokioka, 1949 |  |
-| | **유령멍게과(Cionidae)** | | |
-| 5 | 유령멍게 | Ciona intestinalis(Linnaeus, 1767) |  |
-| | **버섯유령멍게과(Diazonidae)** | | |
-| 6 | 버섯유령멍게 | Diazona grandis (Oka, 1926) |  |
-| | **코렐리과(Corellidae)** | | |
-| 7 | 거북등안장멍게 | Chelyosoma dofleini Hartmeyer, 1906 |  |
-| | **미더덕과(Styelidae)** | | |
-| 8 | 외톨이진미더덕 | Eusynstyela monotestis (Tokioka, 1953) |  |
-| | **멍게과(Pyuridae)** | | |
-| 9 | 선인장멍게 | Halocynthia cactus (Oka, 1932) |  |
-| 10 | 벼개멍게 | Herdmania mirabilis (Drasche, 1884) |  |
-| 11 | 분홍멍게 | Herdmania momus (Savigny, 1816) (=Herdmania momus momus Savigny, 1816) |  |
-| 12 | 매끈이멍게 | Pyura sacciformis (Drasche, 1884)(=Pyura sanderi Traustedt & Weltner, 1884) |  |
+3년이 되는 시점(매 3년째의 6월 30일까지를 말한다)마다 그 타당성을
 
-### 11. 완족동물
+검토하여 개선 등의 조치를 해야 한다.
 
-| 일련번호 | 국명 | 학명 | 비고 |
-|---|---|---|---|
-| | **Laqueidae과** | | |
-| 1 | 붉은빛조개사돈 | Laqueus rubellus (Sowerby, 1846) |  |
-| | **개맛과(Linguilidae)** | | |
-| 2 | 개맛(큰개맛) | Lingula anatina Lamarck, 1801  (=Lingula unguis Linnaeus, 1758) |  |
-| | **Terebrataliidae과** | | |
-| 3 | 세로줄조개사돈 | Coptothyris grayi (Davidson, 1852) |  |
-| 4 | 고려조개사돈 | Terebratalia coreanica (Adams & Reeve, 1850) |  |
+부
+칙
+
+이 고시는 발령한 날부터 시행한다.
+
+
+[별표]
+
+국외반출 승인대상 해양수산생명자원(1,604종) 목록(제2조 관련)
+
+1. 어류(62종)
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+여을멸과(Albulidae)
+
+1
+황줄뺨여을멸
+Albula koreana
+
+2
+여을멸
+Albula argentea
+
+바다뱀장어과(Ophichthidae) 
+
+3
+둥근바다뱀뱀장어
+Ophichthus rotundus
+
+4
+상주바다뱀장어
+Ophichthus sangjuensis
+
+5
+까치바다뱀장어
+Ophichthus lithinus
+
+6
+돛바다뱀장어
+Ophichthus altipennis
+
+7
+제주바다뱀장어
+Ophichthus asakusae
+
+8
+갈바다뱀장어
+Ophichthus urolophus
+
+9
+돌기바다뱀장어
+Pisodonophis cancrivorus
+
+실고기과(Syngnathidae)
+
+10
+부채꼬리실고기
+Doryrhamphus japonicus
+
+11
+띠거물가시치
+Halicampus boothae
+
+12
+별실고기
+Halicampus punctatus
+
+13
+실고기
+Syngnathus schlegeli
+
+바다빙어과(Osmeridae)
+
+14
+날빙어
+Hypomesus japonicus
+
+15
+젓뱅어
+Neosalanx jordani
+
+뱅어과(Salangidae)
+
+16
+벚꽃뱅어
+Salanx prognathus
+
+17
+국수뱅어
+Salanx ariakensis
+
+반딧불게르치과(Acropomatidae)
+
+18
+돗돔
+Stereolepis doederleini
+
+돛양태과(Callionymidae)
+
+19
+참돛양태
+Repomucenus koreanus
+
+20
+흰점양태
+Repomucenus leucopoecilus
+
+21
+강주걱양태
+Repomucenus olidus
+
+줄가시치과(Eulophiidae)
+
+22
+줄가시치
+Eulophias koreanus
+
+망둑어과(Gobiidae)
+
+23
+점줄망둑
+Acentrogobius pellidebilis
+
+24
+날망둑
+Gymnogobius breunigii
+
+25
+사백어
+Leucopsarion petersii
+
+26
+제주모치망둑
+Mugilogobius notospilus
+
+27
+큰볏말뚝망둥어
+Periophthalmus magnuspinnatus
+
+28
+말뚝망둥어
+Periophthalmus modestus
+
+실꼬리돔과(Nemipteridae)
+
+29
+황줄실꼬리돔
+Nemipterus japonicus
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+장갱이과(Stichaeidae)
+
+30
+민그물베도라치
+Dictyosoma tongyeongensis
+
+31
+우베도라치
+Zoarchias uchidai
+
+32
+그물베도라치
+Dictyosoma burgeri
+
+33
+황점베도라치
+Dictyosoma rubrimaculatum
+
+바리과(Serranidae)
+
+34
+도도바리
+Epinephelus awoara
+
+35
+점줄우럭
+Epinephelus epistictus
+
+36
+별우럭
+Epinephelus longispinis
+
+37
+볼줄바리
+Epinephelus heniochus
+
+38
+종대우럭
+Epinephelus latifasciatus
+
+39
+닻줄바리
+Epinephelus poecilonotus
+
+40
+알락우럭
+Epinephelus quoyanus
+
+41
+마라바리
+Epinephelus radiatus
+
+둑중개과(Cottidae)
+
+42
+꺽정이
+Trachidermus fasciatus
+
+도치과(Cyclopteridae)
+
+43
+골린어
+Eumicrotremus pacificus
+
+44
+도치
+Eumicrotremus taranetzi
+
+볼락과(Sebastidae)
+
+45
+도화볼락
+Sebastes joyneri
+
+46
+황해볼락
+Sebastes koreanus
+
+47
+흰꼬리볼락
+Sebastes longispinis
+
+48
+좀볼락
+Sebastes minor
+
+49
+황점개볼락
+Sebastes nudus
+
+50
+황볼락
+Sebastes owstoni
+
+51
+개볼락
+Sebastes pachycephalus
+
+52
+노랑볼락
+Sebastes steindachneri
+
+53
+탁자볼락
+Sebastes taczanowskii
+
+54
+세줄볼락
+Sebastes trivittatus
+
+55
+누루시볼락
+Sebastes vulpes
+
+56
+말락볼락
+Sebastes wakiyai
+
+57
+띠볼락
+Sebastes zonatus
+
+홍어과(Rajidae)
+
+58
+고려홍어
+Hongeo koreana
+
+목탁가오리과(Platyrhinidae)
+
+59
+목탁가오리
+Platyrhina tangi
+
+전자리상어과(Squatinidae)
+
+60
+전자리상어
+Squatina japonica
+
+61
+범수구리
+Squatina nebulosa
+
+꾀장어과(Myxinidae)
+
+62
+묵꾀장어
+Eptatretus walkeri
+
+
+2. 해면동물(91종)
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+축해면과(Axinellidae)
+
+1
+축해면
+Axinella copiosa
+
+2
+맵시해면
+Phakellia elegans
+
+털해면과(Raspailiidae)
+
+3
+곤봉뿔해면
+Ceratopsion clavatum
+
+4
+잎사귀해면
+Raspailia folium
+
+5
+털많은가지해면
+Raspailia hirsuta
+
+가시해면과(Dictyonellidae)
+
+6
+뿔가지가시해면
+Acanthella branchia
+
+호박해면과(Clionaidae)
+
+7
+호박해면
+Cliona celata
+
+나선별해면과(Spirastrellidae)
+
+8
+가는나선별해면
+Spirastrella abata
+
+9
+굵은나선별해면
+Spirastrella insignis
+
+침곤봉해면과(Stylocordylidae)
+
+10
+한국침곤봉해면
+Stylocordyla koreana
+
+다윈해면과(Darwinellidae)
+
+11
+섭지모래망해면
+Chelonaplysilla supjiensis
+
+가는실해면과(Irciniidae)
+
+12
+가거모래해면
+Psammocinia gageoensis
+
+13
+제주모래해면
+Psammocinia jejuensis
+
+14
+잎모래해면
+Psammocinia lobatus
+
+15
+유두모래해면
+Psammocinia mammiformis
+
+16
+모슬모래해면
+Psammocinia mosulpia
+
+17
+빨강모래해면
+Psammocinia rubra
+
+18
+삼양모래해면
+Psammocinia samyangensis
+
+19
+완도모래해면
+Psammocinia wandoensis
+
+20
+가파육질실해면
+Sarcotragus gapaensis
+
+21
+마라육질실해면
+Sarcotragus maraensis
+
+쏘렉티드해면과(Thorectidae)
+
+22
+한국스미노해면
+Smenospongia coreana
+
+해변해면과(Halichondridae)
+
+23
+사수숨은축해면
+Ciocalypta sasuensis
+
+24
+보어밴키해변해면
+Halichondria bowerbanki
+
+25
+가거해변해면
+Halichondria gageoenesis
+
+26
+홍도해변해면
+Halichondria hongdoenesis
+
+27
+마라해변해면
+Halichondria maraensis
+
+28
+무안해변해면
+Halichondria muanensis
+
+29
+검정해변해면
+Halichondria okadai
+
+30
+회색해변해면
+Halichondria panicea
+
+31
+시티엔스해면
+Halichondria sitiens
+
+32
+울릉해변해면
+Halichondria ulleungensis
+
+33
+노랑해변해면
+Hymeniacidon flavia
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+34
+주황해변해면
+Hymeniacidon sinapium
+
+35
+진주별해면
+Topsentia salomonensis
+
+예쁜이해면과(Callyspongiidae)
+
+36
+뿔예쁜이해면
+Callyspongia differentiata
+
+37
+길쭉예쁜이해면
+Callyspongia serpentina
+
+38
+보라예쁜이해면
+Callyspongia confoederata
+
+39
+예쁜이해면
+Callyspongia elegans
+
+40
+묵리예쁜이해면
+Callyspongia mookriensis
+
+보라해면과(Chalinidae)
+
+41
+솜덩이해면
+Haliclona angulata
+
+42
+한국솜덩이해면
+Haliclona coreana
+
+43
+대포톡사해면
+Haliclona daepoensis
+
+44
+구멍솜덩이해면
+Haliclona edaphus
+
+45
+홍도보라해면
+Haliclona hongdoensis
+
+46
+바다솜덩이해면
+Haliclona marismedi
+
+47
+눈보라해면
+Haliclona oculata
+
+48
+유사보라해면
+Haliclona permollisimilis
+
+49
+신여보라해면
+Haliclona sinyeoensis
+
+50
+통구미보라해면
+Haliclona tonggumiensis
+
+51
+울진보라해면
+Haliclona uljinensis
+
+52
+울릉보라해면
+Haliclona ulreungia
+
+바위해면과(Petrosiidae)
+
+53
+불똥해면
+Petrosia corticata
+
+강해면과(Coelosphaeridae)
+
+54
+뇌산호끈적해면
+Lissodendoryx firma
+
+발톱해면과(Esperiopsidae)
+
+55
+관발톱해면
+Amphilectus unciger
+
+56
+진도발톱해면
+Esperiopsis chindoensis
+
+하이메데스해면과(Hymedesmiidae)
+
+57
+국흘포바스해면
+Phorbas gukhulensis
+
+58
+미끈이해면
+Phorbas tokushima
+
+유령해면과(Microcionidae)
+
+59
+유극침유령해면
+Clathria acanthostyli
+
+60
+데이침유령해면
+Clathria dayi
+
+61
+가거유령해면
+Clathria gageoensis
+
+62
+김녕유령해면
+Clathria gimnyeoungensis
+
+63
+곰바위유령해면
+Clathria gombawuiensis
+
+64
+홍도유령해면
+Clathria hongdoensis 
+
+65
+이어유령해면
+Clathria ieoensis
+
+66
+중태유령해면
+Clathria jungtaedoensis 
+
+67
+한국유령해면
+Clathria koreana
+
+68
+망상유령해면
+Clathria reticularis
+
+69
+소흑산유령해면
+Clathria sohuksanensis
+
+70
+침유령해면
+Clathria spinispicula
+
+71
+창살유령해면
+Clathria terraenovae
+
+
+3. 자포동물(104종)
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+깃해면과(Mycalidae)
+
+72
+깃해면
+Mycale adhaerens
+
+73
+추자깃해면
+Mycale chujaensis
+
+74
+거제바늘뼈해면
+Mycale geojensis
+
+75
+죽도깃해면
+Mycale jukdoensis
+
+76
+한국간상바늘뼈해면
+Mycale koreana
+
+77
+능걸바늘뼈해면
+Mycale neunggulensis
+
+78
+울릉깃바늘뼈해면
+Mycale ulleungensis
+
+끈적해면과(Myxillidae)
+
+79
+긴끈적해면
+Myxilla producta
+
+80
+넓적끈적해면
+Myxilla setoensis
+
+81
+덜렁끈적해면
+Myxilla compressa
+
+코르크해면과(Suberitidae)
+
+82
+조개코르크해면
+Suberites caminatus
+
+83
+코르크해면
+Suberites excellens
+
+84
+무우코르크해면
+Suberites virgultosus
+
+딸기해면과(Tethyidae)
+
+85
+오렌지둥글해면
+Tethya aurantium
+
+86
+바다둥글해면
+Tethya japonica
+
+시루해면과(Pachastrellidae)
+
+87
+체시루해면
+Pachastrella cribrum
+
+유두해면과(Tetillidae)
+
+88
+화순유두해면
+Tetilla hwasunensis
+
+꼬는해면과(Theonellidae)
+
+89
+컵가죽해면
+Discodermia calyx
+
+90
+판가죽해면
+Discodermia japonica
+
+불시루해면과(Vulcanellidae)
+
+91
+시루해면
+Poecillastra japonica
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+해변말미잘과(Actiniidae)
+
+1
+해변말미잘
+Actinia equina
+
+2
+갈색꽃해변말미잘
+Anthopleura japonica
+
+3
+검정꽃해변말미잘
+Anthopleura kurogane
+
+4
+풀색꽃해변말미잘
+Anthopleura fuscoviridis
+
+5
+태평양꽃해변말미잘
+Anthopleura pacifica
+
+9
+진홍혹해변말미잘
+Aulactinia coccinea
+
+7
+모래해변말미잘
+Dofleinia armata
+
+8
+큰산호말미잘
+Entacmaea quadricolor
+
+9
+방사해변말미잘
+Epiactis japonica
+
+10
+측해변말미잘
+Paracondylactis hertwigi
+
+11
+가죽해변말미잘
+Urticina coriacea
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+12
+민가죽해변말미잘
+Urticina crassicornis
+
+빛말미잘과(Actinostolidae)
+
+13
+빛말미잘
+Actinostola carlgreni
+
+14
+풍선말미잘
+Stomphia coccinea
+
+별란말미잘과(Halcuriidae)
+
+15
+별란말미잘
+Halcurias carlgreni
+
+유사벌레붙이말미잘과(Andvakiidae)
+
+16
+꽃골풀말미잘
+Flosmaris mutsuensis
+
+벌레붙이말미잘과(Edwardsiidae)
+
+17
+벌레붙이말미잘
+Edwardsia japonica
+
+18
+호리병말미잘
+Exocoelactis actinostoloides
+
+끈말미잘과(Hormathiidae)
+
+19
+집게말미잘
+Calliactis japonica
+
+20
+폴립집게말미잘
+Calliactis polypus
+
+섬유세닐말미잘과(Metridiidae)
+
+21
+섬유세닐말미잘
+Metridium senile
+
+담홍말미잘과(Nemanthidae)
+
+22
+담홍말미잘
+Nemanthus nitidus
+
+가시산호과(Acanthogorgiidae)
+
+23
+가는가시산호
+Acanthogorgia gracillima
+
+24
+큰민가시산호
+Acanthogorgia grandiflora
+
+25
+민가시산호
+Acanthogorgia inermis
+
+26
+가는민가시산호
+Acanthogorgia irregularis
+
+27
+다가시산호
+Acanthogorgia multispina
+
+28
+방사민가시산호
+Acanthogorgia radians
+
+29
+숲가시산호
+Acanthogorgia spissa
+
+30
+둥근컵산호
+Calicogorgia granulosa
+
+31
+큰뾰족산호
+Muricella abnormalis
+
+바다맨드라미과(Alcyoniidae)
+
+32
+곤봉바다딸기
+Eleutherobia rigida
+
+33
+바다딸기
+Eleutherobia rubra
+
+34
+빨강바다딸기
+Eleutherobia unicolor
+
+곤봉산호과(Clavulariidae)
+
+35
+송이곤봉산호
+Clavularia racemosa
+
+36
+의소지산호
+Pseudocladochonus hicksoni
+
+꽃이끼과(Cornulariidae)
+
+37
+꽃이끼산호
+Cervera komaii
+
+회초리산호과(Ellisellidae)
+
+38
+회초리산호
+Ellisella limbaughi
+
+39
+점회초리산호
+Ellisella maculata
+
+40
+붉은회초리산호
+Ellisella rubra
+
+41
+혹가시산호
+Verrucella umbraculum
+
+뿔산호과(Melithaeidae)
+
+42
+양색바늘산호
+Melithaea bicolor
+
+43
+빽빽뿔산호
+Melithaea densa
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+44
+부채뿔산호
+Melithaea flabellifera flabellifera
+
+45
+바늘산호
+Melithaea harbereri
+
+46
+가는바늘산호
+Melithaea tenuis
+
+47
+물결바늘산호
+Melithaea undulata
+
+곤봉바다맨드라미과(Nephtheidae)
+
+48
+큰수지맨드라미
+Dendronephthya gigantea
+
+49
+빗살수지맨드라미
+Dendronephthya pectinata
+
+50
+가시수지맨드라미
+Dendronephthya spinulosa
+
+51
+분홍바다맨드라미
+Scleronephthya gracillimum
+
+52
+침해면맨드라미
+Chromonephthea serratospiculata
+
+53
+황금수지맨드라미
+Dendronephthya aurea
+
+54
+빨강해면맨드라미
+Chromonephthea hirotai
+
+55
+십자긴수지맨드라미
+Dendronephthya decussatospinosa
+
+56
+옛수지맨드라미
+Dendronephthya palaoensis
+
+57
+뾰족수지맨드라미
+Dendronephthya mucronata
+
+58
+콜리커수지맨드라미
+Dendronephthya koellikeri
+
+관산호과(Nidaliidae)
+
+59
+등색관산호
+Siphonogorgia dofleini
+
+측산호과(Paragorgiidae)
+
+60
+나무측산호
+Paragorgia arborea
+
+균형산호과(Parisididae)
+
+61
+호주균형산호
+Parisis australis
+
+62
+작은균형산호
+Parisis minor
+
+총산호과(Plexauridae)
+
+63
+꽃총산호
+Anthoplexaura dimorpha
+
+64
+빨강별총산호
+Astrogorgia rubra
+
+65
+불나무진총산호
+Euplexaura abietina
+
+66
+유착진총산호
+Euplexaura anastomosans
+
+67
+곧은진총산호
+Euplexaura recta
+
+68
+측긴맵시산호
+Echinogorgia praelonga
+
+69
+곧은맵시산호
+Menella rigida
+
+70
+이지마평행산호
+Paracis ijimai
+
+71
+장미수풀산호
+Villogorgia alternans
+
+72
+수풀산호
+Villogorgia antillarum
+
+73
+가는진총산호
+Euplexaura attenuata
+
+74
+실산호
+Euplexaura mitsukurii
+
+75
+직립진총산호
+Euplexaura erecta
+
+폴립산호과(Primnoidae)
+
+76
+부채부치예쁜이산호
+Callogorgia pseudoflabellum
+
+77
+곧은깃산호
+Plumarella rigida
+
+78
+태양폴립산호
+Primnoa reseda pacifica
+
+가시선인장과(Echinoptilidae)
+
+79
+가시선인장
+Echinoptilum macintoshi
+
+Halipteridae
+
+80
+긴버들조름
+Halipteris willemoesi
+
+
+4. 연체동물(427종)
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+바다조름과(Pennatulidae)
+
+81
+가시조름
+Pteroeides sparmanni
+
+82
+긴가시조름
+Pteroeides tenerum
+
+83
+바다조름
+Pennatula fimbriata
+
+바다선인장과(Veretillidae)
+
+84
+바다선인장
+Cavernularia obesa
+
+버들조름과(Virgulariidae)
+
+85
+뱀버들조름
+Scytalium splendens
+
+86
+버들조름
+Virgularia gustaviana
+
+87
+바다버들조름
+Virgularia halisceptrum
+
+88
+골풀버들조름
+Virgularia juncea
+
+꽃말미잘과(Cerianthidae)
+
+89
+실꽃말미잘
+Cerianthus filiformis
+
+곤봉히드라과(Corynidae)
+
+90
+곤봉히드라
+Coryne pusilla
+
+산호붙이히드라과(Solanderiidae)
+
+91
+큰산호붙이히드라
+Solanderia misakinensis
+
+92
+산호붙이히드라
+Solanderia secunda
+
+93
+가시산호붙이히드라
+Solanderia spinosa
+
+Aglaopheniidae
+
+94
+솜털깃히드라
+Aglaophenia pluma
+
+95
+주발깃히드라
+Aglaophenia suensonii
+
+96
+흰깃히드라
+Aglaophenia whiteleggei
+
+97
+민숭이깃히드라
+Gymnangium hians
+
+98
+자색깃히드라
+Macrorhynchia phoenicea
+
+99
+검정깃히드라
+Thecocarpus niger
+
+Halopterididae
+
+100
+둥글깃히드라
+Antennella integerrima
+
+깃히드라과(Plumulariidae)
+
+101
+촉각깃히드라
+Nemertesia antennina
+
+테히드라과(Sertulariidae)
+
+102
+가로테히드라
+Sertularella miurensis
+
+쌍컵히드라과(Syntheciidae)
+
+103
+나팔쌍컵히드라
+Synthecium tubithecum
+
+꽃모자해파리과(Olindiidae)
+
+104
+꽃모자해파리
+Olindias formosus
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+족사부착쇄조개과(Hiatellidae)
+
+1
+북방구두주걱조개
+Panomya ampla
+
+2
+북방코끼리조개
+Panomya norvegica
+
+3
+두언덕코끼리조개
+Panomya priapus
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+작두콩가리맛조개과(Pharidae)
+
+4
+비단가리맛
+Cultellus attenuatus
+
+5
+보라맛조개
+Siliqua alta
+
+죽합과(Solenidae)
+
+6
+붉은맛
+Solen gordonis
+
+7
+북방맛조개
+Solen krusensterni
+
+돌조개과(Arcidae)
+
+8
+어긋물린새꼬막
+Anadara inaequivalvis
+
+9
+큰이랑피조개
+Anadara satowi
+
+10
+좁쌀줄돌조개
+Barbatia trapezina
+
+밤색무늬조개과(Glycymerididae)
+
+11
+속갈색조개
+Glycymeris albolineata
+
+12
+이랑줄조개
+Glycymeris imperialis
+
+13
+주홍색무늬조개
+Glycymeris rotunda
+
+14
+북방밤색무늬조개
+Glycymeris yessoensis
+
+흰바탕무늬조개과(Limopsidae)
+
+15
+둥근흰바탕무늬조개
+Limopsis azumana
+
+새조개과(Cardiidae)
+
+16
+소쿠리조개
+Acrosterigma burchardi
+
+17
+가는이랑새조개
+Ciliatocardium ciliatum
+
+18
+큰이랑새조개
+Clinocardium nuttallii
+
+19
+잔이랑새조개
+Keenocardium californiense
+
+20
+금붕어조개
+Nemocardium bechei
+
+21
+갈색볼록새조개
+Serripes groenlandicus
+
+삼각조개과(Donacidae)
+
+22
+대복
+Donax veneriformis
+
+자패과(Psammobiidae)
+
+23
+나무껍질조개
+Gari kazusensis
+
+24
+검정껍질빛조개
+Gari commoda
+
+25
+자패
+Hiatula boeddinghausi
+
+접시조개과(Tellinidae)
+
+26
+대양조개사돈
+Heteromacoma irus
+
+27
+녹껍질둥근대양조개
+Macoma calcarea
+
+28
+녹껍질높은대양조개
+Macoma middendorffi
+
+29
+노랑꼭지대양조개
+Macoma tokyoensis
+
+30
+남방접시조개
+Megangulus luteus
+
+31
+접시조개
+Megangulus venulosus
+
+32
+붉은속비단조개
+Megangulus zyonoensis
+
+33
+나비접시조개
+Pharaonella sieboldii
+
+34
+흰대양조개
+Rexithaerus sectior
+
+주름방사늑조개과(Carditidae)
+
+35
+갈색고랑조개
+Megacardita ferruginosa
+
+36
+굵은이랑조개
+Centrocardita soyoae
+
+꽃잎조개과(Lucinidae)
+
+37
+주름공조개
+Anodontia stearnsiana
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+38
+둥근고리꽃잎조개
+Lucinoma soliditesta
+
+말발조개과(Thyasiridae)
+
+39
+큰말발조개
+Conchocele bisecta
+
+우럭과(Myidae)
+
+40
+북방우럭
+Mya truncata
+
+석공조개과(Pholadidae)
+
+41
+둥글레조개
+Barnea davidi
+
+42
+돌맛조개
+Barnea manilensis
+
+43
+석공조개
+Penitella gabbii
+
+홍합과(Mytilidae)
+
+44
+비로드긴꼬리담치
+Adula californiensis
+
+45
+세로잔주름담치
+Adula falcatoides
+
+46
+돌살이담치
+Adula schmidtii
+
+47
+동해담치
+Crenomytilus grayanus
+
+48
+비단담치
+Jolya elongata
+
+49
+애기돌맛조개
+Leiosolenus lischkei
+
+50
+털담치
+Modiolus kurilensis
+
+51
+자갈색반질이담치
+Vilasina pillula
+
+맵시조개과(Nuculanidae)
+
+52
+버선맵시조개
+Nuculana yokoyamai
+
+53
+매끈이맵시조개
+Robaia robai
+
+애호두조개과(Nuculidae)
+
+54
+호두조개
+Acila divaricata
+
+55
+민호두조개
+Acila vigilia
+
+반달조개과(Yoldiidae)
+
+56
+큰맵시조개
+Megayoldia thraciaeformis
+
+57
+얇은반달조개
+Megayoldia japonica
+
+58
+반질이반달조개
+Yoldia bartschi
+
+59
+연두맵시조개
+Yoldia johanni
+
+60
+날개맵시조개
+Yoldia limatula
+
+61
+뾰족연두맵시조개
+Yoldia notabilis
+
+62
+긴반달조개
+Yoldia similis
+
+주름굴과(Gryphaeidae)
+
+63
+벌집굴
+Hyotissa hyotis
+
+64
+장미굴
+Dendostrea rosacea
+
+65
+겹지붕굴
+Hyotissa inermis
+
+66
+둥근동전굴
+Hyotissa numisma
+
+굴과(Ostreidae)
+
+67
+갓굴
+Crassostrea ariakensis
+
+68
+태생굴
+Ostrea circumpicta
+
+69
+토굴
+Ostrea denselamellosa
+
+70
+톱니턱굴
+Dendostrea sandvichensis
+
+진주조개과(Pteriidae)
+
+71
+갈색띠진주조개
+Pinctada albina
+
+72
+주홍진주조개
+Pinctada fucata
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+73
+진주조개
+Pinctada imbricata
+
+74
+줄무늬진주조개
+Pterelectroma physoides
+
+75
+부푼산호살이조개
+Pteria gregata
+
+76
+산호살이조개
+Pteria heteroptera
+
+77
+새날개진주조개
+Pteria maura
+
+가리비과(Pectinidae)
+
+78
+한국가리비
+Chlamys chosenica
+
+79
+북방비단가리비
+Chlamys islandica
+
+80
+잔줄무늬비단가리비
+Chlamys rubida
+
+81
+고랑가리비
+Swiftopecten swiftii
+
+82
+예쁜가리비
+Cryptopecten vesiculosus
+
+83
+국자가리비
+Pecten albicans
+
+84
+줄무늬가리비
+Pecten excavatus
+
+85
+해가리비
+Ylistrum japonicum
+
+86
+파래가리비
+Azumapecten farreri
+
+87
+둥근비단가리비
+Chlamys albida
+
+능선조개과(Glossidae)
+
+88
+둥근등능선조개
+Meiocardia hawaiana
+
+89
+능선조개
+Meiocardia samarangiae
+
+개량조개과(Mactridae)
+
+90
+봉황조개
+Lutraria maxima
+
+91
+큰행달조개
+Oxyperas bernardi
+
+92
+잔물결얇은개량조개
+Raeta pellicula
+
+93
+흰점분홍무늬조개
+Mactra achatina
+
+돌살이조개과(Ungulinidae)
+
+94
+노랑볼록조개
+Joannisiella cumingii
+
+백합과(Veneridae)
+
+95
+빗살무늬백합
+Callista chinensis
+
+96
+수수조개
+Clementia papyracea
+
+97
+작은비단백합
+Callista pilsbryi
+
+98
+부리떡조개
+Dosinia abyssicola
+
+99
+주름떡조개
+Dosinia corrugata
+
+100
+붉은속떡조개
+Dosinia histrio
+
+101
+떡조개
+Dosinia japonica
+
+102
+만월떡조개
+Dosinia subalata
+
+103
+둥근떡조개
+Dosinia troscheli
+
+104
+주름백합
+Ezocallista brevisiphonata
+
+105
+꼬마대복
+Gomphina neastartoides
+
+106
+살조개
+Leukoma jedoensis
+
+107
+비늘백합
+Mercenaria stimpsoni
+
+108
+민무늬백합
+Meretrix lamarckii
+
+109
+밭고랑행달조개
+Paphia amabilis
+
+110
+행달조개
+Paphia euglypta
+
+111
+매끈이행달조개
+Paphia schnelliana
+
+112
+붉은행달조개
+Paphia vernicosa
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+113
+농조개
+Paratapes undulatus
+
+114
+포목무늬돌살이조개 
+Petricola aequistriata 
+
+115
+돌속살이조개
+Petricola lapicida
+
+116
+흰등줄조개
+Placamen lamellatum
+
+117
+비단백합
+Sunetta menstrualis
+
+118
+등뿔조개
+Timoclea marica
+
+119
+아기바지락
+Ruditapes bruguieri
+
+120
+솜털백합
+Venus cassinaeformis
+
+121
+무명조개
+Meretrix meretrix
+
+국자조개과(Cuspidariidae)
+
+122
+잔줄꼬마국자조개
+Cardiomya kashimana
+
+123
+등주름국자조개
+Cuspidaria hindsiana
+
+124
+긴자루국자조개
+Cuspidaria macrorhynchus
+
+125
+짧은자루국자조개
+Cuspidaria obtusirostris
+
+안쪽인대조개과(Lyonsiidae)
+
+126
+안쪽인대조개
+Entodesma navicula
+
+갑오징어과(Sepiidae)
+
+127
+갈색갑오징어
+Sepia andreana
+
+128
+꼬마갑오징어
+Sepia appelloefi
+
+129
+애기갑오징어
+Sepia kobiensis
+
+130
+긴다리갑오징어
+Sepia longipes
+
+131
+입술무늬갑오징어
+Sepia lycidas
+
+132
+바늘갑오징어
+Sepia madokai
+
+133
+표범갑오징어
+Sepia pardex
+
+134
+납작갑오징어
+Sepia peterseni
+
+지느러미오징어과(Thysanoteuthidae)
+
+135
+지느러미오징어
+Thysanoteuthis rhombus
+
+꼴뚜기과(Loliginidae)
+
+136
+꼬마꼴뚜기
+Loliolus (Nipponololigo) sumatrensis
+
+문어과(Octopodidae)
+
+137
+눈큰낙지
+Octopus hongkongensis
+
+138
+엔도문어
+Octopus yendoi
+
+긴팔오징어과(Chiroteuthidae)
+
+139
+긴팔오징어
+Chiroteuthis picteti
+
+납작조개과(Pandoridae)
+
+140
+납작조개
+Pandora wardiana
+
+가시벌레조개과(Chaetodermatidae)
+
+141
+참가시벌레조개
+Chaetoderma japonicum
+
+군소과(Aplysiidae)
+
+142
+말군소
+Aplysia juliana
+
+143
+군소
+Aplysia kurodai
+
+144
+안경무늬군소
+Aplysia oculifera
+
+145
+검은테군소
+Aplysia japonica
+
+146
+모군소
+Aplysia punctata
+
+갈고둥과(Neritidae)
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+147
+큰입술갈고둥
+Nerita albicilla
+
+대추귀고둥과(Ellobiidae)
+
+148
+옆줄두툼입술작은귀고둥 
+Laemodonta monilifera
+
+149
+노랑띠대추귀고둥
+Melampus fasciatus
+
+150
+밤색귀고둥
+Melampus nuxcastaneus
+
+151
+낮은탑대추귀고둥
+Melampus sincaporensis
+
+152
+뾰족탑대추귀고둥
+Melampus taeniolatus
+
+구멍삿갓조개과(Fissurellidae)
+
+153
+매부리구멍삿갓조개
+Puncturella pelex
+
+154
+주름구멍삿갓조개
+Diodora quadriradiata
+
+155
+겹지붕구멍삿갓조개
+Diodora sieboldii
+
+156
+구멍삿갓조개
+Macroschisma sinense
+
+157
+비뚤이삿갓조개
+Montfortista oldhamiana
+
+158
+작은뿔럭지삿갓조개
+Tugalina vadososinuata
+
+159
+뿔럭지삿갓조개
+Tugalina gigas
+
+전복과(Haliotidae)
+
+160
+마대오분자기
+Haliotis diversicolor
+
+두꺼비고둥과(Bursidae)
+
+161
+무사마귀두꺼비고둥
+Bursa bufonia
+
+굽은관고둥과(Caecidae)
+
+162
+굽은관고둥
+Caecum glabellum
+
+매부리고둥과(Capulidae)
+
+163
+명주모자고둥
+Ariadnaria insignis
+
+164
+꽃갯지렁이살이고둥
+Separatista separatista
+
+165
+작은고리나팔고둥
+Trichamathina nobilis
+
+166
+누더기모자고둥
+Trichotropis bicarinata
+
+계란고둥과(Cassidae)
+
+167
+밤색줄무늬계란고둥
+Phalium flammiferum
+
+168
+점박이계란고둥
+Semicassis bisulcata
+
+Cymatiidae
+
+169
+호리호리털골뱅이
+Fusitriton galea
+
+170
+각시수염고둥
+Monoplex parthenopeus
+
+171
+나뭇잎고둥
+Gyrineum aculeatum
+
+개오지과(Cypraeidae)
+
+172
+마노석개오지
+Erronea onyx
+
+173
+검은점줄개오지
+Luria isabella
+
+174
+제주개오지
+Lyncina vitellus
+
+175
+홍옥수개오지
+Lyncina carneola
+
+176
+별개오지
+Monetaria caputserpentis
+
+177
+젖빛개오지
+Naria boivinii
+
+178
+은하수개오지
+Naria erosa
+
+179
+처녀개오지
+Naria helvola
+
+180
+눈송이개오지
+Naria labrolineata
+
+181
+함박눈송이개오지
+Naria miliaris
+
+182
+흰점보라개오지
+Staphylaea limacina
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+183
+흰점진보라개오지
+Staphylaea staphylaea
+
+바늘고둥과(Eulimidae)
+
+184
+흰곧은바늘고둥
+Melanella acicula
+
+185
+뾰족탑바늘고둥
+Melanella teramachii
+
+186
+불가사리퉁퉁이고둥
+Parvioris fulvescens
+
+187
+빨강불가사리속살이고둥
+Stilifer akahitode
+
+188
+불가사리기생고둥
+Thyca crystallina
+
+189
+성게살이꼬부리고둥
+Vitreobalcis temnopleuricola
+
+표주박고둥과(Ficidae)
+
+190
+표주박고둥
+Ficus ficus
+
+구슬우렁이과(Naticidae)
+
+191
+돌구슬우렁이
+Cryptonatica andoi
+
+192
+돌우렁이
+Cryptonatica janthostoma
+
+193
+빨강구슬우렁이
+Cryptonatica russa
+
+194
+큰돌우렁이
+Cryptonatica wakkanaiensis
+
+195
+흰노랑구슬우렁이 
+Euspira pallida
+
+196
+이색구슬우렁이
+Glossaulax petiveriana
+
+197
+밤색배꼽구슬우렁이
+Glossaulax vesicalis
+
+198
+넓은띠긴배꼽고둥
+Mammilla mammata
+
+199
+점구슬우렁이
+Naticarius concinnus
+
+200
+높은탑큰구슬우렁이
+Glossaulax didyma ampla
+
+201
+높은탑이색구슬우렁이
+Glossaulax didyma hayashii
+
+202
+덮인배꼽큰구슬우렁이
+Glossaulax didyma hosoyai
+
+203
+갯우렁이
+Laguncula pulchella
+
+204
+갈색점박이긴배꼽고둥
+Mammilla sebae
+
+205
+넓은갈색띠구슬우렁이
+Polinices peselephanti
+
+206
+반달배꼽구슬우렁이
+Polinices sagamiensis
+
+207
+주머니구슬우렁이
+Sinum javanicum
+
+208
+물결무늬구슬우렁이
+Tanea areolata
+
+개오지붙이과(Ovulidae)
+
+209
+카누두루마리고둥
+Calcarovula longirostrata
+
+210
+뾰족토끼고둥
+Cuspivolva cuspis
+
+211
+호랑이무늬토끼고둥
+Cuspivolva tigris
+
+212
+진한무늬토끼고둥
+Dentiovula colobica
+
+213
+잘린두루마리고둥
+Pellasimnia improcera
+
+214
+두툼꽈배기두루마리고둥
+Phenacovolva brevirostris
+
+215
+흰띠작은두루마리고둥
+Phenacovolva dancei
+
+216
+작은구름무늬두루마리고둥
+Phenacovolva fusula
+
+217
+구름무늬두루마리고둥
+Phenacovolva lahainaensis
+
+218
+곧은부리두루마리고둥
+Phenacovolva nectarea
+
+219
+보라파도무늬두루마리고둥
+Phenacovolva poppei
+
+220
+연보라두루마리고둥
+Phenacovolva pseudogracilis
+
+221
+가시두루마리고둥
+Phenacovolva rosea
+
+222
+고랑두루마리고둥
+Phenacovolva subreflexa
+
+223
+누렁꼭지두루마리고둥
+Quasisimnia hirasei
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+224
+주홍토끼고둥
+Sandalia triticea
+
+225
+계란두루마리고둥
+Volva habei
+
+루소고둥과(Rissoidae)
+
+226
+흰눈고둥
+Rissoina costulata
+
+수정고둥과(Strombidae)
+
+227
+수정고둥
+Doxander japonicus
+
+갑옷고둥과(Vitrinellidae)
+
+228
+굵은줄소용돌이고둥
+Circulus duplicatus
+
+흰구슬개오지과(Triviidae)
+
+229
+흰구슬개오지
+Trivirostra oryza
+
+230
+가는줄흰구슬개오지
+Trivirostra pellucidula
+
+목주림고둥과(Truncatellidae)
+
+231
+분홍목주림고둥
+Truncatella pfeifferi
+
+232
+목주림고둥
+Truncatella guerinii
+
+갑옷고둥과(Vitrinellidae)
+
+233
+고리소용돌이고둥
+Circulus choshiensis
+
+비단무늬고둥과(Xenophoridae)
+
+234
+비단무늬고둥
+Onustus exutus
+
+235
+지게꾼고둥
+Xenophora japonica
+
+Ancillariidae
+
+236
+흰혹밤색줄고둥
+Amalda albocallosa
+
+Babyloniidae
+
+237
+대만수랑
+Babylonia formosae
+
+옆줄언청이고둥과(Borsoniidae)
+
+238
+굽은언청이고둥
+Suavodrillia kennicotti
+
+239
+옆줄언청이고둥
+Tomopleura pouloensis
+
+물레고둥과(Buccinidae)
+
+240
+뾰족물레고둥
+Buccinum acutispiratum
+
+241
+고운띠물레고둥
+Buccinum bayani
+
+242
+굵은가시물레고둥
+Buccinum koreana
+
+243
+깊은골둥근물레고둥
+Buccinum kushiroense
+
+244
+갈색어깨띠물레고둥
+Buccinum middendorffii
+
+245
+주름물레고둥
+Buccinum oedematum
+
+246
+황색모시물레고둥
+Buccinum osagawai
+
+247
+굵은빗줄물레고둥
+Buccinum plectrum
+
+248
+러시아물레고둥
+Buccinum rossicum
+
+249
+큰물레고둥
+Buccinum tenuissimum
+
+250
+깊은골물레고둥
+Buccinum tsubai
+
+251
+군산물레고둥
+Buccinum yokomaruae
+
+252
+녹갈색매끈이고둥
+Plicifusus minor
+
+253
+또아리물레고둥
+Japelion latus
+
+254
+매끈이고둥
+Kelletia lischkei
+
+255
+명주실타래물레고둥
+Lussivolutopsius emphaticus
+
+256
+무명실타래물레고둥
+Lussivolutopsius furukawai
+
+257
+높은탑물레고둥
+Lussivolutopsius ochotensis
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+258
+둥근명주매물고둥
+Neptunea amianta
+
+259
+굵은고리매물고둥
+Neptunea elegantula
+
+260
+작은북방매물고둥
+Neptunea kuroshio
+
+261
+북해도매물고둥
+Neptunea lyrata
+
+262
+잔띠매물고둥
+Neptunea lamellosa
+
+263
+상투매물고둥
+Neptunea subdilatata
+
+264
+보라세로주름고둥
+Plicifusus scissuratus
+
+265
+긴뿔매물고둥
+Lirabuccinum fuscolabiatum
+
+266
+혹줄돼지고둥
+Siphonalia concinna
+
+267
+구름무늬돼지고둥
+Siphonalia signum
+
+268
+넓은입물레고둥
+Volutopsius middendorffi
+
+269
+아니완물레고둥
+Buccinum aniwanum
+
+270
+나사물레고둥
+Buccinum isaotakii
+
+271
+오호츠크물레고둥
+Buccinum ochotense
+
+272
+가시물레고둥
+Buccinum polare
+
+273
+작은물레고둥
+Buccinum striatissimum senshumaruae
+
+274
+큰세고리물레고둥
+Buccinum verkruezeni
+
+275
+좁은입물레고둥
+Habevolutopsius hirasei
+
+276
+굵은띠매물고둥
+Neptunea frater
+
+277
+굵은갈색띠매물고둥
+Neptunea vinosa
+
+278
+갈색고리돼지고둥
+Siphonalia fuscolineata
+
+279
+민허리돼지고둥
+Siphonalia fusoides
+
+280
+세로빗줄돼지고둥
+Siphonalia hirasei
+
+281
+주홍입돼지고둥
+Siphonalia modificata
+
+감생이고둥과(Cancellariidae)
+
+282
+주름감생이
+Cancellaria nodulifera 
+
+283
+둥근감생이
+Merica sinensis
+
+284
+왜감생이
+Scalptia scalariformis
+
+285
+감생이고둥
+Sydaphera spengleriana
+
+꼬마언청이고둥과(Clathurellidae)
+
+286
+나사언청이고둥
+Etrema subauriformis
+
+287
+포목무늬꼬마언청이고둥
+Paraclathurella gracilenta
+
+고리언청이고둥과(Cochlespiridae)
+
+288
+고리언청이고둥
+Aforia circinata
+
+Columbariidae
+
+289
+잣송이탑고둥
+Columbarium pagoda
+
+무륵과(Columbellidae)
+
+290
+무늬무륵
+Euplica scripta
+
+291
+고운점무늬무륵
+Pyrene flava
+
+청자고둥과(Conidae)
+
+292
+혹줄청자고둥
+Conasprella orbignyi
+
+293
+청자고둥
+Conus fulmen
+
+294
+계단꼭지청자고둥
+Conus lischkeanus
+
+295
+어깨혹청자고둥
+Conus miliaris
+
+구멍언청이고둥과(Drilliidae)
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+296
+굵은줄언청이고둥
+Clathrodrillia flavidula
+
+긴고둥과(Fasciolariidae)
+
+297
+매끈이긴뿔고둥
+Fusinus ferrugineus
+
+298
+큰긴뿔고둥
+Fusinus forceps
+
+299
+맵시고둥
+Fusinus colus
+
+300
+어깨긴뿔고둥
+Fusinus nodosoplicatus
+
+301
+긴고둥
+Fusinus perplexus
+
+302
+모난어깨긴뿔고둥
+Goniofusus spectrum
+
+303
+배달긴고둥
+Fusolatirus coreanicus
+
+304
+나무껍질긴고둥
+Turrilatirus nagasakiensis
+
+골깊은언청이고둥과(Mangeliidae)
+
+305
+흰입술꼬마언청이고둥
+Cytharella costulata
+
+306
+줄무늬언청이고둥 
+Cytharopsis radulina
+
+307
+일곱고랑언청이고둥
+Ithycythara oyuana
+
+308
+홀쭉이언청이고둥
+Leiocithara longispira
+
+309
+여섯고랑언청이고둥
+Pseudorhaphitoma pyramis
+
+털탑고둥과(Melongenidae)
+
+310
+두드럭털탑고둥
+Hemifusus tuba
+
+311
+털탑고둥
+Brunneifusus ternatanus
+
+312
+매끈이털탑고둥
+Hemifusus colosseus
+
+붓고둥과(Mitridae)
+
+313
+명주붓고둥
+Isara chinensis
+
+뿔소라과(Muricidae)
+
+314
+지느러미뿔고둥
+Boreotrophon candelabrum
+
+315
+긴입술지느러미뿔고둥
+Boreotrophon xestra
+
+316
+입뿔고둥
+Ceratostoma burnetti
+
+317
+세뿔고둥
+Ceratostoma fournieri
+
+318
+굵은이랑잔줄산호살이고둥
+Coralliophila abnormis
+
+319
+동범산호살이고둥
+Coralliophila morishimai
+
+320
+분홍꼭지이형산호살이고둥
+Hirtomurex nakamurai
+
+321
+꼬마흑점밀알고둥
+Maculotriton serriale
+
+322
+가시두드럭고둥
+Mancinella echinata
+
+323
+산호살이딸기고둥
+Mipus arbutum
+
+324
+보라입실패뿔고둥 
+Morula iostoma
+
+325
+가시뿔고둥
+Morula spinosa
+
+326
+날개뿔고둥
+Ocinebrellus falcatus
+
+327
+뿔두드럭고둥
+Reishia luteostoma
+
+328
+얇은밤송이두드럭고둥
+Mancinella echinulata
+
+329
+배불뚝이산호살이고둥
+Coralliophila bulbiformis
+
+330
+투구산호살이고둥
+Coralliophila erosa
+
+좁쌀무늬고둥과(Nassariidae)
+
+331
+모눈좁쌀무늬고둥
+Nassarius sufflatus
+
+332
+나사못고둥
+Nassaria magnifica
+
+333
+좀피뿔고둥
+Rapana bezoar
+
+Pisaniidae
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+334
+매끈이둥근타래고둥
+Pisania tritonoides
+
+연갈색언청이고둥과(Pseudomelatomidae)
+
+335
+옆줄북방언청이고둥
+Antiplanes isaotakii
+
+336
+굵은북방언청이고둥
+Antiplanes obesus
+
+337
+북방언청이고둥
+Antiplanes sanctiioannis
+
+338
+왼돌이언청이고둥
+Antiplanes vinosa
+
+339
+뾰족탑단풍고둥
+Inquisitor angustus
+
+340
+꼬치단풍고둥
+Inquisitor elachystoma
+
+341
+단풍고둥
+Funa jeffreysii
+
+342
+반질이단풍고둥
+Inquisitor vulpionis
+
+바구니무늬언청이고둥과(Raphitomidae)
+
+343
+세로무늬언청이고둥
+Daphnella mitrellaformis
+
+344
+고운언청이고둥
+Kuroshiodaphne fuscobalteata
+
+송곳고둥과(Terebridae)
+
+345
+속재송곳고둥
+Duplicaria evoluta
+
+346
+고운무늬송곳고둥
+Duplicaria badia
+
+347
+곧은흰줄송곳고둥
+Duplicaria latisulcata
+
+348
+검은보라송곳고둥
+Gradaterebra taylori
+
+349
+구슬송곳고둥
+Granuliterebra bathyrhaphe
+
+350
+죽순고동
+Hastula rufopunctata
+
+351
+대마디송곳고둥
+Terebra amanda
+
+352
+줄칼송곳고둥
+Terebra fenestrata
+
+353
+미남송곳고둥
+Terebra lima
+
+단풍고둥과(Turridae)
+
+354
+어깨단풍고둥
+Gemmula cosmoi
+
+355
+긴입언청이고둥
+Unedogemmula unedo
+
+홍줄고둥과(Volutidae)
+
+356
+남방홍줄고둥
+Fulgoraria hamillei
+
+357
+홍줄고둥
+Fulgoraria kaneko
+
+358
+대추홍줄고둥
+Lyria cassidula
+
+갈비고둥과(Chilodontaidae)
+
+359
+홍색밤고둥
+Herpetopoma rubrum
+
+360
+바위고둥
+Turcica monilifera
+
+갯민달팽이과(Onchidiidae)
+
+361
+두꺼비갯민달팽이
+Paromoionchis tumidus
+
+방석고둥과(Calliostomatidae)
+
+362
+팽이방석고둥
+Calliostoma koma
+
+363
+가시방석고둥
+Tristichotrochus aculeatus
+
+364
+주홍방석고둥
+Tristichotrochus consors
+
+365
+매끈이방석고둥
+Tristichotrochus haliarchus
+
+366
+얼룩방석고둥
+Calliostoma crossleyae
+
+팥알고둥과(Colloniidae)
+
+367
+흰팥알고둥
+Collonista amakusaensis
+
+368
+누더기팥알고둥
+Homalopoma amussitatum
+
+구멍밤고둥과(Tegulidae)
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+369
+밤고둥
+Tegula rugata
+
+370
+명주고둥
+Tegula kusairo
+
+371
+팽이고둥
+Tegula pfeifferi carpenteri
+
+372
+바다방석고둥
+Tegula pfeifferi pfeifferi
+
+373
+보말고둥
+Tegula rustica
+
+밤고둥과(Trochidae)
+
+374
+보석고둥
+Clanculus margaritarius
+
+소라과(Turbinidae)
+
+375
+바퀴고둥
+Astralium haematragum
+
+376
+잔뿔소라
+Bolma modesta
+
+377
+월계관납작소라
+Guildfordia triumphans
+
+378
+납작소라
+Pomaulax japonicus
+
+379
+예쁜눈알고둥
+Turbo excellens
+
+삿갓군소붙이과(Umbraculidae)
+
+380
+삿갓군소붙이
+Umbraculum umbraculum
+
+물고둥과(Aplustridae)
+
+381
+줄물고둥
+Hydatina physis
+
+수레바퀴고둥과(Architectonicidae)
+
+382
+납작수레바퀴고둥
+Heliacus variegatus
+
+383
+밤색납작수레바퀴고둥
+Heliacus implexus
+
+갯고둥과(Batillariidae)
+
+384
+흰줄혹띠갯고둥
+Batillaria flectosiphonata
+
+385
+갯고둥
+Batillaria multiformis
+
+짜부락고둥과(Cerithiidae)
+
+386
+오디짜부락고둥
+Clypeomorus bifasciata
+
+387
+짜부락고둥
+Rhinoclavis kochi
+
+갯고둥붙이과(Cerithiopsidae)
+
+388
+밤색갯고둥붙이
+Cerithiopsis stejnegeri
+
+실꾸리고둥과(Epitoniidae)
+
+389
+송곳실꾸리고둥
+Acrilla acuminata
+
+390
+긴탑무명실꾸리고둥
+Amaea magnifica
+
+391
+각시실꾸리고둥
+Amaea thielei
+
+392
+벌레실꾸리고둥
+Cycloscala hyalina
+
+393
+검정띠실꾸리고둥
+Epitonium auritum
+
+394
+명주실꾸리고둥
+Epitonium castum
+
+395
+문발실꾸리고둥
+Epitonium eusculptum
+
+396
+어깨날개실꾸리고둥
+Epitonium eximium
+
+397
+가는뿔실꾸리고둥
+Epitonium gracile
+
+398
+긴실꾸리고둥
+Epitonium stigmaticum
+
+399
+굵은실꾸리고둥
+Epitonium pallasi
+
+400
+촘촘히실꾸리고둥
+Epitonium sakuraii
+
+401
+긴실꾸리고둥
+Epitonium stigmaticum
+
+402
+날개실꾸리고둥
+Epitonium syoichiroi
+
+403
+실패고둥
+Gyroscala commutata
+
+404
+농갈색띠실꾸리고둥
+Epitonium harimaense
+
+
+5. 절지동물(421종)
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+두드럭배말과(Lottiidae)
+
+405
+두드럭배말
+Lottia dorsuosa
+
+406
+멋쟁이배무래기
+Nipponacmea gloriosa
+
+407
+배무래기
+Nipponacmea schrenckii
+
+애기삿갓조개과(Nacellidae)
+
+408
+진주배말
+Cellana grata
+
+409
+흑색배말
+Cellana nigrolineata
+
+삿갓조개과(Patellidae)
+
+410
+누더기삿갓조개
+Scutellastra flexuosa
+
+동다리과(Potamididae)
+
+411
+동다리
+Cerithidea rhizophorarum
+
+412
+비틀이고둥
+Pirenella cingulata
+
+회오리고둥과(Pyramidellidae)
+
+413
+굵은세로줄큰회오리고둥
+Mormula philippiana
+
+지렁이고둥과(Siliquariidae)
+
+414
+자갈색지렁이고둥 
+Tenagodus armatus
+
+나사고둥과(Turritellidae)
+
+415
+남방나사고둥
+Neohaustator tsushimaensis
+
+416
+갈비큰나사고둥
+Neohaustator fortilirata
+
+군부과(Chitonidae)
+
+417
+군부
+Liolophura japonica
+
+418
+비단군부
+Onithochiton hirasei
+
+연두군부과(Ischnochitonidae)
+
+419
+줄군부
+Lepidozona coreanica
+
+따가리과(Mopaliidae)
+
+420
+왕털군부
+Amicula amiculata
+
+421
+말군부
+Cryptochiton stelleri
+
+422
+따가리
+Placiphorella stimpsoni
+
+뿔조개과(Dentaliidae)
+
+423
+뿔조개
+Antalis weinkauffi
+
+424
+여덟모뿔조개
+Dentalium octangulatum
+
+425
+쇠뿔조개
+Pictodentalium vernedei
+
+426
+세로잔줄뿔조개
+Striodentalium rhabdotum
+
+모귀뿔조개과(Entalinidae)
+
+427
+여섯모뿔조개
+Entalinopsis intercostata
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+뾰족머리노벌레과(Arietellidae) 
+
+1
+유럽추상노벌레
+Metacalanus aurivilli
+
+2
+이토곁다름노벌레
+Paramisophria itoi
+
+3
+한국곁다름노벌레
+Paramisophria koreana
+
+4
+신진곁다름노벌레
+Paramisophria sinjinensis
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+5
+동방사스노벌레
+Sarsarietellus orientalis
+
+꽃조개살이과(Anthessiidae)
+
+6
+키조개꽃조개살이
+Anthessius atrinae
+
+7
+돌기꽃조개살이
+Anthessius kimjensis
+
+8
+긴다리꽃조개살이
+Anthessius longipedis
+
+멍게벌레과(Ascidicolidae) 
+
+9
+멍게벌레
+Ascidicola secundus
+
+도둑노벌레과(Bomolochidae) 
+
+10
+어렝놀래기도둑노벌레 
+Orbitacolax pteragogi
+
+11
+갈치눈도둑노벌레
+Orbitacolax trichiuri
+
+12
+붉돔눈도둑노벌레 
+Orbitacolax unguifer
+
+발톱벌레과(Botryllophilidae) 
+
+13
+한국발톱벌레
+Botryllophilus koreensis
+
+14
+대한외장충
+Haplostoma kimi
+
+Catiniidae
+
+15
+개불노벌레
+Echiuricopus aprilis
+
+16
+날씬다리개불노벌레
+Echiuricopus tenuipes
+
+17
+동양별벌레이
+Myzomolgus orientalis
+
+18
+긴꼬리별벌레이
+Myzomolgus tenuis
+
+옛천장입요각과(Clausidiidae) 
+
+19
+돌맛조개이
+Conchyliurus dispar
+
+20
+서해조개이
+Conchyliurus inchonensis
+
+21
+잎검물벼룩 
+Foliomolgus cucullus
+
+22
+남해검물벼룩 
+Hemadona clavicrura
+
+23
+막검물벼룩붙이 
+Hemicyclops membranatus
+
+24
+코검물벼룩붙이 
+Hemicyclops nasutus
+
+25
+쏙벌레 
+Hemicyclops parilis
+
+26
+돌검물벼룩붙이
+Hemicyclops saxatilis
+
+27
+납작검물벼룩붙이 
+Hemicyclops ventriplanus
+
+28
+나도검물벼룩붙이 
+Hersiliodes exiguus
+
+Clausiidae
+
+29
+세마디검물벼룩
+Clausia antiqua
+
+30
+두마디검물벼룩
+Clausia lobata
+
+31
+뿔검물벼룩
+Likroclausia namhaensis
+
+32
+넓적배검물벼룩
+Rhodinicola laticauda
+
+33
+두마디인도검물벼룩
+Indoclausia bipartita
+
+34
+빨판검물벼룩
+Maxilliclausia propria
+
+멍게장충과(Enteropsidae)
+
+35
+매끈멍게장충
+Enteropsis nudus
+
+36
+털굽장충
+Mychophilus capillatus
+
+구멍벌레과(Kelleriidae) 
+
+37
+큰털구멍벌레
+Kelleria andamanensis
+
+38
+항구구멍벌레
+Kelleria portiviva
+
+39
+열한가시구멍벌레 
+Kelleria undecidentata
+
+40
+떠돌이구멍벌레
+Kelleria vaga
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+살갗살이과(Lichomolgidae) 
+
+41
+가시살갗살이
+Dontimolgus brevicaudatus
+
+42
+훈수허만속살이
+Herrmannella hoonsooi
+
+43
+맛조개허만속살이
+Herrmannella soleni
+
+44
+주머니살갗살이 
+Lichomolgus bullatus
+
+45
+물렁살갗살이
+Lichomolgus infirmus
+
+46
+빗살갗살이
+Lichomolgus pectinatus
+
+47
+대합살이
+Lichomolgus similis
+
+48
+털담치속살이
+Modiolicola avdeevi
+
+49
+두줄살갗살이
+Protomolgus duplex
+
+50
+외줄살갗살이
+Protomolgus singularis
+
+51
+불가사리속살이
+Synstellicola paracarens
+
+52
+군체멍게살갗살이
+Zygomolgus dentatus
+
+큰손벌레과(Macrochironidae) 
+
+53
+털큰손벌레
+Macrochiron anomalum
+
+54
+헛큰손벌레 
+Pseudomacrochiron urostenum
+
+조개속살이과(Myicolidae) 
+
+55
+서해뚱보속살이
+Myicola intumidus
+
+멍게숨이과(Notodelphyidae)
+
+56
+양포멍게숨이
+Bonnierilla yangpoensis
+
+57
+호씨납작숨이 
+Doropygus hoi
+
+58
+막대벌레
+Janstockia truncata
+
+59
+가시해초속살이
+Pachypygus spinosus
+
+60
+갈고리해초속살이
+Paranotodelphys unguifer
+
+61
+뿔멍게벌레
+Pholeterides pilosa
+
+괴벌레과(Philichthyidae) 
+
+62
+군평선이괴벌레 
+Colobomatus floridus
+
+63
+동양괴벌레 
+Colobomatus orientalis
+
+64
+놀래기괴벌레 
+Colobomatus recticaudatus
+
+65
+망상어괴벌레
+Colobomatus similis
+
+66
+황노래기괴벌레 
+Colobomatus unimanus
+
+Philoblennidae
+
+67
+뿔고둥속살이 
+Philoblenna bupulda
+
+가시노벌레과(Polyankyliidae)
+
+68
+가시노벌레
+Polyankylis orientalis
+
+69
+작은발톱검물벼룩
+Polyankylis ovilaxa
+
+70
+무족발톱검물벼룩
+Sewelloya plana
+
+성게이과(Pseudanthessiidae)
+
+71
+갯벌성게이
+Pseudanthessius dentatus
+
+72
+방패연잎성게이
+Pseudanthessius spinosus
+
+산호이과(Rhynchomolgidae) 
+
+73
+녹색말미잘속살이
+Critomolgus anthopleurus
+
+74
+갈색말미잘속살이
+Critomolgus malmizalus
+
+75
+녹색말미잘이 
+Critomolgus vicinus
+
+76
+바다조름이 
+Critomolgus nudus
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+77
+갑옷갯민숭달팽이살이 
+Doridicola portincola
+
+78
+올빼미군소붙이살이 
+Doridicola virgatus
+
+79
+개펄말미잘이 
+Lutumidomus tertius
+
+80
+민다리뿔산호벌레 
+Paramolgus nudipes
+
+81
+왕가슴말미잘이 
+Verutipes scutatus
+
+82
+턱돌기벌레 
+Zamolgus cavernularius
+
+83
+큰개펄말이잘이
+Lutumidomus panikkari
+
+84
+왜개펄말미잘이
+Lutumidomus parvus
+
+갯지렁이살이과(Sabelliphilidae)
+
+85
+동양오가시갯지렁이살이 
+Eupolymniphilus orientalis
+
+86
+갯지렁이집벌레 
+Myxomolgus invulgus
+
+87
+유령갯지렁이벌레
+Terebelliphilus simplex
+
+개펄노벌레과(Synaptiphilidae) 
+
+88
+닻해삼속벌레
+Enterophilus cercomegalus
+
+89
+개불속살이
+Goidelia japonica
+
+90
+연두개불이
+Goidelia pelliviva
+
+91
+긴팔거미불가사리노벌레
+Presynaptiphilus minutus
+
+92
+거미불가사리노벌레
+Presynaptiphilus paraminutus
+
+93
+닻해삼노벌레
+Synaptiphilus longicaudus
+
+띠아가미이과(Taeniacanthidae) 
+
+94
+민부치띠아가미이 
+Taeniacanthus singularis
+
+95
+개소겡띠아가미이
+Suncheonacanthus luteus
+
+96
+쥐치아가미벌레 
+Umazuracola geminus
+
+맵시장수노벌레과(Ameiridae)
+
+97
+수려장수노벌레 
+Nitokra koreanus
+
+딱정장수노벌레과(Canthocamptidae)
+
+98
+모래무지노벌레
+Itunella arenaria
+
+99
+두강모큰뿔장수노벌레
+Mesochra bisetosa
+
+뿔장수노벌레과(Cletodidae)
+
+100
+민털센뿔장수노벌레
+Strongylacron glabrum
+
+발톱장수노벌레과(Dactylopusiidae)
+
+101
+작은마디발톱장수노벌레
+Dactylopusia pauciarticulata
+
+102
+한국곁발톱장수노벌레
+Paradactylopodia koreana
+
+지렁이노벌레과(Darcythompsoniidae)
+
+103
+태평실노벌레
+Leptocaris trisetosus pacificus
+
+가혹노벌레과(Laophontidae)
+
+104
+해삼이
+Microchelonia koreensis
+
+부요정노벌레과(Parastenheliidae)
+
+105
+배부요정노벌레
+Parastenhelia pyriformis
+
+갑옷장수노벌레과(Peltidiidae)
+
+106
+우리비고노벌레
+Alteuthoides affinis
+
+107
+오가시갑옷장수노벌레
+Peltidium quinquesetosum
+
+딱정노벌레과(Porcellidiidae)
+
+108
+두갈래딱정노벌레
+Dilatatiocauda bipartita
+
+109
+뾰족뿔딱정노벌레 
+Kensakia acuta
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+110
+닮은꼴딱정노벌레 
+Kioloaria similis
+
+111
+짧은구멍딱정노벌레
+Porcellidium brevicavum
+
+112
+완도딱정벌레 
+Porcellidium wandoensis
+
+가날래장수노벌레과(Pseudotachidiidae)
+
+113
+긴꼬리가나무속살이노벌레
+Pseudonsiella longicaudata
+
+114
+긴더듬이썩은나무속살이
+Xylora longiantennulata
+
+날래장수노벌레과(Tachidiidae)
+
+115
+고려세모날래장수노벌레
+Neotachidius coreanus
+
+116
+작은세모날래장수노벌레
+Neotachidius parvus
+
+장군여왕노벌레과(Thalestridae) 
+
+117
+털부장군여왕노벌레
+Parathalestris parviseta
+
+삿갓노벌레과(Artotrogidae) 
+
+118
+뾰족배삿갓노벌레
+Artotrogus acutus
+
+119
+멍게삿갓노벌레
+Artotrogus halocynthiae
+
+120
+두돌기삿갓노벌레
+Artotrogus incidentus
+
+121
+작은삿갓노벌레
+Artotrogus rotundus
+
+122
+오목개멍게이
+Ascidipontius concavus
+
+123
+드문개멍게이
+Ascidipontius rarus
+
+124
+몽당털완보노벌레
+Bradypontius crassisetus
+
+125
+멍게완보노벌레
+Bradypontius halocynthiae
+
+126
+넓적완보노벌레
+Bradypontius heteroporus
+
+127
+멍게외다리노벌레
+Cryptopontius ascidius
+
+128
+흔적다리노벌레
+Cryptopontius digitatus
+
+129
+보통외다리노벌레
+Cryptopontius donghaensis
+
+130
+오강모외다리노벌레
+Cryptopontius quinquesetus
+
+131
+요정침노벌레
+Myzopontius venustus
+
+132
+세마디날개노벌레
+Pteropontius trimerus
+
+133
+납작벼룩노벌레
+Pulicitrogus compressus
+
+불가사리이과(Asterocheridae) 
+
+134
+몽당털더듬이노벌레 
+Acontiophorus pilosus
+
+135
+갈래산호겉살이 
+Asteropontius bifurcatus
+
+136
+짧은꼬리홀쭉노벌레
+Collocheres brevipes
+
+137
+튼튼홀쭉노벌레
+Collocheres solidus
+
+138
+탐라홀쭉노벌레 
+Collocheres tamladus
+
+139
+긴꼬리넓은가슴노벌레 
+Orecturus longicaudatus
+
+140
+넓은가슴노벌레 
+Orecturus similis
+
+물이과(Caligidae) 
+
+141
+독가시치헛물이
+Caligus longipes
+
+142
+투명물이
+Caligus parvilatus
+
+143
+조피볼락장님물이
+Lepeophtheirus gusevi
+
+144
+볼락장님물이
+Lepeophtheirus tamladus
+
+145
+혹장님물이
+Lepeophtheirus tuberculatus
+
+아가미벌레과(Hatschekiidae)
+
+146
+아홉동가리아가미벌레
+Hatschekia jejuensis
+
+갑각류이과(Nicothoidae)
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+147
+둥근이
+Sphaeronella squamosa
+
+안경옆새우과(Ampeliscidae)
+
+148
+더듬이안경옆새우
+Ampelisca alatopedunculata
+
+149
+오목손안경옆새우
+Ampelisca bocki
+
+150
+짧은뿔안경옆새우
+Ampelisca brevicornis
+
+151
+짧은다리안경옆새우
+Ampelisca cyclops
+
+152
+미하라안경옆새우
+Ampelisca miharaensis
+
+153
+긴다리안경옆새우
+Ampelisca misakiensis
+
+154
+나이카안경옆새우
+Ampelisca naikaiensis
+
+155
+일본비블리스안경옆새우
+Byblis japonicus
+
+짧은꼬리옆새우과(Amphilochidae)
+
+156
+거제짧은꼬리옆새우
+Hourstonius geojeensis
+
+157
+짧은꼬리옆새우 
+Hourstonius koreana
+
+158
+내민손짧은꼬리옆새우
+Paramphilochus parachelatus
+
+참옆새우과(Ampithoidae)
+
+159
+짧은손참옆새우
+Ampithoe brevipalma
+
+160
+큰손참옆새우
+Pleonexes koreana
+
+161
+둥근손참옆새우
+Ampithoe youngsanensis
+
+162
+백령도참옆새우
+Sunamphitoe baegryeongensis
+
+163
+추자도참옆새우
+Sunamphitoe chujaensis
+
+164
+구룡포참옆새우
+Sunamphitoe guryongensis
+
+165
+남해참옆새우 
+Sunamphitoe namhaensis
+
+166
+매끈참옆새우
+Sunamphitoe sineplumosa
+
+167
+뾰족갈래손참옆새우
+Ampithoe akuolaka
+
+168
+태평양참옆새우
+Ampithoe lacertosa
+
+169
+갈래손참옆새우
+Ampithoe ramondi
+
+170
+볼록손참옆새우
+Ampithoe valida valida
+
+171
+오목손참옆새우
+Ampithoe valida shimizuensis
+
+172
+긴손가락참옆새우
+Sunamphitoe eoa
+
+173
+동양참옆새우
+Sunamphitoe orientalis
+
+174
+털보참옆새우
+Sunamphitoe plumosa
+
+175
+털다리참옆새우
+Sunamphitoe tea
+
+바다대벌레과(Caprellidae)
+
+176
+가시투성바다대벌레
+Caprella acanthogaster
+
+177
+해초바다대벌레
+Caprella algaceus
+
+178
+가시다리바다대벌레
+Caprella brevirostris
+
+179
+뾰족머리가슴가시바다대벌레
+Caprella californica
+
+180
+집게손가락바다대벌레
+Caprella chelimana
+
+181
+털보바다대벌레
+Caprella cristibrachium
+
+182
+매끈이바다대벌레
+Caprella danilevskii
+
+183
+짧은마디더듬이민다리바다대벌레
+Caprella decipiens
+
+184
+가슴가시바다대벌레
+Caprella equilibra
+
+185
+두줄등가시바다대벌레
+Caprella eximia
+
+186
+주걱손바다대벌레
+Caprella gigantochir
+
+187
+가는더듬이바다대벌레
+Caprella gracillima
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+188
+일본바다대벌레
+Caprella japonica
+
+189
+짧은마디더듬이바다대벌레
+Caprella kominatoensis
+
+190
+허리갈고리바다대벌레
+Caprella kroyeri
+
+191
+털더듬이바다대벌레
+Caprella linearis
+
+192
+긴마디더듬이바다대벌레
+Caprella mixta
+
+193
+긴팔바다대벌레
+Caprella monoceros
+
+194
+두드러기바다대벌레
+Caprella multituberculum
+
+195
+둥근아가미바다대벌레
+Caprella penantis
+
+196
+불꽃가시바다대벌레
+Caprella polyacantha
+
+197
+뾰족머리바다대벌레
+Caprella scaura
+
+198
+뾰족머리긴팔바다대벌레
+Caprella simia
+
+199
+민다리바다대벌레
+Caprella simplex
+
+200
+갈고리손바다대벌레
+Caprella subinermis
+
+201
+실바다대벌레
+Caprella subtilis
+
+202
+짧은팔바다대벌레
+Caprella tsugarensis
+
+203
+혹등바다대벌레
+Caprella verrucosa
+
+204
+짧은아가미다리바다대벌레
+Monoliropus leeae
+
+205
+돌기머리세아가미불구다리원시
+바다대벌레
+Perotripus koreanus
+
+털손긴팔옆새우과(Scopelocheiridae)
+
+206
+털손긴팔옆새우
+Aroui minusetosus
+
+해면살이옆새우과(Colomastigidae)
+
+207
+가시해면살이옆새우
+Colomastix prionotos
+
+육질꼬리옆새우과(Corophiidae)
+
+208
+긴뿔옛뱀옆새우
+Eocorophium longiconum
+
+209
+한강뱀옆새우 
+Sinocorophium hangangense
+
+붙은꼬리옆새우과(Dexaminidae)
+
+210
+제주붙은꼬리옆새우
+Guernea jejuensis
+
+211
+남해붙은꼬리옆새우 
+Guernea namhaensis
+
+212
+진도옆가시붙은꼬리옆새우
+Paradexamine jindoensis
+
+213
+뾰족꼬리발가락공생옆새우
+Polycheria acercauda
+
+모래옆새우과(Dogielinotidae)
+
+214
+한꼬리모래옆새우
+Haustorioides indivisus
+
+215
+긴털모래옆새우
+Haustorioides koreanus
+
+216
+짧은채찍모래옆새우
+Haustorioides latipalpus
+
+217
+다도해모래옆새우
+Haustorioides nesogenes
+
+Eusiridae
+
+218
+부푼손가락바닥옆새우
+Eusirus bulbodigitus
+
+모래무지옆새우과(Haustoriidae)
+
+219
+긴발가락모래무지옆새우
+Eohaustorius longidactylus
+
+220
+털보모래무지옆새우
+Eohaustorius setulosus
+
+221
+가시발모래무지옆새우
+Eohaustorius spinigerus
+
+222
+긴가시모래무지옆새우
+Eohaustorius stocki
+
+해조숨이옆새우과(Hyalidae)
+
+223
+오목손해조숨이옆새우
+Protohyale (Boreohyale) kajiharai
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+224
+혹등손해조숨이옆새우
+Protohyale (Boreohyale) latimana
+
+225
+큰눈해조숨이옆새우
+Protohyale (Boreohyale) magnaocularis
+
+226
+꼬마채찍해조숨이옆새우
+Protohyale (Boreohyale) plumila
+
+227
+세모손해조숨이옆새우
+Protohyale (Boreohyale) triangulata
+
+228
+털채찍해조숨이옆새우
+Ptilohyale bisaeta
+
+229
+긴다리해조숨이옆새우
+Ptilohyale barbicornis
+
+230
+짧은다리해조숨이옆새우
+Ptilohyale brevicrus
+
+육질꼬리옆새우붙이과(Ischyroceridae)
+
+231
+긴목육질꼬리옆새우붙이
+Cerapus longicervicum
+
+232
+가시손육질꼬리옆새우붙이
+Ventojassa dentipalma
+
+공생옆새우과(Leucothoidae)
+
+233
+곰보병신옆새우
+Paranamixis denticulus
+
+릴예보옆새우과(Liljeborgiidae)
+
+234
+황해릴예보옆새우
+Liljeborgia hwanghaensis
+
+긴팔옆새우과(Lysianassidae)
+
+235
+짧은가시멜리타옆새우
+Orientomaera brevispina
+
+236
+통영긴팔옆새우
+Socarnes tongyeongensis
+
+237
+북방개긴팔옆새우
+Pseudorchomene boreoplebs
+
+마에라옆새우과(Maeridae)
+
+238
+가시옷멜리타옆새우
+Ceradocus (Denticeradocus) koreanus
+
+239
+한국멜리타옆새우
+Elasmopus koreanus
+
+멜리타옆새우과(Melitidae)
+
+240
+안면멜리타옆새우
+Melita anmyeonensis
+
+누아누옆새우과(Nuuanuidae) 
+
+241
+가는채찍옆새우
+Nanopalpus holocaudatus
+
+242
+큰손가락누아눈옆새우
+Nuuanu paracyclodactyla
+
+붙은눈옆새우과(Oedicerotidae)
+
+243
+납작뿔붙은눈옆새우
+Eochelidium carinorostrum
+
+244
+남해붙은눈옆새우
+Imbachoculodes namhaensis
+
+245
+가시다리붙은눈옆새우
+Monoculodes dentimanus
+
+246
+뾰족뿔붙은눈옆새우
+Monoculodes koreanus
+
+247
+무딘뿔붙은눈옆새우
+Monoculodes muwoni
+
+248
+한국붙은눈옆새우 
+Orthomanus koreanus
+
+249
+둥근꼬리붙은눈옆새우
+Perioculodes seohae
+
+250
+황해붙은눈옆새우 
+Sinoediceros hwanghaensis
+
+251
+세주머니붙은눈옆새우
+Synchelidium trioostegitum
+
+252
+굳은이붙은눈옆새우
+Chitonomandibulum emargicoxa
+
+꼬리다리옆새우과(Photidae) 
+
+253
+큰손짧은부채찍옆새우
+Podoceropsis clavapes
+
+긴뿔옆새우과(Phoxocephalidae)
+
+254
+민가시긴뿔옆새우
+Grandifoxus bangpoensis
+
+255
+네가시긴뿔옆새우
+Grandifoxus cuspis
+
+256
+두가시긴뿔옆새우
+Grandifoxus malipoensis
+
+257
+세가시긴뿔옆새우
+Mandibulophoxus hongae
+
+258
+일곱가시긴뿔옆새우
+Mandibulophoxus mai
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+긴배옆새우과(Podoceridae)
+
+259
+등뿔긴배옆새우
+Podocerus hoonsooi
+
+260
+가시손긴배옆새우
+Podocerus ulreungensis
+
+Pontogeneiidae
+
+261
+톱니자락짧은채찍옆새우
+Paramoera dentipleurae
+
+262
+한국짧은채찍옆새우
+Paramoera koreana
+
+도약옆새우과(Talitridae)
+
+263
+털발아시아도약옆새우
+Pyatakovestia gageoensis
+
+264
+가는몸도약옆새우
+Platorchestia munmui
+
+265
+긴꼬리도약옆새우
+Trinorchestia longiramus
+
+266
+유사태평양도약옆새우
+Platorchestia parapacifica
+
+모래무지옆새우사촌과(Urothoidae)
+
+267
+볼록손모래무지옆새우사촌
+Urothoe convexa
+
+긴꼬리올챙이새우과(Diastylidae)
+
+268
+민긴꼬리올챙이새우
+Diastylis inplicata
+
+269
+털보긴꼬리올챙이새우
+Diastylis koreana
+
+270
+가슴줄긴꼬리올챙이새우
+Diastylis paratricinta
+
+271
+짧은주름이형올챙이새우
+Dimorphostylis breviplicata
+
+272
+꼬리작은가시이형올챙이새우
+Dimorphostylis namhaedoensis
+
+273
+큰이형올챙이새우
+Dimorphostylis acroplicata
+
+274
+보통이형올챙이새우
+Dimorphostylis asiatica
+
+275
+털보이형올챙이새우
+Dimorphostylis echinata
+
+276
+꼬리긴가시이형올챙이새우
+Dimorphostylis hirsuta
+
+277
+긴꼬리이형올챙이새우
+Dimorphostylis longicauda
+
+278
+세주름이형올챙이새우
+Dimorphostylis manazuruensis
+
+279
+벨리다이형올챙이새우
+Dimorphostylis valida
+
+꼬마올챙이새우과(Nannastacidae)
+
+280
+매끈등옆올챙이새우
+Cumella levitergus
+
+딱총새우과(Alpheidae) 
+
+281
+옴발딱총새우
+Betaeus granulimanus
+
+282
+가는손가락딱총새우
+Salmoneus gracilipes
+
+283
+큰발톱세이마뿔딱총새우
+Synalpheus neomeris
+
+가재아재비과(Axiidae) 
+
+284
+가재아재비
+Allaxius princeps
+
+게가재과(Blepharipodidae) 
+
+285
+게가재
+Blepharipoda liberata
+
+286
+북방게가재
+Lophomastix japonica
+
+만두게과(Calappidae) 
+
+287
+톱만두게
+Calappa clypeata
+
+288
+범무늬만두게
+Calappa lophos
+
+289
+안경만두게
+Calappa philargius
+
+290
+세가시금게붙이
+Mursia trispinosa
+
+여섯니세스랑게과(Camptandriidae) 
+
+291
+세스랑게
+Cleistostoma dilatatum
+
+새우아재비과(Chirostylidae)
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+292
+제주새우아재비
+Uroptychus zezuensis
+
+꼬마조개치레과(Cyclodorippidae) 
+
+293
+꼬마조개치레
+Tymolus japonicus
+
+넓적왼손집게과(Diogenidae) 
+
+294
+청색가로가위집게
+Clibanarius virescens 
+
+295
+털줄왼손집게
+Dardanus arrosor
+
+296
+벽돌길왼손집게
+Dardanus crassimanus
+
+297
+두드러기왼손집게
+Dardanus impressus
+
+298
+넓적왼손집게
+Diogenes edwardsii
+
+콩게과(Dotillidae) 
+
+299
+펄콩게
+Ilyoplax deschampsi
+
+300
+발콩게
+Scopimera longidactyla
+
+해면치레과(Dromiidae) 
+
+301
+갯가해면치레
+Cryptodromia tumida
+
+302
+털보해면치레 
+Lewindromia unidentata
+
+303
+해면치레 
+Lauridromia dehaani
+
+304
+갯솜묻히
+Paradromia japonica
+
+뿔물맞이게과(Epialtidae) 
+
+305
+외뿔게
+Huenia heraldica
+
+306
+뿔게
+Hyastenus diacanthus
+
+307
+어리물맞이게
+Pisoides bidentatus
+
+308
+세모뿔게
+Oxypleurodon stimpsoni
+
+원숭이게과(Goneplacidae) 
+
+309
+털보원숭이게
+Entricoplax vestita
+
+여섯발게과(Hexapodidae)
+
+310
+여섯발게
+Mariaplax anfracta
+
+왕부채게과(Hypothalassiidae)
+
+311
+왕부채게
+Hypothalassia armata
+
+거미다리게과(Inachidae) 
+
+312
+매끈콩알게
+Litosus sexspinosus
+
+313
+콩알게
+Paratymolus pubescens
+
+사슴게과(Latreilliidae) 
+
+314
+사슴게
+Eplumula phalangium
+
+315
+얼룩다리사슴게
+Latreillia valida
+
+밤게과(Leucosiidae) 
+
+316
+가시투성밤게
+Arcania globata
+
+317
+둥근무늬밤게
+Euclosiana obtusifrons
+
+318
+긴이마밤게
+Leucosia anatum
+
+319
+마름모밤게
+Lyphira heterograna
+
+320
+세모밤게
+Merocryptus lambriformis
+
+321
+두드러기밤게
+Philyra kanekoi 
+
+322
+납작손밤게
+Philyra syndactyla
+
+323
+붉은점밤게
+Urnalana haematosticta
+
+왕게과(Lithodidae)
+
+324
+날개어리게
+Cryptolithodes expansus
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+325
+조각어리게
+Sculptolithodes derjugini
+
+줄무늬꼬마새우과(Lysmatidae)
+
+326
+예쁜이줄무늬꼬마새우
+Lysmata amboinensis
+
+칠게과(Macrophthalmidae) 
+
+327
+높은등옆길게
+Tritodynamia horvathi
+
+물맞이게과(Majidae) 
+
+328
+뭉툭가시뿔게
+Prismatopus longispinus
+
+금게과(Matutidae)
+
+329
+그물무늬금게
+Matuta planipes
+
+330
+금게
+Matuta victor
+
+비단부채게과(Menippidae) 
+
+331
+비단부채게 
+Sphaerozius nitidus
+
+바늘이마새우붙이과(Munididae)
+
+332
+짧은바늘이마새우붙이
+Bathymunida brevirostris
+
+333
+큰손바늘이마새우붙이
+Munida caesura
+
+334
+바늘이마새우붙이
+Munida japonica
+
+335
+주름바늘이마새우붙이
+Munida pherusa
+
+336
+가시마디새우붙이
+Raymunida formosanus
+
+337
+세로줄가시마디새우붙이
+Raymunida lineata
+
+달랑게과(Ocypodidae) 
+
+338
+하모달랑게
+Ocypode cordimana
+
+긴집게발게과(Oregoniidae) 
+
+339
+두꺼비게
+Hyas coarctatus
+
+340
+바이올린두꺼비게
+Hyas alutaceus
+
+집게과(Paguridae) 
+
+341
+대롱집게
+Discorsopagurus maclaughlinae
+
+342
+작은배참집게
+Labidochirus anomalus
+
+343
+제집참집게
+Pagurus constans
+
+344
+붉은눈자루참집게
+Pagurus japonicus
+
+345
+긴다리참집게
+Pagurus middendorffii
+
+346
+세모손참집게
+Pagurus trigonocheirus
+
+징거미새우과(Palaemonidae) 
+
+347
+예쁜점유령새우
+Actinimenes ornatus
+
+348
+큰다리유령새우
+Cuapetes grandis
+
+349
+예쁜이해면속살이새우
+Periclimenaeus gorgonidarum
+
+350
+꼬마발톱새우
+Onycocaris callyspongiae
+
+애기털보부채게과(Pilumnidae) 
+
+351
+콩알부채게
+Actumnus marissinicus
+
+352
+갯고사리게
+Harrovia elegans
+
+353
+깃갯고사리게
+Harrovia japonica
+
+354
+털보부채게
+Heteropilumnus ciliatus
+
+355
+민이마부채게
+Neoactumnus convexus
+
+356
+두드러기네톱니부채게
+Pilumnopeus makianus
+
+357
+긴다리털보부채게
+Pilumnus longicornis
+
+358
+긴발둥글게
+Zehntneriana amakusae
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+속살이게과(Pinnotheridae) 
+
+359
+융단속살이게
+Pinnaxodes major
+
+360
+흰해삼속살이게
+Pinnixa tumida
+
+361
+섭속살이게
+Pinnotheres pholadis
+
+362
+임포옆길게
+Sakaina koreensis
+
+게붙이과(Porcellanidae) 
+
+363
+가시게붙이
+Enosteoides ornatus
+
+364
+산호게붙이
+Lissoporcellana nakasonei
+
+꽃게과(Portunidae) 
+
+365
+두드러기꽃게
+Monomia gladiator
+
+닭게과(Raninidae) 
+
+366
+비파게
+Lyreidus stenops
+
+367
+닭게
+Ranina ranina
+
+매미새우과(Scyllaridae) 
+
+368
+매미새우
+Scyllarides haanii
+
+사각게과(Sesarmidae) 
+
+369
+꼬마사각게
+Nanosesarma minutum
+
+370
+가지게
+Parasesarma plicatum
+
+371
+붉은발사각게
+Parasesarma tripectinis
+
+해로새우과(Spongicolidae)
+
+372
+해로새우
+Spongicola venustus
+
+청소새우과(Stenopodidae) 
+
+373
+청소새우 
+Stenopus hispidus
+
+토르꼬마새우과(Thoridae)
+
+374
+톱등큰꼬마새우
+Spirontocaris spinus
+
+뿔밤송이게과(Trichopeltariidae) 
+
+375
+뿔밤송이게
+Trichopeltarion balssi
+
+참게과(Varunidae) 
+
+376
+애기비단게
+Acmaeopleura parvula
+
+377
+비단게
+Cyclograpsus intermedius
+
+378
+긴종아리풀게
+Hemigrapsus longitarsis
+
+부채게과(Xanthidae) 
+
+379
+매끈이송편게
+Atergatis floridus
+
+380
+반구부채게
+Banareia subglobosa
+
+381
+산호숨이부채게
+Calvactaea tumida
+
+382
+두드러기부채게
+Medaeops granulosus
+
+383
+꼬마부채게
+Nanocassiope granulipes
+
+384
+꼬마매끈이송편게
+Neoliomera insularis
+
+385
+줄무늬부채게
+Neoxanthops lineatus
+
+386
+접시부채게
+Palapedia integra
+
+387
+검은손부채게
+Pilodius miersi
+
+마디벌레과(Anthuridae)
+
+388
+한국길쭉마디벌레
+Apanthura koreaensis
+
+389
+한국무목마디벌레
+Caenanthura koreana
+
+기린벌레과(Arcturidae)
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+390
+톱니기린벌레
+Arcturina serrulatus
+
+모래무지벌레과(Cirolanidae) 
+
+391
+얼룩모래무지벌레
+Cirolana koreana
+
+주걱벌레붙이과(Holognathidae) 
+
+392
+민꼬리주걱벌레붙이
+Cleantioides emarginata
+
+393
+털보주걱벌레붙이 
+Cleantioides poorei
+
+주걱벌레과(Idoteidae)
+
+394
+남해한국주걱벌레
+Koridotea hoonsooi
+
+395
+하나혹둥근주걱벌레
+Synidotea wonkimi 
+
+물좀벌레과(Janiridae)
+
+396
+둥근꼬리갯가좀
+Ianiropsis koreaensis
+
+잔벌레과(Sphaeromatidae) 
+
+397
+제주잔벌레
+Gnorimosphaeroma chejuense
+
+Nebaliidae
+
+398
+한국잎새우
+Nebalia koreana
+
+399
+짧은더듬이잎새우
+Nebalia pseudotroncosoi
+
+400
+짧은꼬리잎새우
+Nebalia dolsandoensis
+
+긴가슴다리잎새우과(Paranebaliidae)
+
+401
+가시눈잎새우
+Paranebalia longipes
+
+혹돌기갯가재과(Gonodactylidae)
+
+402
+혹돌기갯가재 
+Gonodactylaceus falcatus
+
+돌기갯가재과(Parasquillidae)
+
+403
+다섯돌기갯가재
+Faughnia formosae
+
+가시꼬리갯가재과(Protosquillidae)
+
+404
+가시꼬리갯가재
+Chorisquilla orientalis
+
+갯가재과(Squillidae)
+
+405
+사니갯가재
+Squilloides leptosquilla
+
+가위갯가재과(Takuidae)
+
+406
+가위갯가재
+Taku spinosocarinatus
+
+Tanaididae
+
+407
+국명없음
+Zeuxo gracilis
+
+408
+국명없음
+Zeuxo spina
+
+조개삿갓붙이과(Heteralepadidae)
+
+409
+매끈조개삿갓붙이
+Paralepas phyllacanthusi
+
+부처손과(Scalpellidae)
+
+410
+대한부처손
+Abathescalpellum koreanum
+
+따개비과(Balanidae)
+
+411
+바다맨드라미속살이
+Acasta alcyonicola
+
+412
+제주해면따개비
+Acasta chejudoensis
+
+413
+돌기해면따개비
+Acasta paraspinifera
+
+414
+털해면따개비
+Euacasta dofleini
+
+415
+주름따개비
+Hesperibalanus hesperius hesperius
+
+416
+막따개비
+Membranobalanus koreanus
+
+417
+봉우리따개비
+Balanus rostratus
+
+조무래기따개비과(Chthamalidae)
+
+
+6. 해양식물(286종)
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+418
+제주조무래기따개비
+Hexechamaesipho pilsbryi
+
+Pachylasmatidae
+
+419
+팔각따개비
+Pseudoctomeris sulcata
+
+사각따개비과(Tetraclitidae) 
+
+420
+구멍따개비
+Tetraclitella chinensis
+
+421
+납작사각따개비
+Tetraclitella darwini
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+깃털말과(Bryopsidaceae)
+
+1
+술깃털말
+Bryopsis corymbosa
+
+2
+이끼깃털말
+Bryopsis hypnoides
+
+3
+왕깃털말
+Bryopsis maxima
+
+4
+참깃털말
+Bryopsis plumosa
+
+5
+헛뿌리깃털말
+Bryopsis stolonifera
+
+6
+속깃털말
+Bryopsis australis
+
+옥덩굴과(Caulerpaceae)
+
+7
+두줄옥덩굴
+Caulerpa geminata
+
+청각과(Codiaceae)
+
+8
+떡청각
+Codium arabicum
+
+9
+애기청각
+Codium barbatum
+
+10
+누운청각
+Codium coactum
+
+11
+몽우리청각
+Codium contractum
+
+12
+기둥청각
+Codium cylindricum
+
+13
+넓청각 
+Codium latum
+
+14
+구슬청각
+Codium minus
+
+15
+주맹기청각
+Codium saccatum
+
+16
+가시청각
+Codium spinulosum
+
+17
+말청각
+Codium subtubulosum
+
+18
+우단청각
+Codium tenuifolium
+
+엉킨실과(Derbesiaceae)
+
+19
+초록엉킨실
+Derbesia marina
+
+잎맥말과(Anadyomenaceae)
+
+20
+검정잎맥말
+Microdictyon nigrescens
+
+대마디말과(Cladophoraceae)
+
+21
+곱슬염주말
+Chaetomorpha gracilis
+
+22
+염주말
+Chaetomorpha moniligera
+
+23
+나선염주말
+Chaetomorpha spiralis
+
+24
+큰염주말
+Chaetomorpha macrotona
+
+25
+솜대마디말
+Cladophora albida
+
+26
+흐린대마디말
+Cladophora opaca
+
+27
+바위대마디말
+Cladophora rupestris
+
+28
+명주대마디말
+Cladophora stimpsonii
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+29
+갈색대마디말
+Cladophora wrightiana var. minor
+
+30
+대마디붙이
+Lychaete herpestica
+
+31
+큰대마디말
+Lychaete japonica var. kajimurae
+
+헛대마디말과(Pseudocladophoraceae)
+
+32
+고둥옷헛대마디말 
+Pseudocladophora conchopheria
+
+초록혹과(Gomontiaceae)
+
+33
+공초록혹
+Collinsiella cava
+
+34
+보목초록혹
+Collinsiella japonica
+
+35
+마디초록혹
+Collinsiella tuberculata
+
+홑파래과(Monostromataceae)
+
+36
+참홑파래
+Monostroma nitidum
+
+초록실과(Ulotrichaceae)
+
+37
+초록실
+Ulothrix flacca
+
+홑파래사촌과(Kornmanniaceae)
+
+38
+홑파래사촌
+Kornmannia leptoderma
+
+갈파래과(Ulvaceae)
+
+39
+모란갈파래
+Ulva conglobata
+
+40
+초록갈파래
+Umbraulva japonica
+
+41
+그물갈파래 
+Ulva reticulata
+
+끈말과(Chordaceae)
+
+42
+끈말
+Chorda asiatica
+
+산말과(Desmarestiaceae)
+
+43
+담배잎산말
+Desmarestia dudresnayi subsp. tabacoides
+
+44
+참산말
+Desmarestia ligulata
+
+45
+쇠꼬리산말
+Desmarestia viridis
+
+그물바탕말과(Dictyotaceae)
+
+46
+노루뿔그물바탕말
+Canistrocarpus cervicornis
+
+47
+미끈뼈대그물말
+Dictyopteris divaricata
+
+48
+넓은뼈대그물말
+Dictyopteris latiuscula
+
+49
+참가시그물바탕말
+Dictyopteris pacifica
+
+50
+가시뼈대그물말
+Dictyopteris prolifera
+
+51
+주름뼈대그물말
+Dictyopteris undulata
+
+52
+그물바탕말
+Dictyota dichotoma
+
+53
+실그물바탕말
+Dictyota implexa
+
+54
+참가죽그물바탕말
+Dictyota coriacea
+
+55
+두켜부채
+Distromium decumbens
+
+56
+부챗말
+Padina arborescens
+
+57
+분부챗말
+Padina gymnospora
+
+58
+엷은부챗말
+Padina japonica
+
+59
+애기부챗말
+Padina minor
+
+60
+개그물바탕말
+Rugulopteryx okamurae
+
+61
+반주름말
+Zonaria diesingiana
+
+민가지말과(Chordariaceae)
+
+62
+민가지말
+Chordaria flagelliformis
+
+63
+작은혹부스럼말
+Corynophlaea verruculiformis
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+64
+잘록모자반털
+Elachista flaccida
+
+65
+호미모자반털
+Elachista falcata
+
+66
+바위두둑
+Leathesia marina
+
+67
+가는모자반털
+Neoleptonema yongpilii
+
+68
+연두털말
+Papenfussiella kuromo
+
+69
+넓은미역쇠
+Punctaria latifolia
+
+70
+댕기넓은미역쇠
+Punctaria plantaginea
+
+71
+부푼말
+Tinocladia crassa
+
+72
+가는민가지말
+Chordaria gracilis
+
+솜털과(Ectocarpaceae)
+
+73
+참솜털
+Ectocarpus siliculosus
+
+바위주름과(Petrospongiaceae)
+
+74
+바위주름
+Petrospongium rugosum
+
+고리매과(Scytosiphonaceae)
+
+75
+긴불레기말
+Dactylosiphon bullosus
+
+76
+대롱불레기말
+Dactylosiphon wynnei
+
+77
+불레기말
+Colpomenia sinuosa
+
+78
+그물바구니
+Hydroclathrus clathratus
+
+79
+바위수염
+Myelophycus simplex
+
+80
+개미역쇠
+Petalonia fascia
+
+81
+잘록이고리매
+Scytosiphon lomentaria
+
+말과(Fucaceae)
+
+82
+뜸부기
+Silvetia siliquosa
+
+모자반과(Sargassaceae)
+
+83
+외톨개모자반
+Myagropsis myagroides
+
+84
+싸리비모자반
+Sargassum autumnale
+
+85
+알쏭이모자반
+Sargassum confusum
+
+86
+큰잎모자반
+Sargassum coreanum
+
+87
+짝잎모자반
+Sargassum hemiphyllum
+
+88
+큰열매모자반
+Sargassum macrocarpum
+
+89
+잔가시모자반
+Sargassum micracanthum
+
+90
+검둥모자반
+Sargassum nigrifolium
+
+91
+꼬마모자반
+Sargassum nipponicum
+
+92
+새끼실모자반
+Sargassum okamurae
+
+93
+큰잎알쏭이모자반
+Sargassum pallidum
+
+94
+쌍발이모자반
+Sargassum patens
+
+95
+구슬모자반
+Sargassum piluliferum
+
+96
+갈래잎모자반
+Sargassum pinnatifidum
+
+97
+비틀대모자반
+Sargassum sagamianum
+
+98
+톱니모자반
+Sargassum serratifolium
+
+99
+꽈배기모자반
+Sargassum siliquastrum
+
+100
+지충이
+Sargassum thunbergii
+
+101
+꼰실모자반
+Sargassum angii
+
+102
+덤불모자반
+Sargassum yezoense
+
+패과(Ishigeaceae)
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+103
+넓패
+Ishige foliacea
+
+104
+패
+Ishige okamurae
+
+쇠미역과(Agaraceae)
+
+105
+구멍쇠미역
+Agarum clathratum subsp. yakishiriense
+
+나래미역과(Alariaceae)
+
+106
+다실미역
+Undaria crenata
+
+107
+넓미역
+Undaria peterseniana
+
+다시마과(Laminariaceae)
+
+108
+개다시마
+Kjellmaniella crassifolia
+
+바위딱지과(Ralfsiaceae)
+
+109
+넓바위딱지
+Ralfsia confusa
+
+110
+바위딱지
+Pseudoralfsia verrucosa
+
+갯쇠털과(Sphacelariaceae)
+
+111
+굵은갯쇠털
+Sphacelaria californica
+
+112
+가위갯쇠털
+Sphacelaria rigidula
+
+물잔털과(Stypocaulaceae)
+
+113
+바다깃꼴
+Halopteris filicina
+
+털비말과(Sporochnaceae)
+
+114
+줄의관말
+Carpomitra costata
+
+115
+털비말
+Sporochnus radiciformis
+
+채찍말과(Cutleriaceae)
+
+116
+겹부채채찍말
+Cutleria adspersa
+
+117
+회초리말
+Mutimo cylindricus
+
+김파래과(Bangiaceae)
+
+118
+김파래
+Bangia fuscopurpurea
+
+119
+부푼돌김
+Pyropia crassa
+
+120
+패돌김
+Neopyropia ishigecola
+
+121
+비단잎돌김
+Neopyropia koreana
+
+붉은솜과(Acrochaetiaceae)
+
+122
+제주붉은솜
+Acrochaetium inkyui 
+
+123
+상투붉은솜
+Acrochaetium terminale
+
+갈고리풀과(Bonnemaisoniaceae)
+
+124
+바다고리풀
+Asparagopsis taxiformis
+
+125
+참갈고리풀
+Bonnemaisonia hamifera
+
+126
+나도꿩꼬리
+Delisea pulchra
+
+127
+제주꿩나래
+Ptilonia okadae
+
+외깃풀과(Callithamniaceae)
+
+128
+엇깃풀
+Aglaothamnion callophyllidicola
+
+비단풀과(Ceramiaceae)
+
+129
+제주참깃풀
+Antithamnion aglandum
+
+130
+참깃풀
+Antithamnion nipponicum
+
+131
+북방석묵
+Campylaephora borealis
+
+132
+굵은석묵
+Campylaephora crassa
+
+133
+석묵
+Campylaephora hypnaeoides
+
+134
+인규비단풀
+Ceramium inkyui
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+135
+깃꼴비단풀
+Ceramium japonicum
+
+136
+비단풀
+Ceramium kondoi
+
+137
+잇바디가지
+Herpochondria dentata
+
+138
+각시잇바디가지
+Herpochondria elegans
+
+139
+날개깃말
+Pterothamnion yezoense
+
+보라잎과(Delesseriaceae)
+
+140
+털다지다홍풀
+Dasya villosa
+
+141
+제주분홍풀
+Dasysiphonia chejuensis
+
+142
+엇가지분홍풀
+Dasysiphonia japonica
+
+143
+털엇가지풀
+Heterosiphonia pulchra
+
+144
+갈고리분홍잎
+Acrosorium ciliolatum
+
+145
+잔금분홍잎
+Acrosorium polyneurum
+
+146
+누은분홍잎
+Acrosorium yendoi
+
+147
+민잎맥
+Cryptopleura membranacea
+
+148
+톱니보라잎사촌
+Cumathamnion serrulatum
+
+149
+꼬마붉은혀
+Erythroglossum minimum
+
+150
+날개붉은혀
+Erythroglossum pinnatum
+
+151
+참빗살잎
+Hypoglossum barbatum
+
+152
+쌍빗살잎
+Wynneophycus geminatus
+
+153
+나도참빗살잎
+Hypoglossum simulans
+
+154
+명주비단망사
+Martensia albida 
+
+155
+민비단망사
+Martensia flammifolia
+
+156
+제주비단망사
+Martensia jejuensis
+
+157
+줄엷은잎 
+Myriogramme livida
+
+158
+왜갈래댕기잎
+Neoholmesia japonica
+
+159
+바다참나무잎
+Phycodrys fimbriata
+
+160
+난쟁이갈래줄잎
+Schizoseris bombayensis
+
+161
+참갈래줄잎
+Schizoseris subdichotoma
+
+162
+기는분홍잎사촌
+Sorella repens
+
+163
+털댕기잎
+Yoshidaphycus ciliatus
+
+빨간검둥이과(Rhodomelaceae)
+
+164
+다홍나래풀
+Ardissonula regularis
+
+165
+제주개서실
+Chondria chejuensis
+
+166
+개서실
+Chondria crassicaulis
+
+167
+맑은개서실
+Chondria pellucida
+
+168
+새고들서실
+Chondrophycus kangjaewonii
+
+169
+혹고들서실
+Chondrophycus undulatus
+
+170
+사이서실
+Laurencia intercalaris
+
+171
+큰서실
+Laurencia nipponica
+
+172
+쌍발이서실
+Laurencia okamurae
+
+173
+깃꼴서실
+Laurencia pinnata
+
+174
+몽다리서실
+Laurencia succulenta
+
+175
+반달타래
+Leveillea jungermannioides
+
+176
+새빨간검둥이
+Neorhodomela aculeata
+
+177
+황해새붉은실
+Melanothamnus flavimarinus
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+178
+참빗풀
+Odonthalia corymbifera
+
+179
+민털보라색우무
+Symphyocladia glabra
+
+180
+제주보라색우무
+Symphyocladia jejuinsula
+
+181
+참보라색우무
+Symphyocladia latiuscula
+
+182
+가는보라색우무 
+Symphyocladia linearis
+
+183
+잔디보라색우무
+Symphyocladia lithophila
+
+184
+넓은보라색우무
+Symphyocladia marchantioides
+
+185
+보라색우무털
+Symphyocolax koreanus
+
+186
+애기사촌서실
+Laurencia chinensis
+
+187
+갈고리서실
+Laurencia hamata
+
+188
+겹가지서실
+Laurencia composita
+
+깃복슬털과(Wrangeliaceae)
+
+189
+고운비단잘록이
+Griffithsia venusta
+
+190
+부채비단잘록이
+Griffithsia okiensis
+
+191
+야마다비단잘록이
+Griffithsia tomo-yamadae
+
+192
+새외포자비단풀
+Monosporus inkyui
+
+산호말과(Corallinaceae)
+
+193
+참화살깃산호말
+Alatocladia modesta
+
+194
+넓은게발
+Amphiroa anceps
+
+195
+난장이게발
+Amphiroa misakiensis
+
+196
+참산호말
+Corallina officinalis
+
+197
+작은구슬산호말
+Corallina pilulifera
+
+198
+덩이애기산호말
+Jania pedunculata
+
+199
+발굽애기산호말
+Jania ungulata
+
+200
+혹돌잎
+Lithophyllum okamurae
+
+201
+덧우무혹돌잎
+Lithophyllum tumidulum
+
+202
+큰산호말
+Corallina maxima
+
+203
+넓적산호말
+Corallina berteroi
+
+Hydrolithaceae
+
+204
+장승가시돌잎
+Hydrolithon craspedium
+
+205
+애기가시돌잎
+Hydrolithon farinosum
+
+Porolithaceae
+
+206
+돌구멍쩍
+Porolithon colliculosum
+
+Spongitaceae
+
+207
+주름가시돌잎
+Neogoniolithon setchellii
+
+Lithophyllaceae
+
+208
+왜게발
+Amphiroa echigoensis
+
+209
+납작마디게발
+Amphiroa ephedraea
+
+210
+산호혹돌잎
+Lithophyllum corallinae
+
+우뭇가사리과(Gelidiaceae)
+
+211
+애기우뭇가사리
+Gelidiophycus freshwateri
+
+212
+긴잎새발
+Gelidium longiramulosum
+
+213
+새발
+Gelidium yoshidae
+
+가시덤불과(Caulacanthaceae)
+
+214
+애기가시덤불
+Caulacanthus okamurae
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+가시우무과(Cystocloniaceae)
+
+215
+가시우무
+Hypnea asiatica
+
+216
+갈고리가시우무
+Hypnea japonica
+
+217
+사이다가시우무
+Calliblepharis saidana
+
+미끌풀과(Dumontiaceae)
+
+218
+자주비로드
+Dudresnaya japonica
+
+219
+좀진자주비로드
+Dudresnaya kuroshioensis
+
+220
+미끌풀
+Dumontia simplex
+
+곱단이과(Furcellariaceae)
+
+221
+매끈곱단이
+Halarachnion latissimum
+
+돌가사리과(Gigartinaceae)
+
+222
+애기돌가사리
+Chondracanthus intermedius
+
+223
+가시돌가사리
+Chondracanthus teedei
+
+224
+가시깃꼴진두발
+Chondrus armatus
+
+225
+대롱진두발
+Chondrus canaliculatus
+
+226
+넓은진두발
+Chondrus elatus
+
+227
+왕진두발
+Chondrus giganteus
+
+228
+가락진두발
+Chondrus nipponicus
+
+229
+진두발
+Chondrus ocellatus
+
+230
+깃꼴진두발
+Chondrus pinnulatus
+
+실풀과(Gloiosiphoniaceae)
+
+231
+분홍염주마디풀
+Gloeophycus koreanus
+
+붉은땀띠과(Kallymeniaceae)
+
+232
+좁은붉은잎
+Callophyllis adhaerens
+
+233
+볏붉은잎
+Callophyllis japonica
+
+234
+팔손이붉은잎
+Callophyllis palmata
+
+235
+붉은땀띠
+Kallymenia crassiuscula
+
+꿩꼬리풀과(Phacelocarpaceae)
+
+236
+꿩꼬리풀
+Phacelocarpus japonicus
+
+부챗살과(Phyllophoraceae)
+
+237
+부챗살
+Gymnogongrus flabelliformis
+
+238
+가는줄풀
+Stenogramma coreanum
+
+꼬시래기과(Gracilariaceae)
+
+239
+큰꼬시래기
+Gracilaria gigas
+
+240
+꼬불꼬시래기
+Gracilaria incurvata
+
+241
+잎꼬시래기
+Gracilaria textorii
+
+242
+쐐기꼴꼬시래기
+Gracilaria cuneifolia
+
+243
+각시꼬시래기
+Gracilaria parvispora
+
+도박과(Halymeniaceae)
+
+244
+왕지누아리
+Grateloupia acuminata
+
+245
+붉은뼈까막살
+Grateloupia angusta
+
+246
+붉은까막살
+Grateloupia cornea
+
+247
+뼈지누아리
+Grateloupia divaricata
+
+248
+참개도박
+Grateloupia elliptica
+
+249
+미끌도박
+Grateloupia turuturu
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+250
+개도박
+Pachymeniopsis lanceolata
+
+251
+참까막살
+Polyopes affinis
+
+252
+털지누아리
+Polyopes lancifolius
+
+253
+다지까막살
+Polyopes polyideoides
+
+Hapalidiaceae
+
+254
+낭과쩍
+Synarthrophyton chejuense
+
+가위손말과(Galaxauraceae)
+
+255
+여린두가닥바닷말
+Dichotomaria falcata
+
+256
+제주민가락말
+Tricleocarpa jejuensis
+
+분홍국수말과(Liagoraceae)
+
+257
+참국수나물
+Nemalion vermiculare
+
+흐늘풀과(Scinaiaceae)
+
+258
+부채흐늘풀 
+Scinaia flabellata
+
+259
+외흐늘풀
+Scinaia japonica
+
+260
+탕건흐늘풀
+Scinaia johnstoniae
+
+261
+넓은흐늘풀
+Scinaia latifrons
+
+262
+매끈흐늘풀
+Scinaia okamurae
+
+263
+완장흐늘풀
+Scinaia okiensis
+
+갈래잎과(Schizymeniaceae)
+
+264
+갈래잎
+Schizymenia dubyi
+
+바다표고과(Peyssonneliaceae)
+
+265
+자루바다표고
+Peyssonnelia caulifera
+
+곱슬이과(Plocamiaceae)
+
+266
+가는곱슬이
+Plocamium cartilagineum
+
+사슬풀과(Champiaceae)
+
+267
+두갈래사슬풀
+Champia bifida
+
+268
+넓은사슬풀
+Champia expansa
+
+269
+참사슬풀
+Champia recta
+
+마디잘록이과(Lomentariaceae)
+
+270
+마디잘록이
+Fushitsunagia catenata
+
+271
+애기마디잘록이
+Yendoa hakodatensis
+
+분홍치과(Rhodymeniaceae)
+
+272
+누른끈적이
+Botryocladia wrightii
+
+273
+두갈래분홍치
+Rhodymenia intricata
+
+274
+구멍분홍치
+Sparlingia pertusa
+
+미끌부채과(Sebdeniaceae)
+
+275
+미끌부채
+Sebdenia flabellata
+
+마디털과(Stylonemataceae)
+
+276
+쇠뿔마디털
+Stylonema cornu-cervi
+
+석죽과(Caryophyllaceae)
+
+277
+갯별꽃
+Honckenya peploides 
+
+화본과(Poaceae) 
+
+278
+갯율무
+Crypsis aculeata
+
+자라풀과(Hydrocharitaceae)
+
+279
+해호말
+Halophila nipponica
+
+
+7. 극피동물(84종)
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+불가사리과(Asteriidae)
+
+1
+팔손이불가사리
+Coscinasterias acutispina
+
+2
+왕관불가사리 
+Coronaster volsellatus
+
+3
+가시그물불가사리
+Evasterias echinosoma
+
+4
+검은불가사리
+Lethasterias fusca
+
+5
+극검은불가사리
+Lethasterias nanimensis chelifera
+
+6
+유연불가사리
+Lysastrosoma anthosticta
+
+7
+동양차극불가사리 
+Pedicellaster orientalis
+
+8
+문어다리불가사리
+Plazaster borealis
+
+9
+단단불가사리
+Sclerasterias satsumana
+
+10
+그물불가사리
+Evasterias retifera
+
+가시불가사리과(Astropectinidae)
+
+11
+가시불가사리
+Astropecten polyacanthus
+
+12
+전갈가시불가사리
+Astropecten scoparius
+
+13
+모서리불가사리
+Craspidaster hesperus
+
+14
+마른불가사리 
+Dipsacaster pretiosus
+
+15
+울퉁작은불가사리
+Leptychaster anomalus
+
+16
+작은불가사리
+Leptychaster arcticus
+
+17
+가고시마가시불가사리
+Astropecten kagoshimensis
+
+빗살판불가사리과(Ctenodiscidae) 
+
+18
+빗살판불가사리
+Ctenodiscus crispatus
+
+헛불가사리과(Pseudarchasteridae)
+
+19
+헛불가사리
+Pseudarchaster parelii
+
+애기불가사리과(Echinasteridae) 
+
+20
+미끈애기불가사리
+Henricia leviuscula
+
+21
+작은애기불가사리
+Henricia elachys
+
+22
+애기불가사리
+Henricia nipponica
+
+23
+육질애기불가사리
+Henricia pachyderma
+
+24
+태평양애기불가사리
+Henricia pacifica
+
+25
+네모애기불가사리
+Henricia regularis
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+줄말과(Ruppiaceae)
+
+280
+나사줄말
+Ruppia cirrhosa
+
+281
+줄말
+Ruppia maritima
+
+282
+애기거머리말
+Zostera japonica
+
+사초과(Cyperaceae)
+
+283
+모기골
+Bulbostylis barbata
+
+284
+바다지기
+Fimbristylis cymosa
+
+285
+갯하늘지기
+Fimbristylis sieboldii
+
+수선화과(Amaryllidaceae) 
+
+286
+문주란
+Crinum asiaticum
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+26
+콩팥애기불가사리
+Henricia reniossa
+
+별불가사리과(Asterinidae) 
+
+27
+볼록별불가사리
+Aquilonastra batheri
+
+28
+작은별불가사리
+Aquilonastra minor
+
+뾰족불가사리과(Goniasteridae)
+
+29
+장미모양불가사리
+Rosaster symbolicus
+
+30
+별모양불가사리
+Stellaster childreni
+
+긴팔불가사리과(Ophidiasteridae)
+
+31
+빨강불가사리
+Certonardoa semiregularis
+
+32
+긴팔불가사리
+Ophidiaster cribrarius
+
+오각불가사리과(Oreasteridae)
+
+33
+오각관불가사리
+Pentaceraster regulus
+
+부푼불가사리과(Poraniidae)
+
+34
+부푼불가사리
+Poraniopsis inflata
+
+입방불가사리과(Pterasteridae)
+
+35
+입방불가사리
+Pteraster tesselatus
+
+햇님불가사리과(Solasteridae)
+
+36
+주름불가사리
+Crossaster papposus
+
+37
+넓은햇님불가사리
+Solaster endeca
+
+예쁜갯고사리과(Antedonidae)
+
+38
+가는수염예쁜갯고사리
+Antedon parviflora
+
+39
+가시예쁜갯고사리
+Antedon serrata
+
+40
+긴수염갯고사리
+Heliometra glacialis
+
+돌기발갯고사리과(Colobometridae)
+
+41
+범얼룩갯고사리
+Decametra tigrina
+
+능치성게과(Arbaciidae)
+
+42
+파동측강성게
+Coelopleurus undulatus
+
+만두성게과(Echinometridae)
+
+43
+만두성게
+Echinometra mathaei
+
+둥근성게과(Strongylocentrotidae)
+
+44
+분홍성게
+Pseudocentrotus depressus
+
+45
+연약둥근성게
+Strongylocentrotus pallidus
+
+분지성게과(Temnopleuridae)
+
+46
+고높은분지성게
+Mespilia globulus
+
+47
+바늘분지성게
+Temnopleurus reevesii
+
+48
+분지성게
+Temnopleurus toreumaticus
+
+주발성게과(Toxopneustidae)
+
+49
+주발성게
+Toxopneustes pileolus
+
+50
+흰수염성게
+Tripneustes gratilla
+
+관극성게과(Cidaridae)
+
+51
+모서리관극성게
+Goniocidaris (Petalocidaris) biserialis
+
+52
+가는관극성게
+Phalacrocidaris japonica
+
+53
+톱니관극성게
+Prionocidaris baculosa
+
+구멍연잎성게과(Astriclypeidae)
+
+54
+구멍연잎성게
+Astriclypeus mannii
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+방패연잎성게과(Clypeasteridae)
+
+55
+방패연잎성게
+Clypeaster japonicus
+
+납작연잎성게과(Laganidae)
+
+56
+브로지연잎성게
+Peronella japonica
+
+쟁반연잎성게과(Scutellidae)
+
+57
+연잎성게
+Scaphechinus mirabilis
+
+왕관성게과(Diadematidae)
+
+58
+가시왕관성게
+Diadema setosum
+
+린각성게과(Echinothuriidae)
+
+59
+유연각성게
+Asthenosoma ijimai
+
+큰염통성게과(Brissidae)
+
+60
+큰염통성게
+Brissus agassizii
+
+균열염통성게과(Schizasteridae)
+
+61
+낮은염통성게
+Brisaster latifrons
+
+62
+염통성게
+Schizaster lacunosus
+
+닻해삼과(Synaptidae)
+
+63
+가시닻해삼
+Protankyra bidentata
+
+해삼과(Holothuriidae)
+ 
+
+64
+점해삼
+Holothuria (Lessonothuria) pardalis
+
+65
+눈해삼
+Holothuria (Stauropora) pervicax
+
+비늘해삼과(Psolidae)
+
+66
+갈색비늘해삼
+Psolus phantapus
+
+67
+비늘해삼
+Psolus squamatus
+
+환꼬리해삼과(Sclerodactylidae)
+
+68
+오각광삼
+Eupentacta quinquesemita
+
+69
+거진꼬리해삼
+Havelockia kojinensis
+
+꼬리해삼과(Caudinidae)
+
+70
+꼬리해삼
+Caudina similis
+
+71
+흰해삼
+Paracaudina chilensis
+
+양편거미불가사리과(Amphiuridae)
+
+72
+긴팔거미불가사리
+Amphiura (Fellaria) sinicola
+
+딱지거미불가사리과(Ophionereididae)
+
+73
+둥근딱지거미불가사리
+Ophionereis eurybrachiplax
+
+넓적거미불가사리과(Euryalidae)
+
+74
+고리별거미불가사리
+Astroceras annulatum
+
+삼천발이과(Gorgonocephalidae)
+
+75
+곰거미불가사리
+Astroboa arctos
+
+76
+띠가지거미불가사리
+Astrocladus annulatus
+
+77
+나무거미불가사리
+Astrodendrum sagaminum
+
+78
+긴자루삼천발이
+Gorgonocephalus dolichodactylus
+
+79
+혹삼천발이
+Gorgonocephalus tuberosus
+
+뱀털거미불가사리과(Ophiocomidae)
+
+80
+빨간등거미불가사리
+Ophiomastix mixta
+
+가죽거미불가사리과(Ophiodermatidae)
+
+81
+뱀거미불가사리
+Ophiarachnella gorgonia
+
+
+8. 환형동물(62종)
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+양목갯지렁이과(Amphinomidae)
+
+1
+노란풀양목갯지렁이
+Chloeia flava
+
+갈구리갯지렁이과(Euphrosinidae)
+
+2
+등갈구리갯지렁이
+Euphrosine superba
+
+털갯지렁이과(Eunicidae)
+
+3
+왕털갯지렁이
+Eunice aphroditois
+
+4
+바위털갯지렁이
+Marphysa sanguinea
+
+5
+민머리털갯지렁이
+Marphysa tamurai
+
+송곳갯지렁이과(Lumbrineridae)
+
+6
+긴다리송곳갯지렁이
+Kuwaita heteropoda
+
+7
+짧은다리송곳갯지렁이
+Lumbrineris nipponica
+
+8
+참송곳갯지렁이
+Lumbrineris japonica
+
+9
+긴자락송곳갯지렁이
+Lumbrineris longifolia
+
+집갯지렁이과(Onuphidae)
+
+10
+털보집갯지렁이
+Diopatra sugokai
+
+11
+수염집갯지렁이
+Protodiopatra willemoesii
+
+검은갯지렁이과(Arenicolidae)
+
+12
+큰검은갯지렁이
+Abarenicola pacifica
+
+대나무갯지렁이과(Maldanidae)
+
+13
+한국대나무갯지렁이 
+Clymenella koreana
+
+14
+꼬마대나무갯지렁이 
+Microclymene propecaudata
+
+15
+톱대나무갯지렁이 
+Petaloproctus macrodentatus
+
+고슴도치갯지렁이과(Aphroditidae)
+
+16
+가시고슴도치갯지렁이
+Aphrodita aculeata
+
+17
+예쁜이고슴도치갯지렁이
+Aphrodita aphroditoides
+
+18
+갈고리고슴도치갯지렁이
+Aphrodita japonica
+
+19
+무딘고슴도치갯지렁이
+Aphrodita watasei
+
+20
+매끈고슴도치갯지렁이
+Laetmonice japonica
+
+21
+톱니고슴도치갯지렁이
+Pontogenia mcintoshi
+
+미갑갯지렁이과(Glyceridae)
+
+22
+짧은아가미미갑갯지렁이
+Glycera alba
+
+23
+참미갑갯지렁이
+Glycera decipiens
+
+24
+다발아가미미갑갯지렁이
+Glycera dentribranchia
+
+25
+치로리미갑갯지렁이
+Glycera nicobarica
+
+26
+오노미치미갑갯지렁이
+Glycera onomichiensis
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+82
+빗거미불가사리
+Ophiopsammus anchista
+
+피부거미불가사리과(Ophiomyxidae)
+
+83
+피부거미불가사리
+Ophiomyxa australis
+
+빗살거미불가사리과(Ophiuridae)
+
+84
+아기지붕거미불가사리
+Stegophiura vivipara
+
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+27
+청동미갑갯지렁이
+Glycera subaenea
+
+28
+긴아가미미갑갯지렁이
+Glycera tridactyla
+
+29
+어리미갑갯지렁이
+Glycera unicornis
+
+고리갯지렁이과(Goniadidae)
+
+30
+외돌기헛고리갯지렁이
+Glycinde bonhourei
+
+31
+작은갈매기고리갯지렁이
+Goniada maculata
+
+수염갯지렁이과(Hesionidae)
+
+32
+그물등수염갯지렁이
+Hesione reticulata
+
+백금갯지렁이과(Nephtyidae)
+
+33
+꼬마백금갯지렁이
+Micronephthys sphaerocirrata orientalis
+
+34
+매끈백금갯지렁이
+Nephtys californiensis
+
+35
+털보백금갯지렁이
+Nephtys ciliata
+
+36
+긴털백금갯지렁이
+Nephtys longosetosa
+
+37
+남방백금갯지렁이
+Nephtys polybranchia
+
+38
+제물포백금갯지렁이
+Nephtys chemulpoensis
+
+참갯지렁이과(Nereididae)
+
+39
+목도리참갯지렁이
+Cheilonereis cyclurus
+
+40
+경남넓적발참갯지렁이
+Nectoneanthes oxypoda 
+
+41
+두토막눈썹참갯지렁이
+Perinereis linea
+
+42
+실참갯지렁이
+Tylorrhynchus heterochaetus
+
+43
+띠두른참갯지렁이
+Nereis zonata
+
+44
+한토막눈썹참갯지렁이
+Perinereis euiini
+
+45
+긴수염눈썹참갯지렁이
+Perinereis wilsoni
+
+46
+긴눈썹참갯지렁이
+Perinereis mictodonta
+
+47
+눈썹참갯지렁이
+Perinereis nuntia
+
+부채발갯지렁이과(Phyllodocidae)
+
+48
+심장부채발갯지렁이
+Eumida sanguinea
+
+49
+한국부채발갯지렁이
+Phyllodoce koreana
+
+비늘갯지렁이과(Polynoidae)
+
+50
+가시수염비늘갯지렁이
+Eunoe senta
+
+51
+짧은미륵비늘갯지렁이
+Halosydna brevisetosa
+
+52
+긴예쁜이비늘갯지렁이
+Lepidonotus elongatus
+
+53
+송곳예쁜이비늘갯지렁이
+Hermilepidonotus helotypus
+
+54
+벌거숭이비늘갯지렁이
+Lepidasthenia stylolepis
+
+염주발갯지렁이과(Syllidae)
+
+55
+볼록염주발갯지렁이 
+Opisthosyllis convexa
+
+56
+등촉수염주발갯지렁이 
+Syllis cirrita
+
+꽃갯지렁이과(Sabellidae)
+
+57
+안점꽃갯지렁이
+Pseudopotamilla occelata
+
+58
+남색꽃갯지렁이
+Sabellastarte spectabilis
+
+석회관갯지렁이과(Serpulidae)
+
+59
+가는석회관갯지렁이
+Salmacina dysteri
+
+실타래갯지렁이과(Cirratulidae)
+
+60
+흰민가시실타래갯지렁이
+Aphelochaeta intinctoria
+
+61
+가는민가시실타래갯지렁이
+Aphelochaeta petila
+
+
+9. 태형동물(32종)
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+유령갯지렁이과(Terebellidae)
+
+62
+괴물유령갯지렁이
+Loimia medusa
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+사슴뿔이끼벌레과(Adeonidae)
+
+1
+넓적부리이끼벌레
+Adeonella lichenoides
+
+중앙조두체이끼벌레과(Bitectiporidae)
+
+2
+철빛종이끼벌레
+Metroperiella montferrandii
+
+3
+작은조두체종이끼벌레
+Metroperiella parviavicularia
+
+4
+서해서가이끼벌레
+Suhius rubescentis
+다발이끼벌레과(Bugulidae)
+
+5
+큰다발이끼벌레
+Bugula neritina
+
+6
+떡갈이끼벌레
+Bugula robusta
+
+단단이끼벌레과(Calloporidae)
+
+7
+백령긴자루조두체이끼벌레
+Cauloramphus dicki
+
+8
+갈색가시이끼벌레
+Cauloramphus korensis
+
+9
+백령짧은자루조두체이끼벌레
+Cauloramphus spencerjonesae
+
+사탕이끼벌레과(Candidae)
+
+10
+막대이은이끼벌레
+Amastigia rudis
+
+11
+볼록이은이끼벌레
+Amastigia xishaensis
+
+12
+보리이끼벌레
+Caberea boryi
+
+연쇄방이끼벌레과(Catenicellidae)
+
+13
+미끈이이끼벌레
+Catenicella elegans
+
+마디이끼벌레과(Cellariidae)
+
+14
+마디이끼벌레
+Cellaria punctata
+
+엘렉트라이끼벌레과(Electridae)
+
+15
+육각이끼벌레
+Conopeum hexagonum
+
+방사이끼벌레과(Fenestrulinidae)
+
+16
+방사이끼벌레
+Fenestrulina malusii
+
+17
+변이방사이끼벌레
+Fenestrulina mutabilis
+
+꼬인이끼벌레과(Flustridae)
+
+18
+바구니이끼벌레
+Gregarinidra corbula
+
+망토이끼벌레과(Lacernidae)
+
+19
+육모이끼벌레
+Woosukia subhexagona
+
+혹이끼벌레과(Lepraliellidae)
+
+20
+세모섬유이끼벌레
+Celleporaria triangula
+
+막이끼벌레과(Membraniporidae)
+
+21
+유연두겹막이끼벌레
+Biflustra perfragilis
+
+연구멍이끼벌레과(Phidoloporidae)
+
+22
+빨간망이끼벌레
+Iodictyum axillare
+
+23
+섬세망이끼벌레
+Iodictyum deliciosum
+
+24
+태양연구멍이끼벌레
+Phidolopora pacifica
+
+
+10. 미삭동물(18종)
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+25
+등색망이끼벌레
+Reteporellina denticulata
+
+입이끼벌레과(Smittinidae)
+
+26
+측입이끼벌레
+Parasmittina areolata
+
+27
+반향측입이끼벌레
+Parasmittina contraria
+
+28
+배조두체측입이끼벌레
+Parasmittina pyriformis
+
+안방이끼벌레과(Thalamoporellidae)
+
+29
+미끈안방이끼벌레
+Thalamoporella lioticha
+
+물구멍이끼벌레과(Watersiporidae)
+
+30
+큰입이끼벌레
+Watersipora platypora
+
+Flustrellidridae
+
+31
+무사이끼벌레
+Flustrellidra armata
+
+수염이끼벌레과(Crisiidae)
+
+32
+흰수염이끼벌레
+Crisia eburneodenticulata
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+버섯유령멍게과(Diazonidae)
+
+1
+버섯유령멍게
+Syndiazona grandis
+
+만두멍게과(Polyclinidae)
+
+2
+붉은멍게
+Halocynthia aurantium
+
+3
+이가보야개멍게
+Halocynthia hilgendorfi igaboja
+
+4
+네모가죽멍게
+Pyura squamata
+
+5
+만두멍게
+Aplidium pliciferum
+
+6
+회색만두멍게
+Polyclinum saturnium
+
+7
+곤봉만두멍게
+Synoicum clavatum
+
+만두멍게붙이과(Pseudodistoma) 
+
+8
+딸기만두멍게
+Pseudodistoma antinboja
+
+코렐리과(Corellidae)
+
+9
+거북등안장멍게
+Chelyosoma dofleini
+
+유령멍게과(Cionidae)
+
+멍게과(Pyuridae)
+
+10
+선인장멍게
+Halocynthia cactus
+
+11
+벼개멍게
+Herdmania mirabilis
+
+12
+분홍멍게
+Herdmania momus
+
+13
+매끈이멍게
+Pyura sacciformis
+
+14
+릿테르개멍게
+Halocynthia hilgendorfi ritteri
+
+미더덕과(Styelidae) 
+
+15
+가죽주머니미더덕
+Styela coriacea
+
+16
+긴자루미더덕
+Styela longipedata
+
+17
+외톨이진미더덕
+Eusynstyela monotestis
+
+18
+두줄미더덕
+Styela canopus
+
+
+11. 완족동물(5종)
+
+12. 복모동물(11종)
+
+13. 내항동물(1종)
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+개맛과(Lingulidae)
+
+1
+큰개맛
+Lingula adamsi 
+
+2
+개맛
+Lingula anatina
+
+붉은빛조개사돈과(Laqueidae)
+
+3
+붉은빛조개사돈
+Laqueus rubellus
+
+고려조개사돈과(Terebrataliidae)
+
+4
+세로줄조개사돈 
+Coptothyris grayi
+
+5
+고려조개사돈 
+Terebratalia coreanica
+
+일련 
+번호
+국 명
+학 명 
+비 고
+
+납작털배벌레과(Planodasyidae)
+
+1
+어리납작털배벌레
+Crasiella clauseni
+
+등가시털배벌레과(Thaumastodermatidae)
+
+2
+갑옷털배벌레
+Diplodasys ankeli
+
+3
+화려분지털배벌레
+Tetranchyroderma aethesbregmum
+
+4
+비등분지털배벌레
+Tetranchyroderma anisoankyrum
+
+5
+고려분지털배벌레
+Tetranchyroderma coreense
+
+6
+길쭉분지털배벌레
+Tetranchyroderma gracilium
+
+7
+훈수분지털배벌레
+Tetranchyroderma hoonsooi
+
+8
+이형분지털배벌레
+Tetranchyroderma insolitum
+
+9
+동양예쁜털배벌레
+Ptychostomella orientalis
+
+10
+돌기예쁜털배벌레
+Ptychostomella papillata
+
+발가락털배벌레과(Dactylopodolidae)
+
+11
+쌍낭무딘털배벌레
+Dendrodasys duplus
+
+일련 
+번호
+국 명
+학 명
+비 고
+
+방울벌레과(Barentsiidae)
+
+1
+방울벌레
+Barentsia discreta

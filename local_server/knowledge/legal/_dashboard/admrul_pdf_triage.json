@@ -1,67 +1,12 @@
 {
-  "갯벌및그주변지역의지속가능한관리와복원에관한법률/갯벌생태해설사의 운영 및 양성기관의 지정·운영에 관한 규정": {
-    "new_id": "2100000250892",
+  "수상레저기구의등록및검사에관한법률/수상레저안전업무 처리규칙": {
+    "new_id": "2100000249826",
     "kind": "text",
-    "pages": 6,
-    "avg_chars_per_page": 397.7,
-    "img_page_ratio": 0.17,
-    "file_size": 213186,
-    "attach_name": "개정문(갯벌생태해설사의 운영 및 양성기관의 지정ㆍ운영에 관한 규정 일부개정).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "농수산물의원산지표시등에관한법률/농산물 등의 원산지 검정방법 및 세부기준에 관한 규정": {
-    "new_id": "2100000268170",
-    "kind": "text",
-    "pages": 33,
-    "avg_chars_per_page": 800.3,
-    "img_page_ratio": 0.03,
-    "file_size": 581237,
-    "attach_name": "251118_「농산물 등의 원산지 검정방법 및 세부기준에 관한 규정」(농관원고시) 일부개정 전문 1부.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "공유수면관리및매립에관한법률/공유수면 관리 및 매립에 관한 업무 처리 규정": {
-    "new_id": "2100000240796",
-    "kind": "text",
-    "pages": 37,
-    "avg_chars_per_page": 549.9,
-    "img_page_ratio": 0.0,
-    "file_size": 471211,
-    "attach_name": "15.공유수면 관리 및 매립에 관한 업무 처리 규정.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박평형수(船舶平衡水)관리법/선박평형수 관리 등을 위한 기준": {
-    "new_id": "2100000253670",
-    "kind": "text",
-    "pages": 72,
-    "avg_chars_per_page": 522.3,
-    "img_page_ratio": 0.0,
-    "file_size": 641904,
-    "attach_name": "12. 선박평형수 관리 등을 위한 기준(개정전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "농수산물의원산지표시등에관한법률/(농림축산식품부) 농수산물의 원산지표시 요령": {
-    "new_id": "2100000277788",
-    "kind": "text",
-    "pages": 27,
-    "avg_chars_per_page": 832.0,
-    "img_page_ratio": 0.15,
-    "file_size": 730937,
-    "attach_name": "260413 농수산물의 원산지표시 요령(전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "마리나항만의조성및관리등에관한법률/마리나항만시설물 안전점검 지침": {
-    "new_id": "2100000258572",
-    "kind": "text",
-    "pages": 47,
-    "avg_chars_per_page": 637.1,
-    "img_page_ratio": 0.1,
-    "file_size": 1006741,
-    "attach_name": "개정 전문(안).pdf",
+    "pages": 12,
+    "avg_chars_per_page": 625.7,
+    "img_page_ratio": 0.08,
+    "file_size": 265751,
+    "attach_name": "수상레저안전업무 처리규칙 일부개정 전문.pdf",
     "jomun_len": 0,
     "현행여부": "Y"
   },
@@ -76,6 +21,61 @@
     "jomun_len": 0,
     "현행여부": "Y"
   },
+  "갯벌및그주변지역의지속가능한관리와복원에관한법률/갯벌생태해설사의 운영 및 양성기관의 지정·운영에 관한 규정": {
+    "new_id": "2100000250892",
+    "kind": "text",
+    "pages": 6,
+    "avg_chars_per_page": 397.7,
+    "img_page_ratio": 0.17,
+    "file_size": 213186,
+    "attach_name": "개정문(갯벌생태해설사의 운영 및 양성기관의 지정ㆍ운영에 관한 규정 일부개정).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "농수산물의원산지표시등에관한법률/(농림축산식품부) 농수산물의 원산지표시 요령": {
+    "new_id": "2100000277788",
+    "kind": "text",
+    "pages": 27,
+    "avg_chars_per_page": 832.0,
+    "img_page_ratio": 0.15,
+    "file_size": 730937,
+    "attach_name": "260413 농수산물의 원산지표시 요령(전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박평형수(船舶平衡水)관리법/선박평형수 관리 등을 위한 기준": {
+    "new_id": "2100000253670",
+    "kind": "text",
+    "pages": 72,
+    "avg_chars_per_page": 522.3,
+    "img_page_ratio": 0.0,
+    "file_size": 641904,
+    "attach_name": "12. 선박평형수 관리 등을 위한 기준(개정전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "마리나항만의조성및관리등에관한법률/마리나항만시설물 안전점검 지침": {
+    "new_id": "2100000258572",
+    "kind": "text",
+    "pages": 47,
+    "avg_chars_per_page": 637.1,
+    "img_page_ratio": 0.1,
+    "file_size": 1006741,
+    "attach_name": "개정 전문(안).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "농수산물의원산지표시등에관한법률/농산물 등의 원산지 검정방법 및 세부기준에 관한 규정": {
+    "new_id": "2100000268170",
+    "kind": "text",
+    "pages": 33,
+    "avg_chars_per_page": 800.3,
+    "img_page_ratio": 0.03,
+    "file_size": 581237,
+    "attach_name": "251118_「농산물 등의 원산지 검정방법 및 세부기준에 관한 규정」(농관원고시) 일부개정 전문 1부.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
   "수상에서의수색ㆍ구조등에관한법률/수상구조사 자격시험 및 교육기관 지정 등에 관한 규칙": {
     "new_id": "2100000269892",
     "kind": "no_pdf_attachment",
@@ -85,14 +85,25 @@
     ],
     "현행여부": "Y"
   },
-  "수산업협동조합법/지구별수산업협동조합정관(예)": {
-    "new_id": "2100000271268",
+  "수산업ㆍ어촌발전기본법/수산발전기금운용관리요령": {
+    "new_id": "2100000281568",
     "kind": "text",
-    "pages": 63,
-    "avg_chars_per_page": 506.7,
+    "pages": 31,
+    "avg_chars_per_page": 535.5,
     "img_page_ratio": 0.0,
-    "file_size": 465662,
-    "attach_name": "251231 지구별수산업협동조합정관(예) 개정본문.pdf",
+    "file_size": 370915,
+    "attach_name": "개정전문 (수산발전기금운용관리요령 일부개정훈령안 20260629).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "수산물유통의관리및지원에관한법률/수입수산물 유통이력신고 및 이력조사에 관한 고시": {
+    "new_id": "2100000272236",
+    "kind": "text",
+    "pages": 11,
+    "avg_chars_per_page": 575.4,
+    "img_page_ratio": 0.0,
+    "file_size": 284916,
+    "attach_name": "「수입수산물 유통이력신고 및 이력조사에 관한 고시」 일부개정 전문.pdf",
     "jomun_len": 0,
     "현행여부": "Y"
   },
@@ -107,6 +118,17 @@
     "jomun_len": 0,
     "현행여부": "Y"
   },
+  "수산업협동조합법/지구별수산업협동조합정관(예)": {
+    "new_id": "2100000271268",
+    "kind": "text",
+    "pages": 63,
+    "avg_chars_per_page": 506.7,
+    "img_page_ratio": 0.0,
+    "file_size": 465662,
+    "attach_name": "251231 지구별수산업협동조합정관(예) 개정본문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
   "수산업협동조합법/수산업협동조합법에 따른 조합등과 중앙회 감독규정": {
     "new_id": "2100000185057",
     "kind": "no_pdf_attachment",
@@ -115,6 +137,70 @@
       "수산업협동조합법에 따른 조합등과 중앙회 감독규정 전문.hwp",
       "수산업협동조합법에 따른 조합등과 중앙회 감독규정 전문.hwp",
       "조문별 제개정이유서(수산업협동조합법에 따른 조합등과 중앙회 감독규정).hwp"
+    ],
+    "현행여부": "Y"
+  },
+  "수산업법/어구보증금의 이관방법, 취급수수료, 어구등의 반환장소와 방법, 환급문구 표시 등에 관한 고시": {
+    "new_id": "2100000271258",
+    "kind": "text",
+    "pages": 22,
+    "avg_chars_per_page": 484.6,
+    "img_page_ratio": 0.23,
+    "file_size": 687970,
+    "attach_name": "(개정전문)어구보증금의 이관방법¸ 취급수수료¸ 어구등의 반환장소와 방법¸ 환급문구 표시 등에 관한 고시_제2025-223호.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "수산업협동조합법/수산업협동조합 공제사업 감독기준": {
+    "new_id": "2100000250696",
+    "kind": "text",
+    "pages": 204,
+    "avg_chars_per_page": 594.9,
+    "img_page_ratio": 0.07,
+    "file_size": 1243885,
+    "attach_name": "수산업협동조합공제사업 감독기준 개정 전문(고시).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "유선및도선사업법/선박구명설비기준": {
+    "new_id": "2100000271242",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "선박구명설비기준 전문.zip"
+    ],
+    "현행여부": "Y"
+  },
+  "공유수면관리및매립에관한법률/공유수면 관리 및 매립에 관한 업무 처리 규정": {
+    "new_id": "2100000240796",
+    "kind": "text",
+    "pages": 55,
+    "avg_chars_per_page": 559.2,
+    "img_page_ratio": 0.0,
+    "file_size": 598605,
+    "attach_name": "「해사안전법」 전부개정 및 「해상교통안전법」 제정에 따른 「안전관리책임자 등의 교육에 관한 규정」 등의 정비에 관한 고시 일괄개정안.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "수산종자산업육성법/개량대상 수산종자의 범위 및 개량목표의 설정에 관한 규정": {
+    "new_id": "2100000231330",
+    "kind": "text",
+    "pages": 10,
+    "avg_chars_per_page": 444.0,
+    "img_page_ratio": 0.0,
+    "file_size": 288252,
+    "attach_name": "[개정문] 개량대상 수산종자의 범위 및 개량목표의 설정에 관한 규정 일부개정고시안.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "국제항해선박및항만시설의보안에관한법률/포항항 항만시설 출입절차 및 경비·보안업무에 관한 운영세칙": {
+    "new_id": "2100000172029",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "포항항 항만시설 출입절차에 관한 운영세칙 개정(안).hwp",
+      "조문별제개정이유서_행정규칙.hwp",
+      "개정안 주요취지 및 신구대조표.hwp"
     ],
     "현행여부": "Y"
   },
@@ -129,26 +215,6 @@
     "jomun_len": 1541,
     "현행여부": "Y"
   },
-  "유선및도선사업법/선박구명설비기준": {
-    "new_id": "2100000271242",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "선박구명설비기준 전문.zip"
-    ],
-    "현행여부": "Y"
-  },
-  "국제항해선박및항만시설의보안에관한법률/포항항 항만시설 출입절차 및 경비·보안업무에 관한 운영세칙": {
-    "new_id": "2100000172029",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "포항항 항만시설 출입절차에 관한 운영세칙 개정(안).hwp",
-      "조문별제개정이유서_행정규칙.hwp",
-      "개정안 주요취지 및 신구대조표.hwp"
-    ],
-    "현행여부": "Y"
-  },
   "해양공간계획및관리에관한법률/해양공간관리계획의 수립 및 관리 등에 관한 규정": {
     "new_id": "2100000199196",
     "kind": "no_pdf_attachment",
@@ -159,16 +225,71 @@
     ],
     "현행여부": "Y"
   },
-  "항로표지법/항로표지시설 관리지침": {
-    "new_id": "2100000245850",
+  "해수욕장의이용및관리에관한법률/해수욕장 안전관리에 관한 지침": {
+    "new_id": "2100000233962",
     "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 226.0,
+    "pages": 10,
+    "avg_chars_per_page": 489.2,
     "img_page_ratio": 0.0,
-    "file_size": 83484,
-    "attach_name": "조문별제개정이유서(항로표지시설 관리지침-예규).pdf",
+    "file_size": 233919,
+    "attach_name": "3. 개정안 전문(해수욕장 안전관리에 관한 지침).pdf",
     "jomun_len": 0,
     "현행여부": "Y"
+  },
+  "해양수산생명자원의확보ㆍ관리및이용등에관한법률/국외반출 승인대상 해양수산생명자원 지정 고시": {
+    "new_id": "2100000231716",
+    "kind": "text",
+    "pages": 50,
+    "avg_chars_per_page": 1270.2,
+    "img_page_ratio": 0.0,
+    "file_size": 678066,
+    "attach_name": "(231122) 국외반출 승인대상 해양수산생명자원 지정 고시 개정 전문(해양수산부고시 제2023-166호¸ 2023.11.22.).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "폐기물관리법/폐기물처리시설 검사기관 지정 및 사후관리에 관한 운영 규정": {
+    "new_id": "2100000261430",
+    "kind": "text",
+    "pages": 4,
+    "avg_chars_per_page": 1258.0,
+    "img_page_ratio": 1.0,
+    "file_size": 272570,
+    "attach_name": "폐기물처리시설 검사기관 지정 및 사후관리에 관한 운영 규정.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항만재개발및주변지역발전에관한법률/해양수산부 항만재개발사업 업무처리규정": {
+    "new_id": "2100000257178",
+    "kind": "text",
+    "pages": 11,
+    "avg_chars_per_page": 735.6,
+    "img_page_ratio": 0.0,
+    "file_size": 252555,
+    "attach_name": "해양수산부 항만재개발 업무처리규정 일부 개정(고시 제2025-49호).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항로표지법/항로표지시설 관리지침": {
+    "new_id": "2100000245850",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "조문별제개정이유서(항로표지시설 관리지침-예규).hwp",
+      "조문별제개정이유서(항로표지시설 관리지침-예규).pdf",
+      "(전문 별표) 항로표지시설 관리지침.zip"
+    ],
+    "현행여부": "Y"
+  },
+  "폐기물관리법/폐기물처리시설의 검사방법에 관한 규정": {
+    "new_id": "2100000261434",
+    "kind": "text",
+    "pages": 126,
+    "avg_chars_per_page": 957.2,
+    "img_page_ratio": 0.0,
+    "file_size": 941047,
+    "attach_name": "폐기물처리시설의 검사방법에 관한 규정.pdf",
+    "jomun_len": 0,
+    "현행여부": "N"
   },
   "어선법/어선기관기준": {
     "new_id": "2100000198919",
@@ -178,17 +299,6 @@
       "210308 어선기관기준 개정전문.hwp",
       "200824 조문별 제개정이유서(어선기관기준).hwp"
     ],
-    "현행여부": "Y"
-  },
-  "항만재개발및주변지역발전에관한법률/해양수산부 항만재개발사업 업무처리규정": {
-    "new_id": "2100000257178",
-    "kind": "text",
-    "pages": 7,
-    "avg_chars_per_page": 503.1,
-    "img_page_ratio": 0.0,
-    "file_size": 223337,
-    "attach_name": "개정본문(해양수산부 항만재개발사업 업무처리규정).pdf",
-    "jomun_len": 0,
     "현행여부": "Y"
   },
   "해양경비법/임해 중요시설 지정 고시": {
@@ -211,59 +321,6 @@
     ],
     "현행여부": "Y"
   },
-  "항로표지법/특수신호표지 설치대상 해역지정 고시": {
-    "new_id": "2100000254794",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "(전문 별표 별지) 특수신호표지 설치대상 해역지정 고시.zip",
-      "조문별제개정이유서_특수신호표지 설치대상 해역지정 고시.hwpx"
-    ],
-    "현행여부": "Y"
-  },
-  "해양공간계획및관리에관한법률/해양공간계획평가 전문기관 지정 및 관리에 관한 지침": {
-    "new_id": "2100000214957",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "(개정전문) 해양공간계획평가 전문기관 지정 및 관리에 관한 지침 일부개정고시.hwpx",
-      "(정부입법지원센터)_조문별제개정이유서_행정규칙.hwp",
-      "(개정본문) 해양공간계획평가 전문기관 지정 및 관리에 관한 지침 일부개정고시.hwp"
-    ],
-    "현행여부": "Y"
-  },
-  "폐기물관리법/폐기물처리시설의 검사방법에 관한 규정": {
-    "new_id": "2100000261434",
-    "kind": "text",
-    "pages": 126,
-    "avg_chars_per_page": 957.2,
-    "img_page_ratio": 0.0,
-    "file_size": 941047,
-    "attach_name": "폐기물처리시설의 검사방법에 관한 규정.pdf",
-    "jomun_len": 0,
-    "현행여부": "N"
-  },
-  "항로표지법/위성항법보정시스템 장비 예비품 관리 지침": {
-    "new_id": "2100000217453",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "위성항법보정시스템 장비 예비품 관리 지침  일부개정안 전문.hwpx",
-      "(양식)조문별제개정이유서_행정규칙.hwpx"
-    ],
-    "현행여부": "Y"
-  },
-  "항로표지법/(포항지방해양수산청) 공사구역을 표시하는 항로표지 등의 설치·관리 수역 지정에 관한 고시": {
-    "new_id": "2100000275068",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 912.0,
-    "img_page_ratio": 1.0,
-    "file_size": 161610,
-    "attach_name": "(포항지방해양수산청) 공사구역을 표시하는 항로표지 등의 설치·관리 수역 지정에 관한 고시.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
   "항로표지법/무역항 등의 항만시설 사용 및 사용료에 관한 규정": {
     "new_id": "2100000270622",
     "kind": "text",
@@ -272,876 +329,6 @@
     "img_page_ratio": 0.1,
     "file_size": 794919,
     "attach_name": "개정전문 (무역항 등의 항만시설 사용 및 사용료에 관한 규정 일부개정고시).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수상레저안전법/(태안해양경찰서) 수상레저활동 금지구역 지정 고시": {
-    "new_id": "2100000229704",
-    "kind": "mixed",
-    "pages": 3,
-    "avg_chars_per_page": 289.0,
-    "img_page_ratio": 0.67,
-    "file_size": 146177,
-    "attach_name": "수상레저활동 금지구역 지정 고시 일부개정(본문).pdf",
-    "jomun_len": 191,
-    "현행여부": "Y"
-  },
-  "수상레저안전법/(창원해양경찰서) 수상레저활동 금지구역 지정 고시": {
-    "new_id": "2100000236150",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 271.0,
-    "img_page_ratio": 0.0,
-    "file_size": 61303,
-    "attach_name": "조문별제개정이유서.pdf",
-    "jomun_len": 283,
-    "현행여부": "Y"
-  },
-  "수상레저안전법/(군산해양경찰서) 수상레저활동 금지구역 공고": {
-    "new_id": "2100000282952",
-    "kind": "mixed",
-    "pages": 4,
-    "avg_chars_per_page": 330.2,
-    "img_page_ratio": 0.5,
-    "file_size": 276870,
-    "attach_name": "(군산해양경찰서)수상레저활동 금지구역 지정 고시 제2026-02호.pdf",
-    "jomun_len": 320,
-    "현행여부": "Y"
-  },
-  "항만운송사업법/대산항 항만시설운영세칙": {
-    "new_id": "2100000249044",
-    "kind": "text",
-    "pages": 7,
-    "avg_chars_per_page": 504.0,
-    "img_page_ratio": 0.0,
-    "file_size": 202730,
-    "attach_name": "「대산항 항만시설 운영세칙」 일부개정 고시문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수상레저안전법/수상레저안전업무 처리규칙": {
-    "new_id": "2100000249826",
-    "kind": "text",
-    "pages": 12,
-    "avg_chars_per_page": 625.7,
-    "img_page_ratio": 0.08,
-    "file_size": 265751,
-    "attach_name": "수상레저안전업무 처리규칙 일부개정 전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "항만운송사업법/울산항항만시설운영세칙": {
-    "new_id": "2100000274400",
-    "kind": "text",
-    "pages": 16,
-    "avg_chars_per_page": 578.2,
-    "img_page_ratio": 0.19,
-    "file_size": 394308,
-    "attach_name": "일부개정 전문(울산항 항만시설 운영세칙).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수상레저안전법/(제주해양경찰서) 수상레저활동 금지구역 지정 고시": {
-    "new_id": "2100000230212",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 260.0,
-    "img_page_ratio": 0.0,
-    "file_size": 98853,
-    "attach_name": "조문별제개정이유서_행정규칙.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "어선법/안전복지를 강화한 표준어선형에 관한 기준": {
-    "new_id": "2100000249770",
-    "kind": "text",
-    "pages": 4,
-    "avg_chars_per_page": 483.5,
-    "img_page_ratio": 0.0,
-    "file_size": 167702,
-    "attach_name": "개정전문 (안전복지를 강화한 표준어선형에 관한 기준).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "항만운송사업법/군산·장항항 항만시설운영세칙": {
-    "new_id": "2100000271338",
-    "kind": "text",
-    "pages": 37,
-    "avg_chars_per_page": 537.7,
-    "img_page_ratio": 0.2,
-    "file_size": 1268959,
-    "attach_name": "개정본문_군산ㆍ장항항 항만시설 운영세칙 개정본문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "항만운송사업법/마산항 항만시설 운영세칙": {
-    "new_id": "2100000270362",
-    "kind": "text",
-    "pages": 25,
-    "avg_chars_per_page": 577.0,
-    "img_page_ratio": 0.24,
-    "file_size": 1956954,
-    "attach_name": "마산항 항만시설 운영세칙 개정 전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해양조사와해양정보활용에관한법률/해양정보간행물의 판매가격·대행수수료 및 판매대행 등에 관한 규정": {
-    "new_id": "2100000281814",
-    "kind": "text",
-    "pages": 10,
-    "avg_chars_per_page": 703.6,
-    "img_page_ratio": 0.0,
-    "file_size": 333805,
-    "attach_name": "해양정보간행물의 판매가격대행수수료 및 판매대행 등에 관한 규정 개정전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박의입항및출항등에관한법률/평택·당진항 항만시설운영세칙": {
-    "new_id": "2100000223550",
-    "kind": "text",
-    "pages": 3,
-    "avg_chars_per_page": 1302.0,
-    "img_page_ratio": 0.0,
-    "file_size": 95079,
-    "attach_name": "평택당진항 항만시설운영세칙 개정 신구대조표.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박의입항및출항등에관한법률/마산항 항만시설 운영세칙": {
-    "new_id": "2100000270362",
-    "kind": "text",
-    "pages": 25,
-    "avg_chars_per_page": 577.0,
-    "img_page_ratio": 0.24,
-    "file_size": 1956954,
-    "attach_name": "마산항 항만시설 운영세칙 개정 전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박의입항및출항등에관한법률/여수항·광양항 항만시설운영세칙": {
-    "new_id": "2100000249232",
-    "kind": "text",
-    "pages": 11,
-    "avg_chars_per_page": 736.8,
-    "img_page_ratio": 0.18,
-    "file_size": 629422,
-    "attach_name": "「여수항·광양항 항만시설운영세칙」 일부개정(전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수상레저안전법/(평택해양경찰서) 수상레저활동 금지구역 지정 고시": {
-    "new_id": "2100000230162",
-    "kind": "mixed",
-    "pages": 3,
-    "avg_chars_per_page": 78.7,
-    "img_page_ratio": 1.0,
-    "file_size": 249788,
-    "attach_name": "평택해양경찰서 수상레저활동 금지구역도.pdf",
-    "jomun_len": 283,
-    "현행여부": "Y"
-  },
-  "해양조사와해양정보활용에관한법률/해양조사기술자 교육훈련 등에 관한 지침": {
-    "new_id": "2100000220416",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "「해양조사기술자 교육훈련 등에 관한 지침」 개정전문.hwpx",
-      "해양조사기술자 교육훈련 등에 관한 지침_조문별제개정이유서_230206.hwp"
-    ],
-    "현행여부": "Y"
-  },
-  "선박의입항및출항등에관한법률/인천항·경인항 선박통항규칙": {
-    "new_id": "2100000247730",
-    "kind": "text",
-    "pages": 14,
-    "avg_chars_per_page": 1560.8,
-    "img_page_ratio": 0.14,
-    "file_size": 540591,
-    "attach_name": "인천항·경인항 선박통항규칙 일부개정 전문_인천청 고시 제2024-133호.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박의입항및출항등에관한법률/부산항 항법 등에 관한 규칙": {
-    "new_id": "2100000281634",
-    "kind": "text",
-    "pages": 21,
-    "avg_chars_per_page": 610.2,
-    "img_page_ratio": 0.62,
-    "file_size": 1534234,
-    "attach_name": "개정본문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "농수산물품질관리법/농산물 검사·검정방법 및 절차 등에 관한 규정": {
-    "new_id": "2100000217663",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "「농산물 검사·검정방법 및 절차 등에 관한 규정」 고시 전문.hwpx",
-      "「농산물 검사·검정방법 및 절차 등에 관한 규정」 조문별제개정이유서.hwpx"
-    ],
-    "현행여부": "Y"
-  },
-  "농수산물품질관리법/농산물우수관리기준": {
-    "new_id": "2100000272154",
-    "kind": "text",
-    "pages": 10,
-    "avg_chars_per_page": 1071.5,
-    "img_page_ratio": 0.0,
-    "file_size": 287766,
-    "attach_name": "농산물우수관리인증기준 고시 일부 개정안(전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수상레저안전법/(부안해양경찰서) 수상레저활동 금지구역 공고": {
-    "new_id": "2100000237508",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 227.0,
-    "img_page_ratio": 0.0,
-    "file_size": 64666,
-    "attach_name": "(부안)조문별제개정이유서_행정규칙.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "농수산물품질관리법/수산물의 생산·가공시설 및 해역의 위생관리기준": {
-    "new_id": "2100000241882",
-    "kind": "text",
-    "pages": 28,
-    "avg_chars_per_page": 2018.6,
-    "img_page_ratio": 0.11,
-    "file_size": 594733,
-    "attach_name": "「수산물의 생산·가공시설 및 해역의 위생관리기준」 전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박의입항및출항등에관한법률/인천항·경인항 예선운영세칙": {
-    "new_id": "2100000226130",
-    "kind": "text",
-    "pages": 8,
-    "avg_chars_per_page": 660.2,
-    "img_page_ratio": 0.0,
-    "file_size": 330033,
-    "attach_name": "인천항·경인항 예선운영세칙 일부개정 전문(230705).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "농수산물품질관리법/농산물이력추적관리기준 및 그 밖에 농산물의 수확 후 관리를 하는 시설": {
-    "new_id": "2100000189999",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "[조문별제개정이유서] 이력추적 고시.hwp",
-      "[개정 전문] 농산물이력추적관리기준 및 그 밖에 농산물의 수확 후 관리를 하는 시설.hwp"
-    ],
-    "현행여부": "Y"
-  },
-  "항만법/항만건설작업선의 선박시설 등에 관한 기준": {
-    "new_id": "2100000207217",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "2. 개정전문(항만건설작업선의 선박시설 등에 관한 기준 일부개정 고시안)-채번.hwp",
-      "1. 개정문(항만건설작업선의 선박시설 등에 관한 기준 일부개정 고시).hwp"
-    ],
-    "현행여부": "Y"
-  },
-  "항만법/울산항항만시설운영세칙": {
-    "new_id": "2100000274400",
-    "kind": "text",
-    "pages": 16,
-    "avg_chars_per_page": 578.2,
-    "img_page_ratio": 0.19,
-    "file_size": 394308,
-    "attach_name": "일부개정 전문(울산항 항만시설 운영세칙).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "항만법/평택·당진항 항만시설운영세칙": {
-    "new_id": "2100000223550",
-    "kind": "text",
-    "pages": 3,
-    "avg_chars_per_page": 1302.0,
-    "img_page_ratio": 0.0,
-    "file_size": 95079,
-    "attach_name": "평택당진항 항만시설운영세칙 개정 신구대조표.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "항만법/마산항 항만시설 운영세칙": {
-    "new_id": "2100000270362",
-    "kind": "text",
-    "pages": 25,
-    "avg_chars_per_page": 577.0,
-    "img_page_ratio": 0.24,
-    "file_size": 1956954,
-    "attach_name": "마산항 항만시설 운영세칙 개정 전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "항만법/군산·장항항 항만시설운영세칙": {
-    "new_id": "2100000271338",
-    "kind": "text",
-    "pages": 37,
-    "avg_chars_per_page": 537.7,
-    "img_page_ratio": 0.2,
-    "file_size": 1268959,
-    "attach_name": "개정본문_군산ㆍ장항항 항만시설 운영세칙 개정본문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/강화플라스틱(FRP)선의 구조기준": {
-    "new_id": "2100000253684",
-    "kind": "text",
-    "pages": 41,
-    "avg_chars_per_page": 1238.8,
-    "img_page_ratio": 0.37,
-    "file_size": 1180454,
-    "attach_name": "19. 강화플라스틱선의 구조기준(개정전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/선박구명설비기준": {
-    "new_id": "2100000271242",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "선박구명설비기준 전문.zip"
-    ],
-    "현행여부": "Y"
-  },
-  "선박안전법/목선의 구조기준": {
-    "new_id": "2100000253652",
-    "kind": "text",
-    "pages": 48,
-    "avg_chars_per_page": 788.4,
-    "img_page_ratio": 0.0,
-    "file_size": 635575,
-    "attach_name": "3. 목선의 구조기준(개정 전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/가스연료 추진선박기준": {
-    "new_id": "2100000282806",
-    "kind": "text",
-    "pages": 160,
-    "avg_chars_per_page": 476.2,
-    "img_page_ratio": 0.23,
-    "file_size": 1872022,
-    "attach_name": "저인화점연료 추진선박기준 일부개정고시 전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/선박소방설비기준": {
-    "new_id": "2100000271238",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "선박소방설비기준 전문.zip"
-    ],
-    "현행여부": "Y"
-  },
-  "항만법/무역항 요트 계류시설 사용에 관한 규정": {
-    "new_id": "2100000270116",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "무역항 요트 계류시설 사용에 관한 규정 일부개정 전문.hwpx"
-    ],
-    "현행여부": "Y"
-  },
-  "선박안전법/선박방화구조기준": {
-    "new_id": "2100000271244",
-    "kind": "text",
-    "pages": 95,
-    "avg_chars_per_page": 529.3,
-    "img_page_ratio": 0.03,
-    "file_size": 818193,
-    "attach_name": "선박방화구조기준 일부개정(전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/플레저보트 검사기준": {
-    "new_id": "2100000253658",
-    "kind": "text",
-    "pages": 24,
-    "avg_chars_per_page": 483.3,
-    "img_page_ratio": 0.33,
-    "file_size": 470736,
-    "attach_name": "6. 플레저보트검사기준(개정전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/방사성물질 운송선박의 안전기준": {
-    "new_id": "2100000253676",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 422.0,
-    "img_page_ratio": 0.0,
-    "file_size": 73399,
-    "attach_name": "조문별제개정이유서_강선의 구조기준 외 21개 행정규칙.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "항만법/항만배후단지개발사업 업무처리규정": {
-    "new_id": "2100000194982",
-    "kind": "no_pdf_attachment",
-    "jomun_len": 0,
-    "attach_names": [
-      "항만배후단지개발사업 업무처리규정 전문.hwp",
-      "조문별제개정이유서-행정규칙.hwp",
-      "항만배후단지개발사업 업무처리규정(해양수산부고시)(제2019-214호)(20191230).hwp"
-    ],
-    "현행여부": "Y"
-  },
-  "선박안전법/선박복원성기준": {
-    "new_id": "2100000253656",
-    "kind": "text",
-    "pages": 36,
-    "avg_chars_per_page": 653.0,
-    "img_page_ratio": 0.2,
-    "file_size": 671813,
-    "attach_name": "5. 선박복원성기준(개정전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/완도항 인근해역 항행안전(지정항로)에 관한 고시": {
-    "new_id": "2100000242980",
-    "kind": "text",
-    "pages": 4,
-    "avg_chars_per_page": 564.0,
-    "img_page_ratio": 0.0,
-    "file_size": 124503,
-    "attach_name": "완도항 인근해역 항행안전(지정항로)에 관한 고시.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/삼천포항 부근 해역 추천항로에 관한 고시": {
-    "new_id": "2100000280960",
-    "kind": "text",
-    "pages": 5,
-    "avg_chars_per_page": 583.6,
-    "img_page_ratio": 0.2,
-    "file_size": 482318,
-    "attach_name": "삼천포항 부근 해역 추천항로에 관한 고시 개정.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/국동어항 항행속력 제한에 관한 고시": {
-    "new_id": "2100000238138",
-    "kind": "text",
-    "pages": 4,
-    "avg_chars_per_page": 323.0,
-    "img_page_ratio": 0.25,
-    "file_size": 167880,
-    "attach_name": "「국동항 항행속력 제한에 관한 고시」 일부개정.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(인천지방해양수산청) 장안서 부근해역 항행안전에 관한 고시": {
-    "new_id": "2100000247108",
-    "kind": "text",
-    "pages": 4,
-    "avg_chars_per_page": 346.5,
-    "img_page_ratio": 0.0,
-    "file_size": 141711,
-    "attach_name": "4. (인천지방해양수산청) 장안서 부근해역 항행안전에 관한 고시(전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/완도항 인근해역 항행안전(추천항로)에 관한 고시": {
-    "new_id": "2100000242998",
-    "kind": "text",
-    "pages": 3,
-    "avg_chars_per_page": 622.7,
-    "img_page_ratio": 0.0,
-    "file_size": 111033,
-    "attach_name": "조문별제개정이유서(완도항 인근해역 항행안전(추천항로)에 관한 고시).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(평택해양경찰서) 해양레저활동 허가필요수역 고시 ": {
-    "new_id": "2100000263126",
-    "kind": "text",
-    "pages": 3,
-    "avg_chars_per_page": 811.3,
-    "img_page_ratio": 0.33,
-    "file_size": 163718,
-    "attach_name": "평택해양경찰서고시 제2025-1호(해양레저활동 허가필요수역 고시).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(대산지방해양수산청) 항행안전에 관한 고시": {
-    "new_id": "2100000261814",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 409.0,
-    "img_page_ratio": 0.0,
-    "file_size": 98999,
-    "attach_name": "조문별제개정이유서_항행안전에 관한 고시.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/진해만 및 거제 부근수역의 항행안전에 관한 고시": {
-    "new_id": "2100000276818",
-    "kind": "text",
-    "pages": 11,
-    "avg_chars_per_page": 823.3,
-    "img_page_ratio": 0.0,
-    "file_size": 140158,
-    "attach_name": "진해만 및 거제 부근수역의 항행안전에 관한 고시.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(창원해양경찰서) 해양레저활동 허가필요수역 고시": {
-    "new_id": "2100000282564",
-    "kind": "mixed",
-    "pages": 6,
-    "avg_chars_per_page": 329.5,
-    "img_page_ratio": 0.5,
-    "file_size": 357526,
-    "attach_name": "(창원해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
-    "jomun_len": 760,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(속초해양경찰서) 해양레저활동 허가필요수역 고시": {
-    "new_id": "2100000262704",
-    "kind": "text",
-    "pages": 21,
-    "avg_chars_per_page": 673.6,
-    "img_page_ratio": 0.67,
-    "file_size": 727907,
-    "attach_name": "(속초해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
-    "jomun_len": 385,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(인천해양경찰서) 해양레저활동 허가필요수역": {
-    "new_id": "2100000281608",
-    "kind": "text",
-    "pages": 7,
-    "avg_chars_per_page": 611.6,
-    "img_page_ratio": 0.43,
-    "file_size": 324334,
-    "attach_name": "(인천해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
-    "jomun_len": 356,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(태안해양경찰서) 해양레저활동 허가필요 수역 고시": {
-    "new_id": "2100000281456",
-    "kind": "mixed",
-    "pages": 4,
-    "avg_chars_per_page": 299.8,
-    "img_page_ratio": 0.75,
-    "file_size": 341582,
-    "attach_name": "(태안해양경찰서)해양레저활동 허가필요 수역 고시 일부개정(본문).pdf",
-    "jomun_len": 336,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/해사안전감독관 업무규정": {
-    "new_id": "2100000281796",
-    "kind": "text",
-    "pages": 29,
-    "avg_chars_per_page": 487.1,
-    "img_page_ratio": 0.0,
-    "file_size": 589509,
-    "attach_name": "「해사안전감독관 업무규정」 개정전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(사천해양경찰서) 해양레저활동 허가필요수역 고시": {
-    "new_id": "2100000260994",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 217.0,
-    "img_page_ratio": 0.0,
-    "file_size": 66080,
-    "attach_name": "조문별제개정이유서_행정규칙.pdf",
-    "jomun_len": 372,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(군산해양경찰서) 해양레저활동 허가필요수역 고시": {
-    "new_id": "2100000282962",
-    "kind": "text",
-    "pages": 4,
-    "avg_chars_per_page": 686.8,
-    "img_page_ratio": 0.25,
-    "file_size": 119239,
-    "attach_name": "(군산해양경찰서) 해양레저활동 허가필요수역 고시 제2026-01호.pdf",
-    "jomun_len": 373,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(부산해양경찰서) 해양레저활동 허가대상수역 고시": {
-    "new_id": "2100000247552",
-    "kind": "text",
-    "pages": 2,
-    "avg_chars_per_page": 1006.5,
-    "img_page_ratio": 0.5,
-    "file_size": 244792,
-    "attach_name": "(부산해양경찰서) 해양레저활동 허가필요수역 고시(본문).pdf",
-    "jomun_len": 264,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(보령해양경찰서) 해양레저활동 허가필요수역 고시": {
-    "new_id": "2100000281654",
-    "kind": "text",
-    "pages": 6,
-    "avg_chars_per_page": 465.2,
-    "img_page_ratio": 0.67,
-    "file_size": 321344,
-    "attach_name": "(보령해양경찰서) 해양레저활동 허가필요수역 고시 일부 개정(본문).pdf",
-    "jomun_len": 337,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(여수해양경찰서) 해양레저활동 허가필요수역 고시": {
-    "new_id": "2100000282204",
-    "kind": "text",
-    "pages": 6,
-    "avg_chars_per_page": 842.7,
-    "img_page_ratio": 0.5,
-    "file_size": 823615,
-    "attach_name": "(여수해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
-    "jomun_len": 474,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(서귀포해양경찰서) 해양레저활동 허가필요수역 고시": {
-    "new_id": "2100000281562",
-    "kind": "mixed",
-    "pages": 4,
-    "avg_chars_per_page": 398.0,
-    "img_page_ratio": 0.5,
-    "file_size": 215025,
-    "attach_name": "(서귀포해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
-    "jomun_len": 332,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(동해해양경찰서) 해양레저활동 허가필요수역 고시": {
-    "new_id": "2100000261842",
-    "kind": "mixed",
-    "pages": 17,
-    "avg_chars_per_page": 366.5,
-    "img_page_ratio": 0.59,
-    "file_size": 478167,
-    "attach_name": "조문개정이유서.pdf",
-    "jomun_len": 387,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(목포해양경찰서) 해양레저활동 허가필요수역 고시": {
-    "new_id": "2100000279162",
-    "kind": "text",
-    "pages": 4,
-    "avg_chars_per_page": 615.8,
-    "img_page_ratio": 0.25,
-    "file_size": 594412,
-    "attach_name": "(목포해양경찰서) 해양레저활동 허가필요수역 고시..pdf",
-    "jomun_len": 335,
-    "현행여부": "Y"
-  },
-  "물환경보전법/(원주지방환경청) 공공폐수처리시설 기본계획 통합고시": {
-    "new_id": "2100000282100",
-    "kind": "text",
-    "pages": 95,
-    "avg_chars_per_page": 712.2,
-    "img_page_ratio": 0.0,
-    "file_size": 864832,
-    "attach_name": "제2026-144호 공공폐수처리시설 기본계획 통합고시(음성 천본산업단지 공공폐수처리시설 기본계획)_전문.pdf",
-    "jomun_len": 44545,
-    "현행여부": "Y"
-  },
-  "물환경보전법/(한강유역환경청) 공공폐수처리시설 기본계획 통합고시": {
-    "new_id": "2100000272784",
-    "kind": "text",
-    "pages": 108,
-    "avg_chars_per_page": 688.6,
-    "img_page_ratio": 0.13,
-    "file_size": 740081,
-    "attach_name": "[한강유역환경청고시 제2026-15호] 아산국가산업단지(우정지구 유보지 및 확장 용지조성사업) 공공폐수처리시설 기본계획 통합 고시_전문(최종).pdf",
-    "jomun_len": 50156,
-    "현행여부": "Y"
-  },
-  "물환경보전법/(대구지방환경청) 공공폐수처리시설 기본계획 통합 고시": {
-    "new_id": "2100000260250",
-    "kind": "text",
-    "pages": 72,
-    "avg_chars_per_page": 581.1,
-    "img_page_ratio": 0.03,
-    "file_size": 530962,
-    "attach_name": "(대구청고시 제2025-9호)_ 공공폐수처리시설 기본계획 통합고시 일부개정_예천 제3농공단지.pdf",
-    "jomun_len": 33177,
-    "현행여부": "Y"
-  },
-  "물환경보전법/(대구지방환경청) 수질오염물질의 배출허용기준 중 별도배출허용기준 개정 통합 고시": {
-    "new_id": "2100000257620",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 243.0,
-    "img_page_ratio": 0.0,
-    "file_size": 77348,
-    "attach_name": "조문별제개정이유서_행정규칙(2025년 개정)_구미하이테크밸리 국가산단.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "물환경보전법/수질원격감시체계 관제센터 운영 등에 관한 규정": {
-    "new_id": "2100000265818",
-    "kind": "text",
-    "pages": 18,
-    "avg_chars_per_page": 806.3,
-    "img_page_ratio": 0.17,
-    "file_size": 398141,
-    "attach_name": "수질원격감시체계 관제센터 운영 등에 관한 규정_환경부고시 제2025-165호(2025.10.1.).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "물환경보전법/(낙동강유역환경청) 공공폐수처리시설 기본계획 통합 고시": {
-    "new_id": "2100000264530",
-    "kind": "text",
-    "pages": 55,
-    "avg_chars_per_page": 659.9,
-    "img_page_ratio": 0.07,
-    "file_size": 529732,
-    "attach_name": "공공폐수처리시설 기본계획 통합 고시 일부개정.pdf",
-    "jomun_len": 26596,
-    "현행여부": "Y"
-  },
-  "물환경보전법/공공폐수처리시설 운영·관리 평가 및 포상금 지급 기준": {
-    "new_id": "2100000266910",
-    "kind": "text",
-    "pages": 6,
-    "avg_chars_per_page": 542.2,
-    "img_page_ratio": 0.0,
-    "file_size": 259090,
-    "attach_name": "공공폐수처리시설 운영관리 평가 및 포상금 지급 기준 고시 전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/(울진해양경찰서) 해양레저활동 허가필요수역 고시": {
-    "new_id": "2100000281310",
-    "kind": "mixed",
-    "pages": 6,
-    "avg_chars_per_page": 259.0,
-    "img_page_ratio": 0.83,
-    "file_size": 577463,
-    "attach_name": "(울진해양경찰서)해양레저활동 허가필요수역 고시.pdf",
-    "jomun_len": 327,
-    "현행여부": "Y"
-  },
-  "물환경보전법/수탁처리폐수 전자인계·인수관리시스템 구축·운영 및 이용 등에 관한 고시": {
-    "new_id": "2100000267142",
-    "kind": "text",
-    "pages": 10,
-    "avg_chars_per_page": 540.3,
-    "img_page_ratio": 0.0,
-    "file_size": 221307,
-    "attach_name": "[개정전문] 수탁처리폐수 전자인계·인수관리시스템 구축·운영 및 이용 등에 관한 고시(고시).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "물환경보전법/(영산강유역환경청) 공공폐수처리시설 기본계획 통합고시": {
-    "new_id": "2100000269498",
-    "kind": "text",
-    "pages": 46,
-    "avg_chars_per_page": 587.1,
-    "img_page_ratio": 0.53,
-    "file_size": 773558,
-    "attach_name": "1. 개정고시 전문_폐수기본계획 통합고시 일부 개정_고흥 무인항공영농기술.pdf",
-    "jomun_len": 26552,
-    "현행여부": "Y"
-  },
-  "물환경보전법/측정기기 운영·관리 위반행위 신고포상금 지급 기준": {
-    "new_id": "2100000265868",
-    "kind": "text",
-    "pages": 13,
-    "avg_chars_per_page": 402.3,
-    "img_page_ratio": 0.0,
-    "file_size": 364575,
-    "attach_name": "측정기기 운영ㆍ관리 위반행위 신고포상금 지급 기준_환경부고시 제2025-165호(2025.10.1.).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수산종자산업육성법/개량대상 수산종자의 범위 및 개량목표의 설정에 관한 규정": {
-    "new_id": "2100000231330",
-    "kind": "text",
-    "pages": 10,
-    "avg_chars_per_page": 444.0,
-    "img_page_ratio": 0.0,
-    "file_size": 288252,
-    "attach_name": "[개정문] 개량대상 수산종자의 범위 및 개량목표의 설정에 관한 규정 일부개정고시안.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수산물유통의관리및지원에관한법률/수입수산물 유통이력신고 및 이력조사에 관한 고시": {
-    "new_id": "2100000272236",
-    "kind": "text",
-    "pages": 11,
-    "avg_chars_per_page": 575.4,
-    "img_page_ratio": 0.0,
-    "file_size": 284916,
-    "attach_name": "「수입수산물 유통이력신고 및 이력조사에 관한 고시」 일부개정 전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수산업법/어구보증금의 이관방법, 취급수수료, 어구등의 반환장소와 방법, 환급문구 표시 등에 관한 고시": {
-    "new_id": "2100000271258",
-    "kind": "text",
-    "pages": 22,
-    "avg_chars_per_page": 484.6,
-    "img_page_ratio": 0.23,
-    "file_size": 687970,
-    "attach_name": "(개정전문)어구보증금의 이관방법¸ 취급수수료¸ 어구등의 반환장소와 방법¸ 환급문구 표시 등에 관한 고시_제2025-223호.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수상레저기구의등록및검사에관한법률/수상레저안전업무 처리규칙": {
-    "new_id": "2100000249826",
-    "kind": "text",
-    "pages": 12,
-    "avg_chars_per_page": 625.7,
-    "img_page_ratio": 0.08,
-    "file_size": 265751,
-    "attach_name": "수상레저안전업무 처리규칙 일부개정 전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수산업ㆍ어촌발전기본법/수산발전기금운용관리요령": {
-    "new_id": "2100000281568",
-    "kind": "text",
-    "pages": 31,
-    "avg_chars_per_page": 535.5,
-    "img_page_ratio": 0.0,
-    "file_size": 370915,
-    "attach_name": "개정전문 (수산발전기금운용관리요령 일부개정훈령안 20260629).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수산업협동조합법/수산업협동조합 공제사업 감독기준": {
-    "new_id": "2100000250696",
-    "kind": "text",
-    "pages": 204,
-    "avg_chars_per_page": 594.9,
-    "img_page_ratio": 0.07,
-    "file_size": 1243885,
-    "attach_name": "수산업협동조합공제사업 감독기준 개정 전문(고시).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해수욕장의이용및관리에관한법률/해수욕장 안전관리에 관한 지침": {
-    "new_id": "2100000233962",
-    "kind": "text",
-    "pages": 10,
-    "avg_chars_per_page": 489.2,
-    "img_page_ratio": 0.0,
-    "file_size": 233919,
-    "attach_name": "3. 개정안 전문(해수욕장 안전관리에 관한 지침).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "폐기물관리법/폐기물처리시설 검사기관 지정 및 사후관리에 관한 운영 규정": {
-    "new_id": "2100000261430",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 226.0,
-    "img_page_ratio": 0.0,
-    "file_size": 73413,
-    "attach_name": "개정이유서.pdf",
     "jomun_len": 0,
     "현행여부": "Y"
   },
@@ -1167,6 +354,38 @@
     "jomun_len": 72,
     "현행여부": "Y"
   },
+  "해양공간계획및관리에관한법률/해양공간적합성협의에 관한 업무처리규정": {
+    "new_id": "2100000240832",
+    "kind": "text",
+    "pages": 55,
+    "avg_chars_per_page": 559.2,
+    "img_page_ratio": 0.0,
+    "file_size": 598605,
+    "attach_name": "「해사안전법」 전부개정 및 「해상교통안전법」 제정에 따른 「안전관리책임자 등의 교육에 관한 규정」 등의 정비에 관한 고시 일괄개정안.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항로표지법/특수신호표지 설치대상 해역지정 고시": {
+    "new_id": "2100000254794",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "(전문 별표 별지) 특수신호표지 설치대상 해역지정 고시.zip",
+      "조문별제개정이유서_특수신호표지 설치대상 해역지정 고시.hwpx"
+    ],
+    "현행여부": "Y"
+  },
+  "해양공간계획및관리에관한법률/해양공간계획평가 전문기관 지정 및 관리에 관한 지침": {
+    "new_id": "2100000214957",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "(개정전문) 해양공간계획평가 전문기관 지정 및 관리에 관한 지침 일부개정고시.hwpx",
+      "(정부입법지원센터)_조문별제개정이유서_행정규칙.hwp",
+      "(개정본문) 해양공간계획평가 전문기관 지정 및 관리에 관한 지침 일부개정고시.hwp"
+    ],
+    "현행여부": "Y"
+  },
   "해양수산생명자원의확보ㆍ관리및이용등에관한법률/해양수산생명자원의 등급 부여 절차 및 방법 등에 관한 고시": {
     "new_id": "2100000280534",
     "kind": "text",
@@ -1178,48 +397,36 @@
     "jomun_len": 0,
     "현행여부": "Y"
   },
-  "해양수산생명자원의확보ㆍ관리및이용등에관한법률/국외반출 승인대상 해양수산생명자원 지정 고시": {
-    "new_id": "2100000231716",
-    "kind": "text",
-    "pages": 50,
-    "avg_chars_per_page": 1270.2,
-    "img_page_ratio": 0.0,
-    "file_size": 678066,
-    "attach_name": "(231122) 국외반출 승인대상 해양수산생명자원 지정 고시 개정 전문(해양수산부고시 제2023-166호¸ 2023.11.22.).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수상레저안전법/(속초해양경찰서) 수상레저활동 금지구역 고시": {
-    "new_id": "2100000262888",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 295.0,
-    "img_page_ratio": 0.0,
-    "file_size": 91877,
-    "attach_name": "조문별 제개정 이유서.pdf",
-    "jomun_len": 293,
-    "현행여부": "Y"
-  },
-  "항로표지법/항로표지 장비·용품 검사수수료": {
-    "new_id": "2100000254792",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 142.0,
-    "img_page_ratio": 0.0,
-    "file_size": 64777,
-    "attach_name": "조문별제개정이유서_항로표지 장비ㆍ용품 검사수수료.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수상레저안전법/(목포해양경찰서) 수상레저활동 금지구역 공고": {
-    "new_id": "2100000262082",
+  "수상레저안전법/(태안해양경찰서) 수상레저활동 금지구역 지정 고시": {
+    "new_id": "2100000229704",
     "kind": "mixed",
-    "pages": 9,
-    "avg_chars_per_page": 259.6,
+    "pages": 3,
+    "avg_chars_per_page": 289.0,
     "img_page_ratio": 0.67,
-    "file_size": 719972,
-    "attach_name": "(목포해양경찰서)수상레저활동 금지구역 지정 고시.pdf",
-    "jomun_len": 330,
+    "file_size": 146177,
+    "attach_name": "수상레저활동 금지구역 지정 고시 일부개정(본문).pdf",
+    "jomun_len": 191,
+    "현행여부": "Y"
+  },
+  "항로표지법/위성항법보정시스템 장비 예비품 관리 지침": {
+    "new_id": "2100000217453",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "위성항법보정시스템 장비 예비품 관리 지침  일부개정안 전문.hwpx",
+      "(양식)조문별제개정이유서_행정규칙.hwpx"
+    ],
+    "현행여부": "Y"
+  },
+  "항로표지법/(포항지방해양수산청) 공사구역을 표시하는 항로표지 등의 설치·관리 수역 지정에 관한 고시": {
+    "new_id": "2100000275068",
+    "kind": "text",
+    "pages": 1,
+    "avg_chars_per_page": 912.0,
+    "img_page_ratio": 1.0,
+    "file_size": 161610,
+    "attach_name": "(포항지방해양수산청) 공사구역을 표시하는 항로표지 등의 설치·관리 수역 지정에 관한 고시.pdf",
+    "jomun_len": 0,
     "현행여부": "Y"
   },
   "수상레저안전법/(동해해양경찰서) 수상레저활동 금지구역 지정": {
@@ -1233,15 +440,59 @@
     "jomun_len": 444,
     "현행여부": "Y"
   },
-  "해양공간계획및관리에관한법률/해양공간적합성협의에 관한 업무처리규정": {
-    "new_id": "2100000240832",
+  "수상레저안전법/(속초해양경찰서) 수상레저활동 금지구역 고시": {
+    "new_id": "2100000262888",
     "kind": "text",
-    "pages": 32,
-    "avg_chars_per_page": 630.4,
-    "img_page_ratio": 0.0,
-    "file_size": 567981,
-    "attach_name": "14.해양공간적합성협의에 관한 업무처리규정.pdf",
+    "pages": 2,
+    "avg_chars_per_page": 684.0,
+    "img_page_ratio": 0.5,
+    "file_size": 495714,
+    "attach_name": "(속초해양경찰서) 수상레저활동 금지구역 지정 고시.pdf",
+    "jomun_len": 293,
+    "현행여부": "Y"
+  },
+  "수상레저안전법/(군산해양경찰서) 수상레저활동 금지구역 공고": {
+    "new_id": "2100000282952",
+    "kind": "mixed",
+    "pages": 4,
+    "avg_chars_per_page": 330.2,
+    "img_page_ratio": 0.5,
+    "file_size": 276870,
+    "attach_name": "(군산해양경찰서)수상레저활동 금지구역 지정 고시 제2026-02호.pdf",
+    "jomun_len": 320,
+    "현행여부": "Y"
+  },
+  "수상레저안전법/(목포해양경찰서) 수상레저활동 금지구역 공고": {
+    "new_id": "2100000262082",
+    "kind": "mixed",
+    "pages": 9,
+    "avg_chars_per_page": 259.6,
+    "img_page_ratio": 0.67,
+    "file_size": 719972,
+    "attach_name": "(목포해양경찰서)수상레저활동 금지구역 지정 고시.pdf",
+    "jomun_len": 330,
+    "현행여부": "Y"
+  },
+  "수상레저안전법/수상레저안전업무 처리규칙": {
+    "new_id": "2100000249826",
+    "kind": "text",
+    "pages": 12,
+    "avg_chars_per_page": 625.7,
+    "img_page_ratio": 0.08,
+    "file_size": 265751,
+    "attach_name": "수상레저안전업무 처리규칙 일부개정 전문.pdf",
     "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항로표지법/항로표지 장비·용품 검사수수료": {
+    "new_id": "2100000254792",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "(전문 별표 별지) 항로표지 장비ㆍ용품 검사수수료.zip",
+      "조문별제개정이유서_항로표지 장비ㆍ용품 검사수수료.hwpx",
+      "조문별제개정이유서_항로표지 장비ㆍ용품 검사수수료.pdf"
+    ],
     "현행여부": "Y"
   },
   "수상레저안전법/수상레저사업장 종사 인명구조요원·래프팅가이드 자격관리 규칙": {
@@ -1277,80 +528,36 @@
     "jomun_len": 0,
     "현행여부": "Y"
   },
-  "항만운송사업법/평택·당진항 항만시설운영세칙": {
-    "new_id": "2100000223550",
+  "항만운송사업법/대산항 항만시설운영세칙": {
+    "new_id": "2100000249044",
     "kind": "text",
-    "pages": 3,
-    "avg_chars_per_page": 1302.0,
+    "pages": 7,
+    "avg_chars_per_page": 504.0,
     "img_page_ratio": 0.0,
-    "file_size": 95079,
-    "attach_name": "평택당진항 항만시설운영세칙 개정 신구대조표.pdf",
+    "file_size": 202730,
+    "attach_name": "「대산항 항만시설 운영세칙」 일부개정 고시문.pdf",
     "jomun_len": 0,
     "현행여부": "Y"
   },
-  "항만운송사업법/여수항·광양항 항만시설운영세칙": {
-    "new_id": "2100000249232",
-    "kind": "text",
-    "pages": 11,
-    "avg_chars_per_page": 736.8,
-    "img_page_ratio": 0.18,
-    "file_size": 629422,
-    "attach_name": "「여수항·광양항 항만시설운영세칙」 일부개정(전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박의입항및출항등에관한법률/울산항항만시설운영세칙": {
-    "new_id": "2100000274400",
-    "kind": "text",
-    "pages": 16,
-    "avg_chars_per_page": 578.2,
-    "img_page_ratio": 0.19,
-    "file_size": 394308,
-    "attach_name": "일부개정 전문(울산항 항만시설 운영세칙).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수상레저안전법/(여수해양경찰서) 수상레저활동 금지구역 지정 고시": {
-    "new_id": "2100000234070",
-    "kind": "text",
-    "pages": 3,
-    "avg_chars_per_page": 398.0,
-    "img_page_ratio": 0.0,
-    "file_size": 109375,
-    "attach_name": "(여수해양경찰서) 수상레저활동 금지구역 지정 고시 개정본문.pdf",
-    "jomun_len": 305,
-    "현행여부": "Y"
-  },
-  "해양조사와해양정보활용에관한법률/해양정보간행물의 제작 기준 등에 관한 규정": {
-    "new_id": "2100000265700",
-    "kind": "text",
-    "pages": 27,
-    "avg_chars_per_page": 434.4,
-    "img_page_ratio": 0.04,
-    "file_size": 634171,
-    "attach_name": "해양정보간행물의 제작 기준 등에 관한 규정 전부개정고시(국립해양조사원고시 제2025-06호) 전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "수상레저안전법/(보령해양경찰서) 수상레저활동 금지구역 지정 고시": {
-    "new_id": "2100000244118",
+  "수상레저안전법/(창원해양경찰서) 수상레저활동 금지구역 지정 고시": {
+    "new_id": "2100000236150",
     "kind": "mixed",
-    "pages": 5,
-    "avg_chars_per_page": 233.4,
-    "img_page_ratio": 0.6,
-    "file_size": 277886,
-    "attach_name": "(보령해양경찰서)수상레저활동 금지구역 지정 고시.pdf",
-    "jomun_len": 332,
+    "pages": 3,
+    "avg_chars_per_page": 223.7,
+    "img_page_ratio": 0.67,
+    "file_size": 442268,
+    "attach_name": "(창원해양경찰서) 수상레저활동 금지구역 지정 고시.pdf",
+    "jomun_len": 283,
     "현행여부": "Y"
   },
-  "항로표지법/항로표지 장비 및 용품의 표준화 규정": {
-    "new_id": "2100000254788",
+  "항만운송사업법/군산·장항항 항만시설운영세칙": {
+    "new_id": "2100000271338",
     "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 251.0,
-    "img_page_ratio": 0.0,
-    "file_size": 79935,
-    "attach_name": "조문별제개정이유서_항로표지 장비·용품 등의 기능 및 규격 기준.pdf",
+    "pages": 37,
+    "avg_chars_per_page": 537.7,
+    "img_page_ratio": 0.2,
+    "file_size": 1268959,
+    "attach_name": "개정본문_군산ㆍ장항항 항만시설 운영세칙 개정본문.pdf",
     "jomun_len": 0,
     "현행여부": "Y"
   },
@@ -1365,6 +572,149 @@
     "jomun_len": 0,
     "현행여부": "Y"
   },
+  "항만운송사업법/울산항항만시설운영세칙": {
+    "new_id": "2100000274400",
+    "kind": "text",
+    "pages": 16,
+    "avg_chars_per_page": 578.2,
+    "img_page_ratio": 0.19,
+    "file_size": 394308,
+    "attach_name": "일부개정 전문(울산항 항만시설 운영세칙).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항만운송사업법/평택·당진항 항만시설운영세칙": {
+    "new_id": "2100000223550",
+    "kind": "text",
+    "pages": 13,
+    "avg_chars_per_page": 1227.7,
+    "img_page_ratio": 0.08,
+    "file_size": 444571,
+    "attach_name": "일부개정전문(평택당진항 항만시설운영세칙).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항만운송사업법/마산항 항만시설 운영세칙": {
+    "new_id": "2100000270362",
+    "kind": "text",
+    "pages": 25,
+    "avg_chars_per_page": 577.0,
+    "img_page_ratio": 0.24,
+    "file_size": 1956954,
+    "attach_name": "마산항 항만시설 운영세칙 개정 전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "수상레저안전법/(제주해양경찰서) 수상레저활동 금지구역 지정 고시": {
+    "new_id": "2100000230212",
+    "kind": "text",
+    "pages": 1,
+    "avg_chars_per_page": 836.0,
+    "img_page_ratio": 1.0,
+    "file_size": 1424275,
+    "attach_name": "제주해양경찰서고시제2023-1호((제주해양경찰서)  수상레저활동 금지구역 지정 고시 ).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "수상레저안전법/(보령해양경찰서) 수상레저활동 금지구역 지정 고시": {
+    "new_id": "2100000244118",
+    "kind": "mixed",
+    "pages": 5,
+    "avg_chars_per_page": 233.4,
+    "img_page_ratio": 0.6,
+    "file_size": 277886,
+    "attach_name": "(보령해양경찰서)수상레저활동 금지구역 지정 고시.pdf",
+    "jomun_len": 332,
+    "현행여부": "Y"
+  },
+  "해양조사와해양정보활용에관한법률/해양정보간행물의 판매가격·대행수수료 및 판매대행 등에 관한 규정": {
+    "new_id": "2100000281814",
+    "kind": "text",
+    "pages": 10,
+    "avg_chars_per_page": 703.6,
+    "img_page_ratio": 0.0,
+    "file_size": 333805,
+    "attach_name": "해양정보간행물의 판매가격대행수수료 및 판매대행 등에 관한 규정 개정전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해양조사와해양정보활용에관한법률/해양정보간행물의 제작 기준 등에 관한 규정": {
+    "new_id": "2100000265700",
+    "kind": "text",
+    "pages": 27,
+    "avg_chars_per_page": 434.4,
+    "img_page_ratio": 0.04,
+    "file_size": 634171,
+    "attach_name": "해양정보간행물의 제작 기준 등에 관한 규정 전부개정고시(국립해양조사원고시 제2025-06호) 전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박의입항및출항등에관한법률/평택·당진항 항만시설운영세칙": {
+    "new_id": "2100000223550",
+    "kind": "text",
+    "pages": 13,
+    "avg_chars_per_page": 1227.7,
+    "img_page_ratio": 0.08,
+    "file_size": 444571,
+    "attach_name": "일부개정전문(평택당진항 항만시설운영세칙).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항로표지법/항로표지 장비 및 용품의 표준화 규정": {
+    "new_id": "2100000254788",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "(전문 별표 별지) 항로표지 장비·용품 등의 기능 및 규격 기준.zip",
+      "조문별제개정이유서_항로표지 장비·용품 등의 기능 및 규격 기준.hwpx",
+      "조문별제개정이유서_항로표지 장비·용품 등의 기능 및 규격 기준.pdf"
+    ],
+    "현행여부": "Y"
+  },
+  "선박의입항및출항등에관한법률/울산항항만시설운영세칙": {
+    "new_id": "2100000274400",
+    "kind": "text",
+    "pages": 16,
+    "avg_chars_per_page": 578.2,
+    "img_page_ratio": 0.19,
+    "file_size": 394308,
+    "attach_name": "일부개정 전문(울산항 항만시설 운영세칙).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박의입항및출항등에관한법률/인천항·경인항 선박통항규칙": {
+    "new_id": "2100000247730",
+    "kind": "text",
+    "pages": 14,
+    "avg_chars_per_page": 1560.8,
+    "img_page_ratio": 0.14,
+    "file_size": 540591,
+    "attach_name": "인천항·경인항 선박통항규칙 일부개정 전문_인천청 고시 제2024-133호.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항만운송사업법/여수항·광양항 항만시설운영세칙": {
+    "new_id": "2100000249232",
+    "kind": "text",
+    "pages": 11,
+    "avg_chars_per_page": 736.8,
+    "img_page_ratio": 0.18,
+    "file_size": 629422,
+    "attach_name": "「여수항·광양항 항만시설운영세칙」 일부개정(전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "수상레저안전법/(여수해양경찰서) 수상레저활동 금지구역 지정 고시": {
+    "new_id": "2100000234070",
+    "kind": "text",
+    "pages": 3,
+    "avg_chars_per_page": 398.0,
+    "img_page_ratio": 0.0,
+    "file_size": 109375,
+    "attach_name": "(여수해양경찰서) 수상레저활동 금지구역 지정 고시 개정본문.pdf",
+    "jomun_len": 305,
+    "현행여부": "Y"
+  },
   "선박의입항및출항등에관한법률/군산·장항항 항만시설운영세칙": {
     "new_id": "2100000271338",
     "kind": "text",
@@ -1374,6 +724,38 @@
     "file_size": 1268959,
     "attach_name": "개정본문_군산ㆍ장항항 항만시설 운영세칙 개정본문.pdf",
     "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박의입항및출항등에관한법률/마산항 항만시설 운영세칙": {
+    "new_id": "2100000270362",
+    "kind": "text",
+    "pages": 25,
+    "avg_chars_per_page": 577.0,
+    "img_page_ratio": 0.24,
+    "file_size": 1956954,
+    "attach_name": "마산항 항만시설 운영세칙 개정 전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "수상레저안전법/(부산해양경찰서) 수상레저활동 금지구역 지정 고시": {
+    "new_id": "2100000248176",
+    "kind": "mixed",
+    "pages": 3,
+    "avg_chars_per_page": 315.7,
+    "img_page_ratio": 0.67,
+    "file_size": 176131,
+    "attach_name": "(부산해양경찰서)수상레저활동 금지구역 지정 고시.pdf",
+    "jomun_len": 349,
+    "현행여부": "Y"
+  },
+  "해양조사와해양정보활용에관한법률/해양조사기술자 교육훈련 등에 관한 지침": {
+    "new_id": "2100000220416",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "「해양조사기술자 교육훈련 등에 관한 지침」 개정전문.hwpx",
+      "해양조사기술자 교육훈련 등에 관한 지침_조문별제개정이유서_230206.hwp"
+    ],
     "현행여부": "Y"
   },
   "해양조사와해양정보활용에관한법률/해양지명 고시": {
@@ -1390,12 +772,109 @@
   "해양수산생명자원의확보ㆍ관리및이용등에관한법률/해양수산생명자원 기탁등록보존기관 지정 절차 및 관리 등에 관한 고시": {
     "new_id": "2100000246650",
     "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 516.0,
+    "pages": 15,
+    "avg_chars_per_page": 312.4,
     "img_page_ratio": 0.0,
-    "file_size": 113191,
-    "attach_name": "(양식)조문별제개정이유서.pdf",
+    "file_size": 285184,
+    "attach_name": "해양수산생명자원 기탁등록보존기관 지정 절차 및 관리에 관한 고시 개정 전문(해양수산부 고시 제2024-99호¸ 2024.9.3.).pdf",
     "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박의입항및출항등에관한법률/여수항·광양항 항만시설운영세칙": {
+    "new_id": "2100000249232",
+    "kind": "text",
+    "pages": 11,
+    "avg_chars_per_page": 736.8,
+    "img_page_ratio": 0.18,
+    "file_size": 629422,
+    "attach_name": "「여수항·광양항 항만시설운영세칙」 일부개정(전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "농수산물품질관리법/농산물우수관리기준": {
+    "new_id": "2100000272154",
+    "kind": "text",
+    "pages": 10,
+    "avg_chars_per_page": 1071.5,
+    "img_page_ratio": 0.0,
+    "file_size": 287766,
+    "attach_name": "농산물우수관리인증기준 고시 일부 개정안(전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "농수산물품질관리법/농산물 검사·검정방법 및 절차 등에 관한 규정": {
+    "new_id": "2100000217663",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "「농산물 검사·검정방법 및 절차 등에 관한 규정」 고시 전문.hwpx",
+      "「농산물 검사·검정방법 및 절차 등에 관한 규정」 조문별제개정이유서.hwpx"
+    ],
+    "현행여부": "Y"
+  },
+  "선박의입항및출항등에관한법률/부산항 항법 등에 관한 규칙": {
+    "new_id": "2100000281634",
+    "kind": "text",
+    "pages": 21,
+    "avg_chars_per_page": 610.2,
+    "img_page_ratio": 0.62,
+    "file_size": 1534234,
+    "attach_name": "개정본문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "수상레저안전법/(부안해양경찰서) 수상레저활동 금지구역 공고": {
+    "new_id": "2100000237508",
+    "kind": "mixed",
+    "pages": 4,
+    "avg_chars_per_page": 32.2,
+    "img_page_ratio": 1.0,
+    "file_size": 640537,
+    "attach_name": "첨부파일(수상레저활동 금지구역 구역도).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "농수산물품질관리법/수산물의 생산·가공시설 및 해역의 위생관리기준": {
+    "new_id": "2100000241882",
+    "kind": "text",
+    "pages": 28,
+    "avg_chars_per_page": 2018.6,
+    "img_page_ratio": 0.11,
+    "file_size": 594733,
+    "attach_name": "「수산물의 생산·가공시설 및 해역의 위생관리기준」 전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항만법/마산항 항만시설 운영세칙": {
+    "new_id": "2100000270362",
+    "kind": "text",
+    "pages": 25,
+    "avg_chars_per_page": 577.0,
+    "img_page_ratio": 0.24,
+    "file_size": 1956954,
+    "attach_name": "마산항 항만시설 운영세칙 개정 전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항만법/울산항항만시설운영세칙": {
+    "new_id": "2100000274400",
+    "kind": "text",
+    "pages": 16,
+    "avg_chars_per_page": 578.2,
+    "img_page_ratio": 0.19,
+    "file_size": 394308,
+    "attach_name": "일부개정 전문(울산항 항만시설 운영세칙).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "농수산물품질관리법/농산물이력추적관리기준 및 그 밖에 농산물의 수확 후 관리를 하는 시설": {
+    "new_id": "2100000189999",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "[조문별제개정이유서] 이력추적 고시.hwp",
+      "[개정 전문] 농산물이력추적관리기준 및 그 밖에 농산물의 수확 후 관리를 하는 시설.hwp"
+    ],
     "현행여부": "Y"
   },
   "항만법/대산항 항만시설운영세칙": {
@@ -1409,6 +888,38 @@
     "jomun_len": 0,
     "현행여부": "Y"
   },
+  "선박의입항및출항등에관한법률/평택·당진항 예선운영세칙": {
+    "new_id": "2100000250216",
+    "kind": "text",
+    "pages": 6,
+    "avg_chars_per_page": 517.5,
+    "img_page_ratio": 0.0,
+    "file_size": 213706,
+    "attach_name": "개정전문(평택·당진항 예선운영세칙 일부개정).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "수상레저안전법/(평택해양경찰서) 수상레저활동 금지구역 지정 고시": {
+    "new_id": "2100000230162",
+    "kind": "mixed",
+    "pages": 4,
+    "avg_chars_per_page": 343.8,
+    "img_page_ratio": 0.75,
+    "file_size": 416819,
+    "attach_name": "평택해양경찰서고시제2023-8호((평택해양경찰서) 수상레저활동 금지구역 지정 고시).pdf",
+    "jomun_len": 283,
+    "현행여부": "Y"
+  },
+  "항만법/항만건설작업선의 선박시설 등에 관한 기준": {
+    "new_id": "2100000207217",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "2. 개정전문(항만건설작업선의 선박시설 등에 관한 기준 일부개정 고시안)-채번.hwp",
+      "1. 개정문(항만건설작업선의 선박시설 등에 관한 기준 일부개정 고시).hwp"
+    ],
+    "현행여부": "Y"
+  },
   "항만법/여수항·광양항 항만시설운영세칙": {
     "new_id": "2100000249232",
     "kind": "text",
@@ -1420,15 +931,37 @@
     "jomun_len": 0,
     "현행여부": "Y"
   },
-  "수상레저안전법/(부산해양경찰서) 수상레저활동 금지구역 지정 고시": {
-    "new_id": "2100000248176",
-    "kind": "mixed",
-    "pages": 3,
-    "avg_chars_per_page": 315.7,
-    "img_page_ratio": 0.67,
-    "file_size": 176131,
-    "attach_name": "(부산해양경찰서)수상레저활동 금지구역 지정 고시.pdf",
-    "jomun_len": 349,
+  "항만법/평택·당진항 항만시설운영세칙": {
+    "new_id": "2100000223550",
+    "kind": "text",
+    "pages": 13,
+    "avg_chars_per_page": 1227.7,
+    "img_page_ratio": 0.08,
+    "file_size": 444571,
+    "attach_name": "일부개정전문(평택당진항 항만시설운영세칙).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박의입항및출항등에관한법률/인천항·경인항 예선운영세칙": {
+    "new_id": "2100000226130",
+    "kind": "text",
+    "pages": 10,
+    "avg_chars_per_page": 1221.3,
+    "img_page_ratio": 0.2,
+    "file_size": 358064,
+    "attach_name": "인천항·경인항 예선운영세칙 일부개정안(230705).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항만법/군산·장항항 항만시설운영세칙": {
+    "new_id": "2100000271338",
+    "kind": "text",
+    "pages": 37,
+    "avg_chars_per_page": 537.7,
+    "img_page_ratio": 0.2,
+    "file_size": 1268959,
+    "attach_name": "개정본문_군산ㆍ장항항 항만시설 운영세칙 개정본문.pdf",
+    "jomun_len": 0,
     "현행여부": "Y"
   },
   "항만법/무역항 등의 항만시설 사용 및 사용료에 관한 규정": {
@@ -1453,113 +986,56 @@
     "jomun_len": 0,
     "현행여부": "Y"
   },
+  "선박안전법/강화플라스틱(FRP)선의 구조기준": {
+    "new_id": "2100000253684",
+    "kind": "text",
+    "pages": 41,
+    "avg_chars_per_page": 1238.8,
+    "img_page_ratio": 0.37,
+    "file_size": 1180454,
+    "attach_name": "19. 강화플라스틱선의 구조기준(개정전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박안전법/선박방화구조기준": {
+    "new_id": "2100000271244",
+    "kind": "text",
+    "pages": 95,
+    "avg_chars_per_page": 529.3,
+    "img_page_ratio": 0.03,
+    "file_size": 818193,
+    "attach_name": "선박방화구조기준 일부개정(전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박안전법/선박구명설비기준": {
+    "new_id": "2100000271242",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "선박구명설비기준 전문.zip"
+    ],
+    "현행여부": "Y"
+  },
   "항만법/목포항 1종 항만배후단지 관리규정": {
     "new_id": "2100000263448",
     "kind": "text",
-    "pages": 41,
-    "avg_chars_per_page": 513.3,
+    "pages": 71,
+    "avg_chars_per_page": 698.1,
     "img_page_ratio": 0.0,
-    "file_size": 624955,
-    "attach_name": "개정전문(목포항 1종 항만배후단지 관리규정 일부개정 고시) 20250828.pdf",
+    "file_size": 744072,
+    "attach_name": "목포항 1종 항만배후단지 관리규정 일부개정 고시(법령정보센터).pdf",
     "jomun_len": 0,
     "현행여부": "Y"
   },
-  "선박의입항및출항등에관한법률/평택·당진항 예선운영세칙": {
-    "new_id": "2100000250216",
+  "선박안전법/목선의 구조기준": {
+    "new_id": "2100000253652",
     "kind": "text",
-    "pages": 6,
-    "avg_chars_per_page": 517.5,
+    "pages": 48,
+    "avg_chars_per_page": 788.4,
     "img_page_ratio": 0.0,
-    "file_size": 213706,
-    "attach_name": "개정전문(평택·당진항 예선운영세칙 일부개정).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/알루미늄선의 구조기준": {
-    "new_id": "2100000247076",
-    "kind": "mixed",
-    "pages": 1,
-    "avg_chars_per_page": 304.0,
-    "img_page_ratio": 1.0,
-    "file_size": 101254,
-    "attach_name": "2. 조문별 개정이유서(알루미늄선 구조기준) (1).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/선박전기설비기준": {
-    "new_id": "2100000253668",
-    "kind": "text",
-    "pages": 82,
-    "avg_chars_per_page": 781.0,
-    "img_page_ratio": 0.13,
-    "file_size": 1043051,
-    "attach_name": "11. 선박전기설비기준(개정전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/선박구획기준": {
-    "new_id": "2100000239884",
-    "kind": "text",
-    "pages": 72,
-    "avg_chars_per_page": 655.9,
-    "img_page_ratio": 0.13,
-    "file_size": 856969,
-    "attach_name": "선박구획기준 일부개정(전문).pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/선박기관기준": {
-    "new_id": "2100000236512",
-    "kind": "text",
-    "pages": 2,
-    "avg_chars_per_page": 325.5,
-    "img_page_ratio": 0.0,
-    "file_size": 126736,
-    "attach_name": "조문별제개정이유서_선박기관기준.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/선박만재흘수선기준": {
-    "new_id": "2100000239932",
-    "kind": "text",
-    "pages": 55,
-    "avg_chars_per_page": 849.9,
-    "img_page_ratio": 0.0,
-    "file_size": 501764,
-    "attach_name": "선박만재흘수선기준 일부개정고시안.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/해상교통안전진단시행지침": {
-    "new_id": "2100000257842",
-    "kind": "text",
-    "pages": 1,
-    "avg_chars_per_page": 373.0,
-    "img_page_ratio": 0.0,
-    "file_size": 100639,
-    "attach_name": "조문별제개정이유서_해상교통안전진단시행지침.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/매물수도 항행안전에 관한 고시": {
-    "new_id": "2100000242976",
-    "kind": "text",
-    "pages": 5,
-    "avg_chars_per_page": 528.0,
-    "img_page_ratio": 0.0,
-    "file_size": 93079,
-    "attach_name": "매물수도 항행안전에 관한 고시.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/홍도 및 흑산도해역 항행안전에 관한 고시": {
-    "new_id": "2100000242978",
-    "kind": "text",
-    "pages": 2,
-    "avg_chars_per_page": 405.5,
-    "img_page_ratio": 0.0,
-    "file_size": 86142,
-    "attach_name": "조문별제개정이유서(홍도 및 흑산도해역 항행안전에 관한 고시).pdf",
+    "file_size": 635575,
+    "attach_name": "3. 목선의 구조기준(개정 전문).pdf",
     "jomun_len": 0,
     "현행여부": "Y"
   },
@@ -1574,14 +1050,263 @@
     "jomun_len": 64,
     "현행여부": "Y"
   },
+  "선박안전법/선박전기설비기준": {
+    "new_id": "2100000253668",
+    "kind": "text",
+    "pages": 82,
+    "avg_chars_per_page": 781.0,
+    "img_page_ratio": 0.13,
+    "file_size": 1043051,
+    "attach_name": "11. 선박전기설비기준(개정전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박안전법/가스연료 추진선박기준": {
+    "new_id": "2100000282806",
+    "kind": "text",
+    "pages": 160,
+    "avg_chars_per_page": 476.2,
+    "img_page_ratio": 0.23,
+    "file_size": 1872022,
+    "attach_name": "저인화점연료 추진선박기준 일부개정고시 전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박안전법/선박소방설비기준": {
+    "new_id": "2100000271238",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "선박소방설비기준 전문.zip"
+    ],
+    "현행여부": "Y"
+  },
+  "항만법/무역항 요트 계류시설 사용에 관한 규정": {
+    "new_id": "2100000270116",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "무역항 요트 계류시설 사용에 관한 규정 일부개정 전문.hwpx"
+    ],
+    "현행여부": "Y"
+  },
+  "선박안전법/알루미늄선의 구조기준": {
+    "new_id": "2100000247076",
+    "kind": "text",
+    "pages": 47,
+    "avg_chars_per_page": 1079.6,
+    "img_page_ratio": 0.4,
+    "file_size": 1897526,
+    "attach_name": "(개정전문) 알루미늄선의 구조기준 개정 전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박안전법/플레저보트 검사기준": {
+    "new_id": "2100000253658",
+    "kind": "text",
+    "pages": 24,
+    "avg_chars_per_page": 483.3,
+    "img_page_ratio": 0.33,
+    "file_size": 470736,
+    "attach_name": "6. 플레저보트검사기준(개정전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박안전법/선박복원성기준": {
+    "new_id": "2100000253656",
+    "kind": "text",
+    "pages": 36,
+    "avg_chars_per_page": 653.0,
+    "img_page_ratio": 0.2,
+    "file_size": 671813,
+    "attach_name": "5. 선박복원성기준(개정전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박안전법/방사성물질 운송선박의 안전기준": {
+    "new_id": "2100000253676",
+    "kind": "text",
+    "pages": 32,
+    "avg_chars_per_page": 548.3,
+    "img_page_ratio": 0.0,
+    "file_size": 468748,
+    "attach_name": "15. 방사성물질 운송선박의 안전기준(개정전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항만법/항만배후단지개발사업 업무처리규정": {
+    "new_id": "2100000194982",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "항만배후단지개발사업 업무처리규정 전문.hwp",
+      "조문별제개정이유서-행정규칙.hwp",
+      "항만배후단지개발사업 업무처리규정(해양수산부고시)(제2019-214호)(20191230).hwp"
+    ],
+    "현행여부": "Y"
+  },
+  "선박안전법/산적액체위험물 운송선박의 시설 등에 관한 기준": {
+    "new_id": "2100000280938",
+    "kind": "text",
+    "pages": 121,
+    "avg_chars_per_page": 574.7,
+    "img_page_ratio": 0.03,
+    "file_size": 917922,
+    "attach_name": "산적액체위험물 운송선박의 시설¸ 구조¸ 설비¸ 재료 및 부속품에 관한 기준 일부개정고시 전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/해상교통안전진단시행지침": {
+    "new_id": "2100000257842",
+    "kind": "text",
+    "pages": 47,
+    "avg_chars_per_page": 523.4,
+    "img_page_ratio": 0.0,
+    "file_size": 604023,
+    "attach_name": "(전문) 해상교통안전진단시행지침 - 사후심사 등재.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "항만운송사업법/부두운영회사 성과평가 업무지침": {
+    "new_id": "2100000263842",
+    "kind": "text",
+    "pages": 11,
+    "avg_chars_per_page": 1196.6,
+    "img_page_ratio": 0.09,
+    "file_size": 682070,
+    "attach_name": "부두운영회사 성과평가 업무지침 개정전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/삼천포항 부근 해역 추천항로에 관한 고시": {
+    "new_id": "2100000280960",
+    "kind": "text",
+    "pages": 5,
+    "avg_chars_per_page": 583.6,
+    "img_page_ratio": 0.2,
+    "file_size": 482318,
+    "attach_name": "삼천포항 부근 해역 추천항로에 관한 고시 개정.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박안전법/선박구획기준": {
+    "new_id": "2100000239884",
+    "kind": "text",
+    "pages": 72,
+    "avg_chars_per_page": 655.9,
+    "img_page_ratio": 0.13,
+    "file_size": 856969,
+    "attach_name": "선박구획기준 일부개정(전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "선박안전법/선박만재흘수선기준": {
+    "new_id": "2100000239932",
+    "kind": "text",
+    "pages": 66,
+    "avg_chars_per_page": 608.3,
+    "img_page_ratio": 0.43,
+    "file_size": 766900,
+    "attach_name": "선박만재흘수선기준 일부개정(전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/매물수도 항행안전에 관한 고시": {
+    "new_id": "2100000242976",
+    "kind": "text",
+    "pages": 5,
+    "avg_chars_per_page": 528.0,
+    "img_page_ratio": 0.0,
+    "file_size": 93079,
+    "attach_name": "매물수도 항행안전에 관한 고시.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(대산지방해양수산청) 항행안전에 관한 고시": {
+    "new_id": "2100000261814",
+    "kind": "no_pdf_attachment",
+    "jomun_len": 0,
+    "attach_names": [
+      "조문별제개정이유서_항행안전에 관한 고시.pdf",
+      "조문별제개정이유서_항행안전에 관한 고시.hwpx",
+      "개정본문 ((대산지방해양수산청) 항행안전에 관한 고시 일부개정고시안 20250717).hwpx"
+    ],
+    "현행여부": "Y"
+  },
+  "해상교통안전법/완도항 인근해역 항행안전(지정항로)에 관한 고시": {
+    "new_id": "2100000242980",
+    "kind": "text",
+    "pages": 4,
+    "avg_chars_per_page": 564.0,
+    "img_page_ratio": 0.0,
+    "file_size": 124503,
+    "attach_name": "완도항 인근해역 항행안전(지정항로)에 관한 고시.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/완도항 인근해역 항행안전(추천항로)에 관한 고시": {
+    "new_id": "2100000242998",
+    "kind": "text",
+    "pages": 4,
+    "avg_chars_per_page": 599.2,
+    "img_page_ratio": 0.0,
+    "file_size": 95986,
+    "attach_name": "완도항 인근해역 항행안전(추천항로)에 관한 고시.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(속초해양경찰서) 해양레저활동 허가필요수역 고시": {
+    "new_id": "2100000262704",
+    "kind": "text",
+    "pages": 21,
+    "avg_chars_per_page": 673.6,
+    "img_page_ratio": 0.67,
+    "file_size": 727907,
+    "attach_name": "(속초해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
+    "jomun_len": 385,
+    "현행여부": "Y"
+  },
   "해상교통안전법/금오수도 선박통항 제한에 관한 고시": {
     "new_id": "2100000238140",
     "kind": "text",
-    "pages": 2,
-    "avg_chars_per_page": 380.0,
+    "pages": 4,
+    "avg_chars_per_page": 322.0,
+    "img_page_ratio": 0.25,
+    "file_size": 167625,
+    "attach_name": "「금오수도 선박통항 제한에 관한 고시」 일부개정.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/국동어항 항행속력 제한에 관한 고시": {
+    "new_id": "2100000238138",
+    "kind": "text",
+    "pages": 4,
+    "avg_chars_per_page": 323.0,
+    "img_page_ratio": 0.25,
+    "file_size": 167880,
+    "attach_name": "「국동항 항행속력 제한에 관한 고시」 일부개정.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/홍도 및 흑산도해역 항행안전에 관한 고시": {
+    "new_id": "2100000242978",
+    "kind": "text",
+    "pages": 5,
+    "avg_chars_per_page": 681.4,
     "img_page_ratio": 0.0,
-    "file_size": 143113,
-    "attach_name": "「금오수도 선박통항 제한에 관한 고시」.pdf",
+    "file_size": 106514,
+    "attach_name": "홍도 및 흑산도해역 항행안전에 관한 고시.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/목포 인근해역 항행안전에 관한 고시": {
+    "new_id": "2100000242974",
+    "kind": "text",
+    "pages": 8,
+    "avg_chars_per_page": 531.0,
+    "img_page_ratio": 0.0,
+    "file_size": 91266,
+    "attach_name": "목포 인근해역 항행안전에 관한 고시.pdf",
     "jomun_len": 0,
     "현행여부": "Y"
   },
@@ -1596,36 +1321,311 @@
     "jomun_len": 356,
     "현행여부": "Y"
   },
-  "항만운송사업법/부두운영회사 성과평가 업무지침": {
-    "new_id": "2100000263842",
+  "선박안전법/선박기관기준": {
+    "new_id": "2100000236512",
+    "kind": "mixed",
+    "pages": 303,
+    "avg_chars_per_page": 381.9,
+    "img_page_ratio": 0.4,
+    "file_size": 5706862,
+    "attach_name": "선박기관기준 일부개정(전문).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(평택해양경찰서) 해양레저활동 허가필요수역 고시 ": {
+    "new_id": "2100000263126",
+    "kind": "text",
+    "pages": 5,
+    "avg_chars_per_page": 629.2,
+    "img_page_ratio": 0.4,
+    "file_size": 263965,
+    "attach_name": "(평택해양경찰서) 해양레저활동 허가필요수역 고시 개정 결과.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(인천지방해양수산청) 장안서 부근해역 항행안전에 관한 고시": {
+    "new_id": "2100000247108",
+    "kind": "text",
+    "pages": 4,
+    "avg_chars_per_page": 549.8,
+    "img_page_ratio": 0.5,
+    "file_size": 168772,
+    "attach_name": "2. (인천지방해양수산청) 장안서 부근해역 항행안전에 관한 고시 일부개정안.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/해사안전감독관 업무규정": {
+    "new_id": "2100000281796",
+    "kind": "text",
+    "pages": 29,
+    "avg_chars_per_page": 487.1,
+    "img_page_ratio": 0.0,
+    "file_size": 589509,
+    "attach_name": "「해사안전감독관 업무규정」 개정전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/진해만 및 거제 부근수역의 항행안전에 관한 고시": {
+    "new_id": "2100000276818",
     "kind": "text",
     "pages": 11,
-    "avg_chars_per_page": 1196.6,
-    "img_page_ratio": 0.09,
-    "file_size": 682070,
-    "attach_name": "부두운영회사 성과평가 업무지침 개정전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "선박안전법/산적액체위험물 운송선박의 시설 등에 관한 기준": {
-    "new_id": "2100000280938",
-    "kind": "text",
-    "pages": 121,
-    "avg_chars_per_page": 574.7,
-    "img_page_ratio": 0.03,
-    "file_size": 917922,
-    "attach_name": "산적액체위험물 운송선박의 시설¸ 구조¸ 설비¸ 재료 및 부속품에 관한 기준 일부개정고시 전문.pdf",
-    "jomun_len": 0,
-    "현행여부": "Y"
-  },
-  "해상교통안전법/목포 인근해역 항행안전에 관한 고시": {
-    "new_id": "2100000242974",
-    "kind": "text",
-    "pages": 8,
-    "avg_chars_per_page": 531.0,
+    "avg_chars_per_page": 823.3,
     "img_page_ratio": 0.0,
-    "file_size": 91266,
-    "attach_name": "목포 인근해역 항행안전에 관한 고시.pdf",
+    "file_size": 140158,
+    "attach_name": "진해만 및 거제 부근수역의 항행안전에 관한 고시.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(태안해양경찰서) 해양레저활동 허가필요 수역 고시": {
+    "new_id": "2100000281456",
+    "kind": "mixed",
+    "pages": 4,
+    "avg_chars_per_page": 299.8,
+    "img_page_ratio": 0.75,
+    "file_size": 341582,
+    "attach_name": "(태안해양경찰서)해양레저활동 허가필요 수역 고시 일부개정(본문).pdf",
+    "jomun_len": 336,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(창원해양경찰서) 해양레저활동 허가필요수역 고시": {
+    "new_id": "2100000282564",
+    "kind": "mixed",
+    "pages": 6,
+    "avg_chars_per_page": 329.5,
+    "img_page_ratio": 0.5,
+    "file_size": 357526,
+    "attach_name": "(창원해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
+    "jomun_len": 760,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(인천해양경찰서) 해양레저활동 허가필요수역": {
+    "new_id": "2100000281608",
+    "kind": "text",
+    "pages": 7,
+    "avg_chars_per_page": 611.6,
+    "img_page_ratio": 0.43,
+    "file_size": 324334,
+    "attach_name": "(인천해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
+    "jomun_len": 356,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(서귀포해양경찰서) 해양레저활동 허가필요수역 고시": {
+    "new_id": "2100000281562",
+    "kind": "mixed",
+    "pages": 4,
+    "avg_chars_per_page": 398.0,
+    "img_page_ratio": 0.5,
+    "file_size": 215025,
+    "attach_name": "(서귀포해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
+    "jomun_len": 332,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(사천해양경찰서) 해양레저활동 허가필요수역 고시": {
+    "new_id": "2100000260994",
+    "kind": "mixed",
+    "pages": 4,
+    "avg_chars_per_page": 317.8,
+    "img_page_ratio": 0.5,
+    "file_size": 180758,
+    "attach_name": "(사천해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
+    "jomun_len": 372,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(보령해양경찰서) 해양레저활동 허가필요수역 고시": {
+    "new_id": "2100000281654",
+    "kind": "text",
+    "pages": 6,
+    "avg_chars_per_page": 465.2,
+    "img_page_ratio": 0.67,
+    "file_size": 321344,
+    "attach_name": "(보령해양경찰서) 해양레저활동 허가필요수역 고시 일부 개정(본문).pdf",
+    "jomun_len": 337,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(여수해양경찰서) 해양레저활동 허가필요수역 고시": {
+    "new_id": "2100000282204",
+    "kind": "text",
+    "pages": 6,
+    "avg_chars_per_page": 842.7,
+    "img_page_ratio": 0.5,
+    "file_size": 823615,
+    "attach_name": "(여수해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
+    "jomun_len": 474,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(동해해양경찰서) 해양레저활동 허가필요수역 고시": {
+    "new_id": "2100000261842",
+    "kind": "mixed",
+    "pages": 8,
+    "avg_chars_per_page": 265.5,
+    "img_page_ratio": 0.62,
+    "file_size": 362584,
+    "attach_name": "(동해해양경찰서) 해양레저활동 허가필요수역 고시.pdf",
+    "jomun_len": 387,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(목포해양경찰서) 해양레저활동 허가필요수역 고시": {
+    "new_id": "2100000279162",
+    "kind": "text",
+    "pages": 4,
+    "avg_chars_per_page": 615.8,
+    "img_page_ratio": 0.25,
+    "file_size": 594412,
+    "attach_name": "(목포해양경찰서) 해양레저활동 허가필요수역 고시..pdf",
+    "jomun_len": 335,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(군산해양경찰서) 해양레저활동 허가필요수역 고시": {
+    "new_id": "2100000282962",
+    "kind": "text",
+    "pages": 4,
+    "avg_chars_per_page": 686.8,
+    "img_page_ratio": 0.25,
+    "file_size": 119239,
+    "attach_name": "(군산해양경찰서) 해양레저활동 허가필요수역 고시 제2026-01호.pdf",
+    "jomun_len": 373,
+    "현행여부": "Y"
+  },
+  "물환경보전법/(대구지방환경청) 공공폐수처리시설 기본계획 통합 고시": {
+    "new_id": "2100000260250",
+    "kind": "text",
+    "pages": 72,
+    "avg_chars_per_page": 581.1,
+    "img_page_ratio": 0.03,
+    "file_size": 530962,
+    "attach_name": "(대구청고시 제2025-9호)_ 공공폐수처리시설 기본계획 통합고시 일부개정_예천 제3농공단지.pdf",
+    "jomun_len": 33177,
+    "현행여부": "Y"
+  },
+  "물환경보전법/(원주지방환경청) 공공폐수처리시설 기본계획 통합고시": {
+    "new_id": "2100000282100",
+    "kind": "text",
+    "pages": 95,
+    "avg_chars_per_page": 712.2,
+    "img_page_ratio": 0.0,
+    "file_size": 864832,
+    "attach_name": "제2026-144호 공공폐수처리시설 기본계획 통합고시(음성 천본산업단지 공공폐수처리시설 기본계획)_전문.pdf",
+    "jomun_len": 44545,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(부산해양경찰서) 해양레저활동 허가대상수역 고시": {
+    "new_id": "2100000247552",
+    "kind": "text",
+    "pages": 2,
+    "avg_chars_per_page": 1006.5,
+    "img_page_ratio": 0.5,
+    "file_size": 244792,
+    "attach_name": "(부산해양경찰서) 해양레저활동 허가필요수역 고시(본문).pdf",
+    "jomun_len": 264,
+    "현행여부": "Y"
+  },
+  "물환경보전법/(영산강유역환경청) 공공폐수처리시설 기본계획 통합고시": {
+    "new_id": "2100000269498",
+    "kind": "text",
+    "pages": 46,
+    "avg_chars_per_page": 587.1,
+    "img_page_ratio": 0.53,
+    "file_size": 773558,
+    "attach_name": "1. 개정고시 전문_폐수기본계획 통합고시 일부 개정_고흥 무인항공영농기술.pdf",
+    "jomun_len": 26552,
+    "현행여부": "Y"
+  },
+  "물환경보전법/(한강유역환경청) 공공폐수처리시설 기본계획 통합고시": {
+    "new_id": "2100000272784",
+    "kind": "text",
+    "pages": 108,
+    "avg_chars_per_page": 688.6,
+    "img_page_ratio": 0.13,
+    "file_size": 740081,
+    "attach_name": "[한강유역환경청고시 제2026-15호] 아산국가산업단지(우정지구 유보지 및 확장 용지조성사업) 공공폐수처리시설 기본계획 통합 고시_전문(최종).pdf",
+    "jomun_len": 50156,
+    "현행여부": "Y"
+  },
+  "물환경보전법/수질원격감시체계 관제센터 운영 등에 관한 규정": {
+    "new_id": "2100000265818",
+    "kind": "text",
+    "pages": 18,
+    "avg_chars_per_page": 806.3,
+    "img_page_ratio": 0.17,
+    "file_size": 398141,
+    "attach_name": "수질원격감시체계 관제센터 운영 등에 관한 규정_환경부고시 제2025-165호(2025.10.1.).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "물환경보전법/(대구지방환경청) 수질오염물질의 배출허용기준 중 별도배출허용기준 개정 통합 고시": {
+    "new_id": "2100000257620",
+    "kind": "text",
+    "pages": 12,
+    "avg_chars_per_page": 651.0,
+    "img_page_ratio": 0.0,
+    "file_size": 662530,
+    "attach_name": "(대구지방환경청 고시 제2025-6호) 수질오염물질의 배출허용기준 중 별도배출허용기준 일부개정 통합고시.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "물환경보전법/공공폐수처리시설 운영·관리 평가 및 포상금 지급 기준": {
+    "new_id": "2100000266910",
+    "kind": "text",
+    "pages": 6,
+    "avg_chars_per_page": 542.2,
+    "img_page_ratio": 0.0,
+    "file_size": 259090,
+    "attach_name": "공공폐수처리시설 운영관리 평가 및 포상금 지급 기준 고시 전문.pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "물환경보전법/수탁처리폐수 전자인계·인수관리시스템 구축·운영 및 이용 등에 관한 고시": {
+    "new_id": "2100000267142",
+    "kind": "text",
+    "pages": 10,
+    "avg_chars_per_page": 540.3,
+    "img_page_ratio": 0.0,
+    "file_size": 221307,
+    "attach_name": "[개정전문] 수탁처리폐수 전자인계·인수관리시스템 구축·운영 및 이용 등에 관한 고시(고시).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "물환경보전법/측정기기 운영·관리 위반행위 신고포상금 지급 기준": {
+    "new_id": "2100000265868",
+    "kind": "text",
+    "pages": 13,
+    "avg_chars_per_page": 402.3,
+    "img_page_ratio": 0.0,
+    "file_size": 364575,
+    "attach_name": "측정기기 운영ㆍ관리 위반행위 신고포상금 지급 기준_환경부고시 제2025-165호(2025.10.1.).pdf",
+    "jomun_len": 0,
+    "현행여부": "Y"
+  },
+  "해상교통안전법/(울진해양경찰서) 해양레저활동 허가필요수역 고시": {
+    "new_id": "2100000281310",
+    "kind": "mixed",
+    "pages": 6,
+    "avg_chars_per_page": 259.0,
+    "img_page_ratio": 0.83,
+    "file_size": 577463,
+    "attach_name": "(울진해양경찰서)해양레저활동 허가필요수역 고시.pdf",
+    "jomun_len": 327,
+    "현행여부": "Y"
+  },
+  "물환경보전법/(낙동강유역환경청) 공공폐수처리시설 기본계획 통합 고시": {
+    "new_id": "2100000264530",
+    "kind": "text",
+    "pages": 55,
+    "avg_chars_per_page": 659.9,
+    "img_page_ratio": 0.07,
+    "file_size": 529732,
+    "attach_name": "공공폐수처리시설 기본계획 통합 고시 일부개정.pdf",
+    "jomun_len": 26596,
+    "현행여부": "Y"
+  },
+  "어선법/안전복지를 강화한 표준어선형에 관한 기준": {
+    "new_id": "2100000249770",
+    "kind": "text",
+    "pages": 4,
+    "avg_chars_per_page": 483.5,
+    "img_page_ratio": 0.0,
+    "file_size": 167702,
+    "attach_name": "개정전문 (안전복지를 강화한 표준어선형에 관한 기준).pdf",
     "jomun_len": 0,
     "현행여부": "Y"
   }
