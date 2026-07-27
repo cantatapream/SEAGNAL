@@ -172,6 +172,10 @@ raw 갱신 62법(부칙 반영 54법 ∪ admrul 갱신 34법)의 `wiki_rebuild.j
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-27 14:17 KST] 🟢착수 — lint_full.js — 61법 대상 7개 워크플로 병렬 디스패치
+H-20 순서 두번째 단계(비대칭 역링크·허브링크·dangling 정리). 같은 61법을 lint_xref와 동일 그룹으로 7개 워크플로 디스패치. Task ID(정지 필요시): wbu90uhth, w9k4ztu65, wl7j2giwj, w65rvyoj3, wktd7x9eg, wl7lj8jek, wveqo4osz. 완료마다 커밋, 전부 끝나면 lint_index.py→lint_build.py→human_workload.py(순수 스크립트, 단독)로 마무리.
+
+
 ### [2026-07-27 14:16 KST] ✅완료 — lint_xref.js 61법 전체 완료
 7개 워크플로 전부 완료·커밋. 대부분 이전 라운드에서 이미 타법연결 링크화가 돼 있어 이번엔 재확인+누락분 소수 반영(신규 링크 다수, dangling 수리 다수, 이스케이프 파이프 형식오류 등). 상세는 각 커밋 참조. 다음: lint_full.js(같은 61법, 비대칭 역링크+허브링크+dangling)로 이어감.
 
