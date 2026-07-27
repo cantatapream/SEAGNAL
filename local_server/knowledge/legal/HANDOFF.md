@@ -172,6 +172,18 @@ raw 갱신 62법(부칙 반영 54법 ∪ admrul 갱신 34법)의 `wiki_rebuild.j
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-27 21:28 KST] ✅완료 — H-28 전수조사 2번(재수집)+1번(2차 AI검토) 완료
+사용자 지시(1번+2번 진행 후 종합보고)에 따라 두 작업 완료:
+
+[2번: 43건 재수집] 14개 법 대상 collect_admrul.py 재실행 → 29/43건 텍스트로 성공 수집·저장(admrul ID 매칭 vs 개정판 반영 확인). 나머지 14건은 API 조문내용이 비어있고 PDF첨부만 있는 경우(기존 extract_admrul_pdf.py로 후속 처리 필요)이거나 API상 ID 자체가 무효(구판, 최신판 재검색 필요)인 경우 — 미해결로 이월.
+
+[1번: 2차 AI검토] genuine(a) 38건 중 32건 검토: 23건 오탐(대부분 시행령/시행규칙 개정으로 조번호가 밀려 매칭 실패, 실제로는 이미 admrul 수집돼 있음) · 9건 진짜 원문공백 확정(H-30 정직종결형 답변 적용 대상 후보로 남김, 아직 위키 반영 안 함). 인용법령 119건 중 34건 검토: 27건 scope_out(범용 행정법, 수집 불필요) · 3건 recollect(대한민국헌법=재수집 완료 커밋함, 나머지 2건은 이미 raw에 있었음—등록명 불일치 오탐으로 판명) · 4건 self_reference_false_positive.
+
+리포트: _dashboard/delegation_scan_2nd_pass_report.md. 대한민국헌법 raw 신규수집 완료(9~10차 감사 반복지적된 헌법 제6조 조약효력근거 해소, raw/15_관련타부처/대한민국헌법/).
+
+★미결(다음 세션 검토 필요, 사용자 지시로 이월): genuine 6건 미검토·인용법령 85건 미검토(1차 스캔 delegation_scan_report.md §4 참고)·(c)uncollected 14건 PDF/ID 문제·9건 confirmed_genuine에 H-30 정직종결형 답변 실제 적용(위키 수정) 미착수·collection_hole_reclass_report.md의 원래 37건 recollect/20건 wiki_sync/26건 unclear도 아직 미착수. 사용자가 다음에 우선순위 정해줄 것.
+
+
 ### [2026-07-27 19:22 KST] ✅완료 — H-28 전수조사 1차(로직전용) 완료 — 73법 44,781 위임포인트 스캔
 순수 API 대조(AI 미사용)로 73법 전체 위임체인 전수조사 완료. 결과: (c)uncollected 진짜 재수집 필요 43건(높은 신뢰도, API가 ID·제목 명시하는데 로컬에 둘 다 없음) · (a)genuine 후보 38건(원문 고시위임 문구는 있으나 위임매칭 안 됨, 조문번호 매칭오차 가능해 검증필요) · (b)structural 후보 5건(참고용) · 인용법령 미수집 256건(대부분 개인정보보호법시행령 등 범용행정법 인용이라 scope_out 가능성 높음, 2차 검토 필요). api_fail 0건(전체 API 응답 정상). 스크립트 개발 중 중대 버그 2건 발견·수정: ①빈 응답{}을 실패로 오분류 ②위임행정규칙 타입은 필드명(위임행정규칙조문정보)과 스키마가 시행령/시행규칙과 완전히 달라 파싱 누락 ③admrul ID만으로 대조하면 개정판마다 ID가 바뀌어 오탐 발생, 제목매칭 폴백 추가. 산출물: _dashboard/delegation_scan_result.json(원시)·_dashboard/delegation_scan_report.md(사람이 읽는 리포트). 다음: 2차(AI) 검토로 (a)38건 검증 + 인용법령 256건 중 진짜 scope_out vs 진짜 미수집 분류 필요. 이후 H-30 기준 적용(genuine/structural 확정된 것에 정직종결형 답변 갖췄는지 확인) → missing/thin 통합수정으로 진행 예정(사용자 결정 대기).
 
