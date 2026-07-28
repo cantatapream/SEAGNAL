@@ -62,24 +62,35 @@ def collect_for(meta_path):
         time.sleep(0.2)
     outdir=os.path.join(base,'행정규칙'); os.makedirs(outdir,exist_ok=True)
     if not deleg:
-        json.dump({},open(os.path.join(outdir,'_admrul.json'),'w',encoding='utf-8'),ensure_ascii=False)
         return {'law':name,'delegated':0,'saved':0}
-    # 기존 키워드-수집 잔재 정리(정밀본으로 대체)
-    for old in glob.glob(os.path.join(outdir,'*.txt')):
-        try: os.remove(old)
-        except OSError: pass
-    catalog={}; saved=0
+    # L-39(2026-07-28): 예전엔 여기서 기존 .txt를 전부 삭제하고 새로 받은 것만 남겼는데,
+    # 재스캔이 못 찾은 기존 항목(수동 OCR/HWP 복원본 등)이 조용히 유실되는 회귀를 냈다.
+    # 이제는 기존 catalog를 베이스로 새로 받은 항목만 병합(추가/갱신)하고, 삭제하지 않는다.
+    catalog_path=os.path.join(outdir,'_admrul.json')
+    try: catalog=json.load(open(catalog_path,encoding='utf-8'))
+    except (FileNotFoundError,json.JSONDecodeError): catalog={}
+    saved=0
     for sid,info in deleg.items():
+        title=info['title'] or sid
+        existing=catalog.get(title)
+        if existing and existing.get('ID')==sid:
+            existing['위임']=info['위임']  # 위임근거만 최신화, 본문은 그대로(재요청 불필요)
+            continue
         body,binfo=fetch_body(sid)
         if not body: continue
         title=info['title'] or binfo.get('행정규칙명','') or sid
         fn=safe(title)+'.txt'
         hdr='위임근거: '+'; '.join(f"{w['층']} {w['위임조']}({w['조항호목']})" for w in info['위임'])
-        with open(os.path.join(outdir,fn),'w',encoding='utf-8') as f:
+        # L-39 회귀 방지: 기존 파일이 있고 새로 받은 본문이 더 짧으면(이미지버튼 스텁 등) 덮어쓰지 않고 보류
+        old_fn=os.path.join(outdir,fn)
+        if os.path.exists(old_fn) and os.path.getsize(old_fn)>len(body.encode('utf-8'))*1.3:
+            catalog[title]={'ID':existing['ID'] if existing else sid,'위임':info['위임']}
+            continue
+        with open(old_fn,'w',encoding='utf-8') as f:
             f.write(f"[고시/행정규칙] {title}\nID:{sid} · {hdr}\n\n{body}")
         catalog[title]={'ID':sid,'위임':info['위임']}
         saved+=1; time.sleep(0.25)
-    json.dump(catalog,open(os.path.join(outdir,'_admrul.json'),'w',encoding='utf-8'),ensure_ascii=False,indent=1)
+    json.dump(catalog,open(catalog_path,'w',encoding='utf-8'),ensure_ascii=False,indent=1)
     return {'law':name,'delegated':len(deleg),'saved':saved}
 
 if __name__=='__main__':
