@@ -172,6 +172,14 @@ raw 갱신 62법(부칙 반영 54법 ∪ admrul 갱신 34법)의 `wiki_rebuild.j
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-28 14:08 KST] ✅완료 — collection_hole 재검증(배타적경제수역및대륙붕에관한법률)
+①헌법 raw: 2026-07-27 H-28 전수조사에서 이미 재수집 완료 확인(raw/15_관련타부처/대한민국헌법, 제6조 조약효력 조문 present) → already_resolved. ②매장문화재법 raw: 2024년 국가유산청 개편으로 법명이 「매장유산 보호 및 조사에 관한 법률」로 개칭된 사실을 확인, law.go.kr lawService(MST=285661)로 신법명 재수집 완료(raw/15_관련타부처/매장유산보호및조사에관한법률, 제3조 EEZ원용 조문 확보) → recollected. 관련 wiki concept 페이지(EEZ대륙붕범위와기선중간선정의)의 collection_hole 표시 해소 반영·커밋 예정.
+
+
+### [2026-07-28 14:08 KST] 🟢착수 — collection_hole 재검증(배타적경제수역및대륙붕에관한법률)
+9~11차 감사 지적 2건(헌법 raw, 매장문화재법 raw) 재검증 착수
+
+
 ### [2026-07-28 12:57 KST] 🟢착수 — collection_hole_reclass 백로그 처리(2번) 착수
 collection_hole_reclass_report.md의 37 recollect + 20 wiki_sync + 26 unclear (39법·83항목)를 6개 그룹(reclass_group_0~5.json, 법당 ~7개)으로 나눠 6개 별도 Workflow 호출로 동시 디스패치. 법당 1 agent가 재확인→재수집 시도(law.go.kr API)→위키반영→unclear 재검색(2~3키워드) 순으로 처리, outcome enum으로 구조화 보고. still_unclear_needs_human 항목은 사람 확인 대상으로 별도 취합 예정.
 
