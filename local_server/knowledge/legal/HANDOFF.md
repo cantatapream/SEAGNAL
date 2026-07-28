@@ -172,6 +172,14 @@ raw 갱신 62법(부칙 반영 54법 ∪ admrul 갱신 34법)의 `wiki_rebuild.j
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-28 14:15 KST] ✅완료 — 재검증 완료: 국제항해선박등에대한해적행위피해예방에관한법률 (9~11차 collection_hole)
+wiki_sync 1건(21개 concept 페이지 소관부서·연락처 메타)을 statutes 페이지와 동일 값(해사안전관리과, 051-773-5854, contacts_collected.json 2026-07-26 자동수집)으로 반영 완료 — wiki_lag 해소, 완료율 1/1(100%). recollect/unclear 항목은 없음.
+
+
+### [2026-07-28 14:15 KST] 🟢착수 — 재검증: 국제항해선박등에대한해적행위피해예방에관한법률 (9~11차 collection_hole)
+9~11차 감사 collection_hole 항목 재검증 착수 — wiki_sync 1건(21개 concept 페이지 소관부서·연락처 메타 미전파)
+
+
 ### [2026-07-28 14:13 KST] ✅완료 — 낚시관리및육성법 collection_hole 재검증(recollect 1건+wiki_sync 1건)
 recollect(검사기관 지정고시): admrul 전문검색(46건)·lsDelegated(법률MST 267435 전체 위임체인) 재조회 결과 여전히 없음 재확인 → structural_h30_applied, wiki/concepts/낚시관리및육성법__낚시어선안전성검사.md에 위임체인+경계선언+연락처(수산자원정책과 051-773-5539/5538) 반영. wiki_sync(지역별 낚시제한기준 조례비교): raw에 이미 있던 5개 지자체 조례(고성군·속초시·양양군·경기도·고흥군)를 신규 페이지 wiki/comparisons/낚시관리및육성법__지역별낚시제한기준_조례비교.md로 반영, dangling 링크 3곳(낚시제한기준.md·낚시통제구역.md·보칙및감독체계.md) 정정 완료
 
