@@ -1,0 +1,9 @@
+[서해 5도 교육비 지원 지침 별지 서식 2종]
+출처: law.go.kr DRF lawService.do target=admrul ID:2100000093260 (2026-07-28 직접조회)
+비고: 별표내용(본문 텍스트) 자체는 API에 비어 있음(HWPX 첨부파일 형태로만 제공, 표 텍스트 추출 불가) — 서식명·다운로드 링크만 확인됨.
+
+별지 제1호서식: 교육비 지원 신청서
+- 서식파일(HWPX): /LSW/flDownload.do?flSeq=30803510
+
+별지 제2호서식: 교육비 정산 보고서
+- 서식파일(HWPX): /LSW/flDownload.do?flSeq=30803513
