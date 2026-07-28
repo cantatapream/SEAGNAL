@@ -172,6 +172,10 @@ raw 갱신 62법(부칙 반영 54법 ∪ admrul 갱신 34법)의 `wiki_rebuild.j
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-28 14:08 KST] 🟢착수 — 섬발전촉진법 9~11R collection_hole 재검증(2건)
+지자체선박 안전장비/안전교육 조례 세부기준 recollect 2건 재검증 착수 — raw/_자치법규 신안군 조례 존재여부 확인 후 반영
+
+
 ### [2026-07-28 14:08 KST] ✅완료 — collection_hole 재검증(배타적경제수역및대륙붕에관한법률)
 ①헌법 raw: 2026-07-27 H-28 전수조사에서 이미 재수집 완료 확인(raw/15_관련타부처/대한민국헌법, 제6조 조약효력 조문 present) → already_resolved. ②매장문화재법 raw: 2024년 국가유산청 개편으로 법명이 「매장유산 보호 및 조사에 관한 법률」로 개칭된 사실을 확인, law.go.kr lawService(MST=285661)로 신법명 재수집 완료(raw/15_관련타부처/매장유산보호및조사에관한법률, 제3조 EEZ원용 조문 확보) → recollected. 관련 wiki concept 페이지(EEZ대륙붕범위와기선중간선정의)의 collection_hole 표시 해소 반영·커밋 예정.
 
