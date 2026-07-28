@@ -172,6 +172,10 @@ raw 갱신 62법(부칙 반영 54법 ∪ admrul 갱신 34법)의 `wiki_rebuild.j
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-28 12:57 KST] 🟢착수 — collection_hole_reclass 백로그 처리(2번) 착수
+collection_hole_reclass_report.md의 37 recollect + 20 wiki_sync + 26 unclear (39법·83항목)를 6개 그룹(reclass_group_0~5.json, 법당 ~7개)으로 나눠 6개 별도 Workflow 호출로 동시 디스패치. 법당 1 agent가 재확인→재수집 시도(law.go.kr API)→위키반영→unclear 재검색(2~3키워드) 순으로 처리, outcome enum으로 구조화 보고. still_unclear_needs_human 항목은 사람 확인 대상으로 별도 취합 예정.
+
+
 ### [2026-07-28 11:05 KST] ✅완료 — H-30 위키 반영 완료 — confirmed_genuine 9/10건
 10건(confirmed_genuine, H-28 3차 검토 확정) 중 1건(물환경보전법 시행규칙 제71조의3③ 기술진단비용)은 실제 존재하는 고시를 발견해 H-30 적용 전에 먼저 재수집으로 해소(_dashboard 커밋 8fb545d1). 나머지 9건은 워크플로우(w61bxzus6)로 위키 페이지를 찾아 H-30 3요건(①위임체인 명시 ②미제정 정직선언 ③소관부서 연락처) 적용: 9건 편집 완료, 1건(물환경보전법 시행규칙 제100조 교육경비)은 다루는 위키 페이지 자체가 없어 새로 만들지 않고 page_not_found로 보고(범위 밖 지시 준수). H-20 표준대로 lint_index→lint_build 재생성 후 커밋·푸시 완료(5a01bc71).
 
