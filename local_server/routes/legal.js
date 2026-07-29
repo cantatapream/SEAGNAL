@@ -14,7 +14,7 @@
  *  - POST /api/legal/reviews/:id/approve → 승인(+교정값 확정) 또는 반려 → 서버 반영
  *  - GET  /api/legal/admin/stats      → 관리자 검토센터 서브탭(초안·피드백·새지식후보·개정검토) 실카운트
  *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
- *  - POST /api/legal/ask              → 하이브리드 검색 + Gemini 답변 합성(services/legal_retriever.js)
+ *  - POST /api/legal/ask              → 하이브리드 검색 + Gemini 답변 스트리밍 합성(NDJSON, services/legal_retriever.js)
  *
  * [연계 파일]
  * - knowledge/legal/_dashboard/review_queue.md   → 검증 대기 원장(승인 마킹 대상)
@@ -273,28 +273,53 @@ router.get('/api/legal/drafts', adminAuth.requireAdminToken, (req, res) => {
     res.json({ ok: true, count: drafts.length, drafts });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
-// POST /api/legal/ask — { query } → 하이브리드 검색(legal_retriever) + Gemini 답변 합성
+// POST /api/legal/ask — { query } → 하이브리드 검색(legal_retriever) + Gemini 답변 스트리밍 합성
+//   응답은 NDJSON(줄바꿈으로 구분된 JSON) 스트림: 답변 조각마다 {type:'delta',text}, 마지막에
+//   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, note} 한 줄로 마감.
+//   ⚠ 실제 생성시간은 그대로다(모델 사고+글자수는 안 줄어듦) — 목적은 체감 대기시간 단축뿐.
 router.post('/api/legal/ask', async (req, res) => {
+  const q = String((req.body && req.body.query) || '').trim();
+  if (!q) return res.status(400).json({ ok: false, error: 'query 필요' });
+
+  const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
   try {
-    const q = String((req.body && req.body.query) || '').trim();
-    if (!q) return res.status(400).json({ ok: false, error: 'query 필요' });
-    // ── canonical 안전필터(스위치) ──
-    //   answerCanonicalOnly=true면 **검증된 canonical 페이지만** 근거로 삼는다(미검증 draft가 사용자 답변에 새는 것 차단).
-    //   기본 false라 현행과 동일(전체 검색). 검증(초안승급) 충분히 쌓인 뒤 관리자가 config로 켠다. 취지: MASTER_PLAN E절.
-    const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
     const { sources, contextPages } = legalRetriever.search(q, { canonicalOnly });
+    const sourcesOut = sources.map(s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop }));
+
+    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    if (res.flushHeaders) res.flushHeaders();
+
     if (!contextPages.length) {
-      return res.json({ ok: true, query: q, canonicalOnly, answer: null, sources: [],
-        note: '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.' });
+      res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly, answer: null, sources: [],
+        note: '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.' }) + '\n');
+      return res.end();
     }
-    const synth = await legalRetriever.synthesizeAnswer(q, contextPages);
-    res.json({ ok: true, query: q, canonicalOnly,
-      answer: synth.answer,
-      sources: sources.map(s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop })),
-      note: synth.usedGemini
-        ? (canonicalOnly ? '검증(canonical) 근거만 반영' : '위키 근거 기반 AI 답변')
-        : `답변 생성 실패(${synth.error || '알 수 없는 오류'}) — 근거 후보만 반환` });
-  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+
+    let full = '';
+    let streamError = null;
+    try {
+      for await (const chunk of legalRetriever.synthesizeAnswerStream(q, contextPages)) {
+        full += chunk;
+        res.write(JSON.stringify({ type: 'delta', text: chunk }) + '\n');
+        if (res.flush) res.flush(); // compression() 버퍼를 즉시 내보내 실제로 조각조각 도착하게 함
+      }
+    } catch (e) { streamError = e; }
+
+    const usedGemini = full.trim().length > 0;
+    const note = usedGemini
+      ? (canonicalOnly ? '검증(canonical) 근거만 반영' : '위키 근거 기반 AI 답변')
+      : `답변 생성 실패(${(streamError && streamError.message) || '응답 없음'}) — 근거 후보만 반환`;
+    res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
+      answer: usedGemini ? full.trim() : null, sources: sourcesOut, note }) + '\n');
+    res.end();
+  } catch (e) {
+    if (res.headersSent) {
+      res.write(JSON.stringify({ type: 'done', ok: false, error: String(e.message || e) }) + '\n');
+      return res.end();
+    }
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
 });
 
 // ── 원본 서빙(읽기전용): 리뷰 카드에서 AI가 본 별표 OCR 이미지·조문 원문을 그대로 보여주기 위함 ──

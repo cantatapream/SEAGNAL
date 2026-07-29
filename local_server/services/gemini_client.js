@@ -213,6 +213,59 @@ async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
 }
 
 /**
+ * 스트리밍 호출(비동기 제너레이터) — 키 선택·쿨다운 로직은 callGeminiRaw와 동일하나,
+ * 전체 응답을 기다리지 않고 청크가 오는 대로 바로 넘겨준다(체감 대기시간 단축용).
+ * 429는 스트림을 열기 *전*에만 다음 키로 폴백한다 — 스트림이 이미 시작된 뒤 중간에
+ * 끊기면 그 시점까지 텍스트가 클라이언트에 이미 전달됐을 수 있어 재시도하지 않고
+ * 에러를 그대로 던진다(호출부가 "여기까지만 받았다"로 처리).
+ * @param {object} params - { model, contents, config, caller }
+ * @yields {string} 텍스트 조각(delta)
+ */
+async function* callGeminiStream({ model, contents, config, caller = 'unknown' }) {
+    if (!hasAnyKey()) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
+
+    bumpUsage('requests', caller);
+    const triedIndices = [];
+
+    while (true) {
+        const picked = pickNextKey(triedIndices);
+        if (!picked) {
+            const now = Date.now();
+            if (now - lastAllExhaustedNotifyAt >= NOTIFY_THROTTLE_MS) {
+                lastAllExhaustedNotifyAt = now;
+                notifyAdmin('⛔ 모든 Gemini 키 소진', `기본/백업 키 모두 쿨다운 중입니다. (${caller})`);
+            }
+            throw new Error('모든 Gemini API 키가 쿨다운 중입니다.');
+        }
+
+        let stream;
+        try {
+            bumpUsage('apiCalls');
+            const genAI = new GoogleGenAI({ apiKey: picked.apiKey });
+            stream = await genAI.models.generateContentStream({ model, contents, config });
+        } catch (e) {
+            const errorMsg = e.message || '';
+            const isRateLimited = errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED');
+            console.error(`[Gemini] 스트림 시작 실패 caller=${caller} key=${picked.label} rateLimited=${isRateLimited} err=${String(errorMsg).slice(0, 250)}`);
+            if (isRateLimited) {
+                bumpUsage('rateLimited');
+                markRateLimited(picked.index, errorMsg);
+                triedIndices.push(picked.index);
+                continue; // 스트림 열기 전 실패만 다음 키로 폴백
+            }
+            throw e;
+        }
+
+        bumpUsage('success');
+        for await (const chunk of stream) {
+            const t = chunk.text;
+            if (t) yield t;
+        }
+        return;
+    }
+}
+
+/**
  * 단발 텍스트 응답 헬퍼 — callGeminiRaw 를 감싸 기존 { success, text } 계약을 유지.
  */
 async function callGemini(args) {
@@ -228,6 +281,7 @@ async function callGemini(args) {
 module.exports = {
     callGemini,
     callGeminiRaw,
+    callGeminiStream,
     getKeysStatus,
     getUsageStats,
     hasAnyKey,

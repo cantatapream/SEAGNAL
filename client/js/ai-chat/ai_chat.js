@@ -24,7 +24,7 @@
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
  *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토 실카운트)
  *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
- *                    POST /api/legal/ask {query}               (질문→AI 답변+근거 법령)
+ *                    POST /api/legal/ask {query}               (질문→AI 답변 스트리밍(NDJSON)+근거 법령)
  *  - 마크업        : #unified-admin-body(콘솔 마운트 지점, admin.js 소유),
  *                    body 에 스스로 주입하는 #nrya-overlays(FAB·채팅·지도 팝업)
  *  - 나를 쓰는 곳  : index2.html <script src="js/ai-chat/ai_chat.js"> — 자가 실행.
@@ -943,10 +943,53 @@
   }
 
   /**
-   * 채팅 입력을 서버 /api/legal/ask 로 보내고, 생각중 애니메이션 후 근거 법령을
-   * 아코디언으로 렌더한다. 좌표성 질문이면 좌표 미니지도도 함께 붙인다.
-   * 실패 시 안전한 폴백 말풍선을 띄운다(빈 화면 없음).
-   * [연계] → POST /api/legal/ask.
+   * NDJSON 스트림(POST /api/legal/ask 응답)을 읽어 답변 조각(delta)마다 콜백을 부르고,
+   * 마지막 done 라인을 파싱해 반환한다. 스트리밍 미지원 환경(res.body.getReader 없음)이면
+   * 전체 텍스트를 한 번에 받아 done 라인만 파싱하는 방식으로 안전하게 폴백한다.
+   * @param {Response} res - fetch 응답(legalPost 결과)
+   * @param {(text:string)=>void} onDelta - 답변 조각이 도착할 때마다 호출
+   * @returns {Promise<object>} done 라인 payload(못 받으면 {ok:false})
+   * [연계] ← doSend. → POST /api/legal/ask 의 NDJSON 스트림 소비.
+   */
+  function readNdjsonStream(res, onDelta) {
+    function consumeLines(text) {
+      var done = null;
+      text.split('\n').forEach(function (line) {
+        line = line.trim(); if (!line) return;
+        var obj; try { obj = JSON.parse(line); } catch (e) { return; }
+        if (obj.type === 'delta' && obj.text) onDelta(obj.text);
+        else if (obj.type === 'done') done = obj;
+      });
+      return done;
+    }
+    if (!res.body || !res.body.getReader) {
+      return res.text().then(function (txt) { return consumeLines(txt) || { ok: false }; });
+    }
+    var reader = res.body.getReader();
+    var decoder = new TextDecoder('utf-8');
+    var buf = '', doneObj = null;
+    function pump() {
+      return reader.read().then(function (result) {
+        if (result.done) {
+          if (buf) doneObj = consumeLines(buf) || doneObj;
+          return doneObj || { ok: false };
+        }
+        buf += decoder.decode(result.value, { stream: true });
+        var lines = buf.split('\n');
+        buf = lines.pop(); // 마지막 조각은 아직 미완성일 수 있어 다음 read로 넘김
+        doneObj = consumeLines(lines.join('\n')) || doneObj;
+        return pump();
+      });
+    }
+    return pump();
+  }
+
+  /**
+   * 채팅 입력을 서버 /api/legal/ask 로 보내고, 생각중 애니메이션 후 답변을 스트리밍으로
+   * (조각조각 타이핑되듯) 렌더한다. 근거 법령 아코디언·좌표 미니지도는 스트림이 끝난
+   * done 시점에 최종 렌더로 붙는다. 실패 시 안전한 폴백 말풍선을 띄운다(빈 화면 없음).
+   * ⚠ 스트리밍은 체감 대기시간만 줄인다 — 실제 생성시간은 그대로다.
+   * [연계] → POST /api/legal/ask, readNdjsonStream.
    */
   function doSend() {
     var body = document.getElementById('nryaChatBody');
@@ -971,19 +1014,36 @@
     var i = 0, tsEl = th.querySelector('.nrya-ts');
     var iv = setInterval(function () { i++; if (i < STEPS.length) tsEl.textContent = STEPS[i]; }, 850);
 
-    // 최소 노출 시간(생각중 UX 유지) + 서버 응답을 함께 기다림
-    var minDelay = new Promise(function (r) { setTimeout(r, 850 * 2); });
-    var ask = legalPost('/api/legal/ask', { query: q })
-      .then(function (res) { return res.json().catch(function () { return { ok: false }; }); })
-      .catch(function () { return { ok: false, _neterr: true }; });
+    var startedAt = Date.now(), hadDelta = false, bubbleEl = null, accumulated = '';
+    var MIN_THINK_MS = 850 * 2; // 근거 없음 등 즉답 케이스에서 생각중이 순간 깜빡이지 않게 하는 최소 노출시간
 
-    Promise.all([ask, minDelay]).then(function (arr) {
-      clearInterval(iv); th.remove(); if (orb) orb.classList.remove('nrya-think');
-      var data = arr[0];
+    /** 첫 delta 도착 시 생각중 말풍선을 실제 답변 말풍선으로 교체(1회만). */
+    function ensureAnswerBubble() {
+      if (bubbleEl) return;
+      clearInterval(iv); if (orb) orb.classList.remove('nrya-think'); th.remove();
       var a = document.createElement('div'); a.className = 'nrya-krow nrya-ai';
-      a.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">' + answerHTML(q, data) + '</div><span class="nrya-ktime">지금</span></div></div></div>';
-      body.appendChild(a); body.scrollTop = body.scrollHeight;
-    });
+      a.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai"></div><span class="nrya-ktime">지금</span></div></div></div>';
+      body.appendChild(a);
+      bubbleEl = a.querySelector('.nrya-kbub');
+    }
+
+    legalPost('/api/legal/ask', { query: q }).then(function (res) {
+      return readNdjsonStream(res, function (deltaText) {
+        hadDelta = true;
+        ensureAnswerBubble();
+        accumulated += deltaText;
+        bubbleEl.innerHTML = answerBodyHTML(accumulated);
+        body.scrollTop = body.scrollHeight;
+      });
+    }).catch(function () { return { ok: false, _neterr: true }; })
+      .then(function (data) {
+        var wait = hadDelta ? 0 : Math.max(0, MIN_THINK_MS - (Date.now() - startedAt));
+        return new Promise(function (resolve) { setTimeout(function () { resolve(data); }, wait); });
+      }).then(function (data) {
+        ensureAnswerBubble(); // done만 오고 delta가 하나도 없었던 경우(근거없음·오류) 대비
+        bubbleEl.innerHTML = answerHTML(q, data);
+        body.scrollTop = body.scrollHeight;
+      });
   }
 
   /**

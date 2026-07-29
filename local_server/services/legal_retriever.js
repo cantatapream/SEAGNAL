@@ -7,7 +7,7 @@
  * [설명]
  * `_CHATBOT.md` 4절(검색)·3절(인용규율)·5절(답변 경계)의 답변엔진 구현체(Phase E, 1차:
  * 수산업법·어선법·어선안전조업법 3법 파일럿). routes/legal.js의 POST /api/legal/ask가
- * 이 모듈의 search()로 근거 후보를 찾고 synthesizeAnswer()로 실제 문장 답변을 만든다.
+ * 이 모듈의 search()로 근거 후보를 찾고 synthesizeAnswerStream()으로 실제 문장 답변을 스트리밍 생성한다.
  *
  * [검색 단계]
  *  ① 메타데이터 매칭(법명·주제·파일명·테마) — index.json
@@ -277,25 +277,23 @@ const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을
 7. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용.
 8. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.`;
 
+// 'MINIMAL'은 이 모델(gemini-pro-latest)에서 400(지원 안 함)으로 실측 확인(2026-07-29) —
+// 절대 쓰지 말 것. 현재 확정: LOW+규칙8(6회 반복 26초 평균·완전성 6/6)이 속도·완전성 균형점.
+const SYNTH_CONFIG = { temperature: 0.3, thinkingConfig: { thinkingLevel: 'LOW' } };
+
 /**
- * Gemini로 실제 답변 문장을 합성한다. 근거 페이지가 없으면 호출하지 않는다(비용·환각 방지).
+ * Gemini로 실제 답변 문장을 스트리밍으로 합성한다(체감 대기시간 단축 — 실제 생성시간은
+ * 그대로지만 화면엔 조각조각 바로 뜬다). 근거 페이지가 없거나 키가 없으면 아무것도
+ * yield하지 않고 바로 끝난다(호출부가 "근거없음"·"키없음"으로 구분해 처리).
  * @param {string} query
  * @param {Array} contextPages - search()의 contextPages
- * @returns {Promise<{answer:string|null, usedGemini:boolean, error:string|null}>}
+ * @yields {string} 답변 텍스트 조각(delta)
  */
-async function synthesizeAnswer(query, contextPages) {
-  if (!contextPages.length) return { answer: null, usedGemini: false, error: '근거 없음' };
-  if (!gemini.hasAnyKey()) return { answer: null, usedGemini: false, error: 'GEMINI_API_KEY 미설정' };
+async function* synthesizeAnswerStream(query, contextPages) {
+  if (!contextPages.length) return;
+  if (!gemini.hasAnyKey()) throw new Error('GEMINI_API_KEY 미설정');
   const prompt = `${ANSWER_RULES}\n\n[근거자료]\n${buildContextBlock(contextPages)}\n\n질문: "${query}"\n답:`;
-  // 'MINIMAL'은 이 모델(gemini-pro-latest)에서 400(지원 안 함)으로 실측 확인(2026-07-29) —
-  // 절대 쓰지 말 것. 현재 확정: LOW+규칙8(6회 반복 26초 평균·완전성 6/6)이 속도·완전성 균형점.
-  const r = await gemini.callGemini({
-    model: ANSWER_MODEL, contents: prompt,
-    config: { temperature: 0.3, thinkingConfig: { thinkingLevel: 'LOW' } },
-    caller: 'Legal-Ask',
-  });
-  if (!r.success || !r.text) return { answer: null, usedGemini: false, error: r.error || '응답 없음' };
-  return { answer: r.text.trim(), usedGemini: true, error: null };
+  yield* gemini.callGeminiStream({ model: ANSWER_MODEL, contents: prompt, config: SYNTH_CONFIG, caller: 'Legal-Ask' });
 }
 
-module.exports = { loadIndex, search, synthesizeAnswer };
+module.exports = { loadIndex, search, synthesizeAnswerStream };
