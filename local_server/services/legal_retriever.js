@@ -282,7 +282,14 @@ async function synthesizeAnswer(query, contextPages) {
   if (!contextPages.length) return { answer: null, usedGemini: false, error: '근거 없음' };
   if (!gemini.hasAnyKey()) return { answer: null, usedGemini: false, error: 'GEMINI_API_KEY 미설정' };
   const prompt = `${ANSWER_RULES}\n\n[근거자료]\n${buildContextBlock(contextPages)}\n\n질문: "${query}"\n답:`;
-  const r = await gemini.callGemini({ model: ANSWER_MODEL, contents: prompt, config: { temperature: 0.3 }, caller: 'Legal-Ask' });
+  // thinkingLevel: 'LOW' — 답변 전 내부 추론량을 제한해 속도 개선 시도(사용자 요청, 2026-07-29
+  // 실측 12~53초가 느리다는 지적). 기본값(사실상 무제한 auto)보다 낮춰 정확도 손실 여부와
+  // 함께 관찰. 품질이 떨어지면 'MEDIUM'으로 올리거나 되돌린다.
+  const r = await gemini.callGemini({
+    model: ANSWER_MODEL, contents: prompt,
+    config: { temperature: 0.3, thinkingConfig: { thinkingLevel: 'LOW' } },
+    caller: 'Legal-Ask',
+  });
   if (!r.success || !r.text) return { answer: null, usedGemini: false, error: r.error || '응답 없음' };
   return { answer: r.text.trim(), usedGemini: true, error: null };
 }
