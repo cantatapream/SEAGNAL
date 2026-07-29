@@ -2,8 +2,8 @@
  "law": "해양과학조사법",
  "slug": "해양과학조사법",
  "total_raw_articles": 53,
- "total_uncited": 4,
- "coverage_pct": 92.5,
+ "total_uncited": 3,
+ "coverage_pct": 94.3,
  "per_family": {
   "법률": {
    "raw_count": 27,
@@ -11,7 +11,7 @@
   },
   "시행령": {
    "raw_count": 20,
-   "uncited_count": 2
+   "uncited_count": 1
   },
   "시행규칙": {
    "raw_count": 6,
@@ -23,8 +23,7 @@
    "19조"
   ],
   "시행령": [
-   "1조",
-   "8조"
+   "1조"
   ],
   "시행규칙": [
    "1조"
