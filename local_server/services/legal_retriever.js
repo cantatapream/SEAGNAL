@@ -45,9 +45,11 @@ const STATUTES_DIR = path.join(LEGAL_DIR, 'wiki', 'statutes');
 // 'gemini-pro-latest'(항상 현재 최상위 pro 모델을 가리키는 별칭)를 대신 사용.
 const ANSWER_MODEL = 'gemini-pro-latest';
 const MAX_BODY_CHARS = 4000;   // 페이지당 컨텍스트 상한(비용·컨텍스트 관리)
-// TEMP(실험, 2026-07-29): 7→10페이지에선 속도차 없었음. 실제로 느려지는 상한선을
-// 찾기 위해 이번엔 25+5=30페이지로 크게 늘려 재측정(사용자 요청).
-const PRIMARY_TOPK = 25;
+// 실측 확정(2026-07-29): 7→10→30페이지로 늘려도 속도 저하 없음(병목은 Gemini 호출 자체,
+// 검색 자체는 0.1~0.3초). 다만 30개에서 순위 20위 이후는 관련성이 뚜렷이 떨어지는 노이즈성
+// 페이지가 섞이기 시작함(예: "선박안전법 형식승인및검정" 등) — 속도가 아니라 관련성 기준으로
+// 10+5=15를 "안전마진은 넉넉하되 노이즈는 덜한" 확정값으로 결정.
+const PRIMARY_TOPK = 10;
 const HOP_MAX = 5;
 
 // ── index.json 캐시(mtime 감지) ──
