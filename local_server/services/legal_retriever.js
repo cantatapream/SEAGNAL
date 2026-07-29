@@ -270,7 +270,8 @@ const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을
 4. 판례·법리 해석·다툼의 여지가 있는 논점은 답하지 않는다(스코프 밖). 명확한 조문까지만 안내하고 "이 부분은 개별 사안에 따라 달라져 관할 소관부서에 확인하시는 것이 정확합니다"로 마무리한다.
 5. 딱딱한 조문 나열 금지. 결론 먼저 → 필요한 근거. 이해가 어려운 부분만 "쉽게 말하면~"으로 한 번 더 풀어준다. 과잉 설명은 하지 않는다.
 6. 답변 마지막에 반드시 이 순서로 붙인다: (a) 근거 법령·조문, (b) [근거자료]에 소관부서·연락처가 있으면 그것, (c) 근거자료의 기준일("「○○법」 YYYY-MM-DD 기준"). ("참고용입니다" 면책 문구는 화면이 별도로 붙이니 답변에 넣지 않는다.)
-7. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용.`;
+7. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용.
+8. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.`;
 
 /**
  * Gemini로 실제 답변 문장을 합성한다. 근거 페이지가 없으면 호출하지 않는다(비용·환각 방지).
@@ -282,11 +283,11 @@ async function synthesizeAnswer(query, contextPages) {
   if (!contextPages.length) return { answer: null, usedGemini: false, error: '근거 없음' };
   if (!gemini.hasAnyKey()) return { answer: null, usedGemini: false, error: 'GEMINI_API_KEY 미설정' };
   const prompt = `${ANSWER_RULES}\n\n[근거자료]\n${buildContextBlock(contextPages)}\n\n질문: "${query}"\n답:`;
-  // TEMP(대조군 측정용, 2026-07-29): thinkingConfig 제거 — LOW/MEDIUM의 완전성 손실이
-  // thinkingLevel 때문인지, 원래 프롬프트가 그런지 확인하기 위해 기본값(auto)으로 6회 반복.
+  // 실측 결과(2026-07-29, 6회 반복): auto(38.7초 평균·완전성 5/6) > MEDIUM(15.3초·3/6)
+  // > LOW(22.5초·2~3/6). 규칙 8(관련 주체 전부 언급) 추가 후 MEDIUM으로 속도·완전성 재측정.
   const r = await gemini.callGemini({
     model: ANSWER_MODEL, contents: prompt,
-    config: { temperature: 0.3 },
+    config: { temperature: 0.3, thinkingConfig: { thinkingLevel: 'MEDIUM' } },
     caller: 'Legal-Ask',
   });
   if (!r.success || !r.text) return { answer: null, usedGemini: false, error: r.error || '응답 없음' };
