@@ -2,8 +2,8 @@
  "law": "해양조사와 해양정보 활용에 관한 법률",
  "slug": "해양조사와해양정보활용에관한법률",
  "total_raw_articles": 138,
- "total_uncited": 15,
- "coverage_pct": 89.1,
+ "total_uncited": 9,
+ "coverage_pct": 93.5,
  "per_family": {
   "법률": {
    "raw_count": 66,
@@ -15,7 +15,7 @@
   },
   "시행규칙": {
    "raw_count": 44,
-   "uncited_count": 11
+   "uncited_count": 5
   }
  },
  "uncited_articles": {
@@ -28,16 +28,10 @@
   ],
   "시행규칙": [
    "1조",
-   "5조",
-   "13조",
-   "14조",
    "19조",
    "25조",
    "27조",
-   "28조",
-   "36조",
-   "42조",
-   "44조"
+   "28조"
   ]
  }
 }
