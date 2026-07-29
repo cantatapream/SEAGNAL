@@ -2,8 +2,8 @@
  "law": "유류오염손해배상 보장법",
  "slug": "유류오염손해배상보장법",
  "total_raw_articles": 90,
- "total_uncited": 7,
- "coverage_pct": 92.2,
+ "total_uncited": 5,
+ "coverage_pct": 94.4,
  "per_family": {
   "법률": {
    "raw_count": 65,
@@ -15,7 +15,7 @@
   },
   "시행규칙": {
    "raw_count": 19,
-   "uncited_count": 6
+   "uncited_count": 4
   }
  },
  "uncited_articles": {
@@ -25,11 +25,9 @@
   ],
   "시행규칙": [
    "1조",
-   "7조",
    "10조",
    "11조",
-   "12조",
-   "13조"
+   "12조"
   ]
  }
 }
