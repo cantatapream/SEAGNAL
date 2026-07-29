@@ -283,11 +283,11 @@ async function synthesizeAnswer(query, contextPages) {
   if (!contextPages.length) return { answer: null, usedGemini: false, error: '근거 없음' };
   if (!gemini.hasAnyKey()) return { answer: null, usedGemini: false, error: 'GEMINI_API_KEY 미설정' };
   const prompt = `${ANSWER_RULES}\n\n[근거자료]\n${buildContextBlock(contextPages)}\n\n질문: "${query}"\n답:`;
-  // 실측 결과(2026-07-29, 6회 반복): auto(38.7초 평균·완전성 5/6) > MEDIUM(15.3초·3/6)
-  // > LOW(22.5초·2~3/6). 규칙 8(관련 주체 전부 언급) 추가 후 MEDIUM으로 속도·완전성 재측정.
+  // 실측(2026-07-29, 6회 반복): 규칙8 추가 후 MEDIUM=23.3초·5/6. 이번엔 규칙8은 유지한 채
+  // thinkingLevel만 LOW로 낮춰 "규칙8이 LOW에서도 완전성을 지켜주는지" 재측정.
   const r = await gemini.callGemini({
     model: ANSWER_MODEL, contents: prompt,
-    config: { temperature: 0.3, thinkingConfig: { thinkingLevel: 'MEDIUM' } },
+    config: { temperature: 0.3, thinkingConfig: { thinkingLevel: 'LOW' } },
     caller: 'Legal-Ask',
   });
   if (!r.success || !r.text) return { answer: null, usedGemini: false, error: r.error || '응답 없음' };
