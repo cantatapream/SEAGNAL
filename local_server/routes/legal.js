@@ -14,7 +14,7 @@
  *  - POST /api/legal/reviews/:id/approve → 승인(+교정값 확정) 또는 반려 → 서버 반영
  *  - GET  /api/legal/admin/stats      → 관리자 검토센터 서브탭(초안·피드백·새지식후보·개정검토) 실카운트
  *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
- *  - POST /api/legal/ask              → 현 위키 DB 검색 기반 답변(기초)
+ *  - POST /api/legal/ask              → 하이브리드 검색 + Gemini 답변 합성(services/legal_retriever.js)
  *
  * [연계 파일]
  * - knowledge/legal/_dashboard/review_queue.md   → 검증 대기 원장(승인 마킹 대상)
@@ -23,6 +23,7 @@
  * - knowledge/legal/_dashboard/review_approvals.json → 승인·교정 이력(감사 추적)
  * - services/admin_auth.js  → X-Admin-Token 검증(관리자 전용 게이트)
  * - services/atomic_write.js → 원자적 파일쓰기(경합 방지)
+ * - services/legal_retriever.js → /api/legal/ask 의 검색·답변합성 본체
  *
  * [경합위험] review_queue.md·공유 md는 여러 승인이 동시에 쓰면 손상될 수 있어
  *   승인 쓰기는 반드시 직렬(single-writer)로 처리한다(아래 withLock).
@@ -34,11 +35,11 @@ const fs = require('fs');
 const path = require('path');
 const adminAuth = require('../services/admin_auth');
 const { writeFileAtomic } = require('../services/atomic_write');
+const legalRetriever = require('../services/legal_retriever');
 
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const REVIEW_QUEUE = path.join(LEGAL_DIR, '_dashboard', 'review_queue.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
-const INDEX_JSON = path.join(LEGAL_DIR, '_dashboard', 'index.json');
 const APPROVALS_LOG = path.join(LEGAL_DIR, '_dashboard', 'review_approvals.json');
 
 // 관리자 전용: 모든 리뷰 API는 X-Admin-Token 필요(일반 사용자 접근 차단)
@@ -245,16 +246,8 @@ router.post('/api/legal/reviews/:id/approve', (req, res) => {
     .catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
 });
 
-// ── 현 DB 기반 답변(기초): index.json 키워드 검색 → 상위 canonical 개념 스니펫 ──
-let _idxCache = null, _idxMtime = 0;
-function loadIndex() {
-  try {
-    const mt = fs.statSync(INDEX_JSON).mtimeMs;   // 재빌드 감지: mtime 바뀌면 캐시 무효화(스테일 방지)
-    if (_idxCache && mt === _idxMtime) return _idxCache;
-    _idxCache = JSON.parse(fs.readFileSync(INDEX_JSON, 'utf8')); _idxMtime = mt;
-  } catch (_) { if (!_idxCache) _idxCache = { pages: [] }; }
-  return _idxCache;
-}
+// ── index.json 로드(mtime 캐시) — legal_retriever와 동일 캐시 공유(중복 방지) ──
+const loadIndex = legalRetriever.loadIndex;
 
 // GET /api/legal/admin/stats — 관리자 검토센터 서브탭(초안승인·피드백·새지식후보·개정검토) 실카운트.
 //   ⚠수치검증은 /api/legal/reviews/stats 를 그대로 재사용(기존 클라 로직 유지).
@@ -280,28 +273,27 @@ router.get('/api/legal/drafts', adminAuth.requireAdminToken, (req, res) => {
     res.json({ ok: true, count: drafts.length, drafts });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
-// POST /api/legal/ask — { query } → 위키 검색 기반 근거 페이지(LLM 합성은 후속 단계)
-router.post('/api/legal/ask', (req, res) => {
+// POST /api/legal/ask — { query } → 하이브리드 검색(legal_retriever) + Gemini 답변 합성
+router.post('/api/legal/ask', async (req, res) => {
   try {
     const q = String((req.body && req.body.query) || '').trim();
     if (!q) return res.status(400).json({ ok: false, error: 'query 필요' });
-    const idx = loadIndex();
-    let pages = idx.pages || [];
     // ── canonical 안전필터(스위치) ──
     //   answerCanonicalOnly=true면 **검증된 canonical 페이지만** 근거로 삼는다(미검증 draft가 사용자 답변에 새는 것 차단).
     //   기본 false라 현행과 동일(전체 검색). 검증(초안승급) 충분히 쌓인 뒤 관리자가 config로 켠다. 취지: MASTER_PLAN E절.
     const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
-    if (canonicalOnly) pages = pages.filter(p => p.kind !== 'concept' || p.status === 'canonical'); // statute는 통과, concept는 canonical만
-    const terms = q.replace(/[^가-힣a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter(t => t.length >= 2);
-    const scored = pages.map(p => {
-      const hay = ((p.law || '') + ' ' + (p.topic || '') + ' ' + (p.file || '') + ' ' + (p.themes || []).join(' '));
-      let s = 0; for (const t of terms) if (hay.includes(t)) s += (p.law && p.law.includes(t)) ? 2 : 1;
-      return { p, s };
-    }).filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 5);
+    const { sources, contextPages } = legalRetriever.search(q, { canonicalOnly });
+    if (!contextPages.length) {
+      return res.json({ ok: true, query: q, canonicalOnly, answer: null, sources: [],
+        note: '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.' });
+    }
+    const synth = await legalRetriever.synthesizeAnswer(q, contextPages);
     res.json({ ok: true, query: q, canonicalOnly,
-      // ⚠ 현 단계는 검색 결과(근거 후보)만 반환. 실제 답변 합성(Gemini)은 후속. canonical 필터는 위 스위치로 제어.
-      sources: scored.map(x => ({ file: x.p.file, law: x.p.law, topic: x.p.topic, kind: x.p.kind, status: x.p.status || null, score: x.s })),
-      note: canonicalOnly ? '검증(canonical) 근거만 반환' : '현 DB 검색 기반 근거 후보(canonical 필터 OFF·후속 단계)' });
+      answer: synth.answer,
+      sources: sources.map(s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop })),
+      note: synth.usedGemini
+        ? (canonicalOnly ? '검증(canonical) 근거만 반영' : '위키 근거 기반 AI 답변')
+        : `답변 생성 실패(${synth.error || '알 수 없는 오류'}) — 근거 후보만 반환` });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 

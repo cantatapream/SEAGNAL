@@ -24,7 +24,7 @@
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
  *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토 실카운트)
  *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
- *                    POST /api/legal/ask {query}               (질문→근거 법령 검색)
+ *                    POST /api/legal/ask {query}               (질문→AI 답변+근거 법령)
  *  - 마크업        : #unified-admin-body(콘솔 마운트 지점, admin.js 소유),
  *                    body 에 스스로 주입하는 #nrya-overlays(FAB·채팅·지도 팝업)
  *  - 나를 쓰는 곳  : index2.html <script src="js/ai-chat/ai_chat.js"> — 자가 실행.
@@ -987,10 +987,20 @@
   }
 
   /**
+   * 답변 본문(AI 합성 텍스트)을 안전하게 HTML로 변환한다. **굵게**만 허용하고 나머지는 이스케이프.
+   * @param {string} text - Gemini가 만든 답변 원문
+   * @returns {string} 이스케이프된 HTML(굵게·줄바꿈만 적용)
+   */
+  function answerBodyHTML(text) {
+    return esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+  }
+
+  /**
    * /api/legal/ask 응답을 답변 말풍선 내부 HTML로 조립한다.
-   * 근거 법령(sources)을 아코디언으로, 좌표성 질문이면 미니지도를 덧붙인다.
+   * AI 합성 답변(answer)을 본문으로, 근거 법령(sources)은 아코디언으로, 좌표성 질문이면
+   * 미니지도를 덧붙인다. answer가 없으면(합성 실패·근거 없음) 안내 문구로 대체한다.
    * @param {string} q - 사용자 질문
-   * @param {object} data - {ok, sources[], note} 또는 실패 객체
+   * @param {object} data - {ok, answer, sources[], note} 또는 실패 객체
    * @returns {string} 말풍선 내부 HTML
    */
   function answerHTML(q, data) {
@@ -999,9 +1009,11 @@
         '<div class="nrya-disc">일시적 오류일 수 있습니다. 문제가 계속되면 관리자에게 문의하세요.</div>';
     }
     var sources = data.sources || [];
-    var lead = sources.length
-      ? '질문과 관련된 <b>근거 법령·개념</b>을 찾았어요. 아래에서 조문 근거를 확인하세요. (현재는 검색 기반 근거 제시 단계이며, 문장형 답변 합성은 후속 단계입니다.)'
-      : '아직 이 질문에 딱 맞는 근거를 위키에서 찾지 못했어요. 질문을 조금 더 구체적으로(법 이름·톤수·행위) 적어주시면 도움이 됩니다.';
+    var lead = data.answer
+      ? answerBodyHTML(data.answer)
+      : (sources.length
+        ? '질문과 관련된 <b>근거 법령·개념</b>을 찾았지만, 지금은 답변 문장을 만들지 못했어요. 아래에서 조문 근거를 직접 확인하세요.'
+        : '아직 이 질문에 딱 맞는 근거를 위키에서 찾지 못했어요. 질문을 조금 더 구체적으로(법 이름·톤수·행위) 적어주시면 도움이 됩니다.');
 
     var html = lead;
     if (sources.length) {

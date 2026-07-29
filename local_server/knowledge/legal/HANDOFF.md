@@ -109,7 +109,13 @@ synth_scope 70법 통합 full/thin/missing 수치 산출        완료 (2026-07-
 9차 감사 완료 시점은 CLAUDE.md "자율진행 예외" 규칙 대상이었으나(자동으로 10차 감사를 시작하지 않고 정지), 그 직후 발견된 admrul/부칙 raw 파이프라인 구조적 결함(L-29~32) 복구·wiki_rebuild·10차 감사까지는 사용자가 이후 명시적으로 "계속해" 지시해 진행됨(그 순간부터 자율진행 규칙 재적용). 10차 감사 이후 collection_hole 관련 후속작업(재검증→H-28 전수조사→H-30 위키반영→reclass 백로그→사람확인 5건)까지는 자율진행 규칙 하에 연속 처리됨. **③missing/thin 통합수정은 사용자가 명시적으로 "70법 전부 한번에 착수"를 선택**해 진행함.
 
 ### ②지금 진행 중
-없음 — missing/thin 통합수정 70법 1차 패스가 방금 끝났고 H-20 재생성·전체 커밋·푸시까지 완료했다. **다음 단계는 사용자 지시 대기**(아래 ③·6절 참고).
+없음 — **Phase E 답변엔진 1차(3법 파일럿: 수산업법·어선법·어선안전조업법)가 구조적으로 완성**됐다
+(`services/legal_retriever.js` 신규 + `routes/legal.js` /api/legal/ask 교체 + `ai_chat.js` 답변 렌더링).
+검색엔진·프롬프트·라우팅·canonical필터·폴백은 로컬 검증 완료(아래 작업 로그 07-29 12:45 항목 참조).
+**단, 이 세션 샌드박스엔 GEMINI_API_KEY가 없어 실제 Gemini 답변 문장 품질은 검증하지 못했다** —
+**다음 세션(GEMINI_API_KEY 있는 환경)에서 가장 먼저 할 일: 3법 대표질문 몇 개를 실제로 물어보고
+답변 톤·인용정확도·스코프준수를 확인**한 뒤, 문제없으면 나머지 67법으로 확장(코드는 이미 전체
+index.json 대상이라 추가 개발 불요 — 검증만 하면 확장은 자동).
 
 ### ③직전 작업(가장 최근) — 상세는 아래 [작업 로그] 최상단 항목들
 2026-07-28 저녁: synth_scope로 70법 통합 수치 산출(total_q 19,942·full 4,006[20.1%]·thin 6,410·missing 7,173·missing+thin 합계 13,583) 후, 규모가 collection_hole reclass(83건)와 차원이 달라 사용자에게 진행방식을 확인 → **"70법 전부 한번에 착수"** 확정. 7그룹(법당 10개, thin+missing 내림차순 라운드로빈)으로 법당 1에이전트(high effort)가 wiki_lag(raw엔 답 있는데 위키 미반영) 위주로 최대한 처리. **결과: reviewed 3,943건(전체 13,583건 중 약 29%) / fixed(실제 위키반영) 508건 / still_open 3,998건** — 나머지(9,640건)는 이번 패스에서 개별 재검토하지 않음(각 법 담당이 "이미 여러 라운드에 걸쳐 정직하게 문서화된 구조적 공백"으로 판단, 숫자 부풀리기 없이 정직 보고).
@@ -128,7 +134,7 @@ synth_scope 70법 통합 full/thin/missing 수치 산출        완료 (2026-07-
 2. **lint 순서 실행(H-20 표준)**: lint_xref/lint_full(재빌드된 법만) → lint_index.py → lint_build.py → human_workload.py. 위키 콘텐츠 변경 후 반드시 이 순서로, 건너뛰면 안 됨.
 3. **`synth_scope.js`로 73법 통합 full율 정밀 산출** — 9차 감사 신규 48법만의 27.8%는 나왔으나 그룹0~2 포함 전체 통합수치 미산출.
 4. **review_queue.md 표준 스키마 정의 + `legal_review.html` 파서 버그 수정** — `extractStructured()`의 24자 라벨 제한으로 핵심 AI판단 내용이 화면에서 드롭되는 버그 확인됨(2026-07-26). 카드 UI 재설계 시안은 Artifact로 게시 완료, 실제 코드 미반영.
-5. **여기까지 끝난 뒤 사용자 지시 필요(자동 착수 금지)**: 10차 감사 여부 / canonical 필터 ON 여부(§4-2 절차) / Phase E 답변엔진 착수(`_CHATBOT.md` 설계, `local_server/services/legal_retriever.js` 신규 예정) / Phase F 앱 UI(exposure 전환·`_feedback`/`_candidates` 배선) / Phase G 운영(개정 diff 스케줄러, 미구축).
+5. **여기까지 끝난 뒤 사용자 지시 필요(자동 착수 금지)**: 10차 감사 여부 / canonical 필터 ON 여부(§4-2 절차) / ~~Phase E 답변엔진 착수~~(2026-07-29 3법 파일럿 구현 완료, 위 ② 참조 — **다음은 실키 환경 답변품질 확인**) / Phase F 앱 UI(exposure 전환·`_feedback`/`_candidates` 배선) / Phase G 운영(개정 diff 스케줄러, 미구축).
 
 ---
 
@@ -181,6 +187,14 @@ synth_scope 70법 통합 full/thin/missing 수치 산출        완료 (2026-07-
 
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
+
+### [2026-07-29 12:45 KST] ✅완료 — Phase E 답변엔진 1차(3법 파일럿) — 검색+Gemini답변합성 구현·구조검증 완료
+새 파일 local_server/services/legal_retriever.js: 하이브리드 검색(①메타점수 ②glossary 구어매핑 ③본문 직접매칭 ④graph 1홉 — _CHATBOT.md 4절)+Gemini 답변합성(3절 인용규율·5절 스코프경계 프롬프트화, 단발 1턴만·사용자가 명시 확정). routes/legal.js POST /api/legal/ask를 이 모듈로 교체(기존 '근거후보만 반환'을 실제 answer 필드로), client ai_chat.js answerHTML이 합성답변을 렌더하도록 수정. 검증: (1)local_server npm install 후 node로 retriever 단위검증 — 처음엔 한국어 조사/어미('조업하면'류)가 안 걸리는 리콜버그+'어떻게/되나요' 같은 의문어가 전혀 무관한 페이지를 고득점시키는 정밀도버그 2건 실측 발견, STOPWORDS 필터+접두어 확장으로 수정. 3법 대표질문 9개 중 8개(89%) 정답법 상위3 적중(나머지1건은 '기상특보 출항' 같이 여러법 교차용어라 키워드검색 한계, 임베딩 없이는 구조적 한계로 이번 파일럿 범위 밖). (2)_glossary.md에서 어선안전조업법 관련 3개 행이 옛 파일명 슬러그를 가리켜 깨져있던 것 발견·수정(출입항신고·조업구역제한·어선원안전보건재해예방) — glossary 매핑이 실제로 작동하게 된 핵심 수정. (3)서버 기동 후 /api/legal/ask·/api/legal/config 실제 curl 테스트로 정상/빈질의400/무매칭/canonicalOnly필터 전부 확인. (4)verify_all.sh: V2 통과, V3는 과거 세션이 ai_chat.js 추가 후 order_snapshot 갱신을 안 해서 걸려있던 걸 발견해 --snapshot 재기록으로 해소(내가 스크립트 순서를 바꾼 게 아니라 기존 드리프트 정리), 서버스모크 전체 통과. V4(playwright-core)는 root package.json에 그 의존성 자체가 없어 이 세션 환경에서 원래도 실행 불가 — 내 변경과 무관, 손 안 댐. ARCHITECTURE.md 재생성(신규 서버파일은 이 도면 범위 밖=client/js만 인덱싱, 그 과정에서 과거 세션이 놓친 ai_chat.js 인덱스 항목 자동보강됨 + 내가 실수로 지웠던 수동작성 '8.지식베이스' 섹션을 즉시 복구). ★한계(사용자에게 보고 필요): 이 샌드박스엔 GEMINI_API_KEY가 없어 실제 Gemini가 만드는 한국어 답변 문장의 품질·인용정확도·톤은 검증 못함 — 검색엔진 구조·프롬프트 설계·라우팅·폴백만 검증됨. 실사용 전에 키가 있는 환경에서 실제 답변을 몇 개 받아보고 톤·인용정확도를 확인 필요. 멀티턴 되물음(프로필기억)은 사용자가 명시적으로 이번 범위밖으로 확정(1턴만). 다음: ①실키 환경에서 실제 답변 몇 건 품질 확인 ②문제없으면 나머지 67법으로 확장(코드 자체는 이미 전체 index.json 대상이라 추가 개발 불요, index.json에 있는 법이면 바로 동작) ③필요시 embedding 검색 추가 검토.
+
+
+### [2026-07-29 12:19 KST] 🟢착수 — Phase E 답변엔진 착수 (3법 파일럿)
+사용자 확정: 70법 전체가 아니라 수산업법·어선법·어선안전조업법 3법으로 먼저 답변엔진(retriever+AI답변생성) 만들어 검증 후 확장. _CHATBOT.md·MASTER_PLAN.md Phase E·routes/legal.js 현황 확인 중.
+
 
 ### [2026-07-29 08:32 KST] ✅완료 — lint_full 70법 완료 + lint_index/build 실행
 H-20 린트 시퀀스 2단계(lint_full.js) 70법 7그룹 전부 완료(비대칭 역링크·허브링크·dangling 보강). 이어서 3단계 lint_index.py·4단계 lint_build.py 실행 완료: page_count=1000, common_cited_laws(3법+ 공통인용)=320, asym_link_gaps=1979(주의: 근사 휴리스틱 — 표본 대조 결과 절반 이상이 statute허브→concept 정상 단방향 패턴, 나머지가 실제 잔여 교차법 역링크 누락). graph.json 88노드/1570엣지, _backbone.md 40허브법, build_index.md 88법 재생성. 다음: 5단계 human_workload.py 실행 → 사용자에 결과 보고 → 11차 감사.

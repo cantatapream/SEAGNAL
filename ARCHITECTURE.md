@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 92개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 93개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -36,6 +36,8 @@ client/js/
 │   ├── advisory_manage_admin.js
 │   ├── cctv7.js
 │   ├── pagination_helper.js
+├── ai-chat/
+│   ├── ai_chat.js
 ├── assistant/  ← ⚡ AI 음성비서
 │   ├── memory/
 │   │   ├── user_memory_bridge.js
@@ -150,9 +152,9 @@ client/js/
 │   └── utils/
 │       ├── mappings.js
 │       ├── utils.js
-├── typhoon/  ← ⚡ 태풍
-│   ├── location_alert_typhoon_runtime.js
-│   ├── ocean_typhoon.js
+└── typhoon/  ← ⚡ 태풍
+    ├── location_alert_typhoon_runtime.js
+    ├── ocean_typhoon.js
 ```
 
 ## 4. 전체 파일 인덱스
@@ -172,6 +174,12 @@ client/js/
 | `advisory_manage_admin.js` | 관리자 "특보 관리 → 특보 예측" 운영 UI (청중 모드 토글·예측 목록 관리) |
 | `cctv7.js` | 마커 좌표가 잘못된 경우 지도 상에서 직접 위치를 교정합니다. |
 | `pagination_helper.js` | 관리자 리스트 화면용 공용 페이지네이션 UI helper |
+
+### `client/js/ai-chat/`
+
+| 파일 | 역할 |
+|------|------|
+| `ai_chat.js` | 해양법령 챗봇(나리야) 인앱 모듈. 두 갈래로 나뉜다. |
 
 ### `client/js/assistant/`
 
