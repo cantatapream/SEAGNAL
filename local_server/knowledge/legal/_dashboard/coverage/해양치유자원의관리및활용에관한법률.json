@@ -1,0 +1,35 @@
+{
+ "law": "해양치유자원의 관리 및 활용에 관한 법률",
+ "slug": "해양치유자원의관리및활용에관한법률",
+ "total_raw_articles": 87,
+ "total_uncited": 7,
+ "coverage_pct": 92.0,
+ "per_family": {
+  "법률": {
+   "raw_count": 39,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 31,
+   "uncited_count": 4
+  },
+  "시행규칙": {
+   "raw_count": 17,
+   "uncited_count": 3
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "17조",
+   "18조",
+   "30조"
+  ],
+  "시행규칙": [
+   "1조",
+   "8조",
+   "16조"
+  ]
+ }
+}

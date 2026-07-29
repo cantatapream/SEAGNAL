@@ -1,0 +1,31 @@
+{
+ "law": "해사안전기본법",
+ "slug": "해사안전기본법",
+ "total_raw_articles": 56,
+ "total_uncited": 3,
+ "coverage_pct": 94.6,
+ "per_family": {
+  "법률": {
+   "raw_count": 33,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 13,
+   "uncited_count": 2
+  },
+  "시행규칙": {
+   "raw_count": 10,
+   "uncited_count": 1
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "13조"
+  ],
+  "시행규칙": [
+   "1조"
+  ]
+ }
+}

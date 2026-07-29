@@ -1,0 +1,23 @@
+{
+ "law": "해양환경 보전 및 활용에 관한 법률",
+ "slug": "해양환경보전및활용에관한법률",
+ "total_raw_articles": 41,
+ "total_uncited": 1,
+ "coverage_pct": 97.6,
+ "per_family": {
+  "법률": {
+   "raw_count": 28,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 13,
+   "uncited_count": 1
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조"
+  ]
+ }
+}

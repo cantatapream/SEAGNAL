@@ -1,0 +1,37 @@
+{
+ "law": "무인도서의 보전 및 관리에 관한 법률",
+ "slug": "무인도서의보전및관리에관한법률",
+ "total_raw_articles": 97,
+ "total_uncited": 9,
+ "coverage_pct": 90.7,
+ "per_family": {
+  "법률": {
+   "raw_count": 40,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 30,
+   "uncited_count": 5
+  },
+  "시행규칙": {
+   "raw_count": 27,
+   "uncited_count": 4
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "2조",
+   "7조",
+   "8조",
+   "9조"
+  ],
+  "시행규칙": [
+   "1조",
+   "3조",
+   "10조",
+   "24조"
+  ]
+ }
+}

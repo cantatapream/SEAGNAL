@@ -1,0 +1,23 @@
+{
+ "law": "서해 5도 지원 특별법",
+ "slug": "서해5도지원특별법",
+ "total_raw_articles": 34,
+ "total_uncited": 1,
+ "coverage_pct": 97.1,
+ "per_family": {
+  "법률": {
+   "raw_count": 20,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 14,
+   "uncited_count": 1
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조"
+  ]
+ }
+}

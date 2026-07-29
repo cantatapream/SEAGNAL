@@ -1,0 +1,43 @@
+{
+ "law": "수산종자산업육성법",
+ "slug": "수산종자산업육성법",
+ "total_raw_articles": 104,
+ "total_uncited": 14,
+ "coverage_pct": 86.5,
+ "per_family": {
+  "법률": {
+   "raw_count": 43,
+   "uncited_count": 1
+  },
+  "시행령": {
+   "raw_count": 20,
+   "uncited_count": 3
+  },
+  "시행규칙": {
+   "raw_count": 41,
+   "uncited_count": 10
+  }
+ },
+ "uncited_articles": {
+  "법률": [
+   "10조"
+  ],
+  "시행령": [
+   "1조",
+   "6조",
+   "20조"
+  ],
+  "시행규칙": [
+   "1조",
+   "16조",
+   "20조",
+   "21조",
+   "22조",
+   "24조",
+   "25조",
+   "28조",
+   "29조",
+   "36조"
+  ]
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "law": "한국해양교통안전공단법",
+ "slug": "한국해양교통안전공단법",
+ "total_raw_articles": 33,
+ "total_uncited": 1,
+ "coverage_pct": 97.0,
+ "per_family": {
+  "법률": {
+   "raw_count": 21,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 12,
+   "uncited_count": 1
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조"
+  ]
+ }
+}

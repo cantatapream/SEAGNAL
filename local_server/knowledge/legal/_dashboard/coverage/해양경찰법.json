@@ -1,0 +1,16 @@
+{
+ "law": "해양경찰법",
+ "slug": "해양경찰법",
+ "total_raw_articles": 22,
+ "total_uncited": 0,
+ "coverage_pct": 100.0,
+ "per_family": {
+  "법률": {
+   "raw_count": 22,
+   "uncited_count": 0
+  }
+ },
+ "uncited_articles": {
+  "법률": []
+ }
+}

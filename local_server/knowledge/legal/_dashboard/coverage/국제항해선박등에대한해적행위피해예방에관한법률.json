@@ -1,0 +1,32 @@
+{
+ "law": "국제항해선박 등에 대한 해적행위 피해예방에 관한 법률",
+ "slug": "국제항해선박등에대한해적행위피해예방에관한법률",
+ "total_raw_articles": 93,
+ "total_uncited": 4,
+ "coverage_pct": 95.7,
+ "per_family": {
+  "법률": {
+   "raw_count": 50,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 15,
+   "uncited_count": 1
+  },
+  "시행규칙": {
+   "raw_count": 28,
+   "uncited_count": 3
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조"
+  ],
+  "시행규칙": [
+   "1조",
+   "2조",
+   "3조"
+  ]
+ }
+}

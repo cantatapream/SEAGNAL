@@ -1,0 +1,35 @@
+{
+ "law": "해수욕장의 이용 및 관리에 관한 법률",
+ "slug": "해수욕장의이용및관리에관한법률",
+ "total_raw_articles": 97,
+ "total_uncited": 7,
+ "coverage_pct": 92.8,
+ "per_family": {
+  "법률": {
+   "raw_count": 48,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 28,
+   "uncited_count": 4
+  },
+  "시행규칙": {
+   "raw_count": 21,
+   "uncited_count": 3
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "14조",
+   "17조",
+   "22조의2"
+  ],
+  "시행규칙": [
+   "1조",
+   "13조",
+   "14조의2"
+  ]
+ }
+}

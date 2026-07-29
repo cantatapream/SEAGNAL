@@ -1,0 +1,33 @@
+{
+ "law": "갯벌 및 그 주변지역의 지속가능한 관리와 복원에 관한 법률",
+ "slug": "갯벌및그주변지역의지속가능한관리와복원에관한법률",
+ "total_raw_articles": 82,
+ "total_uncited": 5,
+ "coverage_pct": 93.9,
+ "per_family": {
+  "법률": {
+   "raw_count": 42,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 23,
+   "uncited_count": 2
+  },
+  "시행규칙": {
+   "raw_count": 17,
+   "uncited_count": 3
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "23조"
+  ],
+  "시행규칙": [
+   "1조",
+   "6조",
+   "8조"
+  ]
+ }
+}

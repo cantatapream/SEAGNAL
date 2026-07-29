@@ -1,0 +1,33 @@
+{
+ "law": "선박교통관제에 관한 법률",
+ "slug": "선박교통관제에관한법률",
+ "total_raw_articles": 55,
+ "total_uncited": 5,
+ "coverage_pct": 90.9,
+ "per_family": {
+  "법률": {
+   "raw_count": 28,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 16,
+   "uncited_count": 3
+  },
+  "시행규칙": {
+   "raw_count": 11,
+   "uncited_count": 2
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "9조",
+   "15조"
+  ],
+  "시행규칙": [
+   "1조",
+   "3조"
+  ]
+ }
+}
