@@ -45,7 +45,9 @@ const STATUTES_DIR = path.join(LEGAL_DIR, 'wiki', 'statutes');
 // 'gemini-pro-latest'(항상 현재 최상위 pro 모델을 가리키는 별칭)를 대신 사용.
 const ANSWER_MODEL = 'gemini-pro-latest';
 const MAX_BODY_CHARS = 4000;   // 페이지당 컨텍스트 상한(비용·컨텍스트 관리)
-const PRIMARY_TOPK = 5;
+// TEMP(실험, 2026-07-29): 기존 5+2=7페이지가 검증 없는 임의값이었다는 지적에 따라
+// 8+2=10페이지로 늘려 속도 영향 측정 중(사용자 요청).
+const PRIMARY_TOPK = 8;
 const HOP_MAX = 2;
 
 // ── index.json 캐시(mtime 감지) ──
