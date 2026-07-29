@@ -283,11 +283,11 @@ async function synthesizeAnswer(query, contextPages) {
   if (!contextPages.length) return { answer: null, usedGemini: false, error: '근거 없음' };
   if (!gemini.hasAnyKey()) return { answer: null, usedGemini: false, error: 'GEMINI_API_KEY 미설정' };
   const prompt = `${ANSWER_RULES}\n\n[근거자료]\n${buildContextBlock(contextPages)}\n\n질문: "${query}"\n답:`;
-  // 실측(2026-07-29): 규칙8+LOW=26초·6/6 완전성. 규칙8이 완전성을 지켜주는지 더 낮춰서
-  // (MINIMAL) 재측정 — 규칙8이 버텨주면 그대로, 다시 누락되면 LOW로 되돌린다.
+  // 'MINIMAL'은 이 모델(gemini-pro-latest)에서 400(지원 안 함)으로 실측 확인(2026-07-29) —
+  // 절대 쓰지 말 것. 현재 확정: LOW+규칙8(6회 반복 26초 평균·완전성 6/6)이 속도·완전성 균형점.
   const r = await gemini.callGemini({
     model: ANSWER_MODEL, contents: prompt,
-    config: { temperature: 0.3, thinkingConfig: { thinkingLevel: 'MINIMAL' } },
+    config: { temperature: 0.3, thinkingConfig: { thinkingLevel: 'LOW' } },
     caller: 'Legal-Ask',
   });
   if (!r.success || !r.text) return { answer: null, usedGemini: false, error: r.error || '응답 없음' };
