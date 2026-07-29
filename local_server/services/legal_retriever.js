@@ -39,7 +39,9 @@ const GLOSSARY_MD = path.join(LEGAL_DIR, 'wiki', '_glossary.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
 const STATUTES_DIR = path.join(LEGAL_DIR, 'wiki', 'statutes');
 
-const ANSWER_MODEL = 'gemini-2.5-flash-lite'; // 코드베이스 표준 합성 모델(assistant.js BRAIN_MODEL과 동일 정책)
+// 법률 답변은 이 프로젝트의 최우선 불변식(환각 0)이 걸린 영역이라, 날씨비서(assistant.js
+// BRAIN_MODEL=flash-lite)와 달리 지시준수·그라운딩 정확도가 가장 중요 — pro 사용(사용자 확정).
+const ANSWER_MODEL = 'gemini-2.5-pro';
 const MAX_BODY_CHARS = 4000;   // 페이지당 컨텍스트 상한(비용·컨텍스트 관리)
 const PRIMARY_TOPK = 5;
 const HOP_MAX = 2;
