@@ -297,6 +297,20 @@ router.post('/api/legal/ask', async (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
+// TEMP(진단용, 곧 삭제): gemini-2.5-pro가 이 API 키에서 404(신규 사용자 미지원)로 막혀
+// 실제 사용 가능한 모델 목록을 확인하기 위한 임시 라우트. 키 값 자체는 노출하지 않음.
+router.get('/api/legal/_debug_models', async (req, res) => {
+  try {
+    const { GoogleGenAI } = require('@google/genai');
+    if (!process.env.GEMINI_API_KEY) return res.json({ ok: false, error: 'GEMINI_API_KEY 미설정' });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const pager = await ai.models.list();
+    const names = [];
+    for await (const m of pager) names.push({ name: m.name, displayName: m.displayName, supported: m.supportedActions });
+    res.json({ ok: true, models: names });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
 // ── 원본 서빙(읽기전용): 리뷰 카드에서 AI가 본 별표 OCR 이미지·조문 원문을 그대로 보여주기 위함 ──
 // raw/ 하위(공개 법령 데이터: law.go.kr 수집분)만, 안전 확장자만, 경로이탈 차단. <img>/<a>로 열리게 무인증.
 const RAW_DIR = path.join(LEGAL_DIR, 'raw');
