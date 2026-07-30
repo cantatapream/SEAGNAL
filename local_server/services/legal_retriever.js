@@ -39,11 +39,12 @@ const GLOSSARY_MD = path.join(LEGAL_DIR, 'wiki', '_glossary.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
 const STATUTES_DIR = path.join(LEGAL_DIR, 'wiki', 'statutes');
 
-// 법률 답변은 이 프로젝트의 최우선 불변식(환각 0)이 걸린 영역이라, 날씨비서(assistant.js
-// BRAIN_MODEL=flash-lite)와 달리 지시준수·그라운딩 정확도가 가장 중요 — pro 사용(사용자 확정).
-// 'gemini-2.5-pro'는 이 API 키에선 404(신규 사용자 미지원, 실측 확인 2026-07-29)라
-// 'gemini-pro-latest'(항상 현재 최상위 pro 모델을 가리키는 별칭)를 대신 사용.
-const ANSWER_MODEL = 'gemini-pro-latest';
+// 2026-07-30 실측검증 중(사용자 지시): 비용·속도 개선을 위해 pro→flash 전환 시도.
+// ★환각 0은 여전히 최우선 불변식 — 3법 파일럿(H-31과 동일 방식) 재실측으로 환각 0건·완전성
+// 유지가 확인되기 전까지는 임시 상태다. 문제가 생기면 즉시 'gemini-pro-latest'로 되돌릴 것.
+// ('gemini-2.5-pro'는 이 API 키에선 404(신규 사용자 미지원, 실측 확인 2026-07-29)라 pro가
+// 필요하면 'gemini-pro-latest' 별칭을 쓴다.)
+const ANSWER_MODEL = 'gemini-2.5-flash';
 const MAX_BODY_CHARS = 4000;   // 페이지당 컨텍스트 상한(비용·컨텍스트 관리)
 // 실측 확정(2026-07-29): 7→10→30페이지로 늘려도 속도 저하 없음(병목은 Gemini 호출 자체,
 // 검색 자체는 0.1~0.3초). 다만 30개에서 순위 20위 이후는 관련성이 뚜렷이 떨어지는 노이즈성
