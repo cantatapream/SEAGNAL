@@ -2,39 +2,112 @@
  "law": "수상레저기구의 등록 및 검사에 관한 법률",
  "slug": "수상레저기구의등록및검사에관한법률",
  "total_raw_articles": 78,
- "total_uncited": 11,
- "coverage_pct": 85.9,
+ "total_uncited": 3,
+ "coverage_pct": 96.2,
  "per_family": {
   "법률": {
    "raw_count": 32,
-   "uncited_count": 1
+   "uncited_count": 0
   },
   "시행령": {
    "raw_count": 19,
-   "uncited_count": 5
+   "uncited_count": 1
   },
   "시행규칙": {
    "raw_count": 27,
-   "uncited_count": 5
+   "uncited_count": 2
   }
  },
  "uncited_articles": {
-  "법률": [
-   "28조"
-  ],
+  "법률": [],
   "시행령": [
-   "1조",
-   "14조",
-   "15조",
-   "16조",
-   "18조"
+   "14조"
   ],
   "시행규칙": [
-   "1조",
    "2조",
-   "3조",
-   "19조",
-   "27조"
+   "3조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "14조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "11조",
+    "raw_hang": 5,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "12조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "13조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "15조",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "4조",
+    "raw_hang": 5,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "20조",
+    "raw_hang": 3,
+    "missing": [
+     "①"
+    ]
+   }
   ]
  }
 }

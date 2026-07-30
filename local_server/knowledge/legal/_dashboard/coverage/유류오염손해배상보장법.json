@@ -29,5 +29,79 @@
    "11조",
    "12조"
   ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "39조",
+    "raw_hang": 3,
+    "missing": [
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "36조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "50조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "58조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "6조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "9조",
+    "raw_hang": 6,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   },
+   {
+    "article": "5조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "6조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ]
  }
 }

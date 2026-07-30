@@ -19,5 +19,34 @@
   "시행령": [
    "1조"
   ]
+ },
+ "hang_gap_candidates": {
+  "시행령": [
+   {
+    "article": "3조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "11조",
+    "raw_hang": 5,
+    "missing": [
+     "③",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "4조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   }
+  ]
  }
 }

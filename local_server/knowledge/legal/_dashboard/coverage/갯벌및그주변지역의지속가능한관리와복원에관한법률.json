@@ -29,5 +29,88 @@
    "6조",
    "8조"
   ]
+ },
+ "hang_gap_candidates": {
+  "시행령": [
+   {
+    "article": "2조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "③"
+    ]
+   },
+   {
+    "article": "4조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "16조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 7,
+    "missing": [
+     "⑥",
+     "⑦"
+    ]
+   },
+   {
+    "article": "2조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "12조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   }
+  ]
  }
 }

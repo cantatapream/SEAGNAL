@@ -2,8 +2,8 @@
  "law": "해양수산발전 기본법",
  "slug": "해양수산발전기본법",
  "total_raw_articles": 75,
- "total_uncited": 10,
- "coverage_pct": 86.7,
+ "total_uncited": 9,
+ "coverage_pct": 88.0,
  "per_family": {
   "법률": {
    "raw_count": 40,
@@ -11,14 +11,13 @@
   },
   "시행령": {
    "raw_count": 35,
-   "uncited_count": 10
+   "uncited_count": 9
   }
  },
  "uncited_articles": {
   "법률": [],
   "시행령": [
    "1조",
-   "2조",
    "17조",
    "18조",
    "20조의2",
@@ -27,6 +26,57 @@
    "25조",
    "26조",
    "27조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "31조",
+    "raw_hang": 4,
+    "missing": [
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "25조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "34조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "13조의2",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "28조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "8조",
+    "raw_hang": 7,
+    "missing": [
+     "⑦"
+    ]
+   }
   ]
  }
 }

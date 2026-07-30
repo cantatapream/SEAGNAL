@@ -2,20 +2,20 @@
  "law": "물환경보전법",
  "slug": "물환경보전법",
  "total_raw_articles": 413,
- "total_uncited": 352,
- "coverage_pct": 14.8,
+ "total_uncited": 344,
+ "coverage_pct": 16.7,
  "per_family": {
   "법률": {
    "raw_count": 146,
-   "uncited_count": 88
+   "uncited_count": 82
   },
   "시행령": {
    "raw_count": 107,
-   "uncited_count": 105
+   "uncited_count": 104
   },
   "시행규칙": {
    "raw_count": 160,
-   "uncited_count": 159
+   "uncited_count": 158
   }
  },
  "uncited_articles": {
@@ -61,18 +61,12 @@
    "31조",
    "31조의2",
    "31조의3",
-   "37조",
    "38조의10",
-   "38조의4",
    "38조의5",
    "38조의6",
    "38조의7",
    "38조의8",
-   "39조",
-   "40조",
-   "45조",
    "46조의4",
-   "47조",
    "48조의2",
    "48조의3",
    "49조의2",
@@ -177,7 +171,6 @@
    "56조의2",
    "57조",
    "58조",
-   "59조",
    "60조",
    "61조",
    "62조",
@@ -288,7 +281,6 @@
    "43조",
    "44조",
    "45조",
-   "46조",
    "47조",
    "48조",
    "49조",
@@ -376,6 +368,272 @@
    "107조",
    "107조의2",
    "108조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "53조",
+    "raw_hang": 10,
+    "missing": [
+     "③",
+     "④",
+     "⑤",
+     "⑥",
+     "⑦",
+     "⑧",
+     "⑨",
+     "⑩"
+    ]
+   },
+   {
+    "article": "32조",
+    "raw_hang": 9,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥",
+     "⑦",
+     "⑧",
+     "⑨"
+    ]
+   },
+   {
+    "article": "21조",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "49조",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 5,
+    "missing": [
+     "③",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "④"
+    ]
+   },
+   {
+    "article": "23조의2",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②",
+     "⑤"
+    ]
+   },
+   {
+    "article": "33조",
+    "raw_hang": 11,
+    "missing": [
+     "⑦",
+     "⑩",
+     "⑪"
+    ]
+   },
+   {
+    "article": "33조의2",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "④"
+    ]
+   },
+   {
+    "article": "35조",
+    "raw_hang": 6,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "60조",
+    "raw_hang": 9,
+    "missing": [
+     "⑥",
+     "⑦",
+     "⑨"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "6조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "16조의2",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "18조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "26조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "34조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "36조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "48조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "4조의5",
+    "raw_hang": 4,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "38조의2",
+    "raw_hang": 4,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "38조의9",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "41조",
+    "raw_hang": 8,
+    "missing": [
+     "⑦"
+    ]
+   },
+   {
+    "article": "46조의2",
+    "raw_hang": 3,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "46조의3",
+    "raw_hang": 3,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "47조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "64조",
+    "raw_hang": 3,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "65조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "31조",
+    "raw_hang": 7,
+    "missing": [
+     "⑦"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "105조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   }
   ]
  }
 }

@@ -2,26 +2,24 @@
  "law": "연안관리법",
  "slug": "연안관리법",
  "total_raw_articles": 126,
- "total_uncited": 27,
- "coverage_pct": 78.6,
+ "total_uncited": 22,
+ "coverage_pct": 82.5,
  "per_family": {
   "법률": {
    "raw_count": 55,
-   "uncited_count": 1
+   "uncited_count": 0
   },
   "시행령": {
    "raw_count": 40,
-   "uncited_count": 16
+   "uncited_count": 15
   },
   "시행규칙": {
    "raw_count": 31,
-   "uncited_count": 10
+   "uncited_count": 7
   }
  },
  "uncited_articles": {
-  "법률": [
-   "34조의3"
-  ],
+  "법률": [],
   "시행령": [
    "1조",
    "3조",
@@ -32,7 +30,6 @@
    "9조",
    "10조",
    "11조",
-   "14조",
    "16조",
    "18조",
    "19조",
@@ -46,11 +43,125 @@
    "4조",
    "5조",
    "6조",
-   "8조",
-   "12조",
-   "15조",
    "16조",
    "17조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "34조의5",
+    "raw_hang": 5,
+    "missing": [
+     "③",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "35조",
+    "raw_hang": 6,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "20조의2",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   },
+   {
+    "article": "34조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "2조",
+    "raw_hang": 8,
+    "missing": [
+     "⑥",
+     "⑦",
+     "⑧"
+    ]
+   },
+   {
+    "article": "13조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 6,
+    "missing": [
+     "④",
+     "⑥"
+    ]
+   },
+   {
+    "article": "24조",
+    "raw_hang": 4,
+    "missing": [
+     "②",
+     "④"
+    ]
+   },
+   {
+    "article": "10조의3",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "22조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "23조",
+    "raw_hang": 6,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "27조",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "6조의3",
+    "raw_hang": 8,
+    "missing": [
+     "⑥",
+     "⑦",
+     "⑧"
+    ]
+   },
+   {
+    "article": "2조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   }
   ]
  }
 }

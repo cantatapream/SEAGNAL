@@ -18,8 +18,10 @@ COVDIR = f'{DASH}/coverage'
 FAMILY_BY_FILE = {'법률.txt': '법률', '시행령.txt': '시행령', '시행규칙.txt': '시행규칙'}
 
 ARTICLE_HEADER_RE = re.compile(r'\[제(\d+조(?:의\d+)?)\]')
+ARTICLE_BLOCK_RE = re.compile(r'\[제(\d+조(?:의\d+)?)\][^\n]*\n(.*?)(?=\n\[제\d+조|\Z)', re.S)
 # 위키 인용: "시행령 제N조" / "시행규칙 제N조" 처럼 가족 접두어가 붙었으면 그 가족, 없으면 법률로 간주.
 CITATION_RE = re.compile(r'(시행령|시행규칙)?\s*제(\d+조(?:의\d+)?)')
+HANG_MARK_RE = re.compile(r'^([①-⑳])', re.M)  # 항(項) 표시(원문자 숫자) — 조문 내부 세분 단위
 
 
 def extract_raw_articles(path):
@@ -31,6 +33,55 @@ def extract_raw_articles(path):
     except Exception:
         return set()
     return set(ARTICLE_HEADER_RE.findall(text))
+
+
+def extract_raw_hang_sets(path):
+    """raw 조문별 항(①②③...) 표시 집합을 뽑는다(H-33 후속, 조 단위 커버로는 못 잡는
+    항 단위 누락 — 해양과학조사법 제20조② 사례로 발견). 2개 이상 항으로 나뉜 조문만 대상.
+    반환: {조문번호: {'①','②',...}}"""
+    if not os.path.exists(path):
+        return {}
+    try:
+        text = open(path, encoding='utf-8').read()
+    except Exception:
+        return {}
+    out = {}
+    for jo, body in ARTICLE_BLOCK_RE.findall(text):
+        marks = set(HANG_MARK_RE.findall(body))
+        if len(marks) >= 2:
+            out[jo] = marks
+    return out
+
+
+def find_hang_gaps(wiki_files, family, article_hang_sets):
+    """cited된 조문이라도, 그 조문을 인용하는 위키 문맥(±300자 창) 안에 raw의 항 표시가
+    전부 등장하는지 확인한다. 등장 안 한 항이 있으면 그 조문의 일부 항이 위키에 실제로는
+    반영 안 됐을 후보로 반환: [{'article':.., 'raw_hang': n, 'missing': [...]}]."""
+    texts = []
+    for p in wiki_files:
+        try:
+            texts.append(open(p, encoding='utf-8').read())
+        except Exception:
+            continue
+    out = []
+    for jo, marks in article_hang_sets.items():
+        if family == '법률':
+            pat = re.compile(r'(?<!시행령 )(?<!시행규칙 )제' + re.escape(jo) + r'(?!의)')
+        else:
+            pat = re.compile(re.escape(family) + r'\s*제' + re.escape(jo) + r'(?!의)')
+        found = set()
+        cite_hits = 0
+        for text in texts:
+            for m in pat.finditer(text):
+                cite_hits += 1
+                window = text[max(0, m.start() - 300):m.end() + 300]
+                found |= {ch for ch in marks if ch in window}
+        if cite_hits == 0:
+            continue  # 인용 자체가 없으면 uncited_articles 쪽에서 이미 처리
+        missing = sorted(marks - found)
+        if missing:
+            out.append({'article': jo, 'raw_hang': len(marks), 'missing': missing})
+    return sorted(out, key=lambda d: -len(d['missing']))
 
 
 def extract_wiki_citations(paths):
@@ -76,11 +127,13 @@ def main():
         total_raw = 0
         total_uncited = 0
         uncited_detail = {}
+        dense_cited_detail = {}  # H-33 후속: 조 단위는 인용됐지만 항이 많아(3개+) 일부 항 누락 위험이 있는 후보
         for fname in txt_files:
             fam = FAMILY_BY_FILE.get(fname)
             if not fam:
                 continue
-            raw_articles = extract_raw_articles(os.path.join(raw_dir, fname))
+            raw_path = os.path.join(raw_dir, fname)
+            raw_articles = extract_raw_articles(raw_path)
             if not raw_articles:
                 continue
             uncited = sorted(raw_articles - cited.get(fam, set()),
@@ -90,6 +143,14 @@ def main():
             total_raw += len(raw_articles)
             total_uncited += len(uncited)
 
+            hang_counts = extract_raw_hang_counts(raw_path)
+            dense_cited = sorted(
+                [{'article': jo, 'hang_count': n} for jo, n in hang_counts.items()
+                 if jo in cited.get(fam, set())],
+                key=lambda d: -d['hang_count'])
+            if dense_cited:
+                dense_cited_detail[fam] = dense_cited
+
         result = {
             'law': law['name'], 'slug': slug,
             'total_raw_articles': total_raw,
@@ -97,6 +158,7 @@ def main():
             'coverage_pct': round(100 * (total_raw - total_uncited) / total_raw, 1) if total_raw else None,
             'per_family': per_family,
             'uncited_articles': uncited_detail,
+            'dense_cited_articles': dense_cited_detail,
         }
         json.dump(result, open(f'{COVDIR}/{slug}.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         summary.append(result)
@@ -110,7 +172,11 @@ def main():
              '단 한 번도 인용하지 않은 조문 수. **주의: 이건 "0번 인용" 후보 목록이지, 확정된 gap이 아니다** — '
              '조문이 이미 다른 조문에 통합 서술됐거나(예: 정의조문 전체를 표로 옮김), 부칙·경과규정처럼 '
              '위키 반영이 애초에 불필요한 경우도 섞여 있다. 3차패스에서 사람/AI가 이 후보를 하나씩 실제로 '
-             '판단해야 한다(H-33 원 취지).', '',
+             '판단해야 한다(H-33 원 취지). **2026-07-30 추가**: 조 자체는 인용됐어도 항(項)이 3개 이상인 '
+             '다항 조문은 일부 항만 위키에 반영되고 나머지 항이 누락됐을 위험이 상대적으로 크다(해양과학조사법 '
+             '제20조② 사례). 이런 조문 후보는 각 법 `_dashboard/coverage/<slug>.json`의 '
+             '`dense_cited_articles` 필드에 항 개수와 함께 나열했다 — 자동 확정 아님, 다음 감사/재검증 '
+             '라운드에서 우선 점검 대상으로만 활용할 것.', '',
              '| 법 | 전체 조문 | 미인용 | 커버리지 |', '|---|---|---|---|']
     for s in scored[:40]:
         lines.append(f"| {s['law']} | {s['total_raw_articles']} | {s['total_uncited']} | {s['coverage_pct']}% |")

@@ -2,20 +2,20 @@
  "law": "농수산물 품질관리법",
  "slug": "농수산물품질관리법",
  "total_raw_articles": 339,
- "total_uncited": 181,
- "coverage_pct": 46.6,
+ "total_uncited": 166,
+ "coverage_pct": 51.0,
  "per_family": {
   "법률": {
    "raw_count": 131,
-   "uncited_count": 11
+   "uncited_count": 8
   },
   "시행령": {
    "raw_count": 55,
-   "uncited_count": 35
+   "uncited_count": 30
   },
   "시행규칙": {
    "raw_count": 153,
-   "uncited_count": 135
+   "uncited_count": 128
   }
  },
  "uncited_articles": {
@@ -23,18 +23,14 @@
    "12조의2",
    "23조",
    "33조",
-   "47조",
    "66조",
    "67조",
-   "72조",
    "84조",
-   "86조",
    "87조",
    "115조"
   ],
   "시행령": [
    "1조",
-   "2조",
    "3조",
    "4조",
    "6조",
@@ -42,17 +38,13 @@
    "7조",
    "8조",
    "11조",
-   "12조",
    "14조",
-   "15조",
    "16조",
    "17조",
    "17조의2",
    "18조",
    "23조",
-   "25조",
    "26조",
-   "28조",
    "29조",
    "30조",
    "31조",
@@ -155,12 +147,9 @@
    "83조",
    "84조",
    "85조",
-   "86조",
-   "87조",
    "89조",
    "90조",
    "91조",
-   "92조",
    "93조",
    "94조",
    "95조",
@@ -193,18 +182,393 @@
    "130조",
    "130조의2",
    "131조",
-   "132조",
    "134조",
-   "134조의2",
    "135조",
    "136조",
-   "136조의2",
    "136조의3",
    "136조의4",
    "136조의5",
    "137조",
-   "138조",
    "140조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "32조",
+    "raw_hang": 10,
+    "missing": [
+     "⑥",
+     "⑦",
+     "⑧",
+     "⑩"
+    ]
+   },
+   {
+    "article": "48조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "76조",
+    "raw_hang": 8,
+    "missing": [
+     "⑤",
+     "⑥",
+     "⑦",
+     "⑧"
+    ]
+   },
+   {
+    "article": "99조",
+    "raw_hang": 7,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥",
+     "⑦"
+    ]
+   },
+   {
+    "article": "24조",
+    "raw_hang": 10,
+    "missing": [
+     "⑧",
+     "⑨",
+     "⑩"
+    ]
+   },
+   {
+    "article": "79조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "89조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "114조",
+    "raw_hang": 7,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 6,
+    "missing": [
+     "④",
+     "⑥"
+    ]
+   },
+   {
+    "article": "19조",
+    "raw_hang": 3,
+    "missing": [
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "44조",
+    "raw_hang": 6,
+    "missing": [
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "46조",
+    "raw_hang": 4,
+    "missing": [
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "54조",
+    "raw_hang": 6,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "72조",
+    "raw_hang": 5,
+    "missing": [
+     "③",
+     "⑤"
+    ]
+   },
+   {
+    "article": "75조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "88조",
+    "raw_hang": 5,
+    "missing": [
+     "③",
+     "⑤"
+    ]
+   },
+   {
+    "article": "91조",
+    "raw_hang": 5,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "6조",
+    "raw_hang": 7,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 7,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "11조",
+    "raw_hang": 8,
+    "missing": [
+     "⑧"
+    ]
+   },
+   {
+    "article": "25조",
+    "raw_hang": 4,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "30조의2",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "41조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "59조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "68조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "74조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "80조",
+    "raw_hang": 3,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "81조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "82조",
+    "raw_hang": 8,
+    "missing": [
+     "⑥"
+    ]
+   },
+   {
+    "article": "90조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "100조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "42조",
+    "raw_hang": 8,
+    "missing": [
+     "③",
+     "④",
+     "⑤",
+     "⑦",
+     "⑧"
+    ]
+   },
+   {
+    "article": "22조",
+    "raw_hang": 5,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "20조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "25조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "40조의2",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "88조",
+    "raw_hang": 6,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "139조",
+    "raw_hang": 4,
+    "missing": [
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "55조",
+    "raw_hang": 4,
+    "missing": [
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "101조",
+    "raw_hang": 4,
+    "missing": [
+     "②",
+     "④"
+    ]
+   },
+   {
+    "article": "117조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "125조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "③"
+    ]
+   },
+   {
+    "article": "7조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "86조",
+    "raw_hang": 4,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "87조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "115조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "132조",
+    "raw_hang": 3,
+    "missing": [
+     "②"
+    ]
+   }
   ]
  }
 }

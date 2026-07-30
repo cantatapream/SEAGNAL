@@ -2,8 +2,8 @@
  "law": "항만 재개발 및 주변지역 발전에 관한 법률",
  "slug": "항만재개발및주변지역발전에관한법률",
  "total_raw_articles": 106,
- "total_uncited": 15,
- "coverage_pct": 85.8,
+ "total_uncited": 7,
+ "coverage_pct": 93.4,
  "per_family": {
   "법률": {
    "raw_count": 49,
@@ -11,7 +11,7 @@
   },
   "시행령": {
    "raw_count": 46,
-   "uncited_count": 11
+   "uncited_count": 3
   },
   "시행규칙": {
    "raw_count": 11,
@@ -24,21 +24,63 @@
   ],
   "시행령": [
    "1조",
-   "3조",
-   "14조",
-   "18조",
-   "19조",
-   "21조",
-   "22조",
-   "23조",
    "25조",
-   "26조",
    "46조"
   ],
   "시행규칙": [
    "1조",
    "9조",
    "11조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "28조",
+    "raw_hang": 9,
+    "missing": [
+     "⑨"
+    ]
+   },
+   {
+    "article": "34조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "34조",
+    "raw_hang": 6,
+    "missing": [
+     "①",
+     "④",
+     "⑥"
+    ]
+   },
+   {
+    "article": "19조",
+    "raw_hang": 4,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "32조",
+    "raw_hang": 9,
+    "missing": [
+     "⑨"
+    ]
+   },
+   {
+    "article": "35조",
+    "raw_hang": 5,
+    "missing": [
+     "④"
+    ]
+   }
   ]
  }
 }

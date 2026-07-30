@@ -2,16 +2,16 @@
  "law": "출입국관리법",
  "slug": "출입국관리법",
  "total_raw_articles": 379,
- "total_uncited": 304,
- "coverage_pct": 19.8,
+ "total_uncited": 295,
+ "coverage_pct": 22.2,
  "per_family": {
   "법률": {
    "raw_count": 188,
-   "uncited_count": 119
+   "uncited_count": 114
   },
   "시행규칙": {
    "raw_count": 191,
-   "uncited_count": 185
+   "uncited_count": 181
   }
  },
  "uncited_articles": {
@@ -25,8 +25,6 @@
    "6조",
    "7조의2",
    "7조의3",
-   "10조",
-   "10조의2",
    "10조의3",
    "12조의4",
    "19조의2",
@@ -41,13 +39,11 @@
    "28조",
    "29조",
    "29조의2",
-   "30조",
    "32조",
    "33조",
    "33조의2",
    "33조의3",
    "34조",
-   "35조",
    "37조",
    "37조의2",
    "38조",
@@ -75,7 +71,6 @@
    "56조의4",
    "56조의5",
    "56조의6",
-   "56조의7",
    "56조의8",
    "56조의9",
    "57조",
@@ -285,10 +280,6 @@
    "67조의8",
    "67조의9",
    "68조",
-   "68조의2",
-   "68조의3",
-   "68조의4",
-   "68조의5",
    "68조의6",
    "69조",
    "69조의2",
@@ -322,6 +313,282 @@
    "86조",
    "87조",
    "88조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "12조",
+    "raw_hang": 6,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "19조의5",
+    "raw_hang": 10,
+    "missing": [
+     "④",
+     "⑥",
+     "⑦",
+     "⑧",
+     "⑨",
+     "⑩"
+    ]
+   },
+   {
+    "article": "73조의2",
+    "raw_hang": 7,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④",
+     "⑥",
+     "⑦"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 6,
+    "missing": [
+     "①",
+     "③",
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "4조",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "18조",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "31조",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "7조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "13조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "81조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "8조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "16조의2",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "24조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "36조",
+    "raw_hang": 8,
+    "missing": [
+     "⑥",
+     "⑦",
+     "⑧"
+    ]
+   },
+   {
+    "article": "10조의2",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "19조",
+    "raw_hang": 4,
+    "missing": [
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "23조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "27조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "88조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "101조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "15조",
+    "raw_hang": 3,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "16조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "19조의4",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "21조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "70조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "76조의4",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "93조",
+    "raw_hang": 4,
+    "missing": [
+     "②"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "28조의3",
+    "raw_hang": 7,
+    "missing": [
+     "③",
+     "④",
+     "⑤",
+     "⑥",
+     "⑦"
+    ]
+   }
   ]
  }
 }

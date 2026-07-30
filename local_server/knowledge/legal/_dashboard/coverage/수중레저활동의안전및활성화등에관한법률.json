@@ -30,5 +30,26 @@
    "12조",
    "15조"
   ]
+ },
+ "hang_gap_candidates": {
+  "시행령": [
+   {
+    "article": "9조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "③"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "6조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   }
+  ]
  }
 }

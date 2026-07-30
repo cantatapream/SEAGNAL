@@ -2,8 +2,8 @@
  "law": "어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률",
  "slug": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
  "total_raw_articles": 118,
- "total_uncited": 21,
- "coverage_pct": 82.2,
+ "total_uncited": 13,
+ "coverage_pct": 89.0,
  "per_family": {
   "법률": {
    "raw_count": 59,
@@ -11,11 +11,11 @@
   },
   "시행령": {
    "raw_count": 24,
-   "uncited_count": 9
+   "uncited_count": 5
   },
   "시행규칙": {
    "raw_count": 35,
-   "uncited_count": 12
+   "uncited_count": 8
   }
  },
  "uncited_articles": {
@@ -24,26 +24,103 @@
    "1조",
    "2조",
    "4조",
-   "5조",
-   "8조",
    "10조",
-   "13조",
-   "13조의4",
    "17조"
   ],
   "시행규칙": [
    "1조",
-   "11조",
    "20조",
    "21조",
    "22조",
    "25조",
    "26조",
    "27조",
-   "28조",
-   "29조",
-   "31조",
-   "32조"
+   "29조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "시행령": [
+   {
+    "article": "5조",
+    "raw_hang": 7,
+    "missing": [
+     "③",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "13조의7",
+    "raw_hang": 9,
+    "missing": [
+     "⑥",
+     "⑦",
+     "⑧"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "2조",
+    "raw_hang": 5,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "6조",
+    "raw_hang": 4,
+    "missing": [
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 7,
+    "missing": [
+     "④",
+     "⑦"
+    ]
+   },
+   {
+    "article": "15조",
+    "raw_hang": 4,
+    "missing": [
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 5,
+    "missing": [
+     "③",
+     "⑤"
+    ]
+   },
+   {
+    "article": "5조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 6,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "24조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
   ]
  }
 }

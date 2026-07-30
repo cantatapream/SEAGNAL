@@ -2,8 +2,8 @@
  "law": "농수산물의 원산지 표시 등에 관한 법률",
  "slug": "농수산물의원산지표시등에관한법률",
  "total_raw_articles": 52,
- "total_uncited": 8,
- "coverage_pct": 84.6,
+ "total_uncited": 7,
+ "coverage_pct": 86.5,
  "per_family": {
   "법률": {
    "raw_count": 24,
@@ -11,7 +11,7 @@
   },
   "시행령": {
    "raw_count": 17,
-   "uncited_count": 3
+   "uncited_count": 2
   },
   "시행규칙": {
    "raw_count": 11,
@@ -24,14 +24,58 @@
   ],
   "시행령": [
    "1조",
-   "5조",
-   "7조의3"
+   "5조"
   ],
   "시행규칙": [
    "1조",
    "2조",
    "3조",
    "4조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "시행령": [
+   {
+    "article": "5조의2",
+    "raw_hang": 10,
+    "missing": [
+     "①",
+     "③",
+     "④",
+     "⑤",
+     "⑥",
+     "⑦",
+     "⑧",
+     "⑨",
+     "⑩"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 7,
+    "missing": [
+     "①",
+     "④",
+     "⑤",
+     "⑥",
+     "⑦"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 5,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "7조의2",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   }
   ]
  }
 }

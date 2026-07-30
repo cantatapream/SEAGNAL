@@ -2,8 +2,8 @@
  "law": "해양공간계획 및 관리에 관한 법률",
  "slug": "해양공간계획및관리에관한법률",
  "total_raw_articles": 59,
- "total_uncited": 9,
- "coverage_pct": 84.7,
+ "total_uncited": 7,
+ "coverage_pct": 88.1,
  "per_family": {
   "법률": {
    "raw_count": 22,
@@ -11,11 +11,11 @@
   },
   "시행령": {
    "raw_count": 22,
-   "uncited_count": 5
+   "uncited_count": 4
   },
   "시행규칙": {
    "raw_count": 15,
-   "uncited_count": 4
+   "uncited_count": 3
   }
  },
  "uncited_articles": {
@@ -23,15 +23,87 @@
   "시행령": [
    "1조",
    "8조",
-   "11조",
    "15조",
    "20조"
   ],
   "시행규칙": [
    "1조",
-   "3조",
    "12조",
    "14조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "시행령": [
+   {
+    "article": "7조",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "16조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "21조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "15조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "7조",
+    "raw_hang": 3,
+    "missing": [
+     "①"
+    ]
+   }
   ]
  }
 }

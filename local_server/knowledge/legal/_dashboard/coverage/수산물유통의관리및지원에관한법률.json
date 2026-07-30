@@ -40,5 +40,131 @@
    "44조",
    "47조"
   ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "50조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "52조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "53조",
+    "raw_hang": 7,
+    "missing": [
+     "⑥",
+     "⑦"
+    ]
+   },
+   {
+    "article": "19조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "27조",
+    "raw_hang": 7,
+    "missing": [
+     "⑦"
+    ]
+   },
+   {
+    "article": "47조",
+    "raw_hang": 4,
+    "missing": [
+     "③"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "5조",
+    "raw_hang": 5,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "29조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "8조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "21조",
+    "raw_hang": 5,
+    "missing": [
+     "④"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "15조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "6조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "40조",
+    "raw_hang": 4,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "42조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "43조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "46조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   }
+  ]
  }
 }

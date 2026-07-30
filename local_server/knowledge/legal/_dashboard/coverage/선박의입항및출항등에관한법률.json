@@ -2,8 +2,8 @@
  "law": "선박의 입항 및 출항 등에 관한 법률",
  "slug": "선박의입항및출항등에관한법률",
  "total_raw_articles": 136,
- "total_uncited": 22,
- "coverage_pct": 83.8,
+ "total_uncited": 8,
+ "coverage_pct": 94.1,
  "per_family": {
   "법률": {
    "raw_count": 64,
@@ -11,11 +11,11 @@
   },
   "시행령": {
    "raw_count": 29,
-   "uncited_count": 10
+   "uncited_count": 2
   },
   "시행규칙": {
    "raw_count": 43,
-   "uncited_count": 10
+   "uncited_count": 4
   }
  },
  "uncited_articles": {
@@ -25,27 +25,151 @@
   ],
   "시행령": [
    "1조",
-   "6조",
-   "7조의3",
-   "7조의4",
-   "7조의5",
-   "9조",
-   "10조",
-   "11조",
-   "12조",
-   "13조"
+   "7조의4"
   ],
   "시행규칙": [
    "1조",
-   "5조",
    "8조",
-   "9조",
-   "10조의2",
-   "10조의4",
-   "11조",
-   "12조",
    "31조",
    "35조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "6조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "25조의3",
+    "raw_hang": 7,
+    "missing": [
+     "⑦"
+    ]
+   },
+   {
+    "article": "40조",
+    "raw_hang": 9,
+    "missing": [
+     "⑨"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "17조",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "5조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "7조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "7조의2",
+    "raw_hang": 6,
+    "missing": [
+     "②",
+     "⑥"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 4,
+    "missing": [
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "20조",
+    "raw_hang": 8,
+    "missing": [
+     "⑤",
+     "⑥",
+     "⑦",
+     "⑧"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 10,
+    "missing": [
+     "⑦",
+     "⑨"
+    ]
+   },
+   {
+    "article": "13조",
+    "raw_hang": 4,
+    "missing": [
+     "②",
+     "④"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "7조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "10조의3",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "15조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "18조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
   ]
  }
 }

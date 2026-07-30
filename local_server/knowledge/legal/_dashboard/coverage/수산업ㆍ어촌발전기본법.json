@@ -2,8 +2,8 @@
  "law": "수산업ㆍ어촌 발전 기본법",
  "slug": "수산업ㆍ어촌발전기본법",
  "total_raw_articles": 96,
- "total_uncited": 13,
- "coverage_pct": 86.5,
+ "total_uncited": 7,
+ "coverage_pct": 92.7,
  "per_family": {
   "법률": {
    "raw_count": 54,
@@ -11,7 +11,7 @@
   },
   "시행령": {
    "raw_count": 33,
-   "uncited_count": 12
+   "uncited_count": 6
   },
   "시행규칙": {
    "raw_count": 9,
@@ -22,20 +22,111 @@
   "법률": [],
   "시행령": [
    "1조",
-   "9조",
-   "11조",
    "12조",
    "13조",
    "14조",
    "16조",
-   "20조",
-   "24조",
-   "27조",
-   "28조",
-   "31조"
+   "24조"
   ],
   "시행규칙": [
    "1조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "7조",
+    "raw_hang": 9,
+    "missing": [
+     "⑨"
+    ]
+   },
+   {
+    "article": "51조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "5조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "6조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "11조의2",
+    "raw_hang": 5,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "30조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "7조",
+    "raw_hang": 9,
+    "missing": [
+     "②",
+     "③",
+     "④",
+     "⑥",
+     "⑦",
+     "⑧",
+     "⑨"
+    ]
+   },
+   {
+    "article": "4조의2",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "4조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   }
   ]
  }
 }

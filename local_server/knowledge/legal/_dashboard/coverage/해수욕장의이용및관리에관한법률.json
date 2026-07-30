@@ -2,8 +2,8 @@
  "law": "해수욕장의 이용 및 관리에 관한 법률",
  "slug": "해수욕장의이용및관리에관한법률",
  "total_raw_articles": 97,
- "total_uncited": 7,
- "coverage_pct": 92.8,
+ "total_uncited": 5,
+ "coverage_pct": 94.8,
  "per_family": {
   "법률": {
    "raw_count": 48,
@@ -11,25 +11,89 @@
   },
   "시행령": {
    "raw_count": 28,
-   "uncited_count": 4
+   "uncited_count": 3
   },
   "시행규칙": {
    "raw_count": 21,
-   "uncited_count": 3
+   "uncited_count": 2
   }
  },
  "uncited_articles": {
   "법률": [],
   "시행령": [
    "1조",
-   "14조",
    "17조",
    "22조의2"
   ],
   "시행규칙": [
    "1조",
-   "13조",
    "14조의2"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "9조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "27조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "12조",
+    "raw_hang": 3,
+    "missing": [
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "10조의2",
+    "raw_hang": 8,
+    "missing": [
+     "⑧"
+    ]
+   },
+   {
+    "article": "22조",
+    "raw_hang": 8,
+    "missing": [
+     "④"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "4조",
+    "raw_hang": 5,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   }
   ]
  }
 }

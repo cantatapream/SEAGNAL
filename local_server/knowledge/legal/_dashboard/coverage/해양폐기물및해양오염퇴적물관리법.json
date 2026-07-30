@@ -2,8 +2,8 @@
  "law": "해양폐기물 및 해양오염퇴적물 관리법",
  "slug": "해양폐기물및해양오염퇴적물관리법",
  "total_raw_articles": 108,
- "total_uncited": 17,
- "coverage_pct": 84.3,
+ "total_uncited": 13,
+ "coverage_pct": 88.0,
  "per_family": {
   "법률": {
    "raw_count": 44,
@@ -15,7 +15,7 @@
   },
   "시행규칙": {
    "raw_count": 39,
-   "uncited_count": 9
+   "uncited_count": 5
   }
  },
  "uncited_articles": {
@@ -34,12 +34,114 @@
    "1조",
    "9조",
    "12조",
-   "16조",
-   "17조",
-   "18조",
-   "20조",
    "32조",
    "34조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "5조의2",
+    "raw_hang": 7,
+    "missing": [
+     "⑤",
+     "⑥",
+     "⑦"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "3조의2",
+    "raw_hang": 5,
+    "missing": [
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "8조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "25조",
+    "raw_hang": 5,
+    "missing": [
+     "②",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "11조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "19조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "4조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "23조",
+    "raw_hang": 5,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "26조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "31조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
   ]
  }
 }

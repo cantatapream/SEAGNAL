@@ -27,5 +27,35 @@
   "시행규칙": [
    "1조"
   ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "13조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "5조",
+    "raw_hang": 6,
+    "missing": [
+     "⑤"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "7조",
+    "raw_hang": 5,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   }
+  ]
  }
 }

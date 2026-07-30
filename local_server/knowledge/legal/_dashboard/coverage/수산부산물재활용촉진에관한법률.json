@@ -2,8 +2,8 @@
  "law": "수산부산물 재활용 촉진에 관한 법률",
  "slug": "수산부산물재활용촉진에관한법률",
  "total_raw_articles": 48,
- "total_uncited": 4,
- "coverage_pct": 91.7,
+ "total_uncited": 3,
+ "coverage_pct": 93.8,
  "per_family": {
   "법률": {
    "raw_count": 21,
@@ -15,7 +15,7 @@
   },
   "시행규칙": {
    "raw_count": 11,
-   "uncited_count": 2
+   "uncited_count": 1
   }
  },
  "uncited_articles": {
@@ -26,8 +26,68 @@
    "1조"
   ],
   "시행규칙": [
-   "1조",
-   "6조"
+   "1조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "14조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "16조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "11조",
+    "raw_hang": 4,
+    "missing": [
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "4조",
+    "raw_hang": 5,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 6,
+    "missing": [
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   }
   ]
  }
 }

@@ -2,8 +2,8 @@
  "law": "어촌ㆍ어항법",
  "slug": "어촌ㆍ어항법",
  "total_raw_articles": 178,
- "total_uncited": 31,
- "coverage_pct": 82.6,
+ "total_uncited": 22,
+ "coverage_pct": 87.6,
  "per_family": {
   "법률": {
    "raw_count": 83,
@@ -11,11 +11,11 @@
   },
   "시행령": {
    "raw_count": 60,
-   "uncited_count": 19
+   "uncited_count": 14
   },
   "시행규칙": {
    "raw_count": 35,
-   "uncited_count": 11
+   "uncited_count": 7
   }
  },
  "uncited_articles": {
@@ -27,14 +27,9 @@
    "4조",
    "6조",
    "7조",
-   "9조",
-   "11조",
    "15조",
    "17조",
    "21조",
-   "22조",
-   "23조",
-   "25조",
    "32조",
    "34조",
    "36조",
@@ -46,15 +41,106 @@
   "시행규칙": [
    "1조",
    "6조",
-   "11조",
-   "12조의3",
-   "12조의4",
-   "13조",
    "14조",
    "17조",
    "20조",
    "21조",
    "22조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "38조",
+    "raw_hang": 11,
+    "missing": [
+     "⑧",
+     "⑨",
+     "⑩",
+     "⑪"
+    ]
+   },
+   {
+    "article": "25조의2",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "26조",
+    "raw_hang": 10,
+    "missing": [
+     "⑨"
+    ]
+   },
+   {
+    "article": "58조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "20조",
+    "raw_hang": 8,
+    "missing": [
+     "①",
+     "④",
+     "⑤",
+     "⑥",
+     "⑦",
+     "⑧"
+    ]
+   },
+   {
+    "article": "24조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "④"
+    ]
+   },
+   {
+    "article": "41조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "42조의7",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "12조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "④"
+    ]
+   },
+   {
+    "article": "7조",
+    "raw_hang": 7,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "29조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
   ]
  }
 }

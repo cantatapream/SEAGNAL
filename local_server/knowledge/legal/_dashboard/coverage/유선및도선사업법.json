@@ -43,5 +43,61 @@
    "22조",
    "23조"
   ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "30조의2",
+    "raw_hang": 8,
+    "missing": [
+     "③",
+     "⑦",
+     "⑧"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "7조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "24조의3",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "5조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "29조",
+    "raw_hang": 4,
+    "missing": [
+     "③"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "11조",
+    "raw_hang": 6,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   }
+  ]
  }
 }
