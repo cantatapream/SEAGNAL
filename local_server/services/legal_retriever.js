@@ -39,9 +39,11 @@ const GLOSSARY_MD = path.join(LEGAL_DIR, 'wiki', '_glossary.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
 const STATUTES_DIR = path.join(LEGAL_DIR, 'wiki', 'statutes');
 
-// 2026-07-30 실측검증 중(사용자 지시): 비용·속도 개선을 위해 pro→flash 전환 시도.
-// ★환각 0은 여전히 최우선 불변식 — 3법 파일럿(H-31과 동일 방식) 재실측으로 환각 0건·완전성
-// 유지가 확인되기 전까지는 임시 상태다. 문제가 생기면 즉시 'gemini-pro-latest'로 되돌릴 것.
+// ★모델 확정(2026-07-30, 사용자 확정): pro(gemini-pro-latest, 실제로는 Gemini 3.1 Pro)에서
+// gemini-2.5-flash로 전환. 사유=비용(입력 6.7배·출력 4.8배 저렴, ai.google.dev 공식가 기준
+// flash $0.30/$2.50 vs 3.1 Pro $2.00/$12.00 per 1M 토큰, ≤200k 구간). 전환 전 3법 파일럿
+// 6개 대표질문을 실키로 실행해 각 답변의 조문번호·처벌금액·기관명을 raw 원문·위키와 문장
+// 단위로 전수 대조 — 환각 0건 확인 후 확정. 문제 재발 시 'gemini-pro-latest'로 되돌릴 것.
 // ('gemini-2.5-pro'는 이 API 키에선 404(신규 사용자 미지원, 실측 확인 2026-07-29)라 pro가
 // 필요하면 'gemini-pro-latest' 별칭을 쓴다.)
 const ANSWER_MODEL = 'gemini-2.5-flash';
