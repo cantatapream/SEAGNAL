@@ -278,9 +278,14 @@ const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을
 7. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용.
 8. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.`;
 
-// 'MINIMAL'은 이 모델(gemini-pro-latest)에서 400(지원 안 함)으로 실측 확인(2026-07-29) —
-// 절대 쓰지 말 것. 현재 확정: LOW+규칙8(6회 반복 26초 평균·완전성 6/6)이 속도·완전성 균형점.
-const SYNTH_CONFIG = { temperature: 0.3, thinkingConfig: { thinkingLevel: 'LOW' } };
+// 'MINIMAL'은 gemini-pro-latest(3.x)에서 400(지원 안 함)으로 실측 확인(2026-07-29) — 절대 쓰지 말 것.
+// pro-latest 확정: LOW+규칙8(6회 반복 26초 평균·완전성 6/6)이 속도·완전성 균형점.
+// 2026-07-30 실측 발견: gemini-2.5-flash는 'thinkingLevel' 필드 자체가 400("Thinking level is
+// not supported for this model")으로 아예 미지원 — 2.5 계열은 thinkingBudget(정수, -1=dynamic)
+// 방식만 받는다. 모델별로 지원 필드가 달라 분기 처리.
+const SYNTH_CONFIG = ANSWER_MODEL.startsWith('gemini-2.5')
+  ? { temperature: 0.3, thinkingConfig: { thinkingBudget: -1 } }
+  : { temperature: 0.3, thinkingConfig: { thinkingLevel: 'LOW' } };
 
 /**
  * Gemini로 실제 답변 문장을 스트리밍으로 합성한다(체감 대기시간 단축 — 실제 생성시간은
