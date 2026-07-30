@@ -208,6 +208,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-07-30 15:50 KST] ✅완료 — Phase E 답변모델 pro→gemini-2.5-flash 전환 확정
+사용자 지시(비용 절감)로 legal_retriever.js ANSWER_MODEL을 gemini-pro-latest(Gemini 3.1 Pro)에서 gemini-2.5-flash로 전환. ai.google.dev 공식가 기준 입력 6.7배·출력 4.8배 저렴(flash $0.30/$2.50 vs 3.1pro $2.00/$12.00, 1M토큰당·≤200k구간). main에 배포 후 실키검증 중 gemini-2.5-flash가 thinkingConfig.thinkingLevel을 지원 안 해 400 에러 발생 → thinkingBudget:-1 방식으로 즉시 수정·재배포. 3법 파일럿(수산업법·어선법·어선안전조업법) 6개 대표질문을 실키로 재실행해 조문번호·처벌금액·기관명을 raw+위키와 문장단위 전수대조, 환각 0건 확인 후 확정. MASTER_PLAN.md H-31 후속 항목 및 코드 주석에 근거 기록.
+
+
 ### [2026-07-30 14:45 KST] ✅완료 — H-33 후속: 항단위(項) 갭 타깃수정 67법 전체 완료
 lint_coverage.py의 hang_gap_candidates(1349건 후보, 67법)를 9개 그룹으로 병렬 디스패치해 raw 대조로 전수 검증 완료. 결과: 검증 1483건 중 진짜 누락 590건 반영(raw 원문 EXACT, 지어내지 않음) · 오탐(이미 반영돼 있었음, ±300자 문맥창 밖) 839건 확인해 손 안 댐. 자기 법 파일만 쓰는 방식으로 병렬 안전 확보. 9그룹 전부 완료·커밋·푸시 완료.
 
