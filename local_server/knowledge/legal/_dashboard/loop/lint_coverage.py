@@ -127,7 +127,7 @@ def main():
         total_raw = 0
         total_uncited = 0
         uncited_detail = {}
-        dense_cited_detail = {}  # H-33 후속: 조 단위는 인용됐지만 항이 많아(3개+) 일부 항 누락 위험이 있는 후보
+        hang_gap_detail = {}  # H-33 후속: 조는 인용됐지만 그 조문의 일부 항(項)이 인용 문맥에 안 보이는 후보
         for fname in txt_files:
             fam = FAMILY_BY_FILE.get(fname)
             if not fam:
@@ -143,13 +143,10 @@ def main():
             total_raw += len(raw_articles)
             total_uncited += len(uncited)
 
-            hang_counts = extract_raw_hang_counts(raw_path)
-            dense_cited = sorted(
-                [{'article': jo, 'hang_count': n} for jo, n in hang_counts.items()
-                 if jo in cited.get(fam, set())],
-                key=lambda d: -d['hang_count'])
-            if dense_cited:
-                dense_cited_detail[fam] = dense_cited
+            hang_sets = extract_raw_hang_sets(raw_path)
+            gaps = find_hang_gaps(wiki_files, fam, hang_sets)
+            if gaps:
+                hang_gap_detail[fam] = gaps
 
         result = {
             'law': law['name'], 'slug': slug,
@@ -158,7 +155,7 @@ def main():
             'coverage_pct': round(100 * (total_raw - total_uncited) / total_raw, 1) if total_raw else None,
             'per_family': per_family,
             'uncited_articles': uncited_detail,
-            'dense_cited_articles': dense_cited_detail,
+            'hang_gap_candidates': hang_gap_detail,
         }
         json.dump(result, open(f'{COVDIR}/{slug}.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         summary.append(result)
@@ -172,11 +169,11 @@ def main():
              '단 한 번도 인용하지 않은 조문 수. **주의: 이건 "0번 인용" 후보 목록이지, 확정된 gap이 아니다** — '
              '조문이 이미 다른 조문에 통합 서술됐거나(예: 정의조문 전체를 표로 옮김), 부칙·경과규정처럼 '
              '위키 반영이 애초에 불필요한 경우도 섞여 있다. 3차패스에서 사람/AI가 이 후보를 하나씩 실제로 '
-             '판단해야 한다(H-33 원 취지). **2026-07-30 추가**: 조 자체는 인용됐어도 항(項)이 3개 이상인 '
-             '다항 조문은 일부 항만 위키에 반영되고 나머지 항이 누락됐을 위험이 상대적으로 크다(해양과학조사법 '
-             '제20조② 사례). 이런 조문 후보는 각 법 `_dashboard/coverage/<slug>.json`의 '
-             '`dense_cited_articles` 필드에 항 개수와 함께 나열했다 — 자동 확정 아님, 다음 감사/재검증 '
-             '라운드에서 우선 점검 대상으로만 활용할 것.', '',
+             '판단해야 한다(H-33 원 취지). **2026-07-30 추가**: 조 자체는 인용돼도 그 조문을 인용하는 위키 '
+             '문맥(±300자) 안에 raw의 항(①②③...) 표시가 전부 등장하지 않으면 일부 항이 누락됐을 후보로 '
+             '잡는다(해양과학조사법 제20조② 사례로 발견). 각 법 `_dashboard/coverage/<slug>.json`의 '
+             '`hang_gap_candidates` 필드에 조문·빠진 항 목록으로 나열했다 — 휴리스틱(문맥창 검색)이라 '
+             '자동 확정 아님, 다음 감사/재검증 라운드에서 우선 점검 대상으로만 활용할 것.', '',
              '| 법 | 전체 조문 | 미인용 | 커버리지 |', '|---|---|---|---|']
     for s in scored[:40]:
         lines.append(f"| {s['law']} | {s['total_raw_articles']} | {s['total_uncited']} | {s['coverage_pct']}% |")
