@@ -257,6 +257,66 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
 });
 
 // ============================================================================
+// 브이월드(국토교통부 공간정보 오픈플랫폼) 위성지도 타일 프록시
+// ============================================================================
+// 배경지도 메뉴의 "위성지도"가 쓰는 타일을 대신 받아 전달한다.
+//
+// [왜 서버가 대신 받나]
+//   브이월드 WMTS 는 인증키를 URL 경로에 그대로 넣는 방식이라, 브라우저가
+//   직접 요청하면 개발자도구·네트워크 탭에 인증키가 노출된다. 서버가 대신
+//   받아 이미지 바이트만 넘기면 인증키가 클라이언트로 나가지 않는다.
+//   (해아름 /api/ocean/khoa-wms 프록시와 같은 구조)
+//
+// [인증키]
+//   운영에서는 fly secrets 의 VWORLD_API_KEY 를 우선 사용하고, 없으면 아래
+//   상수를 쓴다. 이 저장소는 비공개(private)라 상수 보관이 가능하지만,
+//   키를 바꿀 때는 fly secrets 쪽을 먼저 갱신하는 것을 권장한다.
+//   현재 키: 개발키, 만료 2027-02-01 (브이월드 마이포털에서 연장 3회 가능)
+//   등록 서비스URL: https://seagnal-server.fly.dev/
+//
+// GET /api/ocean/vworld-tile?layer=Satellite&z=13&y=3400&x=7000
+const VWORLD_API_KEY = process.env.VWORLD_API_KEY || '62FAF40F-34CE-3FBA-8A95-F2CD63F38C0C';
+
+// 허용 레이어 → 확장자. 화이트리스트로 고정해 임의 URL 요청(SSRF)을 차단한다.
+//   Satellite = 위성영상(jpeg), Hybrid = 그 위에 얹는 지명·도로 라벨(png)
+const VWORLD_LAYERS = { Satellite: 'jpeg', Hybrid: 'png' };
+
+router.get('/api/ocean/vworld-tile', async (req, res) => {
+    try {
+        const layer = req.query.layer;
+        const ext = VWORLD_LAYERS[layer];
+        if (!ext) return res.status(400).send('invalid layer');
+
+        // 타일 좌표는 정수만 허용 (URL 템플릿 고정 → SSRF 방지)
+        const z = parseInt(req.query.z, 10);
+        const y = parseInt(req.query.y, 10);
+        const x = parseInt(req.query.x, 10);
+        if (!Number.isInteger(z) || !Number.isInteger(y) || !Number.isInteger(x)) {
+            return res.status(400).send('bad tile coords');
+        }
+
+        const upstream = `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/${layer}/${z}/${y}/${x}.${ext}`;
+
+        const fetchFn = global.fetch || require('node-fetch');
+        const r = await fetchFn(upstream, {
+            headers: { 'Referer': 'https://seagnal-server.fly.dev/', 'User-Agent': 'Mozilla/5.0' }
+        });
+
+        // 국내 밖 영역은 브이월드가 타일을 주지 않는다(정상 동작). 그대로 상태를
+        // 넘기면 OL 은 빈 타일로 처리한다 — 해아름 레이어와 같은 방식.
+        if (!r.ok) return res.status(r.status).send('upstream error');
+
+        const buf = Buffer.from(await r.arrayBuffer());
+        res.set('Content-Type', r.headers.get('content-type') || `image/${ext}`);
+        res.set('Cache-Control', 'public, max-age=604800');   // 7일 (위성영상은 거의 안 바뀜)
+        res.send(buf);
+    } catch (e) {
+        console.error('[VWorld tile proxy] error:', e.message);
+        res.status(500).send('proxy error');
+    }
+});
+
+// ============================================================================
 // 연안침식(연안포털) CCTV 이미지 프록시
 // ============================================================================
 // 연안포털(coast.mof.go.kr) 카메라 이미지는 포털이 HTTP/사설망 프록시 체인
