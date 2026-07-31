@@ -256,6 +256,36 @@
     }
 
     /**
+     * 지점 팝업(바텀시트)이 열렸는지 지켜보다가 body 에 ls-sheet-open 클래스를 붙인다.
+     * 팝업은 활동 섹션 안에 있어 바깥에 뜬 우측 레일보다 위로 올라올 수 없으므로,
+     * 팝업이 열린 동안에는 레일을 감춰 닫기 버튼이 가리지 않게 한다.
+     * [연계] → index2.html 의 body.ls-sheet-open 규칙 (#ls-rail 숨김)
+     */
+    function _watchBottomSheets() {
+        var ids = ['fishing-bottomsheet', 'mudflat-bottomsheet', 'scuba-bottomsheet',
+                   'rip-bottomsheet', 'surfing-popup'];
+        var els = [];
+        for (var i = 0; i < ids.length; i++) {
+            var el = document.getElementById(ids[i]);
+            if (el) els.push(el);
+        }
+        if (!els.length || typeof MutationObserver === 'undefined') return;
+
+        function _sync() {
+            var open = false;
+            for (var j = 0; j < els.length; j++) {
+                if (els[j].classList.contains('active')) { open = true; break; }
+            }
+            document.body.classList.toggle('ls-sheet-open', open);
+        }
+        var obs = new MutationObserver(_sync);
+        for (var k = 0; k < els.length; k++) {
+            obs.observe(els[k], { attributes: true, attributeFilter: ['class'] });
+        }
+        _sync();
+    }
+
+    /**
      * 물빠짐 버튼의 켜짐/꺼짐을 지켜보다가 body 에 ls-mudflat-on 클래스를 붙인다.
      * 시간 슬라이더·범례가 생기면 출처표기(국립해양조사원/OpenStreetMap)를 그 위로
      * 올려야 해서 CSS 가 이 상태를 알아야 한다.
@@ -703,6 +733,7 @@
         _bindControls();
         _wrapTabSwitchers();
         _watchMudflatToggle();
+        _watchBottomSheets();
     });
 
 })();
