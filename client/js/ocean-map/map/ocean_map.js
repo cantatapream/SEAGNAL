@@ -174,7 +174,17 @@
 
         var source = new ol.source.XYZ({
             projection: 'EPSG:3857',
-            maxZoom: VWORLD_MAX_ZOOM,
+            // [고화질 화면 대응] 브이월드는 256픽셀 조각 하나만 주고 레티나(2배·3배)
+            //   전용 조각이 없다. 그대로 쓰면 픽셀밀도 3배 폰에서 3배로 늘려 그려져
+            //   뿌옇게 보인다(실측 확인). 그래서 격자를 "한 칸당 128" 로 선언해
+            //   OL 이 한 단계 더 깊은 조각을 받아 절반 크기로 그리게 한다 → 2배 선명.
+            //   - tileSize:128 + 해상도 2배 = 조각이 덮는 실제 땅 넓이는 그대로라
+            //     위치가 어긋나지 않는다(줌16 화면에서 z17 조각 요청, 좌표 일치 확인).
+            //   - maxZoom 19 에서 멈추므로 가장 깊이 확대해도 빈 화면이 되지 않는다
+            //     (그 지점에서는 예전처럼 z19 조각을 늘려 그린다).
+            //   - 대가: 화면당 조각 수가 4배 → 지도 데이터 사용량도 약 4배.
+            tilePixelRatio: 2,
+            tileGrid: ol.tilegrid.createXYZ({ tileSize: 128, maxZoom: VWORLD_MAX_ZOOM }),
             attributions: '&copy; <a href="https://www.vworld.kr">국토교통부 브이월드</a>'
             // [주의] crossOrigin 을 주지 않는다. 브이월드가 CORS 헤더를 안 주면
             //        crossOrigin:'anonymous' 타일은 통째로 로드에 실패한다.
