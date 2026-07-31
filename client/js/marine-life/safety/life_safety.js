@@ -5,10 +5,12 @@
  *         하위탭을 [해양안전 | 해양생활] 로 바꾸고, 해양생활 쪽은 6개 활동(바다낚시·서핑·
  *         해수욕·스킨스쿠버·갯벌체험·바다갈라짐)을 화면 오른쪽 세로 버튼으로 갈아끼우며,
  *         배경지도(기본맵·전자해도·해안도·세계지도)를 해양종합정보와 같은 방식으로 고른다.
+ *         여기에 더해 위성지도(브이월드)는 시험 단계라 이 화면에서만 고를 수 있다.
  *         새로고침(앱 재시작)하면 원래 해양생활 화면으로 돌아온다 — 저장하지 않음.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 해아름 WMS 레이어),
+ *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 해아름 WMS 레이어,
+ *                    window.oceanCreateVworldLayer — 브이월드 위성지도 레이어),
  *                    shared/ui/ui_modal.js(window.showSeagnalModal — 안내 팝업),
  *                    marine-life/*(fishing·surfing·scuba·mudflat·sea_parting — 활동 로직 그대로 재사용),
  *                    forecast/alerts/marine.js(TAB_GROUP_SUBTABS·SECTION_TO_GROUP·switchSubTab)
@@ -50,8 +52,9 @@
         { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      pub: 'sp-publish-time',      getMap: null }
     ];
 
-    /** 배경지도 종류 → 버튼에 표시할 이름 (해양종합정보 switchBaseLayer 와 동일 표기) */
-    var BASEMAP_NAMES = { rltm: '기본맵', enc: '전자해도', coast: '해안도', osm: '세계지도' };
+    /** 배경지도 종류 → 버튼에 표시할 이름 (해양종합정보 switchBaseLayer 와 동일 표기)
+     *  [주의] vworld(위성지도)는 아직 시험 단계라 해양종합정보 메뉴에는 없고 이 화면에만 있다. */
+    var BASEMAP_NAMES = { rltm: '기본맵', enc: '전자해도', coast: '해안도', osm: '세계지도', vworld: '위성지도' };
 
     /** 해아름 WMS 레이어명 — ocean_map.js 와 동일 (기본맵/전자해도/해안도) */
     var KHOA_LAYERS = {
@@ -253,6 +256,36 @@
             }
         });
         _suspended = [];
+    }
+
+    /**
+     * 지점 팝업(바텀시트)이 열렸는지 지켜보다가 body 에 ls-sheet-open 클래스를 붙인다.
+     * 팝업은 활동 섹션 안에 있어 바깥에 뜬 우측 레일보다 위로 올라올 수 없으므로,
+     * 팝업이 열린 동안에는 레일을 감춰 닫기 버튼이 가리지 않게 한다.
+     * [연계] → index2.html 의 body.ls-sheet-open 규칙 (#ls-rail 숨김)
+     */
+    function _watchBottomSheets() {
+        var ids = ['fishing-bottomsheet', 'mudflat-bottomsheet', 'scuba-bottomsheet',
+                   'rip-bottomsheet', 'surfing-popup'];
+        var els = [];
+        for (var i = 0; i < ids.length; i++) {
+            var el = document.getElementById(ids[i]);
+            if (el) els.push(el);
+        }
+        if (!els.length || typeof MutationObserver === 'undefined') return;
+
+        function _sync() {
+            var open = false;
+            for (var j = 0; j < els.length; j++) {
+                if (els[j].classList.contains('active')) { open = true; break; }
+            }
+            document.body.classList.toggle('ls-sheet-open', open);
+        }
+        var obs = new MutationObserver(_sync);
+        for (var k = 0; k < els.length; k++) {
+            obs.observe(els[k], { attributes: true, attributeFilter: ['class'] });
+        }
+        _sync();
     }
 
     /**
@@ -472,13 +505,28 @@
             lyr.setVisible(false);
             layers.insertAt(i, lyr);
         }
+
+        // 위성지도(브이월드) — 위성영상 위에 지명·도로 라벨을 덮어야 어디가 어딘지
+        // 알 수 있으므로 두 장을 같은 'vworld' 로 묶는다. _applyBasemap 이 같은
+        // 이름의 레이어를 한꺼번에 켜고 끄므로 별도 처리가 필요 없다.
+        // 원래 줌 한계는 위성지도를 끌 때 되돌리려고 지도에 적어 둔다.
+        if (typeof window.oceanCreateVworldLayer === 'function') {
+            map.set('lsMaxZoom', map.getView().getMaxZoom());
+            var vwSat = window.oceanCreateVworldLayer('Satellite');
+            var vwLabel = window.oceanCreateVworldLayer('Hybrid');
+            vwSat.set('lsBase', 'vworld');
+            vwLabel.set('lsBase', 'vworld');
+            layers.insertAt(3, vwSat);
+            layers.insertAt(4, vwLabel);
+        }
+
         _decorated.push(map);
     }
 
     /**
      * 배경지도를 지정한 종류로 바꾼다 (지금까지 준비된 모든 활동 지도에 함께 적용).
      * 예: _applyBasemap('enc') → 전자해도만 보이고 나머지 배경은 숨김
-     * @param {string} type - 'rltm' | 'enc' | 'coast' | 'osm'
+     * @param {string} type - 'rltm' | 'enc' | 'coast' | 'osm' | 'vworld'
      * [연계] ← 좌측 상단 배경지도 메뉴 클릭 / _prepareMap() 진입 시 현재 선택 재적용
      */
     function _applyBasemap(type) {
@@ -489,6 +537,17 @@
             for (var j = 0; j < layers.length; j++) {
                 var kind = layers[j].get('lsBase');
                 if (kind) layers[j].setVisible(kind === type);
+            }
+
+            // 줌 한계 — 위성지도일 때만 브이월드 한계(19)까지 열어 준다. 활동 지도는
+            // 원래 13 까지라 위성영상의 값어치(접안시설·갯바위 식별)가 안 나온다.
+            // 다른 배경으로 돌아갈 때는 원래 한계로 되돌리고 현재 줌도 같이 당긴다.
+            var view = _decorated[i].getView();
+            var orig = _decorated[i].get('lsMaxZoom');
+            if (typeof orig === 'number' && window.oceanCreateVworldLayer) {
+                var maxZoom = (type === 'vworld') ? window.oceanCreateVworldLayer.maxZoom : orig;
+                view.setMaxZoom(maxZoom);
+                if (view.getZoom() > maxZoom) view.setZoom(maxZoom);
             }
         }
 
@@ -703,6 +762,7 @@
         _bindControls();
         _wrapTabSwitchers();
         _watchMudflatToggle();
+        _watchBottomSheets();
     });
 
 })();

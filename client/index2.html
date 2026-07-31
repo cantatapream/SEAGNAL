@@ -711,11 +711,23 @@
         #ls-rail #ls-gps-btn {
             width: var(--ls-rail-w);
             min-height: 42px;
+            /* 라벨을 숨겨 아이콘만 남으므로, 세로 가운데로 모아 준다
+               (기본 .ocean-overlay-btn 은 위쪽 정렬 + 아래 라벨 자리 전제) */
+            justify-content: center;
+            padding: 0;
         }
         #ls-gps-btn .ocean-overlay-label { display: none !important; }
         /* 큰 글씨 모드는 .ocean-overlay-btn 의 아이콘을 숨기고 라벨 2줄로 바꾸지만,
            이 버튼은 아이콘만 쓰므로(라벨 숨김) 아이콘은 계속 보이게 되돌린다. */
         html[data-font-size="large"] #ls-rail #ls-gps-btn i { display: block !important; }
+
+        /* 지점 팝업(바텀시트)이 열려 있는 동안에는 우측 레일을 감춘다.
+           [이유] 팝업은 활동 섹션(position:fixed; z-index:50) 안에 있어 자체
+           z-index(999)가 그 섹션 안에서만 유효하다. 바깥에 떠 있는 레일(z:60)을
+           넘어설 수 없어 닫기 버튼이 레일 버튼에 가렸다. 레일을 잠시 감추는 쪽이
+           섹션 z-index 를 흔드는 것보다 안전하다.
+           [상태 클래스] body.ls-sheet-open — life_safety.js 가 시트의 active 를 보고 붙인다. */
+        body.ls-mode.ls-sheet-open #ls-rail { display: none !important; }
 
         /* 활동 화면의 제목 줄(예: "바다낚시 지수 / 발표: …")은 숨긴다.
            발표 시각은 우측 레일에서 그 활동 버튼을 누를 때 토스트로 안내한다. */
@@ -4405,6 +4417,12 @@
                     <button class="ocean-basemap-item" data-basemap="osm">
                         <i class="fa-solid fa-earth-asia"></i> 세계지도
                     </button>
+                    <!-- 위성지도(국토교통부 브이월드) — 아직 시험 단계라 해양종합정보
+                         배경지도 메뉴에는 넣지 않고, 10회 탭으로 열리는 이 화면에서만
+                         고를 수 있다. [연계] js/marine-life/safety/life_safety.js -->
+                    <button class="ocean-basemap-item" data-basemap="vworld">
+                        <i class="fa-solid fa-satellite"></i> 위성지도
+                    </button>
                 </div>
             </div>
             <div class="ocean-info-btn-wrap">
@@ -4742,7 +4760,7 @@
 
     <!-- 해양생활안전 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
-    <script src="js/marine-life/safety/life_safety.js?v=LifeSafety_20260731b"></script>
+    <script src="js/marine-life/safety/life_safety.js?v=LifeSafety_20260731c"></script>
 
     <!-- 선택적 차단 표시용 스타일 (버튼 자물쇠 배지 / 해상일기도·바텀시트 점검중) -->
     <style>
