@@ -42,12 +42,12 @@
      * [주의] 이안류(ripcurrent)는 현재 하위탭에서도 숨김 상태라 여기서도 뺀다.
      */
     var ACTIVITIES = [
-        { id: 'fishing-section',     label: '바다낚시',   gpsBtn: 'fishing-my-location-btn', getMap: function () { return window.getFishingMap && window.getFishingMap(); } },
-        { id: 'surfing-section',     label: '서핑',       gpsBtn: 'surfing-my-location-btn', getMap: function () { return (window._surfing && window._surfing.map) || null; } },
-        { id: 'swimming-section',    label: '해수욕',     gpsBtn: null,                      getMap: null },
-        { id: 'scuba-section',       label: '스킨스쿠버', gpsBtn: 'scuba-my-location-btn',   getMap: function () { return window.getScubaMap && window.getScubaMap(); } },
-        { id: 'mudflat-section',     label: '갯벌체험',   gpsBtn: 'mudflat-my-location-btn', getMap: function () { return window.getMudflatMap && window.getMudflatMap(); } },
-        { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      getMap: null }
+        { id: 'fishing-section',     label: '바다낚시',   gpsBtn: 'fishing-my-location-btn', pub: 'fishing-publish-time', getMap: function () { return window.getFishingMap && window.getFishingMap(); } },
+        { id: 'surfing-section',     label: '서핑',       gpsBtn: 'surfing-my-location-btn', pub: 'surfing-publish-time', getMap: function () { return (window._surfing && window._surfing.map) || null; } },
+        { id: 'swimming-section',    label: '해수욕',     gpsBtn: null,                      pub: null,                   getMap: null },
+        { id: 'scuba-section',       label: '스킨스쿠버', gpsBtn: 'scuba-my-location-btn',   pub: 'scuba-publish-time',   getMap: function () { return window.getScubaMap && window.getScubaMap(); } },
+        { id: 'mudflat-section',     label: '갯벌체험',   gpsBtn: 'mudflat-my-location-btn', pub: 'mudflat-publish-time', getMap: function () { return window.getMudflatMap && window.getMudflatMap(); } },
+        { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      pub: 'sp-publish-time',      getMap: null }
     ];
 
     /** 배경지도 종류 → 버튼에 표시할 이름 (해양종합정보 switchBaseLayer 와 동일 표기) */
@@ -284,6 +284,35 @@
         if (typeof window.switchSubTab === 'function') {
             window.switchSubTab(sectionId);
         }
+        _toastPublishTime(sectionId);
+    }
+
+    /**
+     * 그 활동의 발표(기준) 시각을 토스트로 알린다.
+     * 화면 위 제목 줄을 없앤 대신, 버튼을 누를 때 발표 정보를 짧게 보여주기 위함.
+     * 예: 바다낚시 버튼 → "발표: 2026. 8. 1. 02:52"
+     * @param {string} sectionId - 활동 섹션 id
+     * [연계] → index2_patch.js 의 window._showOceanToast (해양종합정보와 같은 위치·모양)
+     *          ← _selectActivity() — 우측 레일 버튼 클릭 시
+     */
+    function _toastPublishTime(sectionId) {
+        var act = _findActivity(sectionId);
+        if (!act || !act.pub) return;
+
+        // 데이터가 아직 안 왔으면 잠시 뒤 한 번 더 본다(활동 진입 시 비동기 로드)
+        function _try(retries) {
+            var el = document.getElementById(act.pub);
+            var txt = el ? (el.textContent || '').trim() : '';
+            var hasValue = txt && txt.replace(/^(발표|기준)\s*:\s*/, '').trim() !== '-';
+            if (hasValue) {
+                if (typeof window._showOceanToast === 'function') {
+                    window._showOceanToast(act.label + ' ' + txt, 'bottom', 2600);
+                }
+                return;
+            }
+            if (retries > 0) setTimeout(function () { _try(retries - 1); }, 500);
+        }
+        _try(4);
     }
 
     // ========================================================================
@@ -518,6 +547,22 @@
                 if (origin) origin.click();
             });
         }
+
+        // --- 해양안전 화면의 안내(ⓘ) — 물빠짐 안내만 보여준다 ---
+        //   해양종합정보 버튼(#ocean-info-btn)을 그대로 쓰지만 그 팝업은 17개 탭짜리
+        //   전체 안내다. 이 화면엔 물빠짐만 있으므로 document 캡처 단계에서 가로채
+        //   물빠짐 본문만 띄운다(캡처라 버튼 자신의 기존 핸들러까지 도달하지 않음).
+        document.addEventListener('click', function (e) {
+            if (!document.body.classList.contains('ls-safety')) return;
+            var btn = e.target && e.target.closest && e.target.closest('#ocean-info-btn');
+            if (!btn) return;
+            e.stopPropagation();
+            e.preventDefault();
+            if (typeof window.showSeagnalModal !== 'function') return;
+            var html = (typeof window.oceanInfoTabHtml === 'function')
+                ? window.oceanInfoTabHtml('mudflat') : '';
+            window.showSeagnalModal('물빠짐 안내', html || '<p>안내 내용을 불러오지 못했습니다.</p>', 'info');
+        }, true);
 
         // --- 갯바위/선상 팝아웃 (바다낚시 전용) ---
         var gubunBtns = document.querySelectorAll('#ls-gubun-wrap .ls-gubun-item');
