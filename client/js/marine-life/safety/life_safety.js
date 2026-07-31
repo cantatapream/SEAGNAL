@@ -113,12 +113,77 @@
         if (typeof TAB_GROUP_SUBTABS !== 'undefined') {
             TAB_GROUP_SUBTABS['ocean-life-group'] = 'ocean-safety-sub-tabs';
         }
+        // 이 화면에 들어오면 '해양안전' 하위탭이 먼저 열리도록 기본값 변경
+        if (typeof TAB_GROUP_DEFAULTS !== 'undefined') {
+            TAB_GROUP_DEFAULTS['ocean-life-group'] = 'ocean-safety-section';
+        }
+
+        // 하단 메인탭 이름도 화면 이름에 맞춘다 ("해양종합정보"와 같은 6글자라 폭 문제 없음)
+        var tabLabel = document.querySelector('.main-tabs .tab-btn[data-target="ocean-life-group"] .tab-btn-label');
+        if (tabLabel) tabLabel.textContent = '해양생활안전';
 
         document.body.classList.add('ls-mode');
 
         if (typeof window.switchMainTab === 'function') {
             window.switchMainTab('ocean-life-group');
         }
+    }
+
+    // ========================================================================
+    // 1-2. 해양안전 하위탭 — 해양종합정보 지도를 물빠짐 전용으로 빌려 쓴다
+    // ========================================================================
+
+    /**
+     * 해양안전 하위탭을 연다.
+     * 물빠짐(갯벌 노출 예측)은 해양종합정보 지도 한 곳에만 붙어 있는 기능이라
+     * 새 지도를 만들지 않고 그 지도 섹션(#ocean-map-section)을 그대로 띄운 뒤,
+     * CSS 로 물빠짐·안내·배경지도·내 위치만 남기고 나머지 버튼을 감춘다.
+     * [연계] → window.initOceanMap (ocean_map.js) / body.ls-safety CSS (index2.html)
+     *          ← _syncChrome() — 자리표시 섹션(#ocean-safety-section)이 켜지면 호출
+     */
+    function _enterSafety() {
+        var placeholder = document.getElementById('ocean-safety-section');
+        var oceanSec = document.getElementById('ocean-map-section');
+        if (!oceanSec) return;   // 지도 섹션이 없으면 자리표시 섹션을 그대로 둔다
+
+        if (placeholder) placeholder.classList.remove('active');
+        oceanSec.classList.add('active');
+        document.body.classList.add('ocean-map-active', 'ls-safety');
+        document.body.classList.remove('ls-life');
+
+        // 지도 초기화(최초 1회) — 섹션이 보이게 된 뒤라야 크기가 제대로 잡힌다
+        setTimeout(function () {
+            if (window.initOceanMap) window.initOceanMap();
+            _reviveOceanMap();
+        }, 200);
+    }
+
+    /**
+     * 해양종합정보 지도의 캔버스 크기를 다시 계산한다.
+     * 섹션이 숨겨져 있는 동안 크기가 0 으로 잡히는 것을 되돌리기 위함.
+     * [연계] ← _enterSafety() — 화면 전환 직후·전환 애니메이션 종료 후 두 번 호출
+     */
+    function _reviveOceanMap() {
+        function _run() {
+            try {
+                var m = window.getOceanMap && window.getOceanMap();
+                if (!m) return;
+                if (m.updateSize) m.updateSize();
+                if (m.render) m.render();
+            } catch (e) { /* 지도가 아직 준비 전이면 무시 */ }
+        }
+        requestAnimationFrame(_run);
+        setTimeout(_run, 400);
+    }
+
+    /**
+     * 해양안전에서 빠져나올 때 빌려 썼던 해양종합정보 지도 섹션을 정리한다.
+     * [연계] ← _syncChrome() — 활동(바다낚시 등)으로 이동했을 때
+     */
+    function _leaveSafety() {
+        var oceanSec = document.getElementById('ocean-map-section');
+        if (oceanSec) oceanSec.classList.remove('active');
+        document.body.classList.remove('ocean-map-active', 'ls-safety');
     }
 
     // ========================================================================
@@ -134,11 +199,28 @@
     function _syncChrome() {
         if (!_unlocked) return;
 
+        // ① 해양안전 자리표시 섹션이 켜졌으면 해양종합정보 지도 섹션으로 바꿔 단다
+        var placeholder = document.getElementById('ocean-safety-section');
+        if (placeholder && placeholder.classList.contains('active')) {
+            _enterSafety();
+            return;
+        }
+
+        // ② 이미 해양안전(= 이 화면이 빌려 쓰는 지도 섹션)을 보고 있는 중인지 판정.
+        //    진짜 해양종합정보 탭과 구분하려고 body[data-active-tab] 을 함께 본다.
+        var oceanSec = document.getElementById('ocean-map-section');
+        var inSafety = !!(oceanSec && oceanSec.classList.contains('active') &&
+                          document.body.getAttribute('data-active-tab') === 'ocean-life-group');
+
         var actId = null;
         for (var i = 0; i < ACTIVITIES.length; i++) {
             var sec = document.getElementById(ACTIVITIES[i].id);
             if (sec && sec.classList.contains('active')) { actId = ACTIVITIES[i].id; break; }
         }
+
+        // ③ 활동으로 이동했으면 빌려 썼던 지도 섹션을 되돌린다
+        if (actId && inSafety) { _leaveSafety(); inSafety = false; }
+        if (!actId && !inSafety) document.body.classList.remove('ls-safety');
 
         // 활동 섹션이 아닌 곳(해양안전 등)에 있으면 레일/좌측 컨트롤을 숨긴다
         document.body.classList.toggle('ls-life', !!actId);

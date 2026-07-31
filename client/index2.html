@@ -713,6 +713,22 @@
         }
         .ls-gubun-wrap.popup-open .ls-gubun-popup { display: flex; }
 
+        /* ── 해양안전 하위탭 ──────────────────────────────────────
+           물빠짐(갯벌 노출 예측)은 해양종합정보 지도에만 붙어 있는 기능이라,
+           지도를 새로 만들지 않고 그 섹션(#ocean-map-section)을 그대로 빌려 쓴다.
+           대신 이 화면에서는 물빠짐 · 안내 · 배경지도 · 내 위치만 남기고
+           나머지 오버레이 버튼(유향·풍향·파고·주요지명·부이·특보·해구도·천기·
+           태풍·CCTV)과 검색창·진북·즐겨찾기 바는 감춘다.
+           [연계] js/marine-life/safety/life_safety.js — body.ls-safety 토글 */
+        body.ls-mode.ls-safety #ocean-overlay-controls > * { display: none !important; }
+        body.ls-mode.ls-safety #ocean-mudflat-toggle-btn,
+        body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
+        body.ls-mode.ls-safety #ocean-search-container,
+        body.ls-mode.ls-safety #ocean-northup-btn,
+        body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
+        /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
+        body.ls-mode.ls-safety #ocean-topleft-controls { top: 12px; }
+
         /* 지도가 없는 활동(해수욕·바다갈라짐): 기존 UI 를 그대로 두되 폭·상단을 조정해
            우측 레일과 좌측 상단 컨트롤에 내용이 가리지 않게 한다 */
         body.ls-mode.ls-life #swimming-section.tab-content.active,
@@ -4259,8 +4275,12 @@
             <!-- ================================================================
                  섹션: 해양생활안전 - 해양안전 (하위탭 [해양안전 | 해양생활] 중 왼쪽)
                  ----------------------------------------------------------------
-                 해양생활 탭 10회 연타로 열리는 "해양생활안전" 화면의 하위탭.
-                 내용은 아직 정해지지 않아 안내 문구만 둔다.
+                 [역할] 하위탭 전환의 "자리표시" 섹션.
+                   실제 화면은 물빠짐(갯벌 노출 예측)이 붙어 있는 해양종합정보 지도
+                   섹션(#ocean-map-section)을 그대로 빌려 쓴다. life_safety.js 가
+                   이 섹션이 켜지는 순간 지도 섹션으로 바꿔 달고 body.ls-safety 를 붙여
+                   물빠짐·안내·배경지도·내 위치만 남긴다.
+                   아래 문구는 지도 섹션을 못 찾았을 때만 보이는 대비책이다.
                  [연계] js/marine-life/safety/life_safety.js
                  ================================================================ -->
             <section id="ocean-safety-section" class="tab-content">
@@ -4268,7 +4288,7 @@
                     <h2 class="section-title"><i class="fa-solid fa-shield-halved"></i> 해양안전</h2>
                 </div>
                 <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
-                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">준비 중입니다.</p>
+                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">지도를 불러오지 못했습니다.</p>
                 </div>
             </section>
 
