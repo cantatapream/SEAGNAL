@@ -7,7 +7,7 @@
  * [설명]
  * 해양종합정보 히든 탭의 OpenLayers 지도를 초기화합니다.
  * 조석지도/해양현황 분리 모드 없이 단일 통합 지도 뷰로 동작합니다.
- * - 베이스맵: 기본맵 / 전자해도 / 해안도 (피커로 선택)
+ * - 베이스맵: 기본맵 / 전자해도 / 해안도 / 세계지도 (피커로 선택)
  * - 오버레이: 조류/바람/파고 (항상 표시되는 우측 버튼)
  * - 주요지명: 조석 마커 토글 버튼
  * - 타임라인: 항상 표시 (조류=1h 스텝, 바람/파고=3h 스텝)
@@ -33,7 +33,7 @@
     let baseLayerENC       = null;    // 전자해도 (BASEMAP_ENC573857)
     let baseLayerCoast     = null;    // 해안도 (BASEMAP_RLTMCOAST3857)
     let baseLayerOSM       = null;    // 세계지도 (OpenStreetMap)
-    let currentBase        = 'rltm'; // 현재 베이스맵: 'rltm' | 'enc' | 'coast'
+    let currentBase        = 'rltm'; // 현재 베이스맵: 'rltm' | 'enc' | 'coast' | 'osm'
     let searchResultLayer = null;     // 검색 결과 마커 레이어
 
     // 해구도 격자 레이어 (KMA marine_zone/area 정적 GeoJSON 기반)
@@ -64,6 +64,13 @@
     const DEFAULT_ZOOM = 7;
     const MIN_ZOOM = 6;
     const MAX_ZOOM = 15;
+
+    // 위성지도(브이월드)가 타일을 주는 최대 줌. 위성영상은 확대해야 값어치가
+    // 있어(양식장·갯바위·접안시설 식별) 해아름 한계(15)보다 깊이 들어간다.
+    // [주의] 이 지도(해양종합정보)의 배경 선택지에는 위성지도가 없다 — 아직 시험
+    //        단계라 해양생활안전(히든) 화면에서만 고를 수 있고, 그 화면이
+    //        window.oceanCreateVworldLayer 로 이 값을 함께 받아 쓴다.
+    const VWORLD_MAX_ZOOM = 19;
 
     // ========================================================================
     // 해아름 WMS 레이어 생성
@@ -130,6 +137,40 @@
 
         console.log('[OceanMap] 해아름 WMS 엔드포인트:', endpoint);
         return tileLayer;
+    }
+
+    /**
+     * 브이월드(국토교통부) 위성지도 타일 레이어를 만듭니다.
+     * 예: createVworldLayer('Satellite') → 위성영상 한 장짜리 타일 레이어
+     *
+     * [동작 방식]
+     * 브이월드 WMTS 는 타일 한 장을 "/{z}/{y}/{x}" 주소로 주는 XYZ 방식이라,
+     * OL 의 ol.source.XYZ 에 주소 틀만 넘기면 화면에 필요한 타일을 OL 이
+     * 알아서 계산해 요청합니다. 좌표계도 우리 지도와 같은 EPSG:3857 이라
+     * 변환이 필요 없습니다.
+     *
+     * [왜 서버를 거치나]
+     * 브이월드는 인증키를 주소에 그대로 넣는 방식이라 브라우저가 직접 부르면
+     * 키가 노출됩니다. 그래서 우리 서버(/api/ocean/vworld-tile)가 대신 받아
+     * 이미지만 넘겨줍니다. (해아름 프록시와 같은 이유)
+     *
+     * @param {string} layer - 'Satellite'(위성영상) | 'Hybrid'(지명·도로 라벨)
+     * @returns {ol.layer.Tile} 처음엔 숨김(visible:false) 상태인 타일 레이어
+     * [연계] ← window.oceanCreateVworldLayer 로 노출 → life_safety.js 가 위성지도
+     *          2장(영상+라벨)을 만들 때 호출
+     *          → local_server/routes/ocean1.js 의 GET /api/ocean/vworld-tile
+     */
+    function createVworldLayer(layer) {
+        return new ol.layer.Tile({
+            source: new ol.source.XYZ({
+                url: '/api/ocean/vworld-tile?layer=' + layer + '&z={z}&y={y}&x={x}',
+                projection: 'EPSG:3857',
+                maxZoom: VWORLD_MAX_ZOOM,
+                attributions: '&copy; <a href="https://www.vworld.kr">국토교통부 브이월드</a>',
+                crossOrigin: 'anonymous'
+            }),
+            visible: false
+        });
     }
 
     // ========================================================================
@@ -884,6 +925,17 @@
      * 설정을 여기 한 곳에서만 관리하려고 export 한다.
      */
     window.oceanCreateKhoaLayer = function (layer) { return createKhoaLayer(layer); };
+
+    /**
+     * [외부 API] 브이월드 위성지도 레이어 1장을 만들어 준다.
+     * 위성지도는 아직 시험 단계라 이 지도(해양종합정보)의 배경 선택지에는 없고,
+     * 해양생활안전(히든) 화면에서만 고를 수 있다. 프록시 주소·투영·줌 한계·
+     * 출처표기 설정을 여기 한 곳에서만 관리하려고 export 한다.
+     * @property {number} maxZoom - 브이월드가 타일을 주는 최대 줌(19). 부르는 쪽이
+     *                              지도 줌 한계를 올릴 때 쓰라고 같이 달아 둔다.
+     */
+    window.oceanCreateVworldLayer = function (layer) { return createVworldLayer(layer); };
+    window.oceanCreateVworldLayer.maxZoom = VWORLD_MAX_ZOOM;
 
     function bindBasemapPicker() {
         var toggleBtn = document.getElementById('ocean-basemap-toggle');
