@@ -257,63 +257,35 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
 });
 
 // ============================================================================
-// 브이월드(국토교통부 공간정보 오픈플랫폼) 위성지도 타일 프록시
+// 브이월드(국토교통부 공간정보 오픈플랫폼) 위성지도 인증키
 // ============================================================================
-// 배경지도 메뉴의 "위성지도"가 쓰는 타일을 대신 받아 전달한다.
+// 배경지도 메뉴의 "위성지도"가 쓸 인증키를 프론트엔드에 알려준다.
 //
-// [왜 서버가 대신 받나]
-//   브이월드 WMTS 는 인증키를 URL 경로에 그대로 넣는 방식이라, 브라우저가
-//   직접 요청하면 개발자도구·네트워크 탭에 인증키가 노출된다. 서버가 대신
-//   받아 이미지 바이트만 넘기면 인증키가 클라이언트로 나가지 않는다.
-//   (해아름 /api/ocean/khoa-wms 프록시와 같은 구조)
+// [왜 서버가 타일을 대신 받지 않고 키만 주나]
+//   처음에는 키 노출을 막으려고 서버가 타일을 대신 받는 프록시(/api/ocean/
+//   vworld-tile)로 만들었는데, 운영서버(fly nrt=도쿄)에서 api.vworld.kr 로의
+//   연결이 0.9초 안에 곧바로 실패하는 것을 실측으로 확인했다(2026-08-01).
+//   시간초과가 아니라 즉시 연결 오류 — 브이월드가 해외/데이터센터 IP 를 막는
+//   것으로 보인다. 그래서 국내에 있는 사용자 단말이 브이월드를 직접 부르도록
+//   바꾸고, 서버는 키만 내려준다.
+//
+// [키가 노출되는 문제는?]
+//   브이월드 WMTS 는 키를 타일 주소 경로에 넣는 방식이라 이 구조에서는 키가
+//   브라우저에 보인다. 대신 이 키는 등록된 서비스URL(아래) 에서만 동작하도록
+//   묶여 있어(도메인 검증) 다른 사이트에서 가져다 쓸 수 없다.
 //
 // [인증키]
 //   운영에서는 fly secrets 의 VWORLD_API_KEY 를 우선 사용하고, 없으면 아래
-//   상수를 쓴다. 이 저장소는 비공개(private)라 상수 보관이 가능하지만,
-//   키를 바꿀 때는 fly secrets 쪽을 먼저 갱신하는 것을 권장한다.
+//   상수를 쓴다. 이 저장소는 비공개(private)라 상수 보관이 가능하다.
 //   현재 키: 개발키, 만료 2027-02-01 (브이월드 마이포털에서 연장 3회 가능)
 //   등록 서비스URL: https://seagnal-server.fly.dev/
 //
-// GET /api/ocean/vworld-tile?layer=Satellite&z=13&y=3400&x=7000
+// GET /api/ocean/vworld-key → { "key": "…" }
 const VWORLD_API_KEY = process.env.VWORLD_API_KEY || '62FAF40F-34CE-3FBA-8A95-F2CD63F38C0C';
 
-// 허용 레이어 → 확장자. 화이트리스트로 고정해 임의 URL 요청(SSRF)을 차단한다.
-//   Satellite = 위성영상(jpeg), Hybrid = 그 위에 얹는 지명·도로 라벨(png)
-const VWORLD_LAYERS = { Satellite: 'jpeg', Hybrid: 'png' };
-
-router.get('/api/ocean/vworld-tile', async (req, res) => {
-    try {
-        const layer = req.query.layer;
-        const ext = VWORLD_LAYERS[layer];
-        if (!ext) return res.status(400).send('invalid layer');
-
-        // 타일 좌표는 정수만 허용 (URL 템플릿 고정 → SSRF 방지)
-        const z = parseInt(req.query.z, 10);
-        const y = parseInt(req.query.y, 10);
-        const x = parseInt(req.query.x, 10);
-        if (!Number.isInteger(z) || !Number.isInteger(y) || !Number.isInteger(x)) {
-            return res.status(400).send('bad tile coords');
-        }
-
-        const upstream = `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/${layer}/${z}/${y}/${x}.${ext}`;
-
-        const fetchFn = global.fetch || require('node-fetch');
-        const r = await fetchFn(upstream, {
-            headers: { 'Referer': 'https://seagnal-server.fly.dev/', 'User-Agent': 'Mozilla/5.0' }
-        });
-
-        // 국내 밖 영역은 브이월드가 타일을 주지 않는다(정상 동작). 그대로 상태를
-        // 넘기면 OL 은 빈 타일로 처리한다 — 해아름 레이어와 같은 방식.
-        if (!r.ok) return res.status(r.status).send('upstream error');
-
-        const buf = Buffer.from(await r.arrayBuffer());
-        res.set('Content-Type', r.headers.get('content-type') || `image/${ext}`);
-        res.set('Cache-Control', 'public, max-age=604800');   // 7일 (위성영상은 거의 안 바뀜)
-        res.send(buf);
-    } catch (e) {
-        console.error('[VWorld tile proxy] error:', e.message);
-        res.status(500).send('proxy error');
-    }
+router.get('/api/ocean/vworld-key', (req, res) => {
+    res.set('Cache-Control', 'public, max-age=3600');   // 1시간 (키는 거의 안 바뀜)
+    res.json({ key: VWORLD_API_KEY });
 });
 
 // ============================================================================
