@@ -1385,6 +1385,8 @@ const TAB_GROUP_DEFAULTS = {
 };
 
 // 그룹 탭 → 서브 탭 nav 요소 ID 매핑
+// [주의] 'ocean-life-group' 값은 해양생활안전 화면(js/marine-life/safety/life_safety.js)이
+//        진입 시 'ocean-safety-sub-tabs' 로 교체한다(그 세션 동안만, 저장 안 함).
 const TAB_GROUP_SUBTABS = {
     'weather-group': 'weather-sub-tabs',
     'ocean-life-group': 'ocean-life-sub-tabs'
@@ -1402,7 +1404,9 @@ const SECTION_TO_GROUP = {
     'swimming-section': 'ocean-life-group',
     'scuba-section': 'ocean-life-group',
     'sea-parting-section': 'ocean-life-group',
-    'ripcurrent-section': 'ocean-life-group'
+    'ripcurrent-section': 'ocean-life-group',
+    // 해양생활안전(10회 연타 진입) 화면의 '해양안전' 하위탭 — 같은 해양생활 그룹 소속
+    'ocean-safety-section': 'ocean-life-group'
 };
 
 /**

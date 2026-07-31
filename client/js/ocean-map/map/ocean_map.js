@@ -877,6 +877,14 @@
     window.oceanGetBasemap = function () { return currentBase; };
     window.oceanSetBasemap = function (type) { switchBaseLayer(type); };
 
+    /**
+     * [외부 API] 해아름 WMS 배경지도 레이어 1장을 만들어 준다.
+     * 해양생활안전 화면(life_safety.js)이 해양생활 활동 지도에도 같은 배경지도
+     * (기본맵/전자해도/해안도)를 끼워 넣기 위해 사용한다. WMS 프록시·투영·출처표기
+     * 설정을 여기 한 곳에서만 관리하려고 export 한다.
+     */
+    window.oceanCreateKhoaLayer = function (layer) { return createKhoaLayer(layer); };
+
     function bindBasemapPicker() {
         var toggleBtn = document.getElementById('ocean-basemap-toggle');
         var menu      = document.getElementById('ocean-basemap-menu');
