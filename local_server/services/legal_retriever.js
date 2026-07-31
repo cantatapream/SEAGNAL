@@ -39,6 +39,8 @@ const GLOSSARY_MD = path.join(LEGAL_DIR, 'wiki', '_glossary.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
 const STATUTES_DIR = path.join(LEGAL_DIR, 'wiki', 'statutes');
 const COMPARISONS_DIR = path.join(LEGAL_DIR, 'wiki', 'comparisons');
+const ANNEXES_DIR = path.join(LEGAL_DIR, 'wiki', 'annexes');
+const ACTIVITIES_DIR = path.join(LEGAL_DIR, 'wiki', 'activities');
 
 // ★모델 확정(2026-07-30, 사용자 확정): pro(gemini-pro-latest, 실제로는 Gemini 3.1 Pro)에서
 // gemini-2.5-flash로 전환. 사유=비용(입력 6.7배·출력 4.8배 저렴, ai.google.dev 공식가 기준
@@ -137,22 +139,29 @@ function normalizeSlug(raw) {
   let s = String(raw).split('|')[0].trim();
   if (s.startsWith('statutes/')) return { kind: 'statute', file: s.slice('statutes/'.length) };
   if (s.startsWith('comparisons/')) return { kind: 'comparison', file: s.slice('comparisons/'.length) };
+  if (s.startsWith('annexes/')) return { kind: 'annex', file: s.slice('annexes/'.length) };
+  if (s.startsWith('activities/')) return { kind: 'activity', file: s.slice('activities/'.length) };
   return { kind: 'concept', file: s };
 }
 
+const KIND_DIRS = { statute: STATUTES_DIR, comparison: COMPARISONS_DIR, annex: ANNEXES_DIR, activity: ACTIVITIES_DIR };
 function pageFilePath(kind, file) {
-  const dir = kind === 'statute' ? STATUTES_DIR : kind === 'comparison' ? COMPARISONS_DIR : CONCEPTS_DIR;
-  return path.join(dir, file + '.md');
+  return path.join(KIND_DIRS[kind] || CONCEPTS_DIR, file + '.md');
 }
 
-// [[링크]] 표기가 'comparisons/' 접두어 없이 쓰인 기존 위키 문서가 많아(허브 페이지 관행이
-// 정착되기 전 작성분), normalizeSlug만으론 kind를 못 맞힐 수 있다 — index.json에 실제로
-// 어느 kind로 등록됐는지 byFile에서 확인해 보정한다.
+// [[링크]] 표기가 'comparisons/'·'annexes/'·'activities/' 접두어 없이 쓰인 기존 위키 문서가
+// 많아(허브·별표 페이지 관행이 정착되기 전 작성분), normalizeSlug만으론 kind를 못 맞힐 수
+// 있다 — index.json에 실제로 어느 kind로 등록됐는지 byFile에서 확인해 보정한다.
 function resolvePage(byFile, raw) {
   const { kind, file } = normalizeSlug(raw);
   const hit = byFile.get(kind + ':' + file);
   if (hit) return hit;
-  if (kind === 'concept') return byFile.get('comparison:' + file) || null;
+  if (kind === 'concept') {
+    for (const alt of ['comparison', 'annex', 'activity']) {
+      const p = byFile.get(alt + ':' + file);
+      if (p) return p;
+    }
+  }
   return null;
 }
 
@@ -212,8 +221,14 @@ function sliceRelevant(body, terms, maxChars) {
   const introIsSection = parts[0].startsWith('## ');
   const intro = introIsSection ? '' : parts[0];
   const sections = introIsSection ? parts : parts.slice(1);
+  if (!sections.length) return body.slice(0, maxChars);
+  // 페이지 전체가 한 주제(예: "매립면허")를 다루면 그 주제어는 거의 모든 절에 등장해 변별력이
+  // 없다 — 이 페이지 안에서 몇 개 절에 등장하는지(절-내 문서빈도)로 역가중해, 소수 절에만 있는
+  // 단어(질문의 진짜 변별 지점, 예: "수수료")를 우선한다(실측: 역가중 없인 흔한 주제어에
+  // 묻혀 정작 필요한 절이 후순위로 밀림).
+  const df = terms.map(t => sections.reduce((n, s) => n + (s.includes(t) ? 1 : 0), 0));
   const scored = sections
-    .map(s => ({ s, sc: terms.reduce((n, t) => n + (s.includes(t) ? 1 : 0), 0) }))
+    .map(s => ({ s, sc: terms.reduce((n, t, i) => n + (df[i] > 0 && s.includes(t) ? 1 / df[i] : 0), 0) }))
     .filter(x => x.sc > 0)
     .sort((a, b) => b.sc - a.sc);
   if (!scored.length) return body.slice(0, maxChars); // 매칭 절 없으면 기존 방식으로 폴백

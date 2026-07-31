@@ -74,6 +74,7 @@
     var _currentBase = 'rltm';  // 현재 배경지도 종류
     var _lastView = null;       // 활동을 바꿔도 지도 위치가 이어지도록 기억 {center, zoom}
     var _decorated = [];        // 배경지도 레이어를 이미 끼워 넣은 지도 목록(중복 방지)
+    var _suspended = [];        // 해양안전 진입 때 잠시 꺼둔 해양종합정보 오버레이 버튼들
 
     // ========================================================================
     // 1. 트리거 — 해양생활 탭 10회 연타
@@ -154,6 +155,9 @@
         document.body.classList.add('ocean-map-active', 'ls-safety');
         document.body.classList.remove('ls-life');
 
+        // 해양종합정보에서 켜 둔 오버레이(특보구역·해구도 등)가 따라오지 않게 끈다
+        _suspendOceanOverlays();
+
         // 지도 초기화(최초 1회) — 섹션이 보이게 된 뒤라야 크기가 제대로 잡힌다
         setTimeout(function () {
             if (window.initOceanMap) window.initOceanMap();
@@ -184,9 +188,90 @@
      * [연계] ← _syncChrome() — 활동(바다낚시 등)으로 이동했을 때
      */
     function _leaveSafety() {
+        // 이 화면에서 켠 것(물빠짐 등)만 끄고, 해양종합정보 쪽 복원은 그 탭에 실제로
+        // 들어갈 때 한다(활동 화면에서 엉뚱한 안내 토스트가 뜨는 것을 막기 위함).
+        _silently(function () {
+            var on = document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active');
+            for (var i = 0; i < on.length; i++) {
+                if (on[i].classList.contains('active')) on[i].click();
+            }
+        });
         var oceanSec = document.getElementById('ocean-map-section');
         if (oceanSec) oceanSec.classList.remove('active');
-        document.body.classList.remove('ocean-map-active', 'ls-safety');
+        document.body.classList.remove('ocean-map-active', 'ls-safety', 'ls-mudflat-on');
+    }
+
+    /**
+     * 해양안전에 들어올 때, 해양종합정보 쪽에서 켜 둔 오버레이 버튼을 모두 끈다.
+     * 같은 지도를 빌려 쓰기 때문에 아무것도 안 하면 특보구역·해구도 선 같은 것이
+     * 그대로 따라온다. 어떤 버튼을 껐는지 기억해 두었다가 나갈 때 되살린다.
+     * 예: 해양종합정보에서 특보구역 ON → 해양안전 진입 시 OFF → 되돌아가면 다시 ON
+     * [연계] ← _enterSafety() / → _restoreOceanOverlays()
+     *          기존 버튼의 click 을 그대로 호출하므로 각 오버레이의 정리 로직이 재사용된다.
+     */
+    /**
+     * 오버레이 버튼을 프로그램으로 껐다 켜는 동안 안내 토스트를 잠시 막는다.
+     * 사용자가 직접 누른 게 아니므로("특보구역은 참고용…" 같은) 안내가 뜨면
+     * 엉뚱한 화면에 안내가 떠 혼란스럽기 때문.
+     * @param {Function} fn - 이 안에서 버튼 click 을 수행
+     * [연계] ← _suspendOceanOverlays() / _restoreOceanOverlays() / _leaveSafety()
+     */
+    function _silently(fn) {
+        var orig = window._showOceanToast;
+        window._showOceanToast = function () {};
+        try { fn(); } finally { window._showOceanToast = orig; }
+    }
+
+    function _suspendOceanOverlays() {
+        if (_suspended.length) return;   // 이미 정리된 상태
+        // [주의] 이 화면 CSS 가 이미 버튼들을 숨긴 뒤라 offsetParent 로는 판별할 수 없다.
+        //        지금 active 인 것만 골라 차례로 끄고, 그 목록을 그대로 기억한다.
+        var btns = document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active');
+        for (var i = 0; i < btns.length; i++) {
+            _suspended.push(btns[i]);
+        }
+        _silently(function () {
+            for (var j = 0; j < _suspended.length; j++) {
+                // 앞 버튼을 끄는 과정에서 이미 꺼졌을 수 있으므로 그때그때 확인
+                if (_suspended[j].classList.contains('active')) _suspended[j].click();
+            }
+        });
+    }
+
+    /**
+     * 진짜 해양종합정보 탭으로 갈 때, 해양안전 때문에 꺼뒀던 오버레이를 되살린다.
+     * 예: 특보구역·주요지명을 켠 채로 해양안전에 들렀다 돌아오면 그대로 다시 켜져 있음
+     * [연계] ← _wrapTabSwitchers() 의 switchMainTab 래퍼(targetId==='ocean-map-section')
+     */
+    function _restoreOceanOverlays() {
+        if (!_suspended.length) return;
+        _silently(function () {
+            // 해양안전에서 켠 것(물빠짐 등)이 남아 있으면 먼저 끈다
+            var on = document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active');
+            for (var i = 0; i < on.length; i++) {
+                if (on[i].classList.contains('active')) on[i].click();
+            }
+            for (var j = 0; j < _suspended.length; j++) {
+                if (!_suspended[j].classList.contains('active')) _suspended[j].click();
+            }
+        });
+        _suspended = [];
+    }
+
+    /**
+     * 물빠짐 버튼의 켜짐/꺼짐을 지켜보다가 body 에 ls-mudflat-on 클래스를 붙인다.
+     * 시간 슬라이더·범례가 생기면 출처표기(국립해양조사원/OpenStreetMap)를 그 위로
+     * 올려야 해서 CSS 가 이 상태를 알아야 한다.
+     * [연계] → index2.html 의 body.ls-mudflat-on 규칙 (출처표기·범례 위치)
+     */
+    function _watchMudflatToggle() {
+        var btn = document.getElementById('ocean-mudflat-toggle-btn');
+        if (!btn || typeof MutationObserver === 'undefined') return;
+        function _sync() {
+            document.body.classList.toggle('ls-mudflat-on', btn.classList.contains('active'));
+        }
+        new MutationObserver(_sync).observe(btn, { attributes: true, attributeFilter: ['class'] });
+        _sync();
     }
 
     // ========================================================================
@@ -227,7 +312,7 @@
 
         // 활동 섹션이 아닌 곳(해양안전 등)에 있으면 레일/좌측 컨트롤을 숨긴다
         document.body.classList.toggle('ls-life', !!actId);
-        if (!actId) return;
+        if (!actId) { document.body.classList.remove('ls-row'); return; }
 
         _currentAct = actId;
 
@@ -243,6 +328,9 @@
         for (var j = 0; j < railBtns.length; j++) {
             railBtns[j].classList.toggle('active', railBtns[j].getAttribute('data-act') === actId);
         }
+
+        // 바다갈라짐은 지도가 없고 표가 넓어, 버튼을 좌측 상단 아래 가로 한 줄로 편다
+        document.body.classList.toggle('ls-row', actId === 'sea-parting-section');
 
         // 갯바위/선상 팝아웃은 바다낚시일 때만 의미가 있으므로 다른 활동으로 가면 접는다
         // (바다낚시 버튼 자체는 레일에 계속 남아 있어야 하므로 wrap 은 숨기지 않는다)
@@ -621,6 +709,9 @@
     function _wrapTabSwitchers() {
         var origMain = window.switchMainTab;
         window.switchMainTab = function (targetId) {
+            // 진짜 해양종합정보 탭으로 들어가는 길이면, 해양안전 때문에 꺼뒀던
+            // 오버레이를 먼저 되살린다(그 화면의 원래 상태로 복귀)
+            if (_unlocked && targetId === 'ocean-map-section') _restoreOceanOverlays();
             origMain.apply(window, arguments);
             _syncChrome();
         };
@@ -640,6 +731,7 @@
         _bindTrigger();
         _bindControls();
         _wrapTabSwitchers();
+        _watchMudflatToggle();
     });
 
 })();
