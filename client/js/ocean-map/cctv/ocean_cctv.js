@@ -165,6 +165,25 @@
         return tabsHtml + panelsHtml;
     }
 
+    /**
+     * [외부 API] 안내 탭 하나의 본문 HTML 을 돌려준다.
+     * 예: window.oceanInfoTabHtml('mudflat') → 물빠짐 설명 문단들 + 출처 줄
+     * @param {string} id - 탭 id (예: 'mudflat')
+     * @returns {string} 본문 HTML (해당 탭이 없으면 빈 문자열)
+     * [연계] ← js/marine-life/safety/life_safety.js — 해양안전 화면은 물빠짐 안내만
+     *          보여줘야 하므로 이 함수로 그 탭 본문만 가져간다(문구 중복 방지).
+     */
+    window.oceanInfoTabHtml = function (id) {
+        for (var i = 0; i < INFO_TAB_ITEMS.length; i++) {
+            var it = INFO_TAB_ITEMS[i];
+            if (it.id !== id) continue;
+            var html = it.bodyHtml || ('<p>' + it.body + '</p>');
+            if (it.src) html += '<div class="ocean-info-src">출처 · ' + it.src + '</div>';
+            return html;
+        }
+        return '';
+    };
+
     // 탭 전환 — showSeagnalModal 본문 내 onclick 에서 호출
     window.__oceanInfoSwitch = function (tabId) {
         var tabs = document.querySelectorAll('.ocean-info-tab-btn');
