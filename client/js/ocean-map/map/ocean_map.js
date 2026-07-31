@@ -149,28 +149,67 @@
      * 알아서 계산해 요청합니다. 좌표계도 우리 지도와 같은 EPSG:3857 이라
      * 변환이 필요 없습니다.
      *
-     * [왜 서버를 거치나]
-     * 브이월드는 인증키를 주소에 그대로 넣는 방식이라 브라우저가 직접 부르면
-     * 키가 노출됩니다. 그래서 우리 서버(/api/ocean/vworld-tile)가 대신 받아
-     * 이미지만 넘겨줍니다. (해아름 프록시와 같은 이유)
+     * [왜 서버를 안 거치고 단말이 직접 부르나]
+     * 처음엔 인증키를 감추려고 우리 서버가 타일을 대신 받는 프록시로 만들었는데,
+     * 운영서버(fly 도쿄)에서 api.vworld.kr 접속이 곧바로 실패하는 것을 실측으로
+     * 확인했다(2026-08-01, 브이월드의 해외 IP 차단으로 추정). 국내에 있는 사용자
+     * 단말은 막히지 않으므로 브라우저가 브이월드를 직접 부르게 한다.
+     * 인증키는 등록된 서비스URL 에서만 통하도록 묶여 있어(도메인 검증) 주소에
+     * 노출돼도 다른 사이트에서 가져다 쓸 수 없다.
+     *
+     * [키를 받아오는 순서]
+     * 레이어를 만드는 시점엔 키가 없으므로 주소 없이 먼저 만들고,
+     * /api/ocean/vworld-key 응답이 오면 source.setUrl() 로 주소를 채운다.
+     * (OL 은 setUrl 시점에 타일을 다시 요청한다)
      *
      * @param {string} layer - 'Satellite'(위성영상) | 'Hybrid'(지명·도로 라벨)
      * @returns {ol.layer.Tile} 처음엔 숨김(visible:false) 상태인 타일 레이어
      * [연계] ← window.oceanCreateVworldLayer 로 노출 → life_safety.js 가 위성지도
      *          2장(영상+라벨)을 만들 때 호출
-     *          → local_server/routes/ocean1.js 의 GET /api/ocean/vworld-tile
+     *          → local_server/routes/ocean1.js 의 GET /api/ocean/vworld-key
      */
     function createVworldLayer(layer) {
-        return new ol.layer.Tile({
-            source: new ol.source.XYZ({
-                url: '/api/ocean/vworld-tile?layer=' + layer + '&z={z}&y={y}&x={x}',
-                projection: 'EPSG:3857',
-                maxZoom: VWORLD_MAX_ZOOM,
-                attributions: '&copy; <a href="https://www.vworld.kr">국토교통부 브이월드</a>',
-                crossOrigin: 'anonymous'
-            }),
-            visible: false
+        // 위성영상만 jpeg, 라벨(Hybrid)은 투명 배경이 필요해 png.
+        var ext = (layer === 'Satellite') ? 'jpeg' : 'png';
+
+        var source = new ol.source.XYZ({
+            projection: 'EPSG:3857',
+            maxZoom: VWORLD_MAX_ZOOM,
+            attributions: '&copy; <a href="https://www.vworld.kr">국토교통부 브이월드</a>'
+            // [주의] crossOrigin 을 주지 않는다. 브이월드가 CORS 헤더를 안 주면
+            //        crossOrigin:'anonymous' 타일은 통째로 로드에 실패한다.
+            //        우리는 타일을 캔버스로 읽어내지 않으므로 필요 없다.
         });
+
+        // 키를 받아 주소를 채운다. 실패하면 주소가 비어 타일 요청 자체가 안 나가고
+        // (빈 배경) 다른 배경지도는 영향받지 않는다.
+        fetchVworldKey().then(function (key) {
+            if (!key) return;
+            source.setUrl('https://api.vworld.kr/req/wmts/1.0.0/' + key + '/' +
+                          layer + '/{z}/{y}/{x}.' + ext);
+        });
+
+        return new ol.layer.Tile({ source: source, visible: false });
+    }
+
+    /**
+     * 브이월드 인증키를 서버에서 한 번만 받아 온다 (이후엔 같은 약속을 재사용).
+     * 예: fetchVworldKey().then(k => k) → "62FAF40F-…"
+     * @returns {Promise<string>} 인증키. 못 받으면 빈 문자열.
+     * [연계] ← createVworldLayer — 위성지도 2장이 같은 키를 쓰므로 요청은 1번만
+     *          → local_server/routes/ocean1.js 의 GET /api/ocean/vworld-key
+     */
+    var _vworldKeyPromise = null;
+    function fetchVworldKey() {
+        if (_vworldKeyPromise) return _vworldKeyPromise;
+        _vworldKeyPromise = fetch('/api/ocean/vworld-key')
+            .then(function (r) { return r.json(); })
+            .then(function (j) { return (j && j.key) || ''; })
+            .catch(function (e) {
+                console.warn('[OceanMap] 브이월드 인증키 조회 실패:', e.message);
+                return '';
+            });
+        return _vworldKeyPromise;
     }
 
     // ========================================================================
