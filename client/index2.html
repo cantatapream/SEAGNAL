@@ -612,6 +612,131 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
         }
 
+        /* ══════════════════════════════════════════════════════════
+           해양생활안전 (해양생활 탭 10회 연타로 열리는 시험 화면)
+           ══════════════════════════════════════════════════════════
+           [연계] js/marine-life/safety/life_safety.js
+           [상태 클래스]
+            - body.ls-mode : 해양생활안전 화면에 진입한 상태(이 세션 동안만)
+            - body.ls-life : 그중 "해양생활" 하위탭(활동 화면)을 보고 있는 상태
+           [구성]
+            - 좌측 상단 #ls-topleft-controls : 배경지도 피커 + 안내(ⓘ)
+              → 해양종합정보 #ocean-topleft-controls 와 같은 자리·같은 모양
+            - 우측 레일 #ls-rail : 활동 6개 버튼(글자만, 가로로 길게) + 맨 아래 내 위치 */
+
+        :root {
+            /* 활동 버튼 너비 기준값. rem 이라 설정 → 글자크기 "크게" 에서 함께 넓어진다
+               ("바다갈라짐" 5글자가 큰 글씨에서도 한 줄에 들어가도록) */
+            --ls-rail-w: 5.6rem;
+        }
+
+        /* 새 화면에서는 원래 6개짜리 해양생활 하위탭 바를 쓰지 않는다 */
+        body.ls-mode #ocean-life-sub-tabs { display: none !important; }
+
+        /* 하위탭 바에 남겨 둔 활동 버튼들은 화면에 안 보이고,
+           switchSubTab 이 "같은 그룹 섹션 정리" 를 할 수 있게 하는 용도로만 존재 */
+        #ocean-safety-sub-tabs .ls-hidden-sub { display: none !important; }
+
+        /* 활동 화면의 기존 지도 위 컨트롤(갯바위·선상 / 내 위치·유의사항)은 감춘다
+           — 새 좌측 상단 + 우측 레일이 그 역할을 대신하기 때문 */
+        body.ls-mode .life-map-controls-topleft,
+        body.ls-mode .life-map-controls-topright { display: none !important; }
+
+        #ls-topleft-controls,
+        #ls-rail { display: none; }
+        body.ls-mode.ls-life #ls-topleft-controls,
+        body.ls-mode.ls-life #ls-rail { display: flex; }
+
+        /* 좌측 상단 컨트롤 그룹 (배경지도 + 안내 가로 배치) */
+        #ls-topleft-controls {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 20px) + 56px);
+            left: 12px;
+            z-index: 60;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 6px;
+            pointer-events: none;   /* 지도 조작을 막지 않도록 컨테이너는 투과 */
+        }
+        #ls-topleft-controls > div {
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+            pointer-events: auto;
+        }
+        #ls-basemap-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            min-width: max-content;
+            z-index: 61;
+        }
+
+        /* 우측 레일: 활동 버튼 세로 스택, 맨 아래에 내 위치 버튼 */
+        #ls-rail {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 20px) + 56px);
+            right: 10px;
+            z-index: 60;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        /* 활동 버튼 — 아이콘 없이 글자만, 가로로 길게.
+           높이는 해양종합정보 우측 버튼(.ocean-overlay-btn)과 같은 40px 대. */
+        .ls-act-btn {
+            width: auto;
+            min-width: var(--ls-rail-w);
+            max-width: 45vw;
+            min-height: 40px;
+            flex-direction: row;
+            justify-content: center;
+            padding: 8px 10px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        /* 큰 글씨 모드에서도 좌우 여백을 유지 (기본 .ocean-overlay-btn 은 4px 로 줄임) */
+        html[data-font-size="large"] .ls-act-btn { padding: 8px 10px; }
+
+        /* 갯바위/선상 팝아웃 — 해양종합정보 "천기" 버튼처럼 왼쪽으로 펼쳐진다
+           [연계] .ocean-other-wx-wrap / .ocean-other-wx-popup 과 동일 패턴 */
+        .ls-gubun-wrap { position: relative; }
+        .ls-gubun-popup {
+            position: absolute;
+            top: 0;
+            right: calc(100% + 6px);
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .ls-gubun-wrap.popup-open .ls-gubun-popup { display: flex; }
+
+        /* ── 해양안전 하위탭 ──────────────────────────────────────
+           물빠짐(갯벌 노출 예측)은 해양종합정보 지도에만 붙어 있는 기능이라,
+           지도를 새로 만들지 않고 그 섹션(#ocean-map-section)을 그대로 빌려 쓴다.
+           대신 이 화면에서는 물빠짐 · 안내 · 배경지도 · 내 위치만 남기고
+           나머지 오버레이 버튼(유향·풍향·파고·주요지명·부이·특보·해구도·천기·
+           태풍·CCTV)과 검색창·진북·즐겨찾기 바는 감춘다.
+           [연계] js/marine-life/safety/life_safety.js — body.ls-safety 토글 */
+        body.ls-mode.ls-safety #ocean-overlay-controls > * { display: none !important; }
+        body.ls-mode.ls-safety #ocean-mudflat-toggle-btn,
+        body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
+        body.ls-mode.ls-safety #ocean-search-container,
+        body.ls-mode.ls-safety #ocean-northup-btn,
+        body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
+        /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
+        body.ls-mode.ls-safety #ocean-topleft-controls { top: 12px; }
+
+        /* 지도가 없는 활동(해수욕·바다갈라짐): 기존 UI 를 그대로 두되 폭·상단을 조정해
+           우측 레일과 좌측 상단 컨트롤에 내용이 가리지 않게 한다 */
+        body.ls-mode.ls-life #swimming-section.tab-content.active,
+        body.ls-mode.ls-life #sea-parting-section.tab-content.active {
+            padding-right: calc(var(--ls-rail-w) + 24px) !important;
+            padding-top: 4.5rem !important;
+        }
+
         /* 바텀시트가 풀스크린 지도 위에서도 메인탭/서브탭에 가리지 않도록 위치 보정
            ( .ocean-bottom-sheet 와 동일한 패턴 — bottom 을 메인탭 높이만큼 올림 ) */
         #fishing-section.tab-content.active .fishing-bottomsheet,
@@ -4147,7 +4272,89 @@
 
             </section>
 
+            <!-- ================================================================
+                 섹션: 해양생활안전 - 해양안전 (하위탭 [해양안전 | 해양생활] 중 왼쪽)
+                 ----------------------------------------------------------------
+                 [역할] 하위탭 전환의 "자리표시" 섹션.
+                   실제 화면은 물빠짐(갯벌 노출 예측)이 붙어 있는 해양종합정보 지도
+                   섹션(#ocean-map-section)을 그대로 빌려 쓴다. life_safety.js 가
+                   이 섹션이 켜지는 순간 지도 섹션으로 바꿔 달고 body.ls-safety 를 붙여
+                   물빠짐·안내·배경지도·내 위치만 남긴다.
+                   아래 문구는 지도 섹션을 못 찾았을 때만 보이는 대비책이다.
+                 [연계] js/marine-life/safety/life_safety.js
+                 ================================================================ -->
+            <section id="ocean-safety-section" class="tab-content">
+                <div class="section-header-with-info">
+                    <h2 class="section-title"><i class="fa-solid fa-shield-halved"></i> 해양안전</h2>
+                </div>
+                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
+                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">지도를 불러오지 못했습니다.</p>
+                </div>
+            </section>
+
         </main>
+
+        <!-- ================================================================
+             해양생활안전 화면 전용 컨트롤 (body.ls-mode.ls-life 일 때만 표출)
+             ----------------------------------------------------------------
+             섹션마다 따로 두지 않고 화면에 고정(fixed)해 두고, 활동을 바꿔도
+             같은 자리에 그대로 있게 한다. 동작은 life_safety.js 가 담당.
+             [연계] js/marine-life/safety/life_safety.js
+             ================================================================ -->
+
+        <!-- 좌측 상단: 배경지도 피커 + 안내(ⓘ) — 해양종합정보와 같은 자리·모양 -->
+        <div id="ls-topleft-controls">
+            <div class="ocean-basemap-toggle-wrap">
+                <button id="ls-basemap-toggle" class="ocean-overlay-btn ocean-basemap-toggle-btn" title="지도 종류 선택">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span class="ocean-overlay-label" id="ls-basemap-label" data-line1="기본맵">기본맵</span>
+                </button>
+                <div id="ls-basemap-menu" class="ocean-basemap-menu" style="display:none;">
+                    <button class="ocean-basemap-item active" data-basemap="rltm">
+                        <i class="fa-solid fa-map"></i> 기본맵
+                    </button>
+                    <button class="ocean-basemap-item" data-basemap="enc">
+                        <i class="fa-solid fa-anchor"></i> 전자해도
+                    </button>
+                    <button class="ocean-basemap-item" data-basemap="coast">
+                        <i class="fa-solid fa-map-location"></i> 해안도
+                    </button>
+                    <button class="ocean-basemap-item" data-basemap="osm">
+                        <i class="fa-solid fa-earth-asia"></i> 세계지도
+                    </button>
+                </div>
+            </div>
+            <div class="ocean-info-btn-wrap">
+                <button id="ls-info-btn" class="ocean-overlay-btn ocean-basemap-toggle-btn" title="안내사항">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span class="ocean-overlay-label" data-line1="안내">안 내</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 우측 레일: 활동 6개(글자만, 가로로 길게) + 맨 아래 내 위치 -->
+        <div id="ls-rail">
+            <!-- 바다낚시: 이미 선택된 상태에서 다시 누르면 갯바위/선상이 왼쪽으로 펼쳐진다
+                 (해양종합정보 "천기" 버튼과 같은 방식) -->
+            <div class="ls-gubun-wrap" id="ls-gubun-wrap">
+                <button class="ocean-overlay-btn ls-act-btn active" data-act="fishing-section">바다낚시</button>
+                <div class="ls-gubun-popup">
+                    <button class="ocean-overlay-btn ls-act-btn ls-gubun-item active" data-gubun="갯바위">갯바위</button>
+                    <button class="ocean-overlay-btn ls-act-btn ls-gubun-item" data-gubun="선상">선상</button>
+                </div>
+            </div>
+            <button class="ocean-overlay-btn ls-act-btn" data-act="surfing-section">서핑</button>
+            <button class="ocean-overlay-btn ls-act-btn" data-act="swimming-section">해수욕</button>
+            <button class="ocean-overlay-btn ls-act-btn" data-act="scuba-section">스킨스쿠버</button>
+            <button class="ocean-overlay-btn ls-act-btn" data-act="mudflat-section">갯벌체험</button>
+            <button class="ocean-overlay-btn ls-act-btn" data-act="sea-parting-section">바다갈라짐</button>
+
+            <!-- 내 위치: 활동이 원래 갖고 있던 GPS 버튼을 대신 눌러 동작 -->
+            <button id="ls-gps-btn" class="ocean-overlay-btn ocean-myloc-btn" title="내 위치">
+                <i class="fa-solid fa-location-crosshairs"></i>
+                <span class="ocean-overlay-label" data-line1="내" data-line2="위치"></span>
+            </button>
+        </div>
 
         <!-- ================================================================
              CCTV 영상 팝업 백드롭 (cctv4.js showCctvPopup 타겟)
@@ -4210,6 +4417,24 @@
             <button class="sub-tab-btn" data-target="sea-parting-section">바다갈라짐</button>
             <!-- [임시 숨김] 이안류 탭 — 테스트 중이라 사용자 미노출. 공개 시 style 제거. -->
             <button class="sub-tab-btn" data-target="ripcurrent-section" style="display:none;">이안류</button>
+        </nav>
+        <!-- 해양생활안전 서브탭 (해양안전 | 해양생활)
+             ----------------------------------------------------------------
+             해양생활 탭 10회 연타로 진입했을 때만 위 #ocean-life-sub-tabs 대신 사용된다
+             (life_safety.js 가 TAB_GROUP_SUBTABS['ocean-life-group'] 를 이 id 로 교체).
+             - "해양생활" 버튼의 data-target 은 현재 보고 있는 활동으로 계속 동기화됨
+             - 아래 .ls-hidden-sub 6개는 화면에 안 보이며, switchSubTab 이 같은 그룹
+               섹션을 정리(비활성)할 수 있도록 목록만 유지하는 용도
+             [연계] js/marine-life/safety/life_safety.js -->
+        <nav class="sub-tabs bottom-sub-tabs" id="ocean-safety-sub-tabs">
+            <button class="sub-tab-btn" data-target="ocean-safety-section">해양안전</button>
+            <button class="sub-tab-btn active" id="ls-life-sub-btn" data-target="fishing-section">해양생활</button>
+            <button class="sub-tab-btn ls-hidden-sub" data-target="fishing-section">바다낚시</button>
+            <button class="sub-tab-btn ls-hidden-sub" data-target="surfing-section">서핑</button>
+            <button class="sub-tab-btn ls-hidden-sub" data-target="swimming-section">해수욕</button>
+            <button class="sub-tab-btn ls-hidden-sub" data-target="scuba-section">스킨스쿠버</button>
+            <button class="sub-tab-btn ls-hidden-sub" data-target="mudflat-section">갯벌체험</button>
+            <button class="sub-tab-btn ls-hidden-sub" data-target="sea-parting-section">바다갈라짐</button>
         </nav>
 
         <!-- 메인탭 바 (화면 하단 고정)
@@ -4431,6 +4656,10 @@
 
     <!-- index2 전용 패치: 종합기상 탭 + 헤더 유지 -->
     <script src="js/core/index2_patch.js"></script>
+
+    <!-- 해양생활안전 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
+         switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
+    <script src="js/marine-life/safety/life_safety.js"></script>
 
     <!-- 선택적 차단 표시용 스타일 (버튼 자물쇠 배지 / 해상일기도·바텀시트 점검중) -->
     <style>
