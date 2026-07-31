@@ -212,8 +212,14 @@ function sliceRelevant(body, terms, maxChars) {
   const introIsSection = parts[0].startsWith('## ');
   const intro = introIsSection ? '' : parts[0];
   const sections = introIsSection ? parts : parts.slice(1);
+  if (!sections.length) return body.slice(0, maxChars);
+  // 페이지 전체가 한 주제(예: "매립면허")를 다루면 그 주제어는 거의 모든 절에 등장해 변별력이
+  // 없다 — 이 페이지 안에서 몇 개 절에 등장하는지(절-내 문서빈도)로 역가중해, 소수 절에만 있는
+  // 단어(질문의 진짜 변별 지점, 예: "수수료")를 우선한다(실측: 역가중 없인 흔한 주제어에
+  // 묻혀 정작 필요한 절이 후순위로 밀림).
+  const df = terms.map(t => sections.reduce((n, s) => n + (s.includes(t) ? 1 : 0), 0));
   const scored = sections
-    .map(s => ({ s, sc: terms.reduce((n, t) => n + (s.includes(t) ? 1 : 0), 0) }))
+    .map(s => ({ s, sc: terms.reduce((n, t, i) => n + (df[i] > 0 && s.includes(t) ? 1 / df[i] : 0), 0) }))
     .filter(x => x.sc > 0)
     .sort((a, b) => b.sc - a.sc);
   if (!scored.length) return body.slice(0, maxChars); // 매칭 절 없으면 기존 방식으로 폴백
