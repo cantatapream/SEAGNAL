@@ -359,6 +359,7 @@ const USAGE_CSV_LABELS = {
     'ocean.basemap.enc': '배경 · 전자해도',
     'ocean.basemap.coast': '배경 · 해안도',
     'ocean.basemap.osm': '배경 · 세계지도',
+    'ocean.basemap.vworld': '배경 · 위성지도',
     'shrt.rain_prob': '강수확률',
     'shrt.rain_amount': '강수량',
     'shrt.snow': '적설',
