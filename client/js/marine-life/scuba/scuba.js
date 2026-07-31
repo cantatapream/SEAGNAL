@@ -129,6 +129,14 @@
         _bindEvents();
     };
 
+    /**
+     * [외부 API] 이 탭의 OpenLayers 지도 인스턴스를 돌려줍니다 (없으면 null).
+     * 예: window.getScubaMap() → ol.Map
+     * @returns {ol.Map|null}
+     * [연계] ← js/marine-life/safety/life_safety.js — 배경지도 레이어 추가·위치 이어받기
+     */
+    window.getScubaMap = function () { return scubaMap; };
+
     // ========================================================================
     // 1-1. 지도 내부 커스텀 컨트롤 (범례, 안내 버튼)
     // ========================================================================
