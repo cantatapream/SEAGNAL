@@ -17,12 +17,12 @@
  * ※ 의미 임베딩(_CHATBOT.md 4-③)은 이번 파일럿 범위 밖(3법 규모에선 ①②③④로 충분히
  *   커버되는지 먼저 확인 — 필요해지면 topic_embedding.js 패턴을 재사용해 후속 추가).
  *
- * [환각 0] canonicalOnly=true면 concept는 status:canonical만 근거로 채택(statute는 통과).
+ * [환각 0] canonicalOnly=true면 concept·comparison은 status:canonical만 근거로 채택(statute는 통과).
  *   실제 답 문장은 항상 [근거자료]로 전달된 위키 원문에서만 만들도록 프롬프트로 강제.
  *
  * [연계 파일]
- * - knowledge/legal/_dashboard/index.json  → 페이지 메타 색인(법·주제·테마·links)
- * - knowledge/legal/wiki/concepts|statutes/*.md → 실제 본문(직접매칭·답변 근거)
+ * - knowledge/legal/_dashboard/index.json  → 페이지 메타 색인(법·주제·테마·links, comparison 포함 2026-08-01~)
+ * - knowledge/legal/wiki/concepts|statutes|comparisons/*.md → 실제 본문(직접매칭·답변 근거)
  * - knowledge/legal/wiki/_glossary.md       → 구어→개념 매핑표
  * - services/gemini_client.js               → 답변 합성 LLM 호출
  * - routes/legal.js                         → POST /api/legal/ask 가 이 모듈을 호출
@@ -38,6 +38,7 @@ const INDEX_JSON = path.join(LEGAL_DIR, '_dashboard', 'index.json');
 const GLOSSARY_MD = path.join(LEGAL_DIR, 'wiki', '_glossary.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
 const STATUTES_DIR = path.join(LEGAL_DIR, 'wiki', 'statutes');
+const COMPARISONS_DIR = path.join(LEGAL_DIR, 'wiki', 'comparisons');
 
 // ★모델 확정(2026-07-30, 사용자 확정): pro(gemini-pro-latest, 실제로는 Gemini 3.1 Pro)에서
 // gemini-2.5-flash로 전환. 사유=비용(입력 6.7배·출력 4.8배 저렴, ai.google.dev 공식가 기준
@@ -135,11 +136,24 @@ function termsOf(query) {
 function normalizeSlug(raw) {
   let s = String(raw).split('|')[0].trim();
   if (s.startsWith('statutes/')) return { kind: 'statute', file: s.slice('statutes/'.length) };
+  if (s.startsWith('comparisons/')) return { kind: 'comparison', file: s.slice('comparisons/'.length) };
   return { kind: 'concept', file: s };
 }
 
 function pageFilePath(kind, file) {
-  return path.join(kind === 'statute' ? STATUTES_DIR : CONCEPTS_DIR, file + '.md');
+  const dir = kind === 'statute' ? STATUTES_DIR : kind === 'comparison' ? COMPARISONS_DIR : CONCEPTS_DIR;
+  return path.join(dir, file + '.md');
+}
+
+// [[링크]] 표기가 'comparisons/' 접두어 없이 쓰인 기존 위키 문서가 많아(허브 페이지 관행이
+// 정착되기 전 작성분), normalizeSlug만으론 kind를 못 맞힐 수 있다 — index.json에 실제로
+// 어느 kind로 등록됐는지 byFile에서 확인해 보정한다.
+function resolvePage(byFile, raw) {
+  const { kind, file } = normalizeSlug(raw);
+  const hit = byFile.get(kind + ':' + file);
+  if (hit) return hit;
+  if (kind === 'concept') return byFile.get('comparison:' + file) || null;
+  return null;
 }
 
 // ── 페이지 본문 캐시(mtime 감지): frontmatter + body 분리 ──
@@ -206,7 +220,7 @@ function search(query, opts) {
   const canonicalOnly = !!(opts && opts.canonicalOnly);
   const idx = loadIndex();
   let pages = idx.pages || [];
-  if (canonicalOnly) pages = pages.filter(p => p.kind !== 'concept' || p.status === 'canonical');
+  if (canonicalOnly) pages = pages.filter(p => p.kind === 'statute' || p.status === 'canonical');
 
   const byFile = new Map(pages.map(p => [p.kind + ':' + p.file, p]));
   const terms = termsOf(query);
@@ -216,8 +230,7 @@ function search(query, opts) {
   let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms) })).filter(x => x.s > 0);
   // glossary 강제후보 병합(구어 매핑은 본문에 그 단어가 그대로 없을 수도 있어 별도 신호로 취급)
   for (const raw of forcedSlugs) {
-    const { kind, file } = normalizeSlug(raw);
-    const p = byFile.get(kind + ':' + file);
+    const p = resolvePage(byFile, raw);
     if (!p) continue;
     const hit = scored.find(x => x.p === p);
     if (hit) hit.s += 4; else scored.push({ p, s: 4 });
@@ -232,8 +245,7 @@ function search(query, opts) {
     if (hop.length >= HOP_MAX) break;
     for (const raw of (top.p.links || [])) {
       if (hop.length >= HOP_MAX) break;
-      const { kind, file } = normalizeSlug(raw);
-      const p = byFile.get(kind + ':' + file);
+      const p = resolvePage(byFile, raw);
       if (!p || picked.has(p)) continue;
       picked.add(p); hop.push({ p, s: 0, hop: true });
     }

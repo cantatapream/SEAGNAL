@@ -778,9 +778,16 @@ async function renderAiAssistantSubtab(container) {
         const d = await r.json();
         const u = d.usage || {};
         const keyTxt = (d.keys || []).map(k => `${k.label}${k.onCooldown ? '(쿨다운)' : ''}`).join(', ') || '없음';
+        // 나리야 법률봇(Legal-Ask)은 모델이 gemini-2.5-flash로 고정돼 있어 실측 토큰으로
+        // 오늘자 비용을 바로 환산할 수 있다(단가는 legal_retriever.js 상단 주석과 동일 출처).
+        const lt = u.byCallerTokens && u.byCallerTokens['Legal-Ask'];
+        const legalCostTxt = lt
+            ? ` · 법률봇 오늘 비용 약 $${((lt.inputTokens * 0.30 + lt.outputTokens * 2.50) / 1e6).toFixed(3)}(입력${(lt.inputTokens || 0).toLocaleString()}/출력${(lt.outputTokens || 0).toLocaleString()}토큰)`
+            : '';
         document.getElementById('ai-usage-content').innerHTML =
             `요청 <b>${u.requests || 0}</b>회 · 성공 <b>${u.success || 0}</b> · 한도초과 <b>${u.rateLimited || 0}</b><br>` +
-            `<span style="color:#94a3b8;font-size:0.8rem;">키: ${keyTxt} · AI ${d.hasAnyKey ? '사용 가능' : '미설정(키 없음)'}</span>`;
+            `<span style="color:#94a3b8;font-size:0.8rem;">키: ${keyTxt} · AI ${d.hasAnyKey ? '사용 가능' : '미설정(키 없음)'}</span><br>` +
+            `<span style="color:#94a3b8;font-size:0.8rem;">전체 토큰 입력 ${(u.inputTokens || 0).toLocaleString()} · 출력 ${(u.outputTokens || 0).toLocaleString()}${legalCostTxt}</span>`;
     } catch (e) {
         document.getElementById('ai-usage-content').textContent = '호출량을 불러오지 못했습니다: ' + e.message;
     }
