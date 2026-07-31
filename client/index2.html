@@ -650,7 +650,8 @@
         /* 좌측 상단 컨트롤 그룹 (배경지도 + 안내 가로 배치) */
         #ls-topleft-controls {
             position: fixed;
-            top: calc(env(safe-area-inset-top, 20px) + 56px);
+            /* 제목 줄을 없앴으므로 지도 맨 위에 붙인다(해양종합정보 컨트롤과 같은 여백 10px) */
+            top: calc(env(safe-area-inset-top, 20px) + 10px);
             left: 12px;
             z-index: 60;
             flex-direction: row;
@@ -675,7 +676,7 @@
         /* 우측 레일: 활동 버튼 세로 스택, 맨 아래에 내 위치 버튼 */
         #ls-rail {
             position: fixed;
-            top: calc(env(safe-area-inset-top, 20px) + 56px);
+            top: calc(env(safe-area-inset-top, 20px) + 10px);
             right: 10px;
             z-index: 60;
             flex-direction: column;
@@ -733,6 +734,26 @@
         }
         .ls-gubun-wrap.popup-open .ls-gubun-popup { display: flex; }
 
+        /* ── 바다갈라짐(지도 없음) 전용 배치 ─────────────────────────
+           표가 가로로 넓어 우측 세로 레일에 가려지므로, 활동 버튼을
+           기본맵·안내 버튼 아래에 가로 한 줄로 펼친다(내용은 폭 전체 사용). */
+        body.ls-mode.ls-life.ls-row #ls-rail {
+            top: calc(env(safe-area-inset-top, 20px) + 58px);
+            left: 10px;
+            right: 10px;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: flex-start;
+        }
+        /* 가로 배치일 때는 갯바위/선상 팝아웃도 아래로 펼쳐야 자연스럽다 */
+        body.ls-mode.ls-life.ls-row .ls-gubun-popup {
+            top: calc(100% + 6px);
+            right: auto;
+            left: 0;
+            flex-direction: row;
+        }
+
         /* ── 해양안전 하위탭 ──────────────────────────────────────
            물빠짐(갯벌 노출 예측)은 해양종합정보 지도에만 붙어 있는 기능이라,
            지도를 새로 만들지 않고 그 섹션(#ocean-map-section)을 그대로 빌려 쓴다.
@@ -749,13 +770,55 @@
         /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
         body.ls-mode.ls-safety #ocean-topleft-controls { top: 12px; }
 
+        /* ── 물빠짐 ON 일 때의 하단 스택 정리 ────────────────────────
+           아래에서 위 순서로 [하단탭(+서브탭) / 시간 슬라이더 / 출처표기 / 범례] 가
+           겹치지 않게 쌓이도록 한다. 기존 규칙은 해양종합정보 레이아웃(검색창·
+           색상범례 등)을 전제로 계산돼 있어 이 화면에서는 출처표기가 슬라이더에
+           겹치거나 범례에 가려졌다.
+           [상태 클래스] body.ls-mudflat-on — life_safety.js 가 물빠짐 버튼의
+           active 상태를 보고 붙인다.
+           [왜 position:fixed 인가]
+           이 요소들의 원래 기준 박스(#ocean-map-wrapper)는 서브탭이 열렸을 때만
+           탭바 위에서 끝나고 닫혔을 때는 화면 끝까지 늘어난다. 즉 기준이 상황마다
+           달라져 bottom 값을 한 벌로 맞출 수 없다. 화면(viewport) 기준으로 고정하면
+           "하단 탭(+서브탭) 위에 차례로 쌓기"를 한 가지 계산으로 끝낼 수 있다. */
+        body.ls-mode.ls-safety #mudflat-slider-bar,
+        body.ls-mode.ls-safety #mudflat-legend,
+        body.ls-mode.ls-safety .ol-attribution {
+            position: fixed !important;
+        }
+        /* --ls-bottom-chrome : 하단 탭 + (열려 있으면) 서브탭 높이 */
+        body.ls-mode.ls-safety { --ls-bottom-chrome: var(--main-tab-height, 68px); }
+        body.ls-mode.ls-safety.sub-tabs-open {
+            --ls-bottom-chrome: calc(var(--main-tab-height, 68px) + var(--sub-tab-height, 50px));
+        }
+        body.ls-mode.ls-safety #mudflat-slider-bar {
+            bottom: var(--ls-bottom-chrome) !important;
+        }
+        /* 출처표기: 물빠짐 OFF 면 탭 바로 위, ON 이면 슬라이더(2.25rem) 위 */
+        body.ls-mode.ls-safety .ol-attribution {
+            bottom: calc(var(--ls-bottom-chrome) + 6px) !important;
+        }
+        body.ls-mode.ls-safety.ls-mudflat-on .ol-attribution {
+            bottom: calc(var(--ls-bottom-chrome) + 2.25rem + 6px) !important;
+        }
+        /* 범례("갯벌 노출")는 출처표기 위로 */
+        body.ls-mode.ls-safety.ls-mudflat-on #mudflat-legend {
+            bottom: calc(var(--ls-bottom-chrome) + 2.25rem + 34px) !important;
+        }
+
         /* 지도가 없는 활동(해수욕·바다갈라짐): 기존 UI 를 그대로 두되 폭·상단을 조정해
            우측 레일과 좌측 상단 컨트롤에 내용이 가리지 않게 한다 */
-        body.ls-mode.ls-life #swimming-section.tab-content.active,
-        body.ls-mode.ls-life #sea-parting-section.tab-content.active {
+        body.ls-mode.ls-life #swimming-section.tab-content.active {
             padding-right: calc(var(--ls-rail-w) + 24px) !important;
             padding-top: 4.5rem !important;
         }
+        /* 바다갈라짐: 버튼이 가로 한 줄로 위에 있으므로 좌우는 그대로 두고 위만 비운다.
+           제목 줄("바다갈라짐 시간")은 숨긴다 — 화면 폭을 표에 온전히 내주기 위함. */
+        body.ls-mode.ls-life.ls-row #sea-parting-section.tab-content.active {
+            padding-top: 7rem !important;
+        }
+        body.ls-mode.ls-life.ls-row #sea-parting-section .sp-header { display: none !important; }
 
         /* 바텀시트가 풀스크린 지도 위에서도 메인탭/서브탭에 가리지 않도록 위치 보정
            ( .ocean-bottom-sheet 와 동일한 패턴 — bottom 을 메인탭 높이만큼 올림 ) */
@@ -4679,7 +4742,7 @@
 
     <!-- 해양생활안전 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
-    <script src="js/marine-life/safety/life_safety.js?v=LifeSafety_20260731"></script>
+    <script src="js/marine-life/safety/life_safety.js?v=LifeSafety_20260731b"></script>
 
     <!-- 선택적 차단 표시용 스타일 (버튼 자물쇠 배지 / 해상일기도·바텀시트 점검중) -->
     <style>
