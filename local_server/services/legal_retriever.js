@@ -200,6 +200,32 @@ function scoreOne(p, terms) {
   return s;
 }
 
+/**
+ * 본문이 MAX_BODY_CHARS보다 길면(주로 comparisons 허브 — 여러 절을 한 페이지에 모아 다른
+ * kind보다 훨씬 길다) 앞부분만 자르지 않고 '## ' 절 단위로 쪼개 질의어와 매칭되는 절 위주로
+ * 담는다. 안 그러면 예: 18개 절짜리 허브에서 6번째 절(질문과 정확히 맞는 내용)이 컷오프
+ * 이후라 통째로 안 보이는 문제가 생긴다(실측 확인 — 형사절차_일반.md 선고유예 질의 실패).
+ */
+function sliceRelevant(body, terms, maxChars) {
+  if (body.length <= maxChars) return body;
+  const parts = body.split(/\n(?=## )/);
+  const introIsSection = parts[0].startsWith('## ');
+  const intro = introIsSection ? '' : parts[0];
+  const sections = introIsSection ? parts : parts.slice(1);
+  const scored = sections
+    .map(s => ({ s, sc: terms.reduce((n, t) => n + (s.includes(t) ? 1 : 0), 0) }))
+    .filter(x => x.sc > 0)
+    .sort((a, b) => b.sc - a.sc);
+  if (!scored.length) return body.slice(0, maxChars); // 매칭 절 없으면 기존 방식으로 폴백
+  let out = intro.slice(0, maxChars);
+  for (const { s } of scored) {
+    if (out.length + s.length > maxChars) continue; // 이 절은 예산 초과 — 더 작은 다음 후보 절 시도
+    out += s;
+  }
+  if (out.length <= intro.length) out += scored[0].s.slice(0, maxChars - out.length); // 다 안 들어가면 1위 절이라도 잘라서 넣는다
+  return out;
+}
+
 // 서버 기동 직후 본문 캐시를 미리 데워 첫 사용자 질문이 콜드 디스크읽기(전체 corpus 수 초)를
 // 기다리지 않게 한다. 실패해도 조용히 무시 — 어차피 각 페이지는 처음 필요할 때 다시 읽힌다.
 function warmup() {
@@ -258,7 +284,7 @@ function search(query, opts) {
       law: x.p.law, topic: x.p.topic, file: x.p.file, kind: x.p.kind, status: x.p.status || null,
       hop: !!x.hop,
       frontmatter: page ? page.frontmatter : {},
-      body: page ? page.body.slice(0, MAX_BODY_CHARS) : '',
+      body: page ? sliceRelevant(page.body, allTerms, MAX_BODY_CHARS) : '',
     };
   }).filter(cp => cp.body);
 
