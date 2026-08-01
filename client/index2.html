@@ -1557,11 +1557,14 @@
             left: 50%; bottom: calc(50% + 20px);
             transform: translateX(-50%);
             white-space: nowrap;
+            text-align: center;
             color: #dc2626;
-            font-weight: 700;
+            font-weight: 500;
             font-size: 0.72rem;
+            line-height: 1.35;
             text-shadow: 0 0 3px rgba(255, 255, 255, 0.95), 0 0 2px rgba(255, 255, 255, 0.95);
         }
+        .hazard-rock-warning-text b { font-weight: 800; }
         /* 물빠짐 로딩 스피너 (중앙) */
         #mudflat-loading {
             position: fixed; inset: 0; z-index: 1400;
@@ -2065,6 +2068,19 @@
         }
         body.sub-tabs-open .ol-scale-line {
             bottom: calc(var(--main-tab-height, 68px) + var(--sub-tab-height, 50px) + 8px) !important;
+        }
+        /* 배경 없이 지도 위에 바로 뜨는 눈금 — 흰 글씨·굵은 선 + 그림자로 어떤
+           배경(위성/해도/바다색)에서도 잘 읽히게 한다 */
+        .ol-scale-line {
+            background: transparent !important;
+            padding: 0 !important;
+        }
+        .ol-scale-line-inner {
+            border-color: #fff !important;
+            border-width: 2px !important;
+            color: #fff !important;
+            font-weight: 700 !important;
+            text-shadow: 0 0 3px rgba(0, 0, 0, 0.75), 0 1px 2px rgba(0, 0, 0, 0.75);
         }
 
         /* ── 해양생활 풀스크린 지도: 출처표기·범례 위치 보정 ─────────────

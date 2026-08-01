@@ -291,7 +291,8 @@
         var remainMin = Math.max(0, Math.round((entry.targetMs - Date.now()) / 60000));
         var hh = String(Math.floor(remainMin / 60)).padStart(2, '0');
         var mm = String(remainMin % 60).padStart(2, '0');
-        entry.textEl.textContent = hh + ':' + mm + ' 후 완전히 잠김';
+        // 시:분만 굵게 + "OO:OO 후" / "완전히 잠김" 두 줄로 표시.
+        entry.textEl.innerHTML = '<b>' + hh + ':' + mm + '</b> 후<br>완전히 잠김';
     }
     function updateAllCountdownTexts() {
         _warningOverlays.forEach(updateCountdownText);
