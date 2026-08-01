@@ -70,7 +70,7 @@
     // 위성지도(브이월드)가 타일을 주는 최대 줌. 위성영상은 확대해야 값어치가
     // 있어(양식장·갯바위·접안시설 식별) 해아름 한계(15)보다 깊이 들어간다.
     // 위성지도를 고른 동안만 이 한계를 쓰고, 다른 배경으로 돌아가면 MAX_ZOOM(15)
-    // 으로 되돌린다 — switchBaseLayer() 참조. 해양생활안전 화면도 같은 값을
+    // 으로 되돌린다 — switchBaseLayer() 참조. 해양안전생활 화면도 같은 값을
     // window.oceanCreateVworldLayer.maxZoom 으로 받아 쓴다.
     const VWORLD_MAX_ZOOM = 19;
 
@@ -832,9 +832,16 @@
                     minZoom: MIN_ZOOM,
                     maxZoom: MAX_ZOOM
                 }),
-                // OSM/해아름 저작권 출처표기를 좌측 하단에 상시 노출 (collapsible:false)
+                // OSM/해아름 저작권 출처표기를 좌측 하단에 상시 노출 (collapsible:false).
+                // 축척 막대(ScaleLine)는 우측 하단에 상시 노출 — 줌 레벨에 따른 대략적인
+                // 거리 감을 잡을 수 있도록(사용자 요청, 2026-08-01). 이 지도(oceanMap)는
+                // 해양종합정보·해양안전생활>해양안전이 함께 빌려 쓰므로 두 화면 모두 적용되고,
+                // 해양생활(활동별 지도, 자체 ol.Map 인스턴스)에는 반영되지 않는다(요청대로).
                 controls: ol.control.defaults.defaults({ zoom: false, rotate: false, attribution: false })
-                    .extend([new ol.control.Attribution({ collapsible: false })])
+                    .extend([
+                        new ol.control.Attribution({ collapsible: false }),
+                        new ol.control.ScaleLine({ units: 'metric' })
+                    ])
             });
 
             // 클릭 이벤트
@@ -999,7 +1006,7 @@
 
     /**
      * [외부 API] 해아름 WMS 배경지도 레이어 1장을 만들어 준다.
-     * 해양생활안전 화면(life_safety.js)이 해양생활 활동 지도에도 같은 배경지도
+     * 해양안전생활 화면(life_safety.js)이 해양생활 활동 지도에도 같은 배경지도
      * (기본맵/전자해도/해안도)를 끼워 넣기 위해 사용한다. WMS 프록시·투영·출처표기
      * 설정을 여기 한 곳에서만 관리하려고 export 한다.
      */
@@ -1007,7 +1014,7 @@
 
     /**
      * [외부 API] 브이월드 위성지도 레이어 1장을 만들어 준다.
-     * 해양생활안전 화면(life_safety.js)이 해양생활 활동 지도에도 같은 위성지도를
+     * 해양안전생활 화면(life_safety.js)이 해양생활 활동 지도에도 같은 위성지도를
      * 끼워 넣기 위해 사용한다. 주소·투영·줌 한계·고화질 격자·출처표기 설정을
      * 여기 한 곳에서만 관리하려고 export 한다.
      * @property {number} maxZoom - 브이월드가 타일을 주는 최대 줌(19). 부르는 쪽이

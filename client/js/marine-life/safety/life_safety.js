@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/safety/life_safety.js
- * 역할  : "해양생활안전" 화면 — 하단 해양생활 탭을 10번 연달아 누르면 열리는 시험용 화면.
+ * 역할  : "해양안전생활" 화면 — 하단 해양생활 탭을 10번 연달아 누르면 열리는 시험용 화면.
  *         하위탭을 [해양안전 | 해양생활] 로 바꾸고, 해양생활 쪽은 6개 활동(바다낚시·서핑·
  *         해수욕·스킨스쿠버·갯벌체험·바다갈라짐)을 화면 오른쪽 세로 버튼으로 갈아끼우며,
  *         배경지도(기본맵·전자해도·해안도·세계지도)를 해양종합정보와 같은 방식으로 고른다.
@@ -69,7 +69,7 @@
 
     var _tapCount = 0;          // 해양생활 탭 연타 횟수
     var _tapTimer = null;       // 연타 초기화 타이머
-    var _unlocked = false;      // 해양생활안전 화면이 열렸는가
+    var _unlocked = false;      // 해양안전생활 화면이 열렸는가
     var _currentAct = 'fishing-section';  // 현재 보고 있는 활동 섹션 id
     var _currentBase = 'rltm';  // 현재 배경지도 종류
     var _lastView = null;       // 활동을 바꿔도 지도 위치가 이어지도록 기억 {center, zoom}
@@ -82,7 +82,7 @@
 
     /**
      * 하단 "해양생활" 메인탭에 연타 감지를 붙인다.
-     * 예: 3초 안에 10번 누르면 해양생활안전 화면이 열린다(그 전까지는 평소대로 동작).
+     * 예: 3초 안에 10번 누르면 해양안전생활 화면이 열린다(그 전까지는 평소대로 동작).
      * [연계] → _unlock() — 임계치에 닿았을 때 화면을 바꾼다.
      *          index2.html 의 .tab-btn[data-target="ocean-life-group"] 이 대상
      */
@@ -104,7 +104,7 @@
     }
 
     /**
-     * 해양생활안전 화면으로 전환한다 (이 세션 동안만).
+     * 해양안전생활 화면으로 전환한다 (이 세션 동안만).
      * 하위탭 바를 [해양안전 | 해양생활] 로 갈아끼우고 body 에 표시용 클래스를 붙인 뒤
      * 해양생활 탭을 다시 열어 새 화면이 그려지게 한다.
      * [연계] → marine.js 의 TAB_GROUP_SUBTABS (그룹이 어떤 하위탭 바를 쓰는지의 출처)
@@ -124,7 +124,7 @@
 
         // 하단 메인탭 이름도 화면 이름에 맞춘다 ("해양종합정보"와 같은 6글자라 폭 문제 없음)
         var tabLabel = document.querySelector('.main-tabs .tab-btn[data-target="ocean-life-group"] .tab-btn-label');
-        if (tabLabel) tabLabel.textContent = '해양생활안전';
+        if (tabLabel) tabLabel.textContent = '해양안전생활';
 
         document.body.classList.add('ls-mode');
 
@@ -699,10 +699,11 @@
             });
         }
 
-        // --- 해양안전 화면의 안내(ⓘ) — 물빠짐 안내만 보여준다 ---
+        // --- 해양안전 화면의 안내(ⓘ) — 이 화면에 있는 기능만 보여준다 ---
         //   해양종합정보 버튼(#ocean-info-btn)을 그대로 쓰지만 그 팝업은 17개 탭짜리
-        //   전체 안내다. 이 화면엔 물빠짐만 있으므로 document 캡처 단계에서 가로채
-        //   물빠짐 본문만 띄운다(캡처라 버튼 자신의 기존 핸들러까지 도달하지 않음).
+        //   전체 안내다. 이 화면엔 물빠짐·노출암/간출암·CCTV만 있으므로 document 캡처
+        //   단계에서 가로채 해당 탭 본문만 이어붙여 띄운다(캡처라 버튼 자신의 기존
+        //   핸들러까지 도달하지 않음).
         document.addEventListener('click', function (e) {
             if (!document.body.classList.contains('ls-safety')) return;
             var btn = e.target && e.target.closest && e.target.closest('#ocean-info-btn');
@@ -710,9 +711,13 @@
             e.stopPropagation();
             e.preventDefault();
             if (typeof window.showSeagnalModal !== 'function') return;
-            var html = (typeof window.oceanInfoTabHtml === 'function')
-                ? window.oceanInfoTabHtml('mudflat') : '';
-            window.showSeagnalModal('물빠짐 안내', html || '<p>안내 내용을 불러오지 못했습니다.</p>', 'info');
+            var fn = window.oceanInfoTabHtml;
+            var html = (typeof fn === 'function')
+                ? '<h4 class="ls-info-section-title">물빠짐</h4>' + (fn('mudflat') || '')
+                + '<h4 class="ls-info-section-title">노출암·간출암</h4>' + (fn('hazardrock') || '')
+                + '<h4 class="ls-info-section-title">CCTV</h4>' + (fn('cctv') || '')
+                : '';
+            window.showSeagnalModal('해양안전 안내', html || '<p>안내 내용을 불러오지 못했습니다.</p>', 'info');
         }, true);
 
         // --- 갯바위/선상 팝아웃 (바다낚시 전용) ---
