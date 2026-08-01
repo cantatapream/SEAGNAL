@@ -116,7 +116,7 @@ mudflat.js / sea_parting.js)을 그대로 씁니다.** 이 모듈은 겉껍데�
 | `ocean-map/map/ocean_map.js` | `window.oceanCreateKhoaLayer`(해아름 배경지도) · `window.oceanCreateVworldLayer`(위성지도) |
 | `shared/ui/ui_modal.js` | `window.showSeagnalModal` (안내 팝업) |
 | `marine-life/*` | `window.getFishingMap` / `getScubaMap` / `getMudflatMap` / `window._surfing.map` |
-| `hazard_rocks.js` | 노출암/간출암 등 레이어(`/hazard_rocks.json`, 두 버튼 첫 클릭 때 지연 로드) — `window.initHazardRocksLayer` 는 `ocean_map.js` buildMap() 이 직접 호출(이 파일이 부르지 않음). 잠김경고는 `GET /api/hazard-rocks/submersion`(`local_server/routes/hazard_rocks.js`) 1분 폴링 — 계산은 `local_server/scripts/TIDE_FIELD_README.md`(간출암 잠김경고 절) 참고. 노출암 높이(v)는 `local_server/scripts/build_hazard_rocks_elevation.js`(국토지리정보원 표고점 + Z₀ 보정, 전체의 63.9%만 확보)로 채움 — 팝업에 "(추정)" 표시로 간출암 실측값과 구분 |
+| `hazard_rocks.js` | 노출암/간출암 등 레이어(`/hazard_rocks.json`, 두 버튼 첫 클릭 때 지연 로드) — `window.initHazardRocksLayer` 는 `ocean_map.js` buildMap() 이 직접 호출(이 파일이 부르지 않음). 잠김경고는 `GET /api/hazard-rocks/submersion`(`local_server/routes/hazard_rocks.js`) 1분 폴링 — 계산은 `local_server/scripts/TIDE_FIELD_README.md`(간출암 잠김경고 절) 참고 |
 
 ## 수정 시 주의사항
 
