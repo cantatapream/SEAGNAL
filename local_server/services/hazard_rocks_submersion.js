@@ -84,10 +84,14 @@ function loadRocks() {
  * @returns {'eastsea'|'westsouth'|'jeju'|'skip'} skip = 계산 안 함(미커버 해역)
  */
 function classifyRegion(lat, lon) {
-    if (lat >= EAST_SEA_LAT && lon >= EAST_SEA_LON) return 'eastsea';
     if (TFC.isWestSouthSea(lat, lon)) return 'westsouth';
     const J = TFC.JEJU_BBOX;
     if (lat >= J.latMin && lat <= J.latMax && lon >= J.lonMin && lon <= J.lonMax) return 'jeju';
+    // 북한서해(서해 성격) — 동해 표준항 IDW 를 잘못 적용하지 않도록 계속 제외.
+    if (lat > 38.0 && lon < 125.0) return 'skip';
+    // 동해 본토 + 동해 외해 — tide_field_common.isExcludedSea 와 같은 경계(lon≥129.2
+    // 도 동해/외해로 간주)를 써야 부산·울산·포항 남부 사이가 빠지지 않는다.
+    if ((lat >= EAST_SEA_LAT && lon >= EAST_SEA_LON) || lon >= 129.2) return 'eastsea';
     return 'skip';
 }
 
@@ -138,24 +142,7 @@ function etaCmAt(byMinute, minute) {
     return lo ? lo.v : (hi ? hi.v : null);
 }
 
-/**
- * 암초 1곳의 그 순간 조위(cm) — 가까운 앵커 여러 개(refs)를 거리역제곱(1/d²)
- * 가중평균(IDW)한다. 물빠짐 라우트(routes/tide_field.js)의 cellDepthM 과 동일 공식.
- * @returns {number|null} 참조 곡선이 하나도 없으면 null
- */
-function combinedEtaCm(refs, curvePathFn, yyyymmdd, minute) {
-    let wsum = 0, vsum = 0;
-    for (const { id, distKm } of refs) {
-        const bm = loadCurveByMinute(curvePathFn, id, yyyymmdd);
-        const eta = etaCmAt(bm, minute);
-        if (eta == null) continue;
-        const w = distKm < 0.1 ? 1e6 : 1 / (distKm * distKm);
-        wsum += w; vsum += w * eta;
-    }
-    return wsum > 0 ? vsum / wsum : null;
-}
-
-/** 암초 좌표 기준 25km 이내 가장 가까운 앵커 최대 4개(거리 포함) — combinedEtaCm 입력용. */
+/** 암초 좌표 기준 25km 이내 가장 가까운 앵커 최대 4개(거리 포함) — scanAnchorCrossings 입력용. */
 function nearestRefs(lat, lon, anchors) {
     return anchors
         .map(a => ({ id: a.id, distKm: TFC.haversineKm(lat, lon, a.lat, a.lon) }))
@@ -164,19 +151,45 @@ function nearestRefs(lat, lon, anchors) {
         .slice(0, INTERP_MAX_ANCHORS);
 }
 
-/** 앵커 곡선 IDW로 윈도우 전체(분단위)를 스캔해 target(cm) 상향 교차(=잠김) 절대분 목록 반환. */
+/**
+ * 앵커 곡선 IDW로 윈도우 전체(분단위)를 스캔해 target(cm) 상향 교차(=잠김) 절대분 목록 반환.
+ * [성능 — 반드시 지킬 것] 곡선은 (앵커,날짜)당 딱 1번만 로드한다(이 함수 앞부분에서
+ *   전부 미리 읽어 옴). 예전엔 분(1440)마다 곡선을 다시 읽어(각 읽기가 fs.statSync
+ *   포함) 전체 암초를 돌면 수천만 번의 동기 파일 접근이 발생해 서버가 수십 초 이상
+ *   완전히 멈췄다(야간 배치가 이벤트 루프를 블로킹 — 그동안 다른 사용자 요청도 전부
+ *   막힘). 분 루프 안에서는 이미 메모리에 있는 배열(byMinute)만 조회해야 한다.
+ */
 function scanAnchorCrossings(refs, curvePathFn, dates, targetCm) {
+    // (앵커,날짜) 조합마다 딱 1번씩만 파일을 읽어 분→cm 배열을 미리 확보.
+    const curvesByDate = dates.map(ymd =>
+        refs.map(r => ({ distKm: r.distKm, byMinute: loadCurveByMinute(curvePathFn, r.id, ymd) }))
+    );
+
     const crossings = [];
     let prevAbsMin = null, prevEta = null;
     for (let di = 0; di < dates.length; di++) {
-        const ymd = dates[di];
+        const dayRefs = curvesByDate[di];
         for (let m = 0; m < 1440; m++) {
-            const eta = combinedEtaCm(refs, curvePathFn, ymd, m);
+            let wsum = 0, vsum = 0;
+            for (const { byMinute, distKm } of dayRefs) {
+                const eta = etaCmAt(byMinute, m);
+                if (eta == null) continue;
+                const w = distKm < 0.1 ? 1e6 : 1 / (distKm * distKm);
+                wsum += w; vsum += w * eta;
+            }
+            const eta = wsum > 0 ? vsum / wsum : null;
             const absMin = di * 1440 + m;
             if (eta != null) {
                 if (prevEta != null && prevEta < targetCm && targetCm <= eta) {
-                    const frac = (targetCm - prevEta) / (eta - prevEta);
-                    crossings.push(prevAbsMin + frac);
+                    // [보간 — 구간 길이(gap) 반영] 결측으로 prevAbsMin 이 바로 앞
+                    // 분이 아닐 수 있다(예: 곡선 일부 결측으로 몇 분 건너뜀). frac 은
+                    // prevEta~eta 사이 "비율"이므로 실제 구간 길이를 곱해야 절대분이
+                    // 맞는다. 구간이 너무 벌어지면(>60분) 보간을 신뢰할 수 없어 버린다.
+                    const gap = absMin - prevAbsMin;
+                    if (gap <= 60) {
+                        const frac = (targetCm - prevEta) / (eta - prevEta);
+                        crossings.push(prevAbsMin + frac * gap);
+                    }
                 }
                 prevAbsMin = absMin; prevEta = eta;
             }
@@ -328,6 +341,10 @@ function absMinToISO(startYmd, absMin) {
  */
 async function computeAllCrossings(opts = {}) {
     const log = opts.log || ((...a) => console.log('[hazard_rocks_submersion]', ...a));
+    _curveCache.clear();   // 매 배치 새 곡선을 읽으므로 이전 배치 캐시는 버림(무한 누적 방지)
+    _yearTableCache.clear();
+    _dateRowsCache.clear();
+
     const rocks = loadRocks();
     const dates = HRCollector.windowDatesKST(HRC.WINDOW_DAYS);
     const wsAnchors = TFCollector.loadAnchors() || [];
@@ -336,6 +353,7 @@ async function computeAllCrossings(opts = {}) {
     const crossings = {};
     const counts = { westsouth: 0, jeju: 0, eastsea: 0, skip: 0 };
 
+    let processed = 0;
     for (const rock of rocks) {
         const region = classifyRegion(rock.lat, rock.lon);
         counts[region] = (counts[region] || 0) + 1;
@@ -356,6 +374,12 @@ async function computeAllCrossings(opts = {}) {
         if (absMins.length) {
             crossings[rock.id] = absMins.map(m => absMinToISO(dates[0], m));
         }
+
+        // [이벤트 루프 양보] 암초 수십 개마다 한 번씩 다른 요청이 끼어들 틈을 준다.
+        //   순수 계산 자체는 (성능 수정 후) 매우 빠르지만, 그래도 완전히 막지 않도록
+        //   보수적으로 남겨둔다 — 서버가 다른 사용자 요청을 계속 처리할 수 있어야 함.
+        processed++;
+        if (processed % 50 === 0) await new Promise(res => setImmediate(res));
     }
 
     const out = { generated_at: new Date().toISOString(), window_start: dates[0], crossings };
@@ -371,6 +395,10 @@ async function computeAllCrossings(opts = {}) {
 // ============================================================================
 // 조회: 지금부터 3시간 이내 잠기는 암초만
 // ============================================================================
+// submersion.json 은 야간 배치 1회만 갱신되므로, 매 API 요청마다 다시 읽지
+// 않도록 mtime 이 바뀔 때만 재파싱한다(운영에서 폴링 트래픽이 몰려도 안전).
+let _submersionCache = null; // { mtimeMs, data }
+
 /**
  * @param {number} [now] - 기준 시각(ms). 기본 Date.now().
  * @returns {{ready:boolean, generated_at:string|null, warnings:Object<string,number>}}
@@ -379,8 +407,15 @@ async function computeAllCrossings(opts = {}) {
 function getUpcomingWarnings(now) {
     now = now || Date.now();
     let data;
-    try { data = JSON.parse(fs.readFileSync(SUBMERSION_PATH, 'utf8')); }
-    catch (e) { return { ready: false, generated_at: null, warnings: {} }; }
+    try {
+        const stat = fs.statSync(SUBMERSION_PATH);
+        if (_submersionCache && _submersionCache.mtimeMs === stat.mtimeMs) {
+            data = _submersionCache.data;
+        } else {
+            data = JSON.parse(fs.readFileSync(SUBMERSION_PATH, 'utf8'));
+            _submersionCache = { mtimeMs: stat.mtimeMs, data };
+        }
+    } catch (e) { return { ready: false, generated_at: null, warnings: {} }; }
 
     const warnings = {};
     for (const [id, isoList] of Object.entries(data.crossings || {})) {

@@ -313,6 +313,10 @@
         var now = Date.now();
         var activeIds = {}; // rockId → {coord, targetMs}
         if (rockLayer && rockLayer.getVisible()) {
+            // 화면 밖 마커까지 오버레이를 만들면(높은 줌에서 클러스터가 전부 풀려
+            // 낱개가 되므로) 반일주조 특성상 수백 개가 한꺼번에 생길 수 있다 —
+            // 현재 뷰포트 안쪽만 대상으로 한다.
+            var viewExtent = map.getView().calculateExtent(map.getSize());
             rockLayer.getSource().getFeatures().forEach(function (clusterFeature) {
                 var members = clusterFeature.get('features');
                 if (members.length !== 1) return; // 뭉쳐 있으면 어느 암초인지 특정 불가 — 건너뜀
@@ -321,7 +325,9 @@
                 var id = String(f.get('id'));
                 var targetMs = _warningTargets[id];
                 if (targetMs == null || targetMs <= now) return;
-                activeIds[id] = { coord: f.getGeometry().getCoordinates(), targetMs: targetMs };
+                var coord = f.getGeometry().getCoordinates();
+                if (!ol.extent.containsCoordinate(viewExtent, coord)) return;
+                activeIds[id] = { coord: coord, targetMs: targetMs };
             });
         }
         // 더는 대상이 아닌 오버레이 제거

@@ -232,12 +232,36 @@ async function collectHazardRockTides(opts = {}) {
     }
 }
 
+/**
+ * anchors.json 이 없으면 자동으로 만든다(build_hazard_rock_anchors.js 실행).
+ * [왜 필요한가] fly.toml 이 local_server/data 전체를 볼륨 마운트하므로, 커밋해
+ *   둔 anchors.json 이 있어도 운영 배포에서는 빈 볼륨에 가려 안 보인다(물빠짐의
+ *   anchors.json/grid_meta.json 도 같은 이유로 tide_field_collector.ensureBuilt() 가
+ *   기동 시 자동 재생성한다 — 여기서도 그 패턴을 그대로 따른다). BADA 같은 무거운
+ *   원본 의존이 없고 client/hazard_rocks.json(Docker 이미지에 포함)만 있으면 되므로
+ *   매 수집 시도 때 안전하게 재확인해도 비용이 크지 않다.
+ * @returns {Array|null} 생성/로드된 앵커 배열, 실패 시 null
+ */
+function ensureAnchorsBuilt(log) {
+    let anchors = loadAnchors();
+    if (anchors && anchors.length > 0) return anchors;
+    log('anchors.json 없음/비어있음 — build_hazard_rock_anchors.js 로 자동 생성...');
+    try {
+        require('../scripts/build_hazard_rock_anchors').main();
+    } catch (e) {
+        log(`⚠️ 앵커 자동 생성 실패: ${e.message}`);
+        return null;
+    }
+    anchors = loadAnchors();
+    return (anchors && anchors.length > 0) ? anchors : null;
+}
+
 /** collectHazardRockTides 의 실제 작업 — 완전 수집분을 제외한 (앵커,날짜)만 순차 수집. */
 async function _collectInner(opts) {
     const log = opts.log || ((...a) => console.log('[hazard_rocks_tide_collector]', ...a));
-    const anchors = loadAnchors();
+    const anchors = ensureAnchorsBuilt(log);
     if (!anchors || anchors.length === 0) {
-        log('anchors.json 없음/비어있음 — 먼저 scripts/build_hazard_rock_anchors.js 를 실행하세요. (skip)');
+        log('anchors.json 자동 생성도 실패 — client/hazard_rocks.json 확인 필요. (skip)');
         return { ok: false, reason: 'no_anchors' };
     }
     const dates = opts.dates || windowDatesKST(HRC.WINDOW_DAYS);
