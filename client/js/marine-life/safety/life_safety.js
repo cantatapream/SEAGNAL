@@ -701,9 +701,9 @@
 
         // --- 해양안전 화면의 안내(ⓘ) — 이 화면에 있는 기능만 보여준다 ---
         //   해양종합정보 버튼(#ocean-info-btn)을 그대로 쓰지만 그 팝업은 17개 탭짜리
-        //   전체 안내다. 이 화면엔 물빠짐·CCTV만 있으므로(노출암·간출암 안내 문구는
-        //   아직 미정 — 확정되면 여기 추가) document 캡처 단계에서 가로채 해당 탭
-        //   본문만 이어붙여 띄운다(캡처라 버튼 자신의 기존 핸들러까지 도달하지 않음).
+        //   전체 안내다. 이 화면엔 물빠짐·노출암/간출암·CCTV만 있으므로 document 캡처
+        //   단계에서 가로채 해당 탭 본문만 이어붙여 띄운다(캡처라 버튼 자신의 기존
+        //   핸들러까지 도달하지 않음).
         document.addEventListener('click', function (e) {
             if (!document.body.classList.contains('ls-safety')) return;
             var btn = e.target && e.target.closest && e.target.closest('#ocean-info-btn');
@@ -714,6 +714,7 @@
             var fn = window.oceanInfoTabHtml;
             var html = (typeof fn === 'function')
                 ? '<h4 class="ls-info-section-title">물빠짐</h4>' + (fn('mudflat') || '')
+                + '<h4 class="ls-info-section-title">노출암·간출암</h4>' + (fn('hazardrock') || '')
                 + '<h4 class="ls-info-section-title">CCTV</h4>' + (fn('cctv') || '')
                 : '';
             window.showSeagnalModal('해양안전 안내', html || '<p>안내 내용을 불러오지 못했습니다.</p>', 'info');
