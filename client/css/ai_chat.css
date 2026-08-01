@@ -269,33 +269,33 @@
 #nrya-overlays .nrya-lawacc-b{display:none; margin-top:8px}
 #nrya-overlays .nrya-lawacc.nrya-open .nrya-lawacc-b{display:block}
 #nrya-overlays .nrya-lawitem{background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09); border-radius:9px; padding:9px 11px; margin-top:7px}
-#nrya-overlays .nrya-lawitem .nrya-lw-t{font-size:11.8px; font-weight:700; color:#dbe7f6; display:flex; align-items:center; justify-content:space-between; gap:8px}
-#nrya-overlays .nrya-lawitem .nrya-lw-src{font-family:var(--nrya-mono); font-size:9.5px; color:#8296ac; font-weight:500; flex:0 0 auto}
-#nrya-overlays .nrya-lawitem .nrya-lw-c{font-size:11.8px; color:#bccbde; margin-top:5px; line-height:1.55}
-#nrya-overlays .nrya-lawitem .nrya-lw-more{margin-top:6px; font-size:10.5px; color:#a9c6ff}
+#nrya-overlays .nrya-lawitem .nrya-lw-t{font-size:11.8px; font-weight:700; color:#dbe7f6}
 
-/* 좌표 구역 미니 지도 */
-#nrya-overlays .nrya-zonemap{margin-top:10px; border-radius:11px; overflow:hidden; border:1px solid rgba(105,240,174,.3)}
-#nrya-overlays .nrya-zonemap-canvas{position:relative; height:150px; cursor:zoom-in; background:#0c2033}
-#nrya-overlays .nrya-zonemap-canvas svg{position:absolute; inset:0; width:100%; height:100%; display:block}
-#nrya-overlays .nrya-zonemap-tap{position:absolute; top:8px; right:8px; font-size:10.5px; font-weight:700; color:#cfe0f5; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:4px 9px; z-index:2}
-#nrya-overlays .nrya-zonemap-cap{font-size:10.5px; color:#a9c6ff; padding:8px 10px; background:rgba(105,240,174,.07); line-height:1.5}
-#nrya-overlays .nrya-zonemap-cap b{color:#8fe6bb}
-
-/* 확대 지도 팝업(핀치줌) */
-#nrya-overlays .nrya-mapmodal{position:fixed; inset:0; z-index:2000; display:none; flex-direction:column; background:#06121f}
-#nrya-overlays .nrya-mapmodal.nrya-open{display:flex}
-#nrya-overlays .nrya-mapmodal-bar{display:flex; align-items:center; gap:8px; padding:11px 12px; background:rgba(9,20,34,.96); border-bottom:1px solid var(--nrya-border)}
-#nrya-overlays .nrya-mapmodal-tabs{display:flex; gap:6px; flex:1}
-#nrya-overlays .nrya-mm-tab{border:1px solid var(--nrya-border); background:rgba(255,255,255,.05); color:var(--nrya-text-sub); font-family:inherit; font-size:12px; font-weight:600; padding:8px 12px; border-radius:16px; cursor:pointer; white-space:nowrap}
-#nrya-overlays .nrya-mm-tab.nrya-on{background:rgba(105,240,174,.16); border-color:#69f0ae; color:#8fe6bb}
-#nrya-overlays .nrya-mapmodal-x{width:34px;height:34px;flex:0 0 auto;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:#cfe2f3;font-size:16px;cursor:pointer}
-#nrya-overlays .nrya-mapmodal-stage{flex:1; overflow:hidden; position:relative; touch-action:none; background:#0c2033}
-#nrya-overlays .nrya-mapmodal-inner{position:absolute; inset:0; transform-origin:0 0; will-change:transform}
-#nrya-overlays .nrya-mapmodal-inner svg{width:100%; height:100%; display:block}
-#nrya-overlays .nrya-mapmodal-hint{position:absolute; left:0; right:0; bottom:12px; text-align:center; font-size:11px; color:#8296ac; pointer-events:none}
-#nrya-overlays .nrya-mapmodal-zoom{position:absolute; right:12px; bottom:40px; display:flex; flex-direction:column; gap:6px}
-#nrya-overlays .nrya-mapmodal-zoom button{width:38px;height:38px;border-radius:10px;border:1px solid var(--nrya-border);background:rgba(9,20,34,.9);color:#cfe2f3;font-size:19px;cursor:pointer}
+/* 위임흐름 체인(법률→시행령→시행규칙→고시) — 왼쪽 레일(번호원+세로선)과 본문을 flex로 짝지어
+   선이 그 조문 내용 끝까지 늘어나고(align-items:stretch), 원이 뱃지와 같은 높이라 중앙정렬된다.
+   하위 법령일수록 같은 녹색 계열에서 점점 옅어진다(data-tier). */
+#nrya-overlays .nrya-chain{display:flex; flex-direction:column; margin-top:10px}
+#nrya-overlays .nrya-chain-step{display:flex; align-items:stretch; gap:10px; padding-bottom:14px}
+#nrya-overlays .nrya-chain-rail{display:flex; flex-direction:column; align-items:center; width:19px; flex-shrink:0}
+#nrya-overlays .nrya-chain-dot{width:19px; height:19px; border-radius:50%; flex-shrink:0; background:#3aab80; color:#062015; display:flex; align-items:center; justify-content:center; font-family:var(--nrya-mono); font-size:10px; font-weight:800}
+#nrya-overlays .nrya-chain-line{flex:1; width:1px; background:#2a4351; margin-top:3px}
+#nrya-overlays .nrya-chain-step.nrya-last .nrya-chain-line{display:none}
+#nrya-overlays .nrya-chain-content{flex:1; min-width:0}
+#nrya-overlays .nrya-chain-tier{position:relative; display:inline-flex; align-items:center; height:19px; box-sizing:border-box; font-size:9px; font-weight:800; letter-spacing:.03em; color:#062015; background:#3aab80; padding:0 7px; border-radius:4px; cursor:pointer; user-select:none; -webkit-user-select:none; touch-action:manipulation}
+#nrya-overlays .nrya-chain-step[data-tier="decree"] .nrya-chain-dot,#nrya-overlays .nrya-chain-step[data-tier="decree"] .nrya-chain-tier{background:#5ebe98; color:#072219}
+#nrya-overlays .nrya-chain-step[data-tier="rule"] .nrya-chain-dot,#nrya-overlays .nrya-chain-step[data-tier="rule"] .nrya-chain-tier{background:#82d0af; color:#0b2a1d}
+#nrya-overlays .nrya-chain-step[data-tier="notice"] .nrya-chain-dot,#nrya-overlays .nrya-chain-step[data-tier="notice"] .nrya-chain-tier{background:#a8e0c4; color:#123527}
+#nrya-overlays .nrya-chain-step.nrya-penalty .nrya-chain-dot,#nrya-overlays .nrya-chain-step.nrya-penalty .nrya-chain-tier{background:#f3a39a; color:#3d0f0a}
+#nrya-overlays .nrya-chain-art{color:#eaf3f0; font-size:11.5px; font-weight:700; margin-top:5px}
+#nrya-overlays .nrya-chain-quote{color:#eef2ef; font-size:10px; margin-top:4px; line-height:1.6}
+#nrya-overlays .nrya-chain-hang{margin:0}
+#nrya-overlays .nrya-chain-gap{height:14px}
+#nrya-overlays .nrya-chain-tel{display:flex; align-items:center; gap:5px; margin-top:6px; font-size:10px; color:#7c9089}
+#nrya-overlays .nrya-chain-tel.nrya-unknown{color:#6b7a75; font-style:italic}
+#nrya-overlays .nrya-chain-tel a{color:inherit; font-weight:inherit; text-decoration:underline; text-decoration-color:currentColor}
+/* 뱃지를 누르고 있는 동안만 시행일자 말풍선 표시(꾹 누르기) */
+#nrya-overlays .nrya-chain-eff{position:absolute; left:0; top:calc(100% + 6px); z-index:5; background:#0a1418; border:1px solid #2a3439; color:#dbe7e3; font-size:9.5px; font-weight:600; letter-spacing:0; padding:4px 8px; border-radius:6px; white-space:nowrap; opacity:0; transform:translateY(-4px); pointer-events:none; transition:opacity .5s ease, transform .5s ease}
+#nrya-overlays .nrya-chain-tier.nrya-pressed .nrya-chain-eff{opacity:1; transform:translateY(0); transition:opacity .1s ease, transform .1s ease}
 
 /* 스켈레톤 + 생각중 상태 */
 #nrya-overlays .nrya-sk-line{height:9px; border-radius:5px; margin-bottom:7px; background:linear-gradient(90deg,rgba(255,255,255,.08) 25%,rgba(255,255,255,.18) 37%,rgba(255,255,255,.08) 63%); background-size:400% 100%; animation:nrya-sk 1.3s ease infinite}
