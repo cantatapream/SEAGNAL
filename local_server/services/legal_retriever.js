@@ -35,6 +35,7 @@ const gemini = require('./gemini_client');
 
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const INDEX_JSON = path.join(LEGAL_DIR, '_dashboard', 'index.json');
+const CONTACTS_JSON = path.join(LEGAL_DIR, '_dashboard', 'contacts_collected.json');
 const GLOSSARY_MD = path.join(LEGAL_DIR, 'wiki', '_glossary.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
 const STATUTES_DIR = path.join(LEGAL_DIR, 'wiki', 'statutes');
@@ -189,6 +190,200 @@ function readPage(kind, file) {
   return entry;
 }
 
+// ============================================================================
+// 인용사슬(citation chain) — 위키 "## 근거 조문" 표를 답변카드 UI가 쓸 구조로 뽑는다.
+// 화면(client/js/ai-chat/ai_chat.js)이 법률→시행령→시행규칙→고시 위임 흐름을 세로 체인으로
+// 그리는 데 필요한 최소 데이터만 만든다. 표에 없는 것은 절대 만들어내지 않는다(환각 0).
+// ============================================================================
+
+// ── contacts_collected.json 캐시(mtime 감지): 법 slug → 소관부서·전화번호 ──
+let _contactsCache = null, _contactsMtime = 0;
+function loadContacts() {
+  try {
+    const mt = fs.statSync(CONTACTS_JSON).mtimeMs;
+    if (_contactsCache && mt === _contactsMtime) return _contactsCache;
+    _contactsCache = JSON.parse(fs.readFileSync(CONTACTS_JSON, 'utf8')); _contactsMtime = mt;
+  } catch (_) { if (!_contactsCache) _contactsCache = {}; }
+  return _contactsCache;
+}
+
+/**
+ * 법령명 문자열로 위임 단계(tier)를 판정한다. 화면에서 단계별 색 농도(법률 진함 → 고시 옅음)에 쓴다.
+ * 예: classifyTier('자연유산법 시행령') → 'decree' · classifyTier('…허용기준작성지침') → 'notice'
+ * @param {string} lawName - 근거 조문 표의 법령명 셀
+ * @returns {'law'|'decree'|'rule'|'notice'}
+ * [연계] → extractCitationChain(각 행의 tier), ai_chat.js의 data-tier 색상.
+ */
+function classifyTier(lawName) {
+  const s = String(lawName || '');
+  if (s.includes('시행령')) return 'decree';
+  if (s.includes('시행규칙')) return 'rule';
+  if (/고시|지침|훈령|예규|규정|요령|작성기준|행정규칙|통항규칙/.test(s)) return 'notice';
+  return 'law';
+}
+
+/** 표 셀의 마크다운 장식([[링크]]·**굵게**)을 걷어내 사람이 읽는 문자열로 만든다. */
+function plainCell(s) {
+  return String(s || '')
+    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
+    .replace(/\[\[([^\]]+)\]\]/g, '$1')
+    .replace(/\*\*/g, '')
+    .trim();
+}
+
+/**
+ * 페이지 본문에서 `## 근거 조문` 표를 파싱해 위임 사슬 배열을 만든다.
+ * ⚠ 이 위키는 여러 세션·에이전트가 몇 달에 걸쳐 써서 표 헤더의 컬럼 순서가 페이지마다 다르다
+ * (`법령명|조문|시행일|요지` 도 있고 `단계|법령|조문|시행일|요지` 도 있다) — 그래서 컬럼 위치가
+ * 아니라 **헤더 텍스트**로 각 컬럼을 찾는다. 표가 없거나 파싱이 안 되면 예외 없이 []를 반환한다
+ * (이 표가 없는 페이지도 많다 — 그런 페이지는 화면이 단순 폴백 카드로 그린다).
+ * @param {string} body - 페이지 마크다운 본문(frontmatter 제외)
+ * @returns {Array<{law:string,article:string,effectiveDate:string,gist:string,tier:string}>} 원 표 순서 그대로
+ * [연계] ← search()가 상위 소스에 붙임 → ai_chat.js 체인 UI.
+ */
+function extractCitationChain(body) {
+  try {
+    const txt = String(body || '');
+    const hm = /^#{2,3}\s*근거\s*조문[^\n]*$/m.exec(txt);
+    if (!hm) return [];
+    const lines = txt.slice(hm.index + hm[0].length).split('\n');
+    const table = [];
+    for (const line of lines) {
+      const t = line.trim();
+      if (t.startsWith('|')) { table.push(t); continue; }
+      if (table.length) break;          // 표가 끝났다
+      if (t.startsWith('#')) break;     // 표를 만나기 전에 다음 절로 넘어갔다
+    }
+    if (table.length < 3) return [];    // 헤더 + 구분선 + 최소 1행
+
+    // ⚠ 위키 표 셀 안에 [[statutes/해양환경관리법|해양환경관리법]] 처럼 파이프가 든 링크가 그대로
+    // 쓰여 있다(마크다운 규칙상 원래는 이스케이프해야 하지만 관행이 그렇다) — 그냥 '|'로 쪼개면
+    // 링크가 두 칸으로 찢어져 법령명이 "[[statutes/해양환경관리법"이 된다. 쪼개기 전에 링크 안의
+    // 파이프만 잠시 치환해 보호한다.
+    const PIPE = ' ';
+    const cells = row => row
+      .replace(/\[\[[^\]]*\]\]/g, m => m.replace(/\|/g, PIPE))
+      .replace(/^\|/, '').replace(/\|$/, '')
+      .split('|').map(c => c.split(PIPE).join('|').trim());
+    const head = cells(table[0]);
+    const col = re => head.findIndex(h => re.test(h));
+    const iLaw = col(/법령|법률명/);
+    const iArt = col(/조문/);
+    const iEff = col(/시행일|발령/);
+    const iGist = col(/요지|내용|비고/);
+    if (iLaw < 0) return [];
+
+    const out = [];
+    for (const row of table.slice(2)) {   // 0=헤더, 1=구분선
+      const c = cells(row);
+      if (/^-+$/.test((c[0] || '').replace(/:/g, ''))) continue;
+      const law = plainCell(c[iLaw]);
+      if (!law || law === '—' || law === '-') continue;
+      out.push({
+        law,
+        article: iArt >= 0 ? plainCell(c[iArt]) : '',
+        effectiveDate: iEff >= 0 ? plainCell(c[iEff]) : '',
+        gist: iGist >= 0 ? plainCell(c[iGist]) : '',
+        tier: classifyTier(law),
+      });
+    }
+    return out;
+  } catch (_) { return []; }
+}
+
+/** 법령명 비교용 정규화: 괄호주석·공백·가운뎃점·낫표를 걷어낸다. */
+function normLawName(s) {
+  return String(s || '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/[「」『』\s·ㆍ・,]/g, '')
+    .replace(/(시행령|시행규칙)$/, '')
+    .trim();
+}
+
+/**
+ * 행정규칙(고시·지침) 이름 비교용 정규화. 법령명과 달리 괄호 안을 지우지 않는다 —
+ * "고시(선박교통관제에 관한 규정)"처럼 진짜 이름이 괄호 안에 들어있는 표기가 많기 때문이다
+ * (괄호를 지우면 "고시"만 남아 아무 규칙에나 걸린다).
+ */
+function normRuleName(s) {
+  return String(s || '').replace(/[「」『』()（）\s·ㆍ・,]/g, '').trim();
+}
+
+/** a의 글자가 b에 순서대로 모두 나타나는가(약칭 판정용 부분수열 검사). */
+function isSubsequence(a, b) {
+  let i = 0;
+  for (const ch of b) { if (ch === a[i]) i++; if (i >= a.length) return true; }
+  return a.length > 0 && i >= a.length;
+}
+
+/** 두 문자열이 앞에서부터 몇 글자나 같은가. */
+function sharedPrefixLen(a, b) {
+  let n = 0; while (n < a.length && n < b.length && a[n] === b[n]) n++;
+  return n;
+}
+
+/**
+ * 근거 조문 표의 법령명에 대응하는 소관부서·전화번호를 `_dashboard/contacts_collected.json`에서 찾는다.
+ * 표의 법령명은 "자연유산법"처럼 축약형인 경우가 많고 JSON 키는 정식명 slug("자연유산의보존및
+ * 활용에관한법률")라, ①정규화 후 완전일치 ②포함관계 ③약칭 판정(부분수열 + 앞 2글자 이상 일치)
+ * 순으로 느슨하게 맞춘다. 못 찾으면 null — 화면은 "확인되지 않음"으로 정직하게 표기한다.
+ * 예: lookupContact('자연유산법 시행령') → {부서명:'자연유산정책과', 전화번호:'042-610-7612', 소관부처명:'국가유산청'}
+ * @param {string} lawName - 표의 법령명 셀 원문
+ * @returns {{부서명:string,전화번호:string,소관부처명:string}|null}
+ * [연계] ← search()가 citationChain 각 행에 붙임 → ai_chat.js 의 ☎ 한 줄(tel: 링크).
+ */
+function lookupContact(lawName) {
+  const contacts = loadContacts();
+  const keys = Object.keys(contacts);
+  if (!keys.length) return null;
+  const tier = classifyTier(lawName);
+
+  // 고시·훈령 등 행정규칙은 법이 아니라 규칙 이름으로 등록돼 있다 — 전 법의 행정규칙 목록에서 찾는다.
+  if (tier === 'notice') {
+    const want = normRuleName(lawName);
+    if (want.length < 4) return null;   // "고시"·"지침" 같은 종류 표기만 든 칸은 매칭하지 않는다
+    for (const k of keys) {
+      const rules = (contacts[k] && contacts[k].행정규칙) || {};
+      for (const name of Object.keys(rules)) {
+        const n = normRuleName(name);
+        if (n.length < 4) continue;
+        if (n === want || n.includes(want) || want.includes(n)) {
+          const r = rules[name];
+          const m = /^(.+?)\((.+)\)$/.exec(r.담당부서기관명 || '');
+          return {
+            부서명: m ? m[2] : (r.담당부서기관명 || ''),
+            전화번호: r.전화번호 || '',
+            소관부처명: r.소관부처명 || (m ? m[1] : ''),
+          };
+        }
+      }
+    }
+    return null;
+  }
+
+  // 3글자 미만("법률"·"고시" 같은 단계 표기가 법령명 칸에 잘못 들어온 경우)은 아무 법에나 걸려
+  // 엉뚱한 전화번호를 붙일 수 있어 아예 매칭하지 않는다(잘못된 곳에 전화하게 만드느니 미표시).
+  const want = normLawName(lawName);
+  if (want.length < 3) return null;
+  let best = null, bestScore = -1;
+  for (const k of keys) {
+    const nk = normLawName(k);
+    let score = -1;
+    if (nk === want) score = 1000;
+    else if (nk.includes(want) || want.includes(nk)) score = 500 + sharedPrefixLen(nk, want);
+    else if (isSubsequence(want, nk) && sharedPrefixLen(nk, want) >= 2) score = sharedPrefixLen(nk, want);
+    if (score > bestScore || (score === bestScore && best && k.length < best.length)) { bestScore = score; best = k; }
+  }
+  if (!best || bestScore < 0) return null;
+
+  const fam = (contacts[best] && contacts[best].families) || {};
+  const wantFam = tier === 'decree' ? '시행령' : (tier === 'rule' ? '시행규칙' : '법률');
+  const list = fam[wantFam] || fam['법률'] || fam['시행령'] || fam['시행규칙'];
+  if (!list || !list.length) return null;
+  const c = list[0];
+  return { 부서명: c.부서명 || '', 전화번호: c.전화번호 || '', 소관부처명: c.소관부처명 || '' };
+}
+
 /**
  * 페이지 하나에 메타(법명·주제·파일명·테마) 점수 + 본문 직접매칭 점수(_CHATBOT.md ① 직접 매칭)를
  * 함께 매긴다. 메타로 안 걸려도 본문에 실제로 있으면 잡히도록 항상 본문까지 본다 — 그래야
@@ -303,10 +498,22 @@ function search(query, opts) {
     };
   }).filter(cp => cp.body);
 
-  const sources = finalList.map(x => ({
-    file: x.p.file, law: x.p.law, topic: x.p.topic, kind: x.p.kind, status: x.p.status || null,
-    score: x.s, hop: !!x.hop,
-  }));
+  // 인용사슬은 화면 체인 UI가 실제로 그리는 상위 소수 건에만 붙인다(전부 파싱하면 낭비).
+  // 본문은 위에서 이미 readPage로 캐시돼 있어 파일을 다시 읽지 않는다.
+  const CHAIN_TOPK = 5;
+  const sources = finalList.map((x, i) => {
+    const s = {
+      file: x.p.file, law: x.p.law, topic: x.p.topic, kind: x.p.kind, status: x.p.status || null,
+      score: x.s, hop: !!x.hop,
+    };
+    if (i < CHAIN_TOPK) {
+      const page = readPage(x.p.kind, x.p.file);
+      s.citationChain = page
+        ? extractCitationChain(page.body).map(row => Object.assign({}, row, { contact: lookupContact(row.law) }))
+        : [];
+    }
+    return s;
+  });
 
   return { sources, contextPages };
 }
@@ -357,4 +564,4 @@ async function* synthesizeAnswerStream(query, contextPages) {
   yield* gemini.callGeminiStream({ model: ANSWER_MODEL, contents: prompt, config: SYNTH_CONFIG, caller: 'Legal-Ask' });
 }
 
-module.exports = { loadIndex, search, synthesizeAnswerStream };
+module.exports = { loadIndex, search, synthesizeAnswerStream, classifyTier, extractCitationChain, lookupContact };

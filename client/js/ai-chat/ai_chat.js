@@ -8,7 +8,7 @@
  *             + 관리자 검토센터(5개 서브탭·원본 vs AI값·교정입력·승인/반려·반영사슬)
  *             + 챗봇 노출 토글(서버 전역 설정)을 렌더한다.
  *         (B) 사용자 챗봇 — 우측 하단 FAB + 카카오톡풍 채팅 팝업(생각중·스켈레톤·
- *             근거법령 아코디언·좌표 미니지도 핀치줌). #nrya-overlays(body) 에 산다.
+ *             근거법령 아코디언 = 위임흐름 체인). #nrya-overlays(body) 에 산다.
  *         FAB 는 (1) 앱 메인 특보 탭일 때만, (2) 서버 노출설정이 허용할 때만 보인다.
  *         (초보자용: 이 파일이 관리자용 나리야 콘솔과 사용자용 챗봇 버튼/창을 만든다)
  * ----------------------------------------------------------------------------
@@ -779,29 +779,12 @@
   // ============================================================================
   var STEPS = ['생각하고 있습니다', '관련 법령을 찾고 있습니다', '조문 구조를 확인하고 있습니다', '답변을 정리하고 있습니다'];
 
-  // 재사용 지도 SVG(해안선 + 위경도 격자 + 좌표 폴리곤 + 라벨) — 목업 원본 그대로
-  var MAPSVG = '<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">' +
-    '<rect width="320" height="180" fill="#0c2033"/>' +
-    '<path d="M0,0 L58,0 Q92,38 66,72 Q48,96 80,128 Q98,158 72,180 L0,180 Z" fill="#173245" stroke="rgba(120,190,150,.45)" stroke-width="1.2"/>' +
-    '<g stroke="rgba(160,190,220,.10)" stroke-width="1"><line x1="90" y1="0" x2="90" y2="180"/><line x1="160" y1="0" x2="160" y2="180"/><line x1="230" y1="0" x2="230" y2="180"/><line x1="0" y1="60" x2="320" y2="60"/><line x1="0" y1="120" x2="320" y2="120"/></g>' +
-    '<text x="162" y="12" fill="#6f8aa3" font-size="8" font-family="monospace">128°30′E</text>' +
-    '<text x="232" y="12" fill="#6f8aa3" font-size="8" font-family="monospace">129°00′E</text>' +
-    '<text x="3" y="58" fill="#6f8aa3" font-size="8" font-family="monospace">38°34′N</text>' +
-    '<text x="3" y="118" fill="#6f8aa3" font-size="8" font-family="monospace">38°10′N</text>' +
-    '<polygon points="150,44 236,58 250,112 172,134 126,86" fill="rgba(105,240,174,.22)" stroke="#69f0ae" stroke-width="2"/>' +
-    '<text x="182" y="94" fill="#8fe6bb" font-size="11" font-weight="bold" font-family="sans-serif">조업 가능</text>' +
-    '<g fill="#ff6b6b" stroke="#fff" stroke-width="1"><circle cx="150" cy="44" r="3.6"/><circle cx="236" cy="58" r="3.6"/><circle cx="250" cy="112" r="3.6"/><circle cx="172" cy="134" r="3.6"/><circle cx="126" cy="86" r="3.6"/></g>' +
-    '<text x="150" y="37" fill="#e6f1ff" font-size="7.5" font-family="monospace" text-anchor="middle">38°34′09″N 128°30′06″E</text>' +
-    '<text x="16" y="150" fill="#9fceb0" font-size="9.5" font-family="sans-serif">강원 연안</text>' +
-    '</svg>';
-
   var overlaysBuilt = false;
-  var mScale = 1, mX = 0, mY = 0; // 지도 팝업 줌 상태
 
   /**
-   * body 에 #nrya-overlays(FAB + 채팅 팝업 + 지도 팝업)를 1회 주입하고 이벤트를 건다.
+   * body 에 #nrya-overlays(FAB + 채팅 팝업)를 1회 주입하고 이벤트를 건다.
    * FAB 표시는 updateFabVisibility 가 탭/서버설정으로 게이트한다(초기값 숨김).
-   * [연계] → updateFabVisibility, bindChat, bindMap.
+   * [연계] → updateFabVisibility, bindChat.
    */
   function ensureOverlays() {
     if (overlaysBuilt) return;
@@ -824,26 +807,10 @@
           '</div>' +
           '<div class="nrya-chat-input"><button class="nrya-chat-plus" title="첨부">＋</button><input id="nryaChatInput" placeholder="메시지 입력" /><button class="nrya-chat-send" id="nryaChatSend">➤</button></div>' +
         '</div>' +
-      '</div>' +
-      // 좌표 지도 확대 팝업(핀치줌)
-      '<div class="nrya-mapmodal" id="nryaMapModal">' +
-        '<div class="nrya-mapmodal-bar">' +
-          '<div class="nrya-mapmodal-tabs">' +
-            '<button class="nrya-mm-tab nrya-on" data-mm="here">📍 현재 화면에서 보기</button>' +
-            '<button class="nrya-mm-tab" data-mm="ocean">🗺 해양종합정보 탭에서 보기</button>' +
-          '</div>' +
-          '<button class="nrya-mapmodal-x" id="nryaMapX">✕</button>' +
-        '</div>' +
-        '<div class="nrya-mapmodal-stage" id="nryaMapStage">' +
-          '<div class="nrya-mapmodal-inner" id="nryaMapInner"></div>' +
-          '<div class="nrya-mapmodal-zoom"><button data-z="in">＋</button><button data-z="out">－</button></div>' +
-          '<div class="nrya-mapmodal-hint">두 손가락으로 확대·축소 · 드래그로 이동</div>' +
-        '</div>' +
       '</div>';
     document.body.appendChild(wrap);
 
     bindChat();
-    bindMap();
     updateFabVisibility();
   }
 
@@ -935,10 +902,36 @@
       input.addEventListener('focus', function () { fitChat(); setTimeout(function () { fitChat(); _scrollChatBottom(); }, 250); });
     }
 
-    // 답변 내 근거법령 아코디언 토글 + 지도 구역 탭 → 확대 팝업(동적 답변 포함, 위임)
+    // 답변 내 근거법령 아코디언 토글(동적으로 붙는 답변까지 커버하도록 위임)
     if (body) body.addEventListener('click', function (e) {
-      var h = e.target.closest('.nrya-lawacc-h'); if (h) { h.parentElement.classList.toggle('nrya-open'); return; }
-      var mo = e.target.closest('[data-mapopen]'); if (mo) { openMap(); }
+      var h = e.target.closest('.nrya-lawacc-h'); if (h) { h.parentElement.classList.toggle('nrya-open'); }
+    });
+
+    // 조문 뱃지를 누르면 시행일자 말풍선이 뜨고, 손을 떼도 1.5초 더 보이다가 천천히 사라진다.
+    // 사라지기 전에 다시 누르면 그 예약을 취소하고 계속 보여준다.
+    if (body) {
+      body.addEventListener('pointerdown', function (e) {
+        var t = e.target.closest && e.target.closest('.nrya-chain-tier'); if (!t) return;
+        var pending = effHideTimers.get(t);
+        if (pending) { clearTimeout(pending); effHideTimers['delete'](t); }
+        t.classList.add('nrya-pressed');
+      });
+      body.addEventListener('pointerup', scheduleEffHide);
+      body.addEventListener('pointercancel', scheduleEffHide);
+    }
+  }
+
+  // 시행일자 말풍선 숨김 예약(뱃지 → 타이머). WeakMap 이라 말풍선이 사라진 노드는 자동 정리된다.
+  var effHideTimers = new WeakMap();
+
+  /** 눌려 있는 조문 뱃지들의 시행일자 말풍선을 1.5초 뒤 숨기도록 예약한다(이미 예약됐으면 무시). */
+  function scheduleEffHide() {
+    var pressed = document.querySelectorAll('#nryaChatBody .nrya-chain-tier.nrya-pressed');
+    Array.prototype.forEach.call(pressed, function (t) {
+      if (effHideTimers.get(t)) return;
+      effHideTimers.set(t, setTimeout(function () {
+        t.classList.remove('nrya-pressed'); effHideTimers['delete'](t);
+      }, 1500));
     });
   }
 
@@ -1055,11 +1048,86 @@
     return esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
   }
 
+  /** 조문의 요지에 처벌 문구가 들어있으면 처벌 조문으로 본다(체인 끝에 빨간 원으로 따로 뺀다). */
+  function isPenaltyRow(row) {
+    return /징역|벌금|과태료|처벌/.test(String(row.gist || ''));
+  }
+
+  /** tier 코드를 화면 라벨로. 처벌 조문은 '벌칙'으로 표시한다. */
+  function tierLabel(row, penalty) {
+    if (penalty) return '벌칙';
+    return { decree: '시행령', rule: '시행규칙', notice: '고시' }[row.tier] || '법률';
+  }
+
+  /**
+   * 인용사슬 한 조문을 체인 한 칸(원형 번호 + 세로선 + 조문 뱃지 + 요지 + ☎연락처)으로 그린다.
+   * 뱃지 안의 시행일자 말풍선은 CSS로 숨겨져 있다가 꾹 누를 때만 나타난다.
+   * @param {object} row - {law, article, effectiveDate, gist, tier, contact}
+   * @param {number} n - 화면에 찍을 순번(1부터)
+   * @param {boolean} last - 세로 연결선을 끊을지(체인의 마지막 칸)
+   * @param {boolean} penalty - 처벌 조문인지(빨간 원 + '벌칙' 라벨)
+   * @returns {string} HTML
+   * [연계] ← chainHTML. 데이터는 legal_retriever.js extractCitationChain/lookupContact.
+   */
+  function chainStepHTML(row, n, last, penalty) {
+    var eff = row.effectiveDate
+      ? '<span class="nrya-chain-eff">' + (row.tier === 'notice' ? '발령일자 ' : '시행일자 ') + esc(row.effectiveDate) + '</span>'
+      : '';
+    var head = esc(tierLabel(row, penalty)); // 조문번호는 아래 nrya-chain-art 가 법령명과 함께 보여준다
+    var tel = '';
+    if (row.contact && row.contact.전화번호) {
+      var who = row.contact.소관부처명
+        ? esc(row.contact.소관부처명) + (row.contact.부서명 ? '(' + esc(row.contact.부서명) + ')' : '')
+        : esc(row.contact.부서명 || '');
+      var dial = String(row.contact.전화번호).split(',')[0].replace(/[^0-9+]/g, '');
+      tel = '<div class="nrya-chain-tel">☎ ' + who + ' · <a href="tel:' + esc(dial) + '">' + esc(String(row.contact.전화번호).split(',')[0].trim()) + '</a></div>';
+    } else {
+      tel = '<div class="nrya-chain-tel nrya-unknown">☎ 확인되지 않음</div>';
+    }
+    return '<div class="nrya-chain-step' + (last ? ' nrya-last' : '') + (penalty ? ' nrya-penalty' : '') + '" data-tier="' + esc(row.tier || 'law') + '">' +
+      '<div class="nrya-chain-rail"><div class="nrya-chain-dot">' + n + '</div><div class="nrya-chain-line"></div></div>' +
+      '<div class="nrya-chain-content">' +
+        '<div class="nrya-chain-tier">' + head + eff + '</div>' +
+        '<div class="nrya-chain-art">' + esc(row.law || '') + (row.article ? ' ' + esc(row.article) : '') + '</div>' +
+        (row.gist ? '<div class="nrya-chain-quote"><div class="nrya-chain-hang">' + esc(row.gist) + '</div></div>' : '') +
+        tel +
+      '</div>' +
+    '</div>';
+  }
+
+  /**
+   * 인용사슬 전체를 위임 흐름 체인으로 그린다. 위임 조문(법률→시행령→시행규칙→고시)을 한 체인으로
+   * 잇고, 처벌 조문은 간격을 띄워 별도 체인으로 뺀다(처벌 조문이 없으면 구분 없이 한 체인).
+   * ⚠ 여기 나오는 문장은 위키 "근거 조문" 표의 **요지**다 — 조문 원문(항·호)을 그대로 인용하는
+   *   구조는 아직 백엔드에 없다(지어내지 않는다는 원칙상 요지로 정직하게 대체).
+   * @param {Array} chain - sources[i].citationChain
+   * @returns {string} HTML
+   */
+  function chainHTML(chain) {
+    var main = [], pen = [];
+    chain.forEach(function (row) { (isPenaltyRow(row) ? pen : main).push(row); });
+    var n = 0, html = '';
+    if (main.length) {
+      html += '<div class="nrya-chain">' + main.map(function (row, i) {
+        return chainStepHTML(row, ++n, i === main.length - 1, false);
+      }).join('') + '</div>';
+    }
+    if (pen.length) {
+      html += (main.length ? '<div class="nrya-chain-gap"></div>' : '') +
+        '<div class="nrya-chain">' + pen.map(function (row, i) {
+          return chainStepHTML(row, ++n, i === pen.length - 1, true);
+        }).join('') + '</div>';
+    }
+    return html;
+  }
+
   /**
    * /api/legal/ask 응답을 답변 말풍선 내부 HTML로 조립한다.
-   * AI 합성 답변(answer)을 본문으로, 근거 법령(sources)은 아코디언으로, 좌표성 질문이면
-   * 미니지도를 덧붙인다. answer가 없으면(합성 실패·근거 없음) 안내 문구로 대체한다.
-   * @param {string} q - 사용자 질문
+   * AI 합성 답변(answer)을 본문으로, 근거 법령(sources)은 아코디언으로 붙인다. 인용사슬
+   * (citationChain)이 있는 첫 소스는 위임흐름 체인으로 펼치고, 나머지는 "법령명 · 주제"만
+   * 적은 단순 카드로 나열한다. answer가 없으면(합성 실패·근거 없음) 안내 문구로 대체한다.
+   * ※ 백엔드 내부 필드(kind·score·file)는 화면에 노출하지 않는다(사용자에게 의미 없는 값).
+   * @param {string} q - 사용자 질문(현재는 오류 문구 판단에만 쓰지 않음, 시그니처 유지)
    * @param {object} data - {ok, answer, sources[], note} 또는 실패 객체
    * @returns {string} 말풍선 내부 HTML
    */
@@ -1076,87 +1144,25 @@
         : '아직 이 질문에 딱 맞는 근거를 위키에서 찾지 못했어요. 질문을 조금 더 구체적으로(법 이름·톤수·행위) 적어주시면 도움이 됩니다.');
 
     var html = lead;
-    if (sources.length) {
-      html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 근거 법령 ' + sources.length + '건 (펼쳐서 보기)</div><div class="nrya-lawacc-b">' +
-        sources.map(function (s) {
-          var title = (s.law ? esc(s.law) : '') + (s.topic ? ' · ' + esc(s.topic) : '');
-          if (!title) title = esc(s.file || '근거');
-          var kind = s.kind ? esc(s.kind) : '개념';
-          return '<div class="nrya-lawitem"><div class="nrya-lw-t"><span>' + title + '</span><span class="nrya-lw-src">' + kind + (s.score != null ? ' · 관련도 ' + esc(s.score) : '') + '</span></div>' +
-            '<div class="nrya-lw-c">출처 파일: ' + esc(s.file || '(미상)') + '</div>' +
-            '<div class="nrya-lw-more">원문 보기 ›</div></div>';
-        }).join('') + '</div></div>';
+    // 인용사슬이 있는 첫 소스만 체인으로 펼치고(전부 펼치면 너무 김), 나머지는 단순 카드로 나열
+    var chainSrc = null;
+    for (var i = 0; i < sources.length; i++) {
+      if (sources[i].citationChain && sources[i].citationChain.length) { chainSrc = sources[i]; break; }
     }
-
-    // 좌표성 질문이면 좌표 미니지도(+핀치줌 팝업) 붙임 — 목업 지도/핀치줌 재사용
-    if (/해역|좌표|구역|조업|특정해역|경위도|위경도/.test(q)) {
-      html += '<div class="nrya-zonemap"><div class="nrya-zonemap-canvas" data-mapopen="1">' + MAPSVG + '<span class="nrya-zonemap-tap">⤢ 탭하면 확대</span></div>' +
-        '<div class="nrya-zonemap-cap">📍 <b>GPS 경위도로 정의된 구역</b> 예시 · 실제 지도 위에 폴리곤 표시 · 탭하면 확대(핀치줌)·해양종합정보 연계</div></div>';
+    var rest = sources.filter(function (s) { return s !== chainSrc; });
+    var shown = (chainSrc ? 1 : 0) + rest.length;
+    if (shown) {
+      html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 근거 법령 ' + shown + '건 (펼쳐서 보기)</div><div class="nrya-lawacc-b">';
+      if (chainSrc) html += chainHTML(chainSrc.citationChain);
+      html += rest.map(function (s) {
+        var title = (s.law ? esc(s.law) : '') + (s.topic ? ' · ' + esc(s.topic) : '');
+        return '<div class="nrya-lawitem"><div class="nrya-lw-t">' + (title || '근거 자료') + '</div></div>';
+      }).join('');
+      html += '</div></div>';
     }
 
     html += '<div class="nrya-disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요.' + (data.note ? ' · ' + esc(data.note) : '') + '</div>';
     return html;
-  }
-
-  // ── 지도 팝업(핀치/드래그 줌) 바인딩 ──
-  function applyMap() { var inner = document.getElementById('nryaMapInner'); if (inner) inner.style.transform = 'translate(' + mX + 'px,' + mY + 'px) scale(' + mScale + ')'; }
-  function resetMap() { mScale = 1; mX = 0; mY = 0; applyMap(); }
-
-  /** 좌표 지도 확대 팝업을 연다(내부에 MAPSVG 주입 + 줌 리셋 + 백스택 등록). */
-  function openMap() {
-    var inner = document.getElementById('nryaMapInner'), modal = document.getElementById('nryaMapModal');
-    if (!inner || !modal) return;
-    inner.innerHTML = MAPSVG; resetMap(); modal.classList.add('nrya-open');
-    if (window.PopupStack) window.PopupStack.push('nrya-map', closeMap);
-  }
-
-  /** 좌표 지도 팝업을 닫는다(백스택에서 제거). PopupStack.remove 는 멱등. */
-  function closeMap() {
-    if (window.PopupStack) window.PopupStack.remove('nrya-map');
-    var modal = document.getElementById('nryaMapModal'); if (modal) modal.classList.remove('nrya-open');
-  }
-
-  function bindMap() {
-    var modal = document.getElementById('nryaMapModal');
-    var stage = document.getElementById('nryaMapStage');
-    var x = document.getElementById('nryaMapX');
-    if (x) x.addEventListener('click', closeMap);
-
-    document.querySelectorAll('#nrya-overlays .nrya-mm-tab').forEach(function (b) {
-      b.addEventListener('click', function () {
-        if (b.dataset.mm === 'ocean') {
-          // 해양종합정보 탭으로 이동(챗봇/지도 팝업 닫고 실제 탭 전환)
-          closeMap(); closeChat();
-          try { if (typeof window.switchMainTab === 'function') window.switchMainTab('ocean-map-section'); } catch (_) {}
-        } else {
-          document.querySelectorAll('#nrya-overlays .nrya-mm-tab').forEach(function (t) { t.classList.remove('nrya-on'); });
-          b.classList.add('nrya-on');
-        }
-      });
-    });
-
-    document.querySelectorAll('#nrya-overlays .nrya-mapmodal-zoom button').forEach(function (b) {
-      b.addEventListener('click', function () { mScale = Math.max(1, Math.min(6, mScale * (b.dataset.z === 'in' ? 1.35 : 1 / 1.35))); applyMap(); });
-    });
-
-    if (!stage) return;
-    var pts = {}, startDist = 0, startScale = 1, lastX = 0, lastY = 0, dragging = false;
-    function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
-    stage.addEventListener('pointerdown', function (e) {
-      stage.setPointerCapture(e.pointerId); pts[e.pointerId] = { x: e.clientX, y: e.clientY };
-      var ids = Object.keys(pts);
-      if (ids.length === 2) { startDist = dist(pts[ids[0]], pts[ids[1]]); startScale = mScale; }
-      else { dragging = true; lastX = e.clientX; lastY = e.clientY; }
-    });
-    stage.addEventListener('pointermove', function (e) {
-      if (!pts[e.pointerId]) return; pts[e.pointerId] = { x: e.clientX, y: e.clientY };
-      var ids = Object.keys(pts);
-      if (ids.length === 2) { var d = dist(pts[ids[0]], pts[ids[1]]); if (startDist > 0) { mScale = Math.max(1, Math.min(6, startScale * d / startDist)); applyMap(); } }
-      else if (dragging) { mX += e.clientX - lastX; mY += e.clientY - lastY; lastX = e.clientX; lastY = e.clientY; applyMap(); }
-    });
-    function endPtr(e) { delete pts[e.pointerId]; if (Object.keys(pts).length < 2) startDist = 0; if (Object.keys(pts).length === 0) dragging = false; }
-    stage.addEventListener('pointerup', endPtr); stage.addEventListener('pointercancel', endPtr);
-    stage.addEventListener('wheel', function (e) { e.preventDefault(); mScale = Math.max(1, Math.min(6, mScale * (e.deltaY < 0 ? 1.12 : 1 / 1.12))); applyMap(); }, { passive: false });
   }
 
   // ============================================================================
