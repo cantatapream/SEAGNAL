@@ -27,10 +27,12 @@
  *    없다. 두 버튼이 같은 파일을 나눠 쓰므로 fetch 는 세션당 최대 1번.
  *  - 화면에 그리는 점 개수를 줄이려고 ol.source.Cluster 로 감싼다. 화면 픽셀
  *    거리(CLUSTER_DISTANCE) 안의 점들을 하나의 숫자 원으로 뭉치고, 확대할수록
- *    같은 픽셀거리가 가리키는 실제 면적이 좁아지므로 자동으로 잘게 쪼개져
- *    낱개 마커로 펼쳐진다(별도의 줌 임계값 코드 없이 OL 이 알아서 처리).
+ *    같은 픽셀거리가 가리키는 실제 면적이 좁아지므로 자연히 잘게 쪼개진다.
+ *    다만 아주 가까운 바위 몇 개는 최대 줌에서도 여전히 뭉칠 수 있어, 줌이
+ *    SPREAD_ZOOM 이상이 되면 뭉치기 거리를 0으로 낮춰 무조건 낱개로 펼친다.
  *  - 뭉친 숫자 원을 탭하면 그 안의 점들이 다 보이도록 지도를 확대한다.
- *    낱개 마커를 탭하면 기존처럼 종류·수치 말풍선을 띄운다.
+ *    낱개로 펼쳐지면 종류별 아이콘(노출암/간출암/세암·암암, 물그릇에 담긴 바위
+ *    모양·같은 캔버스 크기)으로 보이고, 그 마커를 탭하면 종류·수치 말풍선을 띄운다.
  * ============================================================================
  */
 
@@ -38,15 +40,42 @@
     'use strict';
 
     var DATA_URL = '/hazard_rocks.json';
-    var CLUSTER_DISTANCE = 45; // px — 이 거리 안의 점들을 한 원으로 뭉친다
+    var CLUSTER_DISTANCE = 45;   // px — 이 거리 안의 점들을 한 원으로 뭉친다
+    var SPREAD_ZOOM = 14;        // 이 줌 이상에서는 뭉치지 않고 낱개 마커로 고정 표시
 
     var dataPromise = null;    // 두 버튼이 나눠 쓰는 공유 fetch(1회만 요청)
     var exposedLayer = null;   // 노출암(k=0)
     var rockLayer = null;      // 간출암류(k=1,2,3)
     var bubbleOverlay = null;  // 탭한 지점에 뜨는 말풍선
 
-    var EXPOSED_COLOR = '#8d6e63'; // 노출암 — 갈색
-    var ROCK_COLOR = '#ff7043';    // 간출암류 — 주황
+    var CLUSTER_COLOR = { exposed: '#8d6e63', rock: '#ff7043' }; // 뭉친 숫자 원 색(노출암 갈색/간출암류 주황)
+
+    // ── 낱개 마커 아이콘(바위 종류별) ──────────────────────────────────────
+    // "물그릇에 담긴 바위" 모양의 SVG. 셋 다 같은 40x40 캔버스·같은 그릇
+    // 테두리를 써서 크기가 똑같이 나온다. 다른 건 바위 높이·수면 위치뿐:
+    //   submerged(세암·암암) — 바위가 물 전체에 잠김
+    //   exposed(노출암)      — 바위 봉우리가 물 위로 높이 드러남
+    //   tidal(간출암)        — 봉우리 끝만 수면에 살짝 걸침(물결 표시)
+    var ICON_SUBMERGED = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MCA0MCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIj4KICA8ZGVmcz48Y2xpcFBhdGggaWQ9ImJvd2wtc3VibWVyZ2VkIj48cGF0aCBkPSJNNCwxMyBDNCw3IDM2LDcgMzYsMTMgTDM2LDIzIEMzNiwzMyAyOSwzOCAyMCwzOCBDMTEsMzggNCwzMyA0LDIzIFoiLz48L2NsaXBQYXRoPjwvZGVmcz4KICA8cGF0aCBkPSJNNCwxMyBDNCw3IDM2LDcgMzYsMTMgTDM2LDIzIEMzNiwzMyAyOSwzOCAyMCwzOCBDMTEsMzggNCwzMyA0LDIzIFoiIGZpbGw9InJnYmEoMTUwLDE4MCwyMDAsMC4yOCkiLz4KICA8ZyBjbGlwLXBhdGg9InVybCgjYm93bC1zdWJtZXJnZWQpIj4KICAgIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDIwLDM2KSBzY2FsZSgxLDAuODUpIHRyYW5zbGF0ZSgtMjAsLTM2KSI+CiAgICAgIDxwb2x5Z29uIHBvaW50cz0iMTQsMzYgMTIsMjkgMTUsMjIgMTgsMTIgMjAsOCAyMiwxMiAyNSwyMCAyMywyNSAyOCwyMSAzMCwyOCAyNywzNiIgZmlsbD0iIzZiNzI4MCIgc3Ryb2tlPSIjNGI1NTYzIiBzdHJva2Utd2lkdGg9IjAuNiIvPgogICAgPC9nPgogICAgPHJlY3QgeD0iMCIgeT0iMTAiIHdpZHRoPSI0MCIgaGVpZ2h0PSIzMCIgZmlsbD0icmdiYSg3NCwxNDQsMTgwLDAuNTUpIi8+CiAgPC9nPgogIAogIDxwYXRoIGQ9Ik00LDEzIEM0LDcgMzYsNyAzNiwxMyBMMzYsMjMgQzM2LDMzIDI5LDM4IDIwLDM4IEMxMSwzOCA0LDMzIDQsMjMgWiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmIzYTRhIiBzdHJva2Utd2lkdGg9IjEuNiIvPgo8L3N2Zz4=';
+    var ICON_EXPOSED = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MCA0MCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIj4KICA8ZGVmcz48Y2xpcFBhdGggaWQ9ImJvd2wtZXhwb3NlZCI+PHBhdGggZD0iTTQsMTMgQzQsNyAzNiw3IDM2LDEzIEwzNiwyMyBDMzYsMzMgMjksMzggMjAsMzggQzExLDM4IDQsMzMgNCwyMyBaIi8+PC9jbGlwUGF0aD48L2RlZnM+CiAgPHBhdGggZD0iTTQsMTMgQzQsNyAzNiw3IDM2LDEzIEwzNiwyMyBDMzYsMzMgMjksMzggMjAsMzggQzExLDM4IDQsMzMgNCwyMyBaIiBmaWxsPSJyZ2JhKDE1MCwxODAsMjAwLDAuMjgpIi8+CiAgPGcgY2xpcC1wYXRoPSJ1cmwoI2Jvd2wtZXhwb3NlZCkiPgogICAgPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMjAsMzYpIHNjYWxlKDEsMS4wKSB0cmFuc2xhdGUoLTIwLC0zNikiPgogICAgICA8cG9seWdvbiBwb2ludHM9IjE0LDM2IDEyLDI5IDE1LDIyIDE4LDEyIDIwLDggMjIsMTIgMjUsMjAgMjMsMjUgMjgsMjEgMzAsMjggMjcsMzYiIGZpbGw9IiM2YjcyODAiIHN0cm9rZT0iIzRiNTU2MyIgc3Ryb2tlLXdpZHRoPSIwLjYiLz4KICAgIDwvZz4KICAgIDxyZWN0IHg9IjAiIHk9IjI3IiB3aWR0aD0iNDAiIGhlaWdodD0iMTMiIGZpbGw9InJnYmEoNzQsMTQ0LDE4MCwwLjU1KSIvPgogIDwvZz4KICAKICA8cGF0aCBkPSJNNCwxMyBDNCw3IDM2LDcgMzYsMTMgTDM2LDIzIEMzNiwzMyAyOSwzOCAyMCwzOCBDMTEsMzggNCwzMyA0LDIzIFoiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzJiM2E0YSIgc3Ryb2tlLXdpZHRoPSIxLjYiLz4KPC9zdmc+';
+    var ICON_TIDAL = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MCA0MCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIj4KICA8ZGVmcz48Y2xpcFBhdGggaWQ9ImJvd2wtdGlkYWwiPjxwYXRoIGQ9Ik00LDEzIEM0LDcgMzYsNyAzNiwxMyBMMzYsMjMgQzM2LDMzIDI5LDM4IDIwLDM4IEMxMSwzOCA0LDMzIDQsMjMgWiIvPjwvY2xpcFBhdGg+PC9kZWZzPgogIDxwYXRoIGQ9Ik00LDEzIEM0LDcgMzYsNyAzNiwxMyBMMzYsMjMgQzM2LDMzIDI5LDM4IDIwLDM4IEMxMSwzOCA0LDMzIDQsMjMgWiIgZmlsbD0icmdiYSgxNTAsMTgwLDIwMCwwLjI4KSIvPgogIDxnIGNsaXAtcGF0aD0idXJsKCNib3dsLXRpZGFsKSI+CiAgICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgyMCwzNikgc2NhbGUoMSwwLjg1KSB0cmFuc2xhdGUoLTIwLC0zNikiPgogICAgICA8cG9seWdvbiBwb2ludHM9IjE0LDM2IDEyLDI5IDE1LDIyIDE4LDEyIDIwLDggMjIsMTIgMjUsMjAgMjMsMjUgMjgsMjEgMzAsMjggMjcsMzYiIGZpbGw9IiM2YjcyODAiIHN0cm9rZT0iIzRiNTU2MyIgc3Ryb2tlLXdpZHRoPSIwLjYiLz4KICAgIDwvZz4KICAgIDxyZWN0IHg9IjAiIHk9IjEzIiB3aWR0aD0iNDAiIGhlaWdodD0iMjciIGZpbGw9InJnYmEoNzQsMTQ0LDE4MCwwLjU1KSIvPgogIDwvZz4KICA8ZWxsaXBzZSBjeD0nMjAnIGN5PScxMycgcng9JzgnIHJ5PScxLjgnIGZpbGw9J25vbmUnIHN0cm9rZT0nI2VhZjVmYicgc3Ryb2tlLXdpZHRoPScxLjInIG9wYWNpdHk9JzAuOTUnLz4KICA8cGF0aCBkPSJNNCwxMyBDNCw3IDM2LDcgMzYsMTMgTDM2LDIzIEMzNiwzMyAyOSwzOCAyMCwzOCBDMTEsMzggNCwzMyA0LDIzIFoiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzJiM2E0YSIgc3Ryb2tlLXdpZHRoPSIxLjYiLz4KPC9zdmc+';
+
+    /** feature 의 k 값(0~3) 으로 아이콘을 고른다. 세암(2)·암암(3) 은 같은 "잠김" 아이콘. */
+    function iconFor(k) {
+        if (k === 0) return ICON_EXPOSED;
+        if (k === 1) return ICON_TIDAL;
+        return ICON_SUBMERGED; // 2, 3
+    }
+
+    var _iconStyleCache = {}; // k → ol.style.Style (매 렌더마다 새로 안 만들려고 캐시)
+    function singleStyle(k) {
+        if (!_iconStyleCache[k]) {
+            _iconStyleCache[k] = new ol.style.Style({
+                image: new ol.style.Icon({ src: iconFor(k), scale: 0.7, anchor: [0.5, 0.5] })
+            });
+        }
+        return _iconStyleCache[k];
+    }
 
     /**
      * /hazard_rocks.json 을 한 번만 받아 온다. 두 번째 호출부터는 같은 Promise 재사용.
@@ -82,28 +111,22 @@
     }
 
     /**
-     * 클러스터 레이어의 스타일 함수를 만든다. 뭉친 개수가 1개면 원래 점 스타일,
+     * 클러스터 레이어의 스타일 함수를 만든다. 뭉친 개수가 1개면 종류별 아이콘,
      * 여러 개면 개수를 적은 숫자 원으로 그린다.
-     * @param {string} color - 이 카테고리(노출암/간출암류)의 대표 색
+     * @param {string} clusterColor - 뭉친 숫자 원의 색(카테고리 대표색)
      * @returns {function(ol.Feature): ol.style.Style}
      */
-    function makeClusterStyle(color) {
+    function makeClusterStyle(clusterColor) {
         return function (clusterFeature) {
             var members = clusterFeature.get('features');
             if (members.length === 1) {
-                return new ol.style.Style({
-                    image: new ol.style.Circle({
-                        radius: 4,
-                        fill: new ol.style.Fill({ color: color }),
-                        stroke: new ol.style.Stroke({ color: '#fff', width: 1 })
-                    })
-                });
+                return singleStyle(members[0].get('k'));
             }
             var radius = Math.min(10 + Math.sqrt(members.length) * 2, 22);
             return new ol.style.Style({
                 image: new ol.style.Circle({
                     radius: radius,
-                    fill: new ol.style.Fill({ color: color }),
+                    fill: new ol.style.Fill({ color: clusterColor }),
                     stroke: new ol.style.Stroke({ color: '#fff', width: 1.5 })
                 }),
                 text: new ol.style.Text({
@@ -117,18 +140,30 @@
 
     /**
      * feature 배열(GeoJSON) 로 클러스터 벡터 레이어를 만든다(처음엔 숨김).
+     * 지도 줌이 SPREAD_ZOOM 이상이 되면 뭉치기 거리를 0으로 낮춰 낱개 마커로
+     * 고정 표시한다(반대로 줌아웃하면 다시 뭉친다).
+     * @param {ol.Map} map
      * @param {Array<ol.Feature>} features
-     * @param {string} color
+     * @param {string} clusterColor
      * @returns {ol.layer.Vector}
      */
-    function buildClusterLayer(features, color) {
+    function buildClusterLayer(map, features, clusterColor) {
         var clusterSource = new ol.source.Cluster({
             distance: CLUSTER_DISTANCE,
             source: new ol.source.Vector({ features: features })
         });
+
+        var applyDistanceForZoom = function () {
+            var zoom = map.getView().getZoom();
+            var target = (typeof zoom === 'number' && zoom >= SPREAD_ZOOM) ? 0 : CLUSTER_DISTANCE;
+            if (clusterSource.getDistance() !== target) clusterSource.setDistance(target);
+        };
+        map.getView().on('change:resolution', applyDistanceForZoom);
+        applyDistanceForZoom();
+
         return new ol.layer.Vector({
             source: clusterSource,
-            style: makeClusterStyle(color),
+            style: makeClusterStyle(clusterColor),
             visible: false,
             zIndex: 55
         });
@@ -166,8 +201,8 @@
             var exposedFeatures = all.filter(function (f) { return f.get('k') === 0; });
             var rockFeatures = all.filter(function (f) { return f.get('k') !== 0; });
 
-            exposedLayer = buildClusterLayer(exposedFeatures, EXPOSED_COLOR);
-            rockLayer = buildClusterLayer(rockFeatures, ROCK_COLOR);
+            exposedLayer = buildClusterLayer(map, exposedFeatures, CLUSTER_COLOR.exposed);
+            rockLayer = buildClusterLayer(map, rockFeatures, CLUSTER_COLOR.rock);
             map.addLayer(exposedLayer);
             map.addLayer(rockLayer);
 
