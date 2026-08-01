@@ -99,3 +99,10 @@
 - 플러드필 알고리즘 본체(고립 판정)는 아직 미구현 — 다음 단계.
 - **제주**: 물빠짐 격자 자체가 제주를 대상 해역에서 제외하므로(BADA 갯벌 셀 부재),
   이 기능도 제주 확장 전까지는 서해·남해만 대상.
+  - `scripts/build_jeju_bathy_grid.js` — 제주 전용 BADA 격자 1회성 전처리.
+    `build_tide_field.js`의 순수 로직(BADA 로드/Z₀ IDW/버킷 앵커)을 그대로 재사용하되
+    대상 해역만 JEJU_BBOX로, Z₀ seed 표준항만 제주권(제주·서귀포·성산포·모슬포 등)으로 바꾼다.
+    산출물은 `data/tide_field/grid_meta_jeju.json`/`anchors_jeju.json`로 **서해·남해
+    grid_meta.json과 별도 파일** — 기존 물빠짐 지도 UI·API에는 영향 없음.
+    실행: `node scripts/build_jeju_bathy_grid.js` (`data/bathymetry/`에 실제 BADA
+    파일 필요, 서해·남해와 공유). 이 산출물을 쓰는 앵커 재산정·수집 확장은 별도 단계.
