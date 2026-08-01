@@ -23,7 +23,7 @@
 | **C. 검증 루프** | 감사→수정→재감사로 구멍 메우기 | 🔄 5차 감사 완료(70/70) | `_dashboard/audit/`, `_dashboard/loop/audit_sim.js`·`fix_cell.js` |
 | **D. 정합·재수집** | 수집범위 확정→DRF 재수집→대조검증 (3단계) · 기술기준=기준법-급 | ✅ 범위확정 70/70 · 🔄 phase② 수집중 | `_dashboard/scope/`+`_MASTER_WORKLIST.md`, `_dashboard/loop/`(map_scope·collect_fix·shared_refs·stub_rules) |
 | **E. 챗봇 엔진(query)** | 검색+프로필필터+답변(점진공개·인용) | ⏳ 예정 | `local_server/routes/`·`services/`(신규), `_CHATBOT.md` |
-| **F. 앱 UI + 피드백** | 챗봇 화면 + 관리자 검토 + 따봉/후보 배선 | 🎨 관리자 목업만 | `index2.html`(AI탭), `_feedback/`, `_candidates/` |
+| **F. 앱 UI + 피드백** | 챗봇 화면 + 관리자 검토 + 따봉/후보 배선 | 🔄 답변엔진 실배선·검증완료(2026-08-01), 사용자 화면(ai_chat.js) 목업 잔재 발견(지도·원문보기·내부필드노출)+대안8종 설계 완료·구현 대기, 관리자 검토UI는 여전히 목업 | `index2.html`(AI탭), `client/js/ai-chat/ai_chat.js`, `_feedback/`, `_candidates/` |
 | **G. 운영(자율성장)** | 개정 diff 재인제스트 + 피드백 학습 | ⏳ 예정 | 재인제스트 스케줄러(신규), `_legacy/` |
 
 ## 3. 단계별 상세
