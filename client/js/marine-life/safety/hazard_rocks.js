@@ -21,17 +21,10 @@
  * [로드 순서] ocean_map.js 다음 · life_safety.js 바로 앞 (marine-life/safety 그룹)
  * [데이터 출처] 국립해양조사원 개방海 전자해도 TL_UWTROC_P_LV5(간출암·세암·암암)·
  *              TL_LNDARE_P_LV5(노출암), local_server/scripts/build_hazard_rocks.js 로 생성.
- *              간출암(k=1)의 수치(v)는 해도 기준면(약최저저조면) 위 노출 높이(m) —
- *              우리 조위 데이터(TideBED/조석표)와 같은 기준면이라 잠김경고 계산에서
- *              보정 없이 바로 비교한다(계산은 서버 services/hazard_rocks_submersion.js,
+ *              수치(v)는 해도 기준면(약최저저조면) 위 노출 높이(m) — 우리 조위
+ *              데이터(TideBED/조석표)와 같은 기준면이라 잠김경고 계산에서 보정
+ *              없이 바로 비교한다(계산은 서버 services/hazard_rocks_submersion.js,
  *              야간 배치 KST 23:30 직후 1회, 이 파일은 그 결과만 폴링해 표시).
- *              노출암(k=0)의 수치(v)는 KHOA 원본에 높이 필드가 아예 없어(직접
- *              확인) 국토지리정보원 표고점(브이월드 다운로드 카탈로그)에서 반경
- *              100m 이내 그럴듯한(0~20m) 값을 찾아 채운 추정치다(전체의 63.9%만
- *              확보, 나머지는 v 없음). 표고점은 평균해수면 기준이라 Z₀(평균해면고)
- *              를 더해 간출암과 같은 약최저저조면 기준으로 맞췄다(생성:
- *              local_server/scripts/build_hazard_rocks_elevation.js). 그래서 팝업에
- *              "(추정)" 을 붙여 간출암 실측값과 구분한다.
  *
  * [성능 설계 — 지연 로드 + 클러스터]
  *  - 데이터(~700KB, gzip 전송 시 수십KB)는 두 버튼 중 하나를 처음 누를 때만
@@ -126,11 +119,7 @@
     function popupText(feature) {
         var k = feature.get('k');
         var v = feature.get('v');
-        if (k === 0) {
-            // 노출암 높이(v)는 국토지리정보원 표고점을 근처에서 찾아 추정한 값이라
-            // (KHOA 실측인 간출암 VALSOU와 출처가 다름) "추정"임을 명시한다.
-            return (typeof v === 'number') ? ('노출암 · 높이 약 ' + v.toFixed(1) + 'm(추정)') : '노출암';
-        }
+        if (k === 0) return '노출암';
         if (k === 2) return '세암 · 저조 시 수면과 같은 높이';
         if (k === 3) return '암암 · 항상 물속';
         // k === 1 (간출암)
