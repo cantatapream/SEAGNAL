@@ -244,9 +244,13 @@
      * [연계] ← _wrapTabSwitchers() 의 switchMainTab 래퍼(targetId==='ocean-map-section')
      */
     function _restoreOceanOverlays() {
-        if (!_suspended.length) return;
+        // [버그수정] 예전엔 "_suspended 가 비어 있으면(=해양안전 진입 전 켜진 게
+        //   없던 흔한 경우) 통째로 return" 했다. 그러면 바로 아래 "해양안전에서
+        //   켠 것(물빠짐·위험물 등) 끄기" 단계까지 같이 건너뛰어, 해양안전에서
+        //   토글한 오버레이가 해양종합정보로 넘어와도 그대로 켜진 채 남았다.
+        //   꺼야 할 대상은 _suspended 유무와 무관하므로 얼리 리턴을 없앤다.
         _silently(function () {
-            // 해양안전에서 켠 것(물빠짐 등)이 남아 있으면 먼저 끈다
+            // 해양안전에서 켠 것(물빠짐·위험물 등)이 남아 있으면 먼저 끈다
             var on = document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active');
             for (var i = 0; i < on.length; i++) {
                 if (on[i].classList.contains('active')) on[i].click();

@@ -108,6 +108,7 @@
     "ocean_cctv.js",
     "ai_chat.js",
     "index2_patch.js",
+    "hazard_rocks.js",
     "life_safety.js"
   ]
 }

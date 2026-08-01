@@ -775,9 +775,13 @@
            [연계] js/marine-life/safety/life_safety.js — body.ls-safety 토글 */
         body.ls-mode.ls-safety #ocean-overlay-controls > * { display: none !important; }
         body.ls-mode.ls-safety #ocean-mudflat-toggle-btn,
+        body.ls-mode.ls-safety #ocean-exposed-toggle-btn,
+        body.ls-mode.ls-safety #ocean-rock-toggle-btn,
         body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
+        /* 노출암/간출암 등 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
+           [연계] js/marine-life/safety/hazard_rocks.js */
+        #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn { display: none; }
         body.ls-mode.ls-safety #ocean-search-container,
-        body.ls-mode.ls-safety #ocean-northup-btn,
         body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
         /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
         body.ls-mode.ls-safety #ocean-topleft-controls { top: 12px; }
@@ -1499,6 +1503,18 @@
             line-height: 1;
             pointer-events: none;
             filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+        }
+        /* 위험물(간출암·노출암) 탭 시 뜨는 말풍선 */
+        .hazard-rock-popup {
+            background: rgba(15, 25, 50, 0.92);
+            border: 1px solid rgba(120, 150, 200, 0.3);
+            border-radius: 0.5rem;
+            padding: 0.35rem 0.6rem;
+            color: #fff;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            pointer-events: none;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
         }
         /* 물빠짐 로딩 스피너 (중앙) */
         #mudflat-loading {
@@ -3153,6 +3169,12 @@
                                 <button class="ocean-basemap-item" data-basemap="osm">
                                     <i class="fa-solid fa-earth-asia"></i> 세계지도
                                 </button>
+                                <!-- 위성지도(국토교통부 브이월드) — 이 메뉴는 해양생활안전의
+                                     '해양안전' 하위탭도 그대로 빌려 쓴다(#ocean-topleft-controls).
+                                     [연계] js/ocean-map/map/ocean_map.js createVworldLayer -->
+                                <button class="ocean-basemap-item" data-basemap="vworld">
+                                    <i class="fa-solid fa-satellite"></i> 위성지도
+                                </button>
                             </div>
                         </div>
 
@@ -3230,6 +3252,20 @@
                         <button class="ocean-overlay-btn" id="ocean-mudflat-toggle-btn" title="물빠짐 (서해·남해 갯벌 노출)">
                             <i class="fa-solid fa-water"></i>
                             <span class="ocean-overlay-label" data-line1="물빠짐">물빠짐</span>
+                        </button>
+                        <!-- 노출암 / 간출암 등 토글: js/marine-life/safety/hazard_rocks.js 가 바인딩.
+                             둘 다 해양안전(해양생활안전 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고). 두 버튼은 서로
+                             독립적이라 동시에 켤 수 있다.
+                             [데이터] /hazard_rocks.json (국립해양조사원 전자해도 간출암·노출암, 정적,
+                                      두 버튼 모두 처음 누를 때만 지연 로드) -->
+                        <button class="ocean-overlay-btn" id="ocean-exposed-toggle-btn" title="노출암 (항상 물 위)">
+                            <i class="fa-solid fa-mountain"></i>
+                            <span class="ocean-overlay-label" data-line1="노출암">노출암</span>
+                        </button>
+                        <button class="ocean-overlay-btn" id="ocean-rock-toggle-btn" title="간출암 등 (저조 시 드러남)">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span class="ocean-overlay-label" data-line1="간출암" data-line2="등">간출암 등</span>
                         </button>
                         <!-- 천기 토글: js/shrt_forecast_layer.js 가 바인딩 (이전 이름: "기타 기상")
                              클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
@@ -4757,6 +4793,11 @@
 
     <!-- index2 전용 패치: 종합기상 탭 + 헤더 유지 -->
     <script src="js/core/index2_patch.js"></script>
+
+    <!-- 위험물(간출암·노출암) 레이어 — 해양안전 하위탭 전용. ocean_map.js buildMap()
+         이 window.initHazardRocksLayer 를 찾으므로 그 스크립트 다음이면 순서 무관하지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
+    <script src="js/marine-life/safety/hazard_rocks.js"></script>
 
     <!-- 해양생활안전 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
