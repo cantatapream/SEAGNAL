@@ -7,9 +7,9 @@
 
 - 하단 메인탭 이름이 **해양생활안전**으로 바뀝니다.
 - 하위탭이 **[해양안전 | 해양생활]** 두 개로 바뀌고, **해양안전이 먼저** 열립니다.
-  - **해양안전** — **물빠짐(갯벌 노출 예측)** + **위험물(간출암·노출암)** 지도.
-    해양종합정보 지도를 그대로 빌려 쓰되 물빠짐 · 위험물 · 안내 · 배경지도 ·
-    내 위치만 남기고 나머지 버튼은 감춥니다.
+  - **해양안전** — **물빠짐(갯벌 노출 예측)** + **노출암 / 간출암 등**(두 버튼,
+    동시에 켤 수 있음) 지도. 해양종합정보 지도를 그대로 빌려 쓰되 물빠짐 ·
+    노출암 · 간출암 등 · 안내 · 배경지도 · 내 위치만 남기고 나머지 버튼은 감춥니다.
   - **해양생활** — 기존 6개 활동(바다낚시·서핑·해수욕·스킨스쿠버·갯벌체험·바다갈라짐)을
     화면 **오른쪽 세로 버튼**으로 갈아끼웁니다.
     단, **바다갈라짐**은 표가 넓어 오른쪽 버튼에 가리므로, 이때만 버튼이
@@ -31,7 +31,7 @@
 | 파일 | 역할 |
 |------|------|
 | `life_safety.js` | 진입 트리거, 하위탭 교체, 우측 활동 레일, 배경지도 피커, 안내 팝업, GPS·갯바위/선상 연결 |
-| `hazard_rocks.js` | 위험물(간출암·노출암) 토글 레이어 + 클릭 시 종류·수치 말풍선 (해양안전 전용) |
+| `hazard_rocks.js` | 노출암/간출암 등 토글 레이어(독립 2개, 클러스터 표시) + 클릭 시 종류·수치 말풍선 (해양안전 전용) |
 
 ## 설계 요점 — 기존 코드를 고치지 않고 재사용
 
@@ -112,7 +112,7 @@ mudflat.js / sea_parting.js)을 그대로 씁니다.** 이 모듈은 겉껍데�
 | `ocean-map/map/ocean_map.js` | `window.oceanCreateKhoaLayer`(해아름 배경지도) · `window.oceanCreateVworldLayer`(위성지도) |
 | `shared/ui/ui_modal.js` | `window.showSeagnalModal` (안내 팝업) |
 | `marine-life/*` | `window.getFishingMap` / `getScubaMap` / `getMudflatMap` / `window._surfing.map` |
-| `hazard_rocks.js` | 위험물 레이어(`/hazard_rocks.json`) — `window.initHazardRocksLayer` 는 `ocean_map.js` buildMap() 이 직접 호출(이 파일이 부르지 않음) |
+| `hazard_rocks.js` | 노출암/간출암 등 레이어(`/hazard_rocks.json`, 두 버튼 첫 클릭 때 지연 로드) — `window.initHazardRocksLayer` 는 `ocean_map.js` buildMap() 이 직접 호출(이 파일이 부르지 않음) |
 
 ## 수정 시 주의사항
 

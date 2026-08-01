@@ -775,11 +775,12 @@
            [연계] js/marine-life/safety/life_safety.js — body.ls-safety 토글 */
         body.ls-mode.ls-safety #ocean-overlay-controls > * { display: none !important; }
         body.ls-mode.ls-safety #ocean-mudflat-toggle-btn,
-        body.ls-mode.ls-safety #ocean-hazard-toggle-btn,
+        body.ls-mode.ls-safety #ocean-exposed-toggle-btn,
+        body.ls-mode.ls-safety #ocean-rock-toggle-btn,
         body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
-        /* 위험물 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
+        /* 노출암/간출암 등 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
            [연계] js/marine-life/safety/hazard_rocks.js */
-        #ocean-hazard-toggle-btn { display: none; }
+        #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn { display: none; }
         body.ls-mode.ls-safety #ocean-search-container,
         body.ls-mode.ls-safety #ocean-northup-btn,
         body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
@@ -3253,13 +3254,19 @@
                             <i class="fa-solid fa-water"></i>
                             <span class="ocean-overlay-label" data-line1="물빠짐">물빠짐</span>
                         </button>
-                        <!-- 위험물(간출암·노출암) 토글: js/marine-life/safety/hazard_rocks.js 가 바인딩.
-                             해양안전(해양생활안전 하위탭)에서만 노출 — 해양종합정보에서는 CSS 로 숨김
-                             (아래 body.ls-mode.ls-safety 규칙 참고).
-                             [데이터] /hazard_rocks.json (국립해양조사원 전자해도 간출암·노출암, 정적) -->
-                        <button class="ocean-overlay-btn" id="ocean-hazard-toggle-btn" title="위험물 (간출암·노출암)">
+                        <!-- 노출암 / 간출암 등 토글: js/marine-life/safety/hazard_rocks.js 가 바인딩.
+                             둘 다 해양안전(해양생활안전 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고). 두 버튼은 서로
+                             독립적이라 동시에 켤 수 있다.
+                             [데이터] /hazard_rocks.json (국립해양조사원 전자해도 간출암·노출암, 정적,
+                                      두 버튼 모두 처음 누를 때만 지연 로드) -->
+                        <button class="ocean-overlay-btn" id="ocean-exposed-toggle-btn" title="노출암 (항상 물 위)">
+                            <i class="fa-solid fa-mountain"></i>
+                            <span class="ocean-overlay-label" data-line1="노출암">노출암</span>
+                        </button>
+                        <button class="ocean-overlay-btn" id="ocean-rock-toggle-btn" title="간출암 등 (저조 시 드러남)">
                             <i class="fa-solid fa-triangle-exclamation"></i>
-                            <span class="ocean-overlay-label" data-line1="위험물">위험물</span>
+                            <span class="ocean-overlay-label" data-line1="간출암" data-line2="등">간출암 등</span>
                         </button>
                         <!-- 천기 토글: js/shrt_forecast_layer.js 가 바인딩 (이전 이름: "기타 기상")
                              클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
