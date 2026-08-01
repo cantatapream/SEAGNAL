@@ -10,7 +10,9 @@
   - **해양안전** — **물빠짐(갯벌 노출 예측)** + **노출암 / 간출암 등**(두 버튼,
     동시에 켤 수 있음) 지도. 해양종합정보 지도를 그대로 빌려 쓰되 물빠짐 ·
     노출암 · 간출암 등 · 안내 · 배경지도 · 진북 정렬 · 내 위치만 남기고
-    나머지 버튼은 감춥니다.
+    나머지 버튼은 감춥니다. 간출암 등이 켜진 동안엔 서버가 미리 계산해 둔
+    **잠김경고**(3시간 이내 잠기는 암초)를 폴링해, 낱개로 보이는 마커에 빨간
+    펄스 테두리 + "OO:OO 후 완전히 잠김" 카운트다운을 얹습니다.
   - **해양생활** — 기존 6개 활동(바다낚시·서핑·해수욕·스킨스쿠버·갯벌체험·바다갈라짐)을
     화면 **오른쪽 세로 버튼**으로 갈아끼웁니다.
     단, **바다갈라짐**은 표가 넓어 오른쪽 버튼에 가리므로, 이때만 버튼이
@@ -113,7 +115,7 @@ mudflat.js / sea_parting.js)을 그대로 씁니다.** 이 모듈은 겉껍데�
 | `ocean-map/map/ocean_map.js` | `window.oceanCreateKhoaLayer`(해아름 배경지도) · `window.oceanCreateVworldLayer`(위성지도) |
 | `shared/ui/ui_modal.js` | `window.showSeagnalModal` (안내 팝업) |
 | `marine-life/*` | `window.getFishingMap` / `getScubaMap` / `getMudflatMap` / `window._surfing.map` |
-| `hazard_rocks.js` | 노출암/간출암 등 레이어(`/hazard_rocks.json`, 두 버튼 첫 클릭 때 지연 로드) — `window.initHazardRocksLayer` 는 `ocean_map.js` buildMap() 이 직접 호출(이 파일이 부르지 않음) |
+| `hazard_rocks.js` | 노출암/간출암 등 레이어(`/hazard_rocks.json`, 두 버튼 첫 클릭 때 지연 로드) — `window.initHazardRocksLayer` 는 `ocean_map.js` buildMap() 이 직접 호출(이 파일이 부르지 않음). 잠김경고는 `GET /api/hazard-rocks/submersion`(`local_server/routes/hazard_rocks.js`) 1분 폴링 — 계산은 `local_server/scripts/TIDE_FIELD_README.md`(간출암 잠김경고 절) 참고 |
 
 ## 수정 시 주의사항
 

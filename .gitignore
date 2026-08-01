@@ -116,6 +116,14 @@ local_server/data/tide_field/frames_meta.json.tmp
 local_server/data/tide_field/anchor_probe_override.json
 local_server/data/tide_field/anchor_probe_override.json.tmp
 
+# 간출암 잠김경고 — 제주 앵커 1분 조위곡선 캐시(hazard_rocks_tide_collector 가
+# KST 23:30 물빠짐 직후 재생성) + 잠김 교차시각 산출물(hazard_rocks_submersion 이
+# 그 직후 재계산). anchors.json(build_hazard_rock_anchors.js 산출물)은 물빠짐과
+# 동일하게 추적(소스 데이터에서 결정적으로 재생성 가능하지만 "준비중" 방지용 커밋).
+local_server/data/hazard_rocks/curves/*.json
+local_server/data/hazard_rocks/submersion.json
+local_server/data/hazard_rocks/submersion.json.tmp
+
 # 특보예측 검증 청별 중간 산출물(재생성 가능 — 최종 RECALIB_national.md 만 추적)
 local_server/analysis/wave_leadtime/reports/recalib_*.log
 local_server/analysis/wave_leadtime/reports/RECALIB_jeju.md

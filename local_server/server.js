@@ -284,6 +284,7 @@ app.use(require('./routes/ocean4'));        // 해양현황 파고/zone-forecast
 app.use(require('./routes/vsby_smallzone')); // 해구별예측(소해구) 시정 캐시 API
 app.use(require('./routes/ocean5'));        // 해저지형/기타 해양 API
 app.use(require('./routes/tide_field'));    // 서해·남해 물빠짐(갯벌 노출) 예측 API (Phase 2)
+app.use(require('./routes/hazard_rocks'));  // 간출암 잠김경고 API (3시간 이내 잠기는 암초)
 app.use(require('./routes/assistant'));     // AI 음성/텍스트 비서 (자연어 질문 → 실데이터 답변)
 app.use(require('./routes/legal'));          // 해양법령 챗봇(나리야) — 관리자 리뷰 검증 API + 현 DB 답변
 

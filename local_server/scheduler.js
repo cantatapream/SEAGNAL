@@ -206,6 +206,11 @@ const khoaStreamCache = require('./services/khoa_stream_cache');
 //   곡선을 동시성 풀로 수집해 data/tide_field/curves/ 에 영속 저장.
 //   롤링 윈도우 + 부족분만 재호출 (다운타임 self-heal). KST 23:30 1일 1회.
 const tideFieldCollector = require('./services/tide_field_collector');
+// [간출암 잠김경고] 제주 앵커 1분 조위곡선 배치 수집기. 물빠짐과 TideBED 키를
+//   공유하므로 물빠짐 수집이 끝난 직후 이어서(순차) 호출한다 — 동시 발사 금지.
+const hazardRocksTideCollector = require('./services/hazard_rocks_tide_collector');
+// [간출암 잠김경고] 조위와 VALSOU 비교해 잠김 교차시각 산출 — 곡선 수집 직후 재계산.
+const hazardRocksSubmersion = require('./services/hazard_rocks_submersion');
 
 
 const DUCKDNS_CONFIG = {
@@ -2577,7 +2582,22 @@ async function init() {
             log('🌊 물빠짐 앵커 곡선 수집 시작 (오늘~+2일, KST)...');
             tideFieldCollector.collectTideField({ log })
                 .then(r => log(`✅ 물빠짐 곡선 수집 결과: ${JSON.stringify(r)}`))
-                .catch(err => log(`⚠️ 물빠짐 곡선 수집 오류: ${err.message}`));
+                .catch(err => log(`⚠️ 물빠짐 곡선 수집 오류: ${err.message}`))
+                .finally(() => {
+                    // [간출암 잠김경고] 제주 앵커 수집 — 물빠짐과 동일 TideBED 키를
+                    //   쓰므로 동시 발사를 피해 물빠짐 완료 직후 이어서 실행한다.
+                    log('🪨 간출암 제주 앵커 곡선 수집 시작...');
+                    hazardRocksTideCollector.collectHazardRockTides({ log })
+                        .then(r => log(`✅ 간출암 제주 앵커 수집 결과: ${JSON.stringify(r)}`))
+                        .catch(err => log(`⚠️ 간출암 제주 앵커 수집 오류: ${err.message}`))
+                        .finally(() => {
+                            // [간출암 잠김경고] 곡선이 갱신됐으니 잠김 교차시각도 재계산.
+                            //   무거운 스캔(분단위×3일×전체 암초)이라 배치당 1회만 수행.
+                            log('⏱️ 간출암 잠김 교차시각 재계산 시작...');
+                            hazardRocksSubmersion.computeAllCrossings({ log })
+                                .catch(err => log(`⚠️ 간출암 잠김 교차시각 계산 오류: ${err.message}`));
+                        });
+                });
         }
 
         if (process.env.FLY_ALLOC_ID) {
