@@ -73,7 +73,7 @@
     function singleStyle(k) {
         if (!_iconStyleCache[k]) {
             _iconStyleCache[k] = new ol.style.Style({
-                image: new ol.style.Icon({ src: iconFor(k), scale: 0.23, anchor: [0.5, 0.5] })
+                image: new ol.style.Icon({ src: iconFor(k), scale: 0.345, anchor: [0.5, 0.5] })
             });
         }
         return _iconStyleCache[k];
@@ -269,8 +269,25 @@
     };
 
     /**
-     * 한 레이어에 대해 클릭을 처리한다. 클러스터(멤버 2개 이상)를 눌렀으면 그
-     * 범위로 확대하고, 낱개 포인트를 눌렀으면 말풍선을 띄운다.
+     * 말풍선에 여러 줄(번호 매김)을 넣는다. 좌표가 사실상 같은(또는 최대 줌에서도
+     * 안 갈라지는) 지점 여러 개를 한 번에 보여줄 때 쓴다.
+     * @param {ol.Overlay} bubble
+     * @param {Array<ol.Feature>} members
+     */
+    function fillBubbleList(bubble, members) {
+        var html = members.map(function (f, i) {
+            return '<div>' + (i + 1) + '. ' + popupText(f) + '</div>';
+        }).join('');
+        bubble.getElement().innerHTML = html;
+    }
+
+    /**
+     * 한 레이어에 대해 클릭을 처리한다.
+     *   - 낱개 포인트 → 종류·수치 말풍선.
+     *   - 클러스터(멤버 2개 이상) → 그 범위로 확대해 더 잘게 갈라지도록 시도한다.
+     *     단, 두 지점이 사실상 같은 좌표(1m 미만 차이)이거나 이미 최대 줌이라
+     *     더 확대해도 안 갈라지는 경우엔 헛돌지 않고 번호 매긴 목록 말풍선으로
+     *     한 번에 보여준다(예: "1. 간출암 · 저조 시 1.0m 노출 / 2. 세암 · …").
      * @param {ol.Map} map
      * @param {ol.MapBrowserEvent} evt
      * @param {ol.layer.Vector} layer
@@ -285,9 +302,22 @@
 
         var members = hit.get('features');
         if (members.length > 1) {
+            var view = map.getView();
             var extent = ol.extent.createEmpty();
             members.forEach(function (f) { ol.extent.extend(extent, f.getGeometry().getExtent()); });
-            map.getView().fit(extent, { padding: [60, 60, 60, 60], maxZoom: 18, duration: 300 });
+            var wide = (extent[2] - extent[0]) >= 1 || (extent[3] - extent[1]) >= 1; // 1m 이상 벌어져 있나
+            var atMaxZoom = view.getZoom() >= view.getMaxZoom() - 0.05;
+
+            if (wide && !atMaxZoom) {
+                // 더 확대하면 갈라질 여지가 있음 → 그 범위로 확대(다음 탭에서 낱개로 분리됨)
+                view.fit(extent, { padding: [60, 60, 60, 60], maxZoom: view.getMaxZoom(), duration: 300 });
+            } else {
+                // 좌표가 사실상 같거나(원본 데이터 중복) 이미 최대 줌 — 더 확대해도
+                // 안 갈라지므로 번호 매긴 목록으로 한 번에 보여준다.
+                var listBubble = ensureBubble(map);
+                fillBubbleList(listBubble, members);
+                listBubble.setPosition(hit.getGeometry().getCoordinates());
+            }
             return true;
         }
 
