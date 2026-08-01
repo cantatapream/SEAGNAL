@@ -48,7 +48,9 @@
     var rockLayer = null;      // 간출암류(k=1,2,3)
     var bubbleOverlay = null;  // 탭한 지점에 뜨는 말풍선
 
-    var CLUSTER_COLOR = { exposed: '#8d6e63', rock: '#ff7043' }; // 뭉친 숫자 원 색(노출암 갈색/간출암류 주황)
+    var ICON_SCALE = 0.2875;     // 낱개·클러스터 아이콘 배율(원본 120px 대비) — 40px SVG 시절의 0.23을 1.25배
+    var ICON_HALF_H = 60 * ICON_SCALE; // 아이콘 표시 높이의 절반(px) — 숫자 배지 위치 계산용
+    var BADGE_RADIUS = 9;        // 클러스터 숫자 배지(원) 반지름(px)
 
     // ── 낱개 마커 아이콘(바위 종류별, 사용자 제공 이미지) ─────────────────
     // 사용자가 준 3장의 참고 이미지를 그대로 쓴다. 원본은 서로 여백·비율이
@@ -73,7 +75,7 @@
     function singleStyle(k) {
         if (!_iconStyleCache[k]) {
             _iconStyleCache[k] = new ol.style.Style({
-                image: new ol.style.Icon({ src: iconFor(k), scale: 0.345, anchor: [0.5, 0.5] })
+                image: new ol.style.Icon({ src: iconFor(k), scale: ICON_SCALE, anchor: [0.5, 0.5] })
             });
         }
         return _iconStyleCache[k];
@@ -113,30 +115,51 @@
     }
 
     /**
-     * 클러스터 레이어의 스타일 함수를 만든다. 뭉친 개수가 1개면 종류별 아이콘,
-     * 여러 개면 개수를 적은 숫자 원으로 그린다.
-     * @param {string} clusterColor - 뭉친 숫자 원의 색(카테고리 대표색)
-     * @returns {function(ol.Feature): ol.style.Style}
+     * 지금 켜져 있는 버튼 조합으로 클러스터 대표 아이콘을 고른다.
+     *   노출암만 켜짐 / 둘 다 켜짐 → 노출암 이미지
+     *   간출암 등만 켜짐          → 세암·암암(잠김) 이미지
+     * 두 레이어가 이 함수를 공유하므로, 버튼을 새로 켜고 끌 때마다(다음 렌더
+     * 시점에) 자동으로 다시 계산된다 — 레이어 생성 시점에 고정하지 않는다.
+     * @returns {string} 아이콘 data URI
      */
-    function makeClusterStyle(clusterColor) {
+    function clusterIconFor() {
+        var rockOn = !!(rockLayer && rockLayer.getVisible());
+        var exposedOn = !!(exposedLayer && exposedLayer.getVisible());
+        return (rockOn && !exposedOn) ? ICON_SUBMERGED : ICON_EXPOSED;
+    }
+
+    /**
+     * 클러스터 레이어의 스타일 함수. 뭉친 개수가 1개면 종류별 아이콘 그대로,
+     * 여러 개면 대표 아이콘 위에 개수 배지(작은 원+숫자)를 거의 붙여서 얹는다
+     * (기존의 색깔 원+숫자 방식 대신).
+     * @returns {function(ol.Feature): Array<ol.style.Style>|ol.style.Style}
+     */
+    function makeClusterStyle() {
         return function (clusterFeature) {
             var members = clusterFeature.get('features');
             if (members.length === 1) {
                 return singleStyle(members[0].get('k'));
             }
-            var radius = Math.min(10 + Math.sqrt(members.length) * 2, 22);
-            return new ol.style.Style({
-                image: new ol.style.Circle({
-                    radius: radius,
-                    fill: new ol.style.Fill({ color: clusterColor }),
-                    stroke: new ol.style.Stroke({ color: '#fff', width: 1.5 })
+            var badgeDy = ICON_HALF_H + BADGE_RADIUS + 1; // 아이콘 꼭대기에 배지 아랫변이 거의 붙게
+            return [
+                new ol.style.Style({
+                    image: new ol.style.Icon({ src: clusterIconFor(), scale: ICON_SCALE, anchor: [0.5, 0.5] })
                 }),
-                text: new ol.style.Text({
-                    text: String(members.length),
-                    font: 'bold 11px sans-serif',
-                    fill: new ol.style.Fill({ color: '#fff' })
+                new ol.style.Style({
+                    image: new ol.style.Circle({
+                        radius: BADGE_RADIUS,
+                        displacement: [0, badgeDy],
+                        fill: new ol.style.Fill({ color: '#c0392b' }),
+                        stroke: new ol.style.Stroke({ color: '#fff', width: 1.5 })
+                    }),
+                    text: new ol.style.Text({
+                        text: members.length > 999 ? '999+' : String(members.length),
+                        font: 'bold 10px sans-serif',
+                        fill: new ol.style.Fill({ color: '#fff' }),
+                        offsetY: -badgeDy
+                    })
                 })
-            });
+            ];
         };
     }
 
@@ -146,10 +169,9 @@
      * 고정 표시한다(반대로 줌아웃하면 다시 뭉친다).
      * @param {ol.Map} map
      * @param {Array<ol.Feature>} features
-     * @param {string} clusterColor
      * @returns {ol.layer.Vector}
      */
-    function buildClusterLayer(map, features, clusterColor) {
+    function buildClusterLayer(map, features) {
         var clusterSource = new ol.source.Cluster({
             distance: CLUSTER_DISTANCE,
             source: new ol.source.Vector({ features: features })
@@ -165,7 +187,7 @@
 
         return new ol.layer.Vector({
             source: clusterSource,
-            style: makeClusterStyle(clusterColor),
+            style: makeClusterStyle(),
             visible: false,
             zIndex: 55
         });
@@ -203,8 +225,8 @@
             var exposedFeatures = all.filter(function (f) { return f.get('k') === 0; });
             var rockFeatures = all.filter(function (f) { return f.get('k') !== 0; });
 
-            exposedLayer = buildClusterLayer(map, exposedFeatures, CLUSTER_COLOR.exposed);
-            rockLayer = buildClusterLayer(map, rockFeatures, CLUSTER_COLOR.rock);
+            exposedLayer = buildClusterLayer(map, exposedFeatures);
+            rockLayer = buildClusterLayer(map, rockFeatures);
             map.addLayer(exposedLayer);
             map.addLayer(rockLayer);
 
@@ -253,6 +275,10 @@
                 btn.classList.toggle('active', visible);
                 if (visible && window.trackUsage) window.trackUsage(usageKey);
                 if (!visible && bubbleOverlay) bubbleOverlay.setPosition(undefined);
+                // 클러스터 대표 아이콘(clusterIconFor)이 "두 레이어의 켜짐 상태 조합"에
+                // 따라 바뀌므로, 방금 안 바뀐 다른 레이어도 다시 그려야 아이콘이 즉시 갱신된다.
+                if (exposedLayer && exposedLayer !== layer) exposedLayer.changed();
+                if (rockLayer && rockLayer !== layer) rockLayer.changed();
             }
         });
     }
