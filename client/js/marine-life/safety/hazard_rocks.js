@@ -49,8 +49,6 @@
     var bubbleOverlay = null;  // 탭한 지점에 뜨는 말풍선
 
     var ICON_SCALE = 0.2875;     // 낱개·클러스터 아이콘 배율(원본 120px 대비) — 40px SVG 시절의 0.23을 1.25배
-    var ICON_HALF_H = 60 * ICON_SCALE; // 아이콘 표시 높이의 절반(px) — 숫자 배지 위치 계산용
-    var BADGE_RADIUS = 9;        // 클러스터 숫자 배지(원) 반지름(px)
 
     // ── 낱개 마커 아이콘(바위 종류별, 사용자 제공 이미지) ─────────────────
     // 사용자가 준 3장의 참고 이미지를 그대로 쓴다. 원본은 서로 여백·비율이
@@ -130,9 +128,9 @@
 
     /**
      * 클러스터 레이어의 스타일 함수. 뭉친 개수가 1개면 종류별 아이콘 그대로,
-     * 여러 개면 대표 아이콘 위에 개수 배지(작은 원+숫자)를 거의 붙여서 얹는다
-     * (기존의 색깔 원+숫자 방식 대신).
-     * @returns {function(ol.Feature): Array<ol.style.Style>|ol.style.Style}
+     * 여러 개면 대표 아이콘 안쪽에 개수를 텍스트로만 얹는다(따로 원 배지를
+     * 두지 않음 — 원이 두 겹이라 지저분하다는 피드백 반영).
+     * @returns {function(ol.Feature): ol.style.Style}
      */
     function makeClusterStyle() {
         return function (clusterFeature) {
@@ -140,26 +138,16 @@
             if (members.length === 1) {
                 return singleStyle(members[0].get('k'));
             }
-            var badgeDy = ICON_HALF_H + BADGE_RADIUS + 1; // 아이콘 꼭대기에 배지 아랫변이 거의 붙게
-            return [
-                new ol.style.Style({
-                    image: new ol.style.Icon({ src: clusterIconFor(), scale: ICON_SCALE, anchor: [0.5, 0.5] })
-                }),
-                new ol.style.Style({
-                    image: new ol.style.Circle({
-                        radius: BADGE_RADIUS,
-                        displacement: [0, badgeDy],
-                        fill: new ol.style.Fill({ color: '#c0392b' }),
-                        stroke: new ol.style.Stroke({ color: '#fff', width: 1.5 })
-                    }),
-                    text: new ol.style.Text({
-                        text: members.length > 999 ? '999+' : String(members.length),
-                        font: 'bold 10px sans-serif',
-                        fill: new ol.style.Fill({ color: '#fff' }),
-                        offsetY: -badgeDy
-                    })
+            return new ol.style.Style({
+                image: new ol.style.Icon({ src: clusterIconFor(), scale: ICON_SCALE, anchor: [0.5, 0.5] }),
+                text: new ol.style.Text({
+                    text: members.length > 999 ? '999+' : String(members.length),
+                    font: 'bold 11px sans-serif',
+                    fill: new ol.style.Fill({ color: '#fff' }),
+                    stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.65)', width: 2.5 }),
+                    offsetY: 4 // 아이콘 중심보다 살짝 아래(물 부분)로 내려 가독성 확보
                 })
-            ];
+            });
         };
     }
 
