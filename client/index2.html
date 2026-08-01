@@ -613,11 +613,11 @@
         }
 
         /* ══════════════════════════════════════════════════════════
-           해양생활안전 (해양생활 탭 10회 연타로 열리는 시험 화면)
+           해양안전생활 (해양생활 탭 10회 연타로 열리는 시험 화면)
            ══════════════════════════════════════════════════════════
            [연계] js/marine-life/safety/life_safety.js
            [상태 클래스]
-            - body.ls-mode : 해양생활안전 화면에 진입한 상태(이 세션 동안만)
+            - body.ls-mode : 해양안전생활 화면에 진입한 상태(이 세션 동안만)
             - body.ls-life : 그중 "해양생활" 하위탭(활동 화면)을 보고 있는 상태
            [구성]
             - 좌측 상단 #ls-topleft-controls : 배경지도 피커 + 안내(ⓘ)
@@ -777,6 +777,7 @@
         body.ls-mode.ls-safety #ocean-mudflat-toggle-btn,
         body.ls-mode.ls-safety #ocean-exposed-toggle-btn,
         body.ls-mode.ls-safety #ocean-rock-toggle-btn,
+        body.ls-mode.ls-safety #ocean-cctv-toggle-btn,
         body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
         /* 노출암/간출암 등 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
            [연계] js/marine-life/safety/hazard_rocks.js */
@@ -817,6 +818,10 @@
         }
         body.ls-mode.ls-safety.ls-mudflat-on .ol-attribution {
             bottom: calc(var(--ls-bottom-chrome) + 2.25rem + 6px) !important;
+        }
+        /* 축척 막대는 우측 하단이라 물빠짐 슬라이더(좌측/전폭)와 안 겹침 — 탭바만 피하면 됨 */
+        body.ls-mode.ls-safety .ol-scale-line {
+            bottom: calc(var(--ls-bottom-chrome) + 6px) !important;
         }
         /* 범례("갯벌 노출")는 출처표기 위로 */
         body.ls-mode.ls-safety.ls-mudflat-on #mudflat-legend {
@@ -965,8 +970,21 @@
             padding: 0;
         }
         .ocean-info-panel li { margin: 4px 0; }
-        /* 출처 줄 — 본문 맨 하단에 구분선 + 작은 회색 글씨 (ocean_cctv.js 가 주입) */
-        .ocean-info-panel .ocean-info-src {
+        /* 해양안전(ⓘ) — 여러 기능 안내를 한 팝업에 이어붙일 때 구간 제목.
+           life_safety.js 가 oceanInfoTabHtml() 여러 개를 이어붙여 넣는다. */
+        .ls-info-section-title {
+            margin: 14px 0 6px 0;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+        .ls-info-section-title:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+        /* 출처 줄 — 본문 맨 하단에 구분선 + 작은 회색 글씨 (ocean_cctv.js 가 주입).
+           .ocean-info-panel 안(17탭 팝업)이든 밖(life_safety.js 가 이어붙인 팝업)이든
+           동일하게 적용되도록 조상 제한 없이 클래스만으로 건다. */
+        .ocean-info-src {
             margin-top: 12px;
             padding-top: 8px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -2037,6 +2055,16 @@
             font-size: 11px;
             color: #333;
             text-shadow: none;
+        }
+        /* 축척 막대(거리 눈금) — 출처표기와 같은 원리로 우측 하단, 탭바에 안 가리게 */
+        .ol-scale-line {
+            left: auto !important;
+            right: 8px !important;
+            bottom: calc(var(--main-tab-height, 68px) + 8px) !important;
+            top: auto !important;
+        }
+        body.sub-tabs-open .ol-scale-line {
+            bottom: calc(var(--main-tab-height, 68px) + var(--sub-tab-height, 50px) + 8px) !important;
         }
 
         /* ── 해양생활 풀스크린 지도: 출처표기·범례 위치 보정 ─────────────
@@ -3197,7 +3225,7 @@
                                 <button class="ocean-basemap-item" data-basemap="osm">
                                     <i class="fa-solid fa-earth-asia"></i> 세계지도
                                 </button>
-                                <!-- 위성지도(국토교통부 브이월드) — 이 메뉴는 해양생활안전의
+                                <!-- 위성지도(국토교통부 브이월드) — 이 메뉴는 해양안전생활의
                                      '해양안전' 하위탭도 그대로 빌려 쓴다(#ocean-topleft-controls).
                                      [연계] js/ocean-map/map/ocean_map.js createVworldLayer -->
                                 <button class="ocean-basemap-item" data-basemap="vworld">
@@ -3282,7 +3310,7 @@
                             <span class="ocean-overlay-label" data-line1="물빠짐">물빠짐</span>
                         </button>
                         <!-- 노출암 / 간출암 등 토글: js/marine-life/safety/hazard_rocks.js 가 바인딩.
-                             둘 다 해양안전(해양생활안전 하위탭)에서만 노출 — 해양종합정보에서는
+                             둘 다 해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
                              CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고). 두 버튼은 서로
                              독립적이라 동시에 켤 수 있다.
                              [데이터] /hazard_rocks.json (국립해양조사원 전자해도 간출암·노출암, 정적,
@@ -4432,7 +4460,7 @@
             </section>
 
             <!-- ================================================================
-                 섹션: 해양생활안전 - 해양안전 (하위탭 [해양안전 | 해양생활] 중 왼쪽)
+                 섹션: 해양안전생활 - 해양안전 (하위탭 [해양안전 | 해양생활] 중 왼쪽)
                  ----------------------------------------------------------------
                  [역할] 하위탭 전환의 "자리표시" 섹션.
                    실제 화면은 물빠짐(갯벌 노출 예측)이 붙어 있는 해양종합정보 지도
@@ -4454,7 +4482,7 @@
         </main>
 
         <!-- ================================================================
-             해양생활안전 화면 전용 컨트롤 (body.ls-mode.ls-life 일 때만 표출)
+             해양안전생활 화면 전용 컨트롤 (body.ls-mode.ls-life 일 때만 표출)
              ----------------------------------------------------------------
              섹션마다 따로 두지 않고 화면에 고정(fixed)해 두고, 활동을 바꿔도
              같은 자리에 그대로 있게 한다. 동작은 life_safety.js 가 담당.
@@ -4583,7 +4611,7 @@
             <!-- [임시 숨김] 이안류 탭 — 테스트 중이라 사용자 미노출. 공개 시 style 제거. -->
             <button class="sub-tab-btn" data-target="ripcurrent-section" style="display:none;">이안류</button>
         </nav>
-        <!-- 해양생활안전 서브탭 (해양안전 | 해양생활)
+        <!-- 해양안전생활 서브탭 (해양안전 | 해양생활)
              ----------------------------------------------------------------
              해양생활 탭 10회 연타로 진입했을 때만 위 #ocean-life-sub-tabs 대신 사용된다
              (life_safety.js 가 TAB_GROUP_SUBTABS['ocean-life-group'] 를 이 id 로 교체).
@@ -4827,7 +4855,7 @@
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <script src="js/marine-life/safety/hazard_rocks.js"></script>
 
-    <!-- 해양생활안전 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
+    <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
     <script src="js/marine-life/safety/life_safety.js?v=LifeSafety_20260731c"></script>
 
