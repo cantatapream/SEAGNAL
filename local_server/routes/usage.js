@@ -360,6 +360,7 @@ const USAGE_CSV_LABELS = {
     'ocean.basemap.coast': '배경 · 해안도',
     'ocean.basemap.osm': '배경 · 세계지도',
     'ocean.basemap.vworld': '배경 · 위성지도',
+    'ocean.hazard_rocks': '위험물(간출암·노출암)',
     'shrt.rain_prob': '강수확률',
     'shrt.rain_amount': '강수량',
     'shrt.snow': '적설',
