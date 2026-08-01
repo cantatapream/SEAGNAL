@@ -913,6 +913,13 @@
                 window.initTideFieldLayer(oceanMap);
             }
 
+            // [위험물] 간출암·노출암 포인트 레이어 (index2 전용).
+            //   레이어 자체는 항상 만들어 두되(visible:false), 토글 버튼이
+            //   해양안전(life_safety.js)에서만 CSS 로 노출되므로 실사용도 그쪽에 한정.
+            if (window.__SEAGNAL_PAGE === 'index2' && window.initHazardRocksLayer) {
+                window.initHazardRocksLayer(oceanMap);
+            }
+
             console.log('[OceanMap] 지도 초기화 완료 (해아름 WMS)');
         } catch (error) {
             console.error('[OceanMap] 초기화 오류:', error);
@@ -1126,6 +1133,13 @@
         if (window.handleOceanMarkerClick) {
             const hit = window.handleOceanMarkerClick(oceanMap, evt);
             if (hit) return; // 마커 클릭이면 마커 핸들러에서 처리
+        }
+
+        // 위험물(간출암·노출암) 마커 클릭 확인 (해양안전 전용, 레이어 꺼져 있으면 항상 false)
+        // [연계] js/marine-life/safety/hazard_rocks.js
+        if (typeof window._hazardRocksTryHandleClick === 'function') {
+            const hit = window._hazardRocksTryHandleClick(oceanMap, evt);
+            if (hit) return;
         }
 
         // [공통 핀] 배경(해역) 클릭 시 클릭 지점에 핀 1개 표시(다음 클릭 시 이동).
