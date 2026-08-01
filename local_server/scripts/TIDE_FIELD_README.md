@@ -55,3 +55,29 @@
 ## 주의
 - 개발 중 대규모 라이브 수집 금지(쿼터/네트워크). `limitAnchors` 로 소량 검증.
 - TideBED API 키는 `services/tide_collector.js` 가 관리(3키 라운드로빈). 노출 금지.
+
+## 확장 — 간출암 잠김경고 (hazard_rocks)
+
+해양안전 지도의 간출암 마커에 "3시간 이내 잠김" 경고(빨간 펄스 테두리 + 카운트다운)를
+띄우는 기능. 이 물빠짐 파이프라인을 그대로 재사용/확장한다.
+
+- **서해·남해**: 위 앵커 곡선(`data/tide_field/curves/`)을 그대로 재사용 — 신규 수집 없음.
+- **제주**: 물빠짐이 애초에 대상 해역에서 제외(BADA 갯벌 셀 기반이라 제주와 무관)하므로,
+  전용 앵커(제주 간출암 위치 기준 0.1° 버킷, 17개)를 별도로 두고 수집한다.
+  - `scripts/build_hazard_rock_anchors.js` — 전처리. 산출물 `data/hazard_rocks/anchors.json`.
+  - `services/hazard_rocks_tide_collector.js` — 배치 수집. `data/hazard_rocks/curves/`.
+    TideBED 키를 물빠짐과 공유하므로 **동시 발사 금지** — scheduler 가 물빠짐 수집이
+    끝난 직후 이어서(순차) 호출한다(같은 KST 23:30 슬롯).
+- **동해**(위도≥36·경도≥128): TideBED 자체가 이 해역을 제공하지 않는다(사용자 확인,
+  2026-08-01). `client/tide_data/tide_data_{year}.js`(연간 조석표, 표준항 만조/간조
+  극값)를 표준항 IDW 보간 후 반정현파(half-cosine)로 두 극값 사이를 근사해 교차시각을
+  해석적으로 구한다 — 새 수집 없음(기존 정적 데이터 재사용).
+- **잠김시각 계산**: `services/hazard_rocks_submersion.js` 의 `computeAllCrossings()` 가
+  간출암마다 VALSOU(간출 높이)와 η(t)의 상향 교차(=잠김) 시각을 오늘~+2일 윈도우
+  전체에서 찾아 `data/hazard_rocks/submersion.json` 에 저장한다. 무거운 연산(분단위×3일
+  ×전체 암초)이라 scheduler 가 제주 앵커 수집 직후 1회만 호출한다.
+- **API**: `GET /api/hazard-rocks/submersion` (`routes/hazard_rocks.js`) — 저장된 결과와
+  "지금"을 빼는 가벼운 연산만. `{ warnings: { rockId: etaMin(분) } }`, 0<etaMin≤180만 포함.
+- **프론트**: `client/js/marine-life/safety/hazard_rocks.js` 가 간출암 등 레이어가 켜져
+  있는 동안 이 API 를 1분마다 폴링해, 낱개로 보이는(클러스터 안 뭉친) 간출암 마커에만
+  경고를 얹는다.

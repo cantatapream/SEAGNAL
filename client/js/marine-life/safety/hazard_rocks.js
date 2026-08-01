@@ -5,11 +5,15 @@
  *         드러난 바위(노출암)와 저조 시 드러나는 바위(간출암/세암/암암)를 각각
  *         독립적으로 켤 수 있고(동시에 켜도 됨), 탭하면 종류(+수치)를 말풍선으로
  *         보여준다. 포인트가 많은 지역은 줌 레벨에 따라 숫자로 뭉쳐 표시하다가
- *         확대할수록 낱개로 펼쳐진다(OpenLayers 클러스터).
+ *         확대할수록 낱개로 펼쳐진다(OpenLayers 클러스터). 간출암 등이 켜져 있는
+ *         동안엔 서버가 미리 계산한 잠김경고(3시간 이내 잠기는 암초)를 1분마다
+ *         폴링해, 낱개로 보이는 간출암 위에 빨간 펄스 테두리 + "OO:OO 후 완전히
+ *         잠김" 카운트다운을 얹는다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : 없음 (OpenLayers 만 사용, 해아름 레이어와 독립)
- *  - 서버 API      : 없음 — /hazard_rocks.json 정적 파일을 직접 fetch(지연 로드)
+ *  - 서버 API      : GET /hazard_rocks.json (정적, 지연 로드) ·
+ *                    GET /api/hazard-rocks/submersion (잠김경고, 간출암 등 켜진 동안 1분 폴링)
  *  - 마크업        : index2.html 의 #ocean-exposed-toggle-btn(노출암),
  *                    #ocean-rock-toggle-btn(간출암 등) — 둘 다 해양안전 전용
  *  - 나를 쓰는 곳  : ocean_map.js buildMap() → window.initHazardRocksLayer(oceanMap)
@@ -18,8 +22,9 @@
  * [데이터 출처] 국립해양조사원 개방海 전자해도 TL_UWTROC_P_LV5(간출암·세암·암암)·
  *              TL_LNDARE_P_LV5(노출암), local_server/scripts/build_hazard_rocks.js 로 생성.
  *              수치(v)는 해도 기준면(약최저저조면) 위 노출 높이(m) — 우리 조위
- *              데이터(TideBED/조석표)와 같은 기준면이라 향후 "지금 잠기는지" 경고
- *              기능에서 보정 없이 바로 비교 가능(services/tide_field_common.js 참고).
+ *              데이터(TideBED/조석표)와 같은 기준면이라 잠김경고 계산에서 보정
+ *              없이 바로 비교한다(계산은 서버 services/hazard_rocks_submersion.js,
+ *              야간 배치 KST 23:30 직후 1회, 이 파일은 그 결과만 폴링해 표시).
  *
  * [성능 설계 — 지연 로드 + 클러스터]
  *  - 데이터(~700KB, gzip 전송 시 수십KB)는 두 버튼 중 하나를 처음 누를 때만
@@ -47,6 +52,16 @@
     var exposedLayer = null;   // 노출암(k=0)
     var rockLayer = null;      // 간출암류(k=1,2,3)
     var bubbleOverlay = null;  // 탭한 지점에 뜨는 말풍선
+
+    // ── 잠김경고(간출암 k=1 전용) — 서버가 야간 배치로 미리 계산해 둔 잠김
+    //   교차시각을 폴링해, 3시간 이내 잠기는 "낱개로 보이는" 마커에만 펄스
+    //   테두리 + 카운트다운을 얹는다(뭉친 클러스터엔 어느 암초인지 특정 못하므로 안 얹음).
+    var WARNING_URL = '/api/hazard-rocks/submersion';
+    var WARNING_POLL_MS = 60000; // 서버 캐시(max-age=60)와 맞춤
+    var _warningTargets = {};    // rockId(문자열) → 잠기는 절대시각(ms)
+    var _warningOverlays = new Map(); // rockId → {overlay, textEl, targetMs}
+    var _warningPollTimer = null;
+    var _warningCountdownTimer = null;
 
     var ICON_SCALE = 0.2875;     // 낱개·클러스터 아이콘 배율(원본 120px 대비) — 40px SVG 시절의 0.23을 1.25배
 
@@ -217,8 +232,117 @@
             rockLayer = buildClusterLayer(map, rockFeatures);
             map.addLayer(exposedLayer);
             map.addLayer(rockLayer);
+            // 줌 변화로 클러스터가 다시 묶이거나 풀릴 때마다 경고 오버레이도 다시 배치.
+            rockLayer.getSource().on('change', function () { refreshWarningOverlays(map); });
 
             console.log('[HazardRocks] 로드 완료 — 노출암', exposedFeatures.length, '건 · 간출암류', rockFeatures.length, '건');
+        });
+    }
+
+    // ── 잠김경고 폴링/표시 ───────────────────────────────────────────────
+
+    /**
+     * /api/hazard-rocks/submersion 을 받아 rockId→잠기는 절대시각(ms) 맵으로 저장하고
+     * 화면 오버레이를 다시 배치한다. 실패해도 조용히 무시(다음 폴링에서 재시도).
+     * @param {ol.Map} map
+     */
+    function fetchWarnings(map) {
+        fetch(WARNING_URL).then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data || !data.success) return;
+                var now = Date.now();
+                var targets = {};
+                Object.keys(data.warnings || {}).forEach(function (id) {
+                    targets[id] = now + data.warnings[id] * 60000; // etaMin(분) → 절대시각
+                });
+                _warningTargets = targets;
+                refreshWarningOverlays(map);
+            }).catch(function () { /* 무시 — 다음 폴링에서 재시도 */ });
+    }
+
+    /**
+     * 간출암 등 레이어가 켜져 있는 동안만 폴링한다(꺼지면 stopWarningPolling).
+     * @param {ol.Map} map
+     */
+    function startWarningPolling(map) {
+        if (_warningPollTimer) return; // 이미 폴링 중
+        fetchWarnings(map);
+        _warningPollTimer = setInterval(function () { fetchWarnings(map); }, WARNING_POLL_MS);
+        _warningCountdownTimer = setInterval(updateAllCountdownTexts, 30000);
+    }
+    function stopWarningPolling() {
+        if (_warningPollTimer) { clearInterval(_warningPollTimer); _warningPollTimer = null; }
+        if (_warningCountdownTimer) { clearInterval(_warningCountdownTimer); _warningCountdownTimer = null; }
+        _warningTargets = {};
+        clearAllWarningOverlays();
+    }
+
+    /** 경고 오버레이 1개(펄스 테두리 + 카운트다운 텍스트) 생성. */
+    function createWarningOverlay(map) {
+        var el = document.createElement('div');
+        el.className = 'hazard-rock-warning';
+        el.innerHTML = '<div class="hazard-rock-warning-text"></div><div class="hazard-rock-warning-glow"></div>';
+        var overlay = new ol.Overlay({ element: el, positioning: 'center-center', stopEvent: false });
+        map.addOverlay(overlay);
+        return { overlay: overlay, textEl: el.querySelector('.hazard-rock-warning-text'), targetMs: 0 };
+    }
+    /** "OO:OO 후 완전히 잠김" 텍스트 갱신(시:분, 지금부터 남은 시간). */
+    function updateCountdownText(entry) {
+        var remainMin = Math.max(0, Math.round((entry.targetMs - Date.now()) / 60000));
+        var hh = String(Math.floor(remainMin / 60)).padStart(2, '0');
+        var mm = String(remainMin % 60).padStart(2, '0');
+        entry.textEl.textContent = hh + ':' + mm + ' 후 완전히 잠김';
+    }
+    function updateAllCountdownTexts() {
+        _warningOverlays.forEach(updateCountdownText);
+    }
+    function clearAllWarningOverlays() {
+        _warningOverlays.forEach(function (entry) {
+            var m = entry.overlay.getMap();
+            if (m) m.removeOverlay(entry.overlay);
+        });
+        _warningOverlays.clear();
+    }
+
+    /**
+     * 지금 화면에 "낱개 마커로" 보이는 간출암(k=1) 중 경고 대상만 오버레이를
+     * 붙이고, 더는 해당 안 되는(뭉쳐졌거나 꺼진) 오버레이는 지운다.
+     * @param {ol.Map} map
+     */
+    function refreshWarningOverlays(map) {
+        var now = Date.now();
+        var activeIds = {}; // rockId → {coord, targetMs}
+        if (rockLayer && rockLayer.getVisible()) {
+            rockLayer.getSource().getFeatures().forEach(function (clusterFeature) {
+                var members = clusterFeature.get('features');
+                if (members.length !== 1) return; // 뭉쳐 있으면 어느 암초인지 특정 불가 — 건너뜀
+                var f = members[0];
+                if (f.get('k') !== 1) return; // 간출암만(세암/암암/노출암은 잠김 개념 없음)
+                var id = String(f.get('id'));
+                var targetMs = _warningTargets[id];
+                if (targetMs == null || targetMs <= now) return;
+                activeIds[id] = { coord: f.getGeometry().getCoordinates(), targetMs: targetMs };
+            });
+        }
+        // 더는 대상이 아닌 오버레이 제거
+        _warningOverlays.forEach(function (entry, id) {
+            if (!activeIds[id]) {
+                var m = entry.overlay.getMap();
+                if (m) m.removeOverlay(entry.overlay);
+                _warningOverlays.delete(id);
+            }
+        });
+        // 대상 오버레이 생성/갱신
+        Object.keys(activeIds).forEach(function (id) {
+            var info = activeIds[id];
+            var entry = _warningOverlays.get(id);
+            if (!entry) {
+                entry = createWarningOverlay(map);
+                _warningOverlays.set(id, entry);
+            }
+            entry.targetMs = info.targetMs;
+            entry.overlay.setPosition(info.coord);
+            updateCountdownText(entry);
         });
     }
 
@@ -267,6 +391,10 @@
                 // 따라 바뀌므로, 방금 안 바뀐 다른 레이어도 다시 그려야 아이콘이 즉시 갱신된다.
                 if (exposedLayer && exposedLayer !== layer) exposedLayer.changed();
                 if (rockLayer && rockLayer !== layer) rockLayer.changed();
+                // 잠김경고는 간출암 등 레이어가 켜져 있을 때만 폴링(꺼지면 즉시 중단).
+                if (btnId === 'ocean-rock-toggle-btn') {
+                    if (visible) startWarningPolling(map); else stopWarningPolling();
+                }
             }
         });
     }

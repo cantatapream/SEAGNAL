@@ -1516,6 +1516,34 @@
             pointer-events: none;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
         }
+        /* 간출암 잠김경고 — 3시간 이내 잠기는 개별 마커에 얹는 펄스 테두리 + 카운트다운 */
+        .hazard-rock-warning {
+            position: relative;
+            pointer-events: none;
+        }
+        .hazard-rock-warning-glow {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 34px; height: 34px;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            border: 2px solid rgba(220, 38, 38, 0.9);
+            animation: hazard-rock-warning-pulse 1.8s ease-in-out infinite;
+        }
+        @keyframes hazard-rock-warning-pulse {
+            0%, 100% { box-shadow: 0 0 6px 4px rgba(220, 38, 38, 0.85); }
+            50%      { box-shadow: 0 0 18px 11px rgba(220, 38, 38, 0.15); }
+        }
+        .hazard-rock-warning-text {
+            position: absolute;
+            left: 50%; bottom: calc(50% + 20px);
+            transform: translateX(-50%);
+            white-space: nowrap;
+            color: #dc2626;
+            font-weight: 700;
+            font-size: 0.72rem;
+            text-shadow: 0 0 3px rgba(255, 255, 255, 0.95), 0 0 2px rgba(255, 255, 255, 0.95);
+        }
         /* 물빠짐 로딩 스피너 (중앙) */
         #mudflat-loading {
             position: fixed; inset: 0; z-index: 1400;

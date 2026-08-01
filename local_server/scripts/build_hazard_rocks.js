@@ -131,9 +131,10 @@ function main() {
 
     const features = [];
     let withValue = 0;
+    let nextId = 0;
     for (const r of uw) {
         const kind = WATLEV_KIND[r.WATLEV] || 1;
-        const props = { k: kind };
+        const props = { id: nextId++, k: kind };
         const v = parseFloat(r.VALSOU);
         if (r.VALSOU && r.VALSOU.indexOf('*') === -1 && !Number.isNaN(v)) {
             props.v = Math.round(Math.abs(v) * 10) / 10;
@@ -142,7 +143,7 @@ function main() {
         features.push({ type: 'Feature', properties: props, geometry: { type: 'Point', coordinates: [r.lon, r.lat] } });
     }
     for (const r of ln) {
-        features.push({ type: 'Feature', properties: { k: 0 }, geometry: { type: 'Point', coordinates: [r.lon, r.lat] } });
+        features.push({ type: 'Feature', properties: { id: nextId++, k: 0 }, geometry: { type: 'Point', coordinates: [r.lon, r.lat] } });
     }
 
     const geojson = { type: 'FeatureCollection', features };
