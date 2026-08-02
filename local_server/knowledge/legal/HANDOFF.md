@@ -276,6 +276,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-02 22:45 KST] ✅완료 — 챗봇 질의확장(L-57 1차구현) 오푸스 코드리뷰 — Gemini 호출부 3건 수정, 실키 검증은 불가
+커밋 44a512fd(질의확장+threshold) 리뷰. [고침] expandQueryTerms(): ①Promise.race 타임아웃 → SDK config.httpOptions.timeout(요청을 실제 abort, 미해제 setTimeout 제거) ②thinkingBudget -1→0(검색 앞단 동기호출이라 dynamic thinking이면 4초 타임아웃에 걸려 확장이 조용히 무력화될 위험) ③responseMimeType:'application/json' 추가(저장소 관례 통일). [문제없음] callGemini 시그니처·반환({success,text}) 일치, search() async 전환 호출부는 routes/legal.js 한 곳뿐(전수 grep), 기존 bracket 정규식은 코드블록도 견딤. [실측·중요] AI확장 없이 문제질의 재현하면 결과가 버그 당시와 동일(해수욕장법 8점 1위, 15건) — topScore=8이라 MIN_KEEP(2.4)·hop게이트(4) 둘 다 통과. 즉 threshold·hop게이팅은 이 케이스를 못 걷어내고 효과는 AI확장 하나에 전부 걸려있음. 1위 점수가 질의마다 5~26으로 흔들려 절대임계값이 무의미하고, 근거없이 올리면 정상질의(선박안전검사 top=5)를 죽이므로 상수는 건드리지 않음. hop 페이지는 s:0으로 threshold 필터 뒤에 붙어 관련도 검사를 아예 우회함(스샷의 '해수욕장법 줄줄이'가 이 경로). [검증불가] 이 세션에도 GEMINI_API_KEY 없음(.env 부재) → 실키 라이브 검증 못 함. 다음: ①실키로 배위흡연 질의 라이브 확인(로그 caller=Legal-QueryExpand) ②L-57 조치③ 답변↔근거목록 교차확인 구현(hop 우회도 여기서 해소). _LESSONS.md L-57에 리뷰결과 상세 append.
+
+
 ### [2026-08-02 22:11 KST] ✅완료 — 챗봇 검색 품질버그 진단 — '배 위 흡연' 오검색
 사용자가 실배포 챗봇에 라이브 질의(배 위에서 흡연하면?)해서 발견. 답변본문은 정직(확인 안됨)했으나 근거법령 15건이 무관(해수욕장법 등). 코드 직접 확인해 원인 2가지 확정: ①termsOf()가 2글자 미만 토큰 전부 버림(t.length>=2)—'배'가 검색어에서 아예 빠짐 ②search()가 관련도 threshold 없이 PRIMARY_TOPK(10)+HOP_MAX(5)=15건을 무조건 채워 sourcesOut으로 내보냄, answer(AI답변)와 sourcesOut이 서로 독립 파이프라인이라 '확인안됨' 결론이 근거목록에 전혀 반영 안 됨. 설계상 원인: Phase E 원래 계획(직접매칭+glossary+임베딩)에서 임베딩이 한번도 구현 안 됨. 해결방향 사용자 확정: 검색 직전 Gemini 호출 1회 추가해 질문의도 기반 키워드 확장(임베딩보다 가벼운 중간단계) + 관련도 낮으면 소스 적게 표시 + AI 답변이 확인안됨이면 근거목록도 연동해서 비움. _LESSONS.md L-57 기재, MASTER_PLAN.md Phase E에 '다음 작업 최우선순위'로 반영 완료. 코드 구현은 아직 안 함(진단·설계 확정까지만) — 다음 세션/작업이 바로 이어서 구현하면 됨.
 

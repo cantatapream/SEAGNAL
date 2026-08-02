@@ -445,11 +445,23 @@ function warmup() {
 }
 setImmediate(warmup);
 
-// 질문의도 분석 전용(짧게·빠르게) — 답변합성(ANSWER_MODEL)과 같은 모델·같은 thinkingConfig를
-// 재사용한다(2.5 계열은 thinkingBudget 정수만 받음, 위 SYNTH_CONFIG 주석 참고 — 여기서 새 값을
-// 만들지 않고 이미 검증된 조합을 그대로 씀).
-const QUERY_EXPAND_CONFIG = { temperature: 0.1, thinkingConfig: { thinkingBudget: -1 } };
+// 질문의도 분석 전용(짧게·빠르게) — 모델은 답변합성과 같은 ANSWER_MODEL을 쓰되 설정은 다르다.
+// 이 호출은 사용자 질문마다 검색 *앞단에서 동기로* 끼어들어 그대로 체감 대기시간이 되므로:
+//  - thinkingBudget:0 (사고 끔) — 키워드 몇 개 뽑는 데 사고가 필요 없고, -1(dynamic)로 두면
+//    응답이 수 초로 늘어 아래 타임아웃에 걸려 확장이 조용히 무력화될 수 있다.
+//    (2.5 계열은 thinkingLevel 미지원·thinkingBudget 정수만 받음 — 위 SYNTH_CONFIG 주석 참고.)
+//  - responseMimeType:'application/json' — 이 저장소의 다른 Gemini JSON 호출과 같은 관례
+//    (assistant.js·marine_forecast_processor.js 등). 군더더기 문장 없이 배열만 받는다.
+//  - httpOptions.timeout — 타임아웃을 Promise.race로 감싸면 우리 쪽만 포기하고 HTTP 요청은
+//    백그라운드에서 계속 돈다. 이 옵션은 SDK가 AbortController로 요청을 실제로 끊는다(@google/genai
+//    1.47.0 dist 확인). 실패·타임아웃 시 callGemini가 {success:false}를 주고 우리는 []로 폴백한다.
 const QUERY_EXPAND_TIMEOUT_MS = 4000;
+const QUERY_EXPAND_CONFIG = {
+  temperature: 0.1,
+  thinkingConfig: { thinkingBudget: 0 },
+  responseMimeType: 'application/json',
+  httpOptions: { timeout: QUERY_EXPAND_TIMEOUT_MS },
+};
 
 /**
  * L-57(2026-08-01): termsOf()는 기계적 토큰화라 1글자 명사("배"등)를 버리고 사전에 없는
@@ -466,13 +478,13 @@ async function expandQueryTerms(query) {
     `질문에 그 글자가 그대로 없어도 관련 있을 만한 법률 용어를 포함해라 ` +
     `(예: "배 위에서 흡연"→선박,흡연,화기,금연,선내). 다른 설명 없이 JSON 배열로만 답하라. ` +
     `예: ["선박","흡연","화기"]`;
-  const timeout = new Promise(resolve => setTimeout(() => resolve(null), QUERY_EXPAND_TIMEOUT_MS));
   try {
-    const result = await Promise.race([
-      gemini.callGemini({ model: ANSWER_MODEL, contents: prompt, config: QUERY_EXPAND_CONFIG, caller: 'Legal-QueryExpand' }),
-      timeout,
-    ]);
-    if (!result || !result.success || !result.text) return [];
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: QUERY_EXPAND_CONFIG, caller: 'Legal-QueryExpand',
+    });
+    if (!result.success || !result.text) return [];
+    // JSON 모드라 보통은 배열 그대로 오지만, 모델이 코드블록·설명을 붙이는 경우까지 견디도록
+    // 첫 '['~마지막 ']'만 떼어 파싱한다(파싱 실패는 아래 catch에서 [] 폴백).
     const m = result.text.match(/\[[\s\S]*\]/);
     if (!m) return [];
     const arr = JSON.parse(m[0]);
