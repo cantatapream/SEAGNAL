@@ -283,7 +283,7 @@ router.post('/api/legal/ask', async (req, res) => {
 
   const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
   try {
-    const { sources, contextPages } = legalRetriever.search(q, { canonicalOnly });
+    const { sources, contextPages } = await legalRetriever.search(q, { canonicalOnly });
     const sourcesOut = sources.map(s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop, citationChain: s.citationChain || [] }));
 
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');

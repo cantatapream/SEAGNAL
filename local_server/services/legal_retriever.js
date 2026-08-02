@@ -445,14 +445,53 @@ function warmup() {
 }
 setImmediate(warmup);
 
+// 질문의도 분석 전용(짧게·빠르게) — 답변합성(ANSWER_MODEL)과 같은 모델·같은 thinkingConfig를
+// 재사용한다(2.5 계열은 thinkingBudget 정수만 받음, 위 SYNTH_CONFIG 주석 참고 — 여기서 새 값을
+// 만들지 않고 이미 검증된 조합을 그대로 씀).
+const QUERY_EXPAND_CONFIG = { temperature: 0.1, thinkingConfig: { thinkingBudget: -1 } };
+const QUERY_EXPAND_TIMEOUT_MS = 4000;
+
 /**
- * 하이브리드 검색: canonicalOnly 필터 → 메타점수 → glossary 강제후보 병합 → 본문 직접매칭 재점수
- * → 상위 페이지 그래프 1홉 확장. 클라 아코디언용 sources와 답변합성용 contextPages를 함께 반환.
+ * L-57(2026-08-01): termsOf()는 기계적 토큰화라 1글자 명사("배"등)를 버리고 사전에 없는
+ * 유의어(흡연↔화기)도 못 잇는다 — 검색 직전 Gemini에게 "이 질문과 관련될 만한 법률
+ * 키워드"를 짧게 물어 allTerms에 보태 보완한다. 실패해도(키 없음·타임아웃·파싱 실패)
+ * 조용히 빈 배열로 폴백 — 이 단계가 죽어도 기존 키워드 검색만으로 계속 동작해야 한다.
+ * @param {string} query
+ * @returns {Promise<string[]>} AI가 제안한 추가 검색어(실패 시 [])
+ */
+async function expandQueryTerms(query) {
+  if (!gemini.hasAnyKey()) return [];
+  const prompt = `사용자가 한국 해양수산 법령 챗봇에 다음 질문을 했다: "${query}"\n` +
+    `이 질문과 관련될 수 있는 한국 법률 용어·개념을 한국어 명사로 최대 8개까지 뽑아라. ` +
+    `질문에 그 글자가 그대로 없어도 관련 있을 만한 법률 용어를 포함해라 ` +
+    `(예: "배 위에서 흡연"→선박,흡연,화기,금연,선내). 다른 설명 없이 JSON 배열로만 답하라. ` +
+    `예: ["선박","흡연","화기"]`;
+  const timeout = new Promise(resolve => setTimeout(() => resolve(null), QUERY_EXPAND_TIMEOUT_MS));
+  try {
+    const result = await Promise.race([
+      gemini.callGemini({ model: ANSWER_MODEL, contents: prompt, config: QUERY_EXPAND_CONFIG, caller: 'Legal-QueryExpand' }),
+      timeout,
+    ]);
+    if (!result || !result.success || !result.text) return [];
+    const m = result.text.match(/\[[\s\S]*\]/);
+    if (!m) return [];
+    const arr = JSON.parse(m[0]);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(t => typeof t === 'string' && t.trim()).map(t => t.trim()).slice(0, 8);
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
+ * 하이브리드 검색: canonicalOnly 필터 → 메타점수(+AI 질의확장) → glossary 강제후보 병합
+ * → 본문 직접매칭 재점수 → 관련도 낮은 꼬리 컷 → 상위 페이지 그래프 1홉 확장. 클라
+ * 아코디언용 sources와 답변합성용 contextPages를 함께 반환.
  * @param {string} query
  * @param {{canonicalOnly?:boolean}} opts
- * @returns {{sources:Array, contextPages:Array}}
+ * @returns {Promise<{sources:Array, contextPages:Array}>}
  */
-function search(query, opts) {
+async function search(query, opts) {
   const canonicalOnly = !!(opts && opts.canonicalOnly);
   const idx = loadIndex();
   let pages = idx.pages || [];
@@ -461,7 +500,8 @@ function search(query, opts) {
   const byFile = new Map(pages.map(p => [p.kind + ':' + p.file, p]));
   const terms = termsOf(query);
   const { extraTerms, forcedSlugs } = glossaryExpand(query);
-  const allTerms = [...new Set([...terms, ...extraTerms])];
+  const aiTerms = await expandQueryTerms(query);
+  const allTerms = [...new Set([...terms, ...extraTerms, ...aiTerms])];
 
   let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms) })).filter(x => x.s > 0);
   // glossary 강제후보 병합(구어 매핑은 본문에 그 단어가 그대로 없을 수도 있어 별도 신호로 취급)
@@ -472,18 +512,28 @@ function search(query, opts) {
     if (hit) hit.s += 4; else scored.push({ p, s: 4 });
   }
   scored.sort((a, b) => b.s - a.s);
+
+  // L-57: 관련도 최소 기준선 — 1위 점수 대비 너무 낮은(우연한 키워드 1개 겹침 수준) 꼬리는
+  // 아예 후보에서 뺀다. 안 그러면 진짜 좋은 매칭이 없을 때도 PRIMARY_TOPK를 억지로 채워
+  // 무관한 법이 "근거"로 뜬다(예: "배 위 흡연" 질문에 폐기물관리법 등이 낀 사례).
+  const topScore = scored.length ? scored[0].s : 0;
+  const MIN_KEEP_SCORE = Math.max(2, topScore * 0.3);
+  scored = scored.filter(x => x.s >= MIN_KEEP_SCORE);
   const primary = scored.slice(0, PRIMARY_TOPK);
 
-  // 그래프 1홉: 최상위 페이지의 links로 관련 개념 보강(이미 뽑힌 페이지는 제외)
+  // 그래프 1홉: 최상위 페이지의 links로 관련 개념 보강(이미 뽑힌 페이지는 제외).
+  // 1위 매칭 자체가 약하면(topScore 낮음) 거기서 이어진 링크도 신뢰할 수 없어 홉을 아예 건너뛴다.
   const picked = new Set(primary.map(x => x.p));
   const hop = [];
-  for (const top of primary.slice(0, 2)) {
-    if (hop.length >= HOP_MAX) break;
-    for (const raw of (top.p.links || [])) {
+  if (topScore >= 4) {
+    for (const top of primary.slice(0, 2)) {
       if (hop.length >= HOP_MAX) break;
-      const p = resolvePage(byFile, raw);
-      if (!p || picked.has(p)) continue;
-      picked.add(p); hop.push({ p, s: 0, hop: true });
+      for (const raw of (top.p.links || [])) {
+        if (hop.length >= HOP_MAX) break;
+        const p = resolvePage(byFile, raw);
+        if (!p || picked.has(p)) continue;
+        picked.add(p); hop.push({ p, s: 0, hop: true });
+      }
     }
   }
 
