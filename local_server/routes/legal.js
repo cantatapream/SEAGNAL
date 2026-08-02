@@ -284,7 +284,7 @@ router.post('/api/legal/ask', async (req, res) => {
   const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
   try {
     const { sources, contextPages } = await legalRetriever.search(q, { canonicalOnly });
-    const sourcesOut = sources.map(s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop, citationChain: s.citationChain || [] }));
+    const toSourceOut = s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop, citationChain: s.citationChain || [] });
 
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
@@ -307,6 +307,10 @@ router.post('/api/legal/ask', async (req, res) => {
     } catch (e) { streamError = e; }
 
     const usedGemini = full.trim().length > 0;
+    // L-57 조치③: 답변이 실제로 나온 경우에만 sourcesOut을 답변 인용 여부로 교차확인해 좁힌다
+    // (스트림 실패로 답변이 없으면 교차확인할 대상이 없어 후보를 그대로 반환).
+    const finalSources = usedGemini ? legalRetriever.filterSourcesByAnswer(sources, full) : sources;
+    const sourcesOut = finalSources.map(toSourceOut);
     const note = usedGemini
       ? (canonicalOnly ? '검증(canonical) 근거만 반영' : '위키 근거 기반 AI 답변')
       : `답변 생성 실패(${(streamError && streamError.message) || '응답 없음'}) — 근거 후보만 반환`;

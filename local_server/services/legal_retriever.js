@@ -566,7 +566,7 @@ async function search(query, opts) {
   const sources = finalList.map((x, i) => {
     const s = {
       file: x.p.file, law: x.p.law, topic: x.p.topic, kind: x.p.kind, status: x.p.status || null,
-      score: x.s, hop: !!x.hop,
+      score: x.s, hop: !!x.hop, cited: x.p.cited || [],
     };
     if (i < CHAIN_TOPK) {
       const page = readPage(x.p.kind, x.p.file);
@@ -578,6 +578,31 @@ async function search(query, opts) {
   });
 
   return { sources, contextPages };
+}
+
+/**
+ * L-57 조치③: search()가 찾은 후보는 답변에 실제로 쓰였다는 보장이 없다 — 특히 그래프 1홉
+ * 확장분(hop:true)은 s:0으로 MIN_KEEP_SCORE 관련도 필터를 아예 우회해 들어온다(search() 주석
+ * 참고). answer(AI 답변 문장)와 sourcesOut(근거법령 목록)이 서로 다른 파이프라인이라, "확인되지
+ * 않습니다"처럼 결론을 못 낸 질문에서도 화면엔 무관한 근거가 그대로 뜨는 게 실측 확인됨(_LESSONS.md
+ * L-57). 이 함수는 답변 본문에 그 소스의 법령명·주제·인용 타법명이 실제로 등장하는 소스만 남겨,
+ * hop 여부와 무관하게 "답변에 실제로 쓰였는가"라는 동일 기준으로 근거목록을 좁힌다. 아무것도
+ * 인용되지 않았으면(=전형적으로 "확인되지 않습니다" 결론) 빈 배열을 반환한다.
+ * 예: answerText="…「해운법」에 따라 100만원 이하 과태료…" → law가 '해운법'인 소스만 남고,
+ *     무관하게 딸려온 해수욕장법·폐기물관리법 등은 제외된다.
+ * @param {Array} sources - search()가 반환한 sources(law·topic·cited 포함)
+ * @param {string} answerText - synthesizeAnswerStream()이 만든 전체 답변 문장
+ * @returns {Array} 답변에 실제로 인용된 소스만(원 순서 유지)
+ * [연계] ← routes/legal.js가 스트리밍 완료 후(전체 답변 확보 시점) sourcesOut 구성 직전에 호출.
+ */
+function filterSourcesByAnswer(sources, answerText) {
+  const text = String(answerText || '');
+  if (!text) return [];
+  return sources.filter(s => {
+    if (s.law && s.law.length >= 2 && text.includes(s.law)) return true;
+    if (s.topic && s.topic.length >= 2 && text.includes(s.topic)) return true;
+    return (s.cited || []).some(c => c && c.length >= 3 && text.includes(c));
+  });
 }
 
 /** contextPages를 프롬프트용 [근거자료] 블록 문자열로 직렬화. */
@@ -626,4 +651,4 @@ async function* synthesizeAnswerStream(query, contextPages) {
   yield* gemini.callGeminiStream({ model: ANSWER_MODEL, contents: prompt, config: SYNTH_CONFIG, caller: 'Legal-Ask' });
 }
 
-module.exports = { loadIndex, search, synthesizeAnswerStream, classifyTier, extractCitationChain, lookupContact };
+module.exports = { loadIndex, search, synthesizeAnswerStream, classifyTier, extractCitationChain, lookupContact, filterSourcesByAnswer };
