@@ -156,19 +156,46 @@
         var src = hit.get('source_file');
         if (src) {
             var url = '/api/legal/src?p=' + encodeURIComponent(src);
+            var filename = src.split('/').pop().replace(/'/g, '');
             // 관할서마다 실제로 "고시" 또는 "공고"로 다르게 발행하므로(근거 조항은 같지만
             // 행정행위 형식이 다름) 버튼 문구도 원본 파일명을 보고 그대로 맞춘다.
             // (notice_no 필드는 평택 5건이 값 자체에 고시/공고 표기가 없어 source_file 로 판단)
             var docLabel = /고시/.test(src) ? '고시' : '공고';
-            // target="_blank" 를 쓰면 앱 웹뷰에서 새 화면으로 넘어가면서 흰 화면만 뜨고
-            // 뒤로가기로도 원래 화면에 안 돌아오는 문제가 있었음 — 서버가 Content-Disposition:
-            // attachment 로 내려주는 다운로드이므로 새 화면 전환 없이 그 자리에서 받게 한다.
+            // <a download> 는 Capacitor 네이티브 웹뷰에서 그냥 무시된다(ocean_typhoon.js
+            // downloadImg() 와 동일한 앱 공통 문제) — 그래서 클릭해도 아무 반응이 없었음.
+            // window._accessControlDownloadSrc() 가 네이티브면 시스템 브라우저(@capacitor/browser)로,
+            // 아니면 평범한 <a download> 로 내려받게 분기한다.
             html += '<p style="margin-top:18px;text-align:center;">' +
-                '<a href="' + url + '" download class="ac-src-btn">' +
-                '<i class="fa-solid fa-file-lines"></i> ' + docLabel + ' 원문 보기</a></p>';
+                '<button type="button" class="ac-src-btn" ' +
+                'onclick="window._accessControlDownloadSrc(\'' + url + '\', \'' + filename + '\')">' +
+                '<i class="fa-solid fa-file-lines"></i> ' + docLabel + ' 원문 다운로드하기</button></p>';
         }
         return html || '<p>세부 정보를 불러오지 못했습니다.</p>';
     }
+
+    /**
+     * [외부 API] 고시/공고 원문 파일을 내려받는다. Capacitor 네이티브 웹뷰는 <a download> 를
+     * 무시하므로(ocean_typhoon.js downloadImg()·admin_collect.js 와 동일 패턴), 네이티브에서는
+     * 시스템 브라우저(@capacitor/browser)로 attachment URL 을 열어 OS 가 받게 하고,
+     * 일반 웹에서는 평범한 <a download> 로 처리한다.
+     */
+    window._accessControlDownloadSrc = function (url, filename) {
+        function anchor() {
+            var a = document.createElement('a');
+            a.href = url; a.download = filename; a.target = '_blank';
+            document.body.appendChild(a); a.click(); a.remove();
+        }
+        var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+        var Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+        if (isNative && Browser && Browser.open) {
+            try {
+                var p = Browser.open({ url: window.location.origin + url });
+                if (p && p.catch) p.catch(anchor);
+                return;
+            } catch (e) { /* 폴백 */ }
+        }
+        anchor();
+    };
 
     /**
      * [외부 API] 지도 클릭이 출입통제구역 폴리곤을 눌렀는지 확인한다.
