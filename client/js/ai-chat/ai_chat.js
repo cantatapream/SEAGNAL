@@ -8,7 +8,8 @@
  *             + 관리자 검토센터(5개 서브탭·원본 vs AI값·교정입력·승인/반려·반영사슬)
  *             + 챗봇 노출 토글(서버 전역 설정)을 렌더한다.
  *         (B) 사용자 챗봇 — 우측 하단 FAB + 카카오톡풍 채팅 팝업(생각중·스켈레톤·
- *             근거법령 아코디언 = 위임흐름 체인). #nrya-overlays(body) 에 산다.
+ *             근거법령 아코디언 = 위임흐름 체인 + 조문 카드를 누르면 뜨는 조문 원문 팝업).
+ *             #nrya-overlays(body) 에 산다.
  *         FAB 는 (1) 앱 메인 특보 탭일 때만, (2) 서버 노출설정이 허용할 때만 보인다.
  *         (초보자용: 이 파일이 관리자용 나리야 콘솔과 사용자용 챗봇 버튼/창을 만든다)
  * ----------------------------------------------------------------------------
@@ -17,7 +18,9 @@
  *                    (통합관리자 'nariya' 탭이 renderAdminInto 호출 · 관리자 토큰
  *                    저장소 'seagnal_admin_token' 재사용),
  *                    js/settings/settings.js (전역 NotificationSettings — 답변완료
- *                    알림 옵트인 값 aiAnswer 읽기/켜기. 먼저 로드되어 있어야 함)
+ *                    알림 옵트인 값 aiAnswer 읽기/켜기. 먼저 로드되어 있어야 함),
+ *                    js/core/backbutton.js (전역 PopupStack — 채팅창·조문 팝업을
+ *                    하드웨어 뒤로가기로 닫기)
  *  - 서버 API      : routes/legal.js
  *                    GET  /api/legal/config                   (노출설정 조회, 기본 off)
  *                    POST /api/legal/config {exposure}         (노출설정 저장, 관리자)
@@ -30,6 +33,9 @@
  *                                                              (질문→AI 답변 스트리밍(NDJSON)+근거 법령
  *                                                               · 6초 초과+옵트인이면 서버가 완료 푸시 발송)
  *                    GET  /api/legal/pending-answer/:requestId (푸시로 재진입 시 그 답변 1회 복원)
+ *                    GET  /api/legal/article-text?law&article&tier&baseLaw
+ *                                                              (근거법령 체인의 조문 카드를 누르면
+ *                                                               그 조 원문 전체 + 인용된 항·호 강조)
  *  - 마크업        : #unified-admin-body(콘솔 마운트 지점, admin.js 소유),
  *                    body 에 스스로 주입하는 #nrya-overlays(FAB·채팅·지도 팝업)
  *  - 나를 쓰는 곳  : index2.html <script src="js/ai-chat/ai_chat.js"> — 자가 실행.
@@ -977,37 +983,128 @@
       input.addEventListener('focus', function () { fitChat(); setTimeout(function () { fitChat(); _scrollChatBottom(); }, 250); });
     }
 
-    // 답변 내 근거법령 아코디언 토글(동적으로 붙는 답변까지 커버하도록 위임)
+    // 답변 내 근거법령 아코디언 토글 + 조문 카드 → 원문 팝업
+    // (동적으로 붙는 답변까지 커버하도록 위임. 연락처 줄은 전화 링크라 카드 클릭에서 제외)
     if (body) body.addEventListener('click', function (e) {
-      var h = e.target.closest('.nrya-lawacc-h'); if (h) { h.parentElement.classList.toggle('nrya-open'); }
+      var h = e.target.closest('.nrya-lawacc-h');
+      if (h) { h.parentElement.classList.toggle('nrya-open'); return; }
+      if (e.target.closest('.nrya-chain-tel')) return;
+      var hit = e.target.closest('.nrya-chain-hit');
+      if (hit) openArtPop(hit);
     });
-
-    // 조문 뱃지를 누르면 시행일자 말풍선이 뜨고, 손을 떼도 1.5초 더 보이다가 천천히 사라진다.
-    // 사라지기 전에 다시 누르면 그 예약을 취소하고 계속 보여준다.
-    if (body) {
-      body.addEventListener('pointerdown', function (e) {
-        var t = e.target.closest && e.target.closest('.nrya-chain-tier'); if (!t) return;
-        var pending = effHideTimers.get(t);
-        if (pending) { clearTimeout(pending); effHideTimers['delete'](t); }
-        t.classList.add('nrya-pressed');
-      });
-      body.addEventListener('pointerup', scheduleEffHide);
-      body.addEventListener('pointercancel', scheduleEffHide);
-    }
   }
 
-  // 시행일자 말풍선 숨김 예약(뱃지 → 타이머). WeakMap 이라 말풍선이 사라진 노드는 자동 정리된다.
-  var effHideTimers = new WeakMap();
+  // ── 조문 원문 팝업: 카드를 누르면 그 조 전문을 띄우고 인용된 항·호를 강조 ──────────
+  var artPopBuilt = false;
+  var artPopReq = 0;   // 조회 순번 — 늦게 도착한 이전 요청이 지금 보는 조문을 덮어쓰지 않게 한다
 
-  /** 눌려 있는 조문 뱃지들의 시행일자 말풍선을 1.5초 뒤 숨기도록 예약한다(이미 예약됐으면 무시). */
-  function scheduleEffHide() {
-    var pressed = document.querySelectorAll('#nryaChatBody .nrya-chain-tier.nrya-pressed');
-    Array.prototype.forEach.call(pressed, function (t) {
-      if (effHideTimers.get(t)) return;
-      effHideTimers.set(t, setTimeout(function () {
-        t.classList.remove('nrya-pressed'); effHideTimers['delete'](t);
-      }, 1500));
+  /**
+   * 조문 팝업(배경막 + 카드)을 #nrya-overlays 안에 1회 주입한다. 닫기 버튼·배경막 클릭은
+   * 여기서 한 번만 묶는다(카드 내용은 열 때마다 renderArtPop 이 갈아끼운다).
+   * [연계] ← openArtPop. → closeArtPop.
+   */
+  function ensureArtPop() {
+    if (artPopBuilt) return;
+    var host = document.getElementById('nrya-overlays'); if (!host) return;
+    artPopBuilt = true;
+    var veil = document.createElement('div'); veil.className = 'nrya-artpop-veil'; veil.id = 'nryaArtVeil';
+    var pop = document.createElement('div'); pop.className = 'nrya-artpop'; pop.id = 'nryaArtPop';
+    pop.innerHTML =
+      '<div class="nrya-artpop-head">' +
+        '<div class="nrya-artpop-titles">' +
+          '<span class="nrya-artpop-chip">원문 · 자동 발췌</span>' +
+          '<p class="nrya-artpop-law" id="nryaArtLaw"></p>' +
+          '<h3 class="nrya-artpop-art" id="nryaArtTitle"></h3>' +
+        '</div>' +
+        '<button type="button" class="nrya-artpop-x" id="nryaArtX">×</button>' +
+      '</div>' +
+      '<span class="nrya-artpop-eff" id="nryaArtEff"></span>' +
+      '<div class="nrya-artpop-body" id="nryaArtBody"></div>';
+    host.appendChild(veil); host.appendChild(pop);
+    veil.addEventListener('click', closeArtPop);
+    pop.querySelector('#nryaArtX').addEventListener('click', closeArtPop);
+  }
+
+  /**
+   * 서버가 준 조문 원문을 팝업 본문에 그린다. 인용된 항(hit)은 tier 색 배경으로 강조하고
+   * 나머지는 흐리게 둔다. 원문 텍스트는 전부 textContent 로 넣는다(HTML 주입 없음).
+   * @param {object} d - GET /api/legal/article-text 응답 {ok:true, paragraphs:[…]}
+   * [연계] ← openArtPop.
+   */
+  function renderArtPop(d) {
+    var body = document.getElementById('nryaArtBody'); if (!body) return;
+    body.innerHTML = '';
+    (d.paragraphs || []).forEach(function (p) {
+      var row = document.createElement('div');
+      row.className = 'nrya-artpop-para' + (p.hit ? ' nrya-hit' : '');
+      var mark = document.createElement('div'); mark.className = 'nrya-artpop-mark'; mark.textContent = p.mark || '';
+      var wrap = document.createElement('div'); wrap.className = 'nrya-artpop-text';
+      var t = document.createElement('span'); t.textContent = p.text || ''; wrap.appendChild(t);
+      if (p.items && p.items.length) {
+        var ul = document.createElement('ul'); ul.className = 'nrya-artpop-items';
+        p.items.forEach(function (it, i) {
+          var li = document.createElement('li');
+          li.textContent = (i + 1) + '. ' + (it.text || '');
+          if (it.hit) li.className = 'nrya-hit';
+          ul.appendChild(li);
+        });
+        wrap.appendChild(ul);
+      }
+      row.appendChild(mark); row.appendChild(wrap); body.appendChild(row);
     });
+    body.scrollTop = 0;
+  }
+
+  /**
+   * 조문 카드를 눌렀을 때: 팝업을 먼저 띄워 "불러오는 중"을 보여주고, 원문을 받아 채운다.
+   * 원문을 못 받으면(수집 안 된 고시·서버 토큰 없음 등) 지어내지 않고 안내 문구만 남긴다.
+   * 예: openArtPop(카드요소) → GET /api/legal/article-text?law=…&article=제10조④3호&tier=law
+   * @param {HTMLElement} el - .nrya-chain-hit (data-law/article/tier/base 를 갖고 있다)
+   * [연계] → routes/legal.js GET /api/legal/article-text · PopupStack('nrya-artpop').
+   */
+  function openArtPop(el) {
+    ensureArtPop();
+    var pop = document.getElementById('nryaArtPop'), veil = document.getElementById('nryaArtVeil');
+    if (!pop || !veil) return;
+    var law = el.getAttribute('data-law') || '';
+    var article = el.getAttribute('data-article') || '';
+    var tier = el.getAttribute('data-tier') || 'law';
+    document.getElementById('nryaArtLaw').textContent = law;
+    document.getElementById('nryaArtTitle').textContent = article || '조문 원문';
+    document.getElementById('nryaArtEff').textContent = '';
+    document.getElementById('nryaArtBody').innerHTML = '<div class="nrya-artpop-msg">원문을 불러오는 중…</div>';
+    pop.setAttribute('data-tier', el.getAttribute('data-pen') ? 'penalty' : tier); // 강조색을 체인 카드와 맞춘다
+    veil.classList.add('nrya-open'); pop.classList.add('nrya-open');
+    if (window.PopupStack) window.PopupStack.push('nrya-artpop', closeArtPop);
+
+    var myReq = ++artPopReq;
+    legalGet('/api/legal/article-text?law=' + encodeURIComponent(law) +
+      '&article=' + encodeURIComponent(article) +
+      '&tier=' + encodeURIComponent(tier) +
+      '&baseLaw=' + encodeURIComponent(el.getAttribute('data-base') || ''))
+      .then(function (r) { return r.json(); })
+      .catch(function () { return { ok: false }; })
+      .then(function (d) {
+        // 기다리는 사이 닫았거나 다른 조문을 다시 눌렀으면 그리지 않는다(엉뚱한 조문 표시 방지)
+        if (myReq !== artPopReq || !pop.classList.contains('nrya-open')) return;
+        if (!d || !d.ok) {
+          document.getElementById('nryaArtBody').innerHTML =
+            '<div class="nrya-artpop-msg">원문을 불러오지 못했어요. 위 요지와 소관부서 연락처를 확인해 주세요.</div>';
+          return;
+        }
+        if (d.articleTitle) document.getElementById('nryaArtTitle').textContent = d.articleTitle;
+        document.getElementById('nryaArtEff').textContent = d.effectiveDate
+          ? ((d.tier === 'notice' ? '발령일자 ' : '시행일자 ') + d.effectiveDate) : '';
+        renderArtPop(d);
+      });
+  }
+
+  /** 조문 팝업을 닫는다(백스택에서 제거 + 표시 해제). PopupStack.remove 는 멱등. */
+  function closeArtPop() {
+    if (window.PopupStack) window.PopupStack.remove('nrya-artpop');
+    var pop = document.getElementById('nryaArtPop'), veil = document.getElementById('nryaArtVeil');
+    if (pop) pop.classList.remove('nrya-open');
+    if (veil) veil.classList.remove('nrya-open');
   }
 
   /**
@@ -1225,16 +1322,19 @@
   }
 
   /**
-   * 인용사슬 한 조문을 체인 한 칸(원형 번호 + 세로선 + 조문 뱃지 + 요지 + ☎연락처)으로 그린다.
-   * 뱃지 안의 시행일자 말풍선은 CSS로 숨겨져 있다가 꾹 누를 때만 나타난다.
+   * 인용사슬 한 조문을 체인 한 칸(원형 번호 + 세로선 + 조문 뱃지 + 시행일자 + 요지 + ☎연락처)으로 그린다.
+   * 시행일자는 뱃지와 같은 줄에 **항상** 보인다(예전엔 꾹 누를 때만 뜨는 말풍선이었다).
+   * 연락처 줄을 뺀 카드 본문(.nrya-chain-hit)은 눌러서 조문 원문 팝업을 여는 영역이다.
    * @param {object} row - {law, article, effectiveDate, gist, tier, contact}
    * @param {number} n - 화면에 찍을 순번(1부터)
    * @param {boolean} last - 세로 연결선을 끊을지(체인의 마지막 칸)
    * @param {boolean} penalty - 처벌 조문인지(빨간 원 + '벌칙' 라벨)
+   * @param {string} baseLaw - 이 체인이 실린 위키 페이지의 소속 법명(고시 원문 폴더를 찾는 열쇠)
    * @returns {string} HTML
    * [연계] ← chainHTML. 데이터는 legal_retriever.js extractCitationChain/lookupContact.
+   *        data-* 는 openArtPop 이 GET /api/legal/article-text 를 부를 때 그대로 쓴다.
    */
-  function chainStepHTML(row, n, last, penalty) {
+  function chainStepHTML(row, n, last, penalty, baseLaw) {
     var eff = row.effectiveDate
       ? '<span class="nrya-chain-eff">' + (row.tier === 'notice' ? '발령일자 ' : '시행일자 ') + esc(row.effectiveDate) + '</span>'
       : '';
@@ -1249,12 +1349,18 @@
     } else {
       tel = '<div class="nrya-chain-tel nrya-unknown">☎ 확인되지 않음</div>';
     }
+    // 클릭 영역이 서버에 그대로 넘길 값들(조문 원문 조회 키). data-pen 은 강조색만 벌칙색으로 바꾸는 표시.
+    var hitAttrs = ' data-law="' + esc(row.law || '') + '" data-article="' + esc(row.article || '') +
+      '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(baseLaw || '') + '"' +
+      (penalty ? ' data-pen="1"' : '');
     return '<div class="nrya-chain-step' + (last ? ' nrya-last' : '') + (penalty ? ' nrya-penalty' : '') + '" data-tier="' + esc(row.tier || 'law') + '">' +
       '<div class="nrya-chain-rail"><div class="nrya-chain-dot">' + n + '</div><div class="nrya-chain-line"></div></div>' +
       '<div class="nrya-chain-content">' +
-        '<div class="nrya-chain-tier">' + head + eff + '</div>' +
-        '<div class="nrya-chain-art">' + esc(row.law || '') + (row.article ? ' ' + esc(row.article) : '') + '</div>' +
-        (row.gist ? '<div class="nrya-chain-quote"><div class="nrya-chain-hang">' + esc(row.gist) + '</div></div>' : '') +
+        '<div class="nrya-chain-hit"' + hitAttrs + '>' +
+          '<div class="nrya-chain-head"><span class="nrya-chain-tier">' + head + '</span>' + eff + '</div>' +
+          '<div class="nrya-chain-art">' + esc(row.law || '') + (row.article ? ' ' + esc(row.article) : '') + '</div>' +
+          (row.gist ? '<div class="nrya-chain-quote"><div class="nrya-chain-hang">' + esc(row.gist) + '</div></div>' : '') +
+        '</div>' +
         tel +
       '</div>' +
     '</div>';
@@ -1263,24 +1369,25 @@
   /**
    * 인용사슬 전체를 위임 흐름 체인으로 그린다. 위임 조문(법률→시행령→시행규칙→고시)을 한 체인으로
    * 잇고, 처벌 조문은 간격을 띄워 별도 체인으로 뺀다(처벌 조문이 없으면 구분 없이 한 체인).
-   * ⚠ 여기 나오는 문장은 위키 "근거 조문" 표의 **요지**다 — 조문 원문(항·호)을 그대로 인용하는
-   *   구조는 아직 백엔드에 없다(지어내지 않는다는 원칙상 요지로 정직하게 대체).
+   * ⚠ 여기 나오는 문장은 위키 "근거 조문" 표의 **요지**다 — 조문 원문(항·호)은 카드를 누르면
+   *   조문 팝업(openArtPop)이 raw 원문에서 그때그때 읽어 보여준다.
    * @param {Array} chain - sources[i].citationChain
+   * @param {string} baseLaw - 이 체인이 실린 소스(위키 페이지)의 법령명 — 고시 원문 폴더 찾기용
    * @returns {string} HTML
    */
-  function chainHTML(chain) {
+  function chainHTML(chain, baseLaw) {
     var main = [], pen = [];
     chain.forEach(function (row) { (isPenaltyRow(row) ? pen : main).push(row); });
     var n = 0, html = '';
     if (main.length) {
       html += '<div class="nrya-chain">' + main.map(function (row, i) {
-        return chainStepHTML(row, ++n, i === main.length - 1, false);
+        return chainStepHTML(row, ++n, i === main.length - 1, false, baseLaw);
       }).join('') + '</div>';
     }
     if (pen.length) {
       html += (main.length ? '<div class="nrya-chain-gap"></div>' : '') +
         '<div class="nrya-chain">' + pen.map(function (row, i) {
-          return chainStepHTML(row, ++n, i === pen.length - 1, true);
+          return chainStepHTML(row, ++n, i === pen.length - 1, true, baseLaw);
         }).join('') + '</div>';
     }
     return html;
@@ -1318,7 +1425,7 @@
     var shown = (chainSrc ? 1 : 0) + rest.length;
     if (shown) {
       html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 근거 법령 ' + shown + '건 (펼쳐서 보기)</div><div class="nrya-lawacc-b">';
-      if (chainSrc) html += chainHTML(chainSrc.citationChain);
+      if (chainSrc) html += chainHTML(chainSrc.citationChain, chainSrc.law || '');
       html += rest.map(function (s) {
         var title = (s.law ? esc(s.law) : '') + (s.topic ? ' · ' + esc(s.topic) : '');
         return '<div class="nrya-lawitem"><div class="nrya-lw-t">' + (title || '근거 자료') + '</div></div>';

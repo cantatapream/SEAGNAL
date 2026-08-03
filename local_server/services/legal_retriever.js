@@ -870,4 +870,4 @@ async function searchRawFallback(query) {
   }
 }
 
-module.exports = { loadIndex, search, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, lookupContact, filterSourcesByAnswer };
+module.exports = { loadIndex, search, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, lookupContact, filterSourcesByAnswer, rawPathOf };

@@ -18,6 +18,7 @@
  *                                       위키에 근거가 없으면 2차로 법령 원문(GitHub 온디맨드)을 훑어 "미검증 참고" 답변 시도
  *                                       6초 넘게 걸린 요청 + 알림 동의 시 답변을 임시 보관하고 개인 푸시 발송
  *  - GET  /api/legal/pending-answer/:requestId → 푸시로 다시 들어온 사용자에게 그 답변을 1회만 돌려줌
+ *  - GET  /api/legal/article-text     → 답변카드의 조문 카드를 눌렀을 때 띄울 그 조 전체 원문(항·호 분해)
  *
  * [연계 파일]
  * - knowledge/legal/_dashboard/review_queue.md   → 검증 대기 원장(승인 마킹 대상)
@@ -27,6 +28,7 @@
  * - services/admin_auth.js  → X-Admin-Token 검증(관리자 전용 게이트)
  * - services/atomic_write.js → 원자적 파일쓰기(경합 방지)
  * - services/legal_retriever.js → /api/legal/ask 의 검색·답변합성 본체
+ * - services/article_text.js    → /api/legal/article-text 의 조문 원문 발췌 본체
  * - services/pending_answers.js → 답변완료 푸시용 1회용 임시 보관함(3시간)
  * - services/firebase_admin_lazy.js → FCM 발송(첫 사용 시 SDK 로딩)
  *
@@ -41,6 +43,7 @@ const path = require('path');
 const adminAuth = require('../services/admin_auth');
 const { writeFileAtomic } = require('../services/atomic_write');
 const legalRetriever = require('../services/legal_retriever');
+const articleText = require('../services/article_text');
 const pendingAnswers = require('../services/pending_answers');
 const { DATA_DIR, FILES } = require('../config/server_config');
 
@@ -492,6 +495,22 @@ router.get('/api/legal/src', (req, res) => {
     if (!fs.existsSync(full) || !fs.statSync(full).isFile()) return res.status(404).send('없음');
     res.type(SRC_MIME[ext]).sendFile(full);
   } catch (e) { res.status(500).send(String(e.message || e)); }
+});
+
+// ── 조문 원문 팝업(읽기전용): 답변카드의 조문 카드를 누르면 그 조 전체 원문을 항·호로 쪼개 준다 ──
+// 원문은 서버에 상주시키지 않고 GitHub에서 그때그때 읽는다(services/article_text.js).
+// 못 찾으면 지어내지 않고 {ok:false, reason} — 클라이언트는 "원문을 불러오지 못했어요"로 안내한다.
+router.get('/api/legal/article-text', async (req, res) => {
+  try {
+    const q = req.query || {};
+    const out = await articleText.loadArticle({
+      law: q.law, article: q.article, tier: q.tier, baseLaw: q.baseLaw,
+    });
+    res.json(out);
+  } catch (e) {
+    console.error('[Legal] 조문 원문 조회 실패:', e && e.message);
+    res.json({ ok: false, reason: 'error' });
+  }
 });
 
 module.exports = router;
