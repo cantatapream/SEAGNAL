@@ -682,6 +682,15 @@ gzip`을 보내 이 사전압축 캐시를 받지만, `curl`은 기본적으로 
 확인. (참고: `serviceWorkers:'block'` 컨텍스트 옵션도 같이 켜두면 SW 캐시까지 이중으로
 안전.)
 
+### 6.13 Task #18(간출암) 팝업 마커 위치 상단으로 수정 (2026-08-03)
+
+사용자가 실기기에서 확인해보니 마커가 팝업의 **하단**에 나오고 있었는데, 원래 의도는
+마커가 팝업 **상단**에 위치(팝업이 마커 아래로 펼쳐지는 형태)였음. `ensureTideCurveOverlay()`의
+`positioning`을 `bottom-center`→`top-center`로, `offset`을 `[0, -gap]`→`[0, +gap]`으로
+바꾸고, `centerViewOnPopupAnchor()`의 desiredPixel Y 계산 부호를 반대로(`+popupHeightPx/2`→
+`-popupHeightPx/2`) 맞춰 화면 중앙 정렬도 같이 수정. Playwright로 실측 검증
+(`markerPx=[210,197]`, `popupTop=205` = `markerY+gap` 정확히 일치) 후 main 머지.
+
 ---
 
 ## 7. 알아둘 것 (교훈/시행착오 요약)
