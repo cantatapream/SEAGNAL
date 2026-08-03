@@ -110,6 +110,7 @@
     "index2_patch.js",
     "hazard_rocks.js",
     "access_control.js",
+    "fishing_ban.js",
     "life_safety.js"
   ]
 }

@@ -778,11 +778,14 @@
         body.ls-mode.ls-safety #ocean-exposed-toggle-btn,
         body.ls-mode.ls-safety #ocean-rock-toggle-btn,
         body.ls-mode.ls-safety #ocean-access-control-toggle-btn,
+        body.ls-mode.ls-safety #ocean-fishing-ban-toggle-btn,
         body.ls-mode.ls-safety #ocean-cctv-toggle-btn,
         body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
-        /* 노출암/간출암 등/출입통제 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
-           [연계] js/marine-life/safety/hazard_rocks.js, js/marine-life/safety/access_control.js */
-        #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn, #ocean-access-control-toggle-btn { display: none; }
+        /* 노출암/간출암 등/출입통제/낚시금지 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
+           [연계] js/marine-life/safety/hazard_rocks.js, js/marine-life/safety/access_control.js,
+                  js/marine-life/safety/fishing_ban.js */
+        #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn, #ocean-access-control-toggle-btn,
+        #ocean-fishing-ban-toggle-btn { display: none; }
         body.ls-mode.ls-safety #ocean-search-container,
         body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
         /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
@@ -3409,6 +3412,16 @@
                             <i class="fa-solid fa-ban"></i>
                             <span class="ocean-overlay-label" data-line1="출입" data-line2="통제">출입통제</span>
                         </button>
+                        <!-- 낚시금지 토글: js/marine-life/safety/fishing_ban.js 가 바인딩.
+                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
+                             낚시 관리 및 육성법 제6조(및 지자체 조례)에 따른 낚시통제구역.
+                             [데이터] /fishing_ban_zones.json (국립해양조사원 낚시통제구역
+                                      주제도 TL_RESARE_ENS, 정적, 처음 누를 때만 지연 로드) -->
+                        <button class="ocean-overlay-btn" id="ocean-fishing-ban-toggle-btn" title="낚시금지구역">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                            <span class="ocean-overlay-label" data-line1="낚시" data-line2="금지">낚시금지</span>
+                        </button>
                         <!-- 천기 토글: js/shrt_forecast_layer.js 가 바인딩 (이전 이름: "기타 기상")
                              클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
                              (강수확률·강수량·적설·하늘상태·강수형태) — 하나 선택 시 팝아웃이 접히면서
@@ -4842,7 +4855,7 @@
     <script src="js/marine-life/ripcurrent/ripcurrent.js"></script>
 
     <!-- 해양종합정보 (히든 탭) -->
-    <script src="js/ocean-map/map/ocean_map.js?v=LifeSafety_20260731"></script>
+    <script src="js/ocean-map/map/ocean_map.js?v=LifeSafety_20260731b"></script>
     <script src="js/ocean-map/map/ocean_markers.js"></script>
     <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet1.js"></script>
     <!-- 시트 슬라이더 모듈 — bottom_sheet2.js 가 STL.onRelease 를 wire 하므로 그 전에 로드되어
@@ -4945,6 +4958,11 @@
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <script src="js/marine-life/safety/access_control.js"></script>
+
+    <!-- 낚시금지구역 레이어 — 해양안전 하위탭 전용. access_control.js 와 동일하게
+         스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
+    <script src="js/marine-life/safety/fishing_ban.js"></script>
 
     <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
