@@ -617,11 +617,11 @@
     }
 
     /**
-     * 해양안전 화면(물빠짐·노출암/간출암·CCTV·낚시금지) 전용 안내 팝업 본문(탭바 + 패널)을 만든다.
+     * 해양안전 화면(물빠짐·노출암/간출암·CCTV·낚시금지·항행경보) 전용 안내 팝업 본문(탭바 + 패널)을 만든다.
      * 해양종합정보의 17탭 안내와 같은 방식으로, 이 화면에 있는 기능만 탭으로 보여준다.
      * @returns {string} 팝업에 넣을 HTML
      * [연계] ← window.oceanInfoTabHtml() (ocean_cctv.js) — 탭 본문을 그대로 재사용
-     *          (낚시금지는 해양종합정보에 없는 기능이라 공용 목록 대신 여기서 html 로 직접 넣는다)
+     *          (낚시금지·항행경보는 해양종합정보에 없는 기능이라 공용 목록 대신 여기서 html 로 직접 넣는다)
      *          → index2.html 의 .ocean-info-tabs/.ocean-info-panel/.ocean-info-src CSS, window.__lsInfoSwitch
      */
     function _buildSafetyInfoHtml() {
@@ -635,7 +635,12 @@
               + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 실제 지형과 비교하기 쉽도록 배경지도가 위성지도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
               + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 위치, 지정 사유, 통제 기간·시간, 대상, 벌칙, 고시번호 등 상세 정보를 확인할 수 있습니다.</p>'
               + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 국립해양조사원이 파악한 구역만 반영되어 있어 최신 지정 현황과 다를 수 있습니다. 실제 낚시 전에는 현장 안내판이나 관할 지자체 공고를 꼭 확인하세요.</p>'
-              + '<div class="ocean-info-src">최종 갱신일자 · 2025-12-12<br>출처 · 국립해양조사원 낚시통제구역 주제도</div>' }
+              + '<div class="ocean-info-src">최종 갱신일자 · 2025-12-12<br>출처 · 국립해양조사원 낚시통제구역 주제도</div>' },
+            { id: 'navwarn', label: '항행경보', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 오늘 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련 등)의 구역을 지도 위에 붉은 점선 원형/다각형으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 구분, 발표기관, 유효기간(날짜·시간), 근거, 본문 등 상세 내용을 확인할 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 좌표는 국립해양조사원 "항행경보 상황판" 자료를 보강해 표시한 것으로, 정식 항행경보 원문과 다를 수 있습니다. 실제 항해 시에는 반드시 항행경보 상황판(khoa.go.kr/nwb)이나 수로도서지 원문을 확인하세요.</p>'
+              + '<div class="ocean-info-src">갱신 주기 · 30분<br>출처 · 국립해양조사원 항행경보</div>' }
         ];
         var tabsHtml = '<div class="ocean-info-tabs">';
         var panelsHtml = '<div class="ocean-info-panels">';

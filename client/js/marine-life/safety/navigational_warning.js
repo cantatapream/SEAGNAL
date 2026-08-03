@@ -7,7 +7,7 @@
  *         보여준다.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap·oceanGetBasemap·oceanSetBasemap),
+ *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap),
  *                    shared/ui/ui_modal.js(window.showSeagnalModal), OpenLayers(ol.*)
  *  - 서버 API      : GET /api/navigational-warning/list (30분 캐시 — 텍스트는 공식
  *                    data.go.kr API, 좌표는 KHOA 내부 API 보강, local_server/routes/navigational_warning.js)
@@ -183,25 +183,12 @@
         var btn = document.getElementById('ocean-navwarn-btn');
         if (!btn) return;
 
-        var _prevBasemap = null; // OFF 시 원래 배경지도로 되돌리기 위해 ON 시점 값을 기억
-
         btn.addEventListener('click', function () {
             _visible = !_visible;
             btn.classList.toggle('active', _visible);
             if (_layer) _layer.setVisible(_visible);
             if (_fillLayer) _fillLayer.setVisible(_visible);
-            if (_visible) {
-                _load();
-                // 항해 정보라 위성지도가 아니라 전자해도(enc)로 배경을 자동 전환한다
-                // (seaway.js·vts_zone.js 와 동일 패턴).
-                if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
-                    _prevBasemap = window.oceanGetBasemap();
-                    if (_prevBasemap !== 'enc') window.oceanSetBasemap('enc');
-                }
-            } else if (_prevBasemap && _prevBasemap !== 'enc' && typeof window.oceanSetBasemap === 'function') {
-                window.oceanSetBasemap(_prevBasemap);
-                _prevBasemap = null;
-            }
+            if (_visible) _load();
         });
     }
 

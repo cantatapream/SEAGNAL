@@ -92,6 +92,7 @@ async function _bootstrapSession() {
     return _session.cookie;
 }
 
+/** 세션이 없거나 오래됐으면(SESSION_TTL_MS 초과) 새로 발급받고, 아니면 캐시된 쿠키를 그대로 준다 */
 async function _getSessionCookie() {
     if (_session && (Date.now() - _session.obtainedAt) < SESSION_TTL_MS) {
         return _session.cookie;
@@ -211,6 +212,7 @@ async function _fetchDocIdMap() {
     return map;
 }
 
+/** 문서 하나(docId)의 구역 목록을 받아 zone 객체 배열로 변환한다(그릴 점이 없는 zone은 제외) */
 async function _fetchZonesFor(docId) {
     const areaData = await _khoaPost('getDocAreaPoint.do', { id: docId, searchArea: '' });
     return (areaData.RESULT_DATA || []).map(_toZone).filter(z => z.points.length > 0);
@@ -221,6 +223,21 @@ async function _fetchZonesFor(docId) {
  *
  * 오늘 발효 중인 항행경보 목록(공식 API)에, 가능하면 구역 좌표(KHOA 내부 API)를
  * 보강해 반환한다(30분 캐시). 구역 보강이 실패해도 텍스트 목록은 정상 반환한다.
+ *
+ * [응답 예시]
+ * {
+ *   success: true,
+ *   items: [{
+ *     doc_num: "26-251", gov_cd: "보령해양경찰서", noti_cat: "장애물", app_cat: "항행정보",
+ *     title: "보령, 외연도 서방 전복선박 표류 알림", basic: "보령해양경찰서 경비구조과-4484(...)",
+ *     content: "충남 보령시 외연도 서방 약 21해리 해상에서...",
+ *     zones: [{
+ *       name: "서해안 ~ 격렬비열도 남부", chartNo: "3418", type: "circle",
+ *       points: [{ lat: 36.29, lon: 125.63 }], radiusNm: 5,
+ *       validity: "07/24 00:00 ~ 00:00, 07/25 00:00 ~ 00:00, ..."
+ *     }]
+ *   }]
+ * }
  */
 router.get('/api/navigational-warning/list', async (req, res) => {
     try {
