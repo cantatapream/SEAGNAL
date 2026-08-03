@@ -51,6 +51,7 @@
   var LS_DEVICE_ID = 'seagnal_device_id';      // 기기 식별자(앱 공용 — survey_user.js가 최초 생성)
   var LS_UNREAD = 'nariya_unread_v1';          // 채팅창이 닫힌 사이 도착한 답변 수(FAB 뱃지)
   var CONSENT_ASK_MS = 6000;                   // 이만큼 넘게 걸리면 "다음부터 알림 드릴까요?" 배너
+  var activeConsentTimer = null;               // 진행 중인 동의배너 타이머(채팅창 닫으면 취소 — closeChat 참고)
 
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
@@ -75,8 +76,18 @@
   /** 관리자 모드 여부(로컬 저장 플래그). @returns {boolean} */
   function isAdmin() { try { return localStorage.getItem(LS_ADMIN) === 'true'; } catch (_) { return false; } }
 
-  /** 기기 식별자를 읽는다(없으면 빈 문자열 — 서버는 빈 값이면 푸시를 보내지 않는다). @returns {string} */
-  function getDeviceId() { try { return localStorage.getItem(LS_DEVICE_ID) || ''; } catch (_) { return ''; } }
+  /**
+   * 기기 식별자를 읽고, 없으면 새로 만들어 저장한다(survey_user.js getDeviceId와 동일 생성규칙 —
+   * 설문·제보를 한 번도 안 한 사용자는 이 키가 없어 답변완료 푸시가 조용히 안 갔던 문제 수정).
+   * @returns {string}
+   */
+  function getDeviceId() {
+    try {
+      var id = localStorage.getItem(LS_DEVICE_ID);
+      if (!id) { id = 'dev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10); localStorage.setItem(LS_DEVICE_ID, id); }
+      return id;
+    } catch (_) { return ''; }
+  }
 
   /**
    * settings.js 가 전역(스크립트 스코프)에 만든 NotificationSettings 객체를 얻는다.
@@ -948,6 +959,8 @@
     if (window.PopupStack) window.PopupStack.remove('nrya-chat');
     var wrap = document.getElementById('nryaChatWrap'); if (wrap) wrap.classList.remove('nrya-open');
     removeVV();
+    // 답이 오기 전에 채팅창을 닫으면 동의배너 타이머도 취소한다 — 안 보는 사이 뜬금없이 뜨지 않게.
+    if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; }
   }
 
   function bindChat() {
@@ -1156,9 +1169,12 @@
     // [답변완료 알림] 이미 켠 사용자면 서버에 "다 되면 푸시 보내달라"고 알린다(6초 초과 시 서버가 발송).
     //   아직 안 켰다면 6초 뒤에 인라인 동의 배너를 띄운다(빨리 끝나면 아래 타이머 취소).
     var optedIn = aiAnswerOptedIn();
-    var consentTimer = optedIn ? null : setTimeout(function () {
-      consentTimer = null; showNotifyConsentBanner();
-    }, CONSENT_ASK_MS);
+    if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; } // 이전 질문분 정리
+    if (!optedIn) {
+      activeConsentTimer = setTimeout(function () {
+        activeConsentTimer = null; showNotifyConsentBanner();
+      }, CONSENT_ASK_MS);
+    }
 
     legalPost('/api/legal/ask', { query: q, deviceId: getDeviceId(), notifyOnComplete: optedIn }).then(function (res) {
       return readNdjsonStream(res, function (deltaText) {
@@ -1173,7 +1189,7 @@
         var wait = hadDelta ? 0 : Math.max(0, MIN_THINK_MS - (Date.now() - startedAt));
         return new Promise(function (resolve) { setTimeout(function () { resolve(data); }, wait); });
       }).then(function (data) {
-        if (consentTimer) { clearTimeout(consentTimer); consentTimer = null; }  // 6초 안에 끝남 → 배너 없음
+        if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; }  // 6초 안에 끝남 → 배너 없음
         ensureAnswerBubble(); // done만 오고 delta가 하나도 없었던 경우(근거없음·오류) 대비
         bubbleEl.innerHTML = answerHTML(q, data);
         body.scrollTop = body.scrollHeight;
@@ -1325,8 +1341,10 @@
     // 주소창에서 파라미터 제거 — 새로고침 때 이미 비워진 보관함을 또 조회하지 않게(fix_popup_logic.js 와 동일 처리)
     try { if (window.history.replaceState) window.history.replaceState({}, document.title, window.location.pathname); } catch (_) {}
 
-    openChat();
+    // rid 없이는 채팅창을 열지 않는다 — ?popup=ai_chat 만으로 노출설정(exposure)을 우회해
+    // 숨겨둔 챗봇을 여는 구멍이 되면 안 되므로(rid는 실제로 푸시를 받은 사람만 가진 값).
     if (!rid) return;
+    openChat();
     legalGet('/api/legal/pending-answer/' + encodeURIComponent(rid))
       .then(function (r) { return r.json(); })
       .catch(function () { return { ok: false }; })

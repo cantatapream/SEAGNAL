@@ -324,7 +324,9 @@ async function sendAiAnswerPush(deviceId, requestId) {
   try {
     if (!fs.existsSync(SUBS_FILE)) return;
     const subs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
-    const matched = subs.filter(s => s.deviceId === deviceId && s.type === 'fcm' && s.token);
+    // 전체 알림 마스터 OFF는 여기서도 존중한다(push.js의 다른 발송 경로들과 동일한 관례).
+    const matched = subs.filter(s => s.deviceId === deviceId && s.type === 'fcm' && s.token
+      && !(s.options && s.options.master === false));
     for (const sub of matched) {
       try {
         await firebaseAdmin.messaging().send({
@@ -433,7 +435,7 @@ router.post('/api/legal/ask', async (req, res) => {
     //   6초 이하로 빨리 끝난 질문은 보내지 않는다(옵트인해도 매번 울리지 않게).
     //   자체 try 로 감싼다 — 여기서 던지면 바깥 catch 가 이미 끝난 응답에 또 쓰려다 죽는다.
     try {
-      if (notifyOnComplete && deviceId && (Date.now() - startedAt) > NOTIFY_MIN_ELAPSED_MS) {
+      if (answer && notifyOnComplete && deviceId && (Date.now() - startedAt) > NOTIFY_MIN_ELAPSED_MS) {
         const requestId = pendingAnswers.store(q, answer, sourcesOut, note);
         sendAiAnswerPush(deviceId, requestId).catch(e => console.error('[Legal] 답변완료 푸시 실패:', e && e.message));
       }
