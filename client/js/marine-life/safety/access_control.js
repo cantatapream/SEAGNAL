@@ -116,7 +116,40 @@
             });
     }
 
-    /** 지도 클릭 시 출입통제구역 폴리곤을 찾아 정보를 토스트로 보여준다 */
+    /** "항목: 값" 한 줄 — 값이 없으면 그 줄 자체를 만들지 않는다 */
+    function _row(label, value) {
+        if (!value) return '';
+        return '<p><strong>' + label + '</strong>: ' + value + '</p>';
+    }
+
+    /** 폴리곤 feature 하나의 상세 정보 팝업 HTML을 만든다(구역마다 고시 내용이 달라 항목별로 있는 것만 표시) */
+    function _buildDetailHtml(hit) {
+        var html = '';
+        html += _row('관할', hit.get('station'));
+        html += _row('고시.공고', hit.get('notice_no'));
+        html += _row('일자', hit.get('date'));
+        html += _row('지정사유', hit.get('reason'));
+        html += _row('소재지', hit.get('address'));
+        html += _row('통제기간', hit.get('control_period'));
+        html += _row('통제시간', hit.get('control_time'));
+        html += _row('대상', hit.get('target'));
+        html += _row('벌칙', hit.get('penalty'));
+        html += _row('문의처', hit.get('contact'));
+        html += _row('상태', hit.get('status'));
+
+        var src = hit.get('source_file');
+        if (src) {
+            var url = '/api/legal/src?p=' + encodeURIComponent(src);
+            html += '<p style="margin-top:16px;">' +
+                '<a href="' + url + '" target="_blank" rel="noopener" ' +
+                'style="display:inline-block;padding:8px 14px;border-radius:8px;' +
+                'background:rgba(255,82,82,0.18);color:#ffb3b3;text-decoration:none;font-weight:600;">' +
+                '<i class="fa-solid fa-file-lines"></i> 고시 원문 보기</a></p>';
+        }
+        return html || '<p>세부 정보를 불러오지 못했습니다.</p>';
+    }
+
+    /** 지도 클릭 시 출입통제구역 폴리곤을 찾아 상세 정보 팝업을 띄운다 */
     function _bindClick(map) {
         map.on('singleclick', function (evt) {
             if (!_visible) return;
@@ -125,14 +158,11 @@
                 return null;
             });
             if (!hit) return;
-            var station = hit.get('station') || '';
-            var location = hit.get('location') || '';
-            var notice = hit.get('notice') || '';
-            var status = hit.get('status') || '';
-            var msg = station + ' ' + location + (notice ? ' (' + notice + ')' : '') +
-                      (status ? ' — ' + status : '');
-            if (typeof window._showOceanToast === 'function') {
-                window._showOceanToast(msg, 'bottom', 3600);
+            var location = hit.get('location') || '출입통제구역';
+            if (typeof window.showSeagnalModal === 'function') {
+                window.showSeagnalModal(location, _buildDetailHtml(hit), 'info');
+            } else if (typeof window._showOceanToast === 'function') {
+                window._showOceanToast((hit.get('station') || '') + ' ' + location, 'bottom', 3000);
             }
         });
     }
