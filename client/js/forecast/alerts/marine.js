@@ -1787,6 +1787,16 @@ function _onSectionActivated(sectionId) {
             }
         }, 200);
     }
+    // 해수욕 탭 활성화 시 지도 초기화 (스킨스쿠버와 동일한 지도형)
+    if (sectionId === 'swimming-section') {
+        // [사용량] 해수욕 하위 탭 진입
+        if (window.trackUsage) window.trackUsage('life.swimming.tab');
+        setTimeout(() => {
+            if (window.initSwimmingMap) {
+                window.initSwimmingMap();
+            }
+        }, 200);
+    }
     // 공지사항 탭 활성화 시 게시글 로드
     if (sectionId === 'promo-section') {
         if (typeof loadPromoPosts === 'function') setTimeout(loadPromoPosts, 100);

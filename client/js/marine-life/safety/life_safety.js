@@ -12,7 +12,7 @@
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 해아름 WMS 레이어,
  *                    window.oceanCreateVworldLayer — 브이월드 위성지도 레이어),
  *                    shared/ui/ui_modal.js(window.showSeagnalModal — 안내 팝업),
- *                    marine-life/*(fishing·surfing·scuba·mudflat·sea_parting — 활동 로직 그대로 재사용),
+ *                    marine-life/*(fishing·surfing·scuba·mudflat·sea_parting·swimming — 활동 로직 그대로 재사용),
  *                    forecast/alerts/marine.js(TAB_GROUP_SUBTABS·SECTION_TO_GROUP·switchSubTab)
  *  - 서버 API      : 없음 (활동별 데이터 호출은 각 활동 모듈이 기존대로 담당)
  *  - 마크업        : index2.html 의 #ocean-safety-section, #ocean-safety-sub-tabs,
@@ -46,7 +46,7 @@
     var ACTIVITIES = [
         { id: 'fishing-section',     label: '바다낚시',   gpsBtn: 'fishing-my-location-btn', pub: 'fishing-publish-time', getMap: function () { return window.getFishingMap && window.getFishingMap(); } },
         { id: 'surfing-section',     label: '서핑',       gpsBtn: 'surfing-my-location-btn', pub: 'surfing-publish-time', getMap: function () { return (window._surfing && window._surfing.map) || null; } },
-        { id: 'swimming-section',    label: '해수욕',     gpsBtn: null,                      pub: null,                   getMap: null },
+        { id: 'swimming-section',    label: '해수욕',     gpsBtn: 'swim-my-location-btn',    pub: 'swim-publish-time',    getMap: function () { return window.getSwimmingMap && window.getSwimmingMap(); } },
         { id: 'scuba-section',       label: '스킨스쿠버', gpsBtn: 'scuba-my-location-btn',   pub: 'scuba-publish-time',   getMap: function () { return window.getScubaMap && window.getScubaMap(); } },
         { id: 'mudflat-section',     label: '갯벌체험',   gpsBtn: 'mudflat-my-location-btn', pub: 'mudflat-publish-time', getMap: function () { return window.getMudflatMap && window.getMudflatMap(); } },
         { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      pub: 'sp-publish-time',      getMap: null }
@@ -596,7 +596,7 @@
                 '<p><strong>갯바위</strong></p>' + _pickHtml('#fishing-disclaimer-gwbr') +
                 '<p><strong>선상</strong></p>' + _pickHtml('#fishing-disclaimer-ship') },
             { id: 'surfing',  label: '서핑',       html: _pickHtml('#surfing-disclaimer') },
-            { id: 'swimming', label: '해수욕',     html: '<p><i class="fa-solid fa-circle-check"></i> 해수욕 지수는 해수욕장 개장기간에 제공됩니다.</p>' },
+            { id: 'swimming', label: '해수욕',     html: _pickHtml('#swim-disclaimer') },
             { id: 'scuba',    label: '스킨스쿠버', html: _pickHtml('#scuba-disclaimer') },
             { id: 'mudflat',  label: '갯벌체험',   html: _pickHtml('#mudflat-disclaimer') },
             { id: 'parting',  label: '바다갈라짐', html: _pickHtml('#sp-footer-info .sp-disclaimer') ||
@@ -617,11 +617,11 @@
     }
 
     /**
-     * 해양안전 화면(물빠짐·노출암/간출암·CCTV·낚시금지·항행경보) 전용 안내 팝업 본문(탭바 + 패널)을 만든다.
+     * 해양안전 화면(물빠짐·노출암/간출암·CCTV·낚시금지·관제구역·항로·항행경보) 전용 안내 팝업 본문(탭바 + 패널)을 만든다.
      * 해양종합정보의 17탭 안내와 같은 방식으로, 이 화면에 있는 기능만 탭으로 보여준다.
      * @returns {string} 팝업에 넣을 HTML
      * [연계] ← window.oceanInfoTabHtml() (ocean_cctv.js) — 탭 본문을 그대로 재사용
-     *          (낚시금지·항행경보는 해양종합정보에 없는 기능이라 공용 목록 대신 여기서 html 로 직접 넣는다)
+     *          (낚시금지·관제구역·항로·항행경보는 해양종합정보에 없는 기능이라 공용 목록 대신 여기서 html 로 직접 넣는다)
      *          → index2.html 의 .ocean-info-tabs/.ocean-info-panel/.ocean-info-src CSS, window.__lsInfoSwitch
      */
     function _buildSafetyInfoHtml() {
@@ -636,6 +636,18 @@
               + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 위치, 지정 사유, 통제 기간·시간, 대상, 벌칙, 고시번호 등 상세 정보를 확인할 수 있습니다.</p>'
               + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 국립해양조사원이 파악한 구역만 반영되어 있어 최신 지정 현황과 다를 수 있습니다. 실제 낚시 전에는 현장 안내판이나 관할 지자체 공고를 꼭 확인하세요.</p>'
               + '<div class="ocean-info-src">최종 갱신일자 · 2025-12-12<br>출처 · 국립해양조사원 낚시통제구역 주제도</div>' },
+            { id: 'vts', label: '관제구역', html:
+                '<p>해양경찰청이 공고한 선박교통관제구역(VTS)을 지도 위에 남색(인디고)으로 표시하며, 명칭에 실제 관제채널(예: Ch. 09)이 함께 표기됩니다.</p>'
+              + '<p>버튼을 켜면 배경지도가 전자해도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
+              + '<p>구역을 누르면 관제해역 설명, 관제센터 주소·전화·팩스를 확인할 수 있고, 누른 구역은 노란색으로 표시되어 어디를 선택했는지 알 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 실제 통항 시 정확한 관제채널과 신고 절차는 관할 관제센터로 문의하세요.</p>'
+              + '<div class="ocean-info-src">최종 갱신일자 · 2026-08-03<br>출처 · 해양경찰청 전국 VTS센터 공고자료</div>' },
+            { id: 'seaway', label: '항로', html:
+                '<p>해상교통안전법 등에 따라 지정된 항로(통항분리대·통항분리수역·지정항로·주의해역·선회장 등)를 지도 위에 청록색으로 표시합니다.</p>'
+              + '<p>버튼을 켜면 실제 항로와 비교하기 쉽도록 배경지도가 전자해도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
+              + '<p>항로를 누르면 항로명, 종류(통항분리대/통항분리수역 등), 근거·참고 문서를 확인할 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 항로 종류에 따라 통항 방법이 다르니, 실제 항해 전 관련 법령·고시 원문을 반드시 확인하세요.</p>'
+              + '<div class="ocean-info-src">최종 갱신일자 · 2026-08-03<br>출처 · 국립해양조사원 개방海(실시간 해양공간정보)</div>' },
             { id: 'navwarn', label: '항행경보', html:
                 '<p><i class="fa-solid fa-circle-check"></i> 오늘 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련 등)의 구역을 지도 위에 붉은 점선 원형/다각형으로 표시합니다.</p>'
               + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 구분, 발표기관, 유효기간(날짜·시간), 근거, 본문 등 상세 내용을 확인할 수 있습니다.</p>'

@@ -91,19 +91,20 @@ client/js/
 │   │   ├── fishing_ban.js
 │   │   ├── hazard_rocks.js
 │   │   ├── life_safety.js
-│   │   ├── navigational_warning.js
 │   │   ├── seaway.js
 │   │   ├── vts_zone.js
 │   ├── scuba/
 │   │   ├── scuba.js
 │   ├── sea-parting/
 │   │   ├── sea_parting.js
-│   └── surfing/
-│       ├── surfing1.js
-│       ├── surfing2.js
-│       ├── surfing3.js
-│       ├── surfing4.js
-│       ├── surfing5.js
+│   ├── surfing/
+│   │   ├── surfing1.js
+│   │   ├── surfing2.js
+│   │   ├── surfing3.js
+│   │   ├── surfing4.js
+│   │   ├── surfing5.js
+│   └── swimming/
+│       ├── swimming.js
 ├── notice/  ← [탭4] 공지사항
 │   ├── board/
 │   │   ├── image_compress.js
@@ -291,9 +292,8 @@ client/js/
 | `fishing_ban.js` | 해양안전 지도에 "낚시금지" 토글 버튼을 얹어, 낚시 관리 및 육성법 |
 | `hazard_rocks.js` | 해양안전 지도에 "노출암" / "간출암 등" 두 토글 버튼을 얹는다. 항상 |
 | `life_safety.js` | "해양안전생활" 화면 — 하단 해양생활 탭을 10번 연달아 누르면 열리는 시험용 화면. |
-| `navigational_warning.js` | 해양안전 지도에 "항행경보" 토글 버튼을 얹어, 오늘 발효 중인 항행경보 |
 | `seaway.js` | 해양안전 지도에 "항로" 토글 버튼을 얹어, 선박의 입항 및 출항 등에 관한 |
-| `vts_zone.js` | 해양안전 지도에 "관제구역" 토글 버튼을 얹어, 선박교통관제에 관한 법률 |
+| `vts_zone.js` | 해양안전 지도에 "관제구역" 토글 버튼을 얹어, 해양경찰청이 공고한 |
 
 ### `client/js/marine-life/scuba/`
 
@@ -316,6 +316,12 @@ client/js/
 | `surfing3.js` | 서핑지수 프론트엔드 - 팝업 열기/닫기 + 이벤트 바인딩 + 날짜 네비게이션 |
 | `surfing4.js` | 서핑지수 프론트엔드 - 팝업 콘텐츠 렌더링 (서핑지수 테이블 + 상세정보) |
 | `surfing5.js` | 서핑지수 프론트엔드 - 해상특보 맵 구축 + 해상특보 HTML 생성 |
+
+### `client/js/marine-life/swimming/`
+
+| 파일 | 역할 |
+|------|------|
+| `swimming.js` | 해수욕 지수 프론트엔드 전체 로직 (스킨스쿠버와 동일한 지도형) |
 
 ### `client/js/notice/board/`
 
