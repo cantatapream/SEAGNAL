@@ -617,6 +617,34 @@
     }
 
     /**
+     * 해양안전 화면(물빠짐·노출암/간출암·CCTV) 전용 안내 팝업 본문(탭바 + 패널)을 만든다.
+     * 해양종합정보의 17탭 안내와 같은 방식으로, 이 화면에 있는 기능 3개만 탭으로 보여준다.
+     * @returns {string} 팝업에 넣을 HTML
+     * [연계] ← window.oceanInfoTabHtml() (ocean_cctv.js) — 탭 본문을 그대로 재사용
+     *          → index2.html 의 .ocean-info-tabs/.ocean-info-panel CSS, window.__lsInfoSwitch
+     */
+    function _buildSafetyInfoHtml() {
+        var fn = window.oceanInfoTabHtml;
+        var items = [
+            { id: 'mudflat', label: '물빠짐' },
+            { id: 'hazardrock', label: '노출암·간출암' },
+            { id: 'cctv', label: 'CCTV' }
+        ];
+        var tabsHtml = '<div class="ocean-info-tabs">';
+        var panelsHtml = '<div class="ocean-info-panels">';
+        for (var i = 0; i < items.length; i++) {
+            var activeCls = (i === 0) ? ' active' : '';
+            tabsHtml += '<button type="button" class="ocean-info-tab-btn' + activeCls +
+                        '" data-info-tab="' + items[i].id + '" ' +
+                        'onclick="window.__lsInfoSwitch(\'' + items[i].id + '\')">' + items[i].label + '</button>';
+            var body = (typeof fn === 'function' && fn(items[i].id)) || '<p>준비 중입니다.</p>';
+            panelsHtml += '<div class="ocean-info-panel' + activeCls + '" data-info-panel="' + items[i].id + '">' +
+                          body + '</div>';
+        }
+        return tabsHtml + '</div>' + panelsHtml + '</div>';
+    }
+
+    /**
      * 안내 팝업 안에서 탭을 바꾼다 (팝업 HTML 의 onclick 에서 호출).
      * @param {string} tabId - 활동 탭 id (예: 'surfing')
      * [연계] ← _buildInfoHtml() 이 심어 둔 onclick
@@ -702,8 +730,8 @@
         // --- 해양안전 화면의 안내(ⓘ) — 이 화면에 있는 기능만 보여준다 ---
         //   해양종합정보 버튼(#ocean-info-btn)을 그대로 쓰지만 그 팝업은 17개 탭짜리
         //   전체 안내다. 이 화면엔 물빠짐·노출암/간출암·CCTV만 있으므로 document 캡처
-        //   단계에서 가로채 해당 탭 본문만 이어붙여 띄운다(캡처라 버튼 자신의 기존
-        //   핸들러까지 도달하지 않음).
+        //   단계에서 가로채 해양종합정보와 같은 탭형 팝업(_buildSafetyInfoHtml())으로
+        //   띄운다(캡처라 버튼 자신의 기존 핸들러까지 도달하지 않음).
         document.addEventListener('click', function (e) {
             if (!document.body.classList.contains('ls-safety')) return;
             var btn = e.target && e.target.closest && e.target.closest('#ocean-info-btn');
@@ -711,13 +739,7 @@
             e.stopPropagation();
             e.preventDefault();
             if (typeof window.showSeagnalModal !== 'function') return;
-            var fn = window.oceanInfoTabHtml;
-            var html = (typeof fn === 'function')
-                ? '<h4 class="ls-info-section-title">물빠짐</h4>' + (fn('mudflat') || '')
-                + '<h4 class="ls-info-section-title">노출암·간출암</h4>' + (fn('hazardrock') || '')
-                + '<h4 class="ls-info-section-title">CCTV</h4>' + (fn('cctv') || '')
-                : '';
-            window.showSeagnalModal('해양안전 안내', html || '<p>안내 내용을 불러오지 못했습니다.</p>', 'info');
+            window.showSeagnalModal('해양안전 안내', _buildSafetyInfoHtml(), 'info');
         }, true);
 
         // --- 갯바위/선상 팝아웃 (바다낚시 전용) ---
