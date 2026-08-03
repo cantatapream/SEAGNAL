@@ -211,6 +211,10 @@ const tideFieldCollector = require('./services/tide_field_collector');
 const hazardRocksTideCollector = require('./services/hazard_rocks_tide_collector');
 // [간출암 잠김경고] 조위와 VALSOU 비교해 잠김 교차시각 산출 — 곡선 수집 직후 재계산.
 const hazardRocksSubmersion = require('./services/hazard_rocks_submersion');
+// [노출암 고립판정] 제주 촘촘 격자(anchors_jeju.json) 앵커 1분 조위곡선 배치
+//   수집기. 위 제주 간출암(17개) 수집과는 다른 용도(고립판정 플러드필용, 서해·
+//   남해 물빠짐과 동일 밀도). 같은 TideBED 키를 쓰므로 순차로 이어서 호출한다.
+const jejuIsolationTideCollector = require('./services/jeju_isolation_tide_collector');
 
 
 const DUCKDNS_CONFIG = {
@@ -2591,11 +2595,19 @@ async function init() {
                         .then(r => log(`✅ TideBED 앵커 곡선 수집 결과 (제주): ${JSON.stringify(r)}`))
                         .catch(err => log(`⚠️ TideBED 앵커 곡선 수집 오류 (제주): ${err.message}`))
                         .finally(() => {
-                            // [간출암 잠김경고] 곡선이 갱신됐으니 잠김 교차시각도 재계산.
-                            //   무거운 스캔(분단위×3일×전체 암초)이라 배치당 1회만 수행.
-                            log('⏱️ 간출암 잠김 교차시각 재계산 시작...');
-                            hazardRocksSubmersion.computeAllCrossings({ log })
-                                .catch(err => log(`⚠️ 간출암 잠김 교차시각 계산 오류: ${err.message}`));
+                            // [노출암 고립판정] 제주 촘촘 격자 앵커 수집 — 같은 TideBED
+                            //   키를 쓰므로 위 제주 간출암 수집 직후 이어서(순차) 실행한다.
+                            log('🌊 TideBED 앵커 곡선 수집 시작 (제주 고립판정 격자)...');
+                            jejuIsolationTideCollector.collectJejuIsolationTides({ log })
+                                .then(r => log(`✅ TideBED 앵커 곡선 수집 결과 (제주 고립판정 격자): ${JSON.stringify(r)}`))
+                                .catch(err => log(`⚠️ TideBED 앵커 곡선 수집 오류 (제주 고립판정 격자): ${err.message}`))
+                                .finally(() => {
+                                    // [간출암 잠김경고] 곡선이 갱신됐으니 잠김 교차시각도 재계산.
+                                    //   무거운 스캔(분단위×3일×전체 암초)이라 배치당 1회만 수행.
+                                    log('⏱️ 간출암 잠김 교차시각 재계산 시작...');
+                                    hazardRocksSubmersion.computeAllCrossings({ log })
+                                        .catch(err => log(`⚠️ 간출암 잠김 교차시각 계산 오류: ${err.message}`));
+                                });
                         });
                 });
         }

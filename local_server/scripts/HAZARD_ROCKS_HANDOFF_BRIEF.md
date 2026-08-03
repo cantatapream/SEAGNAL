@@ -42,14 +42,38 @@ transition 7 + always_isolated_far(비근접-해안) 702 + always_isolated_nears
   `readingBasis`가 `color_zone_only`/`none`/`symbol_only`인 것(초록 간출지-육지 경계 애매 케이스)
   위주로만 하면 됨 — 검토량이 앞으로는 더 줄어들 것.
 
+## 🔧 진행 중 (2026-08-03): Task #14 — 제주 노출암 고립판정용 촘촘 격자·수집 배선
+
+**한 일**: 제주는 그동안 "간출암(k=1) 잠김경고"용 17개 지점 곡선만 매일 밤 수집되고 있었고,
+노출암(k=0) 고립판정 플러드필에 필요한 "촘촘한 수심 격자"(서해·남해와 동일 밀도)는 없었다.
+아래를 새로 만들어 배선함:
+- `services/jeju_isolation_tide_collector.js` — `scripts/build_jeju_bathy_grid.js`가 만드는
+  `anchors_jeju.json`(촘촘 격자 앵커)을 순회하며 TideBED 곡선을 수집(`data/tide_field/curves_jeju/`).
+  `ensureGridBuilt()`가 격자 없으면 `build_jeju_bathy_grid.main()`을 자동 실행(서해·남해
+  `tide_field_collector.ensureBuilt()`와 동일 패턴).
+- `scheduler.js` — KST 23:30 배치 체인에 제주 간출암(17개) 수집 직후 이어서(TideBED 키
+  순차 공유) 새 수집기 호출하도록 연결.
+
+**중요**: BADA 수심 원본(`data/bathymetry/`)이 있어야 실제 격자가 만들어지는데, 이 파일은
+운영 볼륨(Fly.io)에만 있고 이 저장소·로컬 개발환경엔 없다(서해·남해 grid_meta.json도 동일
+제약). **하지만 수동 명령 실행이 필요 없다** — `ensureGridBuilt()`가 서해·남해와 동일하게
+"격자 없으면 자동 빌드 시도" 패턴이라, 이 코드가 배포되면 다음 KST 23:30 배치(또는 서버 재기동)
+때 운영 서버가 스스로 BADA 원본으로 제주 격자를 만들고 곧바로 수집을 시작한다. 로컬에서
+BADA 없이 실행하면 크래시 없이 안전하게 skip하는 것까지 확인함.
+
+**아직 남은 것**: 격자·수집 배선은 끝났지만, **Task #19(조석-스윕 플러드필 계산)와 그 계산을
+쓰는 API(Task #16)는 아직 제주까지 확장 안 됨** — 지금은 수집 인프라만 준비된 상태. 격자·곡선이
+실제로 쌓이기 시작하면(배포 후 며칠), 서해·남해 스윕과 같은 방식으로 제주도 플러드필 계산에
+포함시키는 작업이 이어져야 함.
+
 ## 다음 단계 (순서대로, 아직 미착수)
 1. **Task #16** — 고립판정을 실제 tide_field API에 배선해서 프론트에 경고 표시(서해·남해 우선,
    제주 확장 포함) — `isolation_candidates_final.json`(718개 우선순위 후보)을 실사용 데이터로
    소비. 근접-해안(904건 중 9건 always_isolated_nearshore_human)은 사람 판단을, 나머지
    (transition 7 + always_isolated_far 702)는 스윕 결과를 그대로 신뢰해도 됨.
-2. **Task #14** — 제주는 격자(`grid_meta_jeju.json`/`anchors_jeju.json`, 로컬에만 있고 미커밋)를
-   기반으로 앵커 재산정·수집 확장 필요. Task #19 스윕은 제주를 대상 해역에서 제외했으므로
-   (tide_field가 애초에 서해·남해만 커버) 제주 노출암은 이 작업 이후에나 스윕 가능.
+2. **Task #14 나머지** — 위 제주 격자·수집이 실제로 운영에서 채워지면(자동), 서해·남해와
+   동일한 방식(Task #19 스크립트 재사용/확장)으로 제주 노출암 스윕을 실행해 `isolation_
+   candidates_final.json`에 제주 145개도 합쳐 넣는다.
 3. **Task #17** — 노출암 마커에 "늦어도 O시까지 이탈" 시각 표시(해안거리+잠김시각 반영).
 4. **Task #18** — 노출암/간출암 마커 탭 시 당일+익일(최대 3일) 조석 곡선 팝업, 하루씩 넘겨보기
    (이미 수집된 데이터 재사용, 새 수집 불필요).

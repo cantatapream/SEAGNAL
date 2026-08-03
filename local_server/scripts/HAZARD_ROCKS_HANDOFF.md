@@ -502,6 +502,37 @@ prefix는 프로덕션에 안 보임). **바깥쪽 요약 로그를 "🌊 TideBE
 비근접-해안 `always_connected`는 애초에 해안선에서 충분히 떨어져 격자 버퍼 편향의 영향이 작아
 신뢰할 만하다(다만 별도 OCR 검증은 하지 않았음 — Task #16 배선 후 이상 신호가 보이면 재검토).
 
+### 6.9 Task #14(부분) — 제주 노출암 고립판정용 촘촘 격자·수집 배선 (2026-08-03, 진행 중)
+
+**계기**: 사용자가 "제주 물때 데이터는 이미 매일 자동 수집되지 않냐"고 확인 요청 — 실제로
+확인해보니 **두 개의 서로 다른 제주 데이터가 있었다**:
+- 기존(이미 있던 것): `services/hazard_rocks_tide_collector.js` — "간출암(k=1) 잠김경고"용
+  **17개 지점**만 매일 밤 곡선 수집. 노출암(k=0) 고립판정엔 못 씀(지점이 너무 성겨서
+  임의 좌표의 드러남/잠김을 못 구함).
+- 새로 필요한 것: 서해·남해 물빠짐과 동일 밀도(버킷 0.1°≈10km)의 **촘촘한 수심 격자** —
+  `scripts/build_jeju_bathy_grid.js`가 이미 있었지만(이전 세션에서 1회 로컬 실행, 964칸/
+  23앵커), 그 산출물(`grid_meta_jeju.json`/`anchors_jeju.json`)이 커밋도 안 되고 자동
+  수집기도 없어서 이 세션의 컨테이너엔 아예 없었다(재실행해도 로컬엔 BADA 원본이 없어
+  빈 결과).
+
+**한 일**: `services/jeju_isolation_tide_collector.js` 신설 — `hazard_rocks_tide_collector.js`와
+같은 단순 패턴(순차 수집, nudge 없음)을 따르되, 대상은 `anchors_jeju.json`(촘촘 격자),
+저장 위치는 `data/tide_field/curves_jeju/`(기존 17개 앵커의 `data/hazard_rocks/curves/`와
+분리 — 서로 다른 용도이므로 섞이면 안 됨). `ensureGridBuilt()`가 격자 파일이 없으면
+`build_jeju_bathy_grid.main()`을 자동 실행 — **서해·남해 `tide_field_collector.ensureBuilt()`와
+동일한 "없으면 자동 재생성" 패턴**이라, 운영(Fly.io, BADA 원본 존재)에 배포되면 사람이
+SSH로 수동 명령을 칠 필요 없이 다음 KST 23:30 배치(또는 서버 재기동) 때 스스로 격자를
+만들고 곧바로 수집을 시작한다. `scheduler.js`의 23:30 체인에 제주 간출암(17개) 수집 직후
+이어서(TideBED 키 공유 — 순차 필수) 호출하도록 연결.
+
+**로컬 검증**: BADA 원본이 없는 이 컨테이너에서 실행 → `build_jeju_bathy_grid.main()`이
+"제주 해역 BADA 셀 0개"로 빈 메타를 남기고, 수집기는 크래시 없이 `{ok:false, reason:
+'no_anchors'}`로 안전하게 skip하는 것까지 확인(기존 `no_bathymetry` graceful 패턴과 동일).
+
+**아직 안 된 것**: 이건 "수집 배선"만 끝난 것이고, ①실제 운영에서 격자·곡선이 채워지는 것
+확인(배포 후 확인 필요) ②Task #19 스윕 스크립트를 제주까지 확장해 다시 실행 ③
+`isolation_candidates_final.json`에 제주 145개 결과 합치기 — 이 세 가지가 남아있다.
+
 ---
 
 ## 7. 알아둘 것 (교훈/시행착오 요약)
@@ -572,8 +603,9 @@ local_server/
     HAZARD_ROCKS_HANDOFF.md                        # 이 문서
     HAZARD_ROCKS_HANDOFF_BRIEF.md                  # 개략(바로 이어할 일)
   services/
-    hazard_rocks_tide_common.js                    # 제주 앵커 경로/설정
-    hazard_rocks_tide_collector.js                 # 제주 앵커 TideBED 곡선 수집기
+    hazard_rocks_tide_common.js                    # 제주 앵커(17개, 간출암용) 경로/설정
+    hazard_rocks_tide_collector.js                 # 제주 앵커(17개) TideBED 곡선 수집기(간출암 잠김경고용)
+    jeju_isolation_tide_collector.js                # 제주 촘촘 격자 앵커 TideBED 곡선 수집기(노출암 고립판정용)
     hazard_rocks_submersion.js                      # 간출암 잠김 교차시각 계산
     hazard_rocks_isolation.js                       # 노출암 고립판정 플러드필 알고리즘
     tide_field_common.js / tide_field_collector.js  # 물빠짐(서해·남해) 공용 인프라
@@ -586,5 +618,6 @@ local_server/
                   nearshore_isolation_review_1000.json(커밋됨 — 300m 근접 1,000개 OCR+사람검토 최종본),
                   isolation_sweep_full.json(커밋됨 — Task#19 전체 노출암 스윕 원본, 2,985건),
                   isolation_candidates_final.json(커밋됨 — Task#19+OCR union 최종 후보 718건)}
-    tide_field/{grid_meta.json, anchors.json, coastline_cells.json(커밋됨), curves/}
+    tide_field/{grid_meta.json, anchors.json, coastline_cells.json(커밋됨), curves/,
+                grid_meta_jeju.json, anchors_jeju.json(둘 다 미커밋 — BADA 필요), curves_jeju/}
 ```
