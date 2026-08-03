@@ -4,6 +4,10 @@
  * 역할  : 해양안전 지도에 "출입통제" 토글 버튼을 얹어, 연안사고 예방에 관한
  *         법률 제10조에 따라 각 해양경찰서가 지정한 출입통제구역 폴리곤을
  *         표시한다. 폴리곤을 탭하면 관할서·구역명·상태를 토스트로 보여준다.
+ *         구역 라벨은 OL 스타일이 아니라 별도 캔버스 오버레이(_labelCanvas)에
+ *         그려, 좁은 지역에 여러 구역이 몰려 있을 때 라벨끼리 겹치지 않게
+ *         밀어내 배치하고 원래 지점까지 인출선을 긋는다(라벨 텍스트 자체도
+ *         클릭하면 그 구역 팝업이 뜬다).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap·oceanGetBasemap·oceanSetBasemap), OpenLayers(ol.*)
@@ -29,21 +33,28 @@
 
     var DATA_URL = '/access_control_zones.json';
 
-    var _layer = null;       // 외곽선+라벨 layer
+    var _layer = null;       // 외곽선 layer
     var _fillLayer = null;   // 채움 layer
     var _source = null;
     var _visible = false;
     var _loaded = false;
     var _loading = false;
 
+    var _map = null;               // moveend/resize 훅 등록용
+    var _labelCanvas = null;       // 라벨 전용 오버레이 캔버스(OL 뷰포트 위에 겹침, pointer-events:none)
+    var _labelCtx = null;
+    var _labelRects = new Map();   // feature → 현재 그려진 라벨의 화면(css px) 사각형(라벨 클릭 판정용)
+    var _labelRAF = null;          // moveend 다발 발생 시 중복 재계산 방지용 requestAnimationFrame 핸들
+
     /**
      * 출입통제구역 폴리곤 한 벌의 스타일(빨간 톤 — 해도상 출입통제 표기 관례와 동일)을 만든다.
-     * 예: location='영흥도 내리 갯벌' → 빨간 외곽선 2px + 15% 채움 + 그 이름 라벨.
-     * @param {ol.Feature} feature - 그릴 구역 피처(라벨 문구는 location 속성)
-     * @returns {ol.style.Style} 외곽선·채움·라벨이 다 든 스타일 1개
+     * 예: '영흥도 내리 갯벌' 피처 → 빨간 외곽선 2px + 15% 채움. 라벨 문구는 여기 포함하지 않는다 —
+     * 좁은 지역에 여러 구역이 몰릴 때 겹침을 피해야 해서 OL 스타일이 아니라 별도 캔버스
+     * 오버레이(_labelCanvas, _drawLabels() 참고)에 그린다.
+     * @returns {ol.style.Style} 외곽선·채움이 든 스타일 1개(라벨 제외)
      * [연계] ← _fillOnlyStyle()/_strokeOnlyStyle() — 두 레이어가 이 한 벌을 나눠 쓴다
      */
-    function _zoneStyle(feature) {
+    function _zoneStyle() {
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
                 color: 'rgba(255, 82, 82, 0.9)',
@@ -51,21 +62,13 @@
             }),
             fill: new ol.style.Fill({
                 color: 'rgba(255, 82, 82, 0.15)'
-            }),
-            text: new ol.style.Text({
-                text: feature.get('location') || '',
-                font: 'bold 11px "Pretendard", sans-serif',
-                fill: new ol.style.Fill({ color: '#ffb3b3' }),
-                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
-                overflow: true,
-                placement: 'point'
             })
         });
     }
 
     /**
      * 스타일 한 벌에서 채움만 뽑아 새 스타일을 만든다.
-     * 예: _onlyFill(_zoneStyle(f)) → 선·라벨 없이 rgba(255,82,82,0.15) 채움만.
+     * 예: _onlyFill(_zoneStyle()) → 외곽선 없이 rgba(255,82,82,0.15) 채움만.
      * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
      * @returns {ol.style.Style|null} 채움만 든 스타일 — 채울 것이 없으면 null(안 그림)
      * [연계] ← _fillOnlyStyle()
@@ -76,14 +79,14 @@
         return new ol.style.Style({ fill: f });
     }
     /**
-     * 스타일 한 벌에서 외곽선과 라벨만 뽑아 새 스타일을 만든다.
-     * 예: _onlyStrokeAndText(_zoneStyle(f)) → 채움 없이 빨간 선 + '영흥도 내리 갯벌' 라벨.
+     * 스타일 한 벌에서 외곽선만 뽑아 새 스타일을 만든다.
+     * 예: _onlyStroke(_zoneStyle()) → 채움 없이 빨간 선만.
      * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
-     * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
+     * @returns {ol.style.Style} 외곽선만 든 스타일
      * [연계] ← _strokeOnlyStyle()
      */
-    function _onlyStrokeAndText(style) {
-        return new ol.style.Style({ stroke: style.getStroke(), text: style.getText() });
+    function _onlyStroke(style) {
+        return new ol.style.Style({ stroke: style.getStroke() });
     }
     /**
      * 채움 레이어(_fillLayer)의 스타일 함수 — 피처마다 채움만 그린다.
@@ -94,13 +97,13 @@
      */
     function _fillOnlyStyle(feature) { return _onlyFill(_zoneStyle(feature)); }
     /**
-     * 외곽선 레이어(_layer)의 스타일 함수 — 피처마다 선과 라벨만 그린다.
-     * 예: _strokeOnlyStyle(영흥도 갯벌 피처) → 빨간 테두리 + 이름 라벨.
+     * 외곽선 레이어(_layer)의 스타일 함수 — 피처마다 선만 그린다(라벨은 _labelCanvas 오버레이 담당).
+     * 예: _strokeOnlyStyle(영흥도 갯벌 피처) → 빨간 테두리만.
      * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
-     * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
-     * [연계] ← _ensureLayers() 의 _layer style 옵션 → _zoneStyle()·_onlyStrokeAndText()
+     * @returns {ol.style.Style} 외곽선만 든 스타일
+     * [연계] ← _ensureLayers() 의 _layer style 옵션 → _zoneStyle()·_onlyStroke()
      */
-    function _strokeOnlyStyle(feature) { return _onlyStrokeAndText(_zoneStyle(feature)); }
+    function _strokeOnlyStyle(feature) { return _onlyStroke(_zoneStyle(feature)); }
 
     /**
      * 채움·외곽선 두 벡터 레이어를 (아직 없을 때만) 만들어 지도에 얹는다.
@@ -111,6 +114,7 @@
      *        그 위로 보여야 해서 zIndex 를 따로 줘야 한다.
      */
     function _ensureLayers(map) {
+        _map = map;
         if (!_source) _source = new ol.source.Vector();
 
         if (!_fillLayer) {
@@ -135,6 +139,117 @@
             });
             map.addLayer(_layer);
         }
+        map.on('moveend', function () { if (_visible) _scheduleLabelUpdate(); });
+        map.on('change:size', function () { if (_visible) _scheduleLabelUpdate(); });
+    }
+
+    /** 지도 뷰포트 위에 겹쳐지는 라벨 전용 캔버스를 1회 생성(pointer-events:none —
+     *  클릭 판정은 _accessControlTryHandleClick 이 _labelRects 로 직접 처리) */
+    function _ensureLabelCanvas() {
+        if (_labelCanvas) return;
+        _labelCanvas = document.createElement('canvas');
+        _labelCanvas.style.position = 'absolute';
+        _labelCanvas.style.left = '0';
+        _labelCanvas.style.top = '0';
+        _labelCanvas.style.pointerEvents = 'none';
+        _labelCanvas.style.zIndex = '10';
+        _labelCtx = _labelCanvas.getContext('2d');
+        _map.getViewport().appendChild(_labelCanvas);
+    }
+
+    /** feature 하나의 라벨 기준점(화면 픽셀) — Polygon 은 내부점(오목한 모양도 안전),
+     *  LineString 은 중간 지점을 기준으로 삼는다 */
+    function _labelAnchorPixel(map, feature) {
+        var geom = feature.getGeometry();
+        var coord = geom.getType() === 'Polygon' ? geom.getInteriorPoint().getCoordinates() : geom.getCoordinateAt(0.5);
+        return map.getPixelFromCoordinate(coord);
+    }
+
+    /** 라벨은 기준점 바로 위 고정 위치에만 놓는다(밀어내기·인출선 없음) — 그 자리가
+     *  이미 그려진 다른 라벨과 겹치면 이번 줌 레벨에서는 텍스트 대신 작은 점만 찍는다.
+     *  축소된 화면일수록 같은 지점들이 화면상 더 가까이 뭉쳐 겹침이 잦아지므로 점만
+     *  남고, 확대할수록 픽셀 간격이 벌어져 겹침이 풀리면서 라벨이 하나씩 저절로
+     *  나타난다(줌 레벨별 표시 개수를 따로 관리할 필요 없음). */
+    function _layoutLabels(map, features) {
+        var placed = [];
+        var layout = []; // { feature, anchor:[x,y], rect:{x0,y0,x1,y1}|null, dotOnly }
+
+        function overlaps(r) {
+            for (var i = 0; i < placed.length; i++) {
+                var p = placed[i];
+                if (r.x0 < p.x1 + 3 && r.x1 > p.x0 - 3 && r.y0 < p.y1 + 3 && r.y1 > p.y0 - 3) return true;
+            }
+            return false;
+        }
+
+        var items = features.map(function (f) {
+            var anchor = _labelAnchorPixel(map, f);
+            var text = f.get('location') || '';
+            var w = _labelCtx.measureText(text).width;
+            return { feature: f, anchor: anchor, w: w, h: 14 };
+        });
+        items.sort(function (a, b) { return a.anchor[1] - b.anchor[1] || a.anchor[0] - b.anchor[0]; });
+
+        items.forEach(function (it) {
+            var cy = it.anchor[1] - 8; // 점보다 살짝 위에 뜨도록
+            var rect = { x0: it.anchor[0] - it.w / 2 - 2, y0: cy - it.h / 2, x1: it.anchor[0] + it.w / 2 + 2, y1: cy + it.h / 2 };
+            if (!overlaps(rect)) {
+                placed.push(rect);
+                layout.push({ feature: it.feature, anchor: it.anchor, rect: rect, dotOnly: false });
+            } else {
+                layout.push({ feature: it.feature, anchor: it.anchor, rect: null, dotOnly: true });
+            }
+        });
+        return layout;
+    }
+
+    /** moveend/resize 직후 다발적으로 여러 번 불려도 프레임당 1번만 재계산하도록 묶는다 */
+    function _scheduleLabelUpdate() {
+        if (_labelRAF) return;
+        _labelRAF = requestAnimationFrame(function () {
+            _labelRAF = null;
+            _drawLabels();
+        });
+    }
+
+    /** 라벨 오버레이를 다시 그린다: 겹치는 라벨은 밀어내 배치하고, 원래 지점에서
+     *  옮겨진 만큼 가는 인출선을 그어 어느 구역의 라벨인지 알 수 있게 한다 */
+    function _drawLabels() {
+        if (!_map || !_labelCanvas || !_source) return;
+        var size = _map.getSize();
+        if (!size) return;
+        var dpr = window.devicePixelRatio || 1;
+        _labelCanvas.width = size[0] * dpr;
+        _labelCanvas.height = size[1] * dpr;
+        _labelCanvas.style.width = size[0] + 'px';
+        _labelCanvas.style.height = size[1] + 'px';
+        _labelCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        _labelCtx.clearRect(0, 0, size[0], size[1]);
+        _labelCtx.font = 'bold 11px "Pretendard", sans-serif';
+        _labelCtx.textBaseline = 'middle';
+
+        _labelRects.clear();
+        var layout = _layoutLabels(_map, _source.getFeatures());
+        layout.forEach(function (it) {
+            if (it.dotOnly) {
+                // 이 줌 레벨에서는 너무 촘촘히 몰려 있어 라벨 대신 점만 — 확대하면 자동으로 라벨이 뜬다
+                _labelCtx.beginPath();
+                _labelCtx.arc(it.anchor[0], it.anchor[1], 3, 0, Math.PI * 2);
+                _labelCtx.fillStyle = 'rgba(255, 82, 82, 0.9)';
+                _labelCtx.fill();
+                return;
+            }
+            var cx = (it.rect.x0 + it.rect.x1) / 2;
+            var cy = (it.rect.y0 + it.rect.y1) / 2;
+            var text = it.feature.get('location') || '';
+            _labelCtx.textAlign = 'center';
+            _labelCtx.strokeStyle = 'rgba(0,0,0,0.85)';
+            _labelCtx.lineWidth = 3;
+            _labelCtx.strokeText(text, cx, cy);
+            _labelCtx.fillStyle = '#ffb3b3';
+            _labelCtx.fillText(text, cx, cy);
+            _labelRects.set(it.feature, it.rect);
+        });
     }
 
     /**
@@ -159,6 +274,7 @@
                 _source.addFeatures(features);
                 _loaded = true;
                 _loading = false;
+                if (_visible) _scheduleLabelUpdate();
             })
             .catch(function (err) {
                 _loading = false;
@@ -268,9 +384,20 @@
         anchor();
     };
 
+    /** feature 의 지리 범위가 현재 화면에서 몇 픽셀 크기로 보이는지(가로/세로 중 큰 쪽) */
+    function _extentPixelSize(map, feature) {
+        var extent = feature.getGeometry().getExtent();
+        var p1 = map.getPixelFromCoordinate([extent[0], extent[1]]);
+        var p2 = map.getPixelFromCoordinate([extent[2], extent[3]]);
+        if (!p1 || !p2) return 0;
+        return Math.max(Math.abs(p2[0] - p1[0]), Math.abs(p2[1] - p1[1]));
+    }
+
     /**
      * [외부 API] 지도 클릭이 출입통제구역 폴리곤을 눌렀는지 확인한다.
-     * 예: '영흥도 내리 갯벌' 폴리곤을 탭 → 상세 팝업을 띄우고 true 반환(바텀시트는 안 뜬다).
+     * 구역이 화면에 너무 작게(줌아웃 상태) 보이는 상태에서 누르면 — 그 구역이 잘 보이도록
+     * 먼저 확대만 하고 팝업은 띄우지 않는다. 이미 충분히 확대돼 있는 상태에서 누르면(또는
+     * 확대 후 같은 구역을 한 번 더 누르면) 바로 상세정보 팝업을 띄운다(바텀시트는 안 뜬다).
      * @param {ol.Map} map
      * @param {ol.MapBrowserEvent} evt
      * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함)
@@ -288,7 +415,21 @@
             if (layer === _layer && feature.getGeometry().getType() === 'LineString') return feature;
             return null;
         }, { hitTolerance: 6 });
+        if (!hit) {
+            // 폴리곤/선을 못 맞췄으면 라벨 텍스트 위를 눌렀는지도 확인 — _labelRects 는
+            // _drawLabels() 가 매번 다시 채운다.
+            _labelRects.forEach(function (rect, feature) {
+                if (hit) return;
+                if (evt.pixel[0] >= rect.x0 && evt.pixel[0] <= rect.x1 && evt.pixel[1] >= rect.y0 && evt.pixel[1] <= rect.y1) hit = feature;
+            });
+        }
         if (!hit) return false;
+
+        if (_extentPixelSize(map, hit) < 60) {
+            map.getView().fit(hit.getGeometry().getExtent(), { padding: [80, 80, 80, 80], maxZoom: 15, duration: 400 });
+            return true;
+        }
+
         var location = hit.get('location') || '출입통제구역';
         if (typeof window.showSeagnalModal === 'function') {
             window.showSeagnalModal(location, _buildDetailHtml(hit), 'info');
@@ -321,15 +462,21 @@
             if (_fillLayer) _fillLayer.setVisible(_visible);
             if (_visible) {
                 _load();
+                _ensureLabelCanvas();
+                _scheduleLabelUpdate();
                 // 폴리곤을 실제 지형과 대조해 보기 쉽도록 배경지도를 위성지도로 자동 전환
                 // (ocean_warn_active.js 의 "ON 시 배경 전환 → OFF 시 복귀" 와 동일 패턴)
                 if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
                     _prevBasemap = window.oceanGetBasemap();
                     if (_prevBasemap !== 'vworld') window.oceanSetBasemap('vworld');
                 }
-            } else if (_prevBasemap && _prevBasemap !== 'vworld' && typeof window.oceanSetBasemap === 'function') {
-                window.oceanSetBasemap(_prevBasemap);
-                _prevBasemap = null;
+            } else {
+                if (_labelCtx && _labelCanvas) _labelCtx.clearRect(0, 0, _labelCanvas.width, _labelCanvas.height);
+                _labelRects.clear();
+                if (_prevBasemap && _prevBasemap !== 'vworld' && typeof window.oceanSetBasemap === 'function') {
+                    window.oceanSetBasemap(_prevBasemap);
+                    _prevBasemap = null;
+                }
             }
         });
     }
