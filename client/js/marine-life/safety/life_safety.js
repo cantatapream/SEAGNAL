@@ -270,7 +270,7 @@
      */
     function _watchBottomSheets() {
         var ids = ['fishing-bottomsheet', 'mudflat-bottomsheet', 'scuba-bottomsheet',
-                   'rip-bottomsheet', 'surfing-popup'];
+                   'rip-bottomsheet', 'surfing-popup', 'swim-bottomsheet'];
         var els = [];
         for (var i = 0; i < ids.length; i++) {
             var el = document.getElementById(ids[i]);
