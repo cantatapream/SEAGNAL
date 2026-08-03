@@ -20,9 +20,11 @@
  *   그대로 나오고 zones만 빈 배열이 된다(부분 실패, 전체 실패 아님).
  *
  * - GET /api/navigational-warning/list?date=YYYYMMDD → 지정 날짜(생략 시 오늘) 발효 중인
- *   항행경보 + (가능하면) 구역 좌표. 구역마다 표시용 유효기간 문자열(validity)과
- *   날짜별 시간창 배열(windows)을 함께 준다 — windows는 클라이언트가 "선택한 날짜의
- *   특정 시각에 이 구역이 만료됐는지"를 판정하는 데 쓴다(날짜 내비게이션 + 시간 슬라이더).
+ *   항행경보 구역(zones) 목록. 같은 구역명(같은 물리적 구역)이 시간대만 다르게 여러
+ *   문서/여러 번 나오면 하나로 합쳐 occurrences 배열에 담는다(라벨 겹침 방지). 구역마다
+ *   날짜별 시간창 배열(windows, 모든 occurrence 합집합)을 함께 준다 — 클라이언트가
+ *   "선택한 날짜의 특정 시각에 이 구역이 만료됐는지"를 판정하는 데 쓴다
+ *   (날짜 내비게이션 + 시간 슬라이더).
  *
  * [내부 API 흐름 — 구역 보강용]
  * 1. GET  https://www.khoa.go.kr/nwb/mainPage.do?lang=ko  → JSESSIONID 세션 획득
@@ -49,7 +51,7 @@ const KHOA_BASE = 'https://www.khoa.go.kr/nwb';
 const CACHE_TTL_MS = 30 * 60 * 1000;      // 30분 — 목록+구역 결합 결과 캐시(날짜별)
 const SESSION_TTL_MS = 20 * 60 * 1000;    // 20분 — JSESSIONID 재발급 주기
 
-const _cacheByDate = new Map();  // date(YYYYMMDD) → { items, fetchedAt } — 날짜 내비게이션용
+const _cacheByDate = new Map();  // date(YYYYMMDD) → { zones, fetchedAt } — 날짜 내비게이션용
 let _session = null;    // { cookie, obtainedAt }
 
 /** ROMS API와 동일한 서비스키를 읽어오는 함수(ocean2.js getRomsKey()와 동일 패턴) */
@@ -208,17 +210,49 @@ function _buildWindows(dateDetail, timeDetail) {
     }).filter(Boolean);
 }
 
-/** getDocAreaPoint.do 결과 한 건을 클라이언트가 쓰기 쉬운 zone 객체로 변환 */
-function _toZone(d) {
+/** getDocAreaPoint.do 결과 한 건을 클라이언트가 쓰기 쉬운 zone 객체로 변환한다.
+ *  occurrence(발표문 하나 분량 — 구분·발표기관·근거·본문·유효기간·시간창)를 함께 담아,
+ *  이후 _mergeZonesByName() 이 같은 구역명끼리 occurrences 를 합칠 수 있게 한다. */
+function _toZone(d, item) {
     return {
         name: d.POSITION_NM + (d.POS_ID ? `(${d.POS_ID})` : ''),
         chartNo: d.SEA_POS || null,
         type: (d.AREATYPE === '0') ? 'polygon' : 'circle',
         points: _parsePositions(d.POSITION),
         radiusNm: d.RADIUS ? parseFloat(d.RADIUS) : null,
-        validity: _zipValidity(d.ALARM_MD_DETAIL, d.ALARM_TIME_DETAIL),
-        windows: _buildWindows(d.ALARM_DATE_DETAIL, d.ALARM_TIME_DETAIL)
+        occurrence: {
+            doc_num: item.doc_num,
+            gov_cd: item.gov_cd,
+            noti_cat: item.noti_cat,
+            app_cat: item.app_cat,
+            title: item.title,
+            basic: item.basic,
+            content: item.content,
+            validity: _zipValidity(d.ALARM_MD_DETAIL, d.ALARM_TIME_DETAIL),
+            windows: _buildWindows(d.ALARM_DATE_DETAIL, d.ALARM_TIME_DETAIL)
+        }
     };
+}
+
+/** 같은 구역명(POSITION_NM+POS_ID — KHOA 공식 구역 코드라 안정적인 식별자)을 가진
+ *  zone들을 하나로 합친다. 한 문서 안에서, 또는 서로 다른 문서 사이에서 같은 물리적
+ *  구역이 시간대만 다르게 여러 번(예: 08~18시 / 18~24시) 반복되는 경우가 있는데,
+ *  이걸 각각 별도 도형으로 그리면 라벨이 같은 자리에 겹쳐 뭉개진다(2026-08 사용자
+ *  스크린샷으로 확인). 좌표는 첫 occurrence 것을 대표로 쓰고(같은 구역이므로 동일하다고
+ *  가정), occurrences 는 배열로 모아 클라이언트가 팝업에서 항목별로 구분해 보여준다.
+ *  windows 는 여러 occurrence의 시간창을 합쳐, "이 구역이 특정 시각에 만료됐는지"
+ *  판정할 때 어느 occurrence 것이든 다 반영되게 한다. */
+function _mergeZonesByName(zones) {
+    const byName = new Map();
+    zones.forEach((z) => {
+        if (!byName.has(z.name)) {
+            byName.set(z.name, { name: z.name, chartNo: z.chartNo, type: z.type, points: z.points, radiusNm: z.radiusNm, occurrences: [], windows: [] });
+        }
+        const merged = byName.get(z.name);
+        merged.occurrences.push(z.occurrence);
+        merged.windows.push(...z.occurrence.windows);
+    });
+    return Array.from(byName.values());
 }
 
 /** 오늘 날짜(YYYYMMDD, 서버 로컬 시간 기준) */
@@ -250,32 +284,34 @@ async function _fetchDocIdMap(dateYmd) {
     return map;
 }
 
-/** 문서 하나(docId)의 구역 목록을 받아 zone 객체 배열로 변환한다(그릴 점이 없는 zone은 제외) */
-async function _fetchZonesFor(docId) {
+/** 문서 하나(docId, item)의 구역 목록을 받아 zone 객체 배열로 변환한다(그릴 점이 없는 zone은 제외) */
+async function _fetchZonesFor(docId, item) {
     const areaData = await _khoaPost('getDocAreaPoint.do', { id: docId, searchArea: '' });
-    return (areaData.RESULT_DATA || []).map(_toZone).filter(z => z.points.length > 0);
+    return (areaData.RESULT_DATA || []).map(d => _toZone(d, item)).filter(z => z.points.length > 0);
 }
 
 /**
  * GET /api/navigational-warning/list?date=YYYYMMDD
  *
- * 지정한 날짜(생략 시 오늘)에 발효 중인 항행경보 목록(공식 API)에, 가능하면
- * 구역 좌표(KHOA 내부 API)를 보강해 반환한다(날짜별 30분 캐시). 구역 보강이
- * 실패해도 텍스트 목록은 정상 반환한다. 날짜 내비게이션(client)이 이 파라미터로
+ * 지정한 날짜(생략 시 오늘)에 발효 중인 항행경보 구역 목록을 반환한다(날짜별 30분
+ * 캐시). 텍스트는 공식 API, 좌표는 KHOA 내부 API — 구역 보강이 실패하면 zones가
+ * 빈 배열이 된다(전체 실패 아님). 같은 구역명을 가진 항목은 하나로 합쳐 occurrences
+ * 배열에 담는다(§_mergeZonesByName 참고 — 같은 구역이 시간대만 다르게 반복되는
+ * 경우 지도에 라벨이 겹치는 걸 막기 위함). 날짜 내비게이션(client)이 date 파라미터로
  * 다른 날짜를 조회한다.
  *
  * [응답 예시]
  * {
  *   success: true,
- *   items: [{
- *     doc_num: "26-251", gov_cd: "보령해양경찰서", noti_cat: "장애물", app_cat: "항행정보",
- *     title: "보령, 외연도 서방 전복선박 표류 알림", basic: "보령해양경찰서 경비구조과-4484(...)",
- *     content: "충남 보령시 외연도 서방 약 21해리 해상에서...",
- *     zones: [{
- *       name: "서해안 ~ 격렬비열도 남부", chartNo: "3418", type: "circle",
- *       points: [{ lat: 36.29, lon: 125.63 }], radiusNm: 5,
- *       validity: "07/24 00:00 ~ 00:00\n07/25 00:00 ~ 00:00\n...",
- *       windows: [{ date: "2026-07-24", start: 0, end: 1439 }, ...]
+ *   zones: [{
+ *     name: "대한해협-욕지도남방근해(D-72)", chartNo: "2200", type: "polygon",
+ *     points: [{ lat: 34.16, lon: 128.0 }, ...], radiusNm: null,
+ *     windows: [{ date: "2026-08-03", start: 540, end: 960 }, ...],
+ *     occurrences: [{
+ *       doc_num: "26-253", gov_cd: "합동참모본부", noti_cat: "해상사격", app_cat: "해상사격",
+ *       title: "8월 1주 해상사격훈련(합동참모본부) 실시 알림", basic: "합동참모본부 합동화력과-...",
+ *       content: "1. 합동참모본부...", validity: "08/03 09:00 ~ 16:00",
+ *       windows: [{ date: "2026-08-03", start: 540, end: 960 }]
  *     }]
  *   }]
  * }
@@ -286,7 +322,7 @@ router.get('/api/navigational-warning/list', async (req, res) => {
 
         const cached = _cacheByDate.get(dateYmd);
         if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
-            return res.json({ success: true, items: cached.items });
+            return res.json({ success: true, zones: cached.zones });
         }
 
         const officialItems = await _fetchOfficialList(dateYmd);
@@ -298,30 +334,25 @@ router.get('/api/navigational-warning/list', async (req, res) => {
             console.warn('[NavWarn] KHOA 내부 목록 조회 실패(구역 보강 생략):', e.message);
         }
 
-        const items = await Promise.all(officialItems.map(async (raw) => {
-            let zones = [];
-            const docId = docIdMap[raw.doc_num];
-            if (docId) {
-                try {
-                    zones = await _fetchZonesFor(docId);
-                } catch (e) {
-                    console.warn('[NavWarn] 구역 조회 실패 (doc_num=' + raw.doc_num + '):', e.message);
-                }
-            }
-            return {
-                doc_num: raw.doc_num,
-                gov_cd: raw.gov_cd,
-                noti_cat: raw.noti_cat,
-                app_cat: raw.app_cat,
-                title: raw.title,
-                basic: raw.basic,
-                content: raw.content,
-                zones
+        const zonesByItem = await Promise.all(officialItems.map(async (raw) => {
+            const item = {
+                doc_num: raw.doc_num, gov_cd: raw.gov_cd, noti_cat: raw.noti_cat, app_cat: raw.app_cat,
+                title: raw.title, basic: raw.basic, content: raw.content
             };
+            const docId = docIdMap[raw.doc_num];
+            if (!docId) return [];
+            try {
+                return await _fetchZonesFor(docId, item);
+            } catch (e) {
+                console.warn('[NavWarn] 구역 조회 실패 (doc_num=' + raw.doc_num + '):', e.message);
+                return [];
+            }
         }));
 
-        _cacheByDate.set(dateYmd, { items, fetchedAt: Date.now() });
-        res.json({ success: true, items });
+        const zones = _mergeZonesByName(zonesByItem.flat());
+
+        _cacheByDate.set(dateYmd, { zones, fetchedAt: Date.now() });
+        res.json({ success: true, zones });
     } catch (err) {
         console.error('[NavWarn] 조회 실패:', err.message);
         res.json({ success: false, error: '항행경보 조회 중 오류가 발생했습니다.' });
