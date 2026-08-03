@@ -25,7 +25,6 @@
 `local_server/scheduler.js` 의 `collectSwimmingIndex()` 가 fcstBeachv2 API를 매일
 09:10/09:40 KST 에 수집 → `swimming_index.json` 저장 → `dataCache.swimmingIndex` →
 `GET /api/swimming-index`(`routes/fishing.js`) → 이 파일이 fetch.
-같은 API 응답을 `marine-life/safety/beach_swim.js`(해양안전 탭 오버레이 마커)도 함께 사용한다.
 
 ## 연계 파일
 

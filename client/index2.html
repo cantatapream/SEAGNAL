@@ -787,16 +787,15 @@
         body.ls-mode.ls-safety #ocean-fishing-ban-toggle-btn,
         body.ls-mode.ls-safety #ocean-vts-toggle-btn,
         body.ls-mode.ls-safety #ocean-seaway-toggle-btn,
-        body.ls-mode.ls-safety #ocean-swimming-toggle-btn,
         body.ls-mode.ls-safety #ocean-cctv-toggle-btn,
         body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
-        /* 노출암/간출암 등/출입통제/낚시금지/관제구역/항로/해수욕 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
+        /* 노출암/간출암 등/출입통제/낚시금지/관제구역/항로 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
            [연계] js/marine-life/safety/hazard_rocks.js, js/marine-life/safety/access_control.js,
                   js/marine-life/safety/fishing_ban.js, js/marine-life/safety/vts_zone.js,
-                  js/marine-life/safety/seaway.js, js/marine-life/safety/beach_swim.js */
+                  js/marine-life/safety/seaway.js */
         #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn, #ocean-access-control-toggle-btn,
         #ocean-fishing-ban-toggle-btn, #ocean-vts-toggle-btn,
-        #ocean-seaway-toggle-btn, #ocean-swimming-toggle-btn { display: none; }
+        #ocean-seaway-toggle-btn { display: none; }
         body.ls-mode.ls-safety #ocean-search-container,
         body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
         /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
@@ -3454,17 +3453,6 @@
                             <i class="fa-solid fa-route"></i>
                             <span class="ocean-overlay-label" data-line1="항로">항로</span>
                         </button>
-                        <!-- 해수욕 토글: js/marine-life/safety/beach_swim.js 가 바인딩.
-                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
-                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
-                             국립해양조사원 해수욕지수(fcstBeachv2) — 전국 해수욕장 파고·수온·기온·풍속
-                             기반 5단계 종합지수를 색상 점 마커로 표시. 탭하면 오늘/내일 예보 요약 팝업.
-                             [데이터] /api/swimming-index (서버 스케줄러가 매일 09:10/09:40 수집,
-                                      해양생활 탭의 해수욕 지도와 동일 데이터 공유) -->
-                        <button class="ocean-overlay-btn" id="ocean-swimming-toggle-btn" title="해수욕">
-                            <i class="fa-solid fa-umbrella-beach"></i>
-                            <span class="ocean-overlay-label" data-line1="해수욕">해수욕</span>
-                        </button>
                         <!-- 천기 토글: js/shrt_forecast_layer.js 가 바인딩 (이전 이름: "기타 기상")
                              클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
                              (강수확률·강수량·적설·하늘상태·강수형태) — 하나 선택 시 팝아웃이 접히면서
@@ -5085,12 +5073,6 @@
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <script src="js/marine-life/safety/seaway.js"></script>
-
-    <!-- 해수욕 지수 마커 오버레이 — 해양안전 하위탭 전용. seaway.js 와 동일하게
-         스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
-         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다.
-         [연계] routes/fishing.js → /api/swimming-index (marine-life/swimming/swimming.js 와 데이터 공유) -->
-    <script src="js/marine-life/safety/beach_swim.js"></script>
 
     <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->

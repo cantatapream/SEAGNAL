@@ -25,10 +25,6 @@
     선으로 고시된 17곳은 선으로 그립니다.
     관제구역·항로 토글은 켤 때 배경지도가 **전자해도**로 자동
     전환됩니다(출입통제·낚시금지는 위성지도로 전환 — 관제구역·항로는 항해 정보라 해도가 맞음).
-    **해수욕**은 국립해양조사원 해수욕지수(fcstBeachv2)를 전국 해수욕장 위치에 색상
-    점 마커(5단계: 매우좋음~매우나쁨)로 표시하고, 탭하면 오늘/내일 예보 요약(종합지수·
-    개장상태·파고·수온·기온·풍속) 팝업을 보여줍니다. `해양생활` 하위탭의 해수욕
-    지도(`marine-life/swimming/swimming.js`)와 같은 `/api/swimming-index` 데이터를 공유합니다.
   - **해양생활** — 기존 6개 활동(바다낚시·서핑·해수욕·스킨스쿠버·갯벌체험·바다갈라짐)을
     화면 **오른쪽 세로 버튼**으로 갈아끼웁니다.
     단, **바다갈라짐**은 표가 넓어 오른쪽 버튼에 가리므로, 이때만 버튼이
@@ -55,7 +51,6 @@
 | `fishing_ban.js` | 낚시금지(낚시통제)구역 폴리곤 토글 레이어(해양안전 전용) — 낚시 관리 및 육성법 제6조·지자체 조례 지정 236개 구역, `/fishing_ban_zones.json`(정적, 지연 로드), 클릭 시 근거법령·통제시간·벌칙 등 상세 팝업 |
 | `vts_zone.js` | 선박교통관제(VTS)구역 폴리곤 토글 레이어(해양안전 전용) — 해양경찰청 공고 34개 구역, `/vts_zones.json`(정적, 지연 로드), 켤 때 배경지도를 전자해도로 자동 전환, 클릭 시 관제해역·관제센터 주소·전화·팩스 상세 팝업 + 클릭한 구역만 노란색 선택 하이라이트(한 번에 하나) |
 | `seaway.js` | 항로 토글 레이어(해양안전 전용) — 선박의 입항 및 출항 등에 관한 법률 제10조 등 지정ㆍ고시 항로 141곳(면 124 + 선 17), `/seaway_zones.json`(정적, 지연 로드), 켤 때 배경지도를 전자해도로 자동 전환, 클릭 시 종류·참고문서·참고사이트 상세 팝업 |
-| `beach_swim.js` | 해수욕 지수 점 마커 토글 레이어(해양안전 전용) — 국립해양조사원 해수욕지수(fcstBeachv2) 전국 해수욕장, `/api/swimming-index`(서버 스케줄러가 매일 09:10/09:40 수집, 처음 켤 때 지연 fetch), 클릭 시 오늘/내일 예보 요약(종합지수·개장상태·파고·수온·기온·풍속) 팝업 |
 
 ## 설계 요점 — 기존 코드를 고치지 않고 재사용
 
@@ -142,7 +137,6 @@ mudflat.js / sea_parting.js / swimming.js)을 그대로 씁니다.** 이 모듈�
 | `fishing_ban.js` | 낚시금지구역 폴리곤 레이어(`/fishing_ban_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 해양공간 주제도 "낚시통제구역"(TL_RESARE_ENS) shapefile 236개를 EPSG:5179 → WGS84 재투영해 만든 정적 GeoJSON. 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._fishingBanTryHandleClick` 을 호출(출입통제 다음 순위) |
 | `vts_zone.js` | 선박교통관제(VTS)구역 폴리곤 레이어(`/vts_zones.json`, 첫 클릭 때 지연 로드) — 해양경찰청(kcg.go.kr) 전국 20개 VTS센터 페이지의 "관제구역도" 도분초 좌표(WGS-84)와 "관제통신 제원" 채널을 그대로 옮긴 34개 구역 GeoJSON(구역당 1폴리곤, 제외구역은 hole 로 인코딩). 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._vtsZoneTryHandleClick` 을 호출(낚시금지 다음 순위) |
 | `seaway.js` | 항로 레이어(`/seaway_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 "개방海" 포털의 실시간 WFS(`vi_seaway` 레이어)에서 받아온 141개(2026-08 기준)를 EPSG:5179 → WGS84 재투영해 만든 정적 GeoJSON(MultiPolygon 124 + MultiLineString 17). 이전 `TL_SEAWAY_A` shapefile 77개는 최신본이 아니어서 교체. 클릭은 `ocean_map.js` handleMapClick 이 `window._seawayTryHandleClick` 을 호출(관제구역 다음 순위) |
-| `beach_swim.js` | 해수욕 지수 점 마커 레이어(`/api/swimming-index`, 토글 첫 클릭 때 지연 fetch) — `marine-life/swimming/swimming.js` 와 같은 서버 데이터를 공유. 마커 클릭은 `ocean_map.js` handleMapClick 이 `window._beachSwimTryHandleClick` 을 호출(항로 다음 순위) |
 
 ## 수정 시 주의사항
 

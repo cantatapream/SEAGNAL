@@ -1696,8 +1696,7 @@ const BEACH_API_BASE = 'https://apis.data.go.kr/1192136/fcstBeachv2/GetFcstBeach
  *   }
  * }
  *
- * [연계] routes/fishing.js → /api/swimming-index, js/marine-life/swimming/swimming.js → 지도 마커/바텀시트,
- *        js/marine-life/safety/beach_swim.js → 해양안전 탭 오버레이 마커
+ * [연계] routes/fishing.js → /api/swimming-index, js/marine-life/swimming/swimming.js → 지도 마커/바텀시트
  */
 async function collectSwimmingIndex() {
     try {
