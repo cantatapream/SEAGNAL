@@ -210,6 +210,27 @@ function _buildWindows(dateDetail, timeDetail) {
     }).filter(Boolean);
 }
 
+function _fmtMinServer(min) {
+    const h = Math.floor(min / 60), m = min % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+
+/** windows 배열({date,start,end})을 _zipValidity() 와 같은 표시 형식(날짜별로 묶어
+ *  줄바꿈)으로 다시 만든다 — occurrence를 doc_num 기준으로 합칠 때(_mergeZonesByName)
+ *  windows가 여러 조각에서 합쳐진 뒤 표시 문자열을 다시 계산하는 데 쓴다. */
+function _formatValidityFromWindows(windows) {
+    if (!windows.length) return null;
+    const byDate = new Map();
+    windows.forEach((w) => {
+        const short = w.date.slice(5).replace('-', '/'); // "2026-08-03" → "08/03"
+        if (!byDate.has(short)) byDate.set(short, []);
+        byDate.get(short).push(`${_fmtMinServer(w.start)} ~ ${_fmtMinServer(w.end)}`);
+    });
+    return Array.from(byDate.keys()).sort()
+        .map(d => `${d} ${byDate.get(d).join(', ')}`)
+        .join('\n');
+}
+
 /** getDocAreaPoint.do 결과 한 건을 클라이언트가 쓰기 쉬운 zone 객체로 변환한다.
  *  occurrence(발표문 하나 분량 — 구분·발표기관·근거·본문·유효기간·시간창)를 함께 담아,
  *  이후 _mergeZonesByName() 이 같은 구역명끼리 occurrences 를 합칠 수 있게 한다. */
@@ -234,14 +255,30 @@ function _toZone(d, item) {
     };
 }
 
+/** 같은 문서(doc_num) occurrence가 한 구역 안에 이미 있으면 시간창을 합쳐 하나로
+ *  만든다. KHOA는 같은 문서·같은 구역이라도 날짜/시간 패턴이 다르면 별도 행으로 쪼개
+ *  주는 경우가 있는데(예: "야간(00~08·18~24)"·"주간(08~18)"이 각각 다른 행), 제목·
+ *  발표기관·근거·본문이 모두 같은 문서라 사용자 입장에선 한 항목이다(2026-08 사용자
+ *  스크린샷으로 "종료" 표시가 조각조각 나뉘는 문제 확인 — 실제로는 완전히 종료되지
+ *  않은 문서였음). 겹치는 시간창은 중복 제거 후 표시 문자열을 다시 만든다. */
+function _mergeOccurrenceInto(existing, incoming) {
+    const seen = new Set(existing.windows.map(w => `${w.date}|${w.start}|${w.end}`));
+    incoming.windows.forEach((w) => {
+        const key = `${w.date}|${w.start}|${w.end}`;
+        if (!seen.has(key)) { seen.add(key); existing.windows.push(w); }
+    });
+    existing.validity = _formatValidityFromWindows(existing.windows);
+}
+
 /** 같은 구역명(POSITION_NM+POS_ID — KHOA 공식 구역 코드라 안정적인 식별자)을 가진
  *  zone들을 하나로 합친다. 한 문서 안에서, 또는 서로 다른 문서 사이에서 같은 물리적
  *  구역이 시간대만 다르게 여러 번(예: 08~18시 / 18~24시) 반복되는 경우가 있는데,
  *  이걸 각각 별도 도형으로 그리면 라벨이 같은 자리에 겹쳐 뭉개진다(2026-08 사용자
  *  스크린샷으로 확인). 좌표는 첫 occurrence 것을 대표로 쓰고(같은 구역이므로 동일하다고
- *  가정), occurrences 는 배열로 모아 클라이언트가 팝업에서 항목별로 구분해 보여준다.
- *  windows 는 여러 occurrence의 시간창을 합쳐, "이 구역이 특정 시각에 만료됐는지"
- *  판정할 때 어느 occurrence 것이든 다 반영되게 한다. */
+ *  가정), occurrences 는 배열로 모아 클라이언트가 팝업에서 항목별로 구분해 보여준다 —
+ *  단 같은 문서(doc_num)끼리는 occurrence 자체도 하나로 합친다(_mergeOccurrenceInto).
+ *  windows 는 모든 occurrence의 시간창을 합쳐, "이 구역이 특정 시각에 만료됐는지"
+ *  판정할 때 전부 반영되게 한다. */
 function _mergeZonesByName(zones) {
     const byName = new Map();
     zones.forEach((z) => {
@@ -249,7 +286,12 @@ function _mergeZonesByName(zones) {
             byName.set(z.name, { name: z.name, chartNo: z.chartNo, type: z.type, points: z.points, radiusNm: z.radiusNm, occurrences: [], windows: [] });
         }
         const merged = byName.get(z.name);
-        merged.occurrences.push(z.occurrence);
+        const existing = merged.occurrences.find(o => o.doc_num && o.doc_num === z.occurrence.doc_num);
+        if (existing) {
+            _mergeOccurrenceInto(existing, z.occurrence);
+        } else {
+            merged.occurrences.push(z.occurrence);
+        }
         merged.windows.push(...z.occurrence.windows);
     });
     return Array.from(byName.values());
