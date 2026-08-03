@@ -18,7 +18,7 @@
  * [로드 순서] fishing_ban.js 다음 · life_safety.js 바로 앞 (marine-life/safety 그룹)
  * [데이터 출처] 해양경찰청(https://www.kcg.go.kr) 전국 20개 VTS센터 페이지의
  *              "관제구역도" 도분초 좌표(WGS-84)와 "관제통신 제원" 표(채널)를 그대로 옮긴
- *              34개 구역. 국립해양조사원 shapefile(TL_VTMSA_A) 은 같은 구역을 영해선 기준
+ *              33개 구역. 국립해양조사원 shapefile(TL_VTMSA_A) 은 같은 구역을 영해선 기준
  *              으로 쪼개 놓아 경계가 어긋나 보여, 공식 공고본 기준으로 교체함(2026-08).
  * ============================================================================
  */
@@ -37,9 +37,9 @@
     var _selected = null;    // 클릭으로 선택된 폴리곤 1개(하이라이트 대상) — 없으면 null
 
     /**
-     * 관제구역 폴리곤 한 벌의 스타일(인디고 톤 — 빨강 출입통제·주황 낚시금지와 구분)을 만든다.
+     * 관제구역 폴리곤 한 벌의 스타일(보라 톤 — 빨강 출입통제·주황 낚시금지와 구분)을 만든다.
      * 선택된 구역(_selected)만 노란 톤으로 굵게 그려 "이거 눌렀다"를 보여준다.
-     * 예: name='경인연안 VTS(Ch. 71)' → 평소엔 인디고 선 2px, 선택되면 노란 선 4px + 30% 채움.
+     * 예: name='경인연안 VTS(Ch. 71)' → 평소엔 보라 선 2px, 선택되면 노란 선 4px + 30% 채움.
      * @param {ol.Feature} feature - 그릴 구역 피처(라벨 문구는 name 속성)
      * @returns {ol.style.Style} 외곽선·채움·라벨이 다 든 스타일 1개
      * [연계] ← _fillOnlyStyle()/_strokeOnlyStyle() — 두 레이어가 이 한 벌을 나눠 쓴다.
@@ -53,16 +53,16 @@
         var on = (feature === _selected);
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
-                color: on ? 'rgba(253, 224, 71, 1)' : 'rgba(129, 140, 248, 0.9)',
+                color: on ? 'rgba(253, 224, 71, 1)' : 'rgba(168, 85, 247, 0.9)',
                 width: on ? 4 : 2
             }),
             fill: new ol.style.Fill({
-                color: on ? 'rgba(253, 224, 71, 0.3)' : 'rgba(129, 140, 248, 0.14)'
+                color: on ? 'rgba(253, 224, 71, 0.3)' : 'rgba(168, 85, 247, 0.14)'
             }),
             text: new ol.style.Text({
                 text: feature.get('name') || '',
                 font: 'bold 11px "Pretendard", sans-serif',
-                fill: new ol.style.Fill({ color: on ? '#fde68a' : '#c7d2fe' }),
+                fill: new ol.style.Fill({ color: on ? '#fde68a' : '#e9d5ff' }),
                 stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
                 overflow: true,
                 placement: 'point'
@@ -72,7 +72,7 @@
 
     /**
      * 스타일 한 벌에서 채움만 뽑아 새 스타일을 만든다.
-     * 예: _onlyFill(_zoneStyle(f)) → 선·라벨 없이 rgba(129,140,248,0.14) 채움만.
+     * 예: _onlyFill(_zoneStyle(f)) → 선·라벨 없이 rgba(168,85,247,0.14) 채움만.
      * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
      * @returns {ol.style.Style|null} 채움만 든 스타일 — 채울 것이 없으면 null(안 그림)
      * [연계] ← _fillOnlyStyle()
@@ -84,7 +84,7 @@
     }
     /**
      * 스타일 한 벌에서 외곽선과 라벨만 뽑아 새 스타일을 만든다.
-     * 예: _onlyStrokeAndText(_zoneStyle(f)) → 채움 없이 인디고 선 + '경인연안 VTS(Ch. 71)' 라벨.
+     * 예: _onlyStrokeAndText(_zoneStyle(f)) → 채움 없이 보라 선 + '경인연안 VTS(Ch. 71)' 라벨.
      * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
      * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
      * [연계] ← _strokeOnlyStyle()
@@ -94,7 +94,7 @@
     }
     /**
      * 채움 레이어(_fillLayer)의 스타일 함수 — 피처마다 채움만 그린다.
-     * 예: _fillOnlyStyle(경인연안 VTS 피처) → 반투명 인디고 면 1장(선택 시 노랑).
+     * 예: _fillOnlyStyle(경인연안 VTS 피처) → 반투명 보라 면 1장(선택 시 노랑).
      * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
      * @returns {ol.style.Style|null} 채움만 든 스타일
      * [연계] ← _ensureLayers() 의 _fillLayer style 옵션 → _zoneStyle()·_onlyFill()
@@ -102,7 +102,7 @@
     function _fillOnlyStyle(feature) { return _onlyFill(_zoneStyle(feature)); }
     /**
      * 외곽선 레이어(_layer)의 스타일 함수 — 피처마다 선과 라벨만 그린다.
-     * 예: _strokeOnlyStyle(경인연안 VTS 피처) → 인디고 테두리 + 이름 라벨(선택 시 노랑·굵게).
+     * 예: _strokeOnlyStyle(경인연안 VTS 피처) → 보라 테두리 + 이름 라벨(선택 시 노랑·굵게).
      * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
      * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
      * [연계] ← _ensureLayers() 의 _layer style 옵션 → _zoneStyle()·_onlyStrokeAndText()
@@ -137,7 +137,7 @@
                 style: _strokeOnlyStyle,
                 zIndex: 80,
                 visible: _visible,
-                // 구역이 34개인데 이름이 길어("OO VTS(Ch. NN)") 좁은 해역에선 라벨이 겹친다 —
+                // 구역이 33개인데 이름이 길어("OO VTS(Ch. NN)") 좁은 해역에선 라벨이 겹친다 —
                 // 겹치는 라벨은 OpenLayers 가 알아서 생략하게 한다(fishing_ban.js 와 동일).
                 declutter: true,
                 updateWhileAnimating: false,
@@ -149,7 +149,7 @@
 
     /**
      * 정적 GeoJSON 을 내려받아 소스에 채운다(lazy fetch — 버튼을 처음 켤 때만 1회).
-     * 예: fetch('/vts_zones.json') → 구역 34개를 EPSG:4326→3857 로 바꿔 _source 에 추가.
+     * 예: fetch('/vts_zones.json') → 구역 33개를 EPSG:4326→3857 로 바꿔 _source 에 추가.
      * [연계] ← _bindToggle() 의 ON 핸들러. 이미 받았거나(_loaded) 받는 중(_loading)이면 즉시 되돌아온다.
      */
     function _load() {
