@@ -94,7 +94,7 @@ function parseReviewQueue() {
 function extractStructured(body) {
   const fields = {}; const urls = [];
   for (const line of body.split('\n')) {
-    const m = line.match(/^\s*-\s*([^:：]{1,24})[:：]\s*(.+)$/);
+    const m = line.match(/^\s*-\s*([^:：]{1,120})[:：]\s*(.+)$/);
     if (m) { const k = m[1].trim(); if (k !== '승인' && !fields[k]) fields[k] = m[2].trim(); }
     let um; const re = /(https?:\/\/[^\s)"'<>]+)/g;
     while ((um = re.exec(line)) !== null) urls.push(um[1].replace(/[.,]$/, ''));
