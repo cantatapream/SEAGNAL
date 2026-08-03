@@ -14,7 +14,10 @@
  * raw(법령 원문)는 서버에 상주시키지 않는다 — 2차 조회(searchRawFallback)와 똑같이
  * `services/github_raw.js`로 **필요할 때만** GitHub에서 읽어온다(MASTER_PLAN F절).
  *
- * [인용 표기 4종 — 위키 표의 `조문` 칸은 조 하나만 가리키지 않는다]
+ * [인용 표기 5종 — 위키 표의 `조문` 칸은 조 하나만 가리키지 않는다]
+ *  - annex  : `별표10`·`별표2·3`·`별지 제1~3호서식` — 조를 거치지 않고 **별표·서식 자체가 근거**인 행.
+ *             조 본문 파싱 없이 그 별표 원문(refs)만 실어 보낸다. 조·`전문` 표기가 섞인 칸은
+ *             무엇을 보여줄지 단정할 수 없어 손대지 않는다(그대로 실패).
  *  - single : `제10조④3호` — 조 하나. 인용된 항·호를 강조(hit)한다.
  *  - list   : `제53조·제55조`·`제109·110조` — 가운뎃점·쉼표로 나열된 여러 조를 **적힌 순서대로
  *             전부** 나열한다. 원문에서 못 찾은 조는 `missing`으로 정직하게 알린다.
@@ -34,6 +37,8 @@
  *   - link    : 우리에겐 없고 law.go.kr 다운로드 링크만 있다(PDF·HWP 둘 다 있으면 둘 다 준다)
  *   - image   : 스캔본을 같이 수집해 뒀다(`_이미지/<번호>.png`)
  *   - missing : 위 어디에도 없다 → 클라이언트가 회색 "(원문 미수집)"으로 정직하게 표시
+ *  ⚠ law.go.kr 다운로드 링크(hwp/pdf)는 **kind 와 무관하게** 있는 대로 다 실어 보낸다 —
+ *    표 원문을 갖고 있어도 원본 파일은 따로 받아볼 수 있어야 한다("보기와 다운로드는 양자택일이 아니다").
  *  ⚠ 참조가 MAX_REFS 를 넘으면 뒤쪽은 **판정 자체를 안 한다** — 그건 "없다"가 아니라 "안 봤다"라서
  *    응답에 `refsTruncated:true`를 함께 보낸다(클라이언트는 그런 참조를 "미수집"으로 단정하지 않고
  *    원문 글자 그대로 둔다).
@@ -128,10 +133,20 @@ const RANGE_B = /제\s*(\d+)\s*[~～∼\-–—]\s*(\d+)\s*조/;
 // ⚠ **표기 전체가 조 번호 나열일 때만** 인정한다(칸 전체 완전일치) — `제48조·선장병과(제44조②)`나
 //   `제43·47조 / 별표4`처럼 다른 글자가 섞이면 우리가 그 의미를 단정할 수 없으므로 손대지 않고
 //   기존 처리(단일 인식 또는 실패)로 흘려보낸다.
-const LIST_ONLY_RE = /^[\s제조의0-9·ㆍ・,~～∼]+$/;
+// ⚠ 항·호 글자도 받는다 — `제28조제4항·제30조제2항`처럼 **조마다 각자 항·호가 붙은 나열**을
+//   안 받으면 나열 판정 자체를 포기하고 단일 정규식이 앞의 제28조만 집어, 뒤의 제30조가 경고도
+//   없이 사라진다("부분 실패는 정직하게 표시" 계약 위반). 조가 결국 하나뿐이면(`제28조제1항제14호·
+//   제28조제4항`) parseJoEnum 이 null 로 물러나 기존 단일 처리로 그대로 흘러간다.
+const LIST_ONLY_RE = /^[\s제조의항호0-9·ㆍ・,~～∼]+$/;
 // 항목 = 조 하나(`제55조`·`110`·`12조의2`·`17의2`). 실측에 `제19조의2조`처럼 '조'가 덧붙은 오타가
-// 있어 꼬리 '조'는 선택으로 둔다.
-const LIST_ITEM_RE = /^\s*제?\s*(\d+)(?:\s*조?\s*의\s*(\d+))?\s*조?\s*$/;
+// 있어 꼬리 '조'는 선택으로 둔다. 꼬리에 붙은 항·호(`제28조제4항`)는 조를 가리키는 데 쓰지 않으므로
+// 읽고 버린다(나열은 강조를 하지 않는다 — 여러 조 중 어디가 근거인지 단정할 수 없다).
+// ⚠ 숫자마다 뒤에 `(?!\d)`를 붙여 **숫자를 중간에서 자르지 못하게** 막는다. 꼬리 항·호 그룹이
+//   선택이라, 이게 없으면 `제10호`에서 정규식이 10을 1과 `0호`로 쪼개 **인용된 적 없는 제1조**를
+//   지어낸다(`제2조제1호·제10호·제30조` → 제2조·제1조·제30조). 지금 위키엔 이 표기가 없지만
+//   생기면 조용히 없는 조를 근거로 보여주게 된다(환각 0 위반). 이제는 못 읽고 parseJoEnum 이
+//   null 로 물러나 기존 단일 처리로 흘러간다.
+const LIST_ITEM_RE = /^\s*제?\s*(\d+)(?!\d)(?:\s*조?\s*의\s*(\d+)(?!\d))?\s*조?\s*(?:제?\s*\d+(?!\d)\s*항)?\s*(?:제?\s*\d+(?!\d)\s*호)?\s*$/;
 // 항목 = 앞 항목의 본조를 물려받는 가지번호만 적힌 표기(`제12조의2·의3`의 `의3`, 실측 1건).
 // 이걸 못 읽으면 나열 전체가 null 로 물러나 앞의 `제12조의2` 하나만 열린다(뒤 조가 조용히 사라진다).
 const LIST_ITEM_BRANCH_RE = /^\s*의\s*(\d+)\s*$/;
@@ -213,6 +228,59 @@ function parseJoEnum(s) {
 // 처럼 "전문"으로 시작만 하는 딴 말이 실제로 있어 **완전일치**로만 인정한다.
 const WHOLE_RE = /^(전체|전문|전부|전\s*\d+\s*조)$/;
 
+// 별표·서식만 가리키는 표기의 머리(`별표10`·`별지 제2호서식`·`서식1`·`별표1의2`).
+const ANNEX_HEAD_RE = /(별표|별지|서식)\s*제?\s*(\d+)(?:\s*의\s*(\d+))?/g;
+// 그 머리에 이어 붙는 나열(`·3`)·범위(`~5`). ⚠ 쉼표는 이음표로 쓰지 않는다 —
+// `별표1의3 제4호, 별표3 제4호`의 `, 제4호`를 이어 읽으면 인용된 적 없는 별표4를 만들어낸다.
+const ANNEX_TAIL_RE = /^\s*(?:([·ㆍ・])\s*제?\s*(\d+)(?:\s*의\s*(\d+))?|([~～∼])\s*(\d+)(?:\s*의\s*(\d+))?)/;
+
+/**
+ * 조 번호 없이 **별표·서식만** 가리키는 조문 표기에서 참조 열쇠를 뽑는다.
+ * 위키 조문 칸에는 `별표10`처럼 조를 거치지 않고 별표 자체가 근거인 행이 실측 228개 있는데,
+ * 지금까지는 `제N조` 패턴이 없다는 이유로 전부 bad_request 로 실패했다(우리가 그 별표 원문을
+ * 갖고 있어도 아무것도 못 보여줬다).
+ *  ⚠ 이어 읽기는 **가운뎃점·물결**로만 한다 — 쉼표·괄호·한글 꼬리(`별표2 가·나·다목`·`별표1(나)`)에서
+ *    멈춰야 그 별표의 세부 항목 표기를 다른 별표 번호로 잘못 읽지 않는다.
+ *  ⚠ 범위 끝에 가지번호가 붙은 표기(`별표27~29의3`)는 정수 구간과 그 끝 가지번호만 담는다 —
+ *    사이의 가지번호(29의2)가 실제로 있는지 여기서는 알 수 없어 넘겨짚지 않는다.
+ * 예: parseAnnexRefs('별표10')       → ['별표10']
+ *     parseAnnexRefs('별표2·3')      → ['별표2','별표3']
+ *     parseAnnexRefs('별표1~3·5')    → ['별표1','별표2','별표3','별표5']
+ *     parseAnnexRefs('별표2 가·나·다목') → ['별표2']
+ *     parseAnnexRefs('별지 제1~3호서식') → ['서식1','서식2','서식3']
+ * @param {string} s - 조문 표기(화살표 뒷부분은 이미 잘라낸 것)
+ * @returns {string[]|null} refKey 목록(최대 MAX_REFS), 하나도 못 읽으면 null
+ * [연계] ← readArticleRef(mode:'annex'). → loadArticle 이 resolveRefs 로 그 별표 원문을 찾는다.
+ */
+function parseAnnexRefs(s) {
+  const src = String(s || '');
+  const out = [];
+  const push = k => { if (!out.includes(k)) out.push(k); };
+  ANNEX_HEAD_RE.lastIndex = 0;
+  let m;
+  while ((m = ANNEX_HEAD_RE.exec(src))) {
+    const type = m[1] === '별표' ? '별표' : '서식';
+    let from = parseInt(m[2], 10);
+    push(type + m[2] + (m[3] ? '의' + m[3] : ''));
+    let i = ANNEX_HEAD_RE.lastIndex, cm;
+    while ((cm = ANNEX_TAIL_RE.exec(src.slice(i)))) {
+      if (cm[1]) {                                   // `·3` — 같은 종류의 다음 번호
+        push(type + cm[2] + (cm[3] ? '의' + cm[3] : ''));
+        from = parseInt(cm[2], 10);
+      } else {                                       // `~5` — 구간
+        const to = parseInt(cm[5], 10);
+        if (!(to > from)) break;
+        for (let n = from + 1; n <= to; n++) push(type + n);
+        if (cm[6]) push(type + cm[5] + '의' + cm[6]);
+        from = to;
+      }
+      i += cm[0].length;
+    }
+    ANNEX_HEAD_RE.lastIndex = i;
+  }
+  return out.length ? out.slice(0, MAX_REFS) : null;
+}
+
 // 계층을 가리키는 낱말(legal_retriever.classifyTier 와 같은 낱말을 본다).
 const TIER_WORD_RE = /시행규칙|시행령|법률|법/;
 // 계층별 표기 — 조문 칸에서 "이 조가 어느 계층 것인지" 읽을 때 쓴다(정규식 조각).
@@ -276,6 +344,9 @@ function tierTaggedJo(cell, tier) {
  * [연계] ← parseArticleRef(). false 면 null → loadArticle 이 bad_request 로 정직하게 실패한다.
  */
 function tierIsCertain(article, tier, lawCell, ref) {
+  // 별표 전용 인용은 조 번호가 없어 조문 칸으로 계층을 확인할 길이 없다 — 법령 칸이 계층을 둘 이상
+  // 지목하면(`법·시행령`) 그 별표가 어느 계층 것인지 단정할 수 없으므로 열지 않는다.
+  if (ref.mode === 'annex') return !multiTierCell(lawCell);
   // readArticleRef 가 읽은 것과 **같은 구간**만 본다 — `제2조제4항 → 시행령 제2조`처럼 화살표 뒤에
   // 다음 단계 조가 적힌 행에서, 뒤쪽 `시행령 제2조`를 앞쪽 조의 계층표시로 오해하면 안 된다.
   const s = String(article || '').split(/→|⇒|➔|=>/)[0];
@@ -300,11 +371,13 @@ function tierIsCertain(article, tier, lawCell, ref) {
  *     parseArticleRef('위험물선박운송기준', 'notice') → {mode:'whole', …}(고시 제목만 적힌 행)
  * @param {string} article - 체인 행의 조문 표기
  * @param {string} [tier] - law|decree|rule|notice. 고시일 때만 "조 번호 없음 → 문서 전체"로 본다
+ * @param {string} [lawCell] - 체인 행의 법령 칸 값. 조문 칸이 번호 없이 `별표`라고만 적힌 행에서
+ *                             그 번호를 읽는 데만 쓴다(`법령='시행규칙 별표2·3' / 조문='별표'`)
  * @returns {{mode:string, jo:string, joList:string[], from:number, to:number, mark:string, ho:number, label:string}|null}
- *          어느 형태로도 못 읽으면 null(from·to 는 range 일 때만 있다)
+ *          어느 형태로도 못 읽으면 null(from·to 는 range 일 때만, refKeys 는 annex 일 때만 있다)
  * [연계] ← parseArticleRef(). jo·joList 는 원문에서 조 블록을 찾는 열쇠, mark·ho 는 강조 대상(single 전용).
  */
-function readArticleRef(article, tier) {
+function readArticleRef(article, tier, lawCell) {
   // `제69조 → 시행령 제42~45조`처럼 위임흐름을 한 칸에 적은 표기가 있다 — 이 행의 법령은 앞쪽
   //  것이므로 화살표 뒤(다른 계층의 조)는 잘라낸다. 안 자르면 법률 카드가 시행령 조를 연다.
   const s = String(article || '').split(/→|⇒|➔|=>/)[0].trim();
@@ -349,6 +422,19 @@ function readArticleRef(article, tier) {
 
   const m = /제(\d+)조(?:의(\d+))?/.exec(s);
   if (!m) {
+    // ③ 별표 전용 — 조를 거치지 않고 **별표·서식 자체가 근거**인 행(`별표10`·`별표2·3`, 실측 228행).
+    //    조 본문 파싱을 건너뛰고 그 별표 원문을 바로 찾아 보여준다(loadArticle 의 annex 갈래).
+    //    ⚠ `조`·`전문`이 섞인 칸(`제33·34조, 별표5`·`전문·별표1`)은 손대지 않는다 — 조와 별표 중
+    //      무엇을 보여줘야 하는지 우리가 단정할 수 없어, 별표만 열면 인용된 조를 조용히 감추게 된다.
+    if (/별표|별지|서식/.test(s) && !/조|전문|전체|전부/.test(s)) {
+      // 조문 칸이 번호 없이 `별표`라고만 적힌 행이 있다 — 그 번호는 법령 칸에 적혀 있다
+      // (`법령='시행규칙 별표2·3' / 조문='별표'`, 실측 3행). 조문 칸에 숫자가 있는데도 못 읽은
+      // 경우엔 법령 칸으로 넘어가지 않는다(엉뚱한 번호를 끌어오지 않게).
+      const keys = parseAnnexRefs(s) || (/\d/.test(s) ? null : parseAnnexRefs(lawCell));
+      if (keys) {
+        return { mode: 'annex', jo: '', joList: [], refKeys: keys, mark: '', ho: 0, label: keys.join('·') };
+      }
+    }
     // ③ 조 번호가 아예 없다 — 고시는 짧아서 위키가 "제목만 적고 문서 전체"를 가리키는 행이 흔하다
     //    (실측: `위험물선박운송기준`·`「수산물 표준규격」` 등). 다만 별표만 가리키는 행이나
     //    날짜가 잘못 들어온 행까지 문서 전체로 열면 엉뚱하므로 그런 표기는 제외한다.
@@ -392,7 +478,7 @@ function readArticleRef(article, tier) {
  * [연계] ← loadArticle(). → readArticleRef()·tierIsCertain()
  */
 function parseArticleRef(article, tier, lawCell) {
-  const ref = readArticleRef(article, tier);
+  const ref = readArticleRef(article, tier, lawCell);
   if (!ref || !tierIsCertain(article, tier, lawCell, ref)) return null;
   return ref;
 }
@@ -777,9 +863,14 @@ function lawNameOnly(cell) {
 //   원문 대조로 전수 확인 — `같은 법` 1건만 예외였다).
 const SELF_REF_TOKEN_RE = /(법률|법령|법|시행령|시행규칙|[·ㆍ・,/]|→)/g;
 
-/** 법령 셀이 계층 단어·대명사만 적힌 "이 페이지의 법" 표기인가. */
+/**
+ * 법령 셀이 계층 단어·대명사만 적힌 "이 페이지의 법" 표기인가.
+ * 꼬리에 별표 번호를 적어 둔 셀(`시행규칙 별표2·3` — 조문 칸은 `별표`뿐, 실측 3행)도 계층 표기로
+ * 읽는다. 별표 번호는 법령명이 아니라 인용 대상이라 떼어내야 이 페이지의 법을 찾을 수 있다.
+ */
 function isSelfRef(cell) {
-  const s = String(cell || '').replace(/[「」『』]/g, '').replace(/\s+/g, '');
+  const s = String(cell || '').replace(/[「」『』]/g, '')
+    .replace(/\s*(?:별표|별지|서식)[^가-힣]*$/, '').replace(/\s+/g, '');
   if (!s || /^같은/.test(s)) return false;
   return s.replace(/^(이|동|본)/, '').replace(SELF_REF_TOKEN_RE, '') === '' && /(법|시행령|시행규칙)/.test(s);
 }
@@ -982,26 +1073,35 @@ async function resolveRefs(found, ctx) {
     });
   }
 
-  // ④ 법률계열 — 텍스트가 없는 별표는 `_links.json`에 다운로드 링크만 있다.
-  if (prefix && rest().length) {
+  // ④ 법률계열 — `_links.json` 의 law.go.kr 다운로드 링크.
+  //    ⚠ **kind 와 무관하게** 채운다 — 우리가 표 원문을 갖고 있어도(kind='text') 원본 HWP/PDF 는
+  //      따로 받아볼 수 있어야 한다("보기와 다운로드는 양자택일이 아니다"). 예전에는 아직 못 찾은
+  //      참조(rest())만 여기까지 와서, 원문이 있는 별표는 다운로드 버튼이 아예 안 떴다.
+  //      다만 앞 단계에서 확정된 kind·title·body 는 덮어쓰지 않는다(다운로드 필드만 보탠다).
+  const bylRefs = refs.filter(r => r.key.indexOf('이미지') !== 0);
+  if (prefix && bylRefs.length) {
     let links = null;
     try { links = JSON.parse(await githubRaw.fetchText(`${ctx.base}/별표/_links.json`) || 'null'); } catch (_) { links = null; }
     if (links && typeof links === 'object') {
-      for (const r of rest()) {
+      for (const r of bylRefs) {
         const k = splitRefKey(r.key);
         const v = k && links[`${prefix} ${k.type} ${k.num}`];
         if (!v || typeof v !== 'object') continue;
-        r.kind = 'link';
-        r.title = String(v.제목 || '');
         // `PDF` 키는 수집 스크립트가 아직 안 채우고 있다(_LESSONS L-55) — 채워지면 그대로 뜬다.
         r.hwp = absUrl(v.HWP);
         r.pdf = absUrl(v.PDF);
+        if (r.kind !== 'missing') continue;   // 원문(text)·스캔본(image) 판정은 그대로 둔다
+        r.kind = 'link';
+        r.title = String(v.제목 || '');
       }
     }
   }
 
   // ⑤ 고시 — 별표를 `별표/` 폴더에 따로 모아둔 경우(형식이 자유서술이라 머리말로 임자를 확인한다).
-  if (ctx.tier === 'notice' && rest().length) {
+  // 고시는 TIER_BYL_PREFIX에 없어 ③·④를 못 타 hwp/pdf가 여기서만 채워질 수 있으므로, 미해결
+  // 참조(missing)가 없으면(=②에서 이미 전부 text로 풀렸으면) 돌 필요가 없다 — 안 그러면 이미
+  // 해결된 팝업에서도 매번 GitHub 조회가 돌아 불필요하게 느려진다(실측: 최악 케이스 2회→11회).
+  if (ctx.tier === 'notice' && bylRefs.some(r => r.kind === 'missing')) {
     // 위키 표의 고시 이름엔 `…지침(고시)`·`「…」(국립수산물품질관리원, 2026-02-11 발령)`처럼
     // 꼬리표가 붙어 있어 그대로 비교하면 별표 파일의 머리말과 안 맞는다 — 괄호 주석을 걷어낸다.
     const want = squash(String(ctx.docTitle || '').replace(/[（(][^)）]*[)）]/g, '')) || squash(ctx.docTitle);
@@ -1009,18 +1109,21 @@ async function resolveRefs(found, ctx) {
       .filter(e => e.type === 'file' && /\.txt$/i.test(e.name) && !/^(법률|시행령|시행규칙)_/.test(e.name))
       .slice(0, 8);
     for (const e of cand) {
-      if (!rest().length) break;
+      if (!bylRefs.some(r => r.kind === 'missing')) break;
       const t = await githubRaw.fetchText(ctx.base + '/별표/' + e.name);
       if (!t) continue;
       const parsed = parseBylFile(t);
       // 그 고시 것이 맞는지 — 머리말(제목·출처 줄)에 고시 이름이 들어 있어야 인정한다.
       if (!want || !squash(parsed.owner).includes(want)) continue;
-      for (const r of rest()) {
+      for (const r of bylRefs) {
         const en = parsed.entries.find(x => x.key === r.key);
         if (!en) continue;
-        r.title = en.title;
+        if (!r.title) r.title = en.title;
+        if (en.hwp && !r.hwp) r.hwp = en.hwp;
+        if (en.pdf && !r.pdf) r.pdf = en.pdf;
+        if (r.kind !== 'missing') continue;   // 앞 단계(② 고시 본문 블록)의 판정을 덮어쓰지 않는다
         if (en.body && en.body.length > 40) { r.kind = 'text'; r.body = en.body; }
-        else if (en.hwp || en.pdf) { r.kind = 'link'; r.hwp = en.hwp; r.pdf = en.pdf; }
+        else if (en.hwp || en.pdf) { r.kind = 'link'; }
       }
     }
   }
@@ -1036,7 +1139,8 @@ function docDate(text) {
 
 /**
  * 조문 카드 하나에 대응하는 원문을 GitHub에서 읽어 항·호로 쪼개 돌려준다.
- * 인용 표기에 따라 세 가지로 갈린다(parseArticleRef 참고).
+ * 인용 표기에 따라 네 가지로 갈린다(parseArticleRef 참고).
+ *  - annex: 조 없이 별표만 가리킨 인용 → 조 본문 없이 `refs`만(못 찾은 것은 `missing`)
  *  - single: 그 조 하나 → `paragraphs`(인용된 항·호에 hit:true)
  *  - range · whole: 여러 조 → `articles`(강조 없음). 조가 MAX_ARTICLES 를 넘으면
  *    억지로 싣지 않고 `tooLong`만 돌려준다(클라이언트가 "원문이 깁니다"로 안내).
@@ -1077,6 +1181,21 @@ async function loadArticle(q) {
     base, tier, docText: text, docTitle: law,
     docDir: filePath.slice(0, filePath.lastIndexOf('/')),
   };
+
+  // ── 별표 전용 인용: 조 본문을 거치지 않고 그 별표 원문을 바로 판정해 돌려준다 ──
+  // (조문 칸이 `별표10`처럼 조 번호 없이 별표만 가리키는 행. 조 블록 파싱은 할 것이 없다.)
+  if (ref.mode === 'annex') {
+    const found = ref.refKeys.map(k => ({ key: k, text: k }));
+    const refs = await resolveRefs(found, refCtx);
+    return Object.assign(head, {
+      articleTitle: ref.label,
+      effectiveDate: docDate(text),
+      refs,
+      // 여러 별표를 가리킨 인용에서 못 찾은 것은 조용히 빼지 않고 그대로 알린다.
+      missing: refs.filter(r => r.kind === 'missing').map(r => r.key),
+      refsTruncated: found.length >= MAX_REFS,
+    });
+  }
 
   // ── 범위·전체 인용: 여러 조를 순서대로 나열한다(강조 없음 — 어디가 근거인지 단정할 수 없다) ──
   if (ref.mode !== 'single') {
