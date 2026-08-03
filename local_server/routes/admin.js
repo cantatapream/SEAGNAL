@@ -36,6 +36,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const { DATA_DIR } = require('../config/server_config');
+const { writeFileAtomic } = require('../services/atomic_write');
 
 // [관리자 인증] Phase 4-A 보안 강화 — 토큰 기반 인증
 //   - issueToken: 비밀번호 검증 후 토큰 발급 (POST /api/admin/login)
@@ -1990,6 +1991,39 @@ router.post('/api/admin/advisory-display/clear-resolved', (req, res) => {
         console.log(`[AdvisoryDisplay] 해소 목록 비움 (${cleared}건 + 합성)`);
         res.json({ success: true, cleared });
     } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ============================================================================
+// 출입통제구역 폴리곤 편집기 저장 (admin_zone_editor.js)
+// ----------------------------------------------------------------------------
+//   관리자 센터 "구역 편집" 탭에서 점을 드래그·추가·삭제·곡선화한 결과를
+//   client/access_control_zones.json 에 그대로 덮어쓴다. 이 파일은 정적 JSON이라
+//   서버 재기동에도 남지만, 실제 운영 배포(Fly.io)는 git 커밋·푸시로만 반영되므로
+//   여기 저장은 "로컬 서버에서 바로 확인"용 — 운영 반영은 별도 커밋이 필요하다.
+// ============================================================================
+const ACCESS_CONTROL_ZONES_FILE = path.join(__dirname, '..', '..', 'client', 'access_control_zones.json');
+router.post('/api/admin/access-control-zones', (req, res) => {
+    try {
+        const body = req.body;
+        if (!body || body.type !== 'FeatureCollection' || !Array.isArray(body.features)) {
+            return res.status(400).json({ error: 'FeatureCollection 형식이 아닙니다' });
+        }
+        for (const f of body.features) {
+            if (!f || f.type !== 'Feature' || !f.geometry || !f.properties) {
+                return res.status(400).json({ error: '올바르지 않은 Feature가 있습니다' });
+            }
+            const gt = f.geometry.type;
+            if (gt !== 'Polygon' && gt !== 'LineString') {
+                return res.status(400).json({ error: `지원하지 않는 geometry 타입: ${gt}` });
+            }
+        }
+        writeFileAtomic(ACCESS_CONTROL_ZONES_FILE, JSON.stringify(body, null, 1) + '\n', 'utf8');
+        console.log(`[AdminZoneEditor] access_control_zones.json 저장 완료 (${body.features.length}개 구역)`);
+        res.json({ success: true, count: body.features.length });
+    } catch (e) {
+        console.error('[AdminZoneEditor] 저장 실패:', e.message);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 module.exports = router;

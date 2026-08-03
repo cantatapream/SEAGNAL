@@ -93,6 +93,7 @@
     "admin_report.js",
     "advisory_manage_admin.js",
     "admin_location_status.js",
+    "admin_zone_editor.js",
     "report_user.js",
     "survey_user.js",
     "zone_guide.js",
