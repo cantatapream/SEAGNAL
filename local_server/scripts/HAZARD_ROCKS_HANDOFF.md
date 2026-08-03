@@ -533,6 +533,54 @@ SSH로 수동 명령을 칠 필요 없이 다음 KST 23:30 배치(또는 서버 
 확인(배포 후 확인 필요) ②Task #19 스윕 스크립트를 제주까지 확장해 다시 실행 ③
 `isolation_candidates_final.json`에 제주 145개 결과 합치기 — 이 세 가지가 남아있다.
 
+### 6.10 Task #18(간출암 부분) — 마커 탭 시 화면 중앙 조석 곡선 팝업 (2026-08-03)
+
+**요구사항(사용자, 2026-08-03 새벽 지시분 재확인 후 반영)**: 간출암/노출암 마커를 탭하면
+①팝업이 화면 정중앙에 뜨고 ②마커는 팝업 바로 아래(팝업 윗변 가운데, 말풍선 꼬리 위치)에
+오도록 지도가 자동 이동해야 한다. 팝업 안에는 오늘~모레(3일) 조석 곡선을 하루씩 넘겨보며
+확인할 수 있어야 한다. **노출암은 고립판정 분석(Task #16 배선)이 아직 안 끝나 간출암부터
+먼저 반영**하기로 사용자가 범위를 좁혀줬다.
+
+**백엔드**: `services/hazard_rocks_submersion.js`에 `getTideCurve(rockId, dayOffset)` 신설.
+`computeAllCrossings`(잠김 교차시각 계산)이 이미 구현해 둔 3갈래 조위원 로직을 그대로
+재사용하되, "윈도우 3일 전체 스캔"이 아니라 "그 암초·그 날짜 하루만" 계산하므로 API
+요청마다 호출해도 가볍다(westsouth/jeju는 1분 해상도 IDW 1440회, eastsea는 극값 3~4개
+반정현파 보간뿐):
+- westsouth/jeju: `nearestRefs`+`loadCurveByMinute`+`etaCmAt`로 10분 간격 144점 합성 후
+  인접 3점 비교로 국소 극값(고조/저조) 탐지.
+- eastsea: `findNearestStationsWithData`+`stationOwnPoints`/`idwBlendExtrema`로 전날·당일·
+  다음날 극값을 모아(윈도우 밖이어도 연간 조석표는 `addDaysToYmd`로 그냥 조회 가능 —
+  day=0(오늘)이어도 자정 이전 구간이 비지 않게 하려고 새로 추가) 반정현파로 이어붙임.
+- 응답에 `valsouCm`(잠김 기준선), `submergedAt`(그날 실제 잠기는 시각 — 기존
+  `submersion.json`에서 그 날짜분만 필터링, 새 계산 없음)도 포함.
+- `GET /api/hazard-rocks/tide-curve?id=&day=0|1|2`로 노출(`routes/hazard_rocks.js`).
+
+**프론트**: `client/js/marine-life/safety/hazard_rocks.js`.
+- 기존 `bubbleOverlay`(단순 텍스트 말풍선, `stopEvent:false`, `pointer-events:none`)와
+  별개로 `tideCurveOverlay` 신설 — 날짜 넘기기·닫기 버튼이 있어 상호작용이 필요하므로
+  `stopEvent:true`(OL 기본값). **이걸 안 하면** 버튼 클릭이 지도 클릭 이벤트로 새어나가
+  `_hazardRocksTryHandleClick`이 "빈 곳 클릭"으로 오판해 팝업이 열리자마자 닫혀버린다.
+- 화면 중앙 정렬: `ol.View#centerOn(markerCoord, mapSize, desiredPixel)`로 "마커가 특정
+  픽셀에 오려면 center가 뭐여야 하는지"만 계산(즉시 점프라 그대로 안 씀) → 원래 center로
+  되돌린 뒤 `view.animate({center: 계산된값, duration:300})`로 부드럽게 이동. `desiredPixel`
+  = 화면 가로 중앙 + (세로 중앙 + 꼬리여백 + 팝업높이/2) — 팝업 높이는 DOM 측정 대신
+  **고정값(210px, CSS 레이아웃과 대략 맞춤)**을 씀(날짜를 넘겨도 구조가 안 바뀌므로
+  재측정·재이동 없이 항상 맞아떨어짐 — 카파시 "단순함" 원칙에 맞게 비동기 레이아웃
+  측정을 피함).
+- 차트는 이미 로드돼 있는 Chart.js(index2.html, 다른 화면에서도 씀)를 재사용 — 새 차트
+  라이브러리 추가 안 함.
+
+**검증**: 이 세션에서 Playwright(playwright-core, `/opt/pw-browsers/chromium`)로 실제
+브라우저 E2E 테스트 — 동해 간출암(id=67) 탭 → 팝업 화면 중앙 정렬(마커가 정확히
+`화면중앙+8+105=513px`로 계산대로 이동한 것 픽셀 단위로 확인) → 날짜 3일 전환 정상 →
+닫기 → 마커 재클릭 시 재오픈 → 노출암(k=0) 클릭 시 기존 말풍선 폴백 + 조석 팝업 자동
+닫힘까지 확인. 서해·남해/제주(westsouth/jeju)는 로컬에 실제 곡선 데이터가 없어 "이 지역은
+아직 조석 곡선을 지원하지 않아요" graceful 폴백만 확인(운영 배포 후 실데이터로 재확인 필요).
+
+**남은 것**: 노출암(k=0)에 같은 팝업을 붙이는 건 Task #16 이후로 미룸 — 노출암은 "바위가
+잠기는가"가 아니라 "밀물에 갇히는가"가 핵심이라, 조석 곡선 그대로보다 "몇 시까지 나가야
+하는지"(Task #17과 통합) 같은 다른 콘텐츠가 이 팝업에 더 맞을 수 있어 사용자와 논의 필요.
+
 ---
 
 ## 7. 알아둘 것 (교훈/시행착오 요약)
