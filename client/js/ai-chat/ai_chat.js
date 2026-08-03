@@ -992,6 +992,9 @@
     if (body) body.addEventListener('click', function (e) {
       var h = e.target.closest('.nrya-lawacc-h');
       if (h) { h.parentElement.classList.toggle('nrya-open'); return; }
+      // ⚠공백 안내 칩 — 누르면 위키에 적힌 원문 문구를 그대로 펼친다
+      var g = e.target.closest('.nrya-gap-t');
+      if (g) { g.parentElement.classList.toggle('nrya-open'); return; }
       if (e.target.closest('.nrya-chain-tel')) return;
       var hit = e.target.closest('.nrya-chain-hit');
       if (hit) openArtPop(hit);
@@ -1217,7 +1220,7 @@
 
   /**
    * 서버가 준 조문 원문을 팝업 본문에 그린다. mode 에 따라 조 하나(강조 있음)와
-   * 범위·전체(강조 없음)로 갈리고, 원문이 너무 길면 정직하게 국가법령정보센터로 넘긴다.
+   * 나열·범위·전체(강조 없음)로 갈리고, 원문이 너무 길면 정직하게 국가법령정보센터로 넘긴다.
    * 원문 텍스트는 전부 textContent/텍스트노드로 넣는다(HTML 주입 없음).
    * @param {object} d - GET /api/legal/article-text 응답
    * [연계] ← openArtPop. → renderSingle · renderArticles · appendText.
@@ -1244,6 +1247,14 @@
       body.appendChild(a);
     } else if (d.articles) {
       renderArticles(body, d.articles);
+      // 나열 인용(`제53조·제55조`)에서 원문을 못 찾은 조가 있으면 조용히 빼지 않고 밝힌다 —
+      // 안 그러면 절반만 보고도 인용된 조를 전부 본 줄 안다.
+      if (d.missing && d.missing.length) {
+        var miss = document.createElement('div'); miss.className = 'nrya-artpop-msg';
+        miss.textContent = d.missing.join('·') + '는 원문에서 찾지 못했어요(표시 ' +
+          d.articles.length + '개조 / 인용 ' + (d.articles.length + d.missing.length) + '개조).';
+        body.appendChild(miss);
+      }
     } else {
       renderSingle(body, d.paragraphs);
     }
@@ -1650,6 +1661,34 @@
   }
 
   /**
+   * "우리가 원문을 가질 수 없는 공백" 안내(gapNotices)를 근거 목록 아래 ⚠칩으로 그린다.
+   * 시·군·구가 개별 고시로 정해 국가법령정보센터에 안 올라오는 사항이 대표적이다 — 이때
+   * 위키에 사람이 적어둔 "관할 지자체에 확인하시는 것이 정확합니다" 문구를 **그대로** 보여준다
+   * (요약·재작성하지 않는다 — 지어내지 않기 위해).
+   * 칩을 누르면 그 아래 위키 원문 문장이 펼쳐진다(서버 재조회 없음 — 응답에 이미 들어있다).
+   * ⚠ 항상 보이는 칩 머리글은 **어디에 물어야 하는지를 단정하지 않는다** — 어디가 관할인지는 사항마다
+   *   다른데(지자체 고시일 수도, 소관부처·외교부 조약정보일 수도 있다) 머리글에 "관할 지자체"라고
+   *   박아두면 위키에 없는 지시가 상시 노출된다. 실제 문의처는 펼침 본문의 위키 원문이 말해준다.
+   * ⚠ 근거 법령 아코디언 **밖**(항상 보이는 자리)에 그린다 — 접힌 목록 안에 넣으면 정작 꼭 봐야
+   *   할 안내가 펼치기 전엔 안 보인다.
+   * @param {Array} sources - data.sources
+   * @returns {string} HTML(안내가 없으면 빈 문자열)
+   * [연계] ← answerHTML. ← legal_retriever.extractGapNotices(위키 "## 타법 연결"의 수집곤란 행).
+   */
+  function gapNoticesHTML(sources) {
+    var seen = {}, out = '';
+    sources.forEach(function (s) {
+      (s.gapNotices || []).forEach(function (g) {
+        if (!g || !g.title || seen[g.title]) return;
+        seen[g.title] = 1;
+        out += '<div class="nrya-gap"><div class="nrya-gap-t">⚠ 원문 미수집 — 별도 확인 필요 · ' + esc(g.title) + '</div>' +
+          '<div class="nrya-gap-b">' + esc(g.note || '') + '</div></div>';
+      });
+    });
+    return out;
+  }
+
+  /**
    * /api/legal/ask 응답을 답변 말풍선 내부 HTML로 조립한다.
    * AI 합성 답변(answer)을 본문으로, 근거 법령(sources)은 아코디언으로 붙인다. 인용사슬
    * (citationChain)이 있는 첫 소스는 위임흐름 체인으로 펼치고, 나머지는 "법령명 · 주제"만
@@ -1688,6 +1727,9 @@
       }).join('');
       html += '</div></div>';
     }
+    // ⚠공백 안내는 아코디언 **밖**에 둔다 — 접혀 있는 목록 안에 넣으면 정작 꼭 봐야 할
+    // "관할 지자체에 확인하세요"가 펼치기 전엔 안 보인다(그게 이번에 고친 문제 자체다).
+    html += gapNoticesHTML(sources);
 
     html += '<div class="nrya-disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요.' + (data.note ? ' · ' + esc(data.note) : '') + '</div>';
     return html;

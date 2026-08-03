@@ -36,11 +36,19 @@
     var _loading = false;
     var _selected = null;    // 클릭으로 선택된 폴리곤 1개(하이라이트 대상) — 없으면 null
 
-    /** 관제구역 폴리곤 스타일 (인디고 톤 — 빨강 출입통제·주황 낚시금지와 구분).
-     *  선택된 구역(_selected)만 노란 톤으로 굵게 그려 "이거 눌렀다"를 보여준다.
-     *  [연계] feature.setStyle() 을 쓰지 않는 이유: 이 소스는 채움(_fillLayer)·
-     *         외곽선(_layer) 두 레이어가 함께 쓰므로 feature 개별 스타일을 주면
-     *         두 레이어에 똑같이 두 번 그려진다(채움·라벨 중복). */
+    /**
+     * 관제구역 폴리곤 한 벌의 스타일(인디고 톤 — 빨강 출입통제·주황 낚시금지와 구분)을 만든다.
+     * 선택된 구역(_selected)만 노란 톤으로 굵게 그려 "이거 눌렀다"를 보여준다.
+     * 예: name='경인연안 VTS(Ch. 71)' → 평소엔 인디고 선 2px, 선택되면 노란 선 4px + 30% 채움.
+     * @param {ol.Feature} feature - 그릴 구역 피처(라벨 문구는 name 속성)
+     * @returns {ol.style.Style} 외곽선·채움·라벨이 다 든 스타일 1개
+     * [연계] ← _fillOnlyStyle()/_strokeOnlyStyle() — 두 레이어가 이 한 벌을 나눠 쓴다.
+     *        모듈 변수 _selected 를 읽어 하이라이트 여부를 정한다(바뀌면
+     *        window._vtsZoneTryHandleClick()·_bindToggle() 이 _source.changed() 로 다시 태운다).
+     *        feature.setStyle() 을 쓰지 않는 이유: 이 소스는 채움(_fillLayer)·
+     *        외곽선(_layer) 두 레이어가 함께 쓰므로 feature 개별 스타일을 주면
+     *        두 레이어에 똑같이 두 번 그려진다(채움·라벨 중복).
+     */
     function _zoneStyle(feature) {
         var on = (feature === _selected);
         return new ol.style.Style({
@@ -62,17 +70,53 @@
         });
     }
 
+    /**
+     * 스타일 한 벌에서 채움만 뽑아 새 스타일을 만든다.
+     * 예: _onlyFill(_zoneStyle(f)) → 선·라벨 없이 rgba(129,140,248,0.14) 채움만.
+     * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
+     * @returns {ol.style.Style|null} 채움만 든 스타일 — 채울 것이 없으면 null(안 그림)
+     * [연계] ← _fillOnlyStyle()
+     */
     function _onlyFill(style) {
         var f = style.getFill();
         if (!f) return null;
         return new ol.style.Style({ fill: f });
     }
+    /**
+     * 스타일 한 벌에서 외곽선과 라벨만 뽑아 새 스타일을 만든다.
+     * 예: _onlyStrokeAndText(_zoneStyle(f)) → 채움 없이 인디고 선 + '경인연안 VTS(Ch. 71)' 라벨.
+     * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
+     * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
+     * [연계] ← _strokeOnlyStyle()
+     */
     function _onlyStrokeAndText(style) {
         return new ol.style.Style({ stroke: style.getStroke(), text: style.getText() });
     }
+    /**
+     * 채움 레이어(_fillLayer)의 스타일 함수 — 피처마다 채움만 그린다.
+     * 예: _fillOnlyStyle(경인연안 VTS 피처) → 반투명 인디고 면 1장(선택 시 노랑).
+     * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
+     * @returns {ol.style.Style|null} 채움만 든 스타일
+     * [연계] ← _ensureLayers() 의 _fillLayer style 옵션 → _zoneStyle()·_onlyFill()
+     */
     function _fillOnlyStyle(feature) { return _onlyFill(_zoneStyle(feature)); }
+    /**
+     * 외곽선 레이어(_layer)의 스타일 함수 — 피처마다 선과 라벨만 그린다.
+     * 예: _strokeOnlyStyle(경인연안 VTS 피처) → 인디고 테두리 + 이름 라벨(선택 시 노랑·굵게).
+     * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
+     * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
+     * [연계] ← _ensureLayers() 의 _layer style 옵션 → _zoneStyle()·_onlyStrokeAndText()
+     */
     function _strokeOnlyStyle(feature) { return _onlyStrokeAndText(_zoneStyle(feature)); }
 
+    /**
+     * 채움·외곽선 두 벡터 레이어를 (아직 없을 때만) 만들어 지도에 얹는다.
+     * 예: 첫 호출 → 채움(zIndex 40)·외곽선(zIndex 80, declutter) 레이어 생성, 두 번째 호출부터는 아무 일 없음.
+     * @param {ol.Map} map - 레이어를 얹을 해양지도 인스턴스
+     * [연계] ← _installWhenReady() — 지도가 준비된 뒤 1회.
+     *        레이어를 둘로 나누는 이유: 채움은 다른 오버레이 아래에 깔되 라벨·외곽선은
+     *        그 위로 보여야 해서 zIndex 를 따로 줘야 한다.
+     */
     function _ensureLayers(map) {
         if (!_source) _source = new ol.source.Vector();
 
@@ -103,7 +147,11 @@
         }
     }
 
-    /** 정적 GeoJSON lazy fetch — 버튼을 처음 켤 때만 1회 */
+    /**
+     * 정적 GeoJSON 을 내려받아 소스에 채운다(lazy fetch — 버튼을 처음 켤 때만 1회).
+     * 예: fetch('/vts_zones.json') → 구역 34개를 EPSG:4326→3857 로 바꿔 _source 에 추가.
+     * [연계] ← _bindToggle() 의 ON 핸들러. 이미 받았거나(_loaded) 받는 중(_loading)이면 즉시 되돌아온다.
+     */
     function _load() {
         if (_loaded || _loading) return;
         _loading = true;
@@ -128,17 +176,31 @@
             });
     }
 
-    /** "라벨/값" 2열 grid의 한 행 — 값이 없으면 그 행 자체를 만들지 않는다.
-     *  (CSS 는 출입통제 팝업과 같은 .ac-detail-* 을 그대로 재사용 — 모양이 동일하다) */
+    /**
+     * "라벨/값" 2열 grid의 한 행을 만든다 — 값이 없으면 그 행 자체를 만들지 않는다.
+     * 예: _row('팩스', '032-728-8956') → '<span class="ac-detail-label">팩스</span><span class="ac-detail-value">032-728-8956</span>'
+     * @param {string} label - 왼쪽 라벨(예: '관제해역', '관제센터')
+     * @param {string} value - 오른쪽 값 — 비어 있으면 행을 만들지 않는다
+     * @returns {string} 행 2칸의 HTML(값이 없으면 빈 문자열)
+     * [연계] ← _buildDetailHtml()
+     *        (CSS 는 출입통제 팝업과 같은 .ac-detail-* 을 그대로 재사용 — 모양이 동일하다)
+     */
     function _row(label, value) {
         if (!value) return '';
         return '<span class="ac-detail-label">' + label + '</span><span class="ac-detail-value">' + value + '</span>';
     }
 
-    /** 전화번호(예: 032-835-2485, 051)664-2750)를 tel: 링크로 바꿔 탭하면 바로 전화 걸리게 한다
-     *  (access_control.js 의 _linkifyPhone 과 같은 동작. 해양경찰청 원문이 "051)664-2750"
-     *   처럼 지역번호 뒤에 괄호를 쓰는 곳이 있어 그 형태도 함께 잡는다.
-     *   "041-950-2550, 2650" 처럼 뒷자리만 나열된 번호는 지역번호가 없어 링크 대상이 아니다) */
+    /**
+     * 전화 문자열 속 번호를 tel: 링크로 바꿔 탭하면 바로 전화 걸리게 한다.
+     * 예: '032-728-8456(사무실), 8656(관제실)'
+     *     → '<a href="tel:0327288456">032-728-8456</a>(사무실), 8656(관제실)'
+     * @param {string} text - 원문 전화 문자열(번호가 없으면 그대로 돌려준다)
+     * @returns {string} 전화번호만 <a> 로 감싼 HTML
+     * [연계] ← _buildDetailHtml() 의 '전화' 행
+     *        (access_control.js 의 _linkifyPhone 과 같은 동작. 해양경찰청 원문이 "051)664-2750"
+     *         처럼 지역번호 뒤에 괄호를 쓰는 곳이 있어 그 형태도 함께 잡는다.
+     *         "041-950-2550, 2650" 처럼 뒷자리만 나열된 번호는 지역번호가 없어 링크 대상이 아니다)
+     */
     function _linkifyPhone(text) {
         if (!text) return text;
         return text.replace(/(\d{2,3}[-)]\d{3,4}-\d{4})/g, function (num) {
@@ -146,8 +208,14 @@
         });
     }
 
-    /** 폴리곤 feature 하나의 상세 정보 팝업 HTML을 만든다(값이 있는 항목만 표시).
-     *  구역명(name)은 팝업 제목으로 이미 쓰이므로 여기서는 넣지 않는다. */
+    /**
+     * 폴리곤 feature 하나의 상세 정보 팝업 HTML을 만든다(값이 있는 항목만 표시).
+     * 예: '경인연안 VTS(Ch. 71)' 피처 → 관제해역('덕적도에서 백령도에 이르는 해역')·관제센터·전화·팩스 표.
+     * @param {ol.Feature} hit - 클릭으로 잡힌 구역 피처
+     * @returns {string} 팝업 본문 HTML(항목이 하나도 없으면 안내 문구)
+     * [연계] ← window._vtsZoneTryHandleClick() → _row()·_linkifyPhone()
+     *        구역명(name)은 팝업 제목으로 이미 쓰이므로 여기서는 넣지 않는다.
+     */
     function _buildDetailHtml(hit) {
         var rows = '';
         rows += _row('관제해역', hit.get('description'));
@@ -161,6 +229,7 @@
 
     /**
      * [외부 API] 지도 클릭이 선박교통관제구역 폴리곤을 눌렀는지 확인한다.
+     * 예: '경인연안 VTS(Ch. 71)' 폴리곤을 탭 → 그 구역만 노랗게 하이라이트 + 상세 팝업, true 반환.
      * @param {ol.Map} map
      * @param {ol.MapBrowserEvent} evt
      * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함)
@@ -192,6 +261,14 @@
         return true;
     };
 
+    /**
+     * "관제구역" 토글 버튼에 ON/OFF 클릭 동작을 붙인다.
+     * 예: 버튼 탭 → active 표시 + 폴리곤 표시 + 데이터 로드 + 배경지도 전자해도(enc) 전환, 다시 탭하면 되돌림.
+     * @param {ol.Map} map - 해양지도 인스턴스(자매 파일과 시그니처를 맞춘 것 — 여기선 쓰지 않는다)
+     * [연계] ← _installWhenReady()
+     *        → _load(), ocean_map.js 의 window.oceanGetBasemap()/oceanSetBasemap().
+     *        껐다 켤 때 _selected 를 비워 하이라이트를 초기화한다(_zoneStyle 이 읽는 값).
+     */
     function _bindToggle(map) {
         var btn = document.getElementById('ocean-vts-toggle-btn');
         if (!btn) return;
@@ -221,7 +298,12 @@
         });
     }
 
-    /** oceanMap 이 만들어질 때까지 폴링 (fishing_ban.js 와 동일 패턴) */
+    /**
+     * oceanMap 이 만들어질 때까지 250ms 간격으로 기다렸다가 레이어와 토글 버튼을 설치한다.
+     * 예: 앱 부팅 직후엔 지도가 없어 몇 번 재시도 → 지도가 생기면 설치하고 폴링을 멈춘다.
+     * [연계] ← DOMContentLoaded(이미 로드됐으면 즉시) → _ensureLayers()·_bindToggle()
+     *        (fishing_ban.js 와 동일 패턴 — 지도 생성을 알리는 이벤트가 없어 폴링한다)
+     */
     function _installWhenReady() {
         function _try() {
             var map = window.getOceanMap && window.getOceanMap();

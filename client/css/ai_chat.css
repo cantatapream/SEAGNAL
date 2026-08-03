@@ -271,6 +271,13 @@
 #nrya-overlays .nrya-lawitem{background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09); border-radius:9px; padding:9px 11px; margin-top:7px}
 #nrya-overlays .nrya-lawitem .nrya-lw-t{font-size:11.8px; font-weight:700; color:#dbe7f6}
 
+/* ⚠공백 안내(수집곤란) — 시·군·구 개별고시처럼 우리가 원문을 가질 수 없는 사항.
+   일반 조문 칩과 확실히 구분되도록 주황 계열로 두고, 눌러야 위키 원문 문구가 펼쳐진다. */
+#nrya-overlays .nrya-gap{background:rgba(255,176,32,.10); border:1px solid rgba(255,176,32,.34); border-radius:9px; padding:9px 11px; margin-top:7px}
+#nrya-overlays .nrya-gap-t{font-size:11.8px; font-weight:700; color:#ffcc7a; cursor:pointer; user-select:none}
+#nrya-overlays .nrya-gap-b{display:none; margin-top:6px; font-size:11.2px; line-height:1.6; color:#e2d6c2}
+#nrya-overlays .nrya-gap.nrya-open .nrya-gap-b{display:block}
+
 /* 위임흐름 체인(법률→시행령→시행규칙→고시) — 왼쪽 레일(번호원+세로선)과 본문을 flex로 짝지어
    선이 그 조문 내용 끝까지 늘어나고(align-items:stretch), 원이 뱃지와 같은 높이라 중앙정렬된다.
    하위 법령일수록 같은 녹색 계열에서 점점 옅어진다(data-tier). */

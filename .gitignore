@@ -110,6 +110,12 @@ local_server/data/advisory_prediction.json
 # 상태(빈 메타)라도 명시적으로 커밋 — 운영에서 BADA 로 재생성됨.
 local_server/data/tide_field/curves/*.json
 
+# 항로 월간 갱신본 (seaway_refresh 가 매월 말일 원본과 대조해 갱신, Fly 볼륨 보존).
+# 배포본은 client/seaway_zones.json 이고, 이 파일은 "원본이 실제로 바뀐 뒤에만"
+# 생기는 런타임 산출물이라 추적 제외 — routes/seaway.js 가 있으면 우선 서빙한다.
+local_server/data/seaway_zones.json
+local_server/data/seaway_zones.json.tmp
+
 # 특보 예측 표출 제어 상태(관리자: 청중 모드 off/admin/all + 구역별 삭제/중지/수정)
 local_server/data/advisory_display.json
 

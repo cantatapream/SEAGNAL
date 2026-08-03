@@ -13,6 +13,7 @@
  *   - 중기 해상예보 (하루 2회)
  *   - DuckDNS 동적 IP 갱신 (5분 간격)
  *   - 관리자 알림 (오류/실패 누적 시)
+ *   - 항로 데이터 월간 신선도 점검 (매월 말일 04:00 KST)
  *
  * [연계 모듈]
  *   - services/tide_collector.js : TideBED 조석 데이터 수집 (별도 스케줄)
@@ -2720,6 +2721,17 @@ async function init() {
         // [신규] 태풍 야간 보류분 발송 — 매일 07:00 KST. (실패분은 다음 주간 감지 틱에서 재시도)
         if (kstDate.getHours() === 7 && min === 0 && typhoonNotifier.enabled) {
             typhoonNotifier.flushDeferred({ log }).catch(err => log(`⚠️ [typhoon] 보류분 발송 오류: ${err.message}`));
+        }
+
+        // [항로 월간 신선도 점검] 매월 말일 04:00 KST — 개방海 WFS 원본과 대조해
+        //   고시가 바뀌었으면 data/seaway_zones.json 을 갱신한다.
+        //   "말일"은 cron 문법으로 표현할 수 없으므로(달마다 28~31일로 다름) 매일
+        //   04:00 에 와서 "내일이 1일인가"로 말일을 판정하는 통상 패턴을 쓴다.
+        //   트래픽이 적은 새벽 시각 + 월 1회라 서버 부담이 사실상 없다.
+        //   fire-and-forget — 내부에서 예외를 삼키므로 실패해도 다음 달에 재시도.
+        if (hm === '04:00' && new Date(kstMs + 24 * 60 * 60 * 1000).getDate() === 1 && !crawlPaused) {
+            log('🚢 항로 데이터 월간 신선도 점검 시작...');
+            require('./services/seaway_refresh').checkAndRefreshSeaway();
         }
 
         // [특보 예측] 매시 :25 예측 사이클 (엔진→억제→상태). fire-and-forget, throw 격리.

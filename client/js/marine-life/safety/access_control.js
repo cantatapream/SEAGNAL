@@ -36,7 +36,13 @@
     var _loaded = false;
     var _loading = false;
 
-    /** 출입통제구역 폴리곤 스타일 (빨간 톤 — 해도상 출입통제 표기 관례와 동일) */
+    /**
+     * 출입통제구역 폴리곤 한 벌의 스타일(빨간 톤 — 해도상 출입통제 표기 관례와 동일)을 만든다.
+     * 예: location='영흥도 내리 갯벌' → 빨간 외곽선 2px + 15% 채움 + 그 이름 라벨.
+     * @param {ol.Feature} feature - 그릴 구역 피처(라벨 문구는 location 속성)
+     * @returns {ol.style.Style} 외곽선·채움·라벨이 다 든 스타일 1개
+     * [연계] ← _fillOnlyStyle()/_strokeOnlyStyle() — 두 레이어가 이 한 벌을 나눠 쓴다
+     */
     function _zoneStyle(feature) {
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
@@ -57,17 +63,53 @@
         });
     }
 
+    /**
+     * 스타일 한 벌에서 채움만 뽑아 새 스타일을 만든다.
+     * 예: _onlyFill(_zoneStyle(f)) → 선·라벨 없이 rgba(255,82,82,0.15) 채움만.
+     * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
+     * @returns {ol.style.Style|null} 채움만 든 스타일 — 채울 것이 없으면 null(안 그림)
+     * [연계] ← _fillOnlyStyle()
+     */
     function _onlyFill(style) {
         var f = style.getFill();
         if (!f) return null;
         return new ol.style.Style({ fill: f });
     }
+    /**
+     * 스타일 한 벌에서 외곽선과 라벨만 뽑아 새 스타일을 만든다.
+     * 예: _onlyStrokeAndText(_zoneStyle(f)) → 채움 없이 빨간 선 + '영흥도 내리 갯벌' 라벨.
+     * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
+     * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
+     * [연계] ← _strokeOnlyStyle()
+     */
     function _onlyStrokeAndText(style) {
         return new ol.style.Style({ stroke: style.getStroke(), text: style.getText() });
     }
+    /**
+     * 채움 레이어(_fillLayer)의 스타일 함수 — 피처마다 채움만 그린다.
+     * 예: _fillOnlyStyle(영흥도 갯벌 피처) → 반투명 빨간 면 1장.
+     * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
+     * @returns {ol.style.Style|null} 채움만 든 스타일
+     * [연계] ← _ensureLayers() 의 _fillLayer style 옵션 → _zoneStyle()·_onlyFill()
+     */
     function _fillOnlyStyle(feature) { return _onlyFill(_zoneStyle(feature)); }
+    /**
+     * 외곽선 레이어(_layer)의 스타일 함수 — 피처마다 선과 라벨만 그린다.
+     * 예: _strokeOnlyStyle(영흥도 갯벌 피처) → 빨간 테두리 + 이름 라벨.
+     * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
+     * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
+     * [연계] ← _ensureLayers() 의 _layer style 옵션 → _zoneStyle()·_onlyStrokeAndText()
+     */
     function _strokeOnlyStyle(feature) { return _onlyStrokeAndText(_zoneStyle(feature)); }
 
+    /**
+     * 채움·외곽선 두 벡터 레이어를 (아직 없을 때만) 만들어 지도에 얹는다.
+     * 예: 첫 호출 → 채움(zIndex 42)·외곽선(zIndex 82) 레이어 생성, 두 번째 호출부터는 아무 일 없음.
+     * @param {ol.Map} map - 레이어를 얹을 해양지도 인스턴스
+     * [연계] ← _installWhenReady() — 지도가 준비된 뒤 1회.
+     *        레이어를 둘로 나누는 이유: 채움은 다른 오버레이 아래에 깔되 라벨·외곽선은
+     *        그 위로 보여야 해서 zIndex 를 따로 줘야 한다.
+     */
     function _ensureLayers(map) {
         if (!_source) _source = new ol.source.Vector();
 
@@ -95,7 +137,11 @@
         }
     }
 
-    /** 정적 GeoJSON lazy fetch — 버튼을 처음 켤 때만 1회 */
+    /**
+     * 정적 GeoJSON 을 내려받아 소스에 채운다(lazy fetch — 버튼을 처음 켤 때만 1회).
+     * 예: fetch('/access_control_zones.json') → 구역 18개를 EPSG:4326→3857 로 바꿔 _source 에 추가.
+     * [연계] ← _bindToggle() 의 ON 핸들러. 이미 받았거나(_loaded) 받는 중(_loading)이면 즉시 되돌아온다.
+     */
     function _load() {
         if (_loaded || _loading) return;
         _loading = true;
@@ -120,15 +166,29 @@
             });
     }
 
-    /** "라벨/값" 2열 grid의 한 행 — 값이 없으면 그 행 자체를 만들지 않는다.
-     *  (grid-template-columns: max-content 1fr 이라 값이 줄바꿈되면 값 칸의
-     *  왼쪽 끝, 즉 라벨 다음 위치에 자동으로 맞춰 정렬된다) */
+    /**
+     * "라벨/값" 2열 grid의 한 행을 만든다 — 값이 없으면 그 행 자체를 만들지 않는다.
+     * 예: _row('문의처', '032-650-2348') → '<span class="ac-detail-label">문의처</span><span class="ac-detail-value">032-650-2348</span>'
+     * @param {string} label - 왼쪽 라벨(예: '관할', '통제시간')
+     * @param {string} value - 오른쪽 값 — 비어 있으면 행을 만들지 않는다
+     * @returns {string} 행 2칸의 HTML(값이 없으면 빈 문자열)
+     * [연계] ← _buildDetailHtml()
+     *        (grid-template-columns: max-content 1fr 이라 값이 줄바꿈되면 값 칸의
+     *         왼쪽 끝, 즉 라벨 다음 위치에 자동으로 맞춰 정렬된다)
+     */
     function _row(label, value) {
         if (!value) return '';
         return '<span class="ac-detail-label">' + label + '</span><span class="ac-detail-value">' + value + '</span>';
     }
 
-    /** 문의처 문자열 속 전화번호(예: 032-650-2348)를 tel: 링크로 바꿔 탭하면 바로 전화 걸리게 한다 */
+    /**
+     * 문의처 문자열 속 전화번호를 tel: 링크로 바꿔 탭하면 바로 전화 걸리게 한다.
+     * 예: '인천해양경찰서 해양안전과 안전관리계 032-650-2348'
+     *     → '인천해양경찰서 … <a href="tel:0326502348">032-650-2348</a>'
+     * @param {string} text - 원문 문의처 문자열(번호가 없으면 그대로 돌려준다)
+     * @returns {string} 전화번호만 <a> 로 감싼 HTML
+     * [연계] ← _buildDetailHtml() 의 '문의처' 행
+     */
     function _linkifyPhone(text) {
         if (!text) return text;
         return text.replace(/(\d{2,3}-\d{3,4}-\d{4})/g, function (num) {
@@ -136,7 +196,14 @@
         });
     }
 
-    /** 폴리곤 feature 하나의 상세 정보 팝업 HTML을 만든다(구역마다 고시 내용이 달라 항목별로 있는 것만 표시) */
+    /**
+     * 폴리곤 feature 하나의 상세 정보 팝업 HTML을 만든다(구역마다 고시 내용이 달라 항목별로 있는 것만 표시).
+     * 예: '영흥도 내리 갯벌' 피처 → 관할·고시.공고·통제시간·벌칙… 표 + "공고 원문 다운로드하기" 버튼.
+     * @param {ol.Feature} hit - 클릭으로 잡힌 구역 피처
+     * @returns {string} 팝업 본문 HTML(항목이 하나도 없으면 안내 문구)
+     * [연계] ← window._accessControlTryHandleClick()
+     *        → _row()·_linkifyPhone(), 버튼은 window._accessControlDownloadSrc() 를 부른다
+     */
     function _buildDetailHtml(hit) {
         var rows = '';
         rows += _row('관할', hit.get('station'));
@@ -178,6 +245,10 @@
      * 무시하므로(ocean_typhoon.js downloadImg()·admin_collect.js 와 동일 패턴), 네이티브에서는
      * 시스템 브라우저(@capacitor/browser)로 attachment URL 을 열어 OS 가 받게 하고,
      * 일반 웹에서는 평범한 <a download> 로 처리한다.
+     * 예: ('/api/legal/src?p=…공고제2025-2호….pdf', '[inchon_66183]….pdf') → 그 PDF 저장.
+     * @param {string} url - 서버의 원문 파일 URL(/api/legal/src?p=…)
+     * @param {string} filename - 저장될 파일명
+     * [연계] ← _buildDetailHtml() 이 심어 둔 "원문 다운로드하기" 버튼의 onclick
      */
     window._accessControlDownloadSrc = function (url, filename) {
         function anchor() {
@@ -199,6 +270,7 @@
 
     /**
      * [외부 API] 지도 클릭이 출입통제구역 폴리곤을 눌렀는지 확인한다.
+     * 예: '영흥도 내리 갯벌' 폴리곤을 탭 → 상세 팝업을 띄우고 true 반환(바텀시트는 안 뜬다).
      * @param {ol.Map} map
      * @param {ol.MapBrowserEvent} evt
      * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함)
@@ -229,6 +301,13 @@
         return true;
     };
 
+    /**
+     * "출입통제" 토글 버튼에 ON/OFF 클릭 동작을 붙인다.
+     * 예: 버튼 탭 → active 표시 + 폴리곤 표시 + 데이터 로드 + 배경지도 위성(vworld) 전환, 다시 탭하면 되돌림.
+     * @param {ol.Map} map - 해양지도 인스턴스(자매 파일과 시그니처를 맞춘 것 — 여기선 쓰지 않는다)
+     * [연계] ← _installWhenReady()
+     *        → _load(), ocean_map.js 의 window.oceanGetBasemap()/oceanSetBasemap()
+     */
     function _bindToggle(map) {
         var btn = document.getElementById('ocean-access-control-toggle-btn');
         if (!btn) return;
@@ -255,7 +334,12 @@
         });
     }
 
-    /** oceanMap 이 만들어질 때까지 폴링 (ocean_warn_zone.js 와 동일 패턴) */
+    /**
+     * oceanMap 이 만들어질 때까지 250ms 간격으로 기다렸다가 레이어와 토글 버튼을 설치한다.
+     * 예: 앱 부팅 직후엔 지도가 없어 몇 번 재시도 → 지도가 생기면 설치하고 폴링을 멈춘다.
+     * [연계] ← DOMContentLoaded(이미 로드됐으면 즉시) → _ensureLayers()·_bindToggle()
+     *        (ocean_warn_zone.js 와 동일 패턴 — 지도 생성을 알리는 이벤트가 없어 폴링한다)
+     */
     function _installWhenReady() {
         function _try() {
             var map = window.getOceanMap && window.getOceanMap();

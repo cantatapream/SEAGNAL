@@ -14,12 +14,16 @@
  * raw(법령 원문)는 서버에 상주시키지 않는다 — 2차 조회(searchRawFallback)와 똑같이
  * `services/github_raw.js`로 **필요할 때만** GitHub에서 읽어온다(MASTER_PLAN F절).
  *
- * [인용 표기 3종 — 위키 표의 `조문` 칸은 조 하나만 가리키지 않는다]
+ * [인용 표기 4종 — 위키 표의 `조문` 칸은 조 하나만 가리키지 않는다]
  *  - single : `제10조④3호` — 조 하나. 인용된 항·호를 강조(hit)한다.
+ *  - list   : `제53조·제55조`·`제109·110조` — 가운뎃점·쉼표로 나열된 여러 조를 **적힌 순서대로
+ *             전부** 나열한다. 원문에서 못 찾은 조는 `missing`으로 정직하게 알린다.
+ *             맨숫자 항목(`110`·`6`)은 표기 끝의 '조' 유무로 뜻이 갈린다 — 끝에 '조'가 있으면 별개 조
+ *             (`제109·110조`), 없으면 앞 항목의 가지번호를 잇는 표기(`제30조의5·6`)다(parseJoEnum 참고).
  *  - range  : `제1~9조`·`전문(제1조~제10조)` — 그 범위의 조를 **순서대로 전부** 나열한다.
  *  - whole  : `전체`·`전문`, 또는 고시인데 조 번호가 아예 없는 표기(고시 제목만 적힌 행).
  *             그 문서의 조문을 전부 나열한다.
- *   ⚠ range·whole 은 **강조(hit)를 하지 않는다** — 여러 조 전체가 근거라 "어디가 진짜
+ *   ⚠ list·range·whole 은 **강조(hit)를 하지 않는다** — 여러 조 전체가 근거라 "어디가 진짜
  *     근거인지" 알 수 없고, 억지로 한 곳을 칠하면 지어내는 것과 같다. 대신 클라이언트가
  *     위키 표의 요지(gist)를 그대로 캡션으로 보여준다.
  *   ⚠ 조가 MAX_ARTICLES 개를 넘으면 억지로 다 밀어넣지 않고 {tooLong}으로 정직하게 넘긴다.
@@ -44,8 +48,12 @@
  *  - 계층 없는 `별표N.txt`는 파일명 번호와 내용 번호가 어긋난 게 41개 있어, 선언줄의 **계층과
  *    번호가 둘 다 맞을 때만** 쓴다(맞지 않으면 다른 별표를 그 번호인 척 보여주게 된다).
  *  - 내용이 `[별표 7] 삭제` 한 줄뿐인 폐지 별표는 "원문 있음"으로 확정하지 않는다(빈 팝업 방지).
- *  - 우리가 못 읽는 인용 표기(`제109·110조` 같은 열거, `제8조·제3~6조` 같은 혼합)는 억지로 하나만
- *    골라 열지 않고 bad_request 로 정직하게 실패한다 — 틀린 원문을 보여주는 것보다 안 여는 게 낫다.
+ *  - 한 칸에 계층이 둘 이상 섞인 행(`법령='법·시행령'` / `조문='제4조·시행령 제5조'`)은 계층은 뒤쪽 것,
+ *    조 번호는 앞쪽 것이 붙어 **인용된 적 없는 조**가 열린다 — 조문 칸이 그 계층을 명시하지 않았으면
+ *    열지 않고 실패한다(tierIsCertain). 부칙 조문 표기도 본문 조와 번호가 겹쳐 그대로 실패시킨다.
+ *  - 조 나열(`제109·110조`·`제8조·제3~6조`)은 나열된 조를 **전부** 편다(list). 다만 `선박구명설비기준
+ *    제98·99조`처럼 조 번호가 다른 글자와 섞여 우리가 단정할 수 없는 표기는 억지로 하나만 골라 열지
+ *    않고 bad_request 로 정직하게 실패한다 — 틀린 원문을 보여주는 것보다 안 여는 게 낫다.
  *
  * [연계 파일]
  * - routes/legal.js                        → GET /api/legal/article-text 가 loadArticle() 호출
@@ -114,16 +122,179 @@ function squash(s) {
 // (`제21∼22조`는 U+223C), `전문(제1~24조)`처럼 괄호에 싸여 있기도 해 부분일치로 찾는다.
 const RANGE_A = /제\s*(\d+)\s*조\s*[~～∼\-–—]\s*제\s*(\d+)\s*조/;
 const RANGE_B = /제\s*(\d+)\s*[~～∼\-–—]\s*(\d+)\s*조/;
+
+// 나열 표기(list). 실측 표기가 갈린다 — `제53조·제55조`(조마다 '제'·'조' 다 붙음)와
+// `제109·110조`(마지막에만 '조'가 붙는 축약형), 가지번호도 `제12조의2`·`17의2` 두 형태다.
+// ⚠ **표기 전체가 조 번호 나열일 때만** 인정한다(칸 전체 완전일치) — `제48조·선장병과(제44조②)`나
+//   `제43·47조 / 별표4`처럼 다른 글자가 섞이면 우리가 그 의미를 단정할 수 없으므로 손대지 않고
+//   기존 처리(단일 인식 또는 실패)로 흘려보낸다.
+const LIST_ONLY_RE = /^[\s제조의0-9·ㆍ・,~～∼]+$/;
+// 항목 = 조 하나(`제55조`·`110`·`12조의2`·`17의2`). 실측에 `제19조의2조`처럼 '조'가 덧붙은 오타가
+// 있어 꼬리 '조'는 선택으로 둔다.
+const LIST_ITEM_RE = /^\s*제?\s*(\d+)(?:\s*조?\s*의\s*(\d+))?\s*조?\s*$/;
+// 항목 = 앞 항목의 본조를 물려받는 가지번호만 적힌 표기(`제12조의2·의3`의 `의3`, 실측 1건).
+// 이걸 못 읽으면 나열 전체가 null 로 물러나 앞의 `제12조의2` 하나만 열린다(뒤 조가 조용히 사라진다).
+const LIST_ITEM_BRANCH_RE = /^\s*의\s*(\d+)\s*$/;
+// 항목 = 나열 안의 작은 범위(`46~49`). `제168~173·179조`처럼 범위와 나열이 섞인 실측 표기가 있어
+// 함께 받는다 — 안 받으면 범위 정규식이 앞부분만 집고 나머지 조를 조용히 버린다.
+// ⚠ 끝에 가지번호가 붙는 표기(`제82~89조의2`)도 받는다 — 안 받으면 나열 전체가 null 로 물러나
+//   범위 정규식이 `제82~89조`만 집고 뒤에 나열된 `93·94`를 조용히 버린다(실측 1건). 가지번호
+//   자체는 expandRange 가 원문에서 그 구간의 가지번호 조를 주워담아 채운다.
+const LIST_ITEM_RANGE_RE = /^\s*제?\s*(\d+)\s*[~～∼]\s*(\d+)\s*(?:조\s*의\s*\d+)?\s*조?\s*$/;
+
+/**
+ * `제53조·제55조`·`제109·110조`처럼 **가운뎃점(·ㆍ・)이나 쉼표로 나열된 여러 조**를 조 번호
+ * 목록으로 편다. 하나라도 못 읽는 항목이 있으면 통째로 null 을 돌려 기존 처리에 맡긴다
+ * (절반만 골라 여는 것이 이 저장소에서 가장 하면 안 되는 일이다 — 사용자는 전부 본 줄 안다).
+ *
+ * ⚠ 맨숫자 항목(`110`·`6`)을 무엇으로 읽느냐가 이 함수의 핵심이다 — **뒤에 '조'가 붙은 항목이
+ *   있는지**로 가른다(실측 542건 전수 확인).
+ *   · 뒤에 '조'가 있으면 축약 나열이다 — 맨숫자들이 그 '조'를 나눠 갖는다(`제109·110조`·`제50·50조의2`).
+ *     `제13·…·17의2·18·…·28조`처럼 가운데에 가지번호가 섞여도 뒤의 맨숫자는 여전히 **별개 조**다
+ *     (실측 8건 전부 그렇다).
+ *   · 뒤에 '조'가 하나도 없으면 그 맨숫자를 조 번호로 읽을 근거가 없다 — 바로 앞 항목이 `제N조의M`일
+ *     때만 **같은 본조의 다음 가지번호**로 읽는다(`제30조의5·6` → 제30조의5·제30조의6, 실측 2건 모두
+ *     이 뜻). 앞 항목이 가지번호도 아니면 단정할 수 없으므로 null 로 물러난다(single 모드로 안전 후퇴).
+ *   ↳ 이 구분을 안 하면 `제30조의5·6`(수상구조법 "비밀준수")이 제30조의6 대신 **제6조**(각급 해양수색
+ *     구조기술위원회 설치)를 근거인 척 보여준다 — 완전히 다른 조라 "환각 0" 위반이다.
+ *
+ * 예: parseJoEnum('제53조·제55조')   → {joList:['제53조','제55조'], spans:[]}
+ *     parseJoEnum('제109·110조')     → {joList:['제109조','제110조'], spans:[]}
+ *     parseJoEnum('제168~173·179조') → {joList:['제168조'…'제173조','제179조'], spans:[[168,173]]}
+ *     parseJoEnum('제30조의5·6')     → {joList:['제30조의5','제30조의6'], spans:[]}
+ *     parseJoEnum('제43·47조 / 별표4') → null(다른 글자가 섞여 단정 불가)
+ * @param {string} s - 조문 표기(화살표 뒷부분은 이미 잘라낸 것)
+ * @returns {{joList:string[], spans:Array<[number,number]>}|null}
+ *          조 2개 이상이면 목록(등장 순서·중복 제거) + 나열 안에 있던 범위 구간, 아니면 null.
+ *          spans 는 expandRange()가 "그 범위 안의 가지번호 조"를 원문에서 주워담는 데 쓴다.
+ * [연계] ← parseArticleRef(mode:'list'). → loadArticle 이 range 와 같은 경로로 원문을 나열한다.
+ */
+function parseJoEnum(s) {
+  if (!LIST_ONLY_RE.test(s) || !/[·ㆍ・,]/.test(s) || !/조/.test(s)) return null;
+  const toks = s.split(/[·ㆍ・,]/).map(t => t.trim()).filter(Boolean);
+  const out = [];
+  const spans = [];
+  let prevBranchJo = 0;   // 바로 앞 항목이 `제N조의M`이었으면 그 본조 번호 N(아니면 0)
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    const rm = LIST_ITEM_RANGE_RE.exec(t);
+    if (rm) {
+      const from = parseInt(rm[1], 10), to = parseInt(rm[2], 10);
+      if (!(from >= 1 && to > from)) return null;
+      for (let i = from; i <= to; i++) out.push(`제${i}조`);
+      spans.push([from, to]);
+      prevBranchJo = 0;
+      continue;
+    }
+    const bm = LIST_ITEM_BRANCH_RE.exec(t);
+    if (bm) {
+      if (!prevBranchJo) return null;             // 물려받을 본조가 없다 — 단정 불가
+      out.push(`제${prevBranchJo}조의${bm[1]}`);
+      continue;
+    }
+    const m = LIST_ITEM_RE.exec(t);
+    if (!m) return null;
+    if (m[2]) { out.push(`제${m[1]}조의${m[2]}`); prevBranchJo = parseInt(m[1], 10); continue; }
+    // 맨숫자 항목 — 뒤쪽 어딘가에 '조'가 적혀 있어야 그 '조'를 나눠 가진 조 번호로 읽을 수 있다.
+    if (!/조/.test(t) && !toks.slice(i + 1).some(x => /조/.test(x))) {
+      if (prevBranchJo) { out.push(`제${prevBranchJo}조의${m[1]}`); continue; }
+      // 앞에 범위 항목(`제82~89조의2`)이 있었으면 그 '조'를 나눠 갖는 조 번호로 읽는다 — 범위는
+      // 가지번호가 아니라 조 번호를 세는 표기라, 뒤에 붙은 맨숫자도 조 번호다(실측 1건).
+      if (!spans.length) return null;             // 물려받을 본조도, 앞선 범위도 없다 — 단정 불가
+    }
+    out.push(`제${m[1]}조`);
+    prevBranchJo = 0;
+  }
+  const uniq = [...new Set(out)];
+  return uniq.length >= 2 ? { joList: uniq, spans } : null;
+}
+
 // 문서 전체 표기(실측: `전체` 19건 · `전문` 9건 · `전 5조` 2건). `전문교육기관`·`전문인력`
 // 처럼 "전문"으로 시작만 하는 딴 말이 실제로 있어 **완전일치**로만 인정한다.
 const WHOLE_RE = /^(전체|전문|전부|전\s*\d+\s*조)$/;
 
+// 계층을 가리키는 낱말(legal_retriever.classifyTier 와 같은 낱말을 본다).
+const TIER_WORD_RE = /시행규칙|시행령|법률|법/;
+// 계층별 표기 — 조문 칸에서 "이 조가 어느 계층 것인지" 읽을 때 쓴다(정규식 조각).
+const TIER_TAG_SRC = { law: '법률|법', decree: '시행령', rule: '시행규칙' };
+
 /**
- * 위키 표의 조문 표기에서 인용 형태(single·range·whole)와 조·항·호를 뽑는다. 표기는
+ * 법령 칸이 계층을 **둘 이상** 지목하는가. 위키에는 한 칸에 위임흐름을 통째로 적은 행이 있다 —
+ * `법·시행령`·`시행령ㆍ시행규칙`·`이 법·시행규칙`·`동법 → 시행령`·`양식산업발전법·시행령`.
+ * 가운뎃점·빗금·화살표로 갈라 **각 조각이 계층 낱말을 갖는지**로 센다(낱말 개수가 아니다) —
+ * `수산업ㆍ어촌 발전 기본법 시행령`처럼 법령명 안에 가운뎃점이 있는 표기를 계층 둘로 오해하지
+ * 않기 위해서다(조각 `수산업`엔 계층 낱말이 없다).
+ * 예: multiTierCell('법·시행령') → true · multiTierCell('해양환경관리법 시행령') → false
+ * @param {string} cell - 체인 행의 법령 칸 값
+ * @returns {boolean}
+ * [연계] ← parseArticleRef(). 계층이 섞인 칸은 조 번호를 어느 계층에 붙일지 단정할 수 없다.
+ */
+function multiTierCell(cell) {
+  return String(cell || '').replace(/[「」『』]/g, '')
+    .split(/[·ㆍ・,/]|→|⇒|➔|=>/)
+    .filter(seg => TIER_WORD_RE.test(seg)).length >= 2;
+}
+
+/**
+ * 조문 칸에서 그 계층 이름 **바로 뒤에** 적힌 조 표기를 읽는다. 못 찾으면 ''.
+ * 예: tierTaggedJo('제4조·시행령 제5조', 'decree')        → '제5조'
+ *     tierTaggedJo('제5ㆍ7ㆍ31조, 시행령 제4~5조', 'decree') → '제4조'(범위의 시작 조)
+ *     tierTaggedJo('제30조의11, 시행령 제30조의11제1항', 'decree') → '제30조의11'
+ *     tierTaggedJo('제13조 / 제5조', 'decree')            → ''(계층이 안 적혀 있다)
+ * @param {string} cell - 체인 행의 조문 칸 값
+ * @param {string} tier - law|decree|rule (notice 는 계층 낱말이 없어 항상 '')
+ * @returns {string}
+ * [연계] ← parseArticleRef(). parseArticleRef 가 고른 조와 같아야 그 조가 이 계층 것이라고 말할 수 있다.
+ */
+function tierTaggedJo(cell, tier) {
+  const w = TIER_TAG_SRC[tier];
+  if (!w) return '';
+  const m = new RegExp(`(?:${w})\\s*제\\s*(\\d+)(?:\\s*조\\s*의\\s*(\\d+))?`).exec(String(cell || ''));
+  return m ? (m[2] ? `제${m[1]}조의${m[2]}` : `제${m[1]}조`) : '';
+}
+
+/**
+ * 우리가 고른 조가 **이 행의 계층(tier) 것이 맞다고 말할 수 있는지** 확인한다.
+ * 계층 판정(classifyTier)은 법령 칸에서 계층을 **우선순위로** 고르고(시행령 > 시행규칙 > 고시 > 법률),
+ * 조 번호 판정(parseArticleRef)은 조문 칸에서 **앞에 적힌 것**을 고른다 — 그래서 한 칸에 계층이 둘
+ * 이상 섞인 행에서는 "계층은 뒤쪽 것, 조 번호는 앞쪽 것"이 붙어 **인용된 적 없는 엉뚱한 조**가 열린다
+ * (실측: `법·시행령`/`제4조·시행령 제5조` → 시행령 제4조(면허신청)가 열림, 근거는 시행령 제5조(시설기준)).
+ * 그런 행은 우리가 단정할 수 없으므로 열지 않고 정직하게 실패한다("환각 0" — 틀린 원문을 보여주느니
+ * 안 여는 게 낫다).
+ *  ⓐ 법령 칸이 계층을 둘 이상 지목하면 — 조문 칸이 우리가 고른 조를 **그 계층으로 명시**했을 때만 연다
+ *     (`시행령 제24조, 시행규칙 제9조`·`제28조, 시행령 제28조`는 명시돼 있어 그대로 열린다).
+ *  ⓑ 조문 칸이 우리가 고른 조를 **다른 계층으로** 명시했으면 연다고 할 수 없다
+ *     (법령='수산업법'(법률)인데 조문='시행규칙 제11조'인 행).
+ * 예: tierIsCertain('제4조·시행령 제5조', 'decree', '법·시행령', {joList:['제4조']})   → false
+ *     tierIsCertain('시행령 제24조, 시행규칙 제9조', 'decree', '시행령ㆍ시행규칙', {joList:['제24조']}) → true
+ *     tierIsCertain('제10조④3호', 'law', '이 법', {joList:['제10조']})                → true(섞인 게 없다)
+ * @param {string} article - 체인 행의 조문 칸 값
+ * @param {string} tier - law|decree|rule|notice
+ * @param {string} lawCell - 체인 행의 법령 칸 값(없으면 ⓐ는 건너뛴다)
+ * @param {{joList:string[]}} ref - parseArticleRef 가 읽어낸 결과
+ * @returns {boolean}
+ * [연계] ← parseArticleRef(). false 면 null → loadArticle 이 bad_request 로 정직하게 실패한다.
+ */
+function tierIsCertain(article, tier, lawCell, ref) {
+  // readArticleRef 가 읽은 것과 **같은 구간**만 본다 — `제2조제4항 → 시행령 제2조`처럼 화살표 뒤에
+  // 다음 단계 조가 적힌 행에서, 뒤쪽 `시행령 제2조`를 앞쪽 조의 계층표시로 오해하면 안 된다.
+  const s = String(article || '').split(/→|⇒|➔|=>/)[0];
+  const jo = (ref.joList || [])[0] || '';
+  if (multiTierCell(lawCell) && tierTaggedJo(s, tier) !== jo) return false;
+  for (const t of Object.keys(TIER_TAG_SRC)) {
+    if (t !== tier && jo && tierTaggedJo(s, t) === jo) return false;
+  }
+  return true;
+}
+
+/**
+ * 위키 표의 조문 표기에서 인용 형태(single·list·range·whole)와 조·항·호를 뽑는다. 표기는
  * 페이지마다 여러 가지가 섞여 있다(실측) — 조 하나(`제10조④3호`/`제10조제4항제3호`),
- * 범위(`제1~9조`), 문서 전체(`전체`·`전문`), 그리고 고시엔 조 번호 없이 제목만 적힌 행도 있다.
+ * 나열(`제53조·제55조`), 범위(`제1~9조`), 문서 전체(`전체`·`전문`), 그리고 고시엔 조 번호 없이
+ * 제목만 적힌 행도 있다.
  * 예: parseArticleRef('제10조④3호')       → {mode:'single', jo:'제10조', mark:'④', ho:3}
  *     parseArticleRef('제5조제1항')        → {mode:'single', jo:'제5조', mark:'①', ho:0}
+ *     parseArticleRef('제53조·제55조')      → {mode:'list', joList:['제53조','제55조'], label:'제53조·제55조'}
  *     parseArticleRef('전문(제1~24조)')     → {mode:'range', joList:['제1조'…'제24조'], label:'제1조~제24조'}
  *     parseArticleRef('전체')              → {mode:'whole', joList:[], label:'전체'}
  *     parseArticleRef('위험물선박운송기준', 'notice') → {mode:'whole', …}(고시 제목만 적힌 행)
@@ -131,13 +302,28 @@ const WHOLE_RE = /^(전체|전문|전부|전\s*\d+\s*조)$/;
  * @param {string} [tier] - law|decree|rule|notice. 고시일 때만 "조 번호 없음 → 문서 전체"로 본다
  * @returns {{mode:string, jo:string, joList:string[], from:number, to:number, mark:string, ho:number, label:string}|null}
  *          어느 형태로도 못 읽으면 null(from·to 는 range 일 때만 있다)
- * [연계] ← loadArticle(). jo·joList 는 원문에서 조 블록을 찾는 열쇠, mark·ho 는 강조 대상(single 전용).
+ * [연계] ← parseArticleRef(). jo·joList 는 원문에서 조 블록을 찾는 열쇠, mark·ho 는 강조 대상(single 전용).
  */
-function parseArticleRef(article, tier) {
+function readArticleRef(article, tier) {
   // `제69조 → 시행령 제42~45조`처럼 위임흐름을 한 칸에 적은 표기가 있다 — 이 행의 법령은 앞쪽
   //  것이므로 화살표 뒤(다른 계층의 조)는 잘라낸다. 안 자르면 법률 카드가 시행령 조를 연다.
   const s = String(article || '').split(/→|⇒|➔|=>/)[0].trim();
   if (!s) return null;
+
+  // ⚠ 부칙 조문(`부칙(제30106호) 제2조`)은 본문 조와 번호가 겹친다 — 그대로 읽으면 부칙 제2조 대신
+  //   **본문 제2조**가 근거인 척 열린다(실측 3행). 부칙 전용 파싱은 아직 없으므로 정직하게 실패한다.
+  if (/부칙/.test(s)) return null;
+
+  // ⓪ 나열 — `제53조·제55조`는 단일 정규식이 앞의 `제53조`만 집어 **절반만** 보여주고(팝업 제목엔
+  //    두 조가 다 떠서 전부 본 줄 안다), `제168~173·179조`는 범위 정규식이 앞 범위만 집어 마지막
+  //    조를 조용히 버린다 — 그래서 범위·단일보다 **먼저** 본다.
+  const enumRef = parseJoEnum(s);
+  if (enumRef) {
+    return {
+      mode: 'list', jo: '', joList: enumRef.joList, spans: enumRef.spans,
+      mark: '', ho: 0, label: enumRef.joList.join('·'),
+    };
+  }
 
   // ① 범위 — 단일 정규식(`제(\d+)조`)이 `제1조~제10조`의 앞부분만 집어 "제1조 하나"로 오인하므로
   //    반드시 단일보다 **먼저** 본다. 시작과 끝이 같으면(`제21조∼제21조의3`) 범위가 아니라
@@ -166,10 +352,11 @@ function parseArticleRef(article, tier) {
     // ③ 조 번호가 아예 없다 — 고시는 짧아서 위키가 "제목만 적고 문서 전체"를 가리키는 행이 흔하다
     //    (실측: `위험물선박운송기준`·`「수산물 표준규격」` 등). 다만 별표만 가리키는 행이나
     //    날짜가 잘못 들어온 행까지 문서 전체로 열면 엉뚱하므로 그런 표기는 제외한다.
-    // ⚠ `제109·110조`·`제5ㆍ7ㆍ8조`·`제1~2호`처럼 **가운뎃점으로 나열된 인용**은 위 단일·범위
-    //   패턴 어디에도 안 걸리는데(실측 29건), 이걸 제목행으로 보면 사용자가 요청한 조 대신 문서
-    //   전체가 열려 **틀린 원문을 맞다고 보여주게** 된다. 조·항·호·편 번호가 하나라도 있으면
-    //   "제목"이 아니라 "우리가 못 읽는 인용 표기"이므로 정직하게 실패시킨다(열거 표기 파싱은 범위 밖).
+    // ⚠ 순수한 조 나열(`제109·110조`)은 위 ⓪에서 이미 처리했지만, `제1~2호`나 `선박구명설비기준
+    //   제98·99조`처럼 조 번호가 다른 글자와 섞여 우리가 단정할 수 없는 표기는 여기까지 내려온다.
+    //   이걸 제목행으로 보면 사용자가 요청한 조 대신 문서 전체가 열려 **틀린 원문을 맞다고 보여주게**
+    //   된다. 조·항·호·편 번호가 하나라도 있으면 "제목"이 아니라 "우리가 못 읽는 인용 표기"이므로
+    //   정직하게 실패시킨다.
     //   단 `…(해수부고시 제804호)` 같은 **발령번호**는 인용이 아니므로 세기 전에 걷어낸다.
     const noIssueNo = s.replace(/(고시|훈령|예규|공고)\s*제\s*\d+\s*호/g, '');
     const looksLikeTitle = tier === 'notice' &&
@@ -190,6 +377,24 @@ function parseArticleRef(article, tier) {
   }
   const ho = /(?:제)?(\d+)\s*호/.exec(rest);
   return { mode: 'single', jo, joList: [jo], mark, ho: ho ? parseInt(ho[1], 10) : 0, label: jo };
+}
+
+/**
+ * readArticleRef 로 조문 표기를 읽되, **그 조가 이 행의 계층 것이 맞을 때만** 돌려준다.
+ * 계층이 섞인 행(`법·시행령` 같은 법령 칸)에서 조 번호를 엉뚱한 계층 원문에 갖다 대는 사고를
+ * 막는 마지막 관문이다 — 자세한 이유는 tierIsCertain 주석 참고.
+ * 예: parseArticleRef('제10조④3호', 'law', '이 법')        → {mode:'single', jo:'제10조', …}
+ *     parseArticleRef('제4조·시행령 제5조', 'decree', '법·시행령') → null(어느 계층 조인지 단정 불가)
+ * @param {string} article - 체인 행의 조문 표기
+ * @param {string} [tier] - law|decree|rule|notice
+ * @param {string} [lawCell] - 체인 행의 법령 칸 값(없으면 계층 혼합 판정을 건너뛴다)
+ * @returns {object|null} readArticleRef 와 같은 형태, 못 읽거나 단정할 수 없으면 null
+ * [연계] ← loadArticle(). → readArticleRef()·tierIsCertain()
+ */
+function parseArticleRef(article, tier, lawCell) {
+  const ref = readArticleRef(article, tier);
+  if (!ref || !tierIsCertain(article, tier, lawCell, ref)) return null;
+  return ref;
 }
 
 // 호 머리번호("1." "2." …) 탐지. 앞뒤가 숫자면 제외해 "2.5"·"28."류 오검출을 막는다.
@@ -543,8 +748,46 @@ function pickNoticeFile(entries, title) {
 }
 
 /**
- * 그 법의 raw 폴더 경로를 찾는다. 체인 행의 법령명(시행령·시행규칙 꼬리말 떼고 재시도 포함)이
- * 우선이다. **baseLaw 폴백은 고시(tier==='notice')에만 쓴다** — 고시는 제목만으로 폴더를 못
+ * 법령 셀에서 낫표(「」『』)와 계층 꼬리말(`ㆍ시행령·시행규칙`)을 걷어내 **법령명 부분**만 남긴다.
+ * 위키는 같은 법을 `「행정절차법」`·`수상구조법ㆍ시행령`·`해양생태계법 시행령·시행규칙`처럼 여러
+ * 모양으로 적는다 — 이 꼬리만 떼면 정식명과 **완전일치**로 대조할 수 있다(느슨한 포함관계 매칭은
+ * 절대 쓰지 않는다. `마리나항만법`이 `항만법`에 붙는 오매칭이 실측으로 확인됐다).
+ * 예: lawNameOnly('「낚시 관리 및 육성법」') → '낚시 관리 및 육성법'
+ *     lawNameOnly('수상구조법ㆍ시행령')      → '수상구조법'
+ * @param {string} cell - 체인 행의 법령 칸 값
+ * @returns {string}
+ * [연계] ← resolveBase(). → legal_retriever.rawPathOf(공백 무시 완전일치).
+ */
+function lawNameOnly(cell) {
+  return String(cell || '')
+    .replace(/[「」『』]/g, '')
+    .replace(/(?:\s*[·ㆍ・,/]?\s*(?:시행령|시행규칙))+\s*$/, '')
+    .replace(/[\s·ㆍ・,/]+$/, '')
+    .trim();
+}
+
+// 법령 셀이 **법령명 없이 계층 단어·대명사만** 적힌 표기인가 — 그 행이 실린 위키 페이지의 소속
+// 법(baseLaw)을 가리킨다. 실측: `시행령`·`시행규칙`·`법`·`법률`(852행) · `이 법`·`동법`(+계층, 439행)
+// · `법·시행령`·`시행령ㆍ시행규칙`(D형 일부). 계층(tier)은 이미 classifyTier가 이 셀에서 읽는다.
+// ⚠ `같은 법`은 제외한다 — 법령 표기 관행상 "바로 앞에서 말한 그 법"이고, 실제로 앞 행이 타법인
+//   사례가 있다(도선법 페이지의 `같은 법 시행령` = 「비상사태등에…법률」 시행령. baseLaw로 읽으면
+//   도선법 시행령 제15조라는 **전혀 다른 조문**이 열린다). 앞 행을 볼 수 없는 이 함수에서는 단정할
+//   수 없으므로 손대지 않고 정직하게 law_not_found로 실패시킨다.
+//   `이 법`·`동법`은 위키 실측에서 전부 그 페이지의 소속 법을 뜻했다(앞 행이 타법인 위험 11건을
+//   원문 대조로 전수 확인 — `같은 법` 1건만 예외였다).
+const SELF_REF_TOKEN_RE = /(법률|법령|법|시행령|시행규칙|[·ㆍ・,/]|→)/g;
+
+/** 법령 셀이 계층 단어·대명사만 적힌 "이 페이지의 법" 표기인가. */
+function isSelfRef(cell) {
+  const s = String(cell || '').replace(/[「」『』]/g, '').replace(/\s+/g, '');
+  if (!s || /^같은/.test(s)) return false;
+  return s.replace(/^(이|동|본)/, '').replace(SELF_REF_TOKEN_RE, '') === '' && /(법|시행령|시행규칙)/.test(s);
+}
+
+/**
+ * 그 법의 raw 폴더 경로를 찾는다. 체인 행의 법령명(낫표·계층 꼬리말 떼고 재시도 포함)이 우선이고,
+ * 그 셀이 법령명 없이 계층·대명사만 적힌 표기(`시행령`·`이 법`)면 그 페이지의 소속 법으로 읽는다.
+ * **그 밖의 baseLaw 폴백은 고시(tier==='notice')에만 쓴다** — 고시는 제목만으로 폴더를 못
  * 찾아 위키 페이지의 소속 법으로 되돌아가는 게 맞지만, law/decree/rule에 이 폴백을 쓰면 타법
  * 인용 행(법령명 표기가 law_raw_paths.json과 안 맞는 경우)이 조용히 baseLaw의 **같은 번호
  * 조**(제2조 등 흔한 번호라 우연히 존재하는 경우가 많음)를 열어, 카드 이름과 다른 엉뚱한 법의
@@ -557,8 +800,9 @@ function pickNoticeFile(entries, title) {
  * [연계] → legal_retriever.rawPathOf(law_raw_paths.json 매핑).
  */
 function resolveBase(law, baseLaw, tier) {
-  const direct = rawPathOf(law) || rawPathOf(String(law || '').replace(/\s*(시행령|시행규칙)\s*$/, ''));
+  const direct = rawPathOf(law) || rawPathOf(lawNameOnly(law));
   if (direct) return direct;
+  if (isSelfRef(law)) return rawPathOf(baseLaw) || rawPathOf(lawNameOnly(baseLaw)) || null;
   return tier === 'notice' ? (rawPathOf(baseLaw) || null) : null;
 }
 
@@ -608,22 +852,37 @@ function joOrder(jo) {
  * 범위 인용(`제7조~제15조`)의 조 목록에 **문서에 실제로 있는 가지번호 조**(`제7조의2`)를 끼워 넣는다.
  * 범위 표기엔 정수 번호만 적혀 있어 그대로 나열하면 사이의 가지번호 조가 통째로 빠지고, 팝업 라벨의
  * "N개조"가 실제 나열 개수와 어긋난다(실측 194건 중 7건).
+ * ⚠ 나열 안에 낀 범위(`제10~14조, 제17·18조`의 `10~14`)도 **같은 방식으로** 편다 — parseJoEnum 이
+ *   from..to 정수만 찍어 두고 여기서 안 보태면 그 사이의 가지번호 조가 조용히 사라진다(실측: 해운법
+ *   제10~14조 구간의 제11조의2·제11조의3). 그래서 range 의 from/to 와 list 의 spans 를 함께 본다.
+ * 물려받은 순서는 그대로 두고 가지번호 조를 **제 본조 바로 뒤에** 끼워 넣는다(나열은 "적힌 순서대로"가
+ * 약속이고, 범위는 원래 오름차순이라 결과가 정렬과 같다).
  * 예: expandRange(시행규칙txt, 'rule', {from:36, to:46, joList:['제36조'…'제46조']})
  *     → ['제36조','제36조의2',…,'제46조','제46조의2']
  * @param {string} text - 파일 전체 원문
  * @param {string} tier - law|decree|rule|notice
- * @param {object} ref - parseArticleRef 결과(mode==='range')
- * @returns {string[]} 조 번호 순으로 정렬된 목록
- * [연계] ← loadArticle()(mode==='range'). → listArticleNumbers()·buildArticles()
+ * @param {object} ref - parseArticleRef 결과(mode==='range' 이면 from/to, mode==='list' 면 spans)
+ * @returns {string[]} 조 번호 목록(범위 밖 항목의 순서는 적힌 그대로)
+ * [연계] ← loadArticle()(mode==='range'·'list'). → listArticleNumbers()·buildArticles()
  */
 function expandRange(text, tier, ref) {
-  if (!ref.from) return ref.joList;
-  const set = new Set(ref.joList);
+  const spans = ref.from ? [[ref.from, ref.to]] : (ref.spans || []);
+  if (!spans.length) return ref.joList;
+  // 범위 안에 실제로 있는 가지번호 조를 본조 번호별로 모은다(원문 등장 순서 유지).
+  const branches = new Map();
   for (const jo of listArticleNumbers(text, tier)) {
-    const n = joOrder(jo)[0];
-    if (n >= ref.from && n <= ref.to) set.add(jo);
+    const [n, b] = joOrder(jo);
+    if (!b || !spans.some(sp => n >= sp[0] && n <= sp[1])) continue;
+    if (!branches.has(n)) branches.set(n, []);
+    branches.get(n).push(jo);
   }
-  return [...set].sort((a, b) => joOrder(a)[0] - joOrder(b)[0] || joOrder(a)[1] - joOrder(b)[1]);
+  const out = [];
+  const push = jo => { if (!out.includes(jo)) out.push(jo); };
+  for (const jo of ref.joList) {
+    push(jo);
+    for (const b of branches.get(joOrder(jo)[0]) || []) push(b);
+  }
+  return out;
 }
 
 /**
@@ -794,7 +1053,7 @@ async function loadArticle(q) {
   const law = String((q && q.law) || '').trim();
   const qTier = q && q.tier;
   const tier = Object.prototype.hasOwnProperty.call(TIER_FILE, qTier) ? qTier : (qTier === 'notice' ? 'notice' : 'law');
-  const ref = parseArticleRef((q && q.article) || '', tier);
+  const ref = parseArticleRef((q && q.article) || '', tier, law);
   if (!law || !ref) return { ok: false, reason: 'bad_request' };
   if (!githubRaw.hasToken()) return { ok: false, reason: 'no_token' };
 
@@ -849,8 +1108,13 @@ async function loadArticle(q) {
     if (!articles.length) return { ok: false, reason: 'article_not_found' };
     const bodyText = articles.map(a => a.paragraphs.map(p => p.text + (p.items || []).join(' ')).join('\n')).join('\n');
     const found = withAtts(collectRefs(bodyText));
+    // 나열 인용은 "적힌 조를 전부 보여주겠다"는 약속이라, 원문에서 못 찾은 조를 조용히 빼면
+    // 사용자가 절반만 보고도 전부 본 줄 안다 — 못 찾은 조 번호를 그대로 실어 화면이 알리게 한다
+    // (지어내지 않고, 찾은 것만 있는데 전부인 척하지도 않는다).
+    const missing = ref.mode === 'list' ? joList.filter(jo => !articles.some(a => a.jo === jo)) : [];
     return Object.assign(head, {
       articleTitle: ref.label,
+      missing,
       // 법률 계열은 조마다 시행일자가 붙어 있어 그 첫 값을, 고시는 파일 머리 발령일자를 쓴다.
       effectiveDate: (articles.find(a => a.eff) || {}).eff || docDate(text),
       articles,
