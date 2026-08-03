@@ -111,6 +111,7 @@
     "hazard_rocks.js",
     "access_control.js",
     "fishing_ban.js",
+    "vts_zone.js",
     "life_safety.js"
   ]
 }

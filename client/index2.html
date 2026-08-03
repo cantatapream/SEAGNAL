@@ -779,13 +779,14 @@
         body.ls-mode.ls-safety #ocean-rock-toggle-btn,
         body.ls-mode.ls-safety #ocean-access-control-toggle-btn,
         body.ls-mode.ls-safety #ocean-fishing-ban-toggle-btn,
+        body.ls-mode.ls-safety #ocean-vts-toggle-btn,
         body.ls-mode.ls-safety #ocean-cctv-toggle-btn,
         body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
-        /* 노출암/간출암 등/출입통제/낚시금지 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
+        /* 노출암/간출암 등/출입통제/낚시금지/관제구역 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
            [연계] js/marine-life/safety/hazard_rocks.js, js/marine-life/safety/access_control.js,
-                  js/marine-life/safety/fishing_ban.js */
+                  js/marine-life/safety/fishing_ban.js, js/marine-life/safety/vts_zone.js */
         #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn, #ocean-access-control-toggle-btn,
-        #ocean-fishing-ban-toggle-btn { display: none; }
+        #ocean-fishing-ban-toggle-btn, #ocean-vts-toggle-btn { display: none; }
         body.ls-mode.ls-safety #ocean-search-container,
         body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
         /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
@@ -3422,6 +3423,17 @@
                             <i class="fa-solid fa-circle-exclamation"></i>
                             <span class="ocean-overlay-label" data-line1="낚시" data-line2="금지">낚시금지</span>
                         </button>
+                        <!-- 관제구역 토글: js/marine-life/safety/vts_zone.js 가 바인딩.
+                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
+                             선박교통관제에 관한 법률 제12조([별표 1])에 따른 선박교통관제(VTS)구역.
+                             켜면 배경지도가 전자해도로 자동 전환된다(항해 정보라 해도가 맞음).
+                             [데이터] /vts_zones.json (국립해양조사원 선박교통관제구역
+                                      주제도 TL_VTMSA_A, 정적, 처음 누를 때만 지연 로드) -->
+                        <button class="ocean-overlay-btn" id="ocean-vts-toggle-btn" title="관제구역">
+                            <i class="fa-solid fa-tower-broadcast"></i>
+                            <span class="ocean-overlay-label" data-line1="관제" data-line2="구역">관제구역</span>
+                        </button>
                         <!-- 천기 토글: js/shrt_forecast_layer.js 가 바인딩 (이전 이름: "기타 기상")
                              클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
                              (강수확률·강수량·적설·하늘상태·강수형태) — 하나 선택 시 팝아웃이 접히면서
@@ -4855,7 +4867,7 @@
     <script src="js/marine-life/ripcurrent/ripcurrent.js"></script>
 
     <!-- 해양종합정보 (히든 탭) -->
-    <script src="js/ocean-map/map/ocean_map.js?v=LifeSafety_20260731b"></script>
+    <script src="js/ocean-map/map/ocean_map.js?v=LifeSafety_20260731c"></script>
     <script src="js/ocean-map/map/ocean_markers.js"></script>
     <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet1.js"></script>
     <!-- 시트 슬라이더 모듈 — bottom_sheet2.js 가 STL.onRelease 를 wire 하므로 그 전에 로드되어
@@ -4963,6 +4975,11 @@
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <script src="js/marine-life/safety/fishing_ban.js"></script>
+
+    <!-- 선박교통관제(VTS)구역 레이어 — 해양안전 하위탭 전용. fishing_ban.js 와 동일하게
+         스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
+    <script src="js/marine-life/safety/vts_zone.js"></script>
 
     <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
