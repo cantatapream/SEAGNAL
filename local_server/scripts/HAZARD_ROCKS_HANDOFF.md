@@ -405,15 +405,30 @@ prefix는 프로덕션에 안 보임). **바깥쪽 요약 로그를 "🌊 TideBE
 수정+실검증, BADA 신뢰도 문제, OCR 방법론, 모델 비교, 애매 판정 보존 원칙, 연 1회 정기 갱신 필요성)
 으로 대폭 보강했다(같은 커밋).
 
-### 6.7 재사용 가능한 스크래치패드 도구 모음
-세션 스크래치패드(경로는 세션마다 다름, 저장소에는 커밋 안 됨)에 만든 것들 — 다음 배치를 돌릴 때
-그대로 재사용할 수 있는 것들 위주로 정리:
+### 6.7 재사용 가능한 도구 모음
 
-- `fetch_one.js` — 단일 노출암 라벨/좌표를 받아 KHOA WMS z16 3×3 타일 + z12 광역 타일을 받아온다.
-  `node fetch_one.js "<label>" "<lat>" "<lon>" "<outDir>"`.
-- `stitch_one.py` — `fetch_one.js`가 받은 타일을 스티칭하고 Mercator 픽셀 계산으로 조회 좌표를
-  정중앙에 배치한 빨간 크로스헤어 크롭(`{label}_centered.png`)과, z12 광역에 크로스헤어를 표시한
-  이미지(`{label}_wide_marked.png`)를 만든다. `python3 stitch_one.py "<label>" "<outDir>"`.
+**2026-08-03부터 핵심 파이프라인 스크립트 3개 + HTML 템플릿을 저장소에 커밋해서 세션이 바뀌어도
+살아남게 만들었다**(그 전까지는 스크래치패드에만 있어서 세션이 끝나면 사라졌다) — `local_server/scripts/`에:
+
+- **`hazard_rocks_ocr_fetch.js`** — 단일 노출암 라벨/좌표를 받아 KHOA WMS z16 3×3 타일 + z12
+  광역 타일을 받아온다. `node hazard_rocks_ocr_fetch.js "<label>" "<lat>" "<lon>" "<outDir>"`.
+  로컬 서버(포트 3001)의 `/api/ocean/khoa-wms` 프록시가 떠 있어야 동작한다.
+- **`hazard_rocks_ocr_stitch.py`** — 위 타일을 스티칭하고 Mercator 픽셀 계산으로 조회 좌표를
+  정중앙에 배치한 크롭(`{label}_centered.png`)과 z12 광역 표시 이미지(`{label}_wide_marked.png`)를
+  만든다. `python3 hazard_rocks_ocr_stitch.py "<label>" "<outDir>"`.
+- **`hazard_rocks_ocr_build_review.py` + `hazard_rocks_ocr_review_template.html`** — 배치 결과
+  JSON에서 **애매 판정만(land 자동 제외)** 골라 이미지를 base64로 내장한 HTML 검토 페이지를
+  만든다(16MB 넘으면 자동 분할). **`verdict=land`는 코드 레벨에서 필터링돼 검토 큐에 아예 안
+  올라간다** — 283건 전수검토 결과 AI land 판정이 한 번도 틀린 적이 없어 2026-08-03에 이렇게
+  확정했다(§6.5 참고, 사용자가 직접 지시). 사용법:
+  ```
+  python3 hazard_rocks_ocr_build_review.py \
+    --results <배치결과.json> \
+    --image-dir <이미지폴더1> [--image-dir <이미지폴더2> ...] \
+    --out <출력.html>
+  ```
+  이 파일을 Artifact로 배포해 사람이 검토하면 된다. **이 필터를 우회해서 land를 다시 검토 큐에
+  넣지 말 것** — 사용자가 명시적으로 "재차 묻지 않도록" 요청한 사항이다.
 - `workflow_500_batch1.js`/`_batch2.js`(소넷), `workflow_500_batch1_opus.js`/`_batch2_opus.js`
   (오퍼스), `workflow_500c_batch1_opus.js`/`_batch2_opus.js`(2차, 오퍼스만) — Workflow 스크립트
   템플릿. 색상 규칙·판독 순서·SCHEMA가 전부 프롬프트에 박혀 있어, 다음 배치도 이 파일을 복제해

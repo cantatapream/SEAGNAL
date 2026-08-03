@@ -30,22 +30,29 @@
 5. **Task #18** — 노출암/간출암 마커 탭 시 당일+익일(최대 3일) 조석 곡선 팝업, 하루씩 넘겨보기
    (이미 수집된 데이터 재사용, 새 수집 불필요).
 
-## 이 1,000개 파이프라인을 다시 돌려야 한다면 (재현법)
-스크래치패드(`/tmp/claude-*/.../scratchpad/`)는 세션마다 사라지므로, 아래 스크립트들이 없을 수
-있음 — 로직만 재구현하면 됨:
+## 이 파이프라인을 더 돌려야 한다면 (다음 배치 실행법)
+핵심 스크립트 3개 + HTML 템플릿은 이제 **저장소에 커밋돼 있어**(2026-08-03부터) 스크래치패드가
+사라져도 그대로 재사용 가능:
+- `local_server/scripts/hazard_rocks_ocr_fetch.js` — KHOA 타일 확보
+- `local_server/scripts/hazard_rocks_ocr_stitch.py` — 정밀 크롭
+- `local_server/scripts/hazard_rocks_ocr_build_review.py` +
+  `hazard_rocks_ocr_review_template.html` — 검토 페이지 생성기. **`verdict=land`는 코드에서
+  자동 제외**돼 사람에게 다시 안 물어본다(§6.7 상세문서 참고, 이 필터를 우회하지 말 것).
+
+절차:
 1. `client/hazard_rocks.json`(k=0 필터) + `local_server/data/tide_field/coastline_cells.json`으로
    해안선 300m 이내 노출암 후보 재계산(CELL_DEG=0.0015, cellKey=`round(lon/0.0015)_round(lat/0.0015)`).
 2. `nearshore_isolation_review_1000.json`에 이미 있는 id는 제외.
 3. 지역(서해/남해/제주) 비례 층화로 다음 배치 선정.
 4. `/api/ocean/depth?lat=&lon=`로 BADA 수심 참고값 조회(판독에는 안 씀, 참고용 note에만 넣음).
-5. KHOA WMS z16 3×3 스티칭 + z12 광역 폴백으로 정밀 크롭 이미지 생성(§6.4 상세문서 참고) 후
-   Workflow로 판독 — **모델은 `claude-opus-5`로 고정**(소넷 대비 토큰 비슷하거나 적고 정확도
-   우위, 상세 문서 §6.4 참고).
+5. `hazard_rocks_ocr_fetch.js`+`_stitch.py` 재사용해 Workflow로 판독 — **모델은 `claude-opus-5`로
+   고정**(소넷 대비 토큰 비슷하거나 적고 정확도 우위, 상세 문서 §6.4 참고). 로컬 서버(포트 3001)의
+   `/api/ocean/khoa-wms` 프록시가 떠 있어야 함.
 6. 프롬프트 색상 규칙 필수: **황토색/베이지=육지, 초록색=간출지(육지 아님, 반드시
    water_reading), 파란색=물**.
-7. 결과 중 `water_reading`+애매 근거(color_zone_only/none/symbol_only)만 사람 검토(land는 검토
-   불필요, 위 새 원칙 참고) → HTML 검토 페이지(base64 이미지 내장, Artifact 배포, 16MB 넘으면
-   분할) → 사람이 검토 → JSON 받아서 병합.
+7. 결과 JSON을 `hazard_rocks_ocr_build_review.py --results ... --image-dir ... --out ...`에
+   넘기면 land 자동 제외된 애매 판정만으로 검토 페이지가 나온다(16MB 넘으면 자동 분할) →
+   Artifact로 배포 → 사람이 검토 → JSON 받아서 병합.
 
 ## 잊지 말 것
 - **오퍼스가 메인, 소넷은 비교용**(2026-08-02 확정).
