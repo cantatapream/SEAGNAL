@@ -1567,37 +1567,71 @@
         .hazard-rock-warning-text b { font-weight: 800; }
         /* 간출암(k=1) 탭 시 뜨는 조석 곡선 팝업 — 위 .hazard-rock-popup 을 베이스로
            버튼(날짜 넘기기·닫기)이 있어 상호작용 가능해야 하므로 일부 속성을 덮어씀.
-           [연계] js/marine-life/safety/hazard_rocks.js openTideCurvePopup() */
+           그래프 안 텍스트/점 색은 --rtp-* 변수로 분리(SVG 는 hazard-rock-popup 의
+           어두운 배경 위에서만 쓰이므로 라이트/다크 테마 분기 없이 고정값 사용).
+           [연계] js/marine-life/safety/hazard_rocks.js openTideCurvePopup() 이하
+                  renderTideChart()/renderBottomTideCard() */
         .hazard-rock-popup.rock-tide-popup {
+            --rtp-bg: rgba(15,25,50,0.96);
+            --rtp-ink: #f1f5f9;
+            --rtp-ink-dim: #94a3b8;
+            --rtp-curve: #4a9eff;
+            --rtp-curve-fill: rgba(74,158,255,0.16);
+            --rtp-red: #e74c5e;
+            --rtp-red-fill: rgba(231,76,94,0.28);
+            --rtp-green: #22c55e;
+            --rtp-now-dot: #ffffff;
             pointer-events: auto;
             white-space: normal;
-            width: 15.5rem;
-            padding: 0.4rem 0.55rem 0.35rem;
+            width: 21rem;
+            max-width: 88vw;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 0.9rem 1rem 1rem;
         }
         .rock-tide-popup .rtp-header {
             display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 0.2rem;
+            margin-bottom: 0.4rem;
         }
-        .rock-tide-popup .rtp-title { font-size: 0.78rem; font-weight: 600; }
+        .rock-tide-popup .rtp-title { font-size: 0.95rem; font-weight: 700; }
         .rock-tide-popup .rtp-close {
-            background: none; border: none; color: #cbd5e1; font-size: 1rem;
-            line-height: 1; cursor: pointer; padding: 0 0.15rem;
+            background: rgba(255,255,255,0.10); border: none; color: #cbd5e1;
+            width: 1.6rem; height: 1.6rem; border-radius: 50%;
+            font-size: 1rem; line-height: 1; cursor: pointer; flex-shrink: 0;
         }
         .rock-tide-popup .rtp-daynav {
             display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 0.25rem; font-size: 0.72rem; color: #e2e8f0;
+            margin-bottom: 0.4rem; font-size: 0.82rem; color: #e2e8f0;
         }
         .rock-tide-popup .rtp-daynav button {
             background: rgba(255,255,255,0.12); border: none; color: #fff;
-            border-radius: 0.3rem; padding: 0.05rem 0.5rem; cursor: pointer; font-size: 0.72rem;
+            border-radius: 0.35rem; padding: 0.2rem 0.7rem; cursor: pointer; font-size: 0.8rem;
         }
         .rock-tide-popup .rtp-daynav button:disabled { opacity: 0.3; cursor: default; }
         .rock-tide-popup .rtp-chartwrap { width: 100%; }
-        .rock-tide-popup .rtp-canvas { width: 100% !important; height: 6.25rem !important; display: block; }
-        .rock-tide-popup .rtp-peaks {
-            font-size: 0.66rem; color: #cbd5e1; margin-top: 0.2rem; line-height: 1.4;
-            white-space: normal;
+        .rock-tide-popup .rtp-svg { display: block; width: 100%; height: auto; overflow: visible; }
+        /* SVG <text> 가 본문과 다른 기본 서체로 렌더되지 않도록 명시적으로 상속 지정. */
+        .rock-tide-popup .rtp-svg text { font-family: inherit; }
+        .rock-tide-popup .rtp-fallback {
+            font-size: 0.8rem; color: #cbd5e1; text-align: center; padding: 1rem 0.5rem;
         }
+        .rock-tide-popup .rtp-divider { border: none; border-top: 1px solid rgba(120,150,200,0.3); margin: 0.5rem 0 0.3rem; }
+        /* 현재 시각 점 — 간출암 잠김경고 펄스(.hazard-rock-warning-glow, 위 참고)와
+           같은 방식(은은하게 커졌다 작아졌다)의 애니메이션 재사용. */
+        .rock-tide-popup .rtp-now-glow {
+            fill: var(--rtp-now-dot); transform-box: fill-box; transform-origin: 50% 50%;
+            animation: rtpNowDotPulse 1.8s ease-in-out infinite;
+        }
+        @keyframes rtpNowDotPulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50%      { transform: scale(2.4); opacity: 0.05; }
+        }
+        /* 아래 "조석" 카드 — .ocean-tide-wrap 은 원래 해점 클릭 바텀시트 전용 카드
+           배경/테두리/패딩을 갖고 있는데, 이 팝업 안에서는 팝업 자체가 이미 카드라
+           이중 테두리로 보이지 않도록 배경/테두리/패딩만 제거(내부 구조·글자 스타일은
+           그대로 재사용). */
+        .rock-tide-popup .rtp-tidecard.ocean-tide-wrap { background: transparent; border: none; padding: 0; }
+        .rock-tide-popup .rtp-wave { color: #64b4ff; margin-right: 0.2rem; }
         /* 물빠짐 로딩 스피너 (중앙) */
         #mudflat-loading {
             position: fixed; inset: 0; z-index: 1400;
