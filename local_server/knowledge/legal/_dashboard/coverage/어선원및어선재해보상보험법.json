@@ -1,0 +1,276 @@
+{
+ "law": "어선원 및 어선 재해보상보험법",
+ "slug": "어선원및어선재해보상보험법",
+ "total_raw_articles": 206,
+ "total_uncited": 32,
+ "coverage_pct": 84.5,
+ "per_family": {
+  "법률": {
+   "raw_count": 99,
+   "uncited_count": 1
+  },
+  "시행령": {
+   "raw_count": 78,
+   "uncited_count": 22
+  },
+  "시행규칙": {
+   "raw_count": 29,
+   "uncited_count": 9
+  }
+ },
+ "uncited_articles": {
+  "법률": [
+   "46조의5"
+  ],
+  "시행령": [
+   "1조",
+   "4조",
+   "5조",
+   "6조",
+   "7조",
+   "8조",
+   "9조",
+   "10조",
+   "11조",
+   "12조",
+   "15조",
+   "26조",
+   "34조의3",
+   "34조의4",
+   "34조의5",
+   "37조",
+   "39조",
+   "40조",
+   "41조",
+   "43조의2",
+   "49조",
+   "51조"
+  ],
+  "시행규칙": [
+   "1조",
+   "2조",
+   "3조",
+   "4조",
+   "6조의4",
+   "8조",
+   "8조의2",
+   "8조의7",
+   "9조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "15조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "28조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "41조의2",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "46조의3",
+    "raw_hang": 5,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "13조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "15조의2",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "31조의3",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "33조의2",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "46조의4",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "60조",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "31조",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "16조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "21조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "28조의2",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "43조의3",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "52조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "25조의2",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "26조의2",
+    "raw_hang": 3,
+    "missing": [
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "27조의2",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "25조의4",
+    "raw_hang": 5,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "34조의6",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "6조의2",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "7조의3",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "5조의6",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ]
+ }
+}

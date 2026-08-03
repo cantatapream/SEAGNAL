@@ -1,0 +1,137 @@
+{
+ "law": "선박교통관제에 관한 법률",
+ "slug": "선박교통관제에관한법률",
+ "total_raw_articles": 55,
+ "total_uncited": 3,
+ "coverage_pct": 94.5,
+ "per_family": {
+  "법률": {
+   "raw_count": 28,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 16,
+   "uncited_count": 2
+  },
+  "시행규칙": {
+   "raw_count": 11,
+   "uncited_count": 1
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "15조"
+  ],
+  "시행규칙": [
+   "1조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "24조",
+    "raw_hang": 6,
+    "missing": [
+     "③",
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 6,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "16조",
+    "raw_hang": 4,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "25조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "12조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "4조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "11조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "④"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "6조",
+    "raw_hang": 7,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥",
+     "⑦"
+    ]
+   },
+   {
+    "article": "4조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "8조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ]
+ }
+}

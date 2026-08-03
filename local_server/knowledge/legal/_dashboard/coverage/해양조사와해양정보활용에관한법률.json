@@ -1,0 +1,148 @@
+{
+ "law": "해양조사와 해양정보 활용에 관한 법률",
+ "slug": "해양조사와해양정보활용에관한법률",
+ "total_raw_articles": 138,
+ "total_uncited": 9,
+ "coverage_pct": 93.5,
+ "per_family": {
+  "법률": {
+   "raw_count": 66,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 28,
+   "uncited_count": 4
+  },
+  "시행규칙": {
+   "raw_count": 44,
+   "uncited_count": 5
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "2조",
+   "26조",
+   "27조"
+  ],
+  "시행규칙": [
+   "1조",
+   "19조",
+   "25조",
+   "27조",
+   "28조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "시행령": [
+   {
+    "article": "21조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "15조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "13조",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "21조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "23조",
+    "raw_hang": 5,
+    "missing": [
+     "②",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "33조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "37조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "39조",
+    "raw_hang": 3,
+    "missing": [
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "44조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "4조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "13조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "34조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ]
+ }
+}

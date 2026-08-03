@@ -1,0 +1,17 @@
+{
+ "law": "배타적 경제수역 및 대륙붕에 관한 법률",
+ "slug": "배타적경제수역및대륙붕에관한법률",
+ "total_raw_articles": 5,
+ "total_uncited": 0,
+ "coverage_pct": 100.0,
+ "per_family": {
+  "법률": {
+   "raw_count": 5,
+   "uncited_count": 0
+  }
+ },
+ "uncited_articles": {
+  "법률": []
+ },
+ "hang_gap_candidates": {}
+}

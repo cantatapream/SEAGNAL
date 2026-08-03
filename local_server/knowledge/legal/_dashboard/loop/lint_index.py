@@ -24,9 +24,10 @@ THEMES={
 }
 
 pages=[]
-for path in glob.glob(f'{WIKI}/statutes/*.md')+glob.glob(f'{WIKI}/concepts/*.md'):
+for path in glob.glob(f'{WIKI}/statutes/*.md')+glob.glob(f'{WIKI}/concepts/*.md')+glob.glob(f'{WIKI}/comparisons/*.md')+glob.glob(f'{WIKI}/annexes/*.md')+glob.glob(f'{WIKI}/activities/*.md'):
     fn=os.path.basename(path)[:-3]
-    kind='statute' if '/statutes/' in path else 'concept'
+    kind=('statute' if '/statutes/' in path else 'comparison' if '/comparisons/' in path
+          else 'annex' if '/annexes/' in path else 'activity' if '/activities/' in path else 'concept')
     slug=fn.split('__')[0]
     topic=fn.split('__')[1] if '__' in fn else ''
     txt=open(path,encoding='utf-8').read()

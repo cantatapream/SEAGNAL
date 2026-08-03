@@ -1,0 +1,124 @@
+{
+ "law": "연안사고 예방에 관한 법률",
+ "slug": "연안사고예방에관한법률",
+ "total_raw_articles": 67,
+ "total_uncited": 7,
+ "coverage_pct": 89.6,
+ "per_family": {
+  "법률": {
+   "raw_count": 30,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 19,
+   "uncited_count": 4
+  },
+  "시행규칙": {
+   "raw_count": 18,
+   "uncited_count": 3
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "4조",
+   "4조의3",
+   "13조"
+  ],
+  "시행규칙": [
+   "1조",
+   "8조",
+   "16조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "13조의2",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "3조의3",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "6조의2",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   },
+   {
+    "article": "11조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "6조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 3,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "6조의2",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "6조의3",
+    "raw_hang": 5,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "7조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "11조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   }
+  ]
+ }
+}

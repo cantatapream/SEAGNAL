@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 93개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 95개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -86,6 +86,9 @@ client/js/
 │   │   ├── mudflat.js
 │   ├── ripcurrent/
 │   │   ├── ripcurrent.js
+│   ├── safety/
+│   │   ├── hazard_rocks.js
+│   │   ├── life_safety.js
 │   ├── scuba/
 │   │   ├── scuba.js
 │   ├── sea-parting/
@@ -275,6 +278,13 @@ client/js/
 |------|------|
 | `ripcurrent.js` | 이안류 지수 프론트엔드 전체 로직 (지도형 — 스킨스쿠버 방식) |
 
+### `client/js/marine-life/safety/`
+
+| 파일 | 역할 |
+|------|------|
+| `hazard_rocks.js` | 해양안전 지도에 "노출암" / "간출암 등" 두 토글 버튼을 얹는다. 항상 |
+| `life_safety.js` | "해양안전생활" 화면 — 하단 해양생활 탭을 10번 연달아 누르면 열리는 시험용 화면. |
+
 ### `client/js/marine-life/scuba/`
 
 | 파일 | 역할 |
@@ -431,7 +441,3 @@ client/js/
 
 파일을 추가·삭제·이동하면 이 도면을 재생성하고(§위 명령), 같은 커밋에 포함합니다.
 파일 역할이 바뀌면 헤더 `역할:` 을 고치면 인덱스도 자동 반영됩니다.
-
-## 8. 지식베이스(코드 아님)
-이 도면은 앱 코드 위주다. 법률 챗봇 지식베이스(데이터·마크다운)는 별도 규칙으로 관리한다:
-→ **총괄** `local_server/knowledge/legal/README.md` · **목차** `legal/index.md` · **규칙** `legal/_SCHEMA.md`(구축)·`legal/_CHATBOT.md`(답변).

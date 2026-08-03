@@ -1,0 +1,279 @@
+{
+ "law": "해양생태계의 보전 및 관리에 관한 법률",
+ "slug": "해양생태계의보전및관리에관한법률",
+ "total_raw_articles": 166,
+ "total_uncited": 35,
+ "coverage_pct": 78.9,
+ "per_family": {
+  "법률": {
+   "raw_count": 75,
+   "uncited_count": 1
+  },
+  "시행령": {
+   "raw_count": 40,
+   "uncited_count": 7
+  },
+  "시행규칙": {
+   "raw_count": 51,
+   "uncited_count": 27
+  }
+ },
+ "uncited_articles": {
+  "법률": [
+   "1조"
+  ],
+  "시행령": [
+   "1조",
+   "16조",
+   "27조",
+   "28조",
+   "30조",
+   "34조",
+   "36조"
+  ],
+  "시행규칙": [
+   "1조",
+   "2조",
+   "3조",
+   "4조",
+   "4조의2",
+   "5조",
+   "6조",
+   "9조",
+   "11조",
+   "17조",
+   "21조",
+   "21조의2",
+   "25조",
+   "27조",
+   "28조",
+   "29조",
+   "30조",
+   "31조",
+   "32조",
+   "34조",
+   "35조",
+   "39조",
+   "40조",
+   "41조",
+   "43조",
+   "44조",
+   "46조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "9조",
+    "raw_hang": 11,
+    "missing": [
+     "⑧",
+     "⑨",
+     "⑩",
+     "⑪"
+    ]
+   },
+   {
+    "article": "49조",
+    "raw_hang": 9,
+    "missing": [
+     "⑦",
+     "⑧",
+     "⑨"
+    ]
+   },
+   {
+    "article": "28조",
+    "raw_hang": 3,
+    "missing": [
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "63조의3",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "5조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "46조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "12조",
+    "raw_hang": 8,
+    "missing": [
+     "③",
+     "④",
+     "⑤",
+     "⑥",
+     "⑦",
+     "⑧"
+    ]
+   },
+   {
+    "article": "11조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "6조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "20조",
+    "raw_hang": 4,
+    "missing": [
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "4조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "13조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 3,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "21조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "25조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "26조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "32조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "35조의2",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "12조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "13조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "6조의2",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "15조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "18조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "24조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "38조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   }
+  ]
+ }
+}

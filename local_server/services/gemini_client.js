@@ -5,11 +5,9 @@
  * ============================================================================
  *
  * [설명]
- * - 기본 키(GEMINI_API_KEY)와 백업 키(GEMINI_API_KEY_2)를 함께 관리
- * - 호출 시 라운드로빈으로 키를 번갈아 사용 → 일일 할당량 실질 2배
- * - 특정 키에서 429 발생 시 1시간 쿨다운 + 다른 키로 자동 폴백
- * - 두 키 모두 소진 시 관리자에게 푸시 알림
- * - 기본↔백업 전환 시 관리자 푸시 알림
+ * - 단일 키(GEMINI_API_KEY_26_8)를 관리
+ * - 429 발생 시 쿨다운 + 재시도
+ * - 키 소진 시 관리자에게 푸시 알림
  *
  * [사용처]
  * - ai_report_parser.js (특보 분석)
@@ -35,11 +33,8 @@ const NOTIFY_THROTTLE_MS = 10 * 60 * 1000; // 10분
 
 // [키 로딩] 환경변수에서 키 읽어 등록 (없는 키는 목록에 추가하지 않음)
 const keys = [];
-if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY_HERE') {
-    keys.push({ label: '기본', apiKey: process.env.GEMINI_API_KEY, cooldownUntil: 0 });
-}
-if (process.env.GEMINI_API_KEY_2) {
-    keys.push({ label: '백업', apiKey: process.env.GEMINI_API_KEY_2, cooldownUntil: 0 });
+if (process.env.GEMINI_API_KEY_26_8 && process.env.GEMINI_API_KEY_26_8 !== 'YOUR_GEMINI_API_KEY_HERE') {
+    keys.push({ label: '기본', apiKey: process.env.GEMINI_API_KEY_26_8, cooldownUntil: 0 });
 }
 
 console.log(`[Gemini] 키 ${keys.length}개 등록됨: ${keys.map(k => k.label).join(', ') || '없음'}`);
@@ -53,13 +48,26 @@ let usage = null;
 function _todayKST() { return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10); }
 function _ensureUsage() {
     const d = _todayKST();
-    if (!usage || usage.date !== d) usage = { date: d, requests: 0, apiCalls: 0, success: 0, rateLimited: 0, byCaller: {} };
+    if (!usage || usage.date !== d) usage = { date: d, requests: 0, apiCalls: 0, success: 0, rateLimited: 0, inputTokens: 0, outputTokens: 0, byCaller: {}, byCallerTokens: {} };
     return usage;
 }
 function bumpUsage(field, caller) {
     const u = _ensureUsage();
     if (field) u[field] = (u[field] || 0) + 1;
     if (caller) u.byCaller[caller] = (u.byCaller[caller] || 0) + 1;
+}
+/** Gemini 응답의 usageMetadata를 오늘자 누적 토큰수(전체+호출자별)에 더한다.
+ *  출력=candidatesTokenCount+thoughtsTokenCount(둘 다 출력 단가로 과금됨, thinking 모델용). */
+function bumpTokens(caller, usageMetadata) {
+    if (!usageMetadata) return;
+    const u = _ensureUsage();
+    const input = usageMetadata.promptTokenCount || 0;
+    const output = (usageMetadata.candidatesTokenCount || 0) + (usageMetadata.thoughtsTokenCount || 0);
+    u.inputTokens += input; u.outputTokens += output;
+    if (caller) {
+        const c = u.byCallerTokens[caller] || (u.byCallerTokens[caller] = { inputTokens: 0, outputTokens: 0 });
+        c.inputTokens += input; c.outputTokens += output;
+    }
 }
 /** 오늘(KST) Gemini 사용량 스냅샷 — 관리자 UI에서 사용 */
 function getUsageStats() { return Object.assign({}, _ensureUsage()); }
@@ -174,6 +182,7 @@ async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
             const genAI = new GoogleGenAI({ apiKey: picked.apiKey });
             const result = await genAI.models.generateContent({ model, contents, config });
             bumpUsage('success');
+            bumpTokens(caller, result && result.usageMetadata);
             // 성공: 이전 키에서 실패 후 전환된 경우 관리자에게 알림 (스로틀 10분)
             if (firstFailedKeyLabel && firstFailedKeyLabel !== picked.label) {
                 const now = Date.now();
@@ -257,10 +266,14 @@ async function* callGeminiStream({ model, contents, config, caller = 'unknown' }
         }
 
         bumpUsage('success');
+        let lastChunk = null;
         for await (const chunk of stream) {
+            lastChunk = chunk;
             const t = chunk.text;
             if (t) yield t;
         }
+        // 스트림 마지막 청크에 누적 usageMetadata가 실림(SDK 실측 확인 필요분 — 없으면 조용히 스킵).
+        bumpTokens(caller, lastChunk && lastChunk.usageMetadata);
         return;
     }
 }

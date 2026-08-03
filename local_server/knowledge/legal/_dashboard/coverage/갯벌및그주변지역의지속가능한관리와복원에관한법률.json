@@ -1,0 +1,116 @@
+{
+ "law": "갯벌 및 그 주변지역의 지속가능한 관리와 복원에 관한 법률",
+ "slug": "갯벌및그주변지역의지속가능한관리와복원에관한법률",
+ "total_raw_articles": 82,
+ "total_uncited": 5,
+ "coverage_pct": 93.9,
+ "per_family": {
+  "법률": {
+   "raw_count": 42,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 23,
+   "uncited_count": 2
+  },
+  "시행규칙": {
+   "raw_count": 17,
+   "uncited_count": 3
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "23조"
+  ],
+  "시행규칙": [
+   "1조",
+   "6조",
+   "8조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "시행령": [
+   {
+    "article": "2조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "③"
+    ]
+   },
+   {
+    "article": "4조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "16조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 7,
+    "missing": [
+     "⑥",
+     "⑦"
+    ]
+   },
+   {
+    "article": "2조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "12조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   }
+  ]
+ }
+}

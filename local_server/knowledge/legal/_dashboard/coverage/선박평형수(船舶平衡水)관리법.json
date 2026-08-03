@@ -1,0 +1,194 @@
+{
+ "law": "선박평형수(船舶平衡水) 관리법",
+ "slug": "선박평형수(船舶平衡水)관리법",
+ "total_raw_articles": 153,
+ "total_uncited": 34,
+ "coverage_pct": 77.8,
+ "per_family": {
+  "법률": {
+   "raw_count": 61,
+   "uncited_count": 2
+  },
+  "시행령": {
+   "raw_count": 11,
+   "uncited_count": 4
+  },
+  "시행규칙": {
+   "raw_count": 81,
+   "uncited_count": 28
+  }
+ },
+ "uncited_articles": {
+  "법률": [
+   "4조의2",
+   "39조의2"
+  ],
+  "시행령": [
+   "1조",
+   "2조의3",
+   "4조",
+   "6조"
+  ],
+  "시행규칙": [
+   "1조",
+   "2조",
+   "7조",
+   "8조",
+   "9조",
+   "11조",
+   "12조",
+   "12조의2",
+   "15조",
+   "16조",
+   "29조",
+   "30조",
+   "30조의2",
+   "32조",
+   "33조의2",
+   "33조의3",
+   "37조",
+   "37조의6",
+   "39조",
+   "42조",
+   "43조",
+   "48조",
+   "49조",
+   "51조",
+   "52조",
+   "53조",
+   "53조의3",
+   "53조의4"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "28조",
+    "raw_hang": 8,
+    "missing": [
+     "⑤",
+     "⑧"
+    ]
+   },
+   {
+    "article": "45조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 9,
+    "missing": [
+     "⑨"
+    ]
+   },
+   {
+    "article": "39조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "8조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "31조의2",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 6,
+    "missing": [
+     "①",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "31조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "③"
+    ]
+   },
+   {
+    "article": "33조의4",
+    "raw_hang": 3,
+    "missing": [
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "33조의5",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "③"
+    ]
+   },
+   {
+    "article": "16조의4",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "23조",
+    "raw_hang": 6,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "24조",
+    "raw_hang": 4,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "33조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "36조",
+    "raw_hang": 7,
+    "missing": [
+     "⑦"
+    ]
+   },
+   {
+    "article": "41조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ]
+ }
+}

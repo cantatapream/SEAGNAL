@@ -371,7 +371,7 @@ module.exports = {
     TIDE_FIELD_DIR, GRID_META_PATH, ANCHORS_PATH, CURVES_DIR, BATHYMETRY_DIR,
     FRAMES_BIN, FRAMES_META, PROBE_OVERRIDE_PATH,
     // 해역 게이팅
-    REGION_BBOX, isWestSouthSea, isExcludedSea,
+    REGION_BBOX, isWestSouthSea, isExcludedSea, JEJU_BBOX,
     // 표준항
     ALL_REFERENCE_STATIONS, getRegionStations,
     // 유틸

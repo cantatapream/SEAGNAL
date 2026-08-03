@@ -1,0 +1,208 @@
+{
+ "law": "도선법",
+ "slug": "도선법",
+ "total_raw_articles": 121,
+ "total_uncited": 35,
+ "coverage_pct": 71.1,
+ "per_family": {
+  "법률": {
+   "raw_count": 49,
+   "uncited_count": 6
+  },
+  "시행령": {
+   "raw_count": 32,
+   "uncited_count": 12
+  },
+  "시행규칙": {
+   "raw_count": 40,
+   "uncited_count": 17
+  }
+ },
+ "uncited_articles": {
+  "법률": [
+   "6조의3",
+   "6조의4",
+   "12조",
+   "31조",
+   "34조",
+   "35조"
+  ],
+  "시행령": [
+   "1조",
+   "2조의2",
+   "3조의2",
+   "3조의3",
+   "10조",
+   "10조의3",
+   "12조",
+   "13조",
+   "14조",
+   "16조",
+   "18조",
+   "20조"
+  ],
+  "시행규칙": [
+   "1조",
+   "6조",
+   "7조의2",
+   "9조의2",
+   "9조의3",
+   "9조의4",
+   "9조의6",
+   "12조",
+   "13조",
+   "15조",
+   "16조",
+   "21조",
+   "26조",
+   "27조",
+   "29조",
+   "31조",
+   "33조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "4조",
+    "raw_hang": 6,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "6조의2",
+    "raw_hang": 7,
+    "missing": [
+     "⑥",
+     "⑦"
+    ]
+   },
+   {
+    "article": "16조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "22조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "29조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   },
+   {
+    "article": "36조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "7조",
+    "raw_hang": 8,
+    "missing": [
+     "⑤",
+     "⑥",
+     "⑦",
+     "⑧"
+    ]
+   },
+   {
+    "article": "8조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "③",
+     "④"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "7조",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "③",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "18조",
+    "raw_hang": 9,
+    "missing": [
+     "⑥",
+     "⑦",
+     "⑧",
+     "⑨"
+    ]
+   },
+   {
+    "article": "23조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "28조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "5조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "11조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "22조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   }
+  ]
+ }
+}

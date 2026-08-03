@@ -1,0 +1,98 @@
+{
+ "law": "배타적 경제수역에서의 외국인어업 등에 대한 주권적 권리의 행사에 관한 법률",
+ "slug": "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률",
+ "total_raw_articles": 71,
+ "total_uncited": 4,
+ "coverage_pct": 94.4,
+ "per_family": {
+  "법률": {
+   "raw_count": 29,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 11,
+   "uncited_count": 1
+  },
+  "시행규칙": {
+   "raw_count": 31,
+   "uncited_count": 3
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조"
+  ],
+  "시행규칙": [
+   "1조",
+   "11조",
+   "22조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "시행령": [
+   {
+    "article": "6조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "17조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "7조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "12조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "2조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "5조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "23조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ]
+ }
+}

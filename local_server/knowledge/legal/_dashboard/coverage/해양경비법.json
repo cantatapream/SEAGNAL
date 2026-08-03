@@ -1,0 +1,49 @@
+{
+ "law": "해양경비법",
+ "slug": "해양경비법",
+ "total_raw_articles": 43,
+ "total_uncited": 3,
+ "coverage_pct": 93.0,
+ "per_family": {
+  "법률": {
+   "raw_count": 27,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 11,
+   "uncited_count": 2
+  },
+  "시행규칙": {
+   "raw_count": 5,
+   "uncited_count": 1
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "6조"
+  ],
+  "시행규칙": [
+   "1조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "7조의2",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   }
+  ]
+ }
+}

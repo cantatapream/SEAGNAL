@@ -15,6 +15,10 @@
  *  - GET  /api/legal/admin/stats      → 관리자 검토센터 서브탭(초안·피드백·새지식후보·개정검토) 실카운트
  *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
  *  - POST /api/legal/ask              → 하이브리드 검색 + Gemini 답변 스트리밍 합성(NDJSON, services/legal_retriever.js)
+ *                                       위키에 근거가 없으면 2차로 법령 원문(GitHub 온디맨드)을 훑어 "미검증 참고" 답변 시도
+ *                                       6초 넘게 걸린 요청 + 알림 동의 시 답변을 임시 보관하고 개인 푸시 발송
+ *  - GET  /api/legal/pending-answer/:requestId → 푸시로 다시 들어온 사용자에게 그 답변을 1회만 돌려줌
+ *  - GET  /api/legal/article-text     → 답변카드의 조문 카드를 눌렀을 때 띄울 그 조 전체 원문(항·호 분해)
  *
  * [연계 파일]
  * - knowledge/legal/_dashboard/review_queue.md   → 검증 대기 원장(승인 마킹 대상)
@@ -24,6 +28,9 @@
  * - services/admin_auth.js  → X-Admin-Token 검증(관리자 전용 게이트)
  * - services/atomic_write.js → 원자적 파일쓰기(경합 방지)
  * - services/legal_retriever.js → /api/legal/ask 의 검색·답변합성 본체
+ * - services/article_text.js    → /api/legal/article-text 의 조문 원문 발췌 본체
+ * - services/pending_answers.js → 답변완료 푸시용 1회용 임시 보관함(3시간)
+ * - services/firebase_admin_lazy.js → FCM 발송(첫 사용 시 SDK 로딩)
  *
  * [경합위험] review_queue.md·공유 md는 여러 승인이 동시에 쓰면 손상될 수 있어
  *   승인 쓰기는 반드시 직렬(single-writer)로 처리한다(아래 withLock).
@@ -36,6 +43,12 @@ const path = require('path');
 const adminAuth = require('../services/admin_auth');
 const { writeFileAtomic } = require('../services/atomic_write');
 const legalRetriever = require('../services/legal_retriever');
+const articleText = require('../services/article_text');
+const pendingAnswers = require('../services/pending_answers');
+const { DATA_DIR, FILES } = require('../config/server_config');
+
+// [Lazy] Firebase Admin(답변완료 개인 푸시용). routes/report.js 와 같은 이유로 첫 발송 시 로딩.
+const { getAdmin } = require('../services/firebase_admin_lazy');
 
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const REVIEW_QUEUE = path.join(LEGAL_DIR, '_dashboard', 'review_queue.md');
@@ -94,7 +107,7 @@ function parseReviewQueue() {
 function extractStructured(body) {
   const fields = {}; const urls = [];
   for (const line of body.split('\n')) {
-    const m = line.match(/^\s*-\s*([^:：]{1,24})[:：]\s*(.+)$/);
+    const m = line.match(/^\s*-\s*([^:：]{1,120})[:：]\s*(.+)$/);
     if (m) { const k = m[1].trim(); if (k !== '승인' && !fields[k]) fields[k] = m[2].trim(); }
     let um; const re = /(https?:\/\/[^\s)"'<>]+)/g;
     while ((um = re.exec(line)) !== null) urls.push(um[1].replace(/[.,]$/, ''));
@@ -273,47 +286,191 @@ router.get('/api/legal/drafts', adminAuth.requireAdminToken, (req, res) => {
     res.json({ ok: true, count: drafts.length, drafts });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
+
+// ============================================================================
+// 답변완료 개인 푸시(옵트인) — 늦게 끝난 답변을 그 사람 기기에만 알린다
+// ============================================================================
+//
+// [프라이버시] 제목·본문·data 어디에도 질문/답변 원문을 싣지 않는다. 고정 문구 +
+//   추측 불가능한 requestId 뿐이다(내용은 앱이 requestId로 서버에서 1회만 받아간다).
+// [구조 판단] routes/report.js 의 sendReportPush 와 거의 같은 모양이지만,
+//   그쪽을 일반화하지 않고 여기에 따로 뒀다 — 잘 돌고 있는 제보 푸시 경로를 건드리지
+//   않기 위해서다(파일별 소유 헬퍼는 이 저장소의 기존 관례이기도 하다: admin_push /
+//   dmdw_push_sender / report.js 가 각각 자기 발송 함수를 갖는다).
+
+// 알림 문구(고정). 3시간 = services/pending_answers.js 의 TTL 과 같은 값이어야 한다.
+const AI_ANSWER_PUSH_BODY = 'AI 답변이 도착했습니다. 3시간 안에 확인하지 않으면 내용이 사라져요';
+// 푸시를 눌렀을 때 앱이 열 딥링크(클라: ai_chat.js 가 ?popup=ai_chat&rid= 를 읽어 답변 복원)
+const AI_ANSWER_PUSH_URL = 'https://seagnal-server.fly.dev/?popup=ai_chat&rid=';
+// 이 시간(6초)을 넘게 걸린 질문만 푸시 대상 — 빨리 끝난 질문마다 알림이 오는 걸 막는다.
+const NOTIFY_MIN_ELAPSED_MS = 6000;
+
+// ── "이번 질문"도 알림 받기 — 진행 중인 요청과 뒤늦은 [허용] 클릭을 잇는 대응표 ──────
+//   질문을 보낼 때 이미 옵트인 상태가 아니면(그래서 notifyOnComplete=false로 감) 배너가
+//   6초 뒤에나 뜬다 — 이 시점엔 이미 요청이 떠난 뒤라 그 바디를 고칠 수 없다. 그래서 요청마다
+//   가벼운 askId를 같이 보내 여기 등록해두고, [허용]을 누르면 POST /api/legal/notify-me 가
+//   같은 askId로 "이 요청도 푸시 보내주세요"라고 뒤늦게 표시한다. 요청이 끝나면(성공이든 실패든)
+//   반드시 이 표를 지운다 — 답변 1건 수명(길어야 1~2분)보다 오래 남지 않는다.
+const inFlightAsks = new Map();   // askId → { deviceId, wantsPush }
+
+/**
+ * 답변이 준비됐음을 그 기기(deviceId)에만 FCM 으로 알린다.
+ * 예: sendAiAnswerPush('dev-abc', 'a3f1…') → 그 기기 트레이에 고정 문구 알림 1건
+ * 구독자 목록(data/subscriptions.json)에서 deviceId 가 일치하는 FCM 토큰만 골라 보낸다.
+ * Firebase 미초기화·토큰 없음·발송 실패는 로그만 남기고 조용히 지나간다(답변 응답에는 영향 없음).
+ * @param {string} deviceId - 앱의 localStorage 'seagnal_device_id'
+ * @param {string} requestId - services/pending_answers.js store() 가 발급한 조회키
+ * @returns {Promise<void>}
+ * [연계] ← POST /api/legal/ask (6초 초과 + notifyOnComplete 인 요청)
+ *          → services/firebase_admin_lazy.js getAdmin(), data/subscriptions.json
+ *          (routes/report.js sendReportPush 와 동일한 발송 규약)
+ */
+async function sendAiAnswerPush(deviceId, requestId) {
+  const firebaseAdmin = getAdmin();
+  if (!firebaseAdmin || firebaseAdmin.apps.length === 0) {
+    console.warn('[Legal] Firebase 미초기화, 답변완료 푸시 발송 불가');
+    return;
+  }
+  const SUBS_FILE = FILES.SUBSCRIPTIONS || path.join(DATA_DIR, 'subscriptions.json');
+  try {
+    if (!fs.existsSync(SUBS_FILE)) return;
+    const subs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
+    // ★subscriptions.json 의 options(master·aiAnswer)는 여기서 안 본다(사용자 확정) — 태풍/특보처럼
+    // 서버가 알아서 훑어 보내는 방송성 푸시가 아니라, 호출자(POST /api/legal/ask)가 이미 그때그때의
+    // 살아있는 동의(옵트인 상태 or 방금 누른 [허용])를 직접 확인한 뒤에만 이 함수를 부른다. 여기서
+    // options.aiAnswer 를 또 보면, ns.set()의 서버 동기화가 아직 안 끝난 경합 상황에서 방금 누른
+    // 동의가 무시될 수 있다(옛 subscriptions.json 값을 읽게 되므로) — deviceId 일치만으로 충분하다.
+    const matched = subs.filter(s => s.deviceId === deviceId && s.type === 'fcm' && s.token);
+    for (const sub of matched) {
+      try {
+        await firebaseAdmin.messaging().send({
+          token: sub.token,
+          notification: { title: 'SEAGNAL', body: AI_ANSWER_PUSH_BODY },
+          data: { type: 'ai_answer_ready', url: AI_ANSWER_PUSH_URL + requestId },
+          android: { priority: 'high' },
+          apns: { headers: { 'apns-priority': '10' } }
+        });
+        console.log('📤 [Legal] 답변완료 푸시 발송 성공');
+      } catch (e) {
+        console.error('[Legal] 답변완료 푸시 FCM 발송 실패:', e.message);
+      }
+    }
+  } catch (e) {
+    console.error('[Legal] 답변완료 푸시 발송 중 오류:', e.message);
+  }
+}
+
+// GET /api/legal/pending-answer/:requestId — 푸시로 다시 들어온 앱이 그 답변을 1회만 받아간다.
+//   무인증: requestId 자체가 256비트 무작위라 유추 불가 + 기기 식별자를 서버에 남기지 않기 위함.
+//   조회 즉시 서버에서 삭제된다(1회용). 없거나 만료면 200 + {ok:false}
+//   (routes/report.js 의 GET /api/reports/pending-answer 가 200 + hasAnswer:false 를 쓰는 관례와 동일).
+router.get('/api/legal/pending-answer/:requestId', (req, res) => {
+  try {
+    const entry = pendingAnswers.retrieve(String(req.params.requestId || ''));
+    if (!entry) return res.json({ ok: false });
+    res.json({ ok: true, query: entry.query, answer: entry.answer, sources: entry.sources, note: entry.note });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/notify-me { askId } — 6초 동의배너에서 [허용]을 눌렀을 때, 이미 떠난 그 질문
+//   요청에도 뒤늦게 "완료되면 푸시해달라"고 표시한다. 그 요청이 이미 끝났으면(빨리 끝난 경우
+//   등) askId가 없어 조용히 무시된다 — 어차피 화면에서 이미 답을 봤을 것이므로 해가 없다.
+router.post('/api/legal/notify-me', (req, res) => {
+  const askId = String((req.body && req.body.askId) || '').trim();
+  const entry = askId && inFlightAsks.get(askId);
+  if (entry) entry.wantsPush = true;
+  res.json({ ok: true });
+});
+
 // POST /api/legal/ask — { query } → 하이브리드 검색(legal_retriever) + Gemini 답변 스트리밍 합성
 //   응답은 NDJSON(줄바꿈으로 구분된 JSON) 스트림: 답변 조각마다 {type:'delta',text}, 마지막에
 //   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, note} 한 줄로 마감.
 //   ⚠ 실제 생성시간은 그대로다(모델 사고+글자수는 안 줄어듦) — 목적은 체감 대기시간 단축뿐.
+//   추가 바디(선택): deviceId(기기 식별자) · notifyOnComplete(답변완료 푸시 동의, 기본 false)
+//   → 둘 다 있고 6초를 넘게 걸렸으면, 스트림은 그대로 두고 답변을 임시 보관 + 개인 푸시 발송.
 router.post('/api/legal/ask', async (req, res) => {
+  const startedAt = Date.now();   // 6초 판정 기준(핸들러 시작~완료 실제 소요시간)
   const q = String((req.body && req.body.query) || '').trim();
   if (!q) return res.status(400).json({ ok: false, error: 'query 필요' });
+  const deviceId = String((req.body && req.body.deviceId) || '').trim();
+  const notifyOnComplete = (req.body && req.body.notifyOnComplete) === true;
+  const askId = String((req.body && req.body.askId) || '').trim();
+  // 이 요청이 끝난 뒤 [허용]으로 뒤늦게 동의할 수 있게 등록해둔다(POST /api/legal/notify-me 참고).
+  if (askId && deviceId) inFlightAsks.set(askId, { deviceId, wantsPush: false });
 
   const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
   try {
-    const { sources, contextPages } = legalRetriever.search(q, { canonicalOnly });
-    const sourcesOut = sources.map(s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop }));
+    const { sources, contextPages } = await legalRetriever.search(q, { canonicalOnly });
+    const toSourceOut = s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop, citationChain: s.citationChain || [] });
 
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     if (res.flushHeaders) res.flushHeaders();
 
-    if (!contextPages.length) {
-      res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly, answer: null, sources: [],
-        note: '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.' }) + '\n');
-      return res.end();
-    }
-
     let full = '';
     let streamError = null;
-    try {
-      for await (const chunk of legalRetriever.synthesizeAnswerStream(q, contextPages)) {
-        full += chunk;
-        res.write(JSON.stringify({ type: 'delta', text: chunk }) + '\n');
-        if (res.flush) res.flush(); // compression() 버퍼를 즉시 내보내 실제로 조각조각 도착하게 함
-      }
-    } catch (e) { streamError = e; }
+    // 근거 후보가 아예 없으면 합성해봐야 빈 답이라 스트림을 부르지 않는다(기존 최적화 유지).
+    if (contextPages.length) {
+      try {
+        for await (const chunk of legalRetriever.synthesizeAnswerStream(q, contextPages)) {
+          full += chunk;
+          res.write(JSON.stringify({ type: 'delta', text: chunk }) + '\n');
+          if (res.flush) res.flush(); // compression() 버퍼를 즉시 내보내 실제로 조각조각 도착하게 함
+        }
+      } catch (e) { streamError = e; }
+    }
 
     const usedGemini = full.trim().length > 0;
-    const note = usedGemini
-      ? (canonicalOnly ? '검증(canonical) 근거만 반영' : '위키 근거 기반 AI 답변')
-      : `답변 생성 실패(${(streamError && streamError.message) || '응답 없음'}) — 근거 후보만 반환`;
+    // L-57 조치③: 답변이 실제로 나온 경우에만 sourcesOut을 답변 인용 여부로 교차확인해 좁힌다
+    // (스트림 실패로 답변이 없으면 교차확인할 대상이 없어 후보를 그대로 반환).
+    const finalSources = !contextPages.length ? []
+      : (usedGemini ? legalRetriever.filterSourcesByAnswer(sources, full) : sources);
+
+    // 위키(검증된 카드)에 쓸 근거가 결국 안 남으면 여기서 끝내지 않고, 좁혀진 법의 raw 원문을
+    // GitHub에서 그때그때 읽어 "미검증 참고" 등급으로 한 번 더 답을 시도한다(MASTER_PLAN F절).
+    // ★판단 시점은 "검색 직후 후보 유무"가 아니라 "1차 답변까지 만들어본 뒤 남은 근거 유무"다 —
+    //   검색이 관대해 후보 0건은 사실상 없고, L-57 필터가 다 걸러 최종 0건이 되는 게 실제 대부분이라
+    //   검색 직후만 보면 2차가 영영 발동하지 않는다(실키 라이브 6건 전부 미발동으로 확인).
+    // 2차 조회는 AI 호출이 3번 겹쳐(법선택→파일선택→합성) 조각 스트리밍이 어려워, 완성된 답변을
+    // done 한 줄로 보낸다(클라 answerHTML은 done의 answer로 최종 렌더하므로 delta 없이도 그려진다).
+    // GITHUB_RAW_TOKEN·키가 없거나 원문에서도 못 찾으면 answer:null → 아래 else로 기존 동작 유지.
+    const needsFallback = !usedGemini || !finalSources.length;
+    const raw = needsFallback ? await legalRetriever.searchRawFallback(q) : null;
+
+    let answer, sourcesOut, note;
+    if (raw && raw.answer) {
+      answer = raw.answer;
+      sourcesOut = [];
+      note = `⚠미검증 참고 — 위키 카드가 없어 법령 원문(${raw.laws.join('·') || '원문'})을 직접 읽은 답변`;
+    } else {
+      // 2차가 실패하면 1차 결과를 그대로 돌려준다 — 특히 1차가 정직하게 만든 "확인되지 않습니다"
+      // 답변(근거 0건이라도)은 버리지 않는다.
+      answer = usedGemini ? full.trim() : null;
+      sourcesOut = finalSources.map(toSourceOut);
+      note = usedGemini
+        ? (canonicalOnly ? '검증(canonical) 근거만 반영' : '위키 근거 기반 AI 답변')
+        : (contextPages.length
+          ? `답변 생성 실패(${(streamError && streamError.message) || '응답 없음'}) — 근거 후보만 반환`
+          : '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.');
+    }
     res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
-      answer: usedGemini ? full.trim() : null, sources: sourcesOut, note }) + '\n');
+      answer, sources: sourcesOut, note }) + '\n');
     res.end();
+
+    // [답변완료 푸시] 스트림은 위에서 이미 평소대로 끝냈다 — 여기부터는 부가 동작이라
+    //   기존 응답 흐름에 아무 영향이 없다(실패해도 사용자는 화면에서 답을 이미 봤다).
+    //   6초 이하로 빨리 끝난 질문은 보내지 않는다(옵트인해도 매번 울리지 않게).
+    //   자체 try 로 감싼다 — 여기서 던지면 바깥 catch 가 이미 끝난 응답에 또 쓰려다 죽는다.
+    try {
+      const askedMidway = askId && inFlightAsks.has(askId) && inFlightAsks.get(askId).wantsPush;
+      if (answer && (notifyOnComplete || askedMidway) && deviceId && (Date.now() - startedAt) > NOTIFY_MIN_ELAPSED_MS) {
+        const requestId = pendingAnswers.store(q, answer, sourcesOut, note);
+        sendAiAnswerPush(deviceId, requestId).catch(e => console.error('[Legal] 답변완료 푸시 실패:', e && e.message));
+      }
+    } catch (e) { console.error('[Legal] 답변완료 푸시 준비 실패:', e && e.message); }
+    if (askId) inFlightAsks.delete(askId);
   } catch (e) {
+    if (askId) inFlightAsks.delete(askId);
     if (res.headersSent) {
       res.write(JSON.stringify({ type: 'done', ok: false, error: String(e.message || e) }) + '\n');
       return res.end();
@@ -338,6 +495,22 @@ router.get('/api/legal/src', (req, res) => {
     if (!fs.existsSync(full) || !fs.statSync(full).isFile()) return res.status(404).send('없음');
     res.type(SRC_MIME[ext]).sendFile(full);
   } catch (e) { res.status(500).send(String(e.message || e)); }
+});
+
+// ── 조문 원문 팝업(읽기전용): 답변카드의 조문 카드를 누르면 그 조 전체 원문을 항·호로 쪼개 준다 ──
+// 원문은 서버에 상주시키지 않고 GitHub에서 그때그때 읽는다(services/article_text.js).
+// 못 찾으면 지어내지 않고 {ok:false, reason} — 클라이언트는 "원문을 불러오지 못했어요"로 안내한다.
+router.get('/api/legal/article-text', async (req, res) => {
+  try {
+    const q = req.query || {};
+    const out = await articleText.loadArticle({
+      law: q.law, article: q.article, tier: q.tier, baseLaw: q.baseLaw,
+    });
+    res.json(out);
+  } catch (e) {
+    console.error('[Legal] 조문 원문 조회 실패:', e && e.message);
+    res.json({ ok: false, reason: 'error' });
+  }
 });
 
 module.exports = router;

@@ -1,0 +1,24 @@
+{
+ "law": "독도의 지속가능한 이용에 관한 법률",
+ "slug": "독도의지속가능한이용에관한법률",
+ "total_raw_articles": 27,
+ "total_uncited": 1,
+ "coverage_pct": 96.3,
+ "per_family": {
+  "법률": {
+   "raw_count": 13,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 14,
+   "uncited_count": 1
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조"
+  ]
+ },
+ "hang_gap_candidates": {}
+}

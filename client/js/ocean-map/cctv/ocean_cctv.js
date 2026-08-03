@@ -70,8 +70,10 @@
     var INFO_TAB_ITEMS = [
         { id: 'basemap', label: '지도 종류', body:
             '지도 배경을 바꿉니다. 기본맵·전자해도·해안도는 해양 전용 지도이고, '
-          + '세계지도는 먼바다까지 넓게 볼 때 씁니다. 전자해도는 수심·항로 표시에 유용합니다.',
-          src: '국립해양조사원 해아름 / OpenStreetMap(세계지도)' },
+          + '세계지도는 먼바다까지 넓게 볼 때 씁니다. 전자해도는 수심·항로 표시에 유용합니다. '
+          + '위성지도는 실제 항공·위성 사진이라 항구 시설이나 갯바위 모양을 눈으로 확인할 때 좋고, '
+          + '다른 지도보다 더 가깝게 확대됩니다.',
+          src: '국립해양조사원 해아름 / OpenStreetMap(세계지도) / 국토교통부 브이월드(위성지도)' },
         { id: 'search', label: '위치 검색', body:
             '항이나 지명을 입력하면(예: 속초항, 제주항) 그 위치로 지도를 옮겨줍니다.' },
         { id: 'northup', label: '진북 정렬', body:
@@ -137,6 +139,13 @@
           + '<p><i class="fa-solid fa-circle-check"></i> 영상 정보의 정확성과 이를 활용함에 따른 민·형사상 법적 책임은 정보활용 주체에 있으며, 정보 제공주체 및 본 앱은 이에 대한 책임을 지지 않습니다.</p>'
           + '<p><i class="fa-solid fa-circle-check"></i> 옹진군 CCTV의 지도 위치는 명칭·지명을 참고하여 수기 배치된 것으로, 실제 설치 위치와 다를 수 있습니다.</p>',
           src: '지자체(부산·거제·옹진)·해양수산부 연안포털·KBS 재난센터' },
+        { id: 'hazardrock', label: '노출암·간출암', bodyHtml:
+            '<p>저조 시에도 항상 물 위로 드러나는 바위(노출암)와, 밀물·썰물에 따라 드러났다 잠겼다 하는 바위(간출암·세암·암암)를 지도 위에 표시합니다. "노출암" / "간출암 등" 두 버튼으로 독립적으로 켤 수 있고, 동시에 켜도 됩니다.</p>'
+          + '<p>바위가 많은 지역은 확대 정도에 따라 숫자로 뭉쳐 표시되다가, 더 확대하면 낱개 마커로 펼쳐집니다. 마커(또는 뭉친 숫자)를 누르면 종류와 저조 시 노출 높이를 확인할 수 있습니다.</p>'
+          + '<p>간출암은 밀물이 들어와 완전히 물에 잠기기 3시간 전부터 마커 테두리가 빨간색으로 깜빡이며, 그 위에 잠기기까지 남은 시간이 표시됩니다.</p>'
+          + '<p>정확도를 높이기 위해, 조위 지점 총 332곳의 자료를 매일 밤 국립해양조사원 조위관측자료(TideBED)로 최신 갱신합니다.</p>'
+          + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 예측 자료이므로 실제 현장의 물때·기상 상황을 반드시 직접 확인하세요. 일부 먼바다·특수 해역은 잠김 경고가 제공되지 않을 수 있습니다.</p>',
+          src: '국립해양조사원 전자해도(간출암·세암·암암·노출암) · 조위관측자료(TideBED) · 연간 조석표' },
         { id: 'myloc', label: '내 위치', body:
             '현재 내 위치를 지도에 표시합니다.',
           src: '기기 GPS' }
@@ -164,6 +173,25 @@
         panelsHtml += '</div>';
         return tabsHtml + panelsHtml;
     }
+
+    /**
+     * [외부 API] 안내 탭 하나의 본문 HTML 을 돌려준다.
+     * 예: window.oceanInfoTabHtml('mudflat') → 물빠짐 설명 문단들 + 출처 줄
+     * @param {string} id - 탭 id (예: 'mudflat')
+     * @returns {string} 본문 HTML (해당 탭이 없으면 빈 문자열)
+     * [연계] ← js/marine-life/safety/life_safety.js — 해양안전 화면은 물빠짐 안내만
+     *          보여줘야 하므로 이 함수로 그 탭 본문만 가져간다(문구 중복 방지).
+     */
+    window.oceanInfoTabHtml = function (id) {
+        for (var i = 0; i < INFO_TAB_ITEMS.length; i++) {
+            var it = INFO_TAB_ITEMS[i];
+            if (it.id !== id) continue;
+            var html = it.bodyHtml || ('<p>' + it.body + '</p>');
+            if (it.src) html += '<div class="ocean-info-src">출처 · ' + it.src + '</div>';
+            return html;
+        }
+        return '';
+    };
 
     // 탭 전환 — showSeagnalModal 본문 내 onclick 에서 호출
     window.__oceanInfoSwitch = function (tabId) {

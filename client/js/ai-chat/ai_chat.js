@@ -8,14 +8,19 @@
  *             + 관리자 검토센터(5개 서브탭·원본 vs AI값·교정입력·승인/반려·반영사슬)
  *             + 챗봇 노출 토글(서버 전역 설정)을 렌더한다.
  *         (B) 사용자 챗봇 — 우측 하단 FAB + 카카오톡풍 채팅 팝업(생각중·스켈레톤·
- *             근거법령 아코디언·좌표 미니지도 핀치줌). #nrya-overlays(body) 에 산다.
+ *             근거법령 아코디언 = 위임흐름 체인 + 조문 카드를 누르면 뜨는 조문 원문 팝업).
+ *             #nrya-overlays(body) 에 산다.
  *         FAB 는 (1) 앱 메인 특보 탭일 때만, (2) 서버 노출설정이 허용할 때만 보인다.
  *         (초보자용: 이 파일이 관리자용 나리야 콘솔과 사용자용 챗봇 버튼/창을 만든다)
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : css/ai_chat.css (스타일), js/admin/admin.js
  *                    (통합관리자 'nariya' 탭이 renderAdminInto 호출 · 관리자 토큰
- *                    저장소 'seagnal_admin_token' 재사용)
+ *                    저장소 'seagnal_admin_token' 재사용),
+ *                    js/settings/settings.js (전역 NotificationSettings — 답변완료
+ *                    알림 옵트인 값 aiAnswer 읽기/켜기. 먼저 로드되어 있어야 함),
+ *                    js/core/backbutton.js (전역 PopupStack — 채팅창·조문 팝업을
+ *                    하드웨어 뒤로가기로 닫기)
  *  - 서버 API      : routes/legal.js
  *                    GET  /api/legal/config                   (노출설정 조회, 기본 off)
  *                    POST /api/legal/config {exposure}         (노출설정 저장, 관리자)
@@ -24,7 +29,13 @@
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
  *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토 실카운트)
  *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
- *                    POST /api/legal/ask {query}               (질문→AI 답변 스트리밍(NDJSON)+근거 법령)
+ *                    POST /api/legal/ask {query, deviceId, notifyOnComplete}
+ *                                                              (질문→AI 답변 스트리밍(NDJSON)+근거 법령
+ *                                                               · 6초 초과+옵트인이면 서버가 완료 푸시 발송)
+ *                    GET  /api/legal/pending-answer/:requestId (푸시로 재진입 시 그 답변 1회 복원)
+ *                    GET  /api/legal/article-text?law&article&tier&baseLaw
+ *                                                              (근거법령 체인의 조문 카드를 누르면
+ *                                                               그 조 원문 전체 + 인용된 항·호 강조)
  *  - 마크업        : #unified-admin-body(콘솔 마운트 지점, admin.js 소유),
  *                    body 에 스스로 주입하는 #nrya-overlays(FAB·채팅·지도 팝업)
  *  - 나를 쓰는 곳  : index2.html <script src="js/ai-chat/ai_chat.js"> — 자가 실행.
@@ -43,6 +54,10 @@
   var MAIN_TAB_GROUP = 'weather-group';       // FAB 이 보이는 유일한 메인 탭(특보)
   var LS_ADMIN = 'seagnal_admin_mode';         // 관리자 모드 플래그(앱 공용)
   var LS_ADMIN_TOKEN = 'seagnal_admin_token';  // 관리자 토큰(admin.js와 공유)
+  var LS_DEVICE_ID = 'seagnal_device_id';      // 기기 식별자(앱 공용 — survey_user.js가 최초 생성)
+  var LS_UNREAD = 'nariya_unread_v1';          // 채팅창이 닫힌 사이 도착한 답변 수(FAB 뱃지)
+  var CONSENT_ASK_MS = 6000;                   // 이만큼 넘게 걸리면 "다음부터 알림 드릴까요?" 배너
+  var activeConsentTimer = null;               // 진행 중인 동의배너 타이머(채팅창 닫으면 취소 — closeChat 참고)
 
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
@@ -66,6 +81,36 @@
 
   /** 관리자 모드 여부(로컬 저장 플래그). @returns {boolean} */
   function isAdmin() { try { return localStorage.getItem(LS_ADMIN) === 'true'; } catch (_) { return false; } }
+
+  /**
+   * 기기 식별자를 읽고, 없으면 새로 만들어 저장한다(survey_user.js getDeviceId와 동일 생성규칙 —
+   * 설문·제보를 한 번도 안 한 사용자는 이 키가 없어 답변완료 푸시가 조용히 안 갔던 문제 수정).
+   * @returns {string}
+   */
+  function getDeviceId() {
+    try {
+      var id = localStorage.getItem(LS_DEVICE_ID);
+      if (!id) { id = 'dev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10); localStorage.setItem(LS_DEVICE_ID, id); }
+      return id;
+    } catch (_) { return ''; }
+  }
+
+  /**
+   * settings.js 가 전역(스크립트 스코프)에 만든 NotificationSettings 객체를 얻는다.
+   * 예: notiSettings().set({aiAnswer:true}) → 저장 + (네이티브면) 서버 구독 재동기화
+   * settings.js 가 먼저 로드되지 않았거나(테스트 페이지 등) 없으면 null.
+   * @returns {object|null}
+   * [연계] → js/settings/settings.js NotificationSettings — 알림 옵트인 값의 유일한 주인.
+   */
+  function notiSettings() {
+    try { return (typeof NotificationSettings !== 'undefined') ? NotificationSettings : null; } catch (_) { return null; }
+  }
+
+  /** 답변완료 알림을 이미 켠 사용자인지(켰으면 동의 배너를 띄우지 않는다). @returns {boolean} */
+  function aiAnswerOptedIn() {
+    var ns = notiSettings();
+    return !!(ns && ns.settings && ns.settings.aiAnswer === true);
+  }
 
   /** 관리자 토큰을 로컬/세션에서 읽는다(admin.js 저장 규약과 동일). @returns {string|null} */
   function getAdminToken() {
@@ -779,29 +824,12 @@
   // ============================================================================
   var STEPS = ['생각하고 있습니다', '관련 법령을 찾고 있습니다', '조문 구조를 확인하고 있습니다', '답변을 정리하고 있습니다'];
 
-  // 재사용 지도 SVG(해안선 + 위경도 격자 + 좌표 폴리곤 + 라벨) — 목업 원본 그대로
-  var MAPSVG = '<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">' +
-    '<rect width="320" height="180" fill="#0c2033"/>' +
-    '<path d="M0,0 L58,0 Q92,38 66,72 Q48,96 80,128 Q98,158 72,180 L0,180 Z" fill="#173245" stroke="rgba(120,190,150,.45)" stroke-width="1.2"/>' +
-    '<g stroke="rgba(160,190,220,.10)" stroke-width="1"><line x1="90" y1="0" x2="90" y2="180"/><line x1="160" y1="0" x2="160" y2="180"/><line x1="230" y1="0" x2="230" y2="180"/><line x1="0" y1="60" x2="320" y2="60"/><line x1="0" y1="120" x2="320" y2="120"/></g>' +
-    '<text x="162" y="12" fill="#6f8aa3" font-size="8" font-family="monospace">128°30′E</text>' +
-    '<text x="232" y="12" fill="#6f8aa3" font-size="8" font-family="monospace">129°00′E</text>' +
-    '<text x="3" y="58" fill="#6f8aa3" font-size="8" font-family="monospace">38°34′N</text>' +
-    '<text x="3" y="118" fill="#6f8aa3" font-size="8" font-family="monospace">38°10′N</text>' +
-    '<polygon points="150,44 236,58 250,112 172,134 126,86" fill="rgba(105,240,174,.22)" stroke="#69f0ae" stroke-width="2"/>' +
-    '<text x="182" y="94" fill="#8fe6bb" font-size="11" font-weight="bold" font-family="sans-serif">조업 가능</text>' +
-    '<g fill="#ff6b6b" stroke="#fff" stroke-width="1"><circle cx="150" cy="44" r="3.6"/><circle cx="236" cy="58" r="3.6"/><circle cx="250" cy="112" r="3.6"/><circle cx="172" cy="134" r="3.6"/><circle cx="126" cy="86" r="3.6"/></g>' +
-    '<text x="150" y="37" fill="#e6f1ff" font-size="7.5" font-family="monospace" text-anchor="middle">38°34′09″N 128°30′06″E</text>' +
-    '<text x="16" y="150" fill="#9fceb0" font-size="9.5" font-family="sans-serif">강원 연안</text>' +
-    '</svg>';
-
   var overlaysBuilt = false;
-  var mScale = 1, mX = 0, mY = 0; // 지도 팝업 줌 상태
 
   /**
-   * body 에 #nrya-overlays(FAB + 채팅 팝업 + 지도 팝업)를 1회 주입하고 이벤트를 건다.
+   * body 에 #nrya-overlays(FAB + 채팅 팝업)를 1회 주입하고 이벤트를 건다.
    * FAB 표시는 updateFabVisibility 가 탭/서버설정으로 게이트한다(초기값 숨김).
-   * [연계] → updateFabVisibility, bindChat, bindMap.
+   * [연계] → updateFabVisibility, bindChat.
    */
   function ensureOverlays() {
     if (overlaysBuilt) return;
@@ -810,7 +838,7 @@
     var wrap = document.createElement('div');
     wrap.id = 'nrya-overlays';
     wrap.innerHTML =
-      '<button class="nrya-fab" id="nryaFab" title="나리야에게 물어보기" style="display:none"><span class="nrya-fab-inner"><img src="' + NARIYA_IMG + '" alt="나리야"><span class="nrya-fab-label">AI 챗봇</span></span><span class="nrya-fab-badge">N</span></button>' +
+      '<button class="nrya-fab" id="nryaFab" title="나리야에게 물어보기" style="display:none"><span class="nrya-fab-inner"><img src="' + NARIYA_IMG + '" alt="나리야"><span class="nrya-fab-label">AI 챗봇</span></span><span class="nrya-fab-badge" style="display:none"></span></button>' +
       // 채팅 팝업
       '<div class="nrya-chat-wrap" id="nryaChatWrap">' +
         '<div class="nrya-chat">' +
@@ -824,27 +852,44 @@
           '</div>' +
           '<div class="nrya-chat-input"><button class="nrya-chat-plus" title="첨부">＋</button><input id="nryaChatInput" placeholder="메시지 입력" /><button class="nrya-chat-send" id="nryaChatSend">➤</button></div>' +
         '</div>' +
-      '</div>' +
-      // 좌표 지도 확대 팝업(핀치줌)
-      '<div class="nrya-mapmodal" id="nryaMapModal">' +
-        '<div class="nrya-mapmodal-bar">' +
-          '<div class="nrya-mapmodal-tabs">' +
-            '<button class="nrya-mm-tab nrya-on" data-mm="here">📍 현재 화면에서 보기</button>' +
-            '<button class="nrya-mm-tab" data-mm="ocean">🗺 해양종합정보 탭에서 보기</button>' +
-          '</div>' +
-          '<button class="nrya-mapmodal-x" id="nryaMapX">✕</button>' +
-        '</div>' +
-        '<div class="nrya-mapmodal-stage" id="nryaMapStage">' +
-          '<div class="nrya-mapmodal-inner" id="nryaMapInner"></div>' +
-          '<div class="nrya-mapmodal-zoom"><button data-z="in">＋</button><button data-z="out">－</button></div>' +
-          '<div class="nrya-mapmodal-hint">두 손가락으로 확대·축소 · 드래그로 이동</div>' +
-        '</div>' +
       '</div>';
     document.body.appendChild(wrap);
 
     bindChat();
-    bindMap();
     updateFabVisibility();
+    paintBadge();          // 지난 세션에서 못 본 답변이 있으면 FAB 에 숫자로 남아 있다
+  }
+
+  // ── FAB 안읽음 뱃지: 채팅창이 닫힌 사이 도착한 답변 수 ──────────────────
+
+  /** 안읽음 카운트를 읽는다(깨졌으면 0). @returns {number} */
+  function getUnread() {
+    try { return parseInt(localStorage.getItem(LS_UNREAD) || '0', 10) || 0; } catch (_) { return 0; }
+  }
+
+  /**
+   * 안읽음 카운트를 저장하고 뱃지를 다시 그린다.
+   * 예: setUnread(getUnread() + 1) → FAB 우상단에 "1"
+   * @param {number} n - 새 카운트(0이면 뱃지 숨김)
+   * [연계] ← doSend(닫힌 상태로 답변 도착), openChat(0으로 리셋). → paintBadge
+   */
+  function setUnread(n) {
+    try { localStorage.setItem(LS_UNREAD, String(n)); } catch (_) {}
+    paintBadge();
+  }
+
+  /** 안읽음 카운트를 FAB 뱃지에 반영한다(0이면 숨김, 100 이상은 '99+'). */
+  function paintBadge() {
+    var b = document.querySelector('#nrya-overlays .nrya-fab-badge'); if (!b) return;
+    var n = getUnread();
+    b.textContent = n > 99 ? '99+' : String(n);
+    b.style.display = n > 0 ? 'grid' : 'none';
+  }
+
+  /** 채팅창이 지금 화면에 떠 있는지(닫혀 있을 때만 안읽음을 센다). @returns {boolean} */
+  function isChatOpen() {
+    var w = document.getElementById('nryaChatWrap');
+    return !!(w && w.classList.contains('nrya-open'));
   }
 
   /**
@@ -902,13 +947,14 @@
 
   /**
    * 채팅 팝업을 연다: 뷰포트에 맞춰 크기 조정 + visualViewport 리스너 등록 +
-   * 하드웨어 백 스택 등록(PopupStack) + 입력창 포커스.
-   * [연계] → PopupStack.push('nrya-chat', closeChat).
+   * 하드웨어 백 스택 등록(PopupStack) + 입력창 포커스 + 안읽음 뱃지 리셋.
+   * [연계] → PopupStack.push('nrya-chat', closeChat), setUnread(0).
    */
   function openChat() {
     ensureOverlays();
     var wrap = document.getElementById('nryaChatWrap'); if (!wrap) return;
     wrap.classList.add('nrya-open');
+    setUnread(0);                 // 열어서 보는 순간 안읽음 해제
     fitChat(); addVV(); _scrollChatBottom();
     var input = document.getElementById('nryaChatInput'); if (input) setTimeout(function () { input.focus(); }, 80);
     if (window.PopupStack) window.PopupStack.push('nrya-chat', closeChat);
@@ -919,6 +965,8 @@
     if (window.PopupStack) window.PopupStack.remove('nrya-chat');
     var wrap = document.getElementById('nryaChatWrap'); if (wrap) wrap.classList.remove('nrya-open');
     removeVV();
+    // 답이 오기 전에 채팅창을 닫으면 동의배너 타이머도 취소한다 — 안 보는 사이 뜬금없이 뜨지 않게.
+    if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; }
   }
 
   function bindChat() {
@@ -935,11 +983,128 @@
       input.addEventListener('focus', function () { fitChat(); setTimeout(function () { fitChat(); _scrollChatBottom(); }, 250); });
     }
 
-    // 답변 내 근거법령 아코디언 토글 + 지도 구역 탭 → 확대 팝업(동적 답변 포함, 위임)
+    // 답변 내 근거법령 아코디언 토글 + 조문 카드 → 원문 팝업
+    // (동적으로 붙는 답변까지 커버하도록 위임. 연락처 줄은 전화 링크라 카드 클릭에서 제외)
     if (body) body.addEventListener('click', function (e) {
-      var h = e.target.closest('.nrya-lawacc-h'); if (h) { h.parentElement.classList.toggle('nrya-open'); return; }
-      var mo = e.target.closest('[data-mapopen]'); if (mo) { openMap(); }
+      var h = e.target.closest('.nrya-lawacc-h');
+      if (h) { h.parentElement.classList.toggle('nrya-open'); return; }
+      if (e.target.closest('.nrya-chain-tel')) return;
+      var hit = e.target.closest('.nrya-chain-hit');
+      if (hit) openArtPop(hit);
     });
+  }
+
+  // ── 조문 원문 팝업: 카드를 누르면 그 조 전문을 띄우고 인용된 항·호를 강조 ──────────
+  var artPopBuilt = false;
+  var artPopReq = 0;   // 조회 순번 — 늦게 도착한 이전 요청이 지금 보는 조문을 덮어쓰지 않게 한다
+
+  /**
+   * 조문 팝업(배경막 + 카드)을 #nrya-overlays 안에 1회 주입한다. 닫기 버튼·배경막 클릭은
+   * 여기서 한 번만 묶는다(카드 내용은 열 때마다 renderArtPop 이 갈아끼운다).
+   * [연계] ← openArtPop. → closeArtPop.
+   */
+  function ensureArtPop() {
+    if (artPopBuilt) return;
+    var host = document.getElementById('nrya-overlays'); if (!host) return;
+    artPopBuilt = true;
+    var veil = document.createElement('div'); veil.className = 'nrya-artpop-veil'; veil.id = 'nryaArtVeil';
+    var pop = document.createElement('div'); pop.className = 'nrya-artpop'; pop.id = 'nryaArtPop';
+    pop.innerHTML =
+      '<div class="nrya-artpop-head">' +
+        '<div class="nrya-artpop-titles">' +
+          '<span class="nrya-artpop-chip">원문 · 자동 발췌</span>' +
+          '<p class="nrya-artpop-law" id="nryaArtLaw"></p>' +
+          '<h3 class="nrya-artpop-art" id="nryaArtTitle"></h3>' +
+        '</div>' +
+        '<button type="button" class="nrya-artpop-x" id="nryaArtX">×</button>' +
+      '</div>' +
+      '<span class="nrya-artpop-eff" id="nryaArtEff"></span>' +
+      '<div class="nrya-artpop-body" id="nryaArtBody"></div>';
+    host.appendChild(veil); host.appendChild(pop);
+    veil.addEventListener('click', closeArtPop);
+    pop.querySelector('#nryaArtX').addEventListener('click', closeArtPop);
+  }
+
+  /**
+   * 서버가 준 조문 원문을 팝업 본문에 그린다. 인용된 항(hit)은 tier 색 배경으로 강조하고
+   * 나머지는 흐리게 둔다. 원문 텍스트는 전부 textContent 로 넣는다(HTML 주입 없음).
+   * @param {object} d - GET /api/legal/article-text 응답 {ok:true, paragraphs:[…]}
+   * [연계] ← openArtPop.
+   */
+  function renderArtPop(d) {
+    var body = document.getElementById('nryaArtBody'); if (!body) return;
+    body.innerHTML = '';
+    (d.paragraphs || []).forEach(function (p) {
+      var row = document.createElement('div');
+      row.className = 'nrya-artpop-para' + (p.hit ? ' nrya-hit' : '');
+      var mark = document.createElement('div'); mark.className = 'nrya-artpop-mark'; mark.textContent = p.mark || '';
+      var wrap = document.createElement('div'); wrap.className = 'nrya-artpop-text';
+      var t = document.createElement('span'); t.textContent = p.text || ''; wrap.appendChild(t);
+      if (p.items && p.items.length) {
+        var ul = document.createElement('ul'); ul.className = 'nrya-artpop-items';
+        p.items.forEach(function (it, i) {
+          var li = document.createElement('li');
+          li.textContent = (i + 1) + '. ' + (it.text || '');
+          if (it.hit) li.className = 'nrya-hit';
+          ul.appendChild(li);
+        });
+        wrap.appendChild(ul);
+      }
+      row.appendChild(mark); row.appendChild(wrap); body.appendChild(row);
+    });
+    body.scrollTop = 0;
+  }
+
+  /**
+   * 조문 카드를 눌렀을 때: 팝업을 먼저 띄워 "불러오는 중"을 보여주고, 원문을 받아 채운다.
+   * 원문을 못 받으면(수집 안 된 고시·서버 토큰 없음 등) 지어내지 않고 안내 문구만 남긴다.
+   * 예: openArtPop(카드요소) → GET /api/legal/article-text?law=…&article=제10조④3호&tier=law
+   * @param {HTMLElement} el - .nrya-chain-hit (data-law/article/tier/base 를 갖고 있다)
+   * [연계] → routes/legal.js GET /api/legal/article-text · PopupStack('nrya-artpop').
+   */
+  function openArtPop(el) {
+    ensureArtPop();
+    var pop = document.getElementById('nryaArtPop'), veil = document.getElementById('nryaArtVeil');
+    if (!pop || !veil) return;
+    var law = el.getAttribute('data-law') || '';
+    var article = el.getAttribute('data-article') || '';
+    var tier = el.getAttribute('data-tier') || 'law';
+    document.getElementById('nryaArtLaw').textContent = law;
+    document.getElementById('nryaArtTitle').textContent = article || '조문 원문';
+    document.getElementById('nryaArtEff').textContent = '';
+    document.getElementById('nryaArtBody').innerHTML = '<div class="nrya-artpop-msg">원문을 불러오는 중…</div>';
+    pop.setAttribute('data-tier', el.getAttribute('data-pen') ? 'penalty' : tier); // 강조색을 체인 카드와 맞춘다
+    veil.classList.add('nrya-open'); pop.classList.add('nrya-open');
+    if (window.PopupStack) window.PopupStack.push('nrya-artpop', closeArtPop);
+
+    var myReq = ++artPopReq;
+    legalGet('/api/legal/article-text?law=' + encodeURIComponent(law) +
+      '&article=' + encodeURIComponent(article) +
+      '&tier=' + encodeURIComponent(tier) +
+      '&baseLaw=' + encodeURIComponent(el.getAttribute('data-base') || ''))
+      .then(function (r) { return r.json(); })
+      .catch(function () { return { ok: false }; })
+      .then(function (d) {
+        // 기다리는 사이 닫았거나 다른 조문을 다시 눌렀으면 그리지 않는다(엉뚱한 조문 표시 방지)
+        if (myReq !== artPopReq || !pop.classList.contains('nrya-open')) return;
+        if (!d || !d.ok) {
+          document.getElementById('nryaArtBody').innerHTML =
+            '<div class="nrya-artpop-msg">원문을 불러오지 못했어요. 위 요지와 소관부서 연락처를 확인해 주세요.</div>';
+          return;
+        }
+        if (d.articleTitle) document.getElementById('nryaArtTitle').textContent = d.articleTitle;
+        document.getElementById('nryaArtEff').textContent = d.effectiveDate
+          ? ((d.tier === 'notice' ? '발령일자 ' : '시행일자 ') + d.effectiveDate) : '';
+        renderArtPop(d);
+      });
+  }
+
+  /** 조문 팝업을 닫는다(백스택에서 제거 + 표시 해제). PopupStack.remove 는 멱등. */
+  function closeArtPop() {
+    if (window.PopupStack) window.PopupStack.remove('nrya-artpop');
+    var pop = document.getElementById('nryaArtPop'), veil = document.getElementById('nryaArtVeil');
+    if (pop) pop.classList.remove('nrya-open');
+    if (veil) veil.classList.remove('nrya-open');
   }
 
   /**
@@ -982,6 +1147,81 @@
       });
     }
     return pump();
+  }
+
+  // ── 답변완료 알림 동의 배너(6초 넘게 걸릴 때만) ────────────────────────
+
+  /**
+   * 나리야 말풍선 한 줄을 만들어 채팅창 맨 아래에 붙이고 그 말풍선 요소를 돌려준다.
+   * 예: appendAiRow('<b>안녕</b>') → 아바타+이름+말풍선 행이 추가되고 .nrya-kbub 반환
+   * @param {string} innerHTML - 말풍선 안에 넣을 HTML(호출자가 이스케이프 책임)
+   * @param {string} [rowId] - 나중에 찾아 지우려면 붙일 행 id
+   * @returns {HTMLElement|null} 말풍선(.nrya-kbub) 요소
+   * [연계] ← showNotifyConsentBanner, renderRestoredAnswer, renderExpiredNotice —
+   *          doSend 가 쓰는 것과 같은 말풍선 골격을 재사용하려고 뽑았다.
+   */
+  function appendAiRow(innerHTML, rowId) {
+    var body = document.getElementById('nryaChatBody'); if (!body) return null;
+    var row = document.createElement('div'); row.className = 'nrya-krow nrya-ai';
+    if (rowId) row.id = rowId;
+    row.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div>' +
+      '<div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow">' +
+      '<div class="nrya-kbub nrya-ai"></div><span class="nrya-ktime">지금</span></div></div>';
+    var bub = row.querySelector('.nrya-kbub');
+    bub.innerHTML = innerHTML;
+    body.appendChild(row); body.scrollTop = body.scrollHeight;
+    return bub;
+  }
+
+  /**
+   * "답변이 좀 걸리고 있어요. 완료되면 알림 드릴까요?" 동의 배너를 채팅창에 띄운다.
+   * [허용]을 누르면 지금 기다리고 있는 이 질문에도 뒤늦게 알림이 걸린다(POST /api/legal/notify-me
+   * 로 이미 떠난 요청에 askId로 표시) — 화면 밖으로 나가도 이번 답도 놓치지 않는다. 물론 다음
+   * 질문부터는 처음부터 옵트인 상태로 보내지므로 이 배너 자체가 다시 뜨지 않는다.
+   * [허용 안 함] 배너만 닫는다(설정 변경 없음).
+   * @param {string} askId - 지금 기다리는 중인 질문의 접수번호(doSend가 발급) — notify-me 상관키.
+   * [연계] ← doSend 의 6초 타이머. → notiSettings().set, requestPushPermissionIfNeeded,
+   *          POST /api/legal/notify-me.
+   */
+  function showNotifyConsentBanner(askId) {
+    if (document.getElementById('nryaNotifyAsk')) return;   // 이미 떠 있으면 중복 금지
+    var bub = appendAiRow(
+      '답변이 좀 걸리고 있어요. 완료되면 알림 드릴까요?' +
+      '<div class="nrya-consent-btns">' +
+        '<button type="button" class="nrya-consent-btn nrya-yes">허용</button>' +
+        '<button type="button" class="nrya-consent-btn nrya-no">허용 안 함</button>' +
+      '</div>', 'nryaNotifyAsk');
+    if (!bub) return;
+    var row = document.getElementById('nryaNotifyAsk');
+    bub.querySelector('.nrya-yes').addEventListener('click', function () {
+      var ns = notiSettings();
+      if (ns && typeof ns.set === 'function') ns.set({ aiAnswer: true });  // 저장 + 서버 동기화(다음 질문부터)
+      requestPushPermissionIfNeeded();
+      legalPost('/api/legal/notify-me', { askId: askId }).catch(function () {});  // 지금 이 질문에도 뒤늦게 걸기
+      bub.textContent = '완료되면 알려드릴게요';
+      setTimeout(function () { if (row) row.remove(); }, 2500);
+    });
+    bub.querySelector('.nrya-no').addEventListener('click', function () { if (row) row.remove(); });
+  }
+
+  /**
+   * 푸시 권한이 아직 '미결정(prompt)' 이면 시스템 권한 요청을 띄우고, 허용되면 등록까지 한다.
+   * 이미 허용됐거나 거부됐거나(설정에서만 변경 가능) 웹이면 아무 것도 하지 않는다.
+   * [연계] ← 동의 배너 [허용]. → window.checkPushPermission(capacitor-plugins.js),
+   *          PushNotifications.requestPermissions/register — 설정 화면 마스터 토글과 같은 흐름.
+   */
+  function requestPushPermissionIfNeeded() {
+    try {
+      if (!window.Capacitor || typeof window.Capacitor.isNativePlatform !== 'function' || !window.Capacitor.isNativePlatform()) return;
+      var P = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications; if (!P) return;
+      if (typeof window.checkPushPermission !== 'function') return;
+      window.checkPushPermission().then(function (perm) {
+        if (perm !== 'prompt') return;
+        return P.requestPermissions().then(function (r) {
+          if (r && r.receive === 'granted' && P.register) P.register();   // 등록 → registration 리스너가 subscribeUser 호출
+        });
+      }).catch(function () { /* 권한 흐름 실패는 무시(알림만 안 올 뿐) */ });
+    } catch (_) { /* 방어적 — 무시 */ }
   }
 
   /**
@@ -1027,7 +1267,19 @@
       bubbleEl = a.querySelector('.nrya-kbub');
     }
 
-    legalPost('/api/legal/ask', { query: q }).then(function (res) {
+    // [답변완료 알림] 이미 켠 사용자면 서버에 "다 되면 푸시 보내달라"고 알린다(6초 초과 시 서버가 발송).
+    //   아직 안 켰다면 6초 뒤에 인라인 동의 배너를 띄운다 — [허용]을 누르면 이 askId로 지금 이
+    //   요청에도 뒤늦게 알림이 걸린다(빨리 끝나면 아래 타이머 취소, 배너 자체가 안 뜬다).
+    var optedIn = aiAnswerOptedIn();
+    var askId = 'ask_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
+    if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; } // 이전 질문분 정리
+    if (!optedIn) {
+      activeConsentTimer = setTimeout(function () {
+        activeConsentTimer = null; showNotifyConsentBanner(askId);
+      }, CONSENT_ASK_MS);
+    }
+
+    legalPost('/api/legal/ask', { query: q, deviceId: getDeviceId(), notifyOnComplete: optedIn, askId: askId }).then(function (res) {
       return readNdjsonStream(res, function (deltaText) {
         hadDelta = true;
         ensureAnswerBubble();
@@ -1040,9 +1292,12 @@
         var wait = hadDelta ? 0 : Math.max(0, MIN_THINK_MS - (Date.now() - startedAt));
         return new Promise(function (resolve) { setTimeout(function () { resolve(data); }, wait); });
       }).then(function (data) {
+        if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; }  // 6초 안에 끝남 → 배너 없음
         ensureAnswerBubble(); // done만 오고 delta가 하나도 없었던 경우(근거없음·오류) 대비
         bubbleEl.innerHTML = answerHTML(q, data);
         body.scrollTop = body.scrollHeight;
+        // 답변이 도착했는데 채팅창을 닫아둔 상태면 FAB 뱃지로 알린다(열려 있으면 이미 보는 중).
+        if (!isChatOpen()) setUnread(getUnread() + 1);
       });
   }
 
@@ -1055,11 +1310,96 @@
     return esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
   }
 
+  /** 조문의 요지에 처벌 문구가 들어있으면 처벌 조문으로 본다(체인 끝에 빨간 원으로 따로 뺀다). */
+  function isPenaltyRow(row) {
+    return /징역|벌금|과태료|처벌/.test(String(row.gist || ''));
+  }
+
+  /** tier 코드를 화면 라벨로. 처벌 조문은 '벌칙'으로 표시한다. */
+  function tierLabel(row, penalty) {
+    if (penalty) return '벌칙';
+    return { decree: '시행령', rule: '시행규칙', notice: '고시' }[row.tier] || '법률';
+  }
+
+  /**
+   * 인용사슬 한 조문을 체인 한 칸(원형 번호 + 세로선 + 조문 뱃지 + 시행일자 + 요지 + ☎연락처)으로 그린다.
+   * 시행일자는 뱃지와 같은 줄에 **항상** 보인다(예전엔 꾹 누를 때만 뜨는 말풍선이었다).
+   * 연락처 줄을 뺀 카드 본문(.nrya-chain-hit)은 눌러서 조문 원문 팝업을 여는 영역이다.
+   * @param {object} row - {law, article, effectiveDate, gist, tier, contact}
+   * @param {number} n - 화면에 찍을 순번(1부터)
+   * @param {boolean} last - 세로 연결선을 끊을지(체인의 마지막 칸)
+   * @param {boolean} penalty - 처벌 조문인지(빨간 원 + '벌칙' 라벨)
+   * @param {string} baseLaw - 이 체인이 실린 위키 페이지의 소속 법명(고시 원문 폴더를 찾는 열쇠)
+   * @returns {string} HTML
+   * [연계] ← chainHTML. 데이터는 legal_retriever.js extractCitationChain/lookupContact.
+   *        data-* 는 openArtPop 이 GET /api/legal/article-text 를 부를 때 그대로 쓴다.
+   */
+  function chainStepHTML(row, n, last, penalty, baseLaw) {
+    var eff = row.effectiveDate
+      ? '<span class="nrya-chain-eff">' + (row.tier === 'notice' ? '발령일자 ' : '시행일자 ') + esc(row.effectiveDate) + '</span>'
+      : '';
+    var head = esc(tierLabel(row, penalty)); // 조문번호는 아래 nrya-chain-art 가 법령명과 함께 보여준다
+    var tel = '';
+    if (row.contact && row.contact.전화번호) {
+      var who = row.contact.소관부처명
+        ? esc(row.contact.소관부처명) + (row.contact.부서명 ? '(' + esc(row.contact.부서명) + ')' : '')
+        : esc(row.contact.부서명 || '');
+      var dial = String(row.contact.전화번호).split(',')[0].replace(/[^0-9+]/g, '');
+      tel = '<div class="nrya-chain-tel">☎ ' + who + ' · <a href="tel:' + esc(dial) + '">' + esc(String(row.contact.전화번호).split(',')[0].trim()) + '</a></div>';
+    } else {
+      tel = '<div class="nrya-chain-tel nrya-unknown">☎ 확인되지 않음</div>';
+    }
+    // 클릭 영역이 서버에 그대로 넘길 값들(조문 원문 조회 키). data-pen 은 강조색만 벌칙색으로 바꾸는 표시.
+    var hitAttrs = ' data-law="' + esc(row.law || '') + '" data-article="' + esc(row.article || '') +
+      '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(baseLaw || '') + '"' +
+      (penalty ? ' data-pen="1"' : '');
+    return '<div class="nrya-chain-step' + (last ? ' nrya-last' : '') + (penalty ? ' nrya-penalty' : '') + '" data-tier="' + esc(row.tier || 'law') + '">' +
+      '<div class="nrya-chain-rail"><div class="nrya-chain-dot">' + n + '</div><div class="nrya-chain-line"></div></div>' +
+      '<div class="nrya-chain-content">' +
+        '<div class="nrya-chain-hit"' + hitAttrs + '>' +
+          '<div class="nrya-chain-head"><span class="nrya-chain-tier">' + head + '</span>' + eff + '</div>' +
+          '<div class="nrya-chain-art">' + esc(row.law || '') + (row.article ? ' ' + esc(row.article) : '') + '</div>' +
+          (row.gist ? '<div class="nrya-chain-quote"><div class="nrya-chain-hang">' + esc(row.gist) + '</div></div>' : '') +
+        '</div>' +
+        tel +
+      '</div>' +
+    '</div>';
+  }
+
+  /**
+   * 인용사슬 전체를 위임 흐름 체인으로 그린다. 위임 조문(법률→시행령→시행규칙→고시)을 한 체인으로
+   * 잇고, 처벌 조문은 간격을 띄워 별도 체인으로 뺀다(처벌 조문이 없으면 구분 없이 한 체인).
+   * ⚠ 여기 나오는 문장은 위키 "근거 조문" 표의 **요지**다 — 조문 원문(항·호)은 카드를 누르면
+   *   조문 팝업(openArtPop)이 raw 원문에서 그때그때 읽어 보여준다.
+   * @param {Array} chain - sources[i].citationChain
+   * @param {string} baseLaw - 이 체인이 실린 소스(위키 페이지)의 법령명 — 고시 원문 폴더 찾기용
+   * @returns {string} HTML
+   */
+  function chainHTML(chain, baseLaw) {
+    var main = [], pen = [];
+    chain.forEach(function (row) { (isPenaltyRow(row) ? pen : main).push(row); });
+    var n = 0, html = '';
+    if (main.length) {
+      html += '<div class="nrya-chain">' + main.map(function (row, i) {
+        return chainStepHTML(row, ++n, i === main.length - 1, false, baseLaw);
+      }).join('') + '</div>';
+    }
+    if (pen.length) {
+      html += (main.length ? '<div class="nrya-chain-gap"></div>' : '') +
+        '<div class="nrya-chain">' + pen.map(function (row, i) {
+          return chainStepHTML(row, ++n, i === pen.length - 1, true, baseLaw);
+        }).join('') + '</div>';
+    }
+    return html;
+  }
+
   /**
    * /api/legal/ask 응답을 답변 말풍선 내부 HTML로 조립한다.
-   * AI 합성 답변(answer)을 본문으로, 근거 법령(sources)은 아코디언으로, 좌표성 질문이면
-   * 미니지도를 덧붙인다. answer가 없으면(합성 실패·근거 없음) 안내 문구로 대체한다.
-   * @param {string} q - 사용자 질문
+   * AI 합성 답변(answer)을 본문으로, 근거 법령(sources)은 아코디언으로 붙인다. 인용사슬
+   * (citationChain)이 있는 첫 소스는 위임흐름 체인으로 펼치고, 나머지는 "법령명 · 주제"만
+   * 적은 단순 카드로 나열한다. answer가 없으면(합성 실패·근거 없음) 안내 문구로 대체한다.
+   * ※ 백엔드 내부 필드(kind·score·file)는 화면에 노출하지 않는다(사용자에게 의미 없는 값).
+   * @param {string} q - 사용자 질문(현재는 오류 문구 판단에만 쓰지 않음, 시그니처 유지)
    * @param {object} data - {ok, answer, sources[], note} 또는 실패 객체
    * @returns {string} 말풍선 내부 HTML
    */
@@ -1076,96 +1416,93 @@
         : '아직 이 질문에 딱 맞는 근거를 위키에서 찾지 못했어요. 질문을 조금 더 구체적으로(법 이름·톤수·행위) 적어주시면 도움이 됩니다.');
 
     var html = lead;
-    if (sources.length) {
-      html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 근거 법령 ' + sources.length + '건 (펼쳐서 보기)</div><div class="nrya-lawacc-b">' +
-        sources.map(function (s) {
-          var title = (s.law ? esc(s.law) : '') + (s.topic ? ' · ' + esc(s.topic) : '');
-          if (!title) title = esc(s.file || '근거');
-          var kind = s.kind ? esc(s.kind) : '개념';
-          return '<div class="nrya-lawitem"><div class="nrya-lw-t"><span>' + title + '</span><span class="nrya-lw-src">' + kind + (s.score != null ? ' · 관련도 ' + esc(s.score) : '') + '</span></div>' +
-            '<div class="nrya-lw-c">출처 파일: ' + esc(s.file || '(미상)') + '</div>' +
-            '<div class="nrya-lw-more">원문 보기 ›</div></div>';
-        }).join('') + '</div></div>';
+    // 인용사슬이 있는 첫 소스만 체인으로 펼치고(전부 펼치면 너무 김), 나머지는 단순 카드로 나열
+    var chainSrc = null;
+    for (var i = 0; i < sources.length; i++) {
+      if (sources[i].citationChain && sources[i].citationChain.length) { chainSrc = sources[i]; break; }
     }
-
-    // 좌표성 질문이면 좌표 미니지도(+핀치줌 팝업) 붙임 — 목업 지도/핀치줌 재사용
-    if (/해역|좌표|구역|조업|특정해역|경위도|위경도/.test(q)) {
-      html += '<div class="nrya-zonemap"><div class="nrya-zonemap-canvas" data-mapopen="1">' + MAPSVG + '<span class="nrya-zonemap-tap">⤢ 탭하면 확대</span></div>' +
-        '<div class="nrya-zonemap-cap">📍 <b>GPS 경위도로 정의된 구역</b> 예시 · 실제 지도 위에 폴리곤 표시 · 탭하면 확대(핀치줌)·해양종합정보 연계</div></div>';
+    var rest = sources.filter(function (s) { return s !== chainSrc; });
+    var shown = (chainSrc ? 1 : 0) + rest.length;
+    if (shown) {
+      html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 근거 법령 ' + shown + '건 (펼쳐서 보기)</div><div class="nrya-lawacc-b">';
+      if (chainSrc) html += chainHTML(chainSrc.citationChain, chainSrc.law || '');
+      html += rest.map(function (s) {
+        var title = (s.law ? esc(s.law) : '') + (s.topic ? ' · ' + esc(s.topic) : '');
+        return '<div class="nrya-lawitem"><div class="nrya-lw-t">' + (title || '근거 자료') + '</div></div>';
+      }).join('');
+      html += '</div></div>';
     }
 
     html += '<div class="nrya-disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요.' + (data.note ? ' · ' + esc(data.note) : '') + '</div>';
     return html;
   }
 
-  // ── 지도 팝업(핀치/드래그 줌) 바인딩 ──
-  function applyMap() { var inner = document.getElementById('nryaMapInner'); if (inner) inner.style.transform = 'translate(' + mX + 'px,' + mY + 'px) scale(' + mScale + ')'; }
-  function resetMap() { mScale = 1; mX = 0; mY = 0; applyMap(); }
+  // ── 답변완료 푸시 딥링크(?popup=ai_chat&rid=…) ─────────────────────────
 
-  /** 좌표 지도 확대 팝업을 연다(내부에 MAPSVG 주입 + 줌 리셋 + 백스택 등록). */
-  function openMap() {
-    var inner = document.getElementById('nryaMapInner'), modal = document.getElementById('nryaMapModal');
-    if (!inner || !modal) return;
-    inner.innerHTML = MAPSVG; resetMap(); modal.classList.add('nrya-open');
-    if (window.PopupStack) window.PopupStack.push('nrya-map', closeMap);
-  }
+  /**
+   * 완료 푸시를 눌러 들어왔는지 URL 파라미터로 확인하고, 맞으면 채팅창을 열어
+   * 보관된 답변(질문+답변 말풍선 쌍)을 복원한다. 서버 보관함은 1회용이라 이 조회 한 번으로 비워진다.
+   * 예: /?popup=ai_chat&rid=a3f1… → 채팅창 자동 열림 + 그 질문/답변 복원
+   * [연계] ← boot. → GET /api/legal/pending-answer/:requestId,
+   *          renderRestoredAnswer / renderExpiredNotice.
+   *          (fix_popup_logic.js 의 checkForPushPopup 과 같은 "URL 파라미터로 팝업 자동 열기" 패턴)
+   */
+  function checkAnswerDeepLink() {
+    var params; try { params = new URLSearchParams(window.location.search); } catch (_) { return; }
+    if (params.get('popup') !== 'ai_chat') return;
+    var rid = params.get('rid') || '';
+    // 주소창에서 파라미터 제거 — 새로고침 때 이미 비워진 보관함을 또 조회하지 않게(fix_popup_logic.js 와 동일 처리)
+    try { if (window.history.replaceState) window.history.replaceState({}, document.title, window.location.pathname); } catch (_) {}
 
-  /** 좌표 지도 팝업을 닫는다(백스택에서 제거). PopupStack.remove 는 멱등. */
-  function closeMap() {
-    if (window.PopupStack) window.PopupStack.remove('nrya-map');
-    var modal = document.getElementById('nryaMapModal'); if (modal) modal.classList.remove('nrya-open');
-  }
-
-  function bindMap() {
-    var modal = document.getElementById('nryaMapModal');
-    var stage = document.getElementById('nryaMapStage');
-    var x = document.getElementById('nryaMapX');
-    if (x) x.addEventListener('click', closeMap);
-
-    document.querySelectorAll('#nrya-overlays .nrya-mm-tab').forEach(function (b) {
-      b.addEventListener('click', function () {
-        if (b.dataset.mm === 'ocean') {
-          // 해양종합정보 탭으로 이동(챗봇/지도 팝업 닫고 실제 탭 전환)
-          closeMap(); closeChat();
-          try { if (typeof window.switchMainTab === 'function') window.switchMainTab('ocean-map-section'); } catch (_) {}
-        } else {
-          document.querySelectorAll('#nrya-overlays .nrya-mm-tab').forEach(function (t) { t.classList.remove('nrya-on'); });
-          b.classList.add('nrya-on');
-        }
+    // rid 없이는 채팅창을 열지 않는다 — ?popup=ai_chat 만으로 노출설정(exposure)을 우회해
+    // 숨겨둔 챗봇을 여는 구멍이 되면 안 되므로(rid는 실제로 푸시를 받은 사람만 가진 값).
+    if (!rid) return;
+    openChat();
+    legalGet('/api/legal/pending-answer/' + encodeURIComponent(rid))
+      .then(function (r) { return r.json(); })
+      .catch(function () { return { ok: false }; })
+      .then(function (data) {
+        if (data && data.ok) renderRestoredAnswer(data);
+        else renderExpiredNotice();
       });
-    });
+  }
 
-    document.querySelectorAll('#nrya-overlays .nrya-mapmodal-zoom button').forEach(function (b) {
-      b.addEventListener('click', function () { mScale = Math.max(1, Math.min(6, mScale * (b.dataset.z === 'in' ? 1.35 : 1 / 1.35))); applyMap(); });
-    });
+  /**
+   * 서버가 보관하고 있던 질문/답변을 평소의 말풍선 쌍(내 질문 → 나리야 답변)으로 그린다.
+   * @param {object} data - {ok:true, query, answer, sources, note}
+   * [연계] ← checkAnswerDeepLink. → answerHTML(평소 답변과 똑같이 근거 아코디언까지 렌더).
+   */
+  function renderRestoredAnswer(data) {
+    var body = document.getElementById('nryaChatBody'); if (!body) return;
+    var me = document.createElement('div'); me.className = 'nrya-krow nrya-me';
+    me.innerHTML = '<div class="nrya-kbrow"><div class="nrya-kbub"></div><span class="nrya-ktime">지금</span></div>';
+    me.querySelector('.nrya-kbub').textContent = data.query || '';
+    body.appendChild(me);
+    appendAiRow(answerHTML(data.query || '', data));
+  }
 
-    if (!stage) return;
-    var pts = {}, startDist = 0, startScale = 1, lastX = 0, lastY = 0, dragging = false;
-    function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
-    stage.addEventListener('pointerdown', function (e) {
-      stage.setPointerCapture(e.pointerId); pts[e.pointerId] = { x: e.clientX, y: e.clientY };
-      var ids = Object.keys(pts);
-      if (ids.length === 2) { startDist = dist(pts[ids[0]], pts[ids[1]]); startScale = mScale; }
-      else { dragging = true; lastX = e.clientX; lastY = e.clientY; }
+  /**
+   * 보관 기한(3시간)이 지났거나 이미 확인한 답변이라 복원할 게 없을 때의 안내 말풍선.
+   * 원문 질문은 서버도 이미 지워 복원할 수 없으므로, 다시 물어보도록 입력창에 포커스만 준다.
+   * [연계] ← checkAnswerDeepLink.
+   */
+  function renderExpiredNotice() {
+    var bub = appendAiRow('이전 답변을 찾을 수 없어요. 다시 확인해 볼까요?' +
+      '<div class="nrya-consent-btns"><button type="button" class="nrya-consent-btn nrya-yes nrya-reask">다시 질문하기</button></div>');
+    if (!bub) return;
+    bub.querySelector('.nrya-reask').addEventListener('click', function () {
+      var i = document.getElementById('nryaChatInput'); if (i) i.focus();
     });
-    stage.addEventListener('pointermove', function (e) {
-      if (!pts[e.pointerId]) return; pts[e.pointerId] = { x: e.clientX, y: e.clientY };
-      var ids = Object.keys(pts);
-      if (ids.length === 2) { var d = dist(pts[ids[0]], pts[ids[1]]); if (startDist > 0) { mScale = Math.max(1, Math.min(6, startScale * d / startDist)); applyMap(); } }
-      else if (dragging) { mX += e.clientX - lastX; mY += e.clientY - lastY; lastX = e.clientX; lastY = e.clientY; applyMap(); }
-    });
-    function endPtr(e) { delete pts[e.pointerId]; if (Object.keys(pts).length < 2) startDist = 0; if (Object.keys(pts).length === 0) dragging = false; }
-    stage.addEventListener('pointerup', endPtr); stage.addEventListener('pointercancel', endPtr);
-    stage.addEventListener('wheel', function (e) { e.preventDefault(); mScale = Math.max(1, Math.min(6, mScale * (e.deltaY < 0 ? 1.12 : 1 / 1.12))); applyMap(); }, { passive: false });
   }
 
   // ============================================================================
   // 부트스트랩
   // ============================================================================
 
-  /** 부트스트랩: 오버레이 주입 + 서버 노출설정 로드 + 탭 변화 옵저버 등록. */
+  /** 부트스트랩: 오버레이 주입 + 서버 노출설정 로드 + 탭 변화 옵저버 등록 + 완료푸시 딥링크 처리. */
   function boot() {
     ensureOverlays();
+    checkAnswerDeepLink();   // 답변완료 푸시로 들어왔으면 채팅창 자동 오픈 + 답변 복원
 
     // 서버 노출설정 로드(기본 off) → FAB 재평가
     fetchConfig();

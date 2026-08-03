@@ -1,0 +1,540 @@
+<title>노출암 애매 판정 검토</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #f5f7f8;
+    --surface: #ffffff;
+    --surface-2: #eef2f4;
+    --ink: #16202a;
+    --muted: #5b6b78;
+    --faint: #93a2ad;
+    --border: #dce3e8;
+    --accent: #0e7c86;
+    --accent-ink: #ffffff;
+    --ok: #1f8f5f;
+    --ok-bg: #e7f5ee;
+    --land: #b9762a;
+    --land-bg: #faf0e2;
+    --hold: #7a8590;
+    --hold-bg: #eef1f3;
+    --shadow: 0 1px 2px rgba(20, 30, 40, 0.06), 0 8px 24px rgba(20, 30, 40, 0.06);
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10151b;
+      --surface: #171e27;
+      --surface-2: #1d2530;
+      --ink: #e7ecf0;
+      --muted: #8b9aa6;
+      --faint: #5b6b78;
+      --border: #26313c;
+      --accent: #55d6c9;
+      --accent-ink: #0a1a18;
+      --ok: #3fbf85;
+      --ok-bg: #10281f;
+      --land: #dd9a4e;
+      --land-bg: #2b210f;
+      --hold: #93a0ab;
+      --hold-bg: #1c232b;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151b; --surface: #171e27; --surface-2: #1d2530; --ink: #e7ecf0;
+    --muted: #8b9aa6; --faint: #5b6b78; --border: #26313c; --accent: #55d6c9;
+    --accent-ink: #0a1a18; --ok: #3fbf85; --ok-bg: #10281f; --land: #dd9a4e;
+    --land-bg: #2b210f; --hold: #93a0ab; --hold-bg: #1c232b;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f7f8; --surface: #ffffff; --surface-2: #eef2f4; --ink: #16202a;
+    --muted: #5b6b78; --faint: #93a2ad; --border: #dce3e8; --accent: #0e7c86;
+    --accent-ink: #ffffff; --ok: #1f8f5f; --ok-bg: #e7f5ee; --land: #b9762a;
+    --land-bg: #faf0e2; --hold: #7a8590; --hold-bg: #eef1f3;
+    --shadow: 0 1px 2px rgba(20, 30, 40, 0.06), 0 8px 24px rgba(20, 30, 40, 0.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 0 16px 96px; }
+
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px 12px;
+  }
+  header.top .inner { max-width: 680px; margin: 0 auto; }
+  .title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .title-row h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: 0.01em; }
+  .title-row .count { font-family: var(--mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .progress-track { height: 4px; border-radius: 2px; background: var(--surface-2); margin-top: 10px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); transition: width 0.25s ease; }
+  .meta-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .listbtn {
+    font-family: var(--sans); font-size: 12.5px; color: var(--muted); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 7px; padding: 5px 10px; cursor: pointer;
+  }
+  .listbtn:hover { color: var(--ink); border-color: var(--accent); }
+
+  .chipgrid {
+    display: none; flex-wrap: wrap; gap: 6px; padding: 12px 0 0; max-height: 220px; overflow-y: auto;
+  }
+  .chipgrid.open { display: flex; }
+  .chip {
+    font-family: var(--mono); font-size: 11px; padding: 4px 7px; border-radius: 5px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer;
+  }
+  .chip.judged { color: var(--ok); border-color: var(--ok); background: var(--ok-bg); }
+  .chip.current { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  main { padding-top: 18px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+
+  .idbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2);
+  }
+  .idbar .id { font-family: var(--mono); font-weight: 600; font-size: 14px; }
+  .badge {
+    font-family: var(--sans); font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 100px;
+    letter-spacing: 0.01em;
+  }
+  .badge.region { background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+
+  .imgwrap { position: relative; background: #0b1116; aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; }
+  .imgwrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .imgtoggle {
+    position: absolute; bottom: 10px; right: 10px;
+    font-family: var(--sans); font-size: 12px; font-weight: 600; color: #fff;
+    background: rgba(20, 26, 32, 0.72); border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px; padding: 7px 12px; cursor: pointer; backdrop-filter: blur(6px);
+  }
+  .imgtoggle:hover { background: rgba(20, 26, 32, 0.9); }
+
+  .datastrip {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+    background: var(--border); border-bottom: 1px solid var(--border);
+  }
+  .datastrip .cell { background: var(--surface); padding: 10px 14px; }
+  .datastrip .cell .k { font-size: 10.5px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
+  .datastrip .cell .v { font-family: var(--mono); font-size: 13.5px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+  .aipanel { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .aipanel .verdictrow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .pill { font-family: var(--mono); font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 6px; }
+  .pill.water { background: var(--ok-bg); color: var(--ok); }
+  .pill.land { background: var(--land-bg); color: var(--land); }
+  .pill.other { background: var(--hold-bg); color: var(--hold); }
+  .pill.basis { background: var(--surface-2); color: var(--muted); font-weight: 500; }
+  .aipanel .note { font-size: 13.5px; color: var(--ink); background: var(--surface-2); border-left: 3px solid var(--accent); padding: 9px 12px; border-radius: 0 8px 8px 0; }
+
+  .judgepanel { padding: 14px 16px 16px; }
+  .judgepanel .label { font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .options { display: flex; flex-direction: column; gap: 7px; }
+  .opt {
+    display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; cursor: pointer; background: var(--surface); transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover { border-color: var(--accent); }
+  .opt.selected { border-color: var(--accent); background: var(--surface-2); }
+  .opt .dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--faint); flex: none; position: relative; }
+  .opt.selected .dot { border-color: var(--accent); }
+  .opt.selected .dot::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--accent); }
+  .opt .txt { font-size: 13.5px; flex: 1; }
+  .opt .key { font-family: var(--mono); font-size: 10.5px; color: var(--faint); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  .opt input[type="number"] {
+    width: 84px; font-family: var(--mono); font-size: 13px; padding: 5px 7px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--ink);
+  }
+  .opt input[type="number"]:disabled { opacity: 0.4; }
+
+  .memowrap { margin-top: 12px; }
+  .memowrap textarea {
+    width: 100%; min-height: 52px; resize: vertical; font-family: var(--sans); font-size: 13px;
+    padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--ink);
+  }
+  .memowrap textarea:focus, .opt input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  footer.bottom {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+    background: var(--bg); border-top: 1px solid var(--border); padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  }
+  footer.bottom .inner { max-width: 680px; margin: 0 auto; display: flex; gap: 8px; }
+  button.navbtn {
+    font-family: var(--sans); font-size: 13.5px; font-weight: 600; border-radius: 9px; padding: 11px 14px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer;
+  }
+  button.navbtn:disabled { opacity: 0.35; cursor: default; }
+  button.navbtn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); flex: 1; }
+  button.navbtn.ghost { color: var(--muted); }
+  button.navbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .done-screen { text-align: center; padding: 60px 20px; }
+  .done-screen h2 { font-size: 18px; margin-bottom: 8px; }
+  .done-screen p { color: var(--muted); font-size: 13.5px; margin-bottom: 20px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(10, 14, 18, 0.55); align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow);
+    width: 100%; max-width: 620px; max-height: 82vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal .mhead { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .modal .mhead h2 { font-size: 14.5px; margin: 0 0 4px; }
+  .modal .mhead p { font-size: 12.5px; color: var(--muted); margin: 0; }
+  .modal .mbody { padding: 12px 16px; overflow: auto; flex: 1; }
+  .modal textarea {
+    width: 100%; height: 260px; font-family: var(--mono); font-size: 11.5px; line-height: 1.4;
+    padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--ink);
+    resize: vertical;
+  }
+  .modal .mfoot { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+  .modal .mfoot .status { font-size: 12px; color: var(--ok); margin-right: auto; align-self: center; }
+  #downloadLink {
+    display: block; text-align: center; font-family: var(--sans); font-weight: 600; font-size: 13.5px;
+    text-decoration: none; color: var(--accent-ink); background: var(--accent);
+    border-radius: 9px; padding: 11px 14px; margin-bottom: 10px;
+  }
+  #downloadLink:hover { filter: brightness(1.05); }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="inner">
+      <div class="title-row">
+        <h1>노출암 애매 판정 검토 · 오퍼스</h1>
+        <span class="count" id="countLabel">0 / 0</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <div class="meta-row">
+        <button class="listbtn" id="listToggle" type="button">전체 목록 ▾</button>
+        <button class="listbtn" id="exportBtn" type="button">결과 내보내기</button>
+      </div>
+      <div class="chipgrid" id="chipGrid"></div>
+    </div>
+  </header>
+
+  <main id="mainArea"></main>
+</div>
+
+<footer class="bottom">
+  <div class="inner">
+    <button class="navbtn ghost" id="prevBtn" type="button">← 이전</button>
+    <button class="navbtn primary" id="nextBtn" type="button">저장하고 다음 →</button>
+  </div>
+</footer>
+
+<div class="modal-backdrop" id="exportModal">
+  <div class="modal">
+    <div class="mhead">
+      <h2>내보내기 결과</h2>
+      <p>아래 링크를 직접 클릭해 파일로 저장하세요. 안 되면 텍스트를 전체 선택해 복사해도 됩니다.</p>
+    </div>
+    <div class="mbody">
+      <a id="downloadLink" href="#" download="hazard_rock_ambiguous_review.json">⬇ hazard_rock_ambiguous_review.json 다운로드</a>
+      <textarea id="exportText" readonly></textarea>
+    </div>
+    <div class="mfoot">
+      <span class="status" id="copyStatus"></span>
+      <button class="navbtn" id="selectAllBtn" type="button">전체 선택</button>
+      <button class="navbtn primary" id="copyBtn" type="button" style="flex:none;">클립보드에 복사</button>
+      <button class="navbtn ghost" id="closeModalBtn" type="button">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/*__DATA__*/
+
+const LS_JUDGMENTS = "seagnal_hazard_review_judgments_v1";
+const LS_INDEX = "seagnal_hazard_review_index_v1";
+
+function loadJudgments() {
+  try { return JSON.parse(localStorage.getItem(LS_JUDGMENTS) || "{}"); } catch (e) { return {}; }
+}
+function saveJudgments(j) { localStorage.setItem(LS_JUDGMENTS, JSON.stringify(j)); }
+function loadIndex() {
+  const v = parseInt(localStorage.getItem(LS_INDEX) || "0", 10);
+  return isNaN(v) ? 0 : Math.max(0, Math.min(v, REVIEW_DATA.length - 1));
+}
+function saveIndex(i) { localStorage.setItem(LS_INDEX, String(i)); }
+
+let judgments = loadJudgments();
+let idx = loadIndex();
+let showWide = false;
+let draft = null; // in-progress selection for current card before saving
+
+const mainArea = document.getElementById("mainArea");
+const countLabel = document.getElementById("countLabel");
+const progressFill = document.getElementById("progressFill");
+const chipGrid = document.getElementById("chipGrid");
+const listToggle = document.getElementById("listToggle");
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+const exportBtn = document.getElementById("exportBtn");
+
+const VERDICT_LABEL = { water_reading: "물(간출지/수역)", land: "육지", hazard_zone_no_data: "위험구역-무데이터", no_data_uniform: "정보없음" };
+const BASIS_LABEL = { direct_number: "직접판독", contour_interpolation: "등심선추정", color_zone_only: "색구역추정", symbol_only: "심볼만", none: "근거없음" };
+
+function verdictPillClass(v) {
+  if (v === "water_reading") return "water";
+  if (v === "land") return "land";
+  return "other";
+}
+
+function judgmentCount() {
+  return Object.keys(judgments).filter(k => judgments[k] && judgments[k].decision).length;
+}
+
+function renderChips() {
+  chipGrid.innerHTML = "";
+  REVIEW_DATA.forEach((r, i) => {
+    const c = document.createElement("div");
+    c.className = "chip" + (judgments[r.id] && judgments[r.id].decision ? " judged" : "") + (i === idx ? " current" : "");
+    c.textContent = r.label;
+    c.title = r.region + " · " + VERDICT_LABEL[r.verdict];
+    c.addEventListener("click", () => { idx = i; draft = null; saveIndex(idx); render(); });
+    chipGrid.appendChild(c);
+  });
+}
+
+function updateHeader() {
+  countLabel.textContent = judgmentCount() + " / " + REVIEW_DATA.length + " 완료 · " + (idx + 1) + "번째 보는 중";
+  progressFill.style.width = Math.round((judgmentCount() / REVIEW_DATA.length) * 100) + "%";
+}
+
+function currentDecision(r) {
+  if (draft) return draft;
+  const j = judgments[r.id];
+  if (j && j.decision) return j;
+  return { decision: "confirm", customDepth: "", memo: "" };
+}
+
+function render() {
+  if (idx >= REVIEW_DATA.length) { renderDone(); updateHeader(); renderChips(); return; }
+  const r = REVIEW_DATA[idx];
+  const dec = currentDecision(r);
+  showWide = false;
+
+  mainArea.innerHTML = `
+    <div class="card">
+      <div class="idbar">
+        <span class="id">${r.label}</span>
+        <span class="badge region">${r.region}</span>
+      </div>
+      <div class="imgwrap">
+        <img id="mainImg" src="${r.centeredSrc}" alt="전자해도 크롭, 좌표 ${r.lat}, ${r.lon}" />
+        ${r.wideSrc ? '<button class="imgtoggle" id="toggleWideBtn" type="button">넓은 범위 보기</button>' : ""}
+      </div>
+      <div class="datastrip">
+        <div class="cell"><div class="k">BADA 원본수심</div><div class="v">${r.badaDepth != null ? r.badaDepth.toFixed(2) + "m" : "—"}</div></div>
+        <div class="cell"><div class="k">해안 거리</div><div class="v">${r.badaDistM != null ? r.badaDistM + "m" : "—"}</div></div>
+        <div class="cell"><div class="k">좌표</div><div class="v">${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}</div></div>
+      </div>
+      <div class="aipanel">
+        <div class="verdictrow">
+          <span class="pill ${verdictPillClass(r.verdict)}">${VERDICT_LABEL[r.verdict] || r.verdict}</span>
+          <span class="pill basis">${BASIS_LABEL[r.readingBasis] || r.readingBasis}</span>
+          <span class="pill basis">AI 추정값: ${r.chartDepthM != null ? r.chartDepthM + "m" : "null"}</span>
+        </div>
+        <div class="note">${(r.note || "").replace(/</g, "&lt;")}</div>
+      </div>
+      <div class="judgepanel">
+        <div class="label">내 판단</div>
+        <div class="options">
+          <label class="opt" data-val="confirm">
+            <span class="dot"></span>
+            <span class="txt">AI 판정 인정 (${VERDICT_LABEL[r.verdict] || r.verdict}${r.chartDepthM != null ? ", " + r.chartDepthM + "m" : ""})</span>
+            <span class="key">1</span>
+          </label>
+          <label class="opt" data-val="land">
+            <span class="dot"></span>
+            <span class="txt">육지(land)로 정정</span>
+            <span class="key">2</span>
+          </label>
+          <label class="opt" data-val="water_custom">
+            <span class="dot"></span>
+            <span class="txt">물로 정정, 수심 직접 입력</span>
+            <input type="number" step="0.1" id="customDepthInput" placeholder="m" disabled />
+            <span class="key">3</span>
+          </label>
+          <label class="opt" data-val="hold">
+            <span class="dot"></span>
+            <span class="txt">판단 보류 (나중에 재검토)</span>
+            <span class="key">4</span>
+          </label>
+        </div>
+        <div class="memowrap">
+          <textarea id="memoInput" placeholder="메모(선택)"></textarea>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.querySelectorAll(".opt").forEach(el => {
+    if (el.dataset.val === dec.decision) el.classList.add("selected");
+    el.addEventListener("click", (e) => {
+      if (e.target.tagName === "INPUT") return;
+      selectOption(el.dataset.val);
+    });
+  });
+  const customInput = document.getElementById("customDepthInput");
+  if (customInput) {
+    customInput.value = dec.customDepth || "";
+    customInput.disabled = dec.decision !== "water_custom";
+    customInput.addEventListener("click", (e) => e.stopPropagation());
+    customInput.addEventListener("input", () => { getDraft().customDepth = customInput.value; });
+  }
+  const memoInput = document.getElementById("memoInput");
+  memoInput.value = dec.memo || "";
+  memoInput.addEventListener("input", () => { getDraft().memo = memoInput.value; });
+
+  if (r.wideSrc) {
+    document.getElementById("toggleWideBtn").addEventListener("click", () => {
+      showWide = !showWide;
+      const img = document.getElementById("mainImg");
+      img.src = showWide ? r.wideSrc : r.centeredSrc;
+      document.getElementById("toggleWideBtn").textContent = showWide ? "가까운 범위로 돌아가기" : "넓은 범위 보기";
+    });
+  }
+
+  prevBtn.disabled = idx === 0;
+  nextBtn.textContent = idx === REVIEW_DATA.length - 1 ? "저장하고 마치기" : "저장하고 다음 →";
+
+  updateHeader();
+  renderChips();
+}
+
+function getDraft() {
+  if (!draft) draft = JSON.parse(JSON.stringify(currentDecision(REVIEW_DATA[idx])));
+  return draft;
+}
+
+function selectOption(val) {
+  getDraft().decision = val;
+  document.querySelectorAll(".opt").forEach(el => el.classList.toggle("selected", el.dataset.val === val));
+  const customInput = document.getElementById("customDepthInput");
+  if (customInput) customInput.disabled = val !== "water_custom";
+}
+
+function commitCurrent() {
+  const r = REVIEW_DATA[idx];
+  const d = draft || currentDecision(r);
+  judgments[r.id] = {
+    id: r.id, label: r.label, decision: d.decision,
+    customDepth: d.decision === "water_custom" && d.customDepth !== "" ? parseFloat(d.customDepth) : null,
+    memo: d.memo || "", judgedAt: new Date().toISOString().slice(0, 10)
+  };
+  saveJudgments(judgments);
+  draft = null;
+}
+
+function renderDone() {
+  mainArea.innerHTML = `
+    <div class="card done-screen">
+      <h2>${REVIEW_DATA.length}건 전부 확인했어요</h2>
+      <p>완료 ${judgmentCount()} / ${REVIEW_DATA.length}건. 아래에서 결과를 내보내세요.</p>
+      <button class="navbtn primary" id="exportBtn2" type="button" style="width:auto;padding:11px 20px;">결과 내보내기</button>
+    </div>
+  `;
+  document.getElementById("exportBtn2").addEventListener("click", exportResults);
+  nextBtn.textContent = "완료";
+}
+
+function buildExportPayload() {
+  return REVIEW_DATA.map(r => {
+    const j = judgments[r.id] || null;
+    return {
+      id: r.id, label: r.label, region: r.region, lat: r.lat, lon: r.lon,
+      badaDepth: r.badaDepth, badaDistM: r.badaDistM,
+      aiVerdict: r.verdict, aiChartDepthM: r.chartDepthM, aiReadingBasis: r.readingBasis, aiNote: r.note,
+      humanDecision: j ? j.decision : null,
+      humanChartDepthM: j ? (j.decision === "confirm" ? r.chartDepthM : j.decision === "land" ? null : j.decision === "water_custom" ? j.customDepth : null) : null,
+      humanVerdict: j ? (j.decision === "confirm" ? r.verdict : j.decision === "land" ? "land" : j.decision === "water_custom" ? "water_reading" : j.decision === "hold" ? "hold" : null) : null,
+      memo: j ? j.memo : "", judgedAt: j ? j.judgedAt : null
+    };
+  });
+}
+
+let lastExportUrl = null;
+
+function exportResults() {
+  const text = JSON.stringify(buildExportPayload(), null, 2);
+
+  if (lastExportUrl) URL.revokeObjectURL(lastExportUrl);
+  const blob = new Blob([text], { type: "application/json" });
+  lastExportUrl = URL.createObjectURL(blob);
+  document.getElementById("downloadLink").href = lastExportUrl;
+
+  const ta = document.getElementById("exportText");
+  ta.value = text;
+  document.getElementById("exportModal").classList.add("open");
+  document.getElementById("copyStatus").textContent = "";
+}
+
+document.getElementById("closeModalBtn").addEventListener("click", () => {
+  document.getElementById("exportModal").classList.remove("open");
+});
+document.getElementById("exportModal").addEventListener("click", (e) => {
+  if (e.target.id === "exportModal") document.getElementById("exportModal").classList.remove("open");
+});
+document.getElementById("selectAllBtn").addEventListener("click", () => {
+  const ta = document.getElementById("exportText"); ta.focus(); ta.select();
+});
+document.getElementById("copyBtn").addEventListener("click", async () => {
+  const ta = document.getElementById("exportText");
+  ta.focus(); ta.select();
+  const status = document.getElementById("copyStatus");
+  try {
+    await navigator.clipboard.writeText(ta.value);
+    status.textContent = "복사됨";
+  } catch (e) {
+    try {
+      document.execCommand("copy");
+      status.textContent = "복사됨";
+    } catch (e2) {
+      status.textContent = "자동 복사 실패 — 직접 Ctrl/Cmd+C로 복사하세요";
+    }
+  }
+});
+
+prevBtn.addEventListener("click", () => {
+  if (idx > 0) { commitCurrent(); idx--; saveIndex(idx); render(); }
+});
+nextBtn.addEventListener("click", () => {
+  commitCurrent();
+  if (idx < REVIEW_DATA.length - 1) { idx++; saveIndex(idx); render(); } else { idx = REVIEW_DATA.length; saveIndex(idx); render(); }
+});
+listToggle.addEventListener("click", () => {
+  chipGrid.classList.toggle("open");
+  listToggle.textContent = chipGrid.classList.contains("open") ? "전체 목록 ▴" : "전체 목록 ▾";
+});
+exportBtn.addEventListener("click", exportResults);
+
+document.addEventListener("keydown", (e) => {
+  if (idx >= REVIEW_DATA.length) return;
+  if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return;
+  if (e.key === "ArrowRight") { nextBtn.click(); }
+  else if (e.key === "ArrowLeft") { prevBtn.click(); }
+  else if (e.key === "1") { selectOption("confirm"); getDraft().decision = "confirm"; }
+  else if (e.key === "2") { selectOption("land"); getDraft().decision = "land"; }
+  else if (e.key === "3") { selectOption("water_custom"); getDraft().decision = "water_custom"; document.getElementById("customDepthInput").focus(); }
+  else if (e.key === "4") { selectOption("hold"); getDraft().decision = "hold"; }
+});
+
+render();
+</script>

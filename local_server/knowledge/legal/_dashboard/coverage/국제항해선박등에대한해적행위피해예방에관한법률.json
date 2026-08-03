@@ -1,0 +1,180 @@
+{
+ "law": "국제항해선박 등에 대한 해적행위 피해예방에 관한 법률",
+ "slug": "국제항해선박등에대한해적행위피해예방에관한법률",
+ "total_raw_articles": 93,
+ "total_uncited": 3,
+ "coverage_pct": 96.8,
+ "per_family": {
+  "법률": {
+   "raw_count": 50,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 15,
+   "uncited_count": 1
+  },
+  "시행규칙": {
+   "raw_count": 28,
+   "uncited_count": 2
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조"
+  ],
+  "시행규칙": [
+   "1조",
+   "2조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "16조",
+    "raw_hang": 9,
+    "missing": [
+     "⑧",
+     "⑨"
+    ]
+   },
+   {
+    "article": "6조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "12조의2",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   },
+   {
+    "article": "15조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "5조",
+    "raw_hang": 8,
+    "missing": [
+     "⑤",
+     "⑥",
+     "⑦",
+     "⑧"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "12조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "24조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "6조",
+    "raw_hang": 4,
+    "missing": [
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "13조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "18조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "19조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "③"
+    ]
+   },
+   {
+    "article": "23조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "6조의2",
+    "raw_hang": 4,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "11조",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   },
+   {
+    "article": "21조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "22조",
+    "raw_hang": 3,
+    "missing": [
+     "①"
+    ]
+   }
+  ]
+ }
+}

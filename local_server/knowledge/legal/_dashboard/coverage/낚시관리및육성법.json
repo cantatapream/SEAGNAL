@@ -1,0 +1,95 @@
+{
+ "law": "낚시 관리 및 육성법",
+ "slug": "낚시관리및육성법",
+ "total_raw_articles": 129,
+ "total_uncited": 15,
+ "coverage_pct": 88.4,
+ "per_family": {
+  "법률": {
+   "raw_count": 63,
+   "uncited_count": 1
+  },
+  "시행령": {
+   "raw_count": 28,
+   "uncited_count": 4
+  },
+  "시행규칙": {
+   "raw_count": 38,
+   "uncited_count": 10
+  }
+ },
+ "uncited_articles": {
+  "법률": [
+   "52조의2"
+  ],
+  "시행령": [
+   "1조",
+   "12조",
+   "24조",
+   "24조의2"
+  ],
+  "시행규칙": [
+   "1조",
+   "4조",
+   "6조",
+   "8조",
+   "10조",
+   "13조",
+   "14조",
+   "18조",
+   "22조의2",
+   "29조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "43조",
+    "raw_hang": 7,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④",
+     "⑤",
+     "⑥",
+     "⑦"
+    ]
+   },
+   {
+    "article": "52조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "18조",
+    "raw_hang": 6,
+    "missing": [
+     "②",
+     "⑥"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "11조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "23조의5",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ]
+ }
+}

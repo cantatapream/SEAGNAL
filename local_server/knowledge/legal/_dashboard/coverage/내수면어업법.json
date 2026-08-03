@@ -1,0 +1,269 @@
+{
+ "law": "내수면어업법",
+ "slug": "내수면어업법",
+ "total_raw_articles": 86,
+ "total_uncited": 13,
+ "coverage_pct": 84.9,
+ "per_family": {
+  "법률": {
+   "raw_count": 35,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 22,
+   "uncited_count": 3
+  },
+  "시행규칙": {
+   "raw_count": 29,
+   "uncited_count": 10
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "17조의2",
+   "18조"
+  ],
+  "시행규칙": [
+   "1조",
+   "3조",
+   "4조",
+   "5조",
+   "7조",
+   "8조",
+   "10조",
+   "16조",
+   "24조",
+   "25조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "19조의3",
+    "raw_hang": 6,
+    "missing": [
+     "③",
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "19조의4",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "19조의5",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "15조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "④"
+    ]
+   },
+   {
+    "article": "19조의6",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "③"
+    ]
+   },
+   {
+    "article": "7조",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 4,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "10조",
+    "raw_hang": 5,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "11조",
+    "raw_hang": 5,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "12조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "19조의2",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "27조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "6조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "15조의3",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "15조의4",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "11조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "12조",
+    "raw_hang": 5,
+    "missing": [
+     "③",
+     "⑤"
+    ]
+   },
+   {
+    "article": "7조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "16조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "22조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "②",
+     "③",
+     "④"
+    ]
+   },
+   {
+    "article": "6조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "21조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "23조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "④"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   }
+  ]
+ }
+}

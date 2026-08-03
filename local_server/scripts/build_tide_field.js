@@ -125,8 +125,9 @@ function parseCellKey(key) {
     return { gx, gy };
 }
 
-/** BADA 격자 1파일을 스트림으로 읽어 셀 누적기에 합산 */
-function accumulateBathFile(filePath, cells) {
+/** BADA 격자 1파일을 스트림으로 읽어 셀 누적기에 합산. filterFn(lat,lon)→bool 로 대상 해역 교체 가능(기본 서해·남해). */
+function accumulateBathFile(filePath, cells, filterFn) {
+    filterFn = filterFn || C.isWestSouthSea;
     return new Promise((resolve, reject) => {
         let kept = 0;
         const rl = readline.createInterface({ input: fs.createReadStream(filePath), crlfDelay: Infinity });
@@ -137,7 +138,7 @@ function accumulateBathFile(filePath, cells) {
             const lat = parseFloat(parts[1]);
             const depth = parseFloat(parts[2]);
             if (isNaN(lon) || isNaN(lat) || isNaN(depth)) return;
-            if (!C.isWestSouthSea(lat, lon)) return;
+            if (!filterFn(lat, lon)) return;
             // [수심 사전필터] 드러날 수 있는 얕은 연안만. 깊은 수로/먼바다는 버려
             //   셀 수를 통제한다(100m 격자 폭발 방지의 1차 게이트).
             if (depth > CFG.SHALLOW_MAX_M) return;
@@ -153,7 +154,7 @@ function accumulateBathFile(filePath, cells) {
     });
 }
 
-async function loadBathymetryCells() {
+async function loadBathymetryCells(filterFn) {
     const dir = C.BATHYMETRY_DIR;
     const cells = new Map(); // key -> {sumDepth, n}
     if (!fs.existsSync(dir)) {
@@ -168,7 +169,7 @@ async function loadBathymetryCells() {
     log(`BADA 수심 파일 ${files.length}개 로드 시작...`);
     for (const f of files) {
         try {
-            const kept = await accumulateBathFile(path.join(dir, f), cells);
+            const kept = await accumulateBathFile(path.join(dir, f), cells, filterFn);
             if (kept > 0) log(`  ${f}: 대상 해역 ${kept}점`);
         } catch (e) {
             warn(`  ${f} 읽기 실패: ${e.message}`);
@@ -429,7 +430,13 @@ function writeOutputs(cellArr, anchors, meta) {
 }
 
 // 모듈로도 import 가능하게 export (테스트/스케줄러 트리거 대비)
-module.exports = { main, loadTideTable, buildStationMTL };
+// [제주 재사용] loadBathymetryCells/z0AtPoint/buildBucketAnchors/cellCenter/parseCellKey 는
+//   지역 특정 로직이 없는 순수 함수라 build_jeju_bathy_grid.js 가 그대로 가져다 쓴다.
+module.exports = {
+    main, loadTideTable, buildStationMTL,
+    loadBathymetryCells, z0AtPoint, buildBucketAnchors,
+    cellKey, cellCenter, parseCellKey
+};
 
 if (require.main === module) {
     main().catch(e => {

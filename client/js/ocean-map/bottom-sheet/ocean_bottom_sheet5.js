@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: js/ocean_bottom_sheet5.js
- * 역할: 6개 일반 카드 + 저질 분석 + 전체 오케스트레이터
+ * 역할: 6개 일반 카드 + 전체 오케스트레이터
  * [연계]
  *  - 사용하는 파일 : ocean_bottom_sheet3.js(OS.fetchTideForSheet), ocean_bottom_sheet4.js(OS.renderAstroCard/renderMoonCard),
  *                    ocean_bottom_sheet_weather/vsby.js(OS.loadWeatherCard/loadVsbyCard), ocean_bottom_sheet1.js(OS 유틸)
@@ -18,7 +18,6 @@
  * 3. 조석 카드 비동기 로딩 시작 — 3.js
  * 4. 6개 일반 카드: 오늘이면 호출, 아니면 즉시 숨김
  *    (현재 단계에서 백엔드 오류 시에는 자동으로 카드 숨김)
- * 5. 저질 버튼은 항상 표시
  *
  * [카드 자동 숨김 정책]
  * 응답이 success === false 거나 catch로 빠지면 hideCard() 호출.

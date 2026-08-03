@@ -1,0 +1,61 @@
+{
+ "law": "해양경찰법",
+ "slug": "해양경찰법",
+ "total_raw_articles": 22,
+ "total_uncited": 0,
+ "coverage_pct": 100.0,
+ "per_family": {
+  "법률": {
+   "raw_count": 22,
+   "uncited_count": 0
+  }
+ },
+ "uncited_articles": {
+  "법률": []
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "11조",
+    "raw_hang": 9,
+    "missing": [
+     "⑥",
+     "⑦",
+     "⑧"
+    ]
+   },
+   {
+    "article": "16조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "17조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "19조",
+    "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "18조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   }
+  ]
+ }
+}

@@ -344,7 +344,8 @@ const NotificationSettings = {
         release: true,
         night: true,
         childZones: true,  // [작업2a] 특정관리해역(연안바다/평수구역) 자식 정보 푸시 표시 (기본 ON)
-        typhoon: false     // 태풍 발생/소멸 알림 수신 (기본 OFF — 옵트인: 켠 사람에게만 전국 단위 발송)
+        typhoon: false,    // 태풍 발생/소멸 알림 수신 (기본 OFF — 옵트인: 켠 사람에게만 전국 단위 발송)
+        aiAnswer: false    // 나리야 AI 챗봇 답변완료 알림 (기본 OFF — 옵트인: 6초 넘게 걸린 답변만 본인 기기로)
     },
     init() {
         try {
@@ -392,6 +393,7 @@ function initNotificationUI() {
     const optNight = document.getElementById('push-opt-night');
     const optChildZones = document.getElementById('push-opt-childzones');
     const optTyphoon = document.getElementById('push-opt-typhoon');
+    const optAiAnswer = document.getElementById('push-opt-ai-answer');
 
     if (!master) return;
 
@@ -489,6 +491,7 @@ function initNotificationUI() {
     if (optNight) optNight.checked = s.night;
     if (optChildZones) optChildZones.checked = s.childZones;
     if (optTyphoon) optTyphoon.checked = s.typhoon;
+    if (optAiAnswer) optAiAnswer.checked = s.aiAnswer;
 }
 
 /**
@@ -528,7 +531,9 @@ function saveNotificationUI() {
         release: document.getElementById('push-opt-release')?.checked ?? true,
         night: document.getElementById('push-opt-night')?.checked ?? true,
         childZones: document.getElementById('push-opt-childzones')?.checked ?? true,
-        typhoon: document.getElementById('push-opt-typhoon')?.checked ?? true
+        typhoon: document.getElementById('push-opt-typhoon')?.checked ?? true,
+        // 옵트인(기본 OFF) — 체크박스가 없는 화면이면 켜지 않는다
+        aiAnswer: document.getElementById('push-opt-ai-answer')?.checked ?? false
     });
 }
 

@@ -1,0 +1,104 @@
+{
+ "law": "원양산업발전법",
+ "slug": "원양산업발전법",
+ "total_raw_articles": 124,
+ "total_uncited": 16,
+ "coverage_pct": 87.1,
+ "per_family": {
+  "법률": {
+   "raw_count": 51,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 30,
+   "uncited_count": 8
+  },
+  "시행규칙": {
+   "raw_count": 43,
+   "uncited_count": 8
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조",
+   "5조",
+   "6조",
+   "16조의2",
+   "16조의3",
+   "17조",
+   "18조",
+   "21조"
+  ],
+  "시행규칙": [
+   "1조",
+   "5조",
+   "6조",
+   "7조",
+   "8조",
+   "15조의2",
+   "26조",
+   "32조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "6조",
+    "raw_hang": 12,
+    "missing": [
+     "⑪",
+     "⑫"
+    ]
+   },
+   {
+    "article": "6조의2",
+    "raw_hang": 5,
+    "missing": [
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "13조",
+    "raw_hang": 10,
+    "missing": [
+     "⑧",
+     "⑩"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "20조의5",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "20조",
+    "raw_hang": 7,
+    "missing": [
+     "⑤"
+    ]
+   },
+   {
+    "article": "23조의2",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "25조의2",
+    "raw_hang": 6,
+    "missing": [
+     "⑤"
+    ]
+   }
+  ]
+ }
+}

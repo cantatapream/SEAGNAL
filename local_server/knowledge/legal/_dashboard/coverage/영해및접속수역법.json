@@ -1,0 +1,24 @@
+{
+ "law": "영해 및 접속수역법",
+ "slug": "영해및접속수역법",
+ "total_raw_articles": 18,
+ "total_uncited": 1,
+ "coverage_pct": 94.4,
+ "per_family": {
+  "법률": {
+   "raw_count": 11,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 7,
+   "uncited_count": 1
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조"
+  ]
+ },
+ "hang_gap_candidates": {}
+}

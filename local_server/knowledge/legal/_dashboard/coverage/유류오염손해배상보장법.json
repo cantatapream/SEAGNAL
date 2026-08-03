@@ -1,0 +1,107 @@
+{
+ "law": "유류오염손해배상 보장법",
+ "slug": "유류오염손해배상보장법",
+ "total_raw_articles": 90,
+ "total_uncited": 5,
+ "coverage_pct": 94.4,
+ "per_family": {
+  "법률": {
+   "raw_count": 65,
+   "uncited_count": 0
+  },
+  "시행령": {
+   "raw_count": 6,
+   "uncited_count": 1
+  },
+  "시행규칙": {
+   "raw_count": 19,
+   "uncited_count": 4
+  }
+ },
+ "uncited_articles": {
+  "법률": [],
+  "시행령": [
+   "1조"
+  ],
+  "시행규칙": [
+   "1조",
+   "10조",
+   "11조",
+   "12조"
+  ]
+ },
+ "hang_gap_candidates": {
+  "법률": [
+   {
+    "article": "39조",
+    "raw_hang": 3,
+    "missing": [
+     "②",
+     "③"
+    ]
+   },
+   {
+    "article": "36조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "50조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
+    "article": "58조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ],
+  "시행령": [
+   {
+    "article": "6조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ],
+  "시행규칙": [
+   {
+    "article": "9조",
+    "raw_hang": 6,
+    "missing": [
+     "④",
+     "⑤",
+     "⑥"
+    ]
+   },
+   {
+    "article": "3조",
+    "raw_hang": 6,
+    "missing": [
+     "⑥"
+    ]
+   },
+   {
+    "article": "5조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   },
+   {
+    "article": "6조",
+    "raw_hang": 2,
+    "missing": [
+     "②"
+    ]
+   }
+  ]
+ }
+}
