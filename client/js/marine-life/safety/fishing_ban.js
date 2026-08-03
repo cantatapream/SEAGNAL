@@ -4,6 +4,8 @@
  * 역할  : 해양안전 지도에 "낚시금지" 토글 버튼을 얹어, 낚시 관리 및 육성법
  *         제6조(지자체 조례 포함)에 따라 지정된 낚시통제(금지)구역 폴리곤을
  *         표시한다. 폴리곤을 탭하면 구역명·근거법령·통제시간·벌칙을 팝업으로 보여준다.
+ *         줌아웃 상태라 구역이 너무 작으면(라벨만 보이는 상태) 탭했을 때 팝업 대신
+ *         그 구역 범위로 지도를 먼저 확대하고, 커진 뒤 다시 탭하면 팝업이 뜬다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap), OpenLayers(ol.*)
@@ -24,6 +26,14 @@
     'use strict';
 
     var DATA_URL = '/fishing_ban_zones.json';
+
+    // 구역이 화면에서 이 크기(px)보다 작으면 "손가락으로 누르기엔 너무 작다"고 보고
+    // 팝업 대신 확대부터 한다. 라벨 글자가 11px 이라 이보다 작아지면 폴리곤이 라벨에
+    // 가려 어디를 눌러야 할지 알 수 없다(값이 클수록 더 자주 확대됨 — 조정용 상수).
+    var MIN_TAPPABLE_PX = 90;
+    // 확대 상한 — 낚시금지를 켜면 배경이 위성지도(vworld)로 자동 전환되므로 그 타일
+    // 한계(19)에 맞춰야 확대가 중간에 막히지 않는다. 못 읽으면 안전하게 18.
+    var FIT_MAX_ZOOM = 18;
 
     var _layer = null;       // 외곽선+라벨 layer
     var _fillLayer = null;   // 채움 layer
@@ -204,12 +214,17 @@
     }
 
     /**
-     * [외부 API] 지도 클릭이 낚시금지구역 폴리곤을 눌렀는지 확인한다.
-     * 예: '국동 대경도 선착장' 폴리곤을 탭 → 상세 팝업을 띄우고 true 반환(바텀시트는 안 뜬다).
+     * [외부 API] 지도 클릭이 낚시금지구역 폴리곤(또는 그 이름 라벨)을 눌렀는지 확인한다.
+     * 구역이 화면에서 얼마나 크게 보이는지에 따라 두 갈래로 나뉜다.
+     * 예1: 줌아웃 상태에서 '국동 대경도 선착장' 라벨을 탭 → 팝업 없이 그 구역 범위로
+     *      지도를 확대하고 true 반환(확대만 하고 끝 — 커진 뒤 다시 탭하면 팝업).
+     * 예2: 이미 확대돼 구역이 크게 보일 때 탭 → 상세 팝업을 띄우고 true 반환.
      * @param {ol.Map} map
      * @param {ol.MapBrowserEvent} evt
-     * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함)
+     * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함 —
+     *                    확대만 한 경우도 true 라 바텀시트가 같이 뜨지 않는다)
      * [연계] ← ocean_map.js handleMapClick — 출입통제 다음 우선순위로 호출.
+     *        → _buildDetailHtml(), ocean_map.js 의 window.oceanCreateVworldLayer.maxZoom
      *        자체 singleclick 리스너를 따로 달지 않는 이유: 그렇게 하면 handleMapClick 의
      *        바텀시트 로직과 같은 클릭에 동시에 반응해버려 팝업+바텀시트가 함께 뜬다.
      */
@@ -217,9 +232,31 @@
         if (!_visible || !_fillLayer) return false;
         var hit = map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
             if (layer === _fillLayer) return feature;
+            // 줌아웃 상태에선 폴리곤이 몇 px 밖에 안 돼 채움만으로는 잘 안 잡힌다 —
+            // 외곽선+라벨 레이어에서도 보조 판정한다(seaway.js 와 같은 패턴).
+            if (layer === _layer) return feature;
             return null;
-        });
+        }, { hitTolerance: 5 });   // 작은 구역은 손가락으로 정확히 누르기 어렵다
         if (!hit) return false;
+
+        // 화면상 크기(px) = 지오메트리 범위(m, EPSG:3857) ÷ 해상도(m/px)
+        var extent = hit.getGeometry() && hit.getGeometry().getExtent();
+        var resolution = map.getView().getResolution();
+        if (extent && resolution) {
+            var widthPx = (extent[2] - extent[0]) / resolution;
+            var heightPx = (extent[3] - extent[1]) / resolution;
+            if (widthPx < MIN_TAPPABLE_PX && heightPx < MIN_TAPPABLE_PX) {
+                var vworldMaxZoom = window.oceanCreateVworldLayer && window.oceanCreateVworldLayer.maxZoom;
+                map.getView().fit(extent, {
+                    padding: [80, 80, 80, 80],
+                    duration: 400,
+                    // 아주 작은 선착장 구역이 줌 20+ 까지 과확대되는 걸 막는 상한
+                    maxZoom: vworldMaxZoom || FIT_MAX_ZOOM
+                });
+                return true;   // 확대만 하고 팝업은 띄우지 않는다(클릭은 소비)
+            }
+        }
+
         var name = hit.get('name') || '낚시금지구역';
         if (typeof window.showSeagnalModal === 'function') {
             window.showSeagnalModal(name, _buildDetailHtml(hit), 'info');
