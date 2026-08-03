@@ -498,6 +498,14 @@ router.get('/api/legal/src', (req, res) => {
     const full = path.resolve(RAW_DIR, rel);
     if (full !== RAW_DIR && !full.startsWith(RAW_DIR + path.sep)) return res.status(403).send('경로 이탈'); // 샌드박스
     if (!fs.existsSync(full) || !fs.statSync(full).isFile()) return res.status(404).send('없음');
+    // PDF/HWP/HWPX는 브라우저가 인라인으로 못 띄우는 경우가 많아(특히 HWP는 뷰어 자체가 없음)
+    // 흰 화면만 뜨는 문제가 있었음 — 다운로드로 강제해 새 화면 전환 없이 파일로 받게 한다.
+    // (txt/md/png/jpg/gif는 리뷰 카드 <img>/원문 표시용이라 그대로 인라인 유지)
+    if (ext === '.pdf' || ext === '.hwp' || ext === '.hwpx') {
+      const filename = path.basename(full);
+      res.setHeader('Content-Disposition',
+        'attachment; filename="download' + ext + '"; filename*=UTF-8\'\'' + encodeURIComponent(filename));
+    }
     res.type(SRC_MIME[ext]).sendFile(full);
   } catch (e) { res.status(500).send(String(e.message || e)); }
 });
