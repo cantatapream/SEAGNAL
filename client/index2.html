@@ -3449,13 +3449,13 @@
                             <i class="fa-solid fa-route"></i>
                             <span class="ocean-overlay-label" data-line1="항로">항로</span>
                         </button>
-                        <!-- 항행경보 버튼: js/marine-life/safety/navigational_warning.js 가 바인딩.
+                        <!-- 항행경보 토글: js/marine-life/safety/navigational_warning.js 가 바인딩.
                              해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
                              CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
-                             토글(지속 레이어)이 아니라 안내(ⓘ) 버튼과 같은 클릭-오픈 방식 —
-                             현재 발효 중인 항행경보(선박사고·표류장애물·해상사격훈련 등) 목록을
-                             팝업으로 보여준다.
-                             [서버 API] GET /api/navigational-warning/list (국립해양조사원, 30분 캐시) -->
+                             켜면 오늘 발효 중인 항행경보(선박사고·표류장애물·해상사격훈련 등)의
+                             구역을 원형/다각형으로 그린다. 켜면 배경지도가 전자해도로 자동 전환된다.
+                             [서버 API] GET /api/navigational-warning/list (텍스트: data.go.kr 공식 API,
+                                      좌표: KHOA 내부 API 보강, 30분 캐시) -->
                         <button class="ocean-overlay-btn" id="ocean-navwarn-btn" title="항행경보">
                             <i class="fa-solid fa-triangle-exclamation"></i>
                             <span class="ocean-overlay-label" data-line1="항행" data-line2="경보">항행경보</span>
@@ -5012,8 +5012,8 @@
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <script src="js/marine-life/safety/seaway.js"></script>
 
-    <!-- 항행경보 팝업 — 해양안전 하위탭 전용. 지도 레이어가 아니라 버튼 클릭 시
-         서버 API를 호출해 목록 팝업만 띄우므로 window.getOceanMap 의존이 없지만,
+    <!-- 항행경보 구역 레이어 — 해양안전 하위탭 전용. seaway.js 와 동일하게
+         스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <script src="js/marine-life/safety/navigational_warning.js"></script>
 
