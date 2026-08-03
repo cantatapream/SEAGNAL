@@ -7,7 +7,7 @@
  * [설명]
  * 해양종합정보 지도에서 사용하는 API의 메인 진입점입니다.
  * 이 파일은 수심 조회 기능을 직접 제공하고,
- * 나머지 해양 API들(ocean2~5)을 하나로 묶어 등록합니다.
+ * 나머지 해양 API들(ocean2~4)을 하나로 묶어 등록합니다.
  *
  * - GET /api/ocean/depth → 특정 좌표의 수심 조회 (BADA2024 격자 데이터)
  *
@@ -15,7 +15,6 @@
  * - ocean2.js → ROMS 유향유속/수온 API
  * - ocean3.js → 기상청 풍향속 API
  * - ocean4.js → 파고 + 종합 데이터 API
- * - ocean5.js → 저질 AI 판독 API
  * - server.js → app.use()로 이 라우터 등록
  * - data/bathymetry/ → BADA2024 수심 격자 파일 (Fly.io Volume에 저장)
  *
