@@ -787,6 +787,10 @@
         body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
         /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
         body.ls-mode.ls-safety #ocean-topleft-controls { top: 12px; }
+        /* 해양안전생활 화면은 출입통제 등 전용 팝업만 쓴다 — 해양종합정보의 해점 정보
+           바텀시트는 여기서 절대 뜨면 안 됨(access_control.js 의 클릭 우선순위 처리와
+           별개로, 다른 경로로라도 열리지 않도록 화면 자체에서 항상 숨김) */
+        body.ls-mode.ls-safety #ocean-bottom-sheet { display: none !important; }
 
         /* ── 물빠짐 ON 일 때의 하단 스택 정리 ────────────────────────
            아래에서 위 순서로 [하단탭(+서브탭) / 시간 슬라이더 / 출처표기 / 범례] 가
