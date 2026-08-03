@@ -67,9 +67,10 @@ mudflat.js / sea_parting.js)을 그대로 씁니다.** 이 모듈은 겉껍데�
   그대로 켜서** 쓰고, `body.ls-safety` CSS 로 필요 없는 버튼만 감춥니다.
   `#ocean-safety-section` 은 하위탭 전환용 자리표시일 뿐 실제로 보이지 않습니다.
   진짜 해양종합정보 탭과의 구분은 `body[data-active-tab]` 값으로 합니다.
-  안내(ⓘ)는 해양종합정보의 17탭 팝업이 뜨지 않도록 `document` 캡처 단계에서 가로채
-  이 화면에 있는 기능(물빠짐·CCTV)의 본문만 이어붙여 보여줍니다
-  (`window.oceanInfoTabHtml('mudflat')`/`('cctv')` 재사용).
+  안내(ⓘ)는 해양종합정보의 17탭 팝업이 뜨지 않도록 `document` 캡처 단계에서 가로채,
+  이 화면에 있는 기능(물빠짐·노출암/간출암·CCTV) 3개만 해양종합정보와 같은 탭형 팝업으로
+  보여줍니다(`_buildSafetyInfoHtml()` — `window.oceanInfoTabHtml(id)`로 탭 본문을
+  가져와 `.ocean-info-tabs`/`.ocean-info-panel` 구조로 재구성, 한 번에 한 탭만 표시).
 
 ## 해양종합정보와 상태 분리
 
