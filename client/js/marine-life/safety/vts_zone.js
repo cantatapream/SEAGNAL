@@ -256,8 +256,12 @@
         if (!_visible || !_fillLayer) return false;
         var hit = map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
             if (layer === _fillLayer) return feature;
+            // 구역이 작으면 폴리곤 밖으로 라벨 글자가 삐져나와, 채움(_fillLayer)엔 안 잡히고
+            // 라벨만 눌릴 수 있다 — 외곽선+라벨 레이어(_layer)도 보조 판정한다
+            // (fishing_ban.js·seaway.js 와 동일 패턴).
+            if (layer === _layer) return feature;
             return null;
-        });
+        }, { hitTolerance: 5 });   // 작은 구역·글자를 손가락으로 정확히 누르기 어렵다
         if (!hit) return false;
 
         // 화면상 크기(px) = 지오메트리 범위(m, EPSG:3857) ÷ 해상도(m/px).
