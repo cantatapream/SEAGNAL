@@ -53,6 +53,7 @@
     "mudflat.js",
     "scuba.js",
     "ripcurrent.js",
+    "swimming.js",
     "ocean_map.js",
     "ocean_markers.js",
     "ocean_bottom_sheet1.js",
@@ -113,6 +114,7 @@
     "fishing_ban.js",
     "vts_zone.js",
     "seaway.js",
+    "beach_swim.js",
     "life_safety.js"
   ]
 }
