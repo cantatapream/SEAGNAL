@@ -157,6 +157,10 @@
 
         // 해양종합정보에서 켜 둔 오버레이(특보구역·해구도 등)가 따라오지 않게 끈다
         _suspendOceanOverlays();
+        // 해양종합정보에서 열어 둔 상세정보 팝업(#seagnal-custom-modal)도 같이 넘어오지
+        // 않게 닫는다 — CCTV·출입통제 등 여러 버튼이 이 팝업을 공용으로 쓰는데, 바텀시트와
+        // 달리 이 팝업엔 body.ls-safety 로 숨기는 CSS 규칙이 없어 그대로 남아 있었다.
+        if (typeof window.closeSeagnalModal === 'function') window.closeSeagnalModal();
 
         // 지도 초기화(최초 1회) — 섹션이 보이게 된 뒤라야 크기가 제대로 잡힌다
         setTimeout(function () {
@@ -199,6 +203,8 @@
         var oceanSec = document.getElementById('ocean-map-section');
         if (oceanSec) oceanSec.classList.remove('active');
         document.body.classList.remove('ocean-map-active', 'ls-safety', 'ls-mudflat-on');
+        // 역방향도 마찬가지 — 해양안전에서 열어 둔 팝업이 해양종합정보로 그대로 넘어오지 않게
+        if (typeof window.closeSeagnalModal === 'function') window.closeSeagnalModal();
     }
 
     /**
@@ -260,6 +266,9 @@
             }
         });
         _suspended = [];
+        // 해양안전에서 열어 둔 팝업(#seagnal-custom-modal)이 진짜 해양종합정보로 그대로
+        // 넘어오지 않게 닫는다 — _enterSafety() 의 반대 방향 누락분
+        if (typeof window.closeSeagnalModal === 'function') window.closeSeagnalModal();
     }
 
     /**
