@@ -403,7 +403,9 @@ router.post('/api/legal/ask', async (req, res) => {
   const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
   try {
     const { sources, contextPages } = await legalRetriever.search(q, { canonicalOnly });
-    const toSourceOut = s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop, citationChain: s.citationChain || [] });
+    // gapNotices = 그 위키 페이지가 "우리가 원문을 가질 수 없다"고 정직하게 적어둔 공백 안내
+    // (시·군·구 개별고시 등) — 화면이 ⚠칩으로 "원문 미수집 — 별도 확인 필요"를 알린다.
+    const toSourceOut = s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop, citationChain: s.citationChain || [], gapNotices: s.gapNotices || [] });
 
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');

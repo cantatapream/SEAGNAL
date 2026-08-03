@@ -13,7 +13,12 @@
  *  ① 메타데이터 매칭(법명·주제·파일명·테마) — index.json
  *  ② glossary 구어 매핑(_glossary.md) — "정식 명칭이 아닌 말"을 개념으로 번역
  *  ③ 본문 직접매칭 — 후보 페이지의 실제 마크다운 본문을 읽어 재점수(제목·본문 포함 시 가중)
- *  ④ 그래프 1홉 확장 — 최상위 페이지의 index.json `links` 필드로 관련 개념 보강
+ *  ④ 그래프 1홉 확장 — 최상위 페이지의 index.json `links` 로 이어진 페이지를 **같은 관련도 문턱
+ *     (MIN_KEEP_SCORE)으로 다시 채점해** 통과한 것만 덧붙인다. 문턱을 씌운 뒤로는 ③에서 이미 점수를
+ *     받았던 페이지(개수 컷 PRIMARY_TOPK 에 밀린 11위 이하)만 들어올 수 있어, "키워드로는 안 잡히는
+ *     페이지를 그래프로 건져온다"는 원래의 추가 리콜 효과는 사실상 없다(실측: 위키 topic 400개 +
+ *     대표질문 68개 전수 질의에서 홉이 상위 5위 인용사슬에 든 사례 0건). 무관한 페이지가 근거로
+ *     딸려오는 것을 막는 쪽을 택한 트레이드오프다 — search() 안 주석 참고.
  * ※ 의미 임베딩(_CHATBOT.md 4-③)은 이번 파일럿 범위 밖(3법 규모에선 ①②③④로 충분히
  *   커버되는지 먼저 확인 — 필요해지면 topic_embedding.js 패턴을 재사용해 후속 추가).
  *
@@ -236,40 +241,64 @@ function plainCell(s) {
 }
 
 /**
+ * `## <제목>` 절 바로 아래에 붙은 마크다운 표의 줄만 잘라낸다(헤더 + 구분선 + 행들).
+ * 표가 없거나 표를 만나기 전에 다음 절로 넘어가면 [].
+ * @param {string} txt - 페이지 마크다운 본문
+ * @param {RegExp} headRe - 절 제목 정규식(m 플래그 필요)
+ * @returns {string[]} 표 줄들(원문 그대로, 앞뒤 공백만 제거)
+ * [연계] ← extractCitationChain(근거 조문 표) · extractGapNotices(타법 연결 표). 둘이 같은 방식으로
+ *   표를 찾아야 해서 한 군데에 둔다(중복 파싱 로직 금지 — 한쪽만 고쳐지는 어긋남 방지).
+ */
+function sectionTable(txt, headRe) {
+  const hm = headRe.exec(String(txt || ''));
+  if (!hm) return [];
+  const lines = String(txt).slice(hm.index + hm[0].length).split('\n');
+  const table = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (t.startsWith('|')) { table.push(t); continue; }
+    if (table.length) break;          // 표가 끝났다
+    if (t.startsWith('#')) break;     // 표를 만나기 전에 다음 절로 넘어갔다
+  }
+  return table;
+}
+
+// ⚠ 위키 표 셀 안에 [[statutes/해양환경관리법|해양환경관리법]] 처럼 파이프가 든 링크가 그대로
+// 쓰여 있다(마크다운 규칙상 원래는 이스케이프해야 하지만 관행이 그렇다) — 그냥 '|'로 쪼개면
+// 링크가 두 칸으로 찢어져 법령명이 "[[statutes/해양환경관리법"이 된다. 쪼개기 전에 링크 안의
+// 파이프만 잠시 치환해 보호한다.
+const CELL_PIPE = '\u0000';
+/** 표 한 줄을 셀 배열로 쪼갠다(링크 안 파이프 보호 + 앞뒤 파이프 제거). */
+function tableCells(row) {
+  return String(row)
+    .replace(/\[\[[^\]]*\]\]/g, m => m.replace(/\|/g, CELL_PIPE))
+    .replace(/^\|/, '').replace(/\|$/, '')
+    .split('|').map(c => c.split(CELL_PIPE).join('|').trim());
+}
+
+/** 마크다운 표의 구분선(`|---|---|`) 행인가. */
+function isSepRow(cells) {
+  return /^-+$/.test((cells[0] || '').replace(/:/g, ''));
+}
+
+/**
  * 페이지 본문에서 `## 근거 조문` 표를 파싱해 위임 사슬 배열을 만든다.
  * ⚠ 이 위키는 여러 세션·에이전트가 몇 달에 걸쳐 써서 표 헤더의 컬럼 순서가 페이지마다 다르다
  * (`법령명|조문|시행일|요지` 도 있고 `단계|법령|조문|시행일|요지` 도 있다) — 그래서 컬럼 위치가
  * 아니라 **헤더 텍스트**로 각 컬럼을 찾는다. 표가 없거나 파싱이 안 되면 예외 없이 []를 반환한다
  * (이 표가 없는 페이지도 많다 — 그런 페이지는 화면이 단순 폴백 카드로 그린다).
+ * ⚠ 법령 칸의 `〃`(반복기호, 실측 82행)는 여기서 편다 — 표 안에서만 뜻이 통하는 약식 표기라
+ *   그대로 내보내면 화면 카드에 "〃 제32조"라는 뜻 모를 이름이 뜨고, 조문 원문 조회도 법을 못 찾아
+ *   실패한다. 뜻은 "바로 윗 행의 법령 칸과 같다" 하나뿐이라 해석의 여지가 없다.
  * @param {string} body - 페이지 마크다운 본문(frontmatter 제외)
  * @returns {Array<{law:string,article:string,effectiveDate:string,gist:string,tier:string}>} 원 표 순서 그대로
  * [연계] ← search()가 상위 소스에 붙임 → ai_chat.js 체인 UI.
  */
 function extractCitationChain(body) {
   try {
-    const txt = String(body || '');
-    const hm = /^#{2,3}\s*근거\s*조문[^\n]*$/m.exec(txt);
-    if (!hm) return [];
-    const lines = txt.slice(hm.index + hm[0].length).split('\n');
-    const table = [];
-    for (const line of lines) {
-      const t = line.trim();
-      if (t.startsWith('|')) { table.push(t); continue; }
-      if (table.length) break;          // 표가 끝났다
-      if (t.startsWith('#')) break;     // 표를 만나기 전에 다음 절로 넘어갔다
-    }
+    const table = sectionTable(body, /^#{2,3}\s*근거\s*조문[^\n]*$/m);
     if (table.length < 3) return [];    // 헤더 + 구분선 + 최소 1행
-
-    // ⚠ 위키 표 셀 안에 [[statutes/해양환경관리법|해양환경관리법]] 처럼 파이프가 든 링크가 그대로
-    // 쓰여 있다(마크다운 규칙상 원래는 이스케이프해야 하지만 관행이 그렇다) — 그냥 '|'로 쪼개면
-    // 링크가 두 칸으로 찢어져 법령명이 "[[statutes/해양환경관리법"이 된다. 쪼개기 전에 링크 안의
-    // 파이프만 잠시 치환해 보호한다.
-    const PIPE = ' ';
-    const cells = row => row
-      .replace(/\[\[[^\]]*\]\]/g, m => m.replace(/\|/g, PIPE))
-      .replace(/^\|/, '').replace(/\|$/, '')
-      .split('|').map(c => c.split(PIPE).join('|').trim());
-    const head = cells(table[0]);
+    const head = tableCells(table[0]);
     const col = re => head.findIndex(h => re.test(h));
     const iLaw = col(/법령|법률명/);
     const iArt = col(/조문/);
@@ -278,11 +307,14 @@ function extractCitationChain(body) {
     if (iLaw < 0) return [];
 
     const out = [];
+    let prevLaw = '';                     // 바로 윗 행의 법령 칸(〃가 물려받는다)
     for (const row of table.slice(2)) {   // 0=헤더, 1=구분선
-      const c = cells(row);
-      if (/^-+$/.test((c[0] || '').replace(/:/g, ''))) continue;
-      const law = plainCell(c[iLaw]);
+      const c = tableCells(row);
+      if (isSepRow(c)) continue;
+      let law = plainCell(c[iLaw]);
       if (!law || law === '—' || law === '-') continue;
+      if (/^[〃″"]+$/.test(law.replace(/\s+/g, '')) && prevLaw) law = prevLaw;
+      prevLaw = law;
       out.push({
         law,
         article: iArt >= 0 ? plainCell(c[iArt]) : '',
@@ -290,6 +322,45 @@ function extractCitationChain(body) {
         gist: iGist >= 0 ? plainCell(c[iGist]) : '',
         tier: classifyTier(law),
       });
+    }
+    return out;
+  } catch (_) { return []; }
+}
+
+/**
+ * 페이지 본문의 `## 타법 연결` 표에서 **관계 칸이 "수집곤란"인 행만** 뽑는다.
+ * 이 위키에는 "시·군·구가 개별 고시로 정해 국가법령정보센터에 안 올라오는 사항"처럼 우리가
+ * 원문을 가질 수 없는 공백이 사람 손으로 정직하게 적혀 있는데(실측 2행), `extractCitationChain`은
+ * `## 근거 조문` 표만 보므로 이 안내가 답변 화면에 전혀 실리지 않았다 — 그 결과 "관할 지자체에
+ * 물어보세요"라는 꼭 필요한 안내가 사용자에게 안 보였다.
+ * ⚠ 관계 칸을 **컬럼으로** 확인한다(L-52와 같은 원칙 — 위치가 아니라 헤더 텍스트로 컬럼을 찾는다).
+ *   행 전체 텍스트에 "수집곤란" 글자가 있는지로 보면, 관계가 `정밀인용`인 국제조약 행(SOLAS·나고야
+ *   의정서 — 설명 문장 안에 "수집곤란"이라고 적혀 있을 뿐이다)까지 딸려 나와 위키에 없는 안내가
+ *   상시 노출된다(실측 2행). 그건 "환각 0" 위반이다.
+ * ⚠ 문구는 **위키에 적힌 그대로** 옮긴다(요약·재작성·생성 금지 — 이 저장소의 환각 0 원칙).
+ * 예: extractGapNotices(낚시어선안전조치와승객준수사항.md 본문)
+ *     → [{title:'시·군·구별 낚시어선 승객 준수사항 고시(제35조②)',
+ *         note:'수집곤란 — 시장·군수·구청장이 개별적으로 정하여 고시 … 관할 지자체 소관 부서로 확인하시는 것이 정확합니다.'}]
+ * @param {string} body - 페이지 마크다운 본문(frontmatter 제외)
+ * @returns {Array<{title:string, note:string}>} 없으면 []
+ * [연계] ← search()가 상위 소스에 붙임 → routes/legal.js sourcesOut → ai_chat.js 의 ⚠칩.
+ */
+function extractGapNotices(body) {
+  try {
+    const table = sectionTable(body, /^#{2,3}\s*타법\s*연결[^\n]*$/m);
+    if (table.length < 3) return [];    // 헤더 + 구분선 + 최소 1행
+    const head = tableCells(table[0]);
+    const iTitle = head.findIndex(h => /인용|법령|조문|대상/.test(h));
+    const iRel = head.findIndex(h => /^관계/.test(h));
+    if (iTitle < 0 || iRel < 0) return [];
+    const out = [];
+    for (const row of table.slice(2)) { // 0=헤더, 1=구분선
+      const c = tableCells(row);
+      if (isSepRow(c)) continue;
+      if (!/^수집\s*곤란$/.test(plainCell(c[iRel]))) continue;
+      const title = plainCell(c[iTitle]);
+      const note = c.filter((_, i) => i !== iTitle).map(plainCell).filter(Boolean).join(' — ');
+      if (title && note) out.push({ title, note });
     }
     return out;
   } catch (_) { return []; }
@@ -543,6 +614,16 @@ async function search(query, opts) {
 
   // 그래프 1홉: 최상위 페이지의 links로 관련 개념 보강(이미 뽑힌 페이지는 제외).
   // 1위 매칭 자체가 약하면(topScore 낮음) 거기서 이어진 링크도 신뢰할 수 없어 홉을 아예 건너뛴다.
+  // ⚠ "링크로 이어져 있다"는 것만으로 무조건 통과시키지는 않는다 — 그러면 질문과 아무 상관없는
+  //   페이지가 근거 목록에 얹히고 그 페이지의 "근거 조문" 표까지 통째로 딸려 붙는다(실측: "낚시배
+  //   음주" 질문에 음주와 무관한 페이지가 홉으로 들어와 그 조문이 근거로 뜸). 그래서 홉 후보도
+  //   같은 질의어로 다시 채점(scoreOne)해 **본선과 같은 관련도 문턱**(MIN_KEEP_SCORE)을 넘는
+  //   것만 받는다. 홉이 건져야 할 것은 "관련은 있는데 PRIMARY_TOPK 개수 컷에 밀린 페이지"이지
+  //   "관련도 문턱에 못 미쳐 걸러진 페이지"가 아니다 — 후자는 본선에서 뺀 이유가 그대로 유효하다.
+  //   ⚠ 이 문턱은 topScore 만의 함수라 **본선 후보가 몇 개인지와는 무관하다** — 본선이 적다고 문턱이
+  //     저절로 높아지지 않는다(실측 반례: "스킨스쿠버" 본선 2건·"어군탐지기" 본선 3건 모두 문턱이
+  //     바닥값 2.0). 본선이 적을 때 홉이 상위 CHAIN_TOPK 안으로 들어와 인용사슬까지 달고 나오는
+  //     위험 자체는 남아 있고, 이 문턱은 "질문과 관련 없는 페이지"만 걸러줄 뿐이다.
   const picked = new Set(primary.map(x => x.p));
   const hop = [];
   if (topScore >= 4) {
@@ -552,7 +633,9 @@ async function search(query, opts) {
         if (hop.length >= HOP_MAX) break;
         const p = resolvePage(byFile, raw);
         if (!p || picked.has(p)) continue;
-        picked.add(p); hop.push({ p, s: 0, hop: true });
+        const hs = scoreOne(p, allTerms);
+        if (hs < MIN_KEEP_SCORE) continue;
+        picked.add(p); hop.push({ p, s: hs, hop: true });
       }
     }
   }
@@ -581,6 +664,8 @@ async function search(query, opts) {
       s.citationChain = page
         ? extractCitationChain(page.body).map(row => Object.assign({}, row, { contact: lookupContact(row.law) }))
         : [];
+      // 이 페이지가 "우리가 원문을 가질 수 없는 공백"(시군구 개별고시 등)을 적어뒀으면 함께 싣는다.
+      s.gapNotices = page ? extractGapNotices(page.body) : [];
     }
     return s;
   });
@@ -589,9 +674,10 @@ async function search(query, opts) {
 }
 
 /**
- * L-57 조치③: search()가 찾은 후보는 답변에 실제로 쓰였다는 보장이 없다 — 특히 그래프 1홉
- * 확장분(hop:true)은 s:0으로 MIN_KEEP_SCORE 관련도 필터를 아예 우회해 들어온다(search() 주석
- * 참고). answer(AI 답변 문장)와 sourcesOut(근거법령 목록)이 서로 다른 파이프라인이라, "확인되지
+ * L-57 조치③: search()가 찾은 후보는 답변에 실제로 쓰였다는 보장이 없다 — 본선이든 그래프
+ * 1홉 확장분(hop:true)이든 **관련도 문턱(MIN_KEEP_SCORE)만 넘으면** 후보로 들어오고, 문턱을
+ * 넘었다는 것이 "답변이 실제로 그 법을 썼다"는 뜻은 아니다(search() 주석 참고).
+ * answer(AI 답변 문장)와 sourcesOut(근거법령 목록)이 서로 다른 파이프라인이라, "확인되지
  * 않습니다"처럼 결론을 못 낸 질문에서도 화면엔 무관한 근거가 그대로 뜨는 게 실측 확인됨(_LESSONS.md
  * L-57). 이 함수는 답변 본문에 그 소스의 법령명·주제·인용 타법명이 실제로 등장하는 소스만 남겨,
  * hop 여부와 무관하게 "답변에 실제로 쓰였는가"라는 동일 기준으로 근거목록을 좁힌다. 아무것도
@@ -625,13 +711,19 @@ function buildContextBlock(contextPages) {
 
 // 답변 원칙 1~8은 1차(위키 근거)·2차(원문 미검증 참고) 답변이 똑같이 지켜야 하는 공통 규칙이라
 // 별도 상수로 떼어 두 프롬프트가 함께 쓴다(서두 한 문장만 근거의 성격에 따라 달라진다).
+// ⚠ 규칙6(각주 생략)이 기대는 "화면이 대신 보여준다"의 실제 범위는 이렇다(ai_chat.js answerHTML 실측):
+//   · 근거 법령 목록은 **접힌 아코디언**이라 사용자가 눌러야 보인다(답변 밑에 펼쳐져 있지 않다).
+//   · 그 안에서 조문·시행일·연락처까지 자세히 보여주는 건 **citationChain 이 있는 첫 번째 소스 하나**뿐이고,
+//     나머지 소스는 "법령명 · 주제"만 적힌 카드다.
+//   그래서 규칙6은 "완전히 중복되니 빼라"가 아니라 "본문에서 법령·조문은 밝히되 소관부서·연락처·기준일
+//   각주만 생략한다"는 뜻이다 — 각주를 되살릴지는 화면 UX와 함께 판단할 일이지 이 주석이 단정할 게 아니다.
 const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
 1. 답의 근거는 오직 [근거자료]뿐이다. [근거자료]에 없는 내용은 지어내지 말고 "확인되지 않습니다"라고 정직하게 말한다.
 2. 처벌(징역·벌금·과태료)은 조·항·호·금액을 [근거자료] 그대로 인용한다. 뭉개어 말하지 않는다. 처벌이 위반 횟수(1차/2차/3차…)에 따라 달라지면 가장 흔한 경우(통상 1차)만 먼저 답하고 "2차 이후도 궁금하시면 다시 물어보세요"로 마무리한다(한 번에 전부 나열하지 않는다).
 3. 조건(선박 톤수·어업 종류·조업구역 등)에 따라 답이 갈리는데 질문에 그 조건이 없으면, 장황하게 다 나열하지 말고 필요한 조건 한 가지만 되물어라(예: "배가 몇 톤이세요?"). 지금은 단발 질문-답변이라 이전 대화를 기억하지 못하니, 되물을 땐 그 사실을 티내지 말고 자연스럽게 묻는다.
 4. 판례·법리 해석·다툼의 여지가 있는 논점은 답하지 않는다(스코프 밖). 명확한 조문까지만 안내하고 "이 부분은 개별 사안에 따라 달라져 관할 소관부서에 확인하시는 것이 정확합니다"로 마무리한다.
 5. 딱딱한 조문 나열 금지. 결론 먼저 → 필요한 근거. 이해가 어려운 부분만 "쉽게 말하면~"으로 한 번 더 풀어준다. 과잉 설명은 하지 않는다.
-6. 답변 마지막에 반드시 이 순서로 붙인다: (a) 근거 법령·조문, (b) [근거자료]에 소관부서·연락처가 있으면 그것, (c) 근거자료의 기준일("「○○법」 YYYY-MM-DD 기준"). ("참고용입니다" 면책 문구는 화면이 별도로 붙이니 답변에 넣지 않는다.)
+6. 근거로 삼은 법령명·조문번호는 답변 문장 안에서 자연스럽게 밝힌다(예: "「낚시 관리 및 육성법」 제35조에 따라 …"). 다만 소관부서·연락처·근거자료의 기준일을 답변 마지막에 각주로 따로 붙이지는 않는다 — 화면이 답변 바로 아래에 "근거 법령" 목록을 함께 실어 사용자가 펼쳐서 확인할 수 있다. ("참고용입니다" 면책 문구도 화면이 별도로 붙이니 답변에 넣지 않는다.)
 7. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용.
 8. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.`;
 
@@ -821,7 +913,8 @@ async function pickRawFiles(query, bundles) {
 const RAW_ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 사람이 검증한 법령 위키 카드가 아니라, 질문에 맞는 카드가 없어 **법령 원문을 방금 그대로 읽어온 것**이다.
 
 ${ANSWER_RULES_BODY}
-9. ★이 답변은 "미검증 참고"다. 답변 서두에 사람이 검증한 정식 답변이 아니라 원문을 방금 훑어본 참고 정보라는 사실을 한 문장으로 밝히고, 마지막은 반드시 "정확한 확인은 소관부서에 문의하세요"로 마무리한다. 원문에서 근거를 못 찾았으면 억지로 답하지 말고 "확인되지 않습니다"라고 말한다.`;
+9. ★이 답변은 "미검증 참고"다. 답변 서두에 사람이 검증한 정식 답변이 아니라 원문을 방금 훑어본 참고 정보라는 사실을 한 문장으로 밝히고, 마지막은 반드시 "정확한 확인은 소관부서에 문의하세요"로 마무리한다. 원문에서 근거를 못 찾았으면 억지로 답하지 말고 "확인되지 않습니다"라고 말한다.
+10. ★이 답변에는 위키 카드가 없어 화면 아래 "근거 법령" 목록이 붙지 않는다(규칙6이 각주를 생략시키는 근거가 여기엔 없다) — 그러니 근거로 삼은 법령·조문과 그 기준일(시행일)이 원문에 있으면 답변 마지막에 한 줄로 밝힌다.`;
 
 /**
  * 2차 조회(미검증 참고): 위키에서 근거를 못 찾은 질문을 법령 원문으로 한 번 더 시도한다.
@@ -870,4 +963,4 @@ async function searchRawFallback(query) {
   }
 }
 
-module.exports = { loadIndex, search, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, lookupContact, filterSourcesByAnswer, rawPathOf };
+module.exports = { loadIndex, search, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, rawPathOf };
