@@ -38,8 +38,9 @@
 
     /**
      * 관제구역 폴리곤 한 벌의 스타일(보라 톤 — 빨강 출입통제·주황 낚시금지와 구분)을 만든다.
-     * 선택된 구역(_selected)만 노란 톤으로 굵게 그려 "이거 눌렀다"를 보여준다.
-     * 예: name='경인연안 VTS(Ch. 71)' → 평소엔 보라 선 2px, 선택되면 노란 선 4px + 30% 채움.
+     * 선택된 구역(_selected)만 더 밝은 보라(연보라) 톤으로 굵게 그려 "이거 눌렀다"를 보여준다
+     * (노란색이 아니라 같은 보라 계열 안에서 밝기로 구분 — 다른 레이어 색과 안 헷갈리게).
+     * 예: name='경인연안 VTS(Ch. 71)' → 평소엔 진보라 선 2px, 선택되면 연보라 선 4px + 35% 채움.
      * @param {ol.Feature} feature - 그릴 구역 피처(라벨 문구는 name 속성)
      * @returns {ol.style.Style} 외곽선·채움·라벨이 다 든 스타일 1개
      * [연계] ← _fillOnlyStyle()/_strokeOnlyStyle() — 두 레이어가 이 한 벌을 나눠 쓴다.
@@ -53,16 +54,16 @@
         var on = (feature === _selected);
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
-                color: on ? 'rgba(253, 224, 71, 1)' : 'rgba(168, 85, 247, 0.9)',
+                color: on ? 'rgba(240, 171, 252, 1)' : 'rgba(168, 85, 247, 0.9)',
                 width: on ? 4 : 2
             }),
             fill: new ol.style.Fill({
-                color: on ? 'rgba(253, 224, 71, 0.3)' : 'rgba(168, 85, 247, 0.14)'
+                color: on ? 'rgba(240, 171, 252, 0.35)' : 'rgba(168, 85, 247, 0.14)'
             }),
             text: new ol.style.Text({
                 text: feature.get('name') || '',
                 font: 'bold 11px "Pretendard", sans-serif',
-                fill: new ol.style.Fill({ color: on ? '#fde68a' : '#e9d5ff' }),
+                fill: new ol.style.Fill({ color: on ? '#fdf4ff' : '#e9d5ff' }),
                 stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
                 overflow: true,
                 placement: 'point'
@@ -229,7 +230,11 @@
 
     /**
      * [외부 API] 지도 클릭이 선박교통관제구역 폴리곤을 눌렀는지 확인한다.
-     * 예: '경인연안 VTS(Ch. 71)' 폴리곤을 탭 → 그 구역만 노랗게 하이라이트 + 상세 팝업, true 반환.
+     * 처음 누르면 선택(연보라 하이라이트)만 하고, 이미 선택된 구역을 한 번 더 누르면
+     * 그때 상세 팝업을 띄운다(두 단계 — fishing_ban.js 의 라벨 탭 확대와 같은 취지:
+     * 한 번의 탭으로 바로 팝업이 뜨면 화면 전환이 급작스러워 하이라이트를 먼저 보여준다).
+     * 예: '경인연안 VTS(Ch. 71)' 폴리곤 첫 탭 → 연보라 하이라이트만, true(클릭 소비, 팝업 없음).
+     *     같은 폴리곤 다시 탭 → 상세 팝업.
      * @param {ol.Map} map
      * @param {ol.MapBrowserEvent} evt
      * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함)
@@ -244,11 +249,13 @@
             return null;
         });
         if (!hit) return false;
-        // 누른 구역만 하이라이트 — 한 번에 하나. (다른 구역을 누르면 그쪽으로 옮겨간다)
         if (_selected !== hit) {
+            // 처음 누른 구역(또는 다른 구역으로 옮겨감) — 하이라이트만 하고 팝업은 다음 탭에.
             _selected = hit;
             if (_source) _source.changed();   // 두 레이어의 스타일 함수를 다시 태운다
+            return true;
         }
+        // 이미 선택돼 있던 구역을 다시 탭 — 상세 팝업 표시.
         var name = hit.get('name') || '선박교통관제구역';
         if (typeof window.showSeagnalModal === 'function') {
             window.showSeagnalModal(name, _buildDetailHtml(hit), 'info');
