@@ -16,6 +16,8 @@
  *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
  *  - POST /api/legal/ask              → 하이브리드 검색 + Gemini 답변 스트리밍 합성(NDJSON, services/legal_retriever.js)
  *                                       위키에 근거가 없으면 2차로 법령 원문(GitHub 온디맨드)을 훑어 "미검증 참고" 답변 시도
+ *                                       6초 넘게 걸린 요청 + 알림 동의 시 답변을 임시 보관하고 개인 푸시 발송
+ *  - GET  /api/legal/pending-answer/:requestId → 푸시로 다시 들어온 사용자에게 그 답변을 1회만 돌려줌
  *
  * [연계 파일]
  * - knowledge/legal/_dashboard/review_queue.md   → 검증 대기 원장(승인 마킹 대상)
@@ -25,6 +27,8 @@
  * - services/admin_auth.js  → X-Admin-Token 검증(관리자 전용 게이트)
  * - services/atomic_write.js → 원자적 파일쓰기(경합 방지)
  * - services/legal_retriever.js → /api/legal/ask 의 검색·답변합성 본체
+ * - services/pending_answers.js → 답변완료 푸시용 1회용 임시 보관함(3시간)
+ * - services/firebase_admin_lazy.js → FCM 발송(첫 사용 시 SDK 로딩)
  *
  * [경합위험] review_queue.md·공유 md는 여러 승인이 동시에 쓰면 손상될 수 있어
  *   승인 쓰기는 반드시 직렬(single-writer)로 처리한다(아래 withLock).
@@ -37,6 +41,11 @@ const path = require('path');
 const adminAuth = require('../services/admin_auth');
 const { writeFileAtomic } = require('../services/atomic_write');
 const legalRetriever = require('../services/legal_retriever');
+const pendingAnswers = require('../services/pending_answers');
+const { DATA_DIR, FILES } = require('../config/server_config');
+
+// [Lazy] Firebase Admin(답변완료 개인 푸시용). routes/report.js 와 같은 이유로 첫 발송 시 로딩.
+const { getAdmin } = require('../services/firebase_admin_lazy');
 
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const REVIEW_QUEUE = path.join(LEGAL_DIR, '_dashboard', 'review_queue.md');
@@ -274,13 +283,91 @@ router.get('/api/legal/drafts', adminAuth.requireAdminToken, (req, res) => {
     res.json({ ok: true, count: drafts.length, drafts });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
+
+// ============================================================================
+// 답변완료 개인 푸시(옵트인) — 늦게 끝난 답변을 그 사람 기기에만 알린다
+// ============================================================================
+//
+// [프라이버시] 제목·본문·data 어디에도 질문/답변 원문을 싣지 않는다. 고정 문구 +
+//   추측 불가능한 requestId 뿐이다(내용은 앱이 requestId로 서버에서 1회만 받아간다).
+// [구조 판단] routes/report.js 의 sendReportPush 와 거의 같은 모양이지만,
+//   그쪽을 일반화하지 않고 여기에 따로 뒀다 — 잘 돌고 있는 제보 푸시 경로를 건드리지
+//   않기 위해서다(파일별 소유 헬퍼는 이 저장소의 기존 관례이기도 하다: admin_push /
+//   dmdw_push_sender / report.js 가 각각 자기 발송 함수를 갖는다).
+
+// 알림 문구(고정). 3시간 = services/pending_answers.js 의 TTL 과 같은 값이어야 한다.
+const AI_ANSWER_PUSH_BODY = 'AI 답변이 도착했습니다. 3시간 안에 확인하지 않으면 내용이 사라져요';
+// 푸시를 눌렀을 때 앱이 열 딥링크(클라: ai_chat.js 가 ?popup=ai_chat&rid= 를 읽어 답변 복원)
+const AI_ANSWER_PUSH_URL = 'https://seagnal-server.fly.dev/?popup=ai_chat&rid=';
+// 이 시간(6초)을 넘게 걸린 질문만 푸시 대상 — 빨리 끝난 질문마다 알림이 오는 걸 막는다.
+const NOTIFY_MIN_ELAPSED_MS = 6000;
+
+/**
+ * 답변이 준비됐음을 그 기기(deviceId)에만 FCM 으로 알린다.
+ * 예: sendAiAnswerPush('dev-abc', 'a3f1…') → 그 기기 트레이에 고정 문구 알림 1건
+ * 구독자 목록(data/subscriptions.json)에서 deviceId 가 일치하는 FCM 토큰만 골라 보낸다.
+ * Firebase 미초기화·토큰 없음·발송 실패는 로그만 남기고 조용히 지나간다(답변 응답에는 영향 없음).
+ * @param {string} deviceId - 앱의 localStorage 'seagnal_device_id'
+ * @param {string} requestId - services/pending_answers.js store() 가 발급한 조회키
+ * @returns {Promise<void>}
+ * [연계] ← POST /api/legal/ask (6초 초과 + notifyOnComplete 인 요청)
+ *          → services/firebase_admin_lazy.js getAdmin(), data/subscriptions.json
+ *          (routes/report.js sendReportPush 와 동일한 발송 규약)
+ */
+async function sendAiAnswerPush(deviceId, requestId) {
+  const firebaseAdmin = getAdmin();
+  if (!firebaseAdmin || firebaseAdmin.apps.length === 0) {
+    console.warn('[Legal] Firebase 미초기화, 답변완료 푸시 발송 불가');
+    return;
+  }
+  const SUBS_FILE = FILES.SUBSCRIPTIONS || path.join(DATA_DIR, 'subscriptions.json');
+  try {
+    if (!fs.existsSync(SUBS_FILE)) return;
+    const subs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
+    const matched = subs.filter(s => s.deviceId === deviceId && s.type === 'fcm' && s.token);
+    for (const sub of matched) {
+      try {
+        await firebaseAdmin.messaging().send({
+          token: sub.token,
+          notification: { title: 'SEAGNAL', body: AI_ANSWER_PUSH_BODY },
+          data: { type: 'ai_answer_ready', url: AI_ANSWER_PUSH_URL + requestId },
+          android: { priority: 'high' },
+          apns: { headers: { 'apns-priority': '10' } }
+        });
+        console.log('📤 [Legal] 답변완료 푸시 발송 성공');
+      } catch (e) {
+        console.error('[Legal] 답변완료 푸시 FCM 발송 실패:', e.message);
+      }
+    }
+  } catch (e) {
+    console.error('[Legal] 답변완료 푸시 발송 중 오류:', e.message);
+  }
+}
+
+// GET /api/legal/pending-answer/:requestId — 푸시로 다시 들어온 앱이 그 답변을 1회만 받아간다.
+//   무인증: requestId 자체가 256비트 무작위라 유추 불가 + 기기 식별자를 서버에 남기지 않기 위함.
+//   조회 즉시 서버에서 삭제된다(1회용). 없거나 만료면 200 + {ok:false}
+//   (routes/report.js 의 GET /api/reports/pending-answer 가 200 + hasAnswer:false 를 쓰는 관례와 동일).
+router.get('/api/legal/pending-answer/:requestId', (req, res) => {
+  try {
+    const entry = pendingAnswers.retrieve(String(req.params.requestId || ''));
+    if (!entry) return res.json({ ok: false });
+    res.json({ ok: true, query: entry.query, answer: entry.answer, sources: entry.sources, note: entry.note });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
 // POST /api/legal/ask — { query } → 하이브리드 검색(legal_retriever) + Gemini 답변 스트리밍 합성
 //   응답은 NDJSON(줄바꿈으로 구분된 JSON) 스트림: 답변 조각마다 {type:'delta',text}, 마지막에
 //   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, note} 한 줄로 마감.
 //   ⚠ 실제 생성시간은 그대로다(모델 사고+글자수는 안 줄어듦) — 목적은 체감 대기시간 단축뿐.
+//   추가 바디(선택): deviceId(기기 식별자) · notifyOnComplete(답변완료 푸시 동의, 기본 false)
+//   → 둘 다 있고 6초를 넘게 걸렸으면, 스트림은 그대로 두고 답변을 임시 보관 + 개인 푸시 발송.
 router.post('/api/legal/ask', async (req, res) => {
+  const startedAt = Date.now();   // 6초 판정 기준(핸들러 시작~완료 실제 소요시간)
   const q = String((req.body && req.body.query) || '').trim();
   if (!q) return res.status(400).json({ ok: false, error: 'query 필요' });
+  const deviceId = String((req.body && req.body.deviceId) || '').trim();
+  const notifyOnComplete = (req.body && req.body.notifyOnComplete) === true;
 
   const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
   try {
@@ -340,6 +427,17 @@ router.post('/api/legal/ask', async (req, res) => {
     res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
       answer, sources: sourcesOut, note }) + '\n');
     res.end();
+
+    // [답변완료 푸시] 스트림은 위에서 이미 평소대로 끝냈다 — 여기부터는 부가 동작이라
+    //   기존 응답 흐름에 아무 영향이 없다(실패해도 사용자는 화면에서 답을 이미 봤다).
+    //   6초 이하로 빨리 끝난 질문은 보내지 않는다(옵트인해도 매번 울리지 않게).
+    //   자체 try 로 감싼다 — 여기서 던지면 바깥 catch 가 이미 끝난 응답에 또 쓰려다 죽는다.
+    try {
+      if (notifyOnComplete && deviceId && (Date.now() - startedAt) > NOTIFY_MIN_ELAPSED_MS) {
+        const requestId = pendingAnswers.store(q, answer, sourcesOut, note);
+        sendAiAnswerPush(deviceId, requestId).catch(e => console.error('[Legal] 답변완료 푸시 실패:', e && e.message));
+      }
+    } catch (e) { console.error('[Legal] 답변완료 푸시 준비 실패:', e && e.message); }
   } catch (e) {
     if (res.headersSent) {
       res.write(JSON.stringify({ type: 'done', ok: false, error: String(e.message || e) }) + '\n');

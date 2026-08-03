@@ -15,7 +15,9 @@
  * [연계]
  *  - 사용하는 파일 : css/ai_chat.css (스타일), js/admin/admin.js
  *                    (통합관리자 'nariya' 탭이 renderAdminInto 호출 · 관리자 토큰
- *                    저장소 'seagnal_admin_token' 재사용)
+ *                    저장소 'seagnal_admin_token' 재사용),
+ *                    js/settings/settings.js (전역 NotificationSettings — 답변완료
+ *                    알림 옵트인 값 aiAnswer 읽기/켜기. 먼저 로드되어 있어야 함)
  *  - 서버 API      : routes/legal.js
  *                    GET  /api/legal/config                   (노출설정 조회, 기본 off)
  *                    POST /api/legal/config {exposure}         (노출설정 저장, 관리자)
@@ -24,7 +26,10 @@
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
  *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토 실카운트)
  *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
- *                    POST /api/legal/ask {query}               (질문→AI 답변 스트리밍(NDJSON)+근거 법령)
+ *                    POST /api/legal/ask {query, deviceId, notifyOnComplete}
+ *                                                              (질문→AI 답변 스트리밍(NDJSON)+근거 법령
+ *                                                               · 6초 초과+옵트인이면 서버가 완료 푸시 발송)
+ *                    GET  /api/legal/pending-answer/:requestId (푸시로 재진입 시 그 답변 1회 복원)
  *  - 마크업        : #unified-admin-body(콘솔 마운트 지점, admin.js 소유),
  *                    body 에 스스로 주입하는 #nrya-overlays(FAB·채팅·지도 팝업)
  *  - 나를 쓰는 곳  : index2.html <script src="js/ai-chat/ai_chat.js"> — 자가 실행.
@@ -43,6 +48,9 @@
   var MAIN_TAB_GROUP = 'weather-group';       // FAB 이 보이는 유일한 메인 탭(특보)
   var LS_ADMIN = 'seagnal_admin_mode';         // 관리자 모드 플래그(앱 공용)
   var LS_ADMIN_TOKEN = 'seagnal_admin_token';  // 관리자 토큰(admin.js와 공유)
+  var LS_DEVICE_ID = 'seagnal_device_id';      // 기기 식별자(앱 공용 — survey_user.js가 최초 생성)
+  var LS_UNREAD = 'nariya_unread_v1';          // 채팅창이 닫힌 사이 도착한 답변 수(FAB 뱃지)
+  var CONSENT_ASK_MS = 6000;                   // 이만큼 넘게 걸리면 "다음부터 알림 드릴까요?" 배너
 
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
@@ -66,6 +74,26 @@
 
   /** 관리자 모드 여부(로컬 저장 플래그). @returns {boolean} */
   function isAdmin() { try { return localStorage.getItem(LS_ADMIN) === 'true'; } catch (_) { return false; } }
+
+  /** 기기 식별자를 읽는다(없으면 빈 문자열 — 서버는 빈 값이면 푸시를 보내지 않는다). @returns {string} */
+  function getDeviceId() { try { return localStorage.getItem(LS_DEVICE_ID) || ''; } catch (_) { return ''; } }
+
+  /**
+   * settings.js 가 전역(스크립트 스코프)에 만든 NotificationSettings 객체를 얻는다.
+   * 예: notiSettings().set({aiAnswer:true}) → 저장 + (네이티브면) 서버 구독 재동기화
+   * settings.js 가 먼저 로드되지 않았거나(테스트 페이지 등) 없으면 null.
+   * @returns {object|null}
+   * [연계] → js/settings/settings.js NotificationSettings — 알림 옵트인 값의 유일한 주인.
+   */
+  function notiSettings() {
+    try { return (typeof NotificationSettings !== 'undefined') ? NotificationSettings : null; } catch (_) { return null; }
+  }
+
+  /** 답변완료 알림을 이미 켠 사용자인지(켰으면 동의 배너를 띄우지 않는다). @returns {boolean} */
+  function aiAnswerOptedIn() {
+    var ns = notiSettings();
+    return !!(ns && ns.settings && ns.settings.aiAnswer === true);
+  }
 
   /** 관리자 토큰을 로컬/세션에서 읽는다(admin.js 저장 규약과 동일). @returns {string|null} */
   function getAdminToken() {
@@ -793,7 +821,7 @@
     var wrap = document.createElement('div');
     wrap.id = 'nrya-overlays';
     wrap.innerHTML =
-      '<button class="nrya-fab" id="nryaFab" title="나리야에게 물어보기" style="display:none"><span class="nrya-fab-inner"><img src="' + NARIYA_IMG + '" alt="나리야"><span class="nrya-fab-label">AI 챗봇</span></span><span class="nrya-fab-badge">N</span></button>' +
+      '<button class="nrya-fab" id="nryaFab" title="나리야에게 물어보기" style="display:none"><span class="nrya-fab-inner"><img src="' + NARIYA_IMG + '" alt="나리야"><span class="nrya-fab-label">AI 챗봇</span></span><span class="nrya-fab-badge" style="display:none"></span></button>' +
       // 채팅 팝업
       '<div class="nrya-chat-wrap" id="nryaChatWrap">' +
         '<div class="nrya-chat">' +
@@ -812,6 +840,39 @@
 
     bindChat();
     updateFabVisibility();
+    paintBadge();          // 지난 세션에서 못 본 답변이 있으면 FAB 에 숫자로 남아 있다
+  }
+
+  // ── FAB 안읽음 뱃지: 채팅창이 닫힌 사이 도착한 답변 수 ──────────────────
+
+  /** 안읽음 카운트를 읽는다(깨졌으면 0). @returns {number} */
+  function getUnread() {
+    try { return parseInt(localStorage.getItem(LS_UNREAD) || '0', 10) || 0; } catch (_) { return 0; }
+  }
+
+  /**
+   * 안읽음 카운트를 저장하고 뱃지를 다시 그린다.
+   * 예: setUnread(getUnread() + 1) → FAB 우상단에 "1"
+   * @param {number} n - 새 카운트(0이면 뱃지 숨김)
+   * [연계] ← doSend(닫힌 상태로 답변 도착), openChat(0으로 리셋). → paintBadge
+   */
+  function setUnread(n) {
+    try { localStorage.setItem(LS_UNREAD, String(n)); } catch (_) {}
+    paintBadge();
+  }
+
+  /** 안읽음 카운트를 FAB 뱃지에 반영한다(0이면 숨김, 100 이상은 '99+'). */
+  function paintBadge() {
+    var b = document.querySelector('#nrya-overlays .nrya-fab-badge'); if (!b) return;
+    var n = getUnread();
+    b.textContent = n > 99 ? '99+' : String(n);
+    b.style.display = n > 0 ? 'grid' : 'none';
+  }
+
+  /** 채팅창이 지금 화면에 떠 있는지(닫혀 있을 때만 안읽음을 센다). @returns {boolean} */
+  function isChatOpen() {
+    var w = document.getElementById('nryaChatWrap');
+    return !!(w && w.classList.contains('nrya-open'));
   }
 
   /**
@@ -869,13 +930,14 @@
 
   /**
    * 채팅 팝업을 연다: 뷰포트에 맞춰 크기 조정 + visualViewport 리스너 등록 +
-   * 하드웨어 백 스택 등록(PopupStack) + 입력창 포커스.
-   * [연계] → PopupStack.push('nrya-chat', closeChat).
+   * 하드웨어 백 스택 등록(PopupStack) + 입력창 포커스 + 안읽음 뱃지 리셋.
+   * [연계] → PopupStack.push('nrya-chat', closeChat), setUnread(0).
    */
   function openChat() {
     ensureOverlays();
     var wrap = document.getElementById('nryaChatWrap'); if (!wrap) return;
     wrap.classList.add('nrya-open');
+    setUnread(0);                 // 열어서 보는 순간 안읽음 해제
     fitChat(); addVV(); _scrollChatBottom();
     var input = document.getElementById('nryaChatInput'); if (input) setTimeout(function () { input.focus(); }, 80);
     if (window.PopupStack) window.PopupStack.push('nrya-chat', closeChat);
@@ -977,6 +1039,77 @@
     return pump();
   }
 
+  // ── 답변완료 알림 동의 배너(6초 넘게 걸릴 때만) ────────────────────────
+
+  /**
+   * 나리야 말풍선 한 줄을 만들어 채팅창 맨 아래에 붙이고 그 말풍선 요소를 돌려준다.
+   * 예: appendAiRow('<b>안녕</b>') → 아바타+이름+말풍선 행이 추가되고 .nrya-kbub 반환
+   * @param {string} innerHTML - 말풍선 안에 넣을 HTML(호출자가 이스케이프 책임)
+   * @param {string} [rowId] - 나중에 찾아 지우려면 붙일 행 id
+   * @returns {HTMLElement|null} 말풍선(.nrya-kbub) 요소
+   * [연계] ← showNotifyConsentBanner, renderRestoredAnswer, renderExpiredNotice —
+   *          doSend 가 쓰는 것과 같은 말풍선 골격을 재사용하려고 뽑았다.
+   */
+  function appendAiRow(innerHTML, rowId) {
+    var body = document.getElementById('nryaChatBody'); if (!body) return null;
+    var row = document.createElement('div'); row.className = 'nrya-krow nrya-ai';
+    if (rowId) row.id = rowId;
+    row.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div>' +
+      '<div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow">' +
+      '<div class="nrya-kbub nrya-ai"></div><span class="nrya-ktime">지금</span></div></div>';
+    var bub = row.querySelector('.nrya-kbub');
+    bub.innerHTML = innerHTML;
+    body.appendChild(row); body.scrollTop = body.scrollHeight;
+    return bub;
+  }
+
+  /**
+   * "답변이 좀 걸리고 있어요. 다음부터 완료되면 알림 드릴까요?" 동의 배너를 채팅창에 띄운다.
+   * 이번 질문의 답변은 평소대로 화면에서 기다린다 — 이 배너는 부가 UI일 뿐이다.
+   * [허용] 알림 설정 aiAnswer 를 켜고(서버 재동기화 포함) 필요하면 푸시 권한도 요청한다.
+   * [허용 안 함] 배너만 닫는다(설정 변경 없음).
+   * [연계] ← doSend 의 6초 타이머. → notiSettings().set, requestPushPermissionIfNeeded.
+   */
+  function showNotifyConsentBanner() {
+    if (document.getElementById('nryaNotifyAsk')) return;   // 이미 떠 있으면 중복 금지
+    var bub = appendAiRow(
+      '답변이 좀 걸리고 있어요. 다음부터 완료되면 알림 드릴까요?' +
+      '<div class="nrya-consent-btns">' +
+        '<button type="button" class="nrya-consent-btn nrya-yes">허용</button>' +
+        '<button type="button" class="nrya-consent-btn nrya-no">허용 안 함</button>' +
+      '</div>', 'nryaNotifyAsk');
+    if (!bub) return;
+    var row = document.getElementById('nryaNotifyAsk');
+    bub.querySelector('.nrya-yes').addEventListener('click', function () {
+      var ns = notiSettings();
+      if (ns && typeof ns.set === 'function') ns.set({ aiAnswer: true });  // 저장 + 서버 동기화
+      requestPushPermissionIfNeeded();
+      bub.textContent = '다음부터 완료되면 알려드릴게요';
+      setTimeout(function () { if (row) row.remove(); }, 2500);
+    });
+    bub.querySelector('.nrya-no').addEventListener('click', function () { if (row) row.remove(); });
+  }
+
+  /**
+   * 푸시 권한이 아직 '미결정(prompt)' 이면 시스템 권한 요청을 띄우고, 허용되면 등록까지 한다.
+   * 이미 허용됐거나 거부됐거나(설정에서만 변경 가능) 웹이면 아무 것도 하지 않는다.
+   * [연계] ← 동의 배너 [허용]. → window.checkPushPermission(capacitor-plugins.js),
+   *          PushNotifications.requestPermissions/register — 설정 화면 마스터 토글과 같은 흐름.
+   */
+  function requestPushPermissionIfNeeded() {
+    try {
+      if (!window.Capacitor || typeof window.Capacitor.isNativePlatform !== 'function' || !window.Capacitor.isNativePlatform()) return;
+      var P = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications; if (!P) return;
+      if (typeof window.checkPushPermission !== 'function') return;
+      window.checkPushPermission().then(function (perm) {
+        if (perm !== 'prompt') return;
+        return P.requestPermissions().then(function (r) {
+          if (r && r.receive === 'granted' && P.register) P.register();   // 등록 → registration 리스너가 subscribeUser 호출
+        });
+      }).catch(function () { /* 권한 흐름 실패는 무시(알림만 안 올 뿐) */ });
+    } catch (_) { /* 방어적 — 무시 */ }
+  }
+
   /**
    * 채팅 입력을 서버 /api/legal/ask 로 보내고, 생각중 애니메이션 후 답변을 스트리밍으로
    * (조각조각 타이핑되듯) 렌더한다. 근거 법령 아코디언·좌표 미니지도는 스트림이 끝난
@@ -1020,7 +1153,14 @@
       bubbleEl = a.querySelector('.nrya-kbub');
     }
 
-    legalPost('/api/legal/ask', { query: q }).then(function (res) {
+    // [답변완료 알림] 이미 켠 사용자면 서버에 "다 되면 푸시 보내달라"고 알린다(6초 초과 시 서버가 발송).
+    //   아직 안 켰다면 6초 뒤에 인라인 동의 배너를 띄운다(빨리 끝나면 아래 타이머 취소).
+    var optedIn = aiAnswerOptedIn();
+    var consentTimer = optedIn ? null : setTimeout(function () {
+      consentTimer = null; showNotifyConsentBanner();
+    }, CONSENT_ASK_MS);
+
+    legalPost('/api/legal/ask', { query: q, deviceId: getDeviceId(), notifyOnComplete: optedIn }).then(function (res) {
       return readNdjsonStream(res, function (deltaText) {
         hadDelta = true;
         ensureAnswerBubble();
@@ -1033,9 +1173,12 @@
         var wait = hadDelta ? 0 : Math.max(0, MIN_THINK_MS - (Date.now() - startedAt));
         return new Promise(function (resolve) { setTimeout(function () { resolve(data); }, wait); });
       }).then(function (data) {
+        if (consentTimer) { clearTimeout(consentTimer); consentTimer = null; }  // 6초 안에 끝남 → 배너 없음
         ensureAnswerBubble(); // done만 오고 delta가 하나도 없었던 경우(근거없음·오류) 대비
         bubbleEl.innerHTML = answerHTML(q, data);
         body.scrollTop = body.scrollHeight;
+        // 답변이 도착했는데 채팅창을 닫아둔 상태면 FAB 뱃지로 알린다(열려 있으면 이미 보는 중).
+        if (!isChatOpen()) setUnread(getUnread() + 1);
       });
   }
 
@@ -1165,13 +1308,70 @@
     return html;
   }
 
+  // ── 답변완료 푸시 딥링크(?popup=ai_chat&rid=…) ─────────────────────────
+
+  /**
+   * 완료 푸시를 눌러 들어왔는지 URL 파라미터로 확인하고, 맞으면 채팅창을 열어
+   * 보관된 답변(질문+답변 말풍선 쌍)을 복원한다. 서버 보관함은 1회용이라 이 조회 한 번으로 비워진다.
+   * 예: /?popup=ai_chat&rid=a3f1… → 채팅창 자동 열림 + 그 질문/답변 복원
+   * [연계] ← boot. → GET /api/legal/pending-answer/:requestId,
+   *          renderRestoredAnswer / renderExpiredNotice.
+   *          (fix_popup_logic.js 의 checkForPushPopup 과 같은 "URL 파라미터로 팝업 자동 열기" 패턴)
+   */
+  function checkAnswerDeepLink() {
+    var params; try { params = new URLSearchParams(window.location.search); } catch (_) { return; }
+    if (params.get('popup') !== 'ai_chat') return;
+    var rid = params.get('rid') || '';
+    // 주소창에서 파라미터 제거 — 새로고침 때 이미 비워진 보관함을 또 조회하지 않게(fix_popup_logic.js 와 동일 처리)
+    try { if (window.history.replaceState) window.history.replaceState({}, document.title, window.location.pathname); } catch (_) {}
+
+    openChat();
+    if (!rid) return;
+    legalGet('/api/legal/pending-answer/' + encodeURIComponent(rid))
+      .then(function (r) { return r.json(); })
+      .catch(function () { return { ok: false }; })
+      .then(function (data) {
+        if (data && data.ok) renderRestoredAnswer(data);
+        else renderExpiredNotice();
+      });
+  }
+
+  /**
+   * 서버가 보관하고 있던 질문/답변을 평소의 말풍선 쌍(내 질문 → 나리야 답변)으로 그린다.
+   * @param {object} data - {ok:true, query, answer, sources, note}
+   * [연계] ← checkAnswerDeepLink. → answerHTML(평소 답변과 똑같이 근거 아코디언까지 렌더).
+   */
+  function renderRestoredAnswer(data) {
+    var body = document.getElementById('nryaChatBody'); if (!body) return;
+    var me = document.createElement('div'); me.className = 'nrya-krow nrya-me';
+    me.innerHTML = '<div class="nrya-kbrow"><div class="nrya-kbub"></div><span class="nrya-ktime">지금</span></div>';
+    me.querySelector('.nrya-kbub').textContent = data.query || '';
+    body.appendChild(me);
+    appendAiRow(answerHTML(data.query || '', data));
+  }
+
+  /**
+   * 보관 기한(3시간)이 지났거나 이미 확인한 답변이라 복원할 게 없을 때의 안내 말풍선.
+   * 원문 질문은 서버도 이미 지워 복원할 수 없으므로, 다시 물어보도록 입력창에 포커스만 준다.
+   * [연계] ← checkAnswerDeepLink.
+   */
+  function renderExpiredNotice() {
+    var bub = appendAiRow('이전 답변을 찾을 수 없어요. 다시 확인해 볼까요?' +
+      '<div class="nrya-consent-btns"><button type="button" class="nrya-consent-btn nrya-yes nrya-reask">다시 질문하기</button></div>');
+    if (!bub) return;
+    bub.querySelector('.nrya-reask').addEventListener('click', function () {
+      var i = document.getElementById('nryaChatInput'); if (i) i.focus();
+    });
+  }
+
   // ============================================================================
   // 부트스트랩
   // ============================================================================
 
-  /** 부트스트랩: 오버레이 주입 + 서버 노출설정 로드 + 탭 변화 옵저버 등록. */
+  /** 부트스트랩: 오버레이 주입 + 서버 노출설정 로드 + 탭 변화 옵저버 등록 + 완료푸시 딥링크 처리. */
   function boot() {
     ensureOverlays();
+    checkAnswerDeepLink();   // 답변완료 푸시로 들어왔으면 채팅창 자동 오픈 + 답변 복원
 
     // 서버 노출설정 로드(기본 off) → FAB 재평가
     fetchConfig();

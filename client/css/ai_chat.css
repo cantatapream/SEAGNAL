@@ -313,3 +313,8 @@
 #nrya-overlays .nrya-chat-input input{flex:1; min-width:0; background:#28394a; border:none; border-radius:19px; padding:11px 15px; color:#fff; font-family:inherit; font-size:14px; outline:none}
 #nrya-overlays .nrya-chat-input input::placeholder{color:#8296ac}
 #nrya-overlays .nrya-chat-send{width:40px;height:40px;flex:0 0 auto;border-radius:50%;border:none;background:#ffe14d;color:#231c00;font-size:16px;cursor:pointer;font-weight:800}
+
+/* 답변완료 알림 동의 배너 / 재질문 유도 버튼 (말풍선 안 작은 버튼 — .nrya-chip 과 같은 톤) */
+#nrya-overlays .nrya-consent-btns{display:flex; gap:6px; margin-top:9px}
+#nrya-overlays .nrya-consent-btn{font-family:inherit; font-size:11.5px; font-weight:700; padding:5px 12px; border-radius:13px; cursor:pointer; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#dbe7f5}
+#nrya-overlays .nrya-consent-btn.nrya-yes{background:#ffe14d; border-color:#ffe14d; color:#231c00}
