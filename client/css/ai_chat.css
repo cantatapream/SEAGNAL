@@ -337,6 +337,52 @@
 #nrya-overlays .nrya-artpop[data-tier="penalty"] .nrya-artpop-para.nrya-hit{background:rgba(243,163,154,.16); box-shadow:inset 3px 0 0 #f3a39a}
 #nrya-overlays .nrya-artpop[data-tier="penalty"] .nrya-artpop-items li.nrya-hit{background:rgba(243,163,154,.16)}
 
+/* ── 범위(제1~9조)·전체 인용 팝업 ────────────────────────────────────────────
+   조 하나를 콕 집은 인용이 아니라서 "어디가 진짜 근거인지" 알 수 없다 → 강조(hit)를 하지 않고
+   위키 표의 요지를 그대로 캡션(.nrya-artpop-gist)으로 보여준 뒤 조를 순서대로 나열한다. */
+#nrya-overlays .nrya-artpop-chip.nrya-range{color:#8fe6bb; background:rgba(105,240,174,.12); border-color:rgba(105,240,174,.32)}
+#nrya-overlays .nrya-artpop-gist{margin:9px 13px 0; padding:8px 10px; background:rgba(105,240,174,.07); border:1px solid rgba(105,240,174,.22); border-radius:10px; font-size:10.5px; line-height:1.6; color:#bfe8d2}
+#nrya-overlays .nrya-artpop-gist:empty{display:none}
+#nrya-overlays .nrya-artpop-gist b{color:#8fe6bb; font-weight:700}
+#nrya-overlays .nrya-art-block{padding:9px 0; border-bottom:1px dashed rgba(255,255,255,.08)}
+#nrya-overlays .nrya-art-block:last-child{border-bottom:none}
+#nrya-overlays .nrya-art-block-head{display:flex; align-items:baseline; gap:7px; margin-bottom:5px}
+#nrya-overlays .nrya-art-num{font-family:var(--nrya-mono); font-size:10px; font-weight:800; color:#69f0ae; flex:none}
+#nrya-overlays .nrya-art-title{font-size:11.5px; font-weight:700; color:#eef2ef}
+#nrya-overlays .nrya-art-body{color:#b6c2d6; font-size:11.5px}
+#nrya-overlays .nrya-art-para{display:flex; gap:6px; margin-top:3px}
+#nrya-overlays .nrya-art-mark{flex:none; color:#7f97b0; font-weight:700}
+#nrya-overlays .nrya-artpop-foot{flex:none; padding:9px 13px 12px; border-top:1px solid var(--nrya-border); display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+#nrya-overlays .nrya-artpop-foot:empty{display:none}
+#nrya-overlays .nrya-artpop-src{font-size:9px; color:#5b6b86; font-family:var(--nrya-mono)}
+
+/* ── 별표·서식 참조: 문장 안 표현 자체가 링크 ────────────────────────────────
+   "별표 1"·"별지 제1호 서식" 같은 표현이 그대로 점선밑줄 링크가 된다(별도 칩·버튼 줄 없음).
+   원문을 못 찾은 것은 누를 수 없는 회색 문구로 둔다 — 지어내지 않는다. */
+#nrya-overlays .nrya-byl-ref{color:#8bb6ff; font-weight:700; text-decoration:underline; text-decoration-style:dotted; text-decoration-color:rgba(139,182,255,.5); text-underline-offset:2px; cursor:pointer}
+#nrya-overlays .nrya-byl-ref:hover{color:#a9c6ff}
+#nrya-overlays .nrya-byl-missing{font-size:9.5px; color:#6b7a75; font-style:italic; margin-left:3px}
+/* law.go.kr 원본만 있는 서식: PDF·HWPX 중 하나를 마음대로 기본값으로 정하지 않고 동등한 크기로 나란히 */
+#nrya-overlays .nrya-byl-big-row{display:flex; gap:8px; flex-wrap:wrap}
+#nrya-overlays .nrya-byl-big-btn{flex:1 1 130px; display:flex; align-items:center; justify-content:center; gap:7px; border:none; border-radius:12px; padding:12px 0; font-size:13px; font-weight:800; cursor:pointer; text-decoration:none; font-family:inherit; box-sizing:border-box}
+#nrya-overlays .nrya-byl-big-btn.nrya-pdf{background:#448aff; color:#04122e}
+#nrya-overlays .nrya-byl-big-btn.nrya-pdf:hover{filter:brightness(1.08)}
+#nrya-overlays .nrya-byl-big-btn.nrya-hwp{background:rgba(255,255,255,.08); color:#dbe7f6; border:1px solid var(--nrya-border)}
+#nrya-overlays .nrya-byl-big-btn.nrya-hwp:hover{background:rgba(255,255,255,.14)}
+#nrya-overlays .nrya-byl-note{font-size:10.5px; color:#9fb0c9; margin:0 0 11px}
+
+/* 별표 팝업(텍스트·이미지·형식선택 공용) — 조문 팝업(1001/1002) 위에 뜬다 */
+#nrya-overlays .nrya-bylpop-veil{position:fixed; inset:0; z-index:1003; background:rgba(0,0,0,.6); opacity:0; visibility:hidden; transition:opacity .2s ease}
+#nrya-overlays .nrya-bylpop-veil.nrya-open{opacity:1; visibility:visible}
+#nrya-overlays .nrya-bylpop{position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.96); z-index:1004; width:min(440px,calc(100vw - 32px)); max-height:76vh; background:#111525; border:1px solid rgba(105,240,174,.3); border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.65); display:flex; flex-direction:column; overflow:hidden; opacity:0; visibility:hidden; transition:transform .2s ease, opacity .2s ease}
+#nrya-overlays .nrya-bylpop.nrya-open{transform:translate(-50%,-50%) scale(1); opacity:1; visibility:visible}
+#nrya-overlays .nrya-bylpop-head{display:flex; align-items:flex-start; gap:8px; padding:12px 13px; border-bottom:1px solid rgba(105,240,174,.2)}
+#nrya-overlays .nrya-bylpop-t{flex:1; font-size:12.5px; font-weight:700; color:#8fe6bb}
+#nrya-overlays .nrya-bylpop-close{background:none; border:none; color:var(--nrya-text-sub); font-size:18px; cursor:pointer}
+#nrya-overlays .nrya-bylpop-body{flex:1; overflow:auto; padding:12px 13px}
+#nrya-overlays .nrya-bylpop-pre{font-family:var(--nrya-mono); font-size:10.5px; line-height:1.55; color:#cdd8ee; white-space:pre; margin:0}
+#nrya-overlays .nrya-bylpop-img{width:100%; border-radius:8px; border:1px solid rgba(255,255,255,.12); display:block}
+
 /* 스켈레톤 + 생각중 상태 */
 #nrya-overlays .nrya-sk-line{height:9px; border-radius:5px; margin-bottom:7px; background:linear-gradient(90deg,rgba(255,255,255,.08) 25%,rgba(255,255,255,.18) 37%,rgba(255,255,255,.08) 63%); background-size:400% 100%; animation:nrya-sk 1.3s ease infinite}
 #nrya-overlays .nrya-sk-line:last-of-type{margin-bottom:0}

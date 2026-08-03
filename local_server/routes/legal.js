@@ -18,7 +18,9 @@
  *                                       위키에 근거가 없으면 2차로 법령 원문(GitHub 온디맨드)을 훑어 "미검증 참고" 답변 시도
  *                                       6초 넘게 걸린 요청 + 알림 동의 시 답변을 임시 보관하고 개인 푸시 발송
  *  - GET  /api/legal/pending-answer/:requestId → 푸시로 다시 들어온 사용자에게 그 답변을 1회만 돌려줌
- *  - GET  /api/legal/article-text     → 답변카드의 조문 카드를 눌렀을 때 띄울 그 조 전체 원문(항·호 분해)
+ *  - GET  /api/legal/article-text     → 답변카드의 조문 카드를 눌렀을 때 띄울 원문. 인용 표기에 따라
+ *                                       조 하나(항·호 분해 + 인용 항 강조) / 범위(제1~9조) / 문서 전체로
+ *                                       갈리고, 본문의 별표·서식 참조는 실재 여부(refs)까지 판정해 준다
  *
  * [연계 파일]
  * - knowledge/legal/_dashboard/review_queue.md   → 검증 대기 원장(승인 마킹 대상)
