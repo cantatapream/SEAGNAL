@@ -171,7 +171,10 @@ function extractArticleBlock(text, jo, tier) {
     return { title: m[1].trim(), effectiveDate: eff ? fmtDate(eff[1]) : '', body: m[2].trim() };
   }
   // `[제10조] 제목 (시행 20260624 · 타법개정)` 헤더 줄 + 다음 `[제N조]` 전까지가 본문.
-  const re = new RegExp(`(?:^|\\n)\\[${reEsc(jo)}\\]([^\\n]*)\\n([\\s\\S]*?)(?=\\n\\[제\\d+조|$)`);
+  // ⚠ 마지막 조 뒤엔 다음 `[제N조]`가 없어 lookahead가 파일 끝(`$`)까지 먹는데, 그러면 뒤에
+  //   오는 부칙 전체(다른 법률의 개정 등)까지 그 조 본문으로 딸려 들어간다(실측으로 확인한
+  //   함정 — notice 분기엔 `\n부칙`이 이미 있었는데 이쪽엔 빠져 있었다). 부칙도 경계로 끊는다.
+  const re = new RegExp(`(?:^|\\n)\\[${reEsc(jo)}\\]([^\\n]*)\\n([\\s\\S]*?)(?=\\n\\[제\\d+조|\\n부칙|$)`);
   const m = re.exec(src);
   if (!m) return null;
   const head = m[1].trim();
@@ -212,19 +215,23 @@ function pickNoticeFile(entries, title) {
 }
 
 /**
- * 그 법의 raw 폴더 경로를 찾는다. 체인 행의 법령명이 우선이고(타법 인용 행도 자기 법으로
- * 열리게), 시행령·시행규칙은 본법 폴더 아래에 있으므로 꼬리말을 떼고 한 번 더 찾는다.
- * 고시는 제목만으로는 폴더를 못 찾아 위키 페이지의 소속 법(baseLaw)으로 되돌아간다.
+ * 그 법의 raw 폴더 경로를 찾는다. 체인 행의 법령명(시행령·시행규칙 꼬리말 떼고 재시도 포함)이
+ * 우선이다. **baseLaw 폴백은 고시(tier==='notice')에만 쓴다** — 고시는 제목만으로 폴더를 못
+ * 찾아 위키 페이지의 소속 법으로 되돌아가는 게 맞지만, law/decree/rule에 이 폴백을 쓰면 타법
+ * 인용 행(법령명 표기가 law_raw_paths.json과 안 맞는 경우)이 조용히 baseLaw의 **같은 번호
+ * 조**(제2조 등 흔한 번호라 우연히 존재하는 경우가 많음)를 열어, 카드 이름과 다른 엉뚱한 법의
+ * 원문을 보여주는 사고가 난다(실측 146건 확인 — "환각 0" 원칙 위반). 그 경우엔 폴백하지 않고
+ * 정직하게 law_not_found로 실패한다.
  * @param {string} law - 체인 행의 법령명(고시면 고시 제목)
  * @param {string} baseLaw - 그 위키 페이지의 소속 법명(클라이언트가 함께 보냄)
+ * @param {string} tier - law|decree|rule|notice
  * @returns {string|null}
  * [연계] → legal_retriever.rawPathOf(law_raw_paths.json 매핑).
  */
-function resolveBase(law, baseLaw) {
-  return rawPathOf(law)
-    || rawPathOf(String(law || '').replace(/\s*(시행령|시행규칙)\s*$/, ''))
-    || rawPathOf(baseLaw)
-    || null;
+function resolveBase(law, baseLaw, tier) {
+  const direct = rawPathOf(law) || rawPathOf(String(law || '').replace(/\s*(시행령|시행규칙)\s*$/, ''));
+  if (direct) return direct;
+  return tier === 'notice' ? (rawPathOf(baseLaw) || null) : null;
 }
 
 /**
@@ -237,12 +244,13 @@ function resolveBase(law, baseLaw) {
  */
 async function loadArticle(q) {
   const law = String((q && q.law) || '').trim();
-  const tier = TIER_FILE[q && q.tier] ? q.tier : (q && q.tier === 'notice' ? 'notice' : 'law');
+  const qTier = q && q.tier;
+  const tier = Object.prototype.hasOwnProperty.call(TIER_FILE, qTier) ? qTier : (qTier === 'notice' ? 'notice' : 'law');
   const ref = parseArticleRef((q && q.article) || '');
   if (!law || !ref) return { ok: false, reason: 'bad_request' };
   if (!githubRaw.hasToken()) return { ok: false, reason: 'no_token' };
 
-  const base = resolveBase(law, (q && q.baseLaw) || '');
+  const base = resolveBase(law, (q && q.baseLaw) || '', tier);
   if (!base) return { ok: false, reason: 'law_not_found' };
 
   let filePath;
