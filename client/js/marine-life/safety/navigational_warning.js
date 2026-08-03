@@ -5,13 +5,16 @@
  *         (선박사고·표류장애물·수중장애물·해상사격훈련 등)의 구역을 원형/다각형
  *         으로 표시한다. 날짜 내비게이션(◀▶)으로 다른 날짜를 조회하고, 기준 시각
  *         슬라이더로 그 날짜의 특정 시각에 어떤 구역이 살아있는지 확인할 수 있다
- *         (시각이 지난 구역은 회색으로 바뀐다). 같은 구역이 시간대만 다르게 여러 번
- *         나오면 서버가 하나로 합쳐 주므로, 구역을 탭하면 그 안의 각 시간대(occurrence)를
- *         구분해서 보여준다. 확대하면 구역 위에 구분·시간 라벨이 붙는다(라벨끼리
- *         겹치면 OpenLayers declutter 가 자동으로 숨긴다).
+ *         (시각이 지난 구역은 회색으로 바뀌고 라벨도 사라진다 — 활성 구역만 라벨을
+ *         단다). 같은 구역이 시간대만 다르게 여러 번 나오면 서버가 하나로 합쳐 주므로,
+ *         구역을 탭하면 그 안의 각 시간대(occurrence)를 구분해서 보여준다(이미 끝난
+ *         시간대는 흐리게 + "종료" 표시). 줌 제한 없이 항상 라벨을 그리되, 화면에
+ *         여럿이 겹치면 큰 구역을 우선해(renderOrder) OpenLayers declutter가 정리한다.
+ *         구역이 화면에서 작게 보일 때 탭하면 팝업 대신 그 구역으로 먼저 확대하고,
+ *         충분히 커진 뒤 다시 탭해야 팝업이 뜬다.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap),
+ *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap·oceanGetBasemap·oceanSetBasemap),
  *                    shared/ui/ui_modal.js(window.showSeagnalModal), OpenLayers(ol.*)
  *  - 서버 API      : GET /api/navigational-warning/list?date=YYYYMMDD (날짜별 30분 캐시 —
  *                    텍스트는 공식 data.go.kr API, 좌표는 KHOA 내부 API 보강, 같은 구역명은
@@ -33,7 +36,8 @@
 
     var LIST_URL = '/api/navigational-warning/list';
     var NM_TO_M = 1852;          // 1해리(nautical mile) = 1852m — RADIUS(해리) → OpenLayers Circle 반경(m) 환산
-    var LABEL_RESOLUTION_MAX = 900; // 이 해상도(대략 줌 10+)보다 확대해야 구역 라벨을 그린다
+    var MIN_TAPPABLE_PX = 90;    // 이보다 화면상 작게 보이는 구역은 탭해도 팝업 대신 확대만 한다(fishing_ban.js 와 동일 기준)
+    var FIT_MAX_ZOOM = 18;       // 아주 작은 구역이 과확대되는 걸 막는 상한
     var WEEKDAY_KR = ['일', '월', '화', '수', '목', '금', '토'];
 
     var _layer = null;       // 외곽선 layer (라벨도 여기 붙음, declutter 적용)
@@ -61,14 +65,16 @@
     }
     function _fmtMin(min) { return _pad2(Math.floor(min / 60)) + ':' + _pad2(min % 60); }
 
-    /** 선택한 날짜(_selectedDate) 기준으로 이 zone(occurrences 병합됨)이 만료됐는지 —
-     *  그 날짜에 해당하는 시간창이 없으면(데이터 없음) 만료로 보지 않는다(과다 숨김 방지). */
-    function _isExpired(zone) {
-        var windows = (zone.windows || []).filter(function (w) { return w.date === _selectedDate; });
-        if (!windows.length) return false;
-        var latestEnd = Math.max.apply(null, windows.map(function (w) { return w.end; }));
+    /** 선택한 날짜(_selectedDate) 기준으로 이 시간창 배열이 만료됐는지 — 그 날짜에
+     *  해당하는 시간창이 없으면(데이터 없음) 만료로 보지 않는다(과다 숨김 방지).
+     *  zone(병합됨, 전체 occurrence 합집합)과 occurrence(개별) 양쪽에 다 쓴다. */
+    function _isWindowsExpired(windows) {
+        var matching = (windows || []).filter(function (w) { return w.date === _selectedDate; });
+        if (!matching.length) return false;
+        var latestEnd = Math.max.apply(null, matching.map(function (w) { return w.end; }));
         return _refMinutes > latestEnd;
     }
+    function _isExpired(zone) { return _isWindowsExpired(zone.windows); }
 
     /** 선택한 날짜에 해당하는 시간창을 "00:00~08:00" 형태로 짧게 합친 문자열(라벨용).
      *  같은 구역에 여러 occurrence(시간대)가 있으면 그만큼 여러 조각이 함께 나온다. */
@@ -90,8 +96,10 @@
     }
 
     /** 항행경보 구역 스타일 — 경고 의미의 진한 빨강(활성) / 회색(선택 날짜·시각 기준 만료).
-     *  resolution 이 충분히 작을 때(확대 상태)만 구분·시간 라벨을 붙인다. */
-    function _zoneStyle(feature, resolution) {
+     *  만료된 구역은 라벨을 아예 그리지 않는다(줌아웃 상태에서 활성 구역만 눈에 띄게).
+     *  줌 제한 없이 항상 라벨을 시도하고, 화면에 여럿이 겹치면 declutter + renderOrder
+     *  (큰 구역 우선, _boxArea 참고)가 어떤 라벨을 남길지 정리한다. */
+    function _zoneStyle(feature) {
         var zone = feature.get('zone');
         var expired = _isExpired(zone);
 
@@ -99,13 +107,13 @@
         var fillColor = expired ? 'rgba(148, 163, 184, 0.10)' : 'rgba(185, 28, 28, 0.22)';
 
         var text = null;
-        if (resolution < LABEL_RESOLUTION_MAX) {
+        if (!expired) {
             var label = [_categoryLabel(zone), _todayTimeLabel(zone)].filter(Boolean).join('\n');
             if (label) {
                 text = new ol.style.Text({
                     text: label,
                     font: '700 12px Pretendard, sans-serif',
-                    fill: new ol.style.Fill({ color: expired ? '#cbd5e1' : '#fff' }),
+                    fill: new ol.style.Fill({ color: '#fff' }),
                     stroke: new ol.style.Stroke({ color: 'rgba(15, 23, 42, 0.85)', width: 3 }),
                     overflow: true,
                     declutterMode: 'declutter'
@@ -119,14 +127,25 @@
             text: text
         });
     }
-    function _fillOnlyStyle(feature, resolution) {
-        var s = _zoneStyle(feature, resolution);
+    function _fillOnlyStyle(feature) {
+        var s = _zoneStyle(feature);
         return new ol.style.Style({ fill: s.getFill() });
     }
-    function _strokeOnlyStyle(feature, resolution) {
-        var s = _zoneStyle(feature, resolution);
+    function _strokeOnlyStyle(feature) {
+        var s = _zoneStyle(feature);
         return new ol.style.Style({ stroke: s.getStroke(), text: s.getText() });
     }
+
+    /** feature 지오메트리의 화면 바운딩박스 면적(㎡, EPSG:3857 좌표계 기준) —
+     *  Polygon/Circle 양쪽에 동일하게 쓸 수 있는 "구역 크기" 근사치.
+     *  renderOrder 에서 큰 구역이 먼저 그려지게 해, declutter가 라벨을 지울 때
+     *  작은 구역보다 큰 구역의 라벨을 우선 남기도록 한다(사용자 요청 — 큰 구역 우선). */
+    function _boxArea(feature) {
+        var ext = feature.getGeometry() && feature.getGeometry().getExtent();
+        if (!ext) return 0;
+        return (ext[2] - ext[0]) * (ext[3] - ext[1]);
+    }
+    function _bySizeDesc(f1, f2) { return _boxArea(f2) - _boxArea(f1); }
 
     function _ensureLayers(map) {
         if (!_source) _source = new ol.source.Vector();
@@ -137,6 +156,7 @@
                 style: _fillOnlyStyle,
                 zIndex: 43,
                 visible: _visible,
+                renderOrder: _bySizeDesc,
                 updateWhileAnimating: false,
                 updateWhileInteracting: false
             });
@@ -149,6 +169,7 @@
                 zIndex: 83,
                 visible: _visible,
                 declutter: true, // 인접한 구역의 라벨이 겹치면 자동으로 덜 중요한 쪽을 숨긴다
+                renderOrder: _bySizeDesc, // declutter가 라벨을 고를 때 큰 구역을 먼저 배치 → 우선권
                 updateWhileAnimating: false,
                 updateWhileInteracting: false
             });
@@ -240,8 +261,10 @@
         return html;
     }
 
-    /** occurrence(같은 구역의 시간대 한 건) 하나의 상세 블록 HTML */
+    /** occurrence(같은 구역의 시간대 한 건) 하나의 상세 블록 HTML — 선택한 날짜·시각
+     *  기준으로 이미 끝난 occurrence는 흐리게(opacity) + "종료" 표시를 붙인다. */
     function _buildOccurrenceHtml(occ) {
+        var expired = _isWindowsExpired(occ.windows);
         var cat = occ.noti_cat || occ.app_cat || '';
         var rows = '';
         rows += _row('구분', cat);
@@ -249,10 +272,11 @@
         rows += _row('유효기간', occ.validity);
         rows += _row('근거', occ.basic);
 
-        var html = '<p style="margin:0 0 6px;color:#fff;font-weight:700;font-size:0.92rem;text-align:left;">' + (occ.title || '') + '</p>';
+        var titleText = (occ.title || '') + (expired ? ' <span style="color:#f87171;font-weight:800;">· 종료</span>' : '');
+        var html = '<p style="margin:0 0 6px;color:#fff;font-weight:700;font-size:0.92rem;text-align:left;">' + titleText + '</p>';
         html += rows ? '<div class="ac-detail-grid">' + rows + '</div>' : '';
         if (occ.content) html += _formatContent(occ.content);
-        return html;
+        return expired ? '<div style="opacity:0.55;">' + html + '</div>' : html;
     }
 
     /** 구역 feature 하나의 상세 정보 팝업 HTML — occurrences(시간대)별로 구분해 보여준다 */
@@ -268,24 +292,49 @@
     }
 
     /**
-     * [외부 API] 지도 클릭이 항행경보 구역을 눌렀는지 확인한다.
+     * [외부 API] 지도 클릭이 항행경보 구역(폴리곤 또는 그 라벨)을 눌렀는지 확인한다.
+     * 구역이 화면에서 얼마나 크게 보이는지에 따라 두 갈래로 나뉜다(fishing_ban.js /
+     * seaway.js 와 동일 패턴) — 예1: 줌아웃 상태에서 작게 보이는 구역을 탭하면 팝업 없이
+     * 그 구역 범위로 지도를 확대하고 끝(커진 뒤 다시 탭하면 팝업). 예2: 이미 충분히 크게
+     * 보일 때 탭하면 바로 상세 팝업.
      * @param {ol.Map} map
      * @param {ol.MapBrowserEvent} evt
-     * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함)
+     * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함 —
+     *                    확대만 한 경우도 true라 바텀시트가 같이 뜨지 않는다)
      * [연계] ← ocean_map.js handleMapClick — 항로 다음 순위로 호출.
      */
     window._navwarnTryHandleClick = function (map, evt) {
         if (!_visible || !_fillLayer) return false;
         var hit = map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
             if (layer === _fillLayer) return feature;
+            // 줌아웃 상태에선 폴리곤이 몇 px 밖에 안 돼 채움만으로는 잘 안 잡힌다 —
+            // 외곽선+라벨 레이어에서도 보조 판정한다.
+            if (layer === _layer) return feature;
             return null;
-        });
+        }, { hitTolerance: 5 }); // 작은 구역은 손가락으로 정확히 누르기 어렵다
         if (!hit) return false;
+
+        var extent = hit.getGeometry() && hit.getGeometry().getExtent();
+        var resolution = map.getView().getResolution();
+        if (extent && resolution) {
+            var widthPx = (extent[2] - extent[0]) / resolution;
+            var heightPx = (extent[3] - extent[1]) / resolution;
+            if (widthPx < MIN_TAPPABLE_PX && heightPx < MIN_TAPPABLE_PX) {
+                var vworldMaxZoom = window.oceanCreateVworldLayer && window.oceanCreateVworldLayer.maxZoom;
+                map.getView().fit(extent, {
+                    padding: [80, 80, 80, 80],
+                    duration: 400,
+                    maxZoom: vworldMaxZoom || FIT_MAX_ZOOM
+                });
+                return true; // 확대만 하고 팝업은 띄우지 않는다(클릭은 소비)
+            }
+        }
+
         var zone = hit.get('zone');
         if (typeof window.showSeagnalModal === 'function') {
             window.showSeagnalModal(zone.name || '항행경보', _buildDetailHtml(hit), 'info');
             var modalContent = document.querySelector('#seagnal-custom-modal .seagnal-modal-content');
-            if (modalContent) modalContent.classList.add('access-control-wide');
+            if (modalContent) modalContent.classList.add('access-control-wide', 'navwarn-detail-scroll');
         } else if (typeof window._showOceanToast === 'function') {
             window._showOceanToast(zone.name || '항행경보', 'bottom', 3000);
         }
@@ -349,6 +398,8 @@
         var slider = document.getElementById('navwarn-time-slider');
         var valueEl = document.getElementById('navwarn-time-value');
 
+        var _prevBasemap = null; // OFF 시 원래 배경지도로 되돌리기 위해 ON 시점 값을 기억
+
         btn.addEventListener('click', function () {
             _visible = !_visible;
             btn.classList.toggle('active', _visible);
@@ -360,6 +411,15 @@
                 if (slider) slider.value = String(_refMinutes);
                 if (valueEl) valueEl.textContent = _fmtMin(_refMinutes);
                 _load();
+                // 실제 지형과 비교하기 쉽도록 배경지도를 위성지도로 자동 전환한다
+                // (출입통제·낚시금지와 동일 패턴).
+                if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
+                    _prevBasemap = window.oceanGetBasemap();
+                    if (_prevBasemap !== 'vworld') window.oceanSetBasemap('vworld');
+                }
+            } else if (_prevBasemap && _prevBasemap !== 'vworld' && typeof window.oceanSetBasemap === 'function') {
+                window.oceanSetBasemap(_prevBasemap);
+                _prevBasemap = null;
             }
         });
     }
