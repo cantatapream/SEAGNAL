@@ -292,7 +292,6 @@ router.get('/api/ripcurrent-index', (req, res) => {
  *
  * [연계] scheduler.js → collectSwimmingIndex()가 swimming_index.json으로 저장
  *        js/marine-life/swimming/swimming.js (프론트엔드) → fetch('/api/swimming-index')로 요청
- *        js/marine-life/safety/beach_swim.js (프론트엔드) → 해양안전 탭 오버레이 마커에서 동일 API 사용
  */
 router.get('/api/swimming-index', (req, res) => {
     if (dataCache.swimmingIndex) {
