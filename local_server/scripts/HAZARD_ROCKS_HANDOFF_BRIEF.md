@@ -3,7 +3,30 @@
 > 상세 배경·시행착오·전체 히스토리는 [`HAZARD_ROCKS_HANDOFF.md`](./HAZARD_ROCKS_HANDOFF.md) 참고.
 > 이 파일은 **"지금 뭘 하고 있었고, 다음에 뭘 하면 되는지"** 만 빠르게 파악하기 위한 것.
 
-## ✅ 완료됨 (2026-08-03): 노출암 300m 근접 1,000개 OCR 판독 + 사람 검토
+## ✅ 완료됨 (2026-08-03): Task #19 — 노출암 전체 정밀 조석-스윕 스크리닝
+
+**최종 데이터**:
+- `local_server/data/hazard_rocks/isolation_sweep_full.json` — 서해·남해 in-scope 노출암 2,985개
+  전부, 프로덕션 tide-field API(72시간 창, 1시간 간격 72샘플)로 해안선 플러드필
+  (`services/hazard_rocks_isolation.js`)을 실행해 시각별 고립/연결 상태를 기록한 원본.
+- `local_server/data/hazard_rocks/isolation_candidates_final.json` — 위 스윕 + 300m 근접
+  1,000개 OCR 결과를 union한 **최종 우선순위 후보 718개**.
+- 재사용 스크립트: `hazard_rocks_task19_sweep.js`(스윕 실행) +
+  `hazard_rocks_task19_finalize.js`(union). 로컬 서버 불필요 — 프로덕션
+  `https://seagnal-server.fly.dev` API를 직접 호출한다(로컬 grid_meta.json은
+  빈 스텁이라 사용 불가).
+
+**분류 결과**: always_connected 2,276 / always_isolated(비근접-해안) 702 /
+transition(연결↔고립 전환) 7. **핵심 발견**: 근접-해안(300m 이내, 1,000개 리뷰 대상) 904건은
+스윕에서 **100%가 always_connected로 나옴** — 사람이 이미 "항상 고립"로 판단해둔 9건
+(`alwaysIsolatedFlag`, 3083 1건은 동해라 대상 밖이라 제외)조차 예외 없이 전부 포함됨. 원인은
+BADA 근접-해안 부정확 문제(§6.3)와 동일 — 해안선 시드 버퍼(150m)+고립판정 탐색반경(2칸≈
+276~390m)이 근접-해안 지점을 조위와 무관하게 트리비얼하게 "연결"로 만든다. **따라서 근접-해안
+구간은 물리 스윕을 신뢰하지 말고 사람/OCR 판단(`alwaysIsolatedFlag`)을 그대로 채택** —
+`isolation_candidates_final.json`에 이미 이 원칙으로 반영됨. 최종 718개 우선순위 후보 =
+transition 7 + always_isolated_far(비근접-해안) 702 + always_isolated_nearshore_human 9.
+
+## ✅ 완료됨 (2026-08-03, 이전 세션): 노출암 300m 근접 1,000개 OCR 판독 + 사람 검토
 
 **최종 데이터**: `local_server/data/hazard_rocks/nearshore_isolation_review_1000.json`(커밋됨, 1000건)
 - 오퍼스 메인 판독(4개 배치: 1차 250×2 + 2차 250×2) + 애매 판정 283건(1차 96 + 2차 187) 전부
@@ -20,14 +43,15 @@
   위주로만 하면 됨 — 검토량이 앞으로는 더 줄어들 것.
 
 ## 다음 단계 (순서대로, 아직 미착수)
-1. **Task #19** — 노출암 전체 3,130개 정밀 조석-스윕 스크리닝(플러드필만, OCR 없이) — 이 300m
-   근접 1,000개 OCR 결과와 union해서 최종 고립판정 후보군 확정.
-2. **Task #16** — 고립판정을 실제 tide_field API에 배선해서 프론트에 경고 표시(서해·남해 우선,
-   제주 확장 포함) — `nearshore_isolation_review_1000.json`을 실사용 데이터로 소비.
-3. **Task #14** — 제주는 격자(`grid_meta_jeju.json`/`anchors_jeju.json`, 로컬에만 있고 미커밋)를
-   기반으로 앵커 재산정·수집 확장 필요.
-4. **Task #17** — 노출암 마커에 "늦어도 O시까지 이탈" 시각 표시(해안거리+잠김시각 반영).
-5. **Task #18** — 노출암/간출암 마커 탭 시 당일+익일(최대 3일) 조석 곡선 팝업, 하루씩 넘겨보기
+1. **Task #16** — 고립판정을 실제 tide_field API에 배선해서 프론트에 경고 표시(서해·남해 우선,
+   제주 확장 포함) — `isolation_candidates_final.json`(718개 우선순위 후보)을 실사용 데이터로
+   소비. 근접-해안(904건 중 9건 always_isolated_nearshore_human)은 사람 판단을, 나머지
+   (transition 7 + always_isolated_far 702)는 스윕 결과를 그대로 신뢰해도 됨.
+2. **Task #14** — 제주는 격자(`grid_meta_jeju.json`/`anchors_jeju.json`, 로컬에만 있고 미커밋)를
+   기반으로 앵커 재산정·수집 확장 필요. Task #19 스윕은 제주를 대상 해역에서 제외했으므로
+   (tide_field가 애초에 서해·남해만 커버) 제주 노출암은 이 작업 이후에나 스윕 가능.
+3. **Task #17** — 노출암 마커에 "늦어도 O시까지 이탈" 시각 표시(해안거리+잠김시각 반영).
+4. **Task #18** — 노출암/간출암 마커 탭 시 당일+익일(최대 3일) 조석 곡선 팝업, 하루씩 넘겨보기
    (이미 수집된 데이터 재사용, 새 수집 불필요).
 
 ## 이 파이프라인을 더 돌려야 한다면 (다음 배치 실행법)
@@ -61,5 +85,13 @@
 - scheduler.js의 서해·남해/제주 TideBED 수집 로그는 통일된 형식("TideBED 앵커 곡선 수집")으로
   이미 커밋됨(`ea24b036`).
 - 커밋 시 `local_server/data/tide_field/anchors.json`/`grid_meta.json`는 **로컬 테스트용이라
-  커밋하지 않는다**(기존 결정 유지) — 단 `nearshore_isolation_review_1000.json`은 실제 결과물이라
-  커밋 대상(이미 커밋됨).
+  커밋하지 않는다**(기존 결정 유지) — 단 `nearshore_isolation_review_1000.json`·
+  `isolation_sweep_full.json`·`isolation_candidates_final.json`은 실제 결과물이라 커밋 대상
+  (이미 커밋됨).
+- **Task #19 스윕은 로컬 tide_field 데이터가 아니라 프로덕션 API(`https://seagnal-server.fly.dev`)를
+  직접 호출한다** — 로컬 `grid_meta.json`은 `cell_count:0`(no_bathymetry) 빈 스텁이라 로컬
+  서버로는 스윕 불가.
+- **근접-해안(300m 이내)에서 물리 스윕(플러드필)은 신뢰하지 말 것** — 해안선 버퍼+탐색반경이
+  근접-해안 지점을 조위와 무관하게 트리비얼하게 "연결"로 만든다(2026-08-03 실측 확인, 사람이
+  "항상 고립"로 판단해둔 9건 전부가 스윕에서 "always_connected"로 나옴). 근접-해안은 반드시
+  OCR/사람 판단(`nearshore_isolation_review_1000.json`)을 우선한다.

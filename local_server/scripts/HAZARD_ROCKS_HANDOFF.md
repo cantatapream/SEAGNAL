@@ -306,8 +306,8 @@ API를 1분마다 폴링해, 클러스터에 뭉치지 않고 낱개로 보이�
   실제 안전상 의미 있는 건 조석에 따라 **연결↔고립이 전환되는** 지점이라는 방향으로 바뀌었다(항상
   고립/항상 연결인 곳은 애초에 위험 신호로서 가치가 적다는 논리). 이 재구상 이후 2단계 후보 설계로
   정리됐다:
-  1. (Task #19, 미착수) 정밀 조석-스윕 물리 기반 스크리닝 — 전체 3,130개 노출암에 OCR 없이
-     플러드필만으로 저렴하게 "실제로 전환되는" 후보를 찾는다.
+  1. (Task #19, 완료 — §6.8 참고) 정밀 조석-스윕 물리 기반 스크리닝 — 서해·남해 in-scope 노출암
+     2,985개 전부에 OCR 없이 플러드필만으로 저렴하게 "실제로 전환되는" 후보를 찾았다.
   2. (진행 중) 해안선 근접 안전망 — BADA가 특히 부정확한 근접-해안 구간을 OCR로 직접 검증. 격자
      해상도(CELL_DEG≈150m) 자체가 근접-해안에서 부정확하다는 걸 알고 있었기 때문에, 임계값을
      100m/300m 두 옵션으로 비교해봤고("100m로 잡히면 어떻게 될까?"라는 질문에 대한 실측 답변
@@ -449,6 +449,59 @@ prefix는 프로덕션에 안 보임). **바깥쪽 요약 로그를 "🌊 TideBE
   재계산 + 이미 처리된 id 제외 + 지역 비례 층화 선정 + BADA 참고값 조회까지 한 번에 하는 스크립트.
   §6.5 후반부의 재현 방법을 그대로 코드화한 것.
 
+### 6.8 Task #19 — 노출암 전체 정밀 조석-스윕 스크리닝 (2026-08-03 완료)
+
+**목표**: §6.4 후보 선정 설계 1단계 — 300m 근접-해안 OCR 안전망(§6.5)과 별개로, 서해·남해
+전체 노출암에 대해 OCR 없이 순수 물리(플러드필)만으로 "밀물에 따라 실제로 연결↔고립이
+전환되는" 후보를 찾는다.
+
+**방법**: `scripts/hazard_rocks_task19_sweep.js` 신설.
+- 로컬 `data/tide_field/grid_meta.json`은 `cell_count:0`(no_bathymetry) 빈 스텁이라 사용
+  불가 — **프로덕션 API(`https://seagnal-server.fly.dev/api/tide-field`)를 직접 호출**한다
+  (§6.2 검증 때와 동일 방식). 세션 시작 시 네트워크 접근 가능 여부를 먼저 curl로 확인했다.
+- 대상: `client/hazard_rocks.json`의 k=0(노출암) 중 `tide_field_common.isWestSouthSea()`로
+  게이팅한 서해·남해 in-scope **2,985개**(전체 k=0은 4,287개지만 동해·제주·북한 영해는 애초에
+  tide_field 커버리지 밖이라 제외 — HANDOFF_BRIEF의 "3,130개"는 이전 세션의 근사치였고, 실제
+  게이팅 함수로 재계산한 정확한 수는 2,985).
+- 프로덕션 예측 윈도우 전체(3일=72시간)를 **1시간 간격 72개 시점**으로 훑는다(윈도우 자체가
+  `step_minutes:60`이라 더 촘촘히 샘플링해도 이득 없음).
+- 각 시점마다 `GET /api/tide-field?time=&bbox=`로 전역 노출 셀을 수집하되, `MAX_CANDIDATE_CELLS`
+  (14000) 캡에 걸리면(`budget_dropped>0`) bbox를 2×2로 재귀 분할해 전량 수집(§6.2 부수발견 1과
+  동일 기법). 실측 결과 전역 노출 셀은 시점에 따라 7천~3만9천 개까지 변동, 재귀분할로 캡 없이
+  전부 수집하는 데 시점당 1~3초, 전체 72시점에 약 100초 소요.
+- `services/hazard_rocks_isolation.js`의 `floodFillReachable`(해안선 시드 → 그 시각 노출 셀만
+  타고 확산)로 도달가능 셀 집합을 구하고, `classifyRocks`(탐색반경 2칸)로 각 노출암의 그 시각
+  고립 여부를 판정 → 72개 시점 전체를 훑어 상태 이력을 기록.
+- 분류: 72개 전부 고립=`always_isolated`, 전부 연결=`always_connected`, 도중에 바뀜=`transition`.
+
+**결과**: `data/hazard_rocks/isolation_sweep_full.json`(2,985건 전체 원본) — always_connected
+2,276 / always_isolated 702 / transition 7.
+
+**핵심 발견(중요, 재발 방지용)**: 근접-해안(300m 이내, 300m 리뷰 1,000개 중 in-scope 904건)은
+스윕 결과 **100%가 always_connected**로 나왔다 — 사람이 이미지를 보고 직접 "항상 고립"이라고
+판단해 `alwaysIsolatedFlag: true`를 남긴 9건(3083 1건은 동해라 in-scope 밖)조차 **예외 없이
+전부** 스윕에서는 "언제나 연결"로 오분류됐다. 원인은 §6.3에서 이미 확인한 BADA 근접-해안
+부정확 문제와 본질적으로 같다 — 해안선 시드 버퍼(`NEIGHBOR_BUFFER_CELLS`=1칸≈150m)와 노출암
+고립판정 탐색반경(`searchRadiusCells`=2칸≈276~390m)을 합치면, 노출암이 해안선에서 약 300~400m
+안쪽에 있는 경우 그 사이에 실제로는 마르지 않는 깊은 물길(수로)이 있어도 스윕은 그걸 격자
+해상도(0.0015°≈150m)로 못 잡아내 조위와 무관하게 "코스트라인에 인접했으니 항상 연결"로 보게
+된다. **결론: 근접-해안 300m 이내는 물리 스윕을 신뢰하지 말고, 이미 있는 300m OCR 리뷰(§6.5)의
+사람 판단(`alwaysIsolatedFlag`)을 그대로 채택해야 한다** — 이게 애초에 두 갈래(§6.4)로 설계된
+이유가 실측으로 재확인된 것.
+
+**union**: `scripts/hazard_rocks_task19_finalize.js` → `data/hazard_rocks/isolation_candidates_final.json`.
+- `transition`(7건, 비근접-해안, 스윕이 확인한 실제 조석 전환 — 최우선 안전 신호)
+- `always_isolated_far`(702건, 비근접-해안 중 스윕이 확인한 상시 고립 — 보트 필요 지점)
+- `always_isolated_nearshore_human`(9건, 근접-해안 중 사람이 "항상 고립"로 판단한 것 — 스윕
+  결과를 무시하고 사람 판단을 채택)
+- 최종 우선순위 후보 총 **718개**(7+702+9).
+
+**참고(설계상 한계, 의도된 동작)**: `always_connected`(2,276건)에는 실제로 항상 안전하게
+도보 접근 가능한 지점과, 근접-해안 트리비얼-연결 편향으로 오분류된 지점이 섞여 있을 수 있다 —
+단, 그 위험 구간(근접-해안 300m)은 이미 별도로 100% OCR 검증됐으므로(§6.5) 추가 조치 불필요.
+비근접-해안 `always_connected`는 애초에 해안선에서 충분히 떨어져 격자 버퍼 편향의 영향이 작아
+신뢰할 만하다(다만 별도 OCR 검증은 하지 않았음 — Task #16 배선 후 이상 신호가 보이면 재검토).
+
 ---
 
 ## 7. 알아둘 것 (교훈/시행착오 요약)
@@ -491,6 +544,10 @@ prefix는 프로덕션에 안 보임). **바깥쪽 요약 로그를 "🌊 TideBE
 - **아티팩트 파일 크기 제한(16MB)을 넘으면 즉시 실패한다** — base64 이미지 여러 장을 한 HTML에
   욱여넣을 땐 사전에 총 용량을 가늠해서(1건당 대략 90~100KB 안팎) 필요하면 처음부터 여러 페이지로
   쪼갤 것(187건은 8.6MB+8.7MB 두 페이지로 쪼개야 했다).
+- **물리 기반 플러드필도 근접-해안(300m 이내)에서는 신뢰 불가하다** — BADA 부정확 문제(§6.3)와
+  같은 뿌리. 사람이 "항상 고립"로 확정한 9건 전부가 Task #19 스윕에서 "항상 연결"로 나왔다
+  (§6.8). 근접-해안 안전판정은 앞으로도 OCR/사람 검토가 필요하고, 물리 스윕은 그 바깥(300m
+  밖)에서만 단독으로 신뢰할 것.
 
 ---
 
@@ -509,6 +566,8 @@ local_server/
     build_coastline_cells.js                      # 해안선 shp → coastline_cells.json
     build_jeju_bathy_grid.js                       # 제주 전용 BADA 격자(로컬만, 미커밋)
     build_tide_field.js                            # 물빠짐 Phase 0 전처리(서해·남해 BADA 격자)
+    hazard_rocks_task19_sweep.js                    # Task#19: 전체 노출암 조석-스윕(플러드필)
+    hazard_rocks_task19_finalize.js                 # Task#19: 스윕+OCR 리뷰 union → 최종 후보
     TIDE_FIELD_README.md                           # 물빠짐+고립판정 운영 가이드
     HAZARD_ROCKS_HANDOFF.md                        # 이 문서
     HAZARD_ROCKS_HANDOFF_BRIEF.md                  # 개략(바로 이어할 일)
@@ -524,6 +583,8 @@ local_server/
     ocean1.js                                        # GET /api/ocean/depth, /vworld-key 등
   data/ (대부분 gitignore, Fly 볼륨에만 존재하거나 로컬 테스트용 — 예외는 표시)
     hazard_rocks/{anchors.json, curves/, submersion.json,
-                  nearshore_isolation_review_1000.json(커밋됨 — 300m 근접 1,000개 OCR+사람검토 최종본)}
+                  nearshore_isolation_review_1000.json(커밋됨 — 300m 근접 1,000개 OCR+사람검토 최종본),
+                  isolation_sweep_full.json(커밋됨 — Task#19 전체 노출암 스윕 원본, 2,985건),
+                  isolation_candidates_final.json(커밋됨 — Task#19+OCR union 최종 후보 718건)}
     tide_field/{grid_meta.json, anchors.json, coastline_cells.json(커밋됨), curves/}
 ```
