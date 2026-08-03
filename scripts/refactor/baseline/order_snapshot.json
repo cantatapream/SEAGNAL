@@ -114,6 +114,7 @@
     "fishing_ban.js",
     "vts_zone.js",
     "seaway.js",
+    "navigational_warning.js",
     "life_safety.js"
   ]
 }

@@ -787,15 +787,16 @@
         body.ls-mode.ls-safety #ocean-fishing-ban-toggle-btn,
         body.ls-mode.ls-safety #ocean-vts-toggle-btn,
         body.ls-mode.ls-safety #ocean-seaway-toggle-btn,
+        body.ls-mode.ls-safety #ocean-navwarn-btn,
         body.ls-mode.ls-safety #ocean-cctv-toggle-btn,
         body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
-        /* 노출암/간출암 등/출입통제/낚시금지/관제구역/항로 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
+        /* 노출암/간출암 등/출입통제/낚시금지/관제구역/항로/항행경보 버튼은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
            [연계] js/marine-life/safety/hazard_rocks.js, js/marine-life/safety/access_control.js,
                   js/marine-life/safety/fishing_ban.js, js/marine-life/safety/vts_zone.js,
-                  js/marine-life/safety/seaway.js */
+                  js/marine-life/safety/seaway.js, js/marine-life/safety/navigational_warning.js */
         #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn, #ocean-access-control-toggle-btn,
         #ocean-fishing-ban-toggle-btn, #ocean-vts-toggle-btn,
-        #ocean-seaway-toggle-btn { display: none; }
+        #ocean-seaway-toggle-btn, #ocean-navwarn-btn { display: none; }
         body.ls-mode.ls-safety #ocean-search-container,
         body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
         /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
@@ -3453,6 +3454,17 @@
                             <i class="fa-solid fa-route"></i>
                             <span class="ocean-overlay-label" data-line1="항로">항로</span>
                         </button>
+                        <!-- 항행경보 토글: js/marine-life/safety/navigational_warning.js 가 바인딩.
+                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
+                             켜면 오늘 발효 중인 항행경보(선박사고·표류장애물·해상사격훈련 등)의
+                             구역을 원형/다각형으로 그린다(배경지도는 기본맵 그대로 유지).
+                             [서버 API] GET /api/navigational-warning/list (텍스트: data.go.kr 공식 API,
+                                      좌표: KHOA 내부 API 보강, 30분 캐시) -->
+                        <button class="ocean-overlay-btn" id="ocean-navwarn-btn" title="항행경보">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span class="ocean-overlay-label" data-line1="항행" data-line2="경보">항행경보</span>
+                        </button>
                         <!-- 천기 토글: js/shrt_forecast_layer.js 가 바인딩 (이전 이름: "기타 기상")
                              클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
                              (강수확률·강수량·적설·하늘상태·강수형태) — 하나 선택 시 팝아웃이 접히면서
@@ -5073,6 +5085,11 @@
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <script src="js/marine-life/safety/seaway.js"></script>
+
+    <!-- 항행경보 구역 레이어 — 해양안전 하위탭 전용. seaway.js 와 동일하게
+         스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
+    <script src="js/marine-life/safety/navigational_warning.js"></script>
 
     <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
