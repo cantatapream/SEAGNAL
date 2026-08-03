@@ -119,9 +119,23 @@ def check_admrul(meta, raw_rel):
 
 def main():
     names = core_law_names()
-    report = {'생성': time.strftime('%Y-%m-%d %H:%M KST'), '대상법수': len(names), '법별결과': {}}
-    stale_count = 0
+    # 재개(resume): 컨테이너 재시작 등으로 중단됐을 때, 기존 리포트에 이미 있는 법은 다시 안 부른다.
+    if os.path.exists(REPORT):
+        try:
+            report = json.load(open(REPORT, encoding='utf-8'))
+            report.setdefault('법별결과', {})
+        except Exception:
+            report = {'생성': time.strftime('%Y-%m-%d %H:%M KST'), '대상법수': len(names), '법별결과': {}}
+    else:
+        report = {'생성': time.strftime('%Y-%m-%d %H:%M KST'), '대상법수': len(names), '법별결과': {}}
+    done = set(report['법별결과'].keys())
+    if done:
+        print(f'재개: 이미 완료된 {len(done)}개 건너뜀', flush=True)
+    stale_count = sum(1 for v in report['법별결과'].values()
+                       if v.get('법률시행령시행규칙_이슈') or v.get('위임고시_이슈'))
     for i, name in enumerate(names):
+        if name in done:
+            continue
         meta, rel = search_law_family(name)
         if not meta:
             report['법별결과'][name] = {'오류': f'_meta.json 없음(경로: {rel})'}
