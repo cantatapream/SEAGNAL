@@ -50,6 +50,7 @@ const dataCache = {
     mudflatIndex: null,       // 갯벌체험 지수 (scheduler.js → mudflat_index.json)
     scubaIndex: null,         // 스킨스쿠버 지수 (scheduler.js → scuba_index.json)
     ripCurrentIndex: null,    // 이안류 지수 (scheduler.js → ripcurrent_index.json)
+    swimmingIndex: null,      // 해수욕 지수 (scheduler.js → swimming_index.json)
     lastUpdate: {}
 };
 
@@ -92,7 +93,8 @@ function refreshCache() {
         surfingIndex: 'surfing_index.json',      // 서핑지수 데이터
         mudflatIndex: 'mudflat_index.json',      // 갯벌체험 지수 데이터
         scubaIndex: 'scuba_index.json',          // 스킨스쿠버 지수 데이터
-        ripCurrentIndex: 'ripcurrent_index.json' // 이안류 지수 데이터
+        ripCurrentIndex: 'ripcurrent_index.json', // 이안류 지수 데이터
+        swimmingIndex: 'swimming_index.json'     // 해수욕 지수 데이터
     };
 
     Object.keys(files).forEach(key => {

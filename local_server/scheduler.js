@@ -151,6 +151,7 @@ const lastRunStatus = {
     mudflat: { lastRun: null, status: '대기 중', message: '' },  // 갯벌체험 지수
     scuba: { lastRun: null, status: '대기 중', message: '' },    // 스킨스쿠버 지수
     ripcurrent: { lastRun: null, status: '대기 중', message: '' }, // 이안류 지수 (실시간)
+    swimming: { lastRun: null, status: '대기 중', message: '' }, // 해수욕 지수
 };
 
 const CONFIG_FILE = path.join(__dirname, 'data/api_config.json');
@@ -1664,6 +1665,174 @@ async function _fetchScubaData() {
 }
 
 // ========================================================================
+// 해수욕 지수 수집 (스킨스쿠버와 동일한 지도형 표출)
+// ========================================================================
+
+// 해수욕 API 설정 (다른 해양생활 지수와 동일 인증키 사용)
+const BEACH_API_BASE = 'https://apis.data.go.kr/1192136/fcstBeachv2/GetFcstBeachApiServicev2';
+
+/**
+ * 해수욕 지수 데이터 수집 함수
+ *
+ * [설명]
+ * 국립해양조사원 해수욕지수 API를 호출하여 전국 해수욕장의 7일간 예보를 수집합니다.
+ * 데이터 구조가 스킨스쿠버와 동일(지점 → 날짜 → 오전/오후/일 슬롯)하므로, 프론트엔드도
+ * 스킨스쿠버와 같은 지도형(마커+바텀시트) UI를 재사용합니다.
+ *
+ * [데이터 구조]
+ * {
+ *   updatedAt: "2026.06.07 09:10",
+ *   places: {
+ *     "대천해수욕장": {
+ *       lat, lot,
+ *       forecasts: {
+ *         "20260607": {
+ *           "오전": { totalIndex, maxWvhgt, avgWtem, avgArtmp, maxWspd, opnStat },
+ *           "오후": {...}
+ *         },
+ *         "20260610": { "일": {...} }   // D+3 이후는 종일('일') 슬롯
+ *       }
+ *     }
+ *   }
+ * }
+ *
+ * [연계] routes/fishing.js → /api/swimming-index, js/marine-life/swimming/swimming.js → 지도 마커/바텀시트,
+ *        js/marine-life/safety/beach_swim.js → 해양안전 탭 오버레이 마커
+ */
+async function collectSwimmingIndex() {
+    try {
+        log('🏖️ 해수욕 지수 수집 시작...');
+
+        const items = await _fetchBeachData();
+
+        // [전송오류 방어] API 전송오류로 null이 오고 기존에 정상 데이터가 있으면 덮어쓰지 않고 보존
+        if (items === null && _hasPreviousData('swimming_index.json', (o) => Object.keys(o.places || {}).length)) {
+            log('🏖️ 해수욕: API 전송오류 → 기존 데이터 보존(덮어쓰기 방지)');
+            lastRunStatus.swimming = { lastRun: getNowStr(), status: '유지', message: '일시적 API 오류로 기존 데이터 보존' };
+            return;
+        }
+
+        const result = {
+            updatedAt: getNowStr(),
+            places: {}
+        };
+
+        if (!items || items.length === 0) {
+            log('⚠️ 해수욕 데이터 없음 (개장기간 외 또는 전 지점 미발생)');
+        } else {
+            items.forEach(item => {
+                const placeName = item.bbchNm;
+                if (!placeName) return;
+
+                // API 날짜 형식 "YYYY-MM-DD" → "YYYYMMDD" (다른 해양생활 지수와 동일한 키 형식)
+                const dateStr = item.predcYmd ? item.predcYmd.replace(/-/g, '') : '';
+                if (!dateStr) return;
+
+                // 지점 최초 등장 시 초기화
+                if (!result.places[placeName]) {
+                    result.places[placeName] = {
+                        lat: parseFloat(item.lat) || 0,
+                        lot: parseFloat(item.lot) || 0,
+                        forecasts: {}
+                    };
+                }
+                const place = result.places[placeName];
+
+                if (!place.forecasts[dateStr]) place.forecasts[dateStr] = {};
+
+                // 시간대 키: '오전' / '오후' / '일'(종일)
+                const slot = item.predcNoonSeCd || '일';
+                if (!place.forecasts[dateStr][slot]) {
+                    place.forecasts[dateStr][slot] = {
+                        totalIndex: item.totalIndex || '',  // 해수욕 종합 지수 (5단계)
+                        maxWvhgt: item.maxWvhgt || '',       // 최고 파고 (m)
+                        avgWtem: item.avgWtem || '',         // 평균 수온 (°C)
+                        avgArtmp: item.avgArtmp || '',       // 평균 기온 (°C)
+                        maxWspd: item.maxWspd || '',         // 최고 풍속 (m/s)
+                        opnStat: item.opnStat || ''          // 개장상태 (개장/폐장)
+                    };
+                }
+            });
+        }
+
+        const placeNames = Object.keys(result.places);
+        const dateSet = new Set();
+        placeNames.forEach(n => Object.keys(result.places[n].forecasts).forEach(d => dateSet.add(d)));
+
+        saveData('swimming_index.json', result);
+        lastRunStatus.swimming = {
+            lastRun: getNowStr(),
+            status: '성공',
+            message: `${placeNames.length}개 지점(${dateSet.size}일)`
+        };
+        log(`✅ 해수욕 지수 수집 완료 (${placeNames.length}개 지점, ${dateSet.size}일)`);
+
+    } catch (e) {
+        lastRunStatus.swimming = { lastRun: getNowStr(), status: '실패', message: e.message };
+        log(`⚠️ 해수욕 지수 수집 실패: ${e.message}`);
+    }
+}
+
+/**
+ * 해수욕 API 호출 함수 (페이지네이션 포함)
+ * @returns {Array} API 응답의 전체 items 배열 (실패 시 빈 배열)
+ *
+ * [연계] collectSwimmingIndex()에서 호출
+ */
+async function _fetchBeachData() {
+    const allItems = [];
+    const encodedKey = encodeURIComponent(FISHING_API_KEY); // 다른 해양생활 지수와 동일 API 키 사용
+    let pageNo = 1;
+    const numOfRows = 300;
+    let fetchError = false; // 전송 오류(정상 '데이터 없음'과 구분)
+
+    try {
+        while (true) {
+            const params = new URLSearchParams({
+                numOfRows: String(numOfRows),
+                pageNo: String(pageNo),
+                type: 'json'
+            });
+            const url = `${BEACH_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
+            const response = await fetchWithTimeout(url, {}, 30000);
+
+            if (!response.ok) {
+                log(`⚠️ 해수욕 API 응답 오류 (p${pageNo}): HTTP ${response.status}`);
+                fetchError = true;
+                break;
+            }
+
+            const data = await response.json();
+
+            const rc = data?.header?.resultCode;
+            if (rc !== '00') {
+                if (rc !== '03') { log(`⚠️ 해수욕 API 오류: ${data?.header?.resultMsg}`); fetchError = true; }
+                break;
+            }
+
+            const items = data?.body?.items?.item;
+            if (!items) break;
+
+            const arr = Array.isArray(items) ? items : [items];
+            allItems.push(...arr);
+
+            const totalCount = data?.body?.totalCount || 0;
+            log(`🏖️ 해수욕 p${pageNo}: ${arr.length}건 수신 (누적 ${allItems.length}/${totalCount})`);
+
+            if (arr.length < numOfRows) break;
+            pageNo++;
+            if (pageNo > 10) break; // 안전장치
+        }
+
+        if (fetchError && allItems.length === 0) return null;
+        return allItems;
+    } catch (e) {
+        log(`⚠️ 해수욕 API 호출 실패: ${e.message}`);
+        return allItems.length > 0 ? allItems : null;
+    }
+}
+
+// ========================================================================
 // 이안류 지수 수집 (실시간 관측 — 스킨스쿠버와 동일한 지도형 표출)
 // ========================================================================
 
@@ -2319,7 +2488,8 @@ async function init() {
             collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료')),
             collectMudflatIndex().then(() => log('✅ 갯벌체험 지수 수집 완료')),
             collectScubaIndex().then(() => log('✅ 스킨스쿠버 지수 수집 완료')),
-            collectRipCurrentIndex().then(() => log('✅ 이안류 지수 수집 완료'))
+            collectRipCurrentIndex().then(() => log('✅ 이안류 지수 수집 완료')),
+            collectSwimmingIndex().then(() => log('✅ 해수욕 지수 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
@@ -2458,6 +2628,7 @@ async function init() {
             collectSeaSplitIndex();
             collectMudflatIndex();
             collectScubaIndex();
+            collectSwimmingIndex();
         }
 
         // 이안류 지수: 실시간 관측(5분 간격 갱신)이므로 30분마다 수집 (매시 05분, 35분)
@@ -2636,6 +2807,7 @@ module.exports = {
     collectMudflatIndex,
     collectScubaIndex,
     collectRipCurrentIndex,
+    collectSwimmingIndex,
     // 관리자 페이지용 상태 반환
     // fishing 키에 낚시지수 + 바다갈라짐 통합 상태를 담아서 반환
     // (내부적으로는 fishing/seaSplit 별도 관리, 외부에는 fishing으로 통합 노출)
@@ -2646,14 +2818,15 @@ module.exports = {
         const m = lastRunStatus.mudflat;
         const sc = lastRunStatus.scuba;
         const rc = lastRunStatus.ripcurrent;
+        const sw = lastRunStatus.swimming;
 
-        // 해양생활기상 통합 상태(fishing 카드) = 낚시 + 바다갈라짐 + 갯벌 + 스쿠버 + 이안류
-        const parts = [f, s, m, sc, rc];
+        // 해양생활기상 통합 상태(fishing 카드) = 낚시 + 바다갈라짐 + 갯벌 + 스쿠버 + 이안류 + 해수욕
+        const parts = [f, s, m, sc, rc, sw];
         const anyFail = parts.some(p => p.status === '실패');
         const allSuccess = parts.every(p => p.status === '성공');
         const anySuccess = parts.some(p => p.status === '성공');
         // 가장 최근 실행 시각 (이안류는 30분마다 수집되므로 보통 가장 최신)
-        const latestRun = rc.lastRun || sc.lastRun || m.lastRun || s.lastRun || f.lastRun;
+        const latestRun = rc.lastRun || sw.lastRun || sc.lastRun || m.lastRun || s.lastRun || f.lastRun;
 
         if (anyFail) {
             // 하나라도 실패면 실패 표시 (어떤 쪽이 실패했는지 메시지에 포함)
@@ -2663,13 +2836,14 @@ module.exports = {
             if (m.status === '실패') failMsg.push('갯벌: ' + m.message);
             if (sc.status === '실패') failMsg.push('스쿠버: ' + sc.message);
             if (rc.status === '실패') failMsg.push('이안류: ' + rc.message);
+            if (sw.status === '실패') failMsg.push('해수욕: ' + sw.message);
             status.fishing = { lastRun: latestRun, status: '실패', message: failMsg.join(' / ') };
         } else if (allSuccess) {
             // 모두 성공이면 메시지를 합치고, 가장 최근 실행 시각을 표시
             status.fishing = {
                 lastRun: latestRun,
                 status: '성공',
-                message: f.message + ' / ' + s.message + ' / 갯벌 ' + m.message + ' / 스쿠버 ' + sc.message + ' / 이안류 ' + rc.message
+                message: f.message + ' / ' + s.message + ' / 갯벌 ' + m.message + ' / 스쿠버 ' + sc.message + ' / 이안류 ' + rc.message + ' / 해수욕 ' + sw.message
             };
         } else if (anySuccess) {
             // 일부만 성공, 나머지는 아직 대기 중 (서버 시작 직후 등)
@@ -2683,6 +2857,7 @@ module.exports = {
         delete status.mudflat;
         delete status.scuba;
         delete status.ripcurrent;
+        delete status.swimming;
         return status;
     },
     collectProgress,

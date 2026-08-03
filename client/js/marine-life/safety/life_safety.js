@@ -12,7 +12,7 @@
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 해아름 WMS 레이어,
  *                    window.oceanCreateVworldLayer — 브이월드 위성지도 레이어),
  *                    shared/ui/ui_modal.js(window.showSeagnalModal — 안내 팝업),
- *                    marine-life/*(fishing·surfing·scuba·mudflat·sea_parting — 활동 로직 그대로 재사용),
+ *                    marine-life/*(fishing·surfing·scuba·mudflat·sea_parting·swimming — 활동 로직 그대로 재사용),
  *                    forecast/alerts/marine.js(TAB_GROUP_SUBTABS·SECTION_TO_GROUP·switchSubTab)
  *  - 서버 API      : 없음 (활동별 데이터 호출은 각 활동 모듈이 기존대로 담당)
  *  - 마크업        : index2.html 의 #ocean-safety-section, #ocean-safety-sub-tabs,
@@ -46,7 +46,7 @@
     var ACTIVITIES = [
         { id: 'fishing-section',     label: '바다낚시',   gpsBtn: 'fishing-my-location-btn', pub: 'fishing-publish-time', getMap: function () { return window.getFishingMap && window.getFishingMap(); } },
         { id: 'surfing-section',     label: '서핑',       gpsBtn: 'surfing-my-location-btn', pub: 'surfing-publish-time', getMap: function () { return (window._surfing && window._surfing.map) || null; } },
-        { id: 'swimming-section',    label: '해수욕',     gpsBtn: null,                      pub: null,                   getMap: null },
+        { id: 'swimming-section',    label: '해수욕',     gpsBtn: 'swim-my-location-btn',    pub: 'swim-publish-time',    getMap: function () { return window.getSwimmingMap && window.getSwimmingMap(); } },
         { id: 'scuba-section',       label: '스킨스쿠버', gpsBtn: 'scuba-my-location-btn',   pub: 'scuba-publish-time',   getMap: function () { return window.getScubaMap && window.getScubaMap(); } },
         { id: 'mudflat-section',     label: '갯벌체험',   gpsBtn: 'mudflat-my-location-btn', pub: 'mudflat-publish-time', getMap: function () { return window.getMudflatMap && window.getMudflatMap(); } },
         { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      pub: 'sp-publish-time',      getMap: null }
@@ -596,7 +596,7 @@
                 '<p><strong>갯바위</strong></p>' + _pickHtml('#fishing-disclaimer-gwbr') +
                 '<p><strong>선상</strong></p>' + _pickHtml('#fishing-disclaimer-ship') },
             { id: 'surfing',  label: '서핑',       html: _pickHtml('#surfing-disclaimer') },
-            { id: 'swimming', label: '해수욕',     html: '<p><i class="fa-solid fa-circle-check"></i> 해수욕 지수는 해수욕장 개장기간에 제공됩니다.</p>' },
+            { id: 'swimming', label: '해수욕',     html: _pickHtml('#swim-disclaimer') },
             { id: 'scuba',    label: '스킨스쿠버', html: _pickHtml('#scuba-disclaimer') },
             { id: 'mudflat',  label: '갯벌체험',   html: _pickHtml('#mudflat-disclaimer') },
             { id: 'parting',  label: '바다갈라짐', html: _pickHtml('#sp-footer-info .sp-disclaimer') ||
