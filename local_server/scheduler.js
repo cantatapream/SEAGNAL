@@ -2579,17 +2579,17 @@ async function init() {
         //   최초 실행=자동 3일, 이후 1일/일. anchors.json 미존재 시 모듈이 안전 skip.
         //   fire-and-forget — 다른 작업/사이클을 막지 않음. 내부 동시성 5앵커 제한.
         if (hm === '23:30') {
-            log('🌊 물빠짐 앵커 곡선 수집 시작 (오늘~+2일, KST)...');
+            log('🌊 TideBED 앵커 곡선 수집 시작 (서해·남해, 오늘~+2일, KST)...');
             tideFieldCollector.collectTideField({ log })
-                .then(r => log(`✅ 물빠짐 곡선 수집 결과: ${JSON.stringify(r)}`))
-                .catch(err => log(`⚠️ 물빠짐 곡선 수집 오류: ${err.message}`))
+                .then(r => log(`✅ TideBED 앵커 곡선 수집 결과 (서해·남해): ${JSON.stringify(r)}`))
+                .catch(err => log(`⚠️ TideBED 앵커 곡선 수집 오류 (서해·남해): ${err.message}`))
                 .finally(() => {
                     // [간출암 잠김경고] 제주 앵커 수집 — 물빠짐과 동일 TideBED 키를
                     //   쓰므로 동시 발사를 피해 물빠짐 완료 직후 이어서 실행한다.
-                    log('🪨 간출암 제주 앵커 곡선 수집 시작...');
+                    log('🌊 TideBED 앵커 곡선 수집 시작 (제주)...');
                     hazardRocksTideCollector.collectHazardRockTides({ log })
-                        .then(r => log(`✅ 간출암 제주 앵커 수집 결과: ${JSON.stringify(r)}`))
-                        .catch(err => log(`⚠️ 간출암 제주 앵커 수집 오류: ${err.message}`))
+                        .then(r => log(`✅ TideBED 앵커 곡선 수집 결과 (제주): ${JSON.stringify(r)}`))
+                        .catch(err => log(`⚠️ TideBED 앵커 곡선 수집 오류 (제주): ${err.message}`))
                         .finally(() => {
                             // [간출암 잠김경고] 곡선이 갱신됐으니 잠김 교차시각도 재계산.
                             //   무거운 스캔(분단위×3일×전체 암초)이라 배치당 1회만 수행.
