@@ -13,6 +13,9 @@
     나머지 버튼은 감춥니다. 간출암 등이 켜진 동안엔 서버가 미리 계산해 둔
     **잠김경고**(3시간 이내 잠기는 암초)를 폴링해, 낱개로 보이는 마커에 빨간
     펄스 테두리 + "OO:OO 후 완전히 잠김" 카운트다운을 얹습니다.
+    여기에 **출입통제**·**낚시금지** 폴리곤 토글도 함께 켤 수 있습니다 —
+    **낚시금지**는 낚시 관리 및 육성법 제6조·지자체 조례로 지정된 낚시통제구역
+    236곳을 주황색 폴리곤으로 그리고, 탭하면 근거법령·통제시간·대상·벌칙을 팝업으로 보여줍니다.
   - **해양생활** — 기존 6개 활동(바다낚시·서핑·해수욕·스킨스쿠버·갯벌체험·바다갈라짐)을
     화면 **오른쪽 세로 버튼**으로 갈아끼웁니다.
     단, **바다갈라짐**은 표가 넓어 오른쪽 버튼에 가리므로, 이때만 버튼이
@@ -36,6 +39,7 @@
 | `life_safety.js` | 진입 트리거, 하위탭 교체, 우측 활동 레일, 배경지도 피커, 안내 팝업, GPS·갯바위/선상 연결 |
 | `hazard_rocks.js` | 노출암/간출암 등 토글 레이어(독립 2개, 클러스터 표시) + 클릭 시 종류·수치 말풍선 (해양안전 전용) |
 | `access_control.js` | 출입통제구역(연안사고 예방에 관한 법률 제10조) 폴리곤 토글 레이어(해양안전 전용) — 각 해양경찰서 고시·공고 원문에서 경위도가 온전히 확인된 구역만 반영, `/access_control_zones.json`(정적, 지연 로드), 클릭 시 관할서·구역명·상태 토스트 |
+| `fishing_ban.js` | 낚시금지(낚시통제)구역 폴리곤 토글 레이어(해양안전 전용) — 낚시 관리 및 육성법 제6조·지자체 조례 지정 236개 구역, `/fishing_ban_zones.json`(정적, 지연 로드), 클릭 시 근거법령·통제시간·벌칙 등 상세 팝업 |
 
 ## 설계 요점 — 기존 코드를 고치지 않고 재사용
 
@@ -118,6 +122,7 @@ mudflat.js / sea_parting.js)을 그대로 씁니다.** 이 모듈은 겉껍데�
 | `shared/ui/ui_modal.js` | `window.showSeagnalModal` (안내 팝업) |
 | `marine-life/*` | `window.getFishingMap` / `getScubaMap` / `getMudflatMap` / `window._surfing.map` |
 | `hazard_rocks.js` | 노출암/간출암 등 레이어(`/hazard_rocks.json`, 두 버튼 첫 클릭 때 지연 로드) — `window.initHazardRocksLayer` 는 `ocean_map.js` buildMap() 이 직접 호출(이 파일이 부르지 않음). 잠김경고는 `GET /api/hazard-rocks/submersion`(`local_server/routes/hazard_rocks.js`) 1분 폴링 — 계산은 `local_server/scripts/TIDE_FIELD_README.md`(간출암 잠김경고 절) 참고 |
+| `fishing_ban.js` | 낚시금지구역 폴리곤 레이어(`/fishing_ban_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 해양공간 주제도 "낚시통제구역"(TL_RESARE_ENS) shapefile 236개를 EPSG:5179 → WGS84 재투영해 만든 정적 GeoJSON. 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._fishingBanTryHandleClick` 을 호출(출입통제 다음 순위) |
 
 ## 수정 시 주의사항
 
