@@ -483,7 +483,10 @@ router.post('/api/legal/ask', async (req, res) => {
 // raw/ 하위(공개 법령 데이터: law.go.kr 수집분)만, 안전 확장자만, 경로이탈 차단. <img>/<a>로 열리게 무인증.
 const RAW_DIR = path.join(LEGAL_DIR, 'raw');
 const SRC_MIME = { '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif' };
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+  // 해양안전 출입통제구역 팝업의 "고시 원문 보기" 버튼용 — 각 해양경찰서 홈페이지에서
+  // 직접 수집한 원본 고시 PDF/HWP(_원본첨부/ 폴더)를 그대로 서빙.
+  '.pdf': 'application/pdf', '.hwp': 'application/x-hwp', '.hwpx': 'application/x-hwpx' };
 router.get('/api/legal/src', (req, res) => {
   try {
     const rel = String((req.query && req.query.p) || '').trim();

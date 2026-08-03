@@ -5043,6 +5043,11 @@ line-height: 1.1;
     animation: kmaSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* 출입통제구역 상세 팝업 전용 — 항목이 많아 기본 320px보다 넓게 (access_control.js 에서만 부여) */
+.seagnal-modal-content.access-control-wide {
+    max-width: 380px;
+}
+
 .seagnal-modal-icon {
     font-size: 2.5rem;
     margin-bottom: 15px;
