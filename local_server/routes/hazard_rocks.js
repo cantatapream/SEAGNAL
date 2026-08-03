@@ -11,6 +11,12 @@
  *       ready=false 면 아직 야간 배치가 한 번도 안 돌아 데이터가 없다는 뜻
  *       (크래시 아님, warnings 는 빈 객체).
  *
+ *   GET /api/hazard-rocks/tide-curve?id=<암초id>&day=0|1|2
+ *     → { success, ready, date, region, valsouCm, points:[{t,cm}],
+ *         peaks:[{t,cm,type}], submergedAt:[t,...] }
+ *       마커 팝업의 조석 곡선 차트용(day=0 오늘·1 내일·2 모레). ready=false 면
+ *       미커버 해역/데이터 없음(reason 필드로 사유 전달).
+ *
  * [계산은 여기서 안 함]
  *   무거운 스캔(분단위×3일×전체 암초)은 services/hazard_rocks_submersion.js 의
  *   computeAllCrossings() 가 야간 배치(scheduler.js, KST 23:30)에서 1회만 하고
@@ -35,6 +41,19 @@ const submersion = require('../services/hazard_rocks_submersion');
 router.get('/api/hazard-rocks/submersion', (req, res) => {
     try {
         const result = submersion.getUpcomingWarnings();
+        res.set('Cache-Control', 'public, max-age=60');
+        res.json({ success: true, ...result });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+/** GET /api/hazard-rocks/tide-curve?id=&day= */
+router.get('/api/hazard-rocks/tide-curve', (req, res) => {
+    try {
+        const id = req.query.id;
+        if (id == null || id === '') return res.status(400).json({ success: false, error: 'id 필요' });
+        const result = submersion.getTideCurve(id, req.query.day);
         res.set('Cache-Control', 'public, max-age=60');
         res.json({ success: true, ...result });
     } catch (e) {

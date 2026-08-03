@@ -8,14 +8,19 @@
  *         확대할수록 낱개로 펼쳐진다(OpenLayers 클러스터). 간출암 등이 켜져 있는
  *         동안엔 서버가 미리 계산한 잠김경고(3시간 이내 잠기는 암초)를 1분마다
  *         폴링해, 낱개로 보이는 간출암 위에 빨간 펄스 테두리 + "OO:OO 후 완전히
- *         잠김" 카운트다운을 얹는다.
+ *         잠김" 카운트다운을 얹는다. 간출암(k=1) 낱개 마커를 탭하면 오늘~모레
+ *         조석 곡선 팝업이 화면 가운데(마커는 팝업 바로 아래)에 뜬다 — 노출암은
+ *         아직 미지원(고립판정 분석 진행 중, 간출암부터 우선 반영).
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : 없음 (OpenLayers 만 사용, 해아름 레이어와 독립)
+ *  - 사용하는 파일 : window.Chart(Chart.js, index2.html 에서 이 파일보다 먼저 로드) —
+ *                    조석 곡선 팝업 차트 렌더링
  *  - 서버 API      : GET /hazard_rocks.json (정적, 지연 로드) ·
- *                    GET /api/hazard-rocks/submersion (잠김경고, 간출암 등 켜진 동안 1분 폴링)
+ *                    GET /api/hazard-rocks/submersion (잠김경고, 간출암 등 켜진 동안 1분 폴링) ·
+ *                    GET /api/hazard-rocks/tide-curve?id=&day= (간출암 탭 시 조석 곡선 팝업)
  *  - 마크업        : index2.html 의 #ocean-exposed-toggle-btn(노출암),
- *                    #ocean-rock-toggle-btn(간출암 등) — 둘 다 해양안전 전용
+ *                    #ocean-rock-toggle-btn(간출암 등) — 둘 다 해양안전 전용,
+ *                    .rock-tide-popup(조석 곡선 팝업 CSS)
  *  - 나를 쓰는 곳  : ocean_map.js buildMap() → window.initHazardRocksLayer(oceanMap)
  *                    ocean_map.js handleMapClick → window._hazardRocksTryHandleClick
  * [로드 순서] ocean_map.js 다음 · life_safety.js 바로 앞 (marine-life/safety 그룹)
@@ -51,7 +56,22 @@
     var dataPromise = null;    // 두 버튼이 나눠 쓰는 공유 fetch(1회만 요청)
     var exposedLayer = null;   // 노출암(k=0)
     var rockLayer = null;      // 간출암류(k=1,2,3)
-    var bubbleOverlay = null;  // 탭한 지점에 뜨는 말풍선
+    var bubbleOverlay = null;  // 탭한 지점에 뜨는 말풍선(노출암/세암·암암 — 텍스트만)
+
+    // ── 조석 곡선 팝업(간출암 k=1 전용) — 화면 가운데 정렬 + 오늘/내일/모레 넘겨보기 ──
+    //   그래프는 SVG 직접 생성(잠김 구간 빨간 클리핑+선 색 전환+2줄 라벨이 필요해 Chart.js
+    //   플러그인보다 직접 그리는 편이 단순함, 사용자 검토 목업과 동일한 방식).
+    //   아래 "조석" 카드는 ocean_bottom_sheet3.js(해양종합정보 해점 클릭 카드)와 똑같은
+    //   .ocean-tide-* 클래스(style.css 에 이미 정의됨)를 그대로 재사용한다.
+    var tideCurveOverlay = null;  // 위 bubbleOverlay 와 별개(버튼이 있어 pointer-events 필요)
+    var _tideCurveState = null;   // { rockId, day(0~2) }
+    var TIDE_CURVE_URL = '/api/hazard-rocks/tide-curve';
+    var DAY_LABELS = ['오늘', '내일', '모레'];
+    // 팝업 예상 높이(px) — 실제 DOM 측정 대신 고정값(CSS 레이아웃과 대략 맞춤). 날짜를
+    // 넘겨도 구조가 안 바뀌므로 고정값으로도 재이동(re-pan) 없이 항상 맞아떨어진다.
+    var TIDE_POPUP_EST_HEIGHT_PX = 460;
+    var TIDE_POPUP_TAIL_GAP_PX = 8; // ensureBubble 의 offset[0,-8]과 동일한 꼬리 여백
+    var SVG_NS = 'http://www.w3.org/2000/svg';
 
     // ── 잠김경고(간출암 k=1 전용) — 서버가 야간 배치로 미리 계산해 둔 잠김
     //   교차시각을 폴링해, 3시간 이내 잠기는 "낱개로 보이는" 마커에만 펄스
@@ -210,6 +230,370 @@
         });
         map.addOverlay(bubbleOverlay);
         return bubbleOverlay;
+    }
+
+    /**
+     * 조석 곡선 팝업 Overlay 를 준비(1회)해 돌려준다. bubbleOverlay 와 달리 버튼
+     * (날짜 넘기기·닫기)이 있어야 하므로 stopEvent:true(기본값) — 팝업 안 클릭이
+     * 지도 클릭으로 새어나가 곧바로 닫혀버리는 것을 막는다.
+     * @param {ol.Map} map
+     * @returns {ol.Overlay}
+     */
+    function ensureTideCurveOverlay(map) {
+        if (tideCurveOverlay) return tideCurveOverlay;
+        var el = document.createElement('div');
+        el.className = 'hazard-rock-popup rock-tide-popup';
+        tideCurveOverlay = new ol.Overlay({
+            element: el, positioning: 'bottom-center', offset: [0, -TIDE_POPUP_TAIL_GAP_PX]
+        });
+        map.addOverlay(tideCurveOverlay);
+        return tideCurveOverlay;
+    }
+
+    function hideTideCurveOverlay() {
+        if (tideCurveOverlay) tideCurveOverlay.setPosition(undefined);
+        _tideCurveState = null;
+    }
+
+    /**
+     * coord(마커 좌표)가 화면에 뜬 뒤 그 위로 popupHeightPx 만큼의 팝업이 얹힐 때,
+     * "팝업이 화면 가운데 오고 마커는 팝업 바로 아래(꼬리 위치)"가 되도록 지도를
+     * 애니메이션으로 이동시킨다. ol.View#centerOn(좌표를 특정 픽셀 위치에 오도록
+     * 센터 계산, 줌/회전 그대로 반영)으로 목표 center 만 구하고, 실제 이동은
+     * view.animate 로 부드럽게 한다(centerOn 자체는 즉시 점프라 그대로 안 씀).
+     * @param {ol.Map} map
+     * @param {ol.Coordinate} coord
+     * @param {number} popupHeightPx
+     */
+    function centerViewOnPopupAnchor(map, coord, popupHeightPx) {
+        var view = map.getView();
+        var size = map.getSize();
+        if (!size) return;
+        var desiredPixel = [size[0] / 2, size[1] / 2 + TIDE_POPUP_TAIL_GAP_PX + popupHeightPx / 2];
+        var savedCenter = view.getCenter();
+        view.centerOn(coord, size, desiredPixel);
+        var target = view.getCenter();
+        view.setCenter(savedCenter); // 점프 취소 — 아래 animate 로 부드럽게 이동
+        view.animate({ center: target, duration: 300 });
+    }
+
+    /** 날짜 전환(-1/+1, 0~2 범위 밖이면 무시) 후 다시 렌더링. */
+    function changeTideCurveDay(delta) {
+        if (!_tideCurveState) return;
+        var next = _tideCurveState.day + delta;
+        if (next < 0 || next > 2) return;
+        _tideCurveState.day = next;
+        renderTideCurveDay();
+    }
+
+    // ── 조석 곡선 팝업 렌더링 보조 함수 ──────────────────────────────────────
+    function parseHHMM(t) {
+        var p = String(t).split(':');
+        return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+    }
+    function minutesToHHMM(m) {
+        var hh = Math.floor(m / 60), mm = Math.round(m % 60);
+        return (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+    }
+    /** 분단위 정렬된 표본([{t,cm}])에서 임의 시각 t(분)의 조위를 선형보간. */
+    function cmAtMinute(pts, t) {
+        for (var i = 1; i < pts.length; i++) {
+            if (t <= pts[i].t) {
+                var a = pts[i - 1], b = pts[i];
+                var f = (t - a.t) / ((b.t - a.t) || 1);
+                return a.cm + f * (b.cm - a.cm);
+            }
+        }
+        return pts[pts.length - 1].cm;
+    }
+    /** 오늘의 KST "지금"을 분(0~1439)으로. 앱 전반에서 쓰는 +9h 관례와 동일. */
+    function nowMinutesKst() {
+        var k = new Date(Date.now() + 9 * 3600000);
+        return k.getUTCHours() * 60 + k.getUTCMinutes();
+    }
+    function svgEl(tag, attrs) {
+        var e = document.createElementNS(SVG_NS, tag);
+        for (var k in attrs) e.setAttribute(k, attrs[k]);
+        return e;
+    }
+    /** 점(cx,cy) 위/아래에 "단어" + "HH:MM" 2줄 라벨. dir=1이면 점 아래로, -1이면 위로 이어짐. */
+    function svgTwoLineLabel(cx, anchorY, dir, line1, line2, color) {
+        var y1 = dir === 1 ? anchorY : anchorY - 12;
+        var t = svgEl('text', { x: cx, y: y1, 'font-size': 10, 'font-weight': 700, fill: color, 'text-anchor': 'middle' });
+        var s1 = document.createElementNS(SVG_NS, 'tspan'); s1.setAttribute('x', cx); s1.textContent = line1;
+        var s2 = document.createElementNS(SVG_NS, 'tspan'); s2.setAttribute('x', cx); s2.setAttribute('dy', '12'); s2.textContent = line2;
+        t.appendChild(s1); t.appendChild(s2);
+        return t;
+    }
+
+    /**
+     * 조석 곡선 SVG를 그린다 — 잠긴 구간은 곡선 모양대로만 빨갛게(클리핑) 칠하고
+     * 그 구간의 선 자체도 빨간색으로 덧그린다. 잠기는/드러나는 교차 시각을 점+2줄
+     * 라벨로 표시하고, nowMin 이 주어지면(오늘 보기) 현재 시각 점(펄스 글로우)도 찍는다.
+     * @param {SVGElement} svg
+     * @param {Array<{t:string,cm:number}>} points - 10분 간격 하루치 표본
+     * @param {number} valsouCm - 잠김 기준(cm)
+     * @param {number|null} nowMin - 오늘이면 현재 시각(분), 아니면 null(점 생략)
+     */
+    function renderTideChart(svg, points, valsouCm, nowMin) {
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        var pts = points.map(function (p) { return { t: parseHHMM(p.t), cm: p.cm }; });
+        if (pts.length < 2) return;
+
+        // 잠김/드러남 교차 시각 — 이미 자정 전부터 잠겨있었을 경우(하루 시작이 기준선 위)도 처리.
+        var crossings = [];
+        for (var i = 1; i < pts.length; i++) {
+            var a = pts[i - 1], b = pts[i];
+            if (a.cm < valsouCm && valsouCm <= b.cm) {
+                crossings.push({ t: a.t + ((valsouCm - a.cm) / (b.cm - a.cm)) * (b.t - a.t), type: 'submerge' });
+            } else if (a.cm >= valsouCm && valsouCm > b.cm) {
+                crossings.push({ t: a.t + ((a.cm - valsouCm) / (a.cm - b.cm)) * (b.t - a.t), type: 'emerge' });
+            }
+        }
+        var bands = [];
+        var bandStart = pts[0].cm >= valsouCm ? 0 : null;
+        crossings.forEach(function (c) {
+            if (c.type === 'submerge') bandStart = c.t;
+            else if (c.type === 'emerge' && bandStart != null) { bands.push([bandStart, c.t]); bandStart = null; }
+        });
+        if (bandStart != null) bands.push([bandStart, 1440]);
+
+        var W = 320, H = 190, padL = 30, padR = 8, padT = 26, padB = 20;
+        var allCm = pts.map(function (p) { return p.cm; }).concat([valsouCm]);
+        var maxCm = Math.max.apply(null, allCm) * 1.1;
+        var minCm = Math.min(0, Math.min.apply(null, allCm));
+        function X(t) { return padL + (t / 1440) * (W - padL - padR); }
+        function Y(cm) { return padT + (1 - (cm - minCm) / (maxCm - minCm || 1)) * (H - padT - padB); }
+
+        svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+
+        // 격자 + 시간축
+        [0, 360, 720, 1080, 1440].forEach(function (mn) {
+            var tx = svgEl('text', { x: X(mn), y: H - 5, 'font-size': 9, fill: 'var(--rtp-ink-dim)', 'text-anchor': mn === 0 ? 'start' : (mn === 1440 ? 'end' : 'middle') });
+            tx.textContent = (mn / 60).toString().padStart(2, '0') + ':00';
+            svg.appendChild(tx);
+        });
+
+        // 영역(곡선 아래) 모양 — 클리핑 기준 + 파란 기본 채움
+        var areaD = 'M ' + X(0) + ' ' + Y(pts[0].cm);
+        pts.forEach(function (p) { areaD += ' L ' + X(p.t) + ' ' + Y(p.cm); });
+        areaD += ' L ' + X(1440) + ' ' + Y(minCm) + ' L ' + X(0) + ' ' + Y(minCm) + ' Z';
+
+        var clipId = 'rtpCurveClip' + Math.random().toString(36).slice(2, 8);
+        var defs = svgEl('defs', {});
+        var clip = svgEl('clipPath', { id: clipId });
+        clip.appendChild(svgEl('path', { d: areaD }));
+        defs.appendChild(clip);
+        svg.appendChild(defs);
+
+        svg.appendChild(svgEl('path', { d: areaD, fill: 'var(--rtp-curve-fill)' }));
+
+        // 잠긴 구간 배경 — 곡선 모양 밖으로 안 넘치게 클리핑
+        bands.forEach(function (b) {
+            svg.appendChild(svgEl('rect', {
+                x: X(b[0]), y: padT, width: X(b[1]) - X(b[0]), height: H - padT - padB,
+                fill: 'var(--rtp-red-fill)', 'clip-path': 'url(#' + clipId + ')'
+            }));
+        });
+
+        // 조위 곡선 선(기본 파랑)
+        var lineD = 'M ' + X(0) + ' ' + Y(pts[0].cm);
+        pts.forEach(function (p) { lineD += ' L ' + X(p.t) + ' ' + Y(p.cm); });
+        svg.appendChild(svgEl('path', { d: lineD, fill: 'none', stroke: 'var(--rtp-curve)', 'stroke-width': 2.4, 'stroke-linejoin': 'round' }));
+
+        // 잠긴 구간만 선을 빨간색으로 덧그림
+        bands.forEach(function (b) {
+            var segPts = pts.filter(function (p) { return p.t > b[0] && p.t < b[1]; });
+            var d = 'M ' + X(b[0]) + ' ' + Y(cmAtMinute(pts, b[0]));
+            segPts.forEach(function (p) { d += ' L ' + X(p.t) + ' ' + Y(p.cm); });
+            d += ' L ' + X(b[1]) + ' ' + Y(cmAtMinute(pts, b[1]));
+            svg.appendChild(svgEl('path', { d: d, fill: 'none', stroke: 'var(--rtp-red)', 'stroke-width': 2.6, 'stroke-linejoin': 'round' }));
+        });
+
+        // 잠김 기준선(VALSOU)
+        svg.appendChild(svgEl('path', {
+            d: 'M ' + X(0) + ' ' + Y(valsouCm) + ' L ' + X(1440) + ' ' + Y(valsouCm),
+            fill: 'none', stroke: 'var(--rtp-red)', 'stroke-width': 1.2, 'stroke-dasharray': '5,3', opacity: 0.5
+        }));
+
+        // 잠김/노출 교차점 — 점 + 2줄 라벨(잠김=위쪽, 노출=아래쪽)
+        crossings.forEach(function (c) {
+            if (c.t > 1440) return;
+            var color = c.type === 'submerge' ? 'var(--rtp-red)' : 'var(--rtp-green)';
+            var cx = X(c.t), cy = Y(valsouCm);
+            svg.appendChild(svgEl('circle', { cx: cx, cy: cy, r: 3.2, fill: color, stroke: 'var(--rtp-bg)', 'stroke-width': 1.4 }));
+            if (c.type === 'submerge') svg.appendChild(svgTwoLineLabel(cx, cy - 16, -1, '잠김', minutesToHHMM(c.t), color));
+            else svg.appendChild(svgTwoLineLabel(cx, cy + 15, 1, '노출', minutesToHHMM(c.t), color));
+        });
+
+        // 현재 시각(오늘 보기일 때만) — 곡선 위 점 + 펄스 글로우 + "현 시각/HH:MM" 라벨
+        if (nowMin != null) {
+            var nowX = X(nowMin), nowY = Y(cmAtMinute(pts, nowMin));
+            svg.appendChild(svgEl('circle', { cx: nowX, cy: nowY, r: 4, class: 'rtp-now-glow' }));
+            svg.appendChild(svgEl('circle', { cx: nowX, cy: nowY, r: 4, fill: 'var(--rtp-now-dot)', stroke: 'var(--rtp-bg)', 'stroke-width': 2 }));
+            svg.appendChild(svgTwoLineLabel(nowX, nowY + 15, 1, '현 시각', minutesToHHMM(nowMin), 'var(--rtp-ink)'));
+        }
+    }
+
+    /**
+     * 그래프 아래 "조석" 카드 — 해양종합정보 해점 클릭 시(ocean_bottom_sheet3.js) 나오는
+     * 것과 동일한 .ocean-tide-* 클래스(style.css)를 그대로 재사용해 같은 모양으로 그린다.
+     * 오늘(day=0)이고 앞뒤로 극값이 다 있을 때만 게이지+예상조위를 보여준다(그 외엔
+     * ocean_bottom_sheet3.js 와 동일하게 고조/저조 목록만).
+     * @param {HTMLElement} container
+     * @param {Array<{t:string,cm:number,type:'high'|'low'}>} peaks
+     * @param {number|null} nowMin
+     * @param {Array<{t:string,cm:number}>} points - 현재 예상 조위 보간용(nowMin 있을 때만 필요)
+     */
+    function renderBottomTideCard(container, peaks, nowMin, points) {
+        var sorted = peaks.map(function (p) { return { type: p.type, m: parseHHMM(p.t), cm: p.cm }; }).sort(function (a, b) { return a.m - b.m; });
+
+        var headHtml = '';
+        if (nowMin != null && sorted.length > 2) {
+            var prevPeak = null, nextPeak = null;
+            for (var i = 0; i < sorted.length; i++) {
+                if (sorted[i].m <= nowMin) prevPeak = sorted[i]; else { nextPeak = sorted[i]; break; }
+            }
+            if (prevPeak && nextPeak) {
+                var rising = nextPeak.type === 'high';
+                var pct = ((nowMin - prevPeak.m) / (nextPeak.m - prevPeak.m)) * 100;
+                if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+                var remainStr = minutesToHHMM(Math.max(0, nextPeak.m - nowMin));
+                var gradient = rising ? 'linear-gradient(90deg,#991b1b,#ef4444)' : 'linear-gradient(90deg,#1e3a8a,#3b82f6)';
+                var leftCls = prevPeak.type === 'high' ? 'is-high' : 'is-low', leftLabel = prevPeak.type === 'high' ? '고조' : '저조';
+                var rightCls = nextPeak.type === 'high' ? 'is-high' : 'is-low', rightLabel = nextPeak.type === 'high' ? '고조' : '저조';
+                var curLevel = points && points.length
+                    ? Math.round(cmAtMinute(points.map(function (p) { return { t: parseHHMM(p.t), cm: p.cm }; }), nowMin))
+                    : null;
+                var curHtml = curLevel == null ? '<div class="ocean-tide-current-top"></div>' :
+                    '<div class="ocean-tide-current-top">' +
+                    '<span class="ocean-tide-current-label">' + minutesToHHMM(nowMin) + ' 예상 조위</span>' +
+                    '<span class="ocean-tide-current-val">' + curLevel + ' cm</span>' +
+                    '<span class="ocean-tide-current-arrow ' + (rising ? 'is-up' : 'is-down') + '">' + (rising ? '▲' : '▼') + '</span>' +
+                    '</div>';
+                headHtml =
+                    '<div class="ocean-tide-head">' +
+                    '<div class="ocean-tide-head-labels">' +
+                    '<div class="ocean-tide-head-side ' + leftCls + '"><div class="ocean-tide-head-label-text">' + leftLabel + '</div></div>' +
+                    curHtml +
+                    '<div class="ocean-tide-head-side ' + rightCls + '"><div class="ocean-tide-head-label-text">' + rightLabel + '</div></div>' +
+                    '</div>' +
+                    '<div class="ocean-tide-progress-track">' +
+                    '<div class="ocean-tide-progress-fill" style="width:' + pct.toFixed(1) + '%;background:' + gradient + ';"></div>' +
+                    '<div class="ocean-tide-progress-marker" style="left:' + pct.toFixed(1) + '%"></div>' +
+                    '</div>' +
+                    '<div class="ocean-tide-head-times">' +
+                    '<div class="ocean-tide-head-time ' + leftCls + '">' + minutesToHHMM(prevPeak.m) + '</div>' +
+                    '<div class="ocean-tide-progress-remain">' + (rising ? '고조까지' : '저조까지') + ' 남은시간 ' + remainStr + '</div>' +
+                    '<div class="ocean-tide-head-time ' + rightCls + '">' + minutesToHHMM(nextPeak.m) + '</div>' +
+                    '</div>' +
+                    '</div>';
+            }
+        }
+
+        function peakGroupHtml(label, cls, list, arrow) {
+            if (!list.length) return '';
+            var rows = list.map(function (p) {
+                return '<div class="ocean-tide-peak-row">' +
+                    '<div class="ocean-tide-peak-left"><span class="ocean-tide-peak-time">' + p.t + '</span><span class="ocean-tide-peak-cm">(' + Math.round(p.cm) + ' cm)</span></div>' +
+                    '<div class="ocean-tide-peak-right ' + cls + '"><span class="ocean-tide-peak-arrow">' + arrow + '</span></div>' +
+                    '</div>';
+            }).join('');
+            return '<div class="ocean-tide-peak-group"><div class="ocean-tide-peak-label ' + cls + '">' + label + '</div>' +
+                '<div class="ocean-tide-peak-rows">' + rows + '</div></div>';
+        }
+        var highs = peaks.filter(function (p) { return p.type === 'high'; });
+        var lows = peaks.filter(function (p) { return p.type === 'low'; });
+        var peaksHtml = '<div class="ocean-tide-peaks">' + peakGroupHtml('고조', 'is-high', highs, '▲') + peakGroupHtml('저조', 'is-low', lows, '▼') + '</div>';
+
+        container.innerHTML =
+            '<div class="ocean-tide-title-row"><div class="ocean-tide-title"><span class="rtp-wave">≋</span> 조석</div></div>' +
+            headHtml + peaksHtml;
+    }
+
+    /**
+     * _tideCurveState(rockId, day) 기준으로 서버에서 그 날짜 조석 곡선을 받아와
+     * 그래프(SVG)와 조석 카드를 그린다. 응답이 늦게 와서 그 사이 사용자가 다른
+     * 날짜/다른 암초로 넘어갔으면 결과를 버린다.
+     */
+    function renderTideCurveDay() {
+        if (!_tideCurveState || !tideCurveOverlay) return;
+        var state = _tideCurveState;
+        var el = tideCurveOverlay.getElement();
+        var dayLabelEl = el.querySelector('.rtp-daylabel');
+        var fallbackEl = el.querySelector('.rtp-fallback');
+        var svg = el.querySelector('.rtp-svg');
+        var cardEl = el.querySelector('.rtp-tidecard');
+        var prevBtn = el.querySelector('.rtp-prev');
+        var nextBtn = el.querySelector('.rtp-next');
+        prevBtn.disabled = (state.day === 0);
+        nextBtn.disabled = (state.day === 2);
+        dayLabelEl.textContent = DAY_LABELS[state.day] + ' 불러오는 중...';
+        fallbackEl.style.display = 'none';
+        cardEl.innerHTML = '';
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+        fetch(TIDE_CURVE_URL + '?id=' + encodeURIComponent(state.rockId) + '&day=' + state.day)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!_tideCurveState || _tideCurveState.rockId !== state.rockId || _tideCurveState.day !== state.day) return;
+                if (!data.success || !data.ready || !data.points || data.points.length < 2) {
+                    dayLabelEl.textContent = DAY_LABELS[state.day];
+                    fallbackEl.textContent = '이 지역은 아직 조석 곡선을 지원하지 않아요.';
+                    fallbackEl.style.display = '';
+                    return;
+                }
+                var dateStr = String(data.date);
+                dayLabelEl.textContent = DAY_LABELS[state.day] + ' (' + dateStr.slice(4, 6) + '/' + dateStr.slice(6, 8) + ')';
+
+                var nowMin = state.day === 0 ? nowMinutesKst() : null;
+                renderTideChart(svg, data.points, data.valsouCm, nowMin);
+                renderBottomTideCard(cardEl, data.peaks || [], nowMin, data.points);
+            })
+            .catch(function () {
+                if (!_tideCurveState || _tideCurveState.rockId !== state.rockId || _tideCurveState.day !== state.day) return;
+                dayLabelEl.textContent = DAY_LABELS[state.day];
+                fallbackEl.textContent = '조석 곡선을 불러오지 못했어요.';
+                fallbackEl.style.display = '';
+            });
+    }
+
+    /**
+     * 간출암(k=1) 낱개 마커 탭 시 조석 곡선 팝업을 연다 — 팝업이 화면 가운데 오고
+     * 마커가 그 바로 아래(팝업 꼬리 위치)에 오도록 지도를 이동시킨 뒤, 오늘 곡선을
+     * 바로 불러온다(이후 날짜 전환은 changeTideCurveDay 가 처리).
+     * @param {ol.Map} map
+     * @param {ol.Feature} feature - 간출암 포인트 feature(k===1)
+     */
+    function openTideCurvePopup(map, feature) {
+        if (bubbleOverlay) bubbleOverlay.setPosition(undefined);
+        var overlay = ensureTideCurveOverlay(map);
+        var v = feature.get('v');
+        var title = (typeof v === 'number') ? ('간출암 · 저조 시 ' + v.toFixed(1) + 'm 노출') : '간출암';
+
+        var el = overlay.getElement();
+        el.innerHTML =
+            '<div class="rtp-header"><span class="rtp-title"></span>' +
+            '<button type="button" class="rtp-close" aria-label="닫기">×</button></div>' +
+            '<div class="rtp-daynav">' +
+            '<button type="button" class="rtp-prev" aria-label="이전 날짜">◀</button>' +
+            '<span class="rtp-daylabel"></span>' +
+            '<button type="button" class="rtp-next" aria-label="다음 날짜">▶</button></div>' +
+            '<div class="rtp-chartwrap"><svg class="rtp-svg" viewBox="0 0 320 190" preserveAspectRatio="none"></svg></div>' +
+            '<div class="rtp-fallback" style="display:none;"></div>' +
+            '<hr class="rtp-divider" />' +
+            '<div class="rtp-tidecard ocean-tide-wrap"></div>';
+        el.querySelector('.rtp-title').textContent = title;
+        el.querySelector('.rtp-close').addEventListener('click', hideTideCurveOverlay);
+        el.querySelector('.rtp-prev').addEventListener('click', function () { changeTideCurveDay(-1); });
+        el.querySelector('.rtp-next').addEventListener('click', function () { changeTideCurveDay(1); });
+
+        var coord = feature.getGeometry().getCoordinates();
+        overlay.setPosition(coord);
+        centerViewOnPopupAnchor(map, coord, TIDE_POPUP_EST_HEIGHT_PX);
+
+        _tideCurveState = { rockId: feature.get('id'), day: 0 };
+        renderTideCurveDay();
     }
 
     /**
@@ -394,6 +778,7 @@
                 btn.classList.toggle('active', visible);
                 if (visible && window.trackUsage) window.trackUsage(usageKey);
                 if (!visible && bubbleOverlay) bubbleOverlay.setPosition(undefined);
+                if (!visible) hideTideCurveOverlay();
                 // 클러스터 대표 아이콘(clusterIconFor)이 "두 레이어의 켜짐 상태 조합"에
                 // 따라 바뀌므로, 방금 안 바뀐 다른 레이어도 다시 그려야 아이콘이 즉시 갱신된다.
                 if (exposedLayer && exposedLayer !== layer) exposedLayer.changed();
@@ -451,6 +836,7 @@
 
         var members = hit.get('features');
         if (members.length > 1) {
+            hideTideCurveOverlay();
             var view = map.getView();
             var extent = ol.extent.createEmpty();
             members.forEach(function (f) { ol.extent.extend(extent, f.getGeometry().getExtent()); });
@@ -470,6 +856,14 @@
             return true;
         }
 
+        // 간출암(k=1) 낱개 마커 — 화면 가운데 조석 곡선 팝업(노출암 등은 아직
+        // 미지원, 기존 텍스트 말풍선 그대로 — HAZARD_ROCKS_HANDOFF_BRIEF.md Task #18 참고).
+        if (members[0].get('k') === 1) {
+            openTideCurvePopup(map, members[0]);
+            return true;
+        }
+
+        hideTideCurveOverlay();
         var bubble = ensureBubble(map);
         bubble.getElement().textContent = popupText(members[0]);
         bubble.setPosition(members[0].getGeometry().getCoordinates());
@@ -489,6 +883,7 @@
         if (rockLayer && rockLayer.getVisible()) handled = tryHandleLayerClick(map, evt, rockLayer);
         if (!handled && exposedLayer && exposedLayer.getVisible()) handled = tryHandleLayerClick(map, evt, exposedLayer);
         if (!handled && bubbleOverlay) bubbleOverlay.setPosition(undefined);
+        if (!handled) hideTideCurveOverlay();
         return handled;
     };
 })();

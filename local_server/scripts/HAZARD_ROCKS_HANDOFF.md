@@ -306,8 +306,8 @@ API를 1분마다 폴링해, 클러스터에 뭉치지 않고 낱개로 보이�
   실제 안전상 의미 있는 건 조석에 따라 **연결↔고립이 전환되는** 지점이라는 방향으로 바뀌었다(항상
   고립/항상 연결인 곳은 애초에 위험 신호로서 가치가 적다는 논리). 이 재구상 이후 2단계 후보 설계로
   정리됐다:
-  1. (Task #19, 미착수) 정밀 조석-스윕 물리 기반 스크리닝 — 전체 3,130개 노출암에 OCR 없이
-     플러드필만으로 저렴하게 "실제로 전환되는" 후보를 찾는다.
+  1. (Task #19, 완료 — §6.8 참고) 정밀 조석-스윕 물리 기반 스크리닝 — 서해·남해 in-scope 노출암
+     2,985개 전부에 OCR 없이 플러드필만으로 저렴하게 "실제로 전환되는" 후보를 찾았다.
   2. (진행 중) 해안선 근접 안전망 — BADA가 특히 부정확한 근접-해안 구간을 OCR로 직접 검증. 격자
      해상도(CELL_DEG≈150m) 자체가 근접-해안에서 부정확하다는 걸 알고 있었기 때문에, 임계값을
      100m/300m 두 옵션으로 비교해봤고("100m로 잡히면 어떻게 될까?"라는 질문에 대한 실측 답변
@@ -449,6 +449,190 @@ prefix는 프로덕션에 안 보임). **바깥쪽 요약 로그를 "🌊 TideBE
   재계산 + 이미 처리된 id 제외 + 지역 비례 층화 선정 + BADA 참고값 조회까지 한 번에 하는 스크립트.
   §6.5 후반부의 재현 방법을 그대로 코드화한 것.
 
+### 6.8 Task #19 — 노출암 전체 정밀 조석-스윕 스크리닝 (2026-08-03 완료)
+
+**목표**: §6.4 후보 선정 설계 1단계 — 300m 근접-해안 OCR 안전망(§6.5)과 별개로, 서해·남해
+전체 노출암에 대해 OCR 없이 순수 물리(플러드필)만으로 "밀물에 따라 실제로 연결↔고립이
+전환되는" 후보를 찾는다.
+
+**방법**: `scripts/hazard_rocks_task19_sweep.js` 신설.
+- 로컬 `data/tide_field/grid_meta.json`은 `cell_count:0`(no_bathymetry) 빈 스텁이라 사용
+  불가 — **프로덕션 API(`https://seagnal-server.fly.dev/api/tide-field`)를 직접 호출**한다
+  (§6.2 검증 때와 동일 방식). 세션 시작 시 네트워크 접근 가능 여부를 먼저 curl로 확인했다.
+- 대상: `client/hazard_rocks.json`의 k=0(노출암) 중 `tide_field_common.isWestSouthSea()`로
+  게이팅한 서해·남해 in-scope **2,985개**(전체 k=0은 4,287개지만 동해·제주·북한 영해는 애초에
+  tide_field 커버리지 밖이라 제외 — HANDOFF_BRIEF의 "3,130개"는 이전 세션의 근사치였고, 실제
+  게이팅 함수로 재계산한 정확한 수는 2,985).
+- 프로덕션 예측 윈도우 전체(3일=72시간)를 **1시간 간격 72개 시점**으로 훑는다(윈도우 자체가
+  `step_minutes:60`이라 더 촘촘히 샘플링해도 이득 없음).
+- 각 시점마다 `GET /api/tide-field?time=&bbox=`로 전역 노출 셀을 수집하되, `MAX_CANDIDATE_CELLS`
+  (14000) 캡에 걸리면(`budget_dropped>0`) bbox를 2×2로 재귀 분할해 전량 수집(§6.2 부수발견 1과
+  동일 기법). 실측 결과 전역 노출 셀은 시점에 따라 7천~3만9천 개까지 변동, 재귀분할로 캡 없이
+  전부 수집하는 데 시점당 1~3초, 전체 72시점에 약 100초 소요.
+- `services/hazard_rocks_isolation.js`의 `floodFillReachable`(해안선 시드 → 그 시각 노출 셀만
+  타고 확산)로 도달가능 셀 집합을 구하고, `classifyRocks`(탐색반경 2칸)로 각 노출암의 그 시각
+  고립 여부를 판정 → 72개 시점 전체를 훑어 상태 이력을 기록.
+- 분류: 72개 전부 고립=`always_isolated`, 전부 연결=`always_connected`, 도중에 바뀜=`transition`.
+
+**결과**: `data/hazard_rocks/isolation_sweep_full.json`(2,985건 전체 원본) — always_connected
+2,276 / always_isolated 702 / transition 7.
+
+**핵심 발견(중요, 재발 방지용)**: 근접-해안(300m 이내, 300m 리뷰 1,000개 중 in-scope 904건)은
+스윕 결과 **100%가 always_connected**로 나왔다 — 사람이 이미지를 보고 직접 "항상 고립"이라고
+판단해 `alwaysIsolatedFlag: true`를 남긴 9건(3083 1건은 동해라 in-scope 밖)조차 **예외 없이
+전부** 스윕에서는 "언제나 연결"로 오분류됐다. 원인은 §6.3에서 이미 확인한 BADA 근접-해안
+부정확 문제와 본질적으로 같다 — 해안선 시드 버퍼(`NEIGHBOR_BUFFER_CELLS`=1칸≈150m)와 노출암
+고립판정 탐색반경(`searchRadiusCells`=2칸≈276~390m)을 합치면, 노출암이 해안선에서 약 300~400m
+안쪽에 있는 경우 그 사이에 실제로는 마르지 않는 깊은 물길(수로)이 있어도 스윕은 그걸 격자
+해상도(0.0015°≈150m)로 못 잡아내 조위와 무관하게 "코스트라인에 인접했으니 항상 연결"로 보게
+된다. **결론: 근접-해안 300m 이내는 물리 스윕을 신뢰하지 말고, 이미 있는 300m OCR 리뷰(§6.5)의
+사람 판단(`alwaysIsolatedFlag`)을 그대로 채택해야 한다** — 이게 애초에 두 갈래(§6.4)로 설계된
+이유가 실측으로 재확인된 것.
+
+**union**: `scripts/hazard_rocks_task19_finalize.js` → `data/hazard_rocks/isolation_candidates_final.json`.
+- `transition`(7건, 비근접-해안, 스윕이 확인한 실제 조석 전환 — 최우선 안전 신호)
+- `always_isolated_far`(702건, 비근접-해안 중 스윕이 확인한 상시 고립 — 보트 필요 지점)
+- `always_isolated_nearshore_human`(9건, 근접-해안 중 사람이 "항상 고립"로 판단한 것 — 스윕
+  결과를 무시하고 사람 판단을 채택)
+- 최종 우선순위 후보 총 **718개**(7+702+9).
+
+**참고(설계상 한계, 의도된 동작)**: `always_connected`(2,276건)에는 실제로 항상 안전하게
+도보 접근 가능한 지점과, 근접-해안 트리비얼-연결 편향으로 오분류된 지점이 섞여 있을 수 있다 —
+단, 그 위험 구간(근접-해안 300m)은 이미 별도로 100% OCR 검증됐으므로(§6.5) 추가 조치 불필요.
+비근접-해안 `always_connected`는 애초에 해안선에서 충분히 떨어져 격자 버퍼 편향의 영향이 작아
+신뢰할 만하다(다만 별도 OCR 검증은 하지 않았음 — Task #16 배선 후 이상 신호가 보이면 재검토).
+
+### 6.9 Task #14(부분) — 제주 노출암 고립판정용 촘촘 격자·수집 배선 (2026-08-03, 진행 중)
+
+**계기**: 사용자가 "제주 물때 데이터는 이미 매일 자동 수집되지 않냐"고 확인 요청 — 실제로
+확인해보니 **두 개의 서로 다른 제주 데이터가 있었다**:
+- 기존(이미 있던 것): `services/hazard_rocks_tide_collector.js` — "간출암(k=1) 잠김경고"용
+  **17개 지점**만 매일 밤 곡선 수집. 노출암(k=0) 고립판정엔 못 씀(지점이 너무 성겨서
+  임의 좌표의 드러남/잠김을 못 구함).
+- 새로 필요한 것: 서해·남해 물빠짐과 동일 밀도(버킷 0.1°≈10km)의 **촘촘한 수심 격자** —
+  `scripts/build_jeju_bathy_grid.js`가 이미 있었지만(이전 세션에서 1회 로컬 실행, 964칸/
+  23앵커), 그 산출물(`grid_meta_jeju.json`/`anchors_jeju.json`)이 커밋도 안 되고 자동
+  수집기도 없어서 이 세션의 컨테이너엔 아예 없었다(재실행해도 로컬엔 BADA 원본이 없어
+  빈 결과).
+
+**한 일**: `services/jeju_isolation_tide_collector.js` 신설 — `hazard_rocks_tide_collector.js`와
+같은 단순 패턴(순차 수집, nudge 없음)을 따르되, 대상은 `anchors_jeju.json`(촘촘 격자),
+저장 위치는 `data/tide_field/curves_jeju/`(기존 17개 앵커의 `data/hazard_rocks/curves/`와
+분리 — 서로 다른 용도이므로 섞이면 안 됨). `ensureGridBuilt()`가 격자 파일이 없으면
+`build_jeju_bathy_grid.main()`을 자동 실행 — **서해·남해 `tide_field_collector.ensureBuilt()`와
+동일한 "없으면 자동 재생성" 패턴**이라, 운영(Fly.io, BADA 원본 존재)에 배포되면 사람이
+SSH로 수동 명령을 칠 필요 없이 다음 KST 23:30 배치(또는 서버 재기동) 때 스스로 격자를
+만들고 곧바로 수집을 시작한다. `scheduler.js`의 23:30 체인에 제주 간출암(17개) 수집 직후
+이어서(TideBED 키 공유 — 순차 필수) 호출하도록 연결.
+
+**로컬 검증**: BADA 원본이 없는 이 컨테이너에서 실행 → `build_jeju_bathy_grid.main()`이
+"제주 해역 BADA 셀 0개"로 빈 메타를 남기고, 수집기는 크래시 없이 `{ok:false, reason:
+'no_anchors'}`로 안전하게 skip하는 것까지 확인(기존 `no_bathymetry` graceful 패턴과 동일).
+
+**아직 안 된 것**: 이건 "수집 배선"만 끝난 것이고, ①실제 운영에서 격자·곡선이 채워지는 것
+확인(배포 후 확인 필요) ②Task #19 스윕 스크립트를 제주까지 확장해 다시 실행 ③
+`isolation_candidates_final.json`에 제주 145개 결과 합치기 — 이 세 가지가 남아있다.
+
+### 6.10 Task #18(간출암 부분) — 마커 탭 시 화면 중앙 조석 곡선 팝업 (2026-08-03)
+
+**요구사항(사용자, 2026-08-03 새벽 지시분 재확인 후 반영)**: 간출암/노출암 마커를 탭하면
+①팝업이 화면 정중앙에 뜨고 ②마커는 팝업 바로 아래(팝업 윗변 가운데, 말풍선 꼬리 위치)에
+오도록 지도가 자동 이동해야 한다. 팝업 안에는 오늘~모레(3일) 조석 곡선을 하루씩 넘겨보며
+확인할 수 있어야 한다. **노출암은 고립판정 분석(Task #16 배선)이 아직 안 끝나 간출암부터
+먼저 반영**하기로 사용자가 범위를 좁혀줬다.
+
+**백엔드**: `services/hazard_rocks_submersion.js`에 `getTideCurve(rockId, dayOffset)` 신설.
+`computeAllCrossings`(잠김 교차시각 계산)이 이미 구현해 둔 3갈래 조위원 로직을 그대로
+재사용하되, "윈도우 3일 전체 스캔"이 아니라 "그 암초·그 날짜 하루만" 계산하므로 API
+요청마다 호출해도 가볍다(westsouth/jeju는 1분 해상도 IDW 1440회, eastsea는 극값 3~4개
+반정현파 보간뿐):
+- westsouth/jeju: `nearestRefs`+`loadCurveByMinute`+`etaCmAt`로 10분 간격 144점 합성 후
+  인접 3점 비교로 국소 극값(고조/저조) 탐지.
+- eastsea: `findNearestStationsWithData`+`stationOwnPoints`/`idwBlendExtrema`로 전날·당일·
+  다음날 극값을 모아(윈도우 밖이어도 연간 조석표는 `addDaysToYmd`로 그냥 조회 가능 —
+  day=0(오늘)이어도 자정 이전 구간이 비지 않게 하려고 새로 추가) 반정현파로 이어붙임.
+- 응답에 `valsouCm`(잠김 기준선), `submergedAt`(그날 실제 잠기는 시각 — 기존
+  `submersion.json`에서 그 날짜분만 필터링, 새 계산 없음)도 포함.
+- `GET /api/hazard-rocks/tide-curve?id=&day=0|1|2`로 노출(`routes/hazard_rocks.js`).
+
+**프론트**: `client/js/marine-life/safety/hazard_rocks.js`.
+- 기존 `bubbleOverlay`(단순 텍스트 말풍선, `stopEvent:false`, `pointer-events:none`)와
+  별개로 `tideCurveOverlay` 신설 — 날짜 넘기기·닫기 버튼이 있어 상호작용이 필요하므로
+  `stopEvent:true`(OL 기본값). **이걸 안 하면** 버튼 클릭이 지도 클릭 이벤트로 새어나가
+  `_hazardRocksTryHandleClick`이 "빈 곳 클릭"으로 오판해 팝업이 열리자마자 닫혀버린다.
+- 화면 중앙 정렬: `ol.View#centerOn(markerCoord, mapSize, desiredPixel)`로 "마커가 특정
+  픽셀에 오려면 center가 뭐여야 하는지"만 계산(즉시 점프라 그대로 안 씀) → 원래 center로
+  되돌린 뒤 `view.animate({center: 계산된값, duration:300})`로 부드럽게 이동. `desiredPixel`
+  = 화면 가로 중앙 + (세로 중앙 + 꼬리여백 + 팝업높이/2) — 팝업 높이는 DOM 측정 대신
+  **고정값(210px, CSS 레이아웃과 대략 맞춤)**을 씀(날짜를 넘겨도 구조가 안 바뀌므로
+  재측정·재이동 없이 항상 맞아떨어짐 — 카파시 "단순함" 원칙에 맞게 비동기 레이아웃
+  측정을 피함).
+- 차트는 이미 로드돼 있는 Chart.js(index2.html, 다른 화면에서도 씀)를 재사용 — 새 차트
+  라이브러리 추가 안 함.
+
+**검증**: 이 세션에서 Playwright(playwright-core, `/opt/pw-browsers/chromium`)로 실제
+브라우저 E2E 테스트 — 동해 간출암(id=67) 탭 → 팝업 화면 중앙 정렬(마커가 정확히
+`화면중앙+8+105=513px`로 계산대로 이동한 것 픽셀 단위로 확인) → 날짜 3일 전환 정상 →
+닫기 → 마커 재클릭 시 재오픈 → 노출암(k=0) 클릭 시 기존 말풍선 폴백 + 조석 팝업 자동
+닫힘까지 확인. 서해·남해/제주(westsouth/jeju)는 로컬에 실제 곡선 데이터가 없어 "이 지역은
+아직 조석 곡선을 지원하지 않아요" graceful 폴백만 확인(운영 배포 후 실데이터로 재확인 필요).
+
+**남은 것**: 노출암(k=0)에 같은 팝업을 붙이는 건 Task #16 이후로 미룸 — 노출암은 "바위가
+잠기는가"가 아니라 "밀물에 갇히는가"가 핵심이라, 조석 곡선 그대로보다 "몇 시까지 나가야
+하는지"(Task #17과 통합) 같은 다른 콘텐츠가 이 팝업에 더 맞을 수 있어 사용자와 논의 필요.
+
+### 6.11 Task #18(간출암) 재설계 — 잠김/노출 표시 + 기존 조석카드 재현 (2026-08-03)
+
+**계기**: 사용자가 §6.10의 1차 버전(파란 Chart.js 라인그래프)을 보고 4가지 추가 요구 —
+①팝업을 더 크게 ②그래프에 잠기는/드러나는 정확한 시각을 표시(잠김=빨강, 노출=초록)
+③실제로 잠겨있는 시간대는 그래프에 빨간 배경으로 ④아래에 해양종합정보 해점 클릭 시
+나오는 것과 **완전히 같은 모양의** "조석" 카드(게이지+예상조위+고조/저조 표)를 추가.
+
+**진행 방식**: 코드부터 바꾸지 않고 **Artifact로 정적 목업을 먼저 만들어 승인받는 절차**로
+진행(사용자 명시 요청 — "먼저 목업으로 만들어주면 내가 검토해줄게"). 목업 3라운드:
+1차(빨간 배경이 곡선 밖으로 넘침 + 조석카드 레이아웃이 실제와 다름) → 2차(`ocean_bottom_
+sheet3.js`/`style.css`의 `.ocean-tide-*` 실제 소스를 직접 읽어 정확히 재현 + SVG clipPath로
+빨간 배경을 곡선 모양 안으로 클리핑 + 잠긴 구간 선 자체도 빨갛게) → 3차(서체 불일치 수정,
+범례 문구 삭제, 잠김/노출/현재시각 라벨을 "단어+시각" 2줄로, 현재 시각 점 추가) →
+4차(현재 시각 점에 기존 `.hazard-rock-warning-glow`와 같은 펄스 애니메이션). 승인 후 실제
+코드에 반영.
+
+**실제 구현(핵심 설계 결정)**:
+- **차트 엔진을 Chart.js → 직접 그리는 SVG로 교체**. 이유: 잠긴 구간만 곡선 모양대로
+  클리핑된 빨간 배경 + 그 구간만 선 색이 바뀌는 것 + 2줄 텍스트 라벨 + 임의 위치 펄스
+  점은 Chart.js 플러그인 API로 억지로 구현하는 것보다 SVG를 직접 그리는 게 더 단순함
+  (카파시 원칙). 목업에서 검증한 SVG 생성 로직을 거의 그대로 포팅.
+- **잠김/노출 교차 시각은 프론트에서 직접 계산** — 서버가 이미 주는 `points`(10분 간격
+  하루치 표본)+`valsouCm`(잠김 기준)만으로 계산 가능해서 **백엔드 API 변경이 필요 없었다**
+  (기존 `submergedAt` 필드는 잠김 시각만 주고 노출 시각은 안 줬는데, 프론트에서 직접
+  계산하면 둘 다 얻을 수 있어 그쪽으로 통일).
+- **아래 "조석" 카드는 `.ocean-tide-*` CSS 클래스를 그대로 재사용** — `client/style.css`에
+  이미 정의돼 있어 새 CSS를 거의 안 써도 됨. 다만 팝업 자체가 이미 카드(테두리·배경)라
+  안쪽에 `.ocean-tide-wrap`을 또 넣으면 이중 테두리로 보여서, 그 부분만 배경/테두리/패딩을
+  투명하게 덮어씀(`index2.html`).
+- **게이지+예상조위는 오늘(day=0)이고 앞뒤 극값이 다 있을 때만** — `ocean_bottom_sheet3.js`의
+  `isDiurnal`/`todayMode` 분기와 동일한 조건. 내일/모레 보기에선 고조/저조 목록만.
+- **의도적으로 생략한 것 2가지**(정확한 데이터가 없어 억지로 만들지 않음, 목업엔 가상값으로
+  있었지만 실제 반영에선 뺌):
+  1. 고조/저조 표의 "▲+82" 같은 **전일 대비 증감값** — 실제 계산은 어제/내일 데이터와
+     교차비교가 필요한데(`ocean_bottom_sheet3.js`의 diff 로직), 지금 API는 그 날 하루치만
+     주므로 값을 지어내지 않고 뺐다. 필요하면 나중에 API에 전날 비교를 추가해야 함.
+  2. 타이틀 옆 **"(11물)" 같은 물때 배지** — `computeMulddae()`가 M2/S2 조화상수를 필요로
+     하는데 이 API 응답엔 없어서 생략.
+- **폰트 관련 사실 확인**: 사용자가 "우리 앱 폰트 그대로냐" 물어봐서 코드를 직접 확인 —
+  `index2.html`/`style.css` 전체가 `font-family:"Pretendard", sans-serif`를 쓰지만, 실제로
+  자체 호스팅하는 폰트 파일(`assets/vendor/fonts/fonts.css`)엔 Inter·Noto Sans KR·Nanum Pen
+  Script만 있고 **Pretendard 폰트 파일 자체가 없다** — 즉 앱도 대부분 사용자 환경에서
+  이미 시스템 기본 sans-serif로 폴백되고 있을 가능성이 높다(진짜 Pretendard를 쓰고
+  싶으면 별도로 폰트 파일을 추가하는 작업이 필요, 이번 범위 밖이라 손 안 댐).
+
+**검증**: 로컬 서버 기동 후 Playwright로 실좌표 3곳 테스트 —
+①동해 id=67(잠김기준 100cm, 최고조위 76cm — 안 잠기는 경우): 그래프·조석카드 정상,
+빨간 구간·잠김/노출 라벨 없음(맞는 동작). ②동해 id=1808(최고조위 101cm — 잠깐 잠기는
+경우): "잠김 11:00"→"노출 11:10", "잠김 22:40"→"노출 23:34" 라벨 + 좁은 빨간 구간이
+정확히 표시됨(실측 데이터로 교차 계산 로직 검증). ③day=1(내일) 전환 시 게이지·현재시각
+점이 사라지고 고조/저조 목록만 남는 것 확인(설계대로).
+
 ---
 
 ## 7. 알아둘 것 (교훈/시행착오 요약)
@@ -491,6 +675,10 @@ prefix는 프로덕션에 안 보임). **바깥쪽 요약 로그를 "🌊 TideBE
 - **아티팩트 파일 크기 제한(16MB)을 넘으면 즉시 실패한다** — base64 이미지 여러 장을 한 HTML에
   욱여넣을 땐 사전에 총 용량을 가늠해서(1건당 대략 90~100KB 안팎) 필요하면 처음부터 여러 페이지로
   쪼갤 것(187건은 8.6MB+8.7MB 두 페이지로 쪼개야 했다).
+- **물리 기반 플러드필도 근접-해안(300m 이내)에서는 신뢰 불가하다** — BADA 부정확 문제(§6.3)와
+  같은 뿌리. 사람이 "항상 고립"로 확정한 9건 전부가 Task #19 스윕에서 "항상 연결"로 나왔다
+  (§6.8). 근접-해안 안전판정은 앞으로도 OCR/사람 검토가 필요하고, 물리 스윕은 그 바깥(300m
+  밖)에서만 단독으로 신뢰할 것.
 
 ---
 
@@ -509,12 +697,15 @@ local_server/
     build_coastline_cells.js                      # 해안선 shp → coastline_cells.json
     build_jeju_bathy_grid.js                       # 제주 전용 BADA 격자(로컬만, 미커밋)
     build_tide_field.js                            # 물빠짐 Phase 0 전처리(서해·남해 BADA 격자)
+    hazard_rocks_task19_sweep.js                    # Task#19: 전체 노출암 조석-스윕(플러드필)
+    hazard_rocks_task19_finalize.js                 # Task#19: 스윕+OCR 리뷰 union → 최종 후보
     TIDE_FIELD_README.md                           # 물빠짐+고립판정 운영 가이드
     HAZARD_ROCKS_HANDOFF.md                        # 이 문서
     HAZARD_ROCKS_HANDOFF_BRIEF.md                  # 개략(바로 이어할 일)
   services/
-    hazard_rocks_tide_common.js                    # 제주 앵커 경로/설정
-    hazard_rocks_tide_collector.js                 # 제주 앵커 TideBED 곡선 수집기
+    hazard_rocks_tide_common.js                    # 제주 앵커(17개, 간출암용) 경로/설정
+    hazard_rocks_tide_collector.js                 # 제주 앵커(17개) TideBED 곡선 수집기(간출암 잠김경고용)
+    jeju_isolation_tide_collector.js                # 제주 촘촘 격자 앵커 TideBED 곡선 수집기(노출암 고립판정용)
     hazard_rocks_submersion.js                      # 간출암 잠김 교차시각 계산
     hazard_rocks_isolation.js                       # 노출암 고립판정 플러드필 알고리즘
     tide_field_common.js / tide_field_collector.js  # 물빠짐(서해·남해) 공용 인프라
@@ -524,6 +715,9 @@ local_server/
     ocean1.js                                        # GET /api/ocean/depth, /vworld-key 등
   data/ (대부분 gitignore, Fly 볼륨에만 존재하거나 로컬 테스트용 — 예외는 표시)
     hazard_rocks/{anchors.json, curves/, submersion.json,
-                  nearshore_isolation_review_1000.json(커밋됨 — 300m 근접 1,000개 OCR+사람검토 최종본)}
-    tide_field/{grid_meta.json, anchors.json, coastline_cells.json(커밋됨), curves/}
+                  nearshore_isolation_review_1000.json(커밋됨 — 300m 근접 1,000개 OCR+사람검토 최종본),
+                  isolation_sweep_full.json(커밋됨 — Task#19 전체 노출암 스윕 원본, 2,985건),
+                  isolation_candidates_final.json(커밋됨 — Task#19+OCR union 최종 후보 718건)}
+    tide_field/{grid_meta.json, anchors.json, coastline_cells.json(커밋됨), curves/,
+                grid_meta_jeju.json, anchors_jeju.json(둘 다 미커밋 — BADA 필요), curves_jeju/}
 ```
