@@ -8,14 +8,19 @@
  *         확대할수록 낱개로 펼쳐진다(OpenLayers 클러스터). 간출암 등이 켜져 있는
  *         동안엔 서버가 미리 계산한 잠김경고(3시간 이내 잠기는 암초)를 1분마다
  *         폴링해, 낱개로 보이는 간출암 위에 빨간 펄스 테두리 + "OO:OO 후 완전히
- *         잠김" 카운트다운을 얹는다.
+ *         잠김" 카운트다운을 얹는다. 간출암(k=1) 낱개 마커를 탭하면 오늘~모레
+ *         조석 곡선 팝업이 화면 가운데(마커는 팝업 바로 아래)에 뜬다 — 노출암은
+ *         아직 미지원(고립판정 분석 진행 중, 간출암부터 우선 반영).
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : 없음 (OpenLayers 만 사용, 해아름 레이어와 독립)
+ *  - 사용하는 파일 : window.Chart(Chart.js, index2.html 에서 이 파일보다 먼저 로드) —
+ *                    조석 곡선 팝업 차트 렌더링
  *  - 서버 API      : GET /hazard_rocks.json (정적, 지연 로드) ·
- *                    GET /api/hazard-rocks/submersion (잠김경고, 간출암 등 켜진 동안 1분 폴링)
+ *                    GET /api/hazard-rocks/submersion (잠김경고, 간출암 등 켜진 동안 1분 폴링) ·
+ *                    GET /api/hazard-rocks/tide-curve?id=&day= (간출암 탭 시 조석 곡선 팝업)
  *  - 마크업        : index2.html 의 #ocean-exposed-toggle-btn(노출암),
- *                    #ocean-rock-toggle-btn(간출암 등) — 둘 다 해양안전 전용
+ *                    #ocean-rock-toggle-btn(간출암 등) — 둘 다 해양안전 전용,
+ *                    .rock-tide-popup(조석 곡선 팝업 CSS)
  *  - 나를 쓰는 곳  : ocean_map.js buildMap() → window.initHazardRocksLayer(oceanMap)
  *                    ocean_map.js handleMapClick → window._hazardRocksTryHandleClick
  * [로드 순서] ocean_map.js 다음 · life_safety.js 바로 앞 (marine-life/safety 그룹)
@@ -51,7 +56,18 @@
     var dataPromise = null;    // 두 버튼이 나눠 쓰는 공유 fetch(1회만 요청)
     var exposedLayer = null;   // 노출암(k=0)
     var rockLayer = null;      // 간출암류(k=1,2,3)
-    var bubbleOverlay = null;  // 탭한 지점에 뜨는 말풍선
+    var bubbleOverlay = null;  // 탭한 지점에 뜨는 말풍선(노출암/세암·암암 — 텍스트만)
+
+    // ── 조석 곡선 팝업(간출암 k=1 전용) — 화면 가운데 정렬 + 오늘/내일/모레 넘겨보기 ──
+    var tideCurveOverlay = null;  // 위 bubbleOverlay 와 별개(버튼이 있어 pointer-events 필요)
+    var _tideCurveChart = null;   // Chart.js 인스턴스(날짜 전환 시 destroy 후 재생성)
+    var _tideCurveState = null;   // { rockId, day(0~2) }
+    var TIDE_CURVE_URL = '/api/hazard-rocks/tide-curve';
+    var DAY_LABELS = ['오늘', '내일', '모레'];
+    // 팝업 예상 높이(px) — 실제 DOM 측정 대신 고정값(CSS 레이아웃과 대략 맞춤). 날짜를
+    // 넘겨도 구조가 안 바뀌므로 고정값으로도 재이동(re-pan) 없이 항상 맞아떨어진다.
+    var TIDE_POPUP_EST_HEIGHT_PX = 210;
+    var TIDE_POPUP_TAIL_GAP_PX = 8; // ensureBubble 의 offset[0,-8]과 동일한 꼬리 여백
 
     // ── 잠김경고(간출암 k=1 전용) — 서버가 야간 배치로 미리 계산해 둔 잠김
     //   교차시각을 폴링해, 3시간 이내 잠기는 "낱개로 보이는" 마커에만 펄스
@@ -210,6 +226,174 @@
         });
         map.addOverlay(bubbleOverlay);
         return bubbleOverlay;
+    }
+
+    /**
+     * 조석 곡선 팝업 Overlay 를 준비(1회)해 돌려준다. bubbleOverlay 와 달리 버튼
+     * (날짜 넘기기·닫기)이 있어야 하므로 stopEvent:true(기본값) — 팝업 안 클릭이
+     * 지도 클릭으로 새어나가 곧바로 닫혀버리는 것을 막는다.
+     * @param {ol.Map} map
+     * @returns {ol.Overlay}
+     */
+    function ensureTideCurveOverlay(map) {
+        if (tideCurveOverlay) return tideCurveOverlay;
+        var el = document.createElement('div');
+        el.className = 'hazard-rock-popup rock-tide-popup';
+        tideCurveOverlay = new ol.Overlay({
+            element: el, positioning: 'bottom-center', offset: [0, -TIDE_POPUP_TAIL_GAP_PX]
+        });
+        map.addOverlay(tideCurveOverlay);
+        return tideCurveOverlay;
+    }
+
+    function hideTideCurveOverlay() {
+        if (tideCurveOverlay) tideCurveOverlay.setPosition(undefined);
+        if (_tideCurveChart) { _tideCurveChart.destroy(); _tideCurveChart = null; }
+        _tideCurveState = null;
+    }
+
+    /**
+     * coord(마커 좌표)가 화면에 뜬 뒤 그 위로 popupHeightPx 만큼의 팝업이 얹힐 때,
+     * "팝업이 화면 가운데 오고 마커는 팝업 바로 아래(꼬리 위치)"가 되도록 지도를
+     * 애니메이션으로 이동시킨다. ol.View#centerOn(좌표를 특정 픽셀 위치에 오도록
+     * 센터 계산, 줌/회전 그대로 반영)으로 목표 center 만 구하고, 실제 이동은
+     * view.animate 로 부드럽게 한다(centerOn 자체는 즉시 점프라 그대로 안 씀).
+     * @param {ol.Map} map
+     * @param {ol.Coordinate} coord
+     * @param {number} popupHeightPx
+     */
+    function centerViewOnPopupAnchor(map, coord, popupHeightPx) {
+        var view = map.getView();
+        var size = map.getSize();
+        if (!size) return;
+        var desiredPixel = [size[0] / 2, size[1] / 2 + TIDE_POPUP_TAIL_GAP_PX + popupHeightPx / 2];
+        var savedCenter = view.getCenter();
+        view.centerOn(coord, size, desiredPixel);
+        var target = view.getCenter();
+        view.setCenter(savedCenter); // 점프 취소 — 아래 animate 로 부드럽게 이동
+        view.animate({ center: target, duration: 300 });
+    }
+
+    /** 날짜 전환(-1/+1, 0~2 범위 밖이면 무시) 후 다시 렌더링. */
+    function changeTideCurveDay(delta) {
+        if (!_tideCurveState) return;
+        var next = _tideCurveState.day + delta;
+        if (next < 0 || next > 2) return;
+        _tideCurveState.day = next;
+        renderTideCurveDay();
+    }
+
+    /**
+     * _tideCurveState(rockId, day) 기준으로 서버에서 그 날짜 조석 곡선을 받아와
+     * Chart.js 라인차트 + 극값(고조/저조) + 잠김 시각 요약을 그린다. 응답이 늦게
+     * 와서 그 사이 사용자가 다른 날짜/다른 암초로 넘어갔으면 결과를 버린다.
+     */
+    function renderTideCurveDay() {
+        if (!_tideCurveState || !tideCurveOverlay) return;
+        var state = _tideCurveState;
+        var el = tideCurveOverlay.getElement();
+        var dayLabelEl = el.querySelector('.rtp-daylabel');
+        var peaksEl = el.querySelector('.rtp-peaks');
+        var prevBtn = el.querySelector('.rtp-prev');
+        var nextBtn = el.querySelector('.rtp-next');
+        prevBtn.disabled = (state.day === 0);
+        nextBtn.disabled = (state.day === 2);
+        dayLabelEl.textContent = DAY_LABELS[state.day] + ' 불러오는 중...';
+        peaksEl.textContent = '';
+
+        fetch(TIDE_CURVE_URL + '?id=' + encodeURIComponent(state.rockId) + '&day=' + state.day)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!_tideCurveState || _tideCurveState.rockId !== state.rockId || _tideCurveState.day !== state.day) return;
+                if (!data.success || !data.ready) {
+                    dayLabelEl.textContent = DAY_LABELS[state.day];
+                    peaksEl.textContent = '이 지역은 아직 조석 곡선을 지원하지 않아요.';
+                    if (_tideCurveChart) { _tideCurveChart.destroy(); _tideCurveChart = null; }
+                    return;
+                }
+                var dateStr = String(data.date);
+                dayLabelEl.textContent = DAY_LABELS[state.day] + ' (' + dateStr.slice(4, 6) + '/' + dateStr.slice(6, 8) + ')';
+
+                var canvas = el.querySelector('.rtp-canvas');
+                if (_tideCurveChart) { _tideCurveChart.destroy(); _tideCurveChart = null; }
+                if (typeof Chart !== 'undefined') {
+                    _tideCurveChart = new Chart(canvas.getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: data.points.map(function (p) { return p.t; }),
+                            datasets: [
+                                {
+                                    label: '조위(cm)', data: data.points.map(function (p) { return p.cm; }),
+                                    borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)',
+                                    borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true
+                                },
+                                {
+                                    label: '잠김 기준(' + data.valsouCm + 'cm)',
+                                    data: data.points.map(function () { return data.valsouCm; }),
+                                    borderColor: 'rgba(220,38,38,0.85)', borderDash: [4, 3],
+                                    borderWidth: 1.5, pointRadius: 0, fill: false
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: false, animation: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { ticks: { maxTicksLimit: 5, color: '#cbd5e1', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.08)' } },
+                                y: { ticks: { color: '#cbd5e1', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.08)' } }
+                            }
+                        }
+                    });
+                }
+
+                var peakParts = (data.peaks || []).map(function (p) {
+                    return (p.type === 'high' ? '고조 ' : '저조 ') + p.t + '(' + p.cm + 'cm)';
+                });
+                var submergedPart = (data.submergedAt && data.submergedAt.length)
+                    ? (' · 잠김 ' + data.submergedAt.join(', ')) : '';
+                peaksEl.textContent = peakParts.join(' · ') + submergedPart;
+            })
+            .catch(function () {
+                if (!_tideCurveState || _tideCurveState.rockId !== state.rockId || _tideCurveState.day !== state.day) return;
+                dayLabelEl.textContent = DAY_LABELS[state.day];
+                peaksEl.textContent = '조석 곡선을 불러오지 못했어요.';
+            });
+    }
+
+    /**
+     * 간출암(k=1) 낱개 마커 탭 시 조석 곡선 팝업을 연다 — 팝업이 화면 가운데 오고
+     * 마커가 그 바로 아래(팝업 꼬리 위치)에 오도록 지도를 이동시킨 뒤, 오늘 곡선을
+     * 바로 불러온다(이후 날짜 전환은 changeTideCurveDay 가 처리).
+     * @param {ol.Map} map
+     * @param {ol.Feature} feature - 간출암 포인트 feature(k===1)
+     */
+    function openTideCurvePopup(map, feature) {
+        if (bubbleOverlay) bubbleOverlay.setPosition(undefined);
+        var overlay = ensureTideCurveOverlay(map);
+        var v = feature.get('v');
+        var title = (typeof v === 'number') ? ('간출암 · 저조 시 ' + v.toFixed(1) + 'm 노출') : '간출암';
+
+        var el = overlay.getElement();
+        el.innerHTML =
+            '<div class="rtp-header"><span class="rtp-title"></span>' +
+            '<button type="button" class="rtp-close" aria-label="닫기">×</button></div>' +
+            '<div class="rtp-daynav">' +
+            '<button type="button" class="rtp-prev" aria-label="이전 날짜">◀</button>' +
+            '<span class="rtp-daylabel"></span>' +
+            '<button type="button" class="rtp-next" aria-label="다음 날짜">▶</button></div>' +
+            '<div class="rtp-chartwrap"><canvas class="rtp-canvas" width="248" height="100"></canvas></div>' +
+            '<div class="rtp-peaks"></div>';
+        el.querySelector('.rtp-title').textContent = title;
+        el.querySelector('.rtp-close').addEventListener('click', hideTideCurveOverlay);
+        el.querySelector('.rtp-prev').addEventListener('click', function () { changeTideCurveDay(-1); });
+        el.querySelector('.rtp-next').addEventListener('click', function () { changeTideCurveDay(1); });
+
+        var coord = feature.getGeometry().getCoordinates();
+        overlay.setPosition(coord);
+        centerViewOnPopupAnchor(map, coord, TIDE_POPUP_EST_HEIGHT_PX);
+
+        _tideCurveState = { rockId: feature.get('id'), day: 0 };
+        renderTideCurveDay();
     }
 
     /**
@@ -394,6 +578,7 @@
                 btn.classList.toggle('active', visible);
                 if (visible && window.trackUsage) window.trackUsage(usageKey);
                 if (!visible && bubbleOverlay) bubbleOverlay.setPosition(undefined);
+                if (!visible) hideTideCurveOverlay();
                 // 클러스터 대표 아이콘(clusterIconFor)이 "두 레이어의 켜짐 상태 조합"에
                 // 따라 바뀌므로, 방금 안 바뀐 다른 레이어도 다시 그려야 아이콘이 즉시 갱신된다.
                 if (exposedLayer && exposedLayer !== layer) exposedLayer.changed();
@@ -451,6 +636,7 @@
 
         var members = hit.get('features');
         if (members.length > 1) {
+            hideTideCurveOverlay();
             var view = map.getView();
             var extent = ol.extent.createEmpty();
             members.forEach(function (f) { ol.extent.extend(extent, f.getGeometry().getExtent()); });
@@ -470,6 +656,14 @@
             return true;
         }
 
+        // 간출암(k=1) 낱개 마커 — 화면 가운데 조석 곡선 팝업(노출암 등은 아직
+        // 미지원, 기존 텍스트 말풍선 그대로 — HAZARD_ROCKS_HANDOFF_BRIEF.md Task #18 참고).
+        if (members[0].get('k') === 1) {
+            openTideCurvePopup(map, members[0]);
+            return true;
+        }
+
+        hideTideCurveOverlay();
         var bubble = ensureBubble(map);
         bubble.getElement().textContent = popupText(members[0]);
         bubble.setPosition(members[0].getGeometry().getCoordinates());
@@ -489,6 +683,7 @@
         if (rockLayer && rockLayer.getVisible()) handled = tryHandleLayerClick(map, evt, rockLayer);
         if (!handled && exposedLayer && exposedLayer.getVisible()) handled = tryHandleLayerClick(map, evt, exposedLayer);
         if (!handled && bubbleOverlay) bubbleOverlay.setPosition(undefined);
+        if (!handled) hideTideCurveOverlay();
         return handled;
     };
 })();

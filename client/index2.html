@@ -1565,6 +1565,39 @@
             text-shadow: 0 0 3px rgba(255, 255, 255, 0.95), 0 0 2px rgba(255, 255, 255, 0.95);
         }
         .hazard-rock-warning-text b { font-weight: 800; }
+        /* 간출암(k=1) 탭 시 뜨는 조석 곡선 팝업 — 위 .hazard-rock-popup 을 베이스로
+           버튼(날짜 넘기기·닫기)이 있어 상호작용 가능해야 하므로 일부 속성을 덮어씀.
+           [연계] js/marine-life/safety/hazard_rocks.js openTideCurvePopup() */
+        .hazard-rock-popup.rock-tide-popup {
+            pointer-events: auto;
+            white-space: normal;
+            width: 15.5rem;
+            padding: 0.4rem 0.55rem 0.35rem;
+        }
+        .rock-tide-popup .rtp-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 0.2rem;
+        }
+        .rock-tide-popup .rtp-title { font-size: 0.78rem; font-weight: 600; }
+        .rock-tide-popup .rtp-close {
+            background: none; border: none; color: #cbd5e1; font-size: 1rem;
+            line-height: 1; cursor: pointer; padding: 0 0.15rem;
+        }
+        .rock-tide-popup .rtp-daynav {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 0.25rem; font-size: 0.72rem; color: #e2e8f0;
+        }
+        .rock-tide-popup .rtp-daynav button {
+            background: rgba(255,255,255,0.12); border: none; color: #fff;
+            border-radius: 0.3rem; padding: 0.05rem 0.5rem; cursor: pointer; font-size: 0.72rem;
+        }
+        .rock-tide-popup .rtp-daynav button:disabled { opacity: 0.3; cursor: default; }
+        .rock-tide-popup .rtp-chartwrap { width: 100%; }
+        .rock-tide-popup .rtp-canvas { width: 100% !important; height: 6.25rem !important; display: block; }
+        .rock-tide-popup .rtp-peaks {
+            font-size: 0.66rem; color: #cbd5e1; margin-top: 0.2rem; line-height: 1.4;
+            white-space: normal;
+        }
         /* 물빠짐 로딩 스피너 (중앙) */
         #mudflat-loading {
             position: fixed; inset: 0; z-index: 1400;
