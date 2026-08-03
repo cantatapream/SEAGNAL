@@ -284,21 +284,6 @@ router.post('/api/legal/ask', async (req, res) => {
 
   const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
   try {
-    // [임시·진단용] 관리자 전용 강제 2차조회 스위치 — 위키 검색을 건너뛰고 raw-fallback 체인만 태워 확인한다(검증 후 제거).
-    if (req.body && req.body.forceRaw === true && adminAuth.verifyToken(req.get('X-Admin-Token') || '')) {
-      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-      res.setHeader('Cache-Control', 'no-cache');
-      if (res.flushHeaders) res.flushHeaders();
-      const forced = await legalRetriever.searchRawFallback(q);
-      const gotAnswer = !!(forced && forced.answer);
-      res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
-        answer: gotAnswer ? forced.answer : null, sources: [],
-        note: gotAnswer
-          ? `⚠미검증 참고 — 위키 카드가 없어 법령 원문(${forced.laws.join('·') || '원문'})을 직접 읽은 답변 [2차조회 강제테스트]`
-          : '2차조회 강제테스트 — raw.answer 없음(원인은 서버로그 확인)' }) + '\n');
-      return res.end();
-    }
-
     const { sources, contextPages } = await legalRetriever.search(q, { canonicalOnly });
     const toSourceOut = s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop, citationChain: s.citationChain || [] });
 
