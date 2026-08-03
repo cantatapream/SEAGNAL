@@ -112,6 +112,7 @@
     "access_control.js",
     "fishing_ban.js",
     "vts_zone.js",
+    "seaway.js",
     "life_safety.js"
   ]
 }
