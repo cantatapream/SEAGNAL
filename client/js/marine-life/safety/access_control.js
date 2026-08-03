@@ -9,7 +9,11 @@
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap), OpenLayers(ol.*)
  *  - 서버 API      : 없음 — /access_control_zones.json 정적 파일(지연 로드)
  *  - 마크업        : index2.html #ocean-access-control-toggle-btn — 해양안전 전용
- *  - 나를 쓰는 곳  : 없음 — 토글 버튼은 이 파일이 자체 바인딩(ocean_warn_zone.js 와 동일 패턴)
+ *  - 나를 쓰는 곳  : 토글 버튼은 이 파일이 자체 바인딩(ocean_warn_zone.js 와 동일 패턴).
+ *                    폴리곤 클릭은 ocean_map.js의 handleMapClick 이
+ *                    window._accessControlTryHandleClick(map, evt) 를 호출
+ *                    (hazard_rocks.js 의 _hazardRocksTryHandleClick 과 동일 패턴 —
+ *                    이래야 해양종합정보 바텀시트가 같은 클릭에 같이 뜨는 걸 막는다)
  * [로드 순서] ocean_map.js 다음 · life_safety.js 바로 앞 (marine-life/safety 그룹)
  * [데이터 출처] 각 해양경찰서 홈페이지 고시.공고 게시판에서 직접 수집한 원문 PDF/HWP의
  *              경위도 좌표를 전사(자세한 출처·검증 이력은
@@ -116,39 +120,43 @@
             });
     }
 
-    /** "항목: 값" 한 줄 — 값이 없으면 그 줄 자체를 만들지 않는다 */
+    /** "라벨/값" 2열 grid의 한 행 — 값이 없으면 그 행 자체를 만들지 않는다.
+     *  (grid-template-columns: max-content 1fr 이라 값이 줄바꿈되면 값 칸의
+     *  왼쪽 끝, 즉 라벨 다음 위치에 자동으로 맞춰 정렬된다) */
     function _row(label, value) {
         if (!value) return '';
-        return '<p><strong>' + label + '</strong>: ' + value + '</p>';
+        return '<span class="ac-detail-label">' + label + '</span><span class="ac-detail-value">' + value + '</span>';
     }
 
     /** 문의처 문자열 속 전화번호(예: 032-650-2348)를 tel: 링크로 바꿔 탭하면 바로 전화 걸리게 한다 */
     function _linkifyPhone(text) {
         if (!text) return text;
         return text.replace(/(\d{2,3}-\d{3,4}-\d{4})/g, function (num) {
-            return '<a href="tel:' + num.replace(/-/g, '') + '" style="color:#93c5fd;text-decoration:underline;">' + num + '</a>';
+            return '<a href="tel:' + num.replace(/-/g, '') + '" style="color:#93c5fd;text-decoration:underline;white-space:nowrap;">' + num + '</a>';
         });
     }
 
     /** 폴리곤 feature 하나의 상세 정보 팝업 HTML을 만든다(구역마다 고시 내용이 달라 항목별로 있는 것만 표시) */
     function _buildDetailHtml(hit) {
-        var html = '';
-        html += _row('관할', hit.get('station'));
-        html += _row('고시.공고', hit.get('notice_no'));
-        html += _row('일자', hit.get('date'));
-        html += _row('지정사유', hit.get('reason'));
-        html += _row('소재지', hit.get('address'));
-        html += _row('통제기간', hit.get('control_period'));
-        html += _row('통제시간', hit.get('control_time'));
-        html += _row('대상', hit.get('target'));
-        html += _row('벌칙', hit.get('penalty'));
-        html += _row('문의처', _linkifyPhone(hit.get('contact')));
-        html += _row('상태', hit.get('status'));
+        var rows = '';
+        rows += _row('관할', hit.get('station'));
+        rows += _row('고시.공고', hit.get('notice_no'));
+        rows += _row('일자', hit.get('date'));
+        rows += _row('지정사유', hit.get('reason'));
+        rows += _row('소재지', hit.get('address'));
+        rows += _row('통제기간', hit.get('control_period'));
+        rows += _row('통제시간', hit.get('control_time'));
+        rows += _row('대상', hit.get('target'));
+        rows += _row('벌칙', hit.get('penalty'));
+        rows += _row('문의처', _linkifyPhone(hit.get('contact')));
+        rows += _row('상태', hit.get('status'));
+
+        var html = rows ? '<div class="ac-detail-grid">' + rows + '</div>' : '';
 
         var src = hit.get('source_file');
         if (src) {
             var url = '/api/legal/src?p=' + encodeURIComponent(src);
-            html += '<p style="margin-top:16px;">' +
+            html += '<p style="margin-top:18px;text-align:center;">' +
                 '<a href="' + url + '" target="_blank" rel="noopener" ' +
                 'style="display:inline-block;padding:8px 14px;border-radius:8px;' +
                 'background:rgba(255,82,82,0.18);color:#ffb3b3;text-decoration:none;font-weight:600;">' +
@@ -157,26 +165,33 @@
         return html || '<p>세부 정보를 불러오지 못했습니다.</p>';
     }
 
-    /** 지도 클릭 시 출입통제구역 폴리곤을 찾아 상세 정보 팝업을 띄운다 */
-    function _bindClick(map) {
-        map.on('singleclick', function (evt) {
-            if (!_visible) return;
-            var hit = map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
-                if (layer === _fillLayer) return feature;
-                return null;
-            });
-            if (!hit) return;
-            var location = hit.get('location') || '출입통제구역';
-            if (typeof window.showSeagnalModal === 'function') {
-                window.showSeagnalModal(location, _buildDetailHtml(hit), 'info');
-                // 항목 수가 많아 기본 폭(320px)보다 넓게 — 이 팝업에만 적용, 다른 showSeagnalModal 호출부는 그대로
-                var modalContent = document.querySelector('#seagnal-custom-modal .seagnal-modal-content');
-                if (modalContent) modalContent.classList.add('access-control-wide');
-            } else if (typeof window._showOceanToast === 'function') {
-                window._showOceanToast((hit.get('station') || '') + ' ' + location, 'bottom', 3000);
-            }
+    /**
+     * [외부 API] 지도 클릭이 출입통제구역 폴리곤을 눌렀는지 확인한다.
+     * @param {ol.Map} map
+     * @param {ol.MapBrowserEvent} evt
+     * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함)
+     * [연계] ← ocean_map.js handleMapClick — hazard_rocks 다음 우선순위로 호출.
+     *        자체 singleclick 리스너를 따로 달지 않는 이유: 그렇게 하면 handleMapClick 의
+     *        바텀시트 로직과 같은 클릭에 동시에 반응해버려 팝업+바텀시트가 함께 뜬다.
+     */
+    window._accessControlTryHandleClick = function (map, evt) {
+        if (!_visible || !_fillLayer) return false;
+        var hit = map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
+            if (layer === _fillLayer) return feature;
+            return null;
         });
-    }
+        if (!hit) return false;
+        var location = hit.get('location') || '출입통제구역';
+        if (typeof window.showSeagnalModal === 'function') {
+            window.showSeagnalModal(location, _buildDetailHtml(hit), 'info');
+            // 항목 수가 많아 기본 폭(320px)보다 넓게 — 이 팝업에만 적용, 다른 showSeagnalModal 호출부는 그대로
+            var modalContent = document.querySelector('#seagnal-custom-modal .seagnal-modal-content');
+            if (modalContent) modalContent.classList.add('access-control-wide');
+        } else if (typeof window._showOceanToast === 'function') {
+            window._showOceanToast((hit.get('station') || '') + ' ' + location, 'bottom', 3000);
+        }
+        return true;
+    };
 
     function _bindToggle(map) {
         var btn = document.getElementById('ocean-access-control-toggle-btn');
@@ -198,7 +213,6 @@
             if (map) {
                 _ensureLayers(map);
                 _bindToggle(map);
-                _bindClick(map);
                 return;
             }
             setTimeout(_try, 250);

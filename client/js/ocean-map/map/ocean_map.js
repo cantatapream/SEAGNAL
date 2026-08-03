@@ -1149,6 +1149,13 @@
             if (hit) return;
         }
 
+        // 출입통제구역 폴리곤 클릭 확인 (해양안전 전용, 토글 꺼져 있으면 항상 false)
+        // [연계] js/marine-life/safety/access_control.js
+        if (typeof window._accessControlTryHandleClick === 'function') {
+            const hit = window._accessControlTryHandleClick(oceanMap, evt);
+            if (hit) return;
+        }
+
         // [공통 핀] 배경(해역) 클릭 시 클릭 지점에 핀 1개 표시(다음 클릭 시 이동).
         //   마커/CCTV/부이 클릭은 위에서 return 되므로 그 위엔 안 찍힘.
         if (typeof window.oceanDropClickPin === 'function') window.oceanDropClickPin(oceanMap, evt.coordinate);

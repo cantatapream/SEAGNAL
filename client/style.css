@@ -5048,6 +5048,31 @@ line-height: 1.1;
     max-width: 380px;
 }
 
+/* 출입통제구역 상세 항목 — 라벨/값 2열 grid (access_control.js _row() 가 생성).
+   grid-template-columns 의 1열이 max-content 라 값이 줄바꿈돼도 항상 값 칸(2열) 안에서만
+   줄바꿈되므로 라벨과 자동으로 정렬되고, word-break: keep-all 로 단어 중간이 안 잘린다. */
+.ac-detail-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    column-gap: 14px;
+    row-gap: 12px;
+    margin-bottom: 4px;
+}
+.ac-detail-label {
+    color: #7fb0e8;
+    font-weight: 700;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    padding-top: 1px;
+}
+.ac-detail-value {
+    color: #e4eaf3;
+    font-size: 0.88rem;
+    line-height: 1.65;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
 .seagnal-modal-icon {
     font-size: 2.5rem;
     margin-bottom: 15px;
