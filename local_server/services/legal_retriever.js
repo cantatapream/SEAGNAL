@@ -24,7 +24,9 @@
  * - knowledge/legal/_dashboard/index.json  → 페이지 메타 색인(법·주제·테마·links, comparison 포함 2026-08-01~)
  * - knowledge/legal/wiki/concepts|statutes|comparisons/*.md → 실제 본문(직접매칭·답변 근거)
  * - knowledge/legal/wiki/_glossary.md       → 구어→개념 매핑표
+ * - knowledge/legal/_dashboard/law_raw_paths.json → 법명 → raw 폴더 경로(2차 "미검증 참고" 조회용)
  * - services/gemini_client.js               → 답변 합성 LLM 호출
+ * - services/github_raw.js                  → 2차 조회가 읽는 법령 원문(GitHub 온디맨드)
  * - routes/legal.js                         → POST /api/legal/ask 가 이 모듈을 호출
  * ============================================================================
  */
@@ -32,9 +34,11 @@
 const fs = require('fs');
 const path = require('path');
 const gemini = require('./gemini_client');
+const githubRaw = require('./github_raw');
 
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const INDEX_JSON = path.join(LEGAL_DIR, '_dashboard', 'index.json');
+const LAW_RAW_PATHS_JSON = path.join(LEGAL_DIR, '_dashboard', 'law_raw_paths.json');
 const CONTACTS_JSON = path.join(LEGAL_DIR, '_dashboard', 'contacts_collected.json');
 const GLOSSARY_MD = path.join(LEGAL_DIR, 'wiki', '_glossary.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
@@ -615,9 +619,9 @@ function buildContextBlock(contextPages) {
   }).join('\n\n');
 }
 
-const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
-
-[답변 원칙 — 반드시 지킬 것]
+// 답변 원칙 1~8은 1차(위키 근거)·2차(원문 미검증 참고) 답변이 똑같이 지켜야 하는 공통 규칙이라
+// 별도 상수로 떼어 두 프롬프트가 함께 쓴다(서두 한 문장만 근거의 성격에 따라 달라진다).
+const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
 1. 답의 근거는 오직 [근거자료]뿐이다. [근거자료]에 없는 내용은 지어내지 말고 "확인되지 않습니다"라고 정직하게 말한다.
 2. 처벌(징역·벌금·과태료)은 조·항·호·금액을 [근거자료] 그대로 인용한다. 뭉개어 말하지 않는다. 처벌이 위반 횟수(1차/2차/3차…)에 따라 달라지면 가장 흔한 경우(통상 1차)만 먼저 답하고 "2차 이후도 궁금하시면 다시 물어보세요"로 마무리한다(한 번에 전부 나열하지 않는다).
 3. 조건(선박 톤수·어업 종류·조업구역 등)에 따라 답이 갈리는데 질문에 그 조건이 없으면, 장황하게 다 나열하지 말고 필요한 조건 한 가지만 되물어라(예: "배가 몇 톤이세요?"). 지금은 단발 질문-답변이라 이전 대화를 기억하지 못하니, 되물을 땐 그 사실을 티내지 말고 자연스럽게 묻는다.
@@ -626,6 +630,10 @@ const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을
 6. 답변 마지막에 반드시 이 순서로 붙인다: (a) 근거 법령·조문, (b) [근거자료]에 소관부서·연락처가 있으면 그것, (c) 근거자료의 기준일("「○○법」 YYYY-MM-DD 기준"). ("참고용입니다" 면책 문구는 화면이 별도로 붙이니 답변에 넣지 않는다.)
 7. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용.
 8. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.`;
+
+const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
+
+${ANSWER_RULES_BODY}`;
 
 // 'MINIMAL'은 gemini-pro-latest(3.x)에서 400(지원 안 함)으로 실측 확인(2026-07-29) — 절대 쓰지 말 것.
 // pro-latest 확정: LOW+규칙8(6회 반복 26초 평균·완전성 6/6)이 속도·완전성 균형점.
@@ -651,4 +659,211 @@ async function* synthesizeAnswerStream(query, contextPages) {
   yield* gemini.callGeminiStream({ model: ANSWER_MODEL, contents: prompt, config: SYNTH_CONFIG, caller: 'Legal-Ask' });
 }
 
-module.exports = { loadIndex, search, synthesizeAnswerStream, classifyTier, extractCitationChain, lookupContact, filterSourcesByAnswer };
+// ============================================================================
+// 2차 조회 — "미검증 참고" 답변 (MASTER_PLAN F절 ★★위키 밖 질문 2단계 답변 체계)
+// 1차(위키 카드)에서 근거를 하나도 못 찾았을 때만 발동한다. 좁혀진 법의 raw 원문을
+// GitHub에서 그때그때 읽어(서버에 상주시키지 않음) 답을 한 번 더 시도하되, 사람이 검증한
+// 위키 카드가 아니라는 사실을 답변 안에 명시하게 한다.
+//   ①동시조회(법률.txt + 폴더 목차) → ②AI 파일선택 → ③병렬조회 → ④AI 답변합성
+// 어느 단계가 실패하든(토큰없음·GitHub실패·AI실패·후보없음) 예외 없이 "결과 없음"을 반환한다.
+// ============================================================================
+
+const RAW_LAW_MAX = 2;        // 후보 법 상한(MASTER_PLAN "가장 가까운 법 1~2개")
+const RAW_FILE_MAX = 4;       // ②AI가 지목할 수 있는 추가 파일 상한(프롬프트·지연 관리)
+// 원문 파일은 위키 카드와 달리 통째로 길다(핵심 73법 중 법률.txt 최대 ≈257KB — 해양환경관리법).
+// 프롬프트 비용·지연이 폭주하지 않게 파일당 상한만 둔다(잘라도 앞부분에 목적·정의·주요 의무가 온다).
+const RAW_MAX_CHARS = 50000;
+
+// ── law_raw_paths.json 캐시(mtime 감지): 법명(공백 제거) → raw 폴더 상대경로 ──
+// index.json의 law는 "공유수면 관리 및 매립에 관한 법률"처럼 띄어쓰기가 있고 매핑표 키는
+// 붙여쓰기("공유수면관리및매립에관한법률")라, 공백을 지운 형태를 키로 삼아야 74법 전부 맞는다(실측 확인).
+let _rawPathsCache = null, _rawPathsMtime = 0;
+function loadRawPaths() {
+  try {
+    const mt = fs.statSync(LAW_RAW_PATHS_JSON).mtimeMs;
+    if (_rawPathsCache && mt === _rawPathsMtime) return _rawPathsCache;
+    const obj = JSON.parse(fs.readFileSync(LAW_RAW_PATHS_JSON, 'utf8'));
+    const map = new Map();
+    for (const k of Object.keys(obj)) map.set(k.replace(/\s+/g, ''), obj[k]);
+    _rawPathsCache = map; _rawPathsMtime = mt;
+  } catch (_) { if (!_rawPathsCache) _rawPathsCache = new Map(); }
+  return _rawPathsCache;
+}
+
+/**
+ * 법명으로 그 법의 raw 폴더 경로(저장소 루트 기준 상대경로)를 찾는다. 없으면 null.
+ * 예: rawPathOf('어선법') → 'local_server/knowledge/legal/raw/04_선박해운/어선법'
+ * @param {string} lawName
+ * @returns {string|null}
+ * [연계] → github_raw.listDir/fetchText에 그대로 넘기는 GitHub Contents API 경로.
+ */
+function rawPathOf(lawName) {
+  return loadRawPaths().get(String(lawName || '').replace(/\s+/g, '')) || null;
+}
+
+/**
+ * ①단계 앞: 질문과 가장 가까운 법을 AI에게 1~2개만 고르게 한다(판단 1회).
+ * expandQueryTerms()와 같은 "짧고 빠른 판단 호출" 패턴 — 사고 끄고, JSON만 받고,
+ * 실패(키 없음·타임아웃·파싱 실패)하면 조용히 []를 돌려 2차 조회 자체를 스킵시킨다.
+ * 예: pickCandidateLaws('어선 길이 늘리려면 허가 받아야 하나요', ['어선법', …]) → ['어선법']
+ * @param {string} query - 사용자 질문
+ * @param {string[]} lawNames - 후보가 될 수 있는 법 목록(index.json statute 페이지의 law)
+ * @returns {Promise<string[]>} 목록 안에 실제로 있는 법명만(최대 RAW_LAW_MAX), 실패 시 []
+ * [연계] ← searchRawFallback() 1단계 → rawPathOf()로 raw 폴더 경로 변환.
+ */
+async function pickCandidateLaws(query, lawNames) {
+  if (!gemini.hasAnyKey() || !lawNames.length) return [];
+  const prompt = `아래는 대한민국 해양수산 법령 목록이다.\n${lawNames.join('\n')}\n\n` +
+    `사용자 질문: "${query}"\n\n` +
+    `이 질문에 답하려면 어떤 법의 원문을 읽어야 하는가? 위 목록에 있는 법명만 골라 ` +
+    `가장 가까운 순서로 최대 ${RAW_LAW_MAX}개까지 JSON 배열로만 답하라. 관련 있는 법이 없으면 [] 로 답하라. ` +
+    `예: ["어선법"]`;
+  try {
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: QUERY_EXPAND_CONFIG, caller: 'Legal-RawLawPick',
+    });
+    if (!result.success || !result.text) return [];
+    const m = result.text.match(/\[[\s\S]*\]/);
+    if (!m) return [];
+    const arr = JSON.parse(m[0]);
+    if (!Array.isArray(arr)) return [];
+    // 모델이 목록에 없는 법명을 지어낼 수 있어(환각) 실제 목록에 있는 것만 통과시킨다.
+    const known = new Set(lawNames);
+    return arr.filter(x => typeof x === 'string' && known.has(x.trim())).map(x => x.trim()).slice(0, RAW_LAW_MAX);
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
+ * ①동시조회: 한 법의 `법률.txt` 본문 + 그 법 폴더의 파일 목차를 함께 받아온다.
+ * 목차는 최상위 1단계 + 그 아래 하위폴더(행정규칙/·별표/·타법인용/) 1단계까지 본다 —
+ * 고시 파일명이 보여야 ②단계가 "행정규칙/어선구조기준.txt"처럼 콕 집을 수 있기 때문이다.
+ * 내용은 안 받고 **이름만** 받으므로 가볍다.
+ * 예: loadLawBundle('어선법') → {law:'어선법', base:'…/어선법', lawText:'어선법\n[시행…', files:['시행령.txt','행정규칙/어선구조기준.txt', …]}
+ * @param {string} law - 법명
+ * @returns {Promise<{law:string,base:string,lawText:string,files:string[]}|null>} 법률.txt를 못 받으면 null
+ * [연계] ← searchRawFallback() 2단계. → github_raw.listDir/fetchText.
+ */
+async function loadLawBundle(law) {
+  const base = rawPathOf(law);
+  if (!base) return null;
+  const [lawText, top] = await Promise.all([
+    githubRaw.fetchText(base + '/법률.txt'),
+    githubRaw.listDir(base),
+  ]);
+  if (!lawText) return null;
+  const isText = n => /\.(txt|md)$/i.test(n);
+  const files = top.filter(e => e.type === 'file' && isText(e.name) && e.name !== '법률.txt').map(e => e.name);
+  const dirs = top.filter(e => e.type === 'dir').map(e => e.name);
+  const subs = await Promise.all(dirs.map(d => githubRaw.listDir(base + '/' + d)));
+  dirs.forEach((d, i) => {
+    for (const e of subs[i]) if (e.type === 'file' && isText(e.name)) files.push(d + '/' + e.name);
+  });
+  return { law, base, lawText, files };
+}
+
+// ②파일 선택 호출은 법률.txt 전문(최대 RAW_MAX_CHARS)까지 읽히므로 질의확장(4초)보다 여유가 필요하다.
+// 사고는 켜지 않는다 — "목차에서 필요한 파일 고르기"는 판단이지 추론이 아니다.
+const RAW_PICK_CONFIG = {
+  temperature: 0.1,
+  thinkingConfig: { thinkingBudget: 0 },
+  responseMimeType: 'application/json',
+  httpOptions: { timeout: 15000 },
+};
+
+/**
+ * ②AI 판단(1회): 법률.txt 본문 + 폴더 목차를 보여주고, 답하는 데 더 필요한 파일만 고르게 한다.
+ * 목차에 실제로 있는 파일명만 통과시켜(환각 경로 차단) 최대 RAW_FILE_MAX개를 반환한다.
+ * 법률.txt만으로 충분하다고 판단되면 빈 배열이 정상이다.
+ * @param {string} query - 사용자 질문
+ * @param {Array<{law:string,base:string,lawText:string,files:string[]}>} bundles - loadLawBundle() 결과들
+ * @returns {Promise<Array<{law:string,base:string,file:string}>>} 추가로 읽을 파일들(실패 시 [])
+ * [연계] ← searchRawFallback() 3단계 → ③병렬조회(github_raw.fetchText).
+ */
+async function pickRawFiles(query, bundles) {
+  if (!gemini.hasAnyKey()) return [];
+  const block = bundles.map(b =>
+    `### ${b.law}\n[법률 원문]\n${b.lawText.slice(0, RAW_MAX_CHARS)}\n[이 법 폴더의 파일 목록]\n${b.files.join('\n')}`
+  ).join('\n\n');
+  const prompt = `사용자 질문: "${query}"\n\n${block}\n\n` +
+    `위 법률 원문이 시행령·시행규칙·별표·고시에 위임한 내용 중, 이 질문에 답하려면 추가로 읽어야 할 파일을 ` +
+    `**파일 목록에 있는 경로 그대로** 최대 ${RAW_FILE_MAX}개까지 고르라. 법률 원문만으로 충분하면 [] 로 답하라. ` +
+    `다른 설명 없이 JSON 배열로만 답하라. 예: [{"law":"어선법","file":"시행규칙.txt"},{"law":"어선법","file":"행정규칙/어선구조기준.txt"}]`;
+  try {
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: RAW_PICK_CONFIG, caller: 'Legal-RawFilePick',
+    });
+    if (!result.success || !result.text) return [];
+    const m = result.text.match(/\[[\s\S]*\]/);
+    if (!m) return [];
+    const arr = JSON.parse(m[0]);
+    if (!Array.isArray(arr)) return [];
+    const out = [];
+    for (const it of arr) {
+      if (!it || typeof it.file !== 'string') continue;
+      const b = bundles.find(x => x.law === it.law) || (bundles.length === 1 ? bundles[0] : null);
+      if (!b || !b.files.includes(it.file)) continue;   // 목차에 없는 경로는 환각 — 버린다
+      if (out.some(o => o.base === b.base && o.file === it.file)) continue;
+      out.push({ law: b.law, base: b.base, file: it.file });
+      if (out.length >= RAW_FILE_MAX) break;
+    }
+    return out;
+  } catch (_) {
+    return [];
+  }
+}
+
+const RAW_ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 사람이 검증한 법령 위키 카드가 아니라, 질문에 맞는 카드가 없어 **법령 원문을 방금 그대로 읽어온 것**이다.
+
+${ANSWER_RULES_BODY}
+9. ★이 답변은 "미검증 참고"다. 답변 서두에 사람이 검증한 정식 답변이 아니라 원문을 방금 훑어본 참고 정보라는 사실을 한 문장으로 밝히고, 마지막은 반드시 "정확한 확인은 소관부서에 문의하세요"로 마무리한다. 원문에서 근거를 못 찾았으면 억지로 답하지 말고 "확인되지 않습니다"라고 말한다.`;
+
+/**
+ * 2차 조회(미검증 참고): 위키에서 근거를 못 찾은 질문을 법령 원문으로 한 번 더 시도한다.
+ * ①후보 법 좁히기(AI) → ②법률.txt+목차 동시조회 → ③필요 파일 선택(AI) → ④파일 병렬조회 →
+ * ⑤답변 합성(AI). 토큰·키가 없거나 어느 단계든 실패하면 예외 없이 answer:null을 반환하므로,
+ * 호출부(routes/legal.js)는 기존대로 "근거를 찾지 못했습니다"로 끝내면 된다.
+ * 예: searchRawFallback('어선 길이를 늘리려면 허가가 필요한가요')
+ *     → {answer:'이 답변은 검증된 카드가 아니라…', laws:['어선법'], files:['어선법/시행규칙.txt']}
+ * @param {string} query - 사용자 질문
+ * @returns {Promise<{answer:string|null, laws:string[], files:string[]}>} 못 만들면 answer:null
+ * [연계] ← routes/legal.js POST /api/legal/ask 의 `!contextPages.length` 분기.
+ *        → services/github_raw.js(원문 조회) · gemini_client(3회 호출: 법선택·파일선택·답변합성).
+ */
+async function searchRawFallback(query) {
+  const EMPTY = { answer: null, laws: [], files: [] };
+  if (!githubRaw.hasToken() || !gemini.hasAnyKey()) return EMPTY;
+  try {
+    const lawNames = [...new Set((loadIndex().pages || [])
+      .filter(p => p.kind === 'statute' && p.law).map(p => p.law))];
+    const laws = (await pickCandidateLaws(query, lawNames)).filter(rawPathOf);
+    if (!laws.length) return EMPTY;
+
+    const bundles = (await Promise.all(laws.map(loadLawBundle))).filter(Boolean);
+    if (!bundles.length) return EMPTY;
+
+    const picks = await pickRawFiles(query, bundles);
+    const extras = (await Promise.all(picks.map(async p => {
+      const text = await githubRaw.fetchText(p.base + '/' + p.file);
+      return text ? { law: p.law, file: p.file, text } : null;
+    }))).filter(Boolean);
+
+    const blocks = bundles.map(b => `--- [${b.law}] 법률 원문 ---\n${b.lawText.slice(0, RAW_MAX_CHARS)}`)
+      .concat(extras.map(x => `--- [${x.law}] ${x.file} ---\n${x.text.slice(0, RAW_MAX_CHARS)}`));
+    const prompt = `${RAW_ANSWER_RULES}\n\n[근거자료]\n${blocks.join('\n\n')}\n\n질문: "${query}"\n답:`;
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: SYNTH_CONFIG, caller: 'Legal-RawFallback',
+    });
+    if (!result.success || !result.text || !result.text.trim()) return EMPTY;
+    return {
+      answer: result.text.trim(),
+      laws: bundles.map(b => b.law),
+      files: extras.map(x => `${x.law}/${x.file}`),
+    };
+  } catch (_) {
+    return EMPTY;
+  }
+}
+
+module.exports = { loadIndex, search, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, lookupContact, filterSourcesByAnswer };

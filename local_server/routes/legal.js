@@ -15,6 +15,7 @@
  *  - GET  /api/legal/admin/stats      → 관리자 검토센터 서브탭(초안·피드백·새지식후보·개정검토) 실카운트
  *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
  *  - POST /api/legal/ask              → 하이브리드 검색 + Gemini 답변 스트리밍 합성(NDJSON, services/legal_retriever.js)
+ *                                       위키에 근거가 없으면 2차로 법령 원문(GitHub 온디맨드)을 훑어 "미검증 참고" 답변 시도
  *
  * [연계 파일]
  * - knowledge/legal/_dashboard/review_queue.md   → 검증 대기 원장(승인 마킹 대상)
@@ -290,9 +291,18 @@ router.post('/api/legal/ask', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     if (res.flushHeaders) res.flushHeaders();
 
+    // 위키(검증된 카드)에 근거가 없으면 여기서 끝내지 않고, 좁혀진 법의 raw 원문을 GitHub에서
+    // 그때그때 읽어 "미검증 참고" 등급으로 한 번 더 답을 시도한다(MASTER_PLAN F절 2단계 답변체계).
+    // 2차 조회는 AI 호출이 3번 겹쳐(법선택→파일선택→합성) 조각 스트리밍이 어려워, 완성된 답변을
+    // done 한 줄로 보낸다(클라 answerHTML은 done의 answer로 최종 렌더하므로 delta 없이도 그려진다).
+    // GITHUB_RAW_TOKEN·키가 없거나 원문에서도 못 찾으면 answer:null → 기존 문구로 그대로 끝난다.
     if (!contextPages.length) {
-      res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly, answer: null, sources: [],
-        note: '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.' }) + '\n');
+      const raw = await legalRetriever.searchRawFallback(q);
+      res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
+        answer: raw.answer, sources: [],
+        note: raw.answer
+          ? `⚠미검증 참고 — 위키 카드가 없어 법령 원문(${raw.laws.join('·') || '원문'})을 직접 읽은 답변`
+          : '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.' }) + '\n');
       return res.end();
     }
 
