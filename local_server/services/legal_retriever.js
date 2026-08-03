@@ -828,7 +828,7 @@ ${ANSWER_RULES_BODY}
  *     → {answer:'이 답변은 검증된 카드가 아니라…', laws:['어선법'], files:['어선법/시행규칙.txt']}
  * @param {string} query - 사용자 질문
  * @returns {Promise<{answer:string|null, laws:string[], files:string[]}>} 못 만들면 answer:null
- * [연계] ← routes/legal.js POST /api/legal/ask 의 `!contextPages.length` 분기.
+ * [연계] ← routes/legal.js POST /api/legal/ask 의 `needsFallback`(1차 답변 후 최종 근거 0건) 분기.
  *        → services/github_raw.js(원문 조회) · gemini_client(3회 호출: 법선택·파일선택·답변합성).
  */
 async function searchRawFallback(query) {

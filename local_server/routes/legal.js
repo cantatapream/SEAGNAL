@@ -291,41 +291,54 @@ router.post('/api/legal/ask', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     if (res.flushHeaders) res.flushHeaders();
 
-    // 위키(검증된 카드)에 근거가 없으면 여기서 끝내지 않고, 좁혀진 법의 raw 원문을 GitHub에서
-    // 그때그때 읽어 "미검증 참고" 등급으로 한 번 더 답을 시도한다(MASTER_PLAN F절 2단계 답변체계).
-    // 2차 조회는 AI 호출이 3번 겹쳐(법선택→파일선택→합성) 조각 스트리밍이 어려워, 완성된 답변을
-    // done 한 줄로 보낸다(클라 answerHTML은 done의 answer로 최종 렌더하므로 delta 없이도 그려진다).
-    // GITHUB_RAW_TOKEN·키가 없거나 원문에서도 못 찾으면 answer:null → 기존 문구로 그대로 끝난다.
-    if (!contextPages.length) {
-      const raw = await legalRetriever.searchRawFallback(q);
-      res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
-        answer: raw.answer, sources: [],
-        note: raw.answer
-          ? `⚠미검증 참고 — 위키 카드가 없어 법령 원문(${raw.laws.join('·') || '원문'})을 직접 읽은 답변`
-          : '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.' }) + '\n');
-      return res.end();
-    }
-
     let full = '';
     let streamError = null;
-    try {
-      for await (const chunk of legalRetriever.synthesizeAnswerStream(q, contextPages)) {
-        full += chunk;
-        res.write(JSON.stringify({ type: 'delta', text: chunk }) + '\n');
-        if (res.flush) res.flush(); // compression() 버퍼를 즉시 내보내 실제로 조각조각 도착하게 함
-      }
-    } catch (e) { streamError = e; }
+    // 근거 후보가 아예 없으면 합성해봐야 빈 답이라 스트림을 부르지 않는다(기존 최적화 유지).
+    if (contextPages.length) {
+      try {
+        for await (const chunk of legalRetriever.synthesizeAnswerStream(q, contextPages)) {
+          full += chunk;
+          res.write(JSON.stringify({ type: 'delta', text: chunk }) + '\n');
+          if (res.flush) res.flush(); // compression() 버퍼를 즉시 내보내 실제로 조각조각 도착하게 함
+        }
+      } catch (e) { streamError = e; }
+    }
 
     const usedGemini = full.trim().length > 0;
     // L-57 조치③: 답변이 실제로 나온 경우에만 sourcesOut을 답변 인용 여부로 교차확인해 좁힌다
     // (스트림 실패로 답변이 없으면 교차확인할 대상이 없어 후보를 그대로 반환).
-    const finalSources = usedGemini ? legalRetriever.filterSourcesByAnswer(sources, full) : sources;
-    const sourcesOut = finalSources.map(toSourceOut);
-    const note = usedGemini
-      ? (canonicalOnly ? '검증(canonical) 근거만 반영' : '위키 근거 기반 AI 답변')
-      : `답변 생성 실패(${(streamError && streamError.message) || '응답 없음'}) — 근거 후보만 반환`;
+    const finalSources = !contextPages.length ? []
+      : (usedGemini ? legalRetriever.filterSourcesByAnswer(sources, full) : sources);
+
+    // 위키(검증된 카드)에 쓸 근거가 결국 안 남으면 여기서 끝내지 않고, 좁혀진 법의 raw 원문을
+    // GitHub에서 그때그때 읽어 "미검증 참고" 등급으로 한 번 더 답을 시도한다(MASTER_PLAN F절).
+    // ★판단 시점은 "검색 직후 후보 유무"가 아니라 "1차 답변까지 만들어본 뒤 남은 근거 유무"다 —
+    //   검색이 관대해 후보 0건은 사실상 없고, L-57 필터가 다 걸러 최종 0건이 되는 게 실제 대부분이라
+    //   검색 직후만 보면 2차가 영영 발동하지 않는다(실키 라이브 6건 전부 미발동으로 확인).
+    // 2차 조회는 AI 호출이 3번 겹쳐(법선택→파일선택→합성) 조각 스트리밍이 어려워, 완성된 답변을
+    // done 한 줄로 보낸다(클라 answerHTML은 done의 answer로 최종 렌더하므로 delta 없이도 그려진다).
+    // GITHUB_RAW_TOKEN·키가 없거나 원문에서도 못 찾으면 answer:null → 아래 else로 기존 동작 유지.
+    const needsFallback = !usedGemini || !finalSources.length;
+    const raw = needsFallback ? await legalRetriever.searchRawFallback(q) : null;
+
+    let answer, sourcesOut, note;
+    if (raw && raw.answer) {
+      answer = raw.answer;
+      sourcesOut = [];
+      note = `⚠미검증 참고 — 위키 카드가 없어 법령 원문(${raw.laws.join('·') || '원문'})을 직접 읽은 답변`;
+    } else {
+      // 2차가 실패하면 1차 결과를 그대로 돌려준다 — 특히 1차가 정직하게 만든 "확인되지 않습니다"
+      // 답변(근거 0건이라도)은 버리지 않는다.
+      answer = usedGemini ? full.trim() : null;
+      sourcesOut = finalSources.map(toSourceOut);
+      note = usedGemini
+        ? (canonicalOnly ? '검증(canonical) 근거만 반영' : '위키 근거 기반 AI 답변')
+        : (contextPages.length
+          ? `답변 생성 실패(${(streamError && streamError.message) || '응답 없음'}) — 근거 후보만 반환`
+          : '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.');
+    }
     res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
-      answer: usedGemini ? full.trim() : null, sources: sourcesOut, note }) + '\n');
+      answer, sources: sourcesOut, note }) + '\n');
     res.end();
   } catch (e) {
     if (res.headersSent) {
