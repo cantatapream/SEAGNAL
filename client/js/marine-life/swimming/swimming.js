@@ -69,8 +69,8 @@
 
     /**
      * OpenLayers 지도를 초기화하고 마커 레이어를 추가합니다.
-     * swimming-section 탭이 활성화될 때 한 번만 호출됩니다.
-     * 이미 초기화된 경우 지도 크기만 갱신합니다.
+     * 예: 최초 호출 시 지도 생성 + 데이터 로드, 재호출 시 크기만 갱신.
+     * [연계] ← js/forecast/alerts/marine.js — _onSectionActivated('swimming-section') 시 호출
      */
     window.initSwimmingMap = function () {
         if (swimMap) {
@@ -138,6 +138,12 @@
     // 1-1. 지도 내부 커스텀 컨트롤 (범례)
     // ========================================================================
 
+    /**
+     * 지도 좌하단에 5단계 지수 색상 범례를 추가합니다.
+     * 예: 매우좋음(파랑)~매우나쁨(빨강) 점 5개를 가로로 나열.
+     * @param {ol.Map} map - 범례를 추가할 지도 인스턴스
+     * [연계] ← initSwimmingMap() 이 지도 초기화 시 1회 호출
+     */
     function _addLegendControl(map) {
         var legendEl = document.createElement('div');
         legendEl.className = 'fishing-legend';
@@ -166,7 +172,9 @@
 
     /**
      * 유의사항 팝업을 엽니다 (지도 위 ❗ 버튼).
-     * 숨김 DOM(#swim-disclaimer) 의 HTML 을 읽어 showSeagnalModal 로 표시.
+     * 예: 숨김 DOM(#swim-disclaimer) 의 <p> 3줄을 그대로 모달에 옮겨 표시.
+     * [연계] ← swim-notice-btn 클릭 시 _bindEvents() 가 연결한 핸들러에서 호출
+     *        → shared/ui/ui_modal.js 의 window.showSeagnalModal 을 호출
      */
     function _openNoticePopup() {
         var src = document.getElementById('swim-disclaimer');
@@ -180,6 +188,12 @@
     // 1-2. 마커 선택 시각적 피드백
     // ========================================================================
 
+    /**
+     * 클릭된 마커를 강조 스타일(큰 원 + 흰 테두리 글로우)로 바꿉니다.
+     * 예: 14px 기본 점 → 22px 강조 점 + 장소명 라벨.
+     * @param {ol.Feature} feature - 강조할 마커 피처
+     * [연계] ← swimMap 의 singleclick 이벤트 → 이전 선택은 _resetMarkerStyle() 로 해제
+     */
     function _selectMarker(feature) {
         if (selectedFeature && selectedFeature !== feature) {
             _resetMarkerStyle(selectedFeature);
@@ -229,6 +243,12 @@
         }));
     }
 
+    /**
+     * 마커를 기본(작은 원) 스타일로 되돌립니다.
+     * 예: 22px 강조 점 → 14px 기본 점.
+     * @param {ol.Feature} feature - 되돌릴 마커 피처 (없으면 아무 동작 안 함)
+     * [연계] ← _selectMarker()/_closeBottomSheet() 가 이전 선택을 해제할 때 호출
+     */
     function _resetMarkerStyle(feature) {
         if (!feature) return;
         var level = feature.get('level') || '보통';
@@ -271,6 +291,12 @@
     // 2. 데이터 로드 및 마커 렌더링
     // ========================================================================
 
+    /**
+     * 서버에서 해수욕 지수 전체 데이터를 가져와 지도에 렌더링합니다.
+     * 예: fetch('/api/swimming-index') → 49개 지점 응답 → _renderMarkers() 호출.
+     * @returns {Promise<void>}
+     * [연계] ← initSwimmingMap() 이 지도 초기화 시 1회 호출 → _renderMarkers() 를 부른다
+     */
     async function _loadSwimData() {
         try {
             const res = await fetch((window.CONFIG ? CONFIG.API_BASE : '') + '/api/swimming-index');
@@ -290,7 +316,8 @@
 
     /**
      * 모든 해수욕장 마커를 지도에 렌더링합니다.
-     * 각 위치에 대해 오늘 날짜의 현재 시간대(오전/오후/일) 종합 지수로 색상을 결정합니다.
+     * 예: 오늘 오후 시간대 totalIndex 가 '좋음'이면 초록 점 마커로 표시.
+     * [연계] ← _loadSwimData() 가 데이터 로드 완료 후 호출
      */
     function _renderMarkers() {
         if (!swimData || !markerLayer) return;
@@ -363,6 +390,11 @@
     // 3. 이벤트 바인딩
     // ========================================================================
 
+    /**
+     * 지도 위 버튼(내 위치·유의사항)과 바텀시트 컨트롤(닫기·날짜 이전/다음)의
+     * 클릭 이벤트를 등록합니다.
+     * [연계] ← initSwimmingMap() 이 지도 초기화 직후 1회 호출
+     */
     function _bindEvents() {
         var gpsBtn = document.getElementById('swim-my-location-btn');
         if (gpsBtn) gpsBtn.addEventListener('click', function () { _moveToMyLocation(); });
@@ -394,6 +426,11 @@
     // 4. GPS 내 위치 이동
     // ========================================================================
 
+    /**
+     * GPS로 현재 위치를 구해 지도를 그 위치로 이동하고 파란 점 마커를 표시합니다.
+     * 예: 버튼 클릭 → 위치 권한 확인 → 지도 중심을 현재 좌표로 애니메이션 이동.
+     * [연계] ← swim-my-location-btn 클릭 시 _bindEvents() 가 연결한 핸들러에서 호출
+     */
     function _moveToMyLocation() {
         if (!navigator.geolocation) {
             alert('이 기기에서는 위치 서비스를 사용할 수 없습니다.');
@@ -443,6 +480,12 @@
     // 5. 바텀시트 열기 / 닫기
     // ========================================================================
 
+    /**
+     * 선택한 해수욕장의 바텀시트를 엽니다(가장 이른 날짜부터 표시).
+     * 예: _openBottomSheet("대천해수욕장") → 바텀시트 슬라이드업 + 오늘 예보 표출.
+     * @param {string} placeName - 해수욕장 이름 (예: "대천해수욕장")
+     * [연계] ← 마커 singleclick 이벤트에서 호출 → _renderBottomSheetContent() 로 내용을 채운다
+     */
     function _openBottomSheet(placeName) {
         selectedPlace = placeName;
         selectedDateIdx = 0;
@@ -468,6 +511,10 @@
         _renderBottomSheetContent();
     }
 
+    /**
+     * 열려 있는 바텀시트를 닫고 마커 선택 상태를 초기화합니다.
+     * [연계] ← swim-bs-close 버튼/오버레이 클릭 시 _bindEvents() 가 연결한 핸들러에서 호출
+     */
     function _closeBottomSheet() {
         var bs = document.getElementById('swim-bottomsheet');
         var overlay = document.getElementById('swim-bottomsheet-overlay');
@@ -487,6 +534,12 @@
     // 6. 바텀시트 콘텐츠 렌더링
     // ========================================================================
 
+    /**
+     * 바텀시트 안의 날짜 라벨·종합지수 배지·오전/오후 기상요약을 현재 선택된
+     * 지점·날짜 기준으로 다시 그립니다.
+     * [연계] ← _openBottomSheet() / 날짜 이전·다음 버튼 클릭 시 호출
+     *        → _buildTimeBlock() 으로 각 시간대 블록을 만든다
+     */
     function _renderBottomSheetContent() {
         if (!selectedPlace || !swimData) return;
 
@@ -533,7 +586,11 @@
 
     /**
      * 시간 블록(오전/오후/종일) HTML을 생성합니다.
-     * 해수욕은 단일 카테고리이므로 시간대 배지 옆에 종합지수 + 개장상태 배지를 함께 표시.
+     * 예: ('오전', {totalIndex:'좋음', opnStat:'개장', maxWvhgt:'0.2', ...}) → 배지+기상요약 HTML.
+     * @param {string} timeLabel - 화면에 보여줄 시간대 이름 ('오전'/'오후'/'종일')
+     * @param {Object} slotData - 해당 시간대 예보 1건 (totalIndex/opnStat/maxWvhgt/avgWtem/avgArtmp/maxWspd)
+     * @returns {string} 시간 블록 HTML
+     * [연계] ← _renderBottomSheetContent() 가 오전/오후/일 슬롯마다 호출
      */
     function _buildTimeBlock(timeLabel, slotData) {
         var html = '<div class="fishing-time-block">';
@@ -574,6 +631,12 @@
     // 7. 유틸리티 함수
     // ========================================================================
 
+    /**
+     * 오늘 날짜를 서버 응답 키 형식(YYYYMMDD)으로 반환합니다.
+     * 예: 2026-08-03 → "20260803".
+     * @returns {string} YYYYMMDD 형식의 오늘 날짜
+     * [연계] → _renderMarkers()/_getDisplayTimeSlot() 이 오늘 예보를 찾을 때 사용
+     */
     function _getTodayStr() {
         var now = new Date();
         var yyyy = now.getFullYear();
@@ -582,15 +645,35 @@
         return yyyy + mm + dd;
     }
 
+    /**
+     * 현재 시각이 오전인지 오후인지 판별합니다.
+     * 예: 09:00 → '오전', 15:00 → '오후'.
+     * @returns {string} '오전' 또는 '오후'
+     * [연계] → _renderMarkers() 가 마커 색상에 쓸 시간대를 정할 때 사용
+     */
     function _getCurrentTimeSlot() {
         return new Date().getHours() < 12 ? '오전' : '오후';
     }
 
+    /**
+     * 바텀시트 종합지수 배지에 쓸 시간대를 정합니다(오늘이면 현재 시간대, 아니면 오전).
+     * 예: dateStr 이 오늘 날짜면 '오후'(15시 기준), 다른 날짜면 항상 '오전'.
+     * @param {string} dateStr - YYYYMMDD 형식 날짜
+     * @returns {string} '오전' 또는 '오후'
+     * [연계] ← _renderBottomSheetContent() 가 종합지수 배지를 고를 때 호출
+     */
     function _getDisplayTimeSlot(dateStr) {
         if (dateStr === _getTodayStr()) return _getCurrentTimeSlot();
         return '오전';
     }
 
+    /**
+     * YYYYMMDD 문자열을 "O월 O일 (요일)" 형태로 바꿉니다(오늘이면 "오늘 " 접두).
+     * 예: "20260803" → "오늘 08월 03일 (월)".
+     * @param {string} dateStr - YYYYMMDD 형식 날짜
+     * @returns {string} 화면에 표시할 날짜 라벨
+     * [연계] ← _renderBottomSheetContent() 가 날짜 라벨을 표시할 때 호출
+     */
     function _formatDateLabel(dateStr) {
         if (!dateStr || dateStr.length !== 8) return dateStr || '-';
         var y = parseInt(dateStr.substring(0, 4));
@@ -604,6 +687,13 @@
         return prefix + String(m + 1).padStart(2, '0') + '월 ' + String(d).padStart(2, '0') + '일 (' + dayName + ')';
     }
 
+    /**
+     * 문자열의 HTML 특수문자를 이스케이프해 안전하게 innerHTML 에 넣을 수 있게 합니다.
+     * 예: "개장<b>" → "개장&lt;b&gt;".
+     * @param {string} str - 이스케이프할 원본 문자열
+     * @returns {string} 이스케이프된 문자열
+     * [연계] ← _buildTimeBlock() 이 opnStat(개장상태) 텍스트를 넣을 때 사용
+     */
     function _escapeHtml(str) {
         if (!str) return '';
         var div = document.createElement('div');
