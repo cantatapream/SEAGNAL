@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 95개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 96개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -35,24 +35,24 @@ client/js/
 │   ├── admin.js
 │   ├── advisory_manage_admin.js
 │   ├── cctv7.js
-│   ├── pagination_helper.js
+│   └── pagination_helper.js
 ├── ai-chat/
-│   ├── ai_chat.js
+│   └── ai_chat.js
 ├── assistant/  ← ⚡ AI 음성비서
 │   ├── memory/
 │   │   ├── user_memory_bridge.js
-│   │   ├── user_memory_web.js
+│   │   └── user_memory_web.js
 │   ├── assistant_deeplink.js
 │   ├── assistant_overlay.js
-│   ├── assistant.js
+│   └── assistant.js
 ├── core/  ← 앱 구동(부트스트랩·설정·네이티브 브리지)
 │   ├── app_init.js
 │   ├── backbutton.js
 │   ├── config.js
-│   ├── index2_patch.js
+│   └── index2_patch.js
 ├── engagement/  ← ⚡ 제보·설문
 │   ├── report_user.js
-│   ├── survey_user.js
+│   └── survey_user.js
 ├── forecast/  ← [탭1] 특보 및 전망
 │   ├── alerts/
 │   │   ├── alert_history.js
@@ -60,55 +60,56 @@ client/js/
 │   │   ├── marine.js
 │   │   ├── render_coastal.js
 │   │   ├── render.js
-│   │   ├── zone_avg.js
+│   │   └── zone_avg.js
 │   ├── marine-chart/
 │   │   ├── marine_chart1.js
 │   │   ├── marine_chart2.js
 │   │   ├── marine_chart3.js
 │   │   ├── marine_chart4.js
-│   │   ├── marine_chart5.js
+│   │   └── marine_chart5.js
 │   ├── outlook/
 │   │   ├── forecast.js
 │   │   ├── marine_forecast.js
-│   │   ├── windy.js
+│   │   └── windy.js
 │   └── prediction/
 │       ├── advisory_prediction.js
-│       ├── run_advisory_render_test.js
+│       └── run_advisory_render_test.js
 ├── location-alert/  ← ⚡ 위치기반 경보
 │   ├── location_alert_background.js
 │   ├── location_alert_core.js
 │   ├── location_alert_runtime.js
-│   ├── location_alert_ui.js
+│   └── location_alert_ui.js
 ├── marine-life/  ← [탭3] 해양생활
 │   ├── fishing/
-│   │   ├── fishing.js
+│   │   └── fishing.js
 │   ├── mudflat/
-│   │   ├── mudflat.js
+│   │   └── mudflat.js
 │   ├── ripcurrent/
-│   │   ├── ripcurrent.js
+│   │   └── ripcurrent.js
 │   ├── safety/
+│   │   ├── access_control.js
 │   │   ├── hazard_rocks.js
-│   │   ├── life_safety.js
+│   │   └── life_safety.js
 │   ├── scuba/
-│   │   ├── scuba.js
+│   │   └── scuba.js
 │   ├── sea-parting/
-│   │   ├── sea_parting.js
+│   │   └── sea_parting.js
 │   └── surfing/
 │       ├── surfing1.js
 │       ├── surfing2.js
 │       ├── surfing3.js
 │       ├── surfing4.js
-│       ├── surfing5.js
+│       └── surfing5.js
 ├── notice/  ← [탭4] 공지사항
 │   ├── board/
 │   │   ├── image_compress.js
-│   │   ├── promo.js
+│   │   └── promo.js
 │   └── comments/
 │       ├── promo_comment1.js
 │       ├── promo_comment2.js
 │       ├── promo_comment3.js
 │       ├── promo_comment4.js
-│       ├── promo_comment5.js
+│       └── promo_comment5.js
 ├── ocean-map/  ← [탭2] 해양종합정보
 │   ├── bottom-sheet/
 │   │   ├── ocean_bottom_sheet_vsby.js
@@ -118,24 +119,24 @@ client/js/
 │   │   ├── ocean_bottom_sheet3.js
 │   │   ├── ocean_bottom_sheet4.js
 │   │   ├── ocean_bottom_sheet5.js
-│   │   ├── ocean_sheet_timeline.js
+│   │   └── ocean_sheet_timeline.js
 │   ├── cctv/
 │   │   ├── cctv1.js
 │   │   ├── cctv4.js
-│   │   ├── ocean_cctv.js
+│   │   └── ocean_cctv.js
 │   ├── layers/
 │   │   ├── shrt_forecast_layer.js
 │   │   ├── tide_field.js
-│   │   ├── vsby_forecast_layer.js
+│   │   └── vsby_forecast_layer.js
 │   ├── map/
 │   │   ├── ocean_map.js
 │   │   ├── ocean_markers.js
 │   │   ├── ocean_northup.js
-│   │   ├── ocean_overlay.js
+│   │   └── ocean_overlay.js
 │   ├── observation/
-│   │   ├── ocean_buoy.js
+│   │   └── ocean_buoy.js
 │   ├── timeline/
-│   │   ├── ocean_timeline.js
+│   │   └── ocean_timeline.js
 │   └── warnings/
 │       ├── ocean_warn_active1.js
 │       ├── ocean_warn_active2.js
@@ -143,21 +144,21 @@ client/js/
 │       ├── ocean_warn_active4.js
 │       ├── ocean_warn_active5.js
 │       ├── ocean_warn_vsby.js
-│       ├── ocean_warn_zone.js
+│       └── ocean_warn_zone.js
 ├── push/  ← ⚡ 푸시 알림
-│   ├── alert_push.js
+│   └── alert_push.js
 ├── settings/  ← ⚡ 설정
 │   ├── settings.js
-│   ├── zone_guide.js
+│   └── zone_guide.js
 ├── shared/  ← 공용 재료(유틸·UI·데이터)
 │   ├── ui/
-│   │   ├── ui_modal.js
+│   │   └── ui_modal.js
 │   └── utils/
 │       ├── mappings.js
-│       ├── utils.js
+│       └── utils.js
 └── typhoon/  ← ⚡ 태풍
     ├── location_alert_typhoon_runtime.js
-    ├── ocean_typhoon.js
+    └── ocean_typhoon.js
 ```
 
 ## 4. 전체 파일 인덱스
@@ -282,6 +283,7 @@ client/js/
 
 | 파일 | 역할 |
 |------|------|
+| `access_control.js` | 해양안전 지도에 "출입통제" 토글 버튼을 얹어, 연안사고 예방에 관한 |
 | `hazard_rocks.js` | 해양안전 지도에 "노출암" / "간출암 등" 두 토글 버튼을 얹는다. 항상 |
 | `life_safety.js` | "해양안전생활" 화면 — 하단 해양생활 탭을 10번 연달아 누르면 열리는 시험용 화면. |
 
@@ -332,7 +334,7 @@ client/js/
 | `ocean_bottom_sheet2.js` | 바텀시트 헤더 — 날짜 네비게이션 + 음력 표시 + 📍 토글 + ✕ 닫기 |
 | `ocean_bottom_sheet3.js` | 바텀시트 조석 카드 — TideBED 폴링 + 3모드 렌더링(loading/error/detail) |
 | `ocean_bottom_sheet4.js` | 동해 북부(36°N+128°E+) IDW 보간 + 천문 카드 (SunCalc) |
-| `ocean_bottom_sheet5.js` | 6개 일반 카드 + 저질 분석 + 전체 오케스트레이터 |
+| `ocean_bottom_sheet5.js` | 6개 일반 카드 + 전체 오케스트레이터 |
 | `ocean_bottom_sheet_vsby.js` | 클릭한 해점(lat/lon)이 속한 '소해구'의 래스터 시정 시계열을 받아, |
 | `ocean_bottom_sheet_weather.js` | 바텀시트 천기 카드 — 클릭한 해점의 KMA 단기예보 6 카테고리 종합 표시 |
 | `ocean_sheet_timeline.js` | 해양종합정보 바텀시트 내부의 시간 이동 슬라이더 |

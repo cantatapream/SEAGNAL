@@ -777,11 +777,12 @@
         body.ls-mode.ls-safety #ocean-mudflat-toggle-btn,
         body.ls-mode.ls-safety #ocean-exposed-toggle-btn,
         body.ls-mode.ls-safety #ocean-rock-toggle-btn,
+        body.ls-mode.ls-safety #ocean-access-control-toggle-btn,
         body.ls-mode.ls-safety #ocean-cctv-toggle-btn,
         body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
-        /* 노출암/간출암 등 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
-           [연계] js/marine-life/safety/hazard_rocks.js */
-        #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn { display: none; }
+        /* 노출암/간출암 등/출입통제 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
+           [연계] js/marine-life/safety/hazard_rocks.js, js/marine-life/safety/access_control.js */
+        #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn, #ocean-access-control-toggle-btn { display: none; }
         body.ls-mode.ls-safety #ocean-search-container,
         body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
         /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
@@ -3339,6 +3340,16 @@
                             <i class="fa-solid fa-triangle-exclamation"></i>
                             <span class="ocean-overlay-label" data-line1="간출암" data-line2="등">간출암 등</span>
                         </button>
+                        <!-- 출입통제 토글: js/marine-life/safety/access_control.js 가 바인딩.
+                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
+                             연안사고 예방에 관한 법률 제10조 출입통제구역 중, 원본 고시·공고에
+                             경위도 좌표가 온전히 명시돼 폴리곤으로 확정 가능한 구역만 우선 반영.
+                             [데이터] /access_control_zones.json (정적, 처음 누를 때만 지연 로드) -->
+                        <button class="ocean-overlay-btn" id="ocean-access-control-toggle-btn" title="출입통제구역">
+                            <i class="fa-solid fa-ban"></i>
+                            <span class="ocean-overlay-label" data-line1="출입" data-line2="통제">출입통제</span>
+                        </button>
                         <!-- 천기 토글: js/shrt_forecast_layer.js 가 바인딩 (이전 이름: "기타 기상")
                              클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
                              (강수확률·강수량·적설·하늘상태·강수형태) — 하나 선택 시 팝아웃이 접히면서
@@ -4870,6 +4881,11 @@
          이 window.initHazardRocksLayer 를 찾으므로 그 스크립트 다음이면 순서 무관하지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <script src="js/marine-life/safety/hazard_rocks.js"></script>
+
+    <!-- 출입통제구역 레이어 — 해양안전 하위탭 전용. ocean_warn_zone.js 와 동일하게
+         스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
+    <script src="js/marine-life/safety/access_control.js"></script>
 
     <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
