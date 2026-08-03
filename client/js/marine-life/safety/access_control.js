@@ -123,15 +123,14 @@
         return map.getPixelFromCoordinate(coord);
     }
 
-    /** 라벨이 서로 겹치면 원래 위치(기준점)에서 점점 먼 후보 위치로 밀어내 찾고,
-     *  기준점과 최종 위치가 떨어진 만큼은 나중에 인출선(leader line)으로 이어준다.
-     *  링(고리) 모양으로 반경을 늘려가며 8방향씩 검사하는 단순 그리디 방식 — 라벨 수가
-     *  적어(수십 개) 매 moveend 마다 다시 계산해도 비용이 미미하다. */
+    /** 라벨은 기준점 바로 위 고정 위치에만 놓는다(밀어내기·인출선 없음) — 그 자리가
+     *  이미 그려진 다른 라벨과 겹치면 이번 줌 레벨에서는 텍스트 대신 작은 점만 찍는다.
+     *  축소된 화면일수록 같은 지점들이 화면상 더 가까이 뭉쳐 겹침이 잦아지므로 점만
+     *  남고, 확대할수록 픽셀 간격이 벌어져 겹침이 풀리면서 라벨이 하나씩 저절로
+     *  나타난다(줌 레벨별 표시 개수를 따로 관리할 필요 없음). */
     function _layoutLabels(map, features) {
         var placed = [];
-        var layout = []; // { feature, anchor:[x,y], rect:{x0,y0,x1,y1} }
-        var RADII = [0, 18, 30, 46, 64, 86, 112];
-        var ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
+        var layout = []; // { feature, anchor:[x,y], rect:{x0,y0,x1,y1}|null, dotOnly }
 
         function overlaps(r) {
             for (var i = 0; i < placed.length; i++) {
@@ -150,24 +149,14 @@
         items.sort(function (a, b) { return a.anchor[1] - b.anchor[1] || a.anchor[0] - b.anchor[0]; });
 
         items.forEach(function (it) {
-            var best = null;
-            for (var ri = 0; ri < RADII.length && !best; ri++) {
-                var r = RADII[ri];
-                var angles = r === 0 ? [0] : ANGLES;
-                for (var ai = 0; ai < angles.length; ai++) {
-                    var rad = angles[ai] * Math.PI / 180;
-                    var cx = it.anchor[0] + Math.cos(rad) * r;
-                    var cy = it.anchor[1] + Math.sin(rad) * r - 8; // 기본적으로 점보다 살짝 위에 뜨도록
-                    var rect = { x0: cx - it.w / 2 - 2, y0: cy - it.h / 2, x1: cx + it.w / 2 + 2, y1: cy + it.h / 2 };
-                    if (!overlaps(rect)) { best = rect; break; }
-                }
+            var cy = it.anchor[1] - 8; // 점보다 살짝 위에 뜨도록
+            var rect = { x0: it.anchor[0] - it.w / 2 - 2, y0: cy - it.h / 2, x1: it.anchor[0] + it.w / 2 + 2, y1: cy + it.h / 2 };
+            if (!overlaps(rect)) {
+                placed.push(rect);
+                layout.push({ feature: it.feature, anchor: it.anchor, rect: rect, dotOnly: false });
+            } else {
+                layout.push({ feature: it.feature, anchor: it.anchor, rect: null, dotOnly: true });
             }
-            if (!best) { // 자리를 못 찾으면 마지막 후보(가장 먼 반경)라도 그대로 사용
-                var cx2 = it.anchor[0], cy2 = it.anchor[1] - 8;
-                best = { x0: cx2 - it.w / 2 - 2, y0: cy2 - it.h / 2, x1: cx2 + it.w / 2 + 2, y1: cy2 + it.h / 2 };
-            }
-            placed.push(best);
-            layout.push({ feature: it.feature, anchor: it.anchor, rect: best });
         });
         return layout;
     }
@@ -200,17 +189,16 @@
         _labelRects.clear();
         var layout = _layoutLabels(_map, _source.getFeatures());
         layout.forEach(function (it) {
+            if (it.dotOnly) {
+                // 이 줌 레벨에서는 너무 촘촘히 몰려 있어 라벨 대신 점만 — 확대하면 자동으로 라벨이 뜬다
+                _labelCtx.beginPath();
+                _labelCtx.arc(it.anchor[0], it.anchor[1], 3, 0, Math.PI * 2);
+                _labelCtx.fillStyle = 'rgba(255, 82, 82, 0.9)';
+                _labelCtx.fill();
+                return;
+            }
             var cx = (it.rect.x0 + it.rect.x1) / 2;
             var cy = (it.rect.y0 + it.rect.y1) / 2;
-            var dx = cx - it.anchor[0], dy = cy - it.anchor[1];
-            if (Math.sqrt(dx * dx + dy * dy) > 10) {
-                _labelCtx.strokeStyle = 'rgba(255, 179, 179, 0.75)';
-                _labelCtx.lineWidth = 1;
-                _labelCtx.beginPath();
-                _labelCtx.moveTo(it.anchor[0], it.anchor[1]);
-                _labelCtx.lineTo(cx, cy);
-                _labelCtx.stroke();
-            }
             var text = it.feature.get('location') || '';
             _labelCtx.textAlign = 'center';
             _labelCtx.strokeStyle = 'rgba(0,0,0,0.85)';
@@ -325,8 +313,20 @@
         anchor();
     };
 
+    /** feature 의 지리 범위가 현재 화면에서 몇 픽셀 크기로 보이는지(가로/세로 중 큰 쪽) */
+    function _extentPixelSize(map, feature) {
+        var extent = feature.getGeometry().getExtent();
+        var p1 = map.getPixelFromCoordinate([extent[0], extent[1]]);
+        var p2 = map.getPixelFromCoordinate([extent[2], extent[3]]);
+        if (!p1 || !p2) return 0;
+        return Math.max(Math.abs(p2[0] - p1[0]), Math.abs(p2[1] - p1[1]));
+    }
+
     /**
      * [외부 API] 지도 클릭이 출입통제구역 폴리곤을 눌렀는지 확인한다.
+     * 구역이 화면에 너무 작게(줌아웃 상태) 보이는 상태에서 누르면 — 그 구역이 잘 보이도록
+     * 먼저 확대만 하고 팝업은 띄우지 않는다. 이미 충분히 확대돼 있는 상태에서 누르면(또는
+     * 확대 후 같은 구역을 한 번 더 누르면) 바로 상세정보 팝업을 띄운다.
      * @param {ol.Map} map
      * @param {ol.MapBrowserEvent} evt
      * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함)
@@ -345,14 +345,20 @@
             return null;
         }, { hitTolerance: 6 });
         if (!hit) {
-            // 폴리곤/선을 못 맞췄으면 라벨 텍스트(겹침 회피로 원래 지점에서 밀려나 있을 수 있음)
-            // 위를 눌렀는지도 확인 — _labelRects 는 _drawLabels() 가 매번 다시 채운다.
+            // 폴리곤/선을 못 맞췄으면 라벨 텍스트 위를 눌렀는지도 확인 — _labelRects 는
+            // _drawLabels() 가 매번 다시 채운다.
             _labelRects.forEach(function (rect, feature) {
                 if (hit) return;
                 if (evt.pixel[0] >= rect.x0 && evt.pixel[0] <= rect.x1 && evt.pixel[1] >= rect.y0 && evt.pixel[1] <= rect.y1) hit = feature;
             });
         }
         if (!hit) return false;
+
+        if (_extentPixelSize(map, hit) < 60) {
+            map.getView().fit(hit.getGeometry().getExtent(), { padding: [80, 80, 80, 80], maxZoom: 15, duration: 400 });
+            return true;
+        }
+
         var location = hit.get('location') || '출입통제구역';
         if (typeof window.showSeagnalModal === 'function') {
             window.showSeagnalModal(location, _buildDetailHtml(hit), 'info');
