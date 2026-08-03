@@ -22,6 +22,10 @@
     **항로**는 선박의 입항 및 출항 등에 관한 법률 제10조·해상교통안전법 제30조 등으로
     지정ㆍ고시된 항로 77곳을 청록색 폴리곤으로 그리고, 탭하면 정의·근거법령·폭·수심·
     담당부서를 팝업으로 보여줍니다(폭·수심은 고시값이 있는 3곳만).
+    **항행경보**는 지도 레이어가 아니라 안내(ⓘ)와 같은 클릭-오픈 버튼입니다 —
+    국립해양조사원 항행경보 API를 서버가 30분 캐시해, 현재 발효 중인
+    선박사고·표류장애물·수중장애물·해상사격훈련 등의 통보문(제목·발표기관·근거·본문)을
+    목록 팝업으로 보여줍니다.
     관제구역·항로 토글은 켤 때 배경지도가 **전자해도**로 자동
     전환됩니다(출입통제·낚시금지는 위성지도로 전환 — 관제구역·항로는 항해 정보라 해도가 맞음).
   - **해양생활** — 기존 6개 활동(바다낚시·서핑·해수욕·스킨스쿠버·갯벌체험·바다갈라짐)을
@@ -50,6 +54,7 @@
 | `fishing_ban.js` | 낚시금지(낚시통제)구역 폴리곤 토글 레이어(해양안전 전용) — 낚시 관리 및 육성법 제6조·지자체 조례 지정 236개 구역, `/fishing_ban_zones.json`(정적, 지연 로드), 클릭 시 근거법령·통제시간·벌칙 등 상세 팝업 |
 | `vts_zone.js` | 선박교통관제(VTS)구역 폴리곤 토글 레이어(해양안전 전용) — 선박교통관제에 관한 법률 제12조([별표 1]) 지정 40개 구역, `/vts_zones.json`(정적, 지연 로드), 켤 때 배경지도를 전자해도로 자동 전환, 클릭 시 정의·근거법령·관할·담당부서·관제대상 등 상세 팝업 |
 | `seaway.js` | 항로 폴리곤 토글 레이어(해양안전 전용) — 선박의 입항 및 출항 등에 관한 법률 제10조 등 지정ㆍ고시 항로 77곳, `/seaway_zones.json`(정적, 지연 로드), 켤 때 배경지도를 전자해도로 자동 전환, 클릭 시 정의·근거법령·폭·수심·담당부서 등 상세 팝업 |
+| `navigational_warning.js` | 항행경보 버튼(해양안전 전용) — 지도 레이어가 아니라 안내(ⓘ) 버튼과 같은 클릭-오픈 방식. 국립해양조사원 항행경보 API(`GET /api/navigational-warning/list`, 서버 30분 캐시)를 호출해 현재 발효 중인 선박사고·표류장애물·수중장애물·해상사격훈련 등 목록을 팝업으로 표시 |
 
 ## 설계 요점 — 기존 코드를 고치지 않고 재사용
 
@@ -136,6 +141,7 @@ mudflat.js / sea_parting.js)을 그대로 씁니다.** 이 모듈은 겉껍데�
 | `fishing_ban.js` | 낚시금지구역 폴리곤 레이어(`/fishing_ban_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 해양공간 주제도 "낚시통제구역"(TL_RESARE_ENS) shapefile 236개를 EPSG:5179 → WGS84 재투영해 만든 정적 GeoJSON. 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._fishingBanTryHandleClick` 을 호출(출입통제 다음 순위) |
 | `vts_zone.js` | 선박교통관제(VTS)구역 폴리곤 레이어(`/vts_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 해양공간 주제도 "선박교통관제구역"(TL_VTMSA_A) shapefile 40개를 EPSG:5179 → WGS84 재투영하고 같은 배포본 `TL_VTMSA_A.xlsx` 속성을 `OBJ_SN` 으로 조인해 만든 정적 GeoJSON. 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._vtsZoneTryHandleClick` 을 호출(낚시금지 다음 순위) |
 | `seaway.js` | 항로 폴리곤 레이어(`/seaway_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 해양공간 주제도 "항로"(TL_SEAWAY_A) shapefile 77개를 EPSG:5179 → WGS84 재투영하고 같은 배포본 `TL_SEAWAY_A.xlsx` 속성을 `OBJ_SN` 으로 조인해 만든 정적 GeoJSON. 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._seawayTryHandleClick` 을 호출(관제구역 다음 순위) |
+| `navigational_warning.js` | 항행경보 목록 팝업(`GET /api/navigational-warning/list`, `local_server/routes/navigational_warning.js` — 국립해양조사원 항행경보 API를 30분 캐시해 제공, 서비스키는 `ROMS_SERVICE_KEY` 재사용) |
 
 ## 수정 시 주의사항
 

@@ -5048,6 +5048,36 @@ line-height: 1.1;
     max-width: 380px;
 }
 
+/* 항행경보 목록 팝업 전용 — 여러 건이 이어지므로 세로 스크롤 (navigational_warning.js 에서만 부여) */
+.seagnal-modal-content.navwarn-list {
+    max-height: 78vh;
+    overflow-y: auto;
+}
+.navwarn-item + .navwarn-item {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.navwarn-item-title {
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+    text-align: left;
+}
+.navwarn-item-meta {
+    color: #7fb0e8;
+    font-size: 0.78rem;
+    margin-bottom: 8px;
+    text-align: left;
+}
+.navwarn-item-content {
+    color: #e4eaf3;
+    font-size: 0.86rem;
+    line-height: 1.6;
+    text-align: left;
+}
+
 /* 출입통제구역 상세 항목 — 라벨/값 2열 grid (access_control.js _row() 가 생성).
    grid-template-columns 의 1열이 max-content 라 값이 줄바꿈돼도 항상 값 칸(2열) 안에서만
    줄바꿈되므로 라벨과 자동으로 정렬되고, word-break: keep-all 로 단어 중간이 안 잘린다. */
