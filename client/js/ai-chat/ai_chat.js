@@ -1077,16 +1077,19 @@
   }
 
   /**
-   * "답변이 좀 걸리고 있어요. 다음부터 완료되면 알림 드릴까요?" 동의 배너를 채팅창에 띄운다.
-   * 이번 질문의 답변은 평소대로 화면에서 기다린다 — 이 배너는 부가 UI일 뿐이다.
-   * [허용] 알림 설정 aiAnswer 를 켜고(서버 재동기화 포함) 필요하면 푸시 권한도 요청한다.
+   * "답변이 좀 걸리고 있어요. 완료되면 알림 드릴까요?" 동의 배너를 채팅창에 띄운다.
+   * [허용]을 누르면 지금 기다리고 있는 이 질문에도 뒤늦게 알림이 걸린다(POST /api/legal/notify-me
+   * 로 이미 떠난 요청에 askId로 표시) — 화면 밖으로 나가도 이번 답도 놓치지 않는다. 물론 다음
+   * 질문부터는 처음부터 옵트인 상태로 보내지므로 이 배너 자체가 다시 뜨지 않는다.
    * [허용 안 함] 배너만 닫는다(설정 변경 없음).
-   * [연계] ← doSend 의 6초 타이머. → notiSettings().set, requestPushPermissionIfNeeded.
+   * @param {string} askId - 지금 기다리는 중인 질문의 접수번호(doSend가 발급) — notify-me 상관키.
+   * [연계] ← doSend 의 6초 타이머. → notiSettings().set, requestPushPermissionIfNeeded,
+   *          POST /api/legal/notify-me.
    */
-  function showNotifyConsentBanner() {
+  function showNotifyConsentBanner(askId) {
     if (document.getElementById('nryaNotifyAsk')) return;   // 이미 떠 있으면 중복 금지
     var bub = appendAiRow(
-      '답변이 좀 걸리고 있어요. 다음부터 완료되면 알림 드릴까요?' +
+      '답변이 좀 걸리고 있어요. 완료되면 알림 드릴까요?' +
       '<div class="nrya-consent-btns">' +
         '<button type="button" class="nrya-consent-btn nrya-yes">허용</button>' +
         '<button type="button" class="nrya-consent-btn nrya-no">허용 안 함</button>' +
@@ -1095,9 +1098,10 @@
     var row = document.getElementById('nryaNotifyAsk');
     bub.querySelector('.nrya-yes').addEventListener('click', function () {
       var ns = notiSettings();
-      if (ns && typeof ns.set === 'function') ns.set({ aiAnswer: true });  // 저장 + 서버 동기화
+      if (ns && typeof ns.set === 'function') ns.set({ aiAnswer: true });  // 저장 + 서버 동기화(다음 질문부터)
       requestPushPermissionIfNeeded();
-      bub.textContent = '다음부터 완료되면 알려드릴게요';
+      legalPost('/api/legal/notify-me', { askId: askId }).catch(function () {});  // 지금 이 질문에도 뒤늦게 걸기
+      bub.textContent = '완료되면 알려드릴게요';
       setTimeout(function () { if (row) row.remove(); }, 2500);
     });
     bub.querySelector('.nrya-no').addEventListener('click', function () { if (row) row.remove(); });
@@ -1167,16 +1171,18 @@
     }
 
     // [답변완료 알림] 이미 켠 사용자면 서버에 "다 되면 푸시 보내달라"고 알린다(6초 초과 시 서버가 발송).
-    //   아직 안 켰다면 6초 뒤에 인라인 동의 배너를 띄운다(빨리 끝나면 아래 타이머 취소).
+    //   아직 안 켰다면 6초 뒤에 인라인 동의 배너를 띄운다 — [허용]을 누르면 이 askId로 지금 이
+    //   요청에도 뒤늦게 알림이 걸린다(빨리 끝나면 아래 타이머 취소, 배너 자체가 안 뜬다).
     var optedIn = aiAnswerOptedIn();
+    var askId = 'ask_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
     if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; } // 이전 질문분 정리
     if (!optedIn) {
       activeConsentTimer = setTimeout(function () {
-        activeConsentTimer = null; showNotifyConsentBanner();
+        activeConsentTimer = null; showNotifyConsentBanner(askId);
       }, CONSENT_ASK_MS);
     }
 
-    legalPost('/api/legal/ask', { query: q, deviceId: getDeviceId(), notifyOnComplete: optedIn }).then(function (res) {
+    legalPost('/api/legal/ask', { query: q, deviceId: getDeviceId(), notifyOnComplete: optedIn, askId: askId }).then(function (res) {
       return readNdjsonStream(res, function (deltaText) {
         hadDelta = true;
         ensureAnswerBubble();

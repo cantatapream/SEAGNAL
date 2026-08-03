@@ -302,6 +302,14 @@ const AI_ANSWER_PUSH_URL = 'https://seagnal-server.fly.dev/?popup=ai_chat&rid=';
 // 이 시간(6초)을 넘게 걸린 질문만 푸시 대상 — 빨리 끝난 질문마다 알림이 오는 걸 막는다.
 const NOTIFY_MIN_ELAPSED_MS = 6000;
 
+// ── "이번 질문"도 알림 받기 — 진행 중인 요청과 뒤늦은 [허용] 클릭을 잇는 대응표 ──────
+//   질문을 보낼 때 이미 옵트인 상태가 아니면(그래서 notifyOnComplete=false로 감) 배너가
+//   6초 뒤에나 뜬다 — 이 시점엔 이미 요청이 떠난 뒤라 그 바디를 고칠 수 없다. 그래서 요청마다
+//   가벼운 askId를 같이 보내 여기 등록해두고, [허용]을 누르면 POST /api/legal/notify-me 가
+//   같은 askId로 "이 요청도 푸시 보내주세요"라고 뒤늦게 표시한다. 요청이 끝나면(성공이든 실패든)
+//   반드시 이 표를 지운다 — 답변 1건 수명(길어야 1~2분)보다 오래 남지 않는다.
+const inFlightAsks = new Map();   // askId → { deviceId, wantsPush }
+
 /**
  * 답변이 준비됐음을 그 기기(deviceId)에만 FCM 으로 알린다.
  * 예: sendAiAnswerPush('dev-abc', 'a3f1…') → 그 기기 트레이에 고정 문구 알림 1건
@@ -324,9 +332,12 @@ async function sendAiAnswerPush(deviceId, requestId) {
   try {
     if (!fs.existsSync(SUBS_FILE)) return;
     const subs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
-    // 전체 알림 마스터 OFF는 여기서도 존중한다(push.js의 다른 발송 경로들과 동일한 관례).
-    const matched = subs.filter(s => s.deviceId === deviceId && s.type === 'fcm' && s.token
-      && !(s.options && s.options.master === false));
+    // ★subscriptions.json 의 options(master·aiAnswer)는 여기서 안 본다(사용자 확정) — 태풍/특보처럼
+    // 서버가 알아서 훑어 보내는 방송성 푸시가 아니라, 호출자(POST /api/legal/ask)가 이미 그때그때의
+    // 살아있는 동의(옵트인 상태 or 방금 누른 [허용])를 직접 확인한 뒤에만 이 함수를 부른다. 여기서
+    // options.aiAnswer 를 또 보면, ns.set()의 서버 동기화가 아직 안 끝난 경합 상황에서 방금 누른
+    // 동의가 무시될 수 있다(옛 subscriptions.json 값을 읽게 되므로) — deviceId 일치만으로 충분하다.
+    const matched = subs.filter(s => s.deviceId === deviceId && s.type === 'fcm' && s.token);
     for (const sub of matched) {
       try {
         await firebaseAdmin.messaging().send({
@@ -358,6 +369,16 @@ router.get('/api/legal/pending-answer/:requestId', (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
+// POST /api/legal/notify-me { askId } — 6초 동의배너에서 [허용]을 눌렀을 때, 이미 떠난 그 질문
+//   요청에도 뒤늦게 "완료되면 푸시해달라"고 표시한다. 그 요청이 이미 끝났으면(빨리 끝난 경우
+//   등) askId가 없어 조용히 무시된다 — 어차피 화면에서 이미 답을 봤을 것이므로 해가 없다.
+router.post('/api/legal/notify-me', (req, res) => {
+  const askId = String((req.body && req.body.askId) || '').trim();
+  const entry = askId && inFlightAsks.get(askId);
+  if (entry) entry.wantsPush = true;
+  res.json({ ok: true });
+});
+
 // POST /api/legal/ask — { query } → 하이브리드 검색(legal_retriever) + Gemini 답변 스트리밍 합성
 //   응답은 NDJSON(줄바꿈으로 구분된 JSON) 스트림: 답변 조각마다 {type:'delta',text}, 마지막에
 //   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, note} 한 줄로 마감.
@@ -370,6 +391,9 @@ router.post('/api/legal/ask', async (req, res) => {
   if (!q) return res.status(400).json({ ok: false, error: 'query 필요' });
   const deviceId = String((req.body && req.body.deviceId) || '').trim();
   const notifyOnComplete = (req.body && req.body.notifyOnComplete) === true;
+  const askId = String((req.body && req.body.askId) || '').trim();
+  // 이 요청이 끝난 뒤 [허용]으로 뒤늦게 동의할 수 있게 등록해둔다(POST /api/legal/notify-me 참고).
+  if (askId && deviceId) inFlightAsks.set(askId, { deviceId, wantsPush: false });
 
   const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
   try {
@@ -435,12 +459,15 @@ router.post('/api/legal/ask', async (req, res) => {
     //   6초 이하로 빨리 끝난 질문은 보내지 않는다(옵트인해도 매번 울리지 않게).
     //   자체 try 로 감싼다 — 여기서 던지면 바깥 catch 가 이미 끝난 응답에 또 쓰려다 죽는다.
     try {
-      if (answer && notifyOnComplete && deviceId && (Date.now() - startedAt) > NOTIFY_MIN_ELAPSED_MS) {
+      const askedMidway = askId && inFlightAsks.has(askId) && inFlightAsks.get(askId).wantsPush;
+      if (answer && (notifyOnComplete || askedMidway) && deviceId && (Date.now() - startedAt) > NOTIFY_MIN_ELAPSED_MS) {
         const requestId = pendingAnswers.store(q, answer, sourcesOut, note);
         sendAiAnswerPush(deviceId, requestId).catch(e => console.error('[Legal] 답변완료 푸시 실패:', e && e.message));
       }
     } catch (e) { console.error('[Legal] 답변완료 푸시 준비 실패:', e && e.message); }
+    if (askId) inFlightAsks.delete(askId);
   } catch (e) {
+    if (askId) inFlightAsks.delete(askId);
     if (res.headersSent) {
       res.write(JSON.stringify({ type: 'done', ok: false, error: String(e.message || e) }) + '\n');
       return res.end();
