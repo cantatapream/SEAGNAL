@@ -5,20 +5,22 @@
  *         (선박사고·표류장애물·수중장애물·해상사격훈련 등)의 구역을 원형/다각형
  *         으로 표시한다. 날짜 내비게이션(◀▶)으로 다른 날짜를 조회하고, 기준 시각
  *         슬라이더로 그 날짜의 특정 시각에 어떤 구역이 살아있는지 확인할 수 있다
- *         (시각이 지난 구역은 회색으로 바뀐다). 구역을 탭하면 제목·구분·발표기관·
- *         유효기간·본문을 팝업으로 보여준다. 확대하면 구역 위에 구분·시간 라벨이 붙는다.
+ *         (시각이 지난 구역은 회색으로 바뀐다). 같은 구역이 시간대만 다르게 여러 번
+ *         나오면 서버가 하나로 합쳐 주므로, 구역을 탭하면 그 안의 각 시간대(occurrence)를
+ *         구분해서 보여준다. 확대하면 구역 위에 구분·시간 라벨이 붙는다(라벨끼리
+ *         겹치면 OpenLayers declutter 가 자동으로 숨긴다).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap),
  *                    shared/ui/ui_modal.js(window.showSeagnalModal), OpenLayers(ol.*)
  *  - 서버 API      : GET /api/navigational-warning/list?date=YYYYMMDD (날짜별 30분 캐시 —
- *                    텍스트는 공식 data.go.kr API, 좌표는 KHOA 내부 API 보강,
- *                    local_server/routes/navigational_warning.js)
+ *                    텍스트는 공식 data.go.kr API, 좌표는 KHOA 내부 API 보강, 같은 구역명은
+ *                    서버가 미리 병합, local_server/routes/navigational_warning.js)
  *  - 마크업        : index2.html #ocean-navwarn-btn(토글 버튼) ·
  *                    #navwarn-date-nav/#navwarn-prev-day/#navwarn-next-day/
  *                    #navwarn-date-label/#navwarn-date-tag(날짜 내비게이션) ·
- *                    #navwarn-time-bar/#navwarn-time-slider/#navwarn-time-value(시간 슬라이더)
- *                    — 전부 해양안전 전용
+ *                    #navwarn-time-bar/#navwarn-time-slider/#navwarn-time-value(시간 슬라이더) ·
+ *                    #navwarn-loading(로딩 스피너) — 전부 해양안전 전용
  *  - 나를 쓰는 곳  : 토글 버튼은 이 파일이 자체 바인딩(seaway.js 와 동일 패턴).
  *                    구역 클릭은 ocean_map.js의 handleMapClick 이
  *                    window._navwarnTryHandleClick(map, evt) 를 호출(seaway.js 다음 순위)
@@ -34,7 +36,7 @@
     var LABEL_RESOLUTION_MAX = 900; // 이 해상도(대략 줌 10+)보다 확대해야 구역 라벨을 그린다
     var WEEKDAY_KR = ['일', '월', '화', '수', '목', '금', '토'];
 
-    var _layer = null;       // 외곽선 layer
+    var _layer = null;       // 외곽선 layer (라벨도 여기 붙음, declutter 적용)
     var _fillLayer = null;   // 채움 layer
     var _source = null;
     var _visible = false;
@@ -59,8 +61,8 @@
     }
     function _fmtMin(min) { return _pad2(Math.floor(min / 60)) + ':' + _pad2(min % 60); }
 
-    /** 선택한 날짜(_selectedDate) 기준으로 이 zone이 만료됐는지 — 그 날짜에 해당하는
-     *  시간창이 없으면(데이터 없음) 만료로 보지 않는다(과다 숨김 방지). */
+    /** 선택한 날짜(_selectedDate) 기준으로 이 zone(occurrences 병합됨)이 만료됐는지 —
+     *  그 날짜에 해당하는 시간창이 없으면(데이터 없음) 만료로 보지 않는다(과다 숨김 방지). */
     function _isExpired(zone) {
         var windows = (zone.windows || []).filter(function (w) { return w.date === _selectedDate; });
         if (!windows.length) return false;
@@ -68,11 +70,23 @@
         return _refMinutes > latestEnd;
     }
 
-    /** 선택한 날짜에 해당하는 시간창을 "00:00~08:00" 형태로 짧게 합친 문자열(라벨용) */
+    /** 선택한 날짜에 해당하는 시간창을 "00:00~08:00" 형태로 짧게 합친 문자열(라벨용).
+     *  같은 구역에 여러 occurrence(시간대)가 있으면 그만큼 여러 조각이 함께 나온다. */
     function _todayTimeLabel(zone) {
         var windows = (zone.windows || []).filter(function (w) { return w.date === _selectedDate; });
         if (!windows.length) return '';
         return windows.map(function (w) { return _fmtMin(w.start) + '~' + _fmtMin(w.end); }).join(', ');
+    }
+
+    /** zone.occurrences 에서 구분(noti_cat/app_cat) 값을 모아 중복 없이 합친 라벨 문자열 */
+    function _categoryLabel(zone) {
+        var seen = {};
+        var cats = [];
+        (zone.occurrences || []).forEach(function (occ) {
+            var c = (occ.noti_cat || occ.app_cat || '').trim();
+            if (c && !seen[c]) { seen[c] = true; cats.push(c); }
+        });
+        return cats.join('·');
     }
 
     /** 항행경보 구역 스타일 — 경고 의미의 진한 빨강(활성) / 회색(선택 날짜·시각 기준 만료).
@@ -86,17 +100,15 @@
 
         var text = null;
         if (resolution < LABEL_RESOLUTION_MAX) {
-            var item = feature.get('item');
-            var cat = (item.noti_cat || item.app_cat || '').trim();
-            var timeLabel = _todayTimeLabel(zone);
-            var label = [cat, timeLabel].filter(Boolean).join('\n');
+            var label = [_categoryLabel(zone), _todayTimeLabel(zone)].filter(Boolean).join('\n');
             if (label) {
                 text = new ol.style.Text({
                     text: label,
                     font: '700 12px Pretendard, sans-serif',
                     fill: new ol.style.Fill({ color: expired ? '#cbd5e1' : '#fff' }),
                     stroke: new ol.style.Stroke({ color: 'rgba(15, 23, 42, 0.85)', width: 3 }),
-                    overflow: true
+                    overflow: true,
+                    declutterMode: 'declutter'
                 });
             }
         }
@@ -136,6 +148,7 @@
                 style: _strokeOnlyStyle,
                 zIndex: 83,
                 visible: _visible,
+                declutter: true, // 인접한 구역의 라벨이 겹치면 자동으로 덜 중요한 쪽을 숨긴다
                 updateWhileAnimating: false,
                 updateWhileInteracting: false
             });
@@ -149,49 +162,57 @@
         if (_layer) _layer.changed();
     }
 
-    /** 서버가 준 zone(원형/다각형 위경도)을 OpenLayers feature로 변환한다.
-     *  점이 부족해 그릴 수 없는 zone은 건너뛴다(그런 항목도 있음). */
-    function _buildFeatures(items) {
+    /** 서버가 준 zone(원형/다각형 위경도, 같은 구역명은 이미 병합돼 옴)을 OpenLayers
+     *  feature로 변환한다. 점이 부족해 그릴 수 없는 zone은 건너뛴다(그런 항목도 있음). */
+    function _buildFeatures(zones) {
         var features = [];
-        items.forEach(function (item) {
-            (item.zones || []).forEach(function (zone) {
-                var geom = null;
-                if (zone.type === 'circle' && zone.points.length >= 1 && zone.radiusNm) {
-                    var center = ol.proj.fromLonLat([zone.points[0].lon, zone.points[0].lat]);
-                    geom = new ol.geom.Circle(center, zone.radiusNm * NM_TO_M);
-                } else if (zone.points.length >= 3) {
-                    var ring = zone.points.map(function (p) { return ol.proj.fromLonLat([p.lon, p.lat]); });
-                    ring.push(ring[0]);
-                    geom = new ol.geom.Polygon([ring]);
-                }
-                if (!geom) return;
+        zones.forEach(function (zone) {
+            var geom = null;
+            if (zone.type === 'circle' && zone.points.length >= 1 && zone.radiusNm) {
+                var center = ol.proj.fromLonLat([zone.points[0].lon, zone.points[0].lat]);
+                geom = new ol.geom.Circle(center, zone.radiusNm * NM_TO_M);
+            } else if (zone.points.length >= 3) {
+                var ring = zone.points.map(function (p) { return ol.proj.fromLonLat([p.lon, p.lat]); });
+                ring.push(ring[0]);
+                geom = new ol.geom.Polygon([ring]);
+            }
+            if (!geom) return;
 
-                var feature = new ol.Feature({ geometry: geom });
-                feature.set('item', item);
-                feature.set('zone', zone);
-                features.push(feature);
-            });
+            var feature = new ol.Feature({ geometry: geom });
+            feature.set('zone', zone);
+            features.push(feature);
         });
         return features;
     }
 
+    function _setLoading(loading) {
+        var el = document.getElementById('navwarn-loading');
+        if (!el) return;
+        el.style.display = loading ? 'flex' : 'none';
+        el.setAttribute('aria-hidden', loading ? 'false' : 'true');
+    }
+
     /** 선택한 날짜(_selectedDate)의 목록을 받아 지도를 다시 그린다. 이미 그 날짜가
-     *  로드돼 있으면 재조회하지 않는다(토글을 껐다 켜기만 한 경우). */
+     *  로드돼 있으면 재조회하지 않는다(토글을 껐다 켜기만 한 경우). KHOA 세션 발급이
+     *  섞이면 몇 초 걸릴 수 있어 로딩 스피너를 띄운다. */
     function _load() {
         if (_loadedDate === _selectedDate || _loading) return;
         _loading = true;
+        _setLoading(true);
         var ymd = _selectedDate.replace(/-/g, '');
         fetch(LIST_URL + '?date=' + ymd)
             .then(function (res) { return res.json(); })
             .then(function (data) {
                 _loading = false;
+                _setLoading(false);
                 if (!data.success || !_source) return;
                 _source.clear();
-                _source.addFeatures(_buildFeatures(data.items || []));
+                _source.addFeatures(_buildFeatures(data.zones || []));
                 _loadedDate = _selectedDate;
             })
             .catch(function (err) {
                 _loading = false;
+                _setLoading(false);
                 console.warn('[NavWarn] 목록 로드 실패:', err.message);
             });
     }
@@ -219,22 +240,31 @@
         return html;
     }
 
-    /** 구역 feature 하나의 상세 정보 팝업 HTML — 상세 항목 + 본문 */
-    function _buildDetailHtml(feature) {
-        var item = feature.get('item');
-        var zone = feature.get('zone');
-        var cat = item.noti_cat || item.app_cat || '';
-
+    /** occurrence(같은 구역의 시간대 한 건) 하나의 상세 블록 HTML */
+    function _buildOccurrenceHtml(occ) {
+        var cat = occ.noti_cat || occ.app_cat || '';
         var rows = '';
         rows += _row('구분', cat);
-        rows += _row('발표기관', item.gov_cd);
-        rows += _row('구역', zone.name);
-        rows += _row('유효기간', zone.validity);
-        rows += _row('근거', item.basic);
+        rows += _row('발표기관', occ.gov_cd);
+        rows += _row('유효기간', occ.validity);
+        rows += _row('근거', occ.basic);
 
-        var html = rows ? '<div class="ac-detail-grid">' + rows + '</div>' : '';
-        if (item.content) html += _formatContent(item.content);
-        return html || '<p>세부 정보를 불러오지 못했습니다.</p>';
+        var html = '<p style="margin:0 0 6px;color:#fff;font-weight:700;font-size:0.92rem;text-align:left;">' + (occ.title || '') + '</p>';
+        html += rows ? '<div class="ac-detail-grid">' + rows + '</div>' : '';
+        if (occ.content) html += _formatContent(occ.content);
+        return html;
+    }
+
+    /** 구역 feature 하나의 상세 정보 팝업 HTML — occurrences(시간대)별로 구분해 보여준다 */
+    function _buildDetailHtml(feature) {
+        var zone = feature.get('zone');
+        var occs = zone.occurrences || [];
+        if (!occs.length) return '<p>세부 정보를 불러오지 못했습니다.</p>';
+
+        return occs.map(function (occ, i) {
+            var block = _buildOccurrenceHtml(occ);
+            return i === 0 ? block : '<div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.12);">' + block + '</div>';
+        }).join('');
     }
 
     /**
@@ -251,13 +281,13 @@
             return null;
         });
         if (!hit) return false;
-        var item = hit.get('item');
+        var zone = hit.get('zone');
         if (typeof window.showSeagnalModal === 'function') {
-            window.showSeagnalModal(item.title || '항행경보', _buildDetailHtml(hit), 'info');
+            window.showSeagnalModal(zone.name || '항행경보', _buildDetailHtml(hit), 'info');
             var modalContent = document.querySelector('#seagnal-custom-modal .seagnal-modal-content');
             if (modalContent) modalContent.classList.add('access-control-wide');
         } else if (typeof window._showOceanToast === 'function') {
-            window._showOceanToast(item.title || '항행경보', 'bottom', 3000);
+            window._showOceanToast(zone.name || '항행경보', 'bottom', 3000);
         }
         return true;
     };
@@ -309,6 +339,7 @@
             el.style.display = visible ? 'flex' : 'none';
             el.setAttribute('aria-hidden', visible ? 'false' : 'true');
         });
+        if (!visible) _setLoading(false);
     }
 
     function _bindToggle(map) {

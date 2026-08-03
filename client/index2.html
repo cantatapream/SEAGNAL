@@ -1528,6 +1528,26 @@
         .navwarn-time-label span { color: #fca5a5; font-variant-numeric: tabular-nums; }
         .navwarn-time-slider { flex: 1 1 auto; accent-color: #dc2626; }
 
+        .navwarn-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1300;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(15, 23, 42, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            padding: 14px 20px;
+            color: #fff;
+            font-size: 0.88rem;
+            font-weight: 700;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        }
+        .navwarn-loading i { color: #dc2626; font-size: 1.1rem; }
+
         /* ── 물빠짐(갯벌 노출) 레이어 UI (js/tide_field.js) ───────────── */
         .mudflat-legend .mudflat-legend-row {
             display: flex;
@@ -3935,6 +3955,13 @@
                     <div id="navwarn-time-bar" class="navwarn-time-bar" style="display:none;" aria-hidden="true">
                         <div class="navwarn-time-label">기준 시각 <span id="navwarn-time-value">00:00</span></div>
                         <input type="range" class="navwarn-time-slider" id="navwarn-time-slider" min="0" max="1439" value="0" step="15">
+                    </div>
+
+                    <!-- 항행경보 로딩 스피너 — KHOA 세션 발급이 섞이면 조회에 몇 초 걸릴 수 있어
+                         재조회(토글 ON, 날짜 이동) 동안 화면 가운데에 표시한다. -->
+                    <div id="navwarn-loading" class="navwarn-loading" style="display:none;" aria-hidden="true">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <span>불러오는 중입니다...</span>
                     </div>
                 </div>
 
