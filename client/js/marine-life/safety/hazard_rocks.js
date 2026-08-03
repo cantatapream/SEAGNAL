@@ -243,8 +243,9 @@
         if (tideCurveOverlay) return tideCurveOverlay;
         var el = document.createElement('div');
         el.className = 'hazard-rock-popup rock-tide-popup';
+        // 마커가 팝업 "윗부분"에 오도록(팝업이 마커 아래로 펼쳐짐) top-center + 양수 오프셋.
         tideCurveOverlay = new ol.Overlay({
-            element: el, positioning: 'bottom-center', offset: [0, -TIDE_POPUP_TAIL_GAP_PX]
+            element: el, positioning: 'top-center', offset: [0, TIDE_POPUP_TAIL_GAP_PX]
         });
         map.addOverlay(tideCurveOverlay);
         return tideCurveOverlay;
@@ -272,7 +273,9 @@
         var view = map.getView();
         var size = map.getSize();
         if (!size) return;
-        var desiredPixel = [size[0] / 2, size[1] / 2 + TIDE_POPUP_TAIL_GAP_PX + popupHeightPx / 2];
+        // 마커가 팝업 윗부분에 오고(팝업이 마커 아래로 펼쳐짐) 팝업 전체가 화면 중앙에
+        // 오려면, 마커 자신은 화면 중앙보다 위로(팝업 높이 절반만큼) 올라가 있어야 한다.
+        var desiredPixel = [size[0] / 2, size[1] / 2 - TIDE_POPUP_TAIL_GAP_PX - popupHeightPx / 2];
         var savedCenter = view.getCenter();
         view.centerOn(coord, size, desiredPixel);
         var target = view.getCenter();
