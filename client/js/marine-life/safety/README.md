@@ -23,9 +23,13 @@
     지정ㆍ고시된 항로 141곳을 청록색으로 그리고, 탭하면 종류·참고문서·참고사이트를
     팝업으로 보여줍니다. 면으로 고시된 124곳은 폴리곤(채움+외곽선), 통항분리대처럼
     선으로 고시된 17곳은 선으로 그립니다.
-    **항행경보**는 오늘 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련 등)의
-    구역을 붉은 점선 원형/다각형으로 그리고, 탭하면 제목·구분·발표기관·구역명·유효기간·본문을
-    팝업으로 보여줍니다. 텍스트(제목/본문/발표기관)는 data.go.kr 공식 API로, 좌표·구역명은
+    **항행경보**는 선택한 날짜에 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련
+    등)의 구역을 진한 빨간 점선 원형/다각형으로 그리고, 탭하면 제목·구분·발표기관·구역명·
+    유효기간·본문을 팝업으로 보여줍니다. 켜면 상단에 **날짜 내비게이션(◀▶)**, 하단에
+    **기준 시각 슬라이더**가 함께 뜹니다 — 슬라이더로 시각을 옮기면 그 시각이 지난 구역이
+    회색으로 바뀌고, 날짜를 넘겨도 슬라이더 위치는 유지되어 다른 날짜의 임의 시각 상태도
+    바로 확인할 수 있습니다. 지도를 확대하면(대략 줌 10 이상) 구역 위에 구분·시간 라벨이
+    직접 표시됩니다. 텍스트(제목/본문/발표기관)는 data.go.kr 공식 API로, 좌표·구역명은
     KHOA "항행경보 상황판" 웹사이트의 내부(미문서화) API로 보강합니다 — 이 내부 API가 막히면
     좌표만 빠지고 텍스트 목록 매칭은 계속 됩니다(부분 실패 허용). 다른 토글과 달리 배경지도는
     **기본맵을 그대로 유지**합니다(전자해도로 자동 전환하지 않음).
@@ -57,7 +61,7 @@
 | `fishing_ban.js` | 낚시금지(낚시통제)구역 폴리곤 토글 레이어(해양안전 전용) — 낚시 관리 및 육성법 제6조·지자체 조례 지정 236개 구역, `/fishing_ban_zones.json`(정적, 지연 로드), 클릭 시 근거법령·통제시간·벌칙 등 상세 팝업 |
 | `vts_zone.js` | 선박교통관제(VTS)구역 폴리곤 토글 레이어(해양안전 전용) — 해양경찰청 공고 34개 구역, `/vts_zones.json`(정적, 지연 로드), 켤 때 배경지도를 전자해도로 자동 전환, 클릭 시 관제해역·관제센터 주소·전화·팩스 상세 팝업 + 클릭한 구역만 노란색 선택 하이라이트(한 번에 하나) |
 | `seaway.js` | 항로 토글 레이어(해양안전 전용) — 선박의 입항 및 출항 등에 관한 법률 제10조 등 지정ㆍ고시 항로 141곳(면 124 + 선 17), `/seaway_zones.json`(정적, 지연 로드), 켤 때 배경지도를 전자해도로 자동 전환, 클릭 시 종류·참고문서·참고사이트 상세 팝업 |
-| `navigational_warning.js` | 항행경보 구역 토글 레이어(해양안전 전용) — 오늘 발효 중인 선박사고·표류장애물·수중장애물·해상사격훈련 등 구역을 원형/다각형으로 표시(`GET /api/navigational-warning/list`, 서버 30분 캐시), 배경지도는 기본맵 유지(자동 전환 없음), 클릭 시 구분·발표기관·구역명·유효기간·본문 팝업 |
+| `navigational_warning.js` | 항행경보 구역 토글 레이어(해양안전 전용) — 선택 날짜의 선박사고·표류장애물·수중장애물·해상사격훈련 등 구역을 원형/다각형으로 표시(`GET /api/navigational-warning/list?date=`, 서버 날짜별 30분 캐시), 날짜 내비게이션 + 기준 시각 슬라이더(만료 구역 회색 처리), 확대 시 구역 라벨, 배경지도는 기본맵 유지(자동 전환 없음), 클릭 시 구분·발표기관·구역명·유효기간·본문 팝업 |
 
 ## 설계 요점 — 기존 코드를 고치지 않고 재사용
 
@@ -144,7 +148,7 @@ mudflat.js / sea_parting.js / swimming.js)을 그대로 씁니다.** 이 모듈�
 | `fishing_ban.js` | 낚시금지구역 폴리곤 레이어(`/fishing_ban_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 해양공간 주제도 "낚시통제구역"(TL_RESARE_ENS) shapefile 236개를 EPSG:5179 → WGS84 재투영해 만든 정적 GeoJSON. 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._fishingBanTryHandleClick` 을 호출(출입통제 다음 순위) |
 | `vts_zone.js` | 선박교통관제(VTS)구역 폴리곤 레이어(`/vts_zones.json`, 첫 클릭 때 지연 로드) — 해양경찰청(kcg.go.kr) 전국 20개 VTS센터 페이지의 "관제구역도" 도분초 좌표(WGS-84)와 "관제통신 제원" 채널을 그대로 옮긴 34개 구역 GeoJSON(구역당 1폴리곤, 제외구역은 hole 로 인코딩). 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._vtsZoneTryHandleClick` 을 호출(낚시금지 다음 순위) |
 | `seaway.js` | 항로 레이어(`/seaway_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 "개방海" 포털의 실시간 WFS(`vi_seaway` 레이어)에서 받아온 141개(2026-08 기준)를 EPSG:5179 → WGS84 재투영해 만든 정적 GeoJSON(MultiPolygon 124 + MultiLineString 17). 이전 `TL_SEAWAY_A` shapefile 77개는 최신본이 아니어서 교체. 클릭은 `ocean_map.js` handleMapClick 이 `window._seawayTryHandleClick` 을 호출(관제구역 다음 순위) |
-| `navigational_warning.js` | 항행경보 구역(원형/다각형) 레이어(`GET /api/navigational-warning/list`, `local_server/routes/navigational_warning.js` — 텍스트는 data.go.kr 공식 API(서비스키 `ROMS_SERVICE_KEY` 재사용), 좌표는 KHOA 내부 API 보강, 30분 캐시). 구역 클릭은 `ocean_map.js` handleMapClick 이 `window._navwarnTryHandleClick` 을 호출(항로 다음 순위) |
+| `navigational_warning.js` | 항행경보 구역(원형/다각형) 레이어(`GET /api/navigational-warning/list?date=YYYYMMDD`, `local_server/routes/navigational_warning.js` — 텍스트는 data.go.kr 공식 API(서비스키 `ROMS_SERVICE_KEY` 재사용), 좌표·구역별 시간창(windows)은 KHOA 내부 API 보강, 날짜별 30분 캐시). 구역 클릭은 `ocean_map.js` handleMapClick 이 `window._navwarnTryHandleClick` 을 호출(항로 다음 순위). 날짜 내비게이션·기준 시각 슬라이더 마크업은 `index2.html` `#navwarn-date-nav`/`#navwarn-time-bar` |
 
 ## 수정 시 주의사항
 
