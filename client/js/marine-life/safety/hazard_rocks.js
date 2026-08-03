@@ -69,7 +69,7 @@
     var DAY_LABELS = ['오늘', '내일', '모레'];
     // 팝업 예상 높이(px) — 실제 DOM 측정 대신 고정값(CSS 레이아웃과 대략 맞춤). 날짜를
     // 넘겨도 구조가 안 바뀌므로 고정값으로도 재이동(re-pan) 없이 항상 맞아떨어진다.
-    var TIDE_POPUP_EST_HEIGHT_PX = 460;
+    var TIDE_POPUP_EST_HEIGHT_PX = 490;
     var TIDE_POPUP_TAIL_GAP_PX = 8; // ensureBubble 의 offset[0,-8]과 동일한 꼬리 여백
     var SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -253,6 +253,9 @@
     function hideTideCurveOverlay() {
         if (tideCurveOverlay) tideCurveOverlay.setPosition(undefined);
         _tideCurveState = null;
+        // 하드웨어/제스처 뒤로가기가 이 팝업부터 닫도록 스택에서 제거(PopupStack.popLast
+        // 가 부른 경우엔 이미 pop 되었지만 remove 는 없는 id에 대해 안전 — backbutton.js).
+        if (window.PopupStack) window.PopupStack.remove('rock-tide-popup');
     }
 
     /**
@@ -316,12 +319,14 @@
         for (var k in attrs) e.setAttribute(k, attrs[k]);
         return e;
     }
+    var RTP_LABEL_FONT_SIZE = 15; // 잠김/노출/현재시각 라벨 글자 크기(1.5배 확대 — 사용자 피드백)
+    var RTP_LABEL_LINE_GAP = 16;  // 위 폰트 크기에 맞춘 2줄 간 세로 간격
     /** 점(cx,cy) 위/아래에 "단어" + "HH:MM" 2줄 라벨. dir=1이면 점 아래로, -1이면 위로 이어짐. */
     function svgTwoLineLabel(cx, anchorY, dir, line1, line2, color) {
-        var y1 = dir === 1 ? anchorY : anchorY - 12;
-        var t = svgEl('text', { x: cx, y: y1, 'font-size': 10, 'font-weight': 700, fill: color, 'text-anchor': 'middle' });
+        var y1 = dir === 1 ? anchorY : anchorY - RTP_LABEL_LINE_GAP;
+        var t = svgEl('text', { x: cx, y: y1, 'font-size': RTP_LABEL_FONT_SIZE, 'font-weight': 700, fill: color, 'text-anchor': 'middle' });
         var s1 = document.createElementNS(SVG_NS, 'tspan'); s1.setAttribute('x', cx); s1.textContent = line1;
-        var s2 = document.createElementNS(SVG_NS, 'tspan'); s2.setAttribute('x', cx); s2.setAttribute('dy', '12'); s2.textContent = line2;
+        var s2 = document.createElementNS(SVG_NS, 'tspan'); s2.setAttribute('x', cx); s2.setAttribute('dy', String(RTP_LABEL_LINE_GAP)); s2.textContent = line2;
         t.appendChild(s1); t.appendChild(s2);
         return t;
     }
@@ -358,7 +363,7 @@
         });
         if (bandStart != null) bands.push([bandStart, 1440]);
 
-        var W = 320, H = 190, padL = 30, padR = 8, padT = 26, padB = 20;
+        var W = 320, H = 215, padL = 30, padR = 8, padT = 40, padB = 24;
         var allCm = pts.map(function (p) { return p.cm; }).concat([valsouCm]);
         var maxCm = Math.max.apply(null, allCm) * 1.1;
         var minCm = Math.min(0, Math.min.apply(null, allCm));
@@ -421,17 +426,17 @@
             if (c.t > 1440) return;
             var color = c.type === 'submerge' ? 'var(--rtp-red)' : 'var(--rtp-green)';
             var cx = X(c.t), cy = Y(valsouCm);
-            svg.appendChild(svgEl('circle', { cx: cx, cy: cy, r: 3.2, fill: color, stroke: 'var(--rtp-bg)', 'stroke-width': 1.4 }));
-            if (c.type === 'submerge') svg.appendChild(svgTwoLineLabel(cx, cy - 16, -1, '잠김', minutesToHHMM(c.t), color));
-            else svg.appendChild(svgTwoLineLabel(cx, cy + 15, 1, '노출', minutesToHHMM(c.t), color));
+            svg.appendChild(svgEl('circle', { cx: cx, cy: cy, r: 3.6, fill: color, stroke: 'var(--rtp-bg)', 'stroke-width': 1.4 }));
+            if (c.type === 'submerge') svg.appendChild(svgTwoLineLabel(cx, cy - 22, -1, '잠김', minutesToHHMM(c.t), color));
+            else svg.appendChild(svgTwoLineLabel(cx, cy + 20, 1, '노출', minutesToHHMM(c.t), color));
         });
 
         // 현재 시각(오늘 보기일 때만) — 곡선 위 점 + 펄스 글로우 + "현 시각/HH:MM" 라벨
         if (nowMin != null) {
             var nowX = X(nowMin), nowY = Y(cmAtMinute(pts, nowMin));
-            svg.appendChild(svgEl('circle', { cx: nowX, cy: nowY, r: 4, class: 'rtp-now-glow' }));
-            svg.appendChild(svgEl('circle', { cx: nowX, cy: nowY, r: 4, fill: 'var(--rtp-now-dot)', stroke: 'var(--rtp-bg)', 'stroke-width': 2 }));
-            svg.appendChild(svgTwoLineLabel(nowX, nowY + 15, 1, '현 시각', minutesToHHMM(nowMin), 'var(--rtp-ink)'));
+            svg.appendChild(svgEl('circle', { cx: nowX, cy: nowY, r: 4.5, class: 'rtp-now-glow' }));
+            svg.appendChild(svgEl('circle', { cx: nowX, cy: nowY, r: 4.5, fill: 'var(--rtp-now-dot)', stroke: 'var(--rtp-bg)', 'stroke-width': 2 }));
+            svg.appendChild(svgTwoLineLabel(nowX, nowY + 20, 1, '현 시각', minutesToHHMM(nowMin), 'var(--rtp-ink)'));
         }
     }
 
@@ -439,20 +444,41 @@
      * 그래프 아래 "조석" 카드 — 해양종합정보 해점 클릭 시(ocean_bottom_sheet3.js) 나오는
      * 것과 동일한 .ocean-tide-* 클래스(style.css)를 그대로 재사용해 같은 모양으로 그린다.
      * 오늘(day=0)이고 앞뒤로 극값이 다 있을 때만 게이지+예상조위를 보여준다(그 외엔
-     * ocean_bottom_sheet3.js 와 동일하게 고조/저조 목록만).
+     * ocean_bottom_sheet3.js 와 동일하게 고조/저조 목록만). "지금"이 그날 마지막 극값
+     * 이후이면(저녁 시간대) 다음날 첫 극값까지 이어붙여 게이지가 안 사라지게 한다.
+     * 각 극값 옆 증감(▲+82 등)은 바로 직전 극값(전날 마지막 극값 포함) 대비 변화량.
      * @param {HTMLElement} container
      * @param {Array<{t:string,cm:number,type:'high'|'low'}>} peaks
      * @param {number|null} nowMin
      * @param {Array<{t:string,cm:number}>} points - 현재 예상 조위 보간용(nowMin 있을 때만 필요)
+     * @param {Array|null} prevDayPeaks - 전날 극값(있으면 첫 극값 증감·게이지 새벽 경계 보강용)
+     * @param {Array|null} nextDayPeaks - 다음날 극값(있으면 마지막 극값 증감·게이지 저녁 경계 보강용)
+     * @param {Date} dateObj - 물때 배지 계산용(월령)
+     * @param {number|null} lat
+     * @param {number|null} lon
      */
-    function renderBottomTideCard(container, peaks, nowMin, points) {
-        var sorted = peaks.map(function (p) { return { type: p.type, m: parseHHMM(p.t), cm: p.cm }; }).sort(function (a, b) { return a.m - b.m; });
+    function renderBottomTideCard(container, peaks, nowMin, points, prevDayPeaks, nextDayPeaks, dateObj, lat, lon) {
+        function toSorted(list) {
+            return (list || []).map(function (p) { return { type: p.type, m: parseHHMM(p.t), cm: p.cm }; }).sort(function (a, b) { return a.m - b.m; });
+        }
+        var sorted = toSorted(peaks);
+        var prevSorted = toSorted(prevDayPeaks).map(function (p) { return { type: p.type, m: p.m - 1440, cm: p.cm }; }); // 전날 = 음수 분
+        var nextSorted = toSorted(nextDayPeaks).map(function (p) { return { type: p.type, m: p.m + 1440, cm: p.cm }; }); // 다음날 = 1440+ 분
+        var chrono = prevSorted.concat(sorted, nextSorted); // 게이지·증감 계산용(오늘 밖 경계도 커버)
+
+        // 물때 배지 — computeMulddae 는 월령(달 위상)만으로 계산돼 피크·조화상수가 없어도 된다
+        // (§HAZARD_ROCKS_HANDOFF §6.11 에서 필요하다고 잘못 판단했던 것을 재확인 후 정정).
+        var mulddaeBadge = '';
+        if (typeof computeMulddae === 'function' && dateObj) {
+            var md = computeMulddae(null, null, null, null, dateObj, lat, lon);
+            if (md && md.label) mulddaeBadge = '<span class="ocean-tide-mulddae-badge">(' + md.label + ')</span>';
+        }
 
         var headHtml = '';
-        if (nowMin != null && sorted.length > 2) {
+        if (nowMin != null && chrono.length > 2) {
             var prevPeak = null, nextPeak = null;
-            for (var i = 0; i < sorted.length; i++) {
-                if (sorted[i].m <= nowMin) prevPeak = sorted[i]; else { nextPeak = sorted[i]; break; }
+            for (var i = 0; i < chrono.length; i++) {
+                if (chrono[i].m <= nowMin) prevPeak = chrono[i]; else { nextPeak = chrono[i]; break; }
             }
             if (prevPeak && nextPeak) {
                 var rising = nextPeak.type === 'high';
@@ -471,6 +497,8 @@
                     '<span class="ocean-tide-current-val">' + curLevel + ' cm</span>' +
                     '<span class="ocean-tide-current-arrow ' + (rising ? 'is-up' : 'is-down') + '">' + (rising ? '▲' : '▼') + '</span>' +
                     '</div>';
+                // prevPeak/nextPeak 이 어제/내일(음수·1440+ 분)일 수 있으므로 표시용 시각은 24h 로 감아준다.
+                var wrapM = function (m) { return ((m % 1440) + 1440) % 1440; };
                 headHtml =
                     '<div class="ocean-tide-head">' +
                     '<div class="ocean-tide-head-labels">' +
@@ -483,20 +511,32 @@
                     '<div class="ocean-tide-progress-marker" style="left:' + pct.toFixed(1) + '%"></div>' +
                     '</div>' +
                     '<div class="ocean-tide-head-times">' +
-                    '<div class="ocean-tide-head-time ' + leftCls + '">' + minutesToHHMM(prevPeak.m) + '</div>' +
+                    '<div class="ocean-tide-head-time ' + leftCls + '">' + minutesToHHMM(wrapM(prevPeak.m)) + '</div>' +
                     '<div class="ocean-tide-progress-remain">' + (rising ? '고조까지' : '저조까지') + ' 남은시간 ' + remainStr + '</div>' +
-                    '<div class="ocean-tide-head-time ' + rightCls + '">' + minutesToHHMM(nextPeak.m) + '</div>' +
+                    '<div class="ocean-tide-head-time ' + rightCls + '">' + minutesToHHMM(wrapM(nextPeak.m)) + '</div>' +
                     '</div>' +
                     '</div>';
             }
         }
 
+        // 각 극값의 "직전 극값 대비 증감" — 시간순으로 바로 앞 극값과의 cm 차이(전날 마지막
+        // 극값이 있으면 오늘 첫 극값의 증감도 구해짐). ocean_bottom_sheet3.js 의 diff 와
+        // 동일한 정의(요일 비교가 아니라 "직전 물때"와의 변화량)임을 실측으로 재확인.
+        var diffByKey = {};
+        for (var j = 1; j < chrono.length; j++) {
+            diffByKey[chrono[j].m + '_' + chrono[j].type] = Math.round(chrono[j].cm - chrono[j - 1].cm);
+        }
+
         function peakGroupHtml(label, cls, list, arrow) {
             if (!list.length) return '';
             var rows = list.map(function (p) {
+                var diff = diffByKey[parseHHMM(p.t) + '_' + p.type];
+                var deltaHtml = diff == null ? '' :
+                    '<span class="ocean-tide-peak-sign">' + (diff > 0 ? '+' : (diff < 0 ? '−' : '')) + '</span>' +
+                    '<span class="ocean-tide-peak-digits">' + Math.abs(diff) + '</span>';
                 return '<div class="ocean-tide-peak-row">' +
                     '<div class="ocean-tide-peak-left"><span class="ocean-tide-peak-time">' + p.t + '</span><span class="ocean-tide-peak-cm">(' + Math.round(p.cm) + ' cm)</span></div>' +
-                    '<div class="ocean-tide-peak-right ' + cls + '"><span class="ocean-tide-peak-arrow">' + arrow + '</span></div>' +
+                    '<div class="ocean-tide-peak-right ' + cls + '"><span class="ocean-tide-peak-arrow">' + arrow + '</span>' + deltaHtml + '</div>' +
                     '</div>';
             }).join('');
             return '<div class="ocean-tide-peak-group"><div class="ocean-tide-peak-label ' + cls + '">' + label + '</div>' +
@@ -507,20 +547,47 @@
         var peaksHtml = '<div class="ocean-tide-peaks">' + peakGroupHtml('고조', 'is-high', highs, '▲') + peakGroupHtml('저조', 'is-low', lows, '▼') + '</div>';
 
         container.innerHTML =
-            '<div class="ocean-tide-title-row"><div class="ocean-tide-title"><span class="rtp-wave">≋</span> 조석</div></div>' +
+            '<div class="ocean-tide-title-row"><div class="ocean-tide-title"><span class="rtp-wave">≋</span> 조석' + mulddaeBadge + '</div></div>' +
             headHtml + peaksHtml;
     }
 
     /**
-     * _tideCurveState(rockId, day) 기준으로 서버에서 그 날짜 조석 곡선을 받아와
-     * 그래프(SVG)와 조석 카드를 그린다. 응답이 늦게 와서 그 사이 사용자가 다른
-     * 날짜/다른 암초로 넘어갔으면 결과를 버린다.
+     * 팝업이 열리자마자 오늘/내일/모레 3일치를 한꺼번에 병렬로 미리 받아
+     * state.cache[day] 에 저장한다 — 서버가 이미 매일 밤 3일치 원본 곡선을 다
+     * 모아두므로(§HAZARD_ROCKS_HANDOFF §6.10) 굳이 날짜 넘길 때마다 새로 기다릴
+     * 필요가 없다(사용자 피드백: "이미 데이터가 있는데 왜 딜레이가 있냐").
+     * 팝업이 닫히거나 다른 암초로 바뀌면(state 객체 자체가 교체됨) 늦게 도착한
+     * 응답은 무시한다.
+     * @param {Object} state - _tideCurveState 그 객체(참조 비교로 최신성 판별)
+     */
+    function prefetchAllTideDays(state) {
+        [0, 1, 2].forEach(function (day) {
+            fetch(TIDE_CURVE_URL + '?id=' + encodeURIComponent(state.rockId) + '&day=' + day)
+                .then(function (r) { return r.json(); })
+                .catch(function () { return { success: false }; })
+                .then(function (data) {
+                    if (_tideCurveState !== state) return; // 팝업이 닫혔거나 다른 암초로 전환됨
+                    state.cache[day] = data;
+                    // 지금 보는 날짜 자신이 막 도착했거나, 그 바로 옆날(전날/다음날)이 막
+                    // 도착한 경우도 다시 그린다 — 게이지가 자정 경계를 넘길 때 옆날 첫/마지막
+                    // 극값을 빌려써야 하는데, 3일 요청이 병렬이라 옆날이 조금 늦게 올 수 있다.
+                    if (Math.abs(state.day - day) <= 1) renderTideCurveDay();
+                });
+        });
+    }
+
+    /**
+     * _tideCurveState.cache[day] 를 그려 보여준다(이미 prefetchAllTideDays 로
+     * 받아둔 데이터가 있으면 즉시, 아직 안 왔으면 로딩 스피너 — 해양종합정보
+     * 해점 클릭 카드와 같은 스피너 스타일(.ocean-tide-spinner)을 재사용한다).
      */
     function renderTideCurveDay() {
         if (!_tideCurveState || !tideCurveOverlay) return;
         var state = _tideCurveState;
         var el = tideCurveOverlay.getElement();
         var dayLabelEl = el.querySelector('.rtp-daylabel');
+        var loadingEl = el.querySelector('.rtp-loading');
+        var bodyEl = el.querySelector('.rtp-body');
         var fallbackEl = el.querySelector('.rtp-fallback');
         var svg = el.querySelector('.rtp-svg');
         var cardEl = el.querySelector('.rtp-tidecard');
@@ -528,40 +595,45 @@
         var nextBtn = el.querySelector('.rtp-next');
         prevBtn.disabled = (state.day === 0);
         nextBtn.disabled = (state.day === 2);
-        dayLabelEl.textContent = DAY_LABELS[state.day] + ' 불러오는 중...';
+
+        var data = state.cache[state.day];
+        if (data === undefined) {
+            dayLabelEl.textContent = DAY_LABELS[state.day] + ' 불러오는 중...';
+            loadingEl.style.display = '';
+            bodyEl.style.display = 'none';
+            return;
+        }
+        loadingEl.style.display = 'none';
+        bodyEl.style.display = '';
         fallbackEl.style.display = 'none';
         cardEl.innerHTML = '';
         while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-        fetch(TIDE_CURVE_URL + '?id=' + encodeURIComponent(state.rockId) + '&day=' + state.day)
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (!_tideCurveState || _tideCurveState.rockId !== state.rockId || _tideCurveState.day !== state.day) return;
-                if (!data.success || !data.ready || !data.points || data.points.length < 2) {
-                    dayLabelEl.textContent = DAY_LABELS[state.day];
-                    fallbackEl.textContent = '이 지역은 아직 조석 곡선을 지원하지 않아요.';
-                    fallbackEl.style.display = '';
-                    return;
-                }
-                var dateStr = String(data.date);
-                dayLabelEl.textContent = DAY_LABELS[state.day] + ' (' + dateStr.slice(4, 6) + '/' + dateStr.slice(6, 8) + ')';
+        if (!data.success || !data.ready || !data.points || data.points.length < 2) {
+            dayLabelEl.textContent = DAY_LABELS[state.day];
+            fallbackEl.textContent = '이 지역은 아직 조석 곡선을 지원하지 않아요.';
+            fallbackEl.style.display = '';
+            return;
+        }
+        var dateStr = String(data.date);
+        dayLabelEl.textContent = DAY_LABELS[state.day] + ' (' + dateStr.slice(4, 6) + '/' + dateStr.slice(6, 8) + ')';
 
-                var nowMin = state.day === 0 ? nowMinutesKst() : null;
-                renderTideChart(svg, data.points, data.valsouCm, nowMin);
-                renderBottomTideCard(cardEl, data.peaks || [], nowMin, data.points);
-            })
-            .catch(function () {
-                if (!_tideCurveState || _tideCurveState.rockId !== state.rockId || _tideCurveState.day !== state.day) return;
-                dayLabelEl.textContent = DAY_LABELS[state.day];
-                fallbackEl.textContent = '조석 곡선을 불러오지 못했어요.';
-                fallbackEl.style.display = '';
-            });
+        var nowMin = state.day === 0 ? nowMinutesKst() : null;
+        renderTideChart(svg, data.points, data.valsouCm, nowMin);
+
+        var prevDay = state.cache[state.day - 1];
+        var nextDay = state.cache[state.day + 1];
+        var prevDayPeaks = (prevDay && prevDay.ready) ? prevDay.peaks : null;
+        var nextDayPeaks = (nextDay && nextDay.ready) ? nextDay.peaks : null;
+        var y = +dateStr.slice(0, 4), mo = +dateStr.slice(4, 6) - 1, d = +dateStr.slice(6, 8);
+        var dateObj = new Date(Date.UTC(y, mo, d, 3, 0, 0)); // KST 정오(=UTC 03시) — 물때(월령) 계산용
+        renderBottomTideCard(cardEl, data.peaks || [], nowMin, data.points, prevDayPeaks, nextDayPeaks, dateObj, state.lat, state.lon);
     }
 
     /**
      * 간출암(k=1) 낱개 마커 탭 시 조석 곡선 팝업을 연다 — 팝업이 화면 가운데 오고
-     * 마커가 그 바로 아래(팝업 꼬리 위치)에 오도록 지도를 이동시킨 뒤, 오늘 곡선을
-     * 바로 불러온다(이후 날짜 전환은 changeTideCurveDay 가 처리).
+     * 마커가 그 바로 아래(팝업 꼬리 위치)에 오도록 지도를 이동시킨 뒤, 3일치를
+     * 한꺼번에 미리 받아온다(이후 날짜 전환은 changeTideCurveDay 가 캐시에서 즉시 표시).
      * @param {ol.Map} map
      * @param {ol.Feature} feature - 간출암 포인트 feature(k===1)
      */
@@ -579,10 +651,16 @@
             '<button type="button" class="rtp-prev" aria-label="이전 날짜">◀</button>' +
             '<span class="rtp-daylabel"></span>' +
             '<button type="button" class="rtp-next" aria-label="다음 날짜">▶</button></div>' +
-            '<div class="rtp-chartwrap"><svg class="rtp-svg" viewBox="0 0 320 190" preserveAspectRatio="none"></svg></div>' +
+            '<div class="rtp-loading ocean-tide-loading">' +
+            '<div class="ocean-tide-spinner"></div>' +
+            '<div class="ocean-tide-spinner-text">조석 곡선을 불러오는 중...</div>' +
+            '</div>' +
+            '<div class="rtp-body" style="display:none;">' +
+            '<div class="rtp-chartwrap"><svg class="rtp-svg" viewBox="0 0 320 215" preserveAspectRatio="none"></svg></div>' +
             '<div class="rtp-fallback" style="display:none;"></div>' +
             '<hr class="rtp-divider" />' +
-            '<div class="rtp-tidecard ocean-tide-wrap"></div>';
+            '<div class="rtp-tidecard ocean-tide-wrap"></div>' +
+            '</div>';
         el.querySelector('.rtp-title').textContent = title;
         el.querySelector('.rtp-close').addEventListener('click', hideTideCurveOverlay);
         el.querySelector('.rtp-prev').addEventListener('click', function () { changeTideCurveDay(-1); });
@@ -592,8 +670,14 @@
         overlay.setPosition(coord);
         centerViewOnPopupAnchor(map, coord, TIDE_POPUP_EST_HEIGHT_PX);
 
-        _tideCurveState = { rockId: feature.get('id'), day: 0 };
+        var lonLat = ol.proj.toLonLat(coord);
+        var state = { rockId: feature.get('id'), day: 0, cache: {}, lon: lonLat[0], lat: lonLat[1] };
+        _tideCurveState = state;
         renderTideCurveDay();
+        prefetchAllTideDays(state);
+
+        // 하드웨어/제스처 뒤로가기 버튼을 눌렀을 때 이 팝업부터 닫히도록 등록.
+        if (window.PopupStack) window.PopupStack.push('rock-tide-popup', hideTideCurveOverlay);
     }
 
     /**
