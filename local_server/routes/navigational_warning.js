@@ -19,7 +19,10 @@
  *   받고, 이 내부 API는 좌표 보강에만 쓴다 — 내부 API가 막혀도 목록 자체는
  *   그대로 나오고 zones만 빈 배열이 된다(부분 실패, 전체 실패 아님).
  *
- * - GET /api/navigational-warning/list → 오늘 발효 중인 항행경보 + (가능하면) 구역 좌표
+ * - GET /api/navigational-warning/list?date=YYYYMMDD → 지정 날짜(생략 시 오늘) 발효 중인
+ *   항행경보 + (가능하면) 구역 좌표. 구역마다 표시용 유효기간 문자열(validity)과
+ *   날짜별 시간창 배열(windows)을 함께 준다 — windows는 클라이언트가 "선택한 날짜의
+ *   특정 시각에 이 구역이 만료됐는지"를 판정하는 데 쓴다(날짜 내비게이션 + 시간 슬라이더).
  *
  * [내부 API 흐름 — 구역 보강용]
  * 1. GET  https://www.khoa.go.kr/nwb/mainPage.do?lang=ko  → JSESSIONID 세션 획득
@@ -43,10 +46,10 @@ const { DATA_DIR } = require('../config/server_config');
 
 const NAVWARN_API_URL = 'https://apis.data.go.kr/1192136/NavigationalWarning/getNavigationalWarningInfo';
 const KHOA_BASE = 'https://www.khoa.go.kr/nwb';
-const CACHE_TTL_MS = 30 * 60 * 1000;      // 30분 — 목록+구역 결합 결과 캐시
+const CACHE_TTL_MS = 30 * 60 * 1000;      // 30분 — 목록+구역 결합 결과 캐시(날짜별)
 const SESSION_TTL_MS = 20 * 60 * 1000;    // 20분 — JSESSIONID 재발급 주기
 
-let _cache = null;      // { items, fetchedAt }
+const _cacheByDate = new Map();  // date(YYYYMMDD) → { items, fetchedAt } — 날짜 내비게이션용
 let _session = null;    // { cookie, obtainedAt }
 
 /** ROMS API와 동일한 서비스키를 읽어오는 함수(ocean2.js getRomsKey()와 동일 패턴) */
@@ -62,12 +65,12 @@ function getServiceKey() {
     }
 }
 
-/** 공식 API — 오늘 발효 중인 항행경보 텍스트 목록 */
-async function _fetchOfficialList() {
+/** 공식 API — 지정한 날짜(YYYYMMDD)에 발효 중인 항행경보 텍스트 목록 */
+async function _fetchOfficialList(dateYmd) {
     const serviceKey = getServiceKey();
     if (!serviceKey) throw new Error('항행경보 API 키가 설정되지 않았습니다.');
 
-    const url = `${NAVWARN_API_URL}?ServiceKey=${serviceKey}&type=json&numOfRows=100&pageNo=1`;
+    const url = `${NAVWARN_API_URL}?ServiceKey=${serviceKey}&type=json&date=${dateYmd}&numOfRows=100&pageNo=1`;
     const response = await fetch(url);
     const text = await response.text();
     const data = JSON.parse(text);
@@ -159,15 +162,50 @@ function _parsePositions(positionText) {
         .filter(Boolean);
 }
 
-/** ALARM_MD_DETAIL("08/03,08/04")과 ALARM_TIME_DETAIL("00:00~08:00,18:00~23:59")을
- *  같은 순번끼리 짝지어 "08/03 00:00~08:00, 08/04 18:00~23:59" 형태로 합친다.
- *  하루에 시간대가 여러 개면 그 날짜가 여러 번 나오는 게 정상(짝을 맞추기 위함). */
+/** ALARM_MD_DETAIL("08/03,08/04")과 ALARM_TIME_DETAIL("00:00 ~ 08:00,18:00 ~ 23:59")을
+ *  같은 순번끼리 짝지어, 날짜별로 묶은 뒤 줄바꿈으로 구분한 표시용 문자열을 만든다.
+ *  예: "08/03 00:00 ~ 08:00, 18:00 ~ 23:59\n08/04 00:00 ~ 08:00" — 같은 날의 시간대는
+ *  한 줄에 이어 쓰고, 날짜가 바뀌면 줄을 바꿔 가지런히 읽히게 한다. */
 function _zipValidity(mdDetail, timeDetail) {
     if (!mdDetail || !timeDetail) return mdDetail || timeDetail || null;
-    const dates = mdDetail.split(',');
-    const times = timeDetail.split(',');
+    const dates = mdDetail.split(',').map(s => s.trim());
+    const times = timeDetail.split(',').map(s => s.trim());
     if (dates.length !== times.length) return `${mdDetail} ${timeDetail}`;
-    return dates.map((d, i) => `${d.trim()} ${times[i].trim()}`).join(', ');
+
+    const byDate = new Map();
+    dates.forEach((d, i) => {
+        if (!byDate.has(d)) byDate.set(d, []);
+        byDate.get(d).push(times[i]);
+    });
+    return Array.from(byDate.keys()).sort()
+        .map(d => `${d} ${byDate.get(d).join(', ')}`)
+        .join('\n');
+}
+
+/** "HH:MM ~ HH:MM" 한 조각을 하루 중 분(0~1439) 단위 [start, end]로 바꾼다.
+ *  시작=끝(예: "00:00 ~ 00:00")이면 상시(하루 종일)로 보고 [0, 1439]를 반환한다. */
+function _parseTimeRangeMin(str) {
+    const m = (str || '').match(/(\d{2}):(\d{2})\s*~\s*(\d{2}):(\d{2})/);
+    if (!m) return null;
+    const start = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    let end = parseInt(m[3], 10) * 60 + parseInt(m[4], 10);
+    if (end <= start) end = 1439; // 상시 또는 자정 넘어가는 경우 → 그날 자정까지로 처리
+    return { start, end };
+}
+
+/** ALARM_DATE_DETAIL("2026-08-03,2026-08-04")과 ALARM_TIME_DETAIL을 날짜별
+ *  시간창 배열로 만든다 — 클라이언트가 "선택한 날짜의 몇 시에 만료되는지" 판정하는 데 쓴다. */
+function _buildWindows(dateDetail, timeDetail) {
+    if (!dateDetail || !timeDetail) return [];
+    const dates = dateDetail.split(',').map(s => s.trim());
+    const times = timeDetail.split(',').map(s => s.trim());
+    if (dates.length !== times.length) return [];
+
+    return dates.map((iso, i) => {
+        const range = _parseTimeRangeMin(times[i]);
+        if (!range || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+        return { date: iso, start: range.start, end: range.end };
+    }).filter(Boolean);
 }
 
 /** getDocAreaPoint.do 결과 한 건을 클라이언트가 쓰기 쉬운 zone 객체로 변환 */
@@ -178,7 +216,8 @@ function _toZone(d) {
         type: (d.AREATYPE === '0') ? 'polygon' : 'circle',
         points: _parsePositions(d.POSITION),
         radiusNm: d.RADIUS ? parseFloat(d.RADIUS) : null,
-        validity: _zipValidity(d.ALARM_MD_DETAIL, d.ALARM_TIME_DETAIL)
+        validity: _zipValidity(d.ALARM_MD_DETAIL, d.ALARM_TIME_DETAIL),
+        windows: _buildWindows(d.ALARM_DATE_DETAIL, d.ALARM_TIME_DETAIL)
     };
 }
 
@@ -196,14 +235,13 @@ function _normalizeDocNum(khoaDocNum) {
     return (khoaDocNum || '').replace(/^제/, '').replace(/호$/, '').trim();
 }
 
-/** 오늘자 문서목록(ID 포함)을 받아 doc_num → ID 매핑을 만든다. 실패하면 빈 맵
- *  (호출부는 이 경우 zones를 빈 배열로 두고 텍스트 목록만 보여준다) */
-async function _fetchDocIdMap() {
-    const today = _todayYmd();
+/** 지정한 날짜(YYYYMMDD)의 문서목록(ID 포함)을 받아 doc_num → ID 매핑을 만든다.
+ *  실패하면 빈 맵(호출부는 이 경우 zones를 빈 배열로 두고 텍스트 목록만 보여준다) */
+async function _fetchDocIdMap(dateYmd) {
     const listData = await _khoaPost('getDocList.do', {
         doctype: '', appcat: '', noticat: '', searchArea: '', searchtext: '', ordertype: '',
         lang: 'ko', menuType: 'navWarning',
-        startdate: today, enddate: today, startnum: 1, endnum: 50
+        startdate: dateYmd, enddate: dateYmd, startnum: 1, endnum: 50
     });
     const map = {};
     (listData.RESULT_DATA || []).forEach((raw) => {
@@ -219,10 +257,12 @@ async function _fetchZonesFor(docId) {
 }
 
 /**
- * GET /api/navigational-warning/list
+ * GET /api/navigational-warning/list?date=YYYYMMDD
  *
- * 오늘 발효 중인 항행경보 목록(공식 API)에, 가능하면 구역 좌표(KHOA 내부 API)를
- * 보강해 반환한다(30분 캐시). 구역 보강이 실패해도 텍스트 목록은 정상 반환한다.
+ * 지정한 날짜(생략 시 오늘)에 발효 중인 항행경보 목록(공식 API)에, 가능하면
+ * 구역 좌표(KHOA 내부 API)를 보강해 반환한다(날짜별 30분 캐시). 구역 보강이
+ * 실패해도 텍스트 목록은 정상 반환한다. 날짜 내비게이션(client)이 이 파라미터로
+ * 다른 날짜를 조회한다.
  *
  * [응답 예시]
  * {
@@ -234,22 +274,26 @@ async function _fetchZonesFor(docId) {
  *     zones: [{
  *       name: "서해안 ~ 격렬비열도 남부", chartNo: "3418", type: "circle",
  *       points: [{ lat: 36.29, lon: 125.63 }], radiusNm: 5,
- *       validity: "07/24 00:00 ~ 00:00, 07/25 00:00 ~ 00:00, ..."
+ *       validity: "07/24 00:00 ~ 00:00\n07/25 00:00 ~ 00:00\n...",
+ *       windows: [{ date: "2026-07-24", start: 0, end: 1439 }, ...]
  *     }]
  *   }]
  * }
  */
 router.get('/api/navigational-warning/list', async (req, res) => {
     try {
-        if (_cache && (Date.now() - _cache.fetchedAt) < CACHE_TTL_MS) {
-            return res.json({ success: true, items: _cache.items });
+        const dateYmd = /^\d{8}$/.test(req.query.date || '') ? req.query.date : _todayYmd();
+
+        const cached = _cacheByDate.get(dateYmd);
+        if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
+            return res.json({ success: true, items: cached.items });
         }
 
-        const officialItems = await _fetchOfficialList();
+        const officialItems = await _fetchOfficialList(dateYmd);
 
         let docIdMap = {};
         try {
-            docIdMap = await _fetchDocIdMap();
+            docIdMap = await _fetchDocIdMap(dateYmd);
         } catch (e) {
             console.warn('[NavWarn] KHOA 내부 목록 조회 실패(구역 보강 생략):', e.message);
         }
@@ -276,7 +320,7 @@ router.get('/api/navigational-warning/list', async (req, res) => {
             };
         }));
 
-        _cache = { items, fetchedAt: Date.now() };
+        _cacheByDate.set(dateYmd, { items, fetchedAt: Date.now() });
         res.json({ success: true, items });
     } catch (err) {
         console.error('[NavWarn] 조회 실패:', err.message);
