@@ -106,7 +106,7 @@ client/js/
 │   │   ├── surfing4.js
 │   │   ├── surfing5.js
 │   └── swimming/
-│       └── swimming.js
+│       ├── swimming.js
 ├── notice/  ← [탭4] 공지사항
 │   ├── board/
 │   │   ├── image_compress.js

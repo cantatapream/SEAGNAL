@@ -1548,6 +1548,13 @@
         }
         .navwarn-loading i { color: #dc2626; font-size: 1.1rem; }
 
+        /* 항행경보 구역 상세 팝업 — occurrence(시간대)가 여러 개면 내용이 길어질 수 있어
+           세로 스크롤을 준다(access_control-wide 와 조합해서만 사용). */
+        .seagnal-modal-content.navwarn-detail-scroll {
+            max-height: 78vh;
+            overflow-y: auto;
+        }
+
         /* ── 물빠짐(갯벌 노출) 레이어 UI (js/tide_field.js) ───────────── */
         .mudflat-legend .mudflat-legend-row {
             display: flex;
@@ -3549,7 +3556,7 @@
                              해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
                              CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
                              켜면 오늘 발효 중인 항행경보(선박사고·표류장애물·해상사격훈련 등)의
-                             구역을 원형/다각형으로 그린다(배경지도는 기본맵 그대로 유지).
+                             구역을 원형/다각형으로 그린다(켜면 배경지도가 위성지도로 자동 전환된다).
                              [서버 API] GET /api/navigational-warning/list (텍스트: data.go.kr 공식 API,
                                       좌표: KHOA 내부 API 보강, 30분 캐시) -->
                         <button class="ocean-overlay-btn" id="ocean-navwarn-btn" title="항행경보">
