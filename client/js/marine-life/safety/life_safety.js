@@ -617,18 +617,25 @@
     }
 
     /**
-     * 해양안전 화면(물빠짐·노출암/간출암·CCTV) 전용 안내 팝업 본문(탭바 + 패널)을 만든다.
-     * 해양종합정보의 17탭 안내와 같은 방식으로, 이 화면에 있는 기능 3개만 탭으로 보여준다.
+     * 해양안전 화면(물빠짐·노출암/간출암·CCTV·낚시금지) 전용 안내 팝업 본문(탭바 + 패널)을 만든다.
+     * 해양종합정보의 17탭 안내와 같은 방식으로, 이 화면에 있는 기능만 탭으로 보여준다.
      * @returns {string} 팝업에 넣을 HTML
      * [연계] ← window.oceanInfoTabHtml() (ocean_cctv.js) — 탭 본문을 그대로 재사용
-     *          → index2.html 의 .ocean-info-tabs/.ocean-info-panel CSS, window.__lsInfoSwitch
+     *          (낚시금지는 해양종합정보에 없는 기능이라 공용 목록 대신 여기서 html 로 직접 넣는다)
+     *          → index2.html 의 .ocean-info-tabs/.ocean-info-panel/.ocean-info-src CSS, window.__lsInfoSwitch
      */
     function _buildSafetyInfoHtml() {
         var fn = window.oceanInfoTabHtml;
         var items = [
             { id: 'mudflat', label: '물빠짐' },
             { id: 'hazardrock', label: '노출암·간출암' },
-            { id: 'cctv', label: 'CCTV' }
+            { id: 'cctv', label: 'CCTV' },
+            { id: 'fishingban', label: '낚시금지', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 낚시 관리 및 육성법 제6조와 지자체 조례에 따라 낚시가 금지되거나 제한된 구역을 지도 위에 주황색으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 실제 지형과 비교하기 쉽도록 배경지도가 위성지도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 위치, 지정 사유, 통제 기간·시간, 대상, 벌칙, 고시번호 등 상세 정보를 확인할 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 국립해양조사원이 파악한 구역만 반영되어 있어 최신 지정 현황과 다를 수 있습니다. 실제 낚시 전에는 현장 안내판이나 관할 지자체 공고를 꼭 확인하세요.</p>'
+              + '<div class="ocean-info-src">최종 갱신일자 · 2025-12-12<br>출처 · 국립해양조사원 낚시통제구역 주제도</div>' }
         ];
         var tabsHtml = '<div class="ocean-info-tabs">';
         var panelsHtml = '<div class="ocean-info-panels">';
@@ -637,7 +644,7 @@
             tabsHtml += '<button type="button" class="ocean-info-tab-btn' + activeCls +
                         '" data-info-tab="' + items[i].id + '" ' +
                         'onclick="window.__lsInfoSwitch(\'' + items[i].id + '\')">' + items[i].label + '</button>';
-            var body = (typeof fn === 'function' && fn(items[i].id)) || '<p>준비 중입니다.</p>';
+            var body = items[i].html || (typeof fn === 'function' && fn(items[i].id)) || '<p>준비 중입니다.</p>';
             panelsHtml += '<div class="ocean-info-panel' + activeCls + '" data-info-panel="' + items[i].id + '">' +
                           body + '</div>';
         }
