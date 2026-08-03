@@ -357,6 +357,31 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-04 01:46 KST] ✅완료 — 되묻기(명확화 질문) 기능 구현 완료 — 서버 decideClarify + 클라 선택지 버튼
+**구현**(커밋 안 함, 브랜치 claude/nariya-answer-quality-fix-fhvmbc 작업트리에만 있음):
+- `services/legal_retriever.js`: `decideClarify(query, contextPages)` 신규(+export). 사고 끈 Gemini JSON 판단(temperature 0.1·thinkingBudget 0·responseMimeType json·timeout 15초, caller=Legal-Clarify). 상위 6개 근거페이지×1500자를 [근거자료]로 주고 {needed,intro,question,options[2~3]} 을 받는다. 프롬프트에 ①근거자료에 없는 구분 지어내기 금지 ②질문에 이미 조건이 적혀 있으면 재되묻기 금지 ③애매하면 needed:false ④되물을 조건은 한 가지만 명시. 키 없음·근거 0건·타임아웃·파싱실패·스키마 미달(질문 없음/선택지 1개)은 전부 조용히 {needed:false} 폴백. 문자열 길이 상한(question 200·label 40·hint 120)·선택지 3개 컷.
+- `routes/legal.js` POST /api/legal/ask: search 직후·synthesizeAnswerStream **전에** decideClarify 호출. needed:true면 종합답변을 만들지 않고 done 한 줄(clarify{question,options} + answer=intro + note='추가 정보가 필요해요' + sources 그대로)로 조기 반환. needed:false 경로는 한 줄도 안 건드림.
+- `client/js/ai-chat/ai_chat.js`: clarifyHTML(선택지 버튼 렌더, hint는 title) + pickClarifyOption(원래질문 — 라벨 합쳐 입력창에 넣고 기존 doSend() 재사용, 한 번 고르면 nrya-done으로 비활성) + bindChat 위임 클릭 1줄. answerHTML에서 본문 바로 아래·근거 아코디언 위에 렌더.
+- `client/css/ai_chat.css`: 기존 .nrya-consent-btn 톤 재사용 + .nrya-clarify* 4줄만 추가.
+- **규칙 정리**: ANSWER_RULES_BODY 규칙3을 '되물어라'→'여기서는 되묻지 말고(앞 단계가 이미 걸러줌) 있는 정보로 답하되 핵심 갈래만 짧게 구분'으로 교체(규칙3↔규칙8 충돌 해소). **규칙8(관련 주체 빠짐없이 나열)은 유지**(선장·선원·승객·화주처럼 되묻기로 안 좁혀지는 다자간 케이스용).
+- 문서: 파일 헤더 3곳 갱신 + `_CHATBOT.md` 1-B절(되묻기 구현) 신설.
+
+**검증**(전부 통과): ①decideClarify 스텁 단위테스트 23/23(정상 JSON·코드블록 감싼 JSON·파싱실패·깨진 JSON·타임아웃 예외·success:false·스키마 미달·길이상한·키없음/근거0건 시 호출 0회·프롬프트 문구 6종 포함 확인) ②/api/legal/ask 실제 HTTP 재현 22/22(needed:true → synthesizeAnswerStream 0회·searchRawFallback 0회·delta 0건·clarify 실린 done / needed:false → 기존 스트리밍 흐름·L-57 인용필터 정상 / 실물 decideClarify 키없음 폴백 시 done 페이로드가 baseline과 바이트 동일=회귀 0) ③jsdom으로 실제 ai_chat.js 로드 19/19(버튼 렌더·클릭 시 '원래질문 — 라벨' 재질의·내 말풍선 표시·중복 클릭 차단·clarify 없는 평소 응답 회귀 없음) ④verify_all.sh: V2·V3·서버스모크 21개 전부 통과(V4는 playwright-core 미설치 기존 환경문제) ⑤로컬 3001 실서버로 일반 질문 실호출 — clarify 필드 없이 기존 응답 그대로.
+
+**다음**: 사용자 커밋 판단 대기(지시대로 커밋하지 않음). GEMINI_API_KEY가 있는 환경에서 '낚싯배 위에서 술 마시면 처벌?'로 라이브 확인 + 합쳐진 질의가 재되묻기 안 하는지 라이브 확인 필요.
+
+
+### [2026-08-04 08:01 KST] ✅완료 — 되묻기(F) 기능 구현·독립검토·보강수정 완결 (main 병합 대기, 커밋 승인 받음)
+착수 로그(아래 01:37·01:36)에서 이어짐. 구현(decideClarify+라우트분기+클라 선택지버튼) → 독립검토 → 검토가 발견한 4건 보강수정까지 완결. 독립검토 핵심 발견: ①서버가 되묻기 선택지를 근거자료와 대조하는 코드가 없어(프롬프트 지시에만 의존) 반례로 완전히 지어낸 선택지("화성 궤도 등록 선박인가요?")도 그대로 통과되는 걸 실증 — 다만 최종 답변 자체는 여전히 기존 규칙1(환각0) 보호를 받아 폭발범위는 제한적이라 판단 ②재되묻기 방지도 프롬프트 지시뿐이라 모델이 어기면 무한루프(버튼→되묻기→버튼→되묻기) 가능성 실증 ③사소한 것 2건(공유객체 미동결, 되묻기 응답이 근거법령 최대15건 미필터 전송). 보강수정으로 전부 처리: ①재되묻기는 결정론적 코드로 확정 차단(클라이언트가 쓰는 결합자 ' — '가 질의에 있으면 Gemini 호출 자체를 안 하고 needed:false, CLAUDE.md "구멍탐지는 AI보다 로직 우선" 방침과 일치) ②hint의 조문번호 토큰만 근거자료 원문과 대조해 없으면 hint만 비움(label/question 전체 대조는 패러프레이즈 오탐 위험 있어 안 함) ③CLARIFY_NONE 객체 freeze ④되묻기 응답 근거법령 15→6건(CLARIFY_TOPK, 기존 상수 재사용). 스텁 단위테스트 18/18, 실제 HTTP 라우트 재현 9/9 전부 통과, verify_all.sh(V2·V3·서버스모크) 통과. 문서(_CHATBOT.md 1-B절, 파일헤더 3곳) 갱신. 사용자 확인 후 커밋 승인받음. 다음 할 일: 커밋·main 병합(다음 세션이 이어받으면 여기부터), GEMINI_API_KEY 있는 환경에서 실제 되묻기 발동·재되묻기 방지 라이브 확인은 여전히 미완(이 환경엔 키 없음).
+
+### [2026-08-04 01:37 KST] 🟢착수 — 되묻기(명확화 질문) 기능 구현 — 서버 decideClarify + 클라 선택지 버튼
+사용자 합의 설계대로: ①legal_retriever.js에 decideClarify(query,contextPages) 추가(짧고 빠른 Gemini JSON 판단, 실패 시 조용히 {needed:false} 폴백) ②routes/legal.js POST /api/legal/ask에서 contextPages 확보 직후·synthesizeAnswerStream 전에 호출, needed:true면 종합답변 생략하고 done에 clarify{question,options} 실어 조기 반환 ③ai_chat.js가 clarify 선택지 버튼(칩) 렌더 → 클릭 시 '원래질문 — 선택라벨'을 입력창에 넣고 기존 doSend() 재사용, 한 번 고르면 비활성 ④ANSWER_RULES 규칙3(되물어라)을 새 단계로 대체하는 톤으로 정리, 규칙8(관련 주체 전부 나열)은 유지 ⑤스텁 단위테스트 + 라우트 흐름 재현 + verify_all.sh. 환각 0: 선택지는 contextPages 원문에 실제로 있는 구분만.
+
+
+### [2026-08-04 01:36 KST] 🟢착수 — 되묻기(F) 기능 착수
+오늘 앞서 스코프밖으로 미뤄뒀던 문제1(대화상태 필요한 명확화질문)을 구현 착수. 설계: 자유텍스트+판정로직 대신 구조화 버튼선택지(사용자 확정)로 '새질문인지 이어지는답인지' 판정 자체를 없앰(버튼클릭은 항상 확실). 선택지는 고정목록 아니라 검색된 근거조문(contextPages)에 실제 있는 구분조건에서 동적생성(예: 해상교통안전법 제39조 '조타기 조작·지시자'→선장/승객 선택지, 조문에 없는 조건 지어내면 환각0 위반). 스트리밍 중 되묻기 마커가 섞이는 기술문제 회피 위해 별도의 빠른판단단계(decideClarify, 기존 expandQueryTerms류 패턴 재사용)로 분리→필요하면 무거운 종합답변(synthesizeAnswerStream) 생략하고 질문+선택지만 반환, 불필요하면 기존흐름 그대로. 버튼누르면 원래질문+선택옵션 합쳐 기존 질문전송 로직 재사용해 새 질의로 전송(서버 세션 불필요). 규칙3(되묻기)/규칙8(전부나열) 충돌은 규칙3을 이 새 단계로 대체하는 방향. 오푸스에게 구현 위임(진행중).
+
+
 ### [2026-08-04 01:29 KST] ✅완료 — 답변정확도+팝업표시 5대 문제(A~E) 전부 수정·검증·커밋 (구현→검토→수정→검토→긴급수정→검토→잔여위험조사 완결)
 착수 로그(아래 23:37)에서 이어짐. 5개 병렬 조사 → 2개 병렬 수정(legal_retriever.js↔article_text.js+ai_chat.js+ai_chat.css+위키) → 전체 독립검토에서 A(activity kind 누락)·C-2(정규식 자릿수절단 지뢰)·D(별표 표 병합칸 오정렬, 886개 중 70개=8%가 값↔헤더 오배치) 3건 추가발견 → 2차 병렬 긴급수정 → 최종 독립검토(3건 전부 통과, "커밋해도 됨" 결론, raw 24,857개 표덩어리 전수 대조로 값↔헤더 오배치 0건 재확인) → 잔여 위험 2건(E의 넓어진 고시별표 다운로드 매칭 휴리스틱 오매칭 위험, B의 고시별표 불필요 GitHub재조회 성능문제) 조사 → E는 재현 0건으로 불필요 판정, B는 실측 근거(+17.5% API호출, 최악 2회→11회) 있어 검증된 2줄 수정 직접 반영 + 사소한 주석오류 3건(bylPipeCols 예시값, parseBylTable 적용범위, filterSourcesByAnswer activity언급) 병행 정정 → 최종 verify_all.sh(V2·V3·서버스모크 전부 통과, V4는 기존환경문제) 후 커밋·main 병합. 결과: A)답변필터 cited조건 무관페이지 통과 버그 수정(comparison+activity kind만 예외, 무관사례 3건 재현 개선, 잠재표면 97%감소) B)별표단독인용 229건중186건(90%)해결 C)위키 데이터오류 3줄 정정+감사이력 병기, 항호나열 조용히잘림 64건 복구 D)별표 표 자동정리 렌더러 신규구현(괘선구조 파싱+병합칸 안전검증, 애매하면 원본폴백) E)별표 다운로드버튼 서버+클라 양쪽 수정. 다음 할 일: 되묻기(F, 구조화 버튼선택지+조문근거 기반 동적생성, 사용자와 설계합의 완료) 구현 착수.
 
