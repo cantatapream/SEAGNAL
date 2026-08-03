@@ -5,9 +5,11 @@
  *         법률 제10조에 따라 각 해양경찰서가 지정한 출입통제구역 폴리곤을
  *         표시한다. 폴리곤을 탭하면 관할서·구역명·상태를 토스트로 보여준다.
  *         구역 라벨은 OL 스타일이 아니라 별도 캔버스 오버레이(_labelCanvas)에
- *         그려, 좁은 지역에 여러 구역이 몰려 있을 때 라벨끼리 겹치지 않게
- *         밀어내 배치하고 원래 지점까지 인출선을 긋는다(라벨 텍스트 자체도
- *         클릭하면 그 구역 팝업이 뜬다).
+ *         그려, 좁은 지역에 여러 구역이 몰려 라벨이 겹치면 이번 줌 레벨에서는
+ *         그 라벨을 그냥 건너뛴다(점 등 다른 표시도 없음) — 확대해서 겹침이
+ *         풀리면 자동으로 나타난다. 지도가 패닝/줌 되는 동안에도 OL 의
+ *         'postrender' 이벤트에 맞물려 매 프레임 다시 그려 라벨이 지도와 같이
+ *         움직인다(라벨 텍스트 자체를 클릭해도 그 구역 팝업이 뜬다).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap·oceanGetBasemap·oceanSetBasemap), OpenLayers(ol.*)
@@ -68,8 +70,25 @@
     function _onlyStroke(style) {
         return new ol.style.Style({ stroke: style.getStroke() });
     }
-    function _fillOnlyStyle(feature) { return _onlyFill(_zoneStyle(feature)); }
-    function _strokeOnlyStyle(feature) { return _onlyStroke(_zoneStyle(feature)); }
+    /** feature 의 지리 범위가 현재 해상도(m/px)에서 몇 픽셀 크기로 보이는지(가로/세로 중 큰 쪽) */
+    function _extentPixelSizeAtResolution(feature, resolution) {
+        var extent = feature.getGeometry().getExtent();
+        return Math.max((extent[2] - extent[0]) / resolution, (extent[3] - extent[1]) / resolution);
+    }
+
+    // 폴리곤이 화면에서 이 픽셀 크기보다 작게 보이면 채움/외곽선을 아예 안 그린다 — 특히
+    // 위치 추정치라 작은 정사각형으로만 표시해 둔 구역들이 축소된 화면에서 작은 점처럼
+    // 보이던 문제(라벨 텍스트만으로 충분히 위치를 알 수 있어 점 표시가 불필요) 해결.
+    var MIN_SHAPE_PX = 8;
+
+    function _fillOnlyStyle(feature, resolution) {
+        if (_extentPixelSizeAtResolution(feature, resolution) < MIN_SHAPE_PX) return null;
+        return _onlyFill(_zoneStyle(feature));
+    }
+    function _strokeOnlyStyle(feature, resolution) {
+        if (_extentPixelSizeAtResolution(feature, resolution) < MIN_SHAPE_PX) return null;
+        return _onlyStroke(_zoneStyle(feature));
+    }
 
     function _ensureLayers(map) {
         _map = map;
@@ -97,8 +116,12 @@
             });
             map.addLayer(_layer);
         }
-        map.on('moveend', function () { if (_visible) _scheduleLabelUpdate(); });
-        map.on('change:size', function () { if (_visible) _scheduleLabelUpdate(); });
+        // 'moveend'(드래그가 끝난 뒤에만)로는 드래그하는 동안 라벨 캔버스가 그 자리에
+        // 멈춰 있다가 드래그가 끝나야 스냅되어 보이는 지연이 생긴다. OL 자체 렌더 루프에
+        // 맞물리는 'postrender'(패닝/줌 애니메이션 중에도 프레임마다 발생) 콜백 안에서
+        // 바로 다시 그려야 OL 레이어와 같은 프레임에 맞춰져 지연 없이 따라 움직인다
+        // (requestAnimationFrame 으로 한 번 더 감싸면 그만큼 한 프레임 늦게 그려진다).
+        map.on('postrender', function () { if (_visible) _drawLabels(); });
     }
 
     /** 지도 뷰포트 위에 겹쳐지는 라벨 전용 캔버스를 1회 생성(pointer-events:none —
@@ -170,8 +193,7 @@
         });
     }
 
-    /** 라벨 오버레이를 다시 그린다: 겹치는 라벨은 밀어내 배치하고, 원래 지점에서
-     *  옮겨진 만큼 가는 인출선을 그어 어느 구역의 라벨인지 알 수 있게 한다 */
+    /** 라벨 오버레이를 다시 그린다 — 겹치는 라벨은 이번 줌에서 그냥 건너뛴다(_layoutLabels 참고) */
     function _drawLabels() {
         if (!_map || !_labelCanvas || !_source) return;
         var size = _map.getSize();
@@ -190,11 +212,8 @@
         var layout = _layoutLabels(_map, _source.getFeatures());
         layout.forEach(function (it) {
             if (it.dotOnly) {
-                // 이 줌 레벨에서는 너무 촘촘히 몰려 있어 라벨 대신 점만 — 확대하면 자동으로 라벨이 뜬다
-                _labelCtx.beginPath();
-                _labelCtx.arc(it.anchor[0], it.anchor[1], 3, 0, Math.PI * 2);
-                _labelCtx.fillStyle = 'rgba(255, 82, 82, 0.9)';
-                _labelCtx.fill();
+                // 이 줌 레벨에서는 너무 촘촘히 몰려 있음 — 점도 찍지 않고 그냥 건너뛴다.
+                // 확대해서 겹침이 풀리면 자동으로 라벨이 나타난다.
                 return;
             }
             var cx = (it.rect.x0 + it.rect.x1) / 2;
