@@ -176,12 +176,25 @@
         var btn = document.getElementById('ocean-fishing-ban-toggle-btn');
         if (!btn) return;
 
+        var _prevBasemap = null; // OFF 시 원래 배경지도로 되돌리기 위해 ON 시점 값을 기억
+
         btn.addEventListener('click', function () {
             _visible = !_visible;
             btn.classList.toggle('active', _visible);
             if (_layer) _layer.setVisible(_visible);
             if (_fillLayer) _fillLayer.setVisible(_visible);
-            if (_visible) _load();
+            if (_visible) {
+                _load();
+                // 폴리곤을 실제 지형과 대조해 보기 쉽도록 배경지도를 위성지도로 자동 전환
+                // (access_control.js 의 "ON 시 배경 전환 → OFF 시 복귀" 와 동일 패턴)
+                if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
+                    _prevBasemap = window.oceanGetBasemap();
+                    if (_prevBasemap !== 'vworld') window.oceanSetBasemap('vworld');
+                }
+            } else if (_prevBasemap && _prevBasemap !== 'vworld' && typeof window.oceanSetBasemap === 'function') {
+                window.oceanSetBasemap(_prevBasemap);
+                _prevBasemap = null;
+            }
         });
     }
 
