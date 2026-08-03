@@ -679,7 +679,8 @@ async function search(query, opts) {
  * 넘었다는 것이 "답변이 실제로 그 법을 썼다"는 뜻은 아니다(search() 주석 참고).
  * answer(AI 답변 문장)와 sourcesOut(근거법령 목록)이 서로 다른 파이프라인이라, "확인되지
  * 않습니다"처럼 결론을 못 낸 질문에서도 화면엔 무관한 근거가 그대로 뜨는 게 실측 확인됨(_LESSONS.md
- * L-57). 이 함수는 답변 본문에 그 소스의 법령명·주제·인용 타법명이 실제로 등장하는 소스만 남겨,
+ * L-57). 이 함수는 답변 본문에 그 소스의 법령명·주제(비교표·활동 페이지처럼 law가 합성 슬러그라
+ * 매칭 불가능한 kind는 인용 타법명)가 실제로 등장하는 소스만 남겨,
  * hop 여부와 무관하게 "답변에 실제로 쓰였는가"라는 동일 기준으로 근거목록을 좁힌다. 아무것도
  * 인용되지 않았으면(=전형적으로 "확인되지 않습니다" 결론) 빈 배열을 반환한다.
  * 예: answerText="…「해운법」에 따라 100만원 이하 과태료…" → law가 '해운법'인 소스만 남고,
@@ -695,6 +696,16 @@ function filterSourcesByAnswer(sources, answerText) {
   return sources.filter(s => {
     if (s.law && s.law.length >= 2 && text.includes(s.law)) return true;
     if (s.topic && s.topic.length >= 2 && text.includes(s.topic)) return true;
+    // cited 매치는 비교표(kind==='comparison') 페이지에만 적용한다. cited는 "그 페이지가 근거로
+    // 삼은 법"이 아니라 "본문 어디서든 「」로 언급된 모든 법"이라(lint_index.py) 흔한 법 하나만
+    // 답변에 나와도 그 법을 스치듯 언급한 무관 페이지 수십~수백 건이 통째로 통과한다(실측: "낚싯배
+    // 흡연" 답변이 「낚시 관리 및 육성법」을 말했다는 이유로 국제항해선박보안법 항만시설이용자의무
+    // 페이지가 근거로 뜸). 그렇다고 지워버릴 수도 없다 — 비교표 페이지는 law가 진짜 법령명이
+    // 아니라 표 제목(예: '음주운항_측정거부')이고 topic도 비어 있어 위 두 분기로는 영영 안 걸리고,
+    // 오직 이 cited 분기로만 살아남는다. 그래서 이 우회가 원래 필요했던 비교표에만 남긴다.
+    // 활동(kind==='activity') 페이지도 구조가 똑같아(law='activity_해루질' 같은 합성 슬러그, topic 빈 값)
+    // 같은 이유로 함께 예외를 둔다 — 안 두면 "해루질 신고" 질문에서 1순위로 뽑힌 페이지가 근거목록에서 사라진다.
+    if (s.kind !== 'comparison' && s.kind !== 'activity') return false;
     return (s.cited || []).some(c => c && c.length >= 3 && text.includes(c));
   });
 }

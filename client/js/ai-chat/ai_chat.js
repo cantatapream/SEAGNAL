@@ -1099,15 +1099,230 @@
     });
   }
 
+  // 별표 원문에 쓰인 괘선(罫線) 글자. raw 원문의 표는 전부 이 글자로 그려져 있어(실측)
+  // "이 줄이 표의 일부인가"를 이걸로 가른다. 하나도 없으면 표가 아니라 산문이다.
+  var NRYA_BOX_RE = /[─━│┃┌┏┐┓└┗┘┛├┠┤┨┬┯┴┷┼╋]/;
+  // 괘선과 공백뿐인 줄 = 행 구분선(`├───┼───┤`). 헤더가 2단으로 겹친 표의 가운데 줄
+  // (`│      │      ├──┬──┬──┤`)도 여기에 걸려 행 경계가 된다.
+  var NRYA_BOX_ONLY_RE = /^[\s─━│┃┌┏┐┓└┗┘┛├┠┤┨┬┯┴┷┼╋]*$/;
+
   /**
-   * 별표·서식 하나를 팝업으로 보여준다. 서버 판정(kind)에 따라 셋 중 하나로 그린다.
-   *  - text  : 우리가 가진 원문 표를 그대로(고정폭 <pre>)
+   * 한 칸이 여러 줄에 걸쳐 있을 때 그 줄들을 잇는다. **줄바꿈을 그대로 살려서** 잇는다 —
+   * 원문 표는 칸 폭에 맞춰 낱말 가운데서도 줄을 바꾸는데(`… 통영항, 장` + `승포항 …` = 장승포항),
+   * 어디가 낱말 경계였는지 글자만 보고는 알 수 없기 때문이다(`신고를` + `하지`는 띄어야 하고
+   * `출입통` + `제`는 붙여야 하는데, 여백 폭으로도 구분되지 않음을 실측으로 확인했다).
+   * 없는 띄어쓰기를 지어내거나 있는 띄어쓰기를 지우느니 원문 줄 그대로 둔다(환각 0).
+   * 예: joinBylCell('1. 국가관리무역항', '(14개)') → '1. 국가관리무역항\n(14개)'
+   * @param {string} a - 지금까지 이어붙인 셀 글자
+   * @param {string} b - 다음 줄의 같은 칸 글자
+   * @returns {string}
+   * [연계] ← parseBylTable(). 칸은 CSS `white-space:pre-wrap` 으로 그 줄바꿈을 살려 그린다.
+   */
+  function joinBylCell(a, b) {
+    return (a && b) ? a + '\n' + b : (a || b);
+  }
+
+  // 표시폭 기준(2칸으로 세는 글자). 원문 표는 고정폭 화면 기준으로 그려져 있어, 칸 경계가 몇 번째
+  // '열'인지 재려면 글자 폭을 그 기준으로 세야 한다. **ASCII 밖은 전부 2칸**으로 본다 — ○·※·①·℃
+  // 처럼 폭이 애매한 글자까지 2칸으로 세는 쪽이 실측에서 훨씬 잘 맞았다(별표 원문 표 11,916덩어리
+  // 중 줄 폭이 딱 맞아떨어진 것: 이 기준 6,862 vs 한글·괘선만 2칸으로 셀 때 5,431).
+  var NRYA_WIDE_RE = /[^\x00-\x7F]/;
+
+  /**
+   * 한 줄에서 칸 구분자(`│`·`┃`)가 각각 **몇 번째 열**에 있는지 표시폭 기준으로 세어 돌려준다.
+   * 이 열 번호가 있어야 "짧은 행에서 어느 칸이 합쳐졌는지"를 기준행과 대조할 수 있다.
+   * 예: bylPipeCols('│계    │64│40│') → [0, 8, 12, 16]
+   * @param {string} line - 표의 한 줄(원문 그대로)
+   * @returns {number[]} 구분자들의 열 번호(왼쪽 테두리 → 오른쪽 테두리 순)
+   * [연계] ← parseBylTable(). 병합이 '끝에서만' 일어났는지 확인하는 데만 쓴다.
+   */
+  function bylPipeCols(line) {
+    var n = 0, out = [];
+    for (var i = 0; i < line.length; i++) {
+      var ch = line.charAt(i);
+      if (ch === '│' || ch === '┃') out.push(n);
+      n += NRYA_WIDE_RE.test(ch) ? 2 : 1;
+    }
+    return out;
+  }
+
+  /**
+   * 괘선으로 그려진 표 한 덩어리를 행렬(행 × 셀)로 읽는다. 구분선(`├──┼──┤`)이 행 경계이고,
+   * 그 사이의 여러 줄은 칸별로 이어붙여 한 행으로 만든다.
+   * 조금이라도 어긋나면(줄마다 칸 수가 다름 등) **null 을 돌려 원본 <pre> 폴백에 맡긴다** —
+   * 잘못 정리해 숫자가 엉뚱한 항목에 붙느니 원본 그대로 보여주는 게 낫다(환각 0).
+   *
+   * ⚠ 칸 수가 모자란 행(원문에서 칸이 합쳐진 행)은 renderBylTable 이 **마지막 칸을 넓혀** 그리는데,
+   *   병합이 왼쪽·가운데에서 일어난 표가 실제로 있다(`│계(2열 병합)│64│40│` — 수상구조법 시행규칙
+   *   별표6). 그 행은 뒤 칸들이 통째로 왼쪽으로 밀려 **값이 엉뚱한 헤더 밑에 놓인다.** 그래서 여기서
+   *   각 행의 구분자 열 번호를 칸이 가장 많은 기준행과 대조해, **글자가 든 칸이 자기가 그려질 열
+   *   범위 안에 그대로 들어갈 때만** 통과시킨다(빈 칸은 어디 놓여도 값이 안 뒤바뀌므로 건너뛴다).
+   *   이 대조는 칸 수가 기준행보다 **적은** 행에만 적용된다 — 칸 수가 이미 기준행과 같은 행은
+   *   대조 없이 그대로 쓴다(칸 수가 같으면 k번째 칸=k번째 열이라 위치가 달라도 대응은 안전하다).
+   *   하나라도 벗어나면 병합 자리를 우리가 복원할 수 없다는 뜻이라 **표 전체를 <pre> 폴백**한다 —
+   *   억지로 맞춰 그리면 원문 글자는 그대로여도 값↔헤더 대응이 조작된다(환각 0 위반).
+   *   ↳ 실측(별표 원문 1,251표): 그대로 그리는 표 1,127, 폴백으로 돌아가는 표 124.
+   * @param {string[]} lines - 표 덩어리의 줄들
+   * @returns {Array<string[]>|null} 행 목록(각 행은 셀 글자 배열), 확신이 안 서면 null
+   * [연계] ← renderBylText(). → renderBylTable() · bylPipeCols()
+   */
+  function parseBylTable(lines) {
+    var rows = [], cur = null, curCols = null, ok = true;
+    function flushRow() { if (cur) { rows.push({ cells: cur, cols: curCols }); cur = null; curCols = null; } }
+    lines.forEach(function (ln) {
+      if (!ok) return;
+      if (NRYA_BOX_ONLY_RE.test(ln)) { flushRow(); return; }
+      // 굵은 테두리(`┃`)로 바깥선을 그린 표가 실측으로 많다 — 같은 칸 구분자로 본다.
+      var line = ln.replace(/┃/g, '│');
+      if (line.indexOf('│') < 0) { ok = false; return; }
+      var parts = line.split('│');
+      // 줄 양끝(테두리 바깥)은 비어 있어야 한다 — 아니면 우리가 모르는 형식이다.
+      if (parts[0].trim() || parts[parts.length - 1].trim()) { ok = false; return; }
+      var cells = parts.slice(1, -1).map(function (c) { return c.trim(); });
+      if (!cells.length) { ok = false; return; }
+      // 칸이 전부 빈 줄도 행 경계다 — 구분선(`├──┤`) 없이 빈 줄로만 행을 나눈 표가 있다
+      // (유선및도선사업법 시행령 별표3). 이걸 안 끊으면 모든 위반행위가 한 칸에 뭉쳐 버린다.
+      if (cells.every(function (c) { return !c; })) { flushRow(); return; }
+      if (!cur) { cur = cells; curCols = bylPipeCols(ln); return; }
+      if (cur.length !== cells.length) { ok = false; return; }
+      cur = cur.map(function (c, i) { return joinBylCell(c, cells[i]); });
+    });
+    flushRow();
+    if (!ok || rows.length < 2) return null;
+    var max = 0;
+    rows.forEach(function (r) { if (r.cells.length > max) max = r.cells.length; });
+    if (max < 2) return null;
+    // 기준행 = 칸이 가장 많은 행들 중 **가장 흔한 경계**. 원문에 한 줄만 한 칸 밀린 표가 있어
+    // (실측) 맨 앞 행을 무조건 믿으면 멀쩡한 표가 통째로 폴백된다.
+    var seen = {}, ref = null, refN = 0;
+    rows.forEach(function (r) {
+      if (r.cells.length !== max || !r.cols) return;
+      var k = r.cols.join(',');
+      seen[k] = (seen[k] || 0) + 1;
+      if (seen[k] > refN) { refN = seen[k]; ref = r.cols; }
+    });
+    if (!ref) return null;
+    for (var i = 0; i < rows.length; i++) {
+      var cells = rows[i].cells, cols = rows[i].cols, len = cells.length;
+      if (len === max) continue;                      // 칸이 다 있는 행은 넓힐 일이 없다
+      for (var k = 0; k < len; k++) {
+        if (!cells[k]) continue;                      // 빈 칸은 어디 놓여도 값이 안 뒤바뀐다
+        // 이 칸이 그려질 열 범위: 마지막 칸은 남은 열 전부(colspan), 나머지는 같은 번호의 열 하나.
+        var lo = ref[k], hi = (k === len - 1) ? ref[max] : ref[k + 1];
+        if (cols[k] < lo - 1 || cols[k + 1] > hi + 1) return null;   // ±1 은 원문의 한 칸 오차 허용
+      }
+    }
+    return rows.map(function (r) { return r.cells; });
+  }
+
+  /**
+   * parseBylTable 이 읽은 행렬을 표로 그린다. 원문에서 오른쪽 칸들이 합쳐진 행(`┴`로 이어진 자리)은
+   * 칸 수가 모자라므로 **마지막 칸을 남은 열만큼 넓혀**(colspan) 값이 엉뚱한 열 밑으로 가지 않게 한다.
+   * 병합이 정말 '끝에서만' 일어났는지는 parseBylTable 이 칸 경계로 이미 확인했다(아니면 여기까지 안 온다).
+   * 예: 과태료 표에서 `│…│법 제113조제1항제1호│200                 │`(3칸)의 `200`은
+   *     1회·2회·3회 위반 세 열에 걸친 값이다 → colspan 3.
+   * @param {HTMLElement} host - 별표 팝업 본문
+   * @param {Array<string[]>} rows - parseBylTable 결과
+   * [연계] ← renderBylText().
+   */
+  function renderBylTable(host, rows) {
+    var max = 0;
+    rows.forEach(function (r) { if (r.length > max) max = r.length; });
+    var tbl = document.createElement('table'); tbl.className = 'nrya-byl-tbl';
+    rows.forEach(function (cells, ri) {
+      var tr = document.createElement('tr');
+      if (/^(합계|소계|계)$/.test((cells[0] || '').replace(/\s/g, ''))) tr.className = 'nrya-byl-sum';
+      cells.forEach(function (c, ci) {
+        var cell = document.createElement(ri === 0 ? 'th' : 'td');
+        if (ci === cells.length - 1 && cells.length < max) cell.colSpan = max - cells.length + 1;
+        if (/\d/.test(c) && /^[\d,.\s~\-]+$/.test(c)) cell.className = 'nrya-byl-num';
+        cell.textContent = c;                    // 원문 글자는 전부 textContent 로만(HTML 주입 없음)
+        tr.appendChild(cell);
+      });
+      tbl.appendChild(tr);
+    });
+    host.appendChild(tbl);
+  }
+
+  /**
+   * 별표 원문을 팝업 폭에 맞게 그린다. 원문은 고정폭 화면 기준으로 정렬돼 있어 그대로 <pre> 에 넣으면
+   * 좁은 팝업에서 가로로 흘러 ASCII 그림처럼 보인다 — 괘선으로 그려진 표는 진짜 표로 다시 그리고,
+   * 표가 아닌 산문은 줄끝 공백만 털어 pre-wrap 으로 접어 준다.
+   * ⚠ 표 파싱이 조금이라도 어긋나면 지어내지 않고 원본 <pre> 그대로 보여준다(환각 0).
+   * @param {HTMLElement} host - 별표 팝업 본문(#nryaBylBody)
+   * @param {string} text - 서버가 준 별표 원문
+   * [연계] ← openBylPop(kind==='text'). → parseBylTable() · renderBylTable()
+   */
+  function renderBylText(host, text) {
+    var seg = [], segIsTable = null;
+    function flush() {
+      if (!seg.length) { return; }
+      if (segIsTable) {
+        var rows = parseBylTable(seg);
+        if (rows) renderBylTable(host, rows);
+        else {
+          var pre = document.createElement('pre'); pre.className = 'nrya-bylpop-pre';
+          pre.textContent = seg.join('\n');
+          host.appendChild(pre);
+        }
+      } else {
+        var t = seg.map(function (l) { return l.replace(/\s+$/, ''); }).join('\n')
+          .replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '');
+        if (t) {
+          var p = document.createElement('div'); p.className = 'nrya-byl-prose';
+          p.textContent = t;
+          host.appendChild(p);
+        }
+      }
+      seg = [];
+    }
+    String(text || '').split('\n').forEach(function (ln) {
+      var isTable = NRYA_BOX_RE.test(ln);
+      if (segIsTable !== null && isTable !== segIsTable) flush();
+      segIsTable = isTable;
+      seg.push(ln);
+    });
+    flush();
+  }
+
+  /**
+   * 별표의 law.go.kr 원본 파일 링크를 붙인다. **kind 와 무관하게** 붙는다 —
+   * 표 원문을 갖고 있어도 원본 파일은 따로 받아볼 수 있어야 한다("보기와 다운로드는 양자택일이 아니다").
+   * 형식이 하나뿐이면 고르는 선택창 없이 평범한 단일 링크로, 둘이면 동등한 크기 버튼 두 개로 낸다
+   * (어느 쪽도 기본값으로 정하지 않는다). 새 탭에서 사용자의 브라우저가 직접 받는다 — 서버가 대신
+   * 받아오면 law.go.kr에 차단된다(_LESSONS.md L-56).
+   * @param {HTMLElement} host - 별표 팝업 본문
+   * @param {object} ref - 서버 refs 항목
+   * @returns {number} 실제로 붙인 링크 개수(0이면 아무것도 안 붙였다)
+   * [연계] ← openBylPop.
+   */
+  function appendBylDownloads(host, ref) {
+    var have = [['pdf', '📄 PDF로 열기', 'nrya-pdf'], ['hwp', '⬇ HWPX 다운로드', 'nrya-hwp']]
+      .filter(function (b) { return /^https?:\/\//.test(String((ref || {})[b[0]] || '')); });
+    if (!have.length) return 0;
+    var row = document.createElement('div');
+    row.className = have.length > 1 ? 'nrya-byl-big-row' : 'nrya-byl-dl';
+    have.forEach(function (b) {
+      var a = document.createElement('a');
+      a.className = have.length > 1 ? ('nrya-byl-big-btn ' + b[2]) : 'nrya-byl-dl-link';
+      a.textContent = b[1];
+      a.href = ref[b[0]]; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      row.appendChild(a);
+    });
+    host.appendChild(row);
+    return have.length;
+  }
+
+  /**
+   * 별표·서식 하나를 팝업으로 보여준다. 서버 판정(kind)에 따라 본문이 셋 중 하나로 갈리고,
+   * **원본 파일 링크(hwp/pdf)는 kind 와 상관없이** 그 아래 항상 붙는다.
+   *  - text  : 우리가 가진 원문 표 — 괘선 표는 표로 다시 그리고, 산문은 접어서(pre-wrap) 보여준다
+   *            (파싱이 어긋나면 원본 고정폭 <pre> 폴백)
    *  - image : 우리가 같이 수집해 둔 스캔본을 앱 안에서 바로
-   *  - link  : law.go.kr 원본 파일만 있는 경우 — PDF·HWPX 중 **하나를 기본값으로 정하지 않고**
-   *            동등한 크기 버튼으로 나란히 보여주고, 새 탭에서 사용자의 브라우저가 직접 받는다
-   *            (서버가 대신 받아오면 law.go.kr에 차단된다 — _LESSONS.md L-56).
+   *  - link  : law.go.kr 원본 파일만 있는 경우 — 안내 문구 + 아래 다운로드 링크
+   *  - missing : 아무것도 없다 — 지어내지 않고 "아직 수집하지 못했습니다"만 남긴다
    * @param {object} ref - 서버 refs 항목 {key,text,kind,title,body,image,pdf,hwp}
-   * [연계] ← ensureArtPop 의 클릭 위임. → PopupStack('nrya-bylpop').
+   * [연계] ← ensureArtPop 의 클릭 위임 · renderAnnexOnly. → PopupStack('nrya-bylpop').
    */
   function openBylPop(ref) {
     if (!ref) return;
@@ -1117,31 +1332,22 @@
       (ref.text || '') + (ref.title ? ' · ' + ref.title : '');
     body.innerHTML = '';
     if (ref.kind === 'text' && ref.body) {
-      var pre = document.createElement('pre'); pre.className = 'nrya-bylpop-pre';
-      pre.textContent = ref.body;
-      body.appendChild(pre);
+      renderBylText(body, ref.body);
     } else if (ref.kind === 'image' && ref.image) {
       var img = document.createElement('img'); img.className = 'nrya-bylpop-img';
       img.alt = ref.title || '별표 원본 이미지';
       img.src = ref.image;                       // 우리 서버(GET /api/legal/src)가 주는 수집본
       body.appendChild(img);
     } else {
+      // 표 텍스트가 없는 경우에만 나오는 안내 — text/image 에는 붙이지 않는다.
+      var n = (/^https?:\/\//.test(String(ref.pdf || '')) ? 1 : 0) + (/^https?:\/\//.test(String(ref.hwp || '')) ? 1 : 0);
       var note = document.createElement('p'); note.className = 'nrya-byl-note';
-      note.textContent = 'law.go.kr에 원본 파일만 있고 표 텍스트는 없습니다 — 여는 방식을 골라주세요.';
+      note.textContent = !n ? '원본을 아직 수집하지 못했습니다.'
+        : (n > 1 ? 'law.go.kr에 원본 파일만 있고 표 텍스트는 없습니다 — 여는 방식을 골라주세요.'
+                 : 'law.go.kr에 원본 파일만 있고 표 텍스트는 없습니다.');
       body.appendChild(note);
-      var row = document.createElement('div'); row.className = 'nrya-byl-big-row';
-      [['pdf', '📄 PDF로 열기', 'nrya-pdf'], ['hwp', '⬇ HWPX 다운로드', 'nrya-hwp']].forEach(function (b) {
-        var url = ref[b[0]];
-        if (!/^https?:\/\//.test(String(url || ''))) return;
-        var a = document.createElement('a');
-        a.className = 'nrya-byl-big-btn ' + b[2];
-        a.textContent = b[1];
-        a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
-        row.appendChild(a);
-      });
-      if (!row.children.length) note.textContent = '원본을 아직 수집하지 못했습니다.';
-      body.appendChild(row);
     }
+    appendBylDownloads(body, ref);
     body.scrollTop = 0;
     veil.classList.add('nrya-open'); pop.classList.add('nrya-open');
     if (window.PopupStack) window.PopupStack.push('nrya-bylpop', closeBylPop);
@@ -1219,8 +1425,43 @@
   }
 
   /**
+   * 조 없이 **별표만 가리킨 인용**(mode:'annex')을 그린다 — 조 본문이 없으므로 별표 목록만 낸다.
+   * 열 수 있는 별표가 하나뿐이면 그 별표 팝업을 곧바로 띄운다(누를 곳을 한 번 더 찾게 하지 않는다).
+   * 우리에게 없는 별표는 지어내지 않고 회색 "(원문 미수집)"으로 둔다.
+   * @param {HTMLElement} body - #nryaArtBody
+   * @param {object} d - article-text 응답(mode==='annex')
+   * [연계] ← renderArtPop. → openBylPop(기존 별표 팝업 UI 그대로 재사용).
+   */
+  function renderAnnexOnly(body, d) {
+    var refs = d.refs || [];
+    var openable = refs.filter(function (r) { return r.kind !== 'missing'; });
+    var list = document.createElement('div'); list.className = 'nrya-byl-list';
+    refs.forEach(function (r) {
+      var s = document.createElement('span');
+      if (r.kind === 'missing') {
+        s.className = 'nrya-byl-missing';
+        s.textContent = r.key + ' (원문 미수집)';
+      } else {
+        s.className = 'nrya-byl-ref';
+        s.setAttribute('data-byl', r.key);
+        s.textContent = r.key + (r.title ? ' · ' + r.title : '');
+      }
+      list.appendChild(s);
+    });
+    body.appendChild(list);
+    if (!openable.length) {
+      var msg = document.createElement('div'); msg.className = 'nrya-artpop-msg';
+      msg.textContent = '이 인용의 별표 원문을 아직 갖고 있지 않아요.';
+      body.appendChild(msg);
+      return;
+    }
+    if (refs.length === 1) openBylPop(openable[0]);
+  }
+
+  /**
    * 서버가 준 조문 원문을 팝업 본문에 그린다. mode 에 따라 조 하나(강조 있음)와
-   * 나열·범위·전체(강조 없음)로 갈리고, 원문이 너무 길면 정직하게 국가법령정보센터로 넘긴다.
+   * 나열·범위·전체(강조 없음)로 갈리고, 조 없이 별표만 가리킨 인용(annex)은 별표 목록만 낸다.
+   * 원문이 너무 길면 정직하게 국가법령정보센터로 넘긴다.
    * 원문 텍스트는 전부 textContent/텍스트노드로 넣는다(HTML 주입 없음).
    * @param {object} d - GET /api/legal/article-text 응답
    * [연계] ← openArtPop. → renderSingle · renderArticles · appendText.
@@ -1233,7 +1474,9 @@
     artPopRefsCut = !!d.refsTruncated;
     (d.refs || []).forEach(function (r) { artPopRefs[r.key] = r; });
 
-    if (d.tooLong) {
+    if (d.mode === 'annex') {
+      renderAnnexOnly(body, d);
+    } else if (d.tooLong) {
       // 수십 개 조를 억지로 밀어넣지 않는다 — 원문 소재를 정직하게 안내한다.
       var msg = document.createElement('div'); msg.className = 'nrya-artpop-msg';
       msg.textContent = '원문이 깁니다(' + d.tooLong.articleCount + '개조) · 국가법령정보센터에서 확인하세요';
@@ -1355,6 +1598,8 @@
    * [연계] ← openArtPop.
    */
   function artScopeLabel(d) {
+    // 조 없이 별표만 가리킨 인용은 "몇 개조"가 없다 — 별표 건수로 적는다.
+    if (d.mode === 'annex') return '별표·서식 ' + (d.refs || []).length + '건';
     var att = (d.attachments && d.attachments.length) ? ' + 별표 ' + d.attachments.length : '';
     if (d.tooLong) return (d.mode === 'whole' ? '문서 전체' : d.articleTitle) + '(' + d.tooLong.articleCount + '개조' + att + ')';
     var n = (d.articles || []).length;
