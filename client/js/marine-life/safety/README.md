@@ -20,8 +20,9 @@
     그리고, 탭하면 관제해역·관제센터 주소·전화·팩스를 팝업으로 보여주면서 **탭한 구역
     하나를 노란 테두리로 하이라이트**합니다(선택 표시 — 다른 구역을 탭하면 옮겨갑니다).
     **항로**는 선박의 입항 및 출항 등에 관한 법률 제10조·해상교통안전법 제30조 등으로
-    지정ㆍ고시된 항로 77곳을 청록색 폴리곤으로 그리고, 탭하면 정의·근거법령·폭·수심·
-    담당부서를 팝업으로 보여줍니다(폭·수심은 고시값이 있는 3곳만).
+    지정ㆍ고시된 항로 141곳을 청록색으로 그리고, 탭하면 종류·참고문서·참고사이트를
+    팝업으로 보여줍니다. 면으로 고시된 124곳은 폴리곤(채움+외곽선), 통항분리대처럼
+    선으로 고시된 17곳은 선으로 그립니다.
     관제구역·항로 토글은 켤 때 배경지도가 **전자해도**로 자동
     전환됩니다(출입통제·낚시금지는 위성지도로 전환 — 관제구역·항로는 항해 정보라 해도가 맞음).
   - **해양생활** — 기존 6개 활동(바다낚시·서핑·해수욕·스킨스쿠버·갯벌체험·바다갈라짐)을
@@ -49,7 +50,7 @@
 | `access_control.js` | 출입통제구역(연안사고 예방에 관한 법률 제10조) 폴리곤 토글 레이어(해양안전 전용) — 각 해양경찰서 고시·공고 원문에서 경위도가 온전히 확인된 구역만 반영, `/access_control_zones.json`(정적, 지연 로드), 클릭 시 관할서·구역명·상태 토스트 |
 | `fishing_ban.js` | 낚시금지(낚시통제)구역 폴리곤 토글 레이어(해양안전 전용) — 낚시 관리 및 육성법 제6조·지자체 조례 지정 236개 구역, `/fishing_ban_zones.json`(정적, 지연 로드), 클릭 시 근거법령·통제시간·벌칙 등 상세 팝업 |
 | `vts_zone.js` | 선박교통관제(VTS)구역 폴리곤 토글 레이어(해양안전 전용) — 해양경찰청 공고 34개 구역, `/vts_zones.json`(정적, 지연 로드), 켤 때 배경지도를 전자해도로 자동 전환, 클릭 시 관제해역·관제센터 주소·전화·팩스 상세 팝업 + 클릭한 구역만 노란색 선택 하이라이트(한 번에 하나) |
-| `seaway.js` | 항로 폴리곤 토글 레이어(해양안전 전용) — 선박의 입항 및 출항 등에 관한 법률 제10조 등 지정ㆍ고시 항로 77곳, `/seaway_zones.json`(정적, 지연 로드), 켤 때 배경지도를 전자해도로 자동 전환, 클릭 시 정의·근거법령·폭·수심·담당부서 등 상세 팝업 |
+| `seaway.js` | 항로 토글 레이어(해양안전 전용) — 선박의 입항 및 출항 등에 관한 법률 제10조 등 지정ㆍ고시 항로 141곳(면 124 + 선 17), `/seaway_zones.json`(정적, 지연 로드), 켤 때 배경지도를 전자해도로 자동 전환, 클릭 시 종류·참고문서·참고사이트 상세 팝업 |
 
 ## 설계 요점 — 기존 코드를 고치지 않고 재사용
 
@@ -135,7 +136,7 @@ mudflat.js / sea_parting.js)을 그대로 씁니다.** 이 모듈은 겉껍데�
 | `hazard_rocks.js` | 노출암/간출암 등 레이어(`/hazard_rocks.json`, 두 버튼 첫 클릭 때 지연 로드) — `window.initHazardRocksLayer` 는 `ocean_map.js` buildMap() 이 직접 호출(이 파일이 부르지 않음). 잠김경고는 `GET /api/hazard-rocks/submersion`(`local_server/routes/hazard_rocks.js`) 1분 폴링 — 계산은 `local_server/scripts/TIDE_FIELD_README.md`(간출암 잠김경고 절) 참고 |
 | `fishing_ban.js` | 낚시금지구역 폴리곤 레이어(`/fishing_ban_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 해양공간 주제도 "낚시통제구역"(TL_RESARE_ENS) shapefile 236개를 EPSG:5179 → WGS84 재투영해 만든 정적 GeoJSON. 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._fishingBanTryHandleClick` 을 호출(출입통제 다음 순위) |
 | `vts_zone.js` | 선박교통관제(VTS)구역 폴리곤 레이어(`/vts_zones.json`, 첫 클릭 때 지연 로드) — 해양경찰청(kcg.go.kr) 전국 20개 VTS센터 페이지의 "관제구역도" 도분초 좌표(WGS-84)와 "관제통신 제원" 채널을 그대로 옮긴 34개 구역 GeoJSON(구역당 1폴리곤, 제외구역은 hole 로 인코딩). 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._vtsZoneTryHandleClick` 을 호출(낚시금지 다음 순위) |
-| `seaway.js` | 항로 폴리곤 레이어(`/seaway_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 해양공간 주제도 "항로"(TL_SEAWAY_A) shapefile 77개를 EPSG:5179 → WGS84 재투영하고 같은 배포본 `TL_SEAWAY_A.xlsx` 속성을 `OBJ_SN` 으로 조인해 만든 정적 GeoJSON. 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._seawayTryHandleClick` 을 호출(관제구역 다음 순위) |
+| `seaway.js` | 항로 레이어(`/seaway_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 "개방海" 포털의 실시간 WFS(`vi_seaway` 레이어)에서 받아온 141개(2026-08 기준)를 EPSG:5179 → WGS84 재투영해 만든 정적 GeoJSON(MultiPolygon 124 + MultiLineString 17). 이전 `TL_SEAWAY_A` shapefile 77개는 최신본이 아니어서 교체. 클릭은 `ocean_map.js` handleMapClick 이 `window._seawayTryHandleClick` 을 호출(관제구역 다음 순위) |
 
 ## 수정 시 주의사항
 

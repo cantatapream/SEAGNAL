@@ -3,8 +3,9 @@
  * 파일명: client/js/marine-life/safety/seaway.js
  * 역할  : 해양안전 지도에 "항로" 토글 버튼을 얹어, 선박의 입항 및 출항 등에 관한
  *         법률 제10조·해상교통안전법 제30조 등에 따라 지정ㆍ고시된 항로(선박 출입
- *         통로) 폴리곤을 표시한다. 폴리곤을 탭하면 항로명·정의·근거법령·폭·수심·
- *         담당부서를 팝업으로 보여준다.
+ *         통로)를 표시한다. 면(面)으로 고시된 항로는 폴리곤, 통항분리대처럼 선(線)
+ *         으로 고시된 항로는 선으로 그린다. 탭하면 항로명·종류·참고문서·참고사이트
+ *         를 팝업으로 보여준다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap·oceanGetBasemap·oceanSetBasemap), OpenLayers(ol.*)
@@ -16,9 +17,11 @@
  *                    (vts_zone.js 의 _vtsZoneTryHandleClick 다음 순위 —
  *                    이래야 해양종합정보 바텀시트가 같은 클릭에 같이 뜨는 걸 막는다)
  * [로드 순서] vts_zone.js 다음 · life_safety.js 바로 앞 (marine-life/safety 그룹)
- * [데이터 출처] 국립해양조사원 해양공간 주제도 "항로"(TL_SEAWAY_A) shapefile
- *              77개 폴리곤을 EPSG:5179 → WGS84 로 재투영하고, 같은 배포본의
- *              TL_SEAWAY_A.xlsx 속성(OBJ_SN 조인)을 붙여 GeoJSON 으로 변환한 것.
+ * [데이터 출처] 국립해양조사원 "개방海" 포털의 실시간 WFS(vi_seaway 레이어)에서
+ *              받아온 141개(2026-08 기준)를 EPSG:5179 → WGS84 로 재투영한 GeoJSON.
+ *              면 124개(MultiPolygon) + 선 17개(MultiLineString) 가 섞여 있다.
+ *              (이전에 쓰던 TL_SEAWAY_A shapefile 77개는 최신본이 아니어서 교체 —
+ *               완도 인근처럼 실제로는 여러 개인 곳이 1개로만 나왔다)
  * ============================================================================
  */
 
@@ -34,7 +37,14 @@
     var _loaded = false;
     var _loading = false;
 
-    /** 항로 폴리곤 스타일 (청록 톤 — 빨강 출입통제·주황 낚시금지·인디고 관제구역과 구분) */
+    /** 선(線)으로 고시된 항로인가 — 통항분리대 등 17개가 MultiLineString 이다.
+     *  채움이 없으므로 채움 레이어에서는 빼고, 클릭 판정도 외곽선 레이어에서 해야 한다. */
+    function _isLine(feature) {
+        var t = feature.getGeometry() && feature.getGeometry().getType();
+        return t === 'LineString' || t === 'MultiLineString';
+    }
+
+    /** 항로 스타일 (청록 톤 — 빨강 출입통제·주황 낚시금지·인디고 관제구역과 구분) */
     function _zoneStyle(feature) {
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
@@ -63,7 +73,9 @@
     function _onlyStrokeAndText(style) {
         return new ol.style.Style({ stroke: style.getStroke(), text: style.getText() });
     }
-    function _fillOnlyStyle(feature) { return _onlyFill(_zoneStyle(feature)); }
+    // 채움 레이어는 면 항로만 — 선 항로는 채울 것이 없으므로 스타일 없음(null)으로 건너뛴다.
+    // 외곽선 레이어는 면·선 둘 다 같은 청록 선으로 그린다(선 항로는 이 레이어에만 보인다).
+    function _fillOnlyStyle(feature) { return _isLine(feature) ? null : _onlyFill(_zoneStyle(feature)); }
     function _strokeOnlyStyle(feature) { return _onlyStrokeAndText(_zoneStyle(feature)); }
 
     function _ensureLayers(map) {
@@ -86,7 +98,7 @@
                 style: _strokeOnlyStyle,
                 zIndex: 83,
                 visible: _visible,
-                // 항로가 77개인데 좁고 길게 붙어 있어("OO항 제1항로") 라벨이 겹친다 —
+                // 항로가 141개인데 좁고 길게 붙어 있어("OO항 제1항로") 라벨이 겹친다 —
                 // 겹치는 라벨은 OpenLayers 가 알아서 생략하게 한다(vts_zone.js 와 동일).
                 declutter: true,
                 updateWhileAnimating: false,
@@ -128,15 +140,6 @@
         return '<span class="ac-detail-label">' + label + '</span><span class="ac-detail-value">' + value + '</span>';
     }
 
-    /** 전화번호(예: 044-200-5775)를 tel: 링크로 바꿔 탭하면 바로 전화 걸리게 한다
-     *  (vts_zone.js 의 _linkifyPhone 과 같은 동작) */
-    function _linkifyPhone(text) {
-        if (!text) return text;
-        return text.replace(/(\d{2,3}-\d{3,4}-\d{4})/g, function (num) {
-            return '<a href="tel:' + num.replace(/-/g, '') + '" style="color:#93c5fd;text-decoration:underline;white-space:nowrap;">' + num + '</a>';
-        });
-    }
-
     /** 참고사이트 URL 을 그대로 클릭 가능한 링크로 감싼다(원문 법령 페이지로 이동) */
     function _linkifyUrl(url) {
         if (!url) return url;
@@ -144,19 +147,12 @@
                'style="color:#93c5fd;text-decoration:underline;word-break:break-all;font-size:0.9em;">' + url + '</a>';
     }
 
-    /** 폴리곤 feature 하나의 상세 정보 팝업 HTML을 만든다(값이 있는 항목만 표시 —
-     *  폭·수심은 77개 중 3개(평택당진항)에만 고시값이 있다) */
+    /** feature 하나의 상세 정보 팝업 HTML을 만든다(값이 있는 항목만 표시 —
+     *  WFS 가 주는 항목이 종류·참고문서·참고사이트 셋뿐이다) */
     function _buildDetailHtml(hit) {
         var rows = '';
-        rows += _row('정의', hit.get('definition'));
-        rows += _row('근거법령', hit.get('law'));
+        rows += _row('종류', hit.get('category'));
         rows += _row('참고문서', hit.get('reference_doc'));
-        rows += _row('규정개정일', hit.get('revision_date'));
-        rows += _row('공고일자', hit.get('announce_date'));
-        rows += _row('폭', hit.get('width'));
-        rows += _row('수심', hit.get('depth'));
-        rows += _row('담당부서', hit.get('dept'));
-        rows += _row('연락처', _linkifyPhone(hit.get('dept_tel')));
         rows += _row('참고사이트', _linkifyUrl(hit.get('reference_url')));
 
         return rows ? '<div class="ac-detail-grid">' + rows + '</div>'
@@ -164,7 +160,7 @@
     }
 
     /**
-     * [외부 API] 지도 클릭이 항로 폴리곤을 눌렀는지 확인한다.
+     * [외부 API] 지도 클릭이 항로를 눌렀는지 확인한다.
      * @param {ol.Map} map
      * @param {ol.MapBrowserEvent} evt
      * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함)
@@ -176,8 +172,12 @@
         if (!_visible || !_fillLayer) return false;
         var hit = map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
             if (layer === _fillLayer) return feature;
+            // 선 항로(통항분리대 등)는 채움이 없어 _fillLayer 로는 못 잡으므로
+            // 외곽선 레이어에서 보조 판정한다(면 항로는 이미 위에서 잡힌다) —
+            // access_control.js 와 같은 패턴.
+            if (layer === _layer && _isLine(feature)) return feature;
             return null;
-        });
+        }, { hitTolerance: 5 });   // 선은 2px 라 손가락으로 정확히 누르기 어렵다
         if (!hit) return false;
         var name = hit.get('name') || '항로';
         if (typeof window.showSeagnalModal === 'function') {
