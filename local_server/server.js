@@ -218,6 +218,12 @@ const _assetsGzip       = createLazyStaticGzip(path.join(staticRoot, 'assets'), 
 const _imagesGzip       = createLazyStaticGzip(path.join(staticRoot, 'images'),         STATIC_GZIP_OPTS);
 const _tideDataGzip     = createLazyStaticGzip(path.join(staticRoot, 'tide_data'),      STATIC_GZIP_OPTS);
 
+// [항로 월간 갱신] 정적 서빙보다 반드시 앞 — 매월 말일 점검으로 갱신된
+//   data/seaway_zones.json 이 있으면 그것을, 없으면 next() 로 넘겨 아래 정적
+//   서빙이 배포본 client/seaway_zones.json 을 내보내게 한다. 순서를 뒤집으면
+//   정적 파일이 먼저 응답해 갱신본이 영원히 노출되지 않는다.
+app.use(require('./routes/seaway'));
+
 app.use(_staticRootGzip.handler);
 app.use(_assetsGzip.handler);
 app.use('/images', _imagesGzip.handler);
