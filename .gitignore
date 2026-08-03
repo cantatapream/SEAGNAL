@@ -35,6 +35,11 @@ local_server/data/tide_field/anchors_jeju.json
 local_server/data/admin_tokens.json
 local_server/data/admin_tokens.json.tmp
 
+# 나리야 답변완료 푸시용 1회용 임시 보관함 (최대 3시간, 조회 즉시 삭제 — 런타임 생성)
+# 사용자 질문/답변이 잠깐 들어 있으므로 절대 git 추적 금지
+local_server/data/pending_answers.json
+local_server/data/pending_answers.json.tmp
+
 # 태풍 통보문/예보 캐시 (typhoon_crawler.js 가 런타임 생성, Fly.io Volume에 저장)
 # 스케줄러가 부팅 시 재생성하므로 추적 제외
 local_server/data/typhoon.json

@@ -293,9 +293,49 @@
 #nrya-overlays .nrya-chain-tel{display:flex; align-items:center; gap:5px; margin-top:6px; font-size:10px; color:#7c9089}
 #nrya-overlays .nrya-chain-tel.nrya-unknown{color:#6b7a75; font-style:italic}
 #nrya-overlays .nrya-chain-tel a{color:inherit; font-weight:inherit; text-decoration:underline; text-decoration-color:currentColor}
-/* 뱃지를 누르고 있는 동안만 시행일자 말풍선 표시(꾹 누르기) */
-#nrya-overlays .nrya-chain-eff{position:absolute; left:0; top:calc(100% + 6px); z-index:5; background:#0a1418; border:1px solid #2a3439; color:#dbe7e3; font-size:9.5px; font-weight:600; letter-spacing:0; padding:4px 8px; border-radius:6px; white-space:nowrap; opacity:0; transform:translateY(-4px); pointer-events:none; transition:opacity .5s ease, transform .5s ease}
-#nrya-overlays .nrya-chain-tier.nrya-pressed .nrya-chain-eff{opacity:1; transform:translateY(0); transition:opacity .1s ease, transform .1s ease}
+/* 뱃지 줄: 조문 뱃지 + 시행일자(항상 보임 — 예전엔 꾹 눌러야 뜨는 말풍선이었다) */
+#nrya-overlays .nrya-chain-head{display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+#nrya-overlays .nrya-chain-eff{flex:none; margin-left:auto; font-family:var(--nrya-mono); font-size:9.5px; color:#9fb4d6; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.22); border-radius:7px; padding:2px 7px; white-space:nowrap}
+/* 조문 카드 클릭 영역(연락처 줄 제외) — 누르면 조문 원문 팝업이 뜬다 */
+#nrya-overlays .nrya-chain-hit{cursor:pointer; border-radius:9px; margin:-4px -6px 0; padding:4px 6px}
+#nrya-overlays .nrya-chain-hit:hover{background:rgba(255,255,255,.04)}
+#nrya-overlays .nrya-chain-hit:active{background:rgba(255,255,255,.07)}
+
+/* 조문 원문 팝업(체인 카드 클릭) — 채팅창(z-index:1000) 바로 위에 뜨는 배경막 + 카드.
+   인용된 항·호만 tier 색 배경으로 강조하고 나머지는 흐리게 둔다. */
+#nrya-overlays .nrya-artpop-veil{position:fixed; inset:0; z-index:1001; background:rgba(0,0,0,.55); opacity:0; visibility:hidden; transition:opacity .2s ease}
+#nrya-overlays .nrya-artpop-veil.nrya-open{opacity:1; visibility:visible}
+#nrya-overlays .nrya-artpop{position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.96); z-index:1002; width:min(400px,calc(100vw - 32px)); max-height:78vh; background:var(--nrya-card-bg); border:1px solid var(--nrya-border); border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.6); display:flex; flex-direction:column; overflow:hidden; opacity:0; visibility:hidden; transition:transform .2s ease, opacity .2s ease}
+#nrya-overlays .nrya-artpop.nrya-open{transform:translate(-50%,-50%) scale(1); opacity:1; visibility:visible}
+#nrya-overlays .nrya-artpop-head{display:flex; align-items:flex-start; gap:8px; padding:13px 13px 10px; border-bottom:1px solid var(--nrya-border)}
+#nrya-overlays .nrya-artpop-titles{flex:1; min-width:0}
+#nrya-overlays .nrya-artpop-chip{display:inline-flex; align-items:center; font-size:9.5px; font-weight:600; color:#a9c6ff; background:rgba(68,138,255,.16); border:1px solid rgba(68,138,255,.32); border-radius:12px; padding:2px 8px; margin-bottom:7px}
+#nrya-overlays .nrya-artpop[data-tier="penalty"] .nrya-artpop-chip{color:#ffb4a8; background:rgba(243,163,154,.14); border-color:rgba(243,163,154,.32)}
+#nrya-overlays .nrya-artpop-law{margin:0; font-size:10px; color:#8296ac}
+#nrya-overlays .nrya-artpop-art{margin:3px 0 0; font-size:14.5px; font-weight:800; color:#fff; line-height:1.35}
+#nrya-overlays .nrya-artpop-x{background:none; border:none; color:var(--nrya-text-sub); font-size:19px; cursor:pointer; line-height:1; padding:2px 4px}
+#nrya-overlays .nrya-artpop-eff{margin:9px 13px 0; align-self:flex-start; font-family:var(--nrya-mono); font-size:10px; color:#9fb4d6; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.22); border-radius:7px; padding:3px 8px}
+#nrya-overlays .nrya-artpop-eff:empty{display:none}
+#nrya-overlays .nrya-artpop-body{flex:1; overflow:auto; padding:11px 13px 14px; font-size:12px; line-height:1.68; color:#cdd8ee}
+#nrya-overlays .nrya-artpop-msg{color:var(--nrya-text-sub); font-size:11.5px; padding:14px 2px; text-align:center}
+#nrya-overlays .nrya-artpop-para{display:flex; gap:7px; padding:6px 7px; border-radius:8px; margin:0 -7px}
+#nrya-overlays .nrya-artpop-mark{flex:none; font-weight:800; color:#7f97b0}
+#nrya-overlays .nrya-artpop-text{min-width:0; color:#b6c2d6}
+#nrya-overlays .nrya-artpop-para.nrya-hit .nrya-artpop-mark,#nrya-overlays .nrya-artpop-para.nrya-hit .nrya-artpop-text{color:#eef2ef}
+#nrya-overlays .nrya-artpop-items{list-style:none; margin:5px 0 0; padding:0; display:flex; flex-direction:column; gap:4px}
+#nrya-overlays .nrya-artpop-items li{padding-left:13px; text-indent:-13px; color:#8fa0b8}
+#nrya-overlays .nrya-artpop-items li.nrya-hit{color:#eef2ef; font-weight:600; border-radius:6px; padding:2px 6px 2px 19px; margin-left:-7px}
+/* 강조색은 체인 카드의 tier 색과 맞춘다(법률=진한 녹색 → 고시=옅은 녹색, 벌칙=붉은색) */
+#nrya-overlays .nrya-artpop .nrya-artpop-para.nrya-hit{background:rgba(58,171,128,.16); box-shadow:inset 3px 0 0 #3aab80}
+#nrya-overlays .nrya-artpop .nrya-artpop-items li.nrya-hit{background:rgba(58,171,128,.16)}
+#nrya-overlays .nrya-artpop[data-tier="decree"] .nrya-artpop-para.nrya-hit{background:rgba(94,190,152,.16); box-shadow:inset 3px 0 0 #5ebe98}
+#nrya-overlays .nrya-artpop[data-tier="decree"] .nrya-artpop-items li.nrya-hit{background:rgba(94,190,152,.16)}
+#nrya-overlays .nrya-artpop[data-tier="rule"] .nrya-artpop-para.nrya-hit{background:rgba(130,208,175,.16); box-shadow:inset 3px 0 0 #82d0af}
+#nrya-overlays .nrya-artpop[data-tier="rule"] .nrya-artpop-items li.nrya-hit{background:rgba(130,208,175,.16)}
+#nrya-overlays .nrya-artpop[data-tier="notice"] .nrya-artpop-para.nrya-hit{background:rgba(168,224,196,.16); box-shadow:inset 3px 0 0 #a8e0c4}
+#nrya-overlays .nrya-artpop[data-tier="notice"] .nrya-artpop-items li.nrya-hit{background:rgba(168,224,196,.16)}
+#nrya-overlays .nrya-artpop[data-tier="penalty"] .nrya-artpop-para.nrya-hit{background:rgba(243,163,154,.16); box-shadow:inset 3px 0 0 #f3a39a}
+#nrya-overlays .nrya-artpop[data-tier="penalty"] .nrya-artpop-items li.nrya-hit{background:rgba(243,163,154,.16)}
 
 /* 스켈레톤 + 생각중 상태 */
 #nrya-overlays .nrya-sk-line{height:9px; border-radius:5px; margin-bottom:7px; background:linear-gradient(90deg,rgba(255,255,255,.08) 25%,rgba(255,255,255,.18) 37%,rgba(255,255,255,.08) 63%); background-size:400% 100%; animation:nrya-sk 1.3s ease infinite}
@@ -313,3 +353,8 @@
 #nrya-overlays .nrya-chat-input input{flex:1; min-width:0; background:#28394a; border:none; border-radius:19px; padding:11px 15px; color:#fff; font-family:inherit; font-size:14px; outline:none}
 #nrya-overlays .nrya-chat-input input::placeholder{color:#8296ac}
 #nrya-overlays .nrya-chat-send{width:40px;height:40px;flex:0 0 auto;border-radius:50%;border:none;background:#ffe14d;color:#231c00;font-size:16px;cursor:pointer;font-weight:800}
+
+/* 답변완료 알림 동의 배너 / 재질문 유도 버튼 (말풍선 안 작은 버튼 — .nrya-chip 과 같은 톤) */
+#nrya-overlays .nrya-consent-btns{display:flex; gap:6px; margin-top:9px}
+#nrya-overlays .nrya-consent-btn{font-family:inherit; font-size:11.5px; font-weight:700; padding:5px 12px; border-radius:13px; cursor:pointer; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#dbe7f5}
+#nrya-overlays .nrya-consent-btn.nrya-yes{background:#ffe14d; border-color:#ffe14d; color:#231c00}
