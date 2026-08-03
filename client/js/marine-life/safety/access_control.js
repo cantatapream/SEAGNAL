@@ -122,6 +122,14 @@
         return '<p><strong>' + label + '</strong>: ' + value + '</p>';
     }
 
+    /** 문의처 문자열 속 전화번호(예: 032-650-2348)를 tel: 링크로 바꿔 탭하면 바로 전화 걸리게 한다 */
+    function _linkifyPhone(text) {
+        if (!text) return text;
+        return text.replace(/(\d{2,3}-\d{3,4}-\d{4})/g, function (num) {
+            return '<a href="tel:' + num.replace(/-/g, '') + '" style="color:#93c5fd;text-decoration:underline;">' + num + '</a>';
+        });
+    }
+
     /** 폴리곤 feature 하나의 상세 정보 팝업 HTML을 만든다(구역마다 고시 내용이 달라 항목별로 있는 것만 표시) */
     function _buildDetailHtml(hit) {
         var html = '';
@@ -134,7 +142,7 @@
         html += _row('통제시간', hit.get('control_time'));
         html += _row('대상', hit.get('target'));
         html += _row('벌칙', hit.get('penalty'));
-        html += _row('문의처', hit.get('contact'));
+        html += _row('문의처', _linkifyPhone(hit.get('contact')));
         html += _row('상태', hit.get('status'));
 
         var src = hit.get('source_file');
@@ -161,6 +169,9 @@
             var location = hit.get('location') || '출입통제구역';
             if (typeof window.showSeagnalModal === 'function') {
                 window.showSeagnalModal(location, _buildDetailHtml(hit), 'info');
+                // 항목 수가 많아 기본 폭(320px)보다 넓게 — 이 팝업에만 적용, 다른 showSeagnalModal 호출부는 그대로
+                var modalContent = document.querySelector('#seagnal-custom-modal .seagnal-modal-content');
+                if (modalContent) modalContent.classList.add('access-control-wide');
             } else if (typeof window._showOceanToast === 'function') {
                 window._showOceanToast((hit.get('station') || '') + ' ' + location, 'bottom', 3000);
             }

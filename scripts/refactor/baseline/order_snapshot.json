@@ -109,6 +109,7 @@
     "ai_chat.js",
     "index2_patch.js",
     "hazard_rocks.js",
+    "access_control.js",
     "life_safety.js"
   ]
 }
