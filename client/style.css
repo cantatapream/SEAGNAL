@@ -5073,6 +5073,28 @@ line-height: 1.1;
     overflow-wrap: break-word;
 }
 
+/* 고시/공고 원문 다운로드 버튼 — 이전엔 배경이 너무 투명해 버튼처럼 안 보였음.
+   테두리 + 진한 배경 + 눌림 피드백을 줘서 확실한 버튼 형태로 */
+.ac-src-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    background: rgba(255, 82, 82, 0.22);
+    border: 1px solid rgba(255, 120, 120, 0.55);
+    color: #ffc4c4;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.88rem;
+    box-shadow: 0 2px 8px rgba(255, 82, 82, 0.15);
+    transition: transform 0.1s, background 0.15s;
+}
+.ac-src-btn:active {
+    transform: scale(0.97);
+    background: rgba(255, 82, 82, 0.32);
+}
+
 .seagnal-modal-icon {
     font-size: 2.5rem;
     margin-bottom: 15px;

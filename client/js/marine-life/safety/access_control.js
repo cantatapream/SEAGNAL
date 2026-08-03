@@ -6,7 +6,7 @@
  *         표시한다. 폴리곤을 탭하면 관할서·구역명·상태를 토스트로 보여준다.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap), OpenLayers(ol.*)
+ *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap·oceanGetBasemap·oceanSetBasemap), OpenLayers(ol.*)
  *  - 서버 API      : 없음 — /access_control_zones.json 정적 파일(지연 로드)
  *  - 마크업        : index2.html #ocean-access-control-toggle-btn — 해양안전 전용
  *  - 나를 쓰는 곳  : 토글 버튼은 이 파일이 자체 바인딩(ocean_warn_zone.js 와 동일 패턴).
@@ -156,11 +156,16 @@
         var src = hit.get('source_file');
         if (src) {
             var url = '/api/legal/src?p=' + encodeURIComponent(src);
+            // 관할서마다 실제로 "고시" 또는 "공고"로 다르게 발행하므로(근거 조항은 같지만
+            // 행정행위 형식이 다름) 버튼 문구도 원본 파일명을 보고 그대로 맞춘다.
+            // (notice_no 필드는 평택 5건이 값 자체에 고시/공고 표기가 없어 source_file 로 판단)
+            var docLabel = /고시/.test(src) ? '고시' : '공고';
+            // target="_blank" 를 쓰면 앱 웹뷰에서 새 화면으로 넘어가면서 흰 화면만 뜨고
+            // 뒤로가기로도 원래 화면에 안 돌아오는 문제가 있었음 — 서버가 Content-Disposition:
+            // attachment 로 내려주는 다운로드이므로 새 화면 전환 없이 그 자리에서 받게 한다.
             html += '<p style="margin-top:18px;text-align:center;">' +
-                '<a href="' + url + '" target="_blank" rel="noopener" ' +
-                'style="display:inline-block;padding:8px 14px;border-radius:8px;' +
-                'background:rgba(255,82,82,0.18);color:#ffb3b3;text-decoration:none;font-weight:600;">' +
-                '<i class="fa-solid fa-file-lines"></i> 고시 원문 보기</a></p>';
+                '<a href="' + url + '" download class="ac-src-btn">' +
+                '<i class="fa-solid fa-file-lines"></i> ' + docLabel + ' 원문 보기</a></p>';
         }
         return html || '<p>세부 정보를 불러오지 못했습니다.</p>';
     }
@@ -197,12 +202,25 @@
         var btn = document.getElementById('ocean-access-control-toggle-btn');
         if (!btn) return;
 
+        var _prevBasemap = null; // OFF 시 원래 배경지도로 되돌리기 위해 ON 시점 값을 기억
+
         btn.addEventListener('click', function () {
             _visible = !_visible;
             btn.classList.toggle('active', _visible);
             if (_layer) _layer.setVisible(_visible);
             if (_fillLayer) _fillLayer.setVisible(_visible);
-            if (_visible) _load();
+            if (_visible) {
+                _load();
+                // 폴리곤을 실제 지형과 대조해 보기 쉽도록 배경지도를 위성지도로 자동 전환
+                // (ocean_warn_active.js 의 "ON 시 배경 전환 → OFF 시 복귀" 와 동일 패턴)
+                if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
+                    _prevBasemap = window.oceanGetBasemap();
+                    if (_prevBasemap !== 'vworld') window.oceanSetBasemap('vworld');
+                }
+            } else if (_prevBasemap && _prevBasemap !== 'vworld' && typeof window.oceanSetBasemap === 'function') {
+                window.oceanSetBasemap(_prevBasemap);
+                _prevBasemap = null;
+            }
         });
     }
 
