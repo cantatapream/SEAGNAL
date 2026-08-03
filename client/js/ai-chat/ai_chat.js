@@ -35,7 +35,11 @@
  *                    GET  /api/legal/pending-answer/:requestId (푸시로 재진입 시 그 답변 1회 복원)
  *                    GET  /api/legal/article-text?law&article&tier&baseLaw
  *                                                              (근거법령 체인의 조문 카드를 누르면
- *                                                               그 조 원문 전체 + 인용된 항·호 강조)
+ *                                                               그 조 원문 전체 + 인용된 항·호 강조.
+ *                                                               인용이 범위(제1~9조)·문서 전체면 조를
+ *                                                               강조 없이 나열하고, 본문의 별표·서식
+ *                                                               참조는 refs 판정으로 링크·회색 처리)
+ *                    GET  /api/legal/src?p=<raw 상대경로>       (별표 스캔 이미지 원본 — 위 refs 의 image)
  *  - 마크업        : #unified-admin-body(콘솔 마운트 지점, admin.js 소유),
  *                    body 에 스스로 주입하는 #nrya-overlays(FAB·채팅·지도 팝업)
  *  - 나를 쓰는 곳  : index2.html <script src="js/ai-chat/ai_chat.js"> — 자가 실행.
@@ -997,11 +1001,61 @@
   // ── 조문 원문 팝업: 카드를 누르면 그 조 전문을 띄우고 인용된 항·호를 강조 ──────────
   var artPopBuilt = false;
   var artPopReq = 0;   // 조회 순번 — 늦게 도착한 이전 요청이 지금 보는 조문을 덮어쓰지 않게 한다
+  var artPopRefs = {}; // 지금 보고 있는 조문의 별표·서식 참조 판정(서버 refs를 key로 정리한 것)
+  var artPopRefsCut = false; // 서버가 판정 상한에서 멈췄나(true면 refs에 없는 참조 = "판정 안 함")
+
+  // 본문 안의 별표·서식·이미지 참조 표현. ⚠ 서버(services/article_text.js)의 REF_RE 와
+  // **같은 표현이어야** 판정(kind)과 화면 링크가 어긋나지 않는다 — 한쪽만 고치지 말 것.
+  var NRYA_REF_RE = /별지\s*제\s*(\d+(?:의\d+)?)\s*호(?:\s*서식)?|별표\s*제?\s*(\d+(?:의\d+)?)|【이미지\s*(\d+)】/g;
+
+  /** 참조 정규식 매치를 서버 refs 와 맞출 열쇠로 바꾼다(`별표1`·`서식1`·`이미지9`). */
+  function refKeyOf(m) {
+    if (m[1] != null) return '서식' + m[1];
+    if (m[2] != null) return '별표' + m[2];
+    return '이미지' + m[3];
+  }
 
   /**
-   * 조문 팝업(배경막 + 카드)을 #nrya-overlays 안에 1회 주입한다. 닫기 버튼·배경막 클릭은
-   * 여기서 한 번만 묶는다(카드 내용은 열 때마다 renderArtPop 이 갈아끼운다).
-   * [연계] ← openArtPop. → closeArtPop.
+   * 원문 한 토막을 요소에 넣되, 그 안의 "별표 1"·"별지 제1호 서식" 같은 표현 **자체**를
+   * 눌러볼 수 있는 링크로 바꾼다(별도 칩·버튼 줄을 뒤에 붙이지 않는다 — 목업 확정).
+   * 우리에게 원문이 없는 참조는 누를 수 없는 회색 "(원문 미수집)"으로 둔다(지어내지 않는다).
+   * 원문 글자는 전부 textContent·텍스트노드로만 넣는다(HTML 주입 없음 — XSS 방지).
+   * 예: appendText(div, '수수료는 별표 1과 같다.', refs) → '수수료는 ' + <span.nrya-byl-ref>별표 1</span> + '과 같다.'
+   * @param {HTMLElement} host - 글자를 붙일 요소
+   * @param {string} text - 서버가 준 원문 토막
+   * [연계] ← renderArtPop. → openBylPop(클릭 위임은 ensureArtPop 에서 한 번만 묶는다).
+   */
+  function appendText(host, text) {
+    var s = String(text || ''), last = 0, m;
+    NRYA_REF_RE.lastIndex = 0;
+    while ((m = NRYA_REF_RE.exec(s))) {
+      if (m.index > last) host.appendChild(document.createTextNode(s.slice(last, m.index)));
+      last = m.index + m[0].length;
+      var key = refKeyOf(m), ref = artPopRefs[key];
+      var isImg = key.indexOf('이미지') === 0;
+      // 이미지 마커는 원문 문장이 아니라 수집 표시다 — 실물이 없으면 흔적 없이 지운다.
+      if (isImg && (!ref || ref.kind !== 'image')) continue;
+      // 서버가 판정 상한(MAX_REFS)에서 멈춰 **아예 안 본** 참조는 "미수집"이 아니다 —
+      // 없는 걸 있다고 하지도, 모르는 걸 없다고 단정하지도 않게 원문 글자 그대로 둔다.
+      if (!ref && artPopRefsCut) { host.appendChild(document.createTextNode(m[0])); continue; }
+      var span = document.createElement('span');
+      if (ref && ref.kind !== 'missing') {
+        span.className = 'nrya-byl-ref';
+        span.setAttribute('data-byl', key);
+        span.textContent = isImg ? '🖼 원본 이미지' : m[0];
+      } else {
+        span.className = 'nrya-byl-missing';
+        span.textContent = m[0] + ' (원문 미수집)';
+      }
+      host.appendChild(span);
+    }
+    if (last < s.length) host.appendChild(document.createTextNode(s.slice(last)));
+  }
+
+  /**
+   * 조문 팝업(배경막 + 카드)과 별표 팝업을 #nrya-overlays 안에 1회 주입한다. 닫기 버튼·배경막
+   * 클릭·별표 참조 클릭은 여기서 한 번만 묶는다(카드 내용은 열 때마다 renderArtPop 이 갈아끼운다).
+   * [연계] ← openArtPop. → closeArtPop · openBylPop.
    */
   function ensureArtPop() {
     if (artPopBuilt) return;
@@ -1012,39 +1066,111 @@
     pop.innerHTML =
       '<div class="nrya-artpop-head">' +
         '<div class="nrya-artpop-titles">' +
-          '<span class="nrya-artpop-chip">원문 · 자동 발췌</span>' +
+          '<span class="nrya-artpop-chip" id="nryaArtChip">원문 · 자동 발췌</span>' +
           '<p class="nrya-artpop-law" id="nryaArtLaw"></p>' +
           '<h3 class="nrya-artpop-art" id="nryaArtTitle"></h3>' +
         '</div>' +
         '<button type="button" class="nrya-artpop-x" id="nryaArtX">×</button>' +
       '</div>' +
+      '<div class="nrya-artpop-gist" id="nryaArtGist"></div>' +
       '<span class="nrya-artpop-eff" id="nryaArtEff"></span>' +
-      '<div class="nrya-artpop-body" id="nryaArtBody"></div>';
-    host.appendChild(veil); host.appendChild(pop);
+      '<div class="nrya-artpop-body" id="nryaArtBody"></div>' +
+      '<div class="nrya-artpop-foot" id="nryaArtFoot"></div>';
+    var bveil = document.createElement('div'); bveil.className = 'nrya-bylpop-veil'; bveil.id = 'nryaBylVeil';
+    var bpop = document.createElement('div'); bpop.className = 'nrya-bylpop'; bpop.id = 'nryaBylPop';
+    bpop.innerHTML =
+      '<div class="nrya-bylpop-head">' +
+        '<span class="nrya-bylpop-t" id="nryaBylTitle"></span>' +
+        '<button type="button" class="nrya-bylpop-close" id="nryaBylX">×</button>' +
+      '</div>' +
+      '<div class="nrya-bylpop-body" id="nryaBylBody"></div>';
+    host.appendChild(veil); host.appendChild(pop); host.appendChild(bveil); host.appendChild(bpop);
     veil.addEventListener('click', closeArtPop);
     pop.querySelector('#nryaArtX').addEventListener('click', closeArtPop);
+    bveil.addEventListener('click', closeBylPop);
+    bpop.querySelector('#nryaBylX').addEventListener('click', closeBylPop);
+    // 별표 참조는 본문·푸터 어디서든 같은 방식으로 열리게 위임한다.
+    pop.addEventListener('click', function (e) {
+      var r = e.target.closest('.nrya-byl-ref');
+      if (r) openBylPop(artPopRefs[r.getAttribute('data-byl')]);
+    });
   }
 
   /**
-   * 서버가 준 조문 원문을 팝업 본문에 그린다. 인용된 항(hit)은 tier 색 배경으로 강조하고
-   * 나머지는 흐리게 둔다. 원문 텍스트는 전부 textContent 로 넣는다(HTML 주입 없음).
-   * @param {object} d - GET /api/legal/article-text 응답 {ok:true, paragraphs:[…]}
-   * [연계] ← openArtPop.
+   * 별표·서식 하나를 팝업으로 보여준다. 서버 판정(kind)에 따라 셋 중 하나로 그린다.
+   *  - text  : 우리가 가진 원문 표를 그대로(고정폭 <pre>)
+   *  - image : 우리가 같이 수집해 둔 스캔본을 앱 안에서 바로
+   *  - link  : law.go.kr 원본 파일만 있는 경우 — PDF·HWPX 중 **하나를 기본값으로 정하지 않고**
+   *            동등한 크기 버튼으로 나란히 보여주고, 새 탭에서 사용자의 브라우저가 직접 받는다
+   *            (서버가 대신 받아오면 law.go.kr에 차단된다 — _LESSONS.md L-56).
+   * @param {object} ref - 서버 refs 항목 {key,text,kind,title,body,image,pdf,hwp}
+   * [연계] ← ensureArtPop 의 클릭 위임. → PopupStack('nrya-bylpop').
    */
-  function renderArtPop(d) {
-    var body = document.getElementById('nryaArtBody'); if (!body) return;
+  function openBylPop(ref) {
+    if (!ref) return;
+    var pop = document.getElementById('nryaBylPop'), veil = document.getElementById('nryaBylVeil');
+    var body = document.getElementById('nryaBylBody'); if (!pop || !veil || !body) return;
+    document.getElementById('nryaBylTitle').textContent =
+      (ref.text || '') + (ref.title ? ' · ' + ref.title : '');
     body.innerHTML = '';
-    (d.paragraphs || []).forEach(function (p) {
+    if (ref.kind === 'text' && ref.body) {
+      var pre = document.createElement('pre'); pre.className = 'nrya-bylpop-pre';
+      pre.textContent = ref.body;
+      body.appendChild(pre);
+    } else if (ref.kind === 'image' && ref.image) {
+      var img = document.createElement('img'); img.className = 'nrya-bylpop-img';
+      img.alt = ref.title || '별표 원본 이미지';
+      img.src = ref.image;                       // 우리 서버(GET /api/legal/src)가 주는 수집본
+      body.appendChild(img);
+    } else {
+      var note = document.createElement('p'); note.className = 'nrya-byl-note';
+      note.textContent = 'law.go.kr에 원본 파일만 있고 표 텍스트는 없습니다 — 여는 방식을 골라주세요.';
+      body.appendChild(note);
+      var row = document.createElement('div'); row.className = 'nrya-byl-big-row';
+      [['pdf', '📄 PDF로 열기', 'nrya-pdf'], ['hwp', '⬇ HWPX 다운로드', 'nrya-hwp']].forEach(function (b) {
+        var url = ref[b[0]];
+        if (!/^https?:\/\//.test(String(url || ''))) return;
+        var a = document.createElement('a');
+        a.className = 'nrya-byl-big-btn ' + b[2];
+        a.textContent = b[1];
+        a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        row.appendChild(a);
+      });
+      if (!row.children.length) note.textContent = '원본을 아직 수집하지 못했습니다.';
+      body.appendChild(row);
+    }
+    body.scrollTop = 0;
+    veil.classList.add('nrya-open'); pop.classList.add('nrya-open');
+    if (window.PopupStack) window.PopupStack.push('nrya-bylpop', closeBylPop);
+  }
+
+  /** 별표 팝업을 닫는다(조문 팝업은 그대로 둔다). PopupStack.remove 는 멱등. */
+  function closeBylPop() {
+    if (window.PopupStack) window.PopupStack.remove('nrya-bylpop');
+    var pop = document.getElementById('nryaBylPop'), veil = document.getElementById('nryaBylVeil');
+    if (pop) pop.classList.remove('nrya-open');
+    if (veil) veil.classList.remove('nrya-open');
+  }
+
+  /**
+   * 조 하나(single)를 그린다 — 인용된 항(hit)은 tier 색 배경으로 강조하고 나머지는 흐리게 둔다.
+   * @param {HTMLElement} body - #nryaArtBody
+   * @param {Array} paragraphs - 서버 응답 paragraphs
+   * [연계] ← renderArtPop.
+   */
+  function renderSingle(body, paragraphs) {
+    (paragraphs || []).forEach(function (p) {
       var row = document.createElement('div');
       row.className = 'nrya-artpop-para' + (p.hit ? ' nrya-hit' : '');
       var mark = document.createElement('div'); mark.className = 'nrya-artpop-mark'; mark.textContent = p.mark || '';
       var wrap = document.createElement('div'); wrap.className = 'nrya-artpop-text';
-      var t = document.createElement('span'); t.textContent = p.text || ''; wrap.appendChild(t);
+      var t = document.createElement('span'); appendText(t, p.text); wrap.appendChild(t);
       if (p.items && p.items.length) {
         var ul = document.createElement('ul'); ul.className = 'nrya-artpop-items';
         p.items.forEach(function (it, i) {
           var li = document.createElement('li');
-          li.textContent = (i + 1) + '. ' + (it.text || '');
+          li.appendChild(document.createTextNode((i + 1) + '. '));
+          appendText(li, it.text);
           if (it.hit) li.className = 'nrya-hit';
           ul.appendChild(li);
         });
@@ -1052,14 +1178,109 @@
       }
       row.appendChild(mark); row.appendChild(wrap); body.appendChild(row);
     });
+  }
+
+  /**
+   * 범위·전체 인용을 그린다 — 조를 미니헤더(제N조 · 제목)로 구분해 **순서대로 나열**하고,
+   * 어느 항도 강조하지 않는다(여러 조 전체가 근거라 한 곳을 칠하면 지어내는 것과 같다).
+   * @param {HTMLElement} body - #nryaArtBody
+   * @param {Array} articles - 서버 응답 articles [{jo,title,paragraphs}]
+   * [연계] ← renderArtPop.
+   */
+  function renderArticles(body, articles) {
+    (articles || []).forEach(function (a) {
+      var blk = document.createElement('div'); blk.className = 'nrya-art-block';
+      var head = document.createElement('div'); head.className = 'nrya-art-block-head';
+      var num = document.createElement('span'); num.className = 'nrya-art-num'; num.textContent = a.jo || '';
+      var ttl = document.createElement('span'); ttl.className = 'nrya-art-title'; ttl.textContent = a.title || '';
+      head.appendChild(num); head.appendChild(ttl); blk.appendChild(head);
+      var bd = document.createElement('div'); bd.className = 'nrya-art-body';
+      (a.paragraphs || []).forEach(function (p, i) {
+        // 항 기호가 없는 첫 조각(항 구분이 없는 조)은 줄바꿈 없이 본문에 바로 붙인다.
+        if (!p.mark && i === 0) { appendText(bd, p.text); }
+        else {
+          var row = document.createElement('div'); row.className = 'nrya-art-para';
+          var mk = document.createElement('span'); mk.className = 'nrya-art-mark'; mk.textContent = p.mark || '';
+          var tx = document.createElement('span'); appendText(tx, p.text);
+          row.appendChild(mk); row.appendChild(tx); bd.appendChild(row);
+        }
+        (p.items || []).forEach(function (it, j) {
+          var r2 = document.createElement('div'); r2.className = 'nrya-art-para';
+          var m2 = document.createElement('span'); m2.className = 'nrya-art-mark'; m2.textContent = (j + 1) + '.';
+          var t2 = document.createElement('span'); appendText(t2, it);
+          r2.appendChild(m2); r2.appendChild(t2); bd.appendChild(r2);
+        });
+      });
+      blk.appendChild(bd); body.appendChild(blk);
+    });
+  }
+
+  /**
+   * 서버가 준 조문 원문을 팝업 본문에 그린다. mode 에 따라 조 하나(강조 있음)와
+   * 범위·전체(강조 없음)로 갈리고, 원문이 너무 길면 정직하게 국가법령정보센터로 넘긴다.
+   * 원문 텍스트는 전부 textContent/텍스트노드로 넣는다(HTML 주입 없음).
+   * @param {object} d - GET /api/legal/article-text 응답
+   * [연계] ← openArtPop. → renderSingle · renderArticles · appendText.
+   */
+  function renderArtPop(d) {
+    var body = document.getElementById('nryaArtBody'); if (!body) return;
+    var foot = document.getElementById('nryaArtFoot');
+    body.innerHTML = ''; if (foot) foot.innerHTML = '';
+    artPopRefs = {};
+    artPopRefsCut = !!d.refsTruncated;
+    (d.refs || []).forEach(function (r) { artPopRefs[r.key] = r; });
+
+    if (d.tooLong) {
+      // 수십 개 조를 억지로 밀어넣지 않는다 — 원문 소재를 정직하게 안내한다.
+      var msg = document.createElement('div'); msg.className = 'nrya-artpop-msg';
+      msg.textContent = '원문이 깁니다(' + d.tooLong.articleCount + '개조) · 국가법령정보센터에서 확인하세요';
+      body.appendChild(msg);
+      var a = document.createElement('a');
+      a.className = 'nrya-byl-big-btn nrya-pdf';
+      a.textContent = '🔗 국가법령정보센터에서 보기';
+      a.href = (d.tier === 'notice' ? 'https://www.law.go.kr/admRulSc.do?query=' : 'https://www.law.go.kr/lsSc.do?query=') +
+        encodeURIComponent(d.law || '');
+      a.target = '_blank'; a.rel = 'noopener noreferrer';
+      body.appendChild(a);
+    } else if (d.articles) {
+      renderArticles(body, d.articles);
+    } else {
+      renderSingle(body, d.paragraphs);
+    }
+
+    // 문서에 딸린 별표 목록 — 본문에서 인용되지 않은 별표도 여기서 바로 열 수 있게 한다.
+    // 열 수 있는 것만 칩으로 두고, 서버가 판정 한도(refs 상한)를 넘겨 못 보낸 나머지는
+    // 열리지 않는 칩을 만들지 않고 개수만 정직하게 적는다.
+    if (foot && d.attachments && d.attachments.length) {
+      var lbl = document.createElement('span'); lbl.className = 'nrya-artpop-src';
+      lbl.textContent = '이 문서의 별표';
+      foot.appendChild(lbl);
+      var shown = 0;
+      d.attachments.forEach(function (at) {
+        var ref = artPopRefs[at.key];
+        if (!ref || ref.kind === 'missing') return;
+        shown++;
+        var s = document.createElement('span');
+        s.className = 'nrya-byl-ref';
+        s.setAttribute('data-byl', at.key);
+        s.textContent = at.key;
+        foot.appendChild(s);
+      });
+      if (shown < d.attachments.length) {
+        var more = document.createElement('span'); more.className = 'nrya-byl-missing';
+        more.textContent = '외 ' + (d.attachments.length - shown) + '개';
+        foot.appendChild(more);
+      }
+    }
     body.scrollTop = 0;
   }
 
   /**
    * 조문 카드를 눌렀을 때: 팝업을 먼저 띄워 "불러오는 중"을 보여주고, 원문을 받아 채운다.
    * 원문을 못 받으면(수집 안 된 고시·서버 토큰 없음 등) 지어내지 않고 안내 문구만 남긴다.
+   * 범위·전체 인용은 조를 강조할 수 없으므로 위키 표의 **요지를 그대로** 캡션으로 보여준다.
    * 예: openArtPop(카드요소) → GET /api/legal/article-text?law=…&article=제10조④3호&tier=law
-   * @param {HTMLElement} el - .nrya-chain-hit (data-law/article/tier/base 를 갖고 있다)
+   * @param {HTMLElement} el - .nrya-chain-hit (data-law/article/tier/base/gist 를 갖고 있다)
    * [연계] → routes/legal.js GET /api/legal/article-text · PopupStack('nrya-artpop').
    */
   function openArtPop(el) {
@@ -1069,9 +1290,14 @@
     var law = el.getAttribute('data-law') || '';
     var article = el.getAttribute('data-article') || '';
     var tier = el.getAttribute('data-tier') || 'law';
+    var gist = el.getAttribute('data-gist') || '';
+    var chip = document.getElementById('nryaArtChip');
+    chip.className = 'nrya-artpop-chip'; chip.textContent = '원문 · 자동 발췌';
     document.getElementById('nryaArtLaw').textContent = law;
     document.getElementById('nryaArtTitle').textContent = article || '조문 원문';
     document.getElementById('nryaArtEff').textContent = '';
+    document.getElementById('nryaArtGist').textContent = '';
+    document.getElementById('nryaArtFoot').innerHTML = '';
     document.getElementById('nryaArtBody').innerHTML = '<div class="nrya-artpop-msg">원문을 불러오는 중…</div>';
     pop.setAttribute('data-tier', el.getAttribute('data-pen') ? 'penalty' : tier); // 강조색을 체인 카드와 맞춘다
     veil.classList.add('nrya-open'); pop.classList.add('nrya-open');
@@ -1095,12 +1321,39 @@
         if (d.articleTitle) document.getElementById('nryaArtTitle').textContent = d.articleTitle;
         document.getElementById('nryaArtEff').textContent = d.effectiveDate
           ? ((d.tier === 'notice' ? '발령일자 ' : '시행일자 ') + d.effectiveDate) : '';
+        if (d.mode && d.mode !== 'single') {
+          // 조 하나를 못 짚으므로 강조 대신 위키 표의 요지를 **가공 없이** 캡션으로 보여준다.
+          chip.className = 'nrya-artpop-chip nrya-range';
+          chip.textContent = '원문 · ' + artScopeLabel(d);
+          if (gist) {
+            var g = document.getElementById('nryaArtGist');
+            var b = document.createElement('b'); b.textContent = '이 인용의 요지';
+            g.appendChild(b); g.appendChild(document.createTextNode(' — ' + gist));
+          }
+        }
         renderArtPop(d);
       });
   }
 
-  /** 조문 팝업을 닫는다(백스택에서 제거 + 표시 해제). PopupStack.remove 는 멱등. */
+  /**
+   * 범위·전체 인용 팝업의 칩 문구를 만든다(예: '문서 전체(4개조 + 별표 2)', '제1조~제9조 (9개조)').
+   * 개수는 **실제로 나열된 조 수**다 — 범위 안에 삭제된 조가 있으면 표기된 범위보다 적을 수 있어
+   * "전체"라고 단정하지 않는다(`제3조~제7조 (2개조 전체)` 같은 모순 표기 방지).
+   * @param {object} d - article-text 응답
+   * @returns {string}
+   * [연계] ← openArtPop.
+   */
+  function artScopeLabel(d) {
+    var att = (d.attachments && d.attachments.length) ? ' + 별표 ' + d.attachments.length : '';
+    if (d.tooLong) return (d.mode === 'whole' ? '문서 전체' : d.articleTitle) + '(' + d.tooLong.articleCount + '개조' + att + ')';
+    var n = (d.articles || []).length;
+    if (d.mode === 'whole') return '문서 전체(' + n + '개조' + att + ')';
+    return d.articleTitle + ' (' + n + '개조' + att + ')';
+  }
+
+  /** 조문 팝업을 닫는다(백스택에서 제거 + 표시 해제). 위에 떠 있던 별표 팝업도 같이 닫는다. */
   function closeArtPop() {
+    closeBylPop();
     if (window.PopupStack) window.PopupStack.remove('nrya-artpop');
     var pop = document.getElementById('nryaArtPop'), veil = document.getElementById('nryaArtVeil');
     if (pop) pop.classList.remove('nrya-open');
@@ -1350,8 +1603,11 @@
       tel = '<div class="nrya-chain-tel nrya-unknown">☎ 확인되지 않음</div>';
     }
     // 클릭 영역이 서버에 그대로 넘길 값들(조문 원문 조회 키). data-pen 은 강조색만 벌칙색으로 바꾸는 표시.
+    // data-gist 는 범위·전체 인용 팝업에서 "이 인용의 요지" 캡션으로 그대로 다시 쓴다
+    // (조 하나를 못 짚어 강조를 할 수 없는 대신 방향을 잡아주는 문구 — 가공 없이 원문 그대로).
     var hitAttrs = ' data-law="' + esc(row.law || '') + '" data-article="' + esc(row.article || '') +
-      '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(baseLaw || '') + '"' +
+      '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(baseLaw || '') +
+      '" data-gist="' + esc(row.gist || '') + '"' +
       (penalty ? ' data-pen="1"' : '');
     return '<div class="nrya-chain-step' + (last ? ' nrya-last' : '') + (penalty ? ' nrya-penalty' : '') + '" data-tier="' + esc(row.tier || 'law') + '">' +
       '<div class="nrya-chain-rail"><div class="nrya-chain-dot">' + n + '</div><div class="nrya-chain-line"></div></div>' +
