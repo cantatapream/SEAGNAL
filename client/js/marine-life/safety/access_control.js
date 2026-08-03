@@ -4,6 +4,10 @@
  * 역할  : 해양안전 지도에 "출입통제" 토글 버튼을 얹어, 연안사고 예방에 관한
  *         법률 제10조에 따라 각 해양경찰서가 지정한 출입통제구역 폴리곤을
  *         표시한다. 폴리곤을 탭하면 관할서·구역명·상태를 토스트로 보여준다.
+ *         구역 라벨은 OL 스타일이 아니라 별도 캔버스 오버레이(_labelCanvas)에
+ *         그려, 좁은 지역에 여러 구역이 몰려 있을 때 라벨끼리 겹치지 않게
+ *         밀어내 배치하고 원래 지점까지 인출선을 긋는다(라벨 텍스트 자체도
+ *         클릭하면 그 구역 팝업이 뜬다).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.getOceanMap·oceanGetBasemap·oceanSetBasemap), OpenLayers(ol.*)
@@ -29,15 +33,22 @@
 
     var DATA_URL = '/access_control_zones.json';
 
-    var _layer = null;       // 외곽선+라벨 layer
+    var _layer = null;       // 외곽선 layer
     var _fillLayer = null;   // 채움 layer
     var _source = null;
     var _visible = false;
     var _loaded = false;
     var _loading = false;
 
-    /** 출입통제구역 폴리곤 스타일 (빨간 톤 — 해도상 출입통제 표기 관례와 동일) */
-    function _zoneStyle(feature) {
+    var _map = null;               // moveend/resize 훅 등록용
+    var _labelCanvas = null;       // 라벨 전용 오버레이 캔버스(OL 뷰포트 위에 겹침, pointer-events:none)
+    var _labelCtx = null;
+    var _labelRects = new Map();   // feature → 현재 그려진 라벨의 화면(css px) 사각형(라벨 클릭 판정용)
+    var _labelRAF = null;          // moveend 다발 발생 시 중복 재계산 방지용 requestAnimationFrame 핸들
+
+    /** 출입통제구역 폴리곤 스타일 (빨간 톤 — 해도상 출입통제 표기 관례와 동일). 라벨 텍스트는
+     *  겹침 회피가 필요해 OL 스타일이 아니라 _labelCanvas 오버레이에 별도로 그린다. */
+    function _zoneStyle() {
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
                 color: 'rgba(255, 82, 82, 0.9)',
@@ -45,14 +56,6 @@
             }),
             fill: new ol.style.Fill({
                 color: 'rgba(255, 82, 82, 0.15)'
-            }),
-            text: new ol.style.Text({
-                text: feature.get('location') || '',
-                font: 'bold 11px "Pretendard", sans-serif',
-                fill: new ol.style.Fill({ color: '#ffb3b3' }),
-                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
-                overflow: true,
-                placement: 'point'
             })
         });
     }
@@ -62,13 +65,14 @@
         if (!f) return null;
         return new ol.style.Style({ fill: f });
     }
-    function _onlyStrokeAndText(style) {
-        return new ol.style.Style({ stroke: style.getStroke(), text: style.getText() });
+    function _onlyStroke(style) {
+        return new ol.style.Style({ stroke: style.getStroke() });
     }
     function _fillOnlyStyle(feature) { return _onlyFill(_zoneStyle(feature)); }
-    function _strokeOnlyStyle(feature) { return _onlyStrokeAndText(_zoneStyle(feature)); }
+    function _strokeOnlyStyle(feature) { return _onlyStroke(_zoneStyle(feature)); }
 
     function _ensureLayers(map) {
+        _map = map;
         if (!_source) _source = new ol.source.Vector();
 
         if (!_fillLayer) {
@@ -93,6 +97,129 @@
             });
             map.addLayer(_layer);
         }
+        map.on('moveend', function () { if (_visible) _scheduleLabelUpdate(); });
+        map.on('change:size', function () { if (_visible) _scheduleLabelUpdate(); });
+    }
+
+    /** 지도 뷰포트 위에 겹쳐지는 라벨 전용 캔버스를 1회 생성(pointer-events:none —
+     *  클릭 판정은 _accessControlTryHandleClick 이 _labelRects 로 직접 처리) */
+    function _ensureLabelCanvas() {
+        if (_labelCanvas) return;
+        _labelCanvas = document.createElement('canvas');
+        _labelCanvas.style.position = 'absolute';
+        _labelCanvas.style.left = '0';
+        _labelCanvas.style.top = '0';
+        _labelCanvas.style.pointerEvents = 'none';
+        _labelCanvas.style.zIndex = '10';
+        _labelCtx = _labelCanvas.getContext('2d');
+        _map.getViewport().appendChild(_labelCanvas);
+    }
+
+    /** feature 하나의 라벨 기준점(화면 픽셀) — Polygon 은 내부점(오목한 모양도 안전),
+     *  LineString 은 중간 지점을 기준으로 삼는다 */
+    function _labelAnchorPixel(map, feature) {
+        var geom = feature.getGeometry();
+        var coord = geom.getType() === 'Polygon' ? geom.getInteriorPoint().getCoordinates() : geom.getCoordinateAt(0.5);
+        return map.getPixelFromCoordinate(coord);
+    }
+
+    /** 라벨이 서로 겹치면 원래 위치(기준점)에서 점점 먼 후보 위치로 밀어내 찾고,
+     *  기준점과 최종 위치가 떨어진 만큼은 나중에 인출선(leader line)으로 이어준다.
+     *  링(고리) 모양으로 반경을 늘려가며 8방향씩 검사하는 단순 그리디 방식 — 라벨 수가
+     *  적어(수십 개) 매 moveend 마다 다시 계산해도 비용이 미미하다. */
+    function _layoutLabels(map, features) {
+        var placed = [];
+        var layout = []; // { feature, anchor:[x,y], rect:{x0,y0,x1,y1} }
+        var RADII = [0, 18, 30, 46, 64, 86, 112];
+        var ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
+
+        function overlaps(r) {
+            for (var i = 0; i < placed.length; i++) {
+                var p = placed[i];
+                if (r.x0 < p.x1 + 3 && r.x1 > p.x0 - 3 && r.y0 < p.y1 + 3 && r.y1 > p.y0 - 3) return true;
+            }
+            return false;
+        }
+
+        var items = features.map(function (f) {
+            var anchor = _labelAnchorPixel(map, f);
+            var text = f.get('location') || '';
+            var w = _labelCtx.measureText(text).width;
+            return { feature: f, anchor: anchor, w: w, h: 14 };
+        });
+        items.sort(function (a, b) { return a.anchor[1] - b.anchor[1] || a.anchor[0] - b.anchor[0]; });
+
+        items.forEach(function (it) {
+            var best = null;
+            for (var ri = 0; ri < RADII.length && !best; ri++) {
+                var r = RADII[ri];
+                var angles = r === 0 ? [0] : ANGLES;
+                for (var ai = 0; ai < angles.length; ai++) {
+                    var rad = angles[ai] * Math.PI / 180;
+                    var cx = it.anchor[0] + Math.cos(rad) * r;
+                    var cy = it.anchor[1] + Math.sin(rad) * r - 8; // 기본적으로 점보다 살짝 위에 뜨도록
+                    var rect = { x0: cx - it.w / 2 - 2, y0: cy - it.h / 2, x1: cx + it.w / 2 + 2, y1: cy + it.h / 2 };
+                    if (!overlaps(rect)) { best = rect; break; }
+                }
+            }
+            if (!best) { // 자리를 못 찾으면 마지막 후보(가장 먼 반경)라도 그대로 사용
+                var cx2 = it.anchor[0], cy2 = it.anchor[1] - 8;
+                best = { x0: cx2 - it.w / 2 - 2, y0: cy2 - it.h / 2, x1: cx2 + it.w / 2 + 2, y1: cy2 + it.h / 2 };
+            }
+            placed.push(best);
+            layout.push({ feature: it.feature, anchor: it.anchor, rect: best });
+        });
+        return layout;
+    }
+
+    /** moveend/resize 직후 다발적으로 여러 번 불려도 프레임당 1번만 재계산하도록 묶는다 */
+    function _scheduleLabelUpdate() {
+        if (_labelRAF) return;
+        _labelRAF = requestAnimationFrame(function () {
+            _labelRAF = null;
+            _drawLabels();
+        });
+    }
+
+    /** 라벨 오버레이를 다시 그린다: 겹치는 라벨은 밀어내 배치하고, 원래 지점에서
+     *  옮겨진 만큼 가는 인출선을 그어 어느 구역의 라벨인지 알 수 있게 한다 */
+    function _drawLabels() {
+        if (!_map || !_labelCanvas || !_source) return;
+        var size = _map.getSize();
+        if (!size) return;
+        var dpr = window.devicePixelRatio || 1;
+        _labelCanvas.width = size[0] * dpr;
+        _labelCanvas.height = size[1] * dpr;
+        _labelCanvas.style.width = size[0] + 'px';
+        _labelCanvas.style.height = size[1] + 'px';
+        _labelCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        _labelCtx.clearRect(0, 0, size[0], size[1]);
+        _labelCtx.font = 'bold 11px "Pretendard", sans-serif';
+        _labelCtx.textBaseline = 'middle';
+
+        _labelRects.clear();
+        var layout = _layoutLabels(_map, _source.getFeatures());
+        layout.forEach(function (it) {
+            var cx = (it.rect.x0 + it.rect.x1) / 2;
+            var cy = (it.rect.y0 + it.rect.y1) / 2;
+            var dx = cx - it.anchor[0], dy = cy - it.anchor[1];
+            if (Math.sqrt(dx * dx + dy * dy) > 10) {
+                _labelCtx.strokeStyle = 'rgba(255, 179, 179, 0.75)';
+                _labelCtx.lineWidth = 1;
+                _labelCtx.beginPath();
+                _labelCtx.moveTo(it.anchor[0], it.anchor[1]);
+                _labelCtx.lineTo(cx, cy);
+                _labelCtx.stroke();
+            }
+            var text = it.feature.get('location') || '';
+            _labelCtx.textAlign = 'center';
+            _labelCtx.strokeStyle = 'rgba(0,0,0,0.85)';
+            _labelCtx.lineWidth = 3;
+            _labelCtx.strokeText(text, cx, cy);
+            _labelCtx.fillStyle = '#ffb3b3';
+            _labelCtx.fillText(text, cx, cy);
+            _labelRects.set(it.feature, it.rect);
+        });
     }
 
     /** 정적 GeoJSON lazy fetch — 버튼을 처음 켤 때만 1회 */
@@ -113,6 +240,7 @@
                 _source.addFeatures(features);
                 _loaded = true;
                 _loading = false;
+                if (_visible) _scheduleLabelUpdate();
             })
             .catch(function (err) {
                 _loading = false;
@@ -216,6 +344,14 @@
             if (layer === _layer && feature.getGeometry().getType() === 'LineString') return feature;
             return null;
         }, { hitTolerance: 6 });
+        if (!hit) {
+            // 폴리곤/선을 못 맞췄으면 라벨 텍스트(겹침 회피로 원래 지점에서 밀려나 있을 수 있음)
+            // 위를 눌렀는지도 확인 — _labelRects 는 _drawLabels() 가 매번 다시 채운다.
+            _labelRects.forEach(function (rect, feature) {
+                if (hit) return;
+                if (evt.pixel[0] >= rect.x0 && evt.pixel[0] <= rect.x1 && evt.pixel[1] >= rect.y0 && evt.pixel[1] <= rect.y1) hit = feature;
+            });
+        }
         if (!hit) return false;
         var location = hit.get('location') || '출입통제구역';
         if (typeof window.showSeagnalModal === 'function') {
@@ -242,15 +378,21 @@
             if (_fillLayer) _fillLayer.setVisible(_visible);
             if (_visible) {
                 _load();
+                _ensureLabelCanvas();
+                _scheduleLabelUpdate();
                 // 폴리곤을 실제 지형과 대조해 보기 쉽도록 배경지도를 위성지도로 자동 전환
                 // (ocean_warn_active.js 의 "ON 시 배경 전환 → OFF 시 복귀" 와 동일 패턴)
                 if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
                     _prevBasemap = window.oceanGetBasemap();
                     if (_prevBasemap !== 'vworld') window.oceanSetBasemap('vworld');
                 }
-            } else if (_prevBasemap && _prevBasemap !== 'vworld' && typeof window.oceanSetBasemap === 'function') {
-                window.oceanSetBasemap(_prevBasemap);
-                _prevBasemap = null;
+            } else {
+                if (_labelCtx && _labelCanvas) _labelCtx.clearRect(0, 0, _labelCanvas.width, _labelCanvas.height);
+                _labelRects.clear();
+                if (_prevBasemap && _prevBasemap !== 'vworld' && typeof window.oceanSetBasemap === 'function') {
+                    window.oceanSetBasemap(_prevBasemap);
+                    _prevBasemap = null;
+                }
             }
         });
     }
