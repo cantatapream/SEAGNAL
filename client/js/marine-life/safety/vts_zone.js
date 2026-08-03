@@ -28,6 +28,14 @@
 
     var DATA_URL = '/vts_zones.json';
 
+    // 관제구역이 화면에서 이 크기(px)보다 작으면 "손가락으로 누르기엔 너무 작다"고 보고
+    // 선택·팝업 대신 확대부터 한다(fishing_ban.js·seaway.js 와 같은 기준값).
+    var MIN_TAPPABLE_PX = 90;
+    // 확대 상한 — 관제구역을 켜면 배경이 전자해도(enc)로 자동 전환되고, 해아름 WMS 는
+    // 줌 15 까지만 타일을 준다(ocean_map.js 의 MAX_ZOOM). 그보다 더 확대하면
+    // 배경이 빈 타일이 되므로 여기서 막는다(seaway.js 와 같은 값).
+    var FIT_MAX_ZOOM = 15;
+
     var _layer = null;       // 외곽선+라벨 layer
     var _fillLayer = null;   // 채움 layer
     var _source = null;
@@ -230,14 +238,16 @@
 
     /**
      * [외부 API] 지도 클릭이 선박교통관제구역 폴리곤을 눌렀는지 확인한다.
-     * 처음 누르면 선택(연보라 하이라이트)만 하고, 이미 선택된 구역을 한 번 더 누르면
-     * 그때 상세 팝업을 띄운다(두 단계 — fishing_ban.js 의 라벨 탭 확대와 같은 취지:
-     * 한 번의 탭으로 바로 팝업이 뜨면 화면 전환이 급작스러워 하이라이트를 먼저 보여준다).
-     * 예: '경인연안 VTS(Ch. 71)' 폴리곤 첫 탭 → 연보라 하이라이트만, true(클릭 소비, 팝업 없음).
-     *     같은 폴리곤 다시 탭 → 상세 팝업.
+     * 구역이 화면에서 얼마나 크게 보이는지에 따라 갈린다.
+     * 예1: 줌아웃 상태에서 작게 보이는 구역을 탭 → 선택·팝업 없이 그 구역 범위로 지도를
+     *      확대하고 true 반환(무엇을 눌렀는지 애매하니 확대부터 — 커진 뒤 다시 탭하면 선택).
+     * 예2: 충분히 크게 보일 때 첫 탭 → 연보라 하이라이트만, true(클릭 소비, 팝업 없음).
+     *      같은 폴리곤 다시 탭 → 상세 팝업(두 단계 — 한 번의 탭으로 바로 팝업이 뜨면
+     *      화면 전환이 급작스러워 하이라이트를 먼저 보여준다).
      * @param {ol.Map} map
      * @param {ol.MapBrowserEvent} evt
-     * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함)
+     * @returns {boolean} true 면 클릭이 소비됨(호출자는 바텀시트 등을 건너뛰어야 함 —
+     *                    확대만 한 경우도 true 라 바텀시트가 같이 뜨지 않는다)
      * [연계] ← ocean_map.js handleMapClick — 낚시금지 다음 우선순위로 호출.
      *        자체 singleclick 리스너를 따로 달지 않는 이유: 그렇게 하면 handleMapClick 의
      *        바텀시트 로직과 같은 클릭에 동시에 반응해버려 팝업+바텀시트가 함께 뜬다.
@@ -249,6 +259,25 @@
             return null;
         });
         if (!hit) return false;
+
+        // 화면상 크기(px) = 지오메트리 범위(m, EPSG:3857) ÷ 해상도(m/px).
+        // 선택 여부보다 먼저 판정한다 — 작을 땐 하이라이트 없이 확대만 해서 다음 탭을 정확하게.
+        var extent = hit.getGeometry() && hit.getGeometry().getExtent();
+        var resolution = map.getView().getResolution();
+        if (extent && resolution) {
+            var widthPx = (extent[2] - extent[0]) / resolution;
+            var heightPx = (extent[3] - extent[1]) / resolution;
+            if (widthPx < MIN_TAPPABLE_PX && heightPx < MIN_TAPPABLE_PX) {
+                map.getView().fit(extent, {
+                    padding: [80, 80, 80, 80],
+                    duration: 400,
+                    // 좁은 구역이 전자해도 타일 한계 너머로 과확대되는 걸 막는 상한
+                    maxZoom: FIT_MAX_ZOOM
+                });
+                return true;   // 확대만 하고 선택·팝업은 하지 않는다(클릭은 소비)
+            }
+        }
+
         if (_selected !== hit) {
             // 처음 누른 구역(또는 다른 구역으로 옮겨감) — 하이라이트만 하고 팝업은 다음 탭에.
             _selected = hit;
