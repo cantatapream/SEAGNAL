@@ -210,8 +210,12 @@
         if (!_visible || !_fillLayer) return false;
         var hit = map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
             if (layer === _fillLayer) return feature;
+            // 채움이 없는 선(LineString, 예: 용수리 가~나 통제경계선)은 _fillLayer로는
+            // 못 잡으므로 외곽선 레이어(_layer)에서 보조로 판정 — 폴리곤은 이미 위에서
+            // _fillLayer 판정으로 잡히므로 여기선 LineString feature만 추가로 본다.
+            if (layer === _layer && feature.getGeometry().getType() === 'LineString') return feature;
             return null;
-        });
+        }, { hitTolerance: 6 });
         if (!hit) return false;
         var location = hit.get('location') || '출입통제구역';
         if (typeof window.showSeagnalModal === 'function') {
