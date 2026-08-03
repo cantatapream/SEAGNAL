@@ -459,7 +459,11 @@ setImmediate(warmup);
 //  - httpOptions.timeout — 타임아웃을 Promise.race로 감싸면 우리 쪽만 포기하고 HTTP 요청은
 //    백그라운드에서 계속 돈다. 이 옵션은 SDK가 AbortController로 요청을 실제로 끊는다(@google/genai
 //    1.47.0 dist 확인). 실패·타임아웃 시 callGemini가 {success:false}를 주고 우리는 []로 폴백한다.
-const QUERY_EXPAND_TIMEOUT_MS = 4000;
+//  ★실측 발견(2026-08-03): 4000(4초)으로 두면 Gemini API가 매 호출 400(Manually set deadline 4s
+//    is too short. Minimum allowed deadline is 10s.)으로 거부해 이 호출이 배포 이후 한 번도
+//    성공한 적이 없었다(프로덕션 로그로 확인, caller=Legal-QueryExpand·Legal-RawLawPick 둘 다
+//    영향받음 — 둘 다 이 상수를 공유). API가 요구하는 최소값(10초)으로 올린다.
+const QUERY_EXPAND_TIMEOUT_MS = 10000;
 const QUERY_EXPAND_CONFIG = {
   temperature: 0.1,
   thinkingConfig: { thinkingBudget: 0 },
@@ -763,7 +767,7 @@ async function loadLawBundle(law) {
   return { law, base, lawText, files };
 }
 
-// ②파일 선택 호출은 법률.txt 전문(최대 RAW_MAX_CHARS)까지 읽히므로 질의확장(4초)보다 여유가 필요하다.
+// ②파일 선택 호출은 법률.txt 전문(최대 RAW_MAX_CHARS)까지 읽히므로 질의확장(10초)보다 여유가 필요하다.
 // 사고는 켜지 않는다 — "목차에서 필요한 파일 고르기"는 판단이지 추론이 아니다.
 const RAW_PICK_CONFIG = {
   temperature: 0.1,
