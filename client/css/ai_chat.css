@@ -433,3 +433,10 @@
 #nrya-overlays .nrya-consent-btns{display:flex; gap:6px; margin-top:9px}
 #nrya-overlays .nrya-consent-btn{font-family:inherit; font-size:11.5px; font-weight:700; padding:5px 12px; border-radius:13px; cursor:pointer; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#dbe7f5}
 #nrya-overlays .nrya-consent-btn.nrya-yes{background:#ffe14d; border-color:#ffe14d; color:#231c00}
+
+/* 되묻기(명확화) 선택지 — 위 동의 배너 버튼 톤을 그대로 쓰고, 라벨이 길어 줄바꿈만 허용한다.
+   한 번 고르면 .nrya-done 이 붙어 흐려지고 더 눌리지 않는다(중복 전송 방지). */
+#nrya-overlays .nrya-clarify-q{margin-top:9px; font-size:12.5px; font-weight:700; color:#dbe7f5}
+#nrya-overlays .nrya-clarify-btns{flex-wrap:wrap}
+#nrya-overlays .nrya-clarify.nrya-done{opacity:.45}
+#nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-btn{pointer-events:none; cursor:default}

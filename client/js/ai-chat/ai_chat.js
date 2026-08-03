@@ -31,6 +31,9 @@
  *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
  *                    POST /api/legal/ask {query, deviceId, notifyOnComplete}
  *                                                              (질문→AI 답변 스트리밍(NDJSON)+근거 법령
+ *                                                               · done 에 clarify{question,options} 가 오면
+ *                                                                 답변 대신 되묻기 선택지 버튼을 그리고,
+ *                                                                 누르면 "원래질문 — 라벨"로 다시 질의
  *                                                               · 6초 초과+옵트인이면 서버가 완료 푸시 발송)
  *                    GET  /api/legal/pending-answer/:requestId (푸시로 재진입 시 그 답변 1회 복원)
  *                    GET  /api/legal/article-text?law&article&tier&baseLaw
@@ -995,6 +998,9 @@
       // ⚠공백 안내 칩 — 누르면 위키에 적힌 원문 문구를 그대로 펼친다
       var g = e.target.closest('.nrya-gap-t');
       if (g) { g.parentElement.classList.toggle('nrya-open'); return; }
+      // 되묻기 선택지 버튼 — 고른 조건을 원래 질문에 합쳐 다시 물어본다
+      var opt = e.target.closest('.nrya-clarify-btn');
+      if (opt) { pickClarifyOption(opt); return; }
       if (e.target.closest('.nrya-chain-tel')) return;
       var hit = e.target.closest('.nrya-chain-hit');
       if (hit) openArtPop(hit);
@@ -1934,13 +1940,58 @@
   }
 
   /**
+   * 되묻기(명확화) 질문 + 선택지 버튼을 그린다.
+   * 서버(legal_retriever.decideClarify)가 "이 질문은 조건에 따라 답이 완전히 갈린다"고 판단하면
+   * 모든 경우를 나열한 긴 답변 대신 질문 하나와 선택지 2~3개가 내려온다 — 여기서 버튼으로 그리고,
+   * 누르면 원래 질문에 고른 조건을 붙여 다시 물어본다(pickClarifyOption).
+   * ⚠ 이 챗봇은 대화 이력을 서버에 보내지 않는 단발성 구조라, "이어지는 답"을 자유 텍스트로 받으면
+   *   원래 맥락이 사라진다 — 그래서 자유 입력이 아니라 **버튼**으로 받아 클라이언트가 맥락을 합친다.
+   * @param {string} q - 이 답변을 만든 원래 질문(버튼 클릭 시 앞에 붙일 문장)
+   * @param {{question:string, options:Array<{label:string,hint:string}>}} clarify - done 이벤트의 clarify
+   * @returns {string} HTML(선택지가 없으면 빈 문자열)
+   * [연계] ← answerHTML. → pickClarifyOption(위임 클릭 핸들러). ← routes/legal.js done.clarify.
+   */
+  function clarifyHTML(q, clarify) {
+    if (!clarify || !clarify.question || !(clarify.options || []).length) return '';
+    var btns = clarify.options.map(function (o) {
+      if (!o || !o.label) return '';
+      return '<button type="button" class="nrya-consent-btn nrya-clarify-btn" data-label="' + esc(o.label) + '"' +
+        (o.hint ? ' title="' + esc(o.hint) + '"' : '') + '>' + esc(o.label) + '</button>';
+    }).join('');
+    return '<div class="nrya-clarify" data-q="' + esc(q || '') + '">' +
+      '<div class="nrya-clarify-q">' + esc(clarify.question) + '</div>' +
+      '<div class="nrya-consent-btns nrya-clarify-btns">' + btns + '</div></div>';
+  }
+
+  /**
+   * 되묻기 선택지 버튼을 눌렀을 때: 원래 질문 + 고른 선택지를 한 문장으로 합쳐 새 질의로 보낸다.
+   * 예: "낚싯배 위에서 술 마시면 처벌?" + "조타 담당" → "낚싯배 위에서 술 마시면 처벌? — 조타 담당"
+   * 전송은 입력창에 넣고 기존 doSend()를 그대로 부른다(새 전송 경로를 만들지 않는다) — 합친
+   * 문장이 내 말풍선으로 그대로 보이므로 사용자가 무엇을 골랐는지도 화면에 남는다.
+   * 한 번 고르면 그 선택지 묶음은 비활성(nrya-done)이라 다시 눌러 중복 전송되지 않는다.
+   * @param {HTMLElement} btn - 눌린 .nrya-clarify-btn
+   * [연계] ← bindChat 의 위임 클릭. → doSend(기존 질문 전송 로직 재사용).
+   */
+  function pickClarifyOption(btn) {
+    var box = btn.closest('.nrya-clarify');
+    if (!box || box.classList.contains('nrya-done')) return;
+    box.classList.add('nrya-done');
+    var input = document.getElementById('nryaChatInput'); if (!input) return;
+    var q = box.getAttribute('data-q') || '';
+    var label = btn.getAttribute('data-label') || btn.textContent || '';
+    input.value = q ? q + ' — ' + label : label;
+    doSend();
+  }
+
+  /**
    * /api/legal/ask 응답을 답변 말풍선 내부 HTML로 조립한다.
-   * AI 합성 답변(answer)을 본문으로, 근거 법령(sources)은 아코디언으로 붙인다. 인용사슬
+   * AI 합성 답변(answer)을 본문으로, 근거 법령(sources)은 아코디언으로 붙인다. 서버가 되묻기를
+   * 택한 응답(clarify)이면 answer 자리에 짧은 안내 한 줄만 오고 그 아래에 선택지 버튼이 붙는다. 인용사슬
    * (citationChain)이 있는 첫 소스는 위임흐름 체인으로 펼치고, 나머지는 "법령명 · 주제"만
    * 적은 단순 카드로 나열한다. answer가 없으면(합성 실패·근거 없음) 안내 문구로 대체한다.
    * ※ 백엔드 내부 필드(kind·score·file)는 화면에 노출하지 않는다(사용자에게 의미 없는 값).
-   * @param {string} q - 사용자 질문(현재는 오류 문구 판단에만 쓰지 않음, 시그니처 유지)
-   * @param {object} data - {ok, answer, sources[], note} 또는 실패 객체
+   * @param {string} q - 사용자 질문(되묻기 선택지를 누를 때 앞에 붙일 원래 질문으로 쓴다)
+   * @param {object} data - {ok, answer, sources[], note, clarify?} 또는 실패 객체
    * @returns {string} 말풍선 내부 HTML
    */
   function answerHTML(q, data) {
@@ -1951,11 +2002,14 @@
     var sources = data.sources || [];
     var lead = data.answer
       ? answerBodyHTML(data.answer)
-      : (sources.length
-        ? '질문과 관련된 <b>근거 법령·개념</b>을 찾았지만, 지금은 답변 문장을 만들지 못했어요. 아래에서 조문 근거를 직접 확인하세요.'
-        : '아직 이 질문에 딱 맞는 근거를 위키에서 찾지 못했어요. 질문을 조금 더 구체적으로(법 이름·톤수·행위) 적어주시면 도움이 됩니다.');
+      : (data.clarify
+        ? '조건에 따라 답이 달라져서, 하나만 여쭤볼게요.'   // 되묻기인데 서버 안내문이 비었을 때의 최소 문구
+        : (sources.length
+          ? '질문과 관련된 <b>근거 법령·개념</b>을 찾았지만, 지금은 답변 문장을 만들지 못했어요. 아래에서 조문 근거를 직접 확인하세요.'
+          : '아직 이 질문에 딱 맞는 근거를 위키에서 찾지 못했어요. 질문을 조금 더 구체적으로(법 이름·톤수·행위) 적어주시면 도움이 됩니다.'));
 
-    var html = lead;
+    // 되묻기 선택지는 본문 바로 아래(근거 법령 아코디언보다 위)에 둔다 — 지금 사용자가 해야 할 일이다.
+    var html = lead + clarifyHTML(q, data.clarify);
     // 인용사슬이 있는 첫 소스만 체인으로 펼치고(전부 펼치면 너무 김), 나머지는 단순 카드로 나열
     var chainSrc = null;
     for (var i = 0; i < sources.length; i++) {

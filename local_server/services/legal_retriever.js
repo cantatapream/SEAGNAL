@@ -5,9 +5,10 @@
  * ============================================================================
  *
  * [설명]
- * `_CHATBOT.md` 4절(검색)·3절(인용규율)·5절(답변 경계)의 답변엔진 구현체(Phase E, 1차:
- * 수산업법·어선법·어선안전조업법 3법 파일럿). routes/legal.js의 POST /api/legal/ask가
- * 이 모듈의 search()로 근거 후보를 찾고 synthesizeAnswerStream()으로 실제 문장 답변을 스트리밍 생성한다.
+ * `_CHATBOT.md` 4절(검색)·3절(인용규율)·5절(답변 경계)·1-B절(되묻기)의 답변엔진 구현체(Phase E,
+ * 1차: 수산업법·어선법·어선안전조업법 3법 파일럿). routes/legal.js의 POST /api/legal/ask가
+ * 이 모듈의 search()로 근거 후보를 찾고, decideClarify()로 "되물어야 하는 질문인지" 한 번 걸러낸 뒤,
+ * 되물을 게 없을 때만 synthesizeAnswerStream()으로 실제 문장 답변을 스트리밍 생성한다.
  *
  * [검색 단계]
  *  ① 메타데이터 매칭(법명·주제·파일명·테마) — index.json
@@ -21,6 +22,10 @@
  *     딸려오는 것을 막는 쪽을 택한 트레이드오프다 — search() 안 주석 참고.
  * ※ 의미 임베딩(_CHATBOT.md 4-③)은 이번 파일럿 범위 밖(3법 규모에선 ①②③④로 충분히
  *   커버되는지 먼저 확인 — 필요해지면 topic_embedding.js 패턴을 재사용해 후속 추가).
+ *
+ * [되묻기] 조건에 따라 답이 완전히 갈리는 질문(예: "낚싯배에서 술 마시면 처벌?" — 바다냐 하천이냐,
+ *   조타 담당이냐 승객이냐)은 모든 경우를 나열하는 대신 decideClarify()가 질문+선택지 2~3개를 만들어
+ *   화면에 버튼으로 내려준다. 선택지는 그 순간 검색된 근거 조문에 **실제로 있는 구분**에서만 만든다.
  *
  * [환각 0] canonicalOnly=true면 concept·comparison은 status:canonical만 근거로 채택(statute는 통과).
  *   실제 답 문장은 항상 [근거자료]로 전달된 위키 원문에서만 만들도록 프롬프트로 강제.
@@ -574,6 +579,116 @@ async function expandQueryTerms(query) {
   }
 }
 
+// ── 되묻기(명확화) 판단 전용 설정 ──
+// expandQueryTerms()·pickCandidateLaws()와 같은 "짧고 빠른 판단 호출" 패턴: 사고 끄고, JSON만
+// 받고, 실패하면 조용히 폴백. 다만 이 호출은 근거자료 본문까지 읽히므로 타임아웃은 질의확장(10초)
+// 보다 여유를 준다(pickRawFiles와 같은 15초).
+const CLARIFY_TOPK = 6;            // 판단에 쓸 상위 근거 페이지 수(전부 넣으면 프롬프트가 폭주)
+const CLARIFY_BODY_CHARS = 1500;   // 페이지당 발췌 상한
+const CLARIFY_OPTION_MAX = 3;      // 선택지 상한(버튼 2~3개)
+// 모듈 레벨 공유 참조라 호출자가 실수로 고치면 이후 모든 폴백이 오염된다 — 얼려서 막는다.
+const CLARIFY_NONE = Object.freeze({ needed: false });
+// 클라이언트가 "원래질문 + 고른 선택지"를 합칠 때 쓰는 구분자(ai_chat.js pickClarifyOption:
+// `q + ' — ' + label`, em dash U+2014 앞뒤 공백). ⚠ 한쪽만 바꾸면 재되묻기 차단이 뚫린다.
+const CLARIFY_JOINER = ' — ';
+const CLARIFY_CONFIG = {
+  temperature: 0.1,
+  thinkingConfig: { thinkingBudget: 0 },
+  responseMimeType: 'application/json',
+  httpOptions: { timeout: 15000 },
+};
+
+/** 되묻기 응답 문자열 정리(앞뒤 공백 제거 + 길이 상한). 빈 문자열이면 ''. */
+function clarifyStr(v, max) {
+  return typeof v === 'string' ? v.trim().slice(0, max) : '';
+}
+
+/**
+ * 이 질문에 바로 답하지 말고 **사용자에게 조건을 되물어야 하는지**만 짧게 판단한다.
+ * 예: "낚싯배 위에서 술 마시면 처벌?"은 (바다/하천, 조타담당/승객)에 따라 적용 법령·처벌이
+ * 완전히 달라져 한 번에 다 나열하면 답이 길고 산만해진다 — 그럴 때 질문 + 선택지 2~3개를
+ * 돌려주면 화면이 버튼으로 그리고, 사용자가 고른 값을 원래 질문에 합쳐 다시 물어본다.
+ *
+ * ★환각 0: 선택지는 **[근거자료]에 실제로 적힌 구분**에서만 만들게 프롬프트로 강제한다(예:
+ *   "조타기를 조작하거나 그 조작을 지시하는 자"라는 조문 문구가 있어야 "조타 담당자냐 승객이냐"를
+ *   물을 수 있다). 근거가 없으면 needed:false로 물러난다.
+ * ★재되묻기 방지: 이미 조건이 붙은 합쳐진 질의("… — 바다에서 운항 중, 조타 담당자 기준")가
+ *   들어오면 프롬프트(기준3)에 앞서 **CLARIFY_JOINER 포함 여부만 보고 Gemini를 부르지도 않고**
+ *   물러난다 — 모델이 기준3을 어기면 버튼→되묻기→버튼 무한루프가 되므로 결정론적으로 막는다.
+ * ★hint 검증: 모델이 근거자료에 없는 조문번호를 hint에 지어넣을 수 있어, 파싱 후 hint의
+ *   조문번호 토큰을 [근거자료] 원문과 대조해 없으면 그 hint만 비운다(선택지는 유지).
+ * 실패(키 없음·근거 없음·타임아웃·파싱 실패·스키마 불충족)는 예외 없이 {needed:false} —
+ * 이 단계가 죽어도 기존 답변 흐름이 그대로 돌아가야 한다(pickCandidateLaws와 같은 폴백 규약).
+ *
+ * @param {string} query - 사용자 질문
+ * @param {Array} contextPages - search()의 contextPages(위키 원문 body 포함)
+ * @returns {Promise<{needed:boolean, intro?:string, question?:string, options?:Array<{label:string,hint:string}>}>}
+ * [연계] ← routes/legal.js POST /api/legal/ask 가 synthesizeAnswerStream() **전에** 호출한다.
+ *          needed:true면 종합답변을 아예 만들지 않고 done 이벤트의 clarify 필드로 내려보낸다.
+ *        → client/js/ai-chat/ai_chat.js clarifyHTML(선택지 버튼) → 버튼 클릭 시 "원래질문 — 라벨"로 재질의.
+ */
+async function decideClarify(query, contextPages) {
+  if (!gemini.hasAnyKey() || !contextPages || !contextPages.length) return CLARIFY_NONE;
+  // ★재되묻기 무한루프 차단(프롬프트 기준3의 결정론적 백스톱): 선택지 버튼으로 되돌아온 질의는
+  // 반드시 CLARIFY_JOINER 를 달고 온다 — 모델 판단에 맡기지 않고 여기서 곧바로 물러난다.
+  // (모델이 기준3을 어기면 버튼→되묻기→버튼 무한루프가 된다.) 사용자가 직접 " — "를 타이핑한
+  // 드문 경우도 되묻기를 건너뛸 뿐이라 안전한 쪽으로 틀린다.
+  if (String(query || '').includes(CLARIFY_JOINER)) return CLARIFY_NONE;
+  const block = contextPages.slice(0, CLARIFY_TOPK).map((cp, i) => {
+    const title = cp.topic ? `${cp.law} — ${cp.topic}` : cp.law;
+    return `--- 근거${i + 1}: [${title}] ---\n${String(cp.body || '').slice(0, CLARIFY_BODY_CHARS)}`;
+  }).join('\n\n');
+  const prompt = `너는 대한민국 해양수산 법령 챗봇의 "되묻기 판단기"다. 질문에 답하지 말고, 사용자에게 조건을 되물어야 하는지만 판단하라.
+
+[질문]
+"${query}"
+
+[근거자료]
+${block}
+
+[판단 기준]
+1. 근거자료를 보면 이 질문의 답(적용 법령·처벌·의무)이 어떤 구분에 따라 크게 달라지고, **그 구분이 근거자료 문구에 실제로 적혀 있으면** needed:true. 예: 근거자료에 "조타기를 조작하거나 그 조작을 지시하는 자"라고 적혀 있으면 "조타를 맡은 사람인지 일반 승객인지"는 근거가 있는 구분이다.
+2. ★근거자료에 없는 구분은 지어내지 마라. 선택지의 근거가 되는 표현을 근거자료에서 찾을 수 없으면 needed:false.
+3. ★질문 문구에 이미 그 조건이 적혀 있으면 그 조건을 다시 묻지 마라. 예: "낚싯배 위에서 술 마시면 처벌? — 바다에서 운항 중, 조타 담당자 기준"처럼 조건이 이미 붙어 있으면 needed:false.
+4. 조금이라도 애매하면 needed:false로 물러나라(되묻지 않고 답해도 되는 질문을 굳이 되묻지 않는다).
+5. 되물을 조건은 **한 가지만** 고른다(답이 가장 크게 갈리는 것). 선택지는 2~3개.
+
+다른 설명 없이 아래 JSON만 출력하라.
+{"needed":true,"intro":"…","question":"…","options":[{"label":"…","hint":"…"}]}
+또는 {"needed":false}
+- intro: 왜 조건에 따라 답이 갈리는지 알려주는 존댓말 한 문장.
+- question: 사용자에게 물을 한 문장.
+- options[].label: 버튼에 들어갈 짧은 문구(15자 이내). options[].hint: 그 선택지가 무슨 뜻인지 짧은 설명.`;
+  try {
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: CLARIFY_CONFIG, caller: 'Legal-Clarify',
+    });
+    if (!result.success || !result.text) return CLARIFY_NONE;
+    // JSON 모드라 보통은 객체 그대로 오지만, 모델이 코드블록·설명을 붙이는 경우까지 견디도록
+    // 첫 '{'~마지막 '}'만 떼어 파싱한다(파싱 실패는 아래 catch에서 폴백).
+    const m = result.text.match(/\{[\s\S]*\}/);
+    if (!m) return CLARIFY_NONE;
+    const obj = JSON.parse(m[0]);
+    if (!obj || obj.needed !== true) return CLARIFY_NONE;
+    const question = clarifyStr(obj.question, 200);
+    const options = (Array.isArray(obj.options) ? obj.options : [])
+      .map(o => ({ label: clarifyStr(o && o.label, 40), hint: clarifyStr(o && o.hint, 120) }))
+      .filter(o => o.label)
+      .slice(0, CLARIFY_OPTION_MAX)
+      // ★환각 0: hint가 근거자료에 없는 조문번호("제9999조")를 지어내면 버튼 툴팁으로 그대로
+      // 노출된다 — 조문번호 토큰만 좁게 대조해, 하나라도 block에 문자 그대로 없으면 그 hint를
+      // 비운다(선택지 자체는 남긴다 — 라벨은 사용자가 고를 조건이라 지우면 되묻기가 망가진다).
+      // 질문·라벨 전체 문자열 대조는 하지 않는다(패러프레이즈 오탐이 커서 정상 되묻기를 죽인다).
+      .map(o => (o.hint && (o.hint.match(/제\d+조(?:의\d+)?/g) || []).some(a => !block.includes(a))
+        ? { label: o.label, hint: '' } : o));
+    // 물음 없이, 또는 고를 게 하나뿐인 되묻기는 사용자를 막기만 하고 좁혀주지 못한다 — 그냥 답하게 둔다.
+    if (!question || options.length < 2) return CLARIFY_NONE;
+    return { needed: true, intro: clarifyStr(obj.intro, 200), question, options };
+  } catch (_) {
+    return CLARIFY_NONE;
+  }
+}
+
 /**
  * 하이브리드 검색: canonicalOnly 필터 → 메타점수(+AI 질의확장) → glossary 강제후보 병합
  * → 본문 직접매칭 재점수 → 관련도 낮은 꼬리 컷 → 상위 페이지 그래프 1홉 확장. 클라
@@ -731,7 +846,7 @@ function buildContextBlock(contextPages) {
 const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
 1. 답의 근거는 오직 [근거자료]뿐이다. [근거자료]에 없는 내용은 지어내지 말고 "확인되지 않습니다"라고 정직하게 말한다.
 2. 처벌(징역·벌금·과태료)은 조·항·호·금액을 [근거자료] 그대로 인용한다. 뭉개어 말하지 않는다. 처벌이 위반 횟수(1차/2차/3차…)에 따라 달라지면 가장 흔한 경우(통상 1차)만 먼저 답하고 "2차 이후도 궁금하시면 다시 물어보세요"로 마무리한다(한 번에 전부 나열하지 않는다).
-3. 조건(선박 톤수·어업 종류·조업구역 등)에 따라 답이 갈리는데 질문에 그 조건이 없으면, 장황하게 다 나열하지 말고 필요한 조건 한 가지만 되물어라(예: "배가 몇 톤이세요?"). 지금은 단발 질문-답변이라 이전 대화를 기억하지 못하니, 되물을 땐 그 사실을 티내지 말고 자연스럽게 묻는다.
+3. 여기서는 사용자에게 되묻지 않는다 — 되물어야 하는 질문은 이 답변 **앞 단계(되묻기 판단)** 에서 이미 걸러진다. 조건(선박 톤수·어업 종류·조업구역 등)이 질문에 없어도 되묻지 말고 [근거자료]에 있는 정보로 최선을 다해 답하되, 조건에 따라 갈리면 핵심 갈래만 짧게 구분해 밝힌다(모든 경우를 장황하게 전수 나열하지 않는다).
 4. 판례·법리 해석·다툼의 여지가 있는 논점은 답하지 않는다(스코프 밖). 명확한 조문까지만 안내하고 "이 부분은 개별 사안에 따라 달라져 관할 소관부서에 확인하시는 것이 정확합니다"로 마무리한다.
 5. 딱딱한 조문 나열 금지. 결론 먼저 → 필요한 근거. 이해가 어려운 부분만 "쉽게 말하면~"으로 한 번 더 풀어준다. 과잉 설명은 하지 않는다.
 6. 근거로 삼은 법령명·조문번호는 답변 문장 안에서 자연스럽게 밝힌다(예: "「낚시 관리 및 육성법」 제35조에 따라 …"). 다만 소관부서·연락처·근거자료의 기준일을 답변 마지막에 각주로 따로 붙이지는 않는다 — 화면이 답변 바로 아래에 "근거 법령" 목록을 함께 실어 사용자가 펼쳐서 확인할 수 있다. ("참고용입니다" 면책 문구도 화면이 별도로 붙이니 답변에 넣지 않는다.)
@@ -974,4 +1089,4 @@ async function searchRawFallback(query) {
   }
 }
 
-module.exports = { loadIndex, search, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, rawPathOf };
+module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, rawPathOf };

@@ -15,6 +15,8 @@
  *  - GET  /api/legal/admin/stats      → 관리자 검토센터 서브탭(초안·피드백·새지식후보·개정검토) 실카운트
  *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
  *  - POST /api/legal/ask              → 하이브리드 검색 + Gemini 답변 스트리밍 합성(NDJSON, services/legal_retriever.js)
+ *                                       조건에 따라 답이 갈리는 질문은 종합답변 대신 되묻기(질문+선택지)를
+ *                                       done 이벤트의 clarify 필드로 내려보낸다(legal_retriever.decideClarify)
  *                                       위키에 근거가 없으면 2차로 법령 원문(GitHub 온디맨드)을 훑어 "미검증 참고" 답변 시도
  *                                       6초 넘게 걸린 요청 + 알림 동의 시 답변을 임시 보관하고 개인 푸시 발송
  *  - GET  /api/legal/pending-answer/:requestId → 푸시로 다시 들어온 사용자에게 그 답변을 1회만 돌려줌
@@ -387,6 +389,7 @@ router.post('/api/legal/notify-me', (req, res) => {
 // POST /api/legal/ask — { query } → 하이브리드 검색(legal_retriever) + Gemini 답변 스트리밍 합성
 //   응답은 NDJSON(줄바꿈으로 구분된 JSON) 스트림: 답변 조각마다 {type:'delta',text}, 마지막에
 //   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, note} 한 줄로 마감.
+//   되묻기가 필요한 질문이면 delta 없이 done 한 줄만 나가고 clarify:{question,options} 가 함께 실린다.
 //   ⚠ 실제 생성시간은 그대로다(모델 사고+글자수는 안 줄어듦) — 목적은 체감 대기시간 단축뿐.
 //   추가 바디(선택): deviceId(기기 식별자) · notifyOnComplete(답변완료 푸시 동의, 기본 false)
 //   → 둘 다 있고 6초를 넘게 걸렸으면, 스트림은 그대로 두고 답변을 임시 보관 + 개인 푸시 발송.
@@ -407,9 +410,27 @@ router.post('/api/legal/ask', async (req, res) => {
     // (시·군·구 개별고시 등) — 화면이 ⚠칩으로 "원문 미수집 — 별도 확인 필요"를 알린다.
     const toSourceOut = s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop, citationChain: s.citationChain || [], gapNotices: s.gapNotices || [] });
 
+    // [되묻기] 조건에 따라 답이 완전히 갈리는 질문인지 먼저 빠르게 판단한다(무거운 종합답변 전).
+    // 판단이 실패하거나 애매하면 조용히 {needed:false} → 아래 기존 흐름 그대로.
+    const clarify = await legalRetriever.decideClarify(q, contextPages);
+
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     if (res.flushHeaders) res.flushHeaders();
+
+    // 되물을 게 있으면 종합답변(synthesizeAnswerStream)을 아예 만들지 않는다 — 모든 경우를
+    // 나열한 긴 답변 대신 짧은 안내 한 줄 + 선택지만 보낸다(화면이 버튼으로 그린다). 근거 법령
+    // 목록도 함께 실어 사용자가 먼저 참고할 수 있게 두되, 답변 문장이 없어 filterSourcesByAnswer
+    // (문장 기반 교차확인)를 쓸 수 없으므로 되묻기 판단이 실제로 읽은 상위 CLARIFY_TOPK 건까지만
+    // 보낸다 — 최대 15건을 통째로 실어 되묻기 화면이 무거워지는 걸 막는다.
+    if (clarify.needed) {
+      res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
+        answer: clarify.intro || null, sources: sources.slice(0, legalRetriever.CLARIFY_TOPK).map(toSourceOut), note: '추가 정보가 필요해요',
+        clarify: { question: clarify.question, options: clarify.options } }) + '\n');
+      res.end();
+      if (askId) inFlightAsks.delete(askId);
+      return;
+    }
 
     let full = '';
     let streamError = null;
