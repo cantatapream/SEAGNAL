@@ -617,11 +617,11 @@
     }
 
     /**
-     * 해양안전 화면(물빠짐·노출암/간출암·CCTV·낚시금지·관제구역·항로) 전용 안내 팝업 본문(탭바 + 패널)을 만든다.
+     * 해양안전 화면(물빠짐·노출암/간출암·CCTV·낚시금지·관제구역·항로·항행경보) 전용 안내 팝업 본문(탭바 + 패널)을 만든다.
      * 해양종합정보의 17탭 안내와 같은 방식으로, 이 화면에 있는 기능만 탭으로 보여준다.
      * @returns {string} 팝업에 넣을 HTML
      * [연계] ← window.oceanInfoTabHtml() (ocean_cctv.js) — 탭 본문을 그대로 재사용
-     *          (낚시금지는 해양종합정보에 없는 기능이라 공용 목록 대신 여기서 html 로 직접 넣는다)
+     *          (낚시금지·관제구역·항로·항행경보는 해양종합정보에 없는 기능이라 공용 목록 대신 여기서 html 로 직접 넣는다)
      *          → index2.html 의 .ocean-info-tabs/.ocean-info-panel/.ocean-info-src CSS, window.__lsInfoSwitch
      */
     function _buildSafetyInfoHtml() {
@@ -647,7 +647,12 @@
               + '<p>버튼을 켜면 실제 항로와 비교하기 쉽도록 배경지도가 전자해도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
               + '<p>항로를 누르면 항로명, 종류(통항분리대/통항분리수역 등), 근거·참고 문서를 확인할 수 있습니다.</p>'
               + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 항로 종류에 따라 통항 방법이 다르니, 실제 항해 전 관련 법령·고시 원문을 반드시 확인하세요.</p>'
-              + '<div class="ocean-info-src">최종 갱신일자 · 2026-08-03<br>출처 · 국립해양조사원 개방海(실시간 해양공간정보)</div>' }
+              + '<div class="ocean-info-src">최종 갱신일자 · 2026-08-03<br>출처 · 국립해양조사원 개방海(실시간 해양공간정보)</div>' },
+            { id: 'navwarn', label: '항행경보', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 오늘 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련 등)의 구역을 지도 위에 붉은 점선 원형/다각형으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 구분, 발표기관, 유효기간(날짜·시간), 근거, 본문 등 상세 내용을 확인할 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 좌표는 국립해양조사원 "항행경보 상황판" 자료를 보강해 표시한 것으로, 정식 항행경보 원문과 다를 수 있습니다. 실제 항해 시에는 반드시 항행경보 상황판(khoa.go.kr/nwb)이나 수로도서지 원문을 확인하세요.</p>'
+              + '<div class="ocean-info-src">갱신 주기 · 30분<br>출처 · 국립해양조사원 항행경보</div>' }
         ];
         var tabsHtml = '<div class="ocean-info-tabs">';
         var panelsHtml = '<div class="ocean-info-panels">';
