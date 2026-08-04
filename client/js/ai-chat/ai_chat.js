@@ -2010,10 +2010,14 @@
 
     // 되묻기 선택지는 본문 바로 아래(근거 법령 아코디언보다 위)에 둔다 — 지금 사용자가 해야 할 일이다.
     var html = lead + clarifyHTML(q, data.clarify);
-    // 인용사슬이 있는 첫 소스만 체인으로 펼치고(전부 펼치면 너무 김), 나머지는 단순 카드로 나열
+    // 인용사슬이 있는 소스 중 줄 수가 가장 많은 것 하나만 체인으로 펼치고(전부 펼치면 너무 김),
+    // 나머지는 단순 카드로 나열. 첫 매칭이 아니라 최다 매칭을 고르는 이유: 답변 문장과 대조해
+    // 거른 뒤라 여러 소스가 동시에 (짧게) 살아남을 수 있는데, 점수 순서상 앞선 소스가 우연히
+    // 한두 줄만 살아남고 뒤쪽 소스가 더 온전히 살아남는 경우 앞쪽만 보여주면 부족해 보인다.
     var chainSrc = null;
     for (var i = 0; i < sources.length; i++) {
-      if (sources[i].citationChain && sources[i].citationChain.length) { chainSrc = sources[i]; break; }
+      var c = sources[i].citationChain;
+      if (c && c.length && (!chainSrc || c.length > chainSrc.citationChain.length)) chainSrc = sources[i];
     }
     var rest = sources.filter(function (s) { return s !== chainSrc; });
     var shown = (chainSrc ? 1 : 0) + rest.length;

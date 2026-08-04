@@ -420,12 +420,15 @@ router.post('/api/legal/ask', async (req, res) => {
 
     // 되물을 게 있으면 종합답변(synthesizeAnswerStream)을 아예 만들지 않는다 — 모든 경우를
     // 나열한 긴 답변 대신 짧은 안내 한 줄 + 선택지만 보낸다(화면이 버튼으로 그린다). 근거 법령
-    // 목록도 함께 실어 사용자가 먼저 참고할 수 있게 두되, 답변 문장이 없어 filterSourcesByAnswer
-    // (문장 기반 교차확인)를 쓸 수 없으므로 되묻기 판단이 실제로 읽은 상위 CLARIFY_TOPK 건까지만
-    // 보낸다 — 최대 15건을 통째로 실어 되묻기 화면이 무거워지는 걸 막는다.
+    // 목록도 함께 실어 사용자가 먼저 참고할 수 있게 두되, 답변 문장이 없어 filterSourcesByAnswer도
+    // filterCitationChainByAnswer도(문장 기반 교차확인) 쓸 수 없다 — 그래서 citationChain은 통째로
+    // 걸러지지 않은 원문 표라 여기선 아예 싣지 않는다(법령명·주제 카드만). 되묻기 판단이 실제로
+    // 읽은 상위 CLARIFY_TOPK 건까지만 보낸다 — 최대 15건을 통째로 실어 화면이 무거워지는 것도 막는다.
     if (clarify.needed) {
       res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
-        answer: clarify.intro || null, sources: sources.slice(0, legalRetriever.CLARIFY_TOPK).map(toSourceOut), note: '추가 정보가 필요해요',
+        answer: clarify.intro || null,
+        sources: sources.slice(0, legalRetriever.CLARIFY_TOPK).map(s => Object.assign(toSourceOut(s), { citationChain: [] })),
+        note: '추가 정보가 필요해요',
         clarify: { question: clarify.question, options: clarify.options } }) + '\n');
       res.end();
       if (askId) inFlightAsks.delete(askId);
@@ -450,6 +453,11 @@ router.post('/api/legal/ask', async (req, res) => {
     // (스트림 실패로 답변이 없으면 교차확인할 대상이 없어 후보를 그대로 반환).
     const finalSources = !contextPages.length ? []
       : (usedGemini ? legalRetriever.filterSourcesByAnswer(sources, full) : sources);
+    // citationChain도 소스와 같은 방식으로 답변 문장과 대조해 무관한 줄을 뺀다(legal_retriever.js
+    // filterCitationChainByAnswer 참고 — 소스가 통과해도 그 안 표 9줄이 통째로 딸려나오던 문제).
+    if (usedGemini) {
+      finalSources.forEach(s => { s.citationChain = legalRetriever.filterCitationChainByAnswer(s.citationChain, full); });
+    }
 
     // 위키(검증된 카드)에 쓸 근거가 결국 안 남으면 여기서 끝내지 않고, 좁혀진 법의 raw 원문을
     // GitHub에서 그때그때 읽어 "미검증 참고" 등급으로 한 번 더 답을 시도한다(MASTER_PLAN F절).
