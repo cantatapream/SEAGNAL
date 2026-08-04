@@ -855,7 +855,7 @@
             '<button class="nrya-chat-x" id="nryaChatX">×</button>' +
           '</div>' +
           '<div class="nrya-chat-body" id="nryaChatBody">' +
-            '<div class="nrya-krow nrya-ai"><div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div><span class="nrya-ktime">' + nowLabel() + '</span></div></div></div>' +
+            '<div class="nrya-krow nrya-ai"><div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div></div></div></div>' +
           '</div>' +
           '<div class="nrya-chat-input"><button class="nrya-chat-plus" title="첨부">＋</button><input id="nryaChatInput" placeholder="메시지 입력" /><button class="nrya-chat-send" id="nryaChatSend">➤</button></div>' +
         '</div>' +
@@ -1369,9 +1369,13 @@
 
   /**
    * 조 하나(single)를 그린다 — 인용된 항(hit)은 tier 색 배경으로 강조하고 나머지는 흐리게 둔다.
+   * 번호는 항 ①②③ · 호 1. 2. 3. · 목 가. 나. 다. 로, **원문에 적힌 것을 그대로** 쓴다.
+   * ⚠ 호 번호를 화면에서 다시 매기면(예전 `(i + 1) + '. '`) 개정으로 끼워 넣은 가지번호 호가
+   *   어긋난다 — 낚시관리및육성법 제53조②의 8번째 항목은 `8.`이 아니라 `6의2.`라서, 다시 매기면
+   *   근거로 강조된 호와 화면에 적힌 번호가 서로 다른 조문을 가리키게 된다.
    * @param {HTMLElement} body - #nryaArtBody
-   * @param {Array} paragraphs - 서버 응답 paragraphs
-   * [연계] ← renderArtPop.
+   * @param {Array} paragraphs - 서버 응답 paragraphs [{mark,text,hit,items:[{label,text,hit,subs}]}]
+   * [연계] ← renderArtPop. ← services/article_text.js splitHo()가 붙인 label.
    */
   function renderSingle(body, paragraphs) {
     (paragraphs || []).forEach(function (p) {
@@ -1382,11 +1386,21 @@
       var t = document.createElement('span'); appendText(t, p.text); wrap.appendChild(t);
       if (p.items && p.items.length) {
         var ul = document.createElement('ul'); ul.className = 'nrya-artpop-items';
-        p.items.forEach(function (it, i) {
+        p.items.forEach(function (it) {
           var li = document.createElement('li');
-          li.appendChild(document.createTextNode((i + 1) + '. '));
+          li.appendChild(document.createTextNode((it.label || '') + '. '));
           appendText(li, it.text);
           if (it.hit) li.className = 'nrya-hit';
+          if (it.subs && it.subs.length) {
+            var sul = document.createElement('ul'); sul.className = 'nrya-artpop-subs';
+            it.subs.forEach(function (s) {
+              var sli = document.createElement('li');
+              sli.appendChild(document.createTextNode((s.label || '') + '. '));
+              appendText(sli, s.text);
+              sul.appendChild(sli);
+            });
+            li.appendChild(sul);
+          }
           ul.appendChild(li);
         });
         wrap.appendChild(ul);
@@ -1419,11 +1433,18 @@
           var tx = document.createElement('span'); appendText(tx, p.text);
           row.appendChild(mk); row.appendChild(tx); bd.appendChild(row);
         }
-        (p.items || []).forEach(function (it, j) {
-          var r2 = document.createElement('div'); r2.className = 'nrya-art-para';
-          var m2 = document.createElement('span'); m2.className = 'nrya-art-mark'; m2.textContent = (j + 1) + '.';
-          var t2 = document.createElement('span'); appendText(t2, it);
+        // 호·목 번호도 원문에 적힌 것을 그대로 쓴다(renderSingle 의 ⚠ 주석과 같은 이유).
+        (p.items || []).forEach(function (it) {
+          var r2 = document.createElement('div'); r2.className = 'nrya-art-para nrya-art-ho';
+          var m2 = document.createElement('span'); m2.className = 'nrya-art-mark'; m2.textContent = (it.label || '') + '.';
+          var t2 = document.createElement('span'); appendText(t2, it.text);
           r2.appendChild(m2); r2.appendChild(t2); bd.appendChild(r2);
+          (it.subs || []).forEach(function (s) {
+            var r3 = document.createElement('div'); r3.className = 'nrya-art-para nrya-art-mok';
+            var m3 = document.createElement('span'); m3.className = 'nrya-art-mark'; m3.textContent = (s.label || '') + '.';
+            var t3 = document.createElement('span'); appendText(t3, s.text);
+            r3.appendChild(m3); r3.appendChild(t3); bd.appendChild(r3);
+          });
         });
       });
       blk.appendChild(bd); body.appendChild(blk);
@@ -1681,7 +1702,7 @@
     if (rowId) row.id = rowId;
     row.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div>' +
       '<div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow">' +
-      '<div class="nrya-kbub nrya-ai"></div><span class="nrya-ktime">지금</span></div></div>';
+      '<div class="nrya-kbub nrya-ai"></div></div></div>';
     var bub = row.querySelector('.nrya-kbub');
     bub.innerHTML = innerHTML;
     body.appendChild(row); body.scrollTop = body.scrollHeight;
@@ -1755,7 +1776,7 @@
 
     // 내 말풍선
     var me = document.createElement('div'); me.className = 'nrya-krow nrya-me';
-    me.innerHTML = '<div class="nrya-kbrow"><div class="nrya-kbub"></div><span class="nrya-ktime">지금</span></div>';
+    me.innerHTML = '<div class="nrya-kbrow"><div class="nrya-kbub"></div></div>';
     me.querySelector('.nrya-kbub').textContent = q;
     body.appendChild(me); input.value = ''; body.scrollTop = body.scrollHeight;
 
@@ -1777,7 +1798,7 @@
       if (bubbleEl) return;
       clearInterval(iv); if (orb) orb.classList.remove('nrya-think'); th.remove();
       var a = document.createElement('div'); a.className = 'nrya-krow nrya-ai';
-      a.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai"></div><span class="nrya-ktime">지금</span></div></div></div>';
+      a.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai"></div></div></div>';
       body.appendChild(a);
       bubbleEl = a.querySelector('.nrya-kbub');
     }
@@ -1837,10 +1858,13 @@
   }
 
   /**
-   * 인용사슬 한 조문을 체인 한 칸(원형 번호 + 세로선 + 조문 뱃지 + 시행일자 + 요지 + ☎연락처)으로 그린다.
-   * 시행일자는 뱃지와 같은 줄에 **항상** 보인다(예전엔 꾹 누를 때만 뜨는 말풍선이었다).
-   * 연락처 줄을 뺀 카드 본문(.nrya-chain-hit)은 눌러서 조문 원문 팝업을 여는 영역이다.
-   * @param {object} row - {law, article, effectiveDate, gist, tier, contact}
+   * 인용사슬 한 조문을 체인 한 칸으로 그린다.
+   * 제목 줄은 **[뱃지] 법령명 조문번호** 한 줄로 짧게 끝내고(시행일자는 그 줄 오른쪽 끝의 작은 칩),
+   * 그 아래에 그 조문의 **원문 발췌**(row.excerpt — 서버가 조문 원문에서 그대로 잘라 실어준 것)를
+   * 보여준다. 발췌를 못 구한 줄(범위 인용·원문 조회 실패 등)만 예전처럼 위키 `요지`로 대신한다.
+   * ⚠발췌는 원문 그대로다 — 화면이 손대지 않는다(routes/legal.js pickExcerpt 참고).
+   * 연락처 줄을 뺀 카드 본문(.nrya-chain-hit)은 눌러서 조문 원문 팝업(전문)을 여는 영역이다.
+   * @param {object} row - {law, article, effectiveDate, excerpt, gist, tier, contact}
    * @param {number} n - 화면에 찍을 순번(1부터)
    * @param {boolean} last - 세로 연결선을 끊을지(체인의 마지막 칸)
    * @param {boolean} penalty - 처벌 조문인지(빨간 원 + '벌칙' 라벨)
@@ -1853,7 +1877,11 @@
     var eff = row.effectiveDate
       ? '<span class="nrya-chain-eff">' + (row.tier === 'notice' ? '발령일자 ' : '시행일자 ') + esc(row.effectiveDate) + '</span>'
       : '';
-    var head = esc(tierLabel(row, penalty)); // 조문번호는 아래 nrya-chain-art 가 법령명과 함께 보여준다
+    var head = esc(tierLabel(row, penalty)); // 뱃지. 법령명·조문번호는 같은 줄의 nrya-chain-art 가 잇는다
+    // 본문 미리보기: 조문 원문 발췌가 있으면 그것을, 없으면(범위 인용·원문 조회 실패) 위키 요지를.
+    var quote = row.excerpt
+      ? '<div class="nrya-chain-quote nrya-chain-ex"><div class="nrya-chain-hang">' + esc(row.excerpt) + '</div></div>'
+      : (row.gist ? '<div class="nrya-chain-quote"><div class="nrya-chain-hang">' + esc(row.gist) + '</div></div>' : '');
     var tel = '';
     if (row.contact && row.contact.전화번호) {
       var who = row.contact.소관부처명
@@ -1875,9 +1903,9 @@
       '<div class="nrya-chain-rail"><div class="nrya-chain-dot">' + n + '</div><div class="nrya-chain-line"></div></div>' +
       '<div class="nrya-chain-content">' +
         '<div class="nrya-chain-hit"' + hitAttrs + '>' +
-          '<div class="nrya-chain-head"><span class="nrya-chain-tier">' + head + '</span>' + eff + '</div>' +
-          '<div class="nrya-chain-art">' + esc(row.law || '') + (row.article ? ' ' + esc(row.article) : '') + '</div>' +
-          (row.gist ? '<div class="nrya-chain-quote"><div class="nrya-chain-hang">' + esc(row.gist) + '</div></div>' : '') +
+          '<div class="nrya-chain-head"><span class="nrya-chain-tier">' + head + '</span>' +
+            '<span class="nrya-chain-art">' + esc(row.law || '') + (row.article ? ' ' + esc(row.article) : '') + '</span>' + eff + '</div>' +
+          quote +
         '</div>' +
         tel +
       '</div>' +
@@ -1887,8 +1915,9 @@
   /**
    * 인용사슬 전체를 위임 흐름 체인으로 그린다. 위임 조문(법률→시행령→시행규칙→고시)을 한 체인으로
    * 잇고, 처벌 조문은 간격을 띄워 별도 체인으로 뺀다(처벌 조문이 없으면 구분 없이 한 체인).
-   * ⚠ 여기 나오는 문장은 위키 "근거 조문" 표의 **요지**다 — 조문 원문(항·호)은 카드를 누르면
-   *   조문 팝업(openArtPop)이 raw 원문에서 그때그때 읽어 보여준다.
+   * ⚠ 각 칸에 보이는 문장은 그 조문 **원문의 앞부분 발췌**(서버가 실어준 row.excerpt)이고, 발췌를
+   *   못 구한 칸만 위키 "근거 조문" 표의 요지다. 조문 전문(항·호 전체)은 카드를 누르면 조문
+   *   팝업(openArtPop)이 raw 원문에서 그때그때 읽어 보여준다.
    * @param {Array} chain - sources[i].citationChain
    * @param {string} baseLaw - 이 체인이 실린 소스(위키 페이지)의 법령명 — 고시 원문 폴더 찾기용
    * @returns {string} HTML
@@ -1986,9 +2015,10 @@
   /**
    * /api/legal/ask 응답을 답변 말풍선 내부 HTML로 조립한다.
    * AI 합성 답변(answer)을 본문으로, 근거 법령(sources)은 아코디언으로 붙인다. 서버가 되묻기를
-   * 택한 응답(clarify)이면 answer 자리에 짧은 안내 한 줄만 오고 그 아래에 선택지 버튼이 붙는다. 인용사슬
-   * (citationChain)이 있는 첫 소스는 위임흐름 체인으로 펼치고, 나머지는 "법령명 · 주제"만
-   * 적은 단순 카드로 나열한다. answer가 없으면(합성 실패·근거 없음) 안내 문구로 대체한다.
+   * 택한 응답(clarify)이면 answer 자리에 짧은 안내 한 줄만 오고 그 아래에 선택지 버튼이 붙는다.
+   * 아코디언에는 인용사슬(citationChain)이 가장 많이 살아남은 소스 **하나만** 위임흐름 체인으로
+   * 펼친다 — 살아남은 인용사슬이 하나도 없으면 아코디언 자체를 그리지 않는다.
+   * answer가 없으면(합성 실패·근거 없음) 안내 문구로 대체한다.
    * ※ 백엔드 내부 필드(kind·score·file)는 화면에 노출하지 않는다(사용자에게 의미 없는 값).
    * @param {string} q - 사용자 질문(되묻기 선택지를 누를 때 앞에 붙일 원래 질문으로 쓴다)
    * @param {object} data - {ok, answer, sources[], note, clarify?} 또는 실패 객체
@@ -2010,24 +2040,30 @@
 
     // 되묻기 선택지는 본문 바로 아래(근거 법령 아코디언보다 위)에 둔다 — 지금 사용자가 해야 할 일이다.
     var html = lead + clarifyHTML(q, data.clarify);
-    // 인용사슬이 있는 소스 중 줄 수가 가장 많은 것 하나만 체인으로 펼치고(전부 펼치면 너무 김),
-    // 나머지는 단순 카드로 나열. 첫 매칭이 아니라 최다 매칭을 고르는 이유: 답변 문장과 대조해
-    // 거른 뒤라 여러 소스가 동시에 (짧게) 살아남을 수 있는데, 점수 순서상 앞선 소스가 우연히
-    // 한두 줄만 살아남고 뒤쪽 소스가 더 온전히 살아남는 경우 앞쪽만 보여주면 부족해 보인다.
+    // 인용사슬이 있는 소스 중 줄 수가 가장 많은 것 하나만 체인으로 펼친다(전부 펼치면 너무 김).
+    // 첫 매칭이 아니라 최다 매칭을 고르는 이유: 답변 문장과 대조해 거른 뒤라 여러 소스가 동시에
+    // (짧게) 살아남을 수 있는데, 점수 순서상 앞선 소스가 우연히 한두 줄만 살아남고 뒤쪽 소스가 더
+    // 온전히 살아남는 경우 앞쪽만 보여주면 부족해 보인다.
+    // ⚠나머지 소스를 "법령명 · 주제"만 적은 카드로 나열하던 부분은 뺐다 — 조문도 요지도 없어
+    //   ("음주운항_측정거부" 같은 이름 한 줄) 답변 본문과 위 체인이 이미 말한 것 이상을 주지 못하는데,
+    //   근거 건수만 부풀려 보이게 했다(라이브 실측 지적).
     var chainSrc = null;
     for (var i = 0; i < sources.length; i++) {
       var c = sources[i].citationChain;
       if (c && c.length && (!chainSrc || c.length > chainSrc.citationChain.length)) chainSrc = sources[i];
     }
-    var rest = sources.filter(function (s) { return s !== chainSrc; });
-    var shown = (chainSrc ? 1 : 0) + rest.length;
+    // 건수는 체인에 실제로 남은 **법령 가짓수**(같은 법의 여러 조문은 한 건)로 센다.
+    var lawNames = [];
+    if (chainSrc) {
+      chainSrc.citationChain.forEach(function (row) {
+        var nm = row.law || '';
+        if (nm && lawNames.indexOf(nm) < 0) lawNames.push(nm);
+      });
+    }
+    var shown = lawNames.length;
     if (shown) {
       html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 근거 법령 ' + shown + '건 (펼쳐서 보기)</div><div class="nrya-lawacc-b">';
-      if (chainSrc) html += chainHTML(chainSrc.citationChain, chainSrc.law || '');
-      html += rest.map(function (s) {
-        var title = (s.law ? esc(s.law) : '') + (s.topic ? ' · ' + esc(s.topic) : '');
-        return '<div class="nrya-lawitem"><div class="nrya-lw-t">' + (title || '근거 자료') + '</div></div>';
-      }).join('');
+      html += chainHTML(chainSrc.citationChain, chainSrc.law || '');
       html += '</div></div>';
     }
     // ⚠공백 안내는 아코디언 **밖**에 둔다 — 접혀 있는 목록 안에 넣으면 정작 꼭 봐야 할
@@ -2076,7 +2112,7 @@
   function renderRestoredAnswer(data) {
     var body = document.getElementById('nryaChatBody'); if (!body) return;
     var me = document.createElement('div'); me.className = 'nrya-krow nrya-me';
-    me.innerHTML = '<div class="nrya-kbrow"><div class="nrya-kbub"></div><span class="nrya-ktime">지금</span></div>';
+    me.innerHTML = '<div class="nrya-kbrow"><div class="nrya-kbub"></div></div>';
     me.querySelector('.nrya-kbub').textContent = data.query || '';
     body.appendChild(me);
     appendAiRow(answerHTML(data.query || '', data));

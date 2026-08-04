@@ -386,6 +386,95 @@ router.post('/api/legal/notify-me', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── 근거 조문 발췌(excerpt) ────────────────────────────────────────────────
+// 근거 법령 목록의 조문 한 줄이 예전엔 위키 표의 `요지`(사람이 줄여 적은 한 문장)를 보여줬다 —
+// 요지는 원문이 아니라 요약이라, 정작 "그 조문에 실제로 뭐라고 적혀 있나"를 알 수 없었다.
+// 조문 팝업이 이미 쓰는 article_text.loadArticle() 로 그 조 원문을 읽어, **인용된 항(또는 호)의
+// 원문 앞부분**을 목록 미리보기로 함께 싣는다(전문은 예전처럼 카드를 눌러 팝업에서 본다).
+// ⚠환각 0: 발췌는 loadArticle 이 준 원문 문자열을 그대로 자른 것이다 — 요약·재작성하지 않는다.
+//   유일한 가공은 ⓐ줄바꿈·연속공백을 공백 하나로 합치는 것(목록 한 칸에서 줄이 깨지지 않게)과
+//   ⓑ길면 뒤를 잘라 '…'를 붙이는 것뿐이다.
+const EXCERPT_MAX = 140;          // 목록 미리보기 최대 글자수(넘으면 뒤를 자르고 '…')
+const MAX_EXCERPT_ROWS = 8;       // 한 답변에서 원문을 읽어올 최대 줄 수(=GitHub 파일 읽기 횟수 상한)
+
+/**
+ * loadArticle() 응답에서 목록에 실을 짧은 발췌 한 조각을 고른다.
+ * 어디를 인용했는지에 따라 고르는 자리가 다르다.
+ *  - 호까지 짚은 인용(제10조④3호) → 그 호 원문
+ *  - 항까지 짚은 인용(제9조제3항)  → 그 항 원문
+ *  - 조만 짚은 인용(제39조, 이 위키에서 가장 흔한 표기) → **첫 항** 원문(조의 첫머리 미리보기)
+ * 조 하나를 특정하지 못한 인용(범위 `제1~9조`·전체·별표만 가리킨 행)과 원문 조회 실패(ok:false)는
+ * 발췌하지 않는다 — 그런 줄은 예전처럼 위키 요지로 그려진다.
+ * ⚠뒤에 더 있는데 이게 전부인 것처럼 보이면 안 된다 — 글자수로 잘렸거나, 고른 자리 뒤에 다른
+ *   항·호가 더 있으면 끝에 '…'를 붙여 "이 조문에 더 있다"를 드러낸다(전문은 카드를 눌러 팝업에서).
+ * 예: pickExcerpt({ok:true, mode:'single', paragraphs:[{mark:'④', text:'제1항에 따른 술에 취한 상태의 기준은 …', hit:true, items:null}]})
+ *     → '④ 제1항에 따른 술에 취한 상태의 기준은 혈중알코올농도 0.03퍼센트 이상으로 한다.'
+ * @param {object} out - article_text.loadArticle() 반환값
+ * @returns {string} 발췌(못 고르면 빈 문자열)
+ * [연계] ← attachChainExcerpts(). → ai_chat.js chainStepHTML 의 발췌 줄(.nrya-chain-ex).
+ */
+function pickExcerpt(out) {
+  if (!out || out.ok !== true || out.mode !== 'single' || !Array.isArray(out.paragraphs) || !out.paragraphs.length) return '';
+  const hitIdx = out.paragraphs.findIndex(p => p && p.hit);
+  const para = out.paragraphs[hitIdx >= 0 ? hitIdx : 0];
+  if (!para) return '';
+  const item = (hitIdx >= 0 && Array.isArray(para.items)) ? para.items.find(it => it && it.hit) : null;
+  // 항 기호(①…)는 splitParagraphs 가 text 에서 떼어놨다 — 어느 항인지 알 수 있게 다시 앞에 붙인다
+  // (호를 짚은 경우엔 제목 줄이 이미 항·호를 말하고 있어 붙이지 않는다).
+  const raw = item ? String(item.text || '') : (para.mark ? para.mark + ' ' : '') + String(para.text || '');
+  const text = raw.replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  const body = text.length > EXCERPT_MAX ? text.slice(0, EXCERPT_MAX).trim() : text;
+  const more = body.length < text.length                                  // 글자수로 잘림
+    || (!item && Array.isArray(para.items) && para.items.length > 0)      // 이 항에 호가 더 달려 있음
+    || (hitIdx < 0 && out.paragraphs.length > 1);                         // 조 전체 인용인데 첫 항만 보여줌
+  return body + (more ? '…' : '');
+}
+
+/**
+ * 화면에 체인으로 펼쳐질 소스 하나를 고른다 — 살아남은 인용사슬 줄 수가 가장 많은 소스.
+ * ⚠ 이 규칙은 ai_chat.js answerHTML 의 chainSrc 선택과 **일부러 같게** 맞춘 것이다. 화면은 그 소스
+ *   하나만 조문 체인으로 펼치고 나머지 소스는 아예 그리지 않으므로, 다른 소스의 줄까지 원문을 읽으면
+ *   아무도 보지 않을 파일을 답변이 끝나기를 기다리며 더 읽는 셈이 된다(발췌 한 줄 = GitHub 파일
+ *   읽기 한 번). 클라이언트 선택 로직을 서버가 아는 건 결합이지만, 두 규칙이 어긋나도 화면은 깨지지
+ *   않는다 — 발췌가 없는 줄은 기존대로 위키 요지로 그려질 뿐이라 안전한 방향의 결합이다.
+ * @param {Array} sources - filterCitationChainByAnswer 까지 끝난 finalSources
+ * @returns {object|null} 발췌를 붙일 소스(살아남은 줄이 하나도 없으면 null)
+ * [연계] ← POST /api/legal/ask. ↔ client/js/ai-chat/ai_chat.js answerHTML 의 chainSrc.
+ */
+function pickChainSource(sources) {
+  let best = null;
+  for (const s of sources || []) {
+    const n = (s.citationChain || []).length;
+    if (n && (!best || n > best.citationChain.length)) best = s;
+  }
+  return best;
+}
+
+/**
+ * 소스 하나의 인용사슬 각 줄에 `excerpt`(조문 원문 발췌)를 붙인다. 줄마다 원문 파일을 한 번
+ * 읽으므로 **답변 문장과 대조해 살아남은 줄에만**(=filterCitationChainByAnswer 이후) 부른다.
+ * 한 줄이 실패해도(원문 없음·토큰 없음·범위 인용 등) 나머지는 그대로 간다 — 실패는 발췌 없음일 뿐
+ * 예외로 번지지 않는다(allSettled + 개별 try).
+ * @param {object|null} src - pickChainSource() 결과
+ * @returns {Promise<void>} src.citationChain 의 각 행에 excerpt 를 직접 채운다(반환값 없음)
+ * [연계] ← POST /api/legal/ask. → services/article_text.js loadArticle().
+ */
+async function attachChainExcerpts(src) {
+  const rows = ((src && src.citationChain) || []).slice(0, MAX_EXCERPT_ROWS);
+  await Promise.allSettled(rows.map(async (row) => {
+    try {
+      const out = await articleText.loadArticle({
+        law: row.law, article: row.article, tier: row.tier, baseLaw: src.law || '',
+      });
+      const ex = pickExcerpt(out);
+      if (ex) row.excerpt = ex;
+    } catch (e) {
+      console.error('[Legal] 조문 발췌 실패:', row.law, row.article, e && e.message);
+    }
+  }));
+}
+
 // POST /api/legal/ask — { query } → 하이브리드 검색(legal_retriever) + Gemini 답변 스트리밍 합성
 //   응답은 NDJSON(줄바꿈으로 구분된 JSON) 스트림: 답변 조각마다 {type:'delta',text}, 마지막에
 //   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, note} 한 줄로 마감.
@@ -419,15 +508,17 @@ router.post('/api/legal/ask', async (req, res) => {
     if (res.flushHeaders) res.flushHeaders();
 
     // 되물을 게 있으면 종합답변(synthesizeAnswerStream)을 아예 만들지 않는다 — 모든 경우를
-    // 나열한 긴 답변 대신 짧은 안내 한 줄 + 선택지만 보낸다(화면이 버튼으로 그린다). 근거 법령
-    // 목록도 함께 실어 사용자가 먼저 참고할 수 있게 두되, 답변 문장이 없어 filterSourcesByAnswer도
-    // filterCitationChainByAnswer도(문장 기반 교차확인) 쓸 수 없다 — 그래서 citationChain은 통째로
-    // 걸러지지 않은 원문 표라 여기선 아예 싣지 않는다(법령명·주제 카드만). 되묻기 판단이 실제로
-    // 읽은 상위 CLARIFY_TOPK 건까지만 보낸다 — 최대 15건을 통째로 실어 화면이 무거워지는 것도 막는다.
+    // 나열한 긴 답변 대신 짧은 안내 한 줄 + 선택지만 보낸다(화면이 버튼으로 그린다).
+    // ⚠근거 법령 목록은 여기서 **아예 보내지 않는다**(sources: []). 되묻기 단계는 아직 어느 법·어느
+    //   조문이 답인지 정해지지 않은 상태라(사용자가 선택지를 고르면 그때 답이 갈린다), 답변 문장이
+    //   없어 filterSourcesByAnswer·filterCitationChainByAnswer(문장 기반 교차확인) 둘 다 쓸 수 없다.
+    //   그런데도 검색 후보를 실어 보내면 화면이 "📖 근거 법령 N건" 아코디언을 그려, 확정되지 않은
+    //   내부 계산 결과가 확정된 근거처럼 보인다(라이브 실측으로 확인된 문제). 근거는 사용자가 되묻기에
+    //   답한 뒤 나오는 실제 답변에서만 보여준다.
     if (clarify.needed) {
       res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
         answer: clarify.intro || null,
-        sources: sources.slice(0, legalRetriever.CLARIFY_TOPK).map(s => Object.assign(toSourceOut(s), { citationChain: [] })),
+        sources: [],
         note: '추가 정보가 필요해요',
         clarify: { question: clarify.question, options: clarify.options } }) + '\n');
       res.end();
@@ -457,6 +548,9 @@ router.post('/api/legal/ask', async (req, res) => {
     // filterCitationChainByAnswer 참고 — 소스가 통과해도 그 안 표 9줄이 통째로 딸려나오던 문제).
     if (usedGemini) {
       finalSources.forEach(s => { s.citationChain = legalRetriever.filterCitationChainByAnswer(s.citationChain, full); });
+      // 살아남은 줄에만 조문 원문 발췌를 붙인다(거르기 전에 붙이면 버려질 줄까지 원문을 읽는다).
+      // 실제 대상은 화면이 펼칠 소스 하나(pickChainSource) — 통상 3~6줄, 상한 MAX_EXCERPT_ROWS.
+      await attachChainExcerpts(pickChainSource(finalSources));
     }
 
     // 위키(검증된 카드)에 쓸 근거가 결국 안 남으면 여기서 끝내지 않고, 좁혀진 법의 raw 원문을
