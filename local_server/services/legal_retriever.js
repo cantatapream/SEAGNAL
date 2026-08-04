@@ -737,8 +737,8 @@ async function search(query, opts) {
   //   "관련도 문턱에 못 미쳐 걸러진 페이지"가 아니다 — 후자는 본선에서 뺀 이유가 그대로 유효하다.
   //   ⚠ 이 문턱은 topScore 만의 함수라 **본선 후보가 몇 개인지와는 무관하다** — 본선이 적다고 문턱이
   //     저절로 높아지지 않는다(실측 반례: "스킨스쿠버" 본선 2건·"어군탐지기" 본선 3건 모두 문턱이
-  //     바닥값 2.0). 본선이 적을 때 홉이 상위 CHAIN_TOPK 안으로 들어와 인용사슬까지 달고 나오는
-  //     위험 자체는 남아 있고, 이 문턱은 "질문과 관련 없는 페이지"만 걸러줄 뿐이다.
+  //     바닥값 2.0). 본선이 적을 때 홉이 인용사슬까지 달고 나오는 위험 자체는 남아 있고, 이 문턱은
+  //     "질문과 관련 없는 페이지"만 걸러줄 뿐이다(줄 단위 거름은 filterCitationChainByAnswer가 한다).
   const picked = new Set(primary.map(x => x.p));
   const hop = [];
   if (topScore >= 4) {
@@ -766,22 +766,23 @@ async function search(query, opts) {
     };
   }).filter(cp => cp.body);
 
-  // 인용사슬은 화면 체인 UI가 실제로 그리는 상위 소수 건에만 붙인다(전부 파싱하면 낭비).
+  // 인용사슬은 매칭된 모든 소스에서 뽑는다(상위 소수 건으로 자르면, 정작 답변과 정확히
+  // 일치하는 표를 가진 페이지가 점수 커트라인 밖으로 밀려 화면에 아예 안 뜨는 사례가 실측됨
+  // — "낚싯대 음주" 질문에서 정확한 표가 있는 "해기사음주행정처분" 페이지 대신 배경설명용
+  // 표만 있는 "정의와적용범위" 페이지가 상위 5등을 차지해 그 표가 뜬 사례). 뒤이어
+  // filterCitationChainByAnswer(routes/legal.js)가 답변 문장과 대조해 줄 단위로 거른다.
   // 본문은 위에서 이미 readPage로 캐시돼 있어 파일을 다시 읽지 않는다.
-  const CHAIN_TOPK = 5;
-  const sources = finalList.map((x, i) => {
+  const sources = finalList.map((x) => {
     const s = {
       file: x.p.file, law: x.p.law, topic: x.p.topic, kind: x.p.kind, status: x.p.status || null,
       score: x.s, hop: !!x.hop, cited: x.p.cited || [],
     };
-    if (i < CHAIN_TOPK) {
-      const page = readPage(x.p.kind, x.p.file);
-      s.citationChain = page
-        ? extractCitationChain(page.body).map(row => Object.assign({}, row, { contact: lookupContact(row.law) }))
-        : [];
-      // 이 페이지가 "우리가 원문을 가질 수 없는 공백"(시군구 개별고시 등)을 적어뒀으면 함께 싣는다.
-      s.gapNotices = page ? extractGapNotices(page.body) : [];
-    }
+    const page = readPage(x.p.kind, x.p.file);
+    s.citationChain = page
+      ? extractCitationChain(page.body).map(row => Object.assign({}, row, { contact: lookupContact(row.law) }))
+      : [];
+    // 이 페이지가 "우리가 원문을 가질 수 없는 공백"(시군구 개별고시 등)을 적어뒀으면 함께 싣는다.
+    s.gapNotices = page ? extractGapNotices(page.body) : [];
     return s;
   });
 
@@ -822,6 +823,36 @@ function filterSourcesByAnswer(sources, answerText) {
     // 같은 이유로 함께 예외를 둔다 — 안 두면 "해루질 신고" 질문에서 1순위로 뽑힌 페이지가 근거목록에서 사라진다.
     if (s.kind !== 'comparison' && s.kind !== 'activity') return false;
     return (s.cited || []).some(c => c && c.length >= 3 && text.includes(c));
+  });
+}
+
+/**
+ * filterSourcesByAnswer가 소스 페이지 단위로 걸러도, 그 페이지 안 citationChain 표는 줄 단위로
+ * 한 번도 답변과 대조되지 않아 무관한 줄이 그대로 섞여 나온다(실측: "낚싯대 음주" 질문에서
+ * "선박직원법·정의와적용범위" 페이지의 배경설명용 표 9줄 — 목적·정의·국가간협력·외국사무 등 — 이
+ * 답변 어디에도 없는데 근거 목록에 통째로 뜸). 이 함수는 그 줄들을 답변 문장과 대조해, 법령명과
+ * 조문번호(또는 별표번호)가 둘 다 실제로 언급됐을 때만 남긴다.
+ * ⚠ 범위·나열 인용(예: "제1∼3조", "시행령 제2조·제3조")은 각 조 번호를 개별 추출해 대조한다.
+ *   추출 자체가 안 되는 표기(요지만 있고 조 번호가 없는 등)는 검증할 수 없으므로 뺀다(환각 0).
+ * ⚠ 조 번호만 떼어 대조하면 오탐이 난다 — 같은 조 안에 서로 다른 항이 나열된 표(예: 선박직원법
+ *   제9조는 ①일반 취소사유·③음주 처분이 따로 있다)에서, 답변이 "제9조제1항"만 말했는데 "제9조제3항"
+ *   행까지 살아남는 사례가 실측됨. 그래서 항·호까지 표기에 있으면 그것까지 붙여 하나의 토큰으로
+ *   본다("제9조제3항"을 통째로 대조 — "제9조"만 대조하지 않는다).
+ * 예: filterCitationChainByAnswer([{law:'선박직원법',article:'제9조제3항',…}, {law:'선박직원법',article:'제9조제1항',…}],
+ *     '…「선박직원법」 제9조제3항에 따라…') → 제9조제3항 줄만 남고 제9조제1항 줄은 빠진다.
+ * @param {Array} chain - source.citationChain(law·article 포함)
+ * @param {string} answerText - synthesizeAnswerStream()이 만든 전체 답변 문장
+ * @returns {Array} 답변에 실제로 인용된 줄만(원 순서 유지)
+ * [연계] ← routes/legal.js가 filterSourcesByAnswer 직후, finalSources 각 소스에 적용.
+ */
+function filterCitationChainByAnswer(chain, answerText) {
+  const text = String(answerText || '');
+  if (!text) return [];
+  return (chain || []).filter(row => {
+    const law = row.law || '';
+    if (!law || law.length < 2 || !text.includes(law)) return false;
+    const tokens = String(row.article || '').match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\d+(?:의\d+)?/g) || [];
+    return tokens.some(t => text.includes(t));
   });
 }
 
@@ -1089,4 +1120,4 @@ async function searchRawFallback(query) {
   }
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, rawPathOf };
+module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, rawPathOf };
