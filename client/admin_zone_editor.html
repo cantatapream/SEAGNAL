@@ -58,15 +58,37 @@
     .ace-tool-btn.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
     .ace-tool-btn.primary { background: rgba(59,130,246,0.18); border-color: #3b82f6; color: #bfdbfe; }
     .ace-status { font-size: 0.78rem; color: #94a3b8; padding: 2px 4px; min-height: 1.2em; }
-    .ace-map { flex: 1; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); }
+    .ace-map { flex: 1; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); position: relative; }
     .ace-legend { font-size: 0.7rem; color: #64748b; display: flex; gap: 14px; padding: 0 4px; }
     .ace-legend span { display: inline-flex; align-items: center; gap: 5px; }
     .ace-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 
-    .ace-source-panel-wrap { width: 360px; flex: none; overflow-y: auto; background: #0f172a; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); padding: 14px; }
+    /* ── 좌표 직접 입력 폼 ── */
+    .ace-coord-form { display: none; align-items: center; gap: 8px; background: #1e293b; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 10px; font-size: 0.76rem; color: #e2e8f0; }
+    .ace-coord-form.show { display: flex; }
+    .ace-coord-form label { color: #94a3b8; }
+    .ace-coord-form input[type="number"] { width: 120px; padding: 4px 6px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: #0f172a; color: #e2e8f0; font-size: 0.76rem; }
+    .ace-coord-form button { padding: 4px 10px; border-radius: 6px; border: none; font-size: 0.74rem; font-weight: 600; cursor: pointer; }
+    .ace-coord-apply { background: #3b82f6; color: #fff; }
+    .ace-coord-cancel { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+
+    /* ── 원문이미지를 지도 위에 겹쳐보기 ── */
+    .ace-overlay-img { position: absolute; top: 40px; left: 40px; width: 340px; opacity: 0.6; cursor: move; user-select: none; z-index: 50; border: 2px dashed #facc15; box-sizing: content-box; }
+    .ace-overlay-handle { position: absolute; width: 14px; height: 14px; background: #facc15; border: 2px solid #1e293b; border-radius: 50%; right: -9px; bottom: -9px; cursor: nwse-resize; z-index: 51; }
+    .ace-overlay-controls { position: absolute; top: 8px; left: 8px; z-index: 60; background: rgba(15,23,42,0.92); border-radius: 8px; padding: 8px 10px; display: none; align-items: center; gap: 10px; font-size: 0.72rem; color: #e2e8f0; }
+    .ace-overlay-controls.show { display: flex; }
+    .ace-overlay-controls input[type="range"] { width: 100px; }
+    .ace-overlay-controls button { padding: 4px 8px; border-radius: 6px; border: none; background: rgba(255,255,255,0.12); color: #e2e8f0; font-size: 0.72rem; cursor: pointer; }
+
+    .ace-source-panel-wrap { width: 360px; flex: none; overflow-y: auto; background: #0f172a; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); padding: 14px; transition: width 0.15s ease, padding 0.15s ease; }
+    .ace-source-panel-wrap.collapsed { width: 0; padding: 0; border: none; overflow: hidden; }
+    .ace-source-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .ace-source-head h4 { color: #e2e8f0; font-size: 0.88rem; margin: 0 0 8px; }
     .ace-source-reason { color: #fbbf24; font-size: 0.74rem; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.25); border-radius: 8px; padding: 8px 10px; margin: 0 0 12px; line-height: 1.5; }
-    .ace-source-img { width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.1); display: block; }
+    .ace-source-img-wrap { position: relative; margin-bottom: 12px; }
+    .ace-source-img { width: 100%; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); display: block; }
+    .ace-source-overlay-btn { position: absolute; top: 8px; right: 8px; padding: 5px 9px; border-radius: 6px; border: none; background: rgba(15,23,42,0.85); color: #e2e8f0; font-size: 0.7rem; cursor: pointer; }
+    .ace-source-overlay-btn.active { background: #3b82f6; }
     .ace-source-empty { color: #64748b; font-size: 0.8rem; line-height: 1.6; }
     .ace-source-note { color: #94a3b8; font-size: 0.72rem; line-height: 1.6; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px; margin-top: 4px; }
 </style>
@@ -82,21 +104,38 @@
             <button id="ace-satellite-btn" class="ace-tool-btn" title="원문 고시의 항공사진과 대조하려면 위성지도가 필요합니다"><i class="fa-solid fa-satellite"></i> 위성지도</button>
             <span style="width:1px;height:20px;background:rgba(255,255,255,0.12);"></span>
             <button id="ace-delete-btn" class="ace-tool-btn" disabled title="지도에서 점을 클릭하면 삭제"><i class="fa-solid fa-eraser"></i> 점 삭제 모드</button>
+            <button id="ace-add-btn" class="ace-tool-btn" disabled title="지도의 선 위를 클릭하면 그 자리에 점 추가"><i class="fa-solid fa-plus"></i> 점 추가 모드</button>
+            <button id="ace-coord-btn" class="ace-tool-btn" disabled title="점을 클릭해 경위도를 직접 입력·수정"><i class="fa-solid fa-keyboard"></i> 좌표 입력</button>
             <button id="ace-curve-btn" class="ace-tool-btn" disabled title="인접한 두 점을 클릭 → 사이 구간을 곡선으로"><i class="fa-solid fa-bezier-curve"></i> 곡선화</button>
             <button id="ace-curve-apply-btn" class="ace-tool-btn" disabled><i class="fa-solid fa-check"></i> 곡선화 적용</button>
             <button id="ace-undo-btn" class="ace-tool-btn" disabled><i class="fa-solid fa-rotate-left"></i> 실행취소</button>
             <span style="flex:1"></span>
+            <button id="ace-panel-toggle-btn" class="ace-tool-btn" title="원문 이미지 패널 접기/펴기"><i class="fa-solid fa-image"></i> 원문 이미지 <i class="fa-solid fa-chevron-right" id="ace-panel-toggle-icon"></i></button>
             <button id="ace-export-btn" class="ace-tool-btn primary"><i class="fa-solid fa-download"></i> 내보내기</button>
             <button id="ace-save-btn" class="ace-tool-btn primary"><i class="fa-solid fa-server"></i> 서버에 저장</button>
+        </div>
+        <div id="ace-coord-form" class="ace-coord-form">
+            <span id="ace-coord-form-label">점 #</span>
+            <label>경도(E) <input type="number" id="ace-coord-lon" step="0.000001"></label>
+            <label>위도(N) <input type="number" id="ace-coord-lat" step="0.000001"></label>
+            <button id="ace-coord-apply" class="ace-coord-apply">적용</button>
+            <button id="ace-coord-cancel" class="ace-coord-cancel">취소</button>
         </div>
         <div class="ace-legend">
             <span><i style="background:#38bdf8;"></i> 원문 확정(고정 — 드래그·삭제 불가)</span>
             <span><i style="background:#facc15;"></i> 편집 가능(추정 — 드래그 가능)</span>
+            <span><i style="background:#4ade80;"></i> 새로 추가한 점</span>
         </div>
         <div id="ace-status" class="ace-status">구역을 선택하세요(왼쪽 목록 · 재검토 필요 항목만 클릭 가능)</div>
-        <div id="ace-map" class="ace-map"></div>
+        <div id="ace-map" class="ace-map">
+            <div id="ace-overlay-controls" class="ace-overlay-controls">
+                <span><i class="fa-solid fa-layer-group"></i> 원문 겹쳐보기</span>
+                <label>투명도 <input type="range" id="ace-overlay-opacity" min="10" max="100" value="60"></label>
+                <button id="ace-overlay-close">닫기</button>
+            </div>
+        </div>
     </div>
-    <div class="ace-source-panel-wrap">
+    <div class="ace-source-panel-wrap" id="ace-source-panel-wrap">
         <div id="ace-source-panel"><p style="color:#64748b;font-size:0.8rem;">구역을 선택하면 원문 고시 이미지가 여기 표시됩니다.</p></div>
     </div>
 </div>
