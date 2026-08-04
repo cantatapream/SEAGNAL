@@ -516,7 +516,10 @@ router.post('/api/legal/ask', async (req, res) => {
 // raw/ 하위(공개 법령 데이터: law.go.kr 수집분)만, 안전 확장자만, 경로이탈 차단. <img>/<a>로 열리게 무인증.
 const RAW_DIR = path.join(LEGAL_DIR, 'raw');
 const SRC_MIME = { '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif' };
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+  // 해양안전 출입통제구역 팝업의 "고시 원문 보기" 버튼용 — 각 해양경찰서 홈페이지에서
+  // 직접 수집한 원본 고시 PDF/HWP(_원본첨부/ 폴더)를 그대로 서빙.
+  '.pdf': 'application/pdf', '.hwp': 'application/x-hwp', '.hwpx': 'application/x-hwpx' };
 router.get('/api/legal/src', (req, res) => {
   try {
     const rel = String((req.query && req.query.p) || '').trim();
@@ -526,6 +529,14 @@ router.get('/api/legal/src', (req, res) => {
     const full = path.resolve(RAW_DIR, rel);
     if (full !== RAW_DIR && !full.startsWith(RAW_DIR + path.sep)) return res.status(403).send('경로 이탈'); // 샌드박스
     if (!fs.existsSync(full) || !fs.statSync(full).isFile()) return res.status(404).send('없음');
+    // PDF/HWP/HWPX는 브라우저가 인라인으로 못 띄우는 경우가 많아(특히 HWP는 뷰어 자체가 없음)
+    // 흰 화면만 뜨는 문제가 있었음 — 다운로드로 강제해 새 화면 전환 없이 파일로 받게 한다.
+    // (txt/md/png/jpg/gif는 리뷰 카드 <img>/원문 표시용이라 그대로 인라인 유지)
+    if (ext === '.pdf' || ext === '.hwp' || ext === '.hwpx') {
+      const filename = path.basename(full);
+      res.setHeader('Content-Disposition',
+        'attachment; filename="download' + ext + '"; filename*=UTF-8\'\'' + encodeURIComponent(filename));
+    }
     res.type(SRC_MIME[ext]).sendFile(full);
   } catch (e) { res.status(500).send(String(e.message || e)); }
 });

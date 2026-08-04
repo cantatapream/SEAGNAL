@@ -24,6 +24,12 @@ local_server/data/debug_pdf/
 # 수심 데이터 (Fly.io Volume에 저장)
 local_server/data/bathymetry/
 
+# 제주 BADA 격자 산출물(build_jeju_bathy_grid.js) — 아직 어떤 런타임 코드도 읽지 않는
+# 로컬 검증용 스냅샷이라, grid_meta.json/anchors.json 과 달리 빈 placeholder 관례를
+# 적용하지 않는다. Task #14 에서 실제 소비자(앵커 재산정)가 생기면 그때 관례를 정한다.
+local_server/data/tide_field/grid_meta_jeju.json
+local_server/data/tide_field/anchors_jeju.json
+
 # 관리자 토큰 파일 (Fly.io Volume에 저장, 절대 git 추적 금지)
 # 토큰 자체가 인증 자격증명이므로 노출 시 임의 사용자가 admin 접근 가능
 local_server/data/admin_tokens.json
@@ -54,6 +60,7 @@ local_server/data/sea_split_index.json
 local_server/data/mudflat_index.json
 local_server/data/scuba_index.json
 local_server/data/ripcurrent_index.json
+local_server/data/swimming_index.json
 local_server/data/weather_alerts.json
 local_server/data/zone_forecasts.json
 
@@ -103,6 +110,12 @@ local_server/data/advisory_prediction.json
 # 상태(빈 메타)라도 명시적으로 커밋 — 운영에서 BADA 로 재생성됨.
 local_server/data/tide_field/curves/*.json
 
+# 항로 월간 갱신본 (seaway_refresh 가 매월 말일 원본과 대조해 갱신, Fly 볼륨 보존).
+# 배포본은 client/seaway_zones.json 이고, 이 파일은 "원본이 실제로 바뀐 뒤에만"
+# 생기는 런타임 산출물이라 추적 제외 — routes/seaway.js 가 있으면 우선 서빙한다.
+local_server/data/seaway_zones.json
+local_server/data/seaway_zones.json.tmp
+
 # 특보 예측 표출 제어 상태(관리자: 청중 모드 off/admin/all + 구역별 삭제/중지/수정)
 local_server/data/advisory_display.json
 
@@ -128,6 +141,12 @@ local_server/data/tide_field/anchor_probe_override.json.tmp
 local_server/data/hazard_rocks/curves/*.json
 local_server/data/hazard_rocks/submersion.json
 local_server/data/hazard_rocks/submersion.json.tmp
+
+# 노출암 고립판정 — 제주 촘촘 격자 앵커 1분 조위곡선 캐시(jeju_isolation_tide_collector
+# 가 KST 23:30 제주 간출암 수집 직후 재생성). grid_meta_jeju.json/anchors_jeju.json은
+# BADA 원본이 있어야 만들어지는 산출물이라 위 grid_meta_jeju.json/anchors_jeju.json과
+# 동일하게(위 30-31행) 추적 제외 — 운영 볼륨에서 자동 재생성됨(ensureGridBuilt).
+local_server/data/tide_field/curves_jeju/*.json
 
 # 특보예측 검증 청별 중간 산출물(재생성 가능 — 최종 RECALIB_national.md 만 추적)
 local_server/analysis/wave_leadtime/reports/recalib_*.log

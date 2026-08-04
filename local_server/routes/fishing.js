@@ -276,4 +276,28 @@ router.get('/api/ripcurrent-index', (req, res) => {
     res.status(404).json({ error: '이안류 지수 데이터 준비 중' });
 });
 
+// ============================================================================
+// 해수욕 지수 API
+// ============================================================================
+
+/**
+ * GET /api/swimming-index
+ * 해수욕 지수 전체 데이터를 반환합니다. (스킨스쿠버와 동일한 지도형 구조)
+ *
+ * [응답 구조]
+ * {
+ *   updatedAt: "2026.06.07 09:10",
+ *   places: { "대천해수욕장": { lat, lot, forecasts: { "20260607": { "오전": {...}, "오후": {...} } } }, ... }
+ * }
+ *
+ * [연계] scheduler.js → collectSwimmingIndex()가 swimming_index.json으로 저장
+ *        js/marine-life/swimming/swimming.js (프론트엔드) → fetch('/api/swimming-index')로 요청
+ */
+router.get('/api/swimming-index', (req, res) => {
+    if (dataCache.swimmingIndex) {
+        return res.json(dataCache.swimmingIndex);
+    }
+    res.status(404).json({ error: '해수욕 지수 데이터 준비 중' });
+});
+
 module.exports = router;

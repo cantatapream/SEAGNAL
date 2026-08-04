@@ -218,6 +218,12 @@ const _assetsGzip       = createLazyStaticGzip(path.join(staticRoot, 'assets'), 
 const _imagesGzip       = createLazyStaticGzip(path.join(staticRoot, 'images'),         STATIC_GZIP_OPTS);
 const _tideDataGzip     = createLazyStaticGzip(path.join(staticRoot, 'tide_data'),      STATIC_GZIP_OPTS);
 
+// [항로 월간 갱신] 정적 서빙보다 반드시 앞 — 매월 말일 점검으로 갱신된
+//   data/seaway_zones.json 이 있으면 그것을, 없으면 next() 로 넘겨 아래 정적
+//   서빙이 배포본 client/seaway_zones.json 을 내보내게 한다. 순서를 뒤집으면
+//   정적 파일이 먼저 응답해 갱신본이 영원히 노출되지 않는다.
+app.use(require('./routes/seaway'));
+
 app.use(_staticRootGzip.handler);
 app.use(_assetsGzip.handler);
 app.use('/images', _imagesGzip.handler);
@@ -282,9 +288,9 @@ app.use(require('./routes/ocean2'));        // ROMS 격자/저질 API
 app.use(require('./routes/ocean3'));        // 해양현황 날씨/바람 API (zone_forecasts 기반)
 app.use(require('./routes/ocean4'));        // 해양현황 파고/zone-forecasts 오버레이 API
 app.use(require('./routes/vsby_smallzone')); // 해구별예측(소해구) 시정 캐시 API
-app.use(require('./routes/ocean5'));        // 해저지형/기타 해양 API
 app.use(require('./routes/tide_field'));    // 서해·남해 물빠짐(갯벌 노출) 예측 API (Phase 2)
 app.use(require('./routes/hazard_rocks'));  // 간출암 잠김경고 API (3시간 이내 잠기는 암초)
+app.use(require('./routes/navigational_warning'));  // 항행경보 현황 API (국립해양조사원)
 app.use(require('./routes/assistant'));     // AI 음성/텍스트 비서 (자연어 질문 → 실데이터 답변)
 app.use(require('./routes/legal'));          // 해양법령 챗봇(나리야) — 관리자 리뷰 검증 API + 현 DB 답변
 

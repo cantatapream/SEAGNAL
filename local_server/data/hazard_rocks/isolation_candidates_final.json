@@ -1,0 +1,7172 @@
+{
+  "generated_at": "2026-08-03T07:12:39.832Z",
+  "source": {
+    "sweep": "isolation_sweep_full.json",
+    "nearshore_review": "nearshore_isolation_review_1000.json"
+  },
+  "summary": {
+    "transition": 7,
+    "always_isolated_far": 702,
+    "always_isolated_nearshore_human": 9,
+    "total_priority_candidates": 718
+  },
+  "transition": [
+    {
+      "id": 3699,
+      "lon": 126.72528,
+      "lat": 37.07156,
+      "category": "transition",
+      "transitions": 11,
+      "isolatedSamples": 44,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3743,
+      "lon": 126.40691,
+      "lat": 36.39501,
+      "category": "transition",
+      "transitions": 11,
+      "isolatedSamples": 49,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3933,
+      "lon": 126.55429,
+      "lat": 35.54988,
+      "category": "transition",
+      "transitions": 1,
+      "isolatedSamples": 71,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4054,
+      "lon": 126.31369,
+      "lat": 35.29753,
+      "category": "transition",
+      "transitions": 11,
+      "isolatedSamples": 50,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4967,
+      "lon": 127.51565,
+      "lat": 34.84356,
+      "category": "transition",
+      "transitions": 10,
+      "isolatedSamples": 60,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4972,
+      "lon": 127.51642,
+      "lat": 34.84485,
+      "category": "transition",
+      "transitions": 12,
+      "isolatedSamples": 41,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6506,
+      "lon": 127.43087,
+      "lat": 34.80803,
+      "category": "transition",
+      "transitions": 12,
+      "isolatedSamples": 51,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    }
+  ],
+  "always_isolated_far": [
+    {
+      "id": 2664,
+      "lon": 128.4395,
+      "lat": 34.94967,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3064,
+      "lon": 125.70331,
+      "lat": 37.64197,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3065,
+      "lon": 126.56294,
+      "lat": 37.41589,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3066,
+      "lon": 126.64087,
+      "lat": 37.41234,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3782,
+      "lon": 126.33369,
+      "lat": 36.26972,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3785,
+      "lon": 126.27553,
+      "lat": 36.28081,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3791,
+      "lon": 126.32969,
+      "lat": 36.35841,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3929,
+      "lon": 126.59512,
+      "lat": 35.72427,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3931,
+      "lon": 126.55943,
+      "lat": 35.55091,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3932,
+      "lon": 126.55949,
+      "lat": 35.55095,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 3950,
+      "lon": 126.12348,
+      "lat": 34.4781,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4042,
+      "lon": 126.31844,
+      "lat": 35.49742,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4043,
+      "lon": 126.31372,
+      "lat": 35.48347,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4044,
+      "lon": 126.32131,
+      "lat": 35.47983,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4045,
+      "lon": 126.32892,
+      "lat": 35.47617,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4046,
+      "lon": 126.32275,
+      "lat": 35.47103,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4047,
+      "lon": 126.31514,
+      "lat": 35.47467,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4048,
+      "lon": 126.30756,
+      "lat": 35.47833,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4049,
+      "lon": 126.29994,
+      "lat": 35.48197,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4050,
+      "lon": 126.29378,
+      "lat": 35.47683,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4051,
+      "lon": 126.30136,
+      "lat": 35.47319,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4052,
+      "lon": 126.30897,
+      "lat": 35.46953,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 4053,
+      "lon": 126.31656,
+      "lat": 35.46589,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5063,
+      "lon": 127.02742,
+      "lat": 34.16739,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5825,
+      "lon": 124.93901,
+      "lat": 37.80697,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5826,
+      "lon": 124.97449,
+      "lat": 37.92247,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5827,
+      "lon": 124.98223,
+      "lat": 37.92114,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5828,
+      "lon": 124.95396,
+      "lat": 37.91888,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5829,
+      "lon": 124.95823,
+      "lat": 37.91614,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5830,
+      "lon": 124.94811,
+      "lat": 37.8079,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5831,
+      "lon": 124.97404,
+      "lat": 37.9225,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5832,
+      "lon": 125.2445,
+      "lat": 37.79363,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5833,
+      "lon": 125.28752,
+      "lat": 37.80227,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5834,
+      "lon": 125.28766,
+      "lat": 37.72372,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5835,
+      "lon": 125.2733,
+      "lat": 37.71586,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5836,
+      "lon": 125.23362,
+      "lat": 37.69503,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5837,
+      "lon": 125.29002,
+      "lat": 37.7242,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5838,
+      "lon": 125.22988,
+      "lat": 37.74043,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5839,
+      "lon": 125.23118,
+      "lat": 37.74314,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5840,
+      "lon": 125.28964,
+      "lat": 37.72349,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5841,
+      "lon": 125.22121,
+      "lat": 37.69332,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5842,
+      "lon": 125.23036,
+      "lat": 37.74288,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5843,
+      "lon": 125.24468,
+      "lat": 37.69776,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5844,
+      "lon": 125.36261,
+      "lat": 37.70982,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5845,
+      "lon": 125.22235,
+      "lat": 37.69351,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5846,
+      "lon": 125.32221,
+      "lat": 37.68752,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5847,
+      "lon": 125.21254,
+      "lat": 37.69842,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5848,
+      "lon": 125.32187,
+      "lat": 37.68756,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5849,
+      "lon": 125.20066,
+      "lat": 37.70026,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5850,
+      "lon": 125.34237,
+      "lat": 37.67576,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5851,
+      "lon": 125.31101,
+      "lat": 37.67298,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5852,
+      "lon": 125.37227,
+      "lat": 37.72365,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5853,
+      "lon": 125.3194,
+      "lat": 37.71087,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5854,
+      "lon": 125.21762,
+      "lat": 37.7519,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5855,
+      "lon": 125.23423,
+      "lat": 37.6957,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5856,
+      "lon": 125.21548,
+      "lat": 37.69751,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5857,
+      "lon": 125.2366,
+      "lat": 37.74094,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5858,
+      "lon": 125.25285,
+      "lat": 37.70113,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5859,
+      "lon": 125.31817,
+      "lat": 37.72215,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5860,
+      "lon": 125.27191,
+      "lat": 37.7158,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5861,
+      "lon": 125.21479,
+      "lat": 37.75592,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5862,
+      "lon": 125.23215,
+      "lat": 37.69429,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5863,
+      "lon": 125.30661,
+      "lat": 37.66088,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5864,
+      "lon": 125.32716,
+      "lat": 37.77371,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5865,
+      "lon": 125.23165,
+      "lat": 37.69476,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5866,
+      "lon": 125.23911,
+      "lat": 37.69557,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5867,
+      "lon": 125.30524,
+      "lat": 37.73261,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5868,
+      "lon": 125.30052,
+      "lat": 37.67029,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5869,
+      "lon": 125.24619,
+      "lat": 37.69816,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5870,
+      "lon": 125.32615,
+      "lat": 37.68955,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5871,
+      "lon": 125.25368,
+      "lat": 37.70204,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5872,
+      "lon": 125.32365,
+      "lat": 37.70208,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5873,
+      "lon": 125.37415,
+      "lat": 37.70508,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5874,
+      "lon": 125.25569,
+      "lat": 37.69989,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5875,
+      "lon": 125.26231,
+      "lat": 37.7008,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5876,
+      "lon": 125.263,
+      "lat": 37.70108,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5877,
+      "lon": 125.30777,
+      "lat": 37.73596,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5878,
+      "lon": 125.24225,
+      "lat": 37.69599,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5879,
+      "lon": 125.26807,
+      "lat": 37.71348,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5880,
+      "lon": 125.3267,
+      "lat": 37.69946,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5881,
+      "lon": 125.30027,
+      "lat": 37.67082,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5882,
+      "lon": 125.24363,
+      "lat": 37.69666,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5883,
+      "lon": 125.32764,
+      "lat": 37.77403,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5884,
+      "lon": 125.31358,
+      "lat": 37.71774,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5885,
+      "lon": 125.21818,
+      "lat": 37.69796,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5886,
+      "lon": 125.32577,
+      "lat": 37.70254,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5887,
+      "lon": 125.26244,
+      "lat": 37.7062,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5888,
+      "lon": 125.2651,
+      "lat": 37.7112,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5889,
+      "lon": 125.32653,
+      "lat": 37.70242,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5890,
+      "lon": 125.26303,
+      "lat": 37.7083,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5891,
+      "lon": 125.32442,
+      "lat": 37.70351,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5892,
+      "lon": 125.33984,
+      "lat": 37.68611,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5893,
+      "lon": 125.36963,
+      "lat": 37.70758,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5894,
+      "lon": 125.30917,
+      "lat": 37.67123,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5895,
+      "lon": 125.23294,
+      "lat": 37.81452,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5896,
+      "lon": 125.31624,
+      "lat": 37.7199,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5897,
+      "lon": 125.37325,
+      "lat": 37.7064,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5898,
+      "lon": 125.30495,
+      "lat": 37.66475,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5899,
+      "lon": 125.30566,
+      "lat": 37.66993,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5900,
+      "lon": 125.21157,
+      "lat": 37.7546,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5901,
+      "lon": 125.23442,
+      "lat": 37.81525,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5902,
+      "lon": 125.22035,
+      "lat": 37.69653,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5903,
+      "lon": 125.36228,
+      "lat": 37.7088,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5904,
+      "lon": 125.31624,
+      "lat": 37.72066,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5905,
+      "lon": 125.3272,
+      "lat": 37.70197,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5906,
+      "lon": 125.25759,
+      "lat": 37.70386,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5907,
+      "lon": 125.30854,
+      "lat": 37.67087,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5908,
+      "lon": 125.33933,
+      "lat": 37.76651,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5909,
+      "lon": 125.3159,
+      "lat": 37.71937,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5910,
+      "lon": 125.24084,
+      "lat": 37.79382,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5911,
+      "lon": 125.33004,
+      "lat": 37.67305,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5912,
+      "lon": 125.26147,
+      "lat": 37.70574,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5913,
+      "lon": 125.21377,
+      "lat": 37.70516,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5914,
+      "lon": 125.24738,
+      "lat": 37.62617,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5915,
+      "lon": 125.24768,
+      "lat": 37.62632,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5916,
+      "lon": 125.35751,
+      "lat": 37.68026,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5917,
+      "lon": 125.35802,
+      "lat": 37.68016,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5918,
+      "lon": 125.33872,
+      "lat": 37.6787,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5919,
+      "lon": 125.19731,
+      "lat": 37.69991,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5920,
+      "lon": 125.32865,
+      "lat": 37.70052,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5921,
+      "lon": 125.31739,
+      "lat": 37.72313,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5922,
+      "lon": 125.35836,
+      "lat": 37.67914,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5923,
+      "lon": 125.34028,
+      "lat": 37.67595,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5924,
+      "lon": 125.31581,
+      "lat": 37.71307,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5925,
+      "lon": 125.32367,
+      "lat": 37.70269,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5926,
+      "lon": 125.32422,
+      "lat": 37.74882,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5927,
+      "lon": 125.35833,
+      "lat": 37.67936,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5928,
+      "lon": 125.31973,
+      "lat": 37.7252,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5929,
+      "lon": 125.32208,
+      "lat": 37.74736,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5930,
+      "lon": 125.30664,
+      "lat": 37.73547,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5931,
+      "lon": 125.30873,
+      "lat": 37.73731,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5932,
+      "lon": 125.30682,
+      "lat": 37.73595,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5933,
+      "lon": 125.30851,
+      "lat": 37.67002,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5934,
+      "lon": 125.32437,
+      "lat": 37.70252,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5935,
+      "lon": 125.3669,
+      "lat": 37.70708,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5936,
+      "lon": 125.36352,
+      "lat": 37.70633,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5937,
+      "lon": 125.32265,
+      "lat": 37.7476,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5938,
+      "lon": 125.26135,
+      "lat": 37.8187,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5939,
+      "lon": 125.36717,
+      "lat": 37.70628,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5940,
+      "lon": 125.25989,
+      "lat": 37.81777,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5941,
+      "lon": 125.25324,
+      "lat": 37.81917,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5942,
+      "lon": 125.34029,
+      "lat": 37.68654,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5943,
+      "lon": 125.33446,
+      "lat": 37.74256,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5944,
+      "lon": 125.33665,
+      "lat": 37.68225,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5945,
+      "lon": 125.24111,
+      "lat": 37.81637,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5946,
+      "lon": 125.26069,
+      "lat": 37.81812,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5947,
+      "lon": 125.25733,
+      "lat": 37.81751,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5948,
+      "lon": 125.00487,
+      "lat": 37.91954,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5949,
+      "lon": 125.24526,
+      "lat": 37.82146,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5950,
+      "lon": 125.23039,
+      "lat": 37.82751,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5951,
+      "lon": 125.23108,
+      "lat": 37.82769,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5952,
+      "lon": 125.04076,
+      "lat": 37.81763,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5953,
+      "lon": 125.2303,
+      "lat": 37.82711,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5954,
+      "lon": 125.23056,
+      "lat": 37.82858,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5955,
+      "lon": 125.32572,
+      "lat": 37.68881,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5956,
+      "lon": 125.23174,
+      "lat": 37.82878,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5957,
+      "lon": 125.33578,
+      "lat": 37.81898,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5958,
+      "lon": 125.13188,
+      "lat": 37.8689,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5959,
+      "lon": 125.21237,
+      "lat": 37.75508,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5960,
+      "lon": 125.22587,
+      "lat": 37.82593,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5961,
+      "lon": 125.23153,
+      "lat": 37.81317,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5962,
+      "lon": 125.3629,
+      "lat": 37.70922,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5963,
+      "lon": 125.19977,
+      "lat": 37.70926,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5964,
+      "lon": 125.30618,
+      "lat": 37.66106,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5965,
+      "lon": 125.19936,
+      "lat": 37.70915,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5966,
+      "lon": 125.27129,
+      "lat": 37.71641,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5967,
+      "lon": 125.21532,
+      "lat": 37.75282,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5968,
+      "lon": 125.23101,
+      "lat": 37.74073,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5969,
+      "lon": 125.23983,
+      "lat": 37.69555,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5970,
+      "lon": 125.23603,
+      "lat": 37.7408,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5971,
+      "lon": 125.23402,
+      "lat": 37.6951,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5972,
+      "lon": 125.22869,
+      "lat": 37.81453,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5973,
+      "lon": 125.23073,
+      "lat": 37.74307,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5974,
+      "lon": 125.23951,
+      "lat": 37.69595,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5975,
+      "lon": 125.24139,
+      "lat": 37.72273,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5976,
+      "lon": 125.19946,
+      "lat": 37.70938,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5977,
+      "lon": 125.199,
+      "lat": 37.70026,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5978,
+      "lon": 125.2563,
+      "lat": 37.69929,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5979,
+      "lon": 125.25043,
+      "lat": 37.7,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5980,
+      "lon": 125.25509,
+      "lat": 37.69953,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5981,
+      "lon": 125.25024,
+      "lat": 37.69958,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5982,
+      "lon": 125.2588,
+      "lat": 37.70441,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5983,
+      "lon": 125.21738,
+      "lat": 37.75247,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5984,
+      "lon": 125.21988,
+      "lat": 37.75232,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5985,
+      "lon": 125.25476,
+      "lat": 37.69934,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5986,
+      "lon": 125.25087,
+      "lat": 37.69984,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5987,
+      "lon": 125.25154,
+      "lat": 37.70083,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5988,
+      "lon": 125.24047,
+      "lat": 37.69633,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5989,
+      "lon": 125.25067,
+      "lat": 37.69933,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5990,
+      "lon": 125.24289,
+      "lat": 37.69693,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5991,
+      "lon": 125.24948,
+      "lat": 37.69952,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5992,
+      "lon": 125.2161,
+      "lat": 37.75173,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5993,
+      "lon": 125.25218,
+      "lat": 37.70084,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5994,
+      "lon": 125.22306,
+      "lat": 37.69342,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5995,
+      "lon": 125.24931,
+      "lat": 37.81882,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5996,
+      "lon": 125.25352,
+      "lat": 37.81812,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5997,
+      "lon": 125.27413,
+      "lat": 37.80868,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5998,
+      "lon": 125.27969,
+      "lat": 37.80373,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 5999,
+      "lon": 125.27986,
+      "lat": 37.80464,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6000,
+      "lon": 125.22614,
+      "lat": 37.81369,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6001,
+      "lon": 125.25195,
+      "lat": 37.81897,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6002,
+      "lon": 125.25122,
+      "lat": 37.81984,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6003,
+      "lon": 125.2529,
+      "lat": 37.81895,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6004,
+      "lon": 125.25301,
+      "lat": 37.81851,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6005,
+      "lon": 125.27392,
+      "lat": 37.80801,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6006,
+      "lon": 125.28234,
+      "lat": 37.80269,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6007,
+      "lon": 125.2879,
+      "lat": 37.80267,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6008,
+      "lon": 125.27908,
+      "lat": 37.80432,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6009,
+      "lon": 125.25123,
+      "lat": 37.81946,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6010,
+      "lon": 125.22911,
+      "lat": 37.81323,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6011,
+      "lon": 125.21396,
+      "lat": 37.69802,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6012,
+      "lon": 125.33592,
+      "lat": 37.8196,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6013,
+      "lon": 125.33626,
+      "lat": 37.82032,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6014,
+      "lon": 125.33709,
+      "lat": 37.81935,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6015,
+      "lon": 125.2255,
+      "lat": 37.82576,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6016,
+      "lon": 125.34309,
+      "lat": 37.81399,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6017,
+      "lon": 125.23437,
+      "lat": 37.8178,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6018,
+      "lon": 125.2298,
+      "lat": 37.81516,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6019,
+      "lon": 125.23947,
+      "lat": 37.81625,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6020,
+      "lon": 125.31354,
+      "lat": 37.71864,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6021,
+      "lon": 125.32549,
+      "lat": 37.68737,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6022,
+      "lon": 125.24126,
+      "lat": 37.79348,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6023,
+      "lon": 125.19811,
+      "lat": 37.69994,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6024,
+      "lon": 125.33654,
+      "lat": 37.66965,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6025,
+      "lon": 125.31742,
+      "lat": 37.72139,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6026,
+      "lon": 125.25812,
+      "lat": 37.81692,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6027,
+      "lon": 125.33718,
+      "lat": 37.79875,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6028,
+      "lon": 125.23647,
+      "lat": 37.81613,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6029,
+      "lon": 125.23218,
+      "lat": 37.81273,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6030,
+      "lon": 125.221,
+      "lat": 37.69244,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6031,
+      "lon": 125.31742,
+      "lat": 37.71158,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6032,
+      "lon": 125.23119,
+      "lat": 37.8272,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6033,
+      "lon": 125.23013,
+      "lat": 37.82642,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6034,
+      "lon": 125.25122,
+      "lat": 37.7978,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6035,
+      "lon": 125.21298,
+      "lat": 37.70487,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6036,
+      "lon": 125.22952,
+      "lat": 37.82779,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6037,
+      "lon": 125.2408,
+      "lat": 37.82184,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6038,
+      "lon": 125.2503,
+      "lat": 37.79811,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6039,
+      "lon": 125.24167,
+      "lat": 37.72095,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6040,
+      "lon": 125.24389,
+      "lat": 37.82158,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6041,
+      "lon": 125.31437,
+      "lat": 37.71903,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6042,
+      "lon": 125.22038,
+      "lat": 37.69728,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6043,
+      "lon": 125.18427,
+      "lat": 37.80346,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6044,
+      "lon": 125.31695,
+      "lat": 37.72214,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6045,
+      "lon": 125.19799,
+      "lat": 37.7003,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6046,
+      "lon": 125.31701,
+      "lat": 37.7121,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6047,
+      "lon": 125.36657,
+      "lat": 37.81923,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6048,
+      "lon": 125.19365,
+      "lat": 37.80761,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6049,
+      "lon": 125.33438,
+      "lat": 37.79497,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6050,
+      "lon": 125.23571,
+      "lat": 37.82034,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6051,
+      "lon": 125.23512,
+      "lat": 37.81976,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6052,
+      "lon": 125.24,
+      "lat": 37.79675,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6053,
+      "lon": 125.24598,
+      "lat": 37.82133,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6054,
+      "lon": 125.13327,
+      "lat": 37.86817,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6055,
+      "lon": 125.23318,
+      "lat": 37.81749,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6056,
+      "lon": 125.23521,
+      "lat": 37.8187,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6057,
+      "lon": 125.23399,
+      "lat": 37.8189,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6058,
+      "lon": 125.23368,
+      "lat": 37.81813,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6059,
+      "lon": 125.2354,
+      "lat": 37.81665,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6060,
+      "lon": 125.24226,
+      "lat": 37.79496,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6061,
+      "lon": 125.28697,
+      "lat": 37.80152,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6062,
+      "lon": 125.22716,
+      "lat": 37.81391,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6063,
+      "lon": 125.23048,
+      "lat": 37.81577,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6064,
+      "lon": 125.33678,
+      "lat": 37.81981,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6065,
+      "lon": 125.23706,
+      "lat": 37.82113,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6066,
+      "lon": 125.30576,
+      "lat": 37.67324,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6067,
+      "lon": 125.32874,
+      "lat": 37.6733,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6068,
+      "lon": 125.30261,
+      "lat": 37.67178,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6069,
+      "lon": 125.3274,
+      "lat": 37.67231,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6070,
+      "lon": 125.24431,
+      "lat": 37.79566,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6071,
+      "lon": 125.35548,
+      "lat": 37.69779,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6072,
+      "lon": 125.38215,
+      "lat": 37.78421,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6073,
+      "lon": 125.37901,
+      "lat": 37.70102,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6074,
+      "lon": 125.37638,
+      "lat": 37.70675,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6075,
+      "lon": 125.31223,
+      "lat": 37.7181,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6076,
+      "lon": 125.37467,
+      "lat": 37.70696,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6077,
+      "lon": 125.31152,
+      "lat": 37.67272,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6078,
+      "lon": 125.29313,
+      "lat": 37.66413,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6079,
+      "lon": 125.36096,
+      "lat": 37.81711,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6080,
+      "lon": 125.37581,
+      "lat": 37.70763,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6081,
+      "lon": 125.31962,
+      "lat": 37.72401,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6082,
+      "lon": 125.3629,
+      "lat": 37.70567,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6083,
+      "lon": 125.31873,
+      "lat": 37.72548,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6084,
+      "lon": 125.31828,
+      "lat": 37.72432,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6085,
+      "lon": 125.3152,
+      "lat": 37.7132,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6086,
+      "lon": 125.31191,
+      "lat": 37.71796,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6087,
+      "lon": 125.32391,
+      "lat": 37.70439,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6088,
+      "lon": 125.30611,
+      "lat": 37.71325,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6089,
+      "lon": 125.24434,
+      "lat": 37.78337,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6090,
+      "lon": 125.24203,
+      "lat": 37.79317,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6091,
+      "lon": 125.22433,
+      "lat": 37.74742,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6092,
+      "lon": 125.24628,
+      "lat": 37.78534,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6093,
+      "lon": 125.34635,
+      "lat": 37.81823,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6094,
+      "lon": 125.19152,
+      "lat": 37.82531,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6095,
+      "lon": 125.30551,
+      "lat": 37.71319,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6096,
+      "lon": 125.19193,
+      "lat": 37.82577,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6097,
+      "lon": 125.21994,
+      "lat": 37.75179,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6098,
+      "lon": 125.34666,
+      "lat": 37.81731,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6099,
+      "lon": 125.34619,
+      "lat": 37.81746,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6100,
+      "lon": 125.24373,
+      "lat": 37.79388,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6101,
+      "lon": 125.347,
+      "lat": 37.81786,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6102,
+      "lon": 125.21863,
+      "lat": 37.75308,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6103,
+      "lon": 125.37393,
+      "lat": 37.77397,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6104,
+      "lon": 125.1909,
+      "lat": 37.82483,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6105,
+      "lon": 125.24543,
+      "lat": 37.78506,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6106,
+      "lon": 125.18771,
+      "lat": 37.82372,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6107,
+      "lon": 125.25778,
+      "lat": 37.74114,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6108,
+      "lon": 125.18713,
+      "lat": 37.82345,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6109,
+      "lon": 125.18995,
+      "lat": 37.82372,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6110,
+      "lon": 125.1929,
+      "lat": 37.82711,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6111,
+      "lon": 125.19676,
+      "lat": 37.80923,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6112,
+      "lon": 125.29055,
+      "lat": 37.66371,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6113,
+      "lon": 125.19055,
+      "lat": 37.82452,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6114,
+      "lon": 125.19048,
+      "lat": 37.82382,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6115,
+      "lon": 125.19244,
+      "lat": 37.82659,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6116,
+      "lon": 125.34581,
+      "lat": 37.8171,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6117,
+      "lon": 125.2194,
+      "lat": 37.75188,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6118,
+      "lon": 125.24238,
+      "lat": 37.79744,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6119,
+      "lon": 125.20106,
+      "lat": 37.81083,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6120,
+      "lon": 125.1972,
+      "lat": 37.82848,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6121,
+      "lon": 125.19386,
+      "lat": 37.8279,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6122,
+      "lon": 125.19726,
+      "lat": 37.80966,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6123,
+      "lon": 125.19482,
+      "lat": 37.82817,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6124,
+      "lon": 125.1952,
+      "lat": 37.82787,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6125,
+      "lon": 125.19678,
+      "lat": 37.82818,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6126,
+      "lon": 125.1902,
+      "lat": 37.82404,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6127,
+      "lon": 125.19121,
+      "lat": 37.82497,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6128,
+      "lon": 125.196,
+      "lat": 37.82839,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6129,
+      "lon": 125.19331,
+      "lat": 37.83086,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6130,
+      "lon": 125.19753,
+      "lat": 37.81088,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6131,
+      "lon": 125.19566,
+      "lat": 37.82806,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6132,
+      "lon": 125.19405,
+      "lat": 37.82739,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6133,
+      "lon": 125.19217,
+      "lat": 37.82626,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6134,
+      "lon": 125.19348,
+      "lat": 37.82735,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6135,
+      "lon": 125.19155,
+      "lat": 37.82184,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6136,
+      "lon": 125.19155,
+      "lat": 37.82561,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6137,
+      "lon": 125.19643,
+      "lat": 37.82846,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6138,
+      "lon": 125.29436,
+      "lat": 37.66525,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6139,
+      "lon": 125.19179,
+      "lat": 37.8307,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6140,
+      "lon": 125.30691,
+      "lat": 37.66462,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6141,
+      "lon": 125.19094,
+      "lat": 37.82456,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6142,
+      "lon": 125.19055,
+      "lat": 37.82416,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6143,
+      "lon": 125.25328,
+      "lat": 37.74132,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6144,
+      "lon": 125.30656,
+      "lat": 37.66536,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6145,
+      "lon": 125.19531,
+      "lat": 37.82826,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6146,
+      "lon": 125.25186,
+      "lat": 37.74094,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6147,
+      "lon": 125.30606,
+      "lat": 37.6643,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6148,
+      "lon": 125.19773,
+      "lat": 37.82836,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6149,
+      "lon": 125.29363,
+      "lat": 37.66509,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6150,
+      "lon": 125.19444,
+      "lat": 37.82781,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6151,
+      "lon": 125.19278,
+      "lat": 37.82668,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6152,
+      "lon": 125.19348,
+      "lat": 37.82708,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6153,
+      "lon": 125.19876,
+      "lat": 37.81085,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6154,
+      "lon": 125.24922,
+      "lat": 37.79424,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6155,
+      "lon": 125.3169,
+      "lat": 37.72045,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6156,
+      "lon": 125.24038,
+      "lat": 37.71865,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6157,
+      "lon": 125.25421,
+      "lat": 37.74141,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6158,
+      "lon": 125.31215,
+      "lat": 37.7413,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6159,
+      "lon": 125.30749,
+      "lat": 37.66568,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6160,
+      "lon": 125.26404,
+      "lat": 37.7424,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6161,
+      "lon": 125.26328,
+      "lat": 37.74176,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6162,
+      "lon": 125.25072,
+      "lat": 37.79495,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6163,
+      "lon": 125.25563,
+      "lat": 37.74147,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6164,
+      "lon": 125.24946,
+      "lat": 37.79482,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6165,
+      "lon": 125.31287,
+      "lat": 37.74182,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6166,
+      "lon": 125.25279,
+      "lat": 37.74096,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6167,
+      "lon": 125.31763,
+      "lat": 37.72044,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6168,
+      "lon": 125.32046,
+      "lat": 37.72735,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6169,
+      "lon": 125.26259,
+      "lat": 37.74227,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6170,
+      "lon": 125.31604,
+      "lat": 37.74251,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6171,
+      "lon": 125.32074,
+      "lat": 37.7267,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6172,
+      "lon": 125.2587,
+      "lat": 37.741,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6173,
+      "lon": 125.31851,
+      "lat": 37.71999,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6174,
+      "lon": 125.32014,
+      "lat": 37.74561,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6175,
+      "lon": 125.31837,
+      "lat": 37.72162,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6176,
+      "lon": 125.32269,
+      "lat": 37.72939,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6177,
+      "lon": 125.32043,
+      "lat": 37.72637,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6178,
+      "lon": 125.32108,
+      "lat": 37.72719,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6179,
+      "lon": 125.31854,
+      "lat": 37.74409,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6180,
+      "lon": 125.32158,
+      "lat": 37.72853,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6181,
+      "lon": 125.32254,
+      "lat": 37.72889,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6182,
+      "lon": 125.31846,
+      "lat": 37.72115,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6183,
+      "lon": 125.34232,
+      "lat": 37.81466,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6184,
+      "lon": 125.34397,
+      "lat": 37.81524,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6185,
+      "lon": 125.31658,
+      "lat": 37.74205,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6186,
+      "lon": 125.31792,
+      "lat": 37.74427,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6187,
+      "lon": 125.322,
+      "lat": 37.7281,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6188,
+      "lon": 125.32092,
+      "lat": 37.72777,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6189,
+      "lon": 125.31704,
+      "lat": 37.74405,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6190,
+      "lon": 125.31643,
+      "lat": 37.72133,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6191,
+      "lon": 125.32394,
+      "lat": 37.73074,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6192,
+      "lon": 125.34412,
+      "lat": 37.81482,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6193,
+      "lon": 125.32377,
+      "lat": 37.72969,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6194,
+      "lon": 125.34293,
+      "lat": 37.81512,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6195,
+      "lon": 125.34251,
+      "lat": 37.81396,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6196,
+      "lon": 125.32427,
+      "lat": 37.7303,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6197,
+      "lon": 125.32508,
+      "lat": 37.73207,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6198,
+      "lon": 125.32596,
+      "lat": 37.73207,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6199,
+      "lon": 125.3263,
+      "lat": 37.73296,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6200,
+      "lon": 125.24818,
+      "lat": 37.79461,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6201,
+      "lon": 125.32469,
+      "lat": 37.73113,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6202,
+      "lon": 125.34193,
+      "lat": 37.81365,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6203,
+      "lon": 125.19538,
+      "lat": 37.80862,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6204,
+      "lon": 125.34331,
+      "lat": 37.81451,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6205,
+      "lon": 125.31935,
+      "lat": 37.72467,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6206,
+      "lon": 125.24768,
+      "lat": 37.79418,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6207,
+      "lon": 125.33015,
+      "lat": 37.67408,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6208,
+      "lon": 125.32062,
+      "lat": 37.7251,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6209,
+      "lon": 125.32851,
+      "lat": 37.67279,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6210,
+      "lon": 125.33008,
+      "lat": 37.67362,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6211,
+      "lon": 125.19488,
+      "lat": 37.80914,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6212,
+      "lon": 125.30557,
+      "lat": 37.67242,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6213,
+      "lon": 125.347,
+      "lat": 37.7584,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6214,
+      "lon": 125.3291,
+      "lat": 37.67296,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6215,
+      "lon": 125.35041,
+      "lat": 37.76368,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6216,
+      "lon": 125.33872,
+      "lat": 37.76571,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6217,
+      "lon": 125.33826,
+      "lat": 37.76498,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6218,
+      "lon": 125.34507,
+      "lat": 37.75719,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6219,
+      "lon": 125.33746,
+      "lat": 37.76431,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6220,
+      "lon": 125.24753,
+      "lat": 37.79537,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6221,
+      "lon": 125.34554,
+      "lat": 37.75645,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6222,
+      "lon": 125.27403,
+      "lat": 37.74865,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6223,
+      "lon": 125.34616,
+      "lat": 37.75791,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6224,
+      "lon": 125.34731,
+      "lat": 37.7599,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6225,
+      "lon": 125.2334,
+      "lat": 37.62561,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6226,
+      "lon": 125.34838,
+      "lat": 37.75953,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6227,
+      "lon": 125.34815,
+      "lat": 37.7602,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6228,
+      "lon": 125.23943,
+      "lat": 37.60723,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6229,
+      "lon": 125.34649,
+      "lat": 37.75904,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6230,
+      "lon": 125.27457,
+      "lat": 37.7486,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6231,
+      "lon": 125.34976,
+      "lat": 37.76224,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6232,
+      "lon": 125.21971,
+      "lat": 37.69462,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6233,
+      "lon": 125.21637,
+      "lat": 37.69741,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6234,
+      "lon": 125.24098,
+      "lat": 37.71994,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6235,
+      "lon": 125.24657,
+      "lat": 37.79573,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6236,
+      "lon": 125.33078,
+      "lat": 37.67335,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6237,
+      "lon": 125.21678,
+      "lat": 37.7561,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6238,
+      "lon": 125.21997,
+      "lat": 37.69436,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6239,
+      "lon": 125.33506,
+      "lat": 37.67194,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6240,
+      "lon": 125.23831,
+      "lat": 37.71728,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6241,
+      "lon": 125.22687,
+      "lat": 37.69447,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6242,
+      "lon": 125.22051,
+      "lat": 37.69324,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6243,
+      "lon": 125.33282,
+      "lat": 37.67249,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6244,
+      "lon": 125.36079,
+      "lat": 37.70479,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6245,
+      "lon": 125.33516,
+      "lat": 37.67034,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6246,
+      "lon": 125.24649,
+      "lat": 37.62626,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6247,
+      "lon": 125.37467,
+      "lat": 37.70651,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6248,
+      "lon": 125.36065,
+      "lat": 37.70344,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6249,
+      "lon": 125.28951,
+      "lat": 37.66342,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6250,
+      "lon": 125.37439,
+      "lat": 37.70573,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6251,
+      "lon": 125.22893,
+      "lat": 37.69497,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6252,
+      "lon": 125.22825,
+      "lat": 37.69506,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6253,
+      "lon": 125.23001,
+      "lat": 37.69571,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6254,
+      "lon": 125.33429,
+      "lat": 37.67109,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6255,
+      "lon": 125.3353,
+      "lat": 37.67245,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6256,
+      "lon": 125.31451,
+      "lat": 37.71581,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6257,
+      "lon": 125.31716,
+      "lat": 37.71944,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6258,
+      "lon": 125.25118,
+      "lat": 37.79826,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6259,
+      "lon": 125.30428,
+      "lat": 37.73253,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6260,
+      "lon": 125.33488,
+      "lat": 37.67353,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6261,
+      "lon": 125.32064,
+      "lat": 37.7454,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6262,
+      "lon": 125.24391,
+      "lat": 37.7975,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6263,
+      "lon": 125.3115,
+      "lat": 37.73876,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6264,
+      "lon": 125.24287,
+      "lat": 37.79741,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6265,
+      "lon": 125.24168,
+      "lat": 37.79759,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6266,
+      "lon": 125.25022,
+      "lat": 37.7947,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6267,
+      "lon": 125.32641,
+      "lat": 37.70177,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6268,
+      "lon": 125.31565,
+      "lat": 37.74126,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6269,
+      "lon": 125.31979,
+      "lat": 37.74473,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6270,
+      "lon": 125.3171,
+      "lat": 37.74244,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6271,
+      "lon": 125.2205,
+      "lat": 37.69483,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6272,
+      "lon": 125.20141,
+      "lat": 37.70047,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6273,
+      "lon": 125.31756,
+      "lat": 37.74314,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6274,
+      "lon": 125.37347,
+      "lat": 37.77251,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6275,
+      "lon": 125.32505,
+      "lat": 37.74873,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6276,
+      "lon": 125.21559,
+      "lat": 37.7562,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6277,
+      "lon": 125.31517,
+      "lat": 37.74082,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6278,
+      "lon": 125.21307,
+      "lat": 37.69828,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6279,
+      "lon": 125.36695,
+      "lat": 37.82043,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6280,
+      "lon": 125.36699,
+      "lat": 37.81966,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6281,
+      "lon": 125.36042,
+      "lat": 37.8172,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6282,
+      "lon": 125.36654,
+      "lat": 37.81961,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6283,
+      "lon": 125.36092,
+      "lat": 37.8175,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6284,
+      "lon": 125.36,
+      "lat": 37.81696,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6285,
+      "lon": 125.34954,
+      "lat": 37.6796,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6286,
+      "lon": 125.36681,
+      "lat": 37.81997,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6287,
+      "lon": 125.37189,
+      "lat": 37.72308,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6288,
+      "lon": 125.30986,
+      "lat": 37.67134,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6289,
+      "lon": 125.31032,
+      "lat": 37.6729,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6290,
+      "lon": 125.37137,
+      "lat": 37.72795,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6291,
+      "lon": 125.32812,
+      "lat": 37.7358,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6292,
+      "lon": 125.32692,
+      "lat": 37.73323,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6293,
+      "lon": 125.37433,
+      "lat": 37.72866,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6294,
+      "lon": 125.37333,
+      "lat": 37.72933,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6295,
+      "lon": 125.34374,
+      "lat": 37.75428,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6296,
+      "lon": 125.34135,
+      "lat": 37.75215,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6297,
+      "lon": 125.32804,
+      "lat": 37.73452,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6298,
+      "lon": 125.32934,
+      "lat": 37.73425,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6299,
+      "lon": 125.32979,
+      "lat": 37.73769,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6300,
+      "lon": 125.32913,
+      "lat": 37.73745,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6301,
+      "lon": 125.34296,
+      "lat": 37.75437,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6302,
+      "lon": 125.29198,
+      "lat": 37.66447,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6303,
+      "lon": 125.32869,
+      "lat": 37.73393,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6304,
+      "lon": 125.34158,
+      "lat": 37.7513,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6305,
+      "lon": 125.33384,
+      "lat": 37.79442,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6306,
+      "lon": 125.32879,
+      "lat": 37.73644,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6307,
+      "lon": 125.33968,
+      "lat": 37.76754,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6308,
+      "lon": 125.23582,
+      "lat": 37.71554,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6309,
+      "lon": 125.34235,
+      "lat": 37.75335,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6310,
+      "lon": 125.2652,
+      "lat": 37.74261,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6311,
+      "lon": 125.2352,
+      "lat": 37.71502,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6312,
+      "lon": 125.2364,
+      "lat": 37.71612,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6313,
+      "lon": 125.32849,
+      "lat": 37.73329,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6314,
+      "lon": 125.37106,
+      "lat": 37.72686,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6315,
+      "lon": 125.3273,
+      "lat": 37.73467,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6316,
+      "lon": 125.33615,
+      "lat": 37.79759,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6317,
+      "lon": 125.29157,
+      "lat": 37.66431,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6318,
+      "lon": 125.37142,
+      "lat": 37.72713,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6319,
+      "lon": 125.368,
+      "lat": 37.78183,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6320,
+      "lon": 125.20492,
+      "lat": 37.70009,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6321,
+      "lon": 125.24194,
+      "lat": 37.60747,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6322,
+      "lon": 125.25928,
+      "lat": 37.81743,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6323,
+      "lon": 125.2216,
+      "lat": 37.70829,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6324,
+      "lon": 125.19611,
+      "lat": 37.80871,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6325,
+      "lon": 125.19382,
+      "lat": 37.82754,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6326,
+      "lon": 125.31859,
+      "lat": 37.7226,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6327,
+      "lon": 125.19305,
+      "lat": 37.8269,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6328,
+      "lon": 125.20396,
+      "lat": 37.70011,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6329,
+      "lon": 125.34089,
+      "lat": 37.67617,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6330,
+      "lon": 125.36123,
+      "lat": 37.78168,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6331,
+      "lon": 125.2025,
+      "lat": 37.70008,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6332,
+      "lon": 125.19362,
+      "lat": 37.80807,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6333,
+      "lon": 125.31322,
+      "lat": 37.71737,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6334,
+      "lon": 125.19604,
+      "lat": 37.82808,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6335,
+      "lon": 125.19472,
+      "lat": 37.80838,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6336,
+      "lon": 125.35885,
+      "lat": 37.78054,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6337,
+      "lon": 125.32662,
+      "lat": 37.70121,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6338,
+      "lon": 125.19697,
+      "lat": 37.69961,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6339,
+      "lon": 125.2418,
+      "lat": 37.60779,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6340,
+      "lon": 125.24814,
+      "lat": 37.62633,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6341,
+      "lon": 125.21455,
+      "lat": 37.69782,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6342,
+      "lon": 125.18493,
+      "lat": 37.80364,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6343,
+      "lon": 125.18212,
+      "lat": 37.80282,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6344,
+      "lon": 125.3621,
+      "lat": 37.79179,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6345,
+      "lon": 125.36296,
+      "lat": 37.70853,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6346,
+      "lon": 125.2917,
+      "lat": 37.75681,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6347,
+      "lon": 125.29439,
+      "lat": 37.75815,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6348,
+      "lon": 125.35992,
+      "lat": 37.78115,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6349,
+      "lon": 125.31158,
+      "lat": 37.73907,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6350,
+      "lon": 125.37549,
+      "lat": 37.72942,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6351,
+      "lon": 125.29128,
+      "lat": 37.75666,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6352,
+      "lon": 125.34592,
+      "lat": 37.81783,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6353,
+      "lon": 125.1827,
+      "lat": 37.80295,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6354,
+      "lon": 125.29075,
+      "lat": 37.7565,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6355,
+      "lon": 125.24644,
+      "lat": 37.8066,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6356,
+      "lon": 125.20316,
+      "lat": 37.811,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6357,
+      "lon": 125.29386,
+      "lat": 37.75797,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6358,
+      "lon": 125.18569,
+      "lat": 37.80374,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6359,
+      "lon": 125.29044,
+      "lat": 37.75617,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6360,
+      "lon": 125.29333,
+      "lat": 37.75775,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6361,
+      "lon": 125.3257,
+      "lat": 37.74985,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6362,
+      "lon": 125.19193,
+      "lat": 37.82608,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6363,
+      "lon": 125.30509,
+      "lat": 37.67274,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6364,
+      "lon": 125.33031,
+      "lat": 37.73912,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6365,
+      "lon": 125.33258,
+      "lat": 37.74236,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6366,
+      "lon": 125.33824,
+      "lat": 37.74803,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6367,
+      "lon": 125.33562,
+      "lat": 37.74392,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6368,
+      "lon": 125.22884,
+      "lat": 37.73875,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6369,
+      "lon": 125.33575,
+      "lat": 37.74474,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6370,
+      "lon": 125.33366,
+      "lat": 37.74316,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6371,
+      "lon": 125.33663,
+      "lat": 37.74523,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6372,
+      "lon": 125.33805,
+      "lat": 37.74721,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6373,
+      "lon": 125.33415,
+      "lat": 37.74188,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6374,
+      "lon": 125.22749,
+      "lat": 37.73793,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6375,
+      "lon": 125.22744,
+      "lat": 37.73823,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6376,
+      "lon": 125.32605,
+      "lat": 37.75043,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6377,
+      "lon": 125.33889,
+      "lat": 37.74873,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6378,
+      "lon": 125.37362,
+      "lat": 37.77366,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6379,
+      "lon": 125.32492,
+      "lat": 37.74949,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6380,
+      "lon": 125.33693,
+      "lat": 37.74632,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6381,
+      "lon": 125.33486,
+      "lat": 37.76933,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6382,
+      "lon": 125.36495,
+      "lat": 37.79289,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6383,
+      "lon": 125.3336,
+      "lat": 37.76711,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6384,
+      "lon": 125.34492,
+      "lat": 37.75557,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6385,
+      "lon": 125.331,
+      "lat": 37.67398,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6386,
+      "lon": 125.33726,
+      "lat": 37.80052,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6387,
+      "lon": 125.22741,
+      "lat": 37.73869,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6388,
+      "lon": 125.33787,
+      "lat": 37.80104,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6389,
+      "lon": 125.25679,
+      "lat": 37.74147,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6390,
+      "lon": 125.37367,
+      "lat": 37.7289,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6391,
+      "lon": 125.36243,
+      "lat": 37.78189,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6392,
+      "lon": 125.37493,
+      "lat": 37.7293,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6393,
+      "lon": 125.37358,
+      "lat": 37.77306,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6394,
+      "lon": 125.33606,
+      "lat": 37.77065,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6395,
+      "lon": 125.34446,
+      "lat": 37.75602,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6396,
+      "lon": 125.3655,
+      "lat": 37.78165,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6397,
+      "lon": 125.33183,
+      "lat": 37.74147,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6398,
+      "lon": 125.37117,
+      "lat": 37.72847,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6399,
+      "lon": 125.24303,
+      "lat": 37.79323,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6400,
+      "lon": 125.32605,
+      "lat": 37.75098,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6401,
+      "lon": 125.33964,
+      "lat": 37.76794,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6402,
+      "lon": 125.33753,
+      "lat": 37.80033,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6403,
+      "lon": 125.24835,
+      "lat": 37.79638,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6404,
+      "lon": 125.36473,
+      "lat": 37.78158,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6405,
+      "lon": 125.2481,
+      "lat": 37.79722,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6406,
+      "lon": 125.36433,
+      "lat": 37.79249,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6407,
+      "lon": 125.33403,
+      "lat": 37.76824,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6408,
+      "lon": 125.33465,
+      "lat": 37.79571,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6409,
+      "lon": 125.23249,
+      "lat": 37.69488,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6410,
+      "lon": 125.25161,
+      "lat": 37.79794,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6411,
+      "lon": 125.19036,
+      "lat": 37.80692,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6412,
+      "lon": 125.3338,
+      "lat": 37.7676,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6413,
+      "lon": 125.3665,
+      "lat": 37.78174,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6414,
+      "lon": 125.33461,
+      "lat": 37.76876,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6415,
+      "lon": 125.34032,
+      "lat": 37.74989,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6416,
+      "lon": 125.3402,
+      "lat": 37.75075,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6417,
+      "lon": 125.26249,
+      "lat": 37.70179,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6418,
+      "lon": 125.19956,
+      "lat": 37.70889,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6419,
+      "lon": 125.37516,
+      "lat": 37.70568,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6420,
+      "lon": 125.23923,
+      "lat": 37.71784,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6422,
+      "lon": 125.19087,
+      "lat": 37.83035,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6423,
+      "lon": 125.3816,
+      "lat": 37.69751,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6424,
+      "lon": 125.29369,
+      "lat": 37.6638,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6425,
+      "lon": 125.29666,
+      "lat": 37.66818,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6427,
+      "lon": 125.24363,
+      "lat": 37.78921,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6428,
+      "lon": 125.72157,
+      "lat": 37.96442,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6429,
+      "lon": 125.75064,
+      "lat": 37.83673,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6430,
+      "lon": 125.75382,
+      "lat": 37.83665,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6431,
+      "lon": 125.60586,
+      "lat": 37.80478,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6432,
+      "lon": 125.74863,
+      "lat": 37.83679,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6433,
+      "lon": 125.62428,
+      "lat": 37.80508,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6434,
+      "lon": 125.70304,
+      "lat": 37.94205,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6435,
+      "lon": 125.75666,
+      "lat": 37.81166,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6436,
+      "lon": 125.75762,
+      "lat": 37.8123,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6437,
+      "lon": 125.70537,
+      "lat": 37.97329,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6438,
+      "lon": 125.58668,
+      "lat": 37.76741,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6439,
+      "lon": 125.75633,
+      "lat": 37.81234,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6440,
+      "lon": 125.72421,
+      "lat": 37.97182,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6441,
+      "lon": 125.71716,
+      "lat": 37.9687,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6442,
+      "lon": 125.62531,
+      "lat": 37.80495,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6443,
+      "lon": 125.75739,
+      "lat": 37.81123,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6444,
+      "lon": 125.57697,
+      "lat": 37.73454,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6445,
+      "lon": 125.72449,
+      "lat": 37.97173,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6446,
+      "lon": 125.72219,
+      "lat": 37.80902,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6447,
+      "lon": 125.60834,
+      "lat": 37.80238,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6448,
+      "lon": 125.6079,
+      "lat": 37.80346,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6449,
+      "lon": 125.60286,
+      "lat": 37.76179,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6450,
+      "lon": 125.69511,
+      "lat": 37.97304,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6451,
+      "lon": 125.60705,
+      "lat": 37.80425,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6452,
+      "lon": 125.58517,
+      "lat": 37.76449,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6453,
+      "lon": 125.69551,
+      "lat": 37.70471,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6454,
+      "lon": 125.75377,
+      "lat": 37.83727,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6455,
+      "lon": 125.75271,
+      "lat": 37.83723,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6456,
+      "lon": 125.62438,
+      "lat": 37.84014,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6457,
+      "lon": 125.72532,
+      "lat": 37.97179,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6458,
+      "lon": 125.75608,
+      "lat": 37.83872,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6459,
+      "lon": 125.70137,
+      "lat": 37.96559,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6460,
+      "lon": 125.61823,
+      "lat": 37.79253,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6461,
+      "lon": 125.61556,
+      "lat": 37.78902,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6462,
+      "lon": 125.70432,
+      "lat": 37.97449,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6463,
+      "lon": 125.72008,
+      "lat": 37.96891,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6464,
+      "lon": 125.71749,
+      "lat": 37.96847,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6465,
+      "lon": 125.72115,
+      "lat": 37.97141,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6466,
+      "lon": 125.51824,
+      "lat": 37.77271,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6467,
+      "lon": 125.63212,
+      "lat": 37.84584,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6469,
+      "lon": 125.72442,
+      "lat": 37.97157,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6603,
+      "lon": 125.13697,
+      "lat": 38.69765,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6607,
+      "lon": 125.14211,
+      "lat": 38.6992,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6618,
+      "lon": 125.29823,
+      "lat": 38.66993,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6626,
+      "lon": 125.14101,
+      "lat": 38.6984,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6627,
+      "lon": 125.13667,
+      "lat": 38.69717,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6630,
+      "lon": 125.29718,
+      "lat": 38.66985,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6632,
+      "lon": 125.13998,
+      "lat": 38.66807,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6634,
+      "lon": 125.13676,
+      "lat": 38.66393,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6636,
+      "lon": 125.64883,
+      "lat": 38.01097,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6637,
+      "lon": 125.64359,
+      "lat": 38.01871,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6638,
+      "lon": 125.64111,
+      "lat": 38.02109,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6641,
+      "lon": 125.07233,
+      "lat": 38.67979,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6642,
+      "lon": 125.10535,
+      "lat": 38.66787,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6643,
+      "lon": 125.10354,
+      "lat": 38.64532,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6644,
+      "lon": 125.12083,
+      "lat": 38.67931,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6645,
+      "lon": 125.11517,
+      "lat": 38.61089,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6650,
+      "lon": 125.63005,
+      "lat": 38.65578,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6651,
+      "lon": 125.31672,
+      "lat": 38.67766,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6652,
+      "lon": 125.2887,
+      "lat": 38.67766,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6653,
+      "lon": 125.1159,
+      "lat": 38.68164,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6654,
+      "lon": 125.11577,
+      "lat": 38.68343,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6655,
+      "lon": 125.64021,
+      "lat": 38.01934,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6656,
+      "lon": 125.64346,
+      "lat": 38.01764,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6658,
+      "lon": 126.75811,
+      "lat": 37.25706,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6659,
+      "lon": 126.72484,
+      "lat": 37.25764,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6660,
+      "lon": 126.76248,
+      "lat": 37.25854,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6661,
+      "lon": 126.70721,
+      "lat": 37.26329,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6662,
+      "lon": 126.73355,
+      "lat": 37.26701,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6788,
+      "lon": 126.32606,
+      "lat": 35.49378,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6789,
+      "lon": 126.33367,
+      "lat": 35.49011,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6790,
+      "lon": 126.34125,
+      "lat": 35.48647,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6791,
+      "lon": 126.33508,
+      "lat": 35.48131,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6792,
+      "lon": 126.32747,
+      "lat": 35.48497,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6793,
+      "lon": 126.31989,
+      "lat": 35.48861,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6794,
+      "lon": 126.31225,
+      "lat": 35.49225,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    },
+    {
+      "id": 6795,
+      "lon": 126.30611,
+      "lat": 35.48714,
+      "category": "always_isolated",
+      "transitions": 0,
+      "isolatedSamples": 72,
+      "totalSamples": 72,
+      "inNearshoreReview1000": false
+    }
+  ],
+  "always_isolated_nearshore_human": [
+    {
+      "id": 2593,
+      "lon": 125.09042,
+      "lat": 34.05837,
+      "humanMemo": "수심미상이나 색상으로 볼때 깊을것으로 사료되고 물에항상 고립된 노출암으로 판단됨",
+      "region": "남해"
+    },
+    {
+      "id": 2637,
+      "lon": 127.21943,
+      "lat": 34.43155,
+      "humanMemo": "간출지 수역이나 항상 고립되어 있는 곳으로 보아 그냥 고립되는 곳으로 판단해서 진행해야 할 듯",
+      "region": "남해"
+    },
+    {
+      "id": 2638,
+      "lon": 127.21862,
+      "lat": 34.43095,
+      "humanMemo": "간출지 수역이나 항상 고립되어 있는 곳으로 보아 그냥 고립되는 곳으로 판단해서 진행해야 할 듯",
+      "region": "남해"
+    },
+    {
+      "id": 2870,
+      "lon": 126.48537,
+      "lat": 36.13813,
+      "humanMemo": "항상 고립되어 있는 것으로 판단",
+      "region": "서해"
+    },
+    {
+      "id": 3807,
+      "lon": 126.18633,
+      "lat": 34.80771,
+      "humanMemo": "항상 고립된 장소로 판단",
+      "region": "남해"
+    },
+    {
+      "id": 3817,
+      "lon": 126.04764,
+      "lat": 34.77853,
+      "humanMemo": "항상 고립된 것으로 판단",
+      "region": "남해"
+    },
+    {
+      "id": 4034,
+      "lon": 126.18729,
+      "lat": 34.34695,
+      "humanMemo": "항상 고립된 것으로 판다.",
+      "region": "남해"
+    },
+    {
+      "id": 4132,
+      "lon": 126.35046,
+      "lat": 34.39908,
+      "humanMemo": "항상 고립되어 있는 것으로 판단합니다.",
+      "region": "남해"
+    },
+    {
+      "id": 4133,
+      "lon": 126.35167,
+      "lat": 34.39863,
+      "humanMemo": "항상 고립되어 있는 것으로 판단.",
+      "region": "남해"
+    }
+  ]
+}

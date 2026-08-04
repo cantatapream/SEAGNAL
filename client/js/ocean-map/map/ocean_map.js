@@ -1149,6 +1149,41 @@
             if (hit) return;
         }
 
+        // 출입통제구역 폴리곤 클릭 확인 (해양안전 전용, 토글 꺼져 있으면 항상 false)
+        // [연계] js/marine-life/safety/access_control.js
+        if (typeof window._accessControlTryHandleClick === 'function') {
+            const hit = window._accessControlTryHandleClick(oceanMap, evt);
+            if (hit) return;
+        }
+
+        // 낚시금지구역 폴리곤 클릭 확인 (해양안전 전용, 토글 꺼져 있으면 항상 false)
+        // [연계] js/marine-life/safety/fishing_ban.js
+        if (typeof window._fishingBanTryHandleClick === 'function') {
+            const hit = window._fishingBanTryHandleClick(oceanMap, evt);
+            if (hit) return;
+        }
+
+        // 선박교통관제(VTS)구역 폴리곤 클릭 확인 (해양안전 전용, 토글 꺼져 있으면 항상 false)
+        // [연계] js/marine-life/safety/vts_zone.js
+        if (typeof window._vtsZoneTryHandleClick === 'function') {
+            const hit = window._vtsZoneTryHandleClick(oceanMap, evt);
+            if (hit) return;
+        }
+
+        // 항로 폴리곤 클릭 확인 (해양안전 전용, 토글 꺼져 있으면 항상 false)
+        // [연계] js/marine-life/safety/seaway.js
+        if (typeof window._seawayTryHandleClick === 'function') {
+            const hit = window._seawayTryHandleClick(oceanMap, evt);
+            if (hit) return;
+        }
+
+        // 항행경보 구역(원형/다각형) 클릭 확인 (해양안전 전용, 토글 꺼져 있으면 항상 false)
+        // [연계] js/marine-life/safety/navigational_warning.js
+        if (typeof window._navwarnTryHandleClick === 'function') {
+            const hit = window._navwarnTryHandleClick(oceanMap, evt);
+            if (hit) return;
+        }
+
         // [공통 핀] 배경(해역) 클릭 시 클릭 지점에 핀 1개 표시(다음 클릭 시 이동).
         //   마커/CCTV/부이 클릭은 위에서 return 되므로 그 위엔 안 찍힘.
         if (typeof window.oceanDropClickPin === 'function') window.oceanDropClickPin(oceanMap, evt.coordinate);
