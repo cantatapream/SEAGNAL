@@ -2009,14 +2009,21 @@
   }
 
   /**
-   * 요지나 원문 발췌에 처벌 문구가 들어있으면 처벌 조문으로 본다(체인 끝에 빨간 원으로 따로 뺀다).
+   * 요지·원문 발췌·단계 칸에 처벌 문구가 들어있으면 처벌 조문으로 본다(체인 끝에 빨간 원으로 따로 뺀다).
    * ⚠ "형벌"도 찾아야 한다 — 위키 요지가 "처벌"이 아니라 "형벌(구간·재범·측정거부)"처럼 적힌
    *   행이 있어 "처벌"만 찾으면 놓친다(실측: 해상교통안전법 제113조 — 원문 제목 자체가
    *   "제113조(벌칙)"인데 요지 문구 차이로 '법률' 배지가 뜬 사례). 요지뿐 아니라 원문 발췌
    *   (row.excerpt)도 함께 본다 — 요지가 짧아 처벌 문구를 못 담았어도 발췌 쪽엔 있을 수 있다.
+   * ⚠ 위키 표의 **단계 칸(row.step)** 도 함께 본다 — 처벌 신호가 요지가 아니라 단계에만 있는 행이
+   *   있다(같은 제113조 행: 단계 "② 형벌(5톤 이상)" / 요지 "구간·재범·측정거부 형량" — 요지엔
+   *   처벌 낱말이 없어 "형벌"을 추가한 뒤에도 계속 '법률' 배지로 떴다. 라이브 재현).
+   * ⚠ "양벌"도 처벌로 센다 — 양벌규정(법인·선주 병과) 행은 자기 요지에 형량이 없어 다른 낱말이
+   *   하나도 안 걸리는데, 그 행이 말하는 건 결국 벌칙이라 위반 조문과 같은 벌칙 묶음에 있어야 맞다
+   *   (실측: 해상교통안전법 제117조 — 단계 "⑦ 양벌" / 요지 "법인·선주 병과").
    */
   function isPenaltyRow(row) {
-    return /징역|벌금|과태료|처벌|형벌|몰수|추징/.test(String(row.gist || '') + ' ' + String(row.excerpt || ''));
+    return /징역|벌금|과태료|처벌|형벌|양벌|몰수|추징/.test(
+      String(row.gist || '') + ' ' + String(row.excerpt || '') + ' ' + String(row.step || ''));
   }
 
   /** tier 코드를 화면 라벨로. 처벌 조문은 '벌칙'으로 표시한다. */
@@ -2032,16 +2039,18 @@
    * 보여준다. 발췌를 못 구한 줄(범위 인용·원문 조회 실패 등)만 예전처럼 위키 `요지`로 대신한다.
    * ⚠발췌는 원문 그대로다 — 화면이 손대지 않는다(routes/legal.js pickExcerpt 참고).
    * 연락처 줄을 뺀 카드 본문(.nrya-chain-hit)은 눌러서 조문 원문 팝업(전문)을 여는 영역이다.
-   * @param {object} row - {law, article, effectiveDate, excerpt, gist, tier, contact}
+   * ⚠ data-base(조문 원문 폴더를 찾는 열쇠)는 **그 줄이 실려 있던 위키 페이지의 법**(row.baseLaw,
+   *   서버가 줄마다 붙여 보낸다)이다 — 줄의 자기 법(row.law)이 아니다. 체인 하나에 여러 법의 줄이
+   *   섞여 있으므로 목록 전체에 하나를 공유할 수도 없다(예전엔 소스 하나만 그려서 공유가 가능했다).
+   * @param {object} row - {law, article, effectiveDate, excerpt, gist, step, tier, contact, baseLaw}
    * @param {number} n - 화면에 찍을 순번(1부터)
    * @param {boolean} last - 세로 연결선을 끊을지(체인의 마지막 칸)
    * @param {boolean} penalty - 처벌 조문인지(빨간 원 + '벌칙' 라벨)
-   * @param {string} baseLaw - 이 체인이 실린 위키 페이지의 소속 법명(고시 원문 폴더를 찾는 열쇠)
    * @returns {string} HTML
    * [연계] ← chainHTML. 데이터는 legal_retriever.js extractCitationChain/lookupContact.
    *        data-* 는 openArtPop 이 GET /api/legal/article-text 를 부를 때 그대로 쓴다.
    */
-  function chainStepHTML(row, n, last, penalty, baseLaw) {
+  function chainStepHTML(row, n, last, penalty) {
     var eff = row.effectiveDate
       ? '<span class="nrya-chain-eff">' + (row.tier === 'notice' ? '발령일자 ' : '시행일자 ') + esc(row.effectiveDate) + '</span>'
       : '';
@@ -2064,7 +2073,7 @@
     // data-gist 는 범위·전체 인용 팝업에서 "이 인용의 요지" 캡션으로 그대로 다시 쓴다
     // (조 하나를 못 짚어 강조를 할 수 없는 대신 방향을 잡아주는 문구 — 가공 없이 원문 그대로).
     var hitAttrs = ' data-law="' + esc(row.law || '') + '" data-article="' + esc(row.article || '') +
-      '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(baseLaw || '') +
+      '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(row.baseLaw || '') +
       '" data-gist="' + esc(row.gist || '') + '"' +
       (penalty ? ' data-pen="1"' : '');
     return '<div class="nrya-chain-step' + (last ? ' nrya-last' : '') + (penalty ? ' nrya-penalty' : '') + '" data-tier="' + esc(row.tier || 'law') + '">' +
@@ -2086,23 +2095,23 @@
    * ⚠ 각 칸에 보이는 문장은 그 조문 **원문의 앞부분 발췌**(서버가 실어준 row.excerpt)이고, 발췌를
    *   못 구한 칸만 위키 "근거 조문" 표의 요지다. 조문 전문(항·호 전체)은 카드를 누르면 조문
    *   팝업(openArtPop)이 raw 원문에서 그때그때 읽어 보여준다.
-   * @param {Array} chain - sources[i].citationChain
-   * @param {string} baseLaw - 이 체인이 실린 소스(위키 페이지)의 법령명 — 고시 원문 폴더 찾기용
+   * @param {Array} chain - data.citationChain(모든 근거 소스의 줄을 서버가 하나로 합쳐 보낸 목록.
+   *   줄마다 자기 baseLaw 를 갖고 있어 여러 법이 섞여 있어도 조문 원문 조회가 정확하다)
    * @returns {string} HTML
    */
-  function chainHTML(chain, baseLaw) {
+  function chainHTML(chain) {
     var main = [], pen = [];
     chain.forEach(function (row) { (isPenaltyRow(row) ? pen : main).push(row); });
     var n = 0, html = '';
     if (main.length) {
       html += '<div class="nrya-chain">' + main.map(function (row, i) {
-        return chainStepHTML(row, ++n, i === main.length - 1, false, baseLaw);
+        return chainStepHTML(row, ++n, i === main.length - 1, false);
       }).join('') + '</div>';
     }
     if (pen.length) {
       html += (main.length ? '<div class="nrya-chain-gap"></div>' : '') +
         '<div class="nrya-chain">' + pen.map(function (row, i) {
-          return chainStepHTML(row, ++n, i === pen.length - 1, true, baseLaw);
+          return chainStepHTML(row, ++n, i === pen.length - 1, true);
         }).join('') + '</div>';
     }
     return html;
@@ -2184,12 +2193,13 @@
    * /api/legal/ask 응답을 답변 말풍선 내부 HTML로 조립한다.
    * AI 합성 답변(answer)을 본문으로, 근거 법령(sources)은 아코디언으로 붙인다. 서버가 되묻기를
    * 택한 응답(clarify)이면 answer 자리에 짧은 안내 한 줄만 오고 그 아래에 선택지 버튼이 붙는다.
-   * 아코디언에는 인용사슬(citationChain)이 가장 많이 살아남은 소스 **하나만** 위임흐름 체인으로
-   * 펼친다 — 살아남은 인용사슬이 하나도 없으면 아코디언 자체를 그리지 않는다.
+   * 아코디언에는 서버가 합쳐 보낸 인용사슬(data.citationChain — 근거 소스 여러 곳의 줄을 답변이
+   * 인용한 순서로 하나로 정렬한 목록)을 위임흐름 체인으로 펼친다 — 줄이 하나도 없으면 아코디언
+   * 자체를 그리지 않는다.
    * answer가 없으면(합성 실패·근거 없음) 안내 문구로 대체한다.
    * ※ 백엔드 내부 필드(kind·score·file)는 화면에 노출하지 않는다(사용자에게 의미 없는 값).
    * @param {string} q - 사용자 질문(되묻기 선택지를 누를 때 앞에 붙일 원래 질문으로 쓴다)
-   * @param {object} data - {ok, answer, sources[], note, clarify?} 또는 실패 객체
+   * @param {object} data - {ok, answer, sources[], citationChain[], note, clarify?} 또는 실패 객체
    * @returns {string} 말풍선 내부 HTML
    */
   function answerHTML(q, data) {
@@ -2208,30 +2218,27 @@
 
     // 되묻기 선택지는 본문 바로 아래(근거 법령 아코디언보다 위)에 둔다 — 지금 사용자가 해야 할 일이다.
     var html = lead + clarifyHTML(q, data.clarify);
-    // 인용사슬이 있는 소스 중 줄 수가 가장 많은 것 하나만 체인으로 펼친다(전부 펼치면 너무 김).
-    // 첫 매칭이 아니라 최다 매칭을 고르는 이유: 답변 문장과 대조해 거른 뒤라 여러 소스가 동시에
-    // (짧게) 살아남을 수 있는데, 점수 순서상 앞선 소스가 우연히 한두 줄만 살아남고 뒤쪽 소스가 더
-    // 온전히 살아남는 경우 앞쪽만 보여주면 부족해 보인다.
+    // 근거 조문 체인은 서버가 **모든 소스의 줄을 합쳐 하나로** 보내준다(data.citationChain) —
+    // 그대로 그린다.
+    // ⚠예전엔 화면이 sources[i].citationChain 중 줄 수가 가장 많은 소스 하나를 골라 그 소스만
+    //   그렸다. 그래서 답변이 두 법을 함께 인용한 질문에서 **한쪽 법의 근거가 통째로 안 보였다**
+    //   (라이브 재현: 답변은 「낚시 관리 및 육성법」 제30·53조를 먼저 말하는데 근거 목록 5줄이
+    //   전부 해상교통안전법·선박직원법). 어느 줄을 보여줄지는 "답변이 실제로 인용했는가"로
+    //   서버가 이미 걸렀으므로, 화면이 여기서 또 골라낼 이유가 없다.
     // ⚠나머지 소스를 "법령명 · 주제"만 적은 카드로 나열하던 부분은 뺐다 — 조문도 요지도 없어
     //   ("음주운항_측정거부" 같은 이름 한 줄) 답변 본문과 위 체인이 이미 말한 것 이상을 주지 못하는데,
     //   근거 건수만 부풀려 보이게 했다(라이브 실측 지적).
-    var chainSrc = null;
-    for (var i = 0; i < sources.length; i++) {
-      var c = sources[i].citationChain;
-      if (c && c.length && (!chainSrc || c.length > chainSrc.citationChain.length)) chainSrc = sources[i];
-    }
+    var chain = data.citationChain || [];
     // 건수는 체인에 실제로 남은 **법령 가짓수**(같은 법의 여러 조문은 한 건)로 센다.
     var lawNames = [];
-    if (chainSrc) {
-      chainSrc.citationChain.forEach(function (row) {
-        var nm = row.law || '';
-        if (nm && lawNames.indexOf(nm) < 0) lawNames.push(nm);
-      });
-    }
+    chain.forEach(function (row) {
+      var nm = row.law || '';
+      if (nm && lawNames.indexOf(nm) < 0) lawNames.push(nm);
+    });
     var shown = lawNames.length;
     if (shown) {
       html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 근거 법령 ' + shown + '건 (펼쳐서 보기)</div><div class="nrya-lawacc-b">';
-      html += chainHTML(chainSrc.citationChain, chainSrc.law || '');
+      html += chainHTML(chain);
       html += '</div></div>';
     }
     // ⚠공백 안내는 아코디언 **밖**에 둔다 — 접혀 있는 목록 안에 넣으면 정작 꼭 봐야 할
@@ -2274,7 +2281,7 @@
 
   /**
    * 서버가 보관하고 있던 질문/답변을 평소의 말풍선 쌍(내 질문 → 나리야 답변)으로 그린다.
-   * @param {object} data - {ok:true, query, answer, sources, note}
+   * @param {object} data - {ok:true, query, answer, sources, citationChain, note}
    * [연계] ← checkAnswerDeepLink. → answerHTML(평소 답변과 똑같이 근거 아코디언까지 렌더).
    */
   function renderRestoredAnswer(data) {

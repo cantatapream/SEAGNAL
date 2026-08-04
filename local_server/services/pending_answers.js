@@ -52,7 +52,7 @@ const STORE_FILE = path.join(DATA_DIR, 'pending_answers.json');
 // ============================================================================
 // 저장소 — 메모리 Map(디스크와 단방향 동기화: 메모리가 진실, 디스크는 백업)
 //   key   : requestId (64자 hex)
-//   value : { query, answer, sources, note, createdAt }
+//   value : { query, answer, sources, citationChain, note, createdAt }
 // ============================================================================
 const store_ = new Map();
 
@@ -115,16 +115,20 @@ function loadFromDisk() {
  * @param {string|null} answer - 완성된 답변 텍스트(없으면 null)
  * @param {Array} sources - 근거 목록(/api/legal/ask 의 sourcesOut 그대로)
  * @param {string} note - 답변 등급/주석 문구
+ * @param {Array} citationChain - 근거 조문 줄 목록(/api/legal/ask 의 citationChain 그대로).
+ *   ⚠ 함께 보관해야 한다 — 화면 복원(answerHTML)이 이 값으로 "근거 법령" 아코디언을 그리므로,
+ *     빼먹으면 푸시로 되돌아온 답변만 근거 목록이 통째로 비어 보인다.
  * @returns {string} requestId(64자 hex)
  * [연계] ← routes/legal.js POST /api/legal/ask (6초 초과 + 알림 동의한 요청에서만)
  *          → saveToDisk (발급 즉시 디스크 반영)
  */
-function store(query, answer, sources, note) {
+function store(query, answer, sources, note, citationChain) {
     const requestId = crypto.randomBytes(32).toString('hex');
     store_.set(requestId, {
         query: String(query || ''),
         answer: answer == null ? null : String(answer),
         sources: Array.isArray(sources) ? sources : [],
+        citationChain: Array.isArray(citationChain) ? citationChain : [],
         note: String(note || ''),
         createdAt: Date.now()
     });
@@ -139,10 +143,10 @@ function store(query, answer, sources, note) {
 
 /**
  * requestId 로 보관 중인 답변을 꺼내고 **즉시 삭제**한다(1회용).
- * 예: retrieve('a3f1…') → {query, answer, sources, note, createdAt} · 두 번째 호출은 null
+ * 예: retrieve('a3f1…') → {query, answer, sources, citationChain, note, createdAt} · 두 번째 호출은 null
  * 없거나 3시간이 지난 건은 null (만료 건은 만난 김에 정리한다).
  * @param {string} requestId - store() 가 발급한 64자 hex
- * @returns {{query:string, answer:string|null, sources:Array, note:string, createdAt:number}|null}
+ * @returns {{query:string, answer:string|null, sources:Array, citationChain:Array, note:string, createdAt:number}|null}
  * [연계] ← routes/legal.js GET /api/legal/pending-answer/:requestId
  *          (푸시를 눌러 다시 들어온 앱이 답변 말풍선을 복원하려고 딱 한 번 부른다)
  */

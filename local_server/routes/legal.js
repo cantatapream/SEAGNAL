@@ -372,7 +372,8 @@ router.get('/api/legal/pending-answer/:requestId', (req, res) => {
   try {
     const entry = pendingAnswers.retrieve(String(req.params.requestId || ''));
     if (!entry) return res.json({ ok: false });
-    res.json({ ok: true, query: entry.query, answer: entry.answer, sources: entry.sources, note: entry.note });
+    res.json({ ok: true, query: entry.query, answer: entry.answer, sources: entry.sources,
+      citationChain: entry.citationChain || [], note: entry.note });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -432,40 +433,51 @@ function pickExcerpt(out) {
 }
 
 /**
- * 화면에 체인으로 펼쳐질 소스 하나를 고른다 — 살아남은 인용사슬 줄 수가 가장 많은 소스.
- * ⚠ 이 규칙은 ai_chat.js answerHTML 의 chainSrc 선택과 **일부러 같게** 맞춘 것이다. 화면은 그 소스
- *   하나만 조문 체인으로 펼치고 나머지 소스는 아예 그리지 않으므로, 다른 소스의 줄까지 원문을 읽으면
- *   아무도 보지 않을 파일을 답변이 끝나기를 기다리며 더 읽는 셈이 된다(발췌 한 줄 = GitHub 파일
- *   읽기 한 번). 클라이언트 선택 로직을 서버가 아는 건 결합이지만, 두 규칙이 어긋나도 화면은 깨지지
- *   않는다 — 발췌가 없는 줄은 기존대로 위키 요지로 그려질 뿐이라 안전한 방향의 결합이다.
+ * 여러 소스(위키 페이지)에 흩어져 있던 인용사슬 줄을 **하나의 목록으로 합친다**.
+ * ⚠ 예전엔 소스마다 자기 citationChain을 들고 있었고, 서버(pickChainSource)와 화면(answerHTML의
+ *   chainSrc)이 각자 "줄이 가장 많은 소스 하나"만 골라 그렸다 — 그래서 답변이 두 법을 함께 인용해도
+ *   **한쪽 법의 근거가 통째로 사라졌다**(라이브 재현: 답변은 「낚시 관리 및 육성법」의 금지·벌칙을 먼저
+ *   말하는데, 근거 목록 5줄이 전부 해상교통안전법·선박직원법이고 낚시 관리 및 육성법은 0줄). 답변이
+ *   실제로 인용한 줄은 filterCitationChainByAnswer가 이미 검증했으므로, 어느 위키 페이지에서 왔든
+ *   전부 보여주는 게 맞다.
+ * ⚠ 줄마다 `baseLaw`(그 줄이 실려 있던 위키 페이지의 법)를 붙여둔다 — 합치고 나면 줄만 봐서는 어느
+ *   페이지에서 왔는지 알 수 없는데, 조문 원문 조회(article_text.resolveBase)가 ⓐ법령 칸이 `시행령`·
+ *   `이 법`처럼 계층 단어뿐인 행 ⓑ고시(tier==='notice') 두 경우에 이 값으로 raw 폴더를 찾기 때문이다.
+ *   여기서 잃어버리면 그 두 종류 조문 팝업·발췌가 조용히 실패한다.
+ * ★환각 0: 줄을 새로 만들거나 고치지 않는다 — 원 객체 그대로 모으고 baseLaw 한 칸만 채운다.
  * @param {Array} sources - filterCitationChainByAnswer 까지 끝난 finalSources
- * @returns {object|null} 발췌를 붙일 소스(살아남은 줄이 하나도 없으면 null)
- * [연계] ← POST /api/legal/ask. ↔ client/js/ai-chat/ai_chat.js answerHTML 의 chainSrc.
+ * @returns {Array} 모든 소스의 살아남은 줄(각 줄에 baseLaw 포함, 소스 순서대로)
+ * [연계] ← POST /api/legal/ask. → groupCitationChainByFlow · attachChainExcerpts · 응답의 citationChain.
  */
-function pickChainSource(sources) {
-  let best = null;
+function mergeCitationChains(sources) {
+  const out = [];
   for (const s of sources || []) {
-    const n = (s.citationChain || []).length;
-    if (n && (!best || n > best.citationChain.length)) best = s;
+    for (const row of s.citationChain || []) {
+      row.baseLaw = s.law || '';
+      out.push(row);
+    }
   }
-  return best;
+  return out;
 }
 
 /**
- * 소스 하나의 인용사슬 각 줄에 `excerpt`(조문 원문 발췌)를 붙인다. 줄마다 원문 파일을 한 번
+ * 합쳐진 인용사슬의 각 줄에 `excerpt`(조문 원문 발췌)를 붙인다. 줄마다 원문 파일을 한 번
  * 읽으므로 **답변 문장과 대조해 살아남은 줄에만**(=filterCitationChainByAnswer 이후) 부른다.
  * 한 줄이 실패해도(원문 없음·토큰 없음·범위 인용 등) 나머지는 그대로 간다 — 실패는 발췌 없음일 뿐
  * 예외로 번지지 않는다(allSettled + 개별 try).
- * @param {object|null} src - pickChainSource() 결과
- * @returns {Promise<void>} src.citationChain 의 각 행에 excerpt 를 직접 채운다(반환값 없음)
+ * ⚠ 앞의 MAX_EXCERPT_ROWS 줄까지만 읽는다 — 여러 소스를 합치면서 줄 수가 늘어날 수 있는데, 발췌
+ *   한 줄이 GitHub 파일 읽기 한 번이라 상한을 풀면 답변 대기시간이 그만큼 늘어난다. 상한을 넘은
+ *   줄은 화면에서 사라지지 않고 예전처럼 위키 요지로 그려진다.
+ * @param {Array} rows - mergeCitationChains → groupCitationChainByFlow 를 지난 줄들
+ * @returns {Promise<void>} 각 행에 excerpt 를 직접 채운다(반환값 없음)
  * [연계] ← POST /api/legal/ask. → services/article_text.js loadArticle().
  */
-async function attachChainExcerpts(src) {
-  const rows = ((src && src.citationChain) || []).slice(0, MAX_EXCERPT_ROWS);
-  await Promise.allSettled(rows.map(async (row) => {
+async function attachChainExcerpts(rows) {
+  const targets = (rows || []).slice(0, MAX_EXCERPT_ROWS);
+  await Promise.allSettled(targets.map(async (row) => {
     try {
       const out = await articleText.loadArticle({
-        law: row.law, article: row.article, tier: row.tier, baseLaw: src.law || '',
+        law: row.law, article: row.article, tier: row.tier, baseLaw: row.baseLaw || '',
       });
       const ex = pickExcerpt(out);
       if (ex) row.excerpt = ex;
@@ -477,7 +489,9 @@ async function attachChainExcerpts(src) {
 
 // POST /api/legal/ask — { query } → 하이브리드 검색(legal_retriever) + Gemini 답변 스트리밍 합성
 //   응답은 NDJSON(줄바꿈으로 구분된 JSON) 스트림: 답변 조각마다 {type:'delta',text}, 마지막에
-//   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, note} 한 줄로 마감.
+//   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, citationChain, note} 한 줄로 마감.
+//   citationChain = 답변이 실제로 인용한 근거 조문 줄을 **모든 소스에서 합쳐 하나로** 정렬한 목록
+//   (줄 모양: {law, article, effectiveDate, gist, step, tier, contact, baseLaw, excerpt?}).
 //   되묻기가 필요한 질문이면 delta 없이 done 한 줄만 나가고 clarify:{question,options} 가 함께 실린다.
 //   ⚠ 실제 생성시간은 그대로다(모델 사고+글자수는 안 줄어듦) — 목적은 체감 대기시간 단축뿐.
 //   추가 바디(선택): deviceId(기기 식별자) · notifyOnComplete(답변완료 푸시 동의, 기본 false)
@@ -497,7 +511,10 @@ router.post('/api/legal/ask', async (req, res) => {
     const { sources, contextPages } = await legalRetriever.search(q, { canonicalOnly });
     // gapNotices = 그 위키 페이지가 "우리가 원문을 가질 수 없다"고 정직하게 적어둔 공백 안내
     // (시·군·구 개별고시 등) — 화면이 ⚠칩으로 "원문 미수집 — 별도 확인 필요"를 알린다.
-    const toSourceOut = s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop, citationChain: s.citationChain || [], gapNotices: s.gapNotices || [] });
+    // ⚠ 인용사슬(citationChain)은 여기 소스마다 싣지 않는다 — 모든 소스의 줄을 합쳐 응답 최상위
+    //   `citationChain` 한 곳으로 내보낸다(mergeCitationChains 주석 참고). 소스별로 나눠 실으면
+    //   화면이 그중 하나만 골라 그려 다른 법의 근거가 통째로 사라진다.
+    const toSourceOut = s => ({ file: s.file, law: s.law, topic: s.topic, kind: s.kind, status: s.status, score: s.score, hop: s.hop, gapNotices: s.gapNotices || [] });
 
     // [되묻기] 조건에 따라 답이 완전히 갈리는 질문인지 먼저 빠르게 판단한다(무거운 종합답변 전).
     // 판단이 실패하거나 애매하면 조용히 {needed:false} → 아래 기존 흐름 그대로.
@@ -519,6 +536,7 @@ router.post('/api/legal/ask', async (req, res) => {
       res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
         answer: clarify.intro || null,
         sources: [],
+        citationChain: [],
         note: '추가 정보가 필요해요',
         clarify: { question: clarify.question, options: clarify.options } }) + '\n');
       res.end();
@@ -546,17 +564,20 @@ router.post('/api/legal/ask', async (req, res) => {
       : (usedGemini ? legalRetriever.filterSourcesByAnswer(sources, full) : sources);
     // citationChain도 소스와 같은 방식으로 답변 문장과 대조해 무관한 줄을 뺀다(legal_retriever.js
     // filterCitationChainByAnswer 참고 — 소스가 통과해도 그 안 표 9줄이 통째로 딸려나오던 문제).
+    let citationChain = [];
     if (usedGemini) {
-      // 그다음 살아남은 줄을 "법 하나를 법률→시행령→시행규칙→고시 순으로 끝내고 다음 법으로" 순서로
-      // 재배열한다(groupCitationChainByFlow) — 화면 체인이 뒤섞인 목록이 아니라 추론 경로로 읽히게.
-      // ⚠ 반드시 거른 **뒤에** 부른다(원표 순서가 아니라 답변이 실제로 인용한 줄만 정렬해야 한다).
+      // ⓐ 소스마다 답변 문장과 대조해 무관한 줄을 뺀 뒤, ⓑ 살아남은 줄을 **소스 구분 없이 하나로**
+      // 합치고(mergeCitationChains), ⓒ 그 합친 목록을 한 번에 "답변이 먼저 말한 법 → 그 법의
+      // 법률→시행령→시행규칙→고시" 순으로 재배열한다(groupCitationChainByFlow).
+      // ⚠ 반드시 거른 **뒤에** 합치고 정렬한다(원표 순서가 아니라 답변이 실제로 인용한 줄만 대상).
+      // ⚠ 정렬을 소스마다 따로 하면 안 된다 — 두 법이 서로 다른 위키 페이지에서 왔을 때 법 묶음
+      //   순서를 페이지 경계 너머로 맞출 수 없다(그래서 합친 뒤 딱 한 번 부른다).
       finalSources.forEach(s => {
         s.citationChain = legalRetriever.filterCitationChainByAnswer(s.citationChain, full);
-        s.citationChain = legalRetriever.groupCitationChainByFlow(s.citationChain);
       });
+      citationChain = legalRetriever.groupCitationChainByFlow(mergeCitationChains(finalSources), full);
       // 살아남은 줄에만 조문 원문 발췌를 붙인다(거르기 전에 붙이면 버려질 줄까지 원문을 읽는다).
-      // 실제 대상은 화면이 펼칠 소스 하나(pickChainSource) — 통상 3~6줄, 상한 MAX_EXCERPT_ROWS.
-      await attachChainExcerpts(pickChainSource(finalSources));
+      await attachChainExcerpts(citationChain);
     }
 
     // 위키(검증된 카드)에 쓸 근거가 결국 안 남으면 여기서 끝내지 않고, 좁혀진 법의 raw 원문을
@@ -574,6 +595,9 @@ router.post('/api/legal/ask', async (req, res) => {
     if (raw && raw.answer) {
       answer = raw.answer;
       sourcesOut = [];
+      // 2차(원문 직독) 답변은 위키 근거 조문 표를 쓰지 않았다 — 1차에서 만들다 만 인용사슬을 그대로
+      // 딸려 보내면 이 답변의 근거인 척 붙는다(환각 0). sources와 같이 비운다.
+      citationChain = [];
       note = `⚠미검증 참고 — 위키 카드가 없어 법령 원문(${raw.laws.join('·') || '원문'})을 직접 읽은 답변`;
     } else {
       // 2차가 실패하면 1차 결과를 그대로 돌려준다 — 특히 1차가 정직하게 만든 "확인되지 않습니다"
@@ -587,7 +611,7 @@ router.post('/api/legal/ask', async (req, res) => {
           : '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.');
     }
     res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
-      answer, sources: sourcesOut, note }) + '\n');
+      answer, sources: sourcesOut, citationChain, note }) + '\n');
     res.end();
 
     // [답변완료 푸시] 스트림은 위에서 이미 평소대로 끝냈다 — 여기부터는 부가 동작이라
@@ -597,7 +621,7 @@ router.post('/api/legal/ask', async (req, res) => {
     try {
       const askedMidway = askId && inFlightAsks.has(askId) && inFlightAsks.get(askId).wantsPush;
       if (answer && (notifyOnComplete || askedMidway) && deviceId && (Date.now() - startedAt) > NOTIFY_MIN_ELAPSED_MS) {
-        const requestId = pendingAnswers.store(q, answer, sourcesOut, note);
+        const requestId = pendingAnswers.store(q, answer, sourcesOut, note, citationChain);
         sendAiAnswerPush(deviceId, requestId).catch(e => console.error('[Legal] 답변완료 푸시 실패:', e && e.message));
       }
     } catch (e) { console.error('[Legal] 답변완료 푸시 준비 실패:', e && e.message); }
