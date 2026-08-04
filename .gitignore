@@ -61,6 +61,7 @@ local_server/data/mudflat_index.json
 local_server/data/scuba_index.json
 local_server/data/ripcurrent_index.json
 local_server/data/swimming_index.json
+local_server/data/marine_clr_confirms.json
 local_server/data/weather_alerts.json
 local_server/data/zone_forecasts.json
 
