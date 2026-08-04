@@ -176,7 +176,7 @@ client/js/
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |
 | `admin_trigger.js` | 관리자 트리거(15회 클릭), 공지/점검/오류 팝업 |
-| `admin_zone_editor.js` | 통합관리자센터 "구역 편집" 탭 — 출입통제구역(access_control_zones.json) 중 |
+| `admin_zone_editor.js` | 출입통제구역(access_control_zones.json) 폴리곤 점 편집기 — 독립 페이지 |
 | `advisory_manage_admin.js` | 관리자 "특보 관리 → 특보 예측" 운영 UI (청중 모드 토글·예측 목록 관리) |
 | `cctv7.js` | 마커 좌표가 잘못된 경우 지도 상에서 직접 위치를 교정합니다. |
 | `pagination_helper.js` | 관리자 리스트 화면용 공용 페이지네이션 UI helper |

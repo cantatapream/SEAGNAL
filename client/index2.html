@@ -4843,8 +4843,9 @@
     <script src="js/admin/advisory_manage_admin.js"></script>
     <!-- [위치 기반] 관리자 센터 위치 기반 탭: 이 기기 수집 GPS 위치 + 해상/육상 + 지도 팝업 -->
     <script src="js/admin/admin_location_status.js"></script>
-    <!-- [구역 편집] 관리자 센터 구역 편집 탭: 출입통제구역 폴리곤 점 드래그·추가·삭제·곡선화 + 내보내기 -->
-    <script src="js/admin/admin_zone_editor.js"></script>
+    <!-- [구역 편집] 이제 모달 탭이 아니라 /admin_zone_editor.html 독립 페이지로 분리(admin.js 의
+         "구역 편집" 버튼이 새 창으로 엶) — admin_zone_editor.js 는 그 페이지가 직접 로드하므로
+         여기서는 더 이상 스크립트를 얹지 않는다 -->
     <script src="js/engagement/report_user.js"></script>
     <script src="js/engagement/survey_user.js"></script>
     <script src="js/settings/zone_guide.js"></script>
