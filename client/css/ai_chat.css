@@ -247,7 +247,7 @@
 #nrya-overlays .nrya-krow{display:flex; align-items:flex-start; gap:7px; max-width:100%}
 #nrya-overlays .nrya-krow.nrya-me{flex-direction:row-reverse; align-self:flex-end}
 #nrya-overlays .nrya-kava{width:36px;height:36px;flex:0 0 auto}
-#nrya-overlays .nrya-kcol{display:flex; flex-direction:column; max-width:76%}
+#nrya-overlays .nrya-kcol{display:flex; flex-direction:column; max-width:92%}
 #nrya-overlays .nrya-kwho{font-size:11.5px; color:#b8c6da; margin:0 0 4px 3px}
 #nrya-overlays .nrya-kbrow{display:flex; align-items:flex-end; gap:5px}
 #nrya-overlays .nrya-krow.nrya-me .nrya-kbrow{flex-direction:row-reverse}
@@ -255,7 +255,6 @@
 #nrya-overlays .nrya-kbub.nrya-ai{background:#33475b; color:#eef4fb}
 #nrya-overlays .nrya-kbub.nrya-ai b{color:#ffe14d}
 #nrya-overlays .nrya-krow.nrya-me .nrya-kbub{border-radius:16px 4px 16px 16px; background:#ffe14d; color:#231c00; font-weight:500}
-#nrya-overlays .nrya-ktime{font-size:9.5px; color:#8296ac; flex:0 0 auto; margin-bottom:2px; white-space:nowrap}
 #nrya-overlays .nrya-kbub .nrya-chips{display:flex; flex-wrap:wrap; gap:5px; margin-top:9px}
 #nrya-overlays .nrya-kbub .nrya-chip{font-size:10.5px; color:#a9c6ff; background:rgba(68,138,255,.16); border:1px solid rgba(68,138,255,.32); border-radius:12px; padding:2px 8px}
 #nrya-overlays .nrya-kbub .nrya-tel{margin-top:9px; font-size:11.5px; color:#8fe6bb}
@@ -293,8 +292,11 @@
 #nrya-overlays .nrya-chain-step[data-tier="rule"] .nrya-chain-dot,#nrya-overlays .nrya-chain-step[data-tier="rule"] .nrya-chain-tier{background:#82d0af; color:#0b2a1d}
 #nrya-overlays .nrya-chain-step[data-tier="notice"] .nrya-chain-dot,#nrya-overlays .nrya-chain-step[data-tier="notice"] .nrya-chain-tier{background:#a8e0c4; color:#123527}
 #nrya-overlays .nrya-chain-step.nrya-penalty .nrya-chain-dot,#nrya-overlays .nrya-chain-step.nrya-penalty .nrya-chain-tier{background:#f3a39a; color:#3d0f0a}
-#nrya-overlays .nrya-chain-art{color:#eaf3f0; font-size:11.5px; font-weight:700; margin-top:5px}
-#nrya-overlays .nrya-chain-quote{color:#eef2ef; font-size:10px; margin-top:4px; line-height:1.6}
+/* 제목 줄은 [뱃지] 법령명 조문번호 한 줄로 끝낸다(뱃지와 같은 줄 — 예전엔 아랫줄이었다) */
+#nrya-overlays .nrya-chain-art{color:#eaf3f0; font-size:11.5px; font-weight:700; min-width:0; overflow-wrap:anywhere}
+#nrya-overlays .nrya-chain-quote{color:#eef2ef; font-size:10px; margin-top:5px; line-height:1.6}
+/* 조문 원문 발췌(요지가 아니라 원문 그대로) — 왼쪽 인용선으로 "인용문"임을 드러낸다 */
+#nrya-overlays .nrya-chain-quote.nrya-chain-ex{font-size:11px; line-height:1.65; color:#dfeae6; border-left:2px solid rgba(105,240,174,.35); padding-left:8px}
 #nrya-overlays .nrya-chain-hang{margin:0}
 #nrya-overlays .nrya-chain-gap{height:14px}
 #nrya-overlays .nrya-chain-tel{display:flex; align-items:center; gap:5px; margin-top:6px; font-size:10px; color:#7c9089}
@@ -325,13 +327,21 @@
 #nrya-overlays .nrya-artpop-eff:empty{display:none}
 #nrya-overlays .nrya-artpop-body{flex:1; overflow:auto; padding:11px 13px 14px; font-size:12px; line-height:1.68; color:#cdd8ee}
 #nrya-overlays .nrya-artpop-msg{color:var(--nrya-text-sub); font-size:11.5px; padding:14px 2px; text-align:center}
+/* 계층(항 ① → 호 1. → 목 가.)은 **여백의 리듬**으로 읽히게 한다 — 같은 계층끼리는 바짝 붙이고,
+   계층이 바뀌는 자리에만 눈에 띄게 넓은 간격 + 들여쓰기를 준다. 전부 같은 간격이면 기호만 다를 뿐
+   구조가 안 보인다("눈에 잘 안 들어와"). 번호·기호 자체는 원문에 적힌 것을 그대로 쓴다(새로 만들지 않는다). */
 #nrya-overlays .nrya-artpop-para{display:flex; gap:7px; padding:6px 7px; border-radius:8px; margin:0 -7px}
+#nrya-overlays .nrya-artpop-para + .nrya-artpop-para{margin-top:7px}   /* 항↔항(같은 계층) */
 #nrya-overlays .nrya-artpop-mark{flex:none; font-weight:800; color:#7f97b0}
 #nrya-overlays .nrya-artpop-text{min-width:0; color:#b6c2d6}
 #nrya-overlays .nrya-artpop-para.nrya-hit .nrya-artpop-mark,#nrya-overlays .nrya-artpop-para.nrya-hit .nrya-artpop-text{color:#eef2ef}
-#nrya-overlays .nrya-artpop-items{list-style:none; margin:5px 0 0; padding:0; display:flex; flex-direction:column; gap:4px}
-#nrya-overlays .nrya-artpop-items li{padding-left:13px; text-indent:-13px; color:#8fa0b8}
-#nrya-overlays .nrya-artpop-items li.nrya-hit{color:#eef2ef; font-weight:600; border-radius:6px; padding:2px 6px 2px 19px; margin-left:-7px}
+#nrya-overlays .nrya-artpop-items{list-style:none; margin:10px 0 1px; padding:0; display:flex; flex-direction:column; gap:3px}
+#nrya-overlays .nrya-artpop-items li{padding-left:14px; text-indent:-14px; color:#8fa0b8; line-height:1.6}
+#nrya-overlays .nrya-artpop-items li.nrya-hit{color:#eef2ef; font-weight:600; border-radius:6px; padding:2px 6px 2px 20px; margin-left:-7px}
+/* 목(가. 나. 다.) — 호보다 한 단 더 들여쓰고, 호↔목 사이(7px)를 목↔목 사이(2px)보다 넓게 둔다.
+   ⚠ 부모 li 의 매달린 들여쓰기(text-indent:-14px)를 물려받으면 첫 줄이 왼쪽으로 튀어나가므로 0으로 되돌린다. */
+#nrya-overlays .nrya-artpop-subs{list-style:none; margin:7px 0 2px; padding:0 0 0 13px; text-indent:0; display:flex; flex-direction:column; gap:2px}
+#nrya-overlays .nrya-artpop-subs li{padding-left:13px; text-indent:-13px; color:#8496ae; font-weight:400; line-height:1.55}
 /* 강조색은 체인 카드의 tier 색과 맞춘다(법률=진한 녹색 → 고시=옅은 녹색, 벌칙=붉은색) */
 #nrya-overlays .nrya-artpop .nrya-artpop-para.nrya-hit{background:rgba(58,171,128,.16); box-shadow:inset 3px 0 0 #3aab80}
 #nrya-overlays .nrya-artpop .nrya-artpop-items li.nrya-hit{background:rgba(58,171,128,.16)}
@@ -357,8 +367,15 @@
 #nrya-overlays .nrya-art-num{font-family:var(--nrya-mono); font-size:10px; font-weight:800; color:#69f0ae; flex:none}
 #nrya-overlays .nrya-art-title{font-size:11.5px; font-weight:700; color:#eef2ef}
 #nrya-overlays .nrya-art-body{color:#b6c2d6; font-size:11.5px}
-#nrya-overlays .nrya-art-para{display:flex; gap:6px; margin-top:3px}
+#nrya-overlays .nrya-art-para{display:flex; gap:6px; margin-top:2px}
 #nrya-overlays .nrya-art-mark{flex:none; color:#7f97b0; font-weight:700}
+/* 나열 팝업도 같은 리듬 — 호·목은 한 단씩 들여쓰고 계층이 바뀌는 자리만 넓게 띄운다. */
+#nrya-overlays .nrya-art-ho{padding-left:11px}
+#nrya-overlays .nrya-art-mok{padding-left:24px}
+#nrya-overlays .nrya-art-mok .nrya-art-mark{font-weight:600; color:#6d8299}
+#nrya-overlays .nrya-art-para:not(.nrya-art-ho):not(.nrya-art-mok) + .nrya-art-ho,
+#nrya-overlays .nrya-art-mok + .nrya-art-ho{margin-top:7px}
+#nrya-overlays .nrya-art-ho + .nrya-art-mok{margin-top:5px}
 #nrya-overlays .nrya-artpop-foot{flex:none; padding:9px 13px 12px; border-top:1px solid var(--nrya-border); display:flex; align-items:center; gap:8px; flex-wrap:wrap}
 #nrya-overlays .nrya-artpop-foot:empty{display:none}
 #nrya-overlays .nrya-artpop-src{font-size:9px; color:#5b6b86; font-family:var(--nrya-mono)}

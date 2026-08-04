@@ -2,7 +2,7 @@
  * ============================================================================
  * 파일명: services/article_text.js
  * 역할: 답변카드의 조문을 눌렀을 때 보여줄 **조문 원문**(조 하나 · 범위 · 문서 전체)을
- *       raw 원문에서 뽑아 항(①②③…)·호(1. 2. 3.) 단위로 쪼개 주고, 본문에 나오는
+ *       raw 원문에서 뽑아 항(①②③…)·호(1. 2. 3. · 가지번호 3의2.)·목(가. 나. 다.) 단위로 쪼개 주고, 본문에 나오는
  *       별표·서식 참조가 "우리에게 실제로 있는지"까지 판정해 주는 모듈
  * ============================================================================
  *
@@ -18,7 +18,8 @@
  *  - annex  : `별표10`·`별표2·3`·`별지 제1~3호서식` — 조를 거치지 않고 **별표·서식 자체가 근거**인 행.
  *             조 본문 파싱 없이 그 별표 원문(refs)만 실어 보낸다. 조·`전문` 표기가 섞인 칸은
  *             무엇을 보여줄지 단정할 수 없어 손대지 않는다(그대로 실패).
- *  - single : `제10조④3호` — 조 하나. 인용된 항·호를 강조(hit)한다.
+ *  - single : `제10조④3호` — 조 하나. 인용된 항·호를 강조(hit)한다. 한 항의 호를 여럿 적은
+ *             `제53조②5·6·6의2호`도 여기에 들어오며 적힌 호를 **전부** 강조한다(hoList).
  *  - list   : `제53조·제55조`·`제109·110조` — 가운뎃점·쉼표로 나열된 여러 조를 **적힌 순서대로
  *             전부** 나열한다. 원문에서 못 찾은 조는 `missing`으로 정직하게 알린다.
  *             맨숫자 항목(`110`·`6`)은 표기 끝의 '조' 유무로 뜻이 갈린다 — 끝에 '조'가 있으면 별개 조
@@ -45,9 +46,13 @@
  *
  * [환각 0 — 이 파일의 핵심 계약]
  *  - 원문에서 그 조를 못 찾으면 **문장을 지어내지 않고** {ok:false, reason}을 돌려준다.
- *  - 호(1. 2. 3.) 쪼개기는 번호가 1부터 연속일 때만 인정한다. "제2조의2" 뒤에 "8."이
- *    붙어 "28."로 오검출되는 실제 사례가 있어, 조금이라도 어긋나면 쪼개기를 포기하고
- *    **항을 통째로** 보여준다(잘못 잘린 조문을 보여주는 것보다 안전).
+ *  - 호(1. 2. 3.) 쪼개기는 번호가 1부터 차례대로일 때만 인정한다("제2조의2" 뒤에 "8."이 붙어
+ *    "28."로 오검출되는 실제 사례가 있다). 개정으로 끼워 넣은 가지번호 호(`3의2.`·`6의2.`)는
+ *    **한 덩어리로** 읽어 그 차례에 넣는다(`3.` 다음은 `4.` 또는 `3의2.`). 조금이라도 어긋나면
+ *    쪼개기를 포기하고 **항을 통째로** 보여준다(잘못 잘린 조문을 보여주는 것보다 안전).
+ *  - 목(가. 나. 다.) 쪼개기도 같은 계약이다 — 줄머리에 `가.`부터 차례대로 있을 때만 쪼갠다.
+ *    번호·기호는 **원문에 적힌 것을 그대로** 쓰고 화면에서 다시 매기지 않는다(1,2,3으로 다시
+ *    매기면 `6의2호`가 `7.`로 보여 인용과 어긋난다).
  *  - 별표 블록에 번호(`〔별표 1〕` 등)가 안 적혀 있으면 "1번이겠지"라고 넘겨짚지 않고
  *    그 블록을 버린다(번호 없는 `[별표]` 블록이 실제 raw 에 381개 있다).
  *  - 계층 없는 `별표N.txt`는 파일명 번호와 내용 번호가 어긋난 게 41개 있어, 선언줄의 **계층과
@@ -228,6 +233,11 @@ function parseJoEnum(s) {
 // 처럼 "전문"으로 시작만 하는 딴 말이 실제로 있어 **완전일치**로만 인정한다.
 const WHOLE_RE = /^(전체|전문|전부|전\s*\d+\s*조)$/;
 
+// 한 항의 호를 가운뎃점으로 이어 적고 '호'를 맨 끝에 한 번만 붙인 표기(`②5·6·6의2호`·`제1항제1·2호`).
+// 조 표기 **바로 뒤**에서 시작해야(^) 하고, 항 기호와 숫자·`의`·가운뎃점 말고는 아무 글자도 끼면
+// 안 된다 — 그래야 `제48조·선장병과(제44조②)`처럼 뒤에 다른 조를 덧붙인 칸을 건드리지 않는다.
+const HO_ENUM_RE = /^\s*(?:[①-⑳]|제\s*\d+\s*항)?\s*제?\s*(\d+(?:\s*의\s*\d+)?(?:\s*[·ㆍ・]\s*제?\s*\d+(?:\s*의\s*\d+)?)+)\s*호/;
+
 // 별표·서식만 가리키는 표기의 머리(`별표10`·`별지 제2호서식`·`서식1`·`별표1의2`).
 const ANNEX_HEAD_RE = /(별표|별지|서식)\s*제?\s*(\d+)(?:\s*의\s*(\d+))?/g;
 // 그 머리에 이어 붙는 나열(`·3`)·범위(`~5`). ⚠ 쉼표는 이음표로 쓰지 않는다 —
@@ -364,7 +374,8 @@ function tierIsCertain(article, tier, lawCell, ref) {
  * 나열(`제53조·제55조`), 범위(`제1~9조`), 문서 전체(`전체`·`전문`), 그리고 고시엔 조 번호 없이
  * 제목만 적힌 행도 있다.
  * 예: parseArticleRef('제10조④3호')       → {mode:'single', jo:'제10조', mark:'④', ho:3}
- *     parseArticleRef('제5조제1항')        → {mode:'single', jo:'제5조', mark:'①', ho:0}
+ *     parseArticleRef('제5조제1항')        → {mode:'single', jo:'제5조', mark:'①', ho:0, hoList:[]}
+ *     parseArticleRef('제53조②5·6·6의2호') → {mode:'single', jo:'제53조', mark:'②', ho:5, hoList:['5','6','6의2']}
  *     parseArticleRef('제53조·제55조')      → {mode:'list', joList:['제53조','제55조'], label:'제53조·제55조'}
  *     parseArticleRef('전문(제1~24조)')     → {mode:'range', joList:['제1조'…'제24조'], label:'제1조~제24조'}
  *     parseArticleRef('전체')              → {mode:'whole', joList:[], label:'전체'}
@@ -373,9 +384,11 @@ function tierIsCertain(article, tier, lawCell, ref) {
  * @param {string} [tier] - law|decree|rule|notice. 고시일 때만 "조 번호 없음 → 문서 전체"로 본다
  * @param {string} [lawCell] - 체인 행의 법령 칸 값. 조문 칸이 번호 없이 `별표`라고만 적힌 행에서
  *                             그 번호를 읽는 데만 쓴다(`법령='시행규칙 별표2·3' / 조문='별표'`)
- * @returns {{mode:string, jo:string, joList:string[], from:number, to:number, mark:string, ho:number, label:string}|null}
+ * @returns {{mode:string, jo:string, joList:string[], from:number, to:number, mark:string, ho:number, hoList:string[], label:string}|null}
  *          어느 형태로도 못 읽으면 null(from·to 는 range 일 때만, refKeys 는 annex 일 때만 있다)
- * [연계] ← parseArticleRef(). jo·joList 는 원문에서 조 블록을 찾는 열쇠, mark·ho 는 강조 대상(single 전용).
+ *          hoList 는 강조할 호 번호를 **원문에 적힌 모양 그대로** 담는다(`['5','6','6의2']`) —
+ *          splitHo 가 붙이는 item.label 과 같은 표기라 그대로 대조하면 된다.
+ * [연계] ← parseArticleRef(). jo·joList 는 원문에서 조 블록을 찾는 열쇠, mark·hoList 는 강조 대상(single 전용).
  */
 function readArticleRef(article, tier, lawCell) {
   // `제69조 → 시행령 제42~45조`처럼 위임흐름을 한 칸에 적은 표기가 있다 — 이 행의 법령은 앞쪽
@@ -453,7 +466,8 @@ function readArticleRef(article, tier, lawCell) {
   const jo = m[2] ? `제${m[1]}조의${m[2]}` : `제${m[1]}조`;
   // 조 표기 뒤쪽만 본다. `제48조·선장병과(제44조②)`처럼 다른 조를 덧붙인 표기가 있어
   // 가운뎃점·괄호·쉼표가 나오면 거기서 끊는다(뒤에 딸린 다른 조의 항을 잘못 집지 않게).
-  const rest = s.slice(m.index + m[0].length).split(/[·・,(（]/)[0];
+  const tail = s.slice(m.index + m[0].length);
+  const rest = tail.split(/[·・,(（]/)[0];
   let mark = '';
   const cm = new RegExp(`[${CIRCLED}]`).exec(rest);
   if (cm) mark = cm[0];
@@ -461,8 +475,25 @@ function readArticleRef(article, tier, lawCell) {
     const hm = /제(\d+)항/.exec(rest);
     if (hm && +hm[1] >= 1 && +hm[1] <= CIRCLED.length) mark = CIRCLED[+hm[1] - 1];
   }
-  const ho = /(?:제)?(\d+)\s*호/.exec(rest);
-  return { mode: 'single', jo, joList: [jo], mark, ho: ho ? parseInt(ho[1], 10) : 0, label: jo };
+  // ⚠ 한 항의 호를 여러 개 적을 때 위키는 `제53조②5·6·6의2호`처럼 **가운뎃점으로 잇고 '호'를
+  //   맨 끝에 한 번만** 붙인다(실측 40여 행). 위 rest 는 첫 가운뎃점에서 끊기므로 `②5`만 남고
+  //   '호' 글자까지 사라져 아래 hoRe 가 0을 돌려주고, 그 결과 **어느 호도 강조되지 않았다**
+  //   (사용자가 5·6·6의2호를 눌러도 항만 칠해졌다). 그렇다고 rest 의 끊기를 없애면
+  //   `제48조·선장병과(제44조②)`처럼 **다른 조를 덧붙인 칸**의 뒤쪽 항·호를 이 조 것으로 잘못
+  //   읽는다 — 그래서 끊기는 그대로 두고, 조 표기 바로 뒤가 (항 기호 다음) **숫자·`의`·가운뎃점만으로
+  //   이어지다 '호'로 끝나는 모양**일 때만 따로 전부 읽는다. 다른 글자가 하나라도 끼면 매치되지
+  //   않아 기존 처리로 그대로 흘러간다(`제27조①2~5호·6호`처럼 물결이 섞인 표기 등).
+  const enumHo = HO_ENUM_RE.exec(tail);
+  const hoRe = /(?:제)?(\d+)\s*호/.exec(rest);
+  const hoList = enumHo
+    ? enumHo[1].split(/[·ㆍ・]/).map(t => t.replace(/[제\s]/g, ''))
+    : (hoRe ? [String(parseInt(hoRe[1], 10))] : []);
+  return {
+    mode: 'single', jo, joList: [jo], mark,
+    // ho 는 예전부터 쓰던 "첫 호" 값(호가 하나뿐인 표기에서는 값이 예전과 똑같다).
+    ho: hoList.length ? parseInt(hoList[0], 10) : 0,
+    hoList, label: jo,
+  };
 }
 
 /**
@@ -483,16 +514,85 @@ function parseArticleRef(article, tier, lawCell) {
   return ref;
 }
 
-// 호 머리번호("1." "2." …) 탐지. 앞뒤가 숫자면 제외해 "2.5"·"28."류 오검출을 막는다.
-const HO_RE = /(?<!\d)([1-9]\d?)\.(?!\d)/g;
+// 호 머리번호("1." "2." … 와 가지번호 "3의2." "6의2.") 탐지. 앞뒤가 숫자면 제외해 "2.5"·"28."류 오검출을 막는다.
+// ⚠ 가지번호(`N의M.`)를 **한 덩어리로** 읽는 것이 이 정규식의 핵심이다. 예전에는 `(?<!\d)([1-9]\d?)\.`
+//   뿐이라 `6의2.` 의 꼬리 `2.` 가 "새 1단계 호 2번"으로 잡혀 번호열이 1,2,3,2,4,…처럼 어그러졌고,
+//   아래 연속성 검사가 통째로 실패해 **그 항 전체가 호로 안 쪼개진 글덩어리**로 보였다
+//   (낚시관리및육성법 제53조② 실측 — 1,2,3,3의2,4,5,6,6의2,6의3,7,8,9). 앞의 `6`부터 매칭돼
+//   `의2`까지 한 번에 소비하므로 꼬리 숫자가 다시 잡히지 않는다.
+const HO_RE = /(?<!\d)([1-9]\d?)(?:의(\d+))?\.(?!\d)/g;
+
+// 목 머리기호("가." "나." …) 탐지 — 호 하나 안의 세부 항목. 한글 낱자라 본문 글자와 헷갈리기 쉬워
+// **줄머리(들여쓰기 허용)에서만** 인정한다. 안 그러면 `…제3호.`·`별표.` 같은 꼬리를 목으로 오인한다.
+// (행정규칙처럼 조문이 한 줄에 통째로 들어있는 파일에는 줄머리가 없어 목 쪼개기가 안 걸린다 — 안전측.)
+const MOK_RE = /(?:^|\n)[ \t]*([가-힣])\.(?=\s|$)/g;
+// 목 머리기호의 정해진 차례(법제처 표기 순서). 실측 raw 에는 `허`까지 나온다.
+const MOK_SEQ = '가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허';
 
 /**
- * 항 하나를 호(1. 2. 3. …)로 쪼갠다. **번호가 1부터 연속일 때만** 쪼개고, 하나라도
- * 어긋나면 null 을 돌려 호출부가 "항 통째로" 보여주게 한다(잘못 자르느니 안 자른다).
- * 예: splitHo('② 다음 각 호와 같다.1. 가나2. 다라') → {lead:'② 다음 각 호와 같다.', items:['가나','다라']}
- *     splitHo('… 7.31.까지 …')                    → null(번호가 1,2,3… 이 아니라 포기)
+ * 호 머리번호 목록이 **법령 번호매김 차례대로인지** 본다. 통상 1., 2., 3. 으로 이어지되,
+ * 개정으로 사이에 끼워 넣은 호는 앞 호의 가지번호(`3의2.`)로 붙고 그 다음은 `3의3.` 또는 `4.` 다.
+ * 예: hoSeqOk([1,2,3,3의2,4]) → true · hoSeqOk([1,2,3,2,4]) → false(가지번호를 잘못 읽은 흔적)
+ * @param {Array<{num:number, sub:number}>} idxs - HO_RE 로 찾은 머리번호(sub 0 이면 가지번호 없음)
+ * @returns {boolean}
+ * [연계] ← splitHo(). false 면 쪼개기를 포기하고 항을 통째로 보여준다.
+ */
+function hoSeqOk(idxs) {
+  let main = 0, sub = 0;
+  for (const it of idxs) {
+    if (!it.sub) {
+      if (it.num !== main + 1) return false;
+      main = it.num; sub = 0;
+    } else {
+      // 가지번호는 본조 번호를 그대로 물려받고 `의2`부터 시작한다(`3.` 다음은 `3의2.`, 그 다음 `3의3.`).
+      if (it.num !== main || it.sub !== (sub ? sub + 1 : 2)) return false;
+      sub = it.sub;
+    }
+  }
+  return true;
+}
+
+/**
+ * 호 하나를 목(가. 나. 다. …)으로 쪼갠다. **차례가 가.부터 연속일 때만** 쪼개고, 어긋나면
+ * null 을 돌려 호출부가 "호 통째로" 보여주게 한다(호 쪼개기와 같은 계약 — 잘못 자르느니 안 자른다).
+ * 예: splitMok('다음 각 목의 시설\n      가.  계류시설\n      나.  항행 보조시설')
+ *     → {lead:'다음 각 목의 시설', subs:[{label:'가',text:'계류시설'},{label:'나',text:'항행 보조시설'}]}
+ * @param {string} hoText - 호 텍스트(머리번호는 이미 떼어낸 것)
+ * @returns {{lead:string, subs:Array<{label:string,text:string}>}|null} 못 쪼개면 null
+ * [연계] ← splitHo(). 결과 subs 가 팝업의 `목` 목록이 된다(원문에 있는 가·나·다를 그대로 쓴다).
+ */
+function splitMok(hoText) {
+  const body = String(hoText || '');
+  const hits = [];
+  let m;
+  MOK_RE.lastIndex = 0;
+  while ((m = MOK_RE.exec(body))) {
+    // m[0] 앞머리의 줄바꿈·들여쓰기는 잘라낼 자리 계산에서 빼야 lead 끝에 공백만 남는다.
+    const at = m.index + m[0].length - m[1].length - 1;
+    hits.push({ pos: at, label: m[1], len: m[1].length + 1 });
+  }
+  if (hits.length < 2) return null;                      // 목이 하나뿐이면 쪼갤 이유가 없다
+  for (let i = 0; i < hits.length; i++) {
+    if (hits[i].label !== MOK_SEQ[i]) return null;       // 가·나·다… 차례가 아니면 목이 아니다
+  }
+  const subs = hits.map((h, i) => ({
+    label: h.label,
+    text: body.slice(h.pos + h.len, i + 1 < hits.length ? hits[i + 1].pos : body.length).trim(),
+  }));
+  return { lead: body.slice(0, hits[0].pos).trim(), subs };
+}
+
+/**
+ * 항 하나를 호(1. 2. 3. … · 가지번호 3의2.)로 쪼개고, 각 호 안에 목(가. 나. …)이 있으면 한 단계 더 쪼갠다.
+ * **번호가 1부터 차례대로일 때만** 쪼개고, 하나라도 어긋나면 null 을 돌려 호출부가 "항 통째로"
+ * 보여주게 한다(잘못 자르느니 안 자른다).
+ * 예: splitHo('② 다음 각 호와 같다.1. 가나2. 다라')
+ *     → {lead:'② 다음 각 호와 같다.', items:[{label:'1',text:'가나',subs:null},{label:'2',…}]}
+ *     splitHo('② …1. 가2. 나3. 다3의2. 라4. 마') → items 의 label 이 '1','2','3','3의2','4'
+ *     splitHo('… 7.31.까지 …')                  → null(번호가 1,2,3… 차례가 아니라 포기)
  * @param {string} hangText - 항 텍스트(머리기호 ①… 포함 가능)
- * @returns {{lead:string, items:string[]}|null} 못 쪼개면 null
+ * @returns {{lead:string, items:Array<{label:string, text:string, subs:Array<{label:string,text:string}>|null}>}|null}
+ *          못 쪼개면 null. label 은 **원문에 적힌 번호 그대로**다(`6의2`) — 화면 표시와 호 강조(hit) 판정에 함께 쓴다.
  * [연계] ← splitParagraphs(). 결과 items 가 팝업의 `호` 목록이 된다.
  */
 function splitHo(hangText) {
@@ -502,18 +602,37 @@ function splitHo(hangText) {
   const idxs = [];
   let m;
   HO_RE.lastIndex = 0;
-  while ((m = HO_RE.exec(body))) idxs.push({ pos: m.index, num: parseInt(m[1], 10), len: m[0].length });
+  while ((m = HO_RE.exec(body))) {
+    idxs.push({ pos: m.index, num: parseInt(m[1], 10), sub: m[2] ? parseInt(m[2], 10) : 0, len: m[0].length });
+  }
   if (!idxs.length) return null;
-  const nums = idxs.map(i => i.num);
-  const expected = Array.from({ length: nums.length }, (_, i) => i + 1);
-  if (JSON.stringify(nums) !== JSON.stringify(expected)) return null; // 1,2,3…연속 아니면 포기 → 항 통째로
+  if (!hoSeqOk(idxs)) return null;                       // 차례가 어긋나면 포기 → 항 통째로
   const items = [];
   for (let i = 0; i < idxs.length; i++) {
     const start = idxs[i].pos + idxs[i].len;
     const end = i + 1 < idxs.length ? idxs[i + 1].pos : body.length;
-    items.push(body.slice(start, end).trim());
+    const raw = body.slice(start, end).trim();
+    const mok = splitMok(raw);
+    items.push({
+      label: idxs[i].sub ? `${idxs[i].num}의${idxs[i].sub}` : String(idxs[i].num),
+      text: mok ? mok.lead : raw,
+      subs: mok ? mok.subs : null,
+    });
   }
   return { lead: (head + body.slice(0, idxs[0].pos)).trim(), items };
+}
+
+/**
+ * 항 하나(호·목 포함)의 글자를 전부 이어붙인다. 별표·서식 참조를 훑을 때 쓴다 —
+ * 호·목으로 쪼개진 글을 빼먹으면 그 안의 `별표 1` 참조가 통째로 사라진다.
+ * 예: paraPlainText({text:'…', items:[{text:'가', subs:[{text:'나'}]}]}) → '… 가 나'
+ * @param {{text:string, items:Array|null}} p - splitParagraphs() 가 만든 항 하나
+ * @returns {string}
+ * [연계] ← loadArticle(). → collectRefs()
+ */
+function paraPlainText(p) {
+  const items = (p.items || []).map(it => it.text + (it.subs || []).map(s => ' ' + s.text).join(''));
+  return p.text + items.map(t => ' ' + t).join('');
 }
 
 /**
@@ -521,7 +640,7 @@ function splitHo(hangText) {
  * 항 구분이 없는 조)은 mark 가 빈 첫 조각으로 둔다.
  * 예: splitParagraphs('① 가나\n② 다라') → [{mark:'①',text:'가나',items:null},{mark:'②',…}]
  * @param {string} body - extractArticleBlock 이 뽑은 조 본문
- * @returns {Array<{mark:string, text:string, items:string[]|null}>}
+ * @returns {Array<{mark:string, text:string, items:Array<{label:string,text:string,subs:Array|null}>|null}>}
  * [연계] ← extractArticleBlock 결과 → loadArticle 이 hit 표시를 얹어 응답으로 만든다.
  */
 function splitParagraphs(body) {
@@ -1225,7 +1344,7 @@ async function loadArticle(q) {
     }
     const articles = buildArticles(text, tier, joList);
     if (!articles.length) return { ok: false, reason: 'article_not_found' };
-    const bodyText = articles.map(a => a.paragraphs.map(p => p.text + (p.items || []).join(' ')).join('\n')).join('\n');
+    const bodyText = articles.map(a => a.paragraphs.map(paraPlainText).join('\n')).join('\n');
     const found = withAtts(collectRefs(bodyText));
     // 나열 인용은 "적힌 조를 전부 보여주겠다"는 약속이라, 원문에서 못 찾은 조를 조용히 빼면
     // 사용자가 절반만 보고도 전부 본 줄 안다 — 못 찾은 조 번호를 그대로 실어 화면이 알리게 한다
@@ -1253,16 +1372,25 @@ async function loadArticle(q) {
   // 인용된 항 찾기. 항 기호가 아예 없는 조(벌칙 조문 등)는 조각이 하나뿐이라 그 하나가 인용 대상이다.
   let hitIdx = ref.mark ? paragraphs.findIndex(p => p.mark === ref.mark) : -1;
   if (hitIdx < 0 && paragraphs.length === 1) hitIdx = 0;
+  // 인용된 호 찾기. ⚠ 예전엔 "몇 번째 항목인가"(j === ref.ho - 1)로 셌는데, 가지번호 호(`6의2`)가
+  //   섞이면 순번과 호 번호가 어긋나 엉뚱한 호가 칠해진다(제53조②의 7번째 항목은 6호가 아니라 6의2호다).
+  //   그래서 순번이 아니라 **원문에 적힌 호 번호(label)** 로 대조한다.
+  const hoList = ref.hoList || [];
   const out = paragraphs.map((p, i) => ({
     mark: p.mark,
     text: p.text,
     hit: i === hitIdx,
     items: p.items
-      ? p.items.map((t, j) => ({ text: t, hit: i === hitIdx && ref.ho > 0 && j === ref.ho - 1 }))
+      ? p.items.map(it => ({
+        label: it.label,
+        text: it.text,
+        hit: i === hitIdx && hoList.indexOf(it.label) >= 0,
+        subs: it.subs,
+      }))
       : null,
   }));
 
-  const found = collectRefs(paragraphs.map(p => p.text + (p.items || []).join(' ')).join('\n'));
+  const found = collectRefs(paragraphs.map(paraPlainText).join('\n'));
   return Object.assign(head, {
     articleTitle: ref.jo + (block.title ? `(${block.title})` : ''),
     effectiveDate: block.effectiveDate,
