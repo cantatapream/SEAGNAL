@@ -38,12 +38,23 @@
     var _undoStack = [];         // 선택된 feature 의 좌표 스냅샷(JSON 문자열) 배열
     var _deleteMode = false;
     var _curveMode = false;
+    var _addMode = false;        // 점 추가 모드 — 지도의 선 위를 클릭하면 그 자리에 점 삽입
+    var _coordMode = false;      // 좌표 입력 모드 — 점을 클릭하면 경위도 직접 입력 폼이 뜬다
+    var _coordEditIdx = -1;      // 좌표 입력 폼이 지금 편집 중인 점의 인덱스
     var _curveSel = [];          // 곡선화 대상으로 클릭한 좌표 인덱스(최대 2개)
     var _markerSource = null;    // 곡선화 선택 표시용 임시 마커
-    var _vertexMarkerSource = null; // 선택된 feature 의 점마다 잠김/편집가능 색으로 찍는 마커
+    var _vertexMarkerSource = null; // 선택된 feature 의 점마다 잠김/편집가능/신규 색으로 찍는 마커
+    // 이번 세션에 "점 추가"로 새로 만든 점의 인덱스 — 초록색 표시. ol geom 은 setCoordinates
+    // 로 넣은 좌표 배열도 getCoordinates() 를 다시 부르면 매번 새 배열 객체로 재구성해 돌려주므로
+    // (참조가 유지되지 않음) 좌표 객체 참조가 아니라 인덱스로 추적한다 — 대신 점 추가/삭제로
+    // 인덱스가 밀릴 때마다 _shiftIndicesAfterSplice() 로 이 값들도 같이 밀어줘야 한다.
+    var _manualIdx = new Set();
     var _satellite = false;      // 배경지도: false=해아름 벡터, true=브이월드 위성
     var _khoaLayer = null;
     var _vworldLayer = null;
+    var _overlayImg = null;      // 지도 위에 겹쳐 놓은 원문 이미지 래퍼 <div>(있을 때만)
+    var _ovDrag = null;          // 오버레이 이미지 드래그/리사이즈 진행 상태 {mode, startX, startY, startLeft, startTop, startW}
+    var _ovListenersReady = false; // document mousemove/mouseup 리스너는 한 번만 등록
 
     // ========================================================================
     // 인증 — 독립 페이지라 index2.html 의 관리자센터 로그인 모달을 못 빌려 쓴다.
@@ -146,13 +157,13 @@
         });
     }
 
-    /** 선택된 feature 의 점마다 잠김(파랑)/편집가능(노랑) 색으로 작은 원을 찍는 스타일 함수 */
+    /** 선택된 feature 의 점마다 잠김(파랑)/편집가능(노랑)/새로 추가(초록) 색으로 작은 원을 찍는 스타일 함수 */
     function _vertexMarkerStyle(feature) {
-        var locked = feature.get('_locked') === true;
+        var color = feature.get('_manual') ? '#4ade80' : (feature.get('_locked') ? '#38bdf8' : '#facc15');
         return new ol.style.Style({
             image: new ol.style.Circle({
                 radius: 5,
-                fill: new ol.style.Fill({ color: locked ? '#38bdf8' : '#facc15' }),
+                fill: new ol.style.Fill({ color: color }),
                 stroke: new ol.style.Stroke({ color: '#0f172a', width: 1.5 })
             })
         });
@@ -165,6 +176,7 @@
         coords.forEach(function (c, i) {
             var pt = new ol.Feature(new ol.geom.Point(c));
             pt.set('_locked', _isVertexConfirmed(_selectedFeature, i));
+            pt.set('_manual', _manualIdx.has(i));
             _vertexMarkerSource.addFeature(pt);
         });
     }
@@ -208,6 +220,25 @@
         else geom.setCoordinates(coords);
     }
 
+    /** 점을 insertAt 위치에 삽입하거나 removeIdx 위치를 삭제해 배열 인덱스가 밀릴 때,
+     *  "이번 세션에 추가한 점"(_manualIdx)과 "원문 확정 점"(feature 의 confirmed_vertices)이
+     *  계속 같은 실제 점을 가리키도록 인덱스를 같이 밀어준다. 삽입/삭제 중 하나만 넘긴다. */
+    function _shiftIndicesAfterSplice(feature, insertAt, removeIdx) {
+        var nextManual = new Set();
+        _manualIdx.forEach(function (i) {
+            if (insertAt != null) nextManual.add(i >= insertAt ? i + 1 : i);
+            else if (i !== removeIdx) nextManual.add(i > removeIdx ? i - 1 : i);
+        });
+        _manualIdx = nextManual;
+
+        var confirmed = feature.get('confirmed_vertices');
+        if (Array.isArray(confirmed)) {
+            feature.set('confirmed_vertices', confirmed.map(function (i) {
+                return insertAt != null ? (i >= insertAt ? i + 1 : i) : (i > removeIdx ? i - 1 : i);
+            }));
+        }
+    }
+
     /** 지도 픽셀 좌표에서 가장 가까운 vertex 인덱스 (map 좌표계 거리 기준, tolerance px 이내만) */
     function _nearestVertexIndex(map, pixel, feature, tolerancePx) {
         var coords = _getFlatCoords(feature);
@@ -238,6 +269,7 @@
         }
         _pushUndo();
         var isClosingPoint = isPolygon && (idx === 0 || idx === coords.length - 1);
+        _shiftIndicesAfterSplice(feature, null, idx);
         coords.splice(idx, 1);
         if (isClosingPoint) {
             // 폴리곤 시작/끝(닫힘 중복점)을 지웠으면 새 시작점을 마지막에도 복제해 닫힌 링 유지
@@ -286,6 +318,88 @@
         _setStatus(N + '개 점을 추가해 곡선화했습니다 — 각 점을 드래그해 실제 해안선에 맞춰보세요');
     }
 
+    /** 클릭 지점(map 좌표)에서 가장 가까운 "구간(인접한 두 점 사이 선분)"을 찾아,
+     *  그 구간에 삽입할 인덱스를 돌려준다(그 구간의 두 번째 점 앞에 삽입).
+     *  선분과 점 사이의 최단거리(수선의 발이 구간 안에 있을 때만 유효)로 판정한다. */
+    function _nearestSegmentInsertIndex(map, pixel, feature, tolerancePx) {
+        var coords = _getFlatCoords(feature);
+        var best = -1, bestDist = Infinity;
+        for (var i = 0; i < coords.length - 1; i++) {
+            var p1 = map.getPixelFromCoordinate(coords[i]);
+            var p2 = map.getPixelFromCoordinate(coords[i + 1]);
+            if (!p1 || !p2) continue;
+            var dx = p2[0] - p1[0], dy = p2[1] - p1[1];
+            var len2 = dx * dx + dy * dy;
+            var t = len2 === 0 ? 0 : ((pixel[0] - p1[0]) * dx + (pixel[1] - p1[1]) * dy) / len2;
+            if (t < 0 || t > 1) continue; // 수선의 발이 구간 밖 — 이 구간은 후보 아님
+            var projX = p1[0] + t * dx, projY = p1[1] + t * dy;
+            var d = Math.sqrt((pixel[0] - projX) * (pixel[0] - projX) + (pixel[1] - projY) * (pixel[1] - projY));
+            if (d < bestDist) { bestDist = d; best = i + 1; }
+        }
+        if (bestDist > (tolerancePx || 14)) return -1;
+        return best;
+    }
+
+    /** 점 추가 — 클릭한 화면 좌표를 지도 좌표로 바꿔 그 구간 사이에 새 점을 끼워 넣는다.
+     *  새로 만든 점은 _manualIdx 에 그 인덱스를 등록해 초록색으로 표시(원문 확정과 구분). */
+    function _addVertexAt(map, pixel, feature) {
+        var insertAt = _nearestSegmentInsertIndex(map, pixel, feature, 16);
+        if (insertAt < 0) {
+            _setStatus('구역의 선(변) 위를 클릭해야 그 자리에 점이 추가됩니다');
+            return;
+        }
+        _pushUndo();
+        var coords = _getFlatCoords(feature);
+        var newCoord = map.getCoordinateFromPixel(pixel);
+        _shiftIndicesAfterSplice(feature, insertAt, null);
+        coords.splice(insertAt, 0, newCoord);
+        _manualIdx.add(insertAt);
+        _setFlatCoords(feature, coords);
+        _refreshVertexMarkers();
+        _setStatus('새 점을 추가했습니다(초록색) — 드래그하거나 "좌표 입력"으로 정확한 경위도를 넣어보세요');
+    }
+
+    /** 좌표 입력 폼을 idx 번째 점의 현재 값으로 채워 연다(신규 추가 직후엔 idx=-1 이고 대신
+     *  targetCoord 를 바로 받아 새 점 삽입용으로도 쓸 수 있다) */
+    function _openCoordForm(idx, coord) {
+        _coordEditIdx = idx;
+        var form = document.getElementById('ace-coord-form');
+        var label = document.getElementById('ace-coord-form-label');
+        var lonInput = document.getElementById('ace-coord-lon');
+        var latInput = document.getElementById('ace-coord-lat');
+        var lonLat = ol.proj.toLonLat(coord);
+        label.textContent = '점 #' + idx + ' 좌표';
+        lonInput.value = lonLat[0].toFixed(6);
+        latInput.value = lonLat[1].toFixed(6);
+        form.classList.add('show');
+        lonInput.focus();
+    }
+    function _closeCoordForm() {
+        _coordEditIdx = -1;
+        document.getElementById('ace-coord-form').classList.remove('show');
+    }
+    function _applyCoordForm() {
+        if (_coordEditIdx < 0 || !_selectedFeature) { _closeCoordForm(); return; }
+        var lon = parseFloat(document.getElementById('ace-coord-lon').value);
+        var lat = parseFloat(document.getElementById('ace-coord-lat').value);
+        if (!isFinite(lon) || !isFinite(lat) || lon < -180 || lon > 180 || lat < -90 || lat > 90) {
+            _setStatus('경위도 값이 올바르지 않습니다');
+            return;
+        }
+        _pushUndo();
+        var editedIdx = _coordEditIdx;
+        var coords = _getFlatCoords(_selectedFeature);
+        var newCoord = ol.proj.fromLonLat([lon, lat]);
+        coords[editedIdx] = newCoord; // 인덱스 그대로 갱신 — _manualIdx/confirmed_vertices 는 인덱스 기반이라 자동으로 유지됨
+        // 폴리곤 첫 점을 고쳤으면 닫힘용 마지막 점도 같이 맞춘다
+        var isPolygon = _selectedFeature.getGeometry().getType() === 'Polygon';
+        if (isPolygon && editedIdx === 0) coords[coords.length - 1] = newCoord.slice();
+        _setFlatCoords(_selectedFeature, coords);
+        _refreshVertexMarkers();
+        _closeCoordForm();
+        _setStatus('점 #' + editedIdx + ' 좌표를 (' + lon.toFixed(6) + ', ' + lat.toFixed(6) + ')로 설정했습니다');
+    }
+
     function _clearCurveSelection() {
         _curveSel = [];
         if (_markerSource) _markerSource.clear();
@@ -299,6 +413,17 @@
         if (_deleteMode) {
             var idx = _nearestVertexIndex(map, evt.pixel, _selectedFeature, 14);
             if (idx >= 0) _deleteVertex(_selectedFeature, idx);
+            return;
+        }
+        if (_addMode) {
+            _addVertexAt(map, evt.pixel, _selectedFeature);
+            return;
+        }
+        if (_coordMode) {
+            var idxC = _nearestVertexIndex(map, evt.pixel, _selectedFeature, 14);
+            if (idxC < 0) { _setStatus('점 위를 클릭해야 좌표를 입력할 수 있습니다'); return; }
+            var coordsC = _getFlatCoords(_selectedFeature);
+            _openCoordForm(idxC, coordsC[idxC]);
             return;
         }
         if (_curveMode) {
@@ -331,19 +456,116 @@
             '</div>';
         if (Array.isArray(imgs) && imgs.length) {
             html += imgs.map(function (src) {
-                return '<img class="ace-source-img" src="' + src + '" loading="lazy">';
+                return '<div class="ace-source-img-wrap">' +
+                    '<img class="ace-source-img" src="' + src + '" loading="lazy">' +
+                    '<button type="button" class="ace-source-overlay-btn" data-src="' + src + '"><i class="fa-solid fa-layer-group"></i> 지도에 겹쳐보기</button>' +
+                    '</div>';
             }).join('');
         } else {
             html += '<p class="ace-source-empty">이 구역은 확보된 원문 이미지가 없습니다. 지명·주소 기반 추정 위치이니 실제 위성지도와 대조해 직접 조정해주세요.</p>';
         }
         if (note) html += '<p class="ace-source-note">' + note + '</p>';
         panel.innerHTML = html;
+        panel.querySelectorAll('.ace-source-overlay-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () { _toggleImageOverlay(btn.dataset.src, btn); });
+        });
+    }
+
+    /** 드래그(이동)·리사이즈(모서리 손잡이) 처리용 document 리스너 — 이미지가 몇 번을 다시 열리든 한 번만 붙인다 */
+    function _ensureOverlayListeners() {
+        if (_ovListenersReady) return;
+        _ovListenersReady = true;
+        document.addEventListener('mousemove', function (e) {
+            if (!_ovDrag || !_overlayImg) return;
+            if (_ovDrag.mode === 'move') {
+                _overlayImg.style.left = (_ovDrag.startLeft + (e.clientX - _ovDrag.startX)) + 'px';
+                _overlayImg.style.top = (_ovDrag.startTop + (e.clientY - _ovDrag.startY)) + 'px';
+            } else if (_ovDrag.mode === 'resize') {
+                var newW = Math.max(60, _ovDrag.startW + (e.clientX - _ovDrag.startX));
+                _overlayImg.style.width = newW + 'px';
+            }
+        });
+        document.addEventListener('mouseup', function () { _ovDrag = null; });
+    }
+
+    /** 원문 이미지를 지도 위에 겹쳐서 실제 지형과 대조할 수 있게 한다. 같은 이미지 버튼을 다시
+     *  누르면 닫힌다. 이동은 드래그, 크기 조절은 오른쪽 아래 손잡이(가로폭만 바꾸면 세로는
+     *  이미지 비율대로 자동 조정됨), 투명도는 ace-overlay-controls 의 슬라이더로 조절한다. */
+    function _toggleImageOverlay(src, btn) {
+        if (_overlayImg && _overlayImg.dataset.src === src) {
+            _hideImageOverlay();
+            return;
+        }
+        _hideImageOverlay();
+        var mapEl = document.getElementById('ace-map');
+        var wrap = document.createElement('div');
+        wrap.className = 'ace-overlay-img';
+        wrap.dataset.src = src;
+        wrap.style.left = '40px';
+        wrap.style.top = '40px';
+        wrap.style.width = '340px';
+
+        var img = document.createElement('img');
+        img.src = src;
+        img.style.cssText = 'width:100%;display:block;pointer-events:none;';
+        var handle = document.createElement('div');
+        handle.className = 'ace-overlay-handle';
+        wrap.appendChild(img);
+        wrap.appendChild(handle);
+        mapEl.appendChild(wrap);
+        _overlayImg = wrap;
+
+        var opacityInput = document.getElementById('ace-overlay-opacity');
+        wrap.style.opacity = (parseInt(opacityInput.value, 10) / 100);
+
+        wrap.addEventListener('mousedown', function (e) {
+            if (e.target === handle) return;
+            _ovDrag = {
+                mode: 'move', startX: e.clientX, startY: e.clientY,
+                startLeft: parseFloat(wrap.style.left) || 0, startTop: parseFloat(wrap.style.top) || 0
+            };
+            e.preventDefault();
+        });
+        handle.addEventListener('mousedown', function (e) {
+            _ovDrag = { mode: 'resize', startX: e.clientX, startW: parseFloat(wrap.style.width) || wrap.offsetWidth };
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        _ensureOverlayListeners();
+
+        document.querySelectorAll('.ace-source-overlay-btn').forEach(function (b) {
+            b.classList.toggle('active', b === btn);
+        });
+        document.getElementById('ace-overlay-controls').classList.add('show');
+        _setStatus('원문 이미지를 지도 위에 겹쳤습니다 — 드래그로 이동, 오른쪽 아래 손잡이로 크기 조절');
+    }
+
+    function _hideImageOverlay() {
+        if (_overlayImg && _overlayImg.parentNode) _overlayImg.parentNode.removeChild(_overlayImg);
+        _overlayImg = null;
+        _ovDrag = null;
+        var controls = document.getElementById('ace-overlay-controls');
+        if (controls) controls.classList.remove('show');
+        document.querySelectorAll('.ace-source-overlay-btn').forEach(function (b) { b.classList.remove('active'); });
+    }
+
+    /** 원문 이미지 패널을 접었다 펴서 지도 영역을 넓게 쓸 수 있게 한다 */
+    function _togglePanel() {
+        var wrap = document.getElementById('ace-source-panel-wrap');
+        var icon = document.getElementById('ace-panel-toggle-icon');
+        var collapsed = wrap.classList.toggle('collapsed');
+        if (icon) icon.className = collapsed ? 'fa-solid fa-chevron-left' : 'fa-solid fa-chevron-right';
     }
 
     function _selectZone(feature) {
         _selectedFeature = feature;
         _deleteMode = false;
         _curveMode = false;
+        _addMode = false;
+        _coordMode = false;
+        _closeCoordForm();
+        _hideImageOverlay();
+        _manualIdx = new Set(); // 구역을 바꾸면 "이번 세션에 새로 추가한 점" 추적도 새로 시작
         _clearCurveSelection();
         _undoStack = [];
         _refreshUndoBtn();
@@ -351,16 +573,20 @@
         document.querySelectorAll('.ace-zone-btn').forEach(function (b) {
             b.classList.toggle('active', b.dataset.idx === String(feature.get('_idx')));
         });
-        var deleteBtn = document.getElementById('ace-delete-btn');
-        var curveBtn = document.getElementById('ace-curve-btn');
-        if (deleteBtn) { deleteBtn.disabled = false; deleteBtn.classList.remove('active'); }
-        if (curveBtn) { curveBtn.disabled = false; curveBtn.classList.remove('active'); }
+        ['ace-delete-btn', 'ace-add-btn', 'ace-coord-btn', 'ace-curve-btn'].forEach(function (id) {
+            var btn = document.getElementById(id);
+            if (btn) { btn.disabled = false; btn.classList.remove('active'); }
+        });
 
         if (_modify) { _map.removeInteraction(_modify); _modify = null; }
         _modify = new ol.interaction.Modify({
             features: new ol.Collection([feature]),
             // 원문에 정확한 경위도가 있어 고정된 점은 드래그 시작 자체를 막는다
             condition: function (evt) {
+                // 삭제·추가·좌표입력 모드에서는 이 인터랙션이 직접 처리하지 않고(클릭 핸들러가
+                // 대신 처리) — 특히 추가 모드에서 켜둔 채로 두면 Modify 자체가 선분 클릭을
+                // "점 삽입 드래그"로도 인식해 우리 코드와 함께 점이 2개씩 늘어난다.
+                if (_deleteMode || _addMode || _coordMode) return false;
                 if (!ol.events.condition.primaryAction(evt)) return false;
                 var idx = _nearestVertexIndex(_map, evt.pixel, feature, 12);
                 if (idx >= 0 && _isVertexConfirmed(feature, idx)) {
@@ -383,19 +609,42 @@
         _setStatus('"' + feature.get('location') + '" 선택됨 — 파란 점은 원문 확정(고정), 노란 점은 드래그 가능');
     }
 
+    /** 삭제·추가·좌표입력·곡선화는 한 번에 하나만 켜진다 — 나머지를 다 끄고 버튼 active 표시도 정리 */
+    function _deactivateAllModes() {
+        _deleteMode = false; _addMode = false; _coordMode = false; _curveMode = false;
+        _clearCurveSelection();
+        _closeCoordForm();
+        ['ace-delete-btn', 'ace-add-btn', 'ace-coord-btn', 'ace-curve-btn'].forEach(function (id) {
+            var btn = document.getElementById(id);
+            if (btn) btn.classList.remove('active');
+        });
+    }
     function _toggleDeleteMode() {
-        _deleteMode = !_deleteMode;
-        _curveMode = false; _clearCurveSelection();
+        var next = !_deleteMode;
+        _deactivateAllModes();
+        _deleteMode = next;
         document.getElementById('ace-delete-btn').classList.toggle('active', _deleteMode);
-        document.getElementById('ace-curve-btn').classList.toggle('active', false);
         _setStatus(_deleteMode ? '점 삭제 모드 — 지울 점을 지도에서 클릭하세요(파란 점은 삭제 불가)' : '점 삭제 모드 해제');
     }
+    function _toggleAddMode() {
+        var next = !_addMode;
+        _deactivateAllModes();
+        _addMode = next;
+        document.getElementById('ace-add-btn').classList.toggle('active', _addMode);
+        _setStatus(_addMode ? '점 추가 모드 — 구역 선(변) 위를 클릭하면 그 자리에 점이 추가됩니다' : '점 추가 모드 해제');
+    }
+    function _toggleCoordMode() {
+        var next = !_coordMode;
+        _deactivateAllModes();
+        _coordMode = next;
+        document.getElementById('ace-coord-btn').classList.toggle('active', _coordMode);
+        _setStatus(_coordMode ? '좌표 입력 모드 — 경위도를 바꿀 점을 지도에서 클릭하세요' : '좌표 입력 모드 해제');
+    }
     function _toggleCurveMode() {
-        _curveMode = !_curveMode;
-        _deleteMode = false;
+        var next = !_curveMode;
+        _deactivateAllModes();
+        _curveMode = next;
         document.getElementById('ace-curve-btn').classList.toggle('active', _curveMode);
-        document.getElementById('ace-delete-btn').classList.toggle('active', false);
-        if (!_curveMode) _clearCurveSelection();
         _setStatus(_curveMode ? '곡선화 모드 — 인접한 두 점을 순서대로 클릭하세요' : '곡선화 모드 해제');
     }
     function _applyCurve() {
@@ -554,12 +803,21 @@
             _map.on('singleclick', _onMapClick);
 
             document.getElementById('ace-delete-btn').addEventListener('click', _toggleDeleteMode);
+            document.getElementById('ace-add-btn').addEventListener('click', _toggleAddMode);
+            document.getElementById('ace-coord-btn').addEventListener('click', _toggleCoordMode);
+            document.getElementById('ace-coord-apply').addEventListener('click', _applyCoordForm);
+            document.getElementById('ace-coord-cancel').addEventListener('click', _closeCoordForm);
             document.getElementById('ace-curve-btn').addEventListener('click', _toggleCurveMode);
             document.getElementById('ace-curve-apply-btn').addEventListener('click', _applyCurve);
             document.getElementById('ace-undo-btn').addEventListener('click', _undo);
             document.getElementById('ace-export-btn').addEventListener('click', _exportDownload);
             document.getElementById('ace-save-btn').addEventListener('click', _saveToServer);
             document.getElementById('ace-satellite-btn').addEventListener('click', _toggleSatellite);
+            document.getElementById('ace-panel-toggle-btn').addEventListener('click', _togglePanel);
+            document.getElementById('ace-overlay-close').addEventListener('click', _hideImageOverlay);
+            document.getElementById('ace-overlay-opacity').addEventListener('input', function () {
+                if (_overlayImg) _overlayImg.style.opacity = (parseInt(this.value, 10) / 100);
+            });
 
             var editableFeatures = features.filter(_isEditable);
             if (editableFeatures.length) {
