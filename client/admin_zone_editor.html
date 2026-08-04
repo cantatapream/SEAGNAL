@@ -1,0 +1,107 @@
+<!--
+============================================================================
+파일명: client/admin_zone_editor.html
+역할  : 출입통제구역 폴리곤 점 편집기 — 독립 페이지(관리자센터 모달이 아님).
+        admin.js 의 "구역 편집" 탭 버튼이 새 창으로 이 페이지를 연다.
+        왼쪽에 지도·도구모음·구역 목록, 오른쪽에 그 구역의 원문 고시 이미지를
+        나란히 두고 대조하며 점을 조정할 수 있다.
+----------------------------------------------------------------------------
+[연계]
+ - 사용하는 파일 : js/admin/admin_zone_editor.js(전체 로직),
+                   js/ocean-map/map/ocean_map.js(위성/벡터 배경지도 레이어 함수),
+                   /assets/vendor/ol(OpenLayers), /assets/vendor/fontawesome(아이콘)
+ - 서버 API      : POST /api/admin/login, GET /access_control_zones.json,
+                   POST /api/admin/access-control-zones
+ - 나를 쓰는 곳  : js/admin/admin.js 의 관리자센터 "구역 편집" 탭 버튼(window.open)
+============================================================================
+-->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>구역 편집 — SEAGNAL 관리자</title>
+<link rel="stylesheet" href="/assets/vendor/ol/ol.css">
+<link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
+<script src="/assets/vendor/ol/ol.js"></script>
+<style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; background: #0b1120; font-family: "Pretendard", -apple-system, sans-serif; }
+
+    /* ── 로그인 게이트 ── */
+    #ace-login-gate { display: flex; align-items: center; justify-content: center; height: 100vh; }
+    .ace-login-box { background: #1e293b; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 28px; width: 320px; text-align: center; }
+    .ace-login-box h2 { color: #fff; font-size: 1.05rem; margin: 0 0 18px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .ace-login-box input[type="password"] { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: #0f172a; color: #e2e8f0; font-size: 0.9rem; margin-bottom: 10px; }
+    .ace-login-remember { display: flex; align-items: center; gap: 6px; color: #94a3b8; font-size: 0.78rem; margin-bottom: 14px; justify-content: center; }
+    .ace-login-box button { width: 100%; padding: 10px; border-radius: 8px; border: none; background: #3b82f6; color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+    .ace-login-box button:hover { background: #2563eb; }
+    .ace-login-err { color: #fca5a5; font-size: 0.78rem; min-height: 1em; margin: 10px 0 0; }
+
+    /* ── 메인 앱 레이아웃: 사이드바 | 지도(툴바+지도) | 원문이미지 패널 ── */
+    #ace-app { display: none; height: 100vh; padding: 12px; gap: 12px; }
+
+    .ace-sidebar { width: 260px; flex: none; overflow-y: auto; background: #0f172a; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); }
+    .ace-sidebar-section h4 { color: #e2e8f0; font-size: 0.82rem; margin: 0; padding: 12px 12px 6px; }
+    .ace-station { color: #64748b; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 8px 12px 2px; }
+    .ace-zone-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: calc(100% - 16px); margin: 2px 8px; padding: 7px 10px;
+        background: rgba(255,82,82,0.12); border: 1px solid rgba(255,120,120,0.35); border-radius: 8px; color: #ffe0e0; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; }
+    .ace-zone-btn:hover { background: rgba(255,82,82,0.22); }
+    .ace-zone-btn.active { background: rgba(255,214,0,0.22); border-color: #ffd600; color: #fff9db; }
+    .ace-zone-btn .ace-reason { font-size: 0.66rem; font-weight: 400; color: #cbd5e1; opacity: 0.8; }
+    .ace-zone-locked { display: flex; align-items: center; gap: 6px; width: calc(100% - 16px); margin: 2px 8px; padding: 7px 10px; color: #64748b; font-size: 0.78rem; }
+
+    .ace-main { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    .ace-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .ace-tool-btn { padding: 7px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: #1e293b; color: #e2e8f0; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+    .ace-tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ace-tool-btn.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+    .ace-tool-btn.primary { background: rgba(59,130,246,0.18); border-color: #3b82f6; color: #bfdbfe; }
+    .ace-status { font-size: 0.78rem; color: #94a3b8; padding: 2px 4px; min-height: 1.2em; }
+    .ace-map { flex: 1; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); }
+    .ace-legend { font-size: 0.7rem; color: #64748b; display: flex; gap: 14px; padding: 0 4px; }
+    .ace-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .ace-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+    .ace-source-panel-wrap { width: 360px; flex: none; overflow-y: auto; background: #0f172a; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); padding: 14px; }
+    .ace-source-head h4 { color: #e2e8f0; font-size: 0.88rem; margin: 0 0 8px; }
+    .ace-source-reason { color: #fbbf24; font-size: 0.74rem; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.25); border-radius: 8px; padding: 8px 10px; margin: 0 0 12px; line-height: 1.5; }
+    .ace-source-img { width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.1); display: block; }
+    .ace-source-empty { color: #64748b; font-size: 0.8rem; line-height: 1.6; }
+    .ace-source-note { color: #94a3b8; font-size: 0.72rem; line-height: 1.6; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div id="ace-login-gate"></div>
+
+<div id="ace-app">
+    <div class="ace-sidebar" id="ace-sidebar"><p style="padding:16px;color:#94a3b8;">불러오는 중…</p></div>
+    <div class="ace-main">
+        <div class="ace-toolbar">
+            <button id="ace-satellite-btn" class="ace-tool-btn" title="원문 고시의 항공사진과 대조하려면 위성지도가 필요합니다"><i class="fa-solid fa-satellite"></i> 위성지도</button>
+            <span style="width:1px;height:20px;background:rgba(255,255,255,0.12);"></span>
+            <button id="ace-delete-btn" class="ace-tool-btn" disabled title="지도에서 점을 클릭하면 삭제"><i class="fa-solid fa-eraser"></i> 점 삭제 모드</button>
+            <button id="ace-curve-btn" class="ace-tool-btn" disabled title="인접한 두 점을 클릭 → 사이 구간을 곡선으로"><i class="fa-solid fa-bezier-curve"></i> 곡선화</button>
+            <button id="ace-curve-apply-btn" class="ace-tool-btn" disabled><i class="fa-solid fa-check"></i> 곡선화 적용</button>
+            <button id="ace-undo-btn" class="ace-tool-btn" disabled><i class="fa-solid fa-rotate-left"></i> 실행취소</button>
+            <span style="flex:1"></span>
+            <button id="ace-export-btn" class="ace-tool-btn primary"><i class="fa-solid fa-download"></i> 내보내기</button>
+            <button id="ace-save-btn" class="ace-tool-btn primary"><i class="fa-solid fa-server"></i> 서버에 저장</button>
+        </div>
+        <div class="ace-legend">
+            <span><i style="background:#38bdf8;"></i> 원문 확정(고정 — 드래그·삭제 불가)</span>
+            <span><i style="background:#facc15;"></i> 편집 가능(추정 — 드래그 가능)</span>
+        </div>
+        <div id="ace-status" class="ace-status">구역을 선택하세요(왼쪽 목록 · 재검토 필요 항목만 클릭 가능)</div>
+        <div id="ace-map" class="ace-map"></div>
+    </div>
+    <div class="ace-source-panel-wrap">
+        <div id="ace-source-panel"><p style="color:#64748b;font-size:0.8rem;">구역을 선택하면 원문 고시 이미지가 여기 표시됩니다.</p></div>
+    </div>
+</div>
+
+<script src="js/ocean-map/map/ocean_map.js"></script>
+<script src="js/admin/admin_zone_editor.js"></script>
+</body>
+</html>
