@@ -295,9 +295,17 @@ function isSepRow(cells) {
  * ⚠ 법령 칸의 `〃`(반복기호, 실측 82행)는 여기서 편다 — 표 안에서만 뜻이 통하는 약식 표기라
  *   그대로 내보내면 화면 카드에 "〃 제32조"라는 뜻 모를 이름이 뜨고, 조문 원문 조회도 법을 못 찾아
  *   실패한다. 뜻은 "바로 윗 행의 법령 칸과 같다" 하나뿐이라 해석의 여지가 없다.
+ * ⚠ `단계` 칸(`① 금지·정의·측정`·`② 형벌(5톤 이상)` 처럼 그 행이 사슬의 어느 마디인지 적어둔 칸,
+ *   실측 358개 표)도 함께 싣는다 — 예전엔 통째로 버렸는데, **처벌 여부 신호가 요지가 아니라 이 칸에만
+ *   있는 행**이 실제로 있다(해상교통안전법 제113조: 단계 `② 형벌(5톤 이상)` / 요지 `구간·재범·측정거부
+ *   형량` — 요지만 보면 처벌 낱말이 없어 화면 배지가 '벌칙'이 아닌 '법률'로 떴다. 라이브 실측).
+ *   헤더가 `단계`인 칸만 받는다 — 첫 칸 이름이 `적용대상`인 표가 더 흔한데(실측 650행) 그건 "누구에게
+ *   적용되나"라 뜻이 전혀 다르다. 근거 조문 표의 첫 칸 이름을 전수 조사한 결과 사슬 마디를 뜻하는
+ *   이름은 `단계` 하나뿐이었다(`구분`·`항목`은 근거 조문 표에 쓰인 적이 없다).
  * @param {string} body - 페이지 마크다운 본문(frontmatter 제외)
- * @returns {Array<{law:string,article:string,effectiveDate:string,gist:string,tier:string}>} 원 표 순서 그대로
- * [연계] ← search()가 상위 소스에 붙임 → ai_chat.js 체인 UI.
+ * @returns {Array<{law:string,article:string,effectiveDate:string,gist:string,tier:string,step:string}>}
+ *          원 표 순서 그대로(step은 `단계` 칸이 없는 표에서는 '')
+ * [연계] ← search()가 상위 소스에 붙임 → ai_chat.js 체인 UI(step은 isPenaltyRow 판정에 함께 쓰인다).
  */
 function extractCitationChain(body) {
   try {
@@ -309,6 +317,8 @@ function extractCitationChain(body) {
     const iArt = col(/조문/);
     const iEff = col(/시행일|발령/);
     const iGist = col(/요지|내용|비고/);
+    // 헤더 완전일치로만 잡는다(부분일치로 열면 `적용대상`·`처리단계` 같은 다른 뜻의 칸이 딸려온다).
+    const iStep = col(/^단계$/);
     if (iLaw < 0) return [];
 
     const out = [];
@@ -325,6 +335,7 @@ function extractCitationChain(body) {
         article: iArt >= 0 ? plainCell(c[iArt]) : '',
         effectiveDate: iEff >= 0 ? plainCell(c[iEff]) : '',
         gist: iGist >= 0 ? plainCell(c[iGist]) : '',
+        step: iStep >= 0 ? plainCell(c[iStep]) : '',
         tier: classifyTier(law),
       });
     }
@@ -624,7 +635,9 @@ function clarifyStr(v, max) {
  *   수는 질의에 붙은 CLARIFY_JOINER 개수로 세고, 상한에 닿으면 프롬프트(기준3)에 앞서
  *   **Gemini를 부르지도 않고** 물러난다. 모델이 기준3을 어기면 버튼→되묻기→버튼 무한루프가 되므로
  *   천장은 결정론적으로 막되, 한 번 좁혀도 갈래가 남는 질문(선원/승객 → 하천/바다)은 통과시킨다.
- *   같은 조건을 두 번 묻지 않게 하는 건 여전히 프롬프트 기준3의 몫이다(이 상한은 백스톱일 뿐).
+ * ★같은 조건 재질문 차단: 라운드 수와 별개로, 이번 선택지의 라벨이 이미 질의에 붙어 있으면(=앞
+ *   라운드에서 사용자가 고른 값) 그 되묻기는 버린다 — 프롬프트 기준3만 믿었더니 2라운드가 1라운드와
+ *   똑같은 질문·똑같은 선택지를 그대로 다시 물은 사례가 라이브에서 재현됐다(아래 코드 주석 참고).
  * ★hint 검증: 모델이 근거자료에 없는 조문번호를 hint에 지어넣을 수 있어, 파싱 후 hint의
  *   조문번호 토큰을 [근거자료] 원문과 대조해 없으면 그 hint만 비운다(선택지는 유지).
  * 실패(키 없음·근거 없음·타임아웃·파싱 실패·스키마 불충족)는 예외 없이 {needed:false} —
@@ -695,6 +708,16 @@ ${block}
         ? { label: o.label, hint: '' } : o));
     // 물음 없이, 또는 고를 게 하나뿐인 되묻기는 사용자를 막기만 하고 좁혀주지 못한다 — 그냥 답하게 둔다.
     if (!question || options.length < 2) return CLARIFY_NONE;
+    // ★같은 조건 재질문 차단(결정론적): 질의에는 앞선 라운드에서 고른 값이 "질문 — 라벨" 꼴로 이미
+    // 붙어 있다. 이번 선택지의 라벨 중 하나라도 질의에 **문자 그대로** 들어 있으면, 그건 이미 한 번
+    // 고른 조건을 그대로 다시 묻는 것이다 — 그 되묻기는 버리고 답변으로 넘어간다.
+    // ⚠ 프롬프트 기준3("질문 문구에 이미 그 조건이 적혀 있으면 다시 묻지 않는다")만으로는 못 막는다 —
+    //   라이브 재현: 2라운드에서 **1라운드와 완전히 똑같은 질문 + 똑같은 선택지 2개**가 그대로 다시
+    //   떴다. CLARIFY_MAX_ROUNDS 상한은 라운드 **수**만 세므로 이 실패 모드를 걸러내지 못한다.
+    //   이 저장소의 관례대로(위 CLARIFY_JOINER 라운드 계산과 같은 취지) 루프 차단은 모델의 지시이행이
+    //   아니라 코드로 한다. 라벨은 사용자가 실제로 눌러 질의에 그대로 붙은 문자열이라 완전일치 대조가
+    //   성립한다(패러프레이즈 대조가 아니라 오탐이 없다).
+    if (options.some(o => String(query || '').includes(o.label))) return CLARIFY_NONE;
     return { needed: true, intro: clarifyStr(obj.intro, 200), question, options };
   } catch (_) {
     return CLARIFY_NONE;
@@ -891,9 +914,12 @@ const FLOW_TIER_ORDER = { law: 0, decree: 1, rule: 2, notice: 3 };
  * 법 하나를 법률→시행령→시행규칙→고시 순으로 끝까지 보여준 뒤, 다음 법으로 넘어간다.
  * (예: 금지는 A법, 처벌은 B법인 페이지에서 A법 줄과 B법 줄이 뒤섞여 나오던 것을 A법 묶음 → B법
  *  묶음으로 정리한다.)
- * ⚠ 법의 순서는 **먼저 나온 순서**(first-occurrence)로 정한다 — 들어오는 배열은 이미
- *   filterCitationChainByAnswer가 "답변 문장에 실제로 인용된 줄"만 남긴 것이라, 먼저 놓인 법이
- *   답변이 먼저 짚은 법에 가깝다는 근사다. 법 이름은 **문자열 완전일치**로만 묶는다(같은 법의
+ * ⚠ 법의 순서는 **답변 문장에서 그 법 이름이 처음 나오는 위치**(answerText.indexOf)로 정한다 —
+ *   예전엔 들어온 배열 순서(=위키 `## 근거 조문` 표에 적힌 순서)를 썼는데, 표 순서와 답변이 실제로
+ *   짚은 순서가 어긋나는 사례가 라이브에서 재현됐다: 답변은 「낚시 관리 및 육성법」의 금지부터 말하고
+ *   해상교통안전법은 정의 인용으로 뒤에 붙였는데, 표 순서로는 해상교통안전법이 먼저라 화면 체인이
+ *   답변의 논리 순서와 반대로 그려졌다. 표 순서는 그 위키를 쓴 사람의 편집 순서일 뿐이고, 이 함수가
+ *   맞추려는 것은 **답변의 추론 경로**라 답변 문장 쪽이 정답에 가깝다. 법 이름은 **문자열 완전일치**로만 묶는다(같은 법의
  *   시행령·시행규칙은 이름이 달라 별도 그룹처럼 보이지만, 위키 표가 관행상 법률 바로 뒤에 그
  *   시행령을 적어두므로 first-occurrence 순서가 곧 위임 순서가 된다 — 이름에서 "시행령"을 떼어
  *   모법으로 합치는 추측은 하지 않는다. 약칭·개정명까지 얽혀 틀리면 없는 위임을 지어내는 셈이다).
@@ -903,25 +929,33 @@ const FLOW_TIER_ORDER = { law: 0, decree: 1, rule: 2, notice: 3 };
  *   위임 순서에 가깝게 정돈된 목록"이다.
  * ★환각 0: 줄을 새로 만들거나 지우거나 합치지 않는다 — 들어온 줄 그대로, 순서만 바꾼다
  *   (입력 길이 = 출력 길이).
- * 예: groupCitationChainByFlow([{law:'A법 시행령',tier:'decree'}, {law:'B법',tier:'law'},
- *     {law:'A법 시행령',tier:'decree'}, ...]) → A법 시행령 줄들 → B법 줄들 순으로 나온다.
+ * 예: groupCitationChainByFlow([{law:'해상교통안전법',tier:'law'}, {law:'낚시 관리 및 육성법',tier:'law'}],
+ *     '「낚시 관리 및 육성법」 제30조는 … 「해상교통안전법」 제39조④의 기준을 …')
+ *     → 표에는 해상교통안전법이 먼저 있어도, 답변이 먼저 말한 낚시 관리 및 육성법 줄이 앞에 온다.
  * @param {Array} chain - filterCitationChainByAnswer를 통과한 줄들(law·tier 포함)
- * @returns {Array} 법별로 묶고 각 묶음 안을 tier 순(law→decree→rule→notice)으로 정렬한 새 배열
- *                  (같은 tier끼리는 원래 순서 유지 — 안정 정렬)
- * [연계] ← routes/legal.js가 filterCitationChainByAnswer 직후 각 소스에 적용.
+ * @param {string} answerText - synthesizeAnswerStream()이 만든 전체 답변 문장(법 묶음 순서의 기준)
+ * @returns {Array} 법별로 묶고(답변에 먼저 나온 법이 앞) 각 묶음 안을 tier 순(law→decree→rule→notice)으로
+ *                  정렬한 새 배열 (같은 tier끼리는 원래 순서 유지 — 안정 정렬)
+ * [연계] ← routes/legal.js가 filterCitationChainByAnswer 직후, **여러 소스에서 합친 하나의 배열**에
+ *          한 번 적용한다(소스마다 따로 적용하면 소스 하나만 화면에 남던 문제 — 아래 [연계] 참고).
  *        → ai_chat.js chainHTML(이 순서대로 체인을 그린다. 처벌 줄을 별도 체인으로 빼는
  *          isPenaltyRow 분리는 순서와 무관하게 그대로 동작한다).
  */
-function groupCitationChainByFlow(chain) {
+function groupCitationChainByFlow(chain, answerText) {
   const rows = chain || [];
-  const groups = new Map();             // law → 그 법의 줄들(먼저 나온 법이 먼저 들어간다)
+  const text = String(answerText || '');
+  const groups = new Map();             // law → 그 법의 줄들
   rows.forEach((row) => {
     const key = (row && row.law) || '';
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(row);
   });
+  // 답변에서 먼저 언급된 법이 앞. 답변에 이름이 없는 법(거르기를 통과했다면 없어야 하지만
+  // 방어적으로)은 맨 뒤로 — 줄을 버리지는 않는다(누락 0).
+  const at = law => { const i = text.indexOf(law); return i < 0 ? Infinity : i; };
+  const ordered = [...groups.keys()].sort((a, b) => at(a) - at(b));
   const out = [];
-  groups.forEach((g) => {
+  ordered.map(k => groups.get(k)).forEach((g) => {
     // Array#sort는 Node 11+에서 안정 정렬이라 같은 tier 줄의 원래 순서가 유지된다.
     // 모르는 tier 값은 맨 뒤로 보낸다(줄을 버리지는 않는다 — 환각 0의 반대편, 누락 0).
     const ord = r => (FLOW_TIER_ORDER[r && r.tier] !== undefined ? FLOW_TIER_ORDER[r.tier] : 99);
@@ -944,8 +978,8 @@ function buildContextBlock(contextPages) {
 // 별도 상수로 떼어 두 프롬프트가 함께 쓴다(서두 한 문장만 근거의 성격에 따라 달라진다).
 // ⚠ 규칙6(각주 생략)이 기대는 "화면이 대신 보여준다"의 실제 범위는 이렇다(ai_chat.js answerHTML 실측):
 //   · 근거 법령 목록은 **접힌 아코디언**이라 사용자가 눌러야 보인다(답변 밑에 펼쳐져 있지 않다).
-//   · 그 안에서 조문·시행일·연락처까지 자세히 보여주는 건 **citationChain 이 있는 첫 번째 소스 하나**뿐이고,
-//     나머지 소스는 화면에 아예 그려지지 않는다(이름만 있는 카드는 정보가 없어 뺐다).
+//   · 그 안에는 **답변이 실제로 인용한 조문 줄만** 뜬다(소스 여러 곳의 줄을 합친 하나의 목록 —
+//     routes/legal.js mergeCitationChains). 이름만 있는 소스 카드는 정보가 없어 그리지 않는다.
 //   그래서 규칙6은 "완전히 중복되니 빼라"가 아니라 "본문에서 법령·조문은 밝히되 소관부서·연락처·기준일
 //   각주만 생략한다"는 뜻이다 — 각주를 되살릴지는 화면 UX와 함께 판단할 일이지 이 주석이 단정할 게 아니다.
 const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
