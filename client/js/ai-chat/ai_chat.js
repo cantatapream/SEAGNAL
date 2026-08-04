@@ -9,6 +9,9 @@
  *             + 챗봇 노출 토글(서버 전역 설정)을 렌더한다.
  *         (B) 사용자 챗봇 — 우측 하단 FAB + 카카오톡풍 채팅 팝업(생각중·스켈레톤·
  *             근거법령 아코디언 = 위임흐름 체인 + 조문 카드를 누르면 뜨는 조문 원문 팝업).
+ *             헤더 🕘 는 이 기기에 저장해둔 **지난 대화 기록**(localStorage
+ *             'nariya_history_v1' — 질문·답변 문장만, 근거 법령은 저장 안 함)을
+ *             날짜별 목록으로 열고, 항목을 누르면 그 질문/답변을 말풍선으로 되살린다.
  *             #nrya-overlays(body) 에 산다.
  *         FAB 는 (1) 앱 메인 특보 탭일 때만, (2) 서버 노출설정이 허용할 때만 보인다.
  *         (초보자용: 이 파일이 관리자용 나리야 콘솔과 사용자용 챗봇 버튼/창을 만든다)
@@ -63,6 +66,8 @@
   var LS_ADMIN_TOKEN = 'seagnal_admin_token';  // 관리자 토큰(admin.js와 공유)
   var LS_DEVICE_ID = 'seagnal_device_id';      // 기기 식별자(앱 공용 — survey_user.js가 최초 생성)
   var LS_UNREAD = 'nariya_unread_v1';          // 채팅창이 닫힌 사이 도착한 답변 수(FAB 뱃지)
+  var LS_HISTORY = 'nariya_history_v1';        // 지난 대화 기록(질문·답변만 · 기기 안에서만 보관)
+  var HISTORY_MAX = 200;                       // 기록 보관 개수 상한(넘으면 오래된 것부터 버린다)
   var CONSENT_ASK_MS = 6000;                   // 이만큼 넘게 걸리면 "다음부터 알림 드릴까요?" 배너
   var activeConsentTimer = null;               // 진행 중인 동의배너 타이머(채팅창 닫으면 취소 — closeChat 참고)
 
@@ -851,12 +856,18 @@
         '<div class="nrya-chat">' +
           '<div class="nrya-chat-top">' +
             '<div class="nrya-ava" id="nryaChatOrb"><img src="' + NARIYA_IMG + '" alt="나리야"></div>' +
-            '<div><div class="nrya-chat-name">나리야</div><div class="nrya-chat-on">해양법령 도우미 · 온라인</div></div>' +
-            '<button class="nrya-chat-x" id="nryaChatX">×</button>' +
+            '<div><div class="nrya-chat-name">해양법령 도우미</div></div>' +
+            '<div class="nrya-chat-acts">' +
+              '<button class="nrya-chat-x nrya-chat-back" id="nryaChatBack" title="뒤로" style="display:none">‹</button>' +
+              '<button class="nrya-chat-x nrya-chat-hist" id="nryaChatHist" title="대화 기록">🕘</button>' +
+              '<button class="nrya-chat-x" id="nryaChatX">×</button>' +
+            '</div>' +
           '</div>' +
           '<div class="nrya-chat-body" id="nryaChatBody">' +
-            '<div class="nrya-krow nrya-ai"><div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div></div></div></div>' +
+            '<div class="nrya-krow nrya-ai"><div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div></div></div></div>' +
           '</div>' +
+          // 대화 기록(기기 저장) 목록 화면 — 열릴 때만 보이고 그동안 위 대화 영역은 숨는다
+          '<div class="nrya-hist" id="nryaHistPanel" style="display:none"></div>' +
           '<div class="nrya-chat-input"><button class="nrya-chat-plus" title="첨부">＋</button><input id="nryaChatInput" placeholder="메시지 입력" /><button class="nrya-chat-send" id="nryaChatSend">➤</button></div>' +
         '</div>' +
       '</div>';
@@ -928,7 +939,7 @@
    */
   function fitChat() {
     var chat = document.querySelector('#nryaChatWrap .nrya-chat'); if (!chat) return;
-    var margin = 12;
+    var margin = 28;   // ⚠ ai_chat.css 의 .nrya-chat top(28px)·height(100vh-56px)와 같은 값
     var vv = window.visualViewport;
     if (vv) {
       var h = Math.max(240, vv.height - margin * 2);
@@ -974,6 +985,144 @@
     removeVV();
     // 답이 오기 전에 채팅창을 닫으면 동의배너 타이머도 취소한다 — 안 보는 사이 뜬금없이 뜨지 않게.
     if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; }
+    closeHistory(true);   // 기록 화면을 켜둔 채 닫았어도 다음에 열면 평소 대화 화면부터
+  }
+
+  // ── 대화 기록(기기 저장): 헤더 🕘 → 날짜별 목록 → 누르면 그 질문/답변을 말풍선으로 ──────
+  //    저장은 doSend 가 **진짜 최종 답변**을 받은 순간에만 한다(되묻기·오류는 저장 안 함).
+  //    근거 법령(sources·citationChain)은 저장하지 않는다 — 용량이 커지는데 "내가 뭘 물었더라"
+  //    를 되짚는 데는 질문·답변 문장이면 충분하다(지난 답변을 눌러도 근거 아코디언은 안 붙는다).
+
+  /**
+   * 저장된 대화 기록을 배열로 읽는다(없거나 깨졌으면 빈 배열 — 절대 예외를 던지지 않는다).
+   * @returns {Array<{q:string,a:string,note:string,ts:number}>} 오래된 것부터
+   */
+  function loadHistory() {
+    try {
+      var raw = localStorage.getItem(LS_HISTORY);
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (_) { return []; }
+  }
+
+  /**
+   * 질문/답변 한 쌍을 기록에 덧붙인다(상한 초과분은 오래된 것부터 버린다).
+   * 예: pushHistory('5톤 낚시어선 야간조업?', {answer:'…', note:'…'})
+   * @param {string} q - 사용자 질문
+   * @param {object} data - done 응답({answer, note})
+   * [연계] ← doSend 의 최종 렌더 직후(되묻기·오류 제외). → openHistory 목록.
+   */
+  function pushHistory(q, data) {
+    try {
+      var arr = loadHistory();
+      arr.push({ q: String(q || ''), a: String((data && data.answer) || ''), note: String((data && data.note) || ''), ts: Date.now() });
+      if (arr.length > HISTORY_MAX) arr = arr.slice(arr.length - HISTORY_MAX);
+      localStorage.setItem(LS_HISTORY, JSON.stringify(arr));
+    } catch (_) { /* 저장 불가(시크릿 모드·용량 초과)여도 대화는 계속돼야 한다 */ }
+  }
+
+  /** 기록 목록의 날짜 머리글 문구. 예: '오늘' · '어제' · '2026. 8. 1.' @param {number} ts @returns {string} */
+  function histDayLabel(ts) {
+    var d = new Date(ts), now = new Date();
+    var d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var n0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var diff = Math.round((n0 - d0) / 86400000);
+    if (diff <= 0) return '오늘';
+    if (diff === 1) return '어제';
+    return d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '.';
+  }
+
+  /** 기록 항목 오른쪽의 상대 시각. 예: '방금' · '12분 전' · '3시간 전' · '5일 전' @param {number} ts @returns {string} */
+  function histTimeLabel(ts) {
+    var s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return '방금';
+    if (s < 3600) return Math.floor(s / 60) + '분 전';
+    if (s < 86400) return Math.floor(s / 3600) + '시간 전';
+    return Math.floor(s / 86400) + '일 전';
+  }
+
+  /**
+   * 기록 목록 HTML(최신 → 과거, 날짜 머리글로 묶음)을 만든다. 질문이 길면 CSS 로 말줄임한다.
+   * @returns {string} HTML(기록이 없으면 안내 문구)
+   */
+  function historyListHTML() {
+    var list = loadHistory();
+    if (!list.length) {
+      return '<div class="nrya-hist-empty">아직 저장된 대화가 없어요.<br>질문하고 답변을 받으면 여기에 쌓입니다.</div>';
+    }
+    var html = '', lastDay = '';
+    for (var i = list.length - 1; i >= 0; i--) {
+      var e = list[i] || {};
+      var day = histDayLabel(e.ts);
+      if (day !== lastDay) { lastDay = day; html += '<div class="nrya-hist-day">' + esc(day) + '</div>'; }
+      html += '<button type="button" class="nrya-hist-item" data-ts="' + esc(String(e.ts)) + '">' +
+        '<span class="nrya-hist-q">' + esc(e.q || '(질문 없음)') + '</span>' +
+        '<span class="nrya-hist-t">' + esc(histTimeLabel(e.ts)) + '</span>' +
+      '</button>';
+    }
+    return html;
+  }
+
+  /**
+   * 헤더 오른쪽 버튼을 기록 모드/평소 모드로 바꾼다(‹ 뒤로 ↔ 🕘 기록). ✕ 는 항상 그대로 둔다.
+   * @param {boolean} backMode - true 면 ‹ 만, false 면 🕘 만 보인다
+   */
+  function setHistHeader(backMode) {
+    var hb = document.getElementById('nryaChatHist'); if (hb) hb.style.display = backMode ? 'none' : '';
+    var bb = document.getElementById('nryaChatBack'); if (bb) bb.style.display = backMode ? '' : 'none';
+  }
+
+  /** 기록 목록 화면이 지금 떠 있는지. @returns {boolean} */
+  function isHistoryOpen() {
+    var p = document.getElementById('nryaHistPanel');
+    return !!(p && p.style.display !== 'none');
+  }
+
+  /**
+   * 기록 목록 화면을 연다(대화 영역을 숨기고 목록 패널을 채운다 — 대화 DOM 은 그대로 남는다).
+   * [연계] ← 헤더 🕘 버튼, onHistBack(지난 답변을 본 뒤 다시 목록으로).
+   */
+  function openHistory() {
+    var panel = document.getElementById('nryaHistPanel'); if (!panel) return;
+    panel.innerHTML = historyListHTML();
+    panel.style.display = 'block';
+    panel.scrollTop = 0;
+    var body = document.getElementById('nryaChatBody'); if (body) body.style.display = 'none';
+    setHistHeader(true);
+  }
+
+  /**
+   * 기록 목록을 닫고 대화 화면으로 되돌린다.
+   * @param {boolean} hideBack - true 면 헤더도 평소(🕘)로. 지난 답변을 펼친 직후엔 false 로 두어
+   *                             ‹ 로 목록에 다시 갈 수 있게 남긴다.
+   */
+  function closeHistory(hideBack) {
+    var panel = document.getElementById('nryaHistPanel');
+    if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+    var body = document.getElementById('nryaChatBody'); if (body) body.style.display = '';
+    if (hideBack) setHistHeader(false);
+    _scrollChatBottom();
+  }
+
+  /** 헤더 ‹ 버튼: 목록을 보고 있으면 대화로, 지난 답변을 펼친 뒤라면 목록으로 돌아간다. */
+  function onHistBack() {
+    if (isHistoryOpen()) closeHistory(true);
+    else openHistory();
+  }
+
+  /**
+   * 기록 항목을 눌렀을 때: 그 질문/답변을 평소 말풍선 쌍으로 대화창에 붙이고 대화 화면으로 돌아간다.
+   * 붙인 뒤에도 입력창은 그대로라 이어서 새 질문을 할 수 있고, 헤더 ‹ 로 목록에 다시 갈 수 있다.
+   * @param {string} ts - 항목의 data-ts(저장 시각 = 식별자)
+   * [연계] → renderRestoredAnswer(푸시 복원과 같은 말풍선 쌍 렌더를 재사용).
+   */
+  function openHistoryEntry(ts) {
+    var list = loadHistory(), hit = null;
+    for (var i = list.length - 1; i >= 0; i--) { if (String(list[i] && list[i].ts) === String(ts)) { hit = list[i]; break; } }
+    if (!hit) return;
+    closeHistory(false);   // 목록만 닫고 ‹ 는 남긴다
+    renderRestoredAnswer({ ok: true, query: hit.q, answer: hit.a, sources: [], note: hit.note });
   }
 
   function bindChat() {
@@ -983,6 +1132,8 @@
 
     if (fab) fab.addEventListener('click', openChat);
     var x = document.getElementById('nryaChatX'); if (x) x.addEventListener('click', closeChat);
+    var hist = document.getElementById('nryaChatHist'); if (hist) hist.addEventListener('click', openHistory);
+    var back = document.getElementById('nryaChatBack'); if (back) back.addEventListener('click', onHistBack);
     var send = document.getElementById('nryaChatSend'); if (send) send.addEventListener('click', doSend);
     if (input) {
       input.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSend(); });
@@ -1004,6 +1155,13 @@
       if (e.target.closest('.nrya-chain-tel')) return;
       var hit = e.target.closest('.nrya-chain-hit');
       if (hit) openArtPop(hit);
+    });
+
+    // 기록 목록 항목 클릭(목록은 열 때마다 새로 그려지므로 패널에 한 번만 위임한다)
+    var panel = document.getElementById('nryaHistPanel');
+    if (panel) panel.addEventListener('click', function (e) {
+      var it = e.target.closest('.nrya-hist-item');
+      if (it) openHistoryEntry(it.getAttribute('data-ts'));
     });
   }
 
@@ -1701,7 +1859,7 @@
     var row = document.createElement('div'); row.className = 'nrya-krow nrya-ai';
     if (rowId) row.id = rowId;
     row.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div>' +
-      '<div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow">' +
+      '<div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow">' +
       '<div class="nrya-kbub nrya-ai"></div></div></div>';
     var bub = row.querySelector('.nrya-kbub');
     bub.innerHTML = innerHTML;
@@ -1773,6 +1931,7 @@
     if (!body || !input) return;
     var q = (input.value || '').trim();
     if (!q) q = '특정해역에서 야간 조업 제한이 있어?';
+    if (isHistoryOpen()) closeHistory(true);   // 기록 목록을 보다가 질문하면 대화 화면으로 돌아온다
 
     // 내 말풍선
     var me = document.createElement('div'); me.className = 'nrya-krow nrya-me';
@@ -1782,7 +1941,7 @@
 
     // 생각중(스켈레톤 + 상태 텍스트)
     var th = document.createElement('div'); th.className = 'nrya-krow nrya-ai';
-    th.innerHTML = '<div class="nrya-kava"><div class="nrya-ava nrya-think"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">' +
+    th.innerHTML = '<div class="nrya-kava"><div class="nrya-ava nrya-think"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">' +
       '<div class="nrya-sk-line" style="width:130px"></div><div class="nrya-sk-line" style="width:90px"></div>' +
       '<div class="nrya-think-status"><span class="nrya-ts">생각하고 있습니다</span><span class="nrya-think-dots"><i></i><i></i><i></i></span></div></div></div></div>';
     body.appendChild(th); body.scrollTop = body.scrollHeight;
@@ -1798,7 +1957,7 @@
       if (bubbleEl) return;
       clearInterval(iv); if (orb) orb.classList.remove('nrya-think'); th.remove();
       var a = document.createElement('div'); a.className = 'nrya-krow nrya-ai';
-      a.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">나리야</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai"></div></div></div>';
+      a.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai"></div></div></div>';
       body.appendChild(a);
       bubbleEl = a.querySelector('.nrya-kbub');
     }
@@ -1832,6 +1991,9 @@
         ensureAnswerBubble(); // done만 오고 delta가 하나도 없었던 경우(근거없음·오류) 대비
         bubbleEl.innerHTML = answerHTML(q, data);
         body.scrollTop = body.scrollHeight;
+        // 진짜 최종 답변일 때만 기기에 기록으로 남긴다 — 되묻기(clarify)는 아직 답이 아니고,
+        // 실패(!ok)나 답변 문장이 없는 응답은 나중에 다시 봐도 얻을 게 없다.
+        if (data && data.ok && !data.clarify && data.answer) pushHistory(q, data);
         // 답변이 도착했는데 채팅창을 닫아둔 상태면 FAB 뱃지로 알린다(열려 있으면 이미 보는 중).
         if (!isChatOpen()) setUnread(getUnread() + 1);
       });
@@ -1846,9 +2008,15 @@
     return esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
   }
 
-  /** 조문의 요지에 처벌 문구가 들어있으면 처벌 조문으로 본다(체인 끝에 빨간 원으로 따로 뺀다). */
+  /**
+   * 요지나 원문 발췌에 처벌 문구가 들어있으면 처벌 조문으로 본다(체인 끝에 빨간 원으로 따로 뺀다).
+   * ⚠ "형벌"도 찾아야 한다 — 위키 요지가 "처벌"이 아니라 "형벌(구간·재범·측정거부)"처럼 적힌
+   *   행이 있어 "처벌"만 찾으면 놓친다(실측: 해상교통안전법 제113조 — 원문 제목 자체가
+   *   "제113조(벌칙)"인데 요지 문구 차이로 '법률' 배지가 뜬 사례). 요지뿐 아니라 원문 발췌
+   *   (row.excerpt)도 함께 본다 — 요지가 짧아 처벌 문구를 못 담았어도 발췌 쪽엔 있을 수 있다.
+   */
   function isPenaltyRow(row) {
-    return /징역|벌금|과태료|처벌/.test(String(row.gist || ''));
+    return /징역|벌금|과태료|처벌|형벌|몰수|추징/.test(String(row.gist || '') + ' ' + String(row.excerpt || ''));
   }
 
   /** tier 코드를 화면 라벨로. 처벌 조문은 '벌칙'으로 표시한다. */

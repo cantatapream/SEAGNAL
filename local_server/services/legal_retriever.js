@@ -591,6 +591,14 @@ const CLARIFY_NONE = Object.freeze({ needed: false });
 // 클라이언트가 "원래질문 + 고른 선택지"를 합칠 때 쓰는 구분자(ai_chat.js pickClarifyOption:
 // `q + ' — ' + label`, em dash U+2014 앞뒤 공백). ⚠ 한쪽만 바꾸면 재되묻기 차단이 뚫린다.
 const CLARIFY_JOINER = ' — ';
+// 되묻기를 이어서 할 수 있는 최대 라운드 수(질의에 붙은 CLARIFY_JOINER 개수 = 이미 지나온 라운드 수).
+// ⚠ 1이 아니라 2인 이유: 한 번 좁혀도 여전히 답이 갈리는 질문이 실제로 있다 — "낚시어선에서 술
+//   마시면?"은 ①선장·선원이냐 승객이냐 를 물은 뒤에도, 그 답에 따라 ②하천·호소냐 바다냐(적용
+//   법령·처벌이 아예 다르다)를 한 번 더 물어야 제대로 답이 나온다. 1로 묶어두면 두 번째 갈래를
+//   영영 못 묻는다.
+// ⚠ 그래도 상한 자체는 남긴다 — 무한루프 차단은 프롬프트가 아니라 **코드**로 한다(아래 decideClarify
+//   주석 참고). 상한을 없애면 모델이 기준3을 어길 때 버튼→되묻기→버튼이 끝나지 않는다.
+const CLARIFY_MAX_ROUNDS = 2;
 const CLARIFY_CONFIG = {
   temperature: 0.1,
   thinkingConfig: { thinkingBudget: 0 },
@@ -612,9 +620,11 @@ function clarifyStr(v, max) {
  * ★환각 0: 선택지는 **[근거자료]에 실제로 적힌 구분**에서만 만들게 프롬프트로 강제한다(예:
  *   "조타기를 조작하거나 그 조작을 지시하는 자"라는 조문 문구가 있어야 "조타 담당자냐 승객이냐"를
  *   물을 수 있다). 근거가 없으면 needed:false로 물러난다.
- * ★재되묻기 방지: 이미 조건이 붙은 합쳐진 질의("… — 바다에서 운항 중, 조타 담당자 기준")가
- *   들어오면 프롬프트(기준3)에 앞서 **CLARIFY_JOINER 포함 여부만 보고 Gemini를 부르지도 않고**
- *   물러난다 — 모델이 기준3을 어기면 버튼→되묻기→버튼 무한루프가 되므로 결정론적으로 막는다.
+ * ★재되묻기 방지: 되묻기는 **최대 CLARIFY_MAX_ROUNDS 라운드**까지만 이어진다 — 이미 지나온 라운드
+ *   수는 질의에 붙은 CLARIFY_JOINER 개수로 세고, 상한에 닿으면 프롬프트(기준3)에 앞서
+ *   **Gemini를 부르지도 않고** 물러난다. 모델이 기준3을 어기면 버튼→되묻기→버튼 무한루프가 되므로
+ *   천장은 결정론적으로 막되, 한 번 좁혀도 갈래가 남는 질문(선원/승객 → 하천/바다)은 통과시킨다.
+ *   같은 조건을 두 번 묻지 않게 하는 건 여전히 프롬프트 기준3의 몫이다(이 상한은 백스톱일 뿐).
  * ★hint 검증: 모델이 근거자료에 없는 조문번호를 hint에 지어넣을 수 있어, 파싱 후 hint의
  *   조문번호 토큰을 [근거자료] 원문과 대조해 없으면 그 hint만 비운다(선택지는 유지).
  * 실패(키 없음·근거 없음·타임아웃·파싱 실패·스키마 불충족)는 예외 없이 {needed:false} —
@@ -630,10 +640,12 @@ function clarifyStr(v, max) {
 async function decideClarify(query, contextPages) {
   if (!gemini.hasAnyKey() || !contextPages || !contextPages.length) return CLARIFY_NONE;
   // ★재되묻기 무한루프 차단(프롬프트 기준3의 결정론적 백스톱): 선택지 버튼으로 되돌아온 질의는
-  // 반드시 CLARIFY_JOINER 를 달고 온다 — 모델 판단에 맡기지 않고 여기서 곧바로 물러난다.
+  // 반드시 CLARIFY_JOINER 를 달고 오므로, 그 개수가 곧 **이미 지나온 되묻기 라운드 수**다.
+  // 상한(CLARIFY_MAX_ROUNDS)에 닿았으면 모델 판단에 맡기지 않고 여기서 곧바로 물러난다.
   // (모델이 기준3을 어기면 버튼→되묻기→버튼 무한루프가 된다.) 사용자가 직접 " — "를 타이핑한
   // 드문 경우도 되묻기를 건너뛸 뿐이라 안전한 쪽으로 틀린다.
-  if (String(query || '').includes(CLARIFY_JOINER)) return CLARIFY_NONE;
+  const rounds = String(query || '').split(CLARIFY_JOINER).length - 1;
+  if (rounds >= CLARIFY_MAX_ROUNDS) return CLARIFY_NONE;
   const block = contextPages.slice(0, CLARIFY_TOPK).map((cp, i) => {
     const title = cp.topic ? `${cp.law} — ${cp.topic}` : cp.law;
     return `--- 근거${i + 1}: [${title}] ---\n${String(cp.body || '').slice(0, CLARIFY_BODY_CHARS)}`;
@@ -851,9 +863,71 @@ function filterCitationChainByAnswer(chain, answerText) {
   return (chain || []).filter(row => {
     const law = row.law || '';
     if (!law || law.length < 2 || !text.includes(law)) return false;
-    const tokens = String(row.article || '').match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\d+(?:의\d+)?/g) || [];
+    const article = String(row.article || '');
+    // ⚠ 범위 인용("제1~4조")은 조 번호를 낱개로 못 뽑아 위 토큰 방식으로는 항상 걸러졌다 — 그런데
+    //   이런 배경설명용 표(목적·정의·적용범위 허브 페이지에 흔함)가 실제로는 답변이 그 범위 **안**의
+    //   조문(예: "제3조제1항")을 정확히 인용한 경우가 실측됨("해상교통안전법 적용범위" 질문에서
+    //   근거 법령 아코디언이 통째로 사라짐 — 답변엔 제3조제1항이 정확히 인용돼 있는데도). 범위 표기는
+    //   [from,to]로 풀어, 답변에 언급된 조 번호가 그 구간 안에 들면 통과시킨다.
+    const range = /제(\d+)\s*[~∼]\s*(\d+)조/.exec(article);
+    if (range) {
+      const from = parseInt(range[1], 10), to = parseInt(range[2], 10);
+      const cited = text.match(/제\d+조/g) || [];
+      return cited.some(c => {
+        const n = parseInt(c.replace(/\D/g, ''), 10);
+        return n >= from && n <= to;
+      });
+    }
+    const tokens = article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\d+(?:의\d+)?/g) || [];
     return tokens.some(t => text.includes(t));
   });
+}
+
+// 위임 흐름의 고정 순서(넓은 것 → 좁은 것). classifyTier가 붙여둔 tier 값과 같은 낱말이라야 한다.
+const FLOW_TIER_ORDER = { law: 0, decree: 1, rule: 2, notice: 3 };
+
+/**
+ * 살아남은 인용사슬 줄을 **"답변이 실제로 밟은 추론 경로"** 처럼 읽히게 재배열한다:
+ * 법 하나를 법률→시행령→시행규칙→고시 순으로 끝까지 보여준 뒤, 다음 법으로 넘어간다.
+ * (예: 금지는 A법, 처벌은 B법인 페이지에서 A법 줄과 B법 줄이 뒤섞여 나오던 것을 A법 묶음 → B법
+ *  묶음으로 정리한다.)
+ * ⚠ 법의 순서는 **먼저 나온 순서**(first-occurrence)로 정한다 — 들어오는 배열은 이미
+ *   filterCitationChainByAnswer가 "답변 문장에 실제로 인용된 줄"만 남긴 것이라, 먼저 놓인 법이
+ *   답변이 먼저 짚은 법에 가깝다는 근사다. 법 이름은 **문자열 완전일치**로만 묶는다(같은 법의
+ *   시행령·시행규칙은 이름이 달라 별도 그룹처럼 보이지만, 위키 표가 관행상 법률 바로 뒤에 그
+ *   시행령을 적어두므로 first-occurrence 순서가 곧 위임 순서가 된다 — 이름에서 "시행령"을 떼어
+ *   모법으로 합치는 추측은 하지 않는다. 약칭·개정명까지 얽혀 틀리면 없는 위임을 지어내는 셈이다).
+ * ⚠ MVP 범위: 이 함수는 **이미 있는 tier·law 필드로 정렬만** 한다 — `제N조 위임 → 제M조` 링크를
+ *   law.go.kr에서 그때그때 추적해 진짜 위임 사슬을 그리는 건 답변 1건마다 API 조회가 붙는 별개
+ *   과제라 여기 범위 밖이다(사용자 확인). 그래서 결과는 "검증된 위임 사슬"이 아니라 "관행상
+ *   위임 순서에 가깝게 정돈된 목록"이다.
+ * ★환각 0: 줄을 새로 만들거나 지우거나 합치지 않는다 — 들어온 줄 그대로, 순서만 바꾼다
+ *   (입력 길이 = 출력 길이).
+ * 예: groupCitationChainByFlow([{law:'A법 시행령',tier:'decree'}, {law:'B법',tier:'law'},
+ *     {law:'A법 시행령',tier:'decree'}, ...]) → A법 시행령 줄들 → B법 줄들 순으로 나온다.
+ * @param {Array} chain - filterCitationChainByAnswer를 통과한 줄들(law·tier 포함)
+ * @returns {Array} 법별로 묶고 각 묶음 안을 tier 순(law→decree→rule→notice)으로 정렬한 새 배열
+ *                  (같은 tier끼리는 원래 순서 유지 — 안정 정렬)
+ * [연계] ← routes/legal.js가 filterCitationChainByAnswer 직후 각 소스에 적용.
+ *        → ai_chat.js chainHTML(이 순서대로 체인을 그린다. 처벌 줄을 별도 체인으로 빼는
+ *          isPenaltyRow 분리는 순서와 무관하게 그대로 동작한다).
+ */
+function groupCitationChainByFlow(chain) {
+  const rows = chain || [];
+  const groups = new Map();             // law → 그 법의 줄들(먼저 나온 법이 먼저 들어간다)
+  rows.forEach((row) => {
+    const key = (row && row.law) || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+  const out = [];
+  groups.forEach((g) => {
+    // Array#sort는 Node 11+에서 안정 정렬이라 같은 tier 줄의 원래 순서가 유지된다.
+    // 모르는 tier 값은 맨 뒤로 보낸다(줄을 버리지는 않는다 — 환각 0의 반대편, 누락 0).
+    const ord = r => (FLOW_TIER_ORDER[r && r.tier] !== undefined ? FLOW_TIER_ORDER[r.tier] : 99);
+    g.slice().sort((a, b) => ord(a) - ord(b)).forEach(r => out.push(r));
+  });
+  return out;
 }
 
 /** contextPages를 프롬프트용 [근거자료] 블록 문자열로 직렬화. */
@@ -881,7 +955,7 @@ const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
 4. 판례·법리 해석·다툼의 여지가 있는 논점은 답하지 않는다(스코프 밖). 명확한 조문까지만 안내하고 "이 부분은 개별 사안에 따라 달라져 관할 소관부서에 확인하시는 것이 정확합니다"로 마무리한다.
 5. 딱딱한 조문 나열 금지. 결론 먼저 → 필요한 근거. **본문 첫 문장을 "쉽게 말하면 ~"으로 열어** 결론을 일상어로 짧게 요약한 뒤, 조문·처벌 같은 정확한 근거를 그다음에 이어 붙인다 — 이 쉬운 요약을 답변 맨 끝에 마무리 말로 붙이지 않는다. 과잉 설명은 하지 않는다.
 6. 근거로 삼은 법령명·조문번호는 답변 문장 안에서 자연스럽게 밝힌다(예: "「낚시 관리 및 육성법」 제35조에 따라 …"). 다만 소관부서·연락처·근거자료의 기준일을 답변 마지막에 각주로 따로 붙이지는 않는다 — 화면이 답변 바로 아래에 "근거 법령" 목록을 함께 실어 사용자가 펼쳐서 확인할 수 있다. ("참고용입니다" 면책 문구도 화면이 별도로 붙이니 답변에 넣지 않는다.)
-7. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용.
+7. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용. 갈래·조건별로 나뉘는 설명은 "*" 같은 밋밋한 기호 하나로 뭉뚱그리지 말고, 단계(갈래→항목→세부조건)에 따라 "1. → 가. → 1)" 순서로 번호를 매겨 위계를 드러낸다(더 깊어지면 "가)→(1)→(가)" 순으로 이어간다). 예: "1. 바다에서 조종한 경우" 아래 "가. 형벌" 아래 "1) 총톤수 5톤 이상 선박은…".
 8. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.`;
 
 const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
@@ -1120,4 +1194,4 @@ async function searchRawFallback(query) {
   }
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, rawPathOf };
+module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf };
