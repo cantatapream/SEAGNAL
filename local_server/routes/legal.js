@@ -547,7 +547,13 @@ router.post('/api/legal/ask', async (req, res) => {
     // citationChain도 소스와 같은 방식으로 답변 문장과 대조해 무관한 줄을 뺀다(legal_retriever.js
     // filterCitationChainByAnswer 참고 — 소스가 통과해도 그 안 표 9줄이 통째로 딸려나오던 문제).
     if (usedGemini) {
-      finalSources.forEach(s => { s.citationChain = legalRetriever.filterCitationChainByAnswer(s.citationChain, full); });
+      // 그다음 살아남은 줄을 "법 하나를 법률→시행령→시행규칙→고시 순으로 끝내고 다음 법으로" 순서로
+      // 재배열한다(groupCitationChainByFlow) — 화면 체인이 뒤섞인 목록이 아니라 추론 경로로 읽히게.
+      // ⚠ 반드시 거른 **뒤에** 부른다(원표 순서가 아니라 답변이 실제로 인용한 줄만 정렬해야 한다).
+      finalSources.forEach(s => {
+        s.citationChain = legalRetriever.filterCitationChainByAnswer(s.citationChain, full);
+        s.citationChain = legalRetriever.groupCitationChainByFlow(s.citationChain);
+      });
       // 살아남은 줄에만 조문 원문 발췌를 붙인다(거르기 전에 붙이면 버려질 줄까지 원문을 읽는다).
       // 실제 대상은 화면이 펼칠 소스 하나(pickChainSource) — 통상 3~6줄, 상한 MAX_EXCERPT_ROWS.
       await attachChainExcerpts(pickChainSource(finalSources));
