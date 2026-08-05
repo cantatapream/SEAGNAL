@@ -527,6 +527,47 @@ function sliceRelevant(body, terms, maxChars) {
   return out;
 }
 
+/**
+ * L-15/L-67 페이지 단위 draft 게이트의 저비용 완화책(`_SCHEMA.md` §"인라인 REVIEW 마커" —
+ * 마커 부착까지만 해두고 미룬 실제 필터 로직, 2026-08-05 사용자 지시로 구현). 지금까지 draft
+ * 페이지는 REVIEW 마커 없는 부분까지 통째로 인용에서 제외됐다 — 이 함수는 본문을 줄 단위로
+ * 훑어 "REVIEW"라는 단어가 들어간 줄만 빼고 나머지(검증된 부분)는 그대로 남긴다.
+ * ⚠ 표시 없는 단어 하나만 기준으로 삼는 이유: 실제 위키를 전수 조사한 결과 REVIEW 마커
+ * 표기가 `⚠REVIEW-XX`(붙여쓰기)·`⚠ REVIEW`(띄어쓰기)·`(REVIEW)`/`REVIEW 대상`(⚠ 없이 맨 단어만)
+ * 세 가지 형태로 뒤섞여 있었다(예: `선박교통관제에관한법률__관제사지시위반.md` 40행은
+ * `→ REVIEW: "정당한 사유" 해석은 사안별 판단`처럼 ⚠ 기호가 아예 없다) — `⚠REVIEW`만 찾으면
+ * 이런 페이지의 미해소 판단이 그대로 새어나간다. 대문자 "REVIEW" 단어 자체를 기준으로 잡는
+ * 게 과하게 넓어 보여도(변경이력의 이미 해소된 "REVIEW-XX 해소" 언급도 함께 빠짐) 안전한
+ * 방향의 오차다 — 놓쳐서 미검증 주장이 새는 것보다 과하게 걸러 일부 무해한 줄이 같이
+ * 빠지는 편이 낫다.
+ * ⚠ 전제: 이 저장소의 위키 본문은 불릿/문단이 줄바꿈 없이 한 줄로 통짜 작성되는 관례라(전수
+ * 확인) 줄 단위 제거로 충분하다 — 향후 문단이 여러 줄로 줄바꿈되는 관례로 바뀌면 이 전제가
+ * 깨진다.
+ * @param {string} body - 페이지 마크다운 본문(원문)
+ * @returns {string} "REVIEW" 단어가 포함된 줄을 제거한 본문
+ */
+function stripUnresolvedReview(body) {
+  if (!body) return body;
+  return body.split('\n').filter(line => !/\bREVIEW\b/.test(line)).join('\n');
+}
+
+/**
+ * canonicalOnly 모드에서 draft(비-statute) 페이지가 실제로 인용에 쓸 수 있는 본문을 만든다.
+ * statute·canonical 페이지는 그대로(REVIEW 잔존이 있어선 안 되는 상태이므로 손대지 않음),
+ * draft인 concept·comparison 페이지만 stripUnresolvedReview로 걸러 "검증된 부분만" 남긴다.
+ * @param {{kind:string,status?:string,file:string}} p - 인덱스 페이지 메타
+ * @param {boolean} canonicalOnly
+ * @returns {string} 인용 가능한 본문(비-canonicalOnly거나 canonical/statute면 원문 그대로)
+ */
+function citableBody(p, canonicalOnly) {
+  const page = readPage(p.kind, p.file);
+  const body = page ? page.body : '';
+  if (canonicalOnly && p.kind !== 'statute' && p.status !== 'canonical') {
+    return stripUnresolvedReview(body);
+  }
+  return body;
+}
+
 // 서버 기동 직후 본문 캐시를 미리 데워 첫 사용자 질문이 콜드 디스크읽기(전체 corpus 수 초)를
 // 기다리지 않게 한다. 실패해도 조용히 무시 — 어차피 각 페이지는 처음 필요할 때 다시 읽힌다.
 function warmup() {
@@ -735,8 +776,11 @@ ${block}
 async function search(query, opts) {
   const canonicalOnly = !!(opts && opts.canonicalOnly);
   const idx = loadIndex();
-  let pages = idx.pages || [];
-  if (canonicalOnly) pages = pages.filter(p => p.kind === 'statute' || p.status === 'canonical');
+  const pages = idx.pages || [];
+  // (2026-08-05) 이전엔 여기서 draft(비-statute) 페이지를 통째로 제외했다. 이제는 페이지 자체는
+  // 점수 매기기 후보에 남겨두고, 아래 citableBody()가 draft 페이지의 REVIEW 마커 없는 부분만
+  // 골라 인용에 쓴다 — 전부 REVIEW로 덮여있던 페이지는 citableBody가 빈 문자열을 돌려주므로
+  // finalWithBody 단계에서 자연히 걸러진다.
 
   const byFile = new Map(pages.map(p => [p.kind + ':' + p.file, p]));
   const terms = termsOf(query);
@@ -790,14 +834,21 @@ async function search(query, opts) {
     }
   }
 
-  const finalList = [...primary, ...hop];
-  const contextPages = finalList.map(x => {
+  // (2026-08-05) canonicalOnly일 때 draft(비-statute) 페이지는 citableBody()가 REVIEW 마커
+  // 없는 부분만 남긴 본문을 준다 — 전부 REVIEW로 덮여있던 페이지는 빈 문자열이 되어 여기서
+  // 자연히 빠진다(page-level 제외 대신 content-level 제외). contextPages·sources 양쪽에서
+  // 같은 본문을 다시 계산하지 않도록 한 번만 구해 재사용한다.
+  const finalList = [...primary, ...hop]
+    .map(x => ({ x, body: citableBody(x.p, canonicalOnly) }))
+    .filter(e => e.body);
+
+  const contextPages = finalList.map(({ x, body }) => {
     const page = readPage(x.p.kind, x.p.file);
     return {
       law: x.p.law, topic: x.p.topic, file: x.p.file, kind: x.p.kind, status: x.p.status || null,
       hop: !!x.hop,
       frontmatter: page ? page.frontmatter : {},
-      body: page ? sliceRelevant(page.body, allTerms, MAX_BODY_CHARS) : '',
+      body: sliceRelevant(body, allTerms, MAX_BODY_CHARS),
     };
   }).filter(cp => cp.body);
 
@@ -806,18 +857,16 @@ async function search(query, opts) {
   // — "낚싯대 음주" 질문에서 정확한 표가 있는 "해기사음주행정처분" 페이지 대신 배경설명용
   // 표만 있는 "정의와적용범위" 페이지가 상위 5등을 차지해 그 표가 뜬 사례). 뒤이어
   // filterCitationChainByAnswer(routes/legal.js)가 답변 문장과 대조해 줄 단위로 거른다.
-  // 본문은 위에서 이미 readPage로 캐시돼 있어 파일을 다시 읽지 않는다.
-  const sources = finalList.map((x) => {
+  // extractCitationChain·extractGapNotices는 citableBody가 이미 걸러낸 본문에서 뽑으므로,
+  // draft 페이지의 "## 근거 조문" 표에 REVIEW 붙은 행이 있었다면 그 행은 인용사슬에도 안 실린다.
+  const sources = finalList.map(({ x, body }) => {
     const s = {
       file: x.p.file, law: x.p.law, topic: x.p.topic, kind: x.p.kind, status: x.p.status || null,
       score: x.s, hop: !!x.hop, cited: x.p.cited || [],
     };
-    const page = readPage(x.p.kind, x.p.file);
-    s.citationChain = page
-      ? extractCitationChain(page.body).map(row => Object.assign({}, row, { contact: lookupContact(row.law) }))
-      : [];
+    s.citationChain = extractCitationChain(body).map(row => Object.assign({}, row, { contact: lookupContact(row.law) }));
     // 이 페이지가 "우리가 원문을 가질 수 없는 공백"(시군구 개별고시 등)을 적어뒀으면 함께 싣는다.
-    s.gapNotices = page ? extractGapNotices(page.body) : [];
+    s.gapNotices = extractGapNotices(body);
     return s;
   });
 
