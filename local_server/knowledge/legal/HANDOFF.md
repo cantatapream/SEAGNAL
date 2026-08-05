@@ -374,6 +374,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-05 16:30 KST] 🟢착수 — Track B 65법(tier-1) 드래프트 자동생성 착수
+H-35 §② 드래프트 자동생성 파이프라인 본격 착수. 대상: tier-1 65법(coverage_report.md 기준, tier-2 8법—물환경보전법·출입국관리법 등 참조법 제외, 총 미인용조문 1,850건). 사용자 질문(병렬화 가능여부)에 대해 '병렬 단위=법(페이지), 조문 단위 아님'으로 설계 확정(공유 파일 동시쓰기 경합 방지, CLAUDE.md 병렬 안전 규칙과 동일 논리) — 각 에이전트 내부에서는 조문 원문을 따라가며 판단(사용자 아이디어와 일치). 65법을 7개 배치(법당 9~10개)로 나눠 Workflow 7개 동시 디스패치, 각 배치 내부는 pipeline(법목록, Agent A 초안작성, Agent B 독립검증) — 법 하나가 A 끝나자마자 B가 바로 이어서 검증(barrier 없음). Agent A: coverage/<법>.json의 uncited_articles를 raw 원문+기존위키 대조로 트리아지(부칙/서식/스코프밖 스킵, 진짜공백만 기존페이지 보강 또는 신규 draft 페이지 생성). Agent B: A와 다른 에이전트, 처음부터 재대조(조문·항호·금액 정확성, 환각여부, 스코프, §5 승격판단 — 순수원문인용은 직접 canonical 승격, 해석다툼은 draft유지+REVIEW 후보 보고). 공유파일(review_queue.md/index.json/log.md/HANDOFF.md/graph.json 등) 쓰기 금지, shared_file_suggestions로만 보고하도록 지침. Track A의 args버그 교훈으로 이번엔 처음부터 inline script(법목록 리터럴 하드코딩)로 7개 전부 정상 디스패치(task id: woh8pcueu·w3x652lnl·wz3ynntei·wiaaxzn71·w4q7t5fti·wgi2inpbu·wvy2c3o3b). 다음: 7개 배치 완료 대기, 완료마다 체크포인트 커밋+main 병합(Track A와 동일 패턴), 전부 끝나면 신규 canonical/draft 페이지 수·review_queue 반영·MASTER_PLAN H-35 결과 갱신.
+
+
 ### [2026-08-05 15:54 KST] ✅완료 — Track A 71법 전수 완료 — 36법 77페이지 보강, review_queue 1건 등록
 7개 배치(법당 1에이전트) 전부 완료. 결과: edge 7417개 대조 중 7263개(97.9%) 이미 반영 확인, 154개 진짜 누락 발견해 36법 77페이지 보강 반영(원문 EXACT 인용만, AI 해석 종합은 REVIEW-선원법-03 1건만 review_queue.md 신규 등록). 나머지 35법은 정직하게 '보강할 것 없음'으로 종결. 부수발견: (1)L-64 — build_delegation_graph.js가 '시행령.txt' 리터럴 파일명만 찾아 해양경찰법처럼 명칭이 제각각인 대통령령 여러개로 흩어진 법에서 그래프가 조용히 0건으로 실패하는 결측 패턴 확인(공유 스크립트라 이번엔 안 고침, 다음 그래프 재생성 시 _meta.json families 배열 참조하도록 보강 필요) (2)L-65 — Track A 자동화 시 tier간 조문번호 중복·범위(~) 표기 매칭 함정 2건, 향후 스크립트화 시 반영 필요. MASTER_PLAN.md H-35에 결과 요약 추가, HANDOFF 갱신. 각 배치 에이전트가 CLAUDE.md 규칙대로 자기 작업분을 스스로 커밋한 경우가 다수였고, 오케스트레이터는 잔여 미커밋분을 배치 완료마다 체크포인트 커밋(총 8회 커밋: c8d1babd~418ca0ee)+main 병합. 다음: 사용자 지시 대기 — Track B(드래프트생성) 본격 착수 또는 Track C(오탐지감사) 설계 중 선택.
 
