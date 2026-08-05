@@ -374,6 +374,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-05 17:29 KST] ✅완료 — Track B tier-1 65법 전수 완료 — 34법 실작업, 검증페이지 102개, 정정 54건, canonical 승격 6건
+7개 배치(법당 pipeline Agent A→Agent B) 전부 완료. 결과: 65법 중 34법 실작업(신규 페이지 0건 — tier-1 전체에서 완전 신규 개념페이지가 필요한 진짜 공백 없음, 전부 기존 페이지 보강/검증), Agent B 재검증 페이지 102개 중 54개 항목에서 실질 오류 직접 정정(과잉일반화·위임범위 오인용·시행규칙 시행일 stale 18곳 등), 6페이지 draft→canonical 직접 승격. 나머지 31법 정직하게 종결. 부수발견: L-67(Track B 독립검증이 'REVIEW 정당함'과 'canonical 유지 정당함'을 혼동한 패턴, 어선안전조업법 사례로 발견) 신규 기록. 오케스트레이터 직접조치: review_queue.md 미등록 REVIEW 9건 정식등록, 기존 REVIEW 1건(선박법-803) OCR아님 확인해 해소, 2개페이지(마리나항만법·어선안전조업법) L-15/L-67패턴으로 canonical→draft 환원. 별도로 사용자 질문(별지·별표 연결 완료여부)에 답하며 Track A에서 에이전트가 '이미지라 텍스트없음'이라 잘못 스킵한 선박안전법 별표16(형식승인시험비용 산출기준)을 오케스트레이터가 직접 발견·반영(L-66 기록). MASTER_PLAN.md H-35에 Track B 결과 요약 추가. 다음: 사용자 지시 대기 — Track C(오탐지감사) 착수 여부, 또는 review_queue.md 누적 대기항목(현재 다수) 사람 승인 처리, 또는 다른 우선순위.
+
+
 ### [2026-08-05 16:30 KST] 🟢착수 — Track B 65법(tier-1) 드래프트 자동생성 착수
 H-35 §② 드래프트 자동생성 파이프라인 본격 착수. 대상: tier-1 65법(coverage_report.md 기준, tier-2 8법—물환경보전법·출입국관리법 등 참조법 제외, 총 미인용조문 1,850건). 사용자 질문(병렬화 가능여부)에 대해 '병렬 단위=법(페이지), 조문 단위 아님'으로 설계 확정(공유 파일 동시쓰기 경합 방지, CLAUDE.md 병렬 안전 규칙과 동일 논리) — 각 에이전트 내부에서는 조문 원문을 따라가며 판단(사용자 아이디어와 일치). 65법을 7개 배치(법당 9~10개)로 나눠 Workflow 7개 동시 디스패치, 각 배치 내부는 pipeline(법목록, Agent A 초안작성, Agent B 독립검증) — 법 하나가 A 끝나자마자 B가 바로 이어서 검증(barrier 없음). Agent A: coverage/<법>.json의 uncited_articles를 raw 원문+기존위키 대조로 트리아지(부칙/서식/스코프밖 스킵, 진짜공백만 기존페이지 보강 또는 신규 draft 페이지 생성). Agent B: A와 다른 에이전트, 처음부터 재대조(조문·항호·금액 정확성, 환각여부, 스코프, §5 승격판단 — 순수원문인용은 직접 canonical 승격, 해석다툼은 draft유지+REVIEW 후보 보고). 공유파일(review_queue.md/index.json/log.md/HANDOFF.md/graph.json 등) 쓰기 금지, shared_file_suggestions로만 보고하도록 지침. Track A의 args버그 교훈으로 이번엔 처음부터 inline script(법목록 리터럴 하드코딩)로 7개 전부 정상 디스패치(task id: woh8pcueu·w3x652lnl·wz3ynntei·wiaaxzn71·w4q7t5fti·wgi2inpbu·wvy2c3o3b). 다음: 7개 배치 완료 대기, 완료마다 체크포인트 커밋+main 병합(Track A와 동일 패턴), 전부 끝나면 신규 canonical/draft 페이지 수·review_queue 반영·MASTER_PLAN H-35 결과 갱신.
 
