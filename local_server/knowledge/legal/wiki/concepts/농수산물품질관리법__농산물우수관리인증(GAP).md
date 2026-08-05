@@ -1,7 +1,7 @@
 ---
 id: concept.농산물우수관리인증
 status: draft
-updated: 2026-07-27
+updated: 2026-08-05
 source_tier: 1
 소관부처: 농림축산식품부
 별칭: [GAP, 우수관리인증]
