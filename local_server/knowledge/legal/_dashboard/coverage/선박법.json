@@ -2,12 +2,12 @@
  "law": "선박법",
  "slug": "선박법",
  "total_raw_articles": 96,
- "total_uncited": 22,
- "coverage_pct": 77.1,
+ "total_uncited": 19,
+ "coverage_pct": 80.2,
  "per_family": {
   "법률": {
    "raw_count": 45,
-   "uncited_count": 2
+   "uncited_count": 1
   },
   "시행령": {
    "raw_count": 16,
@@ -15,13 +15,12 @@
   },
   "시행규칙": {
    "raw_count": 35,
-   "uncited_count": 12
+   "uncited_count": 10
   }
  },
  "uncited_articles": {
   "법률": [
-   "26조의2",
-   "28조"
+   "26조의2"
   ],
   "시행령": [
    "1조",
@@ -37,34 +36,16 @@
    "1조",
    "9조",
    "12조",
-   "20조",
    "24조",
    "25조",
    "26조",
    "27조",
    "28조",
    "29조",
-   "32조",
    "35조"
   ]
  },
  "hang_gap_candidates": {
-  "법률": [
-   {
-    "article": "13조",
-    "raw_hang": 7,
-    "missing": [
-     "⑦"
-    ]
-   },
-   {
-    "article": "29조의2",
-    "raw_hang": 5,
-    "missing": [
-     "⑤"
-    ]
-   }
-  ],
   "시행령": [
    {
     "article": "11조의2",
@@ -76,16 +57,6 @@
   ],
   "시행규칙": [
    {
-    "article": "18조",
-    "raw_hang": 5,
-    "missing": [
-     "②",
-     "③",
-     "④",
-     "⑤"
-    ]
-   },
-   {
     "article": "23조",
     "raw_hang": 4,
     "missing": [
@@ -96,7 +67,7 @@
     ]
    },
    {
-    "article": "4조",
+    "article": "6조",
     "raw_hang": 3,
     "missing": [
      "①",
@@ -114,44 +85,20 @@
     ]
    },
    {
-    "article": "15조",
-    "raw_hang": 3,
+    "article": "18조",
+    "raw_hang": 5,
     "missing": [
      "①",
-     "②",
-     "③"
+     "③",
+     "⑤"
     ]
    },
    {
     "article": "5조",
     "raw_hang": 3,
     "missing": [
-     "①",
+     "②",
      "③"
-    ]
-   },
-   {
-    "article": "6조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "③"
-    ]
-   },
-   {
-    "article": "7조",
-    "raw_hang": 7,
-    "missing": [
-     "④",
-     "⑥"
-    ]
-   },
-   {
-    "article": "8조",
-    "raw_hang": 2,
-    "missing": [
-     "①",
-     "②"
     ]
    },
    {
@@ -171,8 +118,22 @@
     ]
    },
    {
+    "article": "7조",
+    "raw_hang": 7,
+    "missing": [
+     "⑥"
+    ]
+   },
+   {
     "article": "13조",
     "raw_hang": 2,
+    "missing": [
+     "①"
+    ]
+   },
+   {
+    "article": "15조",
+    "raw_hang": 3,
     "missing": [
      "①"
     ]

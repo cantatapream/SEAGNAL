@@ -2,8 +2,8 @@
  "law": "수상에서의 수색ㆍ구조 등에 관한 법률",
  "slug": "수상에서의수색ㆍ구조등에관한법률",
  "total_raw_articles": 151,
- "total_uncited": 18,
- "coverage_pct": 88.1,
+ "total_uncited": 17,
+ "coverage_pct": 88.7,
  "per_family": {
   "법률": {
    "raw_count": 61,
@@ -11,7 +11,7 @@
   },
   "시행령": {
    "raw_count": 58,
-   "uncited_count": 12
+   "uncited_count": 11
   },
   "시행규칙": {
    "raw_count": 32,
@@ -31,8 +31,7 @@
    "14조",
    "30조의5",
    "30조의6",
-   "30조의7",
-   "40조의2"
+   "30조의7"
   ],
   "시행규칙": [
    "1조",
@@ -55,33 +54,12 @@
   ],
   "시행령": [
    {
-    "article": "11조",
-    "raw_hang": 7,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④",
-     "⑤",
-     "⑥",
-     "⑦"
-    ]
-   },
-   {
-    "article": "4조",
-    "raw_hang": 5,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④",
-     "⑤"
-    ]
-   },
-   {
     "article": "5조",
     "raw_hang": 7,
     "missing": [
+     "①",
+     "②",
+     "③",
      "④",
      "⑤",
      "⑥",
@@ -99,24 +77,6 @@
     ]
    },
    {
-    "article": "12조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
-    "article": "30조의3",
-    "raw_hang": 4,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
     "article": "30조의4",
     "raw_hang": 3,
     "missing": [
@@ -131,6 +91,14 @@
     "missing": [
      "①",
      "②"
+    ]
+   },
+   {
+    "article": "30조의3",
+    "raw_hang": 4,
+    "missing": [
+     "①",
+     "③"
     ]
    },
    {
@@ -158,17 +126,17 @@
     ]
    },
    {
-    "article": "15조",
-    "raw_hang": 2,
+    "article": "4조",
+    "raw_hang": 5,
     "missing": [
-     "②"
+     "①"
     ]
    },
    {
-    "article": "16조",
-    "raw_hang": 3,
+    "article": "11조",
+    "raw_hang": 7,
     "missing": [
-     "③"
+     "⑦"
     ]
    },
    {
@@ -188,28 +156,6 @@
   ],
   "시행규칙": [
    {
-    "article": "12조의4",
-    "raw_hang": 6,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④",
-     "⑤",
-     "⑥"
-    ]
-   },
-   {
-    "article": "12조",
-    "raw_hang": 8,
-    "missing": [
-     "④",
-     "⑤",
-     "⑥",
-     "⑧"
-    ]
-   },
-   {
     "article": "12조의3",
     "raw_hang": 3,
     "missing": [
@@ -219,12 +165,29 @@
     ]
    },
    {
+    "article": "12조의4",
+    "raw_hang": 6,
+    "missing": [
+     "①",
+     "③",
+     "⑥"
+    ]
+   },
+   {
     "article": "12조의6",
     "raw_hang": 6,
     "missing": [
      "④",
      "⑤",
      "⑥"
+    ]
+   },
+   {
+    "article": "12조",
+    "raw_hang": 8,
+    "missing": [
+     "⑤",
+     "⑧"
     ]
    },
    {
@@ -241,6 +204,14 @@
     "missing": [
      "①",
      "②"
+    ]
+   },
+   {
+    "article": "12조의11",
+    "raw_hang": 6,
+    "missing": [
+     "⑤",
+     "⑥"
     ]
    },
    {
@@ -263,13 +234,6 @@
     "raw_hang": 2,
     "missing": [
      "②"
-    ]
-   },
-   {
-    "article": "12조의11",
-    "raw_hang": 6,
-    "missing": [
-     "⑤"
     ]
    }
   ]

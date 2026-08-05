@@ -67,7 +67,6 @@
     "article": "4조",
     "raw_hang": 6,
     "missing": [
-     "④",
      "⑤",
      "⑥"
     ]
@@ -124,7 +123,6 @@
     "article": "7조",
     "raw_hang": 8,
     "missing": [
-     "⑤",
      "⑥",
      "⑦",
      "⑧"
@@ -155,7 +153,6 @@
     "article": "18조",
     "raw_hang": 9,
     "missing": [
-     "⑥",
      "⑦",
      "⑧",
      "⑨"
@@ -201,6 +198,13 @@
     "missing": [
      "①",
      "②"
+    ]
+   },
+   {
+    "article": "9조",
+    "raw_hang": 4,
+    "missing": [
+     "①"
     ]
    }
   ]

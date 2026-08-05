@@ -2,8 +2,8 @@
  "law": "양식산업발전법",
  "slug": "양식산업발전법",
  "total_raw_articles": 203,
- "total_uncited": 10,
- "coverage_pct": 95.1,
+ "total_uncited": 6,
+ "coverage_pct": 97.0,
  "per_family": {
   "법률": {
    "raw_count": 85,
@@ -11,130 +11,28 @@
   },
   "시행령": {
    "raw_count": 57,
-   "uncited_count": 3
+   "uncited_count": 2
   },
   "시행규칙": {
    "raw_count": 61,
-   "uncited_count": 7
+   "uncited_count": 4
   }
  },
  "uncited_articles": {
   "법률": [],
   "시행령": [
    "1조",
-   "20조",
-   "29조"
+   "20조"
   ],
   "시행규칙": [
    "1조",
-   "6조",
-   "7조",
-   "8조",
    "15조",
    "42조",
    "61조"
   ]
  },
  "hang_gap_candidates": {
-  "법률": [
-   {
-    "article": "22조",
-    "raw_hang": 5,
-    "missing": [
-     "④",
-     "⑤"
-    ]
-   },
-   {
-    "article": "9조",
-    "raw_hang": 9,
-    "missing": [
-     "⑨"
-    ]
-   },
-   {
-    "article": "17조",
-    "raw_hang": 6,
-    "missing": [
-     "⑥"
-    ]
-   },
-   {
-    "article": "24조",
-    "raw_hang": 2,
-    "missing": [
-     "②"
-    ]
-   },
-   {
-    "article": "50조",
-    "raw_hang": 7,
-    "missing": [
-     "⑦"
-    ]
-   }
-  ],
   "시행령": [
-   {
-    "article": "7조",
-    "raw_hang": 9,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④",
-     "⑤",
-     "⑥",
-     "⑦",
-     "⑧",
-     "⑨"
-    ]
-   },
-   {
-    "article": "8조",
-    "raw_hang": 4,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④"
-    ]
-   },
-   {
-    "article": "6조",
-    "raw_hang": 8,
-    "missing": [
-     "⑤",
-     "⑦",
-     "⑧"
-    ]
-   },
-   {
-    "article": "9조",
-    "raw_hang": 8,
-    "missing": [
-     "⑥",
-     "⑦",
-     "⑧"
-    ]
-   },
-   {
-    "article": "43조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
-    "article": "17조",
-    "raw_hang": 2,
-    "missing": [
-     "①",
-     "②"
-    ]
-   },
    {
     "article": "24조",
     "raw_hang": 4,
@@ -152,23 +50,8 @@
     ]
    },
    {
-    "article": "51조",
-    "raw_hang": 2,
-    "missing": [
-     "①",
-     "②"
-    ]
-   },
-   {
-    "article": "5조",
-    "raw_hang": 3,
-    "missing": [
-     "③"
-    ]
-   },
-   {
-    "article": "24조의2",
-    "raw_hang": 6,
+    "article": "7조",
+    "raw_hang": 9,
     "missing": [
      "⑥"
     ]
@@ -179,83 +62,15 @@
     "missing": [
      "②"
     ]
-   },
-   {
-    "article": "41조",
-    "raw_hang": 2,
-    "missing": [
-     "①"
-    ]
    }
   ],
   "시행규칙": [
-   {
-    "article": "3조",
-    "raw_hang": 7,
-    "missing": [
-     "⑤",
-     "⑥",
-     "⑦"
-    ]
-   },
-   {
-    "article": "17조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
-    "article": "43조",
-    "raw_hang": 7,
-    "missing": [
-     "⑤",
-     "⑥",
-     "⑦"
-    ]
-   },
-   {
-    "article": "50조",
-    "raw_hang": 5,
-    "missing": [
-     "③",
-     "④",
-     "⑤"
-    ]
-   },
-   {
-    "article": "56조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
    {
     "article": "4조",
     "raw_hang": 5,
     "missing": [
      "④",
      "⑤"
-    ]
-   },
-   {
-    "article": "5조",
-    "raw_hang": 3,
-    "missing": [
-     "②",
-     "③"
-    ]
-   },
-   {
-    "article": "31조",
-    "raw_hang": 4,
-    "missing": [
-     "③",
-     "④"
     ]
    },
    {
@@ -267,28 +82,6 @@
     ]
    },
    {
-    "article": "52조",
-    "raw_hang": 6,
-    "missing": [
-     "⑤",
-     "⑥"
-    ]
-   },
-   {
-    "article": "16조",
-    "raw_hang": 7,
-    "missing": [
-     "⑥"
-    ]
-   },
-   {
-    "article": "21조",
-    "raw_hang": 3,
-    "missing": [
-     "③"
-    ]
-   },
-   {
     "article": "49조",
     "raw_hang": 3,
     "missing": [
@@ -296,24 +89,10 @@
     ]
    },
    {
-    "article": "51조",
+    "article": "56조",
     "raw_hang": 3,
     "missing": [
-     "③"
-    ]
-   },
-   {
-    "article": "53조",
-    "raw_hang": 5,
-    "missing": [
-     "⑤"
-    ]
-   },
-   {
-    "article": "54조",
-    "raw_hang": 5,
-    "missing": [
-     "④"
+     "①"
     ]
    }
   ]
