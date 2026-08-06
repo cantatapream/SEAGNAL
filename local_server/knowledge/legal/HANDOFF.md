@@ -397,6 +397,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-06 23:18 KST] ✅완료 — 12차 감사 — 자연유산법(신규편입분) 첫 감사 완료
+자연유산의 보존 및 활용에 관한 법률(단독 디스패치분) 300문항+ 감사 완료: 323문항, full 200·thin 37(wiki_lag12+content_gap25)·missing 80·collection_hole 3((b)structural 2·(c)uncollected 1)·awkward 4·scope_out 13(그 중 gracefully 1). full율≈200/310(scope_out제외)=64.5%로 73법 평균보다 낮음(2026-08-01 신규편입 이후 이번이 첫 정식감사라 후속 정제 라운드가 없었던 게 원인으로 보임). 주요 gap: 시행령 제28조②③·제34조①·제39조①·제23조③④ wiki_lag 다수(원문엔 있으나 위키 미반영, 재수집 불필요), 제25~62조(관리·활용·지원·보칙, 법 절반) content_gap. 상세는 _dashboard/audit/자연유산의보존및활용에관한법률.md. 그룹0~9(10개 Workflow)는 아직 진행 중 — 완료 통보 오는 대로 이어서 기록.
+
+
 ### [2026-08-06 23:04 KST] ✅완료 — 12차 감사 누락법 발견·추가 디스패치
 사용자 지적으로 확인: 2026-08-01 신규편입된 「자연유산의 보존 및 활용에 관한 법률」이 stage_b_collection_targets.md(73법 원 목록)와 audit8~12_groups.json 전부에 누락돼 있어 11차·12차 감사 어디에도 포함된 적 없었음(raw 수집·위키 statutes/concepts는 이미 완료돼 있었는데 감사 대상 목록에서만 빠짐). audit12_groups_run.json 그룹7에 추가(6→7법, 전체 72→73법)하고 별도 Workflow 1개로 즉시 디스패치(round:12, cfg.laws 직접전달). 이로써 12차 감사는 그룹0~9(자연유산법 포함 73법 전부) + 자연유산법 단독 1건으로 총 73법 커버 확정. 다음: 11개 Workflow 전부 완료 통보 오는 대로 fix3/audit_r12_*.done 마커 확인→집계→HANDOFF 갱신. stage_b_collection_targets.md에도 이 법을 74번째 항목으로 등재할지는 별도 확인 필요(현재는 group run 파일에만 반영).
 
