@@ -2170,7 +2170,13 @@ function _buildUserPushChanges(prev, curr) {
             childState.unknown = true;
         }
 
-        const upcomingChanged = !blockEqual(prevUpcoming, currUpcoming);
+        // [§7.7.25] 범위형 → 정확시각 정밀화는 "같은 모멘트"(정확시각 = 범위 끝, 예: 06~12시 → 12시)
+        //   여도 사용자에겐 새 정보(확정)다. blockEqual 의 동일모멘트 흡수를 이 경우에만 우회해
+        //   1회 발사한다 — 해제측 §7.7.20(해제시각 확정)과 같은 취지. 흡수 규칙 자체는 불변.
+        const efExactRefinedNow = !!(cUp && cUp._efExactFrom) &&
+            !!prevUpcoming && _isRangeTime(prevUpcoming.tmEf || '') &&
+            !!currUpcoming && !_isRangeTime(currUpcoming.tmEf || '');
+        const upcomingChanged = !blockEqual(prevUpcoming, currUpcoming) || efExactRefinedNow;
         const activeChanged = !blockEqual(prevActive, currActive);
 
         // [연장 감지] 발효예정 연장 (예비 단계): 같은 종류·동급 예비인데 발효예정(tmEf)이 더 늦어짐.
@@ -3272,7 +3278,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
  */
 function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
     if (!snap) return snap;
-    let enriched = 0, gapAdded = 0, gapChildAdded = 0, gapChildCarried = 0, gapChildSynth = 0;
+    let enriched = 0, gapAdded = 0, gapChildAdded = 0, gapChildCarried = 0, gapChildSynth = 0, efRefined = 0;
     let sascChildAdded = 0, sascChildEnriched = 0;
 
     // [수정A-3] warn-sasc/latest = 자식 통보문 endpoint (부모 warn/latest 의 자식판).
@@ -3373,6 +3379,8 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             info._realLvlNm = info.wrnLvlNm;   // [B] 실제 등급 보존 (예비 덮어쓰기 전) — 공존 격상/격하용
             info.wrnLvlNm = '예비';   // 발효 전 → 예비 취급 (표시·푸시 일관성)
             info.wrnLvl = info.wrnLvl || '1';
+            // [§7.7.25] 이미 예비인 해역이면 "범위형 → 정확시각" 정밀화만 반영하고 나머지는 종전대로 skip.
+            if (isPublishCmd && _refineUpcomingExactEf(snap, name, info)) efRefined++;
             // [B] 발효중 zone 과 공존하는 상·하위/다른종류 → upcomings 보강 (격상/격하 발표).
             if (_tryAddCoexistingUpcoming(snap, name, info)) continue;
             // 부모형 — 발효중/예비면 그쪽 우선
@@ -3445,6 +3453,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             gapChildAdded++;
         }
     }
+    if (efRefined > 0) console.log(`[Marine] warn/latest 발효시각 정밀화: ${efRefined} zone 범위→정확 (§7.7.25)`);
     if (enriched > 0) console.log(`[Marine] warn/latest 보강: ${enriched} zone clrNtcTm 갱신`);
     if (gapAdded > 0) console.log(`[Marine] warn/latest GAP 보강: ${gapAdded} 부모 발표 발효대기 → 예비로 추가`);
     if (gapChildCarried > 0) console.log(`[Marine] GAP 자식 이어받기(prev): ${gapChildCarried} 자식 발표대기로 carry`);
@@ -3683,6 +3692,37 @@ function _tryAddCoexistingUpcoming(snap, name, info) {
 }
 
 /**
+ * [2026-08-06 실사고 §7.7.25] 이미 예비로 잡혀 있는 해역의 발효예정 "정밀화" 반영.
+ *   배경: GAP 보강 2경로(warn/latest·ef/list)는 "발효중/예비면 그쪽 우선" 가드로 통보문 행을
+ *   통째로 버린다. 그래서 예고가 범위형("8/6 06~12시")인 상태에서 기상청이 발표 통보문으로
+ *   정확시각("11시")을 확정해도, 그 정확시각이 범위 "안"이면 MMIS 예비 목록이 갱신되지 않아
+ *   우리 스냅샷에 영원히 안 들어오고 사용자는 확정 시각을 통지받지 못했다(8/6 제주 2해역 실측).
+ *   → 등급·종류·해역 구성은 일절 건드리지 않고, "범위형 → 정확시각" 정밀화일 때만 tmEf 갱신.
+ *   갱신 사실은 _efExactFrom 표식으로 남겨 경계(정확시각 = 범위 끝, 예: 12시) 동일모멘트
+ *   흡수로 침묵하던 케이스도 1회 발사되게 한다(해제측 §7.7.20 _clrConfirmed 와 같은 취지).
+ * 예: 예비 tmEf "2026.08.06 06~12시" + 통보문 ed_tm "2026.08.06 11:00" → tmEf 11:00 으로 정밀화
+ * @param {StateSnapshot} snap - 현재 사이클 스냅샷
+ * @param {string} name - 부모 해역명
+ * @param {Object} info - 통보문 행에서 만든 info (_rowToParentInfo/_efRowToInfo 결과)
+ * @returns {boolean} 정밀화가 일어났으면 true (로그 카운터용)
+ * [연계] ← _enrichSnapshotWithLatest · _enrichSnapshotWithEfList (이 파일) — GAP 스킵 직전 호출
+ *        → _buildUserPushChanges 가 _efExactFrom 을 읽어 UPCOMING_CHANGE 발사 → push_sender
+ *          time_ef_change("🕐 발효시각 변경") 로 매핑된다.
+ */
+function _refineUpcomingExactEf(snap, name, info) {
+    const cur = (snap.upcomings && snap.upcomings.get(name)) || (snap.parents && snap.parents.get(name));
+    if (!cur || cur.wrnLvlNm !== '예비') return false;              // 예비(발효 전)만 — 발효중은 tmEf 무의미
+    if ((cur.wrnTpNm || '') !== (info.wrnTpNm || '')) return false; // 종류 일치 필수 (풍랑↔태풍 오염 방지)
+    const inc = String(info.tmEf || '').trim();
+    if (!inc || _isRangeTime(inc)) return false;                    // 통보문이 정확시각일 때만
+    const old = String(cur.tmEf || '').trim();
+    if (!old || !_isRangeTime(old)) return false;                   // 범위형 → 정확 정밀화만 (정확↔정확은 기존 경로)
+    cur.tmEf = inc;
+    cur._efExactFrom = old;                                         // [표식] 이번 사이클 정밀화 (경계 발사용)
+    return true;
+}
+
+/**
  * ef/list 행들로 발표대기 zone 을 snap 에 보강.
  * @param {StateSnapshot} snap - 현재 사이클 스냅샷 (parents/children/upcomings)
  * @param {Array} efRows - warn/ef/list 응답 row 배열
@@ -3725,10 +3765,12 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
     }
     // 2차: 신규 발표대기 GAP (publish 계열만 — 기존 로직 그대로).
     for (const [name, sel] of latestByZone) {
+        const info = _efRowToInfo(sel.row);
+        // [§7.7.25] 스킵 전에 "범위형 → 정확시각" 정밀화만 반영 (등급·종류·구성 불변).
+        if (_refineUpcomingExactEf(snap, name, info)) counters.efRefined = (counters.efRefined || 0) + 1;
         // 실시간 endpoint 가 이미 커버(발효중/예비/발표대기/공존)하면 skip — 중복/덮어쓰기 방지.
         if (snap.parents.has(name)) continue;
         if (snap.upcomings && snap.upcomings.has(name)) continue;
-        const info = _efRowToInfo(sel.row);
         if (!_isChildZoneCode(sel.row.warn_zone_cd, name)) {
             _addGapParentFromEf(snap, prev, name, info, counters);
         } else {
@@ -3743,6 +3785,7 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
             }
         }
     }
+    if (counters.efRefined) console.log(`[Marine] ef/list 발효시각 정밀화: ${counters.efRefined} zone 범위→정확 (§7.7.25)`);
     if (counters.gapAdded || counters.gapChildCarried || counters.gapChildSynth) {
         console.log(`[Marine] ef/list 발표대기 보강: 부모 ${counters.gapAdded} 추가 ` +
             `(자식 carry ${counters.gapChildCarried} / synth ${counters.gapChildSynth})`);
@@ -4076,6 +4119,7 @@ module.exports = {
     _buildSnapshotFromMarine,
     _enrichSnapshotWithLatest,
     _enrichSnapshotWithEfList,
+    _refineUpcomingExactEf,
     _purgeExcludedChildren,
     _tryAddCoexistingUpcoming,
     _extractParent,
