@@ -383,6 +383,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-06 11:58 KST] 🟢착수 — Phase F 착수 — ⚠수치검증 리뷰 처리 안내
+사용자가 Phase F 첫 작업으로 '⚠수치검증 리뷰 처리'를 선택. 조사 결과 관리자 검토센터(client/js/ai-chat/ai_chat.js) 5개 서브탭 중 초안승인·⚠수치검증 2개는 이미 서버 완전연동(routes/legal.js /api/legal/reviews GET/POST approve, legal_review.html 승인화면) 완료 상태였고 legal_review.html의 24자 라벨파싱버그도 이미 수정돼 있음(2026-08-03 반영) 확인. review_queue.md 현재 304건(Track C 신규 12건 포함) 배포 확인(GH Actions run 31065363145, commit cd13e47e9, 2026-08-06 02:21 UTC 성공). 사용자에게 legal_review.html 접근 안내 완료 — 이 작업은 AI 자동화 대상이 아니라 사람 판단 게이트(H-34 genuine_dispute/honest_gap 항목이 대부분)이므로 사용자 본인이 직접 승인/반려해야 함.
+
+
 ### [2026-08-06 11:20 KST] ✅완료 — Track C 오탐지 감사 — review_queue.md 일괄등록 완료, 전체 마무리
 7배치 73법 Track C 완료 후속으로 발견된 신규 REVIEW 후보 12건을 표준지시대로 일괄 처리 완료(커밋 002b384e5, branch+main). 직접 기계적 정정 4건(수상레저활동_금지구역 18→20개서, 선박직원법_선원법 비교표 서식복구, 해양레저관광진흥법 REVIEW문구 정밀화, 무인도서법 소득세법 caveat 완화) + review_queue.md 신규등록 7페이지 8건(물환경보전법-01·선박교통관제법-01·영해접속수역법-03·출입국관리법-02·해수욕장법-02·해양사고심판법-04·수상레저기구법-06/07), 전부 대상 페이지에 인라인 ⚠REVIEW 마커 부착 완료(사용법: citableBody 필터가 REVIEW 포함 문장만 자동 제외하므로 canonical 페이지도 안전). review_queue.md 304개 헤딩/승인 카운트 일치, lint_index.py 통과.
 
