@@ -12,6 +12,10 @@
  *  - GET  /api/legal/reviews          → 검증 대기 목록(review_queue.md 파싱)
  *  - GET  /api/legal/reviews/stats    → 대기/승인 카운트
  *  - POST /api/legal/reviews/:id/approve → 승인(+교정값 확정) 또는 반려 → 서버 반영
+ *  - POST /api/legal/reviews/:id/submit-findings → 사람이 "확인 체크리스트"를 보고 적은 확인
+ *                                       결과를 Gemini가 재검토(match/mismatch/uncertain) →
+ *                                       match면 자동 승인(위 approve와 동일 반영), 아니면 이유를
+ *                                       담아 대기 유지 + review_queue.md에 시도 이력 append
  *  - GET  /api/legal/admin/stats      → 관리자 검토센터 서브탭(초안·피드백·새지식후보·개정검토) 실카운트
  *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
  *  - POST /api/legal/ask              → 하이브리드 검색 + Gemini 답변 스트리밍 합성(NDJSON, services/legal_retriever.js)
@@ -49,6 +53,7 @@ const { writeFileAtomic } = require('../services/atomic_write');
 const legalRetriever = require('../services/legal_retriever');
 const articleText = require('../services/article_text');
 const pendingAnswers = require('../services/pending_answers');
+const gemini = require('../services/gemini_client');
 const { DATA_DIR, FILES } = require('../config/server_config');
 
 // [Lazy] Firebase Admin(답변완료 개인 푸시용). routes/report.js 와 같은 이유로 첫 발송 시 로딩.
@@ -106,11 +111,23 @@ function parseReviewQueue() {
  * 리뷰 body(장황한 자유서술)를 카드 가독성용 구조 필드 + 클릭가능 URL로 분해한다.
  * `- 근거:` `- 확인 필요:` `- AI 연결 내용:` `- 문제:` `- 필요 조치:` 등 라벨 라인을 키:값으로,
  * 본문 내 http(s) URL을 urls[]로 추출한다(원본 이미지/고시 링크 검증용).
+ * `- 확인 체크리스트:`(값 없이 콜론만) 다음에 오는 `  1. ...` 들여쓴 번호줄들은 한 필드로
+ * 모아 개행으로 합친다(§6-D 표준 템플릿, 2026-08-06) — 일반 `- key: value` 한 줄 매칭으로는
+ * 못 잡는 유일한 다줄 필드라 별도 처리.
  * @returns {{fields:Object, urls:string[]}}
  */
 function extractStructured(body) {
   const fields = {}; const urls = [];
-  for (const line of body.split('\n')) {
+  const lines = body.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const checklistHead = line.match(/^\s*-\s*확인\s*체크리스트\s*[:：]?\s*$/);
+    if (checklistHead) {
+      const items = [];
+      let j = i + 1;
+      while (j < lines.length && /^\s+\d+\.\s+\S/.test(lines[j])) { items.push(lines[j].trim()); j++; }
+      if (items.length) { fields['확인 체크리스트'] = items.join('\n'); i = j - 1; continue; }
+    }
     const m = line.match(/^\s*-\s*([^:：]{1,120})[:：]\s*(.+)$/);
     if (m) { const k = m[1].trim(); if (k !== '승인' && !fields[k]) fields[k] = m[2].trim(); }
     let um; const re = /(https?:\/\/[^\s)"'<>]+)/g;
@@ -219,6 +236,47 @@ function applyToWikiPages(targetPages, correctedValue, reviewId, by, dateStr) {
   return changed;
 }
 
+/**
+ * review_queue.md 승인/반려 마킹 + (승인이면) 대상 위키 페이지 반영 + 승인 이력 로그.
+ * approve 엔드포인트와 submit-findings(AI 재검토 match 시 자동승인)가 공유한다.
+ * **반드시 withLock(...) 콜백 안에서만 호출할 것** — review_queue.md 직렬쓰기 보장.
+ * @returns {{httpStatus:number, body:object}}
+ */
+function finalizeApproval(entry, decision, correctedValue, by) {
+  const id = entry.id;
+  const now = new Date();
+  const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+
+  // 1) review_queue.md 승인/반려 마킹(원자적)
+  let txt = fs.readFileSync(REVIEW_QUEUE, 'utf8');
+  const mark = decision === 'reject'
+    ? `- 승인: [ ] 반려(${by}, ${dateStr})`
+    : `- 승인: [x] 승인(${by}, ${dateStr})` + (correctedValue != null && correctedValue !== '' ? ` · 확정값: ${String(correctedValue)}` : '');
+  // 해당 엔트리 블록 내부의 "- 승인:" 라인만 교체
+  const escId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const blockRe = new RegExp('(###\\s+' + escId + ':[\\s\\S]*?)-\\s*승인:\\s*\\[[ xX]\\][^\\n]*', 'm');
+  // 함수 치환: correctedValue/by의 '$' 특수시퀀스($1·$&·$$)가 원장을 손상시키지 않도록
+  if (blockRe.test(txt)) txt = txt.replace(blockRe, (mm, p1) => p1 + mark);
+  else return { httpStatus: 500, body: { ok: false, error: '승인 라인 없음: ' + id } };
+  writeFileAtomic(REVIEW_QUEUE, txt);
+
+  // 2) 승인이면 대상 위키 페이지 canonical 승격 + 확정값 각인
+  let changedFiles = [];
+  if (decision === 'approve') changedFiles = applyToWikiPages(entry.targetPages, correctedValue, id, by, dateStr);
+
+  // 3) 승인 이력 로그(감사 추적)
+  let log = [];
+  try { if (fs.existsSync(APPROVALS_LOG)) log = JSON.parse(fs.readFileSync(APPROVALS_LOG, 'utf8')); } catch (_) {}
+  log.push({ id, decision, correctedValue, by, at: now.toISOString(), targetPages: entry.targetPages, changedFiles });
+  writeFileAtomic(APPROVALS_LOG, JSON.stringify(log, null, 1));
+
+  // 정직한 note: 실제 승격 페이지 수 기준(무음 성공 금지)
+  const note = decision === 'reject' ? '반려 처리(재검토 큐 유지)'
+    : (changedFiles.length ? `승인 완료 · ${changedFiles.length}개 페이지 canonical 승격·확정값 반영(인덱스 재빌드는 배치)`
+      : '⚠ 승인은 기록됐으나 대상 위키 페이지를 찾지 못해 승격 0건 — 리뷰의 "대상 페이지" 표기를 확인하세요');
+  return { httpStatus: 200, body: { ok: true, id, decision, correctedValue, changedFiles, promotedCount: changedFiles.length, note } };
+}
+
 // POST /api/legal/reviews/:id/approve — 승인(+교정값 확정) 또는 반려 → 서버 반영
 // body: { decision: 'approve'|'reject', correctedValue?, by? }
 router.post('/api/legal/reviews/:id/approve', (req, res) => {
@@ -228,37 +286,98 @@ router.post('/api/legal/reviews/:id/approve', (req, res) => {
     const list = parseReviewQueue();
     const entry = list.find(e => e.id === id);
     if (!entry) return { httpStatus: 404, body: { ok: false, error: 'review not found: ' + id } };
-    const now = new Date();
-    const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    return finalizeApproval(entry, decision, correctedValue, by);
+  }).then(r => res.status(r.httpStatus).json(r.body))
+    .catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
+});
 
-    // 1) review_queue.md 승인/반려 마킹(원자적)
-    let txt = fs.readFileSync(REVIEW_QUEUE, 'utf8');
-    const mark = decision === 'reject'
-      ? `- 승인: [ ] 반려(${by}, ${dateStr})`
-      : `- 승인: [x] 승인(${by}, ${dateStr})` + (correctedValue != null && correctedValue !== '' ? ` · 확정값: ${String(correctedValue)}` : '');
-    // 해당 엔트리 블록 내부의 "- 승인:" 라인만 교체
-    const escId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const blockRe = new RegExp('(###\\s+' + escId + ':[\\s\\S]*?)-\\s*승인:\\s*\\[[ xX]\\][^\\n]*', 'm');
-    // 함수 치환: correctedValue/by의 '$' 특수시퀀스($1·$&·$$)가 원장을 손상시키지 않도록
-    if (blockRe.test(txt)) txt = txt.replace(blockRe, (mm, p1) => p1 + mark);
-    else return { httpStatus: 500, body: { ok: false, error: '승인 라인 없음: ' + id } };
-    writeFileAtomic(REVIEW_QUEUE, txt);
+/**
+ * review_queue.md 해당 항목에 "- 확인 시도(N차, ...)" 이력 줄을 "- 승인:" 줄 바로 앞에 append한다
+ * (매 시도가 쌓여 다음 재시도 때도 이전 시도 내역이 남는다). **반드시 withLock(...) 안에서 호출할 것.**
+ * @param {string} id @param {string} findings @param {'match'|'mismatch'|'uncertain'} verdict
+ * @param {string} message @param {string} by
+ */
+function appendFindingsAttempt(id, findings, verdict, message, by) {
+  const now = new Date();
+  const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  let txt = fs.readFileSync(REVIEW_QUEUE, 'utf8');
+  const escId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const blockRe = new RegExp('(###\\s+' + escId + ':[\\s\\S]*?)(-\\s*승인:\\s*\\[[ xX]\\][^\\n]*)', 'm');
+  const mm = txt.match(blockRe);
+  if (!mm) return;
+  const n = (mm[1].match(/^-\s*확인\s*시도\(/gm) || []).length + 1;
+  const cleanFindings = String(findings).replace(/\n+/g, ' ').trim();
+  const line = `- 확인 시도(${n}차, ${dateStr}, ${by}) AI판정=${verdict}: ${cleanFindings} → AI: ${message}\n`;
+  txt = txt.replace(blockRe, (whole, p1, p2) => p1 + line + p2);
+  writeFileAtomic(REVIEW_QUEUE, txt);
+}
 
-    // 2) 승인이면 대상 위키 페이지 canonical 승격 + 확정값 각인
-    let changedFiles = [];
-    if (decision === 'approve') changedFiles = applyToWikiPages(entry.targetPages, correctedValue, id, by, dateStr);
+const REVIEW_RECHECK_MODEL = 'gemini-2.5-flash';
 
-    // 3) 승인 이력 로그(감사 추적)
-    let log = [];
-    try { if (fs.existsSync(APPROVALS_LOG)) log = JSON.parse(fs.readFileSync(APPROVALS_LOG, 'utf8')); } catch (_) {}
-    log.push({ id, decision, correctedValue, by, at: now.toISOString(), targetPages: entry.targetPages, changedFiles });
-    writeFileAtomic(APPROVALS_LOG, JSON.stringify(log, null, 1));
+// POST /api/legal/reviews/:id/submit-findings — 사람이 "확인 체크리스트"를 보고 직접 확인한
+// 내용을 Gemini가 재검토한다: match면 그 자리에서 자동 승인(approve와 동일 반영), mismatch/
+// uncertain이면 이유를 담아 대기 유지 + review_queue.md에 이번 시도 이력을 남긴다(다음 시도 때
+// 참고할 수 있게). body: { findings: string, by? }
+router.post('/api/legal/reviews/:id/submit-findings', (req, res) => {
+  const id = req.params.id;
+  const { findings = '', by = '관리자' } = req.body || {};
+  if (!String(findings).trim()) return res.status(400).json({ ok: false, error: '확인한 내용을 입력하세요.' });
+  withLock(async () => {
+    const list = parseReviewQueue();
+    const entry = list.find(e => e.id === id);
+    if (!entry) return { httpStatus: 404, body: { ok: false, error: 'review not found: ' + id } };
 
-    // 정직한 note: 실제 승격 페이지 수 기준(무음 성공 금지)
-    const note = decision === 'reject' ? '반려 처리(재검토 큐 유지)'
-      : (changedFiles.length ? `승인 완료 · ${changedFiles.length}개 페이지 canonical 승격·확정값 반영(인덱스 재빌드는 배치)`
-        : '⚠ 승인은 기록됐으나 대상 위키 페이지를 찾지 못해 승격 0건 — 리뷰의 "대상 페이지" 표기를 확인하세요');
-    return { httpStatus: 200, body: { ok: true, id, decision, correctedValue, changedFiles, promotedCount: changedFiles.length, note } };
+    const s = extractStructured(entry.body);
+    const context = ['왜 의문인가', 'AI 잠정결론', '근거', 'AI 법리추론 내용', 'AI 연결 내용']
+      .map(k => s.fields[k] ? `${k}: ${s.fields[k]}` : '').filter(Boolean).join('\n');
+
+    let verdict = 'uncertain';
+    let message = 'AI 재검토 기능을 쓸 수 없습니다(API 키 미설정) — 내용을 확인한 뒤 직접 승인/반려해주세요.';
+    if (gemini.hasAnyKey()) {
+      const prompt = [
+        '너는 한국 해양법률 위키의 검토 보조 AI다. 아래 REVIEW 항목을 사람이 직접 확인하고 그 결과를 적었다.',
+        '',
+        `REVIEW 제목: ${entry.title}`,
+        context,
+        '',
+        `사람이 적은 확인 내용: "${String(findings).trim()}"`,
+        '',
+        '이 확인 내용이 위 의문을 실제로 해소하는지 판단하라:',
+        '- match: 내용이 논리적으로 일관되고 원래 의문을 명확히 해소한다',
+        '- mismatch: 내용에 논리적 모순·근거부족이 있거나 원래 의문을 제대로 해소하지 못한다',
+        '- uncertain: 판단하기에 정보가 부족하다(예: 구체 근거 없이 "확인함"만 적음)',
+        '',
+        'JSON으로만 답하라: {"verdict":"match|mismatch|uncertain","message":"사람에게 보여줄 한두 문장 — match면 확인 요지, 아니면 무엇을 더 확인해야 하는지"}',
+      ].join('\n');
+      try {
+        const result = await gemini.callGemini({
+          model: REVIEW_RECHECK_MODEL, contents: prompt,
+          config: { temperature: 0.1, thinkingConfig: { thinkingBudget: 0 }, responseMimeType: 'application/json', httpOptions: { timeout: 15000 } },
+          caller: 'Legal-ReviewRecheck',
+        });
+        if (result.success && result.text) {
+          const m = result.text.match(/\{[\s\S]*\}/);
+          if (m) {
+            const parsed = JSON.parse(m[0]);
+            if (['match', 'mismatch', 'uncertain'].includes(parsed.verdict)) verdict = parsed.verdict;
+            if (typeof parsed.message === 'string' && parsed.message.trim()) message = parsed.message.trim();
+          }
+        } else {
+          message = 'AI 재검토 호출에 실패했습니다 — 내용을 확인한 뒤 직접 승인/반려해주세요.';
+        }
+      } catch (_) {
+        message = 'AI 재검토 중 오류가 발생했습니다 — 내용을 확인한 뒤 직접 승인/반려해주세요.';
+      }
+    }
+
+    appendFindingsAttempt(id, findings, verdict, message, by);
+
+    if (verdict === 'match') {
+      const r = finalizeApproval(entry, 'approve', null, by + '·AI 재검토 자동승인');
+      r.body.verdict = verdict; r.body.message = message; r.body.autoApplied = true;
+      return r;
+    }
+    return { httpStatus: 200, body: { ok: true, id, verdict, message, autoApplied: false } };
   }).then(r => res.status(r.httpStatus).json(r.body))
     .catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
 });

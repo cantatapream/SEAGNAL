@@ -190,6 +190,26 @@
 .nrya-console .nrya-correct-hint{font-size:10.5px; color:#69f0ae; margin-top:7px}
 .nrya-console .nrya-src-line{font-size:11px; color:var(--nrya-text-sub); margin:9px 0 12px; line-height:1.5}
 .nrya-console .nrya-src-line a{color:#8bb6ff; text-decoration:none}
+/* §6-D 신형 리뷰 필드(2026-08-06): "볼 법(N)" 카드·"확인 체크리스트" 번호목록·확인결과 입력란·AI 재검토 결과 */
+.nrya-console .nrya-rv-lawblock{border:1px solid var(--nrya-border); border-radius:9px; padding:10px 11px; margin-bottom:8px; background:rgba(255,255,255,.02)}
+.nrya-console .nrya-rv-lawblock:last-child{margin-bottom:0}
+.nrya-console .nrya-rv-lawhead{font-size:13px; font-weight:700; color:#fff; margin-bottom:4px}
+.nrya-console .nrya-rv-lawgist{font-size:12px; color:#c3ccdc; line-height:1.5; margin-bottom:7px}
+.nrya-console .nrya-rv-checklist{margin:0; padding-left:20px; font-size:12.5px; color:#dfe7f5; line-height:1.7}
+.nrya-console .nrya-rv-checklist li{margin-bottom:4px}
+.nrya-console .nrya-findings{background:rgba(68,138,255,.07); border:1px solid rgba(68,138,255,.28); border-radius:9px; padding:11px; margin:0 0 11px}
+.nrya-console .nrya-findings-q{font-size:12px; color:#cdd8ee; line-height:1.55; margin-bottom:9px}
+.nrya-console .nrya-findings-q b{color:#ffe082}
+.nrya-console .nrya-findings-in{width:100%; min-height:64px; resize:vertical; background:#0e1524; border:1.5px solid var(--nrya-accent-blue); border-radius:8px; padding:9px 11px; color:#fff; font-family:var(--nrya-font); font-size:12.5px; line-height:1.6; outline:none}
+.nrya-console .nrya-findings-in:focus{border-color:#69f0ae; box-shadow:0 0 0 3px rgba(105,240,174,.15)}
+.nrya-console .nrya-findings-in::placeholder{color:#5b6b86}
+.nrya-console .nrya-ai-verdict{border-radius:9px; padding:10px 11px; margin:0 0 11px}
+.nrya-console .nrya-ai-verdict.nrya-verdict-mismatch{background:rgba(255,82,82,.09); border:1px solid rgba(255,82,82,.3)}
+.nrya-console .nrya-ai-verdict.nrya-verdict-uncertain{background:rgba(255,215,64,.09); border:1px solid rgba(255,215,64,.3)}
+.nrya-console .nrya-verdict-lab{font-size:11px; font-weight:700; margin-bottom:5px}
+.nrya-console .nrya-ai-verdict.nrya-verdict-mismatch .nrya-verdict-lab{color:#ff8a8a}
+.nrya-console .nrya-ai-verdict.nrya-verdict-uncertain .nrya-verdict-lab{color:#ffd740}
+.nrya-console .nrya-verdict-msg{font-size:12.5px; color:#dfe7f5; line-height:1.55}
 .nrya-console .nrya-rv-actions{display:flex; gap:8px}
 .nrya-console .nrya-rv-actions button{flex:1; border:none; border-radius:8px; font-family:inherit; font-weight:700; font-size:13px; padding:10px 0; cursor:pointer}
 .nrya-console .nrya-rv-actions button:disabled{opacity:.55; cursor:default}

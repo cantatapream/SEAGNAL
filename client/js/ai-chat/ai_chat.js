@@ -617,9 +617,15 @@
   }
 
   // 리뷰 카드에서 우선 노출할 구조화 필드(라벨·아이콘). 존재하는 것만 순서대로 렌더.
+  // ⚠2026-08-06: 'AI 법리추론 내용(사람 확인 필요)' 등 review_queue.md가 실제로 쓰던 라벨이
+  // 이 목록에 없어 화면에서 통째로 사라지던 버그가 있었다(사용자 지적으로 발견) — 아래 두 키를
+  // 🧠 행에 추가해 해소. '볼 법(N)'·'확인 체크리스트'는 §6-D 표준 필드라 여기 목록이 아니라
+  // reviewFieldsHTML()에서 별도 전용 렌더링을 한다(law.go.kr 링크·번호목록 등 구조가 다름).
   var FIELD_VIEW = [
     { keys: ['AI 제안값', 'AI 제안', '제안값'], icon: '💡', label: 'AI 제안값' },
-    { keys: ['AI 연결 내용', 'AI 연결·판단 내용', 'AI 판단', 'AI 유추', 'AI 연결', '정의 사슬 추적'], icon: '🧠', label: 'AI 분석 내용' },
+    { keys: ['AI 연결 내용', 'AI 연결·판단 내용', 'AI 판단', 'AI 유추', 'AI 연결', '정의 사슬 추적', 'AI 법리추론 내용', 'AI 법리추론 내용(사람 확인 필요)'], icon: '🧠', label: 'AI 분석 내용' },
+    { keys: ['왜 의문인가'], icon: '❓', label: '왜 의문인가' },
+    { keys: ['AI 잠정결론'], icon: '🧭', label: 'AI 잠정결론' },
     { keys: ['문제'], icon: '❗', label: '문제' },
     { keys: ['확인 필요', '확인'], icon: '🔍', label: '확인 필요' },
     { keys: ['근거'], icon: '📎', label: '근거' },
@@ -632,8 +638,37 @@
   function isImageUrl(u) { return /flDownload|\.(png|jpe?g|gif|webp|bmp|tiff?)(\?|#|$)/i.test(u); }
 
   /**
+   * "볼 법(N)" 필드 값 하나를 law.go.kr 검색 링크가 붙은 카드로 그린다.
+   * 값 형식은 "「법령 전체명칭」 제N조 — 요지"(§6-D 표준) — 「」로 법령명을 뽑아 검색어로 쓴다.
+   * @param {string} val @returns {string}
+   */
+  function lawBlockHTML(val) {
+    var parts = String(val).split(/\s*—\s*/);
+    var head = (parts[0] || '').trim();
+    var gist = parts.slice(1).join(' — ').trim();
+    var nameMatch = head.match(/「([^」]+)」/);
+    var lawName = nameMatch ? nameMatch[1] : '';
+    var link = lawName ? 'https://www.law.go.kr/lsSc.do?menuId=1&query=' + encodeURIComponent(lawName) : '';
+    return '<div class="nrya-rv-lawblock">' +
+      '<div class="nrya-rv-lawhead">' + esc(head) + '</div>' +
+      (gist ? '<div class="nrya-rv-lawgist">' + esc(gist) + '</div>' : '') +
+      (link ? '<a class="nrya-rv-link" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">🔗 law.go.kr에서 검색</a>' : '') +
+      '</div>';
+  }
+
+  /** "확인 체크리스트" 필드(서버가 개행으로 합쳐 준 "1. …\n2. …")를 번호 목록으로. @param {string} text @returns {string} */
+  function checklistHTML(text) {
+    var lines = String(text).split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+    if (!lines.length) return '';
+    return '<ol class="nrya-rv-checklist">' + lines.map(function (l) {
+      return '<li>' + esc(l.replace(/^\d+\.\s*/, '')) + '</li>'; // 앞 번호는 <ol>이 그려주므로 벗김
+    }).join('') + '</ol>';
+  }
+
+  /**
    * 서버가 파싱해 준 fields(구조화 항목) + urls(검증 링크)로 스캔 가능한 카드 본문을 만든다.
-   * fields 가 비면 긴 body 를 잘라서 폴백 표시한다.
+   * fields 가 비면 긴 body 를 잘라서 폴백 표시한다. "볼 법(N)"·"확인 체크리스트"(§6-D 표준
+   * 필드, 2026-08-06)는 FIELD_VIEW 루프보다 먼저 전용 렌더링(law.go.kr 링크·번호목록)한다.
    * @param {object} rv - {fields, urls, body}
    * @returns {string} 본문 HTML
    */
@@ -641,6 +676,23 @@
     var fields = rv.fields || {};
     var used = {};
     var rows = '';
+
+    var lawKeys = Object.keys(fields).filter(function (k) { return /^볼\s*법\s*\(\d+\)/.test(k); });
+    if (lawKeys.length) {
+      lawKeys.sort(function (a, b) {
+        var na = parseInt((a.match(/\((\d+)\)/) || [])[1] || '0', 10);
+        var nb = parseInt((b.match(/\((\d+)\)/) || [])[1] || '0', 10);
+        return na - nb;
+      });
+      rows += '<div class="nrya-rv-field"><div class="nrya-rv-flab">⚖️ 볼 법 (' + lawKeys.length + ')</div>' +
+        lawKeys.map(function (k) { used[k] = 1; return lawBlockHTML(fields[k]); }).join('') + '</div>';
+    }
+
+    if (fields['확인 체크리스트']) {
+      used['확인 체크리스트'] = 1;
+      rows += '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔍 확인 체크리스트 — 이 순서대로 확인해주세요</div>' + checklistHTML(fields['확인 체크리스트']) + '</div>';
+    }
+
     FIELD_VIEW.forEach(function (fv) {
       for (var i = 0; i < fv.keys.length; i++) {
         var k = fv.keys[i];
@@ -681,23 +733,36 @@
     var st = approved
       ? '<span class="nrya-rv-st nrya-done">✓ 승인·canonical</span>'
       : '<span class="nrya-rv-st nrya-wait">검증 대기</span>';
-    // 유형 분기: 'AI 제안값'이 있으면 값확정형(수치 입력), 없으면 해석·판단형(승인/기각+선택 메모)
+    // 유형 분기(2026-08-06 3갈래로 확장): '확인 체크리스트'가 있으면 §6-D 신형(직접 확인→AI 재검토),
+    // 'AI 제안값'이 있으면 값확정형(수치 입력), 나머지는 구형 해석·판단형(승인/기각+선택 메모).
+    var hasChecklist = !!((rv.fields || {})['확인 체크리스트']);
     var isValue = !!((rv.fields || {})['AI 제안값']);
-    var correctBlock = isValue
-      ? '<div class="nrya-correct">' +
-          '<div class="nrya-correct-q">💡 <b>값 확정</b>: 원본 이미지·조문을 확인하고, AI 제안값이 맞으면 비워두고 승인, 틀리면 올바른 값으로 고쳐 승인하세요.</div>' +
-          '<div class="nrya-correct-row"><label>확정 값</label><input class="nrya-correct-in" value="" placeholder="예: 300만원 (맞으면 비워두고 승인)"></div>' +
-        '</div>'
-      : '<div class="nrya-correct">' +
-          '<div class="nrya-correct-q">🧠 <b>판단</b>: 위 AI 분석이 타당하면 승인, 아니면 기각. 필요하면 메모를 남기세요(수치 입력 아님).</div>' +
-          '<div class="nrya-correct-row"><label>메모(선택)</label><input class="nrya-correct-in" value="" placeholder="예: 사전통지 비적용 해석 맞음"></div>' +
-        '</div>';
+    var correctBlock, actionsHTML;
+    if (hasChecklist) {
+      correctBlock =
+        '<div class="nrya-findings">' +
+          '<div class="nrya-findings-q">✍️ <b>확인한 내용을 적어주세요</b> — 위 체크리스트대로 직접 확인한 뒤 무엇을 확인했는지 적으면, AI가 원문·논리와 다시 대조합니다.</div>' +
+          '<textarea class="nrya-findings-in" placeholder="예: law.go.kr에서 원문 확인함 — 위키 서술과 문구 일치"></textarea>' +
+        '</div><div class="nrya-ai-verdict nrya-hidden"></div>';
+      actionsHTML = '<div class="nrya-rv-actions"><button class="nrya-btn-ok nrya-btn-findings">✍️ 확인 내용 제출 → AI 재검토</button><button class="nrya-btn-no">✗ 반려</button></div>';
+    } else {
+      correctBlock = isValue
+        ? '<div class="nrya-correct">' +
+            '<div class="nrya-correct-q">💡 <b>값 확정</b>: 원본 이미지·조문을 확인하고, AI 제안값이 맞으면 비워두고 승인, 틀리면 올바른 값으로 고쳐 승인하세요.</div>' +
+            '<div class="nrya-correct-row"><label>확정 값</label><input class="nrya-correct-in" value="" placeholder="예: 300만원 (맞으면 비워두고 승인)"></div>' +
+          '</div>'
+        : '<div class="nrya-correct">' +
+            '<div class="nrya-correct-q">🧠 <b>판단</b>: 위 AI 분석이 타당하면 승인, 아니면 기각. 필요하면 메모를 남기세요(수치 입력 아님).</div>' +
+            '<div class="nrya-correct-row"><label>메모(선택)</label><input class="nrya-correct-in" value="" placeholder="예: 사전통지 비적용 해석 맞음"></div>' +
+          '</div>';
+      actionsHTML = '<div class="nrya-rv-actions"><button class="nrya-btn-ok">' + (isValue ? '✓ 승인 (값 확정)' : '✓ 승인 (판단 인정)') + '</button><button class="nrya-btn-no">✗ ' + (isValue ? '반려' : '기각') + '</button></div>';
+    }
     var body =
       '<div class="nrya-rv-body">' +
         reviewFieldsHTML(rv) +
         (pages ? '<div class="nrya-src-line">📍 대상 페이지: ' + pages + '</div>' : '') +
         correctBlock +
-        '<div class="nrya-rv-actions"><button class="nrya-btn-ok">' + (isValue ? '✓ 승인 (값 확정)' : '✓ 승인 (판단 인정)') + '</button><button class="nrya-btn-no">✗ ' + (isValue ? '반려' : '기각') + '</button></div>' +
+        actionsHTML +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
         '<div class="nrya-chain"></div>' +
       '</div>';
@@ -706,11 +771,12 @@
   }
 
   /**
-   * 리뷰 카드 1장에 헤더 토글 + 승인/반려 동작을 바인딩한다.
-   * 승인: POST approve(decision:'approve') → promotedCount>0 이면 초록 성공, 0 이면
-   *       경고(승격 0건)로 표시. 반려: decision:'reject'. 실패는 인라인 오류.
+   * 리뷰 카드 1장에 헤더 토글 + 승인/반려(또는 확인제출→AI재검토) 동작을 바인딩한다.
+   * 카드에 `.nrya-findings-in`(§6-D 신형, 확인 체크리스트 있는 항목)이 있으면 "확인 제출"
+   * 경로(POST submit-findings)를, 없으면 기존 "승인/기각" 경로(POST approve)를 쓴다.
+   * 승인: promotedCount>0 이면 초록 성공, 0 이면 경고(승격 0건)로 표시. 실패는 인라인 오류.
    * @param {HTMLElement} card
-   * [연계] → POST /api/legal/reviews/:id/approve.
+   * [연계] → POST /api/legal/reviews/:id/approve, POST /api/legal/reviews/:id/submit-findings.
    */
   function bindReviewCard(card) {
     var id = card.getAttribute('data-id');
@@ -720,11 +786,11 @@
     var okBtn = card.querySelector('.nrya-btn-ok');
     var noBtn = card.querySelector('.nrya-btn-no');
     var errBox = card.querySelector('.nrya-inline-err');
+    var findingsIn = card.querySelector('.nrya-findings-in');
 
     function showErr(msg) { if (!errBox) return; errBox.style.display = 'block'; errBox.classList.remove('nrya-hidden'); errBox.textContent = msg; }
     function clearErr() { if (!errBox) return; errBox.style.display = 'none'; errBox.textContent = ''; }
     function setBusy(b) { if (okBtn) okBtn.disabled = b; if (noBtn) noBtn.disabled = b; }
-    function resetOk() { if (okBtn) okBtn.textContent = '✓ 승인'; }
 
     function submit(decision) {
       clearErr();
@@ -738,17 +804,57 @@
           return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
         })
         .then(function (data) {
-          if (data._denied) { showErr('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'); setBusy(false); resetOk(); return; }
-          if (!data || !data.ok) { showErr((data && data.error) || '처리에 실패했습니다.'); setBusy(false); resetOk(); return; }
+          if (data._denied) { showErr('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'); setBusy(false); if (okBtn) okBtn.textContent = '✓ 승인'; return; }
+          if (!data || !data.ok) { showErr((data && data.error) || '처리에 실패했습니다.'); setBusy(false); if (okBtn) okBtn.textContent = '✓ 승인'; return; }
           if (decision === 'reject') { markRejected(card, data); }
           else { markApproved(card, val, data); }
           refreshStats(); // 대기 카운트 배지 갱신
         })
-        .catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); setBusy(false); resetOk(); });
+        .catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); setBusy(false); if (okBtn) okBtn.textContent = '✓ 승인'; });
     }
 
-    if (okBtn) okBtn.onclick = function () { submit('approve'); };
-    if (noBtn) noBtn.onclick = function () { submit('reject'); };
+    /** AI 재검토 결과(mismatch/uncertain)를 텍스트 입력란 아래 콜아웃으로 보여준다. */
+    function showVerdict(verdict, message) {
+      var box = card.querySelector('.nrya-ai-verdict');
+      if (!box) return;
+      box.className = 'nrya-ai-verdict' + (verdict === 'mismatch' ? ' nrya-verdict-mismatch' : ' nrya-verdict-uncertain');
+      var icon = verdict === 'mismatch' ? '⚠️' : '❔';
+      box.innerHTML = '<div class="nrya-verdict-lab">' + icon + ' AI 재검토 결과</div><div class="nrya-verdict-msg">' + esc(message) + '</div>';
+    }
+
+    function submitFindings() {
+      clearErr();
+      var val = findingsIn ? findingsIn.value.trim() : '';
+      if (!val) { showErr('확인한 내용을 입력해주세요.'); return; }
+      setBusy(true);
+      if (okBtn) okBtn.textContent = 'AI 재검토 중…';
+      legalPost('/api/legal/reviews/' + encodeURIComponent(id) + '/submit-findings', { findings: val, by: '관리자' })
+        .then(function (res) {
+          if (res.status === 401 || res.status === 403) return { _denied: true };
+          return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+        })
+        .then(function (data) {
+          if (data._denied) { showErr('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'); setBusy(false); if (okBtn) okBtn.textContent = '✍️ 확인 내용 제출 → AI 재검토'; return; }
+          if (!data || !data.ok) { showErr((data && data.error) || '처리에 실패했습니다.'); setBusy(false); if (okBtn) okBtn.textContent = '✍️ 확인 내용 제출 → AI 재검토'; return; }
+          if (data.autoApplied) {
+            markApproved(card, '', data);
+          } else {
+            setBusy(false);
+            if (okBtn) okBtn.textContent = '✍️ 확인 내용 다시 제출';
+            showVerdict(data.verdict, data.message);
+          }
+          refreshStats();
+        })
+        .catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); setBusy(false); if (okBtn) okBtn.textContent = '✍️ 확인 내용 제출 → AI 재검토'; });
+    }
+
+    if (findingsIn) {
+      if (okBtn) okBtn.onclick = submitFindings;
+      if (noBtn) noBtn.onclick = function () { submit('reject'); };
+    } else {
+      if (okBtn) okBtn.onclick = function () { submit('approve'); };
+      if (noBtn) noBtn.onclick = function () { submit('reject'); };
+    }
   }
 
   /**
