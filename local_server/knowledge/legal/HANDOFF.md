@@ -397,6 +397,11 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-06 20:17 KST] ✅완료 — 관리자 3서브탭 main 머지·배포 완료, 12차 감사 착수
+사용자 확인('머지하고 감사착수해') → main 머지(ff-only, 7cc8d9a0c) → push → GH Actions Deploy to Fly.io run 31096387049 성공(11:13:22~11:16:21Z, 약3분) → 프로덕션 라이브 확인: /api/health 200, /api/legal/admin/stats 401(관리자 인증요구 정상, 라우트 마운트 확인). 관리자 3서브탭(피드백·새지식후보·개정검토, 개정검토 자동스케줄러 포함) 기능 완결.
+다음: 12차 감사(11차 다음 라운드, 전체 73법 300문항) 착수 — 자율진행 규칙(CLAUDE.md) 적용, 완료 시 9차 감사 완료 시점과 동일하게 결과 기록 후 사용자 지시 대기(다음 라운드는 자동 시작 안 함).
+
+
 ### [2026-08-06 20:08 KST] ✅완료 — 관리자 3서브탭(피드백·새지식후보·개정검토) 구현 완료
 요청: '관리자화면 나머지 3서브탭 만들자' + '전체 자동 스케줄러까지 지금 다'(개정검토 스코프 확정).
 백엔드: services/legal_amendment_scanner.js(신규, law.go.kr DRF API로 199개 대상(raw/01~14_*, 15_관련타부처·자치법규 제외) 공포번호·시행일자 diff 스캔) + services/legal_admin_queues.js(신규, 3방 공유 JSONL read/append/updateById/countPending 헬퍼) + routes/legal.js(feedback/candidates/amendments 9개 라우트, admin/stats 실카운트로 교체, searchRawFallback 성공지점에 logKnowledgeCandidate 연결) + server.js(node-cron 매일 KST 01:00 자동 스캔 — 기존 3개 cron과 같은 패턴, scheduler.js 아님).
