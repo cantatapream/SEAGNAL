@@ -3373,6 +3373,12 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
         const isPublishCmd = ['발표', '변경', '연장'].includes(cmd);
         if (!isPublishCmd && cmd !== '변경해제') continue;
         const tmEf = String(row.tm_ef || '').trim();
+        // [§7.7.25-2] 늦게 나온 확정(발효시각 경과 후 발표) — 신규 생성은 계속 금지하고
+        //   "이미 예비인 해역의 시각 정밀화"만 허용한다. 범위 밖 과거값은 헬퍼가 거부.
+        if (isPublishCmd && tmEf && !_isRangeTime(tmEf) && !_isFutureExactTime(tmEf)) {
+            if (_refineUpcomingExactEf(snap, name, { wrnTpNm: row.warn_tp_nm || '', tmEf })) efRefined++;
+            continue;
+        }
         if (!tmEf || !_isFutureExactTime(tmEf)) continue;  // 정확·미래 발효시각만 (발표 발효대기)
         if (!_isChildZoneCode(row.warn_zone_cd, name)) {
             const info = _rowToParentInfo(row);
@@ -3717,6 +3723,14 @@ function _refineUpcomingExactEf(snap, name, info) {
     if (!inc || _isRangeTime(inc)) return false;                    // 통보문이 정확시각일 때만
     const old = String(cur.tmEf || '').trim();
     if (!old || !_isRangeTime(old)) return false;                   // 범위형 → 정확 정밀화만 (정확↔정확은 기존 경로)
+    // [§7.7.25-2 늦은 확정] 발효시각이 이미 지난 정확시각(예: 12시 도래 후 "12시 발효" 발표)도
+    //   수용한다 — 다만 "현재 들고 있는 예고 범위 [시작,끝] 안" 일 때만. 옛 통보문(어제 15시 등)은
+    //   범위 밖이라 자동 거부되어 유령특보 차단(_isFutureExactTime 가드의 취지)이 유지된다.
+    //   미래 정확시각은 종전대로 범위 밖(더 늦어짐)도 허용 — 그건 연장/변경으로 정상 처리된다.
+    if (!_isFutureExactTime(inc)) {
+        const sK = _timeKey(old, null, true), eK = _timeKey(old), iK = _timeKey(inc);
+        if (sK == null || eK == null || iK == null || iK < sK || iK > eK) return false;
+    }
     cur.tmEf = inc;
     cur._efExactFrom = old;                                         // [표식] 이번 사이클 정밀화 (경계 발사용)
     return true;
@@ -3739,6 +3753,7 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
     const PUBLISH_CMDS = new Set(['발표', '변경', '연장']);
     const latestByZone = new Map();
     const coexistByZone = new Map();
+    const lateExactByZone = new Map();   // [§7.7.25-2] 발효시각 경과 후 발표된 확정 — 정밀화 전용
     for (const row of efRows) {
         const tpNm = String(row.warn_tp_nm || '');
         if (tpNm !== '풍랑' && tpNm !== '태풍') continue;            // 앱 대상 종류만
@@ -3749,8 +3764,16 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
         const name = _resolveZoneName(row);
         if (!name) continue;
         const ed = String(row.ed_tm || '').trim();
-        if (!_isFutureExactTime(ed)) continue;                      // 발효시각 미래(=발표대기)만
-        const key = String(row.tm_fc || '') + '#' + String(row.tm_seq || 0).padStart(4, '0');
+        const key0 = String(row.tm_fc || '') + '#' + String(row.tm_seq || 0).padStart(4, '0');
+        if (!_isFutureExactTime(ed)) {
+            // [§7.7.25-2] 늦게 나온 확정만 따로 모은다 (신규 GAP 생성엔 쓰지 않음 — 유령특보 차단 유지)
+            if (PUBLISH_CMDS.has(cmd) && ed && !_isRangeTime(ed)) {
+                const le = lateExactByZone.get(name);
+                if (!le || key0 > le.key) lateExactByZone.set(name, { key: key0, row });
+            }
+            continue;                                               // 발효시각 미래(=발표대기)만
+        }
+        const key = key0;
         const cx = coexistByZone.get(name);                         // 공존 판정용(모든 통과 cmd)
         if (!cx || key > cx.key) coexistByZone.set(name, { key, row });
         if (PUBLISH_CMDS.has(cmd)) {                                // 신규 GAP 선택용(publish 만 — 기존 동작 보존)
@@ -3759,6 +3782,10 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
         }
     }
     const counters = { gapAdded: 0, gapChildCarried: 0, gapChildSynth: 0 };
+    // [§7.7.25-2] 늦은 확정 정밀화 — 신규 생성 루프보다 먼저(같은 zone 이 양쪽에 걸리지 않음).
+    for (const [name, sel] of lateExactByZone) {
+        if (_refineUpcomingExactEf(snap, name, _efRowToInfo(sel.row))) counters.efRefined = (counters.efRefined || 0) + 1;
+    }
     // [B] 1차: 발효중 zone 공존 격상/격하 → upcomings 보강 (가산만, 발효중 아니면 무동작).
     for (const [name, sel] of coexistByZone) {
         _tryAddCoexistingUpcoming(snap, name, _efRowToInfo(sel.row));

@@ -169,5 +169,63 @@ console.log('\n[4] push_sender 시나리오 매핑');
     ok('본문에 정확시각 표기', /11시/.test(g.body), g.body);
 }
 
+// ── [5] §7.7.25-2 늦은 확정 — 발효시각 경과 후 발표된 정확시각 ──────────────
+console.log('\n[5] 늦은 확정(과거 정확시각) 수용 조건');
+{
+    // 과거 시각 만들기: KST 기준 "오늘 00:00" 은 항상 과거. 범위는 그 시각을 포함하도록 구성.
+    const kst = new Date(Date.now() + 9 * 3600000);
+    const Y = kst.getUTCFullYear(), M = String(kst.getUTCMonth() + 1).padStart(2, '0'), D = String(kst.getUTCDate()).padStart(2, '0');
+    const pastExact = `${Y}.${M}.${D} 00:00`;                  // 오늘 00시 (이미 지남)
+    const rangeCover = `${Y}.${M}.${D} 00~06시`;               // 00시를 시작점으로 포함하는 범위
+    const rangeNotCover = `${Y}.${M}.${D} 03~09시`;            // 00시를 포함하지 않는 범위
+    const pastOutside = `${Y}.${M}.${D} 01:00`;                // 범위(03~09시) 밖 과거값
+
+    // (a) 사장님 시나리오: 12시(=범위 끝) 도래 후 "12시 발효" 통보문 → 범위 안이므로 수용
+    const s = mkSnap(); s.parents.set(Z, PRELIM({ tmEf: rangeCover }));
+    ok('(a) 늦은 확정이 범위 안이면 수용', mc._refineUpcomingExactEf(s, Z, { wrnTpNm: '풍랑', tmEf: pastExact }) === true
+        && s.parents.get(Z).tmEf === pastExact && s.parents.get(Z)._efExactFrom === rangeCover);
+
+    // (b) 범위 밖 과거값(옛 통보문)은 거부 — 유령특보 차단 유지
+    const s2 = mkSnap(); s2.parents.set(Z, PRELIM({ tmEf: rangeNotCover }));
+    ok('(b) 범위 밖 과거값 거부(유령특보 차단)', mc._refineUpcomingExactEf(s2, Z, { wrnTpNm: '풍랑', tmEf: pastOutside }) === false
+        && s2.parents.get(Z).tmEf === rangeNotCover);
+
+    // (c) ef/list 경로 통합 — 과거 정확시각 행이 정밀화로만 반영되고 신규 생성은 안 됨
+    const s3 = mkSnap(); s3.parents.set(Z, PRELIM({ tmEf: rangeCover }));
+    mc._enrichSnapshotWithEfList(s3, [{
+        warn_tp_nm: '풍랑', warn_cmd_nm: '발표', warn_zone_nm: Z, warn_zone_cd: '',
+        tm_fc: '202608061210', tm_seq: 9, ed_tm: pastExact
+    }], null);
+    ok('(c) ef/list 늦은 확정 반영', s3.parents.get(Z).tmEf === pastExact);
+
+    // (d) ef/list — 모르는 해역의 과거 통보문은 신규 생성 안 함 (종전 가드 유지)
+    const s4 = mkSnap();
+    mc._enrichSnapshotWithEfList(s4, [{
+        warn_tp_nm: '풍랑', warn_cmd_nm: '발표', warn_zone_nm: Z2, warn_zone_cd: '',
+        tm_fc: '202608061210', tm_seq: 9, ed_tm: pastExact
+    }], null);
+    ok('(d) 미등장 해역 과거 통보문은 신규 생성 안 함', !s4.parents.has(Z2));
+
+    // (e) warn/latest 경로 통합
+    const s5 = mkSnap(); s5.parents.set(Z2, PRELIM({ tmEf: rangeCover }));
+    mc._enrichSnapshotWithLatest(s5, [{
+        warn_tp: 'V', warn_tp_nm: '풍랑', warn_cmd_nm: '발표', warn_zone_nm: Z2, warn_zone_cd: '',
+        tm_fc: '202608061210', tm_ef: pastExact
+    }], null, []);
+    ok('(e) warn/latest 늦은 확정 반영', s5.parents.get(Z2).tmEf === pastExact);
+
+    // (f) 발효중 해역은 늦은 확정으로도 안 건드림
+    const s6 = mkSnap(); s6.parents.set(Z, ACTIVE({ tmEf: rangeCover }));
+    ok('(f) 발효중 해역 비대상(늦은 확정)', mc._refineUpcomingExactEf(s6, Z, { wrnTpNm: '풍랑', tmEf: pastExact }) === false);
+
+    // (g) 차분 발사 — 범위 → 늦은 확정(같은 모멘트여도 표식으로 1회 발사)
+    mc._resetCancelVerdictsForTest();
+    const changes = mc._buildUserPushChanges(
+        snapOf({ [Z]: PRELIM({ tmEf: rangeCover }) }),
+        snapOf({ [Z]: PRELIM({ tmEf: pastExact, _efExactFrom: rangeCover }) }));
+    const up = changes.find(c => c.type === 'UPCOMING_CHANGE' && c.zone === Z);
+    ok('(g) 늦은 확정도 UPCOMING_CHANGE 발사', !!up && up.curr.tmEf === pastExact);
+}
+
 console.log(`\n[ef_exact_refine] ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
