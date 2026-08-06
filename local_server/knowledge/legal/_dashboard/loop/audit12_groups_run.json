@@ -870,6 +870,21 @@
    ],
    "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/13_공공기관/한국해양수산연수원법",
    "group": 2
+  },
+  {
+   "name": "자연유산의 보존 및 활용에 관한 법률",
+   "slug": "자연유산의보존및활용에관한법률",
+   "domain": "15_관련타부처",
+   "tier": 2,
+   "soban": "국가유산청",
+   "byl": 53,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/자연유산의보존및활용에관한법률",
+   "group": 7
   }
  ],
  "8": [

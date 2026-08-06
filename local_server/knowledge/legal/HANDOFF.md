@@ -397,6 +397,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-06 23:04 KST] ✅완료 — 12차 감사 누락법 발견·추가 디스패치
+사용자 지적으로 확인: 2026-08-01 신규편입된 「자연유산의 보존 및 활용에 관한 법률」이 stage_b_collection_targets.md(73법 원 목록)와 audit8~12_groups.json 전부에 누락돼 있어 11차·12차 감사 어디에도 포함된 적 없었음(raw 수집·위키 statutes/concepts는 이미 완료돼 있었는데 감사 대상 목록에서만 빠짐). audit12_groups_run.json 그룹7에 추가(6→7법, 전체 72→73법)하고 별도 Workflow 1개로 즉시 디스패치(round:12, cfg.laws 직접전달). 이로써 12차 감사는 그룹0~9(자연유산법 포함 73법 전부) + 자연유산법 단독 1건으로 총 73법 커버 확정. 다음: 11개 Workflow 전부 완료 통보 오는 대로 fix3/audit_r12_*.done 마커 확인→집계→HANDOFF 갱신. stage_b_collection_targets.md에도 이 법을 74번째 항목으로 등재할지는 별도 확인 필요(현재는 group run 파일에만 반영).
+
+
 ### [2026-08-06 22:26 KST] 🟢착수 — 12차 감사 재디스패치
 직전 세션이 Workflow 10개(그룹0~9) 디스패치 도중 중단됨(fix3/audit_r12_*.done 0건 확인). 새 세션에서 자율진행 규칙에 따라 동일 파라미터(scriptPath=audit_sim.js, groupsPath=audit12_groups_run.json, groupIndex 0~9, round:12)로 재디스패치.
 
