@@ -332,5 +332,30 @@ console.log('\n[7] 공존 예비 시각 오염 방지 (격상 발표 본문)');
         curr2.upcomings.get(Z).tmEf === '2026.08.06 09:00', curr2.upcomings.get(Z).tmEf);
 }
 
+// ── [8] 사용자 지시 C — 시각값 1사이클 결측은 "변경"이 아니다 ────────────────
+console.log('\n[8] 부모 시각값 결측 처리 (미정 알림 차단)');
+{
+    const ZC = '제주도서부앞바다';
+    const mkP = (over = {}) => Object.assign({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvl: '1',
+        wrnLvlNm: '예비', tmFc: '2026.08.06 04:00', tmEf: RANGE, tmYn: '', clrNtcTm: '' }, over);
+    // C1: 정상값 관측 → 확정 등록
+    const c1 = { parents: new Map([[ZC, mkP()]]), upcomings: new Map(), children: new Map() };
+    mc._debounceTimeValues(c1);
+    ok('[C] 최초 정상값 수락', c1.parents.get(ZC).tmEf === RANGE);
+    // C2: 같은 해역인데 발효예정 칸만 빈값 → 직전 확정값 유지(미정 표기 금지)
+    const c2 = { parents: new Map([[ZC, mkP({ tmEf: '' })]]), upcomings: new Map(), children: new Map() };
+    mc._debounceTimeValues(c2);
+    ok('[C] 결측 사이클 → 직전 값 유지(빈값 아님)', c2.parents.get(ZC).tmEf === RANGE, c2.parents.get(ZC).tmEf);
+    // 차분: 결측이 "변경"으로 발사되지 않아야
+    mc._resetCancelVerdictsForTest();
+    const changes = mc._buildUserPushChanges(
+        snapOf({ [ZC]: mkP() }),
+        (() => { const cc = { parents: new Map([[ZC, mkP({ tmEf: '' })]]), upcomings: new Map(), children: new Map() };
+                 mc._debounceTimeValues(cc); return cc; })());
+    ok('[C] 결측으로 인한 "미정" 푸시 없음',
+        !changes.some(c => c.type === 'UPCOMING_CHANGE' && c.zone === ZC && c.curr),
+        JSON.stringify(changes.map(c => ({ t: c.type, z: c.zone, p: c.prev && c.prev.tmEf, c: c.curr && c.curr.tmEf }))));
+}
+
 console.log(`\n[ef_exact_refine] ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

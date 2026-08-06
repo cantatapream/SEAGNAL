@@ -1933,7 +1933,7 @@ function _debounceTimeValues(curr) {
     if (!curr) return;
     const now = Date.now();
     const seen = new Set();
-    const gate = (keyBase, info, field, flag, winMap, winZone) => {
+    const gate = (keyBase, info, field, flag) => {
         const cur = info[field];
         const key = keyBase + '|' + field;
         // [적대검증 결함5] 통보문 기반 정밀화(§7.7.25)는 진동값이 아니라 기상청이 확정 발표한
@@ -1951,6 +1951,19 @@ function _debounceTimeValues(curr) {
             //   롤백되어 ''→옛값 오발 후 3분 뒤 2건째가 나간다(회귀검증 A-6-2).
             if (keyBase.indexOf('>') !== -1) {
                 delete _tcConfirmed[key]; delete _tcPending[key]; delete _tcChildSeenAt[key];
+                return;
+            }
+            // [2026-08-06 사용자 지시 C] 부모 시각값이 1사이클 빈 것은 "변경"이 아니라 관찰 실패다.
+            //   MMIS 가 같은 행을 주면서 발효예정 칸만 잠깐 비우면(1분 뒤 정상 복귀) 종전에는
+            //   "🕐 발효시각 변경 / 발효예정 : 미정" 이 나가고 복귀 사이클에 원래 값으로 또 한 번
+            //   나갔다(2연발, 정보 가치 0). → 직전 확정값을 유지해 표출·푸시를 모두 억제한다.
+            //   특보가 진짜 끝난 경우는 해역 행 자체가 사라져 이 gate 가 호출되지 않으므로,
+            //   해제·취소 통지 경로에는 영향이 없다.
+            const conf0 = _tcConfirmed[key];
+            if (conf0) {
+                info[field] = conf0;
+                seen.add(key);   // 관찰 상태 보존 — 미기록 시 아래 미관측 정리가 확정값을 지워
+                                 //   다음 사이클에 다시 빈값이 통과(미정 푸시)한다.
             }
             return;
         }
@@ -1970,22 +1983,14 @@ function _debounceTimeValues(curr) {
         }
         info[field] = conf;                 // 미확정 → 직전 확정값으로 되돌려 푸시·표출 억제
         if (flag && info[flag]) delete info[flag];   // 연장 플래그도 보류
-        // [적대검증 결함3] 값을 되돌릴 때 "윈도우"도 함께 되돌린다. _applyTimeWindowHold 는
-        //   연장 사이클에 윈도우를 즉시 올리는데(1821) 디바운스가 그 값을 미확정으로 돌리면,
-        //   다음 사이클부터 incKey > win 이 거짓이 되어 held 고정이 옛 값을 영구히 덮어써
-        //   MMIS 연장이 침묵했다(정밀화로 held 가 상시 존재하게 되며 발현).
-        if (winMap && winZone) {
-            const confKey = _timeKey(conf);
-            if (confKey != null) winMap[winZone] = confKey;
-        }
     };
     if (curr.parents) for (const [zone, info] of curr.parents) {
         if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
-        if (info.wrnLvlNm === '예비') gate(zone, info, 'tmEf', '_efExtend', _efWindowEnd, zone);
-        else gate(zone, info, 'clrNtcTm', '_clrExtend', _clrWindowEnd, zone);
+        if (info.wrnLvlNm === '예비') gate(zone, info, 'tmEf', '_efExtend');
+        else gate(zone, info, 'clrNtcTm', '_clrExtend');
     }
     if (curr.upcomings) for (const [zone, info] of curr.upcomings) {
-        if (info && info.wrnLvlNm === '예비') gate(zone, info, 'tmEf', '_efExtend', _efWindowEnd, zone);
+        if (info && info.wrnLvlNm === '예비') gate(zone, info, 'tmEf', '_efExtend');
     }
     // [§7.7.21] 자식 시각값도 동일 3분 관찰 — 부모만 관찰하던 비대칭 탓에 통보문 1건의
     //   부모+자식 동시 시각변경/연장이 "자식 즉발 + 부모 3분후" 2건으로 갈라지고(2026-07-08
