@@ -1858,7 +1858,15 @@ function _applyTimeWindowHold(prev, curr, cfg) {
         proc(z, info, prev && prev.parents ? prev.parents.get(z) : null);
     }
     if (cfg.includeUpcomings && curr.upcomings) for (const [z, info] of curr.upcomings) {
-        const p = (prev && prev.upcomings && prev.upcomings.get(z)) || (prev && prev.parents && prev.parents.get(z)) || null;
+        // [2026-08-06 적대검증 A] prev 후보로 parents 를 볼 때는 "그때도 예비였을 때"만 인정한다.
+        //   예비는 warn/ready 경로에선 parents 에, 발효중 공존 경로에선 upcomings 에 담기므로
+        //   parents 폴백은 "같은 예비의 연속"을 잇기 위한 것이다. 그런데 필터가 없어서 발효중
+        //   특보(주의보)를 직전값으로 오인 → 그 발효시각(03:00)을 새 공존 예비(경보)의 발효예정
+        //   으로 물려받아 "📢 주의보→경보 격상 발표 / 발효예정 03시"(이미 지난 시각)를 발송했다.
+        //   (시뮬레이션 S10b 실측. 등급이 다른 별개 특보끼리 시각을 빌려주면 안 된다.)
+        const pUpPrev = prev && prev.upcomings && prev.upcomings.get(z);
+        const pParPrev = prev && prev.parents && prev.parents.get(z);
+        const p = pUpPrev || ((pParPrev && pParPrev.wrnLvlNm === '예비') ? pParPrev : null);
         proc(z, info, p);
     }
     // [#2] 자식 해역 정확값 고정 (직전 정확 + 이번 범위 → 유지). 윈도우/연장 없음.

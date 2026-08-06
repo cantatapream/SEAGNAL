@@ -304,5 +304,33 @@ console.log('\n[6] 적대검증 수정 회귀 고정');
         && s6.parents.get(Z).tmEf === futureExact);
 }
 
+// ── [7] 적대검증 A — 공존 예비가 발효중 특보의 시각을 물려받지 않는다 ────────
+console.log('\n[7] 공존 예비 시각 오염 방지 (격상 발표 본문)');
+{
+    const ACT_EXACT = '2026.08.06 03:00';     // 발효중 주의보의 발효시각(이미 지난 시각)
+    const PRE_RANGE = '2026.08.06 06~12시';   // 새로 등장한 경보 예비의 예고 범위
+    // C1: 주의보 단독 발효중
+    const prev = { parents: new Map([[Z, ACTIVE({ tmEf: ACT_EXACT, wrnLvlNm: '주의보' })]]),
+                   upcomings: new Map(), children: new Map() };
+    // C2: 같은 해역에 경보 예비 공존 등장 (예고는 범위형)
+    const curr = { parents: new Map([[Z, ACTIVE({ tmEf: ACT_EXACT, wrnLvlNm: '주의보' })]]),
+                   upcomings: new Map([[Z, PRELIM({ tmEf: PRE_RANGE, wrnLvlReal: '경보', wrnLvl: '3' })]]),
+                   children: new Map() };
+    mc._applyUpcomingEfLogic(prev, curr);
+    ok('[A] 공존 예비가 발효중 주의보 시각을 상속하지 않음',
+        curr.upcomings.get(Z).tmEf === PRE_RANGE, curr.upcomings.get(Z).tmEf);
+    ok('[A] 발효중 주의보 자신의 시각은 그대로 유지',
+        curr.parents.get(Z).tmEf === ACT_EXACT, curr.parents.get(Z).tmEf);
+
+    // 회귀: 직전에도 "예비"였으면 종전대로 정확값 고정(깜빡임 방지)이 살아 있어야
+    const prev2 = { parents: new Map([[Z, PRELIM({ tmEf: '2026.08.06 09:00' })]]),
+                    upcomings: new Map(), children: new Map() };
+    const curr2 = { parents: new Map(),
+                    upcomings: new Map([[Z, PRELIM({ tmEf: PRE_RANGE })]]), children: new Map() };
+    mc._applyUpcomingEfLogic(prev2, curr2);
+    ok('[A] 회귀: 직전도 예비였으면 정확값 고정 유지',
+        curr2.upcomings.get(Z).tmEf === '2026.08.06 09:00', curr2.upcomings.get(Z).tmEf);
+}
+
 console.log(`\n[ef_exact_refine] ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
