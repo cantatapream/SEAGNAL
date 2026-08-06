@@ -142,7 +142,9 @@ Phase F 챗봇 실배선 총정리: 관리자라벨 24자→120자 파싱버그 
 위키밖질문 2단계 답변(GitHub 원문조회) 실키 라이브 종단검증 완료 — 관리자 전용 임시
   강제테스트 스위치(forceRaw)로 후보법선정→원문조회→답변합성 전체 체인 정상동작 확인,
   검증 직후 임시 코드 revert로 원상복구 (2026-08-03 낮 KST)
-review_queue.md 201건 백로그 재트리아지(7배치, H-34 기준) 완료 — 88→166건 해소  완료 (2026-08-05 20:10 KST) ← 방금 끝남
+review_queue.md 201건 백로그 재트리아지(7배치, H-34 기준) 완료 — 88→166건 해소  완료 (2026-08-05 20:10 KST)
+관리자화면 3서브탭(피드백·새지식후보·개정검토, 개정검토는 스케줄러까지) 구현 완료 — main 머지 대기
+  완료(브랜치) (2026-08-06 20:08 KST) ← 방금 끝남
 ```
 9차 감사 완료 시점은 CLAUDE.md "자율진행 예외" 규칙 대상이었으나(자동으로 10차 감사를 시작하지 않고 정지), 그 직후 발견된 admrul/부칙 raw 파이프라인 구조적 결함(L-29~32) 복구·wiki_rebuild·10차 감사까지는 사용자가 이후 명시적으로 "계속해" 지시해 진행됨(그 순간부터 자율진행 규칙 재적용). 10차 감사 이후 collection_hole 관련 후속작업(재검증→H-28 전수조사→H-30 위키반영→reclass 백로그→사람확인 5건)까지는 자율진행 규칙 하에 연속 처리됨. **③missing/thin 통합수정은 사용자가 명시적으로 "70법 전부 한번에 착수"를 선택**해 진행함.
 
@@ -246,7 +248,19 @@ Gemini API 최소 요구 deadline(10초)보다 짧아 `Legal-QueryExpand`(L-57 �
 라벨 근거)도 같은 세션에서 발견·수정·배포. 상세는 작업 로그 및 `MASTER_PLAN.md` F절 참조.
 
 ### ③직전 작업(가장 최근) — 상세는 아래 [작업 로그] 최상단 항목들
-2026-08-05(가장 최신): review_queue.md 201건 백로그 재트리아지 7배치 전체 **완료** — H-34 3분류
+2026-08-06(가장 최신): 관리자화면 나머지 3서브탭(피드백·새지식후보·개정검토) **구현 완료**(브랜치
+`claude/nariya-answer-quality-fix-fhvmbc`, main 머지는 사용자 확인 대기 — 앱코드라 머지 즉시
+자동배포). 개정검토는 사용자 지시 "전체 자동 스케줄러까지 지금 다"로 스코프 확정 →
+`legal_amendment_scanner.js`(law.go.kr DRF API로 raw 01~14_* 199개 대상 공포번호·시행일자 diff)
++ node-cron 매일 KST 01:00 자동스캔(server.js, 기존 3개 cron과 같은 패턴) + `legal_admin_queues.js`
+(3방 공유 JSONL 헬퍼) + routes/legal.js 9개 라우트 + ai_chat.js 카드렌더러·👍/👎 피드백버튼·
+지금스캔버튼. 검증: node --check 전체·verify_all.sh V2/V3 통과·로컬서버 실기동 스모크(POST
+/api/legal/feedback 실제 파일쓰기 확인 후 테스트데이터 삭제)·부트스트랩 스캔 199건 완료(baseline
+199 entries 생성, firstRun이라 큐잉 0건 정상). 상세는 아래 [작업 로그] "2026-08-06 20:08 완료" 참조.
+**다음**: git commit·push 후 사용자에게 main 머지 확인 요청. 사용자가 "3서브탭이 끝나면하자"로
+확인한 12차 감사(11차 다음 라운드)는 이 작업 완료 후 시작 예정.
+
+2026-08-05: review_queue.md 201건 백로그 재트리아지 7배치 전체 **완료** — H-34 3분류
 기준 재검토 결과 78건 신규 [x]해소(88→166건, 총 289건 중), 120건 진짜해석다툼으로 [ ] 유지.
 L-67(REVIEW해소≠canonical승격) 다수 적용. 상세는 아래 [작업 로그] "2026-08-05 20:10 완료" 항목.
 **미결 — 사용자 질문 대기**: "조·항·호+고시까지 전수 스윕을 재트리아지 종료 후 새로 설계해서 돌릴지,
@@ -382,6 +396,15 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
+
+### [2026-08-06 20:08 KST] ✅완료 — 관리자 3서브탭(피드백·새지식후보·개정검토) 구현 완료
+요청: '관리자화면 나머지 3서브탭 만들자' + '전체 자동 스케줄러까지 지금 다'(개정검토 스코프 확정).
+백엔드: services/legal_amendment_scanner.js(신규, law.go.kr DRF API로 199개 대상(raw/01~14_*, 15_관련타부처·자치법규 제외) 공포번호·시행일자 diff 스캔) + services/legal_admin_queues.js(신규, 3방 공유 JSONL read/append/updateById/countPending 헬퍼) + routes/legal.js(feedback/candidates/amendments 9개 라우트, admin/stats 실카운트로 교체, searchRawFallback 성공지점에 logKnowledgeCandidate 연결) + server.js(node-cron 매일 KST 01:00 자동 스캔 — 기존 3개 cron과 같은 패턴, scheduler.js 아님).
+프론트: ai_chat.js — answerHTML에 👍/👎 피드백 버튼(feedbackHTML, bindChat 위임클릭 onFeedbackThumb/onFeedbackSend/submitFeedback) + 3방 카드 렌더러(feedbackCardHTML/candidateCardHTML/amendmentCardHTML) + 공용 결정바인딩(bindDecideCard, ⚠수치검증의 bindReviewCard와 별개 — 이쪽은 승인|처리완료/무시 2택만이라 단순화) + 개정검토방 '지금 스캔' 버튼(scan-now 즉시호출). skelRoom()·bindReviewStatic() 등 안 쓰게 된 골격코드는 제거. ai_chat.css에 피드백 버튼 스타일 추가(기존 .nrya-rv* 클래스는 재사용, 새 클래스 없음).
+검증: node --check 전체 통과, verify_all.sh V2(경로)·V3(로드순서) 통과(V4는 이 샌드박스에 playwright-core 없어 무관하게 실패 — 기존에도 있던 환경 제약). 로컬서버 실기동 스모크: /api/health 200, POST /api/legal/feedback(공개) 200 + logs.jsonl 파일쓰기 실제 확인 후 테스트데이터 삭제, GET 관리자 라우트들 401(토큰 없음, 정상) 확인. 부트스트랩 개정감지 스캔 백그라운드 완료: 199건 조회·0건 변경(firstRun, 정상)·0건 오류 → _dashboard/amendment_baseline.json 생성(199 entries).
+설계 결정: candidates/amendments 승인은 위키 자동편입·자동재수집을 절대 하지 않는다(환각0 게이트, README 설계 그대로) — '승인'은 '다음 단계 필요' 표시일 뿐. _feedback/_candidates/_amendments README의 '로그+검토파일 분리' 설계는 볼륨이 적어 파일 1개+status필드로 단순화(볼륨 늘면 review_queue.md 패턴으로 재검토).
+다음: git add/commit/push to claude/nariya-answer-quality-fix-fhvmbc, 사용자에게 main 머지 확인받기(앱코드라 자동배포 트리거). 사용자가 '3서브탭이 끝나면하자'고 확인한 12차(정정: 실제로는 11차 다음인 12차) 감사 워크플로우는 이 작업 완료 후 시작.
+
 
 ### [2026-08-06 15:43 KST] ✅완료 — Phase F 1~3단계 전부 완료 — review_queue 재구성+카드UI+AI재검토 API, main 병합 대기
 사용자 3단계 계획(1.review_queue.md §6-D 재구성 2.카드 렌더링 확장 3.신규 AI재검토 API) 전부 구현 완료. 1단계: Workflow 10배치로 미승인 99건 중 96건을 볼법/왜의문인가/AI잠정결론/확인체크리스트/승인 5필드로 재구성(3건은 법개정추적형이라 제외), 무결성 검증 완료(커밋 f41fd4119). 2·3단계: routes/legal.js에 extractStructured() 다줄 체크리스트 파싱 + finalizeApproval() 공통화 + 신규 POST /api/legal/reviews/:id/submit-findings(Gemini 재검토, match=자동승인/mismatch·uncertain=이력남기고 대기) + ai_chat.js FIELD_VIEW 확장(원버그였던 'AI 법리추론 내용(사람 확인 필요)' 라벨 누락도 해소)·볼법 law.go.kr링크카드·체크리스트 번호목록·확인결과textarea 렌더링(커밋 044e1c919). node --check·extractStructured 격리테스트·check_paths·check_order·routes/legal.js 로드테스트 전부 통과. 사용자 지시로 '1단계 끝난 뒤 한번에' main 병합·배포 예정 — 지금까지는 처음으로 위키 콘텐츠가 아니라 실제 앱코드(라우트+프론트) 변경이라 안전 원칙상 사용자 확인 후 main 푸시할 것.

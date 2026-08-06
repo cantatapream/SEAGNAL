@@ -277,17 +277,14 @@
 
   // ============================================================================
   // 관리자 검토 데이터 모델 (5개 서브탭 전부 서버 연동 — 배지: refreshAdminStats/refreshStats,
-  //   목록: 초안승인=renderDraftCards·⚠수치검증=renderReviewCards, 나머지는 실데이터 0건이라 골격 안내만)
+  //   목록: 초안승인=renderDraftCards·⚠수치검증=renderReviewCards·나머지 3방=renderFeedbackCards/
+  //   renderCandidateCards/renderAmendCards)
   // ============================================================================
-  function skelRoom(emoji, title, flow) {
-    return '<div class="nrya-skel-box"><div class="nrya-skel-emoji">' + emoji + '</div><div class="nrya-skel-t">' + esc(title) + '</div><div style="font-size:12px;color:var(--nrya-text-sub);line-height:1.6">아직 등록된 항목이 없습니다(실데이터 0건). 실배선 시 아래 흐름으로 채워집니다.</div>' +
-      '<div class="nrya-skel-flow">' + flow.map(function (s, i) { return (i ? '<span class="nrya-arw">→</span>' : '') + '<span class="nrya-s">' + esc(s) + '</span>'; }).join('') + '</div></div>';
-  }
   var ADMIN = {
     초안승인: { n: '…', desc: '사서(AI)가 만든 <b>미승인 초안(draft)</b> 대기실. 순수 정의·절차는 재검증 파이프라인이 자동 승격, 처벌·안전값 포함분은 ⚠수치검증 방에서 사람이 승인해야 canonical이 됩니다.', render: null /* 서버 연동: renderDraftCards */ },
-    피드백: { n: '…', desc: '답변 <b>👍/👎 익명 로그</b>를 모아 원인 분류(triage) 후 관리자에게 올리는 방. 👎가 쌓인 주제 → 위키 보강으로 연결.', render: function () { return skelRoom('👍', '피드백 처리 (_feedback)', ['챗봇 👎', '익명 로그', 'AI 원인분류', '관리자 검토', '위키 보강']); } },
-    새지식후보: { n: '…', desc: '대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).', render: function () { return skelRoom('💡', '새 지식 후보 (_candidates)', ['미존재 질문 감지', '검색·생성', '공식출처 대조', '관리자 승인', '위키 편입']); } },
-    개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 시행일·MST diff로 신설·삭제·금액·조번재편을 적재.', render: function () { return skelRoom('📌', '개정 검토 (_amendments)', ['개정 감지(시행일 diff)', '변경 적재', '관리자 검토', '재수집·재빌드', '옛 조문 _legacy 이동']); } },
+    피드백: { n: '…', desc: '답변 <b>👍/👎 익명 로그</b>를 모아 원인 분류(triage) 후 관리자에게 올리는 방. 👎가 쌓인 주제 → 위키 보강으로 연결.', render: null /* 서버 연동: renderFeedbackCards */ },
+    새지식후보: { n: '…', desc: '대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).', render: null /* 서버 연동: renderCandidateCards */ },
+    개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 시행일·MST diff로 신설·삭제·금액·조번재편을 적재.', render: null /* 서버 연동: renderAmendCards */ },
     '⚠수치검증': { n: '…', desc: '별표 <b>이미지 판독값(OCR)·조번호 재편</b> 및 처벌·안전수치를 사람이 검증하는 방(가장 급함). 서버 review_queue.md 의 검증 대기 항목을 불러와 승인/반려한다.', render: null /* 서버 연동: renderReviewCards */ }
   };
   var ADMIN_ORDER = ['초안승인', '피드백', '새지식후보', '개정검토', '⚠수치검증'];
@@ -495,7 +492,7 @@
     });
   }
 
-  /** 선택한 관리자 방을 그린다(초안승인·⚠수치검증은 서버 연동). @param {string} k */
+  /** 선택한 관리자 방을 그린다(5방 전부 서버 연동). @param {string} k */
   function renderAdmin(k) {
     var a = ADMIN[k]; var host = document.getElementById('nryaAdminContent'); if (!host) return;
     var intro = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">🛠</div><div><div class="nrya-intro-name">' + esc(k) + '</div><div class="nrya-intro-tag">관리자 검토 방 · 승인→자동반영</div></div></div><div class="nrya-intro-desc">' + a.desc + '</div></div>';
@@ -505,9 +502,15 @@
     } else if (k === '초안승인') {
       host.innerHTML = intro + '<div class="nrya-panel" id="nryaDraftHost" style="padding:6px 0 4px"></div>';
       renderDraftCards(document.getElementById('nryaDraftHost'));
-    } else {
-      host.innerHTML = intro + a.render();
-      bindReviewStatic();
+    } else if (k === '피드백') {
+      host.innerHTML = intro + '<div class="nrya-panel" id="nryaFeedbackHost" style="padding:6px 0 4px"></div>';
+      renderFeedbackCards(document.getElementById('nryaFeedbackHost'));
+    } else if (k === '새지식후보') {
+      host.innerHTML = intro + '<div class="nrya-panel" id="nryaCandidateHost" style="padding:6px 0 4px"></div>';
+      renderCandidateCards(document.getElementById('nryaCandidateHost'));
+    } else if (k === '개정검토') {
+      host.innerHTML = intro + '<div class="nrya-panel" id="nryaAmendHost" style="padding:6px 0 4px"></div>';
+      renderAmendCards(document.getElementById('nryaAmendHost'));
     }
   }
 
@@ -515,13 +518,6 @@
   function bindAcc() {
     var host = document.getElementById('nryaRoomContent'); if (!host) return;
     host.querySelectorAll('.nrya-acc-head').forEach(function (h) {
-      h.onclick = function () { h.parentElement.classList.toggle('nrya-open'); };
-    });
-  }
-  // ── 정적 관리자 방(초안승인 등)의 rv 헤더 토글만 ──
-  function bindReviewStatic() {
-    var host = document.getElementById('nryaAdminContent'); if (!host) return;
-    host.querySelectorAll('.nrya-rv-head').forEach(function (h) {
       h.onclick = function () { h.parentElement.classList.toggle('nrya-open'); };
     });
   }
@@ -614,6 +610,206 @@
     }).catch(function (e) {
       host.innerHTML = DUAL_NOTE + '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>';
     });
+  }
+
+  // ============================================================================
+  // 피드백·새지식후보·개정검토 — 서버 연동(목록/결정). 3방 모두 "대기 → 승인|처리완료 / 무시"
+  // 2택 구조라 카드 결정 바인딩(bindDecideCard)을 공유하고, 카드 본문 HTML만 방마다 다르다.
+  // ⚠수치검증(reviewCardHTML)과 달리 값 확정·확인체크리스트 같은 복잡한 유형분기가 없다.
+  // ============================================================================
+
+  /** ISO 시각을 "MM.DD HH:MM"로 짧게. @param {string} iso @returns {string} */
+  function shortTs(iso) {
+    var d = new Date(iso); if (isNaN(d.getTime())) return '';
+    function p(n) { return String(n).padStart(2, '0'); }
+    return p(d.getMonth() + 1) + '.' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  /**
+   * 결정 카드(피드백·새지식후보·개정검토 공용) 1장에 헤더 토글 + 승인|처리완료/무시 버튼을 바인딩한다.
+   * @param {HTMLElement} card @param {string} apiBase - 예: '/api/legal/feedback'
+   * @param {string} okDecision @param {string} noDecision @param {string} okLabel @param {string} noLabel
+   * [연계] → POST <apiBase>/:id/decide.
+   */
+  function bindDecideCard(card, apiBase, okDecision, noDecision, okLabel, noLabel) {
+    var id = card.getAttribute('data-id');
+    var head = card.querySelector('.nrya-rv-head');
+    if (head) head.onclick = function () { card.classList.toggle('nrya-open'); };
+    var okBtn = card.querySelector('.nrya-btn-ok');
+    var noBtn = card.querySelector('.nrya-btn-no');
+    var errBox = card.querySelector('.nrya-inline-err');
+    function showErr(msg) { if (!errBox) return; errBox.style.display = 'block'; errBox.classList.remove('nrya-hidden'); errBox.textContent = msg; }
+    function setBusy(b) { if (okBtn) okBtn.disabled = b; if (noBtn) noBtn.disabled = b; }
+    function submit(decision, label, cls) {
+      setBusy(true);
+      legalPost(apiBase + '/' + encodeURIComponent(id) + '/decide', { decision: decision, by: '관리자' })
+        .then(function (res) {
+          if (res.status === 401 || res.status === 403) return { _denied: true };
+          return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+        })
+        .then(function (data) {
+          if (data._denied) { showErr('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'); setBusy(false); return; }
+          if (!data || !data.ok) { showErr((data && data.error) || '처리에 실패했습니다.'); setBusy(false); return; }
+          var st = card.querySelector('.nrya-rv-st');
+          var actions = card.querySelector('.nrya-rv-actions');
+          if (st) { st.className = 'nrya-rv-st ' + cls; st.textContent = (cls === 'nrya-done' ? '✓ ' : '✗ ') + label; }
+          if (actions) actions.style.display = 'none';
+          refreshAdminStats();
+        })
+        .catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); setBusy(false); });
+    }
+    if (okBtn) okBtn.onclick = function () { submit(okDecision, okLabel, 'nrya-done'); };
+    if (noBtn) noBtn.onclick = function () { submit(noDecision, noLabel, 'nrya-rej'); };
+  }
+
+  /** 피드백 카드 1건. @param {object} fb - {id,ts,question,answerGist,thumb,reason,status,triage} @returns {string} */
+  function feedbackCardHTML(fb) {
+    var st = fb.status === 'reviewed' ? '<span class="nrya-rv-st nrya-done">✓ 처리완료</span>'
+      : fb.status === 'dismissed' ? '<span class="nrya-rv-st nrya-rej">✗ 무시</span>'
+      : '<span class="nrya-rv-st nrya-wait">대기</span>';
+    var triage = fb.triage;
+    var triageField = triage
+      ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">🧠 AI 재검토</div><div class="nrya-rv-fval">' + (triage.genuineIssue ? '⚠ 실제 문제 가능성' : '✅ 오해·톤 문제로 판단') + ' · ' + esc(triage.category || '') + '<br>' + esc(triage.note || '') + '</div></div>'
+      : (fb.thumb === 'down' ? '<div class="nrya-rv-field"><div class="nrya-rv-fval">AI 재검토 대기 중…</div></div>' : '');
+    var body =
+      '<div class="nrya-rv-body">' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">❓ 질문</div><div class="nrya-rv-fval">' + esc(fb.question || '(없음)') + '</div></div>' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">💬 답변 요지</div><div class="nrya-rv-fval">' + esc(fb.answerGist || '(없음)') + '</div></div>' +
+        (fb.reason ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📝 사유</div><div class="nrya-rv-fval">' + esc(fb.reason) + '</div></div>' : '') +
+        triageField +
+        (fb.status === 'pending' ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 처리완료</button><button class="nrya-btn-no">✗ 무시</button></div>' : '') +
+        '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
+      '</div>';
+    return '<div class="nrya-rv" data-id="' + esc(fb.id) + '"><div class="nrya-rv-head"><span class="nrya-rv-id">' + (fb.thumb === 'down' ? '👎' : '👍') + '</span><div class="nrya-rv-t">' + esc((fb.question || '').slice(0, 60) || fb.id) + '<small>' + esc(shortTs(fb.ts)) + '</small></div>' + st + '</div>' + body + '</div>';
+  }
+
+  /**
+   * 피드백 목록을 서버에서 불러와 카드로 렌더한다.
+   * [연계] → GET /api/legal/feedback?status=pending, bindDecideCard.
+   * @param {HTMLElement} host
+   */
+  function renderFeedbackCards(host) {
+    if (!host) return;
+    host.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>피드백 목록을 불러오는 중…</div>';
+    legalGet('/api/legal/feedback?status=pending').then(function (res) {
+      if (res.status === 401 || res.status === 403) { host.innerHTML = adminLockHTML(); return null; }
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }).then(function (data) {
+      if (data === null) return;
+      if (!data || !data.ok) { host.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>' + esc((data && data.error) || '목록을 불러오지 못했습니다.') + '</div>'; return; }
+      var list = data.feedback || [];
+      if (!list.length) { host.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">✅</span>대기 중인 피드백이 없습니다.</div>'; return; }
+      host.innerHTML = '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">총 ' + list.length + '건</div>' + list.map(feedbackCardHTML).join('');
+      host.querySelectorAll('.nrya-rv').forEach(function (card) { bindDecideCard(card, '/api/legal/feedback', 'reviewed', 'dismissed', '처리완료', '무시'); });
+    }).catch(function (e) { host.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
+  }
+
+  /** 새 지식 후보 카드 1건. @param {object} cd - {id,ts,query,laws,files,answerGist,status} @returns {string} */
+  function candidateCardHTML(cd) {
+    var st = cd.status === 'approved' ? '<span class="nrya-rv-st nrya-done">✓ 승인·편입대기</span>'
+      : cd.status === 'dismissed' ? '<span class="nrya-rv-st nrya-rej">✗ 무시</span>'
+      : '<span class="nrya-rv-st nrya-wait">대기</span>';
+    var laws = (cd.laws || []).map(esc).join(' · ');
+    var files = (cd.files || []).map(esc).join(', ');
+    var body =
+      '<div class="nrya-rv-body">' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">❓ 질문</div><div class="nrya-rv-fval">' + esc(cd.query || '(없음)') + '</div></div>' +
+        (laws ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">⚖️ 관련 법</div><div class="nrya-rv-fval">' + laws + '</div></div>' : '') +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">💬 답변 요지</div><div class="nrya-rv-fval">' + esc(cd.answerGist || '(없음)') + '</div></div>' +
+        (files ? '<div class="nrya-src-line">📍 원문 파일: ' + files + '</div>' : '') +
+        (cd.status === 'pending' ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 승인(위키 편입 필요)</button><button class="nrya-btn-no">✗ 무시</button></div>' : '') +
+        '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
+      '</div>';
+    return '<div class="nrya-rv" data-id="' + esc(cd.id) + '"><div class="nrya-rv-head"><span class="nrya-rv-id">💡</span><div class="nrya-rv-t">' + esc((cd.query || '').slice(0, 60) || cd.id) + '<small>' + esc(shortTs(cd.ts)) + '</small></div>' + st + '</div>' + body + '</div>';
+  }
+
+  /**
+   * 새 지식 후보 목록을 서버에서 불러와 카드로 렌더한다. "승인"은 위키 자동편입이 아니라
+   * "편입 필요" 표시일 뿐이다(_SCHEMA.md §2 ingest 절차는 별도 저작 작업).
+   * [연계] → GET /api/legal/candidates?status=pending, bindDecideCard.
+   * @param {HTMLElement} host
+   */
+  function renderCandidateCards(host) {
+    if (!host) return;
+    host.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>새 지식 후보를 불러오는 중…</div>';
+    legalGet('/api/legal/candidates?status=pending').then(function (res) {
+      if (res.status === 401 || res.status === 403) { host.innerHTML = adminLockHTML(); return null; }
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }).then(function (data) {
+      if (data === null) return;
+      if (!data || !data.ok) { host.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>' + esc((data && data.error) || '목록을 불러오지 못했습니다.') + '</div>'; return; }
+      var list = data.candidates || [];
+      if (!list.length) { host.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">✅</span>새 지식 후보가 없습니다.</div>'; return; }
+      host.innerHTML = '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">총 ' + list.length + '건</div>' + list.map(candidateCardHTML).join('');
+      host.querySelectorAll('.nrya-rv').forEach(function (card) { bindDecideCard(card, '/api/legal/candidates', 'approved', 'dismissed', '승인(편입대기)', '무시'); });
+    }).catch(function (e) { host.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
+  }
+
+  /** 개정 후보 카드 1건. @param {object} am - {id,ts,law,kind,mst,법령명,이전,현재,status} @returns {string} */
+  function amendmentCardHTML(am) {
+    var st = am.status === 'approved' ? '<span class="nrya-rv-st nrya-done">✓ 승인·재수집 필요</span>'
+      : am.status === 'dismissed' ? '<span class="nrya-rv-st nrya-rej">✗ 무시</span>'
+      : '<span class="nrya-rv-st nrya-warn">개정 감지</span>';
+    var prev = am.이전 || {}; var cur = am.현재 || {};
+    var lawName = am.법령명 || am.law || '';
+    var link = 'https://www.law.go.kr/lsSc.do?menuId=1&query=' + encodeURIComponent(lawName);
+    var body =
+      '<div class="nrya-rv-body">' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">📌 종류</div><div class="nrya-rv-fval">' + esc(am.kind || '') + ' · MST ' + esc(am.mst || '') + '</div></div>' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔄 변경</div><div class="nrya-rv-fval">공포번호 ' + esc(prev.공포번호 || '?') + ' → <b>' + esc(cur.공포번호 || '?') + '</b><br>시행일자 ' + esc(prev.시행일자 || '?') + ' → <b>' + esc(cur.시행일자 || '?') + '</b></div></div>' +
+        '<a class="nrya-rv-link" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">🔗 law.go.kr에서 확인</a>' +
+        (am.status === 'pending' ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 승인(재수집 필요)</button><button class="nrya-btn-no">✗ 무시</button></div>' : '') +
+        '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
+      '</div>';
+    return '<div class="nrya-rv" data-id="' + esc(am.id) + '"><div class="nrya-rv-head"><span class="nrya-rv-id">📌</span><div class="nrya-rv-t">' + esc(lawName || am.id) + '<small>' + esc(shortTs(am.ts)) + '</small></div>' + st + '</div>' + body + '</div>';
+  }
+
+  /**
+   * 개정 검토 방: 상단 "지금 스캔" 버튼(정기 cron과 별개로 즉시 1회, 199개 대상 1~2분) + 목록.
+   * 승인해도 재수집·재빌드는 여기서 자동 실행하지 않는다(사람이 다음 단계로 orchestrate).
+   * [연계] → POST /api/legal/amendments/scan-now, GET /api/legal/amendments?status=pending, bindDecideCard.
+   * @param {HTMLElement} host
+   */
+  function renderAmendCards(host) {
+    if (!host) return;
+    var SCAN_LABEL = '🔍 지금 스캔 (199개 대상 · 1~2분)';
+    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:10px"><button class="nrya-btn-ok" id="nryaAmendScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
+      '<div class="nrya-inline-err nrya-hidden" id="nryaAmendScanErr" style="display:none"></div>' +
+      '<div id="nryaAmendListHost"></div>';
+    var scanBtn = document.getElementById('nryaAmendScanBtn');
+    var scanErr = document.getElementById('nryaAmendScanErr');
+    if (scanBtn) scanBtn.onclick = function () {
+      if (scanErr) { scanErr.style.display = 'none'; scanErr.textContent = ''; }
+      scanBtn.disabled = true; scanBtn.textContent = '스캔 중…(1~2분)';
+      legalPost('/api/legal/amendments/scan-now', {}).then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+      }).then(function (data) {
+        scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL;
+        if (data && data._denied) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '관리자 로그인 필요'; } return; }
+        if (!data || !data.ok) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '스캔 실패'; } return; }
+        refreshAdminStats();
+        loadAmendList();
+      }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
+    };
+    loadAmendList();
+  }
+
+  /** renderAmendCards 의 목록 부분만 새로고침(스캔 버튼은 그대로 둔다). */
+  function loadAmendList() {
+    var listHost = document.getElementById('nryaAmendListHost'); if (!listHost) return;
+    listHost.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>개정 목록을 불러오는 중…</div>';
+    legalGet('/api/legal/amendments?status=pending').then(function (res) {
+      if (res.status === 401 || res.status === 403) { listHost.innerHTML = adminLockHTML(); return null; }
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }).then(function (data) {
+      if (data === null) return;
+      if (!data || !data.ok) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>' + esc((data && data.error) || '목록을 불러오지 못했습니다.') + '</div>'; return; }
+      var list = data.amendments || [];
+      if (!list.length) { listHost.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">✅</span>감지된 개정이 없습니다.</div>'; return; }
+      listHost.innerHTML = '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">총 ' + list.length + '건</div>' + list.map(amendmentCardHTML).join('');
+      listHost.querySelectorAll('.nrya-rv').forEach(function (card) { bindDecideCard(card, '/api/legal/amendments', 'approved', 'dismissed', '승인(재수집 필요)', '무시'); });
+    }).catch(function (e) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
   }
 
   // 리뷰 카드에서 우선 노출할 구조화 필드(라벨·아이콘). 존재하는 것만 순서대로 렌더.
@@ -1261,6 +1457,10 @@
       if (e.target.closest('.nrya-chain-tel')) return;
       var hit = e.target.closest('.nrya-chain-hit');
       if (hit) openArtPop(hit);
+      var fbBtn = e.target.closest('.nrya-fb-btn');
+      if (fbBtn) { onFeedbackThumb(fbBtn); return; }
+      var fbSend = e.target.closest('.nrya-fb-send');
+      if (fbSend) { onFeedbackSend(fbSend); return; }
     });
 
     // 기록 목록 항목 클릭(목록은 열 때마다 새로 그려지므로 패널에 한 번만 위임한다)
@@ -1269,6 +1469,38 @@
       var it = e.target.closest('.nrya-hist-item');
       if (it) openHistoryEntry(it.getAttribute('data-ts'));
     });
+  }
+
+  /** 👍는 바로 전송, 👎는 사유(선택) 입력칸을 펼친다. @param {HTMLElement} btn */
+  function onFeedbackThumb(btn) {
+    var wrap = btn.closest('.nrya-fb'); if (!wrap) return;
+    var thumb = btn.getAttribute('data-thumb');
+    if (thumb === 'up') { submitFeedback(wrap, 'up', ''); return; }
+    var box = wrap.querySelector('.nrya-fb-reason');
+    if (box) box.classList.remove('nrya-hidden');
+    wrap.querySelectorAll('.nrya-fb-btn').forEach(function (b) { b.disabled = true; });
+  }
+
+  /** 👎 사유 입력 후 "전송". @param {HTMLElement} btn */
+  function onFeedbackSend(btn) {
+    var wrap = btn.closest('.nrya-fb'); if (!wrap) return;
+    var input = wrap.querySelector('.nrya-fb-reason-in');
+    submitFeedback(wrap, 'down', input ? input.value.trim() : '');
+  }
+
+  /**
+   * 만족도 로그를 서버로 보내고 버튼을 "감사합니다"로 바꾼다(중복 전송 방지).
+   * @param {HTMLElement} wrap - .nrya-fb 컨테이너 @param {'up'|'down'} thumb @param {string} reason
+   * [연계] → POST /api/legal/feedback.
+   */
+  function submitFeedback(wrap, thumb, reason) {
+    wrap.classList.add('nrya-fb-done');
+    wrap.innerHTML = '<span class="nrya-fb-lab">피드백 감사합니다 🙏</span>';
+    legalPost('/api/legal/feedback', {
+      question: wrap.getAttribute('data-q') || '',
+      answerGist: wrap.getAttribute('data-gist') || '',
+      thumb: thumb, reason: reason
+    }).catch(function () { /* 전송 실패는 조용히 — 사용자에게 재시도를 강요하지 않는다 */ });
   }
 
   // ── 조문 원문 팝업: 카드를 누르면 그 조 전문을 띄우고 인용된 항·호를 강조 ──────────
@@ -2352,7 +2584,29 @@
     html += gapNoticesHTML(sources);
 
     html += '<div class="nrya-disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요.' + (data.note ? ' · ' + esc(data.note) : '') + '</div>';
+    // 되묻기 응답엔 아직 "최종 답변"이 없어 만족도를 물을 대상이 없다 — 진짜 답변에만 붙인다.
+    if (!data.clarify && data.answer) html += feedbackHTML(q, data.answer);
     return html;
+  }
+
+  /**
+   * 답변 하단 👍/👎 만족도 버튼. _feedback/README.md 흐름: 👍는 바로 전송, 👎는 사유(선택)
+   * 입력칸을 펼쳐 "전송"으로 보낸다(둘 다 비워도 전송 가능). 질문·답변요지는 data-* 로 들고
+   * 있다가 delegated 클릭 핸들러(bindChat)가 읽어 POST /api/legal/feedback 한다.
+   * @param {string} q @param {string} answer @returns {string}
+   * [연계] → bindChat(위임 클릭), POST /api/legal/feedback.
+   */
+  function feedbackHTML(q, answer) {
+    var gist = String(answer).replace(/<[^>]+>/g, '').slice(0, 400);
+    return '<div class="nrya-fb" data-q="' + esc(q) + '" data-gist="' + esc(gist) + '">' +
+      '<span class="nrya-fb-lab">이 답변이 도움이 됐나요?</span>' +
+      '<button type="button" class="nrya-fb-btn" data-thumb="up">👍</button>' +
+      '<button type="button" class="nrya-fb-btn" data-thumb="down">👎</button>' +
+      '<div class="nrya-fb-reason nrya-hidden">' +
+        '<textarea class="nrya-fb-reason-in" placeholder="어떤 점이 아쉬웠나요? (선택)"></textarea>' +
+        '<button type="button" class="nrya-fb-send">전송</button>' +
+      '</div>' +
+    '</div>';
   }
 
   // ── 답변완료 푸시 딥링크(?popup=ai_chat&rid=…) ─────────────────────────

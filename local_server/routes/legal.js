@@ -54,6 +54,8 @@ const legalRetriever = require('../services/legal_retriever');
 const articleText = require('../services/article_text');
 const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
+const adminQueues = require('../services/legal_admin_queues');
+const amendmentScanner = require('../services/legal_amendment_scanner');
 const { DATA_DIR, FILES } = require('../config/server_config');
 
 // [Lazy] Firebase Admin(답변완료 개인 푸시용). routes/report.js 와 같은 이유로 첫 발송 시 로딩.
@@ -63,6 +65,8 @@ const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const REVIEW_QUEUE = path.join(LEGAL_DIR, '_dashboard', 'review_queue.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
 const APPROVALS_LOG = path.join(LEGAL_DIR, '_dashboard', 'review_approvals.json');
+const FEEDBACK_FILE = path.join(LEGAL_DIR, '_feedback', 'logs.jsonl');
+const CANDIDATES_FILE = path.join(LEGAL_DIR, '_candidates', 'queue.jsonl');
 
 // 관리자 전용: 모든 리뷰 API는 X-Admin-Token 필요(일반 사용자 접근 차단)
 router.use('/api/legal/reviews', adminAuth.requireAdminToken);
@@ -387,15 +391,17 @@ const loadIndex = legalRetriever.loadIndex;
 
 // GET /api/legal/admin/stats — 관리자 검토센터 서브탭(초안승인·피드백·새지식후보·개정검토) 실카운트.
 //   ⚠수치검증은 /api/legal/reviews/stats 를 그대로 재사용(기존 클라 로직 유지).
+//   2026-08-06: feedback/candidates/amendments는 이제 파일 개수(옛 countFiles)가 아니라
+//   JSONL 안의 "대기(pending)" 항목 수를 센다 — 로그가 파일 1개에 여러 줄로 쌓이므로
+//   파일 개수로는 항목 수를 알 수 없다(초안승인의 draft 카운트와 의미를 맞춤).
 router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => {
   try {
     const pages = loadIndex().pages || [];
-    const countFiles = (dir) => { try { return fs.readdirSync(dir).filter(f => f !== 'README.md').length; } catch (_) { return 0; } };
     res.json({ ok: true,
       draft: pages.filter(p => p.kind === 'concept' && p.status === 'draft').length,
-      feedback: countFiles(path.join(LEGAL_DIR, '_feedback')),
-      candidates: countFiles(path.join(LEGAL_DIR, '_candidates')),
-      amendments: countFiles(path.join(LEGAL_DIR, '_amendments')) });
+      feedback: adminQueues.countPending(FEEDBACK_FILE),
+      candidates: adminQueues.countPending(CANDIDATES_FILE),
+      amendments: adminQueues.countPending(amendmentScanner.QUEUE_FILE) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -408,6 +414,156 @@ router.get('/api/legal/drafts', adminAuth.requireAdminToken, (req, res) => {
       .sort((a, b) => (a.law || '').localeCompare(b.law || ''));
     res.json({ ok: true, count: drafts.length, drafts });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// ============================================================================
+// 피드백(👍/👎) — 답변 만족도 익명 로그. _feedback/README.md 설계를 따르되, 로그+검토
+// 파일을 분리하지 않고 파일 하나에 status 필드로 단순화(services/legal_admin_queues.js).
+// ============================================================================
+
+// POST /api/legal/feedback — 공개(로그인 불요, 챗봇 사용자 누구나). 개인정보 없는 익명 로그만.
+// body: { question, answerGist, thumb: 'up'|'down', reason? }
+router.post('/api/legal/feedback', (req, res) => {
+  const { question = '', answerGist = '', thumb, reason = '' } = req.body || {};
+  if (thumb !== 'up' && thumb !== 'down') return res.status(400).json({ ok: false, error: "thumb은 'up'|'down'이어야 합니다." });
+  const entry = {
+    id: `fb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    ts: new Date().toISOString(),
+    question: String(question).slice(0, 300),
+    answerGist: String(answerGist).slice(0, 400),
+    thumb, reason: String(reason).slice(0, 300),
+    status: 'pending', triage: null,
+  };
+  adminQueues.appendJsonl(FEEDBACK_FILE, entry);
+  res.json({ ok: true });
+  // 👎만 AI 재검토(응답은 이미 보냈으니 사용자를 기다리게 하지 않는다 — 실패해도 무해, 트리아지만 비어있게 됨)
+  if (thumb === 'down' && gemini.hasAnyKey()) triageFeedback(entry).catch(() => {});
+});
+
+/** 👎 피드백 1건을 Gemini로 재검토해 triage 필드를 채운다(비동기, 응답과 무관). @param {object} entry */
+async function triageFeedback(entry) {
+  const prompt = [
+    '너는 한국 해양법령 챗봇(나리야)의 답변 품질 재검토 AI다. 사용자가 아래 답변에 👎(불만족)를 눌렀다.',
+    `질문: ${entry.question}`,
+    `답변 요지: ${entry.answerGist}`,
+    entry.reason ? `사용자가 적은 불만족 사유: ${entry.reason}` : '(사유 미기재)',
+    '',
+    '이게 정말 위키 보강이 필요한 문제인지, 아니면 사용자 오해·단순 톤 문제인지 판단하라.',
+    'JSON으로만 답하라: {"genuineIssue": true|false, "category": "wiki_gap"|"wrong_answer"|"tone"|"misunderstanding"|"other", "note": "한두 문장 설명"}',
+  ].join('\n');
+  try {
+    const result = await gemini.callGemini({
+      model: REVIEW_RECHECK_MODEL, contents: prompt,
+      config: { temperature: 0.1, thinkingConfig: { thinkingBudget: 0 }, responseMimeType: 'application/json', httpOptions: { timeout: 15000 } },
+      caller: 'Legal-FeedbackTriage',
+    });
+    if (result.success && result.text) {
+      const m = result.text.match(/\{[\s\S]*\}/);
+      if (m) adminQueues.updateJsonlById(FEEDBACK_FILE, entry.id, { triage: JSON.parse(m[0]) });
+    }
+  } catch (_) { /* 트리아지 실패는 조용히 — triage:null로 남아 관리자가 직접 판단 */ }
+}
+
+// GET /api/legal/feedback?status=pending|reviewed|dismissed|all (관리자)
+router.get('/api/legal/feedback', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    let list = adminQueues.readJsonl(FEEDBACK_FILE).reverse();
+    if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
+    res.json({ ok: true, count: list.length, feedback: list });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/feedback/:id/decide (관리자) — body: { decision: 'reviewed'|'dismissed', note?, by? }
+router.post('/api/legal/feedback/:id/decide', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const { decision = 'reviewed', note = '', by = '관리자' } = req.body || {};
+    const updated = adminQueues.updateJsonlById(FEEDBACK_FILE, req.params.id, { status: decision, adminNote: note, decidedBy: by, decidedAt: new Date().toISOString() });
+    if (!updated) return res.status(404).json({ ok: false, error: 'feedback not found: ' + req.params.id });
+    res.json({ ok: true, feedback: updated });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// ============================================================================
+// 새 지식 후보 — "위키 밖 질문 2단계 답변"(searchRawFallback, GitHub 원문 온디맨드 조회)이
+// 성공한 순간이 정확히 "AI가 새로 알게 된 것"의 발생 지점이다(POST /api/legal/ask 안에서 호출).
+// _candidates/README.md 설계와 동일하게 로그+승인 게이트, 단 파일 하나로 단순화.
+// ============================================================================
+
+/**
+ * searchRawFallback 성공 시 호출 — 위키에 없어 원문을 직접 읽어 답한 사례를 후보로 적재한다.
+ * 실패해도(디스크 오류 등) 응답 흐름을 막지 않도록 호출부에서 이미 try로 감싼다.
+ * @param {string} query @param {{answer:string, laws:string[], files:string[]}} raw
+ */
+function logKnowledgeCandidate(query, raw) {
+  adminQueues.appendJsonl(CANDIDATES_FILE, {
+    id: `cd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    ts: new Date().toISOString(),
+    query: String(query).slice(0, 300),
+    laws: raw.laws || [],
+    files: raw.files || [],
+    answerGist: String(raw.answer || '').slice(0, 500),
+    status: 'pending',
+  });
+}
+
+// GET /api/legal/candidates?status=pending|approved|dismissed|all (관리자)
+router.get('/api/legal/candidates', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    let list = adminQueues.readJsonl(CANDIDATES_FILE).reverse();
+    if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
+    res.json({ ok: true, count: list.length, candidates: list });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/candidates/:id/decide (관리자) — body: { decision: 'approved'|'dismissed', by? }
+// ⚠ approved여도 이 자리에서 위키 draft 페이지를 자동 생성하지 않는다 — 실제 편입은
+// _SCHEMA.md §2 ingest 절차(정의확정→조문단위처리→링크→REVIEW플래그)를 따라야 하는
+// 저작 작업이라 자동화 대상이 아니다. "승인"은 "위키에 편입 필요"라는 표시일 뿐이다.
+router.post('/api/legal/candidates/:id/decide', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const { decision = 'approved', by = '관리자' } = req.body || {};
+    const updated = adminQueues.updateJsonlById(CANDIDATES_FILE, req.params.id, { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
+    if (!updated) return res.status(404).json({ ok: false, error: 'candidate not found: ' + req.params.id });
+    res.json({ ok: true, candidate: updated });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// ============================================================================
+// 개정 검토 — services/legal_amendment_scanner.js가 매일 밤(server.js cron) law.go.kr을
+// 정기 조회해 공포번호·시행일자가 바뀐 법을 찾아 큐에 적재한다. 여기는 그 큐를 보여주고
+// 사람이 승인/반려하는 API만 — 승인해도 재수집·재빌드는 이 자리에서 자동 실행하지 않는다
+// (_amendments/README.md 설계: "승인 → 매니페스트 재생성 → 재수집 → 재빌드 → 재감사"는
+// 사람이 다음 세션에서 orchestrate하는 별도 단계, 자동 파이프라인 아님 — 환각0 승인게이트).
+// ============================================================================
+
+// GET /api/legal/amendments?status=pending|approved|dismissed|all (관리자)
+router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    let list = adminQueues.readJsonl(amendmentScanner.QUEUE_FILE).reverse();
+    if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
+    res.json({ ok: true, count: list.length, amendments: list });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/amendments/:id/decide (관리자) — body: { decision: 'approved'|'dismissed', by? }
+router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const { decision = 'approved', by = '관리자' } = req.body || {};
+    const updated = adminQueues.updateJsonlById(amendmentScanner.QUEUE_FILE, req.params.id, { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
+    if (!updated) return res.status(404).json({ ok: false, error: 'amendment not found: ' + req.params.id });
+    res.json({ ok: true, amendment: updated });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/amendments/scan-now (관리자) — 정기 cron과 별개로 즉시 1회 스캔(199개 대상,
+// law.go.kr 순차호출이라 1~2분 걸림 — 클라는 이 응답을 기다리는 동안 버튼을 비활성화할 것).
+router.post('/api/legal/amendments/scan-now', adminAuth.requireAdminToken, (req, res) => {
+  amendmentScanner.runAmendmentScan()
+    .then((r) => res.json(Object.assign({ ok: true }, r)))
+    .catch((e) => res.status(500).json({ ok: false, error: String(e.message || e) }));
 });
 
 // ============================================================================
@@ -718,6 +874,8 @@ router.post('/api/legal/ask', async (req, res) => {
       // 딸려 보내면 이 답변의 근거인 척 붙는다(환각 0). sources와 같이 비운다.
       citationChain = [];
       note = `⚠미검증 참고 — 위키 카드가 없어 법령 원문(${raw.laws.join('·') || '원문'})을 직접 읽은 답변`;
+      // 위키에 없어 원문을 직접 읽어 답한 순간 = "새 지식 후보" 발생 지점. 실패해도 응답 흐름과 무관.
+      try { logKnowledgeCandidate(q, raw); } catch (_) { /* 로그 실패는 무시 */ }
     } else {
       // 2차가 실패하면 1차 결과를 그대로 돌려준다 — 특히 1차가 정직하게 만든 "확인되지 않습니다"
       // 답변(근거 0건이라도)은 버리지 않는다.

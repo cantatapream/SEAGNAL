@@ -332,6 +332,19 @@ cron.schedule('1 15 * * *', () => {
     } catch (e) { console.error('조석 카운트 리셋 오류:', e.message); }
 });
 
+// 매일 KST 01:00 (UTC 16:00)에 나리야(해양법령) 개정 감지 스캔 — raw 코퍼스가 가리키는
+// 법률/시행령/시행규칙 199건의 공포번호·시행일자를 law.go.kr DRF API로 조회해 마지막
+// 스캔 이후 바뀐 게 있으면 _amendments/queue.jsonl에 적재(위키는 자동 수정 안 함).
+// [연계] services/legal_amendment_scanner.js, routes/legal.js GET /api/legal/amendments
+cron.schedule('0 16 * * *', () => {
+    console.log('⏰ [Daily Schedule] 나리야 개정 감지 스캔을 시작합니다.');
+    try {
+        require('./services/legal_amendment_scanner').runAmendmentScan()
+            .then((r) => console.log(`✅ [나리야 개정감지] 스캔 완료: ${r.scanned}건 조회, ${r.changed}건 변경 발견, ${r.errors}건 오류`))
+            .catch((e) => console.error('나리야 개정감지 스캔 오류:', e.message));
+    } catch (e) { console.error('나리야 개정감지 스캔 오류:', e.message); }
+});
+
 // ============================================================================
 // 4.5 Graceful shutdown — Fly.io SIGTERM 대응
 // ----------------------------------------------------------------------------

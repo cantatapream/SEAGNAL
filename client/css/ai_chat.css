@@ -492,3 +492,14 @@
 #nrya-overlays .nrya-clarify-btns{flex-wrap:wrap}
 #nrya-overlays .nrya-clarify.nrya-done{opacity:.45}
 #nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-btn{pointer-events:none; cursor:default}
+
+/* 답변 만족도(👍/👎) — 위 동의 배너와 같은 톤. 👎는 사유(선택) 입력칸을 펼친다. */
+#nrya-overlays .nrya-hidden{display:none !important}
+#nrya-overlays .nrya-fb{display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin-top:10px}
+#nrya-overlays .nrya-fb-lab{font-size:11.5px; color:#93a4b9}
+#nrya-overlays .nrya-fb-btn{font-size:14px; padding:3px 9px; border-radius:12px; cursor:pointer; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08)}
+#nrya-overlays .nrya-fb-btn:disabled{opacity:.45; cursor:default}
+#nrya-overlays .nrya-fb-reason{display:flex; gap:6px; width:100%; margin-top:2px}
+#nrya-overlays .nrya-fb-reason-in{flex:1; min-width:0; resize:none; height:30px; border-radius:8px; border:1px solid rgba(255,255,255,.15); background:#28394a; color:#fff; font-family:inherit; font-size:12px; padding:6px 9px}
+#nrya-overlays .nrya-fb-send{font-family:inherit; font-size:11.5px; font-weight:700; padding:0 12px; border-radius:8px; cursor:pointer; border:none; background:#ffe14d; color:#231c00}
+#nrya-overlays .nrya-fb.nrya-fb-done .nrya-fb-lab{color:#69f0ae}
