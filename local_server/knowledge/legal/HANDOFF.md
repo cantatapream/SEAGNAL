@@ -397,6 +397,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-06 23:38 KST] ✅완료 — 12차 감사 그룹5 완료(7법)
+해양수산발전기본법·해사안전기본법·내수면어업법·갯벌및그주변지역의지속가능한관리와복원에관한법률·서해5도지원특별법·어촌ㆍ어항법·수산업ㆍ어촌발전기본법 7법 감사 완료, 총 2203문항(full 235·thin 768·missing 883·collection_hole 14·awkward 12·scope_out 43). 특기사항: 서해5도지원특별법 canonical 재악화 감지(11/15→8/15, L-67에 따른 정당한 draft 환원)·collection_hole 5건 중 4건 이미 full 재평가 확인(11R 리포트 반영누락 정정)·review_queue REVIEW-01 타법콘텐츠 혼입 의심(재점검 필요). 해사안전기본법: answerCanonicalOnly:true 전제 시 draft 3페이지가 canonical검색서 배제되는 배포리스크 확인(exposure off라 현재 무영향, 전환 전 재확인 필요). 상세는 _dashboard/audit/ 각 법 파일.
+
+
 ### [2026-08-06 23:18 KST] ✅완료 — 12차 감사 — 자연유산법(신규편입분) 첫 감사 완료
 자연유산의 보존 및 활용에 관한 법률(단독 디스패치분) 300문항+ 감사 완료: 323문항, full 200·thin 37(wiki_lag12+content_gap25)·missing 80·collection_hole 3((b)structural 2·(c)uncollected 1)·awkward 4·scope_out 13(그 중 gracefully 1). full율≈200/310(scope_out제외)=64.5%로 73법 평균보다 낮음(2026-08-01 신규편입 이후 이번이 첫 정식감사라 후속 정제 라운드가 없었던 게 원인으로 보임). 주요 gap: 시행령 제28조②③·제34조①·제39조①·제23조③④ wiki_lag 다수(원문엔 있으나 위키 미반영, 재수집 불필요), 제25~62조(관리·활용·지원·보칙, 법 절반) content_gap. 상세는 _dashboard/audit/자연유산의보존및활용에관한법률.md. 그룹0~9(10개 Workflow)는 아직 진행 중 — 완료 통보 오는 대로 이어서 기록.
 
