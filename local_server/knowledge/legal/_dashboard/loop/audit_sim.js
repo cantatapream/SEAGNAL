@@ -24,6 +24,7 @@ const SCHEMA = {
         collection_hole_structural: { type: 'integer' },// 관보·타 정부시스템 소관이라 구조적으로 수집 불가(H-22)
         collection_hole_uncollected: { type: 'integer' },// 수집 가능한데 아직 수집 안 함(재수집 트랙 대상)
         scope_out_answered_gracefully: { type: 'integer' }, // scope_out 중 위키가 "범위밖/규정없음, 소관부서 문의" 안내를 실제로 제공할 수 있는 것(=정상동작, success로 재평가)
+        collection_hole_answered_gracefully: { type: 'integer' }, // collection_hole (a)/(b) 중 위임체인+경계선언+연락처 3요건 충족해 full로 재평가된 것(H-30, (c)uncollected는 대상 아님)
       },
     },
     // 답변방식 준수 감사 — 우리가 요구한 답변 규칙이 위키에 반영됐나. 각 값 'ok'|'weak'|'missing'|'na'
@@ -63,6 +64,7 @@ function prompt(l, round) {
 - **★300문항은 매 라운드 하드 목표다(H-21 사용자 확정)**. "누적으로 이미 300 넘었으니 이번엔 적게 내도 된다"는 판단은 틀렸다 — 카파시 padding금지 원칙은 "가짜 중복질문을 지어내지 말라"는 뜻이지 "사용자가 정한 수치목표를 스스로 낮춰도 된다"는 뜻이 아니다. T1~T7×3페르소나 조합으로 이 법 조문·별표·고시를 훑으면 300개는 대개 뽑힌다. 위키 페이지 자체가 1~2개뿐인 극소수 tier2 참고법만 예외(사유를 감사파일에 명시).
 - **★scope_out 판정 추가(H-21, \`_SCHEMA.md\` §6-A)**: 질문이 이 법 조문에 없는 강학상 이론비교·타법 세부실무·판례해석 심층분석이면 missing이 아니라 \`scope_out\`으로 판정(결함 아님, 반환 verdicts에 \`scope_out\` 필드로 집계). 애매하면 scope_out 남용하지 말고 missing으로 정직하게 남긴다.
 - **★scope_out 재평가(H-26, 2026-07-26 사용자 확정, \`_SCHEMA.md\` §6-B)**: scope_out으로 판정한 질문마다, 위키가 그 질문에 **"이 부분은 범위 밖입니다/규정이 없습니다, ○○부서에 문의하세요"류의 정직한 안내를 실제로 제공할 수 있는지** 추가로 확인한다. 제공 가능하면 그건 결함이 아니라 **정상 동작**이므로 \`scope_out_answered_gracefully\`에 카운트(단순 제외가 아니라 success 취급). 위키에 그런 안내 문구 자체가 없다면 "안내문구 부재"라는 별도 유형의 gap으로 wiki_gaps에 기록한다.
+- **★collection_hole (a)/(b) 재평가(H-30, 2026-07-27 사용자 확정, \`_SCHEMA.md\` §6-C)**: collection_hole로 판정한 질문 중 **(a)genuine·(b)structural만**(c)uncollected는 대상 아님) 위키 답변이 아래 3요건을 **전부** 충족하는지 확인한다: ①위임 체인 전체를 조문 단위로 명시(법→시행령→시행규칙까지 어디까지 확인되는지) ②경계 지점을 정직하게 선언(왜 그 이상은 못 답하는지 이유까지 — (a)면 "하위 고시 미제정 확인", (b)면 "관보/지자체 조례 등 접근불가 경로") ③소관부서·전화번호로 마무리(\`_dashboard/contacts_collected.json\` 활용, 연락처 없으면 미충족). 3요건 전부 충족하면 collection_hole이 아니라 \`collection_hole_answered_gracefully\`에 카운트(=full 재평가). 하나라도 빠지면 그대로 collection_hole(a/b)로 남기고 collection_holes 서술에 **뭐가 빠졌는지**(위임체인부족/경계선언부족/연락처부족) 명시한다.
 - **판정에 페르소나 태그**(police/layperson/worker)를 함께 남겨, 어느 층에서 못 답하는지 보이게 한다.` : (round >= 2 ? `
 
 ## ★재감사(${round}라운드) — 더 깊고 넓게
@@ -154,7 +156,7 @@ return {
     full: sum('full'), thin: sum('thin'), missing: sum('missing'), collection_hole: sum('collection_hole'), awkward: sum('awkward'), scope_out: sum('scope_out'),
     thin_wiki_lag: sum('thin_wiki_lag'), thin_content_gap: sum('thin_content_gap'),
     collection_hole_genuine: sum('collection_hole_genuine'), collection_hole_structural: sum('collection_hole_structural'), collection_hole_uncollected: sum('collection_hole_uncollected'),
-    scope_out_answered_gracefully: sum('scope_out_answered_gracefully'),
+    scope_out_answered_gracefully: sum('scope_out_answered_gracefully'), collection_hole_answered_gracefully: sum('collection_hole_answered_gracefully'),
   },
   per_law: res.map(r => ({ law: r.law, q: r.total_questions, gaps: (r.wiki_gaps || []).length, holes: (r.collection_holes || []).length })),
   all_wiki_gaps: res.flatMap(r => (r.wiki_gaps || []).map(g => `${r.law}: ${g}`)),

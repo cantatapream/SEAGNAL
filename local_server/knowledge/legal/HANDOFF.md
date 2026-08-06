@@ -397,6 +397,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-06 20:25 KST] 🟢착수 — 12차 감사 착수 — 73법 300문항×3페르소나(회귀+신규)
+audit12_groups.json(10그룹, 73법, 11차와 동일 배분) 재사용. 착수 전 필수 수정 발견·반영: _SCHEMA.md §6-C(H-30, collection_hole (a)/(b) 정직종결형=full 재평가)가 문서에만 있고 audit_sim.js에 미반영 상태였음(11차 때도 같은 경고가 있었으나 그때도 미반영된 채 돌아감) — collection_hole_answered_gracefully 필드+3요건 재평가 프롬프트 지시를 audit_sim.js에 반영 후 착수(node --check 통과). 또한 fix3/audit_r12_연안관리법.done 발견 — Phase F 전환 직전(2026-07-30) 이미 진짜 12R 완료본(651줄, H-30 수동적용 포함)이 존재해, 이번 배치에서는 연안관리법을 제외한 72법만 audit12_groups_run.json(그룹7에서 연안관리법 제거)으로 디스패치. Workflow 10개(그룹0~9, 그룹7은 6법) 동시 호출, scriptPath=_dashboard/loop/audit_sim.js, args={groupsPath: audit12_groups_run.json, groupIndex, round:12}. 완료마다 fix3/audit_r12_<법>.done 마커 확인 후 커밋.
+
+
 ### [2026-08-06 20:17 KST] ✅완료 — 관리자 3서브탭 main 머지·배포 완료, 12차 감사 착수
 사용자 확인('머지하고 감사착수해') → main 머지(ff-only, 7cc8d9a0c) → push → GH Actions Deploy to Fly.io run 31096387049 성공(11:13:22~11:16:21Z, 약3분) → 프로덕션 라이브 확인: /api/health 200, /api/legal/admin/stats 401(관리자 인증요구 정상, 라우트 마운트 확인). 관리자 3서브탭(피드백·새지식후보·개정검토, 개정검토 자동스케줄러 포함) 기능 완결.
 다음: 12차 감사(11차 다음 라운드, 전체 73법 300문항) 착수 — 자율진행 규칙(CLAUDE.md) 적용, 완료 시 9차 감사 완료 시점과 동일하게 결과 기록 후 사용자 지시 대기(다음 라운드는 자동 시작 안 함).

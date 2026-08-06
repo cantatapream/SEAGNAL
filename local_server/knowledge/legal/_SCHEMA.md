@@ -358,7 +358,7 @@ H-26 §6-B가 `scope_out`에 적용한 "정직한 안내가 가능하면 결함�
 
 **적용 범위**: 이번 collection_hole 68법 재검증(`_dashboard/collection_hole_reclass_report.md`)의 (a)genuine 110건·(b)structural 32건이 1차 대상이다. 각 항목의 위키 페이지가 위 3요건을 이미 충족하는지 확인해, 충족하면 `collection_hole`에서 제외하고 `full`로 재평가한다. 미충족이면 3요건 중 뭐가 빠졌는지(위임체인 서술 부족/경계선언 부족/연락처 부족)를 명시해 사서 패스 대상으로 남긴다.
 
-**스크립트 반영 필요(다음 라운드 착수 전 필수, H-26 §6-B 선례와 동일 경고)**: 이 §6-C 기준은 문서에만 반영됐고 `_dashboard/loop/audit_sim.js`에는 아직 `scope_out_answered_gracefully`에 대응하는 `collection_hole_answered_gracefully` 필드·프롬프트 지시가 없다. **다음 감사 라운드(11차 등) 실행 전 반드시 스크립트에 이 기준을 먼저 반영할 것** — 안 하면 다음 라운드도 (a)/(b)를 무조건 collection_hole로만 찍어버린다.
+**스크립트 반영 완료(2026-08-06, 12차 감사 착수 전)**: `_dashboard/loop/audit_sim.js`에 `collection_hole_answered_gracefully` 필드·3요건 재평가 프롬프트 지시를 반영함(11차까지는 미반영 상태로 돌아 (a)/(b)가 무조건 collection_hole로만 집계됐었다 — 그 라운드들의 collection_hole 수치는 이 기준 적용 전임에 유의).
 
 ## 6-D. 관리자 검증 UI(Phase F, 미구축) 설계 스펙 — REVIEW 카드 구조 (H-34 사용자 확정 2026-08-01)
 
