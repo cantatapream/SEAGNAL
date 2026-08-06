@@ -383,6 +383,12 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-06 15:43 KST] ✅완료 — Phase F 1~3단계 전부 완료 — review_queue 재구성+카드UI+AI재검토 API, main 병합 대기
+사용자 3단계 계획(1.review_queue.md §6-D 재구성 2.카드 렌더링 확장 3.신규 AI재검토 API) 전부 구현 완료. 1단계: Workflow 10배치로 미승인 99건 중 96건을 볼법/왜의문인가/AI잠정결론/확인체크리스트/승인 5필드로 재구성(3건은 법개정추적형이라 제외), 무결성 검증 완료(커밋 f41fd4119). 2·3단계: routes/legal.js에 extractStructured() 다줄 체크리스트 파싱 + finalizeApproval() 공통화 + 신규 POST /api/legal/reviews/:id/submit-findings(Gemini 재검토, match=자동승인/mismatch·uncertain=이력남기고 대기) + ai_chat.js FIELD_VIEW 확장(원버그였던 'AI 법리추론 내용(사람 확인 필요)' 라벨 누락도 해소)·볼법 law.go.kr링크카드·체크리스트 번호목록·확인결과textarea 렌더링(커밋 044e1c919). node --check·extractStructured 격리테스트·check_paths·check_order·routes/legal.js 로드테스트 전부 통과. 사용자 지시로 '1단계 끝난 뒤 한번에' main 병합·배포 예정 — 지금까지는 처음으로 위키 콘텐츠가 아니라 실제 앱코드(라우트+프론트) 변경이라 안전 원칙상 사용자 확인 후 main 푸시할 것.
+
+발견(범위밖, 다음 정리후보): REVIEW-한국해양수산연수원법-05가 승인줄 2개 있는 채 이미 [x] 승인 상태(pre-existing 데이터 병합 오류로 추정, 이번 세션 대상 아니었음).
+
+
 ### [2026-08-06 14:24 KST] ✅완료 — 사용자 지적 반영 — raw 미수집형 REVIEW 3건 실시간 조회로 해소
 사용자가 review_queue UI 목업을 보고 'AI가 직접 조문비교로 재검토 가능한 부분 아니냐'고 지적 — Track C의 honest_gap(raw 미수집) 3건을 law.go.kr DRF API 실시간 조회로 즉시 검증. 결과: 2건 원문과 EXACT 일치 확인(선박교통관제법-01, 해수욕장법-02), 1건은 실제 오류 발견해 정정(영해접속수역법-03 — 형사소송법 제219조 준용목록에 제133조 없음을 확인, 제130·132조로 대체 서술). raw 3개 법(형사소송법·행정소송법·총포화약류법시행규칙)에 검증조문 정식반영. _LESSONS.md L-69 신규(raw미수집형 REVIEW는 사람큐 전에 실시간 단일조문조회부터 시도 + target=eflawjosub API로 목단위 상세조회 가능 팁). review_queue.md 304건 중 172건 [x] 해소 상태. 커밋 3cc57d26e, branch+main 반영. review_card_before_after 아티팩트 목업도 확인체크리스트+직접기입란+AI재검토흐름 추가해 갱신 완료(같은 URL).
 
