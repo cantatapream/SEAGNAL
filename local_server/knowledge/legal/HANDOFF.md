@@ -383,6 +383,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-06 14:24 KST] ✅완료 — 사용자 지적 반영 — raw 미수집형 REVIEW 3건 실시간 조회로 해소
+사용자가 review_queue UI 목업을 보고 'AI가 직접 조문비교로 재검토 가능한 부분 아니냐'고 지적 — Track C의 honest_gap(raw 미수집) 3건을 law.go.kr DRF API 실시간 조회로 즉시 검증. 결과: 2건 원문과 EXACT 일치 확인(선박교통관제법-01, 해수욕장법-02), 1건은 실제 오류 발견해 정정(영해접속수역법-03 — 형사소송법 제219조 준용목록에 제133조 없음을 확인, 제130·132조로 대체 서술). raw 3개 법(형사소송법·행정소송법·총포화약류법시행규칙)에 검증조문 정식반영. _LESSONS.md L-69 신규(raw미수집형 REVIEW는 사람큐 전에 실시간 단일조문조회부터 시도 + target=eflawjosub API로 목단위 상세조회 가능 팁). review_queue.md 304건 중 172건 [x] 해소 상태. 커밋 3cc57d26e, branch+main 반영. review_card_before_after 아티팩트 목업도 확인체크리스트+직접기입란+AI재검토흐름 추가해 갱신 완료(같은 URL).
+
+
 ### [2026-08-06 11:58 KST] 🟢착수 — Phase F 착수 — ⚠수치검증 리뷰 처리 안내
 사용자가 Phase F 첫 작업으로 '⚠수치검증 리뷰 처리'를 선택. 조사 결과 관리자 검토센터(client/js/ai-chat/ai_chat.js) 5개 서브탭 중 초안승인·⚠수치검증 2개는 이미 서버 완전연동(routes/legal.js /api/legal/reviews GET/POST approve, legal_review.html 승인화면) 완료 상태였고 legal_review.html의 24자 라벨파싱버그도 이미 수정돼 있음(2026-08-03 반영) 확인. review_queue.md 현재 304건(Track C 신규 12건 포함) 배포 확인(GH Actions run 31065363145, commit cd13e47e9, 2026-08-06 02:21 UTC 성공). 사용자에게 legal_review.html 접근 안내 완료 — 이 작업은 AI 자동화 대상이 아니라 사람 판단 게이트(H-34 genuine_dispute/honest_gap 항목이 대부분)이므로 사용자 본인이 직접 승인/반려해야 함.
 
