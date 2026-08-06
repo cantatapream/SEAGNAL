@@ -383,6 +383,23 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-06 10:35 KST] 🟢착수 — Track C 오탐지 감사 착수(7배치, 73법 전체 일괄)
+사용자 지시로 MASTER_PLAN.md H-35 ③절에 설계된 Track C(오탐지 감사) 착수 — 73법 전체 일괄(표본 아님).
+
+배경: Track A/B(완료)는 "위키에 없어야 하는데 없는 것"(false negative)만 찾았음. Track C는 반대로 "위키에 있는데 잘못 있는 것"(false positive) — (a)스코프 밖/오분류 콘텐츠 (b)실제로는 성립하지 않는 인용/위임 연결.
+
+설계: 73법을 7배치(법당 10~11개)로 나눠 동시 디스패치. 각 에이전트 작업:
+A절(스코프 점검): 이 법의 모든 위키 페이지를 읽고 원래 목적(해양수산 종사자 대상 실무 안내)을 벗어난 서술(강학상 법이론 비교·타법 세부실무·판례 심층분석·부적절한 중복) 탐지. 애매하면 스코프밖 단정 금지.
+B절(인용 오탐 점검): "근거 조문"·"타법 연결" 표의 각 줄을 delegation_graph_full_73.json 엣지와 대조 → 그래프에 없어도 바로 오탐 단정 금지, 반드시 raw 원문 재조회로 재확인(그래프 자체가 정규식 추출이라 누락 있을 수 있음, 파일럿 45% 사례 참고).
+처리: 명백히 틀렸음이 원문으로 확정되면 직접 정정+변경이력 기록, 애매하면 review_queue.md 직접 등록 대신 구조화보고(new_review_items_needed)만.
+
+★L-68 재발방지 반영: 프롬프트 최상단에 git 명령 절대금지·공유파일(review_queue.md·HANDOFF.md·index.json·delegation_graph_full_73.json) 직접쓰기 금지 명시.
+
+task id: wfbym4tct·wfuprvxiu·wl2hxgfbu·wdtnsut3v·w4lr6lhxu·w8o378nq7·whwhh30rg
+
+다음: 배치 완료마다 rogue 커밋 확인(git fetch+log 대조) → frontmatter/status 무결성 검사+lint_index.py → 체크포인트 커밋+푸시. 전부 완료되면 new_review_items_needed 수합해 review_queue.md 일괄 등록 + 종합 결과 보고.
+
+
 ### [2026-08-06 09:18 KST] ✅완료 — 조·항·호+고시+별표 전수 스윕 완료(73법 전체) + review_queue 신규 7건 등록
 사용자가 처음 계획했던 "74법 전부를 조·항·호+별표·별지·고시·행정규칙까지 전수 확인"의 스코프 갭(H-33 coverage.json이 법률/시행령/시행규칙 조 단위만 커버하고 항·호 세밀함·고시/행정규칙·별표는 전혀 안 봤던 것)을 메우는 작업 완료.
 
