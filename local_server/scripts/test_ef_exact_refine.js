@@ -36,7 +36,7 @@ console.log('\n[1] _refineUpcomingExactEf 조건 매트릭스');
 {
     // (a) 실사고 케이스: 예비(범위) + 통보문(정확) → 갱신 + 표식
     const s = mkSnap(); s.parents.set(Z, PRELIM());
-    const done = mc._refineUpcomingExactEf(s, Z, { wrnTpNm: '풍랑', tmEf: EXACT });
+    const done = mc._refineUpcomingExactEf(s, Z, { wrnTpNm: '풍랑', tmEf: EXACT, tmFc: '2026.08.06 11:30' });
     const cur = s.parents.get(Z);
     ok('(a) 범위→정확 정밀화 + _efExactFrom 표식', done === true && cur.tmEf === EXACT && cur._efExactFrom === RANGE);
     ok('(a) 등급·종류 불변(정밀화는 시각만)', cur.wrnLvlNm === '예비' && cur.wrnTpNm === '풍랑' && cur.wrnLvl === '1');
@@ -66,7 +66,7 @@ console.log('\n[1] _refineUpcomingExactEf 조건 매트릭스');
 
     // (g) 발효중 + 공존 예비(upcomings) → 예비 쪽이 정밀화 대상
     const s7 = mkSnap(); s7.parents.set(Z, ACTIVE()); s7.upcomings.set(Z, PRELIM({ wrnLvl: '3' }));
-    ok('(g) 공존 예비(upcomings) 정밀화', mc._refineUpcomingExactEf(s7, Z, { wrnTpNm: '풍랑', tmEf: EXACT }) === true
+    ok('(g) 공존 예비(upcomings) 정밀화', mc._refineUpcomingExactEf(s7, Z, { wrnTpNm: '풍랑', tmEf: EXACT, tmFc: '2026.08.06 11:30' }) === true
         && s7.upcomings.get(Z).tmEf === EXACT && s7.parents.get(Z).tmEf === RANGE);
 }
 
@@ -182,7 +182,7 @@ console.log('\n[5] 늦은 확정(과거 정확시각) 수용 조건');
 
     // (a) 사장님 시나리오: 12시(=범위 끝) 도래 후 "12시 발효" 통보문 → 범위 안이므로 수용
     const s = mkSnap(); s.parents.set(Z, PRELIM({ tmEf: rangeCover }));
-    ok('(a) 늦은 확정이 범위 안이면 수용', mc._refineUpcomingExactEf(s, Z, { wrnTpNm: '풍랑', tmEf: pastExact }) === true
+    ok('(a) 늦은 확정이 범위 안이면 수용', mc._refineUpcomingExactEf(s, Z, { wrnTpNm: '풍랑', tmEf: pastExact, tmFc: `${Y}.${M}.${D} 00:10` }) === true
         && s.parents.get(Z).tmEf === pastExact && s.parents.get(Z)._efExactFrom === rangeCover);
 
     // (b) 범위 밖 과거값(옛 통보문)은 거부 — 유령특보 차단 유지
@@ -225,6 +225,83 @@ console.log('\n[5] 늦은 확정(과거 정확시각) 수용 조건');
         snapOf({ [Z]: PRELIM({ tmEf: pastExact, _efExactFrom: rangeCover }) }));
     const up = changes.find(c => c.type === 'UPCOMING_CHANGE' && c.zone === Z);
     ok('(g) 늦은 확정도 UPCOMING_CHANGE 발사', !!up && up.curr.tmEf === pastExact);
+}
+
+// ── [6] 적대검증 결함 수정 고정 (1·2·3·4·5·6) ─────────────────────────────
+console.log('\n[6] 적대검증 수정 회귀 고정');
+{
+    const kst = new Date(Date.now() + 9 * 3600000);
+    const Y = kst.getUTCFullYear(), M = String(kst.getUTCMonth() + 1).padStart(2, '0'), D = String(kst.getUTCDate()).padStart(2, '0');
+    const pastExact = `${Y}.${M}.${D} 00:00`;
+    const rangeCover = `${Y}.${M}.${D} 00~06시`;
+
+    // [결함1-a] 옛 통보문(발표시각이 예비보다 이른)은 과거 정확시각을 못 덮어씀
+    const s1 = mkSnap(); s1.parents.set(Z, PRELIM({ tmEf: rangeCover, tmFc: `${Y}.${M}.${D} 04:00` }));
+    ok('[결함1] 옛 통보문(tmFc 이른) 거부', mc._refineUpcomingExactEf(s1, Z, {
+        wrnTpNm: '풍랑', tmEf: pastExact, tmFc: `${Y}.${M}.${D} 01:00` }) === false
+        && s1.parents.get(Z).tmEf === rangeCover);
+    // [결함1-b] 최신 통보문(발표시각이 예비 이후)은 정상 수용
+    const s1b = mkSnap(); s1b.parents.set(Z, PRELIM({ tmEf: rangeCover, tmFc: `${Y}.${M}.${D} 04:00` }));
+    ok('[결함1] 최신 통보문 수용', mc._refineUpcomingExactEf(s1b, Z, {
+        wrnTpNm: '풍랑', tmEf: pastExact, tmFc: `${Y}.${M}.${D} 05:00` }) === true);
+    // [결함1-c] 등급 불일치(발효중 주의보 통보문 → 경보 예비) 거부
+    const s1c = mkSnap();
+    s1c.parents.set(Z, ACTIVE());
+    s1c.upcomings.set(Z, PRELIM({ tmEf: rangeCover, wrnLvlReal: '경보' }));
+    ok('[결함1] 등급 불일치(주의보 통보문 vs 경보 예비) 거부', mc._refineUpcomingExactEf(s1c, Z, {
+        wrnTpNm: '풍랑', tmEf: pastExact, _realLvlNm: '주의보' }) === false
+        && s1c.upcomings.get(Z).tmEf === rangeCover);
+
+    // [결함2] ef/list: 옛 행과 최신 행이 함께 와도 "최신"이 이김
+    const s2 = mkSnap(); s2.parents.set(Z, PRELIM({ tmEf: futureRange, tmFc: '202608060400' }));
+    const rowOf = (tmfc, seq, ed) => ({ warn_tp_nm: '풍랑', warn_cmd_nm: '발표', warn_zone_nm: Z,
+        warn_zone_cd: '', tm_fc: tmfc, tm_seq: seq, ed_tm: ed });
+    mc._enrichSnapshotWithEfList(s2, [rowOf('202608060600', 1, pastExact), rowOf('202608061100', 9, futureExact)], null);
+    ok('[결함2] ef/list 최신 통보문 채택', s2.parents.get(Z).tmEf === futureExact, s2.parents.get(Z).tmEf);
+    // 행 순서를 뒤집어도 동일
+    const s2b = mkSnap(); s2b.parents.set(Z, PRELIM({ tmEf: futureRange, tmFc: '202608060400' }));
+    mc._enrichSnapshotWithEfList(s2b, [rowOf('202608061100', 9, futureExact), rowOf('202608060600', 1, pastExact)], null);
+    ok('[결함2] ef/list 행 순서 비의존', s2b.parents.get(Z).tmEf === futureExact);
+    // [결함2] warn/latest 도 행 순서 비의존
+    const wrow = (tmfc, ef) => ({ warn_tp: 'V', warn_tp_nm: '풍랑', warn_cmd_nm: '발표',
+        warn_zone_nm: Z2, warn_zone_cd: '', tm_fc: tmfc, tm_ef: ef });
+    const s2c = mkSnap(); s2c.parents.set(Z2, PRELIM({ tmEf: futureRange, tmFc: '202608060400' }));
+    mc._enrichSnapshotWithLatest(s2c, [wrow('202608060600', pastExact), wrow('202608061100', futureExact)], null, []);
+    const s2d = mkSnap(); s2d.parents.set(Z2, PRELIM({ tmEf: futureRange, tmFc: '202608060400' }));
+    mc._enrichSnapshotWithLatest(s2d, [wrow('202608061100', futureExact), wrow('202608060600', pastExact)], null, []);
+    ok('[결함2] warn/latest 행 순서 비의존', s2c.parents.get(Z2).tmEf === futureExact
+        && s2d.parents.get(Z2).tmEf === futureExact, `${s2c.parents.get(Z2).tmEf} / ${s2d.parents.get(Z2).tmEf}`);
+
+    // [결함4] 자정 넘김 범위에서 늦은 확정 수용 (종전엔 전건 거부)
+    const y = new Date(Date.now() + 9 * 3600000 - 24 * 3600000);   // 어제(KST)
+    const Y2 = y.getUTCFullYear(), M2 = String(y.getUTCMonth() + 1).padStart(2, '0'), D2 = String(y.getUTCDate()).padStart(2, '0');
+    const overnight = `${Y2}.${M2}.${D2} 22~02시`;                  // 어제 22시 ~ 오늘 02시
+    const inOvernight = `${Y}.${M}.${D} 01:00`;                     // 오늘 01시 (범위 안, 과거)
+    const outOvernight = `${Y}.${M}.${D} 05:00`;                    // 범위 밖
+    const s4 = mkSnap(); s4.parents.set(Z, PRELIM({ tmEf: overnight, tmFc: `${Y2}.${M2}.${D2} 20:00` }));
+    ok('[결함4] 자정 넘김 범위 안 늦은 확정 수용', mc._refineUpcomingExactEf(s4, Z, {
+        wrnTpNm: '풍랑', tmEf: inOvernight, tmFc: `${Y}.${M}.${D} 01:20` }) === true
+        && s4.parents.get(Z).tmEf === inOvernight);
+    const s4b = mkSnap(); s4b.parents.set(Z, PRELIM({ tmEf: overnight, tmFc: `${Y2}.${M2}.${D2} 20:00` }));
+    ok('[결함4] 자정 넘김 범위 밖은 여전히 거부', mc._refineUpcomingExactEf(s4b, Z, {
+        wrnTpNm: '풍랑', tmEf: outOvernight, tmFc: `${Y}.${M}.${D} 05:20` }) === false);
+
+    // [결함5] 정밀화 표식이 있으면 디바운스를 즉시 통과 (통보문 휘발에도 확정)
+    const s5 = { parents: new Map([[Z, PRELIM({ tmEf: EXACT, _efExactFrom: RANGE })]]), upcomings: new Map(), children: new Map() };
+    mc._debounceTimeValues(s5);
+    ok('[결함5] 정밀화 값은 디바운스 즉시 수락', s5.parents.get(Z).tmEf === EXACT);
+
+    // [결함1-d] 발효시각보다 "먼저" 발표된 과거 통보문 = 다른 에피소드 → 거부
+    const s1d = mkSnap(); s1d.parents.set(Z, PRELIM({ tmEf: rangeCover, tmFc: `${Y}.${M}.${D} 00:05` }));
+    ok('[결함1] 발효시각 이전 발표(옛 에피소드) 거부', mc._refineUpcomingExactEf(s1d, Z, {
+        wrnTpNm: '풍랑', tmEf: `${Y}.${M}.${D} 03:00`, tmFc: `${Y}.${M}.${D} 01:00` }) === false);
+
+    // [결함6] parents 예비 + upcomings 동시 존재 → 푸시가 읽는 parents 쪽을 갱신
+    const s6 = mkSnap();
+    s6.parents.set(Z, PRELIM({ tmEf: futureRange }));
+    s6.upcomings.set(Z, PRELIM({ tmEf: futureRange }));
+    ok('[결함6] parents(푸시가 읽는 쪽) 우선 갱신', mc._refineUpcomingExactEf(s6, Z, { wrnTpNm: '풍랑', tmEf: futureExact }) === true
+        && s6.parents.get(Z).tmEf === futureExact);
 }
 
 console.log(`\n[ef_exact_refine] ${pass} PASS / ${fail} FAIL`);

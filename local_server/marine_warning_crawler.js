@@ -1812,8 +1812,11 @@ function _applyTimeWindowHold(prev, curr, cfg) {
             const m = _extensionMemory[zone] && _extensionMemory[zone][cfg.phase];
             if (m && m[cfg.field] && !_isRangeTime(m[cfg.field]) && (Date.now() - (m.lastSeenAt || 0)) < EXTENSION_BRIDGE_MS) held = m[cfg.field];
         }
-        const incKey = _timeKey(incoming);
         const isRange = _isRangeTime(incoming);
+        // [적대검증] 범위형의 "끝"은 자정 넘김 보정값을 쓴다 — 보정 없이는 "22~02시" 의 끝이
+        //   같은 날 02시로 계산돼 윈도우가 24시간 이르게 확립되고, 범위 안의 정확시각(다음날 01시)이
+        //   "연장"으로 오분류됐다(시뮬레이션 S8 실측).
+        const incKey = isRange ? _rangeEndKey(incoming) : _timeKey(incoming);
         const win = cfg.winMap[zone];
         if (win != null && incKey != null && incKey > win) {
             // 윈도우(원래 범위 끝) 초과 → 연장
@@ -1837,7 +1840,7 @@ function _applyTimeWindowHold(prev, curr, cfg) {
             //    푸시는 새 발효시각을 알리는데 화면은 안 갱신되던 문제.)
             const rng = cfg.rangeMap[zone];
             const startK = _timeKey(rng, null, true);   // 범위 시작 시각키
-            const endK = _timeKey(rng);                  // 범위 끝 시각키
+            const endK = _rangeEndKey(rng);              // 범위 끝 시각키 (자정 넘김 보정)
             if (startK != null && endK != null && incKey != null && (incKey < startK || incKey > endK)) {
                 delete cfg.rangeMap[zone];               // 키 산출 가능 + 구간 밖(앞당김/연장) → 폐기, 정확값 표시
                 // [winMap 동기화] 앞당김(구간보다 이름)이면 연장 기준선(winMap)도 함께 폐기 —
@@ -1922,9 +1925,17 @@ function _debounceTimeValues(curr) {
     if (!curr) return;
     const now = Date.now();
     const seen = new Set();
-    const gate = (keyBase, info, field, flag) => {
+    const gate = (keyBase, info, field, flag, winMap, winZone) => {
         const cur = info[field];
         const key = keyBase + '|' + field;
+        // [적대검증 결함5] 통보문 기반 정밀화(§7.7.25)는 진동값이 아니라 기상청이 확정 발표한
+        //   값이다. warn/latest 휘발성으로 통보문이 매 사이클 보이지 않으면 3분 타이머가 계속
+        //   리셋돼 정밀화가 영영 확정되지 못했다(2~4사이클 결손 시 발사 0건 실측) → 즉시 수락.
+        //   (경계 케이스(정확=범위 끝)는 _sameReleaseMoment 로 이미 즉시 통과 — 동작 일치.)
+        if (field === 'tmEf' && info._efExactFrom && cur) {
+            _tcConfirmed[key] = cur; delete _tcPending[key];
+            return;
+        }
         if (!cur) {
             // [자식 키] 값이 명시적으로 빈값(철회)이면 관찰 상태를 즉시 폐기 — 부모(미관측 즉시
             //   정리)와 동일 동작 복원. 유예는 "행 자체가 잠깐 사라진" 경우만 보호(그땐 gate
@@ -1951,14 +1962,22 @@ function _debounceTimeValues(curr) {
         }
         info[field] = conf;                 // 미확정 → 직전 확정값으로 되돌려 푸시·표출 억제
         if (flag && info[flag]) delete info[flag];   // 연장 플래그도 보류
+        // [적대검증 결함3] 값을 되돌릴 때 "윈도우"도 함께 되돌린다. _applyTimeWindowHold 는
+        //   연장 사이클에 윈도우를 즉시 올리는데(1821) 디바운스가 그 값을 미확정으로 돌리면,
+        //   다음 사이클부터 incKey > win 이 거짓이 되어 held 고정이 옛 값을 영구히 덮어써
+        //   MMIS 연장이 침묵했다(정밀화로 held 가 상시 존재하게 되며 발현).
+        if (winMap && winZone) {
+            const confKey = _timeKey(conf);
+            if (confKey != null) winMap[winZone] = confKey;
+        }
     };
     if (curr.parents) for (const [zone, info] of curr.parents) {
         if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
-        if (info.wrnLvlNm === '예비') gate(zone, info, 'tmEf', '_efExtend');
-        else gate(zone, info, 'clrNtcTm', '_clrExtend');
+        if (info.wrnLvlNm === '예비') gate(zone, info, 'tmEf', '_efExtend', _efWindowEnd, zone);
+        else gate(zone, info, 'clrNtcTm', '_clrExtend', _clrWindowEnd, zone);
     }
     if (curr.upcomings) for (const [zone, info] of curr.upcomings) {
-        if (info && info.wrnLvlNm === '예비') gate(zone, info, 'tmEf', '_efExtend');
+        if (info && info.wrnLvlNm === '예비') gate(zone, info, 'tmEf', '_efExtend', _efWindowEnd, zone);
     }
     // [§7.7.21] 자식 시각값도 동일 3분 관찰 — 부모만 관찰하던 비대칭 탓에 통보문 1건의
     //   부모+자식 동시 시각변경/연장이 "자식 즉발 + 부모 3분후" 2건으로 갈라지고(2026-07-08
@@ -3279,6 +3298,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
 function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
     if (!snap) return snap;
     let enriched = 0, gapAdded = 0, gapChildAdded = 0, gapChildCarried = 0, gapChildSynth = 0, efRefined = 0;
+    const refineCandByZone = new Map();   // [§7.7.25] zone → 최신 정확시각 통보문 행 (정밀화 단일 선택)
     let sascChildAdded = 0, sascChildEnriched = 0;
 
     // [수정A-3] warn-sasc/latest = 자식 통보문 endpoint (부모 warn/latest 의 자식판).
@@ -3373,11 +3393,13 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
         const isPublishCmd = ['발표', '변경', '연장'].includes(cmd);
         if (!isPublishCmd && cmd !== '변경해제') continue;
         const tmEf = String(row.tm_ef || '').trim();
-        // [§7.7.25-2] 늦게 나온 확정(발효시각 경과 후 발표) — 신규 생성은 계속 금지하고
-        //   "이미 예비인 해역의 시각 정밀화"만 허용한다. 범위 밖 과거값은 헬퍼가 거부.
-        if (isPublishCmd && tmEf && !_isRangeTime(tmEf) && !_isFutureExactTime(tmEf)) {
-            if (_refineUpcomingExactEf(snap, name, { wrnTpNm: row.warn_tp_nm || '', tmEf })) efRefined++;
-            continue;
+        // [§7.7.25 + 적대검증 결함2] 정밀화 후보(정확시각 행)는 zone 별 최신 1건만 모아 루프 뒤에
+        //   일괄 적용 — 행 배열 순서에 결과가 좌우되던 문제 제거. 과거 정확시각도 후보가 되지만,
+        //   신규 GAP 부모 생성은 아래 미래 가드가 그대로 막는다(유령특보 차단 유지).
+        if (isPublishCmd && tmEf && !_isRangeTime(tmEf)) {
+            const rk = String(row.tm_fc || '');
+            const prevSel = refineCandByZone.get(name);
+            if (!prevSel || rk > prevSel.key) refineCandByZone.set(name, { key: rk, row });
         }
         if (!tmEf || !_isFutureExactTime(tmEf)) continue;  // 정확·미래 발효시각만 (발표 발효대기)
         if (!_isChildZoneCode(row.warn_zone_cd, name)) {
@@ -3385,8 +3407,6 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             info._realLvlNm = info.wrnLvlNm;   // [B] 실제 등급 보존 (예비 덮어쓰기 전) — 공존 격상/격하용
             info.wrnLvlNm = '예비';   // 발효 전 → 예비 취급 (표시·푸시 일관성)
             info.wrnLvl = info.wrnLvl || '1';
-            // [§7.7.25] 이미 예비인 해역이면 "범위형 → 정확시각" 정밀화만 반영하고 나머지는 종전대로 skip.
-            if (isPublishCmd && _refineUpcomingExactEf(snap, name, info)) efRefined++;
             // [B] 발효중 zone 과 공존하는 상·하위/다른종류 → upcomings 보강 (격상/격하 발표).
             if (_tryAddCoexistingUpcoming(snap, name, info)) continue;
             // 부모형 — 발효중/예비면 그쪽 우선
@@ -3458,6 +3478,13 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             snap.liveChildren.add(name);   // [라이브 근거] 자식 자신의 통보문(warn/latest 자식행) → 사후정리 화이트리스트
             gapChildAdded++;
         }
+    }
+    // [§7.7.25] 정밀화 일괄 적용 — zone 별 최신 통보문 1건. 스냅샷 구성이 끝난 뒤 수행해
+    //   같은 사이클에 GAP 로 새로 만들어진 부모(정확값 보유)는 헬퍼의 "이미 정확값" 가드로 무시된다.
+    for (const [rname, rsel] of refineCandByZone) {
+        const rinfo = _rowToParentInfo(rsel.row);
+        rinfo._realLvlNm = rinfo.wrnLvlNm;
+        if (_refineUpcomingExactEf(snap, rname, rinfo)) efRefined++;
     }
     if (efRefined > 0) console.log(`[Marine] warn/latest 발효시각 정밀화: ${efRefined} zone 범위→정확 (§7.7.25)`);
     if (enriched > 0) console.log(`[Marine] warn/latest 보강: ${enriched} zone clrNtcTm 갱신`);
@@ -3716,24 +3743,72 @@ function _tryAddCoexistingUpcoming(snap, name, info) {
  *          time_ef_change("🕐 발효시각 변경") 로 매핑된다.
  */
 function _refineUpcomingExactEf(snap, name, info) {
-    const cur = (snap.upcomings && snap.upcomings.get(name)) || (snap.parents && snap.parents.get(name));
-    if (!cur || cur.wrnLvlNm !== '예비') return false;              // 예비(발효 전)만 — 발효중은 tmEf 무의미
+    // [적대검증 결함6] 푸시측(getUp/getUpcoming)이 parents 를 먼저 읽으므로 같은 우선순위로 맞춘다 —
+    //   역순이면 "읽지 않는 쪽"만 갱신되어 화면만 바뀌고 통지가 안 나갔다.
+    const p = snap.parents && snap.parents.get(name);
+    const u = snap.upcomings && snap.upcomings.get(name);
+    const cur = (p && p.wrnLvlNm === '예비') ? p : ((u && u.wrnLvlNm === '예비') ? u : null);
+    if (!cur) return false;                                         // 예비(발효 전)만 — 발효중은 tmEf 무의미
     if ((cur.wrnTpNm || '') !== (info.wrnTpNm || '')) return false; // 종류 일치 필수 (풍랑↔태풍 오염 방지)
+    // [적대검증 결함1] 등급 일치 — 발효중 주의보의 통보문이 공존 '경보' 예비를 오염시키던 경로 차단.
+    //   양쪽에 실제 등급이 있을 때만 비교(warn/ready 예비는 실제 등급 미상 → 이 가드 비적용).
+    const curReal = cur.wrnLvlReal || cur._realLvlNm || '';
+    const incReal = info.wrnLvlReal || info._realLvlNm || '';
+    if (curReal && incReal && curReal !== incReal) return false;
     const inc = String(info.tmEf || '').trim();
     if (!inc || _isRangeTime(inc)) return false;                    // 통보문이 정확시각일 때만
     const old = String(cur.tmEf || '').trim();
     if (!old || !_isRangeTime(old)) return false;                   // 범위형 → 정확 정밀화만 (정확↔정확은 기존 경로)
+    // [적대검증 결함1] 에피소드 동일성 — 통보문 발표시각(tmFc)이 예비의 발표시각보다 오래됐으면
+    //   "직전(또는 다른) 특보의 통보문"이다. 옛 통보문이 현 예비의 발효시각을 덮어써 이미 지난
+    //   시각을 통지하던 오푸시를 차단한다. (정당 케이스: 확정 통보문은 예비 발표 이후 발행 → 통과)
+    const curFcK = _timeKey(cur.tmFc), incFcK = _timeKey(info.tmFc);
+    if (curFcK != null && incFcK != null && incFcK < curFcK) return false;
     // [§7.7.25-2 늦은 확정] 발효시각이 이미 지난 정확시각(예: 12시 도래 후 "12시 발효" 발표)도
     //   수용한다 — 다만 "현재 들고 있는 예고 범위 [시작,끝] 안" 일 때만. 옛 통보문(어제 15시 등)은
     //   범위 밖이라 자동 거부되어 유령특보 차단(_isFutureExactTime 가드의 취지)이 유지된다.
     //   미래 정확시각은 종전대로 범위 밖(더 늦어짐)도 허용 — 그건 연장/변경으로 정상 처리된다.
     if (!_isFutureExactTime(inc)) {
-        const sK = _timeKey(old, null, true), eK = _timeKey(old), iK = _timeKey(inc);
-        if (sK == null || eK == null || iK == null || iK < sK || iK > eK) return false;
+        // [적대검증 결함1] "늦은 확정"의 결정적 표지: 통보문이 발효시각 "이후"에 발표됐다는 것
+        //   (12시 발효를 12:10 에 발표). 반대로 발효시각보다 먼저 발표된 과거 통보문은 다른
+        //   에피소드(이미 지나간 특보)의 것이므로 예비의 발효시각을 덮어써선 안 된다 —
+        //   이 가드가 없으면 이미 지난 시각이 "발효시각 변경"으로 통지된다(실측 재현).
+        const incFcK2 = _timeKey(info.tmFc), incEfK2 = _timeKey(inc);
+        if (incFcK2 == null || incEfK2 == null || incFcK2 < incEfK2) return false;
+        // [적대검증 결함4] 자정 넘김 범위("22~02시")는 _timeKey 가 끝을 같은 날로 계산해 eK < sK 가
+        //   되어 어떤 값도 못 들어와 전건 침묵했다 → _rangeEndKey 로 보정.
+        const sK = _timeKey(old, null, true), eK = _rangeEndKey(old), iK = _timeKey(inc);
+        if (sK == null || eK == null || iK == null) return false;
+        if (iK < sK || iK > eK) return false;
     }
     cur.tmEf = inc;
     cur._efExactFrom = old;                                         // [표식] 이번 사이클 정밀화 (경계 발사용)
     return true;
+}
+
+/** 범위형 시각의 "끝" 시각키 — 자정 넘김("22~02시")이면 끝을 다음날로 보정해 돌려준다.
+ *  예: _rangeEndKey('2026.08.06 22~02시') → 8/7 02시 키 (보정 전에는 8/6 02시로 시작보다 이름)
+ *  @param {string} rangeStr 범위형 시각 문자열
+ *  @returns {number|null} 끝 시각키(_timeKey 형식), 산출 불가면 null
+ *  [연계] ← _applyTimeWindowHold(윈도우 확립·연장 판정·표시 범위 포함검사) · _refineUpcomingExactEf */
+function _rangeEndKey(rangeStr) {
+    const sK = _timeKey(rangeStr, null, true);
+    const eK = _timeKey(rangeStr);
+    if (eK == null) return null;
+    if (sK == null || eK >= sK) return eK;
+    const shifted = _shiftDayStr(rangeStr);
+    const sh = shifted ? _timeKey(shifted) : null;
+    return sh != null ? sh : eK + 10000;   // 날짜 없는 범위 등 → 키 상에서 하루 가산(폴백)
+}
+
+/** 자정 넘김 범위의 "끝 시각"을 다음날로 옮긴 문자열 시각키 산출용 — "2026.08.06 22~02시" 의
+ *  끝 02시는 8/7 02시다. _timeKey 는 날짜를 범위 앞부분에서만 읽으므로 날짜를 하루 더해 준다.
+ *  [연계] ← _refineUpcomingExactEf (이 파일) */
+function _shiftDayStr(rangeStr) {
+    const m = String(rangeStr || '').match(/^(\d{4})[.\-](\d{1,2})[.\-](\d{1,2})(.*)$/);
+    if (!m) return null;
+    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + 1));
+    return `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}${m[4]}`;
 }
 
 /**
@@ -3765,14 +3840,13 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
         if (!name) continue;
         const ed = String(row.ed_tm || '').trim();
         const key0 = String(row.tm_fc || '') + '#' + String(row.tm_seq || 0).padStart(4, '0');
-        if (!_isFutureExactTime(ed)) {
-            // [§7.7.25-2] 늦게 나온 확정만 따로 모은다 (신규 GAP 생성엔 쓰지 않음 — 유령특보 차단 유지)
-            if (PUBLISH_CMDS.has(cmd) && ed && !_isRangeTime(ed)) {
-                const le = lateExactByZone.get(name);
-                if (!le || key0 > le.key) lateExactByZone.set(name, { key: key0, row });
-            }
-            continue;                                               // 발효시각 미래(=발표대기)만
+        // [적대검증 결함2] 정밀화 후보는 과거·미래를 "한 맵"에서 tm_fc#seq 최대값으로 단일 선택 —
+        //   옛 통보문이 최신을 이기던 루프 순서 의존 제거. (신규 GAP 생성은 아래 미래 전용 경로 유지)
+        if (PUBLISH_CMDS.has(cmd) && ed && !_isRangeTime(ed)) {
+            const le = lateExactByZone.get(name);
+            if (!le || key0 > le.key) lateExactByZone.set(name, { key: key0, row });
         }
+        if (!_isFutureExactTime(ed)) continue;                      // 발효시각 미래(=발표대기)만
         const key = key0;
         const cx = coexistByZone.get(name);                         // 공존 판정용(모든 통과 cmd)
         if (!cx || key > cx.key) coexistByZone.set(name, { key, row });
@@ -3782,7 +3856,7 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
         }
     }
     const counters = { gapAdded: 0, gapChildCarried: 0, gapChildSynth: 0 };
-    // [§7.7.25-2] 늦은 확정 정밀화 — 신규 생성 루프보다 먼저(같은 zone 이 양쪽에 걸리지 않음).
+    // [§7.7.25 + 적대검증 결함2] 정밀화 — zone 별 "최신 통보문 1건"으로만 수행.
     for (const [name, sel] of lateExactByZone) {
         if (_refineUpcomingExactEf(snap, name, _efRowToInfo(sel.row))) counters.efRefined = (counters.efRefined || 0) + 1;
     }
@@ -3793,8 +3867,7 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
     // 2차: 신규 발표대기 GAP (publish 계열만 — 기존 로직 그대로).
     for (const [name, sel] of latestByZone) {
         const info = _efRowToInfo(sel.row);
-        // [§7.7.25] 스킵 전에 "범위형 → 정확시각" 정밀화만 반영 (등급·종류·구성 불변).
-        if (_refineUpcomingExactEf(snap, name, info)) counters.efRefined = (counters.efRefined || 0) + 1;
+        // (정밀화는 위 lateExactByZone 단일 선택 루프가 이미 수행 — 여기선 신규 GAP 생성만)
         // 실시간 endpoint 가 이미 커버(발효중/예비/발표대기/공존)하면 skip — 중복/덮어쓰기 방지.
         if (snap.parents.has(name)) continue;
         if (snap.upcomings && snap.upcomings.has(name)) continue;
