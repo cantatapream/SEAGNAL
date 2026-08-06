@@ -417,6 +417,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-07 08:58 KST] ✅완료 — 12차 통합수정 그룹5 완료(7법)
+해양수산발전기본법·해사안전기본법·내수면어업법·갯벌및그주변지역의지속가능한관리와복원에관한법률·서해5도지원특별법·어촌ㆍ어항법·수산업ㆍ어촌발전기본법 7법 완료(edits 20, wiki_lag_fixed 15, links_added 3, thin_reclassified 11, collection_hole_reclassified 12, scope_out_disclaimers_added 7, contacts_added 2, promoted_canonical 0). ★important 에스컬레이션 2건(조치 불필요, 기록만): ①해사안전기본법 — answerCanonicalOnly:true 전제 시 draft 3페이지가 canonical검색 배제되는 배포리스크 재확인(exposure off라 현재 무영향, 다음 exposure 전환 전 재점검 필요, 시스템/배포정책 사안이라 사서 콘텐츠작업 범위 밖) ②서해5도지원특별법 REVIEW-01 타법콘텐츠 혼입 의심을 재검증(원문 grep 0건)으로 재확인 — review_queue.md는 공유파일이라 이 세션 쓰기범위 밖, 별도 단독 세션 필요.
+
+
 ### [2026-08-07 08:57 KST] ✅완료 — 12차 통합수정 그룹8 완료(7법)
 연안사고예방에관한법률·선박법·수산자원관리법·해양생태계의보전및관리에관한법률·마리나항만의조성및관리등에관한법률·항만운송사업법·유류오염손해배상보장법 7법 완료(edits 27, wiki_lag_fixed 17, links_added 3, thin_reclassified 30, collection_hole_reclassified 13, scope_out_disclaimers_added 22, contacts_added 1, promoted_canonical 0). hub_needs 4건(연안출입통제구역_지역별·해양생태계3개념비교·항만운송사업급지비교·안전장구구명설비 항만운송행 추가)은 공유파일이라 손대지 않고 기록만(단독 lint 단계 대상). collectable_holes 2건(서귀포 원공고 재검색, 항만운송업 지역별고시)은 재수집 큐 대상.
 
