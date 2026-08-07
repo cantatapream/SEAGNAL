@@ -417,6 +417,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-07 09:04 KST] ✅완료 — 12차 통합수정 그룹0 완료(8법)
+배타적경제수역및대륙붕에관한법률·해양경찰법·선박직원법·양식산업발전법·해양폐기물및해양오염퇴적물관리법·수상레저안전법·해양치유자원의관리및활용에관한법률·물환경보전법 8법 완료(edits 31, wiki_lag_fixed 12, links_added 10, thin_reclassified 23, collection_hole_reclassified 7, scope_out_disclaimers_added 13, contacts_added 16, promoted_canonical 1). hub_needs 2건(양식산업발전법 지역조례비교표, 물환경보전법 vs 해양환경관리법 관할경계비교표)은 공유파일이라 기록만.
+
+
 ### [2026-08-07 09:04 KST] ✅완료 — 12차 통합수정 그룹7 완료(7법) — 첫 canonical 승격 2건
 수상에서의수색ㆍ구조등에관한법률·도선법·수산업협동조합법·낚시관리및육성법·항만법·한국해양수산연수원법·자연유산의보존및활용에관한법률 7법 완료(edits 31, wiki_lag_fixed 18, links_added 5, thin_reclassified 31, collection_hole_reclassified 12, scope_out_disclaimers_added 13, contacts_added 15, promoted_canonical 2 — 12차 통합수정 전체 중 첫 canonical 자체승격). ★important 2건(조치 불필요, 기록만): ①도선법 — H-30 3요건 중 '위임체인 명시'가 전제하는 구조(법이 위임했는데 하위법령 부재)와 다른 '무연결형'(J5 도선사배상책임보험처럼 애초 이 법이 위임 안 한 별개 관련법 미연결) collection_hole은 요건 충족이 구조적으로 불가 — _SCHEMA.md §6-C에 '무연결형' 하위유형 추가 여부 사용자 판단 필요(스키마 문서 수정은 이 세션 권한 밖). ②자연유산법 — 제25~62조(법 71개조 중 약 절반, 관리·활용·지원·보칙)가 위키에 통째로 없음, missing 80문항의 최대 원인. 1회성 gap-fill 범위를 넘는 구조적 작업이라 다음 라운드에 전담 사서 패스 별도 배정 권고.
 
