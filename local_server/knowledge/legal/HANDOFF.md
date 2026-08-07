@@ -417,6 +417,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-07 09:07 KST] ✅완료 — 12차 통합수정 그룹9 완료(7법) — ★review_queue.md 등록누락 발견
+해양경비법·선박안전법·수산종자산업육성법·해양수산생명자원의확보ㆍ관리및이용등에관한법률·수상레저기구의등록및검사에관한법률·항만재개발및주변지역발전에관한법률·해양사고의조사및심판에관한법률 7법 완료(edits 21, wiki_lag_fixed 9, thin_reclassified 32, collection_hole_reclassified 4, scope_out_disclaimers_added 5, review_markers_added 1, contacts_added 1, promoted_canonical 1). ★important 1건(사용자 확인 권장, review_queue.md 담당 단독세션 필요): 해양수산생명자원법 __외국인등획득허가.md가 5라운드째(8~12R) draft로 묶여있는데, 그 근거 REVIEW(UNCLOS 제73조 취지 추론)가 review_queue.md에 전혀 등록 안 돼 있음 — changelog가 가리키는 REVIEW-해양수산생명자원법-01 ID는 실제로는 전혀 다른 주제(예산운용계획서 불일치)를 가리켜 등록 누락 상태. review_queue.md는 공유파일(경합위험)이라 이 세션에서 직접 등록 불가, 단독 세션에서 신규 등록+178·1060행 오표기 정정 필요.
+
+
 ### [2026-08-07 09:06 KST] ✅완료 — 12차 통합수정 그룹1 완료(8법)
 배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률·국제항해선박등에대한해적행위피해예방에관한법률·선박평형수관리법·어선안전조업및어선원의안전ㆍ보건증진등에관한법률·해양환경관리법·수중레저활동의안전및활성화등에관한법률·농수산물의원산지표시등에관한법률·출입국관리법 8법 완료(edits 43, wiki_lag_fixed 16, links_added 7, thin_reclassified 12, collection_hole_reclassified 6, scope_out_disclaimers_added 6, contacts_added 13, promoted_canonical 0). collectable_holes 1건(민법 부칙 제10429호, 공유타법폴더라 단독처리 다음라운드 권고).
 
