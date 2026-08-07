@@ -417,6 +417,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-07 09:04 KST] ✅완료 — 12차 통합수정 그룹2 완료(8법)
+영해및접속수역법·국제항해선박및항만시설의보안에관한법률·어선법·원양산업발전법·해양환경보전및활용에관한법률·해수욕장의이용및관리에관한법률·농수산물품질관리법·폐기물관리법 8법 완료(edits 45, wiki_lag_fixed 40, links_added 10, thin_reclassified 25, collection_hole_reclassified 8, scope_out_disclaimers_added 12, contacts_added 20, promoted_canonical 0). important 1건(조치불필요, 기록만): 원양산업발전법 — 서식(별지) 다운로드 메타 19개 페이지 전부 미착수, 감사가 '이 법만의 문제 아닐 가능성' 명시 → 위키 전역 Phase E/F 설계결정 사안이라 단일법 패스 범위 밖.
+
+
 ### [2026-08-07 09:04 KST] ✅완료 — 12차 통합수정 그룹0 완료(8법)
 배타적경제수역및대륙붕에관한법률·해양경찰법·선박직원법·양식산업발전법·해양폐기물및해양오염퇴적물관리법·수상레저안전법·해양치유자원의관리및활용에관한법률·물환경보전법 8법 완료(edits 31, wiki_lag_fixed 12, links_added 10, thin_reclassified 23, collection_hole_reclassified 7, scope_out_disclaimers_added 13, contacts_added 16, promoted_canonical 1). hub_needs 2건(양식산업발전법 지역조례비교표, 물환경보전법 vs 해양환경관리법 관할경계비교표)은 공유파일이라 기록만.
 
