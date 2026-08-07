@@ -2160,7 +2160,11 @@ function _buildUserPushChanges(prev, curr) {
             const key = _pubKey(zone, cUp);
             const known = pubs.has(key);
             pubs.set(key, Date.now());                  // 최신 확인시각 갱신(메모리)
-            if (cUp._efBridged && known) {
+            // [2026-08-06 경7 수정] 정밀화가 일어난 사이클은 "이미 보낸 발표"의 재푸시가 아니라
+            //   새 정보(발효시각 확정) 통지다. 단 직전 예비(pUp)가 있을 때만 예외로 둔다 —
+            //   pUp 이 없으면 push_sender 가 '발표' 계열로 매핑해 재푸시가 되므로 그때는 종전대로 억제.
+            const refinedNow = !!(cUp._efExactFrom && pUp);
+            if (cUp._efBridged && known && !refinedNow) {
                 // ef 보강 + 이미 발송됨 → 재푸시 방지. 단, 발효중 active 와 공존(격상/격하 발표대기)
                 //   하는 경우엔 그 active 의 독립 변화(해제·해제예정시각·자식 추가/해제)는 계속
                 //   처리해야 하므로 zone 전체 skip 대신 upcoming emit 만 억제한다. 순수 GAP
@@ -3755,6 +3759,22 @@ function _tryAddCoexistingUpcoming(snap, name, info) {
  *        → _buildUserPushChanges 가 _efExactFrom 을 읽어 UPCOMING_CHANGE 발사 → push_sender
  *          time_ef_change("🕐 발효시각 변경") 로 매핑된다.
  */
+// [2026-08-06 사용자 제안] "이 통보문은 이미 봤다" 표시 — 통보문 단위 멱등성.
+//   키 = 해역|종류|통보문 발표시각|발효시각. 한 번 반영한 통보문은 다시 평가하지 않으므로
+//   ① MMIS 응답이 깜빡여도(같은 통보문이 사라졌다 나타남) 재처리·재발사 여지가 없고
+//   ② 같은 통보문을 여러 경로(warn/latest·ef/list)로 중복 수신해도 1회만 반영된다.
+//   의미 검증 3중 가드(등급·발표순서·발효 후 발표)와 병행 — 표시는 "반복"을, 가드는
+//   "처음부터 낡은 통보문"을 막는다(서버 재시작으로 표시가 비어도 가드가 남아 안전).
+const _efRefineSeen = new Map();                      // sig → 반영 시각(ms)
+const EF_REFINE_SEEN_TTL_MS = 24 * 60 * 60 * 1000;    // 24시간 후 정리(무한 증식 방지)
+function _efRefineSig(zone, info) {
+    return `${zone}|${(info && info.wrnTpNm) || ''}|${(info && info.tmFc) || ''}|${(info && info.tmEf) || ''}`;
+}
+function _efRefineSeenSweep() {
+    const now = Date.now();
+    for (const [k, ts] of _efRefineSeen) if (now - ts > EF_REFINE_SEEN_TTL_MS) _efRefineSeen.delete(k);
+}
+
 function _refineUpcomingExactEf(snap, name, info) {
     // [적대검증 결함6] 푸시측(getUp/getUpcoming)이 parents 를 먼저 읽으므로 같은 우선순위로 맞춘다 —
     //   역순이면 "읽지 않는 쪽"만 갱신되어 화면만 바뀌고 통지가 안 나갔다.
@@ -3762,6 +3782,10 @@ function _refineUpcomingExactEf(snap, name, info) {
     const u = snap.upcomings && snap.upcomings.get(name);
     const cur = (p && p.wrnLvlNm === '예비') ? p : ((u && u.wrnLvlNm === '예비') ? u : null);
     if (!cur) return false;                                         // 예비(발효 전)만 — 발효중은 tmEf 무의미
+    // [표시] 이미 본 통보문인가 — "재적용"은 허용하되(값이 유실됐을 때 복구되어야 하므로)
+    //   "재발사 트리거(_efExactFrom)"만 최초 1회로 묶는다. 하드 스킵으로 만들면 스냅샷 유실·
+    //   재시작 등으로 정확값이 사라졌을 때 같은 통보문으로 복구할 길이 막혀 범위에 고착된다.
+    const seenBefore = _efRefineSeen.has(_efRefineSig(name, info));
     if ((cur.wrnTpNm || '') !== (info.wrnTpNm || '')) return false; // 종류 일치 필수 (풍랑↔태풍 오염 방지)
     // [적대검증 결함1] 등급 일치 — 발효중 주의보의 통보문이 공존 '경보' 예비를 오염시키던 경로 차단.
     //   양쪽에 실제 등급이 있을 때만 비교(warn/ready 예비는 실제 등급 미상 → 이 가드 비적용).
@@ -3795,7 +3819,9 @@ function _refineUpcomingExactEf(snap, name, info) {
         if (iK < sK || iK > eK) return false;
     }
     cur.tmEf = inc;
-    cur._efExactFrom = old;                                         // [표식] 이번 사이클 정밀화 (경계 발사용)
+    if (!seenBefore) cur._efExactFrom = old;   // [표식] 최초 1회만 발사 트리거 (재적용은 조용히)
+    _efRefineSeen.set(_efRefineSig(name, info), Date.now());        // [표시] 이 통보문은 처리 완료
+    _efRefineSeenSweep();
     return true;
 }
 

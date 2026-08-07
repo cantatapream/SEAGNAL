@@ -194,7 +194,7 @@ console.log('\n[5] 늦은 확정(과거 정확시각) 수용 조건');
     const s3 = mkSnap(); s3.parents.set(Z, PRELIM({ tmEf: rangeCover }));
     mc._enrichSnapshotWithEfList(s3, [{
         warn_tp_nm: '풍랑', warn_cmd_nm: '발표', warn_zone_nm: Z, warn_zone_cd: '',
-        tm_fc: '202608061210', tm_seq: 9, ed_tm: pastExact
+        tm_fc: `${Y}${M}${D}0010`, tm_seq: 9, ed_tm: pastExact
     }], null);
     ok('(c) ef/list 늦은 확정 반영', s3.parents.get(Z).tmEf === pastExact);
 
@@ -202,7 +202,7 @@ console.log('\n[5] 늦은 확정(과거 정확시각) 수용 조건');
     const s4 = mkSnap();
     mc._enrichSnapshotWithEfList(s4, [{
         warn_tp_nm: '풍랑', warn_cmd_nm: '발표', warn_zone_nm: Z2, warn_zone_cd: '',
-        tm_fc: '202608061210', tm_seq: 9, ed_tm: pastExact
+        tm_fc: `${Y}${M}${D}0010`, tm_seq: 9, ed_tm: pastExact
     }], null);
     ok('(d) 미등장 해역 과거 통보문은 신규 생성 안 함', !s4.parents.has(Z2));
 
@@ -210,7 +210,7 @@ console.log('\n[5] 늦은 확정(과거 정확시각) 수용 조건');
     const s5 = mkSnap(); s5.parents.set(Z2, PRELIM({ tmEf: rangeCover }));
     mc._enrichSnapshotWithLatest(s5, [{
         warn_tp: 'V', warn_tp_nm: '풍랑', warn_cmd_nm: '발표', warn_zone_nm: Z2, warn_zone_cd: '',
-        tm_fc: '202608061210', tm_ef: pastExact
+        tm_fc: `${Y}${M}${D}0010`, tm_ef: pastExact
     }], null, []);
     ok('(e) warn/latest 늦은 확정 반영', s5.parents.get(Z2).tmEf === pastExact);
 
@@ -355,6 +355,54 @@ console.log('\n[8] 부모 시각값 결측 처리 (미정 알림 차단)');
     ok('[C] 결측으로 인한 "미정" 푸시 없음',
         !changes.some(c => c.type === 'UPCOMING_CHANGE' && c.zone === ZC && c.curr),
         JSON.stringify(changes.map(c => ({ t: c.type, z: c.zone, p: c.prev && c.prev.tmEf, c: c.curr && c.curr.tmEf }))));
+}
+
+// ── [9] 사용자 제안 — "본 통보문 표시"(멱등) + 경7 dedup 예외 ────────────────
+console.log('\n[9] 통보문 표시(멱등) · 브릿지 dedup 예외');
+{
+    const ZM = '경북북부앞바다';
+    const RG = futureRange, EX = futureExact;
+    const mk = (over = {}) => Object.assign({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvl: '1',
+        wrnLvlNm: '예비', tmFc: '2026.08.06 04:00', tmEf: RG, tmYn: '', clrNtcTm: '' }, over);
+    const bull = { wrnTpNm: '풍랑', tmEf: EX, tmFc: '2026.08.06 09:00' };
+
+    // 최초 반영 → 값 갱신 + 발사 트리거(_efExactFrom) 부착
+    const s1 = mkSnap(); s1.parents.set(ZM, mk());
+    ok('[표시] 최초 반영 시 발사 트리거 부착', mc._refineUpcomingExactEf(s1, ZM, bull) === true
+        && s1.parents.get(ZM).tmEf === EX && s1.parents.get(ZM)._efExactFrom === RG);
+
+    // 같은 통보문 재수신(깜빡임·중복 경로) → 값은 복구되되 발사 트리거는 없음
+    const s2 = mkSnap(); s2.parents.set(ZM, mk());
+    const again = mc._refineUpcomingExactEf(s2, ZM, bull);
+    ok('[표시] 같은 통보문 재적용은 조용히(값 복구, 발사 트리거 없음)',
+        again === true && s2.parents.get(ZM).tmEf === EX && !s2.parents.get(ZM)._efExactFrom);
+
+    // 다른 통보문(발표시각 다름)은 별개로 인정 → 다시 발사 트리거
+    const s3 = mkSnap(); s3.parents.set(ZM, mk());
+    ok('[표시] 다른 통보문은 별개(재발사 허용)',
+        mc._refineUpcomingExactEf(s3, ZM, { wrnTpNm: '풍랑', tmEf: EX, tmFc: '2026.08.06 10:00' }) === true
+        && s3.parents.get(ZM)._efExactFrom === RG);
+
+    // [경7] ef 브릿지 + 이미 발송 이력 + 발효중 공존 → 정밀화 사이클은 억제 예외로 통지
+    mc._resetCancelVerdictsForTest();
+    const ZB = '경북남부앞바다';
+    const ACT_B = { wrnTp: 'V', wrnTpNm: '풍랑', wrnLvl: '2', wrnLvlNm: '주의보',
+        tmFc: '2026.08.06 02:00', tmEf: '2026.08.06 03:00', tmYn: '', clrNtcTm: '2026.08.06 18~24시' };
+    const UP_B = (over = {}) => Object.assign({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvl: '3',
+        wrnLvlNm: '예비', wrnLvlReal: '경보', tmFc: '2026.08.06 08:00', tmEf: RG, tmYn: '',
+        clrNtcTm: '', _efBridged: true }, over);
+    const snapB = (upOver) => ({ parents: new Map([[ZB, ACT_B]]),
+        upcomings: new Map([[ZB, UP_B(upOver)]]), children: new Map() });
+    // C1: 브릿지 예비 최초 등장 → 이력 등록(발표 통지)
+    mc._buildUserPushChanges({ parents: new Map([[ZB, ACT_B]]), upcomings: new Map(), children: new Map() }, snapB());
+    // C2: 같은 통보문 유지 → 종전대로 억제(재푸시 없음)
+    let ch = mc._buildUserPushChanges(snapB(), snapB());
+    ok('[경7] 변화 없으면 종전대로 무푸시', !ch.some(c => c.type === 'UPCOMING_CHANGE' && c.zone === ZB && c.curr));
+    // C3: 정밀화 발생 사이클 → 억제 예외로 시각 변경 통지
+    ch = mc._buildUserPushChanges(snapB(), snapB({ tmEf: EX, _efExactFrom: RG }));
+    const upB = ch.find(c => c.type === 'UPCOMING_CHANGE' && c.zone === ZB && c.curr);
+    ok('[경7] 정밀화 사이클은 통지됨(브릿지 dedup 예외)', !!upB && upB.curr.tmEf === EX, JSON.stringify(ch.map(c => c.type)));
+    ok('[경7] prev 가 있어 "변경"으로 매핑됨(발표 재푸시 아님)', !!upB && !!upB.prev && upB.prev.tmEf === RG);
 }
 
 console.log(`\n[ef_exact_refine] ${pass} PASS / ${fail} FAIL`);
