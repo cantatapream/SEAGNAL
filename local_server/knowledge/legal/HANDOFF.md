@@ -417,6 +417,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-07 09:06 KST] ✅완료 — 12차 통합수정 그룹3 완료(7법) — ★감사 방법론 맹점 발견
+해양공간계획및관리에관한법률·선박교통관제에관한법률·항로표지법·선원법·독도의지속가능한이용에관한법률·해양레저관광진흥법·수산물유통의관리및지원에관한법률 7법 완료(edits 22, wiki_lag_fixed 31, links_added 5, thin_reclassified 10, collection_hole_reclassified 13, scope_out_disclaimers_added 2, contacts_added 2, promoted_canonical 0). ★★시스템 영향 important 1건(사용자 확인 권장): 선박교통관제에관한법률 재대조 중 12차 감사가 '미해소'로 보고한 N1·N2·N7·N17·N18·N22·V7·V12·V25 등 7개+ 항목이 실제로는 2026-07-30 통합수정에서 이미 반영 완료돼 있었음을 확인(phantom 미해소). audit_sim.js가 '11라운드 이후 커밋 diff'만 보는 재검증 방식이라 같은 날/그 이전에 반영된 내용을 놓치는 구조적 맹점 의심 — 이 법 하나에서만 7건+ 발생, 다른 법 감사라운드에도 같은 유형 오탐이 누적됐을 가능성. audit_sim.js 재검증 방법론(커밋diff vs 파일전체 재대조) 점검을 다음 감사 라운드 전에 검토 권고.
+
+
 ### [2026-08-07 09:04 KST] ✅완료 — 12차 통합수정 그룹2 완료(8법)
 영해및접속수역법·국제항해선박및항만시설의보안에관한법률·어선법·원양산업발전법·해양환경보전및활용에관한법률·해수욕장의이용및관리에관한법률·농수산물품질관리법·폐기물관리법 8법 완료(edits 45, wiki_lag_fixed 40, links_added 10, thin_reclassified 25, collection_hole_reclassified 8, scope_out_disclaimers_added 12, contacts_added 20, promoted_canonical 0). important 1건(조치불필요, 기록만): 원양산업발전법 — 서식(별지) 다운로드 메타 19개 페이지 전부 미착수, 감사가 '이 법만의 문제 아닐 가능성' 명시 → 위키 전역 Phase E/F 설계결정 사안이라 단일법 패스 범위 밖.
 
