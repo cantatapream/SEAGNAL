@@ -617,6 +617,20 @@ function _ymdOf(timeStr) {
     return digits.length >= 8 ? digits.slice(0, 8) : '';
 }
 
+/** 범위형·시간대명 표기인가 (= 정확한 단일 시각이 아닌가). */
+function _isRangeLike(timeStr) {
+    const s = String(timeStr || '');
+    return s.indexOf('~') !== -1 || s.indexOf('∼') !== -1 || s.indexOf('(') !== -1
+        || /(오전|오후|새벽|밤|저녁|아침|낮)/.test(s);
+}
+
+/** 정확한 단일 시각이면 YYYYMMDDHHmm(12자리) 키, 아니면 ''(범위형·불완전). */
+function _exactKeyOf(timeStr) {
+    if (_isRangeLike(timeStr)) return '';
+    const digits = String(timeStr || '').replace(/[^0-9]/g, '');
+    return digits.length >= 12 ? digits.slice(0, 12) : '';
+}
+
 /**
  * [§7.7.26] "이번 특보에 해당하는 자식"만 남긴다.
  *
@@ -647,7 +661,9 @@ function _relevantChildren(safe, active, eventType) {
         ? (safe.parentEfUpcoming || safe.parentEfActive || '')
         : (safe.parentEfActive || safe.parentEfUpcoming || '');
     const parentYmd = _ymdOf(parentEf);
-    return active.filter((cn) => {
+    // 1단계 — ①등급 + ②날짜. 둘 다 "명백한" 판정이라 결과가 비어도 그대로 쓴다
+    //   (전원 제외 = "이번 특보엔 자식 없음" 이 사실이므로 "미발표/미발효" 단정이 옳다).
+    const coarse = active.filter((cn) => {
         const m = meta[cn];
         if (!m) return true;                                  // 메타 없는 자식 → 종전대로 포함
         if (!isUpcomingStage && m.lvl === '예비') return false;   // ① 발효 알림 + 예비 자식
@@ -655,6 +671,21 @@ function _relevantChildren(safe, active, eventType) {
         if (parentYmd && childYmd && childYmd !== parentYmd) return false;   // ② 다른 날 = 별개 특보
         return true;
     });
+    // 2단계 — ②' 같은 날 안의 시각 대조. **양쪽 모두 정확시각일 때만** 적용한다.
+    //   한쪽이라도 범위형이면(같은 특보인데 부모=정확·자식=범위 인 경우가 흔하다) 건너뛴다 —
+    //   문자열이 달라 멀쩡한 자식을 지우는 오제외를 막기 위함.
+    const parentExact = _exactKeyOf(parentEf);
+    if (!parentExact) return coarse;
+    const fine = coarse.filter((cn) => {
+        const m = meta[cn];
+        if (!m) return true;
+        const childExact = _exactKeyOf(m.tmEf);
+        if (!childExact) return true;                         // 자식이 범위형 → 날짜 판정에 맡김
+        return childExact === parentExact;
+    });
+    // 시각 대조만으로 전원이 빠지면 판정을 신뢰하지 않는다 — 거짓 "미발표/미발효" 단정 방지.
+    //   (①②로 이미 걸러진 게 아니라 미세 시각차로만 비었다는 뜻이므로 1단계 결과로 되돌린다.)
+    return fine.length > 0 ? fine : coarse;
 }
 
 function buildChildQualifier(parent, childState, eventType) {

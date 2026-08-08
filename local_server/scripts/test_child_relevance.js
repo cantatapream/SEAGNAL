@@ -75,16 +75,39 @@ console.log('\n[2] _relevantChildren 규칙별');
     const meta2 = { [PS]: { lvl: '예비', tmEf: EF_TOMORROW }, [YN]: { lvl: '예비', tmEf: EF_TODAY } };
     ok('② 발효일자 다름 → 제외',
         JSON.stringify(_relevantChildren({ meta: meta2, parentEfUpcoming: EF_TODAY }, ALL, 'publish')) === JSON.stringify([YN]));
-    // ② 같은 날 안의 시각 차이는 거르지 않음 (과대 제외 방지)
+    // ②' 같은 날이라도 양쪽 정확시각이 다르면 별개 특보 (2026-08-08 사용자 지적으로 강화). 상세 → [2-B]
     const meta3 = { [PS]: { lvl: '예비', tmEf: '2026.08.08 18:00' }, [YN]: { lvl: '예비', tmEf: EF_TODAY } };
-    ok('② 같은 날 시각 차이 → 유지(보수적)',
-        _relevantChildren({ meta: meta3, parentEfUpcoming: EF_TODAY }, ALL, 'publish').length === 2);
+    ok("②' 같은 날 + 정확시각 다름 → 제외",
+        JSON.stringify(_relevantChildren({ meta: meta3, parentEfUpcoming: EF_TODAY }, ALL, 'publish')) === JSON.stringify([YN]));
     // 부모 시각을 모르면 날짜 규칙 비적용
     ok('부모 시각 없음 → 날짜 규칙 비적용',
         _relevantChildren({ meta: meta2 }, ALL, 'publish').length === 2);
     // meta 에 없는 자식은 종전대로 포함
     ok('meta 미등재 자식 → 종전대로 포함',
         _relevantChildren({ meta: { [YN]: { lvl: '주의보', tmEf: EF_TODAY } }, parentEfActive: EF_TODAY }, ALL, 'active').length === 2);
+}
+
+// ── [2-B] ②' 같은 날 안의 시각 대조 (사용자 지적 2026-08-08) ────────────────
+//   날짜만 보면 "예비 발효예정이 부모와 같은 날, 다른 시각"인 별개 특보를 못 거른다.
+//   양쪽 모두 정확시각일 때만 시각까지 대조한다 — 한쪽이 범위형이면 같은 특보인데도
+//   문자열이 달라 멀쩡한 자식을 지우게 되므로 건너뛴다.
+console.log('\n[2-B] 같은 날 시각 대조');
+{
+    const mk = (psEf, ynEf, pUp) => ({
+        all: ALL, active: ALL, added: [], released: [],
+        meta: { [PS]: { lvl: '예비', tmEf: psEf }, [YN]: { lvl: '예비', tmEf: ynEf } },
+        parentEfUpcoming: pUp, parentEfActive: ''
+    });
+    ok('같은 날 다른 시각(둘 다 정확) → 제외',
+        buildChildQualifier(PN, mk('2026.08.08 18:00', EF_TODAY, EF_TODAY), 'time_ef_change') === '(연안바다 포함)');
+    ok('같은 날 같은 시각 → 둘 다 포함',
+        buildChildQualifier(PN, mk(EF_TODAY, EF_TODAY, EF_TODAY), 'time_ef_change') === '(모든 평수구역/연안바다 포함)');
+    ok('자식이 범위형이면 시각대조 건너뜀(오제외 방지)',
+        buildChildQualifier(PN, mk('2026.08.08 18시~24시', EF_TODAY, EF_TODAY), 'time_ef_change') === '(모든 평수구역/연안바다 포함)');
+    ok('시각차로 전원 제외될 상황 → 거짓 "미발표" 대신 1단계 결과 유지',
+        buildChildQualifier(PN, mk('2026.08.08 18:00', '2026.08.08 19:00', EF_TODAY), 'time_ef_change') === '(모든 평수구역/연안바다 포함)');
+    ok('부모가 범위형이면 시각대조 비적용',
+        buildChildQualifier(PN, mk('2026.08.08 18:00', EF_TODAY, '2026.08.08 18시~24시'), 'time_ef_change') === '(모든 평수구역/연안바다 포함)');
 }
 
 // ── [3] 회귀 — 기존 표기 전부 보존 ──────────────────────────────────────────
