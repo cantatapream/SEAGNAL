@@ -110,6 +110,30 @@ console.log('\n[2-B] 같은 날 시각 대조');
         buildChildQualifier(PN, mk('2026.08.08 18:00', EF_TODAY, '2026.08.08 18시~24시'), 'time_ef_change') === '(모든 평수구역/연안바다 포함)');
 }
 
+// ── [2-C] MMIS 낡은 tmEf 방어 (2026-08-09 경북북부앞바다 실측) ──────────────
+//   MMIS 는 발효중 자식에 낡은 tmEf 를 주기도 한다 — 경북북부앞바다중연안바다는 8/8 발효중인데
+//   tmEf=2026.05.21(MMIS 원본 확인, 3개월 전). ②날짜 규칙을 발효중 자식에 태우면
+//   "(연안바다 미발효)" 라는 거짓 단정이 나간다. → ②·②' 는 예비 자식에만 적용.
+console.log('\n[2-C] 발효중 자식은 시각 규칙 비대상 (낡은 tmEf 방어)');
+{
+    const P2 = '경북북부앞바다', C2 = '경북북부앞바다중연안바다';
+    const cs = {
+        all: [C2], active: [C2], added: [], released: [],
+        meta: { [C2]: { lvl: '주의보', tmEf: '2026.05.21 08:00' } },
+        parentEfActive: '2026.08.08 20:00', parentEfUpcoming: ''
+    };
+    ok('발효중 자식 + 낡은 tmEf → 그대로 포함',
+        buildChildQualifier(P2, cs, 'active') === '(연안바다 포함)', buildChildQualifier(P2, cs, 'active'));
+    // 예비 자식은 종전대로 날짜 규칙 적용 (실사고 방어 유지)
+    const cs2 = {
+        all: [C2], active: [C2], added: [], released: [],
+        meta: { [C2]: { lvl: '예비', tmEf: '2026.05.21 08:00' } },
+        parentEfUpcoming: '2026.08.08 20:00', parentEfActive: ''
+    };
+    ok('예비 자식 + 다른 날짜 → 여전히 제외',
+        buildChildQualifier(P2, cs2, 'publish') === '(연안바다 미발표)', buildChildQualifier(P2, cs2, 'publish'));
+}
+
 // ── [3] 회귀 — 기존 표기 전부 보존 ──────────────────────────────────────────
 console.log('\n[3] 회귀 (기존 동작 보존)');
 {

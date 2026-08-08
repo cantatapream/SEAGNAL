@@ -667,6 +667,12 @@ function _relevantChildren(safe, active, eventType) {
         const m = meta[cn];
         if (!m) return true;                                  // 메타 없는 자식 → 종전대로 포함
         if (!isUpcomingStage && m.lvl === '예비') return false;   // ① 발효 알림 + 예비 자식
+        // [2026-08-09] ②·②' 는 **예비 자식에만** 적용한다.
+        //   이미 발효중인 자식은 "지금 효력이 있다"는 사실 자체가 이번 특보 소속의 근거이고,
+        //   그 tmEf 는 과거값이라 소속 판정의 근거가 못 된다. 실제로 MMIS 는 발효중 자식에
+        //   낡은 tmEf 를 주기도 한다 — 경북북부앞바다중연안바다 실측(8/8 발효중인데 tmEf=5/21,
+        //   MMIS 원본 확인). 이걸 날짜 규칙에 태우면 "(연안바다 미발효)" 라는 거짓 단정이 나간다.
+        if (m.lvl !== '예비') return true;
         const childYmd = _ymdOf(m.tmEf);
         if (parentYmd && childYmd && childYmd !== parentYmd) return false;   // ② 다른 날 = 별개 특보
         return true;
@@ -679,6 +685,7 @@ function _relevantChildren(safe, active, eventType) {
     const fine = coarse.filter((cn) => {
         const m = meta[cn];
         if (!m) return true;
+        if (m.lvl !== '예비') return true;                     // 발효중 자식은 시각 대조 비대상(위 ②와 동일 사유)
         const childExact = _exactKeyOf(m.tmEf);
         if (!childExact) return true;                         // 자식이 범위형 → 날짜 판정에 맡김
         return childExact === parentExact;
