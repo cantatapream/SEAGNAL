@@ -346,11 +346,12 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
         // 시각적 강조 (가장 높은 등급 기준)
         const hasWarning = sortedAlerts.some(a => !a.isPreliminary);
         item.style.borderLeft = `3px solid ${hasWarning ? '#ff6b6b' : '#ffb74d'}`;
-        // [정책 — 사용자 명시 요구 2026-08-08] 자식 카드도 **접었다 펴는 아코디언**으로 동작한다.
-        //  종전엔 "부모 상속 자식이라 펼쳐도 부모와 같은 정보"라는 이유로 클릭을 막아뒀으나,
-        //  서버가 자식 고유 데이터만 채우도록 바뀌어 자식은 부모와 다른 시각을 갖는다.
-        //  기본은 **닫힘** — 자식이 3~4개인 해역에서 카드가 과도하게 길어지지 않도록.
-        item.style.cursor = 'pointer';
+        // [정책 — 사용자 확정 2026-08-09] 자식 카드는 **클릭에 반응하지 않고 항상 닫힘**.
+        //  경위: 8/8 에 "탭하면 펼침"으로 바꿨다가(자식 고유 시각을 보여주기 위해),
+        //  실사용 후 사용자가 "눌러도 안 열리게" 로 확정. detailBox 는 DOM 에 생성되지만
+        //  표시되지 않는다(내용 구성 코드는 재활성화 대비 보존).
+        //  → 자식 카드는 "이름 + 등급 배지" 표시 전용. 클릭 커서 단서도 두지 않는다.
+        item.style.cursor = 'default';
 
         item.appendChild(header);
 
@@ -462,13 +463,8 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
 
         item.appendChild(detailBox);
 
-        // [2026-08-08] 자식 카드 클릭 → detailBox 토글 (기본 닫힘).
-        //   stopPropagation 필수 — 상위 부모 해역 아코디언까지 함께 접히는 것을 막는다.
-        item.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const opened = detailBox.style.display !== 'none';
-            detailBox.style.display = opened ? 'none' : 'block';
-        });
+        // [2026-08-09 사용자 확정] 클릭 토글 제거 — 눌러도 열리지 않는다.
+        //   (8/8 에 넣었던 토글을 실사용 후 되돌린 것. detailBox 는 display:none 고정.)
 
     } else {
         // 특보가 없는 경우
