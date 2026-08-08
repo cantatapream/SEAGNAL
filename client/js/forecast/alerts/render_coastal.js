@@ -358,8 +358,14 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
         // 상세 정보 영역 (모든 특보 정보를 순회하며 표시)
         const detailBox = document.createElement('div');
         detailBox.className = 'coastal-detail-box';
+        // [2026-08-08] 상시 표시로 전환 (종전 display:none).
+        //   종전 정책의 근거였던 "부모 상속 자식 → detail box 가 부모 카드와 동일해 가치 0" 은
+        //   서버가 자식 표출 필드를 자식 자신의 데이터로만 채우도록 바뀌면서(부모 fallback 제거)
+        //   더는 성립하지 않는다. 실제로 자식은 부모와 다른 시각을 갖는다 —
+        //   2026-08-08 경북남부앞바다: 부모 발효 8/8 23시 vs 평수구역 예비 발효예정 8/9 18~24시.
+        //   시각이 안 보이니 사용자가 "지금 평수구역에도 특보"로 오해하던 문제를 해소.
         detailBox.style.cssText = `
-            display: none;
+            display: block;
             margin-top: 8px;
             padding: 8px 10px;
             background: rgba(0, 0, 0, 0.2);
@@ -389,31 +395,20 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
         //   월 제거 없이 그대로 사용 (사용자 요구: 월 포함 표시).
         const stripYearMonth = (timeStr) => formatWarningTime(timeStr);
 
-        // [V3.1] 정확한 단일 시각 판정 — data.js 의 동명 헬퍼 폴백.
-        //   범위형 ('(' 또는 '~' 포함) / 한글 시간대 단독 / 빈 값 → false.
-        //   자식 카드 발효시각 줄 표시 여부에만 사용 (부모 카드 영향 없음).
-        const isExactSingleTime = (typeof _isExactSingleTime === 'function')
-            ? _isExactSingleTime
-            : function (s) {
-                if (s === null || s === undefined) return false;
-                const str = String(s).trim();
-                if (!str) return false;
-                if (str.indexOf('(') !== -1 || str.indexOf('~') !== -1) return false;
-                if (/(오전|오후|새벽|밤|저녁|아침)/.test(str)) return false;
-                if (/\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일\s*\d{1,2}\s*시\s*\d{1,2}\s*분/.test(str)) return true;
-                if (/\d{4}\.\d{1,2}\.\d{1,2}\.\d{1,2}:\d{1,2}/.test(str)) return true;
-                return str.replace(/[^0-9]/g, '').length === 12;
-            };
+        // [2026-08-08] V3.1 의 "자식 발효시각은 정확시각일 때만 표시" 게이트(isExactSingleTime)를
+        //   제거했다. 그 게이트의 목적은 자식 카드의 "표시→사라짐→표시" 깜빡임 방지였는데,
+        //   범위형도 항상 표시하면 줄이 사라지는 일 자체가 없어져 목적이 더 잘 달성된다.
+        //   반대로 게이트가 있으면 범위형만 가진 예비 자식(예: 8/9 18~24시)이 "언제인지 없이"
+        //   등급만 노출돼 사용자가 현재 특보로 오해한다 — 2026-08-08 실사고. 부모 카드와 동일하게
+        //   "읽을 만한 값이 있으면 보여준다" 정책으로 통일.
 
         uniqueCoastalAlerts.forEach((alert, index) => {
             // [V3] 빈 시각 값은 빈 문자열 반환 → 줄 자체를 미표시 (자식이 종합기상
             //   텍스트 출처만일 때 tmEf/tmCc/tmEd 가 빈 값이므로 정보 노이즈 제거).
-            // [V3.1] 자식(isCoastal) 의 tmEf 가 범위형/시간대 표기면 빈 문자열 처리
-            //   → 발효시각 줄 미표시 (V3 빈 값 분기 활용). 부모 카드는 변경 없음.
+            // [2026-08-08] 발효시각도 부모와 동일 정책 — 값이 있으면 형식 불문 표시(범위형 포함).
             const hasValue = v => !!(v && String(v).trim().length > 0);
             const tmFcFormatted = hasValue(alert.tmFc) ? stripYearMonth(alert.tmFc) : '';
-            const tmEfDisplayable = hasValue(alert.tmEf) && (alert.isCoastal === true ? isExactSingleTime(alert.tmEf) : true);
-            const tmEfFormatted = tmEfDisplayable ? stripYearMonth(alert.tmEf) : '';
+            const tmEfFormatted = hasValue(alert.tmEf) ? stripYearMonth(alert.tmEf) : '';
             let tmEdFormatted = '';
             const releaseVal = alert.tmCc || alert.tmEd || '';
             // [수정D] 실제 해제예고 값이 있으면 표시 (발표대기 자식이 부모 해제예고 상속한 경우 포함).
@@ -466,10 +461,9 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
 
         item.appendChild(detailBox);
 
-        // [정책 — 사용자 명시 요구]
-        //  자식 카드 클릭 시 detailBox 토글 동작은 제거.
-        //  detailBox 자체는 DOM 에 생성되어 있으나(display:none) 영원히 펼쳐지지 않음.
-        //  → 자식 카드는 "발효 중 뱃지" 표시 전용으로만 동작.
+        // [정책] 자식 카드는 여전히 클릭에 반응하지 않는다(토글 없음).
+        //  다만 detailBox 는 [2026-08-08] 부터 상시 펼쳐진 상태로 표시된다 —
+        //  자식 고유의 발표/발효/해제예정 시각을 부모 카드처럼 항상 보여주기 위함.
 
     } else {
         // 특보가 없는 경우

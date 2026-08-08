@@ -2200,6 +2200,18 @@ function _buildUserPushChanges(prev, curr) {
         const prevChildren = childKeys(prev, zone);
         const currChildren = childKeys(curr, zone);
         const childState = { all, active: currChildren, added: [], released: [] };
+        // [§7.7.26] 자식 정합 판정용 메타 — 자식별 등급·발효시각 + 부모 발효시각(예비/발효 각각).
+        //   buildChildQualifier 가 "이번 특보에 해당하는 자식"만 세는 데에만 쓴다.
+        //   (표시·판정·dedup 분기에는 불사용 — 한정사 문구 전용. _childUnknown 표식과 같은 성격.)
+        //   배경: 2026-08-08 경북남부앞바다 — 8/9 발효예정 예비인 평수구역이 8/8 23시 주의보
+        //   발효 알림에 "모든 평수구역/연안바다 포함"으로 집계된 실사고.
+        childState.meta = {};
+        for (const cn of currChildren) {
+            const ci = childInfoOf(curr, zone, cn);
+            if (ci) childState.meta[cn] = { lvl: ci.wrnLvlNm || '', tmEf: ci.tmEf || '' };
+        }
+        childState.parentEfUpcoming = currUpcoming ? (currUpcoming.tmEf || '') : '';
+        childState.parentEfActive = currActive ? (currActive.tmEf || '') : '';
         // [2026-07-18 실사고] GAP 보강 부모(전이 창)의 자식 '미상' 전파 — 자식 목록이 비어 있어도
         //   "미발표 확정"이 아니므로 한정사 단정 금지 플래그를 싣는다 (push_helpers 가 소비).
         if (currChildren.length === 0 && ((cUp && cUp._childUnknown) || (cAct && cAct._childUnknown))) {
