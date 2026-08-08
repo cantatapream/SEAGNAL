@@ -172,8 +172,10 @@ console.log('\n[4] push_sender 시나리오 매핑');
 // ── [5] §7.7.25-2 늦은 확정 — 발효시각 경과 후 발표된 정확시각 ──────────────
 console.log('\n[5] 늦은 확정(과거 정확시각) 수용 조건');
 {
-    // 과거 시각 만들기: KST 기준 "오늘 00:00" 은 항상 과거. 범위는 그 시각을 포함하도록 구성.
-    const kst = new Date(Date.now() + 9 * 3600000);
+    // [2026-08-09 시각의존성 제거] 종전엔 "오늘 00:00/01:00/05:00" 을 과거로 가정했으나,
+    //   KST 00~05시에 실행하면 그 값들이 아직 미래라 3건이 상시 실패했다(00:26 실측).
+    //   기준일을 **어제**로 옮기면 하루 전체가 항상 과거라 실행 시각과 무관해진다.
+    const kst = new Date(Date.now() + 9 * 3600000 - 24 * 3600000);   // 어제(KST)
     const Y = kst.getUTCFullYear(), M = String(kst.getUTCMonth() + 1).padStart(2, '0'), D = String(kst.getUTCDate()).padStart(2, '0');
     const pastExact = `${Y}.${M}.${D} 00:00`;                  // 오늘 00시 (이미 지남)
     const rangeCover = `${Y}.${M}.${D} 00~06시`;               // 00시를 시작점으로 포함하는 범위
@@ -230,7 +232,7 @@ console.log('\n[5] 늦은 확정(과거 정확시각) 수용 조건');
 // ── [6] 적대검증 결함 수정 고정 (1·2·3·4·5·6) ─────────────────────────────
 console.log('\n[6] 적대검증 수정 회귀 고정');
 {
-    const kst = new Date(Date.now() + 9 * 3600000);
+    const kst = new Date(Date.now() + 9 * 3600000 - 24 * 3600000);   // 어제(KST) — 시각의존성 제거
     const Y = kst.getUTCFullYear(), M = String(kst.getUTCMonth() + 1).padStart(2, '0'), D = String(kst.getUTCDate()).padStart(2, '0');
     const pastExact = `${Y}.${M}.${D} 00:00`;
     const rangeCover = `${Y}.${M}.${D} 00~06시`;
@@ -273,7 +275,7 @@ console.log('\n[6] 적대검증 수정 회귀 고정');
         && s2d.parents.get(Z2).tmEf === futureExact, `${s2c.parents.get(Z2).tmEf} / ${s2d.parents.get(Z2).tmEf}`);
 
     // [결함4] 자정 넘김 범위에서 늦은 확정 수용 (종전엔 전건 거부)
-    const y = new Date(Date.now() + 9 * 3600000 - 24 * 3600000);   // 어제(KST)
+    const y = new Date(Date.now() + 9 * 3600000 - 48 * 3600000);   // 그저께(KST) — Y/M/D 가 어제이므로 하루 더 앞
     const Y2 = y.getUTCFullYear(), M2 = String(y.getUTCMonth() + 1).padStart(2, '0'), D2 = String(y.getUTCDate()).padStart(2, '0');
     const overnight = `${Y2}.${M2}.${D2} 22~02시`;                  // 어제 22시 ~ 오늘 02시
     const inOvernight = `${Y}.${M}.${D} 01:00`;                     // 오늘 01시 (범위 안, 과거)

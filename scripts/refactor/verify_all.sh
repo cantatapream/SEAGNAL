@@ -17,6 +17,30 @@ run "V2 경로 무결성" node scripts/refactor/check_paths.js
 run "V3 로드 순서" node scripts/refactor/check_order.js
 run "V4 시뮬레이션" node scripts/refactor/simulate.js
 
+# ============================================================================
+# V5 테스트 스위트 (2026-08-09 신설)
+#   [배경] 스위트 271건이 존재했지만 이 게이트가 **한 번도 호출하지 않아**, 사람이
+#   기억해서 수동 실행할 때만 돌았다. 그 결과 같은 자식해역 오표기 사고가 5회
+#   재발하는 동안(6/2·6/19·6/20·7/14·8/8) 매번 "verify_all 통과"로 지나갔다.
+#   [주의] 새 스위트를 만들면 반드시 이 배열에 등록할 것. 등록 안 하면 안 돌아간다.
+#   [주의] 시각 의존 테스트 금지 — 기준일은 '어제' 이전으로 잡아 실행 시각과 무관하게.
+#          (test_ef_exact_refine 이 '오늘 01/05시=과거' 가정으로 KST 00~05시에 상시
+#           실패하던 것을 2026-08-09 에 기준일 이동으로 수정. 실패가 일상이 되면
+#           점검표를 무시하는 습관이 생겨 게이트 자체가 무력해진다.)
+# ============================================================================
+echo; echo "── V5 테스트 스위트 ──"
+SUITES=(test_child_relevance test_child_unknown_gate test_ef_exact_refine
+        test_cancel_verdict_room test_push_pagination test_bulletin_cancel_scanner)
+for suite in "${SUITES[@]}"; do
+  f="local_server/scripts/${suite}.js"
+  if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; FAIL=1; continue; fi
+  out=$(node "$f" 2>&1)
+  line=$(echo "$out" | grep -oE "[0-9]+ PASS / [0-9]+ FAIL" | tail -1)
+  if [ -z "$line" ]; then echo "  ❌ $suite — 실행 실패(결과줄 없음)"; echo "$out" | tail -3; FAIL=1; continue; fi
+  if echo "$line" | grep -qE "/ 0 FAIL$"; then echo "  ✅ $suite — $line"
+  else echo "  ❌ $suite — $line"; echo "$out" | grep "❌" | head -5; FAIL=1; fi
+done
+
 # 서버 API + 이동 JS 경로 스모크
 echo; echo "── 서버 스모크 (대표 엔드포인트) ──"
 SMOKE=("/api/health:200" "/api/app-version:200" "/:200" "/sw.js:200" "/style.css:200"
