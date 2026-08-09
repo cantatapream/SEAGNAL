@@ -47,29 +47,33 @@ const efRow = (zone, over = {}) => Object.assign({
     tm_fc: '202607180510', tm_seq: 1, ed_tm: futureEf
 }, over);
 
-// (a) 7/18 리허설 — sasc 제외행이 전 자식을 먹어 synth 0 → 미상
+// (a) 7/18 리허설 — 자식을 한 곳도 못 실은 GAP 부모 → 미상
 {
     const s = mkSnap();
     KIDS.forEach(k => s.excludedChildren.add(k));
     mc._enrichSnapshotWithEfList(s, [efRow(PN)], null);
     const info = s.parents.get(PN);
-    ok('(a) 7/18 리허설: carry0·synth0 → _childUnknown', !!info && info._childUnknown === true);
+    ok('(a) 7/18 리허설: 자식 0 → _childUnknown', !!info && info._childUnknown === true);
 }
-// (b) 정상 synth (제외 없음) → 자식 합성됨 → 미상 아님
+// (b) [2026-08-09 §child-confirm] 제외행이 없어도 MMIS 가 자식을 안 주면 **합성하지 않는다**.
+//     종전엔 PARENT_TO_CHILDREN 으로 3자식을 지어내 "모든 평수구역 포함" 오표기를 유발.
 {
     const s = mkSnap();
     mc._enrichSnapshotWithEfList(s, [efRow(PN)], null);
     const info = s.parents.get(PN);
-    ok('(b) 자식 합성 성공 → 미상 아님', !!info && !info._childUnknown && s.children.get(PN).size === 3);
+    ok('(b) 자식 합성 폐지 → 자식 0 · 미상', !!info && info._childUnknown === true
+        && (!s.children.has(PN) || s.children.get(PN).size === 0));
 }
-// (c) prev 자식 carry → 미상 아님
+// (c) [2026-08-09 §child-confirm] prev 에 자식이 있어도 **이어받지 않는다**(carry 폐지).
 {
     const s = mkSnap();
-    KIDS.forEach(k => s.excludedChildren.add(k));   // 제외행이 있어도 carry 우선
+    KIDS.forEach(k => s.excludedChildren.add(k));
     const prev = mkSnap();
     prev.children.set(PN, new Map([[KIDS[0], { wrnTpNm: '풍랑', wrnLvlNm: '예비' }]]));
     mc._enrichSnapshotWithEfList(s, [efRow(PN)], prev);
-    ok('(c) prev carry → 미상 아님', !s.parents.get(PN)._childUnknown && s.children.get(PN).size === 1);
+    const info = s.parents.get(PN);
+    ok('(c) 이어받기 폐지 → 자식 0 · 미상', !!info && info._childUnknown === true
+        && (!s.children.has(PN) || s.children.get(PN).size === 0));
 }
 // (d) 자식 없는 먼바다 → 표식 자체를 안 붙임 (한정사 비대상)
 {
