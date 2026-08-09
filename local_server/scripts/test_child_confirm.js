@@ -232,20 +232,73 @@ console.log('\n[T11] 빌려오기·합성 폐지 (카드 데이터 오염 방지
 // 적대검증(별도 리뷰 에이전트) 지적분 — F1·F2·F4·F3 회귀 고정
 // ============================================================================
 
-// ── T12. [F1] 보류 중 같은 키가 즉시 통과 → 낡은 건이 3분 뒤 또 나가면 안 된다 ─
-console.log('\n[T12] 보류 중 즉시 통과 → 중복 발사 없음 (F1)');
+// ── T12. [F1] 보류 중 새 건이 와도 낡은 건이 따로 또 나가면 안 된다 ──────────
+console.log('\n[T12] 보류 교체 시 낡은 건 중복 발사 없음 (F1)');
 {
     reset();
     const noKid = snap({ [PN]: P('예비', EF_TODAY) }, {});
     const A = upChange(PN, '예비', noKid);
-    mc._applyChildConfirmGate([A], noKid, T0);                     // 보류
-    // 자식이 확정된 채로 경보 발표대기가 새로 옴 → 즉시 발사 + 낡은 보류 폐기
+    mc._applyChildConfirmGate([A], noKid, T0);                     // 주의보 발표 보류
+    // 1분 뒤 자식이 오면서 경보로 격상 — 새 창으로 교체된다(§5.3)
     const withKid = snap({ [PN]: P('예비', EF_TODAY) }, { [PN]: { [YN]: C('예비', EF_TODAY) } });
     const B = upChange(PN, '경보', withKid);
     const out2 = mc._applyChildConfirmGate([B], withKid, T0 + 60000);
-    ok('새 건은 즉시 발사', out2.length === 1 && out2[0] === B);
-    ok('낡은 보류는 폐기됨', mc._childConfirmPending.size === 0);
-    ok('3분 뒤 재발사 없음', mc._applyChildConfirmGate([], withKid, T0 + 60000 + WIN).length === 0);
+    ok('교체 사이클엔 무발사', out2.length === 0);
+    ok('보류는 1건만(낡은 건 교체됨)', mc._childConfirmPending.size === 1);
+    const fired = mc._applyChildConfirmGate([], withKid, T0 + 60000 + WIN);
+    ok('새 건(경보) 1회만 발사', fired.length === 1 && fired[0] === B, `n=${fired.length}`);
+    ok('낡은 건(주의보)은 영영 안 나감',
+        mc._applyChildConfirmGate([], withKid, T0 + 60000 + WIN * 3).length === 0);
+}
+
+// ── T12-B. [사용자 확정] 확정 자식이 이미 와 있어도 발표는 기다린다 ─────────
+console.log('\n[T12-B] 발표 계열은 자식이 있어도 무조건 관찰 (지름길 제거)');
+{
+    reset();
+    // 자식이 이미 부모와 같은 시각으로 확정돼 있는 상태에서 발표가 잡힌 경우
+    const withKid = snap({ [PN]: P('예비', EF_TODAY) }, { [PN]: { [YN]: C('예비', EF_TODAY) } });
+    const ch = upChange(PN, '예비', withKid);
+    ok('확정 자식이 실제로 있음', mc._childConfirmPending.size === 0 && ch.childState.active.length === 1);
+    const out = mc._applyChildConfirmGate([ch], withKid, T0);
+    ok('그래도 즉시 발사하지 않음', out.length === 0);
+    const p = mc._childConfirmPending.get(`${PN}|UPCOMING_CHANGE`);
+    ok('마감은 3분 뒤(불필요한 연장 없음)', p.deadline === T0 + WIN);
+    ok('이미 와 있던 자식은 seen 에 선등록', p.seen.has(YN));
+    // 관찰 중 늦게 온 자식이 합류하면 그때 재관찰
+    const both = snap({ [PN]: P('예비', EF_TODAY) },
+        { [PN]: { [YN]: C('예비', EF_TODAY), [PS]: C('예비', EF_TODAY) } });
+    mc._applyChildConfirmGate([], both, T0 + 60000);
+    ok('늦게 온 자식으로 재관찰', mc._childConfirmPending.get(`${PN}|UPCOMING_CHANGE`).deadline === T0 + 60000 + WIN);
+    const fired = mc._applyChildConfirmGate([], both, T0 + 60000 + WIN);
+    ok('만료 발사 — 늦게 온 자식까지 포함', fired.length === 1
+        && /모든 평수구역\/연안바다 포함/.test(buildChildQualifier(PN, fired[0].childState, 'publish')),
+        buildChildQualifier(PN, fired.length ? fired[0].childState : {}, 'publish'));
+}
+
+// ── T12-C. [사용자 확정] 보류 복원에 시간 상한이 없다 ───────────────────────
+console.log('\n[T12-C] 오래 묵은 저장분도 복원 — 단, 부모가 없으면 폐기');
+{
+    reset();
+    const s = snap({ [PN]: P('예비', EF_TODAY) }, {});
+    mc._applyChildConfirmGate([upChange(PN, '예비', s)], s, T0);
+    const fs3 = require('fs');
+    const raw = JSON.parse(fs3.readFileSync(mc.CONFIRM_PENDING_FILE, 'utf8'));
+    raw.savedAt = Date.now() - 6 * 3600 * 1000;   // 6시간 전 저장분으로 위조
+    fs3.writeFileSync(mc.CONFIRM_PENDING_FILE, JSON.stringify(raw), 'utf8');
+    const mkProbe = (parentsJs) => `
+        const m = require(${JSON.stringify(path.join(__dirname, '..', 'marine_warning_crawler.js'))});
+        const snap = { parents: ${parentsJs}, upcomings: new Map(), children: new Map(), liveChildren: new Set() };
+        const out = m._applyChildConfirmGate([], snap, ${T0 + WIN});
+        process.stdout.write('FIRED=' + out.length);`;
+    const run = (js) => require('child_process').execFileSync(process.execPath, ['-e', mkProbe(js)],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    // 부모가 아직 예비 → 6시간 묵었어도 복원·발사 (상한 없음)
+    ok('부모 살아 있으면 오래돼도 발사',
+        /FIRED=1/.test(run(`new Map([[${JSON.stringify(PN)}, ${JSON.stringify(P('예비', EF_TODAY))}]])`)));
+    // 부모가 이미 사라짐 → 복원되더라도 sweep 이 폐기
+    fs3.writeFileSync(mc.CONFIRM_PENDING_FILE, JSON.stringify(raw), 'utf8');
+    ok('부모 사라졌으면 폐기(뒷북 없음)', /FIRED=0/.test(run('new Map()')));
+    reset();
 }
 
 // ── T13. [F2] 자식 해제 디바운스 이어받기는 live 로 인정 ────────────────────

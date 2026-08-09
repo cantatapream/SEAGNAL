@@ -2734,7 +2734,6 @@ function _buildUserPushChanges(prev, curr) {
 // ============================================================================
 
 const CONFIRM_WINDOW_MS = 3 * 60 * 1000;                 // 관찰창 3분 (프로젝트 표준 디바운스와 동일)
-const CONFIRM_STALE_MS = 10 * 60 * 1000;                 // 이보다 오래 묵은 보류는 복원하지 않는다
 const CONFIRM_PENDING_FILE = path.join(__dirname, 'data', 'marine_child_confirm.json');
 const _childConfirmPending = new Map();                  // key(zone|type) → 보류 엔트리
 let _childConfirmLoaded = false;
@@ -2760,17 +2759,19 @@ function _saveChildConfirmPending() {
     }
 }
 
-/** 보류실 복원 — 최초 1회. 오래 묵은(10분 초과) 저장분은 버린다(긴 downtime 뒤 뒷북 발사 방지). */
+/**
+ * 보류실 복원 — 최초 1회.
+ * [사용자 확정 2026-08-09] **시간 상한을 두지 않는다.** 오래 묵은 저장분이 뒷북을 치는 건
+ *   `_sweepChildConfirm` 이 이미 막는다 — 복원 직후 첫 점검에서 부모의 예비가 사라졌으면
+ *   (해제·취소·발효 전환) 발사하지 않고 폐기한다. 부모가 아직 예비로 살아 있다면 그 발표는
+ *   지금도 유효한 정보이므로 늦게라도 나가는 게 맞다.
+ */
 function _loadChildConfirmPending() {
     if (_childConfirmLoaded) return;
     _childConfirmLoaded = true;
     try {
         const raw = JSON.parse(fs.readFileSync(CONFIRM_PENDING_FILE, 'utf8'));
         if (!raw || !Array.isArray(raw.entries)) return;
-        if (Date.now() - (raw.savedAt || 0) > CONFIRM_STALE_MS) {
-            console.log('[Marine] 관찰창 보류 복원 skip — 저장분이 너무 오래됨');
-            return;
-        }
         for (const e of raw.entries) {
             if (!e || !e.key || !e.change) continue;
             _childConfirmPending.set(e.key, { zone: e.zone, type: e.type, sig: e.sig,
@@ -2830,12 +2831,15 @@ function _parkChildConfirm(change, now) {
         prev.change = change;   // §5.3 부모 시각만 변경 → 창 유지, 발사 내용만 최신값으로
         return;
     }
+    // seen 은 **지금 이미 와 있는 확정 자식으로 시작**한다. 빈 Set 으로 두면 첫 sweep 이
+    //   그 자식들을 "새로 합류"로 오인해 창을 한 번 더 연장한다(불필요한 3분 지연).
+    //   → 재시작은 **관찰 시작 이후 진짜로 새로 온 자식**에만 일어난다.
     _childConfirmPending.set(key, {
         zone: change.zone, type: change.type, sig, change,
         deadline: now + CONFIRM_WINDOW_MS,
-        seen: new Set()          // 지금까지 관찰된 확정 자식 (깜빡임 재시작 방지용)
+        seen: new Set(_confirmedChildren(change.childState))
     });
-    console.log(`[Marine] 자식 확정 관찰창 시작: ${change.zone} [${change.type}] — 3분 대기`);
+    console.log(`[Marine] 자식 확정 관찰창 시작: ${change.zone} [${change.type}] — 3분 대기 (현재 확정 자식 ${_confirmedChildren(change.childState).length}곳)`);
 }
 
 /**
@@ -2914,7 +2918,13 @@ function _applyChildConfirmGate(changes, curr, nowMs) {
         //   3분 뒤 한 번 더 발사한다(같은 발표가 2회 — 등급이 달랐다면 격하로까지 오인).
         const fire = (c) => { _childConfirmPending.delete(`${c.zone}|${c.type}`); out.push(c); };
         if ((PARENT_TO_CHILDREN[ch.zone] || []).length === 0) { fire(ch); continue; }   // 기다릴 자식 자체가 없음
-        if (_confirmedChildren(ch.childState).length > 0) { fire(ch); continue; }       // 이미 확정 → 즉시
+        // [사용자 확정 2026-08-09] 자식이 이미 좀 와 있어도 **무조건 기다린다.**
+        //   예비→발표 단계는 시각이 범위형→확정형으로 굳는 구간이라, 지금 와 있는 자식이
+        //   전부가 아닐 수 있고(늦게 오는 자식) 이미 온 자식도 범위형→확정형으로 바뀔 수 있다.
+        //   종전엔 "확정 자식이 하나라도 있으면 즉시 발사"라는 지름길이 있었는데, 그러면
+        //   먼저 온 자식만 실린 채 나가고 늦게 온 자식은 영영 못 실린다 — 사용자 의도와 반대.
+        //   (발효(CURRENT_CHANGE)는 애초에 게이트 밖 — 이미 확정된 데이터가 시각 도래로
+        //    이변 없이 발효되는 것이라 즉시 발사한다.)
         _parkChildConfirm(ch, now);
     }
     _sweepChildConfirm(curr, now, out);
