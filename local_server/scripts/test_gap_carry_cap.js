@@ -131,7 +131,9 @@ console.log('\n[4] 회귀');
     mc._enrichSnapshotWithEfList(s2, [efRow(FAR)], null);
     ok('자식 없는 먼바다 → 상한 초과여도 표식 없음', unknownOf(s2, FAR) === false);
 
-    ok('상한 상수가 3분 디바운스보다 충분히 큼', mc.GAP_CARRY_CAP_MS >= 10 * 60 * 1000);
+    // 상한은 3분 자식 해제 디바운스보다 커야 한다 — 작으면 이어받기가 끝난 직후
+    //   디바운스가 관찰을 시작하기도 전에 자식이 사라져 깜빡임이 생긴다.
+    ok('상한이 3분 디바운스보다 큼', mc.GAP_CARRY_CAP_MS > 3 * 60 * 1000, `${mc.GAP_CARRY_CAP_MS}ms`);
 }
 
 console.log(`\n[gap_carry_cap] ${pass} PASS / ${fail} FAIL`);
