@@ -2056,6 +2056,57 @@ function _updateExtensionMemory(curr) {
     }
 }
 
+/**
+ * zone 의 "다가오는(예비)" 부모 info — parents 가 예비면 그것, 아니면 upcomings(발효중 공존 예비).
+ * @param {Object} snap StateSnapshot 계열 스냅샷
+ * @param {string} zone 부모 해역명
+ * @returns {Object|null}
+ * [연계] _buildUserPushChanges 의 getUp · 관찰창 _sweepChildConfirm — 같은 판정을 써야 해 공용화.
+ */
+function _getUp(snap, zone) {
+    const p = snap && snap.parents ? snap.parents.get(zone) : null;
+    if (p && p.wrnLvlNm === '예비') return p;
+    return snap && snap.upcomings ? (snap.upcomings.get(zone) || null) : null;
+}
+
+/**
+ * zone 의 "발효중" 부모 info (예비·해제 제외).
+ * @param {Object} snap StateSnapshot 계열 스냅샷
+ * @param {string} zone 부모 해역명
+ * @returns {Object|null}
+ * [연계] _getUp 와 한 쌍.
+ */
+function _getAct(snap, zone) {
+    const p = snap && snap.parents ? snap.parents.get(zone) : null;
+    return (p && p.wrnLvlNm && p.wrnLvlNm !== '예비' && p.wrnLvlNm !== '해제') ? p : null;
+}
+
+/**
+ * 자식 한정사용 스냅샷 상태 — 이번 사이클 curr 기준 자식 목록 + 자식별 메타(등급·발효시각·live).
+ * 예) { active: ['경북남부앞바다중연안바다'], meta: { '…연안바다': { lvl:'주의보', tmEf:'…', live:true } } }
+ * @param {Object} curr 이번 사이클 스냅샷
+ * @param {string} zone 부모 해역명
+ * @returns {{active: string[], meta: Object}}
+ * [연계] _buildUserPushChanges(childState 구성) · _sweepChildConfirm(보류 중 최신값 갱신) 공용 —
+ *        두 곳이 다른 방식으로 자식을 세면 푸시 문구와 대기 판정이 어긋나므로 한 함수로 묶는다.
+ */
+function _childSnapshotState(curr, zone) {
+    const m = curr && curr.children ? curr.children.get(zone) : null;
+    const active = m ? Array.from(m.keys()) : [];
+    // [C1 §child-confirm] live = 이번 사이클에 MMIS 가 **실제 row 로 준** 자식인가.
+    //   liveChildren 자체가 없는 스냅샷(구 저장분·테스트 픽스처)은 근거를 알 수 없으므로
+    //   표식을 아예 안 붙인다 — 소비측이 undefined 를 "검사 안 함"으로 다룬다.
+    const liveSet = (curr && curr.liveChildren instanceof Set) ? curr.liveChildren : null;
+    const meta = {};
+    for (const cn of active) {
+        const ci = m.get(cn);
+        if (!ci) continue;
+        meta[cn] = { lvl: ci.wrnLvlNm || '', tmEf: ci.tmEf || '' };
+        if (liveSet) meta[cn].live = liveSet.has(cn);
+    }
+    return { active, meta };
+}
+
 function _buildUserPushChanges(prev, curr) {
     const changes = [];
     if (!prev || !curr) return changes;
@@ -2090,15 +2141,9 @@ function _buildUserPushChanges(prev, curr) {
     if (curr.upcomings) for (const k of curr.upcomings.keys()) allZones.add(k);
 
     // [B] zone 의 다가오는(예비)/발효 추출 — parents 가 예비면 그것, 아니면 upcomings.
-    const getUp = (snap, zone) => {
-        const p = snap.parents ? snap.parents.get(zone) : null;
-        if (p && p.wrnLvlNm === '예비') return p;
-        return snap.upcomings ? (snap.upcomings.get(zone) || null) : null;
-    };
-    const getAct = (snap, zone) => {
-        const p = snap.parents ? snap.parents.get(zone) : null;
-        return (p && p.wrnLvlNm && p.wrnLvlNm !== '예비' && p.wrnLvlNm !== '해제') ? p : null;
-    };
+    //   (관찰창도 같은 판정을 써야 하므로 모듈 수준 _getUp/_getAct 로 뽑아 두고 여기서 위임.)
+    const getUp = _getUp;
+    const getAct = _getAct;
 
     const toBlock = (info) => info ? {
         // [B] 발효중 공존 격상/격하 예비는 wrnLvlReal(실제 등급)로 푸시 — push_sender 점수비교가
@@ -2209,21 +2254,9 @@ function _buildUserPushChanges(prev, curr) {
         //   (표시·판정·dedup 분기에는 불사용 — 한정사 문구 전용. _childUnknown 표식과 같은 성격.)
         //   배경: 2026-08-08 경북남부앞바다 — 8/9 발효예정 예비인 평수구역이 8/8 23시 주의보
         //   발효 알림에 "모든 평수구역/연안바다 포함"으로 집계된 실사고.
-        childState.meta = {};
-        {
-            // [C1 §child-confirm] live = 이번 사이클에 MMIS 가 **실제 row 로 준** 자식인가.
-            //   빌려오기 폐지 후에도 디바운스 carry 등으로 스냅샷에만 남는 자식이 있을 수 있어,
-            //   푸시 문구 집계는 이 표식으로 한 번 더 거른다(근거 없는 자식은 안 센다).
-            //   liveChildren 자체가 없는 스냅샷(구 저장분·테스트 픽스처)은 근거를 알 수 없으므로
-            //   표식을 아예 안 붙인다 — 소비측이 undefined 를 "검사 안 함"으로 다룬다.
-            const liveSet = (curr.liveChildren instanceof Set) ? curr.liveChildren : null;
-            for (const cn of currChildren) {
-                const ci = childInfoOf(curr, zone, cn);
-                if (!ci) continue;
-                childState.meta[cn] = { lvl: ci.wrnLvlNm || '', tmEf: ci.tmEf || '' };
-                if (liveSet) childState.meta[cn].live = liveSet.has(cn);
-            }
-        }
+        //   (자식별 메타 구성은 관찰창과 공용 — _childSnapshotState. 빌려오기 폐지 후에도
+        //    디바운스 carry 등으로 스냅샷에만 남는 자식이 있어 live 표식으로 한 번 더 거른다.)
+        childState.meta = _childSnapshotState(curr, zone).meta;
         childState.parentEfUpcoming = currUpcoming ? (currUpcoming.tmEf || '') : '';
         childState.parentEfActive = currActive ? (currActive.tmEf || '') : '';
         // [2026-07-18 실사고] GAP 보강 부모(전이 창)의 자식 '미상' 전파 — 자식 목록이 비어 있어도
@@ -2658,6 +2691,152 @@ function _buildUserPushChanges(prev, curr) {
     }
 
     return changes;
+}
+
+// ============================================================================
+// [2026-08-09 §child-confirm] 자식 확정 관찰창 — "모르면 기다린다"
+// ============================================================================
+//
+// [문제] 특보는 발표와 발효 사이에 시차(GAP)가 있고, 그 구간에 MMIS 는 **부모를 먼저**
+//   주고 **자식을 조금 뒤에** 준다(실측 1~5분). 종전엔 그 공백을 직전 명단 이어받기(carry)
+//   나 매핑 합성(synth)으로 메웠고, 지어낸 자식이 그대로 푸시에 실려 "…모든 평수구역 포함"
+//   오표기가 5회 재발했다(6/2·6/19·6/20·7/14·8/8). 1단계에서 빌려오기를 없앴지만, 그것만으론
+//   반대 방향 오표기("미발표" 단정)가 남는다 — 자식이 아직 안 왔을 뿐인데 없다고 단정.
+//
+// [해법] 발표 계열 푸시는 **자식이 확정될 때까지 관찰창(3분)만큼 보류**한다.
+//   - 창 안에 확정 자식이 새로 오면 그 시점부터 다시 3분 관찰(진짜인지 확인).
+//     같은 자식이 깜빡이는 것은 집합 증가가 아니므로 재시작하지 않는다.
+//   - 창이 만료되면 그 시점 상태로 확정해 발사한다. 자식이 없으면 부모만.
+//   - **발효(active) 알림은 보류하지 않는다** — 가장 급한 알림을 늦추지 않는다(사용자 확정).
+//   - 상한은 두지 않는다 — MMIS 는 자식을 배치로 한 번에 준다(7/18 "GAP 자식: 4" 실측).
+//     재시작은 새 자식이 있어야만 일어나므로 자식 수(≤3)로 자연히 유한하다.
+//
+// [연계] run() 5-B 의 _buildUserPushChanges → 이 게이트 → pushSender.processChanges.
+//   보류는 **메모리 전용**(§5.4) — 재시작 시 소실되면 다음 사이클에 새 창이 열리고,
+//   중복 발사는 기존 발송이력 dedup(_pubKey)이 막는다.
+// [설계 원문] client/js/forecast/alerts/child_confirm.design.md
+// ============================================================================
+
+const CONFIRM_WINDOW_MS = 3 * 60 * 1000;                 // 관찰창 3분 (프로젝트 표준 디바운스와 동일)
+const _childConfirmPending = new Map();                  // key(zone|type) → 보류 엔트리
+
+/**
+ * 관찰창 대상 이벤트인가 — 발표 계열(발표·격상/격하 발표·발효시각 변경)과 발효예정 연장만.
+ * 예) UPCOMING_CHANGE → true, CURRENT_CHANGE(발효) → false
+ * @param {Object} change _buildUserPushChanges 가 만든 change
+ * @returns {boolean}
+ * [연계] 설계안 §4 — 발효·해제예정·해제·취소·자식 이벤트는 즉시 발사(각자 디바운스 보유).
+ */
+function _isConfirmGated(change) {
+    return !!change && (change.type === 'UPCOMING_CHANGE' || change.type === 'EF_EXTEND');
+}
+
+/**
+ * childState 에서 "이번 특보에 확정된 자식"만 뽑는다 (C1~C3).
+ * 푸시 문구를 만드는 push_helpers 와 **같은 함수**를 써야 대기 판정과 문구가 어긋나지 않는다.
+ * @param {Object} childState { all, active, meta, parentEf* }
+ * @returns {string[]} 확정 자식 fullName 배열
+ * [연계] services/push_helpers._relevantChildren — 단일 판정 출처.
+ */
+function _confirmedChildren(childState) {
+    if (!childState || !Array.isArray(childState.active)) return [];
+    try {
+        // 발표 계열이므로 예비 단계(tmEf) 기준으로 판정 — 'publish' 를 대표 이벤트로 넘긴다.
+        return pushHelpers._relevantChildren(childState, childState.active, 'publish');
+    } catch (_) {
+        return childState.active;   // 판정 실패 시 종전대로(과소 대기) — 발사를 막지 않는다
+    }
+}
+
+/** 같은 특보인지 식별 — 종류·등급이 바뀌면 다른 특보이므로 창을 새로 연다(설계안 §5.3). */
+function _confirmSig(change) {
+    const c = change && change.curr;
+    return c ? `${c.wrnTp || ''}|${c.wrnLvl || ''}` : '';
+}
+
+/**
+ * 발사를 보류하고 관찰창을 연다(또는 이미 열린 창의 발사 내용만 갱신).
+ * @param {Object} change 보류할 change
+ * @param {number} now 현재 시각(ms)
+ * @returns {void}
+ */
+function _parkChildConfirm(change, now) {
+    const key = `${change.zone}|${change.type}`;
+    const sig = _confirmSig(change);
+    const prev = _childConfirmPending.get(key);
+    if (prev && prev.sig === sig) {
+        prev.change = change;   // §5.3 부모 시각만 변경 → 창 유지, 발사 내용만 최신값으로
+        return;
+    }
+    _childConfirmPending.set(key, {
+        zone: change.zone, type: change.type, sig, change,
+        deadline: now + CONFIRM_WINDOW_MS,
+        seen: new Set()          // 지금까지 관찰된 확정 자식 (깜빡임 재시작 방지용)
+    });
+    console.log(`[Marine] 자식 확정 관찰창 시작: ${change.zone} [${change.type}] — 3분 대기`);
+}
+
+/**
+ * 보류 중인 건들을 이번 사이클 스냅샷으로 점검 — 폐기 / 재관찰 / 만료 발사.
+ * @param {Object} curr 이번 사이클 스냅샷
+ * @param {number} now 현재 시각(ms)
+ * @param {Array} out 발사 목록 (만료된 건을 여기에 append)
+ * @returns {void}
+ */
+function _sweepChildConfirm(curr, now, out) {
+    for (const [key, p] of Array.from(_childConfirmPending)) {
+        // 부모의 예비가 사라짐 = 해제·취소·발효 전환 → 관찰 폐기. 그쪽 이벤트가 대표한다(§5.3).
+        const up = _getUp(curr, p.zone);
+        if (!up) {
+            _childConfirmPending.delete(key);
+            console.log(`[Marine] 자식 확정 관찰 폐기(부모 상태 변화): ${p.zone} [${p.type}]`);
+            continue;
+        }
+        // 발사 내용을 최신 자식 상태로 갱신 — 카드와 푸시가 같은 데이터를 보게 한다.
+        const cs = p.change && p.change.childState;
+        if (cs) {
+            const snap = _childSnapshotState(curr, p.zone);
+            cs.active = snap.active;
+            cs.meta = snap.meta;
+            if (snap.active.length === 0 && up._childUnknown) cs.unknown = true;
+            else delete cs.unknown;
+        }
+        const confirmed = _confirmedChildren(cs);
+        let grew = false;
+        for (const cn of confirmed) if (!p.seen.has(cn)) { p.seen.add(cn); grew = true; }
+        if (grew) {
+            p.deadline = now + CONFIRM_WINDOW_MS;
+            console.log(`[Marine] 자식 확정 관찰 재시작(자식 합류 ${confirmed.length}): ${p.zone} [${p.type}]`);
+            continue;
+        }
+        if (now >= p.deadline) {
+            _childConfirmPending.delete(key);
+            console.log(`[Marine] 자식 확정 관찰 만료 → 발사: ${p.zone} [${p.type}] 자식 ${confirmed.length}곳`);
+            out.push(p.change);
+        }
+    }
+}
+
+/**
+ * 관찰창 게이트 — 발표 계열 change 중 자식 미확정 건을 보류하고, 만료된 보류 건을 합류시킨다.
+ * 예) publish(자식 0) → 보류 / 3분 뒤 같은 건이 changes 없이도 발사됨
+ * @param {Array} changes _buildUserPushChanges 결과
+ * @param {Object} curr 이번 사이클 스냅샷
+ * @param {number} [nowMs] 현재 시각(테스트 주입용)
+ * @returns {Array} 이번 사이클에 실제로 발사할 changes
+ * [연계] run() 5-B — pushSender.processChanges 직전에 통과시킨다.
+ */
+function _applyChildConfirmGate(changes, curr, nowMs) {
+    const now = nowMs || Date.now();
+    const out = [];
+    for (const ch of (Array.isArray(changes) ? changes : [])) {
+        if (!_isConfirmGated(ch)) { out.push(ch); continue; }
+        if ((PARENT_TO_CHILDREN[ch.zone] || []).length === 0) { out.push(ch); continue; }   // 기다릴 자식 자체가 없음
+        if (_confirmedChildren(ch.childState).length > 0) { out.push(ch); continue; }       // 이미 확정 → 즉시
+        _parkChildConfirm(ch, now);
+    }
+    _sweepChildConfirm(curr, now, out);
+    return out;
 }
 
 async function _enqueueImmediateRelease(caseZones) {
@@ -3942,6 +4121,7 @@ let _forceBaselineAdminToken = undefined;
 function resetState() {
     _prevSnapshot = new StateSnapshot();
     _forceBaselinePending = true;
+    _childConfirmPending.clear();   // [§child-confirm] 장부 초기화 시 관찰창도 함께 비운다
     try {
         _savePrevSnapshot(_prevSnapshot);
         console.log('[Marine] 장부(state) 초기화 완료 — 다음 사이클에서 현재 특보를 신규로 감지(force baseline 예약)');
@@ -4136,6 +4316,11 @@ async function run(opts = {}) {
                 _cvSuppressFireThisCycle = !!(opts.adminToken || _baselineTokenCarry);
                 _userChanges = _buildUserPushChanges(prevForDiff, curr);
                 _cvSuppressFireThisCycle = false;
+                // [§child-confirm] 발표 계열은 자식이 확정될 때까지 관찰창만큼 보류.
+                //   관리자 테스트 푸시(adminToken)는 즉시 확인이 목적이라 게이트를 태우지 않는다.
+                if (!opts.adminToken && !_baselineTokenCarry) {
+                    _userChanges = _applyChildConfirmGate(_userChanges, curr);
+                }
                 // [P2] 변화 0 일 때도 호출 — push_sender 의 pending retry 보장
                 // (옛 weather_alerts_crawler 동일 패턴)
                 // [테스트 푸시] opts.adminToken 이 있으면 그 토큰(관리자 기기)에게만 발송.
@@ -4225,6 +4410,11 @@ module.exports = {
     _WEATHER_ALERTS_FILE,
     _isSnapshotEmpty,
     _buildUserPushChanges,
+    // [§child-confirm] 자식 확정 관찰창 (테스트용 노출)
+    _applyChildConfirmGate,
+    _childConfirmPending,
+    _childSnapshotState,
+    CONFIRM_WINDOW_MS,
     _applyChildReleaseDebounce,
     _updateExtensionMemory,
     _timeKey,

@@ -29,7 +29,7 @@ run "V4 시뮬레이션" node scripts/refactor/simulate.js
 #           점검표를 무시하는 습관이 생겨 게이트 자체가 무력해진다.)
 # ============================================================================
 echo; echo "── V5 테스트 스위트 ──"
-SUITES=(test_child_relevance test_child_unknown_gate test_ef_exact_refine
+SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_exact_refine
         test_cancel_verdict_room test_push_pagination test_bulletin_cancel_scanner)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
