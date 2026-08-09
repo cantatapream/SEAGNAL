@@ -666,7 +666,10 @@ function _relevantChildren(safe, active, eventType) {
     const coarse = active.filter((cn) => {
         const m = meta[cn];
         if (!m) return true;                                  // 메타 없는 자식 → 종전대로 포함
-        if (!isUpcomingStage && m.lvl === '예비') return false;   // ① 발효 알림 + 예비 자식
+        // [C1] MMIS 가 실제로 주지 않은 자식(디바운스 carry 등 스냅샷 잔존분)은 집계 제외.
+        //   meta.live 가 없는 구 스냅샷은 undefined → 검사 건너뜀(하위호환).
+        if (m.live === false) return false;
+        if (!isUpcomingStage && m.lvl === '예비') return false;   // ② 발효 알림 + 예비 자식
         // [2026-08-09] ②·②' 는 **예비 자식에만** 적용한다.
         //   이미 발효중인 자식은 "지금 효력이 있다"는 사실 자체가 이번 특보 소속의 근거이고,
         //   그 tmEf 는 과거값이라 소속 판정의 근거가 못 된다. 실제로 MMIS 는 발효중 자식에

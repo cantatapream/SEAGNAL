@@ -1061,66 +1061,9 @@ const CHILD_PRELIM_CANCEL_CONFIRM_MS = 3 * 60 * 1000;    // 3분 연속 부재 �
 const CHILD_PRELIM_CANCEL_TTL_MS = 15 * 60 * 1000;       // 부모 소멸 등으로 미발사 잔존 시 정리
 let _childPrelimCancelPending = {};                      // "zone|child" → { info, since }
 
-// ============================================================================
-// [2026-08-09] GAP 자식 이어받기·합성의 "유효기간" (상한)
-// ----------------------------------------------------------------------------
-// [초보자용 1줄] 기상청이 자식 구역 정보를 안 줄 때 옛 명단을 빌려 쓰는데, 그 빌리는
-//   기간을 5분으로 제한한다. 5분이 넘으면 빌리기를 멈추고 "모른다"고 표시한다.
-//
-// ① 무엇이 문제였나
-//   특보는 '발표'와 '발효' 사이에 시차가 있다(예: 22시 발표 → 23시 발효). 그 구간을
-//   GAP 이라 부르는데, GAP 동안 MMIS 가 부모 해역만 주고 자식(연안바다·평수구역)은
-//   아직 안 줄 때가 있다. 그러면 화면에서 자식이 갑자기 사라져 보이므로, 앱은
-//   "직전 명단을 그대로 이어받거나(carry) 매핑으로 합성(synth)"해 채워 넣는다.
-//   그런데 이 빌려쓰기에 **기한이 없었다.**
-//
-// ② 왜 기한이 없으면 위험한가 — 안전장치가 잠들어 버린다
-//   앱에는 "자식이 사라지면 3분 관찰 후 진짜 해제로 확정"하는 안전장치
-//   (`_applyChildReleaseDebounce`)가 따로 있다. 그런데 파이프라인 순서가
-//     ① 이어받기(자식을 도로 채움) → ② 3분 디바운스(사라졌는지 관찰)
-//   이라, 디바운스 입장에선 자식이 **한 번도 사라진 적이 없어** 타이머를 시작조차
-//   못 했다. 그래서 잘못 들어간 유령 자식이 발효 시각까지 **수 시간** 생존했다
-//   (6/2 제주 §7.6.6 · 6/19 제주 §7.7.14 재발의 공통 뿌리).
-//
-// ③ 상한의 역할 — 빌린 것을 반납시켜 안전장치를 깨운다
-//   MMIS 가 그 부모의 자식을 **전혀 주지 않는 상태**가 이 시간을 넘으면 이어받기·합성을
-//   둘 다 멈춘다. 자식 목록이 비면 그때부터 디바운스가 정상 작동하고, 동시에
-//   `_childUnknown` 표식이 붙어 **푸시는 침묵**한다("모르면 침묵" §7.7.24 —
-//   근거 없이 "…포함"도 "…미발표"도 단정하지 않는다).
-//   MMIS 가 자식을 한 건이라도 실제로 주면(`liveChildren`) 타이머는 **즉시 리셋**된다.
-//   ※ 이어받기로 만든 자식만으로는 리셋되지 않는다 — 자기가 만든 걸 근거로 자기를
-//     연장하는 순환을 막기 위함(`_sweepGapCarryMemo`).
-//
-// ④ 그래서 어떤 결과가 되나 (트레이드오프)
-//   · 상한 안(정상): 종전과 100% 동일 — 자식이 화면에서 안 사라진다.
-//   · 상한 밖: 자식 표시가 사라지고 푸시는 침묵. **틀린 정보 대신 정보 없음**을 택한다.
-//     유령 자식의 최대 생존 시간이 '수 시간' → '5분'으로 줄어든다.
-//   · 위험: MMIS 가 정상인데 5분 넘게 자식만 늦게 주면, 그 사이 자식이 화면에서
-//     사라진다. §7.7.24 실측 전이 창은 1~5분이라 상한 5분은 **여유가 거의 없다**
-//     (사용자 확정 2026-08-09 — "30분은 너무 길고 오해를 부른다"). 자식이 자주
-//     깜빡이면 이 값부터 늘려볼 것.
-// ============================================================================
-const GAP_CARRY_CAP_MS = 5 * 60 * 1000;    // 5분 (사용자 확정 2026-08-09, 종전 30분)
-let _gapCarryFirstAt = {};                 // 부모명 → 최초 이어받기/합성 시각(ms)
-
-/** GAP 자식 이어받기·합성이 아직 허용되는가? (최초 호출 시각을 기록하고, 상한 내면 true) */
-function _gapCarryAllowed(parent) {
-    const now = Date.now();
-    const first = _gapCarryFirstAt[parent];
-    if (!first) { _gapCarryFirstAt[parent] = now; return true; }
-    return (now - first) < GAP_CARRY_CAP_MS;
-}
-
-/** MMIS 가 자식을 실제로 준 부모 · GAP 을 벗어난 부모의 상한 타이머를 해제. */
-function _sweepGapCarryMemo(snap) {
-    if (!snap) return;
-    const live = snap.liveChildren instanceof Set ? snap.liveChildren : new Set();
-    for (const parent of Object.keys(_gapCarryFirstAt)) {
-        if (!snap.parents || !snap.parents.has(parent)) { delete _gapCarryFirstAt[parent]; continue; }
-        const kids = snap.children ? snap.children.get(parent) : null;
-        if (kids && Array.from(kids.keys()).some((cn) => live.has(cn))) delete _gapCarryFirstAt[parent];
-    }
-}
+// [2026-08-09 §child-confirm] GAP 이어받기 상한(GAP_CARRY_CAP_MS)은 **제거**되었다.
+//   이어받기·합성 자체를 폐지했으므로 "빌린 것의 반납 기한"이라는 개념이 성립하지 않는다.
+//   미확정 자식은 이제 '관찰창'(child_confirm)이 푸시 발사를 대기시켜 처리한다.
 
 // ============================================================================
 // [§7.7.23 판정 보류실] 예비취소 푸시는 "통보문으로 확인된 뒤에만" 발사한다.
@@ -2267,9 +2210,19 @@ function _buildUserPushChanges(prev, curr) {
         //   배경: 2026-08-08 경북남부앞바다 — 8/9 발효예정 예비인 평수구역이 8/8 23시 주의보
         //   발효 알림에 "모든 평수구역/연안바다 포함"으로 집계된 실사고.
         childState.meta = {};
-        for (const cn of currChildren) {
-            const ci = childInfoOf(curr, zone, cn);
-            if (ci) childState.meta[cn] = { lvl: ci.wrnLvlNm || '', tmEf: ci.tmEf || '' };
+        {
+            // [C1 §child-confirm] live = 이번 사이클에 MMIS 가 **실제 row 로 준** 자식인가.
+            //   빌려오기 폐지 후에도 디바운스 carry 등으로 스냅샷에만 남는 자식이 있을 수 있어,
+            //   푸시 문구 집계는 이 표식으로 한 번 더 거른다(근거 없는 자식은 안 센다).
+            //   liveChildren 자체가 없는 스냅샷(구 저장분·테스트 픽스처)은 근거를 알 수 없으므로
+            //   표식을 아예 안 붙인다 — 소비측이 undefined 를 "검사 안 함"으로 다룬다.
+            const liveSet = (curr.liveChildren instanceof Set) ? curr.liveChildren : null;
+            for (const cn of currChildren) {
+                const ci = childInfoOf(curr, zone, cn);
+                if (!ci) continue;
+                childState.meta[cn] = { lvl: ci.wrnLvlNm || '', tmEf: ci.tmEf || '' };
+                if (liveSet) childState.meta[cn].live = liveSet.has(cn);
+            }
         }
         childState.parentEfUpcoming = currUpcoming ? (currUpcoming.tmEf || '') : '';
         childState.parentEfActive = currActive ? (currActive.tmEf || '') : '';
@@ -3387,7 +3340,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
  */
 function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
     if (!snap) return snap;
-    let enriched = 0, gapAdded = 0, gapChildAdded = 0, gapChildCarried = 0, gapChildSynth = 0, efRefined = 0;
+    let enriched = 0, gapAdded = 0, gapChildAdded = 0, efRefined = 0;
     const refineCandByZone = new Map();   // [§7.7.25] zone → 최신 정확시각 통보문 행 (정밀화 단일 선택)
     let sascChildAdded = 0, sascChildEnriched = 0;
 
@@ -3504,55 +3457,11 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             if (snap.parents.has(name)) continue;
             snap.parents.set(name, info);
             gapAdded++;
-            // [수정A] warn/latest 는 자식 행을 주지 않으므로(부모만), 발표대기 동안
-            //   자식이 "특보 없음"/"미발효"로 표출되던 문제 해결.
-            //   1순위: 예비 단계에 있던 자식(prev.children) 이어받기 — 실제 대상 자식의
-            //          정확한 부분집합 보존 (일부만 발효/예비였던 경우 대응).
-            //   2순위[수정A-2]: prev 가 비어있으면(이미 GAP 진입해 자식을 잃은 경우 등)
-            //          PARENT_TO_CHILDREN 매핑으로 자식 합성 — mmis 가 GAP 에서 자식을
-            //          부모로부터 상속해 표출하는 것과 동일. 부모 발효예정/해제예고 상속.
-            //   [2026-08-09] 상한 초과(MMIS 가 30분 넘게 자식을 전혀 안 줌)면 이어받기·합성을
-            //   모두 멈춘다 → 자식이 비고 아래 `_childUnknown` 이 서서 푸시는 침묵한다.
-            if (!snap.children.has(name) && _gapCarryAllowed(name)) {
-                const pkids = (prev && prev.children) ? prev.children.get(name) : null;
-                if (pkids && pkids.size > 0) {
-                    const m = new Map();
-                    for (const [cn, ci] of pkids) {
-                        const cc = Object.assign({}, ci);
-                        cc.wrnLvlNm = '예비';          // 발효 전
-                        cc.tmEf = info.tmEf;            // 부모의 새 발효예정 정확시각 상속
-                        cc.clrNtcTm = info.clrNtcTm;   // 부모 해제예고 상속
-                        m.set(cn, cc);
-                    }
-                    snap.children.set(name, m);
-                    gapChildCarried += m.size;
-                } else {
-                    const mapped = PARENT_TO_CHILDREN[name] || [];
-                    if (mapped.length > 0) {
-                        const m = new Map();
-                        for (const cn of mapped) {
-                            // [제외 자식 게이트] MMIS 가 warn-sasc/list 에서 미포함(warn_lvl=0)이라
-                            //   명시한 자식은 합성하지 않음 — 통보문 '연안바다 제외'를 맹목 합성이
-                            //   '포함'으로 뒤집던 버그 차단. (prev-carry 분기·디바운스는 무수정.)
-                            if (snap.excludedChildren.has(cn)) continue;
-                            m.set(cn, {
-                                wrnTp: info.wrnTp,
-                                wrnTpNm: info.wrnTpNm,
-                                wrnLvl: '1',
-                                wrnLvlNm: '예비',
-                                tmFc: info.tmFc,
-                                tmEf: info.tmEf,         // 부모 발효예정 상속
-                                tmYn: info.tmYn,
-                                clrNtcTm: info.clrNtcTm  // 부모 해제예고 상속
-                            });
-                        }
-                        if (m.size > 0) {
-                            snap.children.set(name, m);
-                            gapChildSynth += m.size;
-                        }
-                    }
-                }
-            }
+            // [2026-08-09 §child-confirm] GAP 자식 이어받기(carry)·매핑 합성(synth) **폐지**.
+            //   종전엔 자식이 안 오면 prev 명단을 이어받거나 PARENT_TO_CHILDREN 으로 지어내
+            //   화면을 채웠다. 그 지어낸 자식이 그대로 푸시 문구에 실려 "…포함" 오표기가
+            //   5회 재발했다(6/2·6/19·6/20·7/14·8/8). 이제 **MMIS 가 준 것만 쓴다** —
+            //   자식이 안 오면 안 온 대로 둔다(카드는 '특보 없음', 푸시는 관찰창이 대기 처리).
             // [2026-07-18 실사고] 자식이 전혀 못 실린 GAP 부모 — 전이 창 '미상' 표식
             //   (_addGapParentFromEf 의 동일 표식과 한 쌍 — 푸시 한정사 "미발표" 단정 억제 전용).
             if ((!snap.children.has(name) || snap.children.get(name).size === 0)
@@ -3581,8 +3490,6 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
     if (efRefined > 0) console.log(`[Marine] warn/latest 발효시각 정밀화: ${efRefined} zone 범위→정확 (§7.7.25)`);
     if (enriched > 0) console.log(`[Marine] warn/latest 보강: ${enriched} zone clrNtcTm 갱신`);
     if (gapAdded > 0) console.log(`[Marine] warn/latest GAP 보강: ${gapAdded} 부모 발표 발효대기 → 예비로 추가`);
-    if (gapChildCarried > 0) console.log(`[Marine] GAP 자식 이어받기(prev): ${gapChildCarried} 자식 발표대기로 carry`);
-    if (gapChildSynth > 0) console.log(`[Marine] GAP 자식 합성(매핑): ${gapChildSynth} 자식 발표대기로 추가`);
     if (gapChildAdded > 0) console.log(`[Marine] warn/latest GAP 보강(자식행): ${gapChildAdded} 자식 추가`);
     if (sascChildAdded > 0) console.log(`[Marine] warn-sasc/latest GAP 자식: ${sascChildAdded} 자식 발표대기로 추가`);
     if (sascChildEnriched > 0) console.log(`[Marine] warn-sasc/latest 자식 해제예고 보강: ${sascChildEnriched}`);
@@ -3740,41 +3647,8 @@ function _addGapParentFromEf(snap, prev, name, info, counters) {
         if (snap.children.get(name).size === 0 && (PARENT_TO_CHILDREN[name] || []).length > 0) info._childUnknown = true;
         return;
     }
-    // [2026-08-09] 상한 초과면 이어받기·합성 모두 중단 → 자식 '미상'으로 두어 푸시 침묵.
-    if (!_gapCarryAllowed(name)) {
-        if ((PARENT_TO_CHILDREN[name] || []).length > 0) info._childUnknown = true;
-        return;
-    }
-    const pkids = (prev && prev.children) ? prev.children.get(name) : null;
-    if (pkids && pkids.size > 0) {
-        const m = new Map();
-        for (const [cn, ci] of pkids) {
-            const cc = Object.assign({}, ci);
-            cc.wrnLvlNm = '예비';
-            cc.tmEf = info.tmEf;               // 부모의 새 발효예정 정확시각 상속
-            cc.clrNtcTm = info.clrNtcTm;
-            m.set(cn, cc);
-        }
-        snap.children.set(name, m);
-        counters.gapChildCarried += m.size;
-        return;
-    }
-    const mapped = PARENT_TO_CHILDREN[name] || [];
-    if (mapped.length > 0) {
-        const m = new Map();
-        for (const cn of mapped) {
-            // [제외 자식 게이트] warn-sasc/list 에서 미포함(warn_lvl=0)으로 명시된 자식은 합성 안 함.
-            if (snap.excludedChildren.has(cn)) continue;
-            m.set(cn, {
-                wrnTp: info.wrnTp, wrnTpNm: info.wrnTpNm, wrnLvl: '1', wrnLvlNm: '예비',
-                tmFc: info.tmFc, tmEf: info.tmEf, tmYn: info.tmYn, clrNtcTm: info.clrNtcTm
-            });
-        }
-        if (m.size > 0) {
-            snap.children.set(name, m);
-            counters.gapChildSynth += m.size;
-        }
-    }
+    // [2026-08-09 §child-confirm] 이어받기(carry)·합성(synth) **폐지** — MMIS 가 준 것만 쓴다.
+    //   (사이트 A `_enrichSnapshotWithLatest` 의 동일 블록과 한 쌍으로 제거. 사유는 그쪽 주석 참조.)
     // [2026-07-18 실사고] carry 0·synth 0 으로 자식이 전혀 못 실린 GAP 부모 — 전이 창의 '미상' 표식.
     //   이 창에서는 sasc/list 의 제외행(warn_lvl=0)조차 미확정이다 (7/18 05:12 "미포함" 표기가
     //   2분 뒤 포함 4자식 합류로 뒤집힘 실측). 푸시 한정사의 "미발표" 단정 억제 전용 —
@@ -3974,7 +3848,7 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
             if (!sel || key > sel.key) latestByZone.set(name, { key, row });
         }
     }
-    const counters = { gapAdded: 0, gapChildCarried: 0, gapChildSynth: 0 };
+    const counters = { gapAdded: 0, gapChildLive: 0 };   // gapChildLive = ef/list 가 직접 준 자식 행(라이브)
     // [§7.7.25 + 적대검증 결함2] 정밀화 — zone 별 "최신 통보문 1건"으로만 수행.
     for (const [name, sel] of lateExactByZone) {
         if (_refineUpcomingExactEf(snap, name, _efRowToInfo(sel.row))) counters.efRefined = (counters.efRefined || 0) + 1;
@@ -4000,14 +3874,14 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
             if (!m.has(name)) {
                 m.set(name, info);
                 snap.liveChildren.add(name);   // [라이브 근거] ef/list 자식 자신의 통보문 → 사후정리 화이트리스트
-                counters.gapChildSynth++;
+                counters.gapChildLive++;
             }
         }
     }
     if (counters.efRefined) console.log(`[Marine] ef/list 발효시각 정밀화: ${counters.efRefined} zone 범위→정확 (§7.7.25)`);
-    if (counters.gapAdded || counters.gapChildCarried || counters.gapChildSynth) {
+    if (counters.gapAdded || counters.gapChildLive) {
         console.log(`[Marine] ef/list 발표대기 보강: 부모 ${counters.gapAdded} 추가 ` +
-            `(자식 carry ${counters.gapChildCarried} / synth ${counters.gapChildSynth})`);
+            `(자식 라이브행 ${counters.gapChildLive})`);
     }
     return snap;
 }
@@ -4146,11 +4020,6 @@ async function run(opts = {}) {
                 try { _enrichSnapshotWithEfList(curr, _efListCache.rows, _prevSnapshot); } catch (_) {}
             }
         }
-
-        // 2-D) [2026-08-09] GAP 이어받기 상한 타이머 정리 — MMIS 가 그 부모의 자식을 한 건이라도
-        //   실제로 준 사이클(liveChildren)이거나 부모가 GAP 을 벗어났으면 타이머 해제.
-        //   두 보강(latest·ef)이 끝난 뒤 실행해야 이번 사이클의 라이브 근거가 모두 반영된다.
-        _sweepGapCarryMemo(curr);
 
         // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — 콜드 부팅 직후 prev 가 비어있을 때만.
         //    재배포/장부 초기화로 활성 특보가 "전부 신규"로 오인되어 push 폭주하는 케이스만 차단.
@@ -4357,12 +4226,6 @@ module.exports = {
     _isSnapshotEmpty,
     _buildUserPushChanges,
     _applyChildReleaseDebounce,
-    // [2026-08-09] GAP 이어받기 상한 (테스트 노출)
-    _gapCarryAllowed,
-    _sweepGapCarryMemo,
-    GAP_CARRY_CAP_MS,
-    _resetGapCarryForTest: () => { _gapCarryFirstAt = {}; },
-    _setGapCarryFirstAtForTest: (parent, ms) => { _gapCarryFirstAt[parent] = ms; },
     _updateExtensionMemory,
     _timeKey,
     _applyAnnounceAnchor,
