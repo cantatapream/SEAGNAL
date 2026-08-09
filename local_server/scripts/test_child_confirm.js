@@ -50,7 +50,8 @@ const upChange = (zone, cur, currSnap) => {
         }
     };
 };
-const reset = () => mc._childConfirmPending.clear();
+const reset = () => mc._resetChildConfirmForTest();
+reset();   // 이전 실행이 남긴 저장분으로 오염되지 않게 시작부터 비운다
 
 // ── T1. 발효 알림은 관찰창 없이 즉시 발사 ───────────────────────────────────
 console.log('\n[T1] 발효(CURRENT_CHANGE) 즉시 발사');
@@ -225,6 +226,123 @@ console.log('\n[T11] 빌려오기·합성 폐지 (카드 데이터 오염 방지
     ok('_childUnknown 표식으로 침묵 유지', s.parents.get(PN)._childUnknown === true);
     // 상한(GAP_CARRY_CAP_MS) 잔재 없음
     ok('이어받기 상한 API 제거됨', mc._gapCarryAllowed === undefined && mc._sweepGapCarryMemo === undefined);
+}
+
+// ============================================================================
+// 적대검증(별도 리뷰 에이전트) 지적분 — F1·F2·F4·F3 회귀 고정
+// ============================================================================
+
+// ── T12. [F1] 보류 중 같은 키가 즉시 통과 → 낡은 건이 3분 뒤 또 나가면 안 된다 ─
+console.log('\n[T12] 보류 중 즉시 통과 → 중복 발사 없음 (F1)');
+{
+    reset();
+    const noKid = snap({ [PN]: P('예비', EF_TODAY) }, {});
+    const A = upChange(PN, '예비', noKid);
+    mc._applyChildConfirmGate([A], noKid, T0);                     // 보류
+    // 자식이 확정된 채로 경보 발표대기가 새로 옴 → 즉시 발사 + 낡은 보류 폐기
+    const withKid = snap({ [PN]: P('예비', EF_TODAY) }, { [PN]: { [YN]: C('예비', EF_TODAY) } });
+    const B = upChange(PN, '경보', withKid);
+    const out2 = mc._applyChildConfirmGate([B], withKid, T0 + 60000);
+    ok('새 건은 즉시 발사', out2.length === 1 && out2[0] === B);
+    ok('낡은 보류는 폐기됨', mc._childConfirmPending.size === 0);
+    ok('3분 뒤 재발사 없음', mc._applyChildConfirmGate([], withKid, T0 + 60000 + WIN).length === 0);
+}
+
+// ── T13. [F2] 자식 해제 디바운스 이어받기는 live 로 인정 ────────────────────
+console.log('\n[T13] 해제 디바운스 이어받기 자식은 집계 유지 (F2)');
+{
+    reset();
+    // prev: 연안바다 발효중 / curr: MMIS 가 그 자식을 안 줌(해제예고도 없음) → 3분 디바운스
+    const prev = snap({ [PN]: P('주의보', EF_TODAY) }, { [PN]: { [YN]: C('주의보', EF_TODAY) } });
+    const curr = snap({ [PN]: P('주의보', EF_TODAY) }, {});
+    mc._applyChildReleaseDebounce(prev, curr);
+    ok('디바운스가 자식을 이어받음', curr.children.has(PN) && curr.children.get(PN).has(YN));
+    const cs = mc._childSnapshotState(curr, PN);
+    ok('이어받은 자식은 live 로 인정', cs.meta[YN] && cs.meta[YN].live === true);
+    const q = buildChildQualifier(PN, { all: mc.PARENT_TO_CHILDREN[PN], active: cs.active,
+        added: [], released: [], meta: cs.meta, parentEfActive: EF_TODAY, parentEfUpcoming: '' }, 'time_yn_change');
+    ok('발효중 자식을 "미발효"로 단정하지 않음', !/미발효/.test(q), q);
+    ok('한정사에 연안바다 포함', /연안바다 포함/.test(q), q);
+}
+
+// ── T14. [F4] 관찰 중 부모 발효시각 확정 → parentEf 도 갱신돼야 자식이 잡힌다 ─
+console.log('\n[T14] 관찰 중 부모 시각 확정 시 parentEf 갱신 (F4)');
+{
+    reset();
+    const RANGE = '2026.08.08 21시~24시';
+    const EXACT = '2026.08.09 00:00';
+    const s0 = snap({ [PN]: P('예비', RANGE) }, {});
+    const ch = upChange(PN, '예비', s0);
+    ch.curr.tmEf = RANGE;
+    ch.childState.parentEfUpcoming = RANGE;
+    mc._applyChildConfirmGate([ch], s0, T0);
+    ok('보류 시작', mc._childConfirmPending.size === 1);
+    // 부모가 정확시각(날짜 넘김)으로 확정되고 자식도 같은 시각으로 합류 — change 재생성은 없음
+    const s1 = snap({ [PN]: P('예비', EXACT) }, { [PN]: { [YN]: C('예비', EXACT) } });
+    mc._applyChildConfirmGate([], s1, T0 + 60000);
+    ok('parentEfUpcoming 최신화', ch.childState.parentEfUpcoming === EXACT, ch.childState.parentEfUpcoming);
+    ok('자식이 확정으로 잡혀 재관찰', mc._childConfirmPending.get(`${PN}|UPCOMING_CHANGE`).deadline === T0 + 60000 + WIN);
+    const fired = mc._applyChildConfirmGate([], s1, T0 + 60000 + WIN);
+    ok('만료 발사', fired.length === 1);
+    ok('한정사 = "(연안바다 포함)"', buildChildQualifier(PN, fired[0].childState, 'publish') === '(연안바다 포함)');
+}
+
+// ── T15. [F3] 보류가 디스크에 남아 재시작 후 이어진다 ───────────────────────
+console.log('\n[T15] 보류 영속화 — 재시작해도 발표 알림 유실 없음 (F3)');
+{
+    reset();
+    const s = snap({ [PN]: P('예비', EF_TODAY) }, {});
+    mc._applyChildConfirmGate([upChange(PN, '예비', s)], s, T0);
+    const fs2 = require('fs');
+    ok('보류 파일 생성됨', fs2.existsSync(mc.CONFIRM_PENDING_FILE));
+    const saved = JSON.parse(fs2.readFileSync(mc.CONFIRM_PENDING_FILE, 'utf8'));
+    ok('저장분에 보류 1건', Array.isArray(saved.entries) && saved.entries.length === 1);
+    ok('저장분에 발사 내용 동봉', !!saved.entries[0].change && saved.entries[0].change.zone === PN);
+    ok('저장분에 마감시각 동봉', saved.entries[0].deadline === T0 + WIN);
+    // 진짜 재시작 — 별도 프로세스에서 모듈을 새로 올려 보류가 복원되고 만료 발사되는지 확인
+    const probe = `
+        const m = require(${JSON.stringify(path.join(__dirname, '..', 'marine_warning_crawler.js'))});
+        const snap = { parents: new Map([[${JSON.stringify(PN)}, ${JSON.stringify(P('예비', EF_TODAY))}]]),
+            upcomings: new Map(), children: new Map(), liveChildren: new Set() };
+        const out = m._applyChildConfirmGate([], snap, ${T0 + WIN});
+        process.stdout.write('FIRED=' + out.length + ' ZONE=' + (out[0] ? out[0].zone : ''));`;
+    const res = require('child_process').execFileSync(process.execPath, ['-e', probe],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    ok('재시작 후 복원되어 만료 발사', /FIRED=1/.test(res) && res.indexOf(PN) !== -1, res.trim());
+    ok('발사 후 저장분도 비워짐',
+        JSON.parse(fs2.readFileSync(mc.CONFIRM_PENDING_FILE, 'utf8')).entries.length === 0);
+    reset();
+}
+
+// ── T16. EF_EXTEND(발효예정 연장)도 관찰창 대상 ─────────────────────────────
+console.log('\n[T16] EF_EXTEND 보류·만료');
+{
+    reset();
+    const s = snap({ [PN]: P('예비', EF_TODAY) }, {});
+    const cs = mc._childSnapshotState(s, PN);
+    const ch = { type: 'EF_EXTEND', zone: PN,
+        curr: { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '', tmEf: EF_TODAY, tmYn: '' },
+        childState: { all: mc.PARENT_TO_CHILDREN[PN], active: cs.active, added: [], released: [],
+            meta: cs.meta, parentEfUpcoming: EF_TODAY, parentEfActive: '' } };
+    ok('보류됨', mc._applyChildConfirmGate([ch], s, T0).length === 0);
+    ok('만료 발사', mc._applyChildConfirmGate([], s, T0 + WIN).length === 1);
+}
+
+// ── T17. warn/latest 경로도 이어받기·합성 폐지 ──────────────────────────────
+console.log('\n[T17] _enrichSnapshotWithLatest 경로 빌려오기 폐지');
+{
+    const mk = () => ({ parents: new Map(), upcomings: new Map(), children: new Map(),
+        excludedChildren: new Set(), liveChildren: new Set() });
+    const futureEf = (() => { const d = new Date(Date.now() + 9 * 3600000 + 6 * 3600000);
+        return `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')} ${String(d.getUTCHours()).padStart(2, '0')}:00`; })();
+    const prev = mk();
+    prev.children.set(PN, new Map([[YN, { wrnTpNm: '풍랑', wrnLvlNm: '예비' }]]));
+    const s = mk();
+    mc._enrichSnapshotWithLatest(s, [{ warn_tp: 'V', warn_cmd_nm: '발표', warn_zone_nm: PN,
+        warn_zone_cd: '', tm_fc: '202608081600', tm_ef: futureEf }], prev, []);
+    ok('GAP 부모 추가됨', s.parents.has(PN));
+    ok('prev 자식 이어받지 않음', !s.children.has(PN) || s.children.get(PN).size === 0);
+    ok('_childUnknown 표식 부착', s.parents.get(PN)._childUnknown === true);
 }
 
 console.log(`\n[child_confirm] ${pass} PASS / ${fail} FAIL`);

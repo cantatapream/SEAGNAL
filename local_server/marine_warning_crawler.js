@@ -905,7 +905,11 @@ function _applySuspiciousGuard(prev, curr) {
             // [수정C] 부모만 복원하면 자식이 비어 "(연안바다 미발효)" 오표시 → 자식도 복원
             const pkids = prev.children ? prev.children.get(name) : null;
             if (pkids && pkids.size > 0 && !curr.children.has(name)) {
-                curr.children.set(name, new Map(pkids));
+                // [적대검증 F2] 의심 가드가 되살린 자식도 "실재 근거 있음" — C1(live) 대상 제외.
+                //   (원본 info 를 공유하면 prev 까지 오염되므로 복사본에 표식.)
+                const restored = new Map();
+                for (const [cn, ci] of pkids) restored.set(cn, Object.assign({}, ci, { _liveEvidence: true }));
+                curr.children.set(name, restored);
             }
             // [B] 공존 다가오는(예비)도 복원 — 글리치 사이클에 병렬 예비 깜빡임 방지
             const pUp = prev.upcomings ? prev.upcomings.get(name) : null;
@@ -1536,7 +1540,13 @@ function _applyChildReleaseDebounce(prev, curr) {
             if (elapsed < CHILD_RELEASE_DEBOUNCE_MS) {
                 // 관찰 중 — 직전 자식을 curr 에 이어받아 가짜 해제/추가/깜빡임 방지
                 if (!curr.children.has(parent)) curr.children.set(parent, new Map());
-                curr.children.get(parent).set(childName, Object.assign({}, prevInfo));
+                // [적대검증 F2] _liveEvidence — "이 자식은 실재한다"는 근거가 있음을 표시.
+                //   이 이어받기는 §child-confirm 이 폐지한 GAP 빌려오기와 성격이 정반대다.
+                //   저쪽은 "아직 한 번도 확인 안 된 자식을 지어낸" 것이고, 이쪽은 "이미 발효중이던
+                //   자식이 해제예고 없이 사라진 게 글리치인지 3분 관찰하는" 것이다. 표식이 없으면
+                //   C1(live) 이 이 자식을 근거 없는 잔존분으로 오인해 집계에서 빼고, 발효중인
+                //   자식을 "(연안바다 미발효)"라고 단정하는 반대 방향 오표기가 난다.
+                curr.children.get(parent).set(childName, Object.assign({}, prevInfo, { _liveEvidence: true }));
                 stillPending.add(key);
             } else {
                 // 3분 경과 — 진짜 해제로 확정 (이어받기 중단 → diff 가 CHILD_RELEASE 발사)
@@ -1646,6 +1656,8 @@ function _applyUpcomingCancelDebounce(prev, curr) {
 //   - 배경: 제외 게이트가 synth(맹목 합성) 분기에만 있고 carry(prev 이어받기)·해제 디바운스
 //     3경로는 무게이트라, synth 가 1회 시드한 유령 자식이 carry 로 영속하던 문제(제주도북부앞바다
 //     연안바다 오포함). 개별 carry 게이트는 경로가 셋이라 누락 재발 위험 → 단일 사후정리로 통합.
+//   - [2026-08-09 §child-confirm] GAP 의 carry·synth 는 폐지됐다. 그래도 이 사후정리는 유지 —
+//     남은 이어받기(자식 해제 디바운스·의심가드 복원)가 MMIS 의 level-0 명시와 어긋날 수 있다.
 //   - [라이브 회귀 방지 — 핵심] 제외 소스 excludedChildren(warn-sasc/list level-0) 은 "미포함"뿐
 //     아니라 "아직 미발효(예비)"도 level-0 으로 내려준다(라이브 확인: warn-sasc/ready 의 예비특보
 //     자식이 warn-sasc/list 에선 level-0). 따라서 excludedChildren 만으로 지우면 진짜 예비 자식까지
@@ -2102,7 +2114,11 @@ function _childSnapshotState(curr, zone) {
         const ci = m.get(cn);
         if (!ci) continue;
         meta[cn] = { lvl: ci.wrnLvlNm || '', tmEf: ci.tmEf || '' };
-        if (liveSet) meta[cn].live = liveSet.has(cn);
+        // [적대검증 F2] _liveEvidence = 자식 해제 디바운스·의심 가드가 "실재한다"고 판정해
+        //   되살린 자식. MMIS 가 이번 사이클에 안 줬을 뿐 근거는 있으므로 live 로 인정한다.
+        //   (liveChildren 자체에 넣지 않는 이유 — 그 Set 은 _purgeExcludedChildren 의
+        //    사후정리 화이트리스트로도 쓰여서, 넣으면 정리 동작까지 바뀐다.)
+        if (liveSet) meta[cn].live = liveSet.has(cn) || ci._liveEvidence === true;
     }
     return { active, meta };
 }
@@ -2718,7 +2734,53 @@ function _buildUserPushChanges(prev, curr) {
 // ============================================================================
 
 const CONFIRM_WINDOW_MS = 3 * 60 * 1000;                 // 관찰창 3분 (프로젝트 표준 디바운스와 동일)
+const CONFIRM_STALE_MS = 10 * 60 * 1000;                 // 이보다 오래 묵은 보류는 복원하지 않는다
+const CONFIRM_PENDING_FILE = path.join(__dirname, 'data', 'marine_child_confirm.json');
 const _childConfirmPending = new Map();                  // key(zone|type) → 보류 엔트리
+let _childConfirmLoaded = false;
+
+/**
+ * 보류실 영속화 — 관찰창 안에 재배포·크래시가 나면 그 발표 알림이 **영영 안 나가기** 때문.
+ * (diff 는 이미 소비돼 prev 에 저장됐고 `_pubKey` 이력에도 기록돼, 재시작 후엔 같은 change 가
+ *  다시 만들어지지 않는다. 설계안 §5.4 는 "메모리 전용이어도 dedup 이 막는다"고 봤으나
+ *  적대검증 F3 에서 그 반대 — 중복이 아니라 **유실** — 임이 확인돼 저장으로 바꿨다.)
+ * @returns {void}
+ * [연계] run() 사이클 끝 저장 · _applyChildConfirmGate 최초 1회 복원.
+ */
+function _saveChildConfirmPending() {
+    try {
+        const obj = { savedAt: Date.now(), entries: [] };
+        for (const [key, p] of _childConfirmPending) {
+            obj.entries.push({ key, zone: p.zone, type: p.type, sig: p.sig,
+                deadline: p.deadline, seen: Array.from(p.seen), change: p.change });
+        }
+        fs.writeFileSync(CONFIRM_PENDING_FILE, JSON.stringify(obj), 'utf8');
+    } catch (e) {
+        console.warn('[Marine] 관찰창 보류 저장 실패:', e && e.message);
+    }
+}
+
+/** 보류실 복원 — 최초 1회. 오래 묵은(10분 초과) 저장분은 버린다(긴 downtime 뒤 뒷북 발사 방지). */
+function _loadChildConfirmPending() {
+    if (_childConfirmLoaded) return;
+    _childConfirmLoaded = true;
+    try {
+        const raw = JSON.parse(fs.readFileSync(CONFIRM_PENDING_FILE, 'utf8'));
+        if (!raw || !Array.isArray(raw.entries)) return;
+        if (Date.now() - (raw.savedAt || 0) > CONFIRM_STALE_MS) {
+            console.log('[Marine] 관찰창 보류 복원 skip — 저장분이 너무 오래됨');
+            return;
+        }
+        for (const e of raw.entries) {
+            if (!e || !e.key || !e.change) continue;
+            _childConfirmPending.set(e.key, { zone: e.zone, type: e.type, sig: e.sig,
+                deadline: e.deadline || 0, seen: new Set(e.seen || []), change: e.change });
+        }
+        if (_childConfirmPending.size > 0) {
+            console.log(`[Marine] 관찰창 보류 복원: ${_childConfirmPending.size}건 — 재시작으로 발표 알림이 유실되지 않게 이어감`);
+        }
+    } catch (_) { /* 파일 없음/파싱실패 → 빈 보류실로 시작 */ }
+}
 
 /**
  * 관찰창 대상 이벤트인가 — 발표 계열(발표·격상/격하 발표·발효시각 변경)과 발효예정 연장만.
@@ -2798,6 +2860,13 @@ function _sweepChildConfirm(curr, now, out) {
             const snap = _childSnapshotState(curr, p.zone);
             cs.active = snap.active;
             cs.meta = snap.meta;
+            // [적대검증 F4] 부모 발효시각도 함께 갱신해야 한다. 자식 meta 만 최신화하고
+            //   parentEf 를 보류 시점 값으로 두면, 관찰 중 부모가 범위형→정확시각으로
+            //   확정(§7.7.25)되며 날짜가 넘어갈 때 "새 자식시각 vs 낡은 부모시각" 대조가 되어
+            //   멀쩡한 자식이 날짜 규칙에 떨어지고 "(연안바다 미발표)" 거짓 단정이 나간다.
+            const act = _getAct(curr, p.zone);
+            cs.parentEfUpcoming = up.tmEf || '';
+            cs.parentEfActive = act ? (act.tmEf || '') : '';
             if (snap.active.length === 0 && up._childUnknown) cs.unknown = true;
             else delete cs.unknown;
         }
@@ -2817,6 +2886,13 @@ function _sweepChildConfirm(curr, now, out) {
     }
 }
 
+/** 테스트용 — 보류실과 복원 플래그·저장분을 모두 비운다(사이클 간 오염 방지). */
+function _resetChildConfirmForTest() {
+    _childConfirmPending.clear();
+    _childConfirmLoaded = false;
+    try { fs.unlinkSync(CONFIRM_PENDING_FILE); } catch (_) { /* 없으면 그만 */ }
+}
+
 /**
  * 관찰창 게이트 — 발표 계열 change 중 자식 미확정 건을 보류하고, 만료된 보류 건을 합류시킨다.
  * 예) publish(자식 0) → 보류 / 3분 뒤 같은 건이 changes 없이도 발사됨
@@ -2827,15 +2903,23 @@ function _sweepChildConfirm(curr, now, out) {
  * [연계] run() 5-B — pushSender.processChanges 직전에 통과시킨다.
  */
 function _applyChildConfirmGate(changes, curr, nowMs) {
-    const now = nowMs || Date.now();
+    _loadChildConfirmPending();
+    const now = (nowMs == null) ? Date.now() : nowMs;
+    const before = _childConfirmPending.size;
     const out = [];
     for (const ch of (Array.isArray(changes) ? changes : [])) {
         if (!_isConfirmGated(ch)) { out.push(ch); continue; }
-        if ((PARENT_TO_CHILDREN[ch.zone] || []).length === 0) { out.push(ch); continue; }   // 기다릴 자식 자체가 없음
-        if (_confirmedChildren(ch.childState).length > 0) { out.push(ch); continue; }       // 이미 확정 → 즉시
+        // [적대검증 F1] 즉시 통과할 때는 **같은 키의 보류 건을 반드시 지운다.** 안 지우면 그
+        //   낡은 건이 보류실에 남아, sweep 이 새로 합류한 자식을 보고 마감을 연장했다가
+        //   3분 뒤 한 번 더 발사한다(같은 발표가 2회 — 등급이 달랐다면 격하로까지 오인).
+        const fire = (c) => { _childConfirmPending.delete(`${c.zone}|${c.type}`); out.push(c); };
+        if ((PARENT_TO_CHILDREN[ch.zone] || []).length === 0) { fire(ch); continue; }   // 기다릴 자식 자체가 없음
+        if (_confirmedChildren(ch.childState).length > 0) { fire(ch); continue; }       // 이미 확정 → 즉시
         _parkChildConfirm(ch, now);
     }
     _sweepChildConfirm(curr, now, out);
+    // 보류실이 비어 있다가 계속 비어 있으면 디스크를 건드리지 않는다(평상시 IO 0).
+    if (before > 0 || _childConfirmPending.size > 0) _saveChildConfirmPending();
     return out;
 }
 
@@ -4121,7 +4205,9 @@ let _forceBaselineAdminToken = undefined;
 function resetState() {
     _prevSnapshot = new StateSnapshot();
     _forceBaselinePending = true;
-    _childConfirmPending.clear();   // [§child-confirm] 장부 초기화 시 관찰창도 함께 비운다
+    // [§child-confirm] 장부 초기화 시 관찰창도 함께 비운다 (저장분까지 지워야 재시작 후 안 살아남는다)
+    _childConfirmPending.clear();
+    try { fs.unlinkSync(CONFIRM_PENDING_FILE); } catch (_) { /* 없으면 그만 */ }
     try {
         _savePrevSnapshot(_prevSnapshot);
         console.log('[Marine] 장부(state) 초기화 완료 — 다음 사이클에서 현재 특보를 신규로 감지(force baseline 예약)');
@@ -4249,9 +4335,12 @@ async function run(opts = {}) {
 
         // 4-B3) [제외 자식 사후정리] 모든 보강(latest/ef)·디바운스가 curr 를 변형한 직후, MMIS 가
         //   이번 사이클 warn-sasc/list 에서 level-0(미포함)으로 명시한 자식을 출처불문 제거.
-        //   carry(prev 이어받기) 3경로가 무게이트라 synth 가 시드한 유령 자식이 영속하던 문제
-        //   (제주도북부앞바다 연안바다 오포함)를 단일 사후정리로 차단. 글리치 carry(부재≠level-0)는
-        //   excludedChildren 밖이라 보존. diff·표출 양쪽 반영 위해 발표시각고정·앵커 전에 적용.
+        //   종전엔 GAP 이어받기(carry)·합성(synth)이 시드한 유령 자식이 영속하던 문제
+        //   (제주도북부앞바다 연안바다 오포함)를 이 단일 사후정리로 차단했다. 그 두 경로는
+        //   2026-08-09 §child-confirm 에서 폐지됐지만, 이 사후정리는 **여전히 필요**하다 —
+        //   남은 이어받기(자식 해제 디바운스·의심가드 복원)가 MMIS 의 level-0 명시와 어긋날 때
+        //   정리해야 하기 때문. 글리치 carry(부재≠level-0)는 excludedChildren 밖이라 보존.
+        //   diff·표출 양쪽 반영 위해 발표시각고정·앵커 전에 적용.
         _purgeExcludedChildren(curr);
 
         // 4-C) [발표시각 고정] 현재 발효 등급의 최초 발표시각으로 tmFc 고정 (변경/연장 불변,
@@ -4414,6 +4503,10 @@ module.exports = {
     _applyChildConfirmGate,
     _childConfirmPending,
     _childSnapshotState,
+    _saveChildConfirmPending,
+    _loadChildConfirmPending,
+    _resetChildConfirmForTest,
+    CONFIRM_PENDING_FILE,
     CONFIRM_WINDOW_MS,
     _applyChildReleaseDebounce,
     _updateExtensionMemory,
