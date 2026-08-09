@@ -1062,6 +1062,42 @@ const CHILD_PRELIM_CANCEL_TTL_MS = 15 * 60 * 1000;       // 부모 소멸 등으
 let _childPrelimCancelPending = {};                      // "zone|child" → { info, since }
 
 // ============================================================================
+// [2026-08-09] GAP 자식 이어받기·합성 시간 상한
+//   [문제] 발표대기(GAP) 부모의 자식을 prev 에서 이어받거나 매핑으로 합성하는 두 경로에
+//   **시간 제한이 없었다**. 두 경로는 파이프라인에서 3분 자식 해제 디바운스보다 **먼저**
+//   실행되므로, 매 사이클 자식을 되살려 놓아 디바운스가 "사라진 적 없음"으로 보고
+//   타이머를 시작조차 못 했다 — 안전장치가 일할 기회를 잃는 구조.
+//   그 결과 한번 잘못 들어간 자식이 발효 시각까지 **수 시간** 생존했다
+//   (6/2 제주 §7.6.6 · 6/19 제주 §7.7.14 계열의 공통 뿌리).
+//   [상한] MMIS 가 자식을 전혀 안 주는 상태가 이 시간을 넘으면 이어받기·합성을 멈춘다.
+//   §7.7.24 실측상 정식 목록 합류까지의 전이 창은 통상 1~5분이라 30분은 6배 이상 여유.
+//   상한 초과 시 자식은 비게 되고 `_childUnknown` 이 서므로 **푸시는 침묵**한다
+//   ("모르면 침묵" — 근거 없이 "포함"도 "미발표"도 단정하지 않음).
+//   [해제] MMIS 가 그 부모의 자식을 한 건이라도 실제로 주면(liveChildren) 즉시 리셋.
+// ============================================================================
+const GAP_CARRY_CAP_MS = 30 * 60 * 1000;   // 30분
+let _gapCarryFirstAt = {};                 // 부모명 → 최초 이어받기/합성 시각(ms)
+
+/** GAP 자식 이어받기·합성이 아직 허용되는가? (최초 호출 시각을 기록하고, 상한 내면 true) */
+function _gapCarryAllowed(parent) {
+    const now = Date.now();
+    const first = _gapCarryFirstAt[parent];
+    if (!first) { _gapCarryFirstAt[parent] = now; return true; }
+    return (now - first) < GAP_CARRY_CAP_MS;
+}
+
+/** MMIS 가 자식을 실제로 준 부모 · GAP 을 벗어난 부모의 상한 타이머를 해제. */
+function _sweepGapCarryMemo(snap) {
+    if (!snap) return;
+    const live = snap.liveChildren instanceof Set ? snap.liveChildren : new Set();
+    for (const parent of Object.keys(_gapCarryFirstAt)) {
+        if (!snap.parents || !snap.parents.has(parent)) { delete _gapCarryFirstAt[parent]; continue; }
+        const kids = snap.children ? snap.children.get(parent) : null;
+        if (kids && Array.from(kids.keys()).some((cn) => live.has(cn))) delete _gapCarryFirstAt[parent];
+    }
+}
+
+// ============================================================================
 // [§7.7.23 판정 보류실] 예비취소 푸시는 "통보문으로 확인된 뒤에만" 발사한다.
 // ============================================================================
 //
@@ -3450,7 +3486,9 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             //   2순위[수정A-2]: prev 가 비어있으면(이미 GAP 진입해 자식을 잃은 경우 등)
             //          PARENT_TO_CHILDREN 매핑으로 자식 합성 — mmis 가 GAP 에서 자식을
             //          부모로부터 상속해 표출하는 것과 동일. 부모 발효예정/해제예고 상속.
-            if (!snap.children.has(name)) {
+            //   [2026-08-09] 상한 초과(MMIS 가 30분 넘게 자식을 전혀 안 줌)면 이어받기·합성을
+            //   모두 멈춘다 → 자식이 비고 아래 `_childUnknown` 이 서서 푸시는 침묵한다.
+            if (!snap.children.has(name) && _gapCarryAllowed(name)) {
                 const pkids = (prev && prev.children) ? prev.children.get(name) : null;
                 if (pkids && pkids.size > 0) {
                     const m = new Map();
@@ -3675,6 +3713,11 @@ function _addGapParentFromEf(snap, prev, name, info, counters) {
     if (snap.children.has(name)) {
         // [2026-07-18 실사고] 컨테이너가 있어도 비어 있으면 자식 정보 '미상' — 아래 주석 참조
         if (snap.children.get(name).size === 0 && (PARENT_TO_CHILDREN[name] || []).length > 0) info._childUnknown = true;
+        return;
+    }
+    // [2026-08-09] 상한 초과면 이어받기·합성 모두 중단 → 자식 '미상'으로 두어 푸시 침묵.
+    if (!_gapCarryAllowed(name)) {
+        if ((PARENT_TO_CHILDREN[name] || []).length > 0) info._childUnknown = true;
         return;
     }
     const pkids = (prev && prev.children) ? prev.children.get(name) : null;
@@ -4079,6 +4122,11 @@ async function run(opts = {}) {
             }
         }
 
+        // 2-D) [2026-08-09] GAP 이어받기 상한 타이머 정리 — MMIS 가 그 부모의 자식을 한 건이라도
+        //   실제로 준 사이클(liveChildren)이거나 부모가 GAP 을 벗어났으면 타이머 해제.
+        //   두 보강(latest·ef)이 끝난 뒤 실행해야 이번 사이클의 라이브 근거가 모두 반영된다.
+        _sweepGapCarryMemo(curr);
+
         // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — 콜드 부팅 직후 prev 가 비어있을 때만.
         //    재배포/장부 초기화로 활성 특보가 "전부 신규"로 오인되어 push 폭주하는 케이스만 차단.
         //    자연 전이(이미 가동 중인 프로세스에서 무특보→신규특보)는 통과시켜 정상 push.
@@ -4284,6 +4332,12 @@ module.exports = {
     _isSnapshotEmpty,
     _buildUserPushChanges,
     _applyChildReleaseDebounce,
+    // [2026-08-09] GAP 이어받기 상한 (테스트 노출)
+    _gapCarryAllowed,
+    _sweepGapCarryMemo,
+    GAP_CARRY_CAP_MS,
+    _resetGapCarryForTest: () => { _gapCarryFirstAt = {}; },
+    _setGapCarryFirstAtForTest: (parent, ms) => { _gapCarryFirstAt[parent] = ms; },
     _updateExtensionMemory,
     _timeKey,
     _applyAnnounceAnchor,
