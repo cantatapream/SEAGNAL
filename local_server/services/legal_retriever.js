@@ -1343,10 +1343,15 @@ function zoneFlat(s) { return String(s || '').replace(/\s+/g, ''); }
 /**
  * 질의에 이 **낱말**이 들어 있는가. 한국어는 조사가 붙으므로(영해→영해에서) 완전일치로는 못 잡고,
  * 그냥 부분문자열로 보면 "운**영해**도"·"경**영해**"가 걸린다(실측: 43,956건에서 '영해' 오탐 188건).
- * 그래서 ①한 어절짜리 낱말은 **토큰이 그 낱말로 시작하는지** ②띄어쓰기가 든 용어("배타적 경제수역")는
- * 공백을 지운 뒤 **앞 글자가 한글·영숫자가 아닌 위치**에서만 인정한다(그래야 "그 밖의 배타적 경제수역"
- * 안의 부분일치를 안 잡는다).
+ * 그래서 ①한글·영숫자로만 된 한 어절 낱말은 **토큰이 그 낱말로 시작하는지** ②띄어쓰기나 괄호·가운뎃점이
+ * 든 용어("배타적 경제수역"·"수상(水上)"·"어선의 조업·항행 해역")는 **공백만 지운 부분문자열**로 보되
+ * 낱말 경계를 **원문 위치로** 확인한다.
+ * ★②의 경계 검사를 공백 지운 문자열에서 하면 안 된다 — 경계였던 그 공백이 사라져 앞 글자가 늘 한글이
+ *   되므로, **문장 중간의 다중어절 라벨은 100% 탈락한다**("배로 배타적 경제수역까지 나가도 되나요?"가
+ *   해역 트리를 못 찾아 항해구역 트리로 오라우팅됐다 — 적대검증 §8-①, 라이브 재현). 그래서 공백 제거
+ *   인덱스를 원문 인덱스로 되돌려, **원문에서** 바로 앞 글자가 한글·영숫자가 아닐 때만 인정한다.
  * 예: zoneWordHit('우리 배 어디까지 나갈 수 있나요?', '배') → true · zoneWordHit('운영해도 되나요?', '영해') → false
+ *     zoneWordHit('배로 배타적 경제수역까지 나가도 되나요?', '배타적 경제수역') → true
  * @param {string} query @param {string} word
  * @returns {boolean}
  * [연계] ← matchZoneTreeTopic(주제 어휘)·resolveZoneTreePath(②암시 하강의 라벨 대조).
@@ -1354,14 +1359,19 @@ function zoneFlat(s) { return String(s || '').replace(/\s+/g, ''); }
 function zoneWordHit(query, word) {
   const w = String(word || '').trim();
   if (!w) return false;
-  if (/\s/.test(w)) {
-    const nq = zoneFlat(query), nw = zoneFlat(w);
-    for (let i = nq.indexOf(nw); i >= 0; i = nq.indexOf(nw, i + 1)) {
-      if (i === 0 || !/[가-힣A-Za-z0-9]/.test(nq[i - 1])) return true;
-    }
-    return false;
+  if (/^[가-힣A-Za-z0-9]+$/.test(w)) {
+    return String(query || '').split(/[^가-힣A-Za-z0-9]+/).some(t => t && t.startsWith(w));
   }
-  return String(query || '').split(/[^가-힣A-Za-z0-9]+/).some(t => t && t.startsWith(w));
+  const q = String(query || '');
+  let nq = ''; const at = [];              // 공백 지운 문자열의 i번째 → 원문 인덱스
+  for (let i = 0; i < q.length; i++) if (!/\s/.test(q[i])) { nq += q[i]; at.push(i); }
+  const nw = zoneFlat(w);
+  if (!nw) return false;
+  for (let i = nq.indexOf(nw); i >= 0; i = nq.indexOf(nw, i + 1)) {
+    const p = at[i] - 1;                   // 원문에서 라벨 바로 앞 글자
+    if (p < 0 || !/[가-힣A-Za-z0-9]/.test(q[p])) return true;
+  }
+  return false;
 }
 
 /**
@@ -1477,8 +1487,29 @@ function resolveZoneTreePath(query, tree) {
 }
 
 /**
+ * 이 항목의 `구역범위`가 이 리프(서열 rank)를 포함하는가.
+ * `구역범위`는 "이 구역만 / 이 구역 이상 / 이 구역 이하" 3값이고, 뒤 둘은 그 항목이 걸린 노드의
+ * `서열`을 기준으로 범위를 정한다(zone_tree.json semantics.구역범위).
+ * ★경로 상속에도 이 검사가 필요하다 — 조상 노드에 "이 구역 이하"로 걸린 항목이 그보다 깊은(서열이
+ *   높은) 리프까지 그대로 따라가면, **자기 데이터가 "이 구역은 대상이 아니다"라고 말하는 항목이 그
+ *   구역의 의무로 표시된다**(적대검증 §8-② 원양구역 건강진단). 서열이 없는 트리(해역·조업해역)는
+ *   항상 "이 구역만"이라 이 검사가 아무것도 거르지 않는다.
+ * 예: zoneRangeIncludes({구역범위:'이 구역 이하'}, {서열:4}, 5) → false (근해 이하 규정은 원양에 안 붙는다)
+ * @param {object} rule - 적용항목 @param {object} node - 그 항목이 실려 있는 노드 @param {number|null} rank - 리프 `서열`
+ * @returns {boolean}
+ * [연계] ← collectZoneRules(경로 상속).
+ */
+function zoneRangeIncludes(rule, node, rank) {
+  if (rank == null || node.서열 == null) return true;
+  if (rule.구역범위 === '이 구역 이상') return node.서열 <= rank;
+  if (rule.구역범위 === '이 구역 이하') return node.서열 >= rank;
+  return true;
+}
+
+/**
  * 이 구역에 적용되는 규정을 모은다.
  *  ⓐ **경로 상속**(zone_tree.json semantics.적용_상속): 루트→리프 경로상 모든 노드의 `적용` 합집합.
+ *     단 `구역범위`가 서열로 범위를 좁혀둔 항목은 그 범위 밖 리프에 딸려가지 않는다(zoneRangeIncludes).
  *  ⓑ **서열·구역범위 규약**(항해구역 트리 전용, 같은 파일 semantics.구역범위): 리프 `서열`이 s일 때
  *     다른 노드(서열 t)의 항목 중 `구역범위`가 "이 구역 이상"이고 t≤s면, "이 구역 이하"이고 t≥s면 포함.
  *     ⚠이게 없으면 **답이 틀린다** — 원양구역(서열5)은 연해구역(서열3)에 달린 "연해구역 이상" 2건을
@@ -1497,8 +1528,8 @@ function collectZoneRules(tree, path) {
     if (seen.has(k)) return;
     seen.add(k); out.push({ rule: r, from });
   };
-  for (const n of path) for (const r of (n.적용 || [])) push(r, n.라벨);
   const rank = path[path.length - 1].서열;
+  for (const n of path) for (const r of (n.적용 || [])) if (zoneRangeIncludes(r, n, rank)) push(r, n.라벨);
   if (rank != null) {
     (function walk(n) {
       if (!n) return;
