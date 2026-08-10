@@ -1279,4 +1279,361 @@ async function searchRawFallback(query) {
   }
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf };
+// ============================================================================
+// H-36 실서빙 배선 파일럿 — 해역·항해구역 계층 트리(zone_tree.json) 되묻기
+// ----------------------------------------------------------------------------
+// 지금까지 "하천이냐 바다냐" 같은 갈림길은 decideClarify()가 질문마다 Gemini를 불러 즉석으로
+// 만들었다(매번 문구가 달라지고, 근거자료 top-6에 그 구분이 안 뜨면 아예 못 묻는다). 이 절은
+// 미리 raw 74법을 전수 스캔해 만들어 둔 `_dashboard/zone_tree.json`(트리 3개·노드 22·리프 14·
+// 적용항목 79건, 빌드게이트+독립재대조+사람 전량정독 3단 검증)을 그대로 타고 내려가 **LLM 호출
+// 0회**로 같은 되묻기를 낸다. 리프에 닿으면 그 구역에 적용되는 규정 목록을 데이터에서 꺼내 답한다.
+//
+// ★설계 전문: `knowledge/legal/_dashboard/H36_live_wiring_design.md`
+// ★이 절의 함수는 전부 신규다 — 위쪽 기존 함수(decideClarify·search 등)는 한 줄도 고치지 않았다.
+//   CLARIFY_JOINER·CLARIFY_OPTION_MAX만 재사용한다(되묻기 규약을 두 벌로 만들지 않기 위해).
+// ★안전 규약: zoneTreeStep()은 어떤 경우에도 예외를 던지지 않는다(파일 없음·JSON 깨짐·스키마
+//   이상·매칭 실패 전부 null) — null이면 호출부는 배선 전과 100% 같은 기존 흐름을 탄다.
+// ============================================================================
+
+const ZONE_TREE_JSON = path.join(LEGAL_DIR, '_dashboard', 'zone_tree.json');
+
+// 트리 선택 우선순위(H32_zone_tree_design.md §9.2 "해역 > 조업해역 > 항해구역").
+const ZONE_TREE_ORDER = ['sea_area', 'fishing_operation_area', 'navigation_zone'];
+
+// ① "구역 축 자체를 묻고 있는가" — 어미까지 붙은 구(句)라 낱말 경계 검사를 하면 안 된다
+//    ("제주도까지 갈 수 있"의 '까지'는 앞 낱말에 붙어 있다).
+const ZONE_ASK = [
+  '어디까지 갈', '어디까지 나갈', '어디까지 나가', '어디까지 항해', '어디까지 운항',
+  '어디까지 다닐', '어디까지 조업', '어디까지 출항',
+  '까지 갈 수 있', '까지 나갈 수 있', '까지 나가도', '까지 항해할 수', '까지 운항할 수', '까지 조업할 수',
+  '어느 해역', '어느 수역', '무슨 해역', '어느 구역', '어느 바다', '어디서 조업', '어디에서 조업',
+];
+// ② 배·조업 이야기인가(낱말 — 조사가 붙으므로 "토큰이 이 낱말로 시작하는가"로 본다).
+const ZONE_SUBJECT = ['배', '선박', '어선', '낚싯배', '낚시배', '요트', '보트', '유선', '도선', '항해', '운항', '조업', '출어'];
+// 트리 라벨이 하나도 없을 때 조업해역 트리로 보내는 신호.
+const ZONE_FISHING_HINT = ['조업', '어선', '출어'];
+// ★관용구 제외: 한국어에서 "행정처분까지 갈 수 있나요"·"감옥까지 갈 수 있나요"는 "어디까지
+//   가느냐"가 아니라 "그 지경까지 이르느냐"다. 실제 사용자형 질문 43,956건(_dashboard/audit/*.md)
+//   전수 측정에서 이 한 갈래가 오탐의 절반이었다 — '까지…'로 시작하는 구 앞 6글자만 좁게 본다.
+const ZONE_ASK_IDIOM = /처분|정지|취소|감옥|압류|몰수|벌금|과태료|징역|형사/;
+
+// 적용항목 `유형`(7종)을 답변에 싣는 순서. 데이터에 없는 유형은 뒤에 원래 순서로 붙는다.
+const ZONE_KIND_ORDER = ['적용법령', '허가·신고', '의무', '제한', '완화', '관할', '처벌'];
+
+// ── zone_tree.json 캐시(mtime 감지) ──
+let _zoneCache = null, _zoneMtime = 0;
+/**
+ * 해역·항해구역 트리 자산을 읽어 캐시한다(index.json·glossary와 같은 mtime 감지 방식).
+ * 파일이 없거나 JSON이 깨졌으면 조용히 빈 트리를 돌려준다 — 이 자산이 없다고 챗봇이 죽으면 안 된다.
+ * @returns {{trees:Array}} 실패 시 {trees:[]}
+ * [연계] ← matchZoneTreeTopic()/zoneTreeStep(). ← knowledge/legal/_dashboard/zone_tree.json.
+ */
+function loadZoneTree() {
+  try {
+    const mt = fs.statSync(ZONE_TREE_JSON).mtimeMs;
+    if (_zoneCache && mt === _zoneMtime) return _zoneCache;
+    _zoneCache = JSON.parse(fs.readFileSync(ZONE_TREE_JSON, 'utf8')); _zoneMtime = mt;
+  } catch (_) { if (!_zoneCache) _zoneCache = { trees: [] }; }
+  return _zoneCache;
+}
+
+/** 공백을 모두 지운 비교용 문자열(법률 용어는 띄어쓰기가 자료마다 달라 그대로 비교하면 어긋난다). */
+function zoneFlat(s) { return String(s || '').replace(/\s+/g, ''); }
+
+/**
+ * 질의에 이 **낱말**이 들어 있는가. 한국어는 조사가 붙으므로(영해→영해에서) 완전일치로는 못 잡고,
+ * 그냥 부분문자열로 보면 "운**영해**도"·"경**영해**"가 걸린다(실측: 43,956건에서 '영해' 오탐 188건).
+ * 그래서 ①한 어절짜리 낱말은 **토큰이 그 낱말로 시작하는지** ②띄어쓰기가 든 용어("배타적 경제수역")는
+ * 공백을 지운 뒤 **앞 글자가 한글·영숫자가 아닌 위치**에서만 인정한다(그래야 "그 밖의 배타적 경제수역"
+ * 안의 부분일치를 안 잡는다).
+ * 예: zoneWordHit('우리 배 어디까지 나갈 수 있나요?', '배') → true · zoneWordHit('운영해도 되나요?', '영해') → false
+ * @param {string} query @param {string} word
+ * @returns {boolean}
+ * [연계] ← matchZoneTreeTopic(주제 어휘)·resolveZoneTreePath(②암시 하강의 라벨 대조).
+ */
+function zoneWordHit(query, word) {
+  const w = String(word || '').trim();
+  if (!w) return false;
+  if (/\s/.test(w)) {
+    const nq = zoneFlat(query), nw = zoneFlat(w);
+    for (let i = nq.indexOf(nw); i >= 0; i = nq.indexOf(nw, i + 1)) {
+      if (i === 0 || !/[가-힣A-Za-z0-9]/.test(nq[i - 1])) return true;
+    }
+    return false;
+  }
+  return String(query || '').split(/[^가-힣A-Za-z0-9]+/).some(t => t && t.startsWith(w));
+}
+
+/**
+ * 질의에 이 **어미구**가 들어 있는가(공백 무시 부분문자열). 낱말과 달리 앞 경계를 보지 않는다 —
+ * "제주도까지 갈 수 있나요"의 '까지'는 앞 낱말에 그대로 붙어 있기 때문이다.
+ * 단, '까지…'로 시작하는 구는 위 ZONE_ASK_IDIOM 관용구("행정처분까지 갈 수 있나")를 제외한다.
+ * @param {string} query @param {string} phrase
+ * @returns {boolean}
+ * [연계] ← matchZoneTreeTopic(ZONE_ASK 대조).
+ */
+function zonePhraseHit(query, phrase) {
+  const nq = zoneFlat(query), np = zoneFlat(phrase);
+  if (!np) return false;
+  for (let i = nq.indexOf(np); i >= 0; i = nq.indexOf(np, i + 1)) {
+    if (!np.startsWith('까지') || !ZONE_ASK_IDIOM.test(nq.slice(Math.max(0, i - 6), i))) return true;
+  }
+  return false;
+}
+
+/**
+ * 노드와 그 아래 모든 자손의 `라벨` + `선택지[].label`을 모은다(중복 제거).
+ * @param {object} node
+ * @param {string} [parentLabel] - 부모가 이 노드를 부르는 선택지 label. ⚠꼭 넘겨야 하는 경우가 있다 —
+ *   `far_sea` 노드의 `라벨`은 '그 밖의 먼바다(공해·해외수역)'인데 사용자에게 보이고 질의에 붙는 이름은
+ *   부모(sea_surface)의 선택지 label '그 밖의 먼바다'다. 이걸 빼면 그 노드는 질의로 영영 못 찾는다.
+ */
+function zoneLabelsOf(node, parentLabel) {
+  const out = parentLabel ? [parentLabel] : [];
+  (function walk(n) {
+    if (!n) return;
+    if (n.라벨) out.push(n.라벨);
+    for (const o of (n.선택지 || [])) if (o && o.label) out.push(o.label);
+    for (const c of (n.children || [])) walk(c);
+  })(node);
+  return [...new Set(out)];
+}
+
+/**
+ * 이 질문이 해역·항해구역 트리가 다룰 주제인지 판정한다(LLM 0회).
+ * ★"구역을 **언급한** 질문"이 아니라 "구역 **자체를 묻는** 질문"에만 들어간다 — 트리 리프가 주는
+ *   것은 "그 구역에서 무엇이 달라지는가"의 목록이라, 예컨대 *"저희 배(연해구역 항해, 20톤)는
+ *   DGPS를 달아야 하나요?"* 에 끼어들면 원래 맞았을 답을 구역 규정 목록으로 바꿔버린다(실측 근거는
+ *   H36_live_wiring_design.md §1.1). 그래서 ①구역 축을 묻는 어미구 ②배·조업 어휘 **둘 다** 요구한다.
+ * ★판정은 **원 질문**(CLARIFY_JOINER 앞부분)으로만 한다 — 앞 라운드에서 AI 되묻기가 붙인 라벨
+ *   때문에 2라운드에서 갑자기 트리가 가로채는 것을 막는다(무상태로 매 요청 같은 답이 나온다).
+ * 예: matchZoneTreeTopic('낚싯배로 제주도까지 갈 수 있나요?') → navigation_zone 트리
+ *     matchZoneTreeTopic('구명조끼 몇 개 필요해요?') → null(기존 흐름)
+ * @param {string} query - 사용자 질의(되묻기 라벨이 누적된 상태일 수 있다)
+ * @returns {object|null} zone_tree.json 의 trees[] 원소, 아니면 null
+ * [연계] ← zoneTreeStep(). → resolveZoneTreePath()가 그 트리 안에서 위치를 잡는다.
+ */
+function matchZoneTreeTopic(query) {
+  const q0 = String(query || '').split(CLARIFY_JOINER)[0];
+  if (!ZONE_ASK.some(p => zonePhraseHit(q0, p))) return null;
+  if (!ZONE_SUBJECT.some(w => zoneWordHit(q0, w))) return null;
+  const trees = loadZoneTree().trees || [];
+  // ⓐ 질문이 이미 어느 구역 이름을 말했으면 그 트리(축이 확정된다).
+  for (const id of ZONE_TREE_ORDER) {
+    const t = trees.find(x => x && x.id === id);
+    if (t && t.tree && zoneLabelsOf(t.tree).some(l => zoneWordHit(q0, l))) return t;
+  }
+  // ⓑ 조업 이야기면 조업해역 트리, ⓒ 그 밖에는 항해구역 트리("그 배가 어디까지 나갈 수 있느냐").
+  const want = ZONE_FISHING_HINT.some(w => zoneWordHit(q0, w)) ? 'fishing_operation_area' : 'navigation_zone';
+  return trees.find(x => x && x.id === want) || null;
+}
+
+/**
+ * 누적된 질의 문자열 하나만 보고 트리의 **현재 위치**를 복원한다(서버는 세션·DB를 들지 않는다).
+ *  ① 명시 경로: `' — 라벨'`로 붙은 조각을 그 노드의 **선택지 label**과 공백무시 완전일치로 대조해
+ *     `next`(자식 id)로 내려간다. ⚠라벨(`라벨`)이 아니라 **선택지 label**이 계약이다 — 실제 데이터에
+ *     둘이 다른 노드가 있다(sea_surface 선택지 '그 밖의 먼바다' vs 자식 라벨 '그 밖의 먼바다(공해·해외수역)').
+ *     클라이언트(ai_chat.js pickClarifyOption)가 질의에 붙이는 것은 선택지 label 쪽이다.
+ *  ② 암시 하강: 더 못 내려가면 질의에서 자식 서브트리의 라벨을 찾아, **정확히 하나**일 때만
+ *     내려간다("우리 배 근해구역인데 어디까지 갈 수 있나요?"는 되묻지 않고 바로 그 노드로). 0개거나
+ *     2개 이상이면 멈춘다(애매하면 되묻는 쪽이 안전하다).
+ *     ⚠②가 보는 것은 **①이 안 쓴 부분**이다(원 질문 + 아직 안 쓰인 조각). ①이 소비한 조각까지 보면,
+ *     사용자가 고른 `근해구역 이상`(= 근해 또는 원양, 아직 안 고른 상태) 안의 '근해구역'이 자식 라벨로
+ *     걸려 **되묻지 않고 근해구역 리프로 내려가 버린다**(라이브 실측으로 재현한 결함).
+ * @param {string} query - 사용자 질의(원 질문 + 누적 라벨)
+ * @param {object} tree - trees[] 원소({id, 축, tree})
+ * @returns {{node:object, path:Array<object>, rest:string}} 현재 노드·루트→현재 경로와
+ *          "①이 아직 안 쓴 질의"(되묻기 백스톱이 같은 기준으로 판정하도록 함께 돌려준다)
+ * [연계] ← zoneTreeStep(). → clarifyFromZoneTree(비-리프) 또는 collectZoneRules(리프).
+ */
+function resolveZoneTreePath(query, tree) {
+  const segs = String(query || '').split(CLARIFY_JOINER).slice(1).map(s => s.trim());
+  const used = new Set();
+  const path = [tree.tree];
+  let node = tree.tree;
+  for (;;) {                                     // ① 사용자가 실제로 고른 값
+    let next = null;
+    for (let i = 0; i < segs.length && !next; i++) {
+      if (used.has(i)) continue;
+      const opt = (node.선택지 || []).find(o => o && zoneFlat(o.label) === zoneFlat(segs[i]));
+      if (!opt) continue;
+      const child = (node.children || []).find(c => c && c.id === opt.next);
+      if (child) { used.add(i); next = child; }
+    }
+    if (!next) break;
+    node = next; path.push(node);
+  }
+  const rest = [String(query || '').split(CLARIFY_JOINER)[0]]
+    .concat(segs.filter((_, i) => !used.has(i))).join(CLARIFY_JOINER);
+  for (;;) {                                     // ② 질문이 이미 말해둔 구역(①이 안 쓴 부분만)
+    const kids = node.children || [];
+    if (!kids.length) break;
+    const optOf = c => ((node.선택지 || []).find(o => o && o.next === c.id) || {}).label;
+    const hit = kids.filter(c => zoneLabelsOf(c, optOf(c)).some(l => zoneWordHit(rest, l)));
+    if (hit.length !== 1) break;
+    node = hit[0]; path.push(node);
+  }
+  return { node, path, rest };
+}
+
+/**
+ * 이 구역에 적용되는 규정을 모은다.
+ *  ⓐ **경로 상속**(zone_tree.json semantics.적용_상속): 루트→리프 경로상 모든 노드의 `적용` 합집합.
+ *  ⓑ **서열·구역범위 규약**(항해구역 트리 전용, 같은 파일 semantics.구역범위): 리프 `서열`이 s일 때
+ *     다른 노드(서열 t)의 항목 중 `구역범위`가 "이 구역 이상"이고 t≤s면, "이 구역 이하"이고 t≥s면 포함.
+ *     ⚠이게 없으면 **답이 틀린다** — 원양구역(서열5)은 연해구역(서열3)에 달린 "연해구역 이상" 2건을
+ *     상속해야 하는데 둘은 형제라 경로 상속만으로는 안 딸려온다(H32_zone_tree_design.md §2.5).
+ * 같은 규정이 여러 노드에 실려 있으면 (법령·계층·조문·제목)으로 한 번만 싣는다.
+ * @param {object} tree - trees[] 원소
+ * @param {Array<object>} path - resolveZoneTreePath()의 path
+ * @returns {Array<{rule:object, from:string}>} from = 그 항목이 실려 있던 노드 라벨
+ * [연계] ← zoneTreeStep(). → renderZoneAnswer().
+ */
+function collectZoneRules(tree, path) {
+  const out = []; const seen = new Set();
+  const push = (r, from) => {
+    if (!r) return;
+    const k = [r.근거법령_slug, r.계층, r.근거조문, r.제목].join('|');
+    if (seen.has(k)) return;
+    seen.add(k); out.push({ rule: r, from });
+  };
+  for (const n of path) for (const r of (n.적용 || [])) push(r, n.라벨);
+  const rank = path[path.length - 1].서열;
+  if (rank != null) {
+    (function walk(n) {
+      if (!n) return;
+      if (n.서열 != null && path.indexOf(n) < 0) {
+        for (const r of (n.적용 || [])) {
+          if (r.구역범위 === '이 구역 이상' && n.서열 <= rank) push(r, n.라벨 + ' 이상');
+          if (r.구역범위 === '이 구역 이하' && n.서열 >= rank) push(r, n.라벨 + ' 이하');
+        }
+      }
+      for (const c of (n.children || [])) walk(c);
+    })(tree.tree);
+  }
+  return out;
+}
+
+/**
+ * 트리 노드에서 되묻기 JSON을 조립한다 — 문구를 즉석 생성하지 않고 **데이터에서 그대로 꺼낸다**.
+ * 반환 스키마는 기존 decideClarify()와 **완전히 동일**해서 routes/legal.js·ai_chat.js가 무변경이다.
+ * @param {object} tree - trees[] 원소(intro 문장에 `축`을 쓴다)
+ * @param {object} node - 비-리프 노드(`질문`·`선택지` 필수 — 빌더가 강제해 둔 불변식)
+ * @returns {{needed:boolean, intro:string, question:string, options:Array<{label:string,hint:string}>}}
+ * [연계] ← zoneTreeStep(). → routes/legal.js done.clarify → ai_chat.js clarifyHTML(버튼).
+ */
+function clarifyFromZoneTree(tree, node) {
+  const options = (node.선택지 || [])
+    .map(o => ({ label: clarifyStr(o && o.label, 40), hint: clarifyStr(o && o.hint, 120) }))
+    .filter(o => o.label)
+    .slice(0, CLARIFY_OPTION_MAX);
+  return {
+    needed: !!(node.질문 && options.length >= 2),
+    intro: `${tree.축}에 따라 적용되는 법령·의무가 달라져서, 하나만 여쭤볼게요.`,
+    question: clarifyStr(node.질문, 200),
+    options,
+  };
+}
+
+/** 적용항목 한 건을 답변 줄로 편다(원문 인용·주의는 가공 없이 그대로 — 환각 0). */
+function zoneRuleLines(entry, idx) {
+  const r = entry.rule;
+  const L = [`${'가나다라마바사아자차카타파하'[idx] || String(idx + 1)}. ${r.제목}`];
+  L.push(`1) 근거: 「${r.근거법령}」(${r.계층}) ${r.근거조문}`);
+  L.push(`2) 원문: "${r.인용}"`);
+  let n = 3;
+  if (r.대상) L.push(`${n++}) 대상: ${r.대상}`);
+  if (r.조건) L.push(`${n++}) 조건: ${r.조건}`);
+  if (r.적용제외) L.push(`${n++}) 적용제외: ${r.적용제외}`);
+  if (r.위임 && r.위임.length) L.push(`${n++}) 위임: ${r.위임.map(w => `「${w.법령}」(${w.계층}) ${w.조문}`).join(' · ')}`);
+  if (r.주의) L.push(`${n++}) ⚠주의: ${r.주의}`);
+  return L.join('\n');
+}
+
+/**
+ * 리프에서 최종 답변 문장을 만든다 — **LLM을 부르지 않고 데이터 그대로** 편다.
+ * ★신뢰 등급(H36_live_wiring_design.md §4.4): 사람이 검증한 위키 카드(확답)도, 즉석 조회한
+ *   "미검증 참고"도 아닌 **그 사이 등급**이다. 인용문 하나하나는 raw 원문 축자 인용이라 위키보다
+ *   원본에 가깝지만(빌드게이트+독립재대조+사람 전량정독 3단 검증), **목록이 그 구역 규정의 전부는
+ *   아니다**(고시 수치·자치법규·별표 제외, 스캔 사각지대 존재). 그래서 서두와 말미에 그 성격을
+ *   반드시 밝히고, "그런 규정 없음"이라고 단정하지 않는다.
+ * ★배선 전 필수 규약(MASTER_PLAN H-36) 반영: ①`유형:처벌` 항목은 **"처벌(법정형)"** 로 표기하고
+ *   선고형이 아님을 명시 ②항목의 `주의`·`적용제외`는 언제나 함께 노출 ③리프의 `추가확인`(트리로
+ *   쪼개지 않은 잔여 축)은 되묻지 않고 본문에 병기.
+ * @param {object} tree @param {Array<object>} path @param {Array<{rule:object,from:string}>} rules
+ * @returns {string} 답변 본문(클라이언트 answerBodyHTML이 지원하는 `**굵게**`·줄바꿈만 사용)
+ * [연계] ← zoneTreeStep(). → routes/legal.js done.answer → ai_chat.js answerBodyHTML.
+ */
+function renderZoneAnswer(tree, path, rules) {
+  const leaf = path[path.length - 1];
+  const out = [];
+  out.push(`쉽게 말하면, **${leaf.라벨}**에 대해 법령 원문에서 확인된 규정은 아래 ${rules.length}건이에요. ` +
+    `사람이 검증한 위키 카드가 아니라, 74개 해양수산 법령 원문을 대조해 만든 **해역·항해구역 트리**에서 그대로 꺼낸 것이에요.`);
+  out.push(`**확인한 구역**: ${path.map(n => n.라벨).join(' → ')} (${tree.축})`);
+  if (leaf.정의) out.push(`**${leaf.라벨}란**: ${leaf.정의}`);
+
+  const kinds = [...new Set(rules.map(e => e.rule.유형))]
+    .sort((a, b) => (ZONE_KIND_ORDER.indexOf(a) + 1 || 99) - (ZONE_KIND_ORDER.indexOf(b) + 1 || 99));
+  kinds.forEach((kind, ki) => {
+    const list = rules.filter(e => e.rule.유형 === kind);
+    out.push(`**${ki + 1}. ${kind === '처벌' ? '처벌(법정형)' : kind}** (${list.length}건)` +
+      (kind === '처벌' ? '\n※ 법에 정해진 형(법정형)이에요 — 실제 선고형은 사안에 따라 달라져요.' : ''));
+    list.forEach((e, i) => out.push(zoneRuleLines(e, i)));
+  });
+
+  for (const ax of (leaf.추가확인 || [])) {
+    out.push(`**추가로 갈리는 조건 — ${ax.축}**\n${ax.질문 || ''}\n` +
+      `선택지: ${(ax.선택지 || []).map(o => o.label).join(' / ')}\n` +
+      `이 조건에 따라 달라지는 항목: ${(ax.영향 || []).join(' · ')}`);
+  }
+  if (leaf.주의) out.push(`**⚠이 구역에서 주의할 점**: ${leaf.주의}`);
+  if (leaf.메모) out.push(`**참고**: ${leaf.메모}`);
+
+  out.push('**이 목록의 한계**: 74개 해양수산 법령의 원문에 "구역에 따라 달라진다"고 문장으로 적혀 있는 것만 모은 목록이에요. ' +
+    '고시(행정규칙)의 구역별 설비·수량 기준, 지자체 자치법규, 별표의 수치 기준은 여기 들어 있지 않아요 — ' +
+    '목록에 없다고 해서 그런 규정이 없다는 뜻은 아닙니다. 정확한 확인은 소관부서에 문의하세요.');
+  return out.join('\n\n');
+}
+
+// 답변 하단 작은 글씨(면책 문구 뒤)에 붙는 등급 표기. 본문 서두·말미가 같은 취지를 이미 말하지만,
+// 기존 두 등급('위키 근거 기반 AI 답변' / '⚠미검증 참고')과 나란히 놓고 구분되게 한 줄로 남긴다.
+const ZONE_ANSWER_NOTE = '해역·항해구역 트리(법령 원문 대조 자산) 기반 — 사람 검증 위키 카드가 아니며, 목록이 전부가 아닐 수 있어요';
+const ZONE_CLARIFY_NOTE = '추가 정보가 필요해요';
+
+/**
+ * 이 질문을 해역·항해구역 트리로 처리할 수 있으면 되묻기 또는 최종 답변을 만든다(LLM 0회).
+ * **null이면 호출부는 배선 전과 100% 같은 기존 흐름을 탄다** — 이 함수의 가장 중요한 계약이다.
+ * 어떤 예외도 밖으로 내보내지 않는다(expandQueryTerms·pickCandidateLaws와 같은 안전폴백 규약).
+ * 예: zoneTreeStep('낚싯배로 제주도까지 갈 수 있나요?')
+ *     → {answer:'조건에 따라…', note:'추가 정보가 필요해요', clarify:{question:'그 배의 선박검사증서에 적힌 항해구역이…', options:[…3개]}}
+ *     zoneTreeStep('구명조끼 몇 개 필요해요?') → null
+ * @param {string} query - 사용자 질의(되묻기 라벨이 누적된 상태일 수 있다)
+ * @returns {{answer:string|null, note:string, clarify?:{question:string,options:Array}}|null}
+ * [연계] ← routes/legal.js POST /api/legal/ask 의 맨 앞 게이트(search()보다 앞).
+ *        → ai_chat.js는 기존 되묻기·답변과 같은 필드만 보므로 클라이언트 변경이 없다.
+ */
+function zoneTreeStep(query) {
+  try {
+    const tree = matchZoneTreeTopic(query);
+    if (!tree || !tree.tree) return null;
+    const { node, path, rest } = resolveZoneTreePath(query, tree);
+    if (node.children && node.children.length) {
+      const c = clarifyFromZoneTree(tree, node);
+      if (!c.needed) return null;
+      // ★무한 되묻기 백스톱(결정론적, decideClarify의 "같은 조건 재질문 차단"과 같은 장치):
+      //   낼 선택지 라벨이 이미 질의에 있으면 사용자는 그걸 고른 뒤인데 경로 복원이 안 된 것이다 —
+      //   같은 질문을 또 던지지 말고 트리를 포기하고 기존 흐름에 넘긴다. 대조 대상은 질의 전체가
+      //   아니라 **경로 복원이 안 쓴 부분**(rest)이다 — 방금 고른 '근해구역 이상' 안의 '근해구역'을
+      //   "이미 고른 값"으로 오인해 정상 되묻기를 죽이지 않기 위해서다.
+      if (c.options.some(o => rest.includes(o.label))) return null;
+      return { answer: c.intro, note: ZONE_CLARIFY_NOTE, clarify: { question: c.question, options: c.options } };
+    }
+    const rules = collectZoneRules(tree, path);
+    if (!rules.length) return null;              // 담을 게 없으면 트리가 답할 것이 없다
+    return { answer: renderZoneAnswer(tree, path, rules), note: ZONE_ANSWER_NOTE };
+  } catch (_) {
+    return null;
+  }
+}
+
+module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath };

@@ -784,6 +784,26 @@ router.post('/api/legal/ask', async (req, res) => {
 
   const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
   try {
+    // [H-36 배선 파일럿] 해역·항해구역 트리 게이트 — 결정 트리의 **맨 앞**에 이것 하나만 끼운다.
+    //   "우리 배 어디까지 나갈 수 있나요?"처럼 **구역 자체가 질문**인 경우에만 발화하고(실측:
+    //   실제 사용자형 질문 43,956건 중 6건), 그 밖에는 null이라 아래 기존 흐름이 그대로 돈다.
+    //   되묻기 응답 모양은 아래 clarify 분기와 똑같다(sources·citationChain을 비우는 이유도 같다 —
+    //   아직 어느 조문이 답인지 정해지지 않았는데 근거 아코디언을 그리면 확정된 근거처럼 보인다).
+    //   설계·근거: knowledge/legal/_dashboard/H36_live_wiring_design.md
+    const zone = legalRetriever.zoneTreeStep(q);
+    if (zone) {
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      if (res.flushHeaders) res.flushHeaders();
+      const done = { type: 'done', ok: true, query: q, canonicalOnly,
+        answer: zone.answer, sources: [], citationChain: [], note: zone.note };
+      if (zone.clarify) done.clarify = zone.clarify;
+      res.write(JSON.stringify(done) + '\n');
+      res.end();
+      if (askId) inFlightAsks.delete(askId);
+      return;
+    }
+
     const { sources, contextPages } = await legalRetriever.search(q, { canonicalOnly });
     // gapNotices = 그 위키 페이지가 "우리가 원문을 가질 수 없다"고 정직하게 적어둔 공백 안내
     // (시·군·구 개별고시 등) — 화면이 ⚠칩으로 "원문 미수집 — 별도 확인 필요"를 알린다.
