@@ -28,7 +28,7 @@
 | 전량 독립 재대조(빌더 로직 재사용 안 하는 별도 검사) | ✅ | 지시 5항 · 성공기준 §6 |
 | 유지보수(H-29 연동)·되묻기(`decideClarify`) 연동 | **설계만** | 지시 7항 — 라이브 코드 무수정 |
 | `decideClarify()`/`search()`/`routes/legal.js` 수정 | ❌ | 지시 7항 |
-| `vessel_doc_tree.json`·`build_vessel_doc_tree.py` 수정 | ❌ | 지시 6항(내 파일 2개만 쓴다) — 선례는 **읽기 전용 참조** |
+| `vessel_doc_tree.json`·`build_vessel_doc_tree.py` 수정 | ❌ | 지시 6항(쓰는 파일은 이 설계문서·빌더·트리 JSON 3개뿐) — 선례는 **읽기 전용 참조** |
 | 벌칙(형량·과태료 금액) | ❌ | 축이 다르다 — 후보목록 A절(처벌강도 64법)이 별도 주제로 이미 식별돼 있다. 여기서 같이 담으면 두 트리가 같은 조문을 두 곳에서 관리하게 된다 |
 | 기록부·증서 등 **서류** | ❌ | 이미 `vessel_doc_tree.json`이 담고 있다(선박오염물질기록부·해양오염방지검사증서 등). 중복 관리 금지 |
 
@@ -48,11 +48,12 @@
 {
   "generated": "2026-08-10T..+09:00",
   "scope": "74법 raw 전수 스캔 — '오염물질 종류별 배출규제' 계층 트리",
-  "semantics": { "규제_상속": "…", "질문_선택지": "…", "추가확인": "…" },
+  "semantics": { "규제_상속": "…", "요건유형": "…", "질문_선택지": "…", "추가확인": "…" },
   "caveats": ["…"],
-  "summary": { "nodes": N, "leaves": N, "rule_entries": N, "entries_by_kind": {}, "per_law": {} },
+  "summary": { "laws_in_scope": 74, "scan_candidate_articles": N, "nodes": N, "leaves": N,
+               "rule_entries": N, "entries_by_kind": {}, "entries_by_tier": {}, "per_law": {} },
   "scan": { "laws_with_candidates": [], "laws_without_candidates": [] },
-  "unmapped": { "법_단위": [], "유형_단위": [] },
+  "unmapped": { "법_단위": [], "물질_단위": [], "유형_단위": [] },
   "tree": { …노드… }
 }
 ```
