@@ -433,6 +433,22 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-10 14:07 KST] ✅완료 — 1순위: legal_amendment_scanner.js 교체 완료 — H-29 탐지엔진으로 실제 작동 확인
+고정 MST 재조회로 원리적으로 개정을 못 잡던 기존 스캐너를 H-29 detect_law_changes.py 브릿지 방식으로 교체.
+
+[변경 파일] services/legal_amendment_scanner.js(전면 재작성 — spawn 비동기로 H-29 스크립트 실행 후 law_change_queue.json→_amendments/queue.jsonl로 mirror, 중복실행 방지 _scanning 락) · routes/legal.js(POST scan-now를 startAmendmentScan()으로 교체 — 완료를 기다리지 않고 즉시 응답, 실행시간 3~4분이 리버스프록시/브라우저 타임아웃 위험이라) · server.js(cron 주석 갱신, 로직은 runAmendmentScan() 그대로라 무변경) · client/js/ai-chat/ai_chat.js(스캔 버튼 라벨·완료 안내문구를 백그라운드 방식에 맞게 수정) · _amendments/README.md(실배선 완료 기록).
+
+[E2E 검증 결과(실제 실행, 추측 아님)] node -c 문법검사 3개 파일 통과. runAmendmentScan() 실제 호출 → {scanned:56, changed:56, errors:0}. _amendments/queue.jsonl 56줄 생성 확인(신규 파일, 기존엔 스캐너 버그로 한 번도 안 채워졌었음). 필드 매핑 정확: kind별 분포(법률개정시행예정 26·소관부처변경 2·행정규칙개정 5·신규행정규칙발견 23)가 H-29 원본 큐와 정확히 일치. 샘플 항목 필드(공포번호/시행일자 이전→현재) 정상.
+
+[설계 근거] 탐지 로직 이중구현 안 함(H-29 스크립트 재사용) · execFileSync 대신 spawn 비동기 사용(안 그러면 3~4분 동안 Node 이벤트루프 전체가 멎어 챗봇 등 다른 요청까지 막힘 — tide_field_collector.js spawnPrecompute 선례 따름) · 관리자 UI/라우트 계약(응답 스키마)은 그대로 유지, scan-now만 fire-and-forget으로 변경.
+
+[남은 것] amendment_baseline.json(옛 방식 baseline)은 이제 안 쓰지만 삭제 안 함(참조 코드 없음, 필요시 나중 정리). 다음 cron 실행(오늘 새벽 01:00 KST 지났으면 내일)에서 정상 동작 재확인 권장.
+
+
+### [2026-08-10 14:03 KST] 🟢착수 — 1순위: legal_amendment_scanner.js 교체(H-29 탐지엔진으로)
+직접 착수(오케스트레이터, 이번엔 서브에이전트 위임 없이 직접 구현) — 기존 개정감지 스캐너가 고정 MST 재조회 방식이라 원리적으로 개정을 못 잡는 결함(H-29 조사 중 발견)을 실제로 고침. 설계: 탐지 로직 이중구현 안 하고 H-29 detect_law_changes.py(이미 라이브검증됨)를 자식프로세스로 spawn(비동기, execFileSync 금지 — 안 그러면 실행시간 3~4분 동안 Node 이벤트루프 전체가 멎어 챗봇 등 다른 요청까지 막힘, tide_field_collector.js의 spawnPrecompute 선례 따름)해 그 결과(law_change_queue.json)를 기존 _amendments/queue.jsonl 스키마로 mirror. 라우트/관리자UI 계약(GET/POST 응답형식)은 그대로 유지 — 다만 POST scan-now는 실행시간이 실측 3~4분이라 기존처럼 응답을 기다리게 하면 리버스프록시/브라우저 타임아웃 위험 → startAmendmentScan()으로 백그라운드 시작·즉시 응답(started:true)하도록 변경, 클라(ai_chat.js) 버튼 라벨·완료 안내문구도 그에 맞게 소폭 수정. 중복실행 방지용 모듈 락(_scanning) 추가. 수정 파일: services/legal_amendment_scanner.js(전면 재작성) · routes/legal.js(scan-now 핸들러) · server.js(cron 주석) · client/js/ai-chat/ai_chat.js(버튼 UX). node -c 문법검사 통과. E2E 테스트(실제 spawn+mirror) 백그라운드 실행 중, 결과 확인 후 커밋 예정.
+
+
 ### [2026-08-10 13:44 KST] ✅완료 — H-29 주간 자동감지 Routine 등록
 매주 월요일 04:00 KST(=일 19:00 UTC, cron '0 19 * * 0')에 detect_law_changes.py --days 7을 자동 실행하는 Routine 등록 완료(trig_01KKZTHKRxDbDxs4HK4jiTgi, create_new_session_on_fire). 매 실행 시 fresh 세션이 스크립트 실행→변경 있으면 커밋/푸시→HANDOFF 완료로그까지 자동 수행, 위키/raw 수정은 절대 안 함(감지+큐적재만). 다음 첫 실행: 2026-08-16 KST.
 

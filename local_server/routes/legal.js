@@ -558,12 +558,13 @@ router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (re
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
-// POST /api/legal/amendments/scan-now (관리자) — 정기 cron과 별개로 즉시 1회 스캔(199개 대상,
-// law.go.kr 순차호출이라 1~2분 걸림 — 클라는 이 응답을 기다리는 동안 버튼을 비활성화할 것).
+// POST /api/legal/amendments/scan-now (관리자) — 정기 cron과 별개로 즉시 1회 스캔(H-29
+// detect_law_changes.py, 실측 3~4분 소요) 백그라운드 시작. HTTP 응답을 그만큼 붙들면
+// 리버스 프록시·브라우저 타임아웃 위험이라 완료를 기다리지 않고 즉시 응답(started:true) —
+// 클라는 잠시 후 새로고침해 결과를 확인한다.
 router.post('/api/legal/amendments/scan-now', adminAuth.requireAdminToken, (req, res) => {
-  amendmentScanner.runAmendmentScan()
-    .then((r) => res.json(Object.assign({ ok: true }, r)))
-    .catch((e) => res.status(500).json({ ok: false, error: String(e.message || e) }));
+  const r = amendmentScanner.startAmendmentScan();
+  res.status(r.ok ? 200 : 409).json(r);
 });
 
 // ============================================================================

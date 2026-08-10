@@ -765,14 +765,14 @@
   }
 
   /**
-   * 개정 검토 방: 상단 "지금 스캔" 버튼(정기 cron과 별개로 즉시 1회, 199개 대상 1~2분) + 목록.
+   * 개정 검토 방: 상단 "지금 스캔" 버튼(정기 cron과 별개로 즉시 1회, 백그라운드 3~4분) + 목록.
    * 승인해도 재수집·재빌드는 여기서 자동 실행하지 않는다(사람이 다음 단계로 orchestrate).
-   * [연계] → POST /api/legal/amendments/scan-now, GET /api/legal/amendments?status=pending, bindDecideCard.
+   * [연계] → POST /api/legal/amendments/scan-now(백그라운드 시작, 즉시 응답), GET /api/legal/amendments?status=pending, bindDecideCard.
    * @param {HTMLElement} host
    */
   function renderAmendCards(host) {
     if (!host) return;
-    var SCAN_LABEL = '🔍 지금 스캔 (199개 대상 · 1~2분)';
+    var SCAN_LABEL = '🔍 지금 스캔 (백그라운드 · 완료까지 3~4분)';
     host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:10px"><button class="nrya-btn-ok" id="nryaAmendScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
       '<div class="nrya-inline-err nrya-hidden" id="nryaAmendScanErr" style="display:none"></div>' +
       '<div id="nryaAmendListHost"></div>';
@@ -780,7 +780,7 @@
     var scanErr = document.getElementById('nryaAmendScanErr');
     if (scanBtn) scanBtn.onclick = function () {
       if (scanErr) { scanErr.style.display = 'none'; scanErr.textContent = ''; }
-      scanBtn.disabled = true; scanBtn.textContent = '스캔 중…(1~2분)';
+      scanBtn.disabled = true; scanBtn.textContent = '스캔 시작 중…';
       legalPost('/api/legal/amendments/scan-now', {}).then(function (res) {
         if (res.status === 401 || res.status === 403) return { _denied: true };
         return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
@@ -788,8 +788,12 @@
         scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL;
         if (data && data._denied) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '관리자 로그인 필요'; } return; }
         if (!data || !data.ok) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '스캔 실패'; } return; }
-        refreshAdminStats();
-        loadAmendList();
+        // started:true — 백그라운드에서 계속 진행 중, 아직 새 항목은 안 들어와 있으니 목록을
+        // 지금 다시 그려봐야 그대로다(혼동 방지). 안내 문구만 목록 위에 한 번 얹는다.
+        var listHost = document.getElementById('nryaAmendListHost');
+        if (listHost) {
+          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 스캔이 시작됐습니다. 완료까지 최대 4분 — 잠시 후 이 방을 다시 열어 새로고침해 주세요.</div>');
+        }
       }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
     };
     loadAmendList();

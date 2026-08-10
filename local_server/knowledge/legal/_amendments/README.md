@@ -16,4 +16,4 @@
 - `_legacy/`(폐지·구법 보관)와 다르다 — 이건 **검토 전 대기**. 승인돼야 반영·이동.
 - 자동 라이브 반영 금지 불변식(환각0)에 따라, **개정도 사람 승인 게이트를 거쳐** 위키에 들어간다.
 
-*골격만(현재). 개정감지 스케줄러 구축 시(Phase G) 실배선.*
+**실배선 완료(2026-08-10)**: 탐지 엔진은 H-29(`_dashboard/loop/detect_law_changes.py`, `_dashboard/H29_design.md`) — `services/legal_amendment_scanner.js`가 이를 자식 프로세스로 실행해 결과를 이 방(`queue.jsonl`)으로 mirror한다. 매일 KST 01:00 cron + 관리자 "지금 스캔" 버튼(백그라운드) 둘 다 이 경로.
