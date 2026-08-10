@@ -44,6 +44,7 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
+const cheerio = require('cheerio');
 const { DATA_DIR } = require('../config/server_config');
 
 const NAVWARN_API_URL = 'https://apis.data.go.kr/1192136/NavigationalWarning/getNavigationalWarningInfo';
@@ -67,6 +68,35 @@ function getServiceKey() {
     }
 }
 
+/** data.go.kr 응답을 파싱한다. type=json 을 요청해도 이 API가 이따금(2026-08 확인)
+ *  요청을 무시하고 XML로 응답할 때가 있어, JSON 파싱이 실패하면 XML로 재시도한다. */
+function _parseOfficialResponse(text) {
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        const $ = cheerio.load(text, { xmlMode: true });
+        const items = $('item').map((i, el) => {
+            const $el = $(el);
+            return {
+                doc_num: $el.find('doc_num').text(),
+                gov_cd: $el.find('gov_cd').text(),
+                noti_cat: $el.find('noti_cat').text(),
+                app_cat: $el.find('app_cat').text(),
+                title: $el.find('title').text(),
+                basic: $el.find('basic').text(),
+                content: $el.find('content').text()
+            };
+        }).get();
+        return {
+            header: {
+                resultCode: $('resultCode').first().text(),
+                resultMsg: $('resultMsg').first().text()
+            },
+            body: { items: { item: items } }
+        };
+    }
+}
+
 /** 공식 API — 지정한 날짜(YYYYMMDD)에 발효 중인 항행경보 텍스트 목록 */
 async function _fetchOfficialList(dateYmd) {
     const serviceKey = getServiceKey();
@@ -75,7 +105,7 @@ async function _fetchOfficialList(dateYmd) {
     const url = `${NAVWARN_API_URL}?ServiceKey=${serviceKey}&type=json&date=${dateYmd}&numOfRows=100&pageNo=1`;
     const response = await fetch(url);
     const text = await response.text();
-    const data = JSON.parse(text);
+    const data = _parseOfficialResponse(text);
 
     const header = data.header;
     if (!header || (header.resultCode !== '00' && header.resultCode !== '03')) {
