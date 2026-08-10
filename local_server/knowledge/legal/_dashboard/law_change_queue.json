@@ -1,8 +1,8 @@
 {
- "updated_at": "2026-08-10T04:13:01+09:00",
+ "updated_at": "2026-08-10T13:19:40+09:00",
  "scans": [
   {
-   "ran_at": "2026-08-10T04:13:01+09:00",
+   "ran_at": "2026-08-10T13:19:40+09:00",
    "days": 7,
    "queries": 18,
    "candidates": 56,
@@ -11,9 +11,9 @@
  ],
  "items": [
   {
-   "id": "chg_20260810_3be234",
+   "id": "chg_20260810_a5f82d",
    "dedupe_key": "law_pending|011186|284343|20260918",
-   "detected_at": "2026-08-10T04:09:15+09:00",
+   "detected_at": "2026-08-10T13:16:08+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "공유수면관리및매립에관한법률",
@@ -61,9 +61,9 @@
    }
   },
   {
-   "id": "chg_20260810_d9bbd8",
+   "id": "chg_20260810_d57609",
    "dedupe_key": "law_pending|011186|273681|20260917",
-   "detected_at": "2026-08-10T04:09:19+09:00",
+   "detected_at": "2026-08-10T13:16:12+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "공유수면관리및매립에관한법률",
@@ -118,9 +118,9 @@
    }
   },
   {
-   "id": "chg_20260810_e78041",
+   "id": "chg_20260810_48b0f6",
    "dedupe_key": "law_dept_changed|011154|285491|20261022",
-   "detected_at": "2026-08-10T04:09:19+09:00",
+   "detected_at": "2026-08-10T13:16:12+09:00",
    "kind": "law_dept_changed",
    "law": {
     "slug": "농수산물의원산지표시등에관한법률",
@@ -151,9 +151,9 @@
    }
   },
   {
-   "id": "chg_20260810_559180",
+   "id": "chg_20260810_acbe7f",
    "dedupe_key": "law_pending|011154|285491|20261022",
-   "detected_at": "2026-08-10T04:09:22+09:00",
+   "detected_at": "2026-08-10T13:16:15+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "농수산물의원산지표시등에관한법률",
@@ -215,9 +215,9 @@
    }
   },
   {
-   "id": "chg_20260810_8f1b57",
+   "id": "chg_20260810_6ffc91",
    "dedupe_key": "law_dept_changed|001978|273431|20260827",
-   "detected_at": "2026-08-10T04:09:22+09:00",
+   "detected_at": "2026-08-10T13:16:15+09:00",
    "kind": "law_dept_changed",
    "law": {
     "slug": "농수산물품질관리법",
@@ -248,9 +248,9 @@
    }
   },
   {
-   "id": "chg_20260810_b47718",
+   "id": "chg_20260810_f5ffc2",
    "dedupe_key": "law_pending|001978|273431|20260827",
-   "detected_at": "2026-08-10T04:09:25+09:00",
+   "detected_at": "2026-08-10T13:16:18+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "농수산물품질관리법",
@@ -298,9 +298,9 @@
    }
   },
   {
-   "id": "chg_20260810_b65bcc",
+   "id": "chg_20260810_eea555",
    "dedupe_key": "law_pending|001486|285535|20261022",
-   "detected_at": "2026-08-10T04:09:29+09:00",
+   "detected_at": "2026-08-10T13:16:21+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "수산업법",
@@ -397,9 +397,9 @@
    }
   },
   {
-   "id": "chg_20260810_fac750",
+   "id": "chg_20260810_3dc6ea",
    "dedupe_key": "law_pending|010965|285169|20270401",
-   "detected_at": "2026-08-10T04:09:32+09:00",
+   "detected_at": "2026-08-10T13:16:25+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "수산자원관리법",
@@ -447,9 +447,9 @@
    }
   },
   {
-   "id": "chg_20260810_48fbee",
+   "id": "chg_20260810_7d4459",
    "dedupe_key": "law_pending|010965|284375|20260918",
-   "detected_at": "2026-08-10T04:09:49+09:00",
+   "detected_at": "2026-08-10T13:16:29+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "수산자원관리법",
@@ -497,9 +497,9 @@
    }
   },
   {
-   "id": "chg_20260810_e609bd",
+   "id": "chg_20260810_34f3e0",
    "dedupe_key": "law_pending|013574|281971|20261231",
-   "detected_at": "2026-08-10T04:09:52+09:00",
+   "detected_at": "2026-08-10T13:16:32+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "양식산업발전법",
@@ -575,9 +575,9 @@
    }
   },
   {
-   "id": "chg_20260810_ce3721",
+   "id": "chg_20260810_5cedf5",
    "dedupe_key": "law_pending|013574|285151|20261001",
-   "detected_at": "2026-08-10T04:09:55+09:00",
+   "detected_at": "2026-08-10T13:16:36+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "양식산업발전법",
@@ -625,9 +625,9 @@
    }
   },
   {
-   "id": "chg_20260810_993b22",
+   "id": "chg_20260810_bc2810",
    "dedupe_key": "law_pending|013852|285749|20270101",
-   "detected_at": "2026-08-10T04:09:59+09:00",
+   "detected_at": "2026-08-10T13:16:39+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
@@ -675,9 +675,9 @@
    }
   },
   {
-   "id": "chg_20260810_a9b447",
+   "id": "chg_20260810_5373b9",
    "dedupe_key": "law_pending|009486|283875|20260911",
-   "detected_at": "2026-08-10T04:10:02+09:00",
+   "detected_at": "2026-08-10T13:16:42+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "어선원및어선재해보상보험법",
@@ -739,9 +739,9 @@
    }
   },
   {
-   "id": "chg_20260810_da453f",
+   "id": "chg_20260810_1652b0",
    "dedupe_key": "law_pending|009943|285483|20270422",
-   "detected_at": "2026-08-10T04:10:06+09:00",
+   "detected_at": "2026-08-10T13:16:45+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "어촌ㆍ어항법",
@@ -852,9 +852,9 @@
    }
   },
   {
-   "id": "chg_20260810_857694",
+   "id": "chg_20260810_8f2794",
    "dedupe_key": "law_pending|010511|284315|20260918",
-   "detected_at": "2026-08-10T04:10:09+09:00",
+   "detected_at": "2026-08-10T13:16:49+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "원양산업발전법",
@@ -902,9 +902,9 @@
    }
   },
   {
-   "id": "chg_20260810_906af2",
+   "id": "chg_20260810_5f9b0e",
    "dedupe_key": "law_pending|001737|285879|20261113",
-   "detected_at": "2026-08-10T04:10:13+09:00",
+   "detected_at": "2026-08-10T13:16:53+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "항만법",
@@ -952,9 +952,9 @@
    }
   },
   {
-   "id": "chg_20260810_180676",
+   "id": "chg_20260810_18e609",
    "dedupe_key": "law_pending|000062|285943|20260813",
-   "detected_at": "2026-08-10T04:10:16+09:00",
+   "detected_at": "2026-08-10T13:16:56+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "항만운송사업법",
@@ -1030,9 +1030,9 @@
    }
   },
   {
-   "id": "chg_20260810_693e07",
+   "id": "chg_20260810_568a83",
    "dedupe_key": "law_pending|013616|285945|20261113",
-   "detected_at": "2026-08-10T04:10:20+09:00",
+   "detected_at": "2026-08-10T13:16:59+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "해양폐기물및해양오염퇴적물관리법",
@@ -1080,9 +1080,9 @@
    }
   },
   {
-   "id": "chg_20260810_6474c7",
+   "id": "chg_20260810_cbc85e",
    "dedupe_key": "law_pending|010379|283747|20260828",
-   "detected_at": "2026-08-10T04:10:24+09:00",
+   "detected_at": "2026-08-10T13:17:03+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "해양환경관리법",
@@ -1137,9 +1137,9 @@
    }
   },
   {
-   "id": "chg_20260810_51f204",
+   "id": "chg_20260810_500a98",
    "dedupe_key": "law_pending|010636|287955|20260828",
-   "detected_at": "2026-08-10T04:10:30+09:00",
+   "detected_at": "2026-08-10T13:17:09+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "해양환경관리법",
@@ -1187,9 +1187,9 @@
    }
   },
   {
-   "id": "chg_20260810_4bb5a7",
+   "id": "chg_20260810_6e733c",
    "dedupe_key": "law_pending|001771|288005|20270708",
-   "detected_at": "2026-08-10T04:10:40+09:00",
+   "detected_at": "2026-08-10T13:17:19+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "폐기물관리법",
@@ -1237,9 +1237,9 @@
    }
   },
   {
-   "id": "chg_20260810_8db5b7",
+   "id": "chg_20260810_1497a1",
    "dedupe_key": "law_pending|001771|288005|20270108",
-   "detected_at": "2026-08-10T04:10:44+09:00",
+   "detected_at": "2026-08-10T13:17:23+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "폐기물관리법",
@@ -1287,9 +1287,9 @@
    }
   },
   {
-   "id": "chg_20260810_bf25fe",
+   "id": "chg_20260810_a1d108",
    "dedupe_key": "law_pending|001771|279797|20261112",
-   "detected_at": "2026-08-10T04:10:48+09:00",
+   "detected_at": "2026-08-10T13:17:27+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "폐기물관리법",
@@ -1358,9 +1358,9 @@
    }
   },
   {
-   "id": "chg_20260810_9fa61e",
+   "id": "chg_20260810_9a074a",
    "dedupe_key": "law_pending|001771|284397|20260918",
-   "detected_at": "2026-08-10T04:10:52+09:00",
+   "detected_at": "2026-08-10T13:17:32+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "폐기물관리법",
@@ -1408,9 +1408,9 @@
    }
   },
   {
-   "id": "chg_20260810_b3bca2",
+   "id": "chg_20260810_a4fb3d",
    "dedupe_key": "law_pending|001771|283447|20260820",
-   "detected_at": "2026-08-10T04:10:56+09:00",
+   "detected_at": "2026-08-10T13:17:35+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "폐기물관리법",
@@ -1458,9 +1458,9 @@
    }
   },
   {
-   "id": "chg_20260810_a5ff4a",
+   "id": "chg_20260810_1d3c3e",
    "dedupe_key": "law_pending|012049|285973|20270513",
-   "detected_at": "2026-08-10T04:11:01+09:00",
+   "detected_at": "2026-08-10T13:17:40+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "연안사고예방에관한법률",
@@ -1508,9 +1508,9 @@
    }
   },
   {
-   "id": "chg_20260810_2618ba",
+   "id": "chg_20260810_ab2051",
    "dedupe_key": "law_pending|000998|286351|20261203",
-   "detected_at": "2026-08-10T04:11:08+09:00",
+   "detected_at": "2026-08-10T13:17:48+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "섬발전촉진법",
@@ -1579,9 +1579,9 @@
    }
   },
   {
-   "id": "chg_20260810_6725e8",
+   "id": "chg_20260810_9ab9b3",
    "dedupe_key": "law_pending|007831|288487|20260830",
-   "detected_at": "2026-08-10T04:11:12+09:00",
+   "detected_at": "2026-08-10T13:17:51+09:00",
    "kind": "law_pending",
    "law": {
     "slug": "유선및도선사업법",
@@ -1636,9 +1636,9 @@
    }
   },
   {
-   "id": "chg_20260810_ec11c6",
+   "id": "chg_20260810_1700a1",
    "dedupe_key": "admrul_unknown_new|97940|2100000283594|20260810",
-   "detected_at": "2026-08-10T04:11:16+09:00",
+   "detected_at": "2026-08-10T13:17:56+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -1672,9 +1672,9 @@
    }
   },
   {
-   "id": "chg_20260810_760fc2",
+   "id": "chg_20260810_d5753d",
    "dedupe_key": "admrul_unknown_new|97939|2100000283592|20260810",
-   "detected_at": "2026-08-10T04:11:16+09:00",
+   "detected_at": "2026-08-10T13:17:56+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -1708,9 +1708,9 @@
    }
   },
   {
-   "id": "chg_20260810_b6a662",
+   "id": "chg_20260810_0fa86e",
    "dedupe_key": "admrul_unknown_new|45182|2100000283698|20260805",
-   "detected_at": "2026-08-10T04:11:16+09:00",
+   "detected_at": "2026-08-10T13:17:56+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -1744,9 +1744,9 @@
    }
   },
   {
-   "id": "chg_20260810_ee55d8",
+   "id": "chg_20260810_da7c81",
    "dedupe_key": "admrul_amended|2081506|2100000283648|20260805",
-   "detected_at": "2026-08-10T04:11:20+09:00",
+   "detected_at": "2026-08-10T13:17:59+09:00",
    "kind": "admrul_amended",
    "law": {
     "slug": "선박의입항및출항등에관한법률",
@@ -1786,9 +1786,9 @@
    }
   },
   {
-   "id": "chg_20260810_765071",
+   "id": "chg_20260810_048314",
    "dedupe_key": "admrul_unknown_new|2047667|2100000283550|20260810",
-   "detected_at": "2026-08-10T04:11:20+09:00",
+   "detected_at": "2026-08-10T13:17:59+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -1822,9 +1822,9 @@
    }
   },
   {
-   "id": "chg_20260810_b89408",
+   "id": "chg_20260810_bc0c62",
    "dedupe_key": "admrul_unknown_new|96061|2100000283700|20260810",
-   "detected_at": "2026-08-10T04:11:22+09:00",
+   "detected_at": "2026-08-10T13:18:02+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -1858,9 +1858,9 @@
    }
   },
   {
-   "id": "chg_20260810_69742e",
+   "id": "chg_20260810_ca8cc7",
    "dedupe_key": "admrul_unknown_new|66117|2100000283658|20260805",
-   "detected_at": "2026-08-10T04:11:22+09:00",
+   "detected_at": "2026-08-10T13:18:02+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -1894,9 +1894,9 @@
    }
   },
   {
-   "id": "chg_20260810_1bfbdc",
+   "id": "chg_20260810_b5a857",
    "dedupe_key": "admrul_unknown_new|95009|2100000283176|20260803",
-   "detected_at": "2026-08-10T04:11:25+09:00",
+   "detected_at": "2026-08-10T13:18:04+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -1930,9 +1930,9 @@
    }
   },
   {
-   "id": "chg_20260810_211da7",
+   "id": "chg_20260810_61f334",
    "dedupe_key": "admrul_unknown_new|25817|2100000283716|20260806",
-   "detected_at": "2026-08-10T04:11:27+09:00",
+   "detected_at": "2026-08-10T13:18:06+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -1966,9 +1966,9 @@
    }
   },
   {
-   "id": "chg_20260810_544b83",
+   "id": "chg_20260810_becfb8",
    "dedupe_key": "admrul_unknown_new|85399|2100000283602|20260811",
-   "detected_at": "2026-08-10T04:11:27+09:00",
+   "detected_at": "2026-08-10T13:18:06+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2002,9 +2002,9 @@
    }
   },
   {
-   "id": "chg_20260810_8c196d",
+   "id": "chg_20260810_865c2d",
    "dedupe_key": "admrul_unknown_new|94948|2100000283516|20260803",
-   "detected_at": "2026-08-10T04:11:27+09:00",
+   "detected_at": "2026-08-10T13:18:06+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2038,9 +2038,9 @@
    }
   },
   {
-   "id": "chg_20260810_2eecaa",
+   "id": "chg_20260810_e41a7e",
    "dedupe_key": "admrul_amended|61768|2100000283292|20260803",
-   "detected_at": "2026-08-10T04:11:37+09:00",
+   "detected_at": "2026-08-10T13:18:16+09:00",
    "kind": "admrul_amended",
    "law": {
     "slug": "물환경보전법",
@@ -2080,9 +2080,9 @@
    }
   },
   {
-   "id": "chg_20260810_89cd7f",
+   "id": "chg_20260810_1770be",
    "dedupe_key": "admrul_unknown_new|2047626|2100000283548|20260809",
-   "detected_at": "2026-08-10T04:11:52+09:00",
+   "detected_at": "2026-08-10T13:18:31+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2116,9 +2116,9 @@
    }
   },
   {
-   "id": "chg_20260810_661960",
+   "id": "chg_20260810_2cd69d",
    "dedupe_key": "admrul_unknown_new|27465|2100000283526|20260806",
-   "detected_at": "2026-08-10T04:11:54+09:00",
+   "detected_at": "2026-08-10T13:18:33+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2152,9 +2152,9 @@
    }
   },
   {
-   "id": "chg_20260810_d35931",
+   "id": "chg_20260810_7f9084",
    "dedupe_key": "admrul_amended|41346|2100000283532|20260806",
-   "detected_at": "2026-08-10T04:12:00+09:00",
+   "detected_at": "2026-08-10T13:18:39+09:00",
    "kind": "admrul_amended",
    "law": {
     "slug": "해양경비법",
@@ -2194,9 +2194,9 @@
    }
   },
   {
-   "id": "chg_20260810_e8e1ce",
+   "id": "chg_20260810_13e58c",
    "dedupe_key": "admrul_unknown_new|58025|2100000283496|20260806",
-   "detected_at": "2026-08-10T04:12:00+09:00",
+   "detected_at": "2026-08-10T13:18:39+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2230,9 +2230,9 @@
    }
   },
   {
-   "id": "chg_20260810_38e537",
+   "id": "chg_20260810_109006",
    "dedupe_key": "admrul_unknown_new|69912|2100000283504|20260806",
-   "detected_at": "2026-08-10T04:12:00+09:00",
+   "detected_at": "2026-08-10T13:18:39+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2266,9 +2266,9 @@
    }
   },
   {
-   "id": "chg_20260810_0fa1be",
+   "id": "chg_20260810_d68008",
    "dedupe_key": "admrul_amended|2090708|2100000283530|20260806",
-   "detected_at": "2026-08-10T04:12:04+09:00",
+   "detected_at": "2026-08-10T13:18:43+09:00",
    "kind": "admrul_amended",
    "law": {
     "slug": "연안사고예방에관한법률",
@@ -2308,9 +2308,9 @@
    }
   },
   {
-   "id": "chg_20260810_9815a3",
+   "id": "chg_20260810_625d5a",
    "dedupe_key": "admrul_unknown_new|2106755|2100000283528|20260806",
-   "detected_at": "2026-08-10T04:12:04+09:00",
+   "detected_at": "2026-08-10T13:18:43+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2344,9 +2344,9 @@
    }
   },
   {
-   "id": "chg_20260810_69d852",
+   "id": "chg_20260810_554140",
    "dedupe_key": "admrul_amended|58464|2100000283682|20260805",
-   "detected_at": "2026-08-10T04:12:07+09:00",
+   "detected_at": "2026-08-10T13:18:47+09:00",
    "kind": "admrul_amended",
    "law": {
     "slug": "수상레저안전법",
@@ -2386,9 +2386,9 @@
    }
   },
   {
-   "id": "chg_20260810_81831f",
+   "id": "chg_20260810_8614d9",
    "dedupe_key": "admrul_unknown_new|97878|2100000283156|20260805",
-   "detected_at": "2026-08-10T04:12:53+09:00",
+   "detected_at": "2026-08-10T13:19:33+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2422,9 +2422,9 @@
    }
   },
   {
-   "id": "chg_20260810_9c91ee",
+   "id": "chg_20260810_203852",
    "dedupe_key": "admrul_unknown_new|97909|2100000283314|20260803",
-   "detected_at": "2026-08-10T04:12:53+09:00",
+   "detected_at": "2026-08-10T13:19:33+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2458,9 +2458,9 @@
    }
   },
   {
-   "id": "chg_20260810_5cb941",
+   "id": "chg_20260810_48ada5",
    "dedupe_key": "admrul_unknown_new|97958|2100000283722|20260805",
-   "detected_at": "2026-08-10T04:12:56+09:00",
+   "detected_at": "2026-08-10T13:19:35+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2494,9 +2494,9 @@
    }
   },
   {
-   "id": "chg_20260810_ba3852",
+   "id": "chg_20260810_34083c",
    "dedupe_key": "admrul_unknown_new|62709|2100000283724|20260806",
-   "detected_at": "2026-08-10T04:12:58+09:00",
+   "detected_at": "2026-08-10T13:19:38+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2530,9 +2530,9 @@
    }
   },
   {
-   "id": "chg_20260810_f6f224",
+   "id": "chg_20260810_e2b077",
    "dedupe_key": "admrul_unknown_new|9015188|2200000108887|20260806",
-   "detected_at": "2026-08-10T04:12:58+09:00",
+   "detected_at": "2026-08-10T13:19:38+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2566,9 +2566,9 @@
    }
   },
   {
-   "id": "chg_20260810_ef690d",
+   "id": "chg_20260810_04fb20",
    "dedupe_key": "admrul_unknown_new|2036809|2100000283704|20260806",
-   "detected_at": "2026-08-10T04:12:58+09:00",
+   "detected_at": "2026-08-10T13:19:38+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2602,9 +2602,9 @@
    }
   },
   {
-   "id": "chg_20260810_45652e",
+   "id": "chg_20260810_2d54a3",
    "dedupe_key": "admrul_unknown_new|97937|2100000283502|20260806",
-   "detected_at": "2026-08-10T04:12:58+09:00",
+   "detected_at": "2026-08-10T13:19:38+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",
@@ -2638,9 +2638,9 @@
    }
   },
   {
-   "id": "chg_20260810_004522",
+   "id": "chg_20260810_2dfcb6",
    "dedupe_key": "admrul_unknown_new|65968|2100000283714|20260807",
-   "detected_at": "2026-08-10T04:13:01+09:00",
+   "detected_at": "2026-08-10T13:19:40+09:00",
    "kind": "admrul_unknown_new",
    "law": {
     "slug": "",

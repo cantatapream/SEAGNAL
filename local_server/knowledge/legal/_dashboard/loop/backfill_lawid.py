@@ -14,7 +14,9 @@
             detect_law_changes.py 순서로 돈다.
 """
 import json, os, time, urllib.request
+from datetime import datetime, timedelta, timezone
 
+KST = timezone(timedelta(hours=9))   # 컨테이너는 UTC로 도니 KST는 명시 변환(CLAUDE.md 시간 표기 규칙)
 OC = "hyoo1431"
 LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
 GROUPS = f"{LEGAL}/_dashboard/loop/audit12_groups.json"
@@ -147,7 +149,7 @@ def run():
             text = json.dumps(meta, ensure_ascii=False, indent=detect_indent(raw_text))
             open(meta_path, "w", encoding="utf-8").write(text + ("\n" if raw_text.endswith("\n") else ""))
         print(f"[{n}/{len(laws)}] {law['slug']} {'갱신' if dirty else '변경없음'}", flush=True)
-    json.dump({"generated_at": time.strftime("%Y-%m-%dT%H:%M:%S+09:00"),
+    json.dump({"generated_at": datetime.now(KST).strftime("%Y-%m-%dT%H:%M:%S+09:00"),
                "law_count": len(laws), "families": snapshot, "failures": failures},
               open(OUT, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"\n=== 완료: 법령ID 추가 {added}건 · 이미 동일 {skipped}건 · 실패 {len(failures)}건 "

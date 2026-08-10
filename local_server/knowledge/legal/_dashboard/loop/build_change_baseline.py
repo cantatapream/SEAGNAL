@@ -10,8 +10,10 @@
 [로드 순서] backfill_lawid.py 실행 후 → 이 스크립트 → detect_law_changes.py.
             설계·스키마 근거는 _dashboard/H29_design.md §3·§7.
 """
-import json, os, re, time
+import json, os, re
+from datetime import datetime, timedelta, timezone
 
+KST = timezone(timedelta(hours=9))   # 컨테이너는 UTC로 도니 KST는 명시 변환(CLAUDE.md 시간 표기 규칙)
 LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
 SRC = f"{LEGAL}/_dashboard/lawid_backfill.json"
 H28 = f"{LEGAL}/_dashboard/delegation_scan_result.json"
@@ -105,7 +107,7 @@ def run():
             "admruls": load_admruls(law["raw"]),
         })
     out = {
-        "snapshot_at": time.strftime("%Y-%m-%dT%H:%M:%S+09:00"),
+        "snapshot_at": datetime.now(KST).strftime("%Y-%m-%dT%H:%M:%S+09:00"),
         "law_count": len(laws),
         "ministries": dict(sorted(ministries.items())),
         "missing_lawid": missing_lawid,

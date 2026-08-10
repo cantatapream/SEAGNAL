@@ -13,8 +13,9 @@
             실측 API 스펙·설계 근거는 _dashboard/H29_design.md §4·§6·§7.
 """
 import json, os, re, sys, time, urllib.request
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
+KST = timezone(timedelta(hours=9))   # 컨테이너는 UTC로 도니 KST는 명시 변환(CLAUDE.md 시간 표기 규칙)
 OC = "hyoo1431"
 LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
 BASELINE = f"{LEGAL}/_dashboard/law_change_baseline.json"
@@ -136,9 +137,9 @@ def make_item(kind, law, layer, ident, before, after, arts, evidence):
     ver = (after or {}).get("MST") or (after or {}).get("ID", "")
     when = (after or {}).get("시행일자") or (after or {}).get("발령일자", "")
     return {
-        "id": f"chg_{time.strftime('%Y%m%d')}_{abs(hash((kind, key_id, ver, when))) % 0xFFFFFF:06x}",
+        "id": f"chg_{datetime.now(KST).strftime('%Y%m%d')}_{abs(hash((kind, key_id, ver, when))) % 0xFFFFFF:06x}",
         "dedupe_key": f"{kind}|{key_id}|{ver}|{when}",
-        "detected_at": time.strftime("%Y-%m-%dT%H:%M:%S+09:00"),
+        "detected_at": datetime.now(KST).strftime("%Y-%m-%dT%H:%M:%S+09:00"),
         "kind": kind,
         "law": {"slug": law["slug"], "name": law["name"], "raw": law["raw"]},
         "layer": layer,
@@ -165,7 +166,7 @@ def scan_laws(base, by_lawid, days):
            (최근 7일 실측 61·36건으로 작고, org로 좁히면 법이 다른 부처로 이관됐을 때 그 법이
            질의 결과에서 통째로 사라져 H-29 9항 부처변경을 영영 못 잡는다). W3만 부처별.
     """
-    today = date.today()
+    today = datetime.now(KST).date()
     frm = (today - timedelta(days=days)).strftime("%Y%m%d")
     to = today.strftime("%Y%m%d")
     tomorrow = (today + timedelta(days=1)).strftime("%Y%m%d")
@@ -226,7 +227,7 @@ def scan_admruls(base, by_admrul, days):
     [연계] date 파라미터는 범위(~)를 지원하지 않음이 실측 확인돼(H29_design.md §4) sort=ddes로
            페이징하며 컷오프에서 끊는다. 개정 확정은 반드시 양쪽 발령일자 비교(L-59).
     """
-    cutoff = (date.today() - timedelta(days=days)).strftime("%Y%m%d")
+    cutoff = (datetime.now(KST).date() - timedelta(days=days)).strftime("%Y%m%d")
     items, queries = [], 0
     for org in base["ministries"]:
         queries += 1
@@ -308,7 +309,7 @@ def run(days):
         known.add(i["dedupe_key"])
         fresh.append(i)
     queue["items"].extend(fresh)
-    queue["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S+09:00")
+    queue["updated_at"] = datetime.now(KST).strftime("%Y-%m-%dT%H:%M:%S+09:00")
     queue["scans"].append({"ran_at": queue["updated_at"], "days": days,
                            "queries": q1 + q2, "candidates": len(law_items) + len(adm_items),
                            "new_items": len(fresh)})
