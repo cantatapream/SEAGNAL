@@ -650,7 +650,9 @@ const CLARIFY_JOINER = ' — ';
 //   영영 못 묻는다.
 // ⚠ 그래도 상한 자체는 남긴다 — 무한루프 차단은 프롬프트가 아니라 **코드**로 한다(아래 decideClarify
 //   주석 참고). 상한을 없애면 모델이 기준3을 어길 때 버튼→되묻기→버튼이 끝나지 않는다.
-const CLARIFY_MAX_ROUNDS = 2;
+// (2026-08-10 사용자 확정: H-36 계층트리 경로는 트리 깊이가 유한해 상한을 안 두기로 했지만, 이
+//  AI 즉석판단형 되묻기는 여전히 안전장치가 필요 — 대신 2는 너무 타이트하다는 지적으로 4로 상향.)
+const CLARIFY_MAX_ROUNDS = 4;
 const CLARIFY_CONFIG = {
   temperature: 0.1,
   thinkingConfig: { thinkingBudget: 0 },
