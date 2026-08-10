@@ -885,6 +885,21 @@
    ],
    "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/자연유산의보존및활용에관한법률",
    "group": 7
+  },
+  {
+   "name": "연안관리법",
+   "slug": "연안관리법",
+   "domain": "07_해양환경생태",
+   "tier": 1,
+   "soban": "해양수산부",
+   "byl": 15,
+   "txt": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/연안관리법",
+   "group": 7
   }
  ],
  "8": [

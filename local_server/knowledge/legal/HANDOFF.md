@@ -433,6 +433,24 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-10 13:25 KST] ✅완료 — H-29 법령변동감지 시스템 설계+구현+라이브검증 완료
+오푸스5.0 에이전트에 위임해 H-29(1~4,8~12항) 구현 완료, 커밋 943e83c18·6eb403893.
+
+[만든 것] _dashboard/H29_design.md(설계문서, canonical목록 근거표 포함) · loop/backfill_lawid.py(_meta.json에 법령ID 필드 백필, 74법 214층 전건 성공) · loop/build_change_baseline.py(H-28 delegation_scan_result.json 재사용해 baseline 조립, API 0회) · loop/detect_law_changes.py(광역질의→diff→딥다이브→law_change_queue.json, --days N 파라미터).
+
+[라이브 검증(실제 API, 추측 없음)] 법률 광역질의는 target=law가 아니라 target=eflaw라야 예고본까지 잡힘(실측 확인). 시행예정본 본문은 MST만으론 빈 응답, efYd=시행일자 병기 필요. admrul date는 범위(~) 미지원이라 sort=ddes 페이징+컷오프로 대체. 수산업법 예고법령(법령ID 001486, MST 285535, 시행 20261022) 재현 성공(H-29 12항 실측과 일치). 7일 창 실행 결과 큐 56건(시행예정 26·소관부처변경 2·고시개정 5·신규고시 23) — raw/위키/기존스캐너 무변경.
+
+[오탐 발견·수정] 고시 제목 정규화에서 괄호 접두어 제거가 다른 지방청 고시를 같은 문서로 오매칭 → 행정규칙ID(불변) 일치 게이트 추가로 해소, _LESSONS.md L-73.
+
+[기존 결함 발견, 손대지 않음] local_server/services/legal_amendment_scanner.js(매일 KST 01:00 cron)는 저장된 MST를 재조회하는데 MST는 그 법의 '특정 버전' 고정식별자라 재조회해도 같은 값만 나와 원리적으로 개정을 감지 못함 — 교체/통합 여부 사용자 결정 대기.
+
+[★★오케스트레이터 자체 발견·수정한 별도 버그, 중요] H-29 canonical 목록 검증 중, 이번 세션 초반 자연유산법을 audit12_groups_run.json 그룹7에 추가할 때 실수로 연안관리법을 덮어쓴 사실을 발견(diff: run파일은 자연유산법 有·연안관리법 無, plain파일은 반대). wiki/statutes/*.md(74개, ground truth) 대조로 확정 후 audit12_groups_run.json 그룹7에 연안관리법 복원 추가(74법=wiki/statutes 정확히 일치). **결과적으로 12차·13차 감사 둘 다 연안관리법을 감사하지 못했음(대상 목록에서 애초에 빠져 있었음)** — 다음 감사 라운드 착수 시 반드시 포함할 것. _LESSONS.md L-74에 상세 기록. H-29 자체(백필·baseline·큐)는 audit12_groups.json(연안관리법 포함) 기반이라 74법 정확히 커버해 수정 불필요.
+
+[미결정, 사용자/다음세션 결정 필요] ①legal_amendment_scanner.js 교체 여부 ②5~7항(승인방 UI+run_once_at 예약반영) 착수 시점 — Phase F 관리자UI 실배선과 함께 ③예고본 원문 사전수집(_대기/) 착수 시점 ④감지 주기 배선(Routine/cron 미등록, 현재 수동실행만) ⑤연안관리법 재감사 시점.
+
+MASTER_PLAN.md H-29 상태를 '아직 착수 안 함'→'1~4·8~12항 구현+라이브검증 완료(5~7항은 Phase F 대기)'로 갱신 예정.
+
+
 ### [2026-08-10 12:39 KST] 🟢착수 — H-29 법령변동감지 시스템 착수
 사용자 지시(2026-08-10 KST)로 H-29(법령·고시 최신성 변동감지) 착수. 설계+코드는 오푸스5.0(model:opus) 에이전트에 위임해 진행. 범위: MASTER_PLAN.md H-29 1~4항(로직기반 diff 탐지)+8~12항(API실측검증된 세부 — 조문단위 부분개정, 법령ID 기반 명칭변경 추적, 예고법령 사전수집) — baseline은 H-28 delegation_scan_result.json 재사용. 5~7항(승인 방+run_once_at 예약반영)은 Phase F 관리자UI 미배선 상태라 이번 범위 제외, 대신 향후 UI가 소비할 큐 데이터 포맷만 설계에 반영. _meta.json에 법령ID 필드 신규 추가 필요(H-29 11항 근거).
 
