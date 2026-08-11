@@ -52,14 +52,53 @@ def article_span(flat_text, article):
     return None
 
 
+RE_NOTICE_HEAD = re.compile(r'^제(\d+)조(?:의(\d+))?\s*\(')
+RE_NOTICE_BYL = re.compile(r'\[별표\s?(\d+)\]\s*$')
+
+
+def notice_span(raw_text, flat_text, unit):
+    """고시(행정규칙) 파일에서 `제N조`·`별표 N` 구간을 돌려준다 — 법률계열과 형식이 다르다(L-54).
+
+    빌더는 줄 단위로 쪼개 딕셔너리를 만들지만, 이쪽은 **머리말 줄의 텍스트를 통짜 문자열에서
+    순서대로 찾아** 구간을 잡는다(공백 접기는 순서를 바꾸지 않으므로 이 방법이 성립한다).
+    같은 이름의 단위가 두 번 나오면 처음 것을 쓴다(빌더와 같은 규약이나, 계산 방식은 다르다).
+    @returns {(int,int)|None} 그 단위의 시작·끝 인덱스
+    """
+    heads = []
+    for line in raw_text.split('\n'):
+        s = line.strip()
+        m = RE_NOTICE_HEAD.match(s)
+        b = RE_NOTICE_BYL.search(s)
+        if m:
+            heads.append(('제%s조' % m.group(1) + ('의%s' % m.group(2) if m.group(2) else ''), s))
+        elif b:
+            heads.append(('별표 %s' % b.group(1), s))
+    pos, cursor = [], 0
+    for name, line in heads:
+        at = flat_text.find(norm(line), cursor)
+        if at < 0:                      # 접힌 공백 때문에 못 찾으면 앞부분만으로 다시 시도
+            at = flat_text.find(norm(line)[:20], cursor)
+        if at < 0:
+            continue
+        pos.append((name, at))
+        cursor = at + 1
+    for idx, (name, at) in enumerate(pos):
+        if name == unit:
+            end = pos[idx + 1][1] if idx + 1 < len(pos) else len(flat_text)
+            return at, end
+    return None
+
+
 def check_source(kind, node_id, label, law_slug, tier, article, quote, law_id, path):
     """인용 1건을 raw 원문과 재대조한다."""
     full = os.path.join(LEGAL, path)
     if not os.path.exists(full):
         FAIL.append('%s %s / %s — 파일 없음: %s' % (kind, node_id, label, path))
         return
-    flat = norm(open(full, encoding='utf-8', errors='replace').read())
+    raw = open(full, encoding='utf-8', errors='replace').read()
+    flat = norm(raw)
     q = quote[2:].strip() if quote.startswith('…') else quote
+    q = q[:-1].strip() if q.endswith('…') else q     # 끝이 잘렸다는 표시(2026-08-11)도 떼고 대조
     CHECKED['quote'] += 1
     at = flat.find(q)
     if at < 0:
@@ -67,17 +106,29 @@ def check_source(kind, node_id, label, law_slug, tier, article, quote, law_id, p
                     % (kind, node_id, label, law_slug, tier, article))
         return
     CHECKED['article_span'] += 1
-    base = re.sub(r'제(\d+)조(?:의(\d+))?.*$', lambda m: '제%s조' % m.group(1) + ('의%s' % m.group(2) if m.group(2) else ''),
-                  article)
-    span = article_span(flat, base)
+    if tier == '고시':
+        span = notice_span(raw, flat, article)
+        base = article
+    else:
+        base = re.sub(r'제(\d+)조(?:의(\d+))?.*$',
+                      lambda m: '제%s조' % m.group(1) + ('의%s' % m.group(2) if m.group(2) else ''),
+                      article)
+        span = article_span(flat, base)
     if span is None:
         FAIL.append('%s %s / %s — 조문 헤더를 찾지 못함: %s %s'
                     % (kind, node_id, label, tier, base))
     elif not (span[0] <= at < span[1]):
         FAIL.append('%s %s / %s — 인용문이 %s 범위 밖에 있음(다른 조의 문장을 인용했을 수 있음)'
                     % (kind, node_id, label, base))
-    # 법령ID 재대조
+    # 법령ID 재대조 — 고시는 _meta.json이 아니라 raw 머리말의 `ID:` 를 본다(그 자리가 유일한 출처다).
     CHECKED['lawid'] += 1
+    if tier == '고시':
+        m = re.search(r'ID:(\d+)', raw[:400])
+        got = m.group(1) if m else None
+        if got != law_id:
+            FAIL.append('%s %s / %s — 행정규칙ID 불일치: 트리 %s ≠ raw 머리말 %s'
+                        % (kind, node_id, label, law_id, got))
+        return
     meta = os.path.join(os.path.dirname(full), '_meta.json')
     if not os.path.exists(meta):
         FAIL.append('%s %s / %s — _meta.json 없음' % (kind, node_id, label))
@@ -127,6 +178,14 @@ def main():
                     FAIL.append('적용 %s / %s — 알 수 없는 구역범위: %s' % (n['id'], r['제목'], r['구역범위']))
                 if r['구역범위'] != '이 구역만' and t['id'] != 'navigation_zone':
                     FAIL.append('적용 %s / %s — 서열 없는 트리에서 구역범위 사용' % (n['id'], r['제목']))
+                if r['계층'] not in ('법률', '시행령', '시행규칙', '고시'):
+                    FAIL.append('적용 %s / %s — 알 수 없는 계층: %s' % (n['id'], r['제목'], r['계층']))
+                # 별표 미수집 표기는 "값 없음"을 정직하게 남긴 자리다 — 값이 채워져 있으면 안 된다.
+                b = r.get('별표')
+                if b is not None and (b.get('값') is not None or not b.get('번호')
+                                      or not b.get('수집상태')):
+                    FAIL.append('적용 %s / %s — 별표 미수집 표기가 규약과 다름: %s'
+                                % (n['id'], r['제목'], b))
             # ── 구조 검사
             CHECKED['struct'] += 1
             for ax in n.get('추가확인', []):

@@ -194,14 +194,39 @@ console.log('\n[T6] 인용 — 바로 뒤에 붙은 "다만" 단서를 말없이
     for (const r of (node.provenance || [])) cites.push(r);
   }
   const cut = [];
+  // ★고시(행정규칙) 계열은 조문 머리 형식이 다르다(L-54) — 대괄호가 없고(`제7조(제목) ①…`),
+  //   별표는 본문 뒤에 `[별표 N]` 줄로 이어 붙는다. 2026-08-11 확장으로 이 계열 인용이 들어와,
+  //   법률계열 정규식 하나로만 찾으면 107건이 통째로 "조문없음"이 된다.
+  const unitSpan = (txt, file, unit) => {
+    if (!/\/행정규칙\//.test(file)) {
+      const art = (unit.match(/제\d+조(?:의\d+)?/) || [])[0];
+      if (!art) return null;
+      const s = txt.search(new RegExp('^\\[' + art + '\\]', 'm'));
+      if (s < 0) return null;
+      const after = txt.slice(s + art.length);
+      const e = after.search(/^\[제\d+조/m);
+      return [s, s + art.length + (e < 0 ? after.length : e)];
+    }
+    const heads = [];
+    let off = 0;
+    for (const line of txt.split('\n')) {
+      const t = line.trim();
+      const m = t.match(/^제(\d+)조(?:의(\d+))?\s*\(/);
+      const b = t.match(/\[별표\s?(\d+)\]\s*$/);
+      if (m) heads.push(['제' + m[1] + '조' + (m[2] ? '의' + m[2] : ''), off]);
+      else if (b) heads.push(['별표 ' + b[1], off]);
+      off += line.length + 1;
+    }
+    const i = heads.findIndex(h => h[0] === unit);
+    if (i < 0) return null;
+    return [heads[i][1], i + 1 < heads.length ? heads[i + 1][1] : txt.length];
+  };
   for (const r of cites) {
-    const art = (r.근거조문 || r.조문).match(/제\d+조(?:의\d+)?/)[0];
+    const art = r.근거조문 || r.조문;
     const txt = fs.readFileSync(path.join(LEGAL, r.파일), 'utf8');
-    const s = txt.search(new RegExp('^\\[' + art + '\\]', 'm'));
-    if (s < 0) { cut.push(`조문없음 ${r.파일} ${art}`); continue; }
-    const after = txt.slice(s + art.length);
-    const e = after.search(/^\[제\d+조/m);
-    const flat = (txt.slice(s, s + art.length + (e < 0 ? after.length : e)))
+    const span = unitSpan(txt, r.파일, art);
+    if (!span) { cut.push(`조문없음 ${r.파일} ${art}`); continue; }
+    const flat = txt.slice(span[0], span[1])
       .replace(/<img[^>]*>|<\/img>/g, ' ').replace(/\s+/g, ' ').trim();
     let q = r.인용.startsWith('… ') ? r.인용.slice(2) : r.인용;
     if (q.endsWith('…')) continue;                       // 절단표시가 있으면 정직하게 잘린 것
