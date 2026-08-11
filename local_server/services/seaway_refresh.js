@@ -24,6 +24,8 @@
  *   POST https://www.khoa.go.kr/oceanmap/cmm/proxyRun.do 로 WFS GetFeature XML 을
  *   보내면 GML(FeatureCollection)이 온다. 좌표계는 EPSG:5179(미터) 라 WGS84
  *   (경위도)로 재투영해야 지도에 얹을 수 있다.
+ *   단, 항로 파일에는 이 WFS 에 없는 국제 해양경계 수역 3개(category='해역')도
+ *   함께 들어 있어, 갱신할 때 그 3개는 건드리지 않고 그대로 이어붙인다.
  *
  * [연계]
  *   - scheduler.js         → 매월 말일 04:00 KST 에 checkAndRefreshSeaway() 호출
@@ -54,6 +56,13 @@ const OUT_FILE = path.join(DATA_DIR, 'seaway_zones.json');
 
 /** 아직 한 번도 갱신 안 됐을 때 비교 기준이 되는 배포본. */
 const FALLBACK_FILE = path.join(__dirname, '..', '..', 'client', 'seaway_zones.json');
+
+/**
+ * WFS 가 주지 않는 "직접 넣은" 구역의 종류값 — 한중·한일 어업협정에 따른 국제 해양경계
+ * 수역(한중잠정조치수역·한일중간수역·한중과도수역) 3개가 이 값을 갖는다.
+ * 이 3개는 원본 WFS 응답에 없으므로 비교에서 빼고, 갱신 저장 때 그대로 다시 붙인다.
+ */
+const MANUAL_CATEGORY = '해역';
 
 /**
  * 개방海 WFS 프록시에 GetFeature 요청을 보내 GML(XML) 원문을 받아온다.
@@ -254,18 +263,24 @@ async function checkAndRefreshSeaway() {
             return;
         }
 
-        const diff = diffFeatures(current.features, features);
+        // WFS 에 없는 직접 추가분(국제 해양경계 수역 3개)은 비교·갱신 대상이 아니다.
+        // 떼어 두고 WFS 항로끼리만 비교한 뒤, 저장할 때 다시 붙인다 —
+        // 안 그러면 월간 갱신이 매번 "삭제됨"으로 보고 통째로 지워버린다.
+        const extras = current.features.filter(f => f.properties && f.properties.category === MANUAL_CATEGORY);
+        const currentWfs = current.features.filter(f => !(f.properties && f.properties.category === MANUAL_CATEGORY));
+
+        const diff = diffFeatures(currentWfs, features);
         if (!diff.changed) {
             console.log(`[seaway_refresh] 변경 없음 (${features.length}개)`);
             return;
         }
 
-        const geojson = { type: 'FeatureCollection', features };
+        const geojson = { type: 'FeatureCollection', features: features.concat(extras) };
         const tmp = `${OUT_FILE}.tmp`;
         fs.writeFileSync(tmp, JSON.stringify(geojson), 'utf8');
         fs.renameSync(tmp, OUT_FILE);
 
-        console.log(`[seaway_refresh] 변경 감지 — ${current.features.length}개 → ${features.length}개, 저장: ${OUT_FILE}`);
+        console.log(`[seaway_refresh] 변경 감지 — ${currentWfs.length}개 → ${features.length}개(+ 직접 추가 ${extras.length}개), 저장: ${OUT_FILE}`);
         if (diff.added.length) console.log(`[seaway_refresh]   추가 ${diff.added.length}개: ${diff.added.join(', ')}`);
         if (diff.removed.length) console.log(`[seaway_refresh]   삭제 ${diff.removed.length}개: ${diff.removed.join(', ')}`);
         if (diff.moved.length) console.log(`[seaway_refresh]   좌표변경 ${diff.moved.length}개: ${diff.moved.join(', ')}`);

@@ -790,7 +790,7 @@
         body.ls-mode.ls-safety #ocean-navwarn-btn,
         body.ls-mode.ls-safety #ocean-cctv-toggle-btn,
         body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
-        /* 노출암/간출암 등/출입통제/낚시금지/관제구역/항로/항행경보 버튼은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
+        /* 노출암/간출암 등/출입통제/낚시금지/관제구역/항로·해역/항행경보 버튼은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
            [연계] js/marine-life/safety/hazard_rocks.js, js/marine-life/safety/access_control.js,
                   js/marine-life/safety/fishing_ban.js, js/marine-life/safety/vts_zone.js,
                   js/marine-life/safety/seaway.js, js/marine-life/safety/navigational_warning.js */
@@ -3541,16 +3541,18 @@
                             <i class="fa-solid fa-tower-broadcast"></i>
                             <span class="ocean-overlay-label" data-line1="관제" data-line2="구역">관제구역</span>
                         </button>
-                        <!-- 항로 토글: js/marine-life/safety/seaway.js 가 바인딩.
+                        <!-- 항로·해역 토글: js/marine-life/safety/seaway.js 가 바인딩.
                              해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
                              CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
-                             선박의 입항 및 출항 등에 관한 법률 제10조 등에 따라 지정ㆍ고시된 항로.
+                             선박의 입항 및 출항 등에 관한 법률 제10조 등에 따라 지정ㆍ고시된 항로 +
+                             한중·한일 어업협정에 따른 국제 해양경계 수역(잠정조치·중간·과도수역).
                              켜면 배경지도가 전자해도로 자동 전환된다(항해 정보라 해도가 맞음).
                              [데이터] /seaway_zones.json (국립해양조사원 개방海 포털의
-                                      실시간 WFS(vi_seaway) 141개, 정적, 처음 누를 때만 지연 로드) -->
-                        <button class="ocean-overlay-btn" id="ocean-seaway-toggle-btn" title="항로">
+                                      실시간 WFS(vi_seaway) 141개 + 국제 해양경계 수역 3개 = 144개,
+                                      정적, 처음 누를 때만 지연 로드) -->
+                        <button class="ocean-overlay-btn" id="ocean-seaway-toggle-btn" title="항로·해역">
                             <i class="fa-solid fa-route"></i>
-                            <span class="ocean-overlay-label" data-line1="항로">항로</span>
+                            <span class="ocean-overlay-label" data-line1="항로" data-line2="해역">항로·해역</span>
                         </button>
                         <!-- 항행경보 토글: js/marine-life/safety/navigational_warning.js 가 바인딩.
                              해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
@@ -5206,10 +5208,10 @@
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <script src="js/marine-life/safety/vts_zone.js?v=VtsZoom_20260803b"></script>
 
-    <!-- 항로 레이어 — 해양안전 하위탭 전용. vts_zone.js 와 동일하게
+    <!-- 항로·해역 레이어 — 해양안전 하위탭 전용. vts_zone.js 와 동일하게
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
-    <script src="js/marine-life/safety/seaway.js?v=SeawayZoom_20260803"></script>
+    <script src="js/marine-life/safety/seaway.js?v=SeawaySeaZone_20260803"></script>
 
     <!-- 항행경보 구역 레이어 — 해양안전 하위탭 전용. seaway.js 와 동일하게
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
