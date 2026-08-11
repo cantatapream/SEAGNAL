@@ -433,6 +433,26 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-11 16:27 KST] ✅완료 — H-37 설계 완료 — 이해확인·상황질문·온디바이스 프로필·신뢰등급 꼬리표 제거
+설계문서 `_dashboard/H37_understanding_confirm_design.md` 신설(12절) + MASTER_PLAN.md H-37 절 신설. **설계만·코드 무수정**(구현 대기).
+
+정독: CLAUDE.md 전체 / HANDOFF §0~§5 / MASTER_PLAN H-36 전 절(663~802행) / H36_live_wiring_design.md / H36_adversarial_review.md / _LESSONS.md L-73~L-79 / _CHATBOT.md §0-A·§1·§1-B / legal_retriever.js(decideClarify:696-768, CLARIFY_* 640-661, RAW_ANSWER_RULES:1229-1233, zone 배선 1282-1668) / routes/legal.js(/ask 775-935) / ai_chat.js(clarifyHTML:2502, pickClarifyOption:2523, answerHTML:2547, note렌더:2590, doSend:2270, 헤더:1163-1171).
+
+핵심 결정 6가지:
+① note 꼬리표 — 등급 3종(위키 근거 기반 AI 답변 / 검증(canonical) 근거만 반영 / ⚠미검증 참고 / 트리 ZONE_ANSWER_NOTE) 삭제, UI상태 note(추가 정보가 필요해요) 유지, RAW_ANSWER_RULES 규칙9 유지. note 설정지점 10개 + 관리자API 3개를 표로 전수 정리(지울 4·남길 4·신설 2).
+② 맥락은 질의 문자열이 아니라 **요청 바디 별도 필드(ctx·profile)** 로 나른다 — 질의에 덧붙이면 decideClarify:703 라운드카운트 / matchZoneTreeTopic:1427 q0 / resolveZoneTreePath:1476 rest 세 곳이 동시에 오염됨(대안 4안 비교표). 별도 필드면 query가 오늘과 바이트 동일이라 오염이 원리적으로 불가. 프로필이 logKnowledgeCandidate:899·pendingAnswers.store:922에 안 섞이는 이득도 함께.
+③ 불변식 R0~R4 + 신규 스위치 3개(understandConfirm/scopeNarrow/profileConfirm, 기본 전부 false, canonical 안전필터와 같은 관례).
+④ 이해확인 — 판정은 매 질문, 되묻기는 불명확할 때만. UNDERSTAND_MAX_ROUNDS=3, 도달 시 판정호출 자체를 건너뛰고 추정 고지문을 **서버가 문자열로** 붙임(프롬프트 불신, decideClarify:757 전례). 재진술에 조문·수치 토큰 있으면 판정 폐기(환각0 후검사).
+⑤ 상황질문 — 선택지는 기존 계층자산 분기노드에서(LLM 0회), zoneTreeStep이 null일 때만 시도(회귀 0), 이 순서가 곧 키워드게이트 마이그레이션 경로 M0~M4(이번엔 게이트 무수정).
+⑥ 프로필 확인 — decideClarify 결과를 가로채는 후처리, 라벨 **문자 그대로 일치**만(의미유사도 금지), 필드별 at 타임스탬프로 신선도 표시.
+
+대기상태 20행 전수표(CLAUDE.md 2026-08-09 원칙) + 각 행 회귀테스트 1:1(test_ask_context.js 신설 + verify_all.sh SUITES 등록 예정). 성공기준 10개(바이트 동일 회귀·등급문자열 0건·트리스위트 36건 유지·프로필 파일저장 0건 등).
+
+미결 9건 정직 기록: 꼬리표 제거 범위(규칙9 유지 시 본문에 등급 취지 잔존) / 상황질문 선택지가 사용자 예시(상선·극지상선)와 다름(자산에 없어 지어낼 수 없음) / 프로필 '네'가 다른 축 되묻기까지 없앰 / 트리 되묻기 프로필 적용 / 톤수축 CLARIFY_OPTION_MAX 충돌 / 발화판정 R1 vs R2 / 이해확인이 모든 질문에 Gemini 1회 추가(지연) / 적대검증 §3.2 라운드예산 공유 잔존 / _CHATBOT.md 갱신 시점.
+
+다음 할 일: 위 미결 9건에 대한 사용자 판단 → 구현 착수(스위치 off 배포 → 순차 on) → 별도 에이전트 적대검증.
+
+
 ### [2026-08-11 16:11 KST] 🟢착수 — 고시 구역기준 확장 착수(B 해역트리)
 고시(행정규칙) 1747개 중 평수/연해/근해/원양구역 등 실제 구역등급명이 등장하는 48개 파일을 대상으로 zone_tree.json에 고시 항목군 추가. build_zone_tree.py 기존 패턴(서열·구역범위·with_proviso 다만절 처리) 재사용, 3단계 검증(빌드게이트+독립재대조+전수정독) 적용. 데이터 자산만 확장, 실서빙 배선은 이번 범위 아님.
 
