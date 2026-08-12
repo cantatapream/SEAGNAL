@@ -1566,6 +1566,125 @@ function clarifyFromZoneTree(tree, node) {
   };
 }
 
+// ── 표시 규칙 상한(H37 §13.2) ────────────────────────────────────────────────
+// ★상한은 **항목 개수**로만 건다 — 문자 수로 자르면 인용문이 항목 중간에서 잘려 화면의 큰따옴표
+//   안이 원문보다 짧아지고, 그게 환각과 구분이 안 된다(H36_adversarial_review §5-A와 같은 계열).
+// ★상한에 걸린 항목은 **버리지 않고 제목 줄만** 남긴다 — 트리의 가치는 "그 구역에서 달라지는
+//   것의 목록"이라, 사용자가 안 물었다고 규정이 사라지면 안 된다.
+const ZONE_EXPAND_RELEVANT_MAX = 8;   // 질문어가 걸린 항목 중 펼칠 최대 개수
+const ZONE_EXPAND_PER_KIND = 3;       // 질문어가 하나도 안 걸릴 때 유형별로 펼치는 개수
+// 이 개수 이하인 리프는 **아무것도 접지 않는다** — 접기는 고시 확장으로 55~66건이 된 항해구역
+// 리프의 1.5만~1.8만 자 폭증(L-81)을 막으려는 것이지, 원래 읽을 만하던 리프(항목 5~16건·
+// 1.6천~4.4천 자)의 내용을 줄이려는 것이 아니다. 없어도 되는 곳에서 접으면 그냥 손실이다.
+const ZONE_FOLD_MIN = 20;
+
+// 계층 값(법률·시행령·시행규칙·고시)을 화면에 풀어 쓰는 말. **표기만** 바꾸는 사전이라
+// "무엇이 들어 있다"는 단언이 아니다(그 판단은 전부 자산에서 센다 — zoneCoverageNote 참조).
+const ZONE_TIER_LABEL = { 고시: '고시(행정규칙)' };
+
+/**
+ * 적용항목 하나에서 질문어를 찾을 대상 문자열을 만든다(H37 §13.2 `hay(rule)`).
+ * @param {object} r - 적용항목
+ * @returns {string}
+ * [연계] ← rankZoneRules().
+ */
+function zoneRuleHay(r) {
+  return [r.제목, r.인용, r.대상, r.조건, r.적용제외, r.주의, r.근거법령].filter(Boolean).join(' ');
+}
+
+/**
+ * 리프에 상속된 적용항목을 **원 질문어와의 관련도**로 채점한다(H37 §13.2).
+ * 고시 확장(L-81)으로 한 리프에 55~66건이 실리게 되면서, `유형` 순서대로 전부 펼치면 1.8만 자가
+ * 쏟아진다 — 자르기 전에 **정렬이 먼저**다(단순 상위 N건은 질문과 무관한 항목만 남길 수 있다).
+ * ★`termsOf()`를 그대로 재사용하고, `sliceRelevant()`의 **절-내 문서빈도 역가중**을 항목 단위로
+ *   옮겼다 — 이 자산에서 `선박`·`구역` 같은 낱말은 거의 모든 항목에 있어 변별력이 0이라,
+ *   역가중이 없으면 순위가 뭉개진다. `scoreOne()`은 index.json 페이지 객체 전제라 못 쓴다.
+ * ★채점은 **원 질문**(CLARIFY_JOINER 앞)으로만 한다 — 되묻기로 붙은 라벨('평수구역')을 넣으면
+ *   그 낱말이 거의 모든 항목에 있어 순위가 무의미해진다.
+ * 예: rankZoneRules(rules, '구명조끼 싣고 어디까지 나갈 수 있나요? — 평수구역')
+ *     → 구명설비 항목의 score가 가장 높다
+ * @param {Array<{rule:object, from:string}>} rules - collectZoneRules()의 결과
+ * @param {string} query - 사용자 질의(되묻기 라벨이 누적된 상태일 수 있다)
+ * @returns {Array<{rule:object, from:string, score:number, idx:number}>} 입력 순서 그대로(정렬 안 함)
+ * [연계] ← renderZoneAnswer(). → pickZoneExpanded()가 이 점수로 펼칠 항목을 고른다.
+ */
+function rankZoneRules(rules, query) {
+  const terms = termsOf(String(query || '').split(CLARIFY_JOINER)[0]);
+  const hays = rules.map(e => zoneRuleHay(e.rule));
+  const df = terms.map(t => hays.reduce((n, h) => n + (h.includes(t) ? 1 : 0), 0));
+  return rules.map((e, i) => {
+    let s = 0;
+    terms.forEach((t, ti) => {
+      if (df[ti] <= 0 || !hays[i].includes(t)) return;
+      s += (String(e.rule.제목 || '').includes(t) ? 3 : 1) / df[ti];   // 제목 가중 3 = scoreOne과 같은 취지
+    });
+    return Object.assign({ score: s, idx: i }, e);
+  });
+}
+
+/**
+ * 채점 결과에서 **펼칠 항목**을 고른다(나머지는 제목 줄만 남는다, H37 §13.2 표시규칙).
+ *  ⓪ 항목이 ZONE_FOLD_MIN건 이하인 리프는 **전부 펼친다**(접을 이유가 없다).
+ *  ⓐ `주의`·`적용제외`가 있는 항목은 **점수와 무관하게 언제나 펼친다** — 배선 전 필수 규약②
+ *     (MASTER_PLAN H-36 "`주의`·`적용제외`는 언제나 함께 노출")를 접기가 무력화하면 회귀다.
+ *  ⓑ 질문어가 걸린 항목(score>0)은 점수 높은 순으로 최대 ZONE_EXPAND_RELEVANT_MAX건.
+ *  ⓒ 질문어가 **하나도 안 걸리면**(트리 되묻기의 정상 경로 — "우리 배 어디까지 나갈 수 있나요?")
+ *     정렬이 무의미하므로 순서를 건드리지 않고 **유형별 상위 ZONE_EXPAND_PER_KIND건**만 펼친다.
+ * @param {Array<{rule:object, score:number, idx:number}>} scored - rankZoneRules()의 결과
+ * @returns {Set<number>} 펼칠 항목의 idx 집합
+ * [연계] ← renderZoneAnswer().
+ */
+function pickZoneExpanded(scored) {
+  const keep = new Set();
+  if (scored.length <= ZONE_FOLD_MIN) { for (const e of scored) keep.add(e.idx); return keep; }
+  for (const e of scored) if (e.rule.주의 || e.rule.적용제외) keep.add(e.idx);            // ⓐ
+  const hit = scored.filter(e => e.score > 0).sort((a, b) => b.score - a.score || a.idx - b.idx);
+  for (const e of hit.slice(0, ZONE_EXPAND_RELEVANT_MAX)) keep.add(e.idx);                // ⓑ
+  if (!hit.length) {                                                                      // ⓒ
+    const per = new Map();
+    for (const e of scored) {
+      const n = per.get(e.rule.유형) || 0;
+      if (n >= ZONE_EXPAND_PER_KIND) continue;
+      keep.add(e.idx); per.set(e.rule.유형, n + 1);
+    }
+  }
+  return keep;
+}
+
+/**
+ * 답변 말미의 **"이 목록의 한계"** 문구를 자산의 실제 커버리지에서 조립한다(H37 §13.3, L-81 교훈③).
+ * ★불변식: *"코드가 자산의 내용을 산문으로 단언하지 않는다."* 예전에는 "고시의 구역별 설비·수량
+ *   기준은 여기 들어 있지 않아요"가 하드코딩돼 있었는데, 2026-08-11 확장으로 고시 107건이 들어오자
+ *   **사용자에게 보이는 거짓 문장**이 됐다. 이제 무엇이 들어 있는지는 **이 답변에 실린 항목들의
+ *   `계층`을 세어서**, 무엇이 빠져 있는지는 **자산 `unmapped`의 표시 라벨에서** 가져온다 —
+ *   자산이 또 바뀌면 문구가 자동으로 따라간다.
+ * 예: 평수구역(고시 46건·법률 17건…) → "…(이 구역은 고시(행정규칙) 46건 · 법률 17건 …)"
+ * @param {Array<{rule:object}>} rules - 이 리프에 실린 적용항목 전량(접힌 것 포함)
+ * @returns {string} 답변 말미 한 문단
+ * [연계] ← renderZoneAnswer(). ← zone_tree.json(summary.laws_in_scope · unmapped.유형_단위[].표시 ·
+ *        unmapped.스캔밖_표시.값 · 적용[].별표.값).
+ */
+function zoneCoverageNote(rules) {
+  const asset = loadZoneTree();
+  const um = asset.unmapped || {};
+  const byTier = new Map();
+  for (const e of rules) byTier.set(e.rule.계층, (byTier.get(e.rule.계층) || 0) + 1);
+  const tiers = [...byTier.entries()].sort((a, b) => b[1] - a[1])
+    .map(([k, n]) => `${ZONE_TIER_LABEL[k] || k} ${n}건`).join(' · ');
+  const laws = ((asset.summary || {}).laws_in_scope) || null;
+  const off = (um.유형_단위 || []).map(u => u && u.표시).filter(Boolean);
+  const outside = ((um.스캔밖_표시 || {}).값) || [];
+  const missing = rules.filter(e => e.rule.별표 && e.rule.별표.값 == null).length;
+
+  const parts = [`**이 목록의 한계**: ${laws ? laws + '개 ' : ''}해양수산 법령의 원문에 ` +
+    `"구역에 따라 달라진다"고 문장으로 적혀 있는 것만 모은 목록이에요` + (tiers ? `(이 구역은 ${tiers}).` : '.')];
+  if (off.length) parts.push(`같은 자료 안에 있어도 이 축(구역에 따라 무엇이 달라지나)이 아니라서 뺀 것: ${off.join(' · ')}.`);
+  if (outside.length) parts.push(`애초에 이번 스캔 대상이 아닌 것: ${outside.join(' · ')}.`);
+  if (missing) parts.push(`수량이 별표에 있는데 그 별표를 아직 못 모아 값을 비워 둔 항목이 ${missing}건 있어요.`);
+  parts.push('목록에 없다고 해서 그런 규정이 없다는 뜻은 아닙니다. 정확한 확인은 소관부서에 문의하세요.');
+  return parts.join(' ');
+}
+
 /** 적용항목 한 건을 답변 줄로 편다(원문 인용·주의는 가공 없이 그대로 — 환각 0). */
 function zoneRuleLines(entry, idx) {
   const r = entry.rule;
@@ -1581,6 +1700,12 @@ function zoneRuleLines(entry, idx) {
   return L.join('\n');
 }
 
+/** 접힌 적용항목 한 건 — 제목과 근거만 남긴다(버리지 않는다는 뜻이지 인용까진 안 편다). */
+function zoneRuleFoldedLine(entry) {
+  const r = entry.rule;
+  return `· ${r.제목} — 「${r.근거법령}」(${r.계층}) ${r.근거조문}`;
+}
+
 /**
  * 리프에서 최종 답변 문장을 만든다 — **LLM을 부르지 않고 데이터 그대로** 편다.
  * ★신뢰 등급(H36_live_wiring_design.md §4.4): 사람이 검증한 위키 카드(확답)도, 즉석 조회한
@@ -1591,25 +1716,45 @@ function zoneRuleLines(entry, idx) {
  * ★배선 전 필수 규약(MASTER_PLAN H-36) 반영: ①`유형:처벌` 항목은 **"처벌(법정형)"** 로 표기하고
  *   선고형이 아님을 명시 ②항목의 `주의`·`적용제외`는 언제나 함께 노출 ③리프의 `추가확인`(트리로
  *   쪼개지 않은 잔여 축)은 되묻지 않고 본문에 병기.
+ * ★2026-08-12(H37 §13): 고시 확장으로 한 리프가 55~66건이 되면서 전량 펼치기가 1.8만 자로
+ *   쏟아졌다(L-81). 이제 **질문어와의 관련도**(rankZoneRules)로 정렬해 상위만 펼치고 나머지는
+ *   **제목 줄로 접는다** — 항목은 하나도 버리지 않는다(펼침 + 접힘 = 전체). 말미 면책 문구도
+ *   하드코딩을 걷어내고 자산에서 조립한다(zoneCoverageNote).
  * @param {object} tree @param {Array<object>} path @param {Array<{rule:object,from:string}>} rules
+ * @param {string} [query] - 사용자 질의(관련도 정렬용 — 없으면 전부 score 0이라 기존 순서 그대로)
  * @returns {string} 답변 본문(클라이언트 answerBodyHTML이 지원하는 `**굵게**`·줄바꿈만 사용)
  * [연계] ← zoneTreeStep(). → routes/legal.js done.answer → ai_chat.js answerBodyHTML.
  */
-function renderZoneAnswer(tree, path, rules) {
+function renderZoneAnswer(tree, path, rules, query) {
   const leaf = path[path.length - 1];
+  const laws = ((loadZoneTree().summary || {}).laws_in_scope) || 74;
+  const scored = rankZoneRules(rules, query);
+  const keep = pickZoneExpanded(scored);
   const out = [];
   out.push(`쉽게 말하면, **${leaf.라벨}**에 대해 법령 원문에서 확인된 규정은 아래 ${rules.length}건이에요. ` +
-    `사람이 검증한 위키 카드가 아니라, 74개 해양수산 법령 원문을 대조해 만든 **해역·항해구역 트리**에서 그대로 꺼낸 것이에요.`);
+    `사람이 검증한 위키 카드가 아니라, ${laws}개 해양수산 법령 원문을 대조해 만든 **해역·항해구역 트리**에서 그대로 꺼낸 것이에요.`);
   out.push(`**확인한 구역**: ${path.map(n => n.라벨).join(' → ')} (${tree.축})`);
   if (leaf.정의) out.push(`**${leaf.라벨}란**: ${leaf.정의}`);
+  if (keep.size < rules.length) {
+    // ★질문어가 하나도 안 걸렸는데 "질문과 관련 있는 것부터"라고 쓰면 **거짓말**이다(그때는 유형별
+    //   앞에서부터 펼친 것뿐이다). 실제로 한 일을 그대로 적는다.
+    const hit = scored.some(e => e.score > 0);
+    out.push(`※ 항목이 많아 ${hit ? '**질문에 나온 말이 들어 있는 것부터**' : '**유형별로 앞에서부터**'} ${keep.size}건을 펼치고, ` +
+      `나머지 ${rules.length - keep.size}건은 제목·근거만 적었어요. ⚠주의나 적용제외가 붙은 항목은 순서와 상관없이 모두 펼칩니다.`);
+  }
 
   const kinds = [...new Set(rules.map(e => e.rule.유형))]
     .sort((a, b) => (ZONE_KIND_ORDER.indexOf(a) + 1 || 99) - (ZONE_KIND_ORDER.indexOf(b) + 1 || 99));
   kinds.forEach((kind, ki) => {
-    const list = rules.filter(e => e.rule.유형 === kind);
-    out.push(`**${ki + 1}. ${kind === '처벌' ? '처벌(법정형)' : kind}** (${list.length}건)` +
+    // 관련도 내림차순(동점은 자산 순서 — Array.sort가 안정정렬이라 **전원 0점이면 원래 순서 그대로**다).
+    const list = scored.filter(e => e.rule.유형 === kind).sort((a, b) => b.score - a.score);
+    const open = list.filter(e => keep.has(e.idx));
+    const fold = list.filter(e => !keep.has(e.idx));
+    out.push(`**${ki + 1}. ${kind === '처벌' ? '처벌(법정형)' : kind}** (${list.length}건` +
+      (fold.length ? ` — ${open.length}건 펼침 · ${fold.length}건 제목만` : '') + ')' +
       (kind === '처벌' ? '\n※ 법에 정해진 형(법정형)이에요 — 실제 선고형은 사안에 따라 달라져요.' : ''));
-    list.forEach((e, i) => out.push(zoneRuleLines(e, i)));
+    open.forEach((e, i) => out.push(zoneRuleLines(e, i)));
+    if (fold.length) out.push(fold.map(zoneRuleFoldedLine).join('\n'));
   });
 
   for (const ax of (leaf.추가확인 || [])) {
@@ -1620,9 +1765,7 @@ function renderZoneAnswer(tree, path, rules) {
   if (leaf.주의) out.push(`**⚠이 구역에서 주의할 점**: ${leaf.주의}`);
   if (leaf.메모) out.push(`**참고**: ${leaf.메모}`);
 
-  out.push('**이 목록의 한계**: 74개 해양수산 법령의 원문에 "구역에 따라 달라진다"고 문장으로 적혀 있는 것만 모은 목록이에요. ' +
-    '고시(행정규칙)의 구역별 설비·수량 기준, 지자체 자치법규, 별표의 수치 기준은 여기 들어 있지 않아요 — ' +
-    '목록에 없다고 해서 그런 규정이 없다는 뜻은 아닙니다. 정확한 확인은 소관부서에 문의하세요.');
+  out.push(zoneCoverageNote(rules));
   return out.join('\n\n');
 }
 
@@ -1661,10 +1804,10 @@ function zoneTreeStep(query) {
     }
     const rules = collectZoneRules(tree, path);
     if (!rules.length) return null;              // 담을 게 없으면 트리가 답할 것이 없다
-    return { answer: renderZoneAnswer(tree, path, rules), note: ZONE_ANSWER_NOTE };
+    return { answer: renderZoneAnswer(tree, path, rules, query), note: ZONE_ANSWER_NOTE };
   } catch (_) {
     return null;
   }
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath };
+module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules };

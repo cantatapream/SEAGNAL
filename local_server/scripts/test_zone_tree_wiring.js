@@ -18,6 +18,7 @@
 // ============================================================================
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { execFileSync } = require('child_process');
 
 const RET = path.join(__dirname, '..', 'services', 'legal_retriever.js');
@@ -45,22 +46,41 @@ function nodesOf(tree) {
 }
 const ALL = [].concat(...J.trees.map(t => nodesOf(t).map(x => Object.assign({ tree: t }, x))));
 
+// 되묻기 버튼을 끝까지 눌러 도달한 리프별 (질의·답변·그 리프의 적용항목 전량).
+// T1은 "도달했는가"만 보고, T8(§13 표시 규칙)은 그 답변의 **내용**을 봐야 해서 따로 모은다.
+const SEEDS = [
+  '우리 배 어디까지 나갈 수 있나요?',
+  '배로 영해까지 나가도 되나요?',
+  '배로 내수면까지 갈 수 있나요?',
+  '어선으로 어디서 조업할 수 있나요?',
+  '배로 배타적 경제수역까지 나가도 되나요?',
+  '배로 해수면까지 나갈 수 있나요?',
+  // sea_area 루트(waters)는 서로 다른 가지의 라벨 2개를 같이 말해야만 되묻기가 뜬다
+  // (한쪽만 말하면 ②암시 하강이 곧바로 그 자식으로 내려간다 — 적대검증 §2 부수관찰).
+  '배가 영해랑 사유수면 중 어디까지 갈 수 있나요?',
+];
+function leafAnswers() {
+  const out = new Map();
+  const queue = SEEDS.slice(); const seen = new Set(queue);
+  while (queue.length) {
+    const q = queue.shift();
+    const tree = R.matchZoneTreeTopic(q); if (!tree) continue;
+    const step = R.zoneTreeStep(q); if (!step) continue;
+    if (step.clarify) {
+      for (const o of step.clarify.options) { const nq = q + JOINER + o.label; if (!seen.has(nq)) { seen.add(nq); queue.push(nq); } }
+      continue;
+    }
+    const { node, path: p } = R.resolveZoneTreePath(q, tree);
+    if (!out.has(node.id)) out.set(node.id, { q, node, answer: step.answer, rules: R.collectZoneRules(tree, p) });
+  }
+  return out;
+}
+
 // ── T1. 리프 도달성 전수 BFS ────────────────────────────────────────────────
 // 클라이언트 버튼 클릭을 그대로 재현한다(질의 + ' — ' + 서버가 내려준 option.label).
 // L-77 결함①(근해구역 이상 오하강)·결함②(그 밖의 먼바다 도달 불가)가 이 성질로 표현된다.
 console.log('\n[T1] 리프 도달성 — 버튼 클릭 BFS 전수 전개');
 {
-  const SEEDS = [
-    '우리 배 어디까지 나갈 수 있나요?',
-    '배로 영해까지 나가도 되나요?',
-    '배로 내수면까지 갈 수 있나요?',
-    '어선으로 어디서 조업할 수 있나요?',
-    '배로 배타적 경제수역까지 나가도 되나요?',
-    '배로 해수면까지 나갈 수 있나요?',
-    // sea_area 루트(waters)는 서로 다른 가지의 라벨 2개를 같이 말해야만 되묻기가 뜬다
-    // (한쪽만 말하면 ②암시 하강이 곧바로 그 자식으로 내려간다 — 적대검증 §2 부수관찰).
-    '배가 영해랑 사유수면 중 어디까지 갈 수 있나요?',
-  ];
   const reached = new Set(), answered = new Set(), abandoned = [];
   const queue = SEEDS.slice();
   const seen = new Set(queue);
@@ -255,6 +275,117 @@ console.log('\n[T7] 필수 규약 — 처벌 표기·주의 노출·신뢰등급
   ok('주의·적용제외를 가진 항목이 자산에 존재(빈 검사 방지)', withNote.length > 0, withNote.length);
   const smooth = (R.zoneTreeStep('우리 배 어디까지 나갈 수 있나요?' + JOINER + '평수구역') || {}).answer || '';
   ok('평수구역 답변에 적용제외가 실제로 출력된다', smooth.includes('적용제외:'));
+}
+
+// ── T8. §13 표시 규칙 — 관련도 필터·접기·면책 문구 데이터화 (L-81 근본해법) ──
+// 고시 확장(자산 79→186건)으로 배선 코드를 한 줄도 안 고쳤는데 리프 답변이 1.5만~1.8만 자로
+// 폭증하고, 하드코딩된 면책 문구("고시의 구역별 설비·수량 기준은 여기 들어 있지 않아요")가
+// **거짓**이 됐다(L-81). 여기서 고정하는 계약은 넷이다 — ①분량 ②데이터 유실 0 ③주의·적용제외
+// 전수 노출 ④면책 문구가 자산을 따라간다(코드가 산문으로 단언하지 않는다).
+console.log('\n[T8] §13 표시 규칙 — 관련도 정렬 · 접기 · 면책 문구');
+{
+  const leaves = leafAnswers();
+  ok(`리프 ${leaves.size}개 답변 수집`, leaves.size === ALL.filter(x => x.leaf).length, leaves.size);
+
+  // ① 분량 — 상한은 문자 수로 자르는 것이 아니라 **항목 개수 상한의 결과**다(설계 §13.2-5).
+  //    수정 전 최대 18,101자 → 수정 후 최대 11,456자(실측). 상한은 그 위에 여유를 둔 값이다.
+  const LIMIT = 13000;
+  const tooLong = [...leaves.values()].filter(x => x.answer.length > LIMIT).map(x => x.node.id + ':' + x.answer.length);
+  ok(`리프 전수 본문 ${LIMIT}자 이하`, tooLong.length === 0, tooLong);
+
+  // ② 데이터 유실 0 — 항목 하나하나가 **펼침(가. 제목)이든 접힘(· 제목 — 「법령」)이든** 화면에 있다.
+  //    (항목 번호는 15번째부터 '가나다…' 대신 숫자라 두 형태를 다 본다.)
+  const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const openAt = (a, t) => { const m = a.match(new RegExp('(?:^|\\n)(?:[가-하]|\\d+)\\. ' + esc(t) + '\\n')); return m ? m.index : -1; };
+  const foldAt = (a, t) => a.indexOf('\n· ' + t + ' — 「');
+  const lost = [];
+  for (const [id, x] of leaves) {
+    let opened = 0, folded = 0;
+    for (const e of x.rules) {
+      if (openAt(x.answer, e.rule.제목) >= 0) opened++;
+      else if (foldAt(x.answer, e.rule.제목) >= 0) folded++;
+      else lost.push(`${id}: 화면에 없음 — ${e.rule.제목}`);
+    }
+    if (opened + folded !== x.rules.length) lost.push(`${id}: 펼침${opened}+접힘${folded} ≠ ${x.rules.length}`);
+  }
+  ok('펼침 + 접힘 = 전체(항목 소실 0)', lost.length === 0, lost.slice(0, 5));
+
+  // ③ 배선 전 필수 규약② — `주의`·`적용제외`는 점수와 무관하게 **언제나 펼쳐서** 노출.
+  const hidden = [];
+  for (const [id, x] of leaves) {
+    for (const e of x.rules) {
+      if (e.rule.주의 && !x.answer.includes(`⚠주의: ${e.rule.주의}`)) hidden.push(`${id}: 주의 미노출 — ${e.rule.제목}`);
+      if (e.rule.적용제외 && !x.answer.includes(`적용제외: ${e.rule.적용제외}`)) hidden.push(`${id}: 적용제외 미노출 — ${e.rule.제목}`);
+    }
+  }
+  ok('주의·적용제외 전수 노출(접기가 무력화하지 않는다)', hidden.length === 0, hidden.slice(0, 5));
+
+  // ④ 관련도 정렬이 실제로 작동 — 질문어가 든 항목이 접히지 않고 펼쳐진다(설계 §13.5-T2).
+  const relev = (q, title) => {
+    const a = (R.zoneTreeStep(q) || {}).answer || '';
+    return a.includes(`. ${title}`) && !a.includes(`· ${title}`);   // '가. 제목'(펼침) vs '· 제목'(접힘)
+  };
+  ok('무선설비 질의 — 무선설비 항목이 펼쳐진다',
+    relev('무선설비 없는 배로 어디까지 나갈 수 있나요?' + JOINER + '근해구역 이상' + JOINER + '근해구역',
+      '무선설비를 비치해야 하고, 연해구역 이상이면 한 종류를 더 갖춰야 한다'));
+  ok('구명조끼 질의 — 구명조끼 항목이 펼쳐진다',
+    relev('우리 배에 구명조끼 싣고 어디까지 나갈 수 있나요?' + JOINER + '평수구역',
+      '공기부양정(여객선 제외)은 구명부환 2개와 최대승선인원 수의 구명조끼만 비치하면 된다'));
+
+  // ⑤ 점수가 전원 0인 정상 경로(트리 되묻기의 기본 경로)에서 **순서 회귀 0**(설계 §13.5-T5).
+  //    정렬이 안정정렬이라 동점이면 자산 순서가 그대로 유지된다. 단 접힌 항목은 유형 블록 끝에
+  //    모이므로, 검사 대상은 **펼친 것끼리 / 접힌 것끼리의 상대 순서**다(접기 자체가 이번 변경의
+  //    목적이라 "펼침 다음 접힘"은 회귀가 아니다 — 관련도 때문에 항목이 뒤섞이는 것만 회귀다).
+  {
+    const bad = [];
+    let checked = 0;
+    for (const [id, x] of leaves) {
+      if (R.rankZoneRules(x.rules, x.q).some(e => e.score > 0)) continue;   // 질문어가 걸린 리프는 정렬이 목적
+      checked++;
+      const byKind = new Map();
+      for (const e of x.rules) byKind.set(e.rule.유형, (byKind.get(e.rule.유형) || []).concat(e.rule.제목));
+      for (const [kind, titles] of byKind) {
+        for (const at of [openAt, foldAt]) {
+          const pos = titles.map(t => at(x.answer, t)).filter(i => i >= 0);
+          for (let i = 1; i < pos.length; i++) if (pos[i] < pos[i - 1]) bad.push(`${id}/${kind}: ${titles[i]}`);
+        }
+      }
+    }
+    ok(`score 전원 0인 리프 ${checked}개 — 유형 안 항목 순서가 자산 순서 그대로`, bad.length === 0 && checked > 0, bad.slice(0, 5));
+  }
+
+  // ⑥ 면책 문구가 **자산에서 조립**된다 — 하드코딩 잔존 0 + 자산을 바꾸면 문구가 따라 바뀐다.
+  {
+    const a = leaves.get('smooth_water_area').answer;
+    ok('거짓이 된 하드코딩 문구가 사라졌다',
+      !a.includes('고시(행정규칙)의 구역별 설비·수량 기준, 지자체 자치법규, 별표의 수치 기준은 여기 들어 있지 않아요'));
+    ok('불변 문장은 남아 있다', a.includes('목록에 없다고 해서 그런 규정이 없다는 뜻은 아닙니다'));
+    const labels = (J.unmapped.유형_단위 || []).map(u => u.표시).filter(Boolean);
+    ok(`unmapped 표시 라벨 ${labels.length}개가 문구에 그대로`, labels.every(l => a.includes(l)),
+      labels.filter(l => !a.includes(l)));
+    ok('스캔 밖 라벨이 문구에 그대로', (J.unmapped.스캔밖_표시.값 || []).every(l => a.includes(l)));
+    ok('이 리프에 실린 계층이 문구에 숫자와 함께', a.includes('고시(행정규칙)') && /고시\(행정규칙\) \d+건/.test(a));
+    // 자산을 **바꿔서** 문구가 따라 바뀌는지 별도 프로세스로 확인한다(저장소 파일은 안 건드린다).
+    const stubbed = (() => {
+      const j = JSON.parse(JSON.stringify(J));
+      j.unmapped.유형_단위 = [{ 유형: 'x', 표시: '테스트용_빠진항목' }];
+      j.unmapped.스캔밖_표시 = { 값: ['테스트용_스캔밖'] };
+      j.summary.laws_in_scope = 999;
+      // 자산 본문은 커서 명령줄로 못 넘긴다(E2BIG) — 임시 파일에 써서 자식이 읽게 한다.
+      const tmp = path.join(os.tmpdir(), 'zone_tree_stub_' + process.pid + '.json');
+      fs.writeFileSync(tmp, JSON.stringify(j));
+      const code = `const fs=require('fs');const r=fs.readFileSync;const J=r(${JSON.stringify(tmp)},'utf8');` +
+        `fs.readFileSync=(p,...a)=>String(p).endsWith('zone_tree.json')?J:r(p,...a);` +
+        `const R=require(${JSON.stringify(RET)});` +
+        `process.stdout.write('\\nZONE_RESULT:'+JSON.stringify((R.zoneTreeStep('우리 배 어디까지 나갈 수 있나요?${JOINER}평수구역')||{}).answer||''));`;
+      const out = execFileSync(process.execPath, ['-e', code], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      fs.unlinkSync(tmp);
+      return JSON.parse((out.match(/ZONE_RESULT:(.*)$/m) || [])[1]);
+    })();
+    ok('자산을 바꾸면 면책 문구가 따라 바뀐다(하드코딩 0)',
+      stubbed.includes('테스트용_빠진항목') && stubbed.includes('테스트용_스캔밖') && stubbed.includes('999개 해양수산 법령') &&
+      !stubbed.includes('선체 구조기준(치수·강도)'));
+  }
 }
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);
