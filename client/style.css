@@ -8662,6 +8662,173 @@ html[data-font-size="large"] .ocean-overlay-btn {
 }
 
 /* ============================================================
+   사고정보 (js/marine-life/safety/accident_info.js)
+   팝아웃(.ocean-other-wx-popup 재사용) 내부 UI + 마커 팝업 + 분석
+   모드 통계 바텀시트. 색상은 :root 토큰, 바텀시트는 .ocean-bottom-sheet
+   와 같은 톤(그라디언트·radius)을 그대로 옮겨왔다(요소 자체는 분리 —
+   body.ls-mode.ls-safety #ocean-bottom-sheet 숨김 규칙 영향 안 받게).
+   ============================================================ */
+.accident-popup-panel {
+    width: 156px;
+    /* [버그 수정 — 헤드리스 브라우저 스크린샷으로 발견]
+       .ocean-other-wx-popup(천기 팝아웃 기반 클래스)은 개별 아이콘 버튼 여러 개가
+       배경 없이 둥둥 뜨는 걸 전제로 해서 자체 배경이 없다. 사고정보는 라벨이 있는
+       패널(토글+목록)이라 배경 없이는 지도 위에서 거의 안 보인다(투명 텍스트 버튼만
+       배경 없는 지도 위에 떠서 대비가 안 나옴) — 패널 자체에 배경을 준다. */
+    background: rgba(10, 15, 28, 0.94);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+}
+
+.accident-mode-toggle {
+    display: flex;
+    background: rgba(0,0,0,0.3);
+    border-radius: 999px;
+    padding: 2px;
+    margin-bottom: 8px;
+}
+.accident-mode-toggle button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-sub);
+    padding: 6px 0;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.accident-mode-toggle button.active {
+    background: var(--accent-yellow);
+    color: #241a00;
+}
+
+.accident-source-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.accident-source-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 7px 8px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-sub);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+.accident-source-item i { width: 14px; text-align: center; flex: none; }
+.accident-source-item.active {
+    background: rgba(68,138,255,0.16);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+/* 마커 팝업 (현황 모드) — .tide-popup 과 같은 톤 */
+.accident-popup {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    padding: 10px 12px;
+    font-size: 0.78rem;
+    line-height: 1.75;
+    min-width: 170px;
+    max-width: 260px;
+}
+.accident-popup .row { display: flex; justify-content: space-between; gap: 10px; }
+.accident-popup .row span:first-child { color: var(--text-sub); flex: none; }
+.accident-popup .row span:last-child { text-align: right; }
+
+/* 분석 모드 — 격자 클릭 시 뜨는 통계 바텀시트 (.ocean-bottom-sheet 톤 재사용) */
+.accident-stats-sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    max-height: 62vh;
+    background: linear-gradient(180deg, #0c1a3a 0%, #162d5a 100%);
+    border-radius: 20px 20px 0 0;
+    z-index: 70;
+    overflow-y: auto;
+    box-shadow: 0 -4px 30px rgba(0,0,0,0.5);
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.22,1,0.36,1);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+.accident-stats-sheet.open { transform: translateY(0); }
+.accident-sheet-handle {
+    width: 40px; height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    margin: 10px auto 4px;
+}
+.accident-stats-body { padding: 4px 16px 18px; font-size: 0.8rem; color: var(--text-main); }
+.accident-stats-body h3 {
+    margin: 4px 0 12px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.accident-stats-body h3 .cellcount { color: var(--accent-yellow); }
+.accident-stats-block { margin-bottom: 14px; }
+.accident-stats-block:last-child { margin-bottom: 0; }
+.accident-stats-label {
+    font-size: 0.68rem;
+    color: var(--text-sub);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 7px;
+}
+.accident-stats-empty { font-size: 0.76rem; color: var(--text-sub); }
+
+.accident-spark { display: flex; align-items: flex-end; gap: 2px; height: 38px; }
+.accident-spark i {
+    flex: 1;
+    background: var(--accent-blue);
+    opacity: 0.8;
+    border-radius: 2px 2px 0 0;
+    min-height: 2px;
+}
+
+.accident-daynight { display: flex; gap: 12px; }
+.accident-dn-bar { flex: 1; }
+.accident-dn-bar .track { background: rgba(255,255,255,0.08); border-radius: 5px; height: 8px; overflow: hidden; }
+.accident-dn-bar .fill { height: 100%; border-radius: 5px; }
+.accident-dn-bar .fill.day { background: var(--accent-yellow); }
+.accident-dn-bar .fill.night { background: var(--accent-blue); }
+.accident-dn-bar .meta { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-sub); margin-top: 4px; }
+.accident-dn-bar .meta b { color: var(--text-main); font-weight: 700; }
+
+.accident-detail-tabs { display: flex; gap: 4px; margin-bottom: 9px; flex-wrap: wrap; }
+.accident-detail-tab {
+    border: none;
+    background: rgba(255,255,255,0.07);
+    color: var(--text-sub);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.accident-detail-tab.active { background: var(--accent-blue); color: #05070d; }
+
+.accident-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.74rem; }
+.accident-bar-row .name { width: 84px; flex: none; color: var(--text-sub); }
+.accident-bar-row .track { flex: 1; background: rgba(255,255,255,0.08); border-radius: 4px; height: 7px; overflow: hidden; }
+.accident-bar-row .fill { height: 100%; background: var(--accent-green); border-radius: 4px; }
+.accident-bar-row .n { width: 30px; text-align: right; color: var(--text-main); }
+
+/* ============================================================
    범례 + 타임라인 통합 박스
    오버레이(조류/바람/파고) 활성 시 지도 하단에 표시됩니다.
    기본(active 아닐 때)은 일반 position으로, active 상태에서

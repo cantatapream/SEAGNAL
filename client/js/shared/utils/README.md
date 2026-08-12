@@ -8,6 +8,7 @@
 | 파일 | 역할 | 주요 함수 |
 |------|------|-----------|
 | `mappings.js` | 연안바다/평수구역 매핑, 부이 위치 매핑, 부이 타입 정의 | — |
+| `accident_codes.js` | 사고정보(선박·인명) `_CD` 코드값 → 한글 라벨 매핑(사고유형·발생원인·선박종류·해역·관할해경서) + 주/야간 판정 헬퍼 | `accidentLabel`, `accidentIsDaytimeFromHM`, `accidentIsDaytimeFromTmz` |
 | `utils.js` | 전역 상태(appState), 유틸리티 함수, 날짜/시간 포맷팅 | `getSeaArea`, `formatDate`, `formatWarningTime`, `getKfTime`, `getProxiedUrl`, `decodeHtmlEntities` |
 
 ## 로드 순서
