@@ -53,6 +53,17 @@
     var _loaded = false;
     var _loading = false;
 
+    // 국내 항로(141곳) 색 — 마젠타. 전자해도에서 통항분리대 경계에 흔히 쓰이는 색 계열이라
+    // 배경(enc)과 자연스럽게 어울리고, 보라인 관제구역(#A855F7)과도 톤이 갈려 구분된다.
+    var SEAWAY_COLOR = 'rgba(162, 28, 175, 0.9)';
+    var SEAWAY_FILL = 'rgba(162, 28, 175, 0.14)';
+    var SEAWAY_TEXT = '#f5d0fe';
+    // 국제 해양경계 수역(3곳, category='해역') 색 — 선홍. 항로 마젠타·관제구역 보라·
+    // 낚시금지 주황 어디와도 겹치지 않게 뚜렷이 구분한다.
+    var INTL_COLOR = 'rgba(220, 38, 38, 0.9)';
+    var INTL_FILL = 'rgba(220, 38, 38, 0.14)';
+    var INTL_TEXT = '#fecaca';
+
     /**
      * 선(線)으로 고시된 항로인지 판별한다 — 통항분리대 등 17개가 MultiLineString 이다.
      * 예: 면 항로 '광양만'(MultiPolygon) → false, 통항분리대(MultiLineString) → true.
@@ -67,25 +78,27 @@
     }
 
     /**
-     * 항로 한 벌의 스타일(청록 톤 — 빨강 출입통제·주황 낚시금지·인디고 관제구역과 구분)을 만든다.
-     * 예: name='광양만' → 청록 외곽선 2px + 14% 채움 + 그 이름 라벨.
+     * 항로 한 벌의 스타일을 만든다 — 국내 항로(141곳)는 마젠타 톤, 국제 해양경계 수역
+     * (3곳, category='해역')은 선홍 톤으로 구분한다.
+     * 예: name='광양만'(항로) → 마젠타 외곽선 2px + 14% 채움. name='한중잠정조치수역'(해역) → 선홍.
      * @param {ol.Feature} feature - 그릴 항로 피처(라벨 문구는 name 속성)
      * @returns {ol.style.Style} 외곽선·채움·라벨이 다 든 스타일 1개
      * [연계] ← _fillOnlyStyle()/_strokeOnlyStyle() — 두 레이어가 이 한 벌을 나눠 쓴다
      */
     function _zoneStyle(feature) {
+        var isIntl = feature.get('category') === '해역';
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
-                color: 'rgba(45, 212, 191, 0.9)',
+                color: isIntl ? INTL_COLOR : SEAWAY_COLOR,
                 width: 2
             }),
             fill: new ol.style.Fill({
-                color: 'rgba(45, 212, 191, 0.14)'
+                color: isIntl ? INTL_FILL : SEAWAY_FILL
             }),
             text: new ol.style.Text({
                 text: feature.get('name') || '',
                 font: 'bold 11px "Pretendard", sans-serif',
-                fill: new ol.style.Fill({ color: '#99f6e4' }),
+                fill: new ol.style.Fill({ color: isIntl ? INTL_TEXT : SEAWAY_TEXT }),
                 stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
                 overflow: true,
                 placement: 'point'
@@ -95,7 +108,7 @@
 
     /**
      * 스타일 한 벌에서 채움만 뽑아 새 스타일을 만든다.
-     * 예: _onlyFill(_zoneStyle(f)) → 선·라벨 없이 rgba(45,212,191,0.14) 채움만.
+     * 예: _onlyFill(_zoneStyle(f)) → 선·라벨 없이 rgba(162,28,175,0.14) 채움만.
      * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
      * @returns {ol.style.Style|null} 채움만 든 스타일 — 채울 것이 없으면 null(안 그림)
      * [연계] ← _fillOnlyStyle()
@@ -107,7 +120,7 @@
     }
     /**
      * 스타일 한 벌에서 외곽선과 라벨만 뽑아 새 스타일을 만든다.
-     * 예: _onlyStrokeAndText(_zoneStyle(f)) → 채움 없이 청록 선 + '광양만' 라벨.
+     * 예: _onlyStrokeAndText(_zoneStyle(f)) → 채움 없이 마젠타 선 + '광양만' 라벨.
      * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
      * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
      * [연계] ← _strokeOnlyStyle()
@@ -117,15 +130,15 @@
     }
     /**
      * 채움 레이어(_fillLayer)의 스타일 함수 — 면 항로만 채우고 선 항로는 건너뛴다.
-     * 예: _fillOnlyStyle('광양만' 면 항로) → 반투명 청록 면, 통항분리대 선 항로 → null.
+     * 예: _fillOnlyStyle('광양만' 면 항로) → 반투명 마젠타 면, 통항분리대 선 항로 → null.
      * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
      * @returns {ol.style.Style|null} 채움만 든 스타일(선 항로는 채울 것이 없어 null)
      * [연계] ← _ensureLayers() 의 _fillLayer style 옵션 → _isLine()·_zoneStyle()·_onlyFill()
      */
     function _fillOnlyStyle(feature) { return _isLine(feature) ? null : _onlyFill(_zoneStyle(feature)); }
     /**
-     * 외곽선 레이어(_layer)의 스타일 함수 — 면·선 항로 둘 다 같은 청록 선과 라벨로 그린다.
-     * 예: _strokeOnlyStyle(통항분리대 선 항로) → 청록 선 + 이름 라벨(선 항로는 이 레이어에만 보인다).
+     * 외곽선 레이어(_layer)의 스타일 함수 — 면·선 항로 둘 다 같은 색 계열의 선과 라벨로 그린다.
+     * 예: _strokeOnlyStyle(통항분리대 선 항로) → 마젠타 선 + 이름 라벨(선 항로는 이 레이어에만 보인다).
      * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
      * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
      * [연계] ← _ensureLayers() 의 _layer style 옵션 → _zoneStyle()·_onlyStrokeAndText()
