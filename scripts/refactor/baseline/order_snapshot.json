@@ -19,6 +19,7 @@
     "capacitor-plugins.js",
     "config.js",
     "mappings.js",
+    "accident_codes.js",
     "utils.js",
     "data.js",
     "zone_avg.js",
@@ -115,6 +116,7 @@
     "vts_zone.js",
     "seaway.js",
     "navigational_warning.js",
+    "accident_info.js",
     "life_safety.js"
   ]
 }

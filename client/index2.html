@@ -790,6 +790,10 @@
         body.ls-mode.ls-safety #ocean-navwarn-btn,
         body.ls-mode.ls-safety #ocean-cctv-toggle-btn,
         body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
+        /* 사고정보 버튼은 자기 자신이 아니라 팝아웃 앵커용 wrap(#ocean-accident-wrap)이
+           #ocean-overlay-controls 의 직계 자식이라 위 flex 규칙과 별도로 켜준다
+           (wrap 자체는 position:relative 만 필요 — 버튼처럼 flex 아님). */
+        body.ls-mode.ls-safety #ocean-accident-wrap { display: block !important; }
         /* 노출암/간출암 등/출입통제/낚시금지/관제구역/항로·해역/항행경보 버튼은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
            [연계] js/marine-life/safety/hazard_rocks.js, js/marine-life/safety/access_control.js,
                   js/marine-life/safety/fishing_ban.js, js/marine-life/safety/vts_zone.js,
@@ -3629,6 +3633,36 @@
                             <i class="fa-solid fa-video"></i>
                             <span class="ocean-overlay-label" data-line1="CC" data-line2="TV">CCTV</span>
                         </button>
+                        <!-- 사고정보 토글: js/marine-life/safety/accident_info.js 가 바인딩.
+                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
+                             클릭하면 왼쪽으로 팝아웃(천기 버튼의 .ocean-other-wx-popup 패턴 재사용)
+                             — 현황/분석 토글 + 선박(해경)·선박(심판원)·인명 소스 버튼 3개.
+                             [데이터] /accident_ships_hk.json·accident_ships_hs.json·accident_persons.json
+                                      (국립해양조사원 개방海, 정적, 소스 버튼을 처음 누를 때만 지연 로드) -->
+                        <div class="ocean-other-wx-wrap" id="ocean-accident-wrap">
+                            <button class="ocean-overlay-btn" id="ocean-accident-toggle-btn" title="사고정보">
+                                <i class="fa-solid fa-ship"></i>
+                                <span class="ocean-overlay-label" data-line1="사고" data-line2="정보">사고정보</span>
+                            </button>
+                            <div class="ocean-other-wx-popup accident-popup-panel" id="ocean-accident-popup">
+                                <div class="accident-mode-toggle" id="ocean-accident-mode-toggle">
+                                    <button class="active" data-mode="status">현황</button>
+                                    <button data-mode="analysis">분석</button>
+                                </div>
+                                <div class="accident-source-list" id="ocean-accident-source-list">
+                                    <button class="accident-source-item" data-source="hk">
+                                        <i class="fa-solid fa-ship"></i><span>선박(해경)</span>
+                                    </button>
+                                    <button class="accident-source-item" data-source="hs">
+                                        <i class="fa-solid fa-gavel"></i><span>선박(심판원)</span>
+                                    </button>
+                                    <button class="accident-source-item" data-source="person">
+                                        <i class="fa-solid fa-user"></i><span>인명</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <button class="ocean-overlay-btn ocean-myloc-btn" id="ocean-myloc-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                             <!-- 큰 텍스트 모드 전용 라벨 — 보통 모드에선 .ocean-overlay-label[data-line1] CSS
@@ -3642,6 +3676,18 @@
 
                     <!-- 캔버스 오버레이 (파티클/색상 그라디언트) -->
                     <canvas id="ocean-overlay-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; border-radius:10px;"></canvas>
+
+                    <!-- 사고정보 "분석" 모드 통계 바텀시트 — .ocean-bottom-sheet(해양종합정보 해점
+                         카드)와 별개 요소. body.ls-mode.ls-safety #ocean-bottom-sheet 는 항상 숨김
+                         처리되어 있어(위 CSS 참고) 그 요소를 재사용하지 않고 새로 둔다.
+                         [연계] js/marine-life/safety/accident_info.js openStatsSheet()/closeStatsSheet() -->
+                    <div class="accident-stats-sheet" id="accident-stats-sheet">
+                        <div class="accident-sheet-handle"></div>
+                        <button class="ocean-sheet-close" id="accident-stats-close" title="닫기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                        <div class="accident-stats-body" id="accident-stats-body"></div>
+                    </div>
 
                     <!-- 활성 특보 색칠 범례
                          [표출 조건] state.active === true 일 때만 (ocean_warn_active4.js 가 토글)
@@ -5048,6 +5094,7 @@
     <!-- [리팩토링] app.js를 15개 모듈로 분할 -->
     <script src="js/core/config.js"></script>
     <script src="js/shared/utils/mappings.js"></script>
+    <script src="js/shared/utils/accident_codes.js"></script>
     <script src="js/shared/utils/utils.js"></script>
     <script src="js/forecast/alerts/data.js"></script>
     <script src="js/forecast/alerts/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
@@ -5217,6 +5264,12 @@
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <script src="js/marine-life/safety/navigational_warning.js"></script>
+
+    <!-- 사고정보(선박·인명) 레이어 — 해양안전 하위탭 전용. navigational_warning.js 와
+         동일하게 스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다.
+         accident_codes.js(라벨 매핑)를 먼저 읽으므로 그 뒤에 위치. -->
+    <script src="js/marine-life/safety/accident_info.js"></script>
 
     <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->

@@ -177,3 +177,9 @@ local_server/analysis/wave_leadtime/data/bulletins_*.json
 secrets/
 serviceAccountKey*.json
 googla_cloud_api_backup_bot_key/
+
+# 사고정보(선박/인명) 원본 CSV·SHP·코드정의서 xlsx — 국립해양조사원 원본 데이터,
+# 용량이 커서(zip 3개 합계 ~70MB) 커밋하지 않는다. build_accidents.js 의 입력이며
+# 변환 결과(client/accident_*.json)만 커밋한다. 재생성 시 이 폴더에 CSV를 두고
+# node scripts/build_accidents.js 실행.
+local_server/scripts/_accident_raw/
