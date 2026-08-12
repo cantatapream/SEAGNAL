@@ -68,9 +68,10 @@
     var INTL_LIGHT_COLOR = 'rgba(248, 113, 113, 0.9)';
     var INTL_LIGHT_FILL = 'rgba(248, 113, 113, 0.14)';
 
-    // 국내 항로 중 "직사각형에 가까운" 항로만 옆면(긴 변) 점선 + 입출구(짧은 변) 선 없음
-    // 처리를 적용한다(1차 적용 범위 — 복잡한 모양 항로는 추후 검토, 사용자 지시).
-    var RECT_ANGLE_TOLERANCE_DEG = 20; // 내각이 90도에서 이 범위 안이면 직사각형으로 본다
+    // 국내 항로 중 입출구(모서리로 꺾이는 짧은 변)를 자동으로 가릴 수 있는 항로만 옆면
+    // 점선 + 입출구 선 없음 처리를 적용한다(입출구를 못 가리는 복잡한 항로는 추후 검토).
+    var CORNER_ANGLE_MIN = 50;  // 내각이 이 범위(50~130도) 안이면 "모서리" 꼭짓점으로 본다
+    var CORNER_ANGLE_MAX = 130; // (130도 초과면 "거의 일직선" — 옆면이 완만히 굽는 지점)
     var DASH_PATTERN = [6, 6];
 
     /**
@@ -117,7 +118,7 @@
      * @param {Array<number>} u - 벡터1 [dx, dy]
      * @param {Array<number>} v - 벡터2 [dx, dy]
      * @returns {number|null} 사잇각(도) — 길이 0인 벡터가 있으면 null
-     * [연계] ← _asRectangleVertices()
+     * [연계] ← _corridorSideEdges()
      */
     function _angleBetween(u, v) {
         var magU = Math.sqrt(u[0] * u[0] + u[1] * u[1]);
@@ -128,49 +129,31 @@
     }
 
     /**
-     * 국내 항로 폴리곤이 (대략) 직사각형인지 판별해, 맞으면 꼭짓점 4개를 돌려준다.
-     * 꼭짓점이 4개이고 네 내각이 모두 90도±허용오차 안일 때만 직사각형으로 본다 — 옆면
-     * 점선·입출구 없음 처리는 이 조건을 만족하는 항로에만 적용한다(1차 적용 범위). 조각이
-     * 여러 개인 MultiPolygon(드묾)은 판별하지 않는다.
-     * 예: 보길도항로(내각 약 93·86·83·98도) → 꼭짓점 4개 반환. 복잡한 다각형 항로 → null.
-     * @param {ol.Feature} feature - 판별할 항로 피처
-     * @returns {Array<Array<number>>|null} 직사각형이면 꼭짓점 4개(닫힘 중복 제거), 아니면 null
-     * [연계] ← _buildOutlineStyle() — true 면 _rectangleSideEdges() 로 옆면 2개를 뽑는다
+     * 항로 피처에서 꼭짓점 배열을 뽑는다(닫힘 중복점 제거). 조각이 여러 개인
+     * MultiPolygon(드묾)은 어느 조각의 입출구인지 가릴 수 없어 판별 대상에서 뺀다.
+     * @param {ol.Feature} feature - 대상 항로 피처
+     * @returns {Array<Array<number>>|null} 꼭짓점 배열, 판별 불가면 null
+     * [연계] ← _corridorSideEdges() 호출 전 _buildOutlineStyle() 이 먼저 부른다
      */
-    function _asRectangleVertices(feature) {
+    function _getRingVertices(feature) {
         var geom = feature.getGeometry();
         var type = geom.getType();
-        var ring;
         if (type === 'Polygon') {
-            ring = geom.getCoordinates()[0];
-        } else if (type === 'MultiPolygon') {
+            return geom.getCoordinates()[0].slice(0, -1);
+        }
+        if (type === 'MultiPolygon') {
             var polys = geom.getCoordinates();
-            if (polys.length !== 1) return null; // 조각 여러 개면 판별 대상 제외
-            ring = polys[0][0];
-        } else {
-            return null;
+            if (polys.length !== 1) return null;
+            return polys[0][0].slice(0, -1);
         }
-        var verts = ring.slice(0, -1); // 닫힘 중복점(첫점=끝점) 제거
-        if (verts.length !== 4) return null;
-
-        for (var i = 0; i < 4; i++) {
-            var cur = verts[i];
-            var prev = verts[(i + 3) % 4];
-            var next = verts[(i + 1) % 4];
-            var angle = _angleBetween(
-                [prev[0] - cur[0], prev[1] - cur[1]],
-                [next[0] - cur[0], next[1] - cur[1]]
-            );
-            if (angle === null || Math.abs(angle - 90) > RECT_ANGLE_TOLERANCE_DEG) return null;
-        }
-        return verts;
+        return null;
     }
 
     /**
      * 변 하나(좌표 2개)의 길이를 구한다.
      * @param {Array<Array<number>>} edge - [시작좌표, 끝좌표]
      * @returns {number} 변 길이(투영좌표 단위)
-     * [연계] ← _rectangleSideEdges()
+     * [연계] ← _corridorSideEdges()
      */
     function _edgeLen(edge) {
         var dx = edge[0][0] - edge[1][0];
@@ -179,32 +162,72 @@
     }
 
     /**
-     * 직사각형 꼭짓점 4개에서 "긴 변(옆면) 2개"만 좌표쌍으로 뽑는다 — 마주보는 두 변 쌍
-     * 중 합이 더 긴 쪽을 옆면으로 보고, 짧은 쪽(입출구)은 그리지 않을 것이므로 뺀다.
-     * 예: 보길도항로 꼭짓점 → 변 1-2·3-0(옆면, 길다)만 반환, 변 0-1·2-3(입출구)은 제외.
-     * @param {Array<Array<number>>} verts - _asRectangleVertices() 가 돌려준 꼭짓점 4개
-     * @returns {Array<Array<Array<number>>>} 옆면 2개, 각각 [시작좌표, 끝좌표]
+     * 항로 폴리곤의 꼭짓점을 훑어 "입출구(짧게 꺾이는 모서리 변, 선 없음)"와
+     * "옆면(다니는 방향과 나란한 변, 점선)"을 가른다. 실제 항로는 직사각형(꼭짓점 4개)
+     * 뿐 아니라, 중간에 완만하게 굽은 다각형(6개 등)도 많다 — 내각이 130도보다 크면
+     * ("거의 일직선") 그 꼭짓점은 옆면이 완만히 굽는 지점으로 보고, 50~130도면 "모서리"
+     * 로 본다. 모서리 꼭짓점 두 개를 바로 잇는 변만 입출구 후보다.
+     *  - 후보가 정확히 2개면 그 둘이 입출구(나머지는 전부 옆면 — 굽은 옆면은 변이 여러
+     *    개로 나뉘어도 다 옆면).
+     *  - 4각형이라 후보가 4개(전 꼭짓점이 모서리) 나오면, 마주보는 두 변 쌍 중 합이
+     *    더 짧은 쪽을 입출구로 본다(모서리 판별만으론 어느 쌍인지 못 가림).
+     *  - 그 외(후보 0·1·3개 이상 등)는 입출구를 못 가린 것 — null 을 돌려줘 호출자가
+     *    기존처럼 전체 실선을 쓰게 한다.
+     * 예1: 옹도항로(6각형, 모서리 4곳·완만한 굽음 2곳) → 입출구 변 2개만 빼고 옆면 4개 반환.
+     * 예2: 보길도항로(4각형, 내각 약 93·86·83·98도) → 짧은 변 쌍(입출구) 빼고 긴 변 쌍 2개 반환.
+     * @param {Array<Array<number>>} verts - _getRingVertices() 가 돌려준 꼭짓점들
+     * @returns {Array<Array<Array<number>>>|null} 옆면들의 좌표쌍 배열, 판별 실패면 null
      * [연계] ← _buildOutlineStyle()
      */
-    function _rectangleSideEdges(verts) {
-        var pairA = [[verts[0], verts[1]], [verts[2], verts[3]]]; // 변 0-1, 2-3
-        var pairB = [[verts[1], verts[2]], [verts[3], verts[0]]]; // 변 1-2, 3-0
-        var lenA = _edgeLen(pairA[0]) + _edgeLen(pairA[1]);
-        var lenB = _edgeLen(pairB[0]) + _edgeLen(pairB[1]);
-        return lenA > lenB ? pairA : pairB;
+    function _corridorSideEdges(verts) {
+        var n = verts.length;
+        if (n < 4) return null;
+
+        var isCorner = [];
+        for (var i = 0; i < n; i++) {
+            var angle = _angleBetween(
+                [verts[(i - 1 + n) % n][0] - verts[i][0], verts[(i - 1 + n) % n][1] - verts[i][1]],
+                [verts[(i + 1) % n][0] - verts[i][0], verts[(i + 1) % n][1] - verts[i][1]]
+            );
+            if (angle === null) return null;
+            isCorner.push(angle >= CORNER_ANGLE_MIN && angle <= CORNER_ANGLE_MAX);
+        }
+
+        var capCandidates = [];
+        for (var e = 0; e < n; e++) {
+            if (isCorner[e] && isCorner[(e + 1) % n]) capCandidates.push(e);
+        }
+
+        var capIdx;
+        if (capCandidates.length === 2) {
+            capIdx = capCandidates;
+        } else if (n === 4 && capCandidates.length === 4) {
+            var lenA = _edgeLen([verts[0], verts[1]]) + _edgeLen([verts[2], verts[3]]);
+            var lenB = _edgeLen([verts[1], verts[2]]) + _edgeLen([verts[3], verts[0]]);
+            capIdx = lenA < lenB ? [0, 2] : [1, 3]; // 더 짧은 쌍이 입출구
+        } else {
+            return null; // 입출구를 못 가림 — 전체 실선 유지
+        }
+
+        var sides = [];
+        for (var k = 0; k < n; k++) {
+            if (capIdx.indexOf(k) === -1) sides.push([verts[k], verts[(k + 1) % n]]);
+        }
+        return sides;
     }
 
     /**
      * 외곽선 레이어(_layer)의 스타일 함수 — 종류별로 선 모양이 다르다.
      *  - 국제 해양경계 수역(3곳): 닫힌 도형 점선(한중과도수역만 더 옅은 선홍).
-     *  - 국내 항로 중 직사각형(1차 적용분): 긴 옆면 2개만 점선, 짧은 입출구 변은 선 없음.
-     *  - 그 외(선으로 고시된 통항분리대 17곳·직사각형이 아닌 복잡한 항로): 기존과 동일하게
-     *    전체 외곽선 실선(추후 검토 대상).
-     * 예: '보길도항로'(직사각형) → Style 배열(옆면 점선 2개 + 라벨). '광양만'(비직사각형) →
-     *     Style 1개(전체 실선 + 라벨). '한중과도수역' → Style 1개(옅은 선홍 점선 + 라벨).
+     *  - 국내 항로 중 입출구 판별이 되는 폴리곤(직사각형·완만하게 굽은 다각형 등):
+     *    옆면만 점선, 입출구 변은 선 없음.
+     *  - 그 외(선으로 고시된 통항분리대 17곳·입출구를 못 가리는 복잡한 항로): 기존과
+     *    동일하게 전체 외곽선 실선(추후 검토 대상).
+     * 예: '보길도항로'(직사각형) → Style 배열(옆면 점선 + 라벨). '완도항 지정항로'(복잡한
+     *     다각형) → Style 1개(전체 실선 + 라벨). '한중과도수역' → Style 1개(옅은 선홍 점선 + 라벨).
      * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
      * @returns {ol.style.Style|Array<ol.style.Style>} 외곽선(들)·라벨 스타일
-     * [연계] ← _ensureLayers() 의 _layer style 옵션 → _isLine()·_asRectangleVertices()·_rectangleSideEdges()
+     * [연계] ← _ensureLayers() 의 _layer style 옵션 → _isLine()·_getRingVertices()·_corridorSideEdges()
      */
     function _buildOutlineStyle(feature) {
         var isIntl = feature.get('category') === '해역';
@@ -230,19 +253,19 @@
         }
 
         if (!_isLine(feature)) {
-            var verts = _asRectangleVertices(feature);
-            if (verts) {
-                var sides = _rectangleSideEdges(verts);
+            var verts = _getRingVertices(feature);
+            var sides = verts ? _corridorSideEdges(verts) : null;
+            if (sides) {
                 var dashStroke = new ol.style.Stroke({ color: SEAWAY_COLOR, width: 2, lineDash: DASH_PATTERN });
-                return [
-                    new ol.style.Style({ geometry: new ol.geom.LineString(sides[0]), stroke: dashStroke }),
-                    new ol.style.Style({ geometry: new ol.geom.LineString(sides[1]), stroke: dashStroke }),
-                    new ol.style.Style({ text: textStyle })
-                ];
+                var styles = sides.map(function (edge) {
+                    return new ol.style.Style({ geometry: new ol.geom.LineString(edge), stroke: dashStroke });
+                });
+                styles.push(new ol.style.Style({ text: textStyle }));
+                return styles;
             }
         }
 
-        // 선 항로(통항분리대 등)·직사각형이 아닌 복잡한 폴리곤 항로 — 기존 방식(전체 실선) 유지
+        // 선 항로(통항분리대 등)·입출구를 못 가리는 복잡한 폴리곤 항로 — 기존 방식(전체 실선) 유지
         return new ol.style.Style({
             stroke: new ol.style.Stroke({ color: SEAWAY_COLOR, width: 2 }),
             text: textStyle
