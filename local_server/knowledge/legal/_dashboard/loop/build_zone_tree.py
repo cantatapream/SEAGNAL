@@ -158,7 +158,7 @@ def with_proviso(q, flat, end, cap=400):
     return (q + ' ' + clause[:room].rstrip() + '…') if room > 10 else (q + ' 다만, …')
 
 
-def quote_of(body, anchor, span=320, wide=False, mark_cut=False):
+def quote_of(body, anchor, span=320, wide=False, mark_cut=False, cap=400):
     """anchor를 포함한 대목을 원문에서 그대로 잘라 인용문으로 쓴다(사람이 타이핑하지 않는다).
 
     시작점 = 앵커 앞에서 가장 가까운 항(①…)·호("1. ") 표시 또는 문장 경계,
@@ -206,7 +206,7 @@ def quote_of(body, anchor, span=320, wide=False, mark_cut=False):
             ends.append(m.start())
     end = min(ends)
     cut = flat[start:end].strip()
-    q = cut[:400]
+    q = cut[:cap]
     # 끝에 매달린 다음 호·목 표시("… 세일링요트 다.")만 떼어낸다.
     # ⚠ 앞의 공백을 반드시 요구한다 — 없으면 "…적용한다."의 "다."까지 잘라 문장을 망가뜨린다(실측).
     #   ⚠단, **조문이 거기서 끝나는 경우(end == len(flat))에는 떼어내지 않는다** — PDF에서 뽑은
@@ -224,7 +224,7 @@ def quote_of(body, anchor, span=320, wide=False, mark_cut=False):
     #   닫는 `>`가 있는 온전한 태그는 `[^>]*$`가 매치되지 않아 그대로 남는다.
     q = re.sub(r'\s*<(?:개정|신설|삭제|전문개정)[^>]*$', '', q).strip()
     if q == cut:                 # 끝을 이미 잘라낸 경우가 아닐 때만 단서를 이어붙인다
-        q = with_proviso(q, flat, end)
+        q = with_proviso(q, flat, end, cap=cap)
         # 단서를 이어붙일 때도 열린 개정이력 태그가 딸려올 수 있다(실측: 선박설비기준 제44조).
         q = re.sub(r'\s*<(?:개정|신설|삭제|전문개정)[^>]*$', '', q).strip()
     # ★끝이 상한(span·400자)에 걸려 잘렸으면 그 사실을 드러낸다(2026-08-11).
@@ -235,7 +235,7 @@ def quote_of(body, anchor, span=320, wide=False, mark_cut=False):
     #     같은 규칙을 적용하면 인용문이 1건 바뀌어(선박안전법 시행령 제2조 평수구역 항목) 이번
     #     확장의 회귀검증("기존 항목 불변") 조건을 깨기 때문이다. 그 1건은 실제로 표시 없이 잘려
     #     있으므로 설계문서에 다음 라운드 과제로 남긴다 — 조용히 덮지 않는다.
-    if mark_cut and (len(cut) > 400 or (end == i + span and end < len(flat))) \
+    if mark_cut and (len(cut) > cap or (end == i + span and end < len(flat))) \
             and not q.endswith('…'):
         q = q + ' …'
     if anchor not in q:
@@ -315,10 +315,12 @@ KIND_VALUES = ('적용법령', '의무', '제한', '허가·신고', '완화', '
 
 
 def rule(title, slug, tier, article, anchor, kind, who=None, cond=None,
-         zrange='이 구역만', excl=None, deleg=None, note=None, also=None, wide=False):
+         zrange='이 구역만', excl=None, deleg=None, note=None, also=None, wide=False,
+         span=320, cap=400):
     """이 구역에 적용되는 법령·의무·제한 1건(리프 payload 항목, 설계 §2.3).
     anchor = 인용문을 뽑을 자리이자 1차 검증 문구. 그 조문 원문에 없으면 빌드 실패.
-    also   = 제목이 여러 내용을 묶은 경우, 그 문구들도 같은 조문에 실재하는지 추가 검증."""
+    also   = 제목이 여러 내용을 묶은 경우, 그 문구들도 같은 조문에 실재하는지 추가 검증.
+    span/cap = 기본값(320/400)으로 앵커 뒤 열거(1)2)3)4) 등)가 안 담기는 항목에만 override."""
     if kind not in KIND_VALUES:
         ERRORS.append('알 수 없는 유형: %s (%s %s)' % (kind, slug, article))
         return None
@@ -333,7 +335,7 @@ def rule(title, slug, tier, article, anchor, kind, who=None, cond=None,
     if anchor not in flat:
         ERRORS.append('원문에 앵커 없음: %s %s %s ← "%s"' % (slug, tier, article, anchor))
         return None
-    q = quote_of(body, anchor, wide=wide)
+    q = quote_of(body, anchor, span=span, wide=wide, cap=cap)
     if q is None:
         ERRORS.append('인용문에 앵커가 담기지 않음(범위 계산 실패): %s %s %s ← "%s"'
                       % (slug, tier, article, anchor))
@@ -1346,6 +1348,11 @@ def build_navigation_zone():
             rule('2007년 11월 4일 전에 건조된 무동력·무돛대 선박은 선박안전법 적용에서 빠진다',
                  S_선안, '시행령', '제2조',
                  '추진기관 또는 돛대가 설치되지 않은 선박으로서 평수(平水)구역', '완화', wide=True,
+                 # 기본 span(320)은 가목의 긴 괄호 정의([호소(湖沼: 호수와 늪)ㆍ하천…])에 다 써버려
+                 # 4)잠수선 항목 앞(3.여객운송…)에서 끊긴다(단어 중간 절단, 절단표시 없음 — H32 정밀
+                 # 재대조 발견분). span=398은 다음 목(나.) 직전까지, cap=401은 "가. "로 시작하는
+                 # 전체 길이(401자)를 그대로 담기 위한 최소 override — 실제로 잘리는 내용은 없다.
+                 span=398, cap=401,
                  cond='추진기관·돛대가 설치되지 않은 선박으로서 평수구역 안에서만 운항할 것',
                  excl='항만건설작업선·압항부선·여객운송용 선박·잠수선 등은 제외'),
             rule('일부 동력수상레저기구는 운항구역을 평수구역 또는 내수면으로만 지정받는다',
@@ -1786,9 +1793,12 @@ def main():
             '원본 이미지로 다시 확인해야 한다. 특히 기관기준 표41~46은 원양구역 열에만 값이 있고 나머지 구역 열이 '
             '비어 있는 행이 많은데, 이는 원본 표의 셀 병합이 전사에서 살아나지 못한 것으로 보인다.',
             '★[인용 끝 잘림표시의 비대칭] 인용문 끝의 ` …`(뒤가 잘렸다는 표시)는 이번 확장에서 만든 고시 항목에만 '
-            '붙어 있다. 같은 규칙을 기존 법률계열 항목에 적용하면 1건(선박안전법 시행령 제2조 "2007년 11월 4일 전에 '
-            '건조된 무동력·무돛대 선박…" 평수구역 항목)의 인용문이 바뀌어 이번 확장의 회귀조건("기존 항목 불변")이 '
-            '깨지기 때문에 켜지 않았다. 그 1건은 실제로 표시 없이 잘려 있다 — 다음 라운드 수정 대상.',
+            '붙어 있다. 같은 규칙을 기존 법률계열 항목에 일괄 적용하지 않은 이유는 그러면 인용문이 바뀌어 이번 '
+            '확장의 회귀조건("기존 항목 불변")이 깨지기 때문이다. ★[2026-08-12 수정] 예외로 발견됐던 1건(선박안전법 '
+            '시행령 제2조 "2007년 11월 4일 전에 건조된 무동력·무돛대 선박…" 평수구역 항목, "여객운"에서 절단표시 '
+            '없이 잘려 있던 것)은 rule()에 span/cap override를 추가해 1)~4)호 전체(401자)를 담도록 고쳤다 — 절단 '
+            '자체가 없어져 표시도 필요 없다. 회귀검증: 재빌드 후 이 1건 외 나머지 186개 적용항목은 문자 그대로 불변, '
+            '전체 220건(인용) 재대조에서 같은 유형(단어 중간 절단·표시 없음)의 추가 발견 0건(H32 정밀 재대조).',
             '"한정연해구역"(평수구역에서 최고속력으로 2시간 이내에 왕복할 수 있는 구역, 수상레저기구의 등록 및 검사에 '
             '관한 법률 시행령 제2조제1호나목)은 실재하는 구역이지만 노드로 만들지 않았다 — 법률계열에 이 구역 전용 '
             '의무 조문이 없고 세부기준이 전부 고시에 있어, 노드를 만들면 답이 달라지지 않는 질문만 하나 늘기 때문이다.',
