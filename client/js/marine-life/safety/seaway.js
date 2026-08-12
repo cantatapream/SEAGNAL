@@ -74,6 +74,10 @@
     // 점선 + 입출구 선 없음 처리를 적용한다(입출구를 못 가리는 복잡한 항로는 추후 검토).
     var CORNER_ANGLE_MIN = 50;  // 내각이 이 범위(50~130도) 안이면 "모서리" 꼭짓점으로 본다
     var CORNER_ANGLE_MAX = 130; // (130도 초과면 "거의 일직선" — 옆면이 완만히 굽는 지점)
+    // 모서리-모서리 변 후보가 2개보다 많이 나올 때, 그중 실제로 "짧은" 것만 입출구로
+    // 본다(가장 긴 변의 이 비율 미만) — 우연히 긴 변의 양끝도 모서리로 판정돼 입출구
+    // 후보에 잘못 섞이는 경우를 배제한다.
+    var CAP_LENGTH_RATIO = 0.6;
     // 간격이 좁으면(예전 [6,6]) 줌 레벨에 따라 점선이 실선처럼 뭉쳐 보이는 문제가 있어
     // 넓혔다(사용자 확인).
     var DASH_PATTERN = [12, 10];
@@ -206,8 +210,10 @@
      *    개로 나뉘어도 다 옆면).
      *  - 4각형이라 후보가 4개(전 꼭짓점이 모서리) 나오면, 마주보는 두 변 쌍 중 합이
      *    더 짧은 쪽을 입출구로 본다(모서리 판별만으론 어느 쌍인지 못 가림).
-     *  - 그 외(후보 0·1·3개 이상 등)는 입출구를 못 가린 것 — null 을 돌려줘 호출자가
-     *    기존처럼 전체 실선을 쓰게 한다.
+     *  - 후보가 2개보다 많으면(우연히 긴 변의 양끝도 모서리로 판정된 경우), 가장 긴
+     *    변의 60% 미만인 "짧은" 후보만 추려 정확히 2개면 그 둘을 입출구로 본다.
+     *  - 그 외(후보 0·1개, 길이로 걸러도 2개가 안 되는 경우 등)는 입출구를 못 가린
+     *    것 — null 을 돌려줘 호출자가 기존처럼 전체 실선을 쓰게 한다.
      * 예1: 옹도항로(6각형, 모서리 4곳·완만한 굽음 2곳) → 입출구 변 2개만 빼고 옆면 4개 반환.
      * 예2: 보길도항로(4각형, 내각 약 93·86·83·98도) → 짧은 변 쌍(입출구) 빼고 긴 변 쌍 2개 반환.
      * @param {Array<Array<number>>} verts - _getRingVertices() 가 돌려준 꼭짓점들
@@ -240,6 +246,16 @@
             var lenA = _edgeLen([verts[0], verts[1]]) + _edgeLen([verts[2], verts[3]]);
             var lenB = _edgeLen([verts[1], verts[2]]) + _edgeLen([verts[3], verts[0]]);
             capIdx = lenA < lenB ? [0, 2] : [1, 3]; // 더 짧은 쌍이 입출구
+        } else if (capCandidates.length > 2) {
+            // 후보가 여럿이면 우연히 긴 변의 양끝도 모서리로 판정돼 섞였을 수 있다 —
+            // 가장 긴 변 대비 많이 짧은 것만 진짜 입출구로 추린다(보길도항로 오각형 등).
+            var maxLen = 0;
+            for (var m = 0; m < n; m++) maxLen = Math.max(maxLen, _edgeLen([verts[m], verts[(m + 1) % n]]));
+            var shortCand = capCandidates.filter(function (e) {
+                return _edgeLen([verts[e], verts[(e + 1) % n]]) < CAP_LENGTH_RATIO * maxLen;
+            });
+            if (shortCand.length !== 2) return null;
+            capIdx = shortCand;
         } else {
             return null; // 입출구를 못 가림 — 전체 실선 유지
         }
