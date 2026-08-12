@@ -74,7 +74,9 @@
     // 점선 + 입출구 선 없음 처리를 적용한다(입출구를 못 가리는 복잡한 항로는 추후 검토).
     var CORNER_ANGLE_MIN = 50;  // 내각이 이 범위(50~130도) 안이면 "모서리" 꼭짓점으로 본다
     var CORNER_ANGLE_MAX = 130; // (130도 초과면 "거의 일직선" — 옆면이 완만히 굽는 지점)
-    var DASH_PATTERN = [6, 6];
+    // 간격이 좁으면(예전 [6,6]) 줌 레벨에 따라 점선이 실선처럼 뭉쳐 보이는 문제가 있어
+    // 넓혔다(사용자 확인).
+    var DASH_PATTERN = [12, 10];
 
     /**
      * 선(線)으로 고시된 항로인지 판별한다 — 통항분리대 등 17개가 MultiLineString 이다.
@@ -89,17 +91,35 @@
         return t === 'LineString' || t === 'MultiLineString';
     }
 
+    // 면(폴리곤)으로 고시돼도 통항분리대의 일부인 category 값 — '완도항 지정항로'·
+    // '북매물수도항로' 등은 선이 아니라 면인데도 실제로는 통항분리대·통항분리수역이다.
+    var TSS_CATEGORIES = { '통항분리대': true, '통항분리수역': true };
+
     /**
-     * 화면(라벨·팝업 제목)에 보여줄 이름을 정한다. 선 항로(통항분리대 등 17개)는 원본
-     * name 이 '광양만'·'인천항'처럼 같은 이름의 면(폴리곤) 항로와 겹쳐 헷갈리므로,
+     * 통항분리대(선박이 서로 반대 방향으로 다니지 못하게 나눠놓은 통항로)인지 판별한다.
+     * 선(線)으로 고시된 17개뿐 아니라, 면(폴리곤)이라도 category 가 '통항분리대'·
+     * '통항분리수역'이면 같은 취급 — '항로(면)'·'선회장'·'지정항로' 등 일반 항로는 제외.
+     * 예: 원본 name='광양만'(선) → true. '완도항 지정항로'(면, category='통항분리수역') → true.
+     *     '보길도항로'(면, category='항로(면)') → false.
+     * @param {ol.Feature} feature - 판별할 피처
+     * @returns {boolean} 통항분리대(류)면 true
+     * [연계] ← _displayName()·_buildOutlineStyle()(라벨 글자 크기)
+     */
+    function _isTrafficSeparation(feature) {
+        return _isLine(feature) || !!TSS_CATEGORIES[feature.get('category')];
+    }
+
+    /**
+     * 화면(라벨·팝업 제목)에 보여줄 이름을 정한다. 통항분리대(류)는 원본 name 이
+     * '광양만'·'완도항 지정항로'처럼 같은 이름의 다른 항로와 겹치거나 헷갈리므로,
      * 전부 "통항분리대"로 통일해 보여준다(원본 name 은 그대로 두고 표시할 때만 바꿈).
-     * 예: 선 항로(원본 name='광양만') → '통항분리대'. 면 항로 '보길도항로' → '보길도항로'.
+     * 예: 통항분리대(원본 name='광양만') → '통항분리대'. 일반 항로 '보길도항로' → '보길도항로'.
      * @param {ol.Feature} feature - 대상 피처
      * @returns {string} 화면에 보여줄 이름
      * [연계] ← _buildOutlineStyle()·window._seawayTryHandleClick()
      */
     function _displayName(feature) {
-        return _isLine(feature) ? '통항분리대' : (feature.get('name') || '항로');
+        return _isTrafficSeparation(feature) ? '통항분리대' : (feature.get('name') || '항로');
     }
 
     /**
@@ -249,7 +269,7 @@
     function _buildOutlineStyle(feature) {
         var isIntl = feature.get('category') === '해역';
         // 통항분리대 라벨은 항로 이름 라벨(11px)보다 작게(9px) — 항로 이름과 구분되도록.
-        var fontSize = _isLine(feature) ? 9 : 11;
+        var fontSize = _isTrafficSeparation(feature) ? 9 : 11;
         var textStyle = new ol.style.Text({
             text: feature.get('_hideLabel') ? '' : _displayName(feature),
             font: 'bold ' + fontSize + 'px "Pretendard", sans-serif',
