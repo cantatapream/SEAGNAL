@@ -65,12 +65,15 @@
     }
     function _fmtMin(min) { return _pad2(Math.floor(min / 60)) + ':' + _pad2(min % 60); }
 
-    /** 선택한 날짜(_selectedDate) 기준으로 이 시간창 배열이 만료됐는지 — 그 날짜에
-     *  해당하는 시간창이 없으면(데이터 없음) 만료로 보지 않는다(과다 숨김 방지).
+    /** 선택한 날짜(_selectedDate) 기준으로 이 시간창 배열이 만료됐는지 — 시간창 자체가
+     *  아예 없으면(데이터 없음) 만료로 보지 않는다(과다 숨김 방지). 하지만 시간창은
+     *  있는데 선택한 날짜엔 해당하는 게 하나도 없다면(예: 8/15~16만 예정인데 8/14를
+     *  보는 중) 그 날짜엔 활동이 없는 것이므로 만료(회색)로 본다.
      *  zone(병합됨, 전체 occurrence 합집합)과 occurrence(개별) 양쪽에 다 쓴다. */
     function _isWindowsExpired(windows) {
-        var matching = (windows || []).filter(function (w) { return w.date === _selectedDate; });
-        if (!matching.length) return false;
+        if (!windows || !windows.length) return false;
+        var matching = windows.filter(function (w) { return w.date === _selectedDate; });
+        if (!matching.length) return true;
         var latestEnd = Math.max.apply(null, matching.map(function (w) { return w.end; }));
         return _refMinutes > latestEnd;
     }
