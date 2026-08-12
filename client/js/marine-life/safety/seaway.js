@@ -5,8 +5,10 @@
  *         법률 제10조·해상교통안전법 제30조 등에 따라 지정ㆍ고시된 항로(선박 출입
  *         통로)와, 한중·한일 어업협정으로 정해진 국제 해양경계 수역을 함께 표시한다.
  *         면(面)으로 고시된 항로·해역은 폴리곤, 통항분리대처럼 선(線)
- *         으로 고시된 항로는 선으로 그린다. 탭하면 이름·정의·근거·종류·참고문서·
- *         참고사이트·담당부서·연락처 중 있는 항목을 팝업으로 보여준다.
+ *         으로 고시된 항로는 선으로 그린다(원본 이름이 폴리곤 항로와 겹치므로 화면엔
+ *         전부 "통항분리대"로 통일 표시 — 라벨은 항로 이름보다 작은 글씨). 같은 이름의
+ *         조각(면 3개 등)이 여럿이어도 라벨은 하나만 보인다. 탭하면 이름·정의·근거·
+ *         종류·참고문서·참고사이트·담당부서·연락처 중 있는 항목을 팝업으로 보여준다.
  *         줌아웃 상태라 항로가 너무 작으면(라벨만 보이는 상태) 탭했을 때 팝업 대신
  *         그 항로 범위로 지도를 먼저 확대하고, 커진 뒤 다시 탭하면 팝업이 뜬다.
  * ----------------------------------------------------------------------------
@@ -85,6 +87,19 @@
     function _isLine(feature) {
         var t = feature.getGeometry() && feature.getGeometry().getType();
         return t === 'LineString' || t === 'MultiLineString';
+    }
+
+    /**
+     * 화면(라벨·팝업 제목)에 보여줄 이름을 정한다. 선 항로(통항분리대 등 17개)는 원본
+     * name 이 '광양만'·'인천항'처럼 같은 이름의 면(폴리곤) 항로와 겹쳐 헷갈리므로,
+     * 전부 "통항분리대"로 통일해 보여준다(원본 name 은 그대로 두고 표시할 때만 바꿈).
+     * 예: 선 항로(원본 name='광양만') → '통항분리대'. 면 항로 '보길도항로' → '보길도항로'.
+     * @param {ol.Feature} feature - 대상 피처
+     * @returns {string} 화면에 보여줄 이름
+     * [연계] ← _buildOutlineStyle()·window._seawayTryHandleClick()
+     */
+    function _displayName(feature) {
+        return _isLine(feature) ? '통항분리대' : (feature.get('name') || '항로');
     }
 
     /**
@@ -225,15 +240,19 @@
      *    동일하게 전체 외곽선 실선(추후 검토 대상).
      * 예: '보길도항로'(직사각형) → Style 배열(옆면 점선 + 라벨). '완도항 지정항로'(복잡한
      *     다각형) → Style 1개(전체 실선 + 라벨). '한중과도수역' → Style 1개(옅은 선홍 점선 + 라벨).
+     * 라벨은 같은 이름(name)의 피처 중 _load() 가 첫 번째로 고른 것만 보인다(_hideLabel) —
+     * 같은 항로가 여러 조각으로 나뉘어 있어도 이름이 중복 표출되지 않게.
      * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
      * @returns {ol.style.Style|Array<ol.style.Style>} 외곽선(들)·라벨 스타일
-     * [연계] ← _ensureLayers() 의 _layer style 옵션 → _isLine()·_getRingVertices()·_corridorSideEdges()
+     * [연계] ← _ensureLayers() 의 _layer style 옵션 → _isLine()·_displayName()·_getRingVertices()·_corridorSideEdges()
      */
     function _buildOutlineStyle(feature) {
         var isIntl = feature.get('category') === '해역';
+        // 통항분리대 라벨은 항로 이름 라벨(11px)보다 작게(9px) — 항로 이름과 구분되도록.
+        var fontSize = _isLine(feature) ? 9 : 11;
         var textStyle = new ol.style.Text({
-            text: feature.get('name') || '',
-            font: 'bold 11px "Pretendard", sans-serif',
+            text: feature.get('_hideLabel') ? '' : _displayName(feature),
+            font: 'bold ' + fontSize + 'px "Pretendard", sans-serif',
             fill: new ol.style.Fill({ color: isIntl ? INTL_TEXT : SEAWAY_TEXT }),
             stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
             overflow: true,
@@ -311,6 +330,30 @@
     }
 
     /**
+     * 같은 이름(name)의 피처가 여럿이면, 그중 처음(배열 순서) 하나만 라벨을 보이게
+     * 남기고 나머지엔 _hideLabel 을 표시한다 — 같은 항로가 여러 조각(면 3개 등)으로
+     * 나뉘어 있어도 지도에 이름이 중복으로 겹쳐 보이지 않게 한다. 폴리곤 스타일·클릭은
+     * 조각별로 그대로 동작(라벨만 하나로 줄인다).
+     * 선(통항분리대)과 면(항로) 은 원본 name 이 같아도('광양만' 등) 서로 다른 대상이라
+     * 묶지 않는다 — 선/면 여부를 묶는 키에 함께 넣는다.
+     * 예: '보길도항로'(면) 3개 → 첫 번째만 라벨 표시. '광양만' 면 2개·선 13개는 각각
+     *     따로 묶여, 면 쪽 1개("광양만")·선 쪽 1개("통항분리대")가 남는다.
+     * @param {Array<ol.Feature>} features - _load() 가 막 읽어들인 피처 배열
+     * [연계] ← _load() — addFeatures() 전에 1회 호출. → _buildOutlineStyle() 이 _hideLabel 을 읽는다
+     */
+    function _markDuplicateLabels(features) {
+        var seen = {};
+        for (var i = 0; i < features.length; i++) {
+            var key = (features[i].get('name') || '') + '|' + (_isLine(features[i]) ? 'L' : 'P');
+            if (seen[key]) {
+                features[i].set('_hideLabel', true);
+            } else {
+                seen[key] = true;
+            }
+        }
+    }
+
+    /**
      * 정적 GeoJSON 을 내려받아 소스에 채운다(lazy fetch — 버튼을 처음 켤 때만 1회).
      * 예: fetch('/seaway_zones.json') → 항로·해역 144개(면 127·선 17)를 EPSG:4326→3857 로 바꿔 _source 에 추가.
      * [연계] ← _bindToggle() 의 ON 핸들러. 이미 받았거나(_loaded) 받는 중(_loading)이면 즉시 되돌아온다.
@@ -329,6 +372,7 @@
                     dataProjection: 'EPSG:4326',
                     featureProjection: 'EPSG:3857'
                 });
+                _markDuplicateLabels(features);
                 _source.addFeatures(features);
                 _loaded = true;
                 _loading = false;
@@ -452,7 +496,7 @@
             }
         }
 
-        var name = hit.get('name') || '항로';
+        var name = _displayName(hit);
         if (typeof window.showSeagnalModal === 'function') {
             window.showSeagnalModal(name, _buildDetailHtml(hit), 'info');
             // 항목 수가 많아 기본 폭(320px)보다 넓게 — 출입통제 팝업과 같은 클래스를 재사용
