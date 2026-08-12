@@ -71,15 +71,6 @@ window.closeKmaIframeModal = function () {
 // SEAGNAL 커스텀 시스템 모달 (Alert 대체용)
 // ============================================================================
 
-// 모달이 열린 직후 이 시간(ms) 동안은 배경(오버레이) 탭으로 인한 닫기를 무시한다.
-// [이유] 하이브리드 웹뷰에서 지도를 탭하면(OL 은 포인터 이벤트로 즉시 처리) 모달이
-// 뜨는데, 그 직후 같은 탭에 대한 브라우저의 지연된 합성 click 이벤트가 뒤늦게 도착해
-// 방금 생긴 전체화면 오버레이의 onclick(닫기)을 눌러버려 "뜨자마자 바로 닫히는" 현상이
-// 생겼다(항로 팝업에서 실제 확인됨). "확인" 버튼 탭은 이 유예에 걸리지 않는다
-// (closeSeagnalModal 을 인자 없이 호출).
-var SEAGNAL_MODAL_CLOSE_GRACE_MS = 350;
-var _seagnalModalOpenedAt = 0;
-
 window.showSeagnalModal = function (title, message, type) {
     type = type || 'info';
     var existing = document.getElementById('seagnal-custom-modal');
@@ -92,7 +83,14 @@ window.showSeagnalModal = function (title, message, type) {
     var icon = type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-info';
     var iconClass = type === 'error' ? 'error' : '';
 
-    modal.innerHTML = '<div class="seagnal-modal-overlay" onclick="window.closeSeagnalModal(true)"></div>' +
+    // 배경(오버레이) 닫기는 click 이 아니라 pointerdown 에 건다.
+    // [이유] 하이브리드 웹뷰는 지도를 탭하면 OL 이 포인터 이벤트로 즉시 모달을 띄우는데,
+    // 그 직후 "같은 탭"에 대해 브라우저가 지연시켜 뒤늦게 쏘는 합성 click 이벤트가
+    // 방금 생긴 전체화면 오버레이 위에서 발생해 "뜨자마자 바로 닫히는" 현상이 있었다
+    // (350ms 유예를 줘봤지만 탭이 몰리는 구간에서도 재현됨 — 시간으로 땜질하지 않고
+    // 근본 원인을 없앰). 브라우저가 지연시키는 건 click 뿐, pointerdown/touchstart 는
+    // 손가락이 실제로 닿는 순간 즉시 발생해 지연되지 않으므로 이 문제 자체가 없다.
+    modal.innerHTML = '<div class="seagnal-modal-overlay" onpointerdown="window.closeSeagnalModal()"></div>' +
         '<div class="seagnal-modal-content">' +
         '<div class="seagnal-modal-icon ' + iconClass + '">' +
         '<i class="fa-solid ' + icon + '"></i></div>' +
@@ -103,19 +101,9 @@ window.showSeagnalModal = function (title, message, type) {
 
     document.body.appendChild(modal);
     document.body.style.overflow = 'hidden';
-    _seagnalModalOpenedAt = Date.now();
 };
 
-/**
- * SEAGNAL 시스템 모달을 닫는다.
- * 예1: closeSeagnalModal() — "확인" 버튼 탭, 즉시 닫힘.
- * 예2: closeSeagnalModal(true) — 배경(오버레이) 탭. 연 지 350ms 안이면 지연된
- *      합성 click 으로 보고 무시, 그 뒤면 정상적으로 닫힘.
- * @param {boolean} [fromBackdrop] - 오버레이(배경) 탭으로 인한 호출이면 true
- * [연계] ← showSeagnalModal() 의 오버레이/버튼 onclick, backbutton.js(뒤로가기 시 즉시 닫기 — 인자 없이 호출)
- */
-window.closeSeagnalModal = function (fromBackdrop) {
-    if (fromBackdrop && (Date.now() - _seagnalModalOpenedAt) < SEAGNAL_MODAL_CLOSE_GRACE_MS) return;
+window.closeSeagnalModal = function () {
     var modal = document.getElementById('seagnal-custom-modal');
     if (modal) {
         modal.classList.add('fade-out');
