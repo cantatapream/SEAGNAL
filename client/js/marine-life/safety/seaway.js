@@ -53,12 +53,32 @@
     var _loaded = false;
     var _loading = false;
 
+    // 국내 항로(141곳) 색 — 마젠타. 전자해도에서 통항분리대 경계에 흔히 쓰이는 색 계열이라
+    // 배경(enc)과 자연스럽게 어울리고, 보라인 관제구역(#A855F7)과도 톤이 갈려 구분된다.
+    var SEAWAY_COLOR = 'rgba(162, 28, 175, 0.9)';
+    var SEAWAY_FILL = 'rgba(162, 28, 175, 0.14)';
+    var SEAWAY_TEXT = '#f5d0fe';
+    // 국제 해양경계 수역(3곳, category='해역') 색 — 선홍. 항로 마젠타·관제구역 보라·
+    // 낚시금지 주황 어디와도 겹치지 않게 뚜렷이 구분한다.
+    var INTL_COLOR = 'rgba(220, 38, 38, 0.9)';
+    var INTL_FILL = 'rgba(220, 38, 38, 0.14)';
+    var INTL_TEXT = '#fecaca';
+    // 한중과도수역만 다른 둘(한중잠정조치수역·한일중간수역)보다 옅은 선홍으로 구분한다
+    // (선·채움 둘 다 — 사용자 지시). 이름으로 판별 — 국제 해양경계 수역은 이 3개뿐이다.
+    var INTL_LIGHT_COLOR = 'rgba(248, 113, 113, 0.9)';
+    var INTL_LIGHT_FILL = 'rgba(248, 113, 113, 0.14)';
+
+    // 국내 항로 중 "직사각형에 가까운" 항로만 옆면(긴 변) 점선 + 입출구(짧은 변) 선 없음
+    // 처리를 적용한다(1차 적용 범위 — 복잡한 모양 항로는 추후 검토, 사용자 지시).
+    var RECT_ANGLE_TOLERANCE_DEG = 20; // 내각이 90도에서 이 범위 안이면 직사각형으로 본다
+    var DASH_PATTERN = [6, 6];
+
     /**
      * 선(線)으로 고시된 항로인지 판별한다 — 통항분리대 등 17개가 MultiLineString 이다.
      * 예: 면 항로 '광양만'(MultiPolygon) → false, 통항분리대(MultiLineString) → true.
      * @param {ol.Feature} feature - 판별할 항로 피처
      * @returns {boolean} 선 항로면 true
-     * [연계] ← _fillOnlyStyle()(채움이 없으니 채움 레이어에서 뺀다)·
+     * [연계] ← _fillOnlyStyle()(채움이 없으니 채움 레이어에서 뺀다)·_buildOutlineStyle()·
      *        window._seawayTryHandleClick()(클릭 판정을 외곽선 레이어에서 보조로 한다)
      */
     function _isLine(feature) {
@@ -67,70 +87,167 @@
     }
 
     /**
-     * 항로 한 벌의 스타일(청록 톤 — 빨강 출입통제·주황 낚시금지·인디고 관제구역과 구분)을 만든다.
-     * 예: name='광양만' → 청록 외곽선 2px + 14% 채움 + 그 이름 라벨.
-     * @param {ol.Feature} feature - 그릴 항로 피처(라벨 문구는 name 속성)
-     * @returns {ol.style.Style} 외곽선·채움·라벨이 다 든 스타일 1개
-     * [연계] ← _fillOnlyStyle()/_strokeOnlyStyle() — 두 레이어가 이 한 벌을 나눠 쓴다
+     * 항로 하나의 채움(면)색을 정한다 — 국내 항로는 마젠타, 국제 해양경계 수역은 선홍
+     * (한중과도수역만 더 옅은 선홍) 계열이다.
+     * 예: '광양만' → SEAWAY_FILL. '한중과도수역' → INTL_LIGHT_FILL. '한중잠정조치수역' → INTL_FILL.
+     * @param {ol.Feature} feature - 판별할 피처
+     * @returns {string} rgba() 채움색
+     * [연계] ← _fillOnlyStyle()
      */
-    function _zoneStyle(feature) {
-        return new ol.style.Style({
-            stroke: new ol.style.Stroke({
-                color: 'rgba(45, 212, 191, 0.9)',
-                width: 2
-            }),
-            fill: new ol.style.Fill({
-                color: 'rgba(45, 212, 191, 0.14)'
-            }),
-            text: new ol.style.Text({
-                text: feature.get('name') || '',
-                font: 'bold 11px "Pretendard", sans-serif',
-                fill: new ol.style.Fill({ color: '#99f6e4' }),
-                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
-                overflow: true,
-                placement: 'point'
-            })
-        });
+    function _fillColorFor(feature) {
+        if (feature.get('category') !== '해역') return SEAWAY_FILL;
+        return feature.get('name') === '한중과도수역' ? INTL_LIGHT_FILL : INTL_FILL;
     }
 
     /**
-     * 스타일 한 벌에서 채움만 뽑아 새 스타일을 만든다.
-     * 예: _onlyFill(_zoneStyle(f)) → 선·라벨 없이 rgba(45,212,191,0.14) 채움만.
-     * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
-     * @returns {ol.style.Style|null} 채움만 든 스타일 — 채울 것이 없으면 null(안 그림)
-     * [연계] ← _fillOnlyStyle()
-     */
-    function _onlyFill(style) {
-        var f = style.getFill();
-        if (!f) return null;
-        return new ol.style.Style({ fill: f });
-    }
-    /**
-     * 스타일 한 벌에서 외곽선과 라벨만 뽑아 새 스타일을 만든다.
-     * 예: _onlyStrokeAndText(_zoneStyle(f)) → 채움 없이 청록 선 + '광양만' 라벨.
-     * @param {ol.style.Style} style - _zoneStyle() 이 만든 스타일 한 벌
-     * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
-     * [연계] ← _strokeOnlyStyle()
-     */
-    function _onlyStrokeAndText(style) {
-        return new ol.style.Style({ stroke: style.getStroke(), text: style.getText() });
-    }
-    /**
      * 채움 레이어(_fillLayer)의 스타일 함수 — 면 항로만 채우고 선 항로는 건너뛴다.
-     * 예: _fillOnlyStyle('광양만' 면 항로) → 반투명 청록 면, 통항분리대 선 항로 → null.
+     * 예: _fillOnlyStyle('광양만' 면 항로) → 반투명 마젠타 면, 통항분리대 선 항로 → null.
      * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
      * @returns {ol.style.Style|null} 채움만 든 스타일(선 항로는 채울 것이 없어 null)
-     * [연계] ← _ensureLayers() 의 _fillLayer style 옵션 → _isLine()·_zoneStyle()·_onlyFill()
+     * [연계] ← _ensureLayers() 의 _fillLayer style 옵션 → _isLine()·_fillColorFor()
      */
-    function _fillOnlyStyle(feature) { return _isLine(feature) ? null : _onlyFill(_zoneStyle(feature)); }
+    function _fillOnlyStyle(feature) {
+        if (_isLine(feature)) return null;
+        return new ol.style.Style({ fill: new ol.style.Fill({ color: _fillColorFor(feature) }) });
+    }
+
     /**
-     * 외곽선 레이어(_layer)의 스타일 함수 — 면·선 항로 둘 다 같은 청록 선과 라벨로 그린다.
-     * 예: _strokeOnlyStyle(통항분리대 선 항로) → 청록 선 + 이름 라벨(선 항로는 이 레이어에만 보인다).
-     * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
-     * @returns {ol.style.Style} 외곽선·라벨만 든 스타일
-     * [연계] ← _ensureLayers() 의 _layer style 옵션 → _zoneStyle()·_onlyStrokeAndText()
+     * 두 벡터의 사잇각(도, 0~180)을 구한다.
+     * 예: _angleBetween([1,0], [0,1]) → 90.
+     * @param {Array<number>} u - 벡터1 [dx, dy]
+     * @param {Array<number>} v - 벡터2 [dx, dy]
+     * @returns {number|null} 사잇각(도) — 길이 0인 벡터가 있으면 null
+     * [연계] ← _asRectangleVertices()
      */
-    function _strokeOnlyStyle(feature) { return _onlyStrokeAndText(_zoneStyle(feature)); }
+    function _angleBetween(u, v) {
+        var magU = Math.sqrt(u[0] * u[0] + u[1] * u[1]);
+        var magV = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
+        if (!magU || !magV) return null;
+        var cos = Math.max(-1, Math.min(1, (u[0] * v[0] + u[1] * v[1]) / (magU * magV)));
+        return Math.acos(cos) * 180 / Math.PI;
+    }
+
+    /**
+     * 국내 항로 폴리곤이 (대략) 직사각형인지 판별해, 맞으면 꼭짓점 4개를 돌려준다.
+     * 꼭짓점이 4개이고 네 내각이 모두 90도±허용오차 안일 때만 직사각형으로 본다 — 옆면
+     * 점선·입출구 없음 처리는 이 조건을 만족하는 항로에만 적용한다(1차 적용 범위). 조각이
+     * 여러 개인 MultiPolygon(드묾)은 판별하지 않는다.
+     * 예: 보길도항로(내각 약 93·86·83·98도) → 꼭짓점 4개 반환. 복잡한 다각형 항로 → null.
+     * @param {ol.Feature} feature - 판별할 항로 피처
+     * @returns {Array<Array<number>>|null} 직사각형이면 꼭짓점 4개(닫힘 중복 제거), 아니면 null
+     * [연계] ← _buildOutlineStyle() — true 면 _rectangleSideEdges() 로 옆면 2개를 뽑는다
+     */
+    function _asRectangleVertices(feature) {
+        var geom = feature.getGeometry();
+        var type = geom.getType();
+        var ring;
+        if (type === 'Polygon') {
+            ring = geom.getCoordinates()[0];
+        } else if (type === 'MultiPolygon') {
+            var polys = geom.getCoordinates();
+            if (polys.length !== 1) return null; // 조각 여러 개면 판별 대상 제외
+            ring = polys[0][0];
+        } else {
+            return null;
+        }
+        var verts = ring.slice(0, -1); // 닫힘 중복점(첫점=끝점) 제거
+        if (verts.length !== 4) return null;
+
+        for (var i = 0; i < 4; i++) {
+            var cur = verts[i];
+            var prev = verts[(i + 3) % 4];
+            var next = verts[(i + 1) % 4];
+            var angle = _angleBetween(
+                [prev[0] - cur[0], prev[1] - cur[1]],
+                [next[0] - cur[0], next[1] - cur[1]]
+            );
+            if (angle === null || Math.abs(angle - 90) > RECT_ANGLE_TOLERANCE_DEG) return null;
+        }
+        return verts;
+    }
+
+    /**
+     * 변 하나(좌표 2개)의 길이를 구한다.
+     * @param {Array<Array<number>>} edge - [시작좌표, 끝좌표]
+     * @returns {number} 변 길이(투영좌표 단위)
+     * [연계] ← _rectangleSideEdges()
+     */
+    function _edgeLen(edge) {
+        var dx = edge[0][0] - edge[1][0];
+        var dy = edge[0][1] - edge[1][1];
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    /**
+     * 직사각형 꼭짓점 4개에서 "긴 변(옆면) 2개"만 좌표쌍으로 뽑는다 — 마주보는 두 변 쌍
+     * 중 합이 더 긴 쪽을 옆면으로 보고, 짧은 쪽(입출구)은 그리지 않을 것이므로 뺀다.
+     * 예: 보길도항로 꼭짓점 → 변 1-2·3-0(옆면, 길다)만 반환, 변 0-1·2-3(입출구)은 제외.
+     * @param {Array<Array<number>>} verts - _asRectangleVertices() 가 돌려준 꼭짓점 4개
+     * @returns {Array<Array<Array<number>>>} 옆면 2개, 각각 [시작좌표, 끝좌표]
+     * [연계] ← _buildOutlineStyle()
+     */
+    function _rectangleSideEdges(verts) {
+        var pairA = [[verts[0], verts[1]], [verts[2], verts[3]]]; // 변 0-1, 2-3
+        var pairB = [[verts[1], verts[2]], [verts[3], verts[0]]]; // 변 1-2, 3-0
+        var lenA = _edgeLen(pairA[0]) + _edgeLen(pairA[1]);
+        var lenB = _edgeLen(pairB[0]) + _edgeLen(pairB[1]);
+        return lenA > lenB ? pairA : pairB;
+    }
+
+    /**
+     * 외곽선 레이어(_layer)의 스타일 함수 — 종류별로 선 모양이 다르다.
+     *  - 국제 해양경계 수역(3곳): 닫힌 도형 점선(한중과도수역만 더 옅은 선홍).
+     *  - 국내 항로 중 직사각형(1차 적용분): 긴 옆면 2개만 점선, 짧은 입출구 변은 선 없음.
+     *  - 그 외(선으로 고시된 통항분리대 17곳·직사각형이 아닌 복잡한 항로): 기존과 동일하게
+     *    전체 외곽선 실선(추후 검토 대상).
+     * 예: '보길도항로'(직사각형) → Style 배열(옆면 점선 2개 + 라벨). '광양만'(비직사각형) →
+     *     Style 1개(전체 실선 + 라벨). '한중과도수역' → Style 1개(옅은 선홍 점선 + 라벨).
+     * @param {ol.Feature} feature - OpenLayers 가 그릴 때마다 넘겨주는 피처
+     * @returns {ol.style.Style|Array<ol.style.Style>} 외곽선(들)·라벨 스타일
+     * [연계] ← _ensureLayers() 의 _layer style 옵션 → _isLine()·_asRectangleVertices()·_rectangleSideEdges()
+     */
+    function _buildOutlineStyle(feature) {
+        var isIntl = feature.get('category') === '해역';
+        var textStyle = new ol.style.Text({
+            text: feature.get('name') || '',
+            font: 'bold 11px "Pretendard", sans-serif',
+            fill: new ol.style.Fill({ color: isIntl ? INTL_TEXT : SEAWAY_TEXT }),
+            stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
+            overflow: true,
+            placement: 'point'
+        });
+
+        if (isIntl) {
+            var isTransition = feature.get('name') === '한중과도수역';
+            return new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: isTransition ? INTL_LIGHT_COLOR : INTL_COLOR,
+                    width: 2,
+                    lineDash: DASH_PATTERN
+                }),
+                text: textStyle
+            });
+        }
+
+        if (!_isLine(feature)) {
+            var verts = _asRectangleVertices(feature);
+            if (verts) {
+                var sides = _rectangleSideEdges(verts);
+                var dashStroke = new ol.style.Stroke({ color: SEAWAY_COLOR, width: 2, lineDash: DASH_PATTERN });
+                return [
+                    new ol.style.Style({ geometry: new ol.geom.LineString(sides[0]), stroke: dashStroke }),
+                    new ol.style.Style({ geometry: new ol.geom.LineString(sides[1]), stroke: dashStroke }),
+                    new ol.style.Style({ text: textStyle })
+                ];
+            }
+        }
+
+        // 선 항로(통항분리대 등)·직사각형이 아닌 복잡한 폴리곤 항로 — 기존 방식(전체 실선) 유지
+        return new ol.style.Style({
+            stroke: new ol.style.Stroke({ color: SEAWAY_COLOR, width: 2 }),
+            text: textStyle
+        });
+    }
 
     /**
      * 채움·외곽선 두 벡터 레이어를 (아직 없을 때만) 만들어 지도에 얹는다.
@@ -157,7 +274,7 @@
         if (!_layer) {
             _layer = new ol.layer.Vector({
                 source: _source,
-                style: _strokeOnlyStyle,
+                style: _buildOutlineStyle,
                 zIndex: 83,
                 visible: _visible,
                 // 항로·해역이 144개인데 좁고 길게 붙어 있어("OO항 제1항로") 라벨이 겹친다 —
