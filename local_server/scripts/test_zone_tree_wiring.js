@@ -27,6 +27,10 @@ const TREE_JSON = path.join(LEGAL, '_dashboard', 'zone_tree.json');
 const R = require(RET);
 const J = JSON.parse(fs.readFileSync(TREE_JSON, 'utf8'));
 const JOINER = ' — ';                       // = CLARIFY_JOINER = ai_chat.js pickClarifyOption 이 붙이는 구분자
+// 경계형 답변 뒤 확인("서류·장비 기준도 알려드릴까요?")의 선택지 라벨(legal_retriever.js ZONE_MORE_*).
+// ⚠여기 값이 배선 코드와 어긋나면 T4·T7·T8이 통째로 경계형 답변을 보게 되어 즉시 깨진다(의도된 게이트).
+const MORE_YES = '네, 서류·장비 기준도 알려주세요';
+const MORE_NO = '아니요, 여기까지면 돼요';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -48,6 +52,9 @@ const ALL = [].concat(...J.trees.map(t => nodesOf(t).map(x => Object.assign({ tr
 
 // 되묻기 버튼을 끝까지 눌러 도달한 리프별 (질의·답변·그 리프의 적용항목 전량).
 // T1은 "도달했는가"만 보고, T8(§13 표시 규칙)은 그 답변의 **내용**을 봐야 해서 따로 모은다.
+// ★2026-08-13(L-84): 리프에 닿으면 먼저 **경계형 짧은 답변 + 확인**이 나오므로, §13 표시 규칙을
+//   보는 T8은 그 확인에서 "네"를 누른 뒤의 **확장 답변**을 대상으로 한다(BFS가 두 선택지를 다
+//   눌러 보되, 기록은 "아니요" 가지를 뺀 것 = 확장 답변). 확인 단계 자체의 계약은 T9가 본다.
 const SEEDS = [
   '우리 배 어디까지 나갈 수 있나요?',
   '배로 영해까지 나가도 되나요?',
@@ -70,6 +77,7 @@ function leafAnswers() {
       for (const o of step.clarify.options) { const nq = q + JOINER + o.label; if (!seen.has(nq)) { seen.add(nq); queue.push(nq); } }
       continue;
     }
+    if (q.endsWith(JOINER + MORE_NO)) continue;      // "아니요" 가지는 경계형 답변이라 §13 대상이 아니다
     const { node, path: p } = R.resolveZoneTreePath(q, tree);
     if (!out.has(node.id)) out.set(node.id, { q, node, answer: step.answer, rules: R.collectZoneRules(tree, p) });
   }
@@ -163,7 +171,9 @@ console.log('\n[T3] 라벨 전수 — 문장 앞/중간/조사 뒤에서 그 노
 console.log('\n[T4] 상속 범위 — 서열 밖 규정이 리프에 딸려가지 않는가');
 {
   const base = '우리 배 어디까지 나갈 수 있나요?';
-  const ans = segs => (R.zoneTreeStep([base].concat(segs).join(JOINER)) || {}).answer || '';
+  // ★상속 결과는 **확장 답변**에서만 항목으로 보인다(L-84 이후 경계형 답변엔 건수만 실린다) —
+  //   그래서 확인에서 "네"를 누른 뒤의 답변을 본다. 상속 로직 자체는 이 변경과 무관하다.
+  const ans = segs => (R.zoneTreeStep([base].concat(segs).concat([MORE_YES]).join(JOINER)) || {}).answer || '';
   ok('평수구역 — 근해 이하 규정(승무 전 건강진단) 포함', ans(['평수구역']).includes('승무 전 일반건강진단'));
   ok('연해구역 — 포함', ans(['연해구역']).includes('승무 전 일반건강진단'));
   ok('근해구역 — 포함', ans(['근해구역 이상', '근해구역']).includes('승무 전 일반건강진단'));
@@ -260,7 +270,9 @@ console.log('\n[T6] 인용 — 바로 뒤에 붙은 "다만" 단서를 말없이
 // ── T7. 배선 전 필수 규약(MASTER_PLAN H-36) ────────────────────────────────
 console.log('\n[T7] 필수 규약 — 처벌 표기·주의 노출·신뢰등급');
 {
-  const territorial = R.zoneTreeStep('배로 영해까지 나가도 되나요?');
+  // 규약 ①③(처벌 표기·주의 노출)은 규정 항목이 실제로 펼쳐진 **확장 답변**의 계약이다 —
+  // 경계형 짧은 답변에는 항목이 한 건도 실리지 않으므로(L-84) "네"를 누른 뒤를 본다.
+  const territorial = R.zoneTreeStep('배로 영해까지 나가도 되나요?' + JOINER + MORE_YES);
   ok('영해 리프가 답변을 낸다', !!(territorial && territorial.answer && !territorial.clarify));
   const a = (territorial || {}).answer || '';
   ok('처벌은 "처벌(법정형)"으로 표기', a.includes('처벌(법정형)'));
@@ -273,7 +285,7 @@ console.log('\n[T7] 필수 규약 — 처벌 표기·주의 노출·신뢰등급
   const withNote = [];
   for (const { node } of ALL) for (const r of (node.적용 || [])) if (r.주의 || r.적용제외) withNote.push(r);
   ok('주의·적용제외를 가진 항목이 자산에 존재(빈 검사 방지)', withNote.length > 0, withNote.length);
-  const smooth = (R.zoneTreeStep('우리 배 어디까지 나갈 수 있나요?' + JOINER + '평수구역') || {}).answer || '';
+  const smooth = (R.zoneTreeStep('우리 배 어디까지 나갈 수 있나요?' + JOINER + '평수구역' + JOINER + MORE_YES) || {}).answer || '';
   ok('평수구역 답변에 적용제외가 실제로 출력된다', smooth.includes('적용제외:'));
 }
 
@@ -385,6 +397,108 @@ console.log('\n[T8] §13 표시 규칙 — 관련도 정렬 · 접기 · 면책 
     ok('자산을 바꾸면 면책 문구가 따라 바뀐다(하드코딩 0)',
       stubbed.includes('테스트용_빠진항목') && stubbed.includes('테스트용_스캔밖') && stubbed.includes('999개 해양수산 법령') &&
       !stubbed.includes('선체 구조기준(치수·강도)'));
+  }
+}
+
+// ── T9. 질문 유형 구분 — 경계형엔 경계만, 요건은 확인 뒤에 (L-84) ────────────
+// "우리 배 어디까지 갈 수 있나요?"(경계형)에 서류·장비 규정 57건을 통째로 얹던 것을 고쳤다.
+// 여기서 고정하는 계약은 여섯이다 — ①경계형 답변엔 규정 항목이 **한 건도** 없다 ②그 대신
+// 경로·정의·건수와 확인 선택지 2개가 있다 ③"네"면 §13 확장 답변이 그대로 나온다(확인 조각이
+// 답변을 바꾸지 않는다) ④"아니요"면 같은 짧은 답변에 확인이 안 붙는다(같은 질문 반복 0)
+// ⑤요건형은 확인 없이 바로 확장된다 ⑥새 라벨이 트리 22개 노드의 라벨과 충돌하지 않는다(L-77).
+console.log('\n[T9] 질문 유형 — 경계형(짧게) vs 요건형(바로 확장) · 확인 단계');
+{
+  const BOUNDARY = [
+    ['우리 배 어디까지 나갈 수 있나요?', ['평수구역']],
+    ['우리 배 어디까지 갈 수 있나요?', ['근해구역 이상', '근해구역']],
+    ['배로 영해까지 나가도 되나요?', []],
+    ['어선으로 어디서 조업할 수 있나요?', ['특정해역']],
+  ];
+  for (const [seed, segs] of BOUNDARY) {
+    const q = [seed].concat(segs).join(JOINER);
+    const tree = R.matchZoneTreeTopic(q);
+    const { node, path: p } = R.resolveZoneTreePath(q, tree);
+    const rules = R.collectZoneRules(tree, p);
+    const step = R.zoneTreeStep(q) || {};
+    const a = step.answer || '';
+
+    // ① 규정 내용이 한 건도 실리지 않는다(펼침 '가. 제목'도, 접힘 '· 제목 — 「법령」'도 없다).
+    const leaked = rules.filter(e => a.includes(e.rule.제목));
+    ok(`경계형 — ${node.라벨}: 규정 제목 0건`, leaked.length === 0, leaked.slice(0, 3).map(e => e.rule.제목));
+    ok(`경계형 — ${node.라벨}: 인용문("원문:") 0건`, !a.includes('2) 원문:'));
+    // ② 물어본 것(경로·정의·건수)은 있다.
+    ok(`경계형 — ${node.라벨}: 확인한 구역 경로`, a.includes('**확인한 구역**: ' + p.map(n => n.라벨).join(' → ')));
+    ok(`경계형 — ${node.라벨}: 그 구역의 정의(경계)`, !node.정의 || a.includes(node.정의));
+    ok(`경계형 — ${node.라벨}: 규정 건수 ${rules.length}건`, a.includes(`**${rules.length}건**`));
+    // ③ 확인 선택지 2개.
+    const opts = ((step.clarify || {}).options || []).map(o => o.label);
+    ok(`경계형 — ${node.라벨}: 확인 선택지 [네/아니요]`,
+      (step.clarify || {}).question === '이 구역에서 필요한 서류·장비 기준도 알려드릴까요?' &&
+      opts.length === 2 && opts[0] === MORE_YES && opts[1] === MORE_NO, opts);
+    // ④ 분량 — 확장 답변보다 확실히 짧다(줄이는 게 목적이 아니라 결과다: 요건을 안 실었으니 짧다).
+    const full = (R.zoneTreeStep(q + JOINER + MORE_YES) || {}).answer || '';
+    ok(`경계형 — ${node.라벨}: ${a.length}자 (확장 ${full.length}자의 절반 이하)`, a.length * 2 <= full.length);
+    // ⑤ "네" → §13 확장 답변. 확인 조각이 관련도 정렬에 섞이지 않는다(원 질문으로만 채점).
+    ok(`"네" → 확장 — ${node.라벨}: 규정 전량이 화면에`,
+      rules.every(e => full.includes(e.rule.제목)) && !((R.zoneTreeStep(q + JOINER + MORE_YES) || {}).clarify));
+    // ⑥ "아니요" → 같은 경계 답변, 확인은 다시 안 낸다(무한 재질문 0).
+    const no = R.zoneTreeStep(q + JOINER + MORE_NO) || {};
+    ok(`"아니요" → 확인 반복 0 — ${node.라벨}`, !no.clarify && !!no.answer && no.answer.length < full.length);
+    ok(`"아니요" 답변 = 경계 답변(안내 한 줄만 빠짐) — ${node.라벨}`,
+      a.replace(' 여기서는 건수만 알려드렸어요 — 그 내용이 필요하시면 아래에서 골라 주세요.', '') === no.answer);
+  }
+
+  // ⑦ 확인 조각은 확장 답변을 바꾸지 않는다 — 요건형 질의에 붙여도 답변이 **바이트 동일**하다.
+  //    (경계형에서 "네"로 온 확장 답변이 §13 답변 그대로임을 이 성질이 보증한다.)
+  for (const q of [
+    '우리 배에 구명조끼 싣고 어디까지 나갈 수 있나요?' + JOINER + '평수구역',
+    '무선설비 없는 배로 어디까지 나갈 수 있나요?' + JOINER + '근해구역 이상' + JOINER + '근해구역',
+  ]) {
+    const bare = (R.zoneTreeStep(q) || {}).answer;
+    const withYes = (R.zoneTreeStep(q + JOINER + MORE_YES) || {}).answer;
+    ok('요건형 — 확인 없이 바로 확장', !!bare && !(R.zoneTreeStep(q) || {}).clarify && bare.includes('2) 원문:'));
+    ok('요건형 — 확인 조각을 붙여도 답변 바이트 동일', bare === withYes);
+  }
+
+  // ⑧ 유형 판정 자체 — 축 어휘만 말한 질문은 경계형, 규정에 실재하는 낱말을 지목하면 요건형.
+  {
+    const tree = R.matchZoneTreeTopic('우리 배 어디까지 나갈 수 있나요?');
+    const { path: p } = R.resolveZoneTreePath('우리 배 어디까지 나갈 수 있나요?' + JOINER + '평수구역', tree);
+    const rules = R.collectZoneRules(tree, p);
+    for (const [q, want] of [
+      ['우리 배 어디까지 나갈 수 있나요?', false],
+      ['낚싯배로 제주도까지 갈 수 있나요?', false],          // 지목한 말이 규정에 없다 → 경계형
+      ['20톤 어선인데 어디까지 갈 수 있나요?', false],
+      ['배로 영해까지 나가도 되나요?', false],               // 구역 이름은 축 어휘라 요건 지목이 아니다
+      ['우리 배에 구명조끼 싣고 어디까지 나갈 수 있나요?', true],
+      ['무선설비 없는 배로 어디까지 나갈 수 있나요?', true],
+    ]) ok(`유형 판정 ${want ? '요건형' : '경계형'}: ${q}`, R.zoneAskedRequirement(rules, q) === want);
+  }
+
+  // ⑨ L-77 재발 방지 — 새 라벨이 트리 라벨과 충돌하지 않고, 질의에 붙어도 경로 판정을 안 바꾼다.
+  {
+    const treeLabels = [...new Set([].concat(...ALL.map(x => [x.node.라벨, x.optLabel].filter(Boolean))))];
+    const clash = [];
+    for (const L of [MORE_YES, MORE_NO]) for (const t of treeLabels) {
+      if (L.includes(t) || t.includes(L)) clash.push(`${L} ↔ ${t}`);
+    }
+    ok(`새 라벨 2개 × 트리 라벨 ${treeLabels.length}개 — 부분문자열 충돌 0건`, clash.length === 0, clash);
+    const moved = [];
+    for (const { tree, node, optLabel } of ALL) {
+      for (const label of [...new Set([node.라벨, optLabel].filter(Boolean))]) {
+        const q = `배로 ${label}까지 나갈 수 있나요?`;
+        const at = R.resolveZoneTreePath(q, tree).node.id;
+        for (const L of [MORE_YES, MORE_NO]) {
+          if (R.resolveZoneTreePath(q + JOINER + L, tree).node.id !== at) moved.push(`${label} + ${L}`);
+        }
+      }
+    }
+    ok('확인 라벨을 붙여도 트리 위치가 안 바뀐다', moved.length === 0, moved.slice(0, 5));
+    // ⑩ 확인 단계가 되묻기 라운드 예산(CLARIFY_MAX_ROUNDS=4)을 넘기지 않는다.
+    const deepest = Math.max(...[...leafAnswers().keys()].map(id => {
+      const x = leafAnswers().get(id); return x.q.split(JOINER).length - 1;
+    }));
+    ok(`가장 깊은 경로 + 확인 = ${deepest}라운드 ≤ 4`, deepest <= 4, deepest);
   }
 }
 

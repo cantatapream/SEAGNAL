@@ -1769,6 +1769,136 @@ function renderZoneAnswer(tree, path, rules, query) {
   return out.join('\n\n');
 }
 
+// ── 질문 유형(경계형 vs 요건형) — L-84 "물어본 것에만 답한다" ────────────────
+// 사용자 지적(2026-08-12): *"어디까지 갈 수 있냐고 물었는데... 물어보지도 않은 것에 대해서
+// 대답할 필요는 없는 거야."* 되묻기로 구역을 좁힌 뒤 그 구역에 걸리는 서류·장비·의무 규정을
+// 통째로(§13 필터링 후에도 1만 자) 쏟아내던 것을, **경계형 질문에는 경계(그 구역의 정의·범위)와
+// 규정 건수만** 답하고 요건은 확인을 거쳐서만 펼치도록 나눈다.
+// ★§13(관련도 필터·접기·면책문구 조립)은 **요건형 답변 안에서 그대로** 쓰인다 — 재구현하지 않는다.
+//
+// ★판정 방법과 그 근거(지어낸 어휘 목록이 아니다):
+//  ⓐ **경계형의 정의는 이미 코드에 있다** — 트리 진입 게이트 `ZONE_ASK`(구역 축을 묻는 어미구)가
+//     그것이라, zoneTreeStep 에 들어온 질문은 **전부 경계형 어미**를 갖고 있다.
+//  ⓑ 그런데 그것만으로는 안 갈린다 — "우리 배에 **구명조끼** 싣고 어디까지 나갈 수 있나요?"처럼
+//     경계형 어미 + 요건 어휘가 섞인 질문이 실제로 있다(회귀 스위트 T8이 쓰는 질의가 바로 그것).
+//     그래서 **원 질문이 구역 축 어휘 말고 다른 것을 지목했고, 그 말이 이 구역 규정 본문에 실제로
+//     나올 때만** 요건형으로 본다. 지목한 말이 규정에 없으면("제주도까지"·"20톤") 경계형이다.
+//  ⓒ "구명조끼 몇 개 필요해요?" 같은 **순수 요건형**은 애초에 게이트에 안 걸려 트리로 들어오지도
+//     않는다 — 기존대로 위키 검색 흐름으로 간다(이 절이 손대는 것이 없다).
+const ZONE_MORE_QUESTION = '이 구역에서 필요한 서류·장비 기준도 알려드릴까요?';
+// ⚠라벨은 트리 22개 노드의 `라벨`·`선택지[].label` 어느 것과도 겹치지 않아야 한다(L-77: 화면
+//   라벨과 데이터 라벨이 1:1이 아닌 지점에서 결함이 났다). 구역 이름을 한 글자도 포함하지 않는
+//   문장으로 두어, 누적된 질의에 붙어도 resolveZoneTreePath 의 경로 복원·암시 하강에 안 걸린다.
+const ZONE_MORE_YES = '네, 서류·장비 기준도 알려주세요';
+const ZONE_MORE_NO = '아니요, 여기까지면 돼요';
+
+// ── 구역 축 어휘 캐시(질문이 "축 말고 다른 것"을 지목했는지 보는 기준) ──
+let _zoneAxisCache = null, _zoneAxisAt = -1;
+/**
+ * "이 질문은 구역 축 이야기만 하고 있다"를 판정할 때 걸러낼 어휘 목록.
+ * **새로 지어내지 않는다** — 게이트가 이미 쓰는 `ZONE_SUBJECT`·`ZONE_ASK`의 낱말과, 자산이 가진
+ * 트리 라벨(및 그 라벨을 이루는 낱말)이 전부다.
+ * ★`ZONE_ASK`는 어미까지 붙은 **구(句)**라 쪼개면 '수'·'갈'·'있' 같은 한 글자 조각이 나온다 —
+ *   그건 뺀다(두면 '수량'·'수산물'처럼 무관한 낱말까지 축 어휘로 잡아먹는다). 반대로 낱말 목록인
+ *   `ZONE_SUBJECT`의 '배'는 **그대로 둔다**(빼면 '배로'·'배가'가 요건 지목으로 잘못 잡힌다).
+ * @returns {Array<string>} 축 어휘(중복 제거)
+ * [연계] ← zoneAskedRequirement(). ← ZONE_SUBJECT·ZONE_ASK·zone_tree.json 라벨.
+ */
+function zoneAxisWords() {
+  const asset = loadZoneTree();
+  if (_zoneAxisCache && _zoneAxisAt === _zoneMtime) return _zoneAxisCache;
+  const words = ZONE_SUBJECT.concat(ZONE_ASK.join(' ').split(/\s+/).filter(w => w.length >= 2));
+  for (const t of (asset.trees || [])) {
+    if (!t || !t.tree) continue;
+    for (const l of zoneLabelsOf(t.tree)) words.push(l, ...l.split(/[\s·()]+/).filter(Boolean));
+  }
+  _zoneAxisCache = [...new Set(words)];
+  _zoneAxisAt = _zoneMtime;
+  return _zoneAxisCache;
+}
+
+/**
+ * 이 질문이 **요건형**(이 구역에서 무엇을 갖춰야 하나)인가 — 아니면 **경계형**(어디까지 갈 수
+ * 있나)인가. 위 ⓑ 그대로: 원 질문에서 구역 축 어휘를 뺀 낱말이 남고, 그 낱말이 이 구역 규정
+ * 본문(`zoneRuleHay`)에 실제로 나오면 요건형이다.
+ * 예: zoneAskedRequirement(rules, '우리 배 어디까지 갈 수 있나요? — 근해구역') → false(경계형)
+ *     zoneAskedRequirement(rules, '구명조끼 싣고 어디까지 나갈 수 있나요? — 평수구역') → true
+ *     zoneAskedRequirement(rules, '낚싯배로 제주도까지 갈 수 있나요? — 연해구역') → false('제주도'는 규정에 없다)
+ * @param {Array<{rule:object}>} rules - collectZoneRules()의 결과(이 리프에 실린 규정 전량)
+ * @param {string} query - 사용자 질의(되묻기 라벨이 누적된 상태일 수 있다 — 원 질문만 본다)
+ * @returns {boolean} true면 요건형(바로 §13 전체 답변), false면 경계형(짧은 경계 답변)
+ * [연계] ← zoneTreeStep(). ← termsOf()·zoneRuleHay()(§13과 같은 토큰화·같은 검색 대상 문자열).
+ */
+function zoneAskedRequirement(rules, query) {
+  const axis = zoneAxisWords();
+  const terms = termsOf(String(query || '').split(CLARIFY_JOINER)[0])
+    // ★수치+단위("20톤"·"12미터")는 요건 지목이 아니라 **자기 배를 설명한 조건값**이다 — 게다가
+    //   톤수·길이는 이 트리(구역 축)가 아니라 별개 축(E 톤수, L-82)이다. 규정 본문에 그 숫자가
+    //   있다고 요건형으로 보면 "20톤 어선인데 어디까지 갈 수 있나요?"가 다시 규정 65건을 받는다.
+    .filter(t => !/^\d+(\.\d+)?[가-힣a-zA-Z]{0,3}$/.test(t))
+    .filter(t => !axis.some(w => t.startsWith(w) || w.startsWith(t)));
+  if (!terms.length) return false;
+  const hays = rules.map(e => zoneRuleHay(e.rule));
+  return terms.some(t => hays.some(h => h.includes(t)));
+}
+
+/**
+ * 경계형 답변 뒤에 붙인 확인("서류·장비 기준도 알려드릴까요?")에 사용자가 뭐라 답했는가.
+ * 상태는 서버가 들지 않는다 — 기존 되묻기와 **똑같이** 질의 문자열에 누적된 `' — 라벨'` 조각을
+ * 본다(새 규약을 만들지 않는다). 대조는 조각 **전체 일치**라, 라벨이 다른 선택지의 부분문자열로
+ * 걸리는 L-77류 사고가 생기지 않는다.
+ * @param {string} query
+ * @returns {'yes'|'no'|null} 아직 안 물었으면 null
+ * [연계] ← zoneTreeStep(). ← ai_chat.js pickClarifyOption(`q + ' — ' + label`).
+ */
+function zoneMoreChoice(query) {
+  const segs = String(query || '').split(CLARIFY_JOINER).slice(1).map(s => zoneFlat(s));
+  if (segs.includes(zoneFlat(ZONE_MORE_YES))) return 'yes';
+  if (segs.includes(zoneFlat(ZONE_MORE_NO))) return 'no';
+  return null;
+}
+
+/**
+ * 경계형 질문에 대한 **짧은 답변** — 물어본 것(그 구역이 어디까지인가)만 답한다.
+ * 싣는 것은 셋뿐이다: ①확인한 구역 경로 ②그 구역의 정의(=경계) ③그 구역에 걸리는 규정 **건수**.
+ * 규정의 내용(제목·인용·의무)은 **한 건도 싣지 않는다** — 사용자가 "네"를 눌러야 renderZoneAnswer()가
+ * 편다. 구역 자체에 붙은 `주의`·`메모`는 경계의 성질을 말하는 것이라 여기 남긴다(예: 먼바다 노드의
+ * "해외수역의 범위가 우리 EEZ 바깥 전부와 같지는 않다").
+ * ★말미 면책 문구는 renderZoneAnswer()와 **같은 함수**(zoneCoverageNote)를 쓴다 — 건수만 말해도
+ *   "그 건수가 전부는 아니다"는 같은 한계가 그대로 적용되고, 문구를 두 벌로 만들면 자산이 바뀔 때
+ *   한쪽만 따라간다(L-81 교훈③).
+ * ★`offer`로 마지막 한 줄을 가른다 — 확인을 안 낼 때(사용자가 "아니요"를 고른 뒤) "아래에서
+ *   눌러 주세요"라고 쓰면 그 자체가 거짓말이 된다(L-83: 렌더러가 자기 동작을 설명하는 문장은
+ *   실제 실행된 가지와 1:1이어야 한다).
+ * @param {object} tree - trees[] 원소 @param {Array<object>} path - resolveZoneTreePath()의 path
+ * @param {Array<{rule:object}>} rules - collectZoneRules()의 결과
+ * @param {boolean} offer - 아래에 "서류·장비도 볼까요?" 확인 버튼이 붙는가
+ * @returns {string} 답변 본문
+ * [연계] ← zoneTreeStep(). → routes/legal.js done.answer → ai_chat.js answerBodyHTML.
+ */
+function renderZoneBoundaryAnswer(tree, path, rules, offer) {
+  const leaf = path[path.length - 1];
+  const laws = ((loadZoneTree().summary || {}).laws_in_scope) || 74;
+  const byKind = new Map();
+  for (const e of rules) byKind.set(e.rule.유형, (byKind.get(e.rule.유형) || 0) + 1);
+  const kinds = [...byKind.entries()]
+    .sort((a, b) => (ZONE_KIND_ORDER.indexOf(a[0]) + 1 || 99) - (ZONE_KIND_ORDER.indexOf(b[0]) + 1 || 99))
+    .map(([k, n]) => `${k === '처벌' ? '처벌(법정형)' : k} ${n}건`).join(' · ');
+
+  // ⚠ 라벨 뒤에 조사를 붙이지 않는다 — 받침 유무로 '이에요/예요'가 갈리는데 라벨은 데이터에서
+  //   오고(괄호로 끝나는 것도 있다) 그걸 코드가 맞추려 들면 매번 어색해진다.
+  const out = [`쉽게 말하면, 여쭤보신 구역은 **${leaf.라벨}**, 그 범위는 이래요.`];
+  out.push(`**확인한 구역**: ${path.map(n => n.라벨).join(' → ')} (${tree.축})`);
+  if (leaf.정의) out.push(`**${leaf.라벨}의 범위**: ${leaf.정의}`);
+  if (leaf.주의) out.push(`**⚠이 구역에서 주의할 점**: ${leaf.주의}`);
+  if (leaf.메모) out.push(`**참고**: ${leaf.메모}`);
+  out.push(`이 구역에서 달라지는 규정은 ${laws}개 해양수산 법령 원문에서 확인된 것만 **${rules.length}건**이에요` +
+    (kinds ? ` (${kinds}).` : '.') +
+    (offer ? ' 여기서는 건수만 알려드렸어요 — 그 내용이 필요하시면 아래에서 골라 주세요.' : ''));
+  out.push(zoneCoverageNote(rules));
+  return out.join('\n\n');
+}
+
 // 답변 하단 작은 글씨(면책 문구 뒤)에 붙는 등급 표기. 본문 서두·말미가 같은 취지를 이미 말하지만,
 // 기존 두 등급('위키 근거 기반 AI 답변' / '⚠미검증 참고')과 나란히 놓고 구분되게 한 줄로 남긴다.
 const ZONE_ANSWER_NOTE = '해역·항해구역 트리(법령 원문 대조 자산) 기반 — 사람 검증 위키 카드가 아니며, 목록이 전부가 아닐 수 있어요';
@@ -1778,8 +1908,13 @@ const ZONE_CLARIFY_NOTE = '추가 정보가 필요해요';
  * 이 질문을 해역·항해구역 트리로 처리할 수 있으면 되묻기 또는 최종 답변을 만든다(LLM 0회).
  * **null이면 호출부는 배선 전과 100% 같은 기존 흐름을 탄다** — 이 함수의 가장 중요한 계약이다.
  * 어떤 예외도 밖으로 내보내지 않는다(expandQueryTerms·pickCandidateLaws와 같은 안전폴백 규약).
+ * ★2026-08-13(L-84): 리프에 닿았을 때 무엇을 답할지가 **질문 유형**에 따라 갈린다 —
+ *   경계형이면 짧은 경계 답변 + "서류·장비 기준도 알려드릴까요?" 확인(zoneAskedRequirement·
+ *   renderZoneBoundaryAnswer), 요건형이거나 그 확인에 "네"면 §13 전체 답변(renderZoneAnswer).
  * 예: zoneTreeStep('낚싯배로 제주도까지 갈 수 있나요?')
  *     → {answer:'조건에 따라…', note:'추가 정보가 필요해요', clarify:{question:'그 배의 선박검사증서에 적힌 항해구역이…', options:[…3개]}}
+ *     zoneTreeStep('… — 연해구역') → {answer:'쉽게 말하면, 여쭤보신 범위는 **연해구역**이에요…', clarify:{options:[네…/아니요…]}}
+ *     zoneTreeStep('… — 연해구역 — 네, 서류·장비 기준도 알려주세요') → {answer:'…규정은 아래 66건이에요…'}
  *     zoneTreeStep('구명조끼 몇 개 필요해요?') → null
  * @param {string} query - 사용자 질의(되묻기 라벨이 누적된 상태일 수 있다)
  * @returns {{answer:string|null, note:string, clarify?:{question:string,options:Array}}|null}
@@ -1804,10 +1939,28 @@ function zoneTreeStep(query) {
     }
     const rules = collectZoneRules(tree, path);
     if (!rules.length) return null;              // 담을 게 없으면 트리가 답할 것이 없다
-    return { answer: renderZoneAnswer(tree, path, rules, query), note: ZONE_ANSWER_NOTE };
+    // ★L-84 "물어본 것에만 답한다": 경계형 질문("어디까지 갈 수 있나요?")에는 경계만 답하고,
+    //   서류·장비 요건은 사용자가 "네"를 눌렀을 때만 편다. 요건형(질문이 규정 내용을 지목한 경우)은
+    //   확인 없이 종전대로 바로 편다 — 그때 나오는 답변은 §13 그대로다(바이트 동일).
+    const choice = zoneMoreChoice(query);
+    if (choice === 'yes' || zoneAskedRequirement(rules, query)) {
+      return { answer: renderZoneAnswer(tree, path, rules, query), note: ZONE_ANSWER_NOTE };
+    }
+    const offer = choice !== 'no';               // "아니요"를 고른 뒤엔 같은 확인을 다시 내지 않는다
+    const step = { answer: renderZoneBoundaryAnswer(tree, path, rules, offer), note: ZONE_ANSWER_NOTE };
+    if (offer) {
+      step.clarify = {
+        question: ZONE_MORE_QUESTION,
+        options: [
+          { label: ZONE_MORE_YES, hint: '이 구역에 걸리는 의무·완화·허가 규정을 근거 조문과 함께 펼쳐 드려요' },
+          { label: ZONE_MORE_NO, hint: '' },
+        ],
+      };
+    }
+    return step;
   } catch (_) {
     return null;
   }
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules };
+module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement };
