@@ -48,7 +48,7 @@
     var _loadedDate = null;  // 현재 _source 에 채워진 데이터의 날짜(YYYY-MM-DD) — 날짜 전환 시 재조회 판단용
 
     var _selectedDate = _todayIso(); // 조회 중인 날짜(YYYY-MM-DD)
-    var _refMinutes = _nowMinutes(); // 기준 시각(하루 중 분, 0~1439) — 날짜를 바꿔도 유지
+    var _refMinutes = _nowMinutes(); // 기준 시각(하루 중 분, 0~1439) — 날짜 이동 시 _bindDateNav._go()가 리셋(오늘=현재시각, 그 외=00:00)
 
     function _pad2(n) { return n < 10 ? '0' + n : String(n); }
     function _toIso(d) { return d.getFullYear() + '-' + _pad2(d.getMonth() + 1) + '-' + _pad2(d.getDate()); }
@@ -363,10 +363,19 @@
     function _bindDateNav() {
         var prevBtn = document.getElementById('navwarn-prev-day');
         var nextBtn = document.getElementById('navwarn-next-day');
+        var slider = document.getElementById('navwarn-time-slider');
+        var valueEl = document.getElementById('navwarn-time-value');
+        // 날짜를 이동하면 기준 시각을 그 날짜에 맞게 리셋한다 — 오늘이면 현재 시각,
+        // 오늘이 아니면(과거/미래) 00:00부터. 리셋 후에는 사용자가 슬라이더로 자유롭게
+        // 움직일 수 있다(사용자 요청, 이전의 "날짜 넘겨도 슬라이더 유지" 방침 대체).
         function _go(delta) {
             _selectedDate = _addDaysIso(_selectedDate, delta);
+            _refMinutes = (_selectedDate === _todayIso()) ? _nowMinutes() : 0;
+            if (slider) slider.value = String(_refMinutes);
+            if (valueEl) valueEl.textContent = _fmtMin(_refMinutes);
             _updateDateNavUI();
             _load();
+            _restyle();
         }
         if (prevBtn) prevBtn.addEventListener('click', function () { _go(-1); });
         if (nextBtn) nextBtn.addEventListener('click', function () { _go(1); });

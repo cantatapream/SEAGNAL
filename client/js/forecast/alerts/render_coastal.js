@@ -346,12 +346,16 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
         // 시각적 강조 (가장 높은 등급 기준)
         const hasWarning = sortedAlerts.some(a => !a.isPreliminary);
         item.style.borderLeft = `3px solid ${hasWarning ? '#ff6b6b' : '#ffb74d'}`;
-        // [정책 — 사용자 확정 2026-08-09] 자식 카드는 **클릭에 반응하지 않고 항상 닫힘**.
-        //  경위: 8/8 에 "탭하면 펼침"으로 바꿨다가(자식 고유 시각을 보여주기 위해),
-        //  실사용 후 사용자가 "눌러도 안 열리게" 로 확정. detailBox 는 DOM 에 생성되지만
-        //  표시되지 않는다(내용 구성 코드는 재활성화 대비 보존).
-        //  → 자식 카드는 "이름 + 등급 배지" 표시 전용. 클릭 커서 단서도 두지 않는다.
-        item.style.cursor = 'default';
+        // [정책 — 사용자 지시 2026-08-13] 자식 카드를 다시 "눌러서 펼침" 으로 되돌린다.
+        //  경위: 8/8 펼침 도입 → 8/9 사용자 확정으로 제거(항상 닫힘) → 8/13 사용자 재지시로 복원.
+        //  ★복원 사유(사용자 설명): 종전에 닫아 둔 진짜 이유는 "펼침이 불편해서"가 아니라
+        //    연안바다·평수구역(자식) 정보 자체가 부정확해 제대로 표출되지 않았기 때문이다.
+        //    그 데이터 문제가 해소되어(자식 표출 필드를 자식 자신의 데이터로만 채우도록 개선,
+        //    §7.7.26 계열) 이제 사용자에게 공개해도 된다는 판단 → 다시 연다.
+        //    ⇒ 이후 자식 데이터 정확성이 다시 흔들리면 이 결정도 함께 재검토할 것.
+        //  이번엔 배타(A안) 규칙을 함께 적용 — 같은 부모 안에서 한 번에 하나만 열린다.
+        //  표시 규칙(3줄 항상·'정보 없음'·범위형 표시)은 8/8 정책 그대로 유지.
+        item.style.cursor = 'pointer';
 
         item.appendChild(header);
 
@@ -409,10 +413,8 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
             const tmFcFormatted = hasValue(alert.tmFc) ? stripYearMonth(alert.tmFc) : '';
             const tmEfFormatted = hasValue(alert.tmEf) ? stripYearMonth(alert.tmEf) : '';
             let tmEdFormatted = '';
-            const releaseVal = alert.tmCc || alert.tmEd || '';
-            // [수정D] 실제 해제예고 값이 있으면 표시 (발표대기 자식이 부모 해제예고 상속한 경우 포함).
-            //   순수 예비(해제예고 없음)는 값이 없어 자동 미표시.
-            if (hasValue(releaseVal) && releaseVal.trim().length > 2) {
+            const releaseVal = String(alert.tmCc || alert.tmYn || alert.tmEd || '').trim();
+            if (releaseVal.length > 2 && releaseVal !== '일') {
                 tmEdFormatted = stripYearMonth(releaseVal);
             }
 
@@ -451,20 +453,32 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
             infoHtml += createRow('발효시각', tmEfFormatted || '정보 없음');
             infoHtml += createRow('해제예정', tmEdFormatted || '정보 없음', tmEdFormatted ? '#69f0ae' : undefined);
 
-            if (infoHtml) {
-                const infoContainer = document.createElement('div');
-                infoContainer.innerHTML = infoHtml;
-                if (index < uniqueCoastalAlerts.length - 1) {
-                    infoContainer.style.marginBottom = '10px';
-                }
-                detailBox.appendChild(infoContainer);
+            const infoContainer = document.createElement('div');
+            infoContainer.innerHTML = infoHtml;
+            if (index < uniqueCoastalAlerts.length - 1) {
+                infoContainer.style.marginBottom = '10px';
             }
+            detailBox.appendChild(infoContainer);
         });
 
         item.appendChild(detailBox);
 
-        // [2026-08-09 사용자 확정] 클릭 토글 제거 — 눌러도 열리지 않는다.
-        //   (8/8 에 넣었던 토글을 실사용 후 되돌린 것. detailBox 는 display:none 고정.)
+        // [펼침/접힘 — 사용자 지시 2026-08-13, A안(배타)]
+        //   자식 카드를 누르면 상세(발표/발효/해제예정)를 펼치고, 다시 누르면 접는다.
+        //   같은 부모 카드 안의 다른 자식은 닫는다 — 부모 카드가 "다른 카드 닫고 나만 열기"
+        //   인 것과 동일한 배타 규칙.
+        //   결정 이력: 8/8 도입 → 8/9 사용자 확정으로 제거 → 8/13 사용자 재지시로 복원(배타 추가).
+        //   stopPropagation: 부모 카드 토글로 전파되지 않도록 (render.js 의 .coastal-item
+        //   가드와 이중 안전 — 그 가드는 유지한다).
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = detailBox.style.display !== 'none';
+            const siblings = item.parentElement
+                ? item.parentElement.querySelectorAll('.coastal-item .coastal-detail-box')
+                : [];
+            siblings.forEach(box => { box.style.display = 'none'; });
+            detailBox.style.display = isOpen ? 'none' : 'block';
+        });
 
     } else {
         // 특보가 없는 경우
