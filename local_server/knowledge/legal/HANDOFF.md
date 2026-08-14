@@ -167,6 +167,7 @@ review_queue.md 201건 백로그 재트리아지(7배치, H-34 기준) 완료 �
 - **F1(심각)** 스위치 설정 파일(`nariya_config.json`)이 **fly 볼륨 밖**(컨테이너 이미지 내부)이라 재시작·재배포마다 값이 리셋됐다(실측 12/12 false) → **`local_server/data/`(볼륨 하위)로 이설** + 구경로 값 **최초 1회 이관**(안 그러면 배포 순간 `exposure`·`answerCanonicalOnly`가 기본값으로 리셋) + `.gitignore` 등록. 로컬에서 **스위치 on → 재시작 → 값 유지** 실측.
 - **F2(심각)** **ctx 없는 버튼**(기존 되묻기·트리 되묻기)을 누르면 직전 맥락이 통째로 사라져 프로필 확인이 **무한루프** → 설계 §3.2가 정의만 해둔 **`ctxNext`를 구현**(서버가 모든 done 응답에 실음) + 클라이언트가 `lastCtx`로 **이어 보냄**(비우는 시점은 사용자가 새 질문을 타이핑할 때뿐, 버튼 ctx 는 축 단위 덮어쓰기). ctx 위조 방어는 그대로.
 - **F3(중대)** 이해확인이 라이브 **0/2 발동** — 프롬프트 기준4가 기준2와 상충 → **"재진술로 뜻이 하나로 정해지는가"** 판정축으로 재작성(§4.2 동시 갱신). ★**로컬에 GEMINI 키가 없어 실제 발동은 확인 못 했다 — 다음 프로덕션 재검증에서 반드시 재확인.**
+  - **[2026-08-14 19:05 KST 추가]** F3 진짜 근본원인이 프로덕션 실키 재검증으로 추가 확정됨: `UNDERSTAND_CONFIG.httpOptions.timeout`이 **8000(8초)** 으로 Gemini API 최소 deadline(10초) 미만이라 **매 호출이 400 INVALID_ARGUMENT로 거부**되고 있었다(프롬프트 문제가 아니었음, 23/23건 확인 — 2026-08-03 `QUERY_EXPAND_TIMEOUT_MS` 사고와 동일 유형 재발). **12000으로 수정 완료**(커밋 eec05ebdb), `legal_retriever.js` 전수 재확인으로 다른 저타임아웃 없음 확인, `_LESSONS.md` L-88 기록. **여전히 로컬엔 GEMINI 키가 없어 실제 200 응답까지는 미확인 — 다음 프로덕션 재검증 라운드 최우선 확인 대상.**
 - **F4(중대)** 프로필 축 대조 **부분일치 오탐**(야간조업 "예" × `예인선·부선`) → **완전일치**만 인정(대가: 톤수·길이 축은 사실상 확인이 안 걸린다 — 안전한 방향).
 - **검증**: `test_ask_context.js` 94→**129건**(T21~T24, **수정 전 코드로 전부 FAIL** 확인) · `verify_all.sh` V2·V3·V5(9스위트 **568건**)·스모크·V6 통과(V4는 playwright 부재로 종전과 동일) · 수정 전 서버와 **대표 8종 응답 바이트 동일**(R0) · HTTP만 보는 독립 스크립트로 done 4경로 ctxNext 확인 · 라이브 다회전으로 무한루프 재현/해소 확인.
 - **다음**: 프로덕션 재검증 라운드(F3 실발동 · 스위치 켜기 판단) · F6·F7(경미) · 미결①(규칙9 잔여 문구, **사용자 확인 필요**) · 키워드 게이트 마이그레이션 M1~M4.
@@ -496,6 +497,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
+
+### [2026-08-14 19:05 KST] ✅완료 — H-37 F3 근본원인 수정 완료 — UNDERSTAND_CONFIG 타임아웃 8000→12000
+UNDERSTAND_CONFIG.httpOptions.timeout 8000→12000 수정 완료(legal_retriever.js:2010~2017). legal_retriever.js 전수 재확인: QUERY_EXPAND_TIMEOUT_MS(10000, 정상)·CLARIFY_CONFIG(15000)·RAW_PICK_CONFIG(15000) — 추가 8~9초대 결함 없음. routes/legal.js 인라인 Gemini 설정 2곳(388·486)도 15000으로 정상 확인. 설계문서 H37_understanding_confirm_design.md '8초' 표기 2곳(§4.2, 배선표) 정정. _LESSONS.md L-88 신규(같은 파일 내 과거 교훈 주석을 새 코드 작성 시 대조하지 않아 재발했다는 요지, 재발방지 체크리스트 제안). 회귀검증: test_ask_context.js 129/129 PASS, test_zone_tree_wiring.js 103/103 PASS. verify_all.sh는 서버 미기동+playwright-core 모듈 부재로 스모크 단계만 환경적 실패(무관 사전조건, 본 수정과 무관). GEMINI_API_KEY_26_8 부재로 실제 Gemini 호출 성공까지는 로컬 미확인 — 코드 검토로 12000이 API 최소 deadline(10초) 요구를 충족함만 확인. 커밋 eec05ebdb. 다음 프로덕션 재검증 라운드에서 F3(이해확인 실발동) 최종 확인 필요.
+
 
 ### [2026-08-14 19:05 KST] 🟢착수 — H-37 F3 근본원인 수정 — UNDERSTAND_CONFIG 타임아웃 8000→12000
 프로덕션 재검증(H-37 F1~F4)에서 확정된 F3 근본원인 수정 착수. UNDERSTAND_CONFIG.httpOptions.timeout이 8000(8초)으로 Gemini API 최소 deadline(10초) 미만이라 모든 이해확인 호출이 400 INVALID_ARGUMENT로 거부되고 있었음(프로덕션 로그 23/23건 확인). 2026-08-03 QUERY_EXPAND_TIMEOUT_MS와 동일 유형 재발. 12000으로 수정 + legal_retriever.js 전수 재확인 + 설계문서 정정 + _LESSONS.md L-88 기록 예정.
