@@ -477,6 +477,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-14 13:37 KST] 🟢착수 — H-37 나머지 구현 착수 — 꼬리표제거+이해확인+프로필확인+상황질문
+설계문서 H37_understanding_confirm_design.md 전체(§5~9, §11 결정사항) 그대로 구현. §13·§14는 이미 완료. 이번엔 요청바디 별도필드(ctx/profile)로 컨텍스트 전달, 라운드카운트 분리, 3회백스톱, 트리+위키 양쪽 프로필훅, 검색후 상황질문(암시하강 재사용) 전부 포함. 오푸스5.0, 라이브코드 대규모 변경이라 완료 후 별도 적대검증 필요.
+
+
 ### [2026-08-13 18:26 KST] ✅완료 — H-36 14번째 자산 — 기상특보 출항·운항통제(선종×특보종류) 구축 완료
 사용자 확정 설계대로 B(해역)와 별개인 14번째 자산을 신설(L-82). 산출물 5개: weather_warning_tree.json · loop/build_weather_warning_tree.py(빌더 겸 게이트) · loop/verify_weather_warning_tree.py(독립 재대조) · loop/match_weather_warning_tree.py(암시 하강 매칭기, 미배선) · _dashboard/H32_weather_warning_design.md(설계).
 
