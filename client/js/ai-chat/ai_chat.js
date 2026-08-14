@@ -32,11 +32,16 @@
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
  *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토 실카운트)
  *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
- *                    POST /api/legal/ask {query, deviceId, notifyOnComplete}
+ *                    POST /api/legal/ask {query, deviceId, notifyOnComplete, ctx?, profile?}
  *                                                              (질문→AI 답변 스트리밍(NDJSON)+근거 법령
  *                                                               · done 에 clarify{question,options} 가 오면
  *                                                                 답변 대신 되묻기 선택지 버튼을 그리고,
  *                                                                 누르면 "원래질문 — 라벨"로 다시 질의
+ *                                                               · [H-37] 선택지에 ctx 가 실려 오면(이해확인·
+ *                                                                 상황질문·프로필확인) 질의는 그대로 두고
+ *                                                                 ctx 만 되돌려 보낸다. profile 은 헤더 ⚙
+ *                                                                 패널이 이 기기에만 저장한 스냅샷이고
+ *                                                                 서버는 그 요청 중에만 읽는다(미저장)
  *                                                               · 6초 초과+옵트인이면 서버가 완료 푸시 발송)
  *                    GET  /api/legal/pending-answer/:requestId (푸시로 재진입 시 그 답변 1회 복원)
  *                    GET  /api/legal/article-text?law&article&tier&baseLaw
@@ -68,8 +73,15 @@
   var LS_UNREAD = 'nariya_unread_v1';          // 채팅창이 닫힌 사이 도착한 답변 수(FAB 뱃지)
   var LS_HISTORY = 'nariya_history_v1';        // 지난 대화 기록(질문·답변만 · 기기 안에서만 보관)
   var HISTORY_MAX = 200;                       // 기록 보관 개수 상한(넘으면 오래된 것부터 버린다)
+  // [H-37 §7.1] 온디바이스 프로필 — **이 기기에만** 저장한다(서버는 요청 처리 중에만 읽고 버린다).
+  //   구조: {version:1, fields:{<필드>:{v,at}}} — 필드마다 저장 시각 at 을 둔다(신선도 표시용,
+  //   사용자 확정 (아) "언제 저장·수정된 정보인지도 같이 보여준다").
+  var LS_PROFILE = 'nariya_profile_v1';
   var CONSENT_ASK_MS = 6000;                   // 이만큼 넘게 걸리면 "다음부터 알림 드릴까요?" 배너
   var activeConsentTimer = null;               // 진행 중인 동의배너 타이머(채팅창 닫으면 취소 — closeChat 참고)
+  // [H-37 §4.3] "아니요, 다시 설명할게요"를 누른 뒤 사용자가 새로 칠 문장 **한 번**에만 실릴 ctx.
+  //   메모리에만 둔다 — localStorage 에 저장하면 새로고침 뒤 오래된 대기가 되살아난다(설계 §9.1 #3).
+  var pendingCtx = null;
 
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
@@ -1165,6 +1177,8 @@
             '<div><div class="nrya-chat-name">해양법령 도우미</div></div>' +
             '<div class="nrya-chat-acts">' +
               '<button class="nrya-chat-x nrya-chat-back" id="nryaChatBack" title="뒤로" style="display:none">‹</button>' +
+              // [H-37 §7.2] 나에 대해서 설명하기(온디바이스 프로필) — 이 기기에만 저장된다
+              '<button class="nrya-chat-x nrya-chat-prof" id="nryaChatProf" title="나에 대해서 설명하기">⚙</button>' +
               '<button class="nrya-chat-x nrya-chat-hist" id="nryaChatHist" title="대화 기록">🕘</button>' +
               '<button class="nrya-chat-x" id="nryaChatX">×</button>' +
             '</div>' +
@@ -1174,6 +1188,8 @@
           '</div>' +
           // 대화 기록(기기 저장) 목록 화면 — 열릴 때만 보이고 그동안 위 대화 영역은 숨는다
           '<div class="nrya-hist" id="nryaHistPanel" style="display:none"></div>' +
+          // 프로필(나에 대해서 설명하기) 화면 — 기록 화면과 같은 방식(열릴 때만 보인다)
+          '<div class="nrya-hist" id="nryaProfPanel" style="display:none"></div>' +
           '<div class="nrya-chat-input"><button class="nrya-chat-plus" title="첨부">＋</button><input id="nryaChatInput" placeholder="메시지 입력" /><button class="nrya-chat-send" id="nryaChatSend">➤</button></div>' +
         '</div>' +
       '</div>';
@@ -1413,8 +1429,126 @@
 
   /** 헤더 ‹ 버튼: 목록을 보고 있으면 대화로, 지난 답변을 펼친 뒤라면 목록으로 돌아간다. */
   function onHistBack() {
+    if (isProfOpen()) { closeProf(); return; }   // 프로필 화면에서 ‹ 는 대화로 되돌린다
     if (isHistoryOpen()) closeHistory(true);
     else openHistory();
+  }
+
+  // ── [H-37 §7] 나에 대해서 설명하기(온디바이스 프로필) ─────────────────────────
+  //   사용자 확정 (바): "카테고리별로 하나 선택하면 그 선택한 것을 기반으로 또 선택할 수 있도록
+  //   버튼을 만들어 두면 사용자가 타이핑 칠 필요 없이 바로바로 내용이 기록되는거지. 물론 온디바이스에만
+  //   저장되어야 하고 또한 선택 마지막에는 직접 관심분야 등 타이핑해서 넣을 수 있도록"
+  //   ★저장 위치는 이 기기의 localStorage 뿐이다. 서버로는 질문할 때 스냅샷이 함께 가지만, 서버는
+  //     그 요청을 처리하는 동안만 메모리에서 읽고 **어떤 파일에도 쓰지 않는다**(설계 §3.3 R1).
+  //   ★버튼 라벨의 출처: `_CHATBOT.md` §1의 프로필 필드표(직군·선박용도·어업종류·면허·야간조업)와
+  //     `_dashboard/zone_tree.json`의 조업해역 트리 라벨(특정해역·조업자제해역·일반해역·해외수역).
+  //     **지어낸 값이 없다** — 라벨이 자산·문서와 문자 그대로 같아야 서버의 축 대조(완전일치/포함)가
+  //     성립한다(설계 §7.4.2).
+  //   ⚠톤수·길이는 버튼이 아니라 숫자 입력이다 — `tonnage_facet.json`의 임계값은 **법마다 다른**
+  //     경계라 하나의 공통 구간표가 없고, 그걸 클라이언트에 상수로 박으면 자산이 바뀔 때 화면이
+  //     거짓말을 한다(L-81 "데이터의 범위를 코드가 산문으로 단언하지 말 것"). → 설계 대비 변경점.
+  var PROFILE_MENU = [
+    { k: '직군', opts: ['어업인', '비어업인', '해양종사자', '공무원', '그 밖'] },
+    { k: '선박용도', opts: ['낚시어선', '어선', '레저', '일반'] },
+    { k: '톤수', input: '숫자만(예: 9.77) — 총톤수', suffix: '톤' },
+    { k: '길이', input: '숫자만(예: 12) — 선박 길이', suffix: '미터' },
+    { k: '어업종류', opts: ['연안자망', '근해통발', '양식', '그 밖'] },
+    { k: '면허·자격', opts: ['소형선박조종사', '해기사', '없음'] },
+    { k: '주 조업구역', opts: ['특정해역', '조업자제해역', '일반해역', '해외수역'] },
+    { k: '야간조업', opts: ['예', '아니오'] },
+    { k: '관심분야', input: '자유롭게 적어주세요(예: 야간조업 안전장비)' },
+  ];
+
+  /**
+   * 기기에 저장된 프로필을 읽는다(없거나 깨졌으면 빈 것 — 예외를 던지지 않는다).
+   * @returns {{version:number, fields:Object<string,{v:string,at:string}>}}
+   * [연계] ← doSend(요청에 스냅샷 첨부) · renderProfPanel.
+   */
+  function loadProfile() {
+    try {
+      var o = JSON.parse(localStorage.getItem(LS_PROFILE) || '{}');
+      if (!o || typeof o !== 'object' || !o.fields) return { version: 1, fields: {} };
+      return { version: 1, fields: o.fields };
+    } catch (_) { return { version: 1, fields: {} }; }
+  }
+
+  /** 프로필 한 필드를 저장(값이 빈 문자열이면 그 필드만 지운다) + 저장 시각(KST ISO)을 함께 남긴다. */
+  function saveProfileField(key, value) {
+    try {
+      var p = loadProfile();
+      if (value) p.fields[key] = { v: String(value).slice(0, 40), at: kstIso() };
+      else delete p.fields[key];
+      localStorage.setItem(LS_PROFILE, JSON.stringify({ version: 1, fields: p.fields }));
+    } catch (_) { /* 저장 불가(시크릿 모드 등)여도 대화는 계속돼야 한다 */ }
+  }
+
+  /** 지금 시각을 KST(+09:00) ISO 문자열로. 프로필 `at`(신선도 표시)에 쓴다. */
+  function kstIso() {
+    var d = new Date(Date.now() + 9 * 3600 * 1000).toISOString();
+    return d.slice(0, 19) + '+09:00';
+  }
+
+  /**
+   * 입력창 안내문(placeholder)을 바꾼다 — 확인 카드가 떠 있는 동안 "버튼을 고르거나 새로 질문"임을
+   * 알린다(설계 §9.1 #14: 자유 입력은 **언제나 새 질문**이라는 동작 자체는 바꾸지 않는다).
+   * @param {boolean} waiting - true면 안내 문구, false면 평소 문구
+   */
+  function setChatPlaceholder(waiting) {
+    var el = document.getElementById('nryaChatInput'); if (!el) return;
+    el.placeholder = waiting ? '어떤 상황인지 조금 더 구체적으로 적어주세요' : '메시지 입력';
+  }
+
+  /** 프로필 화면이 지금 떠 있는지. @returns {boolean} */
+  function isProfOpen() {
+    var p = document.getElementById('nryaProfPanel');
+    return !!(p && p.style.display !== 'none');
+  }
+
+  /** 프로필 화면 HTML(저장된 값 + 카테고리별 버튼/입력). @returns {string} */
+  function profPanelHTML() {
+    var p = loadProfile();
+    var h = '<div class="nrya-hist-day">나에 대해서 설명하기</div>' +
+      '<div class="nrya-disc">여기 적은 내용은 <b>이 기기에만</b> 저장돼요. 답이 조건에 따라 갈릴 때 ' +
+      '나리야가 "저장된 정보로 답할까요?"라고 먼저 확인해요.</div>';
+    PROFILE_MENU.forEach(function (m, mi) {
+      var cur = p.fields[m.k];
+      h += '<div class="nrya-hist-day">' + esc(m.k) +
+        (cur ? ' <span class="nrya-hist-t">현재: ' + esc(cur.v) + (cur.at ? ' (' + esc(String(cur.at).slice(0, 10)) + ' 저장)' : '') + '</span>' : '') +
+        '</div><div class="nrya-consent-btns">';
+      if (m.opts) {
+        h += m.opts.map(function (o) {
+          return '<button type="button" class="nrya-consent-btn nrya-prof-btn" data-k="' + esc(m.k) + '" data-v="' + esc(o) + '">' + esc(o) + '</button>';
+        }).join('');
+      } else {
+        h += '<input class="nrya-fb-reason-in nrya-prof-in" id="nryaProfIn' + mi + '" placeholder="' + esc(m.input) + '" value="' + esc(cur ? cur.v : '') + '">' +
+          '<button type="button" class="nrya-consent-btn nrya-prof-save" data-k="' + esc(m.k) + '" data-in="nryaProfIn' + mi + '"' +
+          (m.suffix ? ' data-suffix="' + esc(m.suffix) + '"' : '') + '>저장</button>';
+      }
+      if (cur) h += '<button type="button" class="nrya-consent-btn nrya-prof-btn" data-k="' + esc(m.k) + '" data-v="">이 항목 지우기</button>';
+      h += '</div>';
+    });
+    h += '<div class="nrya-consent-btns"><button type="button" class="nrya-consent-btn nrya-prof-reset">전체 초기화</button></div>';
+    return h;
+  }
+
+  /** 프로필 화면을 연다(대화 영역을 숨기고 패널을 채운다 — 기록 화면과 같은 방식). */
+  function openProf() {
+    var panel = document.getElementById('nryaProfPanel'); if (!panel) return;
+    closeHistory(true);
+    panel.innerHTML = profPanelHTML();
+    panel.style.display = 'block';
+    panel.scrollTop = 0;
+    var body = document.getElementById('nryaChatBody'); if (body) body.style.display = 'none';
+    setHistHeader(true);
+  }
+
+  /** 프로필 화면을 닫고 대화 화면으로 되돌린다. */
+  function closeProf() {
+    var panel = document.getElementById('nryaProfPanel');
+    if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+    var body = document.getElementById('nryaChatBody'); if (body) body.style.display = '';
+    setHistHeader(false);
+    _scrollChatBottom();
   }
 
   /**
@@ -1439,6 +1573,7 @@
     if (fab) fab.addEventListener('click', openChat);
     var x = document.getElementById('nryaChatX'); if (x) x.addEventListener('click', closeChat);
     var hist = document.getElementById('nryaChatHist'); if (hist) hist.addEventListener('click', openHistory);
+    var prof = document.getElementById('nryaChatProf'); if (prof) prof.addEventListener('click', openProf);
     var back = document.getElementById('nryaChatBack'); if (back) back.addEventListener('click', onHistBack);
     var send = document.getElementById('nryaChatSend'); if (send) send.addEventListener('click', doSend);
     if (input) {
@@ -1472,6 +1607,26 @@
     if (panel) panel.addEventListener('click', function (e) {
       var it = e.target.closest('.nrya-hist-item');
       if (it) openHistoryEntry(it.getAttribute('data-ts'));
+    });
+
+    // [H-37 §7.2] 프로필 패널(버튼 선택 · 직접 입력 저장 · 항목/전체 삭제) — 저장 즉시 다시 그린다.
+    var pp = document.getElementById('nryaProfPanel');
+    if (pp) pp.addEventListener('click', function (e) {
+      var b = e.target.closest('.nrya-prof-btn');
+      if (b) { saveProfileField(b.getAttribute('data-k'), b.getAttribute('data-v') || ''); openProf(); return; }
+      var s = e.target.closest('.nrya-prof-save');
+      if (s) {
+        var el = document.getElementById(s.getAttribute('data-in'));
+        var v = el ? (el.value || '').trim() : '';
+        var sfx = s.getAttribute('data-suffix') || '';
+        // 숫자만 적었으면 단위를 붙여 저장한다("9.77" → "9.77톤") — 저장값이 곧 화면 문구가 된다.
+        if (v && sfx && /^[0-9.]+$/.test(v)) v += sfx;
+        saveProfileField(s.getAttribute('data-k'), v); openProf(); return;
+      }
+      if (e.target.closest('.nrya-prof-reset')) {
+        try { localStorage.removeItem(LS_PROFILE); } catch (_) {}
+        openProf();
+      }
     });
   }
 
@@ -2266,14 +2421,24 @@
    * done 시점에 최종 렌더로 붙는다. 실패 시 안전한 폴백 말풍선을 띄운다(빈 화면 없음).
    * ⚠ 스트리밍은 체감 대기시간만 줄인다 — 실제 생성시간은 그대로다.
    * [연계] → POST /api/legal/ask, readNdjsonStream.
+   * @param {object} [sendCtx] - 확인 버튼이 들고 있던 ctx(H-37 §3.2). 없으면 pendingCtx → 없으면 미전송.
+   * @param {HTMLElement} [failBox] - 그 버튼이 속한 되묻기 묶음(전송 실패 시 다시 누를 수 있게 되돌린다)
    */
-  function doSend() {
+  function doSend(sendCtx, failBox) {
     var body = document.getElementById('nryaChatBody');
     var input = document.getElementById('nryaChatInput');
     if (!body || !input) return;
     var q = (input.value || '').trim();
     if (!q) q = '특정해역에서 야간 조업 제한이 있어?';
     if (isHistoryOpen()) closeHistory(true);   // 기록 목록을 보다가 질문하면 대화 화면으로 돌아온다
+    if (isProfOpen()) closeProf();
+    // [H-37 §3.2] 이번 요청에 실을 대기 맥락(ctx).
+    //   ①확인 버튼으로 온 요청이면 그 버튼이 들고 있던 ctx ②"다시 설명할게요"를 누른 직후 사용자가
+    //   손으로 친 문장이면 그때 예약해 둔 pendingCtx ③그 밖에는 **없음**(= 새 질문은 맥락을 비우고
+    //   시작한다 — 설계 §9.1 #1). 어느 경우에도 `query` 문자열에는 아무것도 덧붙이지 않는다.
+    var ctx = sendCtx || pendingCtx || null;
+    pendingCtx = null;
+    setChatPlaceholder(false);
 
     // 내 말풍선
     var me = document.createElement('div'); me.className = 'nrya-krow nrya-me';
@@ -2316,7 +2481,13 @@
       }, CONSENT_ASK_MS);
     }
 
-    legalPost('/api/legal/ask', { query: q, deviceId: getDeviceId(), notifyOnComplete: optedIn, askId: askId }).then(function (res) {
+    // [H-37 §7.3] 프로필 스냅샷은 값이 하나라도 있을 때만 싣는다(없으면 필드 자체를 안 보낸다 —
+    //   그러면 서버 전 경로가 no-op 이라 응답이 종전과 바이트 동일하다).
+    var profile = loadProfile();
+    var ask = { query: q, deviceId: getDeviceId(), notifyOnComplete: optedIn, askId: askId };
+    if (ctx) ask.ctx = ctx;
+    if (Object.keys(profile.fields).length) ask.profile = profile;
+    legalPost('/api/legal/ask', ask).then(function (res) {
       return readNdjsonStream(res, function (deltaText) {
         hadDelta = true;
         ensureAnswerBubble();
@@ -2332,6 +2503,10 @@
         if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; }  // 6초 안에 끝남 → 배너 없음
         ensureAnswerBubble(); // done만 오고 delta가 하나도 없었던 경우(근거없음·오류) 대비
         bubbleEl.innerHTML = answerHTML(q, data);
+        // [H-37 §9.1 #9] 전송이 실패했으면 눌렀던 선택지 묶음을 **다시 누를 수 있게** 되돌린다 —
+        //   기존 되묻기에도 있던 결함(한 번 누르면 nrya-done 이라 네트워크 오류 시 재시도 불가)이라
+        //   같이 고친다. 성공했으면 그대로 비활성으로 둔다(중복 전송 방지).
+        if (failBox && data && data._neterr) failBox.classList.remove('nrya-done');
         body.scrollTop = body.scrollHeight;
         // 진짜 최종 답변일 때만 기기에 기록으로 남긴다 — 되묻기(clarify)는 아직 답이 아니고,
         // 실패(!ok)나 답변 문장이 없는 응답은 나중에 다시 봐도 얻을 게 없다.
@@ -2503,7 +2678,12 @@
     if (!clarify || !clarify.question || !(clarify.options || []).length) return '';
     var btns = clarify.options.map(function (o) {
       if (!o || !o.label) return '';
+      // [H-37 §3.2] 서버가 선택지에 `ctx`를 실어 보내면(이해확인·상황질문·프로필확인) 그 버튼은
+      //   **질의에 라벨을 붙이지 않고** 이 ctx 만 되돌려 보낸다 — 질의 문자열을 오염시키지 않는
+      //   것이 이 설계의 핵심이다(설계 §3.1 D안). `act="ask"`면 보내지 않고 입력창으로 안내한다.
       return '<button type="button" class="nrya-consent-btn nrya-clarify-btn" data-label="' + esc(o.label) + '"' +
+        (o.ctx ? ' data-ctx="' + esc(JSON.stringify(o.ctx)) + '"' : '') +
+        (o.act ? ' data-act="' + esc(o.act) + '"' : '') +
         (o.hint ? ' title="' + esc(o.hint) + '"' : '') + '>' + esc(o.label) + '</button>';
     }).join('');
     return '<div class="nrya-clarify" data-q="' + esc(q || '') + '">' +
@@ -2527,8 +2707,27 @@
     var input = document.getElementById('nryaChatInput'); if (!input) return;
     var q = box.getAttribute('data-q') || '';
     var label = btn.getAttribute('data-label') || btn.textContent || '';
+    // [H-37] ctx 를 들고 있는 선택지(이해확인·상황질문·프로필확인)는 **질의를 그대로 두고** ctx만
+    //   갱신해 재전송한다. ctx 가 없는 선택지(기존 되묻기·트리 되묻기)는 예전 그대로 ' — 라벨' 누적.
+    var raw = btn.getAttribute('data-ctx');
+    if (raw) {
+      var ctx = null;
+      try { ctx = JSON.parse(raw); } catch (_) { ctx = null; }
+      if (btn.getAttribute('data-act') === 'ask') {
+        // "아니요, 다시 설명할게요" — 보내지 않고 입력창으로 안내한다. 예약한 ctx(라운드 +1)는
+        // 사용자가 새로 친 문장 **한 번**에만 실린다(설계 §4.3).
+        pendingCtx = ctx;
+        setChatPlaceholder(true);
+        input.value = '';
+        input.focus();
+        return;
+      }
+      input.value = q;
+      doSend(ctx, box);
+      return;
+    }
     input.value = q ? q + ' — ' + label : label;
-    doSend();
+    doSend(null, box);
   }
 
   /**

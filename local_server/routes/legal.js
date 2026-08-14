@@ -172,12 +172,20 @@ function readConfig() {
 // 정규화: exposure는 off|admin|user(기본 off) · answerCanonicalOnly는 검증완료 후 켜는 스위치(기본 false).
 //   answerCanonicalOnly=false → 현행 동작(모든 페이지 검색). true → canonical만 답변 근거로(미검증 draft 차단).
 //   ⚠ true로 켜기 전 반드시 index.json을 status 포함 재빌드(lint_index.py)할 것 — 안 그러면 status 미기재로 전부 제외됨.
+// H-37 §3.3 R3: 신규 단계 3종은 각각 서버 스위치로 잠근다. **기본 전부 false** — canonical 안전
+//   필터와 같은 관례("미리 준비하되 안전장치와 함께"). 켜는 순서 권고: understandConfirm →
+//   profileConfirm → scopeNarrow. 되돌리기는 {false} 한 번, 무손실.
 function normConfig(c) {
   return {
     exposure: ['off', 'admin', 'user'].includes(c.exposure) ? c.exposure : 'off',
     answerCanonicalOnly: c.answerCanonicalOnly === true,
+    understandConfirm: c.understandConfirm === true,
+    scopeNarrow: c.scopeNarrow === true,
+    profileConfirm: c.profileConfirm === true,
   };
 }
+// POST /api/legal/config 가 받는 boolean 스위치 목록(위 normConfig 와 1:1).
+const BOOL_SWITCHES = ['answerCanonicalOnly', 'understandConfirm', 'scopeNarrow', 'profileConfirm'];
 router.get('/api/legal/config', (req, res) => {
   res.json(Object.assign({ ok: true }, normConfig(readConfig())));
 });
@@ -185,12 +193,14 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
   const b = req.body || {};
   if (b.exposure !== undefined && !['off', 'admin', 'user'].includes(b.exposure))
     return res.status(400).json({ ok: false, error: 'exposure는 off|admin|user' });
-  if (b.answerCanonicalOnly !== undefined && typeof b.answerCanonicalOnly !== 'boolean')
-    return res.status(400).json({ ok: false, error: 'answerCanonicalOnly는 true|false' });
+  for (const k of BOOL_SWITCHES) {
+    if (b[k] !== undefined && typeof b[k] !== 'boolean')
+      return res.status(400).json({ ok: false, error: `${k}는 true|false` });
+  }
   withLock(async () => {
     const cur = normConfig(readConfig());                       // 기존 필드 보존(머지) — 한 필드 갱신이 다른 필드 삭제 안 하게
     if (b.exposure !== undefined) cur.exposure = b.exposure;
-    if (b.answerCanonicalOnly !== undefined) cur.answerCanonicalOnly = b.answerCanonicalOnly;
+    for (const k of BOOL_SWITCHES) if (b[k] !== undefined) cur[k] = b[k];
     writeFileAtomic(CONFIG_FILE, JSON.stringify(Object.assign(cur, { updatedAt: new Date().toISOString() }), null, 1));
     return cur;
   }).then(v => res.json(Object.assign({ ok: true }, normConfig(v)))).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
@@ -782,21 +792,58 @@ router.post('/api/legal/ask', async (req, res) => {
   // 이 요청이 끝난 뒤 [허용]으로 뒤늦게 동의할 수 있게 등록해둔다(POST /api/legal/notify-me 참고).
   if (askId && deviceId) inFlightAsks.set(askId, { deviceId, wantsPush: false });
 
-  const canonicalOnly = normConfig(readConfig()).answerCanonicalOnly;
+  const cfg = normConfig(readConfig());
+  const canonicalOnly = cfg.answerCanonicalOnly;
+  // [H-37] 대기 맥락(ctx)·온디바이스 프로필(profile) — **둘 다 선택**이고, 없으면 아래 전 경로가
+  //   no-op 이라 응답이 오늘과 바이트 동일하다(설계 §3.3 R0).
+  //   ⚠ `q`(질의 문자열)에는 이 값들을 **절대 합치지 않는다**(R2) — 합치면 ①되묻기 라운드 카운트
+  //     ②트리 주제 판정 ③트리 경로 복원이 동시에 오염되고(설계 §2.1), 프로필이 로그·임시보관 파일에
+  //     남아 "온디바이스에만 저장"이 그 자리에서 깨진다(R1).
+  const profile = legalRetriever.normalizeProfile(req.body && req.body.profile);
+  const ctx = legalRetriever.normalizeAskCtx(req.body && req.body.ctx, profile);
+  // 신규 단계가 확인 카드를 낼 때 쓰는 done 한 줄(기존 되묻기 응답과 **같은 모양** — clarify 스키마
+  // 그대로라 ai_chat.js clarifyHTML 이 그대로 그린다. confirmKind 만 새로 붙는다).
+  const writeConfirm = (step) => {
+    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    if (res.flushHeaders) res.flushHeaders();
+    res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
+      answer: step.answer || null, sources: [], citationChain: [], note: step.note || '',
+      clarify: step.clarify, confirmKind: step.confirmKind }) + '\n');
+    res.end();
+    if (askId) inFlightAsks.delete(askId);
+  };
   try {
+    // ① [H-37 §4] 이해확인 — 질문이 들어오면 **가장 먼저**(사용자 확정 (가)). 스위치 off면 null.
+    //    3회 연속 "이해 못함"이면 확인을 아예 안 내고 assumed 로 통과 — 그때는 최종 답변 첫 줄에
+    //    서버가 고정 고지문을 직접 붙인다(§4.4, withAssumedNotice).
+    const uc = await legalRetriever.understandConfirmStep(q, ctx.uc, cfg.understandConfirm);
+    if (uc && uc.clarify) return writeConfirm(uc);
+    const assumed = !!(uc && uc.assumed);
+
     // [H-36 배선 파일럿] 해역·항해구역 트리 게이트 — 결정 트리의 **맨 앞**에 이것 하나만 끼운다.
     //   "우리 배 어디까지 나갈 수 있나요?"처럼 **구역 자체가 질문**인 경우에만 발화하고(실측:
     //   실제 사용자형 질문 43,956건 중 6건), 그 밖에는 null이라 아래 기존 흐름이 그대로 돈다.
     //   되묻기 응답 모양은 아래 clarify 분기와 똑같다(sources·citationChain을 비우는 이유도 같다 —
     //   아직 어느 조문이 답인지 정해지지 않았는데 근거 아코디언을 그리면 확정된 근거처럼 보인다).
     //   설계·근거: knowledge/legal/_dashboard/H36_live_wiring_design.md
-    const zone = legalRetriever.zoneTreeStep(q);
+    //   [H-37 §7.5] 프로필로 이미 확정한 구역 라벨이 있으면 **이 함수에 넘기는 질의에 한해** 합성한다
+    //   (트리는 질의 문자열이 곧 계약이라 다른 운반로가 없다). 요청 바디의 `q`는 그대로다.
+    const zone = legalRetriever.zoneTreeStep(legalRetriever.zoneQueryWithProfile(q, ctx));
     if (zone) {
+      // [H-37 §7.5] 트리 되묻기에도 프로필 확인을 건다(사용자 확정 (차) "처음부터 같이 넣고 테스트").
+      //   두 경로의 clarify 반환 스키마가 같아 **같은 후처리 함수 하나**로 된다.
+      if (zone.clarify) {
+        const pc = legalRetriever.profileConfirmStep({ needed: true, options: zone.clarify.options },
+          profile, ctx.prof, cfg.profileConfirm);
+        if (pc.mode === 'confirm') return writeConfirm(pc.step);
+      }
       res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       if (res.flushHeaders) res.flushHeaders();
       const done = { type: 'done', ok: true, query: q, canonicalOnly,
-        answer: zone.answer, sources: [], citationChain: [], note: zone.note };
+        answer: legalRetriever.withAssumedNotice(zone.answer, assumed),
+        sources: [], citationChain: [], note: zone.note };
       if (zone.clarify) done.clarify = zone.clarify;
       res.write(JSON.stringify(done) + '\n');
       res.end();
@@ -804,7 +851,22 @@ router.post('/api/legal/ask', async (req, res) => {
       return;
     }
 
-    const { sources, contextPages } = await legalRetriever.search(q, { canonicalOnly });
+    // [H-37 §5.5·§7.4] 검색어에만 상황질문·프로필로 확정된 조건을 덧붙인다 — `q` 자체는 안 건드린다.
+    //   되묻기 판단(decideClarify)·답변 합성에는 **원 질문 q**를 그대로 넘긴다: 상황 정보는 검색
+    //   후보를 고르는 데만 쓰고, 답변은 사용자가 실제로 쓴 문장에 답한다(안 그러면 답변 문장과
+    //   filterSourcesByAnswer 의 교차확인 기준이 흔들린다).
+    //   ⚠ 붙일 게 없으면 qForSearch === q 라 R0(회귀 0)가 성립한다.
+    const narrowLabels = ctx.scope.map(s => s.label)
+      .concat(legalRetriever.profileAcceptedLabels(ctx).map(d => d.label));
+    const qForSearch = narrowLabels.length ? q + ' ' + narrowLabels.join(' ') : q;
+    const { sources, contextPages } = await legalRetriever.search(qForSearch, { canonicalOnly });
+
+    // ② [H-37 §5] 상황질문(범위좁히기) — 검색 결과가 여러 선박종류 계열에 걸칠 때만, **법 이름이
+    //    아니라 상황**("어떤 배에 관한 것인가요?")을 자산 라벨 그대로 묻는다. 스위치 off면 null.
+    //    ★zoneTreeStep 이 null 일 때만 시도한다(위에서 이미 return 됐다) — 순서를 지켜야 H-36
+    //      파일럿이 검증한 트리 경로가 오늘과 100% 같다(설계 §3.4).
+    const scope = legalRetriever.scopeNarrowStep(q, ctx.scope, sources, cfg.scopeNarrow);
+    if (scope) return writeConfirm(scope);
     // gapNotices = 그 위키 페이지가 "우리가 원문을 가질 수 없다"고 정직하게 적어둔 공백 안내
     // (시·군·구 개별고시 등) — 화면이 ⚠칩으로 "원문 미수집 — 별도 확인 필요"를 알린다.
     // ⚠ 인용사슬(citationChain)은 여기 소스마다 싣지 않는다 — 모든 소스의 줄을 합쳐 응답 최상위
@@ -815,6 +877,13 @@ router.post('/api/legal/ask', async (req, res) => {
     // [되묻기] 조건에 따라 답이 완전히 갈리는 질문인지 먼저 빠르게 판단한다(무거운 종합답변 전).
     // 판단이 실패하거나 애매하면 조용히 {needed:false} → 아래 기존 흐름 그대로.
     const clarify = await legalRetriever.decideClarify(q, contextPages);
+
+    // ③ [H-37 §7.4] 프로필 확인 — 이 되묻기가 묻는 축을 프로필이 이미 알고 있으면 되묻는 대신
+    //    "저장된 정보로 답할까요?"를 **그 축에 대해서만** 확인한다(축 단위, 사용자 확정 (자)).
+    //    'drop'은 이미 "네"로 확정한 축을 또 묻는 경우 — 그 되묻기를 버리고 답변으로 넘어간다(§9.1 #21).
+    const pc = legalRetriever.profileConfirmStep(clarify, profile, ctx.prof, cfg.profileConfirm);
+    if (pc.mode === 'confirm') return writeConfirm(pc.step);
+    const askClarify = clarify.needed && pc.mode !== 'drop';
 
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
@@ -828,7 +897,7 @@ router.post('/api/legal/ask', async (req, res) => {
     //   그런데도 검색 후보를 실어 보내면 화면이 "📖 근거 법령 N건" 아코디언을 그려, 확정되지 않은
     //   내부 계산 결과가 확정된 근거처럼 보인다(라이브 실측으로 확인된 문제). 근거는 사용자가 되묻기에
     //   답한 뒤 나오는 실제 답변에서만 보여준다.
-    if (clarify.needed) {
+    if (askClarify) {
       res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
         answer: clarify.intro || null,
         sources: [],
@@ -841,19 +910,29 @@ router.post('/api/legal/ask', async (req, res) => {
     }
 
     let full = '';
+    let synth = '';        // 모델이 실제로 만든 부분만(아래 usedGemini 판정 기준 — 종전과 동일)
     let streamError = null;
+    // [H-37 §4.4] 3회 백스톱으로 "추정 답변"이 된 경우: 첫 chunk보다 **먼저** 고지문 한 줄을 쓰고
+    //   full 에도 같은 문자열을 선행 포함시킨다 — 화면(delta 누적)과 done.answer 가 어긋나지 않게.
+    //   ⚠프롬프트로 시키지 않는다(모델이 지시를 어긴 전례) — 서버가 문자열로 붙인다.
+    //   ⚠고지문은 `synth` 에 넣지 않는다 — 넣으면 스트림이 실패해도 "답변이 나왔다"고 오판한다.
+    if (assumed && contextPages.length) {
+      full = legalRetriever.ASSUMED_NOTICE + '\n\n';
+      res.write(JSON.stringify({ type: 'delta', text: full }) + '\n');
+      if (res.flush) res.flush();
+    }
     // 근거 후보가 아예 없으면 합성해봐야 빈 답이라 스트림을 부르지 않는다(기존 최적화 유지).
     if (contextPages.length) {
       try {
         for await (const chunk of legalRetriever.synthesizeAnswerStream(q, contextPages)) {
-          full += chunk;
+          full += chunk; synth += chunk;
           res.write(JSON.stringify({ type: 'delta', text: chunk }) + '\n');
           if (res.flush) res.flush(); // compression() 버퍼를 즉시 내보내 실제로 조각조각 도착하게 함
         }
       } catch (e) { streamError = e; }
     }
 
-    const usedGemini = full.trim().length > 0;
+    const usedGemini = synth.trim().length > 0;
     // L-57 조치③: 답변이 실제로 나온 경우에만 sourcesOut을 답변 인용 여부로 교차확인해 좁힌다
     // (스트림 실패로 답변이 없으면 교차확인할 대상이 없어 후보를 그대로 반환).
     const finalSources = !contextPages.length ? []
@@ -889,12 +968,16 @@ router.post('/api/legal/ask', async (req, res) => {
 
     let answer, sourcesOut, note;
     if (raw && raw.answer) {
-      answer = raw.answer;
+      answer = legalRetriever.withAssumedNotice(raw.answer, assumed);   // [H-37 §4.4] 2차 조회 경로에도 붙인다
       sourcesOut = [];
       // 2차(원문 직독) 답변은 위키 근거 조문 표를 쓰지 않았다 — 1차에서 만들다 만 인용사슬을 그대로
       // 딸려 보내면 이 답변의 근거인 척 붙는다(환각 0). sources와 같이 비운다.
       citationChain = [];
-      note = `⚠미검증 참고 — 위키 카드가 없어 법령 원문(${raw.laws.join('·') || '원문'})을 직접 읽은 답변`;
+      // ★2026-08-14(H-37 §8, 사용자 확정 (사)): 신뢰등급 꼬리표를 없앤다("⚠미검증 참고 — …").
+      //   화면 하단에는 항상 "참고용입니다. 최종 확인은 공식 출처를 확인하세요."가 붙는다.
+      //   ⚠오류·결과 상태를 알리는 note(아래 else 가지의 두 문장)는 등급이 아니라 **지금 무슨 일이
+      //     일어났는지의 고지**라 그대로 둔다.
+      note = '';
       // 위키에 없어 원문을 직접 읽어 답한 순간 = "새 지식 후보" 발생 지점. 실패해도 응답 흐름과 무관.
       try { logKnowledgeCandidate(q, raw); } catch (_) { /* 로그 실패는 무시 */ }
     } else {
@@ -902,8 +985,10 @@ router.post('/api/legal/ask', async (req, res) => {
       // 답변(근거 0건이라도)은 버리지 않는다.
       answer = usedGemini ? full.trim() : null;
       sourcesOut = finalSources.map(toSourceOut);
+      // ★2026-08-14(H-37 §8): 등급 꼬리표 2종('검증(canonical) 근거만 반영'·'위키 근거 기반 AI
+      //   답변')을 없앴다 — 답변이 정상적으로 나온 경우의 note 는 빈 문자열이다.
       note = usedGemini
-        ? (canonicalOnly ? '검증(canonical) 근거만 반영' : '위키 근거 기반 AI 답변')
+        ? ''
         : (contextPages.length
           ? `답변 생성 실패(${(streamError && streamError.message) || '응답 없음'}) — 근거 후보만 반환`
           : '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.');
