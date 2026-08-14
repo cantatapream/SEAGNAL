@@ -164,9 +164,28 @@ router.get('/api/legal/reviews', (req, res) => {
 
 // ── 노출 설정(서버 저장): 챗봇 FAB를 일반/관리자만/비노출 중 무엇으로 할지 ──
 //   기본 'off'(비노출). GET은 공개(클라가 FAB 노출여부 판단), POST는 관리자 전용.
-const CONFIG_FILE = path.join(LEGAL_DIR, '_dashboard', 'nariya_config.json');
+//   ★2026-08-14(H-37 적대검증 F1): 저장 위치를 **fly 볼륨 하위**(DATA_DIR = local_server/data)로
+//     옮겼다. 종전 경로(knowledge/legal/_dashboard/)는 **컨테이너 이미지 안**이라 관리자가 켠
+//     스위치가 재시작·재배포·머신 추가 때마다 이미지의 옛 값으로 되돌아갔다(프로덕션 실측: 켠
+//     직후 true, 이후 조회 12/12 false). 볼륨(fly.toml [[mounts]] destination=/app/local_server/data)에
+//     두면 재시작해도 값이 남는다. 다른 런타임 상태 파일(maintenance_config.json 등)과 같은 자리다.
+const CONFIG_FILE = path.join(DATA_DIR, 'nariya_config.json');
+// 구경로(이미지 내부·git 추적). 신경로 파일이 아직 없는 머신에서 **최초 1회만** 값을 옮겨온다 —
+// 안 그러면 이번 배포에서 exposure·answerCanonicalOnly 가 기본값으로 리셋된다.
+const CONFIG_FILE_LEGACY = path.join(LEGAL_DIR, '_dashboard', 'nariya_config.json');
+let configMigrated = false;      // 프로세스당 1회만 시도(볼륨 쓰기 실패해도 조회는 계속돼야 한다)
 function readConfig() {
   try { if (fs.existsSync(CONFIG_FILE)) return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch (_) {}
+  try {
+    if (fs.existsSync(CONFIG_FILE_LEGACY)) {
+      const legacy = JSON.parse(fs.readFileSync(CONFIG_FILE_LEGACY, 'utf8'));
+      if (!configMigrated) {
+        configMigrated = true;
+        try { writeFileAtomic(CONFIG_FILE, JSON.stringify(legacy, null, 1)); } catch (_) {}
+      }
+      return legacy;
+    }
+  } catch (_) {}
   return {};
 }
 // 정규화: exposure는 off|admin|user(기본 off) · answerCanonicalOnly는 검증완료 후 켜는 스위치(기본 false).
@@ -801,15 +820,21 @@ router.post('/api/legal/ask', async (req, res) => {
   //     남아 "온디바이스에만 저장"이 그 자리에서 깨진다(R1).
   const profile = legalRetriever.normalizeProfile(req.body && req.body.profile);
   const ctx = legalRetriever.normalizeAskCtx(req.body && req.body.ctx, profile);
+  // [H-37 §3.2 · 2026-08-14 적대검증 F2] 지금까지 확정된 맥락을 **모든 done 응답에 함께** 실어
+  //   보낸다. 클라이언트는 이걸 들고 있다가 다음 요청에 붙인다 — 맥락을 버튼의 data-ctx 에만
+  //   실었더니 **ctx 없는 버튼**(기존 되묻기·트리 되묻기)을 누르는 순간 직전 맥락이 사라져
+  //   프로필 확인이 무한루프가 됐다(라이브 재현). 비어 있으면 null 이라 필드 자체를 안 싣는다(R0).
+  const ctxNext = legalRetriever.ctxNextOf(ctx);
+  const withCtxNext = (done) => { if (ctxNext) done.ctxNext = ctxNext; return done; };
   // 신규 단계가 확인 카드를 낼 때 쓰는 done 한 줄(기존 되묻기 응답과 **같은 모양** — clarify 스키마
   // 그대로라 ai_chat.js clarifyHTML 이 그대로 그린다. confirmKind 만 새로 붙는다).
   const writeConfirm = (step) => {
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     if (res.flushHeaders) res.flushHeaders();
-    res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
+    res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
       answer: step.answer || null, sources: [], citationChain: [], note: step.note || '',
-      clarify: step.clarify, confirmKind: step.confirmKind }) + '\n');
+      clarify: step.clarify, confirmKind: step.confirmKind })) + '\n');
     res.end();
     if (askId) inFlightAsks.delete(askId);
   };
@@ -845,7 +870,7 @@ router.post('/api/legal/ask', async (req, res) => {
         answer: legalRetriever.withAssumedNotice(zone.answer, assumed),
         sources: [], citationChain: [], note: zone.note };
       if (zone.clarify) done.clarify = zone.clarify;
-      res.write(JSON.stringify(done) + '\n');
+      res.write(JSON.stringify(withCtxNext(done)) + '\n');
       res.end();
       if (askId) inFlightAsks.delete(askId);
       return;
@@ -898,12 +923,12 @@ router.post('/api/legal/ask', async (req, res) => {
     //   내부 계산 결과가 확정된 근거처럼 보인다(라이브 실측으로 확인된 문제). 근거는 사용자가 되묻기에
     //   답한 뒤 나오는 실제 답변에서만 보여준다.
     if (askClarify) {
-      res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
+      res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
         answer: clarify.intro || null,
         sources: [],
         citationChain: [],
         note: '추가 정보가 필요해요',
-        clarify: { question: clarify.question, options: clarify.options } }) + '\n');
+        clarify: { question: clarify.question, options: clarify.options } })) + '\n');
       res.end();
       if (askId) inFlightAsks.delete(askId);
       return;
@@ -993,8 +1018,8 @@ router.post('/api/legal/ask', async (req, res) => {
           ? `답변 생성 실패(${(streamError && streamError.message) || '응답 없음'}) — 근거 후보만 반환`
           : '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.');
     }
-    res.write(JSON.stringify({ type: 'done', ok: true, query: q, canonicalOnly,
-      answer, sources: sourcesOut, citationChain, note }) + '\n');
+    res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
+      answer, sources: sourcesOut, citationChain, note })) + '\n');
     res.end();
 
     // [답변완료 푸시] 스트림은 위에서 이미 평소대로 끝냈다 — 여기부터는 부가 동작이라

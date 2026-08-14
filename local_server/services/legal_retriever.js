@@ -2067,6 +2067,28 @@ function normalizeAskCtx(raw, profile) {
 }
 
 /**
+ * 다음 라운드가 이어받을 맥락(`done.ctxNext`, 설계 §3.2)을 만든다 — **정규화를 마친 ctx 그대로**다.
+ * ★왜 필요한가(2026-08-14 적대검증 F2): 맥락을 버튼의 `data-ctx`에만 실었더니, 그 뒤에 나온
+ *   **ctx 없는 버튼**(기존 되묻기·트리 되묻기)을 누르는 순간 직전 맥락이 통째로 사라졌다 —
+ *   프로필로 "네"를 눌러 확정한 축이 지워져 서버가 같은 축을 또 묻는 무한루프가 라이브에서 재현됐다.
+ *   응답마다 "지금까지 확정된 맥락"을 함께 보내면, 클라이언트가 그것을 들고 다음 요청에 붙인다.
+ * ★비어 있으면 **null** — 호출부가 필드 자체를 안 싣게 해서, ctx·profile 미전송 요청의 done JSON이
+ *   오늘과 바이트 동일하다(R0).
+ * 예: ctxNextOf({uc:{rounds:0,state:'none'},scope:[],prof:{decided:[]}}) → null
+ * @param {object} ctx - normalizeAskCtx()의 결과
+ * @returns {null|{uc:object,scope:Array,prof:object}}
+ * [연계] ← routes/legal.js(모든 done 응답). → ai_chat.js doSend(lastCtx 로 보관해 다음 요청에 첨부).
+ */
+function ctxNextOf(ctx) {
+  if (!ctx) return null;
+  const uc = ctx.uc || { rounds: 0, state: 'none' };
+  const scope = ctx.scope || [];
+  const prof = ctx.prof || { decided: [] };
+  const has = uc.rounds > 0 || uc.state !== 'none' || scope.length > 0 || prof.decided.length > 0;
+  return has ? { uc, scope, prof } : null;
+}
+
+/**
  * 요청 바디의 `profile`(온디바이스 스냅샷)을 정규화한다. 알려진 필드만, 값·시각은 길이 상한.
  * ★서버는 이 값을 **읽기만** 한다 — 파일·로그·pendingAnswers 어디에도 쓰지 않는다(§3.3 R1).
  * @param {object} raw - req.body.profile
@@ -2166,7 +2188,12 @@ async function understandConfirmStep(query, uc, enabled) {
 2. 주어(누가)·대상(무엇을)·행위 중 하나가 빠져 뜻이 둘 이상으로 갈리면 clear:false.
 3. ★재진술(restate)에는 법령·조문·수치·결론을 **절대 넣지 마라.** 질문의 뜻만 바꿔 말한다.
    (근거자료를 아직 읽지 않은 단계다 — 여기서 법 이야기를 하면 그게 곧 환각이다)
-4. 조금이라도 애매하면 clear:true 로 물러나라(불필요한 확인은 사용자를 막기만 한다).
+4. 기준2에 걸렸을 때만 이 기준을 본다(순서가 중요하다).
+   - **한 문장으로 다시 말해 뜻을 하나로 좁힐 수 있으면 clear:false** — 그 문장을 restate 에 담아 확인한다.
+   - **다시 말해 봐도 뜻이 둘 이상 남아 무엇을 물었는지 고를 수 없으면 clear:true** — 확인해도 얻을 게
+     없으니 그냥 넘어간다.
+   "애매하니까 일단 clear:true"가 아니다(애매한지는 기준2가 이미 판정했다). 판단 기준은
+   **재진술로 뜻이 하나로 정해지는가** 하나뿐이다.
 
 다른 설명 없이 아래 JSON만 출력하라.
 {"clear":true} 또는 {"clear":false,"restate":"…(60자 이내, 평서문)"}`;
@@ -2406,12 +2433,18 @@ function profileConfirmStep(clarify, profile, prof, enabled) {
     const fields = (profile && profile.fields) || {};
     const options = (clarify.options || []).filter(o => o && o.label);
     if (!options.length) return asIs;
-    // 축 판정: 프로필 값이 선택지 라벨과 문자 그대로 겹치는 필드(완전일치 또는 포함).
+    // 축 판정: 프로필 값이 선택지 라벨과 **완전일치**하는 필드.
+    // ★2026-08-14(적대검증 F4) 부분일치(포함)를 걷어냈다 — 실사용 값으로 오탐이 재현됐다:
+    //   야간조업 "예" × 선택지 '예인선·부선' / 선박용도 "일반" × 선택지 '일반해역'.
+    //   둘 다 *사용자가 말하지 않은 조건으로 답이 확정되는* 방향의 오류라(되돌릴 수 없다) 최소
+    //   길이 제한으로는 부족하다("일반"은 2자인데도 '일반해역'에 걸린다).
+    //   ⚠대가(정직 기록): 값이 라벨과 글자까지 같아야 하므로 톤수·길이처럼 자유 입력 축은 사실상
+    //     발동하지 않는다. 안 물어보는 쪽이 아니라 **평소대로 되묻는 쪽**으로 물러나는 것이라 안전하다.
     let axis = null, value = null;
     for (const k of PROFILE_FIELDS) {
       const v = fields[k] && fields[k].v;
       if (!v) continue;
-      if (options.some(o => o.label === v || o.label.includes(v) || v.includes(o.label))) { axis = k; value = v; break; }
+      if (options.some(o => o.label === v)) { axis = k; value = v; break; }
     }
     if (!axis) return asIs;
     const decided = ((prof && prof.decided) || []).find(d => d.axis === axis);
@@ -2456,6 +2489,6 @@ function withAssumedNotice(answer, assumed) {
 
 module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
-  PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, normalizeAskCtx, normalizeProfile,
+  PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, normalizeAskCtx, ctxNextOf, normalizeProfile,
   profileAcceptedLabels, zoneQueryWithProfile, understandConfirmStep, scopeNarrowStep,
   profileConfirmStep, withAssumedNotice, loadVesselTree, vesselNodeAt, vesselTreeDepth };

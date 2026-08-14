@@ -82,6 +82,12 @@
   // [H-37 §4.3] "아니요, 다시 설명할게요"를 누른 뒤 사용자가 새로 칠 문장 **한 번**에만 실릴 ctx.
   //   메모리에만 둔다 — localStorage 에 저장하면 새로고침 뒤 오래된 대기가 되살아난다(설계 §9.1 #3).
   var pendingCtx = null;
+  // [H-37 §3.2 · 2026-08-14 적대검증 F2] 서버가 마지막 답변에 실어 보낸 ctxNext(= 지금까지 확정된
+  //   맥락). **ctx 를 안 든 선택지 버튼**(기존 되묻기·트리 되묻기)을 눌러도 이 값을 이어 보내야
+  //   직전에 확정한 조건이 사라지지 않는다 — 안 그러면 프로필로 "네"를 누른 축을 서버가 다시 묻는
+  //   무한루프가 된다(라이브 재현). 사용자가 **새 질문을 직접 타이핑**하면 그 순간 비운다(§9.1 #1).
+  //   pendingCtx 와 마찬가지로 메모리에만 둔다(새로고침하면 소멸).
+  var lastCtx = null;
 
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
@@ -2433,9 +2439,13 @@
     if (isHistoryOpen()) closeHistory(true);   // 기록 목록을 보다가 질문하면 대화 화면으로 돌아온다
     if (isProfOpen()) closeProf();
     // [H-37 §3.2] 이번 요청에 실을 대기 맥락(ctx).
-    //   ①확인 버튼으로 온 요청이면 그 버튼이 들고 있던 ctx ②"다시 설명할게요"를 누른 직후 사용자가
-    //   손으로 친 문장이면 그때 예약해 둔 pendingCtx ③그 밖에는 **없음**(= 새 질문은 맥락을 비우고
-    //   시작한다 — 설계 §9.1 #1). 어느 경우에도 `query` 문자열에는 아무것도 덧붙이지 않는다.
+    //   ①선택지 버튼으로 온 요청이면 pickClarifyOption 이 만들어 준 ctx(버튼의 ctx + 직전 맥락)
+    //   ②"다시 설명할게요"를 누른 직후 사용자가 손으로 친 문장이면 그때 예약해 둔 pendingCtx
+    //   ③그 밖에는 **없음**(= 사용자가 새로 타이핑한 질문은 맥락을 비우고 시작한다 — 설계 §9.1 #1).
+    //   어느 경우에도 `query` 문자열에는 아무것도 덧붙이지 않는다.
+    //   ★sendCtx 가 없다 = 버튼이 아니라 입력창에서 온 새 질문이다 → 이어받을 맥락도 함께 버린다
+    //     (2026-08-14 F2 수정: lastCtx 가 새 질문으로 새면 안 된다).
+    if (!sendCtx) lastCtx = null;
     var ctx = sendCtx || pendingCtx || null;
     pendingCtx = null;
     setChatPlaceholder(false);
@@ -2502,6 +2512,9 @@
       }).then(function (data) {
         if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; }  // 6초 안에 끝남 → 배너 없음
         ensureAnswerBubble(); // done만 오고 delta가 하나도 없었던 경우(근거없음·오류) 대비
+        // [H-37 §3.2 · F2] 서버가 준 ctxNext 를 다음 요청까지 들고 있는다(없으면 비운다).
+        //   전송 실패(_neterr)면 손대지 않는다 — 눌렀던 버튼을 다시 누를 때 맥락이 살아 있어야 한다.
+        if (!(data && data._neterr)) lastCtx = (data && data.ctxNext) || null;
         bubbleEl.innerHTML = answerHTML(q, data);
         // [H-37 §9.1 #9] 전송이 실패했으면 눌렀던 선택지 묶음을 **다시 누를 수 있게** 되돌린다 —
         //   기존 되묻기에도 있던 결함(한 번 누르면 nrya-done 이라 네트워크 오류 시 재시도 불가)이라
@@ -2722,12 +2735,36 @@
         input.focus();
         return;
       }
+      // [2026-08-14 F2] 버튼이 든 ctx 는 **직전 맥락 위에 축 단위로** 얹는다 — 한 축의 버튼을
+      //   눌렀다고 다른 축의 결정(프로필 확인·상황질문)이 지워지면 안 된다(설계 §7.4 축 단위 원칙).
       input.value = q;
-      doSend(ctx, box);
+      doSend(mergeCtx(lastCtx, ctx), box);
       return;
     }
+    // [2026-08-14 F2] ctx 없는 선택지(기존 되묻기·트리 되묻기)라도 **직전까지 확정된 맥락은 이어
+    //   보낸다.** 예전엔 여기서 doSend(null, …)이라 프로필로 확정한 축이 통째로 사라져 서버가 같은
+    //   축을 다시 묻는 무한루프가 됐다(적대검증 재현: 프로필확인 "네" → 트리 답변의 ctx 없는 버튼).
     input.value = q ? q + ' — ' + label : label;
-    doSend(null, box);
+    doSend(lastCtx, box);
+  }
+
+  /**
+   * 두 ctx 를 축(uc·scope·prof) 단위로 합친다 — 같은 축은 새 값(버튼이 들고 온 것)이 이긴다.
+   * 예: mergeCtx({prof:{decided:[…]}}, {uc:{rounds:1,state:'confirmed'}})
+   *     → {prof:{decided:[…]}, uc:{rounds:1,state:'confirmed'}}
+   * ⚠축 단위 확인 원칙(설계 §7.4)의 클라이언트 쪽 짝이다 — 한 축의 버튼을 눌렀다고 다른 축의
+   *   결정까지 지워지면 안 된다.
+   * @param {object|null} base - 직전 응답의 ctxNext @param {object|null} extra - 버튼의 data-ctx
+   * @returns {object|null} 둘 다 없으면 null
+   * [연계] ← pickClarifyOption. → doSend(요청 바디의 ctx).
+   */
+  function mergeCtx(base, extra) {
+    if (!base) return extra || null;
+    if (!extra) return base;
+    var out = {}, k;
+    for (k in base) if (Object.prototype.hasOwnProperty.call(base, k)) out[k] = base[k];
+    for (k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+    return out;
   }
 
   /**

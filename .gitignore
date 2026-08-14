@@ -40,6 +40,12 @@ local_server/data/admin_tokens.json.tmp
 local_server/data/pending_answers.json
 local_server/data/pending_answers.json.tmp
 
+# 나리야 배포 스위치(노출·canonical필터·H-37 3종) — 관리자가 런타임에 켜고 끄는 값이라
+# Fly.io Volume 에만 있어야 한다(2026-08-14 H-37 F1: 종전엔 이미지 안 경로라 재시작마다 리셋됐다).
+# 이미지에 같은 경로 파일을 넣어도 볼륨 마운트에 가려지므로 추적하지 않는다.
+local_server/data/nariya_config.json
+local_server/data/nariya_config.json.tmp
+
 # 태풍 통보문/예보 캐시 (typhoon_crawler.js 가 런타임 생성, Fly.io Volume에 저장)
 # 스케줄러가 부팅 시 재생성하므로 추적 제외
 local_server/data/typhoon.json
