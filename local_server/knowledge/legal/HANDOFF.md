@@ -498,6 +498,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-14 21:39 KST] 🟢착수 — H-37 최종 프로덕션 재검증 착수(F3 타임아웃 수정 반영 후)
+커밋 eec05ebdb(타임아웃 8000→12000) 배포 후 F3(이해확인) 실제 발동 여부 최우선 확인. F1/F2/F4는 지난 라운드에서 확인됐으니 이번엔 F3 위주 + 종합 라이브 켜도 되는지 최종판단.
+
+
 ### [2026-08-14 19:05 KST] ✅완료 — H-37 F3 근본원인 수정 완료 — UNDERSTAND_CONFIG 타임아웃 8000→12000
 UNDERSTAND_CONFIG.httpOptions.timeout 8000→12000 수정 완료(legal_retriever.js:2010~2017). legal_retriever.js 전수 재확인: QUERY_EXPAND_TIMEOUT_MS(10000, 정상)·CLARIFY_CONFIG(15000)·RAW_PICK_CONFIG(15000) — 추가 8~9초대 결함 없음. routes/legal.js 인라인 Gemini 설정 2곳(388·486)도 15000으로 정상 확인. 설계문서 H37_understanding_confirm_design.md '8초' 표기 2곳(§4.2, 배선표) 정정. _LESSONS.md L-88 신규(같은 파일 내 과거 교훈 주석을 새 코드 작성 시 대조하지 않아 재발했다는 요지, 재발방지 체크리스트 제안). 회귀검증: test_ask_context.js 129/129 PASS, test_zone_tree_wiring.js 103/103 PASS. verify_all.sh는 서버 미기동+playwright-core 모듈 부재로 스모크 단계만 환경적 실패(무관 사전조건, 본 수정과 무관). GEMINI_API_KEY_26_8 부재로 실제 Gemini 호출 성공까지는 로컬 미확인 — 코드 검토로 12000이 API 최소 deadline(10초) 요구를 충족함만 확인. 커밋 eec05ebdb. 다음 프로덕션 재검증 라운드에서 F3(이해확인 실발동) 최종 확인 필요.
 
