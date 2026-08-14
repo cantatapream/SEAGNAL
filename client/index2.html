@@ -794,13 +794,17 @@
            #ocean-overlay-controls 의 직계 자식이라 위 flex 규칙과 별도로 켜준다
            (wrap 자체는 position:relative 만 필요 — 버튼처럼 flex 아님). */
         body.ls-mode.ls-safety #ocean-accident-wrap { display: block !important; }
-        /* 노출암/간출암 등/출입통제/낚시금지/관제구역/항로·해역/항행경보 버튼은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
+        /* 노출암/간출암 등/출입통제/낚시금지/관제구역/항로·해역/항행경보/사고정보 버튼은
+           해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
+           [버그 수정] 사고정보(#ocean-accident-wrap)가 이 목록에 빠져 있어 해양종합정보에서도
+           노출되던 문제(사용자 보고) — "해양안전에서만 켠다"만 있고 "기본은 끈다"가 없었음.
            [연계] js/marine-life/safety/hazard_rocks.js, js/marine-life/safety/access_control.js,
                   js/marine-life/safety/fishing_ban.js, js/marine-life/safety/vts_zone.js,
-                  js/marine-life/safety/seaway.js, js/marine-life/safety/navigational_warning.js */
+                  js/marine-life/safety/seaway.js, js/marine-life/safety/navigational_warning.js,
+                  js/marine-life/safety/accident_info.js */
         #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn, #ocean-access-control-toggle-btn,
         #ocean-fishing-ban-toggle-btn, #ocean-vts-toggle-btn,
-        #ocean-seaway-toggle-btn, #ocean-navwarn-btn { display: none; }
+        #ocean-seaway-toggle-btn, #ocean-navwarn-btn, #ocean-accident-wrap { display: none; }
         body.ls-mode.ls-safety #ocean-search-container,
         body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
         /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
