@@ -241,7 +241,7 @@ confirmKind : "understand"
 
 ### 4.2 판정 프롬프트 규약 (환각 0)
 
-`decideClarify`와 같은 "짧고 빠른 판단 호출" 패턴을 따른다: `thinkingBudget: 0`, `responseMimeType: 'application/json'`, `temperature: 0.1`, `timeout 8000`.
+`decideClarify`와 같은 "짧고 빠른 판단 호출" 패턴을 따른다: `thinkingBudget: 0`, `responseMimeType: 'application/json'`, `temperature: 0.1`, `timeout 12000`(2026-08-14 정정: 8000은 Gemini API 최소 deadline 10초 미만이라 매 호출 400 거부 — H-37 F3 근본원인).
 
 ```
 너는 대한민국 해양수산 법령 챗봇의 "질문 이해 판정기"다. 질문에 **답하지 마라.**
@@ -956,7 +956,7 @@ terms = termsOf(q0)                                   // §13과 같은 토큰�
 | 절 | 파일 | 내용 |
 |---|---|---|
 | §8 note | `routes/legal.js` · `legal_retriever.js` | 등급 꼬리표 4종 제거 — `위키 근거 기반 AI 답변`·`검증(canonical) 근거만 반영`·`⚠미검증 참고 —…`·`ZONE_ANSWER_NOTE`(빈 문자열로). **본문 안의 등급 문장**(`renderZoneAnswer` 서두 *"사람이 검증한 위키 카드가 아니라…"*)도 함께 제거(오케스트레이터 전달 확정). UI 상태(`추가 정보가 필요해요`)·오류/결과 상태 note 는 유지 |
-| §4 이해확인 | `legal_retriever.js` `understandConfirmStep()` | LLM 1회 판정(thinkingBudget 0·JSON·8초) → 재진술 확인 카드. `RESTATE_BAN` 후검사로 조문·형량이 섞인 재진술은 폐기. `rounds>=3`이면 호출 없이 `{assumed:true}` → `withAssumedNotice()`가 답변 첫 줄에 고정 고지문 |
+| §4 이해확인 | `legal_retriever.js` `understandConfirmStep()` | LLM 1회 판정(thinkingBudget 0·JSON·12초) → 재진술 확인 카드. `RESTATE_BAN` 후검사로 조문·형량이 섞인 재진술은 폐기. `rounds>=3`이면 호출 없이 `{assumed:true}` → `withAssumedNotice()`가 답변 첫 줄에 고정 고지문 |
 | §5 상황질문 | `legal_retriever.js` `scopeNarrowStep()` | `vessel_doc_tree.json` 분기 노드의 `질문`·`선택지`를 **그대로** 사용(LLM 0회). 발화 판정 ⓐ자산 갈림길 ⓑ질문어가 서로 다른 분기 2개+의 항목 이름에 실재 ⓒ검색 상위 접전 후보가 여러 법·한 갈래로 확정 안 됨 ⓓ질문이 이미 그 갈래를 말하지 않음 |
 | §7 프로필 | `legal_retriever.js` `profileConfirmStep()`·`normalizeProfile()`·`zoneQueryWithProfile()` · `ai_chat.js` ⚙패널 | 축 단위 확인(accepted/rejected/drop). **위키·트리 양쪽에 같은 함수 하나**로 건다(사용자 확정 (차)) |
 | §3 맥락 운반 | `routes/legal.js` + `ai_chat.js` | 요청 바디 `ctx`·`profile`(둘 다 선택). 선택지 버튼이 `ctx`를 그대로 되돌려 보낸다 — **질의 문자열은 한 글자도 안 바뀐다** |

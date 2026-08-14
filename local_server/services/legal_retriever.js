@@ -2007,11 +2007,15 @@ const PROFILE_NO = '아니요, 이번엔 다른 조건이에요';
 // 재진술에 법 이야기가 섞였는지 보는 후검사(§4.2) — 근거자료를 아직 안 읽은 단계라 여기서 조문·
 // 형량이 나오면 그건 환각이다. 하나라도 걸리면 그 판정을 **버린다**(= 확인하지 않고 통과).
 const RESTATE_BAN = /제\s*\d+\s*조|법률|법령|벌금|과태료|징역|「|」|만원/;
+// ★실측 발견(2026-08-14, H-37 F3): 8000(8초)으로 두면 QUERY_EXPAND_TIMEOUT_MS(:590 주석)와
+//   같은 유형으로 Gemini API가 매 호출 400(Manually set deadline 8s is too short. Minimum
+//   allowed deadline is 10s.)으로 거부해 이해확인이 프로덕션에서 한 번도 발동한 적이 없었다
+//   (23/23건 확인). API 최소값(10초)에 여유를 둔 12000으로 올린다.
 const UNDERSTAND_CONFIG = {
   temperature: 0.1,
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
-  httpOptions: { timeout: 8000 },
+  httpOptions: { timeout: 12000 },
 };
 
 /**

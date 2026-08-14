@@ -497,6 +497,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-14 19:05 KST] 🟢착수 — H-37 F3 근본원인 수정 — UNDERSTAND_CONFIG 타임아웃 8000→12000
+프로덕션 재검증(H-37 F1~F4)에서 확정된 F3 근본원인 수정 착수. UNDERSTAND_CONFIG.httpOptions.timeout이 8000(8초)으로 Gemini API 최소 deadline(10초) 미만이라 모든 이해확인 호출이 400 INVALID_ARGUMENT로 거부되고 있었음(프로덕션 로그 23/23건 확인). 2026-08-03 QUERY_EXPAND_TIMEOUT_MS와 동일 유형 재발. 12000으로 수정 + legal_retriever.js 전수 재확인 + 설계문서 정정 + _LESSONS.md L-88 기록 예정.
+
+
 ### [2026-08-14 19:01 KST] 🟢착수 — F3 근본원인 수정 — UNDERSTAND_CONFIG 타임아웃 8000→10000+
 프로덕션 재검증에서 발견: 이해확인이 프롬프트 문제가 아니라 httpOptions.timeout=8000이 Gemini API 최소요구(10초) 미만이라 매 호출 400 거부당하던 것. legal_retriever.js:2010-2015 수정 + 같은 파일 내 다른 타임아웃 상수 전수 재확인(2026-08-03 QUERY_EXPAND_TIMEOUT_MS 재발 사례와 같은 유형 재발방지).
 
