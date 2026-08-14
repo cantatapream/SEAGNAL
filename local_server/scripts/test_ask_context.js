@@ -438,13 +438,17 @@ console.log('\n[T24][F3] 이해확인 판정 기준 — "애매하면 통과"가
     && !DESIGN.includes('조금이라도 애매하면 clear:true 로 물러나라'));
 }
 
-// ── T25. 이해확인 재진술 품질 — 지시어("그거")를 그대로 둔 재진술은 얻을 게 없다 ────────
-//   프로덕션 최종재검증 실측: 발동은 정상인데 재진술이 "그거 언제까지 해야 돼?" →
-//   "그것을 언제까지 해야 하는지 알려주세요."(대명사 유지·어미만 변경)라 "네"를 눌러도 스위치
-//   off와 같은 흐름 → 정보이득 0. 프롬프트 기준5 + 서버 후검사로 막는다(설계 §4.2).
+// ── T25. 이해확인 재진술 품질 — "정보 이득이 없으면 개입하지 않는다"(설계 §4.2) ────────────
+//   3·4차 프로덕션 재검증 실측 4가지를 한 원칙으로 고정한다.
+//    ③ 지시어는 앞 절 명사구로 **반드시** 풀어쓴다(4/7 → 프롬프트 강화).
+//    ② 못 풀면 need 카드가 아니라 **그냥 통과**(off일 때 되묻기가 더 낫다는 실측).
+//    ① 의문사만 끼워 넣은 빈칸형("무엇을 신고해야 하는지")도 **그냥 통과**.
+//    ④ 카드 문구의 조사는 받침으로 고른다(고정 문자열이면 「그건」가 처럼 비문).
+//   ⚠2026-08-15 이전 T25와 의미가 바뀐 항목: need 갈래 관련 4건은 **그 갈래를 없앴으므로**
+//     "need 가 없어야 한다"는 검사로 뒤집었다(설계 §4.2 재설계 절에 근거를 적었다).
 //   ⚠Gemini 키가 없는 환경이라 **판정 호출 자체는 못 돌린다** — 프롬프트 문구·후검사·설계문서
 //     정합만 고정한다. 실제 재진술 품질은 다음 프로덕션 재검증에서 확인해야 한다.
-console.log('\n[T25] 이해확인 재진술 품질 — 지시어를 풀어쓰거나 콕 집어 되묻는다');
+console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으면 개입하지 않는다');
 {
   const D = fs.readFileSync(path.join(SRV, 'knowledge', 'legal', '_dashboard',
     'H37_understanding_confirm_design.md'), 'utf8');
@@ -458,34 +462,66 @@ console.log('\n[T25] 이해확인 재진술 품질 — 지시어를 풀어쓰거
     /풀어쓸 때도 기준3은 그대로다/.test(RET_SRC));
   ok('기준2는 그대로 유지된다(판정값을 뒤집지 않는다)',
     /뜻이 둘 이상으로 갈리면 clear:false/.test(RET_SRC));
-  // (2) 두 갈래(풀어쓰기 / need)와 금지 예시가 프롬프트에 박혀 있다
-  ok('가리키는 것이 질문 안에 있으면 풀어쓰라고 지시한다', /그 이름으로 \*\*풀어써서\*\* restate 에 담는다/.test(RET_SRC));
-  ok('없으면 지어내지 말고 need 로 되물으라고 지시한다',
-    /짐작해서 지어내지 마라/.test(RET_SRC) && /"clear":false,"need"/.test(RET_SRC));
+  // (2) ③풀어쓰기 강화 — "반드시" + 명사구 지시 + 예시 4개
+  ok('가리키는 것이 질문 안에 있으면 **반드시** 풀어쓰라고 지시한다',
+    /\*\*반드시\*\* 그 이름으로 \*\*풀어써서\*\* restate 에 담아라/.test(RET_SRC));
+  ok('앞 절에 명사구가 있으면 물러나지 말라고 못박았다(4/7 불안정 대응)',
+    RET_SRC.includes('앞 절에 명사구가 있는데도 "확실하지 않다"며 물러나지 마라'));
+  ok('후보가 둘 이상일 때 고르는 규칙이 있다(모델이 고민하다 물러나지 않게)',
+    /지시어에 가장 가까운 명사구\*\*를 고른다/.test(RET_SRC));
+  ok('풀어쓰기 예시가 4개 박혀 있다',
+    ['예1 "구명조끼', '예2 "안전점검', '예3 "어선검사', '예4 "위판장에서'].every(s => RET_SRC.includes(s)));
   ok('실측된 얕은 재진술이 금지 예시로 박혀 있다',
     RET_SRC.includes('"그것을 언제까지 해야 하는지 알려주세요" 같은 문장'));
-  ok('출력 JSON 스펙에 need 갈래가 있다', /또는 \{"clear":false,"need":/.test(RET_SRC));
-  // (3) 서버 후검사 — 프롬프트만 믿지 않는다
+  // (3) ①②통합 — 대원칙 한 줄 + need 갈래 소멸
+  ok('프롬프트 맨 앞에 "얻는 게 없으면 clear:true" 대원칙이 있다',
+    RET_SRC.includes('**확인해서 얻는 게 없으면 clear:true 로 넘어가라.**'));
+  ok('지시어를 못 풀면 need 가 아니라 clear:true 로 넘어가라고 지시한다',
+    /짐작해서 지어내지 말고\*\*\n?\s*그냥 clear:true 로 넘어가라/.test(RET_SRC));
+  ok('출력 JSON 스펙에서 need 갈래가 사라졌다', !/"clear":false,"need"/.test(RET_SRC));
+  ok('need 카드 문구·상수가 코드에서 사라졌다(발동 경로만 없애고 남겨 두지 않는다)',
+    !RET_SRC.includes('UNDERSTAND_TELL') && !RET_SRC.includes('가 무엇을 말씀하시는지'));
+  ok('확인 카드는 한 종류뿐이다(confirmKind:understand 1곳)',
+    (H37_CODE.match(/confirmKind: 'understand'/g) || []).length === 1);
+  ok('빈칸형 금지(기준6)가 프롬프트에 있다', /6\. ★"빈칸형" 재진술 금지/.test(RET_SRC));
+  ok('실측된 빈칸형이 금지 예시로 박혀 있다',
+    RET_SRC.includes('금지 예 "신고해야 하나요?" → "무엇을 신고해야 하는지 알고 싶다"'));
+  // (4) 서버 후검사 — 프롬프트만 믿지 않는다
   ok('지시어가 남은 재진술을 잡는 후검사가 있다', typeof R.RESTATE_DEICTIC !== 'undefined');
   ok('실측 사례 ①을 잡는다', R.RESTATE_DEICTIC.test('그것을 언제까지 해야 하는지 알려주세요'));
   ok('실측 사례 ②를 잡는다', R.RESTATE_DEICTIC.test('그것을 처리하지 않으면 어떤 결과가 발생하는지 궁금하신가요'));
   ok('제대로 풀어쓴 재진술은 통과시킨다',
     !R.RESTATE_DEICTIC.test('구명조끼 비치를 언제까지 해야 하는지 알고 싶다'));
   ok('그 후검사가 실제로 판정 폐기에 쓰인다', /if \(RESTATE_DEICTIC\.test\(restate\)\) return null;/.test(H37_CODE));
-  ok('RESTATE_BAN 후검사는 그대로 살아 있다(둘 다 건다)', /RESTATE_BAN\.test\(restate\)/.test(H37_CODE));
-  // (4) need 카드 — 지어낸 말이 화면에 못 나간다 + 새 대기 상태가 아니다
-  ok('need 는 질문에 실제로 있는 글자만·법 이야기가 아닐 때만 인정한다',
-    /!RESTATE_BAN\.test\(need\) && String\(query \|\| ''\)\.includes\(need\)/.test(H37_CODE));
-  ok('need 카드 선택지는 1개이고 기존 "아니요"와 같은 전이다(act:ask · rounds+1)',
-    /options: \[\{ \.\.\.no, label: UNDERSTAND_TELL/.test(H37_CODE)
-    && /const no = \{ label: UNDERSTAND_NO[\s\S]{0,160}rounds: uc\.rounds \+ 1, state: 'none' \} \}, act: 'ask' \}/.test(H37_CODE));
-  ok('need 카드도 confirmKind 는 understand 그대로다(새 UI 타입을 안 만든다)',
-    (H37_CODE.match(/confirmKind: 'understand'/g) || []).length === 2);
-  // (5) 설계문서와 코드가 어긋나지 않는다(T24와 같은 대조)
-  ok('설계문서 §4.2 에도 기준5가 같은 취지로 적혀 있다',
-    D.includes('★기준4보다 먼저 본다') && D.includes('"clear":false,"need":"그거"'));
-  ok('설계문서에 후검사 2(RESTATE_DEICTIC)와 need 카드 모양이 적혀 있다',
-    D.includes('RESTATE_DEICTIC') && D.includes('「<need>」가 무엇을 말씀하시는지 알려주시겠어요?'));
+  ok('빈칸형을 잡는 후검사가 있다', typeof R.RESTATE_BLANK !== 'undefined');
+  ok('실측 빈칸형을 잡는다', R.RESTATE_BLANK.test('무엇을 신고해야 하는지 알고 싶다'));
+  ok('의문사 목록 전체를 잡는다',
+    ['무엇', '무슨', '어떤', '어느', '누구', '얼마나'].every(w => R.RESTATE_BLANK.test(w + ' 해야 하는지')));
+  ok('프롬프트의 풀어쓰기 예시 4개는 이 후검사에 안 걸린다(자기모순이 없다)',
+    ['구명조끼 비치를 언제까지 해야 하는지 알고 싶다',
+      '안전점검을 받지 않으면 어떻게 되는지 알고 싶다',
+      '어선 정기검사를 언제 받아야 하는지 알고 싶다',
+      '위판장 신고를 온라인으로 할 수 있는지 알고 싶다']
+      .every(s => !R.RESTATE_BLANK.test(s) && !R.RESTATE_DEICTIC.test(s)));
+  ok('그 후검사가 실제로 판정 폐기에 쓰인다', /if \(RESTATE_BLANK\.test\(restate\)\) return null;/.test(H37_CODE));
+  ok('RESTATE_BAN 후검사는 그대로 살아 있다(셋 다 건다)', /RESTATE_BAN\.test\(restate\)/.test(H37_CODE));
+  // (5) ④조사 — 받침으로 고른다
+  ok('조사 헬퍼가 있다', typeof R.josaEuro === 'function');
+  ok('받침 없음 → 로', R.josaEuro('알고 싶다') === '로');
+  ok('ㄹ 받침 → 로(예외)', R.josaEuro('신고할 수 있을') === '로');
+  ok('그 밖의 받침 → 으로', R.josaEuro('궁금함') === '으로' && R.josaEuro('여부 확인') === '으로');
+  ok('한글이 아니면 로(읽는 법을 지어내지 않는다)', R.josaEuro('IMO') === '로' && R.josaEuro('') === '로');
+  ok('카드 문구가 고정 조사를 안 쓴다', /「\$\{restate\}」\$\{josaEuro\(restate\)\} 이해했는데/.test(H37_CODE));
+  // (6) 설계문서와 코드가 어긋나지 않는다(T24와 같은 대조)
+  ok('설계문서 §4.2 에도 기준5·기준6이 같은 취지로 적혀 있다',
+    D.includes('★기준4보다 먼저 본다') && D.includes('6. ★"빈칸형" 재진술 금지'));
+  ok('설계문서에서 need 카드 모양이 사라지고 폐지 근거가 적혀 있다',
+    !D.includes('「<need>」가 무엇을 말씀하시는지 알려주시겠어요?')
+    && D.includes('`need` 갈래를 없애고 2갈래로 정리'));
+  ok('설계문서에 후검사 3종(BAN·DEICTIC·BLANK)과 오탐 비용이 적혀 있다',
+    D.includes('RESTATE_DEICTIC') && D.includes('RESTATE_BLANK')
+    && D.includes('정당한 재진술도 일부 버린다'));
+  ok('설계문서 §9.1 에 표 변화 없음이 명시돼 있다', D.includes('이 표는 그대로다(행 추가·삭제 없음)'));
 }
 
 // ── T17 [#20]. 3회 백스톱(비동기 — 마지막에 돌린다) ───────────────────────────

@@ -2002,9 +2002,6 @@ const PROFILE_NOTE = '저장된 정보를 확인하고 있어요';
 const SCOPE_NOTE = '추가 정보가 필요해요';                 // 기존 되묻기와 같은 UI 상태 표시
 const UNDERSTAND_YES = '네, 맞아요';
 const UNDERSTAND_NO = '아니요, 다시 설명할게요';
-// 지시어가 무엇을 가리키는지 알 수 없을 때 내는 카드의 유일한 선택지(§4.2 기준5) — 동작은 기존
-// "아니요"와 **완전히 같다**(act:'ask' → 입력창 포커스, rounds+1). 새 상태를 만들지 않는다.
-const UNDERSTAND_TELL = '무엇인지 넣어 다시 적을게요';
 const PROFILE_YES = '네, 그 조건으로';
 const PROFILE_NO = '아니요, 이번엔 다른 조건이에요';
 // 재진술에 법 이야기가 섞였는지 보는 후검사(§4.2) — 근거자료를 아직 안 읽은 단계라 여기서 조문·
@@ -2016,6 +2013,15 @@ const RESTATE_BAN = /제\s*\d+\s*조|법률|법령|벌금|과태료|징역|「|�
 //   프롬프트 기준5로 금지하고, 그래도 지시어가 남아 오면 그 판정을 **버린다**(= 확인 안 하고 통과).
 //   ⚠오탐 방향은 안전하다 — '먹이거나'처럼 지시어가 아닌 글자에 걸려도 결과는 "확인을 안 한다"(오늘과 같음).
 const RESTATE_DEICTIC = /그것|그거|이것|이거|저것|저거|그걸|이걸|그건|이건/;
+// ★실측 발견(2026-08-15, 4차 프로덕션 재검증): 지시어가 아예 없는 "빈칸형" 애매질문도 얕은
+//   재진술로 돌아왔다 — "신고해야 하나요?" → "무엇을 신고해야 하는지 알고 싶다". 원 문장에
+//   의문사만 끼워 넣은 것이라 사용자가 "네"를 눌러도 얻는 정보가 0이다(RESTATE_DEICTIC과 같은
+//   병, 원인만 지시어→빈칸으로 다르다). 프롬프트 기준6으로 금지하고, 그래도 오면 판정을 **버린다**.
+// ⚠비용을 정직하게: 이 후검사는 **정당한 재진술도 일부 버린다**(예: "낚시어선에 어떤 서류가
+//   필요한지 알고 싶다"는 지시어를 잘 푼 문장인데도 "어떤"에 걸린다). 정확히 가르려면 원 질문과
+//   대조해 "새로 들어온 말"이 있는지 봐야 하는데 그건 이번 범위 밖이고, **물러나는 방향은
+//   안전하다** — 버리면 오늘과 같은 흐름(기존 되묻기)으로 간다. 발화율은 그만큼 더 낮아진다.
+const RESTATE_BLANK = /무엇|무슨|어떤|어느|누구|얼마나/;
 // ★실측 발견(2026-08-14, H-37 F3): 8000(8초)으로 두면 QUERY_EXPAND_TIMEOUT_MS(:590 주석)와
 //   같은 유형으로 Gemini API가 매 호출 400(Manually set deadline 8s is too short. Minimum
 //   allowed deadline is 10s.)으로 거부해 이해확인이 프로덕션에서 한 번도 발동한 적이 없었다
@@ -2026,6 +2032,35 @@ const UNDERSTAND_CONFIG = {
   responseMimeType: 'application/json',
   httpOptions: { timeout: 12000 },
 };
+
+/**
+ * 한글 마지막 글자의 **받침(종성) 번호**를 돌려준다(0 = 받침 없음, 8 = ㄹ). 한글이 아니면 -1.
+ * 예: hangulFinalIndex('신고') → 0 · hangulFinalIndex('점검') → 16(ㅁ) · hangulFinalIndex('abc') → -1
+ * @param {string} s - 검사할 문자열(마지막 글자만 본다)
+ * @returns {number} 0..27 이면 한글, -1 이면 한글 아님
+ * [연계] → josaEuro. 다른 조사(이/가·은/는)가 필요해지면 같은 값으로 고르면 된다.
+ */
+function hangulFinalIndex(s) {
+  const ch = String(s || '').trim().slice(-1);
+  if (!ch) return -1;
+  const code = ch.charCodeAt(0);
+  if (code < 0xAC00 || code > 0xD7A3) return -1;
+  return (code - 0xAC00) % 28;
+}
+
+/**
+ * `…로` / `…으로` 를 앞 글자의 받침으로 고른다(받침 없음·ㄹ 받침이면 `로`).
+ * ★왜(2026-08-15 4차 재검증 ④): 확인 카드 문구의 조사가 **고정 문자열**이라 재진술 끝 글자에 따라
+ *   비문이 났다. 한글이 아니면(숫자·영문으로 끝나면) `로`로 둔다 — 읽는 법을 지어내지 않는다.
+ * 예: josaEuro('알고 싶다') → '로' · josaEuro('궁금함') → '으로' · josaEuro('신고할 수 있을') → '로'
+ * @param {string} word - 조사 앞에 오는 말
+ * @returns {'로'|'으로'}
+ * [연계] ← understandConfirmStep(확인 카드 질문 문구).
+ */
+function josaEuro(word) {
+  const f = hangulFinalIndex(word);
+  return (f <= 0 || f === 8) ? '로' : '으로';
+}
 
 /**
  * 요청 바디의 `ctx`(대기 상태)를 **신뢰하지 않고** 정규화한다 — 클라이언트가 그대로 되돌려 보내는
@@ -2176,12 +2211,14 @@ function zoneQueryWithProfile(query, ctx) {
  * ★"물어보지 않은 것에 답하지 않는다"(L-84): 재진술은 **질문의 뜻만** 바꿔 말한다 — 답·조문·수치를
  *   미리 얹으면 그 자체가 환각이다(근거자료를 아직 읽지 않은 단계). 프롬프트로 금지하고, 그래도
  *   섞여 오면 서버가 그 판정을 버린다(RESTATE_BAN).
- * ★지시어("그거"·"그것") 처리(2026-08-14, §4.2 기준5): 질문 안에 그것이 가리키는 것이 있으면 그
- *   이름으로 **풀어써서** 재진술하고, 없으면 지어내지 말고 **그 지시어를 콕 집어** 되묻는다
- *   ({clear:false,need:"그거"} → 「그거」가 무엇인지 묻는 카드). 지시어를 그대로 둔 채 어미만 바꾼
- *   재진술은 확인해도 뜻이 안 좁혀져 왕복만 늘므로 버린다(RESTATE_DEICTIC).
- * 예: understandConfirmStep('그거 얼마야?', {rounds:0,state:'none'}, true)
+ * ★대원칙 "정보 이득이 없으면 개입하지 않는다"(2026-08-15, §4.2 재설계): 이 단계는 **실제로
+ *   풀어쓴 재진술**을 낼 때만 카드를 낸다. 지시어를 못 풀었거나("그것을 언제까지…"), 원 문장에
+ *   의문사만 끼워 넣은 빈칸형이면("무엇을 신고해야 하는지…") 확인해도 얻는 게 0이므로 **통과**한다
+ *   (= null). 그러면 뒤 단계의 기존 되묻기(decideClarify·해역트리)가 구체적인 선택지를 주며
+ *   되묻는데, 4차 프로덕션 재검증 실측상 그쪽이 이 단계의 되묻기보다 낫다.
+ * 예: understandConfirmStep('구명조끼 비치하라던데 그거 언제까지 해야 돼?', {rounds:0,state:'none'}, true)
  *     → {clarify:{question:'저는 「…」로 이해했는데, 맞나요?', options:[네…/아니요…]}, confirmKind:'understand'}
+ *     ('그거 얼마야?'처럼 풀어쓸 거리가 없는 질문은 null — 확인하지 않고 기존 흐름으로 보낸다)
  * @param {string} query - 사용자 질문(원문 그대로)
  * @param {{rounds:number,state:string}} uc - normalizeAskCtx().uc
  * @param {boolean} enabled - nariya_config.understandConfirm
@@ -2200,6 +2237,9 @@ async function understandConfirmStep(query, uc, enabled) {
 [질문]
 "${query}"
 
+[대원칙] **확인해서 얻는 게 없으면 clear:true 로 넘어가라.** 이 단계가 물러나도 뒤 단계가 구체적인
+선택지를 주며 되묻는다 — 어정쩡한 재진술로 확인하는 것보다 그편이 사용자에게 낫다.
+
 [판단 기준]
 1. 이 문장이 무엇을 묻는지 한 가지 뜻으로 읽히면 clear:true.
 2. 주어(누가)·대상(무엇을)·행위 중 하나가 빠져 뜻이 둘 이상으로 갈리면 clear:false.
@@ -2208,27 +2248,40 @@ async function understandConfirmStep(query, uc, enabled) {
 4. 기준2에 걸렸을 때만 이 기준을 본다(순서가 중요하다).
    - **한 문장으로 다시 말해 뜻을 하나로 좁힐 수 있으면 clear:false** — 그 문장을 restate 에 담아 확인한다.
    - **다시 말해 봐도 뜻이 둘 이상 남아 무엇을 물었는지 고를 수 없으면 clear:true** — 확인해도 얻을 게
-     없으니 그냥 넘어간다. (단 "고를 수 없는" 이유가 아래 기준5의 지시어 때문이라면 여기가 아니라 기준5다)
+     없으니 그냥 넘어간다. (단 "고를 수 없는" 이유가 아래 기준5의 지시어 때문이라면 여기가 아니라 기준5다.
+     기준5·기준6이 clear:true 로 보내는 경우도 결국 이 갈래와 같은 뜻이다 — 대원칙 그대로다)
    "애매하니까 일단 clear:true"가 아니다(애매한지는 기준2가 이미 판정했다). 판단 기준은
    **재진술로 뜻이 하나로 정해지는가** 하나뿐이다.
 5. ★기준4보다 **먼저** 본다 — 질문에 지시어("그거·그것·이거·이것·저거·그건·이건" 같은 말)가 있으면
    기준4의 두 갈래 대신 이 기준으로 판정한다(기준1로 이미 clear:true 인 질문은 여기 오지 않는다).
    기준4의 "뜻을 하나로 좁혔다"는 **그 지시어가 가리키는 것을 실제 이름으로 바꿔 쓴 경우만** 해당한다.
-   - 가리키는 것이 **질문 문장 안에** 있으면(앞 절에 이미 나왔거나, " — " 뒤에 이전 선택 항목이
-     붙어 있으면) 그 이름으로 **풀어써서** restate 에 담는다 → clear:false.
-     예: "구명조끼 비치하라던데 그거 언제까지 해야 돼?"
+   - ★가리키는 것이 **질문 문장 안에** 있으면(앞 절에 이미 나왔거나, " — " 뒤에 이전 선택 항목이
+     붙어 있으면) **반드시** 그 이름으로 **풀어써서** restate 에 담아라 → clear:false.
+     **앞 절에 명사구가 있는데도 "확실하지 않다"며 물러나지 마라 — 앞 절의 그 명사구가 곧 답이다.**
+     후보가 둘 이상이면 **지시어에 가장 가까운 명사구**를 고른다(고민하지 말고 그렇게 정한다).
+     예1 "구명조끼 비치하라던데 그거 언제까지 해야 돼?"
        → restate "구명조끼 비치를 언제까지 해야 하는지 알고 싶다"
-   - 질문 안에 가리키는 것이 없으면 **짐작해서 지어내지 마라.** restate 를 쓰지 말고, 그 지시어를
-     질문에 적힌 글자 그대로 need 에 담아라 → {"clear":false,"need":"그거"}
-     (그러면 서버가 「그거」가 무엇인지 콕 집어 되묻는다 — 사용자가 한 마디만 채우면 되므로 얻을 게 있다)
+     예2 "안전점검 받으라고 문자 왔는데 그거 안 하면 어떻게 돼요?"
+       → restate "안전점검을 받지 않으면 어떻게 되는지 알고 싶다"
+     예3 "어선검사 — 정기검사 그건 언제 받아야 해요?"
+       → restate "어선 정기검사를 언제 받아야 하는지 알고 싶다"
+     예4 "위판장에서 신고하라던데 이거 온라인으로도 돼요?"
+       → restate "위판장 신고를 온라인으로 할 수 있는지 알고 싶다"
+   - 질문 안에 가리키는 것이 **정말로 없으면**(앞 절에 명사구가 하나도 없다) **짐작해서 지어내지 말고**
+     그냥 clear:true 로 넘어가라. 예: "그거 얼마예요?" → {"clear":true}
    - ★지시어를 **그대로 둔 채** 어미·문장 구조만 바꾼 문장은 restate 로 쓰지 마라
      ("그것을 언제까지 해야 하는지 알려주세요" 같은 문장) — 뜻이 하나도 안 좁혀져 확인할 값이 없다.
-     그런 문장밖에 안 나오면 그건 restate 가 아니라 need 로 가야 한다는 뜻이다.
+     그런 문장밖에 안 나오면 restate 를 쓰지 말고 clear:true 다.
    - 풀어쓸 때도 기준3은 그대로다: **질문에 나온 말로만** 풀어쓰고 법령 이름·조문·수치를 새로 끌어오지 마라.
+6. ★"빈칸형" 재진술 금지(기준4·기준5의 clear:true 갈래와 같은 결론이다) — 원 질문에 의문사
+   ("무엇을·무슨·어떤·어느·누구의·얼마나")만 끼워 넣은 문장은 restate 로 쓰지 마라. 원문에 없던
+   정보가 하나도 안 늘어 확인할 값이 없다. 그런 문장밖에 안 나오면 clear:true 다.
+     금지 예 "신고해야 하나요?" → "무엇을 신고해야 하는지 알고 싶다" (❌ 이건 clear:true 로 낸다)
+     금지 예 "허가 받아야 돼요?" → "어떤 허가를 받아야 하는지 알고 싶다" (❌ 마찬가지)
+   restate 는 **질문에 이미 적혀 있던 말**을 써서 뜻을 좁힌 문장이어야 한다(기준5의 예1~4처럼).
 
 다른 설명 없이 아래 JSON만 출력하라.
-{"clear":true} 또는 {"clear":false,"restate":"…(60자 이내, 평서문)"}
-또는 {"clear":false,"need":"…(질문에 적힌 지시어 그대로, 20자 이내)"}`;
+{"clear":true} 또는 {"clear":false,"restate":"…(60자 이내, 평서문)"}`;
     const result = await gemini.callGemini({
       model: ANSWER_MODEL, contents: prompt, config: UNDERSTAND_CONFIG, caller: 'Legal-Understand',
     });
@@ -2242,27 +2295,12 @@ async function understandConfirmStep(query, uc, enabled) {
       ctx: { uc: { rounds: uc.rounds, state: 'confirmed' } } };
     const no = { label: UNDERSTAND_NO, hint: '어떤 상황인지 조금 더 구체적으로 적어 주세요',
       ctx: { uc: { rounds: uc.rounds + 1, state: 'none' } }, act: 'ask' };
-    // ★지시어를 못 푼 경우(§4.2 기준5): 얼버무린 재진술 대신 **그 지시어를 콕 집어** 되묻는다.
-    //   모델이 지어낸 말이 화면에 뜨지 않도록 **질문에 실제로 있는 글자**만 인정한다(프롬프트만
-    //   믿지 않는다 — RESTATE_BAN 후검사와 같은 취지). 상태 전이는 위 `no`와 동일해 §9.1 (a)열이
-    //   그대로 적용된다(새 대기 상태가 아니다).
-    const need = clarifyStr(obj.need, 20);
-    if (need && !RESTATE_BAN.test(need) && String(query || '').includes(need)) {
-      return {
-        answer: '질문을 정확히 이해하려면 한 가지만 더 알려주세요.',
-        note: UNDERSTAND_NOTE,
-        confirmKind: 'understand',
-        clarify: {
-          question: `「${need}」가 무엇을 말씀하시는지 알려주시겠어요?`,
-          options: [{ ...no, label: UNDERSTAND_TELL,
-            hint: '「' + need + '」 자리에 무엇인지 넣어 질문을 다시 적어 주세요' }],
-        },
-      };
-    }
     const restate = clarifyStr(obj.restate, 120);
     if (!restate || RESTATE_BAN.test(restate)) return null;   // 법 이야기를 시작한 재진술은 버린다
     // 지시어를 그대로 둔 채 어미만 바꾼 재진술은 확인해도 뜻이 안 좁혀진다(기준5) — 판정을 버린다.
     if (RESTATE_DEICTIC.test(restate)) return null;
+    // 의문사만 끼워 넣은 빈칸형 재진술도 같다(기준6) — 확인해도 정보 이득이 0이다. 버리고 통과.
+    if (RESTATE_BLANK.test(restate)) return null;
     // 원 질문을 그대로 되풀이하면 확인의 의미가 없다(사용자 확정 (나)) — 같은 문장이면 물러난다.
     if (zoneFlat(restate) === zoneFlat(query)) return null;
     return {
@@ -2270,7 +2308,8 @@ async function understandConfirmStep(query, uc, enabled) {
       note: UNDERSTAND_NOTE,
       confirmKind: 'understand',
       clarify: {
-        question: `저는 「${restate}」로 이해했는데, 맞나요?`,
+        // 조사는 재진술 끝 글자의 받침으로 고른다(2026-08-15 ④ — 고정 문자열이면 비문이 난다).
+        question: `저는 「${restate}」${josaEuro(restate)} 이해했는데, 맞나요?`,
         options: [yes, no],
       },
     };
@@ -2539,6 +2578,7 @@ function withAssumedNotice(answer, assumed) {
 
 module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
-  PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, normalizeAskCtx, ctxNextOf, normalizeProfile,
+  PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
+  normalizeAskCtx, ctxNextOf, normalizeProfile,
   profileAcceptedLabels, zoneQueryWithProfile, understandConfirmStep, scopeNarrowStep,
   profileConfirmStep, withAssumedNotice, loadVesselTree, vesselNodeAt, vesselTreeDepth };
