@@ -438,6 +438,56 @@ console.log('\n[T24][F3] 이해확인 판정 기준 — "애매하면 통과"가
     && !DESIGN.includes('조금이라도 애매하면 clear:true 로 물러나라'));
 }
 
+// ── T25. 이해확인 재진술 품질 — 지시어("그거")를 그대로 둔 재진술은 얻을 게 없다 ────────
+//   프로덕션 최종재검증 실측: 발동은 정상인데 재진술이 "그거 언제까지 해야 돼?" →
+//   "그것을 언제까지 해야 하는지 알려주세요."(대명사 유지·어미만 변경)라 "네"를 눌러도 스위치
+//   off와 같은 흐름 → 정보이득 0. 프롬프트 기준5 + 서버 후검사로 막는다(설계 §4.2).
+//   ⚠Gemini 키가 없는 환경이라 **판정 호출 자체는 못 돌린다** — 프롬프트 문구·후검사·설계문서
+//     정합만 고정한다. 실제 재진술 품질은 다음 프로덕션 재검증에서 확인해야 한다.
+console.log('\n[T25] 이해확인 재진술 품질 — 지시어를 풀어쓰거나 콕 집어 되묻는다');
+{
+  const D = fs.readFileSync(path.join(SRV, 'knowledge', 'legal', '_dashboard',
+    'H37_understanding_confirm_design.md'), 'utf8');
+  // (1) 프롬프트에 기준5가 있고, 기준4와의 순서가 **양쪽에** 적혀 있다(F3 같은 상충을 안 만든다)
+  ok('프롬프트에 기준5(지시어)가 있다', /5\. ★기준4보다 \*\*먼저\*\* 본다/.test(RET_SRC));
+  ok('기준4 쪽에도 "지시어면 기준5로" 라는 역방향 순서가 적혀 있다',
+    /이유가 아래 기준5의 지시어 때문이라면 여기가 아니라 기준5다/.test(RET_SRC));
+  ok('기준1과의 범위 분리가 명시돼 있다(이미 clear:true 인 질문은 기준5로 안 온다)',
+    /기준1로 이미 clear:true 인 질문은 여기 오지 않는다/.test(RET_SRC));
+  ok('기준3과의 조화가 명시돼 있다(풀어써도 법령·조문·수치 금지)',
+    /풀어쓸 때도 기준3은 그대로다/.test(RET_SRC));
+  ok('기준2는 그대로 유지된다(판정값을 뒤집지 않는다)',
+    /뜻이 둘 이상으로 갈리면 clear:false/.test(RET_SRC));
+  // (2) 두 갈래(풀어쓰기 / need)와 금지 예시가 프롬프트에 박혀 있다
+  ok('가리키는 것이 질문 안에 있으면 풀어쓰라고 지시한다', /그 이름으로 \*\*풀어써서\*\* restate 에 담는다/.test(RET_SRC));
+  ok('없으면 지어내지 말고 need 로 되물으라고 지시한다',
+    /짐작해서 지어내지 마라/.test(RET_SRC) && /"clear":false,"need"/.test(RET_SRC));
+  ok('실측된 얕은 재진술이 금지 예시로 박혀 있다',
+    RET_SRC.includes('"그것을 언제까지 해야 하는지 알려주세요" 같은 문장'));
+  ok('출력 JSON 스펙에 need 갈래가 있다', /또는 \{"clear":false,"need":/.test(RET_SRC));
+  // (3) 서버 후검사 — 프롬프트만 믿지 않는다
+  ok('지시어가 남은 재진술을 잡는 후검사가 있다', typeof R.RESTATE_DEICTIC !== 'undefined');
+  ok('실측 사례 ①을 잡는다', R.RESTATE_DEICTIC.test('그것을 언제까지 해야 하는지 알려주세요'));
+  ok('실측 사례 ②를 잡는다', R.RESTATE_DEICTIC.test('그것을 처리하지 않으면 어떤 결과가 발생하는지 궁금하신가요'));
+  ok('제대로 풀어쓴 재진술은 통과시킨다',
+    !R.RESTATE_DEICTIC.test('구명조끼 비치를 언제까지 해야 하는지 알고 싶다'));
+  ok('그 후검사가 실제로 판정 폐기에 쓰인다', /if \(RESTATE_DEICTIC\.test\(restate\)\) return null;/.test(H37_CODE));
+  ok('RESTATE_BAN 후검사는 그대로 살아 있다(둘 다 건다)', /RESTATE_BAN\.test\(restate\)/.test(H37_CODE));
+  // (4) need 카드 — 지어낸 말이 화면에 못 나간다 + 새 대기 상태가 아니다
+  ok('need 는 질문에 실제로 있는 글자만·법 이야기가 아닐 때만 인정한다',
+    /!RESTATE_BAN\.test\(need\) && String\(query \|\| ''\)\.includes\(need\)/.test(H37_CODE));
+  ok('need 카드 선택지는 1개이고 기존 "아니요"와 같은 전이다(act:ask · rounds+1)',
+    /options: \[\{ \.\.\.no, label: UNDERSTAND_TELL/.test(H37_CODE)
+    && /const no = \{ label: UNDERSTAND_NO[\s\S]{0,160}rounds: uc\.rounds \+ 1, state: 'none' \} \}, act: 'ask' \}/.test(H37_CODE));
+  ok('need 카드도 confirmKind 는 understand 그대로다(새 UI 타입을 안 만든다)',
+    (H37_CODE.match(/confirmKind: 'understand'/g) || []).length === 2);
+  // (5) 설계문서와 코드가 어긋나지 않는다(T24와 같은 대조)
+  ok('설계문서 §4.2 에도 기준5가 같은 취지로 적혀 있다',
+    D.includes('★기준4보다 먼저 본다') && D.includes('"clear":false,"need":"그거"'));
+  ok('설계문서에 후검사 2(RESTATE_DEICTIC)와 need 카드 모양이 적혀 있다',
+    D.includes('RESTATE_DEICTIC') && D.includes('「<need>」가 무엇을 말씀하시는지 알려주시겠어요?'));
+}
+
 // ── T17 [#20]. 3회 백스톱(비동기 — 마지막에 돌린다) ───────────────────────────
 (async () => {
   console.log('\n[T17][#20] 3회 백스톱 — 확인 없이 통과 + 답변 첫 줄에 고정 고지문');
