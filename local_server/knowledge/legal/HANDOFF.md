@@ -524,6 +524,17 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-15 22:57 KST] 🟢착수 — 별표 OCR값 Opus 비전 2차재검증 착수 (17번째 트랙)
+사용자 지시: review_gen/ 대기 카드(별표OCR값확정)를 Opus 5.0 비전으로 원본 이미지·텍스트 직접 대조해 재검증, 통과 시 사람승인 없이 바로 canonical 승급.
+
+- 정책 갱신: _SCHEMA.md §5에 신규 절 추가(커밋 2d4990145) — 'AI가 자기 OCR을 자기가 확인하는 건 독립검증 아님'이라는 기존 근거를, '별도 세션·모델(Opus 비전)의 2차 재검증'으로 충족시키는 것으로 범위 축소. 판독불가/원본미발견은 여전히 사람 대기(보수적 원칙 유지) — 사용자가 AskUserQuestion으로 명시 확정.
+- 신규 스크립트 ocr_review_verify.js — draft_reverify.js '② card' 산출물(review_gen/<법>.md)을 소비. matched/corrected면 REVIEW 해제+해당 페이지의 다른 REVIEW 전부 해소 시에만 canonical 승급, unverifiable이면 그대로 유지. review_queue.md 동기화는 오케스트레이터(이 세션) 몫으로 명시 분리.
+- review_gen/ 35개 법 파일, 카드 총 93건(8xx 순수OCR형 + 9xx 텍스트/이미지 혼재형) 확인. 3개 워크플로우 배치(12/12/11법) 동시 디스패치 — task wiq67snjf·wwnxou37m·wyki9u2cf.
+- 기존 14개(16차 감사 10 + draft검증 4) 워크플로우는 계속 별도로 진행 중, 총 17개 트랙 동시 가동.
+
+완료되는 대로 review_queue.md 일괄 동기화 + 커밋·집계 예정.
+
+
 ### [2026-08-15 22:52 KST] ✅완료 — 9차감사 draft재검증 완료 — 수산업ㆍ어촌발전기본법
 8개 draft 페이지(concepts 6·statute 1·comparisons 1) raw원문 대조. statute.md 1건 canonical 승급(REVIEW마커 전무, 벌칙·과태료 부재 원문 전수확인, 제6·46·52조 EXACT 대조). 나머지 7건은 keep(전부 genuine REVIEW — 가중가산 계산순서 불명확/별표1·2 raw자체 미존재/해양생태계vs수산생태계 동일개념여부/대외무역법 제39조 귀속판단/어업재해 3법 매핑/공동브랜드화 법적성격 등). card 0건.
 
