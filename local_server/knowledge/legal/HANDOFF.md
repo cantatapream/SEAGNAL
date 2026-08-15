@@ -524,6 +524,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-16 08:35 KST] 🟢착수 — 17차 감사 착수
+10개 그룹(74법)에 audit_sim.js round:17 병렬 디스패치. 각 그룹 별도 Workflow 호출(동시성 확보). groupsPath=_dashboard/loop/audit12_groups_run.json, groupIndex=0~9. 완료되는 대로 group3·group9 등 과거 boot-resolution 버그 재발 여부(task-id↔marker파일 대조)를 반드시 검증 후 audit_fix_cell.js(H-9①통합수정) 진행.
+
+
 ### [2026-08-16 08:34 KST] ✅완료 — H-9②③④ 공유허브재봉합+파이프라인 완료
 5개 병렬 허브작업(항만법 CP1-12 11항구·9축 확충, 해양경찰법↔해양경비법 조번호혼동 정정[이미 완료돼있던 것 확인+보강], 어선법 강원↔경북 조례비교 신설, 선박직원법 교육과정비교=신설불필요 판정, 안전장구_구명설비 양식산업발전법 오탐확인) 각자 다른 파일만 건드려 병렬 진행, 전부 완료·커밋·푸시. 이어서 ③lint_index/lint_build → ④human_workload 재생성 완료: canonical 876→879, draft 315(불변), review-pending 15(불변), graph.json 118노드/1971→1973엣지, human_workload 142건(불변). 16차 감사 후속 표준 파이프라인(①통합수정→②허브재봉합→③lint→④human_workload) 전체 완료. 다음: 사용자 지시 대기(17차 감사 여부 등).
 
