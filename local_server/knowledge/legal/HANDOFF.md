@@ -524,6 +524,16 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-15 22:43 KST] 🟢착수 — 16차 감사 + draft 전수 검증·승격 동시 착수
+사용자 지시: 16차 감사 착수 + draft 475건 검증 트랙 신설.
+
+① draft_reverify.js 갱신(커밋 16ede9c0f): H-34(2026-08-01) 기계적연역 승급기준(완전열거·상호참조·배타범주·부재확인) 반영 + 대상범위를 concepts/뿐 아니라 자기 법 slug의 statutes/comparisons/annexes까지 확대(기존엔 183건이 스캔 누락 상태였음).
+② draft 검증 워크플로우 4개 배치(74법 전량) 동시 디스패치 — task w21fk2nj9·wgsvw9w7k·ww7fo6bm5·wf15og95o. raw grounding으로 판정: promote(canonical 승급)/card(별표OCR값, 사람 수치검증카드)/keep(진짜 해석다툼, draft 유지). 자기 법 파일만 써서 병렬 안전.
+③ 16차 감사 워크플로우 10개(74법 전량) 동시 디스패치 — task wqf710c29·wjqfuba5j·wag5o4y6z·w1zhjn24a·wtsm1fb2n·w34pj2t3r·wdhdytf9m·wsy14wauf·woxrk25v0·w86078hjf. round:16, 600문항은 상한 아닌 참고선 정책 유지.
+
+착수 시점 draft 475건(concept 292·annex 78·statute 65·comparison 39·activity 1), canonical 714, review-pending 15. 완료되는 대로 순차 커밋·집계 예정.
+
+
 ### [2026-08-15 22:43 KST] ✅완료 — draft 재검증 - 수상레저안전법
 4건 판정: statute canonical 승급 1건(H-34/EXACT, 제2·61·62·63조 등), card 1건(수상안전교육, 배점표 OCR img130219057), keep 2건(수상레저사업=REVIEW-901 인명구조요원 고시 해석다툼, 안전준수의무=워터파크 내수면 확장해석). review_gen/수상레저안전법.md 신규(REVIEW-801). fix3/reverify_수상레저안전법.done 생성.
 
