@@ -524,6 +524,14 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-16 06:13 KST] 🟢착수 — 16차 감사 완료 + H-9①통합수정(74법 10그룹) 착수
+16차 감사(74법 전량) 완료 확정(모든 마커 확인) — 총 문항수 다수 그룹 3000건대까지 확대(별표/별지 정밀도 강화, 회귀재검증 강화 정책 반영).
+
+이어서 H-9 표준 후속절차 착수: ①통합수정(audit_fix_cell.js, round:16) 10개 그룹 동시 디스패치 완료(task wm6eyhbf6·wa05wc82m·w2obhu93l·w2u3o476y·wvlvibhcg·wuk5s0x7h·wavibjqg7·wwr07ngfb·wtbdt7obh·wzdvtz2r4). 자기 법 파일만 쓰므로 병렬 안전.
+
+이번 라운드는 이전 세션(draft검증·OCR재검증)이 이미 처리한 draft→canonical 승격분과 겹치지 않도록, 감사가 직접 발견한 wiki_lag·연결결손·thin/collection_hole 5종 재분류 위주로 진행 예정. 완료되는 대로 순차 커밋·안전확인(shrink-guard) 후 ②허브재봉합→③lint_index/lint_build→④human_workload 순으로 이어감.
+
+
 ### [2026-08-15 23:20 KST] ✅완료 — OCR값 Opus 비전 2차재검증 3개 배치 전체 완료
 review_gen/ 93건 카드(35법) 전량 Opus 비전 재검증 완료.
 
