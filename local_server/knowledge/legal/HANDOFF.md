@@ -524,6 +524,16 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-15 12:56 KST] ✅완료 — CLARIFY_OPTION_MAX 3→10 확장 완료
+① 서버 상수: legal_retriever.js:647 CLARIFY_OPTION_MAX 3→10. 사용처 3곳(decideClarify:763 · clarifyFromZoneTree:2511 · scopeNarrowStep:1583)은 전부 같은 상수를 slice로 쓰므로 코드 변경 없이 함께 확장됨.
+② 프롬프트: decideClarify 판단기준5 '선택지는 2~3개' → '근거자료에 실제로 적힌 구분만큼 필요한 만큼만, 최대 10개까지, 개수를 채우려고 근거 없는 선택지를 보태지 마라(대개 2~3개면 충분)'. 10개 강제 아님. 낡은 주석 3곳('2~3개')도 정정(legal_retriever.js:27,678 · ai_chat.js:2681).
+③ 클라이언트: 코드 리뷰 결과 CSS 수정 불필요 — .nrya-clarify-btns 에 이미 flex-wrap:wrap 이 있어 버튼이 늘면 줄바꿈되고, gap:6px 가 행 간격에도 걸리며, .nrya-chat-body 가 overflow-y:auto 라 세로로 길어져도 스크롤된다. CSS 주석에 그 근거만 남김. ⚠ 이 환경엔 Playwright가 없어 실제 렌더링 스크린샷 검증은 못 했다(코드 리뷰 한정).
+④ 미결 해소 확인(데이터 직접 계수): weather_warning_tree.json summary.특보선택지_상한초과 = 낚시어선5·그밖의어선4·수상레저4·유도선6 → 최대 6개로 전부 10 이하 → 해소. tonnage_facet.json facets 154건 선택지 분포 = 2개 124·3개 22·4개 4·5개 3·9개 1 → 최대 9개로 전부 10 이하 → 해소. 두 자산 데이터는 손대지 않음(상수만 바뀜).
+⑤ 회귀 확인: 배선된 트리 자산 8종의 '탐색 가능한 노드'(id+children 보유) 선택지 최대치는 전부 3 → 오늘 런타임에서 잘려나가던 선택지는 0건이었고, 상한 상향으로 기존 동작이 바뀌는 자리도 0건. vessel_doc_tree 의 4개짜리는 리프의 추가확인(축=총톤수·길이)이라 scopeNarrowStep 이 읽지 않는 자리.
+⑥ 문서 정정: H32_weather_warning_design.md(§4.1·특보선택지 상한초과 절·배선 대안 절) · H32_tonnage_facet_design.md §7.2(c) · H37_understanding_confirm_design.md(§9 표·§13 설정화면·§10 미결⑤ 종결) · MASTER_PLAN.md(H-36 E절 미결·미결 종합). ※과제문이 지목한 H32_zone_tree_design.md 에는 CLARIFY_OPTION_MAX 미결이 애초에 없었다(톤수 충돌은 tonnage_facet/H37/MASTER_PLAN 쪽에 있었음) — 지어내지 않고 실제 위치에 정정.
+⑦ 검증: test_ask_context 192 PASS/0 FAIL · test_zone_tree_wiring 103 PASS/0 FAIL · verify_all.sh 스위트 9종 641건 전량 PASS. verify_all 의 V4(playwright-core 미설치)·서버스모크(HTTP 000, 서버 부팅 불가 환경)는 변경 전 clean tree 에서도 동일하게 실패하는 환경 이슈로 확인.
+
+
 ### [2026-08-15 12:50 KST] 🟢착수 — CLARIFY_OPTION_MAX 3→10 확장 착수
 사용자 지시: 되묻기 선택지 상한을 3개에서 10개까지 늘림. decideClarify AI프롬프트 지시문('선택지는 2~3개')도 같이 수정. 클라이언트(ai_chat.js) 버튼 10개 렌더링 시 레이아웃 문제 없는지 확인 필요. 이전에 미결로 남았던 특보선택지_상한초과(기상특보 자산)·톤수축 CLARIFY_OPTION_MAX 충돌 문제가 이걸로 해소되는지도 확인.
 
