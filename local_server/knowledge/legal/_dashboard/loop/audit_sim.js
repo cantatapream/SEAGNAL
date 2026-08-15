@@ -116,6 +116,7 @@ ${r2}
 
 ## 5단계 — 상세 로그 저장 + 마커 + 요약 반환
 - 전체 질문·판정·근거 + **답변방식 준수 체크표**를 \`${LEGAL}/_dashboard/audit/${l.slug}.md\`에 저장.
+- **★★반드시 이어쓰기(append)만 한다 — 파일 전체를 새로 쓰지 마라(L-93 재발 방지, 필수)**: 이 파일에는 이전 라운드들의 감사 이력이 누적돼 있다. 1단계에서 이미 Read했으니, 그 뒤에 \`---\`구분선 + 이번 라운드 리포트만 **끝에 덧붙인다**(Edit 도구로 파일 끝에 삽입하거나, Bash \`cat >> 파일\`로 append). **Write 도구로 이 파일 전체를 새로 쓰는 것은 절대 금지** — Write는 기존 내용을 통째로 지우고 이번 라운드 것으로 덮어써, 지난 라운드 전체 이력이 영구 소실된다(실제로 이 실수가 여러 번 발생해 다른 세션이 git 이력에서 복구해야 했다). 턴/컨텍스트가 부족해 이번 라운드를 다 못 쓰겠으면, 쓴 만큼만 append하고 "미완성" 표시를 남겨라 — 그래도 Write로 기존 이력을 지우는 것보다 훨씬 낫다.
 - ★완료 마커(필수): Bash로 \`mkdir -p ${LEGAL}/_dashboard/fix3 && printf 'r${round} done\\n' > "${LEGAL}/_dashboard/fix3/audit_r${round}_${l.slug}.done"\` 생성(라운드별 커버리지 추적용).
 - 반환(JSON): law, total_questions, by_type{T1..T7}, verdicts{...}, **review_pending**(⚠REVIEW 미검증 데이터라 채점 보류한 질문 수), **method_compliance{정의우선,행정처분차수,벌칙항별구간,처벌정밀도,타법연결,프로필조건,점진공개구조,출처표기}**, method_notes[], wiki_gaps[], collection_holes[], review_pending_items[](보류 질문 요지), answer_issues[], audit_file.
 
