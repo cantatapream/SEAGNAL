@@ -613,6 +613,18 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('이미 확정된 라벨과 같은 선택지가 나오면 되묻기를 버린다', dup.needed === false);
     const fresh = await R.decideClarify(Q, CP, '', ['수상레저기구']);
     ok('겹치지 않는 narrowLabels는 되묻기를 막지 않는다', fresh.needed === true && fresh.options.length === 2);
+    // (5c) 최소 절충안(2026-08-15) — 직전 질문(lastTopic)을 "확인 후보"로 하나 더 얹는다.
+    //   §9.1 #1(타이핑한 새 질문은 맥락을 비운다)은 그대로 두고, decideClarify가 이미 애매해서
+    //   되물을 때만(needed:true) 여지가 있으면(칸이 남고 아직 안 겹치면) 얹는다.
+    const PREV = '안전검사 안 받으면 어떻게 되나요?';
+    const withPrev = await R.decideClarify(Q, CP, '', [], PREV);
+    ok('직전 질문이 확인 후보로 추가된다(옵션 3개)', withPrev.needed === true && withPrev.options.length === 3);
+    ok('추가된 후보의 라벨·힌트가 직전 질문을 그대로 담는다',
+      withPrev.options[2].label === PREV && withPrev.options[2].hint.includes('이어지는'));
+    const noPrev = await R.decideClarify(Q, CP, '', []);
+    ok('직전 질문이 없으면 오늘과 동일하다(옵션 2개, R0)', noPrev.needed === true && noPrev.options.length === 2);
+    const alreadyIn = await R.decideClarify(PREV + ' 처벌은요?', CP, '', [], PREV);
+    ok('직전 질문이 이미 이번 질문에 들어 있으면 중복 추가하지 않는다', alreadyIn.options.length === 2);
     // (6) 재진술 낱말을 검색어로 직접 얹지 않는다(§17 실측 — 얹으면 검색이 뒤집혔다)
     const s1 = await R.search(Q, { canonicalOnly: true });
     const s2 = await R.search(Q, { canonicalOnly: true, restate: RE });
@@ -622,7 +634,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('스위치 off 면 재진술을 하류로 안 넘긴다(§9.1 #10)',
       /const ucRestate = cfg\.understandConfirm \? \(ctx\.uc\.restate \|\| ''\) : '';/.test(ROUTES_CODE));
     ok('검색에 넘긴다', /search\(qForSearch,\s*[\s\S]{0,80}restate: ucRestate/.test(ROUTES_CODE));
-    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels\)/.test(ROUTES_CODE));
+    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion\)/.test(ROUTES_CODE));
     ok('질의 문자열에는 어디서도 안 합친다(R2)',
       !/q \+[^\n]*restate/i.test(ROUTES_CODE) && !/restate[^\n]*\+ q\b/i.test(ROUTES_CODE));
     // (8) 설계문서와 코드가 어긋나지 않는다(T24·T25와 같은 대조)

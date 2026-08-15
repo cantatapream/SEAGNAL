@@ -801,6 +801,9 @@ async function attachChainExcerpts(rows) {
 //   ⚠ 실제 생성시간은 그대로다(모델 사고+글자수는 안 줄어듦) — 목적은 체감 대기시간 단축뿐.
 //   추가 바디(선택): deviceId(기기 식별자) · notifyOnComplete(답변완료 푸시 동의, 기본 false)
 //   → 둘 다 있고 6초를 넘게 걸렸으면, 스트림은 그대로 두고 답변을 임시 보관 + 개인 푸시 발송.
+//   lastQuestion(선택, H-37 최소 절충안): 클라이언트가 매 요청에 싣는 직전 질문 원문 — ctx와
+//   무관해 새 질문 타이핑에도 안 비워진다. decideClarify가 이미 애매해 되물을 때만 "방금 그거예요?"
+//   확인 후보 하나를 더 보여주는 데만 쓴다(답을 대신 짓지 않는다).
 router.post('/api/legal/ask', async (req, res) => {
   const startedAt = Date.now();   // 6초 판정 기준(핸들러 시작~완료 실제 소요시간)
   const q = String((req.body && req.body.query) || '').trim();
@@ -808,6 +811,10 @@ router.post('/api/legal/ask', async (req, res) => {
   const deviceId = String((req.body && req.body.deviceId) || '').trim();
   const notifyOnComplete = (req.body && req.body.notifyOnComplete) === true;
   const askId = String((req.body && req.body.askId) || '').trim();
+  // [H-37 최소 절충안, 2026-08-15] 클라이언트가 매 요청에 실어 보내는 "직전 질문 원문" —
+  //   ctx와 무관한 별도 채널이다(§9.1 #1 "새로 타이핑한 질문은 맥락을 비운다"는 그대로 두고,
+  //   decideClarify가 이미 애매해서 되물을 때만 "방금 그거예요?" 확인 후보 하나를 더 보여준다).
+  const lastQuestion = String((req.body && req.body.lastQuestion) || '').trim().slice(0, 200);
   // 이 요청이 끝난 뒤 [허용]으로 뒤늦게 동의할 수 있게 등록해둔다(POST /api/legal/notify-me 참고).
   if (askId && deviceId) inFlightAsks.set(askId, { deviceId, wantsPush: false });
 
@@ -911,7 +918,7 @@ router.post('/api/legal/ask', async (req, res) => {
     // (2026-08-15) D-트리(scopeNarrowStep)가 확정한 조건도 함께 넘긴다 — 안 넘기면 decideClarify가
     //   그 확정을 전혀 모른 채 같은 축(예: 선박종류)을 중복으로 되묻는다(라이브 재현, narrowLabels는
     //   위에서 이미 계산해 둔 것을 그대로 재사용 — R0: ctx.scope·profile이 없으면 빈 배열이라 무변화).
-    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels);
+    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels, lastQuestion);
 
     // ③ [H-37 §7.4] 프로필 확인 — 이 되묻기가 묻는 축을 프로필이 이미 알고 있으면 되묻는 대신
     //    "저장된 정보로 답할까요?"를 **그 축에 대해서만** 확인한다(축 단위, 사용자 확정 (자)).

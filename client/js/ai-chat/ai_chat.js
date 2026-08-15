@@ -32,7 +32,7 @@
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
  *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토 실카운트)
  *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
- *                    POST /api/legal/ask {query, deviceId, notifyOnComplete, ctx?, profile?}
+ *                    POST /api/legal/ask {query, deviceId, notifyOnComplete, ctx?, profile?, lastQuestion?}
  *                                                              (질문→AI 답변 스트리밍(NDJSON)+근거 법령
  *                                                               · done 에 clarify{question,options} 가 오면
  *                                                                 답변 대신 되묻기 선택지 버튼을 그리고,
@@ -88,6 +88,10 @@
   //   무한루프가 된다(라이브 재현). 사용자가 **새 질문을 직접 타이핑**하면 그 순간 비운다(§9.1 #1).
   //   pendingCtx 와 마찬가지로 메모리에만 둔다(새로고침하면 소멸).
   var lastCtx = null;
+  // [H-37 최소 절충안, 2026-08-15] 직전에 보낸 질문 원문 — lastCtx와 달리 **새 질문을 타이핑해도
+  //   안 비운다**(그게 이 값의 존재 이유다). ctx가 아니라 별도 필드로만 보내 서버가 "확정된 조건"이
+  //   아니라 "확인 후보" 하나를 되묻기에 더 보여줄 때만 쓴다(routes/legal.js `lastQuestion` 참고).
+  var lastQuestionText = '';
 
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
@@ -2497,6 +2501,9 @@
     var ask = { query: q, deviceId: getDeviceId(), notifyOnComplete: optedIn, askId: askId };
     if (ctx) ask.ctx = ctx;
     if (Object.keys(profile.fields).length) ask.profile = profile;
+    // [H-37 최소 절충안] 직전 질문을 실어 보낸다(lastCtx와 무관 — 새 질문 타이핑에도 안 비운다).
+    if (lastQuestionText && lastQuestionText !== q) ask.lastQuestion = lastQuestionText;
+    lastQuestionText = q;
     legalPost('/api/legal/ask', ask).then(function (res) {
       return readNdjsonStream(res, function (deltaText) {
         hadDelta = true;
