@@ -2405,6 +2405,24 @@ const SCOPE_TOPK = 5;              // 분포를 볼 상위 검색결과 수
 const SCOPE_SCORE_RATIO = 0.5;     // 1위 대비 이 비율 이상인 후보만 "접전"으로 본다
 const SCOPE_TERM_MIN = 3;          // 분기 대조에 쓸 질문 토큰의 최소 글자수
 let _vesselCache = null, _vesselMtime = 0;
+const INSPECTION_TABLE_JSON = path.join(LEGAL_DIR, '_dashboard', 'inspection_cycle_table.json');
+let _inspCache = null, _inspMtime = 0;
+
+/**
+ * inspection_cycle_table.json(F) 을 읽어 캐시한다(vessel_doc_tree 와 같은 mtime 감지·안전폴백).
+ * `vesselHayOf`가 ⓑ 게이트 어휘원에 F의 검사종류·증서 이름을 얹기 위해 쓴다
+ * (설계 H32_vessel_doc_tree_design.md §14 — D 이름 필드만으론 "안전검사" 계열 질문이 안 걸리던 문제).
+ */
+function loadInspectionTable() {
+  try {
+    const mt = fs.statSync(INSPECTION_TABLE_JSON).mtimeMs;
+    if (_inspCache && mt === _inspMtime) return _inspCache;
+    const raw = JSON.parse(fs.readFileSync(INSPECTION_TABLE_JSON, 'utf8'));
+    raw._certById = new Map((raw.증서 || []).map(c => [c.id, c.증서명]));
+    _inspCache = raw; _inspMtime = mt;
+  } catch (_) { if (!_inspCache) _inspCache = { 검사종류: [], 증서: [], _certById: new Map() }; }
+  return _inspCache;
+}
 
 /** vessel_doc_tree.json 을 읽어 캐시한다(zone_tree 와 같은 mtime 감지·안전폴백). */
 function loadVesselTree() {
@@ -2465,16 +2483,28 @@ function vesselLawsOf(node) {
  *   세 분기 모두에 들어 있고, 그러면 배 종류와 아무 상관없는 질문(농산물 검사수수료·해적 보험)까지
  *   전부 "분기마다 다르다"고 잡힌다 — 표본 800건 발화율 17.1%(전문) → 1.6%(이름 필드).
  *   ★"구명조끼 몇 개 필요해요?"는 이름 필드만으로도 세 분기에 전부 걸린다(설계 §5.6 시나리오 보존).
+ * ★F(`inspection_cycle_table.json`)의 검사종류·증서 이름도 더한다(설계 §14) — "안전검사 안 받으면
+ *   어떻게 되나요?" 같은 질문은 D(서류·장비·보험 이름)엔 안 걸리지만 F엔 "안전검사"가 리터럴로
+ *   있다. `대상_트리노드`가 이 노드 id와 같은 항목만 더하고, `검사군`의 끝에 붙은 법령명 괄호는
+ *   반드시 뗀다 — 안 떼면 검사와 무관한데 법 이름만 겹치는 질문이 오발화한다(실측 3건, 예: "국제
+ *   항해선박 해적피해예방법 … 벌칙" ← `국제항해선박`이 선박보안심사 검사군에 들어 있었음).
  * @param {object} node @returns {string}
- * [연계] ← scopeNarrowStep(발화 판정 ⓑ).
+ * [연계] ← scopeNarrowStep(발화 판정 ⓑ). ← loadInspectionTable(F).
  */
 function vesselHayOf(node) {
   const parts = [];
+  const insp = loadInspectionTable();
   (function walk(n) {
     if (!n) return;
     for (const e of (n.서류 || [])) parts.push(e.서류명 || '');
     for (const e of (n.장비 || [])) parts.push(e.장비명 || '');
     for (const e of (n.보험 || [])) parts.push(e.보험명 || e.종류 || e.보험종류 || '');
+    for (const c of (insp.검사종류 || [])) {
+      if (c.대상_트리노드 !== n.id) continue;
+      parts.push(c.검사종류 || '');
+      parts.push(String(c.검사군 || '').replace(/\s*\([^)]*\)\s*$/, ''));
+      if (c.증서id) parts.push(insp._certById.get(c.증서id) || '');
+    }
     for (const c of (n.children || [])) walk(c);
   })(node);
   return parts.filter(Boolean).join(' ');
