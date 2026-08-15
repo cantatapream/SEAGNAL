@@ -884,7 +884,12 @@ router.post('/api/legal/ask', async (req, res) => {
     const narrowLabels = ctx.scope.map(s => s.label)
       .concat(legalRetriever.profileAcceptedLabels(ctx).map(d => d.label));
     const qForSearch = narrowLabels.length ? q + ' ' + narrowLabels.join(' ') : q;
-    const { sources, contextPages } = await legalRetriever.search(qForSearch, { canonicalOnly });
+    // [H-37 §17] 사용자가 "네, 맞아요"로 확인한 재진술은 **검색 확장어로만** 넘긴다(질의 문자열에
+    //   합치지 않는다 — 합치면 §2.1의 세 오염이 그대로 살아난다). 스위치가 off면 넘기지 않는다:
+    //   대기 중 운영자가 스위치를 내리면 그 단계가 없는 것처럼 동작해야 한다(설계 §9.1 #10).
+    const ucRestate = cfg.understandConfirm ? (ctx.uc.restate || '') : '';
+    const { sources, contextPages } = await legalRetriever.search(qForSearch,
+      ucRestate ? { canonicalOnly, restate: ucRestate } : { canonicalOnly });
 
     // ② [H-37 §5] 상황질문(범위좁히기) — 검색 결과가 여러 선박종류 계열에 걸칠 때만, **법 이름이
     //    아니라 상황**("어떤 배에 관한 것인가요?")을 자산 라벨 그대로 묻는다. 스위치 off면 null.
@@ -901,7 +906,9 @@ router.post('/api/legal/ask', async (req, res) => {
 
     // [되묻기] 조건에 따라 답이 완전히 갈리는 질문인지 먼저 빠르게 판단한다(무거운 종합답변 전).
     // 판단이 실패하거나 애매하면 조용히 {needed:false} → 아래 기존 흐름 그대로.
-    const clarify = await legalRetriever.decideClarify(q, contextPages);
+    // [H-37 §17] 확인된 재진술을 함께 넘긴다 — 지시어가 풀린 문장을 읽어야 "사용자가 이미 확인해
+    //   준 조건"을 다시 묻지 않는다(5차 프로덕션 재검증에서 "네" 뒤에 off 와 똑같은 되묻기가 뜬 원인).
+    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate);
 
     // ③ [H-37 §7.4] 프로필 확인 — 이 되묻기가 묻는 축을 프로필이 이미 알고 있으면 되묻는 대신
     //    "저장된 정보로 답할까요?"를 **그 축에 대해서만** 확인한다(축 단위, 사용자 확정 (자)).

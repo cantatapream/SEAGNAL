@@ -604,12 +604,19 @@ const QUERY_EXPAND_CONFIG = {
  * 유의어(흡연↔화기)도 못 잇는다 — 검색 직전 Gemini에게 "이 질문과 관련될 만한 법률
  * 키워드"를 짧게 물어 allTerms에 보태 보완한다. 실패해도(키 없음·타임아웃·파싱 실패)
  * 조용히 빈 배열로 폴백 — 이 단계가 죽어도 기존 키워드 검색만으로 계속 동작해야 한다.
+ * ★[H-37 §17] 사용자가 이해확인에서 "네, 맞아요"로 승인한 재진술이 있으면 **그 문장도 함께 보여준다**
+ *   — 지시어("그거·그건")가 무엇을 가리키는지 아는 채로 확장해야 쓸모 있는 용어가 나온다("그거 안
+ *   받으면?"만 보면 확장할 것이 없다). 재진술이 없으면 프롬프트가 **오늘과 문자 그대로 같다**(R0).
  * @param {string} query
+ * @param {string} [restate] - 확인된 재진술(ctx.uc.restate). 없거나 규약 위반이면 무시된다.
  * @returns {Promise<string[]>} AI가 제안한 추가 검색어(실패 시 [])
  */
-async function expandQueryTerms(query) {
+async function expandQueryTerms(query, restate) {
   if (!gemini.hasAnyKey()) return [];
+  const confirmed = restateAllowed(restate);
   const prompt = `사용자가 한국 해양수산 법령 챗봇에 다음 질문을 했다: "${query}"\n` +
+    (confirmed ? `사용자는 이 질문의 뜻이 "${confirmed}" 라는 것을 직접 확인해 줬다 — ` +
+      `지시어("그거"·"그건" 등)가 무엇을 가리키는지는 이 문장을 따르고, 이 뜻에 맞는 용어를 뽑아라.\n` : '') +
     `이 질문과 관련될 수 있는 한국 법률 용어·개념을 한국어 명사로 최대 8개까지 뽑아라. ` +
     `질문에 그 글자가 그대로 없어도 관련 있을 만한 법률 용어를 포함해라 ` +
     `(예: "배 위에서 흡연"→선박,흡연,화기,금연,선내). 다른 설명 없이 JSON 배열로만 답하라. ` +
@@ -686,14 +693,19 @@ function clarifyStr(v, max) {
  * 실패(키 없음·근거 없음·타임아웃·파싱 실패·스키마 불충족)는 예외 없이 {needed:false} —
  * 이 단계가 죽어도 기존 답변 흐름이 그대로 돌아가야 한다(pickCandidateLaws와 같은 폴백 규약).
  *
+ * ★[H-37 §17] 사용자가 이해확인에서 승인한 재진술이 있으면 그 문장도 함께 보여준다 — 지시어가
+ *   풀린 문장을 읽어야 "이미 정해진 조건을 또 묻는" 되묻기를 피할 수 있다(기준3의 확장). 재진술이
+ *   없으면 프롬프트가 **오늘과 문자 그대로 같다**(R0). 재진술은 조문·수치가 섞이면 이미 버려진 값이라
+ *   (RESTATE_BAN) 이 프롬프트에 법 이야기를 새로 들여오지 않는다.
  * @param {string} query - 사용자 질문
  * @param {Array} contextPages - search()의 contextPages(위키 원문 body 포함)
+ * @param {string} [restate] - 확인된 재진술(ctx.uc.restate). 없거나 규약 위반이면 무시된다.
  * @returns {Promise<{needed:boolean, intro?:string, question?:string, options?:Array<{label:string,hint:string}>}>}
  * [연계] ← routes/legal.js POST /api/legal/ask 가 synthesizeAnswerStream() **전에** 호출한다.
  *          needed:true면 종합답변을 아예 만들지 않고 done 이벤트의 clarify 필드로 내려보낸다.
  *        → client/js/ai-chat/ai_chat.js clarifyHTML(선택지 버튼) → 버튼 클릭 시 "원래질문 — 라벨"로 재질의.
  */
-async function decideClarify(query, contextPages) {
+async function decideClarify(query, contextPages, restate) {
   if (!gemini.hasAnyKey() || !contextPages || !contextPages.length) return CLARIFY_NONE;
   // ★재되묻기 무한루프 차단(프롬프트 기준3의 결정론적 백스톱): 선택지 버튼으로 되돌아온 질의는
   // 반드시 CLARIFY_JOINER 를 달고 오므로, 그 개수가 곧 **이미 지나온 되묻기 라운드 수**다.
@@ -706,10 +718,16 @@ async function decideClarify(query, contextPages) {
     const title = cp.topic ? `${cp.law} — ${cp.topic}` : cp.law;
     return `--- 근거${i + 1}: [${title}] ---\n${String(cp.body || '').slice(0, CLARIFY_BODY_CHARS)}`;
   }).join('\n\n');
+  // [H-37 §17] 확인된 재진술이 있으면 질문 바로 뒤에 한 블록 끼운다. 없으면 빈 문자열이라
+  //   프롬프트가 오늘과 바이트 동일하다(R0) — 줄바꿈까지 이 블록 안에 넣어 둔 이유가 그것이다.
+  const confirmed = restateAllowed(restate);
+  const confirmedBlock = confirmed ? `\n\n[사용자가 확인해 준 질문의 뜻]\n"${confirmed}"\n` +
+    `- 질문의 지시어("그거"·"그건" 등)가 가리키는 것은 이 문장을 따른다.\n` +
+    `- 이 문장이 이미 정해 준 조건은 **다시 묻지 마라**(기준3과 같은 취지).` : '';
   const prompt = `너는 대한민국 해양수산 법령 챗봇의 "되묻기 판단기"다. 질문에 답하지 말고, 사용자에게 조건을 되물어야 하는지만 판단하라.
 
 [질문]
-"${query}"
+"${query}"${confirmedBlock}
 
 [근거자료]
 ${block}
@@ -772,7 +790,9 @@ ${block}
  * → 본문 직접매칭 재점수 → 관련도 낮은 꼬리 컷 → 상위 페이지 그래프 1홉 확장. 클라
  * 아코디언용 sources와 답변합성용 contextPages를 함께 반환.
  * @param {string} query
- * @param {{canonicalOnly?:boolean}} opts
+ * @param {{canonicalOnly?:boolean, restate?:string}} opts
+ *   - restate: [H-37 §17] 사용자가 "네, 맞아요"로 확인한 **이해확인 재진술 문장**. 있으면 질의확장
+ *     LLM 이 그 뜻까지 보고 검색어를 뽑는다(query 문자열은 어디서도 안 바꾼다 — 설계 §3.3 R2).
  * @returns {Promise<{sources:Array, contextPages:Array}>}
  */
 async function search(query, opts) {
@@ -787,7 +807,10 @@ async function search(query, opts) {
   const byFile = new Map(pages.map(p => [p.kind + ':' + p.file, p]));
   const terms = termsOf(query);
   const { extraTerms, forcedSlugs } = glossaryExpand(query);
-  const aiTerms = await expandQueryTerms(query);
+  // [H-37 §17] 확인된 재진술은 **여기 한 갈래로만** 검색에 들어온다 — 질의확장 LLM 이 그 문장을 보고
+  //   뽑은 용어가 aiTerms 로 합류한다(재진술 낱말을 그대로 얹지 않는 이유는 §17 실측 기록 참고).
+  //   재진술이 없으면 호출도 프롬프트도 오늘과 같아 allTerms 가 문자 그대로 동일하다(R0).
+  const aiTerms = await expandQueryTerms(query, opts && opts.restate);
   const allTerms = [...new Set([...terms, ...extraTerms, ...aiTerms])];
 
   let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms) })).filter(x => x.s > 0);
@@ -2022,6 +2045,44 @@ const RESTATE_DEICTIC = /그것|그거|이것|이거|저것|저거|그걸|이걸
 //   대조해 "새로 들어온 말"이 있는지 봐야 하는데 그건 이번 범위 밖이고, **물러나는 방향은
 //   안전하다** — 버리면 오늘과 같은 흐름(기존 되묻기)으로 간다. 발화율은 그만큼 더 낮아진다.
 const RESTATE_BLANK = /무엇|무슨|어떤|어느|누구|얼마나/;
+// 재진술 원문의 길이 상한 — 카드 문구로 화면에 찍히고, 확인 뒤에는 검색어의 재료가 된다(§17).
+// 클라이언트가 되돌려 보내는 값이라 변조가 가능하다는 전제로 길이를 먼저 자른다.
+const RESTATE_MAX = 120;
+
+/**
+ * 재진술 문자열이 이 단계의 신뢰 규약(§4.2 서버측 후검사 3종)을 지키는지 한 군데서 판정한다.
+ * ★한 군데로 모은 이유(2026-08-15 §17): 재진술은 이제 **두 번** 들어온다 — ①모델이 만든 직후
+ *   ②사용자가 "네"를 누른 뒤 `ctx.uc.restate`로 되돌아올 때. ②는 클라이언트를 거치므로 변조·재생이
+ *   가능하고(설계 §9.1 #17), 그때도 ①과 **같은 기준**으로 다시 걸러야 신뢰 규약이 유지된다(L-77 정신).
+ * 예: restateAllowed('구명조끼 비치를 언제까지 해야 하는지 알고 싶다') → 그 문장 그대로
+ *     restateAllowed('제32조 위반이면 과태료다') → ''(RESTATE_BAN)
+ * @param {*} s - 검사할 값(문자열이 아니면 '')
+ * @returns {string} 통과하면 정리된 문자열, 아니면 ''
+ * [연계] ← understandConfirmStep(생성 직후) · normalizeAskCtx(되돌아온 값) ·
+ *         expandQueryTerms·decideClarify(프롬프트에 싣기 직전 마지막 관문).
+ */
+function restateAllowed(s) {
+  const t = clarifyStr(s, RESTATE_MAX);
+  if (!t) return '';
+  if (RESTATE_BAN.test(t) || RESTATE_DEICTIC.test(t) || RESTATE_BLANK.test(t)) return '';
+  return t;
+}
+
+// ★§17 실측 기록 — 재진술 **낱말을 그대로** allTerms 에 얹는 안은 **채택하지 않았다**(왜 그런지를
+//   남겨 두지 않으면 다음 사람이 "쉬운 방법이 있는데 왜 안 썼지?" 하고 되풀이한다):
+//   ① 재진술은 프롬프트 기준5가 **"질문에 나온 말로만 풀어써라"** 라고 강제한다 → 낱말 관점에서
+//      **새 정보가 원리적으로 0**이다. 실측(대표 4건)에서 재진술이 추가한 낱말은 전부 조사 변형
+//      (`안전검사를`·`가입을`·`비치를`)이거나 상투어(`알고`·`싶다`·`하는지`)뿐이었다.
+//   ② 그런데도 얹으면 termsOf 의 어미절단이 `신고`(위키 1,174쪽 중 51.5%)·`제출`(51.8%) 같은
+//      2글자 조각을 만들어 **코퍼스 절반의 점수를 함께 올린다** — `위험물 신고서 … 어디에 내요?`
+//      실측에서 상위 15건 중 11건이 교체되고 정작 `위험물 반입 및 하역`이 목록에서 **사라졌다**.
+//   ⇒ 재진술이 실제로 가진 정보는 "어느 낱말이 무엇을 가리키는가"라는 **문장 수준**의 것이라,
+//     낱말 자루(bag-of-words) 검색이 아니라 **문장을 읽는 두 LLM 호출**에 넘긴다:
+//     ⓐ expandQueryTerms(질의확장) — 지시어가 풀린 문장을 보고 **새 법률 용어**를 뽑는다. 그 결과는
+//        기존 그대로 allTerms 에 합류하므로 "확장어 합류 지점 한 갈래 추가"라는 목표는 그대로 지킨다.
+//     ⓑ decideClarify(되묻기 판단) — 이미 정해진 조건을 다시 묻지 않게 한다.
+//   ⚠키 의존이 새로 생기는 것은 아니다: 이해확인 자체가 키 없으면 발동하지 않으므로(fail-open null),
+//     `restate` 가 존재한다는 것은 곧 키가 있다는 뜻이다.
 // ★실측 발견(2026-08-14, H-37 F3): 8000(8초)으로 두면 QUERY_EXPAND_TIMEOUT_MS(:590 주석)와
 //   같은 유형으로 Gemini API가 매 호출 400(Manually set deadline 8s is too short. Minimum
 //   allowed deadline is 10s.)으로 거부해 이해확인이 프로덕션에서 한 번도 발동한 적이 없었다
@@ -2066,23 +2127,28 @@ function josaEuro(word) {
  * 요청 바디의 `ctx`(대기 상태)를 **신뢰하지 않고** 정규화한다 — 클라이언트가 그대로 되돌려 보내는
  * 값이라 변조·재생·구버전이 섞여 올 수 있다(설계 §9.1 #17).
  *  - `uc.rounds`는 0..UNDERSTAND_MAX_ROUNDS 로 clamp, `uc.state`는 열거값만.
+ *  - `uc.restate`(§17 신규)는 **`state==='confirmed'`일 때만** 살린다 — 확인받지 않은 재진술을
+ *    검색에 쓰면 "사용자가 승인한 뜻"이라는 이 값의 근거가 사라진다. 값 자체도 생성 시점과 **같은
+ *    후검사**(restateAllowed: 조문·지시어·빈칸형)를 다시 통과해야 한다(변조·재생 방어).
  *  - `scope`는 **자산(vessel_doc_tree.json)에 실재하는 라벨**만, 깊이는 트리 깊이까지. 하나라도
  *    어긋나면 scope 를 통째로 버린다(지어낸 경로로 검색어를 만들지 않는다).
  *  - `prof.decided[]`는 축당 1개·`axis`는 프로필 필드명만·`use`는 accepted|rejected 만.
  *    `label`이 지금 프로필 값과 다르면 **그 항목만** 버린다(대기 중 프로필 수정 — §9.1 #11·#12).
- * 예: normalizeAskCtx({uc:{rounds:99}}) → {uc:{rounds:3,state:'none'}, scope:[], prof:{decided:[]}}
+ * 예: normalizeAskCtx({uc:{rounds:99}}) → {uc:{rounds:3,state:'none',restate:''}, scope:[], prof:{decided:[]}}
  * @param {object} raw - req.body.ctx (없어도 된다)
  * @param {object} profile - normalizeProfile()의 결과(라벨 대조용)
  * @returns {{uc:{rounds:number,state:string}, scope:Array<{axis:string,label:string}>, prof:{decided:Array}}}
  * [연계] ← routes/legal.js POST /api/legal/ask. → understandConfirmStep·scopeNarrowStep·profileConfirmStep.
  */
 function normalizeAskCtx(raw, profile) {
-  const empty = { uc: { rounds: 0, state: 'none' }, scope: [], prof: { decided: [] } };
+  const empty = { uc: { rounds: 0, state: 'none', restate: '' }, scope: [], prof: { decided: [] } };
   try {
     const c = (raw && typeof raw === 'object') ? raw : {};
     const uc = (c.uc && typeof c.uc === 'object') ? c.uc : {};
     const rounds = Math.min(UNDERSTAND_MAX_ROUNDS, Math.max(0, parseInt(uc.rounds, 10) || 0));
     const state = UNDERSTAND_STATES.includes(uc.state) ? uc.state : 'none';
+    // [§17] 확인된 재진술만 나른다 — 확인 전(state!=='confirmed')이면 값이 있어도 버린다.
+    const restate = state === 'confirmed' ? restateAllowed(uc.restate) : '';
 
     // scope: 자산 라벨과 깊이 검사(상한이 아니라 **데이터 정합성 검사** — 설계 §5.4)
     let scope = Array.isArray(c.scope) ? c.scope.slice(0, vesselTreeDepth()) : [];
@@ -2108,7 +2174,7 @@ function normalizeAskCtx(raw, profile) {
         seen.add(d.axis);
         return true;
       });
-    return { uc: { rounds, state }, scope, prof: { decided } };
+    return { uc: { rounds, state, restate }, scope, prof: { decided } };
   } catch (_) {
     return empty;
   }
@@ -2129,7 +2195,7 @@ function normalizeAskCtx(raw, profile) {
  */
 function ctxNextOf(ctx) {
   if (!ctx) return null;
-  const uc = ctx.uc || { rounds: 0, state: 'none' };
+  const uc = ctx.uc || { rounds: 0, state: 'none', restate: '' };
   const scope = ctx.scope || [];
   const prof = ctx.prof || { decided: [] };
   const has = uc.rounds > 0 || uc.state !== 'none' || scope.length > 0 || prof.decided.length > 0;
@@ -2290,19 +2356,21 @@ async function understandConfirmStep(query, uc, enabled) {
     if (!m) return null;
     const obj = JSON.parse(m[0]);
     if (!obj || obj.clear !== false) return null;
-    // ctx: 클라이언트가 **질의에 아무것도 붙이지 않고** 이 값만 되돌려 보낸다(§3.2 ctxNext).
-    const yes = { label: UNDERSTAND_YES, hint: '이 뜻이 맞으면 그대로 답변을 만들어 드려요',
-      ctx: { uc: { rounds: uc.rounds, state: 'confirmed' } } };
-    const no = { label: UNDERSTAND_NO, hint: '어떤 상황인지 조금 더 구체적으로 적어 주세요',
-      ctx: { uc: { rounds: uc.rounds + 1, state: 'none' } }, act: 'ask' };
-    const restate = clarifyStr(obj.restate, 120);
-    if (!restate || RESTATE_BAN.test(restate)) return null;   // 법 이야기를 시작한 재진술은 버린다
-    // 지시어를 그대로 둔 채 어미만 바꾼 재진술은 확인해도 뜻이 안 좁혀진다(기준5) — 판정을 버린다.
-    if (RESTATE_DEICTIC.test(restate)) return null;
-    // 의문사만 끼워 넣은 빈칸형 재진술도 같다(기준6) — 확인해도 정보 이득이 0이다. 버리고 통과.
-    if (RESTATE_BLANK.test(restate)) return null;
+    // 서버측 후검사 3종(§4.2) — 조문·형량이 섞였거나(RESTATE_BAN), 지시어를 그대로 둔 채 어미만
+    // 바꿨거나(RESTATE_DEICTIC, 기준5), 의문사만 끼워 넣은 빈칸형(RESTATE_BLANK, 기준6)이면 그
+    // 판정을 **버린다**(= 확인하지 않고 기존 흐름으로 통과). 한 군데(restateAllowed)로 모아 둔 이유는
+    // 사용자가 "네"를 눌러 되돌아온 값도 §17에서 **같은 기준**으로 다시 걸러야 하기 때문이다.
+    const restate = restateAllowed(obj.restate);
+    if (!restate) return null;
     // 원 질문을 그대로 되풀이하면 확인의 의미가 없다(사용자 확정 (나)) — 같은 문장이면 물러난다.
     if (zoneFlat(restate) === zoneFlat(query)) return null;
+    // ctx: 클라이언트가 **질의에 아무것도 붙이지 않고** 이 값만 되돌려 보낸다(§3.2 ctxNext).
+    // [§17] "네"에는 재진술 원문을 함께 싣는다 — 사용자가 승인한 그 문장이 다음 요청에서 검색
+    //   확장어가 된다(`search(opts.restate)`). "아니요"에는 싣지 않는다(승인받지 못한 뜻이다).
+    const yes = { label: UNDERSTAND_YES, hint: '이 뜻이 맞으면 그대로 답변을 만들어 드려요',
+      ctx: { uc: { rounds: uc.rounds, state: 'confirmed', restate } } };
+    const no = { label: UNDERSTAND_NO, hint: '어떤 상황인지 조금 더 구체적으로 적어 주세요',
+      ctx: { uc: { rounds: uc.rounds + 1, state: 'none' } }, act: 'ask' };
     return {
       answer: '제가 이해한 게 맞는지 먼저 확인할게요.',
       note: UNDERSTAND_NOTE,
@@ -2579,6 +2647,7 @@ function withAssumedNotice(answer, assumed) {
 module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
+  restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
   normalizeAskCtx, ctxNextOf, normalizeProfile,
   profileAcceptedLabels, zoneQueryWithProfile, understandConfirmStep, scopeNarrowStep,
   profileConfirmStep, withAssumedNotice, loadVesselTree, vesselNodeAt, vesselTreeDepth };

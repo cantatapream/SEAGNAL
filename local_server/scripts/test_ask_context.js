@@ -247,7 +247,7 @@ console.log('\n[T16][#18·#22] 확인 겹침 불가 — 한 요청에 confirm �
   ok(`확인 카드를 내는 ${calls}개 지점이 전부 return 과 함께다`, calls > 0 && calls === returns, `calls=${calls} returns=${returns}`);
   ok('확인 응답은 done 한 줄로 즉시 끝난다(res.end)', /const writeConfirm = \(step\) => \{[\s\S]{0,900}?res\.end\(\);/.test(ROUTES_SRC));
   ok('트리 확인이 위키 확인보다 먼저다(설계 §3.4 순서)',
-    ROUTES_SRC.indexOf('zoneTreeStep(legalRetriever.zoneQueryWithProfile') < ROUTES_SRC.indexOf('decideClarify(q, contextPages)'));
+    ROUTES_SRC.indexOf('zoneTreeStep(legalRetriever.zoneQueryWithProfile') < ROUTES_SRC.indexOf('decideClarify(q, contextPages'));
   ok('이해확인이 트리 게이트보다 먼저다(사용자 확정 (가))',
     ROUTES_SRC.indexOf('understandConfirmStep(q, ctx.uc') < ROUTES_SRC.indexOf('zoneTreeStep(legalRetriever.zoneQueryWithProfile'));
   ok('상황질문은 트리가 null 일 때만 — search 뒤에 있다(설계 §5.3 R2)',
@@ -492,7 +492,9 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
   ok('실측 사례 ②를 잡는다', R.RESTATE_DEICTIC.test('그것을 처리하지 않으면 어떤 결과가 발생하는지 궁금하신가요'));
   ok('제대로 풀어쓴 재진술은 통과시킨다',
     !R.RESTATE_DEICTIC.test('구명조끼 비치를 언제까지 해야 하는지 알고 싶다'));
-  ok('그 후검사가 실제로 판정 폐기에 쓰인다', /if \(RESTATE_DEICTIC\.test\(restate\)\) return null;/.test(H37_CODE));
+  // ⚠2026-08-15 §17: 후검사 3종은 restateAllowed() 한 군데로 모았다(사용자가 "네"를 눌러 되돌아온
+  //   재진술도 **같은 기준**으로 다시 걸러야 하기 때문). 소스 문자열 대조 대신 **동작**으로 고정한다.
+  ok('그 후검사가 실제로 판정 폐기에 쓰인다(동작)', R.restateAllowed('그것을 언제까지 해야 하는지 알려주세요') === '');
   ok('빈칸형을 잡는 후검사가 있다', typeof R.RESTATE_BLANK !== 'undefined');
   ok('실측 빈칸형을 잡는다', R.RESTATE_BLANK.test('무엇을 신고해야 하는지 알고 싶다'));
   ok('의문사 목록 전체를 잡는다',
@@ -503,8 +505,11 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       '어선 정기검사를 언제 받아야 하는지 알고 싶다',
       '위판장 신고를 온라인으로 할 수 있는지 알고 싶다']
       .every(s => !R.RESTATE_BLANK.test(s) && !R.RESTATE_DEICTIC.test(s)));
-  ok('그 후검사가 실제로 판정 폐기에 쓰인다', /if \(RESTATE_BLANK\.test\(restate\)\) return null;/.test(H37_CODE));
-  ok('RESTATE_BAN 후검사는 그대로 살아 있다(셋 다 건다)', /RESTATE_BAN\.test\(restate\)/.test(H37_CODE));
+  ok('그 후검사가 실제로 판정 폐기에 쓰인다(동작)', R.restateAllowed('무엇을 신고해야 하는지 알고 싶다') === '');
+  ok('RESTATE_BAN 후검사는 그대로 살아 있다(셋 다 건다)',
+    R.restateAllowed('제32조 위반이면 과태료 100만원') === ''
+    && /RESTATE_BAN\.test\(t\)/.test(H37_CODE)
+    && /const restate = restateAllowed\(obj\.restate\);/.test(H37_CODE));
   // (5) ④조사 — 받침으로 고른다
   ok('조사 헬퍼가 있다', typeof R.josaEuro === 'function');
   ok('받침 없음 → 로', R.josaEuro('알고 싶다') === '로');
@@ -523,6 +528,95 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     && D.includes('정당한 재진술도 일부 버린다'));
   ok('설계문서 §9.1 에 표 변화 없음이 명시돼 있다', D.includes('이 표는 그대로다(행 추가·삭제 없음)'));
 }
+
+// ── T26 [§17]. 확인된 재진술이 실제로 하류(검색·되묻기)에 도달한다 ────────────────────
+//   5차 프로덕션 재검증의 마지막 발견: 재진술에 "네"를 눌러도 **스위치 off 와 똑같은 답**이 나왔다
+//   (재진술이 query 에도 검색에도 전혀 안 실렸기 때문). 이 절이 그 경로를 고정한다.
+//   ★고정하는 것 3가지: ①재진술이 ctx 로 왕복하되 **신뢰 규약(후검사)을 다시 통과**해야 산다
+//     ②재진술은 **질의확장·되묻기판단 프롬프트**로만 들어가고 낱말을 직접 얹지 않는다(실측 근거는
+//     설계 §17) ③재진술이 없으면 두 프롬프트가 **바이트 동일**하다(R0).
+//   ⚠Gemini 호출은 stub 으로 가로챈다 — 키 없이 결정론적으로 돌아야 하기 때문(이 파일의 규약).
+(async () => {
+  console.log('\n[T26][§17] 확인된 재진술 → 검색·되묻기 도달');
+  const gemini = require(path.join(SRV, 'services', 'gemini_client.js'));
+  const realHas = gemini.hasAnyKey, realCall = gemini.callGemini;
+  const RE = '안전검사를 받지 않으면 어떻게 되는지 알고 싶다';
+  const Q = '안전검사 통지 받았는데 그거 안 받으면 어떻게 되나요?';
+  let seen = [];
+  gemini.hasAnyKey = () => true;
+  gemini.callGemini = async ({ contents, caller }) => {
+    seen.push({ caller, prompt: contents });
+    if (caller === 'Legal-QueryExpand') return { success: true, text: '["안전검사","정기검사"]' };
+    if (caller === 'Legal-Understand') return { success: true, text: JSON.stringify({ clear: false, restate: RE }) };
+    return { success: false };
+  };
+  try {
+    // (1) ctx 스키마 — 확인된 재진술만 산다
+    const conf = R.normalizeAskCtx({ uc: { rounds: 1, state: 'confirmed', restate: RE } }, { fields: {} });
+    ok('"네"를 받은 재진술은 ctx 로 이어진다', conf.uc.restate === RE);
+    ok('확인 전(state:none)이면 값이 있어도 버린다',
+      R.normalizeAskCtx({ uc: { state: 'none', restate: RE } }, { fields: {} }).uc.restate === '');
+    ok('ctxNext 가 재진술을 다음 라운드로 실어 나른다', R.ctxNextOf(conf).uc.restate === RE);
+    ok('빈 ctx 는 여전히 null 이다(R0 — 필드 자체를 안 싣는다)',
+      R.ctxNextOf(R.normalizeAskCtx(null, { fields: {} })) === null);
+    // (2) 위조 방어 — 되돌아온 값도 생성 때와 같은 후검사를 다시 통과해야 한다
+    const forged = s => R.normalizeAskCtx({ uc: { state: 'confirmed', restate: s } }, { fields: {} }).uc.restate;
+    ok('조문·형량을 끼워 넣은 위조 재진술은 버린다', forged('제32조 위반이면 과태료 100만원이다') === '');
+    ok('지시어가 남은 위조 재진술은 버린다', forged('그것을 언제까지 해야 하는지') === '');
+    ok('빈칸형 위조 재진술은 버린다', forged('무엇을 신고해야 하는지 알고 싶다') === '');
+    ok('길이 상한이 걸린다(프롬프트·화면에 그대로 실리는 값)', forged('가'.repeat(500)).length === 120);
+    ok('문자열이 아니면 무시한다', forged({ a: 1 }) === '' && forged(null) === '');
+    // (3) 확인 카드의 "네" 버튼이 재진술을 싣는다 / "아니요"는 안 싣는다
+    seen = [];
+    const card = await R.understandConfirmStep(Q, { rounds: 0, state: 'none' }, true);
+    const yes = card && card.clarify.options[0], no = card && card.clarify.options[1];
+    ok('확인 카드가 나온다(stub 판정)', !!(card && card.clarify));
+    ok('"네" 버튼의 ctx 에 재진술 원문이 실린다', yes.ctx.uc.state === 'confirmed' && yes.ctx.uc.restate === RE);
+    ok('"아니요" 버튼에는 안 실린다(승인받지 못한 뜻이다)', !no.ctx.uc.restate);
+    ok('카드 문구와 실어 보내는 값이 같은 문장이다', card.clarify.question.includes(yes.ctx.uc.restate));
+    // (4) 질의확장 프롬프트 — 재진술이 들어가고, 없으면 바이트 동일(R0)
+    seen = []; await R.expandQueryTerms(Q);
+    const eNone = seen[0].prompt;
+    seen = []; await R.expandQueryTerms(Q, RE);
+    const eWith = seen[0].prompt;
+    seen = []; await R.expandQueryTerms(Q, '제32조 위반이면 과태료 100만원이다');
+    const eBan = seen[0].prompt;
+    ok('재진술이 질의확장 프롬프트에 실린다', eWith.includes(RE));
+    ok('재진술 없으면 프롬프트가 오늘과 바이트 동일하다(R0)', eNone === eBan && !eNone.includes('확인해 줬다'));
+    // (5) 되묻기 판단 프롬프트 — 같은 규약
+    const CP = [{ law: '선박안전법', topic: '검사', body: '정기검사를 받지 아니한 자는 …' }];
+    seen = []; await R.decideClarify(Q, CP);
+    const cNone = seen[0].prompt;
+    seen = []; await R.decideClarify(Q, CP, RE);
+    const cWith = seen[0].prompt;
+    ok('재진술이 되묻기 판단 프롬프트에 실린다',
+      cWith.includes(RE) && cWith.includes('이미 정해 준 조건은 **다시 묻지 마라**'));
+    ok('재진술 없으면 질문 블록이 오늘과 바이트 동일하다(R0)',
+      cNone.includes('[질문]\n"' + Q + '"\n\n[근거자료]') && !cNone.includes('확인해 준 질문의 뜻'));
+    ok('되묻기 라운드 계산은 그대로다(재진술은 query 에 안 붙는다)',
+      Q.split(' — ').length - 1 === 0);
+    // (6) 재진술 낱말을 검색어로 직접 얹지 않는다(§17 실측 — 얹으면 검색이 뒤집혔다)
+    const s1 = await R.search(Q, { canonicalOnly: true });
+    const s2 = await R.search(Q, { canonicalOnly: true, restate: RE });
+    ok('같은 확장어면 검색 결과가 완전히 같다(= 낱말 직접 얹기 없음)',
+      JSON.stringify(s1.sources.map(x => [x.file, x.score])) === JSON.stringify(s2.sources.map(x => [x.file, x.score])));
+    // (7) 배선 — routes 가 스위치와 함께 넘긴다, query 에는 절대 안 섞는다
+    ok('스위치 off 면 재진술을 하류로 안 넘긴다(§9.1 #10)',
+      /const ucRestate = cfg\.understandConfirm \? \(ctx\.uc\.restate \|\| ''\) : '';/.test(ROUTES_CODE));
+    ok('검색에 넘긴다', /search\(qForSearch,\s*[\s\S]{0,80}restate: ucRestate/.test(ROUTES_CODE));
+    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate\)/.test(ROUTES_CODE));
+    ok('질의 문자열에는 어디서도 안 합친다(R2)',
+      !/q \+[^\n]*restate/i.test(ROUTES_CODE) && !/restate[^\n]*\+ q\b/i.test(ROUTES_CODE));
+    // (8) 설계문서와 코드가 어긋나지 않는다(T24·T25와 같은 대조)
+    const D26 = fs.readFileSync(path.join(SRV, 'knowledge', 'legal', '_dashboard',
+      'H37_understanding_confirm_design.md'), 'utf8');
+    ok('설계문서에 §17(재진술 하류 반영)이 있다', /## 17\./.test(D26));
+    ok('설계문서에 "낱말 직접 얹기 미채택" 실측 근거가 적혀 있다',
+      D26.includes('위험물반입및하역') && D26.includes('낱말을 직접 얹는 방식은 채택하지 않았다'));
+  } finally {
+    gemini.hasAnyKey = realHas; gemini.callGemini = realCall;
+  }
+})().then(() => {
 
 // ── T17 [#20]. 3회 백스톱(비동기 — 마지막에 돌린다) ───────────────────────────
 (async () => {
@@ -551,3 +645,5 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
   console.log(`\n${pass} PASS / ${fail} FAIL`);
   process.exit(fail ? 1 : 0);
 })();
+
+});   // ← T26(§17) 이 끝난 뒤 T17 을 돌린다(Gemini stub 이 T17 의 "키 없음" 검사와 겹치지 않게)
