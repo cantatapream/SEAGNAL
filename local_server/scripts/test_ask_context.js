@@ -548,6 +548,12 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     seen.push({ caller, prompt: contents });
     if (caller === 'Legal-QueryExpand') return { success: true, text: '["안전검사","정기검사"]' };
     if (caller === 'Legal-Understand') return { success: true, text: JSON.stringify({ clear: false, restate: RE }) };
+    if (caller === 'Legal-Clarify') return {
+      success: true, text: JSON.stringify({
+        needed: true, intro: '선박 종류에 따라 처벌이 달라집니다.', question: '어떤 종류의 선박인가요?',
+        options: [{ label: '어선', hint: '어선법 적용' }, { label: '그 밖의 선박', hint: '선박안전법 적용' }],
+      }),
+    };
     return { success: false };
   };
   try {
@@ -595,6 +601,18 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       cNone.includes('[질문]\n"' + Q + '"\n\n[근거자료]') && !cNone.includes('확인해 준 질문의 뜻'));
     ok('되묻기 라운드 계산은 그대로다(재진술은 query 에 안 붙는다)',
       Q.split(' — ').length - 1 === 0);
+    // (5b) D-트리(scopeNarrowStep) 확정 조건 — narrowLabels 도 restate와 같은 자리에 낀다(2026-08-15)
+    seen = []; await R.decideClarify(Q, CP, '', ['그 밖의 선박']);
+    const cNarrow = seen[0].prompt;
+    ok('narrowLabels가 되묻기 판단 프롬프트에 실린다',
+      cNarrow.includes('그 밖의 선박') && cNarrow.includes('[이미 확정된 조건]') && cNarrow.includes('다시 묻지 마라'));
+    ok('narrowLabels 없으면 프롬프트에 그 블록이 없다(R0)', !cNone.includes('이미 확정된 조건'));
+    // ★라이브 재현 버그: scopeNarrowStep 이 "그 밖의 선박"으로 확정해도 decideClarify 가 같은 축을
+    //   중복으로 되물었다 — narrowLabels 가 옵션 라벨과 완전일치하면 결정론적으로 버려야 한다.
+    const dup = await R.decideClarify(Q, CP, '', ['그 밖의 선박']);
+    ok('이미 확정된 라벨과 같은 선택지가 나오면 되묻기를 버린다', dup.needed === false);
+    const fresh = await R.decideClarify(Q, CP, '', ['수상레저기구']);
+    ok('겹치지 않는 narrowLabels는 되묻기를 막지 않는다', fresh.needed === true && fresh.options.length === 2);
     // (6) 재진술 낱말을 검색어로 직접 얹지 않는다(§17 실측 — 얹으면 검색이 뒤집혔다)
     const s1 = await R.search(Q, { canonicalOnly: true });
     const s2 = await R.search(Q, { canonicalOnly: true, restate: RE });
@@ -604,7 +622,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('스위치 off 면 재진술을 하류로 안 넘긴다(§9.1 #10)',
       /const ucRestate = cfg\.understandConfirm \? \(ctx\.uc\.restate \|\| ''\) : '';/.test(ROUTES_CODE));
     ok('검색에 넘긴다', /search\(qForSearch,\s*[\s\S]{0,80}restate: ucRestate/.test(ROUTES_CODE));
-    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate\)/.test(ROUTES_CODE));
+    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels\)/.test(ROUTES_CODE));
     ok('질의 문자열에는 어디서도 안 합친다(R2)',
       !/q \+[^\n]*restate/i.test(ROUTES_CODE) && !/restate[^\n]*\+ q\b/i.test(ROUTES_CODE));
     // (8) 설계문서와 코드가 어긋나지 않는다(T24·T25와 같은 대조)

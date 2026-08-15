@@ -524,6 +524,14 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-15 14:40 KST] ✅완료 — decideClarify 중복 되묻기 수정
+narrowLabels를 decideClarify()에 전달(restate와 같은 이중 안전장치: 프롬프트 지시+결정론적 완전일치 대조)해 scopeNarrowStep 확정 후 같은 축 중복 재질문을 억제. routes/legal.js 호출부 1줄 변경. test_ask_context.js에 신규 검증 5건 추가, 전체 196/196 PASS, verify_all.sh V2~V5+서버스모크 전량 통과. D→F→A(처벌 후속질문) 연결은 클라이언트의 '타이핑=맥락초기화' 정책(§9.1 #1, 의도적 설계)과 얽혀 있어 이번엔 미수정 — 설계 갈래 여럿이라 사용자 판단 대기로 남김. H37 설계문서 §18에 상세 기록. 다음: 배포 후 프로덕션 재검증 필요.
+
+
+### [2026-08-15 14:39 KST] 🟢착수 — decideClarify 중복 되묻기 수정
+라이브 검증에서 발견된 부수결함(scopeNarrowStep 확정 후 decideClarify가 같은 축을 중복 재질문) — narrowLabels를 decideClarify에 전달해 restate와 같은 방식(프롬프트 지시+결정론적 완전일치 대조)으로 억제.
+
+
 ### [2026-08-15 14:29 KST] ✅완료 — 안전검사 스코프 되묻기 프로덕션 검증 + H-37 3스위치 ON
 프로덕션(seagnal-server.fly.dev) 관리자 API로 3스위치(understandConfirm·scopeNarrow·profileConfirm) 전부 ON 전환 후 실키 다회대화 검증. ①scopeNarrow: '안전검사 안 받으면?' → 어선/수상레저기구/그 밖의 선박 되묻기 정상 발화, 하위 갈래까지 정상 진행 확인(오늘 수정 fix 검증 완료). 부수 발견(버그 아님): D-트리 확정 후 decideClarify()가 같은 축을 중복 되묻는 두 시스템 미연동 — 별도 트랙으로 기록만. ②understandConfirm: 문장 내 지시어 해소 O(재진술 카드 정상), 문장 밖 지시어는 설계대로 조용히 패스. ③D→F→A(처벌) 후속질문 연결 미배선을 실측 재확인 — '그럼 처벌은 얼마예요?' 질문에 안전검사 주제가 안 이어지고 무관한 법 6개 나열. 별도 설계 필요, 이번엔 미착수. exposure는 off 유지(실사용자 미노출) 상태에서 3스위치는 ON으로 전환·유지(사용자 확정). MASTER_PLAN.md H-37 절에 전체 기록 갱신. profileConfirm 실라이브 시나리오 검증은 다음 과제로 남김.
 

@@ -701,15 +701,22 @@ function clarifyStr(v, max) {
  *   풀린 문장을 읽어야 "이미 정해진 조건을 또 묻는" 되묻기를 피할 수 있다(기준3의 확장). 재진술이
  *   없으면 프롬프트가 **오늘과 문자 그대로 같다**(R0). 재진술은 조문·수치가 섞이면 이미 버려진 값이라
  *   (RESTATE_BAN) 이 프롬프트에 법 이야기를 새로 들여오지 않는다.
+ * ★(2026-08-15) `scopeNarrowStep`(D-트리 상황질문)이 확정한 조건도 같은 방식으로 넘긴다 —
+ *   D-트리는 `ctx.scope`로만 확정 사실을 들고 있고 그게 `query` 문자열엔 절대 안 섞이므로(R2),
+ *   여기 넘기지 않으면 이 함수는 그 확정을 전혀 모른다. 라이브 재현: "안전검사 안 받으면?" →
+ *   D-트리가 "그 밖의 선박"으로 좁혀도, 이 함수가 곧바로 "어선/수상레저기구/그 밖의 선박"을 또
+ *   물었다(같은 축 중복 되묻기). restate와 마찬가지로 프롬프트에 "다시 묻지 마라" 지시를 더하고,
+ *   모델이 그래도 어기면(라벨이 그대로 다시 나오면) 결정론적으로 버린다(아래 코드 참고).
  * @param {string} query - 사용자 질문
  * @param {Array} contextPages - search()의 contextPages(위키 원문 body 포함)
  * @param {string} [restate] - 확인된 재진술(ctx.uc.restate). 없거나 규약 위반이면 무시된다.
+ * @param {string[]} [narrowLabels] - 이미 확정된 조건 라벨(ctx.scope·프로필). 없으면 프롬프트·판정 모두 오늘과 동일(R0).
  * @returns {Promise<{needed:boolean, intro?:string, question?:string, options?:Array<{label:string,hint:string}>}>}
  * [연계] ← routes/legal.js POST /api/legal/ask 가 synthesizeAnswerStream() **전에** 호출한다.
  *          needed:true면 종합답변을 아예 만들지 않고 done 이벤트의 clarify 필드로 내려보낸다.
  *        → client/js/ai-chat/ai_chat.js clarifyHTML(선택지 버튼) → 버튼 클릭 시 "원래질문 — 라벨"로 재질의.
  */
-async function decideClarify(query, contextPages, restate) {
+async function decideClarify(query, contextPages, restate, narrowLabels) {
   if (!gemini.hasAnyKey() || !contextPages || !contextPages.length) return CLARIFY_NONE;
   // ★재되묻기 무한루프 차단(프롬프트 기준3의 결정론적 백스톱): 선택지 버튼으로 되돌아온 질의는
   // 반드시 CLARIFY_JOINER 를 달고 오므로, 그 개수가 곧 **이미 지나온 되묻기 라운드 수**다.
@@ -728,10 +735,14 @@ async function decideClarify(query, contextPages, restate) {
   const confirmedBlock = confirmed ? `\n\n[사용자가 확인해 준 질문의 뜻]\n"${confirmed}"\n` +
     `- 질문의 지시어("그거"·"그건" 등)가 가리키는 것은 이 문장을 따른다.\n` +
     `- 이 문장이 이미 정해 준 조건은 **다시 묻지 마라**(기준3과 같은 취지).` : '';
+  // (2026-08-15) D-트리 상황질문(scopeNarrowStep)이 이미 확정한 조건 — restate와 같은 자리에 낀다.
+  const narrow = (narrowLabels || []).filter(Boolean);
+  const narrowBlock = narrow.length ? `\n\n[이미 확정된 조건]\n${narrow.join(', ')}\n` +
+    `- 이 조건은 이미 답이 정해졌다. **같은 구분을 다시 묻지 마라**(기준3과 같은 취지).` : '';
   const prompt = `너는 대한민국 해양수산 법령 챗봇의 "되묻기 판단기"다. 질문에 답하지 말고, 사용자에게 조건을 되물어야 하는지만 판단하라.
 
 [질문]
-"${query}"${confirmedBlock}
+"${query}"${confirmedBlock}${narrowBlock}
 
 [근거자료]
 ${block}
@@ -783,6 +794,11 @@ ${block}
     //   아니라 코드로 한다. 라벨은 사용자가 실제로 눌러 질의에 그대로 붙은 문자열이라 완전일치 대조가
     //   성립한다(패러프레이즈 대조가 아니라 오탐이 없다).
     if (options.some(o => String(query || '').includes(o.label))) return CLARIFY_NONE;
+    // ★(2026-08-15) 위와 같은 결정론적 백스톱을 narrowLabels 에도 건다 — narrowBlock(프롬프트
+    //   지시)만 믿으면 restate 때와 같은 실패모드(모델이 지시를 어긴다)가 그대로 반복될 수 있다.
+    //   narrowLabels 는 사용자가 D-트리 버튼을 실제로 눌러 ctx.scope 에 그대로 박힌 문자열이라
+    //   완전일치 대조가 성립한다(위 라벨과 같은 근거).
+    if (narrow.some(nl => options.some(o => o.label === nl))) return CLARIFY_NONE;
     return { needed: true, intro: clarifyStr(obj.intro, 200), question, options };
   } catch (_) {
     return CLARIFY_NONE;

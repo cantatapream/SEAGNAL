@@ -908,7 +908,10 @@ router.post('/api/legal/ask', async (req, res) => {
     // 판단이 실패하거나 애매하면 조용히 {needed:false} → 아래 기존 흐름 그대로.
     // [H-37 §17] 확인된 재진술을 함께 넘긴다 — 지시어가 풀린 문장을 읽어야 "사용자가 이미 확인해
     //   준 조건"을 다시 묻지 않는다(5차 프로덕션 재검증에서 "네" 뒤에 off 와 똑같은 되묻기가 뜬 원인).
-    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate);
+    // (2026-08-15) D-트리(scopeNarrowStep)가 확정한 조건도 함께 넘긴다 — 안 넘기면 decideClarify가
+    //   그 확정을 전혀 모른 채 같은 축(예: 선박종류)을 중복으로 되묻는다(라이브 재현, narrowLabels는
+    //   위에서 이미 계산해 둔 것을 그대로 재사용 — R0: ctx.scope·profile이 없으면 빈 배열이라 무변화).
+    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels);
 
     // ③ [H-37 §7.4] 프로필 확인 — 이 되묻기가 묻는 축을 프로필이 이미 알고 있으면 되묻는 대신
     //    "저장된 정보로 답할까요?"를 **그 축에 대해서만** 확인한다(축 단위, 사용자 확정 (자)).
