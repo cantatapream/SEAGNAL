@@ -524,6 +524,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-15 12:58 KST] 🟢착수 — 안전검사 질문의 되묻기 경로 확인 착수
+사용자 지적('그 외' 클릭시 세분화 안 됨) 검증 — '안전검사 그거 안 받으면?' 류 질문이 실제로 scopeNarrowStep(D 진짜 트리, 세분화 보장)을 타는지, decideClarify(AI 즉석판단, 세분화 미보장)를 타는지 코드+로컬 재현으로 확인. scopeNarrowStep 발동 안 하면 왜 안 하는지(발동조건 미충족?) 원인 규명.
+
+
 ### [2026-08-15 12:56 KST] ✅완료 — CLARIFY_OPTION_MAX 3→10 확장 완료
 ① 서버 상수: legal_retriever.js:647 CLARIFY_OPTION_MAX 3→10. 사용처 3곳(decideClarify:763 · clarifyFromZoneTree:2511 · scopeNarrowStep:1583)은 전부 같은 상수를 slice로 쓰므로 코드 변경 없이 함께 확장됨.
 ② 프롬프트: decideClarify 판단기준5 '선택지는 2~3개' → '근거자료에 실제로 적힌 구분만큼 필요한 만큼만, 최대 10개까지, 개수를 채우려고 근거 없는 선택지를 보태지 마라(대개 2~3개면 충분)'. 10개 강제 아님. 낡은 주석 3곳('2~3개')도 정정(legal_retriever.js:27,678 · ai_chat.js:2681).
