@@ -537,6 +537,14 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-16 18:07 KST] ✅완료 — 네이버 API HUB 키 발급·배포 완료, 실연동은 네트워크 차단으로 대기
+사용자가 NAVER API HUB(console.ncloud.com) 애플리케이션(SEAGNAL) 등록 완료 — Client ID/Secret 발급. ①local_server/.env에 안전 저장(gitignore 대상) ②.env.example에 자리표시자 커밋·푸시 ③사용자가 Fly.io 대시보드에서 직접 Set Secret+Deploy까지 완료 확인(운영서버 seagnal-server에 NAVER_CLIENT_ID/SECRET 반영됨). 단, 이 세션 환경은 egress 정책상 naver.com/ncloud.com/ntruss.com 전부 차단돼 있어 실제 API 호출 코드 작성·테스트는 미착수 — 사용자에게 Custom 네트워크 허용 도메인 추가(law.go.kr 건과 동일 방식) 안내함, 다음 세션(네트워크 열린 뒤)에서 §4-U(모르는 구어 해소) 실연동 진행 예정. §4-U 설계 논의(3단 필터링·오타변환 전처리·스코어 임계치 발동·재질문 1회 한정 등)는 이 대화에서 상세 확정돼 별도 파일 `_dashboard/NAVER_GUEO_PENDING_MERGE.md`에 전부 기록해뒀음(다른 계정 Phase F 작업과 겹칠 수 있어 MASTER_PLAN.md·_CHATBOT.md 직접 반영은 보류 — 그 파일 참고해 나중에 반영할 것).
+
+
+### [2026-08-02 18:38 KST] 🟢착수 — Phase G 탐지계층 착수 — 변동감지 baseline(오프라인분)
+사용자 지시로 다른 계정(Phase F 앱 실배선 진행 중)과 겹치지 않는 Phase G(H-29 §1~4·8~12 탐지 계층)를 이 계정이 맡음. Phase F와 파일 충돌 없음 확인(다른 계정=client/js/ai-chat·legal_retriever.js·routes/legal.js / 이쪽=_dashboard/loop/watch_*·_dashboard/watch/·raw/**/_meta.json). H-29 §5~7(승인 방 UI)은 Phase F 관리자 UI 영역이라 이번 범위에서 제외. ★이 환경에서 law.go.kr이 프록시 정책으로 차단됨(CONNECT 403 실측) — 네트워크 필요분(법령ID 수집·광역스캔·예고본)은 보류하고, 오프라인으로 가능한 baseline 스냅샷(로컬 _meta.json+_admrul.json 840건 집계)·큐 스키마·조문→위키 역매핑·검증 하네스부터 착수. 실측 확인: 기준법 73개=법률/시행령/시행규칙 208문서+위임고시 632건=840건, 법령ID는 15_관련타부처 63건만 보유하고 기준법은 0건(H-29 §11 구멍 실재 확인). ★후속(2026-08-16): 이후 세션이 §4-U(네이버 검색 연동) 설계 논의로 전환돼 이 착수분의 실제 코드·baseline 파일 작업은 진행하지 못함 — 다음 세션에서 여기부터 이어갈 것.
+
+
 ### [2026-08-16 11:57 KST] ✅완료 — collection_hole Opus 전수재검증 완료(10/10그룹)
 74법 589건 재검증(Opus·effort high, lsDelegated API+WebSearch 교차확인). 결과: a_genuine(진짜원문공백)108·b_structural(구조적접근불가)46·c_uncollected(실은수집가능한데놓침)120·resolved(이미해소)308·unclear7. action: recollect117건(진짜재수집백로그)·wiki_sync21건(이미수집됐는데위키미반영)·reclassify_note12건. 방법론 발견: lsDelegated API가 별표(부속서) 위임을 인덱싱 안 함(구조적허점)·항로표지법 raw 5종이 폐지본이었음·자연유산법 raw파서가 목단위 텍스트 누락. 감사파일 오염 1건(어촌ㆍ어항법↔해양환경관리법) 발견했으나 이미 자체정정돼있어 손실없음 확인. 리포트 10개 _dashboard/collection_hole_reclass_report_g0~9.md 커밋완료. 다음: recollect 117건 백로그 처리 여부 사용자 확인 필요(방금 대화로 보고).
 
