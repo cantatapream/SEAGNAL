@@ -201,12 +201,13 @@ function normConfig(c) {
     understandConfirm: c.understandConfirm === true,
     scopeNarrow: c.scopeNarrow === true,
     profileConfirm: c.profileConfirm === true,
-    naverTermLookup: c.naverTermLookup === true,
+    naverTermLookup: c.naverTermLookup !== false,
   };
 }
 // POST /api/legal/config 가 받는 boolean 스위치 목록(위 normConfig 와 1:1).
-// naverTermLookup(§4-U 모르는 구어 해소)도 같은 관례로 **기본 false** — 켜기 전 NAVER_CLIENT_ID/
-// SECRET 이 그 환경에 실제로 있는지 확인할 것(없으면 스위치가 켜져 있어도 단계가 조용히 물러난다).
+// naverTermLookup(§4-U 모르는 구어 해소)은 2026-08-16 사용자 확정으로 **기본 true**로 전환(다른
+// 스위치와 반대 관례) — 관리자가 명시적으로 {naverTermLookup:false}를 보내야만 꺼진다(킬스위치는
+// 유지). 이 환경에 NAVER_CLIENT_ID/SECRET이 없으면 스위치가 켜져 있어도 단계가 조용히 물러난다.
 const BOOL_SWITCHES = ['answerCanonicalOnly', 'understandConfirm', 'scopeNarrow', 'profileConfirm', 'naverTermLookup'];
 router.get('/api/legal/config', (req, res) => {
   res.json(Object.assign({ ok: true }, normConfig(readConfig())));

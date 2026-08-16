@@ -536,6 +536,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-16 23:24 KST] ✅완료 — naverTermLookup 기본값 true로 전환(사용자 확정)
+사용자 지시: exposure를 admin전용으로 설정해 관리자화면에서만 노출시킬 예정이니, naverTermLookup 자체는 '자동으로 켜져있는 상태'를 유지하도록 코드 기본값을 바꿔달라는 결정. routes/legal.js normConfig: naverTermLookup: c.naverTermLookup === true → !== false 로 전환(관리자가 명시적으로 false를 보내야 꺼짐, 킬스위치는 유지). legal_retriever.js 상단 주석·test_naver_term_step.js T0 단언문도 함께 갱신. node --check 통과, test_naver_term_step.js 95/95·test_ask_context.js 200/200 재통과. ⚠주의(사용자에게 전달함): exposure는 채팅버튼(FAB) 노출 여부만 가리는 클라이언트 게이트고 /api/legal/ask 서버단에는 admin 체크가 없음 — 그리고 이 코드변경은 배포된 서버가 이 커밋을 반영해야 실제로 적용됨(git push만으론 즉시 반영 안 될 수 있음, 배포 파이프라인 확인 필요). 실키(NAVER_CLIENT_ID/SECRET)가 그 서버 환경에 없으면 스위치가 켜져도 조용히 물러남(안전).
+
+
 ### [2026-08-16 23:09 KST] ✅완료 — 격리 worktree 세션 — §4-U 조사·보고 완료 + unknownTermOf 조사 10건 보강(스위치는 계속 off)
 오케스트레이터 지시로 §4-U 현재상태 조사·보고 + §5-D '남은 것' 3가지 확인. ①프로덕션 화면 종단검증: 미착수(그대로 남음, 지시로 스위치 전환 자체를 안 함). ②routes 실HTTP 스위트: 부분진행 — 이 worktree에서 로컬서버 실제 기동(포트는 config/server_config.js 하드코딩 3001, PORT env 무시됨 주의) 후 POST /api/legal/ask 실HTTP로 스위치on/off 응답 바이트동일(R0) 확인 + 기형 ctx.nu 로도 크래시 없음 확인. 다만 이 세션엔 네이버·Gemini 실키가 없어(.env 자체 없음) happy path는 여전히 mock 수준 — 새 상설 HTTP 스위트 파일은 만들지 않음(실키 없이는 착시 커버리지라 판단). ③unknownTermOf 잔여오탐: 신규 발견 — NAVER_JOSA_TAIL에 없던 조사(한테·께서·밖에·조차·마저·치고·커녕·뿐만·더러·이며) 10종이 '선장한테'·'허가증밖에' 등 위키가 이미 아는 명사를 오탐시키던 것을 실측 확인·수정(legal_retriever.js, 순서 주의사항 주석 포함). test_naver_term_step.js D4 블록에 회귀 10건 추가(85→95 PASS/0 FAIL), test_ask_context 200/0 재확인, node --check·check_paths 통과. 남은 오탐(존댓말 어미 -십니다·불규칙활용 몰라요·받침없는 명사+홑며)은 조사가 아니라 어미축 문제라 이번 범위 밖으로 남겨둠(오탐 방향은 안전, 사용자가 아니요 누르면 끝남). 결론: 스위치는 여전히 켜면 안 됨 — ①이 통째로 비어있다. 다음 세션은 실키+실서버 갖춘 상태에서 ①부터. 상세 표는 NAVER_GUEO_PENDING_MERGE.md §5-E. 수정파일: local_server/services/legal_retriever.js(NAVER_JOSA_TAIL), local_server/scripts/test_naver_term_step.js(회귀 10건).
 

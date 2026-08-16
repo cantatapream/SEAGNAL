@@ -66,7 +66,7 @@ console.log('\n[T0] R0 — 스위치 off·맥락 미전송이면 오늘과 동�
   ok('기본 nu 는 ctxNext 에 안 실린다(done JSON 바이트 동일)', R.ctxNextOf(empty) === null);
   ok('nu 가 기본값이면 ctxNext 에 nu 필드 자체가 없다',
     R.ctxNextOf(R.normalizeAskCtx({ uc: { rounds: 1, state: 'none' } }, { fields: {} })).nu === undefined);
-  ok('routes 스위치 기본 false', /naverTermLookup: c\.naverTermLookup === true,/.test(ROUTES_SRC));
+  ok('routes 스위치 기본 true(명시적 false만 꺼짐)', /naverTermLookup: c\.naverTermLookup !== false,/.test(ROUTES_SRC));
   ok('routes BOOL_SWITCHES 에 등록', /'profileConfirm', 'naverTermLookup'\]/.test(ROUTES_SRC));
 
   // ── T1. §4-6 ① 뜻을 찾았다 → 확인 카드 ────────────────────────────────────────
