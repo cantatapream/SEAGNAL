@@ -536,6 +536,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-17 02:31 KST] ✅완료 — 19차 감사 1차 배치 커밋 + 세션한도 8그룹 재개 디스패치
+19차 감사 10그룹 중 8그룹이 세션한도(resets 5:10pm UTC)로 부분실패(총 32법 실패, 42법 완료). 완료분 커밋(e73955b19). 사용자가 한도 초기화 확인해줘서 8그룹 전부 resumeFromRunId로 재개 디스패치: g0=w4qkga9qz(wf_2229c382-a95)·g1=w8khgxu4e(wf_2c98ae9d-b13)·g3=w35eyxs6d(wf_f72f5e68-966)·g4=woz38qxo4(wf_978dce71-6b8)·g6=wxxhgsvrk(wf_d57d5094-d7d)·g7=wcm1n6umc(wf_ed1e5926-2b7)·g8=wp8eetnpm(wf_f916ccfd-de1)·g9=wpb68hhyo(wf_d8ee2e00-3f5). g2·g5는 아직 결과 미도착(진행중으로 추정). 완료된 42법 캐시 재사용, 실패한 32법만 재실행.
+
+
 ### [2026-08-16 23:55 KST] 🟢착수 — 19차 감사 착수
 사용자 지시(계정만료 전 최대한 진행+논스톱)에 따라 18차 완료 즉시 19차 감사 착수. audit18_groups.json(lean/rich 모드 태그 포함) 그대로 재사용, round만 19로 전달. 10그룹 Workflow 동시 디스패치.
 
