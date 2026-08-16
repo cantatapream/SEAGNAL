@@ -547,6 +547,9 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 **켜는 법**: `POST /api/legal/config {"naverTermLookup":true}`(관리자 토큰). 켜기 전에 그 환경에 `NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET`이 실제로 있는지 확인할 것 — 없으면 스위치가 켜져 있어도 단계가 조용히 물러난다(fail-open).
 **다음**: 실키 환경에서 스위치 on 하고 대표 질문 몇 개(깔때기·뽀짝이 등)로 프로덕션 종단 검증 → 뜻 후보 품질 보고 → 문제 없으면 `_CHATBOT.md` §4-U·`MASTER_PLAN.md` 정식 반영 후 `NAVER_GUEO_PENDING_MERGE.md` 정리.
 
+### [2026-08-16 21:16 KST] 🟢착수 — G6 재수집 백로그 착수
+collection_hole_reclass_report_g6.md action=recollect 15건 처리 시작 (해양조사법 2, 해상교통안전법 2, 수산업법 5, 섬발전촉진법 3, 유선및도선사업법 2, 한국해양교통안전공단법 1)
+
 ### [2026-08-16 19:00 KST] 🟢착수 — §4-U 네이버 뜻 확인 실배선(legal_retriever·routes/legal)
 어제 설계만 남기고 넘겼던 §4-U를 실제 코드로 배선한다. 착수 전 정독: `HANDOFF.md`(§5·§6·최신 로그)·`_dashboard/NAVER_GUEO_PENDING_MERGE.md`(설계 정본)·`_CHATBOT.md` §4-U·`services/naver_search.js`·`legal_retriever.js`(pickCandidateLaws/searchRawFallback/understandConfirmStep/normalizeAskCtx)·`routes/legal.js`(POST /api/legal/ask 전체). 방침: ⓐ`naver_search.js`는 완성품이라 재작성하지 않고 그대로 호출 ⓑ되묻기는 기존 ctx/카드 패턴(`understandConfirmStep`)을 그대로 본떠 `nu` 축 하나만 추가 ⓒ신규 단계는 관례대로 서버 스위치 기본 off ⓓ`_glossary.md` 직접 수정 금지, `_candidates` 큐에만 적재 ⓔ실키 없이 검증 가능한 부분(ctx 왕복·스위치·카드 스키마)은 mock으로 회귀 스위트화.
 
