@@ -197,6 +197,35 @@
 - 이 구현은 `legal_retriever.js`/`routes/legal.js`를 건드리므로 **Phase F(다른 계정) 영역**.
   이 계정(Phase G 담당)이 직접 구현하지 않는다(§10 참조).
 
+### 5-A. ★2026-08-16 19:25 KST — 구현 완료(위 §5의 "미착수" 상태 해소, 사용자 지시로 배선함)
+
+위 §5·§10은 "이 계정은 배선하지 않는다"였으나, 사용자 지시로 **이 배선을 실제로 수행**했다.
+아래가 확정된 구현 사실이다(설계와 다르게 간 부분은 명시했다).
+
+| 항목 | 구현 결과 |
+|---|---|
+| 발동 지점 | **`routes/legal.js` POST /api/legal/ask — 2차 조회(`searchRawFallback`)까지 빈손인 자리** (`if (needsFallback && !(raw && raw.answer))`). 즉 §4-7 다이어그램의 "조용히 끊기던 지점"에 그대로 끼웠다. |
+| ⚠**스코어 임계치는 안 만들었다** | §5 첫 줄의 "0건뿐 아니라 최상위 스코어가 임계치 미만일 때도" 확장은 **구현하지 않았다.** 임계치 숫자가 §7에서 여전히 미확정이라 지어내지 않았고, 대신 **이미 검증된 기존 신호**(1차 답변이 L-57 교차확인 뒤 근거 0건 → `needsFallback`)를 그대로 재사용했다. 실측상 "깔때기가 뭐죠"도 이 갈래로 떨어지는 것을 로컬에서 확인했다(약한 후보 4건이 잡히지만 전부 걸러진다) — 즉 임계치 없이도 목표 케이스는 커버된다. |
+| 새 코드 | `legal_retriever.js` §4-U 절 신규(+241줄): `naverTermStep`·`unknownTermOf`·`pickTermMeaning`·`naverMeaningAllowed`·`naverPlain` + ctx `nu` 축(`normalizeAskCtx`/`ctxNextOf`). `routes/legal.js`(+87줄): 스위치·배선·`logGlossaryCandidate`. |
+| `naver_search.js` | **한 줄도 안 고쳤다** — 그대로 호출한다(`correctTypo` → `searchTermMeaning`). |
+| §4-2 오타변환 | 구현됨(모르는 낱말을 뽑은 직후 `correctTypo` 1회). |
+| §4-3 3종 동시검색 | `searchTermMeaning`이 이미 하던 대로(백과사전+지식iN+카페글). |
+| §4-4 1단계(도메인어 주입) | ⚠**미구현.** 맨낱말로만 검색한다 — §3-1 실측이 맨낱말 "깔때기"로 1위 score=8을 얻었고, 질의를 바꾸면 그 실측 근거가 사라지기 때문. 필요하면 나중에 한 줄로 추가 가능. |
+| §4-4 2단계(도메인 재정렬) | `naver_search.domainScore`가 이미 수행(모듈 그대로). |
+| §4-4 3단계(Gemini 최종선별) | 구현됨 — `pickTermMeaning`, 정체성 문맥("너는 나리야 — 해양수산 법령 챗봇") + "해양수산 뜻이 없으면 억지로 고르지 말고 ok:false" + "조문·처벌·금액·법령이름 금지". |
+| §4-5 페이지네이션 | ⚠**미구현.** `display` 기본값(10×3소스)까지만 본다. `start`로 2페이지째까지 넓히는 확장은 안 넣었다(상한 숫자가 §7 미확정이고, 없어도 대표 케이스가 통과). |
+| §4-6 ①②③④ | 전부 구현. ①확인 카드([네]/[아니요]) ②재질문 **딱 1회**(`ctx.nu.rounds`, 상한 `NAVER_MAX_ROUNDS=1`) ③소진 시 **API 호출 0회**로 정직한 포기+다음 행동 안내 ④확인 즉시 `_candidates/queue.jsonl`에 `kind:'glossary'`로 적재(`_glossary.md` 직접 수정 안 함 — 사람 승인 게이트 유지). |
+| 되묻기 메커니즘 | 새로 만들지 않고 **기존 H-37 ctx/카드 패턴을 그대로** 썼다(`understandConfirmStep`과 동형). ctx에 `nu` 축 하나만 추가 — 클라이언트(`ai_chat.js`)는 **0줄 수정**(`mergeCtx`가 축 단위 병합이라 새 축이 저절로 실려 다닌다). |
+| 확인된 뜻의 사용처 | `qForSearch`(위키 재검색)와 `searchRawFallback` 질의에만 붙인다. **답변에 인용하지 않는다** — §4-1 불변식 그대로. 게다가 **한 번 쓰고 즉시 소진**한다(뒤 질문까지 따라다니지 않게). |
+| 안전장치 | 뜻 문자열은 생성 직후·되돌아온 직후 **두 번** 후검사(`naverMeaningAllowed`: 길이 상한 + `RESTATE_BAN`(조문·형량·법령) 차단) — 조문이 섞인 뜻은 버려지고 확인 상태도 무효화된다. |
+| 스위치 | `nariya_config.naverTermLookup`, **기본 false**(H-37 3단계와 같은 롤아웃 관례). off면 전 경로 no-op. |
+| 회귀 스위트 | `local_server/scripts/test_naver_term_step.js` 신규 54건(네이버·Gemini 전부 mock), `verify_all.sh` V5 SUITES에 등록. 기존 `test_ask_context` 200건도 0 FAIL(스냅샷 검사 2건은 새 코드에 맞춰 갱신, 검사의 뜻은 유지). |
+
+**아직 실키 프로덕션 검증이 안 된 것**: ①네이버 실키+Gemini 실키를 함께 태운 종단 검증(이 세션은 네트워크 차단 §8 + Gemini 키 없음) ②`pickTermMeaning` 프롬프트의 실제 판정 품질 ③카페글 커버리지(§7 미해결 그대로) ④`unknownTermOf`의 조사·어미 절단 정확도(로컬 실측으로 "받나요" 오탐 1건을 발견·수정했으나 완전하지 않다 — 오탐 방향은 안전: 엉뚱한 낱말을 물어보고 사용자가 "아니요"를 누르면 끝난다).
+
+**켜는 법**: `POST /api/legal/config {"naverTermLookup": true}`(관리자 토큰). 켜기 전 그 환경에
+`NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET`이 실제로 있는지 확인할 것(없으면 켜도 조용히 물러난다).
+
 ## 6. 인프라 준비 현황 (2026-08-16, 이 세션에서 완료)
 
 - 사용자가 `console.ncloud.com`(NAVER API HUB)에 애플리케이션 "SEAGNAL" 등록 완료,
