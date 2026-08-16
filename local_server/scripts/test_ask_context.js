@@ -316,8 +316,8 @@ console.log('\n[T20][§8] 등급 꼬리표 제거 — 남은 note 는 UI 상태�
   ok("트리 답변 본문의 등급 문장 0건", !RET_SRC.includes('사람이 검증한 위키 카드가 아니라, ${laws}'));
   ok("UI 상태 note '추가 정보가 필요해요'는 유지", ROUTES_SRC.includes("note: '추가 정보가 필요해요'"));
   ok('오류·결과 상태 note 는 유지', ROUTES_SRC.includes('답변 생성 실패') && ROUTES_SRC.includes('이 질문에 맞는 근거를 위키에서 찾지 못했습니다.'));
-  ok('내부 프롬프트 지침(RAW_ANSWER_RULES 규칙9)은 유지(화면 꼬리표가 아니다)',
-    RET_SRC.includes('9. ★이 답변은 "미검증 참고"다.'));
+  ok('내부 프롬프트 지침(RAW_ANSWER_RULES 규칙10)은 유지(화면 꼬리표가 아니다)',
+    RET_SRC.includes('10. ★이 답변은 "미검증 참고"다.'));
 }
 
 // ============================================================================
