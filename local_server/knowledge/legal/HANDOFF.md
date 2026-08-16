@@ -536,6 +536,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-16 23:33 KST] 🟢착수 — H-9①통합수정 완료(74/74) → ③lint_xref+lint_full 착수
+H-9①통합수정 사실상 74/74법 완료(2법은 완료마커 파일명 가운뎃점 문자 불일치로 카운트 누락, 실제 wiki 반영은 확인됨 — 해양수산생명자원법은 g9 결과 partial edits:1이 디스크 미반영 상태라 다음 라운드 재확인 필요, 사소한 잔여). hub_needs로 여러 그룹이 지목한 comparisons/ 공유허브 갱신 건들(항만법 CP1-12, 연안관리법 조례비교, 해양환경법 vs 해양환경관리법 승격 등)은 경합위험이라 이 단계에서 건드리지 않고 별도 단독 lint 단계로 이관 예정. 이제 표준 후속 ③lint_xref.js+lint_full.js를 audit18_groups.json 그룹0~9로 각 10개씩(총 20개) Workflow 동시 디스패치 시작.
+
+
 ### [2026-08-16 23:24 KST] ✅완료 — naverTermLookup 기본값 true로 전환(사용자 확정)
 사용자 지시: exposure를 admin전용으로 설정해 관리자화면에서만 노출시킬 예정이니, naverTermLookup 자체는 '자동으로 켜져있는 상태'를 유지하도록 코드 기본값을 바꿔달라는 결정. routes/legal.js normConfig: naverTermLookup: c.naverTermLookup === true → !== false 로 전환(관리자가 명시적으로 false를 보내야 꺼짐, 킬스위치는 유지). legal_retriever.js 상단 주석·test_naver_term_step.js T0 단언문도 함께 갱신. node --check 통과, test_naver_term_step.js 95/95·test_ask_context.js 200/200 재통과. ⚠주의(사용자에게 전달함): exposure는 채팅버튼(FAB) 노출 여부만 가리는 클라이언트 게이트고 /api/legal/ask 서버단에는 admin 체크가 없음 — 그리고 이 코드변경은 배포된 서버가 이 커밋을 반영해야 실제로 적용됨(git push만으론 즉시 반영 안 될 수 있음, 배포 파이프라인 확인 필요). 실키(NAVER_CLIENT_ID/SECRET)가 그 서버 환경에 없으면 스위치가 켜져도 조용히 물러남(안전).
 
