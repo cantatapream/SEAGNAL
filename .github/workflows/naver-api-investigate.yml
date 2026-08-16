@@ -1,0 +1,61 @@
+name: Naver API Investigate (temp, §4-U 조사용)
+
+# 목적: Claude Code 세션의 네트워크 정책(Trusted 등급)이 naver.com/ncloud.com/ntruss.com을
+# 차단해 직접 조회가 안 됨 → GitHub Actions 러너(인터넷 제한 없음)를 대신 시켜 문서·API 응답을
+# 확인하고, 로그로만 결과를 받아본다. 조사 끝나면 이 워크플로 파일은 삭제한다.
+#
+# 사용법:
+#   1) 문서만 볼 때: Actions 탭에서 수동 실행(secrets 없어도 동작)
+#   2) 실제 인증 호출까지 볼 때: 저장소 Settings → Secrets and variables → Actions 에
+#      NAVER_CLIENT_ID · NAVER_CLIENT_SECRET 등록 후 실행
+
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: '테스트 검색어'
+        required: false
+        default: '깔때기'
+
+jobs:
+  investigate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 문서 페이지 원문 가져오기
+        run: |
+          echo "===== apihub-overview ====="
+          curl -sS -L "https://guide.ncloud-docs.com/docs/apihub-overview" | head -c 20000 || echo "FAILED"
+          echo ""
+          echo "===== apihub 검색으로 sitemap/링크 후보 찾기 ====="
+          curl -sS -L "https://guide.ncloud-docs.com/docs/apihub-overview" \
+            | grep -oE 'href="[^"]*apihub[^"]*"' | sort -u | head -30 || true
+
+      - name: 인증 호출 테스트 (secrets 등록된 경우에만)
+        if: ${{ env.HAS_SECRET == 'yes' }}
+        env:
+          HAS_SECRET: ${{ secrets.NAVER_CLIENT_ID != '' && 'yes' || 'no' }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          Q: ${{ inputs.query }}
+        run: |
+          echo "===== 옛 방식(openapi.naver.com, X-Naver-Client-Id) 시도 ====="
+          curl -sS -G "https://openapi.naver.com/v1/search/encyc.json" \
+            -H "X-Naver-Client-Id: $NAVER_CLIENT_ID" \
+            -H "X-Naver-Client-Secret: $NAVER_CLIENT_SECRET" \
+            --data-urlencode "query=$Q" --data-urlencode "display=5" \
+            -w "\nHTTP:%{http_code}\n" || echo "FAILED(openapi.naver.com)"
+          echo ""
+          echo "===== 신규 API HUB 방식(NCP APIGW 헤더) 후보 엔드포인트들 시도 ====="
+          for url in \
+            "https://naveropenapi.apigw.ntruss.com/search/v1/encyc" \
+            "https://apihub.apigw.ntruss.com/api/v1/search/encyc" \
+            "https://apigw.ntruss.com/search/v1/encyc" ; do
+            echo "--- $url ---"
+            curl -sS -G "$url" \
+              -H "X-NCP-APIGW-API-KEY-ID: $NAVER_CLIENT_ID" \
+              -H "X-NCP-APIGW-API-KEY: $NAVER_CLIENT_SECRET" \
+              --data-urlencode "query=$Q" --data-urlencode "display=5" \
+              -w "\nHTTP:%{http_code}\n" || echo "FAILED($url)"
+            echo ""
+          done
