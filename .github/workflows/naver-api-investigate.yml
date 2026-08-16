@@ -1,14 +1,9 @@
 name: Naver API Investigate (temp, §4-U 조사용)
 
-# 목적: Claude Code 세션의 네트워크 정책(Trusted 등급)이 naver.com/ncloud.com/ntruss.com을
-# 차단해 직접 조회가 안 됨 → GitHub Actions 러너(인터넷 제한 없음)를 대신 시켜 실제 API 응답을
-# 확인하고, 로그로만 결과를 받아본다. 조사 끝나면 이 워크플로 파일은 삭제한다.
-#
-# 확정된 사실(api.ncloud-docs.com 공식 문서 원문 확인, 2026-08-16):
-#   base host: https://naverapihub.apigw.ntruss.com
-#   헤더: X-NCP-APIGW-API-KEY-ID / X-NCP-APIGW-API-KEY
-#   /search/v1/encyc(백과사전) · /search/v1/kin(지식iN) · /search/v1/cafearticle(카페글)
-#   /search/v1/errata(오타변환, 한/영 자판오류 전용) · /search/v1/blog · /search/v1/webkr
+# 목적: services/naver_search.js(§4-U용 신규 모듈)가 실제로 동작하는지 검증한다.
+# 이 세션(Claude Code on the web) 환경은 naver.com/ncloud.com/ntruss.com 접속이 막혀 있어
+# 이 서버에서 직접 테스트가 안 됨 → GitHub Actions 러너에서 대신 실행하고 로그로 결과만 받는다.
+# 조사 끝나면 이 워크플로 파일은 삭제한다.
 
 on:
   push:
@@ -16,38 +11,37 @@ on:
       - claude/github-readme-masterplan-check-fqkq7z
     paths:
       - '.github/workflows/naver-api-investigate.yml'
+      - 'local_server/services/naver_search.js'
 
 jobs:
   investigate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: 확정된 주소로 실제 호출 테스트
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: naver_search.js 모듈 실제 호출 테스트
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: |
-          BASE="https://naverapihub.apigw.ntruss.com"
-          call() {
-            local path="$1"; shift
-            echo "--- $path ---"
-            curl -sS -G "$BASE$path" \
-              -H "X-NCP-APIGW-API-KEY-ID: $NAVER_CLIENT_ID" \
-              -H "X-NCP-APIGW-API-KEY: $NAVER_CLIENT_SECRET" \
-              "$@" -w "\nHTTP:%{http_code}\n"
-            echo ""
-          }
-          echo "===== ① 백과사전(깔때기, 국문사전 <수산> 태그 실림여부 확인) ====="
-          call "/search/v1/encyc" --data-urlencode "query=깔때기" --data-urlencode "display=10"
+          node -e "
+          const { correctTypo, searchTermMeaning, domainScore } = require('./local_server/services/naver_search.js');
+          (async () => {
+            console.log('===== correctTypo(\"구명조끼\") — 오타 아님, 원문 그대로 나와야 정상 =====');
+            console.log(await correctTypo('구명조끼'));
 
-          echo "===== ② 지식iN(깔때기 어구) ====="
-          call "/search/v1/kin" --data-urlencode "query=깔때기 어구" --data-urlencode "display=5"
-
-          echo "===== ③ 카페글(깔때기 통발) ====="
-          call "/search/v1/cafearticle" --data-urlencode "query=깔때기 통발" --data-urlencode "display=5"
-
-          echo "===== ④ 오타변환(정상단어 — 빈 문자열 나오는지) ====="
-          call "/search/v1/errata" --data-urlencode "query=구명조끼"
-
-          echo "===== ⑤ 오타변환(한/영 자판오류 예시: 구명조끼를 영문자판으로 친 것) ====="
-          call "/search/v1/errata" --data-urlencode "query=rurwuwhrl"
+            console.log('');
+            console.log('===== searchTermMeaning(\"깔때기\") — 도메인 스코어로 정렬됐는지 확인 =====');
+            const results = await searchTermMeaning('깔때기', { display: 10 });
+            for (const r of results.slice(0, 6)) {
+              console.log(\`[score=\${r.score}] (\${r.source}) \${r.title} — \${r.snippet.slice(0,60)}\`);
+            }
+            console.log('');
+            console.log('1위 결과의 score가 8(도메인 태그 매치)인지:', results[0].score === 8 ? 'PASS' : 'FAIL(score=' + results[0].score + ')');
+          })().catch(e => { console.error('ERROR:', e.message); process.exit(1); });
+          "
