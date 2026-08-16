@@ -21,7 +21,7 @@
  *  2.js  헤더(날짜네비/📍토글/✕) 렌더 + 컨트롤
  *  3.js  조석 카드 (TideBED 폴링 + 렌더링 3모드)
  *  4.js  동해북부 IDW 우회 + 천문 카드 (SunCalc)
- *  5.js  6개 일반카드 + 저질 분석 + 오케스트레이터
+ *  5.js  6개 일반카드 + 오케스트레이터
  *
  * [의존]
  * - tide.js (전역 함수: getLunarDate, getAstronomyInfo, findNearestStationsWithData,

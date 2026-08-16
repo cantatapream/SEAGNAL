@@ -12,7 +12,7 @@
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 해아름 WMS 레이어,
  *                    window.oceanCreateVworldLayer — 브이월드 위성지도 레이어),
  *                    shared/ui/ui_modal.js(window.showSeagnalModal — 안내 팝업),
- *                    marine-life/*(fishing·surfing·scuba·mudflat·sea_parting — 활동 로직 그대로 재사용),
+ *                    marine-life/*(fishing·surfing·scuba·mudflat·sea_parting·swimming — 활동 로직 그대로 재사용),
  *                    forecast/alerts/marine.js(TAB_GROUP_SUBTABS·SECTION_TO_GROUP·switchSubTab)
  *  - 서버 API      : 없음 (활동별 데이터 호출은 각 활동 모듈이 기존대로 담당)
  *  - 마크업        : index2.html 의 #ocean-safety-section, #ocean-safety-sub-tabs,
@@ -46,7 +46,7 @@
     var ACTIVITIES = [
         { id: 'fishing-section',     label: '바다낚시',   gpsBtn: 'fishing-my-location-btn', pub: 'fishing-publish-time', getMap: function () { return window.getFishingMap && window.getFishingMap(); } },
         { id: 'surfing-section',     label: '서핑',       gpsBtn: 'surfing-my-location-btn', pub: 'surfing-publish-time', getMap: function () { return (window._surfing && window._surfing.map) || null; } },
-        { id: 'swimming-section',    label: '해수욕',     gpsBtn: null,                      pub: null,                   getMap: null },
+        { id: 'swimming-section',    label: '해수욕',     gpsBtn: 'swim-my-location-btn',    pub: 'swim-publish-time',    getMap: function () { return window.getSwimmingMap && window.getSwimmingMap(); } },
         { id: 'scuba-section',       label: '스킨스쿠버', gpsBtn: 'scuba-my-location-btn',   pub: 'scuba-publish-time',   getMap: function () { return window.getScubaMap && window.getScubaMap(); } },
         { id: 'mudflat-section',     label: '갯벌체험',   gpsBtn: 'mudflat-my-location-btn', pub: 'mudflat-publish-time', getMap: function () { return window.getMudflatMap && window.getMudflatMap(); } },
         { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      pub: 'sp-publish-time',      getMap: null }
@@ -157,6 +157,10 @@
 
         // 해양종합정보에서 켜 둔 오버레이(특보구역·해구도 등)가 따라오지 않게 끈다
         _suspendOceanOverlays();
+        // 해양종합정보에서 열어 둔 상세정보 팝업(#seagnal-custom-modal)도 같이 넘어오지
+        // 않게 닫는다 — CCTV·출입통제 등 여러 버튼이 이 팝업을 공용으로 쓰는데, 바텀시트와
+        // 달리 이 팝업엔 body.ls-safety 로 숨기는 CSS 규칙이 없어 그대로 남아 있었다.
+        if (typeof window.closeSeagnalModal === 'function') window.closeSeagnalModal();
 
         // 지도 초기화(최초 1회) — 섹션이 보이게 된 뒤라야 크기가 제대로 잡힌다
         setTimeout(function () {
@@ -199,6 +203,8 @@
         var oceanSec = document.getElementById('ocean-map-section');
         if (oceanSec) oceanSec.classList.remove('active');
         document.body.classList.remove('ocean-map-active', 'ls-safety', 'ls-mudflat-on');
+        // 역방향도 마찬가지 — 해양안전에서 열어 둔 팝업이 해양종합정보로 그대로 넘어오지 않게
+        if (typeof window.closeSeagnalModal === 'function') window.closeSeagnalModal();
     }
 
     /**
@@ -260,6 +266,9 @@
             }
         });
         _suspended = [];
+        // 해양안전에서 열어 둔 팝업(#seagnal-custom-modal)이 진짜 해양종합정보로 그대로
+        // 넘어오지 않게 닫는다 — _enterSafety() 의 반대 방향 누락분
+        if (typeof window.closeSeagnalModal === 'function') window.closeSeagnalModal();
     }
 
     /**
@@ -270,7 +279,7 @@
      */
     function _watchBottomSheets() {
         var ids = ['fishing-bottomsheet', 'mudflat-bottomsheet', 'scuba-bottomsheet',
-                   'rip-bottomsheet', 'surfing-popup'];
+                   'rip-bottomsheet', 'surfing-popup', 'swim-bottomsheet'];
         var els = [];
         for (var i = 0; i < ids.length; i++) {
             var el = document.getElementById(ids[i]);
@@ -596,7 +605,7 @@
                 '<p><strong>갯바위</strong></p>' + _pickHtml('#fishing-disclaimer-gwbr') +
                 '<p><strong>선상</strong></p>' + _pickHtml('#fishing-disclaimer-ship') },
             { id: 'surfing',  label: '서핑',       html: _pickHtml('#surfing-disclaimer') },
-            { id: 'swimming', label: '해수욕',     html: '<p><i class="fa-solid fa-circle-check"></i> 해수욕 지수는 해수욕장 개장기간에 제공됩니다.</p>' },
+            { id: 'swimming', label: '해수욕',     html: _pickHtml('#swim-disclaimer') },
             { id: 'scuba',    label: '스킨스쿠버', html: _pickHtml('#scuba-disclaimer') },
             { id: 'mudflat',  label: '갯벌체험',   html: _pickHtml('#mudflat-disclaimer') },
             { id: 'parting',  label: '바다갈라짐', html: _pickHtml('#sp-footer-info .sp-disclaimer') ||
@@ -612,6 +621,59 @@
                         'onclick="window.__lsInfoSwitch(\'' + items[i].id + '\')">' + items[i].label + '</button>';
             panelsHtml += '<div class="ocean-info-panel' + activeCls + '" data-info-panel="' + items[i].id + '">' +
                           (items[i].html || '<p>준비 중입니다.</p>') + '</div>';
+        }
+        return tabsHtml + '</div>' + panelsHtml + '</div>';
+    }
+
+    /**
+     * 해양안전 화면(물빠짐·노출암/간출암·CCTV·낚시금지·관제구역·항로·항행경보) 전용 안내 팝업 본문(탭바 + 패널)을 만든다.
+     * 해양종합정보의 17탭 안내와 같은 방식으로, 이 화면에 있는 기능만 탭으로 보여준다.
+     * @returns {string} 팝업에 넣을 HTML
+     * [연계] ← window.oceanInfoTabHtml() (ocean_cctv.js) — 탭 본문을 그대로 재사용
+     *          (낚시금지·관제구역·항로·항행경보는 해양종합정보에 없는 기능이라 공용 목록 대신 여기서 html 로 직접 넣는다)
+     *          → index2.html 의 .ocean-info-tabs/.ocean-info-panel/.ocean-info-src CSS, window.__lsInfoSwitch
+     */
+    function _buildSafetyInfoHtml() {
+        var fn = window.oceanInfoTabHtml;
+        var items = [
+            { id: 'mudflat', label: '물빠짐' },
+            { id: 'hazardrock', label: '노출암·간출암' },
+            { id: 'cctv', label: 'CCTV' },
+            { id: 'fishingban', label: '낚시금지', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 낚시 관리 및 육성법 제6조와 지자체 조례에 따라 낚시가 금지되거나 제한된 구역을 지도 위에 주황색으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 실제 지형과 비교하기 쉽도록 배경지도가 위성지도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 위치, 지정 사유, 통제 기간·시간, 대상, 벌칙, 고시번호 등 상세 정보를 확인할 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 국립해양조사원이 파악한 구역만 반영되어 있어 최신 지정 현황과 다를 수 있습니다. 실제 낚시 전에는 현장 안내판이나 관할 지자체 공고를 꼭 확인하세요.</p>'
+              + '<div class="ocean-info-src">최종 갱신일자 · 2025-12-12<br>출처 · 국립해양조사원 낚시통제구역 주제도</div>' },
+            { id: 'vts', label: '관제구역', html:
+                '<p>해양경찰청이 공고한 선박교통관제구역(VTS)을 지도 위에 남색(인디고)으로 표시하며, 명칭에 실제 관제채널(예: Ch. 09)이 함께 표기됩니다.</p>'
+              + '<p>버튼을 켜면 배경지도가 전자해도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
+              + '<p>구역을 누르면 관제해역 설명, 관제센터 주소·전화·팩스를 확인할 수 있고, 누른 구역은 노란색으로 표시되어 어디를 선택했는지 알 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 실제 통항 시 정확한 관제채널과 신고 절차는 관할 관제센터로 문의하세요.</p>'
+              + '<div class="ocean-info-src">최종 갱신일자 · 2026-08-03<br>출처 · 해양경찰청 전국 VTS센터 공고자료</div>' },
+            { id: 'seaway', label: '항로·해역', html:
+                '<p>해상교통안전법 등에 따라 지정된 항로(통항분리대·통항분리수역·지정항로·주의해역·선회장 등)는 마젠타색으로, 한중·한일 간 국제 해양경계 수역은 선홍색으로 지도 위에 구분해 표시합니다.</p>'
+              + '<p>버튼을 켜면 실제 항로·해역과 비교하기 쉽도록 배경지도가 전자해도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
+              + '<p>항로를 누르면 항로명, 종류(통항분리대/통항분리수역 등), 근거·참고 문서를 확인할 수 있습니다. 한중잠정조치수역·한일중간수역·한중과도수역 등 국제 해양경계 수역을 누르면 정의, 근거, 담당부서·연락처까지 함께 확인할 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 항로·수역 종류에 따라 통항 방법과 적용 근거가 다르니, 실제 항해 전 관련 법령·고시·협정 원문을 반드시 확인하세요.</p>'
+              + '<div class="ocean-info-src">최종 갱신일자 · 2026-08-11<br>출처 · 국립해양조사원 개방海(실시간 해양공간정보) · 해양수산부 한중·한일 어업협정</div>' },
+            { id: 'navwarn', label: '항행경보', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 선택한 날짜에 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련 등)의 구역을 지도 위에 진한 빨간 점선 원형/다각형으로 표시합니다. 켜면 배경지도가 위성지도로 자동 전환됩니다. 같은 구역이 시간대만 다르게 여러 번 있으면 하나로 합쳐 라벨이 겹치지 않게 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 상단 날짜 내비게이션(◀▶)으로 다른 날짜를 조회하고, 하단 기준 시각 슬라이더로 그 날짜의 특정 시각을 지정하면 이미 시각이 지난 구역은 회색으로 바뀌고 라벨도 사라집니다(활성 구역만 라벨 표시, 겹치면 큰 구역 우선). 슬라이더 위치는 날짜를 넘겨도 그대로 유지됩니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 구역이 화면에서 작게 보일 때 누르면 먼저 그 구역으로 확대되고, 충분히 커진 뒤 다시 누르면 팝업이 뜹니다. 팝업엔 그 구역의 시간대별 내용이 구분돼 표시됩니다(구분, 발표기관, 유효기간, 근거, 본문 — 이미 끝난 시간대는 흐리게 "종료" 표시).</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 좌표는 국립해양조사원 "항행경보 상황판" 자료를 보강해 표시한 것으로, 정식 항행경보 원문과 다를 수 있습니다. 실제 항해 시에는 반드시 항행경보 상황판(khoa.go.kr/nwb)이나 수로도서지 원문을 확인하세요.</p>'
+              + '<div class="ocean-info-src">갱신 주기 · 30분<br>출처 · 국립해양조사원 항행경보</div>' }
+        ];
+        var tabsHtml = '<div class="ocean-info-tabs">';
+        var panelsHtml = '<div class="ocean-info-panels">';
+        for (var i = 0; i < items.length; i++) {
+            var activeCls = (i === 0) ? ' active' : '';
+            tabsHtml += '<button type="button" class="ocean-info-tab-btn' + activeCls +
+                        '" data-info-tab="' + items[i].id + '" ' +
+                        'onclick="window.__lsInfoSwitch(\'' + items[i].id + '\')">' + items[i].label + '</button>';
+            var body = items[i].html || (typeof fn === 'function' && fn(items[i].id)) || '<p>준비 중입니다.</p>';
+            panelsHtml += '<div class="ocean-info-panel' + activeCls + '" data-info-panel="' + items[i].id + '">' +
+                          body + '</div>';
         }
         return tabsHtml + '</div>' + panelsHtml + '</div>';
     }
@@ -702,8 +764,8 @@
         // --- 해양안전 화면의 안내(ⓘ) — 이 화면에 있는 기능만 보여준다 ---
         //   해양종합정보 버튼(#ocean-info-btn)을 그대로 쓰지만 그 팝업은 17개 탭짜리
         //   전체 안내다. 이 화면엔 물빠짐·노출암/간출암·CCTV만 있으므로 document 캡처
-        //   단계에서 가로채 해당 탭 본문만 이어붙여 띄운다(캡처라 버튼 자신의 기존
-        //   핸들러까지 도달하지 않음).
+        //   단계에서 가로채 해양종합정보와 같은 탭형 팝업(_buildSafetyInfoHtml())으로
+        //   띄운다(캡처라 버튼 자신의 기존 핸들러까지 도달하지 않음).
         document.addEventListener('click', function (e) {
             if (!document.body.classList.contains('ls-safety')) return;
             var btn = e.target && e.target.closest && e.target.closest('#ocean-info-btn');
@@ -711,13 +773,7 @@
             e.stopPropagation();
             e.preventDefault();
             if (typeof window.showSeagnalModal !== 'function') return;
-            var fn = window.oceanInfoTabHtml;
-            var html = (typeof fn === 'function')
-                ? '<h4 class="ls-info-section-title">물빠짐</h4>' + (fn('mudflat') || '')
-                + '<h4 class="ls-info-section-title">노출암·간출암</h4>' + (fn('hazardrock') || '')
-                + '<h4 class="ls-info-section-title">CCTV</h4>' + (fn('cctv') || '')
-                : '';
-            window.showSeagnalModal('해양안전 안내', html || '<p>안내 내용을 불러오지 못했습니다.</p>', 'info');
+            window.showSeagnalModal('해양안전 안내', _buildSafetyInfoHtml(), 'info');
         }, true);
 
         // --- 갯바위/선상 팝아웃 (바다낚시 전용) ---

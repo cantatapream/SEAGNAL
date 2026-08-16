@@ -23,6 +23,8 @@
  *   /              → HTML (점검 상태가 매 응답마다 박혀 있어 캐시 불가)
  *   /index.html, /index2.html → HTML
  *   /app_version.json, /version.json → 관리자가 갱신하는 동적 파일
+ *   /access_control_zones.json, /fishing_ban_zones.json, /hazard_rocks.json,
+ *   /seaway_zones.json, /vts_zones.json → 해양안전 폴리곤 레이어 데이터(수시 갱신)
  *
  * 이 패턴들을 제외한 모든 GET 요청은 자동으로 캐시됨.
  * 새 API 가 /api/ 패턴을 따르면 자동으로 캐시 제외 → 누락 위험 낮음.
@@ -78,6 +80,14 @@ const BLACKLIST_EXACT = new Set([
     '/index2.html',
     '/app_version.json',
     '/version.json',
+    // 해양안전 폴리곤 레이어 데이터 — 수시로 수정·재배포되는 정적 GeoJSON.
+    // 캐시 대상이면 수정해도 사용자 기기에 옛 데이터가 남아 반영이 안 된 것처럼
+    // 보인다(실제 사례: 관제구역 수정 후에도 옛 34개 데이터가 계속 보임).
+    '/access_control_zones.json',
+    '/fishing_ban_zones.json',
+    '/hazard_rocks.json',
+    '/seaway_zones.json',
+    '/vts_zones.json',
 ]);
 
 /**

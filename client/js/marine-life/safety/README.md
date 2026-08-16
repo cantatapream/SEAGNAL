@@ -13,6 +13,39 @@
     나머지 버튼은 감춥니다. 간출암 등이 켜진 동안엔 서버가 미리 계산해 둔
     **잠김경고**(3시간 이내 잠기는 암초)를 폴링해, 낱개로 보이는 마커에 빨간
     펄스 테두리 + "OO:OO 후 완전히 잠김" 카운트다운을 얹습니다.
+    여기에 **출입통제**·**낚시금지**·**관제구역**·**항로·해역** 폴리곤 토글도 함께 켤 수 있습니다 —
+    **낚시금지**는 낚시 관리 및 육성법 제6조·지자체 조례로 지정된 낚시통제구역
+    236곳을 주황색 폴리곤으로 그리고, 탭하면 근거법령·통제시간·대상·벌칙을 팝업으로 보여줍니다.
+    **관제구역**은 해양경찰청이 공고한 선박교통관제(VTS)구역 34곳을 인디고색 폴리곤으로
+    그리고, 탭하면 관제해역·관제센터 주소·전화·팩스를 팝업으로 보여주면서 **탭한 구역
+    하나를 노란 테두리로 하이라이트**합니다(선택 표시 — 다른 구역을 탭하면 옮겨갑니다).
+    **항로·해역**은 선박의 입항 및 출항 등에 관한 법률 제10조·해상교통안전법 제30조 등으로
+    지정ㆍ고시된 항로 141곳에 한중·한일 어업협정에 따른 국제 해양경계 수역 3곳
+    (한중잠정조치수역·한일중간수역·한중과도수역)을 더한 144곳을 그리는데, 항로 141곳은
+    마젠타색, 국제 해양경계 수역 3곳은 항로와 헷갈리지 않도록 선홍색으로 구분합니다.
+    탭하면 정의·근거·종류·참고문서·참고사이트·담당부서·연락처 중 있는 항목을
+    팝업으로 보여줍니다(항로 141곳엔 종류·참고문서·참고사이트만 있습니다).
+    면으로 고시된 127곳은 폴리곤(채움+외곽선), 통항분리대처럼
+    선으로 고시된 17곳은 선으로 그립니다.
+    **항행경보**는 선택한 날짜에 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련
+    등)의 구역을 진한 빨간 점선 원형/다각형으로 그립니다. 같은 구역이 시간대만 다르게 여러 번
+    나오면(예: 08~18시 사격, 18~24시 사격) 서버가 하나로 합쳐 지도엔 라벨 하나만 그리고,
+    탭하면 각 시간대(occurrence)를 구분해서 팝업에 보여줍니다(구역명이 팝업 제목, 이미 끝난
+    시간대는 흐리게 + "종료" 표시, 팝업이 길면 세로 스크롤) — 2026-08 사용자 스크린샷으로
+    라벨이 겹쳐 뭉개지는 문제를 확인해 도입. 만료된 구역은 라벨을 아예 그리지 않고, 화면에
+    활성 구역 라벨이 여럿 겹치면 큰 구역을 우선해(renderOrder) OpenLayers declutter가
+    작은 쪽을 자동으로 숨깁니다. 구역이 화면에서 작게 보일 때 탭하면 팝업 대신 그 구역으로
+    먼저 확대하고, 충분히 커진 뒤 다시 탭해야 팝업이 뜹니다(fishing_ban.js/seaway.js와
+    동일 패턴). 켜면 상단에 **날짜 내비게이션(◀▶)**, 하단에 **기준 시각 슬라이더**가 함께
+    뜹니다 — 슬라이더로 시각을 옮기면 그 시각이 지난 구역이 회색으로 바뀌고, 날짜를 넘겨도
+    슬라이더 위치는 유지되어 다른 날짜의 임의 시각 상태도 바로 확인할 수 있습니다. 조회 중
+    (특히 KHOA 세션 재발급이 섞이면 몇 초 걸림)엔 화면 가운데 로딩 스피너가 뜹니다. 켜면
+    실제 지형과 비교하기 쉽도록 배경지도가 **위성지도**로 자동 전환됩니다(끄면 원래대로).
+    텍스트(제목/본문/발표기관)는 data.go.kr 공식 API로, 좌표·구역명은 KHOA "항행경보 상황판"
+    웹사이트의 내부(미문서화) API로 보강합니다 — 이 내부 API가 막히면 좌표만 빠지고 텍스트
+    목록 매칭은 계속 됩니다(부분 실패 허용).
+    관제구역·항로·해역 토글은 켤 때 배경지도가 **전자해도**로 자동
+    전환됩니다(출입통제·낚시금지는 위성지도로 전환 — 관제구역·항로·해역은 항해 정보라 해도가 맞음).
   - **해양생활** — 기존 6개 활동(바다낚시·서핑·해수욕·스킨스쿠버·갯벌체험·바다갈라짐)을
     화면 **오른쪽 세로 버튼**으로 갈아끼웁니다.
     단, **바다갈라짐**은 표가 넓어 오른쪽 버튼에 가리므로, 이때만 버튼이
@@ -35,11 +68,17 @@
 |------|------|
 | `life_safety.js` | 진입 트리거, 하위탭 교체, 우측 활동 레일, 배경지도 피커, 안내 팝업, GPS·갯바위/선상 연결 |
 | `hazard_rocks.js` | 노출암/간출암 등 토글 레이어(독립 2개, 클러스터 표시) + 클릭 시 종류·수치 말풍선 (해양안전 전용) |
+| `access_control.js` | 출입통제구역(연안사고 예방에 관한 법률 제10조) 폴리곤 토글 레이어(해양안전 전용) — 각 해양경찰서 고시·공고 원문에서 경위도가 온전히 확인된 구역만 반영, `/access_control_zones.json`(정적, 지연 로드), 클릭 시 관할서·구역명·상태 토스트 |
+| `fishing_ban.js` | 낚시금지(낚시통제)구역 폴리곤 토글 레이어(해양안전 전용) — 낚시 관리 및 육성법 제6조·지자체 조례 지정 236개 구역, `/fishing_ban_zones.json`(정적, 지연 로드), 클릭 시 근거법령·통제시간·벌칙 등 상세 팝업(구역이 화면에서 90px 미만으로 작으면 팝업 대신 그 구역 범위로 먼저 자동 확대 — 라벨만 보이는 줌아웃 상태 대응) |
+| `vts_zone.js` | 선박교통관제(VTS)구역 폴리곤 토글 레이어(해양안전 전용) — 해양경찰청 공고 33개 구역, `/vts_zones.json`(정적, 지연 로드), 켤 때 배경지도를 전자해도로 자동 전환. 폴리곤을 처음 탭하면 연보라 선택 하이라이트만(한 번에 하나), 같은 구역을 한 번 더 탭하면 관제해역·관제센터 주소·전화·팩스 상세 팝업(구역이 화면에서 90px 미만으로 작으면 선택·팝업 대신 그 구역 범위로 먼저 자동 확대 — 라벨만 보이는 줌아웃 상태 대응) |
+| `seaway.js` | 항로·해역 토글 레이어(해양안전 전용) — 선박의 입항 및 출항 등에 관한 법률 제10조 등 지정ㆍ고시 항로 141곳 + 한중·한일 어업협정에 따른 국제 해양경계 수역 3곳 = 144곳(면 127 + 선 17), `/seaway_zones.json`(정적, 지연 로드), 켤 때 배경지도를 전자해도로 자동 전환, 클릭 시 정의·근거·종류·참고문서·참고사이트·담당부서·연락처 중 있는 항목만 상세 팝업(항로가 화면에서 90px 미만으로 작으면 팝업 대신 그 항로 범위로 먼저 자동 확대 — 라벨만 보이는 줌아웃 상태 대응). 선(통항분리대) 17곳은 원본 이름이 폴리곤 항로와 겹쳐 화면엔 전부 "통항분리대"로 통일(항로 이름보다 작은 글씨), 같은 이름의 조각이 여럿이어도 라벨은 하나만 표시(`_markDuplicateLabels`). 직사각형·완만하게 굽은 다각형 항로는 옆면만 점선 + 입출구 변은 선 없음, 국제 해양경계 수역도 점선(한중과도수역만 더 옅은 선홍)으로 그린다. |
+| `navigational_warning.js` | 항행경보 구역 토글 레이어(해양안전 전용) — 선택 날짜의 선박사고·표류장애물·수중장애물·해상사격훈련 등 구역을 원형/다각형으로 표시(`GET /api/navigational-warning/list?date=`, 서버가 같은 구역명끼리 병합해 응답, 날짜별 30분 캐시), 날짜 내비게이션 + 기준 시각 슬라이더(만료 구역 회색 처리 + 라벨 숨김), 활성 구역만 라벨 표시(큰 구역 우선 + declutter로 겹침 자동 회피), 작은 구역은 탭하면 먼저 확대 후 재탭 시 팝업, 조회 중 로딩 스피너, 켜면 배경지도가 위성지도로 자동 전환, 클릭 시 구역의 각 시간대(occurrence)를 구분해 팝업 표시(만료된 시간대는 흐리게 + "종료", 스크롤 가능) |
+| `accident_info.js` | 사고정보 토글 레이어(해양안전 전용) — 선박(해경)·선박(심판원)·인명 3개 소스 중 하나를 골라 **현황**(개별 사고 마커, `hazard_rocks.js`와 같은 줌 기반 클러스터)/**분석**(현재 화면을 6×5 격자로 나눠 격자별 건수를 노랑→빨강 색상+숫자로 표시, 격자 클릭 시 연도별·주야간별·사고발생상세 통계 바텀시트) 토글. 데이터는 `/accident_ships_hk.json`·`/accident_ships_hs.json`·`/accident_persons.json`(정적, 소스 버튼 첫 클릭 때 지연 로드) — `local_server/scripts/build_accidents.js`가 국립해양조사원 개방海 원본 CSV(레포엔 없음)로 생성. 코드값→한글 라벨은 `shared/utils/accident_codes.js`. 선박(심판원) CSV엔 발생원인·선박종류 컬럼이 없어 "사고발생상세" 두 번째 탭을 해역별로 대체했고, 인명 CSV엔 발생시각 컬럼이 없어 주/야간 통계를 생략한다(둘 다 실제 원본 컬럼 유무에 따른 제약). |
 
 ## 설계 요점 — 기존 코드를 고치지 않고 재사용
 
 활동별 지도·마커·바텀시트 로직은 **기존 파일(fishing.js / surfing*.js / scuba.js /
-mudflat.js / sea_parting.js)을 그대로 씁니다.** 이 모듈은 겉껍데기(크롬)만 새로 얹습니다.
+mudflat.js / sea_parting.js / swimming.js)을 그대로 씁니다.** 이 모듈은 겉껍데기(크롬)만 새로 얹습니다.
 
 - **활동 전환** — 기존 `window.switchSubTab(섹션id)` 를 그대로 호출합니다.
   그래서 지도 초기화·사용량 집계 등 기존 동작이 전부 유지됩니다.
@@ -66,9 +105,10 @@ mudflat.js / sea_parting.js)을 그대로 씁니다.** 이 모듈은 겉껍데�
   그대로 켜서** 쓰고, `body.ls-safety` CSS 로 필요 없는 버튼만 감춥니다.
   `#ocean-safety-section` 은 하위탭 전환용 자리표시일 뿐 실제로 보이지 않습니다.
   진짜 해양종합정보 탭과의 구분은 `body[data-active-tab]` 값으로 합니다.
-  안내(ⓘ)는 해양종합정보의 17탭 팝업이 뜨지 않도록 `document` 캡처 단계에서 가로채
-  이 화면에 있는 기능(물빠짐·CCTV)의 본문만 이어붙여 보여줍니다
-  (`window.oceanInfoTabHtml('mudflat')`/`('cctv')` 재사용).
+  안내(ⓘ)는 해양종합정보의 17탭 팝업이 뜨지 않도록 `document` 캡처 단계에서 가로채,
+  이 화면에 있는 기능(물빠짐·노출암/간출암·CCTV) 3개만 해양종합정보와 같은 탭형 팝업으로
+  보여줍니다(`_buildSafetyInfoHtml()` — `window.oceanInfoTabHtml(id)`로 탭 본문을
+  가져와 `.ocean-info-tabs`/`.ocean-info-panel` 구조로 재구성, 한 번에 한 탭만 표시).
 
 ## 해양종합정보와 상태 분리
 
@@ -115,15 +155,21 @@ mudflat.js / sea_parting.js)을 그대로 씁니다.** 이 모듈은 겉껍데�
 | `core/index2_patch.js` | 이 파일이 감싼 `switchMainTab`/`switchSubTab` 위에 한 겹 더 얹음 → **로드 순서: index2_patch.js 다음** |
 | `ocean-map/map/ocean_map.js` | `window.oceanCreateKhoaLayer`(해아름 배경지도) · `window.oceanCreateVworldLayer`(위성지도) |
 | `shared/ui/ui_modal.js` | `window.showSeagnalModal` (안내 팝업) |
-| `marine-life/*` | `window.getFishingMap` / `getScubaMap` / `getMudflatMap` / `window._surfing.map` |
+| `marine-life/*` | `window.getFishingMap` / `getScubaMap` / `getMudflatMap` / `getSwimmingMap` / `window._surfing.map` |
 | `hazard_rocks.js` | 노출암/간출암 등 레이어(`/hazard_rocks.json`, 두 버튼 첫 클릭 때 지연 로드) — `window.initHazardRocksLayer` 는 `ocean_map.js` buildMap() 이 직접 호출(이 파일이 부르지 않음). 잠김경고는 `GET /api/hazard-rocks/submersion`(`local_server/routes/hazard_rocks.js`) 1분 폴링 — 계산은 `local_server/scripts/TIDE_FIELD_README.md`(간출암 잠김경고 절) 참고 |
+| `fishing_ban.js` | 낚시금지구역 폴리곤 레이어(`/fishing_ban_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 해양공간 주제도 "낚시통제구역"(TL_RESARE_ENS) shapefile 236개를 EPSG:5179 → WGS84 재투영해 만든 정적 GeoJSON. 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._fishingBanTryHandleClick` 을 호출(출입통제 다음 순위) |
+| `vts_zone.js` | 선박교통관제(VTS)구역 폴리곤 레이어(`/vts_zones.json`, 첫 클릭 때 지연 로드) — 해양경찰청(kcg.go.kr) 전국 20개 VTS센터 페이지의 "관제구역도" 도분초 좌표(WGS-84)와 "관제통신 제원" 채널을 그대로 옮긴 33개 구역 GeoJSON(구역당 1폴리곤, 제외구역은 hole 로 인코딩). 폴리곤 클릭은 `ocean_map.js` handleMapClick 이 `window._vtsZoneTryHandleClick` 을 호출(낚시금지 다음 순위) |
+| `seaway.js` | 항로·해역 레이어(`/seaway_zones.json`, 첫 클릭 때 지연 로드) — 국립해양조사원 "개방海" 포털의 실시간 WFS(`vi_seaway` 레이어)에서 받아온 141개(2026-08 기준)를 EPSG:5179 → WGS84 재투영해 만든 정적 GeoJSON(MultiPolygon 124 + MultiLineString 17) + 한중어업협정·한일어업협정에 따른 국제 해양경계 수역 3개(한중잠정조치수역·한일중간수역·한중과도수역, `category="해역"`, 정의·근거·담당부서·연락처 항목이 이 3개에만 있음) = 총 144개. 이전 `TL_SEAWAY_A` shapefile 77개는 최신본이 아니어서 교체. 클릭은 `ocean_map.js` handleMapClick 이 `window._seawayTryHandleClick` 을 호출(관제구역 다음 순위). **매월 말일 04:00 KST 에 서버가 원본 WFS 와 대조해(`local_server/services/seaway_refresh.js`) 고시가 바뀌었으면 `local_server/data/seaway_zones.json` 으로 자동 갱신하고(이때 WFS 에 없는 `category="해역"` 3개는 비교에서 빼고 그대로 이어붙인다 — 안 그러면 갱신이 지워버린다), `local_server/routes/seaway.js` 가 그 갱신본을 정적 배포본보다 우선 서빙한다 — 클라이언트 코드는 그대로 `/seaway_zones.json` 만 부르면 된다** |
+| `navigational_warning.js` | 항행경보 구역(원형/다각형) 레이어(`GET /api/navigational-warning/list?date=YYYYMMDD`, `local_server/routes/navigational_warning.js` — 텍스트는 data.go.kr 공식 API(서비스키 `ROMS_SERVICE_KEY` 재사용), 좌표·구역별 시간창(windows)은 KHOA 내부 API 보강, 서버가 같은 구역명끼리 occurrences로 병합하고 그중 같은 문서(doc_num)는 시간창까지 하나로 합쳐 중복 표시를 없앰, 날짜별 30분 캐시). 구역 클릭은 `ocean_map.js` handleMapClick 이 `window._navwarnTryHandleClick` 을 호출(항로 다음 순위). 날짜 내비게이션·기준 시각 슬라이더·로딩 스피너 마크업은 `index2.html` `#navwarn-date-nav`/`#navwarn-time-bar`/`#navwarn-loading` |
+| `accident_info.js` | 사고정보 마커/격자 레이어(`/accident_ships_hk.json`·`/accident_ships_hs.json`·`/accident_persons.json`, 소스 버튼 첫 클릭 때 지연 로드) — `local_server/scripts/build_accidents.js`가 국립해양조사원 개방海 원본 CSV를 정제한 정적 JSON(컴팩트 배열, `shared/utils/accident_codes.js`가 코드값→라벨 변환). 마커/격자 클릭은 `ocean_map.js` handleMapClick 이 `window._accidentInfoTryHandleClick` 을 호출(항행경보 다음 순위). 버튼·팝아웃 마크업은 `index2.html` `#ocean-accident-toggle-btn`/`#ocean-accident-wrap`/`#ocean-accident-popup`, 통계 바텀시트는 `#accident-stats-sheet`(해양종합정보의 `#ocean-bottom-sheet`와 별개 요소 — 그쪽은 `body.ls-mode.ls-safety`에서 항상 숨김 처리됨) |
 
 ## 수정 시 주의사항
 
 - **로드 순서 고정** — `index2_patch.js` 보다 먼저 로드되면 탭 전환 후처리가 동작하지 않습니다.
 - **글자크기 설정과 무관** — 활동 버튼 크기(`--ls-rail-w` = 54px, 글자 13px)는 px 고정입니다.
   `rem` 으로 바꾸면 "크게" 설정에서 버튼이 같이 커집니다(사용자가 원치 않음).
-- **지도 없는 활동**(해수욕·바다갈라짐)은 기존 UI 를 그대로 두고 CSS 로만 조정합니다.
-  해수욕은 오른쪽 레일을 피하도록 `padding-right`, 바다갈라짐은 버튼을 위로 올린
-  가로 배치(`body.ls-row`)라 `padding-top` 만 줍니다.
+- **지도 없는 활동**(바다갈라짐)은 기존 UI 를 그대로 두고 CSS 로만 조정합니다.
+  버튼을 위로 올린 가로 배치(`body.ls-row`)라 `padding-top` 만 줍니다.
+  해수욕은 이제 스킨스쿠버와 동일한 지도형이라(`swimming.js`) 다른 지도 활동들과
+  같은 방식(우측 레일이 fixed 오버레이로 뜸)으로 동작하며 별도 padding 보정이 없습니다.
 - 이안류(`ripcurrent-section`)는 현재 하위탭에서도 숨김 상태라 레일에도 넣지 않았습니다.

@@ -429,8 +429,174 @@ function getUpcomingWarnings(now) {
     return { ready: true, generated_at: data.generated_at || null, warnings };
 }
 
+// ============================================================================
+// 조회: 암초 1개의 하루치 조석 곡선(팝업 차트용)
+// ============================================================================
+// [무엇을 위한 것] 마커 팝업에 "오늘~+2일 조석 곡선" 을 그리기 위한 API.
+//   computeAllCrossings 의 무거운 3일×전체암초 스캔과 달리, 요청 시점에 암초
+//   1개·날짜 1개만 계산하므로 API 요청마다 실행해도 가볍다(westsouth/jeju는
+//   1분 해상도로 1440회 IDW 합성 — 수 ms, eastsea는 극값 3~4개 보간뿐).
+const CURVE_SAMPLE_STEP_MIN = 10; // 팝업 차트에 보낼 점 간격(분) — 10분이면 하루 144점.
+
+/** 극값(고조/저조) 후보 스캔 — 인접 표본과 비교해 국소 최댓/최솟값을 찾는다.
+ *  같은 종류(고조/저조끼리)가 PEAK_MERGE_GAP_MIN 이내로 붙어 있으면 더 극단값만 남긴다
+ *  (반정현파가 아닌 실측 곡선은 미세한 요철이 있어 완전 매끈하지 않을 수 있음). */
+const PEAK_MERGE_GAP_MIN = 120;
+function findLocalExtrema(samples) {
+    // samples: [{m, cm}] (m=분, 오름차순, 결측 없음)
+    const raw = [];
+    for (let i = 1; i < samples.length - 1; i++) {
+        const p = samples[i - 1], c = samples[i], n = samples[i + 1];
+        if (c.cm >= p.cm && c.cm >= n.cm && (c.cm > p.cm || c.cm > n.cm)) raw.push({ m: c.m, cm: c.cm, type: 'high' });
+        else if (c.cm <= p.cm && c.cm <= n.cm && (c.cm < p.cm || c.cm < n.cm)) raw.push({ m: c.m, cm: c.cm, type: 'low' });
+    }
+    const merged = [];
+    for (const p of raw) {
+        const last = merged[merged.length - 1];
+        if (last && last.type === p.type && (p.m - last.m) <= PEAK_MERGE_GAP_MIN) {
+            const better = p.type === 'high' ? p.cm > last.cm : p.cm < last.cm;
+            if (better) merged[merged.length - 1] = p;
+        } else {
+            merged.push(p);
+        }
+    }
+    return merged;
+}
+
+function minutesToHHMM(m) {
+    const h = Math.floor(m / 60), mm = m % 60;
+    return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+/** westsouth/jeju: 앵커 IDW로 하루치 곡선을 CURVE_SAMPLE_STEP_MIN 간격으로 합성. */
+function buildAnchorDayCurve(refs, curvePathFn, yyyymmdd) {
+    const byMinuteList = refs.map(r => ({ distKm: r.distKm, byMinute: loadCurveByMinute(curvePathFn, r.id, yyyymmdd) }));
+    if (byMinuteList.every(r => !r.byMinute)) return null;
+    const samples = [];
+    for (let m = 0; m < 1440; m += CURVE_SAMPLE_STEP_MIN) {
+        let wsum = 0, vsum = 0;
+        for (const { byMinute, distKm } of byMinuteList) {
+            const eta = etaCmAt(byMinute, m);
+            if (eta == null) continue;
+            const w = distKm < 0.1 ? 1e6 : 1 / (distKm * distKm);
+            wsum += w; vsum += w * eta;
+        }
+        if (wsum > 0) samples.push({ m, cm: Math.round((vsum / wsum) * 10) / 10 });
+    }
+    return samples.length ? samples : null;
+}
+
+/** YYYYMMDD(정수) 에 delta일을 더한 YYYYMMDD(정수). 연간 조석표는 window_days 제약과
+ *  무관하게 연중 어느 날짜든 조회 가능하므로, 하루 앞뒤 실제 달력일을 그대로 쓸 수 있다. */
+function addDaysToYmd(yyyymmdd, delta) {
+    const s = String(yyyymmdd);
+    const d = new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)));
+    d.setUTCDate(d.getUTCDate() + delta);
+    return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+}
+
+/** eastsea: 전날 마지막 극값~다음날 첫 극값까지 이어붙인 뒤 반정현파로 하루치 표본 생성.
+ *  [연계] 전/다음날은 수집 윈도우(dates 배열) 밖이어도 연간 조석표에서 바로 조회 가능
+ *  하므로(addDaysToYmd), day=0(오늘)이어도 자정 이전 구간이 비지 않는다. */
+function buildEastSeaDayCurve(lat, lon, dates, dayIdx) {
+    const targetYmd = dates[dayIdx];
+    const extrema = [];
+    for (let delta = -1; delta <= 1; delta++) {
+        const ymd = delta === 0 ? targetYmd : addDaysToYmd(targetYmd, delta);
+        const scored = findNearestStationsWithData(lat, lon, ymd, 3);
+        if (!scored.length) continue;
+        const pts = scored.length === 1 ? stationOwnPoints(scored[0].row) : idwBlendExtrema(scored);
+        for (const p of pts) extrema.push({ absMin: delta * 1440 + p.minuteOfDay, levelCm: p.levelCm });
+    }
+    if (extrema.length < 2) return { samples: null, peaks: [] };
+    extrema.sort((a, b) => a.absMin - b.absMin);
+
+    const dayStart = 0, dayEnd = 1440; // absMin 이 이미 targetYmd 0시 기준(delta*1440 오프셋)
+    const samples = [];
+    for (let absM = dayStart; absM < dayEnd; absM += CURVE_SAMPLE_STEP_MIN) {
+        // absM 을 감싸는 극값 구간 탐색.
+        let seg = null;
+        for (let i = 1; i < extrema.length; i++) {
+            if (extrema[i - 1].absMin <= absM && absM <= extrema[i].absMin) { seg = [extrema[i - 1], extrema[i]]; break; }
+        }
+        if (!seg) continue;
+        const [a, b] = seg;
+        const cm = a.absMin === b.absMin ? a.levelCm
+            : a.levelCm + (b.levelCm - a.levelCm) * (1 - Math.cos(Math.PI * (absM - a.absMin) / (b.absMin - a.absMin))) / 2;
+        samples.push({ m: absM - dayStart, cm: Math.round(cm * 10) / 10 });
+    }
+    const peaks = extrema
+        .filter(e => e.absMin >= dayStart && e.absMin < dayEnd)
+        .map((e, i, arr) => ({
+            m: e.absMin - dayStart, cm: e.levelCm,
+            type: (i === 0 || e.levelCm >= arr[i - 1].levelCm) && (i === arr.length - 1 || e.levelCm >= arr[i + 1].levelCm) ? 'high' : 'low'
+        }));
+    return { samples: samples.length ? samples : null, peaks };
+}
+
+/**
+ * 간출암 1개의 하루치(dayOffset=0 오늘·1 내일·2 모레) 조석 곡선 + 극값 + 잠김
+ * 기준선(VALSOU)을 반환 — 마커 팝업 차트용. computeAllCrossings 와 달리 요청
+ * 시점에 그 암초·그 날짜만 계산하므로 API 요청마다 호출해도 가볍다.
+ * @returns {{ready:boolean, reason?:string, date?:number, region?:string,
+ *   valsouCm?:number, points?:Array<{t:string,cm:number}>,
+ *   peaks?:Array<{t:string,cm:number,type:'high'|'low'}>,
+ *   submergedAt?:Array<string>}}
+ */
+function getTideCurve(rockId, dayOffset) {
+    const day = Math.max(0, Math.min(2, Number(dayOffset) || 0));
+    const rock = loadRocks().find(r => String(r.id) === String(rockId));
+    if (!rock) return { ready: false, reason: 'not_found' };
+
+    const region = classifyRegion(rock.lat, rock.lon);
+    if (region === 'skip') return { ready: false, reason: 'unsupported_region' };
+
+    const dates = HRCollector.windowDatesKST(HRC.WINDOW_DAYS);
+    if (day >= dates.length) return { ready: false, reason: 'out_of_window' };
+    const targetCm = rock.v * 100;
+
+    let samples = null, peaks = [];
+    if (region === 'westsouth' || region === 'jeju') {
+        const anchors = region === 'westsouth' ? (TFCollector.loadAnchors() || []) : (HRCollector.loadAnchors() || []);
+        const curvePathFn = region === 'westsouth' ? TFCollector.curvePath : HRCollector.curvePath;
+        const refs = nearestRefs(rock.lat, rock.lon, anchors);
+        if (!refs.length) return { ready: false, reason: 'no_curve_data' };
+        samples = buildAnchorDayCurve(refs, curvePathFn, dates[day]);
+        if (samples) peaks = findLocalExtrema(samples);
+    } else if (region === 'eastsea') {
+        const r = buildEastSeaDayCurve(rock.lat, rock.lon, dates, day);
+        samples = r.samples; peaks = r.peaks;
+    }
+    if (!samples) return { ready: false, reason: 'no_curve_data' };
+
+    let submergedAt = [];
+    try {
+        const raw = JSON.parse(fs.readFileSync(SUBMERSION_PATH, 'utf8'));
+        const list = (raw.crossings && raw.crossings[String(rock.id)]) || [];
+        const dayStr = String(dates[day]);
+        submergedAt = list.filter(iso => {
+            const kst = new Date(new Date(iso).getTime() + 9 * 3600000);
+            const ymd = `${kst.getUTCFullYear()}${String(kst.getUTCMonth() + 1).padStart(2, '0')}${String(kst.getUTCDate()).padStart(2, '0')}`;
+            return ymd === dayStr;
+        }).map(iso => {
+            const kst = new Date(new Date(iso).getTime() + 9 * 3600000);
+            return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
+        });
+    } catch (e) { /* submersion.json 미준비 — 잠김 시각 표시 없이 곡선만 반환 */ }
+
+    return {
+        ready: true,
+        date: dates[day],
+        region,
+        valsouCm: Math.round(targetCm * 10) / 10,
+        points: samples.map(s => ({ t: minutesToHHMM(s.m), cm: s.cm })),
+        peaks: peaks.map(p => ({ t: minutesToHHMM(p.m), cm: p.cm, type: p.type })),
+        submergedAt
+    };
+}
+
 module.exports = {
-    computeAllCrossings, getUpcomingWarnings,
+    computeAllCrossings, getUpcomingWarnings, getTideCurve,
     // 테스트/디버그용 보조 export
     classifyRegion, loadRocks
 };

@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 95개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 104개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -32,6 +32,7 @@ client/js/
 │   ├── admin_report.js
 │   ├── admin_survey.js
 │   ├── admin_trigger.js
+│   ├── admin_zone_editor.js
 │   ├── admin.js
 │   ├── advisory_manage_admin.js
 │   ├── cctv7.js
@@ -87,18 +88,26 @@ client/js/
 │   ├── ripcurrent/
 │   │   ├── ripcurrent.js
 │   ├── safety/
+│   │   ├── access_control.js
+│   │   ├── accident_info.js
+│   │   ├── fishing_ban.js
 │   │   ├── hazard_rocks.js
 │   │   ├── life_safety.js
+│   │   ├── navigational_warning.js
+│   │   ├── seaway.js
+│   │   ├── vts_zone.js
 │   ├── scuba/
 │   │   ├── scuba.js
 │   ├── sea-parting/
 │   │   ├── sea_parting.js
-│   └── surfing/
-│       ├── surfing1.js
-│       ├── surfing2.js
-│       ├── surfing3.js
-│       ├── surfing4.js
-│       ├── surfing5.js
+│   ├── surfing/
+│   │   ├── surfing1.js
+│   │   ├── surfing2.js
+│   │   ├── surfing3.js
+│   │   ├── surfing4.js
+│   │   ├── surfing5.js
+│   └── swimming/
+│       ├── swimming.js
 ├── notice/  ← [탭4] 공지사항
 │   ├── board/
 │   │   ├── image_compress.js
@@ -153,6 +162,7 @@ client/js/
 │   ├── ui/
 │   │   ├── ui_modal.js
 │   └── utils/
+│       ├── accident_codes.js
 │       ├── mappings.js
 │       ├── utils.js
 └── typhoon/  ← ⚡ 태풍
@@ -174,6 +184,7 @@ client/js/
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |
 | `admin_trigger.js` | 관리자 트리거(15회 클릭), 공지/점검/오류 팝업 |
+| `admin_zone_editor.js` | 출입통제구역(access_control_zones.json) 폴리곤 점 편집기 — 독립 페이지 |
 | `advisory_manage_admin.js` | 관리자 "특보 관리 → 특보 예측" 운영 UI (청중 모드 토글·예측 목록 관리) |
 | `cctv7.js` | 마커 좌표가 잘못된 경우 지도 상에서 직접 위치를 교정합니다. |
 | `pagination_helper.js` | 관리자 리스트 화면용 공용 페이지네이션 UI helper |
@@ -282,8 +293,14 @@ client/js/
 
 | 파일 | 역할 |
 |------|------|
+| `access_control.js` | 해양안전 지도에 "출입통제" 토글 버튼을 얹어, 연안사고 예방에 관한 |
+| `accident_info.js` | 해양안전 지도에 "사고정보" 버튼을 얹는다. 클릭하면 선박(해경)· |
+| `fishing_ban.js` | 해양안전 지도에 "낚시금지" 토글 버튼을 얹어, 낚시 관리 및 육성법 |
 | `hazard_rocks.js` | 해양안전 지도에 "노출암" / "간출암 등" 두 토글 버튼을 얹는다. 항상 |
 | `life_safety.js` | "해양안전생활" 화면 — 하단 해양생활 탭을 10번 연달아 누르면 열리는 시험용 화면. |
+| `navigational_warning.js` | 해양안전 지도에 "항행경보" 토글 버튼을 얹어, 선택한 날짜에 발효 중인 항행경보 |
+| `seaway.js` | 해양안전 지도에 "항로·해역" 토글 버튼을 얹어, 선박의 입항 및 출항 등에 관한 |
+| `vts_zone.js` | 해양안전 지도에 "관제구역" 토글 버튼을 얹어, 해양경찰청이 공고한 |
 
 ### `client/js/marine-life/scuba/`
 
@@ -306,6 +323,12 @@ client/js/
 | `surfing3.js` | 서핑지수 프론트엔드 - 팝업 열기/닫기 + 이벤트 바인딩 + 날짜 네비게이션 |
 | `surfing4.js` | 서핑지수 프론트엔드 - 팝업 콘텐츠 렌더링 (서핑지수 테이블 + 상세정보) |
 | `surfing5.js` | 서핑지수 프론트엔드 - 해상특보 맵 구축 + 해상특보 HTML 생성 |
+
+### `client/js/marine-life/swimming/`
+
+| 파일 | 역할 |
+|------|------|
+| `swimming.js` | 해수욕 지수 프론트엔드 전체 로직 (스킨스쿠버와 동일한 지도형) |
 
 ### `client/js/notice/board/`
 
@@ -332,7 +355,7 @@ client/js/
 | `ocean_bottom_sheet2.js` | 바텀시트 헤더 — 날짜 네비게이션 + 음력 표시 + 📍 토글 + ✕ 닫기 |
 | `ocean_bottom_sheet3.js` | 바텀시트 조석 카드 — TideBED 폴링 + 3모드 렌더링(loading/error/detail) |
 | `ocean_bottom_sheet4.js` | 동해 북부(36°N+128°E+) IDW 보간 + 천문 카드 (SunCalc) |
-| `ocean_bottom_sheet5.js` | 6개 일반 카드 + 저질 분석 + 전체 오케스트레이터 |
+| `ocean_bottom_sheet5.js` | 6개 일반 카드 + 전체 오케스트레이터 |
 | `ocean_bottom_sheet_vsby.js` | 클릭한 해점(lat/lon)이 속한 '소해구'의 래스터 시정 시계열을 받아, |
 | `ocean_bottom_sheet_weather.js` | 바텀시트 천기 카드 — 클릭한 해점의 KMA 단기예보 6 카테고리 종합 표시 |
 | `ocean_sheet_timeline.js` | 해양종합정보 바텀시트 내부의 시간 이동 슬라이더 |
@@ -409,6 +432,7 @@ client/js/
 
 | 파일 | 역할 |
 |------|------|
+| `accident_codes.js` | "사고정보" 기능(선박사고·인명사고)의 _CD 코드값 → 한글 라벨 매핑 상수. |
 | `mappings.js` | 연안바다/평수구역 매핑, 부이 위치 매핑, 부이 타입 정의 |
 | `utils.js` | 전역 상태(appState), 유틸리티 함수, 날짜/시간 포맷팅 |
 

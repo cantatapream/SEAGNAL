@@ -524,7 +524,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'version', name: '버전 관리', icon: 'fa-code-branch' },
         { id: 'storage', name: '외부 저장소', icon: 'fa-cloud' },
         { id: 'ai', name: 'AI', icon: 'fa-robot' },
-        { id: 'locstatus', name: '위치 기반', icon: 'fa-location-dot' }
+        { id: 'locstatus', name: '위치 기반', icon: 'fa-location-dot' },
+        { id: 'zone-editor', name: '구역 편집', icon: 'fa-draw-polygon' }
     ];
 
     const modal = document.createElement('div');
@@ -558,14 +559,20 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
             </div>
             
             <div class="unified-admin-main-tabs">
-                ${tabs.map(t => `
+                ${tabs.map(t => t.id === 'zone-editor' ? `
+                    <button class="admin-main-tab" onclick="window.open('/admin_zone_editor.html', '_blank')">
+                        <i class="fa-solid ${t.icon}"></i>
+                        <span>${t.name}</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7em;opacity:0.6;margin-left:4px;"></i>
+                    </button>
+                ` : `
                     <button class="admin-main-tab" data-tab="${t.id}" onclick="switchUnifiedAdminTab('${t.id}')">
                         <i class="fa-solid ${t.icon}"></i>
                         <span>${t.name}</span>
                     </button>
                 `).join('')}
             </div>
-            
+
             <div class="unified-admin-body" id="unified-admin-body">
                 <!-- 콘텐츠가 여기에 렌더링됨 -->
             </div>
@@ -649,6 +656,10 @@ window.switchUnifiedAdminTab = function (tabId) {
             // [위치 기반] 이 기기가 수집·저장한 최신 GPS 위치 + 해상/육상 + 지도 팝업 (js/admin_location_status.js)
             if (typeof renderLocationStatusTab === 'function') renderLocationStatusTab(body);
             else body.innerHTML = '<div style="padding:20px;color:#fca5a5;">위치 기반 모듈(admin_location_status.js)이 로드되지 않았습니다.</div>';
+        } else if (tabId === 'zone-editor') {
+            // [구역 편집] 이제 모달 탭이 아니라 /admin_zone_editor.html 새 창 링크(위 탭 버튼에서
+            // window.open 으로 처리) — 여기 도달할 일은 없지만 방어적으로 안내만 표시
+            body.innerHTML = '<div style="padding:20px;color:#94a3b8;">구역 편집은 새 창(/admin_zone_editor.html)에서 엽니다.</div>';
         }
     }, 100);
 };

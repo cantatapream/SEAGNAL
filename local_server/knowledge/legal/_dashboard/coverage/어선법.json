@@ -2,8 +2,8 @@
  "law": "어선법",
  "slug": "어선법",
  "total_raw_articles": 194,
- "total_uncited": 62,
- "coverage_pct": 68.0,
+ "total_uncited": 57,
+ "coverage_pct": 70.6,
  "per_family": {
   "법률": {
    "raw_count": 72,
@@ -11,18 +11,17 @@
   },
   "시행령": {
    "raw_count": 23,
-   "uncited_count": 12
+   "uncited_count": 10
   },
   "시행규칙": {
    "raw_count": 99,
-   "uncited_count": 50
+   "uncited_count": 47
   }
  },
  "uncited_articles": {
   "법률": [],
   "시행령": [
    "1조",
-   "2조",
    "3조",
    "6조",
    "11조",
@@ -30,7 +29,6 @@
    "13조",
    "14조",
    "15조",
-   "17조",
    "18조",
    "19조"
   ],
@@ -47,13 +45,11 @@
    "19조",
    "20조",
    "21조",
-   "22조",
    "27조",
    "28조",
    "31조",
    "32조",
    "33조",
-   "34조",
    "35조",
    "36조",
    "37조",
@@ -78,7 +74,6 @@
    "62조",
    "69조의6",
    "69조의7",
-   "71조",
    "72조",
    "73조",
    "73조의2",
@@ -126,46 +121,21 @@
   ],
   "시행규칙": [
    {
+    "article": "22조",
+    "raw_hang": 7,
+    "missing": [
+     "⑤",
+     "⑥",
+     "⑦"
+    ]
+   },
+   {
     "article": "45조",
     "raw_hang": 4,
     "missing": [
      "②",
      "③",
      "④"
-    ]
-   },
-   {
-    "article": "60조의2",
-    "raw_hang": 4,
-    "missing": [
-     "②",
-     "③",
-     "④"
-    ]
-   },
-   {
-    "article": "69조의4",
-    "raw_hang": 4,
-    "missing": [
-     "②",
-     "③",
-     "④"
-    ]
-   },
-   {
-    "article": "47조",
-    "raw_hang": 6,
-    "missing": [
-     "⑤",
-     "⑥"
-    ]
-   },
-   {
-    "article": "54조",
-    "raw_hang": 3,
-    "missing": [
-     "②",
-     "③"
     ]
    },
    {
@@ -177,28 +147,14 @@
     ]
    },
    {
-    "article": "3조",
-    "raw_hang": 2,
-    "missing": [
-     "②"
-    ]
-   },
-   {
-    "article": "24조",
-    "raw_hang": 2,
-    "missing": [
-     "②"
-    ]
-   },
-   {
     "article": "26조",
     "raw_hang": 3,
     "missing": [
-     "③"
+     "②"
     ]
    },
    {
-    "article": "29조",
+    "article": "34조",
     "raw_hang": 3,
     "missing": [
      "③"
@@ -212,24 +168,10 @@
     ]
    },
    {
-    "article": "60조의4",
-    "raw_hang": 4,
-    "missing": [
-     "②"
-    ]
-   },
-   {
     "article": "60조의5",
     "raw_hang": 2,
     "missing": [
      "①"
-    ]
-   },
-   {
-    "article": "61조",
-    "raw_hang": 5,
-    "missing": [
-     "⑤"
     ]
    },
    {
@@ -244,13 +186,6 @@
     "raw_hang": 4,
     "missing": [
      "③"
-    ]
-   },
-   {
-    "article": "70조",
-    "raw_hang": 4,
-    "missing": [
-     "④"
     ]
    }
   ]

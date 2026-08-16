@@ -70,6 +70,7 @@ window.closeKmaIframeModal = function () {
 // ============================================================================
 // SEAGNAL 커스텀 시스템 모달 (Alert 대체용)
 // ============================================================================
+
 window.showSeagnalModal = function (title, message, type) {
     type = type || 'info';
     var existing = document.getElementById('seagnal-custom-modal');
@@ -82,7 +83,14 @@ window.showSeagnalModal = function (title, message, type) {
     var icon = type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-info';
     var iconClass = type === 'error' ? 'error' : '';
 
-    modal.innerHTML = '<div class="seagnal-modal-overlay" onclick="window.closeSeagnalModal()"></div>' +
+    // 배경(오버레이) 닫기는 click 이 아니라 pointerdown 에 건다.
+    // [이유] 하이브리드 웹뷰는 지도를 탭하면 OL 이 포인터 이벤트로 즉시 모달을 띄우는데,
+    // 그 직후 "같은 탭"에 대해 브라우저가 지연시켜 뒤늦게 쏘는 합성 click 이벤트가
+    // 방금 생긴 전체화면 오버레이 위에서 발생해 "뜨자마자 바로 닫히는" 현상이 있었다
+    // (350ms 유예를 줘봤지만 탭이 몰리는 구간에서도 재현됨 — 시간으로 땜질하지 않고
+    // 근본 원인을 없앰). 브라우저가 지연시키는 건 click 뿐, pointerdown/touchstart 는
+    // 손가락이 실제로 닿는 순간 즉시 발생해 지연되지 않으므로 이 문제 자체가 없다.
+    modal.innerHTML = '<div class="seagnal-modal-overlay" onpointerdown="window.closeSeagnalModal()"></div>' +
         '<div class="seagnal-modal-content">' +
         '<div class="seagnal-modal-icon ' + iconClass + '">' +
         '<i class="fa-solid ' + icon + '"></i></div>' +

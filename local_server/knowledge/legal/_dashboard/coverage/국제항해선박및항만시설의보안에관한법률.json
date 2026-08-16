@@ -2,8 +2,8 @@
  "law": "국제항해선박 및 항만시설의 보안에 관한 법률",
  "slug": "국제항해선박및항만시설의보안에관한법률",
  "total_raw_articles": 156,
- "total_uncited": 20,
- "coverage_pct": 87.2,
+ "total_uncited": 12,
+ "coverage_pct": 92.3,
  "per_family": {
   "법률": {
    "raw_count": 61,
@@ -11,36 +11,28 @@
   },
   "시행령": {
    "raw_count": 22,
-   "uncited_count": 4
+   "uncited_count": 2
   },
   "시행규칙": {
    "raw_count": 73,
-   "uncited_count": 16
+   "uncited_count": 10
   }
  },
  "uncited_articles": {
   "법률": [],
   "시행령": [
    "1조",
-   "6조",
-   "10조",
    "14조"
   ],
   "시행규칙": [
    "1조",
-   "11조",
-   "20조",
    "22조",
    "23조",
    "26조",
-   "33조",
    "35조",
-   "37조의8",
    "37조의9",
    "38조의2",
    "45조",
-   "48조",
-   "52조",
    "55조",
    "56조"
   ]
@@ -57,24 +49,6 @@
     ]
    },
    {
-    "article": "24조",
-    "raw_hang": 4,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
-    "article": "43조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
     "article": "17조",
     "raw_hang": 6,
     "missing": [
@@ -85,12 +59,22 @@
   ],
   "시행령": [
    {
-    "article": "14조의2",
+    "article": "10조",
     "raw_hang": 5,
     "missing": [
      "①",
      "②",
      "③",
+     "④",
+     "⑤"
+    ]
+   },
+   {
+    "article": "14조의2",
+    "raw_hang": 5,
+    "missing": [
+     "①",
+     "②",
      "④",
      "⑤"
     ]
@@ -118,13 +102,6 @@
     "missing": [
      "③"
     ]
-   },
-   {
-    "article": "7조",
-    "raw_hang": 3,
-    "missing": [
-     "①"
-    ]
    }
   ],
   "시행규칙": [
@@ -138,17 +115,6 @@
      "④",
      "⑤",
      "⑥"
-    ]
-   },
-   {
-    "article": "44조",
-    "raw_hang": 5,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④",
-     "⑤"
     ]
    },
    {
@@ -172,15 +138,6 @@
     ]
    },
    {
-    "article": "4조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
     "article": "6조",
     "raw_hang": 3,
     "missing": [
@@ -190,43 +147,16 @@
     ]
    },
    {
+    "article": "12조",
+    "raw_hang": 3,
+    "missing": [
+     "①",
+     "②",
+     "③"
+    ]
+   },
+   {
     "article": "27조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
-    "article": "28조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
-    "article": "29조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
-    "article": "32조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
-    "article": "34조",
     "raw_hang": 3,
     "missing": [
      "①",
@@ -245,22 +175,6 @@
    },
    {
     "article": "5조",
-    "raw_hang": 2,
-    "missing": [
-     "①",
-     "②"
-    ]
-   },
-   {
-    "article": "24조",
-    "raw_hang": 2,
-    "missing": [
-     "①",
-     "②"
-    ]
-   },
-   {
-    "article": "25조",
     "raw_hang": 2,
     "missing": [
      "①",
@@ -292,10 +206,24 @@
     ]
    },
    {
+    "article": "32조",
+    "raw_hang": 3,
+    "missing": [
+     "③"
+    ]
+   },
+   {
     "article": "37조의5",
     "raw_hang": 5,
     "missing": [
      "⑤"
+    ]
+   },
+   {
+    "article": "37조의8",
+    "raw_hang": 3,
+    "missing": [
+     "①"
     ]
    },
    {
@@ -310,6 +238,13 @@
     "raw_hang": 3,
     "missing": [
      "③"
+    ]
+   },
+   {
+    "article": "48조",
+    "raw_hang": 2,
+    "missing": [
+     "①"
     ]
    },
    {

@@ -2,8 +2,8 @@
  "law": "선박직원법",
  "slug": "선박직원법",
  "total_raw_articles": 111,
- "total_uncited": 22,
- "coverage_pct": 80.2,
+ "total_uncited": 16,
+ "coverage_pct": 85.6,
  "per_family": {
   "법률": {
    "raw_count": 40,
@@ -11,24 +11,21 @@
   },
   "시행령": {
    "raw_count": 38,
-   "uncited_count": 10
+   "uncited_count": 7
   },
   "시행규칙": {
    "raw_count": 33,
-   "uncited_count": 12
+   "uncited_count": 9
   }
  },
  "uncited_articles": {
   "법률": [],
   "시행령": [
    "1조",
-   "4조의2",
    "5조의2",
    "6조",
    "7조",
    "21조",
-   "22조의2",
-   "25조",
    "25조의2",
    "26조"
   ],
@@ -38,11 +35,8 @@
    "5조",
    "8조",
    "10조",
-   "13조",
    "20조의2",
-   "22조의3",
    "22조의4",
-   "22조의5",
    "24조",
    "26조"
   ]
@@ -71,26 +65,6 @@
     ]
    },
    {
-    "article": "11조",
-    "raw_hang": 5,
-    "missing": [
-     "②",
-     "③",
-     "④",
-     "⑤"
-    ]
-   },
-   {
-    "article": "18조",
-    "raw_hang": 4,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④"
-    ]
-   },
-   {
     "article": "3조의2",
     "raw_hang": 4,
     "missing": [
@@ -102,46 +76,7 @@
     "article": "9조",
     "raw_hang": 6,
     "missing": [
-     "⑤",
      "⑥"
-    ]
-   },
-   {
-    "article": "15조",
-    "raw_hang": 4,
-    "missing": [
-     "③",
-     "④"
-    ]
-   },
-   {
-    "article": "22조",
-    "raw_hang": 8,
-    "missing": [
-     "⑤",
-     "⑧"
-    ]
-   },
-   {
-    "article": "24조",
-    "raw_hang": 4,
-    "missing": [
-     "③",
-     "④"
-    ]
-   },
-   {
-    "article": "12조",
-    "raw_hang": 6,
-    "missing": [
-     "⑥"
-    ]
-   },
-   {
-    "article": "14조",
-    "raw_hang": 3,
-    "missing": [
-     "③"
     ]
    },
    {
@@ -152,22 +87,15 @@
     ]
    },
    {
-    "article": "14조의5",
+    "article": "15조",
+    "raw_hang": 4,
+    "missing": [
+     "④"
+    ]
+   },
+   {
+    "article": "22조의2",
     "raw_hang": 3,
-    "missing": [
-     "③"
-    ]
-   },
-   {
-    "article": "16조",
-    "raw_hang": 7,
-    "missing": [
-     "⑦"
-    ]
-   },
-   {
-    "article": "17조",
-    "raw_hang": 6,
     "missing": [
      "③"
     ]
@@ -175,61 +103,12 @@
   ],
   "시행규칙": [
    {
-    "article": "12조",
-    "raw_hang": 4,
-    "missing": [
-     "②",
-     "③",
-     "④"
-    ]
-   },
-   {
     "article": "18조",
     "raw_hang": 6,
     "missing": [
      "④",
      "⑤",
      "⑥"
-    ]
-   },
-   {
-    "article": "2조",
-    "raw_hang": 4,
-    "missing": [
-     "③",
-     "④"
-    ]
-   },
-   {
-    "article": "5조의2",
-    "raw_hang": 2,
-    "missing": [
-     "①",
-     "②"
-    ]
-   },
-   {
-    "article": "22조의2",
-    "raw_hang": 5,
-    "missing": [
-     "③",
-     "④"
-    ]
-   },
-   {
-    "article": "22조의6",
-    "raw_hang": 7,
-    "missing": [
-     "③",
-     "⑦"
-    ]
-   },
-   {
-    "article": "25조",
-    "raw_hang": 4,
-    "missing": [
-     "②",
-     "④"
     ]
    },
    {
@@ -244,6 +123,13 @@
     "raw_hang": 3,
     "missing": [
      "③"
+    ]
+   },
+   {
+    "article": "22조의5",
+    "raw_hang": 2,
+    "missing": [
+     "①"
     ]
    }
   ]

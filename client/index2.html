@@ -482,7 +482,8 @@
         #surfing-section.tab-content.active,
         #scuba-section.tab-content.active,
         #mudflat-section.tab-content.active,
-        #ripcurrent-section.tab-content.active {
+        #ripcurrent-section.tab-content.active,
+        #swimming-section.tab-content.active {
             position: fixed !important;
             top: env(safe-area-inset-top, 20px) !important;
             bottom: var(--main-tab-height) !important;
@@ -502,7 +503,8 @@
         body.sub-tabs-open #surfing-section.tab-content.active,
         body.sub-tabs-open #scuba-section.tab-content.active,
         body.sub-tabs-open #mudflat-section.tab-content.active,
-        body.sub-tabs-open #ripcurrent-section.tab-content.active {
+        body.sub-tabs-open #ripcurrent-section.tab-content.active,
+        body.sub-tabs-open #swimming-section.tab-content.active {
             bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
         }
 
@@ -511,7 +513,8 @@
         #surfing-section.tab-content.active > .life-header-row,
         #scuba-section.tab-content.active > .life-header-row,
         #mudflat-section.tab-content.active > .life-header-row,
-        #ripcurrent-section.tab-content.active > .life-header-row {
+        #ripcurrent-section.tab-content.active > .life-header-row,
+        #swimming-section.tab-content.active > .life-header-row {
             flex: 0 0 auto;
             padding: 10px 14px;
             margin: 0;
@@ -522,7 +525,8 @@
         #surfing-section.tab-content.active .life-map-container,
         #scuba-section.tab-content.active .life-map-container,
         #mudflat-section.tab-content.active .life-map-container,
-        #ripcurrent-section.tab-content.active .life-map-container {
+        #ripcurrent-section.tab-content.active .life-map-container,
+        #swimming-section.tab-content.active .life-map-container {
             flex: 1 1 auto;
             position: relative;   /* 내부 플로팅 컨트롤의 기준 */
             width: 100%;
@@ -537,7 +541,8 @@
         #surfing-section.tab-content.active #surfing-map,
         #scuba-section.tab-content.active #scuba-map,
         #mudflat-section.tab-content.active #mudflat-map,
-        #ripcurrent-section.tab-content.active #rip-map {
+        #ripcurrent-section.tab-content.active #rip-map,
+        #swimming-section.tab-content.active #swim-map {
             position: absolute !important;
             top: 0; left: 0; right: 0; bottom: 0;
             width: 100% !important;
@@ -552,7 +557,8 @@
         #surfing-section.tab-content.active .surfing-disclaimer,
         #scuba-section.tab-content.active .fishing-disclaimer,
         #mudflat-section.tab-content.active .fishing-disclaimer,
-        #ripcurrent-section.tab-content.active .fishing-disclaimer {
+        #ripcurrent-section.tab-content.active .fishing-disclaimer,
+        #swimming-section.tab-content.active .fishing-disclaimer {
             display: none !important;
         }
 
@@ -777,15 +783,36 @@
         body.ls-mode.ls-safety #ocean-mudflat-toggle-btn,
         body.ls-mode.ls-safety #ocean-exposed-toggle-btn,
         body.ls-mode.ls-safety #ocean-rock-toggle-btn,
+        body.ls-mode.ls-safety #ocean-access-control-toggle-btn,
+        body.ls-mode.ls-safety #ocean-fishing-ban-toggle-btn,
+        body.ls-mode.ls-safety #ocean-vts-toggle-btn,
+        body.ls-mode.ls-safety #ocean-seaway-toggle-btn,
+        body.ls-mode.ls-safety #ocean-navwarn-btn,
         body.ls-mode.ls-safety #ocean-cctv-toggle-btn,
         body.ls-mode.ls-safety #ocean-myloc-btn { display: flex !important; }
-        /* 노출암/간출암 등 토글은 해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
-           [연계] js/marine-life/safety/hazard_rocks.js */
-        #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn { display: none; }
+        /* 사고정보 버튼은 자기 자신이 아니라 팝아웃 앵커용 wrap(#ocean-accident-wrap)이
+           #ocean-overlay-controls 의 직계 자식이라 위 flex 규칙과 별도로 켜준다
+           (wrap 자체는 position:relative 만 필요 — 버튼처럼 flex 아님). */
+        body.ls-mode.ls-safety #ocean-accident-wrap { display: block !important; }
+        /* 노출암/간출암 등/출입통제/낚시금지/관제구역/항로·해역/항행경보/사고정보 버튼은
+           해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
+           [버그 수정] 사고정보(#ocean-accident-wrap)가 이 목록에 빠져 있어 해양종합정보에서도
+           노출되던 문제(사용자 보고) — "해양안전에서만 켠다"만 있고 "기본은 끈다"가 없었음.
+           [연계] js/marine-life/safety/hazard_rocks.js, js/marine-life/safety/access_control.js,
+                  js/marine-life/safety/fishing_ban.js, js/marine-life/safety/vts_zone.js,
+                  js/marine-life/safety/seaway.js, js/marine-life/safety/navigational_warning.js,
+                  js/marine-life/safety/accident_info.js */
+        #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn, #ocean-access-control-toggle-btn,
+        #ocean-fishing-ban-toggle-btn, #ocean-vts-toggle-btn,
+        #ocean-seaway-toggle-btn, #ocean-navwarn-btn, #ocean-accident-wrap { display: none; }
         body.ls-mode.ls-safety #ocean-search-container,
         body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
         /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
         body.ls-mode.ls-safety #ocean-topleft-controls { top: 12px; }
+        /* 해양안전생활 화면은 출입통제 등 전용 팝업만 쓴다 — 해양종합정보의 해점 정보
+           바텀시트는 여기서 절대 뜨면 안 됨(access_control.js 의 클릭 우선순위 처리와
+           별개로, 다른 경로로라도 열리지 않도록 화면 자체에서 항상 숨김) */
+        body.ls-mode.ls-safety #ocean-bottom-sheet { display: none !important; }
 
         /* ── 물빠짐 ON 일 때의 하단 스택 정리 ────────────────────────
            아래에서 위 순서로 [하단탭(+서브탭) / 시간 슬라이더 / 출처표기 / 범례] 가
@@ -828,12 +855,11 @@
             bottom: calc(var(--ls-bottom-chrome) + 2.25rem + 34px) !important;
         }
 
-        /* 지도가 없는 활동(해수욕·바다갈라짐): 기존 UI 를 그대로 두되 폭·상단을 조정해
-           우측 레일과 좌측 상단 컨트롤에 내용이 가리지 않게 한다 */
-        body.ls-mode.ls-life #swimming-section.tab-content.active {
-            padding-right: calc(var(--ls-rail-w) + 24px) !important;
-            padding-top: 4.5rem !important;
-        }
+        /* 바다갈라짐(지도 없는 활동): 기존 UI 를 그대로 두되 폭·상단을 조정해
+           우측 레일과 좌측 상단 컨트롤에 내용이 가리지 않게 한다.
+           해수욕은 이제 스킨스쿠버와 동일한 지도형이라(위 fishing/scuba 등과 같은 allowlist에
+           #swimming-section 추가됨), 우측 레일이 fixed 오버레이로 뜨는 다른 지도 활동들과
+           마찬가지로 별도 padding 보정이 필요 없다. */
         /* 바다갈라짐: 버튼이 가로 한 줄로 위에 있으므로 좌우는 그대로 두고 위만 비운다.
            제목 줄("바다갈라짐 시간")은 숨긴다 — 화면 폭을 표에 온전히 내주기 위함. */
         body.ls-mode.ls-life.ls-row #sea-parting-section.tab-content.active {
@@ -970,20 +996,8 @@
             padding: 0;
         }
         .ocean-info-panel li { margin: 4px 0; }
-        /* 해양안전(ⓘ) — 여러 기능 안내를 한 팝업에 이어붙일 때 구간 제목.
-           life_safety.js 가 oceanInfoTabHtml() 여러 개를 이어붙여 넣는다. */
-        .ls-info-section-title {
-            margin: 14px 0 6px 0;
-            padding-top: 12px;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            color: #fff;
-            font-size: 0.85rem;
-            font-weight: 700;
-        }
-        .ls-info-section-title:first-child { margin-top: 0; padding-top: 0; border-top: none; }
         /* 출처 줄 — 본문 맨 하단에 구분선 + 작은 회색 글씨 (ocean_cctv.js 가 주입).
-           .ocean-info-panel 안(17탭 팝업)이든 밖(life_safety.js 가 이어붙인 팝업)이든
-           동일하게 적용되도록 조상 제한 없이 클래스만으로 건다. */
+           .ocean-info-panel 안 어디든 동일하게 적용되도록 조상 제한 없이 클래스만으로 건다. */
         .ocean-info-src {
             margin-top: 12px;
             padding-top: 8px;
@@ -1451,6 +1465,104 @@
         /* 시간 라벨 (정오) — 제거 (사용자 요구). renderTicks() 에서 그리지 않음. */
         .shrt-fcst-tick-label.bottom { display: none; }
 
+        /* ── 항행경보 날짜 내비게이션 + 시간 슬라이더 UI (js/marine-life/safety/navigational_warning.js) ── */
+        .navwarn-date-nav {
+            position: absolute;
+            top: 66px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1200;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(15, 23, 42, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            padding: 6px 8px;
+            backdrop-filter: blur(6px);
+        }
+        .navwarn-nav-btn {
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .navwarn-nav-btn:active { transform: scale(0.94); }
+        .navwarn-date-label {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: #fff;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+        .navwarn-date-tag {
+            font-size: 0.62rem;
+            font-weight: 800;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: rgba(59, 130, 246, 0.28);
+            color: #bfdbfe;
+            white-space: nowrap;
+        }
+        .navwarn-date-tag.other { background: rgba(148, 163, 184, 0.22); color: #cbd5e1; }
+
+        .navwarn-time-bar {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(var(--main-tab-height, 68px) - env(safe-area-inset-bottom, 0px));
+            z-index: 1200;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(6px);
+        }
+        .navwarn-time-label {
+            flex: 0 0 auto;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #fff;
+            white-space: nowrap;
+        }
+        .navwarn-time-label span { color: #fca5a5; font-variant-numeric: tabular-nums; }
+        .navwarn-time-slider { flex: 1 1 auto; accent-color: #dc2626; }
+
+        .navwarn-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1300;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(15, 23, 42, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            padding: 14px 20px;
+            color: #fff;
+            font-size: 0.88rem;
+            font-weight: 700;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        }
+        .navwarn-loading i { color: #dc2626; font-size: 1.1rem; }
+
+        /* 항행경보 구역 상세 팝업 — occurrence(시간대)가 여러 개면 내용이 길어질 수 있어
+           세로 스크롤을 준다(access_control-wide 와 조합해서만 사용). */
+        .seagnal-modal-content.navwarn-detail-scroll {
+            max-height: 78vh;
+            overflow-y: auto;
+        }
+
         /* ── 물빠짐(갯벌 노출) 레이어 UI (js/tide_field.js) ───────────── */
         .mudflat-legend .mudflat-legend-row {
             display: flex;
@@ -1565,6 +1677,73 @@
             text-shadow: 0 0 3px rgba(255, 255, 255, 0.95), 0 0 2px rgba(255, 255, 255, 0.95);
         }
         .hazard-rock-warning-text b { font-weight: 800; }
+        /* 간출암(k=1) 탭 시 뜨는 조석 곡선 팝업 — 위 .hazard-rock-popup 을 베이스로
+           버튼(날짜 넘기기·닫기)이 있어 상호작용 가능해야 하므로 일부 속성을 덮어씀.
+           그래프 안 텍스트/점 색은 --rtp-* 변수로 분리(SVG 는 hazard-rock-popup 의
+           어두운 배경 위에서만 쓰이므로 라이트/다크 테마 분기 없이 고정값 사용).
+           [연계] js/marine-life/safety/hazard_rocks.js openTideCurvePopup() 이하
+                  renderTideChart()/renderBottomTideCard() */
+        .hazard-rock-popup.rock-tide-popup {
+            --rtp-bg: rgba(15,25,50,0.96);
+            --rtp-ink: #f1f5f9;
+            --rtp-ink-dim: #94a3b8;
+            --rtp-curve: #4a9eff;
+            --rtp-curve-fill: rgba(74,158,255,0.16);
+            --rtp-red: #e74c5e;
+            --rtp-red-fill: rgba(231,76,94,0.28);
+            --rtp-green: #22c55e;
+            --rtp-now-dot: #ffffff;
+            pointer-events: auto;
+            white-space: normal;
+            width: 21rem;
+            max-width: 88vw;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 0.9rem 1rem 1rem;
+        }
+        .rock-tide-popup .rtp-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 0.4rem;
+        }
+        .rock-tide-popup .rtp-title { font-size: 0.95rem; font-weight: 700; }
+        .rock-tide-popup .rtp-close {
+            background: rgba(255,255,255,0.10); border: none; color: #cbd5e1;
+            width: 1.6rem; height: 1.6rem; border-radius: 50%;
+            font-size: 1rem; line-height: 1; cursor: pointer; flex-shrink: 0;
+        }
+        .rock-tide-popup .rtp-daynav {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 0.4rem; font-size: 0.82rem; color: #e2e8f0;
+        }
+        .rock-tide-popup .rtp-daynav button {
+            background: rgba(255,255,255,0.12); border: none; color: #fff;
+            border-radius: 0.35rem; padding: 0.2rem 0.7rem; cursor: pointer; font-size: 0.8rem;
+        }
+        .rock-tide-popup .rtp-daynav button:disabled { opacity: 0.3; cursor: default; }
+        .rock-tide-popup .rtp-chartwrap { width: 100%; }
+        .rock-tide-popup .rtp-svg { display: block; width: 100%; height: auto; overflow: visible; }
+        /* SVG <text> 가 본문과 다른 기본 서체로 렌더되지 않도록 명시적으로 상속 지정. */
+        .rock-tide-popup .rtp-svg text { font-family: inherit; }
+        .rock-tide-popup .rtp-fallback {
+            font-size: 0.8rem; color: #cbd5e1; text-align: center; padding: 1rem 0.5rem;
+        }
+        .rock-tide-popup .rtp-divider { border: none; border-top: 1px solid rgba(120,150,200,0.3); margin: 0.5rem 0 0.3rem; }
+        /* 현재 시각 점 — 간출암 잠김경고 펄스(.hazard-rock-warning-glow, 위 참고)와
+           같은 방식(은은하게 커졌다 작아졌다)의 애니메이션 재사용. */
+        .rock-tide-popup .rtp-now-glow {
+            fill: var(--rtp-now-dot); transform-box: fill-box; transform-origin: 50% 50%;
+            animation: rtpNowDotPulse 1.8s ease-in-out infinite;
+        }
+        @keyframes rtpNowDotPulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50%      { transform: scale(2.4); opacity: 0.05; }
+        }
+        /* 아래 "조석" 카드 — .ocean-tide-wrap 은 원래 해점 클릭 바텀시트 전용 카드
+           배경/테두리/패딩을 갖고 있는데, 이 팝업 안에서는 팝업 자체가 이미 카드라
+           이중 테두리로 보이지 않도록 배경/테두리/패딩만 제거(내부 구조·글자 스타일은
+           그대로 재사용). */
+        .rock-tide-popup .rtp-tidecard.ocean-tide-wrap { background: transparent; border: none; padding: 0; }
+        .rock-tide-popup .rtp-wave { color: #64b4ff; margin-right: 0.2rem; }
         /* 물빠짐 로딩 스피너 (중앙) */
         #mudflat-loading {
             position: fixed; inset: 0; z-index: 1400;
@@ -3339,6 +3518,61 @@
                             <i class="fa-solid fa-triangle-exclamation"></i>
                             <span class="ocean-overlay-label" data-line1="간출암" data-line2="등">간출암 등</span>
                         </button>
+                        <!-- 출입통제 토글: js/marine-life/safety/access_control.js 가 바인딩.
+                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
+                             연안사고 예방에 관한 법률 제10조 출입통제구역 중, 원본 고시·공고에
+                             경위도 좌표가 온전히 명시돼 폴리곤으로 확정 가능한 구역만 우선 반영.
+                             [데이터] /access_control_zones.json (정적, 처음 누를 때만 지연 로드) -->
+                        <button class="ocean-overlay-btn" id="ocean-access-control-toggle-btn" title="출입통제구역">
+                            <i class="fa-solid fa-ban"></i>
+                            <span class="ocean-overlay-label" data-line1="출입" data-line2="통제">출입통제</span>
+                        </button>
+                        <!-- 낚시금지 토글: js/marine-life/safety/fishing_ban.js 가 바인딩.
+                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
+                             낚시 관리 및 육성법 제6조(및 지자체 조례)에 따른 낚시통제구역.
+                             [데이터] /fishing_ban_zones.json (국립해양조사원 낚시통제구역
+                                      주제도 TL_RESARE_ENS, 정적, 처음 누를 때만 지연 로드) -->
+                        <button class="ocean-overlay-btn" id="ocean-fishing-ban-toggle-btn" title="낚시금지구역">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                            <span class="ocean-overlay-label" data-line1="낚시" data-line2="금지">낚시금지</span>
+                        </button>
+                        <!-- 관제구역 토글: js/marine-life/safety/vts_zone.js 가 바인딩.
+                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
+                             선박교통관제에 관한 법률 제12조([별표 1])에 따른 선박교통관제(VTS)구역.
+                             켜면 배경지도가 전자해도로 자동 전환된다(항해 정보라 해도가 맞음).
+                             [데이터] /vts_zones.json (해양경찰청 전국 20개 VTS센터 페이지의
+                                      공식 관제구역 34개, 정적, 처음 누를 때만 지연 로드) -->
+                        <button class="ocean-overlay-btn" id="ocean-vts-toggle-btn" title="관제구역">
+                            <i class="fa-solid fa-tower-broadcast"></i>
+                            <span class="ocean-overlay-label" data-line1="관제" data-line2="구역">관제구역</span>
+                        </button>
+                        <!-- 항로·해역 토글: js/marine-life/safety/seaway.js 가 바인딩.
+                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
+                             선박의 입항 및 출항 등에 관한 법률 제10조 등에 따라 지정ㆍ고시된 항로 +
+                             한중·한일 어업협정에 따른 국제 해양경계 수역(잠정조치·중간·과도수역).
+                             켜면 배경지도가 전자해도로 자동 전환된다(항해 정보라 해도가 맞음).
+                             [데이터] /seaway_zones.json (국립해양조사원 개방海 포털의
+                                      실시간 WFS(vi_seaway) 141개 + 국제 해양경계 수역 3개 = 144개,
+                                      정적, 처음 누를 때만 지연 로드) -->
+                        <button class="ocean-overlay-btn" id="ocean-seaway-toggle-btn" title="항로·해역">
+                            <i class="fa-solid fa-route"></i>
+                            <span class="ocean-overlay-label" data-line1="항로" data-line2="해역">항로·해역</span>
+                        </button>
+                        <!-- 항행경보 토글: js/marine-life/safety/navigational_warning.js 가 바인딩.
+                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
+                             켜면 오늘 발효 중인 항행경보(선박사고·표류장애물·해상사격훈련 등)의
+                             구역을 원형/다각형으로 그린다(켜면 배경지도가 위성지도로 자동 전환된다).
+                             [서버 API] GET /api/navigational-warning/list (텍스트: data.go.kr 공식 API,
+                                      좌표: KHOA 내부 API 보강, 30분 캐시) -->
+                        <button class="ocean-overlay-btn" id="ocean-navwarn-btn" title="항행경보">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span class="ocean-overlay-label" data-line1="항행" data-line2="경보">항행경보</span>
+                        </button>
                         <!-- 천기 토글: js/shrt_forecast_layer.js 가 바인딩 (이전 이름: "기타 기상")
                              클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
                              (강수확률·강수량·적설·하늘상태·강수형태) — 하나 선택 시 팝아웃이 접히면서
@@ -3403,6 +3637,36 @@
                             <i class="fa-solid fa-video"></i>
                             <span class="ocean-overlay-label" data-line1="CC" data-line2="TV">CCTV</span>
                         </button>
+                        <!-- 사고정보 토글: js/marine-life/safety/accident_info.js 가 바인딩.
+                             해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
+                             CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
+                             클릭하면 왼쪽으로 팝아웃(천기 버튼의 .ocean-other-wx-popup 패턴 재사용)
+                             — 현황/분석 토글 + 선박(해경)·선박(심판원)·인명 소스 버튼 3개.
+                             [데이터] /accident_ships_hk.json·accident_ships_hs.json·accident_persons.json
+                                      (국립해양조사원 개방海, 정적, 소스 버튼을 처음 누를 때만 지연 로드) -->
+                        <div class="ocean-other-wx-wrap" id="ocean-accident-wrap">
+                            <button class="ocean-overlay-btn" id="ocean-accident-toggle-btn" title="사고정보">
+                                <i class="fa-solid fa-ship"></i>
+                                <span class="ocean-overlay-label" data-line1="사고" data-line2="정보">사고정보</span>
+                            </button>
+                            <div class="ocean-other-wx-popup accident-popup-panel" id="ocean-accident-popup">
+                                <div class="accident-mode-toggle" id="ocean-accident-mode-toggle">
+                                    <button class="active" data-mode="status">현황</button>
+                                    <button data-mode="analysis">분석</button>
+                                </div>
+                                <div class="accident-source-list" id="ocean-accident-source-list">
+                                    <button class="accident-source-item" data-source="hk">
+                                        <i class="fa-solid fa-ship"></i><span>선박(해경)</span>
+                                    </button>
+                                    <button class="accident-source-item" data-source="hs">
+                                        <i class="fa-solid fa-gavel"></i><span>선박(심판원)</span>
+                                    </button>
+                                    <button class="accident-source-item" data-source="person">
+                                        <i class="fa-solid fa-user"></i><span>인명</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <button class="ocean-overlay-btn ocean-myloc-btn" id="ocean-myloc-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                             <!-- 큰 텍스트 모드 전용 라벨 — 보통 모드에선 .ocean-overlay-label[data-line1] CSS
@@ -3416,6 +3680,18 @@
 
                     <!-- 캔버스 오버레이 (파티클/색상 그라디언트) -->
                     <canvas id="ocean-overlay-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; border-radius:10px;"></canvas>
+
+                    <!-- 사고정보 "분석" 모드 통계 바텀시트 — .ocean-bottom-sheet(해양종합정보 해점
+                         카드)와 별개 요소. body.ls-mode.ls-safety #ocean-bottom-sheet 는 항상 숨김
+                         처리되어 있어(위 CSS 참고) 그 요소를 재사용하지 않고 새로 둔다.
+                         [연계] js/marine-life/safety/accident_info.js openStatsSheet()/closeStatsSheet() -->
+                    <div class="accident-stats-sheet" id="accident-stats-sheet">
+                        <div class="accident-sheet-handle"></div>
+                        <button class="ocean-sheet-close" id="accident-stats-close" title="닫기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                        <div class="accident-stats-body" id="accident-stats-body"></div>
+                    </div>
 
                     <!-- 활성 특보 색칠 범례
                          [표출 조건] state.active === true 일 때만 (ocean_warn_active4.js 가 토글)
@@ -3722,6 +3998,30 @@
                          [표출 조건] js/vsby_forecast_layer.js 가 레이어 ON 시 표출
                          [연계] js/vsby_forecast_layer.js -->
                     <div id="vsby-fcst-legend" class="warn-active-legend vsby-fcst-legend" style="display:none;" aria-hidden="true"></div>
+
+                    <!-- 항행경보 날짜 내비게이션 (js/marine-life/safety/navigational_warning.js 가 제어)
+                         [표출 조건] 항행경보 토글 ON 시 display:'flex'
+                         [연계] 서버 GET /api/navigational-warning/list?date= 로 재조회 -->
+                    <div id="navwarn-date-nav" class="navwarn-date-nav" style="display:none;" aria-hidden="true">
+                        <button type="button" id="navwarn-prev-day" class="navwarn-nav-btn" title="이전 날짜"><i class="fa-solid fa-chevron-left"></i></button>
+                        <div class="navwarn-date-label" id="navwarn-date-label"></div>
+                        <div class="navwarn-date-tag" id="navwarn-date-tag"></div>
+                        <button type="button" id="navwarn-next-day" class="navwarn-nav-btn" title="다음 날짜"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+
+                    <!-- 항행경보 기준 시각 슬라이더 — 날짜를 바꿔도 유지된다(사용자 요구).
+                         선택한 날짜 기준 이 시각이 지난 구역의 시간창은 회색으로 표시된다. -->
+                    <div id="navwarn-time-bar" class="navwarn-time-bar" style="display:none;" aria-hidden="true">
+                        <div class="navwarn-time-label">기준 시각 <span id="navwarn-time-value">00:00</span></div>
+                        <input type="range" class="navwarn-time-slider" id="navwarn-time-slider" min="0" max="1439" value="0" step="15">
+                    </div>
+
+                    <!-- 항행경보 로딩 스피너 — KHOA 세션 발급이 섞이면 조회에 몇 초 걸릴 수 있어
+                         재조회(토글 ON, 날짜 이동) 동안 화면 가운데에 표시한다. -->
+                    <div id="navwarn-loading" class="navwarn-loading" style="display:none;" aria-hidden="true">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <span>불러오는 중입니다...</span>
+                    </div>
                 </div>
 
                 <!--
@@ -4279,14 +4579,82 @@
 
             </section>
 
-            <!-- 섹션: 해양생활 - 해수욕 -->
+            <!-- ================================================================
+                 섹션: 해양생활 - 해수욕 (스킨스쿠버와 동일한 지도형 UI)
+                 [연계] js/marine-life/swimming/swimming.js → initSwimmingMap(), 지도 마커/바텀시트
+                 [연계] routes/fishing.js → /api/swimming-index 데이터 제공
+                 [참고] 데이터 구조가 스킨스쿠버와 동일하여 .fishing-* 스타일을 공유.
+                        요소 ID만 #swim-* 로 분리(스킨스쿠버 #scuba-* 와 충돌 방지).
+                 ================================================================ -->
             <section id="swimming-section" class="tab-content">
-                <div class="section-header-with-info">
+
+                <!-- 제목 라인: 좌측 아이콘+제목 / 우측 발표시각 -->
+                <div class="section-header-with-info life-header-row">
                     <h2 class="section-title"><i class="fa-solid fa-umbrella-beach"></i> 해수욕 지수</h2>
+                    <span class="life-publish-time" id="swim-publish-time">발표: -</span>
                 </div>
-                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
-                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">해수욕 지수는 해수욕장 개장기간에 제공됩니다.</p>
+
+                <!-- 지도 영역 (풀스크린 플로팅 레이아웃) -->
+                <div class="fishing-map-container life-map-container">
+                    <div id="swim-map" class="fishing-map">
+                        <!-- OpenLayers 지도가 렌더링되는 영역 -->
+                    </div>
+
+                    <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
+                    <div class="life-map-controls-topright">
+                        <button id="swim-my-location-btn" class="life-map-icon-btn" title="내 위치">
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                        </button>
+                        <button id="swim-notice-btn" class="life-map-icon-btn" title="유의사항">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                        </button>
+                    </div>
                 </div>
+
+                <!-- 바텀시트 오버레이 (마커 클릭 시 표시) -->
+                <div class="fishing-bottomsheet-overlay" id="swim-bottomsheet-overlay"></div>
+
+                <!-- 바텀시트 (마커 클릭 시 하단에서 슬라이드업) -->
+                <div class="fishing-bottomsheet" id="swim-bottomsheet">
+                    <div class="fishing-bs-handle"><div class="fishing-bs-handle-bar"></div></div>
+
+                    <div class="fishing-bs-header">
+                        <div class="fishing-bs-place">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span id="swim-bs-place-name">-</span>
+                        </div>
+                        <div class="fishing-bs-total-index" id="swim-bs-total-index">
+                            <!-- JS에서 종합 지수 배지 렌더링 -->
+                        </div>
+                        <button class="fishing-bs-close" id="swim-bs-close" title="닫기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <!-- 날짜 네비게이션 -->
+                    <div class="fishing-bs-date-nav">
+                        <button class="fishing-bs-date-btn" id="swim-date-prev" title="이전 날짜">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span class="fishing-bs-date-label" id="swim-bs-date-label">-</span>
+                        <button class="fishing-bs-date-btn" id="swim-date-next" title="다음 날짜">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <!-- 예보 데이터 영역 (JS에서 동적 렌더링) -->
+                    <div class="fishing-bs-content" id="swim-bs-content">
+                        <!-- 오전/오후 기상요약 + 개장상태 등이 JS로 렌더링됨 -->
+                    </div>
+                </div>
+
+                <!-- 유의사항 팝업 소스 (숨김) — 유의사항 버튼 클릭 시 JS가 읽어 팝업 표출 -->
+                <div class="fishing-disclaimer" id="swim-disclaimer" style="display:none;">
+                    <p><i class="fa-solid fa-circle-check"></i> 생활해양예보지수는 수치예측결과를 활용하여 만들어진 참고자료로서 실제와 다를 수 있으니 현장의 해양·기상 상황을 반드시 확인하시기 바랍니다. 따라서 서비스는 사용자의 책임하에 이용되어야하며, 그 정보의 정확성과 법적인 책임은 조사원 및 본 앱에 있지 아니함을 알려드립니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 해수욕장별 개장기간·개장상태는 지자체 사정에 따라 달라질 수 있으니 현지 안내를 함께 확인하시기 바랍니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 파고·이안류 등 해상 상황이 급변할 수 있으니 안전요원의 안내와 통제 신호를 반드시 준수하시기 바랍니다.</p>
+                </div>
+
             </section>
 
             <!-- ================================================================
@@ -4730,6 +5098,7 @@
     <!-- [리팩토링] app.js를 15개 모듈로 분할 -->
     <script src="js/core/config.js"></script>
     <script src="js/shared/utils/mappings.js"></script>
+    <script src="js/shared/utils/accident_codes.js"></script>
     <script src="js/shared/utils/utils.js"></script>
     <script src="js/forecast/alerts/data.js"></script>
     <script src="js/forecast/alerts/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
@@ -4770,9 +5139,10 @@
     <script src="js/marine-life/mudflat/mudflat.js?v=LifeSafety_20260731"></script>
     <script src="js/marine-life/scuba/scuba.js?v=LifeSafety_20260731"></script>
     <script src="js/marine-life/ripcurrent/ripcurrent.js"></script>
+    <script src="js/marine-life/swimming/swimming.js"></script>
 
     <!-- 해양종합정보 (히든 탭) -->
-    <script src="js/ocean-map/map/ocean_map.js?v=LifeSafety_20260731"></script>
+    <script src="js/ocean-map/map/ocean_map.js?v=LifeSafety_20260731d"></script>
     <script src="js/ocean-map/map/ocean_markers.js"></script>
     <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet1.js"></script>
     <!-- 시트 슬라이더 모듈 — bottom_sheet2.js 가 STL.onRelease 를 wire 하므로 그 전에 로드되어
@@ -4828,6 +5198,9 @@
     <script src="js/admin/advisory_manage_admin.js"></script>
     <!-- [위치 기반] 관리자 센터 위치 기반 탭: 이 기기 수집 GPS 위치 + 해상/육상 + 지도 팝업 -->
     <script src="js/admin/admin_location_status.js"></script>
+    <!-- [구역 편집] 이제 모달 탭이 아니라 /admin_zone_editor.html 독립 페이지로 분리(admin.js 의
+         "구역 편집" 버튼이 새 창으로 엶) — admin_zone_editor.js 는 그 페이지가 직접 로드하므로
+         여기서는 더 이상 스크립트를 얹지 않는다 -->
     <script src="js/engagement/report_user.js"></script>
     <script src="js/engagement/survey_user.js"></script>
     <script src="js/settings/zone_guide.js"></script>
@@ -4871,9 +5244,40 @@
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <script src="js/marine-life/safety/hazard_rocks.js"></script>
 
+    <!-- 출입통제구역 레이어 — 해양안전 하위탭 전용. ocean_warn_zone.js 와 동일하게
+         스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
+    <script src="js/marine-life/safety/access_control.js"></script>
+
+    <!-- 낚시금지구역 레이어 — 해양안전 하위탭 전용. access_control.js 와 동일하게
+         스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
+    <script src="js/marine-life/safety/fishing_ban.js?v=FishingBanZoom_20260803"></script>
+
+    <!-- 선박교통관제(VTS)구역 레이어 — 해양안전 하위탭 전용. fishing_ban.js 와 동일하게
+         스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
+    <script src="js/marine-life/safety/vts_zone.js?v=VtsZoom_20260803b"></script>
+
+    <!-- 항로·해역 레이어 — 해양안전 하위탭 전용. vts_zone.js 와 동일하게
+         스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
+    <script src="js/marine-life/safety/seaway.js?v=SeawayCapLenFilter_20260812"></script>
+
+    <!-- 항행경보 구역 레이어 — 해양안전 하위탭 전용. seaway.js 와 동일하게
+         스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
+    <script src="js/marine-life/safety/navigational_warning.js"></script>
+
+    <!-- 사고정보(선박·인명) 레이어 — 해양안전 하위탭 전용. navigational_warning.js 와
+         동일하게 스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
+         같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다.
+         accident_codes.js(라벨 매핑)를 먼저 읽으므로 그 뒤에 위치. -->
+    <script src="js/marine-life/safety/accident_info.js"></script>
+
     <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
-    <script src="js/marine-life/safety/life_safety.js?v=LifeSafety_20260731c"></script>
+    <script src="js/marine-life/safety/life_safety.js?v=LifeSafety_20260812"></script>
 
     <!-- 선택적 차단 표시용 스타일 (버튼 자물쇠 배지 / 해상일기도·바텀시트 점검중) -->
     <style>
@@ -5582,6 +5986,18 @@
                                     </label>
                                 </div>
                                 <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">태풍 발생·소멸 시 알림</div>
+                                <div class="setting-item" style="padding: 10px 0 0 0; border: none; background: none;">
+                                    <div class="setting-label" style="font-size: 0.95rem; color: #cbd5e1;">
+                                        AI 챗봇 답변 완료
+                                        <i class="fa-solid fa-comment-dots"
+                                            style="font-size: 0.8rem; color: #94a3b8; margin-left: 5px;"></i>
+                                    </div>
+                                    <label class="switch" style="transform: scale(0.85);">
+                                        <input type="checkbox" id="push-opt-ai-answer">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">나리야 답변이 늦어질 때 완료되면 알림</div>
                             </div>
                         </div>
                     </div>

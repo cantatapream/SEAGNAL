@@ -41,25 +41,6 @@
  "hang_gap_candidates": {
   "법률": [
    {
-    "article": "19조의3",
-    "raw_hang": 6,
-    "missing": [
-     "③",
-     "④",
-     "⑤",
-     "⑥"
-    ]
-   },
-   {
-    "article": "19조의4",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
     "article": "19조의5",
     "raw_hang": 3,
     "missing": [
@@ -69,19 +50,11 @@
     ]
    },
    {
-    "article": "15조",
-    "raw_hang": 4,
+    "article": "19조의3",
+    "raw_hang": 6,
     "missing": [
-     "①",
-     "④"
-    ]
-   },
-   {
-    "article": "19조의6",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "③"
+     "⑤",
+     "⑥"
     ]
    },
    {
@@ -99,22 +72,8 @@
     ]
    },
    {
-    "article": "10조",
-    "raw_hang": 5,
-    "missing": [
-     "③"
-    ]
-   },
-   {
-    "article": "11조",
-    "raw_hang": 5,
-    "missing": [
-     "③"
-    ]
-   },
-   {
-    "article": "12조",
-    "raw_hang": 2,
+    "article": "15조",
+    "raw_hang": 4,
     "missing": [
      "①"
     ]
@@ -136,26 +95,6 @@
   ],
   "시행령": [
    {
-    "article": "6조",
-    "raw_hang": 4,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④"
-    ]
-   },
-   {
-    "article": "15조의3",
-    "raw_hang": 4,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④"
-    ]
-   },
-   {
     "article": "15조의4",
     "raw_hang": 4,
     "missing": [
@@ -163,29 +102,6 @@
      "②",
      "③",
      "④"
-    ]
-   },
-   {
-    "article": "11조",
-    "raw_hang": 2,
-    "missing": [
-     "①",
-     "②"
-    ]
-   },
-   {
-    "article": "12조",
-    "raw_hang": 5,
-    "missing": [
-     "③",
-     "⑤"
-    ]
-   },
-   {
-    "article": "7조",
-    "raw_hang": 2,
-    "missing": [
-     "②"
     ]
    },
    {
@@ -222,24 +138,6 @@
     ]
    },
    {
-    "article": "6조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
-    "article": "21조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
     "article": "23조",
     "raw_hang": 3,
     "missing": [
@@ -260,8 +158,7 @@
     "article": "17조",
     "raw_hang": 2,
     "missing": [
-     "①",
-     "②"
+     "①"
     ]
    }
   ]

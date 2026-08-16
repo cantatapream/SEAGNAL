@@ -1,0 +1,591 @@
+/**
+ * ============================================================================
+ * 파일명: client/js/marine-life/safety/accident_info.js
+ * 역할  : 해양안전 지도에 "사고정보" 버튼을 얹는다. 클릭하면 선박(해경)·
+ *         선박(심판원)·인명 3개 소스 중 하나를 고르고, "현황"(개별 사고 마커,
+ *         hazard_rocks.js 와 같은 클러스터 방식) ↔ "분석"(지도 화면을 격자로
+ *         나눠 격자별 건수를 색으로 표시, 격자 클릭 시 통계 바텀시트) 을 토글한다.
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : js/shared/utils/accident_codes.js(코드값→한글 라벨),
+ *                    OpenLayers(ol.*)
+ *  - 서버 API      : GET /accident_ships_hk.json · /accident_ships_hs.json ·
+ *                    /accident_persons.json (정적, 소스 버튼을 처음 누를 때만
+ *                    지연 로드 — hazard_rocks.js 와 동일한 절약 방식)
+ *  - 마크업        : index2.html 의 #ocean-accident-toggle-btn(버튼),
+ *                    #ocean-accident-wrap/#ocean-accident-popup(팝아웃),
+ *                    #ocean-accident-mode-toggle(현황/분석), #ocean-accident-source-list,
+ *                    #accident-stats-sheet/#accident-stats-body(격자 클릭 시 통계)
+ *  - 나를 쓰는 곳  : ocean_map.js handleMapClick → window._accidentInfoTryHandleClick
+ *                    (access_control.js 와 동일하게 window.getOceanMap 폴링으로
+ *                    스스로 설치 — ocean_map.js buildMap() 수정 불필요)
+ * [로드 순서] navigational_warning.js 다음 · life_safety.js 바로 앞
+ * [데이터 출처] 국립해양조사원 개방海 "선박사고(해경/심판원)"·"인명사고" —
+ *   local_server/scripts/build_accidents.js 로 생성(원본 CSV는 레포에 없음).
+ * ============================================================================
+ */
+
+(function () {
+    'use strict';
+
+    var SOURCES = {
+        hk: { url: '/accident_ships_hk.json' },
+        hs: { url: '/accident_ships_hs.json' },
+        person: { url: '/accident_persons.json' }
+    };
+
+    var CLUSTER_DISTANCE = 45;  // px — hazard_rocks.js 와 동일 값(같은 지도라 동일 체감)
+    var SPREAD_ZOOM = 14;
+    var GRID_COLS = 6, GRID_ROWS = 5; // 분석 모드 격자 — 화면 현재 범위를 이 칸수로 나눔
+
+    var dataPromises = {};    // key -> Promise<row[]>
+    var rawFeatures = {};     // key -> ol.Feature[] (EPSG:3857, 낱개 — 격자 집계용)
+    var clusterLayers = {};   // key -> ol.layer.Vector (현황 모드)
+    var gridLayer = null;     // 분석 모드 — 소스 전환/모드 전환마다 내용만 갈아끼움
+    var gridSource = null;
+    var bubbleOverlay = null; // 현황 모드 마커 팝업
+
+    var state = { source: null, mode: 'status' };
+    var _activeDetailTab = {};        // source key -> 현재 선택된 "사고발생상세" 탭
+    var _statsKey = null;             // 통계 시트에 지금 표시 중인 source key
+    var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
+
+    // ── 데이터 로드 ─────────────────────────────────────────────────────────
+    function fetchSource(key) {
+        if (!dataPromises[key]) {
+            dataPromises[key] = fetch(SOURCES[key].url).then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            }).then(function (data) { return data.rows || []; });
+        }
+        return dataPromises[key];
+    }
+
+    function rowToFeature(key, row) {
+        var coord = ol.proj.fromLonLat([row[1], row[0]]); // row=[lat,lon,...]
+        var f = new ol.Feature({ geometry: new ol.geom.Point(coord) });
+        f.set('row', row);
+        return f;
+    }
+
+    function ensureRawFeatures(key) {
+        if (rawFeatures[key]) return Promise.resolve(rawFeatures[key]);
+        return fetchSource(key).then(function (rows) {
+            var feats = rows.map(function (row) { return rowToFeature(key, row); });
+            rawFeatures[key] = feats;
+            return feats;
+        });
+    }
+
+    // ── 현황 모드: 클러스터 레이어 ──────────────────────────────────────────
+    var _singleStyleCache = null;
+    function singleStyle() {
+        if (!_singleStyleCache) {
+            _singleStyleCache = new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 6,
+                    fill: new ol.style.Fill({ color: '#448aff' }),
+                    stroke: new ol.style.Stroke({ color: '#fff', width: 1.5 })
+                })
+            });
+        }
+        return _singleStyleCache;
+    }
+
+    function clusterStyleFn(clusterFeature) {
+        var members = clusterFeature.get('features');
+        if (members.length === 1) return singleStyle();
+        var count = members.length;
+        return new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: Math.min(11 + Math.log(count) * 3, 26),
+                fill: new ol.style.Fill({ color: 'rgba(255,82,82,0.85)' }),
+                stroke: new ol.style.Stroke({ color: '#fff', width: 1.5 })
+            }),
+            text: new ol.style.Text({
+                text: count > 999 ? '999+' : String(count),
+                font: 'bold 11px sans-serif',
+                fill: new ol.style.Fill({ color: '#fff' })
+            })
+        });
+    }
+
+    /** hazard_rocks.js buildClusterLayer 와 동일한 줌 기반 뭉치기 조절 패턴. */
+    function buildClusterLayer(map, features) {
+        var clusterSource = new ol.source.Cluster({
+            distance: CLUSTER_DISTANCE,
+            source: new ol.source.Vector({ features: features })
+        });
+        var applyDistanceForZoom = function () {
+            var zoom = map.getView().getZoom();
+            var target = (typeof zoom === 'number' && zoom >= SPREAD_ZOOM) ? 0 : CLUSTER_DISTANCE;
+            if (clusterSource.getDistance() !== target) clusterSource.setDistance(target);
+        };
+        map.getView().on('change:resolution', applyDistanceForZoom);
+        applyDistanceForZoom();
+        var layer = new ol.layer.Vector({ source: clusterSource, style: clusterStyleFn, visible: false, zIndex: 56 });
+        map.addLayer(layer);
+        return layer;
+    }
+
+    function ensureClusterLayer(map, key) {
+        if (clusterLayers[key]) return Promise.resolve(clusterLayers[key]);
+        return ensureRawFeatures(key).then(function (features) {
+            var layer = buildClusterLayer(map, features);
+            clusterLayers[key] = layer;
+            return layer;
+        });
+    }
+
+    // ── 마커 팝업 ───────────────────────────────────────────────────────────
+    function ensureBubble(map) {
+        if (bubbleOverlay) return bubbleOverlay;
+        var el = document.createElement('div');
+        el.className = 'accident-popup';
+        bubbleOverlay = new ol.Overlay({ element: el, positioning: 'bottom-center', offset: [0, -8], stopEvent: false });
+        map.addOverlay(bubbleOverlay);
+        return bubbleOverlay;
+    }
+
+    function pad2(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
+    function formatYmd(ymd) {
+        if (!ymd || ymd.length !== 8) return ymd || '-';
+        return ymd.slice(0, 4) + '-' + ymd.slice(4, 6) + '-' + ymd.slice(6, 8);
+    }
+    function escapeHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    /**
+     * 소스별 마커 팝업에 보여줄 [라벨, 값] 목록.
+     * [연계] accident_codes.js 의 ACCIDENT_*_LABELS · accidentLabel()
+     */
+    function popupRowsFor(key, row) {
+        if (key === 'hk') {
+            return [
+                ['사고발생일', formatYmd(row[2]) + (row[3] ? ' ' + row[3] : '')],
+                ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[5])],
+                ['위치', row[4] || '-'],
+                ['관할', accidentLabel(ACCIDENT_ORG_LABELS, row[8])]
+            ];
+        }
+        if (key === 'hs') {
+            return [
+                ['재결번호', row[8] || '-'],
+                ['선박명', row[9] || '-'],
+                ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[10])],
+                ['발생일시', row[2] + '-' + pad2(row[3]) + '-' + pad2(row[4]) + ' ' + pad2(row[5]) + ':' + pad2(row[6])]
+            ];
+        }
+        // person
+        return [
+            ['사고발생일', formatYmd(row[2])],
+            ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[4])],
+            ['위치', row[3] || '-'],
+            ['사상자', '구조 ' + row[7] + ' · 사망 ' + row[8] + ' · 실종 ' + row[9]]
+        ];
+    }
+
+    function renderPopup(map, key, feature) {
+        var bubble = ensureBubble(map);
+        var rows = popupRowsFor(key, feature.get('row'));
+        bubble.getElement().innerHTML = rows.map(function (r) {
+            return '<div class="row"><span>' + r[0] + '</span><span>' + escapeHtml(r[1]) + '</span></div>';
+        }).join('');
+        bubble.setPosition(feature.getGeometry().getCoordinates());
+    }
+
+    /**
+     * 클러스터 클릭 처리 — hazard_rocks.js tryHandleLayerClick 과 같은 방식.
+     * 멤버 2개 이상이면 그 범위로 확대(더 갈라지도록), 낱개면 상세 팝업.
+     */
+    function tryHandleClusterClick(map, evt, key, layer) {
+        var hit = null;
+        map.forEachFeatureAtPixel(evt.pixel, function (feature, lyr) {
+            if (lyr === layer) { hit = feature; return true; }
+        }, { layerFilter: function (l) { return l === layer; } });
+        if (!hit) return false;
+
+        var members = hit.get('features');
+        if (members.length > 1) {
+            var view = map.getView();
+            var extent = ol.extent.createEmpty();
+            members.forEach(function (f) { ol.extent.extend(extent, f.getGeometry().getExtent()); });
+            var atMaxZoom = view.getZoom() >= view.getMaxZoom() - 0.05;
+            if (!atMaxZoom) {
+                view.fit(extent, { padding: [60, 60, 60, 60], maxZoom: view.getMaxZoom(), duration: 300 });
+            } else {
+                renderPopup(map, key, members[0]); // 최대 줌에서도 안 갈라짐 — 대표 1건만
+            }
+            return true;
+        }
+        renderPopup(map, key, members[0]);
+        return true;
+    }
+
+    // ── 분석 모드: 격자 히트맵 ──────────────────────────────────────────────
+    function lerpColor(t) {
+        var a = [255, 215, 64], b = [255, 82, 82]; // 노랑(낮음) → 빨강(높음)
+        var r = Math.round(a[0] + (b[0] - a[0]) * t);
+        var g = Math.round(a[1] + (b[1] - a[1]) * t);
+        var bl = Math.round(a[2] + (b[2] - a[2]) * t);
+        return 'rgba(' + r + ',' + g + ',' + bl + ',0.82)';
+    }
+
+    function gridCellStyle(feature) {
+        var count = feature.get('count');
+        var maxCount = feature.get('_maxInView') || 1;
+        var t = Math.min(count / maxCount, 1);
+        return new ol.style.Style({
+            fill: new ol.style.Fill({ color: lerpColor(t) }),
+            stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.35)', width: 1 }),
+            text: new ol.style.Text({
+                text: String(count),
+                font: 'bold 12px "Roboto Mono", monospace',
+                fill: new ol.style.Fill({ color: t > 0.5 ? '#2a0000' : '#241a00' })
+            })
+        });
+    }
+
+    function ensureGridLayer(map) {
+        if (gridLayer) return gridLayer;
+        gridSource = new ol.source.Vector();
+        gridLayer = new ol.layer.Vector({ source: gridSource, style: gridCellStyle, visible: false, zIndex: 57 });
+        map.addLayer(gridLayer);
+        return gridLayer;
+    }
+
+    /**
+     * 현재 지도 화면(extent)을 GRID_COLS×GRID_ROWS 칸으로 나눠 활성 소스의
+     * 포인트를 세어 격자 폴리곤 feature 로 다시 그린다. 줌/이동(moveend)마다
+     * 다시 호출되므로 격자 크기가 화면 범위에 맞춰 자동으로 재계산된다.
+     * @param {ol.Map} map
+     */
+    function recomputeGrid(map) {
+        if (!gridSource || !state.source) return;
+        var feats = rawFeatures[state.source] || [];
+        var extent = map.getView().calculateExtent(map.getSize());
+        var w = (extent[2] - extent[0]) / GRID_COLS;
+        var h = (extent[3] - extent[1]) / GRID_ROWS;
+        if (!(w > 0) || !(h > 0)) return;
+
+        var buckets = {}; // "col,row" -> ol.Feature[]
+        feats.forEach(function (f) {
+            var c = f.getGeometry().getCoordinates();
+            if (c[0] < extent[0] || c[0] > extent[2] || c[1] < extent[1] || c[1] > extent[3]) return;
+            var col = Math.min(Math.floor((c[0] - extent[0]) / w), GRID_COLS - 1);
+            var row = Math.min(Math.floor((c[1] - extent[1]) / h), GRID_ROWS - 1);
+            var k = col + ',' + row;
+            (buckets[k] || (buckets[k] = [])).push(f);
+        });
+
+        gridSource.clear();
+        var maxCount = 0;
+        Object.keys(buckets).forEach(function (k) { if (buckets[k].length > maxCount) maxCount = buckets[k].length; });
+        Object.keys(buckets).forEach(function (k) {
+            var parts = k.split(',');
+            var col = parseInt(parts[0], 10), row = parseInt(parts[1], 10);
+            var x0 = extent[0] + col * w, x1 = x0 + w;
+            var y0 = extent[1] + row * h, y1 = y0 + h;
+            var cellFeature = new ol.Feature({
+                geometry: new ol.geom.Polygon([[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]])
+            });
+            cellFeature.set('count', buckets[k].length);
+            cellFeature.set('members', buckets[k]);
+            cellFeature.set('_maxInView', maxCount);
+            gridSource.addFeature(cellFeature);
+        });
+        closeStatsSheet(); // 격자가 다시 그려졌으니 이전 선택은 무효
+    }
+
+    // ── 통계 바텀시트 ───────────────────────────────────────────────────────
+    function yearOf(key, row) {
+        var raw = (key === 'hs') ? row[2] : row[2]; // hs=OCRN_YR(정수), 나머지=OCRN_YMD(문자열)
+        if (key === 'hs') return raw;
+        return (raw && String(raw).length >= 4) ? parseInt(String(raw).slice(0, 4), 10) : null;
+    }
+
+    function yearHistogram(key, members) {
+        var counts = {};
+        members.forEach(function (f) {
+            var y = yearOf(key, f.get('row'));
+            if (!y) return;
+            counts[y] = (counts[y] || 0) + 1;
+        });
+        return Object.keys(counts).map(Number).sort(function (a, b) { return a - b; })
+            .map(function (y) { return [y, counts[y]]; });
+    }
+
+    /** person 은 발생 시각 컬럼이 없어 주/야간을 집계할 수 없다 — null 반환. */
+    function dayNightCounts(key, members) {
+        if (key === 'person') return null;
+        var day = 0, night = 0;
+        members.forEach(function (f) {
+            var row = f.get('row');
+            var isDay = (key === 'hk') ? accidentIsDaytimeFromHM(row[3]) : accidentIsDaytimeFromTmz(row[7]);
+            if (isDay) day++; else night++;
+        });
+        return { day: day, night: night };
+    }
+
+    /**
+     * "사고발생상세" 탭 구성 — 소스마다 실제 CSV 에 있는 컬럼만큼만 보여준다.
+     * 선박(심판원) CSV 엔 발생원인·선박종류 컬럼이 없어 해역별로 대체했다.
+     */
+    function detailTabsFor(key) {
+        if (key === 'hk') return ['발생유형', '발생원인', '선박종류'];
+        if (key === 'hs') return ['발생유형', '해역'];
+        return ['사고유형'];
+    }
+
+    function aggregateCounts(members, getter, labelTable) {
+        var counts = {};
+        members.forEach(function (f) {
+            var label = accidentLabel(labelTable, getter(f.get('row')));
+            counts[label] = (counts[label] || 0) + 1;
+        });
+        return Object.keys(counts).map(function (label) { return [label, counts[label]]; })
+            .sort(function (a, b) { return b[1] - a[1]; }).slice(0, 6); // 상위 6개만
+    }
+
+    function detailDataFor(key, tab, members) {
+        if (key === 'hk') {
+            if (tab === '발생유형') return aggregateCounts(members, function (r) { return r[5]; }, ACCIDENT_TYPE_LABELS);
+            if (tab === '발생원인') return aggregateCounts(members, function (r) { return r[6]; }, ACCIDENT_CAUSE_LABELS);
+            return aggregateCounts(members, function (r) { return r[7]; }, ACCIDENT_SHIP_KIND_LABELS);
+        }
+        if (key === 'hs') {
+            if (tab === '발생유형') return aggregateCounts(members, function (r) { return r[10]; }, ACCIDENT_TYPE_LABELS);
+            return aggregateCounts(members, function (r) { return r[11]; }, ACCIDENT_SEA_AREA_LABELS);
+        }
+        return aggregateCounts(members, function (r) { return r[4]; }, ACCIDENT_TYPE_LABELS);
+    }
+
+    function buildStatsHtml(key, members) {
+        var years = yearHistogram(key, members);
+        var maxY = Math.max.apply(null, years.map(function (y) { return y[1]; }).concat([1]));
+        var sparkBars = years.map(function (y) {
+            return '<i style="height:' + Math.max(6, Math.round(y[1] / maxY * 100)) + '%" title="' + y[0] + ': ' + y[1] + '건"></i>';
+        }).join('');
+        var yearLabel = years.length ? (years[0][0] + '~' + years[years.length - 1][0]) : '-';
+
+        var dn = dayNightCounts(key, members);
+        var dnHtml;
+        if (dn) {
+            var total = (dn.day + dn.night) || 1;
+            var dayPct = Math.round(dn.day / total * 100);
+            dnHtml = '<div class="accident-stats-block"><div class="accident-stats-label">주/야간별 (06~18시 근사)</div>' +
+                '<div class="accident-daynight">' +
+                '<div class="accident-dn-bar"><div class="track"><div class="fill day" style="width:' + dayPct + '%"></div></div><div class="meta">주간 <b>' + dn.day + '</b></div></div>' +
+                '<div class="accident-dn-bar"><div class="track"><div class="fill night" style="width:' + (100 - dayPct) + '%"></div></div><div class="meta">야간 <b>' + dn.night + '</b></div></div>' +
+                '</div></div>';
+        } else {
+            dnHtml = '<div class="accident-stats-block"><div class="accident-stats-label">주/야간별</div>' +
+                '<div class="accident-stats-empty">이 데이터엔 발생 시각 정보가 없습니다.</div></div>';
+        }
+
+        var tabs = detailTabsFor(key);
+        if (!_activeDetailTab[key] || tabs.indexOf(_activeDetailTab[key]) === -1) _activeDetailTab[key] = tabs[0];
+        var activeTab = _activeDetailTab[key];
+        var detailItems = detailDataFor(key, activeTab, members);
+        var maxDetail = Math.max.apply(null, detailItems.map(function (d) { return d[1]; }).concat([1]));
+        var barsHtml = detailItems.map(function (d) {
+            return '<div class="accident-bar-row"><span class="name">' + escapeHtml(d[0]) + '</span>' +
+                '<span class="track"><span class="fill" style="width:' + Math.round(d[1] / maxDetail * 100) + '%"></span></span>' +
+                '<span class="n">' + d[1] + '</span></div>';
+        }).join('');
+        var tabsHtml = tabs.map(function (t) {
+            return '<button class="accident-detail-tab' + (t === activeTab ? ' active' : '') + '" data-tab="' + t + '">' + t + '</button>';
+        }).join('');
+
+        return '<h3>그리드형 사고분석 <span class="cellcount">' + members.length + '건</span></h3>' +
+            '<div class="accident-stats-block"><div class="accident-stats-label">연도별 사고현황 (' + yearLabel + ')</div>' +
+            '<div class="accident-spark">' + sparkBars + '</div></div>' +
+            dnHtml +
+            '<div class="accident-stats-block"><div class="accident-stats-label">사고발생상세</div>' +
+            '<div class="accident-detail-tabs">' + tabsHtml + '</div>' + barsHtml + '</div>';
+    }
+
+    function renderStatsBody() {
+        var body = document.getElementById('accident-stats-body');
+        if (!body || !_statsKey || !_statsMembers) return;
+        body.innerHTML = buildStatsHtml(_statsKey, _statsMembers);
+    }
+
+    function openStatsSheet(key, members) {
+        var sheet = document.getElementById('accident-stats-sheet');
+        if (!sheet) return;
+        _statsKey = key;
+        _statsMembers = members;
+        renderStatsBody();
+        sheet.classList.add('open');
+    }
+
+    function closeStatsSheet() {
+        var sheet = document.getElementById('accident-stats-sheet');
+        if (sheet) sheet.classList.remove('open');
+        _statsKey = null;
+        _statsMembers = null;
+    }
+
+    function tryHandleGridClick(map, evt) {
+        if (!gridLayer || !gridLayer.getVisible()) return false;
+        var hit = null;
+        map.forEachFeatureAtPixel(evt.pixel, function (feature, lyr) {
+            if (lyr === gridLayer) { hit = feature; return true; }
+        }, { layerFilter: function (l) { return l === gridLayer; } });
+        if (!hit) { closeStatsSheet(); return false; }
+        openStatsSheet(state.source, hit.get('members'));
+        return true;
+    }
+
+    // ── 버튼·팝아웃 UI ──────────────────────────────────────────────────────
+    function closePopout() {
+        var wrap = document.getElementById('ocean-accident-wrap');
+        if (wrap) wrap.classList.remove('popup-open');
+    }
+
+    function updateSourceButtonsUi() {
+        var list = document.getElementById('ocean-accident-source-list');
+        if (!list) return;
+        Array.prototype.forEach.call(list.children, function (btn) {
+            btn.classList.toggle('active', btn.dataset.source === state.source);
+        });
+    }
+
+    function updateModeToggleUi() {
+        var toggle = document.getElementById('ocean-accident-mode-toggle');
+        if (!toggle) return;
+        Array.prototype.forEach.call(toggle.children, function (btn) {
+            btn.classList.toggle('active', btn.dataset.mode === state.mode);
+        });
+    }
+
+    function applyModeVisibility(map) {
+        var key = state.source;
+        Object.keys(clusterLayers).forEach(function (k) {
+            clusterLayers[k].setVisible(k === key && state.mode === 'status');
+        });
+        if (state.mode !== 'status' && bubbleOverlay) bubbleOverlay.setPosition(undefined);
+        if (state.mode === 'analysis' && key) {
+            ensureGridLayer(map).setVisible(true);
+            recomputeGrid(map);
+        } else {
+            if (gridLayer) gridLayer.setVisible(false);
+            closeStatsSheet();
+        }
+    }
+
+    function selectSource(map, key) {
+        var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
+        var iconEl = toggleBtn && toggleBtn.querySelector('i');
+        var originalIconClass = iconEl ? iconEl.className : '';
+        if (iconEl) iconEl.className = 'fa-solid fa-spinner fa-spin';
+        ensureClusterLayer(map, key).then(function () {
+            if (iconEl) iconEl.className = originalIconClass;
+            state.source = key;
+            Object.keys(clusterLayers).forEach(function (k) { clusterLayers[k].setVisible(false); });
+            applyModeVisibility(map);
+            closePopout();
+            updateSourceButtonsUi();
+            if (toggleBtn) toggleBtn.classList.add('active');
+            if (window.trackUsage) window.trackUsage('ocean.accident_info');
+        }).catch(function (e) {
+            if (iconEl) iconEl.className = originalIconClass;
+            console.warn('[AccidentInfo] 데이터 로드 실패:', e.message);
+        });
+    }
+
+    function setMode(map, mode) {
+        state.mode = mode;
+        applyModeVisibility(map);
+        closePopout();
+        updateModeToggleUi();
+    }
+
+    function bindUi(map) {
+        var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
+        var wrap = document.getElementById('ocean-accident-wrap');
+        if (toggleBtn && wrap) {
+            toggleBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                wrap.classList.toggle('popup-open');
+            });
+            document.addEventListener('click', function (e) {
+                if (!wrap.contains(e.target)) wrap.classList.remove('popup-open');
+            });
+        }
+
+        var modeToggle = document.getElementById('ocean-accident-mode-toggle');
+        if (modeToggle) {
+            modeToggle.addEventListener('click', function (e) {
+                var btn = e.target.closest('button');
+                if (!btn) return;
+                setMode(map, btn.dataset.mode);
+            });
+        }
+
+        var sourceList = document.getElementById('ocean-accident-source-list');
+        if (sourceList) {
+            sourceList.addEventListener('click', function (e) {
+                var btn = e.target.closest('button');
+                if (!btn) return;
+                selectSource(map, btn.dataset.source);
+            });
+        }
+
+        var closeBtn = document.getElementById('accident-stats-close');
+        if (closeBtn) closeBtn.addEventListener('click', closeStatsSheet);
+
+        // "사고발생상세" 탭 전환 — 바텀시트 본문은 매번 다시 그려지므로 delegation.
+        var statsBody = document.getElementById('accident-stats-body');
+        if (statsBody) {
+            statsBody.addEventListener('click', function (e) {
+                var btn = e.target.closest('.accident-detail-tab');
+                if (!btn || !_statsKey) return;
+                _activeDetailTab[_statsKey] = btn.dataset.tab;
+                renderStatsBody();
+            });
+        }
+
+        // 분석 모드일 때만 줌/이동에 맞춰 격자 재계산(현황 모드에선 불필요한 연산 생략).
+        map.on('moveend', function () {
+            if (state.mode === 'analysis' && state.source) recomputeGrid(map);
+        });
+    }
+
+    /**
+     * [외부 API] 지도 클릭이 사고정보 레이어(격자 또는 마커)를 눌렀는지 확인한다.
+     * @param {ol.Map} map
+     * @param {ol.MapBrowserEvent} evt
+     * @returns {boolean} true 면 클릭이 소비됨
+     * [연계] ← ocean_map.js handleMapClick
+     */
+    window._accidentInfoTryHandleClick = function (map, evt) {
+        if (tryHandleGridClick(map, evt)) return true;
+        if (state.mode === 'status' && state.source && clusterLayers[state.source]) {
+            if (tryHandleClusterClick(map, evt, state.source, clusterLayers[state.source])) return true;
+        }
+        if (bubbleOverlay) bubbleOverlay.setPosition(undefined);
+        return false;
+    };
+
+    /**
+     * oceanMap 이 만들어질 때까지 폴링해 UI를 설치한다.
+     * [연계] ← DOMContentLoaded → bindUi() (access_control.js 와 동일 패턴)
+     */
+    function _installWhenReady() {
+        function _try() {
+            var map = window.getOceanMap && window.getOceanMap();
+            if (map) { bindUi(map); return; }
+            setTimeout(_try, 250);
+        }
+        _try();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _installWhenReady);
+    } else {
+        _installWhenReady();
+    }
+})();

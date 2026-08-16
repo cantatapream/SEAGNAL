@@ -346,18 +346,27 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
         // 시각적 강조 (가장 높은 등급 기준)
         const hasWarning = sortedAlerts.some(a => !a.isPreliminary);
         item.style.borderLeft = `3px solid ${hasWarning ? '#ff6b6b' : '#ffb74d'}`;
-        // [정책 — 사용자 명시 요구]
-        //  자식 해역(연안바다/평수구역) 카드는 클릭에 반응하지 않는다.
-        //  • dmdw 머지 자식: 통보문이 없어 펼침으로 보여줄 추가 정보가 없음
-        //  • 부모 상속 자식: detail box 정보가 부모 카드와 동일해 가치 0
-        //  → cursor 도 default 로 두어 클릭 가능한 듯한 시각적 단서 제거.
-        item.style.cursor = 'default';
+        // [정책 — 사용자 지시 2026-08-13] 자식 카드를 다시 "눌러서 펼침" 으로 되돌린다.
+        //  경위: 8/8 펼침 도입 → 8/9 사용자 확정으로 제거(항상 닫힘) → 8/13 사용자 재지시로 복원.
+        //  ★복원 사유(사용자 설명): 종전에 닫아 둔 진짜 이유는 "펼침이 불편해서"가 아니라
+        //    연안바다·평수구역(자식) 정보 자체가 부정확해 제대로 표출되지 않았기 때문이다.
+        //    그 데이터 문제가 해소되어(자식 표출 필드를 자식 자신의 데이터로만 채우도록 개선,
+        //    §7.7.26 계열) 이제 사용자에게 공개해도 된다는 판단 → 다시 연다.
+        //    ⇒ 이후 자식 데이터 정확성이 다시 흔들리면 이 결정도 함께 재검토할 것.
+        //  이번엔 배타(A안) 규칙을 함께 적용 — 같은 부모 안에서 한 번에 하나만 열린다.
+        //  표시 규칙(3줄 항상·'정보 없음'·범위형 표시)은 8/8 정책 그대로 유지.
+        item.style.cursor = 'pointer';
 
         item.appendChild(header);
 
         // 상세 정보 영역 (모든 특보 정보를 순회하며 표시)
         const detailBox = document.createElement('div');
         detailBox.className = 'coastal-detail-box';
+        // [2026-08-08] 기본 닫힘 + 클릭 시 펼침 (종전엔 영원히 닫힘).
+        //   종전 정책의 근거였던 "부모 상속 자식 → detail box 가 부모 카드와 동일해 가치 0" 은
+        //   서버가 자식 표출 필드를 자식 자신의 데이터로만 채우도록 바뀌면서(부모 fallback 제거)
+        //   더는 성립하지 않는다. 실제로 자식은 부모와 다른 시각을 갖는다 —
+        //   2026-08-08 경북남부앞바다: 부모 발효 8/8 23시 vs 평수구역 예비 발효예정 8/9 18~24시.
         detailBox.style.cssText = `
             display: none;
             margin-top: 8px;
@@ -389,36 +398,23 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
         //   월 제거 없이 그대로 사용 (사용자 요구: 월 포함 표시).
         const stripYearMonth = (timeStr) => formatWarningTime(timeStr);
 
-        // [V3.1] 정확한 단일 시각 판정 — data.js 의 동명 헬퍼 폴백.
-        //   범위형 ('(' 또는 '~' 포함) / 한글 시간대 단독 / 빈 값 → false.
-        //   자식 카드 발효시각 줄 표시 여부에만 사용 (부모 카드 영향 없음).
-        const isExactSingleTime = (typeof _isExactSingleTime === 'function')
-            ? _isExactSingleTime
-            : function (s) {
-                if (s === null || s === undefined) return false;
-                const str = String(s).trim();
-                if (!str) return false;
-                if (str.indexOf('(') !== -1 || str.indexOf('~') !== -1) return false;
-                if (/(오전|오후|새벽|밤|저녁|아침)/.test(str)) return false;
-                if (/\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일\s*\d{1,2}\s*시\s*\d{1,2}\s*분/.test(str)) return true;
-                if (/\d{4}\.\d{1,2}\.\d{1,2}\.\d{1,2}:\d{1,2}/.test(str)) return true;
-                return str.replace(/[^0-9]/g, '').length === 12;
-            };
+        // [2026-08-08] V3.1 의 "자식 발효시각은 정확시각일 때만 표시" 게이트(isExactSingleTime)를
+        //   제거했다. 그 게이트의 목적은 자식 카드의 "표시→사라짐→표시" 깜빡임 방지였는데,
+        //   범위형도 항상 표시하면 줄이 사라지는 일 자체가 없어져 목적이 더 잘 달성된다.
+        //   반대로 게이트가 있으면 범위형만 가진 예비 자식(예: 8/9 18~24시)이 "언제인지 없이"
+        //   등급만 노출돼 사용자가 현재 특보로 오해한다 — 2026-08-08 실사고. 부모 카드와 동일하게
+        //   "읽을 만한 값이 있으면 보여준다" 정책으로 통일.
 
         uniqueCoastalAlerts.forEach((alert, index) => {
             // [V3] 빈 시각 값은 빈 문자열 반환 → 줄 자체를 미표시 (자식이 종합기상
             //   텍스트 출처만일 때 tmEf/tmCc/tmEd 가 빈 값이므로 정보 노이즈 제거).
-            // [V3.1] 자식(isCoastal) 의 tmEf 가 범위형/시간대 표기면 빈 문자열 처리
-            //   → 발효시각 줄 미표시 (V3 빈 값 분기 활용). 부모 카드는 변경 없음.
+            // [2026-08-08] 발효시각도 부모와 동일 정책 — 값이 있으면 형식 불문 표시(범위형 포함).
             const hasValue = v => !!(v && String(v).trim().length > 0);
             const tmFcFormatted = hasValue(alert.tmFc) ? stripYearMonth(alert.tmFc) : '';
-            const tmEfDisplayable = hasValue(alert.tmEf) && (alert.isCoastal === true ? isExactSingleTime(alert.tmEf) : true);
-            const tmEfFormatted = tmEfDisplayable ? stripYearMonth(alert.tmEf) : '';
+            const tmEfFormatted = hasValue(alert.tmEf) ? stripYearMonth(alert.tmEf) : '';
             let tmEdFormatted = '';
-            const releaseVal = alert.tmCc || alert.tmEd || '';
-            // [수정D] 실제 해제예고 값이 있으면 표시 (발표대기 자식이 부모 해제예고 상속한 경우 포함).
-            //   순수 예비(해제예고 없음)는 값이 없어 자동 미표시.
-            if (hasValue(releaseVal) && releaseVal.trim().length > 2) {
+            const releaseVal = String(alert.tmCc || alert.tmYn || alert.tmEd || '').trim();
+            if (releaseVal.length > 2 && releaseVal !== '일') {
                 tmEdFormatted = stripYearMonth(releaseVal);
             }
 
@@ -448,28 +444,41 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
                     <span style="color: ${color || '#e6edf3'}; font-weight: 500;">${value}</span>
                 </div>`;
 
-            // [V3] 빈 값 줄은 미표시. 3줄 모두 빈 값이면 정보 영역 자체를 추가하지 않음.
+            // [2026-08-08 사용자 요구] 부모 카드와 동일하게 3줄을 항상 표시하고,
+            //   값이 없으면 줄을 숨기는 대신 '정보 없음' 으로 채운다(render.js:868 과 같은 정책).
+            //   종전처럼 줄을 통째로 감추면 "해제예정이 없는 것"과 "표시가 안 되는 것"을
+            //   사용자가 구분할 수 없다.
             let infoHtml = '';
-            if (tmFcFormatted) infoHtml += createRow('발표시각', tmFcFormatted);
-            if (tmEfFormatted) infoHtml += createRow('발효시각', tmEfFormatted);
-            if (tmEdFormatted) infoHtml += createRow('해제예정', tmEdFormatted, '#69f0ae');
+            infoHtml += createRow('발표시각', tmFcFormatted || '정보 없음');
+            infoHtml += createRow('발효시각', tmEfFormatted || '정보 없음');
+            infoHtml += createRow('해제예정', tmEdFormatted || '정보 없음', tmEdFormatted ? '#69f0ae' : undefined);
 
-            if (infoHtml) {
-                const infoContainer = document.createElement('div');
-                infoContainer.innerHTML = infoHtml;
-                if (index < uniqueCoastalAlerts.length - 1) {
-                    infoContainer.style.marginBottom = '10px';
-                }
-                detailBox.appendChild(infoContainer);
+            const infoContainer = document.createElement('div');
+            infoContainer.innerHTML = infoHtml;
+            if (index < uniqueCoastalAlerts.length - 1) {
+                infoContainer.style.marginBottom = '10px';
             }
+            detailBox.appendChild(infoContainer);
         });
 
         item.appendChild(detailBox);
 
-        // [정책 — 사용자 명시 요구]
-        //  자식 카드 클릭 시 detailBox 토글 동작은 제거.
-        //  detailBox 자체는 DOM 에 생성되어 있으나(display:none) 영원히 펼쳐지지 않음.
-        //  → 자식 카드는 "발효 중 뱃지" 표시 전용으로만 동작.
+        // [펼침/접힘 — 사용자 지시 2026-08-13, A안(배타)]
+        //   자식 카드를 누르면 상세(발표/발효/해제예정)를 펼치고, 다시 누르면 접는다.
+        //   같은 부모 카드 안의 다른 자식은 닫는다 — 부모 카드가 "다른 카드 닫고 나만 열기"
+        //   인 것과 동일한 배타 규칙.
+        //   결정 이력: 8/8 도입 → 8/9 사용자 확정으로 제거 → 8/13 사용자 재지시로 복원(배타 추가).
+        //   stopPropagation: 부모 카드 토글로 전파되지 않도록 (render.js 의 .coastal-item
+        //   가드와 이중 안전 — 그 가드는 유지한다).
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = detailBox.style.display !== 'none';
+            const siblings = item.parentElement
+                ? item.parentElement.querySelectorAll('.coastal-item .coastal-detail-box')
+                : [];
+            siblings.forEach(box => { box.style.display = 'none'; });
+            detailBox.style.display = isOpen ? 'none' : 'block';
+        });
 
     } else {
         // 특보가 없는 경우

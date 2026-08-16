@@ -5,17 +5,27 @@
  * ============================================================================
  *
  * [설명]
- * `_CHATBOT.md` 4절(검색)·3절(인용규율)·5절(답변 경계)의 답변엔진 구현체(Phase E, 1차:
- * 수산업법·어선법·어선안전조업법 3법 파일럿). routes/legal.js의 POST /api/legal/ask가
- * 이 모듈의 search()로 근거 후보를 찾고 synthesizeAnswerStream()으로 실제 문장 답변을 스트리밍 생성한다.
+ * `_CHATBOT.md` 4절(검색)·3절(인용규율)·5절(답변 경계)·1-B절(되묻기)의 답변엔진 구현체(Phase E,
+ * 1차: 수산업법·어선법·어선안전조업법 3법 파일럿). routes/legal.js의 POST /api/legal/ask가
+ * 이 모듈의 search()로 근거 후보를 찾고, decideClarify()로 "되물어야 하는 질문인지" 한 번 걸러낸 뒤,
+ * 되물을 게 없을 때만 synthesizeAnswerStream()으로 실제 문장 답변을 스트리밍 생성한다.
  *
  * [검색 단계]
  *  ① 메타데이터 매칭(법명·주제·파일명·테마) — index.json
  *  ② glossary 구어 매핑(_glossary.md) — "정식 명칭이 아닌 말"을 개념으로 번역
  *  ③ 본문 직접매칭 — 후보 페이지의 실제 마크다운 본문을 읽어 재점수(제목·본문 포함 시 가중)
- *  ④ 그래프 1홉 확장 — 최상위 페이지의 index.json `links` 필드로 관련 개념 보강
+ *  ④ 그래프 1홉 확장 — 최상위 페이지의 index.json `links` 로 이어진 페이지를 **같은 관련도 문턱
+ *     (MIN_KEEP_SCORE)으로 다시 채점해** 통과한 것만 덧붙인다. 문턱을 씌운 뒤로는 ③에서 이미 점수를
+ *     받았던 페이지(개수 컷 PRIMARY_TOPK 에 밀린 11위 이하)만 들어올 수 있어, "키워드로는 안 잡히는
+ *     페이지를 그래프로 건져온다"는 원래의 추가 리콜 효과는 사실상 없다(실측: 위키 topic 400개 +
+ *     대표질문 68개 전수 질의에서 홉이 상위 5위 인용사슬에 든 사례 0건). 무관한 페이지가 근거로
+ *     딸려오는 것을 막는 쪽을 택한 트레이드오프다 — search() 안 주석 참고.
  * ※ 의미 임베딩(_CHATBOT.md 4-③)은 이번 파일럿 범위 밖(3법 규모에선 ①②③④로 충분히
  *   커버되는지 먼저 확인 — 필요해지면 topic_embedding.js 패턴을 재사용해 후속 추가).
+ *
+ * [되묻기] 조건에 따라 답이 완전히 갈리는 질문(예: "낚싯배에서 술 마시면 처벌?" — 바다냐 하천이냐,
+ *   조타 담당이냐 승객이냐)은 모든 경우를 나열하는 대신 decideClarify()가 질문+선택지(최대 10개)를 만들어
+ *   화면에 버튼으로 내려준다. 선택지는 그 순간 검색된 근거 조문에 **실제로 있는 구분**에서만 만든다.
  *
  * [환각 0] canonicalOnly=true면 concept·comparison은 status:canonical만 근거로 채택(statute는 통과).
  *   실제 답 문장은 항상 [근거자료]로 전달된 위키 원문에서만 만들도록 프롬프트로 강제.
@@ -24,7 +34,9 @@
  * - knowledge/legal/_dashboard/index.json  → 페이지 메타 색인(법·주제·테마·links, comparison 포함 2026-08-01~)
  * - knowledge/legal/wiki/concepts|statutes|comparisons/*.md → 실제 본문(직접매칭·답변 근거)
  * - knowledge/legal/wiki/_glossary.md       → 구어→개념 매핑표
+ * - knowledge/legal/_dashboard/law_raw_paths.json → 법명 → raw 폴더 경로(2차 "미검증 참고" 조회용)
  * - services/gemini_client.js               → 답변 합성 LLM 호출
+ * - services/github_raw.js                  → 2차 조회가 읽는 법령 원문(GitHub 온디맨드)
  * - routes/legal.js                         → POST /api/legal/ask 가 이 모듈을 호출
  * ============================================================================
  */
@@ -32,9 +44,11 @@
 const fs = require('fs');
 const path = require('path');
 const gemini = require('./gemini_client');
+const githubRaw = require('./github_raw');
 
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const INDEX_JSON = path.join(LEGAL_DIR, '_dashboard', 'index.json');
+const LAW_RAW_PATHS_JSON = path.join(LEGAL_DIR, '_dashboard', 'law_raw_paths.json');
 const CONTACTS_JSON = path.join(LEGAL_DIR, '_dashboard', 'contacts_collected.json');
 const GLOSSARY_MD = path.join(LEGAL_DIR, 'wiki', '_glossary.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
@@ -232,60 +246,137 @@ function plainCell(s) {
 }
 
 /**
+ * `## <제목>` 절 바로 아래에 붙은 마크다운 표의 줄만 잘라낸다(헤더 + 구분선 + 행들).
+ * 표가 없거나 표를 만나기 전에 다음 절로 넘어가면 [].
+ * @param {string} txt - 페이지 마크다운 본문
+ * @param {RegExp} headRe - 절 제목 정규식(m 플래그 필요)
+ * @returns {string[]} 표 줄들(원문 그대로, 앞뒤 공백만 제거)
+ * [연계] ← extractCitationChain(근거 조문 표) · extractGapNotices(타법 연결 표). 둘이 같은 방식으로
+ *   표를 찾아야 해서 한 군데에 둔다(중복 파싱 로직 금지 — 한쪽만 고쳐지는 어긋남 방지).
+ */
+function sectionTable(txt, headRe) {
+  const hm = headRe.exec(String(txt || ''));
+  if (!hm) return [];
+  const lines = String(txt).slice(hm.index + hm[0].length).split('\n');
+  const table = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (t.startsWith('|')) { table.push(t); continue; }
+    if (table.length) break;          // 표가 끝났다
+    if (t.startsWith('#')) break;     // 표를 만나기 전에 다음 절로 넘어갔다
+  }
+  return table;
+}
+
+// ⚠ 위키 표 셀 안에 [[statutes/해양환경관리법|해양환경관리법]] 처럼 파이프가 든 링크가 그대로
+// 쓰여 있다(마크다운 규칙상 원래는 이스케이프해야 하지만 관행이 그렇다) — 그냥 '|'로 쪼개면
+// 링크가 두 칸으로 찢어져 법령명이 "[[statutes/해양환경관리법"이 된다. 쪼개기 전에 링크 안의
+// 파이프만 잠시 치환해 보호한다.
+const CELL_PIPE = '\u0000';
+/** 표 한 줄을 셀 배열로 쪼갠다(링크 안 파이프 보호 + 앞뒤 파이프 제거). */
+function tableCells(row) {
+  return String(row)
+    .replace(/\[\[[^\]]*\]\]/g, m => m.replace(/\|/g, CELL_PIPE))
+    .replace(/^\|/, '').replace(/\|$/, '')
+    .split('|').map(c => c.split(CELL_PIPE).join('|').trim());
+}
+
+/** 마크다운 표의 구분선(`|---|---|`) 행인가. */
+function isSepRow(cells) {
+  return /^-+$/.test((cells[0] || '').replace(/:/g, ''));
+}
+
+/**
  * 페이지 본문에서 `## 근거 조문` 표를 파싱해 위임 사슬 배열을 만든다.
  * ⚠ 이 위키는 여러 세션·에이전트가 몇 달에 걸쳐 써서 표 헤더의 컬럼 순서가 페이지마다 다르다
  * (`법령명|조문|시행일|요지` 도 있고 `단계|법령|조문|시행일|요지` 도 있다) — 그래서 컬럼 위치가
  * 아니라 **헤더 텍스트**로 각 컬럼을 찾는다. 표가 없거나 파싱이 안 되면 예외 없이 []를 반환한다
  * (이 표가 없는 페이지도 많다 — 그런 페이지는 화면이 단순 폴백 카드로 그린다).
+ * ⚠ 법령 칸의 `〃`(반복기호, 실측 82행)는 여기서 편다 — 표 안에서만 뜻이 통하는 약식 표기라
+ *   그대로 내보내면 화면 카드에 "〃 제32조"라는 뜻 모를 이름이 뜨고, 조문 원문 조회도 법을 못 찾아
+ *   실패한다. 뜻은 "바로 윗 행의 법령 칸과 같다" 하나뿐이라 해석의 여지가 없다.
+ * ⚠ `단계` 칸(`① 금지·정의·측정`·`② 형벌(5톤 이상)` 처럼 그 행이 사슬의 어느 마디인지 적어둔 칸,
+ *   실측 358개 표)도 함께 싣는다 — 예전엔 통째로 버렸는데, **처벌 여부 신호가 요지가 아니라 이 칸에만
+ *   있는 행**이 실제로 있다(해상교통안전법 제113조: 단계 `② 형벌(5톤 이상)` / 요지 `구간·재범·측정거부
+ *   형량` — 요지만 보면 처벌 낱말이 없어 화면 배지가 '벌칙'이 아닌 '법률'로 떴다. 라이브 실측).
+ *   헤더가 `단계`인 칸만 받는다 — 첫 칸 이름이 `적용대상`인 표가 더 흔한데(실측 650행) 그건 "누구에게
+ *   적용되나"라 뜻이 전혀 다르다. 근거 조문 표의 첫 칸 이름을 전수 조사한 결과 사슬 마디를 뜻하는
+ *   이름은 `단계` 하나뿐이었다(`구분`·`항목`은 근거 조문 표에 쓰인 적이 없다).
  * @param {string} body - 페이지 마크다운 본문(frontmatter 제외)
- * @returns {Array<{law:string,article:string,effectiveDate:string,gist:string,tier:string}>} 원 표 순서 그대로
- * [연계] ← search()가 상위 소스에 붙임 → ai_chat.js 체인 UI.
+ * @returns {Array<{law:string,article:string,effectiveDate:string,gist:string,tier:string,step:string}>}
+ *          원 표 순서 그대로(step은 `단계` 칸이 없는 표에서는 '')
+ * [연계] ← search()가 상위 소스에 붙임 → ai_chat.js 체인 UI(step은 isPenaltyRow 판정에 함께 쓰인다).
  */
 function extractCitationChain(body) {
   try {
-    const txt = String(body || '');
-    const hm = /^#{2,3}\s*근거\s*조문[^\n]*$/m.exec(txt);
-    if (!hm) return [];
-    const lines = txt.slice(hm.index + hm[0].length).split('\n');
-    const table = [];
-    for (const line of lines) {
-      const t = line.trim();
-      if (t.startsWith('|')) { table.push(t); continue; }
-      if (table.length) break;          // 표가 끝났다
-      if (t.startsWith('#')) break;     // 표를 만나기 전에 다음 절로 넘어갔다
-    }
+    const table = sectionTable(body, /^#{2,3}\s*근거\s*조문[^\n]*$/m);
     if (table.length < 3) return [];    // 헤더 + 구분선 + 최소 1행
-
-    // ⚠ 위키 표 셀 안에 [[statutes/해양환경관리법|해양환경관리법]] 처럼 파이프가 든 링크가 그대로
-    // 쓰여 있다(마크다운 규칙상 원래는 이스케이프해야 하지만 관행이 그렇다) — 그냥 '|'로 쪼개면
-    // 링크가 두 칸으로 찢어져 법령명이 "[[statutes/해양환경관리법"이 된다. 쪼개기 전에 링크 안의
-    // 파이프만 잠시 치환해 보호한다.
-    const PIPE = ' ';
-    const cells = row => row
-      .replace(/\[\[[^\]]*\]\]/g, m => m.replace(/\|/g, PIPE))
-      .replace(/^\|/, '').replace(/\|$/, '')
-      .split('|').map(c => c.split(PIPE).join('|').trim());
-    const head = cells(table[0]);
+    const head = tableCells(table[0]);
     const col = re => head.findIndex(h => re.test(h));
     const iLaw = col(/법령|법률명/);
     const iArt = col(/조문/);
     const iEff = col(/시행일|발령/);
     const iGist = col(/요지|내용|비고/);
+    // 헤더 완전일치로만 잡는다(부분일치로 열면 `적용대상`·`처리단계` 같은 다른 뜻의 칸이 딸려온다).
+    const iStep = col(/^단계$/);
     if (iLaw < 0) return [];
 
     const out = [];
+    let prevLaw = '';                     // 바로 윗 행의 법령 칸(〃가 물려받는다)
     for (const row of table.slice(2)) {   // 0=헤더, 1=구분선
-      const c = cells(row);
-      if (/^-+$/.test((c[0] || '').replace(/:/g, ''))) continue;
-      const law = plainCell(c[iLaw]);
+      const c = tableCells(row);
+      if (isSepRow(c)) continue;
+      let law = plainCell(c[iLaw]);
       if (!law || law === '—' || law === '-') continue;
+      if (/^[〃″"]+$/.test(law.replace(/\s+/g, '')) && prevLaw) law = prevLaw;
+      prevLaw = law;
       out.push({
         law,
         article: iArt >= 0 ? plainCell(c[iArt]) : '',
         effectiveDate: iEff >= 0 ? plainCell(c[iEff]) : '',
         gist: iGist >= 0 ? plainCell(c[iGist]) : '',
+        step: iStep >= 0 ? plainCell(c[iStep]) : '',
         tier: classifyTier(law),
       });
+    }
+    return out;
+  } catch (_) { return []; }
+}
+
+/**
+ * 페이지 본문의 `## 타법 연결` 표에서 **관계 칸이 "수집곤란"인 행만** 뽑는다.
+ * 이 위키에는 "시·군·구가 개별 고시로 정해 국가법령정보센터에 안 올라오는 사항"처럼 우리가
+ * 원문을 가질 수 없는 공백이 사람 손으로 정직하게 적혀 있는데(실측 2행), `extractCitationChain`은
+ * `## 근거 조문` 표만 보므로 이 안내가 답변 화면에 전혀 실리지 않았다 — 그 결과 "관할 지자체에
+ * 물어보세요"라는 꼭 필요한 안내가 사용자에게 안 보였다.
+ * ⚠ 관계 칸을 **컬럼으로** 확인한다(L-52와 같은 원칙 — 위치가 아니라 헤더 텍스트로 컬럼을 찾는다).
+ *   행 전체 텍스트에 "수집곤란" 글자가 있는지로 보면, 관계가 `정밀인용`인 국제조약 행(SOLAS·나고야
+ *   의정서 — 설명 문장 안에 "수집곤란"이라고 적혀 있을 뿐이다)까지 딸려 나와 위키에 없는 안내가
+ *   상시 노출된다(실측 2행). 그건 "환각 0" 위반이다.
+ * ⚠ 문구는 **위키에 적힌 그대로** 옮긴다(요약·재작성·생성 금지 — 이 저장소의 환각 0 원칙).
+ * 예: extractGapNotices(낚시어선안전조치와승객준수사항.md 본문)
+ *     → [{title:'시·군·구별 낚시어선 승객 준수사항 고시(제35조②)',
+ *         note:'수집곤란 — 시장·군수·구청장이 개별적으로 정하여 고시 … 관할 지자체 소관 부서로 확인하시는 것이 정확합니다.'}]
+ * @param {string} body - 페이지 마크다운 본문(frontmatter 제외)
+ * @returns {Array<{title:string, note:string}>} 없으면 []
+ * [연계] ← search()가 상위 소스에 붙임 → routes/legal.js sourcesOut → ai_chat.js 의 ⚠칩.
+ */
+function extractGapNotices(body) {
+  try {
+    const table = sectionTable(body, /^#{2,3}\s*타법\s*연결[^\n]*$/m);
+    if (table.length < 3) return [];    // 헤더 + 구분선 + 최소 1행
+    const head = tableCells(table[0]);
+    const iTitle = head.findIndex(h => /인용|법령|조문|대상/.test(h));
+    const iRel = head.findIndex(h => /^관계/.test(h));
+    if (iTitle < 0 || iRel < 0) return [];
+    const out = [];
+    for (const row of table.slice(2)) { // 0=헤더, 1=구분선
+      const c = tableCells(row);
+      if (isSepRow(c)) continue;
+      if (!/^수집\s*곤란$/.test(plainCell(c[iRel]))) continue;
+      const title = plainCell(c[iTitle]);
+      const note = c.filter((_, i) => i !== iTitle).map(plainCell).filter(Boolean).join(' — ');
+      if (title && note) out.push({ title, note });
     }
     return out;
   } catch (_) { return []; }
@@ -436,6 +527,47 @@ function sliceRelevant(body, terms, maxChars) {
   return out;
 }
 
+/**
+ * L-15/L-67 페이지 단위 draft 게이트의 저비용 완화책(`_SCHEMA.md` §"인라인 REVIEW 마커" —
+ * 마커 부착까지만 해두고 미룬 실제 필터 로직, 2026-08-05 사용자 지시로 구현). 지금까지 draft
+ * 페이지는 REVIEW 마커 없는 부분까지 통째로 인용에서 제외됐다 — 이 함수는 본문을 줄 단위로
+ * 훑어 "REVIEW"라는 단어가 들어간 줄만 빼고 나머지(검증된 부분)는 그대로 남긴다.
+ * ⚠ 표시 없는 단어 하나만 기준으로 삼는 이유: 실제 위키를 전수 조사한 결과 REVIEW 마커
+ * 표기가 `⚠REVIEW-XX`(붙여쓰기)·`⚠ REVIEW`(띄어쓰기)·`(REVIEW)`/`REVIEW 대상`(⚠ 없이 맨 단어만)
+ * 세 가지 형태로 뒤섞여 있었다(예: `선박교통관제에관한법률__관제사지시위반.md` 40행은
+ * `→ REVIEW: "정당한 사유" 해석은 사안별 판단`처럼 ⚠ 기호가 아예 없다) — `⚠REVIEW`만 찾으면
+ * 이런 페이지의 미해소 판단이 그대로 새어나간다. 대문자 "REVIEW" 단어 자체를 기준으로 잡는
+ * 게 과하게 넓어 보여도(변경이력의 이미 해소된 "REVIEW-XX 해소" 언급도 함께 빠짐) 안전한
+ * 방향의 오차다 — 놓쳐서 미검증 주장이 새는 것보다 과하게 걸러 일부 무해한 줄이 같이
+ * 빠지는 편이 낫다.
+ * ⚠ 전제: 이 저장소의 위키 본문은 불릿/문단이 줄바꿈 없이 한 줄로 통짜 작성되는 관례라(전수
+ * 확인) 줄 단위 제거로 충분하다 — 향후 문단이 여러 줄로 줄바꿈되는 관례로 바뀌면 이 전제가
+ * 깨진다.
+ * @param {string} body - 페이지 마크다운 본문(원문)
+ * @returns {string} "REVIEW" 단어가 포함된 줄을 제거한 본문
+ */
+function stripUnresolvedReview(body) {
+  if (!body) return body;
+  return body.split('\n').filter(line => !/\bREVIEW\b/.test(line)).join('\n');
+}
+
+/**
+ * canonicalOnly 모드에서 draft(비-statute) 페이지가 실제로 인용에 쓸 수 있는 본문을 만든다.
+ * statute·canonical 페이지는 그대로(REVIEW 잔존이 있어선 안 되는 상태이므로 손대지 않음),
+ * draft인 concept·comparison 페이지만 stripUnresolvedReview로 걸러 "검증된 부분만" 남긴다.
+ * @param {{kind:string,status?:string,file:string}} p - 인덱스 페이지 메타
+ * @param {boolean} canonicalOnly
+ * @returns {string} 인용 가능한 본문(비-canonicalOnly거나 canonical/statute면 원문 그대로)
+ */
+function citableBody(p, canonicalOnly) {
+  const page = readPage(p.kind, p.file);
+  const body = page ? page.body : '';
+  if (canonicalOnly && p.kind !== 'statute' && p.status !== 'canonical') {
+    return stripUnresolvedReview(body);
+  }
+  return body;
+}
+
 // 서버 기동 직후 본문 캐시를 미리 데워 첫 사용자 질문이 콜드 디스크읽기(전체 corpus 수 초)를
 // 기다리지 않게 한다. 실패해도 조용히 무시 — 어차피 각 페이지는 처음 필요할 때 다시 읽힌다.
 function warmup() {
@@ -445,23 +577,279 @@ function warmup() {
 }
 setImmediate(warmup);
 
+// 질문의도 분석 전용(짧게·빠르게) — 모델은 답변합성과 같은 ANSWER_MODEL을 쓰되 설정은 다르다.
+// 이 호출은 사용자 질문마다 검색 *앞단에서 동기로* 끼어들어 그대로 체감 대기시간이 되므로:
+//  - thinkingBudget:0 (사고 끔) — 키워드 몇 개 뽑는 데 사고가 필요 없고, -1(dynamic)로 두면
+//    응답이 수 초로 늘어 아래 타임아웃에 걸려 확장이 조용히 무력화될 수 있다.
+//    (2.5 계열은 thinkingLevel 미지원·thinkingBudget 정수만 받음 — 위 SYNTH_CONFIG 주석 참고.)
+//  - responseMimeType:'application/json' — 이 저장소의 다른 Gemini JSON 호출과 같은 관례
+//    (assistant.js·marine_forecast_processor.js 등). 군더더기 문장 없이 배열만 받는다.
+//  - httpOptions.timeout — 타임아웃을 Promise.race로 감싸면 우리 쪽만 포기하고 HTTP 요청은
+//    백그라운드에서 계속 돈다. 이 옵션은 SDK가 AbortController로 요청을 실제로 끊는다(@google/genai
+//    1.47.0 dist 확인). 실패·타임아웃 시 callGemini가 {success:false}를 주고 우리는 []로 폴백한다.
+//  ★실측 발견(2026-08-03): 4000(4초)으로 두면 Gemini API가 매 호출 400(Manually set deadline 4s
+//    is too short. Minimum allowed deadline is 10s.)으로 거부해 이 호출이 배포 이후 한 번도
+//    성공한 적이 없었다(프로덕션 로그로 확인, caller=Legal-QueryExpand·Legal-RawLawPick 둘 다
+//    영향받음 — 둘 다 이 상수를 공유). API가 요구하는 최소값(10초)으로 올린다.
+const QUERY_EXPAND_TIMEOUT_MS = 10000;
+const QUERY_EXPAND_CONFIG = {
+  temperature: 0.1,
+  thinkingConfig: { thinkingBudget: 0 },
+  responseMimeType: 'application/json',
+  httpOptions: { timeout: QUERY_EXPAND_TIMEOUT_MS },
+};
+
 /**
- * 하이브리드 검색: canonicalOnly 필터 → 메타점수 → glossary 강제후보 병합 → 본문 직접매칭 재점수
- * → 상위 페이지 그래프 1홉 확장. 클라 아코디언용 sources와 답변합성용 contextPages를 함께 반환.
+ * L-57(2026-08-01): termsOf()는 기계적 토큰화라 1글자 명사("배"등)를 버리고 사전에 없는
+ * 유의어(흡연↔화기)도 못 잇는다 — 검색 직전 Gemini에게 "이 질문과 관련될 만한 법률
+ * 키워드"를 짧게 물어 allTerms에 보태 보완한다. 실패해도(키 없음·타임아웃·파싱 실패)
+ * 조용히 빈 배열로 폴백 — 이 단계가 죽어도 기존 키워드 검색만으로 계속 동작해야 한다.
+ * ★[H-37 §17] 사용자가 이해확인에서 "네, 맞아요"로 승인한 재진술이 있으면 **그 문장도 함께 보여준다**
+ *   — 지시어("그거·그건")가 무엇을 가리키는지 아는 채로 확장해야 쓸모 있는 용어가 나온다("그거 안
+ *   받으면?"만 보면 확장할 것이 없다). 재진술이 없으면 프롬프트가 **오늘과 문자 그대로 같다**(R0).
  * @param {string} query
- * @param {{canonicalOnly?:boolean}} opts
- * @returns {{sources:Array, contextPages:Array}}
+ * @param {string} [restate] - 확인된 재진술(ctx.uc.restate). 없거나 규약 위반이면 무시된다.
+ * @returns {Promise<string[]>} AI가 제안한 추가 검색어(실패 시 [])
  */
-function search(query, opts) {
+async function expandQueryTerms(query, restate) {
+  if (!gemini.hasAnyKey()) return [];
+  const confirmed = restateAllowed(restate);
+  const prompt = `사용자가 한국 해양수산 법령 챗봇에 다음 질문을 했다: "${query}"\n` +
+    (confirmed ? `사용자는 이 질문의 뜻이 "${confirmed}" 라는 것을 직접 확인해 줬다 — ` +
+      `지시어("그거"·"그건" 등)가 무엇을 가리키는지는 이 문장을 따르고, 이 뜻에 맞는 용어를 뽑아라.\n` : '') +
+    `이 질문과 관련될 수 있는 한국 법률 용어·개념을 한국어 명사로 최대 8개까지 뽑아라. ` +
+    `질문에 그 글자가 그대로 없어도 관련 있을 만한 법률 용어를 포함해라 ` +
+    `(예: "배 위에서 흡연"→선박,흡연,화기,금연,선내). 다른 설명 없이 JSON 배열로만 답하라. ` +
+    `예: ["선박","흡연","화기"]`;
+  try {
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: QUERY_EXPAND_CONFIG, caller: 'Legal-QueryExpand',
+    });
+    if (!result.success || !result.text) return [];
+    // JSON 모드라 보통은 배열 그대로 오지만, 모델이 코드블록·설명을 붙이는 경우까지 견디도록
+    // 첫 '['~마지막 ']'만 떼어 파싱한다(파싱 실패는 아래 catch에서 [] 폴백).
+    const m = result.text.match(/\[[\s\S]*\]/);
+    if (!m) return [];
+    const arr = JSON.parse(m[0]);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(t => typeof t === 'string' && t.trim()).map(t => t.trim()).slice(0, 8);
+  } catch (_) {
+    return [];
+  }
+}
+
+// ── 되묻기(명확화) 판단 전용 설정 ──
+// expandQueryTerms()·pickCandidateLaws()와 같은 "짧고 빠른 판단 호출" 패턴: 사고 끄고, JSON만
+// 받고, 실패하면 조용히 폴백. 다만 이 호출은 근거자료 본문까지 읽히므로 타임아웃은 질의확장(10초)
+// 보다 여유를 준다(pickRawFiles와 같은 15초).
+const CLARIFY_TOPK = 6;            // 판단에 쓸 상위 근거 페이지 수(전부 넣으면 프롬프트가 폭주)
+const CLARIFY_BODY_CHARS = 1500;   // 페이지당 발췌 상한
+// 선택지 상한(버튼). ⚠ 상한일 뿐 목표가 아니다 — 프롬프트는 "필요한 만큼만, 최대 10개"라고
+// 지시하며, 실제로는 2~3개가 대부분이다. 3→10 상향(2026-08-15 사용자 지시): 후보가 4개 이상인
+// 자산(weather_warning_tree 특보 선택지 최대 6개·tonnage_facet 구간 최대 9개)을 억지로 묶지
+// 않고 그대로 물을 수 있게 하려는 것. 클라이언트 버튼은 flex-wrap 이라 개수가 늘어도 줄바꿈된다.
+const CLARIFY_OPTION_MAX = 10;
+// 모듈 레벨 공유 참조라 호출자가 실수로 고치면 이후 모든 폴백이 오염된다 — 얼려서 막는다.
+const CLARIFY_NONE = Object.freeze({ needed: false });
+// 클라이언트가 "원래질문 + 고른 선택지"를 합칠 때 쓰는 구분자(ai_chat.js pickClarifyOption:
+// `q + ' — ' + label`, em dash U+2014 앞뒤 공백). ⚠ 한쪽만 바꾸면 재되묻기 차단이 뚫린다.
+const CLARIFY_JOINER = ' — ';
+// 되묻기를 이어서 할 수 있는 최대 라운드 수(질의에 붙은 CLARIFY_JOINER 개수 = 이미 지나온 라운드 수).
+// ⚠ 1이 아니라 2인 이유: 한 번 좁혀도 여전히 답이 갈리는 질문이 실제로 있다 — "낚시어선에서 술
+//   마시면?"은 ①선장·선원이냐 승객이냐 를 물은 뒤에도, 그 답에 따라 ②하천·호소냐 바다냐(적용
+//   법령·처벌이 아예 다르다)를 한 번 더 물어야 제대로 답이 나온다. 1로 묶어두면 두 번째 갈래를
+//   영영 못 묻는다.
+// ⚠ 그래도 상한 자체는 남긴다 — 무한루프 차단은 프롬프트가 아니라 **코드**로 한다(아래 decideClarify
+//   주석 참고). 상한을 없애면 모델이 기준3을 어길 때 버튼→되묻기→버튼이 끝나지 않는다.
+// (2026-08-10 사용자 확정: H-36 계층트리 경로는 트리 깊이가 유한해 상한을 안 두기로 했지만, 이
+//  AI 즉석판단형 되묻기는 여전히 안전장치가 필요 — 대신 2는 너무 타이트하다는 지적으로 4로 상향.)
+const CLARIFY_MAX_ROUNDS = 4;
+const CLARIFY_CONFIG = {
+  temperature: 0.1,
+  thinkingConfig: { thinkingBudget: 0 },
+  responseMimeType: 'application/json',
+  httpOptions: { timeout: 15000 },
+};
+
+/** 되묻기 응답 문자열 정리(앞뒤 공백 제거 + 길이 상한). 빈 문자열이면 ''. */
+function clarifyStr(v, max) {
+  return typeof v === 'string' ? v.trim().slice(0, max) : '';
+}
+
+/**
+ * 이 질문에 바로 답하지 말고 **사용자에게 조건을 되물어야 하는지**만 짧게 판단한다.
+ * 예: "낚싯배 위에서 술 마시면 처벌?"은 (바다/하천, 조타담당/승객)에 따라 적용 법령·처벌이
+ * 완전히 달라져 한 번에 다 나열하면 답이 길고 산만해진다 — 그럴 때 질문 + 선택지(필요한 만큼, 최대 10개)를
+ * 돌려주면 화면이 버튼으로 그리고, 사용자가 고른 값을 원래 질문에 합쳐 다시 물어본다.
+ *
+ * ★환각 0: 선택지는 **[근거자료]에 실제로 적힌 구분**에서만 만들게 프롬프트로 강제한다(예:
+ *   "조타기를 조작하거나 그 조작을 지시하는 자"라는 조문 문구가 있어야 "조타 담당자냐 승객이냐"를
+ *   물을 수 있다). 근거가 없으면 needed:false로 물러난다.
+ * ★재되묻기 방지: 되묻기는 **최대 CLARIFY_MAX_ROUNDS 라운드**까지만 이어진다 — 이미 지나온 라운드
+ *   수는 질의에 붙은 CLARIFY_JOINER 개수로 세고, 상한에 닿으면 프롬프트(기준3)에 앞서
+ *   **Gemini를 부르지도 않고** 물러난다. 모델이 기준3을 어기면 버튼→되묻기→버튼 무한루프가 되므로
+ *   천장은 결정론적으로 막되, 한 번 좁혀도 갈래가 남는 질문(선원/승객 → 하천/바다)은 통과시킨다.
+ * ★같은 조건 재질문 차단: 라운드 수와 별개로, 이번 선택지의 라벨이 이미 질의에 붙어 있으면(=앞
+ *   라운드에서 사용자가 고른 값) 그 되묻기는 버린다 — 프롬프트 기준3만 믿었더니 2라운드가 1라운드와
+ *   똑같은 질문·똑같은 선택지를 그대로 다시 물은 사례가 라이브에서 재현됐다(아래 코드 주석 참고).
+ * ★hint 검증: 모델이 근거자료에 없는 조문번호를 hint에 지어넣을 수 있어, 파싱 후 hint의
+ *   조문번호 토큰을 [근거자료] 원문과 대조해 없으면 그 hint만 비운다(선택지는 유지).
+ * 실패(키 없음·근거 없음·타임아웃·파싱 실패·스키마 불충족)는 예외 없이 {needed:false} —
+ * 이 단계가 죽어도 기존 답변 흐름이 그대로 돌아가야 한다(pickCandidateLaws와 같은 폴백 규약).
+ *
+ * ★[H-37 §17] 사용자가 이해확인에서 승인한 재진술이 있으면 그 문장도 함께 보여준다 — 지시어가
+ *   풀린 문장을 읽어야 "이미 정해진 조건을 또 묻는" 되묻기를 피할 수 있다(기준3의 확장). 재진술이
+ *   없으면 프롬프트가 **오늘과 문자 그대로 같다**(R0). 재진술은 조문·수치가 섞이면 이미 버려진 값이라
+ *   (RESTATE_BAN) 이 프롬프트에 법 이야기를 새로 들여오지 않는다.
+ * ★(2026-08-15) `scopeNarrowStep`(D-트리 상황질문)이 확정한 조건도 같은 방식으로 넘긴다 —
+ *   D-트리는 `ctx.scope`로만 확정 사실을 들고 있고 그게 `query` 문자열엔 절대 안 섞이므로(R2),
+ *   여기 넘기지 않으면 이 함수는 그 확정을 전혀 모른다. 라이브 재현: "안전검사 안 받으면?" →
+ *   D-트리가 "그 밖의 선박"으로 좁혀도, 이 함수가 곧바로 "어선/수상레저기구/그 밖의 선박"을 또
+ *   물었다(같은 축 중복 되묻기). restate와 마찬가지로 프롬프트에 "다시 묻지 마라" 지시를 더하고,
+ *   모델이 그래도 어기면(라벨이 그대로 다시 나오면) 결정론적으로 버린다(아래 코드 참고).
+ * ★(2026-08-15, 최소 절충안) 직전 질문(`lastTopic`)이 있으면, **이 함수가 어차피 needed:true로
+ *   되물을 때만** 선택지 맨 끝에 하나 더 얹는다 — "방금 물어본 그거예요?" 확인용. 라이브 재현:
+ *   "안전검사 안 받으면?"(scopeNarrow로 "그 밖의 선박"까지 확정) 뒤에 **사용자가 입력창에 새로
+ *   타이핑한** "그럼 처벌은 얼마예요?"는 클라이언트가 맥락을 통째로 비우고 보내(§9.1 #1, 의도적
+ *   정책 — 안 바꿨다) 서버가 "안전검사" 얘기였다는 걸 전혀 모른 채 무관한 법 6개를 늘어놓았다.
+ *   이 함수는 **주제를 대신 추측해 답하지 않는다** — 확정된 조건이 아니라 "확인 후보"로만 하나
+ *   보태고, 사용자가 그 선택지를 누르면(기존 되묻기 버튼과 완전히 같은 경로로 "새질문 — 직전질문"
+ *   재질의가 되어) 그제서야 두 질문이 합쳐져 검색된다. 안 누르면 오늘과 똑같이 동작한다(R0).
+ * @param {string} query - 사용자 질문
+ * @param {Array} contextPages - search()의 contextPages(위키 원문 body 포함)
+ * @param {string} [restate] - 확인된 재진술(ctx.uc.restate). 없거나 규약 위반이면 무시된다.
+ * @param {string[]} [narrowLabels] - 이미 확정된 조건 라벨(ctx.scope·프로필). 없으면 프롬프트·판정 모두 오늘과 동일(R0).
+ * @param {string} [lastTopic] - 직전 질문 원문(클라이언트가 매 요청에 항상 실어 보낸다, ctx와 무관한
+ *   별도 채널). 없으면 이 함수는 오늘과 완전히 같다(R0).
+ * @returns {Promise<{needed:boolean, intro?:string, question?:string, options?:Array<{label:string,hint:string}>}>}
+ * [연계] ← routes/legal.js POST /api/legal/ask 가 synthesizeAnswerStream() **전에** 호출한다.
+ *          needed:true면 종합답변을 아예 만들지 않고 done 이벤트의 clarify 필드로 내려보낸다.
+ *        → client/js/ai-chat/ai_chat.js clarifyHTML(선택지 버튼) → 버튼 클릭 시 "원래질문 — 라벨"로 재질의.
+ */
+async function decideClarify(query, contextPages, restate, narrowLabels, lastTopic) {
+  if (!gemini.hasAnyKey() || !contextPages || !contextPages.length) return CLARIFY_NONE;
+  // ★재되묻기 무한루프 차단(프롬프트 기준3의 결정론적 백스톱): 선택지 버튼으로 되돌아온 질의는
+  // 반드시 CLARIFY_JOINER 를 달고 오므로, 그 개수가 곧 **이미 지나온 되묻기 라운드 수**다.
+  // 상한(CLARIFY_MAX_ROUNDS)에 닿았으면 모델 판단에 맡기지 않고 여기서 곧바로 물러난다.
+  // (모델이 기준3을 어기면 버튼→되묻기→버튼 무한루프가 된다.) 사용자가 직접 " — "를 타이핑한
+  // 드문 경우도 되묻기를 건너뛸 뿐이라 안전한 쪽으로 틀린다.
+  const rounds = String(query || '').split(CLARIFY_JOINER).length - 1;
+  if (rounds >= CLARIFY_MAX_ROUNDS) return CLARIFY_NONE;
+  const block = contextPages.slice(0, CLARIFY_TOPK).map((cp, i) => {
+    const title = cp.topic ? `${cp.law} — ${cp.topic}` : cp.law;
+    return `--- 근거${i + 1}: [${title}] ---\n${String(cp.body || '').slice(0, CLARIFY_BODY_CHARS)}`;
+  }).join('\n\n');
+  // [H-37 §17] 확인된 재진술이 있으면 질문 바로 뒤에 한 블록 끼운다. 없으면 빈 문자열이라
+  //   프롬프트가 오늘과 바이트 동일하다(R0) — 줄바꿈까지 이 블록 안에 넣어 둔 이유가 그것이다.
+  const confirmed = restateAllowed(restate);
+  const confirmedBlock = confirmed ? `\n\n[사용자가 확인해 준 질문의 뜻]\n"${confirmed}"\n` +
+    `- 질문의 지시어("그거"·"그건" 등)가 가리키는 것은 이 문장을 따른다.\n` +
+    `- 이 문장이 이미 정해 준 조건은 **다시 묻지 마라**(기준3과 같은 취지).` : '';
+  // (2026-08-15) D-트리 상황질문(scopeNarrowStep)이 이미 확정한 조건 — restate와 같은 자리에 낀다.
+  const narrow = (narrowLabels || []).filter(Boolean);
+  const narrowBlock = narrow.length ? `\n\n[이미 확정된 조건]\n${narrow.join(', ')}\n` +
+    `- 이 조건은 이미 답이 정해졌다. **같은 구분을 다시 묻지 마라**(기준3과 같은 취지).` : '';
+  const prompt = `너는 대한민국 해양수산 법령 챗봇의 "되묻기 판단기"다. 질문에 답하지 말고, 사용자에게 조건을 되물어야 하는지만 판단하라.
+
+[질문]
+"${query}"${confirmedBlock}${narrowBlock}
+
+[근거자료]
+${block}
+
+[판단 기준]
+1. 근거자료를 보면 이 질문의 답(적용 법령·처벌·의무)이 어떤 구분에 따라 크게 달라지고, **그 구분이 근거자료 문구에 실제로 적혀 있으면** needed:true. 예: 근거자료에 "조타기를 조작하거나 그 조작을 지시하는 자"라고 적혀 있으면 "조타를 맡은 사람인지 일반 승객인지"는 근거가 있는 구분이다.
+2. ★근거자료에 없는 구분은 지어내지 마라. 선택지의 근거가 되는 표현을 근거자료에서 찾을 수 없으면 needed:false.
+3. ★질문 문구에 이미 그 조건이 적혀 있으면 그 조건을 다시 묻지 마라. 예: "낚싯배 위에서 술 마시면 처벌? — 바다에서 운항 중, 조타 담당자 기준"처럼 조건이 이미 붙어 있으면 needed:false.
+4. 조금이라도 애매하면 needed:false로 물러나라(되묻지 않고 답해도 되는 질문을 굳이 되묻지 않는다).
+5. 되물을 조건은 **한 가지만** 고른다(답이 가장 크게 갈리는 것). 선택지는 근거자료에 실제로 적힌 구분만큼 **필요한 만큼만** 만들어라 — 최대 10개까지 낼 수 있지만, 개수를 채우려고 근거 없는 선택지를 보태지 마라(대개 2~3개면 충분하다).
+
+다른 설명 없이 아래 JSON만 출력하라.
+{"needed":true,"intro":"…","question":"…","options":[{"label":"…","hint":"…"}]}
+또는 {"needed":false}
+- intro: 왜 조건에 따라 답이 갈리는지 알려주는 존댓말 한 문장.
+- question: 사용자에게 물을 한 문장.
+- options[].label: 버튼에 들어갈 짧은 문구(15자 이내). options[].hint: 그 선택지가 무슨 뜻인지 짧은 설명.`;
+  try {
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: CLARIFY_CONFIG, caller: 'Legal-Clarify',
+    });
+    if (!result.success || !result.text) return CLARIFY_NONE;
+    // JSON 모드라 보통은 객체 그대로 오지만, 모델이 코드블록·설명을 붙이는 경우까지 견디도록
+    // 첫 '{'~마지막 '}'만 떼어 파싱한다(파싱 실패는 아래 catch에서 폴백).
+    const m = result.text.match(/\{[\s\S]*\}/);
+    if (!m) return CLARIFY_NONE;
+    const obj = JSON.parse(m[0]);
+    if (!obj || obj.needed !== true) return CLARIFY_NONE;
+    const question = clarifyStr(obj.question, 200);
+    const options = (Array.isArray(obj.options) ? obj.options : [])
+      .map(o => ({ label: clarifyStr(o && o.label, 40), hint: clarifyStr(o && o.hint, 120) }))
+      .filter(o => o.label)
+      .slice(0, CLARIFY_OPTION_MAX)
+      // ★환각 0: hint가 근거자료에 없는 조문번호("제9999조")를 지어내면 버튼 툴팁으로 그대로
+      // 노출된다 — 조문번호 토큰만 좁게 대조해, 하나라도 block에 문자 그대로 없으면 그 hint를
+      // 비운다(선택지 자체는 남긴다 — 라벨은 사용자가 고를 조건이라 지우면 되묻기가 망가진다).
+      // 질문·라벨 전체 문자열 대조는 하지 않는다(패러프레이즈 오탐이 커서 정상 되묻기를 죽인다).
+      .map(o => (o.hint && (o.hint.match(/제\d+조(?:의\d+)?/g) || []).some(a => !block.includes(a))
+        ? { label: o.label, hint: '' } : o));
+    // 물음 없이, 또는 고를 게 하나뿐인 되묻기는 사용자를 막기만 하고 좁혀주지 못한다 — 그냥 답하게 둔다.
+    if (!question || options.length < 2) return CLARIFY_NONE;
+    // ★같은 조건 재질문 차단(결정론적): 질의에는 앞선 라운드에서 고른 값이 "질문 — 라벨" 꼴로 이미
+    // 붙어 있다. 이번 선택지의 라벨 중 하나라도 질의에 **문자 그대로** 들어 있으면, 그건 이미 한 번
+    // 고른 조건을 그대로 다시 묻는 것이다 — 그 되묻기는 버리고 답변으로 넘어간다.
+    // ⚠ 프롬프트 기준3("질문 문구에 이미 그 조건이 적혀 있으면 다시 묻지 않는다")만으로는 못 막는다 —
+    //   라이브 재현: 2라운드에서 **1라운드와 완전히 똑같은 질문 + 똑같은 선택지 2개**가 그대로 다시
+    //   떴다. CLARIFY_MAX_ROUNDS 상한은 라운드 **수**만 세므로 이 실패 모드를 걸러내지 못한다.
+    //   이 저장소의 관례대로(위 CLARIFY_JOINER 라운드 계산과 같은 취지) 루프 차단은 모델의 지시이행이
+    //   아니라 코드로 한다. 라벨은 사용자가 실제로 눌러 질의에 그대로 붙은 문자열이라 완전일치 대조가
+    //   성립한다(패러프레이즈 대조가 아니라 오탐이 없다).
+    if (options.some(o => String(query || '').includes(o.label))) return CLARIFY_NONE;
+    // ★(2026-08-15) 위와 같은 결정론적 백스톱을 narrowLabels 에도 건다 — narrowBlock(프롬프트
+    //   지시)만 믿으면 restate 때와 같은 실패모드(모델이 지시를 어긴다)가 그대로 반복될 수 있다.
+    //   narrowLabels 는 사용자가 D-트리 버튼을 실제로 눌러 ctx.scope 에 그대로 박힌 문자열이라
+    //   완전일치 대조가 성립한다(위 라벨과 같은 근거).
+    if (narrow.some(nl => options.some(o => o.label === nl))) return CLARIFY_NONE;
+    // ★(2026-08-15, 최소 절충안) 직전 질문을 "확인 후보"로 하나 더 얹는다 — 이 함수가 어차피
+    //   needed:true(=이미 애매해서 되묻는 중)일 때만, 그리고 여지가 있을 때만(칸이 남아 있고,
+    //   직전 질문이 이번 질문에 이미 그대로 안 들어 있을 때). 답을 대신 짓지 않고 "이거 맞아요?"만
+    //   묻는 선택지라 틀려도 사용자가 그냥 무시하면 그만이다(오답 위험 0).
+    const prevQ = clarifyStr(lastTopic, 200);
+    if (prevQ && prevQ !== query && !String(query || '').includes(prevQ) && options.length < CLARIFY_OPTION_MAX) {
+      options.push({ label: clarifyStr(prevQ, 40), hint: '방금 물어보신 질문과 이어지는 내용일 수 있어요' });
+    }
+    return { needed: true, intro: clarifyStr(obj.intro, 200), question, options };
+  } catch (_) {
+    return CLARIFY_NONE;
+  }
+}
+
+/**
+ * 하이브리드 검색: canonicalOnly 필터 → 메타점수(+AI 질의확장) → glossary 강제후보 병합
+ * → 본문 직접매칭 재점수 → 관련도 낮은 꼬리 컷 → 상위 페이지 그래프 1홉 확장. 클라
+ * 아코디언용 sources와 답변합성용 contextPages를 함께 반환.
+ * @param {string} query
+ * @param {{canonicalOnly?:boolean, restate?:string}} opts
+ *   - restate: [H-37 §17] 사용자가 "네, 맞아요"로 확인한 **이해확인 재진술 문장**. 있으면 질의확장
+ *     LLM 이 그 뜻까지 보고 검색어를 뽑는다(query 문자열은 어디서도 안 바꾼다 — 설계 §3.3 R2).
+ * @returns {Promise<{sources:Array, contextPages:Array}>}
+ */
+async function search(query, opts) {
   const canonicalOnly = !!(opts && opts.canonicalOnly);
   const idx = loadIndex();
-  let pages = idx.pages || [];
-  if (canonicalOnly) pages = pages.filter(p => p.kind === 'statute' || p.status === 'canonical');
+  const pages = idx.pages || [];
+  // (2026-08-05) 이전엔 여기서 draft(비-statute) 페이지를 통째로 제외했다. 이제는 페이지 자체는
+  // 점수 매기기 후보에 남겨두고, 아래 citableBody()가 draft 페이지의 REVIEW 마커 없는 부분만
+  // 골라 인용에 쓴다 — 전부 REVIEW로 덮여있던 페이지는 citableBody가 빈 문자열을 돌려주므로
+  // finalWithBody 단계에서 자연히 걸러진다.
 
   const byFile = new Map(pages.map(p => [p.kind + ':' + p.file, p]));
   const terms = termsOf(query);
   const { extraTerms, forcedSlugs } = glossaryExpand(query);
-  const allTerms = [...new Set([...terms, ...extraTerms])];
+  // [H-37 §17] 확인된 재진술은 **여기 한 갈래로만** 검색에 들어온다 — 질의확장 LLM 이 그 문장을 보고
+  //   뽑은 용어가 aiTerms 로 합류한다(재진술 낱말을 그대로 얹지 않는 이유는 §17 실측 기록 참고).
+  //   재진술이 없으면 호출도 프롬프트도 오늘과 같아 allTerms 가 문자 그대로 동일하다(R0).
+  const aiTerms = await expandQueryTerms(query, opts && opts.restate);
+  const allTerms = [...new Set([...terms, ...extraTerms, ...aiTerms])];
 
   let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms) })).filter(x => x.s > 0);
   // glossary 강제후보 병합(구어 매핑은 본문에 그 단어가 그대로 없을 수도 있어 별도 신호로 취급)
@@ -472,50 +860,220 @@ function search(query, opts) {
     if (hit) hit.s += 4; else scored.push({ p, s: 4 });
   }
   scored.sort((a, b) => b.s - a.s);
+
+  // L-57: 관련도 최소 기준선 — 1위 점수 대비 너무 낮은(우연한 키워드 1개 겹침 수준) 꼬리는
+  // 아예 후보에서 뺀다. 안 그러면 진짜 좋은 매칭이 없을 때도 PRIMARY_TOPK를 억지로 채워
+  // 무관한 법이 "근거"로 뜬다(예: "배 위 흡연" 질문에 폐기물관리법 등이 낀 사례).
+  const topScore = scored.length ? scored[0].s : 0;
+  const MIN_KEEP_SCORE = Math.max(2, topScore * 0.3);
+  scored = scored.filter(x => x.s >= MIN_KEEP_SCORE);
   const primary = scored.slice(0, PRIMARY_TOPK);
 
-  // 그래프 1홉: 최상위 페이지의 links로 관련 개념 보강(이미 뽑힌 페이지는 제외)
+  // 그래프 1홉: 최상위 페이지의 links로 관련 개념 보강(이미 뽑힌 페이지는 제외).
+  // 1위 매칭 자체가 약하면(topScore 낮음) 거기서 이어진 링크도 신뢰할 수 없어 홉을 아예 건너뛴다.
+  // ⚠ "링크로 이어져 있다"는 것만으로 무조건 통과시키지는 않는다 — 그러면 질문과 아무 상관없는
+  //   페이지가 근거 목록에 얹히고 그 페이지의 "근거 조문" 표까지 통째로 딸려 붙는다(실측: "낚시배
+  //   음주" 질문에 음주와 무관한 페이지가 홉으로 들어와 그 조문이 근거로 뜸). 그래서 홉 후보도
+  //   같은 질의어로 다시 채점(scoreOne)해 **본선과 같은 관련도 문턱**(MIN_KEEP_SCORE)을 넘는
+  //   것만 받는다. 홉이 건져야 할 것은 "관련은 있는데 PRIMARY_TOPK 개수 컷에 밀린 페이지"이지
+  //   "관련도 문턱에 못 미쳐 걸러진 페이지"가 아니다 — 후자는 본선에서 뺀 이유가 그대로 유효하다.
+  //   ⚠ 이 문턱은 topScore 만의 함수라 **본선 후보가 몇 개인지와는 무관하다** — 본선이 적다고 문턱이
+  //     저절로 높아지지 않는다(실측 반례: "스킨스쿠버" 본선 2건·"어군탐지기" 본선 3건 모두 문턱이
+  //     바닥값 2.0). 본선이 적을 때 홉이 인용사슬까지 달고 나오는 위험 자체는 남아 있고, 이 문턱은
+  //     "질문과 관련 없는 페이지"만 걸러줄 뿐이다(줄 단위 거름은 filterCitationChainByAnswer가 한다).
   const picked = new Set(primary.map(x => x.p));
   const hop = [];
-  for (const top of primary.slice(0, 2)) {
-    if (hop.length >= HOP_MAX) break;
-    for (const raw of (top.p.links || [])) {
+  if (topScore >= 4) {
+    for (const top of primary.slice(0, 2)) {
       if (hop.length >= HOP_MAX) break;
-      const p = resolvePage(byFile, raw);
-      if (!p || picked.has(p)) continue;
-      picked.add(p); hop.push({ p, s: 0, hop: true });
+      for (const raw of (top.p.links || [])) {
+        if (hop.length >= HOP_MAX) break;
+        const p = resolvePage(byFile, raw);
+        if (!p || picked.has(p)) continue;
+        const hs = scoreOne(p, allTerms);
+        if (hs < MIN_KEEP_SCORE) continue;
+        picked.add(p); hop.push({ p, s: hs, hop: true });
+      }
     }
   }
 
-  const finalList = [...primary, ...hop];
-  const contextPages = finalList.map(x => {
+  // (2026-08-05) canonicalOnly일 때 draft(비-statute) 페이지는 citableBody()가 REVIEW 마커
+  // 없는 부분만 남긴 본문을 준다 — 전부 REVIEW로 덮여있던 페이지는 빈 문자열이 되어 여기서
+  // 자연히 빠진다(page-level 제외 대신 content-level 제외). contextPages·sources 양쪽에서
+  // 같은 본문을 다시 계산하지 않도록 한 번만 구해 재사용한다.
+  const finalList = [...primary, ...hop]
+    .map(x => ({ x, body: citableBody(x.p, canonicalOnly) }))
+    .filter(e => e.body);
+
+  const contextPages = finalList.map(({ x, body }) => {
     const page = readPage(x.p.kind, x.p.file);
     return {
       law: x.p.law, topic: x.p.topic, file: x.p.file, kind: x.p.kind, status: x.p.status || null,
       hop: !!x.hop,
       frontmatter: page ? page.frontmatter : {},
-      body: page ? sliceRelevant(page.body, allTerms, MAX_BODY_CHARS) : '',
+      body: sliceRelevant(body, allTerms, MAX_BODY_CHARS),
     };
   }).filter(cp => cp.body);
 
-  // 인용사슬은 화면 체인 UI가 실제로 그리는 상위 소수 건에만 붙인다(전부 파싱하면 낭비).
-  // 본문은 위에서 이미 readPage로 캐시돼 있어 파일을 다시 읽지 않는다.
-  const CHAIN_TOPK = 5;
-  const sources = finalList.map((x, i) => {
+  // 인용사슬은 매칭된 모든 소스에서 뽑는다(상위 소수 건으로 자르면, 정작 답변과 정확히
+  // 일치하는 표를 가진 페이지가 점수 커트라인 밖으로 밀려 화면에 아예 안 뜨는 사례가 실측됨
+  // — "낚싯대 음주" 질문에서 정확한 표가 있는 "해기사음주행정처분" 페이지 대신 배경설명용
+  // 표만 있는 "정의와적용범위" 페이지가 상위 5등을 차지해 그 표가 뜬 사례). 뒤이어
+  // filterCitationChainByAnswer(routes/legal.js)가 답변 문장과 대조해 줄 단위로 거른다.
+  // extractCitationChain·extractGapNotices는 citableBody가 이미 걸러낸 본문에서 뽑으므로,
+  // draft 페이지의 "## 근거 조문" 표에 REVIEW 붙은 행이 있었다면 그 행은 인용사슬에도 안 실린다.
+  const sources = finalList.map(({ x, body }) => {
     const s = {
       file: x.p.file, law: x.p.law, topic: x.p.topic, kind: x.p.kind, status: x.p.status || null,
-      score: x.s, hop: !!x.hop,
+      score: x.s, hop: !!x.hop, cited: x.p.cited || [],
     };
-    if (i < CHAIN_TOPK) {
-      const page = readPage(x.p.kind, x.p.file);
-      s.citationChain = page
-        ? extractCitationChain(page.body).map(row => Object.assign({}, row, { contact: lookupContact(row.law) }))
-        : [];
-    }
+    s.citationChain = extractCitationChain(body).map(row => Object.assign({}, row, { contact: lookupContact(row.law) }));
+    // 이 페이지가 "우리가 원문을 가질 수 없는 공백"(시군구 개별고시 등)을 적어뒀으면 함께 싣는다.
+    s.gapNotices = extractGapNotices(body);
     return s;
   });
 
   return { sources, contextPages };
+}
+
+/**
+ * L-57 조치③: search()가 찾은 후보는 답변에 실제로 쓰였다는 보장이 없다 — 본선이든 그래프
+ * 1홉 확장분(hop:true)이든 **관련도 문턱(MIN_KEEP_SCORE)만 넘으면** 후보로 들어오고, 문턱을
+ * 넘었다는 것이 "답변이 실제로 그 법을 썼다"는 뜻은 아니다(search() 주석 참고).
+ * answer(AI 답변 문장)와 sourcesOut(근거법령 목록)이 서로 다른 파이프라인이라, "확인되지
+ * 않습니다"처럼 결론을 못 낸 질문에서도 화면엔 무관한 근거가 그대로 뜨는 게 실측 확인됨(_LESSONS.md
+ * L-57). 이 함수는 답변 본문에 그 소스의 법령명·주제(비교표·활동 페이지처럼 law가 합성 슬러그라
+ * 매칭 불가능한 kind는 인용 타법명)가 실제로 등장하는 소스만 남겨,
+ * hop 여부와 무관하게 "답변에 실제로 쓰였는가"라는 동일 기준으로 근거목록을 좁힌다. 아무것도
+ * 인용되지 않았으면(=전형적으로 "확인되지 않습니다" 결론) 빈 배열을 반환한다.
+ * 예: answerText="…「해운법」에 따라 100만원 이하 과태료…" → law가 '해운법'인 소스만 남고,
+ *     무관하게 딸려온 해수욕장법·폐기물관리법 등은 제외된다.
+ * @param {Array} sources - search()가 반환한 sources(law·topic·cited 포함)
+ * @param {string} answerText - synthesizeAnswerStream()이 만든 전체 답변 문장
+ * @returns {Array} 답변에 실제로 인용된 소스만(원 순서 유지)
+ * [연계] ← routes/legal.js가 스트리밍 완료 후(전체 답변 확보 시점) sourcesOut 구성 직전에 호출.
+ */
+function filterSourcesByAnswer(sources, answerText) {
+  const text = String(answerText || '');
+  if (!text) return [];
+  return sources.filter(s => {
+    if (s.law && s.law.length >= 2 && text.includes(s.law)) return true;
+    if (s.topic && s.topic.length >= 2 && text.includes(s.topic)) return true;
+    // cited 매치는 비교표(kind==='comparison') 페이지에만 적용한다. cited는 "그 페이지가 근거로
+    // 삼은 법"이 아니라 "본문 어디서든 「」로 언급된 모든 법"이라(lint_index.py) 흔한 법 하나만
+    // 답변에 나와도 그 법을 스치듯 언급한 무관 페이지 수십~수백 건이 통째로 통과한다(실측: "낚싯배
+    // 흡연" 답변이 「낚시 관리 및 육성법」을 말했다는 이유로 국제항해선박보안법 항만시설이용자의무
+    // 페이지가 근거로 뜸). 그렇다고 지워버릴 수도 없다 — 비교표 페이지는 law가 진짜 법령명이
+    // 아니라 표 제목(예: '음주운항_측정거부')이고 topic도 비어 있어 위 두 분기로는 영영 안 걸리고,
+    // 오직 이 cited 분기로만 살아남는다. 그래서 이 우회가 원래 필요했던 비교표에만 남긴다.
+    // 활동(kind==='activity') 페이지도 구조가 똑같아(law='activity_해루질' 같은 합성 슬러그, topic 빈 값)
+    // 같은 이유로 함께 예외를 둔다 — 안 두면 "해루질 신고" 질문에서 1순위로 뽑힌 페이지가 근거목록에서 사라진다.
+    if (s.kind !== 'comparison' && s.kind !== 'activity') return false;
+    return (s.cited || []).some(c => c && c.length >= 3 && text.includes(c));
+  });
+}
+
+/**
+ * filterSourcesByAnswer가 소스 페이지 단위로 걸러도, 그 페이지 안 citationChain 표는 줄 단위로
+ * 한 번도 답변과 대조되지 않아 무관한 줄이 그대로 섞여 나온다(실측: "낚싯대 음주" 질문에서
+ * "선박직원법·정의와적용범위" 페이지의 배경설명용 표 9줄 — 목적·정의·국가간협력·외국사무 등 — 이
+ * 답변 어디에도 없는데 근거 목록에 통째로 뜸). 이 함수는 그 줄들을 답변 문장과 대조해, 법령명과
+ * 조문번호(또는 별표번호)가 둘 다 실제로 언급됐을 때만 남긴다.
+ * ⚠ 범위·나열 인용(예: "제1∼3조", "시행령 제2조·제3조")은 각 조 번호를 개별 추출해 대조한다.
+ *   추출 자체가 안 되는 표기(요지만 있고 조 번호가 없는 등)는 검증할 수 없으므로 뺀다(환각 0).
+ * ⚠ 조 번호만 떼어 대조하면 오탐이 난다 — 같은 조 안에 서로 다른 항이 나열된 표(예: 선박직원법
+ *   제9조는 ①일반 취소사유·③음주 처분이 따로 있다)에서, 답변이 "제9조제1항"만 말했는데 "제9조제3항"
+ *   행까지 살아남는 사례가 실측됨. 그래서 항·호까지 표기에 있으면 그것까지 붙여 하나의 토큰으로
+ *   본다("제9조제3항"을 통째로 대조 — "제9조"만 대조하지 않는다).
+ * 예: filterCitationChainByAnswer([{law:'선박직원법',article:'제9조제3항',…}, {law:'선박직원법',article:'제9조제1항',…}],
+ *     '…「선박직원법」 제9조제3항에 따라…') → 제9조제3항 줄만 남고 제9조제1항 줄은 빠진다.
+ * @param {Array} chain - source.citationChain(law·article 포함)
+ * @param {string} answerText - synthesizeAnswerStream()이 만든 전체 답변 문장
+ * @returns {Array} 답변에 실제로 인용된 줄만(원 순서 유지)
+ * [연계] ← routes/legal.js가 filterSourcesByAnswer 직후, finalSources 각 소스에 적용.
+ */
+function filterCitationChainByAnswer(chain, answerText) {
+  const text = String(answerText || '');
+  if (!text) return [];
+  return (chain || []).filter(row => {
+    const law = row.law || '';
+    if (!law || law.length < 2 || !text.includes(law)) return false;
+    const article = String(row.article || '');
+    // ⚠ 범위 인용("제1~4조")은 조 번호를 낱개로 못 뽑아 위 토큰 방식으로는 항상 걸러졌다 — 그런데
+    //   이런 배경설명용 표(목적·정의·적용범위 허브 페이지에 흔함)가 실제로는 답변이 그 범위 **안**의
+    //   조문(예: "제3조제1항")을 정확히 인용한 경우가 실측됨("해상교통안전법 적용범위" 질문에서
+    //   근거 법령 아코디언이 통째로 사라짐 — 답변엔 제3조제1항이 정확히 인용돼 있는데도). 범위 표기는
+    //   [from,to]로 풀어, 답변에 언급된 조 번호가 그 구간 안에 들면 통과시킨다.
+    const range = /제(\d+)\s*[~∼]\s*(\d+)조/.exec(article);
+    if (range) {
+      const from = parseInt(range[1], 10), to = parseInt(range[2], 10);
+      const cited = text.match(/제\d+조/g) || [];
+      return cited.some(c => {
+        const n = parseInt(c.replace(/\D/g, ''), 10);
+        return n >= from && n <= to;
+      });
+    }
+    const tokens = article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\d+(?:의\d+)?/g) || [];
+    return tokens.some(t => text.includes(t));
+  });
+}
+
+// 위임 흐름의 고정 순서(넓은 것 → 좁은 것). classifyTier가 붙여둔 tier 값과 같은 낱말이라야 한다.
+const FLOW_TIER_ORDER = { law: 0, decree: 1, rule: 2, notice: 3 };
+
+/**
+ * 살아남은 인용사슬 줄을 **"답변이 실제로 밟은 추론 경로"** 처럼 읽히게 재배열한다:
+ * 법 하나를 법률→시행령→시행규칙→고시 순으로 끝까지 보여준 뒤, 다음 법으로 넘어간다.
+ * (예: 금지는 A법, 처벌은 B법인 페이지에서 A법 줄과 B법 줄이 뒤섞여 나오던 것을 A법 묶음 → B법
+ *  묶음으로 정리한다.)
+ * ⚠ 법의 순서는 **답변 문장에서 그 법 이름이 처음 나오는 위치**(answerText.indexOf)로 정한다 —
+ *   예전엔 들어온 배열 순서(=위키 `## 근거 조문` 표에 적힌 순서)를 썼는데, 표 순서와 답변이 실제로
+ *   짚은 순서가 어긋나는 사례가 라이브에서 재현됐다: 답변은 「낚시 관리 및 육성법」의 금지부터 말하고
+ *   해상교통안전법은 정의 인용으로 뒤에 붙였는데, 표 순서로는 해상교통안전법이 먼저라 화면 체인이
+ *   답변의 논리 순서와 반대로 그려졌다. 표 순서는 그 위키를 쓴 사람의 편집 순서일 뿐이고, 이 함수가
+ *   맞추려는 것은 **답변의 추론 경로**라 답변 문장 쪽이 정답에 가깝다. 법 이름은 **문자열 완전일치**로만 묶는다(같은 법의
+ *   시행령·시행규칙은 이름이 달라 별도 그룹처럼 보이지만, 위키 표가 관행상 법률 바로 뒤에 그
+ *   시행령을 적어두므로 first-occurrence 순서가 곧 위임 순서가 된다 — 이름에서 "시행령"을 떼어
+ *   모법으로 합치는 추측은 하지 않는다. 약칭·개정명까지 얽혀 틀리면 없는 위임을 지어내는 셈이다).
+ * ⚠ MVP 범위: 이 함수는 **이미 있는 tier·law 필드로 정렬만** 한다 — `제N조 위임 → 제M조` 링크를
+ *   law.go.kr에서 그때그때 추적해 진짜 위임 사슬을 그리는 건 답변 1건마다 API 조회가 붙는 별개
+ *   과제라 여기 범위 밖이다(사용자 확인). 그래서 결과는 "검증된 위임 사슬"이 아니라 "관행상
+ *   위임 순서에 가깝게 정돈된 목록"이다.
+ * ★환각 0: 줄을 새로 만들거나 지우거나 합치지 않는다 — 들어온 줄 그대로, 순서만 바꾼다
+ *   (입력 길이 = 출력 길이).
+ * 예: groupCitationChainByFlow([{law:'해상교통안전법',tier:'law'}, {law:'낚시 관리 및 육성법',tier:'law'}],
+ *     '「낚시 관리 및 육성법」 제30조는 … 「해상교통안전법」 제39조④의 기준을 …')
+ *     → 표에는 해상교통안전법이 먼저 있어도, 답변이 먼저 말한 낚시 관리 및 육성법 줄이 앞에 온다.
+ * @param {Array} chain - filterCitationChainByAnswer를 통과한 줄들(law·tier 포함)
+ * @param {string} answerText - synthesizeAnswerStream()이 만든 전체 답변 문장(법 묶음 순서의 기준)
+ * @returns {Array} 법별로 묶고(답변에 먼저 나온 법이 앞) 각 묶음 안을 tier 순(law→decree→rule→notice)으로
+ *                  정렬한 새 배열 (같은 tier끼리는 원래 순서 유지 — 안정 정렬)
+ * [연계] ← routes/legal.js가 filterCitationChainByAnswer 직후, **여러 소스에서 합친 하나의 배열**에
+ *          한 번 적용한다(소스마다 따로 적용하면 소스 하나만 화면에 남던 문제 — 아래 [연계] 참고).
+ *        → ai_chat.js chainHTML(이 순서대로 체인을 그린다. 처벌 줄을 별도 체인으로 빼는
+ *          isPenaltyRow 분리는 순서와 무관하게 그대로 동작한다).
+ */
+function groupCitationChainByFlow(chain, answerText) {
+  const rows = chain || [];
+  const text = String(answerText || '');
+  const groups = new Map();             // law → 그 법의 줄들
+  rows.forEach((row) => {
+    const key = (row && row.law) || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+  // 답변에서 먼저 언급된 법이 앞. 답변에 이름이 없는 법(거르기를 통과했다면 없어야 하지만
+  // 방어적으로)은 맨 뒤로 — 줄을 버리지는 않는다(누락 0).
+  const at = law => { const i = text.indexOf(law); return i < 0 ? Infinity : i; };
+  const ordered = [...groups.keys()].sort((a, b) => at(a) - at(b));
+  const out = [];
+  ordered.map(k => groups.get(k)).forEach((g) => {
+    // Array#sort는 Node 11+에서 안정 정렬이라 같은 tier 줄의 원래 순서가 유지된다.
+    // 모르는 tier 값은 맨 뒤로 보낸다(줄을 버리지는 않는다 — 환각 0의 반대편, 누락 0).
+    const ord = r => (FLOW_TIER_ORDER[r && r.tier] !== undefined ? FLOW_TIER_ORDER[r.tier] : 99);
+    g.slice().sort((a, b) => ord(a) - ord(b)).forEach(r => out.push(r));
+  });
+  return out;
 }
 
 /** contextPages를 프롬프트용 [근거자료] 블록 문자열로 직렬화. */
@@ -528,17 +1086,27 @@ function buildContextBlock(contextPages) {
   }).join('\n\n');
 }
 
-const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
-
-[답변 원칙 — 반드시 지킬 것]
+// 답변 원칙 1~8은 1차(위키 근거)·2차(원문 미검증 참고) 답변이 똑같이 지켜야 하는 공통 규칙이라
+// 별도 상수로 떼어 두 프롬프트가 함께 쓴다(서두 한 문장만 근거의 성격에 따라 달라진다).
+// ⚠ 규칙6(각주 생략)이 기대는 "화면이 대신 보여준다"의 실제 범위는 이렇다(ai_chat.js answerHTML 실측):
+//   · 근거 법령 목록은 **접힌 아코디언**이라 사용자가 눌러야 보인다(답변 밑에 펼쳐져 있지 않다).
+//   · 그 안에는 **답변이 실제로 인용한 조문 줄만** 뜬다(소스 여러 곳의 줄을 합친 하나의 목록 —
+//     routes/legal.js mergeCitationChains). 이름만 있는 소스 카드는 정보가 없어 그리지 않는다.
+//   그래서 규칙6은 "완전히 중복되니 빼라"가 아니라 "본문에서 법령·조문은 밝히되 소관부서·연락처·기준일
+//   각주만 생략한다"는 뜻이다 — 각주를 되살릴지는 화면 UX와 함께 판단할 일이지 이 주석이 단정할 게 아니다.
+const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
 1. 답의 근거는 오직 [근거자료]뿐이다. [근거자료]에 없는 내용은 지어내지 말고 "확인되지 않습니다"라고 정직하게 말한다.
 2. 처벌(징역·벌금·과태료)은 조·항·호·금액을 [근거자료] 그대로 인용한다. 뭉개어 말하지 않는다. 처벌이 위반 횟수(1차/2차/3차…)에 따라 달라지면 가장 흔한 경우(통상 1차)만 먼저 답하고 "2차 이후도 궁금하시면 다시 물어보세요"로 마무리한다(한 번에 전부 나열하지 않는다).
-3. 조건(선박 톤수·어업 종류·조업구역 등)에 따라 답이 갈리는데 질문에 그 조건이 없으면, 장황하게 다 나열하지 말고 필요한 조건 한 가지만 되물어라(예: "배가 몇 톤이세요?"). 지금은 단발 질문-답변이라 이전 대화를 기억하지 못하니, 되물을 땐 그 사실을 티내지 말고 자연스럽게 묻는다.
+3. 여기서는 사용자에게 되묻지 않는다 — 되물어야 하는 질문은 이 답변 **앞 단계(되묻기 판단)** 에서 이미 걸러진다. 조건(선박 톤수·어업 종류·조업구역 등)이 질문에 없어도 되묻지 말고 [근거자료]에 있는 정보로 최선을 다해 답하되, 조건에 따라 갈리면 핵심 갈래만 짧게 구분해 밝힌다(모든 경우를 장황하게 전수 나열하지 않는다).
 4. 판례·법리 해석·다툼의 여지가 있는 논점은 답하지 않는다(스코프 밖). 명확한 조문까지만 안내하고 "이 부분은 개별 사안에 따라 달라져 관할 소관부서에 확인하시는 것이 정확합니다"로 마무리한다.
-5. 딱딱한 조문 나열 금지. 결론 먼저 → 필요한 근거. 이해가 어려운 부분만 "쉽게 말하면~"으로 한 번 더 풀어준다. 과잉 설명은 하지 않는다.
-6. 답변 마지막에 반드시 이 순서로 붙인다: (a) 근거 법령·조문, (b) [근거자료]에 소관부서·연락처가 있으면 그것, (c) 근거자료의 기준일("「○○법」 YYYY-MM-DD 기준"). ("참고용입니다" 면책 문구는 화면이 별도로 붙이니 답변에 넣지 않는다.)
-7. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용.
+5. 딱딱한 조문 나열 금지. 결론 먼저 → 필요한 근거. **본문 첫 문장을 "쉽게 말하면 ~"으로 열어** 결론을 일상어로 짧게 요약한 뒤, 조문·처벌 같은 정확한 근거를 그다음에 이어 붙인다 — 이 쉬운 요약을 답변 맨 끝에 마무리 말로 붙이지 않는다. 과잉 설명은 하지 않는다.
+6. 근거로 삼은 법령명·조문번호는 답변 문장 안에서 자연스럽게 밝힌다(예: "「낚시 관리 및 육성법」 제35조에 따라 …"). 다만 소관부서·연락처·근거자료의 기준일을 답변 마지막에 각주로 따로 붙이지는 않는다 — 화면이 답변 바로 아래에 "근거 법령" 목록을 함께 실어 사용자가 펼쳐서 확인할 수 있다. ("참고용입니다" 면책 문구도 화면이 별도로 붙이니 답변에 넣지 않는다.)
+7. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용. 갈래·조건별로 나뉘는 설명은 "*" 같은 밋밋한 기호 하나로 뭉뚱그리지 말고, 단계(갈래→항목→세부조건)에 따라 "1. → 가. → 1)" 순서로 번호를 매겨 위계를 드러낸다(더 깊어지면 "가)→(1)→(가)" 순으로 이어간다). 예: "1. 바다에서 조종한 경우" 아래 "가. 형벌" 아래 "1) 총톤수 5톤 이상 선박은…".
 8. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.`;
+
+const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
+
+${ANSWER_RULES_BODY}`;
 
 // 'MINIMAL'은 gemini-pro-latest(3.x)에서 400(지원 안 함)으로 실측 확인(2026-07-29) — 절대 쓰지 말 것.
 // pro-latest 확정: LOW+규칙8(6회 반복 26초 평균·완전성 6/6)이 속도·완전성 균형점.
@@ -564,4 +1132,1590 @@ async function* synthesizeAnswerStream(query, contextPages) {
   yield* gemini.callGeminiStream({ model: ANSWER_MODEL, contents: prompt, config: SYNTH_CONFIG, caller: 'Legal-Ask' });
 }
 
-module.exports = { loadIndex, search, synthesizeAnswerStream, classifyTier, extractCitationChain, lookupContact };
+// ============================================================================
+// 2차 조회 — "미검증 참고" 답변 (MASTER_PLAN F절 ★★위키 밖 질문 2단계 답변 체계)
+// 1차(위키 카드)에서 근거를 하나도 못 찾았을 때만 발동한다. 좁혀진 법의 raw 원문을
+// GitHub에서 그때그때 읽어(서버에 상주시키지 않음) 답을 한 번 더 시도하되, 사람이 검증한
+// 위키 카드가 아니라는 사실을 답변 안에 명시하게 한다.
+//   ①동시조회(법률.txt + 폴더 목차) → ②AI 파일선택 → ③병렬조회 → ④AI 답변합성
+// 어느 단계가 실패하든(토큰없음·GitHub실패·AI실패·후보없음) 예외 없이 "결과 없음"을 반환한다.
+// ============================================================================
+
+const RAW_LAW_MAX = 2;        // 후보 법 상한(MASTER_PLAN "가장 가까운 법 1~2개")
+const RAW_FILE_MAX = 4;       // ②AI가 지목할 수 있는 추가 파일 상한(프롬프트·지연 관리)
+// 원문 파일은 위키 카드와 달리 통째로 길다(핵심 73법 중 법률.txt 최대 ≈257KB — 해양환경관리법).
+// 프롬프트 비용·지연이 폭주하지 않게 파일당 상한만 둔다(잘라도 앞부분에 목적·정의·주요 의무가 온다).
+const RAW_MAX_CHARS = 50000;
+
+// ── law_raw_paths.json 캐시(mtime 감지): 법명(공백 제거) → raw 폴더 상대경로 ──
+// index.json의 law는 "공유수면 관리 및 매립에 관한 법률"처럼 띄어쓰기가 있고 매핑표 키는
+// 붙여쓰기("공유수면관리및매립에관한법률")라, 공백을 지운 형태를 키로 삼아야 74법 전부 맞는다(실측 확인).
+let _rawPathsCache = null, _rawPathsMtime = 0;
+function loadRawPaths() {
+  try {
+    const mt = fs.statSync(LAW_RAW_PATHS_JSON).mtimeMs;
+    if (_rawPathsCache && mt === _rawPathsMtime) return _rawPathsCache;
+    const obj = JSON.parse(fs.readFileSync(LAW_RAW_PATHS_JSON, 'utf8'));
+    const map = new Map();
+    for (const k of Object.keys(obj)) map.set(k.replace(/\s+/g, ''), obj[k]);
+    _rawPathsCache = map; _rawPathsMtime = mt;
+  } catch (_) { if (!_rawPathsCache) _rawPathsCache = new Map(); }
+  return _rawPathsCache;
+}
+
+/**
+ * 법명으로 그 법의 raw 폴더 경로(저장소 루트 기준 상대경로)를 찾는다. 없으면 null.
+ * 예: rawPathOf('어선법') → 'local_server/knowledge/legal/raw/04_선박해운/어선법'
+ * @param {string} lawName
+ * @returns {string|null}
+ * [연계] → github_raw.listDir/fetchText에 그대로 넘기는 GitHub Contents API 경로.
+ */
+function rawPathOf(lawName) {
+  return loadRawPaths().get(String(lawName || '').replace(/\s+/g, '')) || null;
+}
+
+/**
+ * ①단계 앞: 질문과 가장 가까운 법을 AI에게 1~2개만 고르게 한다(판단 1회).
+ * expandQueryTerms()와 같은 "짧고 빠른 판단 호출" 패턴 — 사고 끄고, JSON만 받고,
+ * 실패(키 없음·타임아웃·파싱 실패)하면 조용히 []를 돌려 2차 조회 자체를 스킵시킨다.
+ * 예: pickCandidateLaws('어선 길이 늘리려면 허가 받아야 하나요', ['어선법', …]) → ['어선법']
+ * @param {string} query - 사용자 질문
+ * @param {string[]} lawNames - 후보가 될 수 있는 법 목록(index.json statute 페이지의 law)
+ * @returns {Promise<string[]>} 목록 안에 실제로 있는 법명만(최대 RAW_LAW_MAX), 실패 시 []
+ * [연계] ← searchRawFallback() 1단계 → rawPathOf()로 raw 폴더 경로 변환.
+ */
+async function pickCandidateLaws(query, lawNames) {
+  if (!gemini.hasAnyKey() || !lawNames.length) return [];
+  const prompt = `아래는 대한민국 해양수산 법령 목록이다.\n${lawNames.join('\n')}\n\n` +
+    `사용자 질문: "${query}"\n\n` +
+    `이 질문에 답하려면 어떤 법의 원문을 읽어야 하는가? 위 목록에 있는 법명만 골라 ` +
+    `가장 가까운 순서로 최대 ${RAW_LAW_MAX}개까지 JSON 배열로만 답하라. 관련 있는 법이 없으면 [] 로 답하라. ` +
+    `예: ["어선법"]`;
+  try {
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: QUERY_EXPAND_CONFIG, caller: 'Legal-RawLawPick',
+    });
+    if (!result.success || !result.text) return [];
+    const m = result.text.match(/\[[\s\S]*\]/);
+    if (!m) return [];
+    const arr = JSON.parse(m[0]);
+    if (!Array.isArray(arr)) return [];
+    // 모델이 목록에 없는 법명을 지어낼 수 있어(환각) 실제 목록에 있는 것만 통과시킨다.
+    const known = new Set(lawNames);
+    return arr.filter(x => typeof x === 'string' && known.has(x.trim())).map(x => x.trim()).slice(0, RAW_LAW_MAX);
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
+ * ①동시조회: 한 법의 `법률.txt` 본문 + 그 법 폴더의 파일 목차를 함께 받아온다.
+ * 목차는 최상위 1단계 + 그 아래 하위폴더(행정규칙/·별표/·타법인용/) 1단계까지 본다 —
+ * 고시 파일명이 보여야 ②단계가 "행정규칙/어선구조기준.txt"처럼 콕 집을 수 있기 때문이다.
+ * 내용은 안 받고 **이름만** 받으므로 가볍다.
+ * 예: loadLawBundle('어선법') → {law:'어선법', base:'…/어선법', lawText:'어선법\n[시행…', files:['시행령.txt','행정규칙/어선구조기준.txt', …]}
+ * @param {string} law - 법명
+ * @returns {Promise<{law:string,base:string,lawText:string,files:string[]}|null>} 법률.txt를 못 받으면 null
+ * [연계] ← searchRawFallback() 2단계. → github_raw.listDir/fetchText.
+ */
+async function loadLawBundle(law) {
+  const base = rawPathOf(law);
+  if (!base) return null;
+  const [lawText, top] = await Promise.all([
+    githubRaw.fetchText(base + '/법률.txt'),
+    githubRaw.listDir(base),
+  ]);
+  if (!lawText) return null;
+  const isText = n => /\.(txt|md)$/i.test(n);
+  const files = top.filter(e => e.type === 'file' && isText(e.name) && e.name !== '법률.txt').map(e => e.name);
+  const dirs = top.filter(e => e.type === 'dir').map(e => e.name);
+  const subs = await Promise.all(dirs.map(d => githubRaw.listDir(base + '/' + d)));
+  dirs.forEach((d, i) => {
+    for (const e of subs[i]) if (e.type === 'file' && isText(e.name)) files.push(d + '/' + e.name);
+  });
+  return { law, base, lawText, files };
+}
+
+// ②파일 선택 호출은 법률.txt 전문(최대 RAW_MAX_CHARS)까지 읽히므로 질의확장(10초)보다 여유가 필요하다.
+// 사고는 켜지 않는다 — "목차에서 필요한 파일 고르기"는 판단이지 추론이 아니다.
+const RAW_PICK_CONFIG = {
+  temperature: 0.1,
+  thinkingConfig: { thinkingBudget: 0 },
+  responseMimeType: 'application/json',
+  httpOptions: { timeout: 15000 },
+};
+
+/**
+ * ②AI 판단(1회): 법률.txt 본문 + 폴더 목차를 보여주고, 답하는 데 더 필요한 파일만 고르게 한다.
+ * 목차에 실제로 있는 파일명만 통과시켜(환각 경로 차단) 최대 RAW_FILE_MAX개를 반환한다.
+ * 법률.txt만으로 충분하다고 판단되면 빈 배열이 정상이다.
+ * @param {string} query - 사용자 질문
+ * @param {Array<{law:string,base:string,lawText:string,files:string[]}>} bundles - loadLawBundle() 결과들
+ * @returns {Promise<Array<{law:string,base:string,file:string}>>} 추가로 읽을 파일들(실패 시 [])
+ * [연계] ← searchRawFallback() 3단계 → ③병렬조회(github_raw.fetchText).
+ */
+async function pickRawFiles(query, bundles) {
+  if (!gemini.hasAnyKey()) return [];
+  const block = bundles.map(b =>
+    `### ${b.law}\n[법률 원문]\n${b.lawText.slice(0, RAW_MAX_CHARS)}\n[이 법 폴더의 파일 목록]\n${b.files.join('\n')}`
+  ).join('\n\n');
+  const prompt = `사용자 질문: "${query}"\n\n${block}\n\n` +
+    `위 법률 원문이 시행령·시행규칙·별표·고시에 위임한 내용 중, 이 질문에 답하려면 추가로 읽어야 할 파일을 ` +
+    `**파일 목록에 있는 경로 그대로** 최대 ${RAW_FILE_MAX}개까지 고르라. 법률 원문만으로 충분하면 [] 로 답하라. ` +
+    `다른 설명 없이 JSON 배열로만 답하라. 예: [{"law":"어선법","file":"시행규칙.txt"},{"law":"어선법","file":"행정규칙/어선구조기준.txt"}]`;
+  try {
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: RAW_PICK_CONFIG, caller: 'Legal-RawFilePick',
+    });
+    if (!result.success || !result.text) return [];
+    const m = result.text.match(/\[[\s\S]*\]/);
+    if (!m) return [];
+    const arr = JSON.parse(m[0]);
+    if (!Array.isArray(arr)) return [];
+    const out = [];
+    for (const it of arr) {
+      if (!it || typeof it.file !== 'string') continue;
+      const b = bundles.find(x => x.law === it.law) || (bundles.length === 1 ? bundles[0] : null);
+      if (!b || !b.files.includes(it.file)) continue;   // 목차에 없는 경로는 환각 — 버린다
+      if (out.some(o => o.base === b.base && o.file === it.file)) continue;
+      out.push({ law: b.law, base: b.base, file: it.file });
+      if (out.length >= RAW_FILE_MAX) break;
+    }
+    return out;
+  } catch (_) {
+    return [];
+  }
+}
+
+const RAW_ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 사람이 검증한 법령 위키 카드가 아니라, 질문에 맞는 카드가 없어 **법령 원문을 방금 그대로 읽어온 것**이다.
+
+${ANSWER_RULES_BODY}
+9. ★이 답변은 "미검증 참고"다. 답변 서두에 사람이 검증한 정식 답변이 아니라 원문을 방금 훑어본 참고 정보라는 사실을 한 문장으로 밝히고, 마지막은 반드시 "정확한 확인은 소관부서에 문의하세요"로 마무리한다. 원문에서 근거를 못 찾았으면 억지로 답하지 말고 "확인되지 않습니다"라고 말한다.
+10. ★이 답변에는 위키 카드가 없어 화면 아래 "근거 법령" 목록이 붙지 않는다(규칙6이 각주를 생략시키는 근거가 여기엔 없다) — 그러니 근거로 삼은 법령·조문과 그 기준일(시행일)이 원문에 있으면 답변 마지막에 한 줄로 밝힌다.`;
+
+/**
+ * 2차 조회(미검증 참고): 위키에서 근거를 못 찾은 질문을 법령 원문으로 한 번 더 시도한다.
+ * ①후보 법 좁히기(AI) → ②법률.txt+목차 동시조회 → ③필요 파일 선택(AI) → ④파일 병렬조회 →
+ * ⑤답변 합성(AI). 토큰·키가 없거나 어느 단계든 실패하면 예외 없이 answer:null을 반환하므로,
+ * 호출부(routes/legal.js)는 기존대로 "근거를 찾지 못했습니다"로 끝내면 된다.
+ * 예: searchRawFallback('어선 길이를 늘리려면 허가가 필요한가요')
+ *     → {answer:'이 답변은 검증된 카드가 아니라…', laws:['어선법'], files:['어선법/시행규칙.txt']}
+ * @param {string} query - 사용자 질문
+ * @returns {Promise<{answer:string|null, laws:string[], files:string[]}>} 못 만들면 answer:null
+ * [연계] ← routes/legal.js POST /api/legal/ask 의 `needsFallback`(1차 답변 후 최종 근거 0건) 분기.
+ *        → services/github_raw.js(원문 조회) · gemini_client(3회 호출: 법선택·파일선택·답변합성).
+ */
+async function searchRawFallback(query) {
+  const EMPTY = { answer: null, laws: [], files: [] };
+  if (!githubRaw.hasToken() || !gemini.hasAnyKey()) return EMPTY;
+  try {
+    const lawNames = [...new Set((loadIndex().pages || [])
+      .filter(p => p.kind === 'statute' && p.law).map(p => p.law))];
+    const laws = (await pickCandidateLaws(query, lawNames)).filter(rawPathOf);
+    if (!laws.length) return EMPTY;
+
+    const bundles = (await Promise.all(laws.map(loadLawBundle))).filter(Boolean);
+    if (!bundles.length) return EMPTY;
+
+    const picks = await pickRawFiles(query, bundles);
+    const extras = (await Promise.all(picks.map(async p => {
+      const text = await githubRaw.fetchText(p.base + '/' + p.file);
+      return text ? { law: p.law, file: p.file, text } : null;
+    }))).filter(Boolean);
+
+    const blocks = bundles.map(b => `--- [${b.law}] 법률 원문 ---\n${b.lawText.slice(0, RAW_MAX_CHARS)}`)
+      .concat(extras.map(x => `--- [${x.law}] ${x.file} ---\n${x.text.slice(0, RAW_MAX_CHARS)}`));
+    const prompt = `${RAW_ANSWER_RULES}\n\n[근거자료]\n${blocks.join('\n\n')}\n\n질문: "${query}"\n답:`;
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: SYNTH_CONFIG, caller: 'Legal-RawFallback',
+    });
+    if (!result.success || !result.text || !result.text.trim()) return EMPTY;
+    return {
+      answer: result.text.trim(),
+      laws: bundles.map(b => b.law),
+      files: extras.map(x => `${x.law}/${x.file}`),
+    };
+  } catch (_) {
+    return EMPTY;
+  }
+}
+
+// ============================================================================
+// H-36 실서빙 배선 파일럿 — 해역·항해구역 계층 트리(zone_tree.json) 되묻기
+// ----------------------------------------------------------------------------
+// 지금까지 "하천이냐 바다냐" 같은 갈림길은 decideClarify()가 질문마다 Gemini를 불러 즉석으로
+// 만들었다(매번 문구가 달라지고, 근거자료 top-6에 그 구분이 안 뜨면 아예 못 묻는다). 이 절은
+// 미리 raw 74법을 전수 스캔해 만들어 둔 `_dashboard/zone_tree.json`(트리 3개·노드 22·리프 14·
+// 적용항목 79건, 빌드게이트+독립재대조+사람 전량정독 3단 검증)을 그대로 타고 내려가 **LLM 호출
+// 0회**로 같은 되묻기를 낸다. 리프에 닿으면 그 구역에 적용되는 규정 목록을 데이터에서 꺼내 답한다.
+//
+// ★설계 전문: `knowledge/legal/_dashboard/H36_live_wiring_design.md`
+// ★이 절의 함수는 전부 신규다 — 위쪽 기존 함수(decideClarify·search 등)는 한 줄도 고치지 않았다.
+//   CLARIFY_JOINER·CLARIFY_OPTION_MAX만 재사용한다(되묻기 규약을 두 벌로 만들지 않기 위해).
+// ★안전 규약: zoneTreeStep()은 어떤 경우에도 예외를 던지지 않는다(파일 없음·JSON 깨짐·스키마
+//   이상·매칭 실패 전부 null) — null이면 호출부는 배선 전과 100% 같은 기존 흐름을 탄다.
+// ============================================================================
+
+const ZONE_TREE_JSON = path.join(LEGAL_DIR, '_dashboard', 'zone_tree.json');
+
+// 트리 선택 우선순위(H32_zone_tree_design.md §9.2 "해역 > 조업해역 > 항해구역").
+const ZONE_TREE_ORDER = ['sea_area', 'fishing_operation_area', 'navigation_zone'];
+
+// ① "구역 축 자체를 묻고 있는가" — 어미까지 붙은 구(句)라 낱말 경계 검사를 하면 안 된다
+//    ("제주도까지 갈 수 있"의 '까지'는 앞 낱말에 붙어 있다).
+const ZONE_ASK = [
+  '어디까지 갈', '어디까지 나갈', '어디까지 나가', '어디까지 항해', '어디까지 운항',
+  '어디까지 다닐', '어디까지 조업', '어디까지 출항',
+  '까지 갈 수 있', '까지 나갈 수 있', '까지 나가도', '까지 항해할 수', '까지 운항할 수', '까지 조업할 수',
+  '어느 해역', '어느 수역', '무슨 해역', '어느 구역', '어느 바다', '어디서 조업', '어디에서 조업',
+];
+// ② 배·조업 이야기인가(낱말 — 조사가 붙으므로 "토큰이 이 낱말로 시작하는가"로 본다).
+const ZONE_SUBJECT = ['배', '선박', '어선', '낚싯배', '낚시배', '요트', '보트', '유선', '도선', '항해', '운항', '조업', '출어'];
+// 트리 라벨이 하나도 없을 때 조업해역 트리로 보내는 신호.
+const ZONE_FISHING_HINT = ['조업', '어선', '출어'];
+// ★관용구 제외: 한국어에서 "행정처분까지 갈 수 있나요"·"감옥까지 갈 수 있나요"는 "어디까지
+//   가느냐"가 아니라 "그 지경까지 이르느냐"다. 실제 사용자형 질문 43,956건(_dashboard/audit/*.md)
+//   전수 측정에서 이 한 갈래가 오탐의 절반이었다 — '까지…'로 시작하는 구 앞 6글자만 좁게 본다.
+const ZONE_ASK_IDIOM = /처분|정지|취소|감옥|압류|몰수|벌금|과태료|징역|형사/;
+
+// 적용항목 `유형`(7종)을 답변에 싣는 순서. 데이터에 없는 유형은 뒤에 원래 순서로 붙는다.
+const ZONE_KIND_ORDER = ['적용법령', '허가·신고', '의무', '제한', '완화', '관할', '처벌'];
+
+// ── zone_tree.json 캐시(mtime 감지) ──
+let _zoneCache = null, _zoneMtime = 0;
+/**
+ * 해역·항해구역 트리 자산을 읽어 캐시한다(index.json·glossary와 같은 mtime 감지 방식).
+ * 파일이 없거나 JSON이 깨졌으면 조용히 빈 트리를 돌려준다 — 이 자산이 없다고 챗봇이 죽으면 안 된다.
+ * @returns {{trees:Array}} 실패 시 {trees:[]}
+ * [연계] ← matchZoneTreeTopic()/zoneTreeStep(). ← knowledge/legal/_dashboard/zone_tree.json.
+ */
+function loadZoneTree() {
+  try {
+    const mt = fs.statSync(ZONE_TREE_JSON).mtimeMs;
+    if (_zoneCache && mt === _zoneMtime) return _zoneCache;
+    _zoneCache = JSON.parse(fs.readFileSync(ZONE_TREE_JSON, 'utf8')); _zoneMtime = mt;
+  } catch (_) { if (!_zoneCache) _zoneCache = { trees: [] }; }
+  return _zoneCache;
+}
+
+/** 공백을 모두 지운 비교용 문자열(법률 용어는 띄어쓰기가 자료마다 달라 그대로 비교하면 어긋난다). */
+function zoneFlat(s) { return String(s || '').replace(/\s+/g, ''); }
+
+/**
+ * 질의에 이 **낱말**이 들어 있는가. 한국어는 조사가 붙으므로(영해→영해에서) 완전일치로는 못 잡고,
+ * 그냥 부분문자열로 보면 "운**영해**도"·"경**영해**"가 걸린다(실측: 43,956건에서 '영해' 오탐 188건).
+ * 그래서 ①한글·영숫자로만 된 한 어절 낱말은 **토큰이 그 낱말로 시작하는지** ②띄어쓰기나 괄호·가운뎃점이
+ * 든 용어("배타적 경제수역"·"수상(水上)"·"어선의 조업·항행 해역")는 **공백만 지운 부분문자열**로 보되
+ * 낱말 경계를 **원문 위치로** 확인한다.
+ * ★②의 경계 검사를 공백 지운 문자열에서 하면 안 된다 — 경계였던 그 공백이 사라져 앞 글자가 늘 한글이
+ *   되므로, **문장 중간의 다중어절 라벨은 100% 탈락한다**("배로 배타적 경제수역까지 나가도 되나요?"가
+ *   해역 트리를 못 찾아 항해구역 트리로 오라우팅됐다 — 적대검증 §8-①, 라이브 재현). 그래서 공백 제거
+ *   인덱스를 원문 인덱스로 되돌려, **원문에서** 바로 앞 글자가 한글·영숫자가 아닐 때만 인정한다.
+ * 예: zoneWordHit('우리 배 어디까지 나갈 수 있나요?', '배') → true · zoneWordHit('운영해도 되나요?', '영해') → false
+ *     zoneWordHit('배로 배타적 경제수역까지 나가도 되나요?', '배타적 경제수역') → true
+ * @param {string} query @param {string} word
+ * @returns {boolean}
+ * [연계] ← matchZoneTreeTopic(주제 어휘)·resolveZoneTreePath(②암시 하강의 라벨 대조).
+ */
+function zoneWordHit(query, word) {
+  const w = String(word || '').trim();
+  if (!w) return false;
+  if (/^[가-힣A-Za-z0-9]+$/.test(w)) {
+    return String(query || '').split(/[^가-힣A-Za-z0-9]+/).some(t => t && t.startsWith(w));
+  }
+  const q = String(query || '');
+  let nq = ''; const at = [];              // 공백 지운 문자열의 i번째 → 원문 인덱스
+  for (let i = 0; i < q.length; i++) if (!/\s/.test(q[i])) { nq += q[i]; at.push(i); }
+  const nw = zoneFlat(w);
+  if (!nw) return false;
+  for (let i = nq.indexOf(nw); i >= 0; i = nq.indexOf(nw, i + 1)) {
+    const p = at[i] - 1;                   // 원문에서 라벨 바로 앞 글자
+    if (p < 0 || !/[가-힣A-Za-z0-9]/.test(q[p])) return true;
+  }
+  return false;
+}
+
+/**
+ * 질의에 이 **어미구**가 들어 있는가(공백 무시 부분문자열). 낱말과 달리 앞 경계를 보지 않는다 —
+ * "제주도까지 갈 수 있나요"의 '까지'는 앞 낱말에 그대로 붙어 있기 때문이다.
+ * 단, '까지…'로 시작하는 구는 위 ZONE_ASK_IDIOM 관용구("행정처분까지 갈 수 있나")를 제외한다.
+ * @param {string} query @param {string} phrase
+ * @returns {boolean}
+ * [연계] ← matchZoneTreeTopic(ZONE_ASK 대조).
+ */
+function zonePhraseHit(query, phrase) {
+  const nq = zoneFlat(query), np = zoneFlat(phrase);
+  if (!np) return false;
+  for (let i = nq.indexOf(np); i >= 0; i = nq.indexOf(np, i + 1)) {
+    if (!np.startsWith('까지') || !ZONE_ASK_IDIOM.test(nq.slice(Math.max(0, i - 6), i))) return true;
+  }
+  return false;
+}
+
+/**
+ * 노드와 그 아래 모든 자손의 `라벨` + `선택지[].label`을 모은다(중복 제거).
+ * @param {object} node
+ * @param {string} [parentLabel] - 부모가 이 노드를 부르는 선택지 label. ⚠꼭 넘겨야 하는 경우가 있다 —
+ *   `far_sea` 노드의 `라벨`은 '그 밖의 먼바다(공해·해외수역)'인데 사용자에게 보이고 질의에 붙는 이름은
+ *   부모(sea_surface)의 선택지 label '그 밖의 먼바다'다. 이걸 빼면 그 노드는 질의로 영영 못 찾는다.
+ */
+function zoneLabelsOf(node, parentLabel) {
+  const out = parentLabel ? [parentLabel] : [];
+  (function walk(n) {
+    if (!n) return;
+    if (n.라벨) out.push(n.라벨);
+    for (const o of (n.선택지 || [])) if (o && o.label) out.push(o.label);
+    for (const c of (n.children || [])) walk(c);
+  })(node);
+  return [...new Set(out)];
+}
+
+/**
+ * 이 질문이 해역·항해구역 트리가 다룰 주제인지 판정한다(LLM 0회).
+ * ★"구역을 **언급한** 질문"이 아니라 "구역 **자체를 묻는** 질문"에만 들어간다 — 트리 리프가 주는
+ *   것은 "그 구역에서 무엇이 달라지는가"의 목록이라, 예컨대 *"저희 배(연해구역 항해, 20톤)는
+ *   DGPS를 달아야 하나요?"* 에 끼어들면 원래 맞았을 답을 구역 규정 목록으로 바꿔버린다(실측 근거는
+ *   H36_live_wiring_design.md §1.1). 그래서 ①구역 축을 묻는 어미구 ②배·조업 어휘 **둘 다** 요구한다.
+ * ★판정은 **원 질문**(CLARIFY_JOINER 앞부분)으로만 한다 — 앞 라운드에서 AI 되묻기가 붙인 라벨
+ *   때문에 2라운드에서 갑자기 트리가 가로채는 것을 막는다(무상태로 매 요청 같은 답이 나온다).
+ * 예: matchZoneTreeTopic('낚싯배로 제주도까지 갈 수 있나요?') → navigation_zone 트리
+ *     matchZoneTreeTopic('구명조끼 몇 개 필요해요?') → null(기존 흐름)
+ * @param {string} query - 사용자 질의(되묻기 라벨이 누적된 상태일 수 있다)
+ * @returns {object|null} zone_tree.json 의 trees[] 원소, 아니면 null
+ * [연계] ← zoneTreeStep(). → resolveZoneTreePath()가 그 트리 안에서 위치를 잡는다.
+ */
+function matchZoneTreeTopic(query) {
+  const q0 = String(query || '').split(CLARIFY_JOINER)[0];
+  if (!ZONE_ASK.some(p => zonePhraseHit(q0, p))) return null;
+  if (!ZONE_SUBJECT.some(w => zoneWordHit(q0, w))) return null;
+  const trees = loadZoneTree().trees || [];
+  // ⓐ 질문이 이미 어느 구역 이름을 말했으면 그 트리(축이 확정된다).
+  for (const id of ZONE_TREE_ORDER) {
+    const t = trees.find(x => x && x.id === id);
+    if (t && t.tree && zoneLabelsOf(t.tree).some(l => zoneWordHit(q0, l))) return t;
+  }
+  // ⓑ 조업 이야기면 조업해역 트리, ⓒ 그 밖에는 항해구역 트리("그 배가 어디까지 나갈 수 있느냐").
+  const want = ZONE_FISHING_HINT.some(w => zoneWordHit(q0, w)) ? 'fishing_operation_area' : 'navigation_zone';
+  return trees.find(x => x && x.id === want) || null;
+}
+
+/**
+ * 누적된 질의 문자열 하나만 보고 트리의 **현재 위치**를 복원한다(서버는 세션·DB를 들지 않는다).
+ *  ① 명시 경로: `' — 라벨'`로 붙은 조각을 그 노드의 **선택지 label**과 공백무시 완전일치로 대조해
+ *     `next`(자식 id)로 내려간다. ⚠라벨(`라벨`)이 아니라 **선택지 label**이 계약이다 — 실제 데이터에
+ *     둘이 다른 노드가 있다(sea_surface 선택지 '그 밖의 먼바다' vs 자식 라벨 '그 밖의 먼바다(공해·해외수역)').
+ *     클라이언트(ai_chat.js pickClarifyOption)가 질의에 붙이는 것은 선택지 label 쪽이다.
+ *  ② 암시 하강: 더 못 내려가면 질의에서 자식 서브트리의 라벨을 찾아, **정확히 하나**일 때만
+ *     내려간다("우리 배 근해구역인데 어디까지 갈 수 있나요?"는 되묻지 않고 바로 그 노드로). 0개거나
+ *     2개 이상이면 멈춘다(애매하면 되묻는 쪽이 안전하다).
+ *     ⚠②가 보는 것은 **①이 안 쓴 부분**이다(원 질문 + 아직 안 쓰인 조각). ①이 소비한 조각까지 보면,
+ *     사용자가 고른 `근해구역 이상`(= 근해 또는 원양, 아직 안 고른 상태) 안의 '근해구역'이 자식 라벨로
+ *     걸려 **되묻지 않고 근해구역 리프로 내려가 버린다**(라이브 실측으로 재현한 결함).
+ * @param {string} query - 사용자 질의(원 질문 + 누적 라벨)
+ * @param {object} tree - trees[] 원소({id, 축, tree})
+ * @returns {{node:object, path:Array<object>, rest:string}} 현재 노드·루트→현재 경로와
+ *          "①이 아직 안 쓴 질의"(되묻기 백스톱이 같은 기준으로 판정하도록 함께 돌려준다)
+ * [연계] ← zoneTreeStep(). → clarifyFromZoneTree(비-리프) 또는 collectZoneRules(리프).
+ */
+function resolveZoneTreePath(query, tree) {
+  const segs = String(query || '').split(CLARIFY_JOINER).slice(1).map(s => s.trim());
+  const used = new Set();
+  const path = [tree.tree];
+  let node = tree.tree;
+  for (;;) {                                     // ① 사용자가 실제로 고른 값
+    let next = null;
+    for (let i = 0; i < segs.length && !next; i++) {
+      if (used.has(i)) continue;
+      const opt = (node.선택지 || []).find(o => o && zoneFlat(o.label) === zoneFlat(segs[i]));
+      if (!opt) continue;
+      const child = (node.children || []).find(c => c && c.id === opt.next);
+      if (child) { used.add(i); next = child; }
+    }
+    if (!next) break;
+    node = next; path.push(node);
+  }
+  const rest = [String(query || '').split(CLARIFY_JOINER)[0]]
+    .concat(segs.filter((_, i) => !used.has(i))).join(CLARIFY_JOINER);
+  for (;;) {                                     // ② 질문이 이미 말해둔 구역(①이 안 쓴 부분만)
+    const kids = node.children || [];
+    if (!kids.length) break;
+    const optOf = c => ((node.선택지 || []).find(o => o && o.next === c.id) || {}).label;
+    const hit = kids.filter(c => zoneLabelsOf(c, optOf(c)).some(l => zoneWordHit(rest, l)));
+    if (hit.length !== 1) break;
+    node = hit[0]; path.push(node);
+  }
+  return { node, path, rest };
+}
+
+/**
+ * 이 항목의 `구역범위`가 이 리프(서열 rank)를 포함하는가.
+ * `구역범위`는 "이 구역만 / 이 구역 이상 / 이 구역 이하" 3값이고, 뒤 둘은 그 항목이 걸린 노드의
+ * `서열`을 기준으로 범위를 정한다(zone_tree.json semantics.구역범위).
+ * ★경로 상속에도 이 검사가 필요하다 — 조상 노드에 "이 구역 이하"로 걸린 항목이 그보다 깊은(서열이
+ *   높은) 리프까지 그대로 따라가면, **자기 데이터가 "이 구역은 대상이 아니다"라고 말하는 항목이 그
+ *   구역의 의무로 표시된다**(적대검증 §8-② 원양구역 건강진단). 서열이 없는 트리(해역·조업해역)는
+ *   항상 "이 구역만"이라 이 검사가 아무것도 거르지 않는다.
+ * 예: zoneRangeIncludes({구역범위:'이 구역 이하'}, {서열:4}, 5) → false (근해 이하 규정은 원양에 안 붙는다)
+ * @param {object} rule - 적용항목 @param {object} node - 그 항목이 실려 있는 노드 @param {number|null} rank - 리프 `서열`
+ * @returns {boolean}
+ * [연계] ← collectZoneRules(경로 상속).
+ */
+function zoneRangeIncludes(rule, node, rank) {
+  if (rank == null || node.서열 == null) return true;
+  if (rule.구역범위 === '이 구역 이상') return node.서열 <= rank;
+  if (rule.구역범위 === '이 구역 이하') return node.서열 >= rank;
+  return true;
+}
+
+/**
+ * 이 구역에 적용되는 규정을 모은다.
+ *  ⓐ **경로 상속**(zone_tree.json semantics.적용_상속): 루트→리프 경로상 모든 노드의 `적용` 합집합.
+ *     단 `구역범위`가 서열로 범위를 좁혀둔 항목은 그 범위 밖 리프에 딸려가지 않는다(zoneRangeIncludes).
+ *  ⓑ **서열·구역범위 규약**(항해구역 트리 전용, 같은 파일 semantics.구역범위): 리프 `서열`이 s일 때
+ *     다른 노드(서열 t)의 항목 중 `구역범위`가 "이 구역 이상"이고 t≤s면, "이 구역 이하"이고 t≥s면 포함.
+ *     ⚠이게 없으면 **답이 틀린다** — 원양구역(서열5)은 연해구역(서열3)에 달린 "연해구역 이상" 2건을
+ *     상속해야 하는데 둘은 형제라 경로 상속만으로는 안 딸려온다(H32_zone_tree_design.md §2.5).
+ * 같은 규정이 여러 노드에 실려 있으면 (법령·계층·조문·제목)으로 한 번만 싣는다.
+ * @param {object} tree - trees[] 원소
+ * @param {Array<object>} path - resolveZoneTreePath()의 path
+ * @returns {Array<{rule:object, from:string}>} from = 그 항목이 실려 있던 노드 라벨
+ * [연계] ← zoneTreeStep(). → renderZoneAnswer().
+ */
+function collectZoneRules(tree, path) {
+  const out = []; const seen = new Set();
+  const push = (r, from) => {
+    if (!r) return;
+    const k = [r.근거법령_slug, r.계층, r.근거조문, r.제목].join('|');
+    if (seen.has(k)) return;
+    seen.add(k); out.push({ rule: r, from });
+  };
+  const rank = path[path.length - 1].서열;
+  for (const n of path) for (const r of (n.적용 || [])) if (zoneRangeIncludes(r, n, rank)) push(r, n.라벨);
+  if (rank != null) {
+    (function walk(n) {
+      if (!n) return;
+      if (n.서열 != null && path.indexOf(n) < 0) {
+        for (const r of (n.적용 || [])) {
+          if (r.구역범위 === '이 구역 이상' && n.서열 <= rank) push(r, n.라벨 + ' 이상');
+          if (r.구역범위 === '이 구역 이하' && n.서열 >= rank) push(r, n.라벨 + ' 이하');
+        }
+      }
+      for (const c of (n.children || [])) walk(c);
+    })(tree.tree);
+  }
+  return out;
+}
+
+/**
+ * 트리 노드에서 되묻기 JSON을 조립한다 — 문구를 즉석 생성하지 않고 **데이터에서 그대로 꺼낸다**.
+ * 반환 스키마는 기존 decideClarify()와 **완전히 동일**해서 routes/legal.js·ai_chat.js가 무변경이다.
+ * @param {object} tree - trees[] 원소(intro 문장에 `축`을 쓴다)
+ * @param {object} node - 비-리프 노드(`질문`·`선택지` 필수 — 빌더가 강제해 둔 불변식)
+ * @returns {{needed:boolean, intro:string, question:string, options:Array<{label:string,hint:string}>}}
+ * [연계] ← zoneTreeStep(). → routes/legal.js done.clarify → ai_chat.js clarifyHTML(버튼).
+ */
+function clarifyFromZoneTree(tree, node) {
+  const options = (node.선택지 || [])
+    .map(o => ({ label: clarifyStr(o && o.label, 40), hint: clarifyStr(o && o.hint, 120) }))
+    .filter(o => o.label)
+    .slice(0, CLARIFY_OPTION_MAX);
+  return {
+    needed: !!(node.질문 && options.length >= 2),
+    intro: `${tree.축}에 따라 적용되는 법령·의무가 달라져서, 하나만 여쭤볼게요.`,
+    question: clarifyStr(node.질문, 200),
+    options,
+  };
+}
+
+// ── 표시 규칙 상한(H37 §13.2) ────────────────────────────────────────────────
+// ★상한은 **항목 개수**로만 건다 — 문자 수로 자르면 인용문이 항목 중간에서 잘려 화면의 큰따옴표
+//   안이 원문보다 짧아지고, 그게 환각과 구분이 안 된다(H36_adversarial_review §5-A와 같은 계열).
+// ★상한에 걸린 항목은 **버리지 않고 제목 줄만** 남긴다 — 트리의 가치는 "그 구역에서 달라지는
+//   것의 목록"이라, 사용자가 안 물었다고 규정이 사라지면 안 된다.
+const ZONE_EXPAND_RELEVANT_MAX = 8;   // 질문어가 걸린 항목 중 펼칠 최대 개수
+const ZONE_EXPAND_PER_KIND = 3;       // 질문어가 하나도 안 걸릴 때 유형별로 펼치는 개수
+// 이 개수 이하인 리프는 **아무것도 접지 않는다** — 접기는 고시 확장으로 55~66건이 된 항해구역
+// 리프의 1.5만~1.8만 자 폭증(L-81)을 막으려는 것이지, 원래 읽을 만하던 리프(항목 5~16건·
+// 1.6천~4.4천 자)의 내용을 줄이려는 것이 아니다. 없어도 되는 곳에서 접으면 그냥 손실이다.
+const ZONE_FOLD_MIN = 20;
+
+// 계층 값(법률·시행령·시행규칙·고시)을 화면에 풀어 쓰는 말. **표기만** 바꾸는 사전이라
+// "무엇이 들어 있다"는 단언이 아니다(그 판단은 전부 자산에서 센다 — zoneCoverageNote 참조).
+const ZONE_TIER_LABEL = { 고시: '고시(행정규칙)' };
+
+/**
+ * 적용항목 하나에서 질문어를 찾을 대상 문자열을 만든다(H37 §13.2 `hay(rule)`).
+ * @param {object} r - 적용항목
+ * @returns {string}
+ * [연계] ← rankZoneRules().
+ */
+function zoneRuleHay(r) {
+  return [r.제목, r.인용, r.대상, r.조건, r.적용제외, r.주의, r.근거법령].filter(Boolean).join(' ');
+}
+
+/**
+ * 리프에 상속된 적용항목을 **원 질문어와의 관련도**로 채점한다(H37 §13.2).
+ * 고시 확장(L-81)으로 한 리프에 55~66건이 실리게 되면서, `유형` 순서대로 전부 펼치면 1.8만 자가
+ * 쏟아진다 — 자르기 전에 **정렬이 먼저**다(단순 상위 N건은 질문과 무관한 항목만 남길 수 있다).
+ * ★`termsOf()`를 그대로 재사용하고, `sliceRelevant()`의 **절-내 문서빈도 역가중**을 항목 단위로
+ *   옮겼다 — 이 자산에서 `선박`·`구역` 같은 낱말은 거의 모든 항목에 있어 변별력이 0이라,
+ *   역가중이 없으면 순위가 뭉개진다. `scoreOne()`은 index.json 페이지 객체 전제라 못 쓴다.
+ * ★채점은 **원 질문**(CLARIFY_JOINER 앞)으로만 한다 — 되묻기로 붙은 라벨('평수구역')을 넣으면
+ *   그 낱말이 거의 모든 항목에 있어 순위가 무의미해진다.
+ * 예: rankZoneRules(rules, '구명조끼 싣고 어디까지 나갈 수 있나요? — 평수구역')
+ *     → 구명설비 항목의 score가 가장 높다
+ * @param {Array<{rule:object, from:string}>} rules - collectZoneRules()의 결과
+ * @param {string} query - 사용자 질의(되묻기 라벨이 누적된 상태일 수 있다)
+ * @returns {Array<{rule:object, from:string, score:number, idx:number}>} 입력 순서 그대로(정렬 안 함)
+ * [연계] ← renderZoneAnswer(). → pickZoneExpanded()가 이 점수로 펼칠 항목을 고른다.
+ */
+function rankZoneRules(rules, query) {
+  const terms = termsOf(String(query || '').split(CLARIFY_JOINER)[0]);
+  const hays = rules.map(e => zoneRuleHay(e.rule));
+  const df = terms.map(t => hays.reduce((n, h) => n + (h.includes(t) ? 1 : 0), 0));
+  return rules.map((e, i) => {
+    let s = 0;
+    terms.forEach((t, ti) => {
+      if (df[ti] <= 0 || !hays[i].includes(t)) return;
+      s += (String(e.rule.제목 || '').includes(t) ? 3 : 1) / df[ti];   // 제목 가중 3 = scoreOne과 같은 취지
+    });
+    return Object.assign({ score: s, idx: i }, e);
+  });
+}
+
+/**
+ * 채점 결과에서 **펼칠 항목**을 고른다(나머지는 제목 줄만 남는다, H37 §13.2 표시규칙).
+ *  ⓪ 항목이 ZONE_FOLD_MIN건 이하인 리프는 **전부 펼친다**(접을 이유가 없다).
+ *  ⓐ `주의`·`적용제외`가 있는 항목은 **점수와 무관하게 언제나 펼친다** — 배선 전 필수 규약②
+ *     (MASTER_PLAN H-36 "`주의`·`적용제외`는 언제나 함께 노출")를 접기가 무력화하면 회귀다.
+ *  ⓑ 질문어가 걸린 항목(score>0)은 점수 높은 순으로 최대 ZONE_EXPAND_RELEVANT_MAX건.
+ *  ⓒ 질문어가 **하나도 안 걸리면**(트리 되묻기의 정상 경로 — "우리 배 어디까지 나갈 수 있나요?")
+ *     정렬이 무의미하므로 순서를 건드리지 않고 **유형별 상위 ZONE_EXPAND_PER_KIND건**만 펼친다.
+ * @param {Array<{rule:object, score:number, idx:number}>} scored - rankZoneRules()의 결과
+ * @returns {Set<number>} 펼칠 항목의 idx 집합
+ * [연계] ← renderZoneAnswer().
+ */
+function pickZoneExpanded(scored) {
+  const keep = new Set();
+  if (scored.length <= ZONE_FOLD_MIN) { for (const e of scored) keep.add(e.idx); return keep; }
+  for (const e of scored) if (e.rule.주의 || e.rule.적용제외) keep.add(e.idx);            // ⓐ
+  const hit = scored.filter(e => e.score > 0).sort((a, b) => b.score - a.score || a.idx - b.idx);
+  for (const e of hit.slice(0, ZONE_EXPAND_RELEVANT_MAX)) keep.add(e.idx);                // ⓑ
+  if (!hit.length) {                                                                      // ⓒ
+    const per = new Map();
+    for (const e of scored) {
+      const n = per.get(e.rule.유형) || 0;
+      if (n >= ZONE_EXPAND_PER_KIND) continue;
+      keep.add(e.idx); per.set(e.rule.유형, n + 1);
+    }
+  }
+  return keep;
+}
+
+/**
+ * 답변 말미의 **"이 목록의 한계"** 문구를 자산의 실제 커버리지에서 조립한다(H37 §13.3, L-81 교훈③).
+ * ★불변식: *"코드가 자산의 내용을 산문으로 단언하지 않는다."* 예전에는 "고시의 구역별 설비·수량
+ *   기준은 여기 들어 있지 않아요"가 하드코딩돼 있었는데, 2026-08-11 확장으로 고시 107건이 들어오자
+ *   **사용자에게 보이는 거짓 문장**이 됐다. 이제 무엇이 들어 있는지는 **이 답변에 실린 항목들의
+ *   `계층`을 세어서**, 무엇이 빠져 있는지는 **자산 `unmapped`의 표시 라벨에서** 가져온다 —
+ *   자산이 또 바뀌면 문구가 자동으로 따라간다.
+ * 예: 평수구역(고시 46건·법률 17건…) → "…(이 구역은 고시(행정규칙) 46건 · 법률 17건 …)"
+ * @param {Array<{rule:object}>} rules - 이 리프에 실린 적용항목 전량(접힌 것 포함)
+ * @returns {string} 답변 말미 한 문단
+ * [연계] ← renderZoneAnswer(). ← zone_tree.json(summary.laws_in_scope · unmapped.유형_단위[].표시 ·
+ *        unmapped.스캔밖_표시.값 · 적용[].별표.값).
+ */
+function zoneCoverageNote(rules) {
+  const asset = loadZoneTree();
+  const um = asset.unmapped || {};
+  const byTier = new Map();
+  for (const e of rules) byTier.set(e.rule.계층, (byTier.get(e.rule.계층) || 0) + 1);
+  const tiers = [...byTier.entries()].sort((a, b) => b[1] - a[1])
+    .map(([k, n]) => `${ZONE_TIER_LABEL[k] || k} ${n}건`).join(' · ');
+  const laws = ((asset.summary || {}).laws_in_scope) || null;
+  const off = (um.유형_단위 || []).map(u => u && u.표시).filter(Boolean);
+  const outside = ((um.스캔밖_표시 || {}).값) || [];
+  const missing = rules.filter(e => e.rule.별표 && e.rule.별표.값 == null).length;
+
+  const parts = [`**이 목록의 한계**: ${laws ? laws + '개 ' : ''}해양수산 법령의 원문에 ` +
+    `"구역에 따라 달라진다"고 문장으로 적혀 있는 것만 모은 목록이에요` + (tiers ? `(이 구역은 ${tiers}).` : '.')];
+  if (off.length) parts.push(`같은 자료 안에 있어도 이 축(구역에 따라 무엇이 달라지나)이 아니라서 뺀 것: ${off.join(' · ')}.`);
+  if (outside.length) parts.push(`애초에 이번 스캔 대상이 아닌 것: ${outside.join(' · ')}.`);
+  if (missing) parts.push(`수량이 별표에 있는데 그 별표를 아직 못 모아 값을 비워 둔 항목이 ${missing}건 있어요.`);
+  parts.push('목록에 없다고 해서 그런 규정이 없다는 뜻은 아닙니다. 정확한 확인은 소관부서에 문의하세요.');
+  return parts.join(' ');
+}
+
+/** 적용항목 한 건을 답변 줄로 편다(원문 인용·주의는 가공 없이 그대로 — 환각 0). */
+function zoneRuleLines(entry, idx) {
+  const r = entry.rule;
+  const L = [`${'가나다라마바사아자차카타파하'[idx] || String(idx + 1)}. ${r.제목}`];
+  L.push(`1) 근거: 「${r.근거법령}」(${r.계층}) ${r.근거조문}`);
+  L.push(`2) 원문: "${r.인용}"`);
+  let n = 3;
+  if (r.대상) L.push(`${n++}) 대상: ${r.대상}`);
+  if (r.조건) L.push(`${n++}) 조건: ${r.조건}`);
+  if (r.적용제외) L.push(`${n++}) 적용제외: ${r.적용제외}`);
+  if (r.위임 && r.위임.length) L.push(`${n++}) 위임: ${r.위임.map(w => `「${w.법령}」(${w.계층}) ${w.조문}`).join(' · ')}`);
+  if (r.주의) L.push(`${n++}) ⚠주의: ${r.주의}`);
+  return L.join('\n');
+}
+
+/** 접힌 적용항목 한 건 — 제목과 근거만 남긴다(버리지 않는다는 뜻이지 인용까진 안 편다). */
+function zoneRuleFoldedLine(entry) {
+  const r = entry.rule;
+  return `· ${r.제목} — 「${r.근거법령}」(${r.계층}) ${r.근거조문}`;
+}
+
+/**
+ * 리프에서 최종 답변 문장을 만든다 — **LLM을 부르지 않고 데이터 그대로** 편다.
+ * ★신뢰 등급(H36_live_wiring_design.md §4.4): 사람이 검증한 위키 카드(확답)도, 즉석 조회한
+ *   "미검증 참고"도 아닌 **그 사이 등급**이다. 인용문 하나하나는 raw 원문 축자 인용이라 위키보다
+ *   원본에 가깝지만(빌드게이트+독립재대조+사람 전량정독 3단 검증), **목록이 그 구역 규정의 전부는
+ *   아니다**(고시 수치·자치법규·별표 제외, 스캔 사각지대 존재). 그래서 서두와 말미에 그 성격을
+ *   반드시 밝히고, "그런 규정 없음"이라고 단정하지 않는다.
+ * ★배선 전 필수 규약(MASTER_PLAN H-36) 반영: ①`유형:처벌` 항목은 **"처벌(법정형)"** 로 표기하고
+ *   선고형이 아님을 명시 ②항목의 `주의`·`적용제외`는 언제나 함께 노출 ③리프의 `추가확인`(트리로
+ *   쪼개지 않은 잔여 축)은 되묻지 않고 본문에 병기.
+ * ★2026-08-12(H37 §13): 고시 확장으로 한 리프가 55~66건이 되면서 전량 펼치기가 1.8만 자로
+ *   쏟아졌다(L-81). 이제 **질문어와의 관련도**(rankZoneRules)로 정렬해 상위만 펼치고 나머지는
+ *   **제목 줄로 접는다** — 항목은 하나도 버리지 않는다(펼침 + 접힘 = 전체). 말미 면책 문구도
+ *   하드코딩을 걷어내고 자산에서 조립한다(zoneCoverageNote).
+ * @param {object} tree @param {Array<object>} path @param {Array<{rule:object,from:string}>} rules
+ * @param {string} [query] - 사용자 질의(관련도 정렬용 — 없으면 전부 score 0이라 기존 순서 그대로)
+ * @returns {string} 답변 본문(클라이언트 answerBodyHTML이 지원하는 `**굵게**`·줄바꿈만 사용)
+ * [연계] ← zoneTreeStep(). → routes/legal.js done.answer → ai_chat.js answerBodyHTML.
+ */
+function renderZoneAnswer(tree, path, rules, query) {
+  const leaf = path[path.length - 1];
+  const scored = rankZoneRules(rules, query);
+  const keep = pickZoneExpanded(scored);
+  const out = [];
+  // ★2026-08-14(H-37 §8): 뒤에 붙어 있던 등급 문장("사람이 검증한 위키 카드가 아니라 …")을 지웠다
+  //   (사용자 확정 — 본문 안의 등급 언급도 함께 제거). 이 목록이 어디서 왔고 무엇이 빠졌는지는
+  //   말미 zoneCoverageNote()가 자산에서 조립해 말한다(등급이 아니라 커버리지 고지다).
+  out.push(`쉽게 말하면, **${leaf.라벨}**에 대해 법령 원문에서 확인된 규정은 아래 ${rules.length}건이에요.`);
+  out.push(`**확인한 구역**: ${path.map(n => n.라벨).join(' → ')} (${tree.축})`);
+  if (leaf.정의) out.push(`**${leaf.라벨}란**: ${leaf.정의}`);
+  if (keep.size < rules.length) {
+    // ★질문어가 하나도 안 걸렸는데 "질문과 관련 있는 것부터"라고 쓰면 **거짓말**이다(그때는 유형별
+    //   앞에서부터 펼친 것뿐이다). 실제로 한 일을 그대로 적는다.
+    const hit = scored.some(e => e.score > 0);
+    out.push(`※ 항목이 많아 ${hit ? '**질문에 나온 말이 들어 있는 것부터**' : '**유형별로 앞에서부터**'} ${keep.size}건을 펼치고, ` +
+      `나머지 ${rules.length - keep.size}건은 제목·근거만 적었어요. ⚠주의나 적용제외가 붙은 항목은 순서와 상관없이 모두 펼칩니다.`);
+  }
+
+  const kinds = [...new Set(rules.map(e => e.rule.유형))]
+    .sort((a, b) => (ZONE_KIND_ORDER.indexOf(a) + 1 || 99) - (ZONE_KIND_ORDER.indexOf(b) + 1 || 99));
+  kinds.forEach((kind, ki) => {
+    // 관련도 내림차순(동점은 자산 순서 — Array.sort가 안정정렬이라 **전원 0점이면 원래 순서 그대로**다).
+    const list = scored.filter(e => e.rule.유형 === kind).sort((a, b) => b.score - a.score);
+    const open = list.filter(e => keep.has(e.idx));
+    const fold = list.filter(e => !keep.has(e.idx));
+    out.push(`**${ki + 1}. ${kind === '처벌' ? '처벌(법정형)' : kind}** (${list.length}건` +
+      (fold.length ? ` — ${open.length}건 펼침 · ${fold.length}건 제목만` : '') + ')' +
+      (kind === '처벌' ? '\n※ 법에 정해진 형(법정형)이에요 — 실제 선고형은 사안에 따라 달라져요.' : ''));
+    open.forEach((e, i) => out.push(zoneRuleLines(e, i)));
+    if (fold.length) out.push(fold.map(zoneRuleFoldedLine).join('\n'));
+  });
+
+  for (const ax of (leaf.추가확인 || [])) {
+    out.push(`**추가로 갈리는 조건 — ${ax.축}**\n${ax.질문 || ''}\n` +
+      `선택지: ${(ax.선택지 || []).map(o => o.label).join(' / ')}\n` +
+      `이 조건에 따라 달라지는 항목: ${(ax.영향 || []).join(' · ')}`);
+  }
+  if (leaf.주의) out.push(`**⚠이 구역에서 주의할 점**: ${leaf.주의}`);
+  if (leaf.메모) out.push(`**참고**: ${leaf.메모}`);
+
+  out.push(zoneCoverageNote(rules));
+  return out.join('\n\n');
+}
+
+// ── 질문 유형(경계형 vs 요건형) — L-84 "물어본 것에만 답한다" ────────────────
+// 사용자 지적(2026-08-12): *"어디까지 갈 수 있냐고 물었는데... 물어보지도 않은 것에 대해서
+// 대답할 필요는 없는 거야."* 되묻기로 구역을 좁힌 뒤 그 구역에 걸리는 서류·장비·의무 규정을
+// 통째로(§13 필터링 후에도 1만 자) 쏟아내던 것을, **경계형 질문에는 경계(그 구역의 정의·범위)와
+// 규정 건수만** 답하고 요건은 확인을 거쳐서만 펼치도록 나눈다.
+// ★§13(관련도 필터·접기·면책문구 조립)은 **요건형 답변 안에서 그대로** 쓰인다 — 재구현하지 않는다.
+//
+// ★판정 방법과 그 근거(지어낸 어휘 목록이 아니다):
+//  ⓐ **경계형의 정의는 이미 코드에 있다** — 트리 진입 게이트 `ZONE_ASK`(구역 축을 묻는 어미구)가
+//     그것이라, zoneTreeStep 에 들어온 질문은 **전부 경계형 어미**를 갖고 있다.
+//  ⓑ 그런데 그것만으로는 안 갈린다 — "우리 배에 **구명조끼** 싣고 어디까지 나갈 수 있나요?"처럼
+//     경계형 어미 + 요건 어휘가 섞인 질문이 실제로 있다(회귀 스위트 T8이 쓰는 질의가 바로 그것).
+//     그래서 **원 질문이 구역 축 어휘 말고 다른 것을 지목했고, 그 말이 이 구역 규정 본문에 실제로
+//     나올 때만** 요건형으로 본다. 지목한 말이 규정에 없으면("제주도까지"·"20톤") 경계형이다.
+//  ⓒ "구명조끼 몇 개 필요해요?" 같은 **순수 요건형**은 애초에 게이트에 안 걸려 트리로 들어오지도
+//     않는다 — 기존대로 위키 검색 흐름으로 간다(이 절이 손대는 것이 없다).
+const ZONE_MORE_QUESTION = '이 구역에서 필요한 서류·장비 기준도 알려드릴까요?';
+// ⚠라벨은 트리 22개 노드의 `라벨`·`선택지[].label` 어느 것과도 겹치지 않아야 한다(L-77: 화면
+//   라벨과 데이터 라벨이 1:1이 아닌 지점에서 결함이 났다). 구역 이름을 한 글자도 포함하지 않는
+//   문장으로 두어, 누적된 질의에 붙어도 resolveZoneTreePath 의 경로 복원·암시 하강에 안 걸린다.
+const ZONE_MORE_YES = '네, 서류·장비 기준도 알려주세요';
+const ZONE_MORE_NO = '아니요, 여기까지면 돼요';
+
+// ── 구역 축 어휘 캐시(질문이 "축 말고 다른 것"을 지목했는지 보는 기준) ──
+let _zoneAxisCache = null, _zoneAxisAt = -1;
+/**
+ * "이 질문은 구역 축 이야기만 하고 있다"를 판정할 때 걸러낼 어휘 목록.
+ * **새로 지어내지 않는다** — 게이트가 이미 쓰는 `ZONE_SUBJECT`·`ZONE_ASK`의 낱말과, 자산이 가진
+ * 트리 라벨(및 그 라벨을 이루는 낱말)이 전부다.
+ * ★`ZONE_ASK`는 어미까지 붙은 **구(句)**라 쪼개면 '수'·'갈'·'있' 같은 한 글자 조각이 나온다 —
+ *   그건 뺀다(두면 '수량'·'수산물'처럼 무관한 낱말까지 축 어휘로 잡아먹는다). 반대로 낱말 목록인
+ *   `ZONE_SUBJECT`의 '배'는 **그대로 둔다**(빼면 '배로'·'배가'가 요건 지목으로 잘못 잡힌다).
+ * @returns {Array<string>} 축 어휘(중복 제거)
+ * [연계] ← zoneAskedRequirement(). ← ZONE_SUBJECT·ZONE_ASK·zone_tree.json 라벨.
+ */
+function zoneAxisWords() {
+  const asset = loadZoneTree();
+  if (_zoneAxisCache && _zoneAxisAt === _zoneMtime) return _zoneAxisCache;
+  const words = ZONE_SUBJECT.concat(ZONE_ASK.join(' ').split(/\s+/).filter(w => w.length >= 2));
+  for (const t of (asset.trees || [])) {
+    if (!t || !t.tree) continue;
+    for (const l of zoneLabelsOf(t.tree)) words.push(l, ...l.split(/[\s·()]+/).filter(Boolean));
+  }
+  _zoneAxisCache = [...new Set(words)];
+  _zoneAxisAt = _zoneMtime;
+  return _zoneAxisCache;
+}
+
+/**
+ * 이 질문이 **요건형**(이 구역에서 무엇을 갖춰야 하나)인가 — 아니면 **경계형**(어디까지 갈 수
+ * 있나)인가. 위 ⓑ 그대로: 원 질문에서 구역 축 어휘를 뺀 낱말이 남고, 그 낱말이 이 구역 규정
+ * 본문(`zoneRuleHay`)에 실제로 나오면 요건형이다.
+ * 예: zoneAskedRequirement(rules, '우리 배 어디까지 갈 수 있나요? — 근해구역') → false(경계형)
+ *     zoneAskedRequirement(rules, '구명조끼 싣고 어디까지 나갈 수 있나요? — 평수구역') → true
+ *     zoneAskedRequirement(rules, '낚싯배로 제주도까지 갈 수 있나요? — 연해구역') → false('제주도'는 규정에 없다)
+ * @param {Array<{rule:object}>} rules - collectZoneRules()의 결과(이 리프에 실린 규정 전량)
+ * @param {string} query - 사용자 질의(되묻기 라벨이 누적된 상태일 수 있다 — 원 질문만 본다)
+ * @returns {boolean} true면 요건형(바로 §13 전체 답변), false면 경계형(짧은 경계 답변)
+ * [연계] ← zoneTreeStep(). ← termsOf()·zoneRuleHay()(§13과 같은 토큰화·같은 검색 대상 문자열).
+ */
+function zoneAskedRequirement(rules, query) {
+  const axis = zoneAxisWords();
+  const terms = termsOf(String(query || '').split(CLARIFY_JOINER)[0])
+    // ★수치+단위("20톤"·"12미터")는 요건 지목이 아니라 **자기 배를 설명한 조건값**이다 — 게다가
+    //   톤수·길이는 이 트리(구역 축)가 아니라 별개 축(E 톤수, L-82)이다. 규정 본문에 그 숫자가
+    //   있다고 요건형으로 보면 "20톤 어선인데 어디까지 갈 수 있나요?"가 다시 규정 65건을 받는다.
+    .filter(t => !/^\d+(\.\d+)?[가-힣a-zA-Z]{0,3}$/.test(t))
+    .filter(t => !axis.some(w => t.startsWith(w) || w.startsWith(t)));
+  if (!terms.length) return false;
+  const hays = rules.map(e => zoneRuleHay(e.rule));
+  return terms.some(t => hays.some(h => h.includes(t)));
+}
+
+/**
+ * 경계형 답변 뒤에 붙인 확인("서류·장비 기준도 알려드릴까요?")에 사용자가 뭐라 답했는가.
+ * 상태는 서버가 들지 않는다 — 기존 되묻기와 **똑같이** 질의 문자열에 누적된 `' — 라벨'` 조각을
+ * 본다(새 규약을 만들지 않는다). 대조는 조각 **전체 일치**라, 라벨이 다른 선택지의 부분문자열로
+ * 걸리는 L-77류 사고가 생기지 않는다.
+ * @param {string} query
+ * @returns {'yes'|'no'|null} 아직 안 물었으면 null
+ * [연계] ← zoneTreeStep(). ← ai_chat.js pickClarifyOption(`q + ' — ' + label`).
+ */
+function zoneMoreChoice(query) {
+  const segs = String(query || '').split(CLARIFY_JOINER).slice(1).map(s => zoneFlat(s));
+  if (segs.includes(zoneFlat(ZONE_MORE_YES))) return 'yes';
+  if (segs.includes(zoneFlat(ZONE_MORE_NO))) return 'no';
+  return null;
+}
+
+/**
+ * 경계형 질문에 대한 **짧은 답변** — 물어본 것(그 구역이 어디까지인가)만 답한다.
+ * 싣는 것은 셋뿐이다: ①확인한 구역 경로 ②그 구역의 정의(=경계) ③그 구역에 걸리는 규정 **건수**.
+ * 규정의 내용(제목·인용·의무)은 **한 건도 싣지 않는다** — 사용자가 "네"를 눌러야 renderZoneAnswer()가
+ * 편다. 구역 자체에 붙은 `주의`·`메모`는 경계의 성질을 말하는 것이라 여기 남긴다(예: 먼바다 노드의
+ * "해외수역의 범위가 우리 EEZ 바깥 전부와 같지는 않다").
+ * ★말미 면책 문구는 renderZoneAnswer()와 **같은 함수**(zoneCoverageNote)를 쓴다 — 건수만 말해도
+ *   "그 건수가 전부는 아니다"는 같은 한계가 그대로 적용되고, 문구를 두 벌로 만들면 자산이 바뀔 때
+ *   한쪽만 따라간다(L-81 교훈③).
+ * ★`offer`로 마지막 한 줄을 가른다 — 확인을 안 낼 때(사용자가 "아니요"를 고른 뒤) "아래에서
+ *   눌러 주세요"라고 쓰면 그 자체가 거짓말이 된다(L-83: 렌더러가 자기 동작을 설명하는 문장은
+ *   실제 실행된 가지와 1:1이어야 한다).
+ * @param {object} tree - trees[] 원소 @param {Array<object>} path - resolveZoneTreePath()의 path
+ * @param {Array<{rule:object}>} rules - collectZoneRules()의 결과
+ * @param {boolean} offer - 아래에 "서류·장비도 볼까요?" 확인 버튼이 붙는가
+ * @returns {string} 답변 본문
+ * [연계] ← zoneTreeStep(). → routes/legal.js done.answer → ai_chat.js answerBodyHTML.
+ */
+function renderZoneBoundaryAnswer(tree, path, rules, offer) {
+  const leaf = path[path.length - 1];
+  const laws = ((loadZoneTree().summary || {}).laws_in_scope) || 74;
+  const byKind = new Map();
+  for (const e of rules) byKind.set(e.rule.유형, (byKind.get(e.rule.유형) || 0) + 1);
+  const kinds = [...byKind.entries()]
+    .sort((a, b) => (ZONE_KIND_ORDER.indexOf(a[0]) + 1 || 99) - (ZONE_KIND_ORDER.indexOf(b[0]) + 1 || 99))
+    .map(([k, n]) => `${k === '처벌' ? '처벌(법정형)' : k} ${n}건`).join(' · ');
+
+  // ⚠ 라벨 뒤에 조사를 붙이지 않는다 — 받침 유무로 '이에요/예요'가 갈리는데 라벨은 데이터에서
+  //   오고(괄호로 끝나는 것도 있다) 그걸 코드가 맞추려 들면 매번 어색해진다.
+  const out = [`쉽게 말하면, 여쭤보신 구역은 **${leaf.라벨}**, 그 범위는 이래요.`];
+  out.push(`**확인한 구역**: ${path.map(n => n.라벨).join(' → ')} (${tree.축})`);
+  if (leaf.정의) out.push(`**${leaf.라벨}의 범위**: ${leaf.정의}`);
+  if (leaf.주의) out.push(`**⚠이 구역에서 주의할 점**: ${leaf.주의}`);
+  if (leaf.메모) out.push(`**참고**: ${leaf.메모}`);
+  out.push(`이 구역에서 달라지는 규정은 ${laws}개 해양수산 법령 원문에서 확인된 것만 **${rules.length}건**이에요` +
+    (kinds ? ` (${kinds}).` : '.') +
+    (offer ? ' 여기서는 건수만 알려드렸어요 — 그 내용이 필요하시면 아래에서 골라 주세요.' : ''));
+  out.push(zoneCoverageNote(rules));
+  return out.join('\n\n');
+}
+
+// ★2026-08-14(H-37 §8, 사용자 확정 (사)): 답변 하단의 **신뢰등급 꼬리표를 없앤다.** 화면에는 항상
+//   "참고용입니다. 최종 확인은 공식 출처를 확인하세요."가 붙고, 이 트리 답변의 한계(목록이 전부가
+//   아니다)는 본문 말미 `zoneCoverageNote()`가 자산에서 조립해 이미 말하고 있다. 빈 문자열이면
+//   ai_chat.js:2590이 ' · ' 자체를 안 붙이므로 클라이언트는 한 줄도 안 고친다.
+//   ⚠되묻기 중임을 알리는 ZONE_CLARIFY_NOTE 는 **등급이 아니라 UI 상태 표시**라 그대로 둔다.
+const ZONE_ANSWER_NOTE = '';
+const ZONE_CLARIFY_NOTE = '추가 정보가 필요해요';
+
+/**
+ * 이 질문을 해역·항해구역 트리로 처리할 수 있으면 되묻기 또는 최종 답변을 만든다(LLM 0회).
+ * **null이면 호출부는 배선 전과 100% 같은 기존 흐름을 탄다** — 이 함수의 가장 중요한 계약이다.
+ * 어떤 예외도 밖으로 내보내지 않는다(expandQueryTerms·pickCandidateLaws와 같은 안전폴백 규약).
+ * ★2026-08-13(L-84): 리프에 닿았을 때 무엇을 답할지가 **질문 유형**에 따라 갈린다 —
+ *   경계형이면 짧은 경계 답변 + "서류·장비 기준도 알려드릴까요?" 확인(zoneAskedRequirement·
+ *   renderZoneBoundaryAnswer), 요건형이거나 그 확인에 "네"면 §13 전체 답변(renderZoneAnswer).
+ * 예: zoneTreeStep('낚싯배로 제주도까지 갈 수 있나요?')
+ *     → {answer:'조건에 따라…', note:'추가 정보가 필요해요', clarify:{question:'그 배의 선박검사증서에 적힌 항해구역이…', options:[…3개]}}
+ *     zoneTreeStep('… — 연해구역') → {answer:'쉽게 말하면, 여쭤보신 범위는 **연해구역**이에요…', clarify:{options:[네…/아니요…]}}
+ *     zoneTreeStep('… — 연해구역 — 네, 서류·장비 기준도 알려주세요') → {answer:'…규정은 아래 66건이에요…'}
+ *     zoneTreeStep('구명조끼 몇 개 필요해요?') → null
+ * @param {string} query - 사용자 질의(되묻기 라벨이 누적된 상태일 수 있다)
+ * @returns {{answer:string|null, note:string, clarify?:{question:string,options:Array}}|null}
+ * [연계] ← routes/legal.js POST /api/legal/ask 의 맨 앞 게이트(search()보다 앞).
+ *        → ai_chat.js는 기존 되묻기·답변과 같은 필드만 보므로 클라이언트 변경이 없다.
+ */
+function zoneTreeStep(query) {
+  try {
+    const tree = matchZoneTreeTopic(query);
+    if (!tree || !tree.tree) return null;
+    const { node, path, rest } = resolveZoneTreePath(query, tree);
+    if (node.children && node.children.length) {
+      const c = clarifyFromZoneTree(tree, node);
+      if (!c.needed) return null;
+      // ★무한 되묻기 백스톱(결정론적, decideClarify의 "같은 조건 재질문 차단"과 같은 장치):
+      //   낼 선택지 라벨이 이미 질의에 있으면 사용자는 그걸 고른 뒤인데 경로 복원이 안 된 것이다 —
+      //   같은 질문을 또 던지지 말고 트리를 포기하고 기존 흐름에 넘긴다. 대조 대상은 질의 전체가
+      //   아니라 **경로 복원이 안 쓴 부분**(rest)이다 — 방금 고른 '근해구역 이상' 안의 '근해구역'을
+      //   "이미 고른 값"으로 오인해 정상 되묻기를 죽이지 않기 위해서다.
+      if (c.options.some(o => rest.includes(o.label))) return null;
+      return { answer: c.intro, note: ZONE_CLARIFY_NOTE, clarify: { question: c.question, options: c.options } };
+    }
+    const rules = collectZoneRules(tree, path);
+    if (!rules.length) return null;              // 담을 게 없으면 트리가 답할 것이 없다
+    // ★L-84 "물어본 것에만 답한다": 경계형 질문("어디까지 갈 수 있나요?")에는 경계만 답하고,
+    //   서류·장비 요건은 사용자가 "네"를 눌렀을 때만 편다. 요건형(질문이 규정 내용을 지목한 경우)은
+    //   확인 없이 종전대로 바로 편다 — 그때 나오는 답변은 §13 그대로다(바이트 동일).
+    const choice = zoneMoreChoice(query);
+    if (choice === 'yes' || zoneAskedRequirement(rules, query)) {
+      return { answer: renderZoneAnswer(tree, path, rules, query), note: ZONE_ANSWER_NOTE };
+    }
+    const offer = choice !== 'no';               // "아니요"를 고른 뒤엔 같은 확인을 다시 내지 않는다
+    const step = { answer: renderZoneBoundaryAnswer(tree, path, rules, offer), note: ZONE_ANSWER_NOTE };
+    if (offer) {
+      step.clarify = {
+        question: ZONE_MORE_QUESTION,
+        options: [
+          { label: ZONE_MORE_YES, hint: '이 구역에 걸리는 의무·완화·허가 규정을 근거 조문과 함께 펼쳐 드려요' },
+          { label: ZONE_MORE_NO, hint: '' },
+        ],
+      };
+    }
+    return step;
+  } catch (_) {
+    return null;
+  }
+}
+
+// ============================================================================
+// H-37 §4·5·7 — 이해확인 · 상황질문(범위좁히기) · 온디바이스 프로필 확인
+// ----------------------------------------------------------------------------
+// 설계 전문: `knowledge/legal/_dashboard/H37_understanding_confirm_design.md`
+//
+// ★이 절의 함수는 전부 신규다 — 위쪽 기존 함수(decideClarify·search·zoneTreeStep 등)는 한 줄도
+//   고치지 않았다. 재사용하는 것은 CLARIFY_JOINER·CLARIFY_OPTION_MAX·termsOf·clarifyStr 뿐이다.
+// ★맥락은 **질의 문자열이 아니라 요청 바디의 별도 필드**(ctx·profile)로 나른다(설계 §3.1 D안).
+//   그래서 `query`가 오늘과 바이트 동일이라 ①decideClarify 라운드 카운트(:703) ②matchZoneTreeTopic
+//   의 q0(:1427) ③resolveZoneTreePath 의 rest(:1476) 세 가지가 **원리적으로** 안 오염된다.
+// ★서버는 ctx·profile 을 **어떤 파일에도 쓰지 않는다**(설계 §3.3 R1) — 이 요청을 처리하는 동안
+//   메모리에서만 읽고 버린다. 프로필은 온디바이스 저장이 계약이다(사용자 확정 (바)).
+// ★안전 규약(§3.3 R4): 이 절의 함수는 어떤 예외도 밖으로 내보내지 않는다 — 실패는 "그 단계 없음"
+//   (null)이고, 그러면 호출부는 배선 전과 100% 같은 기존 흐름을 탄다.
+// ★스위치 3개(understandConfirm·scopeNarrow·profileConfirm)는 **기본 전부 off**로 배포한다
+//   (routes/legal.js normConfig). off면 이 절의 모든 함수가 즉시 null/no-op 이다.
+// ============================================================================
+
+// ── 프로필 필드(=축) 어휘: `_CHATBOT.md` §1의 기존 필드를 그대로 쓴다(새 어휘를 만들지 않는다) ──
+// `길이`만 신규(설계 §7.1) — tonnage_facet.json이 이미 길이 임계값을 갖고 있어 쓰임이 있다.
+const PROFILE_FIELDS = ['직군', '선박용도', '톤수', '길이', '어업종류', '면허·자격', '주 조업구역', '야간조업', '관심분야'];
+const PROFILE_VALUE_MAX = 40;      // 값 길이 상한(변조 방어 — 프롬프트·화면에 그대로 실린다)
+const PROFILE_DECIDED_MAX = PROFILE_FIELDS.length;   // 축 수만큼만(축당 1개)
+
+// ── 이해확인 ──
+const UNDERSTAND_MAX_ROUNDS = 3;   // 사용자 확정 (라) "3회 이해 못하면 자체 판단으로 진행"
+const UNDERSTAND_STATES = ['none', 'confirmed', 'assumed'];
+// ★고정 문구(변형 금지, 설계 §4.4): 프롬프트로 시키지 않고 **서버가 문자열로 붙인다** — 모델이
+//   지시를 어길 수 있다는 것은 decideClarify 기준3에서 이미 라이브로 재현됐다.
+const ASSUMED_NOTICE = '질문을 정확히 이해하지 못한 채 제가 추정해서 답변드려요 — 아래 내용이 물으신 것과 다르면 다시 말씀해 주세요.';
+const UNDERSTAND_NOTE = '질문을 확인하고 있어요';
+const PROFILE_NOTE = '저장된 정보를 확인하고 있어요';
+const SCOPE_NOTE = '추가 정보가 필요해요';                 // 기존 되묻기와 같은 UI 상태 표시
+const UNDERSTAND_YES = '네, 맞아요';
+const UNDERSTAND_NO = '아니요, 다시 설명할게요';
+const PROFILE_YES = '네, 그 조건으로';
+const PROFILE_NO = '아니요, 이번엔 다른 조건이에요';
+// 재진술에 법 이야기가 섞였는지 보는 후검사(§4.2) — 근거자료를 아직 안 읽은 단계라 여기서 조문·
+// 형량이 나오면 그건 환각이다. 하나라도 걸리면 그 판정을 **버린다**(= 확인하지 않고 통과).
+const RESTATE_BAN = /제\s*\d+\s*조|법률|법령|벌금|과태료|징역|「|」|만원/;
+// ★실측 발견(2026-08-14, 프로덕션 최종재검증): 발동은 정상인데 재진술이 **대명사를 그대로 둔 채
+//   어미만 바꾼** 수준이었다 — "그거 언제까지 해야 돼?" → "그것을 언제까지 해야 하는지 알려주세요."
+//   이러면 "네"를 눌러도 스위치 off일 때와 똑같은 흐름이라, 왕복 1회+Gemini 1회만 늘고 얻는 게 없다.
+//   프롬프트 기준5로 금지하고, 그래도 지시어가 남아 오면 그 판정을 **버린다**(= 확인 안 하고 통과).
+//   ⚠오탐 방향은 안전하다 — '먹이거나'처럼 지시어가 아닌 글자에 걸려도 결과는 "확인을 안 한다"(오늘과 같음).
+const RESTATE_DEICTIC = /그것|그거|이것|이거|저것|저거|그걸|이걸|그건|이건/;
+// ★실측 발견(2026-08-15, 4차 프로덕션 재검증): 지시어가 아예 없는 "빈칸형" 애매질문도 얕은
+//   재진술로 돌아왔다 — "신고해야 하나요?" → "무엇을 신고해야 하는지 알고 싶다". 원 문장에
+//   의문사만 끼워 넣은 것이라 사용자가 "네"를 눌러도 얻는 정보가 0이다(RESTATE_DEICTIC과 같은
+//   병, 원인만 지시어→빈칸으로 다르다). 프롬프트 기준6으로 금지하고, 그래도 오면 판정을 **버린다**.
+// ⚠비용을 정직하게: 이 후검사는 **정당한 재진술도 일부 버린다**(예: "낚시어선에 어떤 서류가
+//   필요한지 알고 싶다"는 지시어를 잘 푼 문장인데도 "어떤"에 걸린다). 정확히 가르려면 원 질문과
+//   대조해 "새로 들어온 말"이 있는지 봐야 하는데 그건 이번 범위 밖이고, **물러나는 방향은
+//   안전하다** — 버리면 오늘과 같은 흐름(기존 되묻기)으로 간다. 발화율은 그만큼 더 낮아진다.
+const RESTATE_BLANK = /무엇|무슨|어떤|어느|누구|얼마나/;
+// 재진술 원문의 길이 상한 — 카드 문구로 화면에 찍히고, 확인 뒤에는 검색어의 재료가 된다(§17).
+// 클라이언트가 되돌려 보내는 값이라 변조가 가능하다는 전제로 길이를 먼저 자른다.
+const RESTATE_MAX = 120;
+
+/**
+ * 재진술 문자열이 이 단계의 신뢰 규약(§4.2 서버측 후검사 3종)을 지키는지 한 군데서 판정한다.
+ * ★한 군데로 모은 이유(2026-08-15 §17): 재진술은 이제 **두 번** 들어온다 — ①모델이 만든 직후
+ *   ②사용자가 "네"를 누른 뒤 `ctx.uc.restate`로 되돌아올 때. ②는 클라이언트를 거치므로 변조·재생이
+ *   가능하고(설계 §9.1 #17), 그때도 ①과 **같은 기준**으로 다시 걸러야 신뢰 규약이 유지된다(L-77 정신).
+ * 예: restateAllowed('구명조끼 비치를 언제까지 해야 하는지 알고 싶다') → 그 문장 그대로
+ *     restateAllowed('제32조 위반이면 과태료다') → ''(RESTATE_BAN)
+ * @param {*} s - 검사할 값(문자열이 아니면 '')
+ * @returns {string} 통과하면 정리된 문자열, 아니면 ''
+ * [연계] ← understandConfirmStep(생성 직후) · normalizeAskCtx(되돌아온 값) ·
+ *         expandQueryTerms·decideClarify(프롬프트에 싣기 직전 마지막 관문).
+ */
+function restateAllowed(s) {
+  const t = clarifyStr(s, RESTATE_MAX);
+  if (!t) return '';
+  if (RESTATE_BAN.test(t) || RESTATE_DEICTIC.test(t) || RESTATE_BLANK.test(t)) return '';
+  return t;
+}
+
+// ★§17 실측 기록 — 재진술 **낱말을 그대로** allTerms 에 얹는 안은 **채택하지 않았다**(왜 그런지를
+//   남겨 두지 않으면 다음 사람이 "쉬운 방법이 있는데 왜 안 썼지?" 하고 되풀이한다):
+//   ① 재진술은 프롬프트 기준5가 **"질문에 나온 말로만 풀어써라"** 라고 강제한다 → 낱말 관점에서
+//      **새 정보가 원리적으로 0**이다. 실측(대표 4건)에서 재진술이 추가한 낱말은 전부 조사 변형
+//      (`안전검사를`·`가입을`·`비치를`)이거나 상투어(`알고`·`싶다`·`하는지`)뿐이었다.
+//   ② 그런데도 얹으면 termsOf 의 어미절단이 `신고`(위키 1,174쪽 중 51.5%)·`제출`(51.8%) 같은
+//      2글자 조각을 만들어 **코퍼스 절반의 점수를 함께 올린다** — `위험물 신고서 … 어디에 내요?`
+//      실측에서 상위 15건 중 11건이 교체되고 정작 `위험물 반입 및 하역`이 목록에서 **사라졌다**.
+//   ⇒ 재진술이 실제로 가진 정보는 "어느 낱말이 무엇을 가리키는가"라는 **문장 수준**의 것이라,
+//     낱말 자루(bag-of-words) 검색이 아니라 **문장을 읽는 두 LLM 호출**에 넘긴다:
+//     ⓐ expandQueryTerms(질의확장) — 지시어가 풀린 문장을 보고 **새 법률 용어**를 뽑는다. 그 결과는
+//        기존 그대로 allTerms 에 합류하므로 "확장어 합류 지점 한 갈래 추가"라는 목표는 그대로 지킨다.
+//     ⓑ decideClarify(되묻기 판단) — 이미 정해진 조건을 다시 묻지 않게 한다.
+//   ⚠키 의존이 새로 생기는 것은 아니다: 이해확인 자체가 키 없으면 발동하지 않으므로(fail-open null),
+//     `restate` 가 존재한다는 것은 곧 키가 있다는 뜻이다.
+// ★실측 발견(2026-08-14, H-37 F3): 8000(8초)으로 두면 QUERY_EXPAND_TIMEOUT_MS(:590 주석)와
+//   같은 유형으로 Gemini API가 매 호출 400(Manually set deadline 8s is too short. Minimum
+//   allowed deadline is 10s.)으로 거부해 이해확인이 프로덕션에서 한 번도 발동한 적이 없었다
+//   (23/23건 확인). API 최소값(10초)에 여유를 둔 12000으로 올린다.
+const UNDERSTAND_CONFIG = {
+  temperature: 0.1,
+  thinkingConfig: { thinkingBudget: 0 },
+  responseMimeType: 'application/json',
+  httpOptions: { timeout: 12000 },
+};
+
+/**
+ * 한글 마지막 글자의 **받침(종성) 번호**를 돌려준다(0 = 받침 없음, 8 = ㄹ). 한글이 아니면 -1.
+ * 예: hangulFinalIndex('신고') → 0 · hangulFinalIndex('점검') → 16(ㅁ) · hangulFinalIndex('abc') → -1
+ * @param {string} s - 검사할 문자열(마지막 글자만 본다)
+ * @returns {number} 0..27 이면 한글, -1 이면 한글 아님
+ * [연계] → josaEuro. 다른 조사(이/가·은/는)가 필요해지면 같은 값으로 고르면 된다.
+ */
+function hangulFinalIndex(s) {
+  const ch = String(s || '').trim().slice(-1);
+  if (!ch) return -1;
+  const code = ch.charCodeAt(0);
+  if (code < 0xAC00 || code > 0xD7A3) return -1;
+  return (code - 0xAC00) % 28;
+}
+
+/**
+ * `…로` / `…으로` 를 앞 글자의 받침으로 고른다(받침 없음·ㄹ 받침이면 `로`).
+ * ★왜(2026-08-15 4차 재검증 ④): 확인 카드 문구의 조사가 **고정 문자열**이라 재진술 끝 글자에 따라
+ *   비문이 났다. 한글이 아니면(숫자·영문으로 끝나면) `로`로 둔다 — 읽는 법을 지어내지 않는다.
+ * 예: josaEuro('알고 싶다') → '로' · josaEuro('궁금함') → '으로' · josaEuro('신고할 수 있을') → '로'
+ * @param {string} word - 조사 앞에 오는 말
+ * @returns {'로'|'으로'}
+ * [연계] ← understandConfirmStep(확인 카드 질문 문구).
+ */
+function josaEuro(word) {
+  const f = hangulFinalIndex(word);
+  return (f <= 0 || f === 8) ? '로' : '으로';
+}
+
+/**
+ * 요청 바디의 `ctx`(대기 상태)를 **신뢰하지 않고** 정규화한다 — 클라이언트가 그대로 되돌려 보내는
+ * 값이라 변조·재생·구버전이 섞여 올 수 있다(설계 §9.1 #17).
+ *  - `uc.rounds`는 0..UNDERSTAND_MAX_ROUNDS 로 clamp, `uc.state`는 열거값만.
+ *  - `uc.restate`(§17 신규)는 **`state==='confirmed'`일 때만** 살린다 — 확인받지 않은 재진술을
+ *    검색에 쓰면 "사용자가 승인한 뜻"이라는 이 값의 근거가 사라진다. 값 자체도 생성 시점과 **같은
+ *    후검사**(restateAllowed: 조문·지시어·빈칸형)를 다시 통과해야 한다(변조·재생 방어).
+ *  - `scope`는 **자산(vessel_doc_tree.json)에 실재하는 라벨**만, 깊이는 트리 깊이까지. 하나라도
+ *    어긋나면 scope 를 통째로 버린다(지어낸 경로로 검색어를 만들지 않는다).
+ *  - `prof.decided[]`는 축당 1개·`axis`는 프로필 필드명만·`use`는 accepted|rejected 만.
+ *    `label`이 지금 프로필 값과 다르면 **그 항목만** 버린다(대기 중 프로필 수정 — §9.1 #11·#12).
+ * 예: normalizeAskCtx({uc:{rounds:99}}) → {uc:{rounds:3,state:'none',restate:''}, scope:[], prof:{decided:[]}}
+ * @param {object} raw - req.body.ctx (없어도 된다)
+ * @param {object} profile - normalizeProfile()의 결과(라벨 대조용)
+ * @returns {{uc:{rounds:number,state:string}, scope:Array<{axis:string,label:string}>, prof:{decided:Array}}}
+ * [연계] ← routes/legal.js POST /api/legal/ask. → understandConfirmStep·scopeNarrowStep·profileConfirmStep.
+ */
+function normalizeAskCtx(raw, profile) {
+  const empty = { uc: { rounds: 0, state: 'none', restate: '' }, scope: [], prof: { decided: [] } };
+  try {
+    const c = (raw && typeof raw === 'object') ? raw : {};
+    const uc = (c.uc && typeof c.uc === 'object') ? c.uc : {};
+    const rounds = Math.min(UNDERSTAND_MAX_ROUNDS, Math.max(0, parseInt(uc.rounds, 10) || 0));
+    const state = UNDERSTAND_STATES.includes(uc.state) ? uc.state : 'none';
+    // [§17] 확인된 재진술만 나른다 — 확인 전(state!=='confirmed')이면 값이 있어도 버린다.
+    const restate = state === 'confirmed' ? restateAllowed(uc.restate) : '';
+
+    // scope: 자산 라벨과 깊이 검사(상한이 아니라 **데이터 정합성 검사** — 설계 §5.4)
+    let scope = Array.isArray(c.scope) ? c.scope.slice(0, vesselTreeDepth()) : [];
+    scope = scope.map(s => ({
+      axis: clarifyStr(s && s.axis, 40),
+      label: clarifyStr(s && s.label, 40),
+    })).filter(s => s.axis && s.label);
+    if (!vesselScopeValid(scope)) scope = [];
+
+    // prof.decided: 축당 1개 + 지금 프로필 값과 일치하는 것만
+    const fields = (profile && profile.fields) || {};
+    const seen = new Set();
+    const decided = (Array.isArray((c.prof || {}).decided) ? c.prof.decided : [])
+      .slice(0, PROFILE_DECIDED_MAX)
+      .map(d => ({
+        axis: clarifyStr(d && d.axis, 40),
+        label: clarifyStr(d && d.label, PROFILE_VALUE_MAX),
+        use: (d && (d.use === 'accepted' || d.use === 'rejected')) ? d.use : null,
+      }))
+      .filter(d => {
+        if (!PROFILE_FIELDS.includes(d.axis) || !d.use || seen.has(d.axis)) return false;
+        if (!fields[d.axis] || fields[d.axis].v !== d.label) return false;   // 대기 중 프로필이 바뀌었다
+        seen.add(d.axis);
+        return true;
+      });
+    return { uc: { rounds, state, restate }, scope, prof: { decided } };
+  } catch (_) {
+    return empty;
+  }
+}
+
+/**
+ * 다음 라운드가 이어받을 맥락(`done.ctxNext`, 설계 §3.2)을 만든다 — **정규화를 마친 ctx 그대로**다.
+ * ★왜 필요한가(2026-08-14 적대검증 F2): 맥락을 버튼의 `data-ctx`에만 실었더니, 그 뒤에 나온
+ *   **ctx 없는 버튼**(기존 되묻기·트리 되묻기)을 누르는 순간 직전 맥락이 통째로 사라졌다 —
+ *   프로필로 "네"를 눌러 확정한 축이 지워져 서버가 같은 축을 또 묻는 무한루프가 라이브에서 재현됐다.
+ *   응답마다 "지금까지 확정된 맥락"을 함께 보내면, 클라이언트가 그것을 들고 다음 요청에 붙인다.
+ * ★비어 있으면 **null** — 호출부가 필드 자체를 안 싣게 해서, ctx·profile 미전송 요청의 done JSON이
+ *   오늘과 바이트 동일하다(R0).
+ * 예: ctxNextOf({uc:{rounds:0,state:'none'},scope:[],prof:{decided:[]}}) → null
+ * @param {object} ctx - normalizeAskCtx()의 결과
+ * @returns {null|{uc:object,scope:Array,prof:object}}
+ * [연계] ← routes/legal.js(모든 done 응답). → ai_chat.js doSend(lastCtx 로 보관해 다음 요청에 첨부).
+ */
+function ctxNextOf(ctx) {
+  if (!ctx) return null;
+  const uc = ctx.uc || { rounds: 0, state: 'none', restate: '' };
+  const scope = ctx.scope || [];
+  const prof = ctx.prof || { decided: [] };
+  const has = uc.rounds > 0 || uc.state !== 'none' || scope.length > 0 || prof.decided.length > 0;
+  return has ? { uc, scope, prof } : null;
+}
+
+/**
+ * 요청 바디의 `profile`(온디바이스 스냅샷)을 정규화한다. 알려진 필드만, 값·시각은 길이 상한.
+ * ★서버는 이 값을 **읽기만** 한다 — 파일·로그·pendingAnswers 어디에도 쓰지 않는다(§3.3 R1).
+ * @param {object} raw - req.body.profile
+ * @returns {{fields:Object<string,{v:string,at:string}>}} 없으면 {fields:{}}
+ * [연계] ← routes/legal.js. → profileConfirmStep(축 대조)·normalizeAskCtx(라벨 대조).
+ */
+function normalizeProfile(raw) {
+  const out = { fields: {} };
+  try {
+    const f = (raw && raw.fields && typeof raw.fields === 'object') ? raw.fields : {};
+    for (const k of PROFILE_FIELDS) {
+      const v = clarifyStr(f[k] && f[k].v, PROFILE_VALUE_MAX);
+      if (!v) continue;
+      out.fields[k] = { v, at: clarifyStr(f[k] && f[k].at, 40) };
+    }
+  } catch (_) { /* 깨진 프로필은 없는 것으로 — 이 단계가 죽어도 답변은 나가야 한다 */ }
+  return out;
+}
+
+/**
+ * 이 요청에서 "프로필로 이미 확정된" 축의 값 목록(accepted 만).
+ * @param {object} ctx - normalizeAskCtx()의 결과
+ * @returns {Array<{axis:string,label:string}>}
+ * [연계] ← routes/legal.js(검색어 보강·트리 질의 합성).
+ */
+function profileAcceptedLabels(ctx) {
+  return ((ctx && ctx.prof && ctx.prof.decided) || []).filter(d => d.use === 'accepted')
+    .map(d => ({ axis: d.axis, label: d.label }));
+}
+
+/** zone_tree.json 전 트리의 라벨 집합(트리 질의에 합성해도 되는 값인지 판정용). */
+function zoneAllLabels() {
+  const out = new Set();
+  for (const t of (loadZoneTree().trees || [])) {
+    if (!t || !t.tree) continue;
+    for (const l of zoneLabelsOf(t.tree)) out.add(zoneFlat(l));
+  }
+  return out;
+}
+
+/**
+ * 프로필로 확정된 값 중 **해역 트리가 아는 라벨만** 골라 트리 질의에 합성한다(설계 §7.5-1).
+ * 트리는 `query`의 `' — 라벨'` 누적으로만 위치를 복원하므로(resolveZoneTreePath) 다른 운반로가 없다.
+ * ⚠요청 바디의 `query`는 그대로 두고 **zoneTreeStep()에 넘기는 지역 변수에서만** 합성한다.
+ * ⚠자산에 없는 값(예: 톤수 '9.77톤')은 절대 안 붙인다 — 붙이면 `rest`가 오염돼 암시 하강이 엉뚱한
+ *   리프로 내려간다(L-77 계열 사고).
+ * 예: zoneQueryWithProfile('어선으로 어디서 조업할 수 있나요?', ctx) → '… — 특정해역'
+ * @param {string} query @param {object} ctx - normalizeAskCtx()의 결과
+ * @returns {string} 합성할 게 없으면 query 와 **바이트 동일**(R0)
+ * [연계] ← routes/legal.js(zoneTreeStep 호출 직전).
+ */
+function zoneQueryWithProfile(query, ctx) {
+  try {
+    const labels = zoneAllLabels();
+    const add = profileAcceptedLabels(ctx).map(d => d.label).filter(l => labels.has(zoneFlat(l)));
+    if (!add.length) return query;
+    const have = String(query || '').split(CLARIFY_JOINER).map(zoneFlat);
+    const fresh = add.filter(l => !have.includes(zoneFlat(l)));
+    return fresh.length ? query + fresh.map(l => CLARIFY_JOINER + l).join('') : query;
+  } catch (_) {
+    return query;
+  }
+}
+
+/**
+ * ★①이해확인 — 질문이 들어오면 **가장 먼저** 실행한다(사용자 확정 (가)).
+ * AI가 **자기 말로 다시 진술**해 맞는지 확인한다(사용자 확정 (나): 원문을 그대로 되풀이하지 않는다).
+ * ★이 단계는 기존 되묻기 라운드(`CLARIFY_MAX_ROUNDS`)를 **쓰지 않는다** — 상태를 `query`가 아니라
+ *   `ctx.uc`로 나르므로 `query.split(CLARIFY_JOINER).length-1`이 정의상 안 변한다(사용자 확정 (다)).
+ * ★3회 백스톱(사용자 확정 (라)): `uc.rounds >= 3`이면 **판정 호출조차 하지 않고**(비용·지연 0)
+ *   `{assumed:true}`로 통과시킨다 — 호출부가 최종 답변 첫 줄에 ASSUMED_NOTICE 를 직접 붙인다.
+ * ★"물어보지 않은 것에 답하지 않는다"(L-84): 재진술은 **질문의 뜻만** 바꿔 말한다 — 답·조문·수치를
+ *   미리 얹으면 그 자체가 환각이다(근거자료를 아직 읽지 않은 단계). 프롬프트로 금지하고, 그래도
+ *   섞여 오면 서버가 그 판정을 버린다(RESTATE_BAN).
+ * ★대원칙 "정보 이득이 없으면 개입하지 않는다"(2026-08-15, §4.2 재설계): 이 단계는 **실제로
+ *   풀어쓴 재진술**을 낼 때만 카드를 낸다. 지시어를 못 풀었거나("그것을 언제까지…"), 원 문장에
+ *   의문사만 끼워 넣은 빈칸형이면("무엇을 신고해야 하는지…") 확인해도 얻는 게 0이므로 **통과**한다
+ *   (= null). 그러면 뒤 단계의 기존 되묻기(decideClarify·해역트리)가 구체적인 선택지를 주며
+ *   되묻는데, 4차 프로덕션 재검증 실측상 그쪽이 이 단계의 되묻기보다 낫다.
+ * 예: understandConfirmStep('구명조끼 비치하라던데 그거 언제까지 해야 돼?', {rounds:0,state:'none'}, true)
+ *     → {clarify:{question:'저는 「…」로 이해했는데, 맞나요?', options:[네…/아니요…]}, confirmKind:'understand'}
+ *     ('그거 얼마야?'처럼 풀어쓸 거리가 없는 질문은 null — 확인하지 않고 기존 흐름으로 보낸다)
+ * @param {string} query - 사용자 질문(원문 그대로)
+ * @param {{rounds:number,state:string}} uc - normalizeAskCtx().uc
+ * @param {boolean} enabled - nariya_config.understandConfirm
+ * @returns {Promise<null|{assumed:true}|{answer:string,note:string,clarify:object,confirmKind:string}>}
+ * [연계] ← routes/legal.js POST /api/legal/ask 의 **첫 단계**(zoneTreeStep보다 앞).
+ *        → ai_chat.js clarifyHTML(기존 버튼 렌더 그대로 — 새 UI 타입을 만들지 않는다).
+ */
+async function understandConfirmStep(query, uc, enabled) {
+  try {
+    if (!enabled) return null;
+    if (!uc || uc.state === 'confirmed') return null;
+    if (uc.state === 'assumed' || uc.rounds >= UNDERSTAND_MAX_ROUNDS) return { assumed: true };
+    if (!gemini.hasAnyKey()) return null;                 // 키 없음 = 그냥 통과(fail-open)
+    const prompt = `너는 대한민국 해양수산 법령 챗봇의 "질문 이해 판정기"다. 질문에 **답하지 마라.**
+
+[질문]
+"${query}"
+
+[대원칙] **확인해서 얻는 게 없으면 clear:true 로 넘어가라.** 이 단계가 물러나도 뒤 단계가 구체적인
+선택지를 주며 되묻는다 — 어정쩡한 재진술로 확인하는 것보다 그편이 사용자에게 낫다.
+
+[판단 기준]
+1. 이 문장이 무엇을 묻는지 한 가지 뜻으로 읽히면 clear:true.
+2. 주어(누가)·대상(무엇을)·행위 중 하나가 빠져 뜻이 둘 이상으로 갈리면 clear:false.
+3. ★재진술(restate)에는 법령·조문·수치·결론을 **절대 넣지 마라.** 질문의 뜻만 바꿔 말한다.
+   (근거자료를 아직 읽지 않은 단계다 — 여기서 법 이야기를 하면 그게 곧 환각이다)
+4. 기준2에 걸렸을 때만 이 기준을 본다(순서가 중요하다).
+   - **한 문장으로 다시 말해 뜻을 하나로 좁힐 수 있으면 clear:false** — 그 문장을 restate 에 담아 확인한다.
+   - **다시 말해 봐도 뜻이 둘 이상 남아 무엇을 물었는지 고를 수 없으면 clear:true** — 확인해도 얻을 게
+     없으니 그냥 넘어간다. (단 "고를 수 없는" 이유가 아래 기준5의 지시어 때문이라면 여기가 아니라 기준5다.
+     기준5·기준6이 clear:true 로 보내는 경우도 결국 이 갈래와 같은 뜻이다 — 대원칙 그대로다)
+   "애매하니까 일단 clear:true"가 아니다(애매한지는 기준2가 이미 판정했다). 판단 기준은
+   **재진술로 뜻이 하나로 정해지는가** 하나뿐이다.
+5. ★기준4보다 **먼저** 본다 — 질문에 지시어("그거·그것·이거·이것·저거·그건·이건" 같은 말)가 있으면
+   기준4의 두 갈래 대신 이 기준으로 판정한다(기준1로 이미 clear:true 인 질문은 여기 오지 않는다).
+   기준4의 "뜻을 하나로 좁혔다"는 **그 지시어가 가리키는 것을 실제 이름으로 바꿔 쓴 경우만** 해당한다.
+   - ★가리키는 것이 **질문 문장 안에** 있으면(앞 절에 이미 나왔거나, " — " 뒤에 이전 선택 항목이
+     붙어 있으면) **반드시** 그 이름으로 **풀어써서** restate 에 담아라 → clear:false.
+     **앞 절에 명사구가 있는데도 "확실하지 않다"며 물러나지 마라 — 앞 절의 그 명사구가 곧 답이다.**
+     후보가 둘 이상이면 **지시어에 가장 가까운 명사구**를 고른다(고민하지 말고 그렇게 정한다).
+     예1 "구명조끼 비치하라던데 그거 언제까지 해야 돼?"
+       → restate "구명조끼 비치를 언제까지 해야 하는지 알고 싶다"
+     예2 "안전점검 받으라고 문자 왔는데 그거 안 하면 어떻게 돼요?"
+       → restate "안전점검을 받지 않으면 어떻게 되는지 알고 싶다"
+     예3 "어선검사 — 정기검사 그건 언제 받아야 해요?"
+       → restate "어선 정기검사를 언제 받아야 하는지 알고 싶다"
+     예4 "위판장에서 신고하라던데 이거 온라인으로도 돼요?"
+       → restate "위판장 신고를 온라인으로 할 수 있는지 알고 싶다"
+   - 질문 안에 가리키는 것이 **정말로 없으면**(앞 절에 명사구가 하나도 없다) **짐작해서 지어내지 말고**
+     그냥 clear:true 로 넘어가라. 예: "그거 얼마예요?" → {"clear":true}
+   - ★지시어를 **그대로 둔 채** 어미·문장 구조만 바꾼 문장은 restate 로 쓰지 마라
+     ("그것을 언제까지 해야 하는지 알려주세요" 같은 문장) — 뜻이 하나도 안 좁혀져 확인할 값이 없다.
+     그런 문장밖에 안 나오면 restate 를 쓰지 말고 clear:true 다.
+   - 풀어쓸 때도 기준3은 그대로다: **질문에 나온 말로만** 풀어쓰고 법령 이름·조문·수치를 새로 끌어오지 마라.
+6. ★"빈칸형" 재진술 금지(기준4·기준5의 clear:true 갈래와 같은 결론이다) — 원 질문에 의문사
+   ("무엇을·무슨·어떤·어느·누구의·얼마나")만 끼워 넣은 문장은 restate 로 쓰지 마라. 원문에 없던
+   정보가 하나도 안 늘어 확인할 값이 없다. 그런 문장밖에 안 나오면 clear:true 다.
+     금지 예 "신고해야 하나요?" → "무엇을 신고해야 하는지 알고 싶다" (❌ 이건 clear:true 로 낸다)
+     금지 예 "허가 받아야 돼요?" → "어떤 허가를 받아야 하는지 알고 싶다" (❌ 마찬가지)
+   restate 는 **질문에 이미 적혀 있던 말**을 써서 뜻을 좁힌 문장이어야 한다(기준5의 예1~4처럼).
+
+다른 설명 없이 아래 JSON만 출력하라.
+{"clear":true} 또는 {"clear":false,"restate":"…(60자 이내, 평서문)"}`;
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: UNDERSTAND_CONFIG, caller: 'Legal-Understand',
+    });
+    if (!result.success || !result.text) return null;
+    const m = result.text.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    const obj = JSON.parse(m[0]);
+    if (!obj || obj.clear !== false) return null;
+    // 서버측 후검사 3종(§4.2) — 조문·형량이 섞였거나(RESTATE_BAN), 지시어를 그대로 둔 채 어미만
+    // 바꿨거나(RESTATE_DEICTIC, 기준5), 의문사만 끼워 넣은 빈칸형(RESTATE_BLANK, 기준6)이면 그
+    // 판정을 **버린다**(= 확인하지 않고 기존 흐름으로 통과). 한 군데(restateAllowed)로 모아 둔 이유는
+    // 사용자가 "네"를 눌러 되돌아온 값도 §17에서 **같은 기준**으로 다시 걸러야 하기 때문이다.
+    const restate = restateAllowed(obj.restate);
+    if (!restate) return null;
+    // 원 질문을 그대로 되풀이하면 확인의 의미가 없다(사용자 확정 (나)) — 같은 문장이면 물러난다.
+    if (zoneFlat(restate) === zoneFlat(query)) return null;
+    // ctx: 클라이언트가 **질의에 아무것도 붙이지 않고** 이 값만 되돌려 보낸다(§3.2 ctxNext).
+    // [§17] "네"에는 재진술 원문을 함께 싣는다 — 사용자가 승인한 그 문장이 다음 요청에서 검색
+    //   확장어가 된다(`search(opts.restate)`). "아니요"에는 싣지 않는다(승인받지 못한 뜻이다).
+    const yes = { label: UNDERSTAND_YES, hint: '이 뜻이 맞으면 그대로 답변을 만들어 드려요',
+      ctx: { uc: { rounds: uc.rounds, state: 'confirmed', restate } } };
+    const no = { label: UNDERSTAND_NO, hint: '어떤 상황인지 조금 더 구체적으로 적어 주세요',
+      ctx: { uc: { rounds: uc.rounds + 1, state: 'none' } }, act: 'ask' };
+    return {
+      answer: '제가 이해한 게 맞는지 먼저 확인할게요.',
+      note: UNDERSTAND_NOTE,
+      confirmKind: 'understand',
+      clarify: {
+        // 조사는 재진술 끝 글자의 받침으로 고른다(2026-08-15 ④ — 고정 문자열이면 비문이 난다).
+        question: `저는 「${restate}」${josaEuro(restate)} 이해했는데, 맞나요?`,
+        options: [yes, no],
+      },
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+// ── ②상황질문(범위좁히기) — 선택지는 **기존 계층자산의 분기 노드**에서 그대로 꺼낸다(설계 §5.2 S1) ──
+// ★법 이름을 묻지 않는다(사용자 확정 (마)): 묻는 것은 사용자가 아는 상황("어떤 배에 관한 것인가요?")
+//   이고, 그 답으로 어느 법을 볼지는 서버가 정한다.
+// ★발화 판정은 **검색 뒤**(사용자 확정 (카), R2) — 검색 결과가 실제로 여러 갈래에 걸릴 때만 묻는다.
+//   검색은 사용자에게 아무것도 보여주지 않는 내부 계산이라, 화면상으로는 여전히 "맨 앞에서 상황을
+//   묻는" 동작이다.
+const VESSEL_TREE_JSON = path.join(LEGAL_DIR, '_dashboard', 'vessel_doc_tree.json');
+// 임계값은 **지어내지 않고 실측으로 정했다**(설계 §5.3 "구현 착수 시 실측해 정한다"):
+// 감사 문항 코퍼스(_dashboard/audit/*.md 인용 질문 6,543건) 중 800건 표본으로 격자 측정 —
+// 대조 대상(항목 전문/이름 필드) × 토큰 최소길이(2/3/4) × K(3/5/8) × 접전비율(0.3/0.5/0.7).
+// 채택값의 발화율 1.63%(13/800), 설계 §5.6의 대표 시나리오("구명조끼 몇 개 필요해요?")는 그대로 발화.
+const SCOPE_TOPK = 5;              // 분포를 볼 상위 검색결과 수
+const SCOPE_SCORE_RATIO = 0.5;     // 1위 대비 이 비율 이상인 후보만 "접전"으로 본다
+const SCOPE_TERM_MIN = 3;          // 분기 대조에 쓸 질문 토큰의 최소 글자수
+let _vesselCache = null, _vesselMtime = 0;
+const INSPECTION_TABLE_JSON = path.join(LEGAL_DIR, '_dashboard', 'inspection_cycle_table.json');
+let _inspCache = null, _inspMtime = 0;
+
+/**
+ * inspection_cycle_table.json(F) 을 읽어 캐시한다(vessel_doc_tree 와 같은 mtime 감지·안전폴백).
+ * `vesselHayOf`가 ⓑ 게이트 어휘원에 F의 검사종류·증서 이름을 얹기 위해 쓴다
+ * (설계 H32_vessel_doc_tree_design.md §14 — D 이름 필드만으론 "안전검사" 계열 질문이 안 걸리던 문제).
+ */
+function loadInspectionTable() {
+  try {
+    const mt = fs.statSync(INSPECTION_TABLE_JSON).mtimeMs;
+    if (_inspCache && mt === _inspMtime) return _inspCache;
+    const raw = JSON.parse(fs.readFileSync(INSPECTION_TABLE_JSON, 'utf8'));
+    raw._certById = new Map((raw.증서 || []).map(c => [c.id, c.증서명]));
+    _inspCache = raw; _inspMtime = mt;
+  } catch (_) { if (!_inspCache) _inspCache = { 검사종류: [], 증서: [], _certById: new Map() }; }
+  return _inspCache;
+}
+
+/** vessel_doc_tree.json 을 읽어 캐시한다(zone_tree 와 같은 mtime 감지·안전폴백). */
+function loadVesselTree() {
+  try {
+    const mt = fs.statSync(VESSEL_TREE_JSON).mtimeMs;
+    if (_vesselCache && mt === _vesselMtime) return _vesselCache;
+    _vesselCache = JSON.parse(fs.readFileSync(VESSEL_TREE_JSON, 'utf8')); _vesselMtime = mt;
+  } catch (_) { if (!_vesselCache) _vesselCache = { tree: null }; }
+  return _vesselCache;
+}
+
+/** 자산 트리의 최대 깊이(=`ctx.scope` 배열이 가질 수 있는 최대 길이). */
+function vesselTreeDepth() {
+  const root = loadVesselTree().tree;
+  return root ? (function d(n) {
+    return 1 + Math.max(0, ...(n.children || []).map(d));
+  })(root) - 1 : 0;
+}
+
+/**
+ * `ctx.scope` 경로를 자산 트리로 따라 내려가 지금 노드를 잡는다.
+ * @param {Array<{axis:string,label:string}>} scope
+ * @returns {object|null} 경로가 자산과 안 맞으면 null(= 그 scope 는 무효)
+ */
+function vesselNodeAt(scope) {
+  let node = loadVesselTree().tree;
+  if (!node) return null;
+  for (const s of (scope || [])) {
+    const opt = (node.선택지 || []).find(o => o && o.label === s.label);
+    const child = opt && (node.children || []).find(c => c && c.id === opt.next);
+    if (!child || node.id !== s.axis) return null;
+    node = child;
+  }
+  return node;
+}
+
+/** `ctx.scope`가 자산에 실재하는 경로인가(변조 방어 — normalizeAskCtx에서 쓴다). */
+function vesselScopeValid(scope) {
+  return !scope.length || !!vesselNodeAt(scope);
+}
+
+/** 이 노드의 서브트리가 근거로 삼는 법령 이름 집합(서류·장비·보험·provenance 전부). */
+function vesselLawsOf(node) {
+  const out = new Set();
+  (function walk(n) {
+    if (!n) return;
+    for (const key of ['서류', '장비', '보험']) for (const e of (n[key] || [])) if (e && e.근거법령) out.add(e.근거법령);
+    for (const p of (n.provenance || [])) if (p && p.법령) out.add(p.법령);
+    for (const c of (n.children || [])) walk(c);
+  })(node);
+  return out;
+}
+
+/**
+ * 이 노드의 서브트리에서 **질문어를 찾을 대상 문자열** — 항목의 **이름 필드만** 모은다
+ * (§13 `zoneRuleHay`와 같은 성격이되 대상이 훨씬 좁다).
+ * ★인용·조건 원문까지 넣으면 안 된다(실측): 그 블록이 워낙 커서 '검사'·'허가' 같은 흔한 낱말이
+ *   세 분기 모두에 들어 있고, 그러면 배 종류와 아무 상관없는 질문(농산물 검사수수료·해적 보험)까지
+ *   전부 "분기마다 다르다"고 잡힌다 — 표본 800건 발화율 17.1%(전문) → 1.6%(이름 필드).
+ *   ★"구명조끼 몇 개 필요해요?"는 이름 필드만으로도 세 분기에 전부 걸린다(설계 §5.6 시나리오 보존).
+ * ★F(`inspection_cycle_table.json`)의 검사종류·증서 이름도 더한다(설계 §14) — "안전검사 안 받으면
+ *   어떻게 되나요?" 같은 질문은 D(서류·장비·보험 이름)엔 안 걸리지만 F엔 "안전검사"가 리터럴로
+ *   있다. `대상_트리노드`가 이 노드 id와 같은 항목만 더하고, `검사군`의 끝에 붙은 법령명 괄호는
+ *   반드시 뗀다 — 안 떼면 검사와 무관한데 법 이름만 겹치는 질문이 오발화한다(실측 3건, 예: "국제
+ *   항해선박 해적피해예방법 … 벌칙" ← `국제항해선박`이 선박보안심사 검사군에 들어 있었음).
+ * @param {object} node @returns {string}
+ * [연계] ← scopeNarrowStep(발화 판정 ⓑ). ← loadInspectionTable(F).
+ */
+function vesselHayOf(node) {
+  const parts = [];
+  const insp = loadInspectionTable();
+  (function walk(n) {
+    if (!n) return;
+    for (const e of (n.서류 || [])) parts.push(e.서류명 || '');
+    for (const e of (n.장비 || [])) parts.push(e.장비명 || '');
+    for (const e of (n.보험 || [])) parts.push(e.보험명 || e.종류 || e.보험종류 || '');
+    for (const c of (insp.검사종류 || [])) {
+      if (c.대상_트리노드 !== n.id) continue;
+      parts.push(c.검사종류 || '');
+      parts.push(String(c.검사군 || '').replace(/\s*\([^)]*\)\s*$/, ''));
+      if (c.증서id) parts.push(insp._certById.get(c.증서id) || '');
+    }
+    for (const c of (n.children || [])) walk(c);
+  })(node);
+  return parts.filter(Boolean).join(' ');
+}
+
+/**
+ * ★②상황질문 — 검색 결과가 여러 갈래(선박 종류)에 걸칠 때, **법 이름이 아니라 상황**을 묻는다.
+ * 발화 조건(전부 결정론적 — AI 호출 0회):
+ *  ⓐ 지금 노드에 `질문`+`선택지`가 2개 이상 있다(자산이 정한 갈림길).
+ *  ⓑ ★**질문이 지목한 말이 서로 다른 분기 2개 이상의 항목에 실제로 있다** — `termsOf()`로 원 질문을
+ *     토큰화해 각 분기의 항목 본문(`vesselHayOf`)과 대조한다(§13·§14가 쓰는 바로 그 방법의 재사용).
+ *  ⓒ 검색 상위 SCOPE_TOPK건 중 1위 대비 SCOPE_SCORE_RATIO 이상인 "접전" 후보의 법이 **서로 다른
+ *     선택지 2개 이상**을 가리킨다(설계 §5.3 R2). 두 개 이상의 선택지가 함께 쓰는 법은 **변별력이
+ *     0이라 세지 않는다** — "각 선택지에 매핑된 법 집합이 서로 겹치지 않을 때"를 이렇게 구현했다.
+ *  ⓓ 질문이 이미 그 갈래를 말했으면(라벨이 질의에 문자 그대로 있으면) 묻지 않는다 —
+ *     `decideClarify:763`·`zoneTreeStep`의 "같은 조건 재질문 차단"과 같은 결정론적 장치.
+ * 하나라도 아니면 null → 호출부는 기존 흐름(되묻기 판단 → 답변) 그대로.
+ * ★ⓑ를 설계(§5.3 R2)에 **추가**한 이유(실측): ⓒ만으로는 감사 문항 표본 800건에서 발화율이
+ *   8.6~36.9%였고, 표본을 읽어 보니 대부분 *"검색이 두 계열의 법을 함께 물어왔을 뿐, 답이 배 종류에
+ *   따라 갈리지는 않는"* 질문이었다(예: "해적한테 짐 뺏기면 보험으로 다 돌려받아요?"). 상황질문은
+ *   답이 실제로 갈릴 때만 물어야 한다(L-84 "물어보지 않은 것에 답하지 않는다"의 역방향 — 물을
+ *   자격이 없으면 묻지도 않는다). ⓑ를 더한 뒤 같은 표본에서 발화율은 §5.3 표 참조.
+ * ★깊이 상한을 인위로 두지 않는다 — 자산 트리 깊이가 곧 유한한 상한이다(설계 §5.4).
+ * 예: scopeNarrowStep('구명조끼 몇 개 필요해요?', [], sources, true)
+ *     → {clarify:{question:'어떤 배에 관한 것인가요?', options:[어선/수상레저기구/그 밖의 선박]}}
+ * @param {string} query - 사용자 질문(이 함수는 질의를 **고치지 않는다**)
+ * @param {Array<{axis:string,label:string}>} scope - ctx.scope(이미 고른 갈래)
+ * @param {Array<{law:string,score:number}>} sources - search()의 sources
+ * @param {boolean} enabled - nariya_config.scopeNarrow
+ * @returns {null|{answer:string,note:string,clarify:object,confirmKind:string}}
+ * [연계] ← routes/legal.js(zoneTreeStep이 null이고 search() 직후). → ai_chat.js clarifyHTML.
+ */
+function scopeNarrowStep(query, scope, sources, enabled) {
+  try {
+    if (!enabled) return null;
+    const node = vesselNodeAt(scope || []);
+    if (!node || !node.질문) return null;
+    const opts = (node.선택지 || []).filter(o => o && o.label).slice(0, CLARIFY_OPTION_MAX);
+    if (opts.length < 2) return null;
+    const q0 = String(query || '').split(CLARIFY_JOINER)[0];
+    const kids = opts.map(o => (node.children || []).find(c => c && c.id === o.next) || null);
+    if (kids.some(c => !c)) return null;
+    if (opts.some(o => q0.includes(o.label))) return null;                       // ⓓ 이미 말했다
+
+    // ⓑ 질문이 지목한 말이 서로 다른 분기 2개 이상의 항목에 실제로 있는가.
+    //   ★두 글자 토큰은 뺀다(실측 발화율 7.9% → 1.6%) — '보험'·'검사'처럼 어디에나 있는 낱말이
+    //     세 분기에 다 걸려 배 종류와 무관한 질문까지 잡는다. 세 글자면 '소화기'·'구명줄'은 남는다.
+    const terms = termsOf(q0).filter(t => t.length >= SCOPE_TERM_MIN);
+    if (!terms.length) return null;
+    const hays = kids.map(vesselHayOf);
+    const said = new Set();
+    hays.forEach((h, i) => { if (terms.some(t => h.includes(t))) said.add(i); });
+    if (said.size < 2) return null;
+
+    // ⓒ 검색 결과의 분포(설계 §5.3 R2): 상위 접전 후보가 **서로 다른 법 2개 이상**이어야 하고,
+    //    그 후보들이 **이미 한 갈래로 확정돼 있으면 묻지 않는다**.
+    const list = (sources || []).filter(s => s && s.law);
+    if (!list.length) return null;
+    const top = list[0].score || 0;
+    const laws = new Set(list.slice(0, SCOPE_TOPK)
+      .filter(s => !top || (s.score || 0) >= top * SCOPE_SCORE_RATIO).map(s => s.law));
+    if (laws.size < 2) return null;
+    // 각 법이 어느 선택지에 속하는지 — 두 곳 이상에 속하는 법(-1)은 변별력이 없다.
+    const owner = new Map();
+    kids.forEach((child, i) => {
+      for (const law of vesselLawsOf(child)) owner.set(law, owner.has(law) ? -1 : i);
+    });
+    const pinned = new Set(); let unknown = 0;
+    for (const law of laws) { const i = owner.get(law); if (i >= 0) pinned.add(i); else if (i === undefined) unknown++; }
+    if (pinned.size === 1 && !unknown) return null;   // 검색이 이미 한 갈래를 지목했다 → 물을 게 없다
+
+    const scopeNext = (scope || []).concat();
+    return {
+      answer: (scope && scope.length) ? '조금만 더 좁혀 볼게요.' : '어느 쪽인지에 따라 답이 갈려서, 하나만 여쭤볼게요.',
+      note: SCOPE_NOTE,
+      confirmKind: 'scope',
+      clarify: {
+        question: clarifyStr(node.질문, 200),
+        options: opts.map(o => ({
+          label: clarifyStr(o.label, 40), hint: clarifyStr(o.hint, 120),
+          ctx: { scope: scopeNext.concat([{ axis: node.id, label: o.label }]) },
+        })),
+      },
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * ★③프로필 확인 — 저장된 프로필이 이 되묻기의 축을 이미 알고 있으면, 되묻는 대신 **그 조건으로
+ * 답해도 되는지**를 먼저 확인한다(사용자 확정 (아)). 새 판단기를 만들지 않고 **되묻기 결과를
+ * 가로채는 후처리**라, `decideClarify()`(위키)와 `clarifyFromZoneTree()`(트리)의 반환 스키마가
+ * 같아서 **양쪽 경로에 같은 함수 하나로** 걸린다(사용자 확정 (차), 설계 §7.5).
+ * ★확인은 **축(조건) 단위**다(사용자 확정 (자) *"3번은 따로 확인해야해"*) — 한 번의 "네"가 그
+ *   질문의 다른 미확정 조건까지 확정시키지 않는다. 그래서 반환값이 축 하나에 대한 결정뿐이다.
+ * ★일치 판정은 **완전일치/포함만** 쓴다(의미 유사도·AI 판정 금지) — 오탐이 나면 *사용자가 말하지
+ *   않은 조건으로 답이 확정된다*(되돌릴 수 없는 방향의 오류).
+ * 반환 mode:
+ *   'as-is'   기존 되묻기를 그대로 낸다(프로필이 모르는 축이거나, 이번엔 프로필을 쓰지 말라고 했다)
+ *   'confirm' 되묻기를 **확인 카드로 치환**한다(step)
+ *   'drop'    이미 "네"로 확정한 축을 또 묻고 있다 → 그 되묻기를 버리고 답변으로 간다(§9.1 #21 백스톱)
+ * 예: profileConfirmStep({needed:true,options:[{label:'낚시어선'},{label:'일반어선'}]},
+ *       {fields:{선박용도:{v:'낚시어선',at:'2026-07-30T09:04:00+09:00'}}}, {decided:[]}, true)
+ *     → {mode:'confirm', step:{clarify:{question:'저장된 정보로는 **낚시어선**이신 것 같아요(2026-07-30 저장). …'}}}
+ * @param {{needed:boolean,options?:Array<{label:string}>}} clarify - decideClarify/clarifyFromZoneTree 결과
+ * @param {object} profile - normalizeProfile()의 결과
+ * @param {{decided:Array}} prof - normalizeAskCtx().prof
+ * @param {boolean} enabled - nariya_config.profileConfirm
+ * @returns {{mode:'as-is'}|{mode:'drop'}|{mode:'confirm', step:object}}
+ * [연계] ← routes/legal.js(위키 되묻기·트리 되묻기 **양쪽**). → ai_chat.js clarifyHTML.
+ */
+function profileConfirmStep(clarify, profile, prof, enabled) {
+  const asIs = { mode: 'as-is' };
+  try {
+    if (!enabled || !clarify || !clarify.needed) return asIs;
+    const fields = (profile && profile.fields) || {};
+    const options = (clarify.options || []).filter(o => o && o.label);
+    if (!options.length) return asIs;
+    // 축 판정: 프로필 값이 선택지 라벨과 **완전일치**하는 필드.
+    // ★2026-08-14(적대검증 F4) 부분일치(포함)를 걷어냈다 — 실사용 값으로 오탐이 재현됐다:
+    //   야간조업 "예" × 선택지 '예인선·부선' / 선박용도 "일반" × 선택지 '일반해역'.
+    //   둘 다 *사용자가 말하지 않은 조건으로 답이 확정되는* 방향의 오류라(되돌릴 수 없다) 최소
+    //   길이 제한으로는 부족하다("일반"은 2자인데도 '일반해역'에 걸린다).
+    //   ⚠대가(정직 기록): 값이 라벨과 글자까지 같아야 하므로 톤수·길이처럼 자유 입력 축은 사실상
+    //     발동하지 않는다. 안 물어보는 쪽이 아니라 **평소대로 되묻는 쪽**으로 물러나는 것이라 안전하다.
+    let axis = null, value = null;
+    for (const k of PROFILE_FIELDS) {
+      const v = fields[k] && fields[k].v;
+      if (!v) continue;
+      if (options.some(o => o.label === v)) { axis = k; value = v; break; }
+    }
+    if (!axis) return asIs;
+    const decided = ((prof && prof.decided) || []).find(d => d.axis === axis);
+    if (decided && decided.use === 'rejected') return asIs;       // 이번엔 프로필 무시
+    if (decided && decided.use === 'accepted') return { mode: 'drop' };  // 확정한 축을 또 묻는다 → 폐기
+    const at = String((fields[axis] || {}).at || '').slice(0, 10);
+    const keep = ((prof && prof.decided) || []).map(d => ({ axis: d.axis, label: d.label, use: d.use }));
+    return {
+      mode: 'confirm',
+      step: {
+        answer: '저장해두신 정보가 있어서 먼저 확인할게요.',
+        note: PROFILE_NOTE,
+        confirmKind: 'profile',
+        clarify: {
+          // ⚠`**굵게**`를 쓰지 않는다 — 되묻기 질문은 클라이언트가 `esc()`로만 그린다(answerBodyHTML을
+          //   안 거친다) 라 별표가 화면에 그대로 찍힌다(설계 §7.4.2 예시 문구 대비 변경점, 사람 정독에서 발견).
+          question: `저장된 정보로는 "${value}"이신 것 같아요${at ? `(${at} 저장)` : ''}. 이 조건으로 답변드릴까요?`,
+          options: [
+            { label: PROFILE_YES, hint: '저장된 조건으로 답변을 만들어 드려요',
+              ctx: { prof: { decided: keep.concat([{ axis, label: value, use: 'accepted' }]) } } },
+            { label: PROFILE_NO, hint: '이번 질문에서만 저장된 정보를 쓰지 않아요(저장된 정보는 그대로 둡니다)',
+              ctx: { prof: { decided: keep.concat([{ axis, label: value, use: 'rejected' }]) } } },
+          ],
+        },
+      },
+    };
+  } catch (_) {
+    return asIs;
+  }
+}
+
+/**
+ * 3회 백스톱으로 "추정해서 답한다"가 된 답변 맨 앞에 고정 고지문을 붙인다(§4.4).
+ * @param {string} answer @param {boolean} assumed
+ * @returns {string} assumed 가 아니면 answer 그대로(바이트 동일)
+ * [연계] ← routes/legal.js(스트림 선두 delta · 2차 조회 답변 · 트리 답변).
+ */
+function withAssumedNotice(answer, assumed) {
+  if (!assumed || !answer) return answer;
+  return ASSUMED_NOTICE + '\n\n' + answer;
+}
+
+module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+  // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
+  PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
+  restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
+  normalizeAskCtx, ctxNextOf, normalizeProfile,
+  profileAcceptedLabels, zoneQueryWithProfile, understandConfirmStep, scopeNarrowStep,
+  profileConfirmStep, withAssumedNotice, loadVesselTree, vesselNodeAt, vesselTreeDepth };

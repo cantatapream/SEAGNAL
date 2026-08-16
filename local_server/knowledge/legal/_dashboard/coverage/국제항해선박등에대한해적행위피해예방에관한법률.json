@@ -31,21 +31,6 @@
  "hang_gap_candidates": {
   "법률": [
    {
-    "article": "16조",
-    "raw_hang": 9,
-    "missing": [
-     "⑧",
-     "⑨"
-    ]
-   },
-   {
-    "article": "6조",
-    "raw_hang": 5,
-    "missing": [
-     "⑤"
-    ]
-   },
-   {
     "article": "12조의2",
     "raw_hang": 6,
     "missing": [
@@ -57,6 +42,13 @@
     "raw_hang": 5,
     "missing": [
      "⑤"
+    ]
+   },
+   {
+    "article": "16조",
+    "raw_hang": 9,
+    "missing": [
+     "⑨"
     ]
    }
   ],
@@ -99,15 +91,6 @@
     ]
    },
    {
-    "article": "14조",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
     "article": "6조",
     "raw_hang": 4,
     "missing": [
@@ -118,6 +101,14 @@
    {
     "article": "13조",
     "raw_hang": 2,
+    "missing": [
+     "①",
+     "②"
+    ]
+   },
+   {
+    "article": "14조",
+    "raw_hang": 3,
     "missing": [
      "①",
      "②"
@@ -158,7 +149,7 @@
     "article": "11조",
     "raw_hang": 6,
     "missing": [
-     "⑥"
+     "④"
     ]
    },
    {

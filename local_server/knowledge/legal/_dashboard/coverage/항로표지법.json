@@ -2,8 +2,8 @@
  "law": "항로표지법",
  "slug": "항로표지법",
  "total_raw_articles": 135,
- "total_uncited": 18,
- "coverage_pct": 86.7,
+ "total_uncited": 13,
+ "coverage_pct": 90.4,
  "per_family": {
   "법률": {
    "raw_count": 61,
@@ -15,7 +15,7 @@
   },
   "시행규칙": {
    "raw_count": 45,
-   "uncited_count": 15
+   "uncited_count": 10
   }
  },
  "uncited_articles": {
@@ -28,45 +28,18 @@
   "시행규칙": [
    "1조",
    "6조",
-   "8조",
    "9조",
-   "12조",
    "23조",
-   "26조",
-   "27조",
    "32조",
    "33조",
    "34조",
    "36조",
    "38조",
-   "41조",
    "42조"
   ]
  },
  "hang_gap_candidates": {
   "법률": [
-   {
-    "article": "15조",
-    "raw_hang": 5,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④",
-     "⑤"
-    ]
-   },
-   {
-    "article": "39조",
-    "raw_hang": 7,
-    "missing": [
-     "③",
-     "④",
-     "⑤",
-     "⑥",
-     "⑦"
-    ]
-   },
    {
     "article": "24조",
     "raw_hang": 6,
@@ -75,16 +48,6 @@
      "④",
      "⑤",
      "⑥"
-    ]
-   },
-   {
-    "article": "37조",
-    "raw_hang": 4,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④"
     ]
    },
    {
@@ -106,29 +69,12 @@
     ]
    },
    {
-    "article": "43조의2",
-    "raw_hang": 3,
-    "missing": [
-     "①",
-     "②",
-     "③"
-    ]
-   },
-   {
     "article": "52조의2",
     "raw_hang": 3,
     "missing": [
      "①",
      "②",
      "③"
-    ]
-   },
-   {
-    "article": "12조",
-    "raw_hang": 2,
-    "missing": [
-     "①",
-     "②"
     ]
    },
    {
@@ -152,6 +98,13 @@
     "raw_hang": 4,
     "missing": [
      "④"
+    ]
+   },
+   {
+    "article": "15조",
+    "raw_hang": 5,
+    "missing": [
+     "⑤"
     ]
    },
    {
@@ -183,10 +136,17 @@
     ]
    },
    {
-    "article": "38조",
-    "raw_hang": 3,
+    "article": "39조",
+    "raw_hang": 7,
     "missing": [
      "③"
+    ]
+   },
+   {
+    "article": "43조의2",
+    "raw_hang": 3,
+    "missing": [
+     "①"
     ]
    },
    {
@@ -250,18 +210,6 @@
   ],
   "시행규칙": [
    {
-    "article": "40조",
-    "raw_hang": 6,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④",
-     "⑤",
-     "⑥"
-    ]
-   },
-   {
     "article": "18조",
     "raw_hang": 5,
     "missing": [
@@ -318,12 +266,12 @@
     ]
    },
    {
-    "article": "30조",
-    "raw_hang": 3,
+    "article": "40조",
+    "raw_hang": 6,
     "missing": [
      "①",
-     "②",
-     "③"
+     "④",
+     "⑤"
     ]
    },
    {
@@ -359,11 +307,11 @@
     ]
    },
    {
-    "article": "28조",
-    "raw_hang": 4,
+    "article": "30조",
+    "raw_hang": 3,
     "missing": [
-     "③",
-     "④"
+     "②",
+     "③"
     ]
    },
    {
@@ -383,13 +331,6 @@
     ]
    },
    {
-    "article": "2조",
-    "raw_hang": 2,
-    "missing": [
-     "②"
-    ]
-   },
-   {
     "article": "3조",
     "raw_hang": 5,
     "missing": [
@@ -401,6 +342,13 @@
     "raw_hang": 5,
     "missing": [
      "⑤"
+    ]
+   },
+   {
+    "article": "28조",
+    "raw_hang": 4,
+    "missing": [
+     "③"
     ]
    },
    {

@@ -42,29 +42,11 @@
   ],
   "시행령": [
    {
-    "article": "11조의3",
-    "raw_hang": 4,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④"
-    ]
-   },
-   {
     "article": "4조",
     "raw_hang": 2,
     "missing": [
      "①",
      "②"
-    ]
-   },
-   {
-    "article": "7조",
-    "raw_hang": 5,
-    "missing": [
-     "③",
-     "⑤"
     ]
    },
    {
@@ -80,6 +62,13 @@
     "raw_hang": 3,
     "missing": [
      "③"
+    ]
+   },
+   {
+    "article": "11조의3",
+    "raw_hang": 4,
+    "missing": [
+     "①"
     ]
    },
    {

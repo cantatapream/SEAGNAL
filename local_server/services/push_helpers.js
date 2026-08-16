@@ -611,6 +611,93 @@ function _stripParentPrefix(parent, child) {
  * @returns {string}           — `(연안바다 포함)` / `(가파도연안바다만 해제)` 등.
  *                                 한정사가 필요 없으면 '' 반환.
  */
+/** 시각 문자열에서 YYYYMMDD 8자리만 추출 (형식 혼재 흡수). 못 뽑으면 ''. */
+function _ymdOf(timeStr) {
+    const digits = String(timeStr || '').replace(/[^0-9]/g, '');
+    return digits.length >= 8 ? digits.slice(0, 8) : '';
+}
+
+/** 범위형·시간대명 표기인가 (= 정확한 단일 시각이 아닌가). */
+function _isRangeLike(timeStr) {
+    const s = String(timeStr || '');
+    return s.indexOf('~') !== -1 || s.indexOf('∼') !== -1 || s.indexOf('(') !== -1
+        || /(오전|오후|새벽|밤|저녁|아침|낮)/.test(s);
+}
+
+/** 정확한 단일 시각이면 YYYYMMDDHHmm(12자리) 키, 아니면 ''(범위형·불완전). */
+function _exactKeyOf(timeStr) {
+    if (_isRangeLike(timeStr)) return '';
+    const digits = String(timeStr || '').replace(/[^0-9]/g, '');
+    return digits.length >= 12 ? digits.slice(0, 12) : '';
+}
+
+/**
+ * [§7.7.26] "이번 특보에 해당하는 자식"만 남긴다.
+ *
+ * childState.active 는 "그 부모 아래 스냅샷에 존재하는 자식 전부"라, 이번 특보와 무관한
+ * 자식(다른 날 발효 예정인 예비 등)까지 들어있다. 그대로 세면 "모든 … 포함" 같은 거짓
+ * 단정이 나간다(2026-08-08 경북남부앞바다 실사고 — 8/9 예비인 평수구역을 8/8 주의보
+ * 발효 알림에 "포함"으로 집계).
+ *
+ * 두 가지로 거른다 — 둘 다 "명백할 때만" 빼는 보수적 판정이다.
+ *   ① 발효 계열 알림(tmYn 계열 = 이미 효력 발생)에서 아직 '예비'인 자식은 제외.
+ *      발효되지 않은 자식을 "발효 포함"으로 세지 않는다.
+ *   ② 자식 발효시각의 *날짜*가 부모와 다르면 제외 — 별개 특보다.
+ *      같은 날 안의 시각 차이는 거르지 않는다(과대 제외 방지).
+ *
+ * meta 가 없으면(구 스냅샷·S-matrix 시뮬 경로) 종전과 100% 동일하게 전량 집계한다.
+ *
+ * @param {Object} safe       childState (meta/parentEfUpcoming/parentEfActive 포함 가능)
+ * @param {string[]} active   현재 자식 fullName 배열
+ * @param {string} eventType  이벤트 종류 (TIME_KEY_BY_EVENT 로 예비/발효 단계 판정)
+ * @returns {string[]}        이번 특보에 해당하는 자식만
+ */
+function _relevantChildren(safe, active, eventType) {
+    const meta = safe && safe.meta;
+    if (!meta || typeof meta !== 'object') return active;   // 하위호환 — 종전 동작
+    // TIME_KEY_BY_EVENT 단일 출처: tmEf 계열 = 아직 효력 전(예비/발표), tmYn 계열 = 이미 효력 발생.
+    const isUpcomingStage = TIME_KEY_BY_EVENT[eventType] === 'tmEf';
+    const parentEf = isUpcomingStage
+        ? (safe.parentEfUpcoming || safe.parentEfActive || '')
+        : (safe.parentEfActive || safe.parentEfUpcoming || '');
+    const parentYmd = _ymdOf(parentEf);
+    // 1단계 — ①등급 + ②날짜. 둘 다 "명백한" 판정이라 결과가 비어도 그대로 쓴다
+    //   (전원 제외 = "이번 특보엔 자식 없음" 이 사실이므로 "미발표/미발효" 단정이 옳다).
+    const coarse = active.filter((cn) => {
+        const m = meta[cn];
+        if (!m) return true;                                  // 메타 없는 자식 → 종전대로 포함
+        // [C1] MMIS 가 실제로 주지 않은 자식(디바운스 carry 등 스냅샷 잔존분)은 집계 제외.
+        //   meta.live 가 없는 구 스냅샷은 undefined → 검사 건너뜀(하위호환).
+        if (m.live === false) return false;
+        if (!isUpcomingStage && m.lvl === '예비') return false;   // ② 발효 알림 + 예비 자식
+        // [2026-08-09] ②·②' 는 **예비 자식에만** 적용한다.
+        //   이미 발효중인 자식은 "지금 효력이 있다"는 사실 자체가 이번 특보 소속의 근거이고,
+        //   그 tmEf 는 과거값이라 소속 판정의 근거가 못 된다. 실제로 MMIS 는 발효중 자식에
+        //   낡은 tmEf 를 주기도 한다 — 경북북부앞바다중연안바다 실측(8/8 발효중인데 tmEf=5/21,
+        //   MMIS 원본 확인). 이걸 날짜 규칙에 태우면 "(연안바다 미발효)" 라는 거짓 단정이 나간다.
+        if (m.lvl !== '예비') return true;
+        const childYmd = _ymdOf(m.tmEf);
+        if (parentYmd && childYmd && childYmd !== parentYmd) return false;   // ② 다른 날 = 별개 특보
+        return true;
+    });
+    // 2단계 — ②' 같은 날 안의 시각 대조. **양쪽 모두 정확시각일 때만** 적용한다.
+    //   한쪽이라도 범위형이면(같은 특보인데 부모=정확·자식=범위 인 경우가 흔하다) 건너뛴다 —
+    //   문자열이 달라 멀쩡한 자식을 지우는 오제외를 막기 위함.
+    const parentExact = _exactKeyOf(parentEf);
+    if (!parentExact) return coarse;
+    const fine = coarse.filter((cn) => {
+        const m = meta[cn];
+        if (!m) return true;
+        if (m.lvl !== '예비') return true;                     // 발효중 자식은 시각 대조 비대상(위 ②와 동일 사유)
+        const childExact = _exactKeyOf(m.tmEf);
+        if (!childExact) return true;                         // 자식이 범위형 → 날짜 판정에 맡김
+        return childExact === parentExact;
+    });
+    // 시각 대조만으로 전원이 빠지면 판정을 신뢰하지 않는다 — 거짓 "미발표/미발효" 단정 방지.
+    //   (①②로 이미 걸러진 게 아니라 미세 시각차로만 비었다는 뜻이므로 1단계 결과로 되돌린다.)
+    return fine.length > 0 ? fine : coarse;
+}
+
 function buildChildQualifier(parent, childState, eventType) {
     try {
         const ptype = PARENT_CHILD_TYPE[parent];
@@ -621,7 +708,9 @@ function buildChildQualifier(parent, childState, eventType) {
         const label = TYPE_LABEL[ptype] || '연안바다';
         const safe = childState || {};
         const all = Array.isArray(safe.all) ? safe.all : [];
-        const active = Array.isArray(safe.active) ? safe.active : [];
+        // [§7.7.26] 스냅샷의 자식 전부가 아니라 "이번 특보에 해당하는 자식"만 집계한다.
+        //   meta 미동봉 경로는 _relevantChildren 이 원본을 그대로 돌려주어 종전 동작 유지.
+        const active = _relevantChildren(safe, Array.isArray(safe.active) ? safe.active : [], eventType);
         const added = Array.isArray(safe.added) ? safe.added : [];
         const released = Array.isArray(safe.released) ? safe.released : [];
 
@@ -1115,6 +1204,7 @@ module.exports = {
     TIME_LABEL_BY_EVENT,
     TIME_KEY_BY_EVENT,
     buildChildQualifier,
+    _relevantChildren,   // §7.7.26 테스트 노출 (자식 정합 필터)
     buildAdminTitle,
     buildSplitPushes,
     fmtTime,

@@ -28,22 +28,5 @@
    "1조"
   ]
  },
- "hang_gap_candidates": {
-  "법률": [
-   {
-    "article": "7조의2",
-    "raw_hang": 5,
-    "missing": [
-     "⑤"
-    ]
-   },
-   {
-    "article": "14조",
-    "raw_hang": 6,
-    "missing": [
-     "⑥"
-    ]
-   }
-  ]
- }
+ "hang_gap_candidates": {}
 }

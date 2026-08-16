@@ -19,6 +19,7 @@
     "capacitor-plugins.js",
     "config.js",
     "mappings.js",
+    "accident_codes.js",
     "utils.js",
     "data.js",
     "zone_avg.js",
@@ -53,6 +54,7 @@
     "mudflat.js",
     "scuba.js",
     "ripcurrent.js",
+    "swimming.js",
     "ocean_map.js",
     "ocean_markers.js",
     "ocean_bottom_sheet1.js",
@@ -109,6 +111,12 @@
     "ai_chat.js",
     "index2_patch.js",
     "hazard_rocks.js",
+    "access_control.js",
+    "fishing_ban.js",
+    "vts_zone.js",
+    "seaway.js",
+    "navigational_warning.js",
+    "accident_info.js",
     "life_safety.js"
   ]
 }

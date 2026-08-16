@@ -190,6 +190,26 @@
 .nrya-console .nrya-correct-hint{font-size:10.5px; color:#69f0ae; margin-top:7px}
 .nrya-console .nrya-src-line{font-size:11px; color:var(--nrya-text-sub); margin:9px 0 12px; line-height:1.5}
 .nrya-console .nrya-src-line a{color:#8bb6ff; text-decoration:none}
+/* §6-D 신형 리뷰 필드(2026-08-06): "볼 법(N)" 카드·"확인 체크리스트" 번호목록·확인결과 입력란·AI 재검토 결과 */
+.nrya-console .nrya-rv-lawblock{border:1px solid var(--nrya-border); border-radius:9px; padding:10px 11px; margin-bottom:8px; background:rgba(255,255,255,.02)}
+.nrya-console .nrya-rv-lawblock:last-child{margin-bottom:0}
+.nrya-console .nrya-rv-lawhead{font-size:13px; font-weight:700; color:#fff; margin-bottom:4px}
+.nrya-console .nrya-rv-lawgist{font-size:12px; color:#c3ccdc; line-height:1.5; margin-bottom:7px}
+.nrya-console .nrya-rv-checklist{margin:0; padding-left:20px; font-size:12.5px; color:#dfe7f5; line-height:1.7}
+.nrya-console .nrya-rv-checklist li{margin-bottom:4px}
+.nrya-console .nrya-findings{background:rgba(68,138,255,.07); border:1px solid rgba(68,138,255,.28); border-radius:9px; padding:11px; margin:0 0 11px}
+.nrya-console .nrya-findings-q{font-size:12px; color:#cdd8ee; line-height:1.55; margin-bottom:9px}
+.nrya-console .nrya-findings-q b{color:#ffe082}
+.nrya-console .nrya-findings-in{width:100%; min-height:64px; resize:vertical; background:#0e1524; border:1.5px solid var(--nrya-accent-blue); border-radius:8px; padding:9px 11px; color:#fff; font-family:var(--nrya-font); font-size:12.5px; line-height:1.6; outline:none}
+.nrya-console .nrya-findings-in:focus{border-color:#69f0ae; box-shadow:0 0 0 3px rgba(105,240,174,.15)}
+.nrya-console .nrya-findings-in::placeholder{color:#5b6b86}
+.nrya-console .nrya-ai-verdict{border-radius:9px; padding:10px 11px; margin:0 0 11px}
+.nrya-console .nrya-ai-verdict.nrya-verdict-mismatch{background:rgba(255,82,82,.09); border:1px solid rgba(255,82,82,.3)}
+.nrya-console .nrya-ai-verdict.nrya-verdict-uncertain{background:rgba(255,215,64,.09); border:1px solid rgba(255,215,64,.3)}
+.nrya-console .nrya-verdict-lab{font-size:11px; font-weight:700; margin-bottom:5px}
+.nrya-console .nrya-ai-verdict.nrya-verdict-mismatch .nrya-verdict-lab{color:#ff8a8a}
+.nrya-console .nrya-ai-verdict.nrya-verdict-uncertain .nrya-verdict-lab{color:#ffd740}
+.nrya-console .nrya-verdict-msg{font-size:12.5px; color:#dfe7f5; line-height:1.55}
 .nrya-console .nrya-rv-actions{display:flex; gap:8px}
 .nrya-console .nrya-rv-actions button{flex:1; border:none; border-radius:8px; font-family:inherit; font-weight:700; font-size:13px; padding:10px 0; cursor:pointer}
 .nrya-console .nrya-rv-actions button:disabled{opacity:.55; cursor:default}
@@ -232,22 +252,37 @@
 #nrya-overlays .nrya-ava.nrya-think{animation:nrya-charPulse 1.1s ease-in-out infinite}
 @keyframes nrya-charPulse{0%,100%{transform:scale(.92)}50%{transform:scale(1.07)}}
 
-/* 채팅 팝업: 화면 사방에 여백을 둔 플로팅 카드(바텀시트 아님) · scale+fade 등장 */
+/* 채팅 팝업: 화면 사방에 여백을 둔 플로팅 카드(바텀시트 아님) · scale+fade 등장.
+   여백(위아래 28px · 좌우 24px)은 뒤의 앱이 한 뼘 비치게 해 "덮어버린 느낌"을 없애고,
+   위쪽은 휴대폰 상태바를 침범하지 않을 만큼 띄운 값이다. ⚠ 위아래 값은 fitChat()
+   (ai_chat.js)의 margin 과 같아야 한다 — 열릴 때 그쪽이 top/height 를 다시 계산한다. */
 #nrya-overlays .nrya-chat-wrap{position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.55); opacity:0; visibility:hidden; transition:opacity .2s ease}
 #nrya-overlays .nrya-chat-wrap.nrya-open{opacity:1; visibility:visible}
-#nrya-overlays .nrya-chat{position:fixed; left:50%; top:12px; transform:translateX(-50%) scale(.96); width:min(600px, calc(100vw - 24px)); height:calc(100vh - 24px); background:#0e1524; border-radius:20px; box-shadow:0 18px 60px rgba(0,0,0,.6); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--nrya-border); opacity:0; transition:transform .2s ease, opacity .2s ease}
+#nrya-overlays .nrya-chat{position:fixed; left:50%; top:28px; transform:translateX(-50%) scale(.96); width:min(600px, calc(100vw - 48px)); height:calc(100vh - 56px); background:#0e1524; border-radius:20px; box-shadow:0 18px 60px rgba(0,0,0,.6); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--nrya-border); opacity:0; transition:transform .2s ease, opacity .2s ease}
 #nrya-overlays .nrya-chat-wrap.nrya-open .nrya-chat{transform:translateX(-50%) scale(1); opacity:1}
 #nrya-overlays .nrya-chat-top{display:flex; align-items:center; gap:11px; padding:13px 15px; background:rgba(15,20,35,.9); border-bottom:1px solid var(--nrya-border)}
 #nrya-overlays .nrya-chat-name{font-size:14.5px; font-weight:700; color:#fff}
-#nrya-overlays .nrya-chat-on{font-size:11px; color:#69f0ae; margin-top:1px; display:flex; align-items:center; gap:4px}
-#nrya-overlays .nrya-chat-on::before{content:"";width:6px;height:6px;border-radius:50%;background:#69f0ae}
-#nrya-overlays .nrya-chat-x{margin-left:auto; background:none; border:none; color:var(--nrya-text-sub); font-size:22px; cursor:pointer; line-height:1}
+#nrya-overlays .nrya-chat-acts{margin-left:auto; display:flex; align-items:center; gap:4px}
+#nrya-overlays .nrya-chat-x{background:none; border:none; color:var(--nrya-text-sub); font-size:22px; cursor:pointer; line-height:1; padding:0 3px}
+#nrya-overlays .nrya-chat-hist{font-size:16px}
+#nrya-overlays .nrya-chat-back{font-size:26px}
 #nrya-overlays .nrya-chat-body{flex:1; overflow-y:auto; padding:14px 12px; display:flex; flex-direction:column; gap:11px; background:#1c2a38}
+
+/* 대화 기록 목록(헤더 🕘) — 대화 영역과 같은 자리를 번갈아 차지한다(열리면 대화 영역은 숨김).
+   날짜 머리글로 묶고, 한 줄에 질문(길면 말줄임)과 상대 시각을 좌우로 둔다. */
+#nrya-overlays .nrya-hist{flex:1; overflow-y:auto; padding:10px 12px 14px; background:#1c2a38}
+#nrya-overlays .nrya-hist-day{font-size:11px; font-weight:700; color:#8fa6c0; letter-spacing:.02em; margin:12px 3px 6px}
+#nrya-overlays .nrya-hist-day:first-child{margin-top:2px}
+#nrya-overlays .nrya-hist-item{display:flex; align-items:center; gap:10px; width:100%; text-align:left; font-family:inherit; background:#33475b; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:11px 12px; margin-bottom:7px; cursor:pointer}
+#nrya-overlays .nrya-hist-item:active{background:#3c536a}
+#nrya-overlays .nrya-hist-q{flex:1; min-width:0; font-size:13px; color:#eef4fb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+#nrya-overlays .nrya-hist-t{flex:0 0 auto; font-size:10.5px; color:#93a4b9}
+#nrya-overlays .nrya-hist-empty{padding:34px 16px; text-align:center; font-size:12.5px; line-height:1.7; color:#93a4b9}
 /* AI 행: 아바타가 "나리야" 이름과 같은 높이(위)에 오도록 top 정렬 */
 #nrya-overlays .nrya-krow{display:flex; align-items:flex-start; gap:7px; max-width:100%}
 #nrya-overlays .nrya-krow.nrya-me{flex-direction:row-reverse; align-self:flex-end}
 #nrya-overlays .nrya-kava{width:36px;height:36px;flex:0 0 auto}
-#nrya-overlays .nrya-kcol{display:flex; flex-direction:column; max-width:76%}
+#nrya-overlays .nrya-kcol{display:flex; flex-direction:column; max-width:92%}
 #nrya-overlays .nrya-kwho{font-size:11.5px; color:#b8c6da; margin:0 0 4px 3px}
 #nrya-overlays .nrya-kbrow{display:flex; align-items:flex-end; gap:5px}
 #nrya-overlays .nrya-krow.nrya-me .nrya-kbrow{flex-direction:row-reverse}
@@ -255,7 +290,6 @@
 #nrya-overlays .nrya-kbub.nrya-ai{background:#33475b; color:#eef4fb}
 #nrya-overlays .nrya-kbub.nrya-ai b{color:#ffe14d}
 #nrya-overlays .nrya-krow.nrya-me .nrya-kbub{border-radius:16px 4px 16px 16px; background:#ffe14d; color:#231c00; font-weight:500}
-#nrya-overlays .nrya-ktime{font-size:9.5px; color:#8296ac; flex:0 0 auto; margin-bottom:2px; white-space:nowrap}
 #nrya-overlays .nrya-kbub .nrya-chips{display:flex; flex-wrap:wrap; gap:5px; margin-top:9px}
 #nrya-overlays .nrya-kbub .nrya-chip{font-size:10.5px; color:#a9c6ff; background:rgba(68,138,255,.16); border:1px solid rgba(68,138,255,.32); border-radius:12px; padding:2px 8px}
 #nrya-overlays .nrya-kbub .nrya-tel{margin-top:9px; font-size:11.5px; color:#8fe6bb}
@@ -270,6 +304,13 @@
 #nrya-overlays .nrya-lawacc.nrya-open .nrya-lawacc-b{display:block}
 #nrya-overlays .nrya-lawitem{background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09); border-radius:9px; padding:9px 11px; margin-top:7px}
 #nrya-overlays .nrya-lawitem .nrya-lw-t{font-size:11.8px; font-weight:700; color:#dbe7f6}
+
+/* ⚠공백 안내(수집곤란) — 시·군·구 개별고시처럼 우리가 원문을 가질 수 없는 사항.
+   일반 조문 칩과 확실히 구분되도록 주황 계열로 두고, 눌러야 위키 원문 문구가 펼쳐진다. */
+#nrya-overlays .nrya-gap{background:rgba(255,176,32,.10); border:1px solid rgba(255,176,32,.34); border-radius:9px; padding:9px 11px; margin-top:7px}
+#nrya-overlays .nrya-gap-t{font-size:11.8px; font-weight:700; color:#ffcc7a; cursor:pointer; user-select:none}
+#nrya-overlays .nrya-gap-b{display:none; margin-top:6px; font-size:11.2px; line-height:1.6; color:#e2d6c2}
+#nrya-overlays .nrya-gap.nrya-open .nrya-gap-b{display:block}
 
 /* 위임흐름 체인(법률→시행령→시행규칙→고시) — 왼쪽 레일(번호원+세로선)과 본문을 flex로 짝지어
    선이 그 조문 내용 끝까지 늘어나고(align-items:stretch), 원이 뱃지와 같은 높이라 중앙정렬된다.
@@ -286,16 +327,142 @@
 #nrya-overlays .nrya-chain-step[data-tier="rule"] .nrya-chain-dot,#nrya-overlays .nrya-chain-step[data-tier="rule"] .nrya-chain-tier{background:#82d0af; color:#0b2a1d}
 #nrya-overlays .nrya-chain-step[data-tier="notice"] .nrya-chain-dot,#nrya-overlays .nrya-chain-step[data-tier="notice"] .nrya-chain-tier{background:#a8e0c4; color:#123527}
 #nrya-overlays .nrya-chain-step.nrya-penalty .nrya-chain-dot,#nrya-overlays .nrya-chain-step.nrya-penalty .nrya-chain-tier{background:#f3a39a; color:#3d0f0a}
-#nrya-overlays .nrya-chain-art{color:#eaf3f0; font-size:11.5px; font-weight:700; margin-top:5px}
-#nrya-overlays .nrya-chain-quote{color:#eef2ef; font-size:10px; margin-top:4px; line-height:1.6}
+/* 제목 줄은 [뱃지] 법령명 조문번호 한 줄로 끝낸다(뱃지와 같은 줄 — 예전엔 아랫줄이었다) */
+#nrya-overlays .nrya-chain-art{color:#eaf3f0; font-size:11.5px; font-weight:700; min-width:0; overflow-wrap:anywhere}
+#nrya-overlays .nrya-chain-quote{color:#eef2ef; font-size:10px; margin-top:5px; line-height:1.6}
+/* 조문 원문 발췌(요지가 아니라 원문 그대로) — 왼쪽 인용선으로 "인용문"임을 드러낸다 */
+#nrya-overlays .nrya-chain-quote.nrya-chain-ex{font-size:11px; line-height:1.65; color:#dfeae6; border-left:2px solid rgba(105,240,174,.35); padding-left:8px}
 #nrya-overlays .nrya-chain-hang{margin:0}
 #nrya-overlays .nrya-chain-gap{height:14px}
 #nrya-overlays .nrya-chain-tel{display:flex; align-items:center; gap:5px; margin-top:6px; font-size:10px; color:#7c9089}
 #nrya-overlays .nrya-chain-tel.nrya-unknown{color:#6b7a75; font-style:italic}
 #nrya-overlays .nrya-chain-tel a{color:inherit; font-weight:inherit; text-decoration:underline; text-decoration-color:currentColor}
-/* 뱃지를 누르고 있는 동안만 시행일자 말풍선 표시(꾹 누르기) */
-#nrya-overlays .nrya-chain-eff{position:absolute; left:0; top:calc(100% + 6px); z-index:5; background:#0a1418; border:1px solid #2a3439; color:#dbe7e3; font-size:9.5px; font-weight:600; letter-spacing:0; padding:4px 8px; border-radius:6px; white-space:nowrap; opacity:0; transform:translateY(-4px); pointer-events:none; transition:opacity .5s ease, transform .5s ease}
-#nrya-overlays .nrya-chain-tier.nrya-pressed .nrya-chain-eff{opacity:1; transform:translateY(0); transition:opacity .1s ease, transform .1s ease}
+/* 뱃지 줄: 조문 뱃지 + 시행일자(항상 보임 — 예전엔 꾹 눌러야 뜨는 말풍선이었다) */
+#nrya-overlays .nrya-chain-head{display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+#nrya-overlays .nrya-chain-eff{flex:none; margin-left:auto; font-family:var(--nrya-mono); font-size:9.5px; color:#9fb4d6; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.22); border-radius:7px; padding:2px 7px; white-space:nowrap}
+/* 조문 카드 클릭 영역(연락처 줄 제외) — 누르면 조문 원문 팝업이 뜬다 */
+#nrya-overlays .nrya-chain-hit{cursor:pointer; border-radius:9px; margin:-4px -6px 0; padding:4px 6px}
+#nrya-overlays .nrya-chain-hit:hover{background:rgba(255,255,255,.04)}
+#nrya-overlays .nrya-chain-hit:active{background:rgba(255,255,255,.07)}
+
+/* 조문 원문 팝업(체인 카드 클릭) — 채팅창(z-index:1000) 바로 위에 뜨는 배경막 + 카드.
+   인용된 항·호만 tier 색 배경으로 강조하고 나머지는 흐리게 둔다. */
+#nrya-overlays .nrya-artpop-veil{position:fixed; inset:0; z-index:1001; background:rgba(0,0,0,.55); opacity:0; visibility:hidden; transition:opacity .2s ease}
+#nrya-overlays .nrya-artpop-veil.nrya-open{opacity:1; visibility:visible}
+#nrya-overlays .nrya-artpop{position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.96); z-index:1002; width:min(400px,calc(100vw - 32px)); max-height:78vh; background:var(--nrya-card-bg); border:1px solid var(--nrya-border); border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.6); display:flex; flex-direction:column; overflow:hidden; opacity:0; visibility:hidden; transition:transform .2s ease, opacity .2s ease}
+#nrya-overlays .nrya-artpop.nrya-open{transform:translate(-50%,-50%) scale(1); opacity:1; visibility:visible}
+#nrya-overlays .nrya-artpop-head{display:flex; align-items:flex-start; gap:8px; padding:13px 13px 10px; border-bottom:1px solid var(--nrya-border)}
+#nrya-overlays .nrya-artpop-titles{flex:1; min-width:0}
+#nrya-overlays .nrya-artpop-chip{display:inline-flex; align-items:center; font-size:9.5px; font-weight:600; color:#a9c6ff; background:rgba(68,138,255,.16); border:1px solid rgba(68,138,255,.32); border-radius:12px; padding:2px 8px; margin-bottom:7px}
+#nrya-overlays .nrya-artpop[data-tier="penalty"] .nrya-artpop-chip{color:#ffb4a8; background:rgba(243,163,154,.14); border-color:rgba(243,163,154,.32)}
+#nrya-overlays .nrya-artpop-law{margin:0; font-size:10px; color:#8296ac}
+#nrya-overlays .nrya-artpop-art{margin:3px 0 0; font-size:14.5px; font-weight:800; color:#fff; line-height:1.35}
+#nrya-overlays .nrya-artpop-x{background:none; border:none; color:var(--nrya-text-sub); font-size:19px; cursor:pointer; line-height:1; padding:2px 4px}
+#nrya-overlays .nrya-artpop-eff{margin:9px 13px 0; align-self:flex-start; font-family:var(--nrya-mono); font-size:10px; color:#9fb4d6; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.22); border-radius:7px; padding:3px 8px}
+#nrya-overlays .nrya-artpop-eff:empty{display:none}
+#nrya-overlays .nrya-artpop-body{flex:1; overflow:auto; padding:11px 13px 14px; font-size:12px; line-height:1.68; color:#cdd8ee}
+#nrya-overlays .nrya-artpop-msg{color:var(--nrya-text-sub); font-size:11.5px; padding:14px 2px; text-align:center}
+/* 계층(항 ① → 호 1. → 목 가.)은 **여백의 리듬**으로 읽히게 한다 — 같은 계층끼리는 바짝 붙이고,
+   계층이 바뀌는 자리에만 눈에 띄게 넓은 간격 + 들여쓰기를 준다. 전부 같은 간격이면 기호만 다를 뿐
+   구조가 안 보인다("눈에 잘 안 들어와"). 번호·기호 자체는 원문에 적힌 것을 그대로 쓴다(새로 만들지 않는다). */
+#nrya-overlays .nrya-artpop-para{display:flex; gap:7px; padding:6px 7px; border-radius:8px; margin:0 -7px}
+#nrya-overlays .nrya-artpop-para + .nrya-artpop-para{margin-top:7px}   /* 항↔항(같은 계층) */
+#nrya-overlays .nrya-artpop-mark{flex:none; font-weight:800; color:#7f97b0}
+#nrya-overlays .nrya-artpop-text{min-width:0; color:#b6c2d6}
+#nrya-overlays .nrya-artpop-para.nrya-hit .nrya-artpop-mark,#nrya-overlays .nrya-artpop-para.nrya-hit .nrya-artpop-text{color:#eef2ef}
+#nrya-overlays .nrya-artpop-items{list-style:none; margin:10px 0 1px; padding:0; display:flex; flex-direction:column; gap:3px}
+#nrya-overlays .nrya-artpop-items li{padding-left:14px; text-indent:-14px; color:#8fa0b8; line-height:1.6}
+#nrya-overlays .nrya-artpop-items li.nrya-hit{color:#eef2ef; font-weight:600; border-radius:6px; padding:2px 6px 2px 20px; margin-left:-7px}
+/* 목(가. 나. 다.) — 호보다 한 단 더 들여쓰고, 호↔목 사이(7px)를 목↔목 사이(2px)보다 넓게 둔다.
+   ⚠ 부모 li 의 매달린 들여쓰기(text-indent:-14px)를 물려받으면 첫 줄이 왼쪽으로 튀어나가므로 0으로 되돌린다. */
+#nrya-overlays .nrya-artpop-subs{list-style:none; margin:7px 0 2px; padding:0 0 0 13px; text-indent:0; display:flex; flex-direction:column; gap:2px}
+#nrya-overlays .nrya-artpop-subs li{padding-left:13px; text-indent:-13px; color:#8496ae; font-weight:400; line-height:1.55}
+/* 강조색은 체인 카드의 tier 색과 맞춘다(법률=진한 녹색 → 고시=옅은 녹색, 벌칙=붉은색) */
+#nrya-overlays .nrya-artpop .nrya-artpop-para.nrya-hit{background:rgba(58,171,128,.16); box-shadow:inset 3px 0 0 #3aab80}
+#nrya-overlays .nrya-artpop .nrya-artpop-items li.nrya-hit{background:rgba(58,171,128,.16)}
+#nrya-overlays .nrya-artpop[data-tier="decree"] .nrya-artpop-para.nrya-hit{background:rgba(94,190,152,.16); box-shadow:inset 3px 0 0 #5ebe98}
+#nrya-overlays .nrya-artpop[data-tier="decree"] .nrya-artpop-items li.nrya-hit{background:rgba(94,190,152,.16)}
+#nrya-overlays .nrya-artpop[data-tier="rule"] .nrya-artpop-para.nrya-hit{background:rgba(130,208,175,.16); box-shadow:inset 3px 0 0 #82d0af}
+#nrya-overlays .nrya-artpop[data-tier="rule"] .nrya-artpop-items li.nrya-hit{background:rgba(130,208,175,.16)}
+#nrya-overlays .nrya-artpop[data-tier="notice"] .nrya-artpop-para.nrya-hit{background:rgba(168,224,196,.16); box-shadow:inset 3px 0 0 #a8e0c4}
+#nrya-overlays .nrya-artpop[data-tier="notice"] .nrya-artpop-items li.nrya-hit{background:rgba(168,224,196,.16)}
+#nrya-overlays .nrya-artpop[data-tier="penalty"] .nrya-artpop-para.nrya-hit{background:rgba(243,163,154,.16); box-shadow:inset 3px 0 0 #f3a39a}
+#nrya-overlays .nrya-artpop[data-tier="penalty"] .nrya-artpop-items li.nrya-hit{background:rgba(243,163,154,.16)}
+
+/* ── 범위(제1~9조)·전체 인용 팝업 ────────────────────────────────────────────
+   조 하나를 콕 집은 인용이 아니라서 "어디가 진짜 근거인지" 알 수 없다 → 강조(hit)를 하지 않고
+   위키 표의 요지를 그대로 캡션(.nrya-artpop-gist)으로 보여준 뒤 조를 순서대로 나열한다. */
+#nrya-overlays .nrya-artpop-chip.nrya-range{color:#8fe6bb; background:rgba(105,240,174,.12); border-color:rgba(105,240,174,.32)}
+#nrya-overlays .nrya-artpop-gist{margin:9px 13px 0; padding:8px 10px; background:rgba(105,240,174,.07); border:1px solid rgba(105,240,174,.22); border-radius:10px; font-size:10.5px; line-height:1.6; color:#bfe8d2}
+#nrya-overlays .nrya-artpop-gist:empty{display:none}
+#nrya-overlays .nrya-artpop-gist b{color:#8fe6bb; font-weight:700}
+#nrya-overlays .nrya-art-block{padding:9px 0; border-bottom:1px dashed rgba(255,255,255,.08)}
+#nrya-overlays .nrya-art-block:last-child{border-bottom:none}
+#nrya-overlays .nrya-art-block-head{display:flex; align-items:baseline; gap:7px; margin-bottom:5px}
+#nrya-overlays .nrya-art-num{font-family:var(--nrya-mono); font-size:10px; font-weight:800; color:#69f0ae; flex:none}
+#nrya-overlays .nrya-art-title{font-size:11.5px; font-weight:700; color:#eef2ef}
+#nrya-overlays .nrya-art-body{color:#b6c2d6; font-size:11.5px}
+#nrya-overlays .nrya-art-para{display:flex; gap:6px; margin-top:2px}
+#nrya-overlays .nrya-art-mark{flex:none; color:#7f97b0; font-weight:700}
+/* 나열 팝업도 같은 리듬 — 호·목은 한 단씩 들여쓰고 계층이 바뀌는 자리만 넓게 띄운다. */
+#nrya-overlays .nrya-art-ho{padding-left:11px}
+#nrya-overlays .nrya-art-mok{padding-left:24px}
+#nrya-overlays .nrya-art-mok .nrya-art-mark{font-weight:600; color:#6d8299}
+#nrya-overlays .nrya-art-para:not(.nrya-art-ho):not(.nrya-art-mok) + .nrya-art-ho,
+#nrya-overlays .nrya-art-mok + .nrya-art-ho{margin-top:7px}
+#nrya-overlays .nrya-art-ho + .nrya-art-mok{margin-top:5px}
+#nrya-overlays .nrya-artpop-foot{flex:none; padding:9px 13px 12px; border-top:1px solid var(--nrya-border); display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+#nrya-overlays .nrya-artpop-foot:empty{display:none}
+#nrya-overlays .nrya-artpop-src{font-size:9px; color:#5b6b86; font-family:var(--nrya-mono)}
+
+/* ── 별표·서식 참조: 문장 안 표현 자체가 링크 ────────────────────────────────
+   "별표 1"·"별지 제1호 서식" 같은 표현이 그대로 점선밑줄 링크가 된다(별도 칩·버튼 줄 없음).
+   원문을 못 찾은 것은 누를 수 없는 회색 문구로 둔다 — 지어내지 않는다. */
+#nrya-overlays .nrya-byl-ref{color:#8bb6ff; font-weight:700; text-decoration:underline; text-decoration-style:dotted; text-decoration-color:rgba(139,182,255,.5); text-underline-offset:2px; cursor:pointer}
+#nrya-overlays .nrya-byl-ref:hover{color:#a9c6ff}
+#nrya-overlays .nrya-byl-missing{font-size:9.5px; color:#6b7a75; font-style:italic; margin-left:3px}
+/* law.go.kr 원본만 있는 서식: PDF·HWPX 중 하나를 마음대로 기본값으로 정하지 않고 동등한 크기로 나란히 */
+#nrya-overlays .nrya-byl-big-row{display:flex; gap:8px; flex-wrap:wrap}
+#nrya-overlays .nrya-byl-big-btn{flex:1 1 130px; display:flex; align-items:center; justify-content:center; gap:7px; border:none; border-radius:12px; padding:12px 0; font-size:13px; font-weight:800; cursor:pointer; text-decoration:none; font-family:inherit; box-sizing:border-box}
+#nrya-overlays .nrya-byl-big-btn.nrya-pdf{background:#448aff; color:#04122e}
+#nrya-overlays .nrya-byl-big-btn.nrya-pdf:hover{filter:brightness(1.08)}
+#nrya-overlays .nrya-byl-big-btn.nrya-hwp{background:rgba(255,255,255,.08); color:#dbe7f6; border:1px solid var(--nrya-border)}
+#nrya-overlays .nrya-byl-big-btn.nrya-hwp:hover{background:rgba(255,255,255,.14)}
+#nrya-overlays .nrya-byl-note{font-size:10.5px; color:#9fb0c9; margin:0 0 11px}
+
+/* 별표 팝업(텍스트·이미지·형식선택 공용) — 조문 팝업(1001/1002) 위에 뜬다 */
+#nrya-overlays .nrya-bylpop-veil{position:fixed; inset:0; z-index:1003; background:rgba(0,0,0,.6); opacity:0; visibility:hidden; transition:opacity .2s ease}
+#nrya-overlays .nrya-bylpop-veil.nrya-open{opacity:1; visibility:visible}
+#nrya-overlays .nrya-bylpop{position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.96); z-index:1004; width:min(440px,calc(100vw - 32px)); max-height:76vh; background:#111525; border:1px solid rgba(105,240,174,.3); border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.65); display:flex; flex-direction:column; overflow:hidden; opacity:0; visibility:hidden; transition:transform .2s ease, opacity .2s ease}
+#nrya-overlays .nrya-bylpop.nrya-open{transform:translate(-50%,-50%) scale(1); opacity:1; visibility:visible}
+#nrya-overlays .nrya-bylpop-head{display:flex; align-items:flex-start; gap:8px; padding:12px 13px; border-bottom:1px solid rgba(105,240,174,.2)}
+#nrya-overlays .nrya-bylpop-t{flex:1; font-size:12.5px; font-weight:700; color:#8fe6bb}
+#nrya-overlays .nrya-bylpop-close{background:none; border:none; color:var(--nrya-text-sub); font-size:18px; cursor:pointer}
+#nrya-overlays .nrya-bylpop-body{flex:1; overflow:auto; padding:12px 13px}
+/* 표 파싱이 어긋났을 때의 원본 폴백(고정폭 그대로 — 잘못 정리해 보여주느니 원문이 낫다) */
+#nrya-overlays .nrya-bylpop-pre{font-family:var(--nrya-mono); font-size:10.5px; line-height:1.55; color:#cdd8ee; white-space:pre; margin:0; overflow-x:auto}
+#nrya-overlays .nrya-bylpop-img{width:100%; border-radius:8px; border:1px solid rgba(255,255,255,.12); display:block}
+
+/* ── 별표 원문 정리(문제 D) ──────────────────────────────────────────────────
+   원문은 고정폭 화면 기준으로 정렬돼 있어 좁은 팝업에 그대로 넣으면 가로로 흘러 ASCII 그림이 된다.
+   괘선으로 그려진 표는 진짜 <table> 로 다시 그리고, 표가 아닌 산문은 접어서(pre-wrap) 보여준다. */
+#nrya-overlays .nrya-byl-prose{white-space:pre-wrap; word-break:break-word; font-size:11.5px; line-height:1.65; color:#cdd8ee; margin:0 0 10px}
+#nrya-overlays .nrya-byl-prose:last-child{margin-bottom:0}
+#nrya-overlays .nrya-byl-tbl{width:100%; max-width:100%; border-collapse:collapse; font-size:10.5px; line-height:1.5; color:#cdd8ee; margin:0 0 12px}
+/* white-space:pre-wrap — 한 칸이 여러 줄에 걸친 원문 줄바꿈을 그대로 살린다(joinBylCell 주석 참고) */
+#nrya-overlays .nrya-byl-tbl th,#nrya-overlays .nrya-byl-tbl td{border:1px solid rgba(255,255,255,.14); padding:5px 6px; text-align:left; vertical-align:top; word-break:break-word; white-space:pre-wrap}
+#nrya-overlays .nrya-byl-tbl th{background:rgba(105,240,174,.1); color:#8fe6bb; font-weight:700}
+/* 숫자만 든 칸(과태료 금액 등)은 오른쪽 정렬 — 왼쪽 항목 / 오른쪽 값으로 읽히게 한다 */
+#nrya-overlays .nrya-byl-tbl td.nrya-byl-num{text-align:right; font-variant-numeric:tabular-nums; font-family:var(--nrya-mono)}
+#nrya-overlays .nrya-byl-tbl tr.nrya-byl-sum td{font-weight:800; color:#8fe6bb; background:rgba(105,240,174,.06)}
+
+/* 형식이 하나뿐인 원본 파일 — 고르는 선택창 없이 평범한 단일 링크 */
+#nrya-overlays .nrya-byl-dl{margin-top:10px}
+#nrya-overlays .nrya-byl-dl-link{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:#8bb6ff; text-decoration:none; border:1px solid var(--nrya-border); border-radius:10px; padding:7px 12px; background:rgba(255,255,255,.05)}
+#nrya-overlays .nrya-byl-dl-link:hover{background:rgba(255,255,255,.1)}
+
+/* 조 없이 별표만 가리킨 인용(mode:'annex')의 별표 목록 */
+#nrya-overlays .nrya-byl-list{display:flex; flex-direction:column; gap:7px; align-items:flex-start}
 
 /* 스켈레톤 + 생각중 상태 */
 #nrya-overlays .nrya-sk-line{height:9px; border-radius:5px; margin-bottom:7px; background:linear-gradient(90deg,rgba(255,255,255,.08) 25%,rgba(255,255,255,.18) 37%,rgba(255,255,255,.08) 63%); background-size:400% 100%; animation:nrya-sk 1.3s ease infinite}
@@ -313,3 +480,29 @@
 #nrya-overlays .nrya-chat-input input{flex:1; min-width:0; background:#28394a; border:none; border-radius:19px; padding:11px 15px; color:#fff; font-family:inherit; font-size:14px; outline:none}
 #nrya-overlays .nrya-chat-input input::placeholder{color:#8296ac}
 #nrya-overlays .nrya-chat-send{width:40px;height:40px;flex:0 0 auto;border-radius:50%;border:none;background:#ffe14d;color:#231c00;font-size:16px;cursor:pointer;font-weight:800}
+
+/* 답변완료 알림 동의 배너 / 재질문 유도 버튼 (말풍선 안 작은 버튼 — .nrya-chip 과 같은 톤) */
+#nrya-overlays .nrya-consent-btns{display:flex; gap:6px; margin-top:9px}
+#nrya-overlays .nrya-consent-btn{font-family:inherit; font-size:11.5px; font-weight:700; padding:5px 12px; border-radius:13px; cursor:pointer; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#dbe7f5}
+#nrya-overlays .nrya-consent-btn.nrya-yes{background:#ffe14d; border-color:#ffe14d; color:#231c00}
+
+/* 되묻기(명확화) 선택지 — 위 동의 배너 버튼 톤을 그대로 쓰고, 라벨이 길어 줄바꿈만 허용한다.
+   ★flex-wrap:wrap 이 곧 개수 상한 대응이다 — CLARIFY_OPTION_MAX 가 3→10 으로 늘어도(2026-08-15)
+   한 줄에 안 들어가는 버튼은 다음 줄로 접히고, 세로로 길어지면 .nrya-chat-body(overflow-y:auto)가
+   스크롤한다. gap:6px 는 행 간격에도 함께 걸려 여러 줄이 돼도 간격이 유지된다.
+   한 번 고르면 .nrya-done 이 붙어 흐려지고 더 눌리지 않는다(중복 전송 방지). */
+#nrya-overlays .nrya-clarify-q{margin-top:9px; font-size:12.5px; font-weight:700; color:#dbe7f5}
+#nrya-overlays .nrya-clarify-btns{flex-wrap:wrap}
+#nrya-overlays .nrya-clarify.nrya-done{opacity:.45}
+#nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-btn{pointer-events:none; cursor:default}
+
+/* 답변 만족도(👍/👎) — 위 동의 배너와 같은 톤. 👎는 사유(선택) 입력칸을 펼친다. */
+#nrya-overlays .nrya-hidden{display:none !important}
+#nrya-overlays .nrya-fb{display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin-top:10px}
+#nrya-overlays .nrya-fb-lab{font-size:11.5px; color:#93a4b9}
+#nrya-overlays .nrya-fb-btn{font-size:14px; padding:3px 9px; border-radius:12px; cursor:pointer; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08)}
+#nrya-overlays .nrya-fb-btn:disabled{opacity:.45; cursor:default}
+#nrya-overlays .nrya-fb-reason{display:flex; gap:6px; width:100%; margin-top:2px}
+#nrya-overlays .nrya-fb-reason-in{flex:1; min-width:0; resize:none; height:30px; border-radius:8px; border:1px solid rgba(255,255,255,.15); background:#28394a; color:#fff; font-family:inherit; font-size:12px; padding:6px 9px}
+#nrya-overlays .nrya-fb-send{font-family:inherit; font-size:11.5px; font-weight:700; padding:0 12px; border-radius:8px; cursor:pointer; border:none; background:#ffe14d; color:#231c00}
+#nrya-overlays .nrya-fb.nrya-fb-done .nrya-fb-lab{color:#69f0ae}

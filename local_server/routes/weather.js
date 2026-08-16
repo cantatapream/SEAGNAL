@@ -203,12 +203,29 @@ function getWeatherAlertsResponse() {
     }
 
     if (dmdwMtime > 0) {
-        try {
-            const dmdwAlerts = JSON.parse(fs.readFileSync(dmdwPath, 'utf8'));
-            mergeDmdwChildren(weatherTree, dmdwAlerts);
-        } catch (mergeErr) {
-            console.log(`[/api/weather-alerts] dmdw merge skip (${mergeErr.message})`);
-        }
+        // ====================================================================
+        // [2026-08-09 실사고 — dmdw 머지 중단] 자식 시각이 3개월 전 값으로 오염되던 원인.
+        //   증상: 카드의 `경북북부앞바다중연안바다 발효시각 = 5월 21일 08시`(MMIS·장부는
+        //         8월 8일 20시로 정상), 해제예정은 통째 소실.
+        //   원인: dmdw(방재기상플랫폼) 크롤러는 v7 "marine.kma 단일 출처" 전환 때
+        //         scheduler 에서 **비활성화**됐는데(주석 처리), 이 머지만 살아남았다.
+        //         그런데 `dmdw_alerts.json` 은 DATA_DIR(= fly.io 영구 볼륨)에 있어
+        //         배포해도 지워지지 않는다 → 5월에 마지막으로 쓰인 파일이 3개월째
+        //         모든 응답의 자식 노드를 덮어써 왔다.
+        //   머지 정책이 `{...dmdwState}` 로 **tmFc 만 원본 유지하고 나머지를 통째 교체**라
+        //         관측 증상(tmFc 만 정상 + tmEf 오염 + clrNtcTm 소실)과 정확히 일치한다.
+        //   ※ 관리자 '장부 미리보기'는 파일을 직독해 머지 전 값이라 정상으로 보였고,
+        //     그래서 "서버는 맞는데 카드만 틀리다"는 혼란이 생겼다.
+        //   rollback: dmdw 를 다시 쓰려면 scheduler 의 크롤러 주석을 먼저 해제해
+        //     파일이 실제로 갱신되게 한 뒤 아래 3줄을 되살릴 것. **크롤러 없이 머지만
+        //     되살리면 같은 사고가 재발한다.**
+        // ====================================================================
+        // try {
+        //     const dmdwAlerts = JSON.parse(fs.readFileSync(dmdwPath, 'utf8'));
+        //     mergeDmdwChildren(weatherTree, dmdwAlerts);
+        // } catch (mergeErr) {
+        //     console.log(`[/api/weather-alerts] dmdw merge skip (${mergeErr.message})`);
+        // }
     }
 
     _weatherCache.responseJson = JSON.stringify(weatherTree);
@@ -449,8 +466,8 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
             await regionalForecastCollector.collectRegionalForecasts(scheduler.collectProgress);
         }
         else if (type === 'zone') await scheduler.collectZoneForecasts();
-        // 해양생활기상 수동 수집 — 낚시+갈라짐+서핑+갯벌+스쿠버+이안류 지수를 순차 수집
-        // 관리자 페이지에서 "해양생활기상" 수동 호출 시 여섯 API가 한번에 실행됨
+        // 해양생활기상 수동 수집 — 낚시+갈라짐+서핑+갯벌+스쿠버+이안류+해수욕 지수를 순차 수집
+        // 관리자 페이지에서 "해양생활기상" 수동 호출 시 일곱 API가 한번에 실행됨
         else if (type === 'fishing') {
             await scheduler.collectFishingIndex();
             await scheduler.collectSeaSplitIndex();
@@ -458,6 +475,7 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
             await scheduler.collectMudflatIndex();
             await scheduler.collectScubaIndex();
             await scheduler.collectRipCurrentIndex();
+            await scheduler.collectSwimmingIndex();
         }
         else {
             res.write(`data: ${JSON.stringify({ error: '잘못된 타입' })}\n\n`);
@@ -497,7 +515,7 @@ router.post('/api/force-update/:type', async (req, res) => {
             await regionalForecastCollector.collectRegionalForecasts();
         }
         else if (type === 'zone') await scheduler.collectZoneForecasts();
-        // 해양생활기상 수동 수집 (POST 호환) — 낚시+갈라짐+서핑+갯벌+스쿠버+이안류 지수를 순차 실행
+        // 해양생활기상 수동 수집 (POST 호환) — 낚시+갈라짐+서핑+갯벌+스쿠버+이안류+해수욕 지수를 순차 실행
         else if (type === 'fishing') {
             await scheduler.collectFishingIndex();
             await scheduler.collectSeaSplitIndex();
@@ -505,6 +523,7 @@ router.post('/api/force-update/:type', async (req, res) => {
             await scheduler.collectMudflatIndex();
             await scheduler.collectScubaIndex();
             await scheduler.collectRipCurrentIndex();
+            await scheduler.collectSwimmingIndex();
         }
         else return res.status(400).json({ error: '잘못된 타입' });
 

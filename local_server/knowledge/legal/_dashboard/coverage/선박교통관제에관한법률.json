@@ -31,21 +31,20 @@
  "hang_gap_candidates": {
   "법률": [
    {
-    "article": "24조",
+    "article": "17조",
     "raw_hang": 6,
     "missing": [
-     "③",
      "④",
      "⑤",
      "⑥"
     ]
    },
    {
-    "article": "17조",
+    "article": "24조",
     "raw_hang": 6,
     "missing": [
+     "③",
      "④",
-     "⑤",
      "⑥"
     ]
    },
@@ -66,37 +65,24 @@
   ],
   "시행령": [
    {
-    "article": "12조",
-    "raw_hang": 4,
-    "missing": [
-     "①",
-     "②",
-     "③",
-     "④"
-    ]
-   },
-   {
     "article": "4조",
     "raw_hang": 3,
     "missing": [
-     "①",
-     "②",
-     "③"
+     "①"
     ]
    },
    {
     "article": "11조",
     "raw_hang": 4,
     "missing": [
-     "①",
-     "④"
+     "①"
     ]
    },
    {
-    "article": "10조",
-    "raw_hang": 6,
+    "article": "12조",
+    "raw_hang": 4,
     "missing": [
-     "⑥"
+     "④"
     ]
    },
    {
@@ -114,8 +100,7 @@
     "missing": [
      "④",
      "⑤",
-     "⑥",
-     "⑦"
+     "⑥"
     ]
    },
    {
@@ -123,13 +108,6 @@
     "raw_hang": 2,
     "missing": [
      "①"
-    ]
-   },
-   {
-    "article": "8조",
-    "raw_hang": 2,
-    "missing": [
-     "②"
     ]
    }
   ]
