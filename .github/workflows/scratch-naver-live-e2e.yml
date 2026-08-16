@@ -5,6 +5,7 @@ on:
       - claude/github-readme-masterplan-check-fqkq7z
     paths:
       - '.github/workflows/scratch-naver-live-e2e.yml'
+      - 'local_server/scripts/scratch_naver_live_e2e.js'
 
 jobs:
   run:

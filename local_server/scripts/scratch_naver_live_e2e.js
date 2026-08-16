@@ -34,7 +34,8 @@ const note = (n) => { warn++; console.log('  ⚠️ ', n); };
   //    "깔때기"는 조리도구 뜻과 어구 뜻이 둘 다 있는 말이다. 우리 정체성 문맥을 준 Gemini 가
   //    어구 쪽을 고르는지, 그리고 해양수산과 무관한 말은 "억지로 고르지 않는지"를 본다.
   console.log('\n=== A. 실제 뜻 판별 품질 ===');
-  for (const q of ['깔때기가 뭐죠', '배에서 쓰는 뽀짝이가 뭔가요', '조업할 때 아리랑이 뭔가요']) {
+  for (const q of ['깔때기가 뭐죠', '배에서 쓰는 뽀짝이가 뭔가요', '조업할 때 아리랑이 뭔가요',
+    '신고한 뒤에 뽀짝이 달아도 되나요']) {
     const t0 = Date.now();
     const r = await R.naverTermStep(q, NU0, true);
     const ms = Date.now() - t0;
