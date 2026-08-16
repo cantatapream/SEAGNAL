@@ -2800,7 +2800,8 @@ const NAVER_EOMI_TAIL = /(려주세요|여주세요|어주세요|아주세요|�
 //   말이라 그 순간 후보에서 자연히 빠지고, 진짜 모르는 낱말만 남는다.
 // ⚠ 세 글자 이상일 때만 뗀다 — "관할"·"역할"·"분할"처럼 **할로 끝나는 두 글자 명사**를 지키기 위해서다
 //   (홑 "면"을 어미 목록에서 뺀 것과 같은 이유).
-const NAVER_HADA_TAIL = /(하는|하던|하여|하고|하며|하지|하게|해서|했던|한|할|해|함|했)$/;
+// ⚠ 긴 것 먼저(정규식 교체는 왼쪽부터) — "하다"가 "하다가"보다 앞이면 "조업하다가"가 안 줄어든다.
+const NAVER_HADA_TAIL = /(했는데|하는데|하다가|하면서|하려고|했던|하는|하던|하여|하고|하며|하지|하게|하려|하러|해서|해도|하다|한다|했다|한|할|해|함|했)$/;
 // 명사 뒤에 붙는 조사(이건 떼고 남은 명사를 후보로 삼는다). "깔때기가"→"깔때기".
 // ⚠완전하지 않다(§4-8 termsOf 한계와 같은 뿌리) — 못 떼면 검색어가 조금 나빠질 뿐, 지어내지는 않는다.
 const NAVER_JOSA_TAIL = /(이라는|이라고|이란|라는|라고|에서|에게|으로|이라|이면|은지|는지|까지|부터|처럼|보다|마다|가|은|는|을|를|의|에|로|도|만|과|와|랑|이)$/;
@@ -2858,6 +2859,26 @@ function naverMeaningAllowed(s) {
  * @returns {string} 후보가 없으면 ''(그러면 §4-U 자체를 발동하지 않는다)
  * [연계] ← naverTermStep 1단계. → naver_search.correctTypo/searchTermMeaning 의 검색어.
  */
+/**
+ * 이 낱말을 위키가 **본문에서라도** 다루고 있는가. `readPage` 캐시(서버 기동 시 warmup 으로
+ * 미리 데워진다)를 그대로 쓰므로 디스크를 다시 읽지 않는다.
+ * ★왜 필요한가(2026-08-16 실키 검증 후속): 예전엔 index.json 메타(법명·주제·파일명·테마)만 봐서,
+ *   본문에 96개 페이지나 나오는 흔한 말("분실")도 "우리가 모르는 낱말"로 잡혔다. §4-U 설계 §4-1의
+ *   1단계가 **"먼저 우리 DB(위키·glossary) 재확인"** 인데 그 재확인이 메타에서 멈춰 있었던 것이다.
+ * ⚠ 이 검사를 넣으면 위키 본문에 이미 있는 말은 §4-U 를 안 탄다 — 그런 질문이 답을 못 냈다면
+ *   그건 어휘 공백이 아니라 **검색이 그 페이지를 못 찾은 것**이라 §4-U 가 고칠 문제가 아니다.
+ * @param {string} t - 후보 낱말
+ * @returns {boolean}
+ * [연계] ← unknownTermOf(마지막 관문). → readPage 캐시.
+ */
+function wikiBodyHasTerm(t) {
+  for (const p of (loadIndex().pages || [])) {
+    const page = readPage(p.kind, p.file);
+    if (page && page.body.includes(t)) return true;
+  }
+  return false;
+}
+
 function unknownTermOf(query) {
   const hay = (loadIndex().pages || [])
     .map(p => `${p.law || ''} ${p.topic || ''} ${p.file || ''} ${(p.themes || []).join(' ')}`).join('\n');
@@ -2876,7 +2897,10 @@ function unknownTermOf(query) {
     // ★D6: 명사+하다 활용형은 **떼서** 원래 명사로 되돌린다("조업할"→"조업"). 세 글자 이상만
     //   건드려 "관할"·"역할" 같은 두 글자 명사를 지킨다(위 NAVER_HADA_TAIL 주석 참고).
     const base = tok.length >= 3 ? tok.replace(NAVER_HADA_TAIL, '') : tok;
-    const t = (base.length >= 2 ? base : tok).replace(NAVER_JOSA_TAIL, '');
+    // 떼고 나니 아무것도 안 남았다 = 그 토큰이 **통째로 활용 어미**였다는 뜻이다("하는데"·"하려고").
+    // 명사가 아니므로 후보에서 뺀다(실측: "신고하려고 하는데 서류가 뭔가요"의 "하는데").
+    if (tok.length >= 3 && base.length < 2) continue;
+    const t = base.replace(NAVER_JOSA_TAIL, '');
     // 떼고 남은 줄기가 1글자 = 명사가 아니라 동사·어미 조각이다 → 후보에서 뺀다(어미 목록이
     // 놓친 활용형을 잡는 그물, 그대로 유지).
     if (t.length < 2 || t.length > NAVER_TERM_MAX || seen.has(t)) continue;
@@ -2884,8 +2908,9 @@ function unknownTermOf(query) {
     //   조사가 붙은 의문사가 그대로 통과했다("어디까지"→"어디"는 STOPWORDS 에 있는데도 후보가 됐다).
     if (STOPWORDS.has(t) || NAVER_STOP.has(t)) continue;
     seen.add(t);
-    if (hay.includes(t)) continue;                 // 위키가 이미 아는 말
+    if (hay.includes(t)) continue;                 // 위키 메타가 이미 아는 말
     if (gloss.some(g => g.includes(t))) continue;  // glossary 가 이미 아는 구어
+    if (wikiBodyHasTerm(t)) continue;              // 위키 **본문**이 이미 다루는 말(위 함수 주석 참고)
     cands.push(t);
   }
   cands.sort((a, b) => b.length - a.length);
