@@ -540,8 +540,20 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 오케스트레이터 지시로 §4-U 현재상태 조사·보고 + §5-D '남은 것' 3가지 확인. ①프로덕션 화면 종단검증: 미착수(그대로 남음, 지시로 스위치 전환 자체를 안 함). ②routes 실HTTP 스위트: 부분진행 — 이 worktree에서 로컬서버 실제 기동(포트는 config/server_config.js 하드코딩 3001, PORT env 무시됨 주의) 후 POST /api/legal/ask 실HTTP로 스위치on/off 응답 바이트동일(R0) 확인 + 기형 ctx.nu 로도 크래시 없음 확인. 다만 이 세션엔 네이버·Gemini 실키가 없어(.env 자체 없음) happy path는 여전히 mock 수준 — 새 상설 HTTP 스위트 파일은 만들지 않음(실키 없이는 착시 커버리지라 판단). ③unknownTermOf 잔여오탐: 신규 발견 — NAVER_JOSA_TAIL에 없던 조사(한테·께서·밖에·조차·마저·치고·커녕·뿐만·더러·이며) 10종이 '선장한테'·'허가증밖에' 등 위키가 이미 아는 명사를 오탐시키던 것을 실측 확인·수정(legal_retriever.js, 순서 주의사항 주석 포함). test_naver_term_step.js D4 블록에 회귀 10건 추가(85→95 PASS/0 FAIL), test_ask_context 200/0 재확인, node --check·check_paths 통과. 남은 오탐(존댓말 어미 -십니다·불규칙활용 몰라요·받침없는 명사+홑며)은 조사가 아니라 어미축 문제라 이번 범위 밖으로 남겨둠(오탐 방향은 안전, 사용자가 아니요 누르면 끝남). 결론: 스위치는 여전히 켜면 안 됨 — ①이 통째로 비어있다. 다음 세션은 실키+실서버 갖춘 상태에서 ①부터. 상세 표는 NAVER_GUEO_PENDING_MERGE.md §5-E. 수정파일: local_server/services/legal_retriever.js(NAVER_JOSA_TAIL), local_server/scripts/test_naver_term_step.js(회귀 10건).
 
 
-### [2026-08-16 23:04 KST] 🟢착수 — 격리 worktree 세션 — §4-U 조사·보고 + 남은것3가지 확인
-오케스트레이터 지시로 §4-U(naverTermLookup) 현재상태 조사·보고 + §5-D '남은 것' 3가지(①프로덕션 화면 종단검증 ②routes 실HTTP 스위트 ③unknownTermOf 잔여오탐) 확인·가능한 만큼 진행. 스위치 프로덕션 on 전환은 금지 지시받음(판단만). 격리 git worktree에서 작업.
+### [2026-08-16 23:05 KST] ✅완료 — 해양경비법 r18 통합수정 완료
+r18 감사 잔여 wiki_gaps 2건(#14 사법처리절차규칙 제6조③·제9조② wiki_lag, #15 산업통상자원부 고시 collection_hole 연락처 미기재) 수정 완료. 추적나포.md에 「불법조업 외국어선 사법처리 절차 등에 관한 규칙」 제6조③(현장조사 수사서류 인계)·제9조(일반선원 검사지휘·출입국청 인계) 신규 반영, 이 규칙 제1~14조 전 조문 최소 1회 위키반영 완료. 해상검문검색.md의 제12조①2의2호 산업통상자원부 고시 REVIEW 안내문에 소관부서 연락처(무역안보정책과 044-203-4837) 인라인 추가해 collection_hole 3요건 중 ③연락처 충족(gracefully 전환은 사람판단 보류 유지, 정식 답변 채택 여부는 REVIEW로 남김). 나머지 wiki_gaps(#1~13 대부분 RESOLVED 또는 순수 content_gap/scope_out으로 이미 정직 명시됨), collection_hole #2~4(이미 answered_gracefully), review_queue.md 마커(01·02·03·06·07·901~905) 전량 인라인 부착 확인, contacts_collected.json 19/19 페이지 반영 확인 — 추가 조치 불필요. 19/19 개념페이지·statutes 페이지 전부 canonical 확인. 완료 마커: _dashboard/fix3/fix_r18_해양경비법.done
+
+
+### [2026-08-16 23:05 KST] 🟢착수 — 해양경비법 r18 통합수정
+r18 감사(_dashboard/audit/해양경비법.md) wiki_gaps #14·#15 + collection_hole #1 재검증·수정 착수
+
+
+### [2026-08-16 23:01 KST] ✅완료 — H-9①통합수정 10그룹 전체 디스패치 완료
+audit_fix_cell.js + audit18_groups.json + round:18로 10개 Workflow 동시 디스패치. task-id(runId): g0=wrgh2gkjr(wf_7c179ba7-2be)·g1=w79gxjh5b(wf_0af24f21-846)·g2=w2095r9vt(wf_a18a58fe-e7c)·g3=ww74vswpd(wf_7676b196-d84)·g4=w0eh8un79(wf_b994c880-ffc)·g5=wuq04a3te(wf_242afa93-2ce)·g6=wma8xgdof(wf_cb393603-b7d)·g7=wruvc7k3g(wf_0a9dcdc8-4e0)·g8=w1zw710ll(wf_0be6cc72-2f1)·g9=w32kpg9dm(wf_a0b69bb3-d6b). 완료되는 대로 커밋 → 표준후속(②공유허브재봉합 필요시 단독 → ③lint_index/lint_build → ④human_workload) 이어갈 것.
+
+
+### [2026-08-16 22:59 KST] 🟢착수 — 18차 감사 74/74법 완료 → H-9①통합수정 착수
+18차 감사(74법, round:18) 전체 완료·커밋(최종 b490fadb9). H-38 목표조정 적용 결과: lean모드 2법(수산물유통법·해양사고조사심판법)은 회귀검증만 정상 수행, rich모드 8법(독도법·해양공간계획법·해양과학조사법·해양조사정보법·자연유산법·농수산물품질관리법·수산업협동조합법·수산업법)은 600 상한 없이 확대 진행 확인. 이제 audit_fix_cell.js(H-9①통합수정)를 audit18_groups.json 그룹0~9로 round:18 동시 디스패치 시작.
 
 
 ### [2026-08-16 23:00 KST] ✅완료 — §4-U 실키 종단 검증 완료: D6·D7 추가 발견·수정, 기능 실효성 확인(스위치는 계속 off)
