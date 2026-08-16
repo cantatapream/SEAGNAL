@@ -2793,6 +2793,15 @@ const NAVER_GIVEUP = '말씀하신 표현이 무엇을 뜻하는지 끝내 확�
 //   통째로 버려진다. "하면"·"으면"은 명사 어미로 쓰이지 않아 안전하다.
 // ⚠ "여야"는 일부러 뺐다 — 어미로도 쓰이지만 그 자체가 명사이기도 하다(같은 이유로 홑 "면"도 뺐다).
 const NAVER_EOMI_TAIL = /(려주세요|여주세요|어주세요|아주세요|해주세요|주세요|하나요|인가요|던가요|되나요|습니까|합니까|습니다|합니다|나요|까요|해요|세요|어요|아요|하면|으면|해야|어야|아야)$/;
+// ★D6(2026-08-16 실키 종단 검증에서 발견) — "조업하다"처럼 **명사+하다**로 만들어진 용언의 활용형.
+//   실측 사고: "조업할 때 아리랑이 뭔가요"에서 정작 모르는 말인 "아리랑" 대신 **"조업할"**이 뽑혔다
+//   (둘 다 세 글자라 "가장 긴 후보" 규칙이 먼저 나온 쪽을 집었고, "조업할"은 어미 목록에도 없어
+//   그대로 통과했다). 이런 말은 **버리지 말고 떼야** 한다 — "조업할"→"조업"은 위키가 이미 아는
+//   말이라 그 순간 후보에서 자연히 빠지고, 진짜 모르는 낱말만 남는다.
+// ⚠ 세 글자 이상일 때만 뗀다 — "관할"·"역할"·"분할"처럼 **할로 끝나는 두 글자 명사**를 지키기 위해서다
+//   (홑 "면"을 어미 목록에서 뺀 것과 같은 이유).
+// ⚠ 긴 것 먼저(정규식 교체는 왼쪽부터) — "하다"가 "하다가"보다 앞이면 "조업하다가"가 안 줄어든다.
+const NAVER_HADA_TAIL = /(했는데|하는데|하다가|하면서|하려고|했던|하는|하던|하여|하고|하며|하지|하게|하려|하러|해서|해도|하다|한다|했다|한|할|해|함|했)$/;
 // 명사 뒤에 붙는 조사(이건 떼고 남은 명사를 후보로 삼는다). "깔때기가"→"깔때기".
 // ⚠완전하지 않다(§4-8 termsOf 한계와 같은 뿌리) — 못 떼면 검색어가 조금 나빠질 뿐, 지어내지는 않는다.
 const NAVER_JOSA_TAIL = /(이라는|이라고|이란|라는|라고|에서|에게|으로|이라|이면|은지|는지|까지|부터|처럼|보다|마다|가|은|는|을|를|의|에|로|도|만|과|와|랑|이)$/;
@@ -2850,6 +2859,26 @@ function naverMeaningAllowed(s) {
  * @returns {string} 후보가 없으면 ''(그러면 §4-U 자체를 발동하지 않는다)
  * [연계] ← naverTermStep 1단계. → naver_search.correctTypo/searchTermMeaning 의 검색어.
  */
+/**
+ * 이 낱말을 위키가 **본문에서라도** 다루고 있는가. `readPage` 캐시(서버 기동 시 warmup 으로
+ * 미리 데워진다)를 그대로 쓰므로 디스크를 다시 읽지 않는다.
+ * ★왜 필요한가(2026-08-16 실키 검증 후속): 예전엔 index.json 메타(법명·주제·파일명·테마)만 봐서,
+ *   본문에 96개 페이지나 나오는 흔한 말("분실")도 "우리가 모르는 낱말"로 잡혔다. §4-U 설계 §4-1의
+ *   1단계가 **"먼저 우리 DB(위키·glossary) 재확인"** 인데 그 재확인이 메타에서 멈춰 있었던 것이다.
+ * ⚠ 이 검사를 넣으면 위키 본문에 이미 있는 말은 §4-U 를 안 탄다 — 그런 질문이 답을 못 냈다면
+ *   그건 어휘 공백이 아니라 **검색이 그 페이지를 못 찾은 것**이라 §4-U 가 고칠 문제가 아니다.
+ * @param {string} t - 후보 낱말
+ * @returns {boolean}
+ * [연계] ← unknownTermOf(마지막 관문). → readPage 캐시.
+ */
+function wikiBodyHasTerm(t) {
+  for (const p of (loadIndex().pages || [])) {
+    const page = readPage(p.kind, p.file);
+    if (page && page.body.includes(t)) return true;
+  }
+  return false;
+}
+
 function unknownTermOf(query) {
   const hay = (loadIndex().pages || [])
     .map(p => `${p.law || ''} ${p.topic || ''} ${p.file || ''} ${(p.themes || []).join(' ')}`).join('\n');
@@ -2865,7 +2894,13 @@ function unknownTermOf(query) {
     //   두 글자 한자어가 대부분이고(수면·지면·해면·표면·단면), 세 글자 이상이면서 면으로 끝나면
     //   거의 활용형이다("버리면"·"걸리면"·"들어가면"). 단 "어선이면"처럼 명사+이면은 조사라서 뺀다.
     if (tok.length >= 3 && tok.endsWith('면') && !tok.endsWith('이면')) continue;
-    const t = tok.replace(NAVER_JOSA_TAIL, '');
+    // ★D6: 명사+하다 활용형은 **떼서** 원래 명사로 되돌린다("조업할"→"조업"). 세 글자 이상만
+    //   건드려 "관할"·"역할" 같은 두 글자 명사를 지킨다(위 NAVER_HADA_TAIL 주석 참고).
+    const base = tok.length >= 3 ? tok.replace(NAVER_HADA_TAIL, '') : tok;
+    // 떼고 나니 아무것도 안 남았다 = 그 토큰이 **통째로 활용 어미**였다는 뜻이다("하는데"·"하려고").
+    // 명사가 아니므로 후보에서 뺀다(실측: "신고하려고 하는데 서류가 뭔가요"의 "하는데").
+    if (tok.length >= 3 && base.length < 2) continue;
+    const t = base.replace(NAVER_JOSA_TAIL, '');
     // 떼고 남은 줄기가 1글자 = 명사가 아니라 동사·어미 조각이다 → 후보에서 뺀다(어미 목록이
     // 놓친 활용형을 잡는 그물, 그대로 유지).
     if (t.length < 2 || t.length > NAVER_TERM_MAX || seen.has(t)) continue;
@@ -2873,8 +2908,9 @@ function unknownTermOf(query) {
     //   조사가 붙은 의문사가 그대로 통과했다("어디까지"→"어디"는 STOPWORDS 에 있는데도 후보가 됐다).
     if (STOPWORDS.has(t) || NAVER_STOP.has(t)) continue;
     seen.add(t);
-    if (hay.includes(t)) continue;                 // 위키가 이미 아는 말
+    if (hay.includes(t)) continue;                 // 위키 메타가 이미 아는 말
     if (gloss.some(g => g.includes(t))) continue;  // glossary 가 이미 아는 구어
+    if (wikiBodyHasTerm(t)) continue;              // 위키 **본문**이 이미 다루는 말(위 함수 주석 참고)
     cands.push(t);
   }
   cands.sort((a, b) => b.length - a.length);
@@ -2903,6 +2939,11 @@ ${block}
 2. 해양수산과 무관한 뜻(조리도구·일반 생활용어 등)뿐이면 ok:false 로 답한다. **억지로 고르지 마라.**
 3. ★법 조문·처벌·금액·법령 이름을 쓰지 마라. 여기서 정하는 것은 **낱말의 뜻**뿐이다.
 4. 검색 결과에 없는 뜻을 지어내지 마라.
+5. ★검색 결과가 **"${term}"이 아니라 다른 낱말**을 설명하고 있으면 ok:false 다. 검색엔진이 비슷한
+   철자의 다른 말을 끌어온 것뿐이며, 그 뜻은 "${term}"의 뜻이 아니다. (실측 사고: "아릿대"를
+   물었는데 검색이 "솟대"를 끌어왔고 그걸 뜻으로 골라 엉뚱한 확인 카드가 떴다.)
+6. ★어업·어구·어선·항만·해양안전 현장의 말이라는 근거가 검색 결과에 **직접 보일 때만** ok:true 다.
+   민속·의례·조리·컴퓨터·일반생활 쪽 설명뿐이면, 바다와 어렴풋이 이어 붙일 수 있어 보여도 ok:false 다.
 
 다른 설명 없이 아래 JSON만 출력하라.
 {"ok":true,"meaning":"…"} 또는 {"ok":false}`;
@@ -2948,8 +2989,14 @@ async function naverTermStep(query, nu, enabled) {
     //   여기로 내리면 "정말로 모르는 낱말이 있고, 찾아볼 수단도 있는데, 기회를 다 썼다"일 때만 뜬다.
     if (nu.rounds >= NAVER_ROUNDS_SPENT) return { giveup: true, answer: NAVER_GIVEUP };
     const naver = require('./naver_search');
-    // §4-2 오타 변환(한/영 자판 오입력 전용) — 교정이 없으면 원문 그대로 돌아온다.
-    const term = await naver.correctTypo(term0).catch(() => term0);
+    // §4-2 오타 변환 — ★한/영 **자판 오입력**일 때만 태운다(2026-08-16 실키 검증 D7).
+    //   이 API 의 용도는 "rlarlgus"(한글 모드로 바꾸지 않고 친 글자)를 되돌리는 것인데, 실측해
+    //   보니 **이미 한글로 제대로 친 말까지 비슷한 다른 말로 바꿔 놓는다** — "아릿대"를 "오릿대"로
+    //   교정해 버려, 사용자가 묻지도 않은 낱말로 되묻는 카드가 떴다. 사용자가 실제로 친 말을
+    //   우리가 임의로 바꾸면 그 순간 이 단계의 전제("이 말이 무슨 뜻인지 확인한다")가 깨진다.
+    //   그래서 로마자가 섞인 토큰(=진짜 자판 오입력)일 때만 교정을 받아들인다. 순한글이면 호출
+    //   자체를 안 해 쿼터도 아낀다.
+    const term = /[A-Za-z]/.test(term0) ? await naver.correctTypo(term0).catch(() => term0) : term0;
     const cands = await naver.searchTermMeaning(term).catch(() => []);
     const meaning = cands.length ? await pickTermMeaning(term, cands).catch(() => '') : '';
     if (!meaning) {
