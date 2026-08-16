@@ -79,6 +79,11 @@ const CASES = [
       picked += (term === expect) ? 1 : 0;
       ok(`모르는 낱말을 정확히 집는다(기대 "${expect}")`, term === expect, `실제 "${term}"`);
     }
+    if (r && r.clarify) {
+      // ★D7: 사용자가 실제로 친 낱말이 카드에 그대로 보여야 한다(오타변환이 딴 말로 바꾸면 안 됨).
+      if (term) ok('카드에 사용자가 쓴 낱말이 그대로 보인다',
+        r.clarify.question.includes(term) || r.clarify.options.length === 1, r.clarify.question);
+    }
     if (r && r.clarify && r.clarify.options.length === 2) {
       meaningFound++;
       const meaning = (r.clarify.options[0].ctx.nu || {}).meaning || '';

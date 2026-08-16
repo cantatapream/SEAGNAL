@@ -2939,6 +2939,11 @@ ${block}
 2. 해양수산과 무관한 뜻(조리도구·일반 생활용어 등)뿐이면 ok:false 로 답한다. **억지로 고르지 마라.**
 3. ★법 조문·처벌·금액·법령 이름을 쓰지 마라. 여기서 정하는 것은 **낱말의 뜻**뿐이다.
 4. 검색 결과에 없는 뜻을 지어내지 마라.
+5. ★검색 결과가 **"${term}"이 아니라 다른 낱말**을 설명하고 있으면 ok:false 다. 검색엔진이 비슷한
+   철자의 다른 말을 끌어온 것뿐이며, 그 뜻은 "${term}"의 뜻이 아니다. (실측 사고: "아릿대"를
+   물었는데 검색이 "솟대"를 끌어왔고 그걸 뜻으로 골라 엉뚱한 확인 카드가 떴다.)
+6. ★어업·어구·어선·항만·해양안전 현장의 말이라는 근거가 검색 결과에 **직접 보일 때만** ok:true 다.
+   민속·의례·조리·컴퓨터·일반생활 쪽 설명뿐이면, 바다와 어렴풋이 이어 붙일 수 있어 보여도 ok:false 다.
 
 다른 설명 없이 아래 JSON만 출력하라.
 {"ok":true,"meaning":"…"} 또는 {"ok":false}`;
@@ -2984,8 +2989,14 @@ async function naverTermStep(query, nu, enabled) {
     //   여기로 내리면 "정말로 모르는 낱말이 있고, 찾아볼 수단도 있는데, 기회를 다 썼다"일 때만 뜬다.
     if (nu.rounds >= NAVER_ROUNDS_SPENT) return { giveup: true, answer: NAVER_GIVEUP };
     const naver = require('./naver_search');
-    // §4-2 오타 변환(한/영 자판 오입력 전용) — 교정이 없으면 원문 그대로 돌아온다.
-    const term = await naver.correctTypo(term0).catch(() => term0);
+    // §4-2 오타 변환 — ★한/영 **자판 오입력**일 때만 태운다(2026-08-16 실키 검증 D7).
+    //   이 API 의 용도는 "rlarlgus"(한글 모드로 바꾸지 않고 친 글자)를 되돌리는 것인데, 실측해
+    //   보니 **이미 한글로 제대로 친 말까지 비슷한 다른 말로 바꿔 놓는다** — "아릿대"를 "오릿대"로
+    //   교정해 버려, 사용자가 묻지도 않은 낱말로 되묻는 카드가 떴다. 사용자가 실제로 친 말을
+    //   우리가 임의로 바꾸면 그 순간 이 단계의 전제("이 말이 무슨 뜻인지 확인한다")가 깨진다.
+    //   그래서 로마자가 섞인 토큰(=진짜 자판 오입력)일 때만 교정을 받아들인다. 순한글이면 호출
+    //   자체를 안 해 쿼터도 아낀다.
+    const term = /[A-Za-z]/.test(term0) ? await naver.correctTypo(term0).catch(() => term0) : term0;
     const cands = await naver.searchTermMeaning(term).catch(() => []);
     const meaning = cands.length ? await pickTermMeaning(term, cands).catch(() => '') : '';
     if (!meaning) {

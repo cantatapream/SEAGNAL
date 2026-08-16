@@ -269,6 +269,24 @@ console.log('\n[T0] R0 — 스위치 off·맥락 미전송이면 오늘과 동�
   ok('D6 "신고한"도 같은 갈래', R.unknownTermOf('신고한 뒤에 아릿대 달아도 되나요') === '아릿대');
   ok('D6 할로 끝나는 두 글자 명사는 안 건드린다(관할)', R.unknownTermOf('관할 관청 어디인가요') === '');
 
+  // D7 — 2026-08-16 **실키 검증**에서 발견. 사용자가 "아릿대"를 물었는데 카드가 「오릿대」로
+  //   되물었다: 네이버 오타변환(errata)이 **이미 한글로 제대로 친 말까지** 비슷한 다른 말로
+  //   바꿔 놓은 것이다(그 API 의 용도는 한/영 자판 오입력 되돌리기인데 실제 동작은 더 넓었다).
+  //   ★이 결함이 앞선 테스트를 통과했던 이유: "낱말을 집었나"와 "뜻에 조문이 없나"만 봤고,
+  //     **사용자에게 보이는 카드에 사용자가 실제로 쓴 말이 들어있는가**는 아무도 안 봤다.
+  console.log('\n[T10] D7 — 사용자가 친 말을 임의로 바꾸지 않는다(실키 발견)');
+  const beforeTypo = naverCalls;
+  const d7 = await R.naverTermStep('아릿대가 뭐죠', NU0, true);
+  ok('D7 ★카드에 사용자가 쓴 낱말이 그대로 보인다',
+    !!(d7 && d7.clarify) && d7.clarify.question.includes('아릿대'), d7 && d7.clarify && d7.clarify.question);
+  ok('D7 순한글이면 오타변환 API 를 아예 안 부른다(쿼터 절약)',
+    naverCalls - beforeTypo === 1);   // searchTermMeaning 1회만(correctTypo 는 0회)
+  ok('D7 확인 ctx 의 term 도 사용자가 쓴 말 그대로',
+    d7.clarify.options[0].ctx.nu.term === '아릿대');
+  ok('D7 프롬프트가 "다른 낱말 설명이면 ok:false"를 지시한다',
+    /검색 결과가 \*\*"\$\{term\}"이 아니라 다른 낱말\*\*/.test(
+      fs.readFileSync(path.join(SRV, 'services', 'legal_retriever.js'), 'utf8')));
+
   console.log(`\n${pass} PASS / ${fail} FAIL`);
   process.exit(fail ? 1 : 0);
 })();
