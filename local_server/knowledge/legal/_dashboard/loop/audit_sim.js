@@ -50,7 +50,36 @@ const SCHEMA = {
 }
 
 function prompt(l, round) {
-  const r3 = round >= 3 ? `
+  // H-38 목표조정(2026-08-16 사용자 확정): 완전소진 확정법=lean(회귀검증만, 신규질문 억지금지),
+  // 콘텐츠 풍부법=rich(600 참고선 강조 해제, 더 깊이 파도록 독려). 나머지는 기존 로직 그대로.
+  if (l.mode === 'lean') {
+    return `너는 SEAGNAL 해양법률 위키의 품질감사관이다. \`${LEGAL}/_SCHEMA.md\`와 \`${LEGAL}/_CHATBOT.md\`를 먼저 읽어 답변 규칙을 숙지한다.
+
+## 🚫 절대 금지
+'.claude/' 폴더 아래 어떤 파일도 읽거나 쓰지 마라. 감사 결과는 오직 감사파일(_dashboard/audit/) 저장 + JSON 반환값으로만 전달한다.
+**★이 감사를 Agent/Task 도구로 하위 그룹에 또 위임하지 마라(L-28)** — 혼자 Read/Grep/Write만으로 이 턴 안에서 전부 끝내라.
+
+## ★H-38 완전소진 확정법 — 경량 회귀검증 모드(사용자 확정 2026-08-16)
+「${l.name}」은 이전 라운드들에서 "신규문항 사실상 0"으로 **완전소진 확정**된 법이다(\`MASTER_PLAN.md\` H-38 참고). 이번 라운드는 새 논점을 억지로 찾지 않는다. 대신:
+1. \`${LEGAL}/_dashboard/audit/${l.slug}.md\`(직전 감사 전체)를 Read해 지난 라운드들의 thin/missing/collection_hole 항목을 파악한다.
+2. 그 항목들만 **회귀 재확인**한다(위키가 그 이후 반영됐는지, raw가 개정돼 새로 답할 게 생겼는지) — 목표 30~50문항이면 충분, 더 찾아지면 더 해도 되지만 억지로 채우지 않는다.
+3. raw(법률·시행령·시행규칙·행정규칙)가 이전 라운드 이후 실제로 개정됐는지 최상단 조문 개정일을 확인해 언급한다(개정 없으면 "개정 없음, 회귀 확인만" 명시).
+4. 새로운 논점이 우연히 눈에 띄면 포함하되, 없는데 지어내지 마라(카파시 padding금지).
+
+## 대상: 「${l.name}」
+
+## 저장 + 반환
+- \`${LEGAL}/_dashboard/audit/${l.slug}.md\`에 **append만**(L-93, 기존 이력 절대 덮어쓰기 금지) — \`---\`구분선 + 이번 라운드(회귀검증) 리포트.
+- 완료 마커: \`mkdir -p ${LEGAL}/_dashboard/fix3 && printf 'r${round} done(lean)\\n' > "${LEGAL}/_dashboard/fix3/audit_r${round}_${l.slug}.done"\`
+- 반환(JSON): law, total_questions, by_type{}, verdicts{...}(SCHEMA와 동일 필드, 해당없는 건 0), method_compliance{}(해당없으면 전부 'na'), wiki_gaps[], collection_holes[], answer_issues[], audit_file.
+
+정직하게 — 정말 회귀 확인만으로 끝나면 그렇게 보고해라(소진 상태 재확인도 유효한 결과다).`
+  }
+  const richNote = l.mode === 'rich' ? `
+
+## ★풍부형 법 — 600은 참고선조차 아니다(사용자 확정 2026-08-16)
+「${l.name}」은 별표·별지·미착수 고시가 유독 많은 것으로 확인된 법이다. 600문항을 목표로 삼지 말고, **raw(법률·시행령·시행규칙·행정규칙/고시) 전량을 새로 훑어 아직 위키에 없는 별표·별지·고시·조문을 적극적으로 더 찾는다.** 600을 넘겨 800~1000문항 이상 나와도 정상이다 — 다 못 찾았는데 600에서 멈추는 게 오히려 이번 라운드의 실패다.` : ''
+  const r3 = round >= 3 ? `${richNote}
 
 ## ★★재감사 ${round}라운드 — 약점 집중 + 3페르소나 (사용자 확정 설계)
 \`${LEGAL}/_dashboard/audit/${l.slug}.md\`(직전 감사)를 **반드시 Read**한다. 그 리포트의 판정을 이렇게 쓴다:
