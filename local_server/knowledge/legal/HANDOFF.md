@@ -537,6 +537,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-16 11:57 KST] ✅완료 — collection_hole Opus 전수재검증 완료(10/10그룹)
+74법 589건 재검증(Opus·effort high, lsDelegated API+WebSearch 교차확인). 결과: a_genuine(진짜원문공백)108·b_structural(구조적접근불가)46·c_uncollected(실은수집가능한데놓침)120·resolved(이미해소)308·unclear7. action: recollect117건(진짜재수집백로그)·wiki_sync21건(이미수집됐는데위키미반영)·reclassify_note12건. 방법론 발견: lsDelegated API가 별표(부속서) 위임을 인덱싱 안 함(구조적허점)·항로표지법 raw 5종이 폐지본이었음·자연유산법 raw파서가 목단위 텍스트 누락. 감사파일 오염 1건(어촌ㆍ어항법↔해양환경관리법) 발견했으나 이미 자체정정돼있어 손실없음 확인. 리포트 10개 _dashboard/collection_hole_reclass_report_g0~9.md 커밋완료. 다음: recollect 117건 백로그 처리 여부 사용자 확인 필요(방금 대화로 보고).
+
+
 ### [2026-08-16 09:52 KST] ✅완료 — 17차 감사 파이프라인 전체 완료(①②③④)
 17차 감사(74법)+H-9①통합수정(10그룹 전부완료)+③lint+④human_workload 전체 파이프라인 완료. canonical 876→879, draft 315→317, review-pending 15(불변), graph 118노드/1977엣지, human_workload 142건. H-38 완전소진 확정 2건(수산물유통법·해양사고조사심판법)+잠정1건(해양수산발전기본법)+목표조정정책 확정. 통합수정 중 발견: L-96(폐기물관리법 감사 gap 중복재보고), 해상교통안전법 raw 부칙파일 타법(농수산물원산지표시법) 오염(신규, 미조치). 이어서 사용자 지시로 collection_hole_reverify.js를 Opus모델로 개조(그룹병렬 지원)해 10그룹 전수 재검증 착수 예정.
 
