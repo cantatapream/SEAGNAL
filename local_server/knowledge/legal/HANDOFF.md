@@ -268,6 +268,10 @@ H-입법공백 4건 법제처질의, 각각 단계별 절차 안내) 완료.
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-16 18:07 KST] ✅완료 — 네이버 API HUB 키 발급·배포 완료, 실연동은 네트워크 차단으로 대기
+사용자가 NAVER API HUB(console.ncloud.com) 애플리케이션(SEAGNAL) 등록 완료 — Client ID/Secret 발급. ①local_server/.env에 안전 저장(gitignore 대상) ②.env.example에 자리표시자 커밋·푸시 ③사용자가 Fly.io 대시보드에서 직접 Set Secret+Deploy까지 완료 확인(운영서버 seagnal-server에 NAVER_CLIENT_ID/SECRET 반영됨). 단, 이 세션 환경은 egress 정책상 naver.com/ncloud.com/ntruss.com 전부 차단돼 있어 실제 API 호출 코드 작성·테스트는 미착수 — 사용자에게 Custom 네트워크 허용 도메인 추가(law.go.kr 건과 동일 방식) 안내함, 다음 세션(네트워크 열린 뒤)에서 §4-U(모르는 구어 해소) 실연동 진행 예정. §4-U 설계 논의(3단 필터링·오타변환 전처리·스코어 임계치 발동·재질문 1회 한정 등)는 이 대화에서 상세 확정됐으나 아직 _CHATBOT.md 미반영(다른 계정 Phase F 작업과 겹칠 수 있어 보류 중, 사용자 지시 대기).
+
+
 ### [2026-08-02 18:38 KST] 🟢착수 — Phase G 탐지계층 착수 — 변동감지 baseline(오프라인분)
 사용자 지시로 다른 계정(Phase F 앱 실배선 진행 중)과 겹치지 않는 Phase G(H-29 §1~4·8~12 탐지 계층)를 이 계정이 맡음. Phase F와 파일 충돌 없음 확인(다른 계정=client/js/ai-chat·legal_retriever.js·routes/legal.js / 이쪽=_dashboard/loop/watch_*·_dashboard/watch/·raw/**/_meta.json). H-29 §5~7(승인 방 UI)은 Phase F 관리자 UI 영역이라 이번 범위에서 제외. ★이 환경에서 law.go.kr이 프록시 정책으로 차단됨(CONNECT 403 실측) — 네트워크 필요분(법령ID 수집·광역스캔·예고본)은 보류하고, 오프라인으로 가능한 baseline 스냅샷(로컬 _meta.json+_admrul.json 840건 집계)·큐 스키마·조문→위키 역매핑·검증 하네스부터 착수. 실측 확인: 기준법 73개=법률/시행령/시행규칙 208문서+위임고시 632건=840건, 법령ID는 15_관련타부처 63건만 보유하고 기준법은 0건(H-29 §11 구멍 실재 확인).
 
