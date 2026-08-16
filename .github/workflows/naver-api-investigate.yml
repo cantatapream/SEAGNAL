@@ -36,6 +36,23 @@ jobs:
           curl -sS -L "https://guide.ncloud-docs.com/docs/apihub-overview" \
             | grep -oE 'href="[^"]*apihub[^"]*"' | sort -u | head -30 || true
 
+      - name: 인증 없이 후보 엔드포인트 생존 확인
+        env:
+          Q: ${{ inputs.query || '깔때기' }}
+        run: |
+          for url in \
+            "https://openapi.naver.com/v1/search/encyc.json?query=test" \
+            "https://naveropenapi.apigw.ntruss.com/search/v1/encyc?query=test" \
+            "https://apihub.apigw.ntruss.com/api/v1/search/encyc?query=test" \
+            "https://apigw.ntruss.com/search/v1/encyc?query=test" \
+            "https://naveropenapi.apigw.ntruss.com/" \
+            "https://apihub.apigw.ntruss.com/" ; do
+            echo "--- $url ---"
+            curl -sS -m 8 "$url" -w "\nHTTP:%{http_code}\n" 2>&1 | head -c 800
+            echo ""
+            echo ""
+          done
+
       - name: 인증 호출 테스트 (secrets 등록된 경우에만)
         if: ${{ env.HAS_SECRET == 'yes' }}
         env:
