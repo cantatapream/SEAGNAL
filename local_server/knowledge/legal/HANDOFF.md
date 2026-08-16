@@ -536,6 +536,14 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-16 23:05 KST] ✅완료 — 해양경비법 r18 통합수정 완료
+r18 감사 잔여 wiki_gaps 2건(#14 사법처리절차규칙 제6조③·제9조② wiki_lag, #15 산업통상자원부 고시 collection_hole 연락처 미기재) 수정 완료. 추적나포.md에 「불법조업 외국어선 사법처리 절차 등에 관한 규칙」 제6조③(현장조사 수사서류 인계)·제9조(일반선원 검사지휘·출입국청 인계) 신규 반영, 이 규칙 제1~14조 전 조문 최소 1회 위키반영 완료. 해상검문검색.md의 제12조①2의2호 산업통상자원부 고시 REVIEW 안내문에 소관부서 연락처(무역안보정책과 044-203-4837) 인라인 추가해 collection_hole 3요건 중 ③연락처 충족(gracefully 전환은 사람판단 보류 유지, 정식 답변 채택 여부는 REVIEW로 남김). 나머지 wiki_gaps(#1~13 대부분 RESOLVED 또는 순수 content_gap/scope_out으로 이미 정직 명시됨), collection_hole #2~4(이미 answered_gracefully), review_queue.md 마커(01·02·03·06·07·901~905) 전량 인라인 부착 확인, contacts_collected.json 19/19 페이지 반영 확인 — 추가 조치 불필요. 19/19 개념페이지·statutes 페이지 전부 canonical 확인. 완료 마커: _dashboard/fix3/fix_r18_해양경비법.done
+
+
+### [2026-08-16 23:05 KST] 🟢착수 — 해양경비법 r18 통합수정
+r18 감사(_dashboard/audit/해양경비법.md) wiki_gaps #14·#15 + collection_hole #1 재검증·수정 착수
+
+
 ### [2026-08-16 23:01 KST] ✅완료 — H-9①통합수정 10그룹 전체 디스패치 완료
 audit_fix_cell.js + audit18_groups.json + round:18로 10개 Workflow 동시 디스패치. task-id(runId): g0=wrgh2gkjr(wf_7c179ba7-2be)·g1=w79gxjh5b(wf_0af24f21-846)·g2=w2095r9vt(wf_a18a58fe-e7c)·g3=ww74vswpd(wf_7676b196-d84)·g4=w0eh8un79(wf_b994c880-ffc)·g5=wuq04a3te(wf_242afa93-2ce)·g6=wma8xgdof(wf_cb393603-b7d)·g7=wruvc7k3g(wf_0a9dcdc8-4e0)·g8=w1zw710ll(wf_0be6cc72-2f1)·g9=w32kpg9dm(wf_a0b69bb3-d6b). 완료되는 대로 커밋 → 표준후속(②공유허브재봉합 필요시 단독 → ③lint_index/lint_build → ④human_workload) 이어갈 것.
 
