@@ -537,6 +537,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-16 21:16 KST] 🟢착수 — G6 재수집 백로그 착수
+collection_hole_reclass_report_g6.md action=recollect 15건 처리 시작 (해양조사법 2, 해상교통안전법 2, 수산업법 5, 섬발전촉진법 3, 유선및도선사업법 2, 한국해양교통안전공단법 1)
+
+
 ### [2026-08-16 18:07 KST] ✅완료 — 네이버 API HUB 키 발급·배포 완료, 실연동은 네트워크 차단으로 대기
 사용자가 NAVER API HUB(console.ncloud.com) 애플리케이션(SEAGNAL) 등록 완료 — Client ID/Secret 발급. ①local_server/.env에 안전 저장(gitignore 대상) ②.env.example에 자리표시자 커밋·푸시 ③사용자가 Fly.io 대시보드에서 직접 Set Secret+Deploy까지 완료 확인(운영서버 seagnal-server에 NAVER_CLIENT_ID/SECRET 반영됨). 단, 이 세션 환경은 egress 정책상 naver.com/ncloud.com/ntruss.com 전부 차단돼 있어 실제 API 호출 코드 작성·테스트는 미착수 — 사용자에게 Custom 네트워크 허용 도메인 추가(law.go.kr 건과 동일 방식) 안내함, 다음 세션(네트워크 열린 뒤)에서 §4-U(모르는 구어 해소) 실연동 진행 예정. §4-U 설계 논의(3단 필터링·오타변환 전처리·스코어 임계치 발동·재질문 1회 한정 등)는 이 대화에서 상세 확정돼 별도 파일 `_dashboard/NAVER_GUEO_PENDING_MERGE.md`에 전부 기록해뒀음(다른 계정 Phase F 작업과 겹칠 수 있어 MASTER_PLAN.md·_CHATBOT.md 직접 반영은 보류 — 그 파일 참고해 나중에 반영할 것).
 
