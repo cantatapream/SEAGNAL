@@ -1,0 +1,29 @@
+name: scratch-naver-live-e2e
+on:
+  push:
+    branches:
+      - claude/github-readme-masterplan-check-fqkq7z
+    paths:
+      - '.github/workflows/scratch-naver-live-e2e.yml'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        working-directory: local_server
+        run: npm install @google/genai --no-save
+      - name: Live E2E (real NAVER + real Gemini)
+        working-directory: local_server
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_RAW_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/scratch_naver_live_e2e.js
