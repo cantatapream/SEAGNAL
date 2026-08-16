@@ -27,14 +27,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: 문서 페이지 원문 가져오기
+      - name: 문서 페이지 원문 가져오기 (브라우저 UA로 재시도)
         run: |
-          echo "===== apihub-overview ====="
-          curl -sS -L "https://guide.ncloud-docs.com/docs/apihub-overview" | head -c 20000 || echo "FAILED"
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+          echo "===== apihub-overview (브라우저 UA) ====="
+          curl -sS -L -A "$UA" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" \
+            -H "Accept-Language: ko-KR,ko;q=0.9" \
+            "https://guide.ncloud-docs.com/docs/apihub-overview" | head -c 15000 || echo "FAILED"
           echo ""
-          echo "===== apihub 검색으로 sitemap/링크 후보 찾기 ====="
-          curl -sS -L "https://guide.ncloud-docs.com/docs/apihub-overview" \
-            | grep -oE 'href="[^"]*apihub[^"]*"' | sort -u | head -30 || true
+          echo "===== 같은 방식으로 검색 API 상세페이지 후보들 ====="
+          for p in apihub-search apihub-api-search apihub-naver-search search-api-guide; do
+            echo "--- /docs/$p ---"
+            curl -sS -L -A "$UA" -o /dev/null -w "HTTP:%{http_code} FINAL_URL:%{url_effective}\n" \
+              "https://guide.ncloud-docs.com/docs/$p"
+          done
+          echo ""
+          echo "===== ncloud.com 콘솔 쪽 API 문서(다른 도메인) 시도 ====="
+          curl -sS -L -A "$UA" -o /dev/null -w "HTTP:%{http_code}\n" \
+            "https://api.ncloud-docs.com/docs/ai-naver-search-blog" || true
 
       - name: 인증 없이 후보 엔드포인트 생존 확인
         env:
