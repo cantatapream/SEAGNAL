@@ -536,6 +536,14 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-16 23:09 KST] ✅완료 — 격리 worktree 세션 — §4-U 조사·보고 완료 + unknownTermOf 조사 10건 보강(스위치는 계속 off)
+오케스트레이터 지시로 §4-U 현재상태 조사·보고 + §5-D '남은 것' 3가지 확인. ①프로덕션 화면 종단검증: 미착수(그대로 남음, 지시로 스위치 전환 자체를 안 함). ②routes 실HTTP 스위트: 부분진행 — 이 worktree에서 로컬서버 실제 기동(포트는 config/server_config.js 하드코딩 3001, PORT env 무시됨 주의) 후 POST /api/legal/ask 실HTTP로 스위치on/off 응답 바이트동일(R0) 확인 + 기형 ctx.nu 로도 크래시 없음 확인. 다만 이 세션엔 네이버·Gemini 실키가 없어(.env 자체 없음) happy path는 여전히 mock 수준 — 새 상설 HTTP 스위트 파일은 만들지 않음(실키 없이는 착시 커버리지라 판단). ③unknownTermOf 잔여오탐: 신규 발견 — NAVER_JOSA_TAIL에 없던 조사(한테·께서·밖에·조차·마저·치고·커녕·뿐만·더러·이며) 10종이 '선장한테'·'허가증밖에' 등 위키가 이미 아는 명사를 오탐시키던 것을 실측 확인·수정(legal_retriever.js, 순서 주의사항 주석 포함). test_naver_term_step.js D4 블록에 회귀 10건 추가(85→95 PASS/0 FAIL), test_ask_context 200/0 재확인, node --check·check_paths 통과. 남은 오탐(존댓말 어미 -십니다·불규칙활용 몰라요·받침없는 명사+홑며)은 조사가 아니라 어미축 문제라 이번 범위 밖으로 남겨둠(오탐 방향은 안전, 사용자가 아니요 누르면 끝남). 결론: 스위치는 여전히 켜면 안 됨 — ①이 통째로 비어있다. 다음 세션은 실키+실서버 갖춘 상태에서 ①부터. 상세 표는 NAVER_GUEO_PENDING_MERGE.md §5-E. 수정파일: local_server/services/legal_retriever.js(NAVER_JOSA_TAIL), local_server/scripts/test_naver_term_step.js(회귀 10건).
+
+
+### [2026-08-16 23:04 KST] 🟢착수 — 격리 worktree 세션 — §4-U 조사·보고 + 남은것3가지 확인
+오케스트레이터 지시로 §4-U(naverTermLookup) 현재상태 조사·보고 + §5-D '남은 것' 3가지(①프로덕션 화면 종단검증 ②routes 실HTTP 스위트 ③unknownTermOf 잔여오탐) 확인·가능한 만큼 진행. 스위치 프로덕션 on 전환은 금지 지시받음(판단만). 격리 git worktree에서 작업.
+
+
 ### [2026-08-16 23:00 KST] ✅완료 — §4-U 실키 종단 검증 완료: D6·D7 추가 발견·수정, 기능 실효성 확인(스위치는 계속 off)
 **무엇을**: 바로 아래 항목(D1~D5 수정)까지는 전부 **mock 기반**이었다. 사용자 지시로 "다양한 질문으로 실제 키를 태워 다시 테스트"를 수행했고, **mock 으로는 보이지 않던 결함 2건(D6·D7)이 거기서 드러나 함께 고쳤다.** 전 과정·실측표는 `_dashboard/NAVER_GUEO_PENDING_MERGE.md` **§5-D**(가장 최신 상태)에 있다.
 **어떻게**: 이 세션은 ntruss.com 직접 접속이 막혀 있어 `git push` 트리거 임시 GitHub Actions 안에서 실제 키(NAVER·GEMINI·GITHUB_RAW)로 `naverTermStep`/`searchRawFallback` 을 직접 호출했다(프로덕션·실사용자와 분리된 격리 실행, 스위치는 내내 off). ⚠**함정 하나**: `gemini_client.js` 가 읽는 환경변수는 `GEMINI_API_KEY` 가 아니라 **`GEMINI_API_KEY_26_8`** 이다 — 1차 실행이 "키 0개 등록됨"으로 조용히 물러나 절반이 관찰 불가로 빠졌다. `.env.example` 은 아직 옛 이름(GEMINI_API_KEY/`_2`)이라 **문서와 코드가 어긋나 있으니** 이 키를 다루는 세션은 먼저 확인할 것.
