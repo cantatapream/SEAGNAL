@@ -67,8 +67,10 @@ console.log('\n[T0] R0 — 스위치 off·맥락 미전송이면 오늘과 동�
   ok('상황질문 off → null', R.scopeNarrowStep(q, [], [{ law: '어선법', score: 9 }, { law: '선박법', score: 9 }], false) === null);
   ok('프로필확인 off → 되묻기 그대로', R.profileConfirmStep(CLARIFY_USE, PROFILE, { decided: [] }, false).mode === 'as-is');
   ok('assumed 아니면 답변이 바이트 동일', R.withAssumedNotice('답변 본문', false) === '답변 본문');
+  // [§4-U 2026-08-16] qForSearch 표현식에 갈래가 하나 늘었다(확인된 구어의 뜻 nuMeaning).
+  //   검사의 **뜻은 그대로**다 — 붙일 게 없으면 삼항의 else 로 빠져 원 질의 그대로여야 한다.
   ok('검색어 보강도 붙일 게 없으면 원 질의 그대로(routes 계약)',
-    /const qForSearch = narrowLabels\.length \? q \+ ' ' \+ narrowLabels\.join\(' '\) : q;/.test(ROUTES_SRC));
+    /const qForSearch = \(narrowLabels\.length \|\| nuMeaning\)\s*\n\s*\? \[q\]\.concat\(narrowLabels, nuMeaning \? \[nuMeaning\] : \[\]\)\.join\(' '\) : q;/.test(ROUTES_SRC));
 }
 
 // ── T1 [#1]. 대기 중 새 질문을 타이핑해 전송 → ctx 전부 초기화 ────────────────────
@@ -314,8 +316,8 @@ console.log('\n[T20][§8] 등급 꼬리표 제거 — 남은 note 는 UI 상태�
   ok("트리 답변 본문의 등급 문장 0건", !RET_SRC.includes('사람이 검증한 위키 카드가 아니라, ${laws}'));
   ok("UI 상태 note '추가 정보가 필요해요'는 유지", ROUTES_SRC.includes("note: '추가 정보가 필요해요'"));
   ok('오류·결과 상태 note 는 유지', ROUTES_SRC.includes('답변 생성 실패') && ROUTES_SRC.includes('이 질문에 맞는 근거를 위키에서 찾지 못했습니다.'));
-  ok('내부 프롬프트 지침(RAW_ANSWER_RULES 규칙9)은 유지(화면 꼬리표가 아니다)',
-    RET_SRC.includes('9. ★이 답변은 "미검증 참고"다.'));
+  ok('내부 프롬프트 지침(RAW_ANSWER_RULES 규칙10)은 유지(화면 꼬리표가 아니다)',
+    RET_SRC.includes('10. ★이 답변은 "미검증 참고"다.'));
 }
 
 // ============================================================================
@@ -359,8 +361,10 @@ console.log('\n[T22][F2] ctxNext 이어받기 — 프로필 확인 무한루프 
     && R.ctxNextOf(acceptedCtx).prof.decided[0].use === 'accepted');
   ok('이해확인 라운드만 올라가 있어도 실린다',
     !!R.ctxNextOf(R.normalizeAskCtx({ uc: { rounds: 1, state: 'none' } }, PROFILE)));
-  ok('done 응답 전부(확인카드·트리·되묻기·최종답변)에 ctxNext 를 붙인다',
-    (ROUTES_CODE.match(/withCtxNext\(/g) || []).length === 4,
+  // [§4-U 2026-08-16] 5번째 done 이 생겼다 — §4-U ③정직한 포기 응답. 이것도 ctxNext 를 붙여야
+  //   "이미 한 번 물어봤다"(nu.rounds)가 다음 턴까지 살아 같은 말을 또 묻지 않는다.
+  ok('done 응답 전부(확인카드·트리·되묻기·최종답변·§4-U포기)에 ctxNext 를 붙인다',
+    (ROUTES_CODE.match(/withCtxNext\(/g) || []).length === 5,
     (ROUTES_CODE.match(/withCtxNext\(/g) || []).length);
 
   // ⓑ 라이브에서 재현된 무한루프 시나리오를 그대로 고정한다.

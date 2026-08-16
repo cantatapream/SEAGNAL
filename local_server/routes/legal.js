@@ -201,10 +201,13 @@ function normConfig(c) {
     understandConfirm: c.understandConfirm === true,
     scopeNarrow: c.scopeNarrow === true,
     profileConfirm: c.profileConfirm === true,
+    naverTermLookup: c.naverTermLookup === true,
   };
 }
 // POST /api/legal/config 가 받는 boolean 스위치 목록(위 normConfig 와 1:1).
-const BOOL_SWITCHES = ['answerCanonicalOnly', 'understandConfirm', 'scopeNarrow', 'profileConfirm'];
+// naverTermLookup(§4-U 모르는 구어 해소)도 같은 관례로 **기본 false** — 켜기 전 NAVER_CLIENT_ID/
+// SECRET 이 그 환경에 실제로 있는지 확인할 것(없으면 스위치가 켜져 있어도 단계가 조용히 물러난다).
+const BOOL_SWITCHES = ['answerCanonicalOnly', 'understandConfirm', 'scopeNarrow', 'profileConfirm', 'naverTermLookup'];
 router.get('/api/legal/config', (req, res) => {
   res.json(Object.assign({ ok: true }, normConfig(readConfig())));
 });
@@ -536,6 +539,24 @@ function logKnowledgeCandidate(query, raw) {
   });
 }
 
+/**
+ * [§4-U ④] 사용자가 "네, 맞아요"로 확인해 준 구어→뜻 매핑을 학습 후보로 적재한다.
+ * ★`_glossary.md`를 직접 고치지 않는다 — 구어표는 사람 승인 게이트를 거치는 게 이 저장소의
+ *   확립된 관례라, 위 logKnowledgeCandidate 와 **같은 큐·같은 승인 흐름**에 얹는다(kind로만 구분).
+ * @param {string} query - 그 말이 나온 원 질문 @param {string} term - 구어 @param {string} meaning - 확인된 뜻
+ */
+function logGlossaryCandidate(query, term, meaning) {
+  adminQueues.appendJsonl(CANDIDATES_FILE, {
+    id: `cd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    ts: new Date().toISOString(),
+    kind: 'glossary',
+    query: String(query).slice(0, 300),
+    term: String(term).slice(0, 40),
+    meaning: String(meaning).slice(0, 100),
+    status: 'pending',
+  });
+}
+
 // GET /api/legal/candidates?status=pending|approved|dismissed|all (관리자)
 router.get('/api/legal/candidates', adminAuth.requireAdminToken, (req, res) => {
   try {
@@ -831,14 +852,24 @@ router.post('/api/legal/ask', async (req, res) => {
   //   보낸다. 클라이언트는 이걸 들고 있다가 다음 요청에 붙인다 — 맥락을 버튼의 data-ctx 에만
   //   실었더니 **ctx 없는 버튼**(기존 되묻기·트리 되묻기)을 누르는 순간 직전 맥락이 사라져
   //   프로필 확인이 무한루프가 됐다(라이브 재현). 비어 있으면 null 이라 필드 자체를 안 싣는다(R0).
-  const ctxNext = legalRetriever.ctxNextOf(ctx);
-  const withCtxNext = (done) => { if (ctxNext) done.ctxNext = ctxNext; return done; };
+  //   ★[§4-U] 값을 **호출 시점에 다시 계산한다** — §4-U 단계가 `ctx.nu`(확인된 뜻을 다 쓴 뒤의
+  //     상태)를 갱신하는데, 미리 굳혀 두면 그 갱신이 응답에 안 실린다. ctxNextOf 는 순수 함수라
+  //     ctx 를 안 건드리는 기존 경로에서는 결과가 문자 그대로 같다(R0).
+  const withCtxNext = (done) => {
+    const cn = legalRetriever.ctxNextOf(ctx);
+    if (cn) done.ctxNext = cn;
+    return done;
+  };
   // 신규 단계가 확인 카드를 낼 때 쓰는 done 한 줄(기존 되묻기 응답과 **같은 모양** — clarify 스키마
   // 그대로라 ai_chat.js clarifyHTML 이 그대로 그린다. confirmKind 만 새로 붙는다).
+  // ★[§4-U] 헤더는 아직 안 나갔을 때만 세운다 — §4-U 는 스트림 헤더가 이미 나간 뒤(2차 조회 실패
+  //   지점)에서도 이 함수를 쓴다. 기존 호출부는 전부 헤더 전이라 동작이 그대로다(R0).
   const writeConfirm = (step) => {
-    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache');
-    if (res.flushHeaders) res.flushHeaders();
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      if (res.flushHeaders) res.flushHeaders();
+    }
     res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
       answer: step.answer || null, sources: [], citationChain: [], note: step.note || '',
       clarify: step.clarify, confirmKind: step.confirmKind })) + '\n');
@@ -890,7 +921,20 @@ router.post('/api/legal/ask', async (req, res) => {
     //   ⚠ 붙일 게 없으면 qForSearch === q 라 R0(회귀 0)가 성립한다.
     const narrowLabels = ctx.scope.map(s => s.label)
       .concat(legalRetriever.profileAcceptedLabels(ctx).map(d => d.label));
-    const qForSearch = narrowLabels.length ? q + ' ' + narrowLabels.join(' ') : q;
+    // [§4-U] 사용자가 "네, 맞아요"로 확인해 준 구어의 뜻도 **검색어에만** 덧붙인다(같은 규약).
+    //   ★한 번만 쓰고 버린다(아래에서 ctx.nu 를 소진 상태로 갱신) — 확인된 뜻이 뒤따르는 다른
+    //     질문까지 따라다니면 엉뚱한 검색어가 되고, 같은 말을 계속 되묻는 고리도 생긴다.
+    const nuTerm = cfg.naverTermLookup ? (ctx.nu.term || '') : '';
+    const nuMeaning = cfg.naverTermLookup ? (ctx.nu.meaning || '') : '';
+    if (nuMeaning) {
+      // 소진 표시: rounds 를 상한으로 올려 둔다 — 이 뜻으로도 못 찾으면 아래 §4-U 는 같은 말을
+      // 또 묻지 않고 곧장 ③정직한 포기로 간다(§4-6 ③).
+      ctx.nu = { rounds: legalRetriever.NAVER_MAX_ROUNDS, state: 'none', term: '', meaning: '' };
+      // ④ 학습 후보 적재(관리자 승인 시 _glossary.md 로 정식 편입). 실패해도 응답 흐름과 무관.
+      try { logGlossaryCandidate(q, nuTerm, nuMeaning); } catch (_) { /* 로그 실패는 무시 */ }
+    }
+    const qForSearch = (narrowLabels.length || nuMeaning)
+      ? [q].concat(narrowLabels, nuMeaning ? [nuMeaning] : []).join(' ') : q;
     // [H-37 §17] 사용자가 "네, 맞아요"로 확인한 재진술은 **검색 확장어로만** 넘긴다(질의 문자열에
     //   합치지 않는다 — 합치면 §2.1의 세 오염이 그대로 살아난다). 스위치가 off면 넘기지 않는다:
     //   대기 중 운영자가 스위치를 내리면 그 단계가 없는 것처럼 동작해야 한다(설계 §9.1 #10).
@@ -1006,7 +1050,34 @@ router.post('/api/legal/ask', async (req, res) => {
     // done 한 줄로 보낸다(클라 answerHTML은 done의 answer로 최종 렌더하므로 delta 없이도 그려진다).
     // GITHUB_RAW_TOKEN·키가 없거나 원문에서도 못 찾으면 answer:null → 아래 else로 기존 동작 유지.
     const needsFallback = !usedGemini || !finalSources.length;
-    const raw = needsFallback ? await legalRetriever.searchRawFallback(q) : null;
+    // [§4-U] 확인된 뜻이 있으면 원문 직독도 그 뜻을 얹어 시도한다 — 이 경로가 빈손이 되는 실제
+    //   원인의 대부분이 pickCandidateLaws 의 빈 배열(=AI가 낱말 자체를 못 알아들어 읽을 법을 못
+    //   고름)이라, 뜻 한 조각만 붙어도 후보 법이 잡힌다. 없으면 q 그대로다(R0).
+    const raw = needsFallback
+      ? await legalRetriever.searchRawFallback(nuMeaning ? q + ' ' + nuMeaning : q) : null;
+
+    // [§4-U 모르는 구어 해소] 위키(1차)도 원문 직독(2차)도 빈손인 바로 이 지점 — 지금까지 "이
+    //   질문에 맞는 근거를 위키에서 찾지 못했습니다"로 끝나던 자리 — 에서만 개입한다.
+    //   ★발동 조건을 `raw`와 **똑같이** 잡은 이유(2026-08-16 로컬 실측으로 정정): 처음엔 "화면에
+    //     글자가 이미 흘러갔으면(full) 카드로 갈아끼우지 말자"고 막아 뒀는데, 정작 대표 사례인
+    //     "깔때기가 뭐죠"가 그 갈래로 떨어진다 — 위키 검색이 관대해 약한 후보 4건이 잡히고(실측),
+    //     그래서 합성은 돌지만 L-57 교차확인이 근거를 전부 걸러 needsFallback 이 된다. 그 조건을
+    //     달면 §4-U 가 정작 필요한 자리에서 영영 안 뜬다. 여기까지 온 답변은 **어느 위키 근거도
+    //     인용하지 않은 답변**이라(그래서 finalSources 가 0건이다) 카드로 바꿔도 잃는 게 없고,
+    //     바로 위 2차 조회도 이미 같은 자리에서 1차 답변을 통째로 갈아끼우고 있다(established).
+    //   스위치 off·키 없음·모르는 낱말 없음이면 null 이라 아래 기존 흐름이 그대로 돈다(R0).
+    if (needsFallback && !(raw && raw.answer)) {
+      const nu = await legalRetriever.naverTermStep(q, ctx.nu, cfg.naverTermLookup);
+      if (nu && nu.clarify) return writeConfirm(nu);
+      if (nu && nu.giveup) {
+        res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
+          answer: nu.answer, sources: [], citationChain: [],
+          note: '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.' })) + '\n');
+        res.end();
+        if (askId) inFlightAsks.delete(askId);
+        return;
+      }
+    }
 
     let answer, sourcesOut, note;
     if (raw && raw.answer) {

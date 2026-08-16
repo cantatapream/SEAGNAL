@@ -1086,30 +1086,37 @@ function buildContextBlock(contextPages) {
   }).join('\n\n');
 }
 
-// 답변 원칙 1~8은 1차(위키 근거)·2차(원문 미검증 참고) 답변이 똑같이 지켜야 하는 공통 규칙이라
+// 답변 원칙 1~9는 1차(위키 근거)·2차(원문 미검증 참고) 답변이 똑같이 지켜야 하는 공통 규칙이라
 // 별도 상수로 떼어 두 프롬프트가 함께 쓴다(서두 한 문장만 근거의 성격에 따라 달라진다).
-// ⚠ 규칙6(각주 생략)이 기대는 "화면이 대신 보여준다"의 실제 범위는 이렇다(ai_chat.js answerHTML 실측):
+// ⚠ 규칙7(각주 생략)이 기대는 "화면이 대신 보여준다"의 실제 범위는 이렇다(ai_chat.js answerHTML 실측):
 //   · 근거 법령 목록은 **접힌 아코디언**이라 사용자가 눌러야 보인다(답변 밑에 펼쳐져 있지 않다).
 //   · 그 안에는 **답변이 실제로 인용한 조문 줄만** 뜬다(소스 여러 곳의 줄을 합친 하나의 목록 —
 //     routes/legal.js mergeCitationChains). 이름만 있는 소스 카드는 정보가 없어 그리지 않는다.
-//   그래서 규칙6은 "완전히 중복되니 빼라"가 아니라 "본문에서 법령·조문은 밝히되 소관부서·연락처·기준일
+//   그래서 규칙7은 "완전히 중복되니 빼라"가 아니라 "본문에서 법령·조문은 밝히되 소관부서·연락처·기준일
 //   각주만 생략한다"는 뜻이다 — 각주를 되살릴지는 화면 UX와 함께 판단할 일이지 이 주석이 단정할 게 아니다.
+// ★규칙1(범위 준수) 신설(2026-08-16, A/B 실측 근거): 실제 위키 페이지(절이 20개 이상인 허브성 concept
+//   3종)에서 뽑은 질문 6개로 baseline vs 이 규칙 추가본을 Gemini에 직접 비교했다. baseline은 6건 중
+//   1건("선박 개조했는데 임시검사 받아야 하나요")에서 안 물어본 "위반 시 처벌(과태료)" 절까지 답변에
+//   끌고 왔고, 이 규칙(질문 범위를 맨 앞에서 못박기)을 추가하니 그 누출이 사라졌다(추가 AI 호출 없이,
+//   프롬프트만으로 해소 — 후처리 재검토안도 같은 결함을 잡았으나 정상적인 규칙3 마무리 문구까지
+//   같이 잘라내는 부작용이 있어 채택 안 함). 나머지 5문항은 baseline도 이미 범위 안이었다.
 const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
-1. 답의 근거는 오직 [근거자료]뿐이다. [근거자료]에 없는 내용은 지어내지 말고 "확인되지 않습니다"라고 정직하게 말한다.
-2. 처벌(징역·벌금·과태료)은 조·항·호·금액을 [근거자료] 그대로 인용한다. 뭉개어 말하지 않는다. 처벌이 위반 횟수(1차/2차/3차…)에 따라 달라지면 가장 흔한 경우(통상 1차)만 먼저 답하고 "2차 이후도 궁금하시면 다시 물어보세요"로 마무리한다(한 번에 전부 나열하지 않는다).
-3. 여기서는 사용자에게 되묻지 않는다 — 되물어야 하는 질문은 이 답변 **앞 단계(되묻기 판단)** 에서 이미 걸러진다. 조건(선박 톤수·어업 종류·조업구역 등)이 질문에 없어도 되묻지 말고 [근거자료]에 있는 정보로 최선을 다해 답하되, 조건에 따라 갈리면 핵심 갈래만 짧게 구분해 밝힌다(모든 경우를 장황하게 전수 나열하지 않는다).
-4. 판례·법리 해석·다툼의 여지가 있는 논점은 답하지 않는다(스코프 밖). 명확한 조문까지만 안내하고 "이 부분은 개별 사안에 따라 달라져 관할 소관부서에 확인하시는 것이 정확합니다"로 마무리한다.
-5. 딱딱한 조문 나열 금지. 결론 먼저 → 필요한 근거. **본문 첫 문장을 "쉽게 말하면 ~"으로 열어** 결론을 일상어로 짧게 요약한 뒤, 조문·처벌 같은 정확한 근거를 그다음에 이어 붙인다 — 이 쉬운 요약을 답변 맨 끝에 마무리 말로 붙이지 않는다. 과잉 설명은 하지 않는다.
-6. 근거로 삼은 법령명·조문번호는 답변 문장 안에서 자연스럽게 밝힌다(예: "「낚시 관리 및 육성법」 제35조에 따라 …"). 다만 소관부서·연락처·근거자료의 기준일을 답변 마지막에 각주로 따로 붙이지는 않는다 — 화면이 답변 바로 아래에 "근거 법령" 목록을 함께 실어 사용자가 펼쳐서 확인할 수 있다. ("참고용입니다" 면책 문구도 화면이 별도로 붙이니 답변에 넣지 않는다.)
-7. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용. 갈래·조건별로 나뉘는 설명은 "*" 같은 밋밋한 기호 하나로 뭉뚱그리지 말고, 단계(갈래→항목→세부조건)에 따라 "1. → 가. → 1)" 순서로 번호를 매겨 위계를 드러낸다(더 깊어지면 "가)→(1)→(가)" 순으로 이어간다). 예: "1. 바다에서 조종한 경우" 아래 "가. 형벌" 아래 "1) 총톤수 5톤 이상 선박은…".
-8. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.`;
+1. ★질문한 것만 답한다. 사용자가 구체적으로 하나의 조건·위반유형·절차를 물었으면, [근거자료]에 다른 조건·다른 위반유형·다른 절차·다른 검사종류·다른 처벌조문이 나란히 있어도 언급하지 않는다. "참고로 알려드리면"·"추가로"처럼 요청받지 않은 정보를 덧붙이지 않는다.
+2. 답의 근거는 오직 [근거자료]뿐이다. [근거자료]에 없는 내용은 지어내지 말고 "확인되지 않습니다"라고 정직하게 말한다.
+3. 처벌(징역·벌금·과태료)은 조·항·호·금액을 [근거자료] 그대로 인용한다. 뭉개어 말하지 않는다. 처벌이 위반 횟수(1차/2차/3차…)에 따라 달라지면 가장 흔한 경우(통상 1차)만 먼저 답하고 "2차 이후도 궁금하시면 다시 물어보세요"로 마무리한다(한 번에 전부 나열하지 않는다).
+4. 여기서는 사용자에게 되묻지 않는다 — 되물어야 하는 질문은 이 답변 **앞 단계(되묻기 판단)** 에서 이미 걸러진다. 조건(선박 톤수·어업 종류·조업구역 등)이 질문에 없어도 되묻지 말고 [근거자료]에 있는 정보로 최선을 다해 답하되, 조건에 따라 갈리면 핵심 갈래만 짧게 구분해 밝힌다(모든 경우를 장황하게 전수 나열하지 않는다).
+5. 판례·법리 해석·다툼의 여지가 있는 논점은 답하지 않는다(스코프 밖). 명확한 조문까지만 안내하고 "이 부분은 개별 사안에 따라 달라져 관할 소관부서에 확인하시는 것이 정확합니다"로 마무리한다.
+6. 딱딱한 조문 나열 금지. 결론 먼저 → 필요한 근거. **본문 첫 문장을 "쉽게 말하면 ~"으로 열어** 결론을 일상어로 짧게 요약한 뒤, 조문·처벌 같은 정확한 근거를 그다음에 이어 붙인다 — 이 쉬운 요약을 답변 맨 끝에 마무리 말로 붙이지 않는다. 과잉 설명은 하지 않는다.
+7. 근거로 삼은 법령명·조문번호는 답변 문장 안에서 자연스럽게 밝힌다(예: "「낚시 관리 및 육성법」 제35조에 따라 …"). 다만 소관부서·연락처·근거자료의 기준일을 답변 마지막에 각주로 따로 붙이지는 않는다 — 화면이 답변 바로 아래에 "근거 법령" 목록을 함께 실어 사용자가 펼쳐서 확인할 수 있다. ("참고용입니다" 면책 문구도 화면이 별도로 붙이니 답변에 넣지 않는다.)
+8. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용. 갈래·조건별로 나뉘는 설명은 "*" 같은 밋밋한 기호 하나로 뭉뚱그리지 말고, 단계(갈래→항목→세부조건)에 따라 "1. → 가. → 1)" 순서로 번호를 매겨 위계를 드러낸다(더 깊어지면 "가)→(1)→(가)" 순으로 이어간다). 예: "1. 바다에서 조종한 경우" 아래 "가. 형벌" 아래 "1) 총톤수 5톤 이상 선박은…".
+9. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.`;
 
 const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
 
 ${ANSWER_RULES_BODY}`;
 
 // 'MINIMAL'은 gemini-pro-latest(3.x)에서 400(지원 안 함)으로 실측 확인(2026-07-29) — 절대 쓰지 말 것.
-// pro-latest 확정: LOW+규칙8(6회 반복 26초 평균·완전성 6/6)이 속도·완전성 균형점.
+// pro-latest 확정: LOW+규칙9(6회 반복 26초 평균·완전성 6/6)이 속도·완전성 균형점.
 // 2026-07-30 실측 발견: gemini-2.5-flash는 'thinkingLevel' 필드 자체가 400("Thinking level is
 // not supported for this model")으로 아예 미지원 — 2.5 계열은 thinkingBudget(정수, -1=dynamic)
 // 방식만 받는다. 모델별로 지원 필드가 달라 분기 처리.
@@ -1290,8 +1297,8 @@ async function pickRawFiles(query, bundles) {
 const RAW_ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 사람이 검증한 법령 위키 카드가 아니라, 질문에 맞는 카드가 없어 **법령 원문을 방금 그대로 읽어온 것**이다.
 
 ${ANSWER_RULES_BODY}
-9. ★이 답변은 "미검증 참고"다. 답변 서두에 사람이 검증한 정식 답변이 아니라 원문을 방금 훑어본 참고 정보라는 사실을 한 문장으로 밝히고, 마지막은 반드시 "정확한 확인은 소관부서에 문의하세요"로 마무리한다. 원문에서 근거를 못 찾았으면 억지로 답하지 말고 "확인되지 않습니다"라고 말한다.
-10. ★이 답변에는 위키 카드가 없어 화면 아래 "근거 법령" 목록이 붙지 않는다(규칙6이 각주를 생략시키는 근거가 여기엔 없다) — 그러니 근거로 삼은 법령·조문과 그 기준일(시행일)이 원문에 있으면 답변 마지막에 한 줄로 밝힌다.`;
+10. ★이 답변은 "미검증 참고"다. 답변 서두에 사람이 검증한 정식 답변이 아니라 원문을 방금 훑어본 참고 정보라는 사실을 한 문장으로 밝히고, 마지막은 반드시 "정확한 확인은 소관부서에 문의하세요"로 마무리한다. 원문에서 근거를 못 찾았으면 억지로 답하지 말고 "확인되지 않습니다"라고 말한다.
+11. ★이 답변에는 위키 카드가 없어 화면 아래 "근거 법령" 목록이 붙지 않는다(규칙7이 각주를 생략시키는 근거가 여기엔 없다) — 그러니 근거로 삼은 법령·조문과 그 기준일(시행일)이 원문에 있으면 답변 마지막에 한 줄로 밝힌다.`;
 
 /**
  * 2차 조회(미검증 참고): 위키에서 근거를 못 찾은 질문을 법령 원문으로 한 번 더 시도한다.
@@ -2179,7 +2186,8 @@ function josaEuro(word) {
  * [연계] ← routes/legal.js POST /api/legal/ask. → understandConfirmStep·scopeNarrowStep·profileConfirmStep.
  */
 function normalizeAskCtx(raw, profile) {
-  const empty = { uc: { rounds: 0, state: 'none', restate: '' }, scope: [], prof: { decided: [] } };
+  const emptyNu = { rounds: 0, state: 'none', term: '', meaning: '' };
+  const empty = { uc: { rounds: 0, state: 'none', restate: '' }, scope: [], prof: { decided: [] }, nu: emptyNu };
   try {
     const c = (raw && typeof raw === 'object') ? raw : {};
     const uc = (c.uc && typeof c.uc === 'object') ? c.uc : {};
@@ -2212,7 +2220,22 @@ function normalizeAskCtx(raw, profile) {
         seen.add(d.axis);
         return true;
       });
-    return { uc: { rounds, state, restate }, scope, prof: { decided } };
+
+    // [§4-U] nu(네이버 뜻 확인) 축 — uc 와 **같은 규약**이다: 라운드는 clamp, 상태는 열거값만,
+    //   `term`·`meaning` 은 **state==='confirmed' 일 때만** 살린다(확인받지 않은 뜻을 검색에 쓰면
+    //   "사용자가 승인한 뜻"이라는 이 값의 근거가 사라진다 — uc.restate 와 같은 이유).
+    //   meaning 은 생성 시점과 같은 후검사(naverMeaningAllowed)를 다시 통과해야 한다(변조·재생 방어).
+    const nuRaw = (c.nu && typeof c.nu === 'object') ? c.nu : {};
+    const nuState = NAVER_STATES.includes(nuRaw.state) ? nuRaw.state : 'none';
+    const nuMeaning = nuState === 'confirmed' ? naverMeaningAllowed(nuRaw.meaning) : '';
+    const nu = {
+      rounds: Math.min(NAVER_MAX_ROUNDS, Math.max(0, parseInt(nuRaw.rounds, 10) || 0)),
+      // 뜻이 후검사에서 버려졌으면 확인 상태도 성립하지 않는다(뜻 없는 'confirmed'는 무의미).
+      state: nuMeaning ? 'confirmed' : 'none',
+      term: nuMeaning ? clarifyStr(nuRaw.term, NAVER_TERM_MAX) : '',
+      meaning: nuMeaning,
+    };
+    return { uc: { rounds, state, restate }, scope, prof: { decided }, nu };
   } catch (_) {
     return empty;
   }
@@ -2236,8 +2259,15 @@ function ctxNextOf(ctx) {
   const uc = ctx.uc || { rounds: 0, state: 'none', restate: '' };
   const scope = ctx.scope || [];
   const prof = ctx.prof || { decided: [] };
-  const has = uc.rounds > 0 || uc.state !== 'none' || scope.length > 0 || prof.decided.length > 0;
-  return has ? { uc, scope, prof } : null;
+  // [§4-U] nu 도 같은 규약으로 실어 나른다. 기본값(rounds 0·state none)이면 **필드 자체를 안 넣는다** —
+  //   스위치 off 인 오늘의 done JSON 이 바이트 동일해야 하기 때문이다(R0).
+  const nu = ctx.nu || { rounds: 0, state: 'none', term: '', meaning: '' };
+  const hasNu = nu.rounds > 0 || nu.state !== 'none';
+  const has = uc.rounds > 0 || uc.state !== 'none' || scope.length > 0 || prof.decided.length > 0 || hasNu;
+  if (!has) return null;
+  const out = { uc, scope, prof };
+  if (hasNu) out.nu = nu;
+  return out;
 }
 
 /**
@@ -2701,6 +2731,212 @@ function profileConfirmStep(clarify, profile, prof, enabled) {
   }
 }
 
+// ============================================================================
+// §4-U 모르는 구어 해소 — 네이버 검색으로 "이 말이 무슨 뜻인지"만 확인한다
+// ----------------------------------------------------------------------------
+// ★설계 전문: `knowledge/legal/_dashboard/NAVER_GUEO_PENDING_MERGE.md` §4(4-1~4-9).
+// ★불변식(`_CHATBOT.md` §4-U): 웹 검색 결과는 **뜻 확인용**이다 — 조문·처벌·금액을 여기서
+//   가져오지 않는다(그건 언제나 위키/raw 원문 몫). 그래서 이 절이 밖으로 내보내는 값은
+//   "사용자가 맞다고 확인해 준 낱말의 뜻" 한 조각뿐이고, 그 조각은 답변에 인용되지 않고
+//   **검색어를 보강하는 데만** 쓰인다(routes/legal.js 의 qForSearch·searchRawFallback 질의).
+// ★발동 지점: 위키 검색(1차)도 원문 직독(2차 searchRawFallback)도 전부 빈손일 때 — 지금까지
+//   "이 질문에 맞는 근거를 위키에서 찾지 못했습니다"로 끝나던 바로 그 자리 하나뿐이다.
+//   (searchRawFallback 이 빈손이 되는 실제 원인의 대부분이 pickCandidateLaws 의 빈 배열이다 —
+//    AI가 낱말 자체를 못 알아들으니 읽을 법도 못 고른다.)
+// ★안전 규약(§3.3 R4 그대로): 이 절의 함수는 어떤 예외도 밖으로 내보내지 않는다 — 실패는
+//   "그 단계 없음"(null)이고, 그러면 호출부는 배선 전과 100% 같은 기존 흐름을 탄다.
+// ★스위치: `nariya_config.naverTermLookup`, **기본 false**(H-37 3단계와 같은 롤아웃 관례).
+// ============================================================================
+
+const NAVER_MAX_ROUNDS = 1;        // §4-6 ② "재질문 딱 1회" — 넘으면 ③정직한 포기
+const NAVER_STATES = ['none', 'confirmed'];
+const NAVER_TERM_MAX = 20;         // ctx로 왕복하는 낱말 길이 상한(변조 방어)
+const NAVER_MEANING_MAX = 40;      // 확인받은 뜻(검색어 재료가 된다) 길이 상한
+const NAVER_CAND_MAX = 12;         // Gemini에 보여줄 검색결과 후보 수
+const NAVER_NOTE = '모르는 말을 확인하고 있어요';
+const NAVER_YES = '네, 맞아요';
+const NAVER_NO = '아니요, 다시 설명할게요';
+const NAVER_RETRY = '다시 설명할게요';
+// ③ 막다른 길로 끝내지 않는다(§4-6 ③) — "왜 못 찾았는지 + 다음에 무엇을 하면 되는지".
+const NAVER_GIVEUP = '말씀하신 표현이 무엇을 뜻하는지 끝내 확인하지 못해, 지어내지 않고 여기서 멈춥니다. 다른 이름(정식 명칭·비슷한 말)으로 다시 말씀해 주시거나, 어떤 상황·장비에서 쓰는 말인지 설명해 주시면 다시 찾아보겠습니다.';
+// 낱말 끝에 붙는 조사·어미(형태소 분석기가 없어 이만큼만 저렴하게 뗀다). "깔때기가"→"깔때기".
+// ★어미(나요·까요…)까지 넣는 이유: 떼고 남은 줄기가 1글자면 그건 명사가 아니라 **동사**라는
+//   신호라, 그걸로 후보에서 통째로 뺀다("받나요"→"받"→탈락). 안 그러면 "어선 검사 언제 받나요"
+//   처럼 모르는 말이 하나도 없는 질문에서 "받나요"가 모르는 낱말로 잡힌다(실측으로 확인).
+// ⚠완전하지 않다(§4-8 termsOf 한계와 같은 뿌리) — 못 떼면 검색어가 조금 나빠질 뿐, 지어내지는 않는다.
+const NAVER_JOSA_TAIL = /(이라는|이라고|이란|라는|라고|나요|까요|해요|세요|어요|아요|에서|에게|으로|이라|은지|는지|가|은|는|을|를|의|에|로|도|만|과|와|랑|이)$/;
+// 뜻을 물어보는 상투어 자체는 찾아볼 낱말이 아니다(STOPWORDS 는 검색 점수용이라 건드리지 않는다).
+const NAVER_STOP = new Set(['뭐죠', '뭐야', '뭐지', '뭔가', '뭔지', '뭡니까', '말인가', '말인지']);
+// 네이버 응답의 <b> 강조 태그·HTML 엔티티(실측: description 에 `&lt;수산&gt;` 형태로 온다).
+const NAVER_TAG_RE = /<[^>]*>/g;
+
+// 뜻 후보를 고르는 판단 호출(pickCandidateLaws 와 같은 "짧고 빠른 판단" 규약 — 사고 끄고 JSON만).
+// 타임아웃은 API 최소값(10초) 위로 둔다(:2124 실측 기록 참고 — 8초로 두면 매 호출 400이다).
+const NAVER_PICK_CONFIG = {
+  temperature: 0.1,
+  thinkingConfig: { thinkingBudget: 0 },
+  responseMimeType: 'application/json',
+  httpOptions: { timeout: 12000 },
+};
+
+/**
+ * 네이버 스니펫의 HTML 태그·엔티티를 걷어 사람이 읽는 문장으로 되돌린다.
+ * 예: naverPlain('&lt;수산&gt; <b>깔때기</b>') → '<수산> 깔때기'
+ * @param {string} s @returns {string}
+ * [연계] ← naverTermStep(프롬프트에 싣기 전).
+ */
+function naverPlain(s) {
+  return String(s || '').replace(NAVER_TAG_RE, '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * 확인받을 "뜻" 문자열이 §4-U 불변식을 지키는지 한 군데서 판정한다(restateAllowed 와 같은 역할).
+ * ★왜 필요한가: 이 값은 ①모델이 만든 직후 ②사용자가 "네"를 눌러 `ctx.nu.meaning` 으로 되돌아올 때
+ *   **두 번** 들어오고, ②는 클라이언트를 거치므로 변조·재생이 가능하다. 그리고 무엇보다 여기에
+ *   조문·형량이 섞이면 그 순간 "웹 내용을 법적 근거로 쓰지 않는다"는 §4-U 불변식이 깨진다.
+ * 예: naverMeaningAllowed('통발 안쪽으로 좁아지는 입구 부분') → 그 문장 그대로
+ *     naverMeaningAllowed('제32조 위반이면 과태료 100만원') → ''(RESTATE_BAN)
+ * @param {*} s @returns {string} 통과하면 정리된 문자열, 아니면 ''
+ * [연계] ← naverTermStep(생성 직후) · normalizeAskCtx(되돌아온 값).
+ */
+function naverMeaningAllowed(s) {
+  const t = clarifyStr(s, NAVER_MEANING_MAX);
+  if (!t) return '';
+  if (RESTATE_BAN.test(t)) return '';
+  return t;
+}
+
+/**
+ * 질문에서 "우리가 모르는 낱말" 하나를 고른다 — **AI를 쓰지 않는 순수 대조**다.
+ * index.json 메타(법명·주제·파일명·테마)에도 없고 `_glossary.md` 구어표에도 없는 낱말만 남기고,
+ * 그중 가장 긴 것을 고른다(가장 구체적인 말일 확률이 높다).
+ * 예: unknownTermOf('깔때기가 뭐죠') → '깔때기'   ·   unknownTermOf('어선 검사 언제 받나요') → ''
+ * @param {string} query - 사용자 질문
+ * @returns {string} 후보가 없으면 ''(그러면 §4-U 자체를 발동하지 않는다)
+ * [연계] ← naverTermStep 1단계. → naver_search.correctTypo/searchTermMeaning 의 검색어.
+ */
+function unknownTermOf(query) {
+  const hay = (loadIndex().pages || [])
+    .map(p => `${p.law || ''} ${p.topic || ''} ${p.file || ''} ${(p.themes || []).join(' ')}`).join('\n');
+  const gloss = loadGlossary().flatMap(r => r.terms).map(t => t.replace(/\s+/g, ''));
+  const seen = new Set();
+  const cands = [];
+  for (const tok of String(query).replace(/[^가-힣a-zA-Z0-9\s]/g, ' ').split(/\s+/)) {
+    if (tok.length < 2 || STOPWORDS.has(tok) || NAVER_STOP.has(tok)) continue;
+    const t = tok.replace(NAVER_JOSA_TAIL, '');
+    // 떼고 남은 줄기가 1글자 = 명사가 아니라 동사·어미 조각이다 → 후보에서 뺀다.
+    if (t.length < 2 || t.length > NAVER_TERM_MAX || seen.has(t)) continue;
+    seen.add(t);
+    if (hay.includes(t)) continue;                 // 위키가 이미 아는 말
+    if (gloss.some(g => g.includes(t))) continue;  // glossary 가 이미 아는 구어
+    cands.push(t);
+  }
+  cands.sort((a, b) => b.length - a.length);
+  return cands[0] || '';
+}
+
+/**
+ * §4-4 3단계 — 걸러진 검색 후보를 **우리 정체성 문맥과 함께** Gemini에 넘겨 뜻 하나를 고르게 한다.
+ * 후보 목록에 없는 뜻을 지어내면 안 되므로, 프롬프트로 강제하고 서버가 다시 후검사한다.
+ * @param {string} term - 모르는 낱말(예: '깔때기')
+ * @param {Array<{source:string,title:string,snippet:string}>} cands - naver_search.searchTermMeaning 결과
+ * @returns {Promise<string>} 뜻 한 조각(실패·불확실이면 '')
+ * [연계] ← naverTermStep 3단계. → gemini_client.callGemini(caller:'Legal-NaverTerm').
+ */
+async function pickTermMeaning(term, cands) {
+  const block = cands.slice(0, NAVER_CAND_MAX)
+    .map((c, i) => `${i + 1}. [${c.source}] ${naverPlain(c.title)} — ${naverPlain(c.snippet)}`).join('\n');
+  const prompt = `너는 "나리야" — 대한민국 **해양수산**(어업·어선·항만·해양안전) 법령을 안내하는 AI 챗봇이다.
+사용자가 "${term}"이라는 말을 썼는데 우리 법령 위키에 없는 말이라, 아래 웹 검색 결과로 **뜻만** 파악하려 한다.
+
+[검색 결과]
+${block}
+
+[규칙]
+1. 위 결과 중 **해양수산 현장에서 쓰는 뜻**으로 읽히는 항목이 있으면 그 뜻을 한 조각(명사구, 25자 이내)으로 적는다.
+2. 해양수산과 무관한 뜻(조리도구·일반 생활용어 등)뿐이면 ok:false 로 답한다. **억지로 고르지 마라.**
+3. ★법 조문·처벌·금액·법령 이름을 쓰지 마라. 여기서 정하는 것은 **낱말의 뜻**뿐이다.
+4. 검색 결과에 없는 뜻을 지어내지 마라.
+
+다른 설명 없이 아래 JSON만 출력하라.
+{"ok":true,"meaning":"…"} 또는 {"ok":false}`;
+  const result = await gemini.callGemini({
+    model: ANSWER_MODEL, contents: prompt, config: NAVER_PICK_CONFIG, caller: 'Legal-NaverTerm',
+  });
+  if (!result.success || !result.text) return '';
+  const m = result.text.match(/\{[\s\S]*\}/);
+  if (!m) return '';
+  const obj = JSON.parse(m[0]);
+  if (!obj || obj.ok !== true) return '';
+  return naverMeaningAllowed(obj.meaning);
+}
+
+/**
+ * ★§4-U 본체 — 위키도 원문도 빈손일 때 "이 말이 무슨 뜻인지"만 확인하고 되묻는다(§4-6 ①~③).
+ *  ① 뜻을 찾았다 → "혹시 이 뜻인가요?" 확인 카드([네]/[아니요]). "네"의 ctx가 다음 턴에 뜻을 실어온다.
+ *  ② 못 찾았다 → "조금 더 설명해 주세요" 재질문 카드 **딱 1회**(ctx.nu.rounds 로 센다).
+ *  ③ 라운드 소진 → API를 아예 부르지 않고(비용 0) 정직하게 포기 + 다음 행동 안내.
+ * ★키·스위치·후보가 하나라도 없으면 조용히 null — 호출부는 기존 "찾지 못했습니다"로 끝낸다.
+ * 예: naverTermStep('깔때기가 뭐죠', {rounds:0,state:'none'}, true)
+ *     → {clarify:{question:'「깔때기」 — 혹시 「…」 말씀이신가요?', options:[네…/아니요…]}, confirmKind:'naverTerm'}
+ * @param {string} query - 사용자 질문(원문 그대로)
+ * @param {{rounds:number,state:string,term:string,meaning:string}} nu - normalizeAskCtx().nu
+ * @param {boolean} enabled - nariya_config.naverTermLookup
+ * @returns {Promise<null|{giveup:true,answer:string}|{answer:string,note:string,clarify:object,confirmKind:string}>}
+ * [연계] ← routes/legal.js POST /api/legal/ask 의 2차 조회(searchRawFallback) 실패 분기.
+ *        → services/naver_search.js(correctTypo·searchTermMeaning) · gemini(pickTermMeaning).
+ *        → ai_chat.js clarifyHTML(기존 버튼 렌더 그대로 — 새 UI 타입을 만들지 않는다).
+ */
+async function naverTermStep(query, nu, enabled) {
+  try {
+    if (!enabled) return null;
+    if (!nu || nu.state === 'confirmed') return null;   // 확인된 뜻은 호출부가 이미 검색에 썼다
+    if (nu.rounds >= NAVER_MAX_ROUNDS) return { giveup: true, answer: NAVER_GIVEUP };   // ③
+    if (!gemini.hasAnyKey()) return null;
+    if (!process.env.NAVER_CLIENT_ID || !process.env.NAVER_CLIENT_SECRET) return null;
+    const term0 = unknownTermOf(query);
+    if (!term0) return null;                            // 모르는 낱말이 안 잡히면 이 단계가 할 일이 없다
+    const naver = require('./naver_search');
+    // §4-2 오타 변환(한/영 자판 오입력 전용) — 교정이 없으면 원문 그대로 돌아온다.
+    const term = await naver.correctTypo(term0).catch(() => term0);
+    const cands = await naver.searchTermMeaning(term).catch(() => []);
+    const meaning = cands.length ? await pickTermMeaning(term, cands).catch(() => '') : '';
+    if (!meaning) {
+      // ② 검색 실패 → 재질문 1회. 버튼의 act:'ask' 로 **사용자가 새로 칠 문장 한 번**에 라운드를
+      //    실어 보낸다(새로 타이핑한 질문은 맥락을 비우는 게 규칙이라, 이 통로 말고는 셀 방법이 없다).
+      return {
+        answer: `「${term}」이 무슨 뜻인지 확인하지 못했어요. 지어내지 않고 여쭤볼게요.`,
+        note: NAVER_NOTE,
+        confirmKind: 'naverTerm',
+        clarify: {
+          question: '어떤 상황·장비에서 쓰는 말인지 조금만 더 설명해 주시겠어요?',
+          options: [{ label: NAVER_RETRY, hint: '설명해 주시면 그 내용으로 다시 찾아볼게요',
+            ctx: { nu: { rounds: nu.rounds + 1, state: 'none' } }, act: 'ask' }],
+        },
+      };
+    }
+    // ① 뜻을 찾았다 → 사용자 확인. 조사 없는 문장으로 물어 받침 판정 자체를 없앤다(:2159 josaEuro 배경).
+    return {
+      answer: '위키에 없는 말이라, 뜻부터 확인할게요.',
+      note: NAVER_NOTE,
+      confirmKind: 'naverTerm',
+      clarify: {
+        question: `「${term}」 — 혹시 「${meaning}」 말씀이신가요?`,
+        options: [
+          { label: NAVER_YES, hint: '그 뜻으로 다시 찾아볼게요',
+            ctx: { nu: { rounds: nu.rounds, state: 'confirmed', term, meaning } } },
+          { label: NAVER_NO, hint: '어떤 상황·장비에서 쓰는 말인지 적어 주세요',
+            ctx: { nu: { rounds: nu.rounds + 1, state: 'none' } }, act: 'ask' },
+        ],
+      },
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 /**
  * 3회 백스톱으로 "추정해서 답한다"가 된 답변 맨 앞에 고정 고지문을 붙인다(§4.4).
  * @param {string} answer @param {boolean} assumed
@@ -2718,4 +2954,6 @@ module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAns
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
   normalizeAskCtx, ctxNextOf, normalizeProfile,
   profileAcceptedLabels, zoneQueryWithProfile, understandConfirmStep, scopeNarrowStep,
-  profileConfirmStep, withAssumedNotice, loadVesselTree, vesselNodeAt, vesselTreeDepth };
+  profileConfirmStep, withAssumedNotice, loadVesselTree, vesselNodeAt, vesselTreeDepth,
+  // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
+  naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS };
