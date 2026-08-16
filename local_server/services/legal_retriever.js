@@ -1307,24 +1307,34 @@ ${ANSWER_RULES_BODY}
  * 호출부(routes/legal.js)는 기존대로 "근거를 찾지 못했습니다"로 끝내면 된다.
  * 예: searchRawFallback('어선 길이를 늘리려면 허가가 필요한가요')
  *     → {answer:'이 답변은 검증된 카드가 아니라…', laws:['어선법'], files:['어선법/시행규칙.txt']}
- * @param {string} query - 사용자 질문
+ * @param {string} query - 사용자 질문(**답변 합성에는 이 문장만 쓴다**)
+ * @param {string} [hint] - 검색 보조어(§4-U 가 확인받은 구어의 뜻 등). ★어느 법·어느 파일을 읽을지
+ *   **고르는 두 호출에만** 쓰고, 답변을 쓰는 프롬프트에는 절대 싣지 않는다 — 2026-08-16 적대검증
+ *   D1: 호출부가 `q + ' ' + 뜻` 을 통째로 넘기던 탓에 웹에서 온 문장이 답변 합성 프롬프트의
+ *   "질문:" 자리에 그대로 실렸고, 이 저장소가 H-37 이래 지켜온 **"답변 합성에는 사용자가 실제로
+ *   친 문장을 그대로 넘긴다"**(routes/legal.js §5.5·§7.4 주석) 규약이 처음으로 깨졌다.
+ *   보조어는 검색 확장에만 쓴다는 그 규약을 여기서도 같은 모양으로 지킨다.
  * @returns {Promise<{answer:string|null, laws:string[], files:string[]}>} 못 만들면 answer:null
  * [연계] ← routes/legal.js POST /api/legal/ask 의 `needsFallback`(1차 답변 후 최종 근거 0건) 분기.
  *        → services/github_raw.js(원문 조회) · gemini_client(3회 호출: 법선택·파일선택·답변합성).
  */
-async function searchRawFallback(query) {
+async function searchRawFallback(query, hint) {
   const EMPTY = { answer: null, laws: [], files: [] };
   if (!githubRaw.hasToken() || !gemini.hasAnyKey()) return EMPTY;
   try {
+    // 보조어는 **고르기 단계에만** 합친다(위 @param hint 참고). hint 가 없으면 qPick === query 라
+    // 이 함수의 동작이 보조어 도입 전과 문자 그대로 같다(R0).
+    const h = clarifyStr(hint, NAVER_MEANING_MAX);
+    const qPick = h ? query + ' ' + h : query;
     const lawNames = [...new Set((loadIndex().pages || [])
       .filter(p => p.kind === 'statute' && p.law).map(p => p.law))];
-    const laws = (await pickCandidateLaws(query, lawNames)).filter(rawPathOf);
+    const laws = (await pickCandidateLaws(qPick, lawNames)).filter(rawPathOf);
     if (!laws.length) return EMPTY;
 
     const bundles = (await Promise.all(laws.map(loadLawBundle))).filter(Boolean);
     if (!bundles.length) return EMPTY;
 
-    const picks = await pickRawFiles(query, bundles);
+    const picks = await pickRawFiles(qPick, bundles);
     const extras = (await Promise.all(picks.map(async p => {
       const text = await githubRaw.fetchText(p.base + '/' + p.file);
       return text ? { law: p.law, file: p.file, text } : null;
@@ -2229,7 +2239,9 @@ function normalizeAskCtx(raw, profile) {
     const nuState = NAVER_STATES.includes(nuRaw.state) ? nuRaw.state : 'none';
     const nuMeaning = nuState === 'confirmed' ? naverMeaningAllowed(nuRaw.meaning) : '';
     const nu = {
-      rounds: Math.min(NAVER_MAX_ROUNDS, Math.max(0, parseInt(nuRaw.rounds, 10) || 0)),
+      // ★clamp 상한은 NAVER_MAX_ROUNDS 가 아니라 소진값이다(D2): 상한이 재질문 횟수와 같으면
+      //   routes 가 찍은 "이 뜻으로도 못 찾았다" 소진 표시가 되돌아올 때 깎여, 같은 말을 또 묻는다.
+      rounds: Math.min(NAVER_ROUNDS_SPENT, Math.max(0, parseInt(nuRaw.rounds, 10) || 0)),
       // 뜻이 후검사에서 버려졌으면 확인 상태도 성립하지 않는다(뜻 없는 'confirmed'는 무의미).
       state: nuMeaning ? 'confirmed' : 'none',
       term: nuMeaning ? clarifyStr(nuRaw.term, NAVER_TERM_MAX) : '',
@@ -2748,7 +2760,16 @@ function profileConfirmStep(clarify, profile, prof, enabled) {
 // ★스위치: `nariya_config.naverTermLookup`, **기본 false**(H-37 3단계와 같은 롤아웃 관례).
 // ============================================================================
 
-const NAVER_MAX_ROUNDS = 1;        // §4-6 ② "재질문 딱 1회" — 넘으면 ③정직한 포기
+// §4-6 ② "재질문 딱 1회". ★이 값의 뜻은 **"사용자에게 더 설명해 달라고 되묻는 횟수의 상한"**이지
+//   "검색 시도 횟수"가 아니다 — 2026-08-16 적대검증 D2에서 이 둘을 혼동한 탓에 재질문 카드를 띄운
+//   바로 다음 턴(rounds=1)이 곧장 ③포기로 떨어져, **사용자가 애써 쓴 설명으로 다시 찾아보는 일이
+//   한 번도 일어나지 않았다.** 그래서 "검색은 rounds ≤ 상한인 동안 한다 / 포기는 상한을 넘었을 때
+//   또는 상한 회차의 검색까지 실패했을 때"로 판정을 갈랐다(naverTermStep 참고).
+const NAVER_MAX_ROUNDS = 1;
+// 라운드 축의 실제 상한값(=소진 표시). routes 가 "확인된 뜻으로도 못 찾았다"를 표시할 때, 그리고
+// naverTermStep 이 마지막 검색까지 실패했을 때 이 값이 된다 — 이 값이면 검색 없이 곧장 포기다.
+// ctx clamp(normalizeAskCtx)도 이 값까지 허용해야 소진 표시가 되돌아올 때 살아남는다(D2 수정 일부).
+const NAVER_ROUNDS_SPENT = NAVER_MAX_ROUNDS + 1;
 const NAVER_STATES = ['none', 'confirmed'];
 const NAVER_TERM_MAX = 20;         // ctx로 왕복하는 낱말 길이 상한(변조 방어)
 const NAVER_MEANING_MAX = 40;      // 확인받은 뜻(검색어 재료가 된다) 길이 상한
@@ -2759,14 +2780,26 @@ const NAVER_NO = '아니요, 다시 설명할게요';
 const NAVER_RETRY = '다시 설명할게요';
 // ③ 막다른 길로 끝내지 않는다(§4-6 ③) — "왜 못 찾았는지 + 다음에 무엇을 하면 되는지".
 const NAVER_GIVEUP = '말씀하신 표현이 무엇을 뜻하는지 끝내 확인하지 못해, 지어내지 않고 여기서 멈춥니다. 다른 이름(정식 명칭·비슷한 말)으로 다시 말씀해 주시거나, 어떤 상황·장비에서 쓰는 말인지 설명해 주시면 다시 찾아보겠습니다.';
-// 낱말 끝에 붙는 조사·어미(형태소 분석기가 없어 이만큼만 저렴하게 뗀다). "깔때기가"→"깔때기".
-// ★어미(나요·까요…)까지 넣는 이유: 떼고 남은 줄기가 1글자면 그건 명사가 아니라 **동사**라는
-//   신호라, 그걸로 후보에서 통째로 뺀다("받나요"→"받"→탈락). 안 그러면 "어선 검사 언제 받나요"
-//   처럼 모르는 말이 하나도 없는 질문에서 "받나요"가 모르는 낱말로 잡힌다(실측으로 확인).
+// ★2026-08-16 적대검증 D4 수정 — **조사와 어미를 갈랐다**(이게 오탐의 진짜 원인이었다).
+//   실제 질문 10개 중 6개가 오탐이었는데("초과하면"·"입으면"·"어디까지"·"알려주세요"·"얼마나"·
+//   "얼마인가요"), 전부 한 갈래로 설명된다: **우리가 찾는 "모르는 구어"는 언제나 명사이고 명사에는
+//   조사가 붙는다("깔때기가"·"뽀짝이가"). 어미가 붙은 말은 동사·형용사라 애초에 찾을 대상이 아니다.**
+//   예전에는 둘을 한 목록에 섞어 두고 "떼고 남은 줄기가 1글자면 동사"라는 간접 신호로 걸렀는데,
+//   줄기가 2글자인 동사("초과하면"→초과, "나오나요"→나오)는 그 그물을 그대로 빠져나갔다.
+//   그래서 어미는 **떼지 말고 그 토큰을 통째로 버린다**(아래 unknownTermOf).
+// ⚠ 긴 것을 먼저 적어야 한다(JS 정규식 교체는 왼쪽부터 시도한다 — "주세요"가 "려주세요"보다
+//   앞에 있으면 "알려주세요"가 "알려"까지밖에 안 줄어든다).
+// ⚠ 어미 목록에 홑 "면"은 일부러 넣지 않았다 — "수면"·"해면"처럼 **면으로 끝나는 진짜 명사**가
+//   통째로 버려진다. "하면"·"으면"은 명사 어미로 쓰이지 않아 안전하다.
+// ⚠ "여야"는 일부러 뺐다 — 어미로도 쓰이지만 그 자체가 명사이기도 하다(같은 이유로 홑 "면"도 뺐다).
+const NAVER_EOMI_TAIL = /(려주세요|여주세요|어주세요|아주세요|해주세요|주세요|하나요|인가요|던가요|되나요|습니까|합니까|습니다|합니다|나요|까요|해요|세요|어요|아요|하면|으면|해야|어야|아야)$/;
+// 명사 뒤에 붙는 조사(이건 떼고 남은 명사를 후보로 삼는다). "깔때기가"→"깔때기".
 // ⚠완전하지 않다(§4-8 termsOf 한계와 같은 뿌리) — 못 떼면 검색어가 조금 나빠질 뿐, 지어내지는 않는다.
-const NAVER_JOSA_TAIL = /(이라는|이라고|이란|라는|라고|나요|까요|해요|세요|어요|아요|에서|에게|으로|이라|은지|는지|가|은|는|을|를|의|에|로|도|만|과|와|랑|이)$/;
+const NAVER_JOSA_TAIL = /(이라는|이라고|이란|라는|라고|에서|에게|으로|이라|이면|은지|는지|까지|부터|처럼|보다|마다|가|은|는|을|를|의|에|로|도|만|과|와|랑|이)$/;
 // 뜻을 물어보는 상투어 자체는 찾아볼 낱말이 아니다(STOPWORDS 는 검색 점수용이라 건드리지 않는다).
-const NAVER_STOP = new Set(['뭐죠', '뭐야', '뭐지', '뭔가', '뭔지', '뭡니까', '말인가', '말인지']);
+// ★D4 보강: 수량·시점을 묻는 의문사도 여기 넣는다("얼마나"·"얼마"는 STOPWORDS 에 없어 새어나갔다).
+const NAVER_STOP = new Set(['뭐죠', '뭐야', '뭐지', '뭔가', '뭔지', '뭡니까', '말인가', '말인지',
+  '얼마', '얼마나', '몇', '언제', '어디', '어떤', '어느', '무슨', '무엇', '왜', '누가']);
 // 네이버 응답의 <b> 강조 태그·HTML 엔티티(실측: description 에 `&lt;수산&gt;` 형태로 온다).
 const NAVER_TAG_RE = /<[^>]*>/g;
 
@@ -2825,9 +2858,20 @@ function unknownTermOf(query) {
   const cands = [];
   for (const tok of String(query).replace(/[^가-힣a-zA-Z0-9\s]/g, ' ').split(/\s+/)) {
     if (tok.length < 2 || STOPWORDS.has(tok) || NAVER_STOP.has(tok)) continue;
+    // ★D4 ①어미가 붙었으면 그 토큰은 동사·형용사다 — 떼서 후보로 삼지 말고 **통째로 버린다**
+    //   ("초과하면"·"나오나요"·"입으면"·"알려주세요"). 우리가 찾는 것은 조사가 붙는 명사뿐이다.
+    if (NAVER_EOMI_TAIL.test(tok)) continue;
+    // ★D4 ①-보충: "버리면"처럼 어미 목록으로 못 잡는 -면 활용형. 면으로 끝나는 **명사**는 실제로
+    //   두 글자 한자어가 대부분이고(수면·지면·해면·표면·단면), 세 글자 이상이면서 면으로 끝나면
+    //   거의 활용형이다("버리면"·"걸리면"·"들어가면"). 단 "어선이면"처럼 명사+이면은 조사라서 뺀다.
+    if (tok.length >= 3 && tok.endsWith('면') && !tok.endsWith('이면')) continue;
     const t = tok.replace(NAVER_JOSA_TAIL, '');
-    // 떼고 남은 줄기가 1글자 = 명사가 아니라 동사·어미 조각이다 → 후보에서 뺀다.
+    // 떼고 남은 줄기가 1글자 = 명사가 아니라 동사·어미 조각이다 → 후보에서 뺀다(어미 목록이
+    // 놓친 활용형을 잡는 그물, 그대로 유지).
     if (t.length < 2 || t.length > NAVER_TERM_MAX || seen.has(t)) continue;
+    // ★D4 ②조사를 뗀 **줄기에도** 불용어 검사를 다시 건다 — 위 검사는 원형("어디까지")에만 걸려
+    //   조사가 붙은 의문사가 그대로 통과했다("어디까지"→"어디"는 STOPWORDS 에 있는데도 후보가 됐다).
+    if (STOPWORDS.has(t) || NAVER_STOP.has(t)) continue;
     seen.add(t);
     if (hay.includes(t)) continue;                 // 위키가 이미 아는 말
     if (gloss.some(g => g.includes(t))) continue;  // glossary 가 이미 아는 구어
@@ -2893,17 +2937,27 @@ async function naverTermStep(query, nu, enabled) {
   try {
     if (!enabled) return null;
     if (!nu || nu.state === 'confirmed') return null;   // 확인된 뜻은 호출부가 이미 검색에 썼다
-    if (nu.rounds >= NAVER_MAX_ROUNDS) return { giveup: true, answer: NAVER_GIVEUP };   // ③
     if (!gemini.hasAnyKey()) return null;
     if (!process.env.NAVER_CLIENT_ID || !process.env.NAVER_CLIENT_SECRET) return null;
     const term0 = unknownTermOf(query);
     if (!term0) return null;                            // 모르는 낱말이 안 잡히면 이 단계가 할 일이 없다
+    // ③ 라운드 소진 — ★이 판정은 반드시 **키 확인·낱말 추출 뒤**에 온다(2026-08-16 적대검증 D3).
+    //   예전엔 이 줄이 맨 위에 있어서, 모르는 낱말이 하나도 없는 멀쩡한 질문("어선 검사 언제
+    //   받나요")이나 네이버 키가 없는 환경에서도 rounds 만 차 있으면 "뜻을 확인 못했습니다"라는
+    //   **사실과 다른 포기 문구**가 떴고, 그 바람에 1차에서 정직하게 만들어둔 답변까지 버려졌다.
+    //   여기로 내리면 "정말로 모르는 낱말이 있고, 찾아볼 수단도 있는데, 기회를 다 썼다"일 때만 뜬다.
+    if (nu.rounds >= NAVER_ROUNDS_SPENT) return { giveup: true, answer: NAVER_GIVEUP };
     const naver = require('./naver_search');
     // §4-2 오타 변환(한/영 자판 오입력 전용) — 교정이 없으면 원문 그대로 돌아온다.
     const term = await naver.correctTypo(term0).catch(() => term0);
     const cands = await naver.searchTermMeaning(term).catch(() => []);
     const meaning = cands.length ? await pickTermMeaning(term, cands).catch(() => '') : '';
     if (!meaning) {
+      // ★D2: 여기까지 왔다는 건 **이번 턴에 실제로 검색을 했고 실패했다**는 뜻이다. 상한 회차의
+      //   검색까지 실패했으면 같은 부탁을 또 하지 않고 그 자리에서 ③정직한 포기로 끝낸다.
+      //   (예전에는 재질문 카드를 낸 다음 턴이 무조건 포기라, 사용자가 쓴 설명으로 다시 찾아보는
+      //    일이 아예 없었다 — 물어놓고 답을 안 듣는 셈이었다.)
+      if (nu.rounds >= NAVER_MAX_ROUNDS) return { giveup: true, answer: NAVER_GIVEUP };
       // ② 검색 실패 → 재질문 1회. 버튼의 act:'ask' 로 **사용자가 새로 칠 문장 한 번**에 라운드를
       //    실어 보낸다(새로 타이핑한 질문은 맥락을 비우는 게 규칙이라, 이 통로 말고는 셀 방법이 없다).
       return {
@@ -2956,4 +3010,4 @@ module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAns
   profileAcceptedLabels, zoneQueryWithProfile, understandConfirmStep, scopeNarrowStep,
   profileConfirmStep, withAssumedNotice, loadVesselTree, vesselNodeAt, vesselTreeDepth,
   // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
-  naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS };
+  naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT };

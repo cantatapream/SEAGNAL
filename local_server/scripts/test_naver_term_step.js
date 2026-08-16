@@ -118,7 +118,7 @@ console.log('\n[T0] R0 — 스위치 off·맥락 미전송이면 오늘과 동�
   // ── T4. §4-6 ③ 라운드 소진 → 정직한 포기(비용 0) ──────────────────────────────
   console.log('\n[T4][§4-6 ③] 라운드 소진 → 정직한 포기, API 는 아예 안 부른다');
   const before3 = geminiCalls + naverCalls;
-  const give = await R.naverTermStep(Q, { rounds: R.NAVER_MAX_ROUNDS, state: 'none', term: '', meaning: '' }, true);
+  const give = await R.naverTermStep(Q, { rounds: R.NAVER_ROUNDS_SPENT, state: 'none', term: '', meaning: '' }, true);
   ok('giveup 을 돌려준다', !!(give && give.giveup));
   ok('되묻기 카드를 안 낸다', !give.clarify);
   ok('외부 호출 0회(비용 0)', geminiCalls + naverCalls === before3);
@@ -133,8 +133,10 @@ console.log('\n[T0] R0 — 스위치 off·맥락 미전송이면 오늘과 동�
     { nu: { rounds: 0, state: 'confirmed', term: '깔때기', meaning: '제32조 위반이면 과태료 100만원' } }, { fields: {} });
   ok('조문·형량이 섞인 뜻은 버린다(§4-U 불변식)', tampered.nu.meaning === '');
   ok('뜻이 버려지면 확인 상태도 성립하지 않는다', tampered.nu.state === 'none');
-  ok('라운드는 상한으로 clamp 된다',
-    R.normalizeAskCtx({ nu: { rounds: 99, state: 'none' } }, { fields: {} }).nu.rounds === R.NAVER_MAX_ROUNDS);
+  // ★clamp 상한은 소진값이다(D2 수정) — 재질문 상한으로 깎으면 routes 가 찍은 소진 표시가
+  //   되돌아오는 길에 사라져, 이미 확인받은 뜻으로 실패한 말을 또 묻게 된다.
+  ok('라운드는 소진값으로 clamp 된다',
+    R.normalizeAskCtx({ nu: { rounds: 99, state: 'none' } }, { fields: {} }).nu.rounds === R.NAVER_ROUNDS_SPENT);
   ok('naverMeaningAllowed — 정상 뜻은 통과', R.naverMeaningAllowed('통발 안쪽으로 좁아지는 입구') !== '');
   ok('naverMeaningAllowed — 문자열이 아니면 ""', R.naverMeaningAllowed({ a: 1 }) === '');
 
@@ -152,10 +154,12 @@ console.log('\n[T0] R0 — 스위치 off·맥락 미전송이면 오늘과 동�
   console.log('\n[T7] routes 배선 계약');
   ok('위키·원문 둘 다 빈손일 때만 개입한다(2차 조회와 똑같은 조건)',
     /if \(needsFallback && !\(raw && raw\.answer\)\) \{/.test(ROUTES_SRC));
-  ok('확인된 뜻을 원문 직독 질의에도 얹는다',
-    /searchRawFallback\(nuMeaning \? q \+ ' ' \+ nuMeaning : q\)/.test(ROUTES_SRC));
+  // ★D1: 뜻은 **두 번째 인자**로 넘겨야 한다. `q + ' ' + 뜻` 을 한 덩어리로 넘기면 그 문장이
+  //   2차 답변 합성 프롬프트의 "질문:" 자리에 실려 §4-U 불변식이 깨진다(아래 T9 가 실제로 확인).
+  ok('확인된 뜻을 원문 직독의 **검색 보조어로만** 넘긴다(D1)',
+    /searchRawFallback\(q, nuMeaning\)/.test(ROUTES_SRC));
   ok('뜻은 한 번 쓰고 소진한다(같은 말을 계속 되묻지 않게)',
-    /ctx\.nu = \{ rounds: legalRetriever\.NAVER_MAX_ROUNDS, state: 'none', term: '', meaning: '' \};/.test(ROUTES_SRC));
+    /ctx\.nu = \{ rounds: legalRetriever\.NAVER_ROUNDS_SPENT, state: 'none', term: '', meaning: '' \};/.test(ROUTES_SRC));
   ok('학습후보는 _candidates 큐에 적재한다', /logGlossaryCandidate\(q, nuTerm, nuMeaning\)/.test(ROUTES_SRC)
     && /function logGlossaryCandidate[\s\S]{0,400}appendJsonl\(CANDIDATES_FILE/.test(ROUTES_SRC));
   ok('_glossary.md 를 직접 고치지 않는다(사람 승인 게이트)', !/_glossary\.md['"]/.test(ROUTES_SRC));
@@ -173,12 +177,80 @@ console.log('\n[T0] R0 — 스위치 off·맥락 미전송이면 오늘과 동�
   // routes 가 하는 일을 그대로 흉내낸다: 검색어에 뜻을 얹고, ctx.nu 를 소진 상태로 갱신한다.
   const nuMeaning = s2.nu.meaning;
   const qForSearch = [Q].concat([], [nuMeaning]).join(' ');
-  s2.nu = { rounds: R.NAVER_MAX_ROUNDS, state: 'none', term: '', meaning: '' };
+  s2.nu = { rounds: R.NAVER_ROUNDS_SPENT, state: 'none', term: '', meaning: '' };
   ok('③ 검색어에 확인된 뜻이 붙는다', qForSearch === Q + ' ' + nuMeaning);
   ok('③ 원 질문 문자열 자체는 안 건드린다(R2)', Q === '깔때기가 뭐죠');
   const s4 = await R.naverTermStep(Q, s2.nu, true);
   ok('④ 그 뜻으로도 못 찾으면 같은 말을 또 묻지 않고 정직하게 포기', !!(s4 && s4.giveup));
   ok('④ 소진 뒤 ctxNext 가 라운드를 계속 나른다', !!R.ctxNextOf(s2).nu);
+
+  // ── T9. 2026-08-16 적대검증 결함 D1~D4 재현 고정 ────────────────────────────────
+  //   ★이 블록의 검사는 전부 **수정 전 코드에서 FAIL** 하는 것을 확인하고 넣었다. 각 결함이
+  //     "왜 문제인지"는 NAVER_GUEO_PENDING_MERGE.md §5-B 표에 있다.
+  console.log('\n[T9] 적대검증 결함 D1~D4 재현 고정');
+
+  // D1 — 확인된 뜻이 **답변 합성 프롬프트**에 실리면 안 된다(검색 보조에만 쓴다).
+  //   searchRawFallback 안에서 실제로 오간 프롬프트를 캘러별로 들여다본다.
+  const seen = [];
+  const realCall = require.cache[GEMINI_PATH].exports.callGemini;
+  require.cache[GEMINI_PATH].exports.callGemini = async (o) => {
+    seen.push({ caller: o.caller, text: String(o.contents) });
+    if (o.caller === 'Legal-RawLawPick') return { success: true, text: '["어선법"]' };
+    if (o.caller === 'Legal-RawFilePick') return { success: true, text: '[]' };
+    return { success: true, text: '원문 기준 답변' };
+  };
+  const GH_PATH = require.resolve(path.join(SRV, 'services', 'github_raw.js'));
+  const ghPrev = require.cache[GH_PATH];
+  fake(GH_PATH, { hasToken: () => true, fetchText: async () => '어선법\n제1조 목적', listDir: async () => [] });
+  delete require.cache[require.resolve(path.join(SRV, 'services', 'legal_retriever.js'))];
+  const R2 = require(path.join(SRV, 'services', 'legal_retriever.js'));
+  const HINT = '통발 안쪽으로 좁아지는 입구';
+  await R2.searchRawFallback('깔때기가 뭐죠', HINT);
+  const synth = seen.find(s => s.caller === 'Legal-RawFallback');
+  ok('D1 뜻이 법 고르기에는 쓰인다', seen.some(s => s.caller === 'Legal-RawLawPick' && s.text.includes(HINT)));
+  ok('D1 ★뜻이 답변 합성 프롬프트에는 안 실린다(§4-U 불변식)', !!synth && !synth.text.includes(HINT));
+  ok('D1 답변 합성은 사용자가 실제로 친 문장으로 묻는다',
+    !!synth && synth.text.includes('질문: "깔때기가 뭐죠"'));
+  require.cache[GEMINI_PATH].exports.callGemini = realCall;
+  if (ghPrev) require.cache[GH_PATH] = ghPrev; else delete require.cache[GH_PATH];
+
+  // D2 — 재질문 카드를 낸 **다음 턴은 실제로 다시 검색해야** 한다(물어놓고 안 듣지 않기).
+  naverItems = [];                       // 검색은 되지만 뜻을 못 고르는 상황
+  geminiReply = '{"ok":false}';
+  const beforeRetry = naverCalls;
+  const r1 = await R.naverTermStep(Q, { rounds: 0, state: 'none', term: '', meaning: '' }, true);
+  ok('D2 1턴: 못 찾으면 재질문 카드', !!(r1 && r1.clarify) && !r1.giveup);
+  ok('D2 1턴: 다음 ctx 라운드가 1이다', r1.clarify.options[0].ctx.nu.rounds === R.NAVER_MAX_ROUNDS);
+  const midRetry = naverCalls;
+  const r2 = await R.naverTermStep('통발 안쪽 좁아지는 부분이요', { rounds: R.NAVER_MAX_ROUNDS, state: 'none', term: '', meaning: '' }, true);
+  ok('D2 ★2턴(사용자가 더 설명한 턴): 네이버를 다시 검색한다', naverCalls > midRetry);
+  ok('D2 2턴: 그래도 못 찾으면 그 자리에서 정직한 포기(같은 부탁 반복 안 함)', !!(r2 && r2.giveup));
+  const beforeSpent = naverCalls + geminiCalls;
+  await R.naverTermStep(Q, { rounds: R.NAVER_ROUNDS_SPENT, state: 'none', term: '', meaning: '' }, true);
+  ok('D2 소진 상태에서는 검색조차 안 한다(비용 0)', naverCalls + geminiCalls === beforeSpent);
+  naverItems = [{ source: 'encyc', title: '깔때기', snippet: '&lt;수산&gt; 통발', score: 8 }];
+  geminiReply = '{"ok":true,"meaning":"통발 안쪽으로 좁아지는 입구"}';
+
+  // D3 — 포기 판정은 **낯선 낱말·키 확인 뒤**에 온다(멀쩡한 질문에 엉뚱한 포기 문구 금지).
+  ok('D3 ★모르는 낱말이 없으면 라운드가 소진돼도 null(기존 흐름 유지)',
+    await R.naverTermStep('어선 검사 언제 받나요',
+      { rounds: R.NAVER_ROUNDS_SPENT, state: 'none', term: '', meaning: '' }, true) === null);
+  const savedId = process.env.NAVER_CLIENT_ID;
+  delete process.env.NAVER_CLIENT_ID;
+  ok('D3 ★네이버 키가 없으면 라운드가 소진돼도 null(fail-open)',
+    await R.naverTermStep(Q, { rounds: R.NAVER_ROUNDS_SPENT, state: 'none', term: '', meaning: '' }, true) === null);
+  process.env.NAVER_CLIENT_ID = savedId;
+
+  // D4 — 낯선 낱말 판정 오탐(실측 10문항 중 6건이 오탐이던 corpus 를 그대로 고정한다).
+  //   ★핵심 규칙: 우리가 찾는 것은 **조사가 붙는 명사**뿐이다. 어미가 붙은 말(동사·형용사)은 대상이 아니다.
+  const D4_CLEAN = ['어선 검사 언제 받나요', '안전요원 꼭 태워야 하나요', '낚싯배 승선정원 초과하면 처벌 받나요',
+    '과태료 얼마나 나오나요', '우리 배 어디까지 갈 수 있나요', '구명조끼 안 입으면 어떻게 되나요',
+    '어구 실명제 신고 방법 알려주세요', '폐기물 바다에 버리면 벌금 얼마인가요'];
+  for (const q of D4_CLEAN) ok(`D4 오탐 없음 — "${q}"`, R.unknownTermOf(q) === '', R.unknownTermOf(q));
+  ok('D4 진짜 구어는 그대로 잡는다 — 깔때기', R.unknownTermOf('깔때기가 뭐죠') === '깔때기');
+  ok('D4 진짜 구어는 그대로 잡는다 — 뽀짝이', R.unknownTermOf('배에서 쓰는 뽀짝이가 뭔가요') === '뽀짝이');
+  ok('D4 면으로 끝나는 두 글자 명사는 안 버린다(수면)', R.unknownTermOf('수면 아래') !== '');
+  ok('D4 명사+이면(조사)은 명사로 되돌린다', R.unknownTermOf('어선이면 신고해야 하나요') === '');
 
   console.log(`\n${pass} PASS / ${fail} FAIL`);
   process.exit(fail ? 1 : 0);

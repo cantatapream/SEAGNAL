@@ -929,7 +929,9 @@ router.post('/api/legal/ask', async (req, res) => {
     if (nuMeaning) {
       // 소진 표시: rounds 를 상한으로 올려 둔다 — 이 뜻으로도 못 찾으면 아래 §4-U 는 같은 말을
       // 또 묻지 않고 곧장 ③정직한 포기로 간다(§4-6 ③).
-      ctx.nu = { rounds: legalRetriever.NAVER_MAX_ROUNDS, state: 'none', term: '', meaning: '' };
+      // ★NAVER_MAX_ROUNDS(재질문 횟수 상한)가 아니라 NAVER_ROUNDS_SPENT(소진값)를 쓴다(적대검증
+      //   D2) — 전자는 "아직 한 번 더 찾아볼 수 있다"는 뜻이라 소진 표시 구실을 못 한다.
+      ctx.nu = { rounds: legalRetriever.NAVER_ROUNDS_SPENT, state: 'none', term: '', meaning: '' };
       // ④ 학습 후보 적재(관리자 승인 시 _glossary.md 로 정식 편입). 실패해도 응답 흐름과 무관.
       try { logGlossaryCandidate(q, nuTerm, nuMeaning); } catch (_) { /* 로그 실패는 무시 */ }
     }
@@ -1052,9 +1054,12 @@ router.post('/api/legal/ask', async (req, res) => {
     const needsFallback = !usedGemini || !finalSources.length;
     // [§4-U] 확인된 뜻이 있으면 원문 직독도 그 뜻을 얹어 시도한다 — 이 경로가 빈손이 되는 실제
     //   원인의 대부분이 pickCandidateLaws 의 빈 배열(=AI가 낱말 자체를 못 알아들어 읽을 법을 못
-    //   고름)이라, 뜻 한 조각만 붙어도 후보 법이 잡힌다. 없으면 q 그대로다(R0).
-    const raw = needsFallback
-      ? await legalRetriever.searchRawFallback(nuMeaning ? q + ' ' + nuMeaning : q) : null;
+    //   고름)이라, 뜻 한 조각만 붙어도 후보 법이 잡힌다.
+    //   ★뜻은 **두 번째 인자**로 넘긴다(2026-08-16 적대검증 D1 수정). 예전처럼 `q + ' ' + 뜻` 을
+    //     한 덩어리로 넘기면 그 문장이 2차 답변 합성 프롬프트의 "질문:" 자리에 그대로 실려,
+    //     "답변 합성에는 사용자가 실제로 친 문장만 넘긴다"는 이 파일의 규약(위 §5.5·§7.4 주석,
+    //     narrowLabels·ucRestate 도 전부 그렇게 한다)이 깨진다. 보조어는 검색에만 쓴다.
+    const raw = needsFallback ? await legalRetriever.searchRawFallback(q, nuMeaning) : null;
 
     // [§4-U 모르는 구어 해소] 위키(1차)도 원문 직독(2차)도 빈손인 바로 이 지점 — 지금까지 "이
     //   질문에 맞는 근거를 위키에서 찾지 못했습니다"로 끝나던 자리 — 에서만 개입한다.
