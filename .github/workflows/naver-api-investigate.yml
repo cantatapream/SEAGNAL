@@ -61,18 +61,23 @@ jobs:
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           Q: ${{ inputs.query || '깔때기' }}
         run: |
-          echo "===== 옛 방식(openapi.naver.com, X-Naver-Client-Id) 시도 ====="
+          echo "===== ① 옛 방식(openapi.naver.com, X-Naver-Client-Id) ====="
           curl -sS -G "https://openapi.naver.com/v1/search/encyc.json" \
             -H "X-Naver-Client-Id: $NAVER_CLIENT_ID" \
             -H "X-Naver-Client-Secret: $NAVER_CLIENT_SECRET" \
             --data-urlencode "query=$Q" --data-urlencode "display=5" \
-            -w "\nHTTP:%{http_code}\n" || echo "FAILED(openapi.naver.com)"
+            -w "\nHTTP:%{http_code}\n" || echo "FAILED"
           echo ""
-          echo "===== 신규 API HUB 방식(NCP APIGW 헤더) 후보 엔드포인트들 시도 ====="
+          echo "===== ② 신규 방식(NCP APIGW 헤더) 후보 경로들 ====="
           for url in \
             "https://naveropenapi.apigw.ntruss.com/search/v1/encyc" \
+            "https://naveropenapi.apigw.ntruss.com/api/v1/search/encyc" \
+            "https://naveropenapi.apigw.ntruss.com/api/v1/search/encyc.json" \
             "https://apihub.apigw.ntruss.com/api/v1/search/encyc" \
-            "https://apigw.ntruss.com/search/v1/encyc" ; do
+            "https://apihub.apigw.ntruss.com/api/v1/search/encyc.json" \
+            "https://apihub.apigw.ntruss.com/v1/search/encyc" \
+            "https://apihub.apigw.ntruss.com/v1/search/encyc.json" \
+            "https://apihub.apigw.ntruss.com/search/v1/encyc" ; do
             echo "--- $url ---"
             curl -sS -G "$url" \
               -H "X-NCP-APIGW-API-KEY-ID: $NAVER_CLIENT_ID" \
@@ -81,3 +86,9 @@ jobs:
               -w "\nHTTP:%{http_code}\n" || echo "FAILED($url)"
             echo ""
           done
+          echo "===== ③ 교차 조합: 신규 호스트 + 옛 헤더 이름 ====="
+          curl -sS -G "https://naveropenapi.apigw.ntruss.com/search/v1/encyc" \
+            -H "X-Naver-Client-Id: $NAVER_CLIENT_ID" \
+            -H "X-Naver-Client-Secret: $NAVER_CLIENT_SECRET" \
+            --data-urlencode "query=$Q" --data-urlencode "display=5" \
+            -w "\nHTTP:%{http_code}\n" || echo "FAILED"
