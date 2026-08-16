@@ -24,6 +24,8 @@ jobs:
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # ⚠ gemini_client.js 가 읽는 이름은 GEMINI_API_KEY 가 아니라 GEMINI_API_KEY_26_8 이다
+          #   (키 교체 이력 때문으로 보임 — 1차 실행에서 "키 0개 등록됨"으로 실측 확인).
+          GEMINI_API_KEY_26_8: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_RAW_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/scratch_naver_live_e2e.js
