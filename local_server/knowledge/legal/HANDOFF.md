@@ -536,6 +536,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-16 22:18 KST] ✅완료 — 18차 감사 10그룹 전체 디스패치 완료
+audit18_groups.json + round:18로 10개 Workflow 동시 디스패치 완료. task-id(runId): g0=wj1iyo7n2(wf_a7022363-3f0)·g1=w8yi2mb45(wf_b0859658-3a8)·g2=wwxzhxrkv(wf_63890e6e-248)·g3=wiweu4c91(wf_8d90739c-4a3)·g4=wvnnkd9qn(wf_a145596b-a1c)·g5=w157li81x(wf_c5e63bad-027)·g6=w8f9mbo9u(wf_efbafd70-5e2)·g7=wy0spi0iz(wf_3a7c7e5c-137)·g8=wnap883s4(wf_b5265739-8bf)·g9=w1k63z32i(wf_56bdbb8a-651). 세션한도 등으로 중단 시 위 runId로 Workflow(scriptPath=audit_sim.js, resumeFromRunId, args={groupsPath:audit18_groups.json, groupIndex:N, round:18}) 재개. 완료되는 대로 마커(fix3/audit_r18_*.done) 대조 후 커밋 → H-9①통합수정(audit_fix_cell.js round:18, 10그룹)까지 표준 후속 이어갈 것(자율진행 대상).
+
+
 ### [2026-08-16 22:16 KST] 🟢착수 — 18차 감사 착수 — H-38 목표조정 반영
 사용자 확정: 74법 전체 동일 비중 유지하되 ①완전소진 확정 2법(수산물유통법·해양사고조사심판법)은 lean모드(회귀검증만, 신규질문 억지 금지) ②풍부형 8법(독도법·해양공간계획법·해양과학조사법·해양조사정보법·자연유산법·농수산물품질관리법·수산업협동조합법·수산업법)은 rich모드(600 참고선 해제, 800~1000+ 허용) ③나머지 64법은 기존과 동일(round>=3 표준 프롬프트, 600 참고선). audit_sim.js에 l.mode 분기 추가(lean/rich 프롬프트), audit18_groups.json 신규 생성(audit12_groups_run.json 기반 74법 그대로 + mode 필드만 추가). 커밋 be253de95. 이제 10개 그룹 Workflow round:18 동시 디스패치 시작.
 
