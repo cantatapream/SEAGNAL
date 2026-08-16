@@ -16,6 +16,11 @@ on:
         description: '테스트 검색어'
         required: false
         default: '깔때기'
+  push:
+    branches:
+      - claude/github-readme-masterplan-check-fqkq7z
+    paths:
+      - '.github/workflows/naver-api-investigate.yml'
 
 jobs:
   investigate:
@@ -37,7 +42,7 @@ jobs:
           HAS_SECRET: ${{ secrets.NAVER_CLIENT_ID != '' && 'yes' || 'no' }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-          Q: ${{ inputs.query }}
+          Q: ${{ inputs.query || '깔때기' }}
         run: |
           echo "===== 옛 방식(openapi.naver.com, X-Naver-Client-Id) 시도 ====="
           curl -sS -G "https://openapi.naver.com/v1/search/encyc.json" \
