@@ -727,6 +727,30 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     // (7) R23 — 전화번호는 표시만 나누고 거는 번호는 통번호
     ok('tel: 링크는 통번호(dial) 그대로', /href="tel:' \+ esc\(dial\)/.test(CLIENT_SRC));
 
+    // (9) P0 선행 실측 후속 — `…기준` 고시가 '법률' 배지로 뜨던 것(classifyTier)
+    ok('`…기준` 이름은 고시로 분류한다',
+      R.classifyTier('선박구명설비기준') === 'notice' && R.classifyTier('어선설비기준') === 'notice'
+      && R.classifyTier('어선원 안전ㆍ보건 및 재해예방 기준') === 'notice');
+    ok('법률·시행령·시행규칙 분류는 그대로다(오탐 없음)',
+      R.classifyTier('해사안전기본법') === 'law' && R.classifyTier('수산업법') === 'law'
+      && R.classifyTier('해양환경관리법 시행령') === 'decree'
+      && R.classifyTier('농수산물품질관리법 시행규칙') === 'rule');
+
+    // (10) 총괄 행 + 항·호 행이 함께 살아남아 같은 조문이 두 번 뜨던 것
+    {
+      const dup = [
+        { law: 'A', article: '제58조', citedArticle: '제58조제5항제7호', gist: '최고 3천만원' },
+        { law: 'A', article: '제58조제5항제7호', citedArticle: '제58조제5항제7호', gist: '5/10/15만원' },
+        { law: 'A', article: '제53조', citedArticle: '' },
+        { law: 'B', article: '제3조', citedArticle: '제3조' }];
+      const kept = R.dropRedundantChainRows(dup).map(r => r.article);
+      ok('같은 인용을 가리키면 더 좁게 짚은 줄만 남는다',
+        JSON.stringify(kept) === JSON.stringify(['제58조제5항제7호', '제53조', '제3조']));
+      ok('근거(citedArticle)가 없는 줄은 하나도 버리지 않는다(누락 0)',
+        R.dropRedundantChainRows([{ law: 'A', article: '제1조', citedArticle: '' },
+          { law: 'A', article: '제2조', citedArticle: '' }]).length === 2);
+    }
+
     // (8) 계약2·3 — 라우트는 조문 표기를 깎지 않고, 응답도 통째로 통과시킨다
     ok('약칭표 엔드포인트가 있다', /router\.get\('\/api\/legal\/aliases'/.test(ROUTES_SRC));
     ok('article 파라미터를 그대로 넘긴다(항·호를 잘라내지 않는다)',

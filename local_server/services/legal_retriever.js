@@ -317,7 +317,14 @@ function classifyTier(lawName) {
   const s = String(lawName || '');
   if (s.includes('시행령')) return 'decree';
   if (s.includes('시행규칙')) return 'rule';
-  if (/고시|지침|훈령|예규|규정|요령|작성기준|행정규칙|통항규칙/.test(s)) return 'notice';
+  if (/고시|지침|훈령|예규|규정|요령|행정규칙|통항규칙/.test(s)) return 'notice';
+  // `…기준`으로 끝나는 이름은 거의 전부 고시다(P0 선행 실측: 위키 근거조문 표에 쓰인 '기준' 포함
+  // 법령명 92종 중 선박구명설비기준·어선설비기준·선박기관기준·선박소방설비기준·선박복원성기준·
+  // 위험물 선박운송 기준·어선원 안전ㆍ보건 및 재해예방 기준 등이 전부 'law'로 잘못 분류돼
+  // 배지가 '법률'로 떴다). 종전 목록의 `작성기준`도 이 규칙에 포함된다.
+  // ⚠ 이름이 `…법`·`…법률`로 끝나면 법률이다 — 그쪽이 우선이라 여기서 가로채지 않는다.
+  //   (시행령·시행규칙은 위에서 이미 걸러졌다.)
+  if (/기준/.test(s) && !/(법|법률)\s*$/.test(s)) return 'notice';
   return 'law';
 }
 
@@ -1460,6 +1467,46 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
     out.push(row);
   }
   return out;
+}
+
+/**
+ * 같은 조문을 가리키게 된 줄이 둘 이상이면 **가장 좁게 짚은 줄만** 남긴다.
+ * 위키 표에는 총괄 행(`제58조` — 요지 "최고 3천만원")과 항·호를 짚은 행(`제58조제5항제7호` —
+ * 요지 "5/10/15만원")이 함께 있는 경우가 있는데, 답변이 `제58조제5항제7호`를 인용하면 **두 줄 다**
+ * 살아남아 화면에 같은 조문이 금액만 다른 요지로 두 번 뜬다(P0 선행에서 실측된 부작용 — 사용자가
+ * 어느 금액이 맞는지 오해할 수 있다).
+ * ★환각 0의 반대편(누락 0)을 지키기 위해 **버리는 기준을 아주 좁게** 잡는다 — `law`와 `citedArticle`이
+ *   **둘 다 같고 citedArticle이 비어 있지 않을 때만** 겹친 것으로 보고, 그 중 위키 칸(article)이 항·호를
+ *   더 짚은 줄을 남긴다. 근거가 없는 줄(citedArticle 없음)은 하나도 버리지 않는다.
+ * ⚠ 위키에서 총괄 행을 지우는 방식은 쓰지 않는다 — 그 행은 다른 질문("과태료 최고 얼마?")의 근거라
+ *   지우면 그쪽 답변이 근거를 잃는다. 화면에 함께 뜨는 것만 막는 것이 맞다.
+ * 예: dropRedundantChainRows([{law:'A',article:'제58조',citedArticle:'제58조제5항제7호'},
+ *      {law:'A',article:'제58조제5항제7호',citedArticle:'제58조제5항제7호'}])
+ *     → 뒤의 줄 하나만 남는다.
+ * @param {Array} rows - mergeCitationChains 로 합친 줄들
+ * @returns {Array} 겹친 줄을 정리한 새 배열(원 순서 유지)
+ * [연계] ← routes/legal.js POST /api/legal/ask(groupCitationChainByFlow 직전).
+ */
+function dropRedundantChainRows(rows) {
+  const list = rows || [];
+  // 얼마나 좁게 짚었는지 — 항·호가 적혀 있을수록 크다(같으면 글자 수로 뒤를 가른다).
+  const depth = (r) => {
+    const a = String((r && r.article) || '');
+    return (/제\s*\d+\s*항|[①-⑳]/.test(a) ? 2 : 0) + (/\d+\s*호/.test(a) ? 1 : 0) + a.length / 1000;
+  };
+  const best = new Map();                       // law citedArticle → 가장 좁게 짚은 줄
+  for (const r of list) {
+    const cited = String((r && r.citedArticle) || '');
+    if (!cited) continue;                       // 근거 없는 줄은 겹침 판정 대상이 아니다(하나도 안 버린다)
+    const key = String((r && r.law) || '') + ' ' + cited;
+    const cur = best.get(key);
+    if (!cur || depth(r) > depth(cur)) best.set(key, r);
+  }
+  return list.filter((r) => {
+    const cited = String((r && r.citedArticle) || '');
+    if (!cited) return true;
+    return best.get(String((r && r.law) || '') + ' ' + cited) === r;
+  });
 }
 
 // 위임 흐름의 고정 순서(넓은 것 → 좁은 것). classifyTier가 붙여둔 tier 값과 같은 낱말이라야 한다.
@@ -3541,4 +3588,4 @@ module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAns
   // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
   naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT,
   // 2026-08-17: 인용사슬 묶음표기 풀기(B1·B2) · "잘 모르겠어요"(B7) · 약칭표(B8, 계약4)
-  expandJoEnum, citedArticleIn, explainClarifyStep, loadLawAliases };
+  expandJoEnum, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows };

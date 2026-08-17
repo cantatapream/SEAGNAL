@@ -1082,7 +1082,10 @@ router.post('/api/legal/ask', async (req, res) => {
       finalSources.forEach(s => {
         s.citationChain = legalRetriever.filterCitationChainByAnswer(s.citationChain, full, s.law || '');
       });
-      citationChain = legalRetriever.groupCitationChainByFlow(mergeCitationChains(finalSources), full);
+      // ⚠총괄 행(`제58조`)과 항·호 행(`제58조제5항제7호`)이 함께 살아남아 같은 조문이 요지만 다르게
+      //   두 번 뜨는 것을 막는다(P0 선행 실측). 근거(citedArticle)가 같은 줄에만 적용된다.
+      citationChain = legalRetriever.groupCitationChainByFlow(
+        legalRetriever.dropRedundantChainRows(mergeCitationChains(finalSources)), full);
       // 살아남은 줄에만 조문 원문 발췌를 붙인다(거르기 전에 붙이면 버려질 줄까지 원문을 읽는다).
       await attachChainExcerpts(citationChain);
     }
