@@ -118,17 +118,20 @@ function loadFromDisk() {
  * @param {Array} citationChain - 근거 조문 줄 목록(/api/legal/ask 의 citationChain 그대로).
  *   ⚠ 함께 보관해야 한다 — 화면 복원(answerHTML)이 이 값으로 "근거 법령" 아코디언을 그리므로,
  *     빼먹으면 푸시로 되돌아온 답변만 근거 목록이 통째로 비어 보인다.
+ * @param {Array} [forms] - 서식 다운로드 목록(/api/legal/ask 의 forms 그대로). citationChain과 같은
+ *   이유로 함께 보관한다 — 빼먹으면 푸시로 되돌아온 답변만 서식 버튼이 안 뜬다(2026-08-17, 적대검증 발견 2).
  * @returns {string} requestId(64자 hex)
  * [연계] ← routes/legal.js POST /api/legal/ask (6초 초과 + 알림 동의한 요청에서만)
  *          → saveToDisk (발급 즉시 디스크 반영)
  */
-function store(query, answer, sources, note, citationChain) {
+function store(query, answer, sources, note, citationChain, forms) {
     const requestId = crypto.randomBytes(32).toString('hex');
     store_.set(requestId, {
         query: String(query || ''),
         answer: answer == null ? null : String(answer),
         sources: Array.isArray(sources) ? sources : [],
         citationChain: Array.isArray(citationChain) ? citationChain : [],
+        forms: Array.isArray(forms) ? forms : [],
         note: String(note || ''),
         createdAt: Date.now()
     });
@@ -146,7 +149,7 @@ function store(query, answer, sources, note, citationChain) {
  * 예: retrieve('a3f1…') → {query, answer, sources, citationChain, note, createdAt} · 두 번째 호출은 null
  * 없거나 3시간이 지난 건은 null (만료 건은 만난 김에 정리한다).
  * @param {string} requestId - store() 가 발급한 64자 hex
- * @returns {{query:string, answer:string|null, sources:Array, citationChain:Array, note:string, createdAt:number}|null}
+ * @returns {{query:string, answer:string|null, sources:Array, citationChain:Array, forms:Array, note:string, createdAt:number}|null}
  * [연계] ← routes/legal.js GET /api/legal/pending-answer/:requestId
  *          (푸시를 눌러 다시 들어온 앱이 답변 말풍선을 복원하려고 딱 한 번 부른다)
  */
