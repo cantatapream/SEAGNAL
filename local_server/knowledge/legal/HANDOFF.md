@@ -677,6 +677,14 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-17 16:25 KST] ✅완료 — lint_xref+lint_full 21R 20그룹 전체 디스패치 완료
+H-9①통합수정 21R 74/74 확인 후 표준 후속절차로 lint_xref.js+lint_full.js 각 10그룹(총 20개) Workflow 동시 디스패치 완료. 완료되는 대로 lint_index.py+lint_build.py→human_workload.py 순서로 진행 예정.
+
+
+### [2026-08-17 16:25 KST] 🟢착수 — 21R lint_xref.js+lint_full.js 10그룹씩 총 20개 디스패치
+H-9①통합수정 21R 74/74 완료 확인, review_queue.md REVIEW-해양레저관광진흥법-02 등록 완료. 표준 후속 절차로 lint_xref.js(타법연결 링크화)+lint_full.js(역링크·허브링크·dangling) 10그룹씩 20개 Workflow 동시 디스패치.
+
+
 ### [2026-08-17 15:53 KST] 🟢착수 — action=recollect 재수집 백로그 54건 — 10그룹 병렬 디스패치
 상법·국가계약법 공용파일 보강(solo) 완료 확인 후, collection_hole_recollect.js를 collection_hole_reclass_report_g0~9.md 기준으로 10그룹 동시 디스패치(그룹마다 다른 법=병렬안전, 스크립트 자체 설계). law.go.kr 접속이 이 세션 curl 경로로 열려 있어(WebFetch는 여전히 차단) 실제 재수집 가능.
 
