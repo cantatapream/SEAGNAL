@@ -555,6 +555,14 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-17 14:24 KST] ✅완료 — 전수 재검증 20그룹 Agent 도구로 재디스패치 완료
+20개 그룹(collection_hole_reverify 10그룹 + content_gap_reverify 10그룹, 각 7~8법씩, model:opus)을 이 세션의 Agent 도구로 백그라운드 디스패치 완료. 산출물은 원래 스크립트와 동일 경로: _dashboard/collection_hole_reclass_report_g<N>.md, _dashboard/content_gap_reverify_report_g<N>.md. 완료 알림 오는 대로 리포트 파일 존재 확인 → shrink-guard → 커밋 → wiki_fix/recollect 대상 취합해 후속 처리(H-9①통합수정 또는 collection_hole_recollect.js) 예정. audit18_groups.json 그룹 편성 그대로 재사용.
+
+
+### [2026-08-17 14:20 KST] 🟢착수 — 전수 재검증 20그룹 이어받기(Workflow→Agent 도구로 재구성)
+직전 세션이 20개 Workflow(collection_hole_reverify 10그룹+content_gap_reverify 10그룹)를 디스패치한 직후 세션한도로 중단됨. 새 세션(이 세션)에는 Workflow 도구가 없어 resumeFromRunId로 이어받기 불가 — 대신 동일한 로직(각 스크립트의 법별 재검증 지침)을 Agent 도구로 재구성해 20개 그룹을 병렬 백그라운드 디스패치. 산출물 형식(_dashboard/collection_hole_reclass_report_g<N>.md, _dashboard/content_gap_reverify_report_g<N>.md)은 원래 스크립트와 동일하게 맞춤. 완료되는 대로 커밋하고 wiki_fix/recollect 대상은 후속 처리 예정.
+
+
 ### [2026-08-17 10:27 KST] 🟢착수 — 전수 재검증(collection_hole a/b/c + content_gap) 20그룹 디스패치
 사용자 지시: 과거 전체 감사 이력(누적 _dashboard/audit/<법>.md, append-only라 전체 라운드 포함)을 훑어 ①thin(content_gap)이 정말 원문에도 없는지 ②collection_hole(a)/(b)가 정말 genuine/structural인지 ③collection_hole(c) 중 누락된 채 방치된 것은 없는지 병렬 전수 검증. 기존 collection_hole_reverify.js(2026-08-16 제작, ①②③ 중 collection_hole 관련 담당) 재사용 + 신규 content_gap_reverify.js(자매 스크립트, thin/content_gap 담당) 작성. 10그룹×2종=20개 Workflow 동시 디스패치. collection_hole task-id: g0=wipkumsxf g1=wfzsct58v g2=wopquw301 g3=wypisrzsa g4=wi4khelkj g5=wmkru2tov g6=w1el3m84d g7=wby73in1x g8=wdakco0xg g9=ww2uy5biy. content_gap task-id: g0=w8vg0mok7 g1=wpjkw5bu9 g2=wormo9hm9 g3=wne8t823c g4=wi1jzts42 g5=wemxbr98p g6=wu9laq9ll g7=w2ofvb3c5 g8=wevrh2b0m g9=wfm0rjm3q. 완료되는 대로: collection_hole 쪽은 action=recollect 항목을 collection_hole_recollect.js로 실제 재수집, content_gap 쪽은 misclassified_wiki_lag 항목을 다음 H-9①통합수정 라운드에 최우선 반영.
 
