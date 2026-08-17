@@ -20,6 +20,8 @@
   ③ 작업 지시문 잔재: `[[링크]]`·`[[대상]]`·`[[^]]`·`[[statutes/법명]]` → **링크 해제**(글자만 남김)
   ④ 위키링크 문법 오용: `[[표: 근해장어통발어업 — 어선 규모별 어구량]]`(같은 문서 안의 표를
      링크로 감쌈) → 링크 해제
+  ⑤ 우리 74법 **밖**의 다른 부처 법령(하천법·문화유산법 등) 링크 → `(편입예정)` 표시 부착.
+     위키에 문서가 없는 게 정상이므로, 깨진 링크가 아니라 "아직 안 들어온 법"임을 명시한다.
 
 [절대 손대지 않는 것 — 틀리게 고치느니 그대로 둔다]
   · 후보가 2개 이상(예: `[[낚시터업 허가/등록]]`은 유사 후보 9개) → 목록으로만 남김
@@ -58,6 +60,16 @@ def build_index(wiki):
             bases[base].append(rel)
             flats[flat(base)].append(rel)
     return rels, bases, flats
+
+
+def is_external_law(tgt, laws):
+    """우리 74법 밖의 법령을 가리키는 링크인가 — `[[하천법]]`·`[[식품위생법__위해식품판매등금지]]` 등.
+    링크 앞머리가 법령 이름 꼴(…법/…법률)인데 74법 목록에 없으면 외부 법령으로 본다.
+    """
+    head = tgt.split('__')[0]
+    if '/' in head or ' ' in head:      # `[[해사안전기본법 / 해상교통안전법]]` 같은 링크 오용은 사람이 볼 몫
+        return False
+    return bool(re.search(r'(법|법률)$', head)) and head not in laws
 
 
 def resolve(tgt, rels, bases, flats, cur):
@@ -107,8 +119,9 @@ def main():
     wiki = sys.argv[1] if len(sys.argv) > 1 else 'wiki'
     apply = '--apply' in sys.argv
     rels, bases, flats = build_index(wiki)
+    laws = {os.path.basename(r) for r in rels if r.startswith('statutes' + os.sep)}
 
-    fixed, unwrapped, skipped = [], [], []
+    fixed, unwrapped, skipped, externs = [], [], [], []
     for dp, _dn, fn in os.walk(wiki):
         for f in fn:
             if not f.endswith('.md'):
@@ -130,11 +143,16 @@ def main():
                 if m.group(2) or tgt.startswith('../'):
                     continue
                 act, val = resolve(tgt, rels, bases, flats, cur)
+                if act == 'skip' and is_external_law(tgt, laws):
+                    act, val = 'extern', None
                 if act == 'skip':
                     skipped.append((src, tgt, val))
                     continue
                 out.append(text[last:m.start()])
-                if act == 'replace':
+                if act == 'extern':
+                    out.append(m.group(0) + ' (편입예정)')   # 링크는 그대로 두고 표시만 붙인다
+                    externs.append((src, tgt))
+                elif act == 'replace':
                     rest = raw[len(tgt):]                      # `|별칭`·`#앵커` 는 그대로 보존
                     out.append('[[' + val + rest + ']]')
                     fixed.append((src, tgt, val))
@@ -147,7 +165,8 @@ def main():
                 out.append(text[last:])
                 open(path, 'w', encoding='utf-8').write(''.join(out))
 
-    print(f'{"[적용]" if apply else "[미리보기]"} 교체 {len(fixed)}건 / 링크해제 {len(unwrapped)}건 / 손대지 않음 {len(skipped)}건')
+    print(f'{"[적용]" if apply else "[미리보기]"} 교체 {len(fixed)}건 / 링크해제 {len(unwrapped)}건 '
+          f'/ (편입예정) 표시 {len(externs)}건 / 손대지 않음 {len(skipped)}건')
     print('\n[교체 예시]')
     for s, a, b in fixed[:12]:
         print(f'  {a}  →  {b}   ({s})')
@@ -156,7 +175,7 @@ def main():
         print(f'  {c:4d}  {why}')
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'xref_fix_report.json'),
               'w', encoding='utf-8') as fp:
-        json.dump({'fixed': fixed, 'unwrapped': unwrapped, 'skipped': skipped},
+        json.dump({'fixed': fixed, 'unwrapped': unwrapped, 'extern': externs, 'skipped': skipped},
                   fp, ensure_ascii=False, indent=1)
 
 
