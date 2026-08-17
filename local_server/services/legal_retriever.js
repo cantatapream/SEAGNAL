@@ -189,6 +189,9 @@ function aliasesOfFormalName(formal) {
  * 예: aliasExpand('어선안전조업법상 정박신고는?')
  *     → ['어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률', '어선안전조업', …]
  * ⚠ 2글자 약칭은 우연 일치가 잦아(예: 흔한 낱말과 겹침) 3글자 이상만 본다.
+ * ⚠ 정식명을 쪼갠 낱말도 **3글자 이상만** 얹는다 — `등에`·`대한`·`관한`·`법률`은 거의 모든 법 페이지
+ *   본문에 있어(scoreOne 이 본문 매칭에 +2를 준다) 순위를 통째로 평평하게 만든다. 검색의 진짜
+ *   신호는 정식명 전체(법령명 칸 완전일치)이고, 쪼갠 낱말은 띄어쓰기가 다른 표기를 위한 보조다.
  * @param {string} query
  * @returns {string[]} 추가 검색어(중복 제거). 표가 없으면 []
  * [연계] ← search(). scoreOne 이 law/topic/본문에 이 낱말이 있는지로 점수를 매긴다.
@@ -199,7 +202,7 @@ function aliasExpand(query) {
   for (const [a, formal] of loadLawAliases().alias) {
     if (a.length < 3 || !qFlat.includes(a.replace(/\s+/g, ''))) continue;
     out.push(formal);
-    for (const w of formal.split(/[\s·ㆍ・]+/)) if (w.length >= 2) out.push(w);
+    for (const w of formal.split(/[\s·ㆍ・]+/)) if (w.length >= 3) out.push(w);
   }
   return [...new Set(out)];
 }
@@ -2705,7 +2708,9 @@ function normalizeAskCtx(raw, profile) {
     const unkRaw = (c.unk && typeof c.unk === 'object') ? c.unk : {};
     const unkQ = clarifyStr(unkRaw.q, 200);
     const unkO = (Array.isArray(unkRaw.o) ? unkRaw.o : [])
-      .slice(0, CLARIFY_OPTION_MAX)
+      // +1: decideClarify 가 "방금 물어보신 질문" 확인 후보를 하나 더 얹을 수 있어(최대 11개),
+      //     상한을 10으로 두면 그 선택지가 재제시에서 조용히 사라진다.
+      .slice(0, CLARIFY_OPTION_MAX + 1)
       .map(o => ({ label: clarifyStr(o && o.label, 40), hint: clarifyStr(o && o.hint, 120) }))
       .filter(o => o.label);
     const unk = (unkQ && unkO.length >= 2)
