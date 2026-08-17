@@ -697,6 +697,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-17 19:58 KST] ✅완료 — 22R lint_xref+lint_full 20그룹 전체 디스패치 완료
+lint_xref.js 10그룹+lint_full.js 10그룹 전부 디스패치. 완료되는 대로 lint_index.py+lint_build.py→human_workload.py 순서로 진행.
+
+
 ### [2026-08-17 19:57 KST] 🟢착수 — 22R lint_xref.js+lint_full.js 20그룹 디스패치
 H-9①통합수정 22R 74/74 완료 확인. 표준 후속 절차로 lint_xref.js+lint_full.js 각 10그룹(총 20개) Workflow 동시 디스패치.
 
