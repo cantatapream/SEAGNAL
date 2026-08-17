@@ -20,7 +20,7 @@
 |---|---|---|---|
 | **A. 수집** | 법·별표·고시·조례 원문 확보 | ✅ 완료(조례 표본) | `raw/`, `_dashboard/collect.py` |
 | **B. 위키 구축(ingest)** | 법당 풀깊이 개념화 + 거미줄 링킹 | ✅ concept 780 | `wiki/`, `_SCHEMA.md`, `index.md` |
-| **C. 검증 루프** | 감사→수정→재감사로 구멍 메우기 | 🔄 16차 감사 완료(74/74, 2026-08-16) — canonical 876·draft 315·review-pending 15 | `_dashboard/audit/`, `_dashboard/loop/audit_sim.js`·`fix_cell.js` |
+| **C. 검증 루프** | 감사→수정→재감사로 구멍 메우기 | 🔄 20차 감사+H-9①+lint 전체 파이프라인 완료(74/74, 2026-08-17 09:46 KST), 21차 감사 진행 중 — 20R 총 18,106문항·full 26.5%(H-9①전 스냅샷) | `_dashboard/audit/`, `_dashboard/loop/audit_sim.js`·`fix_cell.js` |
 | **D. 정합·재수집** | 수집범위 확정→DRF 재수집→대조검증 (3단계) · 기술기준=기준법-급 | ✅ 범위확정 70/70 · 🔄 phase② 수집중 | `_dashboard/scope/`+`_MASTER_WORKLIST.md`, `_dashboard/loop/`(map_scope·collect_fix·shared_refs·stub_rules) |
 | **E. 챗봇 엔진(query)** | 검색+프로필필터+답변(점진공개·인용) | ⏳ 예정 | `local_server/routes/`·`services/`(신규), `_CHATBOT.md` |
 | **F. 앱 UI + 피드백** | 챗봇 화면 + 관리자 검토 + 따봉/후보 배선 | 🔄 답변카드·조문팝업·별표열람 실배선(2026-08-01~03), 관리자 검토센터 5개 하위탭(초안승인/피드백/새지식후보/개정검토/⚠수치검증) 전부 실배선(2026-08-10 코드 확인 — 이 줄이 낡아 있었음), 위키밖질문 2단계 답변(GitHub 원문조회)·답변완료 푸시알림도 실배선+라이브검증 완료. 미착수: 다중법 심층검색·배포최적화(raw `.dockerignore` 제외) | `index2.html`(AI탭), `client/js/ai-chat/ai_chat.js`, `services/github_raw.js`, `_feedback/`, `_candidates/`, `_amendments/` |
