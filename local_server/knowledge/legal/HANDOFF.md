@@ -687,6 +687,16 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-17 20:39 KST] 🟢착수 — H-40 챗봇 답변화면·근거표출 전면 개선 + 법령약칭 체계 신설 착수
+사용자가 프로덕션 챗봇 실세션 스크린샷 9장을 근거로 화면·근거표출 결함 8종을 지적했고, 대화로 전 항목의 처리방침을 확정했다(설계·배경·비용추정·성공기준 전문은 MASTER_PLAN.md H-40, 답변규칙은 _CHATBOT.md 6절, 사용자 원문 인용 병기한 요구원장은 _dashboard/CHATBOT_UI_PLAN.md J절 R15~R24, 원인규명 교훈은 _LESSONS.md L-101·L-102).
+
+착수 내용: ①법령 공식 약칭 수집기(_dashboard/loop/collect_law_aliases.py) 신설·실행 — lawSearch.do의 법령약칭명만 원천(상세 API는 빈 값, L-102), 위키·raw 미접촉이라 22차 라운드와 경합 없음 ②22차 감사 종료 확인 후 파일 소유가 겹치지 않는 4갈래 병렬 착수 — (a)화면 client/js/ai-chat/ai_chat.js+ai_chat.css (b)서버 파이프라인 services/legal_retriever.js+routes/legal.js (c)조문 원문 services/article_text.js (d)위키 전수조사(읽기전용, 산출물 _dashboard/wiki_flow_survey.md).
+
+핵심 원인 규명(실측): 근거 목록이 과태료 1건만 뜬 것은 위키 데이터 결손이 아니라 filterCitationChainByAnswer의 토큰 정규식이 묶음 조문표기(제52~55·57조 등)를 못 읽어 그 줄들이 통째로 탈락한 것이었다(L-101). 팝업이 조 전체+부칙을 쏟은 것은 위키 조문 칸이 항·호를 특정하지 않아 강조 대상을 알 수 없었기 때문이며, 답변 본문은 제58조제5항제7호를 알고 있었으나 그 정보를 팝업·발췌로 넘기는 경로가 없었다.
+
+에이전트는 git 명령을 실행하지 않고 오케스트레이터가 일괄 커밋한다. 위키 보강(비교허브 근거조문 표 신설·흐름 결손 전수 보강·주체칸 신설 여부)은 전수조사 결과가 나온 뒤 병렬 착수 예정.
+
+
 ### [2026-08-17 16:57 KST] ✅완료 — main 브랜치 머지 완료 — 21R 전체 작업 배포 트리거됨
 사용자 지시로 claude/nariya-wiki-continuation-3y5fqy(60개 커밋) → main fast-forward 푸시 완료(d4db5388). GitHub PR #1087 자동 merged 처리. .github/workflows/deploy.yml이 main push를 트리거로 Fly.io 자동배포하므로 곧 실제 앱에 반영됨.
 

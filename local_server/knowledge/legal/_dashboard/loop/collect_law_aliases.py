@@ -110,6 +110,12 @@ def collect(limit=0):
         time.sleep(SLEEP)
         # 검색 결과 중 **이름이 정확히 같은 행**만 채택한다(부분일치로 고르면 다른 법이 섞인다).
         hit = next((r for r in rows if str(r.get("법령명한글", "")).strip() == nm), None)
+        # 폴백: 우리 raw 폴더명이 띄어쓰기 없이 저장된 법이 있어(실측: `자유무역지역의지정및운영에관한법률`)
+        # 공백만 다른 경우는 같은 법으로 본다. **공백 외의 글자가 다르면 여전히 채택하지 않는다**
+        # (부분일치·유사도 매칭은 하지 않는다 — 다른 법을 그 법인 척 실으면 안 되므로).
+        if not hit:
+            flat = nm.replace(" ", "")
+            hit = next((r for r in rows if str(r.get("법령명한글", "")).replace(" ", "").strip() == flat), None)
         if not hit:
             not_found.append(nm)
             continue
