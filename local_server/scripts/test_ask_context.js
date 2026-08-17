@@ -751,6 +751,18 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
           { law: 'A', article: '제2조', citedArticle: '' }]).length === 2);
     }
 
+    // (11) 위키가 법 이름을 정확히 적어둘수록 행이 죽던 역설(G1·G2 지적) — 두 표기 모두 살아야 한다
+    {
+      const FORMAL = '어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률';
+      const rows = [{ law: FORMAL + ' 시행규칙', article: '제20조' }, { law: '시행규칙', article: '제20조' }];
+      ok('법령 칸이 정식명+시행규칙이어도 살아남는다',
+        R.filterCitationChainByAnswer(rows, '「' + FORMAL + '」 제33조와 같은 법 시행규칙 제20조에 따라', FORMAL).length === 2);
+      ok('답변이 약칭으로 써도 살아남는다',
+        R.filterCitationChainByAnswer(rows, '어선안전조업법 시행규칙 제20조에 따라', FORMAL).length === 2);
+      ok('법 이름이 답변에 전혀 없으면 정식명 행은 통과시키지 않는다(느슨해지지 않음)',
+        R.filterCitationChainByAnswer([rows[0]], '시행규칙 제20조에 따라', FORMAL).length === 0);
+    }
+
     // (8) 계약2·3 — 라우트는 조문 표기를 깎지 않고, 응답도 통째로 통과시킨다
     ok('약칭표 엔드포인트가 있다', /router\.get\('\/api\/legal\/aliases'/.test(ROUTES_SRC));
     ok('article 파라미터를 그대로 넘긴다(항·호를 잘라내지 않는다)',

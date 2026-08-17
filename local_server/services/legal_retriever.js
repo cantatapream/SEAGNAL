@@ -1344,10 +1344,27 @@ function lawMentionedInAnswer(law, baseLaw, text) {
   const s = String(law || '').trim();
   if (!s || s.length < 2) return false;
   if (text.includes(s)) return true;
-  if (!BARE_TIER_CELL_RE.test(s.replace(/\s+/g, ''))) return false;
-  const base = String(baseLaw || '').trim();
-  if (!base) return false;
-  return [base].concat(aliasesOfFormalName(base)).some(n => n && text.includes(n + ' ' + s));
+  // ⓐ 계층 낱말만 적힌 칸(`시행령`·`시행규칙`) — 그 줄이 실린 페이지의 법(baseLaw)으로 편다.
+  if (BARE_TIER_CELL_RE.test(s.replace(/\s+/g, ''))) {
+    const base = String(baseLaw || '').trim();
+    if (!base) return false;
+    return [base].concat(aliasesOfFormalName(base)).some(n => n && text.includes(n + ' ' + s));
+  }
+  // ⓑ `<법 이름> 시행령/시행규칙` 꼴 — 답변은 같은 하위법령을 **다른 문자열로** 쓴다:
+  //    정식명 전체(「어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률」 시행규칙)를 그대로
+  //    쓰기도 하고, 약칭(어선안전조업법 시행규칙)이나 계층 낱말만(시행규칙 제18조) 쓰기도 한다.
+  //    ⓐ와 대칭이 안 맞으면 **위키가 법 이름을 정확히 적어둘수록 행이 죽는** 역설이 생긴다
+  //    (G2·G1 두 그룹이 같은 함정을 지적 — 한쪽은 그래서 정식명 채우기를 보류했고 다른 쪽은
+  //    채웠다. 데이터를 어느 쪽으로 통일하든 코드가 둘 다 받아야 이 선택이 무해해진다).
+  //    ★느슨해지지 않는다: 계층 낱말이 답변에 있고 **그 법의 이름(정식명 또는 약칭)도** 답변에
+  //    있을 때만 통과한다 — ⓐ의 기존 판정(계층 낱말만 대조)보다 오히려 좁다.
+  const m = /^(.+?)\s*(시행령|시행규칙)$/.exec(s);
+  if (m) {
+    const name = m[1].trim(), tier = m[2];
+    if (!name || !text.includes(tier)) return false;
+    return [name].concat(aliasesOfFormalName(name)).some(n => n && text.includes(n));
+  }
+  return false;
 }
 
 // 답변이 주체별로 나뉠 때 쓰는 소제목 — 답변 원칙 8이 지시한 "1. → 가." 위계의 첫 단계에
