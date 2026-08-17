@@ -687,6 +687,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-17 19:25 KST] ✅완료 — H-9①통합수정 22R 세션한도 재개 디스패치 완료
+10그룹 전부 세션한도로 대부분 실패(1~3법만 성공). 부분성공분 커밋 후, resumeFromRunId로 10그룹 전부 재개 디스패치(캐시로 성공분 즉시 반환, 실패분만 재시도).
+
+
 ### [2026-08-17 17:53 KST] ✅완료 — H-9①통합수정 22R 10그룹 전체 디스패치 완료
 audit_fix_cell.js round:22, audit18_groups.json 재사용, 10그룹 동시 디스패치. 완료되는 대로 lint_xref/lint_full→lint_index/lint_build→human_workload 순서로 논스톱 진행.
 
