@@ -1508,8 +1508,15 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
       out.push(row);
       continue;
     }
-    const tokens = article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\d+(?:의\d+)?/g) || [];
-    const hit = tokens.find(t => text.includes(t));
+    // ⚠`별표N` 외에 **`별도N`(도면·구역도)·`별지 제N호서식`** 도 인정한다(2026-08-17, B-1 실측).
+    //   종전 정규식은 이 둘을 토큰으로 못 뽑아, 답변이 「수산자원관리법 시행령」 별도2(왕돌초 주변해역)나
+    //   별지 서식을 정확히 인용해도 그 줄이 통째로 탈락했다 — 근거가 조용히 사라지는 L-101과 같은 뿌리다.
+    //   ★공백 표기(`별지 제1호 서식`)까지 받되, 없는 표기를 만들어내지는 않는다(대조는 answerText 원문 그대로).
+    const tokens = article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\s*\d+(?:의\d+)?|별도\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식/g) || [];
+    // ⚠답변은 `별표 3`처럼 **띄어 쓰기도** 한다 — 위키 칸은 `별표3`이라 글자 그대로는 안 맞는다.
+    //   공백만 지운 형태로도 대조한다(글자 자체를 바꾸는 게 아니라 공백 차이만 흡수 — 환각 0 유지).
+    const flatText = text.replace(/\s+/g, '');
+    const hit = tokens.find(t => text.includes(t) || flatText.includes(t.replace(/\s+/g, '')));
     if (!hit) continue;
     // 위키 칸이 짚은 조(`제58조`)로 답변을 다시 훑어 **항·호까지 붙은 표기**를 가져온다 — 위키 칸엔
     // 항·호가 없어도 답변은 "제58조제5항제7호"라고 쓰는 일이 흔하다(그 항·호가 발췌 대상이다, B10).
