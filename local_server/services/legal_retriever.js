@@ -321,6 +321,39 @@ function loadContacts() {
  * @returns {'law'|'decree'|'rule'|'notice'}
  * [연계] → extractCitationChain(각 행의 tier), ai_chat.js의 data-tier 색상.
  */
+// ── 행정규칙(고시) 이름 사전 — raw 에 실제로 수집된 파일명으로 만든다(2026-08-17, A-3 실측) ──
+// `패류채취어업 중 잠수기 사용지역 및 패류의 종류`·`한국해양교통안전공단 정관`처럼 **이름에
+// 고시·지침·규정 같은 낱말이 하나도 없는 행정규칙**이 실제로 있다. 키워드 규칙만으로는 '법률'로
+// 떨어져 근거 카드 배지와 원문 링크가 틀렸다(A-3이 10건 보고). 목록을 손으로 적는 대신
+// `raw/*/*/행정규칙/*.txt` 파일명을 그대로 사전으로 쓴다 — 수집이 늘면 사전도 저절로 늘고,
+// 우리가 원문을 가진 것만 인정하므로 지어낼 여지가 없다.
+let _admrulNames = null;
+function admrulNameSet() {
+  if (_admrulNames) return _admrulNames;
+  const out = new Set();
+  try {
+    const rawRoot = path.join(LEGAL_DIR, 'raw');
+    for (const dom of fs.readdirSync(rawRoot)) {
+      const domDir = path.join(rawRoot, dom);
+      if (!fs.statSync(domDir).isDirectory()) continue;
+      for (const law of fs.readdirSync(domDir)) {
+        const dir = path.join(domDir, law, '행정규칙');
+        if (!fs.existsSync(dir)) continue;
+        for (const f of fs.readdirSync(dir)) {
+          if (f.endsWith('.txt')) out.add(flatName(f.slice(0, -4)));
+        }
+      }
+    }
+  } catch (_) { /* raw 가 없으면 빈 사전 — 종전 규칙대로 동작한다 */ }
+  _admrulNames = out;
+  return out;
+}
+
+/** 이름 비교용 정규화 — 공백·가운뎃점·괄호·붙임표만 지운다(글자 자체는 안 바꾼다). */
+function flatName(s) {
+  return String(s || '').replace(/[\s·ㆍ\-_()（）「」]/g, '');
+}
+
 function classifyTier(lawName) {
   const s = String(lawName || '');
   if (s.includes('시행령')) return 'decree';
@@ -330,6 +363,8 @@ function classifyTier(lawName) {
   //   아래 키워드 규칙에 걸려 고시(notice)로 분류됐다 — 배지가 틀리고 원문 링크도 행정규칙 쪽으로 갔다.
   //   약칭표(`law_aliases.json`)에 그 법의 `구분`(법률/대통령령/○○부령)이 API 값 그대로 들어 있으므로
   //   **정식명 완전일치일 때만** 그 값을 쓴다(부분일치·추측 금지). 표에 없는 이름은 종전 규칙대로.
+  // 우리가 원문을 가진 행정규칙 이름이면 곧바로 고시다(이름에 키워드가 없어도).
+  if (admrulNameSet().has(flatName(s))) return 'notice';
   const kindMap = loadLawAliases().kind;
   const kind = kindMap && kindMap.get(s.trim());
   if (kind) {
