@@ -472,7 +472,12 @@ function readArticleRef(article, tier, lawCell) {
   const cm = new RegExp(`[${CIRCLED}]`).exec(rest);
   if (cm) mark = cm[0];
   else {
-    const hm = /제(\d+)항/.exec(rest);
+    // ⚠ `제 5 항`처럼 **낱말 안에 공백이 낀 표기**도 같은 뜻으로 읽는다 — 이 조문 표기는 이제 위키
+    //   표뿐 아니라 **답변 본문의 인용 문장**(`제58조 제5항 제7호`)에서도 들어오는데, 답변 문장은
+    //   띄어쓰기를 넣어 쓰는 경우가 있어 공백을 안 받으면 항을 못 읽고 focused 가 false 로 떨어져
+    //   조문 전체가 다시 펼쳐진다. 공백만 다른 표기를 같게 볼 뿐, 표기 자체가 다른 것(`제58조5항`)은
+    //   여전히 안 읽는다(확신 없는 변종은 종전대로 물러난다).
+    const hm = /제\s*(\d+)\s*항/.exec(rest);
     if (hm && +hm[1] >= 1 && +hm[1] <= CIRCLED.length) mark = CIRCLED[+hm[1] - 1];
   }
   // ⚠ 한 항의 호를 여러 개 적을 때 위키는 `제53조②5·6·6의2호`처럼 **가운뎃점으로 잇고 '호'를
@@ -484,7 +489,8 @@ function readArticleRef(article, tier, lawCell) {
   //   이어지다 '호'로 끝나는 모양**일 때만 따로 전부 읽는다. 다른 글자가 하나라도 끼면 매치되지
   //   않아 기존 처리로 그대로 흘러간다(`제27조①2~5호·6호`처럼 물결이 섞인 표기 등).
   const enumHo = HO_ENUM_RE.exec(tail);
-  const hoRe = /(?:제)?(\d+)\s*호/.exec(rest);
+  // 호도 같은 이유로 `제 7 호`까지 받는다(위 항 주석 참고). '제'는 원래부터 선택이다(`②7호`).
+  const hoRe = /제?\s*(\d+)\s*호/.exec(rest);
   const hoList = enumHo
     ? enumHo[1].split(/[·ㆍ・]/).map(t => t.replace(/[제\s]/g, ''))
     : (hoRe ? [String(parseInt(hoRe[1], 10))] : []);
@@ -664,8 +670,10 @@ function splitParagraphs(body) {
  * @param {string} text - 파일 전체 원문
  * @param {string} jo - 조 표기(예 '제10조', '제7조의2')
  * @param {string} tier - law|decree|rule|notice
- * @returns {{title:string, effectiveDate:string, body:string}|null} 그 조가 없으면 null
- * [연계] ← loadArticle(). → splitParagraphs()
+ * @returns {{title:string, effectiveDate:string, body:string, addenda:string}|null} 그 조가 없으면 null
+ *          addenda 는 이 조 **바로 뒤에 부칙이 붙어 있을 때만** 그 부칙 원문(문서의 마지막 조에서만
+ *          생긴다). 본문(body)에는 절대 섞이지 않는다 — 자세한 이유는 addendaAfter() 주석 참고.
+ * [연계] ← loadArticle(). → splitParagraphs()·addendaAfter()
  */
 function extractArticleBlock(text, jo, tier) {
   const src = String(text || '');
@@ -681,13 +689,19 @@ function extractArticleBlock(text, jo, tier) {
     const m = re.exec(src);
     if (!m) return null;
     const eff = /시행일자\s*:?\s*(\d{8})/.exec(src) || /발령일자\s*:?\s*(\d{8})/.exec(src);
-    return { title: m[1].trim(), effectiveDate: eff ? fmtDate(eff[1]) : '', body: m[2].trim() };
+    return {
+      title: m[1].trim(), effectiveDate: eff ? fmtDate(eff[1]) : '', body: m[2].trim(),
+      addenda: addendaAfter(src, m.index + m[0].length),
+    };
   }
   // `[제10조] 제목 (시행 20260624 · 타법개정)` 헤더 줄 + 다음 `[제N조]` 전까지가 본문.
   // ⚠ 마지막 조 뒤엔 다음 `[제N조]`가 없어 lookahead가 파일 끝(`$`)까지 먹는데, 그러면 뒤에
   //   오는 부칙 전체(다른 법률의 개정 등)까지 그 조 본문으로 딸려 들어간다(실측으로 확인한
   //   함정 — notice 분기엔 `\n부칙`이 이미 있었는데 이쪽엔 빠져 있었다). 부칙도 경계로 끊는다.
-  const re = new RegExp(`(?:^|\\n)\\[${reEsc(jo)}\\]([^\\n]*)\\n([\\s\\S]*?)(?=\\n\\[제\\d+조|\\n부칙|$)`);
+  // ⚠ 그 부칙 경계는 예전에 `\n부칙`(맨 글자)뿐이라 **`[부칙 <제…호,…>]`(대괄호 표기, 41개 파일)를
+  //   못 끊었다** — 어선안전조업법 제58조 팝업에서 ⑦항 뒤에 부칙 전문이 조문인 척 붙어 나온
+  //   실제 사고의 원인이다. 이제 세 표기를 다 받는 ADDENDA_HEAD_SRC 하나로 끊는다.
+  const re = new RegExp(`(?:^|\\n)\\[${reEsc(jo)}\\]([^\\n]*)\\n([\\s\\S]*?)(?=\\n\\[제\\d+조|\\n${ADDENDA_HEAD_SRC}|$)`);
   const m = re.exec(src);
   if (!m) return null;
   const head = m[1].trim();
@@ -700,6 +714,7 @@ function extractArticleBlock(text, jo, tier) {
     title: head.replace(/\s*\(시행[^)]*\)\s*$/, '').trim(),
     effectiveDate: eff ? fmtDate(eff[1]) : '',
     body: lines.join('\n').trim(),
+    addenda: addendaAfter(src, m.index + m[0].length),
   };
 }
 
@@ -731,14 +746,43 @@ const REF_RE = /별지\s*제\s*(\d+(?:의\d+)?)\s*호(?:\s*서식)?|별표\s*제
 //   들여쓰여 있는 파일이 실측 35개 있어(`  ■ … [별지 제1호서식]`) 줄머리 공백은 허용한다 —
 //   안 그러면 그 블록 93개를 못 잘라 앞 별표에 딸려 들어가고, 정작 그 번호는 "미수집"으로 보인다.
 const ATT_HEAD_RE = /(?:^|\n)[ \t]*(?:■[^\n[〔【(「]*)?[[〔【(「]\s*(별표|별지|서식)\s*제?\s*(\d+(?:의\d+)?)\s*호?\s*(?:서식)?\s*[\]〕】)」]([^\n]*)/g;
-// 조문 구간이 끝나는 자리 — 부칙, `[별표] 제목` 묶음머리, 또는 번호 붙은 별표 블록 중 먼저 나오는 곳.
-// ⚠ 원문에 `부\n칙<2012. 5. 31.>`처럼 **줄바꿈이 낀 "부칙"**이 실측 88개 파일에 있어 `\n부칙`만으론
-//   못 끊는다 — 안 끊으면 조 본문에 부칙+별표가 통째로 딸려 들어간다(인천항·경인항선박통항규칙
-//   제32조에서 11,350자 실측). 그래서 부·칙 사이 공백/줄바꿈을 허용한다.
+// 별표 구간이 시작되는 자리 — `[별표] 제목` 묶음머리, 또는 번호 붙은 별표 블록.
+const ANNEX_BLOCK_SRC = '\\n\\[별표\\]|\\n\\[별지\\]|\\n[ \\t]*(?:■[^\\n[〔【(「]*)?[[〔【(「]\\s*(?:별표|별지|서식)\\s*제?\\s*\\d';
+const ANNEX_BLOCK_RE = new RegExp(ANNEX_BLOCK_SRC);
+// 부칙 머리줄 — 줄머리(`\n`)에 이어 붙여 쓴다. 실측 표기 3종을 모두 받는다(전 raw 전수 집계):
+//   `부칙<2012. 5. 31.>`(3,534줄) · `[부칙 <제16569호,2019.8.27>]`(249줄) · 들여쓴 `  부칙`(18줄).
+// ⚠ 예전에는 `\n부\s*칙` 하나뿐이라 **대괄호를 두른 표기(`[부칙 …]`)를 못 끊었다** — 그 결과 파일
+//   마지막 조(어선안전조업법 제58조 등 41개 파일)에 부칙 전문이 통째로 딸려 들어가, 팝업 마지막
+//   항 뒤에 개정이력이 조문인 척 붙어 나왔다(사용자 스크린샷으로 확인한 실제 사고).
+// ⚠ 원문에 `부\n칙<2012. 5. 31.>`처럼 **줄바꿈이 낀 "부칙"**도 실측 88개 파일에 있어 부·칙 사이
+//   공백/줄바꿈을 허용한다(안 끊으면 인천항·경인항선박통항규칙 제32조에서 11,350자가 딸려 들어감).
+const ADDENDA_HEAD_SRC = '[ \\t]*\\[?\\s*부\\s*칙';
+// 조문 구간이 끝나는 자리 — 부칙과 별표 중 먼저 나오는 곳.
 // ⚠ 이 패턴은 extractArticleBlock(고시)·articleRegion·extractAttachments 가 **함께** 쓴다.
 //   따로 좁은 정규식을 두면 "조 본문은 안 끊겼는데 별표는 끊긴" 어긋남이 생긴다(중복 로직 금지).
-const DOC_TAIL_SRC = '\\n\\[별표\\]|\\n\\[별지\\]|\\n부\\s*칙|\\n[ \\t]*(?:■[^\\n[〔【(「]*)?[[〔【(「]\\s*(?:별표|별지|서식)\\s*제?\\s*\\d';
+const DOC_TAIL_SRC = `${ANNEX_BLOCK_SRC}|\\n${ADDENDA_HEAD_SRC}`;
 const DOC_TAIL_RE = new RegExp(DOC_TAIL_SRC);
+// 조 본문이 끝난 자리가 **부칙 머리줄인지** 보는 패턴(addendaAfter 전용).
+const ADDENDA_AT_RE = new RegExp(`^\\n${ADDENDA_HEAD_SRC}`);
+
+/**
+ * 조 본문이 끝난 바로 그 자리가 부칙이면 그 부칙 덩어리를 돌려준다(아니면 빈 문자열).
+ * 조 본문에서 부칙을 끊어내기만 하면 **원문 글자가 화면에서 사라진다** — 버리지 않고 자리만 옮겨
+ * 응답의 `addenda`로 실어 보내고, 화면이 "부칙 보기"로 따로 펼치게 한다.
+ * 부칙 뒤에 별표 블록이 이어지는 파일이 있어 별표 머리에서 끊는다(별표는 refs 갈래가 따로 다룬다).
+ * 예: addendaAfter('…부과한다.\n\n[부칙 <제16569호,2019.8.27>]\n제1조(시행일) …', 8)
+ *     → '[부칙 <제16569호,2019.8.27>]\n제1조(시행일) …'
+ * @param {string} src - 파일 전체 원문
+ * @param {number} at - 조 본문이 끝난 위치(extractArticleBlock 의 매치 끝)
+ * @returns {string} 부칙 원문(앞뒤 공백 제거), 그 자리가 부칙이 아니면 ''
+ * [연계] ← extractArticleBlock(). → loadArticle 응답의 `addenda`(클라이언트 "부칙 보기").
+ */
+function addendaAfter(src, at) {
+  const rest = String(src || '').slice(at);
+  if (!ADDENDA_AT_RE.test(rest)) return '';
+  const i = rest.search(ANNEX_BLOCK_RE);
+  return (i >= 0 ? rest.slice(0, i) : rest).trim();
+}
 
 /** 참조 정규식 매치 하나를 비교용 열쇠로 바꾼다(`별표1`·`서식1`·`이미지123`). */
 function refKeyOf(m) {
@@ -1102,8 +1146,9 @@ function expandRange(text, tier, ref) {
  * @param {string} text - 파일 전체 원문
  * @param {string} tier - law|decree|rule|notice
  * @param {string[]} joList - 뽑을 조 번호
- * @returns {Array<{jo:string, title:string, eff:string, paragraphs:Array}>}
+ * @returns {Array<{jo:string, title:string, eff:string, paragraphs:Array, addenda:string}>}
  *          eff 는 법률 계열의 조별 시행일자(`[제10조] … (시행 20260624 …)`) — 팝업 머리 날짜에 쓴다
+ *          addenda 는 그 조 뒤에 부칙이 붙어 있을 때만 채워진다(문서의 마지막 조 하나뿐)
  * [연계] ← loadArticle()(range·whole). → extractArticleBlock()·splitParagraphs()
  */
 function buildArticles(text, tier, joList) {
@@ -1113,7 +1158,7 @@ function buildArticles(text, tier, joList) {
     if (!block) continue;
     const paragraphs = splitParagraphs(cleanBody(block.body));
     if (!paragraphs.length) continue;
-    out.push({ jo, title: block.title, eff: block.effectiveDate, paragraphs });
+    out.push({ jo, title: block.title, eff: block.effectiveDate, paragraphs, addenda: block.addenda || '' });
   }
   return out;
 }
@@ -1260,10 +1305,12 @@ function docDate(text) {
  * 조문 카드 하나에 대응하는 원문을 GitHub에서 읽어 항·호로 쪼개 돌려준다.
  * 인용 표기에 따라 네 가지로 갈린다(parseArticleRef 참고).
  *  - annex: 조 없이 별표만 가리킨 인용 → 조 본문 없이 `refs`만(못 찾은 것은 `missing`)
- *  - single: 그 조 하나 → `paragraphs`(인용된 항·호에 hit:true)
+ *  - single: 그 조 하나 → `paragraphs`(인용된 항·호에 hit:true). 인용이 항(또는 항+호)을 특정했고
+ *    그 항·호를 원문에서 실제로 찾았을 때만 `focused:true` — 화면은 그때만 나머지를 접는다.
  *  - range · whole: 여러 조 → `articles`(강조 없음). 조가 MAX_ARTICLES 를 넘으면
  *    억지로 싣지 않고 `tooLong`만 돌려준다(클라이언트가 "원문이 깁니다"로 안내).
  * 어느 경우든 본문에 나온 별표·서식 참조는 `refs`로 실재 여부까지 판정해 함께 준다.
+ * 조 뒤에 붙어 있던 부칙은 본문에서 떼어내 `addenda`로 따로 싣는다(버리지 않고 자리만 옮긴다).
  * 예: loadArticle({law:'자연유산의 보존 및 활용에 관한 법률', article:'제10조④3호', tier:'law'})
  *     → {ok:true, mode:'single', articleTitle:'제10조(역사문화환경 보존지역의 보호)', paragraphs:[…④에 hit:true…]}
  *     loadArticle({law:'서해 5도 해상운송비 지원 지침', article:'제1~9조', tier:'notice', baseLaw:'서해5도지원특별법'})
@@ -1295,7 +1342,9 @@ async function loadArticle(q) {
   const text = await githubRaw.fetchText(filePath);
   if (!text) return { ok: false, reason: 'file_not_found' };
 
-  const head = { ok: true, law, tier, mode: ref.mode };
+  // focused 는 single 갈래에서만 true 가 될 수 있다(아래 "조 하나 인용" 참고) — 나머지 갈래는
+  // 강조 자체를 하지 않으므로 여기서 false 로 못박아 클라이언트가 undefined 를 만나지 않게 한다.
+  const head = { ok: true, law, tier, mode: ref.mode, focused: false, addenda: '' };
   const refCtx = {
     base, tier, docText: text, docTitle: law,
     docDir: filePath.slice(0, filePath.lastIndexOf('/')),
@@ -1357,6 +1406,8 @@ async function loadArticle(q) {
       effectiveDate: (articles.find(a => a.eff) || {}).eff || docDate(text),
       articles,
       attachments,
+      // 문서의 마지막 조가 나열에 포함됐으면 그 뒤의 부칙이 딸려 있다 — 본문에서 떼어낸 것을 그대로 싣는다.
+      addenda: (articles.find(a => a.addenda) || {}).addenda || '',
       refs: await resolveRefs(found, refCtx),
       refsTruncated: found.length >= MAX_REFS,
     });
@@ -1390,11 +1441,37 @@ async function loadArticle(q) {
       : null,
   }));
 
+  // ── focused — "인용이 항(또는 항+호)을 특정했고, 그 항·호를 원문에서 실제로 찾았다"는 신호 ──
+  // 클라이언트는 focused:true 일 때 **hit 항의 머리문장 + hit 호만** 펼치고 나머지는 "조문 전체 보기"로
+  // 접는다. 접는 판단의 근거가 이 값이라 틀리면 사용자가 **엉뚱한 조문만** 보게 된다 — 그래서 조금이라도
+  // 어긋나면 false 로 물러난다(이 파일의 "애매하면 쪼개기를 포기하고 항 통째로" 계약과 같은 태도).
+  // false 여도 잃는 것은 없다 — 화면이 지금까지처럼 조 전체를 그대로 보여줄 뿐이다. 다음을 다 만족할 때만 true:
+  //  ⓐ 인용이 지목한 항 기호(`④`·`제4항`)가 원문에 **실제로 있어** 그 항에 hit 가 달렸다(markFound).
+  //     ⚠ 위 hitIdx 폴백("항 기호가 없는 조는 조각이 하나뿐이니 그 하나가 인용 대상")은 인용이 항을
+  //       지목했는데 **못 찾은** 경우에도 0이 된다 — 그 폴백만으로 focused 를 주면 지목한 항과 다른
+  //       조각을 "그 항"이라고 단정하게 되므로 인정하지 않는다.
+  //  ⓑ 항을 안 지목한 인용(`제57조제1호`)은 조각이 하나뿐일 때만 인정한다(그때는 어느 항인지 다툼이 없다).
+  //     그마저도 호를 지목했을 때만 — 아무것도 안 지목한 `제57조`를 focused 로 주면 접을 것이 없다.
+  //  ⓒ 호를 지목했으면 **지목한 호가 전부** 그 항에서 발견돼 hit 가 달렸다. 하나라도 못 찾으면 화면이
+  //     나머지를 접어 인용된 호를 조용히 감춘다("부분 실패는 정직하게 표시" 계약 위반).
+  //  ⓓ 호를 안 지목했는데 그 항이 호로 쪼개져 있으면 false — 접으면 각 호가 통째로 사라져
+  //     "다음 각 호의 어느 하나에 해당하는 자에게는 …" 머리문장만 남는다(항만 지목한 인용은 조 전체를 준다).
+  const hitPara = hitIdx >= 0 ? out[hitIdx] : null;
+  const markFound = !!ref.mark && paragraphs.some(p => p.mark === ref.mark);
+  const focused = !!hitPara &&
+    (markFound || (!ref.mark && hoList.length > 0 && paragraphs.length === 1)) &&
+    (hitPara.items
+      ? hoList.length > 0 && hoList.every(h => hitPara.items.some(it => it.label === h && it.hit))
+      : true);
+
   const found = collectRefs(paragraphs.map(paraPlainText).join('\n'));
   return Object.assign(head, {
     articleTitle: ref.jo + (block.title ? `(${block.title})` : ''),
     effectiveDate: block.effectiveDate,
     paragraphs: out,
+    focused,
+    // 이 조 뒤에 붙어 있던 부칙(문서의 마지막 조에만 생긴다). 본문에서 떼어낸 원문 그대로다.
+    addenda: block.addenda || '',
     refs: await resolveRefs(found, refCtx),
     // 참조가 MAX_REFS 를 넘어 뒤쪽을 아예 판정하지 않았다는 신호(클라이언트가 "미수집"으로
     // 단정하지 않게 한다 — 판정 안 한 것과 실제로 없는 것은 다르다).

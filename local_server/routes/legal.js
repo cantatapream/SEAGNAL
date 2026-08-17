@@ -795,17 +795,29 @@ function mergeCitationChains(sources) {
  * ⚠ 앞의 MAX_EXCERPT_ROWS 줄까지만 읽는다 — 여러 소스를 합치면서 줄 수가 늘어날 수 있는데, 발췌
  *   한 줄이 GitHub 파일 읽기 한 번이라 상한을 풀면 답변 대기시간이 그만큼 늘어난다. 상한을 넘은
  *   줄은 화면에서 사라지지 않고 예전처럼 위키 요지로 그려진다.
+ * ★조회에 쓰는 표기는 위키 칸(row.article)이 아니라 **답변이 실제로 쓴 표기**(row.citedArticle,
+ *   항·호 포함)를 우선한다(2026-08-17, B10). 위키 칸엔 항·호가 없는 경우가 많아 pickExcerpt 가
+ *   hit 를 못 찾고 **첫 항**을 그냥 썼는데, 그 결과 답변은 제58조제5항제7호(어선원 준수의무 위반
+ *   과태료)를 말하는데 미리보기엔 무관한 ①항(중대재해 보고)이 떴다(라이브 실측).
+ * ⚠ 그 표기로 원문을 못 열면(article_text 가 못 읽는 모양이면) **위키 칸으로 한 번 더** 시도한다 —
+ *   더 정확히 하려다 예전에 나오던 발췌까지 잃으면 안 된다.
  * @param {Array} rows - mergeCitationChains → groupCitationChainByFlow 를 지난 줄들
  * @returns {Promise<void>} 각 행에 excerpt 를 직접 채운다(반환값 없음)
  * [연계] ← POST /api/legal/ask. → services/article_text.js loadArticle().
+ *          ← citedArticle 은 legal_retriever.js filterCitationChainByAnswer 가 채운다(계약1).
  */
 async function attachChainExcerpts(rows) {
   const targets = (rows || []).slice(0, MAX_EXCERPT_ROWS);
   await Promise.allSettled(targets.map(async (row) => {
+    // 항·호까지 짚은 표기일 때만 우선한다(같은 조를 가리키는데 더 좁힌 것이라 안전하다).
+    const cited = String(row.citedArticle || '');
+    const first = /[항호]/.test(cited) ? cited : String(row.article || '');
     try {
-      const out = await articleText.loadArticle({
-        law: row.law, article: row.article, tier: row.tier, baseLaw: row.baseLaw || '',
+      const load = a => articleText.loadArticle({
+        law: row.law, article: a, tier: row.tier, baseLaw: row.baseLaw || '',
       });
+      let out = await load(first);
+      if ((!out || out.ok !== true) && first !== row.article) out = await load(row.article);
       const ex = pickExcerpt(out);
       if (ex) row.excerpt = ex;
     } catch (e) {
@@ -965,7 +977,20 @@ router.post('/api/legal/ask', async (req, res) => {
     // (2026-08-15) D-트리(scopeNarrowStep)가 확정한 조건도 함께 넘긴다 — 안 넘기면 decideClarify가
     //   그 확정을 전혀 모른 채 같은 축(예: 선박종류)을 중복으로 되묻는다(라이브 재현, narrowLabels는
     //   위에서 이미 계산해 둔 것을 그대로 재사용 — R0: ctx.scope·profile이 없으면 빈 배열이라 무변화).
-    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels, lastQuestion);
+    // [B7] 사용자가 되묻기에서 "잘 모르겠어요"를 눌렀으면(ctx.unk), 새로 판단하지 말고 **같은 되묻기를
+    //   그대로 다시** 내되 그 앞에 용어 풀이 + 갈래 한 줄 요약을 붙인다. 질의 문자열은 바뀌지 않아
+    //   위 search() 결과가 직전 라운드와 같은 근거다(그 근거로만 풀이한다 — 환각 0).
+    //   ctx.unk 가 없으면 null 이라 아래 기존 흐름이 그대로 돈다(R0).
+    const unk = await legalRetriever.explainClarifyStep(contextPages, ctx.unk);
+    if (unk) {
+      // 다음 라운드가 "같은 되묻기를 또 물었는지" 판정할 수 있게 ctx.cl 을 갱신해 함께 내려보낸다(B6).
+      ctx.cl = { q: unk.clarify.question, labels: unk.clarify.options.map(o => o.label) };
+      return writeConfirm(unk);
+    }
+
+    // [B6] 직전 라운드의 되묻기(ctx.cl)를 함께 넘긴다 — 모델이 표현만 바꿔 같은 걸 다시 물으면
+    //   (라벨 완전일치 대조로는 안 잡힌다) 결정론적으로 버린다. ctx.cl 이 없으면 오늘과 동일(R0).
+    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx.cl);
 
     // ③ [H-37 §7.4] 프로필 확인 — 이 되묻기가 묻는 축을 프로필이 이미 알고 있으면 되묻는 대신
     //    "저장된 정보로 답할까요?"를 **그 축에 대해서만** 확인한다(축 단위, 사용자 확정 (자)).
@@ -987,6 +1012,10 @@ router.post('/api/legal/ask', async (req, res) => {
     //   내부 계산 결과가 확정된 근거처럼 보인다(라이브 실측으로 확인된 문제). 근거는 사용자가 되묻기에
     //   답한 뒤 나오는 실제 답변에서만 보여준다.
     if (askClarify) {
+      // [B6] 이번 라운드의 질문·선택지 라벨을 ctx 에 실어 보낸다(클라이언트가 다음 요청에 되돌려 준다).
+      //   다음 라운드의 decideClarify 가 "표현만 바꾼 같은 되묻기"인지 판정하는 유일한 근거다 —
+      //   서버는 대화 이력을 저장하지 않으므로 새 저장소를 만들지 않고 기존 ctx 채널을 재사용한다.
+      ctx.cl = { q: clarify.question, labels: clarify.options.map(o => o.label) };
       res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
         answer: clarify.intro || null,
         sources: [],
@@ -1036,8 +1065,11 @@ router.post('/api/legal/ask', async (req, res) => {
       // ⚠ 반드시 거른 **뒤에** 합치고 정렬한다(원표 순서가 아니라 답변이 실제로 인용한 줄만 대상).
       // ⚠ 정렬을 소스마다 따로 하면 안 된다 — 두 법이 서로 다른 위키 페이지에서 왔을 때 법 묶음
       //   순서를 페이지 경계 너머로 맞출 수 없다(그래서 합친 뒤 딱 한 번 부른다).
+      // ⚠ 세 번째 인자 baseLaw(=그 줄이 실려 있던 위키 페이지의 법)를 넘긴다 — 법령 칸이 `시행규칙`
+      //   처럼 계층 낱말만 적힌 행을 답변과 대조하려면 어느 법의 시행규칙인지 알아야 한다(B3).
+      //   mergeCitationChains 가 붙이는 row.baseLaw 는 이 시점엔 아직 없다(거른 뒤에 붙인다).
       finalSources.forEach(s => {
-        s.citationChain = legalRetriever.filterCitationChainByAnswer(s.citationChain, full);
+        s.citationChain = legalRetriever.filterCitationChainByAnswer(s.citationChain, full, s.law || '');
       });
       citationChain = legalRetriever.groupCitationChainByFlow(mergeCitationChains(finalSources), full);
       // 살아남은 줄에만 조문 원문 발췌를 붙인다(거르기 전에 붙이면 버려질 줄까지 원문을 읽는다).

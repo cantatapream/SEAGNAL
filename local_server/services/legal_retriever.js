@@ -122,6 +122,88 @@ function glossaryExpand(query) {
   return { extraTerms: [...new Set(extraTerms)], forcedSlugs: [...new Set(forcedSlugs)] };
 }
 
+// ── 법령 약칭표 캐시(mtime 감지) — B8 ─────────────────────────────────────
+// `_dashboard/law_aliases.json` 은 law.go.kr DRF 검색 API 의 `법령약칭명` 필드를 그대로 모은 표다
+// ({항목:[{정식명,약칭,…}], 충돌:{같은약칭_다른법:[…], 약칭이_다른법_정식명:[…]}}).
+// 사용자는 「어선안전조업법」처럼 약칭으로 묻는데 위키·index.json 은 정식 명칭으로 돼 있어,
+// 약칭만으로는 그 법 페이지가 검색에 안 걸린다 — 질의어 확장 단계에서 정식명을 얹어 준다.
+// ⚠ **모호하지 않은(후보가 유일한) 약칭만** 쓴다: ⓐ표의 `충돌` 목록에 이름이 오른 약칭 ⓑ한 약칭이
+//   서로 다른 정식명 둘 이상에 붙은 경우 ⓒ약칭이 다른 법의 정식명과 같은 경우 — 전부 뺀다.
+//   모호한 약칭을 쓰면 엉뚱한 법이 근거로 딸려 올라온다("무관한 줄이 붙는 게 더 나쁘다").
+// ⚠ 파일이 없거나 깨져 있으면 **없는 셈 치고** 빈 표를 쓴다(기존 동작 그대로 — R0).
+const LAW_ALIASES_JSON = path.join(LEGAL_DIR, '_dashboard', 'law_aliases.json');
+let _aliasCache = null, _aliasMtime = 0;
+
+/** 중첩된 값 안의 문자열을 전부 그러모은다(`충돌` 항목 모양이 표마다 달라 형태를 단정하지 않는다). */
+function collectStrings(v, out) {
+  if (typeof v === 'string') { const s = v.trim(); if (s) out.add(s); return out; }
+  if (Array.isArray(v)) { for (const x of v) collectStrings(x, out); return out; }
+  if (v && typeof v === 'object') { for (const k of Object.keys(v)) collectStrings(v[k], out); return out; }
+  return out;
+}
+
+/**
+ * 약칭표를 읽어 **모호하지 않은** 약칭↔정식명 대응만 만든다.
+ * @returns {{alias:Map<string,string>, byFormal:Map<string,string[]>}} 파일이 없으면 빈 Map 두 개
+ * [연계] ← aliasExpand(검색어 확장) · lawMentionedInAnswer(B3) · routes/legal.js GET /api/legal/aliases(계약4).
+ */
+function loadLawAliases() {
+  try {
+    const mt = fs.statSync(LAW_ALIASES_JSON).mtimeMs;
+    if (_aliasCache && mt === _aliasMtime) return _aliasCache;
+    const obj = JSON.parse(fs.readFileSync(LAW_ALIASES_JSON, 'utf8'));
+    const items = Array.isArray(obj.항목) ? obj.항목 : [];
+    const banned = collectStrings(obj.충돌, new Set());
+    const formals = new Set(items.map(it => String((it && it.정식명) || '').trim()).filter(Boolean));
+    const seen = new Map();                       // 약칭 → 붙은 정식명 집합
+    for (const it of items) {
+      const a = String((it && it.약칭) || '').trim();
+      const f = String((it && it.정식명) || '').trim();
+      if (!a || !f) continue;
+      if (!seen.has(a)) seen.set(a, new Set());
+      seen.get(a).add(f);
+    }
+    const alias = new Map(), byFormal = new Map();
+    for (const [a, fs2] of seen) {
+      if (fs2.size !== 1 || banned.has(a) || formals.has(a)) continue;   // 모호 — 쓰지 않는다
+      const f = [...fs2][0];
+      alias.set(a, f);
+      if (!byFormal.has(f)) byFormal.set(f, []);
+      byFormal.get(f).push(a);
+    }
+    _aliasCache = { alias, byFormal }; _aliasMtime = mt;
+  } catch (_) {
+    if (!_aliasCache) _aliasCache = { alias: new Map(), byFormal: new Map() };
+  }
+  return _aliasCache;
+}
+
+/** 정식명 → 그 법의 모호하지 않은 약칭 목록(없으면 []). [연계] ← lawMentionedInAnswer(B3). */
+function aliasesOfFormalName(formal) {
+  return loadLawAliases().byFormal.get(String(formal || '').trim()) || [];
+}
+
+/**
+ * 질문에 약칭이 들어 있으면 그 **정식 명칭**을 검색어로 얹는다(glossaryExpand 와 같은 규약 —
+ * 띄어쓰기 무시 비교, 질의 문자열 자체는 건드리지 않고 추가 검색어만 돌려준다).
+ * 예: aliasExpand('어선안전조업법상 정박신고는?')
+ *     → ['어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률', '어선안전조업', …]
+ * ⚠ 2글자 약칭은 우연 일치가 잦아(예: 흔한 낱말과 겹침) 3글자 이상만 본다.
+ * @param {string} query
+ * @returns {string[]} 추가 검색어(중복 제거). 표가 없으면 []
+ * [연계] ← search(). scoreOne 이 law/topic/본문에 이 낱말이 있는지로 점수를 매긴다.
+ */
+function aliasExpand(query) {
+  const qFlat = String(query || '').replace(/\s+/g, '');
+  const out = [];
+  for (const [a, formal] of loadLawAliases().alias) {
+    if (a.length < 3 || !qFlat.includes(a.replace(/\s+/g, ''))) continue;
+    out.push(formal);
+    for (const w of formal.split(/[\s·ㆍ・]+/)) if (w.length >= 2) out.push(w);
+  }
+  return [...new Set(out)];
+}
+
 // 질문에서 흔히 등장하지만 법령 내용과 무관한 의문·연결어(형태소 분석기 없이 저렴하게 거른다).
 // 이런 단어를 검색어로 쓰면 거의 모든 페이지 본문에 우연히 걸려 진짜 법률 용어(예: "출항")를
 // 점수로 압도해 버린다(실측: "출항신고" 질문이 "어떻게"·"되나요" 때문에 엉뚱한 법이 1위로 뜸).
@@ -663,7 +745,10 @@ const CLARIFY_JOINER = ' — ';
 //   주석 참고). 상한을 없애면 모델이 기준3을 어길 때 버튼→되묻기→버튼이 끝나지 않는다.
 // (2026-08-10 사용자 확정: H-36 계층트리 경로는 트리 깊이가 유한해 상한을 안 두기로 했지만, 이
 //  AI 즉석판단형 되묻기는 여전히 안전장치가 필요 — 대신 2는 너무 타이트하다는 지적으로 4로 상향.)
-const CLARIFY_MAX_ROUNDS = 4;
+// (2026-08-17 사용자 확정: 4 → 10. "같은 것만 다시 안 물으면 계속 되물어도 된다" — 라운드 수를
+//  묶어 막는 대신 **같은 질문을 다시 묻는 것**을 막는 쪽으로 무게를 옮겼다. 아래 sameClarifyAsLast
+//  (직전 라운드의 질문·선택지 집합 대조)가 실제 방어선이고, 이 숫자는 그게 다 뚫렸을 때의 천장이다.)
+const CLARIFY_MAX_ROUNDS = 10;
 const CLARIFY_CONFIG = {
   temperature: 0.1,
   thinkingConfig: { thinkingBudget: 0 },
@@ -674,6 +759,78 @@ const CLARIFY_CONFIG = {
 /** 되묻기 응답 문자열 정리(앞뒤 공백 제거 + 길이 상한). 빈 문자열이면 ''. */
 function clarifyStr(v, max) {
   return typeof v === 'string' ? v.trim().slice(0, max) : '';
+}
+
+// ── 같은 되묻기 반복 차단(B6) ─────────────────────────────────────────────
+// 지금까지의 방어선은 ①라운드 수 상한 ②선택지 라벨이 질의에 **문자 그대로** 있으면 버림 — 둘뿐이라,
+// 모델이 표현만 바꿔 같은 걸 다시 물으면("어선 종류가?" → "어떤 배인가요?") 하나도 안 걸린다.
+// 라운드 상한을 10으로 올린 이상(사용자 확정 "같은 것만 다시 안 물으면 계속 되물어도 된다") 이
+// 구멍이 실제 무한루프가 되므로, 직전 라운드의 **질문 문장**과 **선택지 라벨 집합**을 함께 대조한다.
+// ⚠ 형태소 분석 같은 무거운 것은 쓰지 않는다 — 이 저장소 관례대로 결정론적·단순하게(공백·기호를
+//   걷어낸 완전일치)만 본다. 부분일치·유사도는 오탐으로 정상 되묻기를 죽인다.
+// ⚠ 직전 라운드 질문은 서버에 저장하지 않는다 — 이미 있는 `ctx` 채널(클라이언트가 done.ctxNext 를
+//   들고 있다가 다음 요청에 되돌려 보내는 값)에 `cl` 축으로 얹어 나른다(새 저장소를 만들지 않는다).
+const CLARIFY_LAST_LABELS_MAX = 12;   // ctx.cl.labels 정규화 상한(요청 바디 방어)
+
+/** 되묻기 문장·라벨 비교용 정규화: 글자와 숫자만 남긴다(공백·조사기호·문장부호 제거). */
+function clarifyKey(s) {
+  return String(s || '').replace(/[^0-9A-Za-z가-힣]/g, '');
+}
+
+/**
+ * 이번 되묻기가 **직전 라운드와 사실상 같은 것**인가.
+ * 둘 중 하나면 같은 것으로 본다: ⓐ질문 문장이 같다 ⓑ선택지 라벨 집합이 통째로 같다.
+ * ⓑ가 있어야 표현만 바꾼 재질문("어선 종류가?" → "어떤 배인가요?")을 잡는다 — 고르는 갈래가
+ * 그대로면 사용자에겐 같은 질문이다.
+ * 예: sameClarifyAsLast('어떤 배인가요?', [{label:'어선'},{label:'낚시어선'}],
+ *       {q:'어선 종류가 무엇인가요?', labels:['어선','낚시어선']}) → true
+ * @param {string} question - 이번 라운드 질문
+ * @param {Array<{label:string}>} options - 이번 라운드 선택지
+ * @param {{q:string, labels:string[]}} prev - 직전 라운드(ctx.cl). 없으면 false
+ * @returns {boolean}
+ * [연계] ← decideClarify. ← routes/legal.js 가 ctx.cl 로 넘긴다.
+ */
+function sameClarifyAsLast(question, options, prev) {
+  if (!prev || !prev.q) return false;
+  if (clarifyKey(question) && clarifyKey(question) === clarifyKey(prev.q)) return true;
+  const now = (options || []).map(o => clarifyKey(o && o.label)).filter(Boolean).sort();
+  const was = (prev.labels || []).map(clarifyKey).filter(Boolean).sort();
+  return now.length >= 2 && now.length === was.length && now.every((v, i) => v === was[i]);
+}
+
+// ── "잘 모르겠어요" 선택지(B7, 계약5) ──────────────────────────────────────
+// 되묻기를 내보낼 때 **항상** 맨 끝에 붙인다(2라운드·3라운드에도 계속). 사용자가 누르면 클라이언트는
+// 질의를 그대로 두고 ctx 만 실어 재요청하고(ai_chat.js pickClarifyOption 의 data-ctx 경로 — act 가
+// 'ask'가 아니면 `input.value = q` 그대로 재전송한다), 서버는 ctx.unk 를 보고 ①그 되묻기가 쓴
+// 전문용어 풀이 ②각 갈래 한 줄 요약을 붙인 뒤 **같은 선택지를 다시** 낸다.
+// ⚠ ctx.unk 는 **버튼의 data-ctx 로만** 들어온다 — done.ctxNext 에는 절대 싣지 않는다. 싣으면 그
+//   다음에 사용자가 평범한 선택지를 눌렀을 때(그 버튼엔 ctx 가 없어 클라가 직전 ctx 를 그대로 보낸다)
+//   서버가 또 "잘 모르겠어요"로 오해해 답변 대신 용어풀이를 반복한다.
+const UNKNOWN_LABEL = '잘 모르겠어요';
+const UNKNOWN_ACT = 'unknown';
+// 같은 되묻기에 대해 용어풀이를 몇 번까지 다시 해 줄지. 같은 설명을 세 번 반복해 봐야 사용자에게
+// 새로 알려주는 게 없고, 한 번 누를 때마다 AI 호출이 한 번 더 붙는다.
+const UNKNOWN_MAX_ROUNDS = 2;
+const UNKNOWN_HINT = '이 질문에 나온 말이 무슨 뜻인지부터 알려드릴게요';
+
+/**
+ * 되묻기 선택지 맨 끝에 붙일 `잘 모르겠어요` 버튼을 만든다(계약5).
+ * 버튼의 ctx 에 그 되묻기를 **그대로 다시 낼 수 있는 최소 정보**(질문·선택지·라운드)를 담는다 —
+ * 서버는 대화 이력을 저장하지 않으므로 이 값이 유일한 운반로다.
+ * @param {string} question @param {Array<{label:string,hint:string}>} options @param {number} round
+ * @returns {{label:string, hint:string, act:string, ctx:object}}
+ * [연계] → ai_chat.js clarifyHTML(data-ctx·data-act) → explainClarifyStep.
+ */
+function unknownOption(question, options, round) {
+  return {
+    label: UNKNOWN_LABEL, hint: UNKNOWN_HINT, act: UNKNOWN_ACT,
+    ctx: { unk: { r: round, q: question, o: options.map(o => ({ label: o.label, hint: o.hint || '' })) } },
+  };
+}
+
+/** 되묻기 응답에 `잘 모르겠어요`를 (상한 안에서) 얹어 돌려준다. 상한을 넘었으면 그대로 둔다. */
+function withUnknownOption(question, options, round) {
+  return round >= UNKNOWN_MAX_ROUNDS ? options : options.concat([unknownOption(question, options, round + 1)]);
 }
 
 /**
@@ -721,12 +878,14 @@ function clarifyStr(v, max) {
  * @param {string[]} [narrowLabels] - 이미 확정된 조건 라벨(ctx.scope·프로필). 없으면 프롬프트·판정 모두 오늘과 동일(R0).
  * @param {string} [lastTopic] - 직전 질문 원문(클라이언트가 매 요청에 항상 실어 보낸다, ctx와 무관한
  *   별도 채널). 없으면 이 함수는 오늘과 완전히 같다(R0).
- * @returns {Promise<{needed:boolean, intro?:string, question?:string, options?:Array<{label:string,hint:string}>}>}
+ * @param {{q:string,labels:string[]}} [prevClarify] - 직전 라운드의 되묻기(ctx.cl). 표현만 바꾼
+ *   같은 되묻기를 결정론적으로 차단하는 데만 쓴다(B6, sameClarifyAsLast). 없으면 오늘과 동일(R0).
+ * @returns {Promise<{needed:boolean, intro?:string, question?:string, options?:Array<{label:string,hint:string,act?:string,ctx?:object}>}>}
  * [연계] ← routes/legal.js POST /api/legal/ask 가 synthesizeAnswerStream() **전에** 호출한다.
  *          needed:true면 종합답변을 아예 만들지 않고 done 이벤트의 clarify 필드로 내려보낸다.
  *        → client/js/ai-chat/ai_chat.js clarifyHTML(선택지 버튼) → 버튼 클릭 시 "원래질문 — 라벨"로 재질의.
  */
-async function decideClarify(query, contextPages, restate, narrowLabels, lastTopic) {
+async function decideClarify(query, contextPages, restate, narrowLabels, lastTopic, prevClarify) {
   if (!gemini.hasAnyKey() || !contextPages || !contextPages.length) return CLARIFY_NONE;
   // ★재되묻기 무한루프 차단(프롬프트 기준3의 결정론적 백스톱): 선택지 버튼으로 되돌아온 질의는
   // 반드시 CLARIFY_JOINER 를 달고 오므로, 그 개수가 곧 **이미 지나온 되묻기 라운드 수**다.
@@ -817,9 +976,93 @@ ${block}
     if (prevQ && prevQ !== query && !String(query || '').includes(prevQ) && options.length < CLARIFY_OPTION_MAX) {
       options.push({ label: clarifyStr(prevQ, 40), hint: '방금 물어보신 질문과 이어지는 내용일 수 있어요' });
     }
-    return { needed: true, intro: clarifyStr(obj.intro, 200), question, options };
+    // ★(2026-08-17) 표현만 바꾼 재질문 차단(B6) — 위 라벨 완전일치 대조는 "사용자가 고른 값이
+    //   질의에 붙어 있는가"만 보므로, 모델이 같은 갈래를 다른 말로 다시 물으면 못 막는다. 직전
+    //   라운드의 질문·선택지 집합과 대조해 사실상 같으면 되묻기를 버리고 답변으로 넘어간다.
+    if (sameClarifyAsLast(question, options, prevClarify)) return CLARIFY_NONE;
+    // ★(2026-08-17 사용자 확정) 되묻기를 낼 때는 **항상** 맨 끝에 "잘 모르겠어요"를 붙인다(B7).
+    return { needed: true, intro: clarifyStr(obj.intro, 200), question, options: withUnknownOption(question, options, 0) };
   } catch (_) {
     return CLARIFY_NONE;
+  }
+}
+
+// ── "잘 모르겠어요" 응답 — 용어 풀이 + 갈래 한 줄 요약 후 같은 선택지 재제시(B7) ──────
+const UNKNOWN_CONFIG = {
+  temperature: 0.1,
+  thinkingConfig: { thinkingBudget: 0 },
+  responseMimeType: 'application/json',
+  httpOptions: { timeout: 15000 },
+};
+
+/**
+ * 사용자가 되묻기에서 `잘 모르겠어요`를 눌렀을 때, **같은 되묻기를 그대로 다시 내되** 그 앞에
+ * ①그 되묻기가 쓴 전문용어를 2~3줄로 쉽게 풀어주고 ②각 갈래를 한 줄씩 요약해 붙인다.
+ * ★환각 0: 풀이·요약은 [근거자료]에 있는 내용으로만 만들게 프롬프트로 강제하고, 모델이 근거자료에
+ *   없는 조문번호를 지어 넣으면(hint 검증과 같은 실패모드) 그 설명을 통째로 버린다.
+ * ★점진 공개: 갈래 설명은 한 줄씩만 — 여기서 다 쏟으면 되묻기의 의미가 없다(_CHATBOT.md 2절).
+ * ★비용: 근거자료를 통째로 다시 밀어넣지 않는다 — decideClarify 와 같은 CLARIFY_TOPK·
+ *   CLARIFY_BODY_CHARS 관례를 그대로 따라 호출 1회분이다.
+ * 실패(키 없음·타임아웃·파싱 실패)는 조용히 **원래 되묻기를 그대로** 다시 낸다(기존 폴백 규약).
+ * @param {Array} contextPages - search()의 contextPages(이번 질의는 직전과 같은 문장이라 같은 근거다)
+ * @param {{r:number,q:string,o:Array<{label:string,hint:string}>}} unk - normalizeAskCtx가 정규화한 ctx.unk
+ * @returns {Promise<null|{answer:string, note:string, clarify:object, confirmKind:string}>}
+ *          ctx.unk 가 없으면 null(호출부는 오늘과 똑같이 진행 — R0)
+ * [연계] ← routes/legal.js POST /api/legal/ask(decideClarify 직전). → writeConfirm(기존 clarify 스키마 그대로).
+ */
+async function explainClarifyStep(contextPages, unk) {
+  if (!unk || !unk.q || !(unk.o || []).length) return null;
+  const options = unk.o;
+  const fallback = {
+    answer: '', note: '추가 정보가 필요해요',
+    clarify: { question: unk.q, options: withUnknownOption(unk.q, options, unk.r || 1) },
+    confirmKind: UNKNOWN_ACT,
+  };
+  if (!gemini.hasAnyKey() || !contextPages || !contextPages.length) return fallback;
+  const block = contextPages.slice(0, CLARIFY_TOPK).map((cp, i) => {
+    const title = cp.topic ? `${cp.law} — ${cp.topic}` : cp.law;
+    return `--- 근거${i + 1}: [${title}] ---\n${String(cp.body || '').slice(0, CLARIFY_BODY_CHARS)}`;
+  }).join('\n\n');
+  const prompt = `너는 대한민국 해양수산 법령 챗봇이다. 사용자가 아래 되묻기 질문에 "잘 모르겠어요"를 눌렀다.
+답을 대신 정해주지 말고, 사용자가 **스스로 고를 수 있게** 말뜻만 쉽게 풀어줘라.
+
+[되묻기 질문]
+"${unk.q}"
+
+[선택지]
+${options.map((o, i) => `${i + 1}. ${o.label}${o.hint ? ` (${o.hint})` : ''}`).join('\n')}
+
+[근거자료]
+${block}
+
+[지시]
+1. terms: 이 질문·선택지에 나온 **전문용어의 뜻**을 비전문가에게 2~3줄로 쉽게 풀어라. 반드시 [근거자료]에 적힌 내용으로만 쓰고, 근거자료에서 뜻을 찾을 수 없으면 "확인되지 않습니다"라고 정직하게 적어라.
+2. lines: 각 선택지가 어떤 경우인지 **한 줄씩만** 요약하라(길게 쓰지 마라 — 여기서 답을 다 말하면 안 된다). 선택지 순서와 개수를 그대로 지켜라.
+3. [근거자료]에 없는 조문번호·금액·기관명을 지어내지 마라.
+
+다른 설명 없이 아래 JSON만 출력하라.
+{"terms":"…","lines":["…","…"]}`;
+  try {
+    const result = await gemini.callGemini({
+      model: ANSWER_MODEL, contents: prompt, config: UNKNOWN_CONFIG, caller: 'Legal-ClarifyExplain',
+    });
+    if (!result.success || !result.text) return fallback;
+    const m = result.text.match(/\{[\s\S]*\}/);
+    if (!m) return fallback;
+    const obj = JSON.parse(m[0]);
+    const terms = clarifyStr(obj && obj.terms, 400);
+    const lines = (Array.isArray(obj && obj.lines) ? obj.lines : [])
+      .map(v => clarifyStr(v, 120)).filter(Boolean).slice(0, options.length);
+    if (!terms && !lines.length) return fallback;
+    // ★환각 0(decideClarify 의 hint 검증과 같은 규약): 근거자료에 없는 조문번호가 하나라도 섞이면
+    //   그 설명은 통째로 버리고 원래 되묻기만 다시 낸다.
+    const body = terms + '\n' + lines.join('\n');
+    if ((body.match(/제\d+조(?:의\d+)?/g) || []).some(a => !block.includes(a))) return fallback;
+    const answer = [terms, lines.map((v, i) => `- **${options[i].label}**: ${v}`).join('\n')]
+      .filter(Boolean).join('\n\n');
+    return Object.assign({}, fallback, { answer });
+  } catch (_) {
+    return fallback;
   }
 }
 
@@ -849,7 +1092,10 @@ async function search(query, opts) {
   //   뽑은 용어가 aiTerms 로 합류한다(재진술 낱말을 그대로 얹지 않는 이유는 §17 실측 기록 참고).
   //   재진술이 없으면 호출도 프롬프트도 오늘과 같아 allTerms 가 문자 그대로 동일하다(R0).
   const aiTerms = await expandQueryTerms(query, opts && opts.restate);
-  const allTerms = [...new Set([...terms, ...extraTerms, ...aiTerms])];
+  // [B8] 약칭(「어선안전조업법」)으로 물어도 정식 명칭 페이지가 잡히게 정식명을 검색어로 얹는다.
+  //   표가 없거나 약칭이 안 걸리면 빈 배열이라 allTerms 가 오늘과 문자 그대로 같다(R0).
+  const aliasTerms = aliasExpand(query);
+  const allTerms = [...new Set([...terms, ...extraTerms, ...aiTerms, ...aliasTerms])];
 
   let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms) })).filter(x => x.s > 0);
   // glossary 강제후보 병합(구어 매핑은 본문에 그 단어가 그대로 없을 수도 있어 별도 신호로 취급)
@@ -973,6 +1219,167 @@ function filterSourcesByAnswer(sources, answerText) {
   });
 }
 
+// ── 묶음 조문표기(`제52~55·57조`) 풀기 — B1 ────────────────────────────────
+// 위키 `## 근거 조문` 표의 조문 칸은 조 하나만 가리키지 않는다. 여러 조를 가운뎃점으로 묶고
+// 범위를 섞어 적는 표기가 흔하다(실측: 어선원안전보건재해예방 페이지의 `제28·31·32·37·40·43조`,
+// `제52~55·57조`, `제18·19·24·28조`). 아래 filterCitationChainByAnswer 의 옛 토큰 정규식은
+// `제\d+조…` 꼴만 인식해 이런 칸에서 **조 번호를 하나도 못 뽑고 그 줄을 통째로 버렸다** —
+// 라이브 실측: "배에서 술 마시면?" 답변이 벌칙 제53조·의무 제31/33조·고시를 전부 인용했는데
+// 근거 목록엔 형식이 맞은 `제58조 / 시행령 별표5` 한 줄(과태료)만 떴다.
+// ⚠ services/article_text.js 의 parseJoEnum 과 **같은 해석**을 해야 조문 팝업과 어긋나지 않는다.
+//   그 파일을 require 하지는 않는다 — article_text.js 가 이미 이 모듈의 rawPathOf 를 require 하고
+//   있어 역방향 require 는 순환 참조가 된다. 그래서 같은 규칙의 최소 파서만 여기 둔다.
+// ⚠ 맨숫자 항목의 뜻은 표기 끝의 '조' 유무로 갈린다(article_text.js 파일머리 주석의 실측 542건):
+//   `제109·110조`는 별개 조(109조·110조), `제30조의5·6`은 앞 항목의 가지번호(30조의5·30조의6).
+//   이 구분을 안 하면 제30조의6 대신 **인용된 적 없는 제6조**를 근거인 척 보여주게 된다.
+const CHAIN_ENUM_ONLY_RE = /^[\s제조의항호0-9·ㆍ・,~～∼]+$/;
+const CHAIN_ITEM_RE = /^\s*제?\s*(\d+)(?!\d)(?:\s*조?\s*의\s*(\d+)(?!\d))?\s*조?\s*(?:제?\s*\d+(?!\d)\s*항)?\s*(?:제?\s*\d+(?!\d)\s*호)?\s*$/;
+const CHAIN_BRANCH_RE = /^\s*의\s*(\d+)\s*$/;
+const CHAIN_RANGE_RE = /^\s*제?\s*(\d+)\s*[~～∼]\s*(\d+)\s*(?:조\s*의\s*\d+)?\s*조?\s*$/;
+
+/**
+ * `제52~55·57조`처럼 **가운뎃점으로 묶고 범위를 섞어 적은 조문 칸**을 조 번호 목록으로 편다.
+ * 하나라도 못 읽는 항목이 있으면 통째로 null 을 돌려 기존 처리(범위·단일 토큰 대조)에 맡긴다 —
+ * 절반만 풀어 그중 하나를 근거로 보여주는 것이 이 저장소에서 가장 하면 안 되는 일이다(환각 0).
+ * 예: expandJoEnum('제52~55·57조')          → ['제52조','제53조','제54조','제55조','제57조']
+ *     expandJoEnum('제28·31·32·37·40·43조') → ['제28조','제31조','제32조','제37조','제40조','제43조']
+ *     expandJoEnum('제30조의5·6')           → ['제30조의5','제30조의6']
+ *     expandJoEnum('제58조 / 시행령 별표5')  → null(다른 글자가 섞여 단정 불가)
+ *     expandJoEnum('제3조제2항')            → null(가운뎃점이 없다 — 묶음이 아니다)
+ * @param {string} article - 근거 조문 표의 조문 칸 값
+ * @returns {string[]|null} 조 2개 이상이면 목록(등장 순서·중복 제거), 아니면 null
+ * [연계] ← filterCitationChainByAnswer. 같은 규칙: services/article_text.js parseJoEnum(수정 금지).
+ */
+function expandJoEnum(article) {
+  const s = String(article || '');
+  if (!CHAIN_ENUM_ONLY_RE.test(s) || !/[·ㆍ・,]/.test(s) || !/조/.test(s)) return null;
+  const toks = s.split(/[·ㆍ・,]/).map(t => t.trim()).filter(Boolean);
+  const out = [];
+  let sawRange = false;
+  let prevBranchJo = 0;      // 바로 앞 항목이 `제N조의M`이었으면 그 본조 번호 N(아니면 0)
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    const rm = CHAIN_RANGE_RE.exec(t);
+    if (rm) {
+      const from = parseInt(rm[1], 10), to = parseInt(rm[2], 10);
+      if (!(from >= 1 && to > from)) return null;
+      for (let n = from; n <= to; n++) out.push(`제${n}조`);
+      sawRange = true; prevBranchJo = 0;
+      continue;
+    }
+    const bm = CHAIN_BRANCH_RE.exec(t);
+    if (bm) {
+      if (!prevBranchJo) return null;          // 물려받을 본조가 없다 — 단정 불가
+      out.push(`제${prevBranchJo}조의${bm[1]}`);
+      continue;
+    }
+    const m = CHAIN_ITEM_RE.exec(t);
+    if (!m) return null;
+    if (m[2]) { out.push(`제${m[1]}조의${m[2]}`); prevBranchJo = parseInt(m[1], 10); continue; }
+    // 맨숫자 항목 — 이 항목이나 뒤쪽 어딘가에 '조'가 적혀 있어야 그 '조'를 나눠 가진 별개 조로 읽는다.
+    if (!/조/.test(t) && !toks.slice(i + 1).some(x => /조/.test(x))) {
+      if (prevBranchJo) { out.push(`제${prevBranchJo}조의${m[1]}`); continue; }
+      if (!sawRange) return null;              // 물려받을 본조도, 앞선 범위도 없다 — 단정 불가
+    }
+    out.push(`제${m[1]}조`);
+    prevBranchJo = 0;
+  }
+  const uniq = [...new Set(out)];
+  return uniq.length >= 2 ? uniq : null;
+}
+
+/**
+ * 답변 문장이 그 조를 인용할 때 **실제로 쓴 표기 전체**(항·호 포함)를 답변에서 그대로 떼어 온다.
+ * ★환각 0: 답변 문장에 **문자 그대로 있는 표기만** 돌려준다 — 조·항·호를 조립해 만들지 않는다.
+ * 예: citedArticleIn('…「어선안전조업법」 제58조제5항제7호에 따라…', '제58조') → '제58조제5항제7호'
+ *     citedArticleIn('… 제9조제1항 … 제9조제3항 …', '제9조', '제9조제3항')     → '제9조제3항'
+ *     citedArticleIn('… 제5조의2 …', '제5조')                                 → ''(제5조는 인용된 적 없다)
+ * @param {string} text - 답변 전체 문장
+ * @param {string} jo - 조 표기(`제53조`·`제30조의5`)
+ * @param {string} [prefer] - 위키 칸이 항·호까지 짚었을 때 그 표기(같은 조의 다른 항을 집지 않게)
+ * @returns {string} 답변에 없으면 ''
+ * [연계] → citationChain[].citedArticle(계약1) → routes/legal.js attachChainExcerpts(발췌를 그 항·호로 좁힘)
+ *          · client/js/ai-chat/ai_chat.js(본문 조문 링크).
+ */
+function citedArticleIn(text, jo, prefer) {
+  if (!jo) return '';
+  // jo 는 이 파일이 만든 값이라 정규식 특수문자가 없다(숫자와 제·조·의뿐) — 이스케이프 불필요.
+  // `(?!의\d)`: '제5조'로 '제5조의2'의 앞부분을 집으면 인용된 적 없는 제5조가 근거가 된다.
+  const re = new RegExp(jo + '(?!의\\s*\\d)(?:\\s*(?:제\\s*\\d+\\s*항|[①-⑳]))?(?:\\s*제?\\s*\\d+(?:의\\d+)?\\s*호)?', 'g');
+  const all = String(text || '').match(re) || [];
+  if (!all.length) return '';
+  const narrowed = (prefer && prefer !== jo) ? all.filter(c => c.startsWith(prefer)) : [];
+  const pool = narrowed.length ? narrowed : all;
+  return pool.reduce((a, b) => (b.length > a.length ? b : a), pool[0]);
+}
+
+// 법령 칸이 법 이름 없이 계층 낱말만 적힌 행(`시행령`·`시행규칙`)의 판정용 — B3.
+const BARE_TIER_CELL_RE = /^(시행령|시행규칙)$/;
+
+/**
+ * 그 줄의 법령이 답변 문장에 실제로 언급됐는가.
+ * 위키 표에는 법령 칸이 `시행규칙`처럼 **계층 낱말만** 적힌 행이 흔하다 — 그 줄이 실린 페이지의
+ * 법(baseLaw)을 알고 있으므로 `<baseLaw> 시행규칙` 꼴로도 대조한다(B3).
+ * ⚠ 기존의 낱말 그대로 대조(`text.includes('시행규칙')`)는 **그대로 남긴다** — 답변이 법 이름 없이
+ *   "시행규칙 제18조에 따라"라고만 쓰는 일이 흔해, 이걸 빼면 정상 줄이 대거 사라진다. 즉 이 함수는
+ *   오늘 통과하던 줄을 떨어뜨리지 않고 **살릴 줄만 더한다**(무관한 줄이 붙는 것이 더 나쁘다는 원칙과
+ *   충돌하지 않게, 새로 더하는 경로는 baseLaw 로 법을 특정한 경우뿐이다).
+ * @param {string} law - 근거 조문 표의 법령 칸
+ * @param {string} baseLaw - 그 줄이 실려 있던 위키 페이지의 법
+ * @param {string} text - 답변 전체 문장
+ * @returns {boolean}
+ * [연계] ← filterCitationChainByAnswer.
+ */
+function lawMentionedInAnswer(law, baseLaw, text) {
+  const s = String(law || '').trim();
+  if (!s || s.length < 2) return false;
+  if (text.includes(s)) return true;
+  if (!BARE_TIER_CELL_RE.test(s.replace(/\s+/g, ''))) return false;
+  const base = String(baseLaw || '').trim();
+  if (!base) return false;
+  return [base].concat(aliasesOfFormalName(base)).some(n => n && text.includes(n + ' ' + s));
+}
+
+// 답변이 주체별로 나뉠 때 쓰는 소제목 — 답변 원칙 8이 지시한 "1. → 가." 위계의 첫 단계에
+// **굵게** 라벨이 붙은 꼴만 인정한다(예: `1. **어선원 본인**`). 라벨이 없거나 굵게가 아니면
+// 주체 구분으로 단정할 수 없다.
+const SUBJECT_HEAD_RE = /^[ \t]*(\d+)\.[ \t]*\*\*([^*\n]{1,30})\*\*/gm;
+
+/**
+ * 답변 문장을 주체별 구간으로 나눈다(B4 하이브리드 1단계 — **답변 문장에 실제로 적힌 소제목**만).
+ * ⚠ 위키에는 주체 정보가 없다 — 답변 문장 밖에서 추측하지 않는다.
+ * ⚠ 소제목이 하나뿐이면 나눌 게 없으므로 [](=구분 없음)을 돌려준다.
+ * 예: answerSubjects('… 1. **어선원 본인**\n… 제33조 … 2. **어선소유자**\n… 제31조 …')
+ *     → [{label:'어선원 본인', body:'1. **어선원 본인**\n… 제33조 …'}, {label:'어선소유자', …}]
+ * @param {string} text - 답변 전체 문장
+ * @returns {Array<{label:string, body:string}>}
+ * [연계] → subjectOfCitation → citationChain[].subject(계약1b) → ai_chat.js(주체별 묶어 그리기).
+ */
+function answerSubjects(text) {
+  const heads = [];
+  SUBJECT_HEAD_RE.lastIndex = 0;
+  let m;
+  while ((m = SUBJECT_HEAD_RE.exec(text)) !== null) heads.push({ label: m[2].trim(), at: m.index });
+  if (heads.length < 2) return [];
+  return heads.map((h, i) => ({
+    label: h.label,
+    body: text.slice(h.at, i + 1 < heads.length ? heads[i + 1].at : text.length),
+  }));
+}
+
+/**
+ * 그 인용 표기가 **어느 주체 구간에만** 나오는지 판정한다. 두 구간에 걸치거나 어디에도 없으면 ''.
+ * ★틀리게 나누느니 안 나눈다 — ''이면 화면은 지금처럼 한 줄기로 그린다.
+ * @param {Array} sections - answerSubjects()의 결과
+ * @param {string} cited - 답변이 쓴 인용 표기(citedArticleIn 결과)
+ * @returns {string} 주체 라벨(없으면 '')
+ */
+function subjectOfCitation(sections, cited) {
+  if (!sections.length || !cited) return '';
+  const hit = sections.filter(s => s.body.includes(cited));
+  return hit.length === 1 ? hit[0].label : '';
+}
+
 /**
  * filterSourcesByAnswer가 소스 페이지 단위로 걸러도, 그 페이지 안 citationChain 표는 줄 단위로
  * 한 번도 답변과 대조되지 않아 무관한 줄이 그대로 섞여 나온다(실측: "낚싯대 음주" 질문에서
@@ -985,37 +1392,71 @@ function filterSourcesByAnswer(sources, answerText) {
  *   제9조는 ①일반 취소사유·③음주 처분이 따로 있다)에서, 답변이 "제9조제1항"만 말했는데 "제9조제3항"
  *   행까지 살아남는 사례가 실측됨. 그래서 항·호까지 표기에 있으면 그것까지 붙여 하나의 토큰으로
  *   본다("제9조제3항"을 통째로 대조 — "제9조"만 대조하지 않는다).
+ * ⚠ 묶음 표기(`제52~55·57조`)는 expandJoEnum 으로 풀어 **답변이 실제로 인용한 조만 각자 자기 줄로**
+ *   쪼갠다(B2) — 원본 줄의 law·tier·effectiveDate·contact·step 은 그대로 물려주고 article 만 그 조로
+ *   좁힌다. 요지(gist)는 묶음 행의 것이라 여러 줄에 같은 값이 붙는데, 위키 원문 그대로라 무방하다.
+ *   ★환각 0: 표기를 푼 결과 안에 있고 **답변 문장에도 문자 그대로 있는** 조만 줄로 만든다.
+ * ⚠ 살아남은 줄마다 `citedArticle`(답변이 쓴 인용 표기 전체, 항·호 포함 — 계약1)과 `subject`
+ *   (주체 라벨 — 계약1b)를 채운다. 근거 없으면 둘 다 ''.
  * 예: filterCitationChainByAnswer([{law:'선박직원법',article:'제9조제3항',…}, {law:'선박직원법',article:'제9조제1항',…}],
  *     '…「선박직원법」 제9조제3항에 따라…') → 제9조제3항 줄만 남고 제9조제1항 줄은 빠진다.
  * @param {Array} chain - source.citationChain(law·article 포함)
  * @param {string} answerText - synthesizeAnswerStream()이 만든 전체 답변 문장
- * @returns {Array} 답변에 실제로 인용된 줄만(원 순서 유지)
- * [연계] ← routes/legal.js가 filterSourcesByAnswer 직후, finalSources 각 소스에 적용.
+ * @param {string} [baseLaw] - 그 줄이 실려 있던 위키 페이지의 법(법령 칸이 `시행규칙`뿐인 행의 해석용)
+ * @returns {Array} 답변에 실제로 인용된 줄만(원 순서 유지, 묶음 행은 인용된 조 수만큼 쪼개짐)
+ * [연계] ← routes/legal.js가 filterSourcesByAnswer 직후, finalSources 각 소스에 적용(baseLaw = s.law).
  */
-function filterCitationChainByAnswer(chain, answerText) {
+function filterCitationChainByAnswer(chain, answerText, baseLaw) {
   const text = String(answerText || '');
   if (!text) return [];
-  return (chain || []).filter(row => {
-    const law = row.law || '';
-    if (!law || law.length < 2 || !text.includes(law)) return false;
+  const subjects = answerSubjects(text);
+  const out = [];
+  for (const row of (chain || [])) {
+    if (!lawMentionedInAnswer(row.law, baseLaw, text)) continue;
     const article = String(row.article || '');
+
+    // [B1·B2] 묶음 표기 — 푼 조 중 답변이 인용한 것만 각자 자기 줄로.
+    const jos = expandJoEnum(article);
+    if (jos) {
+      for (const jo of jos) {
+        const cited = citedArticleIn(text, jo);
+        if (!cited) continue;
+        out.push(Object.assign({}, row, {
+          article: jo, citedArticle: cited, subject: subjectOfCitation(subjects, cited),
+        }));
+      }
+      continue;
+    }
+
     // ⚠ 범위 인용("제1~4조")은 조 번호를 낱개로 못 뽑아 위 토큰 방식으로는 항상 걸러졌다 — 그런데
     //   이런 배경설명용 표(목적·정의·적용범위 허브 페이지에 흔함)가 실제로는 답변이 그 범위 **안**의
     //   조문(예: "제3조제1항")을 정확히 인용한 경우가 실측됨("해상교통안전법 적용범위" 질문에서
     //   근거 법령 아코디언이 통째로 사라짐 — 답변엔 제3조제1항이 정확히 인용돼 있는데도). 범위 표기는
     //   [from,to]로 풀어, 답변에 언급된 조 번호가 그 구간 안에 들면 통과시킨다.
+    //   (범위만 적힌 칸은 예전처럼 **한 줄 그대로** 남긴다 — 여러 조 전체가 근거라 어느 조 하나로
+    //    좁히면 배경설명 표의 뜻이 바뀐다. 쪼개기는 묶음 표기에만 적용한다.)
     const range = /제(\d+)\s*[~∼]\s*(\d+)조/.exec(article);
     if (range) {
       const from = parseInt(range[1], 10), to = parseInt(range[2], 10);
-      const cited = text.match(/제\d+조/g) || [];
-      return cited.some(c => {
-        const n = parseInt(c.replace(/\D/g, ''), 10);
-        return n >= from && n <= to;
-      });
+      const inRange = (text.match(/제\d+조/g) || [])
+        .find(c => { const n = parseInt(c.replace(/\D/g, ''), 10); return n >= from && n <= to; });
+      if (!inRange) continue;
+      row.citedArticle = citedArticleIn(text, inRange);
+      row.subject = subjectOfCitation(subjects, row.citedArticle);
+      out.push(row);
+      continue;
     }
     const tokens = article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\d+(?:의\d+)?/g) || [];
-    return tokens.some(t => text.includes(t));
-  });
+    const hit = tokens.find(t => text.includes(t));
+    if (!hit) continue;
+    // 위키 칸이 짚은 조(`제58조`)로 답변을 다시 훑어 **항·호까지 붙은 표기**를 가져온다 — 위키 칸엔
+    // 항·호가 없어도 답변은 "제58조제5항제7호"라고 쓰는 일이 흔하다(그 항·호가 발췌 대상이다, B10).
+    const joOnly = /^제\d+조(?:의\d+)?/.exec(hit);
+    row.citedArticle = joOnly ? citedArticleIn(text, joOnly[0], hit) : '';
+    row.subject = subjectOfCitation(subjects, row.citedArticle || hit);
+    out.push(row);
+  }
+  return out;
 }
 
 // 위임 흐름의 고정 순서(넓은 것 → 좁은 것). classifyTier가 붙여둔 tier 값과 같은 낱말이라야 한다.
@@ -1100,6 +1541,10 @@ function buildContextBlock(contextPages) {
 //   끌고 왔고, 이 규칙(질문 범위를 맨 앞에서 못박기)을 추가하니 그 누출이 사라졌다(추가 AI 호출 없이,
 //   프롬프트만으로 해소 — 후처리 재검토안도 같은 결함을 잡았으나 정상적인 규칙3 마무리 문구까지
 //   같이 잘라내는 부작용이 있어 채택 안 함). 나머지 5문항은 baseline도 이미 범위 안이었다.
+// ★규칙7에 "정식 명칭 그대로" 한 문장 추가(2026-08-17, B9): 화면이 답변 본문의 조문에 링크를 걸려면
+//   그 조문이 **어느 법의 것인지**를 문장에서 특정할 수 있어야 하는데, 모델이 「어선안전조업법」처럼
+//   약칭으로 쓰면 위키·index.json 의 정식 명칭과 문자열이 안 맞아 법을 못 고른다. 기존 규칙 번호·문장은
+//   그대로 두고 한 문장만 끼워 넣었다(이 프롬프트는 A/B 실측으로 다듬은 것이라 재작성하지 않는다).
 const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
 1. ★질문한 것만 답한다. 사용자가 구체적으로 하나의 조건·위반유형·절차를 물었으면, [근거자료]에 다른 조건·다른 위반유형·다른 절차·다른 검사종류·다른 처벌조문이 나란히 있어도 언급하지 않는다. "참고로 알려드리면"·"추가로"처럼 요청받지 않은 정보를 덧붙이지 않는다.
 2. 답의 근거는 오직 [근거자료]뿐이다. [근거자료]에 없는 내용은 지어내지 말고 "확인되지 않습니다"라고 정직하게 말한다.
@@ -1107,7 +1552,7 @@ const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
 4. 여기서는 사용자에게 되묻지 않는다 — 되물어야 하는 질문은 이 답변 **앞 단계(되묻기 판단)** 에서 이미 걸러진다. 조건(선박 톤수·어업 종류·조업구역 등)이 질문에 없어도 되묻지 말고 [근거자료]에 있는 정보로 최선을 다해 답하되, 조건에 따라 갈리면 핵심 갈래만 짧게 구분해 밝힌다(모든 경우를 장황하게 전수 나열하지 않는다).
 5. 판례·법리 해석·다툼의 여지가 있는 논점은 답하지 않는다(스코프 밖). 명확한 조문까지만 안내하고 "이 부분은 개별 사안에 따라 달라져 관할 소관부서에 확인하시는 것이 정확합니다"로 마무리한다.
 6. 딱딱한 조문 나열 금지. 결론 먼저 → 필요한 근거. **본문 첫 문장을 "쉽게 말하면 ~"으로 열어** 결론을 일상어로 짧게 요약한 뒤, 조문·처벌 같은 정확한 근거를 그다음에 이어 붙인다 — 이 쉬운 요약을 답변 맨 끝에 마무리 말로 붙이지 않는다. 과잉 설명은 하지 않는다.
-7. 근거로 삼은 법령명·조문번호는 답변 문장 안에서 자연스럽게 밝힌다(예: "「낚시 관리 및 육성법」 제35조에 따라 …"). 다만 소관부서·연락처·근거자료의 기준일을 답변 마지막에 각주로 따로 붙이지는 않는다 — 화면이 답변 바로 아래에 "근거 법령" 목록을 함께 실어 사용자가 펼쳐서 확인할 수 있다. ("참고용입니다" 면책 문구도 화면이 별도로 붙이니 답변에 넣지 않는다.)
+7. 근거로 삼은 법령명·조문번호는 답변 문장 안에서 자연스럽게 밝힌다(예: "「낚시 관리 및 육성법」 제35조에 따라 …"). 법령명은 **정식 명칭 그대로** 쓴다(약칭·줄임말로 쓰지 않는다). 다만 소관부서·연락처·근거자료의 기준일을 답변 마지막에 각주로 따로 붙이지는 않는다 — 화면이 답변 바로 아래에 "근거 법령" 목록을 함께 실어 사용자가 펼쳐서 확인할 수 있다. ("참고용입니다" 면책 문구도 화면이 별도로 붙이니 답변에 넣지 않는다.)
 8. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용. 갈래·조건별로 나뉘는 설명은 "*" 같은 밋밋한 기호 하나로 뭉뚱그리지 말고, 단계(갈래→항목→세부조건)에 따라 "1. → 가. → 1)" 순서로 번호를 매겨 위계를 드러낸다(더 깊어지면 "가)→(1)→(가)" 순으로 이어간다). 예: "1. 바다에서 조종한 경우" 아래 "가. 형벌" 아래 "1) 총톤수 5톤 이상 선박은…".
 9. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.`;
 
@@ -2197,7 +2642,8 @@ function josaEuro(word) {
  */
 function normalizeAskCtx(raw, profile) {
   const emptyNu = { rounds: 0, state: 'none', term: '', meaning: '' };
-  const empty = { uc: { rounds: 0, state: 'none', restate: '' }, scope: [], prof: { decided: [] }, nu: emptyNu };
+  const empty = { uc: { rounds: 0, state: 'none', restate: '' }, scope: [], prof: { decided: [] }, nu: emptyNu,
+    cl: { q: '', labels: [] }, unk: null };
   try {
     const c = (raw && typeof raw === 'object') ? raw : {};
     const uc = (c.uc && typeof c.uc === 'object') ? c.uc : {};
@@ -2247,7 +2693,26 @@ function normalizeAskCtx(raw, profile) {
       term: nuMeaning ? clarifyStr(nuRaw.term, NAVER_TERM_MAX) : '',
       meaning: nuMeaning,
     };
-    return { uc: { rounds, state, restate }, scope, prof: { decided }, nu };
+    // [B6] cl(직전 라운드의 되묻기) — 같은 되묻기를 표현만 바꿔 다시 묻는 것을 막는 데만 쓴다.
+    //   서버는 대화 이력을 저장하지 않으므로 이 ctx 채널이 유일한 운반로다(새 저장소를 만들지 않는다).
+    const clRaw = (c.cl && typeof c.cl === 'object') ? c.cl : {};
+    const cl = {
+      q: clarifyStr(clRaw.q, 200),
+      labels: (Array.isArray(clRaw.labels) ? clRaw.labels : [])
+        .slice(0, CLARIFY_LAST_LABELS_MAX).map(v => clarifyStr(v, 40)).filter(Boolean),
+    };
+    // [B7] unk(잘 모르겠어요) — **버튼의 data-ctx 로만** 들어온다(ctxNextOf 는 이 축을 안 내보낸다).
+    const unkRaw = (c.unk && typeof c.unk === 'object') ? c.unk : {};
+    const unkQ = clarifyStr(unkRaw.q, 200);
+    const unkO = (Array.isArray(unkRaw.o) ? unkRaw.o : [])
+      .slice(0, CLARIFY_OPTION_MAX)
+      .map(o => ({ label: clarifyStr(o && o.label, 40), hint: clarifyStr(o && o.hint, 120) }))
+      .filter(o => o.label);
+    const unk = (unkQ && unkO.length >= 2)
+      ? { r: Math.min(UNKNOWN_MAX_ROUNDS, Math.max(1, parseInt(unkRaw.r, 10) || 1)), q: unkQ, o: unkO }
+      : null;
+
+    return { uc: { rounds, state, restate }, scope, prof: { decided }, nu, cl, unk };
   } catch (_) {
     return empty;
   }
@@ -2275,10 +2740,17 @@ function ctxNextOf(ctx) {
   //   스위치 off 인 오늘의 done JSON 이 바이트 동일해야 하기 때문이다(R0).
   const nu = ctx.nu || { rounds: 0, state: 'none', term: '', meaning: '' };
   const hasNu = nu.rounds > 0 || nu.state !== 'none';
-  const has = uc.rounds > 0 || uc.state !== 'none' || scope.length > 0 || prof.decided.length > 0 || hasNu;
+  // [B6] cl(직전 라운드 되묻기)도 같은 규약 — 값이 있을 때만 싣는다(없으면 done JSON 이 오늘과 동일).
+  //   ⚠ ctx.unk 는 **여기 절대 싣지 않는다**: ctxNext 로 되돌아오면, 그 다음에 사용자가 평범한
+  //     선택지를 눌렀을 때(그 버튼엔 ctx 가 없어 클라가 직전 ctx 를 그대로 보낸다) 서버가 또
+  //     "잘 모르겠어요"로 오해해 답변 대신 용어풀이를 반복한다.
+  const cl = ctx.cl || { q: '', labels: [] };
+  const hasCl = !!cl.q;
+  const has = uc.rounds > 0 || uc.state !== 'none' || scope.length > 0 || prof.decided.length > 0 || hasNu || hasCl;
   if (!has) return null;
   const out = { uc, scope, prof };
   if (hasNu) out.nu = nu;
+  if (hasCl) out.cl = cl;
   return out;
 }
 
@@ -3062,4 +3534,6 @@ module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAns
   profileAcceptedLabels, zoneQueryWithProfile, understandConfirmStep, scopeNarrowStep,
   profileConfirmStep, withAssumedNotice, loadVesselTree, vesselNodeAt, vesselTreeDepth,
   // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
-  naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT };
+  naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT,
+  // 2026-08-17: 인용사슬 묶음표기 풀기(B1·B2) · "잘 모르겠어요"(B7) · 약칭표(B8, 계약4)
+  expandJoEnum, citedArticleIn, explainClarifyStep, loadLawAliases };
