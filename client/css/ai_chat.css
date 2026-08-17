@@ -472,7 +472,19 @@
 #nrya-overlays .nrya-bylpop{position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.96); z-index:1004; width:min(440px,calc(100vw - 32px)); max-height:76vh; background:#111525; border:1px solid rgba(105,240,174,.3); border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.65); display:flex; flex-direction:column; overflow:hidden; opacity:0; visibility:hidden; transition:transform .2s ease, opacity .2s ease}
 #nrya-overlays .nrya-bylpop.nrya-open{transform:translate(-50%,-50%) scale(1); opacity:1; visibility:visible}
 #nrya-overlays .nrya-bylpop-head{display:flex; align-items:flex-start; gap:8px; padding:12px 13px; border-bottom:1px solid rgba(105,240,174,.2)}
-#nrya-overlays .nrya-bylpop-t{flex:1; font-size:12.5px; font-weight:700; color:#8fe6bb}
+#nrya-overlays .nrya-bylpop-t{flex:1; min-width:0; word-break:break-word; font-size:12.5px; font-weight:700; color:#8fe6bb}
+/* 원본 파일 다운로드 버튼 자리 — 헤더(제목 옆)에 둔다. 본문 끝에 두면 별표4처럼 표가 긴 원문에서
+   끝까지 스크롤해야 보였다(2026-08-17 사용자 지적). 헤더는 본문 스크롤 밖이라 늘 보인다.
+   ⚠ 버튼 모양은 본문용 클래스(.nrya-byl-big-btn/.nrya-byl-dl-link)를 그대로 쓰되, 그 크기 그대로면
+     헤더가 두 줄로 밀려 제목을 가린다 — 여기서만 작게 눌러 쓴다(클래스를 새로 만들지 않는다).
+   ⚠ flex:0 1 auto — 화면이 아주 좁아 제목과 나란히 못 놓이면 이 줄이 줄어들고, 그때는 안쪽
+     .nrya-byl-big-row 의 flex-wrap 이 버튼 둘을 세로로 쌓는다(헤더 밖으로 밀려나지 않는다). */
+#nrya-overlays .nrya-bylpop-dl{flex:0 1 auto; display:flex; gap:6px}
+#nrya-overlays .nrya-bylpop-dl:empty{display:none}
+#nrya-overlays .nrya-bylpop-dl .nrya-byl-dl{margin-top:0}
+#nrya-overlays .nrya-bylpop-dl .nrya-byl-big-row{gap:6px}
+#nrya-overlays .nrya-bylpop-dl .nrya-byl-big-btn{flex:0 0 auto; padding:6px 9px; font-size:11px; font-weight:700; border-radius:9px}
+#nrya-overlays .nrya-bylpop-dl .nrya-byl-dl-link{padding:6px 9px; font-size:11px; border-radius:9px}
 #nrya-overlays .nrya-bylpop-close{background:none; border:none; color:var(--nrya-text-sub); font-size:18px; cursor:pointer}
 #nrya-overlays .nrya-bylpop-body{flex:1; overflow:auto; padding:12px 13px}
 /* 표 파싱이 어긋났을 때의 원본 폴백(고정폭 그대로 — 잘못 정리해 보여주느니 원문이 낫다) */

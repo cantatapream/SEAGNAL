@@ -802,6 +802,28 @@ function splitRefKey(key) {
 }
 
 /**
+ * 별표·서식 원문 파일 첫 줄에서 **번호 꼬리표**(`별표4 — `)까지 걷어내 사람이 읽는 이름만 남긴다.
+ * ★왜(2026-08-17 실측): 계층 접두 파일의 첫 줄은 `[시행령] 별표4 — 낚시어선이 갖추어야 하는 설비(…)`
+ *   형식이라(2,000개 표본 중 1,982개), 대괄호만 벗기면 제목이 `별표4 — 설비…`로 남는다. 화면
+ *   (ai_chat.js openBylPop)은 `ref.text`(`별표4`) + ' · ' + `ref.title` 을 이어붙이므로
+ *   `별표4 · 별표4 — 설비…`처럼 번호가 두 번 찍혔다.
+ * ⚠ 정규식은 routes/legal.js `formTitleOf()` 와 **같은 패턴**이어야 한다 — 서식 다운로드 목록이
+ *   같은 꼬리표를 떼고 있어, 둘이 어긋나면 같은 제목이 화면마다 달라진다.
+ *   (formTitleOf 는 이 함수가 이미 뗀 제목을 다시 받아도 그대로 통과한다 — 뗄 게 없으면 무변화)
+ * 예: stripBylTitlePrefix('[시행령] 별표4 — 낚시어선이 갖추어야 하는 설비(제16조제1항제3호 관련)')
+ *     → '낚시어선이 갖추어야 하는 설비(제16조제1항제3호 관련)'
+ * @param {string} line - 원문 파일의 첫 줄
+ * @returns {string} 대괄호 태그와 번호 꼬리표를 뗀 제목
+ * [연계] ← resolveRefs ③. ↔ routes/legal.js formTitleOf(같은 정규식).
+ */
+function stripBylTitlePrefix(line) {
+  return String(line || '')
+    .replace(/^\[[^\]]*\]\s*/, '')
+    .replace(/^(?:서식|별표)\s*\d+(?:의\d+)?\s*[—–-]\s*/, '')
+    .trim();
+}
+
+/**
  * 본문에서 별표·서식·이미지 참조 표현을 등장 순서대로(중복 제거) 뽑는다.
  * 예: collectRefs('… 검사수수료는 별표 1과 같다. … 별지 제1호서식에 따라 …')
  *     → [{key:'별표1', text:'별표 1'}, {key:'서식1', text:'별지 제1호서식'}]
@@ -1236,7 +1258,7 @@ async function resolveRefs(found, ctx) {
       const t = texts[i];
       if (!t) return;
       r.kind = 'text';
-      r.title = (t.split('\n')[0] || '').replace(/^\[[^\]]*\]\s*/, '').trim();
+      r.title = stripBylTitlePrefix(t.split('\n')[0] || '');
       r.body = bylBody(t);
     });
   }

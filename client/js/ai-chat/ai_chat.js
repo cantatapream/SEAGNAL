@@ -1774,6 +1774,10 @@
     bpop.innerHTML =
       '<div class="nrya-bylpop-head">' +
         '<span class="nrya-bylpop-t" id="nryaBylTitle"></span>' +
+        // 다운로드 버튼 자리(appendBylDownloads가 채운다). 본문 끝이 아니라 헤더에 두는 이유는
+        // 별표4처럼 표가 긴 원문에서 버튼이 화면 맨 아래로 밀려 안 보였기 때문 — 헤더는 본문
+        // 스크롤 밖이라 표 길이와 상관없이 늘 보인다(2026-08-17 사용자 요청).
+        '<span class="nrya-bylpop-dl" id="nryaBylDl"></span>' +
         '<button type="button" class="nrya-bylpop-close" id="nryaBylX">×</button>' +
       '</div>' +
       '<div class="nrya-bylpop-body" id="nryaBylBody"></div>';
@@ -2028,7 +2032,9 @@
    * 받아오면 law.go.kr에 차단된다(_LESSONS.md L-56).
    * ⚠ 실제로 여는 것은 openDownloadUrl 이다(앱 웹뷰 대응) — href 는 길게 눌러 주소 복사 등을 쓸 수
    *   있게 그대로 두고, 클릭만 가로챈다. 답변 아래 서식 버튼과 **같은 헬퍼**를 써야 두 곳이 어긋나지 않는다.
-   * @param {HTMLElement} host - 별표 팝업 본문
+   * ⚠ 붙는 자리는 **팝업 헤더**(제목 옆)다 — 예전엔 본문 끝이라, 별표4처럼 표가 긴 원문에서는
+   *   버튼이 화면 맨 아래로 밀려 끝까지 스크롤해야 보였다(2026-08-17 사용자 지적).
+   * @param {HTMLElement} host - 별표 팝업 헤더의 버튼 자리(#nryaBylDl)
    * @param {object} ref - 서버 refs 항목
    * @returns {number} 실제로 붙인 링크 개수(0이면 아무것도 안 붙였다)
    * [연계] ← openBylPop.
@@ -2089,11 +2095,11 @@
 
   /**
    * 별표·서식 하나를 팝업으로 보여준다. 서버 판정(kind)에 따라 본문이 셋 중 하나로 갈리고,
-   * **원본 파일 링크(hwp/pdf)는 kind 와 상관없이** 그 아래 항상 붙는다.
+   * **원본 파일 링크(hwp/pdf)는 kind 와 상관없이** 팝업 헤더(제목 옆)에 항상 붙는다.
    *  - text  : 우리가 가진 원문 표 — 괘선 표는 표로 다시 그리고, 산문은 접어서(pre-wrap) 보여준다
    *            (파싱이 어긋나면 원본 고정폭 <pre> 폴백)
    *  - image : 우리가 같이 수집해 둔 스캔본을 앱 안에서 바로
-   *  - link  : law.go.kr 원본 파일만 있는 경우 — 안내 문구 + 아래 다운로드 링크
+   *  - link  : law.go.kr 원본 파일만 있는 경우 — 안내 문구(본문) + 헤더의 다운로드 링크
    *  - missing : 아무것도 없다 — 지어내지 않고 "아직 수집하지 못했습니다"만 남긴다
    * @param {object} ref - 서버 refs 항목 {key,text,kind,title,body,image,pdf,hwp}
    * [연계] ← ensureArtPop 의 클릭 위임 · renderAnnexOnly. → PopupStack('nrya-bylpop').
@@ -2102,9 +2108,11 @@
     if (!ref) return;
     var pop = document.getElementById('nryaBylPop'), veil = document.getElementById('nryaBylVeil');
     var body = document.getElementById('nryaBylBody'); if (!pop || !veil || !body) return;
+    var dl = document.getElementById('nryaBylDl');
     document.getElementById('nryaBylTitle').textContent =
       (ref.text || '') + (ref.title ? ' · ' + ref.title : '');
     body.innerHTML = '';
+    if (dl) dl.innerHTML = '';                   // 팝업은 재사용된다 — 직전 별표의 버튼을 지운다
     if (ref.kind === 'text' && ref.body) {
       renderBylText(body, ref.body);
     } else if (ref.kind === 'image' && ref.image) {
@@ -2121,7 +2129,7 @@
                  : 'law.go.kr에 원본 파일만 있고 표 텍스트는 없습니다.');
       body.appendChild(note);
     }
-    appendBylDownloads(body, ref);
+    if (dl) appendBylDownloads(dl, ref);
     body.scrollTop = 0;
     veil.classList.add('nrya-open'); pop.classList.add('nrya-open');
     if (window.PopupStack) window.PopupStack.push('nrya-bylpop', closeBylPop);
