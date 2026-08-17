@@ -171,9 +171,17 @@ function loadLawAliases() {
       if (!byFormal.has(f)) byFormal.set(f, []);
       byFormal.get(f).push(a);
     }
-    _aliasCache = { alias, byFormal }; _aliasMtime = mt;
+    // [2026-08-17] 정식명 → 법령 구분(법률·대통령령·해양수산부령…). classifyTier 가 이름만 보고
+    //   틀리는 경우(대통령령인데 이름이 `…규정`이라 고시로 분류)를 실제 값으로 바로잡는다.
+    const kind = new Map();
+    for (const it of items) {
+      const f = String((it && it.정식명) || '').trim();
+      const k = String((it && it.구분) || '').trim();
+      if (f && k && !kind.has(f)) kind.set(f, k);
+    }
+    _aliasCache = { alias, byFormal, kind }; _aliasMtime = mt;
   } catch (_) {
-    if (!_aliasCache) _aliasCache = { alias: new Map(), byFormal: new Map() };
+    if (!_aliasCache) _aliasCache = { alias: new Map(), byFormal: new Map(), kind: new Map() };
   }
   return _aliasCache;
 }
@@ -317,6 +325,18 @@ function classifyTier(lawName) {
   const s = String(lawName || '');
   if (s.includes('시행령')) return 'decree';
   if (s.includes('시행규칙')) return 'rule';
+  // ★이름만 보고 정하기 전에 **실제 법령 구분**을 먼저 본다(2026-08-17, A-1 실측 지적).
+  //   `해양경찰위원회 규정`·`공무원보수규정`처럼 **대통령령인데 이름이 `…규정`으로 끝나는** 법령이
+  //   아래 키워드 규칙에 걸려 고시(notice)로 분류됐다 — 배지가 틀리고 원문 링크도 행정규칙 쪽으로 갔다.
+  //   약칭표(`law_aliases.json`)에 그 법의 `구분`(법률/대통령령/○○부령)이 API 값 그대로 들어 있으므로
+  //   **정식명 완전일치일 때만** 그 값을 쓴다(부분일치·추측 금지). 표에 없는 이름은 종전 규칙대로.
+  const kindMap = loadLawAliases().kind;
+  const kind = kindMap && kindMap.get(s.trim());
+  if (kind) {
+    if (kind === '법률' || kind === '헌법') return 'law';
+    if (kind === '대통령령') return 'decree';
+    if (/령$|규칙$/.test(kind)) return 'rule';        // ○○부령·총리령·대법원규칙
+  }
   if (/고시|지침|훈령|예규|규정|요령|행정규칙|통항규칙/.test(s)) return 'notice';
   // `…기준`으로 끝나는 이름은 거의 전부 고시다(P0 선행 실측: 위키 근거조문 표에 쓰인 '기준' 포함
   // 법령명 92종 중 선박구명설비기준·어선설비기준·선박기관기준·선박소방설비기준·선박복원성기준·
