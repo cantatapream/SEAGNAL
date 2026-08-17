@@ -3015,12 +3015,11 @@
     });
     var shown = lawNames.length;
     if (shown) {
-      // [2026-08-17 실기기 피드백] 예전엔 **법 가짓수**만 세어 "근거 법령 1건"이라고 적었는데,
-      //   펼치면 조문 카드가 3장 나와 숫자와 화면이 어긋나 보였다. 사용자가 세는 것은 카드 수다
-      //   → 조문 카드 수를 적고, 법이 둘 이상일 때만 법 가짓수를 함께 밝힌다.
-      var cardCount = chain.length;
-      var accLabel = '근거 법령 ' + cardCount + '건' + (shown > 1 ? ' · ' + shown + '개 법' : '');
-      html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 ' + accLabel + ' (펼쳐서 보기)</div><div class="nrya-lawacc-b">';
+      // [2026-08-17 실기기 피드백] 예전엔 **법 가짓수**를 세어 "근거 법령 1건"이라고 적었는데
+      //   펼치면 조문 카드가 3장 나와(같은 법의 제39·113·117조) 숫자와 화면이 어긋나 보였다.
+      //   카드 수로 바꾸는 대신 **건수 표기를 아예 뺀다**(사용자 확정) — 무엇을 세는 숫자인지
+      //   설명해야 하는 표기라면 없는 편이 낫다. `shown`은 아코디언을 그릴지 판정에만 쓴다.
+      html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 근거 법령 (펼쳐서 보기)</div><div class="nrya-lawacc-b">';
       html += chainHTML(chain);
       html += '</div></div>';
     }
