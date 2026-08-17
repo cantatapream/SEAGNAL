@@ -536,6 +536,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-17 09:47 KST] 🟢착수 — 21차 감사 착수
+audit_sim.js round:21, audit18_groups.json 재사용(lean/rich 모드 유지), 10그룹 전부 병렬 디스패치 완료. task-id: g0=w00dv2d8t g1=wcqrjkopw g2=w2rhvt4nv g3=w7g0r3lv1 g4=w0nwrgtmp g5=wjo520eg6 g6=wwvf0ieeh g7=w3gz7u2co g8=weked35z2 g9=wz0s8p00y. 완료되는 대로 H-9①통합수정→lint_xref/lint_full→lint_index/build→human_workload 순서로 논스톱 진행.
+
+
 ### [2026-08-17 09:46 KST] ✅완료 — 20차 감사 파이프라인 완료
 ①감사(74/74)→②H-9①통합수정(74/74)→③lint_xref+lint_full(74법, 세션한도로 1차 대량실패 후 resumeFromRunId 캐시재사용 재시도로 전부 완료, 마커 각 77개)→④lint_index.py+lint_build.py 재생성(index.json/graph.json 118노드 2046엣지)→⑤human_workload.py(144건, REVIEW-05 신규 반영) 전 단계 완료. 다음: 21차 감사(audit_sim.js, round:21) 10그룹 논스톱 착수.
 
