@@ -536,6 +536,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-17 09:27 KST] 🟢착수 — lint_xref+lint_full 20R 20그룹 디스패치
+lint_xref.js·lint_full.js round 20, 10그룹씩 20개 Workflow 동시 디스패치 완료. task-id: xref g0=w6k2slmpf g1=wfv30s0z1 g2=woz40e3yg g3=wf7uzi9ea g4=wfc5k9ecv g5=wyvje80er g6=wbedbb4q4 g7=wpcn0jysa g8=wn7yunjpn g9=wz6yf1xpa / full g0=w81a0e9dn g1=weoc8xmdf g2=whgq2e9rx g3=w4gedm9u5 g4=wipv43jq4 g5=wu60rvog4 g6=wjwzzjemi g7=wp6v3ef8r g8=w9ya7nfop g9=wj95l9njf. 완료되는 대로 lint_index/build→human_workload→21차 감사 순서로 논스톱 진행.
+
+
 ### [2026-08-17 09:25 KST] ✅완료 — H-9①통합수정 20R 74/74 완료 → lint_xref/lint_full 착수
 H-9①통합수정(round:20) 전 10그룹 완료 확인(마커 fix_r20_ 74개, 세션한도로 1차 실패했던 그룹들도 resumeFromRunId 캐시재사용으로 전부 재시도 성공). 주요 발견: 항만법 admrul 2건(포항항·대산항 세칙) raw 낡은버전 확인·L-98 기록, review_queue.md에 14라운드째 미등록이던 REVIEW-해양사고의조사및심판에관한법률-05 직접 등록. 다음: lint_xref+lint_full(round 20) 10그룹 디스패치.
 
