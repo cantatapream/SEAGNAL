@@ -27,6 +27,8 @@
  *  - GET  /api/legal/article-text     → 답변카드의 조문 카드를 눌렀을 때 띄울 원문. 인용 표기에 따라
  *                                       조 하나(항·호 분해 + 인용 항 강조) / 범위(제1~9조) / 문서 전체로
  *                                       갈리고, 본문의 별표·서식 참조는 실재 여부(refs)까지 판정해 준다
+ *  - GET  /api/legal/aliases          → 법령 약칭 → 정식 명칭 대응표(모호하지 않은 것만). 화면이 답변
+ *                                       본문의 조문에 링크를 걸 때 법을 특정하는 데 쓴다
  *
  * [연계 파일]
  * - knowledge/legal/_dashboard/review_queue.md   → 검증 대기 원장(승인 마킹 대상)
@@ -795,17 +797,29 @@ function mergeCitationChains(sources) {
  * ⚠ 앞의 MAX_EXCERPT_ROWS 줄까지만 읽는다 — 여러 소스를 합치면서 줄 수가 늘어날 수 있는데, 발췌
  *   한 줄이 GitHub 파일 읽기 한 번이라 상한을 풀면 답변 대기시간이 그만큼 늘어난다. 상한을 넘은
  *   줄은 화면에서 사라지지 않고 예전처럼 위키 요지로 그려진다.
+ * ★조회에 쓰는 표기는 위키 칸(row.article)이 아니라 **답변이 실제로 쓴 표기**(row.citedArticle,
+ *   항·호 포함)를 우선한다(2026-08-17, B10). 위키 칸엔 항·호가 없는 경우가 많아 pickExcerpt 가
+ *   hit 를 못 찾고 **첫 항**을 그냥 썼는데, 그 결과 답변은 제58조제5항제7호(어선원 준수의무 위반
+ *   과태료)를 말하는데 미리보기엔 무관한 ①항(중대재해 보고)이 떴다(라이브 실측).
+ * ⚠ 그 표기로 원문을 못 열면(article_text 가 못 읽는 모양이면) **위키 칸으로 한 번 더** 시도한다 —
+ *   더 정확히 하려다 예전에 나오던 발췌까지 잃으면 안 된다.
  * @param {Array} rows - mergeCitationChains → groupCitationChainByFlow 를 지난 줄들
  * @returns {Promise<void>} 각 행에 excerpt 를 직접 채운다(반환값 없음)
  * [연계] ← POST /api/legal/ask. → services/article_text.js loadArticle().
+ *          ← citedArticle 은 legal_retriever.js filterCitationChainByAnswer 가 채운다(계약1).
  */
 async function attachChainExcerpts(rows) {
   const targets = (rows || []).slice(0, MAX_EXCERPT_ROWS);
   await Promise.allSettled(targets.map(async (row) => {
+    // 항·호까지 짚은 표기일 때만 우선한다(같은 조를 가리키는데 더 좁힌 것이라 안전하다).
+    const cited = String(row.citedArticle || '');
+    const first = /[항호]/.test(cited) ? cited : String(row.article || '');
     try {
-      const out = await articleText.loadArticle({
-        law: row.law, article: row.article, tier: row.tier, baseLaw: row.baseLaw || '',
+      const load = a => articleText.loadArticle({
+        law: row.law, article: a, tier: row.tier, baseLaw: row.baseLaw || '',
       });
+      let out = await load(first);
+      if ((!out || out.ok !== true) && first !== row.article) out = await load(row.article);
       const ex = pickExcerpt(out);
       if (ex) row.excerpt = ex;
     } catch (e) {
@@ -818,8 +832,17 @@ async function attachChainExcerpts(rows) {
 //   응답은 NDJSON(줄바꿈으로 구분된 JSON) 스트림: 답변 조각마다 {type:'delta',text}, 마지막에
 //   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, citationChain, note} 한 줄로 마감.
 //   citationChain = 답변이 실제로 인용한 근거 조문 줄을 **모든 소스에서 합쳐 하나로** 정렬한 목록
-//   (줄 모양: {law, article, effectiveDate, gist, step, tier, contact, baseLaw, excerpt?}).
+//   (줄 모양: {law, article, effectiveDate, gist, step, tier, contact, baseLaw, excerpt?,
+//              citedArticle, subject}).
+//   · citedArticle(계약1) = 답변 문장이 그 줄을 인용할 때 **실제로 쓴 표기 전체**(항·호 포함,
+//     예 `제58조제5항제7호`). 답변에 항·호가 없으면 ''. ★답변 문장에 문자 그대로 있는 표기만 담는다.
+//   · subject(계약1b) = 답변이 주체별로 나뉠 때 그 줄이 속한 주체 라벨(예 `어선소유자`). 판정이
+//     불분명하면 ''(화면은 지금처럼 한 줄기로 그린다) — 틀리게 나누느니 안 나눈다.
+//   · 위키 표가 여러 조를 묶어 적은 행(`제52~55·57조`)은 **답변이 인용한 조마다 자기 줄**로 쪼개져
+//     나온다(article 만 그 조로 좁히고 나머지 칸은 원본 그대로 물려받는다).
 //   되묻기가 필요한 질문이면 delta 없이 done 한 줄만 나가고 clarify:{question,options} 가 함께 실린다.
+//   되묻기 선택지 맨 끝에는 항상 `잘 모르겠어요`(act:'unknown', ctx.unk)가 붙는다 — 누르면 질의는
+//   그대로 두고 ctx 만 실어 다시 오고, 서버가 용어 풀이 + 갈래 한 줄 요약을 붙여 같은 선택지를 다시 낸다.
 //   ⚠ 실제 생성시간은 그대로다(모델 사고+글자수는 안 줄어듦) — 목적은 체감 대기시간 단축뿐.
 //   추가 바디(선택): deviceId(기기 식별자) · notifyOnComplete(답변완료 푸시 동의, 기본 false)
 //   → 둘 다 있고 6초를 넘게 걸렸으면, 스트림은 그대로 두고 답변을 임시 보관 + 개인 푸시 발송.
@@ -965,7 +988,20 @@ router.post('/api/legal/ask', async (req, res) => {
     // (2026-08-15) D-트리(scopeNarrowStep)가 확정한 조건도 함께 넘긴다 — 안 넘기면 decideClarify가
     //   그 확정을 전혀 모른 채 같은 축(예: 선박종류)을 중복으로 되묻는다(라이브 재현, narrowLabels는
     //   위에서 이미 계산해 둔 것을 그대로 재사용 — R0: ctx.scope·profile이 없으면 빈 배열이라 무변화).
-    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels, lastQuestion);
+    // [B7] 사용자가 되묻기에서 "잘 모르겠어요"를 눌렀으면(ctx.unk), 새로 판단하지 말고 **같은 되묻기를
+    //   그대로 다시** 내되 그 앞에 용어 풀이 + 갈래 한 줄 요약을 붙인다. 질의 문자열은 바뀌지 않아
+    //   위 search() 결과가 직전 라운드와 같은 근거다(그 근거로만 풀이한다 — 환각 0).
+    //   ctx.unk 가 없으면 null 이라 아래 기존 흐름이 그대로 돈다(R0).
+    const unk = await legalRetriever.explainClarifyStep(contextPages, ctx.unk);
+    if (unk) {
+      // 다음 라운드가 "같은 되묻기를 또 물었는지" 판정할 수 있게 ctx.cl 을 갱신해 함께 내려보낸다(B6).
+      ctx.cl = { q: unk.clarify.question, labels: unk.clarify.options.map(o => o.label) };
+      return writeConfirm(unk);
+    }
+
+    // [B6] 직전 라운드의 되묻기(ctx.cl)를 함께 넘긴다 — 모델이 표현만 바꿔 같은 걸 다시 물으면
+    //   (라벨 완전일치 대조로는 안 잡힌다) 결정론적으로 버린다. ctx.cl 이 없으면 오늘과 동일(R0).
+    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx.cl);
 
     // ③ [H-37 §7.4] 프로필 확인 — 이 되묻기가 묻는 축을 프로필이 이미 알고 있으면 되묻는 대신
     //    "저장된 정보로 답할까요?"를 **그 축에 대해서만** 확인한다(축 단위, 사용자 확정 (자)).
@@ -987,6 +1023,10 @@ router.post('/api/legal/ask', async (req, res) => {
     //   내부 계산 결과가 확정된 근거처럼 보인다(라이브 실측으로 확인된 문제). 근거는 사용자가 되묻기에
     //   답한 뒤 나오는 실제 답변에서만 보여준다.
     if (askClarify) {
+      // [B6] 이번 라운드의 질문·선택지 라벨을 ctx 에 실어 보낸다(클라이언트가 다음 요청에 되돌려 준다).
+      //   다음 라운드의 decideClarify 가 "표현만 바꾼 같은 되묻기"인지 판정하는 유일한 근거다 —
+      //   서버는 대화 이력을 저장하지 않으므로 새 저장소를 만들지 않고 기존 ctx 채널을 재사용한다.
+      ctx.cl = { q: clarify.question, labels: clarify.options.map(o => o.label) };
       res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
         answer: clarify.intro || null,
         sources: [],
@@ -1036,10 +1076,16 @@ router.post('/api/legal/ask', async (req, res) => {
       // ⚠ 반드시 거른 **뒤에** 합치고 정렬한다(원표 순서가 아니라 답변이 실제로 인용한 줄만 대상).
       // ⚠ 정렬을 소스마다 따로 하면 안 된다 — 두 법이 서로 다른 위키 페이지에서 왔을 때 법 묶음
       //   순서를 페이지 경계 너머로 맞출 수 없다(그래서 합친 뒤 딱 한 번 부른다).
+      // ⚠ 세 번째 인자 baseLaw(=그 줄이 실려 있던 위키 페이지의 법)를 넘긴다 — 법령 칸이 `시행규칙`
+      //   처럼 계층 낱말만 적힌 행을 답변과 대조하려면 어느 법의 시행규칙인지 알아야 한다(B3).
+      //   mergeCitationChains 가 붙이는 row.baseLaw 는 이 시점엔 아직 없다(거른 뒤에 붙인다).
       finalSources.forEach(s => {
-        s.citationChain = legalRetriever.filterCitationChainByAnswer(s.citationChain, full);
+        s.citationChain = legalRetriever.filterCitationChainByAnswer(s.citationChain, full, s.law || '');
       });
-      citationChain = legalRetriever.groupCitationChainByFlow(mergeCitationChains(finalSources), full);
+      // ⚠총괄 행(`제58조`)과 항·호 행(`제58조제5항제7호`)이 함께 살아남아 같은 조문이 요지만 다르게
+      //   두 번 뜨는 것을 막는다(P0 선행 실측). 근거(citedArticle)가 같은 줄에만 적용된다.
+      citationChain = legalRetriever.groupCitationChainByFlow(
+        legalRetriever.dropRedundantChainRows(mergeCitationChains(finalSources)), full);
       // 살아남은 줄에만 조문 원문 발췌를 붙인다(거르기 전에 붙이면 버려질 줄까지 원문을 읽는다).
       await attachChainExcerpts(citationChain);
     }
@@ -1167,12 +1213,36 @@ router.get('/api/legal/src', (req, res) => {
   } catch (e) { res.status(500).send(String(e.message || e)); }
 });
 
+// ── 법령 약칭표(읽기전용, 계약4) ─────────────────────────────────────────────
+// 답변 본문의 조문에 링크를 걸려면 화면이 "이 조문이 어느 법의 것인지"를 문장에서 찾아내야 하는데,
+// 사용자·모델이 「어선안전조업법」처럼 약칭을 쓰면 위키의 정식 명칭과 글자가 안 맞는다. 그 대응표를
+// 그대로 내려준다: {ok:true, map:{약칭: 정식명}}.
+//   · **모호하지 않은 약칭만** 담는다 — 표의 `충돌` 목록에 오른 약칭, 한 약칭이 여러 정식명에 붙은
+//     경우, 약칭이 다른 법의 정식명과 같은 경우는 뺀다(legal_retriever.loadLawAliases).
+//     ⚠ 지금 표는 충돌 0건이지만 자동 갱신에서 생길 수 있어 이 제외 로직은 그대로 유지한다.
+//   · 시행령·시행규칙 파생 항목(`어선안전조업법 시행령`)도 그대로 담는다 — 빼면 화면이 꼬리를
+//     스스로 분리하는 폴백으로만 처리하게 돼 시행령·시행규칙 인용 링크가 약해진다.
+//   · 파일이 없거나 깨져 있으면 {ok:true, map:{}} — 화면은 링크만 안 걸고 평소대로 동작한다.
+// 캐시는 legal_retriever 쪽 mtime 감지 캐시를 그대로 쓴다(서버 기동 시 1회 로드 + 파일 변경 시 갱신).
+router.get('/api/legal/aliases', (req, res) => {
+  try {
+    const map = {};
+    for (const [alias, formal] of legalRetriever.loadLawAliases().alias) map[alias] = formal;
+    res.json({ ok: true, map });
+  } catch (e) {
+    console.error('[Legal] 약칭표 조회 실패:', e && e.message);
+    res.json({ ok: true, map: {} });
+  }
+});
+
 // ── 조문 원문 팝업(읽기전용): 답변카드의 조문 카드를 누르면 그 조 전체 원문을 항·호로 쪼개 준다 ──
 // 원문은 서버에 상주시키지 않고 GitHub에서 그때그때 읽는다(services/article_text.js).
 // 못 찾으면 지어내지 않고 {ok:false, reason} — 클라이언트는 "원문을 불러오지 못했어요"로 안내한다.
 router.get('/api/legal/article-text', async (req, res) => {
   try {
     const q = req.query || {};
+    // ⚠ `article`(항·호까지 포함한 표기)은 **그대로** 넘긴다 — 라우트에서 항·호를 깎으면 응답의
+    //   focused 판정(계약2)이 성립하지 않는다. 응답도 통째로 그대로 통과시킨다(addenda 등 계약3).
     const out = await articleText.loadArticle({
       law: q.law, article: q.article, tier: q.tier, baseLaw: q.baseLaw,
     });

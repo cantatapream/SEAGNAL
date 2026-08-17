@@ -112,7 +112,7 @@ console.log('\n[T5][#6] 옛 카드 — 카드에 박힌 data-q·data-ctx 로 전
   ok('선택지 버튼에 그 시점 ctx 가 박힌다', /data-ctx="' \+ esc\(JSON\.stringify\(o\.ctx\)\)/.test(CLIENT_SRC));
   ok('원 질문은 카드의 data-q 에서 읽는다', /var q = box\.getAttribute\('data-q'\) \|\| '';/.test(CLIENT_SRC));
   ok('ctx 를 든 선택지는 질의에 라벨을 붙이지 않는다',
-    /input\.value = q;\s*\n\s*doSend\(mergeCtx\(lastCtx, ctx\), box\);/.test(CLIENT_SRC));
+    /input\.value = q;\s*\n\s*doSend\(mergeCtx\(lastCtx, ctx\), box(?:, true)?\);/.test(CLIENT_SRC));
 }
 
 // ── T6 [#7]. 기록에서 복원한 답변에는 되묻기 버튼이 안 생긴다 ─────────────────────
@@ -139,7 +139,7 @@ console.log('\n[T8][#9] 네트워크 실패 → nrya-done 되돌리기(재시도
 {
   ok('실패 응답이면 카드 비활성을 해제한다',
     /if \(failBox && data && data\._neterr\) failBox\.classList\.remove\('nrya-done'\);/.test(CLIENT_SRC));
-  ok('버튼 클릭 경로가 실패 대상 카드를 넘긴다', /doSend\(lastCtx, box\);/.test(CLIENT_SRC) && /doSend\(mergeCtx\(lastCtx, ctx\), box\);/.test(CLIENT_SRC));
+  ok('버튼 클릭 경로가 실패 대상 카드를 넘긴다', /doSend\(lastCtx, box(?:, true)?\);/.test(CLIENT_SRC) && /doSend\(mergeCtx\(lastCtx, ctx\), box(?:, true)?\);/.test(CLIENT_SRC));
   ok('실패했을 땐 이어받을 맥락을 지우지 않는다(재시도 가능)',
     /if \(!\(data && data\._neterr\)\) lastCtx = \(data && data\.ctxNext\) \|\| null;/.test(CLIENT_SRC));
 }
@@ -381,9 +381,9 @@ console.log('\n[T22][F2] ctxNext 이어받기 — 프로필 확인 무한루프 
     R.profileConfirmStep(CLARIFY_USE, PROFILE, { decided: [] }, true).mode === 'confirm');
 
   // ⓒ 클라이언트 계약 — 맥락은 버튼이 아니라 **대화**가 들고 있는다.
-  ok('ctx 없는 선택지도 직전 맥락을 이어 보낸다', /doSend\(lastCtx, box\);/.test(CLIENT_SRC));
+  ok('ctx 없는 선택지도 직전 맥락을 이어 보낸다', /doSend\(lastCtx, box(?:, true)?\);/.test(CLIENT_SRC));
   ok('버튼 ctx 는 직전 맥락 **위에** 축 단위로 얹는다',
-    /doSend\(mergeCtx\(lastCtx, ctx\), box\);/.test(CLIENT_SRC));
+    /doSend\(mergeCtx\(lastCtx, ctx\), box(?:, true)?\);/.test(CLIENT_SRC));
   ok('서버가 준 ctxNext 를 다음 요청까지 보관한다', /lastCtx = \(data && data\.ctxNext\) \|\| null;/.test(CLIENT_SRC));
   ok('사용자가 새로 타이핑한 질문에서는 맥락을 비운다(§9.1 #1)', /if \(!sendCtx\) lastCtx = null;/.test(CLIENT_SRC));
   ok('lastCtx 도 메모리에만 둔다(새로고침하면 소멸 — §9.1 #3)',
@@ -616,19 +616,27 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     const dup = await R.decideClarify(Q, CP, '', ['그 밖의 선박']);
     ok('이미 확정된 라벨과 같은 선택지가 나오면 되묻기를 버린다', dup.needed === false);
     const fresh = await R.decideClarify(Q, CP, '', ['수상레저기구']);
-    ok('겹치지 않는 narrowLabels는 되묻기를 막지 않는다', fresh.needed === true && fresh.options.length === 2);
+    // [2026-08-17 H-40 B7] 되묻기 선택지 맨 끝에 "잘 모르겠어요"가 **항상** 붙는다 —
+    //   아래 기대 개수는 전부 그만큼(+1) 커졌다. 개수만 세면 그 버튼이 딴 자리에 붙어도 통과하므로
+    //   **맨 끝 항목이 act:'unknown' 인지**까지 함께 못박는다.
+    const lastIsUnknown = r => r.options[r.options.length - 1].act === 'unknown';
+    ok('겹치지 않는 narrowLabels는 되묻기를 막지 않는다', fresh.needed === true && fresh.options.length === 3);
+    ok('그 되묻기 맨 끝이 "잘 모르겠어요"다(H-40 B7)', lastIsUnknown(fresh));
     // (5c) 최소 절충안(2026-08-15) — 직전 질문(lastTopic)을 "확인 후보"로 하나 더 얹는다.
     //   §9.1 #1(타이핑한 새 질문은 맥락을 비운다)은 그대로 두고, decideClarify가 이미 애매해서
     //   되물을 때만(needed:true) 여지가 있으면(칸이 남고 아직 안 겹치면) 얹는다.
     const PREV = '안전검사 안 받으면 어떻게 되나요?';
     const withPrev = await R.decideClarify(Q, CP, '', [], PREV);
-    ok('직전 질문이 확인 후보로 추가된다(옵션 3개)', withPrev.needed === true && withPrev.options.length === 3);
+    ok('직전 질문이 확인 후보로 추가된다(옵션 3개 + 잘모르겠어요)',
+      withPrev.needed === true && withPrev.options.length === 4 && lastIsUnknown(withPrev));
     ok('추가된 후보의 라벨·힌트가 직전 질문을 그대로 담는다',
       withPrev.options[2].label === PREV && withPrev.options[2].hint.includes('이어지는'));
     const noPrev = await R.decideClarify(Q, CP, '', []);
-    ok('직전 질문이 없으면 오늘과 동일하다(옵션 2개, R0)', noPrev.needed === true && noPrev.options.length === 2);
+    ok('직전 질문이 없으면 종전과 동일하다(옵션 2개 + 잘모르겠어요)',
+      noPrev.needed === true && noPrev.options.length === 3 && lastIsUnknown(noPrev));
     const alreadyIn = await R.decideClarify(PREV + ' 처벌은요?', CP, '', [], PREV);
-    ok('직전 질문이 이미 이번 질문에 들어 있으면 중복 추가하지 않는다', alreadyIn.options.length === 2);
+    ok('직전 질문이 이미 이번 질문에 들어 있으면 중복 추가하지 않는다',
+      alreadyIn.options.length === 3 && lastIsUnknown(alreadyIn));
     // (6) 재진술 낱말을 검색어로 직접 얹지 않는다(§17 실측 — 얹으면 검색이 뒤집혔다)
     const s1 = await R.search(Q, { canonicalOnly: true });
     const s2 = await R.search(Q, { canonicalOnly: true, restate: RE });
@@ -638,7 +646,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('스위치 off 면 재진술을 하류로 안 넘긴다(§9.1 #10)',
       /const ucRestate = cfg\.understandConfirm \? \(ctx\.uc\.restate \|\| ''\) : '';/.test(ROUTES_CODE));
     ok('검색에 넘긴다', /search\(qForSearch,\s*[\s\S]{0,80}restate: ucRestate/.test(ROUTES_CODE));
-    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion\)/.test(ROUTES_CODE));
+    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion(?:, ctx\.cl)?\)/.test(ROUTES_CODE));
     ok('질의 문자열에는 어디서도 안 합친다(R2)',
       !/q \+[^\n]*restate/i.test(ROUTES_CODE) && !/restate[^\n]*\+ q\b/i.test(ROUTES_CODE));
     // (8) 설계문서와 코드가 어긋나지 않는다(T24·T25와 같은 대조)
@@ -675,6 +683,91 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     /const RESTATE_BAN = \/제\\s\*\\d\+\\s\*조\|법률\|법령\|벌금\|과태료\|징역\|「\|」\|만원\//.test(RET_SRC));
   ok('이해확인 라운드는 CLARIFY_MAX_ROUNDS 와 분리돼 있다(사용자 확정 (다))',
     /const UNDERSTAND_MAX_ROUNDS = 3;/.test(RET_SRC) && !/CLARIFY_MAX_ROUNDS/.test(H37_CODE));
+
+  // ── T27 [H-40]. 챗봇 답변화면·근거표출 개선 회귀 (2026-08-17) ──────────────────
+  //   설계·배경: MASTER_PLAN.md H-40 · 표출규칙: _CHATBOT.md 6절 · 원인: _LESSONS.md L-101
+  //   ★여기 고정하는 것은 "사용자가 눈으로 확인한 결함이 되돌아오지 않는가"다.
+  console.log('\n[T27][H-40] 근거 흐름·조문 팝업·되묻기 표출');
+  {
+    // (1) L-101 — 묶음 조문표기를 푼다(이게 안 되면 근거가 통째로 사라진다)
+    ok('묶음+범위 혼합 표기를 조 단위로 푼다',
+      JSON.stringify(R.expandJoEnum('제52~55·57조')) ===
+      JSON.stringify(['제52조', '제53조', '제54조', '제55조', '제57조']));
+    ok('가지번호 나열은 가지번호로 푼다(제109·110조와 구분)',
+      JSON.stringify(R.expandJoEnum('제30조의5·6')) === JSON.stringify(['제30조의5', '제30조의6']));
+    ok('묶음이 아닌 칸은 건드리지 않는다(단정 불가 → null)',
+      R.expandJoEnum('제58조 / 시행령 별표5') === null && R.expandJoEnum('제3조제2항') === null);
+
+    // (2) 계약1 citedArticle — 답변에 **문자 그대로 있는 표기만** 떼어 온다(환각 0)
+    const ANS = '「어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률」 제58조제5항제7호에 따라 ' +
+      '과태료가 부과되고, 제53조 제1호에 따라 5년 이하의 징역에 처해질 수 있습니다.';
+    ok('항·호까지 붙은 표기를 그대로 떼어 온다', R.citedArticleIn(ANS, '제58조') === '제58조제5항제7호');
+    ok('띄어쓴 표기도 원문 그대로 보존한다(공백을 지우지 않는다)',
+      R.citedArticleIn(ANS, '제53조') === '제53조 제1호');
+    ok('인용된 적 없는 조는 빈 문자열(제5조로 제5조의2를 집지 않는다)',
+      R.citedArticleIn('… 제5조의2 …', '제5조') === '');
+
+    // (3) 되묻기 상한 10(사용자 확정) — 같은 조건 재질문 차단이 실질 방어선이 된다
+    ok('되묻기 상한이 10이다', /const CLARIFY_MAX_ROUNDS = 10;/.test(RET_SRC));
+    ok('질문 문장·선택지 집합이 같으면 차단한다(표현만 바꾼 재질문)',
+      /function sameClarifyAsLast\(/.test(RET_SRC) && /sameClarifyAsLast\(question, options, prevClarify\)/.test(RET_SRC));
+
+    // (4) R16 — 말풍선만 숨기고 **서버로 가는 누적 문자열은 그대로 유지**(이게 깨지면 되묻기가 무한루프)
+    ok('버튼 선택은 종전대로 질의에 누적된다', /input\.value = q \? q \+ ' — ' \+ label : label;/.test(CLIENT_SRC));
+    ok('말풍선 표시 여부는 별도 인자로만 끈다(전송값 불변)', /function doSend\(sendCtx, failBox, hideMe\)/.test(CLIENT_SRC));
+
+    // (5) R19 — 되묻기 응답에는 면책 문구가 없다
+    ok('되묻기면 note 만, 최종 답변에만 면책 문구',
+      /if \(data\.clarify\) \{[\s\S]{0,200}?nrya-disc[\s\S]{0,80}?esc\(data\.note\)/.test(CLIENT_SRC));
+
+    // (6) R20 — 법을 특정 못 하면 본문 조문에 링크를 걸지 않는다(엉뚱한 원문 방지)
+    ok('같은 법명에 tier·base 가 갈리면 모호로 보고 링크 안 함',
+      /hit\.ambiguous = true;/.test(CLIENT_SRC) && /\(hit && !hit\.ambiguous\)/.test(CLIENT_SRC));
+
+    // (7) R23 — 전화번호는 표시만 나누고 거는 번호는 통번호
+    ok('tel: 링크는 통번호(dial) 그대로', /href="tel:' \+ esc\(dial\)/.test(CLIENT_SRC));
+
+    // (9) P0 선행 실측 후속 — `…기준` 고시가 '법률' 배지로 뜨던 것(classifyTier)
+    ok('`…기준` 이름은 고시로 분류한다',
+      R.classifyTier('선박구명설비기준') === 'notice' && R.classifyTier('어선설비기준') === 'notice'
+      && R.classifyTier('어선원 안전ㆍ보건 및 재해예방 기준') === 'notice');
+    ok('법률·시행령·시행규칙 분류는 그대로다(오탐 없음)',
+      R.classifyTier('해사안전기본법') === 'law' && R.classifyTier('수산업법') === 'law'
+      && R.classifyTier('해양환경관리법 시행령') === 'decree'
+      && R.classifyTier('농수산물품질관리법 시행규칙') === 'rule');
+
+    // (10) 총괄 행 + 항·호 행이 함께 살아남아 같은 조문이 두 번 뜨던 것
+    {
+      const dup = [
+        { law: 'A', article: '제58조', citedArticle: '제58조제5항제7호', gist: '최고 3천만원' },
+        { law: 'A', article: '제58조제5항제7호', citedArticle: '제58조제5항제7호', gist: '5/10/15만원' },
+        { law: 'A', article: '제53조', citedArticle: '' },
+        { law: 'B', article: '제3조', citedArticle: '제3조' }];
+      const kept = R.dropRedundantChainRows(dup).map(r => r.article);
+      ok('같은 인용을 가리키면 더 좁게 짚은 줄만 남는다',
+        JSON.stringify(kept) === JSON.stringify(['제58조제5항제7호', '제53조', '제3조']));
+      ok('근거(citedArticle)가 없는 줄은 하나도 버리지 않는다(누락 0)',
+        R.dropRedundantChainRows([{ law: 'A', article: '제1조', citedArticle: '' },
+          { law: 'A', article: '제2조', citedArticle: '' }]).length === 2);
+    }
+
+    // (11) 위키가 법 이름을 정확히 적어둘수록 행이 죽던 역설(G1·G2 지적) — 두 표기 모두 살아야 한다
+    {
+      const FORMAL = '어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률';
+      const rows = [{ law: FORMAL + ' 시행규칙', article: '제20조' }, { law: '시행규칙', article: '제20조' }];
+      ok('법령 칸이 정식명+시행규칙이어도 살아남는다',
+        R.filterCitationChainByAnswer(rows, '「' + FORMAL + '」 제33조와 같은 법 시행규칙 제20조에 따라', FORMAL).length === 2);
+      ok('답변이 약칭으로 써도 살아남는다',
+        R.filterCitationChainByAnswer(rows, '어선안전조업법 시행규칙 제20조에 따라', FORMAL).length === 2);
+      ok('법 이름이 답변에 전혀 없으면 정식명 행은 통과시키지 않는다(느슨해지지 않음)',
+        R.filterCitationChainByAnswer([rows[0]], '시행규칙 제20조에 따라', FORMAL).length === 0);
+    }
+
+    // (8) 계약2·3 — 라우트는 조문 표기를 깎지 않고, 응답도 통째로 통과시킨다
+    ok('약칭표 엔드포인트가 있다', /router\.get\('\/api\/legal\/aliases'/.test(ROUTES_SRC));
+    ok('article 파라미터를 그대로 넘긴다(항·호를 잘라내지 않는다)',
+      !/article[^\n]*\.replace\(/.test(ROUTES_CODE.split("'/api/legal/article-text'")[1] || ''));
+  }
 
   console.log(`\n${pass} PASS / ${fail} FAIL`);
   process.exit(fail ? 1 : 0);

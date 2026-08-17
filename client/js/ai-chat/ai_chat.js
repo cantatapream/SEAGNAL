@@ -92,6 +92,10 @@
   //   안 비운다**(그게 이 값의 존재 이유다). ctx가 아니라 별도 필드로만 보내 서버가 "확정된 조건"이
   //   아니라 "확인 후보" 하나를 되묻기에 더 보여줄 때만 쓴다(routes/legal.js `lastQuestion` 참고).
   var lastQuestionText = '';
+  // [계약4] 약칭표(GET /api/legal/aliases) 캐시 — `{약칭: 정식 법령명}`. 답변 본문의 「약칭」을
+  //   근거 체인의 정식 법령명과 맞춰볼 때만 쓴다. **후보가 유일한 약칭만** 서버가 담아 보낸다.
+  //   null = 아직 안 받음, {} = 받았거나 실패(재요청하지 않는다 — 링크가 덜 걸릴 뿐 오동작은 없다).
+  var aliasMap = null;
 
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
@@ -1304,6 +1308,7 @@
     ensureOverlays();
     var wrap = document.getElementById('nryaChatWrap'); if (!wrap) return;
     wrap.classList.add('nrya-open');
+    ensureAliases();              // 답변 본문의 「약칭」을 정식명으로 맞춰볼 표를 미리 받아둔다
     setUnread(0);                 // 열어서 보는 순간 안읽음 해제
     fitChat(); addVV(); _scrollChatBottom();
     var input = document.getElementById('nryaChatInput'); if (input) setTimeout(function () { input.focus(); }, 80);
@@ -1603,6 +1608,10 @@
       // 되묻기 선택지 버튼 — 고른 조건을 원래 질문에 합쳐 다시 물어본다
       var opt = e.target.closest('.nrya-clarify-btn');
       if (opt) { pickClarifyOption(opt); return; }
+      // 답변 본문 안의 조문·별표 인용(글자 자체가 누를 자리) — 근거 카드와 **같은** 팝업을 연다.
+      // citeHTML 이 data-law/article/tier/base 를 카드와 똑같은 이름으로 붙여 두었다.
+      var cite = e.target.closest('.nrya-cite');
+      if (cite) { openArtPop(cite); return; }
       if (e.target.closest('.nrya-chain-tel')) return;
       var hit = e.target.closest('.nrya-chain-hit');
       if (hit) openArtPop(hit);
@@ -1766,7 +1775,19 @@
     // 별표 참조는 본문·푸터 어디서든 같은 방식으로 열리게 위임한다.
     pop.addEventListener('click', function (e) {
       var r = e.target.closest('.nrya-byl-ref');
-      if (r) openBylPop(artPopRefs[r.getAttribute('data-byl')]);
+      if (r) { openBylPop(artPopRefs[r.getAttribute('data-byl')]); return; }
+      // [계약2] "조문 전체 보기" — 감춰뒀던 나머지 항·호를 펼친다. DOM 은 처음부터 다 그려져 있어
+      //   서버 재조회가 없고, 한 번 펼치면 되돌릴 일이 없으므로 버튼 자체를 없앤다.
+      var more = e.target.closest('.nrya-artpop-more');
+      if (more) {
+        var ab = document.getElementById('nryaArtBody');
+        if (ab) ab.classList.remove('nrya-focused');
+        more.remove();
+        return;
+      }
+      // [계약3] 부칙은 본문과 섞이지 않게 기본 접힘 — 머리줄을 누르면 펼친다.
+      var ad = e.target.closest('.nrya-addenda-t');
+      if (ad) { ad.parentElement.classList.toggle('nrya-open'); return; }
     });
   }
 
@@ -2050,7 +2071,11 @@
       var wrap = document.createElement('div'); wrap.className = 'nrya-artpop-text';
       var t = document.createElement('span'); appendText(t, p.text); wrap.appendChild(t);
       if (p.items && p.items.length) {
-        var ul = document.createElement('ul'); ul.className = 'nrya-artpop-items';
+        var ul = document.createElement('ul');
+        // [계약2] 이 항에 강조된 호가 하나라도 있으면 표시해 둔다 — focused 모드에서 "그 호만"
+        //   남기는 CSS 가 이 표시로 갈린다(호가 하나도 강조 안 된 항은 호를 다 보여준다:
+        //   `제58조제5항`처럼 항까지만 특정한 인용에서 호를 통째로 감추면 안 되기 때문).
+        ul.className = 'nrya-artpop-items' + (p.items.some(function (it) { return !!it.hit; }) ? ' nrya-has-hit' : '');
         p.items.forEach(function (it) {
           var li = document.createElement('li');
           li.appendChild(document.createTextNode((it.label || '') + '. '));
@@ -2162,6 +2187,7 @@
     var body = document.getElementById('nryaArtBody'); if (!body) return;
     var foot = document.getElementById('nryaArtFoot');
     body.innerHTML = ''; if (foot) foot.innerHTML = '';
+    body.classList.remove('nrya-focused');   // 이전 조문에서 켜둔 focused 가 남지 않게
     artPopRefs = {};
     artPopRefsCut = !!d.refsTruncated;
     (d.refs || []).forEach(function (r) { artPopRefs[r.key] = r; });
@@ -2192,6 +2218,19 @@
       }
     } else {
       renderSingle(body, d.paragraphs);
+      // [계약2] focused:true = 요청한 표기가 항·호까지 특정했다(`제58조제5항제7호`) → 그 항의
+      //   머리문장과 그 호만 남긴다. 나머지는 지우지 않고 **CSS 로 감추기만** 하므로 아래
+      //   "조문 전체 보기"가 재조회 없이 그 자리에서 펼친다.
+      //   ⚠강조된 항이 하나도 없으면 접지 않는다 — 그대로 접으면 본문이 통째로 사라져 빈 팝업이 된다.
+      if (d.focused && (d.paragraphs || []).some(function (p) { return !!(p && p.hit); })) {
+        body.classList.add('nrya-focused');
+        if (foot) {
+          var moreBtn = document.createElement('button');   // 아래 별표 목록의 `more` 와 이름 겹치지 않게
+          moreBtn.type = 'button'; moreBtn.className = 'nrya-artpop-more';
+          moreBtn.textContent = '조문 전체 보기';
+          foot.appendChild(moreBtn);
+        }
+      }
     }
 
     // 문서에 딸린 별표 목록 — 본문에서 인용되지 않은 별표도 여기서 바로 열 수 있게 한다.
@@ -2217,6 +2256,15 @@
         more.textContent = '외 ' + (d.attachments.length - shown) + '개';
         foot.appendChild(more);
       }
+    }
+
+    // [계약3] 부칙(addenda)은 서버가 본문 항과 분리해 따로 보낸다 — 기본은 접어두고 눌러야 펼친다
+    // (조문을 보러 온 사람에게 부칙 전문이 먼저 쏟아지지 않게). 글자는 textContent 로만 넣는다.
+    if (d.addenda) {
+      var adBox = document.createElement('div'); adBox.className = 'nrya-addenda';
+      var adT = document.createElement('div'); adT.className = 'nrya-addenda-t'; adT.textContent = '부칙 보기';
+      var adB = document.createElement('div'); adB.className = 'nrya-addenda-b'; adB.textContent = String(d.addenda);
+      adBox.appendChild(adT); adBox.appendChild(adB); body.appendChild(adBox);
     }
     body.scrollTop = 0;
   }
@@ -2433,8 +2481,10 @@
    * [연계] → POST /api/legal/ask, readNdjsonStream.
    * @param {object} [sendCtx] - 확인 버튼이 들고 있던 ctx(H-37 §3.2). 없으면 pendingCtx → 없으면 미전송.
    * @param {HTMLElement} [failBox] - 그 버튼이 속한 되묻기 묶음(전송 실패 시 다시 누를 수 있게 되돌린다)
+   * @param {boolean} [hideMe] - true면 내 말풍선을 **그리지 않는다**(되묻기 버튼으로 온 요청 전용).
+   *                             서버로 보내는 질의 문자열은 그대로다 — 화면 표시만 생략한다.
    */
-  function doSend(sendCtx, failBox) {
+  function doSend(sendCtx, failBox, hideMe) {
     var body = document.getElementById('nryaChatBody');
     var input = document.getElementById('nryaChatInput');
     if (!body || !input) return;
@@ -2454,11 +2504,21 @@
     pendingCtx = null;
     setChatPlaceholder(false);
 
-    // 내 말풍선
-    var me = document.createElement('div'); me.className = 'nrya-krow nrya-me';
-    me.innerHTML = '<div class="nrya-kbrow"><div class="nrya-kbub"></div></div>';
-    me.querySelector('.nrya-kbub').textContent = q;
-    body.appendChild(me); input.value = ''; body.scrollTop = body.scrollHeight;
+    // 내 말풍선. ★되묻기 선택지로 보낸 요청(hideMe)은 **그리지 않는다** — 라운드마다
+    //   "원래질문 — 라벨1 — 라벨2"가 통째로 다시 뜨면서 화면에 누적되기 때문이다(사용자 확정).
+    //   ⚠함정: 화면에만 안 그리는 것이고 **서버로 가는 q 는 그대로 누적된 문자열**이다 — 서버는
+    //     그 문자열의 결합자(' — ') 개수로 되묻기 라운드 수를 세어 무한루프를 막는다
+    //     (_CHATBOT.md 1-B). 여기서 q 를 짧게 만들면 그 방어가 통째로 깨진다.
+    //     같은 이유로 pushHistory·feedbackHTML 의 data-q 에도 누적 문자열을 그대로 남긴다
+    //     (나중에 "어떤 조건에서 나온 답인지" 재현해야 하므로).
+    //   "전송됐다"는 신호는 바로 아래 생각중(스켈레톤) 말풍선이 대신한다.
+    if (!hideMe) {
+      var me = document.createElement('div'); me.className = 'nrya-krow nrya-me';
+      me.innerHTML = '<div class="nrya-kbrow"><div class="nrya-kbub"></div></div>';
+      me.querySelector('.nrya-kbub').textContent = q;
+      body.appendChild(me);
+    }
+    input.value = ''; body.scrollTop = body.scrollHeight;
 
     // 생각중(스켈레톤 + 상태 텍스트)
     var th = document.createElement('div'); th.className = 'nrya-krow nrya-ai';
@@ -2536,13 +2596,118 @@
       });
   }
 
+  // 답변 본문에서 눌러볼 인용을 찾는 표현. 네 갈래를 한 번에 훑는다.
+  //   ①「법령명」 — 뒤따르는 조문·별표가 "어느 법인지"를 정하는 표시(글자는 그대로 둔다)
+  //   ②별표·별지 서식  ③조문(제N조[제N항][제N호])  ④문장 끝(여기서 ①의 법 맥락을 버린다)
+  // ⚠ ②를 ③보다 먼저 둔다 — `별지 제1호 서식`의 `제1호`가 조문 갈래로 먼저 걸리면 안 된다.
+  var NRYA_CITE_RE = /「([^」\n]{2,60})」|(별표\s*제?\s*\d+(?:의\s*\d+)?|별지\s*제\s*\d+\s*호(?:\s*서식)?)|(제\s*\d+\s*조(?:의\s*\d+)?(?:\s*제\s*\d+\s*항)?(?:\s*제\s*\d+\s*호(?:의\s*\d+)?)?)|([.。!?\n])/g;
+
+  /**
+   * 약칭표를 서버에서 한 번만 받아 캐시한다(매 답변마다 부르지 않는다 — 계약4).
+   * 실패해도 빈 표로 확정한다: 링크가 덜 걸릴 뿐, 엉뚱한 법을 열지는 않는다.
+   * [연계] ← openChat. → GET /api/legal/aliases. 사용처는 resolveCiteLaw.
+   */
+  function ensureAliases() {
+    if (aliasMap) return;
+    aliasMap = {};                       // 재요청 방지(실패해도 다시 부르지 않는다)
+    legalGet('/api/legal/aliases')
+      .then(function (r) { return r.json(); })
+      .catch(function () { return null; })
+      .then(function (d) { if (d && d.ok && d.map && typeof d.map === 'object') aliasMap = d.map; })
+      .catch(function () { /* 캐시가 비어 있어도 대화는 그대로 돌아간다 */ });
+  }
+
+  /**
+   * 이 답변의 근거 체인(citationChain)에 실린 법령명을 "이름 → 팝업 열쇠" 표로 만든다.
+   * 예: buildCiteIndex([{law:'어선법 시행령',tier:'decree',baseLaw:'어선법'}])
+   *     → {'어선법 시행령': {law:'어선법 시행령', tier:'decree', base:'어선법'}}
+   * ⚠같은 법령명인데 tier·baseLaw 가 서로 다른 줄이 섞여 있으면 어느 원문을 열지 우리가 단정할 수
+   *   없다 → `ambiguous` 로 표시해 **링크하지 않는다**(엉뚱한 원문을 여는 것이 훨씬 나쁘다).
+   * @param {Array} chain - data.citationChain
+   * @returns {object} 법령명 → {law,tier,base,ambiguous?}
+   * [연계] ← answerBodyHTML. → resolveCiteLaw.
+   */
+  function buildCiteIndex(chain) {
+    var idx = {};
+    (chain || []).forEach(function (row) {
+      var nm = String((row && row.law) || '').trim(); if (!nm) return;
+      var tier = String((row && row.tier) || 'law');
+      var base = String((row && row.baseLaw) || '');
+      var hit = idx[nm];
+      if (!hit) { idx[nm] = { law: nm, tier: tier, base: base }; return; }
+      if (hit.tier !== tier || hit.base !== base) hit.ambiguous = true;
+    });
+    return idx;
+  }
+
+  /**
+   * 「」 안에 적힌 이름이 이 답변의 근거 체인 중 어느 법인지 가린다(환각 0 — 확신 없으면 null).
+   * ①문자 그대로 일치 → 그 줄의 tier·baseLaw 를 그대로 쓴다(계약4 1단계)
+   * ②약칭표로 정식명으로 바꿔 다시 대조(계약4 2단계)
+   * ③`「약칭 시행령」`처럼 하위법령 꼬리가 붙은 표기는 꼬리를 떼고 약칭만 바꿔 다시 대조
+   * 그래도 못 찾거나 후보가 갈리면 null → 호출자가 링크를 걸지 않는다.
+   * 예: resolveCiteLaw('어선안전조업법', idx) → {law:'어선안전조업 및 … 법률', tier:'law', base:''}
+   * @param {string} name - 「」 안의 이름 @param {object} idx - buildCiteIndex 결과
+   * @returns {{law:string,tier:string,base:string}|null}
+   * [연계] ← citeHTML.
+   */
+  function resolveCiteLaw(name, idx) {
+    var nm = String(name || '').trim(); if (!nm) return null;
+    var hit = idx[nm];
+    if (!hit && aliasMap) {
+      var full = aliasMap[nm];
+      if (full) hit = idx[full];
+      if (!hit) {
+        var m = /^(.+?)\s*(시행령|시행규칙)$/.exec(nm);
+        if (m && aliasMap[m[1]]) hit = idx[aliasMap[m[1]] + ' ' + m[2]];
+      }
+    }
+    return (hit && !hit.ambiguous) ? hit : null;
+  }
+
+  /**
+   * 답변 본문 글자 안의 조문·별표 인용을 **그 글자 자체가 눌리는 자리**로 바꾼 HTML을 만든다.
+   * 예: citeHTML('「어선법」 제58조제5항제7호에 따라', idx)
+   *     → '「어선법」 <span class="nrya-cite" data-article="제58조제5항제7호" …>제58조제5항제7호</span>에 따라'
+   * ★환각 0: 어느 법인지 **확신이 설 때만** 링크한다 — 못 가리면 그냥 글자로 둔다.
+   *   그래서 문장이 끝나면(마침표·물음표·줄바꿈) 앞 문장의 법 맥락을 버린다 — 다음 문장의 조문을
+   *   앞 문장의 법으로 열어 보여주는 것이 링크를 안 거는 것보다 훨씬 나쁘기 때문이다.
+   * ★팝업에 넘기는 조문 표기는 **본문에 적힌 그대로**여야 한다(그래야 서버가 그 항·호만 짚어준다).
+   * 글자는 전부 esc() 로 넣는다 — 이 파일의 문자열 조립 규약(HTML 주입 없음).
+   * @param {string} s - 답변 원문 @param {object} idx - buildCiteIndex 결과
+   * @returns {string} 이스케이프된 HTML
+   * [연계] ← answerBodyHTML. → bindChat 의 위임 클릭 → openArtPop(근거 카드와 같은 팝업).
+   */
+  function citeHTML(s, idx) {
+    var out = '', last = 0, cur = null, m;
+    NRYA_CITE_RE.lastIndex = 0;
+    while ((m = NRYA_CITE_RE.exec(s))) {
+      if (m[1] != null) { cur = resolveCiteLaw(m[1], idx); continue; }   // ①법령명(글자는 그대로)
+      if (m[4] != null) { cur = null; continue; }                        // ④문장 끝 → 법 맥락 버림
+      if (!cur) continue;                                                // 어느 법인지 모르면 링크 안 함
+      var txt = (m[2] != null) ? m[2] : m[3];
+      out += esc(s.slice(last, m.index)) +
+        '<span class="nrya-cite" data-law="' + esc(cur.law) + '" data-article="' + esc(txt) +
+        '" data-tier="' + esc(cur.tier) + '" data-base="' + esc(cur.base) + '">' + esc(txt) + '</span>';
+      last = m.index + m[0].length;
+    }
+    return out + esc(s.slice(last));
+  }
+
   /**
    * 답변 본문(AI 합성 텍스트)을 안전하게 HTML로 변환한다. **굵게**만 허용하고 나머지는 이스케이프.
+   * 근거 체인이 함께 주어지면(최종 렌더) 본문의 조문·별표 인용을 눌러볼 수 있는 자리로 바꾼다 —
+   * 스트리밍 중(체인 없음)에는 예전 그대로 글자만 그린다(어느 법인지 아직 알 수 없으므로).
+   * ⚠**굵게·줄바꿈 치환은 인용 span 을 만든 뒤에** 건다 — 순서를 바꾸면 span 태그 안쪽이 치환 대상이
+   *   된다. span 태그에는 `**` 도 줄바꿈도 없으므로 이 순서에서는 서로 간섭하지 않는다.
    * @param {string} text - Gemini가 만든 답변 원문
-   * @returns {string} 이스케이프된 HTML(굵게·줄바꿈만 적용)
+   * @param {Array} [chain] - data.citationChain(있을 때만 인용을 링크한다)
+   * @returns {string} 이스케이프된 HTML(굵게·줄바꿈·인용 링크만 적용)
    */
-  function answerBodyHTML(text) {
-    return esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+  function answerBodyHTML(text, chain) {
+    var s = String(text == null ? '' : text);
+    var html = (chain && chain.length) ? citeHTML(s, buildCiteIndex(chain)) : esc(s);
+    return html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
   }
 
   /**
@@ -2598,18 +2763,34 @@
       : (row.gist ? '<div class="nrya-chain-quote"><div class="nrya-chain-hang">' + esc(row.gist) + '</div></div>' : '');
     var tel = '';
     if (row.contact && row.contact.전화번호) {
-      var who = row.contact.소관부처명
-        ? esc(row.contact.소관부처명) + (row.contact.부서명 ? '(' + esc(row.contact.부서명) + ')' : '')
-        : esc(row.contact.부서명 || '');
-      var dial = String(row.contact.전화번호).split(',')[0].replace(/[^0-9+]/g, '');
-      tel = '<div class="nrya-chain-tel">☎ ' + who + ' · <a href="tel:' + esc(dial) + '">' + esc(String(row.contact.전화번호).split(',')[0].trim()) + '</a></div>';
+      // 부처명 → 부서명(괄호) → 전화번호를 **각각 한 줄씩** 쌓는다(사용자 확정) — 한 줄로 이으면
+      // `해양수산부(어선안전정책과-어선 안전) · 051-773-5523` 처럼 길어져 좁은 말풍선에서 잘린다.
+      var who = '';
+      if (row.contact.소관부처명) {
+        who = '<span>' + esc(row.contact.소관부처명) + '</span>' +
+          (row.contact.부서명 ? '<span>(' + esc(row.contact.부서명) + ')</span>' : '');
+      } else if (row.contact.부서명) {
+        who = '<span>' + esc(row.contact.부서명) + '</span>';
+      }
+      var raw = String(row.contact.전화번호).split(',')[0].trim();
+      var dial = raw.replace(/[^0-9+]/g, '');
+      // 번호도 **지역번호 뒤에서 한 번 더** 줄을 바꿔 보여준다(사용자 확정).
+      // ⚠걸리는 번호(href="tel:")는 통번호 그대로다 — 나누는 건 화면 표시뿐이다.
+      var cut = /^([^-]+-)([\s\S]+)$/.exec(raw);
+      var num = cut
+        ? '<span class="nrya-tel-part">' + esc(cut[1]) + '</span><span class="nrya-tel-part">' + esc(cut[2]) + '</span>'
+        : '<span class="nrya-tel-part">' + esc(raw) + '</span>';
+      tel = '<div class="nrya-chain-tel"><span class="nrya-chain-tel-ic">☎</span>' +
+        '<span class="nrya-chain-tel-b">' + who + '<a href="tel:' + esc(dial) + '">' + num + '</a></span></div>';
     } else {
       tel = '<div class="nrya-chain-tel nrya-unknown">☎ 확인되지 않음</div>';
     }
     // 클릭 영역이 서버에 그대로 넘길 값들(조문 원문 조회 키). data-pen 은 강조색만 벌칙색으로 바꾸는 표시.
     // data-gist 는 범위·전체 인용 팝업에서 "이 인용의 요지" 캡션으로 그대로 다시 쓴다
     // (조 하나를 못 짚어 강조를 할 수 없는 대신 방향을 잡아주는 문구 — 가공 없이 원문 그대로).
-    var hitAttrs = ' data-law="' + esc(row.law || '') + '" data-article="' + esc(row.article || '') +
+    // [계약1] `citedArticle` = 답변 문장이 이 줄을 인용할 때 실제로 쓴 표기 전체(`제58조제5항제7호`).
+    //   비어 있지 않으면 그걸 보내야 팝업이 그 항·호만 짚어준다(없으면 예전처럼 위키 표의 조문 칸).
+    var hitAttrs = ' data-law="' + esc(row.law || '') + '" data-article="' + esc(row.citedArticle || row.article || '') +
       '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(row.baseLaw || '') +
       '" data-gist="' + esc(row.gist || '') + '"' +
       (penalty ? ' data-pen="1"' : '');
@@ -2701,7 +2882,11 @@
       // [H-37 §3.2] 서버가 선택지에 `ctx`를 실어 보내면(이해확인·상황질문·프로필확인) 그 버튼은
       //   **질의에 라벨을 붙이지 않고** 이 ctx 만 되돌려 보낸다 — 질의 문자열을 오염시키지 않는
       //   것이 이 설계의 핵심이다(설계 §3.1 D안). `act="ask"`면 보내지 않고 입력창으로 안내한다.
-      return '<button type="button" class="nrya-consent-btn nrya-clarify-btn" data-label="' + esc(o.label) + '"' +
+      // [계약5] 선택지 맨 끝의 "잘 모르겠어요"(act:'unknown')는 조건을 고른 게 아니라 **모른다는 답**
+      //   이라, 다른 선택지와 눈에 띄게 구분되도록 연한 점선 테두리로 그린다. 전송 경로는 다른 ctx
+      //   버튼과 완전히 같다(pickClarifyOption 의 data-ctx 갈래 — 새 경로를 만들지 않는다).
+      var cls = 'nrya-consent-btn nrya-clarify-btn' + (o.act === 'unknown' ? ' nrya-clarify-unknown' : '');
+      return '<button type="button" class="' + cls + '" data-label="' + esc(o.label) + '"' +
         (o.ctx ? ' data-ctx="' + esc(JSON.stringify(o.ctx)) + '"' : '') +
         (o.act ? ' data-act="' + esc(o.act) + '"' : '') +
         (o.hint ? ' title="' + esc(o.hint) + '"' : '') + '>' + esc(o.label) + '</button>';
@@ -2714,9 +2899,11 @@
   /**
    * 되묻기 선택지 버튼을 눌렀을 때: 원래 질문 + 고른 선택지를 한 문장으로 합쳐 새 질의로 보낸다.
    * 예: "낚싯배 위에서 술 마시면 처벌?" + "조타 담당" → "낚싯배 위에서 술 마시면 처벌? — 조타 담당"
-   * 전송은 입력창에 넣고 기존 doSend()를 그대로 부른다(새 전송 경로를 만들지 않는다) — 합친
-   * 문장이 내 말풍선으로 그대로 보이므로 사용자가 무엇을 골랐는지도 화면에 남는다.
-   * 한 번 고르면 그 선택지 묶음은 비활성(nrya-done)이라 다시 눌러 중복 전송되지 않는다.
+   * 전송은 입력창에 넣고 기존 doSend()를 그대로 부른다(새 전송 경로를 만들지 않는다).
+   * 한 번 고르면 그 선택지 묶음은 비활성(nrya-done)이라 다시 눌러 중복 전송되지 않고, **누른 버튼만**
+   * 앱 강조색으로 남는다(nrya-picked) — 이 카드가 화면에 계속 남아 "무엇 중에 무엇을 골랐는지"를
+   * 보여주는 것이 사용자가 원한 동작이다. 합친 문장을 내 말풍선으로 다시 띄우지는 않는다(doSend
+   * 세 번째 인자 hideMe) — 라운드마다 누적된 긴 문장이 그대로 뜨면 화면이 지저분해지기 때문이다.
    * @param {HTMLElement} btn - 눌린 .nrya-clarify-btn
    * [연계] ← bindChat 의 위임 클릭. → doSend(기존 질문 전송 로직 재사용).
    */
@@ -2724,6 +2911,7 @@
     var box = btn.closest('.nrya-clarify');
     if (!box || box.classList.contains('nrya-done')) return;
     box.classList.add('nrya-done');
+    btn.classList.add('nrya-picked');   // 고른 버튼 표시(안 고른 버튼은 흐리게 남는다 — CSS)
     var input = document.getElementById('nryaChatInput'); if (!input) return;
     var q = box.getAttribute('data-q') || '';
     var label = btn.getAttribute('data-label') || btn.textContent || '';
@@ -2745,14 +2933,14 @@
       // [2026-08-14 F2] 버튼이 든 ctx 는 **직전 맥락 위에 축 단위로** 얹는다 — 한 축의 버튼을
       //   눌렀다고 다른 축의 결정(프로필 확인·상황질문)이 지워지면 안 된다(설계 §7.4 축 단위 원칙).
       input.value = q;
-      doSend(mergeCtx(lastCtx, ctx), box);
+      doSend(mergeCtx(lastCtx, ctx), box, true);
       return;
     }
     // [2026-08-14 F2] ctx 없는 선택지(기존 되묻기·트리 되묻기)라도 **직전까지 확정된 맥락은 이어
     //   보낸다.** 예전엔 여기서 doSend(null, …)이라 프로필로 확정한 축이 통째로 사라져 서버가 같은
     //   축을 다시 묻는 무한루프가 됐다(적대검증 재현: 프로필확인 "네" → 트리 답변의 ctx 없는 버튼).
     input.value = q ? q + ' — ' + label : label;
-    doSend(lastCtx, box);
+    doSend(lastCtx, box, true);
   }
 
   /**
@@ -2793,8 +2981,11 @@
         '<div class="nrya-disc">일시적 오류일 수 있습니다. 문제가 계속되면 관리자에게 문의하세요.</div>';
     }
     var sources = data.sources || [];
+    // 근거 체인은 본문보다 먼저 꺼낸다 — 본문의 조문·별표 인용을 눌러볼 자리로 바꿀 때
+    // "어느 법인지"를 이 체인으로만 가리기 때문이다(answerBodyHTML → citeHTML).
+    var chain = data.citationChain || [];
     var lead = data.answer
-      ? answerBodyHTML(data.answer)
+      ? answerBodyHTML(data.answer, chain)
       : (data.clarify
         ? '조건에 따라 답이 달라져서, 하나만 여쭤볼게요.'   // 되묻기인데 서버 안내문이 비었을 때의 최소 문구
         : (sources.length
@@ -2813,7 +3004,6 @@
     // ⚠나머지 소스를 "법령명 · 주제"만 적은 카드로 나열하던 부분은 뺐다 — 조문도 요지도 없어
     //   ("음주운항_측정거부" 같은 이름 한 줄) 답변 본문과 위 체인이 이미 말한 것 이상을 주지 못하는데,
     //   근거 건수만 부풀려 보이게 했다(라이브 실측 지적).
-    var chain = data.citationChain || [];
     // 건수는 체인에 실제로 남은 **법령 가짓수**(같은 법의 여러 조문은 한 건)로 센다.
     var lawNames = [];
     chain.forEach(function (row) {
@@ -2830,7 +3020,14 @@
     // "관할 지자체에 확인하세요"가 펼치기 전엔 안 보인다(그게 이번에 고친 문제 자체다).
     html += gapNoticesHTML(sources);
 
-    html += '<div class="nrya-disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요.' + (data.note ? ' · ' + esc(data.note) : '') + '</div>';
+    // 면책("참고용입니다…")은 **최종 답변에만** 붙인다(사용자 확정) — 되묻기 응답은 아직 답이 아니라
+    // 되묻는 질문이라, 확인할 "답"이 없는데 공식 출처 확인을 권하면 말이 안 맞는다.
+    // 되묻기에서는 서버 안내문(data.note — "추가 정보가 필요해요")만 남긴다.
+    if (data.clarify) {
+      if (data.note) html += '<div class="nrya-disc">' + esc(data.note) + '</div>';
+    } else {
+      html += '<div class="nrya-disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요.' + (data.note ? ' · ' + esc(data.note) : '') + '</div>';
+    }
     // 되묻기 응답엔 아직 "최종 답변"이 없어 만족도를 물을 대상이 없다 — 진짜 답변에만 붙인다.
     if (!data.clarify && data.answer) html += feedbackHTML(q, data.answer);
     return html;
