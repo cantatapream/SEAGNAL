@@ -346,7 +346,9 @@
 #nrya-overlays .nrya-chain-tel{display:flex; align-items:flex-start; gap:5px; margin-top:6px; font-size:10px; color:#7c9089}
 #nrya-overlays .nrya-chain-tel.nrya-unknown{color:#6b7a75; font-style:italic}
 #nrya-overlays .nrya-chain-tel-ic{flex:none}
-#nrya-overlays .nrya-chain-tel-b{display:flex; flex-direction:column; min-width:0; word-break:break-word; line-height:1.5}
+#nrya-overlays .nrya-chain-tel-b{display:flex; flex-direction:column; min-width:0; flex:1 1 auto; word-break:break-word; line-height:1.5}
+/* 번호는 부서 오른쪽에 붙여 두 줄로 — 부서(2줄) | 번호(2줄) 나란히(2026-08-17 실기기 피드백) */
+#nrya-overlays .nrya-chain-tel-n{display:flex; flex-direction:column; flex:none; margin-left:auto; text-align:right; line-height:1.5}
 #nrya-overlays .nrya-chain-tel a{color:inherit; font-weight:inherit; text-decoration:underline; text-decoration-color:currentColor}
 #nrya-overlays .nrya-chain-tel a .nrya-tel-part{display:block}
 /* 뱃지 줄: [뱃지] 법령명 조문번호 + 시행일자 칩(항상 보임 — 예전엔 꾹 눌러야 뜨는 말풍선이었다).

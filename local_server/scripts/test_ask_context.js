@@ -763,6 +763,23 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
         R.filterCitationChainByAnswer([rows[0]], '시행규칙 제20조에 따라', FORMAL).length === 0);
     }
 
+    // (12) 2026-08-17 실기기 실측 — 말만 바꾼 같은 축 재질문이 세 번 반복되던 것
+    {
+      const prev = { q: '어떤 종류의 어선에서 음주운항을 하셨나요?', labels: ['낚시어선', '일반 어선', '잘 모르겠어요'] };
+      const again = [{ label: '낚시어선업 신고 어선' }, { label: '일반 어선 (낚시어선업 신고 제외)' },
+        { label: '잘 모르겠어요', act: 'unknown' }];
+      ok('표현만 바꾼 같은 축 재질문은 버린다', R.sameClarifyAsLast('어떤 종류의 어선인지 알려주세요.', again, prev) === true);
+      const again2 = [{ label: '낚시어선업 신고를 한 낚시어선' }, { label: '그 외 일반 어선' },
+        { label: '잘 모르겠어요', act: 'unknown' }];
+      ok('세 번째 변형도 버린다', R.sameClarifyAsLast('어떤 종류의 선박에서 음주운항을 하셨나요?', again2, prev) === true);
+      // ⚠정상적인 좁히기는 죽이지 않는다: 상위 라벨(`어선`)은 2글자라 대조에서 빠진다
+      const narrowOk = { q: '어떤 배에서 술을 마셨나요?', labels: ['어선', '수상레저기구', '그 외 선박'] };
+      ok('상위 갈래 → 하위 갈래 좁히기는 그대로 진행한다',
+        R.sameClarifyAsLast('어떤 종류의 어선인가요?', [{ label: '낚시어선' }, { label: '일반 어선' }], narrowOk) === false);
+      ok('직전 되묻기가 없으면 아무것도 막지 않는다(R0)',
+        R.sameClarifyAsLast('어떤 배인가요?', [{ label: '어선' }, { label: '레저기구' }], null) === false);
+    }
+
     // (8) 계약2·3 — 라우트는 조문 표기를 깎지 않고, 응답도 통째로 통과시킨다
     ok('약칭표 엔드포인트가 있다', /router\.get\('\/api\/legal\/aliases'/.test(ROUTES_SRC));
     ok('article 파라미터를 그대로 넘긴다(항·호를 잘라내지 않는다)',

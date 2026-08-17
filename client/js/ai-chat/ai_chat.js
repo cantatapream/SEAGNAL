@@ -2780,8 +2780,11 @@
       var num = cut
         ? '<span class="nrya-tel-part">' + esc(cut[1]) + '</span><span class="nrya-tel-part">' + esc(cut[2]) + '</span>'
         : '<span class="nrya-tel-part">' + esc(raw) + '</span>';
+      // [2026-08-17 실기기 피드백] 부서와 번호를 한 줄기로 쌓으니 네 줄이 되어 카드가 길어졌다.
+      //   사용자 요구는 **왼쪽에 부서(2줄) · 오른쪽에 번호(2줄)** 로 나란히 두는 것이다.
       tel = '<div class="nrya-chain-tel"><span class="nrya-chain-tel-ic">☎</span>' +
-        '<span class="nrya-chain-tel-b">' + who + '<a href="tel:' + esc(dial) + '">' + num + '</a></span></div>';
+        '<span class="nrya-chain-tel-b">' + who + '</span>' +
+        '<a class="nrya-chain-tel-n" href="tel:' + esc(dial) + '">' + num + '</a></div>';
     } else {
       tel = '<div class="nrya-chain-tel nrya-unknown">☎ 확인되지 않음</div>';
     }
@@ -3012,7 +3015,12 @@
     });
     var shown = lawNames.length;
     if (shown) {
-      html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 근거 법령 ' + shown + '건 (펼쳐서 보기)</div><div class="nrya-lawacc-b">';
+      // [2026-08-17 실기기 피드백] 예전엔 **법 가짓수**만 세어 "근거 법령 1건"이라고 적었는데,
+      //   펼치면 조문 카드가 3장 나와 숫자와 화면이 어긋나 보였다. 사용자가 세는 것은 카드 수다
+      //   → 조문 카드 수를 적고, 법이 둘 이상일 때만 법 가짓수를 함께 밝힌다.
+      var cardCount = chain.length;
+      var accLabel = '근거 법령 ' + cardCount + '건' + (shown > 1 ? ' · ' + shown + '개 법' : '');
+      html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 ' + accLabel + ' (펼쳐서 보기)</div><div class="nrya-lawacc-b">';
       html += chainHTML(chain);
       html += '</div></div>';
     }

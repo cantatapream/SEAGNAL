@@ -805,7 +805,21 @@ function sameClarifyAsLast(question, options, prev) {
   if (clarifyKey(question) && clarifyKey(question) === clarifyKey(prev.q)) return true;
   const now = (options || []).map(o => clarifyKey(o && o.label)).filter(Boolean).sort();
   const was = (prev.labels || []).map(clarifyKey).filter(Boolean).sort();
-  return now.length >= 2 && now.length === was.length && now.every((v, i) => v === was[i]);
+  if (now.length >= 2 && now.length === was.length && now.every((v, i) => v === was[i])) return true;
+  // ★말만 바꾼 같은 축 재질문 차단(2026-08-17 라이브 실측): 완전일치만 보던 위 두 검사는
+  //   같은 갈림을 표현만 바꿔 세 번 물어도 뚫렸다 —
+  //     1라운드 "어떤 종류의 어선에서…" [낚시어선 / 일반 어선]
+  //     2라운드 "어떤 종류의 어선인지…"  [낚시어선업 신고 어선 / 일반 어선 (낚시어선업 신고 제외)]
+  //     3라운드 "어떤 종류의 선박에서…"  [낚시어선업 신고를 한 낚시어선 / 그 외 일반 어선]
+  //   질문 문장도 라벨도 매번 달라 아무것도 안 걸린다. 그래서 **선택지 집합끼리 포함관계**로 본다:
+  //   이번 선택지가 **하나도 빠짐없이** 직전 선택지 중 하나를 품거나 그 안에 품히면 같은 축이다.
+  //   ⚠ 3글자 미만 라벨(`어선`)은 대조에서 뺀다 — 두 글자짜리 상위 낱말은 하위 갈림
+  //     (`어선` → `낚시어선`/`일반 어선`)에도 늘 들어 있어, 정상적인 좁히기를 죽인다.
+  //   ⚠ "잘 모르겠어요"(act:'unknown')는 매 라운드 붙는 고정 선택지라 대조에서 뺀다.
+  const real = (options || []).filter(o => o && o.act !== 'unknown').map(o => clarifyKey(o.label)).filter(Boolean);
+  const prevKeys = (prev.labels || []).map(clarifyKey).filter(k => k && k.length >= 3);
+  if (real.length < 2 || !prevKeys.length) return false;
+  return real.every(k => prevKeys.some(p => (k.length >= 3 && (k.includes(p) || p.includes(k)))));
 }
 
 // ── "잘 모르겠어요" 선택지(B7, 계약5) ──────────────────────────────────────
@@ -932,6 +946,7 @@ ${block}
 3. ★질문 문구에 이미 그 조건이 적혀 있으면 그 조건을 다시 묻지 마라. 예: "낚싯배 위에서 술 마시면 처벌? — 바다에서 운항 중, 조타 담당자 기준"처럼 조건이 이미 붙어 있으면 needed:false.
 4. 조금이라도 애매하면 needed:false로 물러나라(되묻지 않고 답해도 되는 질문을 굳이 되묻지 않는다).
 5. 되물을 조건은 **한 가지만** 고른다(답이 가장 크게 갈리는 것). 선택지는 근거자료에 실제로 적힌 구분만큼 **필요한 만큼만** 만들어라 — 최대 10개까지 낼 수 있지만, 개수를 채우려고 근거 없는 선택지를 보태지 마라(대개 2~3개면 충분하다).
+6. ★**근거자료에 서로 다른 법이 서로 다른 "행위·신분"을 규율하고 있으면, 배의 종류·톤수보다 그 갈림을 먼저 물어라.** 적용 법률 자체가 갈리는 지점이라 답이 가장 크게 달라진다. 예: 같은 "배에서 술" 질문이라도 근거자료가 ①「해상교통안전법」의 *조타기를 조작하거나 그 조작을 지시하는 자*(음주운항)와 ②「어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률」·그 고시의 *어로작업 및 당직근무 중인 어선원*을 함께 담고 있으면, "조타를 맡으셨나요, 어로작업·당직근무 중이셨나요"를 먼저 묻는다(톤수·선박 종류는 그 다음이다). 근거자료에 한쪽 축만 있으면 이 기준은 적용하지 않는다(없는 구분을 지어내지 마라).
 
 다른 설명 없이 아래 JSON만 출력하라.
 {"needed":true,"intro":"…","question":"…","options":[{"label":"…","hint":"…"}]}
@@ -3605,4 +3620,4 @@ module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAns
   // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
   naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT,
   // 2026-08-17: 인용사슬 묶음표기 풀기(B1·B2) · "잘 모르겠어요"(B7) · 약칭표(B8, 계약4)
-  expandJoEnum, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows };
+  expandJoEnum, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast };
