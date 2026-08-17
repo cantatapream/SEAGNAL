@@ -1599,6 +1599,182 @@ function groupCitationChainByFlow(chain, answerText) {
   return out;
 }
 
+// ── 답변 인용 기반 근거 카드 폴백 — B11(2026-08-17 실기기 실측) ──────────────────
+// 화면의 근거 목록은 위키 페이지의 `## 근거 조문` 표에서**만** 만들어진다. 그래서 그 표가 없는
+// 페이지가 최상위 근거가 되면 **근거 아코디언이 통째로 사라지고**, 연쇄로 본문 조문 팝업(링크를
+// 근거 줄의 법 정보로 건다)·시행일자 표기까지 함께 사라진다.
+//   실측(2026-08-17, 사용자 실기기): "풍랑주의보여도 도선이 운항 가능한 조건" 질문에 답변은
+//   「유선 및 도선 사업법 시행규칙」 제7조·별표1, 같은 법 시행령 제9조제1항·별표2를 정확히
+//   인용했는데, 최상위 근거가 `wiki/statutes/유선및도선사업법.md`였고 **statutes 74개 파일 전부에
+//   `## 근거 조문` 표가 없어** 근거가 0줄이 됐다.
+// 아래 두 함수는 그 구멍을 **데이터가 아니라 코드로** 막는다 — 답변 문장이 법령명과 함께 밝힌
+// 조문을 뽑아, 라우터가 원문(article_text.loadArticle)으로 **실재를 확인한 것만** 카드로 보탠다.
+// ★환각 0: 여기서는 카드를 만들지 않는다 — "답변에 이런 표기가 있다"는 후보만 돌려준다. 원문
+//   확인은 routes/legal.js synthesizeChainRows 가 하고, 확인에 실패하면 카드 자체가 안 생긴다.
+//   (지어낸 근거가 화면에 뜨는 것이 근거가 안 뜨는 것보다 훨씬 나쁘다.)
+
+// 답변 본문의 법령명 표기(`「어선법 시행규칙」`). 답변 원칙 7이 "법령명은 정식 명칭 그대로"를
+// 지시하고 화면의 본문 조문 링크(B9)도 이 표기를 기준으로 법을 특정한다 — 같은 표기만 본다.
+const ANSWER_LAW_RE = /[「『]([^」』\n]{2,60})[」』]/g;
+// 그 법령명 **바로 뒤에** 이어 붙은 조문·별표 표기. 앞의 이음말(및·와·과·가운뎃점·쉼표)까지만
+// 건너뛰고, 다른 글자가 하나라도 끼면 멈춘다 — "「A법」에 따라 … 제3조" 처럼 떨어져 있는 조문은
+// 그 법의 것이라고 단정할 수 없으므로 아예 뽑지 않는다(느슨하게 잡느니 놓친다).
+// ★sticky(y) — 자르지 않고 위치만 옮겨 대조한다(슬라이스로 자르면 `제58조 제5항 제7호`가 중간에서
+//   끊겨 항·호를 잃는다).
+const ANSWER_CITE_RE = /\s*(?:및|와|과|[·ㆍ・,])?\s*(제\s*\d+\s*조(?:\s*의\s*\d+)?(?:\s*(?:제\s*\d+\s*항|[①-⑳]))?(?:\s*제\s*\d+\s*호(?:\s*의\s*\d+)?)?|별표\s*\d+(?:\s*의\s*\d+)?)/y;
+// 한 법령명 뒤에 이어 읽는 표기 수 상한(`제7조·별표1·별표2·…`가 끝없이 이어지는 것 방지).
+const ANSWER_CITE_MAX_PER_LAW = 4;
+// 보탤 후보 상한(원문 조회 1건 = GitHub 파일 읽기 1회 — 답변 대기시간이 늘지 않게 좁게 잡는다).
+const SYNTH_CANDIDATE_MAX = 6;
+
+/**
+ * 인용사슬 줄과 답변 인용의 법 이름을 **같은 잣대의 열쇠**로 만든다.
+ * ①법령 칸이 계층 낱말뿐이면(`시행규칙`) 그 줄이 실린 페이지의 법(baseLaw)으로 펴고 ②약칭이면
+ * 정식명으로 바꾼 뒤(loadLawAliases — 모호한 약칭은 표에서 이미 빠져 있다) ③낫표·공백·가운뎃점을
+ * 지운다. `시행령`·`시행규칙` 꼬리는 **남긴다** — 지우면 법률과 시행령이 같은 열쇠가 돼
+ * "이미 있는 근거"로 잘못 판정된다.
+ * 예: lawKeyOf('시행규칙', '어선법') → '어선법시행규칙'
+ *     lawKeyOf('「유선 및 도선 사업법 시행규칙」') → '유선및도선사업법시행규칙'
+ * @param {string} law - 근거 조문 표의 법령 칸 또는 답변이 쓴 법령명
+ * @param {string} [baseLaw] - 그 줄이 실려 있던 위키 페이지의 법
+ * @returns {string} 판정할 수 없으면 ''
+ * [연계] ← missingAnswerCitations(위키 줄과 답변 인용을 맞대보는 열쇠).
+ */
+function lawKeyOf(law, baseLaw) {
+  let s = String(law || '').replace(/[「」『』]/g, '').trim();
+  if (!s) return '';
+  const bare = /^(시행령|시행규칙)$/.exec(s.replace(/\s+/g, ''));
+  if (bare) {
+    const b = String(baseLaw || '').trim();
+    if (!b) return '';
+    s = b + ' ' + bare[1];
+  }
+  const alias = loadLawAliases().alias;
+  if (alias.has(s)) s = alias.get(s);
+  else {
+    const m = /^(.+?)\s*(시행령|시행규칙)$/.exec(s);
+    if (m && alias.has(m[1])) s = alias.get(m[1]) + ' ' + m[2];
+  }
+  return s.replace(/[\s·ㆍ・,]/g, '');
+}
+
+/**
+ * 답변이 쓴 법령명을 **우리가 원문을 가진 법**으로 특정한다. 약칭이면 정식명으로 바꾸고,
+ * `시행령`·`시행규칙` 꼬리는 그대로 둔 채 모법으로 raw 폴더가 있는지 확인한다.
+ * ★모호하면 버린다: 약칭표에 없고 `law_raw_paths.json`에도 없는 이름은 아무것도 돌려주지 않는다
+ *   (모호한 약칭은 loadLawAliases 가 이미 표에서 빼 둔다 — 같은 약칭이 두 법에 걸리는 경우 등).
+ * ⚠ 고시·훈령(「어선원 안전ㆍ보건 및 재해예방 기준」 등)은 여기서 항상 null 이다 — 행정규칙은
+ *   law_raw_paths.json 에 없고, 어느 법 폴더의 고시인지는 답변 문장만으로 단정할 수 없다.
+ *   위키 표가 있는 경로에서는 종전대로 나오므로 잃는 것은 "표가 없는 페이지의 고시 카드"뿐이다.
+ * 예: resolveAnswerLaw('유선 및 도선 사업법 시행규칙') → {law:'유선 및 도선 사업법 시행규칙', baseLaw:'유선 및 도선 사업법'}
+ *     resolveAnswerLaw('어선안전조업법')  → {law:'<정식명>', baseLaw:'<정식명>'}(약칭표에 있을 때)
+ *     resolveAnswerLaw('없는법')          → null
+ * @param {string} raw - 답변의 「」 안 문자열
+ * @returns {{law:string, baseLaw:string}|null}
+ * [연계] ← extractAnswerCitations. → routes/legal.js 가 그대로 article_text.loadArticle 에 넘긴다.
+ */
+function resolveAnswerLaw(raw) {
+  const name = String(raw || '').trim();
+  if (name.length < 2) return null;
+  const alias = loadLawAliases().alias;
+  let formal = alias.get(name) || '';
+  if (!formal) {
+    const m = /^(.+?)\s*(시행령|시행규칙)$/.exec(name);
+    if (m && alias.has(m[1])) formal = alias.get(m[1]) + ' ' + m[2];
+  }
+  if (!formal) formal = name;
+  const m2 = /^(.+?)\s*(시행령|시행규칙)$/.exec(formal);
+  const base = (m2 ? m2[1] : formal).trim();
+  if (!base || !rawPathOf(base)) return null;   // 우리가 원문을 가진 법이 아니다 — 단정하지 않는다
+  return { law: formal, baseLaw: base };
+}
+
+/**
+ * 답변 문장에서 `「법령명」 제N조…`·`「법령명」 별표N` 인용을 **문자 그대로** 뽑는다.
+ * ★환각 0: 조·항·호를 조립하지 않는다 — 답변에 있는 글자를 그대로 잘라 `article`에 담는다
+ *   (`제58조 제5항 제7호`처럼 띄어쓴 표기도 그 모양 그대로).
+ * 예: extractAnswerCitations('「유선 및 도선 사업법 시행규칙」 제7조 및 별표 1에 따라 …')
+ *     → [{law:'유선 및 도선 사업법 시행규칙', baseLaw:'유선 및 도선 사업법', tier:'rule', article:'제7조'},
+ *        {… article:'별표 1'}]
+ * @param {string} answerText - 답변 전체 문장
+ * @returns {Array<{law:string, baseLaw:string, tier:string, article:string}>} 등장 순서(중복 제거)
+ * [연계] ← missingAnswerCitations. tier 는 classifyTier 재사용(`…기준` 고시 보정 포함).
+ */
+function extractAnswerCitations(answerText) {
+  const text = String(answerText || '');
+  const out = [];
+  const seen = new Set();
+  ANSWER_LAW_RE.lastIndex = 0;
+  let m;
+  while ((m = ANSWER_LAW_RE.exec(text)) !== null) {
+    const law = resolveAnswerLaw(m[1]);
+    if (!law) continue;
+    let pos = m.index + m[0].length;
+    for (let n = 0; n < ANSWER_CITE_MAX_PER_LAW; n++) {
+      ANSWER_CITE_RE.lastIndex = pos;
+      const cm = ANSWER_CITE_RE.exec(text);
+      if (!cm) break;
+      pos = ANSWER_CITE_RE.lastIndex;
+      const article = cm[1].trim();
+      const key = lawKeyOf(law.law) + '|' + article.replace(/\s+/g, '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ law: law.law, baseLaw: law.baseLaw, tier: classifyTier(law.law), article });
+    }
+  }
+  return out;
+}
+
+/**
+ * 인용사슬 줄이 **이미 가리키고 있는** (법, 조/별표)를 열쇠 집합으로 만든다.
+ * 조 단위로 본다 — 위키 줄이 `제9조`이고 답변이 `제9조제1항`이면 같은 조라 이미 있는 근거다.
+ * 묶음(`제52~55·57조`)·범위(`제1~9조`) 표기는 풀어서 그 안의 조를 전부 담는다.
+ * @param {Array} rows - mergeCitationChains 를 지난 줄들(baseLaw 포함)
+ * @returns {Set<string>} `<법열쇠>|제N조` · `<법열쇠>|별표N`
+ * [연계] ← missingAnswerCitations.
+ */
+function chainCoverKeys(rows) {
+  const set = new Set();
+  for (const r of rows || []) {
+    const k = lawKeyOf(r && r.law, r && r.baseLaw);
+    if (!k) continue;
+    const article = String((r && r.article) || '');
+    const both = article + ' ' + String((r && r.citedArticle) || '');
+    const jos = expandJoEnum(article) || [];
+    (both.match(/제\s*\d+\s*조(?:\s*의\s*\d+)?/g) || []).forEach(t => jos.push(t.replace(/\s+/g, '')));
+    const rg = /제\s*(\d+)\s*[~∼～]\s*(\d+)\s*조/.exec(both);
+    if (rg) { for (let n = parseInt(rg[1], 10); n <= parseInt(rg[2], 10); n++) jos.push('제' + n + '조'); }
+    jos.forEach(j => set.add(k + '|' + j));
+    (both.match(/별표\s*\d+(?:\s*의\s*\d+)?/g) || []).forEach(t => set.add(k + '|' + t.replace(/\s+/g, '')));
+  }
+  return set;
+}
+
+/**
+ * 답변이 인용했는데 **인용사슬 목록에는 없는** (법, 조/별표)만 골라낸다(카드로 보탤 후보).
+ * 목록이 비어 있으면(위키에 `## 근거 조문` 표가 없는 페이지가 근거인 경우) 뽑힌 인용이 전부 후보다.
+ * 예: missingAnswerCitations('「유선 및 도선 사업법 시행규칙」 제7조 …', [])
+ *     → [{law:'유선 및 도선 사업법 시행규칙', article:'제7조', tier:'rule', baseLaw:'유선 및 도선 사업법'}]
+ * @param {string} answerText - 답변 전체 문장
+ * @param {Array} rows - mergeCitationChains 를 지난 위키 기반 줄들
+ * @returns {Array} 후보(최대 SYNTH_CANDIDATE_MAX 건, 답변 등장 순서)
+ * [연계] → routes/legal.js synthesizeChainRows(원문 실재 확인 후에야 카드가 된다).
+ */
+function missingAnswerCitations(answerText, rows) {
+  const covered = chainCoverKeys(rows);
+  const out = [];
+  for (const c of extractAnswerCitations(answerText)) {
+    const flat = c.article.replace(/\s+/g, '');
+    const jo = /^제\d+조(?:의\d+)?/.exec(flat);
+    const key = lawKeyOf(c.law) + '|' + (jo ? jo[0] : flat);
+    if (covered.has(key)) continue;
+    covered.add(key);                       // 후보끼리도 같은 조를 두 번 담지 않는다
+    out.push(c);
+    if (out.length >= SYNTH_CANDIDATE_MAX) break;
+  }
+  return out;
+}
+
 /** contextPages를 프롬프트용 [근거자료] 블록 문자열로 직렬화. */
 function buildContextBlock(contextPages) {
   return contextPages.map((cp, i) => {
@@ -3620,4 +3796,6 @@ module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAns
   // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
   naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT,
   // 2026-08-17: 인용사슬 묶음표기 풀기(B1·B2) · "잘 모르겠어요"(B7) · 약칭표(B8, 계약4)
-  expandJoEnum, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast };
+  expandJoEnum, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
+  // 2026-08-17: 답변 인용 기반 근거 카드 폴백(B11 — 위키 `## 근거 조문` 표가 없는 페이지의 구멍 메우기)
+  extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX };

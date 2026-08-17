@@ -809,7 +809,9 @@ function mergeCitationChains(sources) {
  *          ← citedArticle 은 legal_retriever.js filterCitationChainByAnswer 가 채운다(계약1).
  */
 async function attachChainExcerpts(rows) {
-  const targets = (rows || []).slice(0, MAX_EXCERPT_ROWS);
+  // ⚠ 보탠 줄(synthesized — 아래 synthesizeChainRows)은 건너뛴다. 그 줄은 만들어질 때 이미 원문을
+  //   한 번 읽었고(그때 발췌도 붙였다) 여기서 또 읽으면 같은 파일을 두 번 읽어 대기시간만 는다.
+  const targets = (rows || []).filter(r => !(r && r.synthesized)).slice(0, MAX_EXCERPT_ROWS);
   await Promise.allSettled(targets.map(async (row) => {
     // 항·호까지 짚은 표기일 때만 우선한다(같은 조를 가리키는데 더 좁힌 것이라 안전하다).
     const cited = String(row.citedArticle || '');
@@ -826,6 +828,76 @@ async function attachChainExcerpts(rows) {
       console.error('[Legal] 조문 발췌 실패:', row.law, row.article, e && e.message);
     }
   }));
+}
+
+// ── 답변 인용 기반 근거 카드 폴백(B11) ────────────────────────────────────────
+// 화면의 근거 목록은 위키 페이지의 `## 근거 조문` 표에서만 만들어진다 — 그 표가 없는 페이지가
+// 최상위 근거가 되면 **근거 아코디언이 통째로 사라지고**, 본문 조문 팝업(링크를 근거 줄의 법
+// 정보로 건다)·시행일자까지 함께 사라진다(2026-08-17 사용자 실기기 실측: 「유선 및 도선 사업법
+// 시행규칙」 제7조·별표1을 정확히 인용한 답변인데 근거 0줄 — statutes 74개 파일에 그 표가 없다).
+// 위키 데이터가 채워지길 기다리는 것만으로는 같은 사고가 다른 곳에서 또 나므로 코드로 막는다.
+// ★환각 0이 이 폴백의 전제다: 답변에 **문자 그대로 있는 표기**(legal_retriever.extractAnswerCitations)
+//   만 후보로 삼고, 그중 `article_text.loadArticle()`이 **원문에서 실제로 찾아낸 것만** 카드가 된다.
+//   조회 실패(ok:false·토큰 없음·별표 원문 없음)는 카드를 만들지 않는다 — 지어낸 근거가 화면에
+//   뜨는 것이 근거가 안 뜨는 것보다 훨씬 나쁘다.
+const SYNTH_MAX_CONCURRENCY = 4;   // 원문 조회 동시 상한(답변 대기시간이 눈에 띄게 늘지 않게)
+
+/**
+ * 답변이 인용했는데 위키 기반 목록에 없는 조문을 **원문으로 확인해** 근거 카드로 만든다.
+ * 후보는 최대 legal_retriever.SYNTH_CANDIDATE_MAX(6)건, 원문 조회는 동시 SYNTH_MAX_CONCURRENCY(4)건.
+ * ⚠ 카드로 인정하는 조회 결과는 두 가지뿐이다:
+ *   - `single`(조 하나) — 그 조 블록을 원문에서 찾았다는 뜻이다(못 찾으면 loadArticle 이 ok:false).
+ *   - `annex`(별표) — 별표는 못 찾아도 ok:true 가 나오므로 **참조가 하나라도 missing 이면 버린다**.
+ *   `range`·`whole`은 여기서 나올 수 없다(후보 표기가 조 하나 또는 별표 하나뿐이라) — 혹시 나오면
+ *   "어느 조가 근거인지" 단정할 수 없으므로 버린다.
+ * ⚠ `gist`(요지)는 **빈 문자열**이다 — 위키가 사람 손으로 적어둔 요약이 근거지, 우리가 지어낼 것이
+ *   아니다. 대신 원문 발췌(excerpt)를 위키 줄과 같은 방식(pickExcerpt)으로 붙인다.
+ * 예: synthesizeChainRows('「유선 및 도선 사업법 시행규칙」 제7조에 따라 …', [])
+ *     → [{law:'유선 및 도선 사업법 시행규칙', article:'제7조', citedArticle:'제7조', tier:'rule',
+ *         effectiveDate:'2026-…', baseLaw:'유선 및 도선 사업법', contact:{…}, gist:'', synthesized:true}]
+ * @param {string} answerText - 답변 전체 문장
+ * @param {Array} rows - mergeCitationChains 를 지난 위키 기반 줄들
+ * @returns {Promise<Array>} 보탤 카드(하나도 확인 못 하면 [])
+ * [연계] ← POST /api/legal/ask(dropRedundantChainRows·groupCitationChainByFlow 직전).
+ *          → services/article_text.js loadArticle() · legal_retriever.missingAnswerCitations/lookupContact.
+ */
+async function synthesizeChainRows(answerText, rows) {
+  const want = legalRetriever.missingAnswerCitations(answerText, rows);
+  if (!want.length) return [];
+  const out = new Array(want.length).fill(null);
+  let next = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= want.length) return;
+      const c = want[i];
+      try {
+        const res = await articleText.loadArticle({
+          law: c.law, article: c.article, tier: c.tier, baseLaw: c.baseLaw,
+        });
+        if (!res || res.ok !== true) continue;                       // 원문에 없다 — 카드 없음
+        if (res.mode !== 'single' && res.mode !== 'annex') continue;
+        if (res.mode === 'annex') {
+          const refs = Array.isArray(res.refs) ? res.refs : [];
+          if (!refs.length || refs.some(r => r && r.kind === 'missing')) continue;
+        }
+        const row = {
+          law: c.law, article: c.article, citedArticle: c.article, tier: c.tier,
+          effectiveDate: res.effectiveDate || '', gist: '', step: '',
+          baseLaw: c.baseLaw, subject: '',
+          contact: legalRetriever.lookupContact(c.law),
+          synthesized: true,                                          // 출처 구분용(화면 스키마는 그대로)
+        };
+        const ex = pickExcerpt(res);
+        if (ex) row.excerpt = ex;
+        out[i] = row;
+      } catch (e) {
+        console.error('[Legal] 인용 카드 확인 실패:', c.law, c.article, e && e.message);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(SYNTH_MAX_CONCURRENCY, want.length) }, worker));
+  return out.filter(Boolean);
 }
 
 // POST /api/legal/ask — { query } → 하이브리드 검색(legal_retriever) + Gemini 답변 스트리밍 합성
@@ -1082,10 +1154,19 @@ router.post('/api/legal/ask', async (req, res) => {
       finalSources.forEach(s => {
         s.citationChain = legalRetriever.filterCitationChainByAnswer(s.citationChain, full, s.law || '');
       });
+      const wikiRows = mergeCitationChains(finalSources);
+      // [B11] 답변이 인용했는데 위 목록에 없는 조문을 **원문으로 확인해** 카드로 보탠다(위키
+      //   `## 근거 조문` 표가 없는 페이지가 근거일 때 아코디언이 통째로 사라지던 구멍).
+      //   ⚠ 실패는 조용히 — 이 단계가 죽어도 기존 답변 흐름은 그대로 나간다(기존 폴백 규약과 동일).
+      //   ⚠ 보탠 줄은 **위키 줄 뒤에** 붙인다. 그다음 정리·정렬은 기존 두 함수를 그대로 통과시켜
+      //     중복 제거·흐름 순서 규칙이 보탠 줄에도 똑같이 적용되게 한다.
+      let synthRows = [];
+      try { synthRows = await synthesizeChainRows(full, wikiRows); }
+      catch (e) { console.error('[Legal] 인용 근거 폴백 실패:', e && e.message); }
       // ⚠총괄 행(`제58조`)과 항·호 행(`제58조제5항제7호`)이 함께 살아남아 같은 조문이 요지만 다르게
       //   두 번 뜨는 것을 막는다(P0 선행 실측). 근거(citedArticle)가 같은 줄에만 적용된다.
       citationChain = legalRetriever.groupCitationChainByFlow(
-        legalRetriever.dropRedundantChainRows(mergeCitationChains(finalSources)), full);
+        legalRetriever.dropRedundantChainRows(wikiRows.concat(synthRows)), full);
       // 살아남은 줄에만 조문 원문 발췌를 붙인다(거르기 전에 붙이면 버려질 줄까지 원문을 읽는다).
       await attachChainExcerpts(citationChain);
     }
