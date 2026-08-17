@@ -289,6 +289,7 @@
 #nrya-overlays .nrya-kbub{padding:9px 12px; font-size:13.5px; line-height:1.52; white-space:pre-wrap; border-radius:4px 16px 16px 16px; word-break:break-word}
 #nrya-overlays .nrya-kbub.nrya-ai{background:#33475b; color:#eef4fb}
 #nrya-overlays .nrya-kbub.nrya-ai b{color:#ffe14d}
+#nrya-overlays .nrya-kbub.nrya-ai b.nrya-penalty-b{color:var(--nrya-accent-red)}
 #nrya-overlays .nrya-krow.nrya-me .nrya-kbub{border-radius:16px 4px 16px 16px; background:#ffe14d; color:#231c00; font-weight:500}
 #nrya-overlays .nrya-kbub .nrya-chips{display:flex; flex-wrap:wrap; gap:5px; margin-top:9px}
 #nrya-overlays .nrya-kbub .nrya-chip{font-size:10.5px; color:#a9c6ff; background:rgba(68,138,255,.16); border:1px solid rgba(68,138,255,.32); border-radius:12px; padding:2px 8px}
