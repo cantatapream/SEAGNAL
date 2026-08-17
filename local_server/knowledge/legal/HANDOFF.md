@@ -642,6 +642,14 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-17 15:18 KST] ✅완료 — H-9①통합수정 21R 10그룹 전체 디스패치 완료
+audit_fix_cell.js + audit18_groups.json + round:21로 Workflow 10개 동시 디스패치. task-id: g0=w90z06nvf(wf_131b48e3-599) g1=wb4kjygdq(wf_a6569fe4-7a4) g2=wtgr5m7z8(wf_682f9c7f-3e9) g3=wyisba4ku(wf_7d37b58e-0a5) g4=w560p9tsr(wf_59304d86-8f8) g5=wb2y0ynxm(wf_c4848524-1cd) g6=wlaez42j7(wf_5b8465ed-314) g7=wsyfrwstk(wf_6cafa506-eeb) g8=w5bouu1oo(wf_fddad23c-186) g9=w22lvb2ad(wf_e08f82da-0ae). law.go.kr가 이 세션에서도 차단(EGRESS_BLOCKED)이라 collection_hole(c) 즉시수집(H-39) 시도는 자연히 실패하고 스크립트 자체 설계대로 '시도방법+결과(접속차단)'만 collectable_holes에 기록될 것으로 예상 — 별도 스크립트 수정 없이 진행. 완료되는 대로 커밋 → lint_xref.js+lint_full.js → lint_index.py/lint_build.py → human_workload.py 순서로 논스톱 진행.
+
+
+### [2026-08-17 15:17 KST] 🟢착수 — H-9①통합수정(21R) 10그룹 디스패치
+재수집(law.go.kr) 필요분은 이 세션에서도 접속불가라 자연히 보류(agent가 DRF 시도→차단 결과만 기록), 순수 wiki_lag/연결결손 등 재수집 무관 항목만 실질 반영. Workflow(scriptPath=audit_fix_cell.js, args={groupsPath:audit18_groups.json, groupIndex:'0'~'9', round:21}) 10개 동시 디스패치.
+
+
 ### [2026-08-17 15:12 KST] ✅완료 — law.go.kr 접속 가능여부 확인 — 이 세션(클로드 앱)도 완전 차단, 이전 세션의 가정 틀렸음
 curl로 직접 확인 결과: www.law.go.kr(http/https 둘 다), law.go.kr, open.law.go.kr, casenote.kr 전부 프록시 단계에서 403 'Host not in allowlist' 차단. HANDOFF.md 21R §②에 적힌 '클로드 앱이면 law.go.kr 접속될 것'이라는 가정은 이 세션에서는 틀렸음(도구=Workflow 유무와 별개로, 접속 차단은 세션이 아니라 이 계정/환경의 네트워크 정책 자체로 보임). 사용자에게 즉시 보고, 원문 재수집이 필요한 작업(상법·국가계약법 공용파일 보강, action=recollect 백로그, H-9①통합수정 중 재수집분)은 이 세션에서도 진행 불가 — 사용자 판단 대기.
 
