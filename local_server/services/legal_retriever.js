@@ -642,11 +642,93 @@ function scoreOne(p, terms) {
   return s;
 }
 
+// ── 컨텍스트 발췌(sliceRelevant) 보조 상수 ───────────────────────────────────
+// [A] 질의어 관련도와 **무관하게 통째로 먼저** 싣는 소제목. 근거·처벌·서식은 "관련 있어 보이는
+//   절"이 아니라 답 그 자체라, 점수 경쟁에서 밀려 빠지면 AI가 위키에 뻔히 있는 처벌 근거를
+//   "확인되지 않습니다"라고 답한다(2026-08-17 실측 — 낚시어선업 신고 질의에서 `## 근거 조문`
+//   `## 위반 시 처벌` `## 제출 서식`이 통째로 안 실렸다).
+// ⚠ **시작 문자열**로만 맞춘다 — 실제 위키에 `## 제출 서식 (다운로드)`처럼 꼬리가 붙은 변형이 있다.
+// ⚠ 서식은 `다운로드`가 붙은 표기만 넣는다 — `## 서식 목록`·`## 서식 필드 구성`·`## 서식(별지) 인덱스`는
+//   전체 서식 이름을 나열한 큰 색인이라 어느 질문에서든 통째로 실으면 예산을 그것만으로 다 쓴다.
+//   (실제 표기는 `grep -rh "^## " wiki/ | sort -u` 로 전수 확인해 맞췄다.)
+const MUST_SECTIONS = ['## 근거 조문', '## 위반 시 처벌', '## 벌칙 체계', '## 행정처분 체계',
+  '## 제출 서식', '## 서식 다운로드', '## 서식(별지) 다운로드', '## 서식(다운로드)'];
+// [A] 그 "항상 포함"이 예산을 통째로 먹어버리면 **정작 질문에 맞는 절**이 밀려난다 — 실측으로
+//   재현했다: 형사절차_일반.md "선고유예" 질의에서 `## 근거 조문`(2,850자)이 먼저 들어가자
+//   정답 절인 `## 6. 선고유예·집행유예와 전과기록`이 통째로 빠졌다. 4,000자 넘는 위키 1,073개 중
+//   138개는 항상포함 절 합계만 4,000자를 넘어(최대 12,946자) 그대로 두면 그 138개는 발췌가 아예
+//   안 돌아간다. 그래서 항상포함에 쓸 수 있는 예산을 **절반까지**로 묶고, 넘치는 절은 버리지 않고
+//   아래 점수 경쟁으로 내린다(질문과 관련 있으면 거기서 다시 뽑힌다).
+const MUST_BUDGET_RATIO = 0.5;
+// [B-1] 절 하나가 이보다 크면 절 안을 한 번 더 쪼개 조각끼리 점수를 매긴다. 4,000자 예산에서
+//   2,000자짜리 절은 한 입에 예산 절반을 먹어 "통째로 들어가거나 통째로 밀리거나" 둘뿐이다
+//   (실측: 공유수면관리및매립에관한법률__매립면허.md 의 `## 의무 내용` 한 절이 9,487자).
+//   ⚠ 표(`| … |`)만으로 된 절은 불릿·빈 줄 경계가 없어 자연히 안 쪼개진다 — 표는 통째로 남는다.
+const SUBSPLIT_MIN_CHARS = 2000;
+const SUBCHUNK_MIN_CHARS = 500;      // 조각 최소 크기(불릿 하나마다 쪼개 조각이 수백 개 되는 것 방지)
+// [C] 절이 사실상 없는 초대형 문서 — 발췌할 단위 자체가 없어 어떤 로직도 손 쓸 방법이 없다.
+//   ★임계값 근거(전수 실측): 위키 1,254개 중 30,000자 초과가 68개인데 그중 `## ` 절이 2개 이하인 것은
+//   **단 1개**(선박교통관제에관한법률__고시_별표1_구역좌표및관제통신제원.md, 144,064자·절 2개)다.
+//   즉 이 조건은 정상적인 중간 크기 문서를 하나도 건드리지 않고 문제 문서만 정확히 집는다.
+const HUGE_BODY_CHARS = 30000;
+const HUGE_MAX_SECTIONS = 2;
+const HUGE_PREVIEW_CHARS = 500;
+// [B-2] ★환각 0: 조용히 자르지 않는다. 잘렸다는 사실을 AI에게 알려 "여기 없는 것"을 "없는 것"으로
+//   단정하지 않게 한다(이 파일의 다른 프롬프트가 쓰는 "확인되지 않습니다" 관례와 같은 톤).
+const PARTIAL_NOTE = '\n\n> (발췌 안내) 이 문서는 원문이 더 깁니다 — 질문과 관련 있는 부분만 실었으므로 ' +
+  '여기 없는 내용이 있을 수 있습니다. 위 발췌에서 근거를 못 찾은 사항은 "확인되지 않습니다"라고 답하고, ' +
+  '규정이 없다고 단정하지 마세요.';
+const HUGE_NOTE = '> (발췌 안내) 이 문서는 원문이 방대하고 소제목으로 나뉘어 있지 않아 본문을 싣지 않았습니다. ' +
+  '아래는 맨 앞부분 미리보기뿐입니다 — 여기 없는 내용은 "확인되지 않습니다"라고 답하고, 원문 전체는 ' +
+  '별표·서식 다운로드 버튼으로 안내하세요.';
+
+/** 이 절이 [A] "관련도와 무관하게 항상 싣는" 소제목으로 시작하는가. */
+function isMustSection(sec) {
+  return MUST_SECTIONS.some(h => sec.startsWith(h));
+}
+
+/**
+ * 절 하나가 너무 커서 "통째로 들어가거나 통째로 밀리거나"밖에 안 되면(SUBSPLIT_MIN_CHARS 이상)
+ * 절 안을 불릿(`- `)·빈 줄 경계로 한 번 더 쪼개 작은 후보로 만든다([B-1]).
+ * 조각마다 **소제목 줄을 다시 붙인다** — 안 붙이면 조각이 어느 절 내용인지 AI가 알 수 없다
+ * (본문에 없는 말을 만드는 게 아니라 그 절의 제목 줄을 그대로 복사할 뿐이다 — 환각 0 유지).
+ * 예: splitSection('## 의무 내용\n- 가...\n- 나...')  // SUBSPLIT_MIN_CHARS 미만이면 그대로 [sec]
+ * @param {string} sec - '## '로 시작하는 절 하나
+ * @returns {string[]} 조각들(쪼갤 필요가 없으면 [sec] 그대로)
+ * [연계] ← sliceRelevant.
+ */
+function splitSection(sec) {
+  if (sec.length < SUBSPLIT_MIN_CHARS) return [sec];
+  const lines = sec.split('\n');
+  const head = lines[0];
+  const chunks = [];
+  // 둘째 조각부터는 소제목에 `(이어짐)`을 붙인다 — 같은 소제목이 여러 번 나오면 AI가 서로 다른 절로
+  // 오해할 수 있다. 원문 내용에 손대는 게 아니라 조각임을 알리는 표시일 뿐이다.
+  const headOf = () => (chunks.length ? head + ' (이어짐)' : head);
+  let cur = '';
+  for (const line of lines.slice(1)) {
+    const boundary = /^\s*-\s/.test(line) || !line.trim();
+    if (cur.length >= SUBCHUNK_MIN_CHARS && boundary) { chunks.push(headOf() + '\n' + cur); cur = ''; }
+    cur += (cur ? '\n' : '') + line;
+  }
+  if (cur.trim()) chunks.push(headOf() + '\n' + cur);
+  return chunks.length ? chunks : [sec];
+}
+
 /**
  * 본문이 MAX_BODY_CHARS보다 길면(주로 comparisons 허브 — 여러 절을 한 페이지에 모아 다른
  * kind보다 훨씬 길다) 앞부분만 자르지 않고 '## ' 절 단위로 쪼개 질의어와 매칭되는 절 위주로
  * 담는다. 안 그러면 예: 18개 절짜리 허브에서 6번째 절(질문과 정확히 맞는 내용)이 컷오프
  * 이후라 통째로 안 보이는 문제가 생긴다(실측 확인 — 형사절차_일반.md 선고유예 질의 실패).
+ * 2026-08-17 확장(실측 사고: 위키의 87%가 어떤 질문에서든 일부가 잘려 나갔다) — 위 상수 주석 참고:
+ *   [A] 근거·처벌·서식 절은 점수와 무관하게 먼저 통째로 싣는다
+ *   [B-1] 그래도 남는 예산은 절(큰 절은 조각) 단위 점수순으로 채운다
+ *   [B-2] 잘린 사실을 컨텍스트 끝에 정직하게 붙인다
+ *   [C] 절이 사실상 없는 초대형 문서는 본문 대신 안내 + 앞부분 미리보기만 준다
+ * @param {string} body - 위키 페이지 본문(frontmatter 제외)
+ * @param {string[]} terms - 질의 확장어
+ * @param {number} maxChars - 이 페이지에 허용된 컨텍스트 예산(MAX_BODY_CHARS)
+ * @returns {string} AI에게 줄 발췌(원문보다 짧으면 끝에 발췌 안내가 붙는다)
  */
 function sliceRelevant(body, terms, maxChars) {
   if (body.length <= maxChars) return body;
@@ -654,24 +736,62 @@ function sliceRelevant(body, terms, maxChars) {
   const introIsSection = parts[0].startsWith('## ');
   const intro = introIsSection ? '' : parts[0];
   const sections = introIsSection ? parts : parts.slice(1);
-  if (!sections.length) return body.slice(0, maxChars);
+  // [C] 절이 사실상 없는 초대형 문서 — 발췌할 단위가 없다.
+  if (body.length > HUGE_BODY_CHARS && sections.length <= HUGE_MAX_SECTIONS) {
+    return HUGE_NOTE + '\n\n' + body.slice(0, HUGE_PREVIEW_CHARS);
+  }
+  if (!sections.length) return body.slice(0, maxChars) + PARTIAL_NOTE;
   // 페이지 전체가 한 주제(예: "매립면허")를 다루면 그 주제어는 거의 모든 절에 등장해 변별력이
   // 없다 — 이 페이지 안에서 몇 개 절에 등장하는지(절-내 문서빈도)로 역가중해, 소수 절에만 있는
   // 단어(질문의 진짜 변별 지점, 예: "수수료")를 우선한다(실측: 역가중 없인 흔한 주제어에
-  // 묻혀 정작 필요한 절이 후순위로 밀림).
+  // 묻혀 정작 필요한 절이 후순위로 밀림). df는 조각이 아니라 **절** 기준으로 센다(기존 그대로).
   const df = terms.map(t => sections.reduce((n, s) => n + (s.includes(t) ? 1 : 0), 0));
-  const scored = sections
-    .map(s => ({ s, sc: terms.reduce((n, t, i) => n + (df[i] > 0 && s.includes(t) ? 1 / df[i] : 0), 0) }))
-    .filter(x => x.sc > 0)
-    .sort((a, b) => b.sc - a.sc);
-  if (!scored.length) return body.slice(0, maxChars); // 매칭 절 없으면 기존 방식으로 폴백
+  const scoreOf = s => terms.reduce((n, t, i) => n + (df[i] > 0 && s.includes(t) ? 1 / df[i] : 0), 0);
   let out = intro.slice(0, maxChars);
-  for (const { s } of scored) {
-    if (out.length + s.length > maxChars) continue; // 이 절은 예산 초과 — 더 작은 다음 후보 절 시도
-    out += s;
+  // 절끼리 그냥 이어붙이면 `…앞줄## 다음절`이 되어 소제목이 소제목으로 안 읽힌다 — 줄바꿈으로 잇는다.
+  const add = (s) => {
+    const sep = (out && !out.endsWith('\n')) ? '\n' : '';
+    if (out.length + sep.length + s.length > maxChars) return false;
+    out += sep + s;
+    return true;
+  };
+  // [A] 항상 포함 절 — 점수와 무관하게 먼저(단 예산 절반까지). 못 들어간 절은 조용히 버리지 않고
+  //     아래 점수 경쟁으로 내려 **조각으로라도** 살린다.
+  // ⚠ "어떤 절이 예산을 받는가"는 MUST_SECTIONS 우선순위 순서로 정한다 — `_SCHEMA.md` 표준 절
+  //   순서상 "근거 조문"이 항상 맨 마지막이라, 문서 순서대로 채우면 앞의 처벌·벌칙·행정처분
+  //   절이 예산을 먼저 다 써버려 정작 "근거 법령" 아코디언의 유일한 재료인 근거 조문이 밀려난다
+  //   (2026-08-17 실측 재현: 낚시관리및육성법__낚시어선업.md, must-section 총 2,933건 중 459건이
+  //   밀리고 그중 230건이 근거 조문).
+  // ⚠ 그러나 **`rest` 배열 자체의 순서는 반드시 문서 등장 순서 그대로 유지한다** — [B-1] 점수
+  //   경쟁에서 동점 절은 배열에 먼저 놓인 쪽이 이긴다(안정 정렬). rest를 "예산 못 받은 절 먼저,
+  //   나머지 절 나중"으로 재배열하면, 예산을 못 받은 큰 절(예: 근거 조문 통짜)의 조각이 동점
+  //   경쟁에서 원래 뒤에 있던 질의 관련 절(예: 형사절차_일반.md "## 6. 선고유예")보다 먼저
+  //   채택되어 정작 질문과 맞는 절이 밀리는 **다른 회귀**가 생긴다(직접 재현·확인함).
+  const mustBudget = Math.floor(maxChars * MUST_BUDGET_RATIO);
+  const rest = [];
+  let mustUsed = 0;
+  const priorityOrder = sections.filter(isMustSection)
+    .sort((a, b) => MUST_SECTIONS.findIndex(h => a.startsWith(h)) - MUST_SECTIONS.findIndex(h => b.startsWith(h)));
+  const willFit = new Set();
+  for (const s of priorityOrder) {
+    if (mustUsed + s.length > mustBudget) continue;
+    mustUsed += s.length;
+    willFit.add(s);
   }
-  if (out.length <= intro.length) out += scored[0].s.slice(0, maxChars - out.length); // 다 안 들어가면 1위 절이라도 잘라서 넣는다
-  return out;
+  for (const s of sections) {
+    if (willFit.has(s) && add(s)) continue;
+    rest.push(s);
+  }
+  // [B-1] 남은 절 — 큰 절은 조각으로 쪼개 조각끼리 점수를 매긴다.
+  const scored = [];
+  for (const s of rest) for (const c of splitSection(s)) scored.push({ s: c, sc: scoreOf(c) });
+  const hits = scored.filter(x => x.sc > 0).sort((a, b) => b.sc - a.sc);
+  if (!hits.length && out.length <= intro.length) return body.slice(0, maxChars) + PARTIAL_NOTE; // 매칭 절 없으면 기존 방식으로 폴백
+  for (const { s } of hits) add(s);                 // 예산 초과 조각은 건너뛰고 더 작은 다음 후보로
+  if (out.length <= intro.length && hits.length) {  // 다 안 들어가면 1위 조각이라도 잘라서 넣는다
+    out += hits[0].s.slice(0, maxChars - out.length);
+  }
+  return out + PARTIAL_NOTE;                        // [B-2] 잘렸다는 사실을 숨기지 않는다
 }
 
 /**
@@ -843,6 +963,28 @@ function clarifyKey(s) {
 }
 
 /**
+ * 선택지 라벨에서 **대답투 껍데기**(앞의 `네/아니요`, 뒤의 `입니다/인가요`)만 벗긴다.
+ * 아래 ⓒ 포함관계 검사 **전용** 전처리다 — 라벨의 뜻(핵심 낱말)은 그대로 두고 말투만 걷어낸다.
+ * ★왜 필요한가(2026-08-17 라이브 실측): 같은 갈림을 모델이 서술형 → 대답형으로 바꿔 다시 물으면
+ *   ⓒ가 뚫렸다. 직전 라벨 `관리선으로 지정된 어선` / 이번 라벨 `네, 관리선입니다.` 는
+ *   정규화하면 `관리선으로지정된어선` vs `네관리선입니다` 라 서로 포함되지 않는다(겹치는 건
+ *   `관리선` 세 글자뿐). 껍데기를 벗기면 `관리선` 이 되어 포함관계가 성립한다.
+ * ⚠ ⓐ(질문 문장 완전일치)·ⓑ(라벨 집합 완전일치)에는 쓰지 않는다 — 그 둘은 "글자 그대로 같은가"를
+ *   보는 검사라, 말투를 지우면 판정 기준이 달라진다.
+ * 예: stripFraming('네, 관리선입니다.') → '관리선'
+ *     stripFraming('아니요, 어업허가를 받은 어선입니다.') → '어업허가를 받은 어선'
+ * @param {string} s - 선택지 라벨 원문
+ * @returns {string} 대답투 접두·접미를 뗀 라벨(없으면 원문 그대로)
+ * [연계] ← sameClarifyAsLast ⓒ. → clarifyKey.
+ */
+function stripFraming(s) {
+  return String(s || '')
+    .replace(/^(네|예|아니요|아니오)[,，]?\s*/, '')
+    .replace(/(입니다|이에요|예요|인가요|죠)\.?\??$/, '')
+    .trim();
+}
+
+/**
  * 이번 되묻기가 **직전 라운드와 사실상 같은 것**인가.
  * 둘 중 하나면 같은 것으로 본다: ⓐ질문 문장이 같다 ⓑ선택지 라벨 집합이 통째로 같다.
  * ⓑ가 있어야 표현만 바꾼 재질문("어선 종류가?" → "어떤 배인가요?")을 잡는다 — 고르는 갈래가
@@ -871,8 +1013,10 @@ function sameClarifyAsLast(question, options, prev) {
   //   ⚠ 3글자 미만 라벨(`어선`)은 대조에서 뺀다 — 두 글자짜리 상위 낱말은 하위 갈림
   //     (`어선` → `낚시어선`/`일반 어선`)에도 늘 들어 있어, 정상적인 좁히기를 죽인다.
   //   ⚠ "잘 모르겠어요"(act:'unknown')는 매 라운드 붙는 고정 선택지라 대조에서 뺀다.
-  const real = (options || []).filter(o => o && o.act !== 'unknown').map(o => clarifyKey(o.label)).filter(Boolean);
-  const prevKeys = (prev.labels || []).map(clarifyKey).filter(k => k && k.length >= 3);
+  //   ⚠ 대조 직전에 stripFraming 으로 **대답투 껍데기**(`네, …입니다.`)를 벗긴다 — 안 벗기면
+  //     서술형 → 대답형으로 말투만 바꾼 재질문이 그대로 통과한다(위 함수 주석의 실측 사례).
+  const real = (options || []).filter(o => o && o.act !== 'unknown').map(o => clarifyKey(stripFraming(o.label))).filter(Boolean);
+  const prevKeys = (prev.labels || []).map(l => clarifyKey(stripFraming(l))).filter(k => k && k.length >= 3);
   if (real.length < 2 || !prevKeys.length) return false;
   return real.every(k => prevKeys.some(p => (k.length >= 3 && (k.includes(p) || p.includes(k)))));
 }
@@ -1569,9 +1713,11 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
  * 요지 "5/10/15만원")이 함께 있는 경우가 있는데, 답변이 `제58조제5항제7호`를 인용하면 **두 줄 다**
  * 살아남아 화면에 같은 조문이 금액만 다른 요지로 두 번 뜬다(P0 선행에서 실측된 부작용 — 사용자가
  * 어느 금액이 맞는지 오해할 수 있다).
- * ★환각 0의 반대편(누락 0)을 지키기 위해 **버리는 기준을 아주 좁게** 잡는다 — `law`와 `citedArticle`이
- *   **둘 다 같고 citedArticle이 비어 있지 않을 때만** 겹친 것으로 보고, 그 중 위키 칸(article)이 항·호를
- *   더 짚은 줄을 남긴다. 근거가 없는 줄(citedArticle 없음)은 하나도 버리지 않는다.
+ * ★환각 0의 반대편(누락 0)을 지키기 위해 **버리는 기준을 아주 좁게** 잡는다 — `law`와 겹침열쇠가
+ *   **둘 다 같고 그 열쇠가 비어 있지 않을 때만** 겹친 것으로 보고, 그 중 위키 칸(article)이 항·호를
+ *   더 짚은 줄을 남긴다. 겹침열쇠는 `citedArticle`(조문 인용)이고, 조 번호 없이 별표만 가리켜
+ *   citedArticle 이 빈 줄은 위키 칸(`article`, 예: `별표4`)을 대신 쓴다(아래 dedupeKeyOf 주석).
+ *   둘 다 없는 줄(근거 자체가 불명확한 줄)은 하나도 버리지 않는다.
  * ⚠ 위키에서 총괄 행을 지우는 방식은 쓰지 않는다 — 그 행은 다른 질문("과태료 최고 얼마?")의 근거라
  *   지우면 그쪽 답변이 근거를 잃는다. 화면에 함께 뜨는 것만 막는 것이 맞다.
  * 예: dropRedundantChainRows([{law:'A',article:'제58조',citedArticle:'제58조제5항제7호'},
@@ -1588,18 +1734,31 @@ function dropRedundantChainRows(rows) {
     const a = String((r && r.article) || '');
     return (/제\s*\d+\s*항|[①-⑳]/.test(a) ? 2 : 0) + (/\d+\s*호/.test(a) ? 1 : 0) + a.length / 1000;
   };
-  const best = new Map();                       // law citedArticle → 가장 좁게 짚은 줄
-  for (const r of list) {
+  // 겹침 판정 열쇠. 조문 인용은 예전처럼 citedArticle(항·호까지)로, **별표만 가리킨 인용**은
+  // 위키 칸(article, 예: `별표4`)의 공백을 지운 값으로 잡는다.
+  // ★왜(2026-08-17 실측): filterCitationChainByAnswer 는 인용이 `별표4`처럼 조 번호가 없으면
+  //   citedArticle 을 **항상 빈 문자열**로 채운다(`/^제\d+조/` 가 안 맞으면 ''). 그래서 서로 다른
+  //   위키 두 곳이 같은 `시행령 별표4`를 근거로 갖고 있으면 두 줄 다 열쇠가 없어 겹침 검사를
+  //   통째로 건너뛰고, 화면에 같은 별표가 요지만 다른 채로 두 번 떴다(낚시관리및육성법__낚시어선업신고
+  //   "구명조끼·구명뗏목·AIS 등" + 낚시관리및육성법__낚시어선업 "구명조끼·소화기·통신기기 등").
+  // ⚠ 조문도 별표도 없는 줄(근거 자체가 불명확한 줄)은 지금까지처럼 하나도 버리지 않는다.
+  // ⚠ depth() 는 손대지 않는다 — 별표끼리는 항·호가 없어 늘 동점이라 **먼저 나온 줄**이 남는다.
+  const dedupeKeyOf = (r) => {
     const cited = String((r && r.citedArticle) || '');
-    if (!cited) continue;                       // 근거 없는 줄은 겹침 판정 대상이 아니다(하나도 안 버린다)
-    const key = String((r && r.law) || '') + ' ' + cited;
+    return cited || String((r && r.article) || '').replace(/\s+/g, '');
+  };
+  const best = new Map();                       // law dedupeKey → 가장 좁게 짚은 줄
+  for (const r of list) {
+    const dedupeKey = dedupeKeyOf(r);
+    if (!dedupeKey) continue;                   // 근거 없는 줄은 겹침 판정 대상이 아니다(하나도 안 버린다)
+    const key = String((r && r.law) || '') + ' ' + dedupeKey;
     const cur = best.get(key);
     if (!cur || depth(r) > depth(cur)) best.set(key, r);
   }
   return list.filter((r) => {
-    const cited = String((r && r.citedArticle) || '');
-    if (!cited) return true;
-    return best.get(String((r && r.law) || '') + ' ' + cited) === r;
+    const dedupeKey = dedupeKeyOf(r);
+    if (!dedupeKey) return true;
+    return best.get(String((r && r.law) || '') + ' ' + dedupeKey) === r;
   });
 }
 
@@ -3860,4 +4019,6 @@ module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAns
   // 2026-08-17: 인용사슬 묶음표기 풀기(B1·B2) · "잘 모르겠어요"(B7) · 약칭표(B8, 계약4)
   expandJoEnum, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
   // 2026-08-17: 답변 인용 기반 근거 카드 폴백(B11 — 위키 `## 근거 조문` 표가 없는 페이지의 구멍 메우기)
-  extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX };
+  extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX,
+  // 2026-08-17: 4천자 컨텍스트 발췌(회귀 테스트 대상 — 이 로직에서 회귀가 두 번 재발했다)
+  sliceRelevant, isMustSection, MUST_SECTIONS };

@@ -771,6 +771,21 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       ok('근거(citedArticle)가 없는 줄은 하나도 버리지 않는다(누락 0)',
         R.dropRedundantChainRows([{ law: 'A', article: '제1조', citedArticle: '' },
           { law: 'A', article: '제2조', citedArticle: '' }]).length === 2);
+      ok('조문도 별표도 없는 줄(근거 불명확)은 겹쳐 보여도 하나도 버리지 않는다',
+        R.dropRedundantChainRows([{ law: 'A', article: '', citedArticle: '' },
+          { law: 'A', article: '', citedArticle: '' }]).length === 2);
+      // (10-b) 2026-08-17 실측 — 조 번호 없이 **별표만** 가리킨 인용은 citedArticle 이 늘 빈 문자열이라
+      //   겹침 검사를 통째로 건너뛰고 같은 별표가 화면에 두 번 떴다(낚시어선업신고 + 낚시어선업).
+      const byl = [
+        { law: '낚시 관리 및 육성법 시행령', article: '별표4', citedArticle: '', gist: '구명조끼·구명뗏목·AIS 등' },
+        { law: '낚시 관리 및 육성법 시행령', article: '별표4', citedArticle: '', gist: '구명조끼·소화기·통신기기 등' }];
+      ok('같은 별표를 가리키는 두 줄은 하나만 남는다(먼저 나온 줄)',
+        JSON.stringify(R.dropRedundantChainRows(byl).map(r => r.gist)) === JSON.stringify(['구명조끼·구명뗏목·AIS 등']));
+      ok('별표 번호가 다르거나 법이 다르면 둘 다 남는다',
+        R.dropRedundantChainRows([
+          { law: '낚시 관리 및 육성법 시행령', article: '별표4', citedArticle: '' },
+          { law: '낚시 관리 및 육성법 시행령', article: '별표5', citedArticle: '' },
+          { law: '낚시 관리 및 육성법 시행규칙', article: '별표4', citedArticle: '' }]).length === 3);
     }
 
     // (11) 위키가 법 이름을 정확히 적어둘수록 행이 죽던 역설(G1·G2 지적) — 두 표기 모두 살아야 한다
@@ -800,6 +815,19 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
         R.sameClarifyAsLast('어떤 종류의 어선인가요?', [{ label: '낚시어선' }, { label: '일반 어선' }], narrowOk) === false);
       ok('직전 되묻기가 없으면 아무것도 막지 않는다(R0)',
         R.sameClarifyAsLast('어떤 배인가요?', [{ label: '어선' }, { label: '레저기구' }], null) === false);
+      // (12-b) 2026-08-17 실측 — 서술형 라벨을 **대답형**("네, …입니다.")으로만 바꿔 같은 갈림을 또 물었다.
+      //   정규화만으론 `네관리선입니다` vs `관리선으로지정된어선`이라 포함관계가 안 잡혔다.
+      const prevA = { q: '어떤 어선인지 알려주세요.',
+        labels: ['어업허가를 받은 어선', '관리선으로 지정된 어선', '잘 모르겠어요'] };
+      const yesNo = [{ label: '네, 관리선입니다.' }, { label: '아니요, 어업허가를 받은 어선입니다.' },
+        { label: '잘 모르겠어요', act: 'unknown' }];
+      ok('대답투("네/아니요 … 입니다")로만 바꾼 같은 축 재질문도 버린다',
+        R.sameClarifyAsLast('관리선인가요?', yesNo, prevA) === true);
+      // ⚠대답투여도 **다른 축**이면 막지 않는다(정상 좁히기를 죽이지 않는다)
+      const prevB = { q: '어떤 배인가요?', labels: ['총톤수 10톤 미만 동력어선', '그 외 어선'] };
+      ok('대답투여도 직전과 다른 축이면 그대로 진행한다',
+        R.sameClarifyAsLast('전문교육을 이수하셨나요?',
+          [{ label: '네, 이수했습니다.' }, { label: '아니요, 아직입니다.' }], prevB) === false);
     }
 
     // (8) 계약2·3 — 라우트는 조문 표기를 깎지 않고, 응답도 통째로 통과시킨다
@@ -892,6 +920,24 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('원문 조회 동시 상한이 4건 이하다', /const SYNTH_MAX_CONCURRENCY = 4;/.test(ROUTES_CODE));
     ok('보탠 줄은 발췌 단계에서 원문을 다시 읽지 않는다',
       /filter\(r => !\(r && r\.synthesized\)\)\.slice\(0, MAX_EXCERPT_ROWS\)/.test(ROUTES_CODE));
+  }
+
+  // ── sliceRelevant 회귀 잠금 (2026-08-17) — 이 로직에서 회귀가 두 번 재발했다:
+  //    ①근거 조문이 뒤 순서라 예산 밀림 ②그 밀림을 고치다 rest 순서가 바뀌어 형사절차_일반.md
+  //    "선고유예" 케이스가 다시 깨짐. 둘 다 실제 위키 파일로 재현한 케이스라 그대로 고정한다.
+  {
+    const WIKI = path.join(SRV, 'knowledge', 'legal', 'wiki');
+    const bodyOf = p => fs.readFileSync(p, 'utf8').replace(/^---[\s\S]*?---\n/, '');
+
+    const p1 = path.join(WIKI, 'concepts', '낚시관리및육성법__낚시어선업.md');
+    const out1 = R.sliceRelevant(bodyOf(p1), ['구명뗏목', 'EPIRB', '비상탈출구'], 4000);
+    ok('근거 조문은 다른 항상포함 절보다 우선순위가 높아 예산 경쟁에서 먼저 살아남는다',
+      out1.includes('## 근거 조문'));
+
+    const p2 = path.join(WIKI, 'comparisons', '형사절차_일반.md');
+    const out2 = R.sliceRelevant(bodyOf(p2), ['선고유예'], 4000);
+    ok('근거 조문 우선순위를 올려도 rest 순서(문서 등장 순)는 그대로라 질의 관련 절이 밀리지 않는다',
+      out2.split('\n').some(l => l.startsWith('## 6.') && l.includes('선고유예')));
   }
 
   console.log(`\n${pass} PASS / ${fail} FAIL`);
