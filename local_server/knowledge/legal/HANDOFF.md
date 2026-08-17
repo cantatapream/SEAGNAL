@@ -687,6 +687,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-17 16:57 KST] ✅완료 — main 브랜치 머지 완료 — 21R 전체 작업 배포 트리거됨
+사용자 지시로 claude/nariya-wiki-continuation-3y5fqy(60개 커밋) → main fast-forward 푸시 완료(d4db5388). GitHub PR #1087 자동 merged 처리. .github/workflows/deploy.yml이 main push를 트리거로 Fly.io 자동배포하므로 곧 실제 앱에 반영됨.
+
+
 ### [2026-08-17 16:46 KST] ✅완료 — 21R human_workload.py 완료 — 21R 표준 5단계 파이프라인 전체 완료
 사람검수 145건(별표OCR37·법리유권해석37·판례13·입법연혁7·수집대기19·기타해석32). 이로써 21차 라운드 표준 5단계(①감사 ②H-9①통합수정 ③lint_xref/lint_full ④lint_index/lint_build ⑤human_workload) 전부 완료. CLAUDE.md 자율진행 규칙에 따라 22차 감사는 스스로 시작하지 않고 사용자에게 결과·후속조치 보고 후 대기.
 
