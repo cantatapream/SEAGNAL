@@ -294,6 +294,11 @@
 #nrya-overlays .nrya-kbub .nrya-chip{font-size:10.5px; color:#a9c6ff; background:rgba(68,138,255,.16); border:1px solid rgba(68,138,255,.32); border-radius:12px; padding:2px 8px}
 #nrya-overlays .nrya-kbub .nrya-tel{margin-top:9px; font-size:11.5px; color:#8fe6bb}
 #nrya-overlays .nrya-kbub .nrya-disc{margin-top:6px; font-size:10px; color:#93a4b9}
+/* 답변 본문 안의 조문·별표 인용 — 글자 자체가 눌리는 자리다(별도 칩·버튼 줄을 뒤에 붙이지 않는다,
+   조문 팝업의 .nrya-byl-ref 와 같은 원칙·같은 색). 어느 법인지 확신이 설 때만 이 span 이 붙으므로,
+   밑줄이 없는 조문 표기는 "우리가 어느 법인지 단정하지 못한 인용"이라는 뜻이다. */
+#nrya-overlays .nrya-kbub .nrya-cite{color:#8bb6ff; font-weight:700; text-decoration:underline; text-decoration-style:dotted; text-decoration-color:rgba(139,182,255,.5); text-underline-offset:2px; cursor:pointer}
+#nrya-overlays .nrya-kbub .nrya-cite:hover{color:#a9c6ff}
 
 /* 답변 하단 근거 법령 아코디언 */
 #nrya-overlays .nrya-lawacc{margin-top:10px; border-top:1px solid rgba(255,255,255,.12); padding-top:9px}
@@ -328,17 +333,28 @@
 #nrya-overlays .nrya-chain-step[data-tier="notice"] .nrya-chain-dot,#nrya-overlays .nrya-chain-step[data-tier="notice"] .nrya-chain-tier{background:#a8e0c4; color:#123527}
 #nrya-overlays .nrya-chain-step.nrya-penalty .nrya-chain-dot,#nrya-overlays .nrya-chain-step.nrya-penalty .nrya-chain-tier{background:#f3a39a; color:#3d0f0a}
 /* 제목 줄은 [뱃지] 법령명 조문번호 한 줄로 끝낸다(뱃지와 같은 줄 — 예전엔 아랫줄이었다) */
-#nrya-overlays .nrya-chain-art{color:#eaf3f0; font-size:11.5px; font-weight:700; min-width:0; overflow-wrap:anywhere}
+#nrya-overlays .nrya-chain-art{flex:1 1 auto; color:#eaf3f0; font-size:11.5px; font-weight:700; line-height:19px; min-width:0; overflow-wrap:anywhere}
 #nrya-overlays .nrya-chain-quote{color:#eef2ef; font-size:10px; margin-top:5px; line-height:1.6}
 /* 조문 원문 발췌(요지가 아니라 원문 그대로) — 왼쪽 인용선으로 "인용문"임을 드러낸다 */
 #nrya-overlays .nrya-chain-quote.nrya-chain-ex{font-size:11px; line-height:1.65; color:#dfeae6; border-left:2px solid rgba(105,240,174,.35); padding-left:8px}
 #nrya-overlays .nrya-chain-hang{margin:0}
 #nrya-overlays .nrya-chain-gap{height:14px}
-#nrya-overlays .nrya-chain-tel{display:flex; align-items:center; gap:5px; margin-top:6px; font-size:10px; color:#7c9089}
+/* 소관부서 연락처 — ☎ 옆에 [부처명] / [부서명(괄호)] / [지역번호-] / [나머지 번호] 를 **한 줄씩**
+   쌓는다. 예전엔 전부 한 줄이라 `해양수산부(어선안전정책과-어선 안전) · 051-773-5523` 처럼
+   길어져 좁은 말풍선에서 잘렸다. ☎ 는 첫 줄에 붙박이고(align-items:flex-start) 나머지는 그 옆
+   세로 칸에 쌓여 자연스럽게 들여쓰기처럼 보인다. ⚠걸리는 번호(href="tel:")는 통번호 그대로다. */
+#nrya-overlays .nrya-chain-tel{display:flex; align-items:flex-start; gap:5px; margin-top:6px; font-size:10px; color:#7c9089}
 #nrya-overlays .nrya-chain-tel.nrya-unknown{color:#6b7a75; font-style:italic}
+#nrya-overlays .nrya-chain-tel-ic{flex:none}
+#nrya-overlays .nrya-chain-tel-b{display:flex; flex-direction:column; min-width:0; word-break:break-word; line-height:1.5}
 #nrya-overlays .nrya-chain-tel a{color:inherit; font-weight:inherit; text-decoration:underline; text-decoration-color:currentColor}
-/* 뱃지 줄: 조문 뱃지 + 시행일자(항상 보임 — 예전엔 꾹 눌러야 뜨는 말풍선이었다) */
-#nrya-overlays .nrya-chain-head{display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+#nrya-overlays .nrya-chain-tel a .nrya-tel-part{display:block}
+/* 뱃지 줄: [뱃지] 법령명 조문번호 + 시행일자 칩(항상 보임 — 예전엔 꾹 눌러야 뜨는 말풍선이었다).
+   ⚠flex-wrap 을 쓰면 안 된다 — 뱃지 다음에 와야 할 법령명이 통째로 아랫줄로 내려간다.
+   뱃지는 첫 줄에 붙박이(flex:none + align-items:flex-start)고, 법령명·조문은 그 옆에서 흐르다
+   길어지면 자기 칸 안에서 줄바꿈한다. 시행일자 칩은 남은 폭을 법령명이 다 먹으므로 우측 끝에 남는다. */
+#nrya-overlays .nrya-chain-head{display:flex; align-items:flex-start; gap:7px}
+#nrya-overlays .nrya-chain-tier{flex:none}
 #nrya-overlays .nrya-chain-eff{flex:none; margin-left:auto; font-family:var(--nrya-mono); font-size:9.5px; color:#9fb4d6; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.22); border-radius:7px; padding:2px 7px; white-space:nowrap}
 /* 조문 카드 클릭 영역(연락처 줄 제외) — 누르면 조문 원문 팝업이 뜬다 */
 #nrya-overlays .nrya-chain-hit{cursor:pointer; border-radius:9px; margin:-4px -6px 0; padding:4px 6px}
@@ -415,6 +431,24 @@
 #nrya-overlays .nrya-artpop-foot:empty{display:none}
 #nrya-overlays .nrya-artpop-src{font-size:9px; color:#5b6b86; font-family:var(--nrya-mono)}
 
+/* ── 인용이 항·호까지 짚은 경우(서버 focused:true) ─────────────────────────────
+   `제58조제5항제7호`처럼 어디를 말하는지 분명한 인용은 **그 항의 머리문장과 그 호만** 남긴다 —
+   조 전문을 다 펼쳐두면 정작 근거인 한 줄이 묻힌다. 나머지는 지우지 않고 여기서 감추기만 하므로
+   "조문 전체 보기" 버튼이 클래스 하나만 떼면 그 자리에서 즉시 펼쳐진다(서버 재조회 없음).
+   ⚠ 호가 하나도 강조 안 된 항(항까지만 특정한 인용)은 호를 감추지 않는다 — 그래서 li 감춤은
+   `.nrya-has-hit`(강조된 호가 실제로 있는 목록)에만 건다. */
+#nrya-overlays .nrya-artpop-body.nrya-focused .nrya-artpop-para:not(.nrya-hit){display:none}
+#nrya-overlays .nrya-artpop-body.nrya-focused .nrya-artpop-items.nrya-has-hit li:not(.nrya-hit){display:none}
+#nrya-overlays .nrya-artpop-more{font-family:inherit; font-size:11.5px; font-weight:700; padding:6px 13px; border-radius:13px; cursor:pointer; border:1px solid rgba(139,182,255,.4); background:rgba(68,138,255,.12); color:#a9c6ff}
+#nrya-overlays .nrya-artpop-more:active{background:rgba(68,138,255,.2)}
+
+/* 부칙(서버가 본문 항과 분리해 보내주는 addenda) — 기본 접힘. 조문을 보러 온 사람에게 부칙 전문이
+   먼저 쏟아지지 않게 하되, 숨기지는 않는다(눌러야 펼쳐진다 — ⚠공백 안내 칩과 같은 방식). */
+#nrya-overlays .nrya-addenda{margin-top:12px; border-top:1px dashed rgba(255,255,255,.14); padding-top:9px}
+#nrya-overlays .nrya-addenda-t{font-size:11px; font-weight:700; color:#9fb0c9; cursor:pointer; user-select:none}
+#nrya-overlays .nrya-addenda-b{display:none; margin-top:6px; font-size:11px; line-height:1.65; color:#9aa8bd; white-space:pre-wrap; word-break:break-word}
+#nrya-overlays .nrya-addenda.nrya-open .nrya-addenda-b{display:block}
+
 /* ── 별표·서식 참조: 문장 안 표현 자체가 링크 ────────────────────────────────
    "별표 1"·"별지 제1호 서식" 같은 표현이 그대로 점선밑줄 링크가 된다(별도 칩·버튼 줄 없음).
    원문을 못 찾은 것은 누를 수 없는 회색 문구로 둔다 — 지어내지 않는다. */
@@ -486,15 +520,25 @@
 #nrya-overlays .nrya-consent-btn{font-family:inherit; font-size:11.5px; font-weight:700; padding:5px 12px; border-radius:13px; cursor:pointer; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#dbe7f5}
 #nrya-overlays .nrya-consent-btn.nrya-yes{background:#ffe14d; border-color:#ffe14d; color:#231c00}
 
-/* 되묻기(명확화) 선택지 — 위 동의 배너 버튼 톤을 그대로 쓰고, 라벨이 길어 줄바꿈만 허용한다.
-   ★flex-wrap:wrap 이 곧 개수 상한 대응이다 — CLARIFY_OPTION_MAX 가 3→10 으로 늘어도(2026-08-15)
-   한 줄에 안 들어가는 버튼은 다음 줄로 접히고, 세로로 길어지면 .nrya-chat-body(overflow-y:auto)가
-   스크롤한다. gap:6px 는 행 간격에도 함께 걸려 여러 줄이 돼도 간격이 유지된다.
-   한 번 고르면 .nrya-done 이 붙어 흐려지고 더 눌리지 않는다(중복 전송 방지). */
+/* 되묻기(명확화) 선택지 — 위 동의 배너 버튼 톤을 그대로 쓰되, **사지선다처럼 세로로 한 줄에 하나씩**
+   쌓는다(사용자 확정). 예전엔 flex-wrap:wrap 으로 좌→우→아랫줄이라 어디까지가 한 선택지인지
+   읽기 어려웠다. 세로로 길어지면 .nrya-chat-body(overflow-y:auto)가 스크롤한다.
+   ⚠ 이 규칙은 되묻기 카드(.nrya-clarify-btns)에만 건다 — .nrya-consent-btns 는 알림 동의 배너 등
+   다른 곳도 쓰는 공용 클래스라 거기까지 세로로 바꾸면 안 된다.
+   한 번 고르면 .nrya-done 이 붙어 더 눌리지 않고(중복 전송 방지), **누른 버튼만** 앱 강조색
+   (내 말풍선과 같은 노란 #ffe14d)으로 남고 나머지는 흐려진다 — 이 카드가 화면에 계속 남아
+   "무엇 중에 무엇을 골랐는지"를 보여주는 것이 사용자가 원한 동작이다.
+   ⚠ 흐리게(opacity)는 **버튼·질문에 따로** 건다 — 예전처럼 카드 전체(.nrya-clarify)에 걸면
+   투명도가 그룹으로 묶여 고른 버튼만 또렷하게 남길 수 없다. */
 #nrya-overlays .nrya-clarify-q{margin-top:9px; font-size:12.5px; font-weight:700; color:#dbe7f5}
-#nrya-overlays .nrya-clarify-btns{flex-wrap:wrap}
-#nrya-overlays .nrya-clarify.nrya-done{opacity:.45}
-#nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-btn{pointer-events:none; cursor:default}
+#nrya-overlays .nrya-clarify-btns{flex-direction:column; align-items:stretch}
+#nrya-overlays .nrya-clarify-btn{text-align:left}
+/* "잘 모르겠어요"(계약5 act:'unknown') — 조건을 고른 게 아니라 모른다는 답이라 연한 점선으로 구분 */
+#nrya-overlays .nrya-clarify-btn.nrya-clarify-unknown{background:transparent; border-style:dashed; border-color:rgba(255,255,255,.28); color:#9fb0c9; font-weight:600}
+#nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-q{opacity:.55}
+#nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-btn{opacity:.4; pointer-events:none; cursor:default}
+#nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-btn.nrya-picked{opacity:1; background:#ffe14d; border-style:solid; border-color:#ffe14d; color:#231c00; font-weight:700}
+#nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-btn.nrya-picked::before{content:"✓ "}
 
 /* 답변 만족도(👍/👎) — 위 동의 배너와 같은 톤. 👎는 사유(선택) 입력칸을 펼친다. */
 #nrya-overlays .nrya-hidden{display:none !important}
