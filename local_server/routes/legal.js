@@ -905,13 +905,16 @@ async function synthesizeChainRows(answerText, rows) {
 //   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, citationChain, note} 한 줄로 마감.
 //   citationChain = 답변이 실제로 인용한 근거 조문 줄을 **모든 소스에서 합쳐 하나로** 정렬한 목록
 //   (줄 모양: {law, article, effectiveDate, gist, step, tier, contact, baseLaw, excerpt?,
-//              citedArticle, subject}).
+//              citedArticle, subject, synthesized?}).
 //   · citedArticle(계약1) = 답변 문장이 그 줄을 인용할 때 **실제로 쓴 표기 전체**(항·호 포함,
 //     예 `제58조제5항제7호`). 답변에 항·호가 없으면 ''. ★답변 문장에 문자 그대로 있는 표기만 담는다.
 //   · subject(계약1b) = 답변이 주체별로 나뉠 때 그 줄이 속한 주체 라벨(예 `어선소유자`). 판정이
 //     불분명하면 ''(화면은 지금처럼 한 줄기로 그린다) — 틀리게 나누느니 안 나눈다.
 //   · 위키 표가 여러 조를 묶어 적은 행(`제52~55·57조`)은 **답변이 인용한 조마다 자기 줄**로 쪼개져
 //     나온다(article 만 그 조로 좁히고 나머지 칸은 원본 그대로 물려받는다).
+//   · synthesized(B11) = 위키 `## 근거 조문` 표가 아니라 **답변 인용 + 원문 확인**으로 보탠 줄이라는
+//     표시(true 인 줄만). 그런 줄의 gist 는 항상 ''(위키 요지가 없으므로 지어내지 않는다) —
+//     화면 스키마는 종전 그대로라 ai_chat.js 는 이 필드를 몰라도 똑같이 그린다.
 //   되묻기가 필요한 질문이면 delta 없이 done 한 줄만 나가고 clarify:{question,options} 가 함께 실린다.
 //   되묻기 선택지 맨 끝에는 항상 `잘 모르겠어요`(act:'unknown', ctx.unk)가 붙는다 — 누르면 질의는
 //   그대로 두고 ctx 만 실어 다시 오고, 서버가 용어 풀이 + 갈래 한 줄 요약을 붙여 같은 선택지를 다시 낸다.

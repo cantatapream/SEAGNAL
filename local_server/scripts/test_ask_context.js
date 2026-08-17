@@ -786,6 +786,92 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       !/article[^\n]*\.replace\(/.test(ROUTES_CODE.split("'/api/legal/article-text'")[1] || ''));
   }
 
+  // ── T28 [B11]. 답변 인용 기반 근거 카드 폴백 (2026-08-17 실기기 실측) ─────────────
+  //   재현한 결함: "풍랑주의보여도 도선이 운항 가능한 조건" 질문에 답변은 「유선 및 도선 사업법
+  //   시행규칙」 제7조·별표1, 같은 법 시행령 제9조제1항·별표2를 정확히 인용했는데, 최상위 근거가
+  //   `wiki/statutes/유선및도선사업법.md`였고 statutes 74개 파일 전부에 `## 근거 조문` 표가 없어
+  //   **근거 아코디언이 통째로 사라졌다**(연쇄로 본문 조문 팝업·시행일자도 사라짐).
+  //   ★여기서 고정하는 것은 두 가지다: ①표가 없어도 답변 인용에서 후보를 뽑아낸다
+  //   ②원문 확인 없이는 절대 카드가 되지 않는다(환각 0 — 카드 생성은 라우트가 loadArticle 로 한다).
+  //   ⚠ 원문 조회 자체는 GITHUB_RAW_TOKEN 이 필요해 이 스위트에서 돌리지 않는다(키 없이 도는 것이
+  //     이 파일의 계약) — 라우트가 그 확인을 실제로 거는지는 소스 대조로 고정한다.
+  console.log('\n[T28][B11] 답변 인용 기반 근거 카드 폴백');
+  {
+    const FORMAL_ESAJ = '어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률';
+    const ANS = '쉽게 말하면, 풍랑주의보가 발효 중이어도 「유선 및 도선 사업법 시행규칙」 제7조 및 ' +
+      '별표 1에서 정한 기준을 갖추면 운항할 수 있습니다. 운항할 수 있는 해수면의 범위는 ' +
+      '「유선 및 도선 사업법 시행령」 제9조제1항 및 별표 2에 따릅니다.';
+
+    // (1) 실기기 사례 재현 — 위키 표가 0줄이어도 네 인용을 전부 뽑아낸다
+    const got = R.extractAnswerCitations(ANS);
+    ok('실기기 사례의 인용 4건을 뽑는다(제7조·별표 1·제9조제1항·별표 2)',
+      JSON.stringify(got.map(c => c.law + ' ' + c.article)) === JSON.stringify([
+        '유선 및 도선 사업법 시행규칙 제7조', '유선 및 도선 사업법 시행규칙 별표 1',
+        '유선 및 도선 사업법 시행령 제9조제1항', '유선 및 도선 사업법 시행령 별표 2']),
+      JSON.stringify(got.map(c => c.law + ' ' + c.article)));
+    ok('tier 는 classifyTier 그대로(시행규칙=rule · 시행령=decree)',
+      got.length === 4 && got[0].tier === 'rule' && got[2].tier === 'decree');
+    ok('baseLaw 는 모법으로 편다(원문 폴더를 찾는 열쇠)',
+      got.every(c => c.baseLaw === '유선 및 도선 사업법'));
+
+    // (2) 환각 0 — 답변에 **문자 그대로 있는 표기만**, 조립하지 않는다
+    ok('띄어쓴 표기를 그대로 보존한다(제58조 제5항 제7호)',
+      (R.extractAnswerCitations('「선박안전법」 제58조 제5항 제7호에 따라')[0] || {}).article === '제58조 제5항 제7호');
+    ok('법령명과 떨어져 있는 조문은 뽑지 않는다(어느 법인지 단정 불가)',
+      R.extractAnswerCitations('「해운법」에 따라 여객선은 제10조의 신고가 필요합니다.').length === 0);
+    ok('낫표가 없는 조문 인용은 뽑지 않는다',
+      R.extractAnswerCitations('시행규칙 제20조에 따라 조치해야 합니다.').length === 0);
+
+    // (3) 법 특정 — 약칭은 표로 바꾸고, 모르는 이름·고시는 버린다(모호하면 안 쓴다)
+    ok('약칭을 정식명으로 바꾼다', (R.resolveAnswerLaw('어선안전조업법') || {}).law === FORMAL_ESAJ);
+    ok('약칭 + 시행규칙도 편다', (R.resolveAnswerLaw('어선안전조업법 시행규칙') || {}).law === FORMAL_ESAJ + ' 시행규칙');
+    ok('우리가 원문을 가진 법이 아니면 버린다', R.resolveAnswerLaw('없는이름법') === null);
+    ok('고시·기준 이름은 버린다(어느 법 폴더인지 단정 불가)',
+      R.resolveAnswerLaw('어선원 안전ㆍ보건 및 재해예방 기준') === null);
+
+    // (4) 발동 조건 — 이미 목록에 있는 (법, 조)는 다시 보태지 않는다
+    ok('목록이 비면 뽑힌 인용이 전부 후보다', R.missingAnswerCitations(ANS, []).length === 4);
+    ok('같은 조를 가리키는 위키 줄이 있으면 뺀다(법령 칸이 `시행규칙`뿐이어도)',
+      R.missingAnswerCitations(ANS, [{ law: '시행규칙', baseLaw: '유선 및 도선 사업법', article: '제7조' }])
+        .some(c => c.article === '제7조') === false);
+    ok('위키 줄이 항까지만 짚어도 같은 조면 뺀다',
+      R.missingAnswerCitations(ANS, [{ law: '유선 및 도선 사업법 시행령', article: '제9조', citedArticle: '제9조제1항' }])
+        .some(c => c.article === '제9조제1항') === false);
+    ok('범위 행(`제1~9조`)이 덮는 조는 보태지 않는다',
+      R.missingAnswerCitations('「어선법」 제5조에 따라', [{ law: '어선법', article: '제1~9조' }]).length === 0);
+    ok('묶음 행(`제52~55·57조`)이 덮는 조도 보태지 않는다',
+      R.missingAnswerCitations('「어선법」 제53조에 따라', [{ law: '어선법', article: '제52~55·57조' }]).length === 0);
+    ok('법이 다르면 같은 조 번호라도 후보로 남는다',
+      R.missingAnswerCitations('「어선법」 제5조에 따라', [{ law: '선박법', article: '제5조' }]).length === 1);
+    ok('한 법 뒤에서 이어 읽는 표기는 4건까지만 본다(끝없이 이어지는 나열 방지)',
+      R.extractAnswerCitations('「어선법」 제1조 제2조 제3조 제4조 제5조 제6조').length === 4);
+    ok('후보 상한은 6건이다(원문 조회 횟수 = 답변 지연)',
+      R.SYNTH_CANDIDATE_MAX === 6 &&
+      R.missingAnswerCitations('「어선법」 제1조 제2조 제3조 제4조 「선박법」 제1조 제2조 제3조 제4조', []).length === 6);
+
+    // (5) ★환각 0의 마지막 관문 — 카드는 **원문 확인을 통과한 것만** 만든다(라우트 소스 대조)
+    const SYN = ROUTES_CODE.split('async function synthesizeChainRows')[1] || '';
+    ok('폴백이 라우트에 배선돼 있다(위키 줄을 합친 뒤, 정렬 전에)',
+      /synthRows = await synthesizeChainRows\(full, wikiRows\)/.test(ROUTES_CODE));
+    ok('보탠 줄은 위키 줄 **뒤**에 붙고 기존 정리·정렬을 그대로 통과한다',
+      /dropRedundantChainRows\(wikiRows\.concat\(synthRows\)\)/.test(ROUTES_CODE));
+    ok('실패해도 기존 답변 흐름이 그대로 나간다(try/catch 로 감쌌다)',
+      /try \{ synthRows = await synthesizeChainRows\(full, wikiRows\); \}\s*\n\s*catch/.test(ROUTES_SRC));
+    ok('원문 조회(loadArticle)로 실재를 확인한다', /articleText\.loadArticle\(\{/.test(SYN));
+    ok('조회 실패(ok:false)면 카드를 만들지 않는다', /if \(!res \|\| res\.ok !== true\) continue;/.test(SYN));
+    ok('조 하나(single)·별표(annex) 외의 결과는 쓰지 않는다',
+      /res\.mode !== 'single' && res\.mode !== 'annex'/.test(SYN));
+    ok('별표는 원문을 못 찾은 참조(missing)가 하나라도 있으면 버린다',
+      /refs\.some\(r => r && r\.kind === 'missing'\)/.test(SYN));
+    ok('요지(gist)는 지어내지 않고 빈 문자열이다', /gist: '',/.test(SYN));
+    ok('시행일자는 원문 조회 결과에서 온다', /effectiveDate: res\.effectiveDate \|\| '',/.test(SYN));
+    ok('연락처는 lookupContact 를 재사용한다', /legalRetriever\.lookupContact\(c\.law\)/.test(SYN));
+    ok('출처 구분 표시(synthesized)를 남긴다', /synthesized: true,/.test(SYN));
+    ok('원문 조회 동시 상한이 4건 이하다', /const SYNTH_MAX_CONCURRENCY = 4;/.test(ROUTES_CODE));
+    ok('보탠 줄은 발췌 단계에서 원문을 다시 읽지 않는다',
+      /filter\(r => !\(r && r\.synthesized\)\)\.slice\(0, MAX_EXCERPT_ROWS\)/.test(ROUTES_CODE));
+  }
+
   console.log(`\n${pass} PASS / ${fail} FAIL`);
   process.exit(fail ? 1 : 0);
 })();
