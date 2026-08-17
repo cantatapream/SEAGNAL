@@ -697,6 +697,14 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-17 20:17 KST] ✅완료 — 22R lint_index.py + lint_build.py 완료
+index.json·graph.json(118노드 2069엣지)·build_index.md·_backbone.md(40허브법)·lint_report.json 재생성 완료. 다음: human_workload.py.
+
+
+### [2026-08-17 20:17 KST] 🟢착수 — 22R lint_index.py + lint_build.py
+lint_xref+lint_full 20그룹 전체 완료 확인(마커 77개씩, 74법 전체 커버). 인덱스 재생성 진행.
+
+
 ### [2026-08-17 19:58 KST] ✅완료 — 22R lint_xref+lint_full 20그룹 전체 디스패치 완료
 lint_xref.js 10그룹+lint_full.js 10그룹 전부 디스패치. 완료되는 대로 lint_index.py+lint_build.py→human_workload.py 순서로 진행.
 
