@@ -310,7 +310,8 @@
     "시행령.txt"
    ],
    "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/해양환경보전및활용에관한법률",
-   "group": 1
+   "group": 1,
+   "mode": "lean"
   },
   {
    "name": "해수욕장의 이용 및 관리에 관한 법률",
@@ -634,7 +635,8 @@
     "시행규칙.txt"
    ],
    "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/갯벌및그주변지역의지속가능한관리와복원에관한법률",
-   "group": 4
+   "group": 4,
+   "mode": "lean"
   },
   {
    "name": "서해 5도 지원 특별법",
