@@ -2797,7 +2797,12 @@
   function answerBodyHTML(text, chain) {
     var s = String(text == null ? '' : text);
     var html = (chain && chain.length) ? citeHTML(s, buildCiteIndex(chain)) : esc(s);
-    return html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    // 처벌·양벌 문구가 든 굵은 글씨만 빨간색으로 구분(isPenaltyRow 와 같은 키워드 — 근거법령
+    // 카드의 '벌칙' 배지와 같은 기준으로 맞춘다). 나머지 굵은 글씨는 기존 노란색 그대로.
+    return html.replace(/\*\*(.+?)\*\*/g, function (m, inner) {
+      var cls = /징역|벌금|과태료|처벌|형벌|양벌|몰수|추징/.test(inner) ? ' class="nrya-penalty-b"' : '';
+      return '<b' + cls + '>' + inner + '</b>';
+    }).replace(/\n/g, '<br>');
   }
 
   /**
