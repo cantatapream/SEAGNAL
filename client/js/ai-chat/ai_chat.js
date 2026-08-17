@@ -23,7 +23,10 @@
  *                    js/settings/settings.js (전역 NotificationSettings — 답변완료
  *                    알림 옵트인 값 aiAnswer 읽기/켜기. 먼저 로드되어 있어야 함),
  *                    js/core/backbutton.js (전역 PopupStack — 채팅창·조문 팝업을
- *                    하드웨어 뒤로가기로 닫기)
+ *                    하드웨어 뒤로가기로 닫기),
+ *                    @capacitor/browser (window.Capacitor.Plugins.Browser — 별표·서식
+ *                    원본 파일을 앱 웹뷰 대신 시스템 브라우저로 열어 받게 한다.
+ *                    openDownloadUrl 참고. 웹에서는 평범한 앵커로 폴백)
  *  - 서버 API      : routes/legal.js
  *                    GET  /api/legal/config                   (노출설정 조회, 기본 off)
  *                    POST /api/legal/config {exposure}         (노출설정 저장, 관리자)
@@ -42,6 +45,10 @@
  *                                                                 ctx 만 되돌려 보낸다. profile 은 헤더 ⚙
  *                                                                 패널이 이 기기에만 저장한 스냅샷이고
  *                                                                 서버는 그 요청 중에만 읽는다(미저장)
+ *                                                               · done 의 forms[] 는 답변이 인용한 조문에
+ *                                                                 딸린 별지 서식 목록 — 답변 아래 "서식
+ *                                                                 내려받기" 버튼으로 그린다(_CHATBOT.md 5-5).
+ *                                                                 빈 배열이면 아무것도 그리지 않는다
  *                                                               · 6초 초과+옵트인이면 서버가 완료 푸시 발송)
  *                    GET  /api/legal/pending-answer/:requestId (푸시로 재진입 시 그 답변 1회 복원)
  *                    GET  /api/legal/article-text?law&article&tier&baseLaw
@@ -1612,6 +1619,9 @@
       // citeHTML 이 data-law/article/tier/base 를 카드와 똑같은 이름으로 붙여 두었다.
       var cite = e.target.closest('.nrya-cite');
       if (cite) { openArtPop(cite); return; }
+      // 서식 다운로드 버튼 — 앱 웹뷰에서도 받아지도록 기본 링크 이동 대신 openDownloadUrl 로 연다
+      var fdl = e.target.closest('.nrya-form-dl');
+      if (fdl) { e.preventDefault(); openDownloadUrl(fdl.getAttribute('href')); return; }
       if (e.target.closest('.nrya-chain-tel')) return;
       var hit = e.target.closest('.nrya-chain-hit');
       if (hit) openArtPop(hit);
@@ -1978,11 +1988,46 @@
   }
 
   /**
+   * law.go.kr 원본 파일(HWP·PDF) 주소를 사용자 환경에 맞는 방법으로 연다.
+   * ⚠ 앱(Capacitor 안드로이드 WebView)은 평범한 앵커/`<a download>` 의 다운로드를 못 받는 경우가
+   *   있어, 네이티브에서는 시스템 브라우저(@capacitor/browser)로 넘겨 브라우저가 받게 한다.
+   *   이 저장소의 다른 다운로드 코드(admin_collect.js `_usageOpenDownloadUrl`,
+   *   typhoon/ocean_typhoon.js, marine-life/safety/access_control.js)가 전부 쓰는 것과 같은 패턴이다.
+   * ⚠ 파일은 **사용자 브라우저가 law.go.kr 에서 직접** 받는다 — 우리 서버가 대신 받아오면 안 된다
+   *   (_LESSONS.md L-56 · form_download_survey.md §5-3).
+   * 예: openDownloadUrl('https://www.law.go.kr/LSW/flDownload.do?flSeq=131996113')
+   * @param {string} url - 절대 URL(http/https)
+   * @returns {void}
+   * [연계] ← appendBylDownloads(별표 팝업) · 답변 아래 서식 버튼(bindChat 위임 클릭).
+   */
+  function openDownloadUrl(url) {
+    var u = String(url || '');
+    if (!/^https?:\/\//.test(u)) return;
+    var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    var Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+    var anchorOpen = function () {
+      var a = document.createElement('a');
+      a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      document.body.appendChild(a); a.click(); a.remove();
+    };
+    if (isNative && Browser && Browser.open) {
+      try {
+        var p = Browser.open({ url: u });
+        if (p && typeof p.catch === 'function') p.catch(anchorOpen);
+        return;
+      } catch (e) { /* 폴백 */ }
+    }
+    anchorOpen();
+  }
+
+  /**
    * 별표의 law.go.kr 원본 파일 링크를 붙인다. **kind 와 무관하게** 붙는다 —
    * 표 원문을 갖고 있어도 원본 파일은 따로 받아볼 수 있어야 한다("보기와 다운로드는 양자택일이 아니다").
    * 형식이 하나뿐이면 고르는 선택창 없이 평범한 단일 링크로, 둘이면 동등한 크기 버튼 두 개로 낸다
    * (어느 쪽도 기본값으로 정하지 않는다). 새 탭에서 사용자의 브라우저가 직접 받는다 — 서버가 대신
    * 받아오면 law.go.kr에 차단된다(_LESSONS.md L-56).
+   * ⚠ 실제로 여는 것은 openDownloadUrl 이다(앱 웹뷰 대응) — href 는 길게 눌러 주소 복사 등을 쓸 수
+   *   있게 그대로 두고, 클릭만 가로챈다. 답변 아래 서식 버튼과 **같은 헬퍼**를 써야 두 곳이 어긋나지 않는다.
    * @param {HTMLElement} host - 별표 팝업 본문
    * @param {object} ref - 서버 refs 항목
    * @returns {number} 실제로 붙인 링크 개수(0이면 아무것도 안 붙였다)
@@ -1999,10 +2044,47 @@
       a.className = have.length > 1 ? ('nrya-byl-big-btn ' + b[2]) : 'nrya-byl-dl-link';
       a.textContent = b[1];
       a.href = ref[b[0]]; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.addEventListener('click', function (e) { e.preventDefault(); openDownloadUrl(a.href); });
       row.appendChild(a);
     });
     host.appendChild(row);
     return have.length;
+  }
+
+  /**
+   * 답변이 인용한 조문에 딸린 **별지 서식**(신고서·신청서 등)을 바로 받을 수 있는 버튼 줄을 만든다.
+   * (_CHATBOT.md 5-5 사용자 확정 — "질문에 관련된 별지 서식이 있으면 다운로드 버튼을 붙인다")
+   * ★환각 0: 서버가 근거 조문 원문에서 실제로 판정한 목록(data.forms)만 그린다 — 화면에서 서식을
+   *   찾거나 주소를 만들지 않는다.
+   * ⚠ 0건이면 **빈 문자열**을 돌려준다(빈 상자·빈 줄이 남지 않게).
+   * ⚠ 근거 법령 아코디언 **밖**에 그린다 — 접혀 있는 목록 안에 넣으면 지금 바로 눌러야 할 버튼이
+   *   펼치기 전엔 안 보인다(공백 안내를 아코디언 밖으로 뺀 것과 같은 이유).
+   * 예: renderFormDownloadsHTML([{title:'낚시어선업 신고서', law:'낚시 관리 및 육성법 시행규칙',
+   *      key:'서식11', hwp:'https://…', pdf:''}])
+   *     → '📄 서식 내려받기 / 「낚시어선업 신고서」 [⬇ 받기]' 한 줄
+   * @param {Array} forms - 서버 응답의 forms([{law,tier,article,key,title,hwp,pdf}])
+   * @returns {string} 버튼 줄 HTML(서식이 없으면 '')
+   * [연계] ← answerHTML. → bindChat 의 위임 클릭(.nrya-form-dl) → openDownloadUrl.
+   *          ← 서버 routes/legal.js pickFormRefs 가 폐지(삭제) 서식을 이미 걸러 보낸다.
+   */
+  function renderFormDownloadsHTML(forms) {
+    var list = (forms || []).filter(function (f) {
+      return f && (/^https?:\/\//.test(String(f.hwp || '')) || /^https?:\/\//.test(String(f.pdf || '')));
+    });
+    if (!list.length) return '';
+    // HWP를 먼저 쓴다 — 국가법령정보센터가 서식 원본으로 주는 형식이 HWP뿐이라(PDF는 아직 수집
+    // 전, _LESSONS.md L-55) 실제로는 거의 항상 HWP다. PDF가 채워지면 그때 자동으로 쓰인다.
+    var h = '<div class="nrya-forms"><div class="nrya-forms-h">📄 서식 내려받기</div>';
+    list.forEach(function (f) {
+      var url = /^https?:\/\//.test(String(f.hwp || '')) ? f.hwp : f.pdf;
+      // 제목이 비면(수집 원문에 제목이 없는 드문 경우) 지어내지 않고 서식 열쇠를 그대로 쓴다.
+      var name = String(f.title || '').trim() || String(f.key || '서식');
+      h += '<a class="nrya-form-dl" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' +
+        '<span class="nrya-form-nm">「' + esc(name) + '」</span>' +
+        '<span class="nrya-form-law">' + esc(String(f.law || '')) + '</span>' +
+        '<span class="nrya-form-btn">⬇ 받기</span></a>';
+    });
+    return h + '</div>';
   }
 
   /**
@@ -3023,6 +3105,11 @@
       html += chainHTML(chain);
       html += '</div></div>';
     }
+    // 근거 조문에 딸린 별지 서식 다운로드 버튼(_CHATBOT.md 5-5). 아코디언 **밖·바로 아래**에 둔다 —
+    // 지금 사용자가 눌러야 할 액션이라 접혀 있으면 안 된다. 되묻기는 아직 답이 아니라 붙이지 않는다
+    // (면책·만족도 버튼을 붙이지 않는 것과 같은 이유). 서식이 0건이면 renderFormDownloadsHTML 이
+    // 빈 문자열을 주므로 아무것도 그려지지 않는다.
+    if (!data.clarify) html += renderFormDownloadsHTML(data.forms);
     // ⚠공백 안내는 아코디언 **밖**에 둔다 — 접혀 있는 목록 안에 넣으면 정작 꼭 봐야 할
     // "관할 지자체에 확인하세요"가 펼치기 전엔 안 보인다(그게 이번에 고친 문제 자체다).
     html += gapNoticesHTML(sources);

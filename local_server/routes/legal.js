@@ -702,7 +702,7 @@ router.get('/api/legal/pending-answer/:requestId', (req, res) => {
     const entry = pendingAnswers.retrieve(String(req.params.requestId || ''));
     if (!entry) return res.json({ ok: false });
     res.json({ ok: true, query: entry.query, answer: entry.answer, sources: entry.sources,
-      citationChain: entry.citationChain || [], note: entry.note });
+      citationChain: entry.citationChain || [], forms: entry.forms || [], note: entry.note });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -726,6 +726,9 @@ router.post('/api/legal/notify-me', (req, res) => {
 //   ⓑ길면 뒤를 잘라 '…'를 붙이는 것뿐이다.
 const EXCERPT_MAX = 140;          // 목록 미리보기 최대 글자수(넘으면 뒤를 자르고 '…')
 const MAX_EXCERPT_ROWS = 8;       // 한 답변에서 원문을 읽어올 최대 줄 수(=GitHub 파일 읽기 횟수 상한)
+// 답변 아래 서식 다운로드 버튼의 최대 개수. 근거 조문 8줄 × 조당 참조 12개(article_text MAX_REFS)라
+// 상한이 없으면 이론상 수십 개가 한 줄씩 쌓여 답변보다 버튼이 길어진다(실측 최다 케이스 §검증 참고).
+const MAX_FORMS = 8;
 
 /**
  * loadArticle() 응답에서 목록에 실을 짧은 발췌 한 조각을 고른다.
@@ -804,15 +807,20 @@ function mergeCitationChains(sources) {
  * ⚠ 그 표기로 원문을 못 열면(article_text 가 못 읽는 모양이면) **위키 칸으로 한 번 더** 시도한다 —
  *   더 정확히 하려다 예전에 나오던 발췌까지 잃으면 안 된다.
  * @param {Array} rows - mergeCitationChains → groupCitationChainByFlow 를 지난 줄들
- * @returns {Promise<void>} 각 행에 excerpt 를 직접 채운다(반환값 없음)
+ * @returns {Promise<Array>} 각 행에 excerpt 를 직접 채우고, **딸린 별지 서식 목록**을 돌려준다
+ *                           (아래 pickFormRefs — 응답의 `forms` 로 나가 화면의 다운로드 버튼이 된다)
  * [연계] ← POST /api/legal/ask. → services/article_text.js loadArticle().
  *          ← citedArticle 은 legal_retriever.js filterCitationChainByAnswer 가 채운다(계약1).
+ *          → client/js/ai-chat/ai_chat.js renderFormDownloadsHTML(data.forms).
  */
 async function attachChainExcerpts(rows) {
   // ⚠ 보탠 줄(synthesized — 아래 synthesizeChainRows)은 건너뛴다. 그 줄은 만들어질 때 이미 원문을
   //   한 번 읽었고(그때 발췌도 붙였다) 여기서 또 읽으면 같은 파일을 두 번 읽어 대기시간만 는다.
   const targets = (rows || []).filter(r => !(r && r.synthesized)).slice(0, MAX_EXCERPT_ROWS);
-  await Promise.allSettled(targets.map(async (row) => {
+  // ⚠ 서식은 줄마다 따로 담았다가 **근거 줄 순서대로** 이어 붙인다 — 공용 배열에 완료 순서대로
+  //   밀어 넣으면 같은 질문인데도 버튼 순서가 매번 달라진다(비동기 완료 순서는 보장되지 않는다).
+  const formsByRow = targets.map(() => []);
+  await Promise.allSettled(targets.map(async (row, i) => {
     // 항·호까지 짚은 표기일 때만 우선한다(같은 조를 가리키는데 더 좁힌 것이라 안전하다).
     const cited = String(row.citedArticle || '');
     const first = /[항호]/.test(cited) ? cited : String(row.article || '');
@@ -824,10 +832,78 @@ async function attachChainExcerpts(rows) {
       if ((!out || out.ok !== true) && first !== row.article) out = await load(row.article);
       const ex = pickExcerpt(out);
       if (ex) row.excerpt = ex;
+      formsByRow[i] = pickFormRefs(out, row);
     } catch (e) {
       console.error('[Legal] 조문 발췌 실패:', row.law, row.article, e && e.message);
     }
   }));
+  // 같은 서식이 여러 조문에 걸리는 일이 흔하다(같은 법의 제10조·제11조가 같은 신고서를 부른다) —
+  // 법+계층+열쇠로 한 번만 남긴다. 처음 나온 자리(=답변이 먼저 인용한 조문)의 순서를 지킨다.
+  const seen = new Set();
+  const forms = [];
+  for (const list of formsByRow) {
+    for (const f of list) {
+      const k = f.law + '|' + f.tier + '|' + f.key;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      forms.push(f);
+    }
+  }
+  return forms.slice(0, MAX_FORMS);
+}
+
+/**
+ * 서식 제목에서 파일 첫 줄의 번호 꼬리표를 걷어내 **사람이 읽는 이름**만 남긴다.
+ * 제목이 두 갈래로 들어오기 때문이다(article_text.resolveRefs 실측):
+ *  - kind='text' → 파일 첫 줄에서 온 `서식11 — 낚시어선업 신고서`
+ *  - kind='link' → `_links.json` 의 `제목` 인 `낚시어선업 신고서`
+ * 예: formTitleOf('서식11 — 낚시어선업 신고서') → '낚시어선업 신고서'
+ *     formTitleOf('서식13 — 삭제 &lt;1999.5.13&gt;') → '삭제 &lt;1999.5.13&gt;'(→ 폐지로 걸러진다)
+ * @param {string} title - refs 항목의 title
+ * @returns {string} 번호 꼬리표를 뗀 제목(없으면 '')
+ * [연계] ← pickFormRefs(). 지어내지 않는다 — 원문 글자에서 접두사만 뗀다.
+ */
+function formTitleOf(title) {
+  return String(title || '').replace(/^(?:서식|별표)\s*\d+(?:의\d+)?\s*[—–-]\s*/, '').trim();
+}
+
+/**
+ * `loadArticle()` 응답의 `refs` 에서 **다운로드할 수 있는 별지 서식만** 골라낸다.
+ * ★환각 0: 서식 정보를 새로 찾지 않는다 — 이미 조문 원문을 읽으며 판정해 둔 refs 를 거를 뿐이다
+ *   (예전에는 이 refs 를 통째로 버리고 발췌만 꺼내 썼다).
+ * 거르는 조건 세 가지:
+ *   ①열쇠가 `서식`으로 시작(별표·이미지는 조문 팝업 안에서 이미 볼 수 있어 여기 싣지 않는다)
+ *   ②law.go.kr 원본 파일 주소(hwp 또는 pdf)가 실제로 있다 — 없으면 누를 게 없다
+ *   ③**폐지·이관 서식 제외** — 제목이 `삭제`로 시작하거나 `으로 이동`을 포함하면 버린다("폐지된
+ *     신고서를 받아가라"·"엉뚱한 안내문을 신고서로 받아가라"가 되기 때문. 폐지 117건은
+ *     form_download_survey.md §3-2, 이관 6건은 적대검증 발견 1(2026-08-17, 농수산물품질관리법
+ *     시행규칙 서식43 "[별지 제11호의2서식]으로 이동 &lt;2013.3.24&gt;"로 실측 재현)
+ * 예: pickFormRefs({refs:[{key:'서식11', title:'낚시어선업 신고서', hwp:'https://…'}]}, row)
+ *     → [{law:'낚시 관리 및 육성법 시행규칙', tier:'rule', article:'제12조', key:'서식11',
+ *         title:'낚시어선업 신고서', hwp:'https://…', pdf:''}]
+ * @param {object} out - articleText.loadArticle() 응답(refs 를 가진 객체)
+ * @param {object} row - 그 원문을 읽게 한 인용사슬 줄(law·tier·article 를 여기서 가져온다)
+ * @returns {Array<object>} 서식 목록(없으면 빈 배열)
+ * [연계] ← attachChainExcerpts(). → 응답의 `forms` → ai_chat.js renderFormDownloadsHTML.
+ */
+function pickFormRefs(out, row) {
+  const refs = (out && Array.isArray(out.refs)) ? out.refs : [];
+  const url = u => (/^https?:\/\//.test(String(u || '')) ? String(u) : '');
+  const list = [];
+  for (const r of refs) {
+    if (!r || String(r.key || '').indexOf('서식') !== 0) continue;
+    const hwp = url(r.hwp);
+    const pdf = url(r.pdf);
+    if (!hwp && !pdf) continue;
+    const title = formTitleOf(r.title);
+    if (/^삭제|으로\s*이동/.test(title)) continue;
+    list.push({
+      law: String(row.law || ''), tier: String(row.tier || ''),
+      article: String(row.citedArticle || row.article || ''),
+      key: String(r.key), title, hwp, pdf,
+    });
+  }
+  return list;
 }
 
 // ── 답변 인용 기반 근거 카드 폴백(B11) ────────────────────────────────────────
@@ -902,7 +978,9 @@ async function synthesizeChainRows(answerText, rows) {
 
 // POST /api/legal/ask — { query } → 하이브리드 검색(legal_retriever) + Gemini 답변 스트리밍 합성
 //   응답은 NDJSON(줄바꿈으로 구분된 JSON) 스트림: 답변 조각마다 {type:'delta',text}, 마지막에
-//   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, citationChain, note} 한 줄로 마감.
+//   {type:'done', ok, query, canonicalOnly, answer(전체 텍스트), sources, citationChain, forms, note} 한 줄로 마감.
+//   forms = 근거 조문에 딸린 **별지 서식 다운로드 목록**(pickFormRefs — {law,tier,article,key,title,hwp,pdf}).
+//     최대 MAX_FORMS 개, 폐지(삭제) 서식 제외. 서식이 없으면 빈 배열이고 화면은 아무것도 그리지 않는다.
 //   citationChain = 답변이 실제로 인용한 근거 조문 줄을 **모든 소스에서 합쳐 하나로** 정렬한 목록
 //   (줄 모양: {law, article, effectiveDate, gist, step, tier, contact, baseLaw, excerpt?,
 //              citedArticle, subject, synthesized?}).
@@ -1144,6 +1222,9 @@ router.post('/api/legal/ask', async (req, res) => {
     // citationChain도 소스와 같은 방식으로 답변 문장과 대조해 무관한 줄을 뺀다(legal_retriever.js
     // filterCitationChainByAnswer 참고 — 소스가 통과해도 그 안 표 9줄이 통째로 딸려나오던 문제).
     let citationChain = [];
+    // 근거 조문에 딸린 별지 서식(신고서·신청서) 다운로드 목록 — 아래 attachChainExcerpts 가 채운다.
+    // 근거 줄이 없거나(되묻기 등) 서식이 안 걸리면 빈 배열이고, 그때 화면은 아무것도 그리지 않는다.
+    let forms = [];
     if (usedGemini) {
       // ⓐ 소스마다 답변 문장과 대조해 무관한 줄을 뺀 뒤, ⓑ 살아남은 줄을 **소스 구분 없이 하나로**
       // 합치고(mergeCitationChains), ⓒ 그 합친 목록을 한 번에 "답변이 먼저 말한 법 → 그 법의
@@ -1171,7 +1252,7 @@ router.post('/api/legal/ask', async (req, res) => {
       citationChain = legalRetriever.groupCitationChainByFlow(
         legalRetriever.dropRedundantChainRows(wikiRows.concat(synthRows)), full);
       // 살아남은 줄에만 조문 원문 발췌를 붙인다(거르기 전에 붙이면 버려질 줄까지 원문을 읽는다).
-      await attachChainExcerpts(citationChain);
+      forms = await attachChainExcerpts(citationChain);
     }
 
     // 위키(검증된 카드)에 쓸 근거가 결국 안 남으면 여기서 끝내지 않고, 좁혀진 법의 raw 원문을
@@ -1222,6 +1303,7 @@ router.post('/api/legal/ask', async (req, res) => {
       // 2차(원문 직독) 답변은 위키 근거 조문 표를 쓰지 않았다 — 1차에서 만들다 만 인용사슬을 그대로
       // 딸려 보내면 이 답변의 근거인 척 붙는다(환각 0). sources와 같이 비운다.
       citationChain = [];
+      forms = [];                                                       // 근거를 비웠으니 그 근거에 딸렸던 서식도 함께 비운다
       // ★2026-08-14(H-37 §8, 사용자 확정 (사)): 신뢰등급 꼬리표를 없앤다("⚠미검증 참고 — …").
       //   화면 하단에는 항상 "참고용입니다. 최종 확인은 공식 출처를 확인하세요."가 붙는다.
       //   ⚠오류·결과 상태를 알리는 note(아래 else 가지의 두 문장)는 등급이 아니라 **지금 무슨 일이
@@ -1243,7 +1325,7 @@ router.post('/api/legal/ask', async (req, res) => {
           : '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.');
     }
     res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
-      answer, sources: sourcesOut, citationChain, note })) + '\n');
+      answer, sources: sourcesOut, citationChain, forms, note })) + '\n');
     res.end();
 
     // [답변완료 푸시] 스트림은 위에서 이미 평소대로 끝냈다 — 여기부터는 부가 동작이라
@@ -1253,7 +1335,7 @@ router.post('/api/legal/ask', async (req, res) => {
     try {
       const askedMidway = askId && inFlightAsks.has(askId) && inFlightAsks.get(askId).wantsPush;
       if (answer && (notifyOnComplete || askedMidway) && deviceId && (Date.now() - startedAt) > NOTIFY_MIN_ELAPSED_MS) {
-        const requestId = pendingAnswers.store(q, answer, sourcesOut, note, citationChain);
+        const requestId = pendingAnswers.store(q, answer, sourcesOut, note, citationChain, forms);
         sendAiAnswerPush(deviceId, requestId).catch(e => console.error('[Legal] 답변완료 푸시 실패:', e && e.message));
       }
     } catch (e) { console.error('[Legal] 답변완료 푸시 준비 실패:', e && e.message); }

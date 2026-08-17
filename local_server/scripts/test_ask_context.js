@@ -128,7 +128,7 @@ console.log('\n[T6][#7] 기록 복원 답변 — clarify 가 없어 버튼이 �
 console.log('\n[T7][#8] R1 — 프로필이 서버 파일에 남지 않는다');
 {
   ok('pendingAnswers.store 인자에 ctx·profile 없음',
-    /pendingAnswers\.store\(q, answer, sourcesOut, note, citationChain\)/.test(ROUTES_SRC));
+    /pendingAnswers\.store\(q, answer, sourcesOut, note, citationChain, forms\)/.test(ROUTES_SRC));
   ok('새 지식 후보 로그도 질의·원문만 넘긴다', /logKnowledgeCandidate\(q, raw\)/.test(ROUTES_SRC));
   ok('신규 절이 파일을 쓰지 않는다(읽기 전용)', !/writeFile|appendFile/.test(H37_CODE));
   ok('신규 절이 콘솔로도 안 흘린다', !/console\.(log|error|warn)/.test(H37_CODE));
