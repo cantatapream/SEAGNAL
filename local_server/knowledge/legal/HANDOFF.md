@@ -182,41 +182,57 @@ review_queue.md 201건 백로그 재트리아지(7배치, H-34 기준) 완료 �
 9차 감사 완료 시점은 CLAUDE.md "자율진행 예외" 규칙 대상이었으나(자동으로 10차 감사를 시작하지 않고 정지), 그 직후 발견된 admrul/부칙 raw 파이프라인 구조적 결함(L-29~32) 복구·wiki_rebuild·10차 감사까지는 사용자가 이후 명시적으로 "계속해" 지시해 진행됨(그 순간부터 자율진행 규칙 재적용). 10차 감사 이후 collection_hole 관련 후속작업(재검증→H-28 전수조사→H-30 위키반영→reclass 백로그→사람확인 5건)까지는 자율진행 규칙 하에 연속 처리됨. **③missing/thin 통합수정은 사용자가 명시적으로 "70법 전부 한번에 착수"를 선택**해 진행함.
 
 ### ②지금 진행 중
-**★★[2026-08-17 10:22 KST 최신 — 새 세션은 이 블록부터 읽을 것] 21차 감사 완료(74/74) → H-9①통합수정 착수**
+**★★[2026-08-17 14:39 KST 최신 — 새 세션은 이 블록부터 읽을 것] 전수 재검증 20그룹 완료 → H-9①통합수정(21R) 착수 대기**
 - **★갱신 빈도 정책(2026-08-17 사용자 확정)**: 이 스냅샷은 "라운드 전체"가 끝날 때만이 아니라
-  **라운드 안의 하위 단계(①감사 ②H-9①통합수정 ③lint_xref/lint_full ④lint_index/build
-  ⑤human_workload) 하나가 끝날 때마다 매번** 갱신한다 — 세션이 라운드 도중 어느 단계에서 끊기든
-  다음 세션이 정확한 재개 지점을 알 수 있게 하기 위함. 이 파일뿐 아니라 필요시 MASTER_PLAN.md도
-  같은 시점에 함께 갱신한다.
-- 18차→19차→20차→21차 감사(①단계)가 각 라운드 표준 5단계 파이프라인을 따라 진행 중. 18차는
-  사용자 지시로 lean/rich 모드 도입(audit_sim.js `lean`=회귀전용 경량, `rich`=600상한 제거 — 8개
-  풍부법: 독도법·해양공간계획법·해양과학조사법·해양조사와해양정보활용에관한법률·자연유산법·
-  농수산물품질관리법·수산업협동조합법·수산업법). `audit18_groups.json`(74법/10그룹 편성)은
-  round만 바꿔 19~21차까지 그대로 재사용.
-- **21차 감사(①단계) 74/74 완료(2026-08-17 10:22 KST)** — task-id는 작업로그 "21차 감사 착수"
-  항목 참조. 여러 법에서 "N라운드 연속 불변" 패턴이 계속 확인돼 콘텐츠가 수렴 단계에 있음을
-  시사(예: 소요시간이 20R 평균 29.8분→21R 평균 26.0분으로 단축됐으나 문항수·도구호출수는 거의
-  동일 — 회귀확인 비중 증가가 원인으로 추정, 사용자 질문에 대한 실측 답변).
-- **★H-39(2026-08-17 사용자 확정) collection_hole(c) 즉시수집 원칙 신설** — MASTER_PLAN.md에
-  정책 기록, `audit_fix_cell.js` 2-C절 강화 완료(DRF 라이브조회 `lawService.do?target=admrul&
-  ID=<일련번호>&type=JSON`+WebSearch 의무화, 못 찾아도 "이번 라운드 시도방법+결과"를 반드시 기록해
-  다음 라운드가 같은 헛수고 반복 안 하게 함). **다음 H-9①통합수정(21R)부터 이 강화된 지침이
-  적용된다** — 이후 라운드에서 "N라운드 연속 uncollected"로 반복 지적되는 collection_hole(c)
-  건수가 실제로 줄어드는지 관찰할 것(안 줄면 정책이 스크립트에 잘 반영됐는지 재점검).
-- **디스패치 방식(불변)**: `Workflow(scriptPath='_dashboard/loop/audit_sim.js'(또는
+  **라운드 안의 하위 단계 하나가 끝날 때마다 매번** 갱신한다 — 세션이 도중에 끊기든 다음 세션이
+  정확한 재개 지점을 알 수 있게 하기 위함.
+- **★세션마다 쓸 수 있는 도구가 다르다(2026-08-17 새로 확인)**: "Workflow" 도구(`scriptPath`+
+  `groupIndex`+`resumeFromRunId`로 그룹별 병렬 디스패치, 채팅창에 사각형 진행률 UI 표시)는
+  **클로드 앱(데스크톱/모바일)으로 접속했을 때만 제공되고, "Claude Code on the web" 세션에는
+  없다.** 이 세션은 web이라 Workflow 도구가 아예 안 보였음(ToolSearch로 재확인). **새 세션이
+  Workflow 도구를 못 찾으면 당황하지 말고, 아래 §7 스크립트들의 "법별 할 일 지침"을 그대로
+  옮겨 Agent 도구(subagent_type=general-purpose, model=opus)로 그룹당 1개씩 재구성해 디스패치할
+  것** — 산출물 파일 경로·형식만 스크립트와 동일하게 맞추면 결과는 동등하다(이번 세션이 실제로
+  이렇게 20그룹을 완료함).
+- 18차~21차 감사(①단계)까지는 표준 5단계 파이프라인대로 완료(21차 74/74, 2026-08-17 10:22 KST).
+- **★H-39 collection_hole(c) 즉시수집 원칙**(MASTER_PLAN.md 기록, `audit_fix_cell.js` 2-C절
+  강화 완료) — 다음 H-9①통합수정(21R)부터 적용 예정, 아직 실제 적용 라운드는 안 돌았음.
+- **[신규 완료] 21차 감사 직후, 사용자 지시로 21차 표준 파이프라인(H-9①→lint→...)보다 먼저
+  "전수 재검증"을 별도로 진행함** — 과거 전체 감사 이력을 훑어 ①thin(content_gap)이 정말 원문에도
+  없는지 ②collection_hole(a)/(b)가 정말 genuine/structural인지 ③collection_hole(c) 중 방치된
+  게 없는지 검증(`collection_hole_reverify.js`+신규 `content_gap_reverify.js`, 10그룹×2종=20개).
+  **20개 전부 완료**(collection_hole 10 + content_gap 10). 산출물: `_dashboard/
+  collection_hole_reclass_report_g0~9.md` + `_dashboard/content_gap_reverify_report_g0~9.md`.
+  - **★이번 세션은 law.go.kr DRF API가 프록시 정책으로 403 차단**됐음(다른 세션·환경에서는 이
+    제약이 없을 수 있음 — 새 세션은 먼저 직접 조회 테스트해 볼 것). 그래서 전 그룹이 lsDelegated
+    라이브 재조회 대신 raw 직접대조+`_admrul.json`(과거 라이브검증 기록)+감사파일 최신판정
+    교차확인으로 대체 검증했고, API로만 확정되는 소수 항목은 unclear로 정직 보류함.
+  - **집계 결과**(각 그룹 리포트 §0 요약 참조, 정확한 수치는 리포트별로 다름): 재수집 필요
+    (action=recollect) 약 54건, 위키만 고치면 되는 것(wiki_fix/wiki_sync) 약 58건. 재수집 중
+    상당수는 공용 타법 파일(`raw/15_관련타부처/상법/법률.txt`에 회사편 통째 부재 — 한국해양교통
+    안전공단법·수산부산물재활용법 등 복수 법에 영향, `raw/15_관련타부처/국가계약법/`도 유사)
+    하나로 수렴 — **⚠경합위험(공용 타법 파일) 대상이라 단독 처리 필요**.
+  - **감사파일 교차오염(L-93~95 계열) 재발 4건 추가 발견**(`_LESSONS.md` L-99): 내수면어업법·
+    서해5도지원특별법·수산부산물재활용법(↔한국해양교통안전공단법 오염원) — 전부 발견만 하고
+    조치는 다음 세션으로 이월(줄 번호는 L-99 참조).
+- **디스패치 방식(Workflow 있는 세션)**: `Workflow(scriptPath='_dashboard/loop/audit_sim.js'(또는
   `audit_fix_cell.js`/`lint_xref.js`/`lint_full.js`), args={groupsPath:
   '_dashboard/loop/audit18_groups.json', groupIndex:'0'~'9', round:N})` — 그룹당 별도 Workflow
-  호출 10개를 한 메시지에서 동시 디스패치.
-- **다음 할 일**: H-9①통합수정(audit_fix_cell.js, round:21) 10그룹 디스패치 → 완료되는 대로 이
-  블록을 다시 갱신(②단계 완료 스냅샷) → lint_xref.js+lint_full.js(10그룹씩, round 불필요) →
-  완료되는 대로 다시 갱신(③단계) → lint_index.py→lint_build.py → 갱신(④단계) →
-  human_workload.py → 갱신(⑤단계=라운드 전체 완료) → 22차 착수(자율진행 규칙, 재승인 불필요).
-- **★세션 사용량 한도 이슈(20차에서 실측)**: H-9①통합수정 1차 시도에서 세션 한도(리셋시각 표시,
-  예 "resets 10:20pm UTC")로 그룹당 절반 이상 실패한 전례 있음. 리셋시각 이후
-  `Workflow({scriptPath, resumeFromRunId: <해당 그룹의 run_id>, args:{...동일}})`로 재시도하면
-  이미 성공한 법은 캐시로 즉시 반환되고 실패한 법만 재실행됨.
+  호출 10개를 한 메시지에서 동시 디스패치. (Workflow 없는 세션은 위 §새로 확인 항목 참조.)
+- **다음 할 일(우선순위 순)**:
+  1. 위 재검증에서 나온 `wiki_fix`(content_gap) + `wiki_sync`(collection_hole) 항목들을 반영
+     — 재수집 불필요, 위키 문장만 정정하면 됨(챗봇 오답 위험 있는 것부터: 선원법 유급휴가,
+     폐기물관리법 처벌조항 등). 별도 정리 라운드 또는 다음 H-9①에 흡수해도 됨(오케스트레이터 판단).
+  2. 상법·국가계약법 등 공용 타법 파일 보강(⚠경합위험 — 단독 처리, 사전고지 후 진행).
+  3. `action=recollect`(진짜 재수집 백로그) 항목들을 `collection_hole_recollect.js`로 재수집.
+  4. H-9①통합수정(`audit_fix_cell.js`, round:21) 10그룹 디스패치 → lint_xref.js+lint_full.js →
+     lint_index.py→lint_build.py → human_workload.py → 22차 착수(자율진행 규칙, 재승인 불필요).
+- **★세션 사용량 한도 이슈(20차에서 실측, Workflow 세션 한정)**: `Workflow({scriptPath,
+  resumeFromRunId: <run_id>, args:{...동일}})`로 재시도하면 이미 성공한 법은 캐시로 즉시 반환.
+  (Workflow 없는 세션은 Agent 도구라 캐시 재사용이 없음 — 실패분은 처음부터 재실행.)
 - **완료 시마다 할 일(불변)**: `git status --short`로 새 변경분·마커 확인 → shrink-guard(`git diff
-  --numstat`으로 삭제가 삽입의 1.5배 넘는 파일 없는지) → 문제없으면 배치로 커밋+fetch+merge+push.
+  --numstat`으로 삭제가 삽입의 1.5배 넘는 파일 없는지, 넘으면 diff 직접 확인해 정당한 축소인지
+  판단) → 문제없으면 배치로 커밋+fetch+merge+push.
 - **MASTER_PLAN.md H-38(완전소진) 최신 상태(20R 기준, 21R에서 추가 변경 없음)**:
   수산물유통의관리및지원에관한법률 — 16R~20R 5라운드 연속 재확정. 해양환경 보전 및 활용에 관한
   법률 — 9R~21R 13라운드 연속 정체(기준②는 5연속 충족, 기준①은 아직 없어 "잠정 유지").
@@ -554,6 +570,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
+
+### [2026-08-17 14:39 KST] ✅완료 — 전수 재검증 20그룹(collection_hole 10+content_gap 10) 전체 완료
+20개 그룹 모두 완료·커밋·푸시됨. 집계: 재수집 필요 약 54건(주로 공용 타법 파일 상법 회사편 공백이 원인 다수), 위키만 고치면 되는 wiki_fix/wiki_sync 약 58건(위키가 실제로 틀린 답을 하고 있던 사례 다수 포함 — 선원법 유급휴가·폐기물관리법 처벌조항 등). 감사파일 교차오염(L-93~95 계열) 4개 법에서 추가 발견해 _LESSONS.md L-99에 기록(내수면어업법·서해5도지원특별법·수산부산물재활용법↔한국해양교통안전공단법). 이 세션 내내 law.go.kr API가 프록시 정책으로 차단돼 전 그룹이 raw 직접대조로 대체 검증. 다음 할 일: 20개 리포트의 wiki_fix/recollect 항목을 다음 H-9①통합수정(또는 별도 정리 라운드)에 반영.
+
 
 ### [2026-08-17 14:24 KST] ✅완료 — 전수 재검증 20그룹 Agent 도구로 재디스패치 완료
 20개 그룹(collection_hole_reverify 10그룹 + content_gap_reverify 10그룹, 각 7~8법씩, model:opus)을 이 세션의 Agent 도구로 백그라운드 디스패치 완료. 산출물은 원래 스크립트와 동일 경로: _dashboard/collection_hole_reclass_report_g<N>.md, _dashboard/content_gap_reverify_report_g<N>.md. 완료 알림 오는 대로 리포트 파일 존재 확인 → shrink-guard → 커밋 → wiki_fix/recollect 대상 취합해 후속 처리(H-9①통합수정 또는 collection_hole_recollect.js) 예정. audit18_groups.json 그룹 편성 그대로 재사용.
