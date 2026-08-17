@@ -53,6 +53,10 @@
  *  - 목(가. 나. 다.) 쪼개기도 같은 계약이다 — 줄머리에 `가.`부터 차례대로 있을 때만 쪼갠다.
  *    번호·기호는 **원문에 적힌 것을 그대로** 쓰고 화면에서 다시 매기지 않는다(1,2,3으로 다시
  *    매기면 `6의2호`가 `7.`로 보여 인용과 어긋난다).
+ *  - 조 뒤에 붙은 부칙은 **본문에서 떼어내되 버리지 않는다** — `addenda`로 자리만 옮겨 화면이
+ *    "부칙 보기"로 따로 펼친다(원문 글자를 잃는 것이 섞여 나오는 것만큼 나쁘다).
+ *  - `focused`(그 항·호만 펼쳐도 되는지)는 **인용한 항·호를 원문에서 실제로 찾았을 때만** true.
+ *    조금이라도 단정할 수 없으면 false로 물러나 조 전체를 보여준다(loadArticle 의 focused 주석 참고).
  *  - 별표 블록에 번호(`〔별표 1〕` 등)가 안 적혀 있으면 "1번이겠지"라고 넘겨짚지 않고
  *    그 블록을 버린다(번호 없는 `[별표]` 블록이 실제 raw 에 381개 있다).
  *  - 계층 없는 `별표N.txt`는 파일명 번호와 내용 번호가 어긋난 게 41개 있어, 선언줄의 **계층과
@@ -1452,17 +1456,21 @@ async function loadArticle(q) {
   //       조각을 "그 항"이라고 단정하게 되므로 인정하지 않는다.
   //  ⓑ 항을 안 지목한 인용(`제57조제1호`)은 조각이 하나뿐일 때만 인정한다(그때는 어느 항인지 다툼이 없다).
   //     그마저도 호를 지목했을 때만 — 아무것도 안 지목한 `제57조`를 focused 로 주면 접을 것이 없다.
-  //  ⓒ 호를 지목했으면 **지목한 호가 전부** 그 항에서 발견돼 hit 가 달렸다. 하나라도 못 찾으면 화면이
+  //  ⓒ 그 항 기호가 조 안에 **하나뿐**이다. 수집이 덜 된 타법 파일에는 한 조 블록 안에 다른 조의
+  //     조각까지 섞여 들어가 ①이 두세 번 나오는 블록이 실측 41개 있다(전체 25,919 블록 중).
+  //     그런 조는 findIndex 가 앞의 ①을 집는데 인용이 가리킨 것은 뒤의 ①이라 **엉뚱한 항만 펼쳐진다**
+  //     (부가가치세법 제37조 실측). 어느 쪽인지 단정할 수 없으므로 조 전체를 보여준다.
+  //  ⓓ 호를 지목했으면 **지목한 호가 전부** 그 항에서 발견돼 hit 가 달렸다. 하나라도 못 찾으면 화면이
   //     나머지를 접어 인용된 호를 조용히 감춘다("부분 실패는 정직하게 표시" 계약 위반).
-  //  ⓓ 호를 안 지목했는데 그 항이 호로 쪼개져 있으면 false — 접으면 각 호가 통째로 사라져
+  //  ⓔ 호를 안 지목했는데 그 항이 호로 쪼개져 있으면 false — 접으면 각 호가 통째로 사라져
   //     "다음 각 호의 어느 하나에 해당하는 자에게는 …" 머리문장만 남는다(항만 지목한 인용은 조 전체를 준다).
   const hitPara = hitIdx >= 0 ? out[hitIdx] : null;
-  const markFound = !!ref.mark && paragraphs.some(p => p.mark === ref.mark);
+  const markFound = !!ref.mark && paragraphs.filter(p => p.mark === ref.mark).length === 1;
   const focused = !!hitPara &&
     (markFound || (!ref.mark && hoList.length > 0 && paragraphs.length === 1)) &&
-    (hitPara.items
-      ? hoList.length > 0 && hoList.every(h => hitPara.items.some(it => it.label === h && it.hit))
-      : true);
+    (hoList.length > 0
+      ? !!hitPara.items && hoList.every(h => hitPara.items.some(it => it.label === h && it.hit))
+      : !hitPara.items);
 
   const found = collectRefs(paragraphs.map(paraPlainText).join('\n'));
   return Object.assign(head, {
