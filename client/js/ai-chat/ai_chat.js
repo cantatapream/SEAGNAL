@@ -1334,12 +1334,14 @@
 
   // ── 대화 기록(기기 저장): 헤더 🕘 → 날짜별 목록 → 누르면 그 질문/답변을 말풍선으로 ──────
   //    저장은 doSend 가 **진짜 최종 답변**을 받은 순간에만 한다(되묻기·오류는 저장 안 함).
-  //    근거 법령(sources·citationChain)은 저장하지 않는다 — 용량이 커지는데 "내가 뭘 물었더라"
-  //    를 되짚는 데는 질문·답변 문장이면 충분하다(지난 답변을 눌러도 근거 아코디언은 안 붙는다).
+  //    근거 법령(sources·citationChain·forms)도 **받았던 그대로** 저장한다(2026-08-18 사용자 확정 —
+  //    예전엔 용량을 아끼려 질문·답변 글자만 저장했는데, 지난 대화를 다시 열면 근거 아코디언·서식
+  //    버튼이 통째로 사라지는 게 더 나쁘다는 실사용 지적으로 저장 대상을 넓혔다). HISTORY_MAX=200건
+  //    기준 늘어나는 용량은 수백 KB 안팎으로 추정(로컬 저장 한도 대비 미미).
 
   /**
    * 저장된 대화 기록을 배열로 읽는다(없거나 깨졌으면 빈 배열 — 절대 예외를 던지지 않는다).
-   * @returns {Array<{q:string,a:string,note:string,ts:number}>} 오래된 것부터
+   * @returns {Array<{q:string,a:string,note:string,sources:Array,chain:Array,forms:Array,ts:number}>} 오래된 것부터
    */
   function loadHistory() {
     try {
@@ -1352,15 +1354,19 @@
 
   /**
    * 질문/답변 한 쌍을 기록에 덧붙인다(상한 초과분은 오래된 것부터 버린다).
-   * 예: pushHistory('5톤 낚시어선 야간조업?', {answer:'…', note:'…'})
+   * 예: pushHistory('5톤 낚시어선 야간조업?', {answer:'…', note:'…', citationChain:[…], forms:[…]})
    * @param {string} q - 사용자 질문
-   * @param {object} data - done 응답({answer, note})
-   * [연계] ← doSend 의 최종 렌더 직후(되묻기·오류 제외). → openHistory 목록.
+   * @param {object} data - done 응답({answer, note, sources, citationChain, forms})
+   * [연계] ← doSend 의 최종 렌더 직후(되묻기·오류 제외). → openHistory 목록, openHistoryEntry.
    */
   function pushHistory(q, data) {
     try {
       var arr = loadHistory();
-      arr.push({ q: String(q || ''), a: String((data && data.answer) || ''), note: String((data && data.note) || ''), ts: Date.now() });
+      arr.push({
+        q: String(q || ''), a: String((data && data.answer) || ''), note: String((data && data.note) || ''),
+        sources: (data && data.sources) || [], chain: (data && data.citationChain) || [], forms: (data && data.forms) || [],
+        ts: Date.now(),
+      });
       if (arr.length > HISTORY_MAX) arr = arr.slice(arr.length - HISTORY_MAX);
       localStorage.setItem(LS_HISTORY, JSON.stringify(arr));
     } catch (_) { /* 저장 불가(시크릿 모드·용량 초과)여도 대화는 계속돼야 한다 */ }
@@ -1584,7 +1590,10 @@
     for (var i = list.length - 1; i >= 0; i--) { if (String(list[i] && list[i].ts) === String(ts)) { hit = list[i]; break; } }
     if (!hit) return;
     closeHistory(false);   // 목록만 닫고 ‹ 는 남긴다
-    renderRestoredAnswer({ ok: true, query: hit.q, answer: hit.a, sources: [], note: hit.note });
+    renderRestoredAnswer({
+      ok: true, query: hit.q, answer: hit.a, note: hit.note,
+      sources: hit.sources || [], citationChain: hit.chain || [], forms: hit.forms || [],
+    });
   }
 
   function bindChat() {
