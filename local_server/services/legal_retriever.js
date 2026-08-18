@@ -1128,9 +1128,11 @@ async function decideClarify(query, contextPages, restate, narrowLabels, lastTop
   // 드문 경우도 되묻기를 건너뛸 뿐이라 안전한 쪽으로 틀린다.
   const rounds = String(query || '').split(CLARIFY_JOINER).length - 1;
   if (rounds >= CLARIFY_MAX_ROUNDS) return CLARIFY_NONE;
+  // 머리 모양은 buildContextBlock 과 **같은 이유로** 같은 형태를 쓴다(그 주석 참고) — 모델이
+  // 되묻기 문구에 이 이름을 그대로 옮겨 적으면 사용자에게 뜻이 통하지 않는다.
   const block = contextPages.slice(0, CLARIFY_TOPK).map((cp, i) => {
-    const title = cp.topic ? `${cp.law} — ${cp.topic}` : cp.law;
-    return `--- 근거${i + 1}: [${title}] ---\n${String(cp.body || '').slice(0, CLARIFY_BODY_CHARS)}`;
+    const about = cp.topic ? ` (이 자료가 다루는 것: ${cp.topic})` : '';
+    return `--- 근거${i + 1}: 「${cp.law}」${about} ---\n${String(cp.body || '').slice(0, CLARIFY_BODY_CHARS)}`;
   }).join('\n\n');
   // [H-37 §17] 확인된 재진술이 있으면 질문 바로 뒤에 한 블록 끼운다. 없으면 빈 문자열이라
   //   프롬프트가 오늘과 바이트 동일하다(R0) — 줄바꿈까지 이 블록 안에 넣어 둔 이유가 그것이다.
@@ -1274,9 +1276,11 @@ async function explainClarifyStep(contextPages, unk) {
     confirmKind: UNKNOWN_ACT,
   };
   if (!gemini.hasAnyKey() || !contextPages || !contextPages.length) return fallback;
+  // 머리 모양은 buildContextBlock 과 **같은 이유로** 같은 형태를 쓴다(그 주석 참고) — 모델이
+  // 되묻기 문구에 이 이름을 그대로 옮겨 적으면 사용자에게 뜻이 통하지 않는다.
   const block = contextPages.slice(0, CLARIFY_TOPK).map((cp, i) => {
-    const title = cp.topic ? `${cp.law} — ${cp.topic}` : cp.law;
-    return `--- 근거${i + 1}: [${title}] ---\n${String(cp.body || '').slice(0, CLARIFY_BODY_CHARS)}`;
+    const about = cp.topic ? ` (이 자료가 다루는 것: ${cp.topic})` : '';
+    return `--- 근거${i + 1}: 「${cp.law}」${about} ---\n${String(cp.body || '').slice(0, CLARIFY_BODY_CHARS)}`;
   }).join('\n\n');
   const prompt = `너는 대한민국 해양수산 법령 챗봇이다. 사용자가 아래 되묻기 질문에 "잘 모르겠어요"를 눌렀다.
 답을 대신 정해주지 말고, 사용자가 **스스로 고를 수 있게** 말뜻만 쉽게 풀어줘라.
@@ -2139,10 +2143,15 @@ function missingAnswerCitations(answerText, rows) {
 /** contextPages를 프롬프트용 [근거자료] 블록 문자열로 직렬화. */
 function buildContextBlock(contextPages) {
   return contextPages.map((cp, i) => {
-    const title = cp.topic ? `${cp.law} — ${cp.topic}` : cp.law;
+    // ★2026-08-18(사용자 지적): 예전 머리는 `[수산업법 — 허가어업]` 이었고, 모델이 그걸 통째로
+    //   베껴 답변에 `[수산업법 — 허가어업]의 "★ 정의부터" 표`처럼 적었다. 그건 **우리가 자료를
+    //   정리하려고 붙인 이름**이라 사용자에게 뜻이 통하지 않고 눌러볼 수도 없다.
+    //   규칙12로 금지하는 것과 별개로, **베끼기 쉬운 자리에 놓인 글자 자체를 바꾼다** — 법령명은
+    //   답변에 그대로 써도 되는 「낫표」 형태로 두고, 주제는 인용처럼 보이지 않는 설명문으로 돌린다.
     const meta = `상태:${cp.status || '(법령원문)'} · 기준일:${cp.frontmatter.updated || cp.frontmatter.시행일 || '미상'}` +
       (cp.hop ? ' · (관련개념 보강)' : '');
-    return `--- 근거${i + 1}: [${title}] (${meta}) ---\n${cp.body}`;
+    const about = cp.topic ? `이 자료가 다루는 것: ${cp.topic} · ` : '';
+    return `--- 근거${i + 1}: 「${cp.law}」 (${about}${meta}) ---\n${cp.body}`;
   }).join('\n\n');
 }
 
@@ -2180,7 +2189,9 @@ const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
     - 잘못된 예: 항목마다 "…(「낚시 관리 및 육성법 시행령」 제16조제1항제1호)", "…(제2호)"를 반복하는 것. 화면이 그 조문 표기를 전부 눌러볼 수 있는 링크로 바꾸므로, 같은 조항을 가리키는 링크가 예닐곱 개씩 늘어서기만 하고 새로 알려주는 것이 없다. 묶음 제목의 링크 하나를 누르면 그 조문 전체(각 호가 다 들어 있다)가 열린다.
     - **예외는 하나뿐이다**: 어떤 항목이 그 묶음의 조문이 아니라 **다른 법·다른 조**에서 나왔으면, 그 항목에만 따로 적는다(그건 새로 알려주는 정보다).
     - 묶지 않고 문장으로 풀어 쓸 때는 종전대로 그 문장에 근거를 적는다. 근거 자체를 빼먹으면 안 된다(빼먹으면 사용자가 원문을 확인할 길이 없다).
-    - 묶음 전체를 덮는 조문이 근거자료에서 확정되지 않으면 **지어내지 말고** 확인되는 범위(조 또는 항)까지만 적는다.`;
+    - 묶음 전체를 덮는 조문이 근거자료에서 확정되지 않으면 **지어내지 말고** 확인되는 범위(조 또는 항)까지만 적는다.
+    - ★**"근거:" 같은 각주 줄을 따로 만들지 마라.** 문단 끝에 "* 근거: 「수산업법」 제40조제1항, 「수산업법」 제44조 …"처럼 조문을 다시 모아 적으면, 바로 위 문장에서 이미 밝힌 것을 한 번 더 늘어놓는 것일 뿐이다. 조문은 **그것을 설명하는 문장 안**이나 **묶음 제목 옆**, 둘 중 한 자리에만 적는다.
+12. ★**[근거자료]의 문서 이름·표 제목·절 제목을 답변에 쓰지 마라.** 근거자료 머리에 붙은 "[수산업법 — 허가어업]" 같은 이름이나 그 안의 "★ 정의부터"·"근해어업 조업구역·허가정수"·"⑤ 허가조건" 같은 소제목은 **우리가 자료를 정리하려고 붙인 이름**이지 법령에 있는 말이 아니다. 사용자에게는 뜻이 통하지 않고, 눌러서 찾아볼 수도 없다. 출처를 밝힐 때는 **법령명과 조문번호(필요하면 별표·별지 번호)로만** 적는다.`;
 
 const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
 
