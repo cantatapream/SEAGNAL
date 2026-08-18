@@ -93,5 +93,24 @@ ok('이름과 조문이 멀리 떨어져 있으면 잡지 않는다',
 ok('이름이 아예 없으면 잡지 않는다',
   R.citationNearLawName('제5조에 따라', ['어떤 지침']) === '');
 
+console.log('── 자료 머리의 법령 안내 ──');
+{
+  const body = fs.readFileSync(path.join(WIKI, '해운법__보조항로지정및도서민해상교통지원.md'), 'utf8');
+  const names = R.pageLawNames(body, '해운법');
+  ok('대표 법령이 맨 앞이다', names[0] === '해운법', names.join(' / '));
+  ok('자료에 함께 실린 고시·지침 이름을 뽑는다',
+    names.some(n => n.includes('내항해운에관한업무지침')), names.join(' / '));
+
+  const cp = { law: '해운법', topic: '보조항로', status: 'canonical', frontmatter: { updated: '2026-08-17' }, body };
+  const blk = R.buildContextBlock([cp]);
+  ok('머리에 "함께 실려 있다" 안내가 붙는다', blk.includes('함께 실려 있다'));
+  ok('그 안내가 고시 이름을 담는다', blk.includes('내항해운에관한업무지침'));
+}
+{
+  // 법령이 한 종류뿐인 자료에는 안내를 붙이지 않는다(쓸데없는 줄을 늘리지 않는다).
+  const only = { law: '해운법', topic: '', status: 'canonical', frontmatter: {}, body: '본문만 있고 근거 조문 표가 없다.' };
+  ok('법령이 하나뿐이면 안내를 붙이지 않는다', !R.buildContextBlock([only]).includes('함께 실려 있다'));
+}
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);
