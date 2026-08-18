@@ -111,6 +111,11 @@ const TIER_BYL_PREFIX = { law: '법률', decree: '시행령', rule: '시행규�
 const MAX_ARTICLES = 15;
 // 한 번에 판정할 별표·서식 참조 상한(원문이 긴 문서에서 GitHub 조회가 폭주하지 않게).
 const MAX_REFS = 12;
+// 본문 안 이미지 참조(`【이미지 N】`)는 이 상한을 따로 쓴다. 별표·서식과 달리 판정에 드는 조회가
+// 문서당 목록 조회 **한 번**뿐이라(resolveRefs ①) 개수가 늘어도 비용이 늘지 않는다.
+// ⚠ 같이 세면 그림이 많은 조에서 이미지가 12칸을 다 먹어 **별표·서식이 판정도 못 받고 밀린다** —
+//   실측 최다는 한 조에 18장(환경보전해역및특별관리해역지정)이라 그 한 조가 상한을 통째로 썼다.
+const MAX_IMG_REFS = 24;
 // 별표 링크가 상대경로(`/LSW/flDownload.do?flSeq=…`)로 적힌 파일이 있어 붙일 호스트.
 const LAWGO_ORIGIN = 'https://www.law.go.kr';
 // raw 폴더 경로(law_raw_paths.json 값) → GET /api/legal/src 의 p 파라미터로 바꿀 때 떼는 앞부분.
@@ -723,11 +728,19 @@ function extractArticleBlock(text, jo, tier) {
 }
 
 /**
- * 원문에 섞여 있는 이미지 마커를 정리한다. `<img id="123">`(전 raw 811개)·
- * `<img src="http://www.law.go.kr/…">`(47개)는 화면에 그대로 노출되면 안 되는 찌꺼기라 걷어내고,
- * `【이미지판독 123】(원본이미지: _이미지/123.png)`(297개)는 우리가 스캔본을 갖고 있다는 뜻이라
- * `【이미지 123】` 참조로 줄여 둔다(클라이언트가 눌러서 볼 수 있게).
- * 예: cleanBody('… 있다.<img id="9">\n【이미지판독 9】(원본이미지: _이미지/9.png)\n[표]…')
+ * 원문에 섞여 있는 이미지 마커를 정리해 **그림이 있던 자리**에 `【이미지 N】` 참조를 남긴다.
+ * 원문에는 두 가지 표기가 섞여 있다(전 raw 실측):
+ *   - `<img id="123">` 860개 — law.go.kr 본문에 그림이 끼어 있던 자리
+ *   - `【이미지판독 123】(원본이미지: _이미지/123.png)` 328개 — 우리가 그 그림을 스캔해 받아둔 표시
+ * 325개는 둘이 짝으로 붙어 있어(같은 번호) 하나로 합친다. 짝이 없는 `<img id>` 도 참조로 바꾼다 —
+ * ★2026-08-18: 예전에는 태그를 **통째로 지웠고**, 그래서 우리가 `_이미지/N.png` 를 갖고 있는데도
+ *   화면에서 그림이 흔적 없이 사라지는 자리가 85개(18개 파일) 있었다. 예: 항만건설장비 고시
+ *   제18조 "다음 표에 따른 기준에 적합하여야 한다.<img id=…>" — 정작 그 '다음 표'가 그림이라
+ *   문장만 남고 표가 없어졌다. 이제는 참조로 남겨 화면이 그 자리에 그림을 그대로 띄운다.
+ * ⚠ 우리가 파일을 갖고 있지 않은 번호(실측 446개)도 여기서는 참조로 남지만, resolveRefs()가
+ *   kind='missing' 으로 판정하고 화면(appendText)이 **흔적 없이 지운다** — 예전과 같은 결과다.
+ * `<img src="http://www.law.go.kr/…">` 같은 나머지 태그는 여전히 걷어낸다(가리킬 파일이 없다).
+ * 예: cleanBody('… 있다.<img id="9"></img>\n【이미지판독 9】(원본이미지: _이미지/9.png)\n[표]…')
  *     → '… 있다.\n【이미지 9】\n[표]…'
  * @param {string} s - 조 본문
  * @returns {string}
@@ -735,8 +748,14 @@ function extractArticleBlock(text, jo, tier) {
  */
 function cleanBody(s) {
   return String(s || '')
-    .replace(/<\/?img\b[^>]*>/gi, '')
-    .replace(/【이미지판독\s*(\d+)】\s*\(원본이미지:[^)]*\)/g, '【이미지 $1】');
+    // ① 태그와 판독 마커가 같은 번호로 붙어 있는 짝(325개) — 같은 그림이니 참조 하나로 합친다.
+    .replace(/<img id="(\d+)"[^>]*>(?:\s*<\/img>)?\s*【이미지판독\s*\1】\s*\([^)]*\)/g, '【이미지 $1】')
+    // ② 짝이 없는 판독 마커
+    .replace(/【이미지판독\s*(\d+)】\s*\(원본이미지:[^)]*\)/g, '【이미지 $1】')
+    // ③ 짝이 없는 id 태그 — 자리를 남긴다(파일이 없으면 화면이 지운다)
+    .replace(/<img id="(\d+)"[^>]*>/gi, '【이미지 $1】')
+    // ④ 나머지 img 찌꺼기(닫는 태그·외부 주소 태그)는 가리킬 파일이 없어 그대로 걷어낸다.
+    .replace(/<\/?img\b[^>]*>/gi, '');
 }
 
 // 본문 안의 별표·서식·이미지 참조 표현. 실측 표기가 `별표 1`·`별표1의2`·`별지 제1호서식`·
@@ -834,16 +853,37 @@ function stripBylTitlePrefix(line) {
 function collectRefs(text) {
   const out = [];
   const seen = new Set();
+  let byl = 0, img = 0;
   let m;
   REF_RE.lastIndex = 0;
   while ((m = REF_RE.exec(String(text || '')))) {
     const key = refKeyOf(m);
     if (seen.has(key)) continue;
     seen.add(key);
+    // 별표·서식과 이미지는 상한이 따로다(MAX_IMG_REFS 주석 참고). 별표 상한에 걸려도 스캔을
+    // 멈추지 않는다 — 뒤쪽에 남은 이미지는 아직 받을 자리가 있다.
+    if (key.indexOf('이미지') === 0) {
+      if (img >= MAX_IMG_REFS) continue;
+      img += 1;
+    } else {
+      if (byl >= MAX_REFS) continue;
+      byl += 1;
+    }
     out.push({ key, text: m[0] });
-    if (out.length >= MAX_REFS) break;
+    if (byl >= MAX_REFS && img >= MAX_IMG_REFS) break;
   }
   return out;
+}
+
+/**
+ * 참조 목록에서 **별표·서식만** 센다(이미지는 상한이 따로라 같이 세면 안 된다).
+ * 예: bylCount([{key:'별표1'},{key:'이미지9'}]) → 1
+ * @param {Array<{key:string}>} found
+ * @returns {number}
+ * [연계] ← loadArticle()의 refsTruncated 판정·withAtts(). MAX_REFS 와 짝이다.
+ */
+function bylCount(found) {
+  return (found || []).filter(f => String((f && f.key) || '').indexOf('이미지') !== 0).length;
 }
 
 /**
@@ -1396,7 +1436,7 @@ async function loadArticle(q) {
       refs,
       // 여러 별표를 가리킨 인용에서 못 찾은 것은 조용히 빼지 않고 그대로 알린다.
       missing: refs.filter(r => r.kind === 'missing').map(r => r.key),
-      refsTruncated: found.length >= MAX_REFS,
+      refsTruncated: bylCount(found) >= MAX_REFS,
     });
   }
 
@@ -1410,7 +1450,7 @@ async function loadArticle(q) {
     // (안 넣으면 원문이 있는데도 "미수집"처럼 회색으로 보인다).
     const withAtts = (found) => {
       for (const a of attachments) {
-        if (found.length >= MAX_REFS) break;
+        if (bylCount(found) >= MAX_REFS) break;
         if (!found.some(f => f.key === a.key)) found.push({ key: a.key, text: a.key });
       }
       return found;
@@ -1423,7 +1463,7 @@ async function loadArticle(q) {
         attachments,
         tooLong: { articleCount: joList.length, limit: MAX_ARTICLES },
         refs: await resolveRefs(found, refCtx),
-        refsTruncated: found.length >= MAX_REFS,
+        refsTruncated: bylCount(found) >= MAX_REFS,
       });
     }
     const articles = buildArticles(text, tier, joList);
@@ -1444,7 +1484,7 @@ async function loadArticle(q) {
       // 문서의 마지막 조가 나열에 포함됐으면 그 뒤의 부칙이 딸려 있다 — 본문에서 떼어낸 것을 그대로 싣는다.
       addenda: (articles.find(a => a.addenda) || {}).addenda || '',
       refs: await resolveRefs(found, refCtx),
-      refsTruncated: found.length >= MAX_REFS,
+      refsTruncated: bylCount(found) >= MAX_REFS,
     });
   }
 
@@ -1514,7 +1554,7 @@ async function loadArticle(q) {
     refs: await resolveRefs(found, refCtx),
     // 참조가 MAX_REFS 를 넘어 뒤쪽을 아예 판정하지 않았다는 신호(클라이언트가 "미수집"으로
     // 단정하지 않게 한다 — 판정 안 한 것과 실제로 없는 것은 다르다).
-    refsTruncated: found.length >= MAX_REFS,
+    refsTruncated: bylCount(found) >= MAX_REFS,
   });
 }
 

@@ -490,6 +490,12 @@
 #nrya-overlays .nrya-byl-ref{color:#8bb6ff; font-weight:700; text-decoration:underline; text-decoration-style:dotted; text-decoration-color:rgba(139,182,255,.5); text-underline-offset:2px; cursor:pointer}
 #nrya-overlays .nrya-byl-ref:hover{color:#a9c6ff}
 #nrya-overlays .nrya-byl-missing{font-size:9.5px; color:#6b7a75; font-style:italic; margin-left:3px}
+/* 본문 안 원문 이미지(2026-08-18) — 표·산식은 문장 아래 붙고, 수식 기호는 문장 안에 끼어 있다.
+   inline-block + max-width:100% 하나로 둘 다 받는다: 큰 그림은 폭에 맞춰 제 줄을 차지하고,
+   작은 기호는 원래 크기로 글자 사이에 앉는다(어느 쪽인지 미리 알 수 없어 크기로 가르지 않는다).
+   ⚠ background:#fff 는 장식이 아니다 — 원본 스캔은 흰 바탕에 검은 글씨라 배경이 없으면
+     어두운 팝업에서 글씨가 안 보인다. */
+#nrya-overlays .nrya-artpop-img{display:inline-block; max-width:100%; vertical-align:middle; border-radius:6px; background:#fff; padding:2px; box-sizing:border-box; cursor:zoom-in}
 /* law.go.kr 원본만 있는 서식: PDF·HWPX 중 하나를 마음대로 기본값으로 정하지 않고 동등한 크기로 나란히 */
 #nrya-overlays .nrya-byl-big-row{display:flex; gap:8px; flex-wrap:wrap}
 #nrya-overlays .nrya-byl-big-btn{flex:1 1 130px; display:flex; align-items:center; justify-content:center; gap:7px; border:none; border-radius:12px; padding:12px 0; font-size:13px; font-weight:800; cursor:pointer; text-decoration:none; font-family:inherit; box-sizing:border-box}
