@@ -61,6 +61,14 @@ function prompt(l, round, pass) {
 
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
 let laws = cfg.laws || []
+// 재검증처럼 "법 목록을 통째로" 넘길 때는 파일로 준다(도구 인자에 큰 JSON 을 싣지 않기 위해).
+if (!laws.length && cfg.lawsPath) {
+  const boot = await agent(
+    `\`${cfg.lawsPath}\`(JSON: {laws:[...]})를 Read로 읽어 그대로 반환: {laws: 그 배열 전체(객체 그대로, 필터·가공 금지)}.`,
+    { label: 'boot-laws', phase: '라이브검증', model: 'sonnet', effort: 'low',
+      schema: { type: 'object', required: ['laws'], properties: { laws: { type: 'array', items: { type: 'object' } } } } })
+  if (boot) laws = boot.laws || []
+}
 if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
   const boot = await agent(
     `\`${cfg.groupsPath}\`(JSON: {"0":[...],"1":[...],...})를 Read로 읽어 반환: {laws: 키 "${cfg.groupIndex}"의 배열 전체(객체 그대로, 필터·가공 금지)}.`,
