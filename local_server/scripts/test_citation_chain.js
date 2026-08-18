@@ -93,6 +93,26 @@ ok('이름과 조문이 멀리 떨어져 있으면 잡지 않는다',
 ok('이름이 아예 없으면 잡지 않는다',
   R.citationNearLawName('제5조에 따라', ['어떤 지침']) === '');
 
+console.log('── 조문의 주인 확인(고시·지침까지) ──');
+{
+  // 답변이 「내항해운에관한업무지침」 제14조제2항이라고 분명히 썼으면, **다른 페이지의**
+  // 「해운법」 제10~14조 묶음 행이 그 조문을 물고 들어오면 안 된다(해운법 제14조엔 제2항이 없다).
+  const ans = '쉽게 말하면, 인정되는 비용은 8가지입니다. 「내항해운에관한업무지침」 제14조제2항에 따라 '
+    + '선원인건비·유류비 등이 인정됩니다. 이 8가지 항목은 「해운법」 제16조제1항에도 적용됩니다.';
+  const other = keptFor('해운법__여객운송사업계획변경및운항의무', ans, '해운법');
+  ok('묶음 표기 행이 남의 조문을 물고 오지 않는다',
+    !other.some(r => String(r.citedArticle || '').startsWith('제14조')),
+    other.map(r => r.law + ' ' + r.citedArticle).join(' / '));
+  ok('정당하게 인용된 조문은 그대로 남는다',
+    other.some(r => r.citedArticle === '제16조제1항'),
+    other.map(r => r.law + ' ' + r.citedArticle).join(' / '));
+
+  const own = keptFor('해운법__보조항로지정및도서민해상교통지원', ans, '해운법');
+  ok('진짜 주인인 고시 행은 살아남는다',
+    own.some(r => String(r.law).includes('내항해운에관한업무지침') && r.citedArticle === '제14조제2항'),
+    own.map(r => r.law + ' ' + r.citedArticle).join(' / '));
+}
+
 console.log('── 자료 머리의 법령 안내 ──');
 {
   const body = fs.readFileSync(path.join(WIKI, '해운법__보조항로지정및도서민해상교통지원.md'), 'utf8');

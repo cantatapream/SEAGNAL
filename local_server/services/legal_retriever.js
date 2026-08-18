@@ -1807,6 +1807,22 @@ function citationOwners(text) {
   // anyLaws = 답변에서 `「법령명」 제N조` 꼴로 **한 번이라도 확정 인용된** 법들의 모법.
   //   이 목록에 없는 법은 판정 대상에서 빼려고 함께 담는다(ownedByThisLaw 주석 참고).
   owners.anyLaws = new Set();
+  // ★고시·지침·조례는 위 확정 인용에 못 담긴다 — extractAnswerCitations 는 **우리가 원문을 가진
+  //   법**만 주인으로 인정하기 때문이다(resolveAnswerLaw 의 rawPathOf 관문). 그래서 답변이
+  //   「내항해운에관한업무지침」 제14조제2항이라고 분명히 써도 제14조의 주인이 비어, 같은 조번호를
+  //   가진 **다른 페이지의 모법 행**이 근거 목록에 딸려 붙었다(실측: 「해운법」 제14조제2항 — 그
+  //   조문에는 제2항 자체가 없다). 원문 보유 여부와 무관하게 **답변이 「」로 이름을 붙여 쓴 자리**를
+  //   따로 기록해 두고, 확정 인용이 없을 때만 그 기록으로 판정한다.
+  // ⚠이건 "직전 「」가 뒤 모든 조문의 주인"이라는 방식이 아니다(그건 정당한 줄 28.5%를 죽였다).
+  //   이름과 조문이 **바로 붙어 있는 자리만** 센다.
+  owners.named = new Map();
+  NAMED_CITE_RE.lastIndex = 0;
+  let nm;
+  while ((nm = NAMED_CITE_RE.exec(text)) !== null) {
+    const k = joKeyOf(nm[2]);
+    if (!owners.named.has(k)) owners.named.set(k, new Set());
+    owners.named.get(k).add(flatLawName(nm[1]));
+  }
   for (const c of extractAnswerCitations(text)) {
     const k = joKeyOf(c.article);
     const b = baseNameOf(c.law);
@@ -1815,6 +1831,23 @@ function citationOwners(text) {
     if (b) owners.anyLaws.add(b);
   }
   return owners;
+}
+
+// 답변에서 **이름과 조문이 바로 붙어 나온** 자리(`「법령명」 제N조`) — 사이에는 공백 정도만 허용한다.
+const NAMED_CITE_RE = /「([^」\n]{2,60})」\s*(제\s*\d+\s*조(?:의\d+)?)/g;
+
+/** 법령 이름을 비교용으로 납작하게 만든다(공백·낫표·괄호주석·계층 꼬리 제거).
+ * 위키 칸(`서해 5도 해상운송비 지원 지침(고시)`)과 답변 표기(`「서해 5도 해상운송비 지원 지침」`)를
+ * 같은 자리로 보려는 것이다.
+ * 예: flatLawName('「해운법 시행규칙」') → '해운법'
+ * @param {string} v @returns {string}
+ * [연계] ← citationOwners · ownedByThisLaw. */
+function flatLawName(v) {
+  let t = String(v || '').replace(/[「」『』]/g, '').trim();
+  const w = TIER_WRAP_RE.exec(t);
+  if (w) t = w[1].trim();
+  else if (/\)$/.test(t) && t.includes('(')) t = t.slice(0, t.lastIndexOf('(')).trim();
+  return t.replace(/(?:\s*[·ㆍ・,/]?\s*(?:시행령|시행규칙))+\s*$/, '').replace(/\s+/g, '');
 }
 
 /** 이 근거 줄의 법이, 답변에서 그 조문의 주인으로 실제로 나온 적이 있는가.
@@ -1827,7 +1860,14 @@ function citationOwners(text) {
  */
 function ownedByThisLaw(owners, hit, law, baseLaw) {
   const set = owners.get(joKeyOf(hit));
-  if (!set || !set.size) return true;         // 확정 인용이 없는 조문 → 판정 안 함(버리지 않는다)
+  if (!set || !set.size) {
+    // 확정 인용은 없지만, 답변이 그 조문에 **이름을 붙여 쓴 자리**가 있으면 그걸로 판정한다
+    // (고시·지침·조례처럼 우리가 원문을 안 가진 법이 여기 걸린다).
+    const named = owners.named && owners.named.get(joKeyOf(hit));
+    if (!named || !named.size) return true;   // 그런 자리도 없으면 판정 안 함(버리지 않는다)
+    return lawCellVariants(law).concat(baseLaw ? [baseLaw] : [])
+      .some(v => named.has(flatLawName(v)));
+  }
   const mine = baseNameOf(law, baseLaw);
   if (!mine) return true;                     // 모법을 못 정해도 버리지 않는다
   // ⚠이 법 자체가 답변에서 **한 번도 `「법령명」 제N조` 꼴로 인용되지 않았다면** 판정하지 않는다.
@@ -1881,6 +1921,11 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
       for (const jo of jos) {
         const cited = citedArticleIn(text, jo);
         if (!cited) continue;
+        // ★주인 확인은 여기에도 걸어야 한다(2026-08-18 실측). 아래 낱개 갈래에만 걸어 뒀더니,
+        //   `제10~14조` 같은 묶음 행이 **다른 페이지에서** 딸려와 답변의 「내항해운에관한업무지침」
+        //   제14조제2항 때문에 「해운법」 제14조제2항으로 근거 목록에 실렸다 — 해운법 제14조에는
+        //   제2항 자체가 없다. 사용자가 그 줄을 누르면 없는 조문을 여는 셈이다.
+        if (!ownedByThisLaw(owners, jo, row.law, baseLaw)) continue;
         out.push(Object.assign({}, row, {
           article: jo, citedArticle: cited, subject: subjectOfCitation(subjects, cited),
         }));
@@ -1901,6 +1946,7 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
       const inRange = (text.match(/제\d+조/g) || [])
         .find(c => { const n = parseInt(c.replace(/\D/g, ''), 10); return n >= from && n <= to; });
       if (!inRange) continue;
+      if (!ownedByThisLaw(owners, inRange, row.law, baseLaw)) continue;   // 범위 표기도 같은 이유로 확인
       row.citedArticle = citedArticleIn(text, inRange);
       row.subject = subjectOfCitation(subjects, row.citedArticle);
       out.push(row);
