@@ -940,7 +940,11 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('baseLaw 차이는 **그 값이 실제로 쓰일 때만** 모호로 본다',
       /if \(hit\.base !== base && _baseMatters\(nm, tier\)\) hit\.ambiguous = true;/.test(IDX));
     ok('_baseMatters 는 고시·자기참조(이 법·시행령)에서만 true 다(서버 resolveBase 와 같은 규칙)',
-      /function _baseMatters\(name, tier\) \{\s*\n\s*if \(tier === 'notice'\) return true;/.test(CLIENT_SRC));
+      /function _baseMatters\(name, tier\) \{\s*\n(?:\s*\/\/[^\n]*\n)*\s*if \(tier === 'notice'\) return true;/.test(CLIENT_SRC));
+    // ⚠ `시행령 별표1`(위키에 실제로 있는 표기)을 자기참조로 못 잡으면 서로 다른 법의 별표를
+    //   같은 것으로 보아 엉뚱한 원문을 열 수 있다 — 서버 isSelfRef 와 같이 꼬리를 먼저 뗀다.
+    ok('_baseMatters 가 별표·별지·서식 꼬리를 떼고 판정한다(서버 isSelfRef 와 동일)',
+      /replace\(\/\\s\*\(\?:별표\|별지\|서식\)\[\^가-힣\]\*\$\/, ''\)/.test(CLIENT_SRC));
   }
 
   // ── sliceRelevant 회귀 잠금 (2026-08-17) — 이 로직에서 회귀가 두 번 재발했다:

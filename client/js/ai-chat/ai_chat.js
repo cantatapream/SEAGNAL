@@ -2749,7 +2749,12 @@
    */
   function _baseMatters(name, tier) {
     if (tier === 'notice') return true;
-    var s = String(name || '').replace(/[「」『』]/g, '').replace(/\s+/g, '');
+    // ⚠ `별표·별지·서식` 꼬리를 먼저 떼는 것까지 서버 isSelfRef 와 같아야 한다 — 안 떼면
+    //   `시행령 별표1`(위키 근거조문표에 실제로 있는 표기, 전수 4건)이 "계층 단어뿐"으로 안 잡혀
+    //   baseLaw 가 필요 없다고 잘못 판단하고, 그러면 서로 다른 법의 시행령 별표를 같은 것으로 보아
+    //   **엉뚱한 원문을 열 수** 있다(전수 점검에서 발견해 보완).
+    var s = String(name || '').replace(/[「」『』]/g, '')
+      .replace(/\s*(?:별표|별지|서식)[^가-힣]*$/, '').replace(/\s+/g, '');
     if (!s || /^같은/.test(s)) return false;
     return s.replace(/^(이|동|본)/, '').replace(/(법률|법령|법|시행령|시행규칙|[·ㆍ・,\/]|→)/g, '') === '';
   }

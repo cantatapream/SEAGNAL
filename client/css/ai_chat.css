@@ -342,7 +342,8 @@
 #nrya-overlays .nrya-chain-step[data-tier="notice"] .nrya-chain-dot,#nrya-overlays .nrya-chain-step[data-tier="notice"] .nrya-chain-tier{background:#a8e0c4; color:#123527}
 #nrya-overlays .nrya-chain-step.nrya-penalty .nrya-chain-dot,#nrya-overlays .nrya-chain-step.nrya-penalty .nrya-chain-tier{background:#f3a39a; color:#3d0f0a}
 /* 제목 줄은 [뱃지] 법령명 조문번호 한 줄로 끝낸다(뱃지와 같은 줄 — 예전엔 아랫줄이었다) */
-#nrya-overlays .nrya-chain-art{flex:1 1 auto; color:#eaf3f0; font-size:11.5px; font-weight:700; line-height:19px; min-width:0; overflow-wrap:anywhere}
+/* 기본폭 60% — 이 값이 있어야 flex-wrap 이 켜져도 법령명이 뱃지와 같은 줄에 남는다(위 주석) */
+#nrya-overlays .nrya-chain-art{flex:1 1 60%; color:#eaf3f0; font-size:11.5px; font-weight:700; line-height:19px; min-width:0; overflow-wrap:anywhere}
 #nrya-overlays .nrya-chain-quote{color:#eef2ef; font-size:10px; margin-top:5px; line-height:1.6}
 /* 조문 원문 발췌(요지가 아니라 원문 그대로) — 왼쪽 인용선으로 "인용문"임을 드러낸다 */
 #nrya-overlays .nrya-chain-quote.nrya-chain-ex{font-size:11px; line-height:1.65; color:#dfeae6; border-left:2px solid rgba(105,240,174,.35); padding-left:8px}
@@ -364,12 +365,17 @@
    ⚠flex-wrap 을 쓰면 안 된다 — 뱃지 다음에 와야 할 법령명이 통째로 아랫줄로 내려간다.
    뱃지는 첫 줄에 붙박이(flex:none + align-items:flex-start)고, 법령명·조문은 그 옆에서 흐르다
    길어지면 자기 칸 안에서 줄바꿈한다. 시행일자 칩은 남은 폭을 법령명이 다 먹으므로 우측 끝에 남는다. */
-#nrya-overlays .nrya-chain-head{display:flex; align-items:flex-start; gap:7px}
+/* ★2026-08-18: 위 주석의 "flex-wrap 금지"는 **법령명 칸에 기본폭이 없을 때** 이야기다 — 그때는
+   법령명이 통째로 아랫줄로 내려갔다. 이제 .nrya-chain-art 에 기본폭 60%를 줘서 법령명은 항상
+   뱃지와 같은 줄에 남고(폭이 모자라면 자기 칸 안에서 줄바꿈), 자리가 없을 때 **시행일자 칩만**
+   아랫줄로 내려간다. 넓은 화면에서는 셋이 예전처럼 한 줄에 그대로 들어간다. */
+#nrya-overlays .nrya-chain-head{display:flex; flex-wrap:wrap; align-items:flex-start; gap:7px}
 #nrya-overlays .nrya-chain-tier{flex:none}
 /* ⚠ 예전엔 flex:none + nowrap 이라 이 칩 하나가 헤더의 최소폭을 ~116px 로 못 박아, 좁은 화면에서
-   말풍선 전체를 밀어냈다(위 .nrya-kcol 주석). 줄어들 수 있게 하고 "시행일자"와 날짜 사이에서
-   두 줄로 접히게 둔다 — 정보는 그대로 두고 폭만 양보한다. */
-#nrya-overlays .nrya-chain-eff{flex:0 1 auto; min-width:0; margin-left:auto; font-family:var(--nrya-mono); font-size:9.5px; color:#9fb4d6; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.22); border-radius:7px; padding:2px 7px; text-align:right}
+   말풍선 전체를 밀어냈다(위 .nrya-kcol 주석). 칩 **글자는 한 줄로 유지**하고(두 줄로 접히면 읽기
+   나쁘다 — 사용자 확정 2026-08-18), 자리가 모자라면 칩 자체가 **아랫줄로 통째로 내려간다**
+   (.nrya-chain-head 의 flex-wrap). margin-left:auto 라 내려가도 오른쪽 끝에 붙는다. */
+#nrya-overlays .nrya-chain-eff{flex:0 0 auto; margin-left:auto; font-family:var(--nrya-mono); font-size:9.5px; color:#9fb4d6; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.22); border-radius:7px; padding:2px 7px; white-space:nowrap}
 /* 위키 근거 조문 표의 단계 라벨("① 신고" 등, 2026-08-18) — 법령명 줄 바로 아래, 발췌보다 작게 */
 #nrya-overlays .nrya-chain-step-lab{display:block; font-size:10px; color:#8fa2bd; margin:2px 0 4px}
 /* 조문 카드 클릭 영역(연락처 줄 제외) — 누르면 조문 원문 팝업이 뜬다 */
