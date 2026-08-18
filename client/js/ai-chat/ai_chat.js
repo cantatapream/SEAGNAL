@@ -3181,22 +3181,12 @@
    * @returns {string} HTML(선택지가 없으면 빈 문자열)
    * [연계] ← answerHTML. → pickClarifyOption(위임 클릭 핸들러). ← routes/legal.js done.clarify.
    */
-  // legal_retriever.js decideClarify()가 "직전 질문과 이어질 수도 있다"는 확인 후보 하나를 얹을 때
-  // 박아 보내는 hint 원문 그대로. 이 문자열로만 그 선택지를 가려낸다(서버가 ctx·act 없이 평범한
-  // 선택지로 보내기 때문 — 다른 표식이 없다).
-  var NRYA_CONTINUITY_HINT = '방금 물어보신 질문과 이어지는 내용일 수 있어요';
-
   function clarifyHTML(q, clarify) {
     if (!clarify || !clarify.question || !(clarify.options || []).length) return '';
-    // ⚠ 2026-08-18 실사용 지적: "이어지는 질문일 수 있다"는 확인 후보가 서버에서 **항상 맨 끝에**
-    //   붙어 오는데, 화면도 그 순서 그대로 그려 무관한 법 여러 개(예: 어업권·항로표지·도선면허) 사이에
-    //   묻혀 사용자가 못 보고 지나쳤다(라이브 재현). 판단 로직은 그대로 두고 — 이미 애매해서 되묻는 걸
-    //   결정한 뒤에야 후보가 붙는 순서는 손대지 않는다 — **화면에서만** 이 후보를 맨 앞으로 올리고
-    //   다른 선택지와 다르게 눈에 띄게 그린다(잘 모르겠어요 옵션과 같은 관례).
-    var opts = (clarify.options || []).slice();
-    var ci = opts.findIndex(function (o) { return o && o.hint === NRYA_CONTINUITY_HINT; });
-    if (ci > 0) { var cOpt = opts.splice(ci, 1)[0]; opts.unshift(cOpt); }
-    var btns = opts.map(function (o) {
+    // ⚠ 2026-08-18: "직전 질문과 이어질 수 있다"는 확인 후보를 맨 앞으로 올려 강조하던 처리를
+    //   **없앴다** — 서버가 그 선택지를 아예 안 보낸다(질의를 합치면 이미 답한 것을 또 설명하고
+    //   검색어가 오염돼, 맥락을 ctx.topic 으로 잇는 방식으로 바꿨다).
+    var btns = (clarify.options || []).map(function (o) {
       if (!o || !o.label) return '';
       // [H-37 §3.2] 서버가 선택지에 `ctx`를 실어 보내면(이해확인·상황질문·프로필확인) 그 버튼은
       //   **질의에 라벨을 붙이지 않고** 이 ctx 만 되돌려 보낸다 — 질의 문자열을 오염시키지 않는
@@ -3204,10 +3194,8 @@
       // [계약5] 선택지 맨 끝의 "잘 모르겠어요"(act:'unknown')는 조건을 고른 게 아니라 **모른다는 답**
       //   이라, 다른 선택지와 눈에 띄게 구분되도록 연한 점선 테두리로 그린다. 전송 경로는 다른 ctx
       //   버튼과 완전히 같다(pickClarifyOption 의 data-ctx 갈래 — 새 경로를 만들지 않는다).
-      var isCont = o.hint === NRYA_CONTINUITY_HINT;
-      var cls = 'nrya-consent-btn nrya-clarify-btn' + (o.act === 'unknown' ? ' nrya-clarify-unknown' : '') +
-        (isCont ? ' nrya-clarify-continuity' : '');
-      var label = (isCont ? '🔁 ' : '') + o.label;
+      var cls = 'nrya-consent-btn nrya-clarify-btn' + (o.act === 'unknown' ? ' nrya-clarify-unknown' : '');
+      var label = o.label;
       return '<button type="button" class="' + cls + '" data-label="' + esc(o.label) + '"' +
         (o.ctx ? ' data-ctx="' + esc(JSON.stringify(o.ctx)) + '"' : '') +
         (o.act ? ' data-act="' + esc(o.act) + '"' : '') +

@@ -633,10 +633,13 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     //   되물을 때만(needed:true) 여지가 있으면(칸이 남고 아직 안 겹치면) 얹는다.
     const PREV = '안전검사 안 받으면 어떻게 되나요?';
     const withPrev = await R.decideClarify(Q, CP, '', [], PREV);
-    ok('직전 질문이 확인 후보로 추가된다(옵션 3개 + 잘모르겠어요)',
-      withPrev.needed === true && withPrev.options.length === 4 && lastIsUnknown(withPrev));
-    ok('추가된 후보의 라벨·힌트가 직전 질문을 그대로 담는다',
-      withPrev.options[2].label === PREV && withPrev.options[2].hint.includes('이어지는'));
+    // ★2026-08-18: 직전 질문 원문을 선택지로 얹던 절충안을 **없앴다** — 그 선택지를 누르면 질의가
+    //   합쳐져 이미 답한 것을 또 설명하고 검색어까지 오염됐다(실사용 재현). 맥락은 이제 질의를
+    //   건드리지 않는 ctx.topic(검색 확장어 전용)으로 잇는다.
+    ok('직전 질문을 선택지로 얹지 않는다(질의 오염 없음)',
+      withPrev.needed === true && !withPrev.options.some(o => o.label === PREV));
+    ok('직전 질문이 있어도 선택지 수가 늘지 않는다(옵션 2개 + 잘모르겠어요)',
+      withPrev.options.length === 3 && lastIsUnknown(withPrev));
     const noPrev = await R.decideClarify(Q, CP, '', []);
     ok('직전 질문이 없으면 종전과 동일하다(옵션 2개 + 잘모르겠어요)',
       noPrev.needed === true && noPrev.options.length === 3 && lastIsUnknown(noPrev));
@@ -651,7 +654,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     // (7) 배선 — routes 가 스위치와 함께 넘긴다, query 에는 절대 안 섞는다
     ok('스위치 off 면 재진술을 하류로 안 넘긴다(§9.1 #10)',
       /const ucRestate = cfg\.understandConfirm \? \(ctx\.uc\.restate \|\| ''\) : '';/.test(ROUTES_CODE));
-    ok('검색에 넘긴다', /search\(qForSearch,\s*[\s\S]{0,80}restate: ucRestate/.test(ROUTES_CODE));
+    ok('검색에 넘긴다', /searchOpts\.restate = ucRestate;/.test(ROUTES_CODE));
     ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion(?:, ctx\.cl)?\)/.test(ROUTES_CODE));
     ok('질의 문자열에는 어디서도 안 합친다(R2)',
       !/q \+[^\n]*restate/i.test(ROUTES_CODE) && !/restate[^\n]*\+ q\b/i.test(ROUTES_CODE));
@@ -949,6 +952,23 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       R.filterCitationChainByAnswer([row('선박직원법', '제2조', 'law')],
         '「낚시 관리 및 육성법」 제25조에 따라 신고합니다. 선박직원법 제2조에 따른 면허도 필요합니다.',
         '낚시 관리 및 육성법').length > 0);
+  }
+
+  // ── 이어서 질문: 맥락은 ctx.topic 으로만 잇는다 (2026-08-18 사용자 확정) ────────────────
+  {
+    ok('ctx.topic 은 검색 확장어로만 넘어간다(질의 문자열엔 안 합친다)',
+      /if \(ctx\.topic\) searchOpts\.topic = ctx\.topic;/.test(ROUTES_CODE)
+      && !/qForSearch[^\n]*\+[^\n]*topic/i.test(ROUTES_CODE));
+    ok('답변의 주제를 ctx.topic 에 남긴다(다음 질문이 이어받는다)',
+      /ctx\.topic = String\(\(src && src\.topic\) \|\| head\.law \|\| ''\)/.test(ROUTES_CODE));
+    ok('주제는 지어내지 않는다 — 근거 줄이 없으면 안 싣는다',
+      /const head = citationChain\[0\];\s*\n\s*if \(head\) \{/.test(ROUTES_SRC));
+    ok('normalizeAskCtx 가 topic 을 통과시킨다', !!R.normalizeAskCtx({ topic: '낚시어선업' }, null).topic);
+    ok('ctxNext 에 topic 이 실린다', (R.ctxNextOf(R.normalizeAskCtx({ topic: '낚시어선업' }, null)) || {}).topic === '낚시어선업');
+    ok('topic 이 없으면 ctxNext 는 종전처럼 null 이다(R0)',
+      R.ctxNextOf(R.normalizeAskCtx({}, null)) === null);
+    ok('search 가 topic 을 확장어로만 쓴다(질의는 그대로)',
+      /const topicTerms = termsOf\(String\(\(opts && opts\.topic\) \|\| ''\)\)/.test(RET_SRC));
   }
 
   // ── 근거 아코디언 제거 · 시행일자/연락처 재배치 (2026-08-18 사용자 확정) ────────────────
