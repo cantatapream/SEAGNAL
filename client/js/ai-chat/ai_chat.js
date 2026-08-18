@@ -1708,6 +1708,11 @@
   var artPopReq = 0;   // 조회 순번 — 늦게 도착한 이전 요청이 지금 보는 조문을 덮어쓰지 않게 한다
   var artPopRefs = {}; // 지금 보고 있는 조문의 별표·서식 참조 판정(서버 refs를 key로 정리한 것)
   var artPopRefsCut = false; // 서버가 판정 상한에서 멈췄나(true면 refs에 없는 참조 = "판정 안 함")
+  // 조 없이 별표만 가리킨 인용(mode:'annex')에서 **하나뿐인 별표를 자동으로 열었나.**
+  // 이때 뒤에 남는 조문 팝업은 그 별표 한 줄짜리 목록뿐이라, 별표를 닫으면 다 봤는데도 같은 것을
+  // 한 번 더 닫아야 했다(사용자 지적 2026-08-18). 자동으로 연 경우만 함께 닫는다 — 조 본문에서
+  // 사용자가 직접 누른 별표는 예전처럼 조문 팝업으로 돌아간다.
+  var bylAutoOpened = false;
 
   // 본문 안의 별표·서식·이미지 참조 표현. ⚠ 서버(services/article_text.js)의 REF_RE 와
   // **같은 표현이어야** 판정(kind)과 화면 링크가 어긋나지 않는다 — 한쪽만 고치지 말 것.
@@ -1792,14 +1797,22 @@
     pop.innerHTML =
       '<div class="nrya-artpop-head">' +
         '<div class="nrya-artpop-titles">' +
-          '<span class="nrya-artpop-chip" id="nryaArtChip">원문 · 자동 발췌</span>' +
+          // [2026-08-18 사용자 확정] 조 하나를 여는 보통 경우에는 칩을 비워 둔다 — "원문 · 자동
+          //   발췌"는 화면을 보면 아는 말이라 자리만 차지했다(사용자 원문: "원문 자동발췌는
+          //   없애주고"). 나열·범위·별표처럼 **몇 개를 여는지 알려줘야 하는 경우에만** 채운다
+          //   (renderArtPop 의 artScopeLabel) — 빈 칩은 CSS `:empty` 로 사라진다.
+          '<span class="nrya-artpop-chip" id="nryaArtChip"></span>' +
           '<p class="nrya-artpop-law" id="nryaArtLaw"></p>' +
-          '<h3 class="nrya-artpop-art" id="nryaArtTitle"></h3>' +
+          // 시행일자는 조문 제목과 **같은 줄 오른쪽 끝**에 둔다(사용자 확정). 자리가 모자라면
+          //   글자를 쪼개 두 줄로 만들지 않고 배지째 아랫줄로 내려간다(체인 카드와 같은 규칙).
+          '<div class="nrya-artpop-artrow">' +
+            '<h3 class="nrya-artpop-art" id="nryaArtTitle"></h3>' +
+            '<span class="nrya-artpop-eff" id="nryaArtEff"></span>' +
+          '</div>' +
         '</div>' +
         '<button type="button" class="nrya-artpop-x" id="nryaArtX">×</button>' +
       '</div>' +
       '<div class="nrya-artpop-gist" id="nryaArtGist"></div>' +
-      '<span class="nrya-artpop-eff" id="nryaArtEff"></span>' +
       '<div class="nrya-artpop-body" id="nryaArtBody"></div>' +
       // [2026-08-18 사용자 확정] 근거 아코디언을 없애면서 그 카드가 갖고 있던 소관부서 연락처를
       //   이 팝업이 이어받는다 — 사용자 원문: "팝업을 열었을 때 거기에 전화번호가 적혀 있으면 될
@@ -1827,13 +1840,14 @@
     pop.addEventListener('click', function (e) {
       var r = e.target.closest('.nrya-byl-ref');
       if (r) { openBylPop(artPopRefs[r.getAttribute('data-byl')]); return; }
-      // [계약2] "조문 전체 보기" — 감춰뒀던 나머지 항·호를 펼친다. DOM 은 처음부터 다 그려져 있어
-      //   서버 재조회가 없고, 한 번 펼치면 되돌릴 일이 없으므로 버튼 자체를 없앤다.
+      // [계약2] "조문 전체 보기" — 감춰뒀던 나머지 항·호를 펼친다. DOM 은 처음부터 다 그려져
+      //   있어 서버 재조회가 없다. ★2026-08-18(사용자 확정): 예전에는 한 번 펼치면 버튼을
+      //   없앴는데, 긴 조문을 펼친 뒤 다시 근거 항만 보고 싶어도 돌아갈 길이 없었다
+      //   (사용자 원문: "조문 연 후 접기가 아직도 반영이 안된것같은데?") — 접기 토글로 바꾼다.
       var more = e.target.closest('.nrya-artpop-more');
       if (more) {
         var ab = document.getElementById('nryaArtBody');
-        if (ab) ab.classList.remove('nrya-focused');
-        more.remove();
+        if (ab) more.textContent = ab.classList.toggle('nrya-focused') ? '조문 전체 보기' : '접기';
         return;
       }
       // [계약3] 부칙은 본문과 섞이지 않게 기본 접힘 — 머리줄을 누르면 펼친다.
@@ -2188,6 +2202,7 @@
 
   function openBylPop(ref) {
     if (!ref) return;
+    bylAutoOpened = false;          // 자동으로 연 경우는 renderAnnexOnly 가 곧바로 다시 세운다
     var pop = document.getElementById('nryaBylPop'), veil = document.getElementById('nryaBylVeil');
     var body = document.getElementById('nryaBylBody'); if (!pop || !veil || !body) return;
     var dl = document.getElementById('nryaBylDl');
@@ -2229,12 +2244,14 @@
     if (window.PopupStack) window.PopupStack.push('nrya-bylpop', closeBylPop);
   }
 
-  /** 별표 팝업을 닫는다(조문 팝업은 그대로 둔다). PopupStack.remove 는 멱등. */
+  /** 별표 팝업을 닫는다. 자동으로 열린 것(bylAutoOpened)이면 뒤의 조문 팝업도 함께 닫는다.
+   *  PopupStack.remove 는 멱등이라 두 번 불러도 안전하다. */
   function closeBylPop() {
     if (window.PopupStack) window.PopupStack.remove('nrya-bylpop');
     var pop = document.getElementById('nryaBylPop'), veil = document.getElementById('nryaBylVeil');
     if (pop) pop.classList.remove('nrya-open');
     if (veil) veil.classList.remove('nrya-open');
+    if (bylAutoOpened) { bylAutoOpened = false; closeArtPop(); }
   }
 
   /**
@@ -2356,7 +2373,7 @@
       body.appendChild(msg);
       return;
     }
-    if (refs.length === 1) openBylPop(openable[0]);
+    if (refs.length === 1) { openBylPop(openable[0]); bylAutoOpened = true; }
   }
 
   /**
@@ -2470,7 +2487,7 @@
     var tier = el.getAttribute('data-tier') || 'law';
     var gist = el.getAttribute('data-gist') || '';
     var chip = document.getElementById('nryaArtChip');
-    chip.className = 'nrya-artpop-chip'; chip.textContent = '원문 · 자동 발췌';
+    chip.className = 'nrya-artpop-chip'; chip.textContent = '';   // 조 하나면 빈 채로 둔다
     document.getElementById('nryaArtLaw').textContent = law;
     document.getElementById('nryaArtTitle').textContent = article || '조문 원문';
     document.getElementById('nryaArtEff').textContent = '';
@@ -2539,6 +2556,7 @@
 
   /** 조문 팝업을 닫는다(백스택에서 제거 + 표시 해제). 위에 떠 있던 별표 팝업도 같이 닫는다. */
   function closeArtPop() {
+    bylAutoOpened = false;   // 먼저 끈다 — 안 그러면 아래 closeBylPop 이 여기를 다시 부른다
     closeBylPop();
     if (window.PopupStack) window.PopupStack.remove('nrya-artpop');
     var pop = document.getElementById('nryaArtPop'), veil = document.getElementById('nryaArtVeil');
@@ -3004,13 +3022,14 @@
 
   /**
    * 소관부서 연락처 한 줄(☎ 부처명 (부서명) 전화번호). 전화번호는 눌러서 걸 수 있다.
-   * 근거 아코디언이 갖고 있던 표기를 그대로 옮긴 것이다(2026-08-18 아코디언 제거) —
-   * 이제 ①답변 맨 끝 요약 ②조문 팝업 두 곳이 같은 함수를 쓴다.
+   * 근거 아코디언이 갖고 있던 표기를 그대로 옮긴 것이다(2026-08-18 아코디언 제거).
+   * 답변 맨 끝 요약도 한때 이 함수를 썼으나 같은 내용이 두 곳에 뜨는 게 되어 없앴다 —
+   * 지금은 **조문 팝업 한 곳**만 쓴다.
    * ⚠걸리는 번호(href="tel:")는 통번호 그대로다 — 화면 표시만 다듬는다.
    * 예: contactLineHTML({소관부처명:'해양수산부', 부서명:'수산자원정책과', 전화번호:'051-773-5539'})
    * @param {{소관부처명?:string, 부서명?:string, 전화번호?:string}} c
    * @returns {string} 전화번호가 없으면 빈 문자열(아무것도 그리지 않는다)
-   * [연계] ← sourceMetaHTML · openArtPop.
+   * [연계] ← openArtPop(조문 팝업의 연락처 줄).
    */
   function contactLineHTML(c) {
     if (!c || !c.전화번호) return '';
@@ -3019,30 +3038,6 @@
     var who = esc(c.소관부처명 || '') + (c.부서명 ? ' (' + esc(c.부서명) + ')' : '');
     return '<span class="nrya-meta-tel">☎ ' + who +
       ' <a href="tel:' + esc(dial) + '">' + esc(raw) + '</a></span>';
-  }
-
-  /**
-   * 답변 맨 끝에 붙는 **근거 요약 한 덩이** — 법마다 시행일자와 소관부서 연락처만 적는다.
-   * 조문 전문 카드(근거 아코디언)를 없애면서 "그래도 남겨 달라"고 한 정보만 옮긴 것이다
-   * (사용자 원문: *"시행일자나 소관부처 전화번호 이런 것은 답변 마지막에 나와 있다면 좋겠어"*).
-   * ⚠지어내지 않는다 — citationChain 줄이 이미 갖고 있는 값만 쓰고, 없으면 그 줄은 건너뛴다.
-   * @param {Array} chain - data.citationChain
-   * @returns {string} 실을 것이 없으면 빈 문자열
-   * [연계] ← answerHTML(면책 문구 바로 위). → contactLineHTML.
-   */
-  function sourceMetaHTML(chain) {
-    var seen = {}, rows = [];
-    (chain || []).forEach(function (row) {
-      var nm = String((row && row.law) || '').trim(); if (!nm || seen[nm]) return;
-      var tel = contactLineHTML(row.contact);
-      var eff = row.effectiveDate
-        ? '<span class="nrya-meta-eff">' + (row.tier === 'notice' ? '발령일자 ' : '시행일자 ') + esc(row.effectiveDate) + '</span>'
-        : '';
-      if (!tel && !eff) return;                 // 적을 게 없는 법은 줄을 만들지 않는다
-      seen[nm] = 1;
-      rows.push('<div class="nrya-meta-row"><span class="nrya-meta-law">' + esc(nm) + '</span>' + eff + tel + '</div>');
-    });
-    return rows.length ? '<div class="nrya-meta">' + rows.join('') + '</div>' : '';
   }
 
   /** tier 코드를 화면 라벨로. 처벌 조문은 '벌칙'으로 표시한다. */
@@ -3344,8 +3339,10 @@
     // ⚠공백 안내는 아코디언 **밖**에 둔다 — 접혀 있는 목록 안에 넣으면 정작 꼭 봐야 할
     // "관할 지자체에 확인하세요"가 펼치기 전엔 안 보인다(그게 이번에 고친 문제 자체다).
     html += gapNoticesHTML(sources);
-    // 근거 아코디언을 없애면서 남긴 것 — 법별 시행일자·소관부서 연락처 요약(2026-08-18 사용자 확정).
-    if (!data.clarify) html += sourceMetaHTML(chain);
+    // [2026-08-18 사용자 확정] 답변 끝의 법별 시행일자·소관부서 연락처 요약은 **없앤다** —
+    //   본문의 조문 표기를 누르면 그 팝업이 같은 시행일자·전화번호를 보여주므로 같은 내용이
+    //   두 곳에 있었다(사용자 원문: "아래에 소관부서 번호가 나오지 않도록 해줘 어차피 조문
+    //   누르면 나오니까"). contactLineHTML 은 그 팝업이 계속 쓴다.
 
     // 면책("참고용입니다…")은 **최종 답변에만** 붙인다(사용자 확정) — 되묻기 응답은 아직 답이 아니라
     // 되묻는 질문이라, 확인할 "답"이 없는데 공식 출처 확인을 권하면 말이 안 맞는다.
