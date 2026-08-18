@@ -16,6 +16,9 @@
 //   ★실제 저장소 원문으로도 한 번 훑는다(T3) — 위 개수는 추정이 아니라 실측이라, 원문이
 //     바뀌면 이 테스트가 먼저 알려준다. 다만 "정확히 몇 개"로 못 박지 않고 **줄어들지
 //     않았는지**만 본다(수집이 늘어나는 건 정상이다).
+//   ★T3 은 파일 전체가 아니라 **조 본문(extractArticleBlock 이 실제로 뽑아 화면에 보내는 구간)**
+//     만 센다. 파일 전체로 세면 뒤에 이어붙은 별표 블록·부칙 안의 마커까지 잡혀 "화면에 뜨는
+//     그림"이 부풀려진다(첫 측정에서 실제로 그렇게 틀렸다 — 사용자 지적으로 정정).
 //   ★시각 비의존 — 고정 문자열과 저장소 파일만 쓴다(CLAUDE.md 결정로그).
 //
 //   [연계] services/article_text.js(cleanBody·collectRefs) ·
@@ -74,9 +77,13 @@ ok('T2-3 별표·서식 상한(12)은 그대로다', bylOnly.length === 12, bylO
 ok('T2-4 같은 번호는 한 번만 센다',
   A.collectRefs('【이미지 7】 어쩌고 【이미지 7】').length === 1);
 
-// ── T3. 실제 저장소 원문 — 화면에 뜨는 그림 수가 줄지 않았나 ─────────────────────
-console.log('\n[T3] 실제 raw 원문 훑기(실측 기준선)');
-let shown = 0, dropped = 0, leftover = 0, files = 0;
+// ── T3. 실제 저장소 원문 — 조 본문에서 화면에 뜨는 그림이 줄지 않았나 ─────────────
+console.log('\n[T3] 실제 raw 원문의 조 본문 훑기(실측 기준선)');
+const tierOf = (dirPath, name) => (/\/행정규칙\//.test(dirPath) ? 'notice'
+  : /시행령/.test(name) ? 'decree' : /시행규칙/.test(name) ? 'rule' : 'law');
+let shown = 0, dropped = 0, recovered = 0, leftover = 0;
+const shownFiles = new Set();
+const 법령계열Shown = [];   // ★법·시행령·시행규칙 조 본문에는 그림이 없어야 한다(사용자 확인)
 (function walk(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
@@ -84,20 +91,37 @@ let shown = 0, dropped = 0, leftover = 0, files = 0;
     if (!e.name.endsWith('.txt')) continue;
     const src = fs.readFileSync(p, 'utf8');
     if (!/<img id=|【이미지판독/.test(src)) continue;
-    files++;
-    const out = A.cleanBody(src);
-    leftover += (out.match(/<img\b/gi) || []).length;
+    const tier = tierOf(p, e.name);
+    // 화면에 가는 것과 **같은 경로**로 조 본문만 모은다(별표 블록·부칙은 여기서 빠진다).
+    let raw = '';
+    for (const jo of A.listArticleNumbers(src, tier)) {
+      const b = A.extractArticleBlock(src, jo, tier);
+      if (b && b.body) raw += '\n' + b.body;
+    }
+    if (!raw) continue;
+    const body = A.cleanBody(raw);
+    leftover += (body.match(/<img\b/gi) || []).length;
     const imgDir = path.join(dir, '_이미지');
     const have = fs.existsSync(imgDir) ? new Set(fs.readdirSync(imgDir)) : new Set();
-    const nums = new Set([...out.matchAll(/【이미지\s*(\d+)】/g)].map(m => m[1]));
-    for (const n of nums) (have.has(n + '.png') ? shown++ : dropped++);
+    const pans = new Set([...raw.matchAll(/【이미지판독\s*(\d+)】/g)].map(m => m[1]));
+    for (const n of new Set([...body.matchAll(/【이미지\s*(\d+)】/g)].map(m => m[1]))) {
+      if (!have.has(n + '.png')) { dropped++; continue; }
+      shown++; shownFiles.add(p);
+      if (!pans.has(n)) recovered++;          // 태그만 있어 예전에는 통째로 지워지던 것
+      if (tier !== 'notice') 법령계열Shown.push(p + ' #' + n);
+    }
   }
 })(RAW);
-console.log(`     (파일 ${files}개 · 화면에 뜨는 그림 ${shown}장 · 파일이 없어 지우는 자리 ${dropped}개)`);
-// 기준선은 2026-08-18 실측(파일 193 · 뜨는 그림 409). 예전 동작(판독 마커만 인정)은 328장이었다.
-ok('T3-1 ★화면에 뜨는 그림이 예전(328장)보다 늘었다', shown >= 409, shown);
-ok('T3-2 원문에 img 태그 찌꺼기가 남지 않는다', leftover === 0, leftover);
-ok('T3-3 마커가 있는 파일 수가 유지된다', files >= 193, files);
+console.log(`     (조 본문에 뜨는 그림 ${shown}장 · 파일 ${shownFiles.size}개 · 그중 이번에 되살린 것 ${recovered}장 · 파일 없어 지우는 자리 ${dropped}개)`);
+// 기준선은 2026-08-18 실측: 조 본문에 뜨는 그림 319장(38개 파일), 그중 50장이 이번에 되살린 것.
+ok('T3-1 ★조 본문에 뜨는 그림이 기준선(319장) 아래로 줄지 않았다', shown >= 319, shown);
+ok('T3-2 ★예전에 통째로 지워지던 그림을 되살린다(50장)', recovered >= 50, recovered);
+ok('T3-3 조 본문에 img 태그 찌꺼기가 남지 않는다', leftover === 0, leftover);
+// ★사용자 확인(2026-08-18): "법 시행령 시행규칙에 그런 경우는 없어. 별표나 별지에만 그렇게
+//   되어있지." — 실측도 같다. 조 본문에 그림이 있는 것은 **고시·행정규칙뿐**이고, 법률계열
+//   파일의 마커는 전부 뒤에 이어붙은 별표 블록·부칙 쪽이라 조 본문에는 들어오지 않는다.
+ok('T3-4 ★법·시행령·시행규칙 조 본문에는 그림이 없다(사용자 확인·실측 일치)',
+  법령계열Shown.length === 0, 법령계열Shown.slice(0, 3).join(' / '));
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
