@@ -401,6 +401,9 @@ H-26 §6-B가 `scope_out`에 적용한 "정직한 안내가 가능하면 결함�
 
 > 매 라운드 **횡단 감사관 1명**을 배정한다. 담당: `wiki/_glossary.md` · `wiki/_backbone.md` · `wiki/comparisons/`(여러 법이 공유하는 허브) · `wiki/activities/`. 법별 감사관과 담당 파일이 겹치지 않으므로 병렬 안전하다.
 
+**★실제 배선(2026-08-18, 22R부터)**: `_dashboard/loop/audit_sim.js`의 `crossPrompt()` + 디스패치(`jobs.push`). 라운드는 그룹별 Workflow 호출 여러 개로 쪼개 돌리므로 **그룹 0에서만** 실행된다(안 그러면 그룹 수만큼 중복). `cfg.crossCut`으로 강제 on/off 가능. 결과는 `_dashboard/audit/_횡단.md`에 append.
+> ⚠2026-08-17에 이 규칙을 문서에만 적고 **코드에는 안 넣어**, 21R까지 실제로는 아무도 이 파일들을 안 봤다 — 규칙을 쓸 때는 **그것을 실행하는 자리도 같이** 만들어야 한다(사용자 지적으로 22R 착수 전에 발견).
+
 ## 6-D. 관리자 검증 UI(Phase F, 미구축) 설계 스펙 — REVIEW 카드 구조 (H-34 사용자 확정 2026-08-01)
 
 지금은 Phase F(관리자 검증 UI)가 없어 사람이 `review_queue.md`·위키 md를 텍스트로 읽고 Claude에게 말로 판단을 전달하는 방식이다(`HUMAN_ACTION_GUIDE.md` E-0 참조). 이 UI를 실제로 만들 때, §6 "조문조합 해석 REVIEW 전용 템플릿"의 필드가 그대로 화면 카드 구조가 되어야 한다:

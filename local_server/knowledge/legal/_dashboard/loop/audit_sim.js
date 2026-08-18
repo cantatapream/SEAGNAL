@@ -168,6 +168,39 @@ ${r2}
 정직하게 — 위키가 답 못 하거나 규칙 미반영이면 솔직히 missing/weak로 찍는다. 이 감사의 목적은 구멍을 찾는 것이다.`
 }
 
+/**
+ * 횡단 감사관 프롬프트 — 어느 법에도 안 속하는 위키 파일 담당(`_SCHEMA.md` §6-H).
+ * 법별 감사관과 **담당 파일이 겹치지 않아** 같이 돌려도 안전하다(공유 파일 동시쓰기 없음).
+ */
+function crossPrompt(round) {
+  return `너는 SEAGNAL 해양법률 위키의 **횡단 감사관**이다. \`${LEGAL}/_SCHEMA.md\`(특히 §6-E~§6-H)와 \`${LEGAL}/_CHATBOT.md\`를 먼저 읽어라.
+
+## 🚫 절대 금지
+'.claude/' 폴더 아래 어떤 파일도 읽거나 쓰지 마라. **★Agent/Task 도구로 재위임하지 마라(L-28)** — 혼자 Read/Grep/Write만으로 이 턴 안에 끝내라.
+
+## 왜 네가 있나 (§6-H)
+감사는 74개 법에 1명씩 붙는 **법별 구조**라, **어느 법의 소유도 아닌 파일은 담당자가 없었다.** 그래서 \`wiki/_glossary.md\`(사용자 일상어 → 법 개념으로 가는 이정표)의 깨진 링크 116건이 **21라운드를 그대로 살아남았다.** 위키가 아무리 좋아도 이정표가 끊기면 챗봇이 그 문서를 못 편다.
+
+## 담당 (이 4가지만 본다 — 법별 감사관 담당과 겹치지 않는다)
+1. \`${LEGAL}/wiki/_glossary.md\` — 일상어 → 법 개념 이정표
+2. \`${LEGAL}/wiki/_backbone.md\` — 전체 뼈대
+3. \`${LEGAL}/wiki/comparisons/\` — 여러 법이 공유하는 비교 허브
+4. \`${LEGAL}/wiki/activities/\` — 활동 단위 페이지
+
+## 무엇을 보나
+사람이 실제로 쓸 법한 **일상어 질문 40~80개**를 만들어(예: "배에서 술 마셔도 되나요", "낚싯배 하려면", "면허 뭐 따야 하나요") 이 4가지만으로 목적지 개념 페이지까지 **닿는지** 확인한다. 그리고:
+- **이정표가 맞나**: \`_glossary.md\`의 일상어 항목이 실제로 맞는 개념 페이지를 가리키나. 사람들이 쓰는 말인데 아예 없는 항목은?
+- **허브가 낡지 않았나**: \`comparisons/\`의 비교표가 지금 raw·개념 페이지와 어긋나지 않나(어긋나면 **raw 원문과 직접 대조**해 어느 쪽이 맞는지 밝힌다).
+- **§6-E unreachable 적용**: 답이 \`comparisons/\`에**만** 있고 그 법의 개념 페이지엔 없으면 **full이 아니라 unreachable**이다. 챗봇의 근거 목록은 개념 페이지의 \`## 근거 조문\` 표에서만 만들어진다.
+- **§6-G 적용**: \`status: canonical\`·"이미 완전함" 표시를 근거로 삼지 마라. 항상 raw 원문·실제 파일과 직접 대조한다.
+- ⚠깨진 링크 **자체**는 세지 마라 — \`xref_check.py\`가 이미 게이트로 막고 있다(L-106). 너는 **내용**을 본다(링크는 살아 있는데 엉뚱한 데로 가는 경우는 네 몫이다).
+
+## 저장 + 반환
+- \`${LEGAL}/_dashboard/audit/_횡단.md\`에 **append만**(L-93, 기존 이력 절대 덮어쓰기 금지) — \`---\` 구분선 + \`## R${round} 횡단 감사\` 리포트.
+- 완료 마커: \`mkdir -p ${LEGAL}/_dashboard/fix3 && printf 'r${round} done(cross)\\n' > "${LEGAL}/_dashboard/fix3/audit_r${round}__횡단.done"\`
+- 반환(JSON): law는 \`"_횡단"\`, 나머지는 SCHEMA 그대로(해당 없는 필드는 0/빈배열). wiki_gaps에는 **무엇을 어디로 옮겨야 하는지**를 적는다.`
+}
+
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
 let laws = cfg.laws || []
 if (!laws.length && cfg.allLawsPath && cfg.lawName) {
@@ -187,11 +220,22 @@ if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
   if (boot) laws = boot.laws || []
 }
 const round = cfg.round || 1
-log(`위키 감사 대상 ${laws.length}개 법 (Sonnet, ${round}라운드)`)
+// ★§6-H 횡단 감사관(H-41 사용자 확정 2026-08-17, 2026-08-18 실제 배선).
+//   감사는 법별로 1명씩 붙는 구조라 **어느 법의 소유도 아닌 파일은 담당자가 없다** — 그래서
+//   `wiki/_glossary.md` 깨진 링크 116건이 21라운드를 그대로 살아남았다. 매 라운드 1명을 배정한다.
+//   ⚠라운드는 그룹별 Workflow 호출 여러 개로 쪼개 디스패치하므로, **그룹 0에서만** 돈다
+//   (안 그러면 그룹 수만큼 중복). 필요하면 cfg.crossCut 으로 켜고 끌 수 있다.
+const doCross = cfg.crossCut !== undefined
+  ? !!cfg.crossCut
+  : String(cfg.groupIndex) === '0'
+log(`위키 감사 대상 ${laws.length}개 법 (Sonnet, ${round}라운드)${doCross ? ' + 횡단 감사관 1명' : ''}`)
 phase('감사')
-const res = (await parallel(laws.map(l => () =>
+const jobs = laws.map(l => () =>
   agent(prompt(l, round), { label: `audit${round}:${l.name.slice(0, 12)}`, phase: '감사', model: 'sonnet', effort: 'high', schema: SCHEMA })
-))).filter(Boolean)
+)
+if (doCross) jobs.push(() =>
+  agent(crossPrompt(round), { label: `audit${round}:횡단`, phase: '감사', model: 'sonnet', effort: 'high', schema: SCHEMA }))
+const res = (await parallel(jobs)).filter(Boolean)
 
 // 집계
 const sum = k => res.reduce((s, r) => s + ((r.verdicts && r.verdicts[k]) || 0), 0)
