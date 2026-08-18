@@ -18,7 +18,7 @@ const SCHEMA = {
   },
 }
 
-function prompt(l, round) {
+function prompt(l, round, pass) {
   return `너는 SEAGNAL 위키 감사의 **라이브 검증관**이다. 감사관이 \`full\`로 채점한 논점이 **실제 챗봇에서도 정말 나오는지** 한 문항만 확인한다.
 
 ## 🚫 절대 금지
@@ -33,23 +33,30 @@ function prompt(l, round) {
    - 그중 **가장 구체적인 수치·요건을 묻는 것 하나**를 고른다(풍속·파고·톤수·금액·기한처럼 사용자가 실제로 궁금해할 것). 추상적·정의형 질문은 피한다.
    - R${round} 구간에 full이 하나도 없으면 outcome=\`no_full\`로 끝낸다(억지로 다른 라운드에서 고르지 마라).
 2. 그 문항의 **감사관이 든 근거**(법령명 + 조문번호)를 기록한다 → \`expected\`.
-3. **실제 챗봇에 물어본다**(Bash):
-   \`\`\`
-   curl -s -X POST ${API} -H 'Content-Type: application/json' \\
-     -d '{"query":"<질문 문장>"}' --max-time 120
+3. **실제 챗봇에 물어본다** — 반드시 아래 도구를 쓴다(직접 curl 금지).
+   \`\`\`bash
+   S=/tmp/lv_${round}_${l.slug}.json
+   node ${LEGAL}/_dashboard/loop/ask_live.js --state $S start "<질문 문장>"
+   node ${LEGAL}/_dashboard/loop/ask_live.js --state $S pick <선택지번호>
    \`\`\`
    - 질문은 감사파일의 문장을 **그대로** 쓴다(고쳐 쓰면 무엇을 검증했는지 알 수 없다).
-   - 응답은 NDJSON이고 마지막 \`{"type":"done",...}\` 줄이 결과다.
+   - 출력에 \`되묻기\`와 \`선택지\`가 있으면 **끝난 게 아니다.** 감사 문항의 상황에 맞는 선택지 번호를 골라 \`pick\` 을 이어서 부른다.
+     - "네, 맞아요"처럼 이해를 확인하는 되묻기는 그냥 그 번호를 고른다.
+     - 상황을 묻는 되묻기는 **감사 문항이 전제한 상황**에 맞는 것을 고른다(문항이 "60톤 미만 근해안강망"이면 그 어업 종류를 고른다). 맞는 게 없으면 \`etc "<한 줄>"\` 로 적어 보낸다.
+     - \`act=ask\`("다시 설명할게요")는 고르지 마라.
+   - 되묻기가 사라지고 \`citationChain\` 이 채워지면 그게 최종 답변이다.
+   - ⚠**이 도구가 실제 앱과 같은 규약**(ctx 얹기 / 질의 누적)을 쓴다. 2026-08-18 1차 검증에서 라벨을 텍스트로만 이어붙였다가 74법 중 47법이 답변에 못 닿고 끝난 사고가 있었다 — 그래서 도구로 고정했다.
 4. 판정:
-   - 응답에 \`clarify\`가 있으면(되묻기) → outcome=\`clarify\`. **한 번만** 되묻기의 첫 선택지 라벨을 원 질문 뒤에 \` — <라벨>\`로 붙여 다시 물어보고, 그래도 되물으면 clarify로 끝낸다.
-   - 답변이 나왔으면 \`citationChain\`의 각 줄(법령명·조문)을 모아 \`chain\`에 적고, **\`expected\`의 조문이 그 안에 있는지** 본다.
+   - 답변에 도달했으면 \`citationChain\` 의 각 줄을 \`chain\` 에 적고, **\`expected\` 의 조문이 그 안에 있는지** 본다.
      - 있으면 outcome=\`confirmed\` (감사관 채점이 맞았다)
-     - 없으면 outcome=\`missing_evidence\` — **감사관은 full이라 했는데 챗봇은 그 근거를 못 꺼냈다.** note에 챗봇이 대신 내놓은 근거와, 왜 안 나왔을지(개념 페이지에 없나·근거 조문 표에 행이 없나·법령 칸이 한 낱말인가)를 적는다.
+     - 없으면 outcome=\`missing_evidence\` — **감사관은 full이라 했는데 챗봇은 그 근거를 못 꺼냈다.** note에 챗봇이 대신 내놓은 근거와, 왜 안 나왔을지(개념 페이지에 없나·근거 조문 표에 행이 없나·법령 칸이 한 낱말인가·검색이 엉뚱한 법으로 갔나)를 적는다.
+     - ★**답변 본문에는 맞는 내용이 있는데 \`citationChain\` 에만 없으면 그것도 \`missing_evidence\`** 다 — note에 "본문 O / 체인 X"라고 분명히 적어라. 1차 검증에서 이 패턴이 여러 법에서 나왔다.
+   - 예산(요청 4회)을 다 쓰고도 되묻기만 계속되면 outcome=\`clarify\`, note에 마지막 되묻기 질문과 몇 번째였는지를 적는다.
    - 네트워크·파싱 실패는 outcome=\`error\`, note에 그대로.
-5. \`${LEGAL}/_dashboard/audit/${l.slug}.md\`에 **append만**(L-93) — \`---\` + \`## R${round} 라이브 검증\` 절에 질문·expected·outcome·chain·note를 적는다.
+5. \`${LEGAL}/_dashboard/audit/${l.slug}.md\`에 **append만**(L-93) — \`---\` + \`## R${round} 라이브 검증${pass ? ' — ' + pass + '차' : ''}\` 절에 질문·expected·outcome·chain·note를 적는다.
 
 ## 대상: 「${l.name}」
-비용을 아끼기 위해 **질문은 최대 2회**(원 질문 1회 + 되묻기 후속 1회)만 던진다. 더 던지지 마라.`
+비용을 아끼기 위해 **요청은 최대 4회**(\`start\` 1회 + \`pick\`/\`etc\` 3회)만 던진다. 더 던지지 마라.`
 }
 
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
@@ -65,7 +72,7 @@ const round = cfg.round || 22
 log(`라이브 검증 ${laws.length}개 법 (법당 1문항, R${round})`)
 phase('라이브검증')
 const res = (await parallel(laws.map(l => () =>
-  agent(prompt(l, round), { label: `live:${l.name.slice(0, 12)}`, phase: '라이브검증', model: 'sonnet', effort: 'medium', schema: SCHEMA })
+  agent(prompt(l, round, cfg.pass), { label: `live:${l.name.slice(0, 12)}`, phase: '라이브검증', model: 'sonnet', effort: 'medium', schema: SCHEMA })
 ))).filter(Boolean)
 
 const by = k => res.filter(r => r.outcome === k).length
