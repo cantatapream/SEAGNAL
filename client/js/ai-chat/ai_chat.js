@@ -1365,6 +1365,7 @@
       arr.push({
         q: String(q || ''), a: String((data && data.answer) || ''), note: String((data && data.note) || ''),
         sources: (data && data.sources) || [], chain: (data && data.citationChain) || [], forms: (data && data.forms) || [],
+        citeLaws: (data && data.citeLaws) || [],
         ts: Date.now(),
       });
       if (arr.length > HISTORY_MAX) arr = arr.slice(arr.length - HISTORY_MAX);
@@ -1592,7 +1593,7 @@
     closeHistory(false);   // 목록만 닫고 ‹ 는 남긴다
     renderRestoredAnswer({
       ok: true, query: hit.q, answer: hit.a, note: hit.note,
-      sources: hit.sources || [], citationChain: hit.chain || [], forms: hit.forms || [],
+      sources: hit.sources || [], citationChain: hit.chain || [], forms: hit.forms || [], citeLaws: hit.citeLaws || [],
     });
   }
 
@@ -2759,14 +2760,26 @@
     return s.replace(/^(이|동|본)/, '').replace(/(법률|법령|법|시행령|시행규칙|[·ㆍ・,\/]|→)/g, '') === '';
   }
 
-  function buildCiteIndex(chain) {
+  function buildCiteIndex(chain, citeLaws) {
     var idx = {};
+    // [하이브리드 링크 ②, 2026-08-18] **답변 본문에 적힌 주소**에서 서버가 뽑아 준 법들을 먼저 깔고,
+    //   아래에서 근거 목록(citationChain)으로 덮어쓴다 — 근거 목록의 tier·baseLaw 는 위키 사서가
+    //   검증한 값이라 더 정확하므로 **그쪽이 이긴다**(사용자와 정한 우선순위: 검증값 우선, 없으면 폴백).
+    //   이 폴백이 없으면 답변에 「법령명」 제N조라고 완전한 주소가 있어도 그 법이 근거 목록에 없으면
+    //   링크를 포기했다(사용자 지적: "정확한 주소가 있는데 왜 못 찾나").
+    (citeLaws || []).forEach(function (c) {
+      var nm = String((c && c.law) || '').trim(); if (!nm) return;
+      idx[nm] = { law: nm, tier: String(c.tier || 'law'), base: String(c.base || '') };
+    });
     (chain || []).forEach(function (row) {
       var nm = String((row && row.law) || '').trim(); if (!nm) return;
       var tier = String((row && row.tier) || 'law');
       var base = String((row && row.baseLaw) || '');
       var hit = idx[nm];
-      if (!hit) { idx[nm] = { law: nm, tier: tier, base: base }; return; }
+      // 근거 목록 줄이 처음 오면 폴백으로 깔아둔 값을 **덮어쓴다**(검증값 우선). 그 뒤 같은 이름이
+      // 또 오면 아래 모호 판정으로 넘어간다 — 폴백끼리는 애초에 이름당 하나뿐이라 충돌이 없다.
+      if (hit && !hit.fromChain) { idx[nm] = { law: nm, tier: tier, base: base, fromChain: true }; return; }
+      if (!hit) { idx[nm] = { law: nm, tier: tier, base: base, fromChain: true }; return; }
       // ⚠ baseLaw 가 다르다고 무조건 모호로 보면 **정상적인 법률 링크가 통째로 죽는다**(2026-08-18
       //   실사용 재현): 근거 목록은 여러 위키 페이지의 줄을 합친 것이고, baseLaw 는 "그 줄이 실려
       //   있던 페이지"라 같은 법이라도 페이지마다 값이 다르다 — 특히 비교 페이지(comparisons/)는
@@ -2860,12 +2873,14 @@
    * ⚠**굵게·줄바꿈 치환은 인용 span 을 만든 뒤에** 건다 — 순서를 바꾸면 span 태그 안쪽이 치환 대상이
    *   된다. span 태그에는 `**` 도 줄바꿈도 없으므로 이 순서에서는 서로 간섭하지 않는다.
    * @param {string} text - Gemini가 만든 답변 원문
-   * @param {Array} [chain] - data.citationChain(있을 때만 인용을 링크한다)
+   * @param {Array} [chain] - data.citationChain(근거 목록 — 링크의 1순위 재료)
+   * @param {Array} [citeLaws] - data.citeLaws(답변 본문 주소에서 뽑은 법 — 2순위 폴백, 하이브리드)
    * @returns {string} 이스케이프된 HTML(굵게·줄바꿈·인용 링크만 적용)
    */
-  function answerBodyHTML(text, chain) {
+  function answerBodyHTML(text, chain, citeLaws) {
     var s = String(text == null ? '' : text);
-    var html = (chain && chain.length) ? citeHTML(s, buildCiteIndex(chain)) : esc(s);
+    var hasIdx = (chain && chain.length) || (citeLaws && citeLaws.length);
+    var html = hasIdx ? citeHTML(s, buildCiteIndex(chain, citeLaws)) : esc(s);
     // 처벌·양벌 문구가 든 굵은 글씨만 빨간색으로 구분(isPenaltyRow 와 같은 키워드 — 근거법령
     // 카드의 '벌칙' 배지와 같은 기준으로 맞춘다). 나머지 굵은 글씨는 기존 노란색 그대로.
     return html.replace(/\*\*(.+?)\*\*/g, function (m, inner) {
@@ -3172,10 +3187,11 @@
     }
     var sources = data.sources || [];
     // 근거 체인은 본문보다 먼저 꺼낸다 — 본문의 조문·별표 인용을 눌러볼 자리로 바꿀 때
-    // "어느 법인지"를 이 체인으로만 가리기 때문이다(answerBodyHTML → citeHTML).
+    // "어느 법인지"를 이 체인으로 가리기 때문이다(answerBodyHTML → citeHTML).
+    // data.citeLaws 는 그 폴백 — 답변 본문에 주소가 적혀 있는데 근거 목록엔 없는 법을 메운다.
     var chain = data.citationChain || [];
     var lead = data.answer
-      ? answerBodyHTML(data.answer, chain)
+      ? answerBodyHTML(data.answer, chain, data.citeLaws)
       : (data.clarify
         ? '조건에 따라 답이 달라져서, 하나만 여쭤볼게요.'   // 되묻기인데 서버 안내문이 비었을 때의 최소 문구
         : (sources.length
