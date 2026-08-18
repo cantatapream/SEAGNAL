@@ -99,6 +99,28 @@
   //   안 비운다**(그게 이 값의 존재 이유다). ctx가 아니라 별도 필드로만 보내 서버가 "확정된 조건"이
   //   아니라 "확인 후보" 하나를 되묻기에 더 보여줄 때만 쓴다(routes/legal.js `lastQuestion` 참고).
   var lastQuestionText = '';
+  // ── 대화 기억(2026-08-18 사용자 확정) ──────────────────────────────────────────
+  // "🔁 관련해서 더 궁금해요"로 이어 물을 때, **직전까지 오간 대화를 통째로** AI에게 보여준다.
+  // 예전에는 주제 낱말 하나(`ctx.topic`)만 넘겼는데, 그것만으로는 AI가 확신하지 못해 방금 한
+  // 얘기를 또 되물었다(사용자 재현: 낚시어선업 이야기 뒤 "신고 안 하면?"에 "무슨 영업이신가요?").
+  // ⚠**검색어에는 절대 안 섞는다**(설계 §2.1 R2) — 2026-08-18 오전에 직전 질문을 질의에 이어붙였다가
+  //   "절차·방법·요건" 같은 일반어로 검색이 오염돼 무관한 법이 딸려 나온 사고가 있었다. 이 값은
+  //   되묻기 판단·답변 합성에 **참고 자료로만** 간다.
+  // ⚠기억은 **메모리에만** 둔다 — 앱을 껐다 켜면 새 대화로 시작한다(사용자 확정).
+  var chatTurns = [];        // [{q, a, at}] — 이어 물은 순서대로
+  var lastTurnAt = 0;        // 마지막 답변 시각(6시간이 지나면 그 대화는 끝난 것으로 본다)
+  // 마지막 답변에서 이만큼 지나면 이어지지 않는다(사용자 확정 6시간). 앱을 켜둔 채 하루가 지나도
+  // 어제 하던 얘기가 오늘 질문에 딸려오지 않게 하는 장치다.
+  var CHAT_MEMORY_TTL_MS = 6 * 60 * 60 * 1000;
+  // 기억이 이 길이를 넘으면 오래된 턴을 줄인다(비용 상한). 답변은 규칙상 **"쉽게 말하면 ~"으로
+  // 시작하는 결론 요약**을 항상 달고 있어, 그 첫 문단만 남기면 따로 요약을 만들 필요가 없다
+  // (AI를 다시 부르지 않으므로 비용 0 · 요약하다 뜻이 뒤틀릴 위험 0).
+  var CHAT_MEMORY_MAX_CHARS = 8000;
+  var CHAT_MEMORY_KEEP_FULL = 2;   // 최근 몇 턴을 통째로 남길지
+  // 턴 수 상한 — 줄이기는 글자만 줄일 뿐 턴 자체는 안 버리므로, 아주 길게 이어 물으면 짧은 턴이
+  // 끝없이 쌓인다. 서버도 같은 수(12)에서 자르므로 넘겨봐야 버려진다.
+  var CHAT_MEMORY_MAX_TURNS = 12;
+
   // 연결이 끊긴 답을 서버 보관본에서 되찾을 때 다시 물어보는 간격·횟수(2026-08-18).
   //   3초 × 40회 = 2분. 이 안에 못 찾으면 보관본이 없는 것(6초 안에 끝나 보관 대상이 아니었던
   //   질문)이므로 평소 오류 안내로 돌아간다.
@@ -2723,6 +2745,70 @@
     } catch (_) { /* 방어적 — 무시 */ }
   }
 
+  /**
+   * 이 대화 기억이 아직 살아 있나(마지막 답변에서 6시간 안). 지났으면 비우고 false.
+   * @returns {boolean}
+   * [연계] ← rememberTurn · chatMemoryForSend.
+   */
+  function chatMemoryAlive() {
+    if (!chatTurns.length) return false;
+    if (Date.now() - lastTurnAt < CHAT_MEMORY_TTL_MS) return true;
+    chatTurns = []; lastTurnAt = 0;      // 시간이 지난 대화는 이어지지 않는다(사용자 확정)
+    return false;
+  }
+
+  /** 이어 묻기를 그만두거나(🆕 다른 종류의 질문) 새 질문을 직접 타이핑했을 때 기억을 비운다. */
+  function forgetChatMemory() { chatTurns = []; lastTurnAt = 0; }
+
+  /**
+   * 방금 주고받은 한 턴을 기억에 쌓는다. 쌓인 길이가 상한을 넘으면 오래된 턴부터 줄인다.
+   * 줄이는 방법: **최근 몇 턴은 통째로**, 그보다 오래된 턴은 **질문 + 답변 첫 문단**만 남긴다.
+   * 답변 첫 문단은 답변 원칙 6번이 강제하는 "쉽게 말하면 ~" 결론 요약이라 **그 자체가 요약**이다
+   * — AI를 다시 불러 요약할 필요가 없다(비용 0, 요약하다 뜻이 뒤틀릴 위험 0).
+   * @param {string} q - 사용자가 보낸 질의(되묻기로 누적된 문자열 그대로)
+   * @param {string} a - 그 답변 본문
+   * [연계] ← doSend(최종 답변을 그린 뒤). → chatMemoryForSend.
+   */
+  function rememberTurn(q, a) {
+    if (!q || !a) return;
+    if (!chatMemoryAlive()) chatTurns = [];      // 시간이 지났으면 이번 턴부터 새 대화
+    chatTurns.push({ q: String(q), a: String(a) });
+    if (chatTurns.length > CHAT_MEMORY_MAX_TURNS) chatTurns = chatTurns.slice(-CHAT_MEMORY_MAX_TURNS);
+    lastTurnAt = Date.now();
+    var total = 0, i;
+    for (i = 0; i < chatTurns.length; i++) total += chatTurns[i].q.length + chatTurns[i].a.length;
+    if (total <= CHAT_MEMORY_MAX_CHARS) return;
+    for (i = 0; i < chatTurns.length - CHAT_MEMORY_KEEP_FULL; i++) {
+      chatTurns[i].a = firstParagraph(chatTurns[i].a);
+    }
+  }
+
+  /**
+   * 답변에서 **첫 문단**만 잘라 온다(답변 원칙 6번의 "쉽게 말하면 ~" 결론 요약).
+   * 빈 줄이 없으면 첫 문장까지만, 그것도 없으면 앞 300자까지.
+   * 예: firstParagraph('쉽게 말하면, 신고제입니다.\n\n자세히는…') → '쉽게 말하면, 신고제입니다.'
+   * @param {string} a @returns {string}
+   * [연계] ← rememberTurn(오래된 턴 줄이기).
+   */
+  function firstParagraph(a) {
+    var t = String(a || '').trim();
+    var cut = t.indexOf('\n\n');
+    if (cut > 0) return t.slice(0, cut).trim();
+    var dot = t.indexOf('다.');
+    if (dot > 0) return t.slice(0, dot + 2);
+    return t.slice(0, 300);
+  }
+
+  /**
+   * 서버로 보낼 대화 기억을 만든다. 이어 묻는 중(맥락 있음)일 때만 실어 보낸다.
+   * @returns {Array<{q:string,a:string}>|null} 보낼 것이 없으면 null(요청 본문에 필드 자체를 안 넣는다)
+   * [연계] → POST /api/legal/ask 의 `history`. 서버는 이 값을 **검색어에 섞지 않는다**(R2).
+   */
+  function chatMemoryForSend() {
+    if (!chatMemoryAlive()) return null;
+    return chatTurns.map(function (t) { return { q: t.q, a: t.a }; });
+  }
+
   /** 답을 되찾는 동안 보여줄 말풍선 속. 스피너 하나와 한 줄 설명. @returns {string} */
   function recoveringHTML() {
     return '<div class="nrya-recover"><span class="nrya-spin" aria-hidden="true"></span>' +
@@ -2788,6 +2874,9 @@
     if (!sendCtx) lastCtx = null;
     var ctx = sendCtx || pendingCtx || null;
     pendingCtx = null;
+    // ⚠기억을 버리는 판단은 **ctx 를 정한 뒤에** 한다 — "🔁 관련해서 더 궁금해요"를 누르고 손으로
+    //   친 질문은 sendCtx 가 없고 pendingCtx 로 들어오므로, 위에서 버리면 이어 묻기가 통째로 죽는다.
+    if (!ctx) forgetChatMemory();
     setChatPlaceholder(false);
 
     // 내 말풍선. ★되묻기 선택지로 보낸 요청(hideMe)은 **그리지 않는다** — 라운드마다
@@ -2846,6 +2935,10 @@
     var profile = loadProfile();
     var ask = { query: q, deviceId: getDeviceId(), notifyOnComplete: optedIn, askId: askId };
     if (ctx) ask.ctx = ctx;
+    // [대화 기억] 이어 묻는 중일 때만 직전까지의 대화를 통째로 싣는다(2026-08-18 사용자 확정).
+    //   ⚠ `query` 문자열에는 아무것도 덧붙이지 않는다 — 검색어 오염 방지(R2).
+    //   맥락이 없는 새 질문(ctx 없음)에는 안 싣는다 → 서버 요청 본문이 오늘과 바이트 동일(R0).
+    if (ctx) { var hist = chatMemoryForSend(); if (hist && hist.length) ask.history = hist; }
     if (Object.keys(profile.fields).length) ask.profile = profile;
     // [H-37 최소 절충안] 직전 질문을 실어 보낸다(lastCtx와 무관 — 새 질문 타이핑에도 안 비운다).
     // ⚠ 2026-08-18 실사용 재현 버그: 되묻기 확인 버튼(이해확인·상황질문 등, hideMe=true)도 이
@@ -2898,6 +2991,8 @@
         // 진짜 최종 답변일 때만 기기에 기록으로 남긴다 — 되묻기(clarify)는 아직 답이 아니고,
         // 실패(!ok)나 답변 문장이 없는 응답은 나중에 다시 봐도 얻을 게 없다.
         if (data && data.ok && !data.clarify && data.answer) pushHistory(q, data);
+        // [대화 기억] 진짜 답변만 쌓는다(되묻기는 아직 답이 아니고, 실패는 남길 것이 없다).
+        if (data && data.ok && !data.clarify && data.answer) rememberTurn(q, data.answer);
         // 답변이 도착했는데 채팅창을 닫아둔 상태면 FAB 뱃지로 알린다(열려 있으면 이미 보는 중).
         if (!isChatOpen()) setUnread(getUnread() + 1);
       });
@@ -3583,6 +3678,7 @@
     } else {
       pendingCtx = null;
       lastCtx = null;
+      forgetChatMemory();            // 주제가 바뀌므로 지금까지의 대화를 이어받지 않는다
       box.innerHTML = '<span class="nrya-cont-thanks">네, 새 질문을 아래에 적어주세요.</span>';
     }
     if (input) { input.value = ''; input.focus(); }

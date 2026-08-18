@@ -130,5 +130,67 @@ ok('T3-3 표는 그대로 읽힌다', !!rows && rows.length >= 2, rows && rows.l
 ok('T3-4 ★원문에 없던 띄어쓰기를 만들지 않는다',
   !!rows && (rows[rows.length - 1][1] || '').indexOf('이 중 20퍼센트') < 0);
 
+// ── T4. 대화 기억 — 쌓기·6시간 만료·압축 (2026-08-18 사용자 확정) ─────────────────
+console.log('\n[T4] 대화 기억 — 쌓기·만료·압축');
+const MEM = new Function([
+  varSrc('chatTurns'), varSrc('lastTurnAt'), varSrc('CHAT_MEMORY_TTL_MS'),
+  varSrc('CHAT_MEMORY_MAX_CHARS'), varSrc('CHAT_MEMORY_KEEP_FULL'), varSrc('CHAT_MEMORY_MAX_TURNS'),
+  fnSrc('chatMemoryAlive'), fnSrc('forgetChatMemory'), fnSrc('rememberTurn'),
+  fnSrc('firstParagraph'), fnSrc('chatMemoryForSend'),
+  'return { remember: rememberTurn, forSend: chatMemoryForSend, forget: forgetChatMemory,' +
+  '  first: firstParagraph, age: function (ms) { lastTurnAt -= ms; },' +
+  '  ttl: CHAT_MEMORY_TTL_MS, cap: CHAT_MEMORY_MAX_CHARS };',
+].join('\n'))();
+
+// 답변은 규칙 6번이 강제하는 "쉽게 말하면 ~" 결론 요약으로 시작한다 — 그게 곧 압축본이다.
+const LONG = '쉽게 말하면, 신고제입니다.\n\n' + '자세한 설명 '.repeat(400);
+for (let i = 1; i <= 5; i += 1) MEM.remember('질문' + i, LONG);
+const sent = MEM.forSend();
+ok('T4-1 이어 물은 대화가 순서대로 쌓인다',
+  sent.length === 5 && sent[0].q === '질문1' && sent[4].q === '질문5', sent.length);
+ok('T4-2 ★최근 2턴은 통째로 남는다',
+  sent[3].a.length > 1000 && sent[4].a.length > 1000, sent[3].a.length + '/' + sent[4].a.length);
+ok('T4-3 ★오래된 턴은 "쉽게 말하면 ~" 첫 문단만 남는다',
+  sent[0].a === '쉽게 말하면, 신고제입니다.', JSON.stringify(sent[0].a));
+ok('T4-4 ★줄인 뒤 전체 길이가 상한 안이다',
+  sent.reduce((n, t) => n + t.q.length + t.a.length, 0) <= MEM.cap);
+ok('T4-5 첫 문단 뽑기 — 빈 줄이 없으면 첫 문장까지',
+  MEM.first('쉽게 말하면 신고제입니다. 그리고 또') === '쉽게 말하면 신고제입니다.',
+  JSON.stringify(MEM.first('쉽게 말하면 신고제입니다. 그리고 또')));
+// ★6시간이 지나면 그 대화는 끝난 것으로 본다(사용자 확정) — 어제 하던 얘기가 오늘 딸려오지 않게.
+MEM.age(MEM.ttl + 1000);
+ok('T4-6 ★6시간이 지나면 기억이 이어지지 않는다', MEM.forSend() === null);
+MEM.remember('새 질문', '쉽게 말하면, 새 답변입니다.');
+const after = MEM.forSend();
+ok('T4-7 만료 뒤에는 새 대화로 다시 시작한다',
+  !!after && after.length === 1 && after[0].q === '새 질문', after && after.length);
+MEM.forget();
+ok('T4-8 "다른 종류의 질문"이면 기억을 버린다', MEM.forSend() === null);
+// 턴 수 상한 — 줄이기는 글자만 줄이므로 턴 자체에도 상한이 있어야 끝없이 안 쌓인다.
+for (let i = 0; i < 30; i += 1) MEM.remember('질문' + i, '쉽게 말하면, 답입니다.');
+ok('T4-9 아주 길게 이어 물어도 턴 수가 상한 안이다', MEM.forSend().length <= 12, MEM.forSend().length);
+
+// ── T5. 서버는 앱이 보낸 기억을 믿지 않는다 ───────────────────────────────────────
+console.log('\n[T5] 서버 쪽 정규화 — 앱이 보낸 값을 그대로 믿지 않는다');
+const RET = require(path.join(__dirname, '..', 'services', 'legal_retriever.js'));
+ok('T5-1 배열이 아니면 빈 배열', RET.normalizeHistory('아무거나').length === 0 &&
+  RET.normalizeHistory(null).length === 0 && RET.normalizeHistory({}).length === 0);
+ok('T5-2 q·a 가 없는 턴은 버린다',
+  RET.normalizeHistory([{ q: '', a: '답' }, { q: '질문' }, { q: '질문', a: '답' }]).length === 1);
+ok('T5-3 턴 하나가 아주 길어도 잘라 담는다',
+  RET.normalizeHistory([{ q: 'ㄱ'.repeat(9999), a: 'ㄴ'.repeat(9999) }])[0].a.length === 4000);
+const many = RET.normalizeHistory(Array.from({ length: 40 }, (_, i) => ({ q: 'q' + i, a: 'ㄱ'.repeat(3000) })));
+ok('T5-4 총량이 넘치면 오래된 턴부터 버린다',
+  many.reduce((n, t) => n + t.q.length + t.a.length, 0) <= 12000 &&
+  many[many.length - 1].q === 'q39', many.length);
+// ★R0 — 이어 묻지 않는 질문은 프롬프트가 오늘과 바이트 동일해야 한다.
+ok('T5-5 ★기억이 없으면 프롬프트에 아무것도 안 붙는다(R0)',
+  RET.historyBlock([]) === '' && RET.historyBlock(null) === '');
+ok('T5-6 기억이 있으면 대화 블록이 붙는다',
+  /\[방금까지 나눈 대화\]/.test(RET.historyBlock([{ q: '질문', a: '답' }])));
+// ★답의 근거는 여전히 근거자료뿐 — 지난 대화의 조문을 근거로 재사용하지 말라고 못 박는다.
+ok('T5-7 ★지난 대화의 조문을 근거로 다시 쓰지 말라고 지시한다',
+  /답의 근거는 여전히 \[근거자료\]뿐/.test(RET.historyBlock([{ q: '질문', a: '답' }])));
+
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

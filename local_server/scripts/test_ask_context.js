@@ -661,7 +661,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('스위치 off 면 재진술을 하류로 안 넘긴다(§9.1 #10)',
       /const ucRestate = cfg\.understandConfirm \? \(ctx\.uc\.restate \|\| ''\) : '';/.test(ROUTES_CODE));
     ok('검색에 넘긴다', /searchOpts\.restate = ucRestate;/.test(ROUTES_CODE));
-    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion(?:, ctx\.cl)?(?:, ctx\.topic)?\)/.test(ROUTES_CODE));
+    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion(?:, ctx\.cl)?(?:, ctx\.topic)?(?:, history)?\)/.test(ROUTES_CODE));
     ok('질의 문자열에는 어디서도 안 합친다(R2)',
       !/q \+[^\n]*restate/i.test(ROUTES_CODE) && !/restate[^\n]*\+ q\b/i.test(ROUTES_CODE));
     // (8) 설계문서와 코드가 어긋나지 않는다(T24·T25와 같은 대조)
@@ -996,6 +996,40 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       /contact: legalRetriever\.lookupContact\(c\.law\) \|\| null/.test(ROUTES_SRC));
   }
 
+  // ── 대화 기억 · 근거 묶음 표기 (2026-08-18 밤, 사용자 확정) ────────────────────────────
+  {
+    // ① 근거는 묶음 단위로 한 번만 — 같은 조항의 호를 항목마다 반복하지 않는다
+    ok('★근거를 묶음 제목에 한 번만 적게 한다',
+      /근거는 "묶음 단위"로 한 번만 적는다/.test(RET_SRC) &&
+      /묶음 안의 항목에는 조문을 적지 마라/.test(RET_SRC));
+    ok('다른 법·다른 조에서 온 항목만 예외로 따로 적게 한다',
+      /\*\*예외는 하나뿐이다\*\*/.test(RET_SRC));
+
+    // ② 대화 기억 — 질의에 안 섞고(R2) 파일에 안 쓴다(R1)
+    ok('★이어 물을 때 직전 대화를 통째로 실어 보낸다',
+      /if \(ctx\) \{ var hist = chatMemoryForSend\(\); if \(hist && hist\.length\) ask\.history = hist; \}/.test(CLIENT_SRC));
+    ok('★대화 기억을 질의 문자열에 합치지 않는다(R2)',
+      !/query: q \+[^\n]*history/i.test(CLIENT_SRC) && !/q \+[^\n]*chatTurns/i.test(CLIENT_SRC));
+    ok('★대화 기억을 서버 어느 파일에도 쓰지 않는다(R1)',
+      !/history/.test(PENDING_SRC) && !/logKnowledgeCandidate\(q, raw, history\)/.test(ROUTES_SRC));
+    ok('서버가 앱이 보낸 기억을 그대로 믿지 않는다',
+      /legalRetriever\.normalizeHistory\(req\.body && req\.body\.history\)/.test(ROUTES_SRC));
+    ok('되묻기 판단·답변 합성 **둘 다**에 넘긴다',
+      /ctx\.cl, ctx\.topic, history\)/.test(ROUTES_SRC) &&
+      /synthesizeAnswerStream\(q, contextPages, history\)/.test(ROUTES_SRC));
+    ok('★되묻기는 "이미 정해진 것"만 막고 진짜 갈리는 조건은 그대로 묻는다',
+      /이미 정해진 것은 다시 묻지 마라/.test(RET_SRC) &&
+      /아직 정해지지 않았고\*\* 답이 실제로 크게 갈리는 조건은 그대로 물어도 된다/.test(RET_SRC));
+    ok('★새 질문을 직접 타이핑하면 기억을 버린다(맥락 버튼 뒤 타이핑은 살린다)',
+      /if \(!ctx\) forgetChatMemory\(\);/.test(CLIENT_SRC));
+    ok('"다른 종류의 질문이에요"도 기억을 버린다',
+      /forgetChatMemory\(\);\s*\/\/ 주제가 바뀌므로/.test(CLIENT_SRC));
+    ok('되묻기·실패는 기억에 쌓지 않는다(아직 답이 아니다)',
+      /if \(data && data\.ok && !data\.clarify && data\.answer\) rememberTurn\(q, data\.answer\);/.test(CLIENT_SRC));
+    ok('기억은 기기 메모리에만 둔다(앱을 껐다 켜면 새 대화)',
+      !/localStorage[^\n]*chatTurns/.test(CLIENT_SRC));
+  }
+
   // ── 실사용 지적 2차 8건 (2026-08-18 저녁, 사용자 스크린샷) ────────────────────────────
   {
     // ① 백그라운드로 끊긴 답을 **AI 재호출 없이** 서버 보관본에서 되찾는다(사용자 확정:
@@ -1022,8 +1056,10 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       /"같은 법"·"동법"·"같은 조"·"이 법" 같은 가리키는 말은 쓰지 마라/.test(RET_SRC));
 
     // ④ 나열한 요건마다 근거를 붙이게 한다
-    ok('★요건을 번호로 나열할 때 항목마다 근거를 적게 한다',
-      /요건·서류·절차·기준을 번호로 나열할 때는 항목마다 그 근거를 붙인다/.test(RET_SRC));
+    // ★2026-08-18 밤 사용자 재확정: "항목마다"에서 **"묶음 단위로 한 번만"**으로 바뀌었다 —
+    //   같은 조항의 호를 항목마다 반복하면 같은 곳을 가리키는 링크만 예닐곱 개 늘어선다.
+    ok('★근거를 빼먹지는 않는다(묶지 않고 풀어 쓸 때는 그 문장에 적는다)',
+      /근거 자체를 빼먹으면 안 된다/.test(RET_SRC));
 
     // ⑤ 맥락(ctxNext)이 복원 경로에서도 살아남는다
     ok('★서버 보관본에 주제를 함께 담는다(맥락 전체는 안 담는다 — R1)',
@@ -1035,7 +1071,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('주제가 같은 위키 쪽을 앞으로 끌어올린다(확장어만으로는 약했다)',
       /x\.s \+= TOPIC_BONUS/.test(RET_SRC));
     ok('★되묻기 판단에도 주제를 넘긴다(예전엔 아예 안 넘겼다)',
-      /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx\.cl, ctx\.topic\)/.test(ROUTES_SRC) &&
+      /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx\.cl, ctx\.topic, history\)/.test(ROUTES_SRC) &&
       /\[이어서 묻는 주제\]/.test(RET_SRC));
 
     // ⑥ 복원 화면의 내 말풍선 — 누적 문자열을 그대로 찍지 않는다

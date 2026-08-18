@@ -1062,6 +1062,15 @@ router.post('/api/legal/ask', async (req, res) => {
   //   ctx와 무관한 별도 채널이다(§9.1 #1 "새로 타이핑한 질문은 맥락을 비운다"는 그대로 두고,
   //   decideClarify가 이미 애매해서 되물을 때만 "방금 그거예요?" 확인 후보 하나를 더 보여준다).
   const lastQuestion = String((req.body && req.body.lastQuestion) || '').trim().slice(0, 200);
+  // ★[대화 기억, 2026-08-18 사용자 확정] "🔁 관련해서 더 궁금해요"로 이어 물을 때 앱이 실어 보내는
+  //   **직전까지의 대화 전체**([{q,a}, …]). 주제 낱말 하나(ctx.topic)만으로는 AI가 확신하지 못해
+  //   방금 한 얘기를 또 되물었기 때문이다(사용자 재현).
+  //   ⚠**질의 문자열에 절대 합치지 않는다**(설계 §2.1 R2) — 되묻기 판단·답변 합성에 참고 자료로만
+  //     간다. 검색은 지금 질문으로만 한다(직전 질문을 질의에 이어붙였다가 "절차·방법·요건" 같은
+  //     일반어로 검색이 오염된 사고가 2026-08-18 오전에 있었다).
+  //   ⚠**어떤 파일에도 쓰지 않는다**(설계 §3.3 R1 — ctx·profile 과 같은 규약). 로그도 남기지 않는다.
+  //   없으면 아래 전 경로가 no-op 이라 응답이 오늘과 바이트 동일하다(R0).
+  const history = legalRetriever.normalizeHistory(req.body && req.body.history);
   // 이 요청이 끝난 뒤 [허용]으로 뒤늦게 동의할 수 있게 등록해둔다(POST /api/legal/notify-me 참고).
   if (askId && deviceId) inFlightAsks.set(askId, { deviceId, wantsPush: false });
 
@@ -1207,7 +1216,7 @@ router.post('/api/legal/ask', async (req, res) => {
 
     // [B6] 직전 라운드의 되묻기(ctx.cl)를 함께 넘긴다 — 모델이 표현만 바꿔 같은 걸 다시 물으면
     //   (라벨 완전일치 대조로는 안 잡힌다) 결정론적으로 버린다. ctx.cl 이 없으면 오늘과 동일(R0).
-    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx.cl, ctx.topic);
+    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx.cl, ctx.topic, history);
 
     // ③ [H-37 §7.4] 프로필 확인 — 이 되묻기가 묻는 축을 프로필이 이미 알고 있으면 되묻는 대신
     //    "저장된 정보로 답할까요?"를 **그 축에 대해서만** 확인한다(축 단위, 사용자 확정 (자)).
@@ -1259,7 +1268,7 @@ router.post('/api/legal/ask', async (req, res) => {
     // 근거 후보가 아예 없으면 합성해봐야 빈 답이라 스트림을 부르지 않는다(기존 최적화 유지).
     if (contextPages.length) {
       try {
-        for await (const chunk of legalRetriever.synthesizeAnswerStream(q, contextPages)) {
+        for await (const chunk of legalRetriever.synthesizeAnswerStream(q, contextPages, history)) {
           full += chunk; synth += chunk;
           res.write(JSON.stringify({ type: 'delta', text: chunk }) + '\n');
           if (res.flush) res.flush(); // compression() 버퍼를 즉시 내보내 실제로 조각조각 도착하게 함
