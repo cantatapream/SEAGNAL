@@ -2668,8 +2668,17 @@
     if (ctx) ask.ctx = ctx;
     if (Object.keys(profile.fields).length) ask.profile = profile;
     // [H-37 최소 절충안] 직전 질문을 실어 보낸다(lastCtx와 무관 — 새 질문 타이핑에도 안 비운다).
+    // ⚠ 2026-08-18 실사용 재현 버그: 되묻기 확인 버튼(이해확인·상황질문 등, hideMe=true)도 이
+    //   함수를 거치므로, 예전엔 여기서 매번 lastQuestionText = q 로 덮어썼다 — 그러면 "네, 맞아요"를
+    //   눌러 **같은 질문**을 ctx만 얹어 다시 보내는 확인 라운드에서 lastQuestionText 가 이미 그
+    //   질문 자신과 같아져("낚시어선업 신고 안 하면?" → 확인 → 재전송 시점엔 lastQuestionText도
+    //   똑같이 "낚시어선업 신고 안 하면?") 정작 decideClarify 가 실행되는 시점(확인이 다 끝난 뒤)엔
+    //   ask.lastQuestion 이 통째로 안 실려, "🔁 이어서" 버튼으로 이어붙인 직전 주제가 사라지고
+    //   엉뚱한 일반 되묻기로 튀었다(라이브 재현: 신고 요건 질문 뒤 "신고 안 하면?"을 이어 물었는데
+    //   낚시어선업과 무관한 "무슨 어업을 하셨나요"가 나옴). **사용자가 직접 새로 타이핑했을 때만**
+    //   (hideMe 가 없을 때만) 갱신해, 같은 질문의 확인 라운드 내내 "그 이전 질문"이 살아남게 한다.
     if (lastQuestionText && lastQuestionText !== q) ask.lastQuestion = lastQuestionText;
-    lastQuestionText = q;
+    if (!hideMe) lastQuestionText = q;
     legalPost('/api/legal/ask', ask).then(function (res) {
       return readNdjsonStream(res, function (deltaText) {
         hadDelta = true;
