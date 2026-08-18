@@ -2315,6 +2315,33 @@
     host.appendChild(btn);
   }
 
+  /**
+   * 이 별표 글자 안에 **표로 못 읽는 표**가 섞여 있나(= 아스키 그림으로 떨어질 표가 있나).
+   * renderBylText 와 **같은 방식으로** 덩어리를 나눠 parseBylTable 을 미리 돌려 본다.
+   * 예: bylHasAsciiTable(근해어업표원문) → true (한 줄에 글자와 표 선이 섞여 못 읽는다)
+   * @param {string} text - 별표 원문
+   * @returns {boolean}
+   * [연계] ← openBylPop(무엇을 먼저 보여줄지 정한다). ↔ renderBylText(덩어리 나누는 규칙 동일).
+   */
+  function bylHasAsciiTable(text) {
+    var seg = [], segIsTable = null, bad = false;
+    function flush() {
+      // 구분자 줄이 3개 이상이면 "사람이 표로 볼 것"으로 본다(그보다 적으면 표가 아니라 그림·머리줄).
+      if (seg.length && segIsTable && seg.filter(function (l) { return /[│┃]/.test(l); }).length >= 3) {
+        if (!parseBylTable(seg)) bad = true;
+      }
+      seg = [];
+    }
+    String(text || '').split('\n').forEach(function (ln) {
+      var isTable = NRYA_BOX_RE.test(ln);
+      if (segIsTable !== null && isTable !== segIsTable) flush();
+      segIsTable = isTable;
+      seg.push(ln);
+    });
+    flush();
+    return bad;
+  }
+
   function openBylPop(ref) {
     if (!ref) return;
     bylAutoOpened = false;          // 자동으로 연 경우는 renderAnnexOnly 가 곧바로 다시 세운다
@@ -2335,8 +2362,19 @@
       renderBylImages(body, imgs);
       if (ref.body) appendBylTextToggle(body, ref.body);   // 글자로도 볼 수 있게(선택)
     } else if (ref.kind === 'text' && ref.body) {
-      renderBylText(body, ref.body);
-      if (imgs.length) appendBylImageToggle(body, imgs);   // 원본 스캔본 보기(선택)
+      // ★2026-08-18(사용자 확정): 표로 못 읽는 표가 섞여 있으면 **원본 이미지를 먼저** 보여준다.
+      //   아스키 그림(선을 글자로 그린 것)은 좁은 화면에서 읽을 수 없고, 원본 이미지는 법령에
+      //   실린 표 그대로다 — "반드시 표를 봐야 하는 경우에는 아스키가 아니라 이미지가 나와야
+      //   한다"(사용자 원문). 실측: 별표·별지 2,724건 중 2,679건(98.3%)에 원본 이미지가 있다.
+      //   ⚠글자를 버리지는 않는다 — "글자로 보기"로 언제든 펼칠 수 있다(검색·복사가 되는 쪽).
+      //   ⚠표가 전부 제대로 읽히는 별표는 **예전 그대로 글자 먼저** — 글자가 더 보기 좋다.
+      if (imgs.length && bylHasAsciiTable(ref.body)) {
+        renderBylImages(body, imgs);
+        appendBylTextToggle(body, ref.body);
+      } else {
+        renderBylText(body, ref.body);
+        if (imgs.length) appendBylImageToggle(body, imgs);   // 원본 스캔본 보기(선택)
+      }
     } else if (imgs.length) {
       renderBylImages(body, imgs);
     } else if (ref.kind === 'image' && ref.image) {
