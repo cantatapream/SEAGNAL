@@ -1724,6 +1724,8 @@
    * 원문 한 토막을 요소에 넣되, 그 안의 "별표 1"·"별지 제1호 서식" 같은 표현 **자체**를
    * 눌러볼 수 있는 링크로 바꾼다(별도 칩·버튼 줄을 뒤에 붙이지 않는다 — 목업 확정).
    * 우리에게 원문이 없는 참조는 누를 수 없는 회색 "(원문 미수집)"으로 둔다(지어내지 않는다).
+   * 다만 **이미지 참조(`【이미지 N】`)만은 링크가 아니라 그림 자체**를 그 자리에 그려 넣는다 —
+   * 원문에서 그림은 문장과 한 덩어리이기 때문이다(아래 ★ 주석).
    * 원문 글자는 전부 textContent·텍스트노드로만 넣는다(HTML 주입 없음 — XSS 방지).
    * 예: appendText(div, '수수료는 별표 1과 같다.', refs) → '수수료는 ' + <span.nrya-byl-ref>별표 1</span> + '과 같다.'
    * @param {HTMLElement} host - 글자를 붙일 요소
@@ -1740,6 +1742,25 @@
       var isImg = key.indexOf('이미지') === 0;
       // 이미지 마커는 원문 문장이 아니라 수집 표시다 — 실물이 없으면 흔적 없이 지운다.
       if (isImg && (!ref || ref.kind !== 'image')) continue;
+      // ★2026-08-18(사용자 확정): 그림이 있는 자리에는 **그림을 그 자리에 그대로** 띄운다.
+      //   사용자 원문: "본문 내용 그 별지나 별표 안에도 그 내용이 텍스트로 적혀 있고 그 중간에
+      //   이미지가 들어간 경우가 있단 말이야. … 텍스트와 이미지가 같이 나와 줘야 될 것 같은데".
+      //   예전에는 `🖼 원본 이미지` 링크만 두어, 그림을 보려면 팝업을 한 번 더 열어야 했다.
+      //   ⚠ 원문의 그림은 두 갈래다 — 문장 아래 붙는 표·산식(큰 그림)과, 문장 **안에** 끼는
+      //     수식 기호(작은 그림. 예: 선박에너지효율검사기준 "제1항의 계산식에서 【이미지 A】 및
+      //     【이미지 B】는"). 둘을 갈라 다루려면 그림 크기를 미리 알아야 하는데 우리는 모른다 —
+      //     그래서 inline-block 하나로 두고 CSS 가 알아서 흐르게 한다(큰 것은 폭에 맞춰 줄을
+      //     차지하고, 작은 것은 글자 사이에 그대로 앉는다). 눌러 크게 보는 길은 그대로 둔다.
+      if (isImg) {
+        var fig = document.createElement('img');
+        fig.className = 'nrya-artpop-img nrya-byl-ref';
+        fig.setAttribute('data-byl', key);
+        fig.loading = 'lazy';
+        fig.alt = ref.title || '원문 이미지';
+        fig.src = ref.image;
+        host.appendChild(fig);
+        continue;
+      }
       // 서버가 판정 상한(MAX_REFS)에서 멈춰 **아예 안 본** 참조는 "미수집"이 아니다 —
       // 없는 걸 있다고 하지도, 모르는 걸 없다고 단정하지도 않게 원문 글자 그대로 둔다.
       if (!ref && artPopRefsCut) { host.appendChild(document.createTextNode(m[0])); continue; }
@@ -1747,7 +1768,7 @@
       if (ref && ref.kind !== 'missing') {
         span.className = 'nrya-byl-ref';
         span.setAttribute('data-byl', key);
-        span.textContent = isImg ? '🖼 원본 이미지' : m[0];
+        span.textContent = m[0];
       } else {
         span.className = 'nrya-byl-missing';
         span.textContent = m[0] + ' (원문 미수집)';
