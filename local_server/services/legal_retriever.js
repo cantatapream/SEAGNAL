@@ -2238,6 +2238,29 @@ function missingAnswerCitations(answerText, rows) {
   return out;
 }
 
+/**
+ * 그 자료에 **실제로 실린 법령 이름들**을 자료의 `## 근거 조문` 표에서 뽑는다(대표 법령이 맨 앞).
+ * 프롬프트 머리에 "이 자료에는 이런 법령들이 섞여 있다"고 알려 주려는 것이다 — 모델이 조문번호만
+ * 적힌 자리를 대표 법령 것으로 단정해 엉뚱한 출처를 붙이는 것을 막는다.
+ * ⚠표가 발췌에 안 실렸거나 법령이 한 종류뿐이면 빈 배열/한 개를 돌려준다(호출부가 안내를 생략한다).
+ * 예: pageLawNames('… ## 근거 조문 | 해운법 | 제15조 … | 「내항해운에관한업무지침」 | 제9~15조 …', '해운법')
+ *     → ['해운법', '「내항해운에관한업무지침」']
+ * @param {string} body - 프롬프트에 실릴 자료 본문(이미 잘린 상태)
+ * @param {string} pageLaw - 그 자료의 대표 법령
+ * @returns {string[]} 중복 없는 법령 이름(최대 8개 — 머리가 길어지지 않게)
+ * [연계] ← buildContextBlock. → extractCitationChain(같은 표 파서를 쓴다).
+ */
+function pageLawNames(body, pageLaw) {
+  const out = [];
+  const add = v => {
+    const t = String(v || '').trim();
+    if (t && t !== '—' && t !== '-' && !out.includes(t) && out.length < 8) out.push(t);
+  };
+  add(pageLaw);
+  for (const r of extractCitationChain(body)) add(r.law);
+  return out;
+}
+
 /** contextPages를 프롬프트용 [근거자료] 블록 문자열로 직렬화. */
 function buildContextBlock(contextPages) {
   return contextPages.map((cp, i) => {
@@ -2249,7 +2272,18 @@ function buildContextBlock(contextPages) {
     const meta = `상태:${cp.status || '(법령원문)'} · 기준일:${cp.frontmatter.updated || cp.frontmatter.시행일 || '미상'}` +
       (cp.hop ? ' · (관련개념 보강)' : '');
     const about = cp.topic ? `이 자료가 다루는 것: ${cp.topic} · ` : '';
-    return `--- 근거${i + 1}: 「${cp.law}」 (${about}${meta}) ---\n${cp.body}`;
+    // ★2026-08-18(라이브 검증 실측): 머리에 법령명을 하나만 달아 두니 모델이 **자료 안의 모든
+    //   조문을 그 법 것으로** 읽었다. 위키 본문은 `(제14조②)` 처럼 조문번호만 적는 자리가 흔한데,
+    //   그게 실제로는 고시·지침의 조문인 경우가 있다 — 「내항해운에관한업무지침」 제14조②(운항결손액
+    //   8항목)를 모델이 「해운법 시행규칙」 제14조제2항이라고 적었고(그 조문엔 제2항 자체가 없다),
+    //   화면은 그 표기를 눌러 **엉뚱한 원문**을 여는 자리로 바꾼다. 그래서 그 자료에 실제로 실린
+    //   법령 목록을 **자료에서 뽑아** 함께 알려 준다(우리가 지어내는 정보가 아니라 표에 적힌 그대로다).
+    const laws = pageLawNames(cp.body, cp.law);
+    const also = laws.length > 1
+      ? `\n※ 이 자료에는 다음 법령의 조문이 함께 실려 있다 — ${laws.join(' / ')}. `
+        + `조문번호만 적힌 자리를 대표 법령(${cp.law}) 것으로 단정하지 마라.`
+      : '';
+    return `--- 근거${i + 1}: 「${cp.law}」 관련 자료 (${about}${meta}) ---${also}\n${cp.body}`;
   }).join('\n\n');
 }
 
@@ -2293,7 +2327,10 @@ const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
 13. ★**표(별표·별지 포함)에서 답이 나오면, 그 표에서 질문에 해당하는 칸의 값을 그대로 말한다.** "「…」 별표 4를 참고하세요"로 넘기지 마라 — 사용자가 궁금한 것은 표 전체가 아니라 **자기 경우에 해당하는 한 줄**이다.
     - 예: "선망어선의 조업구역"을 물으면 그 표에서 그 어업 종류의 행을 찾아 "전국 근해"라고 **값을 그대로** 적는다(어느 별표인지는 규칙11대로 한 번만 밝힌다).
     - 조건에 따라 값이 갈리면(톤수·해역·시기 등) **질문에 해당하는 갈래만** 답한다(규칙1과 같은 취지).
-    - 근거자료의 표에서 그 칸을 못 찾으면 **지어내지 말고** "그 표에서는 확인되지 않습니다"라고 정직하게 말한다. 정말로 표 전체를 봐야 하는 경우에만 그 별표를 가리킨다(화면이 원본 표 이미지를 보여준다).`;
+    - 근거자료의 표에서 그 칸을 못 찾으면 **지어내지 말고** "그 표에서는 확인되지 않습니다"라고 정직하게 말한다. 정말로 표 전체를 봐야 하는 경우에만 그 별표를 가리킨다(화면이 원본 표 이미지를 보여준다).
+14. ★**조문번호만 적힌 자리를 자료 대표 법령 것으로 단정하지 마라.** [근거자료]의 머리에 「○○법」이 적혀 있어도, 그 자료 안에는 시행령·시행규칙·고시·지침·조례의 조문이 **함께** 실려 있다(머리의 "※ 이 자료에는 다음 법령의 조문이 함께 실려 있다" 줄을 보라). 본문이 "(제14조②)" 처럼 번호만 적어 둔 자리는, 그 절의 제목이나 바로 위 문장, 또는 '근거 조문' 표에서 **어느 법령의 조문인지 확인한 뒤** 그 법령명을 붙여 쓴다.
+    - 확인이 안 되면 **그 조문번호를 쓰지 마라.** 법령명까지만 밝히거나(예: "「내항해운에관한업무지침」에 따르면"), 확실한 상위 위임 조문만 밝힌다.
+    - 틀린 조문번호는 빈칸보다 나쁘다 — 화면이 그 표기를 눌러 원문을 여는 자리로 바꾸므로, 사용자는 **엉뚱한 법의 엉뚱한 조문**을 근거로 믿게 된다(실측: 「내항해운에관한업무지침」 제14조②의 비용 8항목이 「해운법 시행규칙」 제14조제2항으로 인용됐는데, 그 조문에는 제2항 자체가 없다).`;
 
 const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
 
@@ -4325,7 +4362,7 @@ function withAssumedNotice(answer, assumed) {
   return ASSUMED_NOTICE + '\n\n' + answer;
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
