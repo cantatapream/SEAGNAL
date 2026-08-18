@@ -928,6 +928,21 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       /filter\(r => !\(r && r\.synthesized\)\)\.slice\(0, MAX_EXCERPT_ROWS\)/.test(ROUTES_CODE));
   }
 
+  // ── 본문 조문 링크: baseLaw 차이만으로 링크를 죽이지 않는다 (2026-08-18 회귀 잠금) ──────
+  //   근거 목록은 여러 위키 페이지의 줄을 합친 것이라 같은 법이라도 baseLaw(그 줄이 실려 있던
+  //   페이지)가 다르다 — 특히 comparisons/ 페이지는 baseLaw 가 파일명이다. 예전엔 그 차이만으로
+  //   ambiguous 를 세워 「낚시 관리 및 육성법」 같은 정상 법률 링크가 통째로 안 걸렸다(실사용 재현).
+  {
+    const IDX = CLIENT_SRC.slice(CLIENT_SRC.indexOf('function buildCiteIndex'),
+      CLIENT_SRC.indexOf('function buildCiteIndex') + 1800);
+    ok('tier 가 다르면 여전히 모호로 본다(엉뚱한 계층 원문을 열지 않는다)',
+      /if \(hit\.tier !== tier\) \{ hit\.ambiguous = true; return; \}/.test(IDX));
+    ok('baseLaw 차이는 **그 값이 실제로 쓰일 때만** 모호로 본다',
+      /if \(hit\.base !== base && _baseMatters\(nm, tier\)\) hit\.ambiguous = true;/.test(IDX));
+    ok('_baseMatters 는 고시·자기참조(이 법·시행령)에서만 true 다(서버 resolveBase 와 같은 규칙)',
+      /function _baseMatters\(name, tier\) \{\s*\n\s*if \(tier === 'notice'\) return true;/.test(CLIENT_SRC));
+  }
+
   // ── sliceRelevant 회귀 잠금 (2026-08-17) — 이 로직에서 회귀가 두 번 재발했다:
   //    ①근거 조문이 뒤 순서라 예산 밀림 ②그 밀림을 고치다 rest 순서가 바뀌어 형사절차_일반.md
   //    "선고유예" 케이스가 다시 깨짐. 둘 다 실제 위키 파일로 재현한 케이스라 그대로 고정한다.

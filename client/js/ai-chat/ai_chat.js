@@ -1318,11 +1318,6 @@
     ensureAliases();              // 답변 본문의 「약칭」을 정식명으로 맞춰볼 표를 미리 받아둔다
     setUnread(0);                 // 열어서 보는 순간 안읽음 해제
     fitChat(); addVV(); _scrollChatBottom();
-    // ⚠ 앱을 막 켠 직후(첫 오픈)엔 window.visualViewport 가 브라우저 UI(주소창 등)가 자리잡기 전의
-    //   값을 줄 때가 있어 카드가 실제 화면보다 크게 잡혀 아래가 잘려 보이는 사례가 실사용에서
-    //   확인됐다(닫았다 다시 열면 그땐 정상 — 재호출 시점엔 값이 이미 안정된 것). 입력창 포커스 때
-    //   이미 쓰는 것과 같은 지연 재계산을 오픈 직후에도 한 번 더 건다(2026-08-18).
-    setTimeout(fitChat, 300);
     var input = document.getElementById('nryaChatInput'); if (input) setTimeout(function () { input.focus(); }, 80);
     if (window.PopupStack) window.PopupStack.push('nrya-chat', closeChat);
   }
@@ -2742,6 +2737,23 @@
    * @returns {object} 법령명 → {law,tier,base,ambiguous?}
    * [연계] ← answerBodyHTML. → resolveCiteLaw.
    */
+  /**
+   * 이 법령명으로 원문을 찾을 때 `baseLaw` 가 **실제로 쓰이는가**.
+   * 서버 article_text.resolveBase() 를 그대로 옮긴 판정이다: 법령 칸으로 raw 폴더가 바로 찾아지면
+   * baseLaw 는 아예 안 쓰이고, ⓐ법령 칸이 `이 법`·`시행령`처럼 **계층 단어뿐**이거나 ⓑ고시일 때만
+   * baseLaw 로 폴더를 찾는다(routes/legal.js mergeCitationChains 주석과 같은 두 경우).
+   * 예: baseMatters('낚시 관리 및 육성법','law') → false · baseMatters('시행령','decree') → true
+   * @param {string} name - 법령 칸 @param {string} tier - law|decree|rule|notice
+   * @returns {boolean}
+   * [연계] ← buildCiteIndex(모호 판정). 서버 isSelfRef/SELF_REF_TOKEN_RE 와 같은 규칙.
+   */
+  function _baseMatters(name, tier) {
+    if (tier === 'notice') return true;
+    var s = String(name || '').replace(/[「」『』]/g, '').replace(/\s+/g, '');
+    if (!s || /^같은/.test(s)) return false;
+    return s.replace(/^(이|동|본)/, '').replace(/(법률|법령|법|시행령|시행규칙|[·ㆍ・,\/]|→)/g, '') === '';
+  }
+
   function buildCiteIndex(chain) {
     var idx = {};
     (chain || []).forEach(function (row) {
@@ -2750,7 +2762,15 @@
       var base = String((row && row.baseLaw) || '');
       var hit = idx[nm];
       if (!hit) { idx[nm] = { law: nm, tier: tier, base: base }; return; }
-      if (hit.tier !== tier || hit.base !== base) hit.ambiguous = true;
+      // ⚠ baseLaw 가 다르다고 무조건 모호로 보면 **정상적인 법률 링크가 통째로 죽는다**(2026-08-18
+      //   실사용 재현): 근거 목록은 여러 위키 페이지의 줄을 합친 것이고, baseLaw 는 "그 줄이 실려
+      //   있던 페이지"라 같은 법이라도 페이지마다 값이 다르다 — 특히 비교 페이지(comparisons/)는
+      //   baseLaw 가 파일명(`여객화물운송사업_경계_해운법_낚시어선업_유도선업`)이다. 그 결과
+      //   「낚시 관리 및 육성법」은 링크가 안 걸리고 「… 시행령」만 걸리는 현상이 났다.
+      //   baseLaw 는 **원문 폴더를 못 찾을 때만** 쓰이므로(_baseMatters), 안 쓰이는 경우의 차이는
+      //   어느 쪽을 골라도 같은 문서를 열어 모호하지 않다 — tier 차이만 모호로 남긴다.
+      if (hit.tier !== tier) { hit.ambiguous = true; return; }
+      if (hit.base !== base && _baseMatters(nm, tier)) hit.ambiguous = true;
     });
     return idx;
   }
