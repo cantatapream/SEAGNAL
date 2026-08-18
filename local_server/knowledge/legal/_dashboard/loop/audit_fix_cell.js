@@ -31,6 +31,7 @@ const MANIFEST = {
     promoted_canonical: { type: 'integer', description: 'H-12② canonical로 승격한 페이지 수' },
     meta_review_flagged: { type: 'integer', description: 'H-12① 출처미확인으로 ⚠REVIEW 부착한 메타 필드 수' },
     // H-26(2026-07-26 사용자 확정) 추가 필드
+    unreachable_fixed: { type: 'integer', description: '2-U) 근거 조문 표에 행을 추가·정정해 챗봇이 꺼낼 수 있게 만든 행 수' },
     thin_reclassified: { type: 'integer', description: 'thin 중 wiki_lag/content_gap으로 원인 재분류·기록한 건수' },
     collection_hole_reclassified: { type: 'integer', description: 'collection_hole 중 genuine/structural/uncollected로 재분류한 건수' },
     awkward_fixed: { type: 'integer', description: '답변방식(점진공개·출처표기 등) 형식 위반 수정 건수' },
@@ -61,6 +62,23 @@ function prompt(l, round) {
 - **진짜 수집구멍(raw 자체 없음)** → **건드리지 말고** left_alone에 기록(재수집 파이프라인 대상).
 - **스코프밖(판례·법리·입법공백)** → left_alone에 기록.
 - **⚠REVIEW 미검증값**(별표 이미지 OCR 판독 등) → canonical로 승격 금지. 그대로 ⚠REVIEW 유지. left_alone에 기록.
+
+## 2-U) ★unreachable(위키엔 있는데 챗봇이 못 꺼냄) 해소 — 2026-08-18 신설, 이번 라운드 최대 항목
+감사 리포트의 \`unreachable\` 판정(22차 전체 242건)과 \`## R22 라이브 검증\` 절의 \`missing_evidence\` 기록을 **반드시 함께 읽고** 처리한다.
+
+**왜 따로 다루나**: 감사관은 위키 아무 파일이나 열어 답을 찾지만, **챗봇은 개념 페이지의 \`## 근거 조문\` 표에서만 근거를 만든다**(\`_SCHEMA.md\` §6-E). 그래서 내용이 위키에 멀쩡히 있어도 그 표에 행이 없으면 사용자 앞에서는 근거가 통째로 사라진다. 2026-08-18 라이브 검증에서 감사 \`full\` 판정의 절반이 실제 챗봇에서 재현되지 않았고, 가장 큰 원인이 이것이었다.
+
+**고치는 법 — 전부 \`## 근거 조문\` 표를 손보는 일이다:**
+- **행 자체가 없음** → 본문이 실제로 근거로 삼은 조문·별표를 그 표에 **행으로 추가**한다(법령명·조문·시행일·요지 4칸을 채운다). 본문에 서술된 고시·지침·조례·별표가 표에 하나도 없는 경우가 가장 흔하다.
+- **법령 칸이 계층 낱말뿐**(\`시행령\`·\`시행규칙\`·\`행정규칙\`·\`고시\`) → **정식 명칭으로 치환**한다(예: \`시행령\` → \`${l.name} 시행령\`). 계층 낱말만 있으면 챗봇이 어느 법인지 특정하지 못한다.
+- **법령 칸이 갈래를 두 번 적음**(\`행정규칙(고시)\`·\`세칙/규정(발췌)\`) → 그 고시·세칙의 **정식 명칭**으로 바꾼다. 이름이 없으면 그 행은 근거 목록에 실릴 방법이 없다.
+- **조문 칸이 \`전체\`** → 가능하면 **실제 조문·별표 번호**로 바꾼다(\`전체\`는 답변이 그 법 이름 바로 뒤에 조문을 붙여 인용했을 때만 살아남아, 대부분 사라진다).
+- **\`## 근거 조문\` 절 자체가 없는 개념 페이지** → 표준 형식으로 **신설**한다(comparisons/ 45개가 이미 갖춘 형식과 같게).
+
+**본문 쪽도 함께 본다**: 하위 법령의 내용을 옮기면서 \`(제14조②)\` 처럼 **조문번호만** 적어 둔 자리가 있으면, **어느 법령의 제14조인지**를 함께 적는다. 페이지 대표 법령이 모법이라, 번호만 있으면 답변이 그 조문을 모법 것으로 오인해 엉뚱한 출처를 붙인다(실측: 「내항해운에관한업무지침」 제14조②의 8개 비용항목이 「해운법 시행규칙」 제14조제2항으로 인용됐는데, 그 조문에는 제2항 자체가 없다).
+
+**⚠지어내지 마라**: 표에 행을 추가할 때 조문번호·시행일은 반드시 \`${l.raw}\` 원문이나 본문에 이미 적힌 값에서 가져온다. 확인 안 되는 행은 추가하지 말고 left_alone에 기록한다.
+unreachable_fixed 에 표를 고친 행 수를 반환한다.
 
 ## 2-C) ★H-26(2026-07-26 사용자 확정) 판정 5종 재분류 — 이번 패스의 핵심 추가 임무
 직전 감사 리포트(\`${LEGAL}/_dashboard/audit/${l.slug}.md\`)의 thin/collection_hole/awkward/scope_out을 **단순 카운트로 넘기지 말고** 원인을 재확인해 아래대로 처리한다:
@@ -132,6 +150,7 @@ return {
   hub_needs: res.flatMap(r => (r.hub_needs || []).map(h => `${r.law}: ${h}`)),
   collectable_holes: res.flatMap(r => (r.collectable_holes || []).map(h => `${r.law}: ${h}`)),
   promoted_canonical: res.reduce((s, r) => s + (r.promoted_canonical || 0), 0),
+  unreachable_fixed: res.reduce((s, r) => s + (r.unreachable_fixed || 0), 0),
   thin_reclassified: res.reduce((s, r) => s + (r.thin_reclassified || 0), 0),
   collection_hole_reclassified: res.reduce((s, r) => s + (r.collection_hole_reclassified || 0), 0),
   awkward_fixed: res.reduce((s, r) => s + (r.awkward_fixed || 0), 0),
