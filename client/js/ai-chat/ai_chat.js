@@ -1629,6 +1629,8 @@
       if (fbBtn) { onFeedbackThumb(fbBtn); return; }
       var fbSend = e.target.closest('.nrya-fb-send');
       if (fbSend) { onFeedbackSend(fbSend); return; }
+      var contBtn = e.target.closest('.nrya-cont-btn');
+      if (contBtn) { pickContinuity(contBtn); return; }
     });
 
     // 기록 목록 항목 클릭(목록은 열 때마다 새로 그려지므로 패널에 한 번만 위임한다)
@@ -3136,7 +3138,7 @@
       html += '<div class="nrya-disc">참고용입니다. 최종 확인은 공식 출처를 확인하세요.' + (data.note ? ' · ' + esc(data.note) : '') + '</div>';
     }
     // 되묻기 응답엔 아직 "최종 답변"이 없어 만족도를 물을 대상이 없다 — 진짜 답변에만 붙인다.
-    if (!data.clarify && data.answer) html += feedbackHTML(q, data.answer);
+    if (!data.clarify && data.answer) html += feedbackHTML(q, data.answer) + continuityHTML(q, data);
     return html;
   }
 
@@ -3158,6 +3160,60 @@
         '<button type="button" class="nrya-fb-send">전송</button>' +
       '</div>' +
     '</div>';
+  }
+
+  /**
+   * 답변 하단 "이어서 질문할까요?" 3버튼(2026-08-17, MASTER_PLAN H-36 후속 ①만 — 기기별 사실
+   * 영구저장은 이번엔 범위 밖, 사용자 확정). 이 챗봇은 "새로 타이핑하면 맥락을 비운다"(§9.1 #1)가
+   * 기본 동작이라, 사용자가 방금 답의 맥락 위에서 더 물어보고 싶어도 다음 문장을 치는 순간 맥락이
+   * 날아간다 — 그 간극을 메운다.
+   * 예: continuityHTML('낚시어선업 신고 요건이 뭔가요', {ctxNext:{scope:{...}}})
+   * @param {string} q - 원래 질문(눌러도 재전송하지 않는다 — 표시용)
+   * @param {object} data - done 이벤트(ctxNext 있으면 "이어서" 버튼에 싣는다)
+   * @returns {string}
+   * [연계] ← answerHTML. → bindChat(위임 클릭) → pickContinuity().
+   */
+  function continuityHTML(q, data) {
+    var ctxAttr = data.ctxNext ? ' data-ctx="' + esc(JSON.stringify(data.ctxNext)) + '"' : '';
+    return '<div class="nrya-cont" data-q="' + esc(q) + '">' +
+      '<button type="button" class="nrya-cont-btn" data-cont="more"' + ctxAttr + '>🔁 관련해서 더 궁금해요</button>' +
+      '<button type="button" class="nrya-cont-btn" data-cont="new">🆕 다른 종류의 질문이에요</button>' +
+      '<button type="button" class="nrya-cont-btn" data-cont="done">✅ 궁금증 해소됐어요</button>' +
+    '</div>';
+  }
+
+  /**
+   * continuityHTML 버튼 클릭 처리. 서버로 아무것도 보내지 않는다(온디바이스 UI 상태 전환뿐).
+   * - more: 방금 답의 ctxNext 를 pendingCtx 에 예약해 **다음에 사용자가 직접 치는 문장 한 번**에만
+   *   실리게 한다(§4.3 "아니요, 다시 설명할게요"와 같은 예약 방식 재사용 — 새 경로를 안 만든다).
+   * - new: 맥락을 명시적으로 비운다(타이핑 시 이미 비워지지만, 버튼을 눌렀다는 의도를 그대로 반영).
+   * - done: 서버에 보낼 것이 없다 — 버튼 3개를 감사 인사로 바꾸고 끝낸다(만족도 👍 버튼과 같은 패턴).
+   * 어느 쪽이든 같은 묶음을 다시 누르면 안 되므로 nrya-done 으로 잠근다(pickClarifyOption과 동일 관례).
+   * @param {HTMLElement} btn - 눌린 .nrya-cont-btn
+   * [연계] ← bindChat 위임 클릭. → pendingCtx(more) · doSend가 다음 전송에서 소비.
+   */
+  function pickContinuity(btn) {
+    var box = btn.closest('.nrya-cont');
+    if (!box || box.classList.contains('nrya-done')) return;
+    box.classList.add('nrya-done');
+    var cont = btn.getAttribute('data-cont');
+    var input = document.getElementById('nryaChatInput');
+    if (cont === 'done') {
+      box.innerHTML = '<span class="nrya-cont-thanks">대화해 주셔서 감사해요 🙌</span>';
+      return;
+    }
+    if (cont === 'more') {
+      var raw = btn.getAttribute('data-ctx');
+      var ctx = null;
+      if (raw) { try { ctx = JSON.parse(raw); } catch (_) { ctx = null; } }
+      pendingCtx = ctx;
+      box.innerHTML = '<span class="nrya-cont-thanks">네, 이어서 물어보세요 — 아래에 이어서 적어주시면 방금 답변 맥락을 이어갈게요.</span>';
+    } else {
+      pendingCtx = null;
+      lastCtx = null;
+      box.innerHTML = '<span class="nrya-cont-thanks">네, 새 질문을 아래에 적어주세요.</span>';
+    }
+    if (input) { input.value = ''; input.focus(); }
   }
 
   // ── 답변완료 푸시 딥링크(?popup=ai_chat&rid=…) ─────────────────────────

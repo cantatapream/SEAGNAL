@@ -577,3 +577,8 @@
 #nrya-overlays .nrya-fb-reason-in{flex:1; min-width:0; resize:none; height:30px; border-radius:8px; border:1px solid rgba(255,255,255,.15); background:#28394a; color:#fff; font-family:inherit; font-size:12px; padding:6px 9px}
 #nrya-overlays .nrya-fb-send{font-family:inherit; font-size:11.5px; font-weight:700; padding:0 12px; border-radius:8px; cursor:pointer; border:none; background:#ffe14d; color:#231c00}
 #nrya-overlays .nrya-fb.nrya-fb-done .nrya-fb-lab{color:#69f0ae}
+
+/* 답변 뒤 "이어서 질문할까요?" 3버튼(2026-08-17) — 만족도 버튼과 같은 톤, 세로로 살짝 떨어뜨린다. */
+#nrya-overlays .nrya-cont{display:flex; flex-wrap:wrap; gap:7px; margin-top:8px}
+#nrya-overlays .nrya-cont-btn{font-family:inherit; font-size:11.5px; padding:5px 10px; border-radius:12px; cursor:pointer; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#eef4fb}
+#nrya-overlays .nrya-cont-thanks{font-size:11.5px; color:#69f0ae}
