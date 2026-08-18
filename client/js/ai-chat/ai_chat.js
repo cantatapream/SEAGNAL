@@ -2120,6 +2120,51 @@
    * @param {object} ref - 서버 refs 항목 {key,text,kind,title,body,image,pdf,hwp}
    * [연계] ← ensureArtPop 의 클릭 위임 · renderAnnexOnly. → PopupStack('nrya-bylpop').
    */
+  /**
+   * 별표·서식 스캔본 이미지를 차례로 붙인다(law.go.kr 원본 주소 — image/gif 가 그대로 내려온다).
+   * 여러 장짜리 서식도 있어 배열을 그대로 순서대로 그린다.
+   * @param {HTMLElement} host @param {string[]} urls
+   * [연계] ← openBylPop. CSS `.nrya-bylpop-img` 는 기존 스캔본 표시와 같은 것을 쓴다.
+   */
+  function renderBylImages(host, urls) {
+    urls.forEach(function (u) {
+      var img = document.createElement('img');
+      img.className = 'nrya-bylpop-img';
+      img.loading = 'lazy';
+      img.alt = '원본 이미지';
+      img.src = u;
+      host.appendChild(img);
+    });
+  }
+
+  /** 이미지를 먼저 보여준 서식에서 "글자로 보기"를 눌러 원문 텍스트를 펼치는 버튼.
+   * @param {HTMLElement} host @param {string} bodyText
+   * [연계] ← openBylPop. → renderBylText. */
+  function appendBylTextToggle(host, bodyText) {
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'nrya-byl-toggle';
+    btn.textContent = '글자로 보기';
+    btn.addEventListener('click', function () {
+      btn.remove();
+      renderBylText(host, bodyText);
+    });
+    host.appendChild(btn);
+  }
+
+  /** 글자를 먼저 보여준 별표에서 "원본 이미지 보기"를 눌러 스캔본을 펼치는 버튼.
+   * @param {HTMLElement} host @param {string[]} urls
+   * [연계] ← openBylPop. → renderBylImages. */
+  function appendBylImageToggle(host, urls) {
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'nrya-byl-toggle';
+    btn.textContent = '원본 이미지 보기';
+    btn.addEventListener('click', function () {
+      btn.remove();
+      renderBylImages(host, urls);
+    });
+    host.appendChild(btn);
+  }
+
   function openBylPop(ref) {
     if (!ref) return;
     var pop = document.getElementById('nryaBylPop'), veil = document.getElementById('nryaBylVeil');
@@ -2129,8 +2174,20 @@
       (ref.text || '') + (ref.title ? ' · ' + ref.title : '');
     body.innerHTML = '';
     if (dl) dl.innerHTML = '';                   // 팝업은 재사용된다 — 직전 별표의 버튼을 지운다
-    if (ref.kind === 'text' && ref.body) {
+    // ★2026-08-18(사용자 확정): **서식(별지)은 이미지를 먼저** 보여준다 — 신고서 양식은 칸이
+    //   중요한데 글자로 옮기면 옛 고정폭 표가 그대로 나와 알아보기 어렵다("아스키 그림"). 별표는
+    //   반대로 글자가 나아(검색·복사가 되고 표가 깔끔하다) 지금처럼 글자를 먼저 두고, 이미지는
+    //   아래 버튼으로 따로 볼 수 있게 한다. 실측: 서식 1,988건 중 1,980건(99.6%)에 이미지가 있다.
+    var isForm = /서식/.test(String(ref.key || '') + String(ref.text || ''));
+    var imgs = (ref.images && ref.images.length) ? ref.images : (ref.image ? [ref.image] : []);
+    if (isForm && imgs.length) {
+      renderBylImages(body, imgs);
+      if (ref.body) appendBylTextToggle(body, ref.body);   // 글자로도 볼 수 있게(선택)
+    } else if (ref.kind === 'text' && ref.body) {
       renderBylText(body, ref.body);
+      if (imgs.length) appendBylImageToggle(body, imgs);   // 원본 스캔본 보기(선택)
+    } else if (imgs.length) {
+      renderBylImages(body, imgs);
     } else if (ref.kind === 'image' && ref.image) {
       var img = document.createElement('img'); img.className = 'nrya-bylpop-img';
       img.alt = ref.title || '별표 원본 이미지';
