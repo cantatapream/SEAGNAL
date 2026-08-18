@@ -310,6 +310,17 @@
 #nrya-overlays .nrya-kbub .nrya-cite:hover{color:#a9c6ff}
 
 /* 답변 하단 근거 법령 아코디언 */
+/* 답변 끝 근거 요약(2026-08-18) — 근거 아코디언을 없애면서 시행일자·소관부서만 남긴 자리 */
+#nrya-overlays .nrya-meta{margin-top:10px; border-top:1px solid rgba(255,255,255,.12); padding-top:8px; display:flex; flex-direction:column; gap:5px}
+#nrya-overlays .nrya-meta-row{display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:10.5px; color:#8fa2bd; min-width:0}
+#nrya-overlays .nrya-meta-law{font-weight:700; color:#b9cbe2; overflow-wrap:anywhere}
+#nrya-overlays .nrya-meta-eff{font-family:var(--nrya-mono); font-size:9.5px; color:#9fb4d6; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.22); border-radius:7px; padding:1px 6px; white-space:nowrap}
+#nrya-overlays .nrya-meta-tel{overflow-wrap:anywhere}
+#nrya-overlays .nrya-meta-tel a{color:inherit; text-decoration:underline; text-decoration-color:currentColor}
+/* 조문 팝업 안 연락처 줄(같은 정보를 팝업에서도 보여준다) */
+#nrya-overlays .nrya-artpop-tel{padding:0 16px 10px; font-size:10.5px; color:#8fa2bd; overflow-wrap:anywhere}
+#nrya-overlays .nrya-artpop-tel:empty{display:none}
+#nrya-overlays .nrya-artpop-tel a{color:inherit; text-decoration:underline; text-decoration-color:currentColor}
 #nrya-overlays .nrya-lawacc{margin-top:10px; border-top:1px solid rgba(255,255,255,.12); padding-top:9px}
 #nrya-overlays .nrya-lawacc-h{font-size:11.8px; font-weight:700; color:#a9c6ff; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none}
 #nrya-overlays .nrya-lawacc-h .nrya-arw{font-size:9px; transition:transform .25s}

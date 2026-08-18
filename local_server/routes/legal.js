@@ -957,7 +957,9 @@ function answerCiteLaws(answerText) {
     for (const c of legalRetriever.extractAnswerCitations(answerText)) {
       if (!c || !c.law || seen.has(c.law)) continue;
       seen.add(c.law);
-      out.push({ law: c.law, tier: c.tier || 'law', base: c.baseLaw || '' });
+      // 연락처도 함께 — 화면이 본문 링크를 눌러 연 조문 팝업에 소관부서를 보여준다(2026-08-18).
+      out.push({ law: c.law, tier: c.tier || 'law', base: c.baseLaw || '',
+        contact: legalRetriever.lookupContact(c.law) || null });
     }
   } catch (e) { console.error('[Legal] 본문 링크용 법 목록 실패:', e && e.message); }
   return out;

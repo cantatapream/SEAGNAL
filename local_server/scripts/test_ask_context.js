@@ -951,6 +951,24 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
         '낚시 관리 및 육성법').length > 0);
   }
 
+  // ── 근거 아코디언 제거 · 시행일자/연락처 재배치 (2026-08-18 사용자 확정) ────────────────
+  {
+    ok('답변에 근거 법령 아코디언을 더 이상 그리지 않는다',
+      !/근거 법령 \(펼쳐서 보기\)/.test(CLIENT_SRC));
+    ok('citationChain 데이터 자체는 계속 받는다(본문 링크·서식의 재료)',
+      /var chain = data\.citationChain \|\| \[\];/.test(CLIENT_SRC));
+    ok('시행일자·소관부서는 답변 맨 끝 요약으로 남긴다',
+      /if \(!data\.clarify\) html \+= sourceMetaHTML\(chain\);/.test(CLIENT_SRC));
+    ok('요약은 지어내지 않는다 — 적을 것이 없는 법은 줄을 만들지 않는다',
+      /if \(!tel && !eff\) return;/.test(CLIENT_SRC));
+    ok('조문 팝업에도 그 조문의 소관부서를 보여준다',
+      /telHost\.innerHTML = contactLineHTML\(\{/.test(CLIENT_SRC));
+    ok('팝업이 쓸 연락처는 본문 링크에 data-* 로 심어 둔다(서버 재조회 없음)',
+      /data-tel="' \+ esc\(ct\.전화번호 \|\| ''\)/.test(CLIENT_SRC));
+    ok('폴백 경로(citeLaws)에도 연락처를 실어 보낸다',
+      /contact: legalRetriever\.lookupContact\(c\.law\) \|\| null/.test(ROUTES_SRC));
+  }
+
   // ── 하이브리드 본문 링크 (2026-08-18) — 근거 목록 우선, 답변 주소는 폴백 ────────────────
   {
     ok('서버가 답변 주소에서 뽑은 법 목록을 done 에 싣는다',
@@ -960,7 +978,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('화면은 폴백을 먼저 깔고 근거 목록으로 덮어쓴다(검증값 우선)',
       /\(citeLaws \|\| \[\]\)\.forEach[\s\S]{0,400}\(chain \|\| \[\]\)\.forEach/.test(CLIENT_SRC));
     ok('근거 목록 줄은 폴백 값을 덮어쓴다',
-      /if \(hit && !hit\.fromChain\) \{ idx\[nm\] = \{ law: nm, tier: tier, base: base, fromChain: true \}; return; \}/.test(CLIENT_SRC));
+      /if \(hit && !hit\.fromChain\) \{ idx\[nm\] = made; return; \}/.test(CLIENT_SRC));
     ok('푸시 복원·기록 복원에도 함께 실린다',
       /citeLaws: entry\.citeLaws \|\| \[\]/.test(ROUTES_SRC) && /citeLaws: hit\.citeLaws \|\| \[\]/.test(CLIENT_SRC));
   }
@@ -971,7 +989,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
   //   ambiguous 를 세워 「낚시 관리 및 육성법」 같은 정상 법률 링크가 통째로 안 걸렸다(실사용 재현).
   {
     const IDX = CLIENT_SRC.slice(CLIENT_SRC.indexOf('function buildCiteIndex'),
-      CLIENT_SRC.indexOf('function buildCiteIndex') + 1800);
+      CLIENT_SRC.indexOf('function buildCiteIndex') + 2600);
     ok('tier 가 다르면 여전히 모호로 본다(엉뚱한 계층 원문을 열지 않는다)',
       /if \(hit\.tier !== tier\) \{ hit\.ambiguous = true; return; \}/.test(IDX));
     ok('baseLaw 차이는 **그 값이 실제로 쓰일 때만** 모호로 본다',
