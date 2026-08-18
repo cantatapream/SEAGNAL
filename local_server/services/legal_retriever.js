@@ -1119,7 +1119,7 @@ function withUnknownOption(question, options, round) {
  *          needed:true면 종합답변을 아예 만들지 않고 done 이벤트의 clarify 필드로 내려보낸다.
  *        → client/js/ai-chat/ai_chat.js clarifyHTML(선택지 버튼) → 버튼 클릭 시 "원래질문 — 라벨"로 재질의.
  */
-async function decideClarify(query, contextPages, restate, narrowLabels, lastTopic, prevClarify, topic) {
+async function decideClarify(query, contextPages, restate, narrowLabels, lastTopic, prevClarify, topic, history) {
   if (!gemini.hasAnyKey() || !contextPages || !contextPages.length) return CLARIFY_NONE;
   // ★재되묻기 무한루프 차단(프롬프트 기준3의 결정론적 백스톱): 선택지 버튼으로 되돌아온 질의는
   // 반드시 CLARIFY_JOINER 를 달고 오므로, 그 개수가 곧 **이미 지나온 되묻기 라운드 수**다.
@@ -1146,6 +1146,16 @@ async function decideClarify(query, contextPages, restate, narrowLabels, lastTop
   //   **아예 안 넘겼다** — 그래서 낚시어선업 이야기를 하다 "허가는 받았는데 신고 안 하고 영업하면?"
   //   이라 물었을 때, 검색이 끌어온 수산부산물·폐기물 처리업까지 그대로 선택지가 됐다.
   //   값이 없으면 빈 문자열이라 프롬프트가 오늘과 바이트 동일하다(R0).
+  // ★[대화 기억] 직전까지의 대화를 통째로 보여준다(2026-08-18 사용자 확정). 주제 낱말 하나만으로는
+  //   모델이 확신하지 못해 방금 한 얘기를 또 되물었다(사용자 재현: 낚시어선업 이야기 뒤 "신고 안
+  //   하면?"에 "무슨 영업이신가요?"). 없으면 빈 문자열이라 프롬프트가 오늘과 바이트 동일하다(R0).
+  //   ⚠되묻기를 **아예 막지는 않는다** — "이미 정해진 것"만 막고, 아직 안 정해졌는데 답이 진짜
+  //     갈리는 조건(예: 바다냐 내수면이냐)은 그대로 물어야 한다. 안 물으면 한쪽으로 단정한 틀린
+  //     답이 나가고, 그건 되묻는 불편보다 훨씬 나쁘다(사용자 확정).
+  const histBlock = (history && history.length) ? historyBlock(history) +
+    `\n- ★위 대화에서 **이미 정해진 것은 다시 묻지 마라**(기준3과 같은 취지). 사용자가 어떤 업종·상황을 ` +
+    `말하고 있는지 위 대화로 이미 알 수 있으면, 그것을 고르라는 선택지를 내지 말고 needed:false 로 물러나라.\n` +
+    `- 다만 위 대화에서 **아직 정해지지 않았고** 답이 실제로 크게 갈리는 조건은 그대로 물어도 된다.` : '';
   const topicBlock = clarifyStr(topic, 60) ? `\n\n[이어서 묻는 주제]\n"${clarifyStr(topic, 60)}"\n` +
     `- 사용자는 방금 이 주제로 답을 받고 **이어서** 묻는 중이다.\n` +
     `- 이 주제와 **다른 업종·다른 분야**를 고르라는 선택지는 내지 마라. 근거자료에 그런 법이 섞여 ` +
@@ -1153,7 +1163,7 @@ async function decideClarify(query, contextPages, restate, narrowLabels, lastTop
   const prompt = `너는 대한민국 해양수산 법령 챗봇의 "되묻기 판단기"다. 질문에 답하지 말고, 사용자에게 조건을 되물어야 하는지만 판단하라.
 
 [질문]
-"${query}"${confirmedBlock}${narrowBlock}${topicBlock}
+"${query}"${confirmedBlock}${narrowBlock}${histBlock}${topicBlock}
 
 [근거자료]
 ${block}
@@ -2165,7 +2175,12 @@ const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
 8. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용. 갈래·조건별로 나뉘는 설명은 "*" 같은 밋밋한 기호 하나로 뭉뚱그리지 말고, 단계(갈래→항목→세부조건)에 따라 "1. → 가. → 1)" 순서로 번호를 매겨 위계를 드러낸다(더 깊어지면 "가)→(1)→(가)" 순으로 이어간다). 예: "1. 바다에서 조종한 경우" 아래 "가. 형벌" 아래 "1) 총톤수 5톤 이상 선박은…".
 9. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.
 10. 시행령·시행규칙의 세부 요건·항목을 조문번호와 함께 나열하기 전에, 그 요건들을 위임한 **모법(법률) 조문번호도 답변 어딘가에서 반드시 한 번 밝힌다**(예: "「낚시 관리 및 육성법」 제25조에 따라 신고해야 하며, 신고요건은 「낚시 관리 및 육성법 시행령」 제16조에서…"). 세부 요건만 나열하고 그 뿌리가 되는 법 조문 자체를 안 밝히면 안 된다.
-11. ★**요건·서류·절차·기준을 번호로 나열할 때는 항목마다 그 근거를 붙인다** — "1. 선령이 25년 이하여야 합니다"처럼 근거 없이 적지 말고 "1. 선령이 25년 이하여야 합니다(「낚시 관리 및 육성법 시행령」 제16조제1항제2호)"처럼 그 항목의 법령명·조문번호를 그 자리에 적는다. 여러 항목이 **같은 조항 하나**에서 나왔으면 목록 앞이나 뒤에 그 조항을 한 번만 밝혀도 된다(항목마다 같은 번호를 반복할 필요는 없다). 근거자료에서 그 항목이 몇 호인지 확정할 수 없으면 **호 번호를 지어내지 말고** 항까지만 적는다.`;
+11. ★**근거는 "묶음 단위"로 한 번만 적는다.** "1. 신고요건 / 2. 신고 절차"처럼 묶어서 답할 때는, **그 묶음 전체를 덮는 조문 하나를 묶음 제목 옆에 적고, 묶음 안의 항목에는 조문을 적지 마라.**
+    - 올바른 예: "**1. 신고요건**(「낚시 관리 및 육성법 시행령」 제16조제1항)" 아래에 "1. 어업허가를 받은 총톤수 10톤 미만의 동력어선 / 2. 선령이 …" — 각 항목에는 제1호·제2호를 **붙이지 않는다.**
+    - 잘못된 예: 항목마다 "…(「낚시 관리 및 육성법 시행령」 제16조제1항제1호)", "…(제2호)"를 반복하는 것. 화면이 그 조문 표기를 전부 눌러볼 수 있는 링크로 바꾸므로, 같은 조항을 가리키는 링크가 예닐곱 개씩 늘어서기만 하고 새로 알려주는 것이 없다. 묶음 제목의 링크 하나를 누르면 그 조문 전체(각 호가 다 들어 있다)가 열린다.
+    - **예외는 하나뿐이다**: 어떤 항목이 그 묶음의 조문이 아니라 **다른 법·다른 조**에서 나왔으면, 그 항목에만 따로 적는다(그건 새로 알려주는 정보다).
+    - 묶지 않고 문장으로 풀어 쓸 때는 종전대로 그 문장에 근거를 적는다. 근거 자체를 빼먹으면 안 된다(빼먹으면 사용자가 원문을 확인할 길이 없다).
+    - 묶음 전체를 덮는 조문이 근거자료에서 확정되지 않으면 **지어내지 말고** 확인되는 범위(조 또는 항)까지만 적는다.`;
 
 const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
 
@@ -2180,6 +2195,59 @@ const SYNTH_CONFIG = ANSWER_MODEL.startsWith('gemini-2.5')
   ? { temperature: 0.3, thinkingConfig: { thinkingBudget: -1 } }
   : { temperature: 0.3, thinkingConfig: { thinkingLevel: 'LOW' } };
 
+// ── 대화 기억(2026-08-18 사용자 확정) ─────────────────────────────────────────────
+// "🔁 관련해서 더 궁금해요"로 이어 물을 때 앱이 실어 보내는 직전까지의 대화([{q,a}, …]).
+// ⚠**질의 문자열에 절대 합치지 않는다**(§2.1 R2) — 되묻기 판단·답변 합성에 참고 자료로만 간다.
+// ⚠**어떤 파일에도 쓰지 않는다**(§3.3 R1) — ctx·profile 과 같은 규약.
+const HISTORY_MAX_TURNS = 12;        // 앱이 이미 줄여 보내지만 서버도 제 상한을 갖는다
+const HISTORY_MAX_CHARS = 12000;     // 앱 상한(8,000자)보다 넉넉히 — 넘치면 오래된 턴부터 버린다
+
+/**
+ * 앱이 보낸 대화 기억을 **믿지 않고** 우리 규격으로 다시 만든다(길이·개수·자료형 모두 강제).
+ * 예: normalizeHistory([{q:'신고 요건?', a:'쉽게 말하면…'}]) → [{q:'신고 요건?', a:'쉽게 말하면…'}]
+ * @param {*} raw - 요청 본문의 history(무엇이 와도 안전해야 한다)
+ * @returns {Array<{q:string,a:string}>} 쓸 것이 없으면 빈 배열
+ * [연계] ← routes/legal.js POST /api/legal/ask. → historyBlock().
+ */
+function normalizeHistory(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const t of raw.slice(-HISTORY_MAX_TURNS)) {
+    if (!t || typeof t !== 'object') continue;
+    const q = String(t.q || '').trim();
+    const a = String(t.a || '').trim();
+    if (!q || !a) continue;
+    out.push({ q: q.slice(0, 500), a: a.slice(0, 4000) });
+  }
+  // 총량 상한 — 넘치면 **오래된 턴부터** 버린다(가까운 대화가 지금 질문에 더 가깝다).
+  let total = out.reduce((n, t) => n + t.q.length + t.a.length, 0);
+  while (out.length > 1 && total > HISTORY_MAX_CHARS) {
+    const drop = out.shift();
+    total -= drop.q.length + drop.a.length;
+  }
+  return out;
+}
+
+/**
+ * 대화 기억을 프롬프트에 끼울 블록으로 만든다. 비어 있으면 **빈 문자열**이라 프롬프트가
+ * 오늘과 바이트 동일하다(R0 — 이어 묻지 않는 질문은 아무것도 달라지지 않는다).
+ * 예: historyBlock([{q:'신고 요건?',a:'쉽게 말하면…'}])
+ *     → '\n\n[방금까지 나눈 대화]\n(1) 사용자: 신고 요건?\n    나리야: 쉽게 말하면…\n…'
+ * @param {Array<{q:string,a:string}>} turns
+ * @returns {string}
+ * [연계] ← synthesizeAnswerStream · decideClarify.
+ */
+function historyBlock(turns) {
+  if (!turns || !turns.length) return '';
+  const lines = turns.map((t, i) => `(${i + 1}) 사용자: ${t.q}\n    나리야: ${t.a}`).join('\n\n');
+  return `\n\n[방금까지 나눈 대화]\n${lines}\n` +
+    `- 사용자는 위 대화에 **이어서** 지금 질문을 하고 있다. 지시어("그거"·"그럼"·"안 하면")가 가리키는 것과, ` +
+    `말하지 않고 넘어간 조건(업종·상황 등)은 위 대화를 따른다.\n` +
+    `- 위 대화에서 **이미 답한 것을 다시 설명하지 마라.** 지금 질문에만 답한다.\n` +
+    `- ⚠위 대화는 흐름을 잡는 참고일 뿐이다. **답의 근거는 여전히 [근거자료]뿐**이고, 위 대화에 적힌 ` +
+    `조문·숫자를 근거로 다시 쓰지 마라(그때 쓴 근거가 지금 질문에도 맞는지는 [근거자료]로 확인해야 한다).`;
+}
+
 /**
  * Gemini로 실제 답변 문장을 스트리밍으로 합성한다(체감 대기시간 단축 — 실제 생성시간은
  * 그대로지만 화면엔 조각조각 바로 뜬다). 근거 페이지가 없거나 키가 없으면 아무것도
@@ -2188,10 +2256,10 @@ const SYNTH_CONFIG = ANSWER_MODEL.startsWith('gemini-2.5')
  * @param {Array} contextPages - search()의 contextPages
  * @yields {string} 답변 텍스트 조각(delta)
  */
-async function* synthesizeAnswerStream(query, contextPages) {
+async function* synthesizeAnswerStream(query, contextPages, history) {
   if (!contextPages.length) return;
   if (!gemini.hasAnyKey()) throw new Error('GEMINI_API_KEY 미설정');
-  const prompt = `${ANSWER_RULES}\n\n[근거자료]\n${buildContextBlock(contextPages)}\n\n질문: "${query}"\n답:`;
+  const prompt = `${ANSWER_RULES}\n\n[근거자료]\n${buildContextBlock(contextPages)}${historyBlock(history)}\n\n질문: "${query}"\n답:`;
   yield* gemini.callGeminiStream({ model: ANSWER_MODEL, contents: prompt, config: SYNTH_CONFIG, caller: 'Legal-Ask' });
 }
 
@@ -4144,7 +4212,7 @@ function withAssumedNotice(answer, assumed) {
   return ASSUMED_NOTICE + '\n\n' + answer;
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
