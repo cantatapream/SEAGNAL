@@ -50,12 +50,13 @@ function varSrc(name) {
 const parts = [
   varSrc('NRYA_CITE_RE'), varSrc('NRYA_WIDE_RE'),
   fnSrc('baseLawName'), fnSrc('citeHTML'),
-  fnSrc('bylPipeCols'), fnSrc('joinBylCell'), fnSrc('parseBylTable'),
+  fnSrc('bylPipeCols'), fnSrc('joinBylCell'), fnSrc('parseBylTable'), fnSrc('bylHasAsciiTable'),
   // 화면 밖 의존 두 가지는 이 스위트에서만 쓰는 최소 대역으로 채운다.
   'function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;");}',
   'function resolveCiteLaw(nm){ return IDX[String(nm||"").trim()] || null; }',
   'var NRYA_BOX_RE=/[┌┬┐├┼┤└┴┘─│┃]/; var NRYA_BOX_ONLY_RE=/^[\\s┌┬┐├┼┤└┴┘─│┃]*$/;',
-  'return { citeHTML: citeHTML, parseBylTable: parseBylTable, joinBylCell: joinBylCell };',
+  'return { citeHTML: citeHTML, parseBylTable: parseBylTable, joinBylCell: joinBylCell,' +
+  '  hasAscii: bylHasAsciiTable };',
 ];
 // IDX 는 "우리가 원문을 가진 법" 표 — resolveCiteLaw 가 이걸 보고 링크 여부를 정한다.
 const make = new Function('IDX', parts.join('\n'));
@@ -255,6 +256,23 @@ ok('T6-3 ★열 자리가 안 맞으면 여전히 표로 그리지 않는다(엉
   ok('T6-4 ★사용자가 본 별표(수산업법 시행령 별표7)가 표로 그려진다',
     drawn >= 3, drawn + '/' + bylChunks(BYL7).length);
 }
+// ★2026-08-18(사용자 확정): 표로 못 읽는 표가 섞인 별표는 **원본 이미지를 먼저** 보여준다.
+//   "반드시 표를 봐야 하는 경우에는 아스키가 아니라 이미지가 나와야 한다"(사용자 원문).
+{
+  const asciiChunk = chunks7[0];                       // 근해어업 — 표로 못 읽는 덩어리
+  const tableChunk = chunks7[1];                       // 연안어업 — 표로 잘 읽히는 덩어리
+  ok('T6-6 ★표로 못 읽는 별표를 가려낸다(이 판정으로 이미지를 먼저 보여준다)',
+    FULL.hasAscii(asciiChunk.join('\n')) === true);
+  ok('T6-7 표가 다 읽히는 별표는 예전처럼 글자를 먼저 보여준다',
+    FULL.hasAscii(tableChunk.join('\n')) === false);
+  ok('T6-8 판정이 renderBylText 와 같은 규칙으로 덩어리를 나눈다',
+    /renderBylText 와 \*\*같은 방식으로\*\* 덩어리를 나눠/.test(SRC));
+  ok('★못 읽는 표 + 원본 이미지가 있으면 이미지를 먼저 그린다',
+    /if \(imgs\.length && bylHasAsciiTable\(ref\.body\)\) \{\n\s*renderBylImages\(body, imgs\);/.test(SRC));
+  ok('글자를 버리지 않는다 — "글자로 보기"로 펼칠 수 있다',
+    /bylHasAsciiTable\(ref\.body\)\)[\s\S]{0,120}appendBylTextToggle\(body, ref\.body\)/.test(SRC));
+}
+
 ok('T6-5 표는 가로로 밀어 볼 수 있게 감싼다',
   /nrya-byl-scroll/.test(SRC) && /overflow-x:auto/.test(
     fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'css', 'ai_chat.css'), 'utf8')));
