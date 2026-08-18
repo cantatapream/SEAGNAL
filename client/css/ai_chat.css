@@ -359,6 +359,8 @@
 #nrya-overlays .nrya-chain-head{display:flex; align-items:flex-start; gap:7px}
 #nrya-overlays .nrya-chain-tier{flex:none}
 #nrya-overlays .nrya-chain-eff{flex:none; margin-left:auto; font-family:var(--nrya-mono); font-size:9.5px; color:#9fb4d6; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.22); border-radius:7px; padding:2px 7px; white-space:nowrap}
+/* 위키 근거 조문 표의 단계 라벨("① 신고" 등, 2026-08-18) — 법령명 줄 바로 아래, 발췌보다 작게 */
+#nrya-overlays .nrya-chain-step-lab{display:block; font-size:10px; color:#8fa2bd; margin:2px 0 4px}
 /* 조문 카드 클릭 영역(연락처 줄 제외) — 누르면 조문 원문 팝업이 뜬다 */
 #nrya-overlays .nrya-chain-hit{cursor:pointer; border-radius:9px; margin:-4px -6px 0; padding:4px 6px}
 #nrya-overlays .nrya-chain-hit:hover{background:rgba(255,255,255,.04)}
@@ -562,6 +564,9 @@
 #nrya-overlays .nrya-clarify-btn{text-align:left}
 /* "잘 모르겠어요"(계약5 act:'unknown') — 조건을 고른 게 아니라 모른다는 답이라 연한 점선으로 구분 */
 #nrya-overlays .nrya-clarify-btn.nrya-clarify-unknown{background:transparent; border-style:dashed; border-color:rgba(255,255,255,.28); color:#9fb0c9; font-weight:600}
+/* "방금 그 질문과 이어지는 내용일 수 있어요" 확인 후보(2026-08-18) — 맨 앞으로 올리고 강조색 테두리로
+   눈에 띄게 한다. 예전엔 무관한 선택지들 사이 맨 끝에 묻혀 사용자가 놓쳤다(실사용 지적). */
+#nrya-overlays .nrya-clarify-btn.nrya-clarify-continuity{border-color:var(--nrya-accent-yellow); border-width:2px; font-weight:700}
 #nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-q{opacity:.55}
 #nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-btn{opacity:.4; pointer-events:none; cursor:default}
 #nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-btn.nrya-picked{opacity:1; background:#ffe14d; border-style:solid; border-color:#ffe14d; color:#231c00; font-weight:700}

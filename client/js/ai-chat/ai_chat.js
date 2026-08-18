@@ -1318,6 +1318,11 @@
     ensureAliases();              // 답변 본문의 「약칭」을 정식명으로 맞춰볼 표를 미리 받아둔다
     setUnread(0);                 // 열어서 보는 순간 안읽음 해제
     fitChat(); addVV(); _scrollChatBottom();
+    // ⚠ 앱을 막 켠 직후(첫 오픈)엔 window.visualViewport 가 브라우저 UI(주소창 등)가 자리잡기 전의
+    //   값을 줄 때가 있어 카드가 실제 화면보다 크게 잡혀 아래가 잘려 보이는 사례가 실사용에서
+    //   확인됐다(닫았다 다시 열면 그땐 정상 — 재호출 시점엔 값이 이미 안정된 것). 입력창 포커스 때
+    //   이미 쓰는 것과 같은 지연 재계산을 오픈 직후에도 한 번 더 건다(2026-08-18).
+    setTimeout(fitChat, 300);
     var input = document.getElementById('nryaChatInput'); if (input) setTimeout(function () { input.focus(); }, 80);
     if (window.PopupStack) window.PopupStack.push('nrya-chat', closeChat);
   }
@@ -2741,6 +2746,12 @@
     return idx;
   }
 
+  /** 법령명 표기의 공백만 지운 열쇠. 「」 안 이름과 위키 정식명은 뜻이 같아도 AI가 띄어쓰기를
+   * 다르게 쓰면(예: "낚시관리및육성법" vs "낚시 관리 및 육성법") 문자 그대로는 안 맞는다 —
+   * filterCitationChainByAnswer(서버)가 별표 표기를 대조할 때 쓰는 것과 같은 공백-흡수 방식이다.
+   * @param {string} s @returns {string} */
+  function _flatLawKey(s) { return String(s || '').replace(/\s+/g, ''); }
+
   /**
    * 「」 안에 적힌 이름이 이 답변의 근거 체인 중 어느 법인지 가린다(환각 0 — 확신 없으면 null).
    * ①문자 그대로 일치 → 그 줄의 tier·baseLaw 를 그대로 쓴다(계약4 1단계)
@@ -2762,6 +2773,19 @@
         var m = /^(.+?)\s*(시행령|시행규칙)$/.exec(nm);
         if (m && aliasMap[m[1]]) hit = idx[aliasMap[m[1]] + ' ' + m[2]];
       }
+    }
+    // ④문자 그대로도·약칭표로도 못 찾았으면 공백만 지우고 마지막으로 한 번 더 본다(2026-08-18,
+    //   실사용 지적 — AI가 「낚시관리및육성법」처럼 위키 정식명("낚시 관리 및 육성법")과 띄어쓰기만
+    //   다르게 써서 링크가 통째로 안 걸리는 사례). 후보가 둘 이상으로 갈리면(서로 다른 법이 같은
+    //   평평한 열쇠로 겹치면) 여전히 링크하지 않는다 — 엉뚱한 원문을 여는 게 훨씬 나쁘다.
+    if (!hit) {
+      var flat = _flatLawKey(nm), found = null, dup = false;
+      for (var k in idx) {
+        if (_flatLawKey(k) !== flat) continue;
+        if (found && found !== idx[k]) { dup = true; break; }
+        found = idx[k];
+      }
+      if (found && !dup) hit = found;
     }
     return (hit && !hit.ambiguous) ? hit : null;
   }
@@ -2903,12 +2927,19 @@
       '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(row.baseLaw || '') +
       '" data-gist="' + esc(row.gist || '') + '"' +
       (penalty ? ' data-pen="1"' : '');
+    // 위키 "근거 조문" 표의 단계 칸(예: "① 신고"·"② 요건 실체") — 있으면 작게 덧붙인다.
+    // ⚠ 카드 순서(n)는 손대지 않는다(법 이름이 답변에 먼저 나온 순서 그대로 유지) — 이건 그 순서
+    //   안에서 "이 조문이 전체 흐름의 어느 단계인지"만 참고로 보여주는 라벨이다(2026-08-18, 실사용
+    //   지적 "근거 목록을 봐도 무슨 흐름인지 모르겠다" — 정렬을 바꾸는 대신 표에 이미 있는 단계
+    //   정보를 그대로 노출만 한다. 위키에 그 표가 없거나 단계 칸이 비어 있으면 그냥 안 보인다).
+    var step = row.step ? '<span class="nrya-chain-step-lab">' + esc(row.step) + '</span>' : '';
     return '<div class="nrya-chain-step' + (last ? ' nrya-last' : '') + (penalty ? ' nrya-penalty' : '') + '" data-tier="' + esc(row.tier || 'law') + '">' +
       '<div class="nrya-chain-rail"><div class="nrya-chain-dot">' + n + '</div><div class="nrya-chain-line"></div></div>' +
       '<div class="nrya-chain-content">' +
         '<div class="nrya-chain-hit"' + hitAttrs + '>' +
           '<div class="nrya-chain-head"><span class="nrya-chain-tier">' + head + '</span>' +
             '<span class="nrya-chain-art">' + esc(row.law || '') + (row.article ? ' ' + esc(row.article) : '') + '</span>' + eff + '</div>' +
+          step +
           quote +
         '</div>' +
         tel +
@@ -2984,9 +3015,22 @@
    * @returns {string} HTML(선택지가 없으면 빈 문자열)
    * [연계] ← answerHTML. → pickClarifyOption(위임 클릭 핸들러). ← routes/legal.js done.clarify.
    */
+  // legal_retriever.js decideClarify()가 "직전 질문과 이어질 수도 있다"는 확인 후보 하나를 얹을 때
+  // 박아 보내는 hint 원문 그대로. 이 문자열로만 그 선택지를 가려낸다(서버가 ctx·act 없이 평범한
+  // 선택지로 보내기 때문 — 다른 표식이 없다).
+  var NRYA_CONTINUITY_HINT = '방금 물어보신 질문과 이어지는 내용일 수 있어요';
+
   function clarifyHTML(q, clarify) {
     if (!clarify || !clarify.question || !(clarify.options || []).length) return '';
-    var btns = clarify.options.map(function (o) {
+    // ⚠ 2026-08-18 실사용 지적: "이어지는 질문일 수 있다"는 확인 후보가 서버에서 **항상 맨 끝에**
+    //   붙어 오는데, 화면도 그 순서 그대로 그려 무관한 법 여러 개(예: 어업권·항로표지·도선면허) 사이에
+    //   묻혀 사용자가 못 보고 지나쳤다(라이브 재현). 판단 로직은 그대로 두고 — 이미 애매해서 되묻는 걸
+    //   결정한 뒤에야 후보가 붙는 순서는 손대지 않는다 — **화면에서만** 이 후보를 맨 앞으로 올리고
+    //   다른 선택지와 다르게 눈에 띄게 그린다(잘 모르겠어요 옵션과 같은 관례).
+    var opts = (clarify.options || []).slice();
+    var ci = opts.findIndex(function (o) { return o && o.hint === NRYA_CONTINUITY_HINT; });
+    if (ci > 0) { var cOpt = opts.splice(ci, 1)[0]; opts.unshift(cOpt); }
+    var btns = opts.map(function (o) {
       if (!o || !o.label) return '';
       // [H-37 §3.2] 서버가 선택지에 `ctx`를 실어 보내면(이해확인·상황질문·프로필확인) 그 버튼은
       //   **질의에 라벨을 붙이지 않고** 이 ctx 만 되돌려 보낸다 — 질의 문자열을 오염시키지 않는
@@ -2994,11 +3038,14 @@
       // [계약5] 선택지 맨 끝의 "잘 모르겠어요"(act:'unknown')는 조건을 고른 게 아니라 **모른다는 답**
       //   이라, 다른 선택지와 눈에 띄게 구분되도록 연한 점선 테두리로 그린다. 전송 경로는 다른 ctx
       //   버튼과 완전히 같다(pickClarifyOption 의 data-ctx 갈래 — 새 경로를 만들지 않는다).
-      var cls = 'nrya-consent-btn nrya-clarify-btn' + (o.act === 'unknown' ? ' nrya-clarify-unknown' : '');
+      var isCont = o.hint === NRYA_CONTINUITY_HINT;
+      var cls = 'nrya-consent-btn nrya-clarify-btn' + (o.act === 'unknown' ? ' nrya-clarify-unknown' : '') +
+        (isCont ? ' nrya-clarify-continuity' : '');
+      var label = (isCont ? '🔁 ' : '') + o.label;
       return '<button type="button" class="' + cls + '" data-label="' + esc(o.label) + '"' +
         (o.ctx ? ' data-ctx="' + esc(JSON.stringify(o.ctx)) + '"' : '') +
         (o.act ? ' data-act="' + esc(o.act) + '"' : '') +
-        (o.hint ? ' title="' + esc(o.hint) + '"' : '') + '>' + esc(o.label) + '</button>';
+        (o.hint ? ' title="' + esc(o.hint) + '"' : '') + '>' + esc(label) + '</button>';
     }).join('');
     return '<div class="nrya-clarify" data-q="' + esc(q || '') + '">' +
       '<div class="nrya-clarify-q">' + esc(clarify.question) + '</div>' +
