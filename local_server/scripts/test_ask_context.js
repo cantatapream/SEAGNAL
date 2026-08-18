@@ -30,6 +30,7 @@ const R = require(RET_PATH);
 const ROUTES_SRC = fs.readFileSync(path.join(SRV, 'routes', 'legal.js'), 'utf8');
 const RET_SRC = fs.readFileSync(RET_PATH, 'utf8');
 const CLIENT_SRC = fs.readFileSync(path.join(SRV, '..', 'client', 'js', 'ai-chat', 'ai_chat.js'), 'utf8');
+const CSS_SRC = fs.readFileSync(path.join(SRV, '..', 'client', 'css', 'ai_chat.css'), 'utf8');
 const VESSEL = JSON.parse(fs.readFileSync(path.join(SRV, 'knowledge', 'legal', '_dashboard', 'vessel_doc_tree.json'), 'utf8'));
 const H37_SRC = RET_SRC.slice(RET_SRC.indexOf('H-37 §4·5·7'));   // 신규 절만 본 검사용
 // 주석을 걷어낸 소스 — "이 문구가 **화면으로 나가는 값**에서 사라졌는가"를 볼 때 쓴다.
@@ -977,16 +978,44 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       !/근거 법령 \(펼쳐서 보기\)/.test(CLIENT_SRC));
     ok('citationChain 데이터 자체는 계속 받는다(본문 링크·서식의 재료)',
       /var chain = data\.citationChain \|\| \[\];/.test(CLIENT_SRC));
-    ok('시행일자·소관부서는 답변 맨 끝 요약으로 남긴다',
-      /if \(!data\.clarify\) html \+= sourceMetaHTML\(chain\);/.test(CLIENT_SRC));
-    ok('요약은 지어내지 않는다 — 적을 것이 없는 법은 줄을 만들지 않는다',
-      /if \(!tel && !eff\) return;/.test(CLIENT_SRC));
+    // ★2026-08-18 오후 사용자 재확정: 답변 맨 끝 요약도 **없앤다** — 본문의 조문 표기를 누르면
+    //   그 팝업이 같은 시행일자·전화번호를 보여주므로 같은 내용이 두 곳에 있었다
+    //   (사용자 원문: "아래에 소관부서 번호가 나오지 않도록 해줘 어차피 조문 누르면 나오니까").
+    ok('★답변 맨 끝 연락처 요약을 그리지 않는다(팝업 한 곳으로 모음)',
+      !/sourceMetaHTML/.test(CLIENT_SRC));
     ok('조문 팝업에도 그 조문의 소관부서를 보여준다',
       /telHost\.innerHTML = contactLineHTML\(\{/.test(CLIENT_SRC));
     ok('팝업이 쓸 연락처는 본문 링크에 data-* 로 심어 둔다(서버 재조회 없음)',
       /data-tel="' \+ esc\(ct\.전화번호 \|\| ''\)/.test(CLIENT_SRC));
     ok('폴백 경로(citeLaws)에도 연락처를 실어 보낸다',
       /contact: legalRetriever\.lookupContact\(c\.law\) \|\| null/.test(ROUTES_SRC));
+  }
+
+  // ── 조문·별표 팝업 실사용 지적 4건 (2026-08-18 오후, 사용자 스크린샷) ──────────────────
+  {
+    // ⓐ 별표만 가리킨 인용에서 하나뿐인 별표를 자동으로 열었으면, 그 별표를 닫을 때 뒤에 남는
+    //   한 줄짜리 목록 팝업도 함께 닫는다(사용자 원문: "별지를 연 후 닫았을때 … 바로 닫히는게
+    //   아니라"). 조 본문에서 사용자가 직접 누른 별표는 예전처럼 조문 팝업으로 돌아간다.
+    ok('★자동으로 연 별표를 닫으면 뒤의 목록 팝업도 함께 닫힌다',
+      /if \(refs\.length === 1\) \{ openBylPop\(openable\[0\]\); bylAutoOpened = true; \}/.test(CLIENT_SRC) &&
+      /if \(bylAutoOpened\) \{ bylAutoOpened = false; closeArtPop\(\); \}/.test(CLIENT_SRC));
+    ok('직접 누른 별표는 그대로 조문 팝업으로 돌아간다(자동 표시를 끄고 연다)',
+      /function openBylPop\(ref\) \{\n    if \(!ref\) return;\n    bylAutoOpened = false;/.test(CLIENT_SRC));
+    ok('닫기 재귀 방지 — closeArtPop 이 먼저 자동 표시를 끈다',
+      /function closeArtPop\(\) \{\n    bylAutoOpened = false;/.test(CLIENT_SRC));
+    // ⓑ "조문 전체 보기"는 눌러서 펼친 뒤 다시 접을 수 있어야 한다(예전엔 버튼이 사라졌다).
+    ok('★조문 전체 보기가 접기 토글이다(버튼이 사라지지 않는다)',
+      /more\.textContent = ab\.classList\.toggle\('nrya-focused'\) \? '조문 전체 보기' : '접기'/.test(CLIENT_SRC) &&
+      !/more\.remove\(\);/.test(CLIENT_SRC));
+    // ⓒ 조 하나를 여는 보통 경우에는 "원문 · 자동 발췌" 칩을 띄우지 않는다.
+    ok('★조 하나를 열 때 칩을 비운다', /chip\.textContent = '';/.test(CLIENT_SRC));
+    ok('나열·범위·별표에서는 칩을 그대로 채운다(몇 개를 여는지 알려야 한다)',
+      /chip\.textContent = '원문 · ' \+ artScopeLabel\(d\)/.test(CLIENT_SRC));
+    // ⓓ 시행일자 배지는 조문 제목과 같은 줄 오른쪽 끝에 둔다.
+    ok('★시행일자 배지가 조문 제목과 같은 줄에 있다',
+      /nrya-artpop-artrow[\s\S]{0,220}id="nryaArtEff"/.test(CLIENT_SRC));
+    ok('배지는 두 줄로 쪼개지 않는다(자리가 없으면 배지째 내려간다)',
+      /\.nrya-artpop-eff\{flex:0 0 auto; white-space:nowrap/.test(CSS_SRC));
   }
 
   // ── 하이브리드 본문 링크 (2026-08-18) — 근거 목록 우선, 답변 주소는 폴백 ────────────────
