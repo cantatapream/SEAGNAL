@@ -11,6 +11,9 @@
  *         막아 실수로 검증된 좌표를 건드리지 않게 한다. 우측 패널에는 그
  *         구역의 원본 고시 이미지(source_images)를 보여줘 지도와 대조하며
  *         점을 맞출 수 있다. 배경지도는 벡터(해아름) / 위성(브이월드) 전환 가능.
+ *         한 공고가 이미지 하나에 통제구역 2~3곳을 나눠 표시한 경우를 위해
+ *         "새 폴리곤 추가" 도구로 기존 구역의 속성(station/location/notice 등)을
+ *         그대로 복사한 별도 Feature를 만들어 다른 자리에 새로 그릴 수 있다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 마크업        : admin_zone_editor.html (이 파일을 직접 로드)
@@ -39,6 +42,9 @@
     var _deleteMode = false;
     var _curveMode = false;
     var _addMode = false;        // 점 추가 모드 — 지도의 선 위를 클릭하면 그 자리에 점 삽입
+    var _newPolyMode = false;    // 새 폴리곤 추가 모드 — 선택된 구역과 같은 속성으로 별도 폴리곤을 그린다
+    var _drawInteraction = null; // 새 폴리곤 추가 모드에서만 붙는 ol.interaction.Draw
+    var _features = [];          // 전체 feature 배열(사이드바 재구성·새 폴리곤 추가 때 참조)
     var _coordMode = false;      // 좌표 입력 모드 — 점을 클릭하면 경위도 직접 입력 폼이 뜬다
     var _coordEditIdx = -1;      // 좌표 입력 폼이 지금 편집 중인 점의 인덱스
     var _curveSel = [];          // 곡선화 대상으로 클릭한 좌표 인덱스(최대 2개)
@@ -563,6 +569,8 @@
         _curveMode = false;
         _addMode = false;
         _coordMode = false;
+        if (_newPolyMode && _drawInteraction) { _map.removeInteraction(_drawInteraction); _drawInteraction = null; }
+        _newPolyMode = false;
         _closeCoordForm();
         _hideImageOverlay();
         _manualIdx = new Set(); // 구역을 바꾸면 "이번 세션에 새로 추가한 점" 추적도 새로 시작
@@ -573,7 +581,7 @@
         document.querySelectorAll('.ace-zone-btn').forEach(function (b) {
             b.classList.toggle('active', b.dataset.idx === String(feature.get('_idx')));
         });
-        ['ace-delete-btn', 'ace-add-btn', 'ace-coord-btn', 'ace-curve-btn'].forEach(function (id) {
+        ['ace-delete-btn', 'ace-add-btn', 'ace-coord-btn', 'ace-curve-btn', 'ace-newpoly-btn'].forEach(function (id) {
             var btn = document.getElementById(id);
             if (btn) { btn.disabled = false; btn.classList.remove('active'); }
         });
@@ -612,9 +620,11 @@
     /** 삭제·추가·좌표입력·곡선화는 한 번에 하나만 켜진다 — 나머지를 다 끄고 버튼 active 표시도 정리 */
     function _deactivateAllModes() {
         _deleteMode = false; _addMode = false; _coordMode = false; _curveMode = false;
+        if (_drawInteraction) { _map.removeInteraction(_drawInteraction); _drawInteraction = null; }
+        _newPolyMode = false;
         _clearCurveSelection();
         _closeCoordForm();
-        ['ace-delete-btn', 'ace-add-btn', 'ace-coord-btn', 'ace-curve-btn'].forEach(function (id) {
+        ['ace-delete-btn', 'ace-add-btn', 'ace-coord-btn', 'ace-curve-btn', 'ace-newpoly-btn'].forEach(function (id) {
             var btn = document.getElementById(id);
             if (btn) btn.classList.remove('active');
         });
@@ -651,6 +661,54 @@
         if (_curveSel.length !== 2) return;
         _curveifySegment(_selectedFeature, _curveSel[0], _curveSel[1]);
         _clearCurveSelection();
+    }
+
+    /** 한 공고 이미지에 통제구역이 여러 곳으로 나뉜 경우를 위한 도구 — 선택된 구역의
+     *  station/location/notice 등 속성을 그대로 복사한 새 Feature 를, 기존 폴리곤은
+     *  건드리지 않고 다른 자리에 별도로 그린다(MultiPolygon 이 아니라 같은 location
+     *  이름을 가진 독립 Feature 를 하나 더 만드는 방식 — 서버 저장 API 가 Polygon만
+     *  받는 기존 구조를 그대로 재사용한다). */
+    function _toggleNewPolyMode() {
+        if (!_selectedFeature) {
+            _setStatus('먼저 왼쪽에서 기존 구역을 선택하세요 — 그 구역과 같은 공고의 속성을 복사해 별도 폴리곤을 추가합니다');
+            return;
+        }
+        var next = !_newPolyMode;
+        var template = _selectedFeature;
+        _deactivateAllModes();
+        _newPolyMode = next;
+        var btn = document.getElementById('ace-newpoly-btn');
+        if (btn) btn.classList.toggle('active', _newPolyMode);
+        if (_newPolyMode) {
+            _drawInteraction = new ol.interaction.Draw({ source: _source, type: 'Polygon' });
+            _drawInteraction.on('drawend', function (evt) { _onNewPolyDrawEnd(evt, template); });
+            _map.addInteraction(_drawInteraction);
+            _setStatus('"' + (template.get('location') || '') + '" 과 같은 속성으로 새 폴리곤을 그립니다 — 지도를 클릭해 점을 찍고 더블클릭으로 마무리하세요');
+        } else {
+            _setStatus('새 폴리곤 그리기 취소');
+        }
+    }
+
+    function _onNewPolyDrawEnd(evt, template) {
+        var newFeature = evt.feature;
+        _map.removeInteraction(_drawInteraction);
+        _drawInteraction = null;
+        _newPolyMode = false;
+        var btn = document.getElementById('ace-newpoly-btn');
+        if (btn) btn.classList.remove('active');
+
+        var props = Object.assign({}, template.getProperties());
+        delete props.geometry;
+        delete props._idx;
+        delete props.confirmed_vertices; // 새로 그린 폴리곤은 원문 확정점이 없음 — 전부 편집 가능
+        props.editable = true;
+        newFeature.setProperties(props);
+        newFeature.set('_idx', _features.length);
+        _features.push(newFeature);
+
+        _refreshSidebar();
+        _selectZone(newFeature);
+        _setStatus('"' + (props.location || '') + '" 에 새 폴리곤을 추가했습니다 — 점을 다듬은 뒤 "서버에 저장"을 눌러주세요');
     }
 
     /** 배경지도를 해아름 벡터 ↔ 브이월드 위성으로 전환한다(고시 원문 이미지와 대조하려면
@@ -745,6 +803,21 @@
         return html;
     }
 
+    /** 사이드바를 _features 기준으로 다시 그리고 각 버튼에 클릭 바인딩을 건다.
+     *  새 폴리곤 추가로 feature 가 늘어났을 때도 이걸 다시 불러 반영한다. */
+    function _refreshSidebar() {
+        var sidebar = document.getElementById('ace-sidebar');
+        if (!sidebar) return;
+        sidebar.innerHTML = _buildSidebarHtml(_features);
+        sidebar.querySelectorAll('.ace-zone-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var idx = parseInt(btn.dataset.idx, 10);
+                var f = _features.filter(function (ff) { return ff.get('_idx') === idx; })[0];
+                if (f) _selectZone(f);
+            });
+        });
+    }
+
     function _init() {
         var gate = document.getElementById('ace-login-gate');
         var app = document.getElementById('ace-app');
@@ -754,6 +827,7 @@
         // 탭 재진입(뒤로가기 등) 대비 이전 상태 초기화
         _map = null; _source = null; _selectedFeature = null; _modify = null;
         _undoStack = []; _deleteMode = false; _curveMode = false; _curveSel = []; _satellite = false;
+        _features = []; _newPolyMode = false; _drawInteraction = null;
 
         fetch(DATA_URL).then(function (r) { return r.json(); }).then(function (geojson) {
             var mapEl = document.getElementById('ace-map');
@@ -789,21 +863,14 @@
             });
             features.forEach(function (f, i) { f.set('_idx', i); });
             _source.addFeatures(features);
-
-            var sidebar = document.getElementById('ace-sidebar');
-            if (sidebar) sidebar.innerHTML = _buildSidebarHtml(features);
-            sidebar.querySelectorAll('.ace-zone-btn').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    var idx = parseInt(btn.dataset.idx, 10);
-                    var f = features.filter(function (ff) { return ff.get('_idx') === idx; })[0];
-                    if (f) _selectZone(f);
-                });
-            });
+            _features = features;
+            _refreshSidebar();
 
             _map.on('singleclick', _onMapClick);
 
             document.getElementById('ace-delete-btn').addEventListener('click', _toggleDeleteMode);
             document.getElementById('ace-add-btn').addEventListener('click', _toggleAddMode);
+            document.getElementById('ace-newpoly-btn').addEventListener('click', _toggleNewPolyMode);
             document.getElementById('ace-coord-btn').addEventListener('click', _toggleCoordMode);
             document.getElementById('ace-coord-apply').addEventListener('click', _applyCoordForm);
             document.getElementById('ace-coord-cancel').addEventListener('click', _closeCoordForm);
@@ -819,7 +886,7 @@
                 if (_overlayImg) _overlayImg.style.opacity = (parseInt(this.value, 10) / 100);
             });
 
-            var editableFeatures = features.filter(_isEditable);
+            var editableFeatures = _features.filter(_isEditable);
             if (editableFeatures.length) {
                 var extent = ol.extent.createEmpty();
                 editableFeatures.forEach(function (f) { ol.extent.extend(extent, f.getGeometry().getExtent()); });
