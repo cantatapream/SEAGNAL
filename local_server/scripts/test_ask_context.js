@@ -1033,6 +1033,20 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       /아직 정해지지 않았고\*\* 답이 실제로 크게 갈리는 조건은 그대로 물어도 된다/.test(RET_SRC));
     ok('★새 질문을 직접 타이핑하면 기억을 버린다(맥락 버튼 뒤 타이핑은 살린다)',
       /if \(!ctx\) forgetChatMemory\(\);/.test(CLIENT_SRC));
+    // ★★2026-08-18 "아직도 맥락을 못 찾는다"의 진짜 원인: 전송 버튼을 `addEventListener('click',
+    //   doSend)` 로 묶어 두어 **클릭 이벤트 객체가 첫 인자(sendCtx)로** 들어갔다. 그러면
+    //   `ctx = sendCtx || pendingCtx` 에서 이벤트가 이겨 **예약해 둔 맥락(pendingCtx)이 통째로
+    //   버려진다** — 엔터로 보낼 때만 살아 있었고, 휴대폰(버튼 탭)에서는 항상 유실됐다.
+    ok('★전송 버튼이 클릭 이벤트를 맥락으로 넘기지 않는다',
+      !/addEventListener\('click', doSend\)/.test(CLIENT_SRC) &&
+      /addEventListener\('click', function \(\) \{ doSend\(\); \}\)/.test(CLIENT_SRC));
+    // 같은 실수의 재발 방지 — 인자를 받는 함수를 리스너로 **그대로** 넘기지 않는다.
+    ok('인자를 받는 함수를 리스너로 그대로 넘기지 않는다',
+      (CLIENT_SRC.match(/addEventListener\('[a-z]+', ([a-zA-Z_]\w*)\)/g) || []).every(function (m) {
+        var fn = /addEventListener\('[a-z]+', ([a-zA-Z_]\w*)\)/.exec(m)[1];
+        var def = new RegExp('function ' + fn + '\\(([^)]*)\\)').exec(CLIENT_SRC);
+        return !def || !def[1].trim();     // 정의를 못 찾으면(외부 헬퍼) 판정하지 않는다
+      }));
     ok('"다른 종류의 질문이에요"도 기억을 버린다',
       /forgetChatMemory\(\);\s*\/\/ 주제가 바뀌므로/.test(CLIENT_SRC));
     ok('되묻기·실패는 기억에 쌓지 않는다(아직 답이 아니다)',

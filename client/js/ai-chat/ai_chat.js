@@ -1638,7 +1638,16 @@
     var hist = document.getElementById('nryaChatHist'); if (hist) hist.addEventListener('click', openHistory);
     var prof = document.getElementById('nryaChatProf'); if (prof) prof.addEventListener('click', openProf);
     var back = document.getElementById('nryaChatBack'); if (back) back.addEventListener('click', onHistBack);
-    var send = document.getElementById('nryaChatSend'); if (send) send.addEventListener('click', doSend);
+    // ★★2026-08-18(사용자 "아직도 맥락을 못 찾는다" 지적으로 발견한 진짜 원인):
+    //   예전에는 리스너로 doSend 를 **그대로** 넘겼다(`click` → doSend). 그러면 브라우저가 클릭 이벤트
+    //   객체를 첫 인자로** 넘겨 doSend 가 그것을 `sendCtx`(확인 버튼이 들고 온 맥락)로 받는다.
+    //   그 결과 `var ctx = sendCtx || pendingCtx` 에서 **이벤트 객체가 이겨 pendingCtx 가 통째로
+    //   버려졌다** — "🔁 관련해서 더 궁금해요"로 예약해 둔 맥락도, "아니요, 다시 설명할게요"로
+    //   예약해 둔 맥락도 **전송 버튼으로 보내면 전부 사라졌다.** 엔터로 보낼 때만 살아 있었다
+    //   (그 경로는 `doSend()` 로 인자 없이 부른다). 휴대폰에서는 버튼을 누르므로 사실상 항상 유실.
+    //   ⚠인자를 받는 함수를 이벤트 리스너로 **그대로** 넘기지 말 것 — 반드시 감싸서 부른다.
+    var send = document.getElementById('nryaChatSend');
+    if (send) send.addEventListener('click', function () { doSend(); });
     if (input) {
       input.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSend(); });
       // 포커스(키보드 등장) 시: 뷰포트 재계산 + 초기 메시지가 가리지 않게 맨 아래로
@@ -2005,7 +2014,14 @@
       // (유선및도선사업법 시행령 별표3). 이걸 안 끊으면 모든 위반행위가 한 칸에 뭉쳐 버린다.
       if (cells.every(function (c) { return !c; })) { flushRow(); return; }
       if (!cur) { cur = cells; curCols = bylPipeCols(ln); return; }
-      if (cur.length !== cells.length) { ok = false; return; }
+      // ★2026-08-18(사용자 "어떤 건 표, 어떤 건 아스키" 지적): 예전에는 줄마다 칸 수가 다르면
+      //   **표 전체를 포기**했다(ok=false → 통째로 ASCII). 병합·중첩 셀이 있는 표(한 칸 안이 다시
+      //   여러 칸으로 갈리는 표)가 전부 여기서 걸렸다. 이제는 포기하지 않고 **행을 끊고 새 행으로**
+      //   이어간다 — 칸이 어디에 놓이는지는 아래 열 위치 대조(ref ±1)가 판정하고, 거기서 자리를
+      //   못 정하면 그때 null 을 돌려 ASCII 로 떨어진다(엉뚱한 칸에 값이 들어가지 않는다).
+      //   실측(별표 원문 전수, 구분자 줄 3개 이상인 덩어리 9,227개): 표로 그려지는 것 1,081 → 1,302
+      //   (+221). **못 그리게 된 것 0건, 이미 그려지던 표의 결과가 달라진 것 0건.**
+      if (cur.length !== cells.length) { flushRow(); cur = cells; curCols = bylPipeCols(ln); return; }
       cur = cur.map(function (c, i) { return joinBylCell(c, cells[i]); });
     });
     flushRow();
@@ -2023,17 +2039,50 @@
       if (seen[k] > refN) { refN = seen[k]; ref = r.cols; }
     });
     if (!ref) return null;
-    for (var i = 0; i < rows.length; i++) {
+    // ★2026-08-18(사용자 지적 — 근해어업 표가 아스키로 떨어짐): 예전에는 **맨 끝 칸만** 여러 열에
+    //   걸칠 수 있다고 보고, 나머지는 "k번째 칸 = k번째 열"로 못 박았다. 그래서 **앞쪽 칸이 병합된
+    //   표**(수산업법 시행령 별표7 근해어업: `가.` 표시 칸이 어떤 줄에서는 옆 칸과 합쳐져 있다)는
+    //   첫 칸부터 어긋나 표 전체가 아스키로 떨어졌다.
+    //   이제는 칸의 **양쪽 테두리 위치를 기준행의 열 경계와 맞춰** 그 칸이 몇 열을 덮는지 센다
+    //   (자리를 추측하는 게 아니라 원문에 그어진 선을 읽는 것이다). 경계가 기준행과 안 맞으면
+    //   예전처럼 null 을 돌려 아스키로 떨어진다 — 엉뚱한 칸에 값이 들어가느니 그 편이 낫다.
+    var at = function (x) {                            // 이 위치가 기준행의 몇 번째 열 경계인가
+      for (var j = 0; j < ref.length; j++) if (Math.abs(ref[j] - x) <= 1) return j;   // ±1 오차 허용
+      return -1;
+    };
+    var out = [], exact = true;
+    for (var i = 0; i < rows.length && exact; i++) {
       var cells = rows[i].cells, cols = rows[i].cols, len = cells.length;
-      if (len === max) continue;                      // 칸이 다 있는 행은 넓힐 일이 없다
+      var row = [], want = 0;
       for (var k = 0; k < len; k++) {
-        if (!cells[k]) continue;                      // 빈 칸은 어디 놓여도 값이 안 뒤바뀐다
-        // 이 칸이 그려질 열 범위: 마지막 칸은 남은 열 전부(colspan), 나머지는 같은 번호의 열 하나.
-        var lo = ref[k], hi = (k === len - 1) ? ref[max] : ref[k + 1];
-        if (cols[k] < lo - 1 || cols[k + 1] > hi + 1) return null;   // ±1 은 원문의 한 칸 오차 허용
+        var a = at(cols[k]), b = (k === len - 1) ? ref.length - 1 : at(cols[k + 1]);
+        // 왼쪽 테두리는 앞 칸이 끝난 자리에서 이어져야 하고, 오른쪽은 그보다 뒤여야 한다.
+        if (a < 0 || b < 0 || a !== want || b <= a) { exact = false; break; }
+        row.push({ text: cells[k], span: b - a });
+        want = b;
+      }
+      if (!exact || want !== ref.length - 1) { exact = false; break; }
+      out.push(row);
+    }
+    if (exact) return out;
+    // ⚠선 위치로 다 맞추지 못했으면 **예전 판정을 그대로** 한 번 더 본다 — 새 방식이 더 엄격해서,
+    //   예전에 잘 그려지던 표(빈 칸이 섞였거나 테두리가 한 칸씩 어긋난 표)까지 아스키로 떨어뜨렸다
+    //   (실측 113건). 새 방식은 **더 많이 그리려고** 얹은 것이지 있던 것을 뺏으려는 게 아니다.
+    for (var i2 = 0; i2 < rows.length; i2++) {
+      var c2 = rows[i2].cells, k2, len2 = c2.length;
+      if (len2 === max) continue;                     // 칸이 다 있는 행은 넓힐 일이 없다
+      for (k2 = 0; k2 < len2; k2++) {
+        if (!c2[k2]) continue;                        // 빈 칸은 어디 놓여도 값이 안 뒤바뀐다
+        var lo = ref[k2], hi = (k2 === len2 - 1) ? ref[max] : ref[k2 + 1];
+        if (rows[i2].cols[k2] < lo - 1 || rows[i2].cols[k2 + 1] > hi + 1) return null;
       }
     }
-    return rows.map(function (r) { return r.cells; });
+    // 예전 규약: **맨 끝 칸만** 남은 열을 다 덮는다.
+    return rows.map(function (r) {
+      return r.cells.map(function (t, ci) {
+        return { text: t, span: (ci === r.cells.length - 1 && r.cells.length < max) ? max - r.cells.length + 1 : 1 };
+      });
+    });
   }
 
   /**
@@ -2047,22 +2096,24 @@
    * [연계] ← renderBylText().
    */
   function renderBylTable(host, rows) {
-    var max = 0;
-    rows.forEach(function (r) { if (r.length > max) max = r.length; });
     var tbl = document.createElement('table'); tbl.className = 'nrya-byl-tbl';
     rows.forEach(function (cells, ri) {
       var tr = document.createElement('tr');
-      if (/^(합계|소계|계)$/.test((cells[0] || '').replace(/\s/g, ''))) tr.className = 'nrya-byl-sum';
-      cells.forEach(function (c, ci) {
+      if (/^(합계|소계|계)$/.test(((cells[0] || {}).text || '').replace(/\s/g, ''))) tr.className = 'nrya-byl-sum';
+      cells.forEach(function (c) {
         var cell = document.createElement(ri === 0 ? 'th' : 'td');
-        if (ci === cells.length - 1 && cells.length < max) cell.colSpan = max - cells.length + 1;
-        if (/\d/.test(c) && /^[\d,.\s~\-]+$/.test(c)) cell.className = 'nrya-byl-num';
-        cell.textContent = c;                    // 원문 글자는 전부 textContent 로만(HTML 주입 없음)
+        if (c.span > 1) cell.colSpan = c.span;   // 원문에 그어진 선이 말해주는 병합 폭 그대로
+        if (/\d/.test(c.text) && /^[\d,.\s~\-]+$/.test(c.text)) cell.className = 'nrya-byl-num';
+        cell.textContent = c.text;               // 원문 글자는 전부 textContent 로만(HTML 주입 없음)
         tr.appendChild(cell);
       });
       tbl.appendChild(tr);
     });
-    host.appendChild(tbl);
+    // 칸이 많은 표는 좁은 화면에 다 안 들어간다 — 감싸서 **이 칸 안에서만** 가로로 밀어 보게 한다
+    // (2026-08-18 사용자 요청). 팝업 본문 자체가 가로로 밀리면 다른 글까지 잘려 보인다.
+    var box = document.createElement('div'); box.className = 'nrya-byl-scroll';
+    box.appendChild(tbl);
+    host.appendChild(box);
   }
 
   /**

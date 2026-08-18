@@ -128,7 +128,7 @@ const TBL = [
 const rows = FULL.parseBylTable(TBL);
 ok('T3-3 표는 그대로 읽힌다', !!rows && rows.length >= 2, rows && rows.length);
 ok('T3-4 ★원문에 없던 띄어쓰기를 만들지 않는다',
-  !!rows && (rows[rows.length - 1][1] || '').indexOf('이 중 20퍼센트') < 0);
+  !!rows && ((rows[rows.length - 1][1] || {}).text || '').indexOf('이 중 20퍼센트') < 0);
 
 // ── T4. 대화 기억 — 쌓기·6시간 만료·압축 (2026-08-18 사용자 확정) ─────────────────
 console.log('\n[T4] 대화 기억 — 쌓기·만료·압축');
@@ -191,6 +191,73 @@ ok('T5-6 기억이 있으면 대화 블록이 붙는다',
 // ★답의 근거는 여전히 근거자료뿐 — 지난 대화의 조문을 근거로 재사용하지 말라고 못 박는다.
 ok('T5-7 ★지난 대화의 조문을 근거로 다시 쓰지 말라고 지시한다',
   /답의 근거는 여전히 \[근거자료\]뿐/.test(RET.historyBlock([{ q: '질문', a: '답' }])));
+
+// ── T6. 병합 셀이 있는 표도 표로 그린다 (2026-08-18 사용자 지적) ────────────────────
+// "어떤 건 표로 나오고 어떤 건 아스키로 나온다" — 같은 별표 안에서도 갈렸다. 원인은 줄마다 칸 수가
+// 다르면(한 칸이 다시 여러 칸으로 갈리는 병합·중첩 표) **표 전체를 포기**하던 것이었다.
+// 이제는 포기하지 않고 행을 끊어 이어가고, 칸 자리는 열 위치 대조가 판정한다(못 정하면 ASCII).
+console.log('\n[T6] 병합 셀 표 — 포기하지 말고 행을 끊어 이어간다');
+// ⚠표본은 **손으로 만들지 않고 실제 원문에서 떼어 온다** — 원문 표는 칸 폭이 열 단위로 딱 맞아야
+//   하는데, 손으로 그리면 그 폭이 어긋나 테스트가 진짜 동작을 못 본다(처음에 그렇게 만들었다가
+//   실제로는 되는 표가 테스트에서만 실패했다).
+function bylChunks(file) {
+  const lines = fs.readFileSync(file, 'utf8').split('\n');
+  const out = [];
+  let buf = [], isT = null;
+  const flush = () => {
+    if (buf.length && isT && buf.filter(l => /[│┃]/.test(l)).length >= 3) out.push(buf);
+    buf = [];
+  };
+  for (const ln of lines) {
+    const t = /[┌┬┐├┼┤└┴┘─│┃]/.test(ln);
+    if (isT !== null && t !== isT) flush();
+    isT = t; buf.push(ln);
+  }
+  flush();
+  return out;
+}
+const BYL7 = path.join(__dirname, '..', 'knowledge', 'legal', 'raw',
+  '05_수산어업', '수산업법', '별표', '시행령_별표7.txt');
+// 이 별표는 표 덩어리가 4개인데, 예전에는 뒤쪽만 표로 그려지고 앞쪽은 아스키로 떨어졌다.
+// ⚠첫 덩어리(근해어업, 213줄)는 **지금도 아스키**다 — 한 줄 안에 글자와 중첩 표의 구분선이
+//   섞여 있어(`… │목망으로 된   ├────┼────┤`) 줄 단위로는 안전하게 읽을 수 없다.
+//   무리해서 읽으면 금지기간·금지구역이 엉뚱한 행에 붙는다 — 그건 보기 불편함보다 훨씬 나쁘다.
+const chunks7 = bylChunks(BYL7);
+const drawn7 = chunks7.map(function (c) { return !!FULL.parseBylTable(c); });
+ok('T6-1 ★뒤쪽 표들은 표로 그려진다', drawn7.filter(Boolean).length >= 3,
+  drawn7.map(function (b) { return b ? 'T' : 'F'; }).join(''));
+ok('T6-2 ★못 읽는 표는 그대로 아스키로 떨어진다(엉뚱한 행에 붙이지 않는다)',
+  drawn7[0] === false);
+// 앞쪽 칸이 병합된 표 — 예전 판정은 **맨 끝 칸만** 넓힐 수 있어 이런 표를 통째로 포기했다.
+{
+  const f = path.join(__dirname, '..', 'knowledge', 'legal', 'raw', '01_해양주권정책',
+    '해양조사와해양정보활용에관한법률', '별표', '시행규칙_별표6.txt');
+  let lead = 0;
+  bylChunks(f).forEach(function (c) {
+    const r = FULL.parseBylTable(c);
+    if (!r) return;
+    r.forEach(function (row) {
+      row.forEach(function (cell, i) { if (cell.span > 1 && i < row.length - 1) lead += 1; });
+    });
+  });
+  ok('T6-2b ★앞쪽 칸이 병합된 표도 원문에 그어진 선 그대로 넓혀 그린다', lead > 0, lead);
+}
+// ★자리를 못 정하는 표는 여전히 ASCII 로 떨어진다 — 엉뚱한 칸에 값이 들어가느니 그 편이 낫다.
+ok('T6-3 ★열 자리가 안 맞으면 여전히 표로 그리지 않는다(엉뚱한 칸 방지)',
+  FULL.parseBylTable([
+    '│가│나│다│',
+    '│어긋난칸        │값│',
+    '│가│나│다│',
+  ]) === null);
+// 실제 저장소 원문 — 사용자가 본 그 별표(수산업법 시행령 별표7)가 표로 그려지나.
+{
+  const drawn = bylChunks(BYL7).filter(c => !!FULL.parseBylTable(c)).length;
+  ok('T6-4 ★사용자가 본 별표(수산업법 시행령 별표7)가 표로 그려진다',
+    drawn >= 3, drawn + '/' + bylChunks(BYL7).length);
+}
+ok('T6-5 표는 가로로 밀어 볼 수 있게 감싼다',
+  /nrya-byl-scroll/.test(SRC) && /overflow-x:auto/.test(
+    fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'css', 'ai_chat.css'), 'utf8')));
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

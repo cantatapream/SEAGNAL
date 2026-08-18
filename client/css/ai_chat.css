@@ -555,7 +555,14 @@
    괘선으로 그려진 표는 진짜 <table> 로 다시 그리고, 표가 아닌 산문은 접어서(pre-wrap) 보여준다. */
 #nrya-overlays .nrya-byl-prose{white-space:pre-wrap; word-break:break-word; font-size:11.5px; line-height:1.65; color:#cdd8ee; margin:0 0 10px}
 #nrya-overlays .nrya-byl-prose:last-child{margin-bottom:0}
-#nrya-overlays .nrya-byl-tbl{width:100%; max-width:100%; border-collapse:collapse; font-size:10.5px; line-height:1.5; color:#cdd8ee; margin:0 0 12px}
+/* ★2026-08-18(사용자 요청 "표의 내용이 많은 경우 가로보기"): 표를 **가로로 밀어 볼 수 있게** 한다.
+   예전에는 width:100% 로 좁은 화면에 억지로 욱여넣어, 칸이 많은 표는 글자가 한 자씩 끊겨 내려갔다.
+   이제 표는 내용만큼 넓어지고(min-width:100% 로 좁은 표는 여전히 꽉 채운다), 넘치면 감싼 칸이
+   가로로 스크롤된다. ⚠팝업 본문 자체는 가로로 안 밀린다 — 스크롤은 이 표 칸 안에서만 일어난다. */
+#nrya-overlays .nrya-byl-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 0 12px}
+#nrya-overlays .nrya-byl-tbl{width:auto; min-width:100%; border-collapse:collapse; font-size:10.5px; line-height:1.5; color:#cdd8ee; margin:0}
+/* 칸이 많은 표에서 한 칸이 지나치게 좁아지지 않게 — 이 폭보다 좁아지면 가로 스크롤이 생긴다. */
+#nrya-overlays .nrya-byl-tbl th,#nrya-overlays .nrya-byl-tbl td{min-width:88px}
 /* white-space:pre-wrap — 한 칸이 여러 줄에 걸친 원문 줄바꿈을 그대로 살린다(joinBylCell 주석 참고) */
 #nrya-overlays .nrya-byl-tbl th,#nrya-overlays .nrya-byl-tbl td{border:1px solid rgba(255,255,255,.14); padding:5px 6px; text-align:left; vertical-align:top; word-break:break-word; white-space:pre-wrap}
 #nrya-overlays .nrya-byl-tbl th{background:rgba(105,240,174,.1); color:#8fe6bb; font-weight:700}
