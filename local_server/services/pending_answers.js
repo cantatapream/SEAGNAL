@@ -122,19 +122,30 @@ function loadFromDisk() {
  *   citationChain·forms 와 같은 이유로 함께 보관한다 — 빼먹으면 푸시로 되돌아온 답변만 본문 링크가 죽는다.
  * @param {Array} [forms] - 서식 다운로드 목록(/api/legal/ask 의 forms 그대로). citationChain과 같은
  *   이유로 함께 보관한다 — 빼먹으면 푸시로 되돌아온 답변만 서식 버튼이 안 뜬다(2026-08-17, 적대검증 발견 2).
+ * @param {string} [topic] - 그 답변의 **주제 한 낱말**(예: `낚시어선업신고`). 위키 페이지의 주제 칸에서
+ *   그대로 가져온 값이라 사용자 정보가 아니다.
+ *   ★2026-08-18 사용자 지적으로 추가: 이걸 안 담으면 **푸시로 되돌아온 답변에서만** "🔁 관련해서 더
+ *   궁금해요"가 빈손이 된다 — 버튼은 그대로 뜨고 "방금 답변 맥락을 이어갈게요"라고 안내까지 하는데
+ *   실제로는 주제가 안 실려, 이어 물으면 무관한 법이 나온다(실사용 재현).
+ *   ⚠ **맥락(ctx) 전체를 담지 않는다** — ctx 에는 프로필로 확정한 축(`prof.decided`의 필드명)과
+ *     사용자가 고른 조건(`scope`)이 들어 있고, 서버는 그것을 **어떤 파일에도 쓰지 않는다**(설계
+ *     §3.3 R1). 주제 한 낱말만으로 "이어서 질문"은 되살아나고, 나머지 축은 기기 안(localStorage)의
+ *     기록이 들고 있다.
  * @returns {string} requestId(64자 hex)
  * [연계] ← routes/legal.js POST /api/legal/ask (6초 초과 + 알림 동의한 요청에서만)
  *          → saveToDisk (발급 즉시 디스크 반영)
  */
-function store(query, answer, sources, note, citationChain, forms, citeLaws) {
+function store(query, answer, sources, note, citationChain, forms, citeLaws, topic, askId) {
     const requestId = crypto.randomBytes(32).toString('hex');
     store_.set(requestId, {
+        askId: String(askId || ''),
         query: String(query || ''),
         answer: answer == null ? null : String(answer),
         sources: Array.isArray(sources) ? sources : [],
         citationChain: Array.isArray(citationChain) ? citationChain : [],
         forms: Array.isArray(forms) ? forms : [],
         citeLaws: Array.isArray(citeLaws) ? citeLaws : [],
+        topic: String(topic || '').slice(0, 60),
         note: String(note || ''),
         createdAt: Date.now()
     });
@@ -166,6 +177,29 @@ function retrieve(requestId) {
     return entry;
 }
 
+/**
+ * 접수번호(askId)로 보관 중인 답변을 **지우지 않고** 들여다본다.
+ * ★2026-08-18(사용자 지적): 답을 기다리는 중에 앱을 백그라운드로 내리면 진행 중이던 연결이
+ * 끊긴다. 서버는 그대로 답을 끝까지 만들어 여기 보관하는데, 예전에는 앱이 그걸 가져올 길이
+ * 없어 "답변 근거를 가져오지 못했어요"만 띄웠다. 앱이 다시 앞으로 나오면 이 함수로 그 답을
+ * 그대로 받아 온다 — **AI를 다시 부르지 않으므로 비용이 들지 않는다.**
+ * ⚠ retrieve() 와 달리 **삭제하지 않는다** — 같은 답변을 완료 푸시로도 열 수 있어야 하기
+ *   때문이다(푸시 딥링크의 1회용 성격은 requestId 쪽에 그대로 남는다).
+ * 예: peekByAsk('ask_1755…_a1b2') → {query, answer, …} · 없거나 3시간 지났으면 null
+ * @param {string} askId - 앱이 질문을 보낼 때 함께 보낸 접수번호
+ * @returns {object|null}
+ * [연계] ← routes/legal.js GET /api/legal/answer-by-ask/:askId
+ */
+function peekByAsk(askId) {
+    const want = String(askId || '');
+    if (!want) return null;
+    for (const entry of store_.values()) {
+        if (entry.askId !== want) continue;
+        return (Date.now() - entry.createdAt >= TTL_MS) ? null : entry;
+    }
+    return null;
+}
+
 /** 현재 보관 중인 건수(운영 디버깅용 — 내용은 노출하지 않는다). @returns {number} */
 function getPendingCount() {
     return store_.size;
@@ -192,6 +226,7 @@ setInterval(() => {
 loadFromDisk();
 
 module.exports = {
+    peekByAsk,
     store,
     retrieve,
     getPendingCount,

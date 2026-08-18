@@ -316,6 +316,19 @@
 /* 소관부서 연락처 한 줄. 2026-08-18 답변 끝 요약을 없애면서 **조문 팝업 한 곳**만 쓴다
    (같은 시행일자·전화번호가 답변 아래와 팝업 두 곳에 뜨던 것을 팝업으로 모았다). */
 #nrya-overlays .nrya-meta-tel{overflow-wrap:anywhere}
+
+/* 복원 화면(푸시·기록)에서 되묻기로 골랐던 조건을 내 말풍선 아래 작은 칩으로 보여준다(2026-08-18).
+   실시간 화면에는 선택지 카드가 남아 같은 역할을 하지만, 복원 화면에는 그 카드가 없다. */
+/* 연결이 끊긴 답을 서버 보관본에서 되찾는 동안 보여주는 기다림 표시(2026-08-18 사용자 확정 —
+   "재시도 버튼 없이 자동으로, 오래 걸리면 로딩스피너"). */
+#nrya-overlays .nrya-recover{display:flex; align-items:center; gap:8px; color:#b9cbe2; font-size:12.5px}
+#nrya-overlays .nrya-spin{width:14px; height:14px; flex:0 0 auto; border-radius:50%; border:2px solid rgba(255,255,255,.22); border-top-color:#8bb6ff; animation:nrya-spin 0.8s linear infinite}
+@keyframes nrya-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){#nrya-overlays .nrya-spin{animation-duration:2.4s}}
+
+#nrya-overlays .nrya-mecol{display:flex; flex-direction:column; align-items:flex-end; min-width:0}
+#nrya-overlays .nrya-mepicks{display:flex; flex-wrap:wrap; justify-content:flex-end; gap:4px; margin-top:5px}
+#nrya-overlays .nrya-mepick{font-size:10px; color:#cfe0ff; background:rgba(68,138,255,.14); border:1px solid rgba(68,138,255,.3); border-radius:10px; padding:2px 8px; overflow-wrap:anywhere}
 #nrya-overlays .nrya-meta-tel a{color:inherit; text-decoration:underline; text-decoration-color:currentColor}
 /* 조문 팝업 안 연락처 줄(같은 정보를 팝업에서도 보여준다) */
 #nrya-overlays .nrya-artpop-tel{padding:0 16px 10px; font-size:10.5px; color:#8fa2bd; overflow-wrap:anywhere}
@@ -610,6 +623,18 @@
 /* "방금 그 질문과 이어지는 내용일 수 있어요" 확인 후보(2026-08-18) — 맨 앞으로 올리고 강조색 테두리로
    눈에 띄게 한다. 예전엔 무관한 선택지들 사이 맨 끝에 묻혀 사용자가 놓쳤다(실사용 지적). */
 #nrya-overlays .nrya-clarify-btn.nrya-clarify-continuity{border-color:var(--nrya-accent-yellow); border-width:2px; font-weight:700}
+/* "기타 — 직접 적을게요"(2026-08-18 사용자 확정) — 선택지가 전부 안 맞을 때 직접 적는 자리.
+   입력란은 버튼을 누르기 전엔 감춰 둔다(평소 화면이 지저분해지지 않게). */
+#nrya-overlays .nrya-clarify-etc{margin-top:6px}
+#nrya-overlays .nrya-clarify-etcopen{width:100%; text-align:left; background:transparent; border-style:dashed; border-color:rgba(255,255,255,.28); color:#9fb0c9; font-weight:600}
+#nrya-overlays .nrya-clarify-etcbox{display:none; gap:6px; margin-top:6px}
+#nrya-overlays .nrya-clarify-etc.nrya-open .nrya-clarify-etcbox{display:flex}
+#nrya-overlays .nrya-clarify-etc.nrya-open .nrya-clarify-etcopen{display:none}
+#nrya-overlays .nrya-clarify-etcin{flex:1 1 auto; min-width:0; font-family:inherit; font-size:12.5px; padding:8px 10px; border-radius:12px; border:1px solid var(--nrya-border); background:rgba(255,255,255,.06); color:#e7eefb}
+#nrya-overlays .nrya-clarify-etcgo{flex:0 0 auto}
+#nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-etc{opacity:.4; pointer-events:none}
+#nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-etc.nrya-picked{opacity:1}
+#nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-etc.nrya-picked .nrya-clarify-etcin{background:#ffe14d; color:#231c00; font-weight:700; border-color:#ffe14d}
 #nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-q{opacity:.55}
 #nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-btn{opacity:.4; pointer-events:none; cursor:default}
 #nrya-overlays .nrya-clarify.nrya-done .nrya-clarify-btn.nrya-picked{opacity:1; background:#ffe14d; border-style:solid; border-color:#ffe14d; color:#231c00; font-weight:700}

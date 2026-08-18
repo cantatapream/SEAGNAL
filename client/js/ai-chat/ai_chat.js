@@ -99,6 +99,11 @@
   //   안 비운다**(그게 이 값의 존재 이유다). ctx가 아니라 별도 필드로만 보내 서버가 "확정된 조건"이
   //   아니라 "확인 후보" 하나를 되묻기에 더 보여줄 때만 쓴다(routes/legal.js `lastQuestion` 참고).
   var lastQuestionText = '';
+  // 연결이 끊긴 답을 서버 보관본에서 되찾을 때 다시 물어보는 간격·횟수(2026-08-18).
+  //   3초 × 40회 = 2분. 이 안에 못 찾으면 보관본이 없는 것(6초 안에 끝나 보관 대상이 아니었던
+  //   질문)이므로 평소 오류 안내로 돌아간다.
+  var RECOVER_EVERY_MS = 3000;
+  var RECOVER_TRIES = 40;
   // [계약4] 약칭표(GET /api/legal/aliases) 캐시 — `{약칭: 정식 법령명}`. 답변 본문의 「약칭」을
   //   근거 체인의 정식 법령명과 맞춰볼 때만 쓴다. **후보가 유일한 약칭만** 서버가 담아 보낸다.
   //   null = 아직 안 받음, {} = 받았거나 실패(재요청하지 않는다 — 링크가 덜 걸릴 뿐 오동작은 없다).
@@ -1366,6 +1371,9 @@
         q: String(q || ''), a: String((data && data.answer) || ''), note: String((data && data.note) || ''),
         sources: (data && data.sources) || [], chain: (data && data.citationChain) || [], forms: (data && data.forms) || [],
         citeLaws: (data && data.citeLaws) || [],
+        // ★2026-08-18: 대화 맥락도 함께 남긴다 — 없으면 기록에서 다시 연 답변의 "🔁 관련해서 더
+        //   궁금해요"가 빈손이 되어, 이어 물으면 주제가 안 실린다(푸시 복원과 같은 결함).
+        ctxNext: (data && data.ctxNext) || null,
         ts: Date.now(),
       });
       if (arr.length > HISTORY_MAX) arr = arr.slice(arr.length - HISTORY_MAX);
@@ -1408,7 +1416,7 @@
       var day = histDayLabel(e.ts);
       if (day !== lastDay) { lastDay = day; html += '<div class="nrya-hist-day">' + esc(day) + '</div>'; }
       html += '<button type="button" class="nrya-hist-item" data-ts="' + esc(String(e.ts)) + '">' +
-        '<span class="nrya-hist-q">' + esc(e.q || '(질문 없음)') + '</span>' +
+        '<span class="nrya-hist-q">' + esc(splitAskedQuery(e.q).question || '(질문 없음)') + '</span>' +
         '<span class="nrya-hist-t">' + esc(histTimeLabel(e.ts)) + '</span>' +
       '</button>';
     }
@@ -1594,6 +1602,7 @@
     renderRestoredAnswer({
       ok: true, query: hit.q, answer: hit.a, note: hit.note,
       sources: hit.sources || [], citationChain: hit.chain || [], forms: hit.forms || [], citeLaws: hit.citeLaws || [],
+      ctxNext: hit.ctxNext || null,
     });
   }
 
@@ -1625,6 +1634,18 @@
       // 되묻기 선택지 버튼 — 고른 조건을 원래 질문에 합쳐 다시 물어본다
       var opt = e.target.closest('.nrya-clarify-btn');
       if (opt) { pickClarifyOption(opt); return; }
+      // "기타 — 직접 적을게요" — 누르면 입력란이 열리고, [확인]이 고른 선택지와 같은 길로 보낸다
+      var etcOpen = e.target.closest('.nrya-clarify-etcopen');
+      if (etcOpen) {
+        var wrap = etcOpen.closest('.nrya-clarify-etc');
+        if (wrap && !wrap.closest('.nrya-clarify').classList.contains('nrya-done')) {
+          wrap.classList.add('nrya-open');
+          var inp = wrap.querySelector('.nrya-clarify-etcin'); if (inp) inp.focus();
+        }
+        return;
+      }
+      var etcGo = e.target.closest('.nrya-clarify-etcgo');
+      if (etcGo) { sendClarifyEtc(etcGo.closest('.nrya-clarify-etc')); return; }
       // 답변 본문 안의 조문·별표 인용(글자 자체가 누를 자리) — 근거 카드와 **같은** 팝업을 연다.
       // citeHTML 이 data-law/article/tier/base 를 카드와 똑같은 이름으로 붙여 두었다.
       var cite = e.target.closest('.nrya-cite');
@@ -1641,6 +1662,15 @@
       if (fbSend) { onFeedbackSend(fbSend); return; }
       var contBtn = e.target.closest('.nrya-cont-btn');
       if (contBtn) { pickContinuity(contBtn); return; }
+    });
+
+    // "기타" 입력란에서 엔터로도 보낸다(확인 버튼과 같은 길).
+    if (body) body.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return;
+      var inp = e.target.closest ? e.target.closest('.nrya-clarify-etcin') : null;
+      if (!inp) return;
+      e.preventDefault();
+      sendClarifyEtc(inp.closest('.nrya-clarify-etc'));
     });
 
     // 기록 목록 항목 클릭(목록은 열 때마다 새로 그려지므로 패널에 한 번만 위임한다)
@@ -1869,6 +1899,18 @@
    * 어디가 낱말 경계였는지 글자만 보고는 알 수 없기 때문이다(`신고를` + `하지`는 띄어야 하고
    * `출입통` + `제`는 붙여야 하는데, 여백 폭으로도 구분되지 않음을 실측으로 확인했다).
    * 없는 띄어쓰기를 지어내거나 있는 띄어쓰기를 지우느니 원문 줄 그대로 둔다(환각 0).
+   *
+   * ★2026-08-18 재검토(사용자 지적: "한 줄짜리 내용인데 끊겨 보인다") — **자동으로 이을 수 없음을
+   *   실측으로 확인했다.** 원문은 옛 고정폭 폭에 맞춰 접혀 있는데, 그 접힘이 두 갈래다:
+   *     ⓐ낱말 **가운데**서 끊긴 것 → 붙일 때 띄어쓰기를 넣으면 안 된다(`…구명조끼. 이`+`중 20…`)
+   *     ⓑ낱말 **사이**에서 끊긴 것 → 붙일 때 띄어쓰기를 넣어야 한다(`…하기 위해 위`+`사람에게 …`)
+   *   둘을 가르려고 ①칸을 얼마나 채웠나(채움률) ②남은 여백에 다음 낱말이 들어갔겠나 를 전수
+   *   측정해 봤지만, **같은 채움률·같은 여백에서 ⓐ와 ⓑ가 함께 나온다**(`…통영항, 장`+`승포항`은
+   *   여백 3에 ⓐ, `…위해 위`+`사람에게`는 같은 여백 3에 ⓑ). 좁은 칸은 더 심해서
+   *   `1. 국가관리무역항`+`(14개)`(일부러 나눈 줄)와 `1. 안전·구`+`명설비`(접힌 줄)가 같은 값이다.
+   *   → 잘못 붙이면 **법령 원문의 낱말이 붙거나 갈라진다.** 눈에 보이는 줄바꿈보다 그쪽이 훨씬
+   *     나쁘므로 잇지 않는다. 표를 원래 모양대로 보려면 팝업의 "원본 이미지 보기"를 쓴다
+   *     (별표·별지 2,719건 중 2,679건에 원본 스캔이 있다).
    * 예: joinBylCell('1. 국가관리무역항', '(14개)') → '1. 국가관리무역항\n(14개)'
    * @param {string} a - 지금까지 이어붙인 셀 글자
    * @param {string} b - 다음 줄의 같은 칸 글자
@@ -2681,6 +2723,42 @@
     } catch (_) { /* 방어적 — 무시 */ }
   }
 
+  /** 답을 되찾는 동안 보여줄 말풍선 속. 스피너 하나와 한 줄 설명. @returns {string} */
+  function recoveringHTML() {
+    return '<div class="nrya-recover"><span class="nrya-spin" aria-hidden="true"></span>' +
+      '답변을 가져오는 중이에요… 잠시만요.</div>';
+  }
+
+  /**
+   * 연결이 끊긴 질문의 답을 **서버 보관본에서** 되찾아 온다(AI를 다시 부르지 않는다 = 비용 0).
+   * 앱이 앞으로 나와 있을 때만 물어보고, 아직 만드는 중이면 잠시 뒤 다시 묻는다.
+   * ⚠ 화면이 뒤에 있는 동안에는 묻지 않는다 — 백그라운드에서 부질없이 두드리지 않게.
+   * 예: recoverAnswer('ask_1755_ab12') → done 과 같은 모양의 응답, 끝내 못 찾으면 null
+   * @param {string} askId - 그 질문의 접수번호(doSend 가 발급해 서버로 보낸 값)
+   * @returns {Promise<object|null>}
+   * [연계] ← doSend(_neterr 경로). → GET /api/legal/answer-by-ask/:askId.
+   */
+  function recoverAnswer(askId) {
+    if (!askId) return Promise.resolve(null);
+    var tries = 0;
+    return new Promise(function (resolve) {
+      function ask() {
+        // 서버 보관 조건이 "6초 넘게 걸린 답변"이라, 그보다 빨리 끝난 질문은 보관본이 아예 없다.
+        // 그런 질문은 백그라운드로 내려갈 틈도 없었다는 뜻이라 여기서 정직하게 포기한다.
+        if (tries++ >= RECOVER_TRIES) return resolve(null);
+        if (document.hidden) return setTimeout(ask, RECOVER_EVERY_MS);   // 뒤에 있으면 그냥 기다린다
+        legalGet('/api/legal/answer-by-ask/' + encodeURIComponent(askId))
+          .then(function (r) { return r.json(); })
+          .catch(function () { return null; })
+          .then(function (d) {
+            if (d && d.ok) return resolve(d);
+            setTimeout(ask, RECOVER_EVERY_MS);
+          });
+      }
+      ask();
+    });
+  }
+
   /**
    * 채팅 입력을 서버 /api/legal/ask 로 보내고, 생각중 애니메이션 후 답변을 스트리밍으로
    * (조각조각 타이핑되듯) 렌더한다. 근거 법령 아코디언·좌표 미니지도는 스트림이 끝난
@@ -2794,6 +2872,18 @@
         var wait = hadDelta ? 0 : Math.max(0, MIN_THINK_MS - (Date.now() - startedAt));
         return new Promise(function (resolve) { setTimeout(function () { resolve(data); }, wait); });
       }).then(function (data) {
+        // ★2026-08-18(사용자 확정): 답을 기다리는 중에 앱을 백그라운드로 내리면 연결이 끊긴다.
+        //   서버는 그대로 답을 끝까지 만들어 보관하므로, 실패로 단정하지 말고 **그 보관본을 되찾아
+        //   온다**(AI 재호출 없음 = 비용 0). 되찾는 동안에는 오류 문구 대신 기다림 표시를 둔다
+        //   (사용자 원문: "자동으로 재시도… 재시도 버튼 없이. 오래 걸리면 로딩스피너").
+        if (data && data._neterr) {
+          ensureAnswerBubble();
+          bubbleEl.innerHTML = recoveringHTML();
+          body.scrollTop = body.scrollHeight;
+          return recoverAnswer(askId).then(function (got) { return got || data; });
+        }
+        return data;
+      }).then(function (data) {
         if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; }  // 6초 안에 끝남 → 배너 없음
         ensureAnswerBubble(); // done만 오고 delta가 하나도 없었던 경우(근거없음·오류) 대비
         // [H-37 §3.2 · F2] 서버가 준 ctxNext 를 다음 요청까지 들고 있는다(없으면 비운다).
@@ -2813,11 +2903,25 @@
       });
   }
 
-  // 답변 본문에서 눌러볼 인용을 찾는 표현. 네 갈래를 한 번에 훑는다.
+  // 답변 본문에서 눌러볼 인용을 찾는 표현. 다섯 갈래를 한 번에 훑는다.
   //   ①「법령명」 — 뒤따르는 조문·별표가 "어느 법인지"를 정하는 표시(글자는 그대로 둔다)
-  //   ②별표·별지 서식  ③조문(제N조[제N항][제N호])  ④문장 끝(여기서 ①의 법 맥락을 버린다)
-  // ⚠ ②를 ③보다 먼저 둔다 — `별지 제1호 서식`의 `제1호`가 조문 갈래로 먼저 걸리면 안 된다.
-  var NRYA_CITE_RE = /「([^」\n]{2,60})」|(별표\s*제?\s*\d+(?:의\s*\d+)?|별지\s*제\s*\d+\s*호(?:\s*서식)?)|(제\s*\d+\s*조(?:의\s*\d+)?(?:\s*제\s*\d+\s*항)?(?:\s*제\s*\d+\s*호(?:의\s*\d+)?)?)|([.。!?\n])/g;
+  //   ②계층 표기(`같은 법 시행령`·`시행규칙`) ③별표·별지 서식 ④조문 ⑤문장 끝(①의 맥락을 버린다)
+  // ⚠ ③을 ④보다 먼저 둔다 — `별지 제1호 서식`의 `제1호`가 조문 갈래로 먼저 걸리면 안 된다.
+  // ★②는 2026-08-18 사용자 지적으로 새로 넣었다(가장 심각했던 결함): 예전에는 이 갈래가 없어
+  //   **"시행령"이라는 말을 아예 안 읽었다.** 그래서 "「낚시 관리 및 육성법」 … 같은 법 시행령
+  //   제16조제1항"을 누르면 시행령이 아니라 **법률 제16조(낚시터업의 등록)**가 열렸다 — 링크가
+  //   안 걸리는 것(누락)보다 나쁜, **엉뚱한 원문을 여는** 오류다.
+  //   ⚠뒤에 조문·별표 표기가 **바로 따라올 때만** 계층으로 본다(lookahead) — "대통령령으로
+  //     정하는"·"시행령에서 정한다" 같은 일반 문구까지 계층 전환으로 읽으면, 그 문장 뒤쪽의
+  //     멀쩡한 조문 링크까지 엉뚱한 계층으로 끌려간다.
+  var NRYA_CITE_RE = /「([^」\n]{2,60})」|((?:같은\s*법|동\s*법)(?:\s*(?:시행령|시행규칙))?|시행령|시행규칙)(?=\s*(?:제\s*\d+\s*조|별표|별지))|(별표\s*제?\s*\d+(?:의\s*\d+)?|별지\s*제\s*\d+\s*호(?:\s*서식)?)|(제\s*\d+\s*조(?:의\s*\d+)?(?:\s*제\s*\d+\s*항)?(?:\s*제\s*\d+\s*호(?:의\s*\d+)?)?)|([.。!?\n])/g;
+
+  /** 법령명에서 계층 꼬리(`시행령`·`시행규칙`)를 떼 모법 이름만 남긴다.
+   *  예: baseLawName('낚시 관리 및 육성법 시행령') → '낚시 관리 및 육성법'
+   *  [연계] ← citeHTML(계층 전환). */
+  function baseLawName(nm) {
+    return String(nm || '').replace(/\s*(?:시행령|시행규칙)\s*$/, '').trim();
+  }
 
   /**
    * 약칭표를 서버에서 한 번만 받아 캐시한다(매 답변마다 부르지 않는다 — 계약4).
@@ -2962,12 +3066,30 @@
    */
   function citeHTML(s, idx) {
     var out = '', last = 0, cur = null, m;
+    var curName = '';    // 지금 문장에서 확정된 법령명(문장이 끝나면 버린다)
+    var lastName = '';   // 답변 전체에서 마지막으로 「」로 밝힌 법령명 — `같은 법`이 가리키는 대상
     NRYA_CITE_RE.lastIndex = 0;
     while ((m = NRYA_CITE_RE.exec(s))) {
-      if (m[1] != null) { cur = resolveCiteLaw(m[1], idx); continue; }   // ①법령명(글자는 그대로)
-      if (m[4] != null) { cur = null; continue; }                        // ④문장 끝 → 법 맥락 버림
+      if (m[1] != null) {                                                // ①법령명(글자는 그대로)
+        curName = m[1]; lastName = m[1]; cur = resolveCiteLaw(curName, idx); continue;
+      }
+      if (m[2] != null) {                                                // ②계층 표기
+        // `같은 법 …`은 **앞 문장의 법**을 명시적으로 가리키는 말이라 문장 경계를 넘어 이어받는다.
+        //   (그냥 `시행령 제N조`는 같은 문장 안에서 밝힌 법을 쓰고, 없으면 마지막 법으로 잇는다.)
+        var same = /같은\s*법|동\s*법/.test(m[2]);
+        var tierM = /시행령|시행규칙/.exec(m[2]);
+        var base = baseLawName(same ? (lastName || curName) : (curName || lastName));
+        if (!base) { cur = null; curName = ''; continue; }   // 어느 법인지 모르면 링크하지 않는다
+        var want = tierM ? (base + ' ' + tierM[0]) : base;
+        // ★못 찾으면 **링크를 포기한다**(cur = null) — 예전처럼 모법으로 남겨두면 시행령 조문을
+        //   눌렀는데 법률의 같은 번호 조문이 열린다(사용자 지적으로 드러난 실제 사고).
+        cur = resolveCiteLaw(want, idx);
+        curName = cur ? want : '';
+        continue;
+      }
+      if (m[5] != null) { cur = null; curName = ''; continue; }          // ⑤문장 끝 → 법 맥락 버림
       if (!cur) continue;                                                // 어느 법인지 모르면 링크 안 함
-      var txt = (m[2] != null) ? m[2] : m[3];
+      var txt = (m[3] != null) ? m[3] : m[4];
       var ct = cur.contact || {};
       out += esc(s.slice(last, m.index)) +
         '<span class="nrya-cite" data-law="' + esc(cur.law) + '" data-article="' + esc(txt) +
@@ -3217,9 +3339,21 @@
         (o.act ? ' data-act="' + esc(o.act) + '"' : '') +
         (o.hint ? ' title="' + esc(o.hint) + '"' : '') + '>' + esc(label) + '</button>';
     }).join('');
+    // ★2026-08-18(사용자 확정): 선택지가 전부 안 맞을 때 **직접 적을 자리**를 둔다. 실사용에서
+    //   낚시어선업 이야기를 하다 되물었더니 수산부산물·폐기물 처리업만 뜨고, 정작 맞는 업종이
+    //   없어 "잘 모르겠어요"밖에 누를 게 없었다(사용자 원문: "기타. 라고 넣고 그 아래 타이핑할
+    //   수 있는 란과 제출? 확인? 버튼이 있으면 좋겠는데?").
+    //   ⚠ 이 버튼에는 `nrya-clarify-btn` 을 붙이지 않는다 — 그 클래스를 붙이면 위임 클릭이
+    //     곧바로 선택지 전송으로 보내버려 입력란이 열리지 않는다.
+    var etc = '<div class="nrya-clarify-etc">' +
+      '<button type="button" class="nrya-consent-btn nrya-clarify-etcopen">✏️ 기타 — 직접 적을게요</button>' +
+      '<div class="nrya-clarify-etcbox">' +
+        '<input type="text" class="nrya-clarify-etcin" maxlength="60" placeholder="해당하는 내용을 적어주세요">' +
+        '<button type="button" class="nrya-consent-btn nrya-clarify-etcgo">확인</button>' +
+      '</div></div>';
     return '<div class="nrya-clarify" data-q="' + esc(q || '') + '">' +
       '<div class="nrya-clarify-q">' + esc(clarify.question) + '</div>' +
-      '<div class="nrya-consent-btns nrya-clarify-btns">' + btns + '</div></div>';
+      '<div class="nrya-consent-btns nrya-clarify-btns">' + btns + '</div>' + etc + '</div>';
   }
 
   /**
@@ -3266,6 +3400,29 @@
     //   보낸다.** 예전엔 여기서 doSend(null, …)이라 프로필로 확정한 축이 통째로 사라져 서버가 같은
     //   축을 다시 묻는 무한루프가 됐다(적대검증 재현: 프로필확인 "네" → 트리 답변의 ctx 없는 버튼).
     input.value = q ? q + ' — ' + label : label;
+    doSend(lastCtx, box, true);
+  }
+
+  /**
+   * 되묻기 카드의 "기타 — 직접 적을게요"에 쓴 내용을 **고른 선택지와 똑같은 길로** 보낸다.
+   * 즉 원래 질문 뒤에 ' — 적은 내용'을 붙이고, 직전까지 확정된 맥락(lastCtx)을 함께 실어 보낸다
+   * (pickClarifyOption 의 ctx 없는 갈래와 같은 처리 — 새 전송 경로를 만들지 않는다).
+   * 빈칸이면 아무것도 하지 않는다. 한 번 보내면 그 카드 전체가 잠긴다(중복 전송 방지).
+   * @param {HTMLElement} wrap - `.nrya-clarify-etc`
+   * [연계] ← bindChat 위임(클릭·엔터). → doSend(hideMe=true — 누적 문장을 다시 띄우지 않는다).
+   */
+  function sendClarifyEtc(wrap) {
+    if (!wrap) return;
+    var box = wrap.closest('.nrya-clarify');
+    if (!box || box.classList.contains('nrya-done')) return;
+    var inp = wrap.querySelector('.nrya-clarify-etcin');
+    var typed = inp ? String(inp.value || '').trim() : '';
+    if (!typed) { if (inp) inp.focus(); return; }
+    var input = document.getElementById('nryaChatInput'); if (!input) return;
+    box.classList.add('nrya-done');
+    wrap.classList.add('nrya-picked');          // 무엇을 적어 보냈는지 카드에 남는다
+    var q = box.getAttribute('data-q') || '';
+    input.value = q ? q + ' — ' + typed : typed;
     doSend(lastCtx, box, true);
   }
 
@@ -3469,10 +3626,39 @@
   function renderRestoredAnswer(data) {
     var body = document.getElementById('nryaChatBody'); if (!body) return;
     var me = document.createElement('div'); me.className = 'nrya-krow nrya-me';
-    me.innerHTML = '<div class="nrya-kbrow"><div class="nrya-kbub"></div></div>';
-    me.querySelector('.nrya-kbub').textContent = data.query || '';
+    // ⚠말풍선과 칩을 세로로 쌓으려면 한 칸 더 감싸야 한다 — .nrya-kbrow 는 가로 flex 라
+    //   여기에 바로 붙이면 칩이 말풍선 **옆**으로 간다.
+    me.innerHTML = '<div class="nrya-kbrow"><div class="nrya-mecol"><div class="nrya-kbub"></div></div></div>';
+    var q = splitAskedQuery(data.query || '');
+    me.querySelector('.nrya-kbub').textContent = q.question;
+    // 되묻기로 고른 조건은 **작은 칩**으로 따로 붙인다(2026-08-18 사용자 지적). 실시간 화면에서는
+    //   선택지 카드가 그 자리에 남아 "무엇 중 무엇을 골랐는지"를 보여주지만, 복원 화면에는 그
+    //   카드가 없어 누적 문자열(`원질문 — 라벨1 — 라벨2`)이 통째로 말풍선에 찍혔다.
+    if (q.picks.length) {
+      var chips = document.createElement('div'); chips.className = 'nrya-mepicks';
+      q.picks.forEach(function (t) {
+        var c = document.createElement('span'); c.className = 'nrya-mepick'; c.textContent = t;
+        chips.appendChild(c);
+      });
+      me.querySelector('.nrya-mecol').appendChild(chips);
+    }
     body.appendChild(me);
     appendAiRow(answerHTML(data.query || '', data));
+  }
+
+  /**
+   * 저장된 질문 문자열을 **원래 질문**과 **되묻기로 고른 라벨들**로 가른다.
+   * 되묻기 선택지를 누르면 질의가 `원질문 — 라벨1 — 라벨2`로 누적되는데(서버가 라운드 수를 세는
+   * 근거라 이 형식 자체는 바꾸지 않는다), 화면에는 그대로 찍으면 안 된다.
+   * 예: splitAskedQuery('낚시어선업 절차 — 10톤 미만 — 네, 등록했습니다')
+   *     → {question:'낚시어선업 절차', picks:['10톤 미만','네, 등록했습니다']}
+   * @param {string} raw - 저장된 질의 문자열
+   * @returns {{question:string, picks:string[]}}
+   * [연계] ← renderRestoredAnswer · histQuestionLabel. 결합자는 pickClarifyOption 이 붙이는 ' — '.
+   */
+  function splitAskedQuery(raw) {
+    var parts = String(raw || '').split(' — ');
+    return { question: (parts.shift() || '').trim(), picks: parts.map(function (t) { return t.trim(); }).filter(Boolean) };
   }
 
   /**
