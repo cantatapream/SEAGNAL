@@ -31,6 +31,7 @@ const ROUTES_SRC = fs.readFileSync(path.join(SRV, 'routes', 'legal.js'), 'utf8')
 const RET_SRC = fs.readFileSync(RET_PATH, 'utf8');
 const CLIENT_SRC = fs.readFileSync(path.join(SRV, '..', 'client', 'js', 'ai-chat', 'ai_chat.js'), 'utf8');
 const CSS_SRC = fs.readFileSync(path.join(SRV, '..', 'client', 'css', 'ai_chat.css'), 'utf8');
+const PENDING_SRC = fs.readFileSync(path.join(SRV, 'services', 'pending_answers.js'), 'utf8');
 const VESSEL = JSON.parse(fs.readFileSync(path.join(SRV, 'knowledge', 'legal', '_dashboard', 'vessel_doc_tree.json'), 'utf8'));
 const H37_SRC = RET_SRC.slice(RET_SRC.indexOf('H-37 §4·5·7'));   // 신규 절만 본 검사용
 // 주석을 걷어낸 소스 — "이 문구가 **화면으로 나가는 값**에서 사라졌는가"를 볼 때 쓴다.
@@ -134,8 +135,12 @@ console.log('\n[T6][#7] 기록 복원 답변 — clarify 가 없어 버튼이 �
 // ── T7 [#8]. R1 — ctx·profile 은 로그·임시보관 어디에도 안 쓴다 ─────────────────
 console.log('\n[T7][#8] R1 — 프로필이 서버 파일에 남지 않는다');
 {
-  ok('pendingAnswers.store 인자에 ctx·profile 없음',
-    /pendingAnswers\.store\(q, answer, sourcesOut, note, citationChain, forms, citeLaws\)/.test(ROUTES_SRC));
+  // 2026-08-18: 인자에 `ctx.topic`(위키 주제 한 낱말)과 `askId`(앱이 만든 접수번호)가 늘었다.
+  //   둘 다 사용자 정보가 아니다. **ctx 전체·profile 은 여전히 안 넘긴다**는 것이 이 자물쇠의 뜻이다.
+  ok('pendingAnswers.store 인자에 ctx 전체·profile 없음',
+    /pendingAnswers\.store\(q, answer, sourcesOut, note, citationChain, forms, citeLaws,\n\s*ctx\.topic, askId\)/.test(ROUTES_SRC));
+  ok('★보관 파일에 맥락 전체를 쓰지 않는다(R1)',
+    /topic: String\(topic \|\| ''\)\.slice\(0, 60\)/.test(PENDING_SRC) && !/ctxNext:/.test(PENDING_SRC));
   ok('새 지식 후보 로그도 질의·원문만 넘긴다', /logKnowledgeCandidate\(q, raw\)/.test(ROUTES_SRC));
   ok('신규 절이 파일을 쓰지 않는다(읽기 전용)', !/writeFile|appendFile/.test(H37_CODE));
   ok('신규 절이 콘솔로도 안 흘린다', !/console\.(log|error|warn)/.test(H37_CODE));
@@ -656,7 +661,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('스위치 off 면 재진술을 하류로 안 넘긴다(§9.1 #10)',
       /const ucRestate = cfg\.understandConfirm \? \(ctx\.uc\.restate \|\| ''\) : '';/.test(ROUTES_CODE));
     ok('검색에 넘긴다', /searchOpts\.restate = ucRestate;/.test(ROUTES_CODE));
-    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion(?:, ctx\.cl)?\)/.test(ROUTES_CODE));
+    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion(?:, ctx\.cl)?(?:, ctx\.topic)?\)/.test(ROUTES_CODE));
     ok('질의 문자열에는 어디서도 안 합친다(R2)',
       !/q \+[^\n]*restate/i.test(ROUTES_CODE) && !/restate[^\n]*\+ q\b/i.test(ROUTES_CODE));
     // (8) 설계문서와 코드가 어긋나지 않는다(T24·T25와 같은 대조)
@@ -989,6 +994,69 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       /data-tel="' \+ esc\(ct\.전화번호 \|\| ''\)/.test(CLIENT_SRC));
     ok('폴백 경로(citeLaws)에도 연락처를 실어 보낸다',
       /contact: legalRetriever\.lookupContact\(c\.law\) \|\| null/.test(ROUTES_SRC));
+  }
+
+  // ── 실사용 지적 2차 8건 (2026-08-18 저녁, 사용자 스크린샷) ────────────────────────────
+  {
+    // ① 백그라운드로 끊긴 답을 **AI 재호출 없이** 서버 보관본에서 되찾는다(사용자 확정:
+    //    "나갔다 온 경우 자동으로 재시도… 재시도 버튼 없이. 오래 걸리면 로딩스피너").
+    ok('★연결이 끊기면 보관본을 되찾는다(재시도 버튼 없음)',
+      /return recoverAnswer\(askId\)/.test(CLIENT_SRC) && !/다시 시도하기<\/button>/.test(CLIENT_SRC));
+    ok('되찾는 동안 스피너를 보여준다', /nrya-recover[\s\S]{0,120}nrya-spin/.test(CLIENT_SRC));
+    ok('화면이 뒤에 있는 동안에는 서버를 두드리지 않는다',
+      /if \(document\.hidden\) return setTimeout\(ask, RECOVER_EVERY_MS\)/.test(CLIENT_SRC));
+    ok('서버가 접수번호로 되찾아가는 조회구를 연다',
+      /answer-by-ask\/:askId/.test(ROUTES_SRC) && /pendingAnswers\.peekByAsk/.test(ROUTES_SRC));
+    ok('되찾기 조회는 보관본을 지우지 않는다(푸시로도 열 수 있어야 한다)',
+      /retrieve\(\) 와 달리 \*\*삭제하지 않는다\*\*/.test(PENDING_SRC));
+    ok('보관은 넓히고 푸시는 그대로 — 동의 없이 알림이 가지 않는다',
+      /if \(answer && slow\) \{/.test(ROUTES_SRC) &&
+      /if \(\(notifyOnComplete \|\| askedMidway\) && deviceId\) \{/.test(ROUTES_SRC));
+
+    // ②·③ 계층 표기 — 동작 검증은 test_chat_render.js 가 실제로 돌려서 한다(여기선 배선만).
+    ok('★답변 본문의 계층 표기(같은 법 시행령)를 읽는 갈래가 있다',
+      /같은\\s\*법\|동\\s\*법\)\(\?:\\s\*\(\?:시행령\|시행규칙\)\)\?/.test(CLIENT_SRC));
+    ok('★못 찾은 계층은 모법으로 대신 열지 않는다',
+      /cur = resolveCiteLaw\(want, idx\);/.test(CLIENT_SRC));
+    ok('★답변이 가리키는 말 대신 정식 법령명을 매번 쓰게 한다',
+      /"같은 법"·"동법"·"같은 조"·"이 법" 같은 가리키는 말은 쓰지 마라/.test(RET_SRC));
+
+    // ④ 나열한 요건마다 근거를 붙이게 한다
+    ok('★요건을 번호로 나열할 때 항목마다 근거를 적게 한다',
+      /요건·서류·절차·기준을 번호로 나열할 때는 항목마다 그 근거를 붙인다/.test(RET_SRC));
+
+    // ⑤ 맥락(ctxNext)이 복원 경로에서도 살아남는다
+    ok('★서버 보관본에 주제를 함께 담는다(맥락 전체는 안 담는다 — R1)',
+      /ctx\.topic, askId\)/.test(ROUTES_SRC) &&
+      /out\.ctxNext = \{ topic: entry\.topic \}/.test(ROUTES_SRC));
+    ok('★기기 기록에도 대화 맥락을 함께 담는다',
+      /ctxNext: \(data && data\.ctxNext\) \|\| null,/.test(CLIENT_SRC) &&
+      /ctxNext: hit\.ctxNext \|\| null,/.test(CLIENT_SRC));
+    ok('주제가 같은 위키 쪽을 앞으로 끌어올린다(확장어만으로는 약했다)',
+      /x\.s \+= TOPIC_BONUS/.test(RET_SRC));
+    ok('★되묻기 판단에도 주제를 넘긴다(예전엔 아예 안 넘겼다)',
+      /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx\.cl, ctx\.topic\)/.test(ROUTES_SRC) &&
+      /\[이어서 묻는 주제\]/.test(RET_SRC));
+
+    // ⑥ 복원 화면의 내 말풍선 — 누적 문자열을 그대로 찍지 않는다
+    ok('★복원 화면은 원래 질문만 말풍선에 넣고 고른 조건은 칩으로 뺀다',
+      /var q = splitAskedQuery\(data\.query \|\| ''\);/.test(CLIENT_SRC) &&
+      /nrya-mepick/.test(CLIENT_SRC));
+    ok('기록 목록 제목도 원래 질문만 보여준다',
+      /splitAskedQuery\(e\.q\)\.question/.test(CLIENT_SRC));
+
+    // ⑦ 선택지가 전부 안 맞을 때 직접 적을 자리
+    ok('★"기타 — 직접 적을게요"와 입력란·확인 버튼이 있다',
+      /nrya-clarify-etcopen/.test(CLIENT_SRC) && /nrya-clarify-etcin/.test(CLIENT_SRC) &&
+      /nrya-clarify-etcgo/.test(CLIENT_SRC));
+    ok('직접 적은 내용은 고른 선택지와 같은 길로 보낸다',
+      /input\.value = q \? q \+ ' — ' \+ typed : typed;\n    doSend\(lastCtx, box, true\);/.test(CLIENT_SRC));
+    ok('기타 버튼에 선택지 클래스를 붙이지 않는다(붙이면 입력란이 안 열린다)',
+      !/nrya-clarify-btn nrya-clarify-etcopen/.test(CLIENT_SRC));
+
+    // ⑧ 별표 칸 줄 잇기는 **하지 않기로** 확정했다(가를 수 없음을 실측)
+    ok('★별표 칸의 원문 줄바꿈을 함부로 잇지 않는다',
+      /function joinBylCell\(a, b\) \{\n    return \(a && b\) \? a \+ '\\n' \+ b : \(a \|\| b\);/.test(CLIENT_SRC));
   }
 
   // ── 조문·별표 팝업 실사용 지적 4건 (2026-08-18 오후, 사용자 스크린샷) ──────────────────

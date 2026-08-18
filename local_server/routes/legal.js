@@ -701,9 +701,30 @@ router.get('/api/legal/pending-answer/:requestId', (req, res) => {
   try {
     const entry = pendingAnswers.retrieve(String(req.params.requestId || ''));
     if (!entry) return res.json({ ok: false });
-    res.json({ ok: true, query: entry.query, answer: entry.answer, sources: entry.sources,
+    const out = { ok: true, query: entry.query, answer: entry.answer, sources: entry.sources,
       citationChain: entry.citationChain || [], forms: entry.forms || [],
-      citeLaws: entry.citeLaws || [], note: entry.note });
+      citeLaws: entry.citeLaws || [], note: entry.note };
+    // 주제는 있을 때만 싣는다(예전 보관분에는 없다 — 그때는 오늘까지의 응답과 바이트 동일).
+    if (entry.topic) out.ctxNext = { topic: entry.topic };
+    res.json(out);
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/answer-by-ask/:askId — 답을 기다리다 연결이 끊긴 앱이 **그 답을 되찾아 가는** 곳.
+//   ★2026-08-18(사용자 지적): 앱을 백그라운드로 내리면 진행 중이던 연결이 끊긴다. 서버는 그대로
+//   답을 끝까지 만들어 보관하므로, 앱이 다시 앞으로 나왔을 때 여기로 물어보면 **AI를 다시 부르지
+//   않고**(비용 0) 화면을 되살릴 수 있다. 아직 만드는 중이면 {ok:false} — 앱이 잠시 뒤 다시 묻는다.
+//   ⚠ requestId 쪽(완료 푸시 딥링크)과 달리 **조회해도 지우지 않는다** — 같은 답변을 푸시로도
+//     열 수 있어야 한다. askId 는 앱이 그 질문을 보낼 때 만든 값이라 남이 알 수 없다.
+router.get('/api/legal/answer-by-ask/:askId', (req, res) => {
+  try {
+    const entry = pendingAnswers.peekByAsk(String(req.params.askId || ''));
+    if (!entry) return res.json({ ok: false });
+    const out = { ok: true, query: entry.query, answer: entry.answer, sources: entry.sources,
+      citationChain: entry.citationChain || [], forms: entry.forms || [],
+      citeLaws: entry.citeLaws || [], note: entry.note };
+    if (entry.topic) out.ctxNext = { topic: entry.topic };
+    res.json(out);
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -1186,7 +1207,7 @@ router.post('/api/legal/ask', async (req, res) => {
 
     // [B6] 직전 라운드의 되묻기(ctx.cl)를 함께 넘긴다 — 모델이 표현만 바꿔 같은 걸 다시 물으면
     //   (라벨 완전일치 대조로는 안 잡힌다) 결정론적으로 버린다. ctx.cl 이 없으면 오늘과 동일(R0).
-    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx.cl);
+    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx.cl, ctx.topic);
 
     // ③ [H-37 §7.4] 프로필 확인 — 이 되묻기가 묻는 축을 프로필이 이미 알고 있으면 되묻는 대신
     //    "저장된 정보로 답할까요?"를 **그 축에 대해서만** 확인한다(축 단위, 사용자 확정 (자)).
@@ -1385,9 +1406,22 @@ router.post('/api/legal/ask', async (req, res) => {
     //   자체 try 로 감싼다 — 여기서 던지면 바깥 catch 가 이미 끝난 응답에 또 쓰려다 죽는다.
     try {
       const askedMidway = askId && inFlightAsks.has(askId) && inFlightAsks.get(askId).wantsPush;
-      if (answer && (notifyOnComplete || askedMidway) && deviceId && (Date.now() - startedAt) > NOTIFY_MIN_ELAPSED_MS) {
-        const requestId = pendingAnswers.store(q, answer, sourcesOut, note, citationChain, forms, citeLaws);
-        sendAiAnswerPush(deviceId, requestId).catch(e => console.error('[Legal] 답변완료 푸시 실패:', e && e.message));
+      const slow = (Date.now() - startedAt) > NOTIFY_MIN_ELAPSED_MS;
+      // ★2026-08-18(사용자 지적): **보관 조건과 푸시 조건을 갈랐다.**
+      //   보관은 오래 걸린 답변이면 무조건 한다 — 답을 기다리는 중에 앱을 백그라운드로 내리면
+      //   연결이 끊겨 앱이 답을 못 받는데, 서버는 이미 다 만들어 놨다. 앱이 다시 앞으로 나왔을 때
+      //   이 보관본을 그대로 가져가면 **AI를 다시 부르지 않고** 화면을 되살릴 수 있다(비용 0).
+      //   푸시는 예전 그대로 **알림에 동의한 기기에만** 보낸다(동의 없이 알림이 가지 않는다).
+      //   ⚠ **주제 한 낱말만** 함께 보관한다 — 안 담으면 되찾아온 답변에서만 "🔁 관련해서 더
+      //     궁금해요"가 빈손이 되어 이어 물으면 무관한 법이 나온다(사용자 재현). 다만 맥락(ctx)
+      //     **전체**는 담지 않는다: 거기엔 프로필로 확정한 축과 사용자가 고른 조건이 들어 있고,
+      //     서버는 그것을 어떤 파일에도 쓰지 않는다(설계 §3.3 R1). 나머지 축은 기기 안 기록이 든다.
+      if (answer && slow) {
+        const requestId = pendingAnswers.store(q, answer, sourcesOut, note, citationChain, forms, citeLaws,
+          ctx.topic, askId);
+        if ((notifyOnComplete || askedMidway) && deviceId) {
+          sendAiAnswerPush(deviceId, requestId).catch(e => console.error('[Legal] 답변완료 푸시 실패:', e && e.message));
+        }
       }
     } catch (e) { console.error('[Legal] 답변완료 푸시 준비 실패:', e && e.message); }
     if (askId) inFlightAsks.delete(askId);
