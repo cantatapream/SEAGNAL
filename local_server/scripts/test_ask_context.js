@@ -735,7 +735,10 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     // (3) 되묻기 상한 10(사용자 확정) — 같은 조건 재질문 차단이 실질 방어선이 된다
     ok('되묻기 상한이 10이다', /const CLARIFY_MAX_ROUNDS = 10;/.test(RET_SRC));
     ok('질문 문장·선택지 집합이 같으면 차단한다(표현만 바꾼 재질문)',
-      /function sameClarifyAsLast\(/.test(RET_SRC) && /sameClarifyAsLast\(question, options, prevClarify\)/.test(RET_SRC));
+      /function sameClarifyAsLast\(/.test(RET_SRC) && /sameClarifyAsLast\(question, options, prevClarify, chosenLabel\)/.test(RET_SRC));
+    // ★고른 값을 함께 넘겨야 ⓓ(고르지 않은 갈래 재출현) 검사가 돈다 — 안 넘기면 그 검사가 통째로 죽는다.
+    ok('사용자가 고른 값을 질의 끝에서 떼어 함께 넘긴다',
+      /const chosenLabel = String\(query \|\| ''\)\.split\(CLARIFY_JOINER\)\.pop\(\)\.trim\(\);/.test(RET_SRC));
 
     // (4) R16 — 말풍선만 숨기고 **서버로 가는 누적 문자열은 그대로 유지**(이게 깨지면 되묻기가 무한루프)
     ok('버튼 선택은 종전대로 질의에 누적된다', /input\.value = q \? q \+ ' — ' \+ label : label;/.test(CLIENT_SRC));
@@ -843,7 +846,26 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       ok('대답투여도 직전과 다른 축이면 그대로 진행한다',
         R.sameClarifyAsLast('전문교육을 이수하셨나요?',
           [{ label: '네, 이수했습니다.' }, { label: '아니요, 아직입니다.' }], prevB) === false);
-    }
+
+
+    // ★ⓓ 고르지 않은 갈래를 그대로 다시 내미는 재질문(2026-08-18 라이브 실측 — 4회를 물어도 답에 못 갔다)
+    {
+      const prevPick = { q: '어떤 방식으로 참조기를 포획하시나요?',
+        labels: ['근해자망어업 중 유자망', '그 외의 방식', '잘 모르겠어요'] };
+      const againPick = [{ label: '근해자망어업 중 유자망' }, { label: '그 외의 어업' },
+        { label: '잘 모르겠어요', act: 'unknown' }];
+      ok('고르지 않은 갈래가 그대로 다시 나오면 같은 축으로 본다',
+        R.sameClarifyAsLast('어떤 어업에 대해 금어기를 알려드릴까요?', againPick, prevPick, '그 외의 방식') === true);
+      ok('고른 값을 모르면 이 검사는 하지 않는다(추측하지 않는다)',
+        R.sameClarifyAsLast('어떤 어업에 대해 금어기를 알려드릴까요?', againPick, prevPick, '') === false);
+      ok('직전 갈래가 다시 안 나오는 정상적인 좁히기는 통과한다',
+        R.sameClarifyAsLast('어느 해역에서 조업하시나요?',
+          [{ label: '서해' }, { label: '남해' }, { label: '잘 모르겠어요', act: 'unknown' }],
+          prevPick, '그 외의 방식') === false);
+      ok('고른 갈래 자신이 다시 나오는 것만으로는 차단하지 않는다',
+        R.sameClarifyAsLast('그 외의 방식 중 어떤 어업인가요?',
+          [{ label: '그 외의 방식' }, { label: '정치망어업' }], prevPick, '그 외의 방식') === false);
+    }    }
 
     // (8) 계약2·3 — 라우트는 조문 표기를 깎지 않고, 응답도 통째로 통과시킨다
     ok('약칭표 엔드포인트가 있다', /router\.get\('\/api\/legal\/aliases'/.test(ROUTES_SRC));

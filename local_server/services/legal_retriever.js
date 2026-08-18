@@ -1014,10 +1014,11 @@ function stripFraming(s) {
  * @param {string} question - 이번 라운드 질문
  * @param {Array<{label:string}>} options - 이번 라운드 선택지
  * @param {{q:string, labels:string[]}} prev - 직전 라운드(ctx.cl). 없으면 false
+ * @param {string} [chosen] - 사용자가 직전 라운드에서 고른 라벨(질의 끝에 붙은 값)
  * @returns {boolean}
  * [연계] ← decideClarify. ← routes/legal.js 가 ctx.cl 로 넘긴다.
  */
-function sameClarifyAsLast(question, options, prev) {
+function sameClarifyAsLast(question, options, prev, chosen) {
   if (!prev || !prev.q) return false;
   if (clarifyKey(question) && clarifyKey(question) === clarifyKey(prev.q)) return true;
   const now = (options || []).map(o => clarifyKey(o && o.label)).filter(Boolean).sort();
@@ -1037,8 +1038,30 @@ function sameClarifyAsLast(question, options, prev) {
   //     서술형 → 대답형으로 말투만 바꾼 재질문이 그대로 통과한다(위 함수 주석의 실측 사례).
   const real = (options || []).filter(o => o && o.act !== 'unknown').map(o => clarifyKey(stripFraming(o.label))).filter(Boolean);
   const prevKeys = (prev.labels || []).map(l => clarifyKey(stripFraming(l))).filter(k => k && k.length >= 3);
-  if (real.length < 2 || !prevKeys.length) return false;
-  return real.every(k => prevKeys.some(p => (k.length >= 3 && (k.includes(p) || p.includes(k)))));
+  if (real.length >= 2 && prevKeys.length
+    && real.every(k => prevKeys.some(p => (k.length >= 3 && (k.includes(p) || p.includes(k)))))) return true;
+  // ★ⓓ **사용자가 이미 고르지 않은 갈래를 그대로 다시 내미는 경우**(2026-08-18 라이브 실측).
+  //   위 ⓒ는 이번 선택지가 **하나도 빠짐없이** 직전 것과 겹쳐야 걸리는데, 한 낱말만 바뀌면 뚫린다 —
+  //     1라운드 "어떤 방식으로 참조기를 포획하시나요?" [근해자망어업 중 유자망 / 그 외의 방식]
+  //     → 사용자가 `그 외의 방식` 선택
+  //     2라운드 "어떤 어업에 대해 금어기를 알려드릴까요?" [근해자망어업 중 유자망 / 그 외의 어업]
+  //   `그외의방식` 과 `그외의어업` 은 서로 품지 않아 ⓒ가 false 를 낸다(실측). 그래서 4회를 물어도
+  //   답에 못 갔다.
+  //   판정 기준은 유사도가 아니라 **글자 그대로**다: 사용자가 **고르지 않은** 직전 라벨이 이번
+  //   선택지에 그대로 다시 나오면, 사용자가 이미 지나간 갈림을 다시 내미는 것이다.
+  //   ⚠유사도·부분일치를 새로 들이지 않는다 — 그건 정상적인 좁히기를 죽인다(위 주석의 실측 이력).
+  //   ⚠고른 라벨을 모르면(질의에 안 붙어 있으면) 이 검사는 하지 않는다.
+  const pick = clarifyKey(stripFraming(chosen));
+  if (pick) {
+    const notChosen = (prev.labels || [])
+      .filter(l => l && !/^(잘\s*모르겠어요)$/.test(String(l).trim()))
+      .map(l => clarifyKey(stripFraming(l)))
+      .filter(k => k && k.length >= 3 && k !== pick);
+    const nowExact = (options || []).filter(o => o && o.act !== 'unknown')
+      .map(o => clarifyKey(stripFraming(o && o.label))).filter(Boolean);
+    if (notChosen.some(k => nowExact.includes(k))) return true;
+  }
+  return false;
 }
 
 // ── "잘 모르겠어요" 선택지(B7, 계약5) ──────────────────────────────────────
@@ -1245,7 +1268,9 @@ ${block}
     // ★(2026-08-17) 표현만 바꾼 재질문 차단(B6) — 위 라벨 완전일치 대조는 "사용자가 고른 값이
     //   질의에 붙어 있는가"만 보므로, 모델이 같은 갈래를 다른 말로 다시 물으면 못 막는다. 직전
     //   라운드의 질문·선택지 집합과 대조해 사실상 같으면 되묻기를 버리고 답변으로 넘어간다.
-    if (sameClarifyAsLast(question, options, prevClarify)) return CLARIFY_NONE;
+    // 사용자가 직전 라운드에서 고른 값은 질의 끝에 ' — 라벨' 로 붙어 온다(ai_chat.js pickClarifyOption).
+    const chosenLabel = String(query || '').split(CLARIFY_JOINER).pop().trim();
+    if (sameClarifyAsLast(question, options, prevClarify, chosenLabel)) return CLARIFY_NONE;
     // ★(2026-08-17 사용자 확정) 되묻기를 낼 때는 **항상** 맨 끝에 "잘 모르겠어요"를 붙인다(B7).
     return { needed: true, intro: clarifyStr(obj.intro, 200), question, options: withUnknownOption(question, options, 0) };
   } catch (_) {
