@@ -1,0 +1,97 @@
+/**
+ * test_citation_chain.js — 근거 목록(citationChain)이 고시·지침·조례를 잃지 않는가.
+ *
+ * [왜 있나] 2026-08-18 라이브 검증(감사관이 full로 채점한 논점을 실제 챗봇에 되물어 대조)에서
+ * 58법 중 30법이 불일치였고, 그 중 13건이 **"답변 본문은 맞는데 근거 목록에는 그 고시가 없다"**는
+ * 같은 모양이었다. 원인은 두 가지였다.
+ *   D1. 법령 칸에 붙은 괄호 주석 — 위키는 `서해 5도 해상운송비 지원 지침(고시)` 처럼 출처를 밝히려고
+ *       괄호를 덧붙이는데, 답변은 「서해 5도 해상운송비 지원 지침」 이라고만 쓴다. 칸 문자열을 통째로
+ *       찾던 대조는 이런 행(전 위키 288행)을 한 줄도 통과시키지 못했다.
+ *   D2. 조문 칸이 `전체`인 행(전 위키 57행) — 짚을 조문 토큰이 없어 대조에서 늘 탈락했다.
+ *
+ * [무엇을 고정하나] ①괄호 주석이 붙은 고시 행이 살아남는다 ②`전체` 행이 답변의 근접 인용으로 살아난다
+ * ③그렇다고 느슨해지지 않는다 — 이름만 스치면 통과하지 않고, 갈래 이름(`행정규칙`·`고시`)은 후보가 안 된다.
+ *
+ * [연계] ← scripts/refactor/verify_all.sh SUITES. → services/legal_retriever.js
+ *        lawCellVariants·citationNearLawName·filterCitationChainByAnswer.
+ */
+const fs = require('fs');
+const path = require('path');
+const R = require('../services/legal_retriever.js');
+
+const WIKI = path.join(__dirname, '..', 'knowledge', 'legal', 'wiki', 'concepts');
+
+let pass = 0, fail = 0;
+function ok(name, cond, detail) {
+  if (cond) { pass++; console.log('  ✅ ' + name); }
+  else { fail++; console.log('  ❌ ' + name + (detail ? ' — ' + detail : '')); }
+}
+function keptFor(page, answer, baseLaw) {
+  const body = fs.readFileSync(path.join(WIKI, page + '.md'), 'utf8');
+  return R.filterCitationChainByAnswer(R.extractCitationChain(body), answer, baseLaw);
+}
+const hasLaw = (rows, needle) => rows.some(r => String(r.law || '').includes(needle));
+
+console.log('── D1 법령 칸의 괄호 주석 ──');
+
+ok('괄호 주석을 뗀 이름을 후보로 만든다',
+  R.lawCellVariants('서해 5도 해상운송비 지원 지침(고시)').includes('서해 5도 해상운송비 지원 지침'));
+ok('`고시(<이름>)` 꼴은 괄호 **안**이 이름이다',
+  R.lawCellVariants('고시(연안정비 시설물 사후관리 및 효과평가 시행지침)')
+    .includes('연안정비 시설물 사후관리 및 효과평가 시행지침'));
+ok('원문 칸은 언제나 첫 후보로 남는다(지금까지 통과하던 줄을 안 떨어뜨린다)',
+  R.lawCellVariants('해운법')[0] === '해운법');
+ok('갈래 이름만 남는 후보는 만들지 않는다(`행정규칙(고시)` → 후보 1개)',
+  R.lawCellVariants('행정규칙(고시)').length === 1,
+  JSON.stringify(R.lawCellVariants('행정규칙(고시)')));
+ok('갈래 이름을 감싼 진짜 이름은 살린다(`운영규칙(선박교통관제 운영규칙)`)',
+  R.lawCellVariants('운영규칙(선박교통관제 운영규칙)').includes('선박교통관제 운영규칙'));
+
+{
+  const answer = '쉽게 말하면, 교부결정 통지서는 옹진군수가 발급하는 서식입니다. '
+    + '「서해 5도 해상운송비 지원 지침」 제5조제4항에 따라 옹진군수가 별지 제3호서식으로 통지합니다.';
+  const rows = keptFor('서해5도지원특별법__생활필수품해상운송비지원', answer, '서해 5도 지원 특별법');
+  ok('실제 위키: 「…지원 지침(고시)」 행이 근거 목록에 남는다', hasLaw(rows, '해상운송비 지원 지침'),
+    rows.map(r => r.law).join(' / ') || '한 줄도 안 남음');
+  const g = rows.find(r => String(r.law).includes('해상운송비 지원 지침'));
+  ok('그 행이 답변이 실제로 인용한 조문을 가리킨다', !!g && g.citedArticle === '제5조제4항',
+    g ? String(g.citedArticle) : '-');
+}
+
+console.log('── D2 조문 칸이 `전체`인 행 ──');
+
+{
+  const answer = '쉽게 말하면, 수중조사는 네 경우에 실시합니다. '
+    + '「연안정비 시설물 사후관리 및 효과평가 시행지침」 별표5에 따라 하자보수기간 완료 전 또는 10년마다 실시합니다. '
+    + '이는 「연안관리법」 제29조의 사후관리 의무에 따른 것입니다.';
+  const rows = keptFor('연안관리법__연안정비시설물사후관리', answer, '연안관리법');
+  const g = rows.find(r => String(r.law).includes('시행지침'));
+  ok('실제 위키: 조문 칸이 `전체`인 고시 행이 살아난다', !!g,
+    rows.map(r => r.law).join(' / ') || '한 줄도 안 남음');
+  ok('그 행이 답변의 근접 인용(별표5)을 가리킨다', !!g && g.citedArticle === '별표5',
+    g ? String(g.citedArticle) : '-');
+  ok('모법 행도 그대로 남는다(기존 동작 유지)', hasLaw(rows, '연안관리법'));
+}
+
+{
+  // 이름만 스쳐 지나가고 조문이 붙어 나오지 않으면 통과시키지 않는다.
+  const answer = '「연안정비 시설물 사후관리 및 효과평가 시행지침」이 따로 있으나 여기서는 다루지 않습니다. '
+    + '수중조사 여부는 「연안관리법」 제29조로 판단합니다.';
+  const rows = keptFor('연안관리법__연안정비시설물사후관리', answer, '연안관리법');
+  ok('이름만 언급되고 조문이 안 붙으면 `전체` 행은 통과하지 않는다',
+    !rows.some(r => String(r.law).includes('시행지침')),
+    rows.map(r => r.law).join(' / '));
+}
+
+console.log('── 근접성 대조 자체 ──');
+ok('이름 바로 뒤 별표를 잡는다',
+  R.citationNearLawName('「어떤 지침」 별표5에 따르면', ['어떤 지침']) === '별표5');
+ok('이름 바로 뒤 조·항·호를 잡는다',
+  R.citationNearLawName('「어떤 지침」 제5조제4항에 따라', ['어떤 지침']) === '제5조제4항');
+ok('이름과 조문이 멀리 떨어져 있으면 잡지 않는다',
+  R.citationNearLawName('「어떤 지침」은 참고자료일 뿐이고 실제 판단은 다른 자료의 제5조로 한다', ['어떤 지침']) === '');
+ok('이름이 아예 없으면 잡지 않는다',
+  R.citationNearLawName('제5조에 따라', ['어떤 지침']) === '');
+
+console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
+process.exit(fail ? 1 : 0);
