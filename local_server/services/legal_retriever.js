@@ -647,19 +647,54 @@ function lookupContact(lawName) {
  * 함께 매긴다. 메타로 안 걸려도 본문에 실제로 있으면 잡히도록 항상 본문까지 본다 — 그래야
  * "무허가로 조업하면" 같은 질문이 topic 필드엔 없지만 본문 '위반 시 처벌' 표에만 있는 페이지도 찾는다.
  */
-function scoreOne(p, terms) {
+function scoreOne(p, terms, weights) {
+  const w = t => (weights && weights.get(t)) || 1;
   const hay = (p.law || '') + ' ' + (p.topic || '') + ' ' + (p.file || '') + ' ' + (p.themes || []).join(' ');
   let s = 0;
-  for (const t of terms) if (hay.includes(t)) s += (p.law && p.law.includes(t)) ? 2 : 1;
+  for (const t of terms) if (hay.includes(t)) s += ((p.law && p.law.includes(t)) ? 2 : 1) * w(t);
   const page = readPage(p.kind, p.file);
   if (page) {
     const title = p.topic || p.law || '';
     for (const t of terms) {
-      if (title.includes(t)) s += 3;
-      else if (page.body.includes(t)) s += 2;
+      if (title.includes(t)) s += 3 * w(t);
+      else if (page.body.includes(t)) s += 2 * w(t);
     }
   }
   return s;
+}
+
+/**
+ * 검색어마다 **흔한 정도에 따른 무게**를 매긴다(흔할수록 가볍게).
+ * ★왜(2026-08-18 라이브 검증 B유형, 오프라인 재현): 지금까지는 모든 낱말이 같은 무게였다.
+ *   그래서 질문이 길어질수록 `신고`·`기준`·`정확히` 같은 **흔한 말이 점수를 지배**해, 그 말들을
+ *   두루 가진 엉뚱한 법이 정작 핵심어를 가진 법을 밀어냈다. 실측 —
+ *     "양식장 휴업 과태료"                                        → 양식산업발전법 2위
+ *     "양식장 무단 휴업 신고 안 하면 과태료가 얼마인지, 별표3 기준으로…"  → **후보에도 못 듦**
+ *   같은 뜻인데 흔한 말 몇 개가 붙었다고 답에 못 닿는 것은 사용자가 길게 물을수록 나빠진다는 뜻이다.
+ * 무게는 `log(1 + 전체페이지수 / 그 낱말이 걸린 페이지수)` — 흔할수록 1에 가까워지고 드물수록 커진다.
+ *   ⚠임의의 문턱(몇 % 넘으면 버림)을 두지 않는다. 문턱은 그 언저리에서 결과가 뚝 끊겨 예측이 안 된다.
+ *   ⚠낱말을 **버리지 않는다** — 무게만 낮춘다. 흔한 말도 여전히 점수에 기여한다(누락 0 원칙).
+ * 예: 1,254개 페이지 중 `신고`가 900개에 있으면 무게 ≈ 0.9, `양식장`이 20개면 ≈ 4.2.
+ * @param {Array} pages - index.json 의 페이지 목록
+ * @param {string[]} terms - 이번 질의의 검색어 전부
+ * @returns {Map<string,number>} 낱말 → 무게
+ * [연계] → scoreOne(무게를 곱해 점수를 낸다). ← search().
+ *        검증: `_dashboard/loop/search_eval.js`(고정 질문 65개로 전후 대조, AI 안 씀).
+ */
+function termWeights(pages, terms) {
+  // A/B 측정용 스위치 — `NRYA_IDF=off` 면 모든 낱말 무게가 1이라 **이 기능을 넣기 전과 문자 그대로
+  // 같은 점수**가 나온다(R0). 위키가 계속 바뀌는 중에도 같은 시점에서 켜고/끄고 재려고 둔다.
+  // 운영에서는 켠 채로 쓴다(끄는 값을 설정하지 않는다).
+  if (process.env.NRYA_IDF === 'off') return null;
+  const df = new Map(terms.map(t => [t, 0]));
+  for (const p of pages) {
+    const hay = (p.law || '') + ' ' + (p.topic || '') + ' ' + (p.file || '') + ' ' + (p.themes || []).join(' ');
+    const page = readPage(p.kind, p.file);
+    const body = page ? page.body : '';
+    for (const t of terms) if (hay.includes(t) || body.includes(t)) df.set(t, df.get(t) + 1);
+  }
+  const N = pages.length || 1;
+  return new Map(terms.map(t => [t, Math.log(1 + N / Math.max(1, df.get(t) || 0))]));
 }
 
 // ── 컨텍스트 발췌(sliceRelevant) 보조 상수 ───────────────────────────────────
@@ -1401,7 +1436,9 @@ async function search(query, opts) {
   const TOPIC_BONUS = 4;
   const allTerms = [...new Set([...terms, ...extraTerms, ...aiTerms, ...aliasTerms, ...topicTerms])];
 
-  let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms) })).filter(x => x.s > 0);
+  // 흔한 낱말이 점수를 지배하지 못하게 무게를 매긴다(termWeights 주석의 실측 사례 참고).
+  const weights = termWeights(pages, allTerms);
+  let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms, weights) })).filter(x => x.s > 0);
   // ★[이어서 질문] 확장어만으로는 약했다(2026-08-18 사용자 재현: 낚시어선업 이야기를 하다
   //   "허가 받았는데 신고 안 하고 영업하면?"이라 물으니 수산부산물·폐기물 처리업이 선택지로 떴다).
   //   `topic` 은 **위키 페이지의 주제 칸에서 그대로 가져온 값**이라, 같은 칸끼리 맞대보면 정확히
@@ -1451,7 +1488,7 @@ async function search(query, opts) {
         if (hop.length >= HOP_MAX) break;
         const p = resolvePage(byFile, raw);
         if (!p || picked.has(p)) continue;
-        const hs = scoreOne(p, allTerms);
+        const hs = scoreOne(p, allTerms, weights);
         if (hs < MIN_KEEP_SCORE) continue;
         picked.add(p); hop.push({ p, s: hs, hop: true });
       }
@@ -4433,7 +4470,7 @@ function withAssumedNotice(answer, assumed) {
   return ASSUMED_NOTICE + '\n\n' + answer;
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어

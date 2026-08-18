@@ -732,6 +732,27 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('인용된 적 없는 조는 빈 문자열(제5조로 제5조의2를 집지 않는다)',
       R.citedArticleIn('… 제5조의2 …', '제5조') === '');
 
+    // ★검색어 무게(2026-08-18, B유형 대응) — 흔한 낱말이 점수를 지배하지 못하게 한다.
+    {
+      const pages = R.loadIndex().pages || [];
+      const w = R.termWeights(pages, ['신고', '양식장', '기준']);
+      ok('무게표가 검색어마다 값을 준다', w && w.size === 3);
+      ok('흔한 낱말이 드문 낱말보다 가볍다(신고 < 양식장)', w.get('신고') < w.get('양식장'),
+        '신고=' + (w.get('신고') || 0).toFixed(2) + ' 양식장=' + (w.get('양식장') || 0).toFixed(2));
+      ok('무게는 0보다 크다(낱말을 버리지 않는다 — 누락 0)',
+        [...w.values()].every(v => v > 0));
+
+      // R0: 스위치를 끄면 무게가 없어 이 기능을 넣기 전과 같은 점수가 나온다.
+      const prev = process.env.NRYA_IDF;
+      process.env.NRYA_IDF = 'off';
+      ok('NRYA_IDF=off 면 무게를 매기지 않는다(R0)', R.termWeights(pages, ['신고']) === null);
+      if (prev === undefined) delete process.env.NRYA_IDF; else process.env.NRYA_IDF = prev;
+
+      const p0 = pages[0];
+      if (p0) ok('무게를 안 주면 scoreOne 이 종전과 같은 값을 낸다',
+        R.scoreOne(p0, ['신고'], null) === R.scoreOne(p0, ['신고']));
+    }
+
     // (3) 되묻기 상한 10(사용자 확정) — 같은 조건 재질문 차단이 실질 방어선이 된다
     ok('되묻기 상한이 10이다', /const CLARIFY_MAX_ROUNDS = 10;/.test(RET_SRC));
     ok('질문 문장·선택지 집합이 같으면 차단한다(표현만 바꾼 재질문)',
