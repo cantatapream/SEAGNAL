@@ -1780,6 +1780,10 @@
       '<div class="nrya-artpop-gist" id="nryaArtGist"></div>' +
       '<span class="nrya-artpop-eff" id="nryaArtEff"></span>' +
       '<div class="nrya-artpop-body" id="nryaArtBody"></div>' +
+      // [2026-08-18 사용자 확정] 근거 아코디언을 없애면서 그 카드가 갖고 있던 소관부서 연락처를
+      //   이 팝업이 이어받는다 — 사용자 원문: "팝업을 열었을 때 거기에 전화번호가 적혀 있으면 될
+      //   것 같다. 시행일자도 그렇고."(시행일자는 위 nryaArtEff 가 이미 보여준다)
+      '<div class="nrya-artpop-tel" id="nryaArtTel"></div>' +
       '<div class="nrya-artpop-foot" id="nryaArtFoot"></div>';
     var bveil = document.createElement('div'); bveil.className = 'nrya-bylpop-veil'; bveil.id = 'nryaBylVeil';
     var bpop = document.createElement('div'); bpop.className = 'nrya-bylpop'; bpop.id = 'nryaBylPop';
@@ -2394,6 +2398,12 @@
     document.getElementById('nryaArtEff').textContent = '';
     document.getElementById('nryaArtGist').textContent = '';
     document.getElementById('nryaArtFoot').innerHTML = '';
+    // 눌린 글자에 심어둔 소관부서 연락처(citeHTML 의 data-*)를 그대로 보여준다 — 서버 재조회 없음.
+    var telHost = document.getElementById('nryaArtTel');
+    if (telHost) telHost.innerHTML = contactLineHTML({
+      소관부처명: el.getAttribute('data-min') || '', 부서명: el.getAttribute('data-dept') || '',
+      전화번호: el.getAttribute('data-tel') || '',
+    });
     document.getElementById('nryaArtBody').innerHTML = '<div class="nrya-artpop-msg">원문을 불러오는 중…</div>';
     pop.setAttribute('data-tier', el.getAttribute('data-pen') ? 'penalty' : tier); // 강조색을 체인 카드와 맞춘다
     veil.classList.add('nrya-open'); pop.classList.add('nrya-open');
@@ -2769,7 +2779,7 @@
     //   링크를 포기했다(사용자 지적: "정확한 주소가 있는데 왜 못 찾나").
     (citeLaws || []).forEach(function (c) {
       var nm = String((c && c.law) || '').trim(); if (!nm) return;
-      idx[nm] = { law: nm, tier: String(c.tier || 'law'), base: String(c.base || '') };
+      idx[nm] = { law: nm, tier: String(c.tier || 'law'), base: String(c.base || ''), contact: c.contact || null };
     });
     (chain || []).forEach(function (row) {
       var nm = String((row && row.law) || '').trim(); if (!nm) return;
@@ -2778,8 +2788,12 @@
       var hit = idx[nm];
       // 근거 목록 줄이 처음 오면 폴백으로 깔아둔 값을 **덮어쓴다**(검증값 우선). 그 뒤 같은 이름이
       // 또 오면 아래 모호 판정으로 넘어간다 — 폴백끼리는 애초에 이름당 하나뿐이라 충돌이 없다.
-      if (hit && !hit.fromChain) { idx[nm] = { law: nm, tier: tier, base: base, fromChain: true }; return; }
-      if (!hit) { idx[nm] = { law: nm, tier: tier, base: base, fromChain: true }; return; }
+      var made = { law: nm, tier: tier, base: base, fromChain: true,
+        contact: row.contact || (hit && hit.contact) || null, eff: row.effectiveDate || '' };
+      if (hit && !hit.fromChain) { idx[nm] = made; return; }
+      if (!hit) { idx[nm] = made; return; }
+      if (!hit.contact && row.contact) hit.contact = row.contact;   // 뒤 줄이 연락처를 갖고 있으면 채운다
+      if (!hit.eff && row.effectiveDate) hit.eff = row.effectiveDate;
       // ⚠ baseLaw 가 다르다고 무조건 모호로 보면 **정상적인 법률 링크가 통째로 죽는다**(2026-08-18
       //   실사용 재현): 근거 목록은 여러 위키 페이지의 줄을 합친 것이고, baseLaw 는 "그 줄이 실려
       //   있던 페이지"라 같은 법이라도 페이지마다 값이 다르다 — 특히 비교 페이지(comparisons/)는
@@ -2858,9 +2872,12 @@
       if (m[4] != null) { cur = null; continue; }                        // ④문장 끝 → 법 맥락 버림
       if (!cur) continue;                                                // 어느 법인지 모르면 링크 안 함
       var txt = (m[2] != null) ? m[2] : m[3];
+      var ct = cur.contact || {};
       out += esc(s.slice(last, m.index)) +
         '<span class="nrya-cite" data-law="' + esc(cur.law) + '" data-article="' + esc(txt) +
-        '" data-tier="' + esc(cur.tier) + '" data-base="' + esc(cur.base) + '">' + esc(txt) + '</span>';
+        '" data-tier="' + esc(cur.tier) + '" data-base="' + esc(cur.base) +
+        '" data-min="' + esc(ct.소관부처명 || '') + '" data-dept="' + esc(ct.부서명 || '') +
+        '" data-tel="' + esc(ct.전화번호 || '') + '">' + esc(txt) + '</span>';
       last = m.index + m[0].length;
     }
     return out + esc(s.slice(last));
@@ -2905,6 +2922,49 @@
   function isPenaltyRow(row) {
     return /징역|벌금|과태료|처벌|형벌|양벌|몰수|추징/.test(
       String(row.gist || '') + ' ' + String(row.excerpt || '') + ' ' + String(row.step || ''));
+  }
+
+  /**
+   * 소관부서 연락처 한 줄(☎ 부처명 (부서명) 전화번호). 전화번호는 눌러서 걸 수 있다.
+   * 근거 아코디언이 갖고 있던 표기를 그대로 옮긴 것이다(2026-08-18 아코디언 제거) —
+   * 이제 ①답변 맨 끝 요약 ②조문 팝업 두 곳이 같은 함수를 쓴다.
+   * ⚠걸리는 번호(href="tel:")는 통번호 그대로다 — 화면 표시만 다듬는다.
+   * 예: contactLineHTML({소관부처명:'해양수산부', 부서명:'수산자원정책과', 전화번호:'051-773-5539'})
+   * @param {{소관부처명?:string, 부서명?:string, 전화번호?:string}} c
+   * @returns {string} 전화번호가 없으면 빈 문자열(아무것도 그리지 않는다)
+   * [연계] ← sourceMetaHTML · openArtPop.
+   */
+  function contactLineHTML(c) {
+    if (!c || !c.전화번호) return '';
+    var raw = String(c.전화번호).split(',')[0].trim();
+    var dial = raw.replace(/[^0-9+]/g, '');
+    var who = esc(c.소관부처명 || '') + (c.부서명 ? ' (' + esc(c.부서명) + ')' : '');
+    return '<span class="nrya-meta-tel">☎ ' + who +
+      ' <a href="tel:' + esc(dial) + '">' + esc(raw) + '</a></span>';
+  }
+
+  /**
+   * 답변 맨 끝에 붙는 **근거 요약 한 덩이** — 법마다 시행일자와 소관부서 연락처만 적는다.
+   * 조문 전문 카드(근거 아코디언)를 없애면서 "그래도 남겨 달라"고 한 정보만 옮긴 것이다
+   * (사용자 원문: *"시행일자나 소관부처 전화번호 이런 것은 답변 마지막에 나와 있다면 좋겠어"*).
+   * ⚠지어내지 않는다 — citationChain 줄이 이미 갖고 있는 값만 쓰고, 없으면 그 줄은 건너뛴다.
+   * @param {Array} chain - data.citationChain
+   * @returns {string} 실을 것이 없으면 빈 문자열
+   * [연계] ← answerHTML(면책 문구 바로 위). → contactLineHTML.
+   */
+  function sourceMetaHTML(chain) {
+    var seen = {}, rows = [];
+    (chain || []).forEach(function (row) {
+      var nm = String((row && row.law) || '').trim(); if (!nm || seen[nm]) return;
+      var tel = contactLineHTML(row.contact);
+      var eff = row.effectiveDate
+        ? '<span class="nrya-meta-eff">' + (row.tier === 'notice' ? '발령일자 ' : '시행일자 ') + esc(row.effectiveDate) + '</span>'
+        : '';
+      if (!tel && !eff) return;                 // 적을 게 없는 법은 줄을 만들지 않는다
+      seen[nm] = 1;
+      rows.push('<div class="nrya-meta-row"><span class="nrya-meta-law">' + esc(nm) + '</span>' + eff + tel + '</div>');
+    });
+    return rows.length ? '<div class="nrya-meta">' + rows.join('') + '</div>' : '';
   }
 
   /** tier 코드를 화면 라벨로. 처벌 조문은 '벌칙'으로 표시한다. */
@@ -3198,34 +3258,18 @@
           ? '질문과 관련된 <b>근거 법령·개념</b>을 찾았지만, 지금은 답변 문장을 만들지 못했어요. 아래에서 조문 근거를 직접 확인하세요.'
           : '아직 이 질문에 딱 맞는 근거를 위키에서 찾지 못했어요. 질문을 조금 더 구체적으로(법 이름·톤수·행위) 적어주시면 도움이 됩니다.'));
 
-    // 되묻기 선택지는 본문 바로 아래(근거 법령 아코디언보다 위)에 둔다 — 지금 사용자가 해야 할 일이다.
+    // 되묻기 선택지는 본문 바로 아래에 둔다 — 지금 사용자가 해야 할 일이다.
     var html = lead + clarifyHTML(q, data.clarify);
-    // 근거 조문 체인은 서버가 **모든 소스의 줄을 합쳐 하나로** 보내준다(data.citationChain) —
-    // 그대로 그린다.
-    // ⚠예전엔 화면이 sources[i].citationChain 중 줄 수가 가장 많은 소스 하나를 골라 그 소스만
-    //   그렸다. 그래서 답변이 두 법을 함께 인용한 질문에서 **한쪽 법의 근거가 통째로 안 보였다**
-    //   (라이브 재현: 답변은 「낚시 관리 및 육성법」 제30·53조를 먼저 말하는데 근거 목록 5줄이
-    //   전부 해상교통안전법·선박직원법). 어느 줄을 보여줄지는 "답변이 실제로 인용했는가"로
-    //   서버가 이미 걸렀으므로, 화면이 여기서 또 골라낼 이유가 없다.
-    // ⚠나머지 소스를 "법령명 · 주제"만 적은 카드로 나열하던 부분은 뺐다 — 조문도 요지도 없어
-    //   ("음주운항_측정거부" 같은 이름 한 줄) 답변 본문과 위 체인이 이미 말한 것 이상을 주지 못하는데,
-    //   근거 건수만 부풀려 보이게 했다(라이브 실측 지적).
-    // 건수는 체인에 실제로 남은 **법령 가짓수**(같은 법의 여러 조문은 한 건)로 센다.
-    var lawNames = [];
-    chain.forEach(function (row) {
-      var nm = row.law || '';
-      if (nm && lawNames.indexOf(nm) < 0) lawNames.push(nm);
-    });
-    var shown = lawNames.length;
-    if (shown) {
-      // [2026-08-17 실기기 피드백] 예전엔 **법 가짓수**를 세어 "근거 법령 1건"이라고 적었는데
-      //   펼치면 조문 카드가 3장 나와(같은 법의 제39·113·117조) 숫자와 화면이 어긋나 보였다.
-      //   카드 수로 바꾸는 대신 **건수 표기를 아예 뺀다**(사용자 확정) — 무엇을 세는 숫자인지
-      //   설명해야 하는 표기라면 없는 편이 낫다. `shown`은 아코디언을 그릴지 판정에만 쓴다.
-      html += '<div class="nrya-lawacc"><div class="nrya-lawacc-h"><span class="nrya-arw">▶</span>📖 근거 법령 (펼쳐서 보기)</div><div class="nrya-lawacc-b">';
-      html += chainHTML(chain);
-      html += '</div></div>';
-    }
+    // ★2026-08-18(사용자 확정): "근거 법령" 아코디언(조문 카드 전문 목록)을 **없앴다.**
+    //   본문의 조문 인용이 이제 충실히 링크되므로(6-11 하이브리드 링크) 같은 조문 전문을 아래에
+    //   또 펼쳐 놓을 이유가 없고, 답변마다 카드가 10장씩 쌓여 "어디를 봐야 할지 모르겠다"는
+    //   실사용 지적이 반복됐다. 사용자 원문: *"본문에 하이퍼링크가 들어가 있다면 근거 전문을
+    //   캐치할 필요가 없을 것 같다 … 근거 전문란을 빼면 좋겠어."*
+    //   ⚠**데이터(data.citationChain)는 그대로 받는다** — 본문 링크가 어느 법인지 가릴 때 쓰는
+    //     1순위 재료이고(buildCiteIndex), 서식 버튼도 이 줄들에서 나온다. 화면에만 안 그린다.
+    //   ⚠대신 아래 두 자리로 옮겼다(같은 확정): ①시행일자·소관부처·전화번호는 답변 맨 끝 요약으로
+    //     ②조문 팝업(본문 링크를 눌러 여는 창)에도 그 조문의 연락처를 함께 보여준다(chainStepHTML
+    //     이 하던 역할을 팝업이 이어받는다).
     // 근거 조문에 딸린 별지 서식 다운로드 버튼(_CHATBOT.md 5-5). 아코디언 **밖·바로 아래**에 둔다 —
     // 지금 사용자가 눌러야 할 액션이라 접혀 있으면 안 된다. 되묻기는 아직 답이 아니라 붙이지 않는다
     // (면책·만족도 버튼을 붙이지 않는 것과 같은 이유). 서식이 0건이면 renderFormDownloadsHTML 이
@@ -3234,6 +3278,8 @@
     // ⚠공백 안내는 아코디언 **밖**에 둔다 — 접혀 있는 목록 안에 넣으면 정작 꼭 봐야 할
     // "관할 지자체에 확인하세요"가 펼치기 전엔 안 보인다(그게 이번에 고친 문제 자체다).
     html += gapNoticesHTML(sources);
+    // 근거 아코디언을 없애면서 남긴 것 — 법별 시행일자·소관부서 연락처 요약(2026-08-18 사용자 확정).
+    if (!data.clarify) html += sourceMetaHTML(chain);
 
     // 면책("참고용입니다…")은 **최종 답변에만** 붙인다(사용자 확정) — 되묻기 응답은 아직 답이 아니라
     // 되묻는 질문이라, 확인할 "답"이 없는데 공식 출처 확인을 권하면 말이 안 맞는다.
