@@ -118,10 +118,16 @@ console.log('\n[T5][#6] 옛 카드 — 카드에 박힌 data-q·data-ctx 로 전
 // ── T6 [#7]. 기록에서 복원한 답변에는 되묻기 버튼이 안 생긴다 ─────────────────────
 console.log('\n[T6][#7] 기록 복원 답변 — clarify 가 없어 버튼이 안 붙는다');
 {
-  ok('복원 렌더에 clarify 를 넘기지 않는다',
-    /renderRestoredAnswer\(\{ ok: true, query: hit\.q, answer: hit\.a, sources: \[\], note: hit\.note \}\)/.test(CLIENT_SRC));
-  ok('기록에는 질문·답변·note 만 저장(ctx·프로필 미저장)',
-    /arr\.push\(\{ q: String\(q \|\| ''\), a: String\(\(data && data\.answer\) \|\| ''\), note:/.test(CLIENT_SRC));
+  const OPEN_HIST_ENTRY = CLIENT_SRC.slice(CLIENT_SRC.indexOf('function openHistoryEntry'));
+  const RESTORE_CALL = OPEN_HIST_ENTRY.slice(0, OPEN_HIST_ENTRY.indexOf('renderRestoredAnswer(') + 400);
+  ok('복원 렌더에 clarify 를 넘기지 않는다', !/clarify/.test(RESTORE_CALL.split('renderRestoredAnswer(')[1]));
+  ok('기록 복원은 근거법령·서식도 함께 되살린다(2026-08-18 사용자 확정)',
+    /citationChain: hit\.chain \|\| \[\], forms: hit\.forms \|\| \[\]/.test(CLIENT_SRC));
+  const PUSH_HIST = CLIENT_SRC.slice(CLIENT_SRC.indexOf('function pushHistory'), CLIENT_SRC.indexOf('function pushHistory') + 700);
+  ok('기록은 질문·답변·note·근거법령·서식까지 저장한다(2026-08-18 확장)',
+    /sources: \(data && data\.sources\) \|\| \[\], chain: \(data && data\.citationChain\) \|\| \[\], forms: \(data && data\.forms\) \|\| \[\]/.test(PUSH_HIST));
+  ok('그래도 ctx·프로필은 기록에 저장하지 않는다(온디바이스 일회성 유지)',
+    !/ctx:|profile:/.test(PUSH_HIST));
 }
 
 // ── T7 [#8]. R1 — ctx·profile 은 로그·임시보관 어디에도 안 쓴다 ─────────────────
