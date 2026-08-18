@@ -134,7 +134,7 @@ console.log('\n[T6][#7] 기록 복원 답변 — clarify 가 없어 버튼이 �
 console.log('\n[T7][#8] R1 — 프로필이 서버 파일에 남지 않는다');
 {
   ok('pendingAnswers.store 인자에 ctx·profile 없음',
-    /pendingAnswers\.store\(q, answer, sourcesOut, note, citationChain, forms\)/.test(ROUTES_SRC));
+    /pendingAnswers\.store\(q, answer, sourcesOut, note, citationChain, forms, citeLaws\)/.test(ROUTES_SRC));
   ok('새 지식 후보 로그도 질의·원문만 넘긴다', /logKnowledgeCandidate\(q, raw\)/.test(ROUTES_SRC));
   ok('신규 절이 파일을 쓰지 않는다(읽기 전용)', !/writeFile|appendFile/.test(H37_CODE));
   ok('신규 절이 콘솔로도 안 흘린다', !/console\.(log|error|warn)/.test(H37_CODE));
@@ -926,6 +926,43 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('원문 조회 동시 상한이 4건 이하다', /const SYNTH_MAX_CONCURRENCY = 4;/.test(ROUTES_CODE));
     ok('보탠 줄은 발췌 단계에서 원문을 다시 읽지 않는다',
       /filter\(r => !\(r && r\.synthesized\)\)\.slice\(0, MAX_EXCERPT_ROWS\)/.test(ROUTES_CODE));
+  }
+
+  // ── 근거 목록 근접성 검사 (2026-08-18) — 무관한 줄은 걸러내되 누락은 만들지 않는다 ──────
+  {
+    const ANS = '「낚시 관리 및 육성법」 제25조제1항에 따라 신고합니다. 「선박직원법」 제2조제1호가목에 '
+      + '따라 면허가 필요합니다. 위반하면 같은 법 제53조제2항제4호에 따라 처벌됩니다.';
+    const row = (law, article, tier) => ({ law, article, tier });
+    const pass = (law, article, tier) => R.filterCitationChainByAnswer(
+      [row(law, article, tier)], ANS, '낚시 관리 및 육성법').length > 0;
+    // 답변엔 「선박직원법」 제2조만 있고 낚시법 제2조는 없다 — 조문번호만 우연히 겹친 무관한 줄.
+    ok('다른 법의 조문번호와 우연히 겹친 줄은 걸러낸다', !pass('낚시 관리 및 육성법', '제2조', 'law'));
+    ok('그 조문의 진짜 주인은 남긴다', pass('선박직원법', '제2조', 'law'));
+    ok('「법령명」과 붙어 인용된 줄은 남긴다', pass('낚시 관리 및 육성법', '제25조', 'law'));
+    // ★누락 0: 아래 두 표기는 법 이름이 조문에 붙어 있지 않아 주인을 단정할 수 없다 — 버리지 않는다.
+    ok('"같은 법 제N조" 이어쓰기는 버리지 않는다(주인 단정 불가)', pass('낚시 관리 및 육성법', '제53조', 'law'));
+    ok('확정 인용이 없는 조문은 판정하지 않는다',
+      R.filterCitationChainByAnswer([row('낚시 관리 및 육성법 시행령', '제16조', 'decree')],
+        '「낚시 관리 및 육성법」 제25조에 따라 신고하고, 같은 법 시행령 제16조에서 요건을 정합니다.',
+        '낚시 관리 및 육성법').length > 0);
+    ok('「」로 인용된 적 없는 법의 줄은 판정하지 않는다(평문 언급만 있는 법)',
+      R.filterCitationChainByAnswer([row('선박직원법', '제2조', 'law')],
+        '「낚시 관리 및 육성법」 제25조에 따라 신고합니다. 선박직원법 제2조에 따른 면허도 필요합니다.',
+        '낚시 관리 및 육성법').length > 0);
+  }
+
+  // ── 하이브리드 본문 링크 (2026-08-18) — 근거 목록 우선, 답변 주소는 폴백 ────────────────
+  {
+    ok('서버가 답변 주소에서 뽑은 법 목록을 done 에 싣는다',
+      /citationChain, forms, citeLaws, note/.test(ROUTES_SRC));
+    ok('그 목록은 extractAnswerCitations(원문 확인을 거친 추출기)에서 온다',
+      /function answerCiteLaws[\s\S]{0,400}legalRetriever\.extractAnswerCitations/.test(ROUTES_SRC));
+    ok('화면은 폴백을 먼저 깔고 근거 목록으로 덮어쓴다(검증값 우선)',
+      /\(citeLaws \|\| \[\]\)\.forEach[\s\S]{0,400}\(chain \|\| \[\]\)\.forEach/.test(CLIENT_SRC));
+    ok('근거 목록 줄은 폴백 값을 덮어쓴다',
+      /if \(hit && !hit\.fromChain\) \{ idx\[nm\] = \{ law: nm, tier: tier, base: base, fromChain: true \}; return; \}/.test(CLIENT_SRC));
+    ok('푸시 복원·기록 복원에도 함께 실린다',
+      /citeLaws: entry\.citeLaws \|\| \[\]/.test(ROUTES_SRC) && /citeLaws: hit\.citeLaws \|\| \[\]/.test(CLIENT_SRC));
   }
 
   // ── 본문 조문 링크: baseLaw 차이만으로 링크를 죽이지 않는다 (2026-08-18 회귀 잠금) ──────

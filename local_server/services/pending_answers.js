@@ -118,13 +118,15 @@ function loadFromDisk() {
  * @param {Array} citationChain - 근거 조문 줄 목록(/api/legal/ask 의 citationChain 그대로).
  *   ⚠ 함께 보관해야 한다 — 화면 복원(answerHTML)이 이 값으로 "근거 법령" 아코디언을 그리므로,
  *     빼먹으면 푸시로 되돌아온 답변만 근거 목록이 통째로 비어 보인다.
+ * @param {Array} [citeLaws] - 본문 조문 링크용 법 목록(/api/legal/ask 의 citeLaws 그대로).
+ *   citationChain·forms 와 같은 이유로 함께 보관한다 — 빼먹으면 푸시로 되돌아온 답변만 본문 링크가 죽는다.
  * @param {Array} [forms] - 서식 다운로드 목록(/api/legal/ask 의 forms 그대로). citationChain과 같은
  *   이유로 함께 보관한다 — 빼먹으면 푸시로 되돌아온 답변만 서식 버튼이 안 뜬다(2026-08-17, 적대검증 발견 2).
  * @returns {string} requestId(64자 hex)
  * [연계] ← routes/legal.js POST /api/legal/ask (6초 초과 + 알림 동의한 요청에서만)
  *          → saveToDisk (발급 즉시 디스크 반영)
  */
-function store(query, answer, sources, note, citationChain, forms) {
+function store(query, answer, sources, note, citationChain, forms, citeLaws) {
     const requestId = crypto.randomBytes(32).toString('hex');
     store_.set(requestId, {
         query: String(query || ''),
@@ -132,6 +134,7 @@ function store(query, answer, sources, note, citationChain, forms) {
         sources: Array.isArray(sources) ? sources : [],
         citationChain: Array.isArray(citationChain) ? citationChain : [],
         forms: Array.isArray(forms) ? forms : [],
+        citeLaws: Array.isArray(citeLaws) ? citeLaws : [],
         note: String(note || ''),
         createdAt: Date.now()
     });

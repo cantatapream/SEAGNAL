@@ -1658,10 +1658,88 @@ function subjectOfCitation(sections, cited) {
  * @returns {Array} 답변에 실제로 인용된 줄만(원 순서 유지, 묶음 행은 인용된 조 수만큼 쪼개짐)
  * [연계] ← routes/legal.js가 filterSourcesByAnswer 직후, finalSources 각 소스에 적용(baseLaw = s.law).
  */
+/** 조문·별표 표기를 **조 단위 열쇠**로 줄인다(공백 제거 + 항·호 잘라내기).
+ * 위키 칸은 `제25조`인데 답변은 `제25조제1항`이라 원문 그대로는 안 맞아, 둘을 같은 자리로 본다.
+ * 별표·별지·별도는 항·호가 없어 통째로 열쇠가 된다.
+ * 예: joKeyOf('제25조제1항') → '제25조' · joKeyOf('별표 4') → '별표4'
+ * @param {string} t @returns {string}
+ * [연계] ← citationOwners · ownedByThisLaw. */
+function joKeyOf(t) {
+  const f = String(t || '').replace(/\s+/g, '');
+  const m = /^제\d+조(?:의\d+)?/.exec(f);
+  return m ? m[0] : f;
+}
+
+/** 법령명에서 계층 꼬리(시행령·시행규칙)를 떼어 **모법 이름**만 남긴다(약칭은 정식명으로).
+ * 시행령·시행규칙과 모법을 같은 소속으로 묶으려고 쓴다 — "같은 법 시행령 제16조"처럼 답변이
+ * 모법을 앞에 쓰고 하위법령 조문을 이어 쓰는 표기를 살리기 위해서다.
+ * 예: baseNameOf('낚시 관리 및 육성법 시행령') → '낚시 관리 및 육성법'
+ * @param {string} name @param {string} [baseLaw] - 계층 낱말뿐인 칸을 펼 때 쓸 페이지의 법
+ * @returns {string} 못 정하면 ''
+ * [연계] ← citationOwners · ownedByThisLaw. → lawKeyOf(약칭 → 정식명). */
+function baseNameOf(name, baseLaw) {
+  const k = lawKeyOf(name, baseLaw);
+  if (!k) return '';
+  return k.replace(/(?:\s*[·ㆍ・,/]?\s*(?:시행령|시행규칙))+\s*$/, '').replace(/[\s·ㆍ・,/]+$/, '').trim();
+}
+
+/**
+ * 답변에서 **법 이름과 조문이 붙어 나온 인용**만 모아 "이 조문은 어느 법의 것인가"를 기록한다.
+ * 근거 줄이 진짜 그 법의 조문으로 인용됐는지 보려는 것이다(근접성).
+ * 예: citationOwners('「선박직원법」 제2조제1호에 따라') → Map{'제2조' → Set{'선박직원법'}}
+ * ⚠기록에 없는 조문은 **판정하지 않는다**(호출부가 통과시킨다) — "같은 법 제53조"처럼 이어 쓰거나
+ *   법 이름을 평문으로 쓴 자리는 주인을 단정할 수 없고, 여기서 단정하면 정당한 근거가 사라진다.
+ * @param {string} text - 답변 전체 문장
+ * @returns {Map<string, Set<string>>} 조 단위 열쇠 → 그 조문을 인용한 법들의 모법 이름
+ * [연계] ← filterCitationChainByAnswer. → extractAnswerCitations(같은 추출기 재사용) · ownedByThisLaw.
+ */
+function citationOwners(text) {
+  const owners = new Map();
+  // ★"확정 인용"만 주인으로 인정한다 — extractAnswerCitations 는 `「법령명」 제N조` 처럼 **법 이름과
+  //   조문이 실제로 붙어 나온 것만** 뽑고, 우리가 원문을 가진 법인지까지 확인한다(환각 0 경로에서
+  //   이미 쓰는 함수 재사용). 문맥을 이어 추측하지 않으므로 판정이 보수적이다.
+  //   ⚠직접 스캔해 "직전 「」를 그 뒤 모든 조문의 주인으로" 잇는 방식도 만들어 봤으나, 위키 전 페이지
+  //     대조에서 정당한 줄까지 28.5%가 탈락했다(법 이름을 「」 없이 평문·링크로 쓰는 자리가 많고,
+  //     "같은 법"이 앞쪽 문맥을 가리키기도 한다). **누락이 오탐보다 나쁘다**는 이 저장소 원칙에 따라
+  //     추측하는 방식은 버리고, 붙어 나온 것만 세는 이 방식으로 좁혔다.
+  // anyLaws = 답변에서 `「법령명」 제N조` 꼴로 **한 번이라도 확정 인용된** 법들의 모법.
+  //   이 목록에 없는 법은 판정 대상에서 빼려고 함께 담는다(ownedByThisLaw 주석 참고).
+  owners.anyLaws = new Set();
+  for (const c of extractAnswerCitations(text)) {
+    const k = joKeyOf(c.article);
+    const b = baseNameOf(c.law);
+    if (!owners.has(k)) owners.set(k, new Set());
+    owners.get(k).add(b);
+    if (b) owners.anyLaws.add(b);
+  }
+  return owners;
+}
+
+/** 이 근거 줄의 법이, 답변에서 그 조문의 주인으로 실제로 나온 적이 있는가.
+ * 기록이 아예 없는 조문이면 **통과**시킨다(누락 0 우선 — citationOwners 주석 참고).
+ * @param {Map<string,Set<string>>} owners - citationOwners 결과
+ * @param {string} hit - 위키 칸에서 답변과 맞은 조문 표기
+ * @param {string} law - 그 줄의 법령 칸 @param {string} [baseLaw] - 그 줄이 실린 페이지의 법
+ * @returns {boolean}
+ * [연계] ← filterCitationChainByAnswer.
+ */
+function ownedByThisLaw(owners, hit, law, baseLaw) {
+  const set = owners.get(joKeyOf(hit));
+  if (!set || !set.size) return true;         // 확정 인용이 없는 조문 → 판정 안 함(버리지 않는다)
+  const mine = baseNameOf(law, baseLaw);
+  if (!mine) return true;                     // 모법을 못 정해도 버리지 않는다
+  // ⚠이 법 자체가 답변에서 **한 번도 `「법령명」 제N조` 꼴로 인용되지 않았다면** 판정하지 않는다.
+  //   그 법은 평문·약칭으로만 언급됐다는 뜻이라 "이 조문은 저 법 것"이라고 단정할 근거가 약하다
+  //   (실측: 이 안전장치가 없으면 위키 전 페이지 대조에서 정당해 보이는 줄까지 5.6%가 탈락했다).
+  if (!owners.anyLaws || !owners.anyLaws.has(mine)) return true;
+  return set.has(mine);
+}
+
 function filterCitationChainByAnswer(chain, answerText, baseLaw) {
   const text = String(answerText || '');
   if (!text) return [];
   const subjects = answerSubjects(text);
+  const owners = citationOwners(text);
   const out = [];
   for (const row of (chain || [])) {
     if (!lawMentionedInAnswer(row.law, baseLaw, text)) continue;
@@ -1708,6 +1786,15 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
     const flatText = text.replace(/\s+/g, '');
     const hit = tokens.find(t => text.includes(t) || flatText.includes(t.replace(/\s+/g, '')));
     if (!hit) continue;
+    // ★근접성 검사(2026-08-18 실사용 지적 "근거 목록에 무관한 법이 섞인다"): 위 두 조건은
+    //   ⓐ법 이름이 답변 어딘가에 있나 ⓑ조문번호가 답변 어딘가에 있나 를 **따로** 볼 뿐,
+    //   둘이 같은 자리에 붙어 있는지는 안 본다. 그래서 답변의 「선박직원법」 제2조제1호 때문에
+    //   "제2조"가 존재하면, 비교 페이지에서 온 「낚시 관리 및 육성법」 제2조 행까지 통과했다
+    //   (실제 재현). 답변에서 그 조문 앞에 나온 **가장 가까운 법**의 모법이 이 줄의 모법과
+    //   다르면 버린다.
+    //   ★누락 0 우선: 주인을 못 정한 조문(앞에 「법령명」이 없던 자리)은 그대로 통과시킨다 —
+    //     "같은 법 제53조"처럼 이어 쓰는 표기를 죽이지 않기 위해서다(citationOwners 주석 참고).
+    if (!ownedByThisLaw(owners, hit, row.law, baseLaw)) continue;
     // 위키 칸이 짚은 조(`제58조`)로 답변을 다시 훑어 **항·호까지 붙은 표기**를 가져온다 — 위키 칸엔
     // 항·호가 없어도 답변은 "제58조제5항제7호"라고 쓰는 일이 흔하다(그 항·호가 발췌 대상이다, B10).
     const joOnly = /^제\d+조(?:의\d+)?/.exec(hit);

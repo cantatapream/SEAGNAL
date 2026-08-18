@@ -702,7 +702,8 @@ router.get('/api/legal/pending-answer/:requestId', (req, res) => {
     const entry = pendingAnswers.retrieve(String(req.params.requestId || ''));
     if (!entry) return res.json({ ok: false });
     res.json({ ok: true, query: entry.query, answer: entry.answer, sources: entry.sources,
-      citationChain: entry.citationChain || [], forms: entry.forms || [], note: entry.note });
+      citationChain: entry.citationChain || [], forms: entry.forms || [],
+      citeLaws: entry.citeLaws || [], note: entry.note });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -937,6 +938,31 @@ const SYNTH_MAX_CONCURRENCY = 4;   // 원문 조회 동시 상한(답변 대기�
  * [연계] ← POST /api/legal/ask(dropRedundantChainRows·groupCitationChainByFlow 직전).
  *          → services/article_text.js loadArticle() · legal_retriever.missingAnswerCitations/lookupContact.
  */
+/**
+ * 답변 본문에 `「법령명」 제N조` 꼴로 적힌 인용에서 **링크에 필요한 법 정보만** 추려 낸다.
+ * 화면이 본문 조문을 눌러 원문 팝업을 열 때 쓰는 폴백 재료다(하이브리드 링크의 ②단계).
+ * 예: answerCiteLaws('「어선법」 제13조에 따라 …') → [{law:'어선법', tier:'law', base:'어선법'}]
+ * ★환각 0: 새로 만들지 않는다 — extractAnswerCitations 가 **답변 글자 그대로** 뽑고
+ *   resolveAnswerLaw 가 **우리가 raw 를 가진 법인지 확인**한 것만 나온다(둘 다 기존 함수).
+ * ⚠조문 번호는 담지 않는다 — 화면은 본문에 적힌 표기를 그대로 쓰고, 여기서는 "그 법이 무엇이며
+ *   어느 폴더에서 읽어야 하는가"만 알려주면 된다(citationChain 의 law·tier·baseLaw 와 같은 역할).
+ * @param {string} answerText - 완성된 답변 전체 문장
+ * @returns {Array<{law:string, tier:string, base:string}>} 법령명 기준 중복 제거
+ * [연계] ← POST /api/legal/ask. → done 응답의 citeLaws → ai_chat.js resolveCiteLaw(폴백).
+ */
+function answerCiteLaws(answerText) {
+  const out = [];
+  const seen = new Set();
+  try {
+    for (const c of legalRetriever.extractAnswerCitations(answerText)) {
+      if (!c || !c.law || seen.has(c.law)) continue;
+      seen.add(c.law);
+      out.push({ law: c.law, tier: c.tier || 'law', base: c.baseLaw || '' });
+    }
+  } catch (e) { console.error('[Legal] 본문 링크용 법 목록 실패:', e && e.message); }
+  return out;
+}
+
 async function synthesizeChainRows(answerText, rows) {
   const want = legalRetriever.missingAnswerCitations(answerText, rows);
   if (!want.length) return [];
@@ -1225,6 +1251,14 @@ router.post('/api/legal/ask', async (req, res) => {
     // 근거 조문에 딸린 별지 서식(신고서·신청서) 다운로드 목록 — 아래 attachChainExcerpts 가 채운다.
     // 근거 줄이 없거나(되묻기 등) 서식이 안 걸리면 빈 배열이고, 그때 화면은 아무것도 그리지 않는다.
     let forms = [];
+    // [하이브리드 링크, 2026-08-18 사용자 확정] 답변 본문의 조문 인용을 눌러볼 수 있게 하는 데
+    //   쓰는 "링크 가능한 법" 목록. 화면(ai_chat.js resolveCiteLaw)은 지금까지 **근거 목록에 있는
+    //   법만** 링크했는데, 그러면 답변에 「법령명」 제N조라고 완전한 주소가 적혀 있어도 그 법이
+    //   근거 목록에 없으면 링크를 포기했다(사용자 지적: "정확한 주소가 있는데 왜 못 찾나").
+    //   ⚠추가 비용 없음: extractAnswerCitations 는 아래 B11 폴백이 이미 매 답변마다 부르는
+    //     함수이고(0.04ms 실측), 원문이 있는 법인지까지 확인해 돌려준다(환각 0 그대로).
+    //   ⚠우선순위는 화면이 정한다 — 근거 목록(위키가 검증한 tier·baseLaw)이 먼저, 여기 값은 폴백.
+    let citeLaws = [];
     if (usedGemini) {
       // ⓐ 소스마다 답변 문장과 대조해 무관한 줄을 뺀 뒤, ⓑ 살아남은 줄을 **소스 구분 없이 하나로**
       // 합치고(mergeCitationChains), ⓒ 그 합친 목록을 한 번에 "답변이 먼저 말한 법 → 그 법의
@@ -1253,6 +1287,7 @@ router.post('/api/legal/ask', async (req, res) => {
         legalRetriever.dropRedundantChainRows(wikiRows.concat(synthRows)), full);
       // 살아남은 줄에만 조문 원문 발췌를 붙인다(거르기 전에 붙이면 버려질 줄까지 원문을 읽는다).
       forms = await attachChainExcerpts(citationChain);
+      citeLaws = answerCiteLaws(full);
     }
 
     // 위키(검증된 카드)에 쓸 근거가 결국 안 남으면 여기서 끝내지 않고, 좁혀진 법의 raw 원문을
@@ -1325,7 +1360,7 @@ router.post('/api/legal/ask', async (req, res) => {
           : '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.');
     }
     res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
-      answer, sources: sourcesOut, citationChain, forms, note })) + '\n');
+      answer, sources: sourcesOut, citationChain, forms, citeLaws, note })) + '\n');
     res.end();
 
     // [답변완료 푸시] 스트림은 위에서 이미 평소대로 끝냈다 — 여기부터는 부가 동작이라
@@ -1335,7 +1370,7 @@ router.post('/api/legal/ask', async (req, res) => {
     try {
       const askedMidway = askId && inFlightAsks.has(askId) && inFlightAsks.get(askId).wantsPush;
       if (answer && (notifyOnComplete || askedMidway) && deviceId && (Date.now() - startedAt) > NOTIFY_MIN_ELAPSED_MS) {
-        const requestId = pendingAnswers.store(q, answer, sourcesOut, note, citationChain, forms);
+        const requestId = pendingAnswers.store(q, answer, sourcesOut, note, citationChain, forms, citeLaws);
         sendAiAnswerPush(deviceId, requestId).catch(e => console.error('[Legal] 답변완료 푸시 실패:', e && e.message));
       }
     } catch (e) { console.error('[Legal] 답변완료 푸시 준비 실패:', e && e.message); }
