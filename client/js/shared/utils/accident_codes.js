@@ -84,6 +84,56 @@ function accidentLabel(table, code) {
     return (table && table[code] != null) ? table[code] : String(code);
 }
 
+// 사고유형(ACDNT_TYPE_CD) → 마커 아이콘 이미지(120x120, 사용자 제공 이미지,
+// client/images/accident_markers/ 에 있음). 여러 유형이 비슷한 그림을 공유한다
+// (예: 기관고장·기관손상·운항저해는 모두 ship_engine_trouble.png).
+// 사용자 확정(2026-08-18): 인명사상→응급환자 그림, 표류(선박)→익수자 그림,
+// 안전저해→기타(선박) 그림으로 대체. [연계] accident_info.js singleStyleFor·clusterStyleFn
+const ACCIDENT_TYPE_ICONS = {
+    ATY001: '/images/accident_markers/person_drowning.png',
+    ATY002: '/images/accident_markers/person_fallen.png',
+    ATY003: '/images/accident_markers/person_isolated.png',
+    ATY004: '/images/accident_markers/person_emergency.png',
+    ATY005: '/images/accident_markers/person_deceased.png',
+    ATY006: '/images/accident_markers/person_suicide.png',
+    ATY007: '/images/accident_markers/person_drowning.png', // 표류자 — 익수자와 공유
+    ATY008: '/images/accident_markers/person_misc.png',
+    ATY009: '/images/accident_markers/ship_engine_trouble.png',
+    ATY010: '/images/accident_markers/ship_engine_trouble.png',
+    ATY011: '/images/accident_markers/ship_misc.png',
+    ATY015: '/images/accident_markers/ship_misc.png', // 안전저해 — 이미지 없어 기타(선박)로 대체
+    ATY016: '/images/accident_markers/ship_engine_trouble.png',
+    ATY017: '/images/accident_markers/person_emergency.png', // 인명사상 — 이미지 없어 응급환자로 대체
+    ATY018: '/images/accident_markers/ship_capsized.png',
+    ATY019: '/images/accident_markers/ship_collision.png',
+    ATY021: '/images/accident_markers/ship_propulsion_damage.png',
+    ATY022: '/images/accident_markers/ship_grounded.png',
+    ATY023: '/images/accident_markers/ship_stranded.png',
+    ATY024: '/images/accident_markers/ship_propulsion_damage.png',
+    ATY025: '/images/accident_markers/ship_propulsion_damage.png',
+    ATY026: '/images/accident_markers/ship_propulsion_damage.png',
+    ATY027: '/images/accident_markers/ship_collision.png',
+    ATY028: '/images/accident_markers/ship_sunk.png',
+    ATY029: '/images/accident_markers/ship_flooded.png',
+    ATY030: '/images/accident_markers/ship_propulsion_damage.png',
+    ATY031: '/images/accident_markers/ship_propulsion_damage.png',
+    ATY032: '/images/accident_markers/ship_explosion.png',
+    ATY033: '/images/accident_markers/person_drowning.png', // 표류(선박) — 이미지 없어 익수자로 대체
+    ATY034: '/images/accident_markers/ship_pollution.png',
+    ATY035: '/images/accident_markers/ship_missing.png',
+    ATY036: '/images/accident_markers/ship_fire.png',
+    ATY037: '/images/accident_markers/ship_sunk.png',
+    ATY038: '/images/accident_markers/ship_misc.png',
+    ATY039: '/images/accident_markers/ship_lost_direction.png',
+    ATY040: '/images/accident_markers/ship_entangled.png',
+    ATY041: '/images/accident_markers/ship_stranded.png'
+};
+
+// 사고유형 중 지도에 아예 표출하지 않을 코드(사용자 확정 2026-08-18: 대응 이미지가
+// 없고 대체할 만한 이미지도 마땅치 않아 제외 — 선체결함/속구손상/시설물손상/조난).
+// [연계] accident_info.js ensureRawFeatures 가 이 목록에 있는 사고를 필터링
+const ACCIDENT_TYPE_EXCLUDED = { ATY012: true, ATY013: true, ATY014: true, ATY020: true };
+
 // ── 주/야간 판정 ────────────────────────────────────────────────────────
 // 원본 데이터에 주/야간 구분 컬럼이 없어 시각 정보로 근사한다. 06:00~18:00 을
 // 주간으로 보는 통상 관례를 그대로 쓴다(기상청 등 다른 화면과 다를 수 있음 —
