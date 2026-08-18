@@ -127,6 +127,14 @@ unreachable_fixed 에 표를 고친 행 수를 반환한다.
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
 const round = cfg.round || 7
 let laws = cfg.laws || []
+// 이어받기용: 남은 법만 파일로 넘긴다(도구 인자에 큰 JSON 을 싣지 않기 위해).
+if (!laws.length && cfg.lawsPath) {
+  const boot = await agent(
+    `\`${cfg.lawsPath}\`(JSON: {laws:[...]})를 Read로 읽어 그대로 반환: {laws: 그 배열 전체(객체 그대로, 필터·가공 금지)}.`,
+    { label: 'boot-laws', phase: '통합수정', model: 'sonnet', effort: 'low',
+      schema: { type: 'object', required: ['laws'], properties: { laws: { type: 'array', items: { type: 'object' } } } } })
+  if (boot) laws = boot.laws || []
+}
 if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
   const boot = await agent(
     `\`${cfg.groupsPath}\`(JSON: {"0":[...],...})를 Read로 읽어 반환: {laws: 키 "${cfg.groupIndex}"의 배열 전체(객체 그대로)}.`,
