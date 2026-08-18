@@ -103,13 +103,22 @@ function loadGlossary() {
     if (_glosCache && mt === _glosMtime) return _glosCache;
     const txt = fs.readFileSync(GLOSSARY_MD, 'utf8');
     const rows = [];
+    // ⚠셀을 직접 정규식으로 쪼개지 마라 — 이 표의 목적지 칸에는 `[[대상|라벨]]` 처럼 **링크 안에
+    //   파이프가 든** 표기가 흔한데(실측 396행 중 63행, 15.9%), `[^|]+` 로 칸을 잡으면 그 줄이
+    //   통째로 매치 실패해 조용히 버려진다. 금어기·금지체장·TAC·조개껍데기·어업인·국가어항 같은
+    //   실사용 빈도가 높은 구어가 그렇게 22라운드 동안 런타임 캐시에서 빠져 있었다(2026-08-18
+    //   횡단 감사관 발견, 재현 확인). 문서·xref_check 는 정상이라 코드만 실패했다.
+    //   → 아래 tableCells() 는 링크 안 파이프를 보호해 쪼개므로 그걸 그대로 쓴다(같은 표 파싱
+    //     로직을 두 벌 두지 않는다 — 한쪽만 고쳐지는 어긋남 방지).
     for (const line of txt.split('\n')) {
-      const m = line.match(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*[^|]*\|\s*$/);
-      if (!m || /^-+$/.test(m[1].trim()) || m[1].trim() === '구어·별칭') continue;
-      const terms = m[1].split(/[,，]/).map(s => s.trim()).filter(Boolean);
+      const t = line.trim();
+      if (!t.startsWith('|')) continue;
+      const c = tableCells(t);
+      if (c.length < 2 || isSepRow(c) || c[0] === '구어·별칭') continue;
+      const terms = c[0].split(/[,，]/).map(s => s.trim()).filter(Boolean);
       const slugs = [];
       const linkRe = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
-      let lm; while ((lm = linkRe.exec(m[2])) !== null) slugs.push(lm[1].trim());
+      let lm; while ((lm = linkRe.exec(c[1])) !== null) slugs.push(lm[1].trim());
       if (terms.length && slugs.length) rows.push({ terms, slugs });
     }
     _glosCache = rows; _glosMtime = mt;
@@ -4227,7 +4236,7 @@ function withAssumedNotice(answer, assumed) {
   return ASSUMED_NOTICE + '\n\n' + answer;
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
