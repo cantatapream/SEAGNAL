@@ -1280,6 +1280,15 @@ async function resolveRefs(found, ctx) {
         // `PDF` 키는 수집 스크립트가 아직 안 채우고 있다(_LESSONS L-55) — 채워지면 그대로 뜬다.
         r.hwp = absUrl(v.HWP);
         r.pdf = absUrl(v.PDF);
+        // ★2026-08-18: `이미지` 배열(law.go.kr 스캔본 주소)도 함께 싣는다 — 지금까지 수집만 해두고
+        //   한 번도 안 읽었다. 실측: 별표·별지 2,719건 중 2,679건(98.5%)에 이미지가 있고, 서식(별지)만
+        //   보면 1,988건 중 1,980건(99.6%)이다. **PDF만 있고 이미지가 없는 건은 0건**이라
+        //   "PDF뿐이면 어렵다"고 걱정한 경우는 실제로 없다. 주소를 그대로 열면 image/gif 가
+        //   내려온다(실측 확인) — 화면이 <img> 로 바로 띄운다.
+        //   ⚠ kind 는 건드리지 않는다(④의 기존 규약) — 표 원문이 있으면 text 그대로 두고,
+        //     이미지를 **볼 수 있다는 사실만** 보탠다. 무엇을 먼저 보여줄지는 화면이 정한다.
+        const imgs = Array.isArray(v.이미지) ? v.이미지.map(absUrl).filter(Boolean) : [];
+        if (imgs.length) r.images = imgs;
         if (r.kind !== 'missing') continue;   // 원문(text)·스캔본(image) 판정은 그대로 둔다
         r.kind = 'link';
         r.title = String(v.제목 || '');
