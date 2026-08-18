@@ -1207,10 +1207,12 @@ ${block}
     //   needed:true(=이미 애매해서 되묻는 중)일 때만, 그리고 여지가 있을 때만(칸이 남아 있고,
     //   직전 질문이 이번 질문에 이미 그대로 안 들어 있을 때). 답을 대신 짓지 않고 "이거 맞아요?"만
     //   묻는 선택지라 틀려도 사용자가 그냥 무시하면 그만이다(오답 위험 0).
-    const prevQ = clarifyStr(lastTopic, 200);
-    if (prevQ && prevQ !== query && !String(query || '').includes(prevQ) && options.length < CLARIFY_OPTION_MAX) {
-      options.push({ label: clarifyStr(prevQ, 40), hint: '방금 물어보신 질문과 이어지는 내용일 수 있어요' });
-    }
+    // ★(2026-08-18) **직전 질문 원문을 통째로 얹던 것을 없앴다.** 그 선택지를 누르면 질의가
+    //   "신고 안 하면? — 낚시어선업 절차와 방법 요건같은거"로 합쳐져, ①이해확인이 "절차·방법·요건도
+    //   알고 싶다"로 읽어 **이미 답한 것을 또** 설명하려 하고 ②검색어가 일반어로 오염돼 무관한
+    //   선택지가 딸려 나왔다(실사용 재현). 이제 맥락은 질의를 건드리지 않는 `ctx.topic`(검색
+    //   확장어 전용)으로 잇는다 — routes/legal.js 의 topic 설정과 search(opts.topic) 참고.
+    //   ⚠ lastTopic 인자는 아래 "같은 주제로 이미 좁혀져 있다" 판단에만 남는다(질의 오염 없음).
     // ★(2026-08-17) 표현만 바꾼 재질문 차단(B6) — 위 라벨 완전일치 대조는 "사용자가 고른 값이
     //   질의에 붙어 있는가"만 보므로, 모델이 같은 갈래를 다른 말로 다시 물으면 못 막는다. 직전
     //   라운드의 질문·선택지 집합과 대조해 사실상 같으면 되묻기를 버리고 답변으로 넘어간다.
@@ -1330,7 +1332,15 @@ async function search(query, opts) {
   // [B8] 약칭(「어선안전조업법」)으로 물어도 정식 명칭 페이지가 잡히게 정식명을 검색어로 얹는다.
   //   표가 없거나 약칭이 안 걸리면 빈 배열이라 allTerms 가 오늘과 문자 그대로 같다(R0).
   const aliasTerms = aliasExpand(query);
-  const allTerms = [...new Set([...terms, ...extraTerms, ...aiTerms, ...aliasTerms])];
+  // ★[이어서 질문] 직전 답변의 주제를 **검색 확장어로만** 얹는다(2026-08-18 사용자 확정).
+  //   restate 와 완전히 같은 규약이다 — 질의 문자열에는 절대 합치지 않는다(§2.1 세 오염 방지).
+  //   왜 필요한가: "🔁 이어서"의 옛 방식은 **직전 질문 원문을 통째로** 새 질문 뒤에 이어붙여
+  //   "신고 안 하면? — 낚시어선업 절차와 방법 요건같은거"가 됐다. 그러면 ①이해확인이 "문제점과
+  //   절차·방법·요건을 알고 싶다"로 읽어 **이미 답한 절차를 또** 설명하려 하고 ②검색어가
+  //   "절차·방법·요건" 같은 일반어로 오염돼 폐기물 투기·공유수면 매립 같은 무관한 선택지가
+  //   딸려 나왔다(실사용 재현). 필요한 건 직전 질문 전체가 아니라 **주제 하나**뿐이다.
+  const topicTerms = termsOf(String((opts && opts.topic) || '')).slice(0, 6);
+  const allTerms = [...new Set([...terms, ...extraTerms, ...aiTerms, ...aliasTerms, ...topicTerms])];
 
   let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms) })).filter(x => x.s > 0);
   // glossary 강제후보 병합(구어 매핑은 본문에 그 단어가 그대로 없을 수도 있어 별도 신호로 취급)
@@ -3221,7 +3231,7 @@ function josaEuro(word) {
 function normalizeAskCtx(raw, profile) {
   const emptyNu = { rounds: 0, state: 'none', term: '', meaning: '' };
   const empty = { uc: { rounds: 0, state: 'none', restate: '' }, scope: [], prof: { decided: [] }, nu: emptyNu,
-    cl: { q: '', labels: [] }, unk: null };
+    cl: { q: '', labels: [] }, unk: null, topic: '' };
   try {
     const c = (raw && typeof raw === 'object') ? raw : {};
     const uc = (c.uc && typeof c.uc === 'object') ? c.uc : {};
@@ -3292,7 +3302,9 @@ function normalizeAskCtx(raw, profile) {
       ? { r: Math.min(UNKNOWN_MAX_ROUNDS, Math.max(1, parseInt(unkRaw.r, 10) || 1)), q: unkQ, o: unkO }
       : null;
 
-    return { uc: { rounds, state, restate }, scope, prof: { decided }, nu, cl, unk };
+    // [이어서 질문] 직전 답변의 주제(검색 확장어로만 쓴다 — 질의 문자열엔 절대 안 합친다).
+    const topic = clarifyStr(c.topic, 60);
+    return { uc: { rounds, state, restate }, scope, prof: { decided }, nu, cl, unk, topic };
   } catch (_) {
     return empty;
   }
@@ -3326,11 +3338,14 @@ function ctxNextOf(ctx) {
   //     "잘 모르겠어요"로 오해해 답변 대신 용어풀이를 반복한다.
   const cl = ctx.cl || { q: '', labels: [] };
   const hasCl = !!cl.q;
-  const has = uc.rounds > 0 || uc.state !== 'none' || scope.length > 0 || prof.decided.length > 0 || hasNu || hasCl;
+  // [이어서 질문] 직전 답변의 주제. 있을 때만 싣는다(없으면 done JSON 이 오늘과 바이트 동일).
+  const topic = clarifyStr(ctx.topic, 60);
+  const has = uc.rounds > 0 || uc.state !== 'none' || scope.length > 0 || prof.decided.length > 0 || hasNu || hasCl || !!topic;
   if (!has) return null;
   const out = { uc, scope, prof };
   if (hasNu) out.nu = nu;
   if (hasCl) out.cl = cl;
+  if (topic) out.topic = topic;
   return out;
 }
 

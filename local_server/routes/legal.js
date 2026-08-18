@@ -1146,8 +1146,12 @@ router.post('/api/legal/ask', async (req, res) => {
     //   합치지 않는다 — 합치면 §2.1의 세 오염이 그대로 살아난다). 스위치가 off면 넘기지 않는다:
     //   대기 중 운영자가 스위치를 내리면 그 단계가 없는 것처럼 동작해야 한다(설계 §9.1 #10).
     const ucRestate = cfg.understandConfirm ? (ctx.uc.restate || '') : '';
-    const { sources, contextPages } = await legalRetriever.search(qForSearch,
-      ucRestate ? { canonicalOnly, restate: ucRestate } : { canonicalOnly });
+    // [이어서 질문] 직전 답변의 주제도 **검색 확장어로만** 넘긴다(질의 문자열엔 안 합친다).
+    //   "🔁 관련해서 더 궁금해요"를 누른 다음 질문에서만 값이 있다(ctx.topic).
+    const searchOpts = { canonicalOnly };
+    if (ucRestate) searchOpts.restate = ucRestate;
+    if (ctx.topic) searchOpts.topic = ctx.topic;
+    const { sources, contextPages } = await legalRetriever.search(qForSearch, searchOpts);
 
     // ② [H-37 §5] 상황질문(범위좁히기) — 검색 결과가 여러 선박종류 계열에 걸칠 때만, **법 이름이
     //    아니라 상황**("어떤 배에 관한 것인가요?")을 자산 라벨 그대로 묻는다. 스위치 off면 null.
@@ -1290,6 +1294,16 @@ router.post('/api/legal/ask', async (req, res) => {
       // 살아남은 줄에만 조문 원문 발췌를 붙인다(거르기 전에 붙이면 버려질 줄까지 원문을 읽는다).
       forms = await attachChainExcerpts(citationChain);
       citeLaws = answerCiteLaws(full);
+      // [이어서 질문] 이 답변의 **주제**를 ctx 에 남긴다 — "🔁 관련해서 더 궁금해요"를 누르면
+      //   다음 질문의 검색 확장어로만 쓰인다(질의 문자열엔 안 합친다).
+      //   무엇을 주제로 삼나: 답변이 **가장 먼저 인용한 근거 줄이 실려 있던 위키 페이지의 주제**
+      //   (예: `낚시어선업신고`). 페이지 주제가 비면 그 줄의 법 이름으로 대신한다.
+      //   ★지어내지 않는다 — 이미 검증된 근거 줄에서 그대로 가져올 뿐이고, 없으면 안 싣는다.
+      const head = citationChain[0];
+      if (head) {
+        const src = finalSources.find(x => x && x.law === head.baseLaw) || finalSources[0];
+        ctx.topic = String((src && src.topic) || head.law || '').slice(0, 60);
+      }
     }
 
     // 위키(검증된 카드)에 쓸 근거가 결국 안 남으면 여기서 끝내지 않고, 좁혀진 법의 raw 원문을
