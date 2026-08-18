@@ -103,13 +103,22 @@ function loadGlossary() {
     if (_glosCache && mt === _glosMtime) return _glosCache;
     const txt = fs.readFileSync(GLOSSARY_MD, 'utf8');
     const rows = [];
+    // ⚠셀을 직접 정규식으로 쪼개지 마라 — 이 표의 목적지 칸에는 `[[대상|라벨]]` 처럼 **링크 안에
+    //   파이프가 든** 표기가 흔한데(실측 396행 중 63행, 15.9%), `[^|]+` 로 칸을 잡으면 그 줄이
+    //   통째로 매치 실패해 조용히 버려진다. 금어기·금지체장·TAC·조개껍데기·어업인·국가어항 같은
+    //   실사용 빈도가 높은 구어가 그렇게 22라운드 동안 런타임 캐시에서 빠져 있었다(2026-08-18
+    //   횡단 감사관 발견, 재현 확인). 문서·xref_check 는 정상이라 코드만 실패했다.
+    //   → 아래 tableCells() 는 링크 안 파이프를 보호해 쪼개므로 그걸 그대로 쓴다(같은 표 파싱
+    //     로직을 두 벌 두지 않는다 — 한쪽만 고쳐지는 어긋남 방지).
     for (const line of txt.split('\n')) {
-      const m = line.match(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*[^|]*\|\s*$/);
-      if (!m || /^-+$/.test(m[1].trim()) || m[1].trim() === '구어·별칭') continue;
-      const terms = m[1].split(/[,，]/).map(s => s.trim()).filter(Boolean);
+      const t = line.trim();
+      if (!t.startsWith('|')) continue;
+      const c = tableCells(t);
+      if (c.length < 2 || isSepRow(c) || c[0] === '구어·별칭') continue;
+      const terms = c[0].split(/[,，]/).map(s => s.trim()).filter(Boolean);
       const slugs = [];
       const linkRe = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
-      let lm; while ((lm = linkRe.exec(m[2])) !== null) slugs.push(lm[1].trim());
+      let lm; while ((lm = linkRe.exec(c[1])) !== null) slugs.push(lm[1].trim());
       if (terms.length && slugs.length) rows.push({ terms, slugs });
     }
     _glosCache = rows; _glosMtime = mt;
@@ -1612,6 +1621,53 @@ const BARE_TIER_CELL_RE = /^(시행령|시행규칙)$/;
  * [연계] ← filterCitationChainByAnswer.
  */
 function lawMentionedInAnswer(law, baseLaw, text) {
+  for (const v of lawCellVariants(law)) {
+    if (lawMentionedOnce(v, baseLaw, text)) return true;
+  }
+  return false;
+}
+
+/**
+ * 법령 칸에 붙은 **괄호 주석**을 떼어 대조용 후보 이름들을 만든다(원문 칸도 항상 첫 후보로 남긴다).
+ * ⚠왜(2026-08-18 라이브 검증 실측): 위키 칸은 출처를 친절히 밝히려고 괄호를 덧붙인다 —
+ *   `서해 5도 해상운송비 지원 지침(고시)` · `낚시터의 시설 및 장비 세부기준(해양수산부고시 제2026-91호)` ·
+ *   `고시(연안정비 시설물 사후관리 및 효과평가 시행지침)` · `섬 발전 촉진법(구 도서개발 촉진법)`.
+ *   그런데 답변은 「서해 5도 해상운송비 지원 지침」처럼 **이름만** 쓴다. 칸 문자열을 통째로 찾던
+ *   기존 대조는 이런 행(전 위키 10,274행 중 288행, 2.8%)을 **한 줄도 통과시키지 못했고**, 그래서
+ *   답변 본문은 그 고시의 수치를 정확히 쓰는데 근거 목록에는 그 고시가 아예 안 뜨거나 같은 조번호의
+ *   모법이 대신 실렸다(서해5도·연안관리법·해운법 등 라이브 검증 13건의 공통 원인).
+ * ⚠느슨해지지 않는다: 후보는 **여전히 온전한 법령 이름**이라 답변에서 그 이름을 찾는 검사 자체는
+ *   그대로 엄격하다. 조문 주인 판정(ownedByThisLaw)도 그대로 걸린다. 두 글자 이하로 줄어드는
+ *   후보(`고시`·`훈령` 같은 계층 낱말만 남는 경우)는 버린다 — 아무 답변에나 걸려 무관한 줄이 붙는다.
+ * 예: lawCellVariants('서해 5도 해상운송비 지원 지침(고시)')
+ *     → ['서해 5도 해상운송비 지원 지침(고시)', '서해 5도 해상운송비 지원 지침']
+ * @param {string} law - 근거 조문 표의 법령 칸
+ * @returns {string[]} 대조에 쓸 후보 이름들(원문이 항상 첫 번째)
+ * [연계] ← lawMentionedInAnswer.
+ */
+const TIER_WRAP_RE = /^(?:고시|훈령|예규|지침|규정|요령|세칙|행정규칙|운영규칙)\s*\((.+)\)$/;
+// 이름이 아니라 **갈래 이름**뿐인 후보 — 답변의 "행정규칙에 따라"·"고시로 정한다" 같은 평범한 문장에
+// 걸려 무관한 줄을 끌고 오므로 후보에서 뺀다(실측: 892개 법령 칸 중 7개가 이런 꼴이었다).
+// ⚠원문 칸 자체는 후보에서 빼지 않는다 — 지금까지 통과하던 줄을 떨어뜨리지 않기 위해서다.
+const GENERIC_LAW_NAME_RE = /^(?:행정규칙|고시|훈령|예규|지침|규정|요령|세칙|운영규칙|세칙\/규정|법|법률|시행령|시행규칙)$/;
+function lawCellVariants(law) {
+  const s = String(law || '').trim();
+  if (!s) return [];
+  const out = [s];
+  const add = v => {
+    const t = String(v || '').trim();
+    if (t.length > 2 && !GENERIC_LAW_NAME_RE.test(t) && !out.includes(t)) out.push(t);
+  };
+  // ⓐ `고시(<이름>)` 처럼 **계층 낱말이 이름을 감싼** 꼴 — 괄호 안이 진짜 이름이다.
+  const w = TIER_WRAP_RE.exec(s);
+  if (w) add(w[1]);
+  // ⓑ 이름 뒤에 괄호 주석이 붙은 꼴 — 괄호 앞이 이름이다.
+  else if (/\)$/.test(s)) add(s.slice(0, s.lastIndexOf('(')));
+  return out;
+}
+
+/** lawMentionedInAnswer 의 원래 판정(후보 이름 하나에 대해). 기존 규칙을 그대로 둔다. */
+function lawMentionedOnce(law, baseLaw, text) {
   const s = String(law || '').trim();
   if (!s || s.length < 2) return false;
   if (text.includes(s)) return true;
@@ -1781,6 +1837,34 @@ function ownedByThisLaw(owners, hit, law, baseLaw) {
   return set.has(mine);
 }
 
+/**
+ * 답변에서 **그 법 이름 바로 뒤에** 붙어 나온 조문·별표 표기를 찾는다(근접성 대조).
+ * 조문 칸이 `전체`라 짚을 조문이 없는 행을, 답변이 실제로 그 법의 조문을 인용했을 때만 살리려는 것이다.
+ * 이름과 조문 사이에는 조사·따옴표 정도만 끼는 것을 허용한다(넉넉히 잡으면 남의 조문을 물어온다).
+ * 예: citationNearLawName('「연안정비 시설물 사후관리 및 효과평가 시행지침」 별표5에 따르면', ['연안정비 시설물 사후관리 및 효과평가 시행지침'])
+ *     → '별표5'
+ * @param {string} text - 답변 전체 문장
+ * @param {string[]} names - 그 줄의 법령 칸에서 만든 후보 이름들(lawCellVariants)
+ * @returns {string} 찾은 조문·별표 표기(없으면 '')
+ * [연계] ← filterCitationChainByAnswer(조문 칸이 `전체`인 행).
+ */
+const NEAR_CITE_RE = /^[」』\s의는은이가에서·,]{0,12}(제\s*\d+조(?:의\d+)?(?:\s*제\s*\d+항)?(?:\s*제\s*\d+호)?|별표\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식)/;
+function citationNearLawName(text, names) {
+  const t = String(text || '');
+  for (const nm of (names || [])) {
+    if (!nm || nm.length < 3) continue;
+    let from = 0;
+    for (;;) {
+      const at = t.indexOf(nm, from);
+      if (at < 0) break;
+      const m = NEAR_CITE_RE.exec(t.slice(at + nm.length, at + nm.length + 40));
+      if (m) return m[1].replace(/\s+/g, '');
+      from = at + nm.length;
+    }
+  }
+  return '';
+}
+
 function filterCitationChainByAnswer(chain, answerText, baseLaw) {
   const text = String(answerText || '');
   if (!text) return [];
@@ -1819,6 +1903,20 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
       if (!inRange) continue;
       row.citedArticle = citedArticleIn(text, inRange);
       row.subject = subjectOfCitation(subjects, row.citedArticle);
+      out.push(row);
+      continue;
+    }
+    // ★조문 칸이 `전체`(그 고시·지침 전부가 근거)인 행 — 전 위키 57행. 조문 토큰이 없어 아래 대조로는
+    //   **한 줄도 살아남지 못했다**(라이브 검증에서 연안관리법 시행지침 별표5가 이 이유로 근거 목록에서
+    //   통째로 사라졌다 — 답변 본문은 별표5의 4개 조건을 정확히 옮겼는데도).
+    //   ⚠그렇다고 법 이름만 맞으면 통과시키지는 않는다("무관한 줄이 붙는 게 더 나쁘다"). 답변에서
+    //     **그 법 이름 바로 뒤에 조문·별표가 붙어 나온 자리**가 있을 때만, 그 조문을 이 줄의 인용으로
+    //     삼아 통과시킨다(근접성 — 이름과 조문이 떨어져 있으면 주인을 단정할 수 없다).
+    if (/^(?:전체|전문|전조문)$/.test(article.trim())) {
+      const near = citationNearLawName(text, lawCellVariants(row.law));
+      if (!near) continue;
+      row.citedArticle = near;
+      row.subject = subjectOfCitation(subjects, near);
       out.push(row);
       continue;
     }
@@ -4227,7 +4325,7 @@ function withAssumedNotice(answer, assumed) {
   return ASSUMED_NOTICE + '\n\n' + answer;
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
