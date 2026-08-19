@@ -250,5 +250,26 @@ console.log('── 범위와 별표가 한 칸에 적힌 행 ──');
     rows.map(r => r.law).join(' / ') || '(한 줄도 안 남음)');
 }
 
+console.log('── 같은 근거가 이름 표기 차이로 두 줄 뜨던 것 ──');
+{
+  // 같은 고시라도 개념 페이지는 「…」(고시) 로, 별표 페이지는 낫표·괄호 없이 적는다. 글자 그대로
+  // 비교하던 겹침 검사가 이를 다른 법으로 봐서 화면에 같은 근거가 두 번 떴다(2026-08-19 배포 직후 재현).
+  const kept = R.dropRedundantChainRows([
+    { law: '「불법어업 신고자 등에 대한 포상금 지급 규정」(고시)', article: '제5조·별표', citedArticle: '별표' },
+    { law: '불법어업 신고자 등에 대한 포상금 지급 규정', article: '별표', citedArticle: '별표' },
+  ]);
+  ok('낫표·괄호만 다른 같은 고시는 한 줄만 남는다', kept.length === 1,
+    kept.map(r => r.law).join(' / '));
+  ok('남는 줄은 위임 조문까지 짚은 쪽이다', kept[0] && kept[0].article === '제5조·별표',
+    kept[0] && kept[0].article);
+
+  // ⚠이름 안쪽 글자는 건드리지 않는다 — 시행령·시행규칙이 모법과 합쳐지면 안 된다.
+  const both = R.dropRedundantChainRows([
+    { law: '수산업법', article: '제100조', citedArticle: '제100조' },
+    { law: '수산업법 시행령', article: '제100조', citedArticle: '제100조' },
+  ]);
+  ok('모법과 시행령은 합쳐지지 않는다', both.length === 2, both.map(r => r.law).join(' / '));
+}
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);
