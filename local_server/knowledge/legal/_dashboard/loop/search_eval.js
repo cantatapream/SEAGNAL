@@ -25,6 +25,9 @@ const PINNED = '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/loop/
 
 const norm = s => String(s || '').replace(/[\s·ㆍ()（）]/g, '');
 const arg = k => { const i = process.argv.indexOf(k); return i >= 0 ? process.argv[i + 1] : ''; };
+// `--clean`: 감사 내부 표기를 벗긴 정제판(question_clean)으로 잰다. 원문과 나란히 재보면
+// "우리가 만든 잡음이 점수를 얼마나 흐렸는지"가 그대로 드러난다(2026-08-19, 65건 중 36건 오염).
+const USE_CLEAN = process.argv.includes('--clean');
 
 (async () => {
   const pins = JSON.parse(fs.readFileSync(PINNED, 'utf8'));
@@ -32,7 +35,7 @@ const arg = k => { const i = process.argv.indexOf(k); return i >= 0 ? process.ar
   for (const p of pins) {
     let laws = [];
     try {
-      const { contextPages } = await R.search(p.question, { canonicalOnly: true });
+      const { contextPages } = await R.search((USE_CLEAN && p.question_clean ? p.question_clean : p.question), { canonicalOnly: true });
       laws = [...new Set(contextPages.map(c => norm(c.law)))];
     } catch (e) { rows.push({ law: p.law, rank: -2, err: e.message }); continue; }
     rows.push({ law: p.law, rank: laws.indexOf(norm(p.law)) });   // -1 = 후보에 없음
