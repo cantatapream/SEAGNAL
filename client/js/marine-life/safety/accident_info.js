@@ -5,9 +5,15 @@
  *         선박(심판원)·인명 3개 소스 중 하나를 고르고, "현황"(개별 사고 마커,
  *         hazard_rocks.js 와 같은 클러스터 방식) ↔ "분석"(지도 화면을 격자로
  *         나눠 격자별 건수를 색으로 표시, 격자 클릭 시 통계 바텀시트) 을 토글한다.
+ *         낱개 마커는 사고유형별 이미지 아이콘(hazard_rocks.js 와 같은 120px
+ *         캔버스 방식)이고, 여러 건이 뭉친 클러스터는 그 안에서 가장 많은
+ *         사고유형의 이미지를 대표로 보여준다(hazard_rocks.js 는 "켜진 버튼"
+ *         기준이라 다름 — 사용자 확정 2026-08-18).
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : js/shared/utils/accident_codes.js(코드값→한글 라벨),
+ *  - 사용하는 파일 : js/shared/utils/accident_codes.js(코드값→한글 라벨,
+ *                    ACCIDENT_TYPE_ICONS 마커 이미지 경로, ACCIDENT_TYPE_EXCLUDED
+ *                    표출 제외 목록), client/images/accident_markers/*.png,
  *                    OpenLayers(ol.*)
  *  - 서버 API      : GET /accident_ships_hk.json · /accident_ships_hs.json ·
  *                    /accident_persons.json (정적, 소스 버튼을 처음 누를 때만
@@ -37,6 +43,7 @@
     var CLUSTER_DISTANCE = 45;  // px — hazard_rocks.js 와 동일 값(같은 지도라 동일 체감)
     var SPREAD_ZOOM = 14;
     var GRID_COLS = 6, GRID_ROWS = 5; // 분석 모드 격자 — 화면 현재 범위를 이 칸수로 나눔
+    var ICON_SCALE = 0.2875;    // hazard_rocks.js 와 동일 — 아이콘 원본이 같은 120px 캔버스
 
     var dataPromises = {};    // key -> Promise<row[]>
     var rawFeatures = {};     // key -> ol.Feature[] (EPSG:3857, 낱개 — 격자 집계용)
@@ -61,27 +68,39 @@
         return dataPromises[key];
     }
 
+    /** 소스별 사고유형(ACDNT_TYPE_CD) 컬럼 위치 — popupRowsFor·aggregateCounts 와 동일 인덱스. */
+    function typeCodeOf(key, row) {
+        if (key === 'hk') return row[5];
+        if (key === 'hs') return row[10];
+        return row[4]; // person
+    }
+
     function rowToFeature(key, row) {
         var coord = ol.proj.fromLonLat([row[1], row[0]]); // row=[lat,lon,...]
         var f = new ol.Feature({ geometry: new ol.geom.Point(coord) });
         f.set('row', row);
+        f.set('typeCode', typeCodeOf(key, row));
         return f;
     }
 
     function ensureRawFeatures(key) {
         if (rawFeatures[key]) return Promise.resolve(rawFeatures[key]);
         return fetchSource(key).then(function (rows) {
-            var feats = rows.map(function (row) { return rowToFeature(key, row); });
+            var feats = rows
+                .filter(function (row) { return !ACCIDENT_TYPE_EXCLUDED[typeCodeOf(key, row)]; })
+                .map(function (row) { return rowToFeature(key, row); });
             rawFeatures[key] = feats;
             return feats;
         });
     }
 
     // ── 현황 모드: 클러스터 레이어 ──────────────────────────────────────────
-    var _singleStyleCache = null;
-    function singleStyle() {
-        if (!_singleStyleCache) {
-            _singleStyleCache = new ol.style.Style({
+    // 마커는 사고유형별 이미지 아이콘(ACCIDENT_TYPE_ICONS, hazard_rocks.js 와 같은
+    // 120px 캔버스 방식)을 쓰고, 매핑에 없는 코드만 파란 점으로 대체한다.
+    var _fallbackStyleCache = null;
+    function fallbackStyle() {
+        if (!_fallbackStyleCache) {
+            _fallbackStyleCache = new ol.style.Style({
                 image: new ol.style.Circle({
                     radius: 6,
                     fill: new ol.style.Fill({ color: '#448aff' }),
@@ -89,13 +108,53 @@
                 })
             });
         }
-        return _singleStyleCache;
+        return _fallbackStyleCache;
     }
 
-    function clusterStyleFn(clusterFeature) {
-        var members = clusterFeature.get('features');
-        if (members.length === 1) return singleStyle();
-        var count = members.length;
+    var _iconStyleCache = {};
+    function singleStyleFor(typeCode) {
+        var src = ACCIDENT_TYPE_ICONS[typeCode];
+        if (!src) return fallbackStyle();
+        if (!_iconStyleCache[typeCode]) {
+            _iconStyleCache[typeCode] = new ol.style.Style({
+                image: new ol.style.Icon({ src: src, scale: ICON_SCALE, anchor: [0.5, 0.5] })
+            });
+        }
+        return _iconStyleCache[typeCode];
+    }
+
+    /** 클러스터 안에서 가장 많은 사고유형의 코드를 찾는다(동점이면 먼저 나온 쪽). */
+    function dominantTypeCode(members) {
+        var counts = {}, topCode = null, topCount = 0;
+        members.forEach(function (f) {
+            var tc = f.get('typeCode');
+            var c = (counts[tc] || 0) + 1;
+            counts[tc] = c;
+            if (c > topCount) { topCount = c; topCode = tc; }
+        });
+        return topCode;
+    }
+
+    var _clusterIconStyleCache = {};
+    function clusterIconStyle(typeCode, count) {
+        var text = count > 999 ? '999+' : String(count);
+        var src = ACCIDENT_TYPE_ICONS[typeCode];
+        if (src) {
+            var cacheKey = typeCode + '|' + text;
+            if (!_clusterIconStyleCache[cacheKey]) {
+                _clusterIconStyleCache[cacheKey] = new ol.style.Style({
+                    image: new ol.style.Icon({ src: src, scale: ICON_SCALE, anchor: [0.5, 0.5] }),
+                    text: new ol.style.Text({
+                        text: text,
+                        font: 'bold 11px sans-serif',
+                        fill: new ol.style.Fill({ color: '#fff' }),
+                        stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.65)', width: 2.5 }),
+                        offsetY: 4
+                    })
+                });
+            }
+            return _clusterIconStyleCache[cacheKey];
+        }
         return new ol.style.Style({
             image: new ol.style.Circle({
                 radius: Math.min(11 + Math.log(count) * 3, 26),
@@ -103,11 +162,17 @@
                 stroke: new ol.style.Stroke({ color: '#fff', width: 1.5 })
             }),
             text: new ol.style.Text({
-                text: count > 999 ? '999+' : String(count),
+                text: text,
                 font: 'bold 11px sans-serif',
                 fill: new ol.style.Fill({ color: '#fff' })
             })
         });
+    }
+
+    function clusterStyleFn(clusterFeature) {
+        var members = clusterFeature.get('features');
+        if (members.length === 1) return singleStyleFor(members[0].get('typeCode'));
+        return clusterIconStyle(dominantTypeCode(members), members.length);
     }
 
     /** hazard_rocks.js buildClusterLayer 와 동일한 줌 기반 뭉치기 조절 패턴. */
