@@ -77,6 +77,19 @@ const ANSWER_MODEL = 'gemini-2.5-flash';
 //     (CLARIFY_BODY_CHARS=1500)이라 이 인상과 무관하다.
 //   · 남는 비용은 **속도** — 넣는 양이 2배면 답변 생성이 그만큼 느려진다(사용자도 인지·수용).
 const MAX_BODY_CHARS = 10000;
+// ★순위에 따라 본문 예산을 달리 준다(2026-08-19). 종전에는 후보 12~15개 **전부**에 10,000자를
+//   똑같이 줘서 한 질문에 평균 11만 자(≈3만 토큰)를 모델에 밀어넣었다. 고정 문항 25개로 재보니
+//   **답에 실제로 필요한 문장은 24건이 1~3위 페이지 안에** 있었고(21건은 1위), 4위 이하 페이지가
+//   그 문장을 담은 경우는 한 건도 없었다. 그런데도 4위 이하가 페이지당 8,500자씩 자리를 차지했다.
+//   ⚠뒤 순위를 **버리지 않는다** — 예산만 줄인다. sliceRelevant 가 질문과 가까운 절부터 담으므로
+//     예산이 줄면 덜 관련된 절부터 빠진다(뚝 끊기지 않는다). 배경설명용으로 뒤 페이지가 필요한
+//     질문도 있어 통째로 빼는 것은 위험하다("누락 0").
+//   ⚠근거 조문 표(citationChain)는 이 예산과 **무관하다** — 아래 sources 는 잘리지 않은 본문에서
+//     뽑으므로, 예산을 줄여도 근거 목록에서 줄이 사라지지 않는다.
+const TOP_FULL_RANK = 3;        // 1~3위 — 예산 그대로
+const MID_LAST_RANK = 6;        // 4~6위
+const MID_BODY_CHARS = 5000;
+const TAIL_BODY_CHARS = 3000;   // 7위 이하
 // 실측 확정(2026-07-29): 7→10→30페이지로 늘려도 속도 저하 없음(병목은 Gemini 호출 자체,
 // 검색 자체는 0.1~0.3초). 다만 30개에서 순위 20위 이후는 관련성이 뚜렷이 떨어지는 노이즈성
 // 페이지가 섞이기 시작함(예: "선박안전법 형식승인및검정" 등) — 속도가 아니라 관련성 기준으로
@@ -1512,13 +1525,15 @@ async function search(query, opts) {
     .map(x => ({ x, body: citableBody(x.p, canonicalOnly) }))
     .filter(e => e.body);
 
-  const contextPages = finalList.map(({ x, body }) => {
+  const contextPages = finalList.map(({ x, body }, rank) => {
     const page = readPage(x.p.kind, x.p.file);
+    const budget = rank < TOP_FULL_RANK ? MAX_BODY_CHARS
+      : rank < MID_LAST_RANK ? MID_BODY_CHARS : TAIL_BODY_CHARS;
     return {
       law: x.p.law, topic: x.p.topic, file: x.p.file, kind: x.p.kind, status: x.p.status || null,
       hop: !!x.hop,
       frontmatter: page ? page.frontmatter : {},
-      body: sliceRelevant(body, allTerms, MAX_BODY_CHARS),
+      body: sliceRelevant(body, allTerms, budget),
     };
   }).filter(cp => cp.body);
 

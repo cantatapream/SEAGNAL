@@ -1249,6 +1249,24 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       out2.split('\n').some(l => l.startsWith('## 6.') && l.includes('선고유예')));
   }
 
+  // ── 순위별 본문 예산 (2026-08-19) ───────────────────────────────────────────
+  // 종전에는 후보 12~15개 전부에 10,000자를 똑같이 줘서 한 질문에 평균 11만 자를 모델에 보냈다.
+  // 고정 문항 25개로 재보니 답에 필요한 문장은 24건이 1~3위 페이지 안에 있었고 4위 이하가 그
+  // 문장을 담은 경우는 없었다. 그래서 4~6위 5,000자·7위 이하 3,000자로 줄였다.
+  // ⚠뒤 순위를 버리지 않는다 — 예산만 줄인다. 아래 두 검사가 그 둘(줄었나 / 그래도 남아있나)을 잰다.
+  {
+    const q = '불법조업 신고하면 포상금 얼마나 주나요? 벌금형으로 끝나면요?';
+    const { contextPages } = await R.search(q, { canonicalOnly: true });
+    const len = i => String((contextPages[i] || {}).body || '').length;
+    const tail = contextPages.slice(6).map((_, i) => len(i + 6));
+    ok('후보가 7개를 넘는 질의여야 이 검사가 뜻이 있다', contextPages.length > 6, '후보 ' + contextPages.length + '개');
+    ok('7위 이하 본문은 1위 예산(10,000자)보다 뚜렷이 짧다',
+      !tail.length || Math.max(...tail) < 6000, '7위 이하 최대 ' + (tail.length ? Math.max(...tail) : 0) + '자');
+    ok('그래도 7위 이하가 통째로 비지는 않는다(예산만 줄인 것이지 버린 것이 아니다)',
+      !tail.length || Math.min(...tail) > 0, '7위 이하 최소 ' + (tail.length ? Math.min(...tail) : 0) + '자');
+    ok('상위 페이지는 예산을 그대로 받는다', len(0) > 6000, '1위 ' + len(0) + '자');
+  }
+
   console.log(`\n${pass} PASS / ${fail} FAIL`);
   process.exit(fail ? 1 : 0);
 })();
