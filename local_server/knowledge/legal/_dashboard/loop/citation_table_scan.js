@@ -123,6 +123,29 @@ for (const k of Object.keys(LABEL)) {
 }
 if (!base) console.log('\n(기준선을 주면 증감을 함께 찍는다: --base <파일>)');
 
+// ★`--gate` — 커밋 게이트용. 지금 0으로 만들어 둔 결함이 **다시 생기면** 실패한다.
+//   왜 필요한가: 위키는 사람과 AI가 계속 편집하므로, 오늘 214건을 0으로 만들어도
+//   내일 새 페이지에 `동법`이라 적히거나 근거 조문 표 없이 만들어지면 그대로 되돌아간다.
+//   검사를 만들어 두고 **게이트에 안 걸면 사람이 기억할 때만 돈다**(L-105가 정확히 그 실수였다).
+//   ⚠④`조문 칸이 전체`는 게이트에 넣지 않는다 — 출입통제 공고·최저임금 고시처럼 조문 구조가
+//     없는 문서가 실재해 0이 될 수 없고, 억지로 0을 만들면 그게 지어내기다.
+if (argv.includes('--gate')) {
+  const bad = [
+    ['근거 조문 표가 아예 없는 개념 페이지', now.pages_no_table],
+    ['법령 칸이 갈래뿐이라 못 꺼냄', now.bare_tier],
+    ['법령 칸이 가리키는 말뿐(이 법·동법)', now.deictic],
+    ['법령 칸에 이름이 없음', now.no_name],
+  ].filter(([, n]) => n > 0);
+  if (bad.length) {
+    console.log('\n  ❌ 챗봇이 근거를 못 꺼내는 행이 다시 생겼습니다');
+    bad.forEach(([k, n]) => console.log(`     · ${k}: ${n}건`));
+    console.log('     고치는 법: node _dashboard/loop/fix_deictic_law_cells.js --apply (가리키는 말)');
+    console.log('               그 밖은 --examples 로 어느 페이지인지 확인해 표를 손본다');
+    process.exit(1);
+  }
+  console.log('\n  ✅ 챗봇이 근거를 못 꺼내는 행 없음');
+}
+
 if (arg('--save')) {
   fs.writeFileSync(arg('--save'), JSON.stringify(now, null, 1));
   console.log(`\n스냅샷 저장: ${arg('--save')}`);
