@@ -1781,6 +1781,14 @@ function lawCellVariants(law) {
   if (w) add(w[1]);
   // ⓑ 이름 뒤에 괄호 주석이 붙은 꼴 — 괄호 앞이 이름이다.
   else if (/\)$/.test(s)) add(s.slice(0, s.lastIndexOf('(')));
+  // ⓒ 이름 **앞**에 발령기관을 괄호로 밝힌 꼴 — 괄호 뒤가 이름이다(전 위키 31행).
+  //   위키는 출처를 분명히 하려고 `(국립농산물품질관리원) 수입농산물등 유통이력관리 조사 요령`
+  //   처럼 적는데, 답변은 「수입농산물등 유통이력관리 조사 요령」 이라고만 쓴다. ⓑ가 뒤쪽 괄호만
+  //   봐서 이런 행은 한 줄도 통과하지 못했다(라이브 검증: 원산지표시법 조사요령 별표4).
+  //   ⚠괄호를 뗀 나머지가 **법령 갈래 낱말로 끝날 때만** 이름으로 인정한다 — `(타법) 처벌(형벌)`
+  //     처럼 이름이 아닌 칸까지 후보로 만들지 않기 위해서다.
+  const lead = /^\(([^)]{2,40})\)\s*(.+)$/.exec(s);
+  if (lead && /(법|령|규칙|고시|지침|요령|규정|세칙|조례|기준|공고|예규|훈령|정관)$/.test(lead[2].trim())) add(lead[2]);
   return out;
 }
 
@@ -2009,7 +2017,7 @@ function ownedByThisLaw(owners, hit, law, baseLaw) {
 // 조문 칸이 "그 문서 전부가 근거"라는 뜻인 표기. `전체` 뿐 아니라 `전체(제1~19조)` 처럼
 // 괄호로 범위를 덧붙인 꼴도 같은 뜻이다(전 위키 실측 표기 두 가지).
 const WHOLE_DOC_RE = /^(?:전체|전문|전조문)(?:\s*\([^)]*\))?$/;
-const NEAR_CITE_RE = /^[」』\s의는은이가에서·,]{0,12}(제\s*\d+조(?:의\d+)?(?:\s*제\s*\d+항)?(?:\s*제\s*\d+호)?|별표\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식|부칙(?:\s*[<(][^)>]{0,30}[)>])?)/;
+const NEAR_CITE_RE = /^[」』\s의는은이가에서·,]{0,12}(제\s*\d+조(?:의\d+)?(?:\s*제\s*\d+항)?(?:\s*제\s*\d+호)?|별표(?:\s*\d+(?:의\d+)?)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식|부칙(?:\s*[<(][^)>]{0,30}[)>])?)/;
 function citationNearLawName(text, names) {
   const t = String(text || '');
   for (const nm of (names || [])) {
@@ -2088,12 +2096,17 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
       const from = parseInt(range[1], 10), to = parseInt(range[2], 10);
       const inRange = (text.match(/제\d+조/g) || [])
         .find(c => { const n = parseInt(c.replace(/\D/g, ''), 10); return n >= from && n <= to; });
-      if (!inRange) continue;
-      if (!ownedByThisLaw(owners, inRange, row.law, baseLaw)) continue;   // 범위 표기도 같은 이유로 확인
-      row.citedArticle = citedArticleIn(text, inRange);
-      row.subject = subjectOfCitation(subjects, row.citedArticle);
-      out.push(row);
-      continue;
+      // ⚠범위가 안 맞아도 **여기서 버리지 않는다**(2026-08-19 실측). `제8~13조·별표4` 처럼 범위와
+      //   별표가 같은 칸에 적힌 행이 있는데, 답변이 별표4를 인용하면 위 조 범위와 안 맞는다는
+      //   이유로 아래 토큰 대조까지 가보지도 못하고 탈락했다(원산지표시법 조사요령 별표4 —
+      //   답변 본문은 그 별표의 의견제출기간 20일을 정확히 옮겼는데도 근거 목록에서 사라졌다).
+      //   범위 갈래는 **살릴 줄만 더하고**, 못 살리면 아래 대조에 넘긴다.
+      if (inRange && ownedByThisLaw(owners, inRange, row.law, baseLaw)) {
+        row.citedArticle = citedArticleIn(text, inRange);
+        row.subject = subjectOfCitation(subjects, row.citedArticle);
+        out.push(row);
+        continue;
+      }
     }
     // ★조문 칸이 `전체`(그 고시·지침 전부가 근거)인 행 — 전 위키 57행. 조문 토큰이 없어 아래 대조로는
     //   **한 줄도 살아남지 못했다**(라이브 검증에서 연안관리법 시행지침 별표5가 이 이유로 근거 목록에서
@@ -2139,7 +2152,21 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
     //   공백만 지운 형태로도 대조한다(글자 자체를 바꾸는 게 아니라 공백 차이만 흡수 — 환각 0 유지).
     const flatText = text.replace(/\s+/g, '');
     const hit = tokens.find(t => text.includes(t) || flatText.includes(t.replace(/\s+/g, '')));
-    if (!hit) continue;
+    if (!hit) {
+      // ★번호 없는 `별표` 칸(전 위키 36행) — 고시·지침에는 별표가 하나뿐이라 번호를 안 붙인 것이 있다.
+      //   위 토큰 대조는 `별표3` 처럼 **숫자가 붙은 것만** 뽑아 이런 칸을 한 줄도 통과시키지 못했다
+      //   (라이브 검증: 수산자원관리법 포상금 고시 행 `제5조·별표` — 답변은 「…포상금 지급 규정」
+      //    별표 가목이라고만 써서 제5조 토큰과 안 맞았고, 근거 목록에서 그 고시가 통째로 사라졌다).
+      //   ⚠느슨해지지 않게, 답변에서 **그 법 이름 바로 뒤에 별표가 붙어 나온 자리**가 있을 때만
+      //     통과시킨다("무관한 줄이 붙는 게 더 나쁘다"). 이름과 떨어져 있으면 주인을 단정할 수 없다.
+      if (!/별표(?!\s*\d)/.test(article)) continue;
+      const nearAnnex = citationNearLawName(text, lawCellVariants(row.law));
+      if (!nearAnnex || !/^별표/.test(nearAnnex)) continue;
+      out.push(Object.assign({}, row, {
+        citedArticle: nearAnnex, subject: subjectOfCitation(subjects, nearAnnex),
+      }));
+      continue;
+    }
     // ★근접성 검사(2026-08-18 실사용 지적 "근거 목록에 무관한 법이 섞인다"): 위 두 조건은
     //   ⓐ법 이름이 답변 어딘가에 있나 ⓑ조문번호가 답변 어딘가에 있나 를 **따로** 볼 뿐,
     //   둘이 같은 자리에 붙어 있는지는 안 본다. 그래서 답변의 「선박직원법」 제2조제1호 때문에
