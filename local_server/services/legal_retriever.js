@@ -914,8 +914,16 @@ setImmediate(warmup);
 //    성공한 적이 없었다(프로덕션 로그로 확인, caller=Legal-QueryExpand·Legal-RawLawPick 둘 다
 //    영향받음 — 둘 다 이 상수를 공유). API가 요구하는 최소값(10초)으로 올린다.
 const QUERY_EXPAND_TIMEOUT_MS = 10000;
+// ★온도 0 — 같은 질문에 **같은 답**이 나오게 한다(2026-08-19 실측으로 결정).
+//   폐기물관리법 질문 하나를 첫 턴만 6회 반복했더니 **3회는 바로 답하고 3회는 되물었다.**
+//   되묻기 문장도 두 가지로 갈렸고(`…알려주세요` / `…받으시나요?`), 바로 답한 3회의 근거 수도
+//   1건·2건·1건으로 달랐다 — 되묻기 판단과 검색어 확장이 **둘 다** 흔들린다는 뜻이다.
+//   측정에 잡음이 섞이는 것보다 나쁜 것은 **사용자가 같은 질문을 두 번 하면 다른 답을 받는다**는
+//   점이다(라이브 검증에서 같은 질문이 "정확 → 빈 답변 → 다시 정확"으로 갈린 것도 이 때문).
+//   ⚠온도를 0으로 둔다고 완전히 같아지지는 않는다(모델·서버 쪽 요인이 남는다). 편차를 줄이는
+//     것이 목적이며, 실제로 줄었는지는 같은 반복 실험(repeat_probe.js)으로 확인한다.
 const QUERY_EXPAND_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: QUERY_EXPAND_TIMEOUT_MS },
@@ -990,7 +998,8 @@ const CLARIFY_JOINER = ' — ';
 //  (직전 라운드의 질문·선택지 집합 대조)가 실제 방어선이고, 이 숫자는 그게 다 뚫렸을 때의 천장이다.)
 const CLARIFY_MAX_ROUNDS = 10;
 const CLARIFY_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,          // ★위 QUERY_EXPAND_CONFIG 주석 참고 — 같은 질문에 같은 답이 나오게 한다
+
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: 15000 },
