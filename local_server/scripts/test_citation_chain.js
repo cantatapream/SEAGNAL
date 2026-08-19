@@ -181,5 +181,33 @@ console.log('── 자료 머리의 법령 안내 ──');
   ok('법령이 하나뿐이면 안내를 붙이지 않는다', !R.buildContextBlock([only]).includes('함께 실려 있다'));
 }
 
+console.log('── 가운뎃점으로 이어 적은 조·별표 묶음 ──');
+{
+  // 조문 칸 `별표2·5·6·8·9` 는 종전 토큰 대조가 **별표2 하나만** 뽑아, 답변이 별표5를 인용하면
+  // 그 행이 통째로 탈락했다(라이브 검증: 연안관리법 시행지침 별표5 — 답변 본문은 맞는데 근거 목록이 빔).
+  ok('별표 묶음을 낱개로 편다',
+    JSON.stringify(R.articleEnumTokens('별표2·5·6·8·9'))
+      === JSON.stringify(['별표2', '별표5', '별표6', '별표8', '별표9']));
+  ok('조와 별표가 섞인 칸도 양쪽 다 편다',
+    JSON.stringify(R.articleEnumTokens('제2·3조·별표1·2'))
+      === JSON.stringify(['제2조', '제3조', '별표1', '별표2']));
+  ok('묶음 안의 범위(18~21)도 편다',
+    R.articleEnumTokens('제9·11·12·16·18~21조').join(',') === '제9조,제11조,제12조,제16조,제18조,제19조,제20조,제21조');
+  ok('항·호 묶음은 펴지 않는다(조가 하나뿐 — 기존 토큰 대조가 이미 집는다)',
+    R.articleEnumTokens('제115조제3·4호').length === 0);
+  ok('`제30조의5·6` 은 여기서 손대지 않는다(expandJoEnum 담당)',
+    R.articleEnumTokens('제30조의5·6').length === 0);
+  ok('가운뎃점 뒤가 숫자가 아니면 펴지 않는다',
+    R.articleEnumTokens('제46조제1항제6ㆍ7호, 별표2 아ㆍ자목').length === 0);
+
+  // 실제 위키 행으로 끝까지 확인 — 답변이 별표5를 인용하면 그 지침 행이 살아남아야 한다.
+  const ans = '「연안정비 시설물 사후관리 및 효과평가 시행지침」 별표5에 따르면 수중조사는 '
+    + '하자보수기간 완료 전 정밀안전점검, 준설 등으로 해저면이 변동된 경우 등에 실시합니다.';
+  const rows = keptFor('연안관리법__연안정비시설물사후관리', ans, '연안관리법');
+  ok('별표5를 인용한 답변에서 시행지침 행이 살아남는다',
+    rows.some(r => String(r.law).includes('시행지침') && String(r.article).includes('별표')),
+    rows.map(r => r.law + ' ' + r.article).join(' / ') || '(한 줄도 안 남음)');
+}
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);

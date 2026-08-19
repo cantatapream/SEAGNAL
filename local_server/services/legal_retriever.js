@@ -1650,6 +1650,53 @@ function expandJoEnum(article) {
 }
 
 /**
+ * 조문 칸에 **가운뎃점으로 이어 적은 조·별표 번호**를 낱개 표기로 편다.
+ * `expandJoEnum` 은 칸 **전체**가 조 묶음일 때만 쓴다. 여기는 `제2·3조·별표1·2` 처럼 다른 글자가
+ * 섞여 그쪽이 못 받는 칸에서, 아래 토큰 대조가 **맨 앞 항목 하나만 뽑고 나머지를 통째로 잃던 것**을
+ * 막는다(전 위키 90행). 라이브 검증에서 연안관리법 시행지침 `별표2·5·6·8·9` 행이 별표2 만 뽑혀
+ * 답변이 인용한 별표5 와 안 맞아 통째로 탈락했다 — 답변 본문은 별표5 내용을 정확히 옮겼는데도다.
+ * ★칸에 **적혀 있는 번호만** 편다 — 없는 번호를 만들어내지 않는다(환각 0). 한 항목이라도 못 읽으면
+ *   통째로 빈 배열을 돌려 기존 처리에 맡긴다(절반만 펴서 그중 하나를 근거로 보여주지 않는다).
+ * 예: articleEnumTokens('제2·3조·별표1·2')   → ['제2조','제3조','별표1','별표2']
+ *     articleEnumTokens('제9·11·18~21조')    → ['제9조','제11조','제18조','제19조','제20조','제21조']
+ *     articleEnumTokens('제115조제3·4호')    → [](조가 하나뿐 — 아래 토큰 대조가 이미 집는다)
+ * @param {string} article - 근거 조문 표의 조문 칸 값
+ * @returns {string[]} 편 낱개 표기(펼 것이 없으면 빈 배열)
+ * [연계] ← filterCitationChainByAnswer(토큰 대조 갈래).
+ */
+function articleEnumTokens(article) {
+  const s = String(article || '');
+  const out = [];
+  let m;
+  // 조 묶음: `제2·3조` · `제9·11·12·16·18~21조`(범위 섞임)
+  const joRun = /제\s*(\d+(?:\s*[·ㆍ・~∼]\s*\d+)+)\s*조(?!의)/g;
+  while ((m = joRun.exec(s)) !== null) {
+    for (const part of m[1].split(/[·ㆍ・]/)) {
+      const rg = /^\s*(\d+)\s*[~∼]\s*(\d+)\s*$/.exec(part);
+      if (rg) {
+        const from = parseInt(rg[1], 10), to = parseInt(rg[2], 10);
+        if (!(from >= 1 && to > from && to - from <= 100)) return [];
+        for (let n = from; n <= to; n++) out.push(`제${n}조`);
+        continue;
+      }
+      const n = parseInt(part.trim(), 10);
+      if (!(n >= 1)) return [];
+      out.push(`제${n}조`);
+    }
+  }
+  // 별표·별도 묶음: `별표1·2` · `별표2·5·6·8·9`
+  const annexRun = /(별표|별도)\s*(\d+(?:의\d+)?(?:\s*[·ㆍ・]\s*\d+(?:의\d+)?)+)/g;
+  while ((m = annexRun.exec(s)) !== null) {
+    for (const part of m[2].split(/[·ㆍ・]/)) {
+      const t = part.trim();
+      if (!/^\d+(?:의\d+)?$/.test(t)) return [];
+      out.push(m[1] + t);
+    }
+  }
+  return [...new Set(out)];
+}
+
+/**
  * 답변 문장이 그 조를 인용할 때 **실제로 쓴 표기 전체**(항·호 포함)를 답변에서 그대로 떼어 온다.
  * ★환각 0: 답변 문장에 **문자 그대로 있는 표기만** 돌려준다 — 조·항·호를 조립해 만들지 않는다.
  * 예: citedArticleIn('…「어선안전조업법」 제58조제5항제7호에 따라…', '제58조') → '제58조제5항제7호'
@@ -2085,7 +2132,9 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
       }
       continue;   // 열쇠가 안 맞으면 이 행은 근거가 아니다(아래 토큰 대조로 넘기지 않는다)
     }
-    const tokens = article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\s*\d+(?:의\d+)?|별도\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식/g) || [];
+    const tokens = (article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\s*\d+(?:의\d+)?|별도\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식/g) || [])
+      // ⚠가운뎃점으로 이어 적은 나머지 번호까지 펴서 함께 본다(articleEnumTokens 주석 참고).
+      .concat(articleEnumTokens(article));
     // ⚠답변은 `별표 3`처럼 **띄어 쓰기도** 한다 — 위키 칸은 `별표3`이라 글자 그대로는 안 맞는다.
     //   공백만 지운 형태로도 대조한다(글자 자체를 바꾸는 게 아니라 공백 차이만 흡수 — 환각 0 유지).
     const flatText = text.replace(/\s+/g, '');
@@ -4533,7 +4582,7 @@ module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCel
   // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
   naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT,
   // 2026-08-17: 인용사슬 묶음표기 풀기(B1·B2) · "잘 모르겠어요"(B7) · 약칭표(B8, 계약4)
-  expandJoEnum, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
+  expandJoEnum, articleEnumTokens, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
   // 2026-08-17: 답변 인용 기반 근거 카드 폴백(B11 — 위키 `## 근거 조문` 표가 없는 페이지의 구멍 메우기)
   extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX,
   // 2026-08-17: 4천자 컨텍스트 발췌(회귀 테스트 대상 — 이 로직에서 회귀가 두 번 재발했다)
