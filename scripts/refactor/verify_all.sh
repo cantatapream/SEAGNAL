@@ -52,6 +52,23 @@ done
 #   [주의] 실패하면 `_dashboard/loop/xref_fix.py <wiki> --apply` 로 기계 수리 후, 남은
 #          것(후보가 여럿이거나 대상 문서가 없는 것)만 사람이 판단한다.
 # ============================================================================
+# ============================================================================
+# V5-3 근거 조문 표 무결성 (2026-08-19 신설)
+#   [배경] 챗봇은 개념 페이지의 `## 근거 조문` 표에서만 근거를 만든다. 그 표에 `이 법`·`동법`
+#   처럼 어느 법인지 알 수 없게 적히거나 표가 아예 없으면, 내용이 위키에 멀쩡히 있어도
+#   사용자 앞에서는 근거가 통째로 사라진다(22차 라이브 검증에서 절반이 재현 안 된 최대 원인).
+#   243건을 0으로 만들었는데, 위키는 계속 편집되므로 **게이트가 없으면 그대로 되돌아간다.**
+#   [주의] 실패하면 fix_deictic_law_cells.js 로 기계 수리 후, 남은 것만 사람이 표를 손본다.
+# ============================================================================
+echo; echo "── V5-3 근거 조문 표 무결성 ──"
+node local_server/knowledge/legal/_dashboard/loop/citation_table_scan.js --gate || FAIL=1
+
+echo; echo "── V5-4 정답 페이지 도달 ──"
+# 사람이 정답이라고 확인한 개념 페이지가 검색 후보에, 그리고 모델에게 넘어가는 자료에 들어오는가.
+# 순위엔 문턱을 두지 않는다(위키가 바뀌면 자연히 흔들린다) — "아예 못 닿는다"만 실패로 본다.
+node local_server/knowledge/legal/_dashboard/loop/page_eval.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || FAIL=1
+
 echo; echo "── V5-2 위키 링크 무결성 ──"
 ( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || FAIL=1
 

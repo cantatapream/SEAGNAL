@@ -77,6 +77,19 @@ const ANSWER_MODEL = 'gemini-2.5-flash';
 //     (CLARIFY_BODY_CHARS=1500)이라 이 인상과 무관하다.
 //   · 남는 비용은 **속도** — 넣는 양이 2배면 답변 생성이 그만큼 느려진다(사용자도 인지·수용).
 const MAX_BODY_CHARS = 10000;
+// ★순위에 따라 본문 예산을 달리 준다(2026-08-19). 종전에는 후보 12~15개 **전부**에 10,000자를
+//   똑같이 줘서 한 질문에 평균 11만 자(≈3만 토큰)를 모델에 밀어넣었다. 고정 문항 25개로 재보니
+//   **답에 실제로 필요한 문장은 24건이 1~3위 페이지 안에** 있었고(21건은 1위), 4위 이하 페이지가
+//   그 문장을 담은 경우는 한 건도 없었다. 그런데도 4위 이하가 페이지당 8,500자씩 자리를 차지했다.
+//   ⚠뒤 순위를 **버리지 않는다** — 예산만 줄인다. sliceRelevant 가 질문과 가까운 절부터 담으므로
+//     예산이 줄면 덜 관련된 절부터 빠진다(뚝 끊기지 않는다). 배경설명용으로 뒤 페이지가 필요한
+//     질문도 있어 통째로 빼는 것은 위험하다("누락 0").
+//   ⚠근거 조문 표(citationChain)는 이 예산과 **무관하다** — 아래 sources 는 잘리지 않은 본문에서
+//     뽑으므로, 예산을 줄여도 근거 목록에서 줄이 사라지지 않는다.
+const TOP_FULL_RANK = 3;        // 1~3위 — 예산 그대로
+const MID_LAST_RANK = 6;        // 4~6위
+const MID_BODY_CHARS = 5000;
+const TAIL_BODY_CHARS = 3000;   // 7위 이하
 // 실측 확정(2026-07-29): 7→10→30페이지로 늘려도 속도 저하 없음(병목은 Gemini 호출 자체,
 // 검색 자체는 0.1~0.3초). 다만 30개에서 순위 20위 이후는 관련성이 뚜렷이 떨어지는 노이즈성
 // 페이지가 섞이기 시작함(예: "선박안전법 형식승인및검정" 등) — 속도가 아니라 관련성 기준으로
@@ -1512,13 +1525,15 @@ async function search(query, opts) {
     .map(x => ({ x, body: citableBody(x.p, canonicalOnly) }))
     .filter(e => e.body);
 
-  const contextPages = finalList.map(({ x, body }) => {
+  const contextPages = finalList.map(({ x, body }, rank) => {
     const page = readPage(x.p.kind, x.p.file);
+    const budget = rank < TOP_FULL_RANK ? MAX_BODY_CHARS
+      : rank < MID_LAST_RANK ? MID_BODY_CHARS : TAIL_BODY_CHARS;
     return {
       law: x.p.law, topic: x.p.topic, file: x.p.file, kind: x.p.kind, status: x.p.status || null,
       hop: !!x.hop,
       frontmatter: page ? page.frontmatter : {},
-      body: sliceRelevant(body, allTerms, MAX_BODY_CHARS),
+      body: sliceRelevant(body, allTerms, budget),
     };
   }).filter(cp => cp.body);
 
@@ -1650,6 +1665,53 @@ function expandJoEnum(article) {
 }
 
 /**
+ * 조문 칸에 **가운뎃점으로 이어 적은 조·별표 번호**를 낱개 표기로 편다.
+ * `expandJoEnum` 은 칸 **전체**가 조 묶음일 때만 쓴다. 여기는 `제2·3조·별표1·2` 처럼 다른 글자가
+ * 섞여 그쪽이 못 받는 칸에서, 아래 토큰 대조가 **맨 앞 항목 하나만 뽑고 나머지를 통째로 잃던 것**을
+ * 막는다(전 위키 90행). 라이브 검증에서 연안관리법 시행지침 `별표2·5·6·8·9` 행이 별표2 만 뽑혀
+ * 답변이 인용한 별표5 와 안 맞아 통째로 탈락했다 — 답변 본문은 별표5 내용을 정확히 옮겼는데도다.
+ * ★칸에 **적혀 있는 번호만** 편다 — 없는 번호를 만들어내지 않는다(환각 0). 한 항목이라도 못 읽으면
+ *   통째로 빈 배열을 돌려 기존 처리에 맡긴다(절반만 펴서 그중 하나를 근거로 보여주지 않는다).
+ * 예: articleEnumTokens('제2·3조·별표1·2')   → ['제2조','제3조','별표1','별표2']
+ *     articleEnumTokens('제9·11·18~21조')    → ['제9조','제11조','제18조','제19조','제20조','제21조']
+ *     articleEnumTokens('제115조제3·4호')    → [](조가 하나뿐 — 아래 토큰 대조가 이미 집는다)
+ * @param {string} article - 근거 조문 표의 조문 칸 값
+ * @returns {string[]} 편 낱개 표기(펼 것이 없으면 빈 배열)
+ * [연계] ← filterCitationChainByAnswer(토큰 대조 갈래).
+ */
+function articleEnumTokens(article) {
+  const s = String(article || '');
+  const out = [];
+  let m;
+  // 조 묶음: `제2·3조` · `제9·11·12·16·18~21조`(범위 섞임)
+  const joRun = /제\s*(\d+(?:\s*[·ㆍ・~∼]\s*\d+)+)\s*조(?!의)/g;
+  while ((m = joRun.exec(s)) !== null) {
+    for (const part of m[1].split(/[·ㆍ・]/)) {
+      const rg = /^\s*(\d+)\s*[~∼]\s*(\d+)\s*$/.exec(part);
+      if (rg) {
+        const from = parseInt(rg[1], 10), to = parseInt(rg[2], 10);
+        if (!(from >= 1 && to > from && to - from <= 100)) return [];
+        for (let n = from; n <= to; n++) out.push(`제${n}조`);
+        continue;
+      }
+      const n = parseInt(part.trim(), 10);
+      if (!(n >= 1)) return [];
+      out.push(`제${n}조`);
+    }
+  }
+  // 별표·별도 묶음: `별표1·2` · `별표2·5·6·8·9`
+  const annexRun = /(별표|별도)\s*(\d+(?:의\d+)?(?:\s*[·ㆍ・]\s*\d+(?:의\d+)?)+)/g;
+  while ((m = annexRun.exec(s)) !== null) {
+    for (const part of m[2].split(/[·ㆍ・]/)) {
+      const t = part.trim();
+      if (!/^\d+(?:의\d+)?$/.test(t)) return [];
+      out.push(m[1] + t);
+    }
+  }
+  return [...new Set(out)];
+}
+
+/**
  * 답변 문장이 그 조를 인용할 때 **실제로 쓴 표기 전체**(항·호 포함)를 답변에서 그대로 떼어 온다.
  * ★환각 0: 답변 문장에 **문자 그대로 있는 표기만** 돌려준다 — 조·항·호를 조립해 만들지 않는다.
  * 예: citedArticleIn('…「어선안전조업법」 제58조제5항제7호에 따라…', '제58조') → '제58조제5항제7호'
@@ -1734,6 +1796,14 @@ function lawCellVariants(law) {
   if (w) add(w[1]);
   // ⓑ 이름 뒤에 괄호 주석이 붙은 꼴 — 괄호 앞이 이름이다.
   else if (/\)$/.test(s)) add(s.slice(0, s.lastIndexOf('(')));
+  // ⓒ 이름 **앞**에 발령기관을 괄호로 밝힌 꼴 — 괄호 뒤가 이름이다(전 위키 31행).
+  //   위키는 출처를 분명히 하려고 `(국립농산물품질관리원) 수입농산물등 유통이력관리 조사 요령`
+  //   처럼 적는데, 답변은 「수입농산물등 유통이력관리 조사 요령」 이라고만 쓴다. ⓑ가 뒤쪽 괄호만
+  //   봐서 이런 행은 한 줄도 통과하지 못했다(라이브 검증: 원산지표시법 조사요령 별표4).
+  //   ⚠괄호를 뗀 나머지가 **법령 갈래 낱말로 끝날 때만** 이름으로 인정한다 — `(타법) 처벌(형벌)`
+  //     처럼 이름이 아닌 칸까지 후보로 만들지 않기 위해서다.
+  const lead = /^\(([^)]{2,40})\)\s*(.+)$/.exec(s);
+  if (lead && /(법|령|규칙|고시|지침|요령|규정|세칙|조례|기준|공고|예규|훈령|정관)$/.test(lead[2].trim())) add(lead[2]);
   return out;
 }
 
@@ -1962,7 +2032,7 @@ function ownedByThisLaw(owners, hit, law, baseLaw) {
 // 조문 칸이 "그 문서 전부가 근거"라는 뜻인 표기. `전체` 뿐 아니라 `전체(제1~19조)` 처럼
 // 괄호로 범위를 덧붙인 꼴도 같은 뜻이다(전 위키 실측 표기 두 가지).
 const WHOLE_DOC_RE = /^(?:전체|전문|전조문)(?:\s*\([^)]*\))?$/;
-const NEAR_CITE_RE = /^[」』\s의는은이가에서·,]{0,12}(제\s*\d+조(?:의\d+)?(?:\s*제\s*\d+항)?(?:\s*제\s*\d+호)?|별표\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식|부칙(?:\s*[<(][^)>]{0,30}[)>])?)/;
+const NEAR_CITE_RE = /^[」』\s의는은이가에서·,]{0,12}(제\s*\d+조(?:의\d+)?(?:\s*제\s*\d+항)?(?:\s*제\s*\d+호)?|별표(?:\s*\d+(?:의\d+)?)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식|부칙(?:\s*[<(][^)>]{0,30}[)>])?)/;
 function citationNearLawName(text, names) {
   const t = String(text || '');
   for (const nm of (names || [])) {
@@ -2041,12 +2111,17 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
       const from = parseInt(range[1], 10), to = parseInt(range[2], 10);
       const inRange = (text.match(/제\d+조/g) || [])
         .find(c => { const n = parseInt(c.replace(/\D/g, ''), 10); return n >= from && n <= to; });
-      if (!inRange) continue;
-      if (!ownedByThisLaw(owners, inRange, row.law, baseLaw)) continue;   // 범위 표기도 같은 이유로 확인
-      row.citedArticle = citedArticleIn(text, inRange);
-      row.subject = subjectOfCitation(subjects, row.citedArticle);
-      out.push(row);
-      continue;
+      // ⚠범위가 안 맞아도 **여기서 버리지 않는다**(2026-08-19 실측). `제8~13조·별표4` 처럼 범위와
+      //   별표가 같은 칸에 적힌 행이 있는데, 답변이 별표4를 인용하면 위 조 범위와 안 맞는다는
+      //   이유로 아래 토큰 대조까지 가보지도 못하고 탈락했다(원산지표시법 조사요령 별표4 —
+      //   답변 본문은 그 별표의 의견제출기간 20일을 정확히 옮겼는데도 근거 목록에서 사라졌다).
+      //   범위 갈래는 **살릴 줄만 더하고**, 못 살리면 아래 대조에 넘긴다.
+      if (inRange && ownedByThisLaw(owners, inRange, row.law, baseLaw)) {
+        row.citedArticle = citedArticleIn(text, inRange);
+        row.subject = subjectOfCitation(subjects, row.citedArticle);
+        out.push(row);
+        continue;
+      }
     }
     // ★조문 칸이 `전체`(그 고시·지침 전부가 근거)인 행 — 전 위키 57행. 조문 토큰이 없어 아래 대조로는
     //   **한 줄도 살아남지 못했다**(라이브 검증에서 연안관리법 시행지침 별표5가 이 이유로 근거 목록에서
@@ -2085,12 +2160,28 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
       }
       continue;   // 열쇠가 안 맞으면 이 행은 근거가 아니다(아래 토큰 대조로 넘기지 않는다)
     }
-    const tokens = article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\s*\d+(?:의\d+)?|별도\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식/g) || [];
+    const tokens = (article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\s*\d+(?:의\d+)?|별도\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식/g) || [])
+      // ⚠가운뎃점으로 이어 적은 나머지 번호까지 펴서 함께 본다(articleEnumTokens 주석 참고).
+      .concat(articleEnumTokens(article));
     // ⚠답변은 `별표 3`처럼 **띄어 쓰기도** 한다 — 위키 칸은 `별표3`이라 글자 그대로는 안 맞는다.
     //   공백만 지운 형태로도 대조한다(글자 자체를 바꾸는 게 아니라 공백 차이만 흡수 — 환각 0 유지).
     const flatText = text.replace(/\s+/g, '');
     const hit = tokens.find(t => text.includes(t) || flatText.includes(t.replace(/\s+/g, '')));
-    if (!hit) continue;
+    if (!hit) {
+      // ★번호 없는 `별표` 칸(전 위키 36행) — 고시·지침에는 별표가 하나뿐이라 번호를 안 붙인 것이 있다.
+      //   위 토큰 대조는 `별표3` 처럼 **숫자가 붙은 것만** 뽑아 이런 칸을 한 줄도 통과시키지 못했다
+      //   (라이브 검증: 수산자원관리법 포상금 고시 행 `제5조·별표` — 답변은 「…포상금 지급 규정」
+      //    별표 가목이라고만 써서 제5조 토큰과 안 맞았고, 근거 목록에서 그 고시가 통째로 사라졌다).
+      //   ⚠느슨해지지 않게, 답변에서 **그 법 이름 바로 뒤에 별표가 붙어 나온 자리**가 있을 때만
+      //     통과시킨다("무관한 줄이 붙는 게 더 나쁘다"). 이름과 떨어져 있으면 주인을 단정할 수 없다.
+      if (!/별표(?!\s*\d)/.test(article)) continue;
+      const nearAnnex = citationNearLawName(text, lawCellVariants(row.law));
+      if (!nearAnnex || !/^별표/.test(nearAnnex)) continue;
+      out.push(Object.assign({}, row, {
+        citedArticle: nearAnnex, subject: subjectOfCitation(subjects, nearAnnex),
+      }));
+      continue;
+    }
     // ★근접성 검사(2026-08-18 실사용 지적 "근거 목록에 무관한 법이 섞인다"): 위 두 조건은
     //   ⓐ법 이름이 답변 어딘가에 있나 ⓑ조문번호가 답변 어딘가에 있나 를 **따로** 볼 뿐,
     //   둘이 같은 자리에 붙어 있는지는 안 본다. 그래서 답변의 「선박직원법」 제2조제1호 때문에
@@ -4533,7 +4624,7 @@ module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCel
   // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
   naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT,
   // 2026-08-17: 인용사슬 묶음표기 풀기(B1·B2) · "잘 모르겠어요"(B7) · 약칭표(B8, 계약4)
-  expandJoEnum, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
+  expandJoEnum, articleEnumTokens, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
   // 2026-08-17: 답변 인용 기반 근거 카드 폴백(B11 — 위키 `## 근거 조문` 표가 없는 페이지의 구멍 메우기)
   extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX,
   // 2026-08-17: 4천자 컨텍스트 발췌(회귀 테스트 대상 — 이 로직에서 회귀가 두 번 재발했다)
