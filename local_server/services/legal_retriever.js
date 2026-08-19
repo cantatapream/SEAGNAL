@@ -994,6 +994,52 @@ const CLARIFY_BODY_CHARS = 1500;   // 페이지당 발췌 상한
 const CLARIFY_OPTION_MAX = 10;
 // 모듈 레벨 공유 참조라 호출자가 실수로 고치면 이후 모든 폴백이 오염된다 — 얼려서 막는다.
 const CLARIFY_NONE = Object.freeze({ needed: false });
+
+// ── 되묻기 선택지 보정 — "어떤 법이냐"고 물으면서 정작 1순위 법을 안 보여주던 것 ──────────
+// ★왜(2026-08-19 라이브 실측): "단지관리계획은 언제까지 세워서 승인받아야 하나요?" 질문에서
+//   검색은 「배타적 경제수역 및 대륙붕에 관한 법률」을 1위로 올렸는데, 되묻기 선택지는
+//   `항만법 / 마리나항만법 / 잘 모르겠어요` 로 나왔다. **사용자가 정답을 고를 방법이 없다.**
+//   무엇을 고르든 답에 닿지 못하고, 직접 타이핑해도 원문 폴백으로 새어 "확인되지 않습니다"로 끝났다.
+// ⚠고치는 방향은 **더하기만** 한다 — 모델이 낸 선택지를 지우지 않는다. 지우면 정상 되묻기를
+//   죽일 위험이 있고(누락 0), 여기서 필요한 것은 "고를 수 있게 해주는 것"뿐이다.
+const LAW_TAIL_RE = /(법률|법|령|규칙|고시|지침|조례|규정|세칙|훈령|예규)$/;
+const lawCore = (s) => String(s || '').replace(/[「」『』\s·ㆍ()（）]/g, '').replace(LAW_TAIL_RE, '');
+// 라벨이 그 법을 가리키는가. 줄임말(`선박입출항법` ↔ 「선박의 입항 및 출항 등에 관한 법률」)까지
+// 받도록 **글자 순서만 지키면 통과**시킨다(부분수열) — 같은 법을 두 번 넣지 않기 위해서다.
+function labelMatchesLaw(label, law) {
+  const a = lawCore(label), b = lawCore(law);
+  if (!a || !b) return false;
+  if (b.includes(a) || a.includes(b)) return true;
+  if (a.length < 2) return false;
+  let i = 0;
+  for (const ch of b) if (ch === a[i]) i++;
+  return i >= a.length;
+}
+/**
+ * 되묻기가 **적용 법령을 고르라고** 물었는데 검색 1순위 법이 선택지에 없으면 맨 앞에 넣어준다.
+ * 예: ensureTopLawOption('어떤 법률에 따른 단지관리계획을 말씀하시나요?',
+ *       [{label:'항만법'},{label:'마리나항만법'}], ['배타적 경제수역 및 대륙붕에 관한 법률'])
+ *     → 맨 앞에 「배타적 경제수역 및 대륙붕에 관한 법률」 선택지가 생긴다.
+ * @param {string} question - 모델이 만든 되묻기 문장
+ * @param {Array<{label:string,hint:string}>} options - 모델이 만든 선택지
+ * @param {string[]} laws - 검색 후보 법 이름(점수순). laws[0] 이 1순위다.
+ * @returns {Array} 보정된 선택지(원본을 바꾸지 않는다)
+ * [연계] ← decideClarify(선택지 후처리 마지막 단계). 검증: scripts/test_clarify_options.js
+ */
+function ensureTopLawOption(question, options, laws) {
+  const opts = Array.isArray(options) ? options : [];
+  const top = String((laws || [])[0] || '').trim();
+  if (!top || !opts.length) return opts;
+  // ⓐ "어떤 법이냐"를 묻는 되묻기일 때만 손댄다.
+  if (!/어떤\s*법|법률|법령/.test(String(question || ''))) return opts;
+  // ⓑ 선택지 절반 이상이 법령 이름 꼴이어야 한다(톤수·행위 선택지에는 법 이름을 끼워넣지 않는다).
+  const lawish = opts.filter(o => LAW_TAIL_RE.test(String((o && o.label) || '').trim()));
+  if (lawish.length * 2 < opts.length) return opts;
+  // ⓒ 이미 1순위 법을 가리키는 선택지가 있으면 그대로 둔다.
+  if (opts.some(o => labelMatchesLaw((o && o.label) || '', top))) return opts;
+  return [{ label: top, hint: '' }].concat(opts);
+}
+
 // 클라이언트가 "원래질문 + 고른 선택지"를 합칠 때 쓰는 구분자(ai_chat.js pickClarifyOption:
 // `q + ' — ' + label`, em dash U+2014 앞뒤 공백). ⚠ 한쪽만 바꾸면 재되묻기 차단이 뚫린다.
 const CLARIFY_JOINER = ' — ';
@@ -1295,8 +1341,10 @@ ${block}
       // 질문·라벨 전체 문자열 대조는 하지 않는다(패러프레이즈 오탐이 커서 정상 되묻기를 죽인다).
       .map(o => (o.hint && (o.hint.match(/제\d+조(?:의\d+)?/g) || []).some(a => !block.includes(a))
         ? { label: o.label, hint: '' } : o));
+    // ★적용 법령을 고르라는 되묻기인데 검색 1순위 법이 선택지에 없으면 넣어준다(위 주석 참고).
+    const fixed = ensureTopLawOption(question, options, contextPages.map(cp => cp.law));
     // 물음 없이, 또는 고를 게 하나뿐인 되묻기는 사용자를 막기만 하고 좁혀주지 못한다 — 그냥 답하게 둔다.
-    if (!question || options.length < 2) return CLARIFY_NONE;
+    if (!question || fixed.length < 2) return CLARIFY_NONE;
     // ★같은 조건 재질문 차단(결정론적): 질의에는 앞선 라운드에서 고른 값이 "질문 — 라벨" 꼴로 이미
     // 붙어 있다. 이번 선택지의 라벨 중 하나라도 질의에 **문자 그대로** 들어 있으면, 그건 이미 한 번
     // 고른 조건을 그대로 다시 묻는 것이다 — 그 되묻기는 버리고 답변으로 넘어간다.
@@ -1329,7 +1377,9 @@ ${block}
     const chosenLabel = String(query || '').split(CLARIFY_JOINER).pop().trim();
     if (sameClarifyAsLast(question, options, prevClarify, chosenLabel)) return CLARIFY_NONE;
     // ★(2026-08-17 사용자 확정) 되묻기를 낼 때는 **항상** 맨 끝에 "잘 모르겠어요"를 붙인다(B7).
-    return { needed: true, intro: clarifyStr(obj.intro, 200), question, options: withUnknownOption(question, options, 0) };
+    // ⚠아래 재질문 차단 검사들은 **모델이 낸 원본 options** 로 그대로 판단한다(우리가 보탠 줄이
+    //   루프 차단을 건드리지 않게). 화면에 나가는 것만 보정본(fixed)이다.
+    return { needed: true, intro: clarifyStr(obj.intro, 200), question, options: withUnknownOption(question, fixed, 0) };
   } catch (_) {
     return CLARIFY_NONE;
   }
@@ -4633,7 +4683,7 @@ module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCel
   // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
   naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT,
   // 2026-08-17: 인용사슬 묶음표기 풀기(B1·B2) · "잘 모르겠어요"(B7) · 약칭표(B8, 계약4)
-  expandJoEnum, articleEnumTokens, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
+  expandJoEnum, articleEnumTokens, ensureTopLawOption, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
   // 2026-08-17: 답변 인용 기반 근거 카드 폴백(B11 — 위키 `## 근거 조문` 표가 없는 페이지의 구멍 메우기)
   extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX,
   // 2026-08-17: 4천자 컨텍스트 발췌(회귀 테스트 대상 — 이 로직에서 회귀가 두 번 재발했다)

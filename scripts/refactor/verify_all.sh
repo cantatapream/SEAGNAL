@@ -32,7 +32,8 @@ echo; echo "── V5 테스트 스위트 ──"
 SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_exact_refine
         test_cancel_verdict_room test_push_pagination test_bulletin_cancel_scanner
         test_zone_tree_wiring test_ask_context test_naver_term_step test_article_images test_chat_render
-        test_glossary_parse test_citation_chain)
+        test_glossary_parse test_citation_chain
+  test_clarify_options)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; FAIL=1; continue; fi
