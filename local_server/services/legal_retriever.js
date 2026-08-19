@@ -955,6 +955,13 @@ const QUERY_EXPAND_CONFIG = {
  * @returns {Promise<string[]>} AI가 제안한 추가 검색어(실패 시 [])
  */
 async function expandQueryTerms(query, restate) {
+  // ★측정용 통로(`NRYA_IDF=off` 와 같은 취지) — 개발 컨테이너에는 Gemini 키가 없어 이 함수가
+  //   늘 빈 배열을 돌려주고, 그 탓에 **AI 검색어 확장이 낀 검색을 오프라인에서 재볼 수가 없었다**
+  //   (L-130: 그래서 "검색은 병목이 아니다"라는 반쪽 결론이 나왔다). 이 환경변수로 확장어를
+  //   직접 넣어 보면, 키 없이도 운영과 같은 모양의 점수를 재현해 대조할 수 있다.
+  //   운영에서는 설정하지 않는다(설정 안 하면 오늘과 문자 그대로 같다).
+  const fake = String(process.env.NRYA_FAKE_AI_TERMS || '').trim();
+  if (fake) return fake.split(',').map(s => s.trim()).filter(Boolean).slice(0, 8);
   if (!gemini.hasAnyKey()) return [];
   const confirmed = restateAllowed(restate);
   const prompt = `사용자가 한국 해양수산 법령 챗봇에 다음 질문을 했다: "${query}"\n` +
