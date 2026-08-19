@@ -63,6 +63,12 @@ done
 echo; echo "── V5-3 근거 조문 표 무결성 ──"
 node local_server/knowledge/legal/_dashboard/loop/citation_table_scan.js --gate || FAIL=1
 
+echo; echo "── V5-4 정답 페이지 도달 ──"
+# 사람이 정답이라고 확인한 개념 페이지가 검색 후보에, 그리고 모델에게 넘어가는 자료에 들어오는가.
+# 순위엔 문턱을 두지 않는다(위키가 바뀌면 자연히 흔들린다) — "아예 못 닿는다"만 실패로 본다.
+node local_server/knowledge/legal/_dashboard/loop/page_eval.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || FAIL=1
+
 echo; echo "── V5-2 위키 링크 무결성 ──"
 ( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || FAIL=1
 

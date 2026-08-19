@@ -16,7 +16,7 @@
  *   node page_eval.js --save <파일>    → 기준선 저장
  *   node page_eval.js --base <파일>    → 기준선과 비교(좋아진/망가진 문항을 이름으로 찍는다)
  *
- * [연계] ← pinned/r22_questions.json(문항) · pinned/page_labels.json(정답 페이지).
+ * [연계] ← pinned/r22_questions.json(문항) · pinned/page_labels.json(문항별 정답 페이지·되묻기가 정답인 문항).
  *        → services/legal_retriever.js search(). ⚠읽기 전용 — 위키를 고치지 않는다.
  */
 const fs = require('fs');
@@ -28,22 +28,29 @@ const norm = s => String(s || '').replace(/[\s·ㆍ()（）]/g, '');
 
 (async () => {
   const pins = JSON.parse(fs.readFileSync(DIR + 'r22_questions.json', 'utf8'));
-  const labels = JSON.parse(fs.readFileSync(DIR + 'page_labels.json', 'utf8')).labels;
-  const want = new Map(Object.entries(labels).map(([law, page]) => [norm(law), norm(page)]));
+  const lab = JSON.parse(fs.readFileSync(DIR + 'page_labels.json', 'utf8'));
+  // 문항 단위로 붙인다 — 한 법에 문항이 둘이면 정답 페이지가 서로 다르다(법 단위로 묶으면 둘 다 틀린다).
+  const want = new Map(lab.labels.map(l => [l.question, l.pages.map(norm)]));
 
   const rows = [];
   for (const p of pins) {
-    const key = norm(p.law);
-    if (!want.has(key)) continue;                       // 정답 페이지를 아직 안 붙인 문항은 건너뛴다
-    const target = want.get(key);
+    if (!want.has(p.question)) continue;                // 정답 페이지를 안 붙인 문항·되묻기가 정답인 문항은 건너뛴다
+    const targets = want.get(p.question);
     let rank = -1;
     try {
       const { contextPages } = await R.search(p.question_clean || p.question, { canonicalOnly: true });
       // 페이지 식별자는 `<법>__<주제>` — 검색 결과는 law/topic 을 따로 들고 있다.
       const ids = contextPages.map(c => norm(String(c.law) + '__' + String(c.topic || '')));
-      rank = ids.indexOf(target);
+      // 정답이 여럿이면 **가장 앞선 것**의 순위로 잰다(어느 쪽에 닿아도 맞은 것으로 센다).
+      for (const t of targets) {
+        const at = ids.indexOf(t);
+        if (at >= 0 && (rank < 0 || at < rank)) rank = at;
+      }
     } catch (e) { rows.push({ law: p.law, rank: -2, err: e.message }); continue; }
-    rows.push({ law: p.law, target, rank });
+    rows.push({ law: p.law, q: (p.question_clean || p.question).slice(0, 46), target: targets[0], rank });
+  }
+  if (lab.generic && lab.generic.length) {
+    console.log(`※ 되묻기가 정답이라 채점에서 뺀 문항 ${lab.generic.length}개 — 질문에 법·주제를 특정할 단서가 없다.`);
   }
 
   const n = rows.length;
@@ -59,12 +66,25 @@ const norm = s => String(s || '').replace(/[\s·ㆍ()（）]/g, '');
   const miss = rows.filter(r => r.rank < 0);
   if (miss.length) {
     console.log('\n─ 정답 페이지가 후보에 아예 없는 문항 ─');
-    for (const m of miss) console.log('  ✘ ' + m.law + '  → ' + (m.target || m.err));
+    for (const m of miss) console.log('  ✘ ' + m.law + '  | ' + (m.q || '') + '  → ' + (m.target || m.err));
   }
   const late = rows.filter(r => r.rank >= 3);
   if (late.length) {
     console.log('\n─ 후보엔 있으나 3위 밖 ─');
-    for (const m of late) console.log(`  △ ${m.law}  (${m.rank + 1}위) → ${m.target}`);
+    for (const m of late) console.log(`  △ ${m.law}  (${m.rank + 1}위) | ${m.q || ''}`);
+  }
+
+  // ★--gate: 커밋 전 점검용. 순위는 위키가 바뀌면 자연히 흔들리므로 **순위 자체엔 문턱을 두지 않고**,
+  //   "사람이 정답이라고 확인한 페이지가 후보에 아예 안 든다"는 것만 실패로 본다 — 이건 순위 흔들림이
+  //   아니라 검색이 그 페이지에 못 닿는다는 뜻이라 답을 낼 방법이 없어진다.
+  if (process.argv.includes('--gate')) {
+    const gone = rows.filter(r => r.rank < 0);
+    if (gone.length) {
+      console.log('\n  ❌ 정답 페이지가 후보에 아예 없는 문항 ' + gone.length + '건');
+      process.exit(1);
+    }
+    console.log('\n  ✅ 정답 페이지가 모두 후보에 들어온다');
+    return;
   }
 
   const save = arg('--save');

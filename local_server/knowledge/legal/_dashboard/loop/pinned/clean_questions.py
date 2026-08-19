@@ -21,6 +21,15 @@ PAREN = re.compile(r'\s*[(（][^)）]*?(?:감사|판정|\bfull\b|\bthin\b|\bmiss
 # 감사 전용 표현
 PHRASE = re.compile(r'\s*위키(?:만|에서)?\s*(?:보고|확인해서|확인)\s*')
 QUOTE = re.compile(r'^["“”\'`]+|["“”\'`]+$')
+# ── 2026-08-19 보강 — 위 규칙이 못 잡던 잔여 표기 4가지(page_eval 로 순위 영향 실측) ──
+# ⓐ 앞머리 `#1177 (police) ` 처럼 **번호 + 출처괄호**가 붙고 콜론·대시가 없는 꼴
+LEAD_SRC = re.compile(r'^\s*#\d+\s*[(（][^)）]{1,20}[)）]\s*')
+# ⓑ 문장 뒤에 대시로 덧붙인 감사 메모 — `… — R22 3단계 full 판정`
+TAIL_NOTE = re.compile(r'\s*[—–-]\s*[^—–-]{0,60}?(?:판정|단계|라운드|[Rr]\d{1,2}\b|\d{1,2}R\b|\bfull\b|\bthin\b)[^—–-]{0,40}$')
+# ⓒ 문항번호만 든 괄호 — `(QW22-3)` `(DD3)` `(XW3)` `(W22-03)` `(§210 #8)`
+CODE_PAREN = re.compile(r'\s*[(（](?:§\s*\d+\s*)?(?:#\s*\d+|[A-Z]{1,4}\s*\d{1,3}(?:[-–]\d{1,3})?)[)）]')
+# ⓓ 문항번호로 시작하고 쉼표 뒤에 설명이 이어지는 괄호 — `(AA14, 되묻기 통해 "…" 선택)`
+CODE_PAREN2 = re.compile(r'\s*[(（][A-Z]{1,4}\d{1,3}\s*[,，][^)）]{0,80}[)）]')
 
 def clean(q):
     s = q.strip()
@@ -28,6 +37,10 @@ def clean(q):
         s2 = LEAD.sub('', s)
         s2 = PAREN.sub('', s2)
         s2 = PHRASE.sub(' ', s2)
+        s2 = LEAD_SRC.sub('', s2)
+        s2 = TAIL_NOTE.sub('', s2)
+        s2 = CODE_PAREN.sub('', s2)
+        s2 = CODE_PAREN2.sub('', s2)
         s2 = QUOTE.sub('', s2.strip())
         if s2 == s: break
         s = s2
