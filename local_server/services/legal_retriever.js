@@ -2241,18 +2241,27 @@ function dropRedundantChainRows(rows) {
     const cited = String((r && r.citedArticle) || '');
     return cited || String((r && r.article) || '').replace(/\s+/g, '');
   };
+  // ★법령 이름은 **표기 차이를 지우고** 비교한다(2026-08-19 실측). 같은 고시라도 개념 페이지는
+  //   `「불법어업 신고자 등에 대한 포상금 지급 규정」(고시)` 로, 별표 페이지는 괄호·낫표 없이
+  //   `불법어업 신고자 등에 대한 포상금 지급 규정` 으로 적는다. 글자 그대로 비교하면 다른 법으로
+  //   보여 겹침 검사를 그냥 지나치고, 화면에 **같은 근거가 두 줄** 뜬다(배포 직후 실제 재현).
+  //   전 위키에서 이렇게 갈라 적힌 이름이 122가지다.
+  //   ⚠낫표와 **맨 뒤 괄호 주석 하나만** 지운다 — `수산업법 시행령` 과 `수산업법` 처럼 실제로 다른
+  //     법령이 하나로 합쳐지지 않게, 이름 안쪽 글자는 건드리지 않는다.
+  const lawKeyOf = (r) => String((r && r.law) || '')
+    .replace(/[「」『』]/g, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+/g, '').trim();
   const best = new Map();                       // law dedupeKey → 가장 좁게 짚은 줄
   for (const r of list) {
     const dedupeKey = dedupeKeyOf(r);
     if (!dedupeKey) continue;                   // 근거 없는 줄은 겹침 판정 대상이 아니다(하나도 안 버린다)
-    const key = String((r && r.law) || '') + ' ' + dedupeKey;
+    const key = lawKeyOf(r) + ' ' + dedupeKey;
     const cur = best.get(key);
     if (!cur || depth(r) > depth(cur)) best.set(key, r);
   }
   return list.filter((r) => {
     const dedupeKey = dedupeKeyOf(r);
     if (!dedupeKey) return true;
-    return best.get(String((r && r.law) || '') + ' ' + dedupeKey) === r;
+    return best.get(lawKeyOf(r) + ' ' + dedupeKey) === r;
   });
 }
 
