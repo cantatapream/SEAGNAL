@@ -39,8 +39,9 @@ const rows = [];
 console.log(`질문: ${q}`);
 console.log(`${n}회 반복 (약 ${(n * 46).toLocaleString()}원)\n`);
 for (let i = 1; i <= n; i++) {
-  let d;
+  let d; const t0 = process.hrtime.bigint();
   try { d = ask(q); } catch (e) { d = { _bad: e.message }; }
+  const ms = Number((process.hrtime.bigint() - t0) / 1000000n);
   const r = {
     n: i,
     bad: !!d._bad,
@@ -49,10 +50,11 @@ for (let i = 1; i <= n; i++) {
     ansLen: (d.answer || '').length,
     chain: (d.citationChain || []).length,
     srcs: (d.sources || []).length,
+    ms,
   };
   rows.push(r);
-  console.log(`  ${i}. ${r.bad ? '요청 실패' :
-    (r.clarify ? '되묻기 · ' + r.clarify.slice(0, 40) : '답변 · ' + r.ansLen + '자 · 근거 ' + r.chain + '건')}`);
+  console.log(`  ${i}. ${String(Math.round(r.ms / 100) / 10).padStart(5)}초  ${r.bad ? '요청 실패' :
+    (r.clarify ? '되묻기 · ' + r.clarify.slice(0, 38) : '답변 · ' + r.ansLen + '자 · 근거 ' + r.chain + '건')}`);
 }
 
 const key = r => r.bad ? 'BAD' : (r.clarify ? 'C:' + r.clarify : 'A');
@@ -67,3 +69,17 @@ console.log(`\n서로 다른 갈래 ${Object.keys(groups).length}개 / ${n}회`)
 console.log(Object.keys(groups).length === 1
   ? '→ 첫 턴은 일정하다. 갈림은 그 뒤(답변 합성·이후 되묻기)에 있다.'
   : '→ 첫 턴부터 갈린다. 원인은 되묻기 판단 단계다.');
+
+// ★응답 시간 대조 — 검색어 확장 호출은 10초 타임아웃이고, 넘으면 **조용히 확장 없이** 넘어간다
+//   (QUERY_EXPAND_TIMEOUT_MS). 그러면 잡히는 자료가 달라져 되묻기 판단까지 갈릴 수 있다.
+//   느린 회차에서만 갈라진다면 이 폴백이 원인일 가능성이 크다.
+const gA = rows.filter(r => !r.bad && !r.clarify).map(r => r.ms);
+const gC = rows.filter(r => !r.bad && r.clarify).map(r => r.ms);
+const avg = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length / 100) / 10 : null;
+if (gA.length && gC.length) {
+  console.log(`\n── 응답 시간 ──`);
+  console.log(`  바로 답변 ${gA.length}회 평균 ${avg(gA)}초 · 되묻기 ${gC.length}회 평균 ${avg(gC)}초`);
+  console.log(avg(gC) > avg(gA) * 1.3 || avg(gA) > avg(gC) * 1.3
+    ? '  → 두 갈래의 속도가 뚜렷이 다르다. 확장 타임아웃 폴백을 의심할 만하다.'
+    : '  → 속도 차이는 뚜렷하지 않다. 타임아웃 폴백만으로는 설명되지 않는다.');
+}
