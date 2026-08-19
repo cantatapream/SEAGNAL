@@ -90,9 +90,22 @@ if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
 const round = cfg.round || 22
 log(`라이브 검증 ${laws.length}개 법 (법당 1문항, R${round})`)
 phase('라이브검증')
-const res = (await parallel(laws.map(l => () =>
-  agent(prompt(l, round, cfg.pass), { label: `live:${l.name.slice(0, 12)}`, phase: '라이브검증', model: 'sonnet', effort: 'medium', schema: SCHEMA })
-))).filter(Boolean)
+// ★`serial: true` — 한 번에 하나씩만 묻는다(2026-08-19 신설).
+//   10묶음을 동시에 던졌더니 챗봇 서버의 Gemini 키가 전량 쿨다운에 걸려, 59법 중 17건이
+//   "답변 본문 빈 문자열"로 끝났다(에이전트 2명이 독립적으로 확인). 그 17건은 결함이 아니라
+//   우리가 만든 과부하였고, 비용만 쓰고 판정 자료로 못 썼다. 재실행은 순차가 기본이다.
+const res = (cfg.serial
+  ? await (async () => {
+      const acc = [];
+      for (const l of laws) {
+        const r = await agent(prompt(l, round, cfg.pass), { label: `live:${l.name.slice(0, 12)}`, phase: '라이브검증', model: 'sonnet', effort: 'medium', schema: SCHEMA });
+        acc.push(r);
+      }
+      return acc;
+    })()
+  : await parallel(laws.map(l => () =>
+      agent(prompt(l, round, cfg.pass), { label: `live:${l.name.slice(0, 12)}`, phase: '라이브검증', model: 'sonnet', effort: 'medium', schema: SCHEMA })
+    ))).filter(Boolean)
 
 const by = k => res.filter(r => r.outcome === k).length
 return {
