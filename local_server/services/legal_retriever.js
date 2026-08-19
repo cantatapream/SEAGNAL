@@ -1950,7 +1950,10 @@ function ownedByThisLaw(owners, hit, law, baseLaw) {
  * @returns {string} 찾은 조문·별표 표기(없으면 '')
  * [연계] ← filterCitationChainByAnswer(조문 칸이 `전체`인 행).
  */
-const NEAR_CITE_RE = /^[」』\s의는은이가에서·,]{0,12}(제\s*\d+조(?:의\d+)?(?:\s*제\s*\d+항)?(?:\s*제\s*\d+호)?|별표\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식)/;
+// 조문 칸이 "그 문서 전부가 근거"라는 뜻인 표기. `전체` 뿐 아니라 `전체(제1~19조)` 처럼
+// 괄호로 범위를 덧붙인 꼴도 같은 뜻이다(전 위키 실측 표기 두 가지).
+const WHOLE_DOC_RE = /^(?:전체|전문|전조문)(?:\s*\([^)]*\))?$/;
+const NEAR_CITE_RE = /^[」』\s의는은이가에서·,]{0,12}(제\s*\d+조(?:의\d+)?(?:\s*제\s*\d+항)?(?:\s*제\s*\d+호)?|별표\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식|부칙(?:\s*[<(][^)>]{0,30}[)>])?)/;
 function citationNearLawName(text, names) {
   const t = String(text || '');
   for (const nm of (names || [])) {
@@ -1976,6 +1979,28 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
   for (const row of (chain || [])) {
     if (!lawMentionedInAnswer(row.law, baseLaw, text)) continue;
     const article = String(row.article || '');
+
+    // ★조문 칸이 **"문서 전체"**를 뜻하는 행(`전체`·`전문`·`전체(제1~19조)`).
+    //   조문 토큰이 없어 아래 대조로는 한 줄도 살아남지 못한다 — 라이브 검증에서 연안관리법
+    //   시행지침 별표5·갯벌복원사업 지침 별표2가 이 이유로 근거 목록에서 통째로 사라졌다
+    //   (답변 본문은 그 별표 내용을 정확히 옮겼는데도).
+    //   ⚠2026-08-19 실측 보강: `전체(제1~19조)` 처럼 **괄호로 조문 범위를 덧붙인 칸**은
+    //     아래 범위 갈래가 먼저 집어 "제1~19조 중 하나가 답변에 있나"만 보고, 답변이 인용한
+    //     것이 별표면 그대로 탈락시켰다. 그래서 괄호가 붙은 꼴도 여기서 먼저 받는다.
+    //   ⚠법 이름만 맞으면 통과시키지는 않는다("무관한 줄이 붙는 게 더 나쁘다"). 답변에서
+    //     **그 법 이름 바로 뒤에** 조문·별표·별지가 붙어 나온 자리가 있을 때만 통과한다.
+    //   ⚠여기서 못 찾아도 **버리지 않는다** — 괄호 안에 조문 범위가 있으면 아래 범위 갈래가
+    //     이어서 본다(살릴 줄만 더하고, 지금 통과하던 줄은 떨어뜨리지 않는다).
+    if (WHOLE_DOC_RE.test(article.trim())) {
+      const near = citationNearLawName(text, lawCellVariants(row.law));
+      if (near) {
+        out.push(Object.assign({}, row, {
+          citedArticle: near, subject: subjectOfCitation(subjects, near),
+        }));
+        continue;
+      }
+      if (!/[~∼]/.test(article)) continue;   // 괄호에 범위조차 없으면 더 볼 것이 없다
+    }
 
     // [B1·B2] 묶음 표기 — 푼 조 중 답변이 인용한 것만 각자 자기 줄로.
     const jos = expandJoEnum(article);
@@ -2020,18 +2045,37 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
     //   ⚠그렇다고 법 이름만 맞으면 통과시키지는 않는다("무관한 줄이 붙는 게 더 나쁘다"). 답변에서
     //     **그 법 이름 바로 뒤에 조문·별표가 붙어 나온 자리**가 있을 때만, 그 조문을 이 줄의 인용으로
     //     삼아 통과시킨다(근접성 — 이름과 조문이 떨어져 있으면 주인을 단정할 수 없다).
-    if (/^(?:전체|전문|전조문)$/.test(article.trim())) {
-      const near = citationNearLawName(text, lawCellVariants(row.law));
-      if (!near) continue;
-      row.citedArticle = near;
-      row.subject = subjectOfCitation(subjects, near);
-      out.push(row);
-      continue;
-    }
     // ⚠`별표N` 외에 **`별도N`(도면·구역도)·`별지 제N호서식`** 도 인정한다(2026-08-17, B-1 실측).
     //   종전 정규식은 이 둘을 토큰으로 못 뽑아, 답변이 「수산자원관리법 시행령」 별도2(왕돌초 주변해역)나
     //   별지 서식을 정확히 인용해도 그 줄이 통째로 탈락했다 — 근거가 조용히 사라지는 L-101과 같은 뿌리다.
     //   ★공백 표기(`별지 제1호 서식`)까지 받되, 없는 표기를 만들어내지는 않는다(대조는 answerText 원문 그대로).
+    // ★부칙 행(전 위키 51행) — 위키 칸은 `부칙(정부조직법) <제8852호,2008.2.29> 제6조` 처럼 적고
+    //   답변은 "2008.2.29 부칙" 이나 "부칙 제20722호" 처럼 쓴다. **글자 그대로는 절대 안 맞아**
+    //   부칙이 근거인 답변은 근거 목록이 통째로 비었다(라이브 검증: 한국해양수산연수원법 —
+    //   답변은 "시행령 제4조 최소 2개항"을 정확히 말하는데 그 부칙이 목록에 없음).
+    //   두 쪽에 **공통으로 나타나는 열쇠**로 잰다: 부칙 호수(`제20722호`)와 공포일(`2008.2.29`).
+    //   둘 다 다섯 자리 안팎의 고유값이라 우연히 겹치지 않는다(짧은 호수는 제외해 오탐을 막는다).
+    if (/부칙/.test(article)) {
+      const flat = text.replace(/\s+/g, '');
+      //   ⚠공포일은 **호수가 없을 때만** 쓴다(2026-08-19 실측): 2008.2.29 처럼 정부조직 대개정일에는
+      //     여러 법의 부칙이 같은 날짜를 달고 있어, 날짜만으로 재면 답변이 말하지도 않은 다른 부칙이
+      //     함께 딸려 붙는다(「한국해양수산연수원법」 부칙 제8852호가 시행령 부칙 제20722호 때문에
+      //     통과하던 것을 잡았다). 호수는 고유하므로 있으면 그것만 본다.
+      const keys = [];
+      const ho = /제\s*(\d{3,6})\s*호/.exec(article);
+      if (ho) keys.push('제' + ho[1] + '호');
+      else {
+        const day = /(\d{4})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})/.exec(article);
+        if (day) keys.push(day[1] + '.' + Number(day[2]) + '.' + Number(day[3]));
+      }
+      const key = keys.find(k => flat.includes(k.replace(/\s+/g, '')));
+      if (key) {
+        out.push(Object.assign({}, row, {
+          citedArticle: '부칙 ' + key, subject: subjectOfCitation(subjects, key),
+        }));
+      }
+      continue;   // 열쇠가 안 맞으면 이 행은 근거가 아니다(아래 토큰 대조로 넘기지 않는다)
+    }
     const tokens = article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\s*\d+(?:의\d+)?|별도\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식/g) || [];
     // ⚠답변은 `별표 3`처럼 **띄어 쓰기도** 한다 — 위키 칸은 `별표3`이라 글자 그대로는 안 맞는다.
     //   공백만 지운 형태로도 대조한다(글자 자체를 바꾸는 게 아니라 공백 차이만 흡수 — 환각 0 유지).
