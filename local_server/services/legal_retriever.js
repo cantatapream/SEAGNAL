@@ -647,19 +647,54 @@ function lookupContact(lawName) {
  * 함께 매긴다. 메타로 안 걸려도 본문에 실제로 있으면 잡히도록 항상 본문까지 본다 — 그래야
  * "무허가로 조업하면" 같은 질문이 topic 필드엔 없지만 본문 '위반 시 처벌' 표에만 있는 페이지도 찾는다.
  */
-function scoreOne(p, terms) {
+function scoreOne(p, terms, weights) {
+  const w = t => (weights && weights.get(t)) || 1;
   const hay = (p.law || '') + ' ' + (p.topic || '') + ' ' + (p.file || '') + ' ' + (p.themes || []).join(' ');
   let s = 0;
-  for (const t of terms) if (hay.includes(t)) s += (p.law && p.law.includes(t)) ? 2 : 1;
+  for (const t of terms) if (hay.includes(t)) s += ((p.law && p.law.includes(t)) ? 2 : 1) * w(t);
   const page = readPage(p.kind, p.file);
   if (page) {
     const title = p.topic || p.law || '';
     for (const t of terms) {
-      if (title.includes(t)) s += 3;
-      else if (page.body.includes(t)) s += 2;
+      if (title.includes(t)) s += 3 * w(t);
+      else if (page.body.includes(t)) s += 2 * w(t);
     }
   }
   return s;
+}
+
+/**
+ * 검색어마다 **흔한 정도에 따른 무게**를 매긴다(흔할수록 가볍게).
+ * ★왜(2026-08-18 라이브 검증 B유형, 오프라인 재현): 지금까지는 모든 낱말이 같은 무게였다.
+ *   그래서 질문이 길어질수록 `신고`·`기준`·`정확히` 같은 **흔한 말이 점수를 지배**해, 그 말들을
+ *   두루 가진 엉뚱한 법이 정작 핵심어를 가진 법을 밀어냈다. 실측 —
+ *     "양식장 휴업 과태료"                                        → 양식산업발전법 2위
+ *     "양식장 무단 휴업 신고 안 하면 과태료가 얼마인지, 별표3 기준으로…"  → **후보에도 못 듦**
+ *   같은 뜻인데 흔한 말 몇 개가 붙었다고 답에 못 닿는 것은 사용자가 길게 물을수록 나빠진다는 뜻이다.
+ * 무게는 `log(1 + 전체페이지수 / 그 낱말이 걸린 페이지수)` — 흔할수록 1에 가까워지고 드물수록 커진다.
+ *   ⚠임의의 문턱(몇 % 넘으면 버림)을 두지 않는다. 문턱은 그 언저리에서 결과가 뚝 끊겨 예측이 안 된다.
+ *   ⚠낱말을 **버리지 않는다** — 무게만 낮춘다. 흔한 말도 여전히 점수에 기여한다(누락 0 원칙).
+ * 예: 1,254개 페이지 중 `신고`가 900개에 있으면 무게 ≈ 0.9, `양식장`이 20개면 ≈ 4.2.
+ * @param {Array} pages - index.json 의 페이지 목록
+ * @param {string[]} terms - 이번 질의의 검색어 전부
+ * @returns {Map<string,number>} 낱말 → 무게
+ * [연계] → scoreOne(무게를 곱해 점수를 낸다). ← search().
+ *        검증: `_dashboard/loop/search_eval.js`(고정 질문 65개로 전후 대조, AI 안 씀).
+ */
+function termWeights(pages, terms) {
+  // A/B 측정용 스위치 — `NRYA_IDF=off` 면 모든 낱말 무게가 1이라 **이 기능을 넣기 전과 문자 그대로
+  // 같은 점수**가 나온다(R0). 위키가 계속 바뀌는 중에도 같은 시점에서 켜고/끄고 재려고 둔다.
+  // 운영에서는 켠 채로 쓴다(끄는 값을 설정하지 않는다).
+  if (process.env.NRYA_IDF === 'off') return null;
+  const df = new Map(terms.map(t => [t, 0]));
+  for (const p of pages) {
+    const hay = (p.law || '') + ' ' + (p.topic || '') + ' ' + (p.file || '') + ' ' + (p.themes || []).join(' ');
+    const page = readPage(p.kind, p.file);
+    const body = page ? page.body : '';
+    for (const t of terms) if (hay.includes(t) || body.includes(t)) df.set(t, df.get(t) + 1);
+  }
+  const N = pages.length || 1;
+  return new Map(terms.map(t => [t, Math.log(1 + N / Math.max(1, df.get(t) || 0))]));
 }
 
 // ── 컨텍스트 발췌(sliceRelevant) 보조 상수 ───────────────────────────────────
@@ -1401,7 +1436,9 @@ async function search(query, opts) {
   const TOPIC_BONUS = 4;
   const allTerms = [...new Set([...terms, ...extraTerms, ...aiTerms, ...aliasTerms, ...topicTerms])];
 
-  let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms) })).filter(x => x.s > 0);
+  // 흔한 낱말이 점수를 지배하지 못하게 무게를 매긴다(termWeights 주석의 실측 사례 참고).
+  const weights = termWeights(pages, allTerms);
+  let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms, weights) })).filter(x => x.s > 0);
   // ★[이어서 질문] 확장어만으로는 약했다(2026-08-18 사용자 재현: 낚시어선업 이야기를 하다
   //   "허가 받았는데 신고 안 하고 영업하면?"이라 물으니 수산부산물·폐기물 처리업이 선택지로 떴다).
   //   `topic` 은 **위키 페이지의 주제 칸에서 그대로 가져온 값**이라, 같은 칸끼리 맞대보면 정확히
@@ -1451,7 +1488,7 @@ async function search(query, opts) {
         if (hop.length >= HOP_MAX) break;
         const p = resolvePage(byFile, raw);
         if (!p || picked.has(p)) continue;
-        const hs = scoreOne(p, allTerms);
+        const hs = scoreOne(p, allTerms, weights);
         if (hs < MIN_KEEP_SCORE) continue;
         picked.add(p); hop.push({ p, s: hs, hop: true });
       }
@@ -1913,7 +1950,10 @@ function ownedByThisLaw(owners, hit, law, baseLaw) {
  * @returns {string} 찾은 조문·별표 표기(없으면 '')
  * [연계] ← filterCitationChainByAnswer(조문 칸이 `전체`인 행).
  */
-const NEAR_CITE_RE = /^[」』\s의는은이가에서·,]{0,12}(제\s*\d+조(?:의\d+)?(?:\s*제\s*\d+항)?(?:\s*제\s*\d+호)?|별표\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식)/;
+// 조문 칸이 "그 문서 전부가 근거"라는 뜻인 표기. `전체` 뿐 아니라 `전체(제1~19조)` 처럼
+// 괄호로 범위를 덧붙인 꼴도 같은 뜻이다(전 위키 실측 표기 두 가지).
+const WHOLE_DOC_RE = /^(?:전체|전문|전조문)(?:\s*\([^)]*\))?$/;
+const NEAR_CITE_RE = /^[」』\s의는은이가에서·,]{0,12}(제\s*\d+조(?:의\d+)?(?:\s*제\s*\d+항)?(?:\s*제\s*\d+호)?|별표\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식|부칙(?:\s*[<(][^)>]{0,30}[)>])?)/;
 function citationNearLawName(text, names) {
   const t = String(text || '');
   for (const nm of (names || [])) {
@@ -1939,6 +1979,28 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
   for (const row of (chain || [])) {
     if (!lawMentionedInAnswer(row.law, baseLaw, text)) continue;
     const article = String(row.article || '');
+
+    // ★조문 칸이 **"문서 전체"**를 뜻하는 행(`전체`·`전문`·`전체(제1~19조)`).
+    //   조문 토큰이 없어 아래 대조로는 한 줄도 살아남지 못한다 — 라이브 검증에서 연안관리법
+    //   시행지침 별표5·갯벌복원사업 지침 별표2가 이 이유로 근거 목록에서 통째로 사라졌다
+    //   (답변 본문은 그 별표 내용을 정확히 옮겼는데도).
+    //   ⚠2026-08-19 실측 보강: `전체(제1~19조)` 처럼 **괄호로 조문 범위를 덧붙인 칸**은
+    //     아래 범위 갈래가 먼저 집어 "제1~19조 중 하나가 답변에 있나"만 보고, 답변이 인용한
+    //     것이 별표면 그대로 탈락시켰다. 그래서 괄호가 붙은 꼴도 여기서 먼저 받는다.
+    //   ⚠법 이름만 맞으면 통과시키지는 않는다("무관한 줄이 붙는 게 더 나쁘다"). 답변에서
+    //     **그 법 이름 바로 뒤에** 조문·별표·별지가 붙어 나온 자리가 있을 때만 통과한다.
+    //   ⚠여기서 못 찾아도 **버리지 않는다** — 괄호 안에 조문 범위가 있으면 아래 범위 갈래가
+    //     이어서 본다(살릴 줄만 더하고, 지금 통과하던 줄은 떨어뜨리지 않는다).
+    if (WHOLE_DOC_RE.test(article.trim())) {
+      const near = citationNearLawName(text, lawCellVariants(row.law));
+      if (near) {
+        out.push(Object.assign({}, row, {
+          citedArticle: near, subject: subjectOfCitation(subjects, near),
+        }));
+        continue;
+      }
+      if (!/[~∼]/.test(article)) continue;   // 괄호에 범위조차 없으면 더 볼 것이 없다
+    }
 
     // [B1·B2] 묶음 표기 — 푼 조 중 답변이 인용한 것만 각자 자기 줄로.
     const jos = expandJoEnum(article);
@@ -1983,18 +2045,37 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
     //   ⚠그렇다고 법 이름만 맞으면 통과시키지는 않는다("무관한 줄이 붙는 게 더 나쁘다"). 답변에서
     //     **그 법 이름 바로 뒤에 조문·별표가 붙어 나온 자리**가 있을 때만, 그 조문을 이 줄의 인용으로
     //     삼아 통과시킨다(근접성 — 이름과 조문이 떨어져 있으면 주인을 단정할 수 없다).
-    if (/^(?:전체|전문|전조문)$/.test(article.trim())) {
-      const near = citationNearLawName(text, lawCellVariants(row.law));
-      if (!near) continue;
-      row.citedArticle = near;
-      row.subject = subjectOfCitation(subjects, near);
-      out.push(row);
-      continue;
-    }
     // ⚠`별표N` 외에 **`별도N`(도면·구역도)·`별지 제N호서식`** 도 인정한다(2026-08-17, B-1 실측).
     //   종전 정규식은 이 둘을 토큰으로 못 뽑아, 답변이 「수산자원관리법 시행령」 별도2(왕돌초 주변해역)나
     //   별지 서식을 정확히 인용해도 그 줄이 통째로 탈락했다 — 근거가 조용히 사라지는 L-101과 같은 뿌리다.
     //   ★공백 표기(`별지 제1호 서식`)까지 받되, 없는 표기를 만들어내지는 않는다(대조는 answerText 원문 그대로).
+    // ★부칙 행(전 위키 51행) — 위키 칸은 `부칙(정부조직법) <제8852호,2008.2.29> 제6조` 처럼 적고
+    //   답변은 "2008.2.29 부칙" 이나 "부칙 제20722호" 처럼 쓴다. **글자 그대로는 절대 안 맞아**
+    //   부칙이 근거인 답변은 근거 목록이 통째로 비었다(라이브 검증: 한국해양수산연수원법 —
+    //   답변은 "시행령 제4조 최소 2개항"을 정확히 말하는데 그 부칙이 목록에 없음).
+    //   두 쪽에 **공통으로 나타나는 열쇠**로 잰다: 부칙 호수(`제20722호`)와 공포일(`2008.2.29`).
+    //   둘 다 다섯 자리 안팎의 고유값이라 우연히 겹치지 않는다(짧은 호수는 제외해 오탐을 막는다).
+    if (/부칙/.test(article)) {
+      const flat = text.replace(/\s+/g, '');
+      //   ⚠공포일은 **호수가 없을 때만** 쓴다(2026-08-19 실측): 2008.2.29 처럼 정부조직 대개정일에는
+      //     여러 법의 부칙이 같은 날짜를 달고 있어, 날짜만으로 재면 답변이 말하지도 않은 다른 부칙이
+      //     함께 딸려 붙는다(「한국해양수산연수원법」 부칙 제8852호가 시행령 부칙 제20722호 때문에
+      //     통과하던 것을 잡았다). 호수는 고유하므로 있으면 그것만 본다.
+      const keys = [];
+      const ho = /제\s*(\d{3,6})\s*호/.exec(article);
+      if (ho) keys.push('제' + ho[1] + '호');
+      else {
+        const day = /(\d{4})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})/.exec(article);
+        if (day) keys.push(day[1] + '.' + Number(day[2]) + '.' + Number(day[3]));
+      }
+      const key = keys.find(k => flat.includes(k.replace(/\s+/g, '')));
+      if (key) {
+        out.push(Object.assign({}, row, {
+          citedArticle: '부칙 ' + key, subject: subjectOfCitation(subjects, key),
+        }));
+      }
+      continue;   // 열쇠가 안 맞으면 이 행은 근거가 아니다(아래 토큰 대조로 넘기지 않는다)
+    }
     const tokens = article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\s*\d+(?:의\d+)?|별도\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식/g) || [];
     // ⚠답변은 `별표 3`처럼 **띄어 쓰기도** 한다 — 위키 칸은 `별표3`이라 글자 그대로는 안 맞는다.
     //   공백만 지운 형태로도 대조한다(글자 자체를 바꾸는 게 아니라 공백 차이만 흡수 — 환각 0 유지).
@@ -4433,7 +4514,7 @@ function withAssumedNotice(answer, assumed) {
   return ASSUMED_NOTICE + '\n\n' + answer;
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
