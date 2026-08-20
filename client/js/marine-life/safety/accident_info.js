@@ -89,11 +89,12 @@
  *   - 위 두 필터로 못 잡는 개별 오류 4건(hk 2건: "OO 동방 N해리" 텍스트인데 좌표는
  *     반대로 산속에 있음 · person 2건: 통영시 사고인데 좌표가 강원권, 3도 이상
  *     어긋남 — ±1 오타도 이상치 비교군도 없음)은 KNOWN_BAD_COORDS 로 개별 제외.
- * [검수 모드 — ?debug=review (2026-08-20 추가)] 자동/AI 판정만으론 못 잡는 개별
- *   좌표 오류가 더 있을 수 있어, 사용자가 실제 앱 화면(실제 위성지도·실제 마커
- *   이미지)에서 직접 눈으로 보고 골라낼 수 있게 만든 개발자용 기능. URL 에 이
- *   쿼리가 있을 때만 우측에 작은 패널이 뜬다(일반 사용자에겐 노출 안 됨). 낱개
- *   마커를 클릭하면 기존 상세 팝업이 그대로 뜨고(무슨 사고인지 보고 판단하도록)
+ * [검수 모드 (2026-08-20 추가)] 자동/AI 판정만으론 못 잡는 개별 좌표 오류가 더
+ *   있을 수 있어, 사용자가 실제 앱 화면(실제 위성지도·실제 마커 이미지)에서 직접
+ *   눈으로 보고 골라낼 수 있게 만든 기능. 사고정보를 켜면 하단 중앙에 항상 함께
+ *   뜬다(처음엔 ?debug=review 쿼리로 숨겼으나, 매번 쿼리를 붙이기 번거롭다는
+ *   요청으로 상시 노출로 변경 — 패널은 기본 접힌 한 줄이라 평소엔 거의 안 보임).
+ *   낱개 마커를 클릭하면 기존 상세 팝업이 그대로 뜨고(무슨 사고인지 보고 판단하도록)
  *   추가로 빨간 테두리가 켜지며 패널 목록에 쌓인다. 뭉친 클러스터를 클릭하면
  *   기존과 동일하게 그 범위로 확대만 될 뿐 선택되지 않는다 — 여러 건이 한 픽셀에
  *   뭉쳐 있을 때 실수로 전부 선택되는 걸 막기 위함(사용자 확정 2026-08-20). "내보내기"
@@ -131,14 +132,16 @@
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
 
     /**
-     * [검수 모드 — URL에 ?debug=review 가 있을 때만 켜짐, 일반 사용자에게는 안 보임]
+     * [검수 모드 — 사고정보를 켜면 항상 함께 뜬다(사용자 확정 2026-08-20)]
      * 실제 지도(위성지도)·실제 마커 이미지 위에서 육지에 잘못 찍힌 개별 마커를 직접
-     * 클릭으로 골라 제외 후보 목록을 만드는 개발자용 기능(사용자 확정 2026-08-20 —
-     * 별도 웹페이지 검수 도구는 실제 위성지도 타일을 못 불러와서, 실제 앱 화면 그대로
-     * 검수하고 싶다는 요청으로 추가). 낱개 마커를 클릭하면 기존 상세 팝업은 그대로 뜨고,
-     * 추가로 빨간 테두리가 켜지며 내보내기 목록에 쌓인다. 다시 클릭하면 빠진다.
+     * 클릭으로 골라 제외 후보 목록을 만드는 기능 — 별도 웹페이지 검수 도구는 실제
+     * 위성지도 타일을 못 불러와서, 실제 앱 화면 그대로 검수하고 싶다는 요청으로 추가.
+     * 처음엔 ?debug=review 쿼리가 있을 때만 켰으나, 매번 링크에 쿼리를 붙이기 번거롭다는
+     * 요청으로 상시 노출로 바꿨다 — 패널은 기본 접힌 한 줄(헤더)이라 평소엔 거의
+     * 눈에 안 띈다. 낱개 마커를 클릭하면 기존 상세 팝업은 그대로 뜨고, 추가로 빨간
+     * 테두리가 켜지며 내보내기 목록에 쌓인다. 다시 클릭하면 빠진다.
      */
-    var REVIEW_MODE = /[?&]debug=review\b/.test(location.search);
+    var REVIEW_MODE = true;
     var flaggedItems = new Map(); // "key:origIndex" -> {key, idx, row}
     var flagLayer = null;         // 빨간 테두리 오버레이(소스 무관 공용)
 
@@ -607,13 +610,18 @@
         var style = document.createElement('style');
         style.textContent =
             // 우측 세로 버튼 레일(출입통제·낚시금지 등)·하단 탭바와 안 겹치게 하단 중앙에 띄운다.
+            // 기본은 한 줄(헤더)만 보이는 접힌 상태 — 목록·버튼은 헤더를 눌러야 펼쳐진다
+            // (사용자 보고 2026-08-20: 목록이 펼쳐진 채로 고정돼 있어 지도 화면을 거의 다 가림).
             '#accident-review-panel{position:fixed;left:12px;right:12px;max-width:360px;margin:0 auto;' +
-            'bottom:78px;max-height:34vh;' +
-            'background:rgba(20,26,32,0.94);color:#fff;font-size:12px;border-radius:10px;padding:10px;z-index:900;' +
-            'display:flex;flex-direction:column;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,0.4);font-family:sans-serif;}' +
-            '#accident-review-panel .arp-hdr{display:flex;align-items:center;gap:6px;font-weight:700;}' +
+            'bottom:78px;background:rgba(20,26,32,0.94);color:#fff;font-size:12px;border-radius:10px;' +
+            'z-index:900;box-shadow:0 4px 16px rgba(0,0,0,0.4);font-family:sans-serif;overflow:hidden;}' +
+            '#accident-review-panel .arp-hdr{display:flex;align-items:center;gap:6px;font-weight:700;' +
+            'padding:10px;cursor:pointer;user-select:none;}' +
             '#accident-review-panel .arp-hdr b{color:#ff5f74;}' +
-            '#accident-review-panel .arp-list{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:4px;}' +
+            '#accident-review-panel .arp-hdr .arp-chevron{margin-left:auto;color:#aaa;font-size:11px;}' +
+            '#accident-review-panel .arp-body{display:none;flex-direction:column;gap:8px;padding:0 10px 10px;}' +
+            '#accident-review-panel.expanded .arp-body{display:flex;}' +
+            '#accident-review-panel .arp-list{max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;}' +
             '#accident-review-panel .arp-item{display:flex;gap:6px;align-items:flex-start;background:rgba(255,255,255,0.06);' +
             'border-radius:6px;padding:5px 7px;}' +
             '#accident-review-panel .arp-item span{flex:1;line-height:1.4;word-break:break-word;}' +
@@ -629,15 +637,23 @@
         var panel = document.createElement('div');
         panel.id = 'accident-review-panel';
         panel.innerHTML =
-            '<div class="arp-hdr">검수 모드 — 선택 <b id="accident-review-count">0</b>건</div>' +
+            '<div class="arp-hdr" id="accident-review-toggle">검수 모드 — 선택 <b id="accident-review-count">0</b>건' +
+            '<span class="arp-chevron" id="accident-review-chevron">펼치기 ▾</span></div>' +
+            '<div class="arp-body">' +
             '<div class="arp-list" id="accident-review-list"></div>' +
             '<div class="arp-actions">' +
             '<button type="button" id="accident-review-clear">전체 해제</button>' +
             '<button type="button" id="accident-review-export" class="primary">내보내기</button>' +
             '</div>' +
-            '<textarea id="accident-review-export-text" readonly style="display:none;"></textarea>';
+            '<textarea id="accident-review-export-text" readonly style="display:none;"></textarea>' +
+            '</div>';
         document.body.appendChild(panel);
 
+        document.getElementById('accident-review-toggle').addEventListener('click', function () {
+            panel.classList.toggle('expanded');
+            var expanded = panel.classList.contains('expanded');
+            document.getElementById('accident-review-chevron').textContent = expanded ? '접기 ▴' : '펼치기 ▾';
+        });
         document.getElementById('accident-review-clear').addEventListener('click', function () {
             flaggedItems.clear();
             var map = window.getOceanMap && window.getOceanMap();
@@ -686,7 +702,7 @@
         if (ta) ta.style.display = 'none'; // 목록이 바뀌면 다시 눌러야 최신 상태로 채워짐
     }
 
-    // ── 검수 모드(?debug=review) — 낱개 마커를 클릭하면 상세 팝업은 그대로 뜨고,
+    // ── 검수 모드(사고정보 켜면 항상 함께 뜸) — 낱개 마커를 클릭하면 상세 팝업은 그대로 뜨고,
     // 추가로 빨간 테두리를 켜서 내보내기 목록에 쌓는다. ───────────────────────
     function ensureFlagLayer(map) {
         if (flagLayer) return flagLayer;
