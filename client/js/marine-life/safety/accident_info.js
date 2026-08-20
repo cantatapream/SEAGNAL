@@ -89,6 +89,16 @@
  *   - 위 두 필터로 못 잡는 개별 오류 4건(hk 2건: "OO 동방 N해리" 텍스트인데 좌표는
  *     반대로 산속에 있음 · person 2건: 통영시 사고인데 좌표가 강원권, 3도 이상
  *     어긋남 — ±1 오타도 이상치 비교군도 없음)은 KNOWN_BAD_COORDS 로 개별 제외.
+ * [검수 모드 — ?debug=review (2026-08-20 추가)] 자동/AI 판정만으론 못 잡는 개별
+ *   좌표 오류가 더 있을 수 있어, 사용자가 실제 앱 화면(실제 위성지도·실제 마커
+ *   이미지)에서 직접 눈으로 보고 골라낼 수 있게 만든 개발자용 기능. URL 에 이
+ *   쿼리가 있을 때만 우측에 작은 패널이 뜬다(일반 사용자에겐 노출 안 됨). 낱개
+ *   마커를 클릭하면 기존 상세 팝업이 그대로 뜨고(무슨 사고인지 보고 판단하도록)
+ *   추가로 빨간 테두리가 켜지며 패널 목록에 쌓인다. 뭉친 클러스터를 클릭하면
+ *   기존과 동일하게 그 범위로 확대만 될 뿐 선택되지 않는다 — 여러 건이 한 픽셀에
+ *   뭉쳐 있을 때 실수로 전부 선택되는 걸 막기 위함(사용자 확정 2026-08-20). "내보내기"
+ *   를 누르면 {hk:[origIndex,...], hs:[...], person:[...]} 형식 JSON 을 텍스트
+ *   상자에 채운다 — KNOWN_BAD_COORDS 등 제외 목록에 반영할 원본 행 인덱스.
  * ============================================================================
  */
 
@@ -119,6 +129,18 @@
     var _activeDetailTab = {};        // source key -> 현재 선택된 "사고발생상세" 탭
     var _statsKey = null;             // 통계 시트에 지금 표시 중인 source key
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
+
+    /**
+     * [검수 모드 — URL에 ?debug=review 가 있을 때만 켜짐, 일반 사용자에게는 안 보임]
+     * 실제 지도(위성지도)·실제 마커 이미지 위에서 육지에 잘못 찍힌 개별 마커를 직접
+     * 클릭으로 골라 제외 후보 목록을 만드는 개발자용 기능(사용자 확정 2026-08-20 —
+     * 별도 웹페이지 검수 도구는 실제 위성지도 타일을 못 불러와서, 실제 앱 화면 그대로
+     * 검수하고 싶다는 요청으로 추가). 낱개 마커를 클릭하면 기존 상세 팝업은 그대로 뜨고,
+     * 추가로 빨간 테두리가 켜지며 내보내기 목록에 쌓인다. 다시 클릭하면 빠진다.
+     */
+    var REVIEW_MODE = /[?&]debug=review\b/.test(location.search);
+    var flaggedItems = new Map(); // "key:origIndex" -> {key, idx, row}
+    var flagLayer = null;         // 빨간 테두리 오버레이(소스 무관 공용)
 
     // ── 데이터 로드 ─────────────────────────────────────────────────────────
     function fetchSource(key) {
@@ -356,11 +378,12 @@
         return false;
     }
 
-    function rowToFeature(key, row) {
+    function rowToFeature(key, row, origIndex) {
         var coord = ol.proj.fromLonLat([row[1], row[0]]); // row=[lat,lon,...]
         var f = new ol.Feature({ geometry: new ol.geom.Point(coord) });
         f.set('row', row);
         f.set('typeCode', typeCodeOf(key, row));
+        f.set('origIndex', origIndex); // 검수 모드 내보내기용 — 원본 JSON rows 배열 안의 위치
         return f;
     }
 
@@ -369,6 +392,8 @@
         return Promise.all([fetchSource(key), ensureLandMask()]).then(function (results) {
             var rows = results[0];
             var landRings = results[1];
+            var origIndexOf = new Map();
+            rows.forEach(function (row, i) { origIndexOf.set(row, i); });
             rows.forEach(function (row) { applyLatOffsetFix(key, row); });
             var posIdx = COORD_OUTLIER_POS_IDX[key];
             var outliers = posIdx != null ? findCoordOutliers(rows, posIdx) : null;
@@ -380,7 +405,7 @@
                 .filter(function (row) { return !missingLocClusters || !missingLocClusters.has(row); })
                 .filter(function (row) { return !isIntegerDegreeCoord(row) || !isLandPoint(landRings, row[0], row[1]); })
                 .filter(function (row) { return !isKnownBadCoord(key, row); })
-                .map(function (row) { return rowToFeature(key, row); });
+                .map(function (row) { return rowToFeature(key, row, origIndexOf.get(row)); });
             rawFeatures[key] = feats;
             return feats;
         });
@@ -569,9 +594,143 @@
         bubble.setPosition(feature.getGeometry().getCoordinates());
     }
 
+    /** 검수 모드 목록에 보여줄 한 줄 요약(popupRowsFor 와 같은 컬럼을 재사용). */
+    function reviewLabelFor(key, row) {
+        if (key === 'hk') return formatYmd(row[2]) + ' · ' + (row[4] || accidentLabel(ACCIDENT_TYPE_LABELS, row[5]));
+        if (key === 'hs') return row[2] + '-' + pad2(row[3]) + '-' + pad2(row[4]) + ' · ' + (row[9] || '-');
+        return formatYmd(row[2]) + ' · ' + (row[3] || accidentLabel(ACCIDENT_TYPE_LABELS, row[4]));
+    }
+
+    /** 검수 모드 패널을 처음 한 번만 만든다(REVIEW_MODE 일 때만 bindUi 에서 호출). */
+    function ensureReviewPanel() {
+        if (document.getElementById('accident-review-panel')) return;
+        var style = document.createElement('style');
+        style.textContent =
+            // 우측 세로 버튼 레일(출입통제·낚시금지 등)·하단 탭바와 안 겹치게 하단 중앙에 띄운다.
+            '#accident-review-panel{position:fixed;left:12px;right:12px;max-width:360px;margin:0 auto;' +
+            'bottom:78px;max-height:34vh;' +
+            'background:rgba(20,26,32,0.94);color:#fff;font-size:12px;border-radius:10px;padding:10px;z-index:900;' +
+            'display:flex;flex-direction:column;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,0.4);font-family:sans-serif;}' +
+            '#accident-review-panel .arp-hdr{display:flex;align-items:center;gap:6px;font-weight:700;}' +
+            '#accident-review-panel .arp-hdr b{color:#ff5f74;}' +
+            '#accident-review-panel .arp-list{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:4px;}' +
+            '#accident-review-panel .arp-item{display:flex;gap:6px;align-items:flex-start;background:rgba(255,255,255,0.06);' +
+            'border-radius:6px;padding:5px 7px;}' +
+            '#accident-review-panel .arp-item span{flex:1;line-height:1.4;word-break:break-word;}' +
+            '#accident-review-panel .arp-item button{flex:none;background:none;border:none;color:#aaa;cursor:pointer;font-size:13px;}' +
+            '#accident-review-panel .arp-actions{display:flex;gap:6px;}' +
+            '#accident-review-panel .arp-actions button{flex:1;padding:6px;border-radius:6px;border:1px solid #555;' +
+            'background:#2a333a;color:#fff;font-size:12px;cursor:pointer;}' +
+            '#accident-review-panel .arp-actions button.primary{background:#ff5f74;border-color:#ff5f74;font-weight:700;}' +
+            '#accident-review-panel textarea{width:100%;height:90px;font-size:11px;border-radius:6px;border:1px solid #555;' +
+            'background:#11161a;color:#fff;padding:6px;box-sizing:border-box;}';
+        document.head.appendChild(style);
+
+        var panel = document.createElement('div');
+        panel.id = 'accident-review-panel';
+        panel.innerHTML =
+            '<div class="arp-hdr">검수 모드 — 선택 <b id="accident-review-count">0</b>건</div>' +
+            '<div class="arp-list" id="accident-review-list"></div>' +
+            '<div class="arp-actions">' +
+            '<button type="button" id="accident-review-clear">전체 해제</button>' +
+            '<button type="button" id="accident-review-export" class="primary">내보내기</button>' +
+            '</div>' +
+            '<textarea id="accident-review-export-text" readonly style="display:none;"></textarea>';
+        document.body.appendChild(panel);
+
+        document.getElementById('accident-review-clear').addEventListener('click', function () {
+            flaggedItems.clear();
+            var map = window.getOceanMap && window.getOceanMap();
+            if (map) rebuildFlagLayer(map);
+            renderReviewPanel();
+        });
+        document.getElementById('accident-review-export').addEventListener('click', function () {
+            var out = {};
+            flaggedItems.forEach(function (item) {
+                (out[item.key] || (out[item.key] = [])).push(item.idx);
+            });
+            var ta = document.getElementById('accident-review-export-text');
+            ta.value = JSON.stringify(out);
+            ta.style.display = 'block';
+            ta.focus();
+            ta.select();
+        });
+        renderReviewPanel();
+    }
+
+    function renderReviewPanel() {
+        var countEl = document.getElementById('accident-review-count');
+        var listEl = document.getElementById('accident-review-list');
+        if (!countEl || !listEl) return;
+        countEl.textContent = flaggedItems.size;
+        listEl.innerHTML = '';
+        flaggedItems.forEach(function (item, flagKey) {
+            var row = document.createElement('div');
+            row.className = 'arp-item';
+            var label = document.createElement('span');
+            label.textContent = '[' + item.key + '] ' + reviewLabelFor(item.key, item.row);
+            var rm = document.createElement('button');
+            rm.type = 'button';
+            rm.textContent = '✕';
+            rm.addEventListener('click', function () {
+                flaggedItems.delete(flagKey);
+                var map = window.getOceanMap && window.getOceanMap();
+                if (map) rebuildFlagLayer(map);
+                renderReviewPanel();
+            });
+            row.appendChild(label);
+            row.appendChild(rm);
+            listEl.appendChild(row);
+        });
+        var ta = document.getElementById('accident-review-export-text');
+        if (ta) ta.style.display = 'none'; // 목록이 바뀌면 다시 눌러야 최신 상태로 채워짐
+    }
+
+    // ── 검수 모드(?debug=review) — 낱개 마커를 클릭하면 상세 팝업은 그대로 뜨고,
+    // 추가로 빨간 테두리를 켜서 내보내기 목록에 쌓는다. ───────────────────────
+    function ensureFlagLayer(map) {
+        if (flagLayer) return flagLayer;
+        var source = new ol.source.Vector();
+        var style = new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 16,
+                stroke: new ol.style.Stroke({ color: '#ff2d55', width: 3 }),
+                fill: new ol.style.Fill({ color: 'rgba(255,45,85,0.15)' })
+            })
+        });
+        flagLayer = new ol.layer.Vector({ source: source, style: style, zIndex: 58 });
+        map.addLayer(flagLayer);
+        return flagLayer;
+    }
+
+    function rebuildFlagLayer(map) {
+        var layer = ensureFlagLayer(map);
+        var source = layer.getSource();
+        source.clear();
+        flaggedItems.forEach(function (item) {
+            source.addFeature(new ol.Feature({ geometry: new ol.geom.Point(item.coord) }));
+        });
+    }
+
+    /** 낱개 마커 클릭 시 상세 팝업과 별개로 빨간 테두리 선택을 토글한다(검수 모드 전용). */
+    function toggleFlag(map, key, feature) {
+        if (!REVIEW_MODE) return;
+        var idx = feature.get('origIndex');
+        if (idx == null) return;
+        var flagKey = key + ':' + idx;
+        if (flaggedItems.has(flagKey)) {
+            flaggedItems.delete(flagKey);
+        } else {
+            flaggedItems.set(flagKey, { key: key, idx: idx, row: feature.get('row'), coord: feature.getGeometry().getCoordinates() });
+        }
+        rebuildFlagLayer(map);
+        renderReviewPanel();
+    }
+
     /**
      * 클러스터 클릭 처리 — hazard_rocks.js tryHandleLayerClick 과 같은 방식.
-     * 멤버 2개 이상이면 그 범위로 확대(더 갈라지도록), 낱개면 상세 팝업.
+     * 멤버 2개 이상이면 그 범위로 확대(더 갈라지도록), 낱개면 상세 팝업(검수 모드면
+     * 팝업과 함께 빨간 테두리 선택도 토글 — 어떤 사고인지 보면서 골라야 하기 때문).
      */
     function tryHandleClusterClick(map, evt, key, layer) {
         var hit = null;
@@ -590,10 +749,12 @@
                 view.fit(extent, { padding: [60, 60, 60, 60], maxZoom: view.getMaxZoom(), duration: 300 });
             } else {
                 renderPopup(map, key, members[0]); // 최대 줌에서도 안 갈라짐 — 대표 1건만
+                toggleFlag(map, key, members[0]);
             }
             return true;
         }
         renderPopup(map, key, members[0]);
+        toggleFlag(map, key, members[0]);
         return true;
     }
 
@@ -923,6 +1084,7 @@
     }
 
     function bindUi(map) {
+        if (REVIEW_MODE) ensureReviewPanel();
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
         var wrap = document.getElementById('ocean-accident-wrap');
         if (toggleBtn && wrap) {
