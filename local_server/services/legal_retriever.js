@@ -1793,6 +1793,28 @@ function articleEnumTokens(article) {
     }
     if (readable) out.push(...run);
   }
+  // ★별지 서식 묶음·범위: `별지 제1·2호서식` · `별지 제3·5·6·7호서식` · `별지 제1~28호서식`
+  //   ⚠2026-08-20 실측: 아래 토큰 정규식은 `별지 제N호서식` **낱개만** 뽑는다. 그래서 서식을
+  //     묶음이나 범위로 적은 칸(전 위키 7행 — 국제항해선박보안 시행규칙 별지 제1~28호서식,
+  //     수산물유통법 별지 제3·5·6·7호서식 등)은 토큰이 0개라 **어떤 답변으로도 근거에 못 떴다.**
+  //     답변은 "별지 제5호서식"처럼 낱개로 쓰므로, 칸에 적힌 번호만 낱개로 펴 준다(환각 0).
+  const formRun = /별지\s*제\s*(\d+(?:\s*[·ㆍ・~∼]\s*\d+)+)\s*호\s*서식/g;
+  while ((m = formRun.exec(s)) !== null) {
+    const run = [];
+    let readable = true;
+    for (const part of m[1].split(/[·ㆍ・]/).map(x => x.trim())) {
+      const rg = /^(\d+)\s*[~∼]\s*(\d+)$/.exec(part);
+      if (rg) {
+        const from = parseInt(rg[1], 10), to = parseInt(rg[2], 10);
+        if (!(from >= 1 && to > from && to - from <= 100)) { readable = false; break; }
+        for (let n = from; n <= to; n++) run.push(`별지 제${n}호서식`);
+        continue;
+      }
+      if (!/^\d+$/.test(part)) { readable = false; break; }
+      run.push(`별지 제${part}호서식`);
+    }
+    if (readable) out.push(...run);
+  }
   // 별표·별도 묶음: `별표1·2` · `별표2·5·6·8·9`
   const annexRun = /(별표|별도)\s*(\d+(?:의\d+)?(?:\s*[·ㆍ・]\s*\d+(?:의\d+)?)+)/g;
   while ((m = annexRun.exec(s)) !== null) {
