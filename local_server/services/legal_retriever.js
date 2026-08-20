@@ -1924,10 +1924,23 @@ function lawCellVariants(law) {
 }
 
 /** lawMentionedInAnswer 의 원래 판정(후보 이름 하나에 대해). 기존 규칙을 그대로 둔다. */
+// ★가운뎃점 세 가지를 한 글자로 본다(2026-08-20, 23차 통합수정 사서가 코드 재현으로 확정).
+//   raw 원문은 `농산물 검사·검정방법…`(U+00B7 ·)로 적는데, 모델이 만드는 답변 문장은 같은 이름을
+//   `검사ㆍ검정방법`(U+318D ㆍ)으로 쓴다. 육안으로는 구분이 안 되지만 유니코드가 달라
+//   글자 그대로 대조하는 이 검사가 **매번 실패**했고, 그 법의 별표 인용이 근거 사슬에서 통째로
+//   탈락했다(농수산물품질관리법 발아율 검정 별표12 — 라이브 검증 5회 전부 재현).
+//   전 위키 근거 조문 표의 법령 칸 816행·118개 법령명이 가운뎃점을 포함하며, 위키 안에서도
+//   `수산업·어촌 발전 기본법`과 `수산업ㆍ어촌 발전 기본법`이 함께 쓰이고 있다.
+//   ⚠느슨해지는 것이 아니다 — 공백 차이를 흡수하는 기존 처리와 같은 성격의 **표기 차이 흡수**이고,
+//     이름 자체는 여전히 온전히 일치해야 한다(환각 0 유지).
+const MIDDOT_RE = /[·ㆍ・]/g;
+function midDot(s) { return String(s || '').replace(MIDDOT_RE, '\u00B7'); }
+
 function lawMentionedOnce(law, baseLaw, text) {
   const s = String(law || '').trim();
   if (!s || s.length < 2) return false;
   if (text.includes(s)) return true;
+  if (MIDDOT_RE.test(s) && midDot(text).includes(midDot(s))) return true;
   // ⓐ 계층 낱말만 적힌 칸(`시행령`·`시행규칙`) — 그 줄이 실린 페이지의 법(baseLaw)으로 편다.
   if (BARE_TIER_CELL_RE.test(s.replace(/\s+/g, ''))) {
     const base = String(baseLaw || '').trim();
@@ -1946,7 +1959,9 @@ function lawMentionedOnce(law, baseLaw, text) {
   if (m) {
     const name = m[1].trim(), tier = m[2];
     if (!name || !text.includes(tier)) return false;
-    return [name].concat(aliasesOfFormalName(name)).some(n => n && text.includes(n));
+    const flatText = midDot(text);
+    return [name].concat(aliasesOfFormalName(name))
+      .some(n => n && (text.includes(n) || flatText.includes(midDot(n))));
   }
   return false;
 }
@@ -2104,7 +2119,9 @@ function flatLawName(v) {
   const w = TIER_WRAP_RE.exec(t);
   if (w) t = w[1].trim();
   else if (/\)$/.test(t) && t.includes('(')) t = t.slice(0, t.lastIndexOf('(')).trim();
-  return t.replace(/(?:\s*[·ㆍ・,/]?\s*(?:시행령|시행규칙))+\s*$/, '').replace(/\s+/g, '');
+  // 가운뎃점 세 가지(·ㆍ・)를 한 글자로 통일한다 — 위키와 답변이 서로 다른 글자를 쓰는 일이 잦다.
+  return t.replace(/(?:\s*[·ㆍ・,/]?\s*(?:시행령|시행규칙))+\s*$/, '')
+    .replace(/\s+/g, '').replace(/[\u318D\u30FB]/g, '\u00B7');
 }
 
 /** 이 근거 줄의 법이, 답변에서 그 조문의 주인으로 실제로 나온 적이 있는가.
