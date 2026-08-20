@@ -1,7 +1,7 @@
 export const meta = {
   name: 'audit-live-verify',
-  description: '감사관이 full로 채점한 논점을 실제 챗봇 API로 다시 물어 대조(법당 1문항) — _SCHEMA.md §6-E 자기판단 보정',
-  phases: [{ title: '라이브검증', detail: '법마다 full 문항 1개를 골라 프로덕션 /api/legal/ask 로 재질의·근거 대조' }],
+  description: '감사관이 full로 채점한 논점을 실제 챗봇 API로 다시 물어 대조(법당 1~2문항) — _SCHEMA.md §6-E 자기판단 보정',
+  phases: [{ title: '라이브검증', detail: '법마다 full 문항을 골라 프로덕션 /api/legal/ask 로 재질의·근거 대조' }],
 }
 // ★재검증(전후 대조) 쓰는 법: laws 각 항목에 `question`(지난번에 실제로 물은 문장)·`expected`·`prev`
 //   를 넣어 넘기면, 검증관은 **문항을 고르지 않고 그 질문을 글자 그대로 다시 묻는다**. 결과에
@@ -40,7 +40,14 @@ ${l.question ? `1. ★**질문이 이미 정해져 있다. 고르지 마라.** �
    - 지난 라운드 결과: \`${l.prev || '?'}\`
 2. 이 질문·근거를 그대로 \`question\`·\`expected\` 에 담는다. **다른 문항으로 바꾸면 이번 검증은 무의미해진다** — 고치기 전후를 같은 자로 재는 것이 이 실행의 목적이다.
    ⚠\`no_full\` 로 끝내지 마라(질문이 이미 주어졌다).` : `1. \`${LEGAL}/_dashboard/audit/${l.slug}.md\`를 Read해 **이번 라운드(R${round}) 구간**에서 판정이 \`full\`인 문항을 찾는다.
-   - 그중 **가장 구체적인 수치·요건을 묻는 것 하나**를 고른다(풍속·파고·톤수·금액·기한처럼 사용자가 실제로 궁금해할 것). 추상적·정의형 질문은 피한다.
+${l.slot === 2
+  ? `   - ★너는 이 법의 **2번째 문항 담당**이다. 1번 담당이 고를 것과 **겹치지 않도록**, 이번에는
+     **절차·자격·요건·서류·기한처럼 "어떻게 하나"를 묻는 문항**을 고른다(금액·톤수·풍속 같은
+     순수 수치 문항은 1번 담당 몫이니 피한다). 두 문항이 사실상 같은 것을 물으면 이번 검증은
+     한 문항어치 값밖에 못 한다 — **돈을 두 배 쓰고 정보는 그대로**가 된다.
+     ${l.avoid ? `⚠1번 담당이 물은 문항: \`${l.avoid}\` — 이것과 다른 것을 골라라.` : ''}
+   - 그런 문항이 없으면 **다른 절(주제)의 full 문항 아무 것이나** 고르되, 수치형 하나로 몰리지 않게 한다.`
+  : `   - 그중 **가장 구체적인 수치·요건을 묻는 것 하나**를 고른다(풍속·파고·톤수·금액·기한처럼 사용자가 실제로 궁금해할 것). 추상적·정의형 질문은 피한다.`}
    - R${round} 구간에 full이 하나도 없으면 outcome=\`no_full\`로 끝낸다(억지로 다른 라운드에서 고르지 마라).
 2. 그 문항의 **감사관이 든 근거**(법령명 + 조문번호)를 기록한다 → \`expected\`.`}
 3. **실제 챗봇에 물어본다** — 반드시 아래 도구를 쓴다(직접 curl 금지).
@@ -65,7 +72,7 @@ ${l.question ? `1. ★**질문이 이미 정해져 있다. 고르지 마라.** �
    - ★되묻기가 **4회를 넘겨** 최종 답변에 닿았다면, 답을 맞혔더라도 note 맨 앞에 \`[되묻기과다 N회]\` 를 적는다. 실제 사용자는 그 전에 포기한다 — 한도를 올린 것은 **측정을 위해서지 문제를 덮으려는 것이 아니다.**
    - 네트워크·파싱 실패는 outcome=\`error\`, note에 그대로.
 ${l.prev ? `5-0. \`prev\` 필드에 \`${l.prev}\` 를 그대로 담아 돌려준다(전후 대조표를 만드는 데 쓴다).
-` : ''}5. \`${LEGAL}/_dashboard/audit/${l.slug}.md\`에 **append만**(L-93) — \`---\` + \`## R${round} 라이브 검증${pass ? ' — ' + pass + '차' : ''}\` 절에 질문·expected·outcome·chain·note를 적는다.
+` : ''}5. \`${LEGAL}/_dashboard/audit/${l.slug}.md\`에 **append만**(L-93) — \`---\` + \`## R${round} 라이브 검증${pass ? ' — ' + pass + '차' : ''}${l.slot ? ' (문항 ' + l.slot + ')' : ''}\` 절에 질문·expected·outcome·chain·note를 적는다.
 
 ## 대상: 「${l.name}」
 비용을 아끼기 위해 **요청은 최대 6회**(\`start\` 1회 + \`pick\`/\`etc\` 5회)만 던진다. 더 던지지 마라.
@@ -90,7 +97,16 @@ if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
   if (boot) laws = boot.laws || []
 }
 const round = cfg.round || 22
-log(`라이브 검증 ${laws.length}개 법 (법당 1문항, R${round})`)
+// ★법당 문항 수(2026-08-20 사용자 확정: 23차부터 2문항). `slots:2` 면 법마다 두 벌을 만들어
+//   각각 다른 축(1=수치형 / 2=절차·요건형)의 문항을 고르게 한다 — 같은 문항을 두 번 물으면
+//   돈만 두 배 들고 정보는 그대로다. 질문이 이미 정해진 재검증(l.question)에는 적용하지 않는다.
+const slots = Math.max(1, Math.min(2, cfg.slots || 1))
+if (slots > 1) {
+  laws = laws.flatMap(l => l.question
+    ? [l]                                   // 재검증 문항은 그대로 한 번만
+    : [Object.assign({}, l, { slot: 1 }), Object.assign({}, l, { slot: 2 })])
+}
+log(`라이브 검증 ${laws.length}문항 (법당 ${slots}문항, R${round})`)
 phase('라이브검증')
 // ★`serial: true` — 한 번에 하나씩만 묻는다(2026-08-19 신설).
 //   10묶음을 동시에 던졌더니 챗봇 서버의 Gemini 키가 전량 쿨다운에 걸려, 59법 중 17건이
@@ -100,13 +116,13 @@ const res = (cfg.serial
   ? await (async () => {
       const acc = [];
       for (const l of laws) {
-        const r = await agent(prompt(l, round, cfg.pass), { label: `live:${l.name.slice(0, 12)}`, phase: '라이브검증', model: 'sonnet', effort: 'medium', schema: SCHEMA });
+        const r = await agent(prompt(l, round, cfg.pass), { label: `live:${l.name.slice(0, 12)}${l.slot ? '#' + l.slot : ''}`, phase: '라이브검증', model: 'sonnet', effort: 'medium', schema: SCHEMA });
         acc.push(r);
       }
       return acc;
     })()
   : await parallel(laws.map(l => () =>
-      agent(prompt(l, round, cfg.pass), { label: `live:${l.name.slice(0, 12)}`, phase: '라이브검증', model: 'sonnet', effort: 'medium', schema: SCHEMA })
+      agent(prompt(l, round, cfg.pass), { label: `live:${l.name.slice(0, 12)}${l.slot ? '#' + l.slot : ''}`, phase: '라이브검증', model: 'sonnet', effort: 'medium', schema: SCHEMA })
     ))).filter(Boolean)
 
 const by = k => res.filter(r => r.outcome === k).length
