@@ -58,11 +58,12 @@ const LABEL = {
   content_gap: '원문 자체에 규정 없음 — 정직 표기가 최선',
   collection_hole: '수집 관련 — 조회 기록 확인 필요(§6-B-1 ⓑ)',
   REVIEW: '사람 판단 필요',
+  '이미반영?': '짚은 조문이 이미 위키에 있다 — **이것부터 확인**(고칠 게 없을 수 있다)',
   스코프경계: '이 법 소관이 아님 — 안내 문구가 닿는 자리에 있는지만 본다(§6-B-1 ⓐ)',
   원문공백: '원문 자체에 규정 없음(요약 행 표현으로 판정) — 조회 기록 확인 후 확정 공백으로',
   미분류: '사서가 유형을 갈라야 함',
 };
-const ORDER = ['wiki_lag', '미분류', 'collection_hole', '원문공백', 'content_gap', '스코프경계', 'REVIEW'];
+const ORDER = ['wiki_lag', '미분류', '이미반영?', 'collection_hole', '원문공백', 'content_gap', '스코프경계', 'REVIEW'];
 
 /** 한 줄에서 라운드 표기(R23·23R·23라운드)를 찾아 숫자로. 없으면 0. */
 function roundOf(line) {
@@ -95,21 +96,70 @@ for (const f of files) {
   const slug = f.slice(0, -3);
   if (only && slug !== only) continue;
   const lines = fs.readFileSync(path.join(AUDIT, f), 'utf8').split('\n');
+  // ★감사 파일은 **덧붙이는 기록**이다 — 옛 라운드 줄은 그대로 남고 나중 라운드가 그 아래에
+  //   "해소 확인"을 적는다. 그래서 "같은 줄에 해소 표시가 있나"만 보면, **나중에 고쳐진 것도
+  //   옛 줄 때문에 미해소로 잡힌다.** 그 항목의 **마지막 언급**이 무엇이라 말하는지로 판정한다
+  //   (2026-08-20 실측 보정 — 이 보정 전에는 한 라운드 집계의 2.4배가 나왔다).
   const seen = new Map();
   let curRound = 0;
   for (const raw of lines) {
     const line = raw.trim();
     const h = /^#{2,3}\s*R(\d{1,2})\b/.exec(line);
     if (h) curRound = Number(h[1]);
-    if (!OPEN_RE.test(line)) continue;
-    if (DONE_RE.test(line) && !KEEP_RE.test(line)) continue;
     if (line.length < 25) continue;                 // 표 구분선·머리글 같은 부스러기
+    const opened = OPEN_RE.test(line);
+    const closed = DONE_RE.test(line) && !KEEP_RE.test(line);
+    if (!opened && !closed) continue;               // 이 항목 얘기가 아니다
     const k = keyOf(line);
-    if (!k || seen.has(k)) { const p = seen.get(k); if (p) p.last = Math.max(p.last, roundOf(line) || curRound); continue; }
+    if (!k) continue;
     const r = roundOf(line) || curRound;
-    seen.set(k, { line, first: r, last: r, cat: classify(line) });
+    const prev = seen.get(k);
+    if (!prev) { seen.set(k, { line, first: r, last: r, cat: classify(line), open: opened && !closed }); continue; }
+    // 같은 항목의 더 나중 언급이면 상태를 갈아끼운다(같은 라운드면 뒤에 적힌 줄이 최신이다).
+    if (r >= prev.last) {
+      prev.last = r;
+      prev.open = opened && !closed;
+      if (prev.open) { prev.line = line; prev.cat = classify(line); }
+    }
   }
+  for (const [k, v] of seen) if (!v.open) seen.delete(k);
   rows.push({ slug, items: [...seen.values()] });
+}
+
+// ★위키 현재 상태와 대조한다(2026-08-20 신설).
+//   ⚠왜: 표본 1건을 손으로 확인했더니 **이미 고쳐진 항목이 목록에 남아 있었다** —
+//     선박직원법 P52("승무경력 증명서류가 위키 어디에도 없음")는 사실
+//     `선박직원법__해기사면허.md` 54행에 "승무경력의 증명서류(시행령 제9조): 원칙은
+//     선원수첩이며(①1호)…"로 이미 서술돼 있고 근거 조문 표에도 행이 있다.
+//     감사 파일만 보고 만든 목록은 이런 것을 못 거른다(그 라운드 이후에 고쳐졌으므로).
+//   그래서 항목이 짚은 **조문 번호가 그 법 위키에 실제로 있는지** 기계로 본다.
+//   ⚠"있다"가 곧 "고쳐졌다"는 아니다 — 다른 맥락에서 언급됐을 수도 있다. 그래서 버리지 않고
+//     `이미반영?` 로 따로 모아, 사서가 **그것부터 확인**하게 한다(확인이 가장 싼 작업이다).
+const WIKI = path.join(LEGAL, 'wiki');
+const wikiCache = new Map();
+function wikiTextOf(slug) {
+  if (wikiCache.has(slug)) return wikiCache.get(slug);
+  let t = '';
+  for (const kind of ['concepts', 'statutes', 'annexes']) {
+    const d = path.join(WIKI, kind);
+    if (!fs.existsSync(d)) continue;
+    for (const f of fs.readdirSync(d)) {
+      if (f === slug + '.md' || f.startsWith(slug + '__')) t += fs.readFileSync(path.join(d, f), 'utf8');
+    }
+  }
+  wikiCache.set(slug, t);
+  return t;
+}
+const ART_RE = /제\s*\d+조(?:의\d+)?|별표\s*\d+(?:의\d+)?|별지\s*제\s*\d+호/g;
+for (const r of rows) {
+  const text = wikiTextOf(r.slug);
+  if (!text) continue;
+  for (const it of r.items) {
+    const arts = [...new Set((it.line.match(ART_RE) || []).map(a => a.replace(/\s+/g, '')))];
+    if (!arts.length) continue;
+    // 짚은 조문이 **전부** 이미 위키에 있으면 이미 반영됐을 가능성이 높다.
+    if (arts.every(a => text.includes(a))) it.cat = '이미반영?';
+  }
 }
 
 rows.sort((a, b) => b.items.length - a.items.length);
