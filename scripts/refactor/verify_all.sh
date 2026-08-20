@@ -83,6 +83,13 @@ node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || FAIL
 echo; echo "── V5-5 근거 조문 행 도달성 ──"
 node local_server/knowledge/legal/_dashboard/loop/reach_eval.js --gate || FAIL=1
 
+echo; echo "── V5-6 근거 조문 인용 존재성 ──"
+# 근거 조문 표의 **법령 칸과 조문 칸이 짝이 맞는지** 원문으로 대조한다(2026-08-20 신설).
+#   왜: '조문 번호는 맞는데 주인이 틀린' 행은 지금까지 어떤 검사도 못 잡았다 — 링크는 걸리고
+#   표는 멀쩡해 보이지만 사용자가 눌러 보면 다른 내용이 나온다. 신설 당일 2건이 실재했다.
+#   ⚠이 검사를 만들고도 여기 안 걸어 뒀던 것을 독립 검토자가 지적해 등록한다(L-105 재발).
+node local_server/knowledge/legal/_dashboard/loop/cite_exists.js --gate || FAIL=1
+
 echo; echo "── V5-2 위키 링크 무결성 ──"
 ( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || FAIL=1
 
