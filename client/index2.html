@@ -3667,8 +3667,10 @@
                              개별 아이콘 버튼 3개, 소스를 고르면 팝아웃이 접힌다). 다시 눌러 켜져 있던
                              데이터를 끄는 동작은 access_control.js/fishing_ban.js 의 ON/OFF 토글과 동일.
                              현황/분석 토글은 사고정보가 켜진 동안만 좌측 상단(#ls-topleft-controls)에 나온다.
-                             [데이터] /accident_ships_hk.json·accident_ships_hs.json·accident_persons.json
+                             [데이터] /accident_ships_hs.json·accident_persons.json
                                       (국립해양조사원 개방海, 정적, 소스 버튼을 처음 누를 때만 지연 로드) -->
+                        <!-- 선박(해경) 버튼은 뺐다 — 선박(심판원) 데이터가 같은 사고를 더 정확하게
+                             담고 있어 해경 소스는 더 필요 없다는 사용자 확정(2026-08-20). -->
                         <div class="ocean-other-wx-wrap" id="ocean-accident-wrap">
                             <button class="ocean-overlay-btn" id="ocean-accident-toggle-btn" title="사고정보">
                                 <i class="fa-solid fa-ship"></i>
@@ -3676,10 +3678,6 @@
                             </button>
                             <div class="ocean-other-wx-popup" id="ocean-accident-popup">
                                 <div class="accident-source-list" id="ocean-accident-source-list">
-                                    <button class="ocean-overlay-btn ocean-other-wx-item" data-source="hk" title="선박(해경)">
-                                        <i class="fa-solid fa-ship"></i>
-                                        <span class="ocean-overlay-label" data-line1="선박" data-line2="해경">선박(해경)</span>
-                                    </button>
                                     <button class="ocean-overlay-btn ocean-other-wx-item" data-source="hs" title="선박(심판원)">
                                         <i class="fa-solid fa-gavel"></i>
                                         <span class="ocean-overlay-label" data-line1="선박" data-line2="심판원">선박(심판원)</span>
@@ -5122,7 +5120,7 @@
     <!-- [리팩토링] app.js를 15개 모듈로 분할 -->
     <script src="js/core/config.js"></script>
     <script src="js/shared/utils/mappings.js"></script>
-    <script src="js/shared/utils/accident_codes.js"></script>
+    <script src="js/shared/utils/accident_codes.js?v=HkRemoved_20260820"></script>
     <script src="js/shared/utils/utils.js"></script>
     <script src="js/forecast/alerts/data.js"></script>
     <script src="js/forecast/alerts/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
@@ -5297,7 +5295,7 @@
          동일하게 스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다.
          accident_codes.js(라벨 매핑)를 먼저 읽으므로 그 뒤에 위치. -->
-    <script src="js/marine-life/safety/accident_info.js?v=ReviewModeAlways_20260820"></script>
+    <script src="js/marine-life/safety/accident_info.js?v=HkRemoved_20260820"></script>
 
     <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
