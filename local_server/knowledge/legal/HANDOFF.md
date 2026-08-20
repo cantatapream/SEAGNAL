@@ -739,6 +739,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-20 14:21 KST] 🟢착수 — 통합수정(r23) — 출입국관리법
+16R 감사 gap remediation 착수: 근거조문 표에 제79조의2·제79조의3 행 누락(unreachable) 해소 + H-26 5종 재분류 + 인라인 REVIEW 마커 + 연락처 반영
+
+
 ### [2026-08-20 14:08 KST] 🟢착수 — 23차 2단계 — H-9① 통합수정 74법 10그룹 병렬 디스패치
 audit_fix_cell.js, groupsPath=audit18_groups.json, round:23, 10그룹 동시. 각 에이전트는 자기 법 파일만 쓴다(wiki/concepts|statutes|annexes/<slug>__*) — 공유허브(graph.json·_glossary·comparisons/)는 만지지 않는다(경합 위험, 별도 단독 lint 단계).
 
