@@ -28,6 +28,7 @@
  * [연계] ← pinned/live_r22_pass{5,6,7}.json(각 라운드가 남긴 법별 결과). ⚠읽기 전용.
  */
 const fs = require('fs');
+const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
 const DIR = '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/loop/pinned/';
 const ROUNDS = [5, 6, 7];
 
@@ -58,10 +59,20 @@ function hit(token, chainFlat) {
   const jo = /^제\d+조(?:의\d+)?/.exec(token);
   return !!(jo && token !== jo[0] && chainFlat.includes(jo[0]));
 }
+// ★인용 체인의 **묶음 표기를 챗봇과 같은 방식으로 펴서** 함께 본다(2026-08-20 검산에서 발견).
+//   체인에 `별표2·5·6·8·9` 로 실린 것을 글자 그대로만 찾으면 별표5 를 못 봐서, 실제로는 맞은
+//   문항을 오답으로 센다 — 연안관리법 수중조사 문항이 6·7차 모두 confirmed 이고 체인에도
+//   별표5 가 들어 있는데 이 채점기만 none 으로 세고 있었다. 그 탓에 정답률이 과소평가되고
+//   결손 목록에도 가짜가 섞였다. 챗봇이 쓰는 articleEnumTokens 를 그대로 불러 같은 눈으로 본다.
+function chainText(rows) {
+  const raw = (rows || []).join(' | ');
+  const expanded = (rows || []).flatMap(r => R.articleEnumTokens(String(r || ''))).join(' ');
+  return normalize(raw + ' ' + expanded);
+}
 function gradeRow(row) {
   const want = tokensOf(row.expected);
   if (!want.length) return { grade: 'n/a', got: 0, want: 0 };
-  const chainFlat = normalize((row.chain || []).join(' | '));
+  const chainFlat = chainText(row.chain);
   const got = want.filter(t => hit(t, chainFlat)).length;
   return { grade: got === want.length ? 'full' : (got ? 'partial' : 'none'), got, want: want.length };
 }
