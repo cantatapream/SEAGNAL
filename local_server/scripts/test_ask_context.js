@@ -661,7 +661,8 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('스위치 off 면 재진술을 하류로 안 넘긴다(§9.1 #10)',
       /const ucRestate = cfg\.understandConfirm \? \(ctx\.uc\.restate \|\| ''\) : '';/.test(ROUTES_CODE));
     ok('검색에 넘긴다', /searchOpts\.restate = ucRestate;/.test(ROUTES_CODE));
-    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion(?:, ctx\.cl)?(?:, ctx\.topic)?(?:, history)?\)/.test(ROUTES_CODE));
+    // ⚠뒤에 인자가 더 붙어도(2026-08-20 aiDiag) 배선 자체는 그대로다 — 꼬리는 열어 둔다.
+    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion(?:, ctx\.cl)?(?:, ctx\.topic)?(?:, history)?(?:, aiDiag)?\)/.test(ROUTES_CODE));
     ok('질의 문자열에는 어디서도 안 합친다(R2)',
       !/q \+[^\n]*restate/i.test(ROUTES_CODE) && !/restate[^\n]*\+ q\b/i.test(ROUTES_CODE));
     // (8) 설계문서와 코드가 어긋나지 않는다(T24·T25와 같은 대조)
@@ -1077,7 +1078,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('서버가 앱이 보낸 기억을 그대로 믿지 않는다',
       /legalRetriever\.normalizeHistory\(req\.body && req\.body\.history\)/.test(ROUTES_SRC));
     ok('되묻기 판단·답변 합성 **둘 다**에 넘긴다',
-      /ctx\.cl, ctx\.topic, history\)/.test(ROUTES_SRC) &&
+      /ctx\.cl, ctx\.topic, history(?:, aiDiag)?\)/.test(ROUTES_SRC) &&
       /synthesizeAnswerStream\(q, contextPages, history\)/.test(ROUTES_SRC));
     ok('★되묻기는 "이미 정해진 것"만 막고 진짜 갈리는 조건은 그대로 묻는다',
       /이미 정해진 것은 다시 묻지 마라/.test(RET_SRC) &&
@@ -1147,7 +1148,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('주제가 같은 위키 쪽을 앞으로 끌어올린다(확장어만으로는 약했다)',
       /x\.s \+= TOPIC_BONUS/.test(RET_SRC));
     ok('★되묻기 판단에도 주제를 넘긴다(예전엔 아예 안 넘겼다)',
-      /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx\.cl, ctx\.topic, history\)/.test(ROUTES_SRC) &&
+      /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx\.cl, ctx\.topic, history(?:, aiDiag)?\)/.test(ROUTES_SRC) &&
       /\[이어서 묻는 주제\]/.test(RET_SRC));
 
     // ⑥ 복원 화면의 내 말풍선 — 누적 문자열을 그대로 찍지 않는다

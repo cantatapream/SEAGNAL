@@ -73,6 +73,10 @@ function report(s, data) {
     citationChain: (data.citationChain || []).map(c =>
       `${c.law || ''} ${c.citedArticle || c.article || ''}`.trim()),
     sources: (data.sources || []).map(x => (x && (x.title || x.slug || x.law || x.name)) || JSON.stringify(x)).slice(0, 10),
+    // ★AI 단계가 조용히 빠졌으면 그대로 보여준다(2026-08-20) — `expand`(검색어 확장)·`clarify`
+    //   (되묻기 판단)가 시간초과·키 쿨다운으로 실패한 것을 "필요 없었던 것"과 구분하기 위해서다.
+    //   이 표시가 있는 회차의 결과는 개선·회귀의 근거로 쓰면 안 된다.
+    ...(Array.isArray(data.aiDiag) && data.aiDiag.length ? { 'AI단계실패': data.aiDiag } : {}),
   };
   console.log(JSON.stringify(out, null, 1));
 }

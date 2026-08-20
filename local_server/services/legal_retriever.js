@@ -954,7 +954,7 @@ const QUERY_EXPAND_CONFIG = {
  * @param {string} [restate] - 확인된 재진술(ctx.uc.restate). 없거나 규약 위반이면 무시된다.
  * @returns {Promise<string[]>} AI가 제안한 추가 검색어(실패 시 [])
  */
-async function expandQueryTerms(query, restate) {
+async function expandQueryTerms(query, restate, diag) {
   // ★측정용 통로(`NRYA_IDF=off` 와 같은 취지) — 개발 컨테이너에는 Gemini 키가 없어 이 함수가
   //   늘 빈 배열을 돌려주고, 그 탓에 **AI 검색어 확장이 낀 검색을 오프라인에서 재볼 수가 없었다**
   //   (L-130: 그래서 "검색은 병목이 아니다"라는 반쪽 결론이 나왔다). 이 환경변수로 확장어를
@@ -975,7 +975,7 @@ async function expandQueryTerms(query, restate) {
     const result = await gemini.callGemini({
       model: ANSWER_MODEL, contents: prompt, config: QUERY_EXPAND_CONFIG, caller: 'Legal-QueryExpand',
     });
-    if (!result.success || !result.text) return [];
+    if (!result.success || !result.text) { if (diag) diag.push('expand'); return []; }
     // JSON 모드라 보통은 배열 그대로 오지만, 모델이 코드블록·설명을 붙이는 경우까지 견디도록
     // 첫 '['~마지막 ']'만 떼어 파싱한다(파싱 실패는 아래 catch에서 [] 폴백).
     const m = result.text.match(/\[[\s\S]*\]/);
@@ -984,6 +984,10 @@ async function expandQueryTerms(query, restate) {
     if (!Array.isArray(arr)) return [];
     return arr.filter(t => typeof t === 'string' && t.trim()).map(t => t.trim()).slice(0, 8);
   } catch (_) {
+    // ★조용히 넘어가지 않는다(2026-08-20). 시간초과·키 쿨다운으로 이 단계가 빠지면 검색 순위가
+    //   통째로 달라지는데, 종전에는 아무 표시가 없어 **"확장이 필요 없었던 것"과 구분되지 않았다.**
+    //   라이브 검증에서 같은 질문의 결과가 회차마다 뒤집힌 원인 중 하나로 의심되는 지점이다.
+    if (diag) diag.push('expand');
     return [];
   }
 }
@@ -1261,7 +1265,7 @@ function withUnknownOption(question, options, round) {
  *          needed:true면 종합답변을 아예 만들지 않고 done 이벤트의 clarify 필드로 내려보낸다.
  *        → client/js/ai-chat/ai_chat.js clarifyHTML(선택지 버튼) → 버튼 클릭 시 "원래질문 — 라벨"로 재질의.
  */
-async function decideClarify(query, contextPages, restate, narrowLabels, lastTopic, prevClarify, topic, history) {
+async function decideClarify(query, contextPages, restate, narrowLabels, lastTopic, prevClarify, topic, history, diag) {
   if (!gemini.hasAnyKey() || !contextPages || !contextPages.length) return CLARIFY_NONE;
   // ★재되묻기 무한루프 차단(프롬프트 기준3의 결정론적 백스톱): 선택지 버튼으로 되돌아온 질의는
   // 반드시 CLARIFY_JOINER 를 달고 오므로, 그 개수가 곧 **이미 지나온 되묻기 라운드 수**다.
@@ -1330,7 +1334,7 @@ ${block}
     const result = await gemini.callGemini({
       model: ANSWER_MODEL, contents: prompt, config: CLARIFY_CONFIG, caller: 'Legal-Clarify',
     });
-    if (!result.success || !result.text) return CLARIFY_NONE;
+    if (!result.success || !result.text) { if (diag) diag.push('clarify'); return CLARIFY_NONE; }
     // JSON 모드라 보통은 객체 그대로 오지만, 모델이 코드블록·설명을 붙이는 경우까지 견디도록
     // 첫 '{'~마지막 '}'만 떼어 파싱한다(파싱 실패는 아래 catch에서 폴백).
     const m = result.text.match(/\{[\s\S]*\}/);
@@ -1388,13 +1392,16 @@ ${block}
     //   루프 차단을 건드리지 않게). 화면에 나가는 것만 보정본(fixed)이다.
     return { needed: true, intro: clarifyStr(obj.intro, 200), question, options: withUnknownOption(question, fixed, 0) };
   } catch (_) {
+    // ★위 expandQueryTerms 와 같은 이유로 조용히 넘어가지 않는다 — 시간초과로 되묻기가 빠지면
+    //   "되물을 필요가 없었다"와 구분이 안 돼, 같은 질문이 회차마다 다른 길로 간다.
+    if (diag) diag.push('clarify');
     return CLARIFY_NONE;
   }
 }
 
 // ── "잘 모르겠어요" 응답 — 용어 풀이 + 갈래 한 줄 요약 후 같은 선택지 재제시(B7) ──────
 const UNKNOWN_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,          // ★같은 입력에 같은 판단(2026-08-20, SYNTH_CONFIG 주석 참고)
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: 15000 },
@@ -1498,7 +1505,7 @@ async function search(query, opts) {
   // [H-37 §17] 확인된 재진술은 **여기 한 갈래로만** 검색에 들어온다 — 질의확장 LLM 이 그 문장을 보고
   //   뽑은 용어가 aiTerms 로 합류한다(재진술 낱말을 그대로 얹지 않는 이유는 §17 실측 기록 참고).
   //   재진술이 없으면 호출도 프롬프트도 오늘과 같아 allTerms 가 문자 그대로 동일하다(R0).
-  const aiTerms = await expandQueryTerms(query, opts && opts.restate);
+  const aiTerms = await expandQueryTerms(query, opts && opts.restate, opts && opts.diag);
   // [B8] 약칭(「어선안전조업법」)으로 물어도 정식 명칭 페이지가 잡히게 정식명을 검색어로 얹는다.
   //   표가 없거나 약칭이 안 걸리면 빈 배열이라 allTerms 가 오늘과 문자 그대로 같다(R0).
   const aliasTerms = aliasExpand(query);
@@ -2659,9 +2666,16 @@ ${ANSWER_RULES_BODY}`;
 // 2026-07-30 실측 발견: gemini-2.5-flash는 'thinkingLevel' 필드 자체가 400("Thinking level is
 // not supported for this model")으로 아예 미지원 — 2.5 계열은 thinkingBudget(정수, -1=dynamic)
 // 방식만 받는다. 모델별로 지원 필드가 달라 분기 처리.
+// ★온도 0(2026-08-20). 종전 0.3 에서는 **같은 질문에 답변 문장이 매번 달라졌고**, 인용 목록은
+//   그 답변 문장을 대조해 만들어지므로(filterCitationChainByAnswer) 근거까지 같이 흔들렸다.
+//   5·6·7차 라이브 검증에서 62문항 중 26건(42%)이 라운드 사이에 판정이 뒤집혔고, 채점자 흔들림을
+//   규칙 채점으로 걷어낸 뒤에도 29%가 남았다 — 그 남은 몫이 여기다.
+//   ⚠법령 답변은 **같은 질문에 같은 답**이 나오는 편이 옳다. 사용자끼리 답을 맞춰 볼 수 있어야 하고,
+//     이 저장소의 다른 판단 단계(질의확장·되묻기)는 이미 같은 이유로 0 이다.
+//   ⚠thinkingConfig 는 건드리지 않았다 — 한 번에 두 가지를 바꾸면 무엇이 효과였는지 못 가린다.
 const SYNTH_CONFIG = ANSWER_MODEL.startsWith('gemini-2.5')
-  ? { temperature: 0.3, thinkingConfig: { thinkingBudget: -1 } }
-  : { temperature: 0.3, thinkingConfig: { thinkingLevel: 'LOW' } };
+  ? { temperature: 0, thinkingConfig: { thinkingBudget: -1 } }
+  : { temperature: 0, thinkingConfig: { thinkingLevel: 'LOW' } };
 
 // ── 대화 기억(2026-08-18 사용자 확정) ─────────────────────────────────────────────
 // "🔁 관련해서 더 궁금해요"로 이어 물을 때 앱이 실어 보내는 직전까지의 대화([{q,a}, …]).
@@ -2838,7 +2852,7 @@ async function loadLawBundle(law) {
 // ②파일 선택 호출은 법률.txt 전문(최대 RAW_MAX_CHARS)까지 읽히므로 질의확장(10초)보다 여유가 필요하다.
 // 사고는 켜지 않는다 — "목차에서 필요한 파일 고르기"는 판단이지 추론이 아니다.
 const RAW_PICK_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,          // ★읽을 법을 고르는 단계 — 매번 다른 법을 고르면 답이 통째로 달라진다
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: 15000 },
@@ -3735,7 +3749,7 @@ function restateAllowed(s) {
 //   allowed deadline is 10s.)으로 거부해 이해확인이 프로덕션에서 한 번도 발동한 적이 없었다
 //   (23/23건 확인). API 최소값(10초)에 여유를 둔 12000으로 올린다.
 const UNDERSTAND_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,          // ★재진술이 흔들리면 검색어 확장까지 흔들린다(2026-08-20)
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: 12000 },
@@ -4446,7 +4460,7 @@ const NAVER_TAG_RE = /<[^>]*>/g;
 // 뜻 후보를 고르는 판단 호출(pickCandidateLaws 와 같은 "짧고 빠른 판단" 규약 — 사고 끄고 JSON만).
 // 타임아웃은 API 최소값(10초) 위로 둔다(:2124 실측 기록 참고 — 8초로 두면 매 호출 400이다).
 const NAVER_PICK_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,          // ★같은 낱말에 같은 뜻을 고르게 한다(2026-08-20)
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: 12000 },
