@@ -8663,33 +8663,25 @@ html[data-font-size="large"] .ocean-overlay-btn {
 
 /* ============================================================
    사고정보 (js/marine-life/safety/accident_info.js)
-   팝아웃(.ocean-other-wx-popup 재사용) 내부 UI + 마커 팝업 + 분석
-   모드 통계 바텀시트. 색상은 :root 토큰, 바텀시트는 .ocean-bottom-sheet
-   와 같은 톤(그라디언트·radius)을 그대로 옮겨왔다(요소 자체는 분리 —
+   소스 선택은 .ocean-other-wx-popup(천기 팝아웃)을 그대로 재사용 —
+   전용 패널 배경 없이 개별 .ocean-overlay-btn 3개가 뜬다(사용자 확정
+   2026-08-19, 이전엔 전용 배경 패널이었으나 천기와 같은 스타일로 통일).
+   현황/분석 토글은 #ls-topleft-controls(좌측 상단)로 옮겨졌다.
+   마커 팝업 + 분석 모드 통계 바텀시트는 .ocean-bottom-sheet 와 같은
+   톤(그라디언트·radius)을 그대로 옮겨왔다(요소 자체는 분리 —
    body.ls-mode.ls-safety #ocean-bottom-sheet 숨김 규칙 영향 안 받게).
    ============================================================ */
-.accident-popup-panel {
-    width: 156px;
-    /* [버그 수정 — 헤드리스 브라우저 스크린샷으로 발견]
-       .ocean-other-wx-popup(천기 팝아웃 기반 클래스)은 개별 아이콘 버튼 여러 개가
-       배경 없이 둥둥 뜨는 걸 전제로 해서 자체 배경이 없다. 사고정보는 라벨이 있는
-       패널(토글+목록)이라 배경 없이는 지도 위에서 거의 안 보인다(투명 텍스트 버튼만
-       배경 없는 지도 위에 떠서 대비가 안 나옴) — 패널 자체에 배경을 준다. */
+.accident-mode-toggle {
+    display: flex;
+    /* #ls-topleft-controls 가 flex-direction:row 라 명시적 폭이 없으면 중첩 flex 자식
+       (button.flex:1)들이 0으로 찌그러진다(헤드리스 브라우저로 발견, rect 0x0) — 고정폭으로 방지. */
+    width: 120px;
     background: rgba(10, 15, 28, 0.94);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 10px;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.45);
-}
-
-.accident-mode-toggle {
-    display: flex;
-    background: rgba(0,0,0,0.3);
     border-radius: 999px;
     padding: 2px;
-    margin-bottom: 8px;
 }
 .accident-mode-toggle button {
     flex: 1;
@@ -8705,32 +8697,6 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-mode-toggle button.active {
     background: var(--accent-yellow);
     color: #241a00;
-}
-
-.accident-source-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.accident-source-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid transparent;
-    border-radius: 8px;
-    padding: 7px 8px;
-    cursor: pointer;
-    text-align: left;
-    color: var(--text-sub);
-    font-size: 0.7rem;
-    font-weight: 600;
-}
-.accident-source-item i { width: 14px; text-align: center; flex: none; }
-.accident-source-item.active {
-    background: rgba(68,138,255,0.16);
-    border-color: var(--accent-blue);
-    color: var(--accent-blue);
 }
 
 /* 마커 팝업 (현황 모드) — .tide-popup 과 같은 톤 */

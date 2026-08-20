@@ -944,6 +944,17 @@
             min-width: max-content;
             z-index: 51;
         }
+        /* 사고정보 현황/분석 토글 — #ocean-topleft-controls 는 해양종합정보와 공유하는
+           가로 flex 컨테이너라 그 자체를 세로로 바꾸지 않고, 이 자식만 absolute 로
+           빼서 기본맵·안내 버튼 줄 바로 아래에 붙인다(부모가 position:absolute라 그
+           기준으로 계산됨 — 버튼 실제 높이를 몰라도 항상 정확히 붙는다). */
+        #ocean-topleft-controls > #ocean-accident-mode-toggle {
+            position: absolute !important;
+            top: 100%;
+            left: 0;
+            margin-top: 6px;
+            pointer-events: auto;
+        }
 
         /* ──────────────────────────────────────────────────────────
            안내사항 팝업 내부 탭 구조 (seagnal-modal 안에 주입되는 HTML)
@@ -3438,6 +3449,18 @@
                                 <span class="ocean-overlay-label" data-line1="안내">안 내</span>
                             </button>
                         </div>
+
+                        <!-- 사고정보 현황/분석 토글 — 사고정보(#ocean-accident-toggle-btn)가 켜진
+                             동안만 기본맵·안내 버튼 "아래"에 나온다(js/marine-life/safety/
+                             accident_info.js 가 display 제어, 사용자 확정 2026-08-19). 원래
+                             사고정보 팝아웃 안에 있던 걸 여기로 옮김. #ocean-topleft-controls
+                             자체는 해양종합정보와 공유하므로 안 건드리고, absolute 로 그
+                             바로 아래에 붙인다(아래 CSS #ocean-topleft-controls
+                             > #ocean-accident-mode-toggle 참고). -->
+                        <div class="accident-mode-toggle" id="ocean-accident-mode-toggle" style="display:none;">
+                            <button class="active" data-mode="status">현황</button>
+                            <button data-mode="analysis">분석</button>
+                        </div>
                     </div>
 
                     <!-- 오버레이 토글 버튼 + 주요지명 + GPS (지도 우측) -->
@@ -3640,8 +3663,10 @@
                         <!-- 사고정보 토글: js/marine-life/safety/accident_info.js 가 바인딩.
                              해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
                              CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고).
-                             클릭하면 왼쪽으로 팝아웃(천기 버튼의 .ocean-other-wx-popup 패턴 재사용)
-                             — 현황/분석 토글 + 선박(해경)·선박(심판원)·인명 소스 버튼 3개.
+                             클릭하면 왼쪽으로 팝아웃(천기 버튼의 .ocean-other-wx-popup 패턴 그대로 —
+                             개별 아이콘 버튼 3개, 소스를 고르면 팝아웃이 접힌다). 다시 눌러 켜져 있던
+                             데이터를 끄는 동작은 access_control.js/fishing_ban.js 의 ON/OFF 토글과 동일.
+                             현황/분석 토글은 사고정보가 켜진 동안만 좌측 상단(#ls-topleft-controls)에 나온다.
                              [데이터] /accident_ships_hk.json·accident_ships_hs.json·accident_persons.json
                                       (국립해양조사원 개방海, 정적, 소스 버튼을 처음 누를 때만 지연 로드) -->
                         <div class="ocean-other-wx-wrap" id="ocean-accident-wrap">
@@ -3649,20 +3674,19 @@
                                 <i class="fa-solid fa-ship"></i>
                                 <span class="ocean-overlay-label" data-line1="사고" data-line2="정보">사고정보</span>
                             </button>
-                            <div class="ocean-other-wx-popup accident-popup-panel" id="ocean-accident-popup">
-                                <div class="accident-mode-toggle" id="ocean-accident-mode-toggle">
-                                    <button class="active" data-mode="status">현황</button>
-                                    <button data-mode="analysis">분석</button>
-                                </div>
+                            <div class="ocean-other-wx-popup" id="ocean-accident-popup">
                                 <div class="accident-source-list" id="ocean-accident-source-list">
-                                    <button class="accident-source-item" data-source="hk">
-                                        <i class="fa-solid fa-ship"></i><span>선박(해경)</span>
+                                    <button class="ocean-overlay-btn ocean-other-wx-item" data-source="hk" title="선박(해경)">
+                                        <i class="fa-solid fa-ship"></i>
+                                        <span class="ocean-overlay-label" data-line1="선박" data-line2="해경">선박(해경)</span>
                                     </button>
-                                    <button class="accident-source-item" data-source="hs">
-                                        <i class="fa-solid fa-gavel"></i><span>선박(심판원)</span>
+                                    <button class="ocean-overlay-btn ocean-other-wx-item" data-source="hs" title="선박(심판원)">
+                                        <i class="fa-solid fa-gavel"></i>
+                                        <span class="ocean-overlay-label" data-line1="선박" data-line2="심판원">선박(심판원)</span>
                                     </button>
-                                    <button class="accident-source-item" data-source="person">
-                                        <i class="fa-solid fa-user"></i><span>인명</span>
+                                    <button class="ocean-overlay-btn ocean-other-wx-item" data-source="person" title="인명">
+                                        <i class="fa-solid fa-user"></i>
+                                        <span class="ocean-overlay-label" data-line1="인명">인명</span>
                                     </button>
                                 </div>
                             </div>
