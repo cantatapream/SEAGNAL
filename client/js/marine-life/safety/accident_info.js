@@ -1,14 +1,19 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/safety/accident_info.js
- * 역할  : 해양안전 지도에 "사고정보" 버튼을 얹는다. 클릭하면 선박(해경)·
- *         선박(심판원)·인명 3개 소스 중 하나를 고르고, "현황"(개별 사고 마커,
- *         hazard_rocks.js 와 같은 클러스터 방식) ↔ "분석"(지도 화면을 격자로
- *         나눠 격자별 건수를 색으로 표시, 격자 클릭 시 통계 바텀시트) 을 토글한다.
+ * 역할  : 해양안전 지도에 "사고정보" 버튼을 얹는다. 클릭하면 왼쪽으로 선박(해경)·
+ *         선박(심판원)·인명 3개 소스 버튼(천기 팝아웃과 같은 개별 아이콘 버튼
+ *         스타일)이 뜨고, 고르면 팝아웃이 접히며 데이터가 켜진다. 이미 켜진
+ *         상태에서 사고정보 버튼을 다시 누르면 access_control.js 등과 동일하게
+ *         전부 끈다(사용자 확정 2026-08-19). "현황"(개별 사고 마커, hazard_rocks.js
+ *         와 같은 클러스터 방식) ↔ "분석"(지도 화면을 격자로 나눠 격자별 건수를
+ *         색으로 표시, 격자 클릭 시 통계 바텀시트) 토글은 사고정보가 켜진 동안만
+ *         좌측 상단(#ocean-topleft-controls, 기본맵·안내 버튼 아래)에 나온다.
  *         낱개 마커는 사고유형별 이미지 아이콘(hazard_rocks.js 와 같은 120px
  *         캔버스 방식)이고, 여러 건이 뭉친 클러스터는 그 안에서 가장 많은
  *         사고유형의 이미지를 대표로 보여준다(hazard_rocks.js 는 "켜진 버튼"
- *         기준이라 다름 — 사용자 확정 2026-08-18).
+ *         기준이라 다름 — 사용자 확정 2026-08-18). 켜면 access_control.js 등과
+ *         같은 패턴으로 배경지도가 위성지도로 자동 전환된다(사용자 확정 2026-08-19).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : js/shared/utils/accident_codes.js(코드값→한글 라벨,
@@ -19,15 +24,26 @@
  *                    /accident_persons.json (정적, 소스 버튼을 처음 누를 때만
  *                    지연 로드 — hazard_rocks.js 와 동일한 절약 방식)
  *  - 마크업        : index2.html 의 #ocean-accident-toggle-btn(버튼),
- *                    #ocean-accident-wrap/#ocean-accident-popup(팝아웃),
- *                    #ocean-accident-mode-toggle(현황/분석), #ocean-accident-source-list,
+ *                    #ocean-accident-wrap/#ocean-accident-popup(소스 선택 팝아웃),
+ *                    #ocean-accident-source-list, #ocean-accident-mode-toggle
+ *                    (현황/분석 — #ocean-topleft-controls 안, 해양안전 화면이
+ *                    빌려 쓰는 해양종합정보 기본맵·안내 버튼 바로 아래),
  *                    #accident-stats-sheet/#accident-stats-body(격자 클릭 시 통계)
  *  - 나를 쓰는 곳  : ocean_map.js handleMapClick → window._accidentInfoTryHandleClick
  *                    (access_control.js 와 동일하게 window.getOceanMap 폴링으로
  *                    스스로 설치 — ocean_map.js buildMap() 수정 불필요)
+ *                    window.oceanGetBasemap/oceanSetBasemap(ocean_map.js, 배경지도
+ *                    자동 전환/복귀)
  * [로드 순서] navigational_warning.js 다음 · life_safety.js 바로 앞
  * [데이터 출처] 국립해양조사원 개방海 "선박사고(해경/심판원)"·"인명사고" —
  *   local_server/scripts/build_accidents.js 로 생성(원본 CSV는 레포에 없음).
+ * [좌표 이상치 필터] 원본 좌표(ORGNL_XCDNT/YCDNT) 자체에 개별 오류가 소수 섞여
+ *   있다(사용자 보고: 지도상 위치가 주소 텍스트와 안 맞음 — 조사 결과 좌표 변환
+ *   로직 문제가 아니라 원본 데이터 오류로 확인, 사용자 확정 2026-08-20: 이상치는
+ *   지도에서 제외). ensureRawFeatures 가 같은 "사고발생위치" 텍스트를 가진 행들의
+ *   좌표 중앙값과 비교해 0.3도(≈33km) 이상 벗어난 행을 제외한다(findCoordOutliers).
+ *   같은 텍스트가 1건뿐이면 비교 대상이 없어 판정하지 않는다. 선박(심판원)은 이
+ *   위치텍스트 컬럼이 원본에 없어 이 필터를 적용하지 못한다(그대로 노출).
  * ============================================================================
  */
 
@@ -40,7 +56,9 @@
         person: { url: '/accident_persons.json' }
     };
 
-    var CLUSTER_DISTANCE = 45;  // px — hazard_rocks.js 와 동일 값(같은 지도라 동일 체감)
+    // px — hazard_rocks.js 는 45(점이 훨씬 적어 그대로 둬도 안 빽빽함). 사고정보는
+    // 건수가 많아 45면 화면에 클러스터가 너무 많이 보여(사용자 확정 2026-08-19) 100으로 키움.
+    var CLUSTER_DISTANCE = 100;
     var SPREAD_ZOOM = 14;
     var GRID_COLS = 6, GRID_ROWS = 5; // 분석 모드 격자 — 화면 현재 범위를 이 칸수로 나눔
     var ICON_SCALE = 0.2875;    // hazard_rocks.js 와 동일 — 아이콘 원본이 같은 120px 캔버스
@@ -75,6 +93,55 @@
         return row[4]; // person
     }
 
+    /**
+     * 소스별 "사고발생위치" 텍스트(ACDNT_PSTN) 컬럼 위치 — 좌표 이상치 탐지에 쓴다.
+     * hs(선박·심판원)는 이 텍스트 컬럼이 원본 CSV에 아예 없어 탐지 대상에서 뺀다
+     * (사고해역코드는 "남해영해"처럼 범위가 넓어 이 방식의 비교 기준으로 못 씀).
+     */
+    var COORD_OUTLIER_POS_IDX = { hk: 4, person: 3 };
+
+    /** 좌표 이상치 판정 기준 — 같은 위치텍스트 그룹의 중앙값에서 이만큼(도) 벗어나면 원본 데이터
+     * 오류로 본다. 0.3도 ≈ 33km(사용자 보고 사례: "하동군 금남면 송문리" 위도가 같은 지명의
+     * 다른 건들과 정확히 1도 어긋나 있었음 — build_accidents.js 헤더 주석 및 README 참고). */
+    var COORD_OUTLIER_THRESHOLD_DEG = 0.3;
+
+    function median(nums) {
+        var sorted = nums.slice().sort(function (a, b) { return a - b; });
+        var mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+
+    /**
+     * 같은 "사고발생위치" 텍스트를 가진 행들끼리 좌표를 비교해 이상치를 걸러낸다.
+     * 같은 텍스트가 1건뿐이면 비교 대상이 없어 판정하지 않는다(그대로 둔다) — 오탐보다
+     * 놓치는 쪽이 안전하다는 판단(사용자 확정 2026-08-20).
+     * @param {Array<Array>} rows - 원본 소스의 전체 행
+     * @param {number} posIdx - 위치텍스트 컬럼 인덱스
+     * @returns {Set<Array>} 이상치로 판정된 행의 집합
+     */
+    function findCoordOutliers(rows, posIdx) {
+        var groups = {};
+        rows.forEach(function (row) {
+            var pos = row[posIdx];
+            if (!pos) return;
+            (groups[pos] || (groups[pos] = [])).push(row);
+        });
+        var outliers = new Set();
+        Object.keys(groups).forEach(function (pos) {
+            var g = groups[pos];
+            if (g.length < 2) return;
+            var medLat = median(g.map(function (r) { return r[0]; }));
+            var medLon = median(g.map(function (r) { return r[1]; }));
+            g.forEach(function (row) {
+                if (Math.abs(row[0] - medLat) > COORD_OUTLIER_THRESHOLD_DEG ||
+                    Math.abs(row[1] - medLon) > COORD_OUTLIER_THRESHOLD_DEG) {
+                    outliers.add(row);
+                }
+            });
+        });
+        return outliers;
+    }
+
     function rowToFeature(key, row) {
         var coord = ol.proj.fromLonLat([row[1], row[0]]); // row=[lat,lon,...]
         var f = new ol.Feature({ geometry: new ol.geom.Point(coord) });
@@ -86,8 +153,11 @@
     function ensureRawFeatures(key) {
         if (rawFeatures[key]) return Promise.resolve(rawFeatures[key]);
         return fetchSource(key).then(function (rows) {
+            var posIdx = COORD_OUTLIER_POS_IDX[key];
+            var outliers = posIdx != null ? findCoordOutliers(rows, posIdx) : null;
             var feats = rows
                 .filter(function (row) { return !ACCIDENT_TYPE_EXCLUDED[typeCodeOf(key, row)]; })
+                .filter(function (row) { return !outliers || !outliers.has(row); })
                 .map(function (row) { return rowToFeature(key, row); });
             rawFeatures[key] = feats;
             return feats;
@@ -137,7 +207,7 @@
 
     var _clusterIconStyleCache = {};
     function clusterIconStyle(typeCode, count) {
-        var text = count > 999 ? '999+' : String(count);
+        var text = String(count); // 999+ 로 뭉개지 않고 실제 건수를 그대로 보여준다(사용자 확정 2026-08-19)
         var src = ACCIDENT_TYPE_ICONS[typeCode];
         if (src) {
             var cacheKey = typeCode + '|' + text;
@@ -541,6 +611,14 @@
         }
     }
 
+    // ON 시점의 배경지도를 기억해 뒀다 OFF 시 되돌린다(access_control.js/fishing_ban.js 와 동일 패턴).
+    var _prevBasemap = null;
+
+    function showModeToggle(show) {
+        var modeToggle = document.getElementById('ocean-accident-mode-toggle');
+        if (modeToggle) modeToggle.style.display = show ? 'flex' : 'none';
+    }
+
     function selectSource(map, key) {
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
         var iconEl = toggleBtn && toggleBtn.querySelector('i');
@@ -553,7 +631,13 @@
             applyModeVisibility(map);
             closePopout();
             updateSourceButtonsUi();
+            showModeToggle(true);
             if (toggleBtn) toggleBtn.classList.add('active');
+            // 마커를 실제 지형과 대조해 보기 쉽도록 배경지도를 위성지도로 자동 전환(사용자 확정 2026-08-19)
+            if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
+                _prevBasemap = window.oceanGetBasemap();
+                if (_prevBasemap !== 'vworld') window.oceanSetBasemap('vworld');
+            }
             if (window.trackUsage) window.trackUsage('ocean.accident_info');
         }).catch(function (e) {
             if (iconEl) iconEl.className = originalIconClass;
@@ -561,10 +645,29 @@
         });
     }
 
+    /**
+     * 사고정보를 완전히 끈다 — 마커/격자 레이어 숨김, 소스 선택 해제, 배경지도 복귀.
+     * 사고정보 버튼을 다시 누르면 호출(사용자 확정 2026-08-19: 재클릭으로 켜져 있던
+     * 데이터를 끌 수 있어야 함 — access_control.js 등 다른 토글 레이어와 동일한 동작).
+     * [연계] ← bindUi() toggleBtn 클릭
+     */
+    function turnOff(map) {
+        state.source = null;
+        applyModeVisibility(map);
+        closePopout();
+        updateSourceButtonsUi();
+        showModeToggle(false);
+        var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
+        if (toggleBtn) toggleBtn.classList.remove('active');
+        if (_prevBasemap && _prevBasemap !== 'vworld' && typeof window.oceanSetBasemap === 'function') {
+            window.oceanSetBasemap(_prevBasemap);
+        }
+        _prevBasemap = null;
+    }
+
     function setMode(map, mode) {
         state.mode = mode;
         applyModeVisibility(map);
-        closePopout();
         updateModeToggleUi();
     }
 
@@ -574,7 +677,8 @@
         if (toggleBtn && wrap) {
             toggleBtn.addEventListener('click', function (e) {
                 e.stopPropagation();
-                wrap.classList.toggle('popup-open');
+                if (state.source) { turnOff(map); return; } // 이미 데이터가 켜져 있으면 전체 끄기
+                wrap.classList.toggle('popup-open'); // 아니면 소스 선택 팝아웃 열기/닫기
             });
             document.addEventListener('click', function (e) {
                 if (!wrap.contains(e.target)) wrap.classList.remove('popup-open');
