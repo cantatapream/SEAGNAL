@@ -90,7 +90,20 @@ const LABEL = {
   other: '그 밖(묶음·범위 표기 변형)',
 };
 
-const now = { rows: 0, dead: 0, enum_branch: 0, annex_form_run: 0, buchik: 0, not_article: 0, other: 0 };
+// ★법령 칸이 **실제 답변에 절대 나올 수 없는 꼴**인지 따로 본다(2026-08-20 자체 결함 보완).
+//   위 friendlyAnswer 는 법령 칸을 「그대로」 인용해 답변을 만든다. 그래서 `이 법·시행령` 처럼
+//   **답변이 쓸 리 없는 칸**도 "유리한 답변"에서는 통과해 버려, 정작 현실에서 한 줄도 못 뜨는
+//   63행을 이 검사가 못 잡았다(사람이 따로 세어 발견). 칸의 **모양**으로 직접 잡는다.
+//   ⚠`시행령`·`시행규칙` **한 낱말**만 적힌 칸은 여기 넣지 않는다 — lawMentionedOnce 가 그 페이지의
+//     법을 붙여 대조하므로 실제로 뜬다(V5-3 이 같은 이유로 이 둘을 결함에서 뺐다).
+const TIER_WORD = /^(이 ?법|법|법률|시행령|시행규칙|규칙|별표\s*\d*(?:의\d+)?)$/;
+function lawCellUnusable(law) {
+  const s = String(law || '').trim();
+  if (!/[·ㆍ・]/.test(s)) return false;
+  return s.split(/[·ㆍ・]/).some(seg => TIER_WORD.test(seg.trim()));
+}
+
+const now = { rows: 0, dead: 0, enum_branch: 0, annex_form_run: 0, buchik: 0, not_article: 0, other: 0, law_cell_unusable: 0 };
 const ex = {};
 for (const f of files) {
   const raw = fs.readFileSync(f, 'utf8');
@@ -99,6 +112,11 @@ for (const f of files) {
   for (const r of R.extractCitationChain(raw.replace(/^---[\s\S]*?---\n/, ''))) {
     now.rows++;
     const law = String(r.law || ''), article = String(r.article || '');
+    if (lawCellUnusable(law)) {
+      now.law_cell_unusable++;
+      (ex.law_cell = ex.law_cell || []).push(path.relative(WIKI, f) + '  |  ' + law.slice(0, 40));
+      continue;
+    }
     if (R.filterCitationChainByAnswer([Object.assign({}, r)], friendlyAnswer(law, article), baseLaw).length) continue;
     now.dead++;
     const s = shapeOf(law, article);
@@ -112,7 +130,9 @@ if (fs.existsSync(BASE_FILE)) { try { base = JSON.parse(fs.readFileSync(BASE_FIL
 const delta = k => base && typeof base[k] === 'number' ? (now[k] - base[k] > 0 ? `  (+${now[k] - base[k]})` : now[k] - base[k] < 0 ? `  (${now[k] - base[k]})` : '') : '';
 
 console.log(`근거 조문 표 전체 행: ${now.rows.toLocaleString()}`);
-console.log(`어떤 답변으로도 근거로 못 뜨는 행: ${now.dead} (${(now.dead / now.rows * 100).toFixed(2)}%)${delta('dead')}\n`);
+console.log(`어떤 답변으로도 근거로 못 뜨는 행: ${now.dead} (${(now.dead / now.rows * 100).toFixed(2)}%)${delta('dead')}`);
+console.log(`법령 칸이 답변에 나올 수 없는 꼴인 행: ${now.law_cell_unusable}${delta('law_cell_unusable')}\n`);
+if (argv.includes('--examples')) (ex.law_cell || []).slice(0, 10).forEach(x => console.log('        · ' + x));
 for (const k of Object.keys(LABEL)) {
   console.log(`  ${String(now[k]).padStart(4)}  ${LABEL[k]}${delta(k)}`);
   if (argv.includes('--examples')) (ex[k] || []).slice(0, 8).forEach(x => console.log('        · ' + x));
@@ -121,6 +141,13 @@ for (const k of Object.keys(LABEL)) {
 if (argv.includes('--gate')) {
   // ★0을 요구하지 않는다 — 조문 구조 자체가 없는 고시(구간표·기준임금 같은 것)가 실재해 0이 될 수
   //   없고, 억지로 0을 만들면 그게 지어내기다. **기준선보다 늘어나면** 실패시킨다.
+  // 법령 칸이 못 쓸 꼴인 행은 **0을 요구한다** — 고치는 방법이 분명하다(법별로 행을 나눈다).
+  if (now.law_cell_unusable > 0) {
+    console.log(`\n  ❌ 법령 칸에 두 법 이상이 묶인 행이 ${now.law_cell_unusable}건 있습니다 — 어떤 답변으로도 못 뜹니다`);
+    console.log('     어디인지 보기: node _dashboard/loop/reach_eval.js --examples');
+    console.log('     고치는 법: 법마다 행을 나눈다(_SCHEMA.md §8-A ③-1).');
+    process.exit(1);
+  }
   const cap = base && typeof base.dead === 'number' ? base.dead : now.dead;
   if (now.dead > cap) {
     console.log(`\n  ❌ 근거로 못 뜨는 행이 늘었습니다 (기준선 ${cap} → 지금 ${now.dead})`);
