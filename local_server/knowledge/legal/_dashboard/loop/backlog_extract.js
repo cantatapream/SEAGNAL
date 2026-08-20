@@ -58,12 +58,11 @@ const LABEL = {
   content_gap: '원문 자체에 규정 없음 — 정직 표기가 최선',
   collection_hole: '수집 관련 — 조회 기록 확인 필요(§6-B-1 ⓑ)',
   REVIEW: '사람 판단 필요',
-  '이미반영?': '짚은 조문이 이미 위키에 있다 — **이것부터 확인**(고칠 게 없을 수 있다)',
   스코프경계: '이 법 소관이 아님 — 안내 문구가 닿는 자리에 있는지만 본다(§6-B-1 ⓐ)',
   원문공백: '원문 자체에 규정 없음(요약 행 표현으로 판정) — 조회 기록 확인 후 확정 공백으로',
   미분류: '사서가 유형을 갈라야 함',
 };
-const ORDER = ['wiki_lag', '미분류', '이미반영?', 'collection_hole', '원문공백', 'content_gap', '스코프경계', 'REVIEW'];
+const ORDER = ['wiki_lag', '미분류', 'collection_hole', '원문공백', 'content_gap', '스코프경계', 'REVIEW'];
 
 /** 한 줄에서 라운드 표기(R23·23R·23라운드)를 찾아 숫자로. 없으면 0. */
 function roundOf(line) {
@@ -126,15 +125,18 @@ for (const f of files) {
   rows.push({ slug, items: [...seen.values()] });
 }
 
-// ★위키 현재 상태와 대조한다(2026-08-20 신설).
-//   ⚠왜: 표본 1건을 손으로 확인했더니 **이미 고쳐진 항목이 목록에 남아 있었다** —
-//     선박직원법 P52("승무경력 증명서류가 위키 어디에도 없음")는 사실
-//     `선박직원법__해기사면허.md` 54행에 "승무경력의 증명서류(시행령 제9조): 원칙은
-//     선원수첩이며(①1호)…"로 이미 서술돼 있고 근거 조문 표에도 행이 있다.
-//     감사 파일만 보고 만든 목록은 이런 것을 못 거른다(그 라운드 이후에 고쳐졌으므로).
-//   그래서 항목이 짚은 **조문 번호가 그 법 위키에 실제로 있는지** 기계로 본다.
-//   ⚠"있다"가 곧 "고쳐졌다"는 아니다 — 다른 맥락에서 언급됐을 수도 있다. 그래서 버리지 않고
-//     `이미반영?` 로 따로 모아, 사서가 **그것부터 확인**하게 한다(확인이 가장 싼 작업이다).
+// ★위키 현재 상태와 대조한다(2026-08-20 신설 → 같은 날 **범위를 좁혀 다시 씀**).
+//   처음 만든 규칙은 "항목이 짚은 조문 번호가 그 법 위키 어딘가에 있으면 `이미반영?`"이었다.
+//   8,862건이 그리로 갔는데, **그중 1,353건은 감사관이 바로 그 줄에 "위키에 없음"이라고
+//   적어 둔 항목**이었다 — 기계가 사람 관찰을 덮어썼다. 원인은 규칙이 너무 헐거운 것이다:
+//   「제6조」는 어느 법 위키에도 나오므로 아무것도 가르지 못한다. 낱말 겹침(3글자 n-gram)으로
+//   조여 봐도 마찬가지였다 — **감사 항목은 "무엇이 없는지"를 위키의 말로 적기 때문에**,
+//   글자가 겹친다는 사실이 "이미 반영됐다"는 뜻이 되지 못한다. 그래서 그 갈래를 버린다.
+//   "이미 고쳐졌나"는 기계가 못 정한다 — 사서가 위키를 읽고 판단할 일이다(파일 머리말에 그렇게 적었다).
+//
+//   대신 **반대 방향만** 남긴다. 이건 논리적으로 성립한다:
+//     항목이 짚은 조문 번호가 그 법 위키에 **하나도 없으면**, 그 항목은 확실히 안 고쳐졌다.
+//   이 표시는 버리는 데 쓰지 않고 **먼저 볼 것을 고르는 데**만 쓴다.
 const WIKI = path.join(LEGAL, 'wiki');
 const wikiCache = new Map();
 function wikiTextOf(slug) {
@@ -151,14 +153,14 @@ function wikiTextOf(slug) {
   return t;
 }
 const ART_RE = /제\s*\d+조(?:의\d+)?|별표\s*\d+(?:의\d+)?|별지\s*제\s*\d+호/g;
+let certainlyOpen = 0;
 for (const r of rows) {
   const text = wikiTextOf(r.slug);
   if (!text) continue;
   for (const it of r.items) {
     const arts = [...new Set((it.line.match(ART_RE) || []).map(a => a.replace(/\s+/g, '')))];
     if (!arts.length) continue;
-    // 짚은 조문이 **전부** 이미 위키에 있으면 이미 반영됐을 가능성이 높다.
-    if (arts.every(a => text.includes(a))) it.cat = '이미반영?';
+    if (arts.some(a => !text.includes(a))) { it.absent = true; certainlyOpen++; }
   }
 }
 
@@ -169,6 +171,7 @@ rows.forEach(r => r.items.forEach(i => { byCat[i.cat] = (byCat[i.cat] || 0) + 1;
 
 console.log(`감사 파일 ${rows.length}개에서 뽑은 **미해소 thin·missing** : ${total.toLocaleString()}건\n`);
 for (const c of ORDER) if (byCat[c]) console.log(`  ${String(byCat[c]).padStart(5)}  ${c.padEnd(16)} ${LABEL[c]}`);
+console.log(`\n  그중 ${certainlyOpen.toLocaleString()}건은 **짚은 조문이 그 법 위키에 아예 없다** = 확실히 미해소(먼저 볼 것).`);
 console.log('\n건수 상위 12개 법:');
 rows.slice(0, 12).forEach(r => {
   const lag = r.items.filter(i => i.cat === 'wiki_lag').length;
@@ -184,15 +187,19 @@ if (argv.includes('--write')) {
     let md = `# ${r.slug} — 미해소 백로그 (기계 추출, ${r.items.length}건)\n\n`;
     md += '> `_dashboard/audit/' + r.slug + '.md` 에서 **해소 표시가 없는 `⚠thin`·`❌missing` 줄만** 뽑았다.\n';
     md += `> 감사 파일을 통독하지 말고 **이 목록만** 보고 고치면 된다(H-43).\n`;
-    md += `> ⚠기계가 줄 단위로 골랐으므로 이미 고쳐졌는데 표기가 안 바뀐 것이 섞일 수 있다 —\n`;
-    md += `>   고치기 전에 위키 현재 상태를 먼저 확인한다(그 확인 자체가 이 목록의 값을 올린다).\n\n`;
+    md += `> ⚠기계가 줄 단위로 골랐으므로 **이미 고쳐졌는데 표기만 안 바뀐 것이 섞여 있다.**\n`;
+    md += `>   "이미 고쳐졌나"는 기계가 못 가른다(2026-08-20 시도했다 실패 — backlog_extract.js 주석 참조).\n`;
+    md += `>   그러니 각 항목은 **위키 현재 상태를 먼저 확인**하고, 이미 해소됐으면 고치지 말고\n`;
+    md += `>   \`- [x]\` 로 바꾸며 근거를 \`(확인: <파일>:<줄>)\` 로 적는다. 안 됐으면 그때 고친다.\n`;
+    md += `>   \`⟨짚은 조문이 위키에 없음⟩\` 표시가 붙은 항목은 확인 없이도 미해소가 확실하다 — 먼저 본다.\n\n`;
     for (const c of ORDER) {
       if (!g[c]) continue;
       md += `## ${c} (${g[c].length}건) — ${LABEL[c]}\n\n`;
       g[c].sort((a, b) => a.first - b.first);
       for (const i of g[c]) {
         const age = i.first ? `R${i.first}${i.last > i.first ? `~R${i.last}` : ''}` : '라운드미상';
-        md += `- [ ] (${age}) ${i.line.replace(/\n/g, ' ')}\n`;
+        const mark = i.absent ? ' ⟨짚은 조문이 위키에 없음 — 확실히 미해소⟩' : '';
+        md += `- [ ] (${age}) ${i.line.replace(/\n/g, ' ')}${mark}\n`;
       }
       md += '\n';
     }
