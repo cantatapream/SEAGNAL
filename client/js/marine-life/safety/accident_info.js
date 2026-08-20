@@ -37,6 +37,13 @@
  * [로드 순서] navigational_warning.js 다음 · life_safety.js 바로 앞
  * [데이터 출처] 국립해양조사원 개방海 "선박사고(해경/심판원)"·"인명사고" —
  *   local_server/scripts/build_accidents.js 로 생성(원본 CSV는 레포에 없음).
+ * [좌표 이상치 필터] 원본 좌표(ORGNL_XCDNT/YCDNT) 자체에 개별 오류가 소수 섞여
+ *   있다(사용자 보고: 지도상 위치가 주소 텍스트와 안 맞음 — 조사 결과 좌표 변환
+ *   로직 문제가 아니라 원본 데이터 오류로 확인, 사용자 확정 2026-08-20: 이상치는
+ *   지도에서 제외). ensureRawFeatures 가 같은 "사고발생위치" 텍스트를 가진 행들의
+ *   좌표 중앙값과 비교해 0.3도(≈33km) 이상 벗어난 행을 제외한다(findCoordOutliers).
+ *   같은 텍스트가 1건뿐이면 비교 대상이 없어 판정하지 않는다. 선박(심판원)은 이
+ *   위치텍스트 컬럼이 원본에 없어 이 필터를 적용하지 못한다(그대로 노출).
  * ============================================================================
  */
 
@@ -86,6 +93,55 @@
         return row[4]; // person
     }
 
+    /**
+     * 소스별 "사고발생위치" 텍스트(ACDNT_PSTN) 컬럼 위치 — 좌표 이상치 탐지에 쓴다.
+     * hs(선박·심판원)는 이 텍스트 컬럼이 원본 CSV에 아예 없어 탐지 대상에서 뺀다
+     * (사고해역코드는 "남해영해"처럼 범위가 넓어 이 방식의 비교 기준으로 못 씀).
+     */
+    var COORD_OUTLIER_POS_IDX = { hk: 4, person: 3 };
+
+    /** 좌표 이상치 판정 기준 — 같은 위치텍스트 그룹의 중앙값에서 이만큼(도) 벗어나면 원본 데이터
+     * 오류로 본다. 0.3도 ≈ 33km(사용자 보고 사례: "하동군 금남면 송문리" 위도가 같은 지명의
+     * 다른 건들과 정확히 1도 어긋나 있었음 — build_accidents.js 헤더 주석 및 README 참고). */
+    var COORD_OUTLIER_THRESHOLD_DEG = 0.3;
+
+    function median(nums) {
+        var sorted = nums.slice().sort(function (a, b) { return a - b; });
+        var mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+
+    /**
+     * 같은 "사고발생위치" 텍스트를 가진 행들끼리 좌표를 비교해 이상치를 걸러낸다.
+     * 같은 텍스트가 1건뿐이면 비교 대상이 없어 판정하지 않는다(그대로 둔다) — 오탐보다
+     * 놓치는 쪽이 안전하다는 판단(사용자 확정 2026-08-20).
+     * @param {Array<Array>} rows - 원본 소스의 전체 행
+     * @param {number} posIdx - 위치텍스트 컬럼 인덱스
+     * @returns {Set<Array>} 이상치로 판정된 행의 집합
+     */
+    function findCoordOutliers(rows, posIdx) {
+        var groups = {};
+        rows.forEach(function (row) {
+            var pos = row[posIdx];
+            if (!pos) return;
+            (groups[pos] || (groups[pos] = [])).push(row);
+        });
+        var outliers = new Set();
+        Object.keys(groups).forEach(function (pos) {
+            var g = groups[pos];
+            if (g.length < 2) return;
+            var medLat = median(g.map(function (r) { return r[0]; }));
+            var medLon = median(g.map(function (r) { return r[1]; }));
+            g.forEach(function (row) {
+                if (Math.abs(row[0] - medLat) > COORD_OUTLIER_THRESHOLD_DEG ||
+                    Math.abs(row[1] - medLon) > COORD_OUTLIER_THRESHOLD_DEG) {
+                    outliers.add(row);
+                }
+            });
+        });
+        return outliers;
+    }
+
     function rowToFeature(key, row) {
         var coord = ol.proj.fromLonLat([row[1], row[0]]); // row=[lat,lon,...]
         var f = new ol.Feature({ geometry: new ol.geom.Point(coord) });
@@ -97,8 +153,11 @@
     function ensureRawFeatures(key) {
         if (rawFeatures[key]) return Promise.resolve(rawFeatures[key]);
         return fetchSource(key).then(function (rows) {
+            var posIdx = COORD_OUTLIER_POS_IDX[key];
+            var outliers = posIdx != null ? findCoordOutliers(rows, posIdx) : null;
             var feats = rows
                 .filter(function (row) { return !ACCIDENT_TYPE_EXCLUDED[typeCodeOf(key, row)]; })
+                .filter(function (row) { return !outliers || !outliers.has(row); })
                 .map(function (row) { return rowToFeature(key, row); });
             rawFeatures[key] = feats;
             return feats;
