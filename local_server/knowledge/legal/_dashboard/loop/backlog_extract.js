@@ -155,12 +155,18 @@ function wikiTextOf(slug) {
 const ART_RE = /제\s*\d+조(?:의\d+)?|별표\s*\d+(?:의\d+)?|별지\s*제\s*\d+호/g;
 let certainlyOpen = 0;
 for (const r of rows) {
-  const text = wikiTextOf(r.slug);
+  // ⚠**양쪽을 같은 방식으로 눌러서 비교한다**(2026-08-20 오탐으로 발견).
+  //   항목 쪽 토큰만 공백을 지우고 위키 원문은 그대로 두면, 위키의 `별지 제10호서식` 이
+  //   `별지제10호` 와 안 맞아 "위키에 없다"가 된다. 실제로 무인도서법 3건이 그렇게 잘못 찍혔다
+  //   (본문에 토씨까지 그대로 있는데 마커가 붙었다). 정규화는 **비교하는 두 쪽 모두**에 건다.
+  const text = wikiTextOf(r.slug).replace(/\s+/g, '');
   if (!text) continue;
   for (const it of r.items) {
     const arts = [...new Set((it.line.match(ART_RE) || []).map(a => a.replace(/\s+/g, '')))];
     if (!arts.length) continue;
-    if (arts.some(a => !text.includes(a))) { it.absent = true; certainlyOpen++; }
+    // ★`every` 다 — `some` 이 아니다. "확실히 미해소"라고 말할 수 있는 것은 짚은 조문이
+    //   **하나도** 위키에 없을 때뿐이다. 하나만 빠져도 마커를 붙이면 그 단언이 성립하지 않는다.
+    if (arts.every(a => !text.includes(a))) { it.absent = true; certainlyOpen++; }
   }
 }
 
