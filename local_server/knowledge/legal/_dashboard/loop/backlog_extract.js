@@ -88,6 +88,32 @@ function keyOf(line) {
     .replace(/^\d+/, '').slice(0, 60);
 }
 
+/**
+ * ★집계·헤더 줄 걸러내기(2026-08-20 신설 — 사서 두 명이 독립적으로 보고).
+ * 감사 파일에는 `| ⚠ thin | 86 | 22R 회귀 | ` 같은 **판정별 총계 행**과 `### G19. still_missing (6문항)`
+ * 같은 절 헤더, `**§1 소계(29건)**: …` 같은 소계 줄이 섞여 있다. 이 줄들에도 `⚠thin`·`❌missing` 이
+ * 적혀 있어 그대로 항목으로 뽑히는데, **가리키는 페이지도 조문도 없어 사서가 대조할 수가 없다.**
+ * 실측 260건(전체의 1.1%). 지우는 규칙은 **좁게** 잡는다 — 진짜 항목을 지우는 쪽이 훨씬 나쁘다:
+ *   ⓐ 절 헤더(`###`로 시작)  ⓑ 앞머리에 소계·합계·총계·집계가 있고 숫자가 있는 줄
+ *   ⓒ 표 행인데 **판정 낱말만 든 칸**이 있고, **그 칸 뒤에** 순수 숫자 칸이 오고,
+ *      물음표가 없고, 어느 칸도 한글 12자를 넘지 않는 것(= 서술이 없다)
+ * ⓒ의 "판정 칸 뒤"가 핵심이다. 진짜 항목 행은 `| 248 | 협회 회비는…? | ❌missing | … |` 처럼
+ * 숫자(문항번호)가 판정 **앞**에 온다. 이 조건을 빼면 진짜 항목 5,000건이 함께 지워졌다(실측).
+ */
+const NUM_CELL = /^\**\s*(?:약\s*)?\d+(?:\([^)]*\))?\s*\**$/;
+const VERDICT_CELL = /^\**\s*(?:⚠|❌)?\s*(?:thin|missing|still_missing)\s*(?:\([^)]*\))?\s*\**$/;
+function isNoise(line) {
+  if (/^#{2,6}\s/.test(line)) return true;
+  if (/(소계|합계|총계|집계)/.test(line.slice(0, 40)) && /\d/.test(line)) return true;
+  if (!line.startsWith('|')) return false;
+  const cells = line.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+  const vi = cells.findIndex(c => VERDICT_CELL.test(c));
+  if (vi < 0) return false;
+  if (!cells.slice(vi + 1).some(c => NUM_CELL.test(c))) return false;
+  if (line.includes('?')) return false;
+  return cells.every(c => (c.match(/[가-힣]/g) || []).length < 12);
+}
+
 const files = fs.readdirSync(AUDIT).filter(f => f.endsWith('.md') && f !== '_횡단.md');
 const only = arg('--law');
 const rows = [];
@@ -106,6 +132,7 @@ for (const f of files) {
     const h = /^#{2,3}\s*R(\d{1,2})\b/.exec(line);
     if (h) curRound = Number(h[1]);
     if (line.length < 25) continue;                 // 표 구분선·머리글 같은 부스러기
+    if (isNoise(line)) continue;                    // 집계 총계 행·절 헤더·소계 줄
     const opened = OPEN_RE.test(line);
     const closed = DONE_RE.test(line) && !KEEP_RE.test(line);
     if (!opened && !closed) continue;               // 이 항목 얘기가 아니다
