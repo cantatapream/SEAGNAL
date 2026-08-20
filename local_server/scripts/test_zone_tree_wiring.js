@@ -506,5 +506,22 @@ console.log('\n[T9] 질문 유형 — 경계형(짧게) vs 요건형(바로 확�
   }
 }
 
+console.log('── 같은 상황질문을 두 번 묻지 않는다 (2026-08-20) ──');
+{
+  // 라이브 실측: 천연기념물 재반입 서식 질문에 "어떤 배에 관한 것인가요?"가 반복됐고,
+  // "배가 아니라 …"라고 직접 입력해도 같은 질문이 다시 나와 빠져나올 길이 없었다.
+  // 선택지 버튼을 누르면 트리가 내려가 질문이 달라지지만, 직접 입력은 트리를 못 내려간다.
+  const RET_SRC = fs.readFileSync(RET, 'utf8');
+  const ROUTES = fs.readFileSync(path.join(__dirname, '..', 'routes', 'legal.js'), 'utf8');
+  ok('상황질문이 직전 되묻기(prevCl)를 받는다',
+    /function scopeNarrowStep\(query, scope, sources, enabled, prevCl\)/.test(RET_SRC));
+  ok('직전에 같은 질문을 냈으면 다시 묻지 않는다',
+    /prevCl && prevCl\.q && String\(prevCl\.q\)\.trim\(\) === String\(node\.질문\)\.trim\(\)/.test(RET_SRC));
+  ok('routes 가 ctx.cl 을 넘긴다',
+    /scopeNarrowStep\(q, ctx\.scope, sources, cfg\.scopeNarrow, ctx\.cl\)/.test(ROUTES));
+  ok('routes 가 이번 상황질문을 ctx.cl 에 남긴다',
+    /ctx\.cl = \{ q: scope\.clarify\.question/.test(ROUTES));
+}
+
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
