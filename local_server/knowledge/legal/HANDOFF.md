@@ -739,6 +739,15 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-20 14:08 KST] 🟢착수 — 23차 2단계 — H-9① 통합수정 74법 10그룹 병렬 디스패치
+audit_fix_cell.js, groupsPath=audit18_groups.json, round:23, 10그룹 동시. 각 에이전트는 자기 법 파일만 쓴다(wiki/concepts|statutes|annexes/<slug>__*) — 공유허브(graph.json·_glossary·comparisons/)는 만지지 않는다(경합 위험, 별도 단독 lint 단계).
+
+Workflow Task ID: g0=wmq71k8m2 / g1=wturi0k60 / g2=w083zxmz2 / g3=wjv64mv12 / g4=wd6n40jn7 / g5=wqly37nbf / g6=wasgwlmvi / g7=wh4k8wzti / g8=w3ukzzkk9 / g9=w7z57vbqr
+Run ID: g0=wf_0a28646b-7af / g1=wf_0da5a96b-62d / g2=wf_e989d233-da4 / g3=wf_6b1c62cb-f43 / g4=wf_98f99929-d98 / g5=wf_c7a30dda-007 / g6=wf_bc882518-704 / g7=wf_c0652795-f5c / g8=wf_8d72ab43-301 / g9=wf_e2c1a3d5-d75
+
+주의: unreachable 166건 중 '법령 칸이 시행령·시행규칙 한 낱말' 유형은 실제로는 도달 가능하다(L-140). 통합수정에서 정식명칭으로 채우는 것 자체는 이득이지만(lookupContact 가 매칭돼 소관부서 전화번호가 붙는다) 결함 집계에서는 빼야 한다. 코드 결함 3건(REVIEW 무시 확정오답·되묻기 루프·근거표 등재에도 수치 누락)은 위키 수정 대상이 아니므로 이 단계에서 손대지 않는다.
+
+
 ### [2026-08-20 14:07 KST] ✅완료 — 23차 감사 1단계 완료 — 74법 전수 + 횡단 감사관
 [총계] 총 문항 15,597 / full 4,942(31.7%) / thin 5,409 / missing 5,366 / unreachable 166 / collection_hole 105 / scope_out 313 / awkward 43. 10그룹 전부 정상 완료(agents_error 0), 74법 완료 마커 + 횡단 마커 전부 확인. 감사 파일은 전부 순수 append(삭제 0줄)로 커밋.
 
