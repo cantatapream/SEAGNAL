@@ -1193,8 +1193,14 @@ router.post('/api/legal/ask', async (req, res) => {
     //    아니라 상황**("어떤 배에 관한 것인가요?")을 자산 라벨 그대로 묻는다. 스위치 off면 null.
     //    ★zoneTreeStep 이 null 일 때만 시도한다(위에서 이미 return 됐다) — 순서를 지켜야 H-36
     //      파일럿이 검증한 트리 경로가 오늘과 100% 같다(설계 §3.4).
-    const scope = legalRetriever.scopeNarrowStep(q, ctx.scope, sources, cfg.scopeNarrow);
-    if (scope) return writeConfirm(scope);
+    //   ★직전 라운드의 되묻기(ctx.cl)를 함께 넘긴다 — 같은 상황질문을 두 번 묻지 않게 한다.
+    const scope = legalRetriever.scopeNarrowStep(q, ctx.scope, sources, cfg.scopeNarrow, ctx.cl);
+    if (scope) {
+      // AI 되묻기와 같은 규약으로 이번 질문을 ctx 에 남긴다 — 다음 라운드가 "또 같은 걸 묻는지"
+      // 판정할 유일한 근거다. 안 남기면 사용자가 직접 입력으로 답했을 때 빠져나올 길이 없다.
+      ctx.cl = { q: scope.clarify.question, labels: (scope.clarify.options || []).map(o => o.label) };
+      return writeConfirm(scope);
+    }
     // gapNotices = 그 위키 페이지가 "우리가 원문을 가질 수 없다"고 정직하게 적어둔 공백 안내
     // (시·군·구 개별고시 등) — 화면이 ⚠칩으로 "원문 미수집 — 별도 확인 필요"를 알린다.
     // ⚠ 인용사슬(citationChain)은 여기 소스마다 싣지 않는다 — 모든 소스의 줄을 합쳐 응답 최상위

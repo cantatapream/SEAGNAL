@@ -4265,11 +4265,19 @@ function vesselHayOf(node) {
  * @returns {null|{answer:string,note:string,clarify:object,confirmKind:string}}
  * [연계] ← routes/legal.js(zoneTreeStep이 null이고 search() 직후). → ai_chat.js clarifyHTML.
  */
-function scopeNarrowStep(query, scope, sources, enabled) {
+function scopeNarrowStep(query, scope, sources, enabled, prevCl) {
   try {
     if (!enabled) return null;
     const node = vesselNodeAt(scope || []);
     if (!node || !node.질문) return null;
+    // ★같은 상황질문을 두 번 묻지 않는다(2026-08-20 라이브 실측).
+    //   직전 라운드에 이 질문을 이미 냈는데 트리가 그대로라면, 사용자가 **선택지로 답하지 않은
+    //   것**이다(직접 입력으로 답했거나 질문과 무관해 고를 것이 없었다). 그때 또 물으면 빠져나올
+    //   길이 없다 — 실제로 천연기념물 재반입 서식 질문에 "어떤 배에 관한 것인가요?"가 반복됐고,
+    //   "배가 아니라 …"라고 직접 입력해도 같은 질문이 다시 나왔다.
+    //   ⚠AI 되묻기(B6)가 ctx.cl 로 같은 판정을 하는 것과 **같은 장치를 쓴다** — 새 저장소를 만들지
+    //     않는다. 사용자가 선택지를 눌러 트리가 내려갔으면 node.질문 이 달라져 여기 안 걸린다.
+    if (prevCl && prevCl.q && String(prevCl.q).trim() === String(node.질문).trim()) return null;
     const opts = (node.선택지 || []).filter(o => o && o.label).slice(0, CLARIFY_OPTION_MAX);
     if (opts.length < 2) return null;
     const q0 = String(query || '').split(CLARIFY_JOINER)[0];
