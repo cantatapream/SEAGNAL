@@ -71,6 +71,24 @@
  *   오차가 있어(해안선 근처 일부 지점 — 서울시청·태평양·하와이 등 명백한 지점은
  *   정확) 단독 필터링 근거로는 못 쓰지만, 시군구 지명 참조표와 함께 "위도 ±1 오타"
  *   후보를 좁히는 이중검증 용도로는 활용했다(아래 LAT_OFFSET_FIXES).
+ * [3차 재조사 — 강원 산악 내륙·범위밖 재확인(2026-08-20, 머지 후 재보고)] "머지 후에도
+ *   완전 내륙(강원 산악)에 마커가 있고, '완도군' 사고가 필리핀 근처에 표시된다"는
+ *   스크린샷 재보고로 다시 조사:
+ *   - "완도군 금일읍 장도" 사고(hk, [4.08333, 127.16667])는 재확인 결과 KOREA_BOUNDS
+ *     (latMin 24)로 이미 걸러짐을 확인(코드·서버 서빙 바이트까지 대조). 화면에 남아
+ *     있었다면 배포 반영 지연/캐시가 원인일 가능성이 크다 — sw.js 는 정적 자원을
+ *     stale-while-revalidate 로 캐시하지만 CACHE_VERSION 이 배포마다 bump 되어(Docker
+ *     빌드 단계) 새 배포 후 재접속하면 새 캐시로 교체된다.
+ *   - 강원 산악 내륙 클러스터는 원본이 "OO-00N, OO-00E"처럼 도(度) 단위로만 기록된
+ *     저정밀 좌표(예: [38,128]) 때문으로 확인 — 양양군 사고 4건이 정확히 [38,128]로
+ *     겹쳐 있었다(사용자가 본 "산속 클러스터"로 추정). 서해안처럼 해안이 완만한 곳은
+ *     1도 반올림이어도 우연히 바다 근처에 남지만, 강원 동해안은 해안선 바로 뒤가
+ *     태백산맥이라 반올림만으로 산속에 놓인다. isIntegerDegreeCoord + isLandPoint
+ *     (land-mask 재사용, 이번엔 "정수도 좌표"로만 범위를 좁혀 적용 — 전체 좌표에
+ *     적용하면 해안가 실제 사고까지 대량 오탐 제외됨, 실측 16%) 로 제외.
+ *   - 위 두 필터로 못 잡는 개별 오류 4건(hk 2건: "OO 동방 N해리" 텍스트인데 좌표는
+ *     반대로 산속에 있음 · person 2건: 통영시 사고인데 좌표가 강원권, 3도 이상
+ *     어긋남 — ±1 오타도 이상치 비교군도 없음)은 KNOWN_BAD_COORDS 로 개별 제외.
  * ============================================================================
  */
 
@@ -267,6 +285,77 @@
         }
     }
 
+    /**
+     * [정수도 좌표 + 육지판정 필터 — 사용자 재확인 2026-08-20] "강원 산악 내륙에 마커가
+     * 여전히 있다"는 재보고로 조사한 결과, 원본 위치가 "OO-00N, OO-00E" 처럼 도(度)
+     * 단위로만 기록된 저정밀 좌표(예: [38,128])가 소수 섞여 있었다. 서해안처럼 해안이
+     * 완만한 곳에서는 1도 반올림이어도 우연히 바다 근처에 남지만, 강원 동해안처럼 해안선
+     * 바로 뒤가 태백산맥인 곳에서는 반올림만으로 산속에 놓인다(실측: 양양군 사고 4건이
+     * 정확히 [38,128]로 겹쳐 있었음 — 사용자가 본 "산속 클러스터"로 추정).
+     * ocean_overlay.js 가 쓰는 /api/ocean/land-mask 를 이 필터 전용으로 재사용하되,
+     * 육지 마스크 자체의 국소 오차 때문에(README 참고) 전체 좌표에 적용하면 해안가
+     * 실제 사고(해수욕장·방파제 등)까지 대량 오탐 제외된다(실측: 필터 통과분의 16%가
+     * 육지 판정 — 그중 다수가 진짜 해변 사고). 그래서 "정수도 좌표"(전체의 0.1% 미만,
+     * 애초에 정밀도가 낮아 보정 불가능한 값)로만 적용 범위를 좁혔다.
+     */
+    var LAND_MASK_URL = '/api/ocean/land-mask';
+    var landMaskPromise = null;
+    function ensureLandMask() {
+        if (!landMaskPromise) {
+            landMaskPromise = fetch(LAND_MASK_URL).then(function (r) { return r.json(); })
+                .then(function (data) { return (data && data.success && data.rings) ? data.rings : null; })
+                .catch(function () { return null; });
+        }
+        return landMaskPromise;
+    }
+
+    /** ray-casting: (lat,lon)이 육지 마스크 링(들) 안인지. ring = [[lon,lat],...]. */
+    function isLandPoint(landRings, lat, lon) {
+        if (!landRings) return false;
+        var inside = false;
+        for (var ri = 0; ri < landRings.length; ri++) {
+            var ring = landRings[ri];
+            for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+                if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    /** row[0]/row[1] 둘 다 정수도(소수부 없음)면 원본이 도 단위로만 기록된 저정밀 좌표. */
+    function isIntegerDegreeCoord(row) {
+        return Number.isInteger(row[0]) && Number.isInteger(row[1]);
+    }
+
+    /**
+     * [개별 좌표 오류 — 위 필터들로 못 잡는 케이스] 정수도도 아니고 ±1 오타도 아닌데
+     * 위치텍스트와 좌표가 전혀 다른 지역을 가리키는 개별 오류(사용자 재확인 2026-08-20
+     * 강원 산악 내륙 조사 중 발견). 예: "통영시 사량면 돈지리 수우도"(경남 통영, 실제
+     * 34.8N대)인데 좌표는 37.9N대(강원권)로 3도 이상 어긋나 있다 — 보정 규칙이 없어
+     * ±1 오타처럼 되돌릴 수 없고, 이상치와 달리 같은 텍스트의 비교군도 없다(1건뿐).
+     * 정확한 값을 추정할 근거가 없어 위 DUPLICATE/OUTLIER 필터와 같은 원칙(이상치는
+     * 지도에서 제외)으로 개별 나열해 뺀다. [원위도, 원경도] 형식.
+     */
+    var KNOWN_BAD_COORDS = {
+        hk: [
+            [37.97333, 128.31917], // "강릉시 주문진 동방 21해리 해상" — 동방(동쪽) 표기인데 좌표는 주문진 서쪽 산속
+            [38.11667, 128.2]      // "양양군 수산항 동방 25해리 해상" — 위와 동일 유형
+        ],
+        person: [
+            [37.93028, 128.10611], // "통영시 사량면 돈지리 수우도" — 실제는 경남(34.8N대)
+            [37.79333, 128.43917]  // "통영시 산양읍 영운리 앞 해상" — 실제는 경남(34.8N대)
+        ]
+    };
+    function isKnownBadCoord(key, row) {
+        var bad = KNOWN_BAD_COORDS[key];
+        if (!bad) return false;
+        for (var i = 0; i < bad.length; i++) {
+            if (bad[i][0] === row[0] && bad[i][1] === row[1]) return true;
+        }
+        return false;
+    }
+
     function rowToFeature(key, row) {
         var coord = ol.proj.fromLonLat([row[1], row[0]]); // row=[lat,lon,...]
         var f = new ol.Feature({ geometry: new ol.geom.Point(coord) });
@@ -277,7 +366,9 @@
 
     function ensureRawFeatures(key) {
         if (rawFeatures[key]) return Promise.resolve(rawFeatures[key]);
-        return fetchSource(key).then(function (rows) {
+        return Promise.all([fetchSource(key), ensureLandMask()]).then(function (results) {
+            var rows = results[0];
+            var landRings = results[1];
             rows.forEach(function (row) { applyLatOffsetFix(key, row); });
             var posIdx = COORD_OUTLIER_POS_IDX[key];
             var outliers = posIdx != null ? findCoordOutliers(rows, posIdx) : null;
@@ -287,6 +378,8 @@
                 .filter(function (row) { return !ACCIDENT_TYPE_EXCLUDED[typeCodeOf(key, row)]; })
                 .filter(function (row) { return !outliers || !outliers.has(row); })
                 .filter(function (row) { return !missingLocClusters || !missingLocClusters.has(row); })
+                .filter(function (row) { return !isIntegerDegreeCoord(row) || !isLandPoint(landRings, row[0], row[1]); })
+                .filter(function (row) { return !isKnownBadCoord(key, row); })
                 .map(function (row) { return rowToFeature(key, row); });
             rawFeatures[key] = feats;
             return feats;
