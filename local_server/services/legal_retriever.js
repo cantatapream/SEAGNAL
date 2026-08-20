@@ -1654,6 +1654,18 @@ function filterSourcesByAnswer(sources, answerText) {
     // 오직 이 cited 분기로만 살아남는다. 그래서 이 우회가 원래 필요했던 비교표에만 남긴다.
     // 활동(kind==='activity') 페이지도 구조가 똑같아(law='activity_해루질' 같은 합성 슬러그, topic 빈 값)
     // 같은 이유로 함께 예외를 둔다 — 안 두면 "해루질 신고" 질문에서 1순위로 뽑힌 페이지가 근거목록에서 사라진다.
+    // ★그 페이지의 **근거 조문 줄이 답변 대조를 통과하면** 그 페이지를 살린다(2026-08-20 실측).
+    //   위 두 분기는 답변이 **모법 이름이나 페이지 주제**를 글자 그대로 써야 통과한다. 그런데
+    //   답변은 그 페이지가 담은 **고시·지침 이름**만 쓰는 일이 흔하다 —
+    //     「갯벌복원사업 지침」 제14조 관련 [별표 2] … (모법 「갯벌 및 그 주변지역의 …」은 안 씀)
+    //   그러면 이 페이지가 통째로 버려지고 finalSources 가 비어, routes 가 "위키에 쓸 근거가 없다"고
+    //   보고 **원문 폴백**으로 다시 답한다. 폴백 답변은 맞는데 **근거 목록이 통째로 빈다**
+    //   (라이브 7차: 갯벌·농수산물품질관리법·자연유산·국제항해선박 모두 이 모양이었다).
+    //   ⚠느슨해지지 않는다 — 새 규칙을 만들지 않고, 줄 단위로 이미 검증된
+    //     filterCitationChainByAnswer 를 그대로 불러 **한 줄이라도 살아남을 때만** 통과시킨다.
+    //     그 함수는 법 이름·조문 주인·근접성까지 본다(환각 0 규약은 그대로다).
+    if ((s.citationChain || []).length
+        && filterCitationChainByAnswer(s.citationChain, text, s.law).length) return true;
     if (s.kind !== 'comparison' && s.kind !== 'activity') return false;
     return (s.cited || []).some(c => c && c.length >= 3 && text.includes(c));
   });

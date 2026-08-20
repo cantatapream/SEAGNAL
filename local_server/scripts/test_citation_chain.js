@@ -271,5 +271,30 @@ console.log('── 같은 근거가 이름 표기 차이로 두 줄 뜨던 것 
   ok('모법과 시행령은 합쳐지지 않는다', both.length === 2, both.map(r => r.law).join(' / '));
 }
 
+console.log('── 답변이 고시 이름만 써도 그 페이지를 잃지 않는다 ──');
+{
+  // filterSourcesByAnswer 는 답변이 **모법 이름이나 페이지 주제**를 글자 그대로 써야 통과시켰다.
+  // 그런데 답변은 그 페이지가 담은 고시·지침 이름만 쓰는 일이 흔하다. 그러면 페이지가 통째로
+  // 버려지고 finalSources 가 비어, routes 가 원문 폴백으로 다시 답한다 — 폴백 답변은 맞는데
+  // 근거 목록이 통째로 빈다(라이브 7차에서 갯벌·농수산물품질관리법·자연유산·국제항해선박이 그랬다).
+  const body = fs.readFileSync(path.join(WIKI,
+    '갯벌및그주변지역의지속가능한관리와복원에관한법률__갯벌복원사업시행및계획.md'), 'utf8');
+  const src = {
+    file: 'x', law: '갯벌 및 그 주변지역의 지속가능한 관리와 복원에 관한 법률',
+    topic: '갯벌복원사업시행및계획', kind: 'concept',
+    citationChain: R.extractCitationChain(body),
+  };
+  const ans = '사업 전 모니터링은 최소 2회 이상 실시해야 합니다. 이는 「갯벌복원사업 지침」 제14조 관련 '
+    + '[별표 2] "갯벌복원사업 모니터링"에 따른 것입니다.';
+  ok('모법 이름을 안 써도 근거 줄이 살아남으면 그 페이지를 남긴다',
+    R.filterSourcesByAnswer([src], ans).length === 1);
+
+  // ⚠느슨해지지 않는다 — 줄 단위 대조를 통과하지 못하면 그대로 버린다.
+  ok('무관한 답변으로는 살아나지 않는다',
+    R.filterSourcesByAnswer([src], '오늘 날씨가 좋습니다. 인용할 법령은 없습니다.').length === 0);
+  ok('법 이름 없이 별표만 스쳐도 살아나지 않는다',
+    R.filterSourcesByAnswer([src], '별표 2에 따라 최소 2회 이상입니다.').length === 0);
+}
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);
