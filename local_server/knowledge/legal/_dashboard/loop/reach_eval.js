@@ -97,10 +97,21 @@ const LABEL = {
 //   ⚠`시행령`·`시행규칙` **한 낱말**만 적힌 칸은 여기 넣지 않는다 — lawMentionedOnce 가 그 페이지의
 //     법을 붙여 대조하므로 실제로 뜬다(V5-3 이 같은 이유로 이 둘을 결함에서 뺐다).
 const TIER_WORD = /^(이 ?법|법|법률|시행령|시행규칙|규칙|별표\s*\d*(?:의\d+)?)$/;
+// 답변이 절대 쓰지 않는 **가리키는 말**. `시행령`·`시행규칙` 한 낱말은 여기 넣지 않는다
+// (lawMentionedOnce 가 페이지의 법을 붙여 대조하므로 실제로 뜬다).
+const DEICTIC = /^(이 ?법|동법|같은\s*법|법|법률)$/;
 function lawCellUnusable(law) {
   const s = String(law || '').trim();
-  if (!/[·ㆍ・]/.test(s)) return false;
-  return s.split(/[·ㆍ・]/).some(seg => TIER_WORD.test(seg.trim()));
+  if (!s) return false;
+  // ⓐ 화살표 연쇄(`동법 → 시행규칙 → 운영규정`) — 23차 감사관이 찾아낸 사각지대(2026-08-20).
+  //   `·` 로 묶인 것만 보던 종전 규칙이 이 꼴을 통째로 놓쳤다. 답변이 이 문자열을 쓸 리 없고,
+  //   조각을 떼어 봐도 `동법` 은 어느 법인지 특정되지 않는다.
+  if (/[→⇒]|->/.test(s)) return true;
+  // ⓑ 가리키는 말이 그대로 남은 칸(`동법`·`이 법`)
+  if (DEICTIC.test(s)) return true;
+  // ⓒ 가운뎃점으로 두 법 이상을 묶은 칸
+  if (/[·ㆍ・]/.test(s)) return s.split(/[·ㆍ・]/).some(seg => TIER_WORD.test(seg.trim()));
+  return false;
 }
 
 const now = { rows: 0, dead: 0, enum_branch: 0, annex_form_run: 0, buchik: 0, not_article: 0, other: 0, law_cell_unusable: 0 };
