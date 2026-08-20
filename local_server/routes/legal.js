@@ -211,6 +211,24 @@ function normConfig(c) {
 // 스위치와 반대 관례) — 관리자가 명시적으로 {naverTermLookup:false}를 보내야만 꺼진다(킬스위치는
 // 유지). 이 환경에 NAVER_CLIENT_ID/SECRET이 없으면 스위치가 켜져 있어도 단계가 조용히 물러난다.
 const BOOL_SWITCHES = ['answerCanonicalOnly', 'understandConfirm', 'scopeNarrow', 'profileConfirm', 'naverTermLookup'];
+
+/**
+ * 되묻기를 **몇 번째로 내는지** 센다(ctx 에 누적).
+ * ⚠왜 필요한가(2026-08-20 실측): `decideClarify` 의 무한루프 백스톱은 질의에 붙은 구분자
+ *   (`CLARIFY_JOINER`, ' — ')의 개수로 라운드를 셌다. 그런데 그 구분자는 **선택지 버튼으로
+ *   답했을 때만** 붙는다. 사용자가 값을 직접 타이핑하면(예: "65점입니다") 카운터가 영원히 0이라
+ *   상한이 한 번도 발동하지 않는다 — 해양환경관리법 위해도평가 질문에서 사용자가 이미 총점을
+ *   줬는데도 세부항목을 계속 되물어 4회 요청까지 최종 답변에 닿지 못했다(23차 감사).
+ *   버튼이든 직접 입력이든 **똑같이** 세도록 ctx 에 누적한다.
+ * 예: clarifyRoundNext({cl:{n:2}}) → 3
+ * @param {{cl?:{n?:number}}} ctx - 클라이언트가 되돌려 주는 대화 맥락
+ * @returns {number} 이번에 내는 되묻기가 몇 번째인지
+ * [연계] → ctx.cl.n → legal_retriever.js decideClarify(prevClarify.n 으로 상한 판정).
+ */
+function clarifyRoundNext(ctx) {
+  const prev = ctx && ctx.cl && Number(ctx.cl.n);
+  return (Number.isFinite(prev) && prev > 0 ? prev : 0) + 1;
+}
 router.get('/api/legal/config', (req, res) => {
   res.json(Object.assign({ ok: true }, normConfig(readConfig())));
 });
@@ -1198,7 +1216,7 @@ router.post('/api/legal/ask', async (req, res) => {
     if (scope) {
       // AI 되묻기와 같은 규약으로 이번 질문을 ctx 에 남긴다 — 다음 라운드가 "또 같은 걸 묻는지"
       // 판정할 유일한 근거다. 안 남기면 사용자가 직접 입력으로 답했을 때 빠져나올 길이 없다.
-      ctx.cl = { q: scope.clarify.question, labels: (scope.clarify.options || []).map(o => o.label) };
+      ctx.cl = { q: scope.clarify.question, labels: (scope.clarify.options || []).map(o => o.label), n: clarifyRoundNext(ctx) };
       return writeConfirm(scope);
     }
     // gapNotices = 그 위키 페이지가 "우리가 원문을 가질 수 없다"고 정직하게 적어둔 공백 안내
@@ -1222,7 +1240,7 @@ router.post('/api/legal/ask', async (req, res) => {
     const unk = await legalRetriever.explainClarifyStep(contextPages, ctx.unk);
     if (unk) {
       // 다음 라운드가 "같은 되묻기를 또 물었는지" 판정할 수 있게 ctx.cl 을 갱신해 함께 내려보낸다(B6).
-      ctx.cl = { q: unk.clarify.question, labels: unk.clarify.options.map(o => o.label) };
+      ctx.cl = { q: unk.clarify.question, labels: unk.clarify.options.map(o => o.label), n: clarifyRoundNext(ctx) };
       return writeConfirm(unk);
     }
 
@@ -1253,7 +1271,7 @@ router.post('/api/legal/ask', async (req, res) => {
       // [B6] 이번 라운드의 질문·선택지 라벨을 ctx 에 실어 보낸다(클라이언트가 다음 요청에 되돌려 준다).
       //   다음 라운드의 decideClarify 가 "표현만 바꾼 같은 되묻기"인지 판정하는 유일한 근거다 —
       //   서버는 대화 이력을 저장하지 않으므로 새 저장소를 만들지 않고 기존 ctx 채널을 재사용한다.
-      ctx.cl = { q: clarify.question, labels: clarify.options.map(o => o.label) };
+      ctx.cl = { q: clarify.question, labels: clarify.options.map(o => o.label), n: clarifyRoundNext(ctx) };
       res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly, ...(aiDiag.length ? { aiDiag } : {}),
         answer: clarify.intro || null,
         sources: [],
