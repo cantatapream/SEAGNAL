@@ -50,13 +50,27 @@
  *   좌표를 갖고 있었다(hk 최대 30건까지 겹침, 실측 606건). 완전 동일 좌표는 클러스터
  *   distance=0(SPREAD_ZOOM 이상 줌)이어도 갈라지지 않으므로 최대 줌에서도 하나로
  *   보인다 — 실제 사고 위치가 아니라서 지도에서 뺀다(findMissingLocationClusters).
- *   ※ 이 문제는 같은 사용자 보고의 "육지에 사고정보가 많이 표출된다"의 상당 부분도
- *   설명한다(관할서 청사는 대개 육지에 있음). 전체 육지 표출 규모를 정밀 검증하려고
- *   ocean_overlay.js 의 기존 육지 마스크(/api/ocean/land-mask, window.isOceanLand)를
- *   재사용해 전체 데이터를 대조해봤으나, 그 마스크 데이터 자체에 버그가 있어(여러
- *   나라 해안선 ring이 하나의 배열로 잘못 병합되어 있어 "강릉 남동 5마일 해상"처럼
- *   명백한 먼바다도 육지로 오판정됨) 신뢰할 수 없어 그 결과로 필터링하지는 않았다
- *   (이 마스크 버그는 accident_info.js 밖의 기존 코드 문제라 이 파일에서 고치지 않음).
+ * [육지 표출 — 재조사(2026-08-20 사용자 재확인 요청)] "여전히 육지에 마커가 많다"는
+ *   재보고로 다시 판 결과, 두 가지 별개 원인을 찾았다:
+ *   1) 클러스터 대표점 문제(주된 원인) — ol.source.Cluster 는 기본적으로 클러스터
+ *      위치를 멤버 평균 좌표(centroid)로 계산하는데, 굴곡진 해안선(특히 서해)에서는
+ *      흩어진 항구 여러 곳의 평균이 육지(반도) 한가운데로 나온다(실측: 태안 인근
+ *      5,545건의 평균좌표가 육지 판정). createCluster 콜백으로 평균 대신 "멤버 중
+ *      하나의 실제 좌표"를 대표점으로 쓰도록 고쳤다(createClusterAtRealPoint) —
+ *      실제 좌표는 이미 정확하므로(아래) 이 방식이면 클러스터가 항상 진짜 사고
+ *      지점 위에 놓인다.
+ *   2) 원본 데이터베이스의 위도 입력 오타(정확히 ±1도, 소수) — LAT_OFFSET_FIXES 참고.
+ *   [좌표 정확성 검증] 사용자가 khoa.go.kr 개방海 사이트 F12로 확인해준 실제 API
+ *   (POST /oceanmap/map/cmm/selectListCluster.json, layer=tl_shpacc_hk_p)가 주는
+ *   x/y(EPSG:5179)를 WGS84로 변환해 우리 데이터와 대조한 결과 13개 샘플이 100%
+ *   정확히 일치했다 — build_accidents.js 의 좌표 변환 로직과 원본 CSV 좌표 자체는
+ *   정확하다(API 를 다시 받아도 달라지지 않는다는 뜻). 즉 "육지에 있는 것처럼 보이는"
+ *   마커 대다수는 좌표 오류가 아니라 위 클러스터 평균점 문제이거나, 실제로 항구·
+ *   방파제·양식장처럼 해안에 매우 가까운 정확한 위치다(위성지도 배경에서 육지처럼
+ *   보일 뿐). ocean_overlay.js 의 기존 육지 마스크(/api/ocean/land-mask)는 국소적
+ *   오차가 있어(해안선 근처 일부 지점 — 서울시청·태평양·하와이 등 명백한 지점은
+ *   정확) 단독 필터링 근거로는 못 쓰지만, 시군구 지명 참조표와 함께 "위도 ±1 오타"
+ *   후보를 좁히는 이중검증 용도로는 활용했다(아래 LAT_OFFSET_FIXES).
  * ============================================================================
  */
 
@@ -117,6 +131,17 @@
      * 오류로 본다. 0.3도 ≈ 33km(사용자 보고 사례: "하동군 금남면 송문리" 위도가 같은 지명의
      * 다른 건들과 정확히 1도 어긋나 있었음 — build_accidents.js 헤더 주석 및 README 참고). */
     var COORD_OUTLIER_THRESHOLD_DEG = 0.3;
+
+    /** 대한민국 근해를 넉넉히 포괄하는 범위(build_accidents.js 의 육지 마스크 bbox와 동일 감각).
+     * 원본 CSV(build_accidents.js 의 isPlausibleLatLon 는 "위경도로서 물리적으로 가능한가"만
+     * 검사해 전 세계 어디든 통과시킨다)에 대만·뉴질랜드·경도 0(대서양)처럼 명백히 엉뚱한
+     * 좌표가 소수 섞여 있었다(hk 13건·hs 130건, 사용자 재확인 요청 2026-08-20으로 발견 —
+     * 클러스터 좌표를 직접 뽑아보다가 남반구·적도 근처 값이 나와 알아챔). */
+    var KOREA_BOUNDS = { latMin: 24, latMax: 44, lonMin: 118, lonMax: 144 };
+    function isOutOfKoreaBounds(row) {
+        return row[0] < KOREA_BOUNDS.latMin || row[0] > KOREA_BOUNDS.latMax ||
+            row[1] < KOREA_BOUNDS.lonMin || row[1] > KOREA_BOUNDS.lonMax;
+    }
 
     function median(nums) {
         var sorted = nums.slice().sort(function (a, b) { return a - b; });
@@ -182,6 +207,66 @@
         return flagged;
     }
 
+    /**
+     * 원본 데이터베이스의 위도 입력 오타(정확히 ±1도) — 사용자 보고(2026-08-20: "거제도"
+     * 관련 사고 여러 건이 위도만 1도 높게 찍혀 대구 부근 내륙에 표출됨)로 발견했다.
+     * 시군구 지명 참조표(위치텍스트에 있는 지명의 대략적 중심좌표)와 국립해양조사원
+     * 육지 마스크(/api/ocean/land-mask)를 함께 대조해, "원좌표는 육지인데 위도를
+     * ±1 하면 그 지명 근처의 바다가 되는" 경우만 이중검증으로 골라냈다(hk 24건·
+     * person 10건, 자동 판정을 넓게 걸면 오탐이 섞여 목록으로 못박음). KHOA
+     * selectListCluster.json API 좌표와 100% 일치 확인 — 원본 DB 자체의 오타라
+     * API를 다시 받아도 그대로다. [원위도, 경도, 보정위도] 형식.
+     */
+    var LAT_OFFSET_FIXES = {
+        hk: [
+            [37.06667,128.83333,38.06667],
+            [36.8,126.45,35.8],
+            [36.98333,126.51389,35.98333],
+            [36.84417,126.43222,35.84417],
+            [36.93611,126.52972,35.93611],
+            [36.99722,126.70556,35.99722],
+            [35.29056,126.43333,36.29056],
+            [37.9,126.11667,36.9],
+            [36.94694,126.43889,35.94694],
+            [33.32028,126.8275,34.32028],
+            [36.15083,129.28194,35.15083],
+            [37.96111,126.83611,36.96111],
+            [37.98333,126.76667,36.98333],
+            [35.94444,129.06306,34.94444],
+            [37.11917,128.64889,38.11917],
+            [35.975,128.72389,34.975],
+            [34.23639,126.60139,33.23639],
+            [37.45056,126.49028,36.45056],
+            [34.99806,126.95417,33.99806],
+            [36.00639,128.57556,35.00639],
+            [35.81306,128.74222,34.81306],
+            [35.71694,127.73417,34.71694],
+            [37.935,126.85167,36.935],
+            [35.97806,128.57694,34.97806]
+        ],
+        person: [
+            [36.31583,126.62,37.31583],
+            [35.975,128.58444,34.975],
+            [35.89056,128.70444,34.89056],
+            [36.66056,126.49583,35.66056],
+            [34.14444,125.94472,35.14444],
+            [34.14361,125.94528,35.14361],
+            [37.12417,128.63306,38.12417],
+            [34.99139,126.92111,33.99139],
+            [35.825,128.09861,34.825],
+            [35.83806,128.43778,34.83806]
+        ]
+    };
+
+    /** row[0](위도)를 보정 목록과 정확히 일치하면 그 자리에서 고친다(hs는 목록 없어 no-op). */
+    function applyLatOffsetFix(key, row) {
+        var fixes = LAT_OFFSET_FIXES[key];
+        if (!fixes) return;
+        for (var i = 0; i < fixes.length; i++) {
+            if (fixes[i][0] === row[0] && fixes[i][1] === row[1]) { row[0] = fixes[i][2]; return; }
+        }
+    }
+
     function rowToFeature(key, row) {
         var coord = ol.proj.fromLonLat([row[1], row[0]]); // row=[lat,lon,...]
         var f = new ol.Feature({ geometry: new ol.geom.Point(coord) });
@@ -193,10 +278,12 @@
     function ensureRawFeatures(key) {
         if (rawFeatures[key]) return Promise.resolve(rawFeatures[key]);
         return fetchSource(key).then(function (rows) {
+            rows.forEach(function (row) { applyLatOffsetFix(key, row); });
             var posIdx = COORD_OUTLIER_POS_IDX[key];
             var outliers = posIdx != null ? findCoordOutliers(rows, posIdx) : null;
             var missingLocClusters = posIdx != null ? findMissingLocationClusters(rows, posIdx) : null;
             var feats = rows
+                .filter(function (row) { return !isOutOfKoreaBounds(row); })
                 .filter(function (row) { return !ACCIDENT_TYPE_EXCLUDED[typeCodeOf(key, row)]; })
                 .filter(function (row) { return !outliers || !outliers.has(row); })
                 .filter(function (row) { return !missingLocClusters || !missingLocClusters.has(row); })
@@ -287,11 +374,28 @@
         return clusterIconStyle(dominantTypeCode(members), members.length);
     }
 
+    /**
+     * ol.source.Cluster 는 기본적으로 클러스터 위치를 멤버들의 평균 좌표(centroid)로
+     * 계산한다. 서해안처럼 해안선이 굴곡진 지역은 흩어진 항구·포구 여러 곳의 평균이
+     * 육지(반도) 한가운데로 계산될 수 있다(사용자 보고 2026-08-20: 넓은 뷰에서 큰
+     * 숫자 클러스터가 육지에 떠 보임 — 태안 인근 5,545건의 평균좌표로 실측 재현·확인).
+     * 대표 위치를 평균 대신 "멤버 중 하나의 실제 좌표"로 바꾸면 클러스터가 항상 실제
+     * 사고 지점(바다) 위에 놓인다.
+     * @param {ol.geom.Point} point - 기본 계산된 평균 좌표(안 씀)
+     * @param {ol.Feature[]} members
+     * @returns {ol.Feature}
+     */
+    function createClusterAtRealPoint(point, members) {
+        var geom = members.length ? members[0].getGeometry() : point;
+        return new ol.Feature({ geometry: geom, features: members });
+    }
+
     /** hazard_rocks.js buildClusterLayer 와 동일한 줌 기반 뭉치기 조절 패턴. */
     function buildClusterLayer(map, features) {
         var clusterSource = new ol.source.Cluster({
             distance: CLUSTER_DISTANCE,
-            source: new ol.source.Vector({ features: features })
+            source: new ol.source.Vector({ features: features }),
+            createCluster: createClusterAtRealPoint
         });
         var applyDistanceForZoom = function () {
             var zoom = map.getView().getZoom();
