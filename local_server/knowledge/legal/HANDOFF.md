@@ -739,6 +739,26 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-20 13:27 KST] 🟢착수 — 23차 감사 착수 — 74법 10그룹 병렬 디스패치 (round:23)
+사용자 지시("머지 후 정리 되면 23차 감사하자")에 따라 0단계(무료 전수조사) 통과를 확인한 뒤 착수.
+
+디스패치: audit_sim.js, groupsPath=_dashboard/loop/audit18_groups.json(18~22차와 동일 재사용), round:23, 10그룹 동시. 횡단 감사관은 group 0 에만(crossCut:true, 나머지 false — 안 그러면 그룹 수만큼 중복).
+
+Workflow Task ID: g0=w604j8rg0 / g1=wzq4cqpu8 / g2=wvit2ljvv / g3=wjd97gb4w / g4=wxpvh31mk / g5=wtqdy1uqq / g6=wvnfucgyr / g7=w9jk2xstj / g8=wl9vkp8u9 / g9=wcgpjz9zd
+Run ID: g0=wf_ba015abd-2f2 / g1=wf_bfd1086d-5b0 / g2=wf_29c98d1a-5a7 / g3=wf_6d4db16a-501 / g4=wf_98e5efac-20f / g5=wf_1e790d55-7ec / g6=wf_6a6496ef-d81 / g7=wf_e1c6cba4-451 / g8=wf_d96ee8ed-18c / g9=wf_2fdedd47-5c1
+(중단 시 Workflow({scriptPath, resumeFromRunId}) 로 캐시 재사용 재개)
+
+착수 전 상태: 도달불가 행 21(0.19%), 법령 칸에 두 법 이상 0, 위키 링크 깨짐 0, 테스트 15스위트 전부 통과.
+
+완료 통보가 올 때마다 할 일(과거 라운드와 동일):
+1. git status --short 로 새 _dashboard/audit/<법>.md 수정분·fix3/audit_r23_*.done 마커 확인
+2. task-id ↔ 마커 대조로 그 그룹이 실제로 맞는 법들을 처리했는지 검증(자기보고만 믿지 말 것 — group3 boot버그 전례)
+3. shrink-guard(구버전 대비 90% 미만이면 git diff 로 원인 확인)
+4. 문제없으면 커밋+push
+
+74법 전부 완료 후: H-9①통합수정(audit_fix_cell.js, 10그룹) → lint_xref/lint_full → lint_index/lint_build → human_workload → 라이브 검증(live_verify.js, slots:2 — 법당 2문항). 라이브 검증 전에 이 브랜치를 main 에 머지해야 프로덕션이 최신 코드(별지 서식 묶음 인식 등)로 답한다.
+
+
 ### [2026-08-20 13:24 KST] ✅완료 — 23차 준비 후속 — 도달불가 행 정리 완료(76→21) + 라이브 검증 법당 2문항 전환
 [1] 기계가 못 나눈 11행을 raw 원문 대조로 정리. 양식산업발전법(법 제26·27·40·51·62조 / 시행령 제25·46·47조 / 시행규칙 제28~31·34·35조·별표7)은 조문 제목을 하나씩 확인해 갈랐고, 수상에서의 수색ㆍ구조 등에 관한 법률은 **법률 제30조의9="보험등의 가입" vs 시행령 제30조의9="결격사유 관련 개인정보의 통보"** 로 같은 번호가 서로 다른 조문임을 확인해 두 페이지의 귀속을 갈랐다. 선원법 `시행령·별표1`은 실은 한 법이라 법령 칸만 고쳤고, 국제항해선박및항만시설보안법 ⑥행은 법령 칸에 들어가 있던 별표를 조문 칸으로 옮겼다. 커밋 e5c30027d. → **법령 칸에 두 법 이상 적힌 행 63 → 0.**
 
