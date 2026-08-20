@@ -739,6 +739,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-20 17:22 KST] 🟢착수 — 백로그 라운드(H-43) 실행 — 74법 10그룹 디스패치
+backlog_extract.js 의 '이미반영?' 자동판정을 철회했다(L-142). 8,862건 중 1,353건이 감사관이 '위키에 없음'이라고 직접 적어둔 항목이었다 — 조문 번호 겹침도 낱말 겹침도 '이미 고쳐졌나'의 근거가 되지 못한다. 성립하는 반대 방향(짚은 조문이 위키에 하나도 없으면 확실히 미해소, 272건)만 표시로 남기고 갈래는 삭제. 백로그 101파일 재생성 — 총 23,808건 / wiki_lag 954 · 미분류 16,206 · 원문공백 3,398 · REVIEW 1,267 · content_gap 895 · 스코프경계 674 · collection_hole 414. backlog_fix.js 를 새로 만들어 audit18_groups.json 10그룹으로 동시 디스패치(법별 사서 1명, 자기 법 파일만 쓰기). 각 항목은 위키 현재 상태 확인이 먼저이고, 이미 해소된 것은 근거(파일:줄)와 함께 체크만 한다. 완료 후 H-45 사후 검토(verify_all.sh + citation_table_scan + reach_eval 기준선 대조) 예정.
+
+
 ### [2026-08-20 15:37 KST] ✅완료 — 24차 준비 ①-2 — 코드 결함 ②③⑤ 원인 조사 완료 (코드·실행으로 확인)
 [② 되묻기 무한루프 — 원인: 라운드 카운터가 버튼 응답만 센다]
 decideClarify 에 결정론적 백스톱이 있다 — `const rounds = String(query).split(CLARIFY_JOINER).length - 1; if (rounds >= CLARIFY_MAX_ROUNDS) return CLARIFY_NONE;`(CLARIFY_MAX_ROUNDS=10, CLARIFY_JOINER=' — ').
