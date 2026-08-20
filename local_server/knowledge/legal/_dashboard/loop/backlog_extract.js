@@ -41,6 +41,29 @@ const OPEN_RE = /⚠\s*thin|❌\s*missing|\bstill_missing\b/;
 const DONE_RE = /✅|해소|해결(?!\s*안)|완료|full\s*(?:로)?\s*(?:전환|재평가|승격|확인)|→\s*✅|더 이상|제거|종료/;
 // 애매하게 "유지"라고만 적힌 것은 열린 항목이다(해소가 아니다).
 const KEEP_RE = /유지|불변|무변경|이월|잔존|연속|여전히|carry/;
+// ★부정형 먼저 지운다(2026-08-20 — 진짜 미해소 516건이 통째로 사라지고 있었다).
+//   `미해결`·`미해소` 안에 `해결`·`해소` 가 들어 있어 DONE_RE 가 그대로 물었다. 그러면
+//   "여전히 미해결"이라고 적힌 줄이 **해소된 것으로 판정돼 목록에서 빠진다** — 빠진 것은
+//   눈에 안 보이므로 이 오류는 스스로 드러나지 않는다. 대조 전에 부정형을 지워 버린다.
+const NEG_DONE_RE = /미\s*해소|미\s*해결|미\s*완료|미\s*처리|해소되지\s*않|해결되지\s*않|해소\s*안\s*됨|해결\s*안\s*됨/g;
+/**
+ * 이 줄이 "끝난 항목"이라고 말하고 있나.
+ * ⓐ 부정형(`미해결`)을 지운 뒤에 해소 표기가 남아야 한다.
+ * ⓑ `유지`·`불변`·`연속` 같은 말이 있으면 보통 열린 항목이다. **다만 `✅` 가 그 말보다
+ *    뒤에 오면 해소가 맞다** — `| E121 | … | ❌missing(3라운드 연속) | **✅full** |` 처럼
+ *    앞 칸이 과거 이력을 적고 뒤 칸이 이번 판정을 적는 표가 흔하다. 이 경우를 못 걸러
+ *    이미 ✅full 로 뒤집힌 항목 143건이 미해소로 남아 있었다(사서 보고 → 확인).
+ */
+function isClosed(line) {
+  if (!DONE_RE.test(line.replace(NEG_DONE_RE, ''))) return false;
+  if (!KEEP_RE.test(line)) return true;
+  const tick = line.lastIndexOf('\u2705');
+  if (tick < 0) return false;
+  let lastKeep = -1, m;
+  const re = new RegExp(KEEP_RE.source, 'g');
+  while ((m = re.exec(line)) !== null) lastKeep = m.index + m[0].length;
+  return tick > lastKeep;
+}
 
 function classify(line) {
   // 꼬리표가 붙어 있으면 그대로 쓴다.
@@ -134,7 +157,7 @@ for (const f of files) {
     if (line.length < 25) continue;                 // 표 구분선·머리글 같은 부스러기
     if (isNoise(line)) continue;                    // 집계 총계 행·절 헤더·소계 줄
     const opened = OPEN_RE.test(line);
-    const closed = DONE_RE.test(line) && !KEEP_RE.test(line);
+    const closed = isClosed(line);
     if (!opened && !closed) continue;               // 이 항목 얘기가 아니다
     const k = keyOf(line);
     if (!k) continue;
