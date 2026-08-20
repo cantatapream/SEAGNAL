@@ -53,23 +53,37 @@ for (const f of files) {
   const todo = [];
   for (const line of tableRows(xref)) {
     if (line.includes('수집곤란')) continue;              // 이미 extractGapNotices 가 읽는다
-    const arts = [...new Set((line.match(ART) || []).map(a => a.replace(/\s+/g, '')))];
-    if (!arts.length) continue;                            // 조문을 안 든 행은 근거가 될 수 없다
     // ⚠셀을 `|` 로 쪼개기 전에 **위키 링크 안의 `|` 를 감춘다** — `[[슬러그|이름]]` 이 두 칸으로
     //   갈라져 법령 이름 자리에 슬러그가 들어갔다(첫 실행에서 `수산업법__어업정의허브` 로 나왔다).
     //   슬러그를 법령 칸에 적으면 그 자체가 §6-E 결함이 되므로 여기서 반드시 막는다.
     const SEP = '\u0000';
     const safe = line.replace(/\[\[[^\]]*\]\]/g, m => m.replace(/\|/g, SEP));
     const cells = safe.replace(/^\||\|$/g, '').split('|').map(c => c.split(SEP).join('|').trim());
-    // 첫 칸에서 법령 이름을 꺼낸다(`[[statutes/x|이름]]` · `「이름」` 둘 다 흔하다).
-    const raw0 = cells[0] || '';
-    const law = (/\[\[[^|\]]*\|([^\]]+)\]\]/.exec(raw0) || /「([^」]+)」/.exec(raw0) || [, raw0])[1]
-      .replace(/\[\[|\]\]/g, '').trim();
-    if (!law) continue;
-    const flat = law.replace(/\s+/g, '');
-    // 이미 근거 조문 표에 그 법·조문이 함께 있으면 건너뛴다.
-    if (arts.some(a => cited.includes(a)) && cited.includes(flat.slice(0, 6))) continue;
-    todo.push({ page: f, law, arts, line });
+    // ★★조문은 **첫 칸(법령·조문 칸)에서만** 뽑는다 — 줄 전체에서 뽑으면 안 된다.
+    //   처음엔 `line.match(ART)` 로 줄 전체를 훑었는데, 요지 칸의 설명문에 적힌 **이 법 자기
+    //   조문**('(제5조②)'·'이 법 제21조')까지 그 타법의 조문인 것처럼 딸려 들어갔다.
+    //   사서 네 명이 서로 다른 법에서 같은 오류를 독립적으로 잡아냈다(2026-08-20):
+    //   「국가배상법 제2조·제5조」의 제5조는 실은 해양경비법 시행령 제5조였고,
+    //   「생물다양성법 제11조·제22조」의 제22조는 실은 해양수산생명자원법 자기 조문이었다.
+    const head = cells[0] || '';
+    if (!head) continue;
+    // ★한 칸에 두 법이 들어 있으면(`「행정심판법」 제27조ㆍ「행정소송법」 제18조`) **법마다 쪼갠다.**
+    //   합쳐 두면 조문이 남의 법 것으로 붙는다(§8-A ③-1: 근거 조문 표는 한 칸에 한 법).
+    const marks = [...head.matchAll(/「[^」]+」|\[\[[^\]]*\]\]/g)];
+    const chunks = marks.length > 1
+      ? marks.map((m, i) => head.slice(m.index, i + 1 < marks.length ? marks[i + 1].index : head.length))
+      : [head];
+    for (const chunk of chunks) {
+      const arts = [...new Set((chunk.match(ART) || []).map(a => a.replace(/\s+/g, '')))];
+      if (!arts.length) continue;                          // 조문을 안 든 갈래는 근거가 될 수 없다
+      const law = (/\[\[[^|\]]*\|([^\]]+)\]\]/.exec(chunk) || /「([^」]+)」/.exec(chunk) || [, chunk])[1]
+        .replace(/\[\[|\]\]/g, '').replace(/제\s*\d+.*$/, '').trim();
+      if (!law) continue;
+      const flat = law.replace(/\s+/g, '');
+      // 이미 근거 조문 표에 그 법·조문이 함께 있으면 건너뛴다.
+      if (arts.some(a => cited.includes(a)) && cited.includes(flat.slice(0, 6))) continue;
+      todo.push({ page: f, law, arts, line });
+    }
   }
   if (!todo.length) continue;
   rows += todo.length;
