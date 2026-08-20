@@ -70,6 +70,19 @@ echo; echo "── V5-4 정답 페이지 도달 ──"
 node local_server/knowledge/legal/_dashboard/loop/page_eval.js --gate || FAIL=1
 node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || FAIL=1
 
+# ============================================================================
+# V5-5 근거 조문 행 도달성 (2026-08-20 신설)
+#   [배경] V5-3은 **우리가 아는 결함 다섯 가지**를 센다. 그것이 0이 된 뒤 "그럼 나머지는 다
+#   뜨는가"를 처음 전수로 물었더니, 10,882행 중 76행(0.70%)이 **어떤 답변으로도** 근거가 될
+#   수 없었다(가운뎃점 묶음에 가지조가 섞인 칸 42행, 여러 법을 한 칸에 적은 행 등).
+#   아는 병을 세는 검사만으로는 이런 행이 영원히 안 보인다.
+#   [주의] 0을 요구하지 않는다 — 조문 구조가 없는 고시가 실재한다. 기준선보다 늘면 실패한다.
+#   기준선 갱신: node local_server/knowledge/legal/_dashboard/loop/reach_eval.js \
+#                  --save local_server/knowledge/legal/_dashboard/loop/pinned/reach_eval_base.json
+# ============================================================================
+echo; echo "── V5-5 근거 조문 행 도달성 ──"
+node local_server/knowledge/legal/_dashboard/loop/reach_eval.js --gate || FAIL=1
+
 echo; echo "── V5-2 위키 링크 무결성 ──"
 ( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || FAIL=1
 

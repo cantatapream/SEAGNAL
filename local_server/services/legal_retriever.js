@@ -1760,20 +1760,38 @@ function articleEnumTokens(article) {
   const out = [];
   let m;
   // 조 묶음: `제2·3조` · `제9·11·12·16·18~21조`(범위 섞임)
-  const joRun = /제\s*(\d+(?:\s*[·ㆍ・~∼]\s*\d+)+)\s*조(?!의)/g;
+  // ⚠2026-08-20 실측 보강: 묶음 안에 **가지조**(`제41조의2`·`제20의2`)가 하나라도 섞이면 종전
+  //   정규식(끝을 `조(?!의)`로 못박음)이 그 칸을 통째로 못 읽어, 전 위키 42행이 **어떤 답변으로도**
+  //   근거 목록에 못 떴다(선박안전법 벌칙 `제37·38·40·41·41조의2·44조`, 질서위반행위규제법
+  //   `제13·15·16·17·17의2·…·28조` 등 — 답변이 그 조를 정확히 인용해도 근거가 통째로 비었다).
+  //   항목이 `41조의2`·`20의2` 꼴로 적힌 것도 받아 `제41조의2`로 편다.
+  //   ⚠느슨해지지 않는다: 끝에 `조`가 붙었거나 마지막 항목이 가지조일 때만 조 묶음으로 읽는다 —
+  //     `제3·4호` 같은 **호 묶음**을 조로 잘못 읽으면 없는 조문이 근거로 붙는다(종전처럼 지나친다).
+  const joRun = /제\s*(\d+(?:\s*조?\s*의\s*\d+)?(?:\s*[·ㆍ・~∼]\s*\d+(?:\s*조?\s*의\s*\d+)?)+)\s*(조)?(?![의\d])/g;
   while ((m = joRun.exec(s)) !== null) {
-    for (const part of m[1].split(/[·ㆍ・]/)) {
-      const rg = /^\s*(\d+)\s*[~∼]\s*(\d+)\s*$/.exec(part);
+    const items = m[1].split(/[·ㆍ・]/).map(x => x.trim());
+    // ★`조` 표시가 있어야 조 묶음으로 읽는다 — 끝에 `조`가 붙었거나 마지막 항목이 `N조의M` 꼴일 때만.
+    //   `제53조제2항제5·6·6의2호` 같은 **호 묶음**을 조로 읽으면 없는 조문이 근거로 붙는다(환각 0 위반).
+    if (!m[2] && !/조\s*의/.test(items[items.length - 1])) continue;
+    // ★항목을 **먼저 전부 읽어보고** 하나라도 못 읽으면 이 묶음은 통째로 지나친다 — 절반만 펴서
+    //   그중 하나를 근거로 보여주지 않는다(`제23~25조의2` 처럼 범위 끝이 가지조인 칸이 여기 걸린다).
+    //   같은 칸의 별표 묶음까지 잃지 않도록, 결과 전체를 버리지 않고 **이 묶음만** 건너뛴다.
+    const run = [];
+    let readable = true;
+    for (const t of items) {
+      const br = /^(\d+)\s*조?\s*의\s*(\d+)$/.exec(t);
+      if (br) { run.push(`제${br[1]}조의${br[2]}`); continue; }
+      const rg = /^(\d+)\s*[~∼]\s*(\d+)$/.exec(t);
       if (rg) {
         const from = parseInt(rg[1], 10), to = parseInt(rg[2], 10);
-        if (!(from >= 1 && to > from && to - from <= 100)) return [];
-        for (let n = from; n <= to; n++) out.push(`제${n}조`);
+        if (!(from >= 1 && to > from && to - from <= 100)) { readable = false; break; }
+        for (let n = from; n <= to; n++) run.push(`제${n}조`);
         continue;
       }
-      const n = parseInt(part.trim(), 10);
-      if (!(n >= 1)) return [];
-      out.push(`제${n}조`);
+      if (!/^\d+$/.test(t)) { readable = false; break; }
+      run.push(`제${t}조`);
     }
+    if (readable) out.push(...run);
   }
   // 별표·별도 묶음: `별표1·2` · `별표2·5·6·8·9`
   const annexRun = /(별표|별도)\s*(\d+(?:의\d+)?(?:\s*[·ㆍ・]\s*\d+(?:의\d+)?)+)/g;
