@@ -1076,6 +1076,12 @@ router.post('/api/legal/ask', async (req, res) => {
 
   const cfg = normConfig(readConfig());
   const canonicalOnly = cfg.answerCanonicalOnly;
+  // ★AI 단계가 조용히 빠진 것을 응답에 남긴다(2026-08-20). 질의확장·되묻기 판단은 실패해도 빈
+  //   결과로 폴백해 "필요 없었던 것"과 구분되지 않았고, 그 탓에 같은 질문이 회차마다 다른 길로
+  //   갔다(라이브 검증 5·6·7차에서 62문항 중 26건이 판정 뒤집힘).
+  //   ⚠요청마다 새 배열을 만든다 — 모듈 전역에 두면 동시 요청끼리 섞인다.
+  //   ⚠아래 done 이벤트들보다 **먼저** 선언해야 한다(이른 반환 경로에서도 쓰인다).
+  const aiDiag = [];
   // [H-37] 대기 맥락(ctx)·온디바이스 프로필(profile) — **둘 다 선택**이고, 없으면 아래 전 경로가
   //   no-op 이라 응답이 오늘과 바이트 동일하다(설계 §3.3 R0).
   //   ⚠ `q`(질의 문자열)에는 이 값들을 **절대 합치지 않는다**(R2) — 합치면 ①되묻기 라운드 카운트
@@ -1105,7 +1111,7 @@ router.post('/api/legal/ask', async (req, res) => {
       res.setHeader('Cache-Control', 'no-cache');
       if (res.flushHeaders) res.flushHeaders();
     }
-    res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
+    res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly, ...(aiDiag.length ? { aiDiag } : {}),
       answer: step.answer || null, sources: [], citationChain: [], note: step.note || '',
       clarify: step.clarify, confirmKind: step.confirmKind })) + '\n');
     res.end();
@@ -1139,7 +1145,7 @@ router.post('/api/legal/ask', async (req, res) => {
       res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       if (res.flushHeaders) res.flushHeaders();
-      const done = { type: 'done', ok: true, query: q, canonicalOnly,
+      const done = { type: 'done', ok: true, query: q, canonicalOnly, ...(aiDiag.length ? { aiDiag } : {}),
         answer: legalRetriever.withAssumedNotice(zone.answer, assumed),
         sources: [], citationChain: [], note: zone.note };
       if (zone.clarify) done.clarify = zone.clarify;
@@ -1178,7 +1184,7 @@ router.post('/api/legal/ask', async (req, res) => {
     const ucRestate = cfg.understandConfirm ? (ctx.uc.restate || '') : '';
     // [이어서 질문] 직전 답변의 주제도 **검색 확장어로만** 넘긴다(질의 문자열엔 안 합친다).
     //   "🔁 관련해서 더 궁금해요"를 누른 다음 질문에서만 값이 있다(ctx.topic).
-    const searchOpts = { canonicalOnly };
+    const searchOpts = { canonicalOnly, diag: aiDiag };
     if (ucRestate) searchOpts.restate = ucRestate;
     if (ctx.topic) searchOpts.topic = ctx.topic;
     const { sources, contextPages } = await legalRetriever.search(qForSearch, searchOpts);
@@ -1187,8 +1193,14 @@ router.post('/api/legal/ask', async (req, res) => {
     //    아니라 상황**("어떤 배에 관한 것인가요?")을 자산 라벨 그대로 묻는다. 스위치 off면 null.
     //    ★zoneTreeStep 이 null 일 때만 시도한다(위에서 이미 return 됐다) — 순서를 지켜야 H-36
     //      파일럿이 검증한 트리 경로가 오늘과 100% 같다(설계 §3.4).
-    const scope = legalRetriever.scopeNarrowStep(q, ctx.scope, sources, cfg.scopeNarrow);
-    if (scope) return writeConfirm(scope);
+    //   ★직전 라운드의 되묻기(ctx.cl)를 함께 넘긴다 — 같은 상황질문을 두 번 묻지 않게 한다.
+    const scope = legalRetriever.scopeNarrowStep(q, ctx.scope, sources, cfg.scopeNarrow, ctx.cl);
+    if (scope) {
+      // AI 되묻기와 같은 규약으로 이번 질문을 ctx 에 남긴다 — 다음 라운드가 "또 같은 걸 묻는지"
+      // 판정할 유일한 근거다. 안 남기면 사용자가 직접 입력으로 답했을 때 빠져나올 길이 없다.
+      ctx.cl = { q: scope.clarify.question, labels: (scope.clarify.options || []).map(o => o.label) };
+      return writeConfirm(scope);
+    }
     // gapNotices = 그 위키 페이지가 "우리가 원문을 가질 수 없다"고 정직하게 적어둔 공백 안내
     // (시·군·구 개별고시 등) — 화면이 ⚠칩으로 "원문 미수집 — 별도 확인 필요"를 알린다.
     // ⚠ 인용사슬(citationChain)은 여기 소스마다 싣지 않는다 — 모든 소스의 줄을 합쳐 응답 최상위
@@ -1216,7 +1228,7 @@ router.post('/api/legal/ask', async (req, res) => {
 
     // [B6] 직전 라운드의 되묻기(ctx.cl)를 함께 넘긴다 — 모델이 표현만 바꿔 같은 걸 다시 물으면
     //   (라벨 완전일치 대조로는 안 잡힌다) 결정론적으로 버린다. ctx.cl 이 없으면 오늘과 동일(R0).
-    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx.cl, ctx.topic, history);
+    const clarify = await legalRetriever.decideClarify(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx.cl, ctx.topic, history, aiDiag);
 
     // ③ [H-37 §7.4] 프로필 확인 — 이 되묻기가 묻는 축을 프로필이 이미 알고 있으면 되묻는 대신
     //    "저장된 정보로 답할까요?"를 **그 축에 대해서만** 확인한다(축 단위, 사용자 확정 (자)).
@@ -1242,7 +1254,7 @@ router.post('/api/legal/ask', async (req, res) => {
       //   다음 라운드의 decideClarify 가 "표현만 바꾼 같은 되묻기"인지 판정하는 유일한 근거다 —
       //   서버는 대화 이력을 저장하지 않으므로 새 저장소를 만들지 않고 기존 ctx 채널을 재사용한다.
       ctx.cl = { q: clarify.question, labels: clarify.options.map(o => o.label) };
-      res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
+      res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly, ...(aiDiag.length ? { aiDiag } : {}),
         answer: clarify.intro || null,
         sources: [],
         citationChain: [],
@@ -1368,7 +1380,7 @@ router.post('/api/legal/ask', async (req, res) => {
       const nu = await legalRetriever.naverTermStep(q, ctx.nu, cfg.naverTermLookup);
       if (nu && nu.clarify) return writeConfirm(nu);
       if (nu && nu.giveup) {
-        res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
+        res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly, ...(aiDiag.length ? { aiDiag } : {}),
           answer: nu.answer, sources: [], citationChain: [],
           note: '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.' })) + '\n');
         res.end();
@@ -1405,7 +1417,7 @@ router.post('/api/legal/ask', async (req, res) => {
           ? `답변 생성 실패(${(streamError && streamError.message) || '응답 없음'}) — 근거 후보만 반환`
           : '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.');
     }
-    res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
+    res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly, ...(aiDiag.length ? { aiDiag } : {}),
       answer, sources: sourcesOut, citationChain, forms, citeLaws, note })) + '\n');
     res.end();
 

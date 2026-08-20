@@ -661,7 +661,8 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('스위치 off 면 재진술을 하류로 안 넘긴다(§9.1 #10)',
       /const ucRestate = cfg\.understandConfirm \? \(ctx\.uc\.restate \|\| ''\) : '';/.test(ROUTES_CODE));
     ok('검색에 넘긴다', /searchOpts\.restate = ucRestate;/.test(ROUTES_CODE));
-    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion(?:, ctx\.cl)?(?:, ctx\.topic)?(?:, history)?\)/.test(ROUTES_CODE));
+    // ⚠뒤에 인자가 더 붙어도(2026-08-20 aiDiag) 배선 자체는 그대로다 — 꼬리는 열어 둔다.
+    ok('되묻기 판단에도 넘긴다', /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion(?:, ctx\.cl)?(?:, ctx\.topic)?(?:, history)?(?:, aiDiag)?\)/.test(ROUTES_CODE));
     ok('질의 문자열에는 어디서도 안 합친다(R2)',
       !/q \+[^\n]*restate/i.test(ROUTES_CODE) && !/restate[^\n]*\+ q\b/i.test(ROUTES_CODE));
     // (8) 설계문서와 코드가 어긋나지 않는다(T24·T25와 같은 대조)
@@ -732,10 +733,34 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('인용된 적 없는 조는 빈 문자열(제5조로 제5조의2를 집지 않는다)',
       R.citedArticleIn('… 제5조의2 …', '제5조') === '');
 
+    // ★검색어 무게(2026-08-18, B유형 대응) — 흔한 낱말이 점수를 지배하지 못하게 한다.
+    {
+      const pages = R.loadIndex().pages || [];
+      const w = R.termWeights(pages, ['신고', '양식장', '기준']);
+      ok('무게표가 검색어마다 값을 준다', w && w.size === 3);
+      ok('흔한 낱말이 드문 낱말보다 가볍다(신고 < 양식장)', w.get('신고') < w.get('양식장'),
+        '신고=' + (w.get('신고') || 0).toFixed(2) + ' 양식장=' + (w.get('양식장') || 0).toFixed(2));
+      ok('무게는 0보다 크다(낱말을 버리지 않는다 — 누락 0)',
+        [...w.values()].every(v => v > 0));
+
+      // R0: 스위치를 끄면 무게가 없어 이 기능을 넣기 전과 같은 점수가 나온다.
+      const prev = process.env.NRYA_IDF;
+      process.env.NRYA_IDF = 'off';
+      ok('NRYA_IDF=off 면 무게를 매기지 않는다(R0)', R.termWeights(pages, ['신고']) === null);
+      if (prev === undefined) delete process.env.NRYA_IDF; else process.env.NRYA_IDF = prev;
+
+      const p0 = pages[0];
+      if (p0) ok('무게를 안 주면 scoreOne 이 종전과 같은 값을 낸다',
+        R.scoreOne(p0, ['신고'], null) === R.scoreOne(p0, ['신고']));
+    }
+
     // (3) 되묻기 상한 10(사용자 확정) — 같은 조건 재질문 차단이 실질 방어선이 된다
     ok('되묻기 상한이 10이다', /const CLARIFY_MAX_ROUNDS = 10;/.test(RET_SRC));
     ok('질문 문장·선택지 집합이 같으면 차단한다(표현만 바꾼 재질문)',
-      /function sameClarifyAsLast\(/.test(RET_SRC) && /sameClarifyAsLast\(question, options, prevClarify\)/.test(RET_SRC));
+      /function sameClarifyAsLast\(/.test(RET_SRC) && /sameClarifyAsLast\(question, options, prevClarify, chosenLabel\)/.test(RET_SRC));
+    // ★고른 값을 함께 넘겨야 ⓓ(고르지 않은 갈래 재출현) 검사가 돈다 — 안 넘기면 그 검사가 통째로 죽는다.
+    ok('사용자가 고른 값을 질의 끝에서 떼어 함께 넘긴다',
+      /const chosenLabel = String\(query \|\| ''\)\.split\(CLARIFY_JOINER\)\.pop\(\)\.trim\(\);/.test(RET_SRC));
 
     // (4) R16 — 말풍선만 숨기고 **서버로 가는 누적 문자열은 그대로 유지**(이게 깨지면 되묻기가 무한루프)
     ok('버튼 선택은 종전대로 질의에 누적된다', /input\.value = q \? q \+ ' — ' \+ label : label;/.test(CLIENT_SRC));
@@ -843,7 +868,26 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
       ok('대답투여도 직전과 다른 축이면 그대로 진행한다',
         R.sameClarifyAsLast('전문교육을 이수하셨나요?',
           [{ label: '네, 이수했습니다.' }, { label: '아니요, 아직입니다.' }], prevB) === false);
-    }
+
+
+    // ★ⓓ 고르지 않은 갈래를 그대로 다시 내미는 재질문(2026-08-18 라이브 실측 — 4회를 물어도 답에 못 갔다)
+    {
+      const prevPick = { q: '어떤 방식으로 참조기를 포획하시나요?',
+        labels: ['근해자망어업 중 유자망', '그 외의 방식', '잘 모르겠어요'] };
+      const againPick = [{ label: '근해자망어업 중 유자망' }, { label: '그 외의 어업' },
+        { label: '잘 모르겠어요', act: 'unknown' }];
+      ok('고르지 않은 갈래가 그대로 다시 나오면 같은 축으로 본다',
+        R.sameClarifyAsLast('어떤 어업에 대해 금어기를 알려드릴까요?', againPick, prevPick, '그 외의 방식') === true);
+      ok('고른 값을 모르면 이 검사는 하지 않는다(추측하지 않는다)',
+        R.sameClarifyAsLast('어떤 어업에 대해 금어기를 알려드릴까요?', againPick, prevPick, '') === false);
+      ok('직전 갈래가 다시 안 나오는 정상적인 좁히기는 통과한다',
+        R.sameClarifyAsLast('어느 해역에서 조업하시나요?',
+          [{ label: '서해' }, { label: '남해' }, { label: '잘 모르겠어요', act: 'unknown' }],
+          prevPick, '그 외의 방식') === false);
+      ok('고른 갈래 자신이 다시 나오는 것만으로는 차단하지 않는다',
+        R.sameClarifyAsLast('그 외의 방식 중 어떤 어업인가요?',
+          [{ label: '그 외의 방식' }, { label: '정치망어업' }], prevPick, '그 외의 방식') === false);
+    }    }
 
     // (8) 계약2·3 — 라우트는 조문 표기를 깎지 않고, 응답도 통째로 통과시킨다
     ok('약칭표 엔드포인트가 있다', /router\.get\('\/api\/legal\/aliases'/.test(ROUTES_SRC));
@@ -1034,7 +1078,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('서버가 앱이 보낸 기억을 그대로 믿지 않는다',
       /legalRetriever\.normalizeHistory\(req\.body && req\.body\.history\)/.test(ROUTES_SRC));
     ok('되묻기 판단·답변 합성 **둘 다**에 넘긴다',
-      /ctx\.cl, ctx\.topic, history\)/.test(ROUTES_SRC) &&
+      /ctx\.cl, ctx\.topic, history(?:, aiDiag)?\)/.test(ROUTES_SRC) &&
       /synthesizeAnswerStream\(q, contextPages, history\)/.test(ROUTES_SRC));
     ok('★되묻기는 "이미 정해진 것"만 막고 진짜 갈리는 조건은 그대로 묻는다',
       /이미 정해진 것은 다시 묻지 마라/.test(RET_SRC) &&
@@ -1104,7 +1148,7 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('주제가 같은 위키 쪽을 앞으로 끌어올린다(확장어만으로는 약했다)',
       /x\.s \+= TOPIC_BONUS/.test(RET_SRC));
     ok('★되묻기 판단에도 주제를 넘긴다(예전엔 아예 안 넘겼다)',
-      /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx\.cl, ctx\.topic, history\)/.test(ROUTES_SRC) &&
+      /decideClarify\(q, contextPages, ucRestate, narrowLabels, lastQuestion, ctx\.cl, ctx\.topic, history(?:, aiDiag)?\)/.test(ROUTES_SRC) &&
       /\[이어서 묻는 주제\]/.test(RET_SRC));
 
     // ⑥ 복원 화면의 내 말풍선 — 누적 문자열을 그대로 찍지 않는다
@@ -1204,6 +1248,24 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     const out2 = R.sliceRelevant(bodyOf(p2), ['선고유예'], 4000);
     ok('근거 조문 우선순위를 올려도 rest 순서(문서 등장 순)는 그대로라 질의 관련 절이 밀리지 않는다',
       out2.split('\n').some(l => l.startsWith('## 6.') && l.includes('선고유예')));
+  }
+
+  // ── 순위별 본문 예산 (2026-08-19) ───────────────────────────────────────────
+  // 종전에는 후보 12~15개 전부에 10,000자를 똑같이 줘서 한 질문에 평균 11만 자를 모델에 보냈다.
+  // 고정 문항 25개로 재보니 답에 필요한 문장은 24건이 1~3위 페이지 안에 있었고 4위 이하가 그
+  // 문장을 담은 경우는 없었다. 그래서 4~6위 5,000자·7위 이하 3,000자로 줄였다.
+  // ⚠뒤 순위를 버리지 않는다 — 예산만 줄인다. 아래 두 검사가 그 둘(줄었나 / 그래도 남아있나)을 잰다.
+  {
+    const q = '불법조업 신고하면 포상금 얼마나 주나요? 벌금형으로 끝나면요?';
+    const { contextPages } = await R.search(q, { canonicalOnly: true });
+    const len = i => String((contextPages[i] || {}).body || '').length;
+    const tail = contextPages.slice(6).map((_, i) => len(i + 6));
+    ok('후보가 7개를 넘는 질의여야 이 검사가 뜻이 있다', contextPages.length > 6, '후보 ' + contextPages.length + '개');
+    ok('7위 이하 본문은 1위 예산(10,000자)보다 뚜렷이 짧다',
+      !tail.length || Math.max(...tail) < 6000, '7위 이하 최대 ' + (tail.length ? Math.max(...tail) : 0) + '자');
+    ok('그래도 7위 이하가 통째로 비지는 않는다(예산만 줄인 것이지 버린 것이 아니다)',
+      !tail.length || Math.min(...tail) > 0, '7위 이하 최소 ' + (tail.length ? Math.min(...tail) : 0) + '자');
+    ok('상위 페이지는 예산을 그대로 받는다', len(0) > 6000, '1위 ' + len(0) + '자');
   }
 
   console.log(`\n${pass} PASS / ${fail} FAIL`);

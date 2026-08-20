@@ -32,7 +32,8 @@ echo; echo "── V5 테스트 스위트 ──"
 SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_exact_refine
         test_cancel_verdict_room test_push_pagination test_bulletin_cancel_scanner
         test_zone_tree_wiring test_ask_context test_naver_term_step test_article_images test_chat_render
-        test_glossary_parse test_citation_chain)
+        test_glossary_parse test_citation_chain
+  test_clarify_options)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; FAIL=1; continue; fi
@@ -52,6 +53,36 @@ done
 #   [주의] 실패하면 `_dashboard/loop/xref_fix.py <wiki> --apply` 로 기계 수리 후, 남은
 #          것(후보가 여럿이거나 대상 문서가 없는 것)만 사람이 판단한다.
 # ============================================================================
+# ============================================================================
+# V5-3 근거 조문 표 무결성 (2026-08-19 신설)
+#   [배경] 챗봇은 개념 페이지의 `## 근거 조문` 표에서만 근거를 만든다. 그 표에 `이 법`·`동법`
+#   처럼 어느 법인지 알 수 없게 적히거나 표가 아예 없으면, 내용이 위키에 멀쩡히 있어도
+#   사용자 앞에서는 근거가 통째로 사라진다(22차 라이브 검증에서 절반이 재현 안 된 최대 원인).
+#   243건을 0으로 만들었는데, 위키는 계속 편집되므로 **게이트가 없으면 그대로 되돌아간다.**
+#   [주의] 실패하면 fix_deictic_law_cells.js 로 기계 수리 후, 남은 것만 사람이 표를 손본다.
+# ============================================================================
+echo; echo "── V5-3 근거 조문 표 무결성 ──"
+node local_server/knowledge/legal/_dashboard/loop/citation_table_scan.js --gate || FAIL=1
+
+echo; echo "── V5-4 정답 페이지 도달 ──"
+# 사람이 정답이라고 확인한 개념 페이지가 검색 후보에, 그리고 모델에게 넘어가는 자료에 들어오는가.
+# 순위엔 문턱을 두지 않는다(위키가 바뀌면 자연히 흔들린다) — "아예 못 닿는다"만 실패로 본다.
+node local_server/knowledge/legal/_dashboard/loop/page_eval.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || FAIL=1
+
+# ============================================================================
+# V5-5 근거 조문 행 도달성 (2026-08-20 신설)
+#   [배경] V5-3은 **우리가 아는 결함 다섯 가지**를 센다. 그것이 0이 된 뒤 "그럼 나머지는 다
+#   뜨는가"를 처음 전수로 물었더니, 10,882행 중 76행(0.70%)이 **어떤 답변으로도** 근거가 될
+#   수 없었다(가운뎃점 묶음에 가지조가 섞인 칸 42행, 여러 법을 한 칸에 적은 행 등).
+#   아는 병을 세는 검사만으로는 이런 행이 영원히 안 보인다.
+#   [주의] 0을 요구하지 않는다 — 조문 구조가 없는 고시가 실재한다. 기준선보다 늘면 실패한다.
+#   기준선 갱신: node local_server/knowledge/legal/_dashboard/loop/reach_eval.js \
+#                  --save local_server/knowledge/legal/_dashboard/loop/pinned/reach_eval_base.json
+# ============================================================================
+echo; echo "── V5-5 근거 조문 행 도달성 ──"
+node local_server/knowledge/legal/_dashboard/loop/reach_eval.js --gate || FAIL=1
+
 echo; echo "── V5-2 위키 링크 무결성 ──"
 ( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || FAIL=1
 

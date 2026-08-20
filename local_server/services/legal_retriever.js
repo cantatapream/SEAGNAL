@@ -77,6 +77,19 @@ const ANSWER_MODEL = 'gemini-2.5-flash';
 //     (CLARIFY_BODY_CHARS=1500)이라 이 인상과 무관하다.
 //   · 남는 비용은 **속도** — 넣는 양이 2배면 답변 생성이 그만큼 느려진다(사용자도 인지·수용).
 const MAX_BODY_CHARS = 10000;
+// ★순위에 따라 본문 예산을 달리 준다(2026-08-19). 종전에는 후보 12~15개 **전부**에 10,000자를
+//   똑같이 줘서 한 질문에 평균 11만 자(≈3만 토큰)를 모델에 밀어넣었다. 고정 문항 25개로 재보니
+//   **답에 실제로 필요한 문장은 24건이 1~3위 페이지 안에** 있었고(21건은 1위), 4위 이하 페이지가
+//   그 문장을 담은 경우는 한 건도 없었다. 그런데도 4위 이하가 페이지당 8,500자씩 자리를 차지했다.
+//   ⚠뒤 순위를 **버리지 않는다** — 예산만 줄인다. sliceRelevant 가 질문과 가까운 절부터 담으므로
+//     예산이 줄면 덜 관련된 절부터 빠진다(뚝 끊기지 않는다). 배경설명용으로 뒤 페이지가 필요한
+//     질문도 있어 통째로 빼는 것은 위험하다("누락 0").
+//   ⚠근거 조문 표(citationChain)는 이 예산과 **무관하다** — 아래 sources 는 잘리지 않은 본문에서
+//     뽑으므로, 예산을 줄여도 근거 목록에서 줄이 사라지지 않는다.
+const TOP_FULL_RANK = 3;        // 1~3위 — 예산 그대로
+const MID_LAST_RANK = 6;        // 4~6위
+const MID_BODY_CHARS = 5000;
+const TAIL_BODY_CHARS = 3000;   // 7위 이하
 // 실측 확정(2026-07-29): 7→10→30페이지로 늘려도 속도 저하 없음(병목은 Gemini 호출 자체,
 // 검색 자체는 0.1~0.3초). 다만 30개에서 순위 20위 이후는 관련성이 뚜렷이 떨어지는 노이즈성
 // 페이지가 섞이기 시작함(예: "선박안전법 형식승인및검정" 등) — 속도가 아니라 관련성 기준으로
@@ -647,19 +660,54 @@ function lookupContact(lawName) {
  * 함께 매긴다. 메타로 안 걸려도 본문에 실제로 있으면 잡히도록 항상 본문까지 본다 — 그래야
  * "무허가로 조업하면" 같은 질문이 topic 필드엔 없지만 본문 '위반 시 처벌' 표에만 있는 페이지도 찾는다.
  */
-function scoreOne(p, terms) {
+function scoreOne(p, terms, weights) {
+  const w = t => (weights && weights.get(t)) || 1;
   const hay = (p.law || '') + ' ' + (p.topic || '') + ' ' + (p.file || '') + ' ' + (p.themes || []).join(' ');
   let s = 0;
-  for (const t of terms) if (hay.includes(t)) s += (p.law && p.law.includes(t)) ? 2 : 1;
+  for (const t of terms) if (hay.includes(t)) s += ((p.law && p.law.includes(t)) ? 2 : 1) * w(t);
   const page = readPage(p.kind, p.file);
   if (page) {
     const title = p.topic || p.law || '';
     for (const t of terms) {
-      if (title.includes(t)) s += 3;
-      else if (page.body.includes(t)) s += 2;
+      if (title.includes(t)) s += 3 * w(t);
+      else if (page.body.includes(t)) s += 2 * w(t);
     }
   }
   return s;
+}
+
+/**
+ * 검색어마다 **흔한 정도에 따른 무게**를 매긴다(흔할수록 가볍게).
+ * ★왜(2026-08-18 라이브 검증 B유형, 오프라인 재현): 지금까지는 모든 낱말이 같은 무게였다.
+ *   그래서 질문이 길어질수록 `신고`·`기준`·`정확히` 같은 **흔한 말이 점수를 지배**해, 그 말들을
+ *   두루 가진 엉뚱한 법이 정작 핵심어를 가진 법을 밀어냈다. 실측 —
+ *     "양식장 휴업 과태료"                                        → 양식산업발전법 2위
+ *     "양식장 무단 휴업 신고 안 하면 과태료가 얼마인지, 별표3 기준으로…"  → **후보에도 못 듦**
+ *   같은 뜻인데 흔한 말 몇 개가 붙었다고 답에 못 닿는 것은 사용자가 길게 물을수록 나빠진다는 뜻이다.
+ * 무게는 `log(1 + 전체페이지수 / 그 낱말이 걸린 페이지수)` — 흔할수록 1에 가까워지고 드물수록 커진다.
+ *   ⚠임의의 문턱(몇 % 넘으면 버림)을 두지 않는다. 문턱은 그 언저리에서 결과가 뚝 끊겨 예측이 안 된다.
+ *   ⚠낱말을 **버리지 않는다** — 무게만 낮춘다. 흔한 말도 여전히 점수에 기여한다(누락 0 원칙).
+ * 예: 1,254개 페이지 중 `신고`가 900개에 있으면 무게 ≈ 0.9, `양식장`이 20개면 ≈ 4.2.
+ * @param {Array} pages - index.json 의 페이지 목록
+ * @param {string[]} terms - 이번 질의의 검색어 전부
+ * @returns {Map<string,number>} 낱말 → 무게
+ * [연계] → scoreOne(무게를 곱해 점수를 낸다). ← search().
+ *        검증: `_dashboard/loop/search_eval.js`(고정 질문 65개로 전후 대조, AI 안 씀).
+ */
+function termWeights(pages, terms) {
+  // A/B 측정용 스위치 — `NRYA_IDF=off` 면 모든 낱말 무게가 1이라 **이 기능을 넣기 전과 문자 그대로
+  // 같은 점수**가 나온다(R0). 위키가 계속 바뀌는 중에도 같은 시점에서 켜고/끄고 재려고 둔다.
+  // 운영에서는 켠 채로 쓴다(끄는 값을 설정하지 않는다).
+  if (process.env.NRYA_IDF === 'off') return null;
+  const df = new Map(terms.map(t => [t, 0]));
+  for (const p of pages) {
+    const hay = (p.law || '') + ' ' + (p.topic || '') + ' ' + (p.file || '') + ' ' + (p.themes || []).join(' ');
+    const page = readPage(p.kind, p.file);
+    const body = page ? page.body : '';
+    for (const t of terms) if (hay.includes(t) || body.includes(t)) df.set(t, df.get(t) + 1);
+  }
+  const N = pages.length || 1;
+  return new Map(terms.map(t => [t, Math.log(1 + N / Math.max(1, df.get(t) || 0))]));
 }
 
 // ── 컨텍스트 발췌(sliceRelevant) 보조 상수 ───────────────────────────────────
@@ -879,8 +927,16 @@ setImmediate(warmup);
 //    성공한 적이 없었다(프로덕션 로그로 확인, caller=Legal-QueryExpand·Legal-RawLawPick 둘 다
 //    영향받음 — 둘 다 이 상수를 공유). API가 요구하는 최소값(10초)으로 올린다.
 const QUERY_EXPAND_TIMEOUT_MS = 10000;
+// ★온도 0 — 같은 질문에 **같은 답**이 나오게 한다(2026-08-19 실측으로 결정).
+//   폐기물관리법 질문 하나를 첫 턴만 6회 반복했더니 **3회는 바로 답하고 3회는 되물었다.**
+//   되묻기 문장도 두 가지로 갈렸고(`…알려주세요` / `…받으시나요?`), 바로 답한 3회의 근거 수도
+//   1건·2건·1건으로 달랐다 — 되묻기 판단과 검색어 확장이 **둘 다** 흔들린다는 뜻이다.
+//   측정에 잡음이 섞이는 것보다 나쁜 것은 **사용자가 같은 질문을 두 번 하면 다른 답을 받는다**는
+//   점이다(라이브 검증에서 같은 질문이 "정확 → 빈 답변 → 다시 정확"으로 갈린 것도 이 때문).
+//   ⚠온도를 0으로 둔다고 완전히 같아지지는 않는다(모델·서버 쪽 요인이 남는다). 편차를 줄이는
+//     것이 목적이며, 실제로 줄었는지는 같은 반복 실험(repeat_probe.js)으로 확인한다.
 const QUERY_EXPAND_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: QUERY_EXPAND_TIMEOUT_MS },
@@ -898,7 +954,14 @@ const QUERY_EXPAND_CONFIG = {
  * @param {string} [restate] - 확인된 재진술(ctx.uc.restate). 없거나 규약 위반이면 무시된다.
  * @returns {Promise<string[]>} AI가 제안한 추가 검색어(실패 시 [])
  */
-async function expandQueryTerms(query, restate) {
+async function expandQueryTerms(query, restate, diag) {
+  // ★측정용 통로(`NRYA_IDF=off` 와 같은 취지) — 개발 컨테이너에는 Gemini 키가 없어 이 함수가
+  //   늘 빈 배열을 돌려주고, 그 탓에 **AI 검색어 확장이 낀 검색을 오프라인에서 재볼 수가 없었다**
+  //   (L-130: 그래서 "검색은 병목이 아니다"라는 반쪽 결론이 나왔다). 이 환경변수로 확장어를
+  //   직접 넣어 보면, 키 없이도 운영과 같은 모양의 점수를 재현해 대조할 수 있다.
+  //   운영에서는 설정하지 않는다(설정 안 하면 오늘과 문자 그대로 같다).
+  const fake = String(process.env.NRYA_FAKE_AI_TERMS || '').trim();
+  if (fake) return fake.split(',').map(s => s.trim()).filter(Boolean).slice(0, 8);
   if (!gemini.hasAnyKey()) return [];
   const confirmed = restateAllowed(restate);
   const prompt = `사용자가 한국 해양수산 법령 챗봇에 다음 질문을 했다: "${query}"\n` +
@@ -912,7 +975,7 @@ async function expandQueryTerms(query, restate) {
     const result = await gemini.callGemini({
       model: ANSWER_MODEL, contents: prompt, config: QUERY_EXPAND_CONFIG, caller: 'Legal-QueryExpand',
     });
-    if (!result.success || !result.text) return [];
+    if (!result.success || !result.text) { if (diag) diag.push('expand'); return []; }
     // JSON 모드라 보통은 배열 그대로 오지만, 모델이 코드블록·설명을 붙이는 경우까지 견디도록
     // 첫 '['~마지막 ']'만 떼어 파싱한다(파싱 실패는 아래 catch에서 [] 폴백).
     const m = result.text.match(/\[[\s\S]*\]/);
@@ -921,6 +984,10 @@ async function expandQueryTerms(query, restate) {
     if (!Array.isArray(arr)) return [];
     return arr.filter(t => typeof t === 'string' && t.trim()).map(t => t.trim()).slice(0, 8);
   } catch (_) {
+    // ★조용히 넘어가지 않는다(2026-08-20). 시간초과·키 쿨다운으로 이 단계가 빠지면 검색 순위가
+    //   통째로 달라지는데, 종전에는 아무 표시가 없어 **"확장이 필요 없었던 것"과 구분되지 않았다.**
+    //   라이브 검증에서 같은 질문의 결과가 회차마다 뒤집힌 원인 중 하나로 의심되는 지점이다.
+    if (diag) diag.push('expand');
     return [];
   }
 }
@@ -938,6 +1005,52 @@ const CLARIFY_BODY_CHARS = 1500;   // 페이지당 발췌 상한
 const CLARIFY_OPTION_MAX = 10;
 // 모듈 레벨 공유 참조라 호출자가 실수로 고치면 이후 모든 폴백이 오염된다 — 얼려서 막는다.
 const CLARIFY_NONE = Object.freeze({ needed: false });
+
+// ── 되묻기 선택지 보정 — "어떤 법이냐"고 물으면서 정작 1순위 법을 안 보여주던 것 ──────────
+// ★왜(2026-08-19 라이브 실측): "단지관리계획은 언제까지 세워서 승인받아야 하나요?" 질문에서
+//   검색은 「배타적 경제수역 및 대륙붕에 관한 법률」을 1위로 올렸는데, 되묻기 선택지는
+//   `항만법 / 마리나항만법 / 잘 모르겠어요` 로 나왔다. **사용자가 정답을 고를 방법이 없다.**
+//   무엇을 고르든 답에 닿지 못하고, 직접 타이핑해도 원문 폴백으로 새어 "확인되지 않습니다"로 끝났다.
+// ⚠고치는 방향은 **더하기만** 한다 — 모델이 낸 선택지를 지우지 않는다. 지우면 정상 되묻기를
+//   죽일 위험이 있고(누락 0), 여기서 필요한 것은 "고를 수 있게 해주는 것"뿐이다.
+const LAW_TAIL_RE = /(법률|법|령|규칙|고시|지침|조례|규정|세칙|훈령|예규)$/;
+const lawCore = (s) => String(s || '').replace(/[「」『』\s·ㆍ()（）]/g, '').replace(LAW_TAIL_RE, '');
+// 라벨이 그 법을 가리키는가. 줄임말(`선박입출항법` ↔ 「선박의 입항 및 출항 등에 관한 법률」)까지
+// 받도록 **글자 순서만 지키면 통과**시킨다(부분수열) — 같은 법을 두 번 넣지 않기 위해서다.
+function labelMatchesLaw(label, law) {
+  const a = lawCore(label), b = lawCore(law);
+  if (!a || !b) return false;
+  if (b.includes(a) || a.includes(b)) return true;
+  if (a.length < 2) return false;
+  let i = 0;
+  for (const ch of b) if (ch === a[i]) i++;
+  return i >= a.length;
+}
+/**
+ * 되묻기가 **적용 법령을 고르라고** 물었는데 검색 1순위 법이 선택지에 없으면 맨 앞에 넣어준다.
+ * 예: ensureTopLawOption('어떤 법률에 따른 단지관리계획을 말씀하시나요?',
+ *       [{label:'항만법'},{label:'마리나항만법'}], ['배타적 경제수역 및 대륙붕에 관한 법률'])
+ *     → 맨 앞에 「배타적 경제수역 및 대륙붕에 관한 법률」 선택지가 생긴다.
+ * @param {string} question - 모델이 만든 되묻기 문장
+ * @param {Array<{label:string,hint:string}>} options - 모델이 만든 선택지
+ * @param {string[]} laws - 검색 후보 법 이름(점수순). laws[0] 이 1순위다.
+ * @returns {Array} 보정된 선택지(원본을 바꾸지 않는다)
+ * [연계] ← decideClarify(선택지 후처리 마지막 단계). 검증: scripts/test_clarify_options.js
+ */
+function ensureTopLawOption(question, options, laws) {
+  const opts = Array.isArray(options) ? options : [];
+  const top = String((laws || [])[0] || '').trim();
+  if (!top || !opts.length) return opts;
+  // ⓐ "어떤 법이냐"를 묻는 되묻기일 때만 손댄다.
+  if (!/어떤\s*법|법률|법령/.test(String(question || ''))) return opts;
+  // ⓑ 선택지 절반 이상이 법령 이름 꼴이어야 한다(톤수·행위 선택지에는 법 이름을 끼워넣지 않는다).
+  const lawish = opts.filter(o => LAW_TAIL_RE.test(String((o && o.label) || '').trim()));
+  if (lawish.length * 2 < opts.length) return opts;
+  // ⓒ 이미 1순위 법을 가리키는 선택지가 있으면 그대로 둔다.
+  if (opts.some(o => labelMatchesLaw((o && o.label) || '', top))) return opts;
+  return [{ label: top, hint: '' }].concat(opts);
+}
+
 // 클라이언트가 "원래질문 + 고른 선택지"를 합칠 때 쓰는 구분자(ai_chat.js pickClarifyOption:
 // `q + ' — ' + label`, em dash U+2014 앞뒤 공백). ⚠ 한쪽만 바꾸면 재되묻기 차단이 뚫린다.
 const CLARIFY_JOINER = ' — ';
@@ -955,7 +1068,8 @@ const CLARIFY_JOINER = ' — ';
 //  (직전 라운드의 질문·선택지 집합 대조)가 실제 방어선이고, 이 숫자는 그게 다 뚫렸을 때의 천장이다.)
 const CLARIFY_MAX_ROUNDS = 10;
 const CLARIFY_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,          // ★위 QUERY_EXPAND_CONFIG 주석 참고 — 같은 질문에 같은 답이 나오게 한다
+
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: 15000 },
@@ -1014,10 +1128,11 @@ function stripFraming(s) {
  * @param {string} question - 이번 라운드 질문
  * @param {Array<{label:string}>} options - 이번 라운드 선택지
  * @param {{q:string, labels:string[]}} prev - 직전 라운드(ctx.cl). 없으면 false
+ * @param {string} [chosen] - 사용자가 직전 라운드에서 고른 라벨(질의 끝에 붙은 값)
  * @returns {boolean}
  * [연계] ← decideClarify. ← routes/legal.js 가 ctx.cl 로 넘긴다.
  */
-function sameClarifyAsLast(question, options, prev) {
+function sameClarifyAsLast(question, options, prev, chosen) {
   if (!prev || !prev.q) return false;
   if (clarifyKey(question) && clarifyKey(question) === clarifyKey(prev.q)) return true;
   const now = (options || []).map(o => clarifyKey(o && o.label)).filter(Boolean).sort();
@@ -1037,8 +1152,30 @@ function sameClarifyAsLast(question, options, prev) {
   //     서술형 → 대답형으로 말투만 바꾼 재질문이 그대로 통과한다(위 함수 주석의 실측 사례).
   const real = (options || []).filter(o => o && o.act !== 'unknown').map(o => clarifyKey(stripFraming(o.label))).filter(Boolean);
   const prevKeys = (prev.labels || []).map(l => clarifyKey(stripFraming(l))).filter(k => k && k.length >= 3);
-  if (real.length < 2 || !prevKeys.length) return false;
-  return real.every(k => prevKeys.some(p => (k.length >= 3 && (k.includes(p) || p.includes(k)))));
+  if (real.length >= 2 && prevKeys.length
+    && real.every(k => prevKeys.some(p => (k.length >= 3 && (k.includes(p) || p.includes(k)))))) return true;
+  // ★ⓓ **사용자가 이미 고르지 않은 갈래를 그대로 다시 내미는 경우**(2026-08-18 라이브 실측).
+  //   위 ⓒ는 이번 선택지가 **하나도 빠짐없이** 직전 것과 겹쳐야 걸리는데, 한 낱말만 바뀌면 뚫린다 —
+  //     1라운드 "어떤 방식으로 참조기를 포획하시나요?" [근해자망어업 중 유자망 / 그 외의 방식]
+  //     → 사용자가 `그 외의 방식` 선택
+  //     2라운드 "어떤 어업에 대해 금어기를 알려드릴까요?" [근해자망어업 중 유자망 / 그 외의 어업]
+  //   `그외의방식` 과 `그외의어업` 은 서로 품지 않아 ⓒ가 false 를 낸다(실측). 그래서 4회를 물어도
+  //   답에 못 갔다.
+  //   판정 기준은 유사도가 아니라 **글자 그대로**다: 사용자가 **고르지 않은** 직전 라벨이 이번
+  //   선택지에 그대로 다시 나오면, 사용자가 이미 지나간 갈림을 다시 내미는 것이다.
+  //   ⚠유사도·부분일치를 새로 들이지 않는다 — 그건 정상적인 좁히기를 죽인다(위 주석의 실측 이력).
+  //   ⚠고른 라벨을 모르면(질의에 안 붙어 있으면) 이 검사는 하지 않는다.
+  const pick = clarifyKey(stripFraming(chosen));
+  if (pick) {
+    const notChosen = (prev.labels || [])
+      .filter(l => l && !/^(잘\s*모르겠어요)$/.test(String(l).trim()))
+      .map(l => clarifyKey(stripFraming(l)))
+      .filter(k => k && k.length >= 3 && k !== pick);
+    const nowExact = (options || []).filter(o => o && o.act !== 'unknown')
+      .map(o => clarifyKey(stripFraming(o && o.label))).filter(Boolean);
+    if (notChosen.some(k => nowExact.includes(k))) return true;
+  }
+  return false;
 }
 
 // ── "잘 모르겠어요" 선택지(B7, 계약5) ──────────────────────────────────────
@@ -1128,7 +1265,7 @@ function withUnknownOption(question, options, round) {
  *          needed:true면 종합답변을 아예 만들지 않고 done 이벤트의 clarify 필드로 내려보낸다.
  *        → client/js/ai-chat/ai_chat.js clarifyHTML(선택지 버튼) → 버튼 클릭 시 "원래질문 — 라벨"로 재질의.
  */
-async function decideClarify(query, contextPages, restate, narrowLabels, lastTopic, prevClarify, topic, history) {
+async function decideClarify(query, contextPages, restate, narrowLabels, lastTopic, prevClarify, topic, history, diag) {
   if (!gemini.hasAnyKey() || !contextPages || !contextPages.length) return CLARIFY_NONE;
   // ★재되묻기 무한루프 차단(프롬프트 기준3의 결정론적 백스톱): 선택지 버튼으로 되돌아온 질의는
   // 반드시 CLARIFY_JOINER 를 달고 오므로, 그 개수가 곧 **이미 지나온 되묻기 라운드 수**다.
@@ -1197,7 +1334,7 @@ ${block}
     const result = await gemini.callGemini({
       model: ANSWER_MODEL, contents: prompt, config: CLARIFY_CONFIG, caller: 'Legal-Clarify',
     });
-    if (!result.success || !result.text) return CLARIFY_NONE;
+    if (!result.success || !result.text) { if (diag) diag.push('clarify'); return CLARIFY_NONE; }
     // JSON 모드라 보통은 객체 그대로 오지만, 모델이 코드블록·설명을 붙이는 경우까지 견디도록
     // 첫 '{'~마지막 '}'만 떼어 파싱한다(파싱 실패는 아래 catch에서 폴백).
     const m = result.text.match(/\{[\s\S]*\}/);
@@ -1215,8 +1352,10 @@ ${block}
       // 질문·라벨 전체 문자열 대조는 하지 않는다(패러프레이즈 오탐이 커서 정상 되묻기를 죽인다).
       .map(o => (o.hint && (o.hint.match(/제\d+조(?:의\d+)?/g) || []).some(a => !block.includes(a))
         ? { label: o.label, hint: '' } : o));
+    // ★적용 법령을 고르라는 되묻기인데 검색 1순위 법이 선택지에 없으면 넣어준다(위 주석 참고).
+    const fixed = ensureTopLawOption(question, options, contextPages.map(cp => cp.law));
     // 물음 없이, 또는 고를 게 하나뿐인 되묻기는 사용자를 막기만 하고 좁혀주지 못한다 — 그냥 답하게 둔다.
-    if (!question || options.length < 2) return CLARIFY_NONE;
+    if (!question || fixed.length < 2) return CLARIFY_NONE;
     // ★같은 조건 재질문 차단(결정론적): 질의에는 앞선 라운드에서 고른 값이 "질문 — 라벨" 꼴로 이미
     // 붙어 있다. 이번 선택지의 라벨 중 하나라도 질의에 **문자 그대로** 들어 있으면, 그건 이미 한 번
     // 고른 조건을 그대로 다시 묻는 것이다 — 그 되묻기는 버리고 답변으로 넘어간다.
@@ -1245,17 +1384,24 @@ ${block}
     // ★(2026-08-17) 표현만 바꾼 재질문 차단(B6) — 위 라벨 완전일치 대조는 "사용자가 고른 값이
     //   질의에 붙어 있는가"만 보므로, 모델이 같은 갈래를 다른 말로 다시 물으면 못 막는다. 직전
     //   라운드의 질문·선택지 집합과 대조해 사실상 같으면 되묻기를 버리고 답변으로 넘어간다.
-    if (sameClarifyAsLast(question, options, prevClarify)) return CLARIFY_NONE;
+    // 사용자가 직전 라운드에서 고른 값은 질의 끝에 ' — 라벨' 로 붙어 온다(ai_chat.js pickClarifyOption).
+    const chosenLabel = String(query || '').split(CLARIFY_JOINER).pop().trim();
+    if (sameClarifyAsLast(question, options, prevClarify, chosenLabel)) return CLARIFY_NONE;
     // ★(2026-08-17 사용자 확정) 되묻기를 낼 때는 **항상** 맨 끝에 "잘 모르겠어요"를 붙인다(B7).
-    return { needed: true, intro: clarifyStr(obj.intro, 200), question, options: withUnknownOption(question, options, 0) };
+    // ⚠아래 재질문 차단 검사들은 **모델이 낸 원본 options** 로 그대로 판단한다(우리가 보탠 줄이
+    //   루프 차단을 건드리지 않게). 화면에 나가는 것만 보정본(fixed)이다.
+    return { needed: true, intro: clarifyStr(obj.intro, 200), question, options: withUnknownOption(question, fixed, 0) };
   } catch (_) {
+    // ★위 expandQueryTerms 와 같은 이유로 조용히 넘어가지 않는다 — 시간초과로 되묻기가 빠지면
+    //   "되물을 필요가 없었다"와 구분이 안 돼, 같은 질문이 회차마다 다른 길로 간다.
+    if (diag) diag.push('clarify');
     return CLARIFY_NONE;
   }
 }
 
 // ── "잘 모르겠어요" 응답 — 용어 풀이 + 갈래 한 줄 요약 후 같은 선택지 재제시(B7) ──────
 const UNKNOWN_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,          // ★같은 입력에 같은 판단(2026-08-20, SYNTH_CONFIG 주석 참고)
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: 15000 },
@@ -1359,7 +1505,7 @@ async function search(query, opts) {
   // [H-37 §17] 확인된 재진술은 **여기 한 갈래로만** 검색에 들어온다 — 질의확장 LLM 이 그 문장을 보고
   //   뽑은 용어가 aiTerms 로 합류한다(재진술 낱말을 그대로 얹지 않는 이유는 §17 실측 기록 참고).
   //   재진술이 없으면 호출도 프롬프트도 오늘과 같아 allTerms 가 문자 그대로 동일하다(R0).
-  const aiTerms = await expandQueryTerms(query, opts && opts.restate);
+  const aiTerms = await expandQueryTerms(query, opts && opts.restate, opts && opts.diag);
   // [B8] 약칭(「어선안전조업법」)으로 물어도 정식 명칭 페이지가 잡히게 정식명을 검색어로 얹는다.
   //   표가 없거나 약칭이 안 걸리면 빈 배열이라 allTerms 가 오늘과 문자 그대로 같다(R0).
   const aliasTerms = aliasExpand(query);
@@ -1376,7 +1522,9 @@ async function search(query, opts) {
   const TOPIC_BONUS = 4;
   const allTerms = [...new Set([...terms, ...extraTerms, ...aiTerms, ...aliasTerms, ...topicTerms])];
 
-  let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms) })).filter(x => x.s > 0);
+  // 흔한 낱말이 점수를 지배하지 못하게 무게를 매긴다(termWeights 주석의 실측 사례 참고).
+  const weights = termWeights(pages, allTerms);
+  let scored = pages.map(p => ({ p, s: scoreOne(p, allTerms, weights) })).filter(x => x.s > 0);
   // ★[이어서 질문] 확장어만으로는 약했다(2026-08-18 사용자 재현: 낚시어선업 이야기를 하다
   //   "허가 받았는데 신고 안 하고 영업하면?"이라 물으니 수산부산물·폐기물 처리업이 선택지로 떴다).
   //   `topic` 은 **위키 페이지의 주제 칸에서 그대로 가져온 값**이라, 같은 칸끼리 맞대보면 정확히
@@ -1426,7 +1574,7 @@ async function search(query, opts) {
         if (hop.length >= HOP_MAX) break;
         const p = resolvePage(byFile, raw);
         if (!p || picked.has(p)) continue;
-        const hs = scoreOne(p, allTerms);
+        const hs = scoreOne(p, allTerms, weights);
         if (hs < MIN_KEEP_SCORE) continue;
         picked.add(p); hop.push({ p, s: hs, hop: true });
       }
@@ -1441,13 +1589,15 @@ async function search(query, opts) {
     .map(x => ({ x, body: citableBody(x.p, canonicalOnly) }))
     .filter(e => e.body);
 
-  const contextPages = finalList.map(({ x, body }) => {
+  const contextPages = finalList.map(({ x, body }, rank) => {
     const page = readPage(x.p.kind, x.p.file);
+    const budget = rank < TOP_FULL_RANK ? MAX_BODY_CHARS
+      : rank < MID_LAST_RANK ? MID_BODY_CHARS : TAIL_BODY_CHARS;
     return {
       law: x.p.law, topic: x.p.topic, file: x.p.file, kind: x.p.kind, status: x.p.status || null,
       hop: !!x.hop,
       frontmatter: page ? page.frontmatter : {},
-      body: sliceRelevant(body, allTerms, MAX_BODY_CHARS),
+      body: sliceRelevant(body, allTerms, budget),
     };
   }).filter(cp => cp.body);
 
@@ -1504,6 +1654,18 @@ function filterSourcesByAnswer(sources, answerText) {
     // 오직 이 cited 분기로만 살아남는다. 그래서 이 우회가 원래 필요했던 비교표에만 남긴다.
     // 활동(kind==='activity') 페이지도 구조가 똑같아(law='activity_해루질' 같은 합성 슬러그, topic 빈 값)
     // 같은 이유로 함께 예외를 둔다 — 안 두면 "해루질 신고" 질문에서 1순위로 뽑힌 페이지가 근거목록에서 사라진다.
+    // ★그 페이지의 **근거 조문 줄이 답변 대조를 통과하면** 그 페이지를 살린다(2026-08-20 실측).
+    //   위 두 분기는 답변이 **모법 이름이나 페이지 주제**를 글자 그대로 써야 통과한다. 그런데
+    //   답변은 그 페이지가 담은 **고시·지침 이름**만 쓰는 일이 흔하다 —
+    //     「갯벌복원사업 지침」 제14조 관련 [별표 2] … (모법 「갯벌 및 그 주변지역의 …」은 안 씀)
+    //   그러면 이 페이지가 통째로 버려지고 finalSources 가 비어, routes 가 "위키에 쓸 근거가 없다"고
+    //   보고 **원문 폴백**으로 다시 답한다. 폴백 답변은 맞는데 **근거 목록이 통째로 빈다**
+    //   (라이브 7차: 갯벌·농수산물품질관리법·자연유산·국제항해선박 모두 이 모양이었다).
+    //   ⚠느슨해지지 않는다 — 새 규칙을 만들지 않고, 줄 단위로 이미 검증된
+    //     filterCitationChainByAnswer 를 그대로 불러 **한 줄이라도 살아남을 때만** 통과시킨다.
+    //     그 함수는 법 이름·조문 주인·근접성까지 본다(환각 0 규약은 그대로다).
+    if ((s.citationChain || []).length
+        && filterCitationChainByAnswer(s.citationChain, text, s.law).length) return true;
     if (s.kind !== 'comparison' && s.kind !== 'activity') return false;
     return (s.cited || []).some(c => c && c.length >= 3 && text.includes(c));
   });
@@ -1576,6 +1738,71 @@ function expandJoEnum(article) {
   }
   const uniq = [...new Set(out)];
   return uniq.length >= 2 ? uniq : null;
+}
+
+/**
+ * 조문 칸에 **가운뎃점으로 이어 적은 조·별표 번호**를 낱개 표기로 편다.
+ * `expandJoEnum` 은 칸 **전체**가 조 묶음일 때만 쓴다. 여기는 `제2·3조·별표1·2` 처럼 다른 글자가
+ * 섞여 그쪽이 못 받는 칸에서, 아래 토큰 대조가 **맨 앞 항목 하나만 뽑고 나머지를 통째로 잃던 것**을
+ * 막는다(전 위키 90행). 라이브 검증에서 연안관리법 시행지침 `별표2·5·6·8·9` 행이 별표2 만 뽑혀
+ * 답변이 인용한 별표5 와 안 맞아 통째로 탈락했다 — 답변 본문은 별표5 내용을 정확히 옮겼는데도다.
+ * ★칸에 **적혀 있는 번호만** 편다 — 없는 번호를 만들어내지 않는다(환각 0). 한 항목이라도 못 읽으면
+ *   통째로 빈 배열을 돌려 기존 처리에 맡긴다(절반만 펴서 그중 하나를 근거로 보여주지 않는다).
+ * 예: articleEnumTokens('제2·3조·별표1·2')   → ['제2조','제3조','별표1','별표2']
+ *     articleEnumTokens('제9·11·18~21조')    → ['제9조','제11조','제18조','제19조','제20조','제21조']
+ *     articleEnumTokens('제115조제3·4호')    → [](조가 하나뿐 — 아래 토큰 대조가 이미 집는다)
+ * @param {string} article - 근거 조문 표의 조문 칸 값
+ * @returns {string[]} 편 낱개 표기(펼 것이 없으면 빈 배열)
+ * [연계] ← filterCitationChainByAnswer(토큰 대조 갈래).
+ */
+function articleEnumTokens(article) {
+  const s = String(article || '');
+  const out = [];
+  let m;
+  // 조 묶음: `제2·3조` · `제9·11·12·16·18~21조`(범위 섞임)
+  // ⚠2026-08-20 실측 보강: 묶음 안에 **가지조**(`제41조의2`·`제20의2`)가 하나라도 섞이면 종전
+  //   정규식(끝을 `조(?!의)`로 못박음)이 그 칸을 통째로 못 읽어, 전 위키 42행이 **어떤 답변으로도**
+  //   근거 목록에 못 떴다(선박안전법 벌칙 `제37·38·40·41·41조의2·44조`, 질서위반행위규제법
+  //   `제13·15·16·17·17의2·…·28조` 등 — 답변이 그 조를 정확히 인용해도 근거가 통째로 비었다).
+  //   항목이 `41조의2`·`20의2` 꼴로 적힌 것도 받아 `제41조의2`로 편다.
+  //   ⚠느슨해지지 않는다: 끝에 `조`가 붙었거나 마지막 항목이 가지조일 때만 조 묶음으로 읽는다 —
+  //     `제3·4호` 같은 **호 묶음**을 조로 잘못 읽으면 없는 조문이 근거로 붙는다(종전처럼 지나친다).
+  const joRun = /제\s*(\d+(?:\s*조?\s*의\s*\d+)?(?:\s*[·ㆍ・~∼]\s*\d+(?:\s*조?\s*의\s*\d+)?)+)\s*(조)?(?![의\d])/g;
+  while ((m = joRun.exec(s)) !== null) {
+    const items = m[1].split(/[·ㆍ・]/).map(x => x.trim());
+    // ★`조` 표시가 있어야 조 묶음으로 읽는다 — 끝에 `조`가 붙었거나 마지막 항목이 `N조의M` 꼴일 때만.
+    //   `제53조제2항제5·6·6의2호` 같은 **호 묶음**을 조로 읽으면 없는 조문이 근거로 붙는다(환각 0 위반).
+    if (!m[2] && !/조\s*의/.test(items[items.length - 1])) continue;
+    // ★항목을 **먼저 전부 읽어보고** 하나라도 못 읽으면 이 묶음은 통째로 지나친다 — 절반만 펴서
+    //   그중 하나를 근거로 보여주지 않는다(`제23~25조의2` 처럼 범위 끝이 가지조인 칸이 여기 걸린다).
+    //   같은 칸의 별표 묶음까지 잃지 않도록, 결과 전체를 버리지 않고 **이 묶음만** 건너뛴다.
+    const run = [];
+    let readable = true;
+    for (const t of items) {
+      const br = /^(\d+)\s*조?\s*의\s*(\d+)$/.exec(t);
+      if (br) { run.push(`제${br[1]}조의${br[2]}`); continue; }
+      const rg = /^(\d+)\s*[~∼]\s*(\d+)$/.exec(t);
+      if (rg) {
+        const from = parseInt(rg[1], 10), to = parseInt(rg[2], 10);
+        if (!(from >= 1 && to > from && to - from <= 100)) { readable = false; break; }
+        for (let n = from; n <= to; n++) run.push(`제${n}조`);
+        continue;
+      }
+      if (!/^\d+$/.test(t)) { readable = false; break; }
+      run.push(`제${t}조`);
+    }
+    if (readable) out.push(...run);
+  }
+  // 별표·별도 묶음: `별표1·2` · `별표2·5·6·8·9`
+  const annexRun = /(별표|별도)\s*(\d+(?:의\d+)?(?:\s*[·ㆍ・]\s*\d+(?:의\d+)?)+)/g;
+  while ((m = annexRun.exec(s)) !== null) {
+    for (const part of m[2].split(/[·ㆍ・]/)) {
+      const t = part.trim();
+      if (!/^\d+(?:의\d+)?$/.test(t)) return [];
+      out.push(m[1] + t);
+    }
+  }
+  return [...new Set(out)];
 }
 
 /**
@@ -1663,6 +1890,14 @@ function lawCellVariants(law) {
   if (w) add(w[1]);
   // ⓑ 이름 뒤에 괄호 주석이 붙은 꼴 — 괄호 앞이 이름이다.
   else if (/\)$/.test(s)) add(s.slice(0, s.lastIndexOf('(')));
+  // ⓒ 이름 **앞**에 발령기관을 괄호로 밝힌 꼴 — 괄호 뒤가 이름이다(전 위키 31행).
+  //   위키는 출처를 분명히 하려고 `(국립농산물품질관리원) 수입농산물등 유통이력관리 조사 요령`
+  //   처럼 적는데, 답변은 「수입농산물등 유통이력관리 조사 요령」 이라고만 쓴다. ⓑ가 뒤쪽 괄호만
+  //   봐서 이런 행은 한 줄도 통과하지 못했다(라이브 검증: 원산지표시법 조사요령 별표4).
+  //   ⚠괄호를 뗀 나머지가 **법령 갈래 낱말로 끝날 때만** 이름으로 인정한다 — `(타법) 처벌(형벌)`
+  //     처럼 이름이 아닌 칸까지 후보로 만들지 않기 위해서다.
+  const lead = /^\(([^)]{2,40})\)\s*(.+)$/.exec(s);
+  if (lead && /(법|령|규칙|고시|지침|요령|규정|세칙|조례|기준|공고|예규|훈령|정관)$/.test(lead[2].trim())) add(lead[2]);
   return out;
 }
 
@@ -1807,6 +2042,22 @@ function citationOwners(text) {
   // anyLaws = 답변에서 `「법령명」 제N조` 꼴로 **한 번이라도 확정 인용된** 법들의 모법.
   //   이 목록에 없는 법은 판정 대상에서 빼려고 함께 담는다(ownedByThisLaw 주석 참고).
   owners.anyLaws = new Set();
+  // ★고시·지침·조례는 위 확정 인용에 못 담긴다 — extractAnswerCitations 는 **우리가 원문을 가진
+  //   법**만 주인으로 인정하기 때문이다(resolveAnswerLaw 의 rawPathOf 관문). 그래서 답변이
+  //   「내항해운에관한업무지침」 제14조제2항이라고 분명히 써도 제14조의 주인이 비어, 같은 조번호를
+  //   가진 **다른 페이지의 모법 행**이 근거 목록에 딸려 붙었다(실측: 「해운법」 제14조제2항 — 그
+  //   조문에는 제2항 자체가 없다). 원문 보유 여부와 무관하게 **답변이 「」로 이름을 붙여 쓴 자리**를
+  //   따로 기록해 두고, 확정 인용이 없을 때만 그 기록으로 판정한다.
+  // ⚠이건 "직전 「」가 뒤 모든 조문의 주인"이라는 방식이 아니다(그건 정당한 줄 28.5%를 죽였다).
+  //   이름과 조문이 **바로 붙어 있는 자리만** 센다.
+  owners.named = new Map();
+  NAMED_CITE_RE.lastIndex = 0;
+  let nm;
+  while ((nm = NAMED_CITE_RE.exec(text)) !== null) {
+    const k = joKeyOf(nm[2]);
+    if (!owners.named.has(k)) owners.named.set(k, new Set());
+    owners.named.get(k).add(flatLawName(nm[1]));
+  }
   for (const c of extractAnswerCitations(text)) {
     const k = joKeyOf(c.article);
     const b = baseNameOf(c.law);
@@ -1815,6 +2066,23 @@ function citationOwners(text) {
     if (b) owners.anyLaws.add(b);
   }
   return owners;
+}
+
+// 답변에서 **이름과 조문이 바로 붙어 나온** 자리(`「법령명」 제N조`) — 사이에는 공백 정도만 허용한다.
+const NAMED_CITE_RE = /「([^」\n]{2,60})」\s*(제\s*\d+\s*조(?:의\d+)?)/g;
+
+/** 법령 이름을 비교용으로 납작하게 만든다(공백·낫표·괄호주석·계층 꼬리 제거).
+ * 위키 칸(`서해 5도 해상운송비 지원 지침(고시)`)과 답변 표기(`「서해 5도 해상운송비 지원 지침」`)를
+ * 같은 자리로 보려는 것이다.
+ * 예: flatLawName('「해운법 시행규칙」') → '해운법'
+ * @param {string} v @returns {string}
+ * [연계] ← citationOwners · ownedByThisLaw. */
+function flatLawName(v) {
+  let t = String(v || '').replace(/[「」『』]/g, '').trim();
+  const w = TIER_WRAP_RE.exec(t);
+  if (w) t = w[1].trim();
+  else if (/\)$/.test(t) && t.includes('(')) t = t.slice(0, t.lastIndexOf('(')).trim();
+  return t.replace(/(?:\s*[·ㆍ・,/]?\s*(?:시행령|시행규칙))+\s*$/, '').replace(/\s+/g, '');
 }
 
 /** 이 근거 줄의 법이, 답변에서 그 조문의 주인으로 실제로 나온 적이 있는가.
@@ -1827,7 +2095,14 @@ function citationOwners(text) {
  */
 function ownedByThisLaw(owners, hit, law, baseLaw) {
   const set = owners.get(joKeyOf(hit));
-  if (!set || !set.size) return true;         // 확정 인용이 없는 조문 → 판정 안 함(버리지 않는다)
+  if (!set || !set.size) {
+    // 확정 인용은 없지만, 답변이 그 조문에 **이름을 붙여 쓴 자리**가 있으면 그걸로 판정한다
+    // (고시·지침·조례처럼 우리가 원문을 안 가진 법이 여기 걸린다).
+    const named = owners.named && owners.named.get(joKeyOf(hit));
+    if (!named || !named.size) return true;   // 그런 자리도 없으면 판정 안 함(버리지 않는다)
+    return lawCellVariants(law).concat(baseLaw ? [baseLaw] : [])
+      .some(v => named.has(flatLawName(v)));
+  }
   const mine = baseNameOf(law, baseLaw);
   if (!mine) return true;                     // 모법을 못 정해도 버리지 않는다
   // ⚠이 법 자체가 답변에서 **한 번도 `「법령명」 제N조` 꼴로 인용되지 않았다면** 판정하지 않는다.
@@ -1848,7 +2123,10 @@ function ownedByThisLaw(owners, hit, law, baseLaw) {
  * @returns {string} 찾은 조문·별표 표기(없으면 '')
  * [연계] ← filterCitationChainByAnswer(조문 칸이 `전체`인 행).
  */
-const NEAR_CITE_RE = /^[」』\s의는은이가에서·,]{0,12}(제\s*\d+조(?:의\d+)?(?:\s*제\s*\d+항)?(?:\s*제\s*\d+호)?|별표\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식)/;
+// 조문 칸이 "그 문서 전부가 근거"라는 뜻인 표기. `전체` 뿐 아니라 `전체(제1~19조)` 처럼
+// 괄호로 범위를 덧붙인 꼴도 같은 뜻이다(전 위키 실측 표기 두 가지).
+const WHOLE_DOC_RE = /^(?:전체|전문|전조문)(?:\s*\([^)]*\))?$/;
+const NEAR_CITE_RE = /^[」』\s의는은이가에서·,]{0,12}(제\s*\d+조(?:의\d+)?(?:\s*제\s*\d+항)?(?:\s*제\s*\d+호)?|별표(?:\s*\d+(?:의\d+)?)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식|부칙(?:\s*[<(][^)>]{0,30}[)>])?)/;
 function citationNearLawName(text, names) {
   const t = String(text || '');
   for (const nm of (names || [])) {
@@ -1875,12 +2153,39 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
     if (!lawMentionedInAnswer(row.law, baseLaw, text)) continue;
     const article = String(row.article || '');
 
+    // ★조문 칸이 **"문서 전체"**를 뜻하는 행(`전체`·`전문`·`전체(제1~19조)`).
+    //   조문 토큰이 없어 아래 대조로는 한 줄도 살아남지 못한다 — 라이브 검증에서 연안관리법
+    //   시행지침 별표5·갯벌복원사업 지침 별표2가 이 이유로 근거 목록에서 통째로 사라졌다
+    //   (답변 본문은 그 별표 내용을 정확히 옮겼는데도).
+    //   ⚠2026-08-19 실측 보강: `전체(제1~19조)` 처럼 **괄호로 조문 범위를 덧붙인 칸**은
+    //     아래 범위 갈래가 먼저 집어 "제1~19조 중 하나가 답변에 있나"만 보고, 답변이 인용한
+    //     것이 별표면 그대로 탈락시켰다. 그래서 괄호가 붙은 꼴도 여기서 먼저 받는다.
+    //   ⚠법 이름만 맞으면 통과시키지는 않는다("무관한 줄이 붙는 게 더 나쁘다"). 답변에서
+    //     **그 법 이름 바로 뒤에** 조문·별표·별지가 붙어 나온 자리가 있을 때만 통과한다.
+    //   ⚠여기서 못 찾아도 **버리지 않는다** — 괄호 안에 조문 범위가 있으면 아래 범위 갈래가
+    //     이어서 본다(살릴 줄만 더하고, 지금 통과하던 줄은 떨어뜨리지 않는다).
+    if (WHOLE_DOC_RE.test(article.trim())) {
+      const near = citationNearLawName(text, lawCellVariants(row.law));
+      if (near) {
+        out.push(Object.assign({}, row, {
+          citedArticle: near, subject: subjectOfCitation(subjects, near),
+        }));
+        continue;
+      }
+      if (!/[~∼]/.test(article)) continue;   // 괄호에 범위조차 없으면 더 볼 것이 없다
+    }
+
     // [B1·B2] 묶음 표기 — 푼 조 중 답변이 인용한 것만 각자 자기 줄로.
     const jos = expandJoEnum(article);
     if (jos) {
       for (const jo of jos) {
         const cited = citedArticleIn(text, jo);
         if (!cited) continue;
+        // ★주인 확인은 여기에도 걸어야 한다(2026-08-18 실측). 아래 낱개 갈래에만 걸어 뒀더니,
+        //   `제10~14조` 같은 묶음 행이 **다른 페이지에서** 딸려와 답변의 「내항해운에관한업무지침」
+        //   제14조제2항 때문에 「해운법」 제14조제2항으로 근거 목록에 실렸다 — 해운법 제14조에는
+        //   제2항 자체가 없다. 사용자가 그 줄을 누르면 없는 조문을 여는 셈이다.
+        if (!ownedByThisLaw(owners, jo, row.law, baseLaw)) continue;
         out.push(Object.assign({}, row, {
           article: jo, citedArticle: cited, subject: subjectOfCitation(subjects, cited),
         }));
@@ -1900,11 +2205,17 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
       const from = parseInt(range[1], 10), to = parseInt(range[2], 10);
       const inRange = (text.match(/제\d+조/g) || [])
         .find(c => { const n = parseInt(c.replace(/\D/g, ''), 10); return n >= from && n <= to; });
-      if (!inRange) continue;
-      row.citedArticle = citedArticleIn(text, inRange);
-      row.subject = subjectOfCitation(subjects, row.citedArticle);
-      out.push(row);
-      continue;
+      // ⚠범위가 안 맞아도 **여기서 버리지 않는다**(2026-08-19 실측). `제8~13조·별표4` 처럼 범위와
+      //   별표가 같은 칸에 적힌 행이 있는데, 답변이 별표4를 인용하면 위 조 범위와 안 맞는다는
+      //   이유로 아래 토큰 대조까지 가보지도 못하고 탈락했다(원산지표시법 조사요령 별표4 —
+      //   답변 본문은 그 별표의 의견제출기간 20일을 정확히 옮겼는데도 근거 목록에서 사라졌다).
+      //   범위 갈래는 **살릴 줄만 더하고**, 못 살리면 아래 대조에 넘긴다.
+      if (inRange && ownedByThisLaw(owners, inRange, row.law, baseLaw)) {
+        row.citedArticle = citedArticleIn(text, inRange);
+        row.subject = subjectOfCitation(subjects, row.citedArticle);
+        out.push(row);
+        continue;
+      }
     }
     // ★조문 칸이 `전체`(그 고시·지침 전부가 근거)인 행 — 전 위키 57행. 조문 토큰이 없어 아래 대조로는
     //   **한 줄도 살아남지 못했다**(라이브 검증에서 연안관리법 시행지침 별표5가 이 이유로 근거 목록에서
@@ -1912,24 +2223,59 @@ function filterCitationChainByAnswer(chain, answerText, baseLaw) {
     //   ⚠그렇다고 법 이름만 맞으면 통과시키지는 않는다("무관한 줄이 붙는 게 더 나쁘다"). 답변에서
     //     **그 법 이름 바로 뒤에 조문·별표가 붙어 나온 자리**가 있을 때만, 그 조문을 이 줄의 인용으로
     //     삼아 통과시킨다(근접성 — 이름과 조문이 떨어져 있으면 주인을 단정할 수 없다).
-    if (/^(?:전체|전문|전조문)$/.test(article.trim())) {
-      const near = citationNearLawName(text, lawCellVariants(row.law));
-      if (!near) continue;
-      row.citedArticle = near;
-      row.subject = subjectOfCitation(subjects, near);
-      out.push(row);
-      continue;
-    }
     // ⚠`별표N` 외에 **`별도N`(도면·구역도)·`별지 제N호서식`** 도 인정한다(2026-08-17, B-1 실측).
     //   종전 정규식은 이 둘을 토큰으로 못 뽑아, 답변이 「수산자원관리법 시행령」 별도2(왕돌초 주변해역)나
     //   별지 서식을 정확히 인용해도 그 줄이 통째로 탈락했다 — 근거가 조용히 사라지는 L-101과 같은 뿌리다.
     //   ★공백 표기(`별지 제1호 서식`)까지 받되, 없는 표기를 만들어내지는 않는다(대조는 answerText 원문 그대로).
-    const tokens = article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\s*\d+(?:의\d+)?|별도\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식/g) || [];
+    // ★부칙 행(전 위키 51행) — 위키 칸은 `부칙(정부조직법) <제8852호,2008.2.29> 제6조` 처럼 적고
+    //   답변은 "2008.2.29 부칙" 이나 "부칙 제20722호" 처럼 쓴다. **글자 그대로는 절대 안 맞아**
+    //   부칙이 근거인 답변은 근거 목록이 통째로 비었다(라이브 검증: 한국해양수산연수원법 —
+    //   답변은 "시행령 제4조 최소 2개항"을 정확히 말하는데 그 부칙이 목록에 없음).
+    //   두 쪽에 **공통으로 나타나는 열쇠**로 잰다: 부칙 호수(`제20722호`)와 공포일(`2008.2.29`).
+    //   둘 다 다섯 자리 안팎의 고유값이라 우연히 겹치지 않는다(짧은 호수는 제외해 오탐을 막는다).
+    if (/부칙/.test(article)) {
+      const flat = text.replace(/\s+/g, '');
+      //   ⚠공포일은 **호수가 없을 때만** 쓴다(2026-08-19 실측): 2008.2.29 처럼 정부조직 대개정일에는
+      //     여러 법의 부칙이 같은 날짜를 달고 있어, 날짜만으로 재면 답변이 말하지도 않은 다른 부칙이
+      //     함께 딸려 붙는다(「한국해양수산연수원법」 부칙 제8852호가 시행령 부칙 제20722호 때문에
+      //     통과하던 것을 잡았다). 호수는 고유하므로 있으면 그것만 본다.
+      const keys = [];
+      const ho = /제\s*(\d{3,6})\s*호/.exec(article);
+      if (ho) keys.push('제' + ho[1] + '호');
+      else {
+        const day = /(\d{4})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})/.exec(article);
+        if (day) keys.push(day[1] + '.' + Number(day[2]) + '.' + Number(day[3]));
+      }
+      const key = keys.find(k => flat.includes(k.replace(/\s+/g, '')));
+      if (key) {
+        out.push(Object.assign({}, row, {
+          citedArticle: '부칙 ' + key, subject: subjectOfCitation(subjects, key),
+        }));
+      }
+      continue;   // 열쇠가 안 맞으면 이 행은 근거가 아니다(아래 토큰 대조로 넘기지 않는다)
+    }
+    const tokens = (article.match(/제\d+조(?:의\d+)?(?:제\d+항)?(?:제\d+호)?|별표\s*\d+(?:의\d+)?|별도\s*\d+(?:의\d+)?|별지\s*제\s*\d+호(?:의\d+)?\s*서식/g) || [])
+      // ⚠가운뎃점으로 이어 적은 나머지 번호까지 펴서 함께 본다(articleEnumTokens 주석 참고).
+      .concat(articleEnumTokens(article));
     // ⚠답변은 `별표 3`처럼 **띄어 쓰기도** 한다 — 위키 칸은 `별표3`이라 글자 그대로는 안 맞는다.
     //   공백만 지운 형태로도 대조한다(글자 자체를 바꾸는 게 아니라 공백 차이만 흡수 — 환각 0 유지).
     const flatText = text.replace(/\s+/g, '');
     const hit = tokens.find(t => text.includes(t) || flatText.includes(t.replace(/\s+/g, '')));
-    if (!hit) continue;
+    if (!hit) {
+      // ★번호 없는 `별표` 칸(전 위키 36행) — 고시·지침에는 별표가 하나뿐이라 번호를 안 붙인 것이 있다.
+      //   위 토큰 대조는 `별표3` 처럼 **숫자가 붙은 것만** 뽑아 이런 칸을 한 줄도 통과시키지 못했다
+      //   (라이브 검증: 수산자원관리법 포상금 고시 행 `제5조·별표` — 답변은 「…포상금 지급 규정」
+      //    별표 가목이라고만 써서 제5조 토큰과 안 맞았고, 근거 목록에서 그 고시가 통째로 사라졌다).
+      //   ⚠느슨해지지 않게, 답변에서 **그 법 이름 바로 뒤에 별표가 붙어 나온 자리**가 있을 때만
+      //     통과시킨다("무관한 줄이 붙는 게 더 나쁘다"). 이름과 떨어져 있으면 주인을 단정할 수 없다.
+      if (!/별표(?!\s*\d)/.test(article)) continue;
+      const nearAnnex = citationNearLawName(text, lawCellVariants(row.law));
+      if (!nearAnnex || !/^별표/.test(nearAnnex)) continue;
+      out.push(Object.assign({}, row, {
+        citedArticle: nearAnnex, subject: subjectOfCitation(subjects, nearAnnex),
+      }));
+      continue;
+    }
     // ★근접성 검사(2026-08-18 실사용 지적 "근거 목록에 무관한 법이 섞인다"): 위 두 조건은
     //   ⓐ법 이름이 답변 어딘가에 있나 ⓑ조문번호가 답변 어딘가에 있나 를 **따로** 볼 뿐,
     //   둘이 같은 자리에 붙어 있는지는 안 본다. 그래서 답변의 「선박직원법」 제2조제1호 때문에
@@ -1989,18 +2335,27 @@ function dropRedundantChainRows(rows) {
     const cited = String((r && r.citedArticle) || '');
     return cited || String((r && r.article) || '').replace(/\s+/g, '');
   };
+  // ★법령 이름은 **표기 차이를 지우고** 비교한다(2026-08-19 실측). 같은 고시라도 개념 페이지는
+  //   `「불법어업 신고자 등에 대한 포상금 지급 규정」(고시)` 로, 별표 페이지는 괄호·낫표 없이
+  //   `불법어업 신고자 등에 대한 포상금 지급 규정` 으로 적는다. 글자 그대로 비교하면 다른 법으로
+  //   보여 겹침 검사를 그냥 지나치고, 화면에 **같은 근거가 두 줄** 뜬다(배포 직후 실제 재현).
+  //   전 위키에서 이렇게 갈라 적힌 이름이 122가지다.
+  //   ⚠낫표와 **맨 뒤 괄호 주석 하나만** 지운다 — `수산업법 시행령` 과 `수산업법` 처럼 실제로 다른
+  //     법령이 하나로 합쳐지지 않게, 이름 안쪽 글자는 건드리지 않는다.
+  const lawKeyOf = (r) => String((r && r.law) || '')
+    .replace(/[「」『』]/g, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+/g, '').trim();
   const best = new Map();                       // law dedupeKey → 가장 좁게 짚은 줄
   for (const r of list) {
     const dedupeKey = dedupeKeyOf(r);
     if (!dedupeKey) continue;                   // 근거 없는 줄은 겹침 판정 대상이 아니다(하나도 안 버린다)
-    const key = String((r && r.law) || '') + ' ' + dedupeKey;
+    const key = lawKeyOf(r) + ' ' + dedupeKey;
     const cur = best.get(key);
     if (!cur || depth(r) > depth(cur)) best.set(key, r);
   }
   return list.filter((r) => {
     const dedupeKey = dedupeKeyOf(r);
     if (!dedupeKey) return true;
-    return best.get(String((r && r.law) || '') + ' ' + dedupeKey) === r;
+    return best.get(lawKeyOf(r) + ' ' + dedupeKey) === r;
   });
 }
 
@@ -2341,9 +2696,16 @@ ${ANSWER_RULES_BODY}`;
 // 2026-07-30 실측 발견: gemini-2.5-flash는 'thinkingLevel' 필드 자체가 400("Thinking level is
 // not supported for this model")으로 아예 미지원 — 2.5 계열은 thinkingBudget(정수, -1=dynamic)
 // 방식만 받는다. 모델별로 지원 필드가 달라 분기 처리.
+// ★온도 0(2026-08-20). 종전 0.3 에서는 **같은 질문에 답변 문장이 매번 달라졌고**, 인용 목록은
+//   그 답변 문장을 대조해 만들어지므로(filterCitationChainByAnswer) 근거까지 같이 흔들렸다.
+//   5·6·7차 라이브 검증에서 62문항 중 26건(42%)이 라운드 사이에 판정이 뒤집혔고, 채점자 흔들림을
+//   규칙 채점으로 걷어낸 뒤에도 29%가 남았다 — 그 남은 몫이 여기다.
+//   ⚠법령 답변은 **같은 질문에 같은 답**이 나오는 편이 옳다. 사용자끼리 답을 맞춰 볼 수 있어야 하고,
+//     이 저장소의 다른 판단 단계(질의확장·되묻기)는 이미 같은 이유로 0 이다.
+//   ⚠thinkingConfig 는 건드리지 않았다 — 한 번에 두 가지를 바꾸면 무엇이 효과였는지 못 가린다.
 const SYNTH_CONFIG = ANSWER_MODEL.startsWith('gemini-2.5')
-  ? { temperature: 0.3, thinkingConfig: { thinkingBudget: -1 } }
-  : { temperature: 0.3, thinkingConfig: { thinkingLevel: 'LOW' } };
+  ? { temperature: 0, thinkingConfig: { thinkingBudget: -1 } }
+  : { temperature: 0, thinkingConfig: { thinkingLevel: 'LOW' } };
 
 // ── 대화 기억(2026-08-18 사용자 확정) ─────────────────────────────────────────────
 // "🔁 관련해서 더 궁금해요"로 이어 물을 때 앱이 실어 보내는 직전까지의 대화([{q,a}, …]).
@@ -2520,7 +2882,7 @@ async function loadLawBundle(law) {
 // ②파일 선택 호출은 법률.txt 전문(최대 RAW_MAX_CHARS)까지 읽히므로 질의확장(10초)보다 여유가 필요하다.
 // 사고는 켜지 않는다 — "목차에서 필요한 파일 고르기"는 판단이지 추론이 아니다.
 const RAW_PICK_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,          // ★읽을 법을 고르는 단계 — 매번 다른 법을 고르면 답이 통째로 달라진다
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: 15000 },
@@ -3417,7 +3779,7 @@ function restateAllowed(s) {
 //   allowed deadline is 10s.)으로 거부해 이해확인이 프로덕션에서 한 번도 발동한 적이 없었다
 //   (23/23건 확인). API 최소값(10초)에 여유를 둔 12000으로 올린다.
 const UNDERSTAND_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,          // ★재진술이 흔들리면 검색어 확장까지 흔들린다(2026-08-20)
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: 12000 },
@@ -3921,11 +4283,19 @@ function vesselHayOf(node) {
  * @returns {null|{answer:string,note:string,clarify:object,confirmKind:string}}
  * [연계] ← routes/legal.js(zoneTreeStep이 null이고 search() 직후). → ai_chat.js clarifyHTML.
  */
-function scopeNarrowStep(query, scope, sources, enabled) {
+function scopeNarrowStep(query, scope, sources, enabled, prevCl) {
   try {
     if (!enabled) return null;
     const node = vesselNodeAt(scope || []);
     if (!node || !node.질문) return null;
+    // ★같은 상황질문을 두 번 묻지 않는다(2026-08-20 라이브 실측).
+    //   직전 라운드에 이 질문을 이미 냈는데 트리가 그대로라면, 사용자가 **선택지로 답하지 않은
+    //   것**이다(직접 입력으로 답했거나 질문과 무관해 고를 것이 없었다). 그때 또 물으면 빠져나올
+    //   길이 없다 — 실제로 천연기념물 재반입 서식 질문에 "어떤 배에 관한 것인가요?"가 반복됐고,
+    //   "배가 아니라 …"라고 직접 입력해도 같은 질문이 다시 나왔다.
+    //   ⚠AI 되묻기(B6)가 ctx.cl 로 같은 판정을 하는 것과 **같은 장치를 쓴다** — 새 저장소를 만들지
+    //     않는다. 사용자가 선택지를 눌러 트리가 내려갔으면 node.질문 이 달라져 여기 안 걸린다.
+    if (prevCl && prevCl.q && String(prevCl.q).trim() === String(node.질문).trim()) return null;
     const opts = (node.선택지 || []).filter(o => o && o.label).slice(0, CLARIFY_OPTION_MAX);
     if (opts.length < 2) return null;
     const q0 = String(query || '').split(CLARIFY_JOINER)[0];
@@ -4128,7 +4498,7 @@ const NAVER_TAG_RE = /<[^>]*>/g;
 // 뜻 후보를 고르는 판단 호출(pickCandidateLaws 와 같은 "짧고 빠른 판단" 규약 — 사고 끄고 JSON만).
 // 타임아웃은 API 최소값(10초) 위로 둔다(:2124 실측 기록 참고 — 8초로 두면 매 호출 400이다).
 const NAVER_PICK_CONFIG = {
-  temperature: 0.1,
+  temperature: 0,          // ★같은 낱말에 같은 뜻을 고르게 한다(2026-08-20)
   thinkingConfig: { thinkingBudget: 0 },
   responseMimeType: 'application/json',
   httpOptions: { timeout: 12000 },
@@ -4362,7 +4732,7 @@ function withAssumedNotice(answer, assumed) {
   return ASSUMED_NOTICE + '\n\n' + answer;
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
@@ -4372,7 +4742,7 @@ module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCel
   // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
   naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT,
   // 2026-08-17: 인용사슬 묶음표기 풀기(B1·B2) · "잘 모르겠어요"(B7) · 약칭표(B8, 계약4)
-  expandJoEnum, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
+  expandJoEnum, articleEnumTokens, ensureTopLawOption, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
   // 2026-08-17: 답변 인용 기반 근거 카드 폴백(B11 — 위키 `## 근거 조문` 표가 없는 페이지의 구멍 메우기)
   extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX,
   // 2026-08-17: 4천자 컨텍스트 발췌(회귀 테스트 대상 — 이 로직에서 회귀가 두 번 재발했다)
