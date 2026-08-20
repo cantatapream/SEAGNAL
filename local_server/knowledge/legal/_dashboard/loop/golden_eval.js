@@ -59,34 +59,61 @@ function sameLaw(a, b) {
   return A.includes(B) || B.includes(A);
 }
 
+/**
+ * 위키 전체를 훑어 `법령|조문 → 그 행을 가진 페이지들` 색인을 만든다(한 번만).
+ * ★왜 필요한가(2026-08-20, 첫 실행에서 오분류로 발견): 처음엔 "그 법의 아무 페이지나 왔으면
+ *   페이지 도달"로 보고, 조문이 안 맞으면 §6-E 라고 찍었다. 그런데 손으로 확인해 보니
+ *   「공유수면 관리 및 매립에 관한 법률 시행령 제40조」 행은 `매립면허.md` 에 **멀쩡히 있었다** —
+ *   검색이 그 페이지를 안 가져온 것이었다. **검색 실패를 위키 실패로 뒤집어씌운 것**이다.
+ *   그래서 "그 행이 위키 어딘가에 있기는 한가"를 먼저 보고 갈래를 정한다(L-125 와 같은 뿌리).
+ */
+function buildRowIndex() {
+  const idx = new Map();
+  const CONCEPTS = path.resolve(__dirname, '..', '..', 'wiki', 'concepts');
+  if (!fs.existsSync(CONCEPTS)) return idx;
+  for (const f of fs.readdirSync(CONCEPTS)) {
+    if (!f.endsWith('.md')) continue;
+    const body = fs.readFileSync(path.join(CONCEPTS, f), 'utf8');
+    for (const row of R.extractCitationChain(body)) {
+      for (const a of artsOf(row.article)) {
+        const k = flat(row.law) + '|' + a;
+        if (!idx.has(k)) idx.set(k, []);
+        // ⚠검색 결과의 `file` 은 **확장자가 없다**(`법__주제`). 색인 쪽도 떼어 맞춘다 —
+        //   처음엔 `.md` 를 붙여 넣어 한 건도 안 맞았고 chain 이 0 으로 나왔다.
+        idx.get(k).push(f.replace(/\.md$/, ''));
+      }
+    }
+  }
+  return idx;
+}
+/** 기대 (법령, 조문) 을 가진 페이지들. 법 이름은 부분일치를 허용한다(계층 포함). */
+function ownersOf(idx, law, arts) {
+  const L = flat(law); const out = new Set();
+  for (const [k, files] of idx) {
+    const [rl, a] = k.split('|');
+    if (!arts.includes(a)) continue;
+    if (rl.includes(L) || L.includes(rl)) files.forEach(x => out.add(x));
+  }
+  return [...out];
+}
+
 async function run() {
   const qs = JSON.parse(fs.readFileSync(QFILE, 'utf8')).questions || [];
+  const idx = buildRowIndex();
   const out = [];
   for (const q of qs) {
     if (q.skip) continue;                       // 되묻기가 정답인 문항 등은 채점에서 뺀다
+    const wantArts = artsOf(q.expect_article);
+    const owners = ownersOf(idx, q.expect_law, wantArts);
     let res;
     try { res = await R.search(q.question, {}); } catch (e) { res = null; }
     const pages = (res && res.contextPages) || [];
-    const wantArts = artsOf(q.expect_article);
-    let verdict = 'search', where = '';
-    // ① 정답 페이지가 후보에 들어왔나
-    const pageHit = pages.some(p => q.expect_page ? flat(p.file || '').includes(flat(q.expect_page))
-                                                  : sameLaw(p.law, q.law));
-    if (pageHit) {
-      verdict = '6e';
-      // ② 그 페이지들의 근거 조문 표에 기대 법령·조문이 있나
-      for (const p of pages) {
-        const body = p.body || '';
-        for (const row of R.extractCitationChain(body)) {
-          if (!sameLaw(row.law, q.expect_law)) continue;
-          const got = artsOf(row.article);
-          if (wantArts.length && wantArts.some(a => got.includes(a))) {
-            verdict = 'chain'; where = `${p.file} | ${row.law} | ${row.article}`; break;
-          }
-        }
-        if (verdict === 'chain') break;
-      }
-    }
+    const got = new Set(pages.map(p => String(p.file || '')));
+    let verdict, where = '';
+    const hit = owners.find(o => got.has(o));
+    if (hit) { verdict = 'chain'; where = hit; }
+    else if (!owners.length) { verdict = '6e'; where = '(위키 어느 표에도 이 근거 행이 없음)'; }
+    else { verdict = 'search'; where = `있는 곳: ${owners.slice(0, 2).join(', ')}`; }
     out.push({ law: q.law, q: q.question.slice(0, 60), verdict, where,
                want: `${q.expect_law} ${q.expect_article}` });
   }
@@ -99,8 +126,8 @@ run().then(rows => {
   const pct = x => n ? (x * 100 / n).toFixed(1) : '0.0';
   console.log(`골든 문항 ${n}개 — 기대 근거가 인용 후보까지 닿는가\n`);
   console.log(`  ✅ chain   ${String(c('chain')).padStart(4)} (${pct(c('chain'))}%)  기대 조문이 인용 후보에 들어옴`);
-  console.log(`  ⚠ §6-E    ${String(c('6e')).padStart(4)} (${pct(c('6e'))}%)  페이지는 왔는데 그 조문 행이 표에 없음 → 위키 표`);
-  console.log(`  ❌ search  ${String(c('search')).padStart(4)} (${pct(c('search'))}%)  페이지 자체가 후보에 없음 → 검색`);
+  console.log(`  ⚠ §6-E    ${String(c('6e')).padStart(4)} (${pct(c('6e'))}%)  위키 어느 근거 조문 표에도 그 행이 없음 → 위키`);
+  console.log(`  ❌ search  ${String(c('search')).padStart(4)} (${pct(c('search'))}%)  행은 위키에 있는데 그 페이지가 후보에 안 옴 → 검색`);
 
   const basePath = arg('--base');
   let base = null;

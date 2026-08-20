@@ -38,6 +38,47 @@ const isRealLaw = n => {
   return [...REAL].some(r => r === f || r.includes(f) || f.includes(r));
 };
 
+/**
+ * ★기대 조문이 **그 법에 실제로 있는지** raw 로 확인한다(2026-08-20, 첫 실행에서 오라벨로 발견).
+ * 처음엔 낫표 안 이름이 없으면 그냥 그 감사 파일의 법을 기대 법령으로 썼는데,
+ * 「배타적 경제수역 및 대륙붕에 관한 법률」(제1~5조뿐)에 **제21조**가 기대 근거로 붙었다.
+ * 조문 번호는 맞는데 **주인이 틀린** 것이다 — L-145 와 같은 뿌리이고 오늘만 세 번째다.
+ * `cite_exists.js` 가 쓰는 것과 같은 방식(raw 에서 조문 번호를 긁어 집합으로)을 그대로 쓴다.
+ */
+const RAW = path.resolve(__dirname, '..', '..', 'raw');
+const rawIdx = new Map();
+(function buildRaw() {
+  if (!fs.existsSync(RAW)) return;
+  for (const dom of fs.readdirSync(RAW)) {
+    const dp = path.join(RAW, dom);
+    if (!fs.existsSync(dp) || !fs.statSync(dp).isDirectory()) continue;
+    for (const law of fs.readdirSync(dp)) {
+      const lp = path.join(dp, law);
+      if (!fs.statSync(lp).isDirectory()) continue;
+      const set = rawIdx.get(law.replace(/\s+/g, '')) || new Set();
+      const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const q = path.join(d, e.name);
+        if (e.isDirectory()) walk(q);
+        else if (e.name.endsWith('.txt')) {
+          const t = fs.readFileSync(q, 'utf8'); let m; const re = /제\s*(\d+)조/g;
+          while ((m = re.exec(t)) !== null) set.add('제' + m[1] + '조');
+        } } };
+      try { walk(lp); } catch (_) {}
+      if (set.size) rawIdx.set(law.replace(/\s+/g, ''), set);
+    }
+  }
+})();
+/** 기대 조문이 그 법 raw 에 하나라도 있나. raw 가 없는 법은 판단하지 않는다(버리지 않음). */
+function articleFits(law, artStr) {
+  const key = String(law).replace(/\s+/g, '');
+  let set = rawIdx.get(key);
+  if (!set) for (const [k, v] of rawIdx) if (k.includes(key) || key.includes(k)) { set = v; break; }
+  if (!set) return true;
+  const arts = (String(artStr).match(/제\s*\d+조/g) || []).map(a => a.replace(/\s+/g, ''));
+  if (!arts.length) return true;                    // 별표·별지만 있는 것은 이 검사 대상 아님
+  return arts.some(a => set.has(a));
+}
+
 const rows = [];
 for (const f of fs.readdirSync(AUD)) {
   if (!f.endsWith('.md') || f === '_횡단.md') continue;
@@ -61,11 +102,14 @@ for (const f of fs.readdirSync(AUD)) {
     // ★낫표 안 이름이 **실재하는 법**일 때만 쓴다 — 위키 statutes 파일명으로 확인한다.
     //   안 그러면 `외국어선벌칙몰수담보금`(개념 페이지 슬러그 조각)이 법 이름으로 들어온다(첫 실행에서 발견).
     const names = [...ev.matchAll(LAWNAME)].map(m => m[1]).filter(isRealLaw);
+    const expLaw = names[0] || slug;
+    const expArt = (ev.match(new RegExp(ART.source, 'g')) || []).join('·');
+    if (!articleFits(expLaw, expArt)) continue;   // ★조문의 주인이 안 맞으면 버린다
     picked.push({
       law: slug,
       question: q.replace(/^\**|\**$/g, '').replace(/\s*\([A-Z]*\d+[^)]*\)\s*$/, '').trim(),
-      expect_law: names[0] || slug,
-      expect_article: (ev.match(new RegExp(ART.source, 'g')) || []).join('·'),
+      expect_law: expLaw,
+      expect_article: expArt,
       evidence_cell: ev.slice(0, 180),
       verified: false,          // ★사람이 확인해야 채점에 쓴다
     });
