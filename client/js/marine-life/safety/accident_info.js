@@ -44,6 +44,19 @@
  *   좌표 중앙값과 비교해 0.3도(≈33km) 이상 벗어난 행을 제외한다(findCoordOutliers).
  *   같은 텍스트가 1건뿐이면 비교 대상이 없어 판정하지 않는다. 선박(심판원)은 이
  *   위치텍스트 컬럼이 원본에 없어 이 필터를 적용하지 못한다(그대로 노출).
+ * [위치 미상 뭉침 필터] 사용자 보고(2026-08-20): "화면을 최대로 확대해도 여전히
+ *   뭉쳐있는 클러스터가 있다" — 조사 결과 좌표 반올림이 아니라 위치텍스트가 완전히
+ *   빈 값인 사고들이 관할 해양경찰서의 대표 좌표(청사 근처)로 채워져 완전히 동일한
+ *   좌표를 갖고 있었다(hk 최대 30건까지 겹침, 실측 606건). 완전 동일 좌표는 클러스터
+ *   distance=0(SPREAD_ZOOM 이상 줌)이어도 갈라지지 않으므로 최대 줌에서도 하나로
+ *   보인다 — 실제 사고 위치가 아니라서 지도에서 뺀다(findMissingLocationClusters).
+ *   ※ 이 문제는 같은 사용자 보고의 "육지에 사고정보가 많이 표출된다"의 상당 부분도
+ *   설명한다(관할서 청사는 대개 육지에 있음). 전체 육지 표출 규모를 정밀 검증하려고
+ *   ocean_overlay.js 의 기존 육지 마스크(/api/ocean/land-mask, window.isOceanLand)를
+ *   재사용해 전체 데이터를 대조해봤으나, 그 마스크 데이터 자체에 버그가 있어(여러
+ *   나라 해안선 ring이 하나의 배열로 잘못 병합되어 있어 "강릉 남동 5마일 해상"처럼
+ *   명백한 먼바다도 육지로 오판정됨) 신뢰할 수 없어 그 결과로 필터링하지는 않았다
+ *   (이 마스크 버그는 accident_info.js 밖의 기존 코드 문제라 이 파일에서 고치지 않음).
  * ============================================================================
  */
 
@@ -142,6 +155,33 @@
         return outliers;
     }
 
+    /** 위치텍스트가 없는 행 중 완전히 동일한 좌표를 가진 게 이만큼 이상이면 "위치 미상
+     * → 관할서 대표좌표로 채움"으로 본다(사용자 보고 2026-08-20: 최대 줌으로 확대해도
+     * 안 갈라지는 뭉치가 있음 — 조사 결과 hk 606건이 위치텍스트 완전 공란 + 같은 관할서
+     * 좌표에 최대 30건까지 겹쳐 있었다. 실제 사고 위치가 아니라서 지도에서 뺀다). */
+    var DUPLICATE_COORD_MIN_COUNT = 3;
+
+    /**
+     * 위치텍스트가 없는 행들끼리 좌표로 묶어, 완전히 겹친 뭉치(관할서 대표좌표로 의심)를 찾는다.
+     * @param {Array<Array>} rows
+     * @param {number} posIdx
+     * @returns {Set<Array>}
+     */
+    function findMissingLocationClusters(rows, posIdx) {
+        var groups = {};
+        rows.forEach(function (row) {
+            if (row[posIdx]) return; // 위치텍스트가 있으면 대상 아님
+            var key = row[0] + ',' + row[1];
+            (groups[key] || (groups[key] = [])).push(row);
+        });
+        var flagged = new Set();
+        Object.keys(groups).forEach(function (key) {
+            var g = groups[key];
+            if (g.length >= DUPLICATE_COORD_MIN_COUNT) g.forEach(function (row) { flagged.add(row); });
+        });
+        return flagged;
+    }
+
     function rowToFeature(key, row) {
         var coord = ol.proj.fromLonLat([row[1], row[0]]); // row=[lat,lon,...]
         var f = new ol.Feature({ geometry: new ol.geom.Point(coord) });
@@ -155,9 +195,11 @@
         return fetchSource(key).then(function (rows) {
             var posIdx = COORD_OUTLIER_POS_IDX[key];
             var outliers = posIdx != null ? findCoordOutliers(rows, posIdx) : null;
+            var missingLocClusters = posIdx != null ? findMissingLocationClusters(rows, posIdx) : null;
             var feats = rows
                 .filter(function (row) { return !ACCIDENT_TYPE_EXCLUDED[typeCodeOf(key, row)]; })
                 .filter(function (row) { return !outliers || !outliers.has(row); })
+                .filter(function (row) { return !missingLocClusters || !missingLocClusters.has(row); })
                 .map(function (row) { return rowToFeature(key, row); });
             rawFeatures[key] = feats;
             return feats;
@@ -614,18 +656,26 @@
     // ON 시점의 배경지도를 기억해 뒀다 OFF 시 되돌린다(access_control.js/fishing_ban.js 와 동일 패턴).
     var _prevBasemap = null;
 
+    // 데이터 로딩 중(fetch 완료 전) 사고정보 버튼을 눌러 끈 경우, 나중에 로딩이 끝나면서
+    // 꺼진 상태를 덮어쓰고 다시 켜지는 레이스 컨디션이 있었다(사용자 보고 2026-08-20:
+    // "꺼도 지도에 남아있음" — 헤드리스 브라우저로 네트워크 지연을 인위로 걸어 재현
+    // 확인). turnOff() 가 이 카운터를 올려 진행 중이던 selectSource 콜백을 무효화한다.
+    var _selectSeq = 0;
+
     function showModeToggle(show) {
         var modeToggle = document.getElementById('ocean-accident-mode-toggle');
         if (modeToggle) modeToggle.style.display = show ? 'flex' : 'none';
     }
 
     function selectSource(map, key) {
+        var seq = ++_selectSeq;
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
         var iconEl = toggleBtn && toggleBtn.querySelector('i');
         var originalIconClass = iconEl ? iconEl.className : '';
         if (iconEl) iconEl.className = 'fa-solid fa-spinner fa-spin';
         ensureClusterLayer(map, key).then(function () {
             if (iconEl) iconEl.className = originalIconClass;
+            if (seq !== _selectSeq) return; // 그 사이 껐거나 다른 소스를 골랐으면 이 결과는 버린다
             state.source = key;
             Object.keys(clusterLayers).forEach(function (k) { clusterLayers[k].setVisible(false); });
             applyModeVisibility(map);
@@ -640,6 +690,7 @@
             }
             if (window.trackUsage) window.trackUsage('ocean.accident_info');
         }).catch(function (e) {
+            if (seq !== _selectSeq) return;
             if (iconEl) iconEl.className = originalIconClass;
             console.warn('[AccidentInfo] 데이터 로드 실패:', e.message);
         });
@@ -649,9 +700,12 @@
      * 사고정보를 완전히 끈다 — 마커/격자 레이어 숨김, 소스 선택 해제, 배경지도 복귀.
      * 사고정보 버튼을 다시 누르면 호출(사용자 확정 2026-08-19: 재클릭으로 켜져 있던
      * 데이터를 끌 수 있어야 함 — access_control.js 등 다른 토글 레이어와 동일한 동작).
+     * _selectSeq 를 올려 진행 중이던 selectSource 로딩 결과가 나중에 도착해도
+     * 무시되게 한다(사용자 보고 2026-08-20 레이스 컨디션 수정).
      * [연계] ← bindUi() toggleBtn 클릭
      */
     function turnOff(map) {
+        _selectSeq++;
         state.source = null;
         applyModeVisibility(map);
         closePopout();
@@ -678,7 +732,11 @@
             toggleBtn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 if (state.source) { turnOff(map); return; } // 이미 데이터가 켜져 있으면 전체 끄기
-                wrap.classList.toggle('popup-open'); // 아니면 소스 선택 팝아웃 열기/닫기
+                // 아직 안 켜졌어도(소스 선택 직후 fetch 로딩 중일 수 있음) 진행 중인 로딩을
+                // 취소한다 — 안 그러면 몇 초 후 로딩이 끝나면서 "끈" 데이터가 다시 나타난다
+                // (사용자 보고 2026-08-20: 꺼도 지도에 남아있음 — 로딩 중 재현 확인).
+                _selectSeq++;
+                wrap.classList.toggle('popup-open'); // 소스 선택 팝아웃 열기/닫기
             });
             document.addEventListener('click', function (e) {
                 if (!wrap.contains(e.target)) wrap.classList.remove('popup-open');
