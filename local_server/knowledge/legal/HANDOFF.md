@@ -739,6 +739,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-20 14:26 KST] ✅완료 — 통합수정(r23) 완료 — 출입국관리법
+16R 감사 gap remediation 완료. 핵심: 근거조문 표 unreachable 잔여 1건 해소 — statutes 페이지 '## 근거 조문' 표에 제79조의2(대행기관 정의·등록요건)·제79조의3(대행기관 등록취소·업무정지 사유) 2행 신규 등재(15R remediation 17/18 해소 후 유일하게 남은 결함, 이번에 완결). 부수: concept 페이지(외국인승무원상륙과선박운수업자책임) 배너가 status:canonical인데도 'draft-미승인'으로 표기돼 있던 형식 결함(awkward) 발견·수정. collection_hole 3건(시행령 제18조의2③·18조의3③2호 하위고시, 별표6 잔여 불확정개념) — H-39에 따라 이번 라운드도 law.go.kr DRF admrul 키워드 재검색 재시도(복수상륙허가·관광상륙허가 성실관리) → 전부 totalCnt=0, 판정불변(uncollected/genuine 확정에 근접, collectable_holes로 등재). thin(content_gap) 19건·review_pending 1건(R33)·scope_out_answered_gracefully 4건은 16R이 이미 raw 재대조로 판정불변 확인해 추가 조치 불요. 소관부서·연락처(contacts_collected.json)·인라인 REVIEW 마커는 이전 라운드에 이미 전부 반영 완료 상태 재확인(신규 반영 0건). 편집 2개 파일(statutes 1 + concept 1), 완료 마커 fix3/fix_r23_출입국관리법.done 생성·커밋 완료(326e61f24). 이 법은 raw 콘텐츠 발굴 관점 9라운드 연속 소진, 근거조문 표 관점에서도 이번 라운드로 사실상 완결 상태 도달.
+
+
 ### [2026-08-20 14:21 KST] 🟢착수 — 통합수정(r23) — 출입국관리법
 16R 감사 gap remediation 착수: 근거조문 표에 제79조의2·제79조의3 행 누락(unreachable) 해소 + H-26 5종 재분류 + 인라인 REVIEW 마커 + 연락처 반영
 
