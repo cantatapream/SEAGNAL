@@ -754,8 +754,12 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
         R.scoreOne(p0, ['신고'], null) === R.scoreOne(p0, ['신고']));
     }
 
-    // (3) 되묻기 상한 10(사용자 확정) — 같은 조건 재질문 차단이 실질 방어선이 된다
-    ok('되묻기 상한이 10이다', /const CLARIFY_MAX_ROUNDS = 10;/.test(RET_SRC));
+    // (3) 되묻기 상한 5(2026-08-21 사용자 확정, 종전 10) — 같은 조건 재질문 차단이 실질 방어선인데
+    //     그 방어선이 라이브에서 뚫린 것이 확인돼(같은 축을 2·4회차에 다시 물음) 천장을 낮췄다.
+    //     ⚠D-트리 가장 깊은 경로 + 확인 = 4라운드라 5 아래로는 내리면 안 된다(test_zone_tree_wiring).
+    ok('되묻기 상한이 5다', /const CLARIFY_MAX_ROUNDS = 5;/.test(RET_SRC));
+    ok('D-트리 최대 깊이(4)보다는 크다 — 트리 경로를 막지 않는다',
+      Number((/const CLARIFY_MAX_ROUNDS = (\d+);/.exec(RET_SRC) || [])[1]) > 4);
     ok('질문 문장·선택지 집합이 같으면 차단한다(표현만 바꾼 재질문)',
       /function sameClarifyAsLast\(/.test(RET_SRC) && /sameClarifyAsLast\(question, options, prevClarify, chosenLabel\)/.test(RET_SRC));
     // ★고른 값을 함께 넘겨야 ⓓ(고르지 않은 갈래 재출현) 검사가 돈다 — 안 넘기면 그 검사가 통째로 죽는다.
