@@ -739,6 +739,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-22 02:49 KST] 🟢착수 — 24R ③lint_xref 디스패치 + lint_full은 직렬로 미룸(판단)
+lint_xref.js round:24 10그룹 디스패치. task-id(runId): g0=wqveicwhh(wf_7deca6a7-68a) g1=w3r9i9664(wf_1f683620-324) g2=w7xlueas4(wf_e496a42c-a4c) g3=w1vk8j1au(wf_99854b3b-dad) g4=w57063z9w(wf_4253bdb0-c8f) g5=w8f6896tl(wf_4f0ba461-281) g6=w3qubhzks(wf_a859cecf-ed9) g7=wa73s82ty(wf_7b5d69fa-1a0) g8=w1nws9yt1(wf_3518b67c-027) g9=wkv8ut0pz(wf_62dfdfef-242). ★판단 변경(사용자 지시로 추천안 자동적용): 19~23차는 lint_xref와 lint_full을 같은 그룹 편성으로 동시에 20개 디스패치했으나, 이번에는 lint_xref가 끝난 뒤 lint_full을 돌리는 직렬로 바꾼다 — 두 린트는 같은 법의 같은 위키 파일을 쓰므로 동시 실행은 CLAUDE.md 병렬 안전 규칙이 말하는 공유 파일 동시 쓰기에 해당하고, 오늘 실제로 감사 파일 교차오염 사고(L-169)가 확인됐기 때문이다. 속도보다 데이터 보존을 택한다.
+
+
 ### [2026-08-22 02:14 KST] ✅완료 — r24 통합수정 — 국제항해선박및항만시설의보안에관한법률
 24차 감사 리포트 정독 완료. 핵심 확인: raw 4라운드(21R~24R) 연속 무변경, wiki도 21R 이후 커밋 1건(dc92bff0c, 근거조문 표에 타법 4행 추가)뿐 — 이 커밋으로 citationChain unreachable 문제(23R 지적)가 24R 라이브검증에서 해소 확인됨(사서가 아니라 이미 이전 라운드가 처리, 이번 라운드는 확인만). 남은 회귀 53건(§0-A thin 16·§0-B missing 26·§0-C missing 11)은 여러 차례(2차·3차 패스, r9~r23) 통합수정을 거치며 이미 raw 자체 공백(content_gap)으로 확정돼 손댈 것이 없음을 재확인(스팟체크: #661/#662/#438 등 페이지 직접 grep 대조, wiki_lag 0건). collection_hole 0건(12R 이후 지속). review_queue REVIEW-국제항해선박및항만시설의보안에관한법률-801은 이미 ⚠REVIEW-801-B 인라인마커 부착·문서화 완료 상태(17라운드째 사람검증 대기, 변경없음). contacts_collected.json 값도 statute 페이지에 이미 전부 반영 확인(2026-07-26 자동수집, 재확인만). 신규 발견 #999(citationChain 조문번호 생략 비대칭)는 답변생성 엔진 단계 결함이라 위키 사서 패스로 고칠 수 없어 그대로 둠(감사 자체도 명시). 결론: 이번 라운드는 편집 0건 — 이미 소진된 콘텐츠. 완료마커 fix3/fix_r24_국제항해선박및항만시설의보안에관한법률.done 생성.
 
