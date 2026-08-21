@@ -33,9 +33,16 @@ const STATUTES = path.resolve(__dirname, '..', '..', 'wiki', 'statutes');
 const REAL = new Set(fs.existsSync(STATUTES)
   ? fs.readdirSync(STATUTES).filter(x => x.endsWith('.md')).map(x => x.slice(0, -3).replace(/\s+/g, ''))
   : []);
+// ★행정규칙·고시 이름도 받는다(2026-08-20 사서 보고로 발견). `REAL` 은 wiki/statutes 에 있는
+//   74개 법률뿐이라, 「선박교통관제시설 설치 및 관리에 관한 규칙」 같은 하위 규정 이름이
+//   걸러져 모법 이름으로 되돌아갔다. 선박교통관제법은 골든 6문항 중 5개가 실제로는 고시·규칙
+//   조문이었다(사서 확인). 이름 꼴로 판정한다 — 다만 `「」` 로 명시된 것만 잡을 수 있고,
+//   본문에 이름이 안 적힌 것은 기계로 못 잡는다(그래서 사서 확인 패스가 필요하다).
+const RULE_SUFFIX = /(규칙|규정|지침|고시|기준|요령|예규|훈령|법|법률)$/;
 const isRealLaw = n => {
   const f = String(n).replace(/\s+/g, '');
-  return [...REAL].some(r => r === f || r.includes(f) || f.includes(r));
+  if ([...REAL].some(r => r === f || r.includes(f) || f.includes(r))) return true;
+  return f.length >= 6 && RULE_SUFFIX.test(f);
 };
 
 /**
