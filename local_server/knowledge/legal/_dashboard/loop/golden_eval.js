@@ -227,7 +227,25 @@ async function run() {
     const hit = owners.find(o => got.has(o));
     if (hit) { verdict = 'chain'; where = hit; }
     else if (!owners.length) { verdict = '6e'; where = '(위키 어느 표에도 이 근거 행이 없음)'; }
-    else { verdict = 'search'; where = `있는 곳: ${owners.slice(0, 2).join(', ')}`; }
+    else {
+      // ★법 미지목 분리(2026-08-21, A안): `search` 를 한 칸으로 세면 "검색이 나쁘다"로 읽히는데,
+      //   남은 실패를 전수 조사하니 **21건 전부 질문이 그 법 이름을 대지 않았고**(0/21), 그중 6건은
+      //   `이 법`·`우리 법` 같은 지시어뿐이라 **사람도 문장만으로는 어느 법인지 모른다.**
+      //   제품은 그 일을 검색이 아니라 **되묻기·이어서질문(ctx.topic)** 으로 한다 — 라이브 실측에서
+      //   28건 중 10건이 그 경로로 살아났다(`search_live.js`). 그래서 두 칸으로 가른다:
+      //     · 법을 지목했는데도 못 찾음 → `search` (진짜 검색 결함, 손댈 곳이 검색)
+      //     · 법 이름을 붙이면 찾음    → `법미지목` (되묻기가 할 일 — 검색을 고쳐도 안 풀린다)
+      //   ⚠이 갈래는 **채점을 느슨하게 하려는 것이 아니다.** `법미지목` 도 실패이고 총계에서 빠지지
+      //     않는다 — 다만 **어느 부품을 고쳐야 하는지**를 섞지 않는다(뭉친 숫자로는 손댈 곳을 못 정한다).
+      let byName = false;
+      try {
+        const r2 = await R.search(q.law + ' ' + q.question, {});
+        const got2 = new Set(((r2 && r2.contextPages) || []).map(p => String(p.file || '')));
+        byName = owners.some(o => got2.has(o));
+      } catch (_) { byName = false; }
+      verdict = byName ? 'noname' : 'search';
+      where = `있는 곳: ${owners.slice(0, 2).join(', ')}`;
+    }
     const row = { law: q.law, q: q.question.slice(0, 60), verdict, where,
                   want: `${q.expect_law} ${q.expect_article}` };
     // §6-E 로 찍힌 문항은 "원문에는 있나"까지 갈라 둔다 — 있으면 B11 보탬이 구제할 수 있고,
@@ -252,7 +270,8 @@ run().then(rows => {
   console.log(`골든 문항 ${n}개 — 기대 근거가 인용 후보까지 닿는가\n`);
   console.log(`  ✅ chain   ${String(c('chain')).padStart(4)} (${pct(c('chain'))}%)  기대 조문이 인용 후보에 들어옴`);
   console.log(`  ⚠ §6-E    ${String(c('6e')).padStart(4)} (${pct(c('6e'))}%)  위키 어느 근거 조문 표에도 그 행이 없음 → 위키`);
-  console.log(`  ❌ search  ${String(c('search')).padStart(4)} (${pct(c('search'))}%)  행은 위키에 있는데 그 페이지가 후보에 안 옴 → 검색`);
+  console.log(`  ❌ search  ${String(c('search')).padStart(4)} (${pct(c('search'))}%)  법을 지목했는데도 그 페이지가 후보에 안 옴 → 검색`);
+  console.log(`  ⚠ 법미지목 ${String(c('noname')).padStart(4)} (${pct(c('noname'))}%)  질문이 법 이름을 안 댐(법 이름을 붙이면 찾는다) → 되묻기·이어서질문`);
   // §6-E 를 갈라 보여 준다(H-47 ③ 계측): 원문에 조가 있으면 답변이 그 조를 인용하는 순간
   // 생산 코드의 B11 보탬(routes/legal.js synthesizeChainRows)이 카드를 붙여 준다.
   const sixE = rows.filter(r => r.verdict === '6e');
@@ -267,7 +286,7 @@ run().then(rows => {
   if (basePath) { try { base = JSON.parse(fs.readFileSync(basePath, 'utf8')); } catch (_) {} }
   let worse = [];
   if (base) {
-    const rank = { chain: 2, '6e': 1, search: 0 };
+    const rank = { chain: 3, noname: 2, '6e': 1, search: 0 };
     const prev = new Map((base.rows || []).map(r => [r.law + '|' + r.q, r.verdict]));
     worse = rows.filter(r => { const p = prev.get(r.law + '|' + r.q); return p && rank[r.verdict] < rank[p]; });
     console.log(`\n기준선 대비 — 나빠진 문항 ${worse.length}개 / 좋아진 문항 ` +
@@ -275,7 +294,7 @@ run().then(rows => {
     worse.forEach(r => console.log(`  ↓ ${r.law} · ${r.q} (${prev.get(r.law + '|' + r.q)} → ${r.verdict})`));
   }
   if (argv.includes('--examples')) {
-    for (const v of ['6e', 'search']) {
+    for (const v of ['6e', 'search', 'noname']) {
       const list = rows.filter(r => r.verdict === v).slice(0, 12);
       if (!list.length) continue;
       console.log(`\n── ${v} 실패 예시 ──`);
@@ -283,7 +302,7 @@ run().then(rows => {
     }
   }
   if (arg('--save')) {
-    fs.writeFileSync(arg('--save'), JSON.stringify({ n, chain: c('chain'), '6e': c('6e'), search: c('search'), rows }, null, 1));
+    fs.writeFileSync(arg('--save'), JSON.stringify({ n, chain: c('chain'), '6e': c('6e'), search: c('search'), noname: c('noname'), rows }, null, 1));
     console.log(`\n스냅샷 저장: ${arg('--save')}`);
   }
   if (argv.includes('--gate')) {
