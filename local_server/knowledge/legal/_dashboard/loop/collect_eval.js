@@ -73,8 +73,15 @@ function lawDirs() {
       if (!wanted.has(law)) continue;                    // 기준법만 — 타법은 이 게이트 대상이 아니다
       const lp = path.join(dp, law);
       if (!fs.existsSync(path.join(lp, '_meta.json'))) continue;
-      if (out.some(x => x.law === law)) continue;        // 같은 법이 두 도메인에 있으면 먼저 것만
-      out.push({ domain, law, dir: lp });
+      // ★같은 법이 두 곳에 있으면 **조문이 많은 쪽이 본체**다. 먼저 찾은 것을 쓰면 안 된다 —
+      //   `15_관련타부처` 아래 같은 이름의 **발췌본**(다른 법이 인용하는 조문만 모은 것)이 잡히면
+      //   본체를 스텁으로 오판한다. 실측(2026-08-21): 해양환경관리법이 발췌본 2조문 vs 본체 133조문,
+      //   섬발전촉진법·해양수산발전기본법 등도 같은 구조다. 오늘 이 함정에 두 번 빠졌다(L-164 계열).
+      const arts = f => { try { return (fs.readFileSync(f, 'utf8').match(/^\[제\d+조/gm) || []).length; } catch (_) { return 0; } };
+      const n = arts(path.join(lp, '법률.txt'));
+      const prev = out.find(x => x.law === law);
+      if (prev) { if (n > prev.arts) { prev.domain = domain; prev.dir = lp; prev.arts = n; } continue; }
+      out.push({ domain, law, dir: lp, arts: n });
     }
   }
   return out;
