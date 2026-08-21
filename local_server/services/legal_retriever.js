@@ -108,7 +108,11 @@ const TAIL_BODY_CHARS = 3000;   // 7위 이하
 //     차지하는 게 아니다.
 //   A/B 스위치는 남긴다(되돌리거나 다시 재려면): `NRYA_PRIMARY_TOPK=10 node _dashboard/loop/golden_eval.js`
 const PRIMARY_TOPK = Number(process.env.NRYA_PRIMARY_TOPK) > 0 ? Number(process.env.NRYA_PRIMARY_TOPK) : 20;
-const HOP_MAX = 5;
+const HOP_MAX = Number(process.env.NRYA_HOP_MAX) > 0 ? Number(process.env.NRYA_HOP_MAX) : 5;
+// 홉이 링크를 훑을 **출발 페이지 수**. 지금까지 상위 2위만 봤는데, 실패 문항의 정답 페이지가
+// 상위 20위 안 페이지의 링크에는 13/17 걸려 있고 상위 2위 링크에는 3/17 뿐이었다(2026-08-21 실측).
+// A/B 스위치: `NRYA_HOP_FROM=2 node _dashboard/loop/golden_eval.js` 로 옛 동작 재현.
+const HOP_FROM = Number(process.env.NRYA_HOP_FROM) > 0 ? Number(process.env.NRYA_HOP_FROM) : 2;
 
 // ── index.json 캐시(mtime 감지) ──
 let _idxCache = null, _idxMtime = 0;
@@ -1632,7 +1636,7 @@ async function search(query, opts) {
   const picked = new Set(primary.map(x => x.p));
   const hop = [];
   if (topScore >= 4) {
-    for (const top of primary.slice(0, 2)) {
+    for (const top of primary.slice(0, HOP_FROM)) {
       if (hop.length >= HOP_MAX) break;
       for (const raw of (top.p.links || [])) {
         if (hop.length >= HOP_MAX) break;
