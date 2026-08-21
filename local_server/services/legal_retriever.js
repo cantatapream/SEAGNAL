@@ -108,7 +108,17 @@ const TAIL_BODY_CHARS = 3000;   // 7위 이하
 //     차지하는 게 아니다.
 //   A/B 스위치는 남긴다(되돌리거나 다시 재려면): `NRYA_PRIMARY_TOPK=10 node _dashboard/loop/golden_eval.js`
 const PRIMARY_TOPK = Number(process.env.NRYA_PRIMARY_TOPK) > 0 ? Number(process.env.NRYA_PRIMARY_TOPK) : 20;
-const HOP_MAX = 5;
+// 홉으로 데려올 수 있는 **페이지 수 상한**. 2026-08-21 실측에서 병목이 여기였다 —
+// 출발 범위를 20위·40위로 넓혀도 이 값이 5면 결과가 같았다(chain 253→253). 10 으로 올리면
+// chain 253→256, search 실패 27→24, 질문당 자료 81,025자→89,621자(+11%). 어제 반영한
+// 후보 수 10→20 이 +30% 를 쓴 것과 비교하면 절반 이하 비용이다. V5-4(정답 페이지 도달
+// top1 76.0%·본문 잘림 1건)는 그대로였다.
+// A/B 스위치: `NRYA_HOP_MAX=5 node _dashboard/loop/golden_eval.js` 로 옛 동작 재현.
+const HOP_MAX = Number(process.env.NRYA_HOP_MAX) > 0 ? Number(process.env.NRYA_HOP_MAX) : 10;
+// 홉이 링크를 훑을 **출발 페이지 수**. 지금까지 상위 2위만 봤는데, 실패 문항의 정답 페이지가
+// 상위 20위 안 페이지의 링크에는 13/17 걸려 있고 상위 2위 링크에는 3/17 뿐이었다(2026-08-21 실측).
+// A/B 스위치: `NRYA_HOP_FROM=2 node _dashboard/loop/golden_eval.js` 로 옛 동작 재현.
+const HOP_FROM = Number(process.env.NRYA_HOP_FROM) > 0 ? Number(process.env.NRYA_HOP_FROM) : 20;
 
 // ── index.json 캐시(mtime 감지) ──
 let _idxCache = null, _idxMtime = 0;
@@ -264,6 +274,13 @@ function aliasExpand(query) {
 // 질문에서 흔히 등장하지만 법령 내용과 무관한 의문·연결어(형태소 분석기 없이 저렴하게 거른다).
 // 이런 단어를 검색어로 쓰면 거의 모든 페이지 본문에 우연히 걸려 진짜 법률 용어(예: "출항")를
 // 점수로 압도해 버린다(실측: "출항신고" 질문이 "어떻게"·"되나요" 때문에 엉뚱한 법이 1위로 뜸).
+// 깊은 어간(termsOf 주석 참고). 같은 비용선에서 재고 채택했다(2026-08-21):
+//   off·홉10  chain 256 / search 24 / 89,621자      on·홉10  chain 259 / search 21 / 89,611자
+//   on·홉7   chain 256 / search 24 / 85,869자  ← 같은 성적을 4% 싸게도 낼 수 있다
+// V5-4(top1 76.0%·top3 100%·본문 잘림 1건)·V5-5(26행) 모두 무변화.
+// A/B 스위치: `NRYA_DEEP_STEM=0 node _dashboard/loop/golden_eval.js` 로 옛 동작 재현.
+const DEEP_STEM = process.env.NRYA_DEEP_STEM !== '0';
+
 const STOPWORDS = new Set([
   '하면', '하나요', '하나', '합니까', '합니다', '됩니까', '됩니다', '되나요', '되나', '되는지',
   '되어요', '돼요', '인가요', '인가', '입니까', '입니다', '있나요', '있어요', '있습니까',
@@ -284,6 +301,13 @@ function termsOf(query) {
   const out = new Set(tokens);
   for (const t of tokens) {
     if (t.length >= 4) { out.add(t.slice(0, t.length - 1)); out.add(t.slice(0, t.length - 2)); }
+    // ★깊은 어간(2026-08-21 A/B): 끝 2글자만 떼면 어미가 3음절인 말은 어간에 못 닿는다 —
+    //   "침몰했는데"(5) → 지금은 "침몰했는"·"침몰했" 까지만 만들어져, 위키에 있는 **"침몰"** 을
+    //   영영 못 맞춘다(실측: 15개 실패 문항 중 11건이 이 유형이었다). 그래서 2글자까지 전부 만든다.
+    //   ⚠"해양신산업"→"해양" 처럼 **긴 명사를 반토막 낸 조각**도 함께 생기는데, 그런 조각은 거의
+    //     모든 페이지에 있어 termWeights 의 무게가 1 언저리로 떨어져 점수에 거의 기여하지 못한다
+    //     (반대로 "침몰"·"미달"·"취소" 같은 진짜 어간은 드물어 무게가 크다) — 무게식이 스스로 걸러준다.
+    if (DEEP_STEM) for (let n = t.length - 3; n >= 2; n--) out.add(t.slice(0, n));
   }
   return [...out];
 }
@@ -1632,7 +1656,7 @@ async function search(query, opts) {
   const picked = new Set(primary.map(x => x.p));
   const hop = [];
   if (topScore >= 4) {
-    for (const top of primary.slice(0, 2)) {
+    for (const top of primary.slice(0, HOP_FROM)) {
       if (hop.length >= HOP_MAX) break;
       for (const raw of (top.p.links || [])) {
         if (hop.length >= HOP_MAX) break;
@@ -4856,7 +4880,7 @@ function withAssumedNotice(answer, assumed) {
 // termsOf 는 순수 함수다(네트워크·AI 없음). 검사 도구(_dashboard/loop/search_gap.js)가
 // "검색이 이 질문을 어떤 낱말로 쪼개는지"를 **생산과 똑같이** 보려고 쓴다 — 따로 쪼개면
 // 검사와 코드가 어긋나 엉뚱한 결론이 난다(L-136·L-153).
-module.exports = { termsOf, CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어

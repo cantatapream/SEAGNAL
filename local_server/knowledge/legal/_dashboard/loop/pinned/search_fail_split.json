@@ -1,0 +1,132 @@
+{
+ "byName": [
+  {
+   "law": "국제항해선박등에대한해적행위피해예방에관한법률",
+   "question": "경비원 승선 위험성평가에서 구체적으로 평가해야 할 5가지가 뭔가요?",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "선박직원법",
+   "question": "\"무면허로 배를 몰다 걸리면 처벌이 얼마인가요?\"",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "섬발전촉진법",
+   "question": "5명 사는 섬인데 저희가 직접 지정 신청 낼 수 있나요?",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "수산부산물재활용촉진에관한법률",
+   "question": "시설·장비 \"전부\" 미달과 \"일부\" 미달의 차수 구조가 다른가?",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "수산부산물재활용촉진에관한법률",
+   "question": "\"이사 가면(사업장 소재지 변경) 신고해야 하나요?\"",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "수산업ㆍ어촌발전기본법",
+   "question": "2025-10-22 이전에 이미 수립된 기본계획도 새 제7조②(8개호) 기준으로 재수립해야 하나?",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "수상에서의수색ㆍ구조등에관한법률",
+   "question": "관할 경계가 애매한 해역에서 사고 시 어느 지역구조본부가 1차 대응기관인지 답할 수 있나?",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
+   "question": "외국인어선원이 승선한 어선을 단속하는데, 그 선원의 여권번호·외국인등록번호 자료를 제가(해경 조사관) 직접 법무부에 요청할 수 있나요, 신고기관을 통해야만 하나요?",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "해사안전기본법",
+   "question": "제가 이 법 때문에 배 살 때 뭘 갖춰야 하나요?",
+   "byName": true,
+   "deictic": true
+  },
+  {
+   "law": "해상교통안전법",
+   "question": "하천·저수지에도 이 법이 적용되나요?",
+   "byName": true,
+   "deictic": true
+  },
+  {
+   "law": "해상교통안전법",
+   "question": "다른 법에 특별 규정이 있으면 이 법이 우선인가요?",
+   "byName": true,
+   "deictic": true
+  },
+  {
+   "law": "해수욕장의이용및관리에관한법률",
+   "question": "\"거짓 신고로 수탁자 지정을 받은 정황을 조사 중인데, 이게 형사입건 대상인가 과태료 대상인가?\"",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "해양공간계획및관리에관한법률",
+   "question": "나는 기장군에서 전복 양식(외해양식업)을 하는데, 내 어장이 어업활동보호구역 경계 밖 1.2km에 있어요. 보호 대상이 되나요?",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "해양과학조사법",
+   "question": "우리 어선이 조사 활동을 하면 이 법 위반인가요?",
+   "byName": true,
+   "deictic": true
+  },
+  {
+   "law": "해양레저관광진흥법",
+   "question": "나는 은퇴 후 어촌에서 게스트하우스를 하려는 평범한 주민인데, 이 법으로 지원금 받으려면 뭘 먼저 해야 해?",
+   "byName": true,
+   "deictic": true
+  },
+  {
+   "law": "해양수산발전기본법",
+   "question": "요즘 뉴스에 \"해양신산업\"이라는 말 나오던데 이 법에 있는 거예요?",
+   "byName": true,
+   "deictic": true
+  },
+  {
+   "law": "해양수산생명자원의확보ㆍ관리및이용등에관한법률",
+   "question": "(1라운드#63 회귀) 지정기관이 업무 안 하면 바로 취소야 경고부터야?",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "해양환경관리법",
+   "question": "방제업체 대표자 변경도 변경등록 대상 \"중요사항\"인가?",
+   "byName": true,
+   "deictic": false
+  },
+  {
+   "law": "해양환경보전및활용에관한법률",
+   "question": "어촌·어항 계획도 대상(별표1 25호)?",
+   "byName": true,
+   "deictic": false
+  }
+ ],
+ "vocab": [
+  {
+   "law": "어선법",
+   "question": "\"원양어선(원양산업발전법 허가)인데 어선법 적용에서 빠지는 부분이 있나요?\"",
+   "byName": false,
+   "deictic": false
+  },
+  {
+   "law": "어선법",
+   "question": "\"이 배가 국제협약(SOLAS 등) 적용 대상인지, 어선법 적용 대상인지 둘 다 걸리면 어떻게 판단하나요?\"",
+   "byName": false,
+   "deictic": false
+  }
+ ]
+}
