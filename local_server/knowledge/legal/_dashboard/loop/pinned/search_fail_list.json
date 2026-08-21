@@ -3,168 +3,216 @@
   "law": "국제항해선박등에대한해적행위피해예방에관한법률",
   "question": "경비원 승선 위험성평가에서 구체적으로 평가해야 할 5가지가 뭔가요?",
   "expect_law": "「국제항해선박 등에 대한 해적행위 피해예방에 관한 법률 시행규칙」",
-  "expect_article": "제8조"
- },
- {
-  "law": "농수산물품질관리법",
-  "question": "검사 결과는 항상 수산물에 표시하나?",
-  "expect_law": "농수산물품질관리법",
-  "expect_article": "제93조"
+  "expect_article": "제8조",
+  "page": "국제항해선박등에대한해적행위피해예방에관한법률__해적행위피해예방협의회",
+  "rank": 210,
+  "liveFail": false
  },
  {
   "law": "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률",
   "question": "허가증 유효기간이 1년이라는데 매년 새로 신청해야 하나요?",
   "expect_law": "배타적 경제수역에서의 외국인어업 등에 대한 주권적 권리의 행사에 관한 법률 시행규칙",
-  "expect_article": "별표3·제2조"
+  "expect_article": "별표3·제2조",
+  "page": "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__시행규칙_별표3_어업활동허가또는시험연구승인시제한이나조건",
+  "rank": 90,
+  "liveFail": true
  },
  {
   "law": "선박법",
   "question": "\"배가 침몰했는데 뭘 신고해야 하나요?\"",
   "expect_law": "선박법",
-  "expect_article": "제22조"
+  "expect_article": "제22조",
+  "page": "선박법__선박등록",
+  "rank": 70,
+  "liveFail": true
  },
  {
   "law": "선박직원법",
   "question": "\"무면허로 배를 몰다 걸리면 처벌이 얼마인가요?\"",
   "expect_law": "선박직원법",
-  "expect_article": "제27조"
+  "expect_article": "제27조",
+  "page": "선박직원법",
+  "rank": 32,
+  "liveFail": false
  },
  {
   "law": "섬발전촉진법",
   "question": "5명 사는 섬인데 저희가 직접 지정 신청 낼 수 있나요?",
   "expect_law": "「섬발전촉진법 시행령」",
-  "expect_article": "제4조"
+  "expect_article": "제4조",
+  "page": "섬발전촉진법__개발대상섬지정",
+  "rank": 23,
+  "liveFail": true
  },
  {
   "law": "수산부산물재활용촉진에관한법률",
   "question": "시설·장비 \"전부\" 미달과 \"일부\" 미달의 차수 구조가 다른가?",
   "expect_law": "「수산부산물 재활용 촉진에 관한 법률 시행령」",
-  "expect_article": "별표2 마목"
+  "expect_article": "별표2 마목",
+  "page": "수산부산물재활용촉진에관한법률__수산부산물처리업허가",
+  "rank": 67,
+  "liveFail": true
  },
  {
   "law": "수산부산물재활용촉진에관한법률",
   "question": "\"이사 가면(사업장 소재지 변경) 신고해야 하나요?\"",
   "expect_law": "「수산부산물 재활용 촉진에 관한 법률 시행규칙」",
-  "expect_article": "제7조①3호"
+  "expect_article": "제7조①3호",
+  "page": "해양환경관리법__오염물질해양배출금지",
+  "rank": 123,
+  "liveFail": true
  },
  {
   "law": "수산업ㆍ어촌발전기본법",
   "question": "2025-10-22 이전에 이미 수립된 기본계획도 새 제7조②(8개호) 기준으로 재수립해야 하나?",
   "expect_law": "수산업ㆍ어촌발전기본법",
-  "expect_article": "부칙(제20939호) 제2조"
- },
- {
-  "law": "수산업ㆍ어촌발전기본법",
-  "question": "생산자단체엔 뭐가 포함되나요(수협만?)",
-  "expect_law": "수산업ㆍ어촌발전기본법",
-  "expect_article": "시행령 제4조·시행규칙 제2조"
- },
- {
-  "law": "수산종자산업육성법",
-  "question": "허가 신청할 때 다른 어업권자와 구역이 겹치면 어떻게 하나요?",
-  "expect_law": "수산종자산업육성법 시행규칙",
-  "expect_article": "제13조"
+  "expect_article": "부칙(제20939호) 제2조",
+  "page": "수산업ㆍ어촌발전기본법",
+  "rank": 120,
+  "liveFail": true
  },
  {
   "law": "수상에서의수색ㆍ구조등에관한법률",
   "question": "관할 경계가 애매한 해역에서 사고 시 어느 지역구조본부가 1차 대응기관인지 답할 수 있나?",
   "expect_law": "수상에서의수색ㆍ구조등에관한법률",
-  "expect_article": "제15조"
+  "expect_article": "제15조",
+  "page": "수상에서의수색ㆍ구조등에관한법률",
+  "rank": 183,
+  "liveFail": false
  },
  {
   "law": "수중레저활동의안전및활성화등에관한법률",
   "question": "낚시어선 손님들이 배 위에서 즉흥 스노클링하겠다는데, 내가 현장에서 확인해야 할 것은?",
   "expect_law": "수중레저활동의안전및활성화등에관한법률",
-  "expect_article": "제3조"
+  "expect_article": "제3조",
+  "page": "수상레저안전법__안전준수의무",
+  "rank": 120,
+  "liveFail": false
  },
  {
   "law": "어선법",
   "question": "\"원양어선(원양산업발전법 허가)인데 어선법 적용에서 빠지는 부분이 있나요?\"",
   "expect_law": "어선법 시행규칙",
-  "expect_article": "제4조"
- },
- {
-  "law": "어선법",
-  "question": "\"이 배가 국제협약(SOLAS 등) 적용 대상인지, 어선법 적용 대상인지 둘 다 걸리면 어떻게 판단하나요?\"",
-  "expect_law": "어선법",
-  "expect_article": "제6조"
+  "expect_article": "제4조",
+  "page": "어선법",
+  "rank": 136,
+  "liveFail": false
  },
  {
   "law": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
   "question": "외국인어선원이 승선한 어선을 단속하는데, 그 선원의 여권번호·외국인등록번호 자료를 제가(해경 조사관) 직접 법무부에 요청할 수 있나요, 신고기관을 통해야만 하나요?",
   "expect_law": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
-  "expect_article": "제8조의2②"
+  "expect_article": "제8조의2②",
+  "page": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률__출입항신고",
+  "rank": 1,
+  "liveFail": true
  },
  {
   "law": "유선및도선사업법",
   "question": "무등록으로 보이는 소형 보트가 손님을 태우고 낚시 포인트로 나가는 걸 순찰 중 목격했다. 현장에서 뭘 확인해야 무면허영업으로 걸 수 있나?",
   "expect_law": "유선및도선사업법",
-  "expect_article": "제3조·시행령 제3조·제40조"
+  "expect_article": "제3조·시행령 제3조·제40조",
+  "page": "유선및도선사업법__유도선안전운항의무",
+  "rank": 49,
+  "liveFail": true
  },
  {
   "law": "해사안전기본법",
   "question": "제가 이 법 때문에 배 살 때 뭘 갖춰야 하나요?",
   "expect_law": "해사안전기본법",
-  "expect_article": "제5조"
+  "expect_article": "제5조",
+  "page": "해사안전기본법",
+  "rank": 133,
+  "liveFail": true
  },
  {
   "law": "해상교통안전법",
   "question": "다른 법에 특별 규정이 있으면 이 법이 우선인가요?",
   "expect_law": "해상교통안전법",
-  "expect_article": "제4조"
+  "expect_article": "제4조",
+  "page": "해상교통안전법__보호수역입역허가",
+  "rank": 778,
+  "liveFail": true
  },
  {
   "law": "해수욕장의이용및관리에관한법률",
   "question": "\"거짓 신고로 수탁자 지정을 받은 정황을 조사 중인데, 이게 형사입건 대상인가 과태료 대상인가?\"",
   "expect_law": "해수욕장의이용및관리에관한법률",
-  "expect_article": "제47조"
+  "expect_article": "제47조",
+  "page": "해수욕장의이용및관리에관한법률__해수욕장관리운영위탁",
+  "rank": 25,
+  "liveFail": false
  },
  {
   "law": "해양경비법",
   "question": "제 배가 이동조치됐는데 국가 소유 배가 아니라 민간 예인선 업체가 끌고 갔어요. 비용은 제가 내나요, 예인선 업체가 내나요?",
   "expect_law": "해양경비법 시행령",
-  "expect_article": "제4조의3"
+  "expect_article": "제4조의3",
+  "page": "해양경비법__해상항행보호조치",
+  "rank": 379,
+  "liveFail": true
  },
  {
   "law": "해양공간계획및관리에관한법률",
   "question": "나는 기장군에서 전복 양식(외해양식업)을 하는데, 내 어장이 어업활동보호구역 경계 밖 1.2km에 있어요. 보호 대상이 되나요?",
   "expect_law": "해양공간계획및관리에관한법률",
-  "expect_article": "제17조"
+  "expect_article": "제17조",
+  "page": "해양공간계획및관리에관한법률__해양공간적합성협의",
+  "rank": 27,
+  "liveFail": false
  },
  {
   "law": "해양과학조사법",
   "question": "우리 어선이 조사 활동을 하면 이 법 위반인가요?",
   "expect_law": "해양과학조사법",
-  "expect_article": "제20조"
+  "expect_article": "제20조",
+  "page": "해양과학조사법",
+  "rank": 187,
+  "liveFail": false
  },
  {
   "law": "해양레저관광진흥법",
   "question": "나는 은퇴 후 어촌에서 게스트하우스를 하려는 평범한 주민인데, 이 법으로 지원금 받으려면 뭘 먼저 해야 해?",
   "expect_law": "해양레저관광진흥법",
-  "expect_article": "제8조"
+  "expect_article": "제8조",
+  "page": "해양레저관광진흥법__책무와지원제도",
+  "rank": 331,
+  "liveFail": true
  },
  {
   "law": "해양수산발전기본법",
   "question": "요즘 뉴스에 \"해양신산업\"이라는 말 나오던데 이 법에 있는 거예요?",
   "expect_law": "해양수산발전기본법",
-  "expect_article": "제28조의2"
+  "expect_article": "제28조의2",
+  "page": "해양공간계획및관리에관한법률__해양용도구역",
+  "rank": 156,
+  "liveFail": true
  },
  {
   "law": "해양수산생명자원의확보ㆍ관리및이용등에관한법률",
   "question": "(1라운드#63 회귀) 지정기관이 업무 안 하면 바로 취소야 경고부터야?",
   "expect_law": "해양수산생명자원의확보ㆍ관리및이용등에관한법률 시행령",
-  "expect_article": "별표1"
+  "expect_article": "별표1",
+  "page": "해양수산생명자원의확보ㆍ관리및이용등에관한법률__기탁등록보존기관",
+  "rank": 198,
+  "liveFail": true
  },
  {
   "law": "해양환경관리법",
   "question": "방제업체 대표자 변경도 변경등록 대상 \"중요사항\"인가?",
   "expect_law": "해양환경관리법 시행규칙",
-  "expect_article": "제37조"
+  "expect_article": "제37조",
+  "page": "톤수_사고플로우",
+  "rank": 184,
+  "liveFail": false
  },
  {
   "law": "해양환경보전및활용에관한법률",
   "question": "어촌·어항 계획도 대상(별표1 25호)?",
   "expect_law": "해양환경보전및활용에관한법률 시행령",
-  "expect_article": "별표1(25호)"
+  "expect_article": "별표1(25호)",
+  "page": "해양환경보전및활용에관한법률__시행령_별표1_해양수산관련계획",
+  "rank": 34,
+  "liveFail": true
  }
 ]
