@@ -1,0 +1,1824 @@
+{
+ "tot": {
+  "laws": 74,
+  "coreMissing": 3,
+  "coreStub": 0,
+  "annexShort": 0,
+  "ruleStubs": 2,
+  "bad": 5
+ },
+ "rows": [
+  {
+   "law": "물환경보전법",
+   "domain": "15_관련타부처",
+   "tier": 2,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [
+    "금강수계수변구역변경.txt(0자)",
+    "물환경측정망운영계획.txt(0자)"
+   ],
+   "manifest": null,
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 130,
+   "annexWant": 130,
+   "ruleShort": [
+    "(영산강유역환경청)수질오염물질배출허용기준중별도배출허용기준지정통합고시.txt(189자)",
+    "2017년도가격변동지수및2018년도부과금(과징금)산정지수.txt(265자)",
+    "금강수계광역시·특별자치시·도경계지점의목표수질(BOD,T-P).txt(202자)",
+    "낙동강수계수변구역변경.txt(205자)",
+    "삽교호수계구간별오염총량목표수질.txt(200자)",
+    "상수원호소지정.txt(108자)",
+    "수계영향권별환경관리지역지정고시.txt(52자)",
+    "수질배출부과금신용카드납부대행기관및납부대행수수료.txt(253자)",
+    "수질오염물질배출허용기준중별도배출허용기준(나주시혁신산업단지).txt(187자)",
+    "수질오염물질배출허용기준중별도배출허용기준(양산일반산업단지및어곡일반산업단지).txt(212자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정(마산진북산업단지).txt(131자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정(보령관창산단).txt(145자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정(사천산단,사남농공).txt(154자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(공주보물농공단지).txt(160자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(공주월미1,2농공단지).txt(172자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(공주정안제1·제2농공단지).txt(145자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(공주탄천일반산업단지).txt(143자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(광혜원산업단지).txt(251자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(광혜원제2농공단지).txt(238자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(구례용방).txt(139자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(구례자연드림파크2단지).txt(151자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(논산강경농공단지).txt(138자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(논산동산일반산업단지).txt(186자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(당진석문국가산업단지).txt(151자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(당진합덕일반산업단지).txt(143자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(대전광역시환경에너지종합타운).txt(138자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(명학일반산업단지).txt(179자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(서산테크노밸리산단).txt(144자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(세종첨단일반산업단지).txt(155자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(영광대마산업단지).txt(139자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(영암특화).txt(130자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(예당일반산업단지).txt(238자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(예산관작농공단지).txt(143자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(예산일반산업단지).txt(161자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(장흥농공단지).txt(136자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(장흥바이오식품산업단지).txt(145자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(증평일반산업단지).txt(181자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(진천문백산업단지).txt(144자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(테크노폴리스일반산업단지).txt(147자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시(홍성일반산업단지).txt(139자)",
+    "수질오염물질배출허용기준중별도배출허용기준지정·고시.txt(145자)",
+    "수질오염물질총량관리지역지정(삽교호수계).txt(102자)",
+    "수질오염물질총량관리지역지정(진위천수계).txt(104자)",
+    "영산강·섬진강수계광역시·도경계지점의목표수질(BOD,T-P).txt(265자)",
+    "영산강·섬진강수계수변구역변경.txt(211자)",
+    "진위천수계하단지점의오염총량목표수질.txt(196자)",
+    "한강수계수변구역변경.txt(207자)",
+    "한강수계특별광역시도경계지점의목표수질.txt(270자)",
+    "호소환경조사대상호소.txt(175자)"
+   ],
+   "ruleCount": 106,
+   "bad": 2
+  },
+  {
+   "law": "해양경찰법",
+   "domain": "02_해양경비구조",
+   "tier": 1,
+   "coreMissing": [
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 0,
+   "annexWant": 0,
+   "ruleShort": [],
+   "ruleCount": 0,
+   "bad": 2
+  },
+  {
+   "law": "출입국관리법",
+   "domain": "15_관련타부처",
+   "tier": 2,
+   "coreMissing": [
+    "시행령.txt"
+   ],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": null,
+   "expected": [
+    "법률.txt",
+    "시행규칙.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 299,
+   "annexWant": 299,
+   "ruleShort": [],
+   "ruleCount": 6,
+   "bad": 1
+  },
+  {
+   "law": "갯벌및그주변지역의지속가능한관리와복원에관한법률",
+   "domain": "07_해양환경생태",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_시행령시행규칙": 0,
+     "미수집_별표": 0,
+     "미수집_고시": 9,
+     "미수집_타법": 6
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 11,
+   "annexWant": 11,
+   "ruleShort": [],
+   "ruleCount": 8,
+   "bad": 0
+  },
+  {
+   "law": "공유수면관리및매립에관한법률",
+   "domain": "07_해양환경생태",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 44,
+   "annexWant": 44,
+   "ruleShort": [
+    "공유수면점용·사용실시계획신고.txt(204자)",
+    "공유수면점용·사용허가(2023새만금세계잼버리대회기반시설설치).txt(297자)",
+    "공유수면점용·사용허가(글로벌리더센터신축공사중상·하수도관로설치).txt(284자)",
+    "공유수면점용·사용허가(글로벌리더센터신축공사중통신관로설치).txt(259자)"
+   ],
+   "ruleCount": 6,
+   "bad": 0
+  },
+  {
+   "law": "국제항해선박등에대한해적행위피해예방에관한법률",
+   "domain": "03_해상교통안전",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 31,
+   "annexWant": 31,
+   "ruleShort": [],
+   "ruleCount": 1,
+   "bad": 0
+  },
+  {
+   "law": "국제항해선박및항만시설의보안에관한법률",
+   "domain": "03_해상교통안전",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 56,
+   "annexWant": 56,
+   "ruleShort": [],
+   "ruleCount": 12,
+   "bad": 0
+  },
+  {
+   "law": "낚시관리및육성법",
+   "domain": "09_레저관광",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 38,
+   "annexWant": 38,
+   "ruleShort": [],
+   "ruleCount": 6,
+   "bad": 0
+  },
+  {
+   "law": "내수면어업법",
+   "domain": "05_수산어업",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 30,
+   "annexWant": 30,
+   "ruleShort": [],
+   "ruleCount": 2,
+   "bad": 0
+  },
+  {
+   "law": "농수산물의원산지표시등에관한법률",
+   "domain": "12_수산물유통",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 10,
+   "annexWant": 10,
+   "ruleShort": [],
+   "ruleCount": 8,
+   "bad": 0
+  },
+  {
+   "law": "농수산물품질관리법",
+   "domain": "12_수산물유통",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 125,
+   "annexWant": 125,
+   "ruleShort": [],
+   "ruleCount": 37,
+   "bad": 0
+  },
+  {
+   "law": "도선법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_시행령시행규칙": 0,
+     "미수집_별표": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 33,
+   "annexWant": 33,
+   "ruleShort": [],
+   "ruleCount": 15,
+   "bad": 0
+  },
+  {
+   "law": "독도의지속가능한이용에관한법률",
+   "domain": "08_섬영토",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 0,
+   "annexWant": 0,
+   "ruleShort": [],
+   "ruleCount": 1,
+   "bad": 0
+  },
+  {
+   "law": "마리나항만의조성및관리등에관한법률",
+   "domain": "09_레저관광",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 44,
+   "annexWant": 44,
+   "ruleShort": [],
+   "ruleCount": 2,
+   "bad": 0
+  },
+  {
+   "law": "무인도서의보전및관리에관한법률",
+   "domain": "08_섬영토",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 26,
+   "annexWant": 26,
+   "ruleShort": [],
+   "ruleCount": 0,
+   "bad": 0
+  },
+  {
+   "law": "배타적경제수역및대륙붕에관한법률",
+   "domain": "01_해양주권정책",
+   "tier": 2,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_시행령시행규칙": 0,
+     "미수집_별표": 0,
+     "미수집_고시": 0,
+     "미수집_타법": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt"
+   ],
+   "annexHave": 0,
+   "annexWant": 0,
+   "ruleShort": [],
+   "ruleCount": 0,
+   "bad": 0
+  },
+  {
+   "law": "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률",
+   "domain": "01_해양주권정책",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 29,
+   "annexWant": 29,
+   "ruleShort": [],
+   "ruleCount": 0,
+   "bad": 0
+  },
+  {
+   "law": "서해5도지원특별법",
+   "domain": "08_섬영토",
+   "tier": 2,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_시행령시행규칙": 0,
+     "미수집_별표": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 4,
+   "annexWant": 0,
+   "ruleShort": [],
+   "ruleCount": 4,
+   "bad": 0
+  },
+  {
+   "law": "선박교통관제에관한법률",
+   "domain": "03_해상교통안전",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 6,
+   "annexWant": 6,
+   "ruleShort": [],
+   "ruleCount": 6,
+   "bad": 0
+  },
+  {
+   "law": "선박법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_시행령시행규칙": 0,
+     "미수집_별표": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 29,
+   "annexWant": 29,
+   "ruleShort": [],
+   "ruleCount": 4,
+   "bad": 0
+  },
+  {
+   "law": "선박안전법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_시행령시행규칙": 0,
+     "미수집_별표": 0,
+     "미수집_고시": 5,
+     "미수집_타법": 15
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 151,
+   "annexWant": 147,
+   "ruleShort": [],
+   "ruleCount": 45,
+   "bad": 0
+  },
+  {
+   "law": "선박의입항및출항등에관한법률",
+   "domain": "03_해상교통안전",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_별표": 0
+    },
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 35,
+   "annexWant": 35,
+   "ruleShort": [],
+   "ruleCount": 30,
+   "bad": 0
+  },
+  {
+   "law": "선박직원법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 36,
+   "annexWant": 36,
+   "ruleShort": [],
+   "ruleCount": 9,
+   "bad": 0
+  },
+  {
+   "law": "선박평형수(船舶平衡水)관리법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_별표": 0,
+     "미수집_고시": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 71,
+   "annexWant": 71,
+   "ruleShort": [],
+   "ruleCount": 2,
+   "bad": 0
+  },
+  {
+   "law": "선원법",
+   "domain": "06_선원노동",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행규칙.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 78,
+   "annexWant": 76,
+   "ruleShort": [],
+   "ruleCount": 13,
+   "bad": 0
+  },
+  {
+   "law": "섬발전촉진법",
+   "domain": "08_섬영토",
+   "tier": 2,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 0,
+   "annexWant": 0,
+   "ruleShort": [],
+   "ruleCount": 1,
+   "bad": 0
+  },
+  {
+   "law": "수산물유통의관리및지원에관한법률",
+   "domain": "12_수산물유통",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 13,
+   "annexWant": 13,
+   "ruleShort": [],
+   "ruleCount": 9,
+   "bad": 0
+  },
+  {
+   "law": "수산부산물재활용촉진에관한법률",
+   "domain": "12_수산물유통",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 12,
+   "annexWant": 12,
+   "ruleShort": [],
+   "ruleCount": 2,
+   "bad": 0
+  },
+  {
+   "law": "수산업법",
+   "domain": "05_수산어업",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 122,
+   "annexWant": 122,
+   "ruleShort": [],
+   "ruleCount": 13,
+   "bad": 0
+  },
+  {
+   "law": "수산업협동조합법",
+   "domain": "05_수산어업",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행규칙.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 7,
+   "annexWant": 6,
+   "ruleShort": [],
+   "ruleCount": 12,
+   "bad": 0
+  },
+  {
+   "law": "수산업ㆍ어촌발전기본법",
+   "domain": "12_수산물유통",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 0,
+   "annexWant": 0,
+   "ruleShort": [],
+   "ruleCount": 5,
+   "bad": 0
+  },
+  {
+   "law": "수산자원관리법",
+   "domain": "05_수산어업",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 63,
+   "annexWant": 63,
+   "ruleShort": [],
+   "ruleCount": 8,
+   "bad": 0
+  },
+  {
+   "law": "수산종자산업육성법",
+   "domain": "05_수산어업",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 43,
+   "annexWant": 43,
+   "ruleShort": [],
+   "ruleCount": 7,
+   "bad": 0
+  },
+  {
+   "law": "수상레저기구의등록및검사에관한법률",
+   "domain": "09_레저관광",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 31,
+   "annexWant": 31,
+   "ruleShort": [],
+   "ruleCount": 4,
+   "bad": 0
+  },
+  {
+   "law": "수상레저안전법",
+   "domain": "09_레저관광",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 59,
+   "annexWant": 59,
+   "ruleShort": [
+    "(통영해양경찰서)수상레저활동금지구역개정공고.txt(276자)"
+   ],
+   "ruleCount": 27,
+   "bad": 0
+  },
+  {
+   "law": "수상에서의수색ㆍ구조등에관한법률",
+   "domain": "02_해양경비구조",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 39,
+   "annexWant": 39,
+   "ruleShort": [],
+   "ruleCount": 3,
+   "bad": 0
+  },
+  {
+   "law": "수중레저활동의안전및활성화등에관한법률",
+   "domain": "09_레저관광",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 9,
+   "annexWant": 9,
+   "ruleShort": [],
+   "ruleCount": 2,
+   "bad": 0
+  },
+  {
+   "law": "신항만건설촉진법",
+   "domain": "10_항만물류",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 10,
+   "annexWant": 10,
+   "ruleShort": [],
+   "ruleCount": 2,
+   "bad": 0
+  },
+  {
+   "law": "양식산업발전법",
+   "domain": "05_수산어업",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 60,
+   "annexWant": 60,
+   "ruleShort": [],
+   "ruleCount": 7,
+   "bad": 0
+  },
+  {
+   "law": "어선법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_시행령시행규칙": 0,
+     "미수집_별표": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 116,
+   "annexWant": 116,
+   "ruleShort": [],
+   "ruleCount": 19,
+   "bad": 0
+  },
+  {
+   "law": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
+   "domain": "05_수산어업",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 26,
+   "annexWant": 26,
+   "ruleShort": [],
+   "ruleCount": 4,
+   "bad": 0
+  },
+  {
+   "law": "어선원및어선재해보상보험법",
+   "domain": "06_선원노동",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 7,
+   "annexWant": 7,
+   "ruleShort": [],
+   "ruleCount": 2,
+   "bad": 0
+  },
+  {
+   "law": "어촌ㆍ어항법",
+   "domain": "10_항만물류",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 25,
+   "annexWant": 25,
+   "ruleShort": [],
+   "ruleCount": 4,
+   "bad": 0
+  },
+  {
+   "law": "연안관리법",
+   "domain": "07_해양환경생태",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 47,
+   "annexWant": 15,
+   "ruleShort": [],
+   "ruleCount": 4,
+   "bad": 0
+  },
+  {
+   "law": "연안사고예방에관한법률",
+   "domain": "02_해양경비구조",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 17,
+   "annexWant": 17,
+   "ruleShort": [],
+   "ruleCount": 32,
+   "bad": 0
+  },
+  {
+   "law": "영해및접속수역법",
+   "domain": "01_해양주권정책",
+   "tier": 2,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 2,
+   "annexWant": 2,
+   "ruleShort": [],
+   "ruleCount": 0,
+   "bad": 0
+  },
+  {
+   "law": "원양산업발전법",
+   "domain": "05_수산어업",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 52,
+   "annexWant": 52,
+   "ruleShort": [],
+   "ruleCount": 10,
+   "bad": 0
+  },
+  {
+   "law": "유류오염손해배상보장법",
+   "domain": "14_해양사법",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": null,
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 16,
+   "annexWant": 16,
+   "ruleShort": [],
+   "ruleCount": 1,
+   "bad": 0
+  },
+  {
+   "law": "유선및도선사업법",
+   "domain": "10_항만물류",
+   "tier": 2,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 36,
+   "annexWant": 36,
+   "ruleShort": [],
+   "ruleCount": 6,
+   "bad": 0
+  },
+  {
+   "law": "자연유산의보존및활용에관한법률",
+   "domain": "15_관련타부처",
+   "tier": 0,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": null,
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 53,
+   "annexWant": 53,
+   "ruleShort": [],
+   "ruleCount": 5,
+   "bad": 0
+  },
+  {
+   "law": "폐기물관리법",
+   "domain": "15_관련타부처",
+   "tier": 2,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": null,
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 0,
+   "annexWant": 0,
+   "ruleShort": [
+    "방치폐기물처리이행보증보험금산출을위한폐기물의종류별처리단가.txt(299자)",
+    "의료폐기물전용용기검사수수료고시.txt(240자)",
+    "폐기물매립시설사후관리대행자지정고시.txt(212자)",
+    "폐기물시험·분석수수료.txt(166자)"
+   ],
+   "ruleCount": 12,
+   "bad": 0
+  },
+  {
+   "law": "한국해양교통안전공단법",
+   "domain": "13_공공기관",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_별표": 0,
+     "미수집_고시": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 1,
+   "annexWant": 1,
+   "ruleShort": [],
+   "ruleCount": 1,
+   "bad": 0
+  },
+  {
+   "law": "한국해양수산연수원법",
+   "domain": "13_공공기관",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_시행령시행규칙": 0,
+     "미수집_별표": 0,
+     "미수집_고시": 0,
+     "미수집_타법": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 0,
+   "annexWant": 0,
+   "ruleShort": [],
+   "ruleCount": 0,
+   "bad": 0
+  },
+  {
+   "law": "항로표지법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 39,
+   "annexWant": 39,
+   "ruleShort": [],
+   "ruleCount": 16,
+   "bad": 0
+  },
+  {
+   "law": "항만법",
+   "domain": "10_항만물류",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_고시": 8
+    },
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행규칙.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 41,
+   "annexWant": 30,
+   "ruleShort": [
+    "무역항내어항구(분구)설정고시.txt(232자)",
+    "항만재개발사업시행자지정.txt(239자)"
+   ],
+   "ruleCount": 37,
+   "bad": 0
+  },
+  {
+   "law": "항만운송사업법",
+   "domain": "10_항만물류",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 39,
+   "annexWant": 39,
+   "ruleShort": [],
+   "ruleCount": 20,
+   "bad": 0
+  },
+  {
+   "law": "항만재개발및주변지역발전에관한법률",
+   "domain": "10_항만물류",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 13,
+   "annexWant": 13,
+   "ruleShort": [],
+   "ruleCount": 6,
+   "bad": 0
+  },
+  {
+   "law": "해사안전기본법",
+   "domain": "03_해상교통안전",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_별표": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 5,
+   "annexWant": 5,
+   "ruleShort": [],
+   "ruleCount": 2,
+   "bad": 0
+  },
+  {
+   "law": "해상교통안전법",
+   "domain": "03_해상교통안전",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 64,
+   "annexWant": 64,
+   "ruleShort": [
+    "(부안해양경찰서)해양레저활동허가대상수역고시.txt(233자)"
+   ],
+   "ruleCount": 44,
+   "bad": 0
+  },
+  {
+   "law": "해수욕장의이용및관리에관한법률",
+   "domain": "09_레저관광",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 7,
+   "annexWant": 7,
+   "ruleShort": [],
+   "ruleCount": 3,
+   "bad": 0
+  },
+  {
+   "law": "해양경비법",
+   "domain": "02_해양경비구조",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 1,
+   "annexWant": 1,
+   "ruleShort": [],
+   "ruleCount": 6,
+   "bad": 0
+  },
+  {
+   "law": "해양공간계획및관리에관한법률",
+   "domain": "01_해양주권정책",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_시행령시행규칙": 0,
+     "미수집_별표": 0,
+     "미수집_고시": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 9,
+   "annexWant": 9,
+   "ruleShort": [],
+   "ruleCount": 7,
+   "bad": 0
+  },
+  {
+   "law": "해양과학조사법",
+   "domain": "01_해양주권정책",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_시행령시행규칙": 0,
+     "미수집_별표": 0,
+     "미수집_고시": 0,
+     "미수집_타법": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 7,
+   "annexWant": 7,
+   "ruleShort": [],
+   "ruleCount": 1,
+   "bad": 0
+  },
+  {
+   "law": "해양레저관광진흥법",
+   "domain": "09_레저관광",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 0,
+   "annexWant": 0,
+   "ruleShort": [],
+   "ruleCount": 0,
+   "bad": 0
+  },
+  {
+   "law": "해양사고의조사및심판에관한법률",
+   "domain": "14_해양사법",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 20,
+   "annexWant": 20,
+   "ruleShort": [],
+   "ruleCount": 1,
+   "bad": 0
+  },
+  {
+   "law": "해양생태계의보전및관리에관한법률",
+   "domain": "07_해양환경생태",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 42,
+   "annexWant": 42,
+   "ruleShort": [],
+   "ruleCount": 6,
+   "bad": 0
+  },
+  {
+   "law": "해양수산발전기본법",
+   "domain": "01_해양주권정책",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {
+     "미수집_별표": 0,
+     "미수집_고시": 0
+    },
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 1,
+   "annexWant": 1,
+   "ruleShort": [],
+   "ruleCount": 1,
+   "bad": 0
+  },
+  {
+   "law": "해양수산생명자원의확보ㆍ관리및이용등에관한법률",
+   "domain": "07_해양환경생태",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 21,
+   "annexWant": 21,
+   "ruleShort": [],
+   "ruleCount": 4,
+   "bad": 0
+  },
+  {
+   "law": "해양조사와해양정보활용에관한법률",
+   "domain": "01_해양주권정책",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 59,
+   "annexWant": 59,
+   "ruleShort": [],
+   "ruleCount": 19,
+   "bad": 0
+  },
+  {
+   "law": "해양치유자원의관리및활용에관한법률",
+   "domain": "11_해양신산업",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 17,
+   "annexWant": 17,
+   "ruleShort": [],
+   "ruleCount": 3,
+   "bad": 0
+  },
+  {
+   "law": "해양폐기물및해양오염퇴적물관리법",
+   "domain": "07_해양환경생태",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt",
+    "시행규칙.txt"
+   ],
+   "annexHave": 35,
+   "annexWant": 35,
+   "ruleShort": [],
+   "ruleCount": 7,
+   "bad": 0
+  },
+  {
+   "law": "해양환경관리법",
+   "domain": "07_해양환경생태",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행규칙.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 153,
+   "annexWant": 135,
+   "ruleShort": [
+    "낙동강수계목표수질설정수계구간및유역.txt(132자)",
+    "영산강·섬진강수계목표수질설정수계구간및유역.txt(168자)"
+   ],
+   "ruleCount": 14,
+   "bad": 0
+  },
+  {
+   "law": "해양환경보전및활용에관한법률",
+   "domain": "07_해양환경생태",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 2,
+   "annexWant": 2,
+   "ruleShort": [],
+   "ruleCount": 1,
+   "bad": 0
+  },
+  {
+   "law": "해운법",
+   "domain": "04_선박해운",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": false
+   },
+   "expected": [
+    "법률.txt",
+    "시행규칙.txt",
+    "시행령.txt"
+   ],
+   "annexHave": 52,
+   "annexWant": 49,
+   "ruleShort": [],
+   "ruleCount": 15,
+   "bad": 0
+  }
+ ]
+}
