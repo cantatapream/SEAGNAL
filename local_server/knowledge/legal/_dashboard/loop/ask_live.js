@@ -90,6 +90,10 @@ function report(s, data) {
     const data = await ask(s.query, s.ctx);
     s.ctx = data.ctxNext || null;
     s.last = { clarify: data.clarify || null };
+    // ★응답 원본을 그대로 남긴다(2026-08-21). 화면에서 조문 링크가 걸리는지 재는 도구
+    //   (link_live.js)가 answer·citationChain·citeLaws·forms 를 **요약이 아니라 원본으로** 봐야 한다.
+    //   report() 는 사람이 읽는 요약이라 필드가 잘려 있다. 에이전트가 쓰던 동작은 그대로다.
+    s.lastDone = data;
     s.log.push({ q: s.query, clarify: !!data.clarify });
     save(s); report(s, data); return;
   }
@@ -117,6 +121,7 @@ function report(s, data) {
   const data = await ask(s.query, s.ctx);
   s.ctx = data.ctxNext || s.ctx;
   s.last = { clarify: data.clarify || null };
+  s.lastDone = data;                                   // 위와 같은 이유 — 응답 원본 보존
   s.log.push({ q: s.query, clarify: !!data.clarify });
   save(s); report(s, data);
 })().catch(e => { console.error('실패:', e.message); process.exit(1); });
