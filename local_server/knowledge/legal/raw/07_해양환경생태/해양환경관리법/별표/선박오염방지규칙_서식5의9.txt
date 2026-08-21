@@ -1,0 +1,114 @@
+[선박오염방지규칙] 서식5의9 — 오존층파괴물질기록부
+
+[별지 제5호의9서식] <개정 2020. 12. 24.>  (제1쪽)                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                            ┃
+┃                                                                            ┃
+┃오존층파괴물질기록부                                                        ┃
+┃OZONE DEPLETING SUBSTANCES RECORD BOOK                                      ┃
+┃                                                                            ┃
+┃                                                                            ┃
+┃                                                                            ┃
+┃(오존층파괴물질을 포함하고 재충전할 수 있는 설비를 보유한 「선박으로부터의  ┃
+┃오염방지를 위한 국제협약」 부속서 6의 제6.1규칙을 적용받는 선박)            ┃
+┃(Each ship subject to regulation 6.1 of MARPOL Annex 6 which has            ┃
+┃rechargeable systems that contain ozone depleting substances)               ┃
+┃                                                                            ┃
+┃선명:                                                                       ┃
+┃Name of ship                                                                ┃
+┃                                                                            ┃
+┃선박번호 또는 신호부자:                                                     ┃
+┃Distinctive number or letters                                               ┃
+┃                                                                            ┃
+┃총톤수:                                                                     ┃
+┃Gross tonnage                                                               ┃
+┃                                                                            ┃
+┃                                                                            ┃
+┃                                                                            ┃
+┃기간:                    부터                     까지                      ┃
+┃Period: from                    to                                          ┃
+┃                                                                            ┃
+┃                                                                            ┃
+┃                                                                            ┃
+┃                                                                            ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜ × 297㎜[인쇄용지(특) 100g/㎡]                                          
+                                                                                
+                                                                          
+  (제2쪽)                                                                 
+┏━━┯━━━━━━┯━━━━━━┯━━━━━━━━━━━━━━━━━━┓
+┃일자│부호(문자)  │항목(번호)  │작업기록 및 작업책임자의 서명       ┃
+┃Date│Code(letter)│Item(number)│Record of Operations/Signature of   ┃
+┃    │            │            │Officer in Charge                   ┃
+┠──┼──────┼──────┼──────────────────┨
+┃    │            │            │                                    ┃
+┠──┼──────┼──────┼──────────────────┨
+┃    │            │            │                                    ┃
+┠──┼──────┼──────┼──────────────────┨
+┃    │            │            │                                    ┃
+┠──┼──────┼──────┼──────────────────┨
+┃    │            │            │                                    ┃
+┠──┼──────┼──────┼──────────────────┨
+┃    │            │            │                                    ┃
+┠──┼──────┼──────┼──────────────────┨
+┃    │            │            │                                    ┃
+┠──┼──────┼──────┼──────────────────┨
+┃    │            │            │                                    ┃
+┠──┴──────┴──────┴──────────────────┨
+┃                                                                      ┃
+┃해양오염방지관리인의 서명:                                            ┃
+┃Signature of officer in charge of the prevention of marine pollution  ┃
+┃                                                                      ┃
+┃(해양오염방지관리인이 선임된 선박만 해당한다)                         ┃
+┃(Applicable only to the ship for which the above officer is           ┃
+┃designated)                                                           ┃
+┃                                  ──────────────────┃
+┃                                                                      ┃
+┃                                                                      ┃
+┃선장의 서명:                                                          ┃
+┃Signature of Master               ──────────────────┃
+┃                                                                      ┃
+┃                                                                      ┃
+┃                                                                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                                                                                
+  비고                                                                                                          
+                                                                                                                
+   1. 다음 표에 기재된 작업을 수행한 경우에 그 일자와 해당 작업의 내용을 표시하는 부호 및 번호를 기록하고 필요  
+  한 상세사항을 작업기록 및 작업책임자의 서명란에 적을 것                                                       
+      Whenever any of the operation described in the table below take place in the ship, the date,              
+  operational code and item number shall be inserted in the appropriate columns and the required                
+  particular shall be recorded chronologically in the column of Record of operations/signature of               
+  officer in charge.                                                                                            
+   2. 오존층파괴물질기록부는 한글로 기록하여야 하며 IAPP증서를 소지하는 선박은 영어로 기록하거나 병기할  것     
+      The entries in the Ozone Depleting Substances Record Book shall be in Korean, and, for ships              
+  holding an IAPP Certificate, in English in parallel with Korean or in English only.                           
+   3. 오존층파괴물질 기록부는 물질의 질량(kg) 단위로 기록되어야 한다.                                           
+      Entries in the Ozone Depleting Substances Record Book shall be recorded in terms of mass(kg) of           
+  substance.                                                                                                    
+                                                                                                                
+  기록하여야 할 작업의 내용과 그 부호 및 항목                                                                   
+  Contents of Work, Code and Item to be Recorded                                                                
+  ┏━━━┯━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓            
+  ┃부 호 │항 목 │기록할 사항의 목록                                                            ┃            
+  ┃Code  │Item  │List of Items to be Recorded                                                  ┃            
+  ┠───┼───┼───────────────────────────────────────┨            
+  ┃(A)   │      │오존층파괴물질이 포함된 설비의 완전한 또는 부분적인 충전                      ┃            
+  ┃      │      │Recharge, full or partial, of equipment containing ozone depleting substances ┃            
+  ┃      │1     │                                                                              ┃            
+  ┃(B)   │      │오존층파괴물질이 포함된 설비의 수리나 정비                                    ┃            
+  ┃      │2     │Repair or maintenance of equipment containing ozone depleting substances      ┃            
+  ┃      │      │                                                                              ┃            
+  ┃(C)   │      │오존층파괴물질 대기 배출                                                      ┃            
+  ┃      │      │Discharge of ozone depleting substances to the atmosphere                     ┃            
+  ┃      │      │고의적인 배출                                                                 ┃            
+  ┃      │      │Deliberate discharge                                                          ┃            
+  ┃      │      │고의적이지 아닌 배출                                                          ┃            
+  ┃      │      │Non-deliberate discharge                                                      ┃            
+  ┃      │      │                                                                              ┃            
+  ┃(D)   │      │육상 수용시설로의 오존층파괴물질의 배출                                       ┃            
+  ┃      │      │Discharge of ozone depleting substances to land-based reception facilities    ┃            
+  ┃      │      │                                                                              ┃            
+  ┃(E)   │      │본선에서 오존층파괴물질의 수급                                                ┃            
+  ┃      │      │Receive of ozone depleting substances in the ship                             ┃            
+  ┗━━━┷━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
