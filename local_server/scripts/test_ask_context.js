@@ -754,8 +754,12 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
         R.scoreOne(p0, ['신고'], null) === R.scoreOne(p0, ['신고']));
     }
 
-    // (3) 되묻기 상한 10(사용자 확정) — 같은 조건 재질문 차단이 실질 방어선이 된다
-    ok('되묻기 상한이 10이다', /const CLARIFY_MAX_ROUNDS = 10;/.test(RET_SRC));
+    // (3) 되묻기 상한 5(2026-08-21 사용자 확정, 종전 10) — 같은 조건 재질문 차단이 실질 방어선인데
+    //     그 방어선이 라이브에서 뚫린 것이 확인돼(같은 축을 2·4회차에 다시 물음) 천장을 낮췄다.
+    //     ⚠D-트리 가장 깊은 경로 + 확인 = 4라운드라 5 아래로는 내리면 안 된다(test_zone_tree_wiring).
+    ok('되묻기 상한이 5다', /const CLARIFY_MAX_ROUNDS = 5;/.test(RET_SRC));
+    ok('D-트리 최대 깊이(4)보다는 크다 — 트리 경로를 막지 않는다',
+      Number((/const CLARIFY_MAX_ROUNDS = (\d+);/.exec(RET_SRC) || [])[1]) > 4);
     ok('질문 문장·선택지 집합이 같으면 차단한다(표현만 바꾼 재질문)',
       /function sameClarifyAsLast\(/.test(RET_SRC) && /sameClarifyAsLast\(question, options, prevClarify, chosenLabel\)/.test(RET_SRC));
     // ★고른 값을 함께 넘겨야 ⓓ(고르지 않은 갈래 재출현) 검사가 돈다 — 안 넘기면 그 검사가 통째로 죽는다.
@@ -1080,6 +1084,25 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('되묻기 판단·답변 합성 **둘 다**에 넘긴다',
       /ctx\.cl, ctx\.topic, history(?:, aiDiag)?\)/.test(ROUTES_SRC) &&
       /synthesizeAnswerStream\(q, contextPages, history\)/.test(ROUTES_SRC));
+    // ★[2026-08-21 라이브 추적으로 발견] 되묻기 라운드 카운터(ctx.cl.n)가 되돌아오는가.
+    //   normalizeAskCtx 가 cl 을 다시 만들면서 n 을 빠뜨려, routes 의 clarifyRoundNext 가 매번 1 을
+    //   돌려줬다 — 되묻기를 세 번 내리 내는 동안 ctx.cl.n 이 1·1·1 이었다(실측). 이 카운터는
+    //   사용자가 버튼 대신 **직접 타이핑**해 답할 때 유일하게 작동하는 상한이라(구분자가 안 붙어
+    //   byJoiner 가 0), 죽어 있으면 CLARIFY_MAX_ROUNDS 가 그 경우엔 한 번도 발동하지 못한다.
+    {
+      const back = R.normalizeAskCtx({ cl: { q: '어떤 배인가요?', labels: ['어선', '낚시어선'], n: 3 } }, { fields: {} });
+      ok('★되묻기 라운드 수(ctx.cl.n)를 되받는다', back.cl.n === 3, '받은 n=' + back.cl.n);
+      ok('음수·비정상 n 은 0 으로 막는다',
+        R.normalizeAskCtx({ cl: { q: 'x', labels: [], n: -5 } }, { fields: {} }).cl.n === 0);
+      // 정규화의 상한은 **방어값**이다(정책 상한은 decideClarify 가 따로 본다 — 위 (다) 분리 원칙).
+      ok('터무니없는 n 은 방어 상한까지만 인정한다',
+        R.normalizeAskCtx({ cl: { q: 'x', labels: [], n: 9999 } }, { fields: {} }).cl.n === 99);
+      ok('n 이 없던 예전 ctx 도 그대로 받는다(하위호환)',
+        R.normalizeAskCtx({ cl: { q: 'x', labels: ['a'] } }, { fields: {} }).cl.n === 0);
+      // 되받은 n 이 실제로 다음 라운드 번호를 키우는가 — routes 의 clarifyRoundNext 와 같은 셈.
+      const next = (c) => (Number.isFinite(Number(c && c.cl && c.cl.n)) && Number(c.cl.n) > 0 ? Number(c.cl.n) : 0) + 1;
+      ok('★되받은 n 으로 다음 라운드 번호가 커진다', next(back) === 4, '다음 라운드=' + next(back));
+    }
     ok('★되묻기는 "이미 정해진 것"만 막고 진짜 갈리는 조건은 그대로 묻는다',
       /이미 정해진 것은 다시 묻지 마라/.test(RET_SRC) &&
       /아직 정해지지 않았고\*\* 답이 실제로 크게 갈리는 조건은 그대로 물어도 된다/.test(RET_SRC));

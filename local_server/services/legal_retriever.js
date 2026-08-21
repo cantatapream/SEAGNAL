@@ -94,7 +94,20 @@ const TAIL_BODY_CHARS = 3000;   // 7위 이하
 // 검색 자체는 0.1~0.3초). 다만 30개에서 순위 20위 이후는 관련성이 뚜렷이 떨어지는 노이즈성
 // 페이지가 섞이기 시작함(예: "선박안전법 형식승인및검정" 등) — 속도가 아니라 관련성 기준으로
 // 10+5=15를 "안전마진은 넉넉하되 노이즈는 덜한" 확정값으로 결정.
-const PRIMARY_TOPK = 10;
+// ★10 → 20 (2026-08-21 사용자 확정). 고정 문제집으로 재고 올렸다.
+//   왜: `search` 실패 39건을 원인별로 갈라 보니 **낱말이 아예 안 겹치는 건 단 1건**이고, 대부분은
+//   "점수는 나는데 후보에 못 든다" 였다. 처음엔 후보 문턱(MIN_KEEP_SCORE)이 범인처럼 보였는데
+//   (24건이 문턱의 80% 이상) **문턱만 낮춰서는 거의 안 움직였다** — 0.30:241 · 0.25:242 · 0.20:242 ·
+//   0.15:241. 문턱을 통과해도 **이 개수 컷**에서 잘리기 때문이다. 개수만 움직이니 곧바로 달라졌다:
+//     10:241(86.1%) · 14:244 · **20:252(90.0%)** · 30:256(91.4%)
+//   30 까지 가면 4문항을 더 얻지만, 아래 주석의 실측대로 **20위 이후는 관련성이 뚜렷이 떨어지는
+//   노이즈성 페이지**가 섞이기 시작한다 — 그래서 20 에서 멈춘다.
+//   비용(실측, 문항 13개 표본): 한 질문당 컨텍스트 **61,494자 → 79,818자(+30%)**, 페이지 12.8 → 19.3장.
+//   gemini-2.5-flash 입력 단가로 질문당 약 +2원이고, 넣는 양이 는 만큼 답변 생성이 조금 느려진다.
+//   ⚠뒤 순위는 예산이 작다(7위 이하 TAIL_BODY_CHARS=3,000자) — 늘어난 10장이 통째로 10,000자씩
+//     차지하는 게 아니다.
+//   A/B 스위치는 남긴다(되돌리거나 다시 재려면): `NRYA_PRIMARY_TOPK=10 node _dashboard/loop/golden_eval.js`
+const PRIMARY_TOPK = Number(process.env.NRYA_PRIMARY_TOPK) > 0 ? Number(process.env.NRYA_PRIMARY_TOPK) : 20;
 const HOP_MAX = 5;
 
 // ── index.json 캐시(mtime 감지) ──
@@ -1092,7 +1105,17 @@ const CLARIFY_JOINER = ' — ';
 // (2026-08-17 사용자 확정: 4 → 10. "같은 것만 다시 안 물으면 계속 되물어도 된다" — 라운드 수를
 //  묶어 막는 대신 **같은 질문을 다시 묻는 것**을 막는 쪽으로 무게를 옮겼다. 아래 sameClarifyAsLast
 //  (직전 라운드의 질문·선택지 집합 대조)가 실제 방어선이고, 이 숫자는 그게 다 뚫렸을 때의 천장이다.)
-const CLARIFY_MAX_ROUNDS = 10;
+// ★(2026-08-21 사용자 확정: 10 → 5) 그 "실제 방어선"이 **뚫려 있다는 것이 라이브로 확인됐다.**
+//  20법 표본 중 CCTV 질문에서 2회차와 4회차가 **같은 축**("어떤 법률에 따라 설치된 CCTV인가")이었는데
+//  차단 4겹이 하나도 안 걸렸다 — ⓐ~ⓓ가 모두 **직전 한 라운드만** 보고, 게다가 모델이 라벨을
+//  "국제항해선박 및 항만시설의 보안에 관한 법률에 따라 설치된 CCTV" → "국제항해선박법" 으로 줄여 써
+//  완전일치가 깨졌다(그 약칭은 공식 약칭표 720건에도 없다 — 모델이 지어냈다).
+//  같은 표본에서 답변까지 평균 2.5회 · 되묻기 없이 답한 법은 20 중 3법뿐이었다. 방어선이 제대로
+//  설 때까지는 **천장을 낮춰 사용자를 덜 가둔다**. 유사도 대조는 들이지 않는다(정상적인 좁히기를
+//  죽인 전례가 있다 — sameClarifyAsLast 주석 참고).
+//  ⚠D-트리(H-36) 경로의 가장 깊은 경로 + 확인 = 4라운드라 5로도 안 막힌다
+//    (test_zone_tree_wiring 이 그 깊이를 고정한다).
+const CLARIFY_MAX_ROUNDS = 5;
 const CLARIFY_CONFIG = {
   temperature: 0,          // ★위 QUERY_EXPAND_CONFIG 주석 참고 — 같은 질문에 같은 답이 나오게 한다
 
@@ -1116,6 +1139,9 @@ function clarifyStr(v, max) {
 // ⚠ 직전 라운드 질문은 서버에 저장하지 않는다 — 이미 있는 `ctx` 채널(클라이언트가 done.ctxNext 를
 //   들고 있다가 다음 요청에 되돌려 보내는 값)에 `cl` 축으로 얹어 나른다(새 저장소를 만들지 않는다).
 const CLARIFY_LAST_LABELS_MAX = 12;   // ctx.cl.labels 정규화 상한(요청 바디 방어)
+// ctx.cl.n 정규화 상한 — **정책이 아니라 방어값**이다(터무니없는 수가 들어오는 것만 막는다).
+// 실제 "몇 라운드까지 되물을지" 판정은 decideClarify 의 CLARIFY_MAX_ROUNDS 가 한다.
+const CTX_ROUND_CAP = 99;
 
 /** 되묻기 문장·라벨 비교용 정규화: 글자와 숫자만 남긴다(공백·조사기호·문장부호 제거). */
 function clarifyKey(s) {
@@ -1580,7 +1606,14 @@ async function search(query, opts) {
   // 아예 후보에서 뺀다. 안 그러면 진짜 좋은 매칭이 없을 때도 PRIMARY_TOPK를 억지로 채워
   // 무관한 법이 "근거"로 뜬다(예: "배 위 흡연" 질문에 폐기물관리법 등이 낀 사례).
   const topScore = scored.length ? scored[0].s : 0;
-  const MIN_KEEP_SCORE = Math.max(2, topScore * 0.3);
+  // ★A/B 스위치(2026-08-21) — 기본값은 **오늘과 문자 그대로 같은 0.3**이다(값을 안 주면 R0).
+  //   왜 두나: 고정 문제집의 `search` 실패 39건을 원인별로 갈라 보니 **24건(62%)이 이 문턱의
+  //   80% 이상**이었다(예: 선박직원법 "무면허로 배를 몰다" — 정답 페이지 12.3점, 문턱 12.7점으로
+  //   **0.4점 차 탈락**). 문턱을 조금 낮추면 그 24건이 들어오지만 무관한 페이지도 함께 들어와
+  //   프롬프트가 커진다 — **재 보고 정할 일**이라 스위치로 둔다(NRYA_IDF=off 와 같은 관행).
+  //   측정: `NRYA_KEEP_RATIO=0.25 node _dashboard/loop/golden_eval.js`
+  const KEEP_RATIO = Number(process.env.NRYA_KEEP_RATIO) > 0 ? Number(process.env.NRYA_KEEP_RATIO) : 0.3;
+  const MIN_KEEP_SCORE = Math.max(2, topScore * KEEP_RATIO);
   scored = scored.filter(x => x.s >= MIN_KEEP_SCORE);
   const primary = scored.slice(0, PRIMARY_TOPK);
 
@@ -3963,10 +3996,22 @@ function normalizeAskCtx(raw, profile) {
     // [B6] cl(직전 라운드의 되묻기) — 같은 되묻기를 표현만 바꿔 다시 묻는 것을 막는 데만 쓴다.
     //   서버는 대화 이력을 저장하지 않으므로 이 ctx 채널이 유일한 운반로다(새 저장소를 만들지 않는다).
     const clRaw = (c.cl && typeof c.cl === 'object') ? c.cl : {};
+    //   ⚠`n`(지금까지 낸 되묻기 횟수)도 반드시 되받는다. 예전에는 여기서 `q`·`labels` 만 만들어
+    //     **n 을 통째로 흘려버렸고**, 그래서 routes 의 clarifyRoundNext 가 매번 1 을 돌려줘
+    //     ctx 쪽 라운드 카운터가 영원히 1 에 멈춰 있었다(2026-08-21 라이브 추적으로 확인 —
+    //     되묻기를 세 번 내리 내는 동안 ctx.cl.n 이 1·1·1 이었다). 그 카운터는 사용자가 버튼 대신
+    //     **직접 타이핑**해 답할 때 유일하게 작동하는 상한이라(구분자가 안 붙어 byJoiner 가 0),
+    //     이게 죽어 있으면 CLARIFY_MAX_ROUNDS 가 그 경우엔 한 번도 발동하지 못한다.
+    const clN = Number(clRaw.n);
     const cl = {
       q: clarifyStr(clRaw.q, 200),
       labels: (Array.isArray(clRaw.labels) ? clRaw.labels : [])
         .slice(0, CLARIFY_LAST_LABELS_MAX).map(v => clarifyStr(v, 40)).filter(Boolean),
+      // 클라이언트가 되돌려 주는 값이라 방어적으로 자른다(음수·비정상·과대값 차단).
+      // ⚠여기서 **정책 상한(CLARIFY_MAX_ROUNDS)을 쓰지 않는다** — 정규화는 값을 깨끗이 하는 자리이고,
+      //   "몇 라운드까지 되물을지"를 정하는 것은 decideClarify 다. 두 자리를 얽으면 이해확인(uc)
+      //   라운드와 되묻기 상한이 서로 끌려다닌다(사용자 확정 (다) — 그 분리를 test_ask_context 가 지킨다).
+      n: Number.isFinite(clN) && clN > 0 ? Math.min(Math.floor(clN), CTX_ROUND_CAP) : 0,
     };
     // [B7] unk(잘 모르겠어요) — **버튼의 data-ctx 로만** 들어온다(ctxNextOf 는 이 축을 안 내보낸다).
     const unkRaw = (c.unk && typeof c.unk === 'object') ? c.unk : {};
@@ -4808,7 +4853,10 @@ function withAssumedNotice(answer, assumed) {
   return ASSUMED_NOTICE + '\n\n' + answer;
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+// termsOf 는 순수 함수다(네트워크·AI 없음). 검사 도구(_dashboard/loop/search_gap.js)가
+// "검색이 이 질문을 어떤 낱말로 쪼개는지"를 **생산과 똑같이** 보려고 쓴다 — 따로 쪼개면
+// 검사와 코드가 어긋나 엉뚱한 결론이 난다(L-136·L-153).
+module.exports = { termsOf, CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어

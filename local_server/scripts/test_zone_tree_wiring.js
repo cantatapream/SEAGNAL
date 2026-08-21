@@ -498,7 +498,7 @@ console.log('\n[T9] 질문 유형 — 경계형(짧게) vs 요건형(바로 확�
       }
     }
     ok('확인 라벨을 붙여도 트리 위치가 안 바뀐다', moved.length === 0, moved.slice(0, 5));
-    // ⑩ 확인 단계가 되묻기 라운드 예산(CLARIFY_MAX_ROUNDS=4)을 넘기지 않는다.
+    // ⑩ 확인 단계가 되묻기 라운드 예산(CLARIFY_MAX_ROUNDS, 2026-08-21 현재 5)을 넘기지 않는다.
     const deepest = Math.max(...[...leafAnswers().keys()].map(id => {
       const x = leafAnswers().get(id); return x.q.split(JOINER).length - 1;
     }));

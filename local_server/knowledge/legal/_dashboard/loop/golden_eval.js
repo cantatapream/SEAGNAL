@@ -67,6 +67,17 @@ function sameLaw(a, b) {
  *   검색이 그 페이지를 안 가져온 것이었다. **검색 실패를 위키 실패로 뒤집어씌운 것**이다.
  *   그래서 "그 행이 위키 어딘가에 있기는 한가"를 먼저 보고 갈래를 정한다(L-125 와 같은 뿌리).
  */
+/** 페이지 → 그 페이지의 법. 생산이 baseLaw 로 쓰는 값과 같은 재료(index.json). */
+function buildBaseLawMap() {
+  const m = new Map();
+  try {
+    const idx = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'index.json'), 'utf8'));
+    for (const p of (idx.pages || [])) m.set(String(p.file || ''), String(p.law || ''));
+  } catch (_) { /* 없으면 아래에서 frontmatter 로 대체 */ }
+  return m;
+}
+const BASE_LAW = buildBaseLawMap();
+
 function buildRowIndex() {
   const idx = new Map();
   const WIKI = path.resolve(__dirname, '..', '..', 'wiki');
@@ -81,8 +92,13 @@ function buildRowIndex() {
     for (const f of fs.readdirSync(D)) {
       if (!f.endsWith('.md')) continue;
       const src = fs.readFileSync(path.join(D, f), 'utf8');
+      // ★baseLaw 는 **index.json 의 law** 다(생산 routes/legal.js mergeCitationChains 와 같은 재료).
+      //   마크다운 frontmatter 를 읽으면 `law:` 줄이 없는 페이지에서 빈 값이 된다 — link_ready.js 에서
+      //   같은 실수를 이미 고쳤는데(L-153) 이 파일에는 남아 있었다. baseLaw 가 비면 계층 낱말 칸
+      //   (`시행규칙`)을 어느 법으로 풀지 몰라 **맞는 근거 행이 통째로 탈락**한다(2026-08-21 실측).
       const fm = /^---\n([\s\S]*?)\n---/.exec(src);
-      const baseLaw = fm ? ((/^law:\s*(.+)$/m.exec(fm[1]) || [])[1] || '').trim().replace(/^["']|["']$/g, '') : '';
+      const baseLaw = BASE_LAW.get(f.replace(/\.md$/, ''))
+        || (fm ? ((/^law:\s*(.+)$/m.exec(fm[1]) || [])[1] || '').trim().replace(/^["']|["']$/g, '') : '');
       // ⚠검색 결과의 `file` 은 **확장자가 없다**(`법__주제`). 색인 쪽도 떼어 맞춘다 —
       //   처음엔 `.md` 를 붙여 넣어 한 건도 안 맞았고 chain 이 0 으로 나왔다.
       const file = f.replace(/\.md$/, '');
@@ -106,12 +122,31 @@ function buildRowIndex() {
  *   (L-149·L-150 과 같은 뿌리 — 채점기의 좁은 시야를 데이터 탓으로 돌리는 것). 검사와 코드가
  *   어긋나지 않게 같은 함수를 쓴다(L-136).
  */
+/**
+ * 법령 칸이 **계층 낱말뿐**인가(`시행령`·`시행규칙`·`이 법`). 그런 칸은 그 페이지의 법(baseLaw)으로
+ * 풀어야 어느 법인지 정해진다 — 클라이언트 `_baseMatters` 와 같은 판정이다.
+ */
+function tierWordOnly(name) {
+  const t = String(name || '').replace(/[「」『』]/g, '')
+    .replace(/\s*(?:별표|별지|서식)[^가-힣]*$/, '').replace(/\s+/g, '');
+  if (!t || /^같은/.test(t)) return true;
+  return t.replace(/^(이|동|본)/, '').replace(/(법률|법령|법|시행령|시행규칙|[·ㆍ・,\/]|→)/g, '') === '';
+}
+
 function ownersOf(idx, law, arts) {
   const L = flat(law); const out = new Set();
   for (const [rl, entries] of idx) {
     if (!(rl.includes(L) || L.includes(rl))) continue;
     for (const e of entries) {
       if (out.has(e.file)) continue;
+      // ★계층 낱말뿐인 칸(`시행령`)은 **그 페이지의 법**으로 풀어야 한다(2026-08-21).
+      //   안 풀면 `시행령` 이 "…시행령" 을 이름에 품은 **모든 법**에 붙어, 아무 관계 없는 법의
+      //   페이지가 "그 근거를 가진 곳"으로 잡힌다(실측: 수산물유통법 시행령 제5조를 찾는데
+      //   해사안전기본법 페이지가 잡혔다 — 그 페이지의 `시행령 제5조` 행 때문).
+      //   ⚠생산 `filterCitationChainByAnswer` 는 이 경우를 걸러 주지 않는다(그 칸은 답변이 어느
+      //     법의 시행령을 말하든 살아남는다). 그건 그것대로 결함이지만, **측정은 그 느슨함을
+      //     물려받으면 안 된다** — 여기서 기대 법과 맞는지 따로 본다.
+      if (tierWordOnly(e.row.law) && !(L && flat(e.baseLaw) && L.startsWith(flat(e.baseLaw)))) continue;
       for (const a of arts) {
         const answer = `\u300c${e.row.law}\u300d ${a}에 따릅니다.`;
         if (R.filterCitationChainByAnswer([Object.assign({}, e.row)], answer, e.baseLaw).length) {
@@ -203,6 +238,13 @@ async function run() {
   return out;
 }
 
+// ★다른 검사도 같은 판정을 쓰도록 열어 둔다(2026-08-21). 판정을 두 번 구현하면 어긋난다(L-136) —
+//   `search_gap.js` 가 "그 행을 가진 페이지가 어디인가"를 여기서 그대로 가져다 쓴다.
+//   ⚠아래 실행부는 **직접 실행할 때만** 돈다(require 로 불러도 안 돈다).
+module.exports = { buildRowIndex, ownersOf, artsOf, flat, buildRawArticleIndex, inRaw, tierWordOnly };
+if (require.main === module) main();
+
+function main() {
 run().then(rows => {
   const n = rows.length;
   const c = v => rows.filter(r => r.verdict === v).length;
@@ -250,3 +292,4 @@ run().then(rows => {
     console.log('\n  ✅ 기준선 대비 나빠진 문항 없음');
   }
 }).catch(e => { console.error('실패:', e && e.message); process.exit(2); });
+}
