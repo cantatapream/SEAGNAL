@@ -1,12 +1,12 @@
 {
- "rows": 14762,
- "ok": 12717,
+ "rows": 14784,
+ "ok": 12737,
  "deleted": 10,
  "no_article": 199,
  "no_base": 307,
  "no_file": 489,
  "no_notice": 80,
- "skipped": 970,
+ "skipped": 972,
  "examples": {
   "no_article": [
    "concepts/국제항해선박등에대한해적행위피해예방에관한법률__민감정보및고유식별정보처리.md  |  개인정보 보호법  |  제23조  ← 제23조  (법률.txt)",
