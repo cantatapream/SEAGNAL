@@ -881,10 +881,36 @@ function sliceRelevant(body, terms, maxChars) {
  * @param {string} body - 페이지 마크다운 본문(원문)
  * @returns {string} "REVIEW" 단어가 포함된 줄을 제거한 본문
  */
-function stripUnresolvedReview(body) {
+function markUnresolvedReview(body) {
   if (!body) return body;
-  return body.split('\n').filter(line => !/\bREVIEW\b/.test(line)).join('\n');
+  const keep = [], moved = [];
+  let inLog = false;
+  for (const line of String(body || '').split('\n')) {
+    if (/^#{2,3}\s*변경\s*이력/.test(line)) inLog = true;
+    else if (/^#{2,3}\s/.test(line)) inLog = false;
+    if (!/\bREVIEW\b/.test(line)) { keep.push(line); continue; }
+    // ⓐ 변경이력 절·날짜로 시작하는 표 행 — 모델에게 쓸모없다(종전처럼 버린다). 전 위키 실측 46.7%.
+    if (inLog || /^\|\s*20\d\d-\d\d-\d\d\s*\|/.test(line)) continue;
+    // ⓑ "REVIEW-XX 해소·해제·완료" 처럼 **이미 끝났다는 언급** — 역시 버린다. 실측 9.5%.
+    if (/해소|해제|완료|정정|승격/.test(line)
+      && !/미해소|미승인|보류|확정\s*불가|확인\s*불가|판단\s*보류/.test(line)) continue;
+    // ⓒ 나머지 — **진짜 "아직 모른다"는 판단**(실측 43.8%). 버리지 않고 옮긴다.
+    moved.push(line);
+  }
+  if (!moved.length) return keep.join('\n');
+  return keep.join('\n') + '\n\n' + UNVERIFIED_HEAD + '\n' + moved.join('\n');
 }
+
+// ★모델에게 "이건 아직 모르는 것"이라고 알려주는 머리표(2026-08-20).
+//   ⚠종전에는 이 내용을 **지웠다.** 그런데 지워지는 줄에 담긴 것이 바로 우리가 정직하게 적어 둔
+//     "확정 불가" 판단이었고, 지우고 나면 주의 문구는 사라지고 단정하기 좋은 문장만 남았다 —
+//     안전장치가 오히려 환각을 만들었다(섬 발전 촉진법 Q51 실측, 135줄 → 122줄).
+//   그래서 지우는 대신 **본문 끝으로 옮겨 표시**한다. 표 한가운데서 줄을 지우면 표가 끊기고
+//   (sectionTable 은 `|` 로 시작하지 않는 줄을 만나면 표가 끝난 것으로 본다) 근거 조문 표의
+//   뒷줄이 통째로 날아가므로, 표 안에서는 빼고 끝에 모아 붙이는 것이 유일하게 안전한 방법이다.
+//   ⚠근거 조문 표에서 빠지는 것은 **그대로 둔다** — 미확인 근거를 "근거 법령" 목록에 올리면
+//     본문에서 "확인 안 됐다"고 말하면서 근거로는 내세우는 꼴이 된다(다른 종류의 거짓말).
+const UNVERIFIED_HEAD = '[미확인 — 아래는 사람 검토가 끝나지 않은 내용이다. 결론으로 쓰지 말고, 확인되지 않았다는 사실과 함께 그대로 안내하라.]';
 
 /**
  * canonicalOnly 모드에서 draft(비-statute) 페이지가 실제로 인용에 쓸 수 있는 본문을 만든다.
@@ -898,7 +924,7 @@ function citableBody(p, canonicalOnly) {
   const page = readPage(p.kind, p.file);
   const body = page ? page.body : '';
   if (canonicalOnly && p.kind !== 'statute' && p.status !== 'canonical') {
-    return stripUnresolvedReview(body);
+    return markUnresolvedReview(body);
   }
   return body;
 }
@@ -1272,7 +1298,12 @@ async function decideClarify(query, contextPages, restate, narrowLabels, lastTop
   // 상한(CLARIFY_MAX_ROUNDS)에 닿았으면 모델 판단에 맡기지 않고 여기서 곧바로 물러난다.
   // (모델이 기준3을 어기면 버튼→되묻기→버튼 무한루프가 된다.) 사용자가 직접 " — "를 타이핑한
   // 드문 경우도 되묻기를 건너뛸 뿐이라 안전한 쪽으로 틀린다.
-  const rounds = String(query || '').split(CLARIFY_JOINER).length - 1;
+  //   ⚠구분자는 **버튼으로 답했을 때만** 붙는다 — 사용자가 값을 직접 타이핑하면 이 수가 영원히
+  //     0이라 상한이 한 번도 발동하지 않았다(2026-08-20 실측, 해양환경관리법 위해도평가). 그래서
+  //     ctx 에 누적한 실제 라운드 수(prevClarify.n)와 **큰 쪽**을 쓴다.
+  const byJoiner = String(query || '').split(CLARIFY_JOINER).length - 1;
+  const byCtx = Number(prevClarify && prevClarify.n);
+  const rounds = Math.max(byJoiner, Number.isFinite(byCtx) && byCtx > 0 ? byCtx : 0);
   if (rounds >= CLARIFY_MAX_ROUNDS) return CLARIFY_NONE;
   // 머리 모양은 buildContextBlock 과 **같은 이유로** 같은 형태를 쓴다(그 주석 참고) — 모델이
   // 되묻기 문구에 이 이름을 그대로 옮겨 적으면 사용자에게 뜻이 통하지 않는다.
@@ -1793,6 +1824,28 @@ function articleEnumTokens(article) {
     }
     if (readable) out.push(...run);
   }
+  // ★별지 서식 묶음·범위: `별지 제1·2호서식` · `별지 제3·5·6·7호서식` · `별지 제1~28호서식`
+  //   ⚠2026-08-20 실측: 아래 토큰 정규식은 `별지 제N호서식` **낱개만** 뽑는다. 그래서 서식을
+  //     묶음이나 범위로 적은 칸(전 위키 7행 — 국제항해선박보안 시행규칙 별지 제1~28호서식,
+  //     수산물유통법 별지 제3·5·6·7호서식 등)은 토큰이 0개라 **어떤 답변으로도 근거에 못 떴다.**
+  //     답변은 "별지 제5호서식"처럼 낱개로 쓰므로, 칸에 적힌 번호만 낱개로 펴 준다(환각 0).
+  const formRun = /별지\s*제\s*(\d+(?:\s*[·ㆍ・~∼]\s*\d+)+)\s*호\s*서식/g;
+  while ((m = formRun.exec(s)) !== null) {
+    const run = [];
+    let readable = true;
+    for (const part of m[1].split(/[·ㆍ・]/).map(x => x.trim())) {
+      const rg = /^(\d+)\s*[~∼]\s*(\d+)$/.exec(part);
+      if (rg) {
+        const from = parseInt(rg[1], 10), to = parseInt(rg[2], 10);
+        if (!(from >= 1 && to > from && to - from <= 100)) { readable = false; break; }
+        for (let n = from; n <= to; n++) run.push(`별지 제${n}호서식`);
+        continue;
+      }
+      if (!/^\d+$/.test(part)) { readable = false; break; }
+      run.push(`별지 제${part}호서식`);
+    }
+    if (readable) out.push(...run);
+  }
   // 별표·별도 묶음: `별표1·2` · `별표2·5·6·8·9`
   const annexRun = /(별표|별도)\s*(\d+(?:의\d+)?(?:\s*[·ㆍ・]\s*\d+(?:의\d+)?)+)/g;
   while ((m = annexRun.exec(s)) !== null) {
@@ -1902,10 +1955,23 @@ function lawCellVariants(law) {
 }
 
 /** lawMentionedInAnswer 의 원래 판정(후보 이름 하나에 대해). 기존 규칙을 그대로 둔다. */
+// ★가운뎃점 세 가지를 한 글자로 본다(2026-08-20, 23차 통합수정 사서가 코드 재현으로 확정).
+//   raw 원문은 `농산물 검사·검정방법…`(U+00B7 ·)로 적는데, 모델이 만드는 답변 문장은 같은 이름을
+//   `검사ㆍ검정방법`(U+318D ㆍ)으로 쓴다. 육안으로는 구분이 안 되지만 유니코드가 달라
+//   글자 그대로 대조하는 이 검사가 **매번 실패**했고, 그 법의 별표 인용이 근거 사슬에서 통째로
+//   탈락했다(농수산물품질관리법 발아율 검정 별표12 — 라이브 검증 5회 전부 재현).
+//   전 위키 근거 조문 표의 법령 칸 816행·118개 법령명이 가운뎃점을 포함하며, 위키 안에서도
+//   `수산업·어촌 발전 기본법`과 `수산업ㆍ어촌 발전 기본법`이 함께 쓰이고 있다.
+//   ⚠느슨해지는 것이 아니다 — 공백 차이를 흡수하는 기존 처리와 같은 성격의 **표기 차이 흡수**이고,
+//     이름 자체는 여전히 온전히 일치해야 한다(환각 0 유지).
+const MIDDOT_RE = /[·ㆍ・]/g;
+function midDot(s) { return String(s || '').replace(MIDDOT_RE, '\u00B7'); }
+
 function lawMentionedOnce(law, baseLaw, text) {
   const s = String(law || '').trim();
   if (!s || s.length < 2) return false;
   if (text.includes(s)) return true;
+  if (MIDDOT_RE.test(s) && midDot(text).includes(midDot(s))) return true;
   // ⓐ 계층 낱말만 적힌 칸(`시행령`·`시행규칙`) — 그 줄이 실린 페이지의 법(baseLaw)으로 편다.
   if (BARE_TIER_CELL_RE.test(s.replace(/\s+/g, ''))) {
     const base = String(baseLaw || '').trim();
@@ -1924,7 +1990,9 @@ function lawMentionedOnce(law, baseLaw, text) {
   if (m) {
     const name = m[1].trim(), tier = m[2];
     if (!name || !text.includes(tier)) return false;
-    return [name].concat(aliasesOfFormalName(name)).some(n => n && text.includes(n));
+    const flatText = midDot(text);
+    return [name].concat(aliasesOfFormalName(name))
+      .some(n => n && (text.includes(n) || flatText.includes(midDot(n))));
   }
   return false;
 }
@@ -2082,7 +2150,9 @@ function flatLawName(v) {
   const w = TIER_WRAP_RE.exec(t);
   if (w) t = w[1].trim();
   else if (/\)$/.test(t) && t.includes('(')) t = t.slice(0, t.lastIndexOf('(')).trim();
-  return t.replace(/(?:\s*[·ㆍ・,/]?\s*(?:시행령|시행규칙))+\s*$/, '').replace(/\s+/g, '');
+  // 가운뎃점 세 가지(·ㆍ・)를 한 글자로 통일한다 — 위키와 답변이 서로 다른 글자를 쓰는 일이 잦다.
+  return t.replace(/(?:\s*[·ㆍ・,/]?\s*(?:시행령|시행규칙))+\s*$/, '')
+    .replace(/\s+/g, '').replace(/[\u318D\u30FB]/g, '\u00B7');
 }
 
 /** 이 근거 줄의 법이, 답변에서 그 조문의 주인으로 실제로 나온 적이 있는가.
@@ -2685,6 +2755,12 @@ const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
     - 근거자료의 표에서 그 칸을 못 찾으면 **지어내지 말고** "그 표에서는 확인되지 않습니다"라고 정직하게 말한다. 정말로 표 전체를 봐야 하는 경우에만 그 별표를 가리킨다(화면이 원본 표 이미지를 보여준다).
 14. ★**조문번호만 적힌 자리를 자료 대표 법령 것으로 단정하지 마라.** [근거자료]의 머리에 「○○법」이 적혀 있어도, 그 자료 안에는 시행령·시행규칙·고시·지침·조례의 조문이 **함께** 실려 있다(머리의 "※ 이 자료에는 다음 법령의 조문이 함께 실려 있다" 줄을 보라). 본문이 "(제14조②)" 처럼 번호만 적어 둔 자리는, 그 절의 제목이나 바로 위 문장, 또는 '근거 조문' 표에서 **어느 법령의 조문인지 확인한 뒤** 그 법령명을 붙여 쓴다.
     - 확인이 안 되면 **그 조문번호를 쓰지 마라.** 법령명까지만 밝히거나(예: "「내항해운에관한업무지침」에 따르면"), 확실한 상위 위임 조문만 밝힌다.
+15. ★**[근거자료] 안에 "[미확인 — …]" 머리표가 붙은 부분이 있으면, 그 아래 내용은 아직 사람 검토가 끝나지 않은 것이다.**
+    - 그 내용을 **결론으로 쓰지 마라.** "적용됩니다"·"해당합니다"처럼 단정하면 안 된다.
+    - 대신 **확인되지 않았다는 사실을 그대로 알린다** — 예: "이 부분은 법령 원문에 명시돼 있지 않아 확인되지 않습니다. 관할 소관부서에 확인하시는 것이 정확합니다."
+    - 그 부분이 **왜** 확정되지 않는지가 적혀 있으면(예: "원문이 지방자치단체를 포함하지도 제외하지도 않는다") 그 이유까지 함께 알려 준다 — 사용자가 무엇이 걸림돌인지 알 수 있어야 한다.
+    - ★이 머리표 아래 내용은 **조문번호를 근거로 인용하지 마라.** 확인되지 않은 것을 근거로 내세우면, 본문에서는 "확인 안 됐다"고 하면서 근거로는 내세우는 셈이 된다.
+    - 머리표 위쪽(검토가 끝난 부분)은 종전대로 규칙 1~14를 그대로 따른다.
     - 틀린 조문번호는 빈칸보다 나쁘다 — 화면이 그 표기를 눌러 원문을 여는 자리로 바꾸므로, 사용자는 **엉뚱한 법의 엉뚱한 조문**을 근거로 믿게 된다(실측: 「내항해운에관한업무지침」 제14조②의 비용 8항목이 「해운법 시행규칙」 제14조제2항으로 인용됐는데, 그 조문에는 제2항 자체가 없다).`;
 
 const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
@@ -4742,7 +4818,7 @@ module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCel
   // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
   naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT,
   // 2026-08-17: 인용사슬 묶음표기 풀기(B1·B2) · "잘 모르겠어요"(B7) · 약칭표(B8, 계약4)
-  expandJoEnum, articleEnumTokens, ensureTopLawOption, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
+  expandJoEnum, articleEnumTokens, ensureTopLawOption, markUnresolvedReview, ANSWER_RULES_BODY, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
   // 2026-08-17: 답변 인용 기반 근거 카드 폴백(B11 — 위키 `## 근거 조문` 표가 없는 페이지의 구멍 메우기)
   extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX,
   // 2026-08-17: 4천자 컨텍스트 발췌(회귀 테스트 대상 — 이 로직에서 회귀가 두 번 재발했다)

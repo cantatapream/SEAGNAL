@@ -53,5 +53,21 @@ console.log('── 손대지 않아야 하는 경우 ──');
   ok('후보 법이 없으면 그대로 둔다', none.length === 1, labels(none).join(' / '));
 }
 
+
+// ── 되묻기 라운드 상한이 직접 입력으로 답한 경우에도 동작하는가 (2026-08-20) ──
+// 종전 백스톱은 질의에 붙은 구분자(' — ')로만 라운드를 셌다. 그 구분자는 선택지 버튼으로
+// 답했을 때만 붙으므로, 사용자가 값을 직접 타이핑하면 카운터가 영원히 0이라 상한이 발동하지
+// 않았다(해양환경관리법 위해도평가 — 총점을 이미 줬는데 세부항목을 4회까지 되물었다).
+{
+  const routes = require('fs').readFileSync(__dirname + '/../routes/legal.js', 'utf8');
+  ok('routes 가 되묻기 횟수를 ctx 에 누적한다(clarifyRoundNext)',
+    /function clarifyRoundNext\(/.test(routes));
+  ok('세 갈래 되묻기 모두 카운터를 갱신한다',
+    (routes.match(/n: clarifyRoundNext\(ctx\)/g) || []).length === 3);
+  const src = require('fs').readFileSync(__dirname + '/../services/legal_retriever.js', 'utf8');
+  ok('상한 판정이 구분자 개수와 ctx 누적값 중 큰 쪽을 쓴다',
+    /const rounds = Math\.max\(byJoiner,/.test(src));
+}
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);

@@ -33,7 +33,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
         test_cancel_verdict_room test_push_pagination test_bulletin_cancel_scanner
         test_zone_tree_wiring test_ask_context test_naver_term_step test_article_images test_chat_render
         test_glossary_parse test_citation_chain
-  test_clarify_options)
+  test_clarify_options test_unverified_review)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; FAIL=1; continue; fi
@@ -82,6 +82,23 @@ node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || FAIL
 # ============================================================================
 echo; echo "── V5-5 근거 조문 행 도달성 ──"
 node local_server/knowledge/legal/_dashboard/loop/reach_eval.js --gate || FAIL=1
+
+echo; echo "── V5-6 근거 조문 인용 존재성 ──"
+# 근거 조문 표의 **법령 칸과 조문 칸이 짝이 맞는지** 원문으로 대조한다(2026-08-20 신설).
+#   왜: '조문 번호는 맞는데 주인이 틀린' 행은 지금까지 어떤 검사도 못 잡았다 — 링크는 걸리고
+#   표는 멀쩡해 보이지만 사용자가 눌러 보면 다른 내용이 나온다. 신설 당일 2건이 실재했다.
+#   ⚠이 검사를 만들고도 여기 안 걸어 뒀던 것을 독립 검토자가 지적해 등록한다(L-105 재발).
+node local_server/knowledge/legal/_dashboard/loop/cite_exists.js --gate || FAIL=1
+
+echo; echo "── V5-7 골든 문항 근거 도달성 ──"
+# 문항마다 **기대 근거(법령+조문)가 인용 후보까지 닿는가**를 잰다(H-47 ①, 2026-08-20 신설).
+#   왜: 다른 채점판들은 '법이 오나'·'페이지가 오나'·'행이 도달 가능한 꼴인가'까지만 재고,
+#   "이 질문에 기대되는 그 조문이 실제로 근거 후보에 들어오는가"를 재는 자가 없었다.
+#   2026-08-18 라이브 검증에서 감사 full 판정의 52%가 근거를 못 댄 것이 이 층의 실패였는데
+#   지금까지는 유료 라이브 검증으로만 잡혔다. 이제 무료·자동으로 잡는다.
+#   ⚠AI 채점을 쓰지 않는다(L-133: 채점자가 AI면 라운드 간 42%가 뒤집힘). 문자열 대조만.
+node local_server/knowledge/legal/_dashboard/loop/golden_eval.js \
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/golden_eval_base.json --gate || FAIL=1
 
 echo; echo "── V5-2 위키 링크 무결성 ──"
 ( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || FAIL=1
