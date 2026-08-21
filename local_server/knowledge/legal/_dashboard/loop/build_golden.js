@@ -102,7 +102,15 @@ for (const f of fs.readdirSync(AUD)) {
     // ★낫표 안 이름이 **실재하는 법**일 때만 쓴다 — 위키 statutes 파일명으로 확인한다.
     //   안 그러면 `외국어선벌칙몰수담보금`(개념 페이지 슬러그 조각)이 법 이름으로 들어온다(첫 실행에서 발견).
     const names = [...ev.matchAll(LAWNAME)].map(m => m[1]).filter(isRealLaw);
-    const expLaw = names[0] || slug;
+    // ★근거 칸이 `시행령 제39조`라고 말하면 기대 법령에도 **계층을 붙인다**(2026-08-20 사서 2명이 독립 지적).
+    //   처음엔 낫표 안 이름이 없으면 그냥 모법 이름을 썼는데, 실제 답이 시행령에 있는 경우가
+    //   **298개 중 94개(31%)** 였다. 조문 번호는 맞는데 **어느 계층 것인지가 틀린** 라벨이 된다
+    //   (「유선 및 도선 사업법」 법률 제25조는 '출항입항 기록'이고 야간 등화는 시행령 제25조다 — 실제 사례).
+    let expLaw = names[0] || slug;
+    if (!names.length && !/시행(령|규칙)/.test(expLaw)) {
+      const near = ev.match(/시행(령|규칙)\s*(제\s*\d+조|별표)/);
+      if (near) expLaw = `${slug} 시행${near[1]}`;
+    }
     const expArt = (ev.match(new RegExp(ART.source, 'g')) || []).join('·');
     if (!articleFits(expLaw, expArt)) continue;   // ★조문의 주인이 안 맞으면 버린다
     picked.push({
