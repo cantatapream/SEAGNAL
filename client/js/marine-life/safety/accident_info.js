@@ -128,6 +128,13 @@
  *   결과를 반영 — 41,775 → 41,668건. 위와 같은 build_accidents.js 재실행 주의사항 적용.
  * [선박(해경) 좌표 오류 7차 103건 삭제(2026-08-21)] 같은 방식으로 검수 모드 7회차
  *   결과를 반영 — 41,668 → 41,565건. 위와 같은 build_accidents.js 재실행 주의사항 적용.
+ * [위치 미상 뭉침 필터 — 중복레코드 분리(2026-08-21)] 사용자 지적("같은 좌표라도 사고종류가
+ *   다르면 통째로 지우면 안 된다")으로 재조사한 결과, findMissingLocationClusters 가 걸러내던
+ *   135개 뭉침 그룹 중 62개는 날짜·시각·사고유형까지 완전히 같은 "중복 입력"이었다(예: 화재
+ *   사고 1건이 30번 겹쳐 있었음). 이런 경우는 관할서 대표좌표 문제와 무관하므로 1건만 남기고
+ *   중복분만 제외하도록 로직을 바꿨다(hk 기준 숨김 606→502건, 104건이 정상 노출로 복원됨).
+ *   나머지 73개 그룹(날짜·시각·유형이 다 다른데 좌표만 소수점까지 완전 일치)은 실제 GPS로는
+ *   사실상 불가능한 값이라 기존처럼 관할서 대표좌표로 보고 계속 숨긴다.
  * ============================================================================
  */
 
@@ -257,11 +264,19 @@
 
     /**
      * 위치텍스트가 없는 행들끼리 좌표로 묶어, 완전히 겹친 뭉치(관할서 대표좌표로 의심)를 찾는다.
+     * [중복레코드 분리(2026-08-21)] 실측 결과 135개 뭉침 그룹 중 62개는 날짜·시각·사고유형까지
+     * 완전히 같은 "같은 사고의 중복 입력"이었다(예: 화재 사고 1건이 30번 겹쳐 있었음) — 이런
+     * 경우는 원래 관할서 대표좌표 문제와 무관하므로 그룹 판정 전에 먼저 1건만 남기고 나머지
+     * 중복분만 제외한다(사용자 지적: "같은 좌표라도 사고종류가 다르면 통째로 지우면 안 된다").
+     * 중복 제거 후에도 서로 다른 레코드가 임계값 이상 남으면(=날짜·시각·유형이 다 다른데
+     * 좌표만 소수점까지 완전 일치 — 실제 GPS로는 사실상 불가능) 그건 여전히 관할서 대표좌표로
+     * 본다. person 소스는 시각(hm) 컬럼이 없어 날짜+유형만으로 중복을 판정한다.
+     * @param {string} srcKey - 'hk' | 'person'
      * @param {Array<Array>} rows
      * @param {number} posIdx
      * @returns {Set<Array>}
      */
-    function findMissingLocationClusters(rows, posIdx) {
+    function findMissingLocationClusters(srcKey, rows, posIdx) {
         var groups = {};
         rows.forEach(function (row) {
             if (row[posIdx]) return; // 위치텍스트가 있으면 대상 아님
@@ -271,7 +286,17 @@
         var flagged = new Set();
         Object.keys(groups).forEach(function (key) {
             var g = groups[key];
-            if (g.length >= DUPLICATE_COORD_MIN_COUNT) g.forEach(function (row) { flagged.add(row); });
+            if (g.length < DUPLICATE_COORD_MIN_COUNT) return;
+            var seenDupKeys = new Set();
+            var uniqueRows = [];
+            g.forEach(function (row) {
+                var dupKey = row[2] + '|' + (srcKey === 'hk' ? row[3] : '') + '|' + typeCodeOf(srcKey, row);
+                if (seenDupKeys.has(dupKey)) { flagged.add(row); } // 완전 중복분 — 이 건만 제외
+                else { seenDupKeys.add(dupKey); uniqueRows.push(row); }
+            });
+            if (uniqueRows.length >= DUPLICATE_COORD_MIN_COUNT) {
+                uniqueRows.forEach(function (row) { flagged.add(row); });
+            }
         });
         return flagged;
     }
@@ -426,7 +451,7 @@
             rows.forEach(function (row) { applyLatOffsetFix(key, row); });
             var posIdx = COORD_OUTLIER_POS_IDX[key];
             var outliers = posIdx != null ? findCoordOutliers(rows, posIdx) : null;
-            var missingLocClusters = posIdx != null ? findMissingLocationClusters(rows, posIdx) : null;
+            var missingLocClusters = posIdx != null ? findMissingLocationClusters(key, rows, posIdx) : null;
             var feats = rows
                 .filter(function (row) { return !isOutOfKoreaBounds(row); })
                 .filter(function (row) { return !ACCIDENT_TYPE_EXCLUDED[typeCodeOf(key, row)]; })
