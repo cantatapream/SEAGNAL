@@ -4856,7 +4856,7 @@ function withAssumedNotice(answer, assumed) {
 // termsOf 는 순수 함수다(네트워크·AI 없음). 검사 도구(_dashboard/loop/search_gap.js)가
 // "검색이 이 질문을 어떤 낱말로 쪼개는지"를 **생산과 똑같이** 보려고 쓴다 — 따로 쪼개면
 // 검사와 코드가 어긋나 엉뚱한 결론이 난다(L-136·L-153).
-module.exports = { termsOf, CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어

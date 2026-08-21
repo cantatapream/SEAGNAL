@@ -1,0 +1,96 @@
+/**
+ * search_live.js — 고정 문제집에서 `search` 로 찍힌 문항이 **실제 배포 챗봇에서도 실패하는지**를 잰다.
+ *
+ * [왜 있나 — 2026-08-21]
+ * `golden_eval.js`(V5-7)의 `search` 판정은 **첫 검색 한 번**만 본다. 그런데 실제 사용자는 되묻기에
+ * 답하고, 그 답이 질의에 붙은 뒤 다시 검색된다 — 그 두 번째 검색에서 맞는 페이지가 오는 경우가 있다.
+ * 그래서 계기판의 `search 28건` 은 **사용자가 실제로 겪는 실패보다 클 수 있다.** 얼마나 큰지 모르면
+ * 어디를 고칠지 못 정한다(뭉친 숫자로는 손댈 곳을 못 정한다 — `search_gap.js` 와 같은 취지).
+ *
+ * [어떻게] 사람이 쓰는 경로 그대로 — `ask_live.js` 로 배포 서버에 묻고, 되묻기에는 `link_live.js` 와
+ *          **같은 규칙**으로 답한다(기대 근거와 글자가 가장 많이 겹치는 선택지). 판정은 AI 없이
+ *          **답변 글자에 기대 조문 표기가 있는지**만 본다.
+ *
+ * ⚠유료다 — 문항마다 배포 서버가 Gemini 를 여러 번 부른다(문항당 3~5회, 30원 안팎).
+ * ⚠AI 답변은 매번 같지 않다. 이 숫자는 "그 시점 표본"이지 회귀 게이트가 아니다.
+ *
+ * [쓰는 법] node search_live.js --in pinned/search_fail_list.json [--out pinned/search_live_<날짜>.json]
+ * [연계] ← pinned/golden_questions.json · ask_live.js → https://seagnal-server.fly.dev/api/legal/ask
+ *        ⚠읽기 전용 — 위키·raw 를 고치지 않는다.
+ */
+const fs = require('fs');
+const path = require('path');
+const { execFileSync } = require('child_process');
+
+const HERE = __dirname;
+const argv = process.argv.slice(2);
+const arg = k => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : ''; };
+const IN = arg('--in') || 'pinned/search_fail_list.json';
+const OUT = arg('--out');
+const TMP = '/tmp/claude-0/-home-user-SEAGNAL/7dd72c7c-d763-527d-ad04-96a3a3857171/scratchpad';
+
+function askLive(state, args) {
+  execFileSync('node', [path.join(HERE, 'ask_live.js'), '--state', state, ...args],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+  return JSON.parse(fs.readFileSync(state, 'utf8'));
+}
+
+/** 되묻기 선택 규칙 — link_live.js 와 같다(기대 근거와 두 글자씩 가장 많이 겹치는 선택지). */
+function pickOption(clarify, q) {
+  const want = (q.question + ' ' + (q.expect_article || '') + ' ' + (q.expect_law || '')).replace(/\s+/g, '');
+  const opts = (clarify.options || []);
+  let best = -1, bestScore = -1;
+  opts.forEach((o, i) => {
+    if (o.act === 'unknown' || o.act === 'ask') return;
+    const lab = String(o.label || '').replace(/\s+/g, '');
+    let sc = 0;
+    for (let k = 0; k + 2 <= lab.length; k++) if (want.includes(lab.slice(k, k + 2))) sc++;
+    if (sc > bestScore) { bestScore = sc; best = i; }
+  });
+  return best;
+}
+
+const list = JSON.parse(fs.readFileSync(path.resolve(HERE, IN), 'utf8'));
+const rows = [];
+(async () => {
+  for (let i = 0; i < list.length; i++) {
+    const q = list[i];
+    const state = path.join(TMP, 'slive_' + i + '.json');
+    try { fs.unlinkSync(state); } catch (_) {}
+    let s;
+    try {
+      s = askLive(state, ['start', q.question]);
+      for (let round = 0; round < 6 && s.last && s.last.clarify; round++) {
+        const pick = pickOption(s.last.clarify, q);
+        if (pick < 0) break;
+        s = askLive(state, ['pick', String(pick)]);
+      }
+    } catch (e) {
+      rows.push({ ...q, error: String(e.message || e).slice(0, 160) });
+      console.log(`✖ ${q.law} — 질문 실패`);
+      continue;
+    }
+    const d = s.lastDone || {};
+    if (!d.answer || d.clarify) {
+      rows.push({ ...q, stuck: true, calls: s.calls });
+      console.log(`⚠ ${q.law} — 되묻기에서 못 빠져나옴(${s.calls}회)`);
+      continue;
+    }
+    // 기대 조문이 답변 글자에 실제로 있나 — AI 판단 없이 글자 대조만 한다.
+    const flat = String(d.answer).replace(/\s+/g, '');
+    const wantArts = String(q.expect_article || '').split(/[·,]/).map(x => x.replace(/\s+/g, '')).filter(Boolean);
+    const cited = wantArts.some(a => flat.includes(a));
+    // 인용사슬(화면 링크가 걸리는 재료)에도 들어왔나 — 답변 글자와 별개 축이다.
+    const chain = (d.citationChain || []).map(c => `${c.law || ''} ${c.citedArticle || c.article || ''}`.replace(/\s+/g, ''));
+    const inChain = wantArts.some(a => chain.some(c => c.includes(a)));
+    rows.push({ ...q, calls: s.calls, cited, inChain });
+    console.log(`${cited ? '✅' : '❌'} ${q.law} — 기대근거 ${cited ? '인용됨' : '없음'}${inChain ? ' · 사슬O' : ''} · ${s.calls}회 | ${q.question.slice(0, 34)}`);
+  }
+  const done = rows.filter(r => !r.error && !r.stuck);
+  console.log(`\n── ${rows.length}문항 (답변까지 간 것 ${done.length}) ──`);
+  console.log(`  기대 근거를 실제로 인용   ${done.filter(r => r.cited).length}`);
+  console.log(`  인용은 못 했으나 사슬엔   ${done.filter(r => !r.cited && r.inChain).length}`);
+  console.log(`  진짜 실패                ${done.filter(r => !r.cited && !r.inChain).length}`);
+  console.log(`  되묻기에서 못 빠져나옴    ${rows.filter(r => r.stuck).length} · 호출 실패 ${rows.filter(r => r.error).length}`);
+  if (OUT) { fs.writeFileSync(path.resolve(HERE, OUT), JSON.stringify({ rows }, null, 1)); console.log(`\n저장: ${OUT}`); }
+})();
