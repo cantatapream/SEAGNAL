@@ -108,11 +108,17 @@ const TAIL_BODY_CHARS = 3000;   // 7위 이하
 //     차지하는 게 아니다.
 //   A/B 스위치는 남긴다(되돌리거나 다시 재려면): `NRYA_PRIMARY_TOPK=10 node _dashboard/loop/golden_eval.js`
 const PRIMARY_TOPK = Number(process.env.NRYA_PRIMARY_TOPK) > 0 ? Number(process.env.NRYA_PRIMARY_TOPK) : 20;
-const HOP_MAX = Number(process.env.NRYA_HOP_MAX) > 0 ? Number(process.env.NRYA_HOP_MAX) : 5;
+// 홉으로 데려올 수 있는 **페이지 수 상한**. 2026-08-21 실측에서 병목이 여기였다 —
+// 출발 범위를 20위·40위로 넓혀도 이 값이 5면 결과가 같았다(chain 253→253). 10 으로 올리면
+// chain 253→256, search 실패 27→24, 질문당 자료 81,025자→89,621자(+11%). 어제 반영한
+// 후보 수 10→20 이 +30% 를 쓴 것과 비교하면 절반 이하 비용이다. V5-4(정답 페이지 도달
+// top1 76.0%·본문 잘림 1건)는 그대로였다.
+// A/B 스위치: `NRYA_HOP_MAX=5 node _dashboard/loop/golden_eval.js` 로 옛 동작 재현.
+const HOP_MAX = Number(process.env.NRYA_HOP_MAX) > 0 ? Number(process.env.NRYA_HOP_MAX) : 10;
 // 홉이 링크를 훑을 **출발 페이지 수**. 지금까지 상위 2위만 봤는데, 실패 문항의 정답 페이지가
 // 상위 20위 안 페이지의 링크에는 13/17 걸려 있고 상위 2위 링크에는 3/17 뿐이었다(2026-08-21 실측).
 // A/B 스위치: `NRYA_HOP_FROM=2 node _dashboard/loop/golden_eval.js` 로 옛 동작 재현.
-const HOP_FROM = Number(process.env.NRYA_HOP_FROM) > 0 ? Number(process.env.NRYA_HOP_FROM) : 2;
+const HOP_FROM = Number(process.env.NRYA_HOP_FROM) > 0 ? Number(process.env.NRYA_HOP_FROM) : 20;
 
 // ── index.json 캐시(mtime 감지) ──
 let _idxCache = null, _idxMtime = 0;
