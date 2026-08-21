@@ -1116,6 +1116,9 @@ function clarifyStr(v, max) {
 // ⚠ 직전 라운드 질문은 서버에 저장하지 않는다 — 이미 있는 `ctx` 채널(클라이언트가 done.ctxNext 를
 //   들고 있다가 다음 요청에 되돌려 보내는 값)에 `cl` 축으로 얹어 나른다(새 저장소를 만들지 않는다).
 const CLARIFY_LAST_LABELS_MAX = 12;   // ctx.cl.labels 정규화 상한(요청 바디 방어)
+// ctx.cl.n 정규화 상한 — **정책이 아니라 방어값**이다(터무니없는 수가 들어오는 것만 막는다).
+// 실제 "몇 라운드까지 되물을지" 판정은 decideClarify 의 CLARIFY_MAX_ROUNDS 가 한다.
+const CTX_ROUND_CAP = 99;
 
 /** 되묻기 문장·라벨 비교용 정규화: 글자와 숫자만 남긴다(공백·조사기호·문장부호 제거). */
 function clarifyKey(s) {
@@ -3963,10 +3966,22 @@ function normalizeAskCtx(raw, profile) {
     // [B6] cl(직전 라운드의 되묻기) — 같은 되묻기를 표현만 바꿔 다시 묻는 것을 막는 데만 쓴다.
     //   서버는 대화 이력을 저장하지 않으므로 이 ctx 채널이 유일한 운반로다(새 저장소를 만들지 않는다).
     const clRaw = (c.cl && typeof c.cl === 'object') ? c.cl : {};
+    //   ⚠`n`(지금까지 낸 되묻기 횟수)도 반드시 되받는다. 예전에는 여기서 `q`·`labels` 만 만들어
+    //     **n 을 통째로 흘려버렸고**, 그래서 routes 의 clarifyRoundNext 가 매번 1 을 돌려줘
+    //     ctx 쪽 라운드 카운터가 영원히 1 에 멈춰 있었다(2026-08-21 라이브 추적으로 확인 —
+    //     되묻기를 세 번 내리 내는 동안 ctx.cl.n 이 1·1·1 이었다). 그 카운터는 사용자가 버튼 대신
+    //     **직접 타이핑**해 답할 때 유일하게 작동하는 상한이라(구분자가 안 붙어 byJoiner 가 0),
+    //     이게 죽어 있으면 CLARIFY_MAX_ROUNDS 가 그 경우엔 한 번도 발동하지 못한다.
+    const clN = Number(clRaw.n);
     const cl = {
       q: clarifyStr(clRaw.q, 200),
       labels: (Array.isArray(clRaw.labels) ? clRaw.labels : [])
         .slice(0, CLARIFY_LAST_LABELS_MAX).map(v => clarifyStr(v, 40)).filter(Boolean),
+      // 클라이언트가 되돌려 주는 값이라 방어적으로 자른다(음수·비정상·과대값 차단).
+      // ⚠여기서 **정책 상한(CLARIFY_MAX_ROUNDS)을 쓰지 않는다** — 정규화는 값을 깨끗이 하는 자리이고,
+      //   "몇 라운드까지 되물을지"를 정하는 것은 decideClarify 다. 두 자리를 얽으면 이해확인(uc)
+      //   라운드와 되묻기 상한이 서로 끌려다닌다(사용자 확정 (다) — 그 분리를 test_ask_context 가 지킨다).
+      n: Number.isFinite(clN) && clN > 0 ? Math.min(Math.floor(clN), CTX_ROUND_CAP) : 0,
     };
     // [B7] unk(잘 모르겠어요) — **버튼의 data-ctx 로만** 들어온다(ctxNextOf 는 이 축을 안 내보낸다).
     const unkRaw = (c.unk && typeof c.unk === 'object') ? c.unk : {};
