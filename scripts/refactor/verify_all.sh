@@ -100,6 +100,15 @@ echo; echo "── V5-7 골든 문항 근거 도달성 ──"
 node local_server/knowledge/legal/_dashboard/loop/golden_eval.js \
   --base local_server/knowledge/legal/_dashboard/loop/pinned/golden_eval_base.json --gate || FAIL=1
 
+echo; echo "── V5-8 조문 링크 도달성(눌러서 원문이 열리나) ──"
+# 사용자가 실제로 만나는 근거는 **답변 본문의 조문 하이퍼링크**다 — 2026-08-18 확정으로 근거 카드
+#   목록(아코디언)을 없앴기 때문이다. 그런데 V5-3·V5-5·V5-7 은 그 없어진 목록을 기준으로 재고 있었다
+#   (L-152). 이 검사는 계기판을 사용자 쪽으로 한 칸 옮긴다: 그 링크가 열 파일이 정해지는가,
+#   그 파일에 그 조가 실제로 있는가. 판정은 생산 함수(article_text.resolveBase·pickNoticeFile·
+#   listArticleNumbers)를 그대로 태워서 한다(L-136). AI 안 쓴다.
+node local_server/knowledge/legal/_dashboard/loop/link_ready.js \
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/link_ready_base.json --gate || FAIL=1
+
 echo; echo "── V5-2 위키 링크 무결성 ──"
 ( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || FAIL=1
 
