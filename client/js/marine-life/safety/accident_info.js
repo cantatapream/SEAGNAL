@@ -107,6 +107,9 @@
  *   fetch·필터·팝업·통계 등 hk 관련 코드를 전부 제거했다(정적 파일도 삭제).
  *   위쪽 재조사 기록(완도군·강원 내륙 등)에 남은 hk 관련 서술은 당시 조사한
  *   내용의 역사적 기록이라 그대로 둔다.
+ * [검수 모드로 선박(심판원) 50건 수동 제외(2026-08-20)] 사용자가 검수 모드로 실제
+ *   화면에서 낱개로 갈라 눈으로 확인 후 "내보내기"한 목록을 그대로 반영했다
+ *   (`MANUAL_EXCLUDED_INDICES`). 좌표가 아닌 원본 rows 배열 인덱스로 특정한다.
  * ============================================================================
  */
 
@@ -356,6 +359,26 @@
         return false;
     }
 
+    /**
+     * [검수 모드로 사람이 직접 골라낸 제외 목록(2026-08-20)] 실제 앱 화면(위성지도·
+     * 실제 마커)에서 낱개로 갈라 보면서 눈으로 확인해 뺀 선박(심판원) 50건 — 원본
+     * rows 배열의 인덱스(검수 모드 "내보내기" 값 그대로)로 특정한다. 좌표값이 아니라
+     * 인덱스로 매칭하는 이유는 검수 모드 자체가 origIndex 기준으로 내보내기 때문
+     * (좌표 기반인 KNOWN_BAD_COORDS와 병행 — 둘 다 "정확한 원인은 못 밝혔지만
+     * 육안으로 위치가 틀렸다고 확인된" 개별 제외라는 점은 같다).
+     */
+    var MANUAL_EXCLUDED_INDICES = {
+        hs: [23250, 33695, 33674, 7390, 9347, 17249, 40259, 17452, 40386, 2432, 11340, 7062,
+            7780, 10254, 6237, 20949, 28322, 26515, 25886, 7110, 21870, 26615, 6300, 22009,
+            4241, 12471, 16854, 6887, 12749, 21046, 28714, 38205, 12443, 5347, 38359, 9323,
+            11505, 26473, 21915, 25930, 6697, 5387, 29219, 27586, 38227, 15387, 32943, 18032,
+            7603, 33557]
+    };
+    function isManuallyExcluded(key, origIndex) {
+        var bad = MANUAL_EXCLUDED_INDICES[key];
+        return !!bad && bad.indexOf(origIndex) !== -1;
+    }
+
     function rowToFeature(key, row, origIndex) {
         var coord = ol.proj.fromLonLat([row[1], row[0]]); // row=[lat,lon,...]
         var f = new ol.Feature({ geometry: new ol.geom.Point(coord) });
@@ -383,6 +406,7 @@
                 .filter(function (row) { return !missingLocClusters || !missingLocClusters.has(row); })
                 .filter(function (row) { return !isIntegerDegreeCoord(row) || !isLandPoint(landRings, row[0], row[1]); })
                 .filter(function (row) { return !isKnownBadCoord(key, row); })
+                .filter(function (row) { return !isManuallyExcluded(key, origIndexOf.get(row)); })
                 .map(function (row) { return rowToFeature(key, row, origIndexOf.get(row)); });
             rawFeatures[key] = feats;
             return feats;
