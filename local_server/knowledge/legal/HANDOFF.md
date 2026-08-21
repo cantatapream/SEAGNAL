@@ -739,6 +739,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-22 02:14 KST] ✅완료 — r24 통합수정 — 국제항해선박및항만시설의보안에관한법률
+24차 감사 리포트 정독 완료. 핵심 확인: raw 4라운드(21R~24R) 연속 무변경, wiki도 21R 이후 커밋 1건(dc92bff0c, 근거조문 표에 타법 4행 추가)뿐 — 이 커밋으로 citationChain unreachable 문제(23R 지적)가 24R 라이브검증에서 해소 확인됨(사서가 아니라 이미 이전 라운드가 처리, 이번 라운드는 확인만). 남은 회귀 53건(§0-A thin 16·§0-B missing 26·§0-C missing 11)은 여러 차례(2차·3차 패스, r9~r23) 통합수정을 거치며 이미 raw 자체 공백(content_gap)으로 확정돼 손댈 것이 없음을 재확인(스팟체크: #661/#662/#438 등 페이지 직접 grep 대조, wiki_lag 0건). collection_hole 0건(12R 이후 지속). review_queue REVIEW-국제항해선박및항만시설의보안에관한법률-801은 이미 ⚠REVIEW-801-B 인라인마커 부착·문서화 완료 상태(17라운드째 사람검증 대기, 변경없음). contacts_collected.json 값도 statute 페이지에 이미 전부 반영 확인(2026-07-26 자동수집, 재확인만). 신규 발견 #999(citationChain 조문번호 생략 비대칭)는 답변생성 엔진 단계 결함이라 위키 사서 패스로 고칠 수 없어 그대로 둠(감사 자체도 명시). 결론: 이번 라운드는 편집 0건 — 이미 소진된 콘텐츠. 완료마커 fix3/fix_r24_국제항해선박및항만시설의보안에관한법률.done 생성.
+
+
 ### [2026-08-22 02:10 KST] 🟢착수 — H-9①통합수정 24R 디스패치
 audit_fix_cell.js + audit18_groups.json + round:24, 10그룹 동시 디스패치. task-id(runId): g0=wchc5sv2i(wf_1d89ca51-9e4) g1=w7palqunt(wf_6cf86836-53b) g2=w0ns4zwii(wf_be8f3235-ebc) g3=w7jkpvonv(wf_a7198abd-fbb) g4=wuc6zjj1t(wf_e1707689-cf3) g5=wmb34uh5i(wf_41c6ba18-827) g6=wlu7v6qcj(wf_abf01e11-c41) g7=wg16iuo38(wf_9ab1940a-368) g8=wuketjbns(wf_03447e76-087) g9=ws3130lvm(wf_cf001c9b-bcb). 완료 마커는 _dashboard/fix3/fix_r24_<slug>.done. 세션 중단 시 위 runId로 resumeFromRunId 재개. 완료 후 ③lint_xref/lint_full → ④lint_index/lint_build → ⑤human_workload 순으로 진행하고, 라이브 검증(제미나이 유료) 직전에 멈춘다.
 
