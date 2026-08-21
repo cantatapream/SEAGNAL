@@ -69,18 +69,26 @@ function sameLaw(a, b) {
  */
 function buildRowIndex() {
   const idx = new Map();
-  const CONCEPTS = path.resolve(__dirname, '..', '..', 'wiki', 'concepts');
-  if (!fs.existsSync(CONCEPTS)) return idx;
-  for (const f of fs.readdirSync(CONCEPTS)) {
-    if (!f.endsWith('.md')) continue;
-    const body = fs.readFileSync(path.join(CONCEPTS, f), 'utf8');
-    for (const row of R.extractCitationChain(body)) {
-      for (const a of artsOf(row.article)) {
-        const k = flat(row.law) + '|' + a;
-        if (!idx.has(k)) idx.set(k, []);
-        // ⚠검색 결과의 `file` 은 **확장자가 없다**(`법__주제`). 색인 쪽도 떼어 맞춘다 —
-        //   처음엔 `.md` 를 붙여 넣어 한 건도 안 맞았고 chain 이 0 으로 나왔다.
-        idx.get(k).push(f.replace(/\.md$/, ''));
+  const WIKI = path.resolve(__dirname, '..', '..', 'wiki');
+  // ★생산 코드와 같은 범위를 본다(2026-08-21, 출입국관리법 사서 지적 → 생산 코드로 검산):
+  //   legal_retriever.search() 는 매칭된 **모든 소스**에서 extractCitationChain 을 뽑고,
+  //   그 소스에는 statutes(허브)·comparisons·annexes·activities 페이지가 다 들어온다.
+  //   여기서 concepts 만 훑으면, 근거 행이 허브 페이지에만 있는 tier-2 참조법(출입국관리법 등)이
+  //   "위키 어느 표에도 없음(§6-E)" 으로 **잘못** 찍힌다 — 위키 결함이 아니라 채점기 결함이다.
+  for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities']) {
+    const D = path.join(WIKI, dir);
+    if (!fs.existsSync(D)) continue;
+    for (const f of fs.readdirSync(D)) {
+      if (!f.endsWith('.md')) continue;
+      const body = fs.readFileSync(path.join(D, f), 'utf8');
+      for (const row of R.extractCitationChain(body)) {
+        for (const a of artsOf(row.article)) {
+          const k = flat(row.law) + '|' + a;
+          if (!idx.has(k)) idx.set(k, []);
+          // ⚠검색 결과의 `file` 은 **확장자가 없다**(`법__주제`). 색인 쪽도 떼어 맞춘다 —
+          //   처음엔 `.md` 를 붙여 넣어 한 건도 안 맞았고 chain 이 0 으로 나왔다.
+          idx.get(k).push(f.replace(/\.md$/, ''));
+        }
       }
     }
   }
@@ -103,6 +111,7 @@ async function run() {
   const out = [];
   for (const q of qs) {
     if (q.skip) continue;                       // 되묻기가 정답인 문항 등은 채점에서 뺀다
+    if (!q.verified) continue;                  // ★사서가 원문·위키로 확인한 라벨만 채점한다(L-125)
     const wantArts = artsOf(q.expect_article);
     const owners = ownersOf(idx, q.expect_law, wantArts);
     let res;
