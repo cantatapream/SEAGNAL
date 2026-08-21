@@ -1,11 +1,10 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/safety/accident_info.js
- * 역할  : 해양안전 지도에 "사고정보" 버튼을 얹는다. 클릭하면 왼쪽으로 선박(심판원)·
+ * 역할  : 해양안전 지도에 "사고정보" 버튼을 얹는다. 클릭하면 왼쪽으로 선박(해경)·
  *         인명 2개 소스 버튼(천기 팝아웃과 같은 개별 아이콘 버튼 스타일)이 뜨고,
- *         고르면 팝아웃이 접히며 데이터가 켜진다(선박(해경) 소스는 2026-08-20에
- *         제외 — 심판원 데이터가 같은 사고를 더 정확하게 담고 있어 더 필요 없다는
- *         사용자 확정). 이미 켜진
+ *         고르면 팝아웃이 접히며 데이터가 켜진다(선박(심판원) 소스는 2026-08-21에
+ *         제외 — 해경 데이터를 쓰기로 사용자 확정). 이미 켜진
  *         상태에서 사고정보 버튼을 다시 누르면 access_control.js 등과 동일하게
  *         전부 끈다(사용자 확정 2026-08-19). "현황"(개별 사고 마커, hazard_rocks.js
  *         와 같은 클러스터 방식) ↔ "분석"(지도 화면을 격자로 나눠 격자별 건수를
@@ -22,7 +21,7 @@
  *                    ACCIDENT_TYPE_ICONS 마커 이미지 경로, ACCIDENT_TYPE_EXCLUDED
  *                    표출 제외 목록), client/images/accident_markers/*.png,
  *                    OpenLayers(ol.*)
- *  - 서버 API      : GET /accident_ships_hs.json · /accident_persons.json
+ *  - 서버 API      : GET /accident_ships_hk.json · /accident_persons.json
  *                    (정적, 소스 버튼을 처음 누를 때만 지연 로드 — hazard_rocks.js
  *                    와 동일한 절약 방식)
  *  - 마크업        : index2.html 의 #ocean-accident-toggle-btn(버튼),
@@ -37,7 +36,7 @@
  *                    window.oceanGetBasemap/oceanSetBasemap(ocean_map.js, 배경지도
  *                    자동 전환/복귀)
  * [로드 순서] navigational_warning.js 다음 · life_safety.js 바로 앞
- * [데이터 출처] 국립해양조사원 개방海 "선박사고(심판원)"·"인명사고" —
+ * [데이터 출처] 국립해양조사원 개방海 "선박사고(해경)"·"인명사고" —
  *   local_server/scripts/build_accidents.js 로 생성(원본 CSV는 레포에 없음).
  * [좌표 이상치 필터] 원본 좌표(ORGNL_XCDNT/YCDNT) 자체에 개별 오류가 소수 섞여
  *   있다(사용자 보고: 지도상 위치가 주소 텍스트와 안 맞음 — 조사 결과 좌표 변환
@@ -100,13 +99,14 @@
  *   추가로 빨간 테두리가 켜지며 패널 목록에 쌓인다. 뭉친 클러스터를 클릭하면
  *   기존과 동일하게 그 범위로 확대만 될 뿐 선택되지 않는다 — 여러 건이 한 픽셀에
  *   뭉쳐 있을 때 실수로 전부 선택되는 걸 막기 위함(사용자 확정 2026-08-20). "내보내기"
- *   를 누르면 {hs:[origIndex,...], person:[...]} 형식 JSON 을 텍스트
+ *   를 누르면 {hk:[origIndex,...], person:[...]} 형식 JSON 을 텍스트
  *   상자에 채운다 — KNOWN_BAD_COORDS 등 제외 목록에 반영할 원본 행 인덱스.
- * [선박(해경) 소스 완전 제외(2026-08-20)] 선박(심판원) 데이터가 같은 사고를 더
- *   정확하게 담고 있어 해경 소스가 더 필요 없다는 사용자 확정으로, 버튼·데이터
- *   fetch·필터·팝업·통계 등 hk 관련 코드를 전부 제거했다(정적 파일도 삭제).
- *   위쪽 재조사 기록(완도군·강원 내륙 등)에 남은 hk 관련 서술은 당시 조사한
- *   내용의 역사적 기록이라 그대로 둔다.
+ * [선박(심판원) 소스 완전 제외(2026-08-21)] 선박(해경)·선박(심판원) 둘 다 원본 CSV에
+ *   WGS84 경위도 컬럼이 그대로 있어 정확도 차이는 없지만, 해경 데이터가 위치텍스트·
+ *   발생원인·선박종류·관할해경서까지 더 상세해 해경 쪽을 쓰기로 사용자 확정(2026-08-20
+ *   에 반대로 해경을 빼고 심판원만 남긴 적이 있었으나, 다시 뒤집혔다 — git으로 그
+ *   변경을 되돌리고 이번엔 심판원 쪽을 제거). 버튼·데이터 fetch·필터·팝업·통계 등
+ *   hs 관련 코드를 전부 제거했다(정적 파일도 삭제).
  * ============================================================================
  */
 
@@ -114,7 +114,7 @@
     'use strict';
 
     var SOURCES = {
-        hs: { url: '/accident_ships_hs.json' },
+        hk: { url: '/accident_ships_hk.json' },
         person: { url: '/accident_persons.json' }
     };
 
@@ -164,7 +164,7 @@
 
     /** 소스별 사고유형(ACDNT_TYPE_CD) 컬럼 위치 — popupRowsFor·aggregateCounts 와 동일 인덱스. */
     function typeCodeOf(key, row) {
-        if (key === 'hs') return row[10];
+        if (key === 'hk') return row[5];
         return row[4]; // person
     }
 
@@ -173,7 +173,7 @@
      * hs(선박·심판원)는 이 텍스트 컬럼이 원본 CSV에 아예 없어 탐지 대상에서 뺀다
      * (사고해역코드는 "남해영해"처럼 범위가 넓어 이 방식의 비교 기준으로 못 씀).
      */
-    var COORD_OUTLIER_POS_IDX = { person: 3 };
+    var COORD_OUTLIER_POS_IDX = { hk: 4, person: 3 };
 
     /** 좌표 이상치 판정 기준 — 같은 위치텍스트 그룹의 중앙값에서 이만큼(도) 벗어나면 원본 데이터
      * 오류로 본다. 0.3도 ≈ 33km(사용자 보고 사례: "하동군 금남면 송문리" 위도가 같은 지명의
@@ -266,6 +266,32 @@
      * API를 다시 받아도 그대로다. [원위도, 경도, 보정위도] 형식.
      */
     var LAT_OFFSET_FIXES = {
+        hk: [
+            [37.06667,128.83333,38.06667],
+            [36.8,126.45,35.8],
+            [36.98333,126.51389,35.98333],
+            [36.84417,126.43222,35.84417],
+            [36.93611,126.52972,35.93611],
+            [36.99722,126.70556,35.99722],
+            [35.29056,126.43333,36.29056],
+            [37.9,126.11667,36.9],
+            [36.94694,126.43889,35.94694],
+            [33.32028,126.8275,34.32028],
+            [36.15083,129.28194,35.15083],
+            [37.96111,126.83611,36.96111],
+            [37.98333,126.76667,36.98333],
+            [35.94444,129.06306,34.94444],
+            [37.11917,128.64889,38.11917],
+            [35.975,128.72389,34.975],
+            [34.23639,126.60139,33.23639],
+            [37.45056,126.49028,36.45056],
+            [34.99806,126.95417,33.99806],
+            [36.00639,128.57556,35.00639],
+            [35.81306,128.74222,34.81306],
+            [35.71694,127.73417,34.71694],
+            [37.935,126.85167,36.935],
+            [35.97806,128.57694,34.97806]
+        ],
         person: [
             [36.31583,126.62,37.31583],
             [35.975,128.58444,34.975],
@@ -342,6 +368,10 @@
      * 지도에서 제외)으로 개별 나열해 뺀다. [원위도, 원경도] 형식.
      */
     var KNOWN_BAD_COORDS = {
+        hk: [
+            [37.97333, 128.31917], // "강릉시 주문진 동방 21해리 해상" — 동방(동쪽) 표기인데 좌표는 주문진 서쪽 산속
+            [38.11667, 128.2]      // "양양군 수산항 동방 25해리 해상" — 위와 동일 유형
+        ],
         person: [
             [37.93028, 128.10611], // "통영시 사량면 돈지리 수우도" — 실제는 경남(34.8N대)
             [37.79333, 128.43917]  // "통영시 산양읍 영운리 앞 해상" — 실제는 경남(34.8N대)
@@ -538,12 +568,12 @@
      * [연계] accident_codes.js 의 ACCIDENT_*_LABELS · accidentLabel()
      */
     function popupRowsFor(key, row) {
-        if (key === 'hs') {
+        if (key === 'hk') {
             return [
-                ['재결번호', row[8] || '-'],
-                ['선박명', row[9] || '-'],
-                ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[10])],
-                ['발생일시', row[2] + '-' + pad2(row[3]) + '-' + pad2(row[4]) + ' ' + pad2(row[5]) + ':' + pad2(row[6])]
+                ['사고발생일', formatYmd(row[2]) + (row[3] ? ' ' + row[3] : '')],
+                ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[5])],
+                ['위치', row[4] || '-'],
+                ['관할', accidentLabel(ACCIDENT_ORG_LABELS, row[8])]
             ];
         }
         // person
@@ -566,7 +596,7 @@
 
     /** 검수 모드 목록에 보여줄 한 줄 요약(popupRowsFor 와 같은 컬럼을 재사용). */
     function reviewLabelFor(key, row) {
-        if (key === 'hs') return row[2] + '-' + pad2(row[3]) + '-' + pad2(row[4]) + ' · ' + (row[9] || '-');
+        if (key === 'hk') return formatYmd(row[2]) + ' · ' + (row[4] || accidentLabel(ACCIDENT_TYPE_LABELS, row[5]));
         return formatYmd(row[2]) + ' · ' + (row[3] || accidentLabel(ACCIDENT_TYPE_LABELS, row[4]));
     }
 
@@ -817,8 +847,7 @@
 
     // ── 통계 바텀시트 ───────────────────────────────────────────────────────
     function yearOf(key, row) {
-        var raw = (key === 'hs') ? row[2] : row[2]; // hs=OCRN_YR(정수), 나머지=OCRN_YMD(문자열)
-        if (key === 'hs') return raw;
+        var raw = row[2]; // OCRN_YMD(문자열)
         return (raw && String(raw).length >= 4) ? parseInt(String(raw).slice(0, 4), 10) : null;
     }
 
@@ -839,17 +868,14 @@
         var day = 0, night = 0;
         members.forEach(function (f) {
             var row = f.get('row');
-            if (accidentIsDaytimeFromTmz(row[7])) day++; else night++;
+            if (accidentIsDaytimeFromHM(row[3])) day++; else night++;
         });
         return { day: day, night: night };
     }
 
-    /**
-     * "사고발생상세" 탭 구성 — 소스마다 실제 CSV 에 있는 컬럼만큼만 보여준다.
-     * 선박(심판원) CSV 엔 발생원인·선박종류 컬럼이 없어 해역별로 대체했다.
-     */
+    /** "사고발생상세" 탭 구성 — 소스마다 실제 CSV 에 있는 컬럼만큼만 보여준다. */
     function detailTabsFor(key) {
-        if (key === 'hs') return ['발생유형', '해역'];
+        if (key === 'hk') return ['발생유형', '발생원인', '선박종류'];
         return ['사고유형'];
     }
 
@@ -864,9 +890,10 @@
     }
 
     function detailDataFor(key, tab, members) {
-        if (key === 'hs') {
-            if (tab === '발생유형') return aggregateCounts(members, function (r) { return r[10]; }, ACCIDENT_TYPE_LABELS);
-            return aggregateCounts(members, function (r) { return r[11]; }, ACCIDENT_SEA_AREA_LABELS);
+        if (key === 'hk') {
+            if (tab === '발생유형') return aggregateCounts(members, function (r) { return r[5]; }, ACCIDENT_TYPE_LABELS);
+            if (tab === '발생원인') return aggregateCounts(members, function (r) { return r[6]; }, ACCIDENT_CAUSE_LABELS);
+            return aggregateCounts(members, function (r) { return r[7]; }, ACCIDENT_SHIP_KIND_LABELS);
         }
         return aggregateCounts(members, function (r) { return r[4]; }, ACCIDENT_TYPE_LABELS);
     }
