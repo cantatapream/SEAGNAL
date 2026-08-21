@@ -94,7 +94,11 @@ const TAIL_BODY_CHARS = 3000;   // 7위 이하
 // 검색 자체는 0.1~0.3초). 다만 30개에서 순위 20위 이후는 관련성이 뚜렷이 떨어지는 노이즈성
 // 페이지가 섞이기 시작함(예: "선박안전법 형식승인및검정" 등) — 속도가 아니라 관련성 기준으로
 // 10+5=15를 "안전마진은 넉넉하되 노이즈는 덜한" 확정값으로 결정.
-const PRIMARY_TOPK = 10;
+// ★A/B 스위치(2026-08-21) — 기본값 10 은 오늘과 같다(값을 안 주면 R0).
+//   왜 두나: 문턱(MIN_KEEP_SCORE)을 낮춰도 고정 문제집 점수가 거의 안 움직였다(241→242).
+//   문턱을 통과해도 **이 개수 컷**에서 잘리기 때문이다 — 무엇이 진짜 병목인지 재려면 둘을 따로
+//   움직여 봐야 한다. 측정: `NRYA_PRIMARY_TOPK=16 node _dashboard/loop/golden_eval.js`
+const PRIMARY_TOPK = Number(process.env.NRYA_PRIMARY_TOPK) > 0 ? Number(process.env.NRYA_PRIMARY_TOPK) : 10;
 const HOP_MAX = 5;
 
 // ── index.json 캐시(mtime 감지) ──
@@ -1593,7 +1597,14 @@ async function search(query, opts) {
   // 아예 후보에서 뺀다. 안 그러면 진짜 좋은 매칭이 없을 때도 PRIMARY_TOPK를 억지로 채워
   // 무관한 법이 "근거"로 뜬다(예: "배 위 흡연" 질문에 폐기물관리법 등이 낀 사례).
   const topScore = scored.length ? scored[0].s : 0;
-  const MIN_KEEP_SCORE = Math.max(2, topScore * 0.3);
+  // ★A/B 스위치(2026-08-21) — 기본값은 **오늘과 문자 그대로 같은 0.3**이다(값을 안 주면 R0).
+  //   왜 두나: 고정 문제집의 `search` 실패 39건을 원인별로 갈라 보니 **24건(62%)이 이 문턱의
+  //   80% 이상**이었다(예: 선박직원법 "무면허로 배를 몰다" — 정답 페이지 12.3점, 문턱 12.7점으로
+  //   **0.4점 차 탈락**). 문턱을 조금 낮추면 그 24건이 들어오지만 무관한 페이지도 함께 들어와
+  //   프롬프트가 커진다 — **재 보고 정할 일**이라 스위치로 둔다(NRYA_IDF=off 와 같은 관행).
+  //   측정: `NRYA_KEEP_RATIO=0.25 node _dashboard/loop/golden_eval.js`
+  const KEEP_RATIO = Number(process.env.NRYA_KEEP_RATIO) > 0 ? Number(process.env.NRYA_KEEP_RATIO) : 0.3;
+  const MIN_KEEP_SCORE = Math.max(2, topScore * KEEP_RATIO);
   scored = scored.filter(x => x.s >= MIN_KEEP_SCORE);
   const primary = scored.slice(0, PRIMARY_TOPK);
 
@@ -4833,7 +4844,10 @@ function withAssumedNotice(answer, assumed) {
   return ASSUMED_NOTICE + '\n\n' + answer;
 }
 
-module.exports = { CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+// termsOf 는 순수 함수다(네트워크·AI 없음). 검사 도구(_dashboard/loop/search_gap.js)가
+// "검색이 이 질문을 어떤 낱말로 쪼개는지"를 **생산과 똑같이** 보려고 쓴다 — 따로 쪼개면
+// 검사와 코드가 어긋나 엉뚱한 결론이 난다(L-136·L-153).
+module.exports = { termsOf, CLARIFY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
