@@ -51,14 +51,6 @@ const ACCIDENT_SHIP_KIND_LABELS = {
     KIN014: '기타(레저선박)', KIN015: '기타', KIN016: '기타(통선)'
 };
 
-// 사고해역(ACDNT_SEAR1_CD) — 선박(심판원) 전용. 원인·선박종류 컬럼이 없는 대신
-// 이 필드로 "사고발생상세"의 두 번째 탭(해역별)을 구성한다.
-const ACCIDENT_SEA_AREA_LABELS = {
-    OCC001: '개항 및 진입수로', OCC002: '남해공해', OCC003: '남해영해', OCC004: '동남아',
-    OCC005: '동해공해', OCC006: '동해영해', OCC007: '서해공해', OCC008: '서해영해',
-    OCC009: '원양', OCC010: '일본수역', OCC011: '기타'
-};
-
 // 관할해경서(CMPTNC_KCGOFC_CD) — 선박(해경)·인명 공용.
 const ACCIDENT_ORG_LABELS = {
     1532418: '속초해양경찰서', 1532440: '동해해양경찰서', 1532466: '포항해양경찰서',
@@ -151,18 +143,4 @@ function accidentIsDaytimeFromHM(hm) {
     const hour = parseInt(String(hm).split(':')[0], 10);
     if (isNaN(hour)) return true;
     return hour >= ACCIDENT_DAY_START_HOUR && hour < ACCIDENT_DAY_END_HOUR;
-}
-
-// 선박(심판원) OCRN_TMZ_CD(4시간 구간 코드)로 주간 여부 판정.
-// TMZ001(0-4시)·TMZ006(20-24시) 만 야간으로, 나머지(4~20시)는 주간으로 근사한다
-// (06~18시 기준과 정확히 일치하진 않지만 4시간 구간이 그보다 더 세밀하진 않다).
-const ACCIDENT_TMZ_NIGHT_CODES = { TMZ001: true, TMZ006: true };
-
-/**
- * 선박(심판원) OCRN_TMZ_CD 로 주간 여부 판정.
- * @param {string} tmzCd
- * @returns {boolean}
- */
-function accidentIsDaytimeFromTmz(tmzCd) {
-    return !ACCIDENT_TMZ_NIGHT_CODES[tmzCd];
 }
