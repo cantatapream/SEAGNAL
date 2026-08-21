@@ -2035,6 +2035,19 @@ function lawMentionedOnce(law, baseLaw, text) {
     if (!base) return false;
     return [base].concat(aliasesOfFormalName(base)).some(n => n && text.includes(n + ' ' + s));
   }
+  // ⓐ-2 계층 낱말 뒤에 별표·별지 번호만 붙은 칸(`시행령 별표1`·`시행규칙 별지2호서식`).
+  //    ⓐ와 같은 꼴인데 번호가 붙어 ⓐ의 정확일치를 못 통과해, 그 행이 통째로 근거 목록에서
+  //    빠진다. 2026-08-22 24차 감사에서 4개 법 19행이 이 이유로 죽어 있는 것이 확인됐다
+  //    (해양과학조사법 7·국제항해선박항만시설보안법 6·갯벌법 3·수산종자산업육성법 3).
+  //    ★느슨해지지 않는다 — ⓐ와 똑같이 "그 페이지의 법 이름 + 계층 낱말"이 답변에 **붙어서**
+  //      나올 때만 통과한다. 별표 번호는 답변 표기가 흔들리므로 대조에 쓰지 않는다.
+  const bareAnnex = /^(시행령|시행규칙)\s*(별표|별지|서식)/.exec(s.replace(/\s+/g, ' ').trim());
+  if (bareAnnex) {
+    const base = String(baseLaw || '').trim();
+    if (!base) return false;
+    const tier = bareAnnex[1];
+    return [base].concat(aliasesOfFormalName(base)).some(n => n && text.includes(n + ' ' + tier));
+  }
   // ⓑ `<법 이름> 시행령/시행규칙` 꼴 — 답변은 같은 하위법령을 **다른 문자열로** 쓴다:
   //    정식명 전체(「어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률」 시행규칙)를 그대로
   //    쓰기도 하고, 약칭(어선안전조업법 시행규칙)이나 계층 낱말만(시행규칙 제18조) 쓰기도 한다.
