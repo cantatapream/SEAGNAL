@@ -739,6 +739,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-22 02:10 KST] 🟢착수 — H-9①통합수정 24R 디스패치
+audit_fix_cell.js + audit18_groups.json + round:24, 10그룹 동시 디스패치. task-id(runId): g0=wchc5sv2i(wf_1d89ca51-9e4) g1=w7palqunt(wf_6cf86836-53b) g2=w0ns4zwii(wf_be8f3235-ebc) g3=w7jkpvonv(wf_a7198abd-fbb) g4=wuc6zjj1t(wf_e1707689-cf3) g5=wmb34uh5i(wf_41c6ba18-827) g6=wlu7v6qcj(wf_abf01e11-c41) g7=wg16iuo38(wf_9ab1940a-368) g8=wuketjbns(wf_03447e76-087) g9=ws3130lvm(wf_cf001c9b-bcb). 완료 마커는 _dashboard/fix3/fix_r24_<slug>.done. 세션 중단 시 위 runId로 resumeFromRunId 재개. 완료 후 ③lint_xref/lint_full → ④lint_index/lint_build → ⑤human_workload 순으로 진행하고, 라이브 검증(제미나이 유료) 직전에 멈춘다.
+
+
 ### [2026-08-22 02:08 KST] ✅완료 — 24차 감사 74법+횡단 전량 완료 — 집계
 audit_r24 마커 75개(74법+횡단) 전량 확인. 10그룹 합계: 생성 문항 16,023, 판정 합계 14,969 — full 5,271(35.2%) · thin 4,489(30.0%) · missing 4,678(31.3%) · unreachable 116(0.8%) · collection_hole 93(0.6%) · awkward 49(0.3%) · scope_out 273(1.8%). 이 비율은 18~23차 각 그룹 보고치와 같은 대역이며(예: 과거 한 그룹 full 582·thin 749·missing 808), 누적 이월분을 함께 세는 집계 방식 때문이다 — 이번 라운드 신규 발굴이 아니라는 점에 주의. 라운드 주요 발견: ①물환경보전법 unreachable 88건(원문 별표22·별표3에 답이 다 있고 위키로 옮기기만 하면 됨) — 이번 통합수정 최대 덩어리 ②해양경비법 함정정비규칙 서술 전체가 '타법 연결' 표에만 있어 그 규칙 관련 질문에 근거가 안 뜨는 구조적 위험 ③유선및도선사업법 시행령 별표3 6개 목의 차수별 과태료 금액이 statutes에만 있고 개념 페이지엔 '300만원 이하'로만 표기(unreachable 6건) ④해상교통안전법 공소시효 분류 오류(형사소송법 249조①4호를 5호로) — 실제 오답 위험 ⑤항만법 서식 25종·양식산업발전법 별지 18종이 링크는 확보돼 있는데 페이지에 연결 안 됨 ⑥섬발전촉진법 신규 6페이지가 canonical인데 본문 draft 배너가 남아 사용자에게 노출될 위험(promote_verify.js 사각지대) ⑦횡단: _glossary.md에 '선박 화재/소화기'·'중고 배 매매' 행 없음, 조개껍데기·V-PASS 2갈래 안내 없음. 코드 조사 이관 2건: ⓐ농수산물품질관리법 근거표출이 단위테스트는 통과하는데 라이브에서만 불일치(R14·R21·R22·R24 4연속) ⓑ국제항해선박보안법 #999 — 답변이 조문번호를 생략하면 같은 품질의 행이 citationChain에 안 실림. 다음: H-9①통합수정(audit_fix_cell.js round:24, 10그룹) 디스패치.
 
