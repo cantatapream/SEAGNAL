@@ -1,11 +1,11 @@
 {
  "tot": {
   "laws": 74,
-  "coreMissing": 3,
+  "coreMissing": 0,
   "coreStub": 0,
   "annexShort": 0,
   "ruleStubs": 2,
-  "bad": 5
+  "bad": 2
  },
  "rows": [
   {
@@ -80,54 +80,6 @@
    ],
    "ruleCount": 106,
    "bad": 2
-  },
-  {
-   "law": "해양경찰법",
-   "domain": "02_해양경비구조",
-   "tier": 1,
-   "coreMissing": [
-    "시행령.txt",
-    "시행규칙.txt"
-   ],
-   "coreStub": [],
-   "annexShort": 0,
-   "ruleStubs": [],
-   "manifest": {
-    "missing": {},
-    "hasUncollectableSection": true
-   },
-   "expected": [
-    "법률.txt",
-    "시행령.txt",
-    "시행규칙.txt"
-   ],
-   "annexHave": 0,
-   "annexWant": 0,
-   "ruleShort": [],
-   "ruleCount": 0,
-   "bad": 2
-  },
-  {
-   "law": "출입국관리법",
-   "domain": "15_관련타부처",
-   "tier": 2,
-   "coreMissing": [
-    "시행령.txt"
-   ],
-   "coreStub": [],
-   "annexShort": 0,
-   "ruleStubs": [],
-   "manifest": null,
-   "expected": [
-    "법률.txt",
-    "시행규칙.txt",
-    "시행령.txt"
-   ],
-   "annexHave": 299,
-   "annexWant": 299,
-   "ruleShort": [],
-   "ruleCount": 6,
-   "bad": 1
   },
   {
    "law": "갯벌및그주변지역의지속가능한관리와복원에관한법률",
@@ -1238,6 +1190,26 @@
    "bad": 0
   },
   {
+   "law": "출입국관리법",
+   "domain": "15_관련타부처",
+   "tier": 2,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": null,
+   "expected": [
+    "법률.txt",
+    "시행규칙.txt",
+    "시행령_별표1의3_발췌.txt"
+   ],
+   "annexHave": 299,
+   "annexWant": 299,
+   "ruleShort": [],
+   "ruleCount": 6,
+   "bad": 0
+  },
+  {
    "law": "폐기물관리법",
    "domain": "15_관련타부처",
    "tier": 2,
@@ -1508,6 +1480,30 @@
    "bad": 0
   },
   {
+   "law": "해양경찰법",
+   "domain": "02_해양경비구조",
+   "tier": 1,
+   "coreMissing": [],
+   "coreStub": [],
+   "annexShort": 0,
+   "ruleStubs": [],
+   "manifest": {
+    "missing": {},
+    "hasUncollectableSection": true
+   },
+   "expected": [
+    "법률.txt",
+    "시행령_해양경찰위원회규정.txt",
+    "시행령_긴급중요사건범위등에관한규정.txt",
+    "시행령_해양경찰분야과학기술진흥에관한규정.txt"
+   ],
+   "annexHave": 0,
+   "annexWant": 0,
+   "ruleShort": [],
+   "ruleCount": 0,
+   "bad": 0
+  },
+  {
    "law": "해양공간계획및관리에관한법률",
    "domain": "01_해양주권정책",
    "tier": 1,
@@ -1648,8 +1644,7 @@
    },
    "expected": [
     "법률.txt",
-    "시행령.txt",
-    "시행규칙.txt"
+    "시행령.txt"
    ],
    "annexHave": 1,
    "annexWant": 1,

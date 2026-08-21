@@ -91,19 +91,34 @@ function bodyChars(fp) {
 }
 
 /**
- * 그 법이 **가져야 할 계층**을 `_meta.json` 의 `families` 에서 읽는다.
- * ★이걸 안 보고 법률·시행령·시행규칙 셋을 일괄로 요구하면, **애초에 시행규칙이 없는 법**
- *   (영해및접속수역법·독도법 등)을 결손으로 센다 — 첫 실행에서 12건 중 대부분이 그랬다.
- *   사용자가 정한 ①수집 축의 요건이 바로 이것이다: "구조적으로 못 얻는 것"과 "얻을 수 있는데
- *   안 한 것"을 반드시 가른다. `families` 에 없는 계층은 **그 법에 존재하지 않는 것**이다.
- *   `(발췌)`·`_비고` 꼬리는 같은 계층의 변형이라 벗겨서 본다.
+ * 그 법이 **가져야 할 파일**을 `_meta.json` 의 `families` 에서 읽는다.
+ * ★키 이름만 보면 안 된다 — 첫판이 그래서 세 번 틀렸다(2026-08-21, 사서 보고로 발각):
+ *   ⓐ **값이 설명 문자열**인 경우가 있다. 해양경찰법 `"시행규칙": "없음 — 법령체계도상 …
+ *      시행규칙 자체가 존재하지 않음"` — 키가 있다고 요구하면 **없는 법을 결손으로 센다.**
+ *   ⓑ **값이 배열**인 경우가 있다. 해양경찰법은 단일 통합 시행령이 없고 위임사항별 대통령령
+ *      3건으로 분산돼 파일명이 `시행령_해양경찰위원회규정.txt` 식이다 — `시행령.txt` 를 찾으면 없다.
+ *   ⓒ **`_비고` 로 끝나는 키**는 계층이 아니라 메모다(`시행령_비고`).
+ *   ⓓ 발췌본은 파일명이 다르다(출입국관리법 `시행령_별표1의3_발췌.txt`).
+ * 그래서 **`파일` 필드를 진실원천으로** 쓴다. `.json`(수집 원본)이면 같은 이름의 `.txt` 를 본다.
+ * 사용자가 정한 ①수집 축의 요건이 이것이다 — "구조적으로 못 얻는 것"과 "안 한 것"을 가른다.
  */
 function expectedCore(meta) {
-  const fam = meta && meta.families ? Object.keys(meta.families) : [];
+  const fam = (meta && meta.families) || {};
   const out = new Set();
-  for (const k of fam) {
-    const base = String(k).replace(/\(.*?\)/g, '').replace(/_.*$/, '').trim();
-    if (['법률', '시행령', '시행규칙'].includes(base)) out.add(base + '.txt');
+  const push = v => {
+    if (!v || typeof v !== 'object') return;
+    let f = String(v['파일'] || '').trim();
+    if (!f) return;
+    if (f.endsWith('.json')) f = f.slice(0, -5) + '.txt';
+    if (f.endsWith('.txt')) out.add(f);
+  };
+  for (const [k, v] of Object.entries(fam)) {
+    if (/_비고$/.test(k)) continue;                       // ⓒ 메모 키
+    const base = String(k).replace(/\(.*?\)/g, '').trim();
+    if (!['법률', '시행령', '시행규칙'].includes(base)) continue;
+    if (typeof v === 'string') continue;                  // ⓐ "없음 — …" 같은 설명 → 그 계층은 없다
+    if (Array.isArray(v)) { v.forEach(push); continue; }   // ⓑ 위임사항별로 쪼개진 경우
+    push(v);                                              // ⓓ 일반·발췌
   }
   return [...out];
 }
