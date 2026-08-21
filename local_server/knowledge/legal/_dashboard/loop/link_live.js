@@ -142,7 +142,10 @@ const rows = [];
     let s;
     try {
       s = askLive(state, ['start', q.question]);
-      for (let round = 0; round < 3 && s.last && s.last.clarify; round++) {
+      // 서버 되묻기 상한(CLARIFY_MAX_ROUNDS=5)보다 넉넉히 눌러 본다 — 3회로 두었더니
+      // 서버는 아직 되묻는 중인데 이 도구가 먼저 포기해 "못 빠져나옴"으로 세는 일이
+      // 12법 중 4법이었다(2026-08-21 실측). 이해확인 라운드가 한 번 더 끼는 것까지 감안한 6이다.
+      for (let round = 0; round < 6 && s.last && s.last.clarify; round++) {
         const pick = pickOption(s.last.clarify, q);
         if (pick < 0) break;
         s = askLive(state, ['pick', String(pick)]);

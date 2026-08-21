@@ -1,0 +1,140 @@
+{
+ "rows": [
+  {
+   "law": "갯벌및그주변지역의지속가능한관리와복원에관한법률",
+   "q": "옹진장봉도 습지보호지역 지정 근거가 습지보전법 몇 조인가요?",
+   "calls": 1,
+   "expect": "습지보전법 제8조",
+   "expectCited": true,
+   "mentions": 2,
+   "linked": 2,
+   "openOk": 2,
+   "openFail": 0,
+   "failDetail": [],
+   "forms": 0,
+   "chain": 1
+  },
+  {
+   "law": "농수산물의원산지표시등에관한법률",
+   "q": "수산물을 판매하려면 원산지를 표시해야 하나요?",
+   "calls": 4,
+   "expect": "농수산물의원산지표시등에관한법률 제5조",
+   "expectCited": true,
+   "mentions": 17,
+   "linked": 17,
+   "openOk": 17,
+   "openFail": 0,
+   "failDetail": [],
+   "forms": 0,
+   "chain": 21
+  },
+  {
+   "law": "배타적경제수역및대륙붕에관한법률",
+   "q": "❌ \"외국서 산 배는 외국인 배로 취급되나요? — 없음\"",
+   "calls": 3,
+   "expect": "선박법 제2조",
+   "expectCited": true,
+   "mentions": 2,
+   "linked": 2,
+   "openOk": 2,
+   "openFail": 0,
+   "failDetail": [],
+   "forms": 0,
+   "chain": 2
+  },
+  {
+   "law": "선박의입항및출항등에관한법률",
+   "q": "태풍 피항명령 어기면 처벌이 정박구역 위반이랑 같나요?",
+   "calls": 2,
+   "expect": "선박의입항및출항등에관한법률 제56조",
+   "expectCited": true,
+   "mentions": 7,
+   "linked": 7,
+   "openOk": 7,
+   "openFail": 0,
+   "failDetail": [],
+   "forms": 0,
+   "chain": 6
+  },
+  {
+   "law": "수산부산물재활용촉진에관한법률",
+   "q": "나는 전복 양식장을 운영하는데, 관자 빼고 남는 전복 내장도 이 법 6종 \"껍데기\"에 포함되나?",
+   "clarifyStuck": true,
+   "calls": 4
+  },
+  {
+   "law": "수상레저기구의등록및검사에관한법률",
+   "q": "20톤 이상 세일링요트를 개조해 19톤으로 줄이면 이 법 적용을 받게 되나(반대 방향 전환)?",
+   "calls": 3,
+   "expect": "수상레저기구의등록및검사에관한법률 시행령 제3조",
+   "expectCited": false,
+   "mentions": 6,
+   "linked": 6,
+   "openOk": 6,
+   "openFail": 0,
+   "failDetail": [],
+   "forms": 0,
+   "chain": 13
+  },
+  {
+   "law": "어선법",
+   "q": "\"나는 양식장에서 사료·산소발생기만 실어 나르는 배를 모는데, 이것도 어선법상 어선인가요?\"",
+   "calls": 4,
+   "expect": "어선법 제2조",
+   "expectCited": true,
+   "mentions": 5,
+   "linked": 5,
+   "openOk": 5,
+   "openFail": 0,
+   "failDetail": [],
+   "forms": 4,
+   "chain": 6
+  },
+  {
+   "law": "영해및접속수역법",
+   "q": "\"5톤급 외국적 소형어선을 영해에서 단속했는데 승선자 전원이 '우리는 무국적자'라고 주장한다. 승선자 국적이 불분명해도 제8조 처벌이 가능한가?\"",
+   "clarifyStuck": true,
+   "calls": 4
+  },
+  {
+   "law": "폐기물관리법",
+   "q": "★재질문(9차 P5/W7) \"지정폐기물 사전확인(제17조5항)을 안 받고 폐유를 배출한 정비업체를 적발했다 — 어느 조문으로 입건하나?\"",
+   "calls": 2,
+   "expect": "폐기물관리법 제66조",
+   "expectCited": true,
+   "mentions": 5,
+   "linked": 5,
+   "openOk": 5,
+   "openFail": 0,
+   "failDetail": [],
+   "forms": 0,
+   "chain": 5
+  },
+  {
+   "law": "항만재개발및주변지역발전에관한법률",
+   "q": "\"나는 지방해양수산청 소속 특별사법경찰관인데, 지방관리무역항 사업구역에서 무허가 매립을 적발했다. 과태료 부과권은 내 소속기관(지방청)인가 시·도지사인가?\"",
+   "calls": 2,
+   "expect": "항만재개발및주변지역발전에관한법률 제47조·제49조·제44조",
+   "expectCited": true,
+   "mentions": 3,
+   "linked": 3,
+   "openOk": 3,
+   "openFail": 0,
+   "failDetail": [],
+   "forms": 0,
+   "chain": 5
+  },
+  {
+   "law": "해양공간계획및관리에관한법률",
+   "q": "(신규) 「해양용도구역 관리지침」 제5~13조의 \"개발계획 수립등을 제한할 수 있다\"는 규정을 관리기관이 어겨서 실제로는 다 허가해줬다면, 그 관리기관에 제재가 있나요?",
+   "clarifyStuck": true,
+   "calls": 4
+  },
+  {
+   "law": "해양수산생명자원의확보ㆍ관리및이용등에관한법률",
+   "q": "외국 어선이 EEZ에서 무허가로 산호를 채취하다 적발됐다. 현장에서 즉시 나포 가능한가, 법원 영장이 필요한가?",
+   "clarifyStuck": true,
+   "calls": 4
+  }
+ ]
+}
