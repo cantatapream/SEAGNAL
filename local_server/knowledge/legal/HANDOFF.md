@@ -739,6 +739,10 @@ ON 시 노출률 급감 위험, 현재 exposure는 계속 off로 사용자 확�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-08-22 03:02 KST] ✅완료 — 24R ③lint_xref 완료 → lint_full 디스패치
+lint_xref 10그룹 전부 완료. 신규 링크 약 90건 — 대부분 '타법 연결' 표가 아니라 '근거 조문' 표·본문 문장에 평문으로 남아 있던 우리법 인용이었다(공유수면관리및매립법 14, 수상레저안전법 11, 국제항해선박항만시설보안법 9, 해양수산발전기본법 9, 수상레저기구등록검사법 8, 해양치유자원법 8, 수산업ㆍ어촌발전기본법 6, EEZ대륙붕법 6 등). 평문으로 남은 나머지는 전부 우리 74법 밖 외부법(형법·행정절차법 등)이라 링크 대상 아님을 각 조가 build_data.json 목록과 대조해 확인했다. 부수 사고 1건: 린트 사서들이 변경이력에 '평문을 [[링크]]로 전환'이라고 적으면서 그 네 글자가 실제 링크로 해석돼 깨진 링크 3건 발생 — 문장을 고쳐 0건 복구(유류오염손해배상보장법 3개 페이지). 게이트 확인: xref_check.py wiki 문서 1,276개·정상 링크 19,801건·깨진 링크 0건. 이어서 lint_full.js round:24 10그룹 디스패치(lint_xref와 동시 실행하지 않고 직렬로 돌림 — 같은 파일 동시 쓰기 회피). task-id(runId): g0=w10gycjol(wf_67a59d27-fec) g1=w9aszn2l0(wf_393a95bb-c18) g2=wzgqg40av(wf_c179c6e7-675) g3=w1ii55s6k(wf_9fbd7ea8-aee) g4=wt6w4s9fy(wf_da70824d-921) g5=wpyo7nsea(wf_b3cd2cec-761) g6=wi8pcspf2(wf_bf6cb834-4fa) g7=wbey13ozb(wf_63ad00fe-46b) g8=wm8rz0yqk(wf_a118a767-2a0) g9=wmnhkpumh(wf_eaaee91b-dcf).
+
+
 ### [2026-08-22 02:49 KST] 🟢착수 — 24R ③lint_xref 디스패치 + lint_full은 직렬로 미룸(판단)
 lint_xref.js round:24 10그룹 디스패치. task-id(runId): g0=wqveicwhh(wf_7deca6a7-68a) g1=w3r9i9664(wf_1f683620-324) g2=w7xlueas4(wf_e496a42c-a4c) g3=w1vk8j1au(wf_99854b3b-dad) g4=w57063z9w(wf_4253bdb0-c8f) g5=w8f6896tl(wf_4f0ba461-281) g6=w3qubhzks(wf_a859cecf-ed9) g7=wa73s82ty(wf_7b5d69fa-1a0) g8=w1nws9yt1(wf_3518b67c-027) g9=wkv8ut0pz(wf_62dfdfef-242). ★판단 변경(사용자 지시로 추천안 자동적용): 19~23차는 lint_xref와 lint_full을 같은 그룹 편성으로 동시에 20개 디스패치했으나, 이번에는 lint_xref가 끝난 뒤 lint_full을 돌리는 직렬로 바꾼다 — 두 린트는 같은 법의 같은 위키 파일을 쓰므로 동시 실행은 CLAUDE.md 병렬 안전 규칙이 말하는 공유 파일 동시 쓰기에 해당하고, 오늘 실제로 감사 파일 교차오염 사고(L-169)가 확인됐기 때문이다. 속도보다 데이터 보존을 택한다.
 
