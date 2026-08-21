@@ -1,0 +1,77 @@
+# accident-geocode-check.yml - 사고정보(선박·해경) 위치텍스트-좌표 대조 조사
+#
+# [용도] 개발 샌드박스(Claude Code on the web)는 nominatim.openstreetmap.org 접속이
+#   막혀 있어 local_server/scripts/accident_geocode_check.js 를 거기서 실행할 수 없다.
+#   GitHub Actions 실행 환경(ubuntu-latest)은 외부망이 열려 있어 여기서 대신 돌린다 —
+#   모바일에서도 GitHub 앱/브라우저로 이 페이지에 들어와 "Run workflow" 버튼만 누르면
+#   실행할 수 있다(PC·터미널 불필요).
+# [결과 확인] 실행이 끝나면 이 워크플로우 실행 화면 위쪽 "Summary"에 의심 후보 표와
+#   origIndex 목록이 바로 뜬다(다운로드 불필요). 상세 JSON은 Artifacts에서 받을 수 있다.
+# [연계] local_server/scripts/accident_geocode_check.js, client/accident_ships_hk.json
+
+name: 사고정보 지오코딩 대조 조사
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: '조사할 건수 (0 = 전수, 시간이 오래 걸림 — 우선 50~200 권장)'
+        required: false
+        default: '100'
+
+permissions:
+  contents: read
+
+jobs:
+  geocode-check:
+    name: 지오코딩 대조 실행
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 지오코딩 대조 스크립트 실행
+        env:
+          LIMIT: ${{ github.event.inputs.limit }}
+        run: node local_server/scripts/accident_geocode_check.js --limit="$LIMIT"
+
+      - name: 결과를 Summary에 표로 정리
+        if: always()
+        run: |
+          OUT=local_server/data/accident_geocode_suspects.json
+          if [ ! -f "$OUT" ]; then
+            echo "## ❌ 결과 파일이 생성되지 않았습니다 (스크립트가 중간에 실패했을 수 있음)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node -e "
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('$OUT', 'utf8'));
+            const lines = [];
+            lines.push('## 사고정보 지오코딩 대조 결과');
+            lines.push('');
+            lines.push('의심 임계값: ' + data.thresholdKm + 'km 이상 어긋난 경우만 후보로 표시합니다.');
+            lines.push('');
+            lines.push('| 건수 | 위치텍스트 | 발생일자 | 저장된 좌표 | 예상 좌표(지오코딩) | 어긋난 거리 |');
+            lines.push('|---|---|---|---|---|---|');
+            data.suspects.forEach(s => {
+              lines.push('| origIndex ' + s.origIndex + ' | ' + s.pos + ' | ' + s.ymd + ' | ' + s.actual.join(', ') + ' | ' + s.expected.join(', ') + ' | ' + s.offsetKm + 'km |');
+            });
+            lines.push('');
+            lines.push('**의심 후보 ' + data.suspects.length + '건.** 아래 origIndex 목록을 검수 모드에 붙여넣듯 확인하세요(자동삭제 아님 — 사람이 직접 지도에서 봐야 함):');
+            lines.push('');
+            lines.push('\`\`\`json');
+            lines.push(JSON.stringify({ hk: data.suspects.map(s => s.origIndex) }));
+            lines.push('\`\`\`');
+            fs.writeFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'), { flag: 'a' });
+          "
+
+      - name: 결과 파일 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accident-geocode-suspects
+          path: local_server/data/accident_geocode_suspects.json
+          if-no-files-found: warn
