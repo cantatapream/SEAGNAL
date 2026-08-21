@@ -2946,7 +2946,17 @@ function loadRawPaths() {
     if (_rawPathsCache && mt === _rawPathsMtime) return _rawPathsCache;
     const obj = JSON.parse(fs.readFileSync(LAW_RAW_PATHS_JSON, 'utf8'));
     const map = new Map();
-    for (const k of Object.keys(obj)) map.set(k.replace(/\s+/g, ''), obj[k]);
+    // ★가운뎃점 표기 흔들림 흡수(2026-08-22): 위키 근거 조문 표는 같은 법을 `어촌ㆍ어항법`과
+    //   `어촌·어항법` 두 가지로 적는다(전 위키 816행·118개 법령명이 가운뎃점을 포함한다 —
+    //   midDot() 주석 참조). 폴더 이름은 한 가지뿐이라, 다르게 적힌 행은 원문 폴더를 못 찾아
+    //   **눌러도 원문이 안 열렸다.** 두 표기를 같은 열쇠로 모아 둔다(이름 자체는 그대로 일치해야
+    //   하므로 느슨해지지 않는다). 24차 라운드 종료 게이트에서 5행이 이 이유로 죽어 있었다.
+    for (const k of Object.keys(obj)) {
+      const flat = k.replace(/\s+/g, '');
+      map.set(flat, obj[k]);
+      const uni = midDot(flat);
+      if (uni !== flat && !map.has(uni)) map.set(uni, obj[k]);
+    }
     _rawPathsCache = map; _rawPathsMtime = mt;
   } catch (_) { if (!_rawPathsCache) _rawPathsCache = new Map(); }
   return _rawPathsCache;
@@ -2960,7 +2970,9 @@ function loadRawPaths() {
  * [연계] → github_raw.listDir/fetchText에 그대로 넘기는 GitHub Contents API 경로.
  */
 function rawPathOf(lawName) {
-  return loadRawPaths().get(String(lawName || '').replace(/\s+/g, '')) || null;
+  const m = loadRawPaths();
+  const flat = String(lawName || '').replace(/\s+/g, '');
+  return m.get(flat) || m.get(midDot(flat)) || null;
 }
 
 /**
