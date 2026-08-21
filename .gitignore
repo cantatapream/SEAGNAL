@@ -24,6 +24,9 @@ local_server/data/debug_pdf/
 # 수심 데이터 (Fly.io Volume에 저장)
 local_server/data/bathymetry/
 
+# accident_geocode_check.js 실행 산출물 — 검수용 의심 후보 목록, 실행할 때마다 새로 생성됨
+local_server/data/accident_geocode_suspects.json
+
 # 제주 BADA 격자 산출물(build_jeju_bathy_grid.js) — 아직 어떤 런타임 코드도 읽지 않는
 # 로컬 검증용 스냅샷이라, grid_meta.json/anchors.json 과 달리 빈 placeholder 관례를
 # 적용하지 않는다. Task #14 에서 실제 소비자(앵커 재산정)가 생기면 그때 관례를 정한다.
