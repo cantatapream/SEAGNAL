@@ -55,6 +55,27 @@ function buildBaseLawMap() {
 }
 const BASE_LAW = buildBaseLawMap();
 
+/**
+ * 위키에 있는데 **색인(index.json)에 없는 페이지**를 센다 — 그런 페이지는 챗봇이 아예 못 본다.
+ * ★왜(2026-08-21 실제 사고): 이번 세션에 만들어 canonical 로 승격까지 한 개념 페이지 12장이
+ *   `lint_index.py` 를 다시 안 돌려 색인에 없었다. 검색은 index.json 만 훑으므로(scoreOne),
+ *   그 12장은 **만들었지만 사용자에게 한 번도 닿을 수 없는 상태**였다. 아무 게이트도 이걸 안 봤다.
+ *   고치는 법은 한 줄이다 — `python3 _dashboard/loop/lint_index.py`.
+ */
+function unindexedPages() {
+  const out = [];
+  for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities']) {
+    const D = path.join(WIKI, dir);
+    if (!fs.existsSync(D)) continue;
+    for (const f of fs.readdirSync(D)) {
+      if (!f.endsWith('.md')) continue;
+      const k = f.replace(/\.md$/, '');
+      if (!BASE_LAW.has(k)) out.push(dir + '/' + k);
+    }
+  }
+  return out;
+}
+
 /** 조문 칸에서 조 번호만 뽑는다. 묶음·범위는 생산 함수가 편다(`제52~55·57조` → 여러 개). */
 function joTokens(article) {
   const s = String(article || '');
@@ -86,16 +107,31 @@ function fileOf(baseRel, tier, law) {
 }
 
 const numsCache = new Map();
+/**
+ * 그 파일에 실재하는 조 번호. **삭제된 조는 따로 모은다.**
+ * ⚠왜(2026-08-21 실측): `listArticleNumbers` 는 조 제목 괄호를 표식으로 삼는데, 삭제된 조는
+ *   `제11조 <삭제 2007. 11. 2>` 처럼 제목이 없어 그 목록에 안 잡힌다. 그런데 위키가 범위로 적은
+ *   칸(`제7~18조`)에는 그 삭제 조가 딸려 들어온다 — 이걸 결함으로 세면 **고칠 수 없는 것을
+ *   고치라고 시키는 셈**이다(삭제는 국가가 한 것이지 우리가 틀린 게 아니다).
+ */
 function articleNumbersOf(file, tier) {
   const k = file + '|' + tier;
   if (numsCache.has(k)) return numsCache.get(k);
-  let set = new Set();
-  try { set = new Set(A.listArticleNumbers(fs.readFileSync(file, 'utf8'), tier)); } catch (_) { /* 못 읽으면 빈 집합 */ }
-  numsCache.set(k, set);
-  return set;
+  const out = { live: new Set(), dead: new Set() };
+  try {
+    const text = fs.readFileSync(file, 'utf8');
+    out.live = new Set(A.listArticleNumbers(text, tier));
+    const re = tier === 'notice'
+      ? /(?:^|\n)제(\d+)조(?:의(\d+))?\s*(?:<[^>]*)?삭제/g
+      : /(?:^|\n)\[제(\d+)조(?:의(\d+))?\][^\n]*삭제/g;
+    let m;
+    while ((m = re.exec(text)) !== null) out.dead.add('제' + m[1] + '조' + (m[2] ? '의' + m[2] : ''));
+  } catch (_) { /* 못 읽으면 빈 집합 */ }
+  numsCache.set(k, out);
+  return out;
 }
 
-const now = { rows: 0, ok: 0, no_article: 0, no_base: 0, no_file: 0, no_notice: 0, skipped: 0 };
+const now = { rows: 0, ok: 0, deleted: 0, no_article: 0, no_base: 0, no_file: 0, no_notice: 0, skipped: 0 };
 const ex = { no_article: [], no_base: [], no_file: [], no_notice: [] };
 
 for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities']) {
@@ -128,8 +164,12 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
         continue;
       }
       const have = articleNumbersOf(file, tier);
-      const miss = jos.filter(j => !have.has(j));
-      if (!miss.length) { now.ok++; continue; }
+      const miss = jos.filter(j => !have.live.has(j) && !have.dead.has(j));
+      if (!miss.length) {
+        // 삭제된 조만 걸린 줄은 "열린다" 로 세되 따로 표시해 둔다(고칠 수 있는 결함이 아니다).
+        if (jos.some(j => !have.live.has(j) && have.dead.has(j))) now.deleted++;
+        now.ok++; continue;
+      }
       now.no_article++;
       if (ex.no_article.length < 40) {
         ex.no_article.push(`${dir}/${f}  |  ${law.slice(0, 30)}  |  ${String(row.article).slice(0, 26)}  ← ${miss.slice(0, 4).join('·')}  (${path.basename(file)})`);
@@ -144,15 +184,22 @@ if (BASE_FILE) { try { base = JSON.parse(fs.readFileSync(BASE_FILE, 'utf8')); } 
 const delta = k => base && typeof base[k] === 'number'
   ? (now[k] - base[k] > 0 ? `  (+${now[k] - base[k]})` : now[k] - base[k] < 0 ? `  (${now[k] - base[k]})` : '') : '';
 
+const unindexed = unindexedPages();
 const judged = now.ok + now.no_article;
 console.log(`근거 조문 줄 ${now.rows.toLocaleString()}개 · 조문을 짚은 줄 ${(now.rows - now.skipped).toLocaleString()}개`);
 console.log(`\n  ✅ 눌러서 열린다        ${String(now.ok).padStart(6)}` +
   (judged ? `  (${(now.ok * 100 / judged).toFixed(1)}%)` : '') + delta('ok'));
+console.log(`      └ 그중 삭제된 조가 낀 줄 ${String(now.deleted).padStart(4)}${delta('deleted')}   (국가가 삭제한 조 — 우리가 고칠 것 아님)`);
 console.log(`  ❌ 그 파일에 그 조 없음  ${String(now.no_article).padStart(6)}${delta('no_article')}   ← 계층 오지정 또는 수집 공백`);
 console.log(`  ⚠ 원문 폴더를 못 찾음   ${String(now.no_base).padStart(6)}${delta('no_base')}`);
 console.log(`  ⏭️ 그 계층 파일이 없음   ${String(now.no_file).padStart(6)}${delta('no_file')}   (법률·시행령·시행규칙 미수집 — 4축 ①)`);
 console.log(`  ⚠ 고시 파일을 못 고름   ${String(now.no_notice).padStart(6)}${delta('no_notice')}   (미수집이거나 위키 이름과 파일 이름이 어긋남)`);
 console.log(`  ⏭️ 조문 칸이 아님        ${String(now.skipped).padStart(6)}${delta('skipped')}   (별표·별지·설명 — V5-5 소관)`);
+if (unindexed.length) {
+  console.log(`\n  ❌ 색인에 없는 위키 페이지 ${unindexed.length}장 — 챗봇이 **아예 못 봅니다**`);
+  unindexed.slice(0, 10).forEach(x => console.log('      · ' + x));
+  console.log('      고치는 법: python3 _dashboard/loop/lint_index.py');
+}
 
 if (argv.includes('--examples')) {
   for (const [k, title] of [['no_article', '그 파일에 그 조가 없음'], ['no_base', '원문 폴더를 못 찾음'], ['no_notice', '고시 파일을 못 고름'], ['no_file', '그 계층 파일이 없음']]) {
@@ -171,6 +218,10 @@ if (argv.includes('--gate')) {
   if (!base) { console.log('\n  ⏭️  기준선이 없어 게이트를 건너뜁니다(--base 로 지정).'); process.exit(0); }
   // 0 을 요구하지 않는다 — 수집이 덜 된 법이 남아 있어 억지로 0 을 만들면 그게 지어내기다.
   // **기준선보다 늘어나면** 실패시킨다(V5-5 와 같은 규약).
+  if (unindexed.length) {
+    console.log(`\n  ❌ 색인에 없는 페이지 ${unindexed.length}장 — 만들어 놓고 색인을 안 돌렸습니다`);
+    process.exit(1);
+  }
   if (now.no_article > base.no_article || now.no_base > base.no_base) {
     console.log(`\n  ❌ 눌러도 안 열리는 줄이 늘었습니다 (조문없음 ${base.no_article}→${now.no_article} · 경로없음 ${base.no_base}→${now.no_base})`);
     process.exit(1);

@@ -12,6 +12,33 @@ def load_names():
     return {x['slug']:x['name'] for x in d['all']}
 SLUG2NAME=load_names()
 
+# ── 파일명이 `법__주제` 꼴이 아닌 개념 페이지의 소속 법 찾기 (2026-08-21) ─────────────
+# 왜: 아래 `law` 는 파일명 앞부분(slug)으로 법 이름을 찾고, **못 찾으면 slug 를 그대로 법 이름으로
+#   쓴다.** 그런데 고시 이름을 그대로 파일명으로 쓴 개념 페이지가 있다(`강선의구조기준.md` 등).
+#   그러면 그 페이지의 법이 "강선의구조기준" 이 되고, 챗봇이 조문 원문을 열 때 그 이름으로 raw 폴더를
+#   찾다 실패한다 — 고시는 독립 폴더가 없고 **모법 폴더 아래**에 있기 때문이다
+#   (`선박안전법/행정규칙/강선의구조기준.txt`). 그 결과 사용자가 본문 조문 링크를 눌러도 아무것도
+#   안 열린다(2026-08-21 `link_ready.js` 로 발견, 개념 페이지 12장·근거 줄 약 159개).
+# 어떻게: 페이지 머리말에 이미 적혀 있는 `상위기준법`, 없으면 `id: concept.<법>_<주제>` 에서 가져온다.
+#   **지어내지 않는다** — 둘 다 없거나 아는 법이 아니면 예전처럼 slug 를 그대로 쓴다.
+# ⚠비교(comparisons)·활동(activities) 페이지는 손대지 않는다. 여러 법을 견주는 자리라 소속 법이
+#   하나일 수 없고, 코드도 그 전제로 쓰여 있다(client buildCiteIndex 주석 참고).
+KNOWN_LAWS={re.sub(r'\s+','',v) for v in SLUG2NAME.values()}
+for _d in (os.listdir(f'{LEGAL}/raw') if os.path.isdir(f'{LEGAL}/raw') else []):
+    _p=f'{LEGAL}/raw/{_d}'
+    if os.path.isdir(_p):
+        for _l in os.listdir(_p):
+            if os.path.isdir(f'{_p}/{_l}'): KNOWN_LAWS.add(re.sub(r'\s+','',_l))
+
+def owner_law(txt):
+    """머리말에서 이 페이지가 딸린 법을 찾는다. 못 찾으면 ''."""
+    for pat in (r'^상위기준법:\s*(.+)$', r'^id:\s*\w+\.(.+?)_'):
+        m=re.search(pat,txt,re.M)
+        if m:
+            v=m.group(1).strip().strip('"\'')
+            if re.sub(r'\s+','',v) in KNOWN_LAWS: return v
+    return ''
+
 # 테마 키워드(의미 기반 1차 후보) — 최종 병합은 에이전트가
 THEMES={
  '안전장구_구명설비':['구명조끼','구명동의','인명안전','구명부환','구명뗏목','구명벌','안전장비','인명구조','자기점화등','구명줄'],
@@ -40,7 +67,15 @@ for path in glob.glob(f'{WIKI}/statutes/*.md')+glob.glob(f'{WIKI}/concepts/*.md'
     # status(승급상태): 챗봇 답변엔진 canonical 필터용. frontmatter 없으면 보수적으로 draft.
     sm=re.search(r'^status:\s*(\S+)',txt,re.M)
     status=sm.group(1).strip() if sm else 'draft'
-    pages.append({'file':fn,'kind':kind,'slug':slug,'law':SLUG2NAME.get(slug,slug),
+    law=SLUG2NAME.get(slug,'')
+    if not law and kind in ('concept','annex'):
+        # 파일명으로 법을 못 찾은 개념·별표 페이지 — 머리말에 적힌 소속 법을 쓴다(위 owner_law 주석).
+        law=owner_law(txt)
+        # 법 이름을 옮기면 그 페이지가 **자기 이름으로 안 잡힌다**(scoreOne 은 topic||law 를 제목으로
+        # 보고 +3 을 준다). 파일명을 주제로 넣어 신원을 보존한다 — 다른 개념 페이지의 `법__주제` 와 같은 꼴.
+        if law and not topic: topic=fn
+    if not law: law=slug
+    pages.append({'file':fn,'kind':kind,'slug':slug,'law':law,
                   'topic':topic,'status':status,'cited':cited,'links':links,'byls':byls,'penalty':pen,'themes':themes})
 
 # 1) 테마 → 페이지 (2법 이상 걸린 테마만 허브 대상)
