@@ -1,0 +1,51 @@
+[별표 4] 저당권의 기록 예(제36조 관련) (선박법 사무취급 요령, 해양수산부훈령 제271호, admrul ID 2100000025243)
+(수집: law.go.kr DRF target=admrul&ID=2100000025243 응답의 별표.별표단위.별표서식파일링크(HWP)를 hwp5txt(본문)+hwp5html(표) 병용 추출로 확보, 2026-08-21 24차 백로그 재수집. 24차 감사가 raw 미수집으로 지적한 항목.)
+
+[별표 4] 
+저당권의 기록 예(제36조 관련)
+
+(한글)
+제1기록 예
+    저당권 설정
+원    인 :      년    월    일  저당권 설정
+채 권 액 : 금                 원정
+저당권자 : (성명 또는 명칭)
+           (주소)
+20   .    .    .   
+지방해양수산청장   (인)
+
+
+제2기록 예
+근저당권 설정
+원    인 :      년    월    일  근저당권 설정
+(계약)채권최고액 : 금        영국 파운드화      파운드정
+근저당권자 : (성명 또는 명칭)
+             (주소)
+20   .    .    .   
+지방해양수산청장   (인)
+(영문)
+제1기록 예
+MORTGAGE DESCRIPTION
+Mortgagor :
+Mortgagee :
+Amount of mortgage :
+Grade of mortgage :
+Date of mortgage registered :
+It is hereby certified that the above described particulars are exact in all respect.
+The ............... day of ............... 20  .   .   .
+(Signature)
+(Official position)
+
+제2기록 예
+MORTGAGE DESCRIPTION
+Mortgagor :
+Mortgagee :
+Total amount
+Discharge amount
+Date of maturity
+Endorsed on    (Date)         at              (Place)
+Endorsed at the Port of
+It is hereby certified that the above described particulars are exact in all respect.
+The ............... day of ............... 20  .   .   .
+(Signature)
+(Official position)

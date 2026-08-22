@@ -2024,16 +2024,37 @@ function lawCellVariants(law) {
 const MIDDOT_RE = /[·ㆍ・]/g;
 function midDot(s) { return String(s || '').replace(MIDDOT_RE, '\u00B7'); }
 
+// 법령명 대조용 압축: 가운뎃점 표기와 **띄어쓰기**를 흡수한다. 이름 자체는 그대로 남으므로
+// 느슨해지지 않는다 — 같은 법을 위키는 `해저광물자원개발법`, 답변은 `해저광물자원 개발법`으로
+// 쓰는 일이 흔하고(정식명에 띄어쓰기가 있다), 그 차이 하나로 그 행이 통째로 죽는다.
+// 2026-08-22 조광료 근거 행이 이 이유로 답변 대조에서 탈락하는 것을 실측으로 확인했다.
+function squashLaw(s) { return midDot(String(s || '')).replace(/\s+/g, ''); }
+
 function lawMentionedOnce(law, baseLaw, text) {
   const s = String(law || '').trim();
   if (!s || s.length < 2) return false;
   if (text.includes(s)) return true;
   if (MIDDOT_RE.test(s) && midDot(text).includes(midDot(s))) return true;
+  // 띄어쓰기·가운뎃점만 다른 같은 이름(4글자 이상일 때만 — 짧은 이름은 우연 일치 위험).
+  if (s.replace(/\s+/g, '').length >= 4 && squashLaw(text).includes(squashLaw(s))) return true;
   // ⓐ 계층 낱말만 적힌 칸(`시행령`·`시행규칙`) — 그 줄이 실린 페이지의 법(baseLaw)으로 편다.
   if (BARE_TIER_CELL_RE.test(s.replace(/\s+/g, ''))) {
     const base = String(baseLaw || '').trim();
     if (!base) return false;
     return [base].concat(aliasesOfFormalName(base)).some(n => n && text.includes(n + ' ' + s));
+  }
+  // ⓐ-2 계층 낱말 뒤에 별표·별지 번호만 붙은 칸(`시행령 별표1`·`시행규칙 별지2호서식`).
+  //    ⓐ와 같은 꼴인데 번호가 붙어 ⓐ의 정확일치를 못 통과해, 그 행이 통째로 근거 목록에서
+  //    빠진다. 2026-08-22 24차 감사에서 4개 법 19행이 이 이유로 죽어 있는 것이 확인됐다
+  //    (해양과학조사법 7·국제항해선박항만시설보안법 6·갯벌법 3·수산종자산업육성법 3).
+  //    ★느슨해지지 않는다 — ⓐ와 똑같이 "그 페이지의 법 이름 + 계층 낱말"이 답변에 **붙어서**
+  //      나올 때만 통과한다. 별표 번호는 답변 표기가 흔들리므로 대조에 쓰지 않는다.
+  const bareAnnex = /^(시행령|시행규칙)\s*(별표|별지|서식)/.exec(s.replace(/\s+/g, ' ').trim());
+  if (bareAnnex) {
+    const base = String(baseLaw || '').trim();
+    if (!base) return false;
+    const tier = bareAnnex[1];
+    return [base].concat(aliasesOfFormalName(base)).some(n => n && text.includes(n + ' ' + tier));
   }
   // ⓑ `<법 이름> 시행령/시행규칙` 꼴 — 답변은 같은 하위법령을 **다른 문자열로** 쓴다:
   //    정식명 전체(「어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률」 시행규칙)를 그대로
@@ -2933,7 +2954,17 @@ function loadRawPaths() {
     if (_rawPathsCache && mt === _rawPathsMtime) return _rawPathsCache;
     const obj = JSON.parse(fs.readFileSync(LAW_RAW_PATHS_JSON, 'utf8'));
     const map = new Map();
-    for (const k of Object.keys(obj)) map.set(k.replace(/\s+/g, ''), obj[k]);
+    // ★가운뎃점 표기 흔들림 흡수(2026-08-22): 위키 근거 조문 표는 같은 법을 `어촌ㆍ어항법`과
+    //   `어촌·어항법` 두 가지로 적는다(전 위키 816행·118개 법령명이 가운뎃점을 포함한다 —
+    //   midDot() 주석 참조). 폴더 이름은 한 가지뿐이라, 다르게 적힌 행은 원문 폴더를 못 찾아
+    //   **눌러도 원문이 안 열렸다.** 두 표기를 같은 열쇠로 모아 둔다(이름 자체는 그대로 일치해야
+    //   하므로 느슨해지지 않는다). 24차 라운드 종료 게이트에서 5행이 이 이유로 죽어 있었다.
+    for (const k of Object.keys(obj)) {
+      const flat = k.replace(/\s+/g, '');
+      map.set(flat, obj[k]);
+      const uni = midDot(flat);
+      if (uni !== flat && !map.has(uni)) map.set(uni, obj[k]);
+    }
     _rawPathsCache = map; _rawPathsMtime = mt;
   } catch (_) { if (!_rawPathsCache) _rawPathsCache = new Map(); }
   return _rawPathsCache;
@@ -2947,7 +2978,9 @@ function loadRawPaths() {
  * [연계] → github_raw.listDir/fetchText에 그대로 넘기는 GitHub Contents API 경로.
  */
 function rawPathOf(lawName) {
-  return loadRawPaths().get(String(lawName || '').replace(/\s+/g, '')) || null;
+  const m = loadRawPaths();
+  const flat = String(lawName || '').replace(/\s+/g, '');
+  return m.get(flat) || m.get(midDot(flat)) || null;
 }
 
 /**

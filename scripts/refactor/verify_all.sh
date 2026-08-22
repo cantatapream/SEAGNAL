@@ -109,6 +109,21 @@ echo; echo "── V5-8 조문 링크 도달성(눌러서 원문이 열리나) �
 node local_server/knowledge/legal/_dashboard/loop/link_ready.js \
   --base local_server/knowledge/legal/_dashboard/loop/pinned/link_ready_base.json --gate || FAIL=1
 
+echo; echo "── V5-9 수집(품질 4축 ①) — 가져야 할 원문이 손에 있나 ──"
+# 사용자가 정한 품질 4축 중 **①수집만 게이트가 아예 없었다**(H-45). ②는 V5-3, ③은 V5-5·V5-7·V5-8,
+#   ④는 V5-2·V5-10 이 본다. 이 검사는 기준법 74개의 raw 를 지금 직접 세어, 그 법에 **실제로 존재하는
+#   계층**(_meta.json families)인데 파일이 없거나 비어 있는 것만 잡는다 — 애초에 시행규칙이 없는 법을
+#   결손으로 세지 않기 위해서다(사용자 요건: "구조적으로 못 얻는 것"과 "안 한 것"을 반드시 가른다).
+node local_server/knowledge/legal/_dashboard/loop/collect_eval.js \
+  --base pinned/collect_eval_base.json --gate || FAIL=1
+
+echo; echo "── V5-10 연결(품질 4축 ④) — 한쪽만 걸린 링크 ──"
+# V5-2 는 **깨진 링크**만 본다. A→B 는 있는데 B→A 가 없는 것은 아무도 안 세고 있었고, 계기판이
+#   읽던 200 이라는 수는 lint_index.py 가 목록을 200개에서 자른 값이었다(실제 2,666건).
+#   모든 링크가 대칭일 필요는 없으므로 0을 요구하지 않고 **기준선보다 늘지 않는 것**만 본다.
+node local_server/knowledge/legal/_dashboard/loop/link_sym.js \
+  --base pinned/link_sym_base.json --gate || FAIL=1
+
 echo; echo "── V5-2 위키 링크 무결성 ──"
 ( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || FAIL=1
 

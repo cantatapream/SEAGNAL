@@ -35,9 +35,22 @@ function askLive(state, args) {
   return JSON.parse(fs.readFileSync(state, 'utf8'));
 }
 
-/** 되묻기 선택 규칙 — link_live.js 와 같다(기대 근거와 두 글자씩 가장 많이 겹치는 선택지). */
+/**
+ * 되묻기 선택 규칙 — **질문 원문만 보고** 고른다.
+ *
+ * ⚠2026-08-21 전수 검증에서 이 함수가 결과를 망치고 있었다. 원래는 `질문 + 기대조문 + 기대법`
+ *   전체와 겹치는 라벨을 골랐는데, **기대 근거를 보고 고르는 것은 답을 알고 고르는 것**이라
+ *   두 가지가 동시에 망가진다:
+ *     ① 사람이 하지 않을 선택을 한다 — 사용자는 정답 조문을 모르는 채로 고른다
+ *     ② 오히려 **엉뚱한 데로 끌고 간다** — 실측: "우수관리인증기관 거짓지정 별표4?" 에서
+ *        기대 근거의 글자와 겹친다는 이유로 **"수산물"** 을 골랐고, 챗봇은 정확하게
+ *        "우수관리인증기관은 **농산물에만** 적용된다"고 답했는데 기대 조문과 다르다고 실패로
+ *        집계됐다. "무인도서 여행 허가?" 도 "특정도서입니다" 를 골라 챗봇의 정답을 실패로 셌다.
+ *   실패 24건 중 **22건이 되묻기를 거친 뒤** 실패했다 — 도구가 만든 실패가 섞여 있었다.
+ * 그래서 **기대 근거를 빼고 질문 원문하고만** 겹침을 잰다(사용자가 아는 것만 갖고 고른다).
+ */
 function pickOption(clarify, q) {
-  const want = (q.question + ' ' + (q.expect_article || '') + ' ' + (q.expect_law || '')).replace(/\s+/g, '');
+  const want = String(q.question).replace(/\s+/g, '');
   const opts = (clarify.options || []);
   let best = -1, bestScore = -1;
   opts.forEach((o, i) => {
@@ -52,6 +65,28 @@ function pickOption(clarify, q) {
 
 const list = JSON.parse(fs.readFileSync(path.resolve(HERE, IN), 'utf8'));
 const rows = [];
+// 조문 표기 정규화 — 같은 조문을 사람마다 다르게 적는다("제7조2호" vs "제7조제2호",
+// "①" vs "제1항", "별표4" vs "별표 4"). 이 차이 때문에 글자대조가 헛발질하면
+// 챗봇이 맞게 답했는데도 틀린 것으로 집계된다(2026-08-21 1차 라이브에서 4건 확인).
+// 예: normArt('제8조4호') === normArt('제8조제4호') === '제8조제4호'
+const _CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮';
+function normArt(s) {
+  return String(s || '')
+    .replace(/[①-⑮]/g, m => `제${_CIRCLED.indexOf(m) + 1}항`)
+    .replace(/\([^)]*\)/g, '')   // 조문 제목·개정번호 괄호는 표기 흔들림이 커서 뺀다
+    .replace(/\s+/g, '')
+    .replace(/조(\d+)항/g, '조제$1항')
+    .replace(/조(\d+)호/g, '조제$1호')
+    .replace(/항(\d+)호/g, '항제$1호');
+}
+// 라벨은 "시행령 제3조②"처럼 법령명이 앞에 붙기도 한다. 법령명은 문항에 이미 고정돼 있으므로
+// 조문 부분만 떼어 답변 본문과 맞춘다. 예: artKey('시행령 제3조②') === '제3조제2항'
+function artKey(s) {
+  const t = normArt(s);
+  const m = t.match(/(제\d+조.*|별표\d+.*|부칙.*)$/);
+  return m ? m[1] : t;
+}
+
 (async () => {
   for (let i = 0; i < list.length; i++) {
     const q = list[i];
@@ -77,13 +112,14 @@ const rows = [];
       continue;
     }
     // 기대 조문이 답변 글자에 실제로 있나 — AI 판단 없이 글자 대조만 한다.
-    const flat = String(d.answer).replace(/\s+/g, '');
-    const wantArts = String(q.expect_article || '').split(/[·,]/).map(x => x.replace(/\s+/g, '')).filter(Boolean);
+    const flat = normArt(d.answer);
+    const wantArts = String(q.expect_article || '').split(/[·,]/).map(artKey).filter(Boolean);
     const cited = wantArts.some(a => flat.includes(a));
     // 인용사슬(화면 링크가 걸리는 재료)에도 들어왔나 — 답변 글자와 별개 축이다.
-    const chain = (d.citationChain || []).map(c => `${c.law || ''} ${c.citedArticle || c.article || ''}`.replace(/\s+/g, ''));
+    const chain = (d.citationChain || []).map(c => normArt(`${c.law || ''} ${c.citedArticle || c.article || ''}`));
     const inChain = wantArts.some(a => chain.some(c => c.includes(a)));
-    rows.push({ ...q, calls: s.calls, cited, inChain });
+    // 답변 원문을 같이 남긴다 — 채점 규칙을 고쳤을 때 서버에 다시 묻지 않고 재채점할 수 있어야 한다.
+    rows.push({ ...q, calls: s.calls, cited, inChain, answer: String(d.answer) });
     console.log(`${cited ? '✅' : '❌'} ${q.law} — 기대근거 ${cited ? '인용됨' : '없음'}${inChain ? ' · 사슬O' : ''} · ${s.calls}회 | ${q.question.slice(0, 34)}`);
   }
   const done = rows.filter(r => !r.error && !r.stuck);

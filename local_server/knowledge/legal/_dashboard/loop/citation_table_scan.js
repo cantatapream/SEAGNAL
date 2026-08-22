@@ -37,6 +37,12 @@ const WIKI = _wi >= 0 ? process.argv[_wi + 1] : '/home/user/SEAGNAL/local_server
 //   처음엔 둘을 뭉쳐 세어 '결함 417건'으로 보고했는데, 실제 결함은 13건이었다 — 재는 것과
 //   코드가 하는 일이 어긋나면 숫자가 통째로 헛것이 된다(오늘 라이브 검증이 준 교훈 그대로).
 const TIER_OK = /^(시행령|시행규칙)$/;
+// 계층 낱말 뒤에 별표·별지 번호만 붙은 칸(`시행령 별표1`·`시행규칙 별지2호서식`).
+// 2026-08-22 24차 감사(해양과학조사법 그룹)가 찾아냈다 — 이 검사는 TIER_OK 가 **정확일치**라
+// 이 꼴을 "이름이 있는 칸"으로 오인해 통째로 통과시키고 있었고, 코드 쪽도 ⓐ 갈래가 못 받아
+// 4개 법 19행이 근거 목록에서 죽어 있었다. 코드에 ⓐ-2 갈래를 넣어 살렸고(legal_retriever.js),
+// 여기서는 **추이가 보이도록 따로 센다** — 코드가 되돌아가면 이 수가 결함이 된다.
+const TIER_ANNEX = /^(시행령|시행규칙)(별표|별지|서식)/;
 const TIER_BAD = /^(행정규칙|고시|훈령|예규|지침|규정|요령|세칙|운영규칙|법|법률)$/;
 // 법 이름 자리에 **가리키는 말**만 있는 칸(`이 법`·`동법`·`동법 시행령`). 코드의 BARE_TIER_CELL_RE 는
 // `시행령`·`시행규칙` 두 낱말만 페이지 법으로 펼치므로 이건 못 받는다 = 그 행은 근거로 못 실린다.
@@ -58,7 +64,7 @@ function scan() {
   const files = fs.existsSync(conceptDir) ? walk(conceptDir, []) : [];
   const s = {
     pages: 0, pages_no_table: 0, rows: 0,
-    tier_ok: 0, bare_tier: 0, deictic: 0, no_name: 0, article_all: 0, paren: 0,
+    tier_ok: 0, tier_annex: 0, bare_tier: 0, deictic: 0, no_name: 0, article_all: 0, paren: 0,
     examples: { pages_no_table: [], bare_tier: [], no_name: [], article_all: [] },
   };
   for (const f of files) {
@@ -80,6 +86,8 @@ function scan() {
         if (s.examples.bare_tier.length < 8) s.examples.bare_tier.push(path.basename(f) + ' | ' + law + ' | ' + art);
       } else if (TIER_OK.test(flat)) {
         s.tier_ok++;                                    // 결함 아님 — 코드가 페이지 법으로 펼친다
+      } else if (TIER_ANNEX.test(flat)) {
+        s.tier_annex++;                                 // 결함 아님(ⓐ-2 갈래가 받는다) — 추이만 본다
       } else if (TIER_BAD.test(flat)) {
         s.bare_tier++;
         if (s.examples.bare_tier.length < 8) s.examples.bare_tier.push(path.basename(f) + ' | ' + law + ' | ' + art);
@@ -115,6 +123,7 @@ const LABEL = {
 };
 console.log(`개념 페이지 ${now.pages}개 · 근거 조문 행 ${now.rows}개`);
 console.log(`(참고: 법령 칸이 '시행령'·'시행규칙'뿐인 행 ${now.tier_ok}개 — 코드가 페이지의 법을 붙여 대조하므로 결함 아님)`);
+console.log(`(참고: 법령 칸이 '시행령 별표N'·'시행규칙 별지N' 꼴인 행 ${now.tier_annex}개 — 코드 ⓐ-2 갈래가 페이지의 법을 붙여 받는다)`);
 console.log('─'.repeat(78));
 for (const k of Object.keys(LABEL)) {
   const d = base && typeof base[k] === 'number' ? now[k] - base[k] : null;
