@@ -117,6 +117,7 @@
     "seaway.js",
     "navigational_warning.js",
     "accident_info.js",
+    "accident_geocode_review.js",
     "life_safety.js"
   ]
 }

@@ -2,7 +2,7 @@
  * ============================================================================
  * 파일명: scripts/accident_geocode_check.js
  * 역할  : 위치텍스트에 "OO 동방 5마일"처럼 방위+거리가 적힌 사고정보(선박·해경) 행을
- *         OpenStreetMap Nominatim 지오코딩으로 역검증해, 텍스트가 가리키는 위치와
+ *         카카오 로컬 키워드 검색 API로 역검증해, 텍스트가 가리키는 위치와
  *         실제 저장된 좌표가 크게 어긋나는 행을 찾아낸다.
  * ----------------------------------------------------------------------------
  * [배경] findCoordOutliers(client/js/marine-life/safety/accident_info.js)는 같은
@@ -11,22 +11,30 @@
  *   없었다(2026-08-21 조사) — 이 필터의 사각지대. 그중 49.8%(13,010건)는
  *   "기준지명 + 방위 + 거리" 패턴이라, 기준지명을 지오코딩해 방위·거리로 예상좌표를
  *   계산하면 검증할 수 있다.
- * [주의 — 실행 환경] Nominatim(nominatim.openstreetmap.org)은 이 저장소의 개발
- *   샌드박스(Claude Code on the web)에서는 프록시 정책상 접속이 막혀 있다(2026-08-21
- *   `curl` 재현 시 403 확인 — recentRelayFailures 에 connect_rejected 로 기록됨).
- *   로컬 PC나 프로덕션 서버(fly.dev 등)처럼 외부망이 열린 환경에서 실행해야 한다.
- * [사용법 정책] Nominatim 무료 사용정책상 요청 간 최소 1초 간격 필수, User-Agent
- *   헤더로 앱을 식별해야 한다(https://operations.osmfoundation.org/policies/nominatim/).
- *   대상 13,010건을 다 돌리면 최소 3.6시간 걸린다 — LIMIT/REQUEST_DELAY_MS 로 조절.
- * [정확도 한계] 기준지명 자체가 소규모 포구·간출암 등이면 OSM에 없을 수 있고(그 경우
- *   지오코딩 실패로 건너뜀), 있어도 그 지명의 "대표 지점"과 사고 발생지점 사이에는
+ * [지오코딩 서비스 — Nominatim → 카카오로 교체(2026-08-22)] 처음엔 OpenStreetMap
+ *   Nominatim으로 1차 조사(전수 실행, 의심 후보 1,134건)했으나, 결과를 실제로 검토하니
+ *   "임원"·"우도"·"마라도"·"정자" 같은 지명에서 Nominatim이 매번 동일한(그리고 실제
+ *   위치와 다른) 좌표를 반환하는 체계적 오류가 다수 확인됐다(예: "임원"이 들어간 서로
+ *   다른 행 여러 건이 전부 같은 잘못된 좌표로 지오코딩됨) — OSM은 한국 소지명 커버리지가
+ *   낮은 게 원인으로 추정. 우리 앱이 해양종합정보 탭 지도 검색에 이미 쓰고 있는 카카오
+ *   로컬 키워드 검색 API(routes/tide.js 의 /api/search-place 참고)가 한국 지명 정확도가
+ *   훨씬 높아 이걸로 교체했다.
+ * [주의 — 실행 환경] dapi.kakao.com 은 이 저장소의 개발 샌드박스(Claude Code on the
+ *   web)에서는 프록시 정책상 접속이 막혀 있고(2026-08-22 curl 재현 시 403 확인), 로컬에
+ *   KAKAO_REST_API_KEY 도 설정돼 있지 않다. GitHub Actions(accident-geocode-check.yml)
+ *   나 프로덕션 서버(fly.dev)처럼 외부망이 열려 있고 키가 설정된 환경에서 실행해야 한다.
+ * [필요 환경변수] KAKAO_REST_API_KEY — 브라우저에서 쓰는 /api/search-place 프록시와
+ *   같은 키를 그대로 쓴다(카카오 디벨로퍼스 REST API 키).
+ * [정확도 한계] 기준지명 자체가 소규모 포구·간출암 등이면 카카오 지도에도 없을 수 있고
+ *   (그 경우 지오코딩 실패로 건너뜀), 있어도 그 지명의 "대표 지점"과 사고 발생지점 사이에는
  *   원래 수 km 정도 오차가 있을 수 있어 THRESHOLD_KM 을 넉넉히(기본 30km) 잡았다.
  *   그래도 걸리는 건수는 자동삭제하지 말고 검수 모드로 사람이 최종 확인할 것.
  * [출력] local_server/data/accident_geocode_suspects.json — 의심 후보 목록(원본
  *   client/accident_ships_hk.json 은 건드리지 않는다).
  * [실행] node local_server/scripts/accident_geocode_check.js [--limit=50]
  * [연계] client/js/marine-life/safety/accident_info.js 의 findCoordOutliers 필터,
- *   client/accident_ships_hk.json(입력)
+ *   client/accident_ships_hk.json(입력), local_server/routes/tide.js 의 /api/search-place
+ *   (같은 카카오 API 키를 공유하는 브라우저용 프록시)
  * ============================================================================
  */
 
@@ -39,9 +47,9 @@ const HK_JSON_PATH = path.join(__dirname, '..', '..', 'client', 'accident_ships_
 const OUT_PATH = path.join(__dirname, '..', 'data', 'accident_geocode_suspects.json');
 const POS_IDX = 4; // hk 행: [lat, lon, ymd, hm, pos, typeCd, causeCd, shipCd, orgCd, rescue, death, missing]
 
-const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
-const USER_AGENT = 'SEAGNAL-AccidentGeocodeCheck/1.0 (+https://seagnal-server.fly.dev/)';
-const REQUEST_DELAY_MS = 1100; // Nominatim 정책: 초당 1건 이하
+const KAKAO_URL = 'https://dapi.kakao.com/v2/local/search/keyword.json';
+const KAKAO_API_KEY = process.env.KAKAO_REST_API_KEY;
+const REQUEST_DELAY_MS = 100; // 카카오는 Nominatim보다 훨씬 관대하지만 안전하게 여유를 둔다
 const THRESHOLD_KM = 30; // 이 이상 어긋나면 의심 후보
 
 // "기준지명 + 방위(+거리)" 패턴. 거리 단위: 마일/해리(선박 위치 표기 관례상 해리로 간주)·km·m.
@@ -94,17 +102,22 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Nominatim 검색. 실패·미발견 시 null. */
+/** 카카오 로컬 키워드 검색. 실패·미발견 시 null. */
 async function geocode(query) {
-    const url = `${NOMINATIM_URL}?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=kr`;
-    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+    const url = `${KAKAO_URL}?query=${encodeURIComponent(query)}&size=1`;
+    const res = await fetch(url, { headers: { Authorization: `KakaoAK ${KAKAO_API_KEY}` } });
     if (!res.ok) return null;
-    const arr = await res.json();
-    if (!arr.length) return null;
-    return { lat: parseFloat(arr[0].lat), lon: parseFloat(arr[0].lon) };
+    const data = await res.json();
+    const docs = data.documents || [];
+    if (!docs.length) return null;
+    return { lat: parseFloat(docs[0].y), lon: parseFloat(docs[0].x) };
 }
 
 async function main() {
+    if (!KAKAO_API_KEY) {
+        console.error('KAKAO_REST_API_KEY 환경변수가 설정되지 않았습니다.');
+        process.exit(1);
+    }
     const { limit } = parseArgs();
     const data = JSON.parse(fs.readFileSync(HK_JSON_PATH, 'utf8'));
     const rows = data.rows;
