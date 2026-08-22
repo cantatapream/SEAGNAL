@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 104개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 105개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -89,6 +89,7 @@ client/js/
 │   │   ├── ripcurrent.js
 │   ├── safety/
 │   │   ├── access_control.js
+│   │   ├── accident_geocode_review.js
 │   │   ├── accident_info.js
 │   │   ├── fishing_ban.js
 │   │   ├── hazard_rocks.js
@@ -294,6 +295,7 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `access_control.js` | 해양안전 지도에 "출입통제" 토글 버튼을 얹어, 연안사고 예방에 관한 |
+| `accident_geocode_review.js` | 사고정보(선박·해경) 지오코딩 대조 검수 화면 — "사고정보" 버튼을 10번 |
 | `accident_info.js` | 해양안전 지도에 "사고정보" 버튼을 얹는다. 클릭하면 왼쪽으로 선박(해경)· |
 | `fishing_ban.js` | 해양안전 지도에 "낚시금지" 토글 버튼을 얹어, 낚시 관리 및 육성법 |
 | `hazard_rocks.js` | 해양안전 지도에 "노출암" / "간출암 등" 두 토글 버튼을 얹는다. 항상 |
