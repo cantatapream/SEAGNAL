@@ -2024,11 +2024,19 @@ function lawCellVariants(law) {
 const MIDDOT_RE = /[·ㆍ・]/g;
 function midDot(s) { return String(s || '').replace(MIDDOT_RE, '\u00B7'); }
 
+// 법령명 대조용 압축: 가운뎃점 표기와 **띄어쓰기**를 흡수한다. 이름 자체는 그대로 남으므로
+// 느슨해지지 않는다 — 같은 법을 위키는 `해저광물자원개발법`, 답변은 `해저광물자원 개발법`으로
+// 쓰는 일이 흔하고(정식명에 띄어쓰기가 있다), 그 차이 하나로 그 행이 통째로 죽는다.
+// 2026-08-22 조광료 근거 행이 이 이유로 답변 대조에서 탈락하는 것을 실측으로 확인했다.
+function squashLaw(s) { return midDot(String(s || '')).replace(/\s+/g, ''); }
+
 function lawMentionedOnce(law, baseLaw, text) {
   const s = String(law || '').trim();
   if (!s || s.length < 2) return false;
   if (text.includes(s)) return true;
   if (MIDDOT_RE.test(s) && midDot(text).includes(midDot(s))) return true;
+  // 띄어쓰기·가운뎃점만 다른 같은 이름(4글자 이상일 때만 — 짧은 이름은 우연 일치 위험).
+  if (s.replace(/\s+/g, '').length >= 4 && squashLaw(text).includes(squashLaw(s))) return true;
   // ⓐ 계층 낱말만 적힌 칸(`시행령`·`시행규칙`) — 그 줄이 실린 페이지의 법(baseLaw)으로 편다.
   if (BARE_TIER_CELL_RE.test(s.replace(/\s+/g, ''))) {
     const base = String(baseLaw || '').trim();
