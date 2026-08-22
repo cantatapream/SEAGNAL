@@ -69,5 +69,32 @@ console.log('── 손대지 않아야 하는 경우 ──');
     /const rounds = Math\.max\(byJoiner,/.test(src));
 }
 
+
+// ── 우리가 원문을 갖고 있지 않은 법이 선택지에 오르는가 (2026-08-22 라이브 재현) ──
+// "오존층파괴물질 함유설비 처리업체 지정 서식?" 되묻기가 정답(해양환경관리법) 옆에
+// 「오존층 보호 등을 위한 특정물질의 관리에 관한 법률」을 나란히 내밀었다. 그 법은 우리 위키에
+// 법령 허브가 없어(인용용 발췌만 있다) 고르면 반드시 "확인되지 않습니다"가 나온다.
+{
+  const FOREIGN = '오존층 보호 등을 위한 특정물질의 관리에 관한 법률';
+  const Q = '어떤 법령에 따라 오존층파괴물질 함유설비 처리업체로 지정받으려 하시나요?';
+
+  const dropped = R.dropForeignLawOptions(Q, [
+    { label: '해양환경관리법', hint: '' }, { label: FOREIGN, hint: '' },
+    { label: '잘 모르겠어요', act: 'unknown' }]);
+  ok('우리 위키에 없는 법 선택지를 뺀다', !dropped.some(o => o.label === FOREIGN));
+  ok('우리 법 선택지는 남긴다', dropped.some(o => o.label === '해양환경관리법'));
+  ok('기능 선택지(잘 모르겠어요)는 건드리지 않는다', dropped.some(o => o.act === 'unknown'));
+
+  ok('우리 법이 하나도 없으면 원본을 그대로 둔다(되묻기를 망가뜨리지 않는다)',
+    R.dropForeignLawOptions(Q, [{ label: FOREIGN }, { label: '대기환경보전법' }]).length === 2);
+  ok('"어떤 법" 되묻기가 아니면 손대지 않는다',
+    R.dropForeignLawOptions('총톤수가 얼마인가요?', [{ label: FOREIGN }, { label: '5톤 미만' }]).length === 2);
+  ok('법 이름 꼴이 아닌 선택지는 그대로 남긴다',
+    R.dropForeignLawOptions(Q, [{ label: '해양환경관리법' }, { label: '바다에서' }]).some(o => o.label === '바다에서'));
+  ok('시행령·약칭 표기도 우리 법으로 인정한다',
+    R.dropForeignLawOptions(Q, [{ label: '해양환경관리법 시행규칙' }, { label: '선박입출항법' }, { label: FOREIGN }])
+      .length === 2);
+}
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);
