@@ -53,11 +53,17 @@ const SCHEMA = {
   },
 }
 
+// ★cfg.roundNote — 그 라운드에만 해당하는 조건을 모든 감사관 프롬프트 앞에 붙인다(2026-08-23 신설).
+//   예: 이번 라운드는 직전에 raw 원문 55개가 현행본으로 교체돼, 감사관이 "지난 라운드에 확인했다"는
+//   기억이나 감사 이력을 그대로 쓰면 안 되는 상황이다. 라운드마다 다른 이런 조건을 스크립트를
+//   고치지 않고 인자로 넘기기 위한 자리다. 값이 없으면 아무것도 붙지 않는다(기존 동작 그대로).
+let ROUND_NOTE = ''
+
 function prompt(l, round) {
   // H-38 목표조정(2026-08-16 사용자 확정): 완전소진 확정법=lean(회귀검증만, 신규질문 억지금지),
   // 콘텐츠 풍부법=rich(600 참고선 강조 해제, 더 깊이 파도록 독려). 나머지는 기존 로직 그대로.
   if (l.mode === 'lean') {
-    return `너는 SEAGNAL 해양법률 위키의 품질감사관이다. \`${LEGAL}/_SCHEMA.md\`와 \`${LEGAL}/_CHATBOT.md\`를 먼저 읽어 답변 규칙을 숙지한다.
+    return `${ROUND_NOTE}너는 SEAGNAL 해양법률 위키의 품질감사관이다. \`${LEGAL}/_SCHEMA.md\`와 \`${LEGAL}/_CHATBOT.md\`를 먼저 읽어 답변 규칙을 숙지한다.
 
 ## 🚫 절대 금지
 '.claude/' 폴더 아래 어떤 파일도 읽거나 쓰지 마라. 감사 결과는 오직 감사파일(_dashboard/audit/) 저장 + JSON 반환값으로만 전달한다.
@@ -181,7 +187,7 @@ ${r2}
  * 법별 감사관과 **담당 파일이 겹치지 않아** 같이 돌려도 안전하다(공유 파일 동시쓰기 없음).
  */
 function crossPrompt(round) {
-  return `너는 SEAGNAL 해양법률 위키의 **횡단 감사관**이다. \`${LEGAL}/_SCHEMA.md\`(특히 §6-E~§6-H)와 \`${LEGAL}/_CHATBOT.md\`를 먼저 읽어라.
+  return `${ROUND_NOTE}너는 SEAGNAL 해양법률 위키의 **횡단 감사관**이다. \`${LEGAL}/_SCHEMA.md\`(특히 §6-E~§6-H)와 \`${LEGAL}/_CHATBOT.md\`를 먼저 읽어라.
 
 ## 🚫 절대 금지
 '.claude/' 폴더 아래 어떤 파일도 읽거나 쓰지 마라. **★Agent/Task 도구로 재위임하지 마라(L-28)** — 혼자 Read/Grep/Write만으로 이 턴 안에 끝내라.
@@ -228,6 +234,7 @@ if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
   if (boot) laws = boot.laws || []
 }
 const round = cfg.round || 1
+ROUND_NOTE = cfg.roundNote ? String(cfg.roundNote) + '\n\n' : ''
 // ★§6-H 횡단 감사관(H-41 사용자 확정 2026-08-17, 2026-08-18 실제 배선).
 //   감사는 법별로 1명씩 붙는 구조라 **어느 법의 소유도 아닌 파일은 담당자가 없다** — 그래서
 //   `wiki/_glossary.md` 깨진 링크 116건이 21라운드를 그대로 살아남았다. 매 라운드 1명을 배정한다.
