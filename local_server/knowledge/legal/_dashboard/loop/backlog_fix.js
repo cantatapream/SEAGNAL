@@ -38,8 +38,12 @@ const MANIFEST = {
   },
 }
 
+// 라운드별 조건(이번엔 어떤 유형만 처리하는지 등)을 프롬프트 맨 앞에 끼운다.
+// audit_fix_cell.js 의 cfg.roundNote 와 같은 구조. 비어 있으면 아무것도 안 붙는다.
+let ROUND_NOTE = ''
+
 function prompt(l) {
-  return `너는 SEAGNAL 해양법률 위키의 **백로그 처리 사서**다. 담당 법: 「${l.name}」 (slug: \`${l.slug}\`)
+  return `${ROUND_NOTE}너는 SEAGNAL 해양법률 위키의 **백로그 처리 사서**다. 담당 법: 「${l.name}」 (slug: \`${l.slug}\`)
 
 ## 0) 반드시 먼저 읽을 것
 1. \`${LEGAL}/_SCHEMA.md\` — 특히 **§6-B-1**(규정없음 판정에 조회 기록 필수·스코프 안내는 개념 페이지에)과 **§6-E**(챗봇은 개념 페이지의 \`## 근거 조문\` 표에서만 근거를 만든다)
@@ -85,6 +89,12 @@ law, status, checked, already_resolved, fixed_now, reclassified, files_edited, *
 
 // ---- 실행 ----
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
+// 지침이 길면 파일 경로로 넘긴다 — 내용을 에이전트에게 읽혀 돌려받으면 요약·절단 위험이 있다.
+if (!cfg.roundNote && cfg.roundNotePath) {
+  cfg.roundNote = `## ★★이번 라운드 지침 — 다른 무엇보다 먼저 읽어라\n`
+    + `\`${cfg.roundNotePath}\` 를 **Read 로 열어 전문을 읽고, 거기 적힌 조건을 전부 따른다.**`
+}
+ROUND_NOTE = cfg.roundNote ? String(cfg.roundNote) + '\n\n' : ''
 let laws = cfg.laws || []
 if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
   const boot = await agent(
