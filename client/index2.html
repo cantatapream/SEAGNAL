@@ -794,6 +794,12 @@
            #ocean-overlay-controls 의 직계 자식이라 위 flex 규칙과 별도로 켜준다
            (wrap 자체는 position:relative 만 필요 — 버튼처럼 flex 아님). */
         body.ls-mode.ls-safety #ocean-accident-wrap { display: block !important; }
+        /* [버그 수정 2026-08-23] 사고정보 검수 모드 패널(#accident-review-panel, accident_info.js
+           REVIEW_MODE)이 이 "기본 숨김 + 해양안전에서만 노출" 목록에 아예 빠져 있어, 페이지가
+           뜨자마자(해양안전생활 진입 여부·10회 연타 여부와 무관하게) 해양종합정보를 포함한
+           모든 화면에 항상 노출되던 문제(사용자 보고) — 바로 위 사고정보 버튼과 같은 종류의
+           버그가 나중에 추가된 패널에는 반영이 안 됐던 것. */
+        body.ls-mode.ls-safety #accident-review-panel { display: block !important; }
         /* 노출암/간출암 등/출입통제/낚시금지/관제구역/항로·해역/항행경보/사고정보 버튼은
            해양안전 전용(시험 단계) — 해양종합정보(기본 상태)에서는 항상 숨김.
            [버그 수정] 사고정보(#ocean-accident-wrap)가 이 목록에 빠져 있어 해양종합정보에서도
@@ -804,7 +810,8 @@
                   js/marine-life/safety/accident_info.js */
         #ocean-exposed-toggle-btn, #ocean-rock-toggle-btn, #ocean-access-control-toggle-btn,
         #ocean-fishing-ban-toggle-btn, #ocean-vts-toggle-btn,
-        #ocean-seaway-toggle-btn, #ocean-navwarn-btn, #ocean-accident-wrap { display: none; }
+        #ocean-seaway-toggle-btn, #ocean-navwarn-btn, #ocean-accident-wrap,
+        #accident-review-panel { display: none; }
         body.ls-mode.ls-safety #ocean-search-container,
         body.ls-mode.ls-safety #ocean-fav-bar { display: none !important; }
         /* 검색창이 사라졌으므로 좌측 상단 컨트롤(기본맵 + 안내)을 그 자리로 올린다 */
@@ -5295,7 +5302,7 @@
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다.
          accident_codes.js(라벨 매핑)를 먼저 읽으므로 그 뒤에 위치. -->
     <script src="js/marine-life/safety/accident_info.js?v=DupClusterFix_20260821"></script>
-    <script src="js/marine-life/safety/accident_geocode_review.js?v=20260822b"></script>
+    <script src="js/marine-life/safety/accident_geocode_review.js?v=20260823b"></script>
 
     <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
