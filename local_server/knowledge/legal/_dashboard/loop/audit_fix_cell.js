@@ -44,8 +44,12 @@ const MANIFEST = {
   },
 }
 
+// 라운드별 특수 조건(예: 원문 교체 직후, 결함 주장이 실측으로 반증된 목록)을 프롬프트 맨 앞에 끼운다.
+// audit_sim.js 의 cfg.roundNote 와 같은 구조다. 비어 있으면 아무것도 붙지 않는다.
+let ROUND_NOTE = ''
+
 function prompt(l, round) {
-  return `너는 SEAGNAL 해양법률 위키의 **통합수정 사서**다. 직전 감사가 찾은 구멍을 content와 연결(lint)을 **동시에** 고쳐 메운다.
+  return `${ROUND_NOTE}너는 SEAGNAL 해양법률 위키의 **통합수정 사서**다. 직전 감사가 찾은 구멍을 content와 연결(lint)을 **동시에** 고쳐 메운다.
 
 ## 0) 반드시 먼저 읽을 것
 1. \`${LEGAL}/_SCHEMA.md\`(사서 스키마·절대규칙: 정의우선·처벌 조항호금액·멀티홉 링크·환각0·별표 이미지 이중처리·⚠REVIEW·출처표기)
@@ -126,6 +130,7 @@ unreachable_fixed 에 표를 고친 행 수를 반환한다.
 // ---- 실행 ----
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
 const round = cfg.round || 7
+ROUND_NOTE = cfg.roundNote ? String(cfg.roundNote) + '\n\n' : ''
 let laws = cfg.laws || []
 // 이어받기용: 남은 법만 파일로 넘긴다(도구 인자에 큰 JSON 을 싣지 않기 위해).
 if (!laws.length && cfg.lawsPath) {
