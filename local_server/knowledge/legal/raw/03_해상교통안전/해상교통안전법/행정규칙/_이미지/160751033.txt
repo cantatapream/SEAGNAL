@@ -1,0 +1,9 @@
+[표]
+| 구성품 | 설치 | 강도 요건(strength requirement) |
+|---|---|---|
+| 예인용 줄 연결줄(Pick-up gear) | 선택사항 | - |
+| 예인용 줄(Towing pennant) | 선택사항 | 적용 |
+| 예방쇠사슬(Chafing gear) | 선택사항 | 적용 |
+| 페어리더(Fairlead) | 설계에 따름 | 적용 |
+| 볼라드(Bollard) 또는 비트(Bitt)와 같은 강포장(Strongpoint) | 필수사항 | 적용 |
+| 롤러받침(Roller pedestal) | 설계에 따름 | - |
