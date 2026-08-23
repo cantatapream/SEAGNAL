@@ -16,7 +16,9 @@
   - 읽음: local_server/knowledge/legal/raw/**/행정규칙/**/*.txt (머리글 ID)
   - 호출: https://www.law.go.kr/DRF/lawSearch.do (OC=hyoo1431, target=admrul)
   - 씀:   _dashboard/admrul_fresh_report.json
-사용법: python3 admrul_fresh.py [--limit N] [--out PATH]
+사용법: python3 admrul_fresh.py [--limit N] [--out PATH] [--gate]
+  --gate : 구버전이 1건이라도 있으면 종료코드 1. 주간 점검 Routine 이 이 코드로 판단한다.
+           verify_all.sh 상시 게이트로는 넣지 않는다 — 매 실행이 653회 API 호출이라 무겁다.
 """
 import json, os, re, subprocess, sys, time
 from urllib.parse import quote
@@ -144,6 +146,13 @@ def main():
         json.dump(rep, f, ensure_ascii=False, indent=1)
     print('\n현행 %d / 구버전 %d / 조회실패 %d (총 %d) -> %s'
           % (fresh, stale, unknown, len(titles), out_path))
+    if '--gate' in args and stale:
+        print('\n❌ 구버전 %d건 — 재수집이 필요하다(admrul_recollect_stale.py).' % stale)
+        for r in rows:
+            if r['verdict'] == '구버전':
+                print('   · %s (보유 %s → 현행 %s)'
+                      % (r['title'][:50], ','.join(r['held_ids']), r['current']['serial']))
+        sys.exit(1)
 
 
 if __name__ == '__main__':

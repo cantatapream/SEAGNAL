@@ -7,9 +7,12 @@
   기존 raw .txt 를 같은 형식(머리글 + 본문)으로 덮어쓰고, 옆의 _admrul.json 목록의
   ID도 현행으로 고친다. 무엇이 얼마나 달라졌는지는 별도 보고서에 남긴다.
 
-안전장치(L-39 회귀 방지):
-  새로 받은 본문이 기존 본문의 70%보다 짧으면 덮어쓰지 않고 '보류'로 남긴다.
-  이미지 버튼만 있는 스텁 응답을 받아 멀쩡한 원문을 날리는 사고가 있었다.
+안전장치 (L-39·L-176 회귀 방지) — 두 겹이다
+  ①크기: 새 본문이 기존의 70%보다 짧으면 보류. 스텁 응답으로 멀쩡한 원문을 날린 전례가 있다.
+  ②사람 손의 흔적: 기존 파일에만 있고 새 본문에는 없는 표지(【이미지판독】·⚠REVIEW·
+    '첨부파일 전사')가 있으면 보류. 2026-08-23에 크기 기준만으로는 못 막는 것을 실측했다 —
+    별표가 새로 딸려와 글자 수는 오히려 늘었는데 정작 이미지 판독 전사 116블록이 지워졌다.
+    크기는 "얼마나 있나"를 볼 뿐 "무엇이 사라졌나"를 못 본다.
 
 [연계]
   - 읽음: _dashboard/admrul_fresh_report.json
@@ -27,6 +30,9 @@ OC = 'hyoo1431'
 CA = '/root/.ccr/ca-bundle.crt'
 PROXY = os.environ.get('HTTPS_PROXY', '')
 DRY = '--dry' in sys.argv
+
+# 기존 파일에만 있고 새 본문에 없으면 덮어쓰지 않는다 — 사람/도구가 손으로 넣은 것들이다.
+HUMAN_MARKS = ['【이미지판독', '⚠REVIEW', '첨부파일 전사', '판독불가']
 
 
 def curl(url):
@@ -122,6 +128,15 @@ def main():
                                 'old_chars': len(oldbody), 'new_chars': len(body)})
                 print('[%d/%d] 보류(축소 %d→%d) %s'
                       % (i, len(stale), len(oldbody), len(body), title[:32]), flush=True)
+                continue
+            # 사람 손이 들어간 흔적이 새 본문에 없으면 덮어쓰지 않는다(L-176).
+            lost = [m for m in HUMAN_MARKS if m in old and m not in body]
+            if lost:
+                results.append({'title': title, 'file': rel, 'status': '보류(사람작업 소실)',
+                                'lost_marks': lost, 'old_chars': len(oldbody),
+                                'new_chars': len(body)})
+                print('[%d/%d] 보류(사람작업 %s 사라짐) %s'
+                      % (i, len(stale), '·'.join(lost), title[:32]), flush=True)
                 continue
             hdr = [re.sub(r'^ID:\s*\d+', 'ID:' + serial, h) for h in hdr]
             issued = flat(info.get('발령일자')) or r['current']['issued']
