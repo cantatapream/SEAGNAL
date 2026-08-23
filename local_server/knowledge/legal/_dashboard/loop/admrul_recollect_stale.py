@@ -49,8 +49,22 @@ def flat(x):
     return str(x)
 
 
-def fetch_body(serial):
-    """현행 일련번호로 조문 본문과 별표를 합쳐 돌려준다. (본문, 기본정보)"""
+def fetch_body(serial, tries=4):
+    """현행 일련번호로 조문 본문과 별표를 합쳐 돌려준다. (본문, 기본정보)
+
+    같은 ID인데 한 번은 빈 응답이 오고 다시 부르면 정상으로 오는 것을 실측했다.
+    (첫 실행에서 '본문없음' 4건이 났는데 재호출하니 전부 정상 응답이었다.)
+    그래서 실패하면 간격을 늘려가며 tries회까지 다시 부른다.
+    """
+    for k in range(tries):
+        b, i = _fetch_once(serial)
+        if b:
+            return b, i
+        time.sleep(1.5 * (k + 1))
+    return None, {}
+
+
+def _fetch_once(serial):
     url = ('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=admrul&type=JSON&ID=%s'
            % (OC, serial))
     try:
