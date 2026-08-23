@@ -6,6 +6,10 @@ backups/
 .claude/*
 !.claude/skills/
 !.claude/memory/
+# 훅과 그 등록 파일은 저장소에 남겨야 한다 — 다른 계정·다른 세션에서도 같은 장치가 걸려야
+# 의미가 있다(사용자 확정 2026-08-23, L-180). settings.local.json 은 계속 제외한다(개인 권한 설정).
+!.claude/hooks/
+!.claude/settings.json
 
 # 환경 변수 (비밀번호 등 포함 가능성)
 .env

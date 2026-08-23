@@ -1,0 +1,12 @@
+{
+ "script": "refresh_ocr_blocks",
+ "stamp": "20260823-100421-000",
+ "files": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법/행정규칙/선박설비기준.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/행정규칙/해운법시행규칙에따라정하는내항해운에관한고시.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/항만건설작업선의선박시설등에관한기준.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/수질오염물질배출허용기준중별도배출허용기준(양산일반산업단지및어곡일반산업단지).txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/수질오염물질의배출허용기준중별도배출허용기준.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/완충저류시설설치및운영관리지침.txt"
+ ]
+}
