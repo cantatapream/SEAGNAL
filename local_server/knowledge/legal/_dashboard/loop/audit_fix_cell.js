@@ -130,6 +130,14 @@ unreachable_fixed 에 표를 고친 행 수를 반환한다.
 // ---- 실행 ----
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
 const round = cfg.round || 7
+// 라운드 지침은 길어서 도구 인자에 직접 싣지 않고 **파일 경로**로 넘길 수 있게 한다(roundNotePath).
+// 내용을 에이전트에게 읽혀 돌려받는 방식은 요약·절단 위험이 있어 쓰지 않는다 — 각 사서가
+// 자기 프롬프트 첫 줄에서 그 파일을 직접 읽게 한다.
+if (!cfg.roundNote && cfg.roundNotePath) {
+  cfg.roundNote = `## ★★이번 라운드 지침 — 다른 무엇보다 먼저 읽어라\n`
+    + `\`${cfg.roundNotePath}\` 를 **Read 로 열어 전문을 읽고, 거기 적힌 조건을 전부 따른다.**\n`
+    + `그 문서가 감사 리포트와 어긋나면 **그 문서가 우선한다.**`
+}
 ROUND_NOTE = cfg.roundNote ? String(cfg.roundNote) + '\n\n' : ''
 let laws = cfg.laws || []
 // 이어받기용: 남은 법만 파일로 넘긴다(도구 인자에 큰 JSON 을 싣지 않기 위해).
