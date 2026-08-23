@@ -176,7 +176,8 @@
             '<div id="agr-info">' +
             '<div>위치텍스트: <span class="agr-pos" id="agr-pos">-</span></div>' +
             '<div>발생일자: <span id="agr-ymd">-</span> · 어긋난 거리: <span id="agr-dist">-</span></div>' +
-            '<div class="agr-legend"><span><i class="agr-dot" style="background:#3d8bff"></i>저장된 좌표</span><span><i class="agr-dot" style="background:#ff5f74"></i>텍스트가 가리키는 곳</span></div>' +
+            '<div>기준지명: <span id="agr-base">-</span></div>' +
+            '<div class="agr-legend"><span><i class="agr-dot" style="background:#3d8bff"></i>저장된 좌표</span><span><i class="agr-dot" style="background:#2ecc71"></i>기준지명 위치</span><span><i class="agr-dot" style="background:#ff5f74"></i>텍스트가 가리키는 곳</span></div>' +
             '</div>' +
             '<div id="agr-actions">' +
             '<button type="button" class="agr-keep" id="agr-btn-keep">유지</button>' +
@@ -192,6 +193,7 @@
         els.pos = document.getElementById('agr-pos');
         els.ymd = document.getElementById('agr-ymd');
         els.dist = document.getElementById('agr-dist');
+        els.base = document.getElementById('agr-base');
         els.exportWrap = document.getElementById('agr-export-wrap');
         els.exportText = document.getElementById('agr-export-text');
 
@@ -306,6 +308,7 @@
         els.pos.textContent = c.row[POS_IDX];
         els.ymd.textContent = formatYmd(c.row[2]);
         els.dist.textContent = '조회 중…';
+        els.base.textContent = '조회 중…';
 
         var actualLat = c.row[0], actualLon = c.row[1];
         var actualCoord = ol.proj.fromLonLat([actualLon, actualLat]);
@@ -319,8 +322,17 @@
             if (candidates[cursor] !== c) return; // 그새 다른 카드로 넘어갔으면 무시
             if (!baseCoord) {
                 els.dist.textContent = '기준지명을 찾지 못했습니다("' + c.parsed.base + '")';
+                els.base.textContent = '-';
                 return;
             }
+            c._baseCoord = baseCoord;
+
+            // 기준지명 위치(초록) — 예: "욕지도"가 실제로 어디로 검색됐는지
+            var baseCoordProj = ol.proj.fromLonLat([baseCoord.lon, baseCoord.lat]);
+            var baseFeature = new ol.Feature({ geometry: new ol.geom.Point(baseCoordProj) });
+            baseFeature.setStyle(pointStyle('#2ecc71'));
+            vectorSource.addFeature(baseFeature);
+
             var expected = destinationPoint(baseCoord.lat, baseCoord.lon, c.parsed.bearingDeg, c.parsed.distanceKm);
             c._expected = expected;
             var expectedCoord = ol.proj.fromLonLat([expected.lon, expected.lat]);
@@ -334,6 +346,13 @@
             }));
             vectorSource.addFeature(lineFeature);
 
+            // 기준지명 → 예상좌표: "욕지도"에서 실제로 파싱한 방위·거리만큼 이동했다는 걸 보여줌
+            var baseLineFeature = new ol.Feature({ geometry: new ol.geom.LineString([baseCoordProj, expectedCoord]) });
+            baseLineFeature.setStyle(new ol.style.Style({
+                stroke: new ol.style.Stroke({ color: '#2ecc71', width: 2, lineDash: [2, 3] })
+            }));
+            vectorSource.addFeature(baseLineFeature);
+
             var km = haversineKm(actualLat, actualLon, expected.lat, expected.lon);
             var nm = km / 1.852;
             var midCoord = ol.proj.fromLonLat([(actualLon + expected.lon) / 2, (actualLat + expected.lat) / 2]);
@@ -342,23 +361,33 @@
             vectorSource.addFeature(labelFeature);
 
             els.dist.textContent = km.toFixed(1) + 'km / ' + nm.toFixed(1) + '해리';
+            els.base.textContent = '"' + c.parsed.base + '" → (' + baseCoord.lat.toFixed(5) + ', ' + baseCoord.lon.toFixed(5) + ')에서 ' +
+                c.parsed.distanceKm.toFixed(1) + 'km 이동해 텍스트 위치 계산';
 
-            var extent = ol.extent.boundingExtent([actualCoord, expectedCoord]);
-            reviewMap.getView().fit(extent, { padding: [60, 30, 140, 30], maxZoom: 13, duration: 250 });
+            var extent = ol.extent.boundingExtent([actualCoord, expectedCoord, baseCoordProj]);
+            reviewMap.getView().fit(extent, { padding: [60, 30, 160, 30], maxZoom: 13, duration: 250 });
         });
     }
 
-    /** "삭제" 또는 "위치변경" 판정된 것만 모아 내보낸다("유지"는 원본 그대로라 대상 아님). */
+    /**
+     * 판정된 것을 전부 모아 내보낸다("유지"도 포함 — 판정이 끝난 건 서버 쪽 후보
+     * 목록(client/accident_geocode_candidates.json)에서 빼야 다음에 다시 안 뜬다.
+     * 이 화면 자체는 브라우저(localStorage)에만 저장하므로, 기기를 바꾸거나 캐시를
+     * 지우면 판정 이력이 사라진다 — "내보내기"로 받은 결과를 실제 반영해야 영구적으로
+     * 후보 목록에서 제외된다).
+     */
     function exportResults() {
+        var keepList = [];
         var deleteList = [];
         var relocateList = [];
         Object.keys(decisions).forEach(function (origIndexStr) {
             var origIndex = parseInt(origIndexStr, 10);
             var d = decisions[origIndexStr];
-            if (d.action === 'delete') deleteList.push(origIndex);
+            if (d.action === 'keep') keepList.push(origIndex);
+            else if (d.action === 'delete') deleteList.push(origIndex);
             else if (d.action === 'relocate') relocateList.push({ origIndex: origIndex, lat: d.lat, lon: d.lon });
         });
-        var out = { hk_delete: deleteList, hk_relocate: relocateList };
+        var out = { hk_keep: keepList, hk_delete: deleteList, hk_relocate: relocateList };
         els.exportText.value = JSON.stringify(out);
         els.exportWrap.style.display = 'block';
     }
