@@ -69,10 +69,25 @@ function resolveLaw(input) {
   let hit = folders.find(f => flat(f.law) === base);
   if (hit) {
     const file = tier ? tier + '.txt' : '법률.txt';
-    const p = path.join(hit.dir, file);
+    let p = path.join(hit.dir, file);
     if (!fs.existsSync(p)) {
-      const have = fs.readdirSync(hit.dir).filter(x => x.endsWith('.txt')).join(', ');
-      die(`「${hit.law}」 폴더에 ${file} 이 없다(있는 것: ${have || '없음'}). 계층을 잘못 적었거나 아직 수집 전이다.`);
+      // ★타법은 계층 파일이 `법률_발췌.txt`·`시행령_발췌.txt` 처럼 붙어 있는 곳이 있다
+      //   (연결된 조문만 받아온 파일 — 수집 스크립트가 달랐다).
+      //   종전에는 표준 이름이 없으면 그냥 죽어서, 사서가 이 도구를 못 쓰고 **손으로 행을 써야 했다**
+      //   (2026-08-23 백로그 라운드에서 지방세특례제한법·자격기본법이 실제로 그랬다).
+      //   손으로 쓰면 이 도구가 막아 주던 함정(법령 칸에 계층 낱말만·한 칸에 두 법·부칙 혼입)에 그대로 걸린다.
+      //   그래서 같은 계층 이름으로 시작하는 파일을 하나 더 찾아본다. 여러 개면 가장 큰 것을 쓴다.
+      const alts = fs.readdirSync(hit.dir)
+        .filter(x => x.endsWith('.txt') && x.startsWith((tier || '법률') + '_'))
+        .map(x => ({ x, size: fs.statSync(path.join(hit.dir, x)).size }))
+        .sort((a, b) => b.size - a.size);
+      if (alts.length) {
+        p = path.join(hit.dir, alts[0].x);
+        console.error(`  ↳ ${file} 이 없어 ${alts[0].x} 을 대신 읽는다(발췌본일 수 있다 — 그 조가 없으면 행을 안 만든다).`);
+      } else {
+        const have = fs.readdirSync(hit.dir).filter(x => x.endsWith('.txt')).join(', ');
+        die(`「${hit.law}」 폴더에 ${file} 이 없다(있는 것: ${have || '없음'}). 계층을 잘못 적었거나 아직 수집 전이다.`);
+      }
     }
     return { dir: hit.dir, path: p, name: (tier ? hit.law + ' ' + tier : hit.law) };
   }
