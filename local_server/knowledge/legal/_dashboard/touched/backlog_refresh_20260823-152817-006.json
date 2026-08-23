@@ -1,0 +1,14 @@
+{
+ "script": "backlog_refresh",
+ "stamp": "20260823-152817-006",
+ "files": [
+  "local_server/knowledge/legal/_dashboard/backlog/내수면어업법.md",
+  "local_server/knowledge/legal/_dashboard/backlog/마리나항만의조성및관리등에관한법률.md",
+  "local_server/knowledge/legal/_dashboard/backlog/수산종자산업육성법.md",
+  "local_server/knowledge/legal/_dashboard/backlog/원양산업발전법.md",
+  "local_server/knowledge/legal/_dashboard/backlog/한국해양수산연수원법.md",
+  "local_server/knowledge/legal/_dashboard/backlog/한국해양수산연수원법_4라운드.md",
+  "local_server/knowledge/legal/_dashboard/backlog/해양레저관광진흥법.md",
+  "local_server/knowledge/legal/_dashboard/backlog/해양수산발전기본법.md"
+ ]
+}
