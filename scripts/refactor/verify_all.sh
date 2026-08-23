@@ -109,6 +109,14 @@ echo; echo "── V5-8 조문 링크 도달성(눌러서 원문이 열리나) �
 node local_server/knowledge/legal/_dashboard/loop/link_ready.js \
   --base local_server/knowledge/legal/_dashboard/loop/pinned/link_ready_base.json --gate || FAIL=1
 
+echo; echo "── V5-8b 원문 덮어쓰기 신호 — 같은 폴더에 같은 ID 가 둘 ──"
+# 재수집이 이름 바뀐 고시를 갈아끼우며 **옛 판본을 통째로 덮어쓴** 사고가 있었다(2026-08-23, L-183).
+#   위키가 인용하던 근거가 raw 에서 사라졌는데, 적대검증관이 지적하고 나서야 드러났다.
+#   같은 폴더에 같은 ID 가 둘이면 덮어쓰기가 일어난 것이다 — 이건 코드 몇 줄로 즉시 안다.
+#   ⚠게이트로 걸지 않는다(FAIL 로 안 만든다): 남은 3건은 위키가 인용하지 않는 중복 수집본이고,
+#   지우려면 사용자 승인이 필요하다. 보이게만 해 둔다.
+python3 local_server/knowledge/legal/_dashboard/loop/dup_id_check.py || true
+
 echo; echo "── V5-9 수집(품질 4축 ①) — 가져야 할 원문이 손에 있나 ──"
 # 사용자가 정한 품질 4축 중 **①수집만 게이트가 아예 없었다**(H-45). ②는 V5-3, ③은 V5-5·V5-7·V5-8,
 #   ④는 V5-2·V5-10 이 본다. 이 검사는 기준법 74개의 raw 를 지금 직접 세어, 그 법에 **실제로 존재하는

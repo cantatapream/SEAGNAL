@@ -87,7 +87,28 @@ def api_mok_count(mst):
     return n, spots
 
 
-rows, no_answer = [], []
+rows, no_answer, not_found, excerpt = [], [], [], []
+
+# ★"이 파일은 일부러 일부만 받아온 것"이라고 스스로 밝힌 표시(2026-08-23 신설).
+#   `raw/15_관련타부처/` 밑에는 다른 부처 법을 **연결된 조문만** 발췌한 파일이 많다.
+#   원본 전체와 목 개수를 비교하면 당연히 모자라므로 "누락"으로 잡히는데, 이건 결함이 아니라
+#   의도된 설계다. 실측: 첫 전수 실행에서 누락 68건 중 66건이 이 경우였고, 사람이 파일을
+#   하나씩 열어 머리말을 읽고 걸러 냈다. 그 판단을 도구가 대신하게 한다.
+#   ⚠표시가 없는 발췌본은 여전히 못 가른다 — 그건 누락으로 잡히고 사람이 봐야 한다.
+EXCERPT_MARK = re.compile(
+    r'부분\s*수집|발췌\s*수집|\[발췌|연결\s*조문만|전체를\s*편입하지\s*않|일부만\s*수집|해당\s*조문만')
+
+
+def is_excerpt(path):
+    """파일 머리말(앞 12줄)이 '나는 발췌본이다'라고 밝히고 있나."""
+    try:
+        with open(path, encoding='utf-8') as f:
+            head = ''.join(next(f, '') for _ in range(12))
+    except Exception:
+        return False
+    return bool(EXCERPT_MARK.search(head))
+
+
 metas = sorted(glob.glob(os.path.join(RAW, '*', '*', '_meta.json')))
 targets = []
 for mp in metas:
@@ -111,6 +132,20 @@ for mp in metas:
         p = os.path.join(base, fn)
         if os.path.exists(p):
             targets.append((law, kind + ('(계열 여러 개 중 첫째)' if multi else ''), fam['MST'], p))
+            continue
+        # ★파일이 표준 이름이 아닐 때 조용히 사라지던 자리다(2026-08-23 적대검증에서 발견).
+        #   `families` 에 계열이 있다고 적혀 있는데 `시행령.txt` 가 없으면, 종전에는 그 계열이
+        #   **대상에도·누락에도·판정불가에도 안 잡히고 그냥 없어졌다** — "모른다"는 신호조차 없었다.
+        #   실제로 해양경찰법은 시행령이 `시행령_해양경찰위원회규정.txt` 처럼 개별 이름이라
+        #   시행령 3건이 통째로 빠졌고, 그 사실을 도구가 알려주지 않았다.
+        #   이제 ①같은 계열 이름으로 시작하는 파일을 찾아보고 ②그래도 없으면 **못 찾았다고 기록**한다.
+        alt = sorted(glob.glob(os.path.join(base, kind + '_*.txt')))
+        if alt:
+            for ap in alt:
+                targets.append((law, '%s(%s)' % (kind, os.path.basename(ap)[:-4]), fam['MST'], ap))
+        else:
+            not_found.append('%s %s — `%s` 없음(families 에는 있다고 적혀 있다, MST=%s)'
+                             % (law, kind, fn, fam['MST']))
 
 print('■ 목 누락 대조 — 원본(law.go.kr)과 우리 raw 의 목 개수를 맞춰 본다')
 print('   대상 계열: %d개' % len(targets))
@@ -122,15 +157,25 @@ for i, (law, kind, mst, p) in enumerate(targets, 1):
         no_answer.append('%s %s (MST=%s)' % (law, kind, mst))
         continue
     if theirs > ours:
-        rows.append({'law': law, 'kind': kind, 'mst': mst,
-                     'file': os.path.relpath(p, LEGAL),
-                     'api_mok': theirs, 'raw_mok': ours, 'missing': theirs - ours,
-                     'spots': spots[:12]})
+        rec = {'law': law, 'kind': kind, 'mst': mst,
+               'file': os.path.relpath(p, LEGAL),
+               'api_mok': theirs, 'raw_mok': ours, 'missing': theirs - ours,
+               'spots': spots[:12]}
+        # 스스로 발췌본이라 밝힌 파일은 "모자란 것"이 정상이다 — 결함 목록과 갈라 담는다.
+        (excerpt if is_excerpt(p) else rows).append(rec)
     if i % 40 == 0:
         print('   ... %d/%d 대조' % (i, len(targets)), flush=True)
 
-print('\n   원본에 있는데 우리에게 없는 계열 : %d개' % len(rows))
-print('   원본을 못 받아 판정 못 한 계열   : %d개' % len(no_answer))
+print('\n   ❌원본에 있는데 우리에게 없는 계열 : %d개  ← 고칠 것' % len(rows))
+print('   ⏭️발췌본이라 모자란 것이 정상    : %d개  (파일이 스스로 밝힘)' % len(excerpt))
+print('   ⚠원본을 못 받아 판정 못 한 계열  : %d개' % len(no_answer))
+print('   ⚠파일을 못 찾아 못 본 계열       : %d개  ← 종전에는 조용히 사라지던 것' % len(not_found))
+if not_found:
+    print('\n   [파일을 못 찾음] families 에는 있다고 적혀 있는데 표준 이름 파일이 없다')
+    for x in not_found[:15]:
+        print('     · ' + x)
+    if len(not_found) > 15:
+        print('     … 외 %d개' % (len(not_found) - 15))
 if rows:
     rows.sort(key=lambda r: -r['missing'])
     print('   빠진 목 총 개수                  : %d개' % sum(r['missing'] for r in rows))
@@ -139,7 +184,8 @@ if rows:
         print('     %4d개  %s %s  (원본 %d / 우리 %d)'
               % (r['missing'], r['law'], r['kind'], r['api_mok'], r['raw_mok']))
     out = os.path.join(LEGAL, '_dashboard', 'mok_audit.json')
-    json.dump({'missing': rows, 'no_answer': no_answer}, open(out, 'w'),
+    json.dump({'missing': rows, 'no_answer': no_answer,
+               'excerpt_ok': excerpt, 'file_not_found': not_found}, open(out, 'w'),
               ensure_ascii=False, indent=1)
     print('\n   목록 저장: %s' % out)
 if no_answer:
