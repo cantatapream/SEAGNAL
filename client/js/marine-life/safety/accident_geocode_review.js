@@ -30,8 +30,14 @@
  *                 (1차 조사로 뽑은 의심 후보 origIndex 목록)
  *  - 지도       : OpenLayers(전역 ol, ol.source.OSM()) — 앱의 다른 지도와 별개로
  *                 이 화면 전용 인스턴스를 새로 만든다
+ *  - 관할 표시  : accident_codes.js 의 ACCIDENT_ORG_LABELS·accidentLabel() — 저장좌표
+ *                 마커 옆에 관할 해경서 이름을 라벨로 붙여, "이 관할서 소속인데 왜
+ *                 여기 찍혀 있지?"를 검수자가 지도에서 바로 판단하게 한다(자동 판정이
+ *                 아니라 사람 판단을 돕는 정보 표시일 뿐 — 2026-08-23 사용자 확정,
+ *                 관할해역 경계 데이터가 없고 원양사고는 정상적으로 관할서에서 멀리
+ *                 떨어질 수 있어 자동 제외는 하지 않기로 함)
  * [로드 순서] accident_info.js 다음(같은 버튼을 참조하지만 그 버튼의 마크업이
- *             이미 로드돼 있어야 하므로)
+ *             이미 로드돼 있어야 하므로, accident_codes.js 는 그보다도 먼저 로드됨)
  * ============================================================================
  */
 
@@ -112,6 +118,7 @@
 
     // ── 상태 ────────────────────────────────────────────────────────────
     var POS_IDX = 4; // hk 행: [lat, lon, ymd, hm, pos, typeCd, causeCd, shipCd, orgCd, rescue, death, missing]
+    var ORG_IDX = 8;
     var hkRows = null;
     var candidates = []; // [{origIndex, row, parsed, _expected}] — 텍스트 파싱 성공한 것만
     var cursor = 0;
@@ -185,6 +192,7 @@
             '<div id="agr-info">' +
             '<div>위치텍스트: <span class="agr-pos" id="agr-pos">-</span></div>' +
             '<div>발생일자: <span id="agr-ymd">-</span> · 어긋난 거리: <span id="agr-dist">-</span></div>' +
+            '<div>관할: <span id="agr-org">-</span></div>' +
             '<div>기준지명: <span id="agr-base">-</span></div>' +
             '<div class="agr-legend"><span><i class="agr-dot" style="background:#3d8bff"></i>저장된 좌표</span><span><i class="agr-dot" style="background:#2ecc71"></i>기준지명 위치</span><span><i class="agr-dot" style="background:#ff5f74"></i>텍스트가 가리키는 곳</span></div>' +
             '</div>' +
@@ -202,6 +210,7 @@
         els.pos = document.getElementById('agr-pos');
         els.ymd = document.getElementById('agr-ymd');
         els.dist = document.getElementById('agr-dist');
+        els.org = document.getElementById('agr-org');
         els.base = document.getElementById('agr-base');
         els.exportWrap = document.getElementById('agr-export-wrap');
         els.exportText = document.getElementById('agr-export-text');
@@ -317,6 +326,7 @@
         els.pos.textContent = c.row[POS_IDX];
         els.ymd.textContent = formatYmd(c.row[2]);
         els.dist.textContent = '조회 중…';
+        els.org.textContent = accidentLabel(ACCIDENT_ORG_LABELS, c.row[ORG_IDX]);
         els.base.textContent = '조회 중…';
 
         var actualLat = c.row[0], actualLon = c.row[1];
@@ -324,6 +334,13 @@
         var actualFeature = new ol.Feature({ geometry: new ol.geom.Point(actualCoord) });
         actualFeature.setStyle(pointStyle('#3d8bff'));
         vectorSource.addFeature(actualFeature);
+
+        // 저장좌표 마커 옆에 관할 해경서 이름 표시 — "이 관할서 소속인데 왜 여기 찍혀
+        // 있지?"를 지도에서 바로 눈으로 판단할 수 있도록(2026-08-23 사용자 요청).
+        var orgLabelFeature = new ol.Feature({ geometry: new ol.geom.Point(actualCoord) });
+        orgLabelFeature.setStyle(labelStyle(els.org.textContent));
+        vectorSource.addFeature(orgLabelFeature);
+
         reviewMap.getView().setCenter(actualCoord);
         reviewMap.getView().setZoom(9);
 
