@@ -115,8 +115,17 @@
     var hkRows = null;
     var candidates = []; // [{origIndex, row, parsed, _expected}] — 텍스트 파싱 성공한 것만
     var cursor = 0;
-    var decisions = {}; // origIndex -> {action:'keep'|'delete'|'relocate', lat, lon}
+    // rowKey(내용 기반) -> {action:'keep'|'delete'|'relocate', lat, lon}. origIndex를 키로
+    // 쓰지 않는 이유: 서버에서 삭제를 반영할 때마다 뒤 행들의 번호가 당겨지는데, 브라우저
+    // 저장(localStorage)은 그걸 모르고 예전 번호 그대로 남아있다가 다음 회차 때 완전히 다른
+    // 행을 가리키는 판정으로 둔갑한다(2회차 반영 때 실제로 발생 확인, 2026-08-23). 내용 기반
+    // 키는 서버 쪽 번호가 밀려도 같은 사고 기록을 계속 같은 키로 가리킨다.
+    var decisions = {};
     var STORAGE_KEY = 'accidentGeocodeReviewDecisions_v1';
+
+    function rowKey(row) {
+        return row[2] + '|' + row[3] + '|' + row[4] + '|' + row[0] + '|' + row[1];
+    }
 
     function loadDecisions() {
         try { decisions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
@@ -266,7 +275,7 @@
 
     function firstUndecidedIndex() {
         for (var i = 0; i < candidates.length; i++) {
-            if (!decisions[candidates[i].origIndex]) return i;
+            if (!decisions[rowKey(candidates[i].row)]) return i;
         }
         return 0;
     }
@@ -293,7 +302,7 @@
             entry.lat = c._expected.lat;
             entry.lon = c._expected.lon;
         }
-        decisions[c.origIndex] = entry;
+        decisions[rowKey(c.row)] = entry;
         saveDecisions();
         move(1);
     }
@@ -303,7 +312,7 @@
         var total = candidates.length;
         if (!total) { els.progress.textContent = '대상 없음'; return; }
         var c = candidates[cursor];
-        var existing = decisions[c.origIndex];
+        var existing = decisions[rowKey(c.row)];
         els.progress.textContent = (cursor + 1) + ' / ' + total + (existing ? ' (판정됨: ' + labelForAction(existing.action) + ')' : '');
         els.pos.textContent = c.row[POS_IDX];
         els.ymd.textContent = formatYmd(c.row[2]);
@@ -374,18 +383,22 @@
      * 목록(client/accident_geocode_candidates.json)에서 빼야 다음에 다시 안 뜬다.
      * 이 화면 자체는 브라우저(localStorage)에만 저장하므로, 기기를 바꾸거나 캐시를
      * 지우면 판정 이력이 사라진다 — "내보내기"로 받은 결과를 실제 반영해야 영구적으로
-     * 후보 목록에서 제외된다).
+     * 후보 목록에서 제외된다). decisions 객체를 직접 순회하지 않고 반드시 "지금 이
+     * 세션에서 불러온 candidates 목록"을 기준으로 순회한다 — decisions 는 이전 회차의
+     * 판정도 계속 들고 있는데(내용 기반 키라 서버 번호가 밀려도 안전하지만, 이미 서버에
+     * 반영돼 후보 목록에서 빠진 행은 여전히 decisions 에 남아있을 수 있음), 그런 건 지금
+     * candidates 에 없으므로 이렇게 하면 자동으로 내보내기에서 빠진다.
      */
     function exportResults() {
         var keepList = [];
         var deleteList = [];
         var relocateList = [];
-        Object.keys(decisions).forEach(function (origIndexStr) {
-            var origIndex = parseInt(origIndexStr, 10);
-            var d = decisions[origIndexStr];
-            if (d.action === 'keep') keepList.push(origIndex);
-            else if (d.action === 'delete') deleteList.push(origIndex);
-            else if (d.action === 'relocate') relocateList.push({ origIndex: origIndex, lat: d.lat, lon: d.lon });
+        candidates.forEach(function (c) {
+            var d = decisions[rowKey(c.row)];
+            if (!d) return;
+            if (d.action === 'keep') keepList.push(c.origIndex);
+            else if (d.action === 'delete') deleteList.push(c.origIndex);
+            else if (d.action === 'relocate') relocateList.push({ origIndex: c.origIndex, lat: d.lat, lon: d.lon });
         });
         var out = { hk_keep: keepList, hk_delete: deleteList, hk_relocate: relocateList };
         els.exportText.value = JSON.stringify(out);
