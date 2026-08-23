@@ -1,0 +1,9 @@
+{
+ "script": "restore_old_gosi2",
+ "stamp": "20260823-130756-004",
+ "files": [
+  "local_server/knowledge/legal/raw/10_항만물류/신항만건설촉진법/행정규칙/신항만건설심의위원회·일괄협의회운영세칙.txt",
+  "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법/행정규칙/(완도해양경찰서)수상레저활동금지구역공고.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/연안관리법/행정규칙/연안정비시설물사후관리시행지침.txt"
+ ]
+}
