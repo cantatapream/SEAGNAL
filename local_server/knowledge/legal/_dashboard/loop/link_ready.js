@@ -151,7 +151,7 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
       const baseRel = A.resolveBase(law, baseLaw, tier);
       if (!baseRel) {
         now.no_base++;
-        if (ex.no_base.length < 30) ex.no_base.push(`${dir}/${f}  |  ${law.slice(0, 34)}  |  ${String(row.article).slice(0, 24)}`);
+        if (ex.no_base.length < 400) ex.no_base.push(`${dir}/${f}  |  ${law.slice(0, 34)}  |  ${String(row.article).slice(0, 24)}`);
         continue;
       }
       const file = fileOf(baseRel, tier, law);
@@ -160,7 +160,7 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
         // 못 고른 것은 "그 고시를 아직 안 받아왔다" 이거나 "위키 이름과 파일 이름이 어긋난다" 다.
         const k = tier === 'notice' ? 'no_notice' : 'no_file';
         now[k]++;
-        if (ex[k].length < 30) ex[k].push(`${dir}/${f}  |  ${law.slice(0, 40)}`);
+        if (ex[k].length < 400) ex[k].push(`${dir}/${f}  |  ${law.slice(0, 40)}`);
         continue;
       }
       const have = articleNumbersOf(file, tier);
