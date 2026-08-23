@@ -21,6 +21,7 @@
 사용법: python3 admrul_recollect_stale.py [--dry]
 """
 import json, os, re, subprocess, sys, time
+from _touched import Touched
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -104,6 +105,7 @@ def head_lines(text):
 
 
 def main():
+    touched = Touched('admrul_recollect_stale')
     rep = json.load(open(REPORT, encoding='utf-8'))
     stale = [r for r in rep['rows'] if r['verdict'] == '구버전']
     results = []
@@ -149,6 +151,7 @@ def main():
             new = '\n'.join(hdr) + '\n\n' + body + '\n'
             if not DRY:
                 open(path, 'w', encoding='utf-8').write(new)
+                touched.add(path)
             results.append({'title': title, 'file': rel, 'status': '갱신',
                             'old_chars': len(oldbody), 'new_chars': len(body),
                             'old_id': r['held_ids'], 'new_id': serial, 'issued': issued})
@@ -161,6 +164,7 @@ def main():
                         if re.sub(r'\s+', '', k) == re.sub(r'\s+', '', title):
                             c[k]['ID'] = serial
                     json.dump(c, open(cat, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+                    touched.add(cat)
                 except Exception:
                     pass
             print('[%d/%d] 갱신 %s (%d→%d자)'
@@ -169,6 +173,7 @@ def main():
 
     json.dump({'ran_at': '2026-08-23', 'dry': DRY, 'results': results},
               open(OUT, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    touched.save()
     n = lambda s: sum(1 for x in results if x['status'] == s)
     print('\n갱신 %d / 보류 %d / 본문없음 %d / 파일없음 %d -> %s'
           % (n('갱신'), n('보류(본문축소)'), n('본문없음'), n('파일없음'), OUT))

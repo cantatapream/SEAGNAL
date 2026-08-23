@@ -20,6 +20,7 @@
 사용법: python3 refresh_ocr_blocks.py <목록파일> [--ref HEAD]   (각 줄 "<폴더><탭><id>")
 """
 import os, subprocess, sys
+from _touched import Touched
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -37,6 +38,7 @@ def git_show(path):
 
 
 def main():
+    touched = Touched('refresh_ocr_blocks')
     pairs = []
     for ln in open(sys.argv[1], encoding='utf-8'):
         ln = ln.rstrip('\n')
@@ -69,12 +71,14 @@ def main():
             if '【이미지판독 %s】' % iid not in t or old not in t:
                 continue
             open(p, 'w', encoding='utf-8').write(t.replace(old, new, 1))
+            touched.add(p)
             changed += 1
             hit = True
             print('갱신 %s ← %s' % (os.path.relpath(p, LEGAL), iid), flush=True)
         if not hit:
             missing.append((iid, '원문에서 옛 판독본 문자열을 못 찾음 — 손대지 않았다'))
 
+    touched.save()
     print('\n블록 갱신 %d · 내용 동일 %d · 처리 못 함 %d' % (changed, len(nochange), len(missing)))
     for iid, why in missing:
         print('  · %s — %s' % (iid, why))

@@ -25,6 +25,7 @@
 사용법: python3 admrul_restore_ocr.py [--base <커밋>] [--dry]
 """
 import hashlib, json, os, re, subprocess, sys, time
+from _touched import Touched
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -87,6 +88,7 @@ def h(b):
 
 
 def main():
+    touched = Touched('admrul_restore_ocr')
     todo, restored_tot = [], 0
     for dp, _d, fs in os.walk(os.path.join(LEGAL, 'raw')):
         if '행정규칙' not in dp:
@@ -123,6 +125,7 @@ def main():
                     b = pair.get(m.group(1))
                     return m.group(0) + '\n' + b if b else m.group(0)
                 open(path, 'w', encoding='utf-8').write(IMG.sub(repl, new))
+                touched.add(path)
             restored_tot += len(pair)
             if unmatched:
                 todo.append({'file': os.path.relpath(path, LEGAL),
@@ -131,6 +134,7 @@ def main():
             print('%-58s 되살림 %2d / 재판독 필요 %2d (옛 판독 %d개)'
                   % (fn[:58], len(pair), len(unmatched), len(blocks)), flush=True)
 
+    touched.save()
     json.dump({'ran_at': '2026-08-23', 'items': todo},
               open(TODO, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     print('\n판독 블록 %d개 복원 · 재판독 필요 그림 %d장 -> %s'

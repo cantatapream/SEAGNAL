@@ -8,6 +8,8 @@
 # 단독 실행(결정적·1회 쓰기 = 경합 없음). 재실행 안전(이미 삽입된 【이미지판독 N】은 skip).
 # 사용법: python3 merge_byl_ocr.py <inscope_list.txt>   (없으면 기준법 도메인 01~14 전체)
 import os, re, sys, glob
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _touched import Touched
 
 ROOT = "/home/user/SEAGNAL/local_server/knowledge/legal"
 
@@ -30,6 +32,7 @@ def sidecar_text(d, i):
     return open(fp, encoding="utf-8", errors="ignore").read().strip()
 
 tot_files = tot_ins = tot_skip = tot_nosc = 0
+touched = Touched('merge_byl_ocr')
 for rel in targets():
     p = os.path.join(ROOT, rel)
     s = open(p, encoding="utf-8", errors="ignore").read()
@@ -61,6 +64,8 @@ for rel in targets():
         changed = True
     if changed:
         open(p, "w", encoding="utf-8").write(s)
+        touched.add(p)
         tot_files += 1
 
+touched.save()
 print(f"병합 완료: 파일 {tot_files}개 수정 · 삽입 {tot_ins} · 기존skip {tot_skip} · sidecar없음 {tot_nosc}")

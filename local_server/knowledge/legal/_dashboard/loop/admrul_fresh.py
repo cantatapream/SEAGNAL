@@ -29,6 +29,15 @@ OC = 'hyoo1431'
 CA = '/root/.ccr/ca-bundle.crt'
 PROXY = os.environ.get('HTTPS_PROXY', '')
 
+# 자동 감시에서 뺀 문서 (사용자 확정 2026-08-23)
+# 행정규칙 API 의 ID 체계가 아니라 이 창구로는 본문 조회 자체가 안 된다.
+# 자치법규나 공공기관 내부규정으로 보이며, 억지로 "조회실패"로 매주 보고되면
+# 진짜 문제가 그 잡음에 묻힌다. 성격이 확인되면 그때 맞는 창구로 옮긴다.
+EXCLUDED = {
+    '어항구 설정(장승포항)': 'ID 2003245 — 7자리로 행정규칙 일련번호 체계가 아니다(자치법규 추정)',
+    '한국어촌어항공단 정관': 'ID 2200000092569 — 2200000 계열. 정관은 법령이 아니라 기관 내부규정이다',
+}
+
 TITLE_RE = re.compile(r'^\[[^\]]*\]\s*(.+?)\s*$')
 ID_RE = re.compile(r'^ID:\s*(\d+)')
 
@@ -117,7 +126,15 @@ def main():
     by_title = {}
     for f in files:
         by_title.setdefault(f['title'], []).append(f)
+    skipped = [t for t in by_title if t in EXCLUDED]
+    for t in skipped:
+        by_title.pop(t)
     titles = sorted(by_title)
+    if skipped:
+        print('감시 제외 %d건 (사용자 확정 2026-08-23):' % len(skipped))
+        for t in skipped:
+            print('  · %s — %s' % (t, EXCLUDED[t]))
+        print()
     if limit:
         titles = titles[:limit]
 
