@@ -200,16 +200,23 @@
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
 
     /**
-     * [검수 모드 — 사고정보를 켜면 항상 함께 뜬다(사용자 확정 2026-08-20)]
+     * [검수 모드 — 사고정보 버튼 10회 연타로만 켜진다(사용자 확정 2026-08-23)]
      * 실제 지도(위성지도)·실제 마커 이미지 위에서 육지에 잘못 찍힌 개별 마커를 직접
      * 클릭으로 골라 제외 후보 목록을 만드는 기능 — 별도 웹페이지 검수 도구는 실제
      * 위성지도 타일을 못 불러와서, 실제 앱 화면 그대로 검수하고 싶다는 요청으로 추가.
-     * 처음엔 ?debug=review 쿼리가 있을 때만 켰으나, 매번 링크에 쿼리를 붙이기 번거롭다는
-     * 요청으로 상시 노출로 바꿨다 — 패널은 기본 접힌 한 줄(헤더)이라 평소엔 거의
-     * 눈에 안 띈다. 낱개 마커를 클릭하면 기존 상세 팝업은 그대로 뜨고, 추가로 빨간
-     * 테두리가 켜지며 내보내기 목록에 쌓인다. 다시 클릭하면 빠진다.
+     * 처음엔 ?debug=review 쿼리 → 이후 상시 노출(2026-08-20)로 바뀌었다가, 지오코딩
+     * 검수화면(accident_geocode_review.js)의 후보 목록이 4회차로 소진되면서 그 화면이
+     * 쓰던 "사고정보 버튼 10회 연타" 트리거를 이 검수 모드로 넘겨받았다(트리거 하나를
+     * 두 화면이 동시에 쓸 수 없어 이관, 일반 사용자에게 항상 노출되던 것도 함께 해소).
+     * 켜지면 패널은 기본 접힌 한 줄(헤더)이라 평소엔 거의 눈에 안 띈다. 낱개 마커를
+     * 클릭하면 기존 상세 팝업은 그대로 뜨고, 추가로 빨간 테두리가 켜지며 내보내기
+     * 목록에 쌓인다. 다시 클릭하면 빠진다.
      */
-    var REVIEW_MODE = true;
+    var REVIEW_MODE = false;
+    var REVIEW_MODE_TAP_THRESHOLD = 10;
+    var REVIEW_MODE_TAP_RESET_MS = 3000;
+    var _reviewModeTapCount = 0;
+    var _reviewModeTapTimer = null;
     var flaggedItems = new Map(); // "key:origIndex" -> {key, idx, row}
     var flagLayer = null;         // 빨간 테두리 오버레이(소스 무관 공용)
 
@@ -680,7 +687,7 @@
         return formatYmd(row[2]) + ' · ' + (row[3] || accidentLabel(ACCIDENT_TYPE_LABELS, row[4]));
     }
 
-    /** 검수 모드 패널을 처음 한 번만 만든다(REVIEW_MODE 일 때만 bindUi 에서 호출). */
+    /** 검수 모드 패널을 처음 한 번만 만든다(사고정보 버튼 10회 연타로 REVIEW_MODE 가 켜질 때 호출). */
     function ensureReviewPanel() {
         if (document.getElementById('accident-review-panel')) return;
         var style = document.createElement('style');
@@ -1166,7 +1173,6 @@
     }
 
     function bindUi(map) {
-        if (REVIEW_MODE) ensureReviewPanel();
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
         var wrap = document.getElementById('ocean-accident-wrap');
         if (toggleBtn && wrap) {
@@ -1181,6 +1187,17 @@
             });
             document.addEventListener('click', function (e) {
                 if (!wrap.contains(e.target)) wrap.classList.remove('popup-open');
+            });
+            // 검수 모드 트리거 — 위 팝아웃 열기/닫기와 별개로 같은 버튼에 탭 횟수만 센다.
+            toggleBtn.addEventListener('click', function () {
+                if (REVIEW_MODE) return;
+                _reviewModeTapCount++;
+                clearTimeout(_reviewModeTapTimer);
+                _reviewModeTapTimer = setTimeout(function () { _reviewModeTapCount = 0; }, REVIEW_MODE_TAP_RESET_MS);
+                if (_reviewModeTapCount < REVIEW_MODE_TAP_THRESHOLD) return;
+                _reviewModeTapCount = 0;
+                REVIEW_MODE = true;
+                ensureReviewPanel();
             });
         }
 
