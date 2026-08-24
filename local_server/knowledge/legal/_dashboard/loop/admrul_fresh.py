@@ -178,7 +178,15 @@ def api_current(title):
                  'issued': str(pick.get('발령일자') or ''),
                  'no': str(pick.get('발령번호') or ''),
                  'state': str(pick.get('현행연혁구분') or ''),
-                 'pending': pend}, '현행확인', [])
+                 'pending': pend,
+                 # 우리가 가진 번호가 이 목록에서 어떤 상태로 표시되는지도 함께 돌려준다.
+                 # ★"아직 시행 전인 판을 우리가 이미 갖고 있다"는 사고를 잡기 위한 것이다
+                 #   (2026-08-24 — 첫 줄을 현행으로 쓰던 옛 판정 때문에 실제로 그렇게
+                 #   덮어썼을 수 있어 확인이 필요해졌다).
+                 'all': [{'serial': str(x.get('행정규칙일련번호') or ''),
+                          'state': str(x.get('현행연혁구분') or ''),
+                          'issued': str(x.get('발령일자') or '')} for x in hits]},
+                '현행확인', [])
     # ★여기가 종전에 "조회실패"로 뭉뚱그려지던 자리다(2026-08-24 실측으로 갈라냈다).
     #   응답은 멀쩡히 왔는데 **우리 파일 제목과 law.go.kr 공식명이 다른 것**이다.
     #   실측 12건 표본 중 10건이 이 경우였다 — 예:
@@ -216,7 +224,7 @@ def main():
     if limit:
         titles = titles[:limit]
 
-    rows, stale, fresh, unknown, mismatch = [], 0, 0, 0, 0
+    rows, stale, fresh, unknown, mismatch, future_held = [], 0, 0, 0, 0, 0
     for i, t in enumerate(titles, 1):
         cur, why, cands = api_current(t)
         held = sorted({f['id'] for f in by_title[t]})
@@ -234,12 +242,23 @@ def main():
         else:
             verdict = '구버전'
             stale += 1
+        # ★우리가 가진 번호가 **아직 시행 전인 판**이면 그것도 사고다(구버전의 반대 경우).
+        #   옛 판정이 검색 첫 줄(=시행예정 판)을 현행으로 보고 재수집했다면 이렇게 남는다.
+        if cur and verdict != '현행':
+            for x in (cur.get('all') or []):
+                if x['serial'] in held and x['state'] != '현행':
+                    verdict = '미래판보유'
+                    stale -= 1
+                    future_held += 1
+                    break
         row = {'title': t, 'held_ids': held, 'current': cur, 'verdict': verdict,
                'files': [f['path'] for f in by_title[t]]}
         if verdict in ('이름불일치', '현행표시없음'):
             row['candidates'] = cands
         if cur and cur.get('pending'):
             row['pending'] = cur.pop('pending')
+        if cur:
+            cur.pop('all', None)
         # 구버전일 때만 위키를 훑는다 — 전수로 하면 653건 x 위키 1,283개라 쓸데없이 무겁다.
         if verdict == '구버전':
             row['wiki_pages'] = wiki_pages_citing(t)
@@ -248,12 +267,15 @@ def main():
         time.sleep(0.15)
 
     rep = {'checked': len(titles), 'fresh': fresh, 'stale': stale, 'unknown': unknown,
-           'mismatch': mismatch, 'rows': rows}
+           'mismatch': mismatch, 'future_held': future_held, 'rows': rows}
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(rep, f, ensure_ascii=False, indent=1)
-    print('\n현행 %d / 구버전 %d / 이름불일치 %d / 응답없음 %d (총 %d) -> %s'
-          % (fresh, stale, mismatch, unknown, len(titles), out_path))
+    print('\n현행 %d / 구버전 %d / ★미래판보유 %d / 이름불일치 %d / 응답없음 %d (총 %d) -> %s'
+          % (fresh, stale, future_held, mismatch, unknown, len(titles), out_path))
+    if future_held:
+        print('   ★미래판보유 = 우리가 **아직 시행 전인 판**을 갖고 있다는 뜻이다. 즉 지금 시행 중인')
+        print('     내용과 다른 것을 현행처럼 싣고 있다. 구버전보다 더 나쁠 수 있다 — 먼저 볼 것.')
     if mismatch:
         print('   ⚠이름불일치 = 우리 파일 제목과 law.go.kr 공식명이 달라 **확인하지 못한 것**이다.')
         print('     "이상 없음"이 아니다. 제목을 맞춰 주면 그다음부터 자동으로 확인된다.')
