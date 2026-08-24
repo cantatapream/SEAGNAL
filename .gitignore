@@ -37,6 +37,13 @@ local_server/data/accident_geocode_suspects.json
 local_server/data/tide_field/grid_meta_jeju.json
 local_server/data/tide_field/anchors_jeju.json
 
+# 원문 신선도 점검(services/admrul_fresh_scanner.js) 산출물 — 서버가 매주 만들어 쓰는
+# 런타임 상태다. Fly.io 볼륨(local_server/data)에 얹혀 재배포해도 남는다.
+# git 에 담으면 저장소 사본과 서버 사본이 서로 다른데 같은 이름으로 보여 혼동만 준다.
+local_server/data/admrul_fresh_report.json
+local_server/data/admrul_fresh_queue.jsonl
+local_server/data/admrul_fresh_status.json
+
 # 관리자 토큰 파일 (Fly.io Volume에 저장, 절대 git 추적 금지)
 # 토큰 자체가 인증 자격증명이므로 노출 시 임의 사용자가 admin 접근 가능
 local_server/data/admin_tokens.json

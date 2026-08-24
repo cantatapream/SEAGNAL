@@ -345,6 +345,29 @@ cron.schedule('0 16 * * *', () => {
     } catch (e) { console.error('나리야 개정감지 스캔 오류:', e.message); }
 });
 
+// 매주 일요일 KST 03:00 에 나리야(해양법령) **원문 신선도 점검** — 우리가 받아 둔 행정규칙
+// 원문의 일련번호를 law.go.kr 현행본과 대조해, 낡은 원문을 관리자 '원문신선도' 방에 적재한다.
+// 새로 발견된 것이 있을 때만 관리자 푸시가 나간다(위키는 자동 수정 안 함).
+//
+// ★시간대를 명시한 이유: 이 파일의 다른 cron 들은 `'0 16 * * *'` 처럼 **UTC 로 적고 주석에
+//   KST 를 병기**하는 관례인데, Dockerfile 이 `ENV TZ=Asia/Seoul` 을 설정하고 있어 실제 서버에서
+//   node-cron 이 그 식을 KST 로 읽는지 UTC 로 읽는지가 이 코드만 봐서는 갈리지 않는다.
+//   (컨테이너에 들어가 확인할 방법이 없어 **확인하지 못했다** — 기존 cron 들은 건드리지 않고
+//   그대로 두되, 새로 넣는 이 작업만이라도 애매하지 않게 시간대를 직접 지정한다.
+//   node-cron 4.2.1 의 timezone 옵션이 실제로 9시간을 옮기는 것은 실행해서 확인했다.)
+//   ⚠기존 cron 들이 의도한 시각에 도는지는 별도로 확인이 필요하다.
+// [연계] services/admrul_fresh_scanner.js, routes/legal.js GET /api/legal/freshness
+cron.schedule('0 3 * * 0', () => {
+    console.log('⏰ [Weekly Schedule] 나리야 원문 신선도 점검을 시작합니다.');
+    try {
+        require('./services/admrul_fresh_scanner').runFreshnessScan()
+            .then((r) => console.log(r.ok
+                ? `✅ [나리야 원문신선도] 점검 완료: ${r.checked}건 대조, 구버전 ${r.stale}건(새로 발견 ${r.added}건), 조회실패 ${r.unknown}건`
+                : `❌ [나리야 원문신선도] 점검 실패: ${r.error}`))
+            .catch((e) => console.error('나리야 원문신선도 점검 오류:', e.message));
+    } catch (e) { console.error('나리야 원문신선도 점검 오류:', e.message); }
+}, { timezone: 'Asia/Seoul' });
+
 // ============================================================================
 // 4.5 Graceful shutdown — Fly.io SIGTERM 대응
 // ----------------------------------------------------------------------------

@@ -29,10 +29,25 @@ FROM node:20-slim
 #       KHOA 호출의 (date, hour) 계산이 모두 일관된 KST 로 동작.
 # ----------------------------------------------------------------------------
 ENV TZ=Asia/Seoul
-RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+
+# ----------------------------------------------------------------------------
+# 파이썬 3 — 법령 정기점검 스크립트가 자식 프로세스로 실행된다 (2026-08-24 추가)
+# ----------------------------------------------------------------------------
+# 서버는 파이썬 스크립트를 두 개 돌린다:
+#   · 매일 새벽 1시 KST — services/legal_amendment_scanner.js
+#       → _dashboard/loop/detect_law_changes.py (법령 개정 감지 → '개정검토' 방)
+#   · 매주 일요일 새벽  — services/admrul_fresh_scanner.js
+#       → _dashboard/loop/admrul_fresh.py (행정규칙 원문 신선도 → '원문신선도' 방)
+# 둘 다 `spawn('python3', ...)` 로 부른다. 그런데 이 줄이 생기기 전까지 이미지에
+# 파이썬을 설치하는 곳이 아무 데도 없었다 — 개정감지가 실서비스에서 실제로 돌고
+# 있었는지 확인할 방법이 없어(컨테이너 접속 불가) **환경에 기대지 않고 명시적으로 넣는다.**
+# 두 스크립트 모두 표준 라이브러리만 쓰므로 pip 설치는 필요 없다.
+# ----------------------------------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata python3 \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 --version
 
 WORKDIR /app
 

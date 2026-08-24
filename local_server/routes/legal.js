@@ -58,6 +58,7 @@ const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
 const adminQueues = require('../services/legal_admin_queues');
 const amendmentScanner = require('../services/legal_amendment_scanner');
+const freshScanner = require('../services/admrul_fresh_scanner');
 const { DATA_DIR, FILES } = require('../config/server_config');
 
 // [Lazy] Firebase Admin(답변완료 개인 푸시용). routes/report.js 와 같은 이유로 첫 발송 시 로딩.
@@ -454,7 +455,8 @@ router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => 
       draft: pages.filter(p => p.kind === 'concept' && p.status === 'draft').length,
       feedback: adminQueues.countPending(FEEDBACK_FILE),
       candidates: adminQueues.countPending(CANDIDATES_FILE),
-      amendments: adminQueues.countPending(amendmentScanner.QUEUE_FILE) });
+      amendments: adminQueues.countPending(amendmentScanner.QUEUE_FILE),
+      freshness: adminQueues.countPending(freshScanner.QUEUE_FILE) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -635,6 +637,45 @@ router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (re
 // 클라는 잠시 후 새로고침해 결과를 확인한다.
 router.post('/api/legal/amendments/scan-now', adminAuth.requireAdminToken, (req, res) => {
   const r = amendmentScanner.startAmendmentScan();
+  res.status(r.ok ? 200 : 409).json(r);
+});
+
+// ============================================================================
+// 원문 신선도 — services/admrul_fresh_scanner.js 가 매주(server.js cron) 우리가 받아 둔
+// 행정규칙 원문의 일련번호를 law.go.kr 현행본과 대조해, **낡은 원문**을 큐에 적재한다.
+// 여기는 그 큐를 보여주고 사람이 처리/무시하는 API 만 — 승인해도 재수집·위키수정을 이
+// 자리에서 자동 실행하지 않는다(개정검토와 같은 승인게이트 설계).
+// 카드에는 "무엇이 낡았나"뿐 아니라 **무엇을 해야 하나(actions)** 와 **어느 위키를 고쳐야
+// 하나(wiki_pages)** 가 함께 담긴다 — 그게 없으면 관리자가 손을 댈 수가 없다.
+// ============================================================================
+
+// GET /api/legal/freshness?status=pending|done|dismissed|all (관리자)
+//   last: 마지막 점검이 언제·어떻게 끝났는지. **"이상 없음"과 "점검 실패"를 반드시 구분해
+//   보여주기 위해** 함께 내려준다(실패를 이상 없음으로 읽으면 낡은 원문을 놓친다).
+router.get('/api/legal/freshness', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    let list = adminQueues.readJsonl(freshScanner.QUEUE_FILE).reverse();
+    if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
+    res.json({ ok: true, count: list.length, items: list, last: freshScanner.readStatus() });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/freshness/:id/decide (관리자) — body: { decision: 'done'|'dismissed', by? }
+router.post('/api/legal/freshness/:id/decide', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const { decision = 'done', by = '관리자' } = req.body || {};
+    const updated = adminQueues.updateJsonlById(freshScanner.QUEUE_FILE, req.params.id,
+      { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
+    if (!updated) return res.status(404).json({ ok: false, error: 'freshness item not found: ' + req.params.id });
+    res.json({ ok: true, item: updated });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/freshness/scan-now (관리자) — 정기 점검과 별개로 즉시 1회 점검.
+//   653건 전수 대조라 실측 20~30분 걸린다. 완료를 기다리지 않고 즉시 응답(started:true).
+router.post('/api/legal/freshness/scan-now', adminAuth.requireAdminToken, (req, res) => {
+  const r = freshScanner.startFreshnessScan();
   res.status(r.ok ? 200 : 409).json(r);
 });
 

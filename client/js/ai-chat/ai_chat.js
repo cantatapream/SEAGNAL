@@ -5,7 +5,7 @@
  *         (A) 관리자 콘솔 — 통합관리자 센터의 "나리야 법령" 탭이 부르는
  *             window.NariyaChat.renderAdminInto(container) 로, 지식 방 브라우저
  *             (원문/위키개념/법령/비교허브/별표/지식그래프 + 역할설명 인트로카드)
- *             + 관리자 검토센터(5개 서브탭·원본 vs AI값·교정입력·승인/반려·반영사슬)
+ *             + 관리자 검토센터(6개 서브탭·원본 vs AI값·교정입력·승인/반려·반영사슬)
  *             + 챗봇 노출 토글(서버 전역 설정)을 렌더한다.
  *         (B) 사용자 챗봇 — 우측 하단 FAB + 카카오톡풍 채팅 팝업(생각중·스켈레톤·
  *             근거법령 아코디언 = 위임흐름 체인 + 조문 카드를 누르면 뜨는 조문 원문 팝업).
@@ -33,7 +33,11 @@
  *                    GET  /api/legal/reviews?status=pending    (검증 대기 목록)
  *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
- *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토 실카운트)
+ *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토·원문신선도 실카운트)
+ *                    GET  /api/legal/freshness?status=pending  (원문신선도 — 낡은 행정규칙 원문 목록
+ *                                                               + last: 마지막 점검이 언제·어떻게 끝났나)
+ *                    POST /api/legal/freshness/:id/decide       (처리완료/해당없음)
+ *                    POST /api/legal/freshness/scan-now         (즉시 1회 점검, 백그라운드 20~30분)
  *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
  *                    POST /api/legal/ask {query, deviceId, notifyOnComplete, ctx?, profile?, lastQuestion?}
  *                                                              (질문→AI 답변 스트리밍(NDJSON)+근거 법령
@@ -345,9 +349,10 @@
     피드백: { n: '…', desc: '답변 <b>👍/👎 익명 로그</b>를 모아 원인 분류(triage) 후 관리자에게 올리는 방. 👎가 쌓인 주제 → 위키 보강으로 연결.', render: null /* 서버 연동: renderFeedbackCards */ },
     새지식후보: { n: '…', desc: '대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).', render: null /* 서버 연동: renderCandidateCards */ },
     개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 시행일·MST diff로 신설·삭제·금액·조번재편을 적재.', render: null /* 서버 연동: renderAmendCards */ },
+    원문신선도: { n: '…', desc: '우리가 받아 둔 <b>고시·훈령 원문이 낡았는지</b> 매주 자동 대조해 모아두는 방. 원문 머리글의 수집 일련번호와 law.go.kr 현행 일련번호를 기계로 비교한다(2026-08-23에 「위험물 선박운송 기준」이 2016년판으로 남아 있어 <b>이미 삭제된 조문을 현행처럼</b> 설명하던 사고가 있었다). 카드마다 <b>어느 위키를 고쳐야 하는지·무엇을 해야 하는지</b>가 함께 적힌다.', render: null /* 서버 연동: renderFreshCards */ },
     '⚠수치검증': { n: '…', desc: '별표 <b>이미지 판독값(OCR)·조번호 재편</b> 및 처벌·안전수치를 사람이 검증하는 방(가장 급함). 서버 review_queue.md 의 검증 대기 항목을 불러와 승인/반려한다.', render: null /* 서버 연동: renderReviewCards */ }
   };
-  var ADMIN_ORDER = ['초안승인', '피드백', '새지식후보', '개정검토', '⚠수치검증'];
+  var ADMIN_ORDER = ['초안승인', '피드백', '새지식후보', '개정검토', '원문신선도', '⚠수치검증'];
 
   // ============================================================================
   // 관리자 콘솔 렌더링 — 통합관리자 센터 컨테이너(#unified-admin-body)에 마운트
@@ -534,9 +539,9 @@
   }
 
   // 서브탭 배지가 참조할 adminStatsCache 필드명(⚠수치검증은 statsCache.pending을 따로 씀)
-  var ADMIN_STAT_KEY = { 초안승인: 'draft', 피드백: 'feedback', 새지식후보: 'candidates', 개정검토: 'amendments' };
+  var ADMIN_STAT_KEY = { 초안승인: 'draft', 피드백: 'feedback', 새지식후보: 'candidates', 개정검토: 'amendments', 원문신선도: 'freshness' };
 
-  /** 서브탭(관리자 검토 5개 방)을 그린다. @param {string} active */
+  /** 서브탭(관리자 검토 6개 방)을 그린다. @param {string} active */
   function renderSubtabs(active) {
     curAdminSubtab = active;
     var el = document.getElementById('nryaSubtabs'); if (!el) return; el.innerHTML = '';
@@ -552,7 +557,7 @@
     });
   }
 
-  /** 선택한 관리자 방을 그린다(5방 전부 서버 연동). @param {string} k */
+  /** 선택한 관리자 방을 그린다(6방 전부 서버 연동). @param {string} k */
   function renderAdmin(k) {
     var a = ADMIN[k]; var host = document.getElementById('nryaAdminContent'); if (!host) return;
     var intro = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">🛠</div><div><div class="nrya-intro-name">' + esc(k) + '</div><div class="nrya-intro-tag">관리자 검토 방 · 승인→자동반영</div></div></div><div class="nrya-intro-desc">' + a.desc + '</div></div>';
@@ -571,6 +576,9 @@
     } else if (k === '개정검토') {
       host.innerHTML = intro + '<div class="nrya-panel" id="nryaAmendHost" style="padding:6px 0 4px"></div>';
       renderAmendCards(document.getElementById('nryaAmendHost'));
+    } else if (k === '원문신선도') {
+      host.innerHTML = intro + '<div class="nrya-panel" id="nryaFreshHost" style="padding:6px 0 4px"></div>';
+      renderFreshCards(document.getElementById('nryaFreshHost'));
     }
   }
 
@@ -873,6 +881,131 @@
       if (!list.length) { listHost.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">✅</span>감지된 개정이 없습니다.</div>'; return; }
       listHost.innerHTML = '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">총 ' + list.length + '건</div>' + list.map(amendmentCardHTML).join('');
       listHost.querySelectorAll('.nrya-rv').forEach(function (card) { bindDecideCard(card, '/api/legal/amendments', 'approved', 'dismissed', '승인(재수집 필요)', '무시'); });
+    }).catch(function (e) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
+  }
+
+  // ============================================================================
+  // 원문신선도 — 서버 연동. 매주 자동 점검 결과(구버전 행정규칙)를 보여주고,
+  //   관리자가 처리하거나 무시한다. 개정검토와 같은 2택 구조라 bindDecideCard 를 공유한다.
+  //
+  // ★이 방이 개정검토와 다른 점: 카드에 "무엇이 낡았나"만이 아니라 **무엇을 해야 하는지
+  //   (actions)** 와 **어느 위키를 고쳐야 하는지(wiki_pages)** 가 함께 담긴다.
+  //   그게 없으면 관리자는 "낡았다"는 사실만 알고 어디에 손을 대야 할지 모른다.
+  // [연계] ← GET /api/legal/freshness · POST /api/legal/freshness/:id/decide
+  //        · POST /api/legal/freshness/scan-now · services/admrul_fresh_scanner.js
+  // ============================================================================
+
+  /**
+   * 마지막 점검이 언제·어떻게 끝났는지 한 줄로. **"이상 없음"과 "점검 실패"를 반드시 구분한다** —
+   * 실패를 이상 없음으로 읽으면 낡은 원문을 그대로 놔두게 된다.
+   * @param {object|null} last - {ok,finishedAt,checked,stale,added,unknown,error}
+   * @returns {string} HTML
+   */
+  function freshLastHTML(last) {
+    if (!last) {
+      return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 한 번도 점검하지 않았습니다. 매주 일요일 새벽 3시(KST)에 자동으로 돌고, 아래 버튼으로 지금 돌릴 수도 있습니다.</div>';
+    }
+    if (!last.ok) {
+      return '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span><b>마지막 점검이 실패했습니다</b> (' + esc(shortTs(last.finishedAt)) + ')<br>' +
+        '<span style="font-size:11.5px">사유: ' + esc(last.error || '알 수 없음') + '</span><br>' +
+        '<span style="font-size:11.5px;color:var(--nrya-text-sub)">아래 목록이 비어 있어도 <b>"낡은 원문이 없다"는 뜻이 아닙니다</b> — 확인을 못 한 것입니다.</span></div>';
+    }
+    return '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
+      '마지막 점검 ' + esc(shortTs(last.finishedAt)) + ' · ' + (last.checked || 0) + '건 대조 · 구버전 ' + (last.stale || 0) + '건' +
+      (last.unknown ? ' · 조회실패 ' + last.unknown + '건' : '') + '</div>';
+  }
+
+  /**
+   * 구버전 원문 카드 1건.
+   * @param {object} it - {id,ts,title,held_ids,current,files,wiki_pages,actions,status}
+   * @returns {string} HTML
+   */
+  function freshnessCardHTML(it) {
+    var st = it.status === 'done' ? '<span class="nrya-rv-st nrya-done">✓ 처리완료</span>'
+      : it.status === 'dismissed' ? '<span class="nrya-rv-st nrya-rej">✗ 해당없음</span>'
+      : '<span class="nrya-rv-st nrya-warn">구버전</span>';
+    var cur = it.current || {};
+    var held = (it.held_ids || []).join(', ');
+    var link = 'https://www.law.go.kr/admRulSc.do?menuId=5&query=' + encodeURIComponent(it.title || '');
+    var wiki = (it.wiki_pages || []).length
+      ? '<ul style="margin:4px 0 0;padding-left:18px">' + it.wiki_pages.map(function (w) {
+          return '<li style="margin:2px 0"><code style="font-size:11px">' + esc(w) + '</code></li>'; }).join('') + '</ul>'
+      : '<span style="color:var(--nrya-text-sub)">아직 못 찾았습니다 — 제목이 본문에 그대로 안 적혀 있을 수 있으니 조문 번호·소관 기관으로 다시 찾아보세요.</span>';
+    var actions = (it.actions || []).length
+      ? '<ol style="margin:4px 0 0;padding-left:18px">' + it.actions.map(function (x) {
+          // actions 문구는 서버가 만든 안내문이다(사용자 입력이 아니다). 그래도 esc 로 통일한다.
+          return '<li style="margin:4px 0">' + esc(x) + '</li>'; }).join('') + '</ol>'
+      : '<span style="color:var(--nrya-text-sub)">(안내 없음)</span>';
+    var body =
+      '<div class="nrya-rv-body">' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔢 어떻게 낡았나</div><div class="nrya-rv-fval">' +
+          '우리가 가진 일련번호 <b>' + esc(held || '?') + '</b> → 현행 <b>' + esc(cur.serial || '?') + '</b>' +
+          (cur.issued ? '<br>현행 발령일자 ' + esc(cur.issued) + (cur.no ? ' · 발령번호 ' + esc(cur.no) : '') : '') +
+        '</div></div>' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">🛠 해야 할 일</div><div class="nrya-rv-fval">' + actions + '</div></div>' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">📄 고쳐야 할 위키 (' + ((it.wiki_pages || []).length) + ')</div><div class="nrya-rv-fval">' + wiki + '</div></div>' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">📁 낡은 원문 파일</div><div class="nrya-rv-fval"><code style="font-size:11px">' + esc((it.files || []).join(' · ') || '(없음)') + '</code></div></div>' +
+        '<a class="nrya-rv-link" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">🔗 law.go.kr에서 현행본 확인</a>' +
+        (((it.status || 'pending') === 'pending') ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 처리완료</button><button class="nrya-btn-no">✗ 해당없음</button></div>' : '') +
+        '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
+      '</div>';
+    return '<div class="nrya-rv" data-id="' + esc(it.id) + '"><div class="nrya-rv-head"><span class="nrya-rv-id">🕰</span><div class="nrya-rv-t">' +
+      esc(it.title || it.id) + '<small>' + esc(shortTs(it.ts)) + '</small></div>' + st + '</div>' + body + '</div>';
+  }
+
+  /**
+   * 원문신선도 방: 상단 "지금 점검" 버튼(정기 점검과 별개로 즉시 1회, 백그라운드 20~30분) + 목록.
+   * 처리완료로 표시해도 재수집·위키수정은 여기서 자동 실행하지 않는다(사람이 직접 한다).
+   * @param {HTMLElement} host
+   */
+  function renderFreshCards(host) {
+    if (!host) return;
+    var SCAN_LABEL = '🔍 지금 점검 (백그라운드 · 완료까지 20~30분)';
+    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:10px"><button class="nrya-btn-ok" id="nryaFreshScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
+      '<div class="nrya-inline-err nrya-hidden" id="nryaFreshScanErr" style="display:none"></div>' +
+      '<div id="nryaFreshListHost"></div>';
+    var scanBtn = document.getElementById('nryaFreshScanBtn');
+    var scanErr = document.getElementById('nryaFreshScanErr');
+    if (scanBtn) scanBtn.onclick = function () {
+      if (scanErr) { scanErr.style.display = 'none'; scanErr.textContent = ''; }
+      scanBtn.disabled = true; scanBtn.textContent = '점검 시작 중…';
+      legalPost('/api/legal/freshness/scan-now', {}).then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+      }).then(function (data) {
+        scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL;
+        if (data && data._denied) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '관리자 로그인 필요'; } return; }
+        if (!data || !data.ok) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '점검 시작 실패'; } return; }
+        var listHost = document.getElementById('nryaFreshListHost');
+        if (listHost) {
+          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 점검이 시작됐습니다. 653건을 하나씩 대조하느라 20~30분 걸립니다 — 나중에 이 방을 다시 열어 확인해 주세요.</div>');
+        }
+      }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
+    };
+    loadFreshList();
+  }
+
+  /** renderFreshCards 의 목록 부분만 새로고침(점검 버튼은 그대로 둔다). */
+  function loadFreshList() {
+    var listHost = document.getElementById('nryaFreshListHost'); if (!listHost) return;
+    listHost.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>목록을 불러오는 중…</div>';
+    legalGet('/api/legal/freshness?status=pending').then(function (res) {
+      if (res.status === 401 || res.status === 403) { listHost.innerHTML = adminLockHTML(); return null; }
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }).then(function (data) {
+      if (data === null) return;
+      if (!data || !data.ok) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>' + esc((data && data.error) || '목록을 불러오지 못했습니다.') + '</div>'; return; }
+      var head = freshLastHTML(data.last);
+      var list = data.items || [];
+      if (!list.length) {
+        // 점검이 실패했으면 "이상 없음"이라고 쓰지 않는다 — freshLastHTML 이 그 사정을 위에 적어 준다.
+        var okMsg = (data.last && data.last.ok)
+          ? '<div class="nrya-notice-box"><span class="nrya-em">✅</span>낡은 원문이 없습니다.</div>'
+          : '';
+        listHost.innerHTML = head + okMsg; return;
+      }
+      listHost.innerHTML = head + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">처리 대기 ' + list.length + '건</div>' + list.map(freshnessCardHTML).join('');
+      listHost.querySelectorAll('.nrya-rv').forEach(function (card) { bindDecideCard(card, '/api/legal/freshness', 'done', 'dismissed', '처리완료', '해당없음'); });
     }).catch(function (e) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
   }
 

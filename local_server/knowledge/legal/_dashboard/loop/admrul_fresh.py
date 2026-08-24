@@ -20,14 +20,14 @@
   --gate : 구버전이 1건이라도 있으면 종료코드 1. 주간 점검 Routine 이 이 코드로 판단한다.
            verify_all.sh 상시 게이트로는 넣지 않는다 — 매 실행이 653회 API 호출이라 무겁다.
 """
-import json, os, re, subprocess, sys, time
+import json, os, re, sys, time
+import urllib.request
 from urllib.parse import quote
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 RAW = os.path.join(ROOT, 'raw')
+WIKI = os.path.join(ROOT, 'wiki')
 OC = 'hyoo1431'
-CA = '/root/.ccr/ca-bundle.crt'
-PROXY = os.environ.get('HTTPS_PROXY', '')
 
 # 자동 감시에서 뺀 문서 (사용자 확정 2026-08-23)
 # 행정규칙 API 의 ID 체계가 아니라 이 창구로는 본문 조회 자체가 안 된다.
@@ -53,6 +53,31 @@ def strip_org(s):
     전부 '조회실패'로 나온다(첫 시험에서 25건 중 11건).
     """
     return re.sub(r'^\s*\([^)]{2,20}\)\s*', '', str(s or '')).strip()
+
+
+def wiki_pages_citing(title):
+    """이 행정규칙을 인용하는 위키 페이지 목록. 관리자 화면의 "무엇을 고쳐야 하나" 칸에 쓴다.
+
+    ★왜 필요한가: 구버전이라는 사실만 알려주면 관리자는 **어디를 고쳐야 하는지 모른다.**
+      제목(기관 표시를 뗀 것)을 위키 본문에서 그대로 찾는다 — 판정하지 않고 위치만 준다.
+      찾는 방식이 단순하므로(문자열 포함) 놓치는 것이 있을 수 있다. 있는 것만 보여준다.
+    """
+    q = strip_org(title)
+    if len(q) < 4:
+        return []
+    hits = []
+    for dirpath, _dirs, files in os.walk(WIKI):
+        for fn in files:
+            if not fn.endswith('.md'):
+                continue
+            p = os.path.join(dirpath, fn)
+            try:
+                with open(p, encoding='utf-8', errors='replace') as f:
+                    if q in f.read():
+                        hits.append(os.path.relpath(p, ROOT))
+            except Exception:
+                continue
+    return sorted(hits)
 
 
 def scan_files():
@@ -86,17 +111,33 @@ def scan_files():
 
 
 def api_current(title):
-    """제목으로 현행 행정규칙을 조회해 (일련번호, 발령일자, 발령번호)를 돌려준다."""
+    """제목으로 현행 행정규칙을 조회해 (일련번호, 발령일자, 발령번호)를 돌려준다.
+
+    ★2026-08-24 — `curl` 호출에서 파이썬 표준 `urllib` 로 바꿨다.
+      종전에는 `curl --cacert /root/.ccr/ca-bundle.crt` 를 썼는데, 그 인증서 파일은
+      **개발 컨테이너에만 있는 것**이라 실제 서버(fly.io)에서 돌리면 첫 호출부터
+      전부 실패한다. 서버 정기작업으로 옮기기로 했으므로(관리자센터 '원문신선도' 방)
+      환경에 따라 있고 없고가 갈리는 파일·외부 명령에 기대지 않게 고쳤다.
+      같은 저장소의 `detect_law_changes.py`(매일 새벽 개정감지, 이미 서버에서 돌던 것)가
+      쓰는 방식과 똑같이 맞췄다 — urllib 는 `HTTPS_PROXY` 환경변수를 스스로 따르므로
+      개발 컨테이너에서도 그대로 동작한다.
+    """
     q = strip_org(title)
     url = ('https://www.law.go.kr/DRF/lawSearch.do?OC=%s&type=JSON&target=admrul'
            '&display=20&query=%s' % (OC, quote(q)))
-    cmd = ['curl', '-sS', '--max-time', '25', '--cacert', CA]
-    if PROXY:
-        cmd += ['--proxy', PROXY]
-    cmd.append(url)
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    body = None
+    for _ in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=25) as r:
+                body = r.read().decode('utf-8', 'replace')
+            break
+        except Exception:
+            time.sleep(1.5)
+    if body is None:
+        return None
     try:
-        d = json.loads(r.stdout)['AdmRulSearch']
+        d = json.loads(body)['AdmRulSearch']
     except Exception:
         return None
     arr = d.get('admrul') or []
@@ -151,8 +192,12 @@ def main():
         else:
             verdict = '구버전'
             stale += 1
-        rows.append({'title': t, 'held_ids': held, 'current': cur, 'verdict': verdict,
-                     'files': [f['path'] for f in by_title[t]]})
+        row = {'title': t, 'held_ids': held, 'current': cur, 'verdict': verdict,
+               'files': [f['path'] for f in by_title[t]]}
+        # 구버전일 때만 위키를 훑는다 — 전수로 하면 653건 x 위키 1,283개라 쓸데없이 무겁다.
+        if verdict == '구버전':
+            row['wiki_pages'] = wiki_pages_citing(t)
+        rows.append(row)
         print('[%d/%d] %s %s' % (i, len(titles), verdict, t), flush=True)
         time.sleep(0.15)
 
