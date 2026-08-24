@@ -349,7 +349,7 @@
     피드백: { n: '…', desc: '답변 <b>👍/👎 익명 로그</b>를 모아 원인 분류(triage) 후 관리자에게 올리는 방. 👎가 쌓인 주제 → 위키 보강으로 연결.', render: null /* 서버 연동: renderFeedbackCards */ },
     새지식후보: { n: '…', desc: '대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).', render: null /* 서버 연동: renderCandidateCards */ },
     개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 시행일·MST diff로 신설·삭제·금액·조번재편을 적재.', render: null /* 서버 연동: renderAmendCards */ },
-    원문신선도: { n: '…', desc: '우리가 받아 둔 <b>고시·훈령 원문이 낡았는지</b> 매주 자동 대조해 모아두는 방. 원문 머리글의 수집 일련번호와 law.go.kr 현행 일련번호를 기계로 비교한다(2026-08-23에 「위험물 선박운송 기준」이 2016년판으로 남아 있어 <b>이미 삭제된 조문을 현행처럼</b> 설명하던 사고가 있었다). 카드마다 <b>어느 위키를 고쳐야 하는지·무엇을 해야 하는지</b>가 함께 적힌다.', render: null /* 서버 연동: renderFreshCards */ },
+    원문신선도: { n: '…', desc: '우리가 받아 둔 <b>법령·고시 원문이 낡았는지</b> 매주 자동 대조해 모아두는 방. 대상은 <b>행정규칙(고시·훈령) 653건 + 법률·시행령·시행규칙 222건</b>. 원문 머리글의 수집 일련번호와 law.go.kr 현행 일련번호를 기계로 비교한다(2026-08-23에 「위험물 선박운송 기준」이 2016년판으로 남아 있어 <b>이미 삭제된 조문을 현행처럼</b> 설명하던 사고가 있었다). 카드마다 <b>어느 위키를 고쳐야 하는지·무엇을 해야 하는지</b>가 함께 적힌다.', render: null /* 서버 연동: renderFreshCards */ },
     '⚠수치검증': { n: '…', desc: '별표 <b>이미지 판독값(OCR)·조번호 재편</b> 및 처벌·안전수치를 사람이 검증하는 방(가장 급함). 서버 review_queue.md 의 검증 대기 항목을 불러와 승인/반려한다.', render: null /* 서버 연동: renderReviewCards */ }
   };
   var ADMIN_ORDER = ['초안승인', '피드백', '새지식후보', '개정검토', '원문신선도', '⚠수치검증'];
@@ -910,7 +910,11 @@
         '<span style="font-size:11.5px">사유: ' + esc(last.error || '알 수 없음') + '</span><br>' +
         '<span style="font-size:11.5px;color:var(--nrya-text-sub)">아래 목록이 비어 있어도 <b>"낡은 원문이 없다"는 뜻이 아닙니다</b> — 확인을 못 한 것입니다.</span></div>';
     }
-    return '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
+    // 한쪽(행정규칙/법령)만 실패했으면 숫자만 보여주고 넘기면 안 된다 — 무엇을 못 봤는지 밝힌다.
+    var partial = last.partialError
+      ? '<div class="nrya-notice-box nrya-err" style="margin-bottom:8px"><span class="nrya-em">⚠️</span><b>일부 점검이 실패했습니다</b><br><span style="font-size:11.5px">' + esc(last.partialError) + '<br>그 부분은 <b>확인하지 못한 것</b>이지 "이상 없음"이 아닙니다.</span></div>'
+      : '';
+    return partial + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
       '마지막 점검 ' + esc(shortTs(last.finishedAt)) + ' · ' + (last.checked || 0) + '건 대조 · 구버전 ' + (last.stale || 0) + '건' +
       (last.unknown ? ' · 조회실패 ' + last.unknown + '건' : '') + '</div>';
   }
@@ -927,6 +931,13 @@
     var cur = it.current || {};
     var held = (it.held_ids || []).join(', ');
     var link = 'https://www.law.go.kr/admRulSc.do?menuId=5&query=' + encodeURIComponent(it.title || '');
+    var tier = it.tier || '행정규칙';
+    // 시행예정 판이 있으면 알려 준다 — **결함이 아니라 "곧 이렇게 바뀐다"는 예고다.**
+    var pend = (it.pending || []).length
+      ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📅 시행예정</div><div class="nrya-rv-fval">' +
+          it.pending.map(function (x) { return esc(x.issued) + ' 시행 (공포 ' + esc(x.no || '?') + ')'; }).join('<br>') +
+          '<br><span style="font-size:11.5px;color:var(--nrya-text-sub)">아직 시행 전이라 지금 고칠 것은 아닙니다. 시행일에 맞춰 다시 받으면 됩니다.</span></div></div>'
+      : '';
     var wiki = (it.wiki_pages || []).length
       ? '<ul style="margin:4px 0 0;padding-left:18px">' + it.wiki_pages.map(function (w) {
           return '<li style="margin:2px 0"><code style="font-size:11px">' + esc(w) + '</code></li>'; }).join('') + '</ul>'
@@ -938,12 +949,14 @@
       : '<span style="color:var(--nrya-text-sub)">(안내 없음)</span>';
     var body =
       '<div class="nrya-rv-body">' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">📚 계열</div><div class="nrya-rv-fval">' + esc(tier) + '</div></div>' +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔢 어떻게 낡았나</div><div class="nrya-rv-fval">' +
           '우리가 가진 일련번호 <b>' + esc(held || '?') + '</b> → 현행 <b>' + esc(cur.serial || '?') + '</b>' +
           (cur.issued ? '<br>현행 발령일자 ' + esc(cur.issued) + (cur.no ? ' · 발령번호 ' + esc(cur.no) : '') : '') +
         '</div></div>' +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">🛠 해야 할 일</div><div class="nrya-rv-fval">' + actions + '</div></div>' +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">📄 고쳐야 할 위키 (' + ((it.wiki_pages || []).length) + ')</div><div class="nrya-rv-fval">' + wiki + '</div></div>' +
+        pend +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">📁 낡은 원문 파일</div><div class="nrya-rv-fval"><code style="font-size:11px">' + esc((it.files || []).join(' · ') || '(없음)') + '</code></div></div>' +
         '<a class="nrya-rv-link" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">🔗 law.go.kr에서 현행본 확인</a>' +
         (((it.status || 'pending') === 'pending') ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 처리완료</button><button class="nrya-btn-no">✗ 해당없음</button></div>' : '') +
@@ -960,7 +973,7 @@
    */
   function renderFreshCards(host) {
     if (!host) return;
-    var SCAN_LABEL = '🔍 지금 점검 (백그라운드 · 완료까지 20~30분)';
+    var SCAN_LABEL = '🔍 지금 점검 (백그라운드 · 완료까지 30~40분)';
     host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:10px"><button class="nrya-btn-ok" id="nryaFreshScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
       '<div class="nrya-inline-err nrya-hidden" id="nryaFreshScanErr" style="display:none"></div>' +
       '<div id="nryaFreshListHost"></div>';
@@ -978,7 +991,7 @@
         if (!data || !data.ok) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '점검 시작 실패'; } return; }
         var listHost = document.getElementById('nryaFreshListHost');
         if (listHost) {
-          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 점검이 시작됐습니다. 653건을 하나씩 대조하느라 20~30분 걸립니다 — 나중에 이 방을 다시 열어 확인해 주세요.</div>');
+          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 점검이 시작됐습니다. 행정규칙 653건 + 법령 222건을 하나씩 대조하느라 30~40분 걸립니다 — 나중에 이 방을 다시 열어 확인해 주세요.</div>');
         }
       }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
     };

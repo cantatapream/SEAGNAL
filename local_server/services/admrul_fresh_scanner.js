@@ -3,9 +3,11 @@
  * 파일명: services/admrul_fresh_scanner.js
  * 역할  : 나리야(해양법령 챗봇) **원문 신선도 점검** — 관리자 UI "원문신선도" 방이 보는
  *         큐를 채운다.
- *         (초보자용: 우리가 예전에 받아 둔 고시·훈령 원문이 그새 개정돼 낡은 것이
+ *         (초보자용: 우리가 예전에 받아 둔 법령·고시 원문이 그새 개정돼 낡은 것이
  *          아닌지 주마다 국가법령정보센터에 물어보고, 낡은 것이 있으면 관리자가 볼 수
  *          있게 목록만 남겨 두는 역할. 위키를 자동으로 고치지는 않는다.)
+ *         대상은 두 가지다 — **행정규칙(고시·훈령) 653건**과
+ *         **법률·시행령·시행규칙 222건**(2026-08-24 사용자 지적으로 후자를 추가했다).
  * ----------------------------------------------------------------------------
  * [왜 있나 — 2026-08-23 실제 사고]
  *  「위험물 선박운송 기준」이 2016년판으로 수집돼 있어, 위키가 **이미 삭제된 조문을
@@ -42,7 +44,8 @@
  *    · POST /api/legal/freshness/scan-now
  *  - client/js/ai-chat/ai_chat.js → 관리자 검토센터 "원문신선도" 방
  *  - services/admin_push.js → sendAdminPush()
- *  - knowledge/legal/_dashboard/loop/admrul_fresh.py → 점검 본체(표준 라이브러리만 씀)
+ *  - knowledge/legal/_dashboard/loop/admrul_fresh.py → 행정규칙 점검(표준 라이브러리만 씀)
+ *  - knowledge/legal/_dashboard/loop/law_fresh.py    → 법률·시행령·시행규칙 점검
  * ============================================================================
  */
 const fs = require('fs');
@@ -53,14 +56,18 @@ const adminQueues = require('./legal_admin_queues');
 
 const LEGAL = path.join(__dirname, '..', 'knowledge', 'legal');
 const SCRIPT = path.join(LEGAL, '_dashboard', 'loop', 'admrul_fresh.py');
+// 법률·시행령·시행규칙용 형제 점검(2026-08-24 신설). 행정규칙과 묻는 것은 같고 대상만 다르다.
+const LAW_SCRIPT = path.join(LEGAL, '_dashboard', 'loop', 'law_fresh.py');
 const DATA = path.join(__dirname, '..', 'data');
 const REPORT_FILE = path.join(DATA, 'admrul_fresh_report.json');
+const LAW_REPORT_FILE = path.join(DATA, 'law_fresh_report.json');
 /** 관리자 화면이 읽는 큐. 개정검토(`_amendments/queue.jsonl`)와 같은 형식(JSONL). */
 const QUEUE_FILE = path.join(DATA, 'admrul_fresh_queue.jsonl');
 /** 마지막 점검이 언제·어떻게 끝났는지. 화면 위에 그대로 보여 준다. */
 const STATUS_FILE = path.join(DATA, 'admrul_fresh_status.json');
 
-// 653건 x 약 2.7초(실측: 8건 22초) = 약 30분. 넉넉히 잡되 무한정 붙들지는 않는다.
+// 행정규칙 653건 x 약 2.7초(실측 8건 22초) ≈ 30분, 법령 222건 x 약 1.9초(실측 15건 29초) ≈ 7분.
+// 한 스크립트당 상한이다. 넉넉히 잡되 무한정 붙들지는 않는다.
 const SCAN_TIMEOUT_MS = 60 * 60 * 1000;
 
 let _scanning = false; // 중복 실행 락(cron·수동스캔 동시 발동 시 결과 파일 경합 방지)
@@ -68,15 +75,17 @@ let _scanning = false; // 중복 실행 락(cron·수동스캔 동시 발동 시
 /**
  * 점검 스크립트를 자식 프로세스로 1회 실행한다. 비동기(spawn) — 실행 중에도 다른 API 요청은
  * 정상 처리된다.
- * 예: await runScript() → {ok:true, code:0}
+ * 예: await runScript(SCRIPT, REPORT_FILE) → {ok:true, code:0}
+ * @param {string} script 실행할 파이썬 파일 경로
+ * @param {string} outFile 결과 JSON 을 쓸 곳
  * @returns {Promise<{ok:boolean, code:number|null, error?:string}>}
- * [연계] → _dashboard/loop/admrul_fresh.py --out <REPORT_FILE>
+ * [연계] → _dashboard/loop/admrul_fresh.py · law_fresh.py
  */
-function runScript() {
+function runScript(script, outFile) {
   return new Promise((resolve) => {
     fs.mkdirSync(DATA, { recursive: true });
-    const child = spawn('python3', [SCRIPT, '--out', REPORT_FILE], {
-      cwd: path.dirname(SCRIPT),
+    const child = spawn('python3', [script, '--out', outFile], {
+      cwd: path.dirname(script),
       stdio: ['ignore', 'ignore', 'pipe'],
     });
     let killedByTimeout = false;
@@ -116,12 +125,23 @@ function freshId(title, serial) {
  */
 function actionsFor(row) {
   const n = (row.wiki_pages || []).length;
+  const cur = row.current || {};
+  const wikiStep = n
+    ? `이 원문을 인용하는 위키 ${n}곳을 고친다 — 아래 목록의 페이지에서 달라진 조문을 짚은 부분만 수정한다.`
+    : `이 원문을 인용하는 위키 페이지를 아직 못 찾았다 — 조문 번호·소관 기관으로 다시 찾아본다.`;
+  if (row.tier && row.tier !== '행정규칙') {
+    // ★법률 계열은 재수집 도구가 `_meta.json` 의 MST(그 판 고유번호)를 그대로 다시 부른다.
+    //   MST 를 안 바꾸고 재수집하면 **똑같은 옛날 판이 다시 내려온다.** 번호 갱신이 1번이다.
+    return [
+      `① \`raw/**/${row.slug || ''}/_meta.json\` 의 \`families.${row.tier}.MST\` 를 현행 번호 **${cur.serial || '?'}** 로 바꾼다. ★이걸 먼저 안 하면 다음 단계가 옛날 판을 그대로 다시 받아 온다(재수집 도구가 이 파일의 MST 를 쓴다).`,
+      `② \`python3 _dashboard/loop/recollect_jomun.py\` 로 조문을 다시 받는다.`,
+      `③ ${wikiStep}`,
+    ];
+  }
   return [
     `① 원문을 다시 받는다 — \`python3 _dashboard/loop/admrul_recollect_stale.py --dry\` 로 먼저 확인한 뒤 \`--dry\` 없이 실행. ★"보류"로 나온 것은 강제로 덮어쓰지 말 것(첨부파일·이미지 판독 전사가 들어 있는 파일이다).`,
     `② 달라진 조문을 뽑는다 — \`python3 _dashboard/loop/admrul_diff_wiki.py\` (신설·삭제·변경 조문 목록).`,
-    n
-      ? `③ 이 원문을 인용하는 위키 ${n}곳을 고친다 — 아래 목록의 페이지에서 달라진 조문을 짚은 부분만 수정한다.`
-      : `③ 이 원문을 인용하는 위키 페이지를 아직 못 찾았다 — 제목이 본문에 그대로 안 적혀 있을 수 있으니 조문 번호·소관 기관으로 다시 찾아본다.`,
+    `③ ${wikiStep}`,
   ];
 }
 
@@ -136,7 +156,10 @@ function toQueueEntry(row) {
     id: freshId(row.title, cur.serial || ''),
     ts: new Date().toISOString(),
     title: row.title,
-    kind: '원문 구버전(행정규칙)',
+    tier: row.tier || '행정규칙',
+    slug: row.slug || '',
+    kind: '원문 구버전(' + (row.tier || '행정규칙') + ')',
+    pending: row.pending || [],
     held_ids: row.held_ids || [],
     current: { serial: cur.serial || '', issued: cur.issued || '', no: cur.no || '', state: cur.state || '' },
     files: row.files || [],
@@ -177,26 +200,49 @@ async function runFreshnessScan() {
   _scanning = true;
   const startedAt = new Date().toISOString();
   try {
-    const r = await runScript();
-    let rep = null;
-    try { rep = JSON.parse(fs.readFileSync(REPORT_FILE, 'utf8')); } catch (_) { rep = null; }
-    if (!rep) {
-      // 스크립트가 결과를 못 냈다. **"이상 없음"이 아니라 "확인 못 했음"이다** — 구분해서 남긴다.
+    // 두 점검을 잇달아 돌린다. 둘 다 law.go.kr 을 두드리므로 동시에 돌리지 않는다.
+    //   ① 행정규칙(고시·훈령) 653건  ② 법률·시행령·시행규칙 222건
+    const parts = [
+      { name: '행정규칙', script: SCRIPT, out: REPORT_FILE },
+      { name: '법령', script: LAW_SCRIPT, out: LAW_REPORT_FILE },
+    ];
+    const errors = [];
+    let allRows = [];
+    let checked = 0, freshCnt = 0, unknown = 0;
+    for (const part of parts) {
+      const r = await runScript(part.script, part.out);
+      let rep = null;
+      try { rep = JSON.parse(fs.readFileSync(part.out, 'utf8')); } catch (_) { rep = null; }
+      if (!rep) {
+        // **"이상 없음"이 아니라 "확인 못 했음"이다.** 한쪽이 실패해도 다른 쪽은 살린다.
+        errors.push(`${part.name}: ${r.error || '결과 파일을 읽지 못했습니다'}`);
+        continue;
+      }
+      checked += rep.checked || 0;
+      freshCnt += rep.fresh || 0;
+      unknown += rep.unknown || 0;
+      allRows = allRows.concat(rep.rows || []);
+    }
+    if (errors.length === parts.length) {
       const st = { ok: false, startedAt, finishedAt: new Date().toISOString(),
-        error: r.error || '결과 파일을 읽지 못했습니다', checked: 0, stale: 0, added: 0 };
+        error: errors.join(' / '), checked: 0, stale: 0, added: 0 };
       writeStatus(st);
       console.error('[AdmrulFresh] 점검 실패:', st.error);
       return st;
     }
-    const staleRows = (rep.rows || []).filter((x) => x.verdict === '구버전');
+
+    const staleRows = allRows.filter((x) => x.verdict === '구버전');
     const known = existingIds();
     const fresh = staleRows.map(toQueueEntry).filter((e) => !known.has(e.id));
     for (const e of fresh) adminQueues.appendJsonl(QUEUE_FILE, e);
 
     const st = { ok: true, startedAt, finishedAt: new Date().toISOString(),
-      checked: rep.checked || 0, fresh: rep.fresh || 0, stale: staleRows.length,
-      unknown: rep.unknown || 0, added: fresh.length, error: null };
+      checked, fresh: freshCnt, stale: staleRows.length, unknown,
+      added: fresh.length,
+      // 한쪽만 실패했으면 ok:true 로 두되 **무엇을 못 봤는지 반드시 남긴다.**
+      partialError: errors.length ? errors.join(' / ') : null, error: null };
     writeStatus(st);
+    if (errors.length) console.error('[AdmrulFresh] 일부 점검 실패:', st.partialError);
 
     if (fresh.length) {
       // 새로 나온 것만 알린다. 이미 알린 건은 다시 보내지 않는다.
