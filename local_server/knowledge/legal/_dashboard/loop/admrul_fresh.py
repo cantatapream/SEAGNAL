@@ -152,12 +152,33 @@ def api_current(title):
     if isinstance(arr, dict):
         arr = [arr]
     wants = {norm(title), norm(q)}
-    for x in arr:
-        if norm(x.get('행정규칙명')) in wants:
-            return ({'serial': str(x.get('행정규칙일련번호') or ''),
-                     'issued': str(x.get('발령일자') or ''),
-                     'no': str(x.get('발령번호') or ''),
-                     'state': str(x.get('현행연혁구분') or '')}, '현행확인', [])
+    hits = [x for x in arr if norm(x.get('행정규칙명')) in wants]
+    if hits:
+        # ★★검색 결과의 **첫 줄을 현행으로 쓰면 안 된다**(2026-08-24, 사용자 지적으로 발견).
+        #   API 는 **아직 시행 안 된 개정 고시**도 같은 이름으로 함께 내려주고,
+        #   그것이 발령일자가 최신이라 첫 줄에 온다. 응답에 `현행연혁구분` 이 함께 실려 있어
+        #   어느 것이 지금 시행 중인지 API 가 직접 알려 주는데, 종전 코드는 그 칸을 **읽어서
+        #   담기만 하고 고르는 데는 안 썼다.**
+        #   실측(「선내 안전·보건 및 사고예방 기준」):
+        #     2100000282752 발령 2026-07-20 · **시행 2026-10-21** · 현행여부 N  ← 첫 줄
+        #     2100000260292 발령 2025-06-13 · 시행 2025-06-13 · 현행여부 Y  ← 우리가 가진 것
+        #   첫 줄을 쓰는 바람에 **지금 시행 중인 멀쩡한 사본이 "구버전"으로 판정**됐다.
+        #   그대로 재수집했으면 시행 중인 고시를 **아직 시행도 안 된 판으로 갈아치울 뻔했다.**
+        live = [x for x in hits if str(x.get('현행연혁구분') or '').strip() == '현행']
+        pick = live[0] if live else None
+        # 시행예정 판은 결함이 아니라 "곧 이렇게 바뀐다"는 예고다. 따로 담아 보여만 준다.
+        pend = [{'serial': str(x.get('행정규칙일련번호') or ''),
+                 'issued': str(x.get('발령일자') or ''),
+                 'no': str(x.get('발령번호') or '')} for x in hits if x is not pick][:5]
+        if pick is None:
+            # 이름은 맞는데 어느 것도 '현행'이 아니다 — 폐지됐거나 표기가 특이한 경우다.
+            # 임의로 하나 고르지 않는다.
+            return None, '현행표시없음', [str(x.get('행정규칙명') or '') for x in hits[:5]]
+        return ({'serial': str(pick.get('행정규칙일련번호') or ''),
+                 'issued': str(pick.get('발령일자') or ''),
+                 'no': str(pick.get('발령번호') or ''),
+                 'state': str(pick.get('현행연혁구분') or ''),
+                 'pending': pend}, '현행확인', [])
     # ★여기가 종전에 "조회실패"로 뭉뚱그려지던 자리다(2026-08-24 실측으로 갈라냈다).
     #   응답은 멀쩡히 왔는데 **우리 파일 제목과 law.go.kr 공식명이 다른 것**이다.
     #   실측 12건 표본 중 10건이 이 경우였다 — 예:
@@ -203,7 +224,7 @@ def main():
             # "못 받았다"와 "받았는데 이름이 안 맞는다"는 **완전히 다른 문제다.**
             # 뭉뚱그리면 고칠 방법이 정반대인 둘이 같은 칸에 쌓여 아무도 손을 못 댄다.
             verdict = why
-            if why == '이름불일치':
+            if why in ('이름불일치', '현행표시없음'):
                 mismatch += 1
             else:
                 unknown += 1
@@ -215,8 +236,10 @@ def main():
             stale += 1
         row = {'title': t, 'held_ids': held, 'current': cur, 'verdict': verdict,
                'files': [f['path'] for f in by_title[t]]}
-        if verdict == '이름불일치':
+        if verdict in ('이름불일치', '현행표시없음'):
             row['candidates'] = cands
+        if cur and cur.get('pending'):
+            row['pending'] = cur.pop('pending')
         # 구버전일 때만 위키를 훑는다 — 전수로 하면 653건 x 위키 1,283개라 쓸데없이 무겁다.
         if verdict == '구버전':
             row['wiki_pages'] = wiki_pages_citing(t)
