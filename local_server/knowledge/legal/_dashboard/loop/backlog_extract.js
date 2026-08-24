@@ -160,6 +160,7 @@ function coreOf(body) {
 function readPrev(p) {
   const idx = new Map();
   idx.extras = [];
+  idx.ids = new Set();          // 이 파일에 있던 ID 전부(정체 매칭과 별개로 "정말 새 것인가"를 가리는 데 쓴다)
   if (!fs.existsSync(p)) return idx;
   for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
     const m = /^- \[([ x])\] (.*)$/.exec(line);
@@ -168,8 +169,14 @@ function readPrev(p) {
     if (!k) continue;
     // 같은 정체(keyOf)가 둘인 줄이 드물게 있다(실측 1건). 이어받기는 먼저 것으로 하되,
     // **확인 근거가 적힌 줄은 버리지 않고 따로 담아** 아래 '닫힘' 절에 남긴다.
-    if (idx.has(k)) { if (m[1] === 'x') idx.extras.push(line); continue; }
+    if (idx.has(k)) {
+      const dupId = /⟨(BL-[0-9a-f]{8})⟩/.exec(m[2]);
+      if (dupId) idx.ids.add(dupId[1]);
+      if (m[1] === 'x') idx.extras.push(line);
+      continue;
+    }
     const id = /⟨(BL-[0-9a-f]{8})⟩/.exec(m[2]);
+    if (id) idx.ids.add(id[1]);
     idx.set(k, {
       id: id ? id[1] : null,
       checked: m[1] === 'x',
@@ -192,10 +199,26 @@ function readPrev(p) {
  * ⓒ의 "판정 칸 뒤"가 핵심이다. 진짜 항목 행은 `| 248 | 협회 회비는…? | ❌missing | … |` 처럼
  * 숫자(문항번호)가 판정 **앞**에 온다. 이 조건을 빼면 진짜 항목 5,000건이 함께 지워졌다(실측).
  */
-const NUM_CELL = /^\**\s*(?:약\s*)?\d+(?:\([^)]*\))?\s*\**$/;
+// ★숫자 뒤에 **띄어쓰기와 내역**이 붙는 꼴을 못 잡고 있었다(2026-08-24, 사서 보고로 발견).
+//   `| ⚠ thin | 26 (1-B 18+2〈E101·E105 부분개선〉 + 2-A 1) |` 같은 판정 총계 행이
+//   그대로 항목으로 뽑혀, 가리키는 조문도 페이지도 없어 사서가 대조할 수가 없었다.
+//   실측: 이 완화로 새로 걸리는 것 5건(도선법 3 · 항만운송사업법 2). 전부 눈으로 확인했다.
+const NUM_CELL = /^\**\s*(?:약\s*)?\d+\s*(?:\(.*\))?\s*\**$/;
 const VERDICT_CELL = /^\**\s*(?:⚠|❌)?\s*(?:thin|missing|still_missing)\s*(?:\([^)]*\))?\s*\**$/;
+// ★표가 아닌 줄인데 **판정어와 숫자만** 든 것(2026-08-24 신설).
+//   `- ⚠thin 114 (wiki_lag/content_gap 구분은 R15/16 원표 참조)` 처럼 라운드 간 이월 개수만
+//   적어 둔 줄이다. 어떤 질문인지 안 적혀 있어 **사서가 아무리 봐도 [x] 로 바꿀 근거를 못 만든다.**
+//   실측 6건(수상레저기구법). 규칙을 아주 좁게 잡았다 — 판정어 바로 뒤에 숫자가 와야 한다.
+const COUNT_ONLY = /^[-•*]?\s*[⚠❌]?\s*(?:thin|missing|still_missing)\s*\d+\s*(?:\(.*\))?$/;
+// ★"코드 나열 + 판정 불변" 회귀요약 문장(2026-08-24 신설). 실측 1건(해양레저관광진흥법).
+//   `E51·E54~E57 — 전부 판정 불변(콘텐츠 diff 없음).` — 그 코드들이 무슨 질문인지는
+//   이 줄에 없고, 원래 정의가 담긴 옛 라운드 기록은 감사 파일에서 이미 사라져 대조가 불가능하다.
+const REGRESS_SUMMARY = /^[A-Z]{1,3}\d+[^가-힣]{0,40}(?:—|-)\s*(?:전부\s*)?판정\s*불변/;
+
 function isNoise(line) {
   if (/^#{2,6}\s/.test(line)) return true;
+  if (COUNT_ONLY.test(line.trim())) return true;
+  if (REGRESS_SUMMARY.test(line.trim())) return true;
   if (/(소계|합계|총계|집계)/.test(line.slice(0, 40)) && /\d/.test(line)) return true;
   if (!line.startsWith('|')) return false;
   const cells = line.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
@@ -305,7 +328,7 @@ rows.slice(0, 12).forEach(r => {
 
 if (argv.includes('--write')) {
   fs.mkdirSync(OUT, { recursive: true });
-  let carried = 0, fresh = 0, done = 0, dropped = 0, droppedDone = 0;
+  let carried = 0, fresh = 0, rematched = 0, done = 0, dropped = 0, droppedDone = 0;
   for (const r of rows) {
     if (!r.items.length) continue;
     const g = {};
@@ -341,7 +364,13 @@ if (argv.includes('--write')) {
           continue;
         }
         const id = (p && p.id) ? p.id : blId(blNorm(law, body));
-        if (p && p.id) carried++; else fresh++;
+        // ★"정체 매칭이 어긋난 것"과 "정말 처음 보는 항목"은 다르다(2026-08-24 실측으로 갈랐다).
+        //   사서가 줄을 손보면 정체(keyOf)가 달라져 이어받기에 실패할 수 있는데, ID 는 내용에서
+        //   나오므로 내용이 그대로면 **같은 ID 가 다시 나온다.** 그래서 ID 가 옛 파일에 있었는지로
+        //   센다. 이렇게 안 세면 "새로 등록 88건"으로 나오지만 실제 새 항목은 7건뿐이다.
+        if (p && p.id) carried++;
+        else if (prev.ids.has(id)) rematched++;
+        else fresh++;
         md += `- [ ] ${body}${p && p.notes ? '  ' + p.notes : ''}  ⟨${id}⟩\n`;
       }
       md += '\n';
@@ -366,7 +395,8 @@ if (argv.includes('--write')) {
   console.log(`\n저장: ${path.relative(LEGAL, OUT)}/ (${rows.filter(r => r.items.length).length}개 파일)`);
   console.log('■ 고정 ID');
   console.log(`   옛 파일에서 이어받음 : ${carried.toLocaleString()}건 (그중 이미 확인 끝난 것 ${done.toLocaleString()}건)`);
-  console.log(`   새로 등록(새 ID)     : ${fresh.toLocaleString()}건`);
+  console.log(`   ID 로 다시 찾음      : ${rematched.toLocaleString()}건 (사서가 줄을 손봐 정체 매칭은 어긋났지만 내용이 같아 같은 ID)`);
+  console.log(`   새로 등록(진짜 새 것) : ${fresh.toLocaleString()}건`);
   console.log(`   닫힘 절에 보존       : ${droppedDone.toLocaleString()}건 (감사는 해소라 하고, 사서 확인 근거가 남아 있는 것)`);
   console.log(`   목록에서 버림        : ${dropped.toLocaleString()}건 (감사가 해소라 했고 사서 확인 근거도 없는 것)`);
   console.log('     └ 버림 = 감사가 이번엔 그 줄을 미해소로 안 적었다는 뜻이다. 갑자기 크게 늘면 추출 규칙을 의심할 것.');

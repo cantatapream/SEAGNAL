@@ -104,6 +104,17 @@ function resolveLaw(input) {
       }
     }
   }
+  // ★이름이 **정확히 같은 것**이 있으면 그것만 쓴다(2026-08-24, 사서 보고로 발견).
+  //   위 걸러내기는 부분일치도 후보로 담기 때문에, 같은 폴더에 파일명이 접두어 관계인 원문이
+  //   둘 있으면 **정확한 전체 이름을 줘도** 늘 "여러 원문이 잡힌다"로 막혔다. 실측 사례:
+  //     농산물우수관리인증기관지정및운영요령.txt  ·  농산물우수관리인증기관지정및운영요령_별표.txt
+  //   `_별표` 처럼 뒤에 뭐가 붙은 파일이 흔해서, 이 함정은 다른 법에도 널려 있다.
+  //   그래서 사서들이 도구를 못 쓰고 근거 조문 행을 손으로 만들게 됐다 — 그 도구가 하는
+  //   ①원문에 그 조가 진짜 있나 ②챗봇이 꺼낼 수 있나 확인이 통째로 빠지는 셈이다(§8-A ⓪).
+  const exact = cands.filter(c => flat(c.name) === s);
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) die(`「${input}」 와 이름이 똑같은 원문이 ${exact.length}개다 — 폴더를 확인하라:\n   ` +
+    exact.map(c => c.path).join('\n   '));
   if (cands.length === 1) return cands[0];
   if (cands.length > 1) die(`「${input}」 로 여러 원문이 잡힌다 — 정확한 이름을 쓰라:\n   ` +
     cands.map(c => c.name).join('\n   '));
