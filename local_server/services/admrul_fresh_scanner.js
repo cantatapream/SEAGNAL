@@ -208,7 +208,7 @@ async function runFreshnessScan() {
     ];
     const errors = [];
     let allRows = [];
-    let checked = 0, freshCnt = 0, unknown = 0;
+    let checked = 0, freshCnt = 0, unknown = 0, mismatch = 0;
     for (const part of parts) {
       const r = await runScript(part.script, part.out);
       let rep = null;
@@ -221,6 +221,9 @@ async function runFreshnessScan() {
       checked += rep.checked || 0;
       freshCnt += rep.fresh || 0;
       unknown += rep.unknown || 0;
+      // '이름불일치' = 응답은 왔는데 우리 제목과 공식명이 달라 **확인하지 못한 것**.
+      // 화면에서 '이상 없음'과 절대 섞이면 안 되므로 따로 세어 올린다.
+      mismatch += rep.mismatch || 0;
       allRows = allRows.concat(rep.rows || []);
     }
     if (errors.length === parts.length) {
@@ -237,7 +240,7 @@ async function runFreshnessScan() {
     for (const e of fresh) adminQueues.appendJsonl(QUEUE_FILE, e);
 
     const st = { ok: true, startedAt, finishedAt: new Date().toISOString(),
-      checked, fresh: freshCnt, stale: staleRows.length, unknown,
+      checked, fresh: freshCnt, stale: staleRows.length, unknown, mismatch,
       added: fresh.length,
       // 한쪽만 실패했으면 ok:true 로 두되 **무엇을 못 봤는지 반드시 남긴다.**
       partialError: errors.length ? errors.join(' / ') : null, error: null };

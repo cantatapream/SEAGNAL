@@ -916,7 +916,15 @@
       : '';
     return partial + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
       '마지막 점검 ' + esc(shortTs(last.finishedAt)) + ' · ' + (last.checked || 0) + '건 대조 · 구버전 ' + (last.stale || 0) + '건' +
-      (last.unknown ? ' · 조회실패 ' + last.unknown + '건' : '') + '</div>';
+      (last.mismatch ? ' · 이름불일치 ' + last.mismatch + '건' : '') +
+      (last.unknown ? ' · 응답없음 ' + last.unknown + '건' : '') + '</div>' +
+      ((last.mismatch || last.unknown)
+        ? '<div class="nrya-notice-box" style="margin:0 0 8px"><span class="nrya-em">ℹ️</span>' +
+          '<b>확인하지 못한 것 ' + ((last.mismatch || 0) + (last.unknown || 0)) + '건</b> — "이상 없음"이 아닙니다.<br>' +
+          '<span style="font-size:11.5px;color:var(--nrya-text-sub)">' +
+          '<b>이름불일치</b>: 우리 파일 제목과 국가법령정보센터 공식 이름이 달라 찾지 못한 것입니다(예: 우리 "…금지구역 <b>공고</b>" ↔ 공식 "…금지구역 <b>지정 고시</b>"). 제목을 공식명으로 맞춰 주면 다음부터 자동으로 확인됩니다. 비슷하다고 기계가 임의로 이어 붙이지 않습니다 — 다른 기관 고시가 검색 1위로 나오는 일이 있어 잘못 짝지을 위험이 큽니다.<br>' +
+          '<b>응답없음</b>: 조회가 실패한 것이니 다음 점검 때 다시 확인됩니다.</span></div>'
+        : '');
   }
 
   /**

@@ -46,13 +46,18 @@ def norm(s):
     return re.sub(r'\s+', '', str(s or ''))
 
 
+# ★우리가 제목 뒤에 붙여 둔 메모(" — 제2026-144호 구판 전사본(보존)" 같은 것).
+#   검색어에 그대로 들어가면 law.go.kr 이 아무것도 못 찾는다(2026-08-24 실측으로 확인).
+MEMO_RE = re.compile(r'\s*[—\-–]\s*제?\d{4}-\d+호.*$|\s*\(보존\)\s*$|\s*구판\s*전사본.*$')
+
+
 def strip_org(s):
     """제목 앞에 우리가 붙여 둔 '(강릉해양경찰서)' 같은 기관 표시를 떼어낸다.
 
     law.go.kr 공식 행정규칙명에는 이 표시가 없어서, 붙인 채로 대조하면
     전부 '조회실패'로 나온다(첫 시험에서 25건 중 11건).
     """
-    return re.sub(r'^\s*\([^)]{2,20}\)\s*', '', str(s or '')).strip()
+    return MEMO_RE.sub('', re.sub(r'^\s*\([^)]{2,20}\)\s*', '', str(s or ''))).strip()
 
 
 def wiki_pages_citing(title):
@@ -111,7 +116,10 @@ def scan_files():
 
 
 def api_current(title):
-    """제목으로 현행 행정규칙을 조회해 (일련번호, 발령일자, 발령번호)를 돌려준다.
+    """제목으로 현행 행정규칙을 조회한다. → (정보|None, 사유, 후보목록)
+
+    사유는 셋 중 하나다: `현행확인` · `이름불일치`(응답은 왔는데 공식명이 우리 제목과 다름) ·
+    `응답없음`(API 가 답을 안 줌). ★셋을 뭉뚱그리면 안 된다 — 고치는 방법이 서로 다르다.
 
     ★2026-08-24 — `curl` 호출에서 파이썬 표준 `urllib` 로 바꿨다.
       종전에는 `curl --cacert /root/.ccr/ca-bundle.crt` 를 썼는데, 그 인증서 파일은
@@ -135,22 +143,30 @@ def api_current(title):
         except Exception:
             time.sleep(1.5)
     if body is None:
-        return None
+        return None, '응답없음', []
     try:
         d = json.loads(body)['AdmRulSearch']
     except Exception:
-        return None
+        return None, '응답없음', []
     arr = d.get('admrul') or []
     if isinstance(arr, dict):
         arr = [arr]
     wants = {norm(title), norm(q)}
     for x in arr:
         if norm(x.get('행정규칙명')) in wants:
-            return {'serial': str(x.get('행정규칙일련번호') or ''),
-                    'issued': str(x.get('발령일자') or ''),
-                    'no': str(x.get('발령번호') or ''),
-                    'state': str(x.get('현행연혁구분') or '')}
-    return None
+            return ({'serial': str(x.get('행정규칙일련번호') or ''),
+                     'issued': str(x.get('발령일자') or ''),
+                     'no': str(x.get('발령번호') or ''),
+                     'state': str(x.get('현행연혁구분') or '')}, '현행확인', [])
+    # ★여기가 종전에 "조회실패"로 뭉뚱그려지던 자리다(2026-08-24 실측으로 갈라냈다).
+    #   응답은 멀쩡히 왔는데 **우리 파일 제목과 law.go.kr 공식명이 다른 것**이다.
+    #   실측 12건 표본 중 10건이 이 경우였다 — 예:
+    #     우리 "수상레저활동 금지구역 **공고**"      ↔ 공식 "… 금지구역 **지정 고시**"
+    #     우리 "해양레저활동 **허가대상수역** 고시"   ↔ 공식 "… **허가필요수역** 고시"
+    #   ⚠**비슷하다고 자동으로 이어 붙이면 안 된다.** 이 API 는 검색어와 기관이 달라도
+    #   다른 기관 고시를 1위로 내놓는다(군산 검색에 강릉 고시가 1위로 나왔다).
+    #   그래서 **판정하지 않고 후보만 담아** 사람이 보게 한다.
+    return None, '이름불일치', [str(x.get('행정규칙명') or '') for x in arr[:5]]
 
 
 def main():
@@ -179,13 +195,18 @@ def main():
     if limit:
         titles = titles[:limit]
 
-    rows, stale, fresh, unknown = [], 0, 0, 0
+    rows, stale, fresh, unknown, mismatch = [], 0, 0, 0, 0
     for i, t in enumerate(titles, 1):
-        cur = api_current(t)
+        cur, why, cands = api_current(t)
         held = sorted({f['id'] for f in by_title[t]})
         if cur is None:
-            verdict = '조회실패'
-            unknown += 1
+            # "못 받았다"와 "받았는데 이름이 안 맞는다"는 **완전히 다른 문제다.**
+            # 뭉뚱그리면 고칠 방법이 정반대인 둘이 같은 칸에 쌓여 아무도 손을 못 댄다.
+            verdict = why
+            if why == '이름불일치':
+                mismatch += 1
+            else:
+                unknown += 1
         elif cur['serial'] in held:
             verdict = '현행'
             fresh += 1
@@ -194,6 +215,8 @@ def main():
             stale += 1
         row = {'title': t, 'held_ids': held, 'current': cur, 'verdict': verdict,
                'files': [f['path'] for f in by_title[t]]}
+        if verdict == '이름불일치':
+            row['candidates'] = cands
         # 구버전일 때만 위키를 훑는다 — 전수로 하면 653건 x 위키 1,283개라 쓸데없이 무겁다.
         if verdict == '구버전':
             row['wiki_pages'] = wiki_pages_citing(t)
@@ -202,12 +225,15 @@ def main():
         time.sleep(0.15)
 
     rep = {'checked': len(titles), 'fresh': fresh, 'stale': stale, 'unknown': unknown,
-           'rows': rows}
+           'mismatch': mismatch, 'rows': rows}
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(rep, f, ensure_ascii=False, indent=1)
-    print('\n현행 %d / 구버전 %d / 조회실패 %d (총 %d) -> %s'
-          % (fresh, stale, unknown, len(titles), out_path))
+    print('\n현행 %d / 구버전 %d / 이름불일치 %d / 응답없음 %d (총 %d) -> %s'
+          % (fresh, stale, mismatch, unknown, len(titles), out_path))
+    if mismatch:
+        print('   ⚠이름불일치 = 우리 파일 제목과 law.go.kr 공식명이 달라 **확인하지 못한 것**이다.')
+        print('     "이상 없음"이 아니다. 제목을 맞춰 주면 그다음부터 자동으로 확인된다.')
     if '--gate' in args and stale:
         print('\n❌ 구버전 %d건 — 재수집이 필요하다(admrul_recollect_stale.py).' % stale)
         for r in rows:

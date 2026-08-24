@@ -41,6 +41,7 @@ local_server/data/tide_field/anchors_jeju.json
 # 런타임 상태다. Fly.io 볼륨(local_server/data)에 얹혀 재배포해도 남는다.
 # git 에 담으면 저장소 사본과 서버 사본이 서로 다른데 같은 이름으로 보여 혼동만 준다.
 local_server/data/admrul_fresh_report.json
+local_server/data/law_fresh_report.json
 local_server/data/admrul_fresh_queue.jsonl
 local_server/data/admrul_fresh_status.json
 
