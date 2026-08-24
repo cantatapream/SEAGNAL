@@ -184,30 +184,26 @@
  *   ol.source.Cluster 의 내부 ol.source.Vector features 를 갈아끼움)와 격자(recomputeGrid)
  *   양쪽에 똑같이 적용된다 — 모드를 바꿔도 걸어둔 필터가 유지된다. person 소스는 발생시각
  *   컬럼이 없어 시간대 필터를 통과시킨다(판단 불가를 "해당 없음 취급"하는 기존 원칙과 동일).
- *   특보발표여부 필터는 이번 범위에서 뺐다 — 원본 특보 CSV(FCT_WRN)의 구역명 체계가
- *   특보구역 폴리곤(`client/assets/warn_zones.geojson`)의 44개 구역명과 안 맞고(CSV는
- *   더 뭉뚱그린 이름을 쓰며 시기별로도 표기가 섞여 있음), CSV 문안 파싱·구역명 매칭표
- *   작성·좌표→구역 판정(점-폴리곤)·시간대 매칭까지 4단계가 더 필요해 나머지 4개 필터보다
- *   훨씬 큰 별도 작업이라 사용자와 합의해 뒤로 미뤘다. [사용자 확정 규칙(2026-08-24) —
- *   나중에 구현할 때 그대로 적용]
- *   ① 부모 구역명(예: "동해남부먼바다")이 CSV에 나오면, 그 밑의 4개 세부 구역(예:
- *      "동해남부 남쪽/북쪽 × 안쪽/바깥먼바다") + 그 세부 구역 안의 자식해역(
- *      `warn_zones_sub.geojson`, 49개, COASTAL_MAPPING 이 자식↔부모 대응표를 이미
- *      갖고 있음 — ocean_warn_active2.js `_ensureSubToParent` 참고)까지 전부 발효로
- *      본다.
- *   ② CSV 표기 자체가 이미 일관된 규칙이었다(뭉뚱그림↔잘게쪼갬이 무작위로 섞인 게
- *      아니라) — 구역 "전체"가 발효되면 큰(부모) 이름을, 전체가 아니라 일부만
- *      발효되면 작은(자식) 이름을 그대로 쓴다. 그러니 별도 시기별 체계 변경 가정은
- *      필요 없고, ①의 부모→자식 전개 규칙만 있으면 된다.
- *   ③ 강풍·대설·호우·한파·폭염·건조·황사·폭풍해일처럼 육상 지명(도 단위)이 섞여 나오는
- *      건 데이터가 "통보문" 단위(여러 특보 종류를 한 문서에 같이 발표)로 뭉쳐 있어서다
- *      — 오류 아님, 사고 매칭 대상(해상 특보: 태풍·풍랑, 향후 강풍)이 아닌 것들은
- *      그냥 걸러내고 무시하면 된다.
- *   ④ 한 항목 텍스트에 구역 여러 개가 "."·"/" 로 뭉쳐 나오는 건 지방기상청별 관할
- *      구역이 섞여 있어서다 — 파싱 시 이 구분자로 분리하는 규칙을 적용해야 한다.
- *   [남은 일] 강풍 특보 데이터·강풍 특보구역 폴리곤은 아직 미제공(사용자가 추후 전달
- *   예정) — 인명사고(강풍까지 포함) 매칭은 그거 받은 뒤에나 가능. 선박사고(태풍·풍랑만)
- *   는 지금 있는 44개 폴리곤 + 위 규칙만으로 시작할 수 있다.
+ * [특보발표여부 필터 — 5번째 필터로 추가(2026-08-24)] 위에서 "뒤로 미뤘다"고 적었던
+ *   특보 필터를 실제로 구현했다. 사고 하나하나에 "그 시각(또는 그 날) 태풍·풍랑·강풍
+ *   특보가 실제로 발효 중이었는지"를 빌드타임에 미리 계산해(로컬 서버, 클라이언트 아님)
+ *   `client/accident_ships_hk.json`·`accident_persons.json` 각 행 끝에 필드로 붙여뒀다
+ *   — 화면에서는 그 값만 읽어 필터링(런타임 계산 없음). 계산 스크립트·근거는
+ *   `local_server/scripts/build_accident_warn_flags.js`(실행 방법·검증 결과 전부 그
+ *   파일 헤더에). 요약:
+ *   - hk(선박)는 태풍·풍랑만(강풍은 육상 개념이라 배 사고와 무관), person(인명)은
+ *     태풍·풍랑·강풍 셋 다. hk 는 발생시각(hm)이 있어 정확한 시각 기준, person 은
+ *     시각이 없어 그 날짜 전체와 겹치면 발효중으로 본다.
+ *   - 마커는 대부분 해상인데 강풍구역은 육상 단위라 "점이 폴리곤 안"이 항상 실패함
+ *     — 그래서 강풍만 "사고 지점이 육상구역 경계에서 3km 이내면 가장 가까운 구역
+ *     기준으로 판정"(사용자 확정: "해안에서 3km 이내면 특보 영향권으로 보자").
+ *   - 필터에서 여러 특보종류(예: 강풍+풍랑)를 동시에 켜면 OR — 그 중 하나라도
+ *     발효중이면 통과(passesFilters 의 filters.warnTypes 처리 참고). AND로 하면
+ *     해상 사고는 강풍과 원래 무관해 대부분 사라져버리기 때문(사용자 지적).
+ *   - 위 "①~④ 확정 규칙"(부모→자식 전개·CSV 표기 일관성·통보문 단위 뭉침·구분자 분리)
+ *     은 강풍(육상)·태풍·풍랑(해상) 양쪽 다 실제로 그대로 맞았다 — 해상 쪽 부모→자식
+ *     전개표는 이미 `local_server/config/zone_group_map.js` 에 있던 걸 재사용(사용자가
+ *     "이미 되어있는데 확인해봐"라고 짚어줌).
  * ============================================================================
  */
 
@@ -239,11 +235,9 @@
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
 
     /**
-     * [필터 — 사고유형/관할서/시간대/계절(2026-08-24 사용자 확정)] 현황(마커 표출)·
-     * 분석(격자 집계) 양쪽에 공통으로 적용되는 필터 상태. 각 값이 null 이면 "전체"
-     * (필터 없음), Set/Array 가 있으면 그 안에 든 것만 통과. 특보발표여부 필터는
-     * 별도 단계로 보류(원본 특보 CSV·특보구역 폴리곤 간 구역명 체계가 달라 매칭표를
-     * 새로 만들어야 하는 훨씬 큰 작업이라 사용자와 합의해 뒤로 미룸).
+     * [필터 — 사고유형/관할서/시간대/계절/특보발표여부(2026-08-24 사용자 확정)] 현황
+     * (마커 표출)·분석(격자 집계) 양쪽에 공통으로 적용되는 필터 상태. 각 값이 null 이면
+     * "전체"(필터 없음), Set/Array 가 있으면 그 안에 든 것만 통과.
      *   - types      : Set<typeCode> | null — 사고유형(ACDNT_TYPE_CD)
      *   - orgs       : Set<orgCd>    | null — 관할해경서
      *   - hourRanges : [[startHour,endHour), ...] | null — 시간대(발생시각 hm 기준,
@@ -252,8 +246,13 @@
      *                  판단 불가를 "해당 없음 취급"으로 처리, findCoordOutliers 등
      *                  기존 필터들과 같은 원칙).
      *   - seasons    : Set<'spring'|'summer'|'fall'|'winter'> | null — ymd 월 기준
+     *   - warnTypes  : Set<'TY'|'WV'|'GW'> | null — 사고 시각(또는 날)에 발효중이던
+     *                  특보종류(build_accident_warn_flags.js 가 미리 계산해 각 행 끝에
+     *                  붙여놓은 배열, WARN_FLAGS_POS_IDX 위치). 여러 종류를 동시에 켜면
+     *                  OR(그 중 하나라도 발효중이면 통과) — AND 로 하면 해상 사고는
+     *                  강풍과 원래 무관해 대부분 사라져버리기 때문.
      */
-    var filters = { types: null, orgs: null, hourRanges: null, seasons: null };
+    var filters = { types: null, orgs: null, hourRanges: null, seasons: null, warnTypes: null };
 
     var SEASON_LABELS = { spring: '봄', summer: '여름', fall: '가을', winter: '겨울' };
     var SEASON_ORDER = ['spring', 'summer', 'fall', 'winter'];
@@ -277,6 +276,14 @@
 
     /** 소스별 관할해경서(orgCd) 컬럼 위치. person 도 hk 와 마찬가지로 이 컬럼이 있다. */
     var ORG_POS_IDX = { hk: 8, person: 5 };
+
+    /** 소스별 "발효중 특보종류" 컬럼 위치(build_accident_warn_flags.js 가 미리 계산해
+     * 각 행 끝에 붙여놓은 배열, 예: ["TY","WV"]). 없으면(계산 전 구버전 데이터) 빈 배열
+     * 취급. hk 는 태풍·풍랑만 값이 들어있고(강풍은 육상 개념이라 배 사고와 무관),
+     * person 은 태풍·풍랑·강풍 셋 다 들어있을 수 있다. */
+    var WARN_FLAGS_POS_IDX = { hk: 12, person: 10 };
+    var WARN_TYPE_LABELS = { TY: '태풍', WV: '풍랑', GW: '강풍' };
+    var WARN_TYPE_ORDER = { hk: ['TY', 'WV'], person: ['TY', 'WV', 'GW'] };
 
     /**
      * 현재 filters 상태를 기준으로 이 행이 통과하는지 — 현황(마커)·분석(격자) 양쪽이
@@ -303,12 +310,20 @@
             var season = seasonOf(row[2]);
             if (season && !filters.seasons.has(season)) return false;
         }
+        if (filters.warnTypes) {
+            var active = row[WARN_FLAGS_POS_IDX[key]] || [];
+            // 여러 특보종류를 동시에 켜면 OR(그 중 하나라도 발효중이면 통과) — 사용자 확정
+            // 2026-08-24: "강풍+풍랑 둘 다 켰다고 AND로 하면 해상 사고는 강풍과 원래
+            // 무관해서 대부분 사라져버린다"
+            var anyActive = active.some(function (code) { return filters.warnTypes.has(code); });
+            if (!anyActive) return false;
+        }
         return true;
     }
 
     /** 필터에 걸려있는 게 하나라도 있는지 — 필터바 버튼 강조 등에 씀. */
     function hasActiveFilters() {
-        return !!(filters.types || filters.orgs || filters.hourRanges || filters.seasons);
+        return !!(filters.types || filters.orgs || filters.hourRanges || filters.seasons || filters.warnTypes);
     }
 
     /**
@@ -1230,6 +1245,21 @@
     function buildTypeOptions() { return buildValueOptions(function (r) { return typeCodeOf(state.source, r); }, ACCIDENT_TYPE_LABELS); }
     function buildOrgOptions() { return buildValueOptions(function (r) { return r[ORG_POS_IDX[state.source]]; }, ACCIDENT_ORG_LABELS); }
 
+    /** 특보종류 옵션 — 소스별로 의미있는 종류만(hk 는 태풍·풍랑, person 은 +강풍).
+     * 값이 배열(다중 발효 가능)이라 buildValueOptions 의 단일값 카운트 방식을 못 쓰고 별도 구현. */
+    function buildWarnOptions() {
+        var key = state.source;
+        var feats = (key && rawFeatures[key]) || [];
+        var counts = {};
+        feats.forEach(function (f) {
+            var active = f.get('row')[WARN_FLAGS_POS_IDX[key]] || [];
+            active.forEach(function (code) { counts[code] = (counts[code] || 0) + 1; });
+        });
+        return (WARN_TYPE_ORDER[key] || []).filter(function (code) { return counts[code] > 0; }).map(function (code) {
+            return { value: code, label: WARN_TYPE_LABELS[code], count: counts[code] };
+        });
+    }
+
     // ── 팝업 셸(체크박스 목록·시간대 전용 몸통 공용) ──
     var _filterPopupEls = null;
     function ensureFilterPopup() {
@@ -1394,6 +1424,7 @@
         updateFilterButtonLabel('orgs', '관할서');
         updateFilterButtonLabel('hourRanges', '시간대');
         updateFilterButtonLabel('seasons', '계절');
+        updateFilterButtonLabel('warnTypes', '특보');
     }
 
     /** 필터가 바뀔 때마다 현황 마커·분석 격자 양쪽에 다시 반영. */
@@ -1461,6 +1492,11 @@
                 });
                 openCheckboxFilterPopup('계절', seasonOptions, filters.seasons, function (sel) {
                     filters.seasons = sel;
+                    onFiltersChanged(map);
+                });
+            } else if (key === 'warnTypes') {
+                openCheckboxFilterPopup('특보', buildWarnOptions(), filters.warnTypes, function (sel) {
+                    filters.warnTypes = sel;
                     onFiltersChanged(map);
                 });
             }
