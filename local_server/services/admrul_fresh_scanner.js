@@ -46,6 +46,7 @@
  *  - services/admin_push.js → sendAdminPush()
  *  - knowledge/legal/_dashboard/loop/admrul_fresh.py → 행정규칙 점검(표준 라이브러리만 씀)
  *  - knowledge/legal/_dashboard/loop/law_fresh.py    → 법률·시행령·시행규칙 점검
+ *  - knowledge/legal/_dashboard/loop/admrul_fresh_pass2.py → 행정규칙 2차 대조(이름불일치 해소)
  * ============================================================================
  */
 const fs = require('fs');
@@ -58,6 +59,10 @@ const LEGAL = path.join(__dirname, '..', 'knowledge', 'legal');
 const SCRIPT = path.join(LEGAL, '_dashboard', 'loop', 'admrul_fresh.py');
 // 법률·시행령·시행규칙용 형제 점검(2026-08-24 신설). 행정규칙과 묻는 것은 같고 대상만 다르다.
 const LAW_SCRIPT = path.join(LEGAL, '_dashboard', 'loop', 'law_fresh.py');
+// 1차에서 '이름불일치'로 남은 것을 **보유 일련번호로 본문을 열어 공식명을 받아** 다시 판정한다.
+// 실측(2026-08-24): 1차가 못 푼 60건 중 52건이 이 2차로 풀렸다. 이걸 안 돌리면 그 60건은
+// 매주 점검이 돌아도 영원히 확인되지 않는다.
+const PASS2_SCRIPT = path.join(LEGAL, '_dashboard', 'loop', 'admrul_fresh_pass2.py');
 const DATA = path.join(__dirname, '..', 'data');
 const REPORT_FILE = path.join(DATA, 'admrul_fresh_report.json');
 const LAW_REPORT_FILE = path.join(DATA, 'law_fresh_report.json');
@@ -75,16 +80,16 @@ let _scanning = false; // 중복 실행 락(cron·수동스캔 동시 발동 시
 /**
  * 점검 스크립트를 자식 프로세스로 1회 실행한다. 비동기(spawn) — 실행 중에도 다른 API 요청은
  * 정상 처리된다.
- * 예: await runScript(SCRIPT, REPORT_FILE) → {ok:true, code:0}
+ * 예: await runScript(SCRIPT, ['--out', REPORT_FILE]) → {ok:true, code:0}
  * @param {string} script 실행할 파이썬 파일 경로
- * @param {string} outFile 결과 JSON 을 쓸 곳
+ * @param {string[]} args 넘길 인자
  * @returns {Promise<{ok:boolean, code:number|null, error?:string}>}
  * [연계] → _dashboard/loop/admrul_fresh.py · law_fresh.py
  */
-function runScript(script, outFile) {
+function runScript(script, args) {
   return new Promise((resolve) => {
     fs.mkdirSync(DATA, { recursive: true });
-    const child = spawn('python3', [script, '--out', outFile], {
+    const child = spawn('python3', [script, ...args], {
       cwd: path.dirname(script),
       stdio: ['ignore', 'ignore', 'pipe'],
     });
@@ -203,14 +208,19 @@ async function runFreshnessScan() {
     // 두 점검을 잇달아 돌린다. 둘 다 law.go.kr 을 두드리므로 동시에 돌리지 않는다.
     //   ① 행정규칙(고시·훈령) 653건  ② 법률·시행령·시행규칙 222건
     const parts = [
-      { name: '행정규칙', script: SCRIPT, out: REPORT_FILE },
+      { name: '행정규칙', script: SCRIPT, out: REPORT_FILE, pass2: PASS2_SCRIPT },
       { name: '법령', script: LAW_SCRIPT, out: LAW_REPORT_FILE },
     ];
     const errors = [];
     let allRows = [];
-    let checked = 0, freshCnt = 0, unknown = 0, mismatch = 0;
+    let checked = 0, freshCnt = 0, unknown = 0, mismatch = 0, repealed = 0;
     for (const part of parts) {
-      const r = await runScript(part.script, part.out);
+      let r = await runScript(part.script, ['--out', part.out]);
+      // 행정규칙은 2차 대조까지 돌린다. 1차가 실패했으면 2차는 의미가 없으니 건너뛴다.
+      if (r.ok && part.pass2) {
+        const r2 = await runScript(part.pass2, ['--report', part.out]);
+        if (!r2.ok) console.error('[AdmrulFresh] 2차 대조 실패(1차 결과는 그대로 쓴다):', r2.error);
+      }
       let rep = null;
       try { rep = JSON.parse(fs.readFileSync(part.out, 'utf8')); } catch (_) { rep = null; }
       if (!rep) {
@@ -224,6 +234,7 @@ async function runFreshnessScan() {
       // '이름불일치' = 응답은 왔는데 우리 제목과 공식명이 달라 **확인하지 못한 것**.
       // 화면에서 '이상 없음'과 절대 섞이면 안 되므로 따로 세어 올린다.
       mismatch += rep.mismatch || 0;
+      repealed += rep.maybe_repealed || 0;
       allRows = allRows.concat(rep.rows || []);
     }
     if (errors.length === parts.length) {
@@ -240,7 +251,7 @@ async function runFreshnessScan() {
     for (const e of fresh) adminQueues.appendJsonl(QUEUE_FILE, e);
 
     const st = { ok: true, startedAt, finishedAt: new Date().toISOString(),
-      checked, fresh: freshCnt, stale: staleRows.length, unknown, mismatch,
+      checked, fresh: freshCnt, stale: staleRows.length, unknown, mismatch, repealed,
       added: fresh.length,
       // 한쪽만 실패했으면 ok:true 로 두되 **무엇을 못 봤는지 반드시 남긴다.**
       partialError: errors.length ? errors.join(' / ') : null, error: null };
