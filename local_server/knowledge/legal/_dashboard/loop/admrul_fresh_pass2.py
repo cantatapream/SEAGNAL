@@ -33,6 +33,18 @@ def strip_org(s):
     return re.sub(r'^\s*\([^)]{2,20}\)\s*', '', str(s or '')).strip()
 
 
+def shares_chunk(a, b, n=4):
+    """두 이름이 연속 n글자라도 겹치나. 겹치지 않으면 **다른 문서**로 본다.
+
+    예: shares_chunk('한국해양교통안전공단 정관', '부부재산약정등기 사무처리 지침') → False
+    [연계] 보유 ID 가 엉뚱한 문서를 가리킬 때 가짜 판정을 막는 안전장치다.
+    """
+    x, y = norm(strip_org(a)), norm(strip_org(b))
+    if not x or not y:
+        return False
+    return any(x[i:i + n] in y for i in range(len(x) - n + 1))
+
+
 def curl(url):
     """DRF 를 한 번 부른다. 이름은 옛것을 그대로 두되 속은 파이썬 표준 urllib 이다.
 
@@ -97,6 +109,19 @@ def main():
             if off:
                 break
             time.sleep(0.3)
+        # ★공식명이 우리 제목과 **아무 관련이 없으면 그 ID 는 다른 문서를 가리키는 것**이다.
+        #   실측(2026-08-24): 「한국해양교통안전공단 정관」의 보유 ID(2200000091523)로 본문을
+        #   열자 「부부재산약정등기 사무처리 지침」(2001년 등기예규)이 나왔다. 2200000 계열은
+        #   행정규칙 번호 체계가 아니라서 같은 번호가 딴 문서를 가리킨다. 그 엉뚱한 이름으로
+        #   다시 검색해 **"구버전"이라는 가짜 판정**이 나왔다.
+        #   → 두 이름이 **연속 4글자도 겹치지 않으면** 판정하지 않고 사람에게 넘긴다.
+        if off and not shares_chunk(off, r['title']):
+            r['official_name'] = off
+            r['verdict'] = 'ID불일치'
+            r['pass2'] = ('보유 ID 로 연 본문이 전혀 다른 문서다(「%s」) — 그 ID 는 이 문서의 것이 '
+                          '아니다. 번호 체계가 다른 계열일 수 있다.' % off[:40])
+            print('[%d/%d] ID불일치 %s' % (i, len(todo), r['title'][:40]), flush=True)
+            continue
         if off and norm(off) not in {norm(n) for n in names}:
             names.append(off)
         # ★이름이 맞는 것 중 **지금 시행 중인 판**만 고른다(2026-08-24, 1차와 같은 함정).

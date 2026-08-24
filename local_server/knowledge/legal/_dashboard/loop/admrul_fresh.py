@@ -36,6 +36,13 @@ OC = 'hyoo1431'
 EXCLUDED = {
     '어항구 설정(장승포항)': 'ID 2003245 — 7자리로 행정규칙 일련번호 체계가 아니다(자치법규 추정)',
     '한국어촌어항공단 정관': 'ID 2200000092569 — 2200000 계열. 정관은 법령이 아니라 기관 내부규정이다',
+    # 2026-08-24 추가 — 위 어항공단 정관과 **똑같은 이유**인데 빠져 있었다.
+    # 2차 대조가 이 ID(2200000091523)로 본문을 열자 「부부재산약정등기 사무처리 지침」(2001년
+    # 등기예규)이 나왔다. 전혀 다른 문서다 — 2200000 계열은 행정규칙 번호 체계가 아니라서
+    # 같은 번호가 다른 문서를 가리킨다. 그 엉뚱한 이름으로 다시 검색해 **"구버전"이라는
+    # 가짜 판정**이 나왔다. 형제 항목을 뺄 때 이것도 같이 뺐어야 했다.
+    '한국해양교통안전공단 정관': 'ID 2200000091523 — 2200000 계열(어항공단 정관과 동일). '
+                       '이 ID 로 열면 「부부재산약정등기 사무처리 지침」이 나온다',
 }
 
 TITLE_RE = re.compile(r'^\[[^\]]*\]\s*(.+?)\s*$')
@@ -83,6 +90,20 @@ def wiki_pages_citing(title):
             except Exception:
                 continue
     return sorted(hits)
+
+
+# ★"이 파일은 일부러 남겨 둔 옛 판"이라고 스스로 밝힌 표시(2026-08-24 신설).
+#   예: `(원주지방환경청)공공폐수처리시설기본계획통합고시_2026-144호_구판전사.txt`
+#   현행본을 따로 받아 두고 옛 판을 근거 보존용으로 남긴 것이라 **낡은 것이 정상**이다.
+#   그런데 신선도 점검이 이걸 "구버전"으로 잡아 재수집 대상으로 올렸다 — 그대로 따르면
+#   일부러 남겨 둔 보존본을 현행본으로 덮어써 **보존한 이유가 사라진다.**
+#   `mok_audit.py` 가 발췌본을 가르는 것과 같은 취지다.
+ARCHIVE_MARK = re.compile(r'구\s*판|전사본|보존용|보존\)|폐지\s*당시')
+
+
+def is_archive(title, path):
+    """제목이나 파일명이 스스로 '옛 판 보존본'이라 밝히고 있나."""
+    return bool(ARCHIVE_MARK.search(str(title or '')) or ARCHIVE_MARK.search(os.path.basename(path or '')))
 
 
 def scan_files():
@@ -212,6 +233,16 @@ def main():
     by_title = {}
     for f in files:
         by_title.setdefault(f['title'], []).append(f)
+    # 스스로 '옛 판 보존본'이라 밝힌 것은 낡은 것이 정상이므로 감시 대상에서 뺀다.
+    archived = [t for t, fs_ in by_title.items()
+                if all(is_archive(t, f['path']) for f in fs_)]
+    for t in archived:
+        by_title.pop(t)
+    if archived:
+        print('보존본이라 제외 %d건 (낡은 것이 정상 — 파일이 스스로 밝힘):' % len(archived))
+        for t in archived:
+            print('  · ' + t[:70])
+        print()
     skipped = [t for t in by_title if t in EXCLUDED]
     for t in skipped:
         by_title.pop(t)
