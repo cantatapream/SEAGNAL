@@ -29,7 +29,9 @@
  *                    #ocean-accident-source-list, #ocean-accident-mode-toggle
  *                    (현황/분석 — #ocean-topleft-controls 안, 해양안전 화면이
  *                    빌려 쓰는 해양종합정보 기본맵·안내 버튼 바로 아래),
- *                    #accident-stats-sheet/#accident-stats-body(격자 클릭 시 통계)
+ *                    #accident-stats-sheet/#accident-stats-body(격자 클릭 시 통계),
+ *                    #accident-filter-bar(필터 버튼 4개 — 사고유형/관할서/시간대/계절,
+ *                    #ocean-accident-mode-toggle 바로 아래)
  *  - 나를 쓰는 곳  : ocean_map.js handleMapClick → window._accidentInfoTryHandleClick
  *                    (access_control.js 와 동일하게 window.getOceanMap 폴링으로
  *                    스스로 설치 — ocean_map.js buildMap() 수정 불필요)
@@ -169,6 +171,24 @@
  * [관할 미상(orgCd=0) 전량 삭제(2026-08-23)] 사용자 요청으로 관할해경서 코드가 0(원본 CSV
  *   빈 값, `accident_codes.js`에서 "관할 미상"으로 표시되던 것)인 행 2,448건 삭제.
  *   25,990 → 23,542건.
+ * [필터 바 — 사고유형·관할서·시간대·계절(2026-08-24 사용자 확정)] "지금은 사고마커에
+ *   관한 모든 정보가 다 표출되는데, 필터로 손쉽게 골라 보고 싶다"는 요청으로 추가.
+ *   현황(마커 표출)은 사고유형 필터만, 분석(격자 집계)은 관할서·사고유형·시간대·계절
+ *   4개를 전부 지원한다(#ocean-accident-mode-toggle 바로 아래 #accident-filter-bar,
+ *   index2.html 정적 마크업 + style.css). 버튼을 누르면 체크박스 다중선택 팝업(관할서·
+ *   유형·계절 공용) 또는 시간대 전용 팝업(4시간 간격 프리셋 다중토글 + 임의 범위를
+ *   칩으로 추가하는 직접 설정)이 뜨고, 확인을 누르면 버튼 라벨이 "N개 선택"으로
+ *   바뀐다. 옵션 목록은 정적 코드표가 아니라 지금 활성 소스(rawFeatures[state.source])
+ *   에 실제로 존재하는 값만 건수와 함께 보여준다(0건짜리 선택지를 안 보여주기 위함).
+ *   필터는 현황·분석 공용 하나의 상태(passesFilters)로 판정해 마커(applyFiltersToMarkers,
+ *   ol.source.Cluster 의 내부 ol.source.Vector features 를 갈아끼움)와 격자(recomputeGrid)
+ *   양쪽에 똑같이 적용된다 — 모드를 바꿔도 걸어둔 필터가 유지된다. person 소스는 발생시각
+ *   컬럼이 없어 시간대 필터를 통과시킨다(판단 불가를 "해당 없음 취급"하는 기존 원칙과 동일).
+ *   특보발표여부 필터는 이번 범위에서 뺐다 — 원본 특보 CSV(FCT_WRN)의 구역명 체계가
+ *   특보구역 폴리곤(`client/assets/warn_zones.geojson`)의 44개 구역명과 안 맞고(CSV는
+ *   더 뭉뚱그린 이름을 쓰며 시기별로도 표기가 섞여 있음), CSV 문안 파싱·구역명 매칭표
+ *   작성·좌표→구역 판정(점-폴리곤)·시간대 매칭까지 4단계가 더 필요해 나머지 4개 필터보다
+ *   훨씬 큰 별도 작업이라 사용자와 합의해 뒤로 미뤘다.
  * ============================================================================
  */
 
@@ -198,6 +218,79 @@
     var _activeDetailTab = {};        // source key -> 현재 선택된 "사고발생상세" 탭
     var _statsKey = null;             // 통계 시트에 지금 표시 중인 source key
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
+
+    /**
+     * [필터 — 사고유형/관할서/시간대/계절(2026-08-24 사용자 확정)] 현황(마커 표출)·
+     * 분석(격자 집계) 양쪽에 공통으로 적용되는 필터 상태. 각 값이 null 이면 "전체"
+     * (필터 없음), Set/Array 가 있으면 그 안에 든 것만 통과. 특보발표여부 필터는
+     * 별도 단계로 보류(원본 특보 CSV·특보구역 폴리곤 간 구역명 체계가 달라 매칭표를
+     * 새로 만들어야 하는 훨씬 큰 작업이라 사용자와 합의해 뒤로 미룸).
+     *   - types      : Set<typeCode> | null — 사고유형(ACDNT_TYPE_CD)
+     *   - orgs       : Set<orgCd>    | null — 관할해경서
+     *   - hourRanges : [[startHour,endHour), ...] | null — 시간대(발생시각 hm 기준,
+     *                  endHour 는 미포함이라 [0,4)=00~03시대). person 소스는 hm 컬럼이
+     *                  없어(발생시각 정보 없음) 이 필터를 통과시킨다(숨기지 않음 —
+     *                  판단 불가를 "해당 없음 취급"으로 처리, findCoordOutliers 등
+     *                  기존 필터들과 같은 원칙).
+     *   - seasons    : Set<'spring'|'summer'|'fall'|'winter'> | null — ymd 월 기준
+     */
+    var filters = { types: null, orgs: null, hourRanges: null, seasons: null };
+
+    var SEASON_LABELS = { spring: '봄', summer: '여름', fall: '가을', winter: '겨울' };
+    var SEASON_ORDER = ['spring', 'summer', 'fall', 'winter'];
+
+    /** ymd("YYYYMMDD")의 월로 계절 판정. 월 정보가 없으면 null(필터 통과 취급). */
+    function seasonOf(ymd) {
+        if (!ymd || String(ymd).length < 6) return null;
+        var mm = parseInt(String(ymd).slice(4, 6), 10);
+        if (mm >= 3 && mm <= 5) return 'spring';
+        if (mm >= 6 && mm <= 8) return 'summer';
+        if (mm >= 9 && mm <= 11) return 'fall';
+        return 'winter'; // 12, 1, 2
+    }
+
+    /** hk 전용 — hm("H:MM"~"HH:MM") 문자열의 시(hour). 파싱 실패/없음이면 null. */
+    function hourOf(hm) {
+        if (!hm) return null;
+        var h = parseInt(String(hm).split(':')[0], 10);
+        return isNaN(h) ? null : h;
+    }
+
+    /** 소스별 관할해경서(orgCd) 컬럼 위치. person 도 hk 와 마찬가지로 이 컬럼이 있다. */
+    var ORG_POS_IDX = { hk: 8, person: 5 };
+
+    /**
+     * 현재 filters 상태를 기준으로 이 행이 통과하는지 — 현황(마커)·분석(격자) 양쪽이
+     * 공유하는 단일 판정 함수. 판단 불가(해당 컬럼이 그 소스에 아예 없음/빈 값)한
+     * 축은 막지 않고 통과시킨다.
+     * @param {string} key - 'hk' | 'person'
+     * @param {Array} row
+     * @returns {boolean}
+     */
+    function passesFilters(key, row) {
+        if (filters.types && !filters.types.has(typeCodeOf(key, row))) return false;
+        if (filters.orgs) {
+            var org = row[ORG_POS_IDX[key]];
+            if (!filters.orgs.has(org)) return false;
+        }
+        if (filters.hourRanges && key === 'hk') {
+            var hour = hourOf(row[3]);
+            if (hour != null) {
+                var inAny = filters.hourRanges.some(function (r) { return hour >= r[0] && hour < r[1]; });
+                if (!inAny) return false;
+            }
+        }
+        if (filters.seasons) {
+            var season = seasonOf(row[2]);
+            if (season && !filters.seasons.has(season)) return false;
+        }
+        return true;
+    }
+
+    /** 필터에 걸려있는 게 하나라도 있는지 — 필터바 버튼 강조 등에 씀. */
+    function hasActiveFilters() {
+        return !!(filters.types || filters.orgs || filters.hourRanges || filters.seasons);
+    }
 
     /**
      * [검수 모드 — 사고정보 버튼 10회 연타로만 켜진다(사용자 확정 2026-08-23)]
@@ -603,11 +696,15 @@
         return new ol.Feature({ geometry: geom, features: members });
     }
 
+    var clusterVectorSources = {}; // key -> ol.source.Vector — 필터 변경 시 features 만 갈아끼우는 용도
+
     /** hazard_rocks.js buildClusterLayer 와 동일한 줌 기반 뭉치기 조절 패턴. */
-    function buildClusterLayer(map, features) {
+    function buildClusterLayer(map, key, features) {
+        var innerSource = new ol.source.Vector({ features: features });
+        clusterVectorSources[key] = innerSource;
         var clusterSource = new ol.source.Cluster({
             distance: CLUSTER_DISTANCE,
-            source: new ol.source.Vector({ features: features }),
+            source: innerSource,
             createCluster: createClusterAtRealPoint
         });
         var applyDistanceForZoom = function () {
@@ -625,10 +722,27 @@
     function ensureClusterLayer(map, key) {
         if (clusterLayers[key]) return Promise.resolve(clusterLayers[key]);
         return ensureRawFeatures(key).then(function (features) {
-            var layer = buildClusterLayer(map, features);
+            var layer = buildClusterLayer(map, key, features);
             clusterLayers[key] = layer;
             return layer;
         });
+    }
+
+    /**
+     * filters 상태가 바뀔 때 현황(마커) 쪽에 반영 — 격자(분석) 쪽은 recomputeGrid 가
+     * 매번 rawFeatures 에서 다시 계산하므로 별도 갱신 불필요.
+     * @param {string} key - 필터를 적용할 소스(보통 state.source)
+     * [연계] ← 필터 팝업 확인 버튼
+     */
+    function applyFiltersToMarkers(key) {
+        var innerSource = clusterVectorSources[key];
+        if (!innerSource) return;
+        var all = rawFeatures[key] || [];
+        var filtered = hasActiveFilters()
+            ? all.filter(function (f) { return passesFilters(key, f.get('row')); })
+            : all;
+        innerSource.clear();
+        innerSource.addFeatures(filtered);
     }
 
     // ── 마커 팝업 ───────────────────────────────────────────────────────────
@@ -898,6 +1012,10 @@
     function recomputeGrid(map) {
         if (!gridSource || !state.source) return;
         var feats = rawFeatures[state.source] || [];
+        if (hasActiveFilters()) {
+            var key = state.source;
+            feats = feats.filter(function (f) { return passesFilters(key, f.get('row')); });
+        }
         var extent = map.getView().calculateExtent(map.getSize());
         var w = (extent[2] - extent[0]) / GRID_COLS;
         var h = (extent[3] - extent[1]) / GRID_ROWS;
@@ -1063,6 +1181,273 @@
         return true;
     }
 
+    // ── 필터 바 + 팝업(사고유형·관할서·시간대·계절, 2026-08-24 사용자 확정) ──────
+    // [연계] 마크업 index2.html #accident-filter-bar(정적, 버튼 4개) · CSS style.css
+    //   ".accident-filter-*" · 적용 대상 applyFiltersToMarkers()·recomputeGrid()
+
+    var HOUR_PRESETS = [[0, 4], [4, 8], [8, 12], [12, 16], [16, 20], [20, 24]];
+    function hourPresetLabel(r) { return pad2(r[0]) + '~' + pad2(r[1] === 24 ? 0 : r[1]) + '시'; }
+
+    /** 현재 활성 소스(rawFeatures[state.source])에서 실제 존재하는 값만 옵션으로 뽑는다
+     * — 0건짜리 선택지를 안 보여주기 위함. count 는 필터 다른 축은 무시하고 이 축만
+     * 단독으로 셌을 때의 건수(다른 필터와 조합했을 때의 정확한 교집합 수는 아님 —
+     * 체크박스 목록에서 "대략 몇 건인지" 참고용). */
+    function buildValueOptions(getValue, labelTable) {
+        var key = state.source;
+        var feats = (key && rawFeatures[key]) || [];
+        var counts = {}; // value -> count
+        feats.forEach(function (f) {
+            var v = getValue(f.get('row'));
+            if (v == null) return;
+            counts[v] = (counts[v] || 0) + 1;
+        });
+        return Object.keys(counts).map(function (vStr) {
+            // 코드가 숫자(orgCd·typeCode 는 문자열, orgCd 만 숫자 — Object 키는 항상 문자열이라 되돌린다)
+            var v = /^-?\d+$/.test(vStr) ? Number(vStr) : vStr;
+            return { value: v, label: accidentLabel(labelTable, v), count: counts[vStr] };
+        }).sort(function (a, b) { return b.count - a.count; });
+    }
+
+    function buildTypeOptions() { return buildValueOptions(function (r) { return typeCodeOf(state.source, r); }, ACCIDENT_TYPE_LABELS); }
+    function buildOrgOptions() { return buildValueOptions(function (r) { return r[ORG_POS_IDX[state.source]]; }, ACCIDENT_ORG_LABELS); }
+
+    // ── 팝업 셸(체크박스 목록·시간대 전용 몸통 공용) ──
+    var _filterPopupEls = null;
+    function ensureFilterPopup() {
+        if (_filterPopupEls) return _filterPopupEls;
+        var overlay = document.createElement('div');
+        overlay.className = 'accident-filter-popup-overlay';
+        overlay.style.display = 'none';
+        overlay.innerHTML =
+            '<div class="accident-filter-popup">' +
+            '<div class="accident-filter-popup-hdr"><span id="afp-title">필터</span><span class="count" id="afp-count"></span>' +
+            '<button type="button" class="accident-filter-popup-close" id="afp-close" aria-label="닫기">&times;</button></div>' +
+            '<div class="accident-filter-popup-body" id="afp-body"></div>' +
+            '<div class="accident-filter-popup-footer">' +
+            '<button type="button" id="afp-reset">전체 해제</button>' +
+            '<button type="button" class="primary" id="afp-confirm">확인</button>' +
+            '</div></div>';
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) closeFilterPopup(); });
+        document.getElementById('afp-close').addEventListener('click', closeFilterPopup);
+        _filterPopupEls = {
+            overlay: overlay,
+            title: document.getElementById('afp-title'),
+            count: document.getElementById('afp-count'),
+            body: document.getElementById('afp-body'),
+            resetBtn: document.getElementById('afp-reset'),
+            confirmBtn: document.getElementById('afp-confirm')
+        };
+        return _filterPopupEls;
+    }
+
+    function closeFilterPopup() {
+        if (_filterPopupEls) _filterPopupEls.overlay.style.display = 'none';
+    }
+
+    /**
+     * 체크박스 다중선택 팝업(관할서·사고유형·계절 공용).
+     * @param {string} title
+     * @param {Array<{value, label, count}>} options
+     * @param {Set|null} currentSelected - null 이면 "전체"(체크박스 전부 해제 상태로 시작)
+     * @param {function(Set|null)} onConfirm - 확인 눌렀을 때, 하나도 안 골랐으면 null(전체)로 넘김
+     */
+    function openCheckboxFilterPopup(title, options, currentSelected, onConfirm) {
+        var els = ensureFilterPopup();
+        els.title.textContent = title;
+        els.count.textContent = options.length + '개 항목';
+        var selected = new Set(currentSelected || []);
+        if (!options.length) {
+            els.body.innerHTML = '<div class="accident-filter-empty">지금 불러온 데이터에 표시할 항목이 없습니다.</div>';
+        } else {
+            els.body.innerHTML = options.map(function (o, i) {
+                var checked = selected.has(o.value) ? ' checked' : '';
+                return '<label class="accident-filter-check-row"><input type="checkbox" data-i="' + i + '"' + checked + '>' +
+                    '<span class="label">' + escapeHtml(o.label) + '</span><span class="n">' + o.count + '건</span></label>';
+            }).join('');
+        }
+        var checkboxes = els.body.querySelectorAll('input[type="checkbox"]');
+        Array.prototype.forEach.call(checkboxes, function (cb) {
+            cb.addEventListener('change', function () {
+                var o = options[Number(cb.dataset.i)];
+                if (cb.checked) selected.add(o.value); else selected.delete(o.value);
+            });
+        });
+        els.resetBtn.onclick = function () {
+            selected.clear();
+            Array.prototype.forEach.call(checkboxes, function (cb) { cb.checked = false; });
+        };
+        els.confirmBtn.onclick = function () {
+            onConfirm(selected.size ? selected : null);
+            closeFilterPopup();
+        };
+        els.overlay.style.display = 'flex';
+    }
+
+    /**
+     * 시간대 팝업 — 4시간 간격 프리셋(다중 토글) + 직접 설정(임의 범위 추가, 칩으로 표시).
+     * @param {Array<[number,number]>|null} current
+     * @param {function(Array<[number,number]>|null)} onConfirm
+     */
+    function openHourRangeFilterPopup(current, onConfirm) {
+        var els = ensureFilterPopup();
+        els.title.textContent = '시간대';
+        els.count.textContent = '';
+        var ranges = (current || []).slice(); // 작업용 사본
+
+        function isPresetActive(preset) {
+            return ranges.some(function (r) { return r[0] === preset[0] && r[1] === preset[1]; });
+        }
+        function togglePreset(preset) {
+            var idx = ranges.findIndex(function (r) { return r[0] === preset[0] && r[1] === preset[1]; });
+            if (idx >= 0) ranges.splice(idx, 1); else ranges.push(preset.slice());
+        }
+        function isCustomRange(r) { return !HOUR_PRESETS.some(function (p) { return p[0] === r[0] && p[1] === r[1]; }); }
+
+        function render() {
+            var presetsHtml = HOUR_PRESETS.map(function (p, i) {
+                return '<button type="button" class="accident-filter-hour-preset' + (isPresetActive(p) ? ' active' : '') +
+                    '" data-preset-i="' + i + '">' + hourPresetLabel(p) + '</button>';
+            }).join('');
+            var customRanges = ranges.filter(isCustomRange);
+            var chipsHtml = customRanges.length ? customRanges.map(function (r, i) {
+                return '<span class="accident-filter-hour-chip">' + hourPresetLabel(r) +
+                    '<button type="button" data-custom-i="' + i + '">&times;</button></span>';
+            }).join('') : '<span style="color:var(--text-sub);font-size:0.76rem;">추가된 범위 없음</span>';
+            els.body.innerHTML =
+                '<div class="accident-filter-hour-presets">' + presetsHtml + '</div>' +
+                '<div class="accident-filter-hour-custom">' +
+                '<div class="accident-filter-hour-custom-label">직접 설정</div>' +
+                '<div class="accident-filter-hour-custom-row">' +
+                '<input type="time" id="afp-hour-start" value="09:00">' +
+                '<span>~</span>' +
+                '<input type="time" id="afp-hour-end" value="18:00">' +
+                '<button type="button" id="afp-hour-add">추가</button>' +
+                '</div>' +
+                '<div class="accident-filter-hour-chips">' + chipsHtml + '</div>' +
+                '</div>';
+            Array.prototype.forEach.call(els.body.querySelectorAll('.accident-filter-hour-preset'), function (btn) {
+                btn.addEventListener('click', function () { togglePreset(HOUR_PRESETS[Number(btn.dataset.presetI)]); render(); });
+            });
+            Array.prototype.forEach.call(els.body.querySelectorAll('[data-custom-i]'), function (btn) {
+                btn.addEventListener('click', function () {
+                    var target = customRanges[Number(btn.dataset.customI)];
+                    var idx = ranges.indexOf(target);
+                    if (idx >= 0) ranges.splice(idx, 1);
+                    render();
+                });
+            });
+            document.getElementById('afp-hour-add').addEventListener('click', function () {
+                var startVal = document.getElementById('afp-hour-start').value;
+                var endVal = document.getElementById('afp-hour-end').value;
+                var start = startVal ? parseInt(startVal.split(':')[0], 10) : NaN;
+                var end = endVal ? parseInt(endVal.split(':')[0], 10) : NaN;
+                if (isNaN(start) || isNaN(end) || start >= end) {
+                    window.alert('시작 시각이 종료 시각보다 빨라야 합니다.');
+                    return;
+                }
+                ranges.push([start, end]);
+                render();
+            });
+        }
+        render();
+
+        els.resetBtn.onclick = function () { ranges = []; render(); };
+        els.confirmBtn.onclick = function () {
+            onConfirm(ranges.length ? ranges : null);
+            closeFilterPopup();
+        };
+        els.overlay.style.display = 'flex';
+    }
+
+    /** 필터 버튼 라벨을 지금 filters 상태에 맞춰 갱신("전체" 또는 "N개 선택"). */
+    function updateFilterButtonLabel(filterKey, prefix) {
+        var btn = document.getElementById('accident-filter-btn-' + filterKey);
+        if (!btn) return;
+        var val = filters[filterKey];
+        var n = val ? val.size != null ? val.size : val.length : 0;
+        btn.textContent = prefix + ': ' + (n ? n + '개 선택' : '전체');
+        btn.classList.toggle('has-selection', n > 0);
+    }
+
+    function updateAllFilterButtonLabels() {
+        updateFilterButtonLabel('types', '사고유형');
+        updateFilterButtonLabel('orgs', '관할서');
+        updateFilterButtonLabel('hourRanges', '시간대');
+        updateFilterButtonLabel('seasons', '계절');
+    }
+
+    /** 필터가 바뀔 때마다 현황 마커·분석 격자 양쪽에 다시 반영. */
+    function onFiltersChanged(map) {
+        updateAllFilterButtonLabels();
+        if (state.source) applyFiltersToMarkers(state.source);
+        if (state.mode === 'analysis' && state.source) recomputeGrid(map);
+        closeStatsSheet(); // 선택돼 있던 격자 셀 구성이 필터로 바뀌었을 수 있어 무효화
+    }
+
+    /** 사고정보가 켜져 있는 동안(showModeToggle 과 동일 시점)만 필터 바를 보여준다. */
+    function showFilterBar(show) {
+        var bar = document.getElementById('accident-filter-bar');
+        if (bar) bar.style.display = show ? 'flex' : 'none';
+        if (show) positionFilterBar();
+    }
+
+    /** 모드에 따라 관할서·시간대·계절 버튼을 숨기고(현황) 다시 보인다(분석) — 사고유형은 항상 노출. */
+    function updateFilterBarModeVisibility() {
+        var bar = document.getElementById('accident-filter-bar');
+        if (!bar) return;
+        Array.prototype.forEach.call(bar.querySelectorAll('[data-mode-only]'), function (btn) {
+            btn.style.display = (btn.dataset.modeOnly === state.mode) ? 'block' : 'none';
+        });
+        positionFilterBar();
+    }
+
+    /** 필터 바의 top 을 모드토글 실측 높이 기준으로 인라인 설정 — 글자 크기 설정에
+     * 따라 모드토글 높이가 달라져 고정 px로 못 잡는다(같은 이유로 이미 JS로 위치를
+     * 계산하는 다른 오버레이 패턴은 없어 이 파일 안에서 새로 계산). */
+    function positionFilterBar() {
+        var modeToggle = document.getElementById('ocean-accident-mode-toggle');
+        var bar = document.getElementById('accident-filter-bar');
+        if (!modeToggle || !bar || bar.style.display === 'none') return;
+        bar.style.top = (modeToggle.offsetTop + modeToggle.offsetHeight + 6) + 'px';
+    }
+
+    function bindFilterBar(map) {
+        var bar = document.getElementById('accident-filter-bar');
+        if (!bar) return;
+        bar.addEventListener('click', function (e) {
+            var btn = e.target.closest('.accident-filter-btn');
+            if (!btn) return;
+            var key = btn.dataset.filter;
+            if (key === 'types') {
+                openCheckboxFilterPopup('사고유형', buildTypeOptions(), filters.types, function (sel) {
+                    filters.types = sel;
+                    onFiltersChanged(map);
+                });
+            } else if (key === 'orgs') {
+                openCheckboxFilterPopup('관할서', buildOrgOptions(), filters.orgs, function (sel) {
+                    filters.orgs = sel;
+                    onFiltersChanged(map);
+                });
+            } else if (key === 'hourRanges') {
+                openHourRangeFilterPopup(filters.hourRanges, function (val) {
+                    filters.hourRanges = val;
+                    onFiltersChanged(map);
+                });
+            } else if (key === 'seasons') {
+                var seasonOptions = SEASON_ORDER.map(function (s) {
+                    var feats = (state.source && rawFeatures[state.source]) || [];
+                    var count = feats.filter(function (f) { return seasonOf(f.get('row')[2]) === s; }).length;
+                    return { value: s, label: SEASON_LABELS[s], count: count };
+                });
+                openCheckboxFilterPopup('계절', seasonOptions, filters.seasons, function (sel) {
+                    filters.seasons = sel;
+                    onFiltersChanged(map);
+                });
+            }
+        });
+    }
+
     // ── 버튼·팝아웃 UI ──────────────────────────────────────────────────────
     function closePopout() {
         var wrap = document.getElementById('ocean-accident-wrap');
@@ -1129,6 +1514,10 @@
             closePopout();
             updateSourceButtonsUi();
             showModeToggle(true);
+            showFilterBar(true);
+            updateFilterBarModeVisibility();
+            updateAllFilterButtonLabels();
+            if (hasActiveFilters()) applyFiltersToMarkers(key); // 이전 소스에서 걸어둔 필터를 새 소스에도 반영
             if (toggleBtn) toggleBtn.classList.add('active');
             // 마커를 실제 지형과 대조해 보기 쉽도록 배경지도를 위성지도로 자동 전환(사용자 확정 2026-08-19)
             if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
@@ -1158,6 +1547,7 @@
         closePopout();
         updateSourceButtonsUi();
         showModeToggle(false);
+        showFilterBar(false);
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
         if (toggleBtn) toggleBtn.classList.remove('active');
         if (_prevBasemap && _prevBasemap !== 'vworld' && typeof window.oceanSetBasemap === 'function') {
@@ -1170,6 +1560,7 @@
         state.mode = mode;
         applyModeVisibility(map);
         updateModeToggleUi();
+        updateFilterBarModeVisibility();
     }
 
     function bindUi(map) {
@@ -1209,6 +1600,8 @@
                 setMode(map, btn.dataset.mode);
             });
         }
+
+        bindFilterBar(map);
 
         var sourceList = document.getElementById('ocean-accident-source-list');
         if (sourceList) {
