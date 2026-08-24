@@ -23,8 +23,14 @@
  *   node backlog_extract.js --write       → `_dashboard/backlog/<법>.md` 생성
  *   node backlog_extract.js --law <이름>   → 한 법만
  *
+ * [다시 써도 사서의 일을 잃지 않는다 — 2026-08-24]
+ * `--write` 는 백로그 파일을 **덮어쓰지 않고 합친다.** 항목마다 고정 ID(`⟨BL-xxxxxxxx⟩`)를 달고,
+ * 옛 파일에 같은 항목이 있으면 그 ID·확인표시(`- [x]`)·주석(`⟪…⟫`)을 그대로 이어받는다.
+ * 그래서 라운드가 돌아도 **같은 항목이 새 항목으로 다시 등록되지 않는다.**
+ * (종전에는 통째로 덮어써서 사서가 확인해 둔 표시 6,627건이 매번 사라졌다.)
+ *
  * [연계] ← _dashboard/audit/<법>.md(읽기 전용) · → _dashboard/backlog/<법>.md
- *        ⚠감사 파일을 고치지 않는다.
+ *        ⚠감사 파일을 고치지 않는다.  · ID 계산은 `backlog_id.py` 와 동일(전수 대조로 확인)
  */
 const fs = require('fs');
 const path = require('path');
@@ -109,6 +115,69 @@ function keyOf(line) {
   }
   return core.replace(/[|`*_#>\s]/g, '').replace(/[⚠❌✅📛]/g, '')
     .replace(/^\d+/, '').slice(0, 60);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * 고정 ID(⟨BL-xxxxxxxx⟩) — 항목에 **이름을 붙여** 다음 라운드가 같은 것을 또 등록하지 못하게 한다.
+ *
+ * [왜 있나 — 2026-08-24 실측]
+ * 이 도구는 `--write` 때 백로그 파일을 **통째로 덮어썼다.** 그래서 라운드가 돌 때마다
+ *   ① 사서가 확인해 `- [x]` 로 바꿔 둔 표시가 사라지고  ② 같은 항목이 새 항목처럼 다시 등록되고
+ *   ③ 그 결과 **남은 일이 몇 건인지 자체를 알 수 없었다**(23,529건 중 중복을 세는 방법이
+ *      셋 다 무효였다 — backlog_id.py 머리말 참조).
+ * 이제 항목마다 ID 를 달고, 다시 쓸 때 **옛 파일에 있던 같은 항목을 찾아 그 ID·확인표시·주석을
+ * 그대로 이어받는다.** 새로 나온 항목만 새 ID 를 받는다.
+ *
+ * [ID 는 어떻게 만드나] `backlog_id.py` 와 **똑같은 계산**이다(법 + 정규화한 본문의 sha1 앞 8자리).
+ *   2026-08-24 에 이미 붙어 있던 23,529건을 이 JS 로 다시 계산해 **23,529건 전부 일치**함을 확인했다.
+ *   ⚠`SYM_RE` 의 `u` 플래그는 없으면 안 된다 — 없으면 🟡 같은 글자의 절반만 지워져
+ *   Python 과 다른 값이 나온다(실측: 63건 어긋났다).
+ *
+ * [이어받기 열쇠는 ID 가 아니라 `keyOf` 다] ID 는 본문에서 나오는데, 감사는 라운드마다 그 항목에
+ *   새 줄을 덧붙이므로 **본문이 바뀌면 ID 도 바뀐다.** 그래서 이어받을 때는 이 도구가 이미 쓰고 있는
+ *   항목 정체(`keyOf` — 표 첫 칸/문장 앞머리)로 찾고, 찾으면 **옛 ID 를 그대로 물려준다.**
+ *   즉 ID 는 **태어날 때 내용에서 나오고, 그 뒤로는 붙어 다닌다.**
+ * ───────────────────────────────────────────────────────────────────────────── */
+const crypto = require('crypto');
+const BL_ID_RE = /⟨BL-[0-9a-f]{8}⟩/g;
+const BL_NOTE_RE = /⟪[^⟫]*⟫/g;
+const BL_ROUND_RE = /^\((?:R?\d+|라운드미상)\)\s*/;
+const BL_SYM_RE = /[✅⚠❌📛〰🔓🔒🆙🔁]/gu;
+/** backlog_id.py 의 norm() 과 같은 값을 낸다(2026-08-24 전수 대조로 확인). */
+function blNorm(law, body) {
+  let t = body.replace(BL_ID_RE, '').replace(BL_NOTE_RE, '');
+  t = t.trim().replace(BL_ROUND_RE, '').replace(BL_SYM_RE, '');
+  return law + '|' + t.replace(/\s+/g, '');
+}
+const blId = key => 'BL-' + crypto.createHash('sha1').update(key, 'utf8').digest('hex').slice(0, 8);
+
+/** 백로그 줄에서 감사 원문 부분만 되꺼낸다 — 앞의 라운드 표기와 뒤에 붙인 ⟨…⟩·⟪…⟫ 를 뗀다. */
+function coreOf(body) {
+  return body.replace(/⟨[^⟩]*⟩/g, '').replace(BL_NOTE_RE, '')
+    .replace(/^\((?:R\d+(?:~R\d+)?|라운드미상)\)\s*/, '').trim();
+}
+/** 이미 있는 백로그 파일을 읽어 **항목 정체 → (ID·확인표시·주석·원래 줄)** 로 색인한다. */
+function readPrev(p) {
+  const idx = new Map();
+  idx.extras = [];
+  if (!fs.existsSync(p)) return idx;
+  for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
+    const m = /^- \[([ x])\] (.*)$/.exec(line);
+    if (!m) continue;
+    const k = keyOf(coreOf(m[2]));
+    if (!k) continue;
+    // 같은 정체(keyOf)가 둘인 줄이 드물게 있다(실측 1건). 이어받기는 먼저 것으로 하되,
+    // **확인 근거가 적힌 줄은 버리지 않고 따로 담아** 아래 '닫힘' 절에 남긴다.
+    if (idx.has(k)) { if (m[1] === 'x') idx.extras.push(line); continue; }
+    const id = /⟨(BL-[0-9a-f]{8})⟩/.exec(m[2]);
+    idx.set(k, {
+      id: id ? id[1] : null,
+      checked: m[1] === 'x',
+      notes: (m[2].match(BL_NOTE_RE) || []).join(' '),
+      raw: line,
+    });
+  }
+  return idx;
 }
 
 /**
@@ -236,6 +305,7 @@ rows.slice(0, 12).forEach(r => {
 
 if (argv.includes('--write')) {
   fs.mkdirSync(OUT, { recursive: true });
+  let carried = 0, fresh = 0, done = 0, dropped = 0, droppedDone = 0;
   for (const r of rows) {
     if (!r.items.length) continue;
     const g = {};
@@ -248,6 +318,11 @@ if (argv.includes('--write')) {
     md += `>   그러니 각 항목은 **위키 현재 상태를 먼저 확인**하고, 이미 해소됐으면 고치지 말고\n`;
     md += `>   \`- [x]\` 로 바꾸며 근거를 \`(확인: <파일>:<줄>)\` 로 적는다. 안 됐으면 그때 고친다.\n`;
     md += `>   \`⟨짚은 조문이 위키에 없음⟩\` 표시가 붙은 항목은 확인 없이도 미해소가 확실하다 — 먼저 본다.\n\n`;
+    const dst = path.join(OUT, `${r.slug}.md`);
+    // ★옛 파일을 먼저 읽어 둔다 — 사서가 해 둔 일(확인표시·주석)과 ID 를 잃지 않기 위해서다.
+    const prev = readPrev(dst);
+    const law = r.slug.replace(/_\d+라운드$/, '');
+    const used = new Set();
     for (const c of ORDER) {
       if (!g[c]) continue;
       md += `## ${c} (${g[c].length}건) — ${LABEL[c]}\n\n`;
@@ -255,11 +330,44 @@ if (argv.includes('--write')) {
       for (const i of g[c]) {
         const age = i.first ? `R${i.first}${i.last > i.first ? `~R${i.last}` : ''}` : '라운드미상';
         const mark = i.absent ? ' ⟨짚은 조문이 위키에 없음 — 확실히 미해소⟩' : '';
-        md += `- [ ] (${age}) ${i.line.replace(/\n/g, ' ')}${mark}\n`;
+        const body = `(${age}) ${i.line.replace(/\n/g, ' ')}${mark}`;
+        const k = keyOf(i.line);
+        const p = prev.get(k);
+        if (p) used.add(k);
+        if (p && p.checked) {
+          // 사서가 이미 확인해 끝낸 항목이다. 감사가 표현을 바꿔 다시 적었더라도 **손대지 않는다.**
+          md += p.raw + '\n';
+          carried++; done++;
+          continue;
+        }
+        const id = (p && p.id) ? p.id : blId(blNorm(law, body));
+        if (p && p.id) carried++; else fresh++;
+        md += `- [ ] ${body}${p && p.notes ? '  ' + p.notes : ''}  ⟨${id}⟩\n`;
       }
       md += '\n';
     }
-    fs.writeFileSync(path.join(OUT, `${r.slug}.md`), md);
+    // 옛 파일에 있었는데 이번 추출에는 안 나온 항목 = 감사가 "이제 해소됐다"고 적었다는 뜻이다.
+    // 그중 **사서가 확인해 근거까지 적어 둔 것(`- [x]`)은 지우지 않고 아래 '닫힘' 절에 남긴다.**
+    //   왜: 감사 표현이 다음 라운드에 또 흔들려 그 항목이 되살아나면, 기록이 없으면 **새 항목처럼
+    //   다시 등록되고 사서가 같은 확인을 처음부터 다시 한다** — 이 도구를 고친 이유가 바로 그것이다.
+    //   여기 남은 줄은 다음 실행 때 `readPrev` 가 다시 읽으므로 ID·근거가 계속 따라다닌다.
+    const closed = [];
+    for (const [k, v] of prev) {
+      if (used.has(k)) continue;
+      if (v.checked) { droppedDone++; closed.push(v.raw); } else dropped++;
+    }
+    for (const raw of prev.extras) { droppedDone++; closed.push(raw); }
+    if (closed.length) {
+      md += `## 닫힘 (${closed.length}건) — 감사가 해소로 적었고 사서 확인 근거가 있는 것. **기록만 남긴다(할 일 아님).**\n\n`;
+      md += closed.join('\n') + '\n\n';
+    }
+    fs.writeFileSync(dst, md);
   }
   console.log(`\n저장: ${path.relative(LEGAL, OUT)}/ (${rows.filter(r => r.items.length).length}개 파일)`);
+  console.log('■ 고정 ID');
+  console.log(`   옛 파일에서 이어받음 : ${carried.toLocaleString()}건 (그중 이미 확인 끝난 것 ${done.toLocaleString()}건)`);
+  console.log(`   새로 등록(새 ID)     : ${fresh.toLocaleString()}건`);
+  console.log(`   닫힘 절에 보존       : ${droppedDone.toLocaleString()}건 (감사는 해소라 하고, 사서 확인 근거가 남아 있는 것)`);
+  console.log(`   목록에서 버림        : ${dropped.toLocaleString()}건 (감사가 해소라 했고 사서 확인 근거도 없는 것)`);
+  console.log('     └ 버림 = 감사가 이번엔 그 줄을 미해소로 안 적었다는 뜻이다. 갑자기 크게 늘면 추출 규칙을 의심할 것.');
 }
