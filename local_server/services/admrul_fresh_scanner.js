@@ -60,8 +60,11 @@ const SCRIPT = path.join(LEGAL, '_dashboard', 'loop', 'admrul_fresh.py');
 // 법률·시행령·시행규칙용 형제 점검(2026-08-24 신설). 행정규칙과 묻는 것은 같고 대상만 다르다.
 const LAW_SCRIPT = path.join(LEGAL, '_dashboard', 'loop', 'law_fresh.py');
 // 1차에서 '이름불일치'로 남은 것을 **보유 일련번호로 본문을 열어 공식명을 받아** 다시 판정한다.
-// 실측(2026-08-24): 1차가 못 푼 60건 중 52건이 이 2차로 풀렸다. 이걸 안 돌리면 그 60건은
-// 매주 점검이 돌아도 영원히 확인되지 않는다.
+// 실측(2026-08-24): 1차가 못 푼 60건 중 **53건**이 이 2차로 판정됐고, 그중 2건은 다시 보니
+// 오탐이었다(보유 ID 가 딴 문서를 가리킴 · 일부러 남긴 구판 보존본) — 실제로 확인된 것은 51건,
+// 남은 이름불일치 7건. 오탐 둘은 각각 원인을 막았다(admrul_fresh.py 감시제외·보존본 판별,
+// admrul_fresh_pass2.py 의 shares_chunk 안전장치).
+// 이걸 안 돌리면 그 60건은 매주 점검이 돌아도 영원히 확인되지 않는다.
 const PASS2_SCRIPT = path.join(LEGAL, '_dashboard', 'loop', 'admrul_fresh_pass2.py');
 const DATA = path.join(__dirname, '..', 'data');
 const REPORT_FILE = path.join(DATA, 'admrul_fresh_report.json');
