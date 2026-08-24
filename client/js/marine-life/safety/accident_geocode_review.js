@@ -30,8 +30,14 @@
  *                 (1차 조사로 뽑은 의심 후보 origIndex 목록)
  *  - 지도       : OpenLayers(전역 ol, ol.source.OSM()) — 앱의 다른 지도와 별개로
  *                 이 화면 전용 인스턴스를 새로 만든다
+ *  - 관할 표시  : accident_codes.js 의 ACCIDENT_ORG_LABELS·accidentLabel() — 저장좌표
+ *                 마커 옆에 관할 해경서 이름을 라벨로 붙여, "이 관할서 소속인데 왜
+ *                 여기 찍혀 있지?"를 검수자가 지도에서 바로 판단하게 한다(자동 판정이
+ *                 아니라 사람 판단을 돕는 정보 표시일 뿐 — 2026-08-23 사용자 확정,
+ *                 관할해역 경계 데이터가 없고 원양사고는 정상적으로 관할서에서 멀리
+ *                 떨어질 수 있어 자동 제외는 하지 않기로 함)
  * [로드 순서] accident_info.js 다음(같은 버튼을 참조하지만 그 버튼의 마크업이
- *             이미 로드돼 있어야 하므로)
+ *             이미 로드돼 있어야 하므로, accident_codes.js 는 그보다도 먼저 로드됨)
  * ============================================================================
  */
 
@@ -112,11 +118,21 @@
 
     // ── 상태 ────────────────────────────────────────────────────────────
     var POS_IDX = 4; // hk 행: [lat, lon, ymd, hm, pos, typeCd, causeCd, shipCd, orgCd, rescue, death, missing]
+    var ORG_IDX = 8;
     var hkRows = null;
     var candidates = []; // [{origIndex, row, parsed, _expected}] — 텍스트 파싱 성공한 것만
     var cursor = 0;
-    var decisions = {}; // origIndex -> {action:'keep'|'delete'|'relocate', lat, lon}
+    // rowKey(내용 기반) -> {action:'keep'|'delete'|'relocate', lat, lon}. origIndex를 키로
+    // 쓰지 않는 이유: 서버에서 삭제를 반영할 때마다 뒤 행들의 번호가 당겨지는데, 브라우저
+    // 저장(localStorage)은 그걸 모르고 예전 번호 그대로 남아있다가 다음 회차 때 완전히 다른
+    // 행을 가리키는 판정으로 둔갑한다(2회차 반영 때 실제로 발생 확인, 2026-08-23). 내용 기반
+    // 키는 서버 쪽 번호가 밀려도 같은 사고 기록을 계속 같은 키로 가리킨다.
+    var decisions = {};
     var STORAGE_KEY = 'accidentGeocodeReviewDecisions_v1';
+
+    function rowKey(row) {
+        return row[2] + '|' + row[3] + '|' + row[4] + '|' + row[0] + '|' + row[1];
+    }
 
     function loadDecisions() {
         try { decisions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
@@ -176,7 +192,9 @@
             '<div id="agr-info">' +
             '<div>위치텍스트: <span class="agr-pos" id="agr-pos">-</span></div>' +
             '<div>발생일자: <span id="agr-ymd">-</span> · 어긋난 거리: <span id="agr-dist">-</span></div>' +
-            '<div class="agr-legend"><span><i class="agr-dot" style="background:#3d8bff"></i>저장된 좌표</span><span><i class="agr-dot" style="background:#ff5f74"></i>텍스트가 가리키는 곳</span></div>' +
+            '<div>관할: <span id="agr-org">-</span></div>' +
+            '<div>기준지명: <span id="agr-base">-</span></div>' +
+            '<div class="agr-legend"><span><i class="agr-dot" style="background:#3d8bff"></i>저장된 좌표</span><span><i class="agr-dot" style="background:#2ecc71"></i>기준지명 위치</span><span><i class="agr-dot" style="background:#ff5f74"></i>텍스트가 가리키는 곳</span></div>' +
             '</div>' +
             '<div id="agr-actions">' +
             '<button type="button" class="agr-keep" id="agr-btn-keep">유지</button>' +
@@ -192,6 +210,8 @@
         els.pos = document.getElementById('agr-pos');
         els.ymd = document.getElementById('agr-ymd');
         els.dist = document.getElementById('agr-dist');
+        els.org = document.getElementById('agr-org');
+        els.base = document.getElementById('agr-base');
         els.exportWrap = document.getElementById('agr-export-wrap');
         els.exportText = document.getElementById('agr-export-text');
 
@@ -264,7 +284,7 @@
 
     function firstUndecidedIndex() {
         for (var i = 0; i < candidates.length; i++) {
-            if (!decisions[candidates[i].origIndex]) return i;
+            if (!decisions[rowKey(candidates[i].row)]) return i;
         }
         return 0;
     }
@@ -291,7 +311,7 @@
             entry.lat = c._expected.lat;
             entry.lon = c._expected.lon;
         }
-        decisions[c.origIndex] = entry;
+        decisions[rowKey(c.row)] = entry;
         saveDecisions();
         move(1);
     }
@@ -301,17 +321,26 @@
         var total = candidates.length;
         if (!total) { els.progress.textContent = '대상 없음'; return; }
         var c = candidates[cursor];
-        var existing = decisions[c.origIndex];
+        var existing = decisions[rowKey(c.row)];
         els.progress.textContent = (cursor + 1) + ' / ' + total + (existing ? ' (판정됨: ' + labelForAction(existing.action) + ')' : '');
         els.pos.textContent = c.row[POS_IDX];
         els.ymd.textContent = formatYmd(c.row[2]);
         els.dist.textContent = '조회 중…';
+        els.org.textContent = accidentLabel(ACCIDENT_ORG_LABELS, c.row[ORG_IDX]);
+        els.base.textContent = '조회 중…';
 
         var actualLat = c.row[0], actualLon = c.row[1];
         var actualCoord = ol.proj.fromLonLat([actualLon, actualLat]);
         var actualFeature = new ol.Feature({ geometry: new ol.geom.Point(actualCoord) });
         actualFeature.setStyle(pointStyle('#3d8bff'));
         vectorSource.addFeature(actualFeature);
+
+        // 저장좌표 마커 옆에 관할 해경서 이름 표시 — "이 관할서 소속인데 왜 여기 찍혀
+        // 있지?"를 지도에서 바로 눈으로 판단할 수 있도록(2026-08-23 사용자 요청).
+        var orgLabelFeature = new ol.Feature({ geometry: new ol.geom.Point(actualCoord) });
+        orgLabelFeature.setStyle(labelStyle(els.org.textContent));
+        vectorSource.addFeature(orgLabelFeature);
+
         reviewMap.getView().setCenter(actualCoord);
         reviewMap.getView().setZoom(9);
 
@@ -319,8 +348,17 @@
             if (candidates[cursor] !== c) return; // 그새 다른 카드로 넘어갔으면 무시
             if (!baseCoord) {
                 els.dist.textContent = '기준지명을 찾지 못했습니다("' + c.parsed.base + '")';
+                els.base.textContent = '-';
                 return;
             }
+            c._baseCoord = baseCoord;
+
+            // 기준지명 위치(초록) — 예: "욕지도"가 실제로 어디로 검색됐는지
+            var baseCoordProj = ol.proj.fromLonLat([baseCoord.lon, baseCoord.lat]);
+            var baseFeature = new ol.Feature({ geometry: new ol.geom.Point(baseCoordProj) });
+            baseFeature.setStyle(pointStyle('#2ecc71'));
+            vectorSource.addFeature(baseFeature);
+
             var expected = destinationPoint(baseCoord.lat, baseCoord.lon, c.parsed.bearingDeg, c.parsed.distanceKm);
             c._expected = expected;
             var expectedCoord = ol.proj.fromLonLat([expected.lon, expected.lat]);
@@ -334,6 +372,13 @@
             }));
             vectorSource.addFeature(lineFeature);
 
+            // 기준지명 → 예상좌표: "욕지도"에서 실제로 파싱한 방위·거리만큼 이동했다는 걸 보여줌
+            var baseLineFeature = new ol.Feature({ geometry: new ol.geom.LineString([baseCoordProj, expectedCoord]) });
+            baseLineFeature.setStyle(new ol.style.Style({
+                stroke: new ol.style.Stroke({ color: '#2ecc71', width: 2, lineDash: [2, 3] })
+            }));
+            vectorSource.addFeature(baseLineFeature);
+
             var km = haversineKm(actualLat, actualLon, expected.lat, expected.lon);
             var nm = km / 1.852;
             var midCoord = ol.proj.fromLonLat([(actualLon + expected.lon) / 2, (actualLat + expected.lat) / 2]);
@@ -342,23 +387,37 @@
             vectorSource.addFeature(labelFeature);
 
             els.dist.textContent = km.toFixed(1) + 'km / ' + nm.toFixed(1) + '해리';
+            els.base.textContent = '"' + c.parsed.base + '" → (' + baseCoord.lat.toFixed(5) + ', ' + baseCoord.lon.toFixed(5) + ')에서 ' +
+                c.parsed.distanceKm.toFixed(1) + 'km 이동해 텍스트 위치 계산';
 
-            var extent = ol.extent.boundingExtent([actualCoord, expectedCoord]);
-            reviewMap.getView().fit(extent, { padding: [60, 30, 140, 30], maxZoom: 13, duration: 250 });
+            var extent = ol.extent.boundingExtent([actualCoord, expectedCoord, baseCoordProj]);
+            reviewMap.getView().fit(extent, { padding: [60, 30, 160, 30], maxZoom: 13, duration: 250 });
         });
     }
 
-    /** "삭제" 또는 "위치변경" 판정된 것만 모아 내보낸다("유지"는 원본 그대로라 대상 아님). */
+    /**
+     * 판정된 것을 전부 모아 내보낸다("유지"도 포함 — 판정이 끝난 건 서버 쪽 후보
+     * 목록(client/accident_geocode_candidates.json)에서 빼야 다음에 다시 안 뜬다.
+     * 이 화면 자체는 브라우저(localStorage)에만 저장하므로, 기기를 바꾸거나 캐시를
+     * 지우면 판정 이력이 사라진다 — "내보내기"로 받은 결과를 실제 반영해야 영구적으로
+     * 후보 목록에서 제외된다). decisions 객체를 직접 순회하지 않고 반드시 "지금 이
+     * 세션에서 불러온 candidates 목록"을 기준으로 순회한다 — decisions 는 이전 회차의
+     * 판정도 계속 들고 있는데(내용 기반 키라 서버 번호가 밀려도 안전하지만, 이미 서버에
+     * 반영돼 후보 목록에서 빠진 행은 여전히 decisions 에 남아있을 수 있음), 그런 건 지금
+     * candidates 에 없으므로 이렇게 하면 자동으로 내보내기에서 빠진다.
+     */
     function exportResults() {
+        var keepList = [];
         var deleteList = [];
         var relocateList = [];
-        Object.keys(decisions).forEach(function (origIndexStr) {
-            var origIndex = parseInt(origIndexStr, 10);
-            var d = decisions[origIndexStr];
-            if (d.action === 'delete') deleteList.push(origIndex);
-            else if (d.action === 'relocate') relocateList.push({ origIndex: origIndex, lat: d.lat, lon: d.lon });
+        candidates.forEach(function (c) {
+            var d = decisions[rowKey(c.row)];
+            if (!d) return;
+            if (d.action === 'keep') keepList.push(c.origIndex);
+            else if (d.action === 'delete') deleteList.push(c.origIndex);
+            else if (d.action === 'relocate') relocateList.push({ origIndex: c.origIndex, lat: d.lat, lon: d.lon });
         });
-        var out = { hk_delete: deleteList, hk_relocate: relocateList };
+        var out = { hk_keep: keepList, hk_delete: deleteList, hk_relocate: relocateList };
         els.exportText.value = JSON.stringify(out);
         els.exportWrap.style.display = 'block';
     }
