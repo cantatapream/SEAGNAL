@@ -237,6 +237,13 @@
  * [선박(해경) 좌표 오류 9차 6건 삭제(2026-08-25)] 검수 모드로 사용자가 직접 확인해
  *   내보낸 목록을 원본에서 삭제 — 같은 방식으로 8차까지 이어온 것과 동일.
  *   23,427 → 23,421건.
+ * [심판원 신규 CSV 좌표 검수 레이어 추가(2026-08-25)] 검수 모드(10회 연타)로 들어간
+ *   상태에서 같은 버튼을 5회 더 누르면, 아직 앱 정식 데이터가 아닌 해양안전심판원
+ *   신규 CSV(2021~2025)의 좌표만 파란 점으로 지도에 뿌려 도분초→십진도 변환이
+ *   맞는지 눈으로 확인할 수 있게 했다("경위도 정보가 제대로 반영되었는지 보기 위해"
+ *   — 사용자 요청). 데이터는 local_server/scripts/build_tribunal_review.js 가
+ *   client/accident_tribunal_review.json 으로 미리 변환해둔 것을 그대로 fetch —
+ *   필터·팝업 없이 좌표만 있는 확인 전용 레이어라 SOURCES 정식 등록은 안 함.
  * ============================================================================
  */
 
@@ -391,6 +398,14 @@
     var _reviewModeTapTimer = null;
     var flaggedItems = new Map(); // "key:origIndex" -> {key, idx, row}
     var flagLayer = null;         // 빨간 테두리 오버레이(소스 무관 공용)
+
+    // 심판원 신규 CSV 좌표 검수 레이어 — 검수 모드 진입 후 같은 버튼 5회 더 연타로 토글.
+    var TRIBUNAL_REVIEW_TAP_THRESHOLD = 5;
+    var _tribunalReviewTapCount = 0;
+    var _tribunalReviewTapTimer = null;
+    var TRIBUNAL_REVIEW_ON = false;
+    var tribunalReviewLayer = null;
+    var tribunalReviewPromise = null;
 
     // ── 데이터 로드 ─────────────────────────────────────────────────────────
     function fetchSource(key) {
@@ -1002,6 +1017,50 @@
         flaggedItems.forEach(function (item) {
             source.addFeature(new ol.Feature({ geometry: new ol.geom.Point(item.coord) }));
         });
+    }
+
+    /** 심판원 검수용 좌표 JSON 을 한 번만 fetch 한다. */
+    function fetchTribunalReview() {
+        if (!tribunalReviewPromise) {
+            tribunalReviewPromise = fetch('/accident_tribunal_review.json').then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            }).then(function (data) { return data.rows || []; });
+        }
+        return tribunalReviewPromise;
+    }
+
+    function ensureTribunalReviewLayer(map) {
+        if (tribunalReviewLayer) return tribunalReviewLayer;
+        var style = new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 5,
+                fill: new ol.style.Fill({ color: '#2d8cff' }),
+                stroke: new ol.style.Stroke({ color: '#fff', width: 1 })
+            })
+        });
+        tribunalReviewLayer = new ol.layer.Vector({
+            source: new ol.source.Vector(), style: style, zIndex: 59, visible: false
+        });
+        map.addLayer(tribunalReviewLayer);
+        return tribunalReviewLayer;
+    }
+
+    /** 검수 모드에서 5회 더 연타 시 호출 — 심판원 신규 CSV 좌표 점을 켜고 끈다. */
+    function toggleTribunalReviewLayer(map) {
+        var layer = ensureTribunalReviewLayer(map);
+        TRIBUNAL_REVIEW_ON = !TRIBUNAL_REVIEW_ON;
+        layer.setVisible(TRIBUNAL_REVIEW_ON);
+        if (TRIBUNAL_REVIEW_ON && layer.getSource().getFeatures().length === 0) {
+            fetchTribunalReview().then(function (rows) {
+                var source = layer.getSource();
+                rows.forEach(function (row) {
+                    var f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([row[1], row[0]])) });
+                    f.set('caseNo', row[2]);
+                    source.addFeature(f);
+                });
+            });
+        }
     }
 
     /** 낱개 마커 클릭 시 상세 팝업과 별개로 빨간 테두리 선택을 토글한다(검수 모드 전용). */
@@ -1759,7 +1818,17 @@
             });
             // 검수 모드 트리거 — 위 팝아웃 열기/닫기와 별개로 같은 버튼에 탭 횟수만 센다.
             toggleBtn.addEventListener('click', function () {
-                if (REVIEW_MODE) return;
+                if (REVIEW_MODE) {
+                    // 검수 모드 안에서는 같은 버튼 5회 더 연타로 심판원 좌표 검수 레이어를 토글.
+                    _tribunalReviewTapCount++;
+                    clearTimeout(_tribunalReviewTapTimer);
+                    _tribunalReviewTapTimer = setTimeout(function () { _tribunalReviewTapCount = 0; }, REVIEW_MODE_TAP_RESET_MS);
+                    if (_tribunalReviewTapCount < TRIBUNAL_REVIEW_TAP_THRESHOLD) return;
+                    _tribunalReviewTapCount = 0;
+                    var map = window.getOceanMap && window.getOceanMap();
+                    if (map) toggleTribunalReviewLayer(map);
+                    return;
+                }
                 _reviewModeTapCount++;
                 clearTimeout(_reviewModeTapTimer);
                 _reviewModeTapTimer = setTimeout(function () { _reviewModeTapCount = 0; }, REVIEW_MODE_TAP_RESET_MS);
