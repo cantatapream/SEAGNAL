@@ -244,6 +244,12 @@
  *   — 사용자 요청). 데이터는 local_server/scripts/build_tribunal_review.js 가
  *   client/accident_tribunal_review.json 으로 미리 변환해둔 것을 그대로 fetch —
  *   필터·팝업 없이 좌표만 있는 확인 전용 레이어라 SOURCES 정식 등록은 안 함.
+ * [사고유형 필터 — "좌초/좌주"를 "좌초"에 합침(2026-08-25)] 심판원 데이터 통합 논의 중
+ *   hk 사고유형 필터에 좌초(ATY023)·좌주(ATY022)·좌초/좌주(ATY041) 3개가 따로 나오는 걸
+ *   확인, 사용자가 좌초/좌주를 좌초로 합치자고 확정. 근거: 좌주(ATY022) 단독코드는
+ *   2013년까지만 쓰이고 이후 hk 원본 자체가 안 씀 — 지금 다루는 기간(2016~)엔 사실상
+ *   좌초·좌초/좌주 둘뿐이라 하나로 봐도 정보 손실이 없다. `typeFilterCode()`로 필터
+ *   옵션 집계·매칭에서만 ATY041→ATY023 취급(마커 아이콘·상세 팝업은 원래 코드 유지).
  * ============================================================================
  */
 
@@ -334,7 +340,7 @@
      * @returns {boolean}
      */
     function passesFilters(key, row) {
-        if (filters.types && !filters.types.has(typeCodeOf(key, row))) return false;
+        if (filters.types && !filters.types.has(typeFilterCode(typeCodeOf(key, row)))) return false;
         if (filters.orgs) {
             var org = row[ORG_POS_IDX[key]];
             if (!filters.orgs.has(org)) return false;
@@ -422,6 +428,14 @@
     function typeCodeOf(key, row) {
         if (key === 'hk') return row[5];
         return row[4]; // person
+    }
+
+    /** 사고유형 필터 전용 — "좌초/좌주"(ATY041)를 "좌초"(ATY023)로 합쳐서 센다(사용자
+     * 확정 2026-08-25). hk 좌주 단독코드(ATY022)는 2013년까지만 쓰이고 이후엔 안 써서
+     * 심판원 통합 대상 기간(2016~)엔 사실상 좌초/좌초·좌주 둘뿐이라 하나로 봐도 무방
+     * — 마커 아이콘·팝업 상세는 원래 코드 그대로 두고, 필터 옵션·매칭에만 적용한다. */
+    function typeFilterCode(code) {
+        return code === 'ATY041' ? 'ATY023' : code;
     }
 
     /**
@@ -1355,7 +1369,7 @@
     /** 사고유형 옵션 — "-"(코드 없음)·"기타"(정확히 그 라벨인 것만, "기타(인명)" 등은
      * 남김)는 목록에서 뺀다(사용자 확정 2026-08-25). */
     function buildTypeOptions() {
-        var opts = buildValueOptions(function (r) { return typeCodeOf(state.source, r); }, ACCIDENT_TYPE_LABELS, 'types')
+        var opts = buildValueOptions(function (r) { return typeFilterCode(typeCodeOf(state.source, r)); }, ACCIDENT_TYPE_LABELS, 'types')
             .filter(function (o) { return o.value != null && o.value !== '' && o.label !== '기타'; });
         opts.forEach(function (o, i) { o.__origIdx = i; }); // 건수 내림차순이던 원래 순서 보존
         return opts.sort(function (a, b) {
