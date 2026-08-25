@@ -244,6 +244,16 @@
  *   — 사용자 요청). 데이터는 local_server/scripts/build_tribunal_review.js 가
  *   client/accident_tribunal_review.json 으로 미리 변환해둔 것을 그대로 fetch —
  *   필터·팝업 없이 좌표만 있는 확인 전용 레이어라 SOURCES 정식 등록은 안 함.
+ * [위 레이어를 hk/person 과 같은 클러스터링으로 교체(2026-08-25)] 처음엔 순수
+ *   ol.source.Vector 에 고정 스타일(파란 점)만 얹어 줌과 무관하게 16,889건이
+ *   전부 그대로 찍혔다 — 사용자가 "우리가 설정한 클러스터 모양이 아니라 낱개
+ *   포인터로, 줌 레벨과 무관하게 다 뜬다. 동일하게 맞춰 달라고 했잖아"라고 지적.
+ *   buildClusterLayer(hk/person 이 쓰는 바로 그 함수)를 재사용해 줌 기반 뭉치기
+ *   (CLUSTER_DISTANCE·SPREAD_ZOOM)·클러스터 대표점 계산까지 동일하게 맞췄다.
+ *   원본 CSV엔 사고유형 컬럼이 없어(row=[lat,lon,caseNo] 3필드) 유형별 아이콘은
+ *   못 붙이지만, 그 부분만 빼면 뭉치는 거리·줌 임계값은 완전히 같다(낱개는
+ *   fallbackStyle 파란 점, 클러스터는 숫자만 있는 빨간 원 — 실제 레이어에서
+ *   아이콘 없는 유형을 그릴 때와 같은 스타일).
  * [사고유형 필터 — "좌초/좌주"를 "좌초"에 합침(2026-08-25)] 심판원 데이터 통합 논의 중
  *   hk 사고유형 필터에 좌초(ATY023)·좌주(ATY022)·좌초/좌주(ATY041) 3개가 따로 나오는 걸
  *   확인, 사용자가 좌초/좌주를 좌초로 합치자고 확정. 근거: 좌주(ATY022) 단독코드는
@@ -351,11 +361,17 @@
      *                  OR(그 중 하나라도 발효중이면 통과) — AND 로 하면 해상 사고는
      *                  강풍과 원래 무관해 대부분 사라져버리기 때문.
      *   - shipUses      : Set<string> | null — 선박용도(SHIPUSE_POS_IDX 위치, 심판원
-     *                     통합 2026-08-25로 생긴 값). hk 전용, 심판원 매칭/단독 행에만
-     *                     값이 있고 나머지는 null(판단 불가 — 통과 취급, hourRanges와
-     *                     같은 원칙).
+     *                     통합 2026-08-25로 생긴 값). hk 전용, 심판원 매칭 연도(2016·
+     *                     2021~2025)에만 값이 있고 그 외 연도(2008~2015·2017~2020)는
+     *                     전부 null. 값 없는 행은 **제외**(hourRanges/warnTypes와
+     *                     다름 — 그쪽은 "그 소스엔 거의 항상 값이 있는데 극히 일부만
+     *                     없음"이라 판단 불가로 통과시켜도 되지만, 선박용도·톤수는
+     *                     아예 없는 연도가 통째로 있어 "통과"로 두면 필터를 걸어도
+     *                     거의 안 줄어드는 것처럼 보인다 — 사용자 확정 2026-08-25).
+     *                     실제 필터를 걸면(전체→선택) window._showOceanToast 로
+     *                     "OO 정보는 YYYY년 사고에만 있다"는 안내를 함께 띄운다.
      *   - tonnageRanges : [[minTon,maxTon), ...] | null — 톤수(TONNAGE_POS_IDX 위치).
-     *                     hk 전용, 값 없는 행(null)은 통과 취급.
+     *                     hk 전용, shipUses 와 같은 이유로 값 없는 행(null)은 제외.
      */
     var filters = { types: null, orgs: null, hourRanges: null, seasons: null, warnTypes: null, shipUses: null, tonnageRanges: null };
 
@@ -430,15 +446,21 @@
             if (!anyActive) return false;
         }
         if (filters.shipUses) {
+            // 톤수와 달리 여기는 "판단 불가=통과"가 아니라 "정보 없음=제외"다(사용자
+            // 확정 2026-08-25) — hourRanges/warnTypes 처럼 값이 그 소스에 거의 항상
+            // 있는 게 아니라, 선박용도·톤수는 심판원 매칭 연도(2016·2021~2025)에만
+            // 있고 그 외 연도(2008~2015·2017~2020)엔 아예 없다. "값 없음=통과"로
+            // 두면 이 필터를 걸어도 데이터 없는 연도가 전부 같이 남아 필터가 거의
+            // 안 먹는 것처럼 보인다(사용자가 스크린샷으로 지적).
             var shipUse = row[SHIPUSE_POS_IDX[key]];
-            if (shipUse != null && !filters.shipUses.has(shipUse)) return false;
+            if (shipUse == null || !filters.shipUses.has(shipUse)) return false;
         }
         if (filters.tonnageRanges) {
+            // 위 shipUses 와 같은 이유로 "정보 없음=제외".
             var tonnage = row[TONNAGE_POS_IDX[key]];
-            if (tonnage != null) {
-                var inAnyT = filters.tonnageRanges.some(function (r) { return tonnage >= r[0] && tonnage < r[1]; });
-                if (!inAnyT) return false;
-            }
+            if (tonnage == null) return false;
+            var inAnyT = filters.tonnageRanges.some(function (r) { return tonnage >= r[0] && tonnage < r[1]; });
+            if (!inAnyT) return false;
         }
         return true;
     }
@@ -1126,37 +1148,35 @@
         return tribunalReviewPromise;
     }
 
+    /** hk/person 과 똑같은 줌 기반 클러스터링(buildClusterLayer) 재사용(사용자 확정
+     * 2026-08-25: "동일하게 맞춰 달라") — 낱개 점만 찍던 이전 구현은 줌과 무관하게
+     * 전부 다 보여 실제 서비스 마커와 다르게 보였다. 원본 CSV엔 사고유형 컬럼이
+     * 없어(row=[lat,lon,caseNo] 3필드뿐) 유형별 아이콘은 못 붙이지만, 그 외
+     * 뭉치기 거리·줌 임계값(SPREAD_ZOOM)·클러스터 대표점 계산은 완전히 동일하다
+     * (typeCode 가 없는 낱개 마커는 fallbackStyle 파란 점, 클러스터는 숫자만 있는
+     * 빨간 원 — 실제 마커에서 아이콘 없는 사고유형을 표시할 때와 같은 스타일).
+     * zIndex 만 다른 검수용 레이어(flagLayer=58) 위에 오도록 59로 따로 얹는다
+     * (buildClusterLayer 기본값 56은 hk/person 레이어와 같은 층). */
     function ensureTribunalReviewLayer(map) {
-        if (tribunalReviewLayer) return tribunalReviewLayer;
-        var style = new ol.style.Style({
-            image: new ol.style.Circle({
-                radius: 5,
-                fill: new ol.style.Fill({ color: '#2d8cff' }),
-                stroke: new ol.style.Stroke({ color: '#fff', width: 1 })
-            })
+        if (tribunalReviewLayer) return Promise.resolve(tribunalReviewLayer);
+        return fetchTribunalReview().then(function (rows) {
+            var features = rows.map(function (row) {
+                var f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([row[1], row[0]])) });
+                f.set('caseNo', row[2]);
+                return f;
+            });
+            tribunalReviewLayer = buildClusterLayer(map, 'tribunalReview', features);
+            tribunalReviewLayer.setZIndex(59);
+            return tribunalReviewLayer;
         });
-        tribunalReviewLayer = new ol.layer.Vector({
-            source: new ol.source.Vector(), style: style, zIndex: 59, visible: false
-        });
-        map.addLayer(tribunalReviewLayer);
-        return tribunalReviewLayer;
     }
 
-    /** 검수 모드에서 5회 더 연타 시 호출 — 심판원 신규 CSV 좌표 점을 켜고 끈다. */
+    /** 검수 모드에서 5회 더 연타 시 호출 — 심판원 신규 CSV 좌표 클러스터 레이어를 켜고 끈다. */
     function toggleTribunalReviewLayer(map) {
-        var layer = ensureTribunalReviewLayer(map);
         TRIBUNAL_REVIEW_ON = !TRIBUNAL_REVIEW_ON;
-        layer.setVisible(TRIBUNAL_REVIEW_ON);
-        if (TRIBUNAL_REVIEW_ON && layer.getSource().getFeatures().length === 0) {
-            fetchTribunalReview().then(function (rows) {
-                var source = layer.getSource();
-                rows.forEach(function (row) {
-                    var f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([row[1], row[0]])) });
-                    f.set('caseNo', row[2]);
-                    source.addFeature(f);
-                });
-            });
-        }
+        ensureTribunalReviewLayer(map).then(function (layer) {
+            layer.setVisible(TRIBUNAL_REVIEW_ON);
+        });
     }
 
     /** 낱개 마커 클릭 시 상세 팝업과 별개로 빨간 테두리 선택을 토글한다(검수 모드 전용). */
@@ -1475,6 +1495,33 @@
 
     /** 선박용도 옵션 — 값 자체가 이미 한글 문자열(코드 아님)이라 라벨표 없이 그대로 쓴다. */
     function buildShipUseOptions() { return buildValueOptions(function (r) { return r[SHIPUSE_POS_IDX.hk]; }, null, 'shipUses'); }
+
+    /** 연속된 연도들을 "2016, 2021~2025"처럼 구간으로 묶어 표기(선박용도·톤수 필터를
+     * 실제로 걸 때 "이 정보는 몇 년도 사고에만 있다" 안내 토스트에 씀). */
+    function formatYearRanges(years) {
+        var sorted = Array.from(years).map(Number).sort(function (a, b) { return a - b; });
+        var ranges = [];
+        var start = null, prev = null;
+        sorted.forEach(function (y) {
+            if (start == null) { start = y; prev = y; return; }
+            if (y === prev + 1) { prev = y; return; }
+            ranges.push(start === prev ? String(start) : start + '~' + prev);
+            start = y; prev = y;
+        });
+        if (start != null) ranges.push(start === prev ? String(start) : start + '~' + prev);
+        return ranges.map(function (r) { return r + '년'; }).join(', ');
+    }
+
+    /** posIdx 위치에 실제 값이 있는 hk 행들의 발생연도 집합 — 위 formatYearRanges 와 짝. */
+    function yearsWithValue(posIdx) {
+        var feats = rawFeatures.hk || [];
+        var years = new Set();
+        feats.forEach(function (f) {
+            var row = f.get('row');
+            if (row[posIdx] != null) years.add(String(row[2]).slice(0, 4));
+        });
+        return years;
+    }
 
     /** 특보종류 옵션 — 소스별로 의미있는 종류만(hk 는 태풍·풍랑, person 은 +강풍).
      * 값이 배열(다중 발효 가능)이라 buildValueOptions 의 단일값 카운트 방식을 못 쓰고 별도 구현. */
@@ -1818,11 +1865,21 @@
             } else if (key === 'shipUses') {
                 openCheckboxFilterPopup('선박용도', buildShipUseOptions(), filters.shipUses, function (sel) {
                     filters.shipUses = sel;
+                    if (sel && typeof window._showOceanToast === 'function') {
+                        window._showOceanToast(
+                            '선박용도 정보는 ' + formatYearRanges(yearsWithValue(SHIPUSE_POS_IDX.hk)) + ' 사고에만 있어, 그 외 사고는 결과에서 제외됩니다.',
+                            'bottom', 3500);
+                    }
                     onFiltersChanged(map);
                 });
             } else if (key === 'tonnageRanges') {
                 openTonnageRangeFilterPopup(filters.tonnageRanges, function (val) {
                     filters.tonnageRanges = val;
+                    if (val && typeof window._showOceanToast === 'function') {
+                        window._showOceanToast(
+                            '톤수 정보는 ' + formatYearRanges(yearsWithValue(TONNAGE_POS_IDX.hk)) + ' 사고에만 있어, 그 외 사고는 결과에서 제외됩니다.',
+                            'bottom', 3500);
+                    }
                     onFiltersChanged(map);
                 });
             }
