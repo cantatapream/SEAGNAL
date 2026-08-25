@@ -8733,6 +8733,16 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-popup .row span:first-child { color: var(--text-sub); flex: none; }
 .accident-popup .row span:last-child { text-align: right; }
 
+/* 관할서 불일치 검수 팝업(사고정보 20회 연타) — 21개 관할서 버튼 그리드로 21개를
+   한 줄 260px 안에 못 넣어 이 팝업만 더 넓힌다(accident_info.js renderJurisdictionPopup). */
+.accident-popup.jrp-mode { max-width: 320px; }
+.accident-popup .jrp-pick-label { margin-top: 8px; margin-bottom: 4px; color: var(--text-sub); font-size: 0.72rem; }
+.accident-popup .jrp-pick-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.accident-popup .jrp-pick-btn { font-size: 0.68rem; padding: 4px 2px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); cursor: pointer; }
+.accident-popup .jrp-pick-btn.jrp-recorded { border-color: #ff9f0a; color: #ff9f0a; } /* 현재 기록된 관할서 */
+.accident-popup .jrp-pick-btn.jrp-expected { border-color: #30d158; color: #30d158; } /* 폴리곤 판정 관할서 */
+.accident-popup .jrp-pick-btn.jrp-chosen { background: #ff2d55; border-color: #ff2d55; color: #fff; font-weight: 700; } /* 검수자가 고른 것 */
+
 /* 분석 모드 — 격자 클릭 시 뜨는 통계 바텀시트 (.ocean-bottom-sheet 톤 재사용) */
 .accident-stats-sheet {
     position: fixed;
