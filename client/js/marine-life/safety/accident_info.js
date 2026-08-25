@@ -173,8 +173,11 @@
  *   25,990 → 23,542건.
  * [필터 바 — 사고유형·관할서·시간대·계절(2026-08-24 사용자 확정)] "지금은 사고마커에
  *   관한 모든 정보가 다 표출되는데, 필터로 손쉽게 골라 보고 싶다"는 요청으로 추가.
- *   현황(마커 표출)은 사고유형 필터만, 분석(격자 집계)은 관할서·사고유형·시간대·계절
- *   4개를 전부 지원한다(#ocean-accident-mode-toggle 바로 아래 #accident-filter-bar,
+ *   처음엔 현황(마커 표출)은 사고유형 필터만, 분석(격자 집계)은 관할서·사고유형·시간대·
+ *   계절 4개를 지원했으나, 현황에서도 똑같이 다양한 필터를 쓰고 싶다는 요청으로 5개
+ *   전부(+특보) 현황·분석 공통 노출로 바뀌었다(2026-08-25 사용자 확정 — index2.html
+ *   버튼의 data-mode-only 속성 제거, updateFilterBarModeVisibility 는 이제 위치
+ *   재계산만 함). #ocean-accident-mode-toggle 바로 아래 #accident-filter-bar,
  *   index2.html 정적 마크업 + style.css). 버튼을 누르면 체크박스 다중선택 팝업(관할서·
  *   유형·계절 공용) 또는 시간대 전용 팝업(4시간 간격 프리셋 다중토글 + 임의 범위를
  *   칩으로 추가하는 직접 설정)이 뜨고, 확인을 누르면 버튼 라벨이 "N개 선택"으로
@@ -216,10 +219,24 @@
  *     필터 5개(types·orgs·hourRanges·seasons·warnTypes) 전부 null 로 되돌린다.
  *   - 사고유형 체크박스 순서를 충돌·침몰·전복·화재·좌초·좌주·폭발·표류·접촉 9개 먼저,
  *     나머지는 원래 순서(건수 내림차순) 그대로 뒤에 붙도록 고정(TYPE_ORDER_PRIORITY).
+ * [현황도 필터 5개 다 노출(2026-08-25 사용자 확정)] 관할서·시간대·계절·특보가 분석
+ *   모드에서만 보였는데, 현황(마커)에서도 똑같이 다양한 필터를 쓰고 싶다는 요청으로
+ *   5개 전부 현황·분석 공통 노출로 바꿈. passesFilters() 는 원래 모드와 무관하게
+ *   전부 판정하므로 코드 로직 변경은 없고, index2.html 버튼의 data-mode-only 속성만
+ *   제거(updateFilterBarModeVisibility 도 위치 재계산만 하도록 단순화).
+ * [바텀시트(그리드형 사고분석)가 하단 탭 바에 가려 잘리던 문제 수정(2026-08-25)]
+ *   `.accident-stats-sheet` 가 `bottom:0` 이라 index2.html #bottom-tab-bar(하단
+ *   메인탭)와 겹쳐 "사고발생상세" 탭 등 아래쪽 내용이 잘려 보였다(사용자 스크린샷
+ *   확인). index2.html이 다른 하단 고정 요소(#ocean-map-section 등)에 이미 쓰는
+ *   `--main-tab-height`(JS 실측, safe-area 포함) 로 `bottom` 값을 바꿔 탭 바 위에
+ *   앉도록 수정(style.css).
  * [orgCd=1750000("국민안전처") 데이터 삭제(2026-08-25)] "관할 미상"(orgCd=0)과 같은 성격
  *   (다른 1750xxx 코드는 전부 구체적 해양경찰서로 매핑됐는데 이것만 특정 못 한 값)이라
  *   사용자 요청으로 원본 데이터에서 삭제(hk 115건·person 4건). 근거는
  *   `shared/utils/accident_codes.js` 헤더 참고.
+ * [선박(해경) 좌표 오류 9차 6건 삭제(2026-08-25)] 검수 모드로 사용자가 직접 확인해
+ *   내보낸 목록을 원본에서 삭제 — 같은 방식으로 8차까지 이어온 것과 동일.
+ *   23,427 → 23,421건.
  * ============================================================================
  */
 
@@ -1527,13 +1544,11 @@
         if (show) positionFilterBar();
     }
 
-    /** 모드에 따라 관할서·시간대·계절 버튼을 숨기고(현황) 다시 보인다(분석) — 사고유형은 항상 노출. */
+    /** 필터 바 위치 재계산 — 모드 전환 시 모드토글 높이가 바뀔 수 있어 호출된다.
+     * (예전엔 관할서·시간대·계절을 분석 모드에서만 보였으나, 현황에서도 똑같이
+     * 다양한 필터를 쓰고 싶다는 요청으로 5개 다 항상 노출로 바뀌어 이제 위치
+     * 재계산만 한다 — 사용자 확정 2026-08-25.) */
     function updateFilterBarModeVisibility() {
-        var bar = document.getElementById('accident-filter-bar');
-        if (!bar) return;
-        Array.prototype.forEach.call(bar.querySelectorAll('[data-mode-only]'), function (btn) {
-            btn.style.display = (btn.dataset.modeOnly === state.mode) ? 'block' : 'none';
-        });
         positionFilterBar();
     }
 

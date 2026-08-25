@@ -8736,7 +8736,13 @@ html[data-font-size="large"] .ocean-overlay-btn {
 /* 분석 모드 — 격자 클릭 시 뜨는 통계 바텀시트 (.ocean-bottom-sheet 톤 재사용) */
 .accident-stats-sheet {
     position: fixed;
-    left: 0; right: 0; bottom: 0;
+    left: 0; right: 0;
+    /* index2.html #bottom-tab-bar(하단 메인탭, z:60)에 가려 바닥 내용이 잘리던
+       문제(2026-08-25 사용자 보고) — index2.html이 이미 쓰는 --main-tab-height
+       (JS 실측, safe-area 포함) 로 탭 바 위에 앉히는 같은 패턴 적용
+       (#ocean-map-section 등 참고). safe-area 는 그 변수에 이미 포함돼 있어
+       여기서 env() 를 또 더하지 않는다(index2.html 상단 주석 참고, 중복 방지). */
+    bottom: var(--main-tab-height, 68px);
     max-height: 62vh;
     background: linear-gradient(180deg, #0c1a3a 0%, #162d5a 100%);
     border-radius: 20px 20px 0 0;
@@ -8745,7 +8751,6 @@ html[data-font-size="large"] .ocean-overlay-btn {
     box-shadow: 0 -4px 30px rgba(0,0,0,0.5);
     transform: translateY(100%);
     transition: transform 0.28s cubic-bezier(0.22,1,0.36,1);
-    padding-bottom: env(safe-area-inset-bottom);
 }
 .accident-stats-sheet.open { transform: translateY(0); }
 .accident-sheet-handle {
