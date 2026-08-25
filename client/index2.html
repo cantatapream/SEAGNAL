@@ -962,6 +962,14 @@
             margin-top: 6px;
             pointer-events: auto;
         }
+        /* 선택 초기화 버튼 — 모드토글(고정폭 120px) 바로 오른쪽. */
+        #ocean-topleft-controls > #accident-filter-reset-btn {
+            position: absolute !important;
+            top: 100%;
+            left: 128px;
+            margin-top: 6px;
+            pointer-events: auto;
+        }
         /* 필터 바 — top 은 accident_info.js 가 모드토글 실측 높이로 매번 인라인 설정
            (글자 크기 설정에 따라 모드토글 높이가 달라져 고정 px로 못 잡음). */
         #ocean-topleft-controls > #accident-filter-bar {
@@ -3475,6 +3483,10 @@
                             <button class="active" data-mode="status">현황</button>
                             <button data-mode="analysis">분석</button>
                         </div>
+
+                        <!-- 선택 초기화 버튼(2026-08-25 사용자 확정) — 모드토글 오른쪽에 위치,
+                             걸어둔 필터(사고유형·관할서·시간대·계절·특보) 전부 해제. -->
+                        <button type="button" class="accident-filter-reset-btn" id="accident-filter-reset-btn" style="display:none;">선택 초기화</button>
 
                         <!-- 사고정보 필터 바(2026-08-24 사용자 확정) — 사고유형은 현황·분석
                              둘 다에서 보이고, 관할서·시간대·계절은 분석 모드에서만 보인다

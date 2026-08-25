@@ -8699,6 +8699,24 @@ html[data-font-size="large"] .ocean-overlay-btn {
     color: #241a00;
 }
 
+/* 선택 초기화 버튼(2026-08-25) — 모드토글과 같은 톤의 알약형 버튼. */
+.accident-filter-reset-btn {
+    background: rgba(10, 15, 28, 0.94);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-sub);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.accident-filter-reset-btn:active {
+    color: var(--accent-yellow);
+}
+
 /* 마커 팝업 (현황 모드) — .tide-popup 과 같은 톤 */
 .accident-popup {
     background: var(--card-bg);
@@ -8888,20 +8906,28 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-filter-check-row .label { flex: 1; }
 .accident-filter-check-row .n { color: var(--text-sub); font-size: 0.72rem; }
 .accident-filter-empty { padding: 20px 4px; text-align: center; color: var(--text-sub); font-size: 0.8rem; }
+/* "전체 선택" 행(2026-08-25) — 개별 옵션들과 구분되도록 굵게 + 아래 구분선 강조 */
+.accident-filter-check-all { font-weight: 700; border-bottom: 1px solid var(--border-color); }
 
 /* 시간대 팝업 전용 — 4시간 간격 프리셋 버튼(다중선택) + 직접 설정 */
 .accident-filter-hour-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
 .accident-filter-hour-preset {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
     border: 1px solid var(--border-color);
     background: rgba(255,255,255,0.05);
     color: var(--text-main);
-    padding: 12px 6px;
+    padding: 10px 6px;
     border-radius: 8px;
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
 }
+.accident-filter-hour-preset .n { font-size: 0.68rem; font-weight: 400; color: var(--text-sub); }
 .accident-filter-hour-preset.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #05070d; }
+.accident-filter-hour-preset.active .n { color: #05070d; opacity: 0.75; }
 .accident-filter-hour-custom { border-top: 1px solid var(--border-color); padding-top: 12px; }
 .accident-filter-hour-custom-label { font-size: 0.7rem; color: var(--text-sub); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
 .accident-filter-hour-custom-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
