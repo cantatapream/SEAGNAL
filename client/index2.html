@@ -3485,21 +3485,26 @@
                         </div>
 
                         <!-- 선택 초기화 버튼(2026-08-25 사용자 확정) — 모드토글 오른쪽에 위치,
-                             걸어둔 필터(사고유형·관할서·시간대·계절·특보) 전부 해제. -->
+                             걸어둔 필터(사고유형·관할서·시간대·계절·특보·선박용도·톤수) 전부 해제. -->
                         <button type="button" class="accident-filter-reset-btn" id="accident-filter-reset-btn" style="display:none;">선택 초기화</button>
 
-                        <!-- 사고정보 필터 바(2026-08-24 사용자 확정) — 사고유형은 현황·분석
-                             둘 다에서 보이고, 관할서·시간대·계절은 분석 모드에서만 보인다
-                             (accident_info.js updateFilterBarModeVisibility 가 data-mode-only
-                             속성 있는 버튼을 mode==='analysis' 일 때만 노출). 세로 위치(top)는
-                             글자 크기 설정에 따라 #ocean-accident-mode-toggle 높이가 달라져
-                             고정 px로 못 잡으므로 JS가 매번 실측해서 인라인으로 채운다. -->
+                        <!-- 사고정보 필터 바 — 처음엔 관할서·시간대·계절·특보가 분석 모드에서만
+                             보였으나(2026-08-24), 현황에서도 똑같이 다양한 필터를 쓰고 싶다는
+                             요청으로 5개 전부 현황·분석 공통 노출로 변경(2026-08-25 사용자 확정).
+                             (data-mode-only 속성은 더는 안 씀 — updateFilterBarModeVisibility 는
+                             이제 위치 재계산만 함). 세로 위치(top)는 글자 크기 설정에 따라
+                             #ocean-accident-mode-toggle 높이가 달라져 고정 px로 못 잡으므로
+                             JS가 매번 실측해서 인라인으로 채운다.
+                             선박용도·톤수(2026-08-25 추가) — 해양안전심판원 데이터 통합으로 생긴
+                             필드, hk 전용(person 소스엔 없어 필터를 걸어도 자동 통과된다). -->
                         <div class="accident-filter-bar" id="accident-filter-bar" style="display:none;">
                             <button type="button" class="accident-filter-btn" data-filter="types" id="accident-filter-btn-types">사고유형: 전체</button>
-                            <button type="button" class="accident-filter-btn" data-filter="orgs" data-mode-only="analysis" id="accident-filter-btn-orgs">관할서: 전체</button>
-                            <button type="button" class="accident-filter-btn" data-filter="hourRanges" data-mode-only="analysis" id="accident-filter-btn-hourRanges">시간대: 전체</button>
-                            <button type="button" class="accident-filter-btn" data-filter="seasons" data-mode-only="analysis" id="accident-filter-btn-seasons">계절: 전체</button>
-                            <button type="button" class="accident-filter-btn" data-filter="warnTypes" data-mode-only="analysis" id="accident-filter-btn-warnTypes">특보: 전체</button>
+                            <button type="button" class="accident-filter-btn" data-filter="orgs" id="accident-filter-btn-orgs">관할서: 전체</button>
+                            <button type="button" class="accident-filter-btn" data-filter="hourRanges" id="accident-filter-btn-hourRanges">시간대: 전체</button>
+                            <button type="button" class="accident-filter-btn" data-filter="seasons" id="accident-filter-btn-seasons">계절: 전체</button>
+                            <button type="button" class="accident-filter-btn" data-filter="warnTypes" id="accident-filter-btn-warnTypes">특보: 전체</button>
+                            <button type="button" class="accident-filter-btn" data-filter="shipUses" id="accident-filter-btn-shipUses">선박용도: 전체</button>
+                            <button type="button" class="accident-filter-btn" data-filter="tonnageRanges" id="accident-filter-btn-tonnageRanges">톤수: 전체</button>
                         </div>
                     </div>
 
@@ -5334,7 +5339,7 @@
          동일하게 스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다.
          accident_codes.js(라벨 매핑)를 먼저 읽으므로 그 뒤에 위치. -->
-    <script src="js/marine-life/safety/accident_info.js?v=DupClusterFix_20260821"></script>
+    <script src="js/marine-life/safety/accident_info.js?v=TribunalReviewLayer_20260825"></script>
     <script src="js/marine-life/safety/accident_geocode_review.js?v=20260823b"></script>
 
     <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
