@@ -10,6 +10,10 @@
  *   와 같은 폴더 관례. 컬럼명이 한글 원본 그대로라 build_accidents.js 가 쓰는
  *   ORGNL_XCDNT 류 십진도 컬럼이 없고, "해양사고장소(위/위도/위분/위초, 경/경도/경분/경초)"
  *   도분초 컬럼만 있다.)
+ * [범위 필터 없음(2026-08-25 사용자 요청 — "21년부터 25년 내용 추가한 모든 마커들을 전부
+ *   보여주도록")] 검수용 레이어라 한국 근해 범위 밖(원본 오류로 추정되는 147건)도 걸러내지
+ *   않고 파싱 가능한 좌표는 전부 표출한다 — 오히려 그 이상치들이 실제로 범위 밖인지
+ *   눈으로 확인하는 것도 이 레이어의 목적.
  * [출력] client/accident_tribunal_review.json — [[lat, lon, 사건번호], ...]
  *   (검수 모드에서만 fetch — accident_ships_hk.json 처럼 필터·팝업에 쓰는 정식 컬럼
  *   구성이 아니라 좌표 확인용 최소 형태)
@@ -25,10 +29,6 @@ const path = require('path');
 
 const RAW_PATH = path.join(__dirname, '_accident_raw', 'TL_SHPACC_HS_NEW.csv');
 const OUT_PATH = path.join(__dirname, '..', '..', 'client', 'accident_tribunal_review.json');
-
-// accident_info.js 의 KOREA_BOUNDS 와 동일 — 원본 CSV에 남반구·경도 0 근처 등
-// 명백히 잘못된 좌표가 섞여 있어(예: BS-2025-0012 "S15 E042") 같은 기준으로 걸러낸다.
-const KOREA_BOUNDS = { latMin: 24, latMax: 44, lonMin: 118, lonMax: 144 };
 
 /**
  * RFC4180 최소 구현 CSV 파서(build_accidents.js 의 parseCsv 와 동일 방식). 사건명
@@ -93,10 +93,8 @@ function main() {
         const lat = dmsToDecimal(f[idx['해양사고장소(위도)']], f[idx['해양사고장소(위분)']], f[idx['해양사고장소(위초)']], latDir);
         const lon = dmsToDecimal(f[idx['해양사고장소(경도)']], f[idx['해양사고장소(경분)']], f[idx['해양사고장소(경초)']], lonDir);
         const caseNo = f[idx['사건번호']] || '';
-        if (!Number.isFinite(lat) || !Number.isFinite(lon) ||
-            lat < KOREA_BOUNDS.latMin || lat > KOREA_BOUNDS.latMax ||
-            lon < KOREA_BOUNDS.lonMin || lon > KOREA_BOUNDS.lonMax) {
-            skipped++;
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+            skipped++; // 도분초 파싱 자체가 안 되는 행(값 누락 등) — 좌표가 없어 표출 불가
             continue;
         }
         points.push([Math.round(lat * 100000) / 100000, Math.round(lon * 100000) / 100000, caseNo]);
@@ -104,7 +102,7 @@ function main() {
 
     fs.writeFileSync(OUT_PATH, JSON.stringify({ v: 1, rows: points }));
     const kb = (fs.statSync(OUT_PATH).size / 1024).toFixed(0);
-    console.log(`[심판원 검수용] ${points.length}건 저장(${kb}KB), ${skipped}건 좌표범위 밖 제외 (전체 ${rows.length - 1}건)`);
+    console.log(`[심판원 검수용] ${points.length}건 저장(${kb}KB), ${skipped}건 좌표 파싱 실패 제외 (전체 ${rows.length - 1}건)`);
 }
 
 main();
