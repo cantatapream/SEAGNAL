@@ -312,6 +312,32 @@
  *   같은 원칙으로 통일했다. 같은 원인으로 person 소스 시간대 팝업도 모든 프리셋이
  *   전체 person 건수로 나오고 있었는데(발생시각 컬럼 자체가 없어 항상 null) 함께
  *   고쳐졌다 — 수정 후 person 은 전부 0건, hk 는 24시간대별 뚜렷한 분포로 확인.
+ * [톤수·선박용도 필터 — "판단 불가=통과"를 "정보 없음=제외"로 정정(2026-08-25)]
+ *   바로 위 항목에서 hourRanges와 같은 원칙으로 만들었던 걸, 사용자가 "5톤 미만만
+ *   골랐는데 화면엔 훨씬 많이 남아있다"고 재지적해 뒤집었다. hourRanges·warnTypes는
+ *   "그 소스엔 거의 항상 값이 있는데 극히 일부만 없음"이라 판단불가 통과가 맞지만,
+ *   선박용도·톤수는 심판원 매칭 연도(선박용도: 2016·2021~2025 / 톤수: 2021~2025)
+ *   에만 값이 있고 그 외 연도는 통째로 없어서, "통과"로 두면 필터를 걸어도 거의 안
+ *   줄어드는 것처럼 보였다. passesFilters() 에서 이 두 필드만 null=제외로 바꾸고,
+ *   필터를 실제로 걸 때(전체→선택) window._showOceanToast 로 "OO 정보는 YYYY년
+ *   사고에만 있다"는 안내를 띄운다(formatYearRanges+yearsWithValue 로 연도 범위를
+ *   실제 데이터에서 매번 계산 — 하드코딩 아님, 나중에 데이터가 늘어나도 자동으로
+ *   맞음). 처음엔 이 토스트도 한 줄(nowrap+ellipsis) 스타일로 호출해 좁은 화면에서
+ *   "..."로 잘려 보였다(사용자 스크린샷 지적) — _showOceanToast 의 4번째 인자
+ *   (multiLine)를 true 로 넘겨 index2_patch.js 의 기존 .multi-line 스타일(어절
+ *   단위 줄바꿈, 최대 75vw)을 그대로 쓰도록 고쳤다.
+ * [2025 단독 행 사고유형코드(typeCd) 누락으로 마커가 전부 아이콘 없이 나오던 문제
+ *   수정(2026-08-25)] 사용자가 "군집에서 가장 많은 유형으로 표현돼야 하는데 왜 이렇게
+ *   나오냐"고 스크린샷으로 지적 — 2025년 단독 3,840건은 hk 원본이 없어 typeCd(row[5])
+ *   가 애초에 null 이었는데(build_tribunal_merge.js 가 매핑 로직 없이 만듦),
+ *   dominantTypeCode() 가 클러스터 안에서 가장 많은 유형을 뽑을 때 "코드 없음"이
+ *   하나의 큰 덩어리로 뭉쳐 실제 사고유형(15종 이상으로 흩어짐)보다 더 자주 이겨
+ *   버려 거의 모든 클러스터가 아이콘 없는 빨간 원+숫자로 보였다. 심판원 CSV의
+ *   "해양사고종류1" 텍스트가 accident_codes.js ACCIDENT_TYPE_LABELS 와 같은 한글
+ *   이라 build_tribunal_merge.js 에 SEA_TYPE_TO_ATY 역매핑을 추가(2021~2025 전체
+ *   실측 20종 전부 매핑, unmapped 0건)하고, 이미 병합된 파일은 통째로 재실행하면
+ *   중복이 생겨 local_server/scripts/patch_2025_type_codes.js 로 2025 구간(배열
+ *   맨 끝 3,840개, 사건번호로 원본 CSV와 재대조)만 좁혀 typeCd 를 채웠다.
  * ============================================================================
  */
 
@@ -1868,7 +1894,7 @@
                     if (sel && typeof window._showOceanToast === 'function') {
                         window._showOceanToast(
                             '선박용도 정보는 ' + formatYearRanges(yearsWithValue(SHIPUSE_POS_IDX.hk)) + ' 사고에만 있어, 그 외 사고는 결과에서 제외됩니다.',
-                            'bottom', 3500);
+                            'bottom', 3500, true);
                     }
                     onFiltersChanged(map);
                 });
@@ -1878,7 +1904,7 @@
                     if (val && typeof window._showOceanToast === 'function') {
                         window._showOceanToast(
                             '톤수 정보는 ' + formatYearRanges(yearsWithValue(TONNAGE_POS_IDX.hk)) + ' 사고에만 있어, 그 외 사고는 결과에서 제외됩니다.',
-                            'bottom', 3500);
+                            'bottom', 3500, true);
                     }
                     onFiltersChanged(map);
                 });
