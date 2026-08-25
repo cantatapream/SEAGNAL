@@ -30,8 +30,8 @@
  *                    (현황/분석 — #ocean-topleft-controls 안, 해양안전 화면이
  *                    빌려 쓰는 해양종합정보 기본맵·안내 버튼 바로 아래),
  *                    #accident-stats-sheet/#accident-stats-body(격자 클릭 시 통계),
- *                    #accident-filter-bar(필터 버튼 4개 — 사고유형/관할서/시간대/계절,
- *                    #ocean-accident-mode-toggle 바로 아래)
+ *                    #accident-filter-bar(필터 버튼 7개 — 사고유형/관할서/시간대/계절/
+ *                    특보/선박용도/톤수, #ocean-accident-mode-toggle 바로 아래)
  *  - 나를 쓰는 곳  : ocean_map.js handleMapClick → window._accidentInfoTryHandleClick
  *                    (access_control.js 와 동일하게 window.getOceanMap 폴링으로
  *                    스스로 설치 — ocean_map.js buildMap() 수정 불필요)
@@ -265,14 +265,32 @@
  *   이전엔 옛 관할서(동해/속초)로 판정한다 — 사용자 확정: "강릉서나 사천서나
  *   새롭게 생기기 전과 후를 고려해서 그 시점을 기준으로". 사고유형은 매칭된 행에서
  *   해경·심판원이 접촉/충돌로 서로 다르면 항상 충돌로 통일(사용자 확정). 결과:
- *   23,421 → 35,027건(2016 복원 1,268 + 2021~24 복원 6,498 + 2025 단독 3,840).
- *   row 스키마가 13필드→17필드로 늘어(선박용도[13]·톤수[14]·계절[15]·사건번호[16]
- *   추가, 매칭 없는 기존 행은 전부 null) popupRowsFor()가 null 아닌 값만 팝업에
- *   추가로 보여준다(사건번호는 사용자에게 의미 없어 팝업 미노출). 복원/신규 행의
- *   특보발표여부(warnFlags, row[12])는 아직 []([]="계산 안 함", 사용자 확정
- *   2026-08-24 특보 필터 도입 당시의 기존 행과 의미가 다름) — build_accident_warn_flags.js
- *   를 새 행 대상으로 재실행하지 않아 특보 필터에서 "발효 없음"과 구분 없이 취급되는
- *   상태다(후속 과제로 남김, 이 커밋에서는 해결 안 함).
+ *   23,421 → 35,027건(2016 복원 1,268 + 2021~24 복원 6,498 + 2025 단독 3,840,
+ *   합쳐서 11,606건 신규/복원). row 스키마가 13필드→17필드로 늘어(선박용도[13]·
+ *   톤수[14]·계절[15]·사건번호[16] 추가, 매칭 없는 기존 행은 전부 null)
+ *   popupRowsFor()가 null 아닌 값만 팝업에 추가로 보여준다(사건번호는 사용자에게
+ *   의미 없어 팝업 미노출).
+ * [신규/복원 행 특보발표여부 소급 계산(2026-08-25)] 병합 직후엔 신규/복원 11,606건의
+ *   warnFlags(row[12])가 자리만 맞춘 빈 배열([])이라 특보 필터에서 "발효 없음"과
+ *   구분이 안 됐다. build_accident_warn_flags.js 는 모든 행에 무조건 push 하는
+ *   1회성 스크립트라 그대로 재실행하면 이미 값이 있는 기존 23,421건까지 다시 밀려
+ *   스키마가 깨진다 — local_server/scripts/patch_new_accident_warn_flags.js 를
+ *   새로 만들어, build_tribunal_merge.js 최종 조립 순서(기존 행이 항상 배열
+ *   앞쪽 23,421개, 신규 행이 그 뒤로 이어 붙음)로 "새 행"만 골라 row[12] 를 실제
+ *   계산값으로 덮어썼다(계산 로직은 build_accident_warn_flags.js 의 함수를 그대로
+ *   재사용). 결과: 신규 11,606건 중 344건(2.96%)에 특보 발효(WV 342·TY+WV 2) —
+ *   기존 23,421건의 발효 비율(499건, 2.13%)과 비슷해 정상 범위로 판단.
+ * [필터 바에 선박용도·톤수 추가(2026-08-25)] 심판원 통합으로 생긴 두 필드도 다른
+ *   5개(사고유형·관할서·시간대·계절·특보)와 같은 방식으로 필터에 얹었다 — hk 전용,
+ *   값이 없는 행(대부분 — 신규/복원 11,606건 중에도 매칭 안 된 필드는 null)은 판단
+ *   불가로 통과시킨다(hourRanges 와 같은 원칙, warnTypes 와는 다름 — 그쪽은 "발효
+ *   없음"이 확정값이라 다르게 취급). 선박용도는 이미 한글 문자열이라 체크박스
+ *   팝업(openCheckboxFilterPopup) 그대로 재사용. 톤수는 연속값이라 시간대와 같은
+ *   "구간 프리셋 + 직접 설정" 방식이 맞아, 시간대 팝업(openHourRangeFilterPopup)의
+ *   로직을 openRangeFilterPopup(cfg) 로 일반화해 재사용했다(90줄 가까운 로직을
+ *   두 번 베끼지 않으려고 — 프리셋 배열·라벨 포맷·비교값 추출 함수만 cfg 로 갈아
+ *   끼움, CSS 클래스는 시간대 때 이름을 그대로 씀). 톤수 구간(0~5·5~10·10~20·20~50·
+ *   50~100·100~500·500~1,000·1,000톤 이상)은 실측 분포(hk 10,338건) 기준.
  * ============================================================================
  */
 
@@ -304,9 +322,10 @@
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
 
     /**
-     * [필터 — 사고유형/관할서/시간대/계절/특보발표여부(2026-08-24 사용자 확정)] 현황
-     * (마커 표출)·분석(격자 집계) 양쪽에 공통으로 적용되는 필터 상태. 각 값이 null 이면
-     * "전체"(필터 없음), Set/Array 가 있으면 그 안에 든 것만 통과.
+     * [필터 — 사고유형/관할서/시간대/계절/특보발표여부/선박용도/톤수(2026-08-24~25
+     * 사용자 확정)] 현황(마커 표출)·분석(격자 집계) 양쪽에 공통으로 적용되는 필터
+     * 상태. 각 값이 null 이면 "전체"(필터 없음), Set/Array 가 있으면 그 안에 든
+     * 것만 통과.
      *   - types      : Set<typeCode> | null — 사고유형(ACDNT_TYPE_CD)
      *   - orgs       : Set<orgCd>    | null — 관할해경서
      *   - hourRanges : [[startHour,endHour), ...] | null — 시간대(발생시각 hm 기준,
@@ -320,8 +339,14 @@
      *                  붙여놓은 배열, WARN_FLAGS_POS_IDX 위치). 여러 종류를 동시에 켜면
      *                  OR(그 중 하나라도 발효중이면 통과) — AND 로 하면 해상 사고는
      *                  강풍과 원래 무관해 대부분 사라져버리기 때문.
+     *   - shipUses      : Set<string> | null — 선박용도(SHIPUSE_POS_IDX 위치, 심판원
+     *                     통합 2026-08-25로 생긴 값). hk 전용, 심판원 매칭/단독 행에만
+     *                     값이 있고 나머지는 null(판단 불가 — 통과 취급, hourRanges와
+     *                     같은 원칙).
+     *   - tonnageRanges : [[minTon,maxTon), ...] | null — 톤수(TONNAGE_POS_IDX 위치).
+     *                     hk 전용, 값 없는 행(null)은 통과 취급.
      */
-    var filters = { types: null, orgs: null, hourRanges: null, seasons: null, warnTypes: null };
+    var filters = { types: null, orgs: null, hourRanges: null, seasons: null, warnTypes: null, shipUses: null, tonnageRanges: null };
 
     var SEASON_LABELS = { spring: '봄', summer: '여름', fall: '가을', winter: '겨울' };
     var SEASON_ORDER = ['spring', 'summer', 'fall', 'winter'];
@@ -353,6 +378,12 @@
     var WARN_FLAGS_POS_IDX = { hk: 12, person: 10 };
     var WARN_TYPE_LABELS = { TY: '태풍', WV: '풍랑', GW: '강풍' };
     var WARN_TYPE_ORDER = { hk: ['TY', 'WV'], person: ['TY', 'WV', 'GW'] };
+
+    /** 선박용도·톤수 컬럼 위치 — hk 전용(심판원 통합 2026-08-25로 생긴 필드, person 엔
+     * 없다). person 소스에서 이 두 필터를 걸어도 SHIPUSE_POS_IDX.person/TONNAGE_POS_IDX.person
+     * 이 undefined 라 row[undefined] === undefined 로 항상 null 취급되어 자동 통과된다. */
+    var SHIPUSE_POS_IDX = { hk: 13 };
+    var TONNAGE_POS_IDX = { hk: 14 };
 
     /**
      * 현재 filters 상태를 기준으로 이 행이 통과하는지 — 현황(마커)·분석(격자) 양쪽이
@@ -387,12 +418,24 @@
             var anyActive = active.some(function (code) { return filters.warnTypes.has(code); });
             if (!anyActive) return false;
         }
+        if (filters.shipUses) {
+            var shipUse = row[SHIPUSE_POS_IDX[key]];
+            if (shipUse != null && !filters.shipUses.has(shipUse)) return false;
+        }
+        if (filters.tonnageRanges) {
+            var tonnage = row[TONNAGE_POS_IDX[key]];
+            if (tonnage != null) {
+                var inAnyT = filters.tonnageRanges.some(function (r) { return tonnage >= r[0] && tonnage < r[1]; });
+                if (!inAnyT) return false;
+            }
+        }
         return true;
     }
 
     /** 필터에 걸려있는 게 하나라도 있는지 — 필터바 버튼 강조 등에 씀. */
     function hasActiveFilters() {
-        return !!(filters.types || filters.orgs || filters.hourRanges || filters.seasons || filters.warnTypes);
+        return !!(filters.types || filters.orgs || filters.hourRanges || filters.seasons || filters.warnTypes ||
+            filters.shipUses || filters.tonnageRanges);
     }
 
     /** passesFilters 를 excludeKey 축만 빼고 판정 — 팝업을 열 때 "다른 축은 이미 걸린
@@ -1361,12 +1404,21 @@
         return true;
     }
 
-    // ── 필터 바 + 팝업(사고유형·관할서·시간대·계절, 2026-08-24 사용자 확정) ──────
-    // [연계] 마크업 index2.html #accident-filter-bar(정적, 버튼 4개) · CSS style.css
+    // ── 필터 바 + 팝업(사고유형·관할서·시간대·계절·특보·선박용도·톤수,
+    //    2026-08-24~25 사용자 확정) ──────
+    // [연계] 마크업 index2.html #accident-filter-bar(정적, 버튼 7개) · CSS style.css
     //   ".accident-filter-*" · 적용 대상 applyFiltersToMarkers()·recomputeGrid()
 
     var HOUR_PRESETS = [[0, 4], [4, 8], [8, 12], [12, 16], [16, 20], [20, 24]];
     function hourPresetLabel(r) { return pad2(r[0]) + '~' + pad2(r[1] === 24 ? 0 : r[1]) + '시'; }
+
+    // 톤수 구간 프리셋 — 실측 분포(hk 10,338건, 5톤 미만이 절반 가까이) 기준으로 구간을 나눔.
+    var TONNAGE_PRESETS = [[0, 5], [5, 10], [10, 20], [20, 50], [50, 100], [100, 500], [500, 1000], [1000, Infinity]];
+    function tonnagePresetLabel(r) {
+        if (r[1] === Infinity) return r[0].toLocaleString('ko-KR') + '톤 이상';
+        if (r[0] === 0) return r[1].toLocaleString('ko-KR') + '톤 미만';
+        return r[0].toLocaleString('ko-KR') + '~' + r[1].toLocaleString('ko-KR') + '톤';
+    }
 
     /** 현재 활성 소스(rawFeatures[state.source])에서, 이 축(excludeKey)만 빼고 나머지
      * 필터를 이미 건 상태로 실제 존재하는 값만 옵션으로 뽑는다 — 0건짜리 선택지를 안
@@ -1409,6 +1461,9 @@
         });
     }
     function buildOrgOptions() { return buildValueOptions(function (r) { return r[ORG_POS_IDX[state.source]]; }, ACCIDENT_ORG_LABELS, 'orgs'); }
+
+    /** 선박용도 옵션 — 값 자체가 이미 한글 문자열(코드 아님)이라 라벨표 없이 그대로 쓴다. */
+    function buildShipUseOptions() { return buildValueOptions(function (r) { return r[SHIPUSE_POS_IDX.hk]; }, null, 'shipUses'); }
 
     /** 특보종류 옵션 — 소스별로 의미있는 종류만(hk 는 태풍·풍랑, person 은 +강풍).
      * 값이 배열(다중 발효 가능)이라 buildValueOptions 의 단일값 카운트 방식을 못 쓰고 별도 구현. */
@@ -1521,13 +1576,27 @@
     }
 
     /**
-     * 시간대 팝업 — 4시간 간격 프리셋(다중 토글) + 직접 설정(임의 범위 추가, 칩으로 표시).
+     * 범위형(구간) 필터 팝업 공용 뼈대 — 프리셋(다중 토글) + 직접 설정(임의 범위
+     * 추가, 칩으로 표시). 시간대(2026-08-24)로 처음 만들었다가 톤수(2026-08-25)에
+     * 그대로 재사용하려고 일반화했다 — CSS 클래스 이름은 시간대 때 이름
+     * (".accident-filter-hour-*")을 그대로 쓴다(스타일은 완전히 같아 새로 안 만듦).
+     * @param {Object} cfg
+     * @param {string} cfg.title
+     * @param {string} cfg.filterKey - filters 객체의 키(예: 'hourRanges'), passesFiltersExcept 에 씀
+     * @param {Array<[number,number]>} cfg.presets
+     * @param {function([number,number]):string} cfg.formatLabel
+     * @param {function(string,Array):(number|null)} cfg.valueOf - (srcKey, row) -> 비교할 값
+     * @param {string} cfg.inputType - 'time' | 'number'
+     * @param {string} cfg.defaultStartVal
+     * @param {string} cfg.defaultEndVal
+     * @param {function(string):number} cfg.parseInputVal - input.value -> 숫자(NaN 이면 무효)
+     * @param {string} [cfg.inputStep] - inputType='number' 일 때 <input step>
      * @param {Array<[number,number]>|null} current
      * @param {function(Array<[number,number]>|null)} onConfirm
      */
-    function openHourRangeFilterPopup(current, onConfirm) {
+    function openRangeFilterPopup(cfg, current, onConfirm) {
         var els = ensureFilterPopup();
-        els.title.textContent = '시간대';
+        els.title.textContent = cfg.title;
         els.count.textContent = '';
         var ranges = (current || []).slice(); // 작업용 사본
 
@@ -1538,32 +1607,31 @@
             var idx = ranges.findIndex(function (r) { return r[0] === preset[0] && r[1] === preset[1]; });
             if (idx >= 0) ranges.splice(idx, 1); else ranges.push(preset.slice());
         }
-        function isCustomRange(r) { return !HOUR_PRESETS.some(function (p) { return p[0] === r[0] && p[1] === r[1]; }); }
+        function isCustomRange(r) { return !cfg.presets.some(function (p) { return p[0] === r[0] && p[1] === r[1]; }); }
 
-        /** 프리셋 하나가 통과시킬 건수 — 시간대 축만 빼고 이미 걸린 다른 필터와의
-         * 교집합(사용자 확정 2026-08-25). person 소스는 발생시각 컬럼이 없어 시간대
-         * 판단 자체가 불가 — 판단 불가 행은 항상 통과시키는 기존 원칙과 동일하게 센다. */
+        /** 프리셋 하나가 통과시킬 건수 — 이 축만 빼고 이미 걸린 다른 필터와의 교집합
+         * (사용자 확정 2026-08-25). 값이 없는(null) 행은 판단 불가 취급으로 항상 통과. */
         function presetCount(preset) {
             var srcKey = state.source;
             var feats = (srcKey && rawFeatures[srcKey]) || [];
             var cnt = 0;
             feats.forEach(function (f) {
                 var row = f.get('row');
-                if (!passesFiltersExcept(srcKey, row, 'hourRanges')) return;
-                var hour = srcKey === 'hk' ? hourOf(row[3]) : null;
-                if (hour == null || (hour >= preset[0] && hour < preset[1])) cnt++;
+                if (!passesFiltersExcept(srcKey, row, cfg.filterKey)) return;
+                var v = cfg.valueOf(srcKey, row);
+                if (v == null || (v >= preset[0] && v < preset[1])) cnt++;
             });
             return cnt;
         }
 
         function render() {
-            var presetsHtml = HOUR_PRESETS.map(function (p, i) {
+            var presetsHtml = cfg.presets.map(function (p, i) {
                 return '<button type="button" class="accident-filter-hour-preset' + (isPresetActive(p) ? ' active' : '') +
-                    '" data-preset-i="' + i + '">' + hourPresetLabel(p) + '<span class="n">' + presetCount(p) + '건</span></button>';
+                    '" data-preset-i="' + i + '">' + cfg.formatLabel(p) + '<span class="n">' + presetCount(p) + '건</span></button>';
             }).join('');
             var customRanges = ranges.filter(isCustomRange);
             var chipsHtml = customRanges.length ? customRanges.map(function (r, i) {
-                return '<span class="accident-filter-hour-chip">' + hourPresetLabel(r) +
+                return '<span class="accident-filter-hour-chip">' + cfg.formatLabel(r) +
                     '<button type="button" data-custom-i="' + i + '">&times;</button></span>';
             }).join('') : '<span style="color:var(--text-sub);font-size:0.76rem;">추가된 범위 없음</span>';
             els.body.innerHTML =
@@ -1571,15 +1639,15 @@
                 '<div class="accident-filter-hour-custom">' +
                 '<div class="accident-filter-hour-custom-label">직접 설정</div>' +
                 '<div class="accident-filter-hour-custom-row">' +
-                '<input type="time" id="afp-hour-start" value="09:00">' +
+                '<input type="' + cfg.inputType + '" id="afp-range-start"' + (cfg.inputStep ? ' step="' + cfg.inputStep + '"' : '') + ' value="' + cfg.defaultStartVal + '">' +
                 '<span>~</span>' +
-                '<input type="time" id="afp-hour-end" value="18:00">' +
-                '<button type="button" id="afp-hour-add">추가</button>' +
+                '<input type="' + cfg.inputType + '" id="afp-range-end"' + (cfg.inputStep ? ' step="' + cfg.inputStep + '"' : '') + ' value="' + cfg.defaultEndVal + '">' +
+                '<button type="button" id="afp-range-add">추가</button>' +
                 '</div>' +
                 '<div class="accident-filter-hour-chips">' + chipsHtml + '</div>' +
                 '</div>';
             Array.prototype.forEach.call(els.body.querySelectorAll('.accident-filter-hour-preset'), function (btn) {
-                btn.addEventListener('click', function () { togglePreset(HOUR_PRESETS[Number(btn.dataset.presetI)]); render(); });
+                btn.addEventListener('click', function () { togglePreset(cfg.presets[Number(btn.dataset.presetI)]); render(); });
             });
             Array.prototype.forEach.call(els.body.querySelectorAll('[data-custom-i]'), function (btn) {
                 btn.addEventListener('click', function () {
@@ -1589,13 +1657,13 @@
                     render();
                 });
             });
-            document.getElementById('afp-hour-add').addEventListener('click', function () {
-                var startVal = document.getElementById('afp-hour-start').value;
-                var endVal = document.getElementById('afp-hour-end').value;
-                var start = startVal ? parseInt(startVal.split(':')[0], 10) : NaN;
-                var end = endVal ? parseInt(endVal.split(':')[0], 10) : NaN;
+            document.getElementById('afp-range-add').addEventListener('click', function () {
+                var startVal = document.getElementById('afp-range-start').value;
+                var endVal = document.getElementById('afp-range-end').value;
+                var start = startVal ? cfg.parseInputVal(startVal) : NaN;
+                var end = endVal ? cfg.parseInputVal(endVal) : NaN;
                 if (isNaN(start) || isNaN(end) || start >= end) {
-                    window.alert('시작 시각이 종료 시각보다 빨라야 합니다.');
+                    window.alert('시작 값이 종료 값보다 작아야 합니다.');
                     return;
                 }
                 ranges.push([start, end]);
@@ -1610,6 +1678,26 @@
             closeFilterPopup();
         };
         els.overlay.style.display = 'flex';
+    }
+
+    /** 시간대 팝업 — openRangeFilterPopup 에 시간대 전용 설정을 얹은 얇은 래퍼. */
+    function openHourRangeFilterPopup(current, onConfirm) {
+        openRangeFilterPopup({
+            title: '시간대', filterKey: 'hourRanges', presets: HOUR_PRESETS, formatLabel: hourPresetLabel,
+            valueOf: function (srcKey, row) { return srcKey === 'hk' ? hourOf(row[3]) : null; },
+            inputType: 'time', defaultStartVal: '09:00', defaultEndVal: '18:00',
+            parseInputVal: function (v) { return parseInt(v.split(':')[0], 10); },
+        }, current, onConfirm);
+    }
+
+    /** 톤수 팝업 — openRangeFilterPopup 에 톤수 전용 설정을 얹은 얇은 래퍼(2026-08-25). */
+    function openTonnageRangeFilterPopup(current, onConfirm) {
+        openRangeFilterPopup({
+            title: '톤수', filterKey: 'tonnageRanges', presets: TONNAGE_PRESETS, formatLabel: tonnagePresetLabel,
+            valueOf: function (srcKey, row) { return srcKey === 'hk' ? row[TONNAGE_POS_IDX.hk] : null; },
+            inputType: 'number', inputStep: '0.1', defaultStartVal: '5', defaultEndVal: '10',
+            parseInputVal: function (v) { return parseFloat(v); },
+        }, current, onConfirm);
     }
 
     /** 필터 버튼 라벨을 지금 filters 상태에 맞춰 갱신("전체" 또는 "N개 선택"). */
@@ -1628,6 +1716,8 @@
         updateFilterButtonLabel('hourRanges', '시간대');
         updateFilterButtonLabel('seasons', '계절');
         updateFilterButtonLabel('warnTypes', '특보');
+        updateFilterButtonLabel('shipUses', '선박용도');
+        updateFilterButtonLabel('tonnageRanges', '톤수');
     }
 
     /** 필터가 바뀔 때마다 현황 마커·분석 격자 양쪽에 다시 반영. */
@@ -1703,6 +1793,16 @@
                     filters.warnTypes = sel;
                     onFiltersChanged(map);
                 });
+            } else if (key === 'shipUses') {
+                openCheckboxFilterPopup('선박용도', buildShipUseOptions(), filters.shipUses, function (sel) {
+                    filters.shipUses = sel;
+                    onFiltersChanged(map);
+                });
+            } else if (key === 'tonnageRanges') {
+                openTonnageRangeFilterPopup(filters.tonnageRanges, function (val) {
+                    filters.tonnageRanges = val;
+                    onFiltersChanged(map);
+                });
             }
         });
 
@@ -1714,6 +1814,8 @@
                 filters.hourRanges = null;
                 filters.seasons = null;
                 filters.warnTypes = null;
+                filters.shipUses = null;
+                filters.tonnageRanges = null;
                 onFiltersChanged(map);
             });
         }

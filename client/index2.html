@@ -3485,7 +3485,7 @@
                         </div>
 
                         <!-- 선택 초기화 버튼(2026-08-25 사용자 확정) — 모드토글 오른쪽에 위치,
-                             걸어둔 필터(사고유형·관할서·시간대·계절·특보) 전부 해제. -->
+                             걸어둔 필터(사고유형·관할서·시간대·계절·특보·선박용도·톤수) 전부 해제. -->
                         <button type="button" class="accident-filter-reset-btn" id="accident-filter-reset-btn" style="display:none;">선택 초기화</button>
 
                         <!-- 사고정보 필터 바 — 처음엔 관할서·시간대·계절·특보가 분석 모드에서만
@@ -3494,13 +3494,17 @@
                              (data-mode-only 속성은 더는 안 씀 — updateFilterBarModeVisibility 는
                              이제 위치 재계산만 함). 세로 위치(top)는 글자 크기 설정에 따라
                              #ocean-accident-mode-toggle 높이가 달라져 고정 px로 못 잡으므로
-                             JS가 매번 실측해서 인라인으로 채운다. -->
+                             JS가 매번 실측해서 인라인으로 채운다.
+                             선박용도·톤수(2026-08-25 추가) — 해양안전심판원 데이터 통합으로 생긴
+                             필드, hk 전용(person 소스엔 없어 필터를 걸어도 자동 통과된다). -->
                         <div class="accident-filter-bar" id="accident-filter-bar" style="display:none;">
                             <button type="button" class="accident-filter-btn" data-filter="types" id="accident-filter-btn-types">사고유형: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="orgs" id="accident-filter-btn-orgs">관할서: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="hourRanges" id="accident-filter-btn-hourRanges">시간대: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="seasons" id="accident-filter-btn-seasons">계절: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="warnTypes" id="accident-filter-btn-warnTypes">특보: 전체</button>
+                            <button type="button" class="accident-filter-btn" data-filter="shipUses" id="accident-filter-btn-shipUses">선박용도: 전체</button>
+                            <button type="button" class="accident-filter-btn" data-filter="tonnageRanges" id="accident-filter-btn-tonnageRanges">톤수: 전체</button>
                         </div>
                     </div>
 
