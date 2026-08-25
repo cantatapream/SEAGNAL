@@ -363,6 +363,19 @@
  *     그룹핑하도록 일반화돼 있었다).
  *   Playwright 확인: 클릭 시 팝업에 "해경 병합 여부: 병합 안 됨(단독 심판원)" 등
  *   정상 표시, 선택 1건으로 카운트, 내보내기 JSON `{"tribunal":[0]}` 확인.
+ * [병합된 행 팝업에 해경(hk) 데이터도 같이 표시(2026-08-25)] 위 팝업이 "해경 병합
+ *   여부: 병합됨"만 보여주고 정작 그 hk 행 내용은 안 보여줘, 사용자가 "병합돼
+ *   있으면 해경에서 표출하는 데이터도 함께 표출해줘 — 지금은 심판원 정보만
+ *   표출한 거잖아, 종합적으로 판단할 수 있게" 라고 지적. ensureHkRowByCaseNo() 가
+ *   fetchSource('hk') 결과로 사건번호(caseNo)→hk row 맵을 만들어두고,
+ *   ensureTribunalReviewLayer() 가 레이어를 켤 때 Promise.all 로 이 맵도 함께
+ *   준비해둔다(popupRowsFor 는 동기 함수라 클릭 시점엔 이미 준비돼 있어야 함).
+ *   merged=1 인 행을 클릭하면 팝업에 해경 사고발생일·사고유형·위치텍스트·관할과
+ *   더불어 haversineKm 으로 계산한 "심판원-해경 좌표 차이"까지 이어서 보여준다
+ *   (매칭 허용 반경이 3km 라 완전히 같은 사고여도 좌표가 다를 수 있음 — 이 차이가
+ *   바로 "육지에 찍힘" 같은 문제를 판단하는 핵심 단서). Playwright 로 실측 확인:
+ *   BS-2021-0010(병합됨) 클릭 시 해경 사고유형=충돌(일치)·관할=창원해양경찰서·
+ *   좌표차이 0.18km 로 정상 표시, 미병합 행은 기존과 동일하게 4줄만 표시.
  * ============================================================================
  */
 
@@ -1045,12 +1058,28 @@
         }
         if (key === 'tribunal') {
             // row=[lat,lon,ymd,hm,typeCd,caseNo,merged] — build_tribunal_review.js 참고.
-            return [
+            var tribRows = [
                 ['사고발생일', formatYmd(row[2]) + (row[3] ? ' ' + row[3] : '')],
                 ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[4])],
                 ['사건번호', row[5] || '-'],
                 ['해경 병합 여부', row[6] ? '병합됨(hk에 있음)' : '병합 안 됨(단독 심판원)']
             ];
+            // 병합된 행이면 해경(hk) 쪽 데이터도 같이 보여준다(사용자 확정 2026-08-25:
+            // "병합이 되어 있으면 해경에서 표출하는 데이터도 함께 표출해 종합 판단하도록"
+            // — 심판원 정보만으론 판단이 안 된다는 지적). hkRowByCaseNo 는
+            // ensureTribunalReviewLayer 가 레이어를 켤 때 미리 채워둔다.
+            var hkRow = row[6] && hkRowByCaseNo ? hkRowByCaseNo.get(row[5]) : null;
+            if (hkRow) {
+                var distKm = haversineKm(row[0], row[1], hkRow[0], hkRow[1]);
+                tribRows.push(
+                    ['해경 사고발생일', formatYmd(hkRow[2]) + (hkRow[3] ? ' ' + hkRow[3] : '')],
+                    ['해경 사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, hkRow[5])],
+                    ['해경 위치텍스트', hkRow[4] || '-'],
+                    ['해경 관할', accidentLabel(ACCIDENT_ORG_LABELS, hkRow[8])],
+                    ['심판원-해경 좌표 차이', distKm < 0.01 ? '거의 동일' : distKm.toFixed(2) + 'km']
+                );
+            }
+            return tribRows;
         }
         // person
         return [
@@ -1212,6 +1241,28 @@
         return tribunalReviewPromise;
     }
 
+    var hkRowByCaseNo = null; // 사건번호(caseNo) -> hk row — 심판원 검수 팝업의 "병합됨" 비교용
+    /** 사건번호로 hk row 를 찾기 위한 맵을 한 번만 만든다(hk 소스를 아직 안 골랐어도
+     * fetchSource('hk') 는 dataPromises 캐시를 공유해 중복 fetch 없음). */
+    function ensureHkRowByCaseNo() {
+        if (hkRowByCaseNo) return Promise.resolve(hkRowByCaseNo);
+        return fetchSource('hk').then(function (rows) {
+            hkRowByCaseNo = new Map();
+            rows.forEach(function (r) { if (r[16]) hkRowByCaseNo.set(r[16], r); });
+            return hkRowByCaseNo;
+        });
+    }
+
+    /** 두 좌표 사이 거리(km) — build_tribunal_merge.js 의 haversineKm 과 같은 공식. */
+    function haversineKm(lat1, lon1, lat2, lon2) {
+        var R = 6371.0;
+        var p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
+        var dphi = (lat2 - lat1) * Math.PI / 180;
+        var dl = (lon2 - lon1) * Math.PI / 180;
+        var a = Math.sin(dphi / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(a));
+    }
+
     /** hk/person 과 똑같은 줌 기반 클러스터링(buildClusterLayer) 재사용(사용자 확정
      * 2026-08-25: "동일하게 맞춰 달라") — 낱개 점만 찍던 이전 구현은 줌과 무관하게
      * 전부 다 보여 실제 서비스 마커와 다르게 보였다. build_tribunal_review.js 가
@@ -1223,7 +1274,11 @@
      * (buildClusterLayer 기본값 56은 hk/person 레이어와 같은 층). */
     function ensureTribunalReviewLayer(map) {
         if (tribunalReviewLayer) return Promise.resolve(tribunalReviewLayer);
-        return fetchTribunalReview().then(function (rows) {
+        // hk 데이터도 함께 미리 받아둔다 — "병합됨" 팝업에서 해경 쪽 데이터를 바로
+        // 보여주려면 클릭 시점엔 이미 준비돼 있어야 한다(2026-08-25 사용자 확정:
+        // "병합이 되어 있으면 해경에서 표출하는 데이터도 함께 표출해 종합 판단하도록").
+        return Promise.all([fetchTribunalReview(), ensureHkRowByCaseNo()]).then(function (results) {
+            var rows = results[0];
             var features = rows.map(function (row, i) {
                 var f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([row[1], row[0]])) });
                 f.set('row', row);
