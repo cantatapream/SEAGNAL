@@ -32,8 +32,19 @@
  *    missing, warnFlags, shipUse, tonnage, season, caseNo]
  *   뒤 4개(shipUse·tonnage·season·caseNo)는 심판원 매칭/단독 행에만 값이 있고
  *   나머지는 null — "정보 없음"을 그대로 null 로 표현(추측 채움 없음).
- * [실행] node local_server/scripts/build_tribunal_merge.js
+ * [실행] node local_server/scripts/build_tribunal_merge.js — ⚠ 1회성 스크립트, 이미
+ *   실행 완료됨(2026-08-25). 다시 실행하면 안 됨 — [입력]의 accident_ships_hk.json
+ *   자체를 "기존"으로 읽어 그 위에 2016·2021-24복원·2025단독을 또 이어붙이므로
+ *   두 번 돌리면 중복행이 생긴다. 폴리곤 수정 등으로 관할서(orgCd) 재계산만
+ *   필요하면 reclassify_after_polygon_fix.js 를 대신 쓸 것.
  * [연계] client/js/marine-life/safety/accident_info.js 가 이 JSON 을 fetch
+ * [classifyOrg 날짜 게이트 — 2026-08-25 추가] 최초 버전은 강릉만 개서일 게이트가
+ *   있었다. 이후 울진 폴리곤을 훨씬 정밀하게 재구성하면서(coastguard_jurisdiction_
+ *   faces.json 커밋 참고) 울진 개서(2017-11-28) 이전 사고까지 새 폴리곤에 걸려
+ *   울진으로 잘못 분류될 위험이 커져, 나머지 신설서(평택·창원·보령·부안·울진·사천)도
+ *   전부 개서일 게이트를 추가했다(audit_hk_jurisdiction_mismatch.js 의
+ *   ESTABLISHED_YMD 와 같은 표). 게이트에 걸리면 그 면을 건너뛰고 배열의 다음
+ *   매치(대개 전신 서)로 넘어간다 — 정확한 전신을 사전에 하드코딩하지 않음.
  * ============================================================================
  */
 
@@ -214,17 +225,32 @@ function main() {
         return Object.entries(votes).sort((a, b) => b[1] - a[1])[0][0];
     }
 
+    // 2025-08-25 추가 — 강릉 외 신설서 날짜 게이트. 이전엔 강릉만 게이트가 있어
+    // 울진(2017-11-28 개서) 이전 사고가 울진 폴리곤(2026-08-25 정밀 재구성 후
+    // 순도 0.916 — 이전엔 순도 0.619라 애초에 거의 안 걸렸음)에 걸리면 그대로
+    // "울진"으로 잘못 분류될 위험이 생겼다. 신설일 이전이면 그 면을 건너뛰고
+    // 다음(먼저 있던, 대개 전신 서) 면을 계속 찾는다 — audit_hk_jurisdiction_mismatch.js
+    // 의 preEstablish 판정과 같은 사고방식, 다만 여긴 값을 반드시 채워야 해서
+    // "판정 보류"가 아니라 "다음 후보로 진행".
+    const ESTABLISHED_YMD = {
+        평택해양경찰서: '20110401', 창원해양경찰서: '20121227', 보령해양경찰서: '20140401',
+        부안해양경찰서: '20160421', 울진해양경찰서: '20171128', 사천해양경찰서: '20220331',
+    };
     function classifyOrg(lat, lon, ymd) {
-        const p = [lon, lat];
         if (ymd >= '20250331' && pointInPolygon(lon, lat, gangneung.coords)) return '강릉해양경찰서';
         let hit = null;
         for (const f of faces) {
-            if (pointInPolygon(lon, lat, f.coords)) { hit = f; break; }
+            if (!pointInPolygon(lon, lat, f.coords)) continue;
+            const est = ESTABLISHED_YMD[f.owner];
+            if (est && ymd < est) continue; // 신설 이전 — 다음 면(전신 서 등) 계속 탐색
+            hit = f; break;
         }
         if (hit) return hit.owner;
-        // 경계선 위에 정확히 걸친 경우 등 — 가장 가까운 신뢰 구간으로
+        // 경계선 위에 정확히 걸친 경우 등 — 가장 가까운 신뢰 구간으로 (마찬가지로 신설 이전 제외)
         let best = null;
         for (const f of faces) {
+            const est = ESTABLISHED_YMD[f.owner];
+            if (est && ymd < est) continue;
             const d = distToPolygonBoundary(lon, lat, f.coords);
             if (d < 0.05 && (!best || d < best.d)) best = { d, owner: f.owner };
         }
