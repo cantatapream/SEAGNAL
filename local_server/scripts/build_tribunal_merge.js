@@ -50,6 +50,28 @@ const TYPE_LABELS = {
     ATY019: '접촉', ATY027: '충돌',
 };
 
+// 심판원 CSV "해양사고종류1" 텍스트 → hk 사고유형코드(ATY0xx) 역매핑(2026-08-25 추가).
+// 2025년 단독 행은 hk 원본이 아예 없어 사고유형 코드가 null 이었는데, 지도 클러스터
+// 대표 이미지 계산(accident_info.js dominantTypeCode)에서 "코드 없음"이 하나의 큰
+// 덩어리로 뭉쳐 실제 사고유형보다 더 자주 이겨버려 마커가 전부 빨간 원+숫자로만
+// 보이는 문제가 있었다(사용자 스크린샷 지적). 심판원 텍스트가 client/js/shared/
+// utils/accident_codes.js 의 ACCIDENT_TYPE_LABELS 와 같은 한글이라 그대로 역매핑
+// 한다 — "(...)" 괄호 설명은 떼고 매칭(예: "부유물감김(안전저해)"→"부유물감김").
+// 전체 CSV(2021~2025) 실측 20종 전부 매핑됨(unmapped 0건, 콘솔 로그로 확인).
+const SEA_TYPE_TO_ATY = {
+    충돌: 'ATY027', 침몰: 'ATY028', 전복: 'ATY018', 화재: 'ATY036', 좌초: 'ATY023',
+    폭발: 'ATY032', 접촉: 'ATY019', 침수: 'ATY029', 기관손상: 'ATY010',
+    조타장치손상: 'ATY021', 운항저해: 'ATY016', 추진축계손상: 'ATY026',
+    해양오염: 'ATY034', 부유물감김: 'ATY040', 안전사고: 'ATY017',
+    시설물손상: 'ATY014', 속구손상: 'ATY013', 행방불명: 'ATY035', 기타: 'ATY038',
+    '선체결함 또는 수밀문, 개구부 결함': 'ATY012',
+};
+function mapSeaTypeToAty(text) {
+    if (!text) return null;
+    const base = text.replace(/\([^)]*\)\s*$/, '').trim();
+    return SEA_TYPE_TO_ATY[base] || null;
+}
+
 // ── CSV 파서(RFC4180 최소구현, build_accidents.js/build_tribunal_review.js 와 동일) ──
 function parseCsv(text) {
     const rows = [];
@@ -297,6 +319,7 @@ function main() {
     const trib2025 = tribunal.filter((row) => row['해양사고발생(년도)'] === '2025');
     const rows2025 = [];
     let gangneungCount = 0;
+    const unmappedTypes = {};
     trib2025.forEach((row) => {
         const lat = dmsToDecimal(row['해양사고장소(위도)'], row['해양사고장소(위분)'], row['해양사고장소(위초)'], row['해양사고장소(위)']);
         const lon = dmsToDecimal(row['해양사고장소(경도)'], row['해양사고장소(경분)'], row['해양사고장소(경초)'], row['해양사고장소(경)']);
@@ -309,13 +332,16 @@ function main() {
         const orgCd = ORG_CODE_OF[orgName] || 0;
         const tonnageRaw = row['선박톤수'];
         const tonnage = tonnageRaw ? parseFloat(tonnageRaw) : null;
+        const typeCd = mapSeaTypeToAty(row['해양사고종류1']);
+        if (!typeCd && row['해양사고종류1']) unmappedTypes[row['해양사고종류1']] = (unmappedTypes[row['해양사고종류1']] || 0) + 1;
         rows2025.push([
             Math.round(lat * 100000) / 100000, Math.round(lon * 100000) / 100000, ymd, hm,
-            null, null, null, null, orgCd, 0, 0, 0, [],
+            null, typeCd, null, null, orgCd, 0, 0, 0, [],
             row['선박용도(통계용)'], Number.isFinite(tonnage) ? tonnage : null, row['계절'], row['사건번호'],
         ]);
     });
     console.log(`[2025 단독] ${rows2025.length}건 추가(강릉 ${gangneungCount}건)`);
+    if (Object.keys(unmappedTypes).length) console.log('[2025 단독] 사고유형 매핑 안 된 텍스트:', unmappedTypes);
 
     // ============ 3) 최종 조립 ============
     const existingExtended = currentHk.rows.map((r) => r.concat([null, null, null, null]));

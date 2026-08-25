@@ -312,6 +312,57 @@
  *   같은 원칙으로 통일했다. 같은 원인으로 person 소스 시간대 팝업도 모든 프리셋이
  *   전체 person 건수로 나오고 있었는데(발생시각 컬럼 자체가 없어 항상 null) 함께
  *   고쳐졌다 — 수정 후 person 은 전부 0건, hk 는 24시간대별 뚜렷한 분포로 확인.
+ * [톤수·선박용도 필터 — "판단 불가=통과"를 "정보 없음=제외"로 정정(2026-08-25)]
+ *   바로 위 항목에서 hourRanges와 같은 원칙으로 만들었던 걸, 사용자가 "5톤 미만만
+ *   골랐는데 화면엔 훨씬 많이 남아있다"고 재지적해 뒤집었다. hourRanges·warnTypes는
+ *   "그 소스엔 거의 항상 값이 있는데 극히 일부만 없음"이라 판단불가 통과가 맞지만,
+ *   선박용도·톤수는 심판원 매칭 연도(선박용도: 2016·2021~2025 / 톤수: 2021~2025)
+ *   에만 값이 있고 그 외 연도는 통째로 없어서, "통과"로 두면 필터를 걸어도 거의 안
+ *   줄어드는 것처럼 보였다. passesFilters() 에서 이 두 필드만 null=제외로 바꾸고,
+ *   필터를 실제로 걸 때(전체→선택) window._showOceanToast 로 "OO 정보는 YYYY년
+ *   사고에만 있다"는 안내를 띄운다(formatYearRanges+yearsWithValue 로 연도 범위를
+ *   실제 데이터에서 매번 계산 — 하드코딩 아님, 나중에 데이터가 늘어나도 자동으로
+ *   맞음). 처음엔 이 토스트도 한 줄(nowrap+ellipsis) 스타일로 호출해 좁은 화면에서
+ *   "..."로 잘려 보였다(사용자 스크린샷 지적) — _showOceanToast 의 4번째 인자
+ *   (multiLine)를 true 로 넘겨 index2_patch.js 의 기존 .multi-line 스타일(어절
+ *   단위 줄바꿈, 최대 75vw)을 그대로 쓰도록 고쳤다.
+ * [2025 단독 행 사고유형코드(typeCd) 누락으로 마커가 전부 아이콘 없이 나오던 문제
+ *   수정(2026-08-25)] 사용자가 "군집에서 가장 많은 유형으로 표현돼야 하는데 왜 이렇게
+ *   나오냐"고 스크린샷으로 지적 — 2025년 단독 3,840건은 hk 원본이 없어 typeCd(row[5])
+ *   가 애초에 null 이었는데(build_tribunal_merge.js 가 매핑 로직 없이 만듦),
+ *   dominantTypeCode() 가 클러스터 안에서 가장 많은 유형을 뽑을 때 "코드 없음"이
+ *   하나의 큰 덩어리로 뭉쳐 실제 사고유형(15종 이상으로 흩어짐)보다 더 자주 이겨
+ *   버려 거의 모든 클러스터가 아이콘 없는 빨간 원+숫자로 보였다. 심판원 CSV의
+ *   "해양사고종류1" 텍스트가 accident_codes.js ACCIDENT_TYPE_LABELS 와 같은 한글
+ *   이라 build_tribunal_merge.js 에 SEA_TYPE_TO_ATY 역매핑을 추가(2021~2025 전체
+ *   실측 20종 전부 매핑, unmapped 0건)하고, 이미 병합된 파일은 통째로 재실행하면
+ *   중복이 생겨 local_server/scripts/patch_2025_type_codes.js 로 2025 구간(배열
+ *   맨 끝 3,840개, 사건번호로 원본 CSV와 재대조)만 좁혀 typeCd 를 채웠다.
+ * [심판원 검수 레이어를 "좌표만 보기"에서 "진짜 검수(클릭·선택·내보내기)"로 확장
+ *   (2026-08-25)] "이 레이어 마커는 왜 클릭이 안 되고 아이콘도 없냐"는 지적에
+ *   "원본 CSV엔 사고유형이 없다"고 답했는데 — 사용자가 원본 CSV(TL_SHPACC_HS_NEW.csv)
+ *   를 직접 보여주며 "해양사고종류1" 컬럼이 있다고 정정: 잘못은 build_tribunal_review.js
+ *   가 좌표·사건번호만 뽑고 사고유형은 버렸던 것이었다(설명 실수 인정). 이어서
+ *   검수 목적 자체를 재확인: "해경과 병합된 것도, 병합 안 된 것도 전부 심판원
+ *   데이터를 검수해서 육지에 찍힌 것 같은 문제를 걸러내려는 것" — 병합된 11,606건은
+ *   기존 hk 검수모드(10회)로 이미 되지만, 병합 안 된 나머지는 hk 에 아예 없어서
+ *   그쪽으로는 검수가 안 된다. 그래서:
+ *   - build_tribunal_review.js 가 이제 row=[lat,lon,ymd,hm,typeCd,caseNo,merged]
+ *     로 사고유형(SEA_TYPE_TO_ATY 역매핑, 실측 20종 전부 매핑)과 hk 병합 여부까지
+ *     담는다(전체 17,036건, hk 병합됨 10,489건 — 이전 문서의 "16,889건"은 예전에
+ *     있었다가 없어진 범위필터의 잔재 표기였고 지금은 무필터 전체 건수가 맞다).
+ *   - ensureTribunalReviewLayer 가 feature 에 row·typeCode·origIndex 를 얹어
+ *     hk/person 과 똑같이 dominantTypeCode 기반 아이콘이 뜬다(더는 아이콘 없는
+ *     빨간 원 전용이 아님).
+ *   - _accidentInfoTryHandleClick 이 TRIBUNAL_REVIEW_ON 일 때 tryHandleClusterClick
+ *     을 'tribunal' 키로도 시도 — 낱개 클릭 시 popupRowsFor('tribunal', row) 가
+ *     사고발생일·사고유형·사건번호·"해경 병합 여부"를 팝업으로 보여주고,
+ *     toggleFlag(map,'tribunal',feature) 로 빨간 테두리 선택도 hk/person 과 동일하게
+ *     동작한다 — 코드 변경 없이 기존 flaggedItems/내보내기(JSON 의 "tribunal" 키)
+ *     메커니즘이 key 문자열만 다르게 그대로 재사용됨(export 는 애초에 item.key 로
+ *     그룹핑하도록 일반화돼 있었다).
+ *   Playwright 확인: 클릭 시 팝업에 "해경 병합 여부: 병합 안 됨(단독 심판원)" 등
+ *   정상 표시, 선택 1건으로 카운트, 내보내기 JSON `{"tribunal":[0]}` 확인.
  * ============================================================================
  */
 
@@ -504,7 +555,10 @@
     var flaggedItems = new Map(); // "key:origIndex" -> {key, idx, row}
     var flagLayer = null;         // 빨간 테두리 오버레이(소스 무관 공용)
 
-    // 심판원 신규 CSV 좌표 검수 레이어 — 검수 모드 진입 후 같은 버튼 5회 더 연타로 토글.
+    // 심판원 데이터 검수 레이어 — 검수 모드 진입 후 같은 버튼 5회 더 연타로 토글.
+    // hk 병합 여부와 무관하게 심판원 CSV 전체(2021~2025)를 검수 대상으로 삼는다
+    // (사용자 확정 2026-08-25: "해경이랑 병합된 것도 있고 병합되지 않은 것도 있는데
+    // 둘 다 검수하려는 거야" — 기존 hk 전용 검수모드(10회)와는 별도 축).
     var TRIBUNAL_REVIEW_TAP_THRESHOLD = 5;
     var _tribunalReviewTapCount = 0;
     var _tribunalReviewTapTimer = null;
@@ -989,6 +1043,15 @@
             if (row[15] != null) rows.push(['계절', row[15]]);
             return rows;
         }
+        if (key === 'tribunal') {
+            // row=[lat,lon,ymd,hm,typeCd,caseNo,merged] — build_tribunal_review.js 참고.
+            return [
+                ['사고발생일', formatYmd(row[2]) + (row[3] ? ' ' + row[3] : '')],
+                ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[4])],
+                ['사건번호', row[5] || '-'],
+                ['해경 병합 여부', row[6] ? '병합됨(hk에 있음)' : '병합 안 됨(단독 심판원)']
+            ];
+        }
         // person
         return [
             ['사고발생일', formatYmd(row[2])],
@@ -1010,6 +1073,7 @@
     /** 검수 모드 목록에 보여줄 한 줄 요약(popupRowsFor 와 같은 컬럼을 재사용). */
     function reviewLabelFor(key, row) {
         if (key === 'hk') return formatYmd(row[2]) + ' · ' + (row[4] || accidentLabel(ACCIDENT_TYPE_LABELS, row[5]));
+        if (key === 'tribunal') return formatYmd(row[2]) + ' · ' + accidentLabel(ACCIDENT_TYPE_LABELS, row[4]) + (row[6] ? ' (병합됨)' : '');
         return formatYmd(row[2]) + ' · ' + (row[3] || accidentLabel(ACCIDENT_TYPE_LABELS, row[4]));
     }
 
@@ -1150,22 +1214,24 @@
 
     /** hk/person 과 똑같은 줌 기반 클러스터링(buildClusterLayer) 재사용(사용자 확정
      * 2026-08-25: "동일하게 맞춰 달라") — 낱개 점만 찍던 이전 구현은 줌과 무관하게
-     * 전부 다 보여 실제 서비스 마커와 다르게 보였다. 원본 CSV엔 사고유형 컬럼이
-     * 없어(row=[lat,lon,caseNo] 3필드뿐) 유형별 아이콘은 못 붙이지만, 그 외
-     * 뭉치기 거리·줌 임계값(SPREAD_ZOOM)·클러스터 대표점 계산은 완전히 동일하다
-     * (typeCode 가 없는 낱개 마커는 fallbackStyle 파란 점, 클러스터는 숫자만 있는
-     * 빨간 원 — 실제 마커에서 아이콘 없는 사고유형을 표시할 때와 같은 스타일).
-     * zIndex 만 다른 검수용 레이어(flagLayer=58) 위에 오도록 59로 따로 얹는다
+     * 전부 다 보여 실제 서비스 마커와 다르게 보였다. build_tribunal_review.js 가
+     * 이제 사고유형(typeCd)도 담아주므로(초판엔 좌표만 있었다 — 아래 항목 참고)
+     * 클러스터 대표 이미지·낱개 아이콘까지 hk/person 과 완전히 동일하게 뜬다.
+     * feature 에 'row'(popupRowsFor/toggleFlag 용)·'typeCode'(클러스터 대표 이미지
+     * 계산용)·'origIndex'(검수 선택 식별용, hk/person 의 rowToFeature 와 같은 패턴)
+     * 를 얹는다. zIndex 만 검수용 레이어(flagLayer=58) 위에 오도록 59로 따로 얹는다
      * (buildClusterLayer 기본값 56은 hk/person 레이어와 같은 층). */
     function ensureTribunalReviewLayer(map) {
         if (tribunalReviewLayer) return Promise.resolve(tribunalReviewLayer);
         return fetchTribunalReview().then(function (rows) {
-            var features = rows.map(function (row) {
+            var features = rows.map(function (row, i) {
                 var f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([row[1], row[0]])) });
-                f.set('caseNo', row[2]);
+                f.set('row', row);
+                f.set('typeCode', row[4]);
+                f.set('origIndex', i);
                 return f;
             });
-            tribunalReviewLayer = buildClusterLayer(map, 'tribunalReview', features);
+            tribunalReviewLayer = buildClusterLayer(map, 'tribunal', features);
             tribunalReviewLayer.setZIndex(59);
             return tribunalReviewLayer;
         });
@@ -1868,7 +1934,7 @@
                     if (sel && typeof window._showOceanToast === 'function') {
                         window._showOceanToast(
                             '선박용도 정보는 ' + formatYearRanges(yearsWithValue(SHIPUSE_POS_IDX.hk)) + ' 사고에만 있어, 그 외 사고는 결과에서 제외됩니다.',
-                            'bottom', 3500);
+                            'bottom', 3500, true);
                     }
                     onFiltersChanged(map);
                 });
@@ -1878,7 +1944,7 @@
                     if (val && typeof window._showOceanToast === 'function') {
                         window._showOceanToast(
                             '톤수 정보는 ' + formatYearRanges(yearsWithValue(TONNAGE_POS_IDX.hk)) + ' 사고에만 있어, 그 외 사고는 결과에서 제외됩니다.',
-                            'bottom', 3500);
+                            'bottom', 3500, true);
                     }
                     onFiltersChanged(map);
                 });
@@ -2113,6 +2179,12 @@
         if (tryHandleGridClick(map, evt)) return true;
         if (state.mode === 'status' && state.source && clusterLayers[state.source]) {
             if (tryHandleClusterClick(map, evt, state.source, clusterLayers[state.source])) return true;
+        }
+        // 심판원 검수 레이어(사고정보 15회 연타로 켜짐) — state.source 와 무관하게 항상
+        // 켜져 있으면 클릭을 받는다(사용자 확정 2026-08-25: 병합 여부와 무관하게 심판원
+        // 데이터 전체를 검수 대상으로 삼음).
+        if (TRIBUNAL_REVIEW_ON && tribunalReviewLayer) {
+            if (tryHandleClusterClick(map, evt, 'tribunal', tribunalReviewLayer)) return true;
         }
         if (bubbleOverlay) bubbleOverlay.setPosition(undefined);
         return false;
