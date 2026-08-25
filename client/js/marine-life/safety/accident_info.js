@@ -204,6 +204,22 @@
  *     은 강풍(육상)·태풍·풍랑(해상) 양쪽 다 실제로 그대로 맞았다 — 해상 쪽 부모→자식
  *     전개표는 이미 `local_server/config/zone_group_map.js` 에 있던 걸 재사용(사용자가
  *     "이미 되어있는데 확인해봐"라고 짚어줌).
+ * [필터 개선 4가지(2026-08-25 사용자 확정)]
+ *   - 사고유형 옵션에서 "-"(코드 없음)·정확히 "기타"인 것만 목록에서 제외(buildTypeOptions).
+ *     "기타(인명)"·"기타(선박)" 등 구체적인 것은 남긴다.
+ *   - 체크박스 팝업(사고유형·관할서·계절·특보)에 "전체 선택" 행 추가 — 한 번에 다 켜고/끈다.
+ *   - 옵션별 건수를 "이 축만 단독"이 아니라 "지금까지 고른 다른 필터와의 교집합"으로 바꿈
+ *     (passesFiltersExcept — 팝업을 열 때 그 축만 빼고 나머지 필터를 이미 건 채로 센다).
+ *     예: 사고유형=전복 선택 후 관할서 팝업을 열면, 각 관할서 옆 숫자는 "전복이면서 그
+ *     관할서인" 건수. 시간대 프리셋 버튼에도 같은 방식으로 건수를 표시.
+ *   - 모드토글 오른쪽에 "선택 초기화" 버튼 추가(#accident-filter-reset-btn) — 걸어둔
+ *     필터 5개(types·orgs·hourRanges·seasons·warnTypes) 전부 null 로 되돌린다.
+ *   - 사고유형 체크박스 순서를 충돌·침몰·전복·화재·좌초·좌주·폭발·표류·접촉 9개 먼저,
+ *     나머지는 원래 순서(건수 내림차순) 그대로 뒤에 붙도록 고정(TYPE_ORDER_PRIORITY).
+ * [orgCd=1750000("국민안전처") 데이터 삭제(2026-08-25)] "관할 미상"(orgCd=0)과 같은 성격
+ *   (다른 1750xxx 코드는 전부 구체적 해양경찰서로 매핑됐는데 이것만 특정 못 한 값)이라
+ *   사용자 요청으로 원본 데이터에서 삭제(hk 115건·person 4건). 근거는
+ *   `shared/utils/accident_codes.js` 헤더 참고.
  * ============================================================================
  */
 
@@ -324,6 +340,18 @@
     /** 필터에 걸려있는 게 하나라도 있는지 — 필터바 버튼 강조 등에 씀. */
     function hasActiveFilters() {
         return !!(filters.types || filters.orgs || filters.hourRanges || filters.seasons || filters.warnTypes);
+    }
+
+    /** passesFilters 를 excludeKey 축만 빼고 판정 — 팝업을 열 때 "다른 축은 이미 걸린
+     * 채로 이 축의 옵션별 건수"를 셀 때 씀(사용자 확정 2026-08-25: "관할서 팝업 열 때
+     * 옆 숫자는 먼저 고른 사고유형 필터와의 교집합이어야 한다"). filters 를 잠깐
+     * 바꿨다 되돌리는 방식 — 동기 단일스레드라 안전. */
+    function passesFiltersExcept(key, row, excludeKey) {
+        var saved = filters[excludeKey];
+        filters[excludeKey] = null;
+        var ok = passesFilters(key, row);
+        filters[excludeKey] = saved;
+        return ok;
     }
 
     /**
@@ -1222,16 +1250,18 @@
     var HOUR_PRESETS = [[0, 4], [4, 8], [8, 12], [12, 16], [16, 20], [20, 24]];
     function hourPresetLabel(r) { return pad2(r[0]) + '~' + pad2(r[1] === 24 ? 0 : r[1]) + '시'; }
 
-    /** 현재 활성 소스(rawFeatures[state.source])에서 실제 존재하는 값만 옵션으로 뽑는다
-     * — 0건짜리 선택지를 안 보여주기 위함. count 는 필터 다른 축은 무시하고 이 축만
-     * 단독으로 셌을 때의 건수(다른 필터와 조합했을 때의 정확한 교집합 수는 아님 —
-     * 체크박스 목록에서 "대략 몇 건인지" 참고용). */
-    function buildValueOptions(getValue, labelTable) {
+    /** 현재 활성 소스(rawFeatures[state.source])에서, 이 축(excludeKey)만 빼고 나머지
+     * 필터를 이미 건 상태로 실제 존재하는 값만 옵션으로 뽑는다 — 0건짜리 선택지를 안
+     * 보여주기 위함이자, count 를 "지금까지 고른 다른 필터와의 교집합"으로 보여주기
+     * 위함(사용자 확정 2026-08-25). */
+    function buildValueOptions(getValue, labelTable, excludeKey) {
         var key = state.source;
         var feats = (key && rawFeatures[key]) || [];
         var counts = {}; // value -> count
         feats.forEach(function (f) {
-            var v = getValue(f.get('row'));
+            var row = f.get('row');
+            if (!passesFiltersExcept(key, row, excludeKey)) return;
+            var v = getValue(row);
             if (v == null) return;
             counts[v] = (counts[v] || 0) + 1;
         });
@@ -1242,8 +1272,25 @@
         }).sort(function (a, b) { return b.count - a.count; });
     }
 
-    function buildTypeOptions() { return buildValueOptions(function (r) { return typeCodeOf(state.source, r); }, ACCIDENT_TYPE_LABELS); }
-    function buildOrgOptions() { return buildValueOptions(function (r) { return r[ORG_POS_IDX[state.source]]; }, ACCIDENT_ORG_LABELS); }
+    // 사고유형 체크박스 순서(2026-08-25 사용자 확정) — 이 9개는 이 순서로 먼저,
+    // 나머지는 원래 순서(건수 내림차순) 그대로 뒤에.
+    var TYPE_ORDER_PRIORITY = ['충돌', '침몰', '전복', '화재', '좌초', '좌주', '폭발', '표류', '접촉'];
+
+    /** 사고유형 옵션 — "-"(코드 없음)·"기타"(정확히 그 라벨인 것만, "기타(인명)" 등은
+     * 남김)는 목록에서 뺀다(사용자 확정 2026-08-25). */
+    function buildTypeOptions() {
+        var opts = buildValueOptions(function (r) { return typeCodeOf(state.source, r); }, ACCIDENT_TYPE_LABELS, 'types')
+            .filter(function (o) { return o.value != null && o.value !== '' && o.label !== '기타'; });
+        opts.forEach(function (o, i) { o.__origIdx = i; }); // 건수 내림차순이던 원래 순서 보존
+        return opts.sort(function (a, b) {
+            var pa = TYPE_ORDER_PRIORITY.indexOf(a.label), pb = TYPE_ORDER_PRIORITY.indexOf(b.label);
+            if (pa === -1 && pb === -1) return a.__origIdx - b.__origIdx;
+            if (pa === -1) return 1;
+            if (pb === -1) return -1;
+            return pa - pb;
+        });
+    }
+    function buildOrgOptions() { return buildValueOptions(function (r) { return r[ORG_POS_IDX[state.source]]; }, ACCIDENT_ORG_LABELS, 'orgs'); }
 
     /** 특보종류 옵션 — 소스별로 의미있는 종류만(hk 는 태풍·풍랑, person 은 +강풍).
      * 값이 배열(다중 발효 가능)이라 buildValueOptions 의 단일값 카운트 방식을 못 쓰고 별도 구현. */
@@ -1252,7 +1299,9 @@
         var feats = (key && rawFeatures[key]) || [];
         var counts = {};
         feats.forEach(function (f) {
-            var active = f.get('row')[WARN_FLAGS_POS_IDX[key]] || [];
+            var row = f.get('row');
+            if (!passesFiltersExcept(key, row, 'warnTypes')) return;
+            var active = row[WARN_FLAGS_POS_IDX[key]] || [];
             active.forEach(function (code) { counts[code] = (counts[code] || 0) + 1; });
         });
         return (WARN_TYPE_ORDER[key] || []).filter(function (code) { return counts[code] > 0; }).map(function (code) {
@@ -1309,22 +1358,42 @@
         if (!options.length) {
             els.body.innerHTML = '<div class="accident-filter-empty">지금 불러온 데이터에 표시할 항목이 없습니다.</div>';
         } else {
-            els.body.innerHTML = options.map(function (o, i) {
-                var checked = selected.has(o.value) ? ' checked' : '';
-                return '<label class="accident-filter-check-row"><input type="checkbox" data-i="' + i + '"' + checked + '>' +
-                    '<span class="label">' + escapeHtml(o.label) + '</span><span class="n">' + o.count + '건</span></label>';
-            }).join('');
+            els.body.innerHTML =
+                '<label class="accident-filter-check-row accident-filter-check-all"><input type="checkbox" id="afp-check-all">' +
+                '<span class="label">전체 선택</span></label>' +
+                options.map(function (o, i) {
+                    var checked = selected.has(o.value) ? ' checked' : '';
+                    return '<label class="accident-filter-check-row"><input type="checkbox" data-i="' + i + '"' + checked + '>' +
+                        '<span class="label">' + escapeHtml(o.label) + '</span><span class="n">' + o.count + '건</span></label>';
+                }).join('');
         }
-        var checkboxes = els.body.querySelectorAll('input[type="checkbox"]');
+        var checkboxes = els.body.querySelectorAll('input[type="checkbox"][data-i]');
+        var checkAll = document.getElementById('afp-check-all');
+        function syncCheckAll() {
+            if (!checkAll) return;
+            checkAll.checked = checkboxes.length > 0 && selected.size === checkboxes.length;
+        }
+        syncCheckAll();
         Array.prototype.forEach.call(checkboxes, function (cb) {
             cb.addEventListener('change', function () {
                 var o = options[Number(cb.dataset.i)];
                 if (cb.checked) selected.add(o.value); else selected.delete(o.value);
+                syncCheckAll();
             });
         });
+        if (checkAll) {
+            checkAll.addEventListener('change', function () {
+                selected.clear();
+                Array.prototype.forEach.call(checkboxes, function (cb) {
+                    cb.checked = checkAll.checked;
+                    if (checkAll.checked) selected.add(options[Number(cb.dataset.i)].value);
+                });
+            });
+        }
         els.resetBtn.onclick = function () {
             selected.clear();
             Array.prototype.forEach.call(checkboxes, function (cb) { cb.checked = false; });
+            syncCheckAll();
         };
         els.confirmBtn.onclick = function () {
             onConfirm(selected.size ? selected : null);
@@ -1353,10 +1422,26 @@
         }
         function isCustomRange(r) { return !HOUR_PRESETS.some(function (p) { return p[0] === r[0] && p[1] === r[1]; }); }
 
+        /** 프리셋 하나가 통과시킬 건수 — 시간대 축만 빼고 이미 걸린 다른 필터와의
+         * 교집합(사용자 확정 2026-08-25). person 소스는 발생시각 컬럼이 없어 시간대
+         * 판단 자체가 불가 — 판단 불가 행은 항상 통과시키는 기존 원칙과 동일하게 센다. */
+        function presetCount(preset) {
+            var srcKey = state.source;
+            var feats = (srcKey && rawFeatures[srcKey]) || [];
+            var cnt = 0;
+            feats.forEach(function (f) {
+                var row = f.get('row');
+                if (!passesFiltersExcept(srcKey, row, 'hourRanges')) return;
+                var hour = srcKey === 'hk' ? hourOf(row[3]) : null;
+                if (hour == null || (hour >= preset[0] && hour < preset[1])) cnt++;
+            });
+            return cnt;
+        }
+
         function render() {
             var presetsHtml = HOUR_PRESETS.map(function (p, i) {
                 return '<button type="button" class="accident-filter-hour-preset' + (isPresetActive(p) ? ' active' : '') +
-                    '" data-preset-i="' + i + '">' + hourPresetLabel(p) + '</button>';
+                    '" data-preset-i="' + i + '">' + hourPresetLabel(p) + '<span class="n">' + presetCount(p) + '건</span></button>';
             }).join('');
             var customRanges = ranges.filter(isCustomRange);
             var chipsHtml = customRanges.length ? customRanges.map(function (r, i) {
@@ -1487,7 +1572,10 @@
             } else if (key === 'seasons') {
                 var seasonOptions = SEASON_ORDER.map(function (s) {
                     var feats = (state.source && rawFeatures[state.source]) || [];
-                    var count = feats.filter(function (f) { return seasonOf(f.get('row')[2]) === s; }).length;
+                    var count = feats.filter(function (f) {
+                        var row = f.get('row');
+                        return passesFiltersExcept(state.source, row, 'seasons') && seasonOf(row[2]) === s;
+                    }).length;
                     return { value: s, label: SEASON_LABELS[s], count: count };
                 });
                 openCheckboxFilterPopup('계절', seasonOptions, filters.seasons, function (sel) {
@@ -1501,6 +1589,18 @@
                 });
             }
         });
+
+        var resetBtn = document.getElementById('accident-filter-reset-btn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function () {
+                filters.types = null;
+                filters.orgs = null;
+                filters.hourRanges = null;
+                filters.seasons = null;
+                filters.warnTypes = null;
+                onFiltersChanged(map);
+            });
+        }
     }
 
     // ── 버튼·팝아웃 UI ──────────────────────────────────────────────────────
@@ -1554,6 +1654,12 @@
         if (modeToggle) modeToggle.style.display = show ? 'flex' : 'none';
     }
 
+    /** "선택 초기화" 버튼(2026-08-25 사용자 확정) — 모드토글과 같이 보이고 같이 숨는다. */
+    function showFilterResetBtn(show) {
+        var btn = document.getElementById('accident-filter-reset-btn');
+        if (btn) btn.style.display = show ? 'block' : 'none';
+    }
+
     function selectSource(map, key) {
         var seq = ++_selectSeq;
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
@@ -1569,6 +1675,7 @@
             closePopout();
             updateSourceButtonsUi();
             showModeToggle(true);
+            showFilterResetBtn(true);
             showFilterBar(true);
             updateFilterBarModeVisibility();
             updateAllFilterButtonLabels();
@@ -1602,6 +1709,7 @@
         closePopout();
         updateSourceButtonsUi();
         showModeToggle(false);
+        showFilterResetBtn(false);
         showFilterBar(false);
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
         if (toggleBtn) toggleBtn.classList.remove('active');
