@@ -9,12 +9,14 @@
  * [입력] local_server/scripts/_accident_raw/jurisdiction_review_export.json
  *   — 검수 화면 패널의 "내보내기" 버튼을 누르면 텍스트박스에 뜨는 JSON을 그대로
  *   이 경로에 저장(파일이 없으면 실행 중 안내). 형식:
- *   {"jurisdiction":[{"idx":123,"chosen":"부산해양경찰서"}, ...]}
- *   (idx 는 build_jurisdiction_mismatch_review.js 를 돌렸을 때의 accident_ships_hk.json
- *   행 인덱스 — 그 사이 hk 에 행 추가/삭제가 있었으면 idx 가 밀려 있을 수 있어
- *   아래에서 좌표·날짜까지 대조해 어긋나면 스킵하고 경고한다, 추측 반영 안 함)
+ *   {"jurisdiction":[{"idx":123,"action":"apply"}, {"idx":456,"action":"delete"}, ...]}
+ *   (action="apply"면 orgCd를 그 후보의 "폴리곤 판정" 관할서로 정정, "delete"면
+ *   그 행 자체를 삭제 — 2026-08-25 사용자 확정: "적용할지 삭제할지만 선택". idx 는
+ *   build_jurisdiction_mismatch_review.js 를 돌렸을 때의 accident_ships_hk.json 행
+ *   인덱스 — 그 사이 hk 에 행 추가/삭제가 있었으면 idx 가 밀려 있을 수 있어 아래에서
+ *   좌표·날짜까지 대조해 어긋나면 스킵하고 경고한다, 추측 반영 안 함)
  * [실행] node local_server/scripts/apply_jurisdiction_review.js
- * [출력] client/accident_ships_hk.json 갱신(orgCd 만 변경)
+ * [출력] client/accident_ships_hk.json 갱신(orgCd 정정 또는 행 삭제)
  * ============================================================================
  */
 
@@ -54,7 +56,8 @@ function main() {
 
     const hkData = JSON.parse(fs.readFileSync(path.join(CLIENT_DIR, 'accident_ships_hk.json'), 'utf8'));
 
-    let applied = 0, skippedBadOwner = 0, skippedDrift = 0, unchanged = 0;
+    let applied = 0, unchanged = 0, skippedBadAction = 0, skippedDrift = 0;
+    const deleteIdx = new Set();
     picks.forEach((p) => {
         const row = hkData.rows[p.idx];
         if (!row) { skippedDrift++; return; }
@@ -63,15 +66,26 @@ function main() {
             skippedDrift++; // idx 가 가리키는 행이 검수 당시와 달라짐 — hk 가 그 사이 바뀐 것
             return;
         }
-        const newCd = ORG_CODE_OF[p.chosen];
-        if (!newCd) { skippedBadOwner++; return; }
-        if (row[8] === newCd) { unchanged++; return; }
-        row[8] = newCd;
-        applied++;
+        if (p.action === 'delete') {
+            deleteIdx.add(p.idx);
+            applied++;
+        } else if (p.action === 'apply') {
+            if (!cand) { skippedBadAction++; return; } // 정정할 목표 관할서(폴리곤 판정)를 후보 목록에서만 얻음
+            const newCd = ORG_CODE_OF[cand[6]];
+            if (!newCd) { skippedBadAction++; return; }
+            if (row[8] === newCd) { unchanged++; return; }
+            row[8] = newCd;
+            applied++;
+        } else {
+            skippedBadAction++;
+        }
     });
 
+    const before = hkData.rows.length;
+    if (deleteIdx.size) hkData.rows = hkData.rows.filter((r, i) => !deleteIdx.has(i));
+
     fs.writeFileSync(path.join(CLIENT_DIR, 'accident_ships_hk.json'), JSON.stringify(hkData));
-    console.log(`[완료] ${applied}건 반영, 이미 같은 값 ${unchanged}건, 알 수 없는 관할서명 ${skippedBadOwner}건, idx 밀림/삭제로 스킵 ${skippedDrift}건`);
+    console.log(`[완료] ${applied}건 반영(삭제 ${deleteIdx.size}건 포함, ${before}→${hkData.rows.length}건), 이미 같은 값 ${unchanged}건, 알 수 없는/빈 액션 ${skippedBadAction}건, idx 밀림 스킵 ${skippedDrift}건`);
 }
 
 main();

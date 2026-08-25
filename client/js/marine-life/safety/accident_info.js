@@ -417,6 +417,23 @@
  *     (사용자 확정: "선택만 모아뒀다가 일괄 반영"). apply_jurisdiction_review.js 가
  *     그 내보내기 결과를 accident_ships_hk.json 에 실제로 반영(orgCd 수정)한다 —
  *     아직 실행 전(검수 자체가 아직 안 됨), 사람이 다 고른 뒤 별도로 돌릴 것.
+ * [관할서 불일치 검수 레이어 범위·버튼 단순화(2026-08-25, 위 항목 병합 직후 사용자
+ *   피드백)] "전국 419건이 다 나온다"·"21개 버튼 다 있을 필요 있냐" 두 지적으로
+ *   위 구현을 수정:
+ *   - build_jurisdiction_mismatch_review.js 에 SCOPE_PAIRS 추가 — 부산⇄울산·
+ *     제주⇄서귀포 두 쌍(419건 중 164건, 가장 큰 두 쌍)만 내보낸다. 다른 쌍은
+ *     이번 라운드 범위 밖(SCOPE_PAIRS 만 넓히면 나중에 확장 가능).
+ *   - ensureJurisdictionBoundaryLayer 도 지금 후보에 실제 등장하는 서만 그리도록
+ *     바뀜(21개 전체 → 부산·울산·제주·서귀포 4개) — relevantOwners 를 mismatch
+ *     후보에서 동적으로 뽑아 넘기므로 SCOPE_PAIRS 가 바뀌면 자동으로 따라감.
+ *   - renderJurisdictionPopup 의 21개 관할서 버튼(chooseJurisdiction)을 "적용"
+ *     (기록된 관할을 폴리곤 판정으로 정정)·"삭제"(사고 기록 자체를 지움) 2버튼
+ *     (pickJurisdictionAction)으로 교체 — 후보 자체가 이미 recorded/expected 두
+ *     값으로 좁혀져 있으니 그 이상 고를 필요가 없다는 지적(사용자 확정: "적용할지
+ *     삭제할지만 선택할 수 있으면 되는거 아니야?").
+ *   - 내보내기 형식이 {idx, chosen:관할서명} → {idx, action:'apply'|'delete'} 로
+ *     바뀜. apply_jurisdiction_review.js 도 함께 수정 — action='apply'면 후보 목록의
+ *     "폴리곤 판정" 값으로 orgCd 정정, action='delete'면 그 hk 행을 통째로 삭제.
  * ============================================================================
  */
 
@@ -1230,11 +1247,10 @@
             var out = {};
             flaggedItems.forEach(function (item) {
                 if (!out[item.key]) out[item.key] = [];
-                // jurisdiction 은 단순 삭제 후보가 아니라 "어느 관할서가 맞는지" 골라야 해서
-                // idx 만으론 부족 — apply_jurisdiction_review.js 가 읽는 형식에 맞춰
-                // {idx, chosen} 으로 담는다(선택 안 하고 그냥 찍기만 한 항목은 chosen 이
-                // 없을 수 있어 apply 스크립트가 알 수 없는 관할서명으로 걸러낸다).
-                if (item.key === 'jurisdiction') out[item.key].push({ idx: item.idx, chosen: item.chosen || null });
+                // jurisdiction 은 단순 삭제 후보가 아니라 "적용(정정)이냐 삭제냐" 액션이
+                // 필요해서 idx 만으론 부족 — apply_jurisdiction_review.js 가 읽는 형식에
+                // 맞춰 {idx, action} 으로 담는다.
+                if (item.key === 'jurisdiction') out[item.key].push({ idx: item.idx, action: item.action || null });
                 else out[item.key].push(item.idx);
             });
             var ta = document.getElementById('accident-review-export-text');
@@ -1257,7 +1273,7 @@
             row.className = 'arp-item';
             var label = document.createElement('span');
             label.textContent = '[' + item.key + '] ' + reviewLabelFor(item.key, item.row) +
-                (item.chosen ? ' — 선택: ' + item.chosen.replace('해양경찰서', '') : '');
+                (item.action ? ' — ' + (item.action === 'apply' ? '적용' : '삭제') : '');
             var rm = document.createElement('button');
             rm.type = 'button';
             rm.textContent = '✕';
@@ -1363,16 +1379,7 @@
         });
     }
 
-    // 관할서 이름(orgCd 아님, 사람이 읽는 라벨) — build_jurisdiction_mismatch_review.js·
-    // apply_jurisdiction_review.js 와 같은 21개 목록(각자 사본을 갖는 이 저장소 관례).
-    var JURISDICTION_STATIONS = [
-        '속초해양경찰서', '동해해양경찰서', '포항해양경찰서', '울산해양경찰서', '부산해양경찰서',
-        '창원해양경찰서', '통영해양경찰서', '여수해양경찰서', '완도해양경찰서', '목포해양경찰서',
-        '군산해양경찰서', '보령해양경찰서', '태안해양경찰서', '평택해양경찰서', '인천해양경찰서',
-        '제주해양경찰서', '서귀포해양경찰서', '부안해양경찰서', '울진해양경찰서', '사천해양경찰서',
-        '강릉해양경찰서'
-    ];
-    // 21개 관할서 경계선 색상 — 문자열 해시로 고정 배정(재로드해도 서마다 항상 같은 색).
+    // 관할서 경계선 색상 — 문자열 해시로 고정 배정(재로드해도 서마다 항상 같은 색).
     var JURISDICTION_COLORS = [
         '#e6194b', '#3cb44b', '#ffcc00', '#4363d8', '#f58231', '#b366ff', '#42d4d4',
         '#f032e6', '#9acd32', '#ff8fa3', '#00b3b3', '#c48eff', '#c19a6b', '#ffe680',
@@ -1433,12 +1440,16 @@
         });
     }
 
-    /** 관할서 경계선 레이어 — 21개 서 색상별 외곽선만(채움 없음, 마커를 안 가리려고).
-     * 같은 서가 여러 조각(섬 등)으로 나뉜 경우 좌표 개수가 가장 많은 조각에만 이름
-     * 라벨을 달아 라벨 과밀을 피한다. */
-    function ensureJurisdictionBoundaryLayer(map) {
+    /** 관할서 경계선 레이어 — 색상별 외곽선만(채움 없음, 마커를 안 가리려고). 21개
+     * 서 전체를 다 그리면 "왜 전국 게 다 나오냐"는 지적(사용자 확정 2026-08-25)이
+     * 있었어서, 지금 검수 후보(recorded/expected)에 실제로 등장하는 서만 그린다 —
+     * build_jurisdiction_mismatch_review.js 의 SCOPE_PAIRS 가 바뀌면 자동으로 따라감
+     * (여기서 따로 하드코딩 안 함). 같은 서가 여러 조각(섬 등)으로 나뉜 경우 좌표
+     * 개수가 가장 많은 조각에만 이름 라벨을 달아 라벨 과밀을 피한다. */
+    function ensureJurisdictionBoundaryLayer(map, relevantOwners) {
         if (jurisdictionBoundaryLayer) return Promise.resolve(jurisdictionBoundaryLayer);
-        return fetchJurisdictionBoundaries().then(function (faces) {
+        return fetchJurisdictionBoundaries().then(function (allFaces) {
+            var faces = allFaces.filter(function (f) { return relevantOwners[f.owner]; });
             var labelFaceByOwner = {};
             faces.forEach(function (f) {
                 var cur = labelFaceByOwner[f.owner];
@@ -1468,8 +1479,11 @@
     }
 
     function ensureJurisdictionReviewLayers(map) {
-        return Promise.all([ensureJurisdictionMarkerLayer(map), ensureJurisdictionBoundaryLayer(map)])
-            .then(function (r) { return { markerLayer: r[0], boundaryLayer: r[1] }; });
+        return fetchJurisdictionMismatch().then(function (rows) {
+            var relevantOwners = {};
+            rows.forEach(function (r) { relevantOwners[r[5]] = true; relevantOwners[r[6]] = true; });
+            return Promise.all([ensureJurisdictionMarkerLayer(map), ensureJurisdictionBoundaryLayer(map, relevantOwners)]);
+        }).then(function (r) { return { markerLayer: r[0], boundaryLayer: r[1] }; });
     }
 
     /**
@@ -1506,20 +1520,22 @@
         renderReviewPanel();
     }
 
-    /** flaggedItems 에 관할서 선택을 얹거나(다른 서를 고른 경우) 뺀다(같은 서를 다시
-     * 클릭한 경우 — 선택 취소). toggleFlag 와 달리 단순 on/off 가 아니라 "어느 서인지"
-     * 값 자체가 바뀌어야 해서 별도 함수로 뺐다(사용자 확정 2026-08-25: "경찰서명을
-     * 클릭하면서 검수"). */
-    function chooseJurisdiction(map, feature, orgName) {
+    /** flaggedItems 에 검수 결정(적용/삭제)을 얹거나(같은 걸 다시 누른 경우) 뺀다.
+     * 처음엔 21개 관할서 중 아무거나 고르게 했는데(사용자 확정 2026-08-25: "경찰서명을
+     * 클릭하면서 검수"), 이미 후보 자체가 recorded/expected 두 값으로 좁혀져 있는데
+     * 21개씩 보여줄 필요가 없다는 지적으로 "적용(폴리곤 판정대로 관할 정정)"·"삭제
+     * (사고 기록 자체를 지움)" 둘로 단순화했다(사용자 확정: "적용할지 삭제할지만
+     * 선택할 수 있으면 되는거 아니야?"). */
+    function pickJurisdictionAction(map, feature, action) {
         var row = feature.get('row');
         var hkIdx = row[8];
         var flagKey = 'jurisdiction:' + hkIdx;
         var existing = flaggedItems.get(flagKey);
-        if (existing && existing.chosen === orgName) {
+        if (existing && existing.action === action) {
             flaggedItems.delete(flagKey);
         } else {
             flaggedItems.set(flagKey, {
-                key: 'jurisdiction', idx: hkIdx, row: row, chosen: orgName,
+                key: 'jurisdiction', idx: hkIdx, row: row, action: action,
                 coord: feature.getGeometry().getCoordinates()
             });
         }
@@ -1528,19 +1544,17 @@
     }
 
     /**
-     * 관할서 불일치 검수 팝업 — 다른 소스와 달리 표만 보여주는 게 아니라 21개 관할서
-     * 이름 버튼을 그려 그 자리에서 정답을 고르게 한다. 기록된 관할서(주황 테두리)·
-     * 폴리곤 판정 관할서(초록 테두리)를 색으로 미리 알려줘 대개는 둘 중 하나를 그냥
-     * 누르면 되지만, 폴리곤도 틀렸다고 판단되면 다른 서를 골라도 된다. 고른 서(빨강
-     * 배경)는 chooseJurisdiction 이 flaggedItems 에 저장하고, 이 함수를 다시 불러
-     * 버튼 강조만 새로 그린다(팝업을 닫지 않아 연속으로 여러 건 비교하기 편함).
+     * 관할서 불일치 검수 팝업 — "적용"(기록된 관할을 폴리곤 판정으로 정정)·"삭제"
+     * (이 사고 기록 자체를 지움) 두 버튼만 보여준다. 고른 쪽은 빨강 배경으로 표시,
+     * pickJurisdictionAction 이 flaggedItems 에 저장하고 이 함수를 다시 불러 버튼
+     * 강조만 새로 그린다(팝업을 닫지 않아 연속으로 여러 건 비교하기 편함).
      */
     function renderJurisdictionPopup(map, feature) {
         var bubble = ensureBubble(map);
         bubble.getElement().classList.add('jrp-mode');
         var row = feature.get('row'); // [lat,lon,ymd,hm,typeCd,recorded,expected,distKm,hkIdx]
         var hkIdx = row[8];
-        var chosen = flaggedItems.has('jurisdiction:' + hkIdx) ? flaggedItems.get('jurisdiction:' + hkIdx).chosen : null;
+        var picked = flaggedItems.has('jurisdiction:' + hkIdx) ? flaggedItems.get('jurisdiction:' + hkIdx).action : null;
         var infoRows = [
             ['사고발생일', formatYmd(row[2]) + (row[3] ? ' ' + row[3] : '')],
             ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[4])],
@@ -1550,22 +1564,18 @@
         var html = infoRows.map(function (r) {
             return '<div class="row"><span>' + r[0] + '</span><span>' + escapeHtml(r[1]) + '</span></div>';
         }).join('');
-        html += '<div class="jrp-pick-label">맞는 관할서를 클릭(주황=기록됨·초록=폴리곤판정):</div><div class="jrp-pick-grid">' +
-            JURISDICTION_STATIONS.map(function (name) {
-                var cls = 'jrp-pick-btn';
-                if (name === row[5]) cls += ' jrp-recorded';
-                if (name === row[6]) cls += ' jrp-expected';
-                if (name === chosen) cls += ' jrp-chosen';
-                return '<button type="button" class="' + cls + '" data-org="' + escapeHtml(name) + '">' +
-                    escapeHtml(name.replace('해양경찰서', '')) + '</button>';
-            }).join('') + '</div>';
+        html += '<div class="jrp-pick-label">이 사고를 어떻게 할지 클릭:</div><div class="jrp-pick-grid">' +
+            '<button type="button" class="jrp-pick-btn jrp-apply' + (picked === 'apply' ? ' jrp-chosen' : '') + '" data-action="apply">적용(' +
+            escapeHtml(row[6].replace('해양경찰서', '')) + '로 정정)</button>' +
+            '<button type="button" class="jrp-pick-btn jrp-delete' + (picked === 'delete' ? ' jrp-chosen' : '') + '" data-action="delete">삭제(기록 제거)</button>' +
+            '</div>';
         bubble.getElement().innerHTML = html;
         bubble.setPosition(feature.getGeometry().getCoordinates());
         var btns = bubble.getElement().querySelectorAll('.jrp-pick-btn');
         for (var i = 0; i < btns.length; i++) {
             btns[i].addEventListener('click', function (e) {
                 e.stopPropagation();
-                chooseJurisdiction(map, feature, e.currentTarget.dataset.org);
+                pickJurisdictionAction(map, feature, e.currentTarget.dataset.action);
                 renderJurisdictionPopup(map, feature);
             });
         }
