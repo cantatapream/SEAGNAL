@@ -8733,16 +8733,6 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-popup .row span:first-child { color: var(--text-sub); flex: none; }
 .accident-popup .row span:last-child { text-align: right; }
 
-/* 관할서 불일치 검수 팝업(사고정보 20회 연타) — "적용"(정정)·"삭제" 2버튼만
-   (accident_info.js renderJurisdictionPopup, 2026-08-25: 처음엔 21개 관할서를 다
-   보여줬으나 "적용할지 삭제할지만 선택하면 되지 않냐"는 지적으로 단순화). */
-.accident-popup.jrp-mode { max-width: 280px; }
-.accident-popup .jrp-pick-label { margin-top: 8px; margin-bottom: 4px; color: var(--text-sub); font-size: 0.72rem; }
-.accident-popup .jrp-pick-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
-.accident-popup .jrp-pick-btn { font-size: 0.72rem; padding: 6px 4px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); cursor: pointer; }
-.accident-popup .jrp-pick-btn.jrp-apply { border-color: #30d158; color: #30d158; }
-.accident-popup .jrp-pick-btn.jrp-delete { border-color: #ff453a; color: #ff453a; }
-.accident-popup .jrp-pick-btn.jrp-chosen { background: #ff2d55; border-color: #ff2d55; color: #fff; font-weight: 700; } /* 검수자가 고른 것 */
 
 /* 분석 모드 — 격자 클릭 시 뜨는 통계 바텀시트 (.ocean-bottom-sheet 톤 재사용) */
 .accident-stats-sheet {
