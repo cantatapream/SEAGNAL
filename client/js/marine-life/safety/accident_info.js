@@ -443,6 +443,35 @@
  *   단독 데이터는 대상이 아니었고(감사 스크립트가 처음부터 제외), 부산⇄울산·
  *   제주⇄서귀포 두 쌍 외 나머지 17개 서 조합(257건)도 아직 미검수 — "전체가
  *   다시 정렬됐다"는 아님(사용자 질문에 답하며 확인).
+ * [관할서 검수 완전 재설계 — 워크스루 방식(2026-08-26)] 사용자가 남은 3가지를
+ *   지적: ①기존 원본 hk 데이터도 마저 검수해야 ②2021~2024 복원분도 마저 ③2025
+ *   심판원 단독은 애초에 "기록값"이 없어 지금 방식(기록 vs 판정)으로는 검증이
+ *   안 됨. 이어서 "지금은 마커를 하나하나 지도에서 찾아 클릭해야 해서 불편하다"는
+ *   지적으로 검수 흐름 자체를 다시 짰다:
+ *   - build_jurisdiction_mismatch_review.js 의 SCOPE_PAIRS(부산⇄울산·제주⇄서귀포
+ *     하드코딩)를 없애 전체 19개 조합(257건)을 다 내보내고, 화면에 "검수할 대상"
+ *     드롭다운을 둬 코드 수정 없이 아무 조합이나 골라 검수할 수 있게 함.
+ *   - build_jurisdiction_2025_review.js 신설 — 2025 단독행은 recorded 가 없어
+ *     "기록≠판정" 비교가 안 되므로, classifyOrg 가 그 값을 정한 경로(직접 폴리곤
+ *     적중/경계 근접 보정/최근접이웃)를 등급(tier)으로 노출해 저신뢰(신뢰 면
+ *     경계 3.3km 이내 포함, 3,840건 중 2,211건)만 검수 대상으로 뽑는다. 이때도
+ *     classifyOrg 는 reclassify_after_polygon_fix.js 사본을 그대로 써서 개서일
+ *     날짜 게이트(강릉 등)를 그대로 지킨다(사용자 강조: "개소 시점을 고려해야").
+ *   - 지도에서 마커를 찾아 클릭하는 방식을 버리고, 드롭다운으로 대상을 고르면
+ *     시스템이 후보를 하나씩 자동으로 화면 중앙에 놓고(focusMapOnCandidate,
+ *     좌우상하 0.4도 버퍼로 인접 경계가 같이 보이는 줌까지 자동 조정) 위쪽
+ *     jurisdiction-walk-panel 에 "확인(그대로 유지)·변경·삭제" 3버튼만 띄운다
+ *     (사용자 확정: "확인 그대로 유지, 변경 버튼도 있어야"). 아무 버튼이나 누르면
+ *     flaggedItems 에 기록하고 자동으로 다음 미검수 후보로 넘어간다(사용자 확정:
+ *     "그 버튼을 누르면 다음으로 자동으로 넘어가는 형식").
+ *   - "변경"은 21개 관할서를 다 보여주지 않고, redrawBoundaryForExtent 가 지금
+ *     화면에 그린(=인접) 관할서 이름만 작은 버튼으로 띄운다(사용자 확정: "화면에
+ *     보이는 서만"). 그래서 대개 2~4개 버튼으로 끝남.
+ *   - flaggedItems·검수 패널(선택 목록·내보내기)은 hk/person/tribunal 과 완전히
+ *     같은 메커니즘을 그대로 재사용(코드 변경 없음) — jurisdiction 키의 내보내기
+ *     형식만 {idx, action:'confirm'|'change'|'delete', to(변경일 때만)} 로 확장.
+ *     apply_jurisdiction_review.js 도 세 액션 처리 + 두 후보 목록(mismatch·2025)을
+ *     합쳐 idx 드리프트를 검증하도록 다시 씀.
  * ============================================================================
  */
 
@@ -654,10 +683,17 @@
     var tribunalReviewLayer = null;
     var tribunalReviewPromise = null;
     var JURISDICTION_REVIEW_ON = false;
-    var jurisdictionMarkerLayer = null;
-    var jurisdictionBoundaryLayer = null;
-    var jurisdictionReviewPromise = null;
-    var jurisdictionBoundaryPromise = null;
+    var jurisdictionBoundaryLayer = null;  // 현재 워크스루 지점 주변 관할 경계선만(동적 필터)
+    var jurisdictionFocusLayer = null;     // 지금 보고 있는 후보 1건 강조 마커
+    var jurisdictionMismatchPromise = null; // accident_jurisdiction_mismatch.json(①·② 기록≠판정)
+    var jurisdiction2025Promise = null;     // accident_jurisdiction_2025_review.json(③ 2025 단독 저신뢰)
+    var jurisdictionBoundaryPromise = null; // coastguard_jurisdiction_boundaries.json(21개서 경계 원본)
+    // 워크스루 상태 — 서 조합/2025 중 하나를 고르면 그 목록을 순서대로 자동 진행한다
+    // (2026-08-26 사용자 확정: "화면에서 조합 선택 드롭다운" + "자동으로 다음 마커로
+    // 넘어가는 워크스루" — 더는 지도에서 마커를 직접 찾아 클릭하지 않는다).
+    var jwList = [];       // 현재 선택된 데이터셋의 정규화된 후보 배열
+    var jwPos = -1;        // jwList 안에서 지금 보고 있는 위치
+    var jwChangeOpen = false; // "변경" 눌러서 인접 관할서 목록이 펼쳐진 상태인지
 
     // ── 데이터 로드 ─────────────────────────────────────────────────────────
     function fetchSource(key) {
@@ -1177,7 +1213,6 @@
 
     function renderPopup(map, key, feature) {
         var bubble = ensureBubble(map);
-        bubble.getElement().classList.remove('jrp-mode'); // 관할서 검수 팝업(넓은 폭) 흔적 제거
         var rows = popupRowsFor(key, feature.get('row'));
         bubble.getElement().innerHTML = rows.map(function (r) {
             return '<div class="row"><span>' + r[0] + '</span><span>' + escapeHtml(r[1]) + '</span></div>';
@@ -1185,11 +1220,16 @@
         bubble.setPosition(feature.getGeometry().getCoordinates());
     }
 
-    /** 검수 모드 목록에 보여줄 한 줄 요약(popupRowsFor 와 같은 컬럼을 재사용). */
-    function reviewLabelFor(key, row) {
+    /** 검수 모드 목록에 보여줄 한 줄 요약(popupRowsFor 와 같은 컬럼을 재사용).
+     * jurisdiction 키는 datasetKind(item, 있으면)에 따라 row 스키마가 달라(①·②는
+     * recorded/expected, ③2025는 currentOrg/tier) 셋째 인자로 item 을 받는다. */
+    function reviewLabelFor(key, row, item) {
         if (key === 'hk') return formatYmd(row[2]) + ' · ' + (row[4] || accidentLabel(ACCIDENT_TYPE_LABELS, row[5]));
         if (key === 'tribunal') return formatYmd(row[2]) + ' · ' + accidentLabel(ACCIDENT_TYPE_LABELS, row[4]) + (row[6] ? ' (병합됨)' : '');
         if (key === 'jurisdiction') {
+            if (item && item.datasetKind === 'y2025') {
+                return formatYmd(row[2]) + ' · 2025단독 ' + row[5].replace('해양경찰서', '') + '(' + row[6] + ')';
+            }
             return formatYmd(row[2]) + ' · 기록 ' + row[5].replace('해양경찰서', '') +
                 ' → 판정 ' + row[6].replace('해양경찰서', '');
         }
@@ -1256,11 +1296,14 @@
             var out = {};
             flaggedItems.forEach(function (item) {
                 if (!out[item.key]) out[item.key] = [];
-                // jurisdiction 은 단순 삭제 후보가 아니라 "적용(정정)이냐 삭제냐" 액션이
+                // jurisdiction 은 단순 삭제 후보가 아니라 "확인(유지)·변경·삭제" 액션이
                 // 필요해서 idx 만으론 부족 — apply_jurisdiction_review.js 가 읽는 형식에
-                // 맞춰 {idx, action} 으로 담는다.
-                if (item.key === 'jurisdiction') out[item.key].push({ idx: item.idx, action: item.action || null });
-                else out[item.key].push(item.idx);
+                // 맞춰 {idx, action, to} 로 담는다(action='change' 일 때만 to 가 있음).
+                if (item.key === 'jurisdiction') {
+                    out[item.key].push({ idx: item.idx, action: item.action || null, to: item.to || null });
+                } else {
+                    out[item.key].push(item.idx);
+                }
             });
             var ta = document.getElementById('accident-review-export-text');
             ta.value = JSON.stringify(out);
@@ -1281,8 +1324,11 @@
             var row = document.createElement('div');
             row.className = 'arp-item';
             var label = document.createElement('span');
-            label.textContent = '[' + item.key + '] ' + reviewLabelFor(item.key, item.row) +
-                (item.action ? ' — ' + (item.action === 'apply' ? '적용' : '삭제') : '');
+            var actionLabel = item.action === 'confirm' ? '확인'
+                : item.action === 'change' ? '변경→' + (item.to || '').replace('해양경찰서', '')
+                    : item.action === 'delete' ? '삭제' : '';
+            label.textContent = '[' + item.key + '] ' + reviewLabelFor(item.key, item.row, item) +
+                (actionLabel ? ' — ' + actionLabel : '');
             var rm = document.createElement('button');
             rm.type = 'button';
             rm.textContent = '✕';
@@ -1400,19 +1446,33 @@
         return JURISDICTION_COLORS[h % JURISDICTION_COLORS.length];
     }
 
-    /** 관할서 불일치 검수용 후보 좌표 JSON(build_jurisdiction_mismatch_review.js 산출)을
+    /** ①·② 관할서 불일치 후보(build_jurisdiction_mismatch_review.js 산출, 기록≠판정)를
      * 한 번만 fetch 한다. row=[lat,lon,ymd,hm,typeCd,recorded,expected,distKm,hkIdx]. */
     function fetchJurisdictionMismatch() {
-        if (!jurisdictionReviewPromise) {
-            jurisdictionReviewPromise = fetch('/accident_jurisdiction_mismatch.json').then(function (r) {
+        if (!jurisdictionMismatchPromise) {
+            jurisdictionMismatchPromise = fetch('/accident_jurisdiction_mismatch.json').then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
             }).then(function (data) { return data.rows || []; });
         }
-        return jurisdictionReviewPromise;
+        return jurisdictionMismatchPromise;
     }
 
-    /** 관할서 경계 폴리곤 JSON(build_jurisdiction_boundaries.js 산출)을 한 번만 fetch. */
+    /** ③ 2025 심판원 단독 저신뢰 후보(build_jurisdiction_2025_review.js 산출)를 한 번만
+     * fetch. row=[lat,lon,ymd,hm,typeCd,currentOrg,tier,distKm,hkIdx]. */
+    function fetchJurisdiction2025Review() {
+        if (!jurisdiction2025Promise) {
+            jurisdiction2025Promise = fetch('/accident_jurisdiction_2025_review.json').then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            }).then(function (data) { return data.rows || []; });
+        }
+        return jurisdiction2025Promise;
+    }
+
+    /** 관할서 경계 폴리곤 JSON(build_jurisdiction_boundaries.js 산출, 21개서 원본)을
+     * 한 번만 fetch — 실제 화면에 그릴 때는 이 중 지금 보고 있는 후보 주변 것만
+     * focusMapOnCandidate 가 매번 걸러서 그린다. */
     function fetchJurisdictionBoundaries() {
         if (!jurisdictionBoundaryPromise) {
             jurisdictionBoundaryPromise = fetch('/coastguard_jurisdiction_boundaries.json').then(function (r) {
@@ -1423,48 +1483,79 @@
         return jurisdictionBoundaryPromise;
     }
 
-    /** 관할서 불일치 후보 마커 레이어 — 건수가 419건 정도라 hk/person/tribunal 처럼
-     * 클러스터링하지 않고 낱개 점으로 그대로 찍는다(검수자가 하나씩 골라 눌러야
-     * 하므로 뭉쳐서 확대되는 게 오히려 방해). */
-    function ensureJurisdictionMarkerLayer(map) {
-        if (jurisdictionMarkerLayer) return Promise.resolve(jurisdictionMarkerLayer);
-        return fetchJurisdictionMismatch().then(function (rows) {
-            var source = new ol.source.Vector();
-            rows.forEach(function (row) {
-                var f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([row[1], row[0]])) });
-                f.set('row', row);
-                f.set('origIndex', row[8]); // hk(accident_ships_hk.json) 행 인덱스를 그대로 식별자로 씀
-                source.addFeature(f);
-            });
-            var style = new ol.style.Style({
-                image: new ol.style.Circle({
-                    radius: 8,
-                    stroke: new ol.style.Stroke({ color: '#fff', width: 1.5 }),
-                    fill: new ol.style.Fill({ color: 'rgba(255,159,10,0.9)' })
-                })
-            });
-            jurisdictionMarkerLayer = new ol.layer.Vector({ source: source, style: style, visible: false, zIndex: 60 });
-            map.addLayer(jurisdictionMarkerLayer);
-            return jurisdictionMarkerLayer;
-        });
+    function ensureJurisdictionBoundaryLayer(map) {
+        if (jurisdictionBoundaryLayer) return jurisdictionBoundaryLayer;
+        jurisdictionBoundaryLayer = new ol.layer.Vector({ source: new ol.source.Vector(), visible: false, zIndex: 57 });
+        map.addLayer(jurisdictionBoundaryLayer);
+        return jurisdictionBoundaryLayer;
     }
 
-    /** 관할서 경계선 레이어 — 색상별 외곽선만(채움 없음, 마커를 안 가리려고). 21개
-     * 서 전체를 다 그리면 "왜 전국 게 다 나오냐"는 지적(사용자 확정 2026-08-25)이
-     * 있었어서, 지금 검수 후보(recorded/expected)에 실제로 등장하는 서만 그린다 —
-     * build_jurisdiction_mismatch_review.js 의 SCOPE_PAIRS 가 바뀌면 자동으로 따라감
-     * (여기서 따로 하드코딩 안 함). 같은 서가 여러 조각(섬 등)으로 나뉜 경우 좌표
-     * 개수가 가장 많은 조각에만 이름 라벨을 달아 라벨 과밀을 피한다. */
-    function ensureJurisdictionBoundaryLayer(map, relevantOwners) {
-        if (jurisdictionBoundaryLayer) return Promise.resolve(jurisdictionBoundaryLayer);
+    /** 지금 보는 후보 1건을 강조하는 전용 레이어(빨간 테두리 flagLayer 와는 별개 —
+     * flagLayer 는 "이미 결정한 것", 이건 "지금 보고 있는 것"). */
+    function ensureJurisdictionFocusLayer(map) {
+        if (jurisdictionFocusLayer) return jurisdictionFocusLayer;
+        var style = new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 12,
+                stroke: new ol.style.Stroke({ color: '#0aff9d', width: 3 }),
+                fill: new ol.style.Fill({ color: 'rgba(10,255,157,0.25)' })
+            })
+        });
+        jurisdictionFocusLayer = new ol.layer.Vector({ source: new ol.source.Vector(), style: style, visible: false, zIndex: 61 });
+        map.addLayer(jurisdictionFocusLayer);
+        return jurisdictionFocusLayer;
+    }
+
+    /** 순수 bbox 겹침만 보면 인천처럼 해안선을 따라가는 커다란(그러나 가느다란)
+     * 면이 전혀 안 지나가는 먼 지역까지 "겹친다"고 잘못 판정된다(실측 확인 —
+     * 울진 근처인데 "변경" 후보에 인천이 뜸, 인천 면 bbox 가 lon 119~135 로
+     * 한반도 전체를 덮을 만큼 큼). 꼭짓점이 범위 안에 있거나, 범위의 네 꼭짓점
+     * 중 하나가 폴리곤 안에 있으면 실제로 겹친다고 본다(변이 딱 관통만 하고
+     * 꼭짓점도 코너도 안 걸리는 극단적인 경우는 놓칠 수 있으나, 버퍼가 작고
+     * 폴리곤이 굵은 편이라 실무적으로 충분).
+     */
+    function pointInPolygonLL(lon, lat, coords) {
+        var inside = false;
+        for (var i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+            var xi = coords[i][0], yi = coords[i][1], xj = coords[j][0], yj = coords[j][1];
+            var intersect = ((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+    function polygonIntersectsExtent(coords, lonMin, latMin, lonMax, latMax) {
+        for (var i = 0; i < coords.length; i++) {
+            var c = coords[i];
+            if (c[0] >= lonMin && c[0] <= lonMax && c[1] >= latMin && c[1] <= latMax) return true;
+        }
+        var corners = [[lonMin, latMin], [lonMax, latMin], [lonMax, latMax], [lonMin, latMax]];
+        for (var k = 0; k < corners.length; k++) {
+            if (pointInPolygonLL(corners[k][0], corners[k][1], coords)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 관할서 경계선을 lonMin/latMin~lonMax/latMax 범위와 겹치는 것만 색칠해서 다시
+     * 그린다(21개 전체를 늘 그리면 "전국이 다 나온다"는 지적이 재발하므로, 지금
+     * 보는 후보 주변만). 같은 서가 여러 조각이면 이 범위 안에서 좌표가 가장 많은
+     * 조각에만 이름 라벨을 단다.
+     * @returns {string[]} 이번에 그려진(=화면에 보이는) 관할서 이름 목록 — "변경" 버튼의
+     *   후보 목록으로도 그대로 쓴다(사용자 확정 2026-08-26: "화면에 보이는 서들만").
+     */
+    function redrawBoundaryForExtent(map, lonMin, latMin, lonMax, latMax) {
         return fetchJurisdictionBoundaries().then(function (allFaces) {
-            var faces = allFaces.filter(function (f) { return relevantOwners[f.owner]; });
+            var faces = allFaces.filter(function (f) {
+                return polygonIntersectsExtent(f.coords, lonMin, latMin, lonMax, latMax);
+            });
             var labelFaceByOwner = {};
             faces.forEach(function (f) {
                 var cur = labelFaceByOwner[f.owner];
                 if (!cur || f.coords.length > cur.coords.length) labelFaceByOwner[f.owner] = f;
             });
-            var source = new ol.source.Vector();
+            var layer = ensureJurisdictionBoundaryLayer(map);
+            var source = layer.getSource();
+            source.clear();
             faces.forEach(function (f) {
                 var ring = f.coords.map(function (c) { return ol.proj.fromLonLat(c); });
                 var feature = new ol.Feature({ geometry: new ol.geom.Polygon([ring]) });
@@ -1481,34 +1572,31 @@
                 feature.setStyle(new ol.style.Style(styleOpts));
                 source.addFeature(feature);
             });
-            jurisdictionBoundaryLayer = new ol.layer.Vector({ source: source, visible: false, zIndex: 57 });
-            map.addLayer(jurisdictionBoundaryLayer);
-            return jurisdictionBoundaryLayer;
+            layer.setVisible(true);
+            return Object.keys(labelFaceByOwner);
         });
-    }
-
-    function ensureJurisdictionReviewLayers(map) {
-        return fetchJurisdictionMismatch().then(function (rows) {
-            var relevantOwners = {};
-            rows.forEach(function (r) { relevantOwners[r[5]] = true; relevantOwners[r[6]] = true; });
-            return Promise.all([ensureJurisdictionMarkerLayer(map), ensureJurisdictionBoundaryLayer(map, relevantOwners)]);
-        }).then(function (r) { return { markerLayer: r[0], boundaryLayer: r[1] }; });
     }
 
     /**
      * 검수 서브모드를 지도에 반영 — TRIBUNAL_REVIEW_ON·JURISDICTION_REVIEW_ON 을
-     * _reviewSubMode 에서 다시 계산하고, 두 레이어의 표시 여부를 맞춘 뒤 지금 어떤
+     * _reviewSubMode 에서 다시 계산하고, 심판원 레이어 표시 여부를 맞춘 뒤 지금 어떤
      * 검수모드인지 토스트로 알려준다(사용자 확정 2026-08-25: "모드 바뀔때마다
-     * 어떤거 검수모드인지 알려줄 수 있도록 화면에 잠깐 표출").
+     * 어떤거 검수모드인지 알려줄 수 있도록 화면에 잠깐 표출"). 관할서 불일치 쪽은
+     * 레이어 on/off 가 아니라 ensureJurisdictionWalkPanel 로 진입/이탈을 처리한다
+     * (워크스루 방식이라 "데이터셋을 고르기 전엔 아무것도 안 뜬다"가 자연스러움).
      */
     function applyReviewSubMode(map) {
         TRIBUNAL_REVIEW_ON = (_reviewSubMode === REVIEW_SUBMODE_TRIBUNAL);
         JURISDICTION_REVIEW_ON = (_reviewSubMode === REVIEW_SUBMODE_JURISDICTION);
         ensureTribunalReviewLayer(map).then(function (layer) { layer.setVisible(TRIBUNAL_REVIEW_ON); });
-        ensureJurisdictionReviewLayers(map).then(function (layers) {
-            layers.markerLayer.setVisible(JURISDICTION_REVIEW_ON);
-            layers.boundaryLayer.setVisible(JURISDICTION_REVIEW_ON);
-        });
+        var panel = document.getElementById('jurisdiction-walk-panel');
+        if (JURISDICTION_REVIEW_ON) {
+            ensureJurisdictionWalkPanel(map);
+        } else {
+            if (panel) panel.style.display = 'none';
+            if (jurisdictionBoundaryLayer) jurisdictionBoundaryLayer.setVisible(false);
+            if (jurisdictionFocusLayer) jurisdictionFocusLayer.setVisible(false);
+        }
         if (typeof window._showOceanToast === 'function') {
             window._showOceanToast(REVIEW_SUBMODE_LABELS[_reviewSubMode], 'top', 2200);
         }
@@ -1529,78 +1617,239 @@
         renderReviewPanel();
     }
 
-    /** flaggedItems 에 검수 결정(적용/삭제)을 얹거나(같은 걸 다시 누른 경우) 뺀다.
-     * 처음엔 21개 관할서 중 아무거나 고르게 했는데(사용자 확정 2026-08-25: "경찰서명을
-     * 클릭하면서 검수"), 이미 후보 자체가 recorded/expected 두 값으로 좁혀져 있는데
-     * 21개씩 보여줄 필요가 없다는 지적으로 "적용(폴리곤 판정대로 관할 정정)"·"삭제
-     * (사고 기록 자체를 지움)" 둘로 단순화했다(사용자 확정: "적용할지 삭제할지만
-     * 선택할 수 있으면 되는거 아니야?"). */
-    function pickJurisdictionAction(map, feature, action) {
-        var row = feature.get('row');
-        var hkIdx = row[8];
-        var flagKey = 'jurisdiction:' + hkIdx;
-        var existing = flaggedItems.get(flagKey);
-        if (existing && existing.action === action) {
-            flaggedItems.delete(flagKey);
-        } else {
-            flaggedItems.set(flagKey, {
-                key: 'jurisdiction', idx: hkIdx, row: row, action: action,
-                coord: feature.getGeometry().getCoordinates()
-            });
-        }
-        rebuildFlagLayer(map);
-        renderReviewPanel();
+    // ── 관할서 검수 워크스루(2026-08-26 재설계) ──────────────────────────────
+    // 처음엔 마커를 지도에서 직접 찾아 클릭하는 방식이었는데, 사용자 지적으로
+    // 완전히 바꿨다: ①"서 조합 선택" 드롭다운(①·② 기록≠판정 불일치, 부산⇄울산
+    // 두 쌍만 코드에 박아뒀던 걸 화면에서 아무 조합이나 고르게) + ②2025 심판원
+    // 단독 저신뢰 후보까지 같은 화면에서, ③시스템이 후보를 하나씩 자동으로 지도
+    // 중앙에 띄우고 인접 경계가 보이는 줌으로 맞춘 뒤 "확인/변경/삭제" 3버튼만
+    // 누르면 자동으로 다음 후보로 넘어가는 워크스루(사용자 확정: "자동으로 그
+    // 다음 마커로 넘어가는... 마커는 화면 중앙에 위치하되 주변 경계 구역들이 잘
+    // 보일 수 있는 줌 레벨로"). "변경"은 21개 전체가 아니라 지금 화면에 경계선이
+    // 보이는 서만 고르게 한다(사용자 확정: "확인/변경/삭제 두 버튼만 있어도 되냐"
+    // → "변경도 필요, 화면에 보이는 서만").
+
+    /** mismatch.json 행 → 워크스루 공통 후보 객체. */
+    function normalizeMismatchRow(row) {
+        return {
+            idx: row[8], lat: row[0], lon: row[1], ymd: row[2], hm: row[3], typeCd: row[4],
+            kind: 'pair', recorded: row[5], expected: row[6], currentOrg: row[5], tier: null, distKm: row[7]
+        };
+    }
+    /** 2025_review.json 행 → 워크스루 공통 후보 객체. */
+    function normalize2025Row(row) {
+        return {
+            idx: row[8], lat: row[0], lon: row[1], ymd: row[2], hm: row[3], typeCd: row[4],
+            kind: 'y2025', recorded: null, expected: null, currentOrg: row[5], tier: row[6], distKm: row[7]
+        };
     }
 
-    /**
-     * 관할서 불일치 검수 팝업 — "적용"(기록된 관할을 폴리곤 판정으로 정정)·"삭제"
-     * (이 사고 기록 자체를 지움) 두 버튼만 보여준다. 고른 쪽은 빨강 배경으로 표시,
-     * pickJurisdictionAction 이 flaggedItems 에 저장하고 이 함수를 다시 불러 버튼
-     * 강조만 새로 그린다(팝업을 닫지 않아 연속으로 여러 건 비교하기 편함).
-     */
-    function renderJurisdictionPopup(map, feature) {
-        var bubble = ensureBubble(map);
-        bubble.getElement().classList.add('jrp-mode');
-        var row = feature.get('row'); // [lat,lon,ymd,hm,typeCd,recorded,expected,distKm,hkIdx]
-        var hkIdx = row[8];
-        var picked = flaggedItems.has('jurisdiction:' + hkIdx) ? flaggedItems.get('jurisdiction:' + hkIdx).action : null;
-        var infoRows = [
-            ['사고발생일', formatYmd(row[2]) + (row[3] ? ' ' + row[3] : '')],
-            ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[4])],
-            ['기록된 관할', row[5]],
-            ['폴리곤 판정', row[6] + ' (경계에서 ' + row[7] + 'km)']
+    /** 워크스루 패널을 처음 한 번만 만들고, 데이터셋 선택 드롭다운을 채운다. */
+    function ensureJurisdictionWalkPanel(map) {
+        var existing = document.getElementById('jurisdiction-walk-panel');
+        if (existing) { existing.style.display = ''; return Promise.resolve(existing); }
+
+        var style = document.createElement('style');
+        style.textContent =
+            '#jurisdiction-walk-panel{position:fixed;left:12px;right:12px;max-width:360px;margin:0 auto;' +
+            'top:calc(env(safe-area-inset-top,0px) + 64px);background:rgba(20,26,32,0.96);color:#fff;' +
+            'font-size:12px;border-radius:10px;z-index:910;box-shadow:0 4px 16px rgba(0,0,0,0.4);' +
+            'font-family:sans-serif;padding:10px;box-sizing:border-box;}' +
+            '#jurisdiction-walk-panel select{width:100%;padding:6px;border-radius:6px;border:1px solid #555;' +
+            'background:#11161a;color:#fff;font-size:12px;box-sizing:border-box;}' +
+            '#jurisdiction-walk-panel .jwp-progress{margin-top:8px;color:#aaa;font-size:11px;}' +
+            '#jurisdiction-walk-panel .jwp-info{margin-top:4px;display:flex;flex-direction:column;gap:2px;}' +
+            '#jurisdiction-walk-panel .jwp-info .row{display:flex;justify-content:space-between;gap:8px;}' +
+            '#jurisdiction-walk-panel .jwp-info .row span:first-child{color:#aaa;flex:none;}' +
+            '#jurisdiction-walk-panel .jwp-info .row span:last-child{text-align:right;}' +
+            '#jurisdiction-walk-panel .jwp-done-msg{color:#8fd;padding:6px 0;}' +
+            '#jurisdiction-walk-panel .jwp-actions{display:flex;gap:6px;margin-top:8px;}' +
+            '#jurisdiction-walk-panel .jwp-btn{flex:1;padding:8px;border-radius:6px;border:1px solid #555;' +
+            'background:#2a333a;color:#fff;font-size:12px;cursor:pointer;}' +
+            '#jurisdiction-walk-panel .jwp-btn.jwp-confirm{border-color:#30d158;color:#30d158;}' +
+            '#jurisdiction-walk-panel .jwp-btn.jwp-delete{border-color:#ff453a;color:#ff453a;}' +
+            '#jurisdiction-walk-panel .jwp-change-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}' +
+            '#jurisdiction-walk-panel .jwp-owner-btn{padding:6px 10px;border-radius:6px;border:1px solid #555;' +
+            'background:#11161a;color:#fff;font-size:12px;cursor:pointer;}' +
+            '#jurisdiction-walk-panel .jwp-no-owner{color:#aaa;font-size:11px;}';
+        document.head.appendChild(style);
+
+        var panel = document.createElement('div');
+        panel.id = 'jurisdiction-walk-panel';
+        panel.innerHTML =
+            '<select id="jwp-select"><option value="">검수할 대상 선택…</option></select>' +
+            '<div class="jwp-progress" id="jwp-progress"></div>' +
+            '<div class="jwp-info" id="jwp-info"></div>' +
+            '<div class="jwp-actions" id="jwp-actions" style="display:none">' +
+            '<button type="button" class="jwp-btn jwp-confirm" data-act="confirm">확인</button>' +
+            '<button type="button" class="jwp-btn jwp-change" data-act="change">변경</button>' +
+            '<button type="button" class="jwp-btn jwp-delete" data-act="delete">삭제</button>' +
+            '</div>' +
+            '<div class="jwp-change-list" id="jwp-change-list" style="display:none"></div>';
+        document.body.appendChild(panel);
+
+        document.getElementById('jwp-select').addEventListener('change', function (e) {
+            startJurisdictionWalk(map, e.target.value);
+        });
+        document.getElementById('jwp-actions').addEventListener('click', function (e) {
+            var btn = e.target.closest('.jwp-btn');
+            if (!btn) return;
+            handleJwAction(map, btn.dataset.act);
+        });
+        document.getElementById('jwp-change-list').addEventListener('click', function (e) {
+            var btn = e.target.closest('.jwp-owner-btn');
+            if (!btn) return;
+            commitJwDecision(map, jwList[jwPos], 'change', btn.dataset.org);
+        });
+
+        return Promise.all([fetchJurisdictionMismatch(), fetchJurisdiction2025Review()]).then(function (results) {
+            var mismatchRows = results[0], y2025Rows = results[1];
+            var pairCounts = {};
+            mismatchRows.forEach(function (r) {
+                var key = [r[5], r[6]].sort().join('|');
+                pairCounts[key] = (pairCounts[key] || 0) + 1;
+            });
+            var select = document.getElementById('jwp-select');
+            Object.keys(pairCounts).sort(function (a, b) { return pairCounts[b] - pairCounts[a]; }).forEach(function (key) {
+                var names = key.split('|').map(function (n) { return n.replace('해양경찰서', ''); });
+                var opt = document.createElement('option');
+                opt.value = 'pair:' + key;
+                opt.textContent = names.join('⇄') + ' — 기록≠판정 (' + pairCounts[key] + '건)';
+                select.appendChild(opt);
+            });
+            var opt2025 = document.createElement('option');
+            opt2025.value = 'y2025';
+            opt2025.textContent = '2025 심판원 단독 저신뢰 (' + y2025Rows.length + '건)';
+            select.appendChild(opt2025);
+            return panel;
+        });
+    }
+
+    /** 드롭다운에서 데이터셋을 고르면 그 목록을 만들고 첫 미검수 후보로 진입. */
+    function startJurisdictionWalk(map, datasetKey) {
+        if (!datasetKey) { jwList = []; jwPos = -1; renderJwIdle(); return; }
+        var listPromise;
+        if (datasetKey === 'y2025') {
+            listPromise = fetchJurisdiction2025Review().then(function (rows) { return rows.map(normalize2025Row); });
+        } else {
+            var pairNames = datasetKey.slice('pair:'.length).split('|');
+            listPromise = fetchJurisdictionMismatch().then(function (rows) {
+                return rows.filter(function (r) {
+                    return (r[5] === pairNames[0] && r[6] === pairNames[1]) || (r[5] === pairNames[1] && r[6] === pairNames[0]);
+                }).map(normalizeMismatchRow);
+            });
+        }
+        listPromise.then(function (list) {
+            jwList = list;
+            jwPos = -1;
+            advanceJurisdictionWalk(map);
+        });
+    }
+
+    /** 이미 결정한(flaggedItems 에 있는) 건은 건너뛰고 다음 미검수 후보로. 다 봤으면 완료 표시. */
+    function advanceJurisdictionWalk(map) {
+        jwChangeOpen = false;
+        do { jwPos++; } while (jwPos < jwList.length && flaggedItems.has('jurisdiction:' + jwList[jwPos].idx));
+        if (jwPos >= jwList.length) { renderJwDone(); return; }
+        focusMapOnCandidate(map, jwList[jwPos]);
+    }
+
+    /** 후보를 화면 중앙에 두고 인접 경계가 보이는 줌으로 맞춘 뒤(사용자 확정 —
+     * "마커는 화면 중앙에 위치하되 주변 경계 구역이 잘 보이는 줌 레벨로 자동 조정"),
+     * 그 범위 안 경계선만 다시 그리고 카드를 채운다. */
+    function focusMapOnCandidate(map, cand) {
+        var buf = 0.4; // 도 단위 — 인접 1~3개 서 경계가 대개 같이 보이는 정도(실측 확인)
+        var lonMin = cand.lon - buf, lonMax = cand.lon + buf, latMin = cand.lat - buf, latMax = cand.lat + buf;
+        var extent3857 = ol.proj.transformExtent([lonMin, latMin, lonMax, latMax], 'EPSG:4326', 'EPSG:3857');
+        map.getView().fit(extent3857, { duration: 300, maxZoom: 10 });
+
+        var focusLayer = ensureJurisdictionFocusLayer(map);
+        focusLayer.getSource().clear();
+        focusLayer.getSource().addFeature(new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([cand.lon, cand.lat])) }));
+        focusLayer.setVisible(true);
+
+        redrawBoundaryForExtent(map, lonMin, latMin, lonMax, latMax).then(function (visibleOwners) {
+            cand._visibleOwners = visibleOwners;
+            renderJwCard(cand);
+        });
+    }
+
+    function renderJwCard(cand) {
+        document.getElementById('jwp-progress').textContent = (jwPos + 1) + ' / ' + jwList.length;
+        var rows = [
+            ['사고발생일', formatYmd(cand.ymd) + (cand.hm ? ' ' + cand.hm : '')],
+            ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, cand.typeCd)]
         ];
-        var html = infoRows.map(function (r) {
+        if (cand.kind === 'pair') {
+            rows.push(['기록된 관할', cand.recorded]);
+            rows.push(['폴리곤 판정', cand.expected + ' (경계에서 ' + cand.distKm + 'km)']);
+        } else {
+            var tierLabel = cand.tier === 'direct' ? '신뢰 면 안(경계 근처)'
+                : cand.tier === 'boundary' ? '신뢰 면 밖 — 가장 가까운 경계로 보정'
+                    : '최근접이웃(kNN) 추정 — 가장 불확실';
+            rows.push(['현재 관할(추정)', cand.currentOrg]);
+            rows.push(['추정 근거', tierLabel + (cand.distKm >= 0 ? ' · 경계에서 ' + cand.distKm + 'km' : '')]);
+        }
+        document.getElementById('jwp-info').innerHTML = rows.map(function (r) {
             return '<div class="row"><span>' + r[0] + '</span><span>' + escapeHtml(r[1]) + '</span></div>';
         }).join('');
-        html += '<div class="jrp-pick-label">이 사고를 어떻게 할지 클릭:</div><div class="jrp-pick-grid">' +
-            '<button type="button" class="jrp-pick-btn jrp-apply' + (picked === 'apply' ? ' jrp-chosen' : '') + '" data-action="apply">적용(' +
-            escapeHtml(row[6].replace('해양경찰서', '')) + '로 정정)</button>' +
-            '<button type="button" class="jrp-pick-btn jrp-delete' + (picked === 'delete' ? ' jrp-chosen' : '') + '" data-action="delete">삭제(기록 제거)</button>' +
-            '</div>';
-        bubble.getElement().innerHTML = html;
-        bubble.setPosition(feature.getGeometry().getCoordinates());
-        var btns = bubble.getElement().querySelectorAll('.jrp-pick-btn');
-        for (var i = 0; i < btns.length; i++) {
-            btns[i].addEventListener('click', function (e) {
-                e.stopPropagation();
-                pickJurisdictionAction(map, feature, e.currentTarget.dataset.action);
-                renderJurisdictionPopup(map, feature);
-            });
-        }
+        document.getElementById('jwp-actions').style.display = 'flex';
+        var changeList = document.getElementById('jwp-change-list');
+        changeList.style.display = 'none';
+        changeList.innerHTML = '';
     }
 
-    /** 관할서 불일치 검수 레이어(20회 연타) 낱개 마커 클릭 — 클러스터가 없어
-     * tryHandleClusterClick 대신 직접 처리. */
-    function tryHandleJurisdictionClick(map, evt) {
-        if (!jurisdictionMarkerLayer) return false;
-        var hit = null;
-        map.forEachFeatureAtPixel(evt.pixel, function (feature, lyr) {
-            if (lyr === jurisdictionMarkerLayer) { hit = feature; return true; }
-        }, { layerFilter: function (l) { return l === jurisdictionMarkerLayer; } });
-        if (!hit) return false;
-        renderJurisdictionPopup(map, hit);
-        return true;
+    function renderJwIdle() {
+        document.getElementById('jwp-progress').textContent = '';
+        document.getElementById('jwp-info').innerHTML = '';
+        document.getElementById('jwp-actions').style.display = 'none';
+        document.getElementById('jwp-change-list').style.display = 'none';
+        if (jurisdictionBoundaryLayer) jurisdictionBoundaryLayer.setVisible(false);
+        if (jurisdictionFocusLayer) jurisdictionFocusLayer.setVisible(false);
+    }
+
+    function renderJwDone() {
+        document.getElementById('jwp-progress').textContent = '검수 끝';
+        document.getElementById('jwp-info').innerHTML = '<div class="jwp-done-msg">이 목록은 다 확인했습니다 — 위 드롭다운에서 다른 조합을 선택하세요.</div>';
+        document.getElementById('jwp-actions').style.display = 'none';
+        document.getElementById('jwp-change-list').style.display = 'none';
+    }
+
+    /** 확인/변경/삭제 버튼 처리 — "변경"은 바로 결정하지 않고 화면에 보이는 인접
+     * 서 목록을 펼친다(그중 하나를 눌러야 commitJwDecision 이 실제로 호출됨). */
+    function handleJwAction(map, act) {
+        var cand = jwList[jwPos];
+        if (!cand) return;
+        if (act === 'change') {
+            var listEl = document.getElementById('jwp-change-list');
+            jwChangeOpen = !jwChangeOpen;
+            if (!jwChangeOpen) { listEl.style.display = 'none'; return; }
+            var owners = (cand._visibleOwners || []).filter(function (o) { return o !== cand.currentOrg; });
+            listEl.innerHTML = owners.length
+                ? owners.map(function (o) {
+                    return '<button type="button" class="jwp-owner-btn" data-org="' + escapeHtml(o) + '">' +
+                        escapeHtml(o.replace('해양경찰서', '')) + '</button>';
+                }).join('')
+                : '<span class="jwp-no-owner">화면에 다른 관할서 경계가 안 보입니다 — 지도를 줌아웃해 확인하세요.</span>';
+            listEl.style.display = 'flex';
+            return;
+        }
+        commitJwDecision(map, cand, act);
+    }
+
+    /** 결정을 flaggedItems 에 저장(기존 hk/person/tribunal 과 같은 맵, 검수 패널
+     * 목록·내보내기가 그대로 재사용됨) 하고 자동으로 다음 후보로 넘어간다. */
+    function commitJwDecision(map, cand, action, toOrg) {
+        var row = cand.kind === 'pair'
+            ? [cand.lat, cand.lon, cand.ymd, cand.hm, cand.typeCd, cand.recorded, cand.expected, cand.distKm, cand.idx]
+            : [cand.lat, cand.lon, cand.ymd, cand.hm, cand.typeCd, cand.currentOrg, cand.tier, cand.distKm, cand.idx];
+        flaggedItems.set('jurisdiction:' + cand.idx, {
+            key: 'jurisdiction', idx: cand.idx, row: row, action: action, to: toOrg || null,
+            datasetKind: cand.kind, coord: ol.proj.fromLonLat([cand.lon, cand.lat])
+        });
+        rebuildFlagLayer(map);
+        renderReviewPanel();
+        advanceJurisdictionWalk(map);
     }
 
     /**
@@ -2536,10 +2785,9 @@
         if (TRIBUNAL_REVIEW_ON && tribunalReviewLayer) {
             if (tryHandleClusterClick(map, evt, 'tribunal', tribunalReviewLayer)) return true;
         }
-        // 관할서 불일치 검수 레이어(20회 연타) — 위와 같은 이유로 state.source 와 무관.
-        if (JURISDICTION_REVIEW_ON && jurisdictionMarkerLayer) {
-            if (tryHandleJurisdictionClick(map, evt)) return true;
-        }
+        // 관할서 불일치 검수(20회 연타)는 지도 클릭이 아니라 jurisdiction-walk-panel
+        // 의 확인/변경/삭제 버튼으로 진행하는 워크스루 방식이라 여기서 클릭을 받지
+        // 않는다(2026-08-26 재설계 — 마커를 직접 찾아 클릭하지 않아도 됨).
         if (bubbleOverlay) bubbleOverlay.setPosition(undefined);
         return false;
     };

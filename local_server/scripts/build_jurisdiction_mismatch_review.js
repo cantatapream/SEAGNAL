@@ -4,12 +4,12 @@
  * 역할  : audit_hk_jurisdiction_mismatch.js 와 같은 판정 로직(서로 다른 스크립트라
  *         각자 사본을 갖는 이 저장소 관례)으로 "확실한" 관할서 불일치 후보를 뽑아
  *         client/ 에 검수용 정적 JSON 으로 내보낸다 — 사고정보 "관할서 불일치 검수"
- *         레이어(사고정보 버튼 20회 연타)가 지도 위에서 사람이 직접 눈으로 보고
- *         정정(적용)할지 삭제할지 고르는 용도(2026-08-25, "경찰서명을 클릭하면서
- *         검수하도록 하자" → 이후 "전국이 다 나올 필요 없다"는 지적으로 SCOPE_PAIRS
- *         로 좁힘). 울진·속초는 폴리곤 수정으로 이미 해소됐고(재감사 1.6%·0.0%),
- *         나머지 19개 서 조합(419건) 중 가장 큰 두 쌍(부산⇄울산·제주⇄서귀포,
- *         164건)만 이번 라운드 범위.
+ *         레이어(사고정보 버튼 20회 연타)가 "서 조합 선택 → 순차 워크스루" 방식으로
+ *         확인·변경·삭제를 고르는 용도. 처음엔 부산⇄울산·제주⇄서귀포 두 쌍만 코드에
+ *         박아 내보냈는데(SCOPE_PAIRS), "화면에서 조합을 고르게 해달라"는 사용자
+ *         지시(2026-08-26)로 그 필터를 없애고 전체 조합을 다 내보낸다 — 화면(클라
+ *         이언트)에서 recorded/expected 조합별로 묶어 드롭다운으로 고르게 함.
+ *         울진·속초는 폴리곤 수정으로 이미 해소돼(재감사 1.6%·0.0%) 후보에 안 뜬다.
  * ----------------------------------------------------------------------------
  * [출력 행의 idx] client/accident_ships_hk.json rows 배열의 인덱스를 그대로 담는다
  *   (apply_jurisdiction_review.js 가 검수 결과를 그 인덱스로 되찾아 orgCd 를 고침).
@@ -98,18 +98,6 @@ function main() {
         return null;
     }
 
-    // 사용자 확정 2026-08-25: "부산⇄울산·제주⇄서귀포만" — 419건 전국을 한 화면에
-    // 다 찍으니 "왜 전국 게 다 나오냐"는 지적. 이 두 쌍(전체의 164건, 가장 큰 두
-    // 쌍)만 우선 검수하고 나머지 17개 쌍은 이번 라운드 범위 밖(나중에 필요하면
-    // 이 Set만 넓히면 됨).
-    const SCOPE_PAIRS = [
-        new Set(['부산해양경찰서', '울산해양경찰서']),
-        new Set(['제주해양경찰서', '서귀포해양경찰서']),
-    ];
-    function inScope(recorded, expected) {
-        return SCOPE_PAIRS.some((pair) => pair.has(recorded) && pair.has(expected));
-    }
-
     const out = [];
     hkData.rows.forEach((row, idx) => {
         const [lat, lon, ymd] = row;
@@ -121,7 +109,6 @@ function main() {
         const hit = findExpected(lat, lon, ymd);
         if (hit == null || hit.preEstablish) return;
         if (hit.owner === recordedName) return;
-        if (!inScope(recordedName, hit.owner)) return;
         const distDeg = distToPolygonBoundary(lon, lat, hit.coords);
         if (distDeg < CONFIDENT_KM_DEG) return; // 경계 근처 — 폴리곤 오차와 구분 안 됨(V5-9와 같은 기준)
 
