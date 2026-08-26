@@ -80,13 +80,53 @@ def split_page(text):
     return '\n'.join(tbl), '\n'.join(body)
 
 
+# ★표 칸의 범위·나열 표기를 낱낱의 조문으로 편다(2026-08-24 신설, 같은 날 **좁혀 다시 씀**).
+#
+#   [왜] 표에 `제111~118조` 라 적혀 있어도 제112~117조가 "표에 없다"고 잡혔다.
+#   실측: 해상교통안전법 사서가 57건 중 53건(93%)을 "이미 표에 범위로 있음"으로 걸러 냈다.
+#
+#   ⚠**어디까지 펼지는 내 취향이 아니라 챗봇 코드가 정한다.** 처음엔 `제N조~제M조`·`제5조부터
+#   제9조까지` 까지 전부 폈다가 되돌렸다 — 챗봇이 그 꼴을 못 읽기 때문이다. 그걸 폈으면
+#   **진짜 도달불가를 "이미 있음"으로 덮어** 결함을 숨겼을 것이다(사서 보고가 엇갈려 코드를 직접 봤다).
+#
+#   챗봇이 실제로 펴는 것만 편다 — `services/legal_retriever.js` 확인 결과:
+#     ⓐ filterCitationChainByAnswer 의 범위 갈래 : /제(\d+)\s*[~∼]\s*(\d+)조/
+#        → `제111~118조` · `전문(제1~12조)` 는 편다.  `제111조~제118조` 는 **안 편다**(정규식 불일치).
+#     ⓑ expandJoEnum : **가운뎃점이 반드시 있어야** 한다
+#        (`!/[·ㆍ・,]/.test(s) → return null`). 그래서 `제3·7·9조` · `제9·11·18~21조` 는 펴지만,
+#        가운뎃점 없는 순수 범위는 이쪽으로는 안 펴진다(그건 ⓐ가 받는다).
+#   ★챗봇 쪽 정규식이 바뀌면 여기도 같이 바꿔야 한다. 안 그러면 이 검사가 조용히 어긋난다.
+RANGE_TILDE = re.compile(r'제(\d{1,3})\s*[~∼]\s*(\d{1,3})조')     # ⓐ 챗봇과 같은 꼴
+LIST_MID = re.compile(r'제(\d{1,3}(?:\s*[·ㆍ・,]\s*\d{1,3})+)조')   # ⓑ 가운뎃점 나열
+
+
+def table_articles(tbl):
+    """표 칸이 **챗봇 기준으로** 실제로 덮는 조문 번호 집합.
+
+    예: table_articles('| 법 | 제111~118조 |') → {'제111조', …, '제118조'}
+    @param {str} tbl `## 근거 조문` 표 부분
+    @returns {set[str]}
+    [연계] scan() 이 "이 조문이 이미 표에 있나"를 판단하는 근거.
+           ⚠`제N조~제M조` 꼴은 일부러 안 편다 — 챗봇이 못 읽으므로 그건 **진짜 도달불가**다.
+    """
+    have = {key_of(m) for m in ART.finditer(tbl)}
+    for m in RANGE_TILDE.finditer(tbl):
+        a, b = int(m.group(1)), int(m.group(2))
+        if a <= b and b - a <= 200:              # 뒤집힌 표기·오타로 폭주하지 않게
+            have |= {'제%d조' % n for n in range(a, b + 1)}
+    for m in LIST_MID.finditer(tbl):
+        for n in re.findall(r'\d{1,3}', m.group(1)):
+            have.add('제%s조' % n)
+    return have
+
+
 def scan(path):
     """한 페이지의 후보 목록. 표가 없거나 표에 조문이 없으면 빈 목록(다른 문제다)."""
     text = open(path, encoding='utf-8').read()
     if '## 근거 조문' not in text:
         return []
     tbl, body = split_page(text)
-    have = {key_of(m) for m in ART.finditer(tbl)}
+    have = table_articles(tbl)
     if not have:
         return []
     out, seen = [], set()
