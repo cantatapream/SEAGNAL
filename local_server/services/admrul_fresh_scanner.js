@@ -134,6 +134,19 @@ function freshId(title, serial) {
 function actionsFor(row) {
   const n = (row.wiki_pages || []).length;
   const cur = row.current || {};
+  // ★이름이 바뀐 것으로 보이는 행(2026-08-27 신설) — 할 일이 구버전과 다르다.
+  //   구버전은 "같은 고시의 새 판을 받으면" 되지만, 이쪽은 **정말 같은 고시인지부터** 확인해야 한다.
+  //   실측 반례가 있다: 「…별도배출허용기준 지정(보령관창 산단)」의 후보 셋은 전부 다른 산업단지 고시였다.
+  const cands = row.rename_candidates || [];
+  if (cands.length) {
+    const list = cands.map((c) => `「${c.name}」(일련 ${c.serial} · 발령 ${c.issued})`).join(' / ');
+    return [
+      `① **정말 같은 고시인지 먼저 확인한다.** 우리가 가진 이름으로는 현행 목록에 없고, 이름이 비슷한 현행이 있다: ${list}. ★이름이 비슷해도 다른 문서일 수 있다 — 소관 기관과 적용 대상(구역·단지·기관)이 같은지 본문으로 대조한다.`,
+      `② 같은 고시가 맞으면 원문을 새 이름·새 일련번호로 다시 받는다(\`python3 _dashboard/loop/admrul_recollect_stale.py --dry\` 로 먼저 확인). 우리 raw 파일 이름도 새 이름으로 바꿔야 다음 점검에서 또 안 걸린다.`,
+      `③ 다른 문서라면 우리 사본은 **폐지된 것**일 수 있다 — 그때는 새 판을 받는 게 아니라, 이 원문을 인용하는 위키에서 "지금은 폐지됐다"는 표기로 고쳐야 한다.`,
+      `④ ${n ? `이 원문을 인용하는 위키 ${n}곳을 고친다.` : '이 원문을 인용하는 위키 페이지를 아직 못 찾았다 — 조문 번호·소관 기관으로 다시 찾아본다.'}`,
+    ];
+  }
   const wikiStep = n
     ? `이 원문을 인용하는 위키 ${n}곳을 고친다 — 아래 목록의 페이지에서 달라진 조문을 짚은 부분만 수정한다.`
     : `이 원문을 인용하는 위키 페이지를 아직 못 찾았다 — 조문 번호·소관 기관으로 다시 찾아본다.`;
@@ -161,12 +174,16 @@ function actionsFor(row) {
 function toQueueEntry(row) {
   const cur = row.current || {};
   return {
-    id: freshId(row.title, cur.serial || ''),
+    // 이름바뀜의심 행은 `current` 가 비어 있다 — 후보 일련번호로 고유번호를 만든다.
+    id: freshId(row.title, cur.serial || ((row.rename_candidates || [])[0] || {}).serial || ''),
     ts: new Date().toISOString(),
     title: row.title,
     tier: row.tier || '행정규칙',
     slug: row.slug || '',
-    kind: '원문 구버전(' + (row.tier || '행정규칙') + ')',
+    kind: (row.verdict === '이름바뀜의심' ? '이름 바뀜 의심(' : '원문 구버전(')
+      + (row.tier || '행정규칙') + ')',
+    verdict: row.verdict || '구버전',
+    rename_candidates: row.rename_candidates || [],
     pending: row.pending || [],
     held_ids: row.held_ids || [],
     current: { serial: cur.serial || '', issued: cur.issued || '', no: cur.no || '', state: cur.state || '' },
@@ -216,7 +233,7 @@ async function runFreshnessScan() {
     ];
     const errors = [];
     let allRows = [];
-    let checked = 0, freshCnt = 0, unknown = 0, mismatch = 0, repealed = 0;
+    let checked = 0, freshCnt = 0, unknown = 0, mismatch = 0, repealed = 0, renamed = 0;
     for (const part of parts) {
       let r = await runScript(part.script, ['--out', part.out]);
       // 행정규칙은 2차 대조까지 돌린다. 1차가 실패했으면 2차는 의미가 없으니 건너뛴다.
@@ -238,6 +255,7 @@ async function runFreshnessScan() {
       // 화면에서 '이상 없음'과 절대 섞이면 안 되므로 따로 세어 올린다.
       mismatch += rep.mismatch || 0;
       repealed += rep.maybe_repealed || 0;
+      renamed += rep.renamed || 0;
       allRows = allRows.concat(rep.rows || []);
     }
     if (errors.length === parts.length) {
@@ -248,13 +266,15 @@ async function runFreshnessScan() {
       return st;
     }
 
-    const staleRows = allRows.filter((x) => x.verdict === '구버전');
+    // ★'이름바뀜의심' 도 큐에 올린다(2026-08-27). 종전에는 '구버전' 만 올렸고, 이름이 바뀐 것은
+    //   화면 어디에도 안 떠서 **최대 9년 낡은 사본이 방치**돼 있었다(완도해양경찰서 공고 2017년판 등).
+    const staleRows = allRows.filter((x) => x.verdict === '구버전' || x.verdict === '이름바뀜의심');
     const known = existingIds();
     const fresh = staleRows.map(toQueueEntry).filter((e) => !known.has(e.id));
     for (const e of fresh) adminQueues.appendJsonl(QUEUE_FILE, e);
 
     const st = { ok: true, startedAt, finishedAt: new Date().toISOString(),
-      checked, fresh: freshCnt, stale: staleRows.length, unknown, mismatch, repealed,
+      checked, fresh: freshCnt, stale: staleRows.length, unknown, mismatch, repealed, renamed,
       added: fresh.length,
       // 한쪽만 실패했으면 ok:true 로 두되 **무엇을 못 봤는지 반드시 남긴다.**
       partialError: errors.length ? errors.join(' / ') : null, error: null };

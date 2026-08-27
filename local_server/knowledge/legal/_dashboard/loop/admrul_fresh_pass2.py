@@ -90,6 +90,90 @@ def search(name):
     return [arr] if isinstance(arr, dict) else arr
 
 
+# ── 이름이 바뀐 것 같은 현행 후보 찾기 (2026-08-27 신설) ─────────────────────
+#
+# [왜] `이름불일치` 7건을 손으로 확인해 보니 **폐지가 아니라 이름이 바뀐 것**이었다.
+#   지금까지 이 판정에는 "본문은 열리나 현행 검색에 없음(폐지 가능)" 이라고만 적혀 있었고,
+#   나(오케스트레이터)는 그걸 그대로 "폐지 추정"으로 사용자에게 옮겼다 — 틀린 보고였다.
+#   실측(2026-08-27): 7건 중 6건에 **같은 기관의 비슷한 이름 현행 고시**가 있었다. 예를 들어
+#     · 「(완도해양경찰서) 수상레저활동 금지구역 공고」(우리 사본 발령 2017-08-04)
+#       → 현행 「(완도해양경찰서) 수상레저활동 금지구역 **지정 고시**」 2024-07-23
+#     · 「연안정비 시설물 사후관리 시행지침」(2017-01-03)
+#       → 현행 「연안정비 시설물 사후관리 **및 효과평가** 시행지침」 2025-10-22
+#   즉 우리 사본이 최대 9년 낡아 있었는데 "폐지 가능"으로 넘어가고 있었다.
+#
+# ⚠**후보를 내놓을 뿐 판정하지 않는다.** 이름이 비슷하다고 같은 문서라는 보장이 없다.
+#   실측 반례: 「…별도배출허용기준 지정(보령관창 산단)」은 겹치는 글자가 23자나 되는 후보가
+#   셋 나왔는데 전부 **다른 산업단지**(공주보물농공단지 등) 고시였다. 그래서 화면에도
+#   "후보 — 사람이 확인" 으로만 띄운다.
+KIND_TAIL = re.compile(r'(공고|고시|지침|요령|세칙|기준|규정|예규|훈령|규칙)$')
+
+
+def lcs_len(a, b):
+    """두 이름이 **연속으로 몇 글자나 겹치는지**. 후보를 줄 세우는 데만 쓴다."""
+    a, b = norm(a), norm(b)
+    best = 0
+    for i in range(len(a)):
+        for j in range(i + best + 1, len(a) + 1):
+            if a[i:j] in b:
+                best = max(best, j - i)
+            else:
+                break
+    return best
+
+
+def rename_queries(title):
+    """이 이름으로 후보를 찾을 검색어들. 기관 이름 → 핵심어 → 앞 두 낱말 → 첫 낱말 순.
+
+    예: rename_queries('(완도해양경찰서) 수상레저활동 금지구역 공고')
+          → ['완도해양경찰서', '수상레저활동 금지구역', '수상레저활동 금지구역', '수상레저활동']
+    """
+    qs = []
+    m = re.match(r'^\s*\(([^)]{2,20})\)\s*(.*)$', title)
+    rest = title
+    if m:
+        qs.append(m.group(1))
+        rest = m.group(2)
+    core = KIND_TAIL.sub('', rest).strip()
+    core = re.sub(r'\s*(개정|일부개정|지정)\s*$', '', core).strip()
+    if core:
+        qs.append(core)
+        ws = core.split()
+        if len(ws) >= 2:
+            qs.append(' '.join(ws[:2]))
+        if ws and len(ws[0]) >= 3:
+            qs.append(ws[0])
+    out = []
+    for q in qs:
+        if q not in out:
+            out.append(q)
+    return out
+
+
+def rename_candidates(title, limit=3):
+    """이름이 바뀐 것으로 보이는 **현행** 행정규칙 후보. 없으면 빈 목록.
+
+    @returns [{'name','serial','issued','overlap'}] — overlap 은 겹치는 글자 수(판정 아님)
+    [연계] main() 이 `현행 검색에 없음` 으로 끝난 행에만 부른다. 읽기 전용.
+    """
+    seen = {}
+    for q in rename_queries(title):
+        for x in search(q):
+            if str(x.get('현행연혁구분') or '').strip() != '현행':
+                continue
+            nm = str(x.get('행정규칙명') or '')
+            n = lcs_len(title, nm)
+            if n < 5:
+                continue
+            sid = str(x.get('행정규칙일련번호') or '')
+            if seen.get(sid, {}).get('overlap', 0) >= n:
+                continue
+            seen[sid] = {'name': nm, 'serial': sid,
+                         'issued': str(x.get('발령일자') or ''), 'overlap': n}
+        time.sleep(0.25)
+    return sorted(seen.values(), key=lambda c: -c['overlap'])[:limit]
+
+
 def main():
     # 서버 정기작업은 결과를 `local_server/data/` 에 둔다(재배포해도 안 지워지는 곳).
     # 그래서 보고서 위치를 밖에서 지정할 수 있어야 한다.
@@ -120,6 +204,11 @@ def main():
             r['verdict'] = 'ID불일치'
             r['pass2'] = ('보유 ID 로 연 본문이 전혀 다른 문서다(「%s」) — 그 ID 는 이 문서의 것이 '
                           '아니다. 번호 체계가 다른 계열일 수 있다.' % off[:40])
+            # ID 는 못 믿으니 **우리 제목으로** 현행 후보를 찾아 함께 붙인다.
+            cands = rename_candidates(r['title'])
+            if cands:
+                r['rename_candidates'] = cands
+                r['pass2'] += ' 이름이 비슷한 현행 %d건을 후보로 붙였다(사람이 확인).' % len(cands)
             print('[%d/%d] ID불일치 %s' % (i, len(todo), r['title'][:40]), flush=True)
             continue
         if off and norm(off) not in {norm(n) for n in names}:
@@ -155,8 +244,15 @@ def main():
                 r['pending'] = pend
         else:
             r['official_name'] = off
-            r['pass2'] = ('본문은 열리나 현행 검색에 없음(폐지 가능)' if off
-                          else '본문 조회 불가(폐지·DB 미수록 추정)')
+            cands = rename_candidates(r['title'])
+            if cands:
+                r['rename_candidates'] = cands
+                r['verdict'] = '이름바뀜의심'
+                r['pass2'] = ('같은 이름의 현행은 없는데 **이름이 비슷한 현행**이 있다 — '
+                              '이름이 바뀌며 개정됐을 수 있다(후보 %d건, 사람이 확인).' % len(cands))
+            else:
+                r['pass2'] = ('본문은 열리나 현행 검색에 없고 비슷한 이름도 못 찾았다(폐지 가능)' if off
+                              else '본문 조회 불가(폐지·DB 미수록 추정)')
         print('[%d/%d] %s %s' % (i, len(todo), r['verdict'], r['title'][:40]), flush=True)
         time.sleep(0.3)
 
@@ -167,14 +263,23 @@ def main():
     rep['stale'] = v.get('구버전', 0)
     rep['unknown'] = v.get('조회실패', 0) + v.get('응답없음', 0)
     rep['mismatch'] = v.get('이름불일치', 0) + v.get('현행표시없음', 0)
+    # ★'이름바뀜의심' = 같은 이름의 현행은 없는데 **이름이 비슷한 현행**이 있는 것.
+    #   2026-08-27 실측으로 이 갈래를 새로 만들었다 — 종전에는 전부 '폐지 가능'으로 넘어갔고,
+    #   그래서 최대 9년 낡은 사본이 "폐지된 것 같다"는 말과 함께 방치돼 있었다.
+    rep['renamed'] = v.get('이름바뀜의심', 0)
+    rep['id_mismatch'] = v.get('ID불일치', 0)
     # ★2차까지 돌리고도 "본문은 열리는데 현행 목록엔 없다"로 남는 것은 **폐지 가능**이다.
     #   구버전과 성격이 다르다 — 구버전은 새 판으로 갈면 되지만, 폐지된 것을 현행처럼 들고
     #   있으면 **없어진 규정을 살아 있는 것처럼 안내하게 된다.** 따로 세어 올린다.
     rep['maybe_repealed'] = sum(1 for r in rep['rows']
                                 if str(r.get('pass2') or '').startswith('본문은 열리나'))
     json.dump(rep, open(report, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-    print('\n최종: 현행 %d / 구버전 %d / 이름불일치 %d / 응답없음 %d'
-          % (rep['fresh'], rep['stale'], rep['mismatch'], rep['unknown']))
+    print('\n최종: 현행 %d / 구버전 %d / 이름바뀜의심 %d / ID불일치 %d / 이름불일치 %d / 응답없음 %d'
+          % (rep['fresh'], rep['stale'], rep['renamed'], rep['id_mismatch'],
+             rep['mismatch'], rep['unknown']))
+    if rep['renamed']:
+        print('   ★이름바뀜의심 %d건 — 이름이 바뀌며 개정됐을 수 있다. 후보를 붙여 뒀다.' % rep['renamed'])
+        print('     ⚠후보일 뿐이다. 이름이 비슷해도 다른 문서일 수 있다(실측 반례: 산업단지별 배출기준 고시).')
     if rep['maybe_repealed']:
         print('   ★폐지 가능 %d건 — 본문은 열리는데 현행 목록에 없다.' % rep['maybe_repealed'])
         print('     구버전과 다르다: 없어진 규정을 현행처럼 안내하게 될 수 있다. 사람이 확인할 것.')

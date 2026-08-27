@@ -915,7 +915,8 @@
       ? '<div class="nrya-notice-box nrya-err" style="margin-bottom:8px"><span class="nrya-em">⚠️</span><b>일부 점검이 실패했습니다</b><br><span style="font-size:11.5px">' + esc(last.partialError) + '<br>그 부분은 <b>확인하지 못한 것</b>이지 "이상 없음"이 아닙니다.</span></div>'
       : '';
     return partial + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
-      '마지막 점검 ' + esc(shortTs(last.finishedAt)) + ' · ' + (last.checked || 0) + '건 대조 · 구버전 ' + (last.stale || 0) + '건' +
+      '마지막 점검 ' + esc(shortTs(last.finishedAt)) + ' · ' + (last.checked || 0) + '건 대조 · 낡은 원문 ' + (last.stale || 0) + '건' +
+      (last.renamed ? '(그중 이름 바뀜 의심 ' + last.renamed + '건)' : '') +
       (last.mismatch ? ' · 이름불일치 ' + last.mismatch + '건' : '') +
       (last.repealed ? ' · 폐지가능 ' + last.repealed + '건' : '') +
       (last.unknown ? ' · 응답없음 ' + last.unknown + '건' : '') + '</div>' +
@@ -923,7 +924,7 @@
         ? '<div class="nrya-notice-box" style="margin:0 0 8px"><span class="nrya-em">ℹ️</span>' +
           '<b>확인하지 못한 것 ' + ((last.mismatch || 0) + (last.unknown || 0)) + '건</b> — "이상 없음"이 아닙니다.<br>' +
           '<span style="font-size:11.5px;color:var(--nrya-text-sub)">' +
-          '<b>이름불일치</b>: 우리 파일 제목과 국가법령정보센터 공식 이름이 달라 찾지 못한 것입니다(예: 우리 "…금지구역 <b>공고</b>" ↔ 공식 "…금지구역 <b>지정 고시</b>"). 제목을 공식명으로 맞춰 주면 다음부터 자동으로 확인됩니다. 비슷하다고 기계가 임의로 이어 붙이지 않습니다 — 다른 기관 고시가 검색 1위로 나오는 일이 있어 잘못 짝지을 위험이 큽니다.<br>' +
+          '<b>이름불일치</b>: 우리 파일 제목과 국가법령정보센터 공식 이름이 달라 찾지 못한 것입니다. 2026-08-27부터는 이런 경우 <b>이름이 비슷한 현행을 후보로 찾아 아래 목록에 함께 띄웁니다</b>(그 행은 "이름 바뀜 의심"으로 표시됩니다). 비슷하다고 기계가 임의로 이어 붙이지는 않습니다 — 다른 기관·다른 단지 고시가 검색 상위로 나오는 일이 있어 잘못 짝지을 위험이 큽니다. 후보가 하나도 없을 때만 여기 "확인하지 못한 것"으로 남습니다.<br>' +
           '<b>응답없음</b>: 조회가 실패한 것이니 다음 점검 때 다시 확인됩니다.</span></div>' +
           (last.repealed
             ? '<div class="nrya-notice-box nrya-err" style="margin:0 0 8px"><span class="nrya-em">🚨</span>' +
@@ -941,7 +942,7 @@
   function freshnessCardHTML(it) {
     var st = it.status === 'done' ? '<span class="nrya-rv-st nrya-done">✓ 처리완료</span>'
       : it.status === 'dismissed' ? '<span class="nrya-rv-st nrya-rej">✗ 해당없음</span>'
-      : '<span class="nrya-rv-st nrya-warn">구버전</span>';
+      : '<span class="nrya-rv-st nrya-warn">' + ((it.verdict === '이름바뀜의심') ? '이름 바뀜 의심' : '구버전') + '</span>';
     var cur = it.current || {};
     var held = (it.held_ids || []).join(', ');
     var link = 'https://www.law.go.kr/admRulSc.do?menuId=5&query=' + encodeURIComponent(it.title || '');
@@ -951,6 +952,18 @@
       ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📅 시행예정</div><div class="nrya-rv-fval">' +
           it.pending.map(function (x) { return esc(x.issued) + ' 시행 (공포 ' + esc(x.no || '?') + ')'; }).join('<br>') +
           '<br><span style="font-size:11.5px;color:var(--nrya-text-sub)">아직 시행 전이라 지금 고칠 것은 아닙니다. 시행일에 맞춰 다시 받으면 됩니다.</span></div></div>'
+      : '';
+    // ★이름이 바뀐 것으로 보이는 행(2026-08-27) — "몇 번에서 몇 번으로" 대신 **후보 목록**을 보여 준다.
+    //   같은 이름의 현행이 없어 현행 일련번호를 못 짚는 경우다. 후보는 **판정이 아니다.**
+    var cands = it.rename_candidates || [];
+    var candHTML = cands.length
+      ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔎 이름이 바뀐 것 같은 현행 후보</div><div class="nrya-rv-fval">' +
+          '<ul style="margin:4px 0 0;padding-left:18px">' + cands.map(function (c) {
+            return '<li style="margin:2px 0">「' + esc(c.name) + '」<br>' +
+              '<span style="font-size:11.5px;color:var(--nrya-text-sub)">일련 ' + esc(c.serial) +
+              ' · 발령 ' + esc(c.issued) + '</span></li>'; }).join('') + '</ul>' +
+          '<span style="font-size:11.5px;color:var(--nrya-text-sub)">⚠후보일 뿐입니다. 이름이 비슷해도 다른 문서일 수 있어요 — ' +
+          '소관 기관과 적용 대상(구역·단지)이 같은지 본문으로 대조한 뒤에 판단하세요.</span></div></div>'
       : '';
     var wiki = (it.wiki_pages || []).length
       ? '<ul style="margin:4px 0 0;padding-left:18px">' + it.wiki_pages.map(function (w) {
@@ -965,9 +978,12 @@
       '<div class="nrya-rv-body">' +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">📚 계열</div><div class="nrya-rv-fval">' + esc(tier) + '</div></div>' +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔢 어떻게 낡았나</div><div class="nrya-rv-fval">' +
-          '우리가 가진 일련번호 <b>' + esc(held || '?') + '</b> → 현행 <b>' + esc(cur.serial || '?') + '</b>' +
-          (cur.issued ? '<br>현행 발령일자 ' + esc(cur.issued) + (cur.no ? ' · 발령번호 ' + esc(cur.no) : '') : '') +
+          (cands.length
+            ? '우리가 가진 일련번호 <b>' + esc(held || '?') + '</b>. 이 이름으로는 <b>현행 목록에서 못 찾았습니다</b> — 이름이 바뀌었을 수 있습니다(아래 후보 참고).'
+            : '우리가 가진 일련번호 <b>' + esc(held || '?') + '</b> → 현행 <b>' + esc(cur.serial || '?') + '</b>' +
+              (cur.issued ? '<br>현행 발령일자 ' + esc(cur.issued) + (cur.no ? ' · 발령번호 ' + esc(cur.no) : '') : '')) +
         '</div></div>' +
+        candHTML +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">🛠 해야 할 일</div><div class="nrya-rv-fval">' + actions + '</div></div>' +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">📄 고쳐야 할 위키 (' + ((it.wiki_pages || []).length) + ')</div><div class="nrya-rv-fval">' + wiki + '</div></div>' +
         pend +
