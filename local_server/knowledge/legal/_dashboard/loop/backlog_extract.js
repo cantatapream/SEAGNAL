@@ -43,6 +43,22 @@ const arg = k => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : null
 
 // 판정 표기(법마다 이모지 유무가 달라 둘 다 받는다)
 const OPEN_RE = /⚠\s*thin|❌\s*missing|\bstill_missing\b/;
+// ★판정을 **기호로만** 적은 줄도 걷는다(2026-08-27 신설, 사서 보고 → 전수 대조로 확인).
+//
+// [왜] 위 규칙은 `thin`·`missing` 이라는 **낱말**을 찾는다. 그런데 감사 표에는 판정을 기호로만
+//   적은 줄이 아주 많다:
+//       | HH25 | P | T4 | 남북 교류 자연유산 사업에 …? | ❌ | 제48조 미반영 |
+//   `❌` 뒤에 `missing` 이 없으니 안 걸렸고, 그런 줄은 **백로그에 한 줄도 안 올라왔다.**
+//   라운드는 백로그만 보고 도니 그 결함은 **어느 라운드에도 안 잡힌다** — 자연유산법 사서가
+//   "16라운드가 남긴 항목이 4~9라운드 동안 한 번도 재검증되지 않았다"고 보고해 드러났다.
+//   전수 대조(`audit_backlog_gap.py`) 결과 **6,361건 · 법 56개**, 그중 6,116건(96%)이 이 유형이다.
+//
+// ⚠**아무 `❌` 나 걷으면 안 된다.** 감사 파일에는 집계표·소결·메모에도 기호가 널려 있다.
+//   그래서 **표 첫 칸이 감사 문항번호(HH25·P17·G63 꼴)인 줄** 로 못박는다 —
+//   그게 "이건 한 문항에 대한 판정이다"라는 표시다. 이 조건 없이 돌려 보면 잡음이 두 배가 된다.
+const ITEM_ROW = /^\|\s*([A-Z]{1,3}\d{1,3}(?:-\d{1,2})?)\s*\|/;
+const SYMBOL_VERDICT = /[❌⚠]/;
+const openedBySymbol = line => ITEM_ROW.test(line) && SYMBOL_VERDICT.test(line);
 // 같은 줄에 이것이 있으면 **이미 끝난 것**으로 본다.
 const DONE_RE = /✅|해소|해결(?!\s*안)|완료|full\s*(?:로)?\s*(?:전환|재평가|승격|확인)|→\s*✅|더 이상|제거|종료/;
 // 애매하게 "유지"라고만 적힌 것은 열린 항목이다(해소가 아니다).
@@ -260,7 +276,7 @@ for (const f of files) {
     if (h) curRound = Number(h[1]);
     if (line.length < 25) continue;                 // 표 구분선·머리글 같은 부스러기
     if (isNoise(line)) continue;                    // 집계 총계 행·절 헤더·소계 줄
-    const opened = OPEN_RE.test(line);
+    const opened = OPEN_RE.test(line) || openedBySymbol(line);
     const closed = isClosed(line);
     if (!opened && !closed) continue;               // 이 항목 얘기가 아니다
     const k = keyOf(line);
