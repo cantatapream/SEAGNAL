@@ -14,6 +14,12 @@
 검사가 통과했다고 빈 곳이 없다는 뜻이 아니었다 — H-45 ③("이 검사가 무엇을 안 보고 있나")이
 가리키던 자리다.
 
+[★`by_law` 는 "페이지가 속한 법"이지 "조문이 속한 법"이 아니다]
+목록을 법별로 묶는 기준은 **페이지 파일 이름**이다. 그게 배정 단위라서 맞다 — 고쳐야 할 위키가
+그 법의 것이기 때문이다. 다만 **본문이 인용한 조문 자체는 다른 법(또는 같은 법 하위법령)의 것일 수
+있다.** 그래서 항목마다 `원문` 칸에 *그 조번호가 우리 법 어느 계층에 있고 원문 제목이 무엇인지*를
+붙여 둔다. 없으면 `원문없음` 표시가 붙는다 — 다른 법 조문일 가능성이 크다는 뜻이지 결론이 아니다.
+
 [무엇을 세나 — 판정하지 않는다. 위치만 준다]
 본문에서 **조문 제목이 붙은 인용**(`제71조(안전한 속력)`)을 모아, 그 페이지 근거 조문 표의
 조문과 맞춰 본다. 표 어디에도 없으면 후보로 올린다.
@@ -182,6 +188,54 @@ def line_fp(line):
     return hashlib.sha1(re.sub(r'\s+', '', line).encode('utf-8')).hexdigest()[:8]
 
 
+# ── 그 조번호가 **우리 법 원문 어디에** 있는지 (2026-08-27 신설) ─────────────
+#
+# [왜] 목록의 `by_law` 는 **페이지가 속한 법**이다(그게 배정 단위라 맞다). 그런데 본문이 인용한
+#   조문은 **같은 번호의 하위법령 조문이거나 아예 다른 법 조문**인 경우가 많다.
+#   실측(현재 247건): 그 조번호가 우리 법 raw 에 아예 없는 것이 108건이었다.
+#   사서는 그걸 하나하나 원문을 열어 확인해야 했고, 2차 오탐 124건의 상당수가 이 유형이었다.
+#
+# ⚠**판정하지 않는다. 원문에서 읽어 온 사실만 붙인다.**
+#   본문 괄호 안의 제목은 위키 작성자가 풀어 쓴 말이라 원문 제목과 자주 다르다
+#   (실측: 제목까지 똑같은 것은 247건 중 23건뿐). 그래서 **제목으로 맞히려 들지 않고**,
+#   그 조번호가 우리 법 어느 계층에 있고 원문 제목이 무엇인지를 그대로 보여 준다.
+#   "우리 법에 없다"도 숨기는 근거로 쓰지 않는다 — 표시만 하고 목록에는 남긴다.
+RAW = os.path.join(LEGAL, 'raw')
+_RAW_CACHE = {}
+ART_BRACKET = re.compile(r'^\[(제\d+조(?:의\d+)?)\]\s*(.*?)\s*(?:\(시행|$)')
+ART_PLAIN = re.compile(r'^(제\d+조(?:의\d+)?)\s*\(([^)]{1,60})\)')
+
+
+def raw_articles(slug):
+    """그 법 raw 원문의 {조번호: [(계층, 원문 제목), …]}. 폴더가 없으면 빈 것.
+
+    예: raw_articles('해운법')['제10조'] → [('법률', '사업계획의 변경')]
+    [연계] scan_all() 이 항목마다 `원문` 칸을 채우는 데 쓴다. 읽기 전용.
+    """
+    if slug in _RAW_CACHE:
+        return _RAW_CACHE[slug]
+    out = collections.defaultdict(list)
+    dirs = glob.glob(os.path.join(RAW, '*', slug))
+    if dirs:
+        d0 = dirs[0]
+        for tier in ('법률', '시행령', '시행규칙'):
+            for p in sorted(glob.glob(os.path.join(d0, tier + '*.txt'))):
+                if os.path.basename(p).startswith('부칙'):
+                    continue
+                for ln in open(p, encoding='utf-8', errors='replace'):
+                    m = ART_BRACKET.match(ln)
+                    if m and m.group(2):
+                        out[m.group(1)].append((tier, m.group(2)))
+        for p in sorted(glob.glob(os.path.join(d0, '행정규칙', '*.txt'))):
+            nm = os.path.basename(p)[:-4]
+            for ln in open(p, encoding='utf-8', errors='replace'):
+                m = ART_PLAIN.match(ln.strip())
+                if m:
+                    out[m.group(1)].append((nm[:24], m.group(2)))
+    _RAW_CACHE[slug] = out
+    return out
+
+
 def load_ruled():
     """이미 판정이 내려진 항목들. 파일이 없으면 빈 것(= 아직 아무 판정도 없다)."""
     try:
@@ -248,9 +302,15 @@ def scan_all(only=None):
             if not hits:
                 continue
             rel = os.path.relpath(p, LEGAL)
+            arts = raw_articles(law)
             for it in hits:
                 it['id'] = item_id(rel, it['article'])
                 it['fp'] = line_fp(it['line'])
+                found = arts.get(it['article']) or []
+                # 같은 계층에서 여러 번 나오는 경우가 있어(발췌본 등) 앞의 넷만 보여 준다.
+                it['원문'] = ['%s: %s' % (t, ttl) for t, ttl in found[:4]]
+                if not found:
+                    it['원문없음'] = '우리 법 raw 에 이 조번호가 없다 — 다른 법 조문일 수 있다(확인 필요)'
             by_law[law].append({'page': rel, 'items': hits})
     return by_law
 
@@ -314,6 +374,12 @@ def main():
             print('   · 오탐이 아닌 판정(도구막힘 등)이 달린 것 %d건 — 숨기지 않는다' % flagged)
     else:
         print('   · 아직 기록된 판정이 없다(판정 기록: --rule / --rule-file).')
+    # ★그 조번호가 우리 법 원문에 있는지 — 판정이 아니라 사서가 먼저 봐야 할 사실이다.
+    nomatch = sum(1 for v in by_law.values() for x in v for it in x['items'] if it.get('원문없음'))
+    if total:
+        print('   · 그중 **우리 법 raw 에 그 조번호가 아예 없는 것 %d건** — 다른 법 조문일 수 있다.'
+              % nomatch)
+        print('     (숨기지 않는다. 하위법령·행정규칙에 있을 수도 있어 사람이 봐야 한다.)')
     if by_law:
         print('\n   많은 법 상위 15')
         for law, v in sorted(by_law.items(), key=lambda x: -sum(len(y['items']) for y in x[1]))[:15]:
