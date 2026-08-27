@@ -97,6 +97,14 @@ function main() {
 
     fs.writeFileSync(path.join(CLIENT_DIR, 'accident_ships_hk.json'), JSON.stringify(hkData));
     console.log(`[완료] 변경 ${applied}건(삭제 ${deleteIdx.size}건 포함, ${before}→${hkData.rows.length}건), 확인만(무변경) ${confirmed}건, 이미 같은 값 ${unchanged}건, 알 수 없는/빈 액션 ${skippedBadAction}건, idx 밀림 스킵 ${skippedDrift}건`);
+    if (deleteIdx.size) {
+        // 삭제로 배열이 당겨지면 그 뒤(특히 맨 끝의 2025 단독행) idx 가 전부 밀린다
+        // (2026-08-26 실제로 이 문제를 겪고 나서 추가한 안내 — 잊으면 다음 검수
+        // 라운드가 엉뚱한 행을 가리키게 된다).
+        console.log('⚠ 행을 삭제했다 — 다음 명령을 반드시 이어서 실행할 것:');
+        console.log('   node local_server/scripts/build_jurisdiction_mismatch_review.js');
+        console.log('   node local_server/scripts/build_jurisdiction_2025_review.js');
+    }
 }
 
 main();
