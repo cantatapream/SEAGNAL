@@ -1,0 +1,673 @@
+{
+ "0": [
+  {
+   "name": "수산종자산업육성법",
+   "slug": "수산종자산업육성법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법",
+   "n": 965,
+   "files": [
+    "수산종자산업육성법.md"
+   ]
+  },
+  {
+   "name": "내수면어업법",
+   "slug": "내수면어업법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/내수면어업법",
+   "n": 440,
+   "files": [
+    "내수면어업법.md"
+   ]
+  },
+  {
+   "name": "해양환경관리법",
+   "slug": "해양환경관리법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/해양환경관리법",
+   "n": 305,
+   "files": [
+    "해양환경관리법.md",
+    "해양환경관리법_2라운드.md"
+   ]
+  },
+  {
+   "name": "수중레저활동의안전및활성화등에관한법률",
+   "slug": "수중레저활동의안전및활성화등에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/09_레저관광/수중레저활동의안전및활성화등에관한법률",
+   "n": 207,
+   "files": [
+    "수중레저활동의안전및활성화등에관한법률.md"
+   ]
+  },
+  {
+   "name": "항만운송사업법",
+   "slug": "항만운송사업법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/항만운송사업법",
+   "n": 117,
+   "files": [
+    "항만운송사업법.md",
+    "항만운송사업법_3라운드.md"
+   ]
+  },
+  {
+   "name": "해양경비법",
+   "slug": "해양경비법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/해양경비법",
+   "n": 60,
+   "files": [
+    "해양경비법.md"
+   ]
+  },
+  {
+   "name": "해양생태계의보전및관리에관한법률",
+   "slug": "해양생태계의보전및관리에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/해양생태계의보전및관리에관한법률",
+   "n": 16,
+   "files": [
+    "해양생태계의보전및관리에관한법률.md"
+   ]
+  },
+  {
+   "name": "선박안전법",
+   "slug": "선박안전법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/선박안전법",
+   "n": 7,
+   "files": [
+    "선박안전법.md"
+   ]
+  },
+  {
+   "name": "해양경찰법",
+   "slug": "해양경찰법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/해양경찰법",
+   "n": 5,
+   "files": [
+    "해양경찰법.md"
+   ]
+  },
+  {
+   "name": "해양환경보전및활용에관한법률",
+   "slug": "해양환경보전및활용에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/해양환경보전및활용에관한법률",
+   "n": 1,
+   "files": [
+    "해양환경보전및활용에관한법률.md",
+    "해양환경보전및활용에관한법률_2라운드.md"
+   ]
+  }
+ ],
+ "1": [
+  {
+   "name": "어촌ㆍ어항법",
+   "slug": "어촌ㆍ어항법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법",
+   "n": 908,
+   "files": [
+    "어촌ㆍ어항법.md"
+   ]
+  },
+  {
+   "name": "연안사고예방에관한법률",
+   "slug": "연안사고예방에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률",
+   "n": 453,
+   "files": [
+    "연안사고예방에관한법률.md"
+   ]
+  },
+  {
+   "name": "수상에서의수색ㆍ구조등에관한법률",
+   "slug": "수상에서의수색ㆍ구조등에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률",
+   "n": 314,
+   "files": [
+    "수상에서의수색ㆍ구조등에관한법률.md",
+    "수상에서의수색ㆍ구조등에관한법률_2라운드.md"
+   ]
+  },
+  {
+   "name": "섬발전촉진법",
+   "slug": "섬발전촉진법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/섬발전촉진법",
+   "n": 234,
+   "files": [
+    "섬발전촉진법.md"
+   ]
+  },
+  {
+   "name": "국제항해선박등에대한해적행위피해예방에관한법률",
+   "slug": "국제항해선박등에대한해적행위피해예방에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박등에대한해적행위피해예방에관한법률",
+   "n": 165,
+   "files": [
+    "국제항해선박등에대한해적행위피해예방에관한법률.md"
+   ]
+  },
+  {
+   "name": "갯벌및그주변지역의지속가능한관리와복원에관한법률",
+   "slug": "갯벌및그주변지역의지속가능한관리와복원에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/갯벌및그주변지역의지속가능한관리와복원에관한법률",
+   "n": 19,
+   "files": [
+    "갯벌및그주변지역의지속가능한관리와복원에관한법률.md"
+   ]
+  },
+  {
+   "name": "유선및도선사업법",
+   "slug": "유선및도선사업법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법",
+   "n": 18,
+   "files": [
+    "유선및도선사업법.md"
+   ]
+  },
+  {
+   "name": "신항만건설촉진법",
+   "slug": "신항만건설촉진법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/신항만건설촉진법",
+   "n": 7,
+   "files": [
+    "신항만건설촉진법.md"
+   ]
+  },
+  {
+   "name": "해양공간계획및관리에관한법률",
+   "slug": "해양공간계획및관리에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/01_해양주권정책/해양공간계획및관리에관한법률",
+   "n": 3,
+   "files": [
+    "해양공간계획및관리에관한법률.md"
+   ]
+  },
+  {
+   "name": "독도의지속가능한이용에관한법률",
+   "slug": "독도의지속가능한이용에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/08_섬영토/독도의지속가능한이용에관한법률",
+   "n": 1,
+   "files": [
+    "독도의지속가능한이용에관한법률.md"
+   ]
+  }
+ ],
+ "2": [
+  {
+   "name": "항만법",
+   "slug": "항만법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/항만법",
+   "n": 803,
+   "files": [
+    "항만법.md"
+   ]
+  },
+  {
+   "name": "도선법",
+   "slug": "도선법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/04_선박해운/도선법",
+   "n": 500,
+   "files": [
+    "도선법.md"
+   ]
+  },
+  {
+   "name": "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률",
+   "slug": "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/01_해양주권정책/배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률",
+   "n": 346,
+   "files": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률.md"
+   ]
+  },
+  {
+   "name": "무인도서의보전및관리에관한법률",
+   "slug": "무인도서의보전및관리에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/무인도서의보전및관리에관한법률",
+   "n": 291,
+   "files": [
+    "무인도서의보전및관리에관한법률.md",
+    "무인도서의보전및관리에관한법률_2라운드.md"
+   ]
+  },
+  {
+   "name": "선원법",
+   "slug": "선원법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/06_선원노동/선원법",
+   "n": 89,
+   "files": [
+    "선원법.md"
+   ]
+  },
+  {
+   "name": "해양수산생명자원의확보ㆍ관리및이용등에관한법률",
+   "slug": "해양수산생명자원의확보ㆍ관리및이용등에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/해양수산생명자원의확보ㆍ관리및이용등에관한법률",
+   "n": 66,
+   "files": [
+    "해양수산생명자원의확보ㆍ관리및이용등에관한법률.md",
+    "해양수산생명자원의확보ㆍ관리및이용등에관한법률_2라운드.md"
+   ]
+  },
+  {
+   "name": "수산업ㆍ어촌발전기본법",
+   "slug": "수산업ㆍ어촌발전기본법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법",
+   "n": 12,
+   "files": [
+    "수산업ㆍ어촌발전기본법.md",
+    "수산업ㆍ어촌발전기본법_2라운드.md"
+   ]
+  },
+  {
+   "name": "수산자원관리법",
+   "slug": "수산자원관리법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/수산자원관리법",
+   "n": 11,
+   "files": [
+    "수산자원관리법.md"
+   ]
+  },
+  {
+   "name": "해양사고의조사및심판에관한법률",
+   "slug": "해양사고의조사및심판에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률",
+   "n": 3,
+   "files": [
+    "해양사고의조사및심판에관한법률.md"
+   ]
+  },
+  {
+   "name": "수산부산물재활용촉진에관한법률",
+   "slug": "수산부산물재활용촉진에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/12_수산물유통/수산부산물재활용촉진에관한법률",
+   "n": 1,
+   "files": [
+    "수산부산물재활용촉진에관한법률.md",
+    "수산부산물재활용촉진에관한법률_2라운드.md",
+    "수산부산물재활용촉진에관한법률_5라운드.md",
+    "수산부산물재활용촉진에관한법률_6라운드.md",
+    "수산부산물재활용촉진에관한법률_7라운드.md",
+    "수산부산물재활용촉진에관한법률_8라운드.md"
+   ]
+  }
+ ],
+ "3": [
+  {
+   "name": "낚시관리및육성법",
+   "slug": "낚시관리및육성법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/09_레저관광/낚시관리및육성법",
+   "n": 764,
+   "files": [
+    "낚시관리및육성법.md"
+   ]
+  },
+  {
+   "name": "농수산물의원산지표시등에관한법률",
+   "slug": "농수산물의원산지표시등에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률",
+   "n": 512,
+   "files": [
+    "농수산물의원산지표시등에관한법률.md",
+    "농수산물의원산지표시등에관한법률_2라운드.md"
+   ]
+  },
+  {
+   "name": "원양산업발전법",
+   "slug": "원양산업발전법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/원양산업발전법",
+   "n": 397,
+   "files": [
+    "원양산업발전법.md"
+   ]
+  },
+  {
+   "name": "수산물유통의관리및지원에관한법률",
+   "slug": "수산물유통의관리및지원에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/12_수산물유통/수산물유통의관리및지원에관한법률",
+   "n": 240,
+   "files": [
+    "수산물유통의관리및지원에관한법률.md"
+   ]
+  },
+  {
+   "name": "어선원및어선재해보상보험법",
+   "slug": "어선원및어선재해보상보험법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법",
+   "n": 145,
+   "files": [
+    "어선원및어선재해보상보험법.md"
+   ]
+  },
+  {
+   "name": "해양치유자원의관리및활용에관한법률",
+   "slug": "해양치유자원의관리및활용에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/11_해양신산업/해양치유자원의관리및활용에관한법률",
+   "n": 23,
+   "files": [
+    "해양치유자원의관리및활용에관한법률.md",
+    "해양치유자원의관리및활용에관한법률_2라운드.md"
+   ]
+  },
+  {
+   "name": "어선법",
+   "slug": "어선법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/어선법",
+   "n": 19,
+   "files": [
+    "어선법.md"
+   ]
+  },
+  {
+   "name": "자연유산의보존및활용에관한법률",
+   "slug": "자연유산의보존및활용에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/자연유산의보존및활용에관한법률",
+   "n": 12,
+   "files": [
+    "자연유산의보존및활용에관한법률.md"
+   ]
+  },
+  {
+   "name": "해양조사와해양정보활용에관한법률",
+   "slug": "해양조사와해양정보활용에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/해양조사와해양정보활용에관한법률",
+   "n": 7,
+   "files": [
+    "해양조사와해양정보활용에관한법률.md"
+   ]
+  },
+  {
+   "name": "해상교통안전법",
+   "slug": "해상교통안전법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/해상교통안전법",
+   "n": 2,
+   "files": [
+    "해상교통안전법.md"
+   ]
+  },
+  {
+   "name": "양식산업발전법",
+   "slug": "양식산업발전법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/양식산업발전법",
+   "n": 1,
+   "files": [
+    "양식산업발전법.md"
+   ]
+  }
+ ],
+ "4": [
+  {
+   "name": "선박법",
+   "slug": "선박법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/선박법",
+   "n": 730,
+   "files": [
+    "선박법.md"
+   ]
+  },
+  {
+   "name": "한국해양교통안전공단법",
+   "slug": "한국해양교통안전공단법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/한국해양교통안전공단법",
+   "n": 561,
+   "files": [
+    "한국해양교통안전공단법.md"
+   ]
+  },
+  {
+   "name": "선박교통관제에관한법률",
+   "slug": "선박교통관제에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/03_해상교통안전/선박교통관제에관한법률",
+   "n": 379,
+   "files": [
+    "선박교통관제에관한법률.md",
+    "선박교통관제에관한법률_2라운드.md"
+   ]
+  },
+  {
+   "name": "유류오염손해배상보장법",
+   "slug": "유류오염손해배상보장법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/14_해양사법/유류오염손해배상보장법",
+   "n": 289,
+   "files": [
+    "유류오염손해배상보장법.md"
+   ]
+  },
+  {
+   "name": "연안관리법",
+   "slug": "연안관리법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/연안관리법",
+   "n": 71,
+   "files": [
+    "연안관리법.md"
+   ]
+  },
+  {
+   "name": "물환경보전법",
+   "slug": "물환경보전법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/물환경보전법",
+   "n": 64,
+   "files": [
+    "물환경보전법.md"
+   ]
+  },
+  {
+   "name": "해사안전기본법",
+   "slug": "해사안전기본법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/03_해상교통안전/해사안전기본법",
+   "n": 15,
+   "files": [
+    "해사안전기본법.md"
+   ]
+  },
+  {
+   "name": "해운법",
+   "slug": "해운법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/04_선박해운/해운법",
+   "n": 8,
+   "files": [
+    "해운법.md"
+   ]
+  },
+  {
+   "name": "농수산물품질관리법",
+   "slug": "농수산물품질관리법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법",
+   "n": 4,
+   "files": [
+    "농수산물품질관리법.md",
+    "농수산물품질관리법_2라운드.md",
+    "농수산물품질관리법_3라운드.md"
+   ]
+  },
+  {
+   "name": "폐기물관리법",
+   "slug": "폐기물관리법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법",
+   "n": 1,
+   "files": [
+    "폐기물관리법.md"
+   ]
+  }
+ ],
+ "5": [
+  {
+   "name": "선박평형수(船舶平衡水)관리법",
+   "slug": "선박평형수(船舶平衡水)관리법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/04_선박해운/선박평형수(船舶平衡水)관리법",
+   "n": 693,
+   "files": [
+    "선박평형수(船舶平衡水)관리법.md"
+   ]
+  },
+  {
+   "name": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
+   "slug": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
+   "n": 594,
+   "files": [
+    "어선안전조업및어선원의안전ㆍ보건증진등에관한법률.md"
+   ]
+  },
+  {
+   "name": "마리나항만의조성및관리등에관한법률",
+   "slug": "마리나항만의조성및관리등에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/마리나항만의조성및관리등에관한법률",
+   "n": 383,
+   "files": [
+    "마리나항만의조성및관리등에관한법률.md",
+    "마리나항만의조성및관리등에관한법률_2라운드.md"
+   ]
+  },
+  {
+   "name": "수산업법",
+   "slug": "수산업법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/수산업법",
+   "n": 245,
+   "files": [
+    "수산업법.md"
+   ]
+  },
+  {
+   "name": "선박의입항및출항등에관한법률",
+   "slug": "선박의입항및출항등에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률",
+   "n": 140,
+   "files": [
+    "선박의입항및출항등에관한법률.md"
+   ]
+  },
+  {
+   "name": "출입국관리법",
+   "slug": "출입국관리법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/출입국관리법",
+   "n": 53,
+   "files": [
+    "출입국관리법.md"
+   ]
+  },
+  {
+   "name": "해양레저관광진흥법",
+   "slug": "해양레저관광진흥법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/09_레저관광/해양레저관광진흥법",
+   "n": 11,
+   "files": [
+    "해양레저관광진흥법.md"
+   ]
+  },
+  {
+   "name": "해양폐기물및해양오염퇴적물관리법",
+   "slug": "해양폐기물및해양오염퇴적물관리법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법",
+   "n": 2,
+   "files": [
+    "해양폐기물및해양오염퇴적물관리법.md"
+   ]
+  },
+  {
+   "name": "항로표지법",
+   "slug": "항로표지법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/항로표지법",
+   "n": 1,
+   "files": [
+    "항로표지법.md"
+   ]
+  }
+ ],
+ "6": [
+  {
+   "name": "공유수면관리및매립에관한법률",
+   "slug": "공유수면관리및매립에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/공유수면관리및매립에관한법률",
+   "n": 636,
+   "files": [
+    "공유수면관리및매립에관한법률.md"
+   ]
+  },
+  {
+   "name": "선박직원법",
+   "slug": "선박직원법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/04_선박해운/선박직원법",
+   "n": 606,
+   "files": [
+    "선박직원법.md",
+    "선박직원법_2라운드.md",
+    "선박직원법_3라운드.md"
+   ]
+  },
+  {
+   "name": "한국해양수산연수원법",
+   "slug": "한국해양수산연수원법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/13_공공기관/한국해양수산연수원법",
+   "n": 415,
+   "files": [
+    "한국해양수산연수원법.md",
+    "한국해양수산연수원법_2라운드.md",
+    "한국해양수산연수원법_3라운드.md",
+    "한국해양수산연수원법_4라운드.md",
+    "한국해양수산연수원법_5라운드.md",
+    "한국해양수산연수원법_6라운드.md",
+    "한국해양수산연수원법_7라운드.md",
+    "한국해양수산연수원법_8라운드.md"
+   ]
+  },
+  {
+   "name": "수상레저기구의등록및검사에관한법률",
+   "slug": "수상레저기구의등록및검사에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/수상레저기구의등록및검사에관한법률",
+   "n": 290,
+   "files": [
+    "수상레저기구의등록및검사에관한법률.md"
+   ]
+  },
+  {
+   "name": "수상레저안전법",
+   "slug": "수상레저안전법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/수상레저안전법",
+   "n": 80,
+   "files": [
+    "수상레저안전법.md"
+   ]
+  },
+  {
+   "name": "국제항해선박및항만시설의보안에관한법률",
+   "slug": "국제항해선박및항만시설의보안에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률",
+   "n": 69,
+   "files": [
+    "국제항해선박및항만시설의보안에관한법률.md"
+   ]
+  },
+  {
+   "name": "수산업협동조합법",
+   "slug": "수산업협동조합법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/수산업협동조합법",
+   "n": 12,
+   "files": [
+    "수산업협동조합법.md"
+   ]
+  },
+  {
+   "name": "서해5도지원특별법",
+   "slug": "서해5도지원특별법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/08_섬영토/서해5도지원특별법",
+   "n": 9,
+   "files": [
+    "서해5도지원특별법.md"
+   ]
+  },
+  {
+   "name": "해양과학조사법",
+   "slug": "해양과학조사법",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/해양과학조사법",
+   "n": 4,
+   "files": [
+    "해양과학조사법.md"
+   ]
+  },
+  {
+   "name": "해수욕장의이용및관리에관한법률",
+   "slug": "해수욕장의이용및관리에관한법률",
+   "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/09_레저관광/해수욕장의이용및관리에관한법률",
+   "n": 1,
+   "files": [
+    "해수욕장의이용및관리에관한법률.md"
+   ]
+  }
+ ]
+}
