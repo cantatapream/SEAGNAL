@@ -33,6 +33,17 @@ const MANIFEST = {
     remaining: { type: 'integer', description: '★손대지 못하고 남긴 항목 수(정직하게 — 0으로 적지 말 것)' },
     remaining_reason: { type: 'string', description: '왜 남겼나(분량·판단불가 등). remaining>0이면 필수.' },
     collectable_holes: { type: 'array', items: { type: 'string' }, description: '재수집 가능한데 못 받은 것 — 시도한 방법과 결과를 함께' },
+    restated_from_record: {
+      type: 'array',
+      description: '★**옛 기록을 옮긴 것**을 여기 적는다(2026-08-27 신설). 백로그 줄·위키 변경이력·감사 파일에 적힌 과거 판정을 **다시 시험해 보지 않고** 그대로 보고하는 경우가 하루에 세 번 나왔다(산림자원법 제10조는 이미 받아 둔 것이었고, REVIEW-05 는 이미 등록돼 있었고, 검증 UI 는 이미 만들어져 있었다). 다시 시험해 본 것은 여기 적지 않는다 — **안 해 본 것만** 적는다. 정직하게 적는 것이 감점이 아니다.',
+      items: {
+        type: 'object', required: ['claim', 'source'],
+        properties: {
+          claim: { type: 'string', description: '무엇을 그대로 옮겼나(예: "산림자원법 제10조가 raw 에 없다")' },
+          source: { type: 'string', description: '어디에 적혀 있던 말인가 — 파일 경로와 줄번호' },
+        },
+      },
+    },
     shared_file_todo: {
       type: 'array',
       description: '★**공유 파일이라 내가 못 고친 것**을 여기 담는다(2026-08-27 신설). 자유 문장으로만 적으면 오케스트레이터가 놓친다 — 실제로 _glossary.md "물양장" 미등재가 9~11라운드, review_queue.md REVIEW-갯벌법-04 미등록이 16라운드 방치됐다.',
@@ -134,6 +145,8 @@ return {
   collectable_holes: res.flatMap(r => (r.collectable_holes || []).map(h => `${r.law}: ${h}`)),
   // 공유 파일 일감은 **오케스트레이터가 라운드 뒤 단독으로** 처리한다(사서가 동시에 쓰면 경합).
   shared_file_todo: res.flatMap(r => (r.shared_file_todo || []).map(t => Object.assign({ law: r.law }, t))),
+  // 옛 기록을 그대로 옮긴 것 — 오케스트레이터가 사용자에게 전하기 전에 여기부터 확인한다.
+  restated_from_record: res.flatMap(r => (r.restated_from_record || []).map(t => Object.assign({ law: r.law }, t))),
   important: res.flatMap(r => (r.important || []).map(i => `${r.law}: ${i}`)),
   per_law: res.map(r => ({ law: r.law, st: r.status, ck: r.checked, already: r.already_resolved, fixed: r.fixed_now, left: r.remaining })),
 }
