@@ -161,6 +161,12 @@ function readPrev(p) {
   const idx = new Map();
   idx.extras = [];
   idx.ids = new Set();          // 이 파일에 있던 ID 전부(정체 매칭과 별개로 "정말 새 것인가"를 가리는 데 쓴다)
+  // ★ID 로도 찾을 수 있게 해 둔다(2026-08-27 신설).
+  //   이어받기 열쇠(keyOf)는 사서가 줄을 손보면 어긋난다. 그때 **확인 근거가 적힌 줄을 놓치고
+  //   같은 항목을 미해소로 다시 올린다** — 실측: 이번 재추출에서 82건이 그렇게 되살아났다.
+  //   ID 는 감사 원문에서 나오므로 감사가 그 줄을 안 바꿨으면 그대로다. 그래서 열쇠가 어긋나면
+  //   ID 로 한 번 더 찾아 확인표시·근거를 이어받는다.
+  idx.byId = new Map();
   if (!fs.existsSync(p)) return idx;
   for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
     const m = /^- \[([ x])\] (.*)$/.exec(line);
@@ -169,20 +175,26 @@ function readPrev(p) {
     if (!k) continue;
     // 같은 정체(keyOf)가 둘인 줄이 드물게 있다(실측 1건). 이어받기는 먼저 것으로 하되,
     // **확인 근거가 적힌 줄은 버리지 않고 따로 담아** 아래 '닫힘' 절에 남긴다.
-    if (idx.has(k)) {
-      const dupId = /⟨(BL-[0-9a-f]{8})⟩/.exec(m[2]);
-      if (dupId) idx.ids.add(dupId[1]);
-      if (m[1] === 'x') idx.extras.push(line);
-      continue;
-    }
-    const id = /⟨(BL-[0-9a-f]{8})⟩/.exec(m[2]);
-    if (id) idx.ids.add(id[1]);
-    idx.set(k, {
-      id: id ? id[1] : null,
+    const idm = /⟨(BL-[0-9a-f]{8})⟩/.exec(m[2]);
+    const rec = {
+      id: idm ? idm[1] : null,
       checked: m[1] === 'x',
       notes: (m[2].match(BL_NOTE_RE) || []).join(' '),
       raw: line,
-    });
+    };
+    if (idm) {
+      idx.ids.add(idm[1]);
+      // 같은 ID 가 둘이면 **확인 근거가 있는 쪽**을 남긴다.
+      const had = idx.byId.get(idm[1]);
+      if (!had || (!had.checked && rec.checked)) idx.byId.set(idm[1], rec);
+    }
+    if (idx.has(k)) {
+      // 같은 정체(keyOf)가 둘인 줄이 드물게 있다. 이어받기는 먼저 것으로 하되,
+      // **확인 근거가 적힌 줄은 버리지 않고 따로 담아** 아래 '닫힘' 절에 남긴다.
+      if (m[1] === 'x') idx.extras.push(line);
+      continue;
+    }
+    idx.set(k, rec);
   }
   return idx;
 }
@@ -328,7 +340,7 @@ rows.slice(0, 12).forEach(r => {
 
 if (argv.includes('--write')) {
   fs.mkdirSync(OUT, { recursive: true });
-  let carried = 0, fresh = 0, rematched = 0, done = 0, dropped = 0, droppedDone = 0, dupSkipped = 0, idRemint = 0;
+  let carried = 0, fresh = 0, rematched = 0, done = 0, dropped = 0, droppedDone = 0, dupSkipped = 0, idRemint = 0, idCarried = 0;
   for (const r of rows) {
     if (!r.items.length) continue;
     const g = {};
@@ -382,12 +394,30 @@ if (argv.includes('--write')) {
         if (p) used.add(k);
         if (p && p.checked) {
           // 사서가 이미 확인해 끝낸 항목이다. 감사가 표현을 바꿔 다시 적었더라도 **손대지 않는다.**
-          md += p.raw + '\n';
-          if (p.id) seenIds.set(p.id, true);
+          //   ★단 하나 손대는 것: 그 이름표를 이번 파일에서 이미 다른 항목이 썼다면 이름표만 새로 준다.
+          //   (실측 3건 — 둘 다 `- [x]` 라 아래 활성 갈래를 안 타고 그대로 나가 중복이 남았다.)
+          //   확인 근거·본문은 그대로 두고 ⟨…⟩ 만 바꾼다.
+          let raw = p.raw;
+          if (p.id && seenIds.has(p.id)) {
+            const fresh = claimId(p.id, coreOf(p.raw.replace(/^- \[[ x]\] /, '')));
+            raw = raw.replace(/⟨BL-[0-9a-f]{8}⟩/, `⟨${fresh}⟩`);
+          } else if (p.id) {
+            seenIds.set(p.id, true);
+          }
+          md += raw + '\n';
           carried++; done++;
           continue;
         }
-        const id = claimId((p && p.id) ? p.id : blId(blNorm(law, body)), body);
+        const rawId = (p && p.id) ? p.id : blId(blNorm(law, body));
+        // 열쇠로는 못 찾았지만 **ID 로는 찾히는** 항목 — 사서가 이미 확인해 둔 것이면 그것을 쓴다.
+        const byId = (!p || !p.checked) ? prev.byId.get(rawId) : null;
+        if (byId && byId.checked && !seenIds.has(rawId)) {
+          md += byId.raw + '\n';
+          seenIds.set(rawId, true);
+          carried++; done++; idCarried++;
+          continue;
+        }
+        const id = claimId(rawId, body);
         // ★"정체 매칭이 어긋난 것"과 "정말 처음 보는 항목"은 다르다(2026-08-24 실측으로 갈랐다).
         //   사서가 줄을 손보면 정체(keyOf)가 달라져 이어받기에 실패할 수 있는데, ID 는 내용에서
         //   나오므로 내용이 그대로면 **같은 ID 가 다시 나온다.** 그래서 ID 가 옛 파일에 있었는지로
@@ -426,6 +456,7 @@ if (argv.includes('--write')) {
   }
   console.log(`\n저장: ${path.relative(LEGAL, OUT)}/ (${rows.filter(r => r.items.length).length}개 파일)`);
   console.log('■ 고정 ID');
+  console.log(`   ID 로 확인표시 되살림 : ${idCarried.toLocaleString()}건 (열쇠는 어긋났지만 ID 가 같아 사서 확인 근거를 이어받은 것)`);
   console.log(`   중복 이름표 정리     : 닫힘 절에서 뺀 것 ${dupSkipped.toLocaleString()}건 (활성 절에 이미 있던 항목) · 새로 만든 것 ${idRemint.toLocaleString()}건 (남의 이름표를 물려받으려던 항목)`);
   console.log(`   옛 파일에서 이어받음 : ${carried.toLocaleString()}건 (그중 이미 확인 끝난 것 ${done.toLocaleString()}건)`);
   console.log(`   ID 로 다시 찾음      : ${rematched.toLocaleString()}건 (사서가 줄을 손봐 정체 매칭은 어긋났지만 내용이 같아 같은 ID)`);
