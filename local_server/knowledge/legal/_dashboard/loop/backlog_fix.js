@@ -33,6 +33,18 @@ const MANIFEST = {
     remaining: { type: 'integer', description: '★손대지 못하고 남긴 항목 수(정직하게 — 0으로 적지 말 것)' },
     remaining_reason: { type: 'string', description: '왜 남겼나(분량·판단불가 등). remaining>0이면 필수.' },
     collectable_holes: { type: 'array', items: { type: 'string' }, description: '재수집 가능한데 못 받은 것 — 시도한 방법과 결과를 함께' },
+    shared_file_todo: {
+      type: 'array',
+      description: '★**공유 파일이라 내가 못 고친 것**을 여기 담는다(2026-08-27 신설). 자유 문장으로만 적으면 오케스트레이터가 놓친다 — 실제로 _glossary.md "물양장" 미등재가 9~11라운드, review_queue.md REVIEW-갯벌법-04 미등록이 16라운드 방치됐다.',
+      items: {
+        type: 'object', required: ['file', 'what', 'evidence'],
+        properties: {
+          file: { type: 'string', description: '어느 공유 파일인가 — _glossary.md · comparisons/<파일> · review_queue.md · graph.json 중 하나' },
+          what: { type: 'string', description: '무엇을 넣거나 고쳐야 하나(구체적으로. "보강 필요" 같은 말 금지)' },
+          evidence: { type: 'string', description: '근거 — 원문 파일 경로와 줄번호, 또는 위키 파일 경로와 줄번호. 확인한 것만 적는다' },
+        },
+      },
+    },
     important: { type: 'array', items: { type: 'string' }, description: '★사용자 결정이 필요한 것만(엄격). 일상 gap은 넣지 말 것.' },
     note: { type: 'string' },
   },
@@ -120,6 +132,8 @@ return {
   files_edited: sum('files_edited'),
   remaining: sum('remaining'),
   collectable_holes: res.flatMap(r => (r.collectable_holes || []).map(h => `${r.law}: ${h}`)),
+  // 공유 파일 일감은 **오케스트레이터가 라운드 뒤 단독으로** 처리한다(사서가 동시에 쓰면 경합).
+  shared_file_todo: res.flatMap(r => (r.shared_file_todo || []).map(t => Object.assign({ law: r.law }, t))),
   important: res.flatMap(r => (r.important || []).map(i => `${r.law}: ${i}`)),
   per_law: res.map(r => ({ law: r.law, st: r.status, ck: r.checked, already: r.already_resolved, fixed: r.fixed_now, left: r.remaining })),
 }
