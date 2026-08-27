@@ -22,6 +22,8 @@
  *   node cite_row.js ... --gist "요지"     → 요지 칸을 직접 쓴다(기본값은 원문의 조 제목 복붙)
  *   node cite_row.js ... --arts "부칙 제3조"            → 부칙 조문. 같은 조번호가 여럿이면 아래처럼 골라 준다
  *   node cite_row.js ... --arts "부칙 제3조" --sup 제15009호   → 어느 부칙인지 정한다
+ *   node cite_row.js ... --from 항만법                   → 같은 이름의 원문이 두 법 폴더에 있을 때 고른다
+ *                                                        (기본값은 페이지 이름에서 딴 그 페이지의 법)
  *
  * [부칙을 왜 따로 받나 — 2026-08-24, 사서 여덟 명이 같은 벽에 부딪혔다]
  * 부칙은 개정할 때마다 새로 붙고 **조번호가 제1조부터 다시 시작**한다. 그래서 한 법 안에
@@ -63,7 +65,7 @@ const flat = s => String(s || '').replace(/[「」『』*\s]/g, '');
  * 예: resolveLaw('해운법 시행규칙') → {dir:'raw/04_선박해운/해운법', file:'시행규칙.txt', name:'해운법 시행규칙'}
  * [연계] 여기서 못 정하면 행을 만들지 않는다 — 어느 법인지 모르는 채로 표에 넣는 것이 §6-E 결함의 뿌리다.
  */
-function resolveLaw(input) {
+function resolveLaw(input, prefer) {
   const s = flat(input);
   // 계층 낱말만 적은 칸은 어느 법인지 특정되지 않아 근거 목록에서 탈락한다(_SCHEMA §8-A ③).
   if (/^(시행령|시행규칙|시행규정|법|법률|이법|동법)$/.test(s))
@@ -137,13 +139,40 @@ function resolveLaw(input) {
   //   `_별표` 처럼 뒤에 뭐가 붙은 파일이 흔해서, 이 함정은 다른 법에도 널려 있다.
   //   그래서 사서들이 도구를 못 쓰고 근거 조문 행을 손으로 만들게 됐다 — 그 도구가 하는
   //   ①원문에 그 조가 진짜 있나 ②챗봇이 꺼낼 수 있나 확인이 통째로 빠지는 셈이다(§8-A ⓪).
-  const exact = cands.filter(c => flat(c.name) === s);
-  if (exact.length === 1) return exact[0];
+  //   ★같은 고시가 **두 법 폴더에 각각 수집돼 있는** 경우가 있다(2026-08-24, 항만법 사서 보고).
+  //     실측: 「무역항 등의 항만시설 사용 및 사용료에 관한 규정」이 항로표지법·항만법 두 폴더에
+  //     같은 ID(2100000270622)로 들어 있다(본문 3,637줄 동일, 머리말의 위임근거 표기만 다르다).
+  //     이때는 **그 페이지가 속한 법의 사본**을 쓴다 — 지어내는 것이 아니라 어느 것이든 같은 원문이고,
+  //     페이지의 법 폴더에 있는 사본이 그 페이지가 근거로 삼는 그것이다.
+  //     그래도 안 갈리면 종전대로 거절한다. `--from <법폴더이름>` 으로 직접 정할 수도 있다.
+  const narrow = list => {
+    if (list.length < 2 || !prefer) return list;
+    const mine = list.filter(c => flat(path.basename(c.dir)) === flat(prefer));
+    if (mine.length === 1) {
+      console.error(`  ↳ 같은 이름의 원문이 ${list.length}개라 이 페이지의 법(${path.basename(mine[0].dir)}) 폴더 사본을 쓴다.`);
+      return mine;
+    }
+    return list;
+  };
+  // ★행정규칙도 **띄어쓰기까지 정식인 이름**을 쓴다(법률 쪽과 같은 이유·같은 실측).
+  //   고시 원문 1행이 `[고시/행정규칙] 무역항 등의 항만시설 사용 및 사용료에 관한 규정` 꼴로
+  //   정식 이름을 갖고 있다(750개 중 630개). 위키 표도 그 꼴을 쓴다 —
+  //   실측: 파일명과 띄어쓰기만 다른 559개 고시에 대해 정식 이름 619회 · 파일명 꼴 38회.
+  const officialName = c => {
+    try {
+      const m = /^\[고시\/행정규칙\]\s*(.+)$/.exec(fs.readFileSync(c.path, 'utf8').split('\n')[0].trim());
+      if (m && flat(m[1]) === flat(c.name)) return Object.assign({}, c, { name: m[1].trim() });
+    } catch (e) { /* 못 읽으면 파일명을 그대로 쓴다 */ }
+    return c;
+  };
+  const exact = narrow(cands.filter(c => flat(c.name) === s));
+  if (exact.length === 1) return officialName(exact[0]);
   if (exact.length > 1) die(`「${input}」 와 이름이 똑같은 원문이 ${exact.length}개다 — 폴더를 확인하라:\n   ` +
-    exact.map(c => c.path).join('\n   '));
-  if (cands.length === 1) return cands[0];
-  if (cands.length > 1) die(`「${input}」 로 여러 원문이 잡힌다 — 정확한 이름을 쓰라:\n   ` +
-    cands.map(c => c.name).join('\n   '));
+    exact.map(c => c.path).join('\n   ') + `\n   → --from <법폴더이름> 으로 정할 수 있다.`);
+  const near = narrow(cands);
+  if (near.length === 1) return officialName(near[0]);
+  if (near.length > 1) die(`「${input}」 로 여러 원문이 잡힌다 — 정확한 이름을 쓰라:\n   ` +
+    near.map(c => c.name).join('\n   '));
   die(`「${input}」 의 원문을 raw 에서 못 찾았다. 정식 명칭을 계층까지 정확히 쓰라(예: "해운법 시행규칙").`);
 }
 
@@ -342,7 +371,9 @@ const gist = arg('--gist');
 const supIn = arg('--sup');
 const APPLY = argv.includes('--apply');
 
-const law = resolveLaw(lawIn);
+// 같은 이름의 원문이 두 법 폴더에 있을 때 어느 쪽을 쓸지 — 기본값은 이 페이지의 법이다.
+const preferLaw = arg('--from') || path.basename(pagePath).replace(/\.md$/, '').split('__')[0];
+const law = resolveLaw(lawIn, preferLaw);
 const src = fs.readFileSync(pagePath, 'utf8');
 const lines = src.split('\n');
 const tbl = citeTable(lines);
