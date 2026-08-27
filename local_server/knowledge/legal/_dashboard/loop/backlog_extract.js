@@ -328,7 +328,7 @@ rows.slice(0, 12).forEach(r => {
 
 if (argv.includes('--write')) {
   fs.mkdirSync(OUT, { recursive: true });
-  let carried = 0, fresh = 0, rematched = 0, done = 0, dropped = 0, droppedDone = 0;
+  let carried = 0, fresh = 0, rematched = 0, done = 0, dropped = 0, droppedDone = 0, dupSkipped = 0, idRemint = 0;
   for (const r of rows) {
     if (!r.items.length) continue;
     const g = {};
@@ -346,6 +346,29 @@ if (argv.includes('--write')) {
     const prev = readPrev(dst);
     const law = r.slug.replace(/_\d+라운드$/, '');
     const used = new Set();
+    // ★한 파일 안에서 **같은 이름표가 두 번 나오지 않게** 한다(2026-08-27 신설).
+    //   실측: 지금 백로그 101개 파일에 같은 이름표가 두 자리에 있는 항목이 74건 있고,
+    //   그중 대부분이 `## 미분류` 와 `## 닫힘` 에 동시에 들어가 있었다. 사서 셋이 각각 보고했다
+    //   (수산업협동조합법 2건 · 해양레저관광진흥법 8건 · 해운법 1건).
+    //   사서 입장에서는 **이미 근거까지 달아 닫은 항목이 미해소로 다시 떠 있는 것**이라
+    //   같은 확인을 또 하게 된다. 게다가 한번 생기면 다음 실행이 그대로 다시 만들어 낸다.
+    //   여기서 두 가지를 막는다:
+    //     ⓐ 활성 절에 쓴 이름표는 '닫힘' 절에 다시 쓰지 않는다.
+    //     ⓑ 같은 이름표가 두 항목에 붙으려 하면 뒤엣것은 **내용에서 새로 만든다**
+    //        (이어받기 열쇠 `keyOf` 가 짧아 남의 이름표를 물려받는 경우가 있다 —
+    //         실측: 같은 파일 안에서 열쇠가 겹치는 항목이 42건이다).
+    const seenIds = new Map();
+    const claimId = (want, body) => {
+      let id = want;
+      if (seenIds.has(id)) {
+        id = blId(blNorm(law, body));
+        let n = 0;
+        while (seenIds.has(id)) id = blId(blNorm(law, body) + '#' + (++n));
+        idRemint++;
+      }
+      seenIds.set(id, true);
+      return id;
+    };
     for (const c of ORDER) {
       if (!g[c]) continue;
       md += `## ${c} (${g[c].length}건) — ${LABEL[c]}\n\n`;
@@ -360,10 +383,11 @@ if (argv.includes('--write')) {
         if (p && p.checked) {
           // 사서가 이미 확인해 끝낸 항목이다. 감사가 표현을 바꿔 다시 적었더라도 **손대지 않는다.**
           md += p.raw + '\n';
+          if (p.id) seenIds.set(p.id, true);
           carried++; done++;
           continue;
         }
-        const id = (p && p.id) ? p.id : blId(blNorm(law, body));
+        const id = claimId((p && p.id) ? p.id : blId(blNorm(law, body)), body);
         // ★"정체 매칭이 어긋난 것"과 "정말 처음 보는 항목"은 다르다(2026-08-24 실측으로 갈랐다).
         //   사서가 줄을 손보면 정체(keyOf)가 달라져 이어받기에 실패할 수 있는데, ID 는 내용에서
         //   나오므로 내용이 그대로면 **같은 ID 가 다시 나온다.** 그래서 ID 가 옛 파일에 있었는지로
@@ -381,11 +405,19 @@ if (argv.includes('--write')) {
     //   다시 등록되고 사서가 같은 확인을 처음부터 다시 한다** — 이 도구를 고친 이유가 바로 그것이다.
     //   여기 남은 줄은 다음 실행 때 `readPrev` 가 다시 읽으므로 ID·근거가 계속 따라다닌다.
     const closed = [];
+    // 활성 절에 이미 쓴 이름표는 '닫힘' 에 다시 넣지 않는다(중복의 주된 경로였다).
+    const idOf = raw => (/⟨(BL-[0-9a-f]{8})⟩/.exec(raw) || [])[1] || null;
+    const pushClosed = raw => {
+      const id = idOf(raw);
+      if (id && seenIds.has(id)) { dupSkipped++; return; }
+      if (id) seenIds.set(id, true);
+      droppedDone++; closed.push(raw);
+    };
     for (const [k, v] of prev) {
       if (used.has(k)) continue;
-      if (v.checked) { droppedDone++; closed.push(v.raw); } else dropped++;
+      if (v.checked) pushClosed(v.raw); else dropped++;
     }
-    for (const raw of prev.extras) { droppedDone++; closed.push(raw); }
+    for (const raw of prev.extras) pushClosed(raw);
     if (closed.length) {
       md += `## 닫힘 (${closed.length}건) — 감사가 해소로 적었고 사서 확인 근거가 있는 것. **기록만 남긴다(할 일 아님).**\n\n`;
       md += closed.join('\n') + '\n\n';
@@ -394,6 +426,7 @@ if (argv.includes('--write')) {
   }
   console.log(`\n저장: ${path.relative(LEGAL, OUT)}/ (${rows.filter(r => r.items.length).length}개 파일)`);
   console.log('■ 고정 ID');
+  console.log(`   중복 이름표 정리     : 닫힘 절에서 뺀 것 ${dupSkipped.toLocaleString()}건 (활성 절에 이미 있던 항목) · 새로 만든 것 ${idRemint.toLocaleString()}건 (남의 이름표를 물려받으려던 항목)`);
   console.log(`   옛 파일에서 이어받음 : ${carried.toLocaleString()}건 (그중 이미 확인 끝난 것 ${done.toLocaleString()}건)`);
   console.log(`   ID 로 다시 찾음      : ${rematched.toLocaleString()}건 (사서가 줄을 손봐 정체 매칭은 어긋났지만 내용이 같아 같은 ID)`);
   console.log(`   새로 등록(진짜 새 것) : ${fresh.toLocaleString()}건`);
