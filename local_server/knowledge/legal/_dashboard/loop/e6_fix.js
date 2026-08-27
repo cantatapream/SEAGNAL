@@ -33,6 +33,18 @@ const MANIFEST = {
     reject_reasons: { type: 'array', items: { type: 'string' }, description: '오탐 사유를 유형별로. 이게 다음 검사를 다듬는 재료다.' },
     tool_failed: { type: 'integer', description: 'cite_row.js 가 실패해 못 넣은 수' },
     tool_fail_detail: { type: 'string', description: '실패했으면 어떤 명령이 어떻게 실패했나(손으로 쓰지 말고 여기 적을 것)' },
+    ruled: {
+      type: 'array',
+      description: '★안 넣기로 한 항목을 **항목 번호(id)로** 전부 적는다. 이걸 안 적으면 다음 라운드에 같은 항목이 또 올라온다.',
+      items: {
+        type: 'object', required: ['id', 'verdict', 'why'],
+        properties: {
+          id: { type: 'string', description: '목록에 적힌 항목 번호(E6-3f9a1c22 꼴). 지어내지 말 것' },
+          verdict: { type: 'string', enum: ['오탐', '도구막힘'] },
+          why: { type: 'string', description: '무엇을 보고 그렇게 판단했나(비우면 안 받는다)' },
+        },
+      },
+    },
     files_edited: { type: 'integer' },
     remaining: { type: 'integer', description: '★손대지 못하고 남긴 수(정직하게 — 0으로 적지 말 것)' },
     important: { type: 'array', items: { type: 'string' }, description: '사용자 결정이 필요한 것만(엄격)' },
@@ -81,9 +93,23 @@ function prompt(l) {
 - **한 것보다 많이 했다고 적지 마라.**
 - 고친 페이지 frontmatter \`updated\` 를 오늘 날짜로.
 
+## 4-2) ★안 넣기로 한 항목은 **번호를 그대로 반환**해라 (필수)
+목록의 항목마다 \`id\`(\`E6-3f9a1c22\` 꼴)가 붙어 있다. **오탐이라 안 넣은 것**과
+**도구가 막혀 못 넣은 것**을 전부 그 번호로 반환값 \`ruled\` 에 담아라.
+이걸 안 담으면 다음 라운드에 같은 항목이 그대로 다시 올라와 같은 일을 또 하게 된다.
+
+  \`ruled\`: [{"id":"E6-3f9a1c22","verdict":"오탐","why":"타법(도시개발법) 조문을 준용 설명에서 든 것"},
+            {"id":"E6-9b2c04ae","verdict":"도구막힘","why":"cite_row.js 가 …를 못 받는다"}]
+
+- \`verdict\` 는 \`오탐\`(이 페이지의 근거가 아니다) 또는 \`도구막힘\`(근거는 맞는데 도구가 막았다) 둘 중 하나.
+- **이유를 반드시 적어라.** 무엇을 보고 그렇게 판단했는지 — 다음 사람이 대조할 수 있게.
+- ⚠**너는 판정 파일을 직접 쓰지 마라.** 여러 사서가 같은 파일을 동시에 고치면 기록이 사라진다.
+  반환만 하면 오케스트레이터가 한 번에 기록한다.
+- 번호를 지어내지 마라. 목록에 있는 그대로 옮겨라.
+
 ## 5) 반환(JSON)
 law, status, checked, **added**, **rejected**, reject_reasons[], tool_failed, tool_fail_detail,
-files_edited, **remaining**, important[], note.
+**ruled[]**, files_edited, **remaining**, important[], note.
 ★**오탐 비율이 높게 나오는 것은 좋은 결과다.** 숨기지 말고 그대로 보고해라 —
 그래야 다음에 이 검사를 더 좁게 다듬을 수 있다. \`reject_reasons\` 를 유형별로 적어라.`
 }
@@ -111,6 +137,8 @@ return {
   checked: sum('checked'), added: sum('added'), rejected: sum('rejected'),
   tool_failed: sum('tool_failed'), files_edited: sum('files_edited'), remaining: sum('remaining'),
   reject_reasons: res.flatMap(r => (r.reject_reasons || []).map(x => `${r.law}: ${x}`)),
+  // 사서들의 판정을 모아 준다 — 오케스트레이터가 body_cite_gap.py --rule-file 로 한 번에 기록한다.
+  ruled: res.flatMap(r => (r.ruled || [])),
   tool_fails: res.filter(r => r.tool_failed).map(r => `${r.law}: ${r.tool_fail_detail || '(사유 없음)'}`),
   important: res.flatMap(r => (r.important || []).map(i => `${r.law}: ${i}`)),
   per_law: res.map(r => ({ law: r.law, st: r.status, ck: r.checked, add: r.added, rej: r.rejected, left: r.remaining })),

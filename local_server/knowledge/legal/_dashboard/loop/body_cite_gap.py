@@ -31,22 +31,43 @@
 없이 언급한 경우 등. **자동으로 고치지 않는다.** 사람(사서)이 보고 `cite_row.js` 로 넣을지 정한다.
 그 도구가 ①원문에 그 조가 진짜 있나 ②챗봇이 꺼낼 수 있나 를 넣기 전에 확인해 준다(§8-A ⓪).
 
+[★사서의 판정을 기억한다 — 2026-08-27 신설, 사용자 지적으로 만듦]
+종전에는 사서가 "이건 오탐이다"라고 걸러 낸 항목이 **다음 라운드에 그대로 다시 올라왔다.**
+백로그 중복등록과 같은 뿌리다 — 항목에 고정 번호가 없어 같은 것인지 알아볼 수가 없었다.
+이제 항목마다 `id`(페이지+조문으로 만든 고정 번호)와 `fp`(그 본문 줄의 지문)를 붙이고,
+판정을 `_dashboard/body_cite_gap_ruled.json` 에 남긴다.
+
+⚠**판정을 기억한다고 영영 숨기는 것이 아니다.** 세 갈래로 나눈다.
+  ⓐ '오탐' + 본문 줄 그대로  → 목록에서 뺀다(`--all` 로 다시 볼 수 있다).
+  ⓑ '오탐' + 본문 줄이 바뀜  → **다시 올린다.** 판정의 근거였던 문장이 달라졌기 때문이다.
+  ⓒ '도구막힘' 등 그 밖      → 계속 보여 주고 지난 판정을 표시한다.
+     도구가 고쳐지면 다시 해야 할 것들이라 숨기면 안 된다
+     (2026-08-26 `cite_row.js` 부칙 수정이 실제로 그랬다 — 그때 숨겼으면 11건이 영영 묻혔다).
+이유가 비었거나 지금 목록에 없는 번호는 **받지 않는다** — 근거 없는 판정이 쌓이지 않게.
+
 [쓰는 법]
-  python3 body_cite_gap.py                  → 전수 집계 + 법별 상위
+  python3 body_cite_gap.py                  → 전수 집계 + 법별 상위(판정된 오탐은 빠진 수)
+  python3 body_cite_gap.py --all            → 오탐으로 뺀 것까지 전부
   python3 body_cite_gap.py --law <이름>      → 한 법만
   python3 body_cite_gap.py --json PATH      → 법별 목록 저장(사서에게 배포할 때 쓴다)
-[연계] ← wiki/concepts|statutes/*.md   ⚠읽기 전용 — 파일을 고치지 않는다.
+  python3 body_cite_gap.py --rule E6-xxxxxxxx --verdict 오탐 --why "이유" --round 3차
+  python3 body_cite_gap.py --rule-file <목록.json> --round 3차
+      → 목록 파일은 [{"id":"E6-…","verdict":"오탐","why":"이유"}, …] 꼴
+[연계] ← wiki/concepts|statutes/*.md   ⚠읽기 전용 — 위키·raw 를 고치지 않는다.
+       ↔ _dashboard/body_cite_gap_ruled.json (판정 기록 — 이 파일만 쓴다)
 """
 import os
 import re
 import sys
 import json
 import glob
+import hashlib
 import collections
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.normpath(os.path.join(HERE, '..', '..'))
 WIKI = os.path.join(LEGAL, 'wiki')
+RULED = os.path.join(LEGAL, '_dashboard', 'body_cite_gap_ruled.json')
 
 ART = re.compile(r'제(\d{1,3})조(?:의(\d{1,2}))?')
 # ★조문 **제목이 붙은** 것만 인용으로 본다. 제목 없이 번호만 스친 것은 대개 상호참조다.
@@ -145,13 +166,78 @@ def scan(path):
     return out
 
 
-def main():
-    argv = sys.argv[1:]
-    only = argv[argv.index('--law') + 1] if '--law' in argv else None
-    out_path = argv[argv.index('--json') + 1] if '--json' in argv else None
+def item_id(page_rel, article):
+    """항목의 **고정 번호**. 같은 페이지·같은 조문이면 라운드가 바뀌어도 같은 번호가 나온다.
 
+    예: item_id('wiki/statutes/항만법.md', '제5조') → 'E6-3f9a1c22'
+    [연계] 사서의 '오탐' 판정을 이 번호로 기억한다(body_cite_gap_ruled.json).
+           ⚠본문 줄이 바뀌면 판정이 더는 안 맞을 수 있어, 줄지문을 따로 함께 저장한다.
+    """
+    h = hashlib.sha1((page_rel + '|' + article).encode('utf-8')).hexdigest()
+    return 'E6-' + h[:8]
+
+
+def line_fp(line):
+    """본문 줄의 지문 8자. 줄이 고쳐지면 지문이 달라져 판정을 다시 받게 한다."""
+    return hashlib.sha1(re.sub(r'\s+', '', line).encode('utf-8')).hexdigest()[:8]
+
+
+def load_ruled():
+    """이미 판정이 내려진 항목들. 파일이 없으면 빈 것(= 아직 아무 판정도 없다)."""
+    try:
+        return json.load(open(RULED, encoding='utf-8'))
+    except Exception:
+        return {}
+
+
+def save_ruled(d):
+    os.makedirs(os.path.dirname(RULED), exist_ok=True)
+    json.dump(d, open(RULED, 'w', encoding='utf-8'), ensure_ascii=False, indent=1, sort_keys=True)
+
+
+def do_rule(argv):
+    """사서의 판정을 기록한다 — `--rule` 하나씩, `--rule-file` 은 한꺼번에.
+
+    예: python3 body_cite_gap.py --rule E6-3f9a1c22 --verdict 오탐 --why "타법 조문을 지나가며 언급" --round 3차
+    [연계] 여기 담긴 판정은 다음 라운드 목록에서 빠진다(오탐만 — 도구막힘은 표시만 하고 계속 보여 준다).
+    """
+    d = load_ruled()
+    now = argv[argv.index('--round') + 1] if '--round' in argv else '미기재'
+    recs = []
+    if '--rule-file' in argv:
+        recs = json.load(open(argv[argv.index('--rule-file') + 1], encoding='utf-8'))
+    if '--rule' in argv:
+        recs.append({'id': argv[argv.index('--rule') + 1],
+                     'verdict': argv[argv.index('--verdict') + 1] if '--verdict' in argv else '오탐',
+                     'why': argv[argv.index('--why') + 1] if '--why' in argv else ''})
+    # 지금 목록에 있는 항목만 받는다 — 없는 번호를 적어 넣으면 조용히 쌓이기만 한다.
+    live = {}
+    for law, pages in scan_all().items():
+        for pg in pages:
+            for it in pg['items']:
+                live[it['id']] = (law, pg['page'], it['article'], it['fp'])
+    ok = bad = 0
+    for r in recs:
+        i = r.get('id')
+        if i not in live:
+            print('   ✖ %s — 지금 목록에 없는 번호다(이미 해소됐거나 오타). 건너뛴다.' % i)
+            bad += 1
+            continue
+        law, page, art, fp = live[i]
+        if not r.get('why'):
+            print('   ✖ %s — 이유가 비었다. 이유 없는 판정은 받지 않는다.' % i)
+            bad += 1
+            continue
+        d[i] = {'판정': r.get('verdict') or '오탐', '이유': r['why'], '라운드': r.get('round') or now,
+                '법': law, '페이지': page, '조문': art, '줄지문': fp}
+        ok += 1
+    save_ruled(d)
+    print('판정 %d건 기록 · %d건 거절 → %s' % (ok, bad, os.path.relpath(RULED, LEGAL)))
+
+
+def scan_all(only=None):
+    """전 위키를 훑어 법별 후보를 만든다. 각 항목에 고정 번호(id)와 줄지문(fp)이 붙는다."""
     by_law = collections.defaultdict(list)
-    pages = 0
     for d in ('concepts', 'statutes'):
         for p in sorted(glob.glob(os.path.join(WIKI, d, '*.md'))):
             base = os.path.basename(p)[:-3]
@@ -159,15 +245,75 @@ def main():
             if only and only not in base:
                 continue
             hits = scan(p)
-            if hits:
-                pages += 1
-                by_law[law].append({'page': os.path.relpath(p, LEGAL), 'items': hits})
+            if not hits:
+                continue
+            rel = os.path.relpath(p, LEGAL)
+            for it in hits:
+                it['id'] = item_id(rel, it['article'])
+                it['fp'] = line_fp(it['line'])
+            by_law[law].append({'page': rel, 'items': hits})
+    return by_law
+
+
+def main():
+    argv = sys.argv[1:]
+    if '--rule' in argv or '--rule-file' in argv:
+        do_rule(argv)
+        return
+    only = argv[argv.index('--law') + 1] if '--law' in argv else None
+    out_path = argv[argv.index('--json') + 1] if '--json' in argv else None
+    show_all = '--all' in argv
+
+    by_law = scan_all(only)
+    ruled = load_ruled()
+
+    # ★판정이 있는 항목을 어떻게 다루나 — 세 갈래로 나눈다.
+    #   ⓐ '오탐' 이고 본문 줄이 그대로다   → 목록에서 뺀다(다음 라운드에 다시 안 올라온다).
+    #   ⓑ '오탐' 인데 본문 줄이 바뀌었다   → 다시 올린다. 판정의 근거였던 문장이 달라졌기 때문이다.
+    #   ⓒ '도구막힘' 등 그 밖의 판정      → 계속 보여 주되 표시를 단다.
+    #      도구가 고쳐지면 다시 해야 할 것들이라 숨기면 안 된다(2026-08-26 부칙 수정이 실제로 그랬다).
+    hidden = reopened = flagged = 0
+    for law in list(by_law):
+        pages = []
+        for pg in by_law[law]:
+            keep = []
+            for it in pg['items']:
+                r = ruled.get(it['id'])
+                if not r:
+                    keep.append(it)
+                    continue
+                if r['판정'] == '오탐':
+                    if r.get('줄지문') == it['fp'] and not show_all:
+                        hidden += 1
+                        continue
+                    if r.get('줄지문') != it['fp']:
+                        it['다시봄'] = '본문 줄이 바뀌었다 — 지난 판정(%s)이 아직 맞는지 확인하라' % r['라운드']
+                        reopened += 1
+                else:
+                    it['지난판정'] = '%s (%s): %s' % (r['판정'], r['라운드'], r['이유'][:60])
+                    flagged += 1
+                keep.append(it)
+            if keep:
+                pages.append({'page': pg['page'], 'items': keep})
+        if pages:
+            by_law[law] = pages
+        else:
+            del by_law[law]
 
     total = sum(len(x['items']) for v in by_law.values() for x in v)
+    pages = sum(len(v) for v in by_law.values())
     print('■ 본문이 인용하는데 근거 조문 표에 없는 조문 — **확인 목록(판정 아님)**')
     print('   후보 %d건 · 페이지 %d개 · 법 %d개' % (total, pages, len(by_law)))
     print('   ⚠챗봇은 표에서만 근거를 만든다(§6-E). 표에 없으면 본문에 있어도 못 꺼낸다.')
     print('   ⚠남은 오탐이 있다 — 사람이 보고 `cite_row.js` 로 넣을지 정한다. 자동으로 고치지 않는다.')
+    if ruled:
+        print('   · 지난 라운드에 오탐으로 판정돼 뺀 것 %d건%s' % (hidden, ' (--all 로 함께 본다)' if not show_all else ''))
+        if reopened:
+            print('   · 오탐이었지만 **본문 줄이 바뀌어 다시 올린 것** %d건' % reopened)
+        if flagged:
+            print('   · 오탐이 아닌 판정(도구막힘 등)이 달린 것 %d건 — 숨기지 않는다' % flagged)
+    else:
+        print('   · 아직 기록된 판정이 없다(판정 기록: --rule / --rule-file).')
     if by_law:
         print('\n   많은 법 상위 15')
         for law, v in sorted(by_law.items(), key=lambda x: -sum(len(y['items']) for y in x[1]))[:15]:
