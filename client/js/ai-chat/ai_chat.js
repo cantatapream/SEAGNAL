@@ -352,7 +352,9 @@
     원문신선도: { n: '…', desc: '우리가 받아 둔 <b>법령·고시 원문이 낡았는지</b> 매주 자동 대조해 모아두는 방. 대상은 <b>행정규칙(고시·훈령) 653건 + 법률·시행령·시행규칙 222건</b>. 원문 머리글의 수집 일련번호와 law.go.kr 현행 일련번호를 기계로 비교한다(2026-08-23에 「위험물 선박운송 기준」이 2016년판으로 남아 있어 <b>이미 삭제된 조문을 현행처럼</b> 설명하던 사고가 있었다). 카드마다 <b>어느 위키를 고쳐야 하는지·무엇을 해야 하는지</b>가 함께 적힌다.', render: null /* 서버 연동: renderFreshCards */ },
     '⚠수치검증': { n: '…', desc: '별표 <b>이미지 판독값(OCR)·조번호 재편</b> 및 처벌·안전수치를 사람이 검증하는 방(가장 급함). 서버 review_queue.md 의 검증 대기 항목을 불러와 승인/반려한다.', render: null /* 서버 연동: renderReviewCards */ }
   };
-  var ADMIN_ORDER = ['초안승인', '피드백', '새지식후보', '개정검토', '원문신선도', '⚠수치검증'];
+  // ⚠수치검증을 맨 앞에 둔다 — 기본으로 열리는 방인데 맨 끝에 있어서 서브탭 줄이
+  //   가로로 넘칠 때 화면 밖으로 밀려 보이지 않았다(사용자 화면 확인, 2026-08-28).
+  var ADMIN_ORDER = ['⚠수치검증', '초안승인', '피드백', '새지식후보', '개정검토', '원문신선도'];
 
   // ============================================================================
   // 관리자 콘솔 렌더링 — 통합관리자 센터 컨테이너(#unified-admin-body)에 마운트
@@ -647,16 +649,97 @@
   // ============================================================================
   var DUAL_NOTE = '<div class="nrya-dual-note">⚠ <b>승인 이원화</b>: 처벌·과태료·안전수치·⚠REVIEW 포함 페이지는 <b>사람 승인 필수</b>. 순수 정의/절차 페이지만 AI 자동 승격.</div>';
 
+  // 목록 상태(검색·법 필터·페이지). 새로고침해도 사용자가 보던 조건을 잃지 않게 남겨 둔다.
+  var reviewState = { list: [], page: 0, law: '', q: '', status: 'pending' };
+  var REVIEW_PAGE_SIZE = 20;
+
+  /** 지금 조건(법·검색어)에 걸리는 항목만 추린다. @returns {Array} */
+  function reviewFiltered() {
+    var law = reviewState.law, q = reviewState.q.toLowerCase();
+    return reviewState.list.filter(function (rv) {
+      if (law && (rv.law || '') !== law) return false;
+      if (!q) return true;
+      var hay = ((rv.id || '') + ' ' + (rv.title || '') + ' ' + (rv.targetPages || []).join(' ')).toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+  }
+
+  /**
+   * 목록 위 도구줄 — 새로고침·법 선택·검색·"몇 건 중 몇 번째".
+   * 카드가 200장을 넘어가면서 "지금 몇 개 중 어디를 보고 있는지"가 화면에 없어 추가했다.
+   * @param {Array} shown 지금 조건에 걸린 항목 @returns {string}
+   */
+  function reviewToolbarHTML(shown) {
+    var laws = {}, i;
+    for (i = 0; i < reviewState.list.length; i++) laws[reviewState.list[i].law || '(법 미상)'] = 1;
+    var names = Object.keys(laws).sort();
+    var opts = '<option value="">전체 법 (' + reviewState.list.length + '건)</option>' +
+      names.map(function (n) {
+        var c = reviewState.list.filter(function (r) { return (r.law || '(법 미상)') === n; }).length;
+        return '<option value="' + esc(n) + '"' + (reviewState.law === n ? ' selected' : '') + '>' + esc(n) + ' (' + c + ')</option>';
+      }).join('');
+    var from = shown.length ? reviewState.page * REVIEW_PAGE_SIZE + 1 : 0;
+    var to = Math.min((reviewState.page + 1) * REVIEW_PAGE_SIZE, shown.length);
+    var pages = Math.max(1, Math.ceil(shown.length / REVIEW_PAGE_SIZE));
+    return '<div class="nrya-rv-bar">' +
+      '<button class="nrya-rv-refresh" title="서버에서 다시 불러오기">↻ 새로고침</button>' +
+      '<select class="nrya-rv-status" title="승인된 항목을 보면 되돌릴 수 있습니다">' +
+        ['pending:대기만', 'approved:승인됨', 'all:전체'].map(function (o) {
+          var v = o.split(':')[0];
+          return '<option value="' + v + '"' + (reviewState.status === v ? ' selected' : '') + '>' + o.split(':')[1] + '</option>';
+        }).join('') + '</select>' +
+      '<select class="nrya-rv-law">' + opts + '</select>' +
+      '<input class="nrya-rv-q" type="search" placeholder="검색(ID·제목·페이지)" value="' + esc(reviewState.q) + '">' +
+      '<span class="nrya-rv-count">' + from + '–' + to + ' / ' + shown.length + '건' +
+        (reviewState.law || reviewState.q ? ' (전체 ' + reviewState.list.length + '건 중)' : '') + '</span>' +
+      '<span class="nrya-rv-pager">' +
+        '<button class="nrya-rv-prev"' + (reviewState.page <= 0 ? ' disabled' : '') + '>‹ 이전</button>' +
+        '<b>' + (reviewState.page + 1) + ' / ' + pages + '</b>' +
+        '<button class="nrya-rv-next"' + (reviewState.page >= pages - 1 ? ' disabled' : '') + '>다음 ›</button>' +
+      '</span></div>';
+  }
+
+  /**
+   * 상태(reviewState)를 화면에 그린다. 서버를 다시 부르지 않는다 — 필터·페이지 이동용.
+   * @param {HTMLElement} host
+   * [연계] ← renderReviewCards(서버에서 목록을 받은 뒤), 도구줄 이벤트.
+   */
+  function paintReviews(host) {
+    var shown = reviewFiltered();
+    var pages = Math.max(1, Math.ceil(shown.length / REVIEW_PAGE_SIZE));
+    if (reviewState.page > pages - 1) reviewState.page = pages - 1;
+    if (reviewState.page < 0) reviewState.page = 0;
+    var slice = shown.slice(reviewState.page * REVIEW_PAGE_SIZE, (reviewState.page + 1) * REVIEW_PAGE_SIZE);
+    host.innerHTML = DUAL_NOTE + reviewToolbarHTML(shown) +
+      (slice.length ? slice.map(function (rv, i) { return reviewCardHTML(rv, i === 0); }).join('')
+                    : '<div class="nrya-notice-box"><span class="nrya-em">🔎</span>조건에 맞는 항목이 없습니다.</div>');
+    host.querySelectorAll('.nrya-rv').forEach(function (card) { bindReviewCard(card); });
+
+    var refresh = host.querySelector('.nrya-rv-refresh');
+    if (refresh) refresh.onclick = function () { renderReviewCards(host); };
+    var st = host.querySelector('.nrya-rv-status');
+    if (st) st.onchange = function () { reviewState.status = st.value; reviewState.page = 0; renderReviewCards(host); };
+    var sel = host.querySelector('.nrya-rv-law');
+    if (sel) sel.onchange = function () { reviewState.law = sel.value; reviewState.page = 0; paintReviews(host); };
+    var q = host.querySelector('.nrya-rv-q');
+    if (q) q.onchange = function () { reviewState.q = q.value.trim(); reviewState.page = 0; paintReviews(host); };
+    var prev = host.querySelector('.nrya-rv-prev');
+    if (prev) prev.onclick = function () { reviewState.page--; paintReviews(host); host.scrollIntoView({ block: 'start' }); };
+    var next = host.querySelector('.nrya-rv-next');
+    if (next) next.onclick = function () { reviewState.page++; paintReviews(host); host.scrollIntoView({ block: 'start' }); };
+  }
+
   /**
    * 검증 대기 목록을 서버에서 불러와 리뷰 카드로 렌더한다.
    * 401 → "관리자 로그인 필요", 오류 → 오류 박스, 빈 목록 → 안내. 절대 빈 화면 없음.
+   * 목록이 200장을 넘어 한 번에 다 그리면 화면이 무거워지므로 20장씩 나눠 그린다(paintReviews).
    * @param {HTMLElement} host - 카드를 담을 컨테이너
-   * [연계] → GET /api/legal/reviews?status=pending, bindReviewCard.
+   * [연계] → GET /api/legal/reviews?status=pending, paintReviews, bindReviewCard.
    */
   function renderReviewCards(host) {
     if (!host) return;
     host.innerHTML = DUAL_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>검증 대기 목록을 불러오는 중…</div>';
-    legalGet('/api/legal/reviews?status=pending').then(function (res) {
+    legalGet('/api/legal/reviews?status=' + encodeURIComponent(reviewState.status)).then(function (res) {
       if (res.status === 401 || res.status === 403) {
         host.innerHTML = DUAL_NOTE + adminLockHTML();
         return null;
@@ -668,13 +751,12 @@
         host.innerHTML = DUAL_NOTE + '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>' + esc((data && data.error) || '목록을 불러오지 못했습니다.') + '</div>';
         return;
       }
-      var list = data.reviews || [];
-      if (!list.length) {
+      reviewState.list = data.reviews || [];
+      if (!reviewState.list.length) {
         host.innerHTML = DUAL_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">✅</span>검증 대기 항목이 없습니다.</div>';
         return;
       }
-      host.innerHTML = DUAL_NOTE + list.map(function (rv, i) { return reviewCardHTML(rv, i === 0); }).join('');
-      host.querySelectorAll('.nrya-rv').forEach(function (card) { bindReviewCard(card); });
+      paintReviews(host);
     }).catch(function (e) {
       host.innerHTML = DUAL_NOTE + '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>';
     });
@@ -1165,6 +1247,19 @@
    */
   function reviewCardHTML(rv, open) {
     var approved = !!rv.approved;
+    // 이미 승인된 항목은 승인/반려 대신 **되돌리기**만 보여준다(잘못 누른 승인을 되돌릴 길이 없었다).
+    if (approved) {
+      var pagesA = (rv.targetPages || []).map(esc).join(' · ');
+      return '<div class="nrya-rv nrya-approved' + (open ? ' nrya-open' : '') + '" data-id="' + esc(rv.id) + '">' +
+        '<div class="nrya-rv-head"><span class="nrya-rv-id">' + esc(rv.id) + '</span>' +
+        '<div class="nrya-rv-t">' + esc(rv.title || rv.id) + '<small><b>' + esc(rv.law || '') + '</b></small></div>' +
+        '<span class="nrya-rv-st nrya-done">✓ 승인·canonical</span></div>' +
+        '<div class="nrya-rv-body">' + reviewFieldsHTML(rv) +
+          (pagesA ? '<div class="nrya-src-line">📍 대상 페이지: ' + pagesA + '</div>' : '') +
+          '<div class="nrya-rv-actions"><button class="nrya-btn-no nrya-btn-undo">↩ 승인 되돌리기 (대기로)</button></div>' +
+          '<div class="nrya-inline-err nrya-hidden" style="display:none"></div><div class="nrya-chain"></div>' +
+        '</div></div>';
+    }
     var pages = (rv.targetPages || []).map(esc).join(' · ');
     var st = approved
       ? '<span class="nrya-rv-st nrya-done">✓ 승인·canonical</span>'
@@ -1221,12 +1316,13 @@
 
     var okBtn = card.querySelector('.nrya-btn-ok');
     var noBtn = card.querySelector('.nrya-btn-no');
+    var undoBtn = card.querySelector('.nrya-btn-undo');
     var errBox = card.querySelector('.nrya-inline-err');
     var findingsIn = card.querySelector('.nrya-findings-in');
 
     function showErr(msg) { if (!errBox) return; errBox.style.display = 'block'; errBox.classList.remove('nrya-hidden'); errBox.textContent = msg; }
     function clearErr() { if (!errBox) return; errBox.style.display = 'none'; errBox.textContent = ''; }
-    function setBusy(b) { if (okBtn) okBtn.disabled = b; if (noBtn) noBtn.disabled = b; }
+    function setBusy(b) { if (okBtn) okBtn.disabled = b; if (noBtn) noBtn.disabled = b; if (undoBtn) undoBtn.disabled = b; }
 
     function submit(decision) {
       clearErr();
@@ -1242,7 +1338,11 @@
         .then(function (data) {
           if (data._denied) { showErr('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'); setBusy(false); if (okBtn) okBtn.textContent = '✓ 승인'; return; }
           if (!data || !data.ok) { showErr((data && data.error) || '처리에 실패했습니다.'); setBusy(false); if (okBtn) okBtn.textContent = '✓ 승인'; return; }
-          if (decision === 'reject') { markRejected(card, data); }
+          if (decision === 'undo') {
+            card.classList.remove('nrya-approved');
+            var act = card.querySelector('.nrya-rv-actions');
+            if (act) act.innerHTML = '<span class="nrya-rv-st nrya-wait">↩ 되돌렸습니다 — ' + esc(data.note || '') + '</span>';
+          } else if (decision === 'reject') { markRejected(card, data); }
           else { markApproved(card, val, data); }
           refreshStats(); // 대기 카운트 배지 갱신
         })
@@ -1284,7 +1384,14 @@
         .catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); setBusy(false); if (okBtn) okBtn.textContent = '✍️ 확인 내용 제출 → AI 재검토'; });
     }
 
-    if (findingsIn) {
+    if (undoBtn) {
+      // 이미 승인된 카드 — 되돌리기만 있다(승인/반려 버튼 자체가 없다).
+      undoBtn.onclick = function () {
+        if (!window.confirm('이 승인을 되돌립니다.\n대상 페이지는 canonical → draft 로 내려가고 확정 각인이 지워집니다.')) return;
+        undoBtn.disabled = true; undoBtn.textContent = '되돌리는 중…';
+        submit('undo');
+      };
+    } else if (findingsIn) {
       if (okBtn) okBtn.onclick = submitFindings;
       if (noBtn) noBtn.onclick = function () { submit('reject'); };
     } else {

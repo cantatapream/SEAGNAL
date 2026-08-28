@@ -67,7 +67,19 @@ const { getAdmin } = require('../services/firebase_admin_lazy');
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const REVIEW_QUEUE = path.join(LEGAL_DIR, '_dashboard', 'review_queue.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
-const APPROVALS_LOG = path.join(LEGAL_DIR, '_dashboard', 'review_approvals.json');
+// ★승인 이력은 **볼륨**(local_server/data)에 둔다. 종전 경로(knowledge/legal/_dashboard/)는
+//   컨테이너 이미지 안이라 **재배포할 때마다 관리자가 승인한 기록이 통째로 사라졌다.**
+//   fly.toml 의 [[mounts]] 로 재배포를 넘어 남는 곳은 local_server/data 뿐이다.
+//   (nariya_config.json 이 H-37 적대검증에서 같은 이유로 옮겨졌는데 이 파일은 안 옮겨져 있었다.)
+const APPROVALS_LOG = FILES.LEGAL_APPROVALS;
+const APPROVALS_LOG_OLD = path.join(LEGAL_DIR, '_dashboard', 'review_approvals.json');
+// 이미지 안에 있던 옛 기록을 한 번만 볼륨으로 옮겨 온다(볼륨에 아직 파일이 없을 때만).
+try {
+  if (!fs.existsSync(APPROVALS_LOG) && fs.existsSync(APPROVALS_LOG_OLD)) {
+    fs.mkdirSync(path.dirname(APPROVALS_LOG), { recursive: true });
+    fs.copyFileSync(APPROVALS_LOG_OLD, APPROVALS_LOG);
+  }
+} catch (e) { console.warn('[legal] 승인이력 볼륨 이관 실패:', e.message); }
 const FEEDBACK_FILE = path.join(LEGAL_DIR, '_feedback', 'logs.jsonl');
 const CANDIDATES_FILE = path.join(LEGAL_DIR, '_candidates', 'queue.jsonl');
 
@@ -260,11 +272,54 @@ router.get('/api/legal/reviews/stats', (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
+// GET /api/legal/reviews/approvals — 승인 이력 통째로 내려받기(저장소 반영용)
+// 승인은 볼륨에만 남는다. 저장소(위키·review_queue.md)에 반영하려면 이 응답을 파일로 받아
+// `_dashboard/loop/apply_approvals.py` 에 먹인다. 그래야 다음 배포에도 승인이 살아남는다.
+router.get('/api/legal/reviews/approvals', (req, res) => {
+  let log = [];
+  try { if (fs.existsSync(APPROVALS_LOG)) log = JSON.parse(fs.readFileSync(APPROVALS_LOG, 'utf8')); } catch (e) {
+    return res.status(500).json({ ok: false, error: '승인이력 읽기 실패: ' + e.message });
+  }
+  res.json({ ok: true, count: log.length, path: APPROVALS_LOG, approvals: log });
+});
+
 /**
  * 대상 위키 개념 페이지의 frontmatter status를 canonical로 올리고,
  * 사람이 확정한 교정값을 명시적 블록으로 남긴다(안전: 표 셀 자동치환 대신 확정값 각인).
  * @returns {string[]} 실제로 수정한 파일명 목록
  */
+/**
+ * 승인을 **되돌린다** — canonical 로 올렸던 페이지를 draft 로 내리고 확정 각인을 지운다.
+ * 사람이 잘못 눌렀을 때 되돌릴 방법이 화면에 없어 2026-08-28 에 추가했다.
+ * @param {string[]} targetPages @param {string} reviewId
+ * @returns {string[]} 실제로 되돌린 파일 목록
+ * [연계] ← finalizeApproval(decision === 'undo'), applyToWikiPages 와 정확히 반대 동작.
+ */
+function undoWikiPages(targetPages, reviewId) {
+  const changed = [];
+  let lastLawSlug = '';
+  const root = path.resolve(CONCEPTS_DIR) + path.sep;
+  const escId = reviewId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const rawTp of targetPages) {
+    let base = String(rawTp).replace(/^wiki\/concepts\//, '').trim();
+    base = base.replace(/\.md\b[\s\S]*$/, '').trim();
+    if (!base) continue;
+    if (base.startsWith('__') && lastLawSlug) base = lastLawSlug + base;
+    else lastLawSlug = base.split('__')[0];
+    const fp = path.join(CONCEPTS_DIR, base + '.md');
+    if (!path.resolve(fp).startsWith(root)) continue;
+    if (!fs.existsSync(fp)) continue;
+    const before = fs.readFileSync(fp, 'utf8');
+    let md = before.replace(new RegExp('^> ✅ 사람검증 확정[^\\n]*' + escId + '[^\\n]*\\n?', 'm'), '');
+    // 이 리뷰 말고 다른 사람검증 확정이 남아 있으면 canonical 을 유지한다(남의 승인을 지우지 않는다).
+    if (!/^> ✅ 사람검증 확정/m.test(md)) md = md.replace(/^(status:\s*)canonical\s*$/m, '$1draft');
+    if (md === before) continue;
+    writeFileAtomic(fp, md);
+    changed.push(path.basename(fp));
+  }
+  return changed;
+}
+
 function applyToWikiPages(targetPages, correctedValue, reviewId, by, dateStr) {
   const changed = [];
   let lastLawSlug = '';
@@ -307,9 +362,11 @@ function finalizeApproval(entry, decision, correctedValue, by) {
 
   // 1) review_queue.md 승인/반려 마킹(원자적)
   let txt = fs.readFileSync(REVIEW_QUEUE, 'utf8');
-  const mark = decision === 'reject'
-    ? `- 승인: [ ] 반려(${by}, ${dateStr})`
-    : `- 승인: [x] 승인(${by}, ${dateStr})` + (correctedValue != null && correctedValue !== '' ? ` · 확정값: ${String(correctedValue)}` : '');
+  const mark = decision === 'undo'
+    ? `- 승인: [ ] 대기(되돌림: ${by}, ${dateStr})`
+    : decision === 'reject'
+      ? `- 승인: [ ] 반려(${by}, ${dateStr})`
+      : `- 승인: [x] 승인(${by}, ${dateStr})` + (correctedValue != null && correctedValue !== '' ? ` · 확정값: ${String(correctedValue)}` : '');
   // 해당 엔트리 블록 내부의 "- 승인:" 라인만 교체
   const escId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const blockRe = new RegExp('(###\\s+' + escId + ':[\\s\\S]*?)-\\s*승인:\\s*\\[[ xX]\\][^\\n]*', 'm');
@@ -321,6 +378,7 @@ function finalizeApproval(entry, decision, correctedValue, by) {
   // 2) 승인이면 대상 위키 페이지 canonical 승격 + 확정값 각인
   let changedFiles = [];
   if (decision === 'approve') changedFiles = applyToWikiPages(entry.targetPages, correctedValue, id, by, dateStr);
+  else if (decision === 'undo') changedFiles = undoWikiPages(entry.targetPages, id);
 
   // 3) 승인 이력 로그(감사 추적)
   let log = [];
@@ -329,14 +387,16 @@ function finalizeApproval(entry, decision, correctedValue, by) {
   writeFileAtomic(APPROVALS_LOG, JSON.stringify(log, null, 1));
 
   // 정직한 note: 실제 승격 페이지 수 기준(무음 성공 금지)
-  const note = decision === 'reject' ? '반려 처리(재검토 큐 유지)'
+  const note = decision === 'undo' ? `되돌림 완료 · ${changedFiles.length}개 페이지를 draft 로 내리고 확정 각인을 지웠다(대기 상태로 복귀)`
+    : decision === 'reject' ? '반려 처리(재검토 큐 유지)'
     : (changedFiles.length ? `승인 완료 · ${changedFiles.length}개 페이지 canonical 승격·확정값 반영(인덱스 재빌드는 배치)`
       : '⚠ 승인은 기록됐으나 대상 위키 페이지를 찾지 못해 승격 0건 — 리뷰의 "대상 페이지" 표기를 확인하세요');
   return { httpStatus: 200, body: { ok: true, id, decision, correctedValue, changedFiles, promotedCount: changedFiles.length, note } };
 }
 
 // POST /api/legal/reviews/:id/approve — 승인(+교정값 확정) 또는 반려 → 서버 반영
-// body: { decision: 'approve'|'reject', correctedValue?, by? }
+// body: { decision: 'approve'|'reject'|'undo', correctedValue?, by? }
+// 'undo' = 잘못 누른 승인을 되돌린다(대기로 복귀 + canonical→draft + 확정 각인 삭제).
 router.post('/api/legal/reviews/:id/approve', (req, res) => {
   const id = req.params.id;
   const { decision = 'approve', correctedValue = null, by = '관리자' } = req.body || {};
