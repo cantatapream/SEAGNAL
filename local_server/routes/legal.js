@@ -276,11 +276,12 @@ router.get('/api/legal/reviews/stats', (req, res) => {
 // 승인은 볼륨에만 남는다. 저장소(위키·review_queue.md)에 반영하려면 이 응답을 파일로 받아
 // `_dashboard/loop/apply_approvals.py` 에 먹인다. 그래야 다음 배포에도 승인이 살아남는다.
 router.get('/api/legal/reviews/approvals', (req, res) => {
-  let log = [];
-  try { if (fs.existsSync(APPROVALS_LOG)) log = JSON.parse(fs.readFileSync(APPROVALS_LOG, 'utf8')); } catch (e) {
-    return res.status(500).json({ ok: false, error: '승인이력 읽기 실패: ' + e.message });
+  let out;
+  try { out = readApprovalsLog(); } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
   }
-  res.json({ ok: true, count: log.length, path: APPROVALS_LOG, approvals: log });
+  res.json({ ok: true, count: out.log.length, path: APPROVALS_LOG, approvals: out.log,
+    brokenMovedTo: out.brokenMovedTo || undefined });
 });
 
 /**
@@ -288,6 +289,44 @@ router.get('/api/legal/reviews/approvals', (req, res) => {
  * 사람이 확정한 교정값을 명시적 블록으로 남긴다(안전: 표 셀 자동치환 대신 확정값 각인).
  * @returns {string[]} 실제로 수정한 파일명 목록
  */
+/**
+ * 승인 이력을 읽는다. **읽기 실패를 조용히 넘기지 않는다.**
+ * 종전 코드는 `catch (_) {}` 로 삼키고 빈 배열로 시작했는데, 그러면 파일이 한 번 깨졌을 때
+ * 다음 승인이 **지금까지의 이력 전부를 지우고 그 한 건만** 써 버린다. 승인 기록은 사람이 직접
+ * 누른 것이라 날아가면 복구할 방법이 없다(2026-08-28 발견).
+ * 그래서 깨진 파일은 지우지 않고 `.broken-<시각>` 으로 **옆에 옮겨 두고** 그 사실을 로그에 남긴다.
+ * @returns {{log: Array, brokenMovedTo: string}} 읽은 이력과, 깨진 파일을 옮겨 둔 경로(없으면 '')
+ * [연계] ← finalizeApproval, GET /api/legal/reviews/approvals.
+ */
+function readApprovalsLog() {
+  if (!fs.existsSync(APPROVALS_LOG)) return { log: [], brokenMovedTo: '' };
+  let raw = '';
+  try { raw = fs.readFileSync(APPROVALS_LOG, 'utf8'); }
+  catch (e) { throw new Error('승인 이력 파일을 읽지 못했습니다(' + e.message + '). 덮어쓰지 않고 멈춥니다.'); }
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return { log: parsed, brokenMovedTo: '' };
+    throw new Error('배열이 아닙니다');
+  } catch (e) {
+    const moved = APPROVALS_LOG + '.broken-' + new Date().toISOString().replace(/[:.]/g, '-');
+    try { fs.renameSync(APPROVALS_LOG, moved); } catch (_) { return { log: [], brokenMovedTo: '' }; }
+    console.error('[legal] ⚠승인 이력이 깨져 있어(' + e.message + ') ' + moved + ' 로 옮겼습니다. '
+      + '새 파일로 다시 시작하지만 **옛 기록은 그 파일에 남아 있으니 사람이 확인해야 합니다.**');
+    return { log: [], brokenMovedTo: moved };
+  }
+}
+
+/**
+ * 승인 이력을 쓴다. **덮어쓰기 전에 직전 판을 한 벌 남긴다.**
+ * @param {Array} log
+ * [연계] ← finalizeApproval. 남기는 파일: <경로>.prev
+ */
+function writeApprovalsLog(log) {
+  try { if (fs.existsSync(APPROVALS_LOG)) fs.copyFileSync(APPROVALS_LOG, APPROVALS_LOG + '.prev'); }
+  catch (e) { console.warn('[legal] 승인 이력 직전판 백업 실패:', e.message); }
+  writeFileAtomic(APPROVALS_LOG, JSON.stringify(log, null, 1));
+}
+
 /**
  * 승인을 **되돌린다** — canonical 로 올렸던 페이지를 draft 로 내리고 확정 각인을 지운다.
  * 사람이 잘못 눌렀을 때 되돌릴 방법이 화면에 없어 2026-08-28 에 추가했다.
@@ -381,17 +420,19 @@ function finalizeApproval(entry, decision, correctedValue, by) {
   else if (decision === 'undo') changedFiles = undoWikiPages(entry.targetPages, id);
 
   // 3) 승인 이력 로그(감사 추적)
-  let log = [];
-  try { if (fs.existsSync(APPROVALS_LOG)) log = JSON.parse(fs.readFileSync(APPROVALS_LOG, 'utf8')); } catch (_) {}
+  const { log, brokenMovedTo } = readApprovalsLog();
   log.push({ id, decision, correctedValue, by, at: now.toISOString(), targetPages: entry.targetPages, changedFiles });
-  writeFileAtomic(APPROVALS_LOG, JSON.stringify(log, null, 1));
+  writeApprovalsLog(log);
 
   // 정직한 note: 실제 승격 페이지 수 기준(무음 성공 금지)
   const note = decision === 'undo' ? `되돌림 완료 · ${changedFiles.length}개 페이지를 draft 로 내리고 확정 각인을 지웠다(대기 상태로 복귀)`
     : decision === 'reject' ? '반려 처리(재검토 큐 유지)'
     : (changedFiles.length ? `승인 완료 · ${changedFiles.length}개 페이지 canonical 승격·확정값 반영(인덱스 재빌드는 배치)`
       : '⚠ 승인은 기록됐으나 대상 위키 페이지를 찾지 못해 승격 0건 — 리뷰의 "대상 페이지" 표기를 확인하세요');
-  return { httpStatus: 200, body: { ok: true, id, decision, correctedValue, changedFiles, promotedCount: changedFiles.length, note } };
+  return { httpStatus: 200, body: { ok: true, id, decision, correctedValue, changedFiles,
+    promotedCount: changedFiles.length,
+    note: note + (brokenMovedTo ? ' ⚠승인 이력 파일이 깨져 있어 ' + path.basename(brokenMovedTo)
+      + ' 로 옮기고 새로 시작했습니다 — 옛 기록을 사람이 확인해야 합니다.' : '') } };
 }
 
 // POST /api/legal/reviews/:id/approve — 승인(+교정값 확정) 또는 반려 → 서버 반영

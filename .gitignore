@@ -49,6 +49,8 @@ local_server/data/admrul_fresh_status.json
 # 저장소에 반영할 때는 GET /api/legal/reviews/approvals 로 받아
 # _dashboard/loop/apply_approvals.py 로 위키·대기열에 적용한다(사본을 git 에 담지 않는다).
 local_server/data/review_approvals.json
+local_server/data/review_approvals.json.prev
+local_server/data/review_approvals.json.broken-*
 
 # 관리자 토큰 파일 (Fly.io Volume에 저장, 절대 git 추적 금지)
 # 토큰 자체가 인증 자격증명이므로 노출 시 임의 사용자가 admin 접근 가능
