@@ -137,7 +137,10 @@ echo; echo "── V5-8c 도달(품질 4축 ③) — 본문에 있는데 표에 
 #   ⚠게이트로 걸지 않는다(FAIL 로 안 만든다): 지금 802건이라 걸면 매번 실패한다 —
 #   실패가 일상이 되면 점검표를 무시하는 습관이 생겨 게이트가 오히려 무력해진다.
 #   그리고 이건 판정이 아니라 **확인 목록**이다(오탐이 섞인다). 사서가 보고 cite_row.js 로 넣는다.
-python3 local_server/knowledge/legal/_dashboard/loop/body_cite_gap.py | head -8 || true
+# ★`| head -8` 로 자르지 않는다(2026-08-28) — 파이프가 닫히면서 SIGPIPE 로 파이썬이
+# BrokenPipeError 역추적을 토해내 점검표가 지저분해졌고, 무엇보다 **가운데를 잘라 읽는 것**
+# 자체가 CLAUDE.md §7 이 금지한 것이다. 출력은 20줄 남짓이라 통째로 둔다.
+python3 local_server/knowledge/legal/_dashboard/loop/body_cite_gap.py || true
 
 echo; echo "── V5-9 수집(품질 4축 ①) — 가져야 할 원문이 손에 있나 ──"
 # 사용자가 정한 품질 4축 중 **①수집만 게이트가 아예 없었다**(H-45). ②는 V5-3, ③은 V5-5·V5-7·V5-8,
