@@ -93,10 +93,33 @@ node _dashboard/loop/golden_eval.js --base _dashboard/loop/pinned/golden_eval_ba
 - Ⓑ 두 문항(수산물유통법·해수욕장법)은 **상한을 40 으로 올리자 비로소 그 법이 후보에 들어왔다.**
 - 검색 자체의 시간은 거의 안 늘었다(40문항 12.3초 → 13.1초). **비용은 시간이 아니라 프롬프트 크기다.**
 
-## 회귀 검사 — 상한을 바꿔도 기존 시험은 전부 통과한다
-`test_child_relevance`·`test_child_unknown_gate`·`test_child_confirm`·`test_ef_exact_refine`·
-`test_cancel_verdict_room`·`test_ask_context`·`test_citation_chain`·`test_clarify_options`·
-`test_unverified_review` 를 상한 **20·30·40 각각으로** 돌렸다 — 세 경우 모두 **692건 전부 통과**.
+## 회귀 검사 — ⚠**"692건 전부 통과"는 안전 근거가 못 된다**(독립 검토 지적, 내가 확인함)
+위 9개 스위트를 상한 20·30·40 각각으로 돌려 세 경우 모두 692건 전부 통과한 것은 **사실이다.**
+그런데 독립 검토자가 *"그 시험들이 검색 경로를 실제로 건드리기는 하나"* 를 물었고, 세어 보니
+**대부분 안 건드린다**(내가 직접 grep 으로 확인):
+
+| 스위트 | legal_retriever 를 부르나 | `search()` 를 실제로 호출하나 |
+|---|---:|---:|
+| test_child_relevance · child_unknown_gate · child_confirm · ef_exact_refine · cancel_verdict_room | **0** | **0** |
+| test_citation_chain · clarify_options · unverified_review | 2~3 | **0** (순수함수 단위시험) |
+| **test_ask_context** | 2 | **3회 호출**(656·657·1283행) |
+
+즉 **9개 중 8개는 `PRIMARY_TOPK` 을 무엇으로 바꿔도 결과가 같다**(코드 경로가 다르거나 순수함수만
+시험한다). 실제로 검색을 태우는 것은 `test_ask_context` 하나뿐이고, 그것도 369건 중 3건이다.
+→ **"692건 통과"를 안전 근거로 쓰면 CLAUDE.md §7("돌렸다와 읽었다는 다르다") 위반이다.**
+   이 줄은 "이 변경이 기존 시험을 깨지 않는다"는 뜻일 뿐, **"답변 품질이 안 나빠진다"는 뜻이 아니다.**
+(검토자는 test_ask_context 도 search 를 안 부른다고 했으나 **그건 틀렸다** — 3회 부른다. 확인해 정정한다.)
+
+## ⚠상한을 올리면 **홉의 의미가 조용히 바뀐다**(독립 검토 지적, 코드로 확인함)
+`primary = scored.slice(0, PRIMARY_TOPK)` 로 뽑은 뒤, 그래프 1홉은 `primary.slice(0, HOP_FROM)`
+에서만 링크를 훑는다(`legal_retriever.js:1691·1708`). `HOP_FROM` 기본값은 20인데 이것은
+`PRIMARY_TOPK` 을 따라 정한 값이 **아니라** 별도 실측으로 정해진 값이다(주석 118~121행:
+"정답 페이지가 상위 20위 링크에 13/17, 상위 2위 링크에 3/17").
+→ 지금은 둘 다 20 이라 **"primary 전부에서 홉"** 인데, 상한만 30 으로 올리면
+   **"primary 30개 중 앞 20개에서만 홉"** 으로 동작이 조용히 바뀐다.
+실제로 재 봤다: `NRYA_PRIMARY_TOPK=30 NRYA_HOP_FROM=30` → **검색 실패 15건**으로,
+`HOP_FROM` 을 그대로 둔 30 과 **같다**. 즉 이번 문제집에서는 홉 시드를 늘려도 차이가 없었다.
+그래도 **상한을 바꾼다면 이 상호작용을 알고 바꿔야 한다** — 문서에 빠져 있던 것을 채운다.
 
 ## ⚠**내가 재지 못한 것**(이게 결정의 핵심이다)
 이 환경에는 Gemini 키가 없어 **실제 답변을 생성해 보지 못했다.** 그래서
