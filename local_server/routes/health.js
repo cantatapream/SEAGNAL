@@ -261,12 +261,28 @@ router.get('/', (req, res) => {
     res.send(buildResponseHtml());
 });
 
+// ── 이 프로세스(머신)를 구분하는 짧은 표식 ──
+// [왜 있나 — 2026-08-28]
+//   fly 볼륨(`local_server/data`)은 **머신 한 대에 붙는다.** 머신이 여러 대면 승인 이력 같은
+//   런타임 파일이 머신마다 따로 생기고, 서버 안의 직렬 쓰기 락(`withLock`)도 프로세스 안에서만
+//   도니 머신 사이에는 아무 보호가 없다. 그런데 **머신이 몇 대인지 밖에서 확인할 방법이 없어**
+//   독립 검토자도 나도 "코드상 보장이 없다"까지만 적고 멈췄다.
+//   그래서 /api/health 를 여러 번 불러 **서로 다른 표식이 몇 개 나오는지 세면** 알 수 있게 한다.
+// ⚠fly 머신 ID 를 그대로 내보내지 않는다 — 해시 앞 8자리만 쓴다(대수 세기에는 충분하다).
+const crypto = require('crypto');
+const INSTANCE = crypto.createHash('sha1')
+    .update(String(process.env.FLY_MACHINE_ID || process.env.FLY_ALLOC_ID || require('os').hostname()))
+    .digest('hex').slice(0, 8);
+const STARTED_AT = new Date().toISOString();
+
 /**
  * 서버 상태 확인 API (Fly.io / UptimeRobot 등 모니터링 도구가 사용).
  * 점검 모드와 무관하게 항상 200 OK 응답.
+ * `instance` 는 이 프로세스를 구분하는 표식이다 — 여러 번 불러 값이 몇 가지 나오는지 세면
+ * **머신이 몇 대 도는지** 알 수 있다(위 주석 참조). `startedAt` 은 이 프로세스가 뜬 시각.
  */
 router.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', timestamp: new Date().toISOString(), instance: INSTANCE, startedAt: STARTED_AT });
 });
 
 module.exports = router;
