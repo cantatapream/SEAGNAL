@@ -9,8 +9,13 @@
 
 [무엇을 하나]
 `raw/*/<법이름>/` 을 전부 훑어 지도에 없는 것을 채운다. **지우지는 않는다**(사람이 손으로 넣은
-별칭 키가 있을 수 있다). `raw/_자치법규/` 는 건너뛴다 — 그 아래는 한 법이 아니라 **조례 묶음**이라
-"법 이름 → 폴더" 지도의 대상이 아니다.
+별칭 키가 있을 수 있다).
+
+`raw/_자치법규/` 는 한 칸 더 깊다 — `_자치법규/<시도>/<조례이름>/` 이므로 그 층을 본다
+(2026-08-28 이전에는 조례가 폴더 없이 `<시도>/<이름>.txt` 로 납작하게 놓여 있어 이 지도의
+대상이 아니라고 보고 건너뛰었다. 그 결과 **조례를 인용한 근거 조문 62줄이 "폴더를 못 찾음"으로
+죽어 있었다** — `_dashboard/ORDIN_LINK_FINDING.md` 참조. `ordin_to_folder.py` 로 폴더 꼴로
+옮긴 뒤부터는 다른 법과 똑같이 다룬다).
 
 [쓰는 법]
   python3 sync_law_paths.py           → 무엇이 빠졌는지 보여만 준다
@@ -26,22 +31,26 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.normpath(os.path.join(HERE, '..', '..'))
 MAP = os.path.join(LEGAL, '_dashboard', 'law_raw_paths.json')
 RAW = os.path.join(LEGAL, 'raw')
-SKIP_DOMAINS = {'_자치법규'}          # 조례 묶음 — 한 법이 아니다
+ORDIN_DOMAIN = '_자치법규'            # 여기만 `<시도>/<조례이름>/` 로 한 칸 더 깊다
 
 
 def scan():
     """raw 에 실제로 있는 (법이름, 저장소 상대경로) 목록."""
     out = []
+    repo = os.path.normpath(os.path.join(LEGAL, '..', '..', '..'))
     for domain in sorted(os.listdir(RAW)):
         d = os.path.join(RAW, domain)
-        if not os.path.isdir(d) or domain in SKIP_DOMAINS:
+        if not os.path.isdir(d):
             continue
-        for law in sorted(os.listdir(d)):
-            p = os.path.join(d, law)
-            if not os.path.isdir(p) or law.startswith('_'):
-                continue
-            rel = os.path.relpath(p, os.path.normpath(os.path.join(LEGAL, '..', '..', '..')))
-            out.append((law.replace(' ', ''), rel))
+        # 조례는 `<시도>` 층을 한 번 더 내려가야 법(조례) 폴더가 나온다.
+        parents = [os.path.join(d, x) for x in sorted(os.listdir(d))
+                   if os.path.isdir(os.path.join(d, x))] if domain == ORDIN_DOMAIN else [d]
+        for parent in parents:
+            for law in sorted(os.listdir(parent)):
+                p = os.path.join(parent, law)
+                if not os.path.isdir(p) or law.startswith('_'):
+                    continue
+                out.append((law.replace(' ', ''), os.path.relpath(p, repo)))
     return out
 
 
