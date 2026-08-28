@@ -34,5 +34,10 @@
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=137592321"
     ]
+  },
+  "행정규칙(선박안전도정보의공표에관한규정) 별표 1": {
+    "제목": "선박 안전도 정보 공표 양식(제6조 관련)",
+    "PDF": "http://law.go.kr/flDownload.do?flSeq=140431495",
+    "출처": "law.go.kr DRF API(target=admrul, ID=2100000240840), 2026-08-23 수집 — 25R B-1 collection_hole 해소"
   }
 }

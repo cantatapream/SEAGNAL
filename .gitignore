@@ -6,6 +6,10 @@ backups/
 .claude/*
 !.claude/skills/
 !.claude/memory/
+# 훅과 그 등록 파일은 저장소에 남겨야 한다 — 다른 계정·다른 세션에서도 같은 장치가 걸려야
+# 의미가 있다(사용자 확정 2026-08-23, L-180). settings.local.json 은 계속 제외한다(개인 권한 설정).
+!.claude/hooks/
+!.claude/settings.json
 
 # 환경 변수 (비밀번호 등 포함 가능성)
 .env
@@ -32,6 +36,21 @@ local_server/data/accident_geocode_suspects.json
 # 적용하지 않는다. Task #14 에서 실제 소비자(앵커 재산정)가 생기면 그때 관례를 정한다.
 local_server/data/tide_field/grid_meta_jeju.json
 local_server/data/tide_field/anchors_jeju.json
+
+# 원문 신선도 점검(services/admrul_fresh_scanner.js) 산출물 — 서버가 매주 만들어 쓰는
+# 런타임 상태다. Fly.io 볼륨(local_server/data)에 얹혀 재배포해도 남는다.
+# git 에 담으면 저장소 사본과 서버 사본이 서로 다른데 같은 이름으로 보여 혼동만 준다.
+local_server/data/admrul_fresh_report.json
+local_server/data/law_fresh_report.json
+local_server/data/admrul_fresh_queue.jsonl
+local_server/data/admrul_fresh_status.json
+
+# 법률위키 사람검증 승인 이력 — 서버가 관리자 승인 때마다 쓰는 런타임 상태(볼륨).
+# 저장소에 반영할 때는 GET /api/legal/reviews/approvals 로 받아
+# _dashboard/loop/apply_approvals.py 로 위키·대기열에 적용한다(사본을 git 에 담지 않는다).
+local_server/data/review_approvals.json
+local_server/data/review_approvals.json.prev
+local_server/data/review_approvals.json.broken-*
 
 # 관리자 토큰 파일 (Fly.io Volume에 저장, 절대 git 추적 금지)
 # 토큰 자체가 인증 자격증명이므로 노출 시 임의 사용자가 admin 접근 가능

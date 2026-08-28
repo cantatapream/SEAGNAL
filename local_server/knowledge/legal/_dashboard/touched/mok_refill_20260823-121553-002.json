@@ -1,0 +1,8 @@
+{
+ "script": "mok_refill",
+ "stamp": "20260823-121553-002",
+ "files": [
+  "local_server/knowledge/legal/raw/04_선박해운/선박안전법/시행규칙.txt",
+  "local_server/knowledge/legal/raw/08_섬영토/무인도서의보전및관리에관한법률/시행규칙.txt"
+ ]
+}

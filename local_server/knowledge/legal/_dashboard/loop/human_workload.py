@@ -15,6 +15,13 @@ pending=0
 for b in blocks:
     if not b.startswith('### REVIEW-'): continue
     if re.search(r'^-\s*승인:\s*\[[xX]\]', b, re.M): continue   # 이미 승인
+    # ★"해당 없음"도 사람 대기가 아니다(2026-08-23, 적대검증에서 발견).
+    #   review_queue.md 가 스스로 `- 승인: 해당 없음(재수집 필요 항목, 사람 승인 대상 아님)` 이라
+    #   적어 둔 항목을, 위 정규식이 `[x]` 만 걸러내는 바람에 **사람 검수 대기로 잘못 셌다.**
+    #   실측: 대기 143 + 해당없음 2 = 145 로 보고되던 것이 옳게는 143 이다.
+    #   숫자 자체는 작지만, "사람이 봐야 할 일이 몇 건인가"는 사람의 시간을 배분하는 근거라
+    #   틀리면 안 된다.
+    if re.search(r'^-\s*승인:\s*해당\s*없음', b, re.M): continue
     pending+=1
     hid=re.match(r'^###\s+(REVIEW-\S+)', b).group(1)
     low=b

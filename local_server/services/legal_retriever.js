@@ -1090,6 +1090,54 @@ function labelMatchesLaw(label, law) {
   return i >= a.length;
 }
 /**
+ * 되묻기가 "어떤 법이냐"를 물을 때, **우리가 원문을 갖고 있지 않은 법**을 가리키는 선택지를 뺀다.
+ *
+ * ⚠왜(2026-08-22 라이브 재현): "오존층파괴물질 함유설비 처리업체로 지정받으려면 무슨 서식으로
+ *   신청하나요?" 에 되묻기가 이렇게 물었다 —
+ *     0. 해양환경관리법                                    ← 정답(우리 법)
+ *     1. 오존층 보호 등을 위한 특정물질의 관리에 관한 법률   ← 우리 위키에 없는 타법
+ *   질문에 "오존층"이 들어 있으니 사용자는 1번을 고르기 쉽고, 고르면 챗봇은 그 법의 원문이
+ *   없으므로 **반드시 "확인되지 않습니다"** 로 답한다. 즉 **고르면 반드시 실패하는 선택지**를
+ *   내밀고 있었다. (검색은 정상이었다 — 해양환경관리법 페이지가 1순위였고 서식 내용도 자료에
+ *   들어 있었다. 되묻기 단계에서만 샜다.)
+ *
+ * 판단 기준은 **위키 법령 허브의 존재**다. 우리 74법은 전부 `statute` 페이지를 갖고,
+ * 인용용으로만 발췌해 둔 타법은 갖지 않는다. raw 폴더 유무로 재면 타법 발췌본까지 통과해
+ * 이 결함을 못 거른다(실측: 위 오존층법도 raw 는 있다).
+ *
+ * ★안전하게 틀리는 쪽으로: ⓐ"어떤 법" 되묻기일 때만 ⓑ법 이름 꼴 선택지만 ⓒ거르고 나서
+ *   우리 법 선택지가 하나도 안 남으면 **원본을 그대로 돌려준다**(되묻기를 망가뜨리지 않는다).
+ *   `잘 모르겠어요`(unknown)·`다시 설명할게요`(ask) 같은 기능 선택지는 건드리지 않는다.
+ *
+ * 예: dropForeignLawOptions('어떤 법령에 따라 …?',
+ *       [{label:'해양환경관리법'},{label:'오존층 보호 등을 위한 특정물질의 관리에 관한 법률'},{label:'잘 모르겠어요',act:'unknown'}])
+ *     → 오존층법 선택지가 빠진다.
+ * @param {string} question - 모델이 만든 되묻기 문장
+ * @param {Array<{label:string,hint:string,act:string}>} options - 선택지(ensureTopLawOption 후)
+ * @returns {Array} 걸러낸 선택지(원본을 바꾸지 않는다)
+ * [연계] ← decideClarify(선택지 후처리, ensureTopLawOption 바로 다음). → loadIndex()(statute 목록)
+ */
+function dropForeignLawOptions(question, options) {
+  const opts = Array.isArray(options) ? options : [];
+  if (!opts.length) return opts;
+  if (!/어떤\s*법|법률|법령/.test(String(question || ''))) return opts;   // ⓐ
+  let ours;
+  try {
+    ours = (loadIndex().pages || []).filter(p => p.kind === 'statute').map(p => String(p.law || ''));
+  } catch (_) { return opts; }                                          // 색인을 못 읽으면 손대지 않는다
+  if (!ours.length) return opts;
+  const isFunc = o => o && (o.act === 'unknown' || o.act === 'ask');
+  const kept = opts.filter(o => {
+    if (isFunc(o)) return true;
+    const label = String((o && o.label) || '').trim();
+    if (!LAW_TAIL_RE.test(label)) return true;                          // ⓑ 법 이름 꼴이 아니면 그대로
+    return ours.some(law => labelMatchesLaw(label, law));
+  });
+  const realLeft = kept.filter(o => !isFunc(o)).length;
+  return realLeft >= 1 && kept.length < opts.length ? kept : opts;       // ⓒ
+}
+
+/**
  * 되묻기가 **적용 법령을 고르라고** 물었는데 검색 1순위 법이 선택지에 없으면 맨 앞에 넣어준다.
  * 예: ensureTopLawOption('어떤 법률에 따른 단지관리계획을 말씀하시나요?',
  *       [{label:'항만법'},{label:'마리나항만법'}], ['배타적 경제수역 및 대륙붕에 관한 법률'])
@@ -1434,7 +1482,8 @@ ${block}
       .map(o => (o.hint && (o.hint.match(/제\d+조(?:의\d+)?/g) || []).some(a => !block.includes(a))
         ? { label: o.label, hint: '' } : o));
     // ★적용 법령을 고르라는 되묻기인데 검색 1순위 법이 선택지에 없으면 넣어준다(위 주석 참고).
-    const fixed = ensureTopLawOption(question, options, contextPages.map(cp => cp.law));
+    const fixed = dropForeignLawOptions(question,
+      ensureTopLawOption(question, options, contextPages.map(cp => cp.law)));
     // 물음 없이, 또는 고를 게 하나뿐인 되묻기는 사용자를 막기만 하고 좁혀주지 못한다 — 그냥 답하게 둔다.
     if (!question || fixed.length < 2) return CLARIFY_NONE;
     // ★같은 조건 재질문 차단(결정론적): 질의에는 앞선 라운드에서 고른 값이 "질문 — 라벨" 꼴로 이미
@@ -4923,7 +4972,7 @@ module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex, loadGlossary,
   // §4-U 모르는 구어 해소(naverTermLookup 스위치로 잠긴 신규 단계)
   naverTermStep, unknownTermOf, naverMeaningAllowed, NAVER_MAX_ROUNDS, NAVER_ROUNDS_SPENT,
   // 2026-08-17: 인용사슬 묶음표기 풀기(B1·B2) · "잘 모르겠어요"(B7) · 약칭표(B8, 계약4)
-  expandJoEnum, articleEnumTokens, ensureTopLawOption, markUnresolvedReview, ANSWER_RULES_BODY, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
+  expandJoEnum, articleEnumTokens, ensureTopLawOption, dropForeignLawOptions, markUnresolvedReview, ANSWER_RULES_BODY, citedArticleIn, explainClarifyStep, loadLawAliases, dropRedundantChainRows, sameClarifyAsLast,
   // 2026-08-17: 답변 인용 기반 근거 카드 폴백(B11 — 위키 `## 근거 조문` 표가 없는 페이지의 구멍 메우기)
   extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX,
   // 2026-08-17: 4천자 컨텍스트 발췌(회귀 테스트 대상 — 이 로직에서 회귀가 두 번 재발했다)

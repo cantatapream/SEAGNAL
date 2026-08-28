@@ -58,6 +58,7 @@ const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
 const adminQueues = require('../services/legal_admin_queues');
 const amendmentScanner = require('../services/legal_amendment_scanner');
+const freshScanner = require('../services/admrul_fresh_scanner');
 const { DATA_DIR, FILES } = require('../config/server_config');
 
 // [Lazy] Firebase Admin(답변완료 개인 푸시용). routes/report.js 와 같은 이유로 첫 발송 시 로딩.
@@ -66,7 +67,19 @@ const { getAdmin } = require('../services/firebase_admin_lazy');
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const REVIEW_QUEUE = path.join(LEGAL_DIR, '_dashboard', 'review_queue.md');
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
-const APPROVALS_LOG = path.join(LEGAL_DIR, '_dashboard', 'review_approvals.json');
+// ★승인 이력은 **볼륨**(local_server/data)에 둔다. 종전 경로(knowledge/legal/_dashboard/)는
+//   컨테이너 이미지 안이라 **재배포할 때마다 관리자가 승인한 기록이 통째로 사라졌다.**
+//   fly.toml 의 [[mounts]] 로 재배포를 넘어 남는 곳은 local_server/data 뿐이다.
+//   (nariya_config.json 이 H-37 적대검증에서 같은 이유로 옮겨졌는데 이 파일은 안 옮겨져 있었다.)
+const APPROVALS_LOG = FILES.LEGAL_APPROVALS;
+const APPROVALS_LOG_OLD = path.join(LEGAL_DIR, '_dashboard', 'review_approvals.json');
+// 이미지 안에 있던 옛 기록을 한 번만 볼륨으로 옮겨 온다(볼륨에 아직 파일이 없을 때만).
+try {
+  if (!fs.existsSync(APPROVALS_LOG) && fs.existsSync(APPROVALS_LOG_OLD)) {
+    fs.mkdirSync(path.dirname(APPROVALS_LOG), { recursive: true });
+    fs.copyFileSync(APPROVALS_LOG_OLD, APPROVALS_LOG);
+  }
+} catch (e) { console.warn('[legal] 승인이력 볼륨 이관 실패:', e.message); }
 const FEEDBACK_FILE = path.join(LEGAL_DIR, '_feedback', 'logs.jsonl');
 const CANDIDATES_FILE = path.join(LEGAL_DIR, '_candidates', 'queue.jsonl');
 
@@ -259,11 +272,107 @@ router.get('/api/legal/reviews/stats', (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
+// GET /api/legal/reviews/approvals — 승인 이력 통째로 내려받기(저장소 반영용)
+// 승인은 볼륨에만 남는다. 저장소(위키·review_queue.md)에 반영하려면 이 응답을 파일로 받아
+// `_dashboard/loop/apply_approvals.py` 에 먹인다. 그래야 다음 배포에도 승인이 살아남는다.
+router.get('/api/legal/reviews/approvals', (req, res) => {
+  let out;
+  try { out = readApprovalsLog(); } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+  res.json({ ok: true, count: out.log.length, path: APPROVALS_LOG, approvals: out.log,
+    brokenMovedTo: out.brokenMovedTo || undefined });
+});
+
 /**
  * 대상 위키 개념 페이지의 frontmatter status를 canonical로 올리고,
  * 사람이 확정한 교정값을 명시적 블록으로 남긴다(안전: 표 셀 자동치환 대신 확정값 각인).
  * @returns {string[]} 실제로 수정한 파일명 목록
  */
+/**
+ * 승인 이력을 읽는다. **읽기 실패를 조용히 넘기지 않는다.**
+ * 종전 코드는 `catch (_) {}` 로 삼키고 빈 배열로 시작했는데, 그러면 파일이 한 번 깨졌을 때
+ * 다음 승인이 **지금까지의 이력 전부를 지우고 그 한 건만** 써 버린다. 승인 기록은 사람이 직접
+ * 누른 것이라 날아가면 복구할 방법이 없다(2026-08-28 발견).
+ * 그래서 깨진 파일은 지우지 않고 `.broken-<시각>` 으로 **옆에 옮겨 두고** 그 사실을 로그에 남긴다.
+ * @returns {{log: Array, brokenMovedTo: string}} 읽은 이력과, 깨진 파일을 옮겨 둔 경로(없으면 '')
+ * [연계] ← finalizeApproval, GET /api/legal/reviews/approvals.
+ */
+function readApprovalsLog() {
+  if (!fs.existsSync(APPROVALS_LOG)) return { log: [], brokenMovedTo: '' };
+  let raw = '';
+  try { raw = fs.readFileSync(APPROVALS_LOG, 'utf8'); }
+  catch (e) { throw new Error('승인 이력 파일을 읽지 못했습니다(' + e.message + '). 덮어쓰지 않고 멈춥니다.'); }
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return { log: parsed, brokenMovedTo: '' };
+    throw new Error('배열이 아닙니다');
+  } catch (e) {
+    const moved = APPROVALS_LOG + '.broken-' + new Date().toISOString().replace(/[:.]/g, '-');
+    // 옮기지 못하면 **빈 배열로 진행하지 않는다.** 그대로 두고 쓰면 다음 쓰기가 이력을 통째로
+    // 덮어쓴다 — 이 함수가 막으려던 바로 그 사고다(2026-08-28 독립 검토에서 발견).
+    try { fs.renameSync(APPROVALS_LOG, moved); }
+    catch (e2) { throw new Error('승인 이력이 깨져 있는데 옆으로 옮기지도 못했습니다(' + e2.message
+      + '). 덮어쓰면 기록이 사라지므로 멈춥니다. 관리자가 ' + APPROVALS_LOG + ' 를 직접 확인해야 합니다.'); }
+    console.error('[legal] ⚠승인 이력이 깨져 있어(' + e.message + ') ' + moved + ' 로 옮겼습니다. '
+      + '새 파일로 다시 시작하지만 **옛 기록은 그 파일에 남아 있으니 사람이 확인해야 합니다.**');
+    return { log: [], brokenMovedTo: moved };
+  }
+}
+
+/**
+ * 승인 이력을 쓴다. **덮어쓰기 전에 직전 판을 한 벌 남긴다.**
+ * @param {Array} log
+ * [연계] ← finalizeApproval. 남기는 파일: <경로>.prev
+ */
+function writeApprovalsLog(log) {
+  try { if (fs.existsSync(APPROVALS_LOG)) fs.copyFileSync(APPROVALS_LOG, APPROVALS_LOG + '.prev'); }
+  catch (e) { console.warn('[legal] 승인 이력 직전판 백업 실패:', e.message); }
+  writeFileAtomic(APPROVALS_LOG, JSON.stringify(log, null, 1));
+}
+
+/**
+ * 승인을 **되돌린다** — canonical 로 올렸던 페이지를 draft 로 내리고 확정 각인을 지운다.
+ * 사람이 잘못 눌렀을 때 되돌릴 방법이 화면에 없어 2026-08-28 에 추가했다.
+ * ⚠같은 페이지에 **다른 리뷰의 확정 각인**이 남아 있으면 각인만 지우고 canonical 은 유지한다
+ *   (남의 승인을 지우지 않는다). 그래서 "각인을 지운 파일"과 "draft 로 내린 파일"이 다르다 —
+ *   응답 문구가 실제와 다르면 안 되므로 둘을 따로 돌려준다(2026-08-28 실기동 시험에서 발견).
+ * @param {string[]} targetPages @param {string} reviewId
+ * @returns {{changed: string[], demoted: string[]}} 각인을 지운 파일 · 그중 draft 로 내린 파일
+ * [연계] ← finalizeApproval(decision === 'undo'), applyToWikiPages 와 정확히 반대 동작.
+ */
+function undoWikiPages(targetPages, reviewId) {
+  const changed = [];
+  const demoted = [];
+  let lastLawSlug = '';
+  const root = path.resolve(CONCEPTS_DIR) + path.sep;
+  const escId = reviewId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const rawTp of targetPages) {
+    let base = String(rawTp).replace(/^wiki\/concepts\//, '').trim();
+    base = base.replace(/\.md\b[\s\S]*$/, '').trim();
+    if (!base) continue;
+    if (base.startsWith('__') && lastLawSlug) base = lastLawSlug + base;
+    else lastLawSlug = base.split('__')[0];
+    const fp = path.join(CONCEPTS_DIR, base + '.md');
+    if (!path.resolve(fp).startsWith(root)) continue;
+    if (!fs.existsSync(fp)) continue;
+    const before = fs.readFileSync(fp, 'utf8');
+    let md = before.replace(new RegExp('^> ✅ 사람검증 확정[^\\n]*' + escId + '[^\\n]*\\n?', 'm'), '');
+    // 이 리뷰 말고 다른 사람검증 확정이 남아 있으면 canonical 을 유지한다(남의 승인을 지우지 않는다).
+    let wasDemoted = false;
+    if (!/^> ✅ 사람검증 확정/m.test(md)) {
+      const after = md.replace(/^(status:\s*)canonical\s*$/m, '$1draft');
+      wasDemoted = after !== md;
+      md = after;
+    }
+    if (md === before) continue;
+    writeFileAtomic(fp, md);
+    changed.push(path.basename(fp));
+    if (wasDemoted) demoted.push(path.basename(fp));
+  }
+  return { changed, demoted };
+}
+
 function applyToWikiPages(targetPages, correctedValue, reviewId, by, dateStr) {
   const changed = [];
   let lastLawSlug = '';
@@ -306,36 +415,67 @@ function finalizeApproval(entry, decision, correctedValue, by) {
 
   // 1) review_queue.md 승인/반려 마킹(원자적)
   let txt = fs.readFileSync(REVIEW_QUEUE, 'utf8');
-  const mark = decision === 'reject'
-    ? `- 승인: [ ] 반려(${by}, ${dateStr})`
-    : `- 승인: [x] 승인(${by}, ${dateStr})` + (correctedValue != null && correctedValue !== '' ? ` · 확정값: ${String(correctedValue)}` : '');
+  const mark = decision === 'undo'
+    ? `- 승인: [ ] 대기(되돌림: ${by}, ${dateStr})`
+    : decision === 'reject'
+      ? `- 승인: [ ] 반려(${by}, ${dateStr})`
+      : `- 승인: [x] 승인(${by}, ${dateStr})` + (correctedValue != null && correctedValue !== '' ? ` · 확정값: ${String(correctedValue)}` : '');
   // 해당 엔트리 블록 내부의 "- 승인:" 라인만 교체
   const escId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const blockRe = new RegExp('(###\\s+' + escId + ':[\\s\\S]*?)-\\s*승인:\\s*\\[[ xX]\\][^\\n]*', 'm');
+  // ⚠`[\s\S]*?` 만 쓰면 **자기 블록에 `- 승인:` 줄이 없을 때 다음 항목까지 삼켜**
+  //   남의 승인줄을 덮어쓴다(2026-08-28 독립 검토에서 발견, 실제 대기열에 그런 항목이 2개 있었다).
+  //   그래서 다음 `###` 헤더 앞에서 멈추게 한다.
+  const INBLOCK = '(?:(?!\\n###\\s)[\\s\\S])*?';
+  const blockRe = new RegExp('(###\\s+' + escId + ':' + INBLOCK + ')-\\s*승인:\\s*\\[[ xX]\\][^\\n]*', 'm');
   // 함수 치환: correctedValue/by의 '$' 특수시퀀스($1·$&·$$)가 원장을 손상시키지 않도록
   if (blockRe.test(txt)) txt = txt.replace(blockRe, (mm, p1) => p1 + mark);
-  else return { httpStatus: 500, body: { ok: false, error: '승인 라인 없음: ' + id } };
+  else {
+    // 그 항목에 `- 승인:` 줄이 아예 없는 경우 — 블록 끝에 새로 만들어 넣는다.
+    // (종전에는 500 을 냈고, 그 전에는 다음 항목의 승인줄을 덮어썼다.)
+    // ⚠`$` 는 'm' 플래그에서 **줄 끝마다** 맞아서, 승인줄이 블록 첫 줄 뒤에 끼어들었다
+    //   (2026-08-28 실기동 시험에서 발견). 진짜 문서 끝은 `(?![\s\S])` 로 잡는다.
+    const headRe = new RegExp('(###\\s+' + escId + ':' + INBLOCK + ')(?=\\n###\\s|(?![\\s\\S]))');
+    if (!headRe.test(txt)) return { httpStatus: 404, body: { ok: false, error: '대기열에 그 항목이 없습니다: ' + id } };
+    txt = txt.replace(headRe, (mm, p1) => p1.replace(/\s*$/, '') + '\n' + mark + '\n');
+  }
   writeFileAtomic(REVIEW_QUEUE, txt);
 
   // 2) 승인이면 대상 위키 페이지 canonical 승격 + 확정값 각인
   let changedFiles = [];
   if (decision === 'approve') changedFiles = applyToWikiPages(entry.targetPages, correctedValue, id, by, dateStr);
+  let undoDemoted = [];
+  if (decision === 'undo') {
+    const r = undoWikiPages(entry.targetPages, id);
+    changedFiles = r.changed;
+    undoDemoted = r.demoted;
+  }
 
   // 3) 승인 이력 로그(감사 추적)
-  let log = [];
-  try { if (fs.existsSync(APPROVALS_LOG)) log = JSON.parse(fs.readFileSync(APPROVALS_LOG, 'utf8')); } catch (_) {}
+  const { log, brokenMovedTo } = readApprovalsLog();
   log.push({ id, decision, correctedValue, by, at: now.toISOString(), targetPages: entry.targetPages, changedFiles });
-  writeFileAtomic(APPROVALS_LOG, JSON.stringify(log, null, 1));
+  writeApprovalsLog(log);
 
   // 정직한 note: 실제 승격 페이지 수 기준(무음 성공 금지)
-  const note = decision === 'reject' ? '반려 처리(재검토 큐 유지)'
+  // 정직한 note: **실제로 일어난 것만** 적는다. 각인만 지운 것과 draft 로 내린 것은 다르다.
+  const keptCanonical = changedFiles.length - undoDemoted.length;
+  const note = decision === 'undo'
+    ? (changedFiles.length === 0
+        ? '되돌림 완료 · 대기 상태로 복귀(바뀐 위키 페이지는 없다 — 이미 각인이 없었거나 대상 페이지를 찾지 못했다)'
+        : `되돌림 완료 · 대기 상태로 복귀 · 확정 각인을 지운 페이지 ${changedFiles.length}개`
+          + (undoDemoted.length ? ` · 그중 ${undoDemoted.length}개를 draft 로 내렸다` : '')
+          + (keptCanonical ? ` · ${keptCanonical}개는 **다른 승인의 확정 각인이 남아 있어 canonical 을 유지**했다` : ''))
+    : decision === 'reject' ? '반려 처리(재검토 큐 유지)'
     : (changedFiles.length ? `승인 완료 · ${changedFiles.length}개 페이지 canonical 승격·확정값 반영(인덱스 재빌드는 배치)`
       : '⚠ 승인은 기록됐으나 대상 위키 페이지를 찾지 못해 승격 0건 — 리뷰의 "대상 페이지" 표기를 확인하세요');
-  return { httpStatus: 200, body: { ok: true, id, decision, correctedValue, changedFiles, promotedCount: changedFiles.length, note } };
+  return { httpStatus: 200, body: { ok: true, id, decision, correctedValue, changedFiles,
+    promotedCount: changedFiles.length,
+    note: note + (brokenMovedTo ? ' ⚠승인 이력 파일이 깨져 있어 ' + path.basename(brokenMovedTo)
+      + ' 로 옮기고 새로 시작했습니다 — 옛 기록을 사람이 확인해야 합니다.' : '') } };
 }
 
 // POST /api/legal/reviews/:id/approve — 승인(+교정값 확정) 또는 반려 → 서버 반영
-// body: { decision: 'approve'|'reject', correctedValue?, by? }
+// body: { decision: 'approve'|'reject'|'undo', correctedValue?, by? }
+// 'undo' = 잘못 누른 승인을 되돌린다(대기로 복귀 + canonical→draft + 확정 각인 삭제).
 router.post('/api/legal/reviews/:id/approve', (req, res) => {
   const id = req.params.id;
   const { decision = 'approve', correctedValue = null, by = '관리자' } = req.body || {};
@@ -359,7 +499,8 @@ function appendFindingsAttempt(id, findings, verdict, message, by) {
   const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
   let txt = fs.readFileSync(REVIEW_QUEUE, 'utf8');
   const escId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const blockRe = new RegExp('(###\\s+' + escId + ':[\\s\\S]*?)(-\\s*승인:\\s*\\[[ xX]\\][^\\n]*)', 'm');
+  // 위와 같은 이유로 블록 경계를 넘지 않게 한다(2026-08-28).
+  const blockRe = new RegExp('(###\\s+' + escId + ':(?:(?!\\n###\\s)[\\s\\S])*?)(-\\s*승인:\\s*\\[[ xX]\\][^\\n]*)', 'm');
   const mm = txt.match(blockRe);
   if (!mm) return;
   const n = (mm[1].match(/^-\s*확인\s*시도\(/gm) || []).length + 1;
@@ -454,7 +595,8 @@ router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => 
       draft: pages.filter(p => p.kind === 'concept' && p.status === 'draft').length,
       feedback: adminQueues.countPending(FEEDBACK_FILE),
       candidates: adminQueues.countPending(CANDIDATES_FILE),
-      amendments: adminQueues.countPending(amendmentScanner.QUEUE_FILE) });
+      amendments: adminQueues.countPending(amendmentScanner.QUEUE_FILE),
+      freshness: adminQueues.countPending(freshScanner.QUEUE_FILE) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -635,6 +777,45 @@ router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (re
 // 클라는 잠시 후 새로고침해 결과를 확인한다.
 router.post('/api/legal/amendments/scan-now', adminAuth.requireAdminToken, (req, res) => {
   const r = amendmentScanner.startAmendmentScan();
+  res.status(r.ok ? 200 : 409).json(r);
+});
+
+// ============================================================================
+// 원문 신선도 — services/admrul_fresh_scanner.js 가 매주(server.js cron) 우리가 받아 둔
+// 행정규칙 원문의 일련번호를 law.go.kr 현행본과 대조해, **낡은 원문**을 큐에 적재한다.
+// 여기는 그 큐를 보여주고 사람이 처리/무시하는 API 만 — 승인해도 재수집·위키수정을 이
+// 자리에서 자동 실행하지 않는다(개정검토와 같은 승인게이트 설계).
+// 카드에는 "무엇이 낡았나"뿐 아니라 **무엇을 해야 하나(actions)** 와 **어느 위키를 고쳐야
+// 하나(wiki_pages)** 가 함께 담긴다 — 그게 없으면 관리자가 손을 댈 수가 없다.
+// ============================================================================
+
+// GET /api/legal/freshness?status=pending|done|dismissed|all (관리자)
+//   last: 마지막 점검이 언제·어떻게 끝났는지. **"이상 없음"과 "점검 실패"를 반드시 구분해
+//   보여주기 위해** 함께 내려준다(실패를 이상 없음으로 읽으면 낡은 원문을 놓친다).
+router.get('/api/legal/freshness', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    let list = adminQueues.readJsonl(freshScanner.QUEUE_FILE).reverse();
+    if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
+    res.json({ ok: true, count: list.length, items: list, last: freshScanner.readStatus() });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/freshness/:id/decide (관리자) — body: { decision: 'done'|'dismissed', by? }
+router.post('/api/legal/freshness/:id/decide', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const { decision = 'done', by = '관리자' } = req.body || {};
+    const updated = adminQueues.updateJsonlById(freshScanner.QUEUE_FILE, req.params.id,
+      { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
+    if (!updated) return res.status(404).json({ ok: false, error: 'freshness item not found: ' + req.params.id });
+    res.json({ ok: true, item: updated });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/freshness/scan-now (관리자) — 정기 점검과 별개로 즉시 1회 점검.
+//   653건 전수 대조라 실측 20~30분 걸린다. 완료를 기다리지 않고 즉시 응답(started:true).
+router.post('/api/legal/freshness/scan-now', adminAuth.requireAdminToken, (req, res) => {
+  const r = freshScanner.startFreshnessScan();
   res.status(r.ok ? 200 : 409).json(r);
 });
 

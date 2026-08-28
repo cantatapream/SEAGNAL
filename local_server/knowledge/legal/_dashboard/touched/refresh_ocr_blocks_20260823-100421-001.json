@@ -1,0 +1,8 @@
+{
+ "script": "refresh_ocr_blocks",
+ "stamp": "20260823-100421-001",
+ "files": [
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/수질오염물질의배출허용기준중별도배출허용기준.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법/행정규칙/선박설비기준.txt"
+ ]
+}

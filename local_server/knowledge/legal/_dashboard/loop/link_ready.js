@@ -121,6 +121,33 @@ function articleNumbersOf(file, tier) {
   try {
     const text = fs.readFileSync(file, 'utf8');
     out.live = new Set(A.listArticleNumbers(text, tier));
+    // ★타법 발췌본은 법률인데 **고시 형식**으로 적혀 있다(2026-08-23 실측).
+    //   `listArticleNumbers` 는 계열별로 표식이 다르다는 전제로 만들어져 있어(L-54),
+    //   법률 계열이면 `[제23조]` 대괄호만 조로 인정한다. 그런데
+    //   `raw/15_관련타부처/*/법률.txt`(다른 부처 법을 연결 조문만 발췌한 파일)는
+    //   `제23조(민감정보의 처리 제한)` 꼴로 적혀 있다 — 수집 스크립트가 달랐기 때문이다.
+    //   그래서 **원문에 멀쩡히 있는 조가 "그 파일에 그 조 없음"으로 세어졌다.**
+    //   실측: 표본 40건 중 23건이 이 경우였고, 개인정보 보호법 제23조는 파일 17행에 있었다.
+    //   같은 유형의 사고가 전에도 있었다(L-167 — 채점 도구가 표기 차이를 못 넘으면
+    //   맞은 답이 틀린 것으로 집계된다).
+    //   ⚠고치는 범위를 좁힌다: **찾는 방식만 늘리고(합집합) 줄이지 않는다.** 이 도구는
+    //   게이트 계측용이므로 여기서만 보정하고, 챗봇이 쓰는 `article_text.js` 는 건드리지 않는다
+    //   (런타임 동작을 바꾸는 것은 별도 판단 사항이다).
+    if (tier !== 'notice') {
+      // ⚠**부칙은 빼고 본다**(2026-08-23 적대검증에서 지적).
+      //   부칙에는 `제15조(다른 법령의 개정)` 처럼 **다른 법을 고치는 조문**이 적혀 있는데,
+      //   그걸 이 법의 살아 있는 조로 세면 없는 조가 있는 것이 된다.
+      //   재현 사례: `raw/15_관련타부처/선원의안전및위생에관한규칙/법률.txt` 는 본문이 제1~8조뿐인데
+      //   97행 부칙에 `제15조(다른 법령의 개정)` 이 나온다. 지금 이 법을 인용하는 위키는
+      //   제8조만 짚고 있어 실제 오탐으로 이어지진 않았지만, 구멍은 구멍이다.
+      const cut = text.search(/(?:^|\n)\s*부\s*칙\s*(?:<|\(|\s|$)/);
+      const body = cut >= 0 ? text.slice(0, cut) : text;
+      const alt = /(?:^|\n)제(\d+)조(?:의(\d+))?\(/g;
+      let a;
+      while ((a = alt.exec(body)) !== null) {
+        out.live.add('제' + a[1] + '조' + (a[2] ? '의' + a[2] : ''));
+      }
+    }
     const re = tier === 'notice'
       ? /(?:^|\n)제(\d+)조(?:의(\d+))?\s*(?:<[^>]*)?삭제/g
       : /(?:^|\n)\[제(\d+)조(?:의(\d+))?\][^\n]*삭제/g;
@@ -151,7 +178,7 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
       const baseRel = A.resolveBase(law, baseLaw, tier);
       if (!baseRel) {
         now.no_base++;
-        if (ex.no_base.length < 30) ex.no_base.push(`${dir}/${f}  |  ${law.slice(0, 34)}  |  ${String(row.article).slice(0, 24)}`);
+        if (ex.no_base.length < 400) ex.no_base.push(`${dir}/${f}  |  ${law.slice(0, 34)}  |  ${String(row.article).slice(0, 24)}`);
         continue;
       }
       const file = fileOf(baseRel, tier, law);
@@ -160,7 +187,7 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
         // 못 고른 것은 "그 고시를 아직 안 받아왔다" 이거나 "위키 이름과 파일 이름이 어긋난다" 다.
         const k = tier === 'notice' ? 'no_notice' : 'no_file';
         now[k]++;
-        if (ex[k].length < 30) ex[k].push(`${dir}/${f}  |  ${law.slice(0, 40)}`);
+        if (ex[k].length < 400) ex[k].push(`${dir}/${f}  |  ${law.slice(0, 40)}`);
         continue;
       }
       const have = articleNumbersOf(file, tier);

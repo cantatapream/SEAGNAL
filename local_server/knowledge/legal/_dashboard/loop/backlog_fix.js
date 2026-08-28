@@ -33,13 +33,40 @@ const MANIFEST = {
     remaining: { type: 'integer', description: '★손대지 못하고 남긴 항목 수(정직하게 — 0으로 적지 말 것)' },
     remaining_reason: { type: 'string', description: '왜 남겼나(분량·판단불가 등). remaining>0이면 필수.' },
     collectable_holes: { type: 'array', items: { type: 'string' }, description: '재수집 가능한데 못 받은 것 — 시도한 방법과 결과를 함께' },
+    restated_from_record: {
+      type: 'array',
+      description: '★**옛 기록을 옮긴 것**을 여기 적는다(2026-08-27 신설). 백로그 줄·위키 변경이력·감사 파일에 적힌 과거 판정을 **다시 시험해 보지 않고** 그대로 보고하는 경우가 하루에 세 번 나왔다(산림자원법 제10조는 이미 받아 둔 것이었고, REVIEW-05 는 이미 등록돼 있었고, 검증 UI 는 이미 만들어져 있었다). 다시 시험해 본 것은 여기 적지 않는다 — **안 해 본 것만** 적는다. 정직하게 적는 것이 감점이 아니다.',
+      items: {
+        type: 'object', required: ['claim', 'source'],
+        properties: {
+          claim: { type: 'string', description: '무엇을 그대로 옮겼나(예: "산림자원법 제10조가 raw 에 없다")' },
+          source: { type: 'string', description: '어디에 적혀 있던 말인가 — 파일 경로와 줄번호' },
+        },
+      },
+    },
+    shared_file_todo: {
+      type: 'array',
+      description: '★**공유 파일이라 내가 못 고친 것**을 여기 담는다(2026-08-27 신설). 자유 문장으로만 적으면 오케스트레이터가 놓친다 — 실제로 _glossary.md "물양장" 미등재가 9~11라운드, review_queue.md REVIEW-갯벌법-04 미등록이 16라운드 방치됐다.',
+      items: {
+        type: 'object', required: ['file', 'what', 'evidence'],
+        properties: {
+          file: { type: 'string', description: '어느 공유 파일인가 — _glossary.md · comparisons/<파일> · review_queue.md · graph.json 중 하나' },
+          what: { type: 'string', description: '무엇을 넣거나 고쳐야 하나(구체적으로. "보강 필요" 같은 말 금지)' },
+          evidence: { type: 'string', description: '근거 — 원문 파일 경로와 줄번호, 또는 위키 파일 경로와 줄번호. 확인한 것만 적는다' },
+        },
+      },
+    },
     important: { type: 'array', items: { type: 'string' }, description: '★사용자 결정이 필요한 것만(엄격). 일상 gap은 넣지 말 것.' },
     note: { type: 'string' },
   },
 }
 
+// 라운드별 조건(이번엔 어떤 유형만 처리하는지 등)을 프롬프트 맨 앞에 끼운다.
+// audit_fix_cell.js 의 cfg.roundNote 와 같은 구조. 비어 있으면 아무것도 안 붙는다.
+let ROUND_NOTE = ''
+
 function prompt(l) {
-  return `너는 SEAGNAL 해양법률 위키의 **백로그 처리 사서**다. 담당 법: 「${l.name}」 (slug: \`${l.slug}\`)
+  return `${ROUND_NOTE}너는 SEAGNAL 해양법률 위키의 **백로그 처리 사서**다. 담당 법: 「${l.name}」 (slug: \`${l.slug}\`)
 
 ## 0) 반드시 먼저 읽을 것
 1. \`${LEGAL}/_SCHEMA.md\` — 특히 **§6-B-1**(규정없음 판정에 조회 기록 필수·스코프 안내는 개념 페이지에)과 **§6-E**(챗봇은 개념 페이지의 \`## 근거 조문\` 표에서만 근거를 만든다)
@@ -85,6 +112,12 @@ law, status, checked, already_resolved, fixed_now, reclassified, files_edited, *
 
 // ---- 실행 ----
 let cfg = (typeof args === 'string' ? JSON.parse(args) : args) || {}
+// 지침이 길면 파일 경로로 넘긴다 — 내용을 에이전트에게 읽혀 돌려받으면 요약·절단 위험이 있다.
+if (!cfg.roundNote && cfg.roundNotePath) {
+  cfg.roundNote = `## ★★이번 라운드 지침 — 다른 무엇보다 먼저 읽어라\n`
+    + `\`${cfg.roundNotePath}\` 를 **Read 로 열어 전문을 읽고, 거기 적힌 조건을 전부 따른다.**`
+}
+ROUND_NOTE = cfg.roundNote ? String(cfg.roundNote) + '\n\n' : ''
 let laws = cfg.laws || []
 if (!laws.length && cfg.groupsPath && cfg.groupIndex !== undefined) {
   const boot = await agent(
@@ -110,6 +143,10 @@ return {
   files_edited: sum('files_edited'),
   remaining: sum('remaining'),
   collectable_holes: res.flatMap(r => (r.collectable_holes || []).map(h => `${r.law}: ${h}`)),
+  // 공유 파일 일감은 **오케스트레이터가 라운드 뒤 단독으로** 처리한다(사서가 동시에 쓰면 경합).
+  shared_file_todo: res.flatMap(r => (r.shared_file_todo || []).map(t => Object.assign({ law: r.law }, t))),
+  // 옛 기록을 그대로 옮긴 것 — 오케스트레이터가 사용자에게 전하기 전에 여기부터 확인한다.
+  restated_from_record: res.flatMap(r => (r.restated_from_record || []).map(t => Object.assign({ law: r.law }, t))),
   important: res.flatMap(r => (r.important || []).map(i => `${r.law}: ${i}`)),
   per_law: res.map(r => ({ law: r.law, st: r.status, ck: r.checked, already: r.already_resolved, fixed: r.fixed_now, left: r.remaining })),
 }

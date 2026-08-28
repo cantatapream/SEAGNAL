@@ -297,29 +297,48 @@ app.use(require('./routes/legal'));          // 해양법령 챗봇(나리야) �
 // ============================================================================
 // 4. 정기 작업 (Daily Cloud Backup)
 // ============================================================================
-// 매일 KST 23:55 (UTC 14:55)에 구독자 수 스냅샷 기록
+// ────────────────────────────────────────────────────────────────────────────
+// ★2026-08-27: 아래 정기작업들의 **시각 표기를 KST 로 바로잡았다.**
+//   종전에는 식을 UTC 로 적고("매일 KST 23:55 (UTC 14:55)" → `55 14 * * *`), node-cron 이
+//   그 식을 UTC 로 읽는다고 전제했다. 그런데 Dockerfile 이 `ENV TZ=Asia/Seoul` + tzdata 심볼릭
+//   링크를 걸어 두어(2026-05) **컨테이너의 로컬 시계가 KST** 이고, node-cron 은 시간대 옵션이
+//   없으면 로컬 시계를 쓴다.
+//   실행해서 확인함(node-cron 4.2.1, 2026-08-27): TZ=Asia/Seoul 로 프로세스를 띄우고
+//   "로컬 기준 1분 뒤" 식을 세 가지로 걸었더니 **시간대 옵션 없는 것과 `Asia/Seoul` 을 준 것이
+//   같은 순간에 발화**했고 `UTC` 를 준 것은 발화하지 않았다.
+//   → 즉 `55 14 * * *` 는 KST 23:55 가 아니라 **KST 14:55** 에 돌고 있었다(의도보다 9시간 이르다).
+//   실제로 어긋난 것(코드를 읽어 확인한 범위):
+//     · 구독자 스냅샷 — "하루가 끝나기 직전의 수"를 남기려던 것인데 오후 2시 55분 값을 남겼다.
+//     · 클라우드 백업 — 자정 직후가 아니라 오후 3시 5분에 돌았다.
+//   반대로 **어긋나지 않은 것**도 있다. 조석 일일 카운트 정리는 `getTodayKST()` 로 날짜를 보고
+//   지난 날짜만 지우므로, 도는 시각이 달라도 사용자의 하루 할당량은 KST 자정에 바뀐다.
+//   제보·차단 만료 정리도 만료시각 기준이라 도는 시각이 결과를 바꾸지 않는다.
+//   그래도 넷 다 바로잡는다 — 주석이 말하는 시각과 실제가 다르면 다음 사람이 또 틀린다.
+//   이제 **식을 KST 로 적고 시간대도 명시**한다 — 어느 쪽으로 읽히든 같은 시각이 되게.
+// ────────────────────────────────────────────────────────────────────────────
+// 매일 KST 23:55 에 구독자 수 스냅샷 기록
 // → 하루가 끝나기 직전의 구독자 수를 기록하여 일별 추이 분석에 사용
 // [연계] services/subscriber_snapshot.js → takeSnapshot()
 // [연계] routes/push.js → /api/subscriber-history API에서 조회
 // [연계] js/admin.js → 구독 현황 탭의 추이 차트/증감 카드에서 활용
 const subscriberSnapshot = require('./services/subscriber_snapshot');
-cron.schedule('55 14 * * *', () => {
+cron.schedule('55 23 * * *', () => {
     console.log('⏰ [Daily Schedule] 구독자 스냅샷 기록을 시작합니다.');
     subscriberSnapshot.takeSnapshot();
-});
+}, { timezone: 'Asia/Seoul' });
 // [이동됨] 서버 시작 시 오늘 스냅샷이 없으면 즉시 기록하던 호출은 require 단계에서
 //          파일 I/O 를 동기적으로 수행하여 startup 을 늘리는 원인이었다.
 //          → app.listen() 콜백 안으로 이동하여 listen 이후에 비동기로 실행한다.
 //          누락 방지 효과는 동일 (listen 직후 한 번 실행).
 
-// 매일 KST 00:05 (UTC 15:05)에 클라우드 백업 자동 실행
-cron.schedule('5 15 * * *', () => {
+// 매일 KST 00:05 에 클라우드 백업 자동 실행
+cron.schedule('5 0 * * *', () => {
     console.log('⏰ [Daily Schedule] 클라우드 백업 작업을 시작합니다.');
     cloudBackup.performBackup();
-});
+}, { timezone: 'Asia/Seoul' });
 
-// 매일 KST 00:01 (UTC 15:01)에 제보 데이터 정리 + 조석 일일 카운트 리셋 + 만료 차단 해제
-cron.schedule('1 15 * * *', () => {
+// 매일 KST 00:01 에 제보 데이터 정리 + 조석 일일 카운트 리셋 + 만료 차단 해제
+cron.schedule('1 0 * * *', () => {
     console.log('⏰ [Daily Schedule] 제보/차단/조석 일일 정리 작업을 시작합니다.');
     try {
         const reportRouter = require('./routes/report');
@@ -330,20 +349,41 @@ cron.schedule('1 15 * * *', () => {
         const tideRouter = require('./routes/tide');
         if (tideRouter.resetDailyTideUsage) tideRouter.resetDailyTideUsage();
     } catch (e) { console.error('조석 카운트 리셋 오류:', e.message); }
-});
+}, { timezone: 'Asia/Seoul' });
 
-// 매일 KST 01:00 (UTC 16:00)에 나리야(해양법령) 개정 감지 스캔 — H-29 탐지엔진
+// 매일 KST 01:00 에 나리야(해양법령) 개정 감지 스캔 — H-29 탐지엔진
 // (detect_law_changes.py)이 74법 소관부처 단위로 law.go.kr에 광역질의해 최근 변동을
 // 훑고, 바뀐 게 있으면 _amendments/queue.jsonl에 적재(위키는 자동 수정 안 함).
 // [연계] services/legal_amendment_scanner.js, routes/legal.js GET /api/legal/amendments
-cron.schedule('0 16 * * *', () => {
+cron.schedule('0 1 * * *', () => {
     console.log('⏰ [Daily Schedule] 나리야 개정 감지 스캔을 시작합니다.');
     try {
         require('./services/legal_amendment_scanner').runAmendmentScan()
             .then((r) => console.log(`✅ [나리야 개정감지] 스캔 완료: ${r.scanned}건 조회, ${r.changed}건 변경 발견, ${r.errors}건 오류`))
             .catch((e) => console.error('나리야 개정감지 스캔 오류:', e.message));
     } catch (e) { console.error('나리야 개정감지 스캔 오류:', e.message); }
-});
+}, { timezone: 'Asia/Seoul' });
+
+// 매주 일요일 KST 03:00 에 나리야(해양법령) **원문 신선도 점검** — 우리가 받아 둔 원문의
+// 판번호를 law.go.kr 현행본과 대조해, 낡은 원문을 관리자 '원문신선도' 방에 적재한다.
+// 대상은 두 가지: 행정규칙(고시·훈령) 653건 + 법률·시행령·시행규칙 222건.
+// 새로 발견된 것이 있을 때만 관리자 푸시가 나간다(위키는 자동 수정 안 함).
+//
+// ★시간대를 명시한 이유: 종전에 이 파일의 다른 cron 들은 식을 UTC 로 적고 주석에 KST 를
+//   병기하는 관례였는데, **그 전제가 틀렸다는 것이 2026-08-27 에 확인됐다**(위 배너 참조).
+//   Dockerfile 이 TZ=Asia/Seoul 을 걸어 두어 node-cron 이 그 식을 KST 로 읽고 있었다.
+//   이제 이 파일의 정기작업은 전부 **KST 로 적고 시간대도 명시**한다.
+// [연계] services/admrul_fresh_scanner.js, routes/legal.js GET /api/legal/freshness
+cron.schedule('0 3 * * 0', () => {
+    console.log('⏰ [Weekly Schedule] 나리야 원문 신선도 점검을 시작합니다.');
+    try {
+        require('./services/admrul_fresh_scanner').runFreshnessScan()
+            .then((r) => console.log(r.ok
+                ? `✅ [나리야 원문신선도] 점검 완료: ${r.checked}건 대조, 구버전 ${r.stale}건(새로 발견 ${r.added}건), 조회실패 ${r.unknown}건`
+                : `❌ [나리야 원문신선도] 점검 실패: ${r.error}`))
+            .catch((e) => console.error('나리야 원문신선도 점검 오류:', e.message));
+    } catch (e) { console.error('나리야 원문신선도 점검 오류:', e.message); }
+}, { timezone: 'Asia/Seoul' });
 
 // ============================================================================
 // 4.5 Graceful shutdown — Fly.io SIGTERM 대응

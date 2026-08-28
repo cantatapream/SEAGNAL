@@ -1,0 +1,9 @@
+{
+ "script": "mark_dup_raw",
+ "stamp": "20260823-132735-005",
+ "files": [
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/행정규칙/2018년도선원최저임금고시.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/행정규칙/체불선박소유자명단공개및체불자료제공업무처리규정.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/어선법/행정규칙/선박패스(V-Pass)장치의설치기준및운영등에관한고시.txt"
+ ]
+}

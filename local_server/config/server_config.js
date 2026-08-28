@@ -149,7 +149,14 @@ const FILES = {
     // 구독/해지 이벤트 로그: 신규 구독, 수동 해지, 만료 토큰 자동 정리를 일별로 집계
     // [연계] routes/push.js → 구독/해지 발생 시 기록 + /api/subscriber-events API에서 조회
     // [연계] js/admin.js → 구독 현황 탭의 이탈률 카드에서 활용
-    SUBSCRIBER_EVENTS: path.join(DATA_DIR, 'subscriber_events.json')
+    SUBSCRIBER_EVENTS: path.join(DATA_DIR, 'subscriber_events.json'),
+    // 법률위키 사람검증 승인 이력: 관리자가 승인/반려한 기록(감사 추적용)
+    // ★볼륨(DATA_DIR)에 둔다 — 종전 경로는 knowledge/legal/_dashboard/ 라 컨테이너 이미지 안이었고,
+    //   재배포할 때마다 관리자가 승인한 기록이 이미지의 옛 값으로 되돌아가 사라졌다
+    //   (nariya_config.json 이 H-37 에서 같은 이유로 옮겨졌는데 이 파일은 안 옮겨져 있었다).
+    // [연계] routes/legal.js → 승인 시 append · GET /api/legal/reviews/approvals 로 내려받아
+    //        _dashboard/loop/apply_approvals.py 가 저장소에 반영한다.
+    LEGAL_APPROVALS: path.join(DATA_DIR, 'review_approvals.json')
 };
 
 module.exports = {

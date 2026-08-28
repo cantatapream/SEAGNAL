@@ -23,8 +23,14 @@
  *   node backlog_extract.js --write       → `_dashboard/backlog/<법>.md` 생성
  *   node backlog_extract.js --law <이름>   → 한 법만
  *
+ * [다시 써도 사서의 일을 잃지 않는다 — 2026-08-24]
+ * `--write` 는 백로그 파일을 **덮어쓰지 않고 합친다.** 항목마다 고정 ID(`⟨BL-xxxxxxxx⟩`)를 달고,
+ * 옛 파일에 같은 항목이 있으면 그 ID·확인표시(`- [x]`)·주석(`⟪…⟫`)을 그대로 이어받는다.
+ * 그래서 라운드가 돌아도 **같은 항목이 새 항목으로 다시 등록되지 않는다.**
+ * (종전에는 통째로 덮어써서 사서가 확인해 둔 표시 6,627건이 매번 사라졌다.)
+ *
  * [연계] ← _dashboard/audit/<법>.md(읽기 전용) · → _dashboard/backlog/<법>.md
- *        ⚠감사 파일을 고치지 않는다.
+ *        ⚠감사 파일을 고치지 않는다.  · ID 계산은 `backlog_id.py` 와 동일(전수 대조로 확인)
  */
 const fs = require('fs');
 const path = require('path');
@@ -37,6 +43,22 @@ const arg = k => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : null
 
 // 판정 표기(법마다 이모지 유무가 달라 둘 다 받는다)
 const OPEN_RE = /⚠\s*thin|❌\s*missing|\bstill_missing\b/;
+// ★판정을 **기호로만** 적은 줄도 걷는다(2026-08-27 신설, 사서 보고 → 전수 대조로 확인).
+//
+// [왜] 위 규칙은 `thin`·`missing` 이라는 **낱말**을 찾는다. 그런데 감사 표에는 판정을 기호로만
+//   적은 줄이 아주 많다:
+//       | HH25 | P | T4 | 남북 교류 자연유산 사업에 …? | ❌ | 제48조 미반영 |
+//   `❌` 뒤에 `missing` 이 없으니 안 걸렸고, 그런 줄은 **백로그에 한 줄도 안 올라왔다.**
+//   라운드는 백로그만 보고 도니 그 결함은 **어느 라운드에도 안 잡힌다** — 자연유산법 사서가
+//   "16라운드가 남긴 항목이 4~9라운드 동안 한 번도 재검증되지 않았다"고 보고해 드러났다.
+//   전수 대조(`audit_backlog_gap.py`) 결과 **6,361건 · 법 56개**, 그중 6,116건(96%)이 이 유형이다.
+//
+// ⚠**아무 `❌` 나 걷으면 안 된다.** 감사 파일에는 집계표·소결·메모에도 기호가 널려 있다.
+//   그래서 **표 첫 칸이 감사 문항번호(HH25·P17·G63 꼴)인 줄** 로 못박는다 —
+//   그게 "이건 한 문항에 대한 판정이다"라는 표시다. 이 조건 없이 돌려 보면 잡음이 두 배가 된다.
+const ITEM_ROW = /^\|\s*([A-Z]{1,3}\d{1,3}(?:-\d{1,2})?)\s*\|/;
+const SYMBOL_VERDICT = /[❌⚠]/;
+const openedBySymbol = line => ITEM_ROW.test(line) && SYMBOL_VERDICT.test(line);
 // 같은 줄에 이것이 있으면 **이미 끝난 것**으로 본다.
 const DONE_RE = /✅|해소|해결(?!\s*안)|완료|full\s*(?:로)?\s*(?:전환|재평가|승격|확인)|→\s*✅|더 이상|제거|종료/;
 // 애매하게 "유지"라고만 적힌 것은 열린 항목이다(해소가 아니다).
@@ -111,6 +133,88 @@ function keyOf(line) {
     .replace(/^\d+/, '').slice(0, 60);
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+ * 고정 ID(⟨BL-xxxxxxxx⟩) — 항목에 **이름을 붙여** 다음 라운드가 같은 것을 또 등록하지 못하게 한다.
+ *
+ * [왜 있나 — 2026-08-24 실측]
+ * 이 도구는 `--write` 때 백로그 파일을 **통째로 덮어썼다.** 그래서 라운드가 돌 때마다
+ *   ① 사서가 확인해 `- [x]` 로 바꿔 둔 표시가 사라지고  ② 같은 항목이 새 항목처럼 다시 등록되고
+ *   ③ 그 결과 **남은 일이 몇 건인지 자체를 알 수 없었다**(23,529건 중 중복을 세는 방법이
+ *      셋 다 무효였다 — backlog_id.py 머리말 참조).
+ * 이제 항목마다 ID 를 달고, 다시 쓸 때 **옛 파일에 있던 같은 항목을 찾아 그 ID·확인표시·주석을
+ * 그대로 이어받는다.** 새로 나온 항목만 새 ID 를 받는다.
+ *
+ * [ID 는 어떻게 만드나] `backlog_id.py` 와 **똑같은 계산**이다(법 + 정규화한 본문의 sha1 앞 8자리).
+ *   2026-08-24 에 이미 붙어 있던 23,529건을 이 JS 로 다시 계산해 **23,529건 전부 일치**함을 확인했다.
+ *   ⚠`SYM_RE` 의 `u` 플래그는 없으면 안 된다 — 없으면 🟡 같은 글자의 절반만 지워져
+ *   Python 과 다른 값이 나온다(실측: 63건 어긋났다).
+ *
+ * [이어받기 열쇠는 ID 가 아니라 `keyOf` 다] ID 는 본문에서 나오는데, 감사는 라운드마다 그 항목에
+ *   새 줄을 덧붙이므로 **본문이 바뀌면 ID 도 바뀐다.** 그래서 이어받을 때는 이 도구가 이미 쓰고 있는
+ *   항목 정체(`keyOf` — 표 첫 칸/문장 앞머리)로 찾고, 찾으면 **옛 ID 를 그대로 물려준다.**
+ *   즉 ID 는 **태어날 때 내용에서 나오고, 그 뒤로는 붙어 다닌다.**
+ * ───────────────────────────────────────────────────────────────────────────── */
+const crypto = require('crypto');
+const BL_ID_RE = /⟨BL-[0-9a-f]{8}⟩/g;
+const BL_NOTE_RE = /⟪[^⟫]*⟫/g;
+const BL_ROUND_RE = /^\((?:R?\d+|라운드미상)\)\s*/;
+const BL_SYM_RE = /[✅⚠❌📛〰🔓🔒🆙🔁]/gu;
+/** backlog_id.py 의 norm() 과 같은 값을 낸다(2026-08-24 전수 대조로 확인). */
+function blNorm(law, body) {
+  let t = body.replace(BL_ID_RE, '').replace(BL_NOTE_RE, '');
+  t = t.trim().replace(BL_ROUND_RE, '').replace(BL_SYM_RE, '');
+  return law + '|' + t.replace(/\s+/g, '');
+}
+const blId = key => 'BL-' + crypto.createHash('sha1').update(key, 'utf8').digest('hex').slice(0, 8);
+
+/** 백로그 줄에서 감사 원문 부분만 되꺼낸다 — 앞의 라운드 표기와 뒤에 붙인 ⟨…⟩·⟪…⟫ 를 뗀다. */
+function coreOf(body) {
+  return body.replace(/⟨[^⟩]*⟩/g, '').replace(BL_NOTE_RE, '')
+    .replace(/^\((?:R\d+(?:~R\d+)?|라운드미상)\)\s*/, '').trim();
+}
+/** 이미 있는 백로그 파일을 읽어 **항목 정체 → (ID·확인표시·주석·원래 줄)** 로 색인한다. */
+function readPrev(p) {
+  const idx = new Map();
+  idx.extras = [];
+  idx.ids = new Set();          // 이 파일에 있던 ID 전부(정체 매칭과 별개로 "정말 새 것인가"를 가리는 데 쓴다)
+  // ★ID 로도 찾을 수 있게 해 둔다(2026-08-27 신설).
+  //   이어받기 열쇠(keyOf)는 사서가 줄을 손보면 어긋난다. 그때 **확인 근거가 적힌 줄을 놓치고
+  //   같은 항목을 미해소로 다시 올린다** — 실측: 이번 재추출에서 82건이 그렇게 되살아났다.
+  //   ID 는 감사 원문에서 나오므로 감사가 그 줄을 안 바꿨으면 그대로다. 그래서 열쇠가 어긋나면
+  //   ID 로 한 번 더 찾아 확인표시·근거를 이어받는다.
+  idx.byId = new Map();
+  if (!fs.existsSync(p)) return idx;
+  for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
+    const m = /^- \[([ x])\] (.*)$/.exec(line);
+    if (!m) continue;
+    const k = keyOf(coreOf(m[2]));
+    if (!k) continue;
+    // 같은 정체(keyOf)가 둘인 줄이 드물게 있다(실측 1건). 이어받기는 먼저 것으로 하되,
+    // **확인 근거가 적힌 줄은 버리지 않고 따로 담아** 아래 '닫힘' 절에 남긴다.
+    const idm = /⟨(BL-[0-9a-f]{8})⟩/.exec(m[2]);
+    const rec = {
+      id: idm ? idm[1] : null,
+      checked: m[1] === 'x',
+      notes: (m[2].match(BL_NOTE_RE) || []).join(' '),
+      raw: line,
+    };
+    if (idm) {
+      idx.ids.add(idm[1]);
+      // 같은 ID 가 둘이면 **확인 근거가 있는 쪽**을 남긴다.
+      const had = idx.byId.get(idm[1]);
+      if (!had || (!had.checked && rec.checked)) idx.byId.set(idm[1], rec);
+    }
+    if (idx.has(k)) {
+      // 같은 정체(keyOf)가 둘인 줄이 드물게 있다. 이어받기는 먼저 것으로 하되,
+      // **확인 근거가 적힌 줄은 버리지 않고 따로 담아** 아래 '닫힘' 절에 남긴다.
+      if (m[1] === 'x') idx.extras.push(line);
+      continue;
+    }
+    idx.set(k, rec);
+  }
+  return idx;
+}
+
 /**
  * ★집계·헤더 줄 걸러내기(2026-08-20 신설 — 사서 두 명이 독립적으로 보고).
  * 감사 파일에는 `| ⚠ thin | 86 | 22R 회귀 | ` 같은 **판정별 총계 행**과 `### G19. still_missing (6문항)`
@@ -123,10 +227,26 @@ function keyOf(line) {
  * ⓒ의 "판정 칸 뒤"가 핵심이다. 진짜 항목 행은 `| 248 | 협회 회비는…? | ❌missing | … |` 처럼
  * 숫자(문항번호)가 판정 **앞**에 온다. 이 조건을 빼면 진짜 항목 5,000건이 함께 지워졌다(실측).
  */
-const NUM_CELL = /^\**\s*(?:약\s*)?\d+(?:\([^)]*\))?\s*\**$/;
+// ★숫자 뒤에 **띄어쓰기와 내역**이 붙는 꼴을 못 잡고 있었다(2026-08-24, 사서 보고로 발견).
+//   `| ⚠ thin | 26 (1-B 18+2〈E101·E105 부분개선〉 + 2-A 1) |` 같은 판정 총계 행이
+//   그대로 항목으로 뽑혀, 가리키는 조문도 페이지도 없어 사서가 대조할 수가 없었다.
+//   실측: 이 완화로 새로 걸리는 것 5건(도선법 3 · 항만운송사업법 2). 전부 눈으로 확인했다.
+const NUM_CELL = /^\**\s*(?:약\s*)?\d+\s*(?:\(.*\))?\s*\**$/;
 const VERDICT_CELL = /^\**\s*(?:⚠|❌)?\s*(?:thin|missing|still_missing)\s*(?:\([^)]*\))?\s*\**$/;
+// ★표가 아닌 줄인데 **판정어와 숫자만** 든 것(2026-08-24 신설).
+//   `- ⚠thin 114 (wiki_lag/content_gap 구분은 R15/16 원표 참조)` 처럼 라운드 간 이월 개수만
+//   적어 둔 줄이다. 어떤 질문인지 안 적혀 있어 **사서가 아무리 봐도 [x] 로 바꿀 근거를 못 만든다.**
+//   실측 6건(수상레저기구법). 규칙을 아주 좁게 잡았다 — 판정어 바로 뒤에 숫자가 와야 한다.
+const COUNT_ONLY = /^[-•*]?\s*[⚠❌]?\s*(?:thin|missing|still_missing)\s*\d+\s*(?:\(.*\))?$/;
+// ★"코드 나열 + 판정 불변" 회귀요약 문장(2026-08-24 신설). 실측 1건(해양레저관광진흥법).
+//   `E51·E54~E57 — 전부 판정 불변(콘텐츠 diff 없음).` — 그 코드들이 무슨 질문인지는
+//   이 줄에 없고, 원래 정의가 담긴 옛 라운드 기록은 감사 파일에서 이미 사라져 대조가 불가능하다.
+const REGRESS_SUMMARY = /^[A-Z]{1,3}\d+[^가-힣]{0,40}(?:—|-)\s*(?:전부\s*)?판정\s*불변/;
+
 function isNoise(line) {
   if (/^#{2,6}\s/.test(line)) return true;
+  if (COUNT_ONLY.test(line.trim())) return true;
+  if (REGRESS_SUMMARY.test(line.trim())) return true;
   if (/(소계|합계|총계|집계)/.test(line.slice(0, 40)) && /\d/.test(line)) return true;
   if (!line.startsWith('|')) return false;
   const cells = line.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
@@ -156,7 +276,7 @@ for (const f of files) {
     if (h) curRound = Number(h[1]);
     if (line.length < 25) continue;                 // 표 구분선·머리글 같은 부스러기
     if (isNoise(line)) continue;                    // 집계 총계 행·절 헤더·소계 줄
-    const opened = OPEN_RE.test(line);
+    const opened = OPEN_RE.test(line) || openedBySymbol(line);
     const closed = isClosed(line);
     if (!opened && !closed) continue;               // 이 항목 얘기가 아니다
     const k = keyOf(line);
@@ -236,6 +356,7 @@ rows.slice(0, 12).forEach(r => {
 
 if (argv.includes('--write')) {
   fs.mkdirSync(OUT, { recursive: true });
+  let carried = 0, fresh = 0, rematched = 0, done = 0, dropped = 0, droppedDone = 0, dupSkipped = 0, idRemint = 0, idCarried = 0;
   for (const r of rows) {
     if (!r.items.length) continue;
     const g = {};
@@ -248,6 +369,34 @@ if (argv.includes('--write')) {
     md += `>   그러니 각 항목은 **위키 현재 상태를 먼저 확인**하고, 이미 해소됐으면 고치지 말고\n`;
     md += `>   \`- [x]\` 로 바꾸며 근거를 \`(확인: <파일>:<줄>)\` 로 적는다. 안 됐으면 그때 고친다.\n`;
     md += `>   \`⟨짚은 조문이 위키에 없음⟩\` 표시가 붙은 항목은 확인 없이도 미해소가 확실하다 — 먼저 본다.\n\n`;
+    const dst = path.join(OUT, `${r.slug}.md`);
+    // ★옛 파일을 먼저 읽어 둔다 — 사서가 해 둔 일(확인표시·주석)과 ID 를 잃지 않기 위해서다.
+    const prev = readPrev(dst);
+    const law = r.slug.replace(/_\d+라운드$/, '');
+    const used = new Set();
+    // ★한 파일 안에서 **같은 이름표가 두 번 나오지 않게** 한다(2026-08-27 신설).
+    //   실측: 지금 백로그 101개 파일에 같은 이름표가 두 자리에 있는 항목이 74건 있고,
+    //   그중 대부분이 `## 미분류` 와 `## 닫힘` 에 동시에 들어가 있었다. 사서 셋이 각각 보고했다
+    //   (수산업협동조합법 2건 · 해양레저관광진흥법 8건 · 해운법 1건).
+    //   사서 입장에서는 **이미 근거까지 달아 닫은 항목이 미해소로 다시 떠 있는 것**이라
+    //   같은 확인을 또 하게 된다. 게다가 한번 생기면 다음 실행이 그대로 다시 만들어 낸다.
+    //   여기서 두 가지를 막는다:
+    //     ⓐ 활성 절에 쓴 이름표는 '닫힘' 절에 다시 쓰지 않는다.
+    //     ⓑ 같은 이름표가 두 항목에 붙으려 하면 뒤엣것은 **내용에서 새로 만든다**
+    //        (이어받기 열쇠 `keyOf` 가 짧아 남의 이름표를 물려받는 경우가 있다 —
+    //         실측: 같은 파일 안에서 열쇠가 겹치는 항목이 42건이다).
+    const seenIds = new Map();
+    const claimId = (want, body) => {
+      let id = want;
+      if (seenIds.has(id)) {
+        id = blId(blNorm(law, body));
+        let n = 0;
+        while (seenIds.has(id)) id = blId(blNorm(law, body) + '#' + (++n));
+        idRemint++;
+      }
+      seenIds.set(id, true);
+      return id;
+    };
     for (const c of ORDER) {
       if (!g[c]) continue;
       md += `## ${c} (${g[c].length}건) — ${LABEL[c]}\n\n`;
@@ -255,11 +404,80 @@ if (argv.includes('--write')) {
       for (const i of g[c]) {
         const age = i.first ? `R${i.first}${i.last > i.first ? `~R${i.last}` : ''}` : '라운드미상';
         const mark = i.absent ? ' ⟨짚은 조문이 위키에 없음 — 확실히 미해소⟩' : '';
-        md += `- [ ] (${age}) ${i.line.replace(/\n/g, ' ')}${mark}\n`;
+        const body = `(${age}) ${i.line.replace(/\n/g, ' ')}${mark}`;
+        const k = keyOf(i.line);
+        const p = prev.get(k);
+        if (p) used.add(k);
+        if (p && p.checked) {
+          // 사서가 이미 확인해 끝낸 항목이다. 감사가 표현을 바꿔 다시 적었더라도 **손대지 않는다.**
+          //   ★단 하나 손대는 것: 그 이름표를 이번 파일에서 이미 다른 항목이 썼다면 이름표만 새로 준다.
+          //   (실측 3건 — 둘 다 `- [x]` 라 아래 활성 갈래를 안 타고 그대로 나가 중복이 남았다.)
+          //   확인 근거·본문은 그대로 두고 ⟨…⟩ 만 바꾼다.
+          let raw = p.raw;
+          if (p.id && seenIds.has(p.id)) {
+            const fresh = claimId(p.id, coreOf(p.raw.replace(/^- \[[ x]\] /, '')));
+            raw = raw.replace(/⟨BL-[0-9a-f]{8}⟩/, `⟨${fresh}⟩`);
+          } else if (p.id) {
+            seenIds.set(p.id, true);
+          }
+          md += raw + '\n';
+          carried++; done++;
+          continue;
+        }
+        const rawId = (p && p.id) ? p.id : blId(blNorm(law, body));
+        // 열쇠로는 못 찾았지만 **ID 로는 찾히는** 항목 — 사서가 이미 확인해 둔 것이면 그것을 쓴다.
+        const byId = (!p || !p.checked) ? prev.byId.get(rawId) : null;
+        if (byId && byId.checked && !seenIds.has(rawId)) {
+          md += byId.raw + '\n';
+          seenIds.set(rawId, true);
+          carried++; done++; idCarried++;
+          continue;
+        }
+        const id = claimId(rawId, body);
+        // ★"정체 매칭이 어긋난 것"과 "정말 처음 보는 항목"은 다르다(2026-08-24 실측으로 갈랐다).
+        //   사서가 줄을 손보면 정체(keyOf)가 달라져 이어받기에 실패할 수 있는데, ID 는 내용에서
+        //   나오므로 내용이 그대로면 **같은 ID 가 다시 나온다.** 그래서 ID 가 옛 파일에 있었는지로
+        //   센다. 이렇게 안 세면 "새로 등록 88건"으로 나오지만 실제 새 항목은 7건뿐이다.
+        if (p && p.id) carried++;
+        else if (prev.ids.has(id)) rematched++;
+        else fresh++;
+        md += `- [ ] ${body}${p && p.notes ? '  ' + p.notes : ''}  ⟨${id}⟩\n`;
       }
       md += '\n';
     }
-    fs.writeFileSync(path.join(OUT, `${r.slug}.md`), md);
+    // 옛 파일에 있었는데 이번 추출에는 안 나온 항목 = 감사가 "이제 해소됐다"고 적었다는 뜻이다.
+    // 그중 **사서가 확인해 근거까지 적어 둔 것(`- [x]`)은 지우지 않고 아래 '닫힘' 절에 남긴다.**
+    //   왜: 감사 표현이 다음 라운드에 또 흔들려 그 항목이 되살아나면, 기록이 없으면 **새 항목처럼
+    //   다시 등록되고 사서가 같은 확인을 처음부터 다시 한다** — 이 도구를 고친 이유가 바로 그것이다.
+    //   여기 남은 줄은 다음 실행 때 `readPrev` 가 다시 읽으므로 ID·근거가 계속 따라다닌다.
+    const closed = [];
+    // 활성 절에 이미 쓴 이름표는 '닫힘' 에 다시 넣지 않는다(중복의 주된 경로였다).
+    const idOf = raw => (/⟨(BL-[0-9a-f]{8})⟩/.exec(raw) || [])[1] || null;
+    const pushClosed = raw => {
+      const id = idOf(raw);
+      if (id && seenIds.has(id)) { dupSkipped++; return; }
+      if (id) seenIds.set(id, true);
+      droppedDone++; closed.push(raw);
+    };
+    for (const [k, v] of prev) {
+      if (used.has(k)) continue;
+      if (v.checked) pushClosed(v.raw); else dropped++;
+    }
+    for (const raw of prev.extras) pushClosed(raw);
+    if (closed.length) {
+      md += `## 닫힘 (${closed.length}건) — 감사가 해소로 적었고 사서 확인 근거가 있는 것. **기록만 남긴다(할 일 아님).**\n\n`;
+      md += closed.join('\n') + '\n\n';
+    }
+    fs.writeFileSync(dst, md);
   }
   console.log(`\n저장: ${path.relative(LEGAL, OUT)}/ (${rows.filter(r => r.items.length).length}개 파일)`);
+  console.log('■ 고정 ID');
+  console.log(`   ID 로 확인표시 되살림 : ${idCarried.toLocaleString()}건 (열쇠는 어긋났지만 ID 가 같아 사서 확인 근거를 이어받은 것)`);
+  console.log(`   중복 이름표 정리     : 닫힘 절에서 뺀 것 ${dupSkipped.toLocaleString()}건 (활성 절에 이미 있던 항목) · 새로 만든 것 ${idRemint.toLocaleString()}건 (남의 이름표를 물려받으려던 항목)`);
+  console.log(`   옛 파일에서 이어받음 : ${carried.toLocaleString()}건 (그중 이미 확인 끝난 것 ${done.toLocaleString()}건)`);
+  console.log(`   ID 로 다시 찾음      : ${rematched.toLocaleString()}건 (사서가 줄을 손봐 정체 매칭은 어긋났지만 내용이 같아 같은 ID)`);
+  console.log(`   새로 등록(진짜 새 것) : ${fresh.toLocaleString()}건`);
+  console.log(`   닫힘 절에 보존       : ${droppedDone.toLocaleString()}건 (감사는 해소라 하고, 사서 확인 근거가 남아 있는 것)`);
+  console.log(`   목록에서 버림        : ${dropped.toLocaleString()}건 (감사가 해소라 했고 사서 확인 근거도 없는 것)`);
+  console.log('     └ 버림 = 감사가 이번엔 그 줄을 미해소로 안 적었다는 뜻이다. 갑자기 크게 늘면 추출 규칙을 의심할 것.');
 }
