@@ -330,12 +330,16 @@ function writeApprovalsLog(log) {
 /**
  * 승인을 **되돌린다** — canonical 로 올렸던 페이지를 draft 로 내리고 확정 각인을 지운다.
  * 사람이 잘못 눌렀을 때 되돌릴 방법이 화면에 없어 2026-08-28 에 추가했다.
+ * ⚠같은 페이지에 **다른 리뷰의 확정 각인**이 남아 있으면 각인만 지우고 canonical 은 유지한다
+ *   (남의 승인을 지우지 않는다). 그래서 "각인을 지운 파일"과 "draft 로 내린 파일"이 다르다 —
+ *   응답 문구가 실제와 다르면 안 되므로 둘을 따로 돌려준다(2026-08-28 실기동 시험에서 발견).
  * @param {string[]} targetPages @param {string} reviewId
- * @returns {string[]} 실제로 되돌린 파일 목록
+ * @returns {{changed: string[], demoted: string[]}} 각인을 지운 파일 · 그중 draft 로 내린 파일
  * [연계] ← finalizeApproval(decision === 'undo'), applyToWikiPages 와 정확히 반대 동작.
  */
 function undoWikiPages(targetPages, reviewId) {
   const changed = [];
+  const demoted = [];
   let lastLawSlug = '';
   const root = path.resolve(CONCEPTS_DIR) + path.sep;
   const escId = reviewId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -351,12 +355,18 @@ function undoWikiPages(targetPages, reviewId) {
     const before = fs.readFileSync(fp, 'utf8');
     let md = before.replace(new RegExp('^> ✅ 사람검증 확정[^\\n]*' + escId + '[^\\n]*\\n?', 'm'), '');
     // 이 리뷰 말고 다른 사람검증 확정이 남아 있으면 canonical 을 유지한다(남의 승인을 지우지 않는다).
-    if (!/^> ✅ 사람검증 확정/m.test(md)) md = md.replace(/^(status:\s*)canonical\s*$/m, '$1draft');
+    let wasDemoted = false;
+    if (!/^> ✅ 사람검증 확정/m.test(md)) {
+      const after = md.replace(/^(status:\s*)canonical\s*$/m, '$1draft');
+      wasDemoted = after !== md;
+      md = after;
+    }
     if (md === before) continue;
     writeFileAtomic(fp, md);
     changed.push(path.basename(fp));
+    if (wasDemoted) demoted.push(path.basename(fp));
   }
-  return changed;
+  return { changed, demoted };
 }
 
 function applyToWikiPages(targetPages, correctedValue, reviewId, by, dateStr) {
@@ -417,7 +427,12 @@ function finalizeApproval(entry, decision, correctedValue, by) {
   // 2) 승인이면 대상 위키 페이지 canonical 승격 + 확정값 각인
   let changedFiles = [];
   if (decision === 'approve') changedFiles = applyToWikiPages(entry.targetPages, correctedValue, id, by, dateStr);
-  else if (decision === 'undo') changedFiles = undoWikiPages(entry.targetPages, id);
+  let undoDemoted = [];
+  if (decision === 'undo') {
+    const r = undoWikiPages(entry.targetPages, id);
+    changedFiles = r.changed;
+    undoDemoted = r.demoted;
+  }
 
   // 3) 승인 이력 로그(감사 추적)
   const { log, brokenMovedTo } = readApprovalsLog();
@@ -425,7 +440,14 @@ function finalizeApproval(entry, decision, correctedValue, by) {
   writeApprovalsLog(log);
 
   // 정직한 note: 실제 승격 페이지 수 기준(무음 성공 금지)
-  const note = decision === 'undo' ? `되돌림 완료 · ${changedFiles.length}개 페이지를 draft 로 내리고 확정 각인을 지웠다(대기 상태로 복귀)`
+  // 정직한 note: **실제로 일어난 것만** 적는다. 각인만 지운 것과 draft 로 내린 것은 다르다.
+  const keptCanonical = changedFiles.length - undoDemoted.length;
+  const note = decision === 'undo'
+    ? (changedFiles.length === 0
+        ? '되돌림 완료 · 대기 상태로 복귀(바뀐 위키 페이지는 없다 — 이미 각인이 없었거나 대상 페이지를 찾지 못했다)'
+        : `되돌림 완료 · 대기 상태로 복귀 · 확정 각인을 지운 페이지 ${changedFiles.length}개`
+          + (undoDemoted.length ? ` · 그중 ${undoDemoted.length}개를 draft 로 내렸다` : '')
+          + (keptCanonical ? ` · ${keptCanonical}개는 **다른 승인의 확정 각인이 남아 있어 canonical 을 유지**했다` : ''))
     : decision === 'reject' ? '반려 처리(재검토 큐 유지)'
     : (changedFiles.length ? `승인 완료 · ${changedFiles.length}개 페이지 canonical 승격·확정값 반영(인덱스 재빌드는 배치)`
       : '⚠ 승인은 기록됐으나 대상 위키 페이지를 찾지 못해 승격 0건 — 리뷰의 "대상 페이지" 표기를 확인하세요');

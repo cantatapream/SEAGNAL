@@ -159,11 +159,13 @@
 .nrya-console .nrya-subtab.nrya-active{background:rgba(68,138,255,.2); border-color:var(--nrya-accent-blue); color:#8bb6ff}
 .nrya-console .nrya-subtab .nrya-qn{font-family:var(--nrya-mono); font-size:10px; margin-left:4px; color:#ff8a8a}
 .nrya-console .nrya-rv{background:var(--nrya-sec-bg); border:1px solid var(--nrya-border); border-radius:11px; margin-bottom:10px; overflow:hidden}
-.nrya-console .nrya-rv-head{display:flex; align-items:center; gap:9px; padding:12px 13px; cursor:pointer}
+.nrya-console .nrya-rv-head{display:flex; flex-wrap:wrap; align-items:center; gap:9px; padding:12px 13px; cursor:pointer}
 .nrya-console .nrya-rv-id{font-family:var(--nrya-mono); font-size:10px; color:#ffd740; background:rgba(255,215,64,.1); border-radius:5px; padding:2px 7px;
   /* ID 가 법 이름을 통째로 담아 아주 길어지는 경우가 있다(예: REVIEW-배타적경제수역…-909).
      flex:0 0 auto 였을 때 그 칩이 줄을 다 차지해 옆의 제목이 한 글자씩 세로로 쪼개졌다. */
-  flex:0 1 auto; max-width:40%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  /* ID 를 **제목 윗줄에 통째로** 둔다. 옆에 두고 잘라 쓰면 'REVIEW…' 만 남아 어느 항목인지
+     알 수 없었다(2026-08-28 실제 화면 확인). 줄을 따로 쓰면 자를 필요가 없다. */
+  flex:1 1 100%; word-break:break-all}
 .nrya-console .nrya-rv-t{flex:1 1 auto; min-width:0; font-size:13.5px; font-weight:600; word-break:keep-all; overflow-wrap:anywhere}
 .nrya-console .nrya-rv-t small{display:block; font-weight:400; color:var(--nrya-text-sub); font-size:11px; margin-top:2px}
 .nrya-console .nrya-rv-st{font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:12px; white-space:nowrap; flex:0 0 auto}
