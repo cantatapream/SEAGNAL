@@ -29,7 +29,9 @@
  *                    #ocean-accident-source-list, #ocean-accident-mode-toggle
  *                    (현황/분석 — #ocean-topleft-controls 안, 해양안전 화면이
  *                    빌려 쓰는 해양종합정보 기본맵·안내 버튼 바로 아래),
- *                    #accident-stats-sheet/#accident-stats-body(격자 클릭 시 통계)
+ *                    #accident-stats-sheet/#accident-stats-body(격자 클릭 시 통계),
+ *                    #accident-filter-bar(필터 버튼 7개 — 사고유형/관할서/시간대/계절/
+ *                    특보/선박용도/톤수, #ocean-accident-mode-toggle 바로 아래)
  *  - 나를 쓰는 곳  : ocean_map.js handleMapClick → window._accidentInfoTryHandleClick
  *                    (access_control.js 와 동일하게 window.getOceanMap 폴링으로
  *                    스스로 설치 — ocean_map.js buildMap() 수정 불필요)
@@ -169,6 +171,317 @@
  * [관할 미상(orgCd=0) 전량 삭제(2026-08-23)] 사용자 요청으로 관할해경서 코드가 0(원본 CSV
  *   빈 값, `accident_codes.js`에서 "관할 미상"으로 표시되던 것)인 행 2,448건 삭제.
  *   25,990 → 23,542건.
+ * [필터 바 — 사고유형·관할서·시간대·계절(2026-08-24 사용자 확정)] "지금은 사고마커에
+ *   관한 모든 정보가 다 표출되는데, 필터로 손쉽게 골라 보고 싶다"는 요청으로 추가.
+ *   처음엔 현황(마커 표출)은 사고유형 필터만, 분석(격자 집계)은 관할서·사고유형·시간대·
+ *   계절 4개를 지원했으나, 현황에서도 똑같이 다양한 필터를 쓰고 싶다는 요청으로 5개
+ *   전부(+특보) 현황·분석 공통 노출로 바뀌었다(2026-08-25 사용자 확정 — index2.html
+ *   버튼의 data-mode-only 속성 제거, updateFilterBarModeVisibility 는 이제 위치
+ *   재계산만 함). #ocean-accident-mode-toggle 바로 아래 #accident-filter-bar,
+ *   index2.html 정적 마크업 + style.css). 버튼을 누르면 체크박스 다중선택 팝업(관할서·
+ *   유형·계절 공용) 또는 시간대 전용 팝업(4시간 간격 프리셋 다중토글 + 임의 범위를
+ *   칩으로 추가하는 직접 설정)이 뜨고, 확인을 누르면 버튼 라벨이 "N개 선택"으로
+ *   바뀐다. 옵션 목록은 정적 코드표가 아니라 지금 활성 소스(rawFeatures[state.source])
+ *   에 실제로 존재하는 값만 건수와 함께 보여준다(0건짜리 선택지를 안 보여주기 위함).
+ *   필터는 현황·분석 공용 하나의 상태(passesFilters)로 판정해 마커(applyFiltersToMarkers,
+ *   ol.source.Cluster 의 내부 ol.source.Vector features 를 갈아끼움)와 격자(recomputeGrid)
+ *   양쪽에 똑같이 적용된다 — 모드를 바꿔도 걸어둔 필터가 유지된다. person 소스는 발생시각
+ *   컬럼이 없어 시간대 필터를 통과시킨다(판단 불가를 "해당 없음 취급"하는 기존 원칙과 동일).
+ * [특보발표여부 필터 — 5번째 필터로 추가(2026-08-24)] 위에서 "뒤로 미뤘다"고 적었던
+ *   특보 필터를 실제로 구현했다. 사고 하나하나에 "그 시각(또는 그 날) 태풍·풍랑·강풍
+ *   특보가 실제로 발효 중이었는지"를 빌드타임에 미리 계산해(로컬 서버, 클라이언트 아님)
+ *   `client/accident_ships_hk.json`·`accident_persons.json` 각 행 끝에 필드로 붙여뒀다
+ *   — 화면에서는 그 값만 읽어 필터링(런타임 계산 없음). 계산 스크립트·근거는
+ *   `local_server/scripts/build_accident_warn_flags.js`(실행 방법·검증 결과 전부 그
+ *   파일 헤더에). 요약:
+ *   - hk(선박)는 태풍·풍랑만(강풍은 육상 개념이라 배 사고와 무관), person(인명)은
+ *     태풍·풍랑·강풍 셋 다. hk 는 발생시각(hm)이 있어 정확한 시각 기준, person 은
+ *     시각이 없어 그 날짜 전체와 겹치면 발효중으로 본다.
+ *   - 마커는 대부분 해상인데 강풍구역은 육상 단위라 "점이 폴리곤 안"이 항상 실패함
+ *     — 그래서 강풍만 "사고 지점이 육상구역 경계에서 3km 이내면 가장 가까운 구역
+ *     기준으로 판정"(사용자 확정: "해안에서 3km 이내면 특보 영향권으로 보자").
+ *   - 필터에서 여러 특보종류(예: 강풍+풍랑)를 동시에 켜면 OR — 그 중 하나라도
+ *     발효중이면 통과(passesFilters 의 filters.warnTypes 처리 참고). AND로 하면
+ *     해상 사고는 강풍과 원래 무관해 대부분 사라져버리기 때문(사용자 지적).
+ *   - 위 "①~④ 확정 규칙"(부모→자식 전개·CSV 표기 일관성·통보문 단위 뭉침·구분자 분리)
+ *     은 강풍(육상)·태풍·풍랑(해상) 양쪽 다 실제로 그대로 맞았다 — 해상 쪽 부모→자식
+ *     전개표는 이미 `local_server/config/zone_group_map.js` 에 있던 걸 재사용(사용자가
+ *     "이미 되어있는데 확인해봐"라고 짚어줌).
+ * [필터 개선 4가지(2026-08-25 사용자 확정)]
+ *   - 사고유형 옵션에서 "-"(코드 없음)·정확히 "기타"인 것만 목록에서 제외(buildTypeOptions).
+ *     "기타(인명)"·"기타(선박)" 등 구체적인 것은 남긴다.
+ *   - 체크박스 팝업(사고유형·관할서·계절·특보)에 "전체 선택" 행 추가 — 한 번에 다 켜고/끈다.
+ *   - 옵션별 건수를 "이 축만 단독"이 아니라 "지금까지 고른 다른 필터와의 교집합"으로 바꿈
+ *     (passesFiltersExcept — 팝업을 열 때 그 축만 빼고 나머지 필터를 이미 건 채로 센다).
+ *     예: 사고유형=전복 선택 후 관할서 팝업을 열면, 각 관할서 옆 숫자는 "전복이면서 그
+ *     관할서인" 건수. 시간대 프리셋 버튼에도 같은 방식으로 건수를 표시.
+ *   - 모드토글 오른쪽에 "선택 초기화" 버튼 추가(#accident-filter-reset-btn) — 걸어둔
+ *     필터 5개(types·orgs·hourRanges·seasons·warnTypes) 전부 null 로 되돌린다.
+ *   - 사고유형 체크박스 순서를 충돌·침몰·전복·화재·좌초·좌주·폭발·표류·접촉 9개 먼저,
+ *     나머지는 원래 순서(건수 내림차순) 그대로 뒤에 붙도록 고정(TYPE_ORDER_PRIORITY).
+ * [현황도 필터 5개 다 노출(2026-08-25 사용자 확정)] 관할서·시간대·계절·특보가 분석
+ *   모드에서만 보였는데, 현황(마커)에서도 똑같이 다양한 필터를 쓰고 싶다는 요청으로
+ *   5개 전부 현황·분석 공통 노출로 바꿈. passesFilters() 는 원래 모드와 무관하게
+ *   전부 판정하므로 코드 로직 변경은 없고, index2.html 버튼의 data-mode-only 속성만
+ *   제거(updateFilterBarModeVisibility 도 위치 재계산만 하도록 단순화).
+ * [바텀시트(그리드형 사고분석)가 하단 탭 바에 가려 잘리던 문제 수정(2026-08-25)]
+ *   `.accident-stats-sheet` 가 `bottom:0` 이라 index2.html #bottom-tab-bar(하단
+ *   메인탭)와 겹쳐 "사고발생상세" 탭 등 아래쪽 내용이 잘려 보였다(사용자 스크린샷
+ *   확인). index2.html이 다른 하단 고정 요소(#ocean-map-section 등)에 이미 쓰는
+ *   `--main-tab-height`(JS 실측, safe-area 포함) 로 `bottom` 값을 바꿔 탭 바 위에
+ *   앉도록 수정(style.css).
+ * [orgCd=1750000("국민안전처") 데이터 삭제(2026-08-25)] "관할 미상"(orgCd=0)과 같은 성격
+ *   (다른 1750xxx 코드는 전부 구체적 해양경찰서로 매핑됐는데 이것만 특정 못 한 값)이라
+ *   사용자 요청으로 원본 데이터에서 삭제(hk 115건·person 4건). 근거는
+ *   `shared/utils/accident_codes.js` 헤더 참고.
+ * [선박(해경) 좌표 오류 9차 6건 삭제(2026-08-25)] 검수 모드로 사용자가 직접 확인해
+ *   내보낸 목록을 원본에서 삭제 — 같은 방식으로 8차까지 이어온 것과 동일.
+ *   23,427 → 23,421건.
+ * [심판원 신규 CSV 좌표 검수 레이어 추가(2026-08-25)] 검수 모드(10회 연타)로 들어간
+ *   상태에서 같은 버튼을 5회 더 누르면, 아직 앱 정식 데이터가 아닌 해양안전심판원
+ *   신규 CSV(2021~2025)의 좌표만 파란 점으로 지도에 뿌려 도분초→십진도 변환이
+ *   맞는지 눈으로 확인할 수 있게 했다("경위도 정보가 제대로 반영되었는지 보기 위해"
+ *   — 사용자 요청). 데이터는 local_server/scripts/build_tribunal_review.js 가
+ *   client/accident_tribunal_review.json 으로 미리 변환해둔 것을 그대로 fetch —
+ *   필터·팝업 없이 좌표만 있는 확인 전용 레이어라 SOURCES 정식 등록은 안 함.
+ * [위 레이어를 hk/person 과 같은 클러스터링으로 교체(2026-08-25)] 처음엔 순수
+ *   ol.source.Vector 에 고정 스타일(파란 점)만 얹어 줌과 무관하게 16,889건이
+ *   전부 그대로 찍혔다 — 사용자가 "우리가 설정한 클러스터 모양이 아니라 낱개
+ *   포인터로, 줌 레벨과 무관하게 다 뜬다. 동일하게 맞춰 달라고 했잖아"라고 지적.
+ *   buildClusterLayer(hk/person 이 쓰는 바로 그 함수)를 재사용해 줌 기반 뭉치기
+ *   (CLUSTER_DISTANCE·SPREAD_ZOOM)·클러스터 대표점 계산까지 동일하게 맞췄다.
+ *   원본 CSV엔 사고유형 컬럼이 없어(row=[lat,lon,caseNo] 3필드) 유형별 아이콘은
+ *   못 붙이지만, 그 부분만 빼면 뭉치는 거리·줌 임계값은 완전히 같다(낱개는
+ *   fallbackStyle 파란 점, 클러스터는 숫자만 있는 빨간 원 — 실제 레이어에서
+ *   아이콘 없는 유형을 그릴 때와 같은 스타일).
+ * [사고유형 필터 — "좌초/좌주"를 "좌초"에 합침(2026-08-25)] 심판원 데이터 통합 논의 중
+ *   hk 사고유형 필터에 좌초(ATY023)·좌주(ATY022)·좌초/좌주(ATY041) 3개가 따로 나오는 걸
+ *   확인, 사용자가 좌초/좌주를 좌초로 합치자고 확정. 근거: 좌주(ATY022) 단독코드는
+ *   2013년까지만 쓰이고 이후 hk 원본 자체가 안 씀 — 지금 다루는 기간(2016~)엔 사실상
+ *   좌초·좌초/좌주 둘뿐이라 하나로 봐도 정보 손실이 없다. `typeFilterCode()`로 필터
+ *   옵션 집계·매칭에서만 ATY041→ATY023 취급(마커 아이콘·상세 팝업은 원래 코드 유지).
+ * [해양안전심판원 데이터 통합 — B안(2026-08-25 사용자 확정)] hk(해경) 데이터는
+ *   2016년·2021~2024년이 원래는 있었으나 이전 위치텍스트 정제(2026-08-23) 때
+ *   같이 지워져 비어 있었다. 이 구간을 심판원 CSV(2016~2025)와 "완벽히 동일한
+ *   사고"(3km 이내 + 5분 이내, 사고유형 불문 — 사용자 확정: "위치가 동일한데
+ *   5분 이내라면 동일한 사고로 인정")로 매칭되는 hk 원본 행만 복원하고, 매칭 안
+ *   된 나머지는 계속 지운 채로 둔다(local_server/scripts/build_tribunal_merge.js).
+ *   복원된 행에는 심판원의 선박용도·톤수·계절·사건번호를 얹는다. 2025년은 hk가
+ *   원래부터 없는(원본 자체 공백) 해라 심판원 행을 단독으로 추가하고, 관할서는
+ *   해양경찰청 직제 시행규칙 [별표 2](법령 원문 PDF) 기반으로 재구성한 21개 서
+ *   경계 폴리곤(local_server/config/coastguard_jurisdiction_faces.json, 순도
+ *   기준 신뢰 면 263개) + 최근접이웃 보정으로 추정한다. 강릉해양경찰서(2025-03-31
+ *   개서)는 그 날짜 이후 사고에만 적용하고(coastguard_gangneung_zone.json), 그
+ *   이전엔 옛 관할서(동해/속초)로 판정한다 — 사용자 확정: "강릉서나 사천서나
+ *   새롭게 생기기 전과 후를 고려해서 그 시점을 기준으로". 사고유형은 매칭된 행에서
+ *   해경·심판원이 접촉/충돌로 서로 다르면 항상 충돌로 통일(사용자 확정). 결과:
+ *   23,421 → 35,027건(2016 복원 1,268 + 2021~24 복원 6,498 + 2025 단독 3,840,
+ *   합쳐서 11,606건 신규/복원). row 스키마가 13필드→17필드로 늘어(선박용도[13]·
+ *   톤수[14]·계절[15]·사건번호[16] 추가, 매칭 없는 기존 행은 전부 null)
+ *   popupRowsFor()가 null 아닌 값만 팝업에 추가로 보여준다(사건번호는 사용자에게
+ *   의미 없어 팝업 미노출).
+ * [신규/복원 행 특보발표여부 소급 계산(2026-08-25)] 병합 직후엔 신규/복원 11,606건의
+ *   warnFlags(row[12])가 자리만 맞춘 빈 배열([])이라 특보 필터에서 "발효 없음"과
+ *   구분이 안 됐다. build_accident_warn_flags.js 는 모든 행에 무조건 push 하는
+ *   1회성 스크립트라 그대로 재실행하면 이미 값이 있는 기존 23,421건까지 다시 밀려
+ *   스키마가 깨진다 — local_server/scripts/patch_new_accident_warn_flags.js 를
+ *   새로 만들어, build_tribunal_merge.js 최종 조립 순서(기존 행이 항상 배열
+ *   앞쪽 23,421개, 신규 행이 그 뒤로 이어 붙음)로 "새 행"만 골라 row[12] 를 실제
+ *   계산값으로 덮어썼다(계산 로직은 build_accident_warn_flags.js 의 함수를 그대로
+ *   재사용). 결과: 신규 11,606건 중 344건(2.96%)에 특보 발효(WV 342·TY+WV 2) —
+ *   기존 23,421건의 발효 비율(499건, 2.13%)과 비슷해 정상 범위로 판단.
+ * [필터 바에 선박용도·톤수 추가(2026-08-25)] 심판원 통합으로 생긴 두 필드도 다른
+ *   5개(사고유형·관할서·시간대·계절·특보)와 같은 방식으로 필터에 얹었다 — hk 전용,
+ *   값이 없는 행(대부분 — 신규/복원 11,606건 중에도 매칭 안 된 필드는 null)은 판단
+ *   불가로 통과시킨다(hourRanges 와 같은 원칙, warnTypes 와는 다름 — 그쪽은 "발효
+ *   없음"이 확정값이라 다르게 취급). 선박용도는 이미 한글 문자열이라 체크박스
+ *   팝업(openCheckboxFilterPopup) 그대로 재사용. 톤수는 연속값이라 시간대와 같은
+ *   "구간 프리셋 + 직접 설정" 방식이 맞아, 시간대 팝업(openHourRangeFilterPopup)의
+ *   로직을 openRangeFilterPopup(cfg) 로 일반화해 재사용했다(90줄 가까운 로직을
+ *   두 번 베끼지 않으려고 — 프리셋 배열·라벨 포맷·비교값 추출 함수만 cfg 로 갈아
+ *   끼움, CSS 클래스는 시간대 때 이름을 그대로 씀). 톤수 구간(0~5·5~10·10~20·20~50·
+ *   50~100·100~500·500~1,000·1,000톤 이상)은 실측 분포(hk 10,338건) 기준.
+ * [톤수 팝업 프리셋 건수 버그 수정(2026-08-25)] 사용자가 톤수 팝업 스크린샷에서
+ *   모든 프리셋이 24,000~29,000건대로 거의 비슷하게 나온다고 지적 — presetCount
+ *   가 시간대 팝업에서 물려받은 로직 그대로 "값 없는(null) 행도 무조건 카운트"
+ *   하고 있었는데, hk 는 시각 데이터가 거의 항상 있어(0/35,027 null) 시간대에선
+ *   안 드러났지만 톤수는 35,027건 중 24,689건(70%)이 null이라 모든 버킷에 이
+ *   24,689건이 그대로 더해져 버킷 간 차이가 안 보였다. 실제 필터링(passesFilters,
+ *   null=판단불가로 통과)은 그대로 두고 건수 표시만 "실제로 값이 있는 행"만
+ *   세도록 고쳐 buildValueOptions·buildWarnOptions 등 다른 필터 옵션 건수 표시와
+ *   같은 원칙으로 통일했다. 같은 원인으로 person 소스 시간대 팝업도 모든 프리셋이
+ *   전체 person 건수로 나오고 있었는데(발생시각 컬럼 자체가 없어 항상 null) 함께
+ *   고쳐졌다 — 수정 후 person 은 전부 0건, hk 는 24시간대별 뚜렷한 분포로 확인.
+ * [톤수·선박용도 필터 — "판단 불가=통과"를 "정보 없음=제외"로 정정(2026-08-25)]
+ *   바로 위 항목에서 hourRanges와 같은 원칙으로 만들었던 걸, 사용자가 "5톤 미만만
+ *   골랐는데 화면엔 훨씬 많이 남아있다"고 재지적해 뒤집었다. hourRanges·warnTypes는
+ *   "그 소스엔 거의 항상 값이 있는데 극히 일부만 없음"이라 판단불가 통과가 맞지만,
+ *   선박용도·톤수는 심판원 매칭 연도(선박용도: 2016·2021~2025 / 톤수: 2021~2025)
+ *   에만 값이 있고 그 외 연도는 통째로 없어서, "통과"로 두면 필터를 걸어도 거의 안
+ *   줄어드는 것처럼 보였다. passesFilters() 에서 이 두 필드만 null=제외로 바꾸고,
+ *   필터를 실제로 걸 때(전체→선택) window._showOceanToast 로 "OO 정보는 YYYY년
+ *   사고에만 있다"는 안내를 띄운다(formatYearRanges+yearsWithValue 로 연도 범위를
+ *   실제 데이터에서 매번 계산 — 하드코딩 아님, 나중에 데이터가 늘어나도 자동으로
+ *   맞음). 처음엔 이 토스트도 한 줄(nowrap+ellipsis) 스타일로 호출해 좁은 화면에서
+ *   "..."로 잘려 보였다(사용자 스크린샷 지적) — _showOceanToast 의 4번째 인자
+ *   (multiLine)를 true 로 넘겨 index2_patch.js 의 기존 .multi-line 스타일(어절
+ *   단위 줄바꿈, 최대 75vw)을 그대로 쓰도록 고쳤다.
+ * [2025 단독 행 사고유형코드(typeCd) 누락으로 마커가 전부 아이콘 없이 나오던 문제
+ *   수정(2026-08-25)] 사용자가 "군집에서 가장 많은 유형으로 표현돼야 하는데 왜 이렇게
+ *   나오냐"고 스크린샷으로 지적 — 2025년 단독 3,840건은 hk 원본이 없어 typeCd(row[5])
+ *   가 애초에 null 이었는데(build_tribunal_merge.js 가 매핑 로직 없이 만듦),
+ *   dominantTypeCode() 가 클러스터 안에서 가장 많은 유형을 뽑을 때 "코드 없음"이
+ *   하나의 큰 덩어리로 뭉쳐 실제 사고유형(15종 이상으로 흩어짐)보다 더 자주 이겨
+ *   버려 거의 모든 클러스터가 아이콘 없는 빨간 원+숫자로 보였다. 심판원 CSV의
+ *   "해양사고종류1" 텍스트가 accident_codes.js ACCIDENT_TYPE_LABELS 와 같은 한글
+ *   이라 build_tribunal_merge.js 에 SEA_TYPE_TO_ATY 역매핑을 추가(2021~2025 전체
+ *   실측 20종 전부 매핑, unmapped 0건)하고, 이미 병합된 파일은 통째로 재실행하면
+ *   중복이 생겨 local_server/scripts/patch_2025_type_codes.js 로 2025 구간(배열
+ *   맨 끝 3,840개, 사건번호로 원본 CSV와 재대조)만 좁혀 typeCd 를 채웠다.
+ * [심판원 검수 레이어를 "좌표만 보기"에서 "진짜 검수(클릭·선택·내보내기)"로 확장
+ *   (2026-08-25)] "이 레이어 마커는 왜 클릭이 안 되고 아이콘도 없냐"는 지적에
+ *   "원본 CSV엔 사고유형이 없다"고 답했는데 — 사용자가 원본 CSV(TL_SHPACC_HS_NEW.csv)
+ *   를 직접 보여주며 "해양사고종류1" 컬럼이 있다고 정정: 잘못은 build_tribunal_review.js
+ *   가 좌표·사건번호만 뽑고 사고유형은 버렸던 것이었다(설명 실수 인정). 이어서
+ *   검수 목적 자체를 재확인: "해경과 병합된 것도, 병합 안 된 것도 전부 심판원
+ *   데이터를 검수해서 육지에 찍힌 것 같은 문제를 걸러내려는 것" — 병합된 11,606건은
+ *   기존 hk 검수모드(10회)로 이미 되지만, 병합 안 된 나머지는 hk 에 아예 없어서
+ *   그쪽으로는 검수가 안 된다. 그래서:
+ *   - build_tribunal_review.js 가 이제 row=[lat,lon,ymd,hm,typeCd,caseNo,merged]
+ *     로 사고유형(SEA_TYPE_TO_ATY 역매핑, 실측 20종 전부 매핑)과 hk 병합 여부까지
+ *     담는다(전체 17,036건, hk 병합됨 10,489건 — 이전 문서의 "16,889건"은 예전에
+ *     있었다가 없어진 범위필터의 잔재 표기였고 지금은 무필터 전체 건수가 맞다).
+ *   - ensureTribunalReviewLayer 가 feature 에 row·typeCode·origIndex 를 얹어
+ *     hk/person 과 똑같이 dominantTypeCode 기반 아이콘이 뜬다(더는 아이콘 없는
+ *     빨간 원 전용이 아님).
+ *   - _accidentInfoTryHandleClick 이 TRIBUNAL_REVIEW_ON 일 때 tryHandleClusterClick
+ *     을 'tribunal' 키로도 시도 — 낱개 클릭 시 popupRowsFor('tribunal', row) 가
+ *     사고발생일·사고유형·사건번호·"해경 병합 여부"를 팝업으로 보여주고,
+ *     toggleFlag(map,'tribunal',feature) 로 빨간 테두리 선택도 hk/person 과 동일하게
+ *     동작한다 — 코드 변경 없이 기존 flaggedItems/내보내기(JSON 의 "tribunal" 키)
+ *     메커니즘이 key 문자열만 다르게 그대로 재사용됨(export 는 애초에 item.key 로
+ *     그룹핑하도록 일반화돼 있었다).
+ *   Playwright 확인: 클릭 시 팝업에 "해경 병합 여부: 병합 안 됨(단독 심판원)" 등
+ *   정상 표시, 선택 1건으로 카운트, 내보내기 JSON `{"tribunal":[0]}` 확인.
+ * [병합된 행 팝업에 해경(hk) 데이터도 같이 표시(2026-08-25)] 위 팝업이 "해경 병합
+ *   여부: 병합됨"만 보여주고 정작 그 hk 행 내용은 안 보여줘, 사용자가 "병합돼
+ *   있으면 해경에서 표출하는 데이터도 함께 표출해줘 — 지금은 심판원 정보만
+ *   표출한 거잖아, 종합적으로 판단할 수 있게" 라고 지적. ensureHkRowByCaseNo() 가
+ *   fetchSource('hk') 결과로 사건번호(caseNo)→hk row 맵을 만들어두고,
+ *   ensureTribunalReviewLayer() 가 레이어를 켤 때 Promise.all 로 이 맵도 함께
+ *   준비해둔다(popupRowsFor 는 동기 함수라 클릭 시점엔 이미 준비돼 있어야 함).
+ *   merged=1 인 행을 클릭하면 팝업에 해경 사고발생일·사고유형·위치텍스트·관할과
+ *   더불어 haversineKm 으로 계산한 "심판원-해경 좌표 차이"까지 이어서 보여준다
+ *   (매칭 허용 반경이 3km 라 완전히 같은 사고여도 좌표가 다를 수 있음 — 이 차이가
+ *   바로 "육지에 찍힘" 같은 문제를 판단하는 핵심 단서). Playwright 로 실측 확인:
+ *   BS-2021-0010(병합됨) 클릭 시 해경 사고유형=충돌(일치)·관할=창원해양경찰서·
+ *   좌표차이 0.18km 로 정상 표시, 미병합 행은 기존과 동일하게 4줄만 표시.
+ * [관할해경서 오분류 감사 → 지도(폴리곤) 수정 → 재분류·삭제(2026-08-25)] "관할이
+ *   아닌 서 이름으로 들어간 데이터는 삭제해야" 는 사용자 지적에 따라
+ *   audit_hk_jurisdiction_mismatch.js(읽기전용 감사)로 집계했더니 울진·속초만
+ *   유독 높게 나와 재조사 → 두 서 폴리곤 자체가 부정확했음을 확인, 법령 원문
+ *   기반으로 재구성(coastguard_jurisdiction_faces.json 커밋 참고, 울진 40.6%→1.6%·
+ *   속초 17.9%→10.2%). 이어서 "폴리곤이 바뀌었으니 심판원 관할 분류 작업도
+ *   다시 해야 하지 않냐"는 지적에 따라 reclassify_after_polygon_fix.js 신설 —
+ *   classifyOrg() 로 관할서를 추정해 채웠던 행만(2016 복원 전체 + 2025 심판원
+ *   단독 전체, 총 5,108건) 새 폴리곤으로 재분류(114건 orgCd 변경, 그중 92건이
+ *   포항→울진). 이때 build_tribunal_merge.js classifyOrg() 에 강릉 외 신설서
+ *   (평택·창원·보령·부안·울진·사천) 개서일 게이트도 함께 추가(이전엔 강릉만 있어
+ *   울진 폴리곤이 정밀해지며 2017-11-28 이전 사고까지 울진으로 잘못 분류될
+ *   위험이 커진 상태였음 — 게이트 걸리면 배열의 다음 매치, 대개 전신 서로 넘어감).
+ *   사용자 확정으로 속초 잔여 "확실한" 불일치 59건(전부 폴리곤에서 12km 이상
+ *   떨어진 원거리 오분류, 2건 제외 전부 속초와 무관한 원거리 좌표)도 함께 삭제
+ *   → hk 35,027건→34,968건, 심판원 검수용 병합 카운트 10,489→10,487(삭제된
+ *   행 중 사건번호 있던 2건). 최종 재감사 결과 속초 확실한 불일치 0.0%(0/521).
+ * [관할서 불일치 검수 레이어 신설 — 사고정보 20회 연타(2026-08-25)] 남은 419건
+ *   (제주⇄서귀포·부산⇄울산 등, 울진·속초는 위 항목으로 이미 해소)은 폴리곤 자동
+ *   판정만으로 지우지 말고 사람이 직접 지도에서 보고 고르자는 사용자 지시("검수모드로
+ *   하자... 관할서 경계선을 그려주고... 내가 사고 하나하나를 띄워주면 그걸 보고
+ *   해당 경찰서명을 클릭하면서 검수")에 따라 검수 레이어를 하나 더 추가했다.
+ *   - 검수 서브모드가 단순 on/off 두 단계(기본검수 10회 + 심판원 5회 더)에서 3단
+ *     순환(꺼짐→심판원→관할서불일치, 5회 더 연타마다 한 단계)으로 바뀜 — 총 20회
+ *     연타로 진입. 어떤 검수모드인지 헷갈리지 않게 단계가 바뀔 때마다 토스트로
+ *     알려준다(사용자 확정: "모드 바뀔때마다 어떤거 검수모드인지 알려줄 수 있도록").
+ *   - build_jurisdiction_boundaries.js 가 coastguard_jurisdiction_faces.json(21개서
+ *     경계 폴리곤)을 client/coastguard_jurisdiction_boundaries.json 으로 내보내고,
+ *     ensureJurisdictionBoundaryLayer 가 서마다 다른 색 외곽선(채움 없음)으로 그려
+ *     경계선을 눈으로 볼 수 있게 한다.
+ *   - build_jurisdiction_mismatch_review.js 가 audit_hk_jurisdiction_mismatch.js 와
+ *     같은 판정 로직(사본)으로 "확실한" 불일치 419건을 client/accident_jurisdiction_
+ *     mismatch.json 으로 내보내고, ensureJurisdictionMarkerLayer 가 낱개 마커(클러스터
+ *     안 함 — 검수자가 하나씩 클릭해야 해서)로 찍는다.
+ *   - 마커를 클릭하면 renderJurisdictionPopup 이 사고 정보 + 21개 관할서 버튼을
+ *     보여준다(기록된 관할서=주황, 폴리곤 판정=초록 테두리로 미리 표시). 버튼을
+ *     누르면 chooseJurisdiction 이 flaggedItems 에 {key:'jurisdiction', chosen}
+ *     으로 저장 — 검수 모드 패널 내보내기가 이 chosen 값까지 JSON에 담는다
+ *     (사용자 확정: "선택만 모아뒀다가 일괄 반영"). apply_jurisdiction_review.js 가
+ *     그 내보내기 결과를 accident_ships_hk.json 에 실제로 반영(orgCd 수정)한다 —
+ *     아직 실행 전(검수 자체가 아직 안 됨), 사람이 다 고른 뒤 별도로 돌릴 것.
+ * [관할서 불일치 검수 레이어 범위·버튼 단순화(2026-08-25, 위 항목 병합 직후 사용자
+ *   피드백)] "전국 419건이 다 나온다"·"21개 버튼 다 있을 필요 있냐" 두 지적으로
+ *   위 구현을 수정:
+ *   - build_jurisdiction_mismatch_review.js 에 SCOPE_PAIRS 추가 — 부산⇄울산·
+ *     제주⇄서귀포 두 쌍(419건 중 164건, 가장 큰 두 쌍)만 내보낸다. 다른 쌍은
+ *     이번 라운드 범위 밖(SCOPE_PAIRS 만 넓히면 나중에 확장 가능).
+ *   - ensureJurisdictionBoundaryLayer 도 지금 후보에 실제 등장하는 서만 그리도록
+ *     바뀜(21개 전체 → 부산·울산·제주·서귀포 4개) — relevantOwners 를 mismatch
+ *     후보에서 동적으로 뽑아 넘기므로 SCOPE_PAIRS 가 바뀌면 자동으로 따라감.
+ *   - renderJurisdictionPopup 의 21개 관할서 버튼(chooseJurisdiction)을 "적용"
+ *     (기록된 관할을 폴리곤 판정으로 정정)·"삭제"(사고 기록 자체를 지움) 2버튼
+ *     (pickJurisdictionAction)으로 교체 — 후보 자체가 이미 recorded/expected 두
+ *     값으로 좁혀져 있으니 그 이상 고를 필요가 없다는 지적(사용자 확정: "적용할지
+ *     삭제할지만 선택할 수 있으면 되는거 아니야?").
+ *   - 내보내기 형식이 {idx, chosen:관할서명} → {idx, action:'apply'|'delete'} 로
+ *     바뀜. apply_jurisdiction_review.js 도 함께 수정 — action='apply'면 후보 목록의
+ *     "폴리곤 판정" 값으로 orgCd 정정, action='delete'면 그 hk 행을 통째로 삭제.
+ * [부산⇄울산·제주⇄서귀포 검수 결과 반영(2026-08-25)] 사용자가 화면에서 164건 중
+ *   162건을 직접 검수해 전부 "적용"으로 내보냈고(2건은 미검토 — 추측 반영 안 함,
+ *   accident_jurisdiction_mismatch.json 에 그대로 남아있음), apply_jurisdiction_
+ *   review.js 로 accident_ships_hk.json 에 반영했다. 재감사 결과 이 두 쌍의 확실한
+ *   불일치는 사실상 해소(제주 3.3%→0.5%·서귀포 2.5%→0.3%·부산 3.3%→0.4%·
+ *   울산 0.4%→0.1%), 전체 확실한 불일치는 419건→257건. 이 검수는 2025년 심판원
+ *   단독 데이터는 대상이 아니었고(감사 스크립트가 처음부터 제외), 부산⇄울산·
+ *   제주⇄서귀포 두 쌍 외 나머지 17개 서 조합(257건)도 아직 미검수 — "전체가
+ *   다시 정렬됐다"는 아님(사용자 질문에 답하며 확인).
+ * [관할서 검수 완전 재설계 — 워크스루 방식(2026-08-26)] 사용자가 남은 3가지를
+ *   지적: ①기존 원본 hk 데이터도 마저 검수해야 ②2021~2024 복원분도 마저 ③2025
+ *   심판원 단독은 애초에 "기록값"이 없어 지금 방식(기록 vs 판정)으로는 검증이
+ *   안 됨. 이어서 "지금은 마커를 하나하나 지도에서 찾아 클릭해야 해서 불편하다"는
+ *   지적으로 검수 흐름 자체를 다시 짰다:
+ *   - build_jurisdiction_mismatch_review.js 의 SCOPE_PAIRS(부산⇄울산·제주⇄서귀포
+ *     하드코딩)를 없애 전체 19개 조합(257건)을 다 내보내고, 화면에 "검수할 대상"
+ *     드롭다운을 둬 코드 수정 없이 아무 조합이나 골라 검수할 수 있게 함.
+ *   - build_jurisdiction_2025_review.js 신설 — 2025 단독행은 recorded 가 없어
+ *     "기록≠판정" 비교가 안 되므로, classifyOrg 가 그 값을 정한 경로(직접 폴리곤
+ *     적중/경계 근접 보정/최근접이웃)를 등급(tier)으로 노출해 저신뢰(신뢰 면
+ *     경계 3.3km 이내 포함, 3,840건 중 2,211건)만 검수 대상으로 뽑는다. 이때도
+ *     classifyOrg 는 reclassify_after_polygon_fix.js 사본을 그대로 써서 개서일
+ *     날짜 게이트(강릉 등)를 그대로 지킨다(사용자 강조: "개소 시점을 고려해야").
+ *   - 지도에서 마커를 찾아 클릭하는 방식을 버리고, 드롭다운으로 대상을 고르면
+ *     시스템이 후보를 하나씩 자동으로 화면 중앙에 놓고(focusMapOnCandidate,
+ *     좌우상하 0.4도 버퍼로 인접 경계가 같이 보이는 줌까지 자동 조정) 위쪽
+ *     jurisdiction-walk-panel 에 "확인(그대로 유지)·변경·삭제" 3버튼만 띄운다
+ *     (사용자 확정: "확인 그대로 유지, 변경 버튼도 있어야"). 아무 버튼이나 누르면
+ *     flaggedItems 에 기록하고 자동으로 다음 미검수 후보로 넘어간다(사용자 확정:
+ *     "그 버튼을 누르면 다음으로 자동으로 넘어가는 형식").
+ *   - "변경"은 21개 관할서를 다 보여주지 않고, redrawBoundaryForExtent 가 지금
+ *     화면에 그린(=인접) 관할서 이름만 작은 버튼으로 띄운다(사용자 확정: "화면에
+ *     보이는 서만"). 그래서 대개 2~4개 버튼으로 끝남.
+ *   - flaggedItems·검수 패널(선택 목록·내보내기)은 hk/person/tribunal 과 완전히
+ *     같은 메커니즘을 그대로 재사용(코드 변경 없음) — jurisdiction 키의 내보내기
+ *     형식만 {idx, action:'confirm'|'change'|'delete', to(변경일 때만)} 로 확장.
+ *     apply_jurisdiction_review.js 도 세 액션 처리 + 두 후보 목록(mismatch·2025)을
+ *     합쳐 idx 드리프트를 검증하도록 다시 씀.
+ * [17개 조합 전체 검수 결과 반영(2026-08-26)] 사용자가 새 워크스루 화면에서 257건
+ *   중 242건(15건은 미검토로 남김)을 직접 검수해 내보낸 결과를 apply_jurisdiction_
+ *   review.js 로 반영 — 231건 변경(그중 3건 삭제), 5건 확인(무변경), 6건은 idx
+ *   드리프트로 자동 스킵(추측 반영 안 함, 다음 라운드 후보에 남음). 재감사 결과
+ *   "확실한" 불일치 257건 → 30건(대부분 태안⇄평택 조합 미검토분). ⚠행 삭제가
+ *   있으면 그 뒤(배열상 나중) 모든 행의 idx 가 밀린다 — 2025 단독행은 배열 맨
+ *   끝이라 특히 영향을 받으므로, 삭제가 낀 반영 직후엔 build_jurisdiction_
+ *   mismatch_review.js 뿐 아니라 build_jurisdiction_2025_review.js 도 반드시
+ *   다시 돌려야 한다(안 그러면 다음 검수 라운드의 idx 가 전부 어긋남 — 실제로
+ *   이번에 이 문제를 발견해 즉시 재생성함).
  * ============================================================================
  */
 
@@ -200,18 +513,197 @@
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
 
     /**
-     * [검수 모드 — 사고정보를 켜면 항상 함께 뜬다(사용자 확정 2026-08-20)]
+     * [필터 — 사고유형/관할서/시간대/계절/특보발표여부/선박용도/톤수(2026-08-24~25
+     * 사용자 확정)] 현황(마커 표출)·분석(격자 집계) 양쪽에 공통으로 적용되는 필터
+     * 상태. 각 값이 null 이면 "전체"(필터 없음), Set/Array 가 있으면 그 안에 든
+     * 것만 통과.
+     *   - types      : Set<typeCode> | null — 사고유형(ACDNT_TYPE_CD)
+     *   - orgs       : Set<orgCd>    | null — 관할해경서
+     *   - hourRanges : [[startHour,endHour), ...] | null — 시간대(발생시각 hm 기준,
+     *                  endHour 는 미포함이라 [0,4)=00~03시대). person 소스는 hm 컬럼이
+     *                  없어(발생시각 정보 없음) 이 필터를 통과시킨다(숨기지 않음 —
+     *                  판단 불가를 "해당 없음 취급"으로 처리, findCoordOutliers 등
+     *                  기존 필터들과 같은 원칙).
+     *   - seasons    : Set<'spring'|'summer'|'fall'|'winter'> | null — ymd 월 기준
+     *   - warnTypes  : Set<'TY'|'WV'|'GW'> | null — 사고 시각(또는 날)에 발효중이던
+     *                  특보종류(build_accident_warn_flags.js 가 미리 계산해 각 행 끝에
+     *                  붙여놓은 배열, WARN_FLAGS_POS_IDX 위치). 여러 종류를 동시에 켜면
+     *                  OR(그 중 하나라도 발효중이면 통과) — AND 로 하면 해상 사고는
+     *                  강풍과 원래 무관해 대부분 사라져버리기 때문.
+     *   - shipUses      : Set<string> | null — 선박용도(SHIPUSE_POS_IDX 위치, 심판원
+     *                     통합 2026-08-25로 생긴 값). hk 전용, 심판원 매칭 연도(2016·
+     *                     2021~2025)에만 값이 있고 그 외 연도(2008~2015·2017~2020)는
+     *                     전부 null. 값 없는 행은 **제외**(hourRanges/warnTypes와
+     *                     다름 — 그쪽은 "그 소스엔 거의 항상 값이 있는데 극히 일부만
+     *                     없음"이라 판단 불가로 통과시켜도 되지만, 선박용도·톤수는
+     *                     아예 없는 연도가 통째로 있어 "통과"로 두면 필터를 걸어도
+     *                     거의 안 줄어드는 것처럼 보인다 — 사용자 확정 2026-08-25).
+     *                     실제 필터를 걸면(전체→선택) window._showOceanToast 로
+     *                     "OO 정보는 YYYY년 사고에만 있다"는 안내를 함께 띄운다.
+     *   - tonnageRanges : [[minTon,maxTon), ...] | null — 톤수(TONNAGE_POS_IDX 위치).
+     *                     hk 전용, shipUses 와 같은 이유로 값 없는 행(null)은 제외.
+     */
+    var filters = { types: null, orgs: null, hourRanges: null, seasons: null, warnTypes: null, shipUses: null, tonnageRanges: null };
+
+    var SEASON_LABELS = { spring: '봄', summer: '여름', fall: '가을', winter: '겨울' };
+    var SEASON_ORDER = ['spring', 'summer', 'fall', 'winter'];
+
+    /** ymd("YYYYMMDD")의 월로 계절 판정. 월 정보가 없으면 null(필터 통과 취급). */
+    function seasonOf(ymd) {
+        if (!ymd || String(ymd).length < 6) return null;
+        var mm = parseInt(String(ymd).slice(4, 6), 10);
+        if (mm >= 3 && mm <= 5) return 'spring';
+        if (mm >= 6 && mm <= 8) return 'summer';
+        if (mm >= 9 && mm <= 11) return 'fall';
+        return 'winter'; // 12, 1, 2
+    }
+
+    /** hk 전용 — hm("H:MM"~"HH:MM") 문자열의 시(hour). 파싱 실패/없음이면 null. */
+    function hourOf(hm) {
+        if (!hm) return null;
+        var h = parseInt(String(hm).split(':')[0], 10);
+        return isNaN(h) ? null : h;
+    }
+
+    /** 소스별 관할해경서(orgCd) 컬럼 위치. person 도 hk 와 마찬가지로 이 컬럼이 있다. */
+    var ORG_POS_IDX = { hk: 8, person: 5 };
+
+    /** 소스별 "발효중 특보종류" 컬럼 위치(build_accident_warn_flags.js 가 미리 계산해
+     * 각 행 끝에 붙여놓은 배열, 예: ["TY","WV"]). 없으면(계산 전 구버전 데이터) 빈 배열
+     * 취급. hk 는 태풍·풍랑만 값이 들어있고(강풍은 육상 개념이라 배 사고와 무관),
+     * person 은 태풍·풍랑·강풍 셋 다 들어있을 수 있다. */
+    var WARN_FLAGS_POS_IDX = { hk: 12, person: 10 };
+    var WARN_TYPE_LABELS = { TY: '태풍', WV: '풍랑', GW: '강풍' };
+    var WARN_TYPE_ORDER = { hk: ['TY', 'WV'], person: ['TY', 'WV', 'GW'] };
+
+    /** 선박용도·톤수 컬럼 위치 — hk 전용(심판원 통합 2026-08-25로 생긴 필드, person 엔
+     * 없다). person 소스에서 이 두 필터를 걸어도 SHIPUSE_POS_IDX.person/TONNAGE_POS_IDX.person
+     * 이 undefined 라 row[undefined] === undefined 로 항상 null 취급되어 자동 통과된다. */
+    var SHIPUSE_POS_IDX = { hk: 13 };
+    var TONNAGE_POS_IDX = { hk: 14 };
+
+    /**
+     * 현재 filters 상태를 기준으로 이 행이 통과하는지 — 현황(마커)·분석(격자) 양쪽이
+     * 공유하는 단일 판정 함수. 판단 불가(해당 컬럼이 그 소스에 아예 없음/빈 값)한
+     * 축은 막지 않고 통과시킨다.
+     * @param {string} key - 'hk' | 'person'
+     * @param {Array} row
+     * @returns {boolean}
+     */
+    function passesFilters(key, row) {
+        if (filters.types && !filters.types.has(typeFilterCode(typeCodeOf(key, row)))) return false;
+        if (filters.orgs) {
+            var org = row[ORG_POS_IDX[key]];
+            if (!filters.orgs.has(org)) return false;
+        }
+        if (filters.hourRanges && key === 'hk') {
+            var hour = hourOf(row[3]);
+            if (hour != null) {
+                var inAny = filters.hourRanges.some(function (r) { return hour >= r[0] && hour < r[1]; });
+                if (!inAny) return false;
+            }
+        }
+        if (filters.seasons) {
+            var season = seasonOf(row[2]);
+            if (season && !filters.seasons.has(season)) return false;
+        }
+        if (filters.warnTypes) {
+            var active = row[WARN_FLAGS_POS_IDX[key]] || [];
+            // 여러 특보종류를 동시에 켜면 OR(그 중 하나라도 발효중이면 통과) — 사용자 확정
+            // 2026-08-24: "강풍+풍랑 둘 다 켰다고 AND로 하면 해상 사고는 강풍과 원래
+            // 무관해서 대부분 사라져버린다"
+            var anyActive = active.some(function (code) { return filters.warnTypes.has(code); });
+            if (!anyActive) return false;
+        }
+        if (filters.shipUses) {
+            // 톤수와 달리 여기는 "판단 불가=통과"가 아니라 "정보 없음=제외"다(사용자
+            // 확정 2026-08-25) — hourRanges/warnTypes 처럼 값이 그 소스에 거의 항상
+            // 있는 게 아니라, 선박용도·톤수는 심판원 매칭 연도(2016·2021~2025)에만
+            // 있고 그 외 연도(2008~2015·2017~2020)엔 아예 없다. "값 없음=통과"로
+            // 두면 이 필터를 걸어도 데이터 없는 연도가 전부 같이 남아 필터가 거의
+            // 안 먹는 것처럼 보인다(사용자가 스크린샷으로 지적).
+            var shipUse = row[SHIPUSE_POS_IDX[key]];
+            if (shipUse == null || !filters.shipUses.has(shipUse)) return false;
+        }
+        if (filters.tonnageRanges) {
+            // 위 shipUses 와 같은 이유로 "정보 없음=제외".
+            var tonnage = row[TONNAGE_POS_IDX[key]];
+            if (tonnage == null) return false;
+            var inAnyT = filters.tonnageRanges.some(function (r) { return tonnage >= r[0] && tonnage < r[1]; });
+            if (!inAnyT) return false;
+        }
+        return true;
+    }
+
+    /** 필터에 걸려있는 게 하나라도 있는지 — 필터바 버튼 강조 등에 씀. */
+    function hasActiveFilters() {
+        return !!(filters.types || filters.orgs || filters.hourRanges || filters.seasons || filters.warnTypes ||
+            filters.shipUses || filters.tonnageRanges);
+    }
+
+    /** passesFilters 를 excludeKey 축만 빼고 판정 — 팝업을 열 때 "다른 축은 이미 걸린
+     * 채로 이 축의 옵션별 건수"를 셀 때 씀(사용자 확정 2026-08-25: "관할서 팝업 열 때
+     * 옆 숫자는 먼저 고른 사고유형 필터와의 교집합이어야 한다"). filters 를 잠깐
+     * 바꿨다 되돌리는 방식 — 동기 단일스레드라 안전. */
+    function passesFiltersExcept(key, row, excludeKey) {
+        var saved = filters[excludeKey];
+        filters[excludeKey] = null;
+        var ok = passesFilters(key, row);
+        filters[excludeKey] = saved;
+        return ok;
+    }
+
+    /**
+     * [검수 모드 — 사고정보 버튼 10회 연타로만 켜진다(사용자 확정 2026-08-23)]
      * 실제 지도(위성지도)·실제 마커 이미지 위에서 육지에 잘못 찍힌 개별 마커를 직접
      * 클릭으로 골라 제외 후보 목록을 만드는 기능 — 별도 웹페이지 검수 도구는 실제
      * 위성지도 타일을 못 불러와서, 실제 앱 화면 그대로 검수하고 싶다는 요청으로 추가.
-     * 처음엔 ?debug=review 쿼리가 있을 때만 켰으나, 매번 링크에 쿼리를 붙이기 번거롭다는
-     * 요청으로 상시 노출로 바꿨다 — 패널은 기본 접힌 한 줄(헤더)이라 평소엔 거의
-     * 눈에 안 띈다. 낱개 마커를 클릭하면 기존 상세 팝업은 그대로 뜨고, 추가로 빨간
-     * 테두리가 켜지며 내보내기 목록에 쌓인다. 다시 클릭하면 빠진다.
+     * 처음엔 ?debug=review 쿼리 → 이후 상시 노출(2026-08-20)로 바뀌었다가, 지오코딩
+     * 검수화면(accident_geocode_review.js)의 후보 목록이 4회차로 소진되면서 그 화면이
+     * 쓰던 "사고정보 버튼 10회 연타" 트리거를 이 검수 모드로 넘겨받았다(트리거 하나를
+     * 두 화면이 동시에 쓸 수 없어 이관, 일반 사용자에게 항상 노출되던 것도 함께 해소).
+     * 켜지면 패널은 기본 접힌 한 줄(헤더)이라 평소엔 거의 눈에 안 띈다. 낱개 마커를
+     * 클릭하면 기존 상세 팝업은 그대로 뜨고, 추가로 빨간 테두리가 켜지며 내보내기
+     * 목록에 쌓인다. 다시 클릭하면 빠진다.
      */
-    var REVIEW_MODE = true;
-    var flaggedItems = new Map(); // "key:origIndex" -> {key, idx, row}
+    var REVIEW_MODE = false;
+    var REVIEW_MODE_TAP_THRESHOLD = 10;
+    var REVIEW_MODE_TAP_RESET_MS = 3000;
+    var _reviewModeTapCount = 0;
+    var _reviewModeTapTimer = null;
+    var flaggedItems = new Map(); // "key:origIndex" -> {key, idx, row[, chosen]}
     var flagLayer = null;         // 빨간 테두리 오버레이(소스 무관 공용)
+
+    /**
+     * [검수 서브모드 3단 순환(2026-08-25)] 처음엔 심판원 레이어 하나만 검수 모드
+     * 진입 후 같은 버튼 5회 더 연타로 토글하는 단순 on/off 였는데, 관할서 불일치
+     * 검수 레이어를 그 다음 단계(5회 더, 총 20회)로 추가하면서 "매번 토글"이 아니라
+     * "none → 심판원 → 관할서불일치 → none → ..." 순환으로 바꿨다(사용자 확정
+     * 2026-08-25: "20회로 하고" + "모드 바뀔때마다 어떤 검수모드인지 화면에 표출").
+     * TRIBUNAL_REVIEW_ON·JURISDICTION_REVIEW_ON 은 기존 코드(클릭 라우팅 등)와
+     * 호환을 위해 _reviewSubMode 에서 파생시킨 boolean 으로 계속 둔다.
+     */
+    var REVIEW_SUBMODE_NONE = 0, REVIEW_SUBMODE_TRIBUNAL = 1, REVIEW_SUBMODE_JURISDICTION = 2;
+    var REVIEW_SUBMODE_LABELS = ['심판원 검수 꺼짐', '심판원 데이터 검수모드', '관할서 불일치 검수모드'];
+    var _reviewSubMode = REVIEW_SUBMODE_NONE;
+    var REVIEW_SUBMODE_TAP_THRESHOLD = 5;
+    var _reviewSubModeTapCount = 0;
+    var _reviewSubModeTapTimer = null;
+    var TRIBUNAL_REVIEW_ON = false;
+    var tribunalReviewLayer = null;
+    var tribunalReviewPromise = null;
+    var JURISDICTION_REVIEW_ON = false;
+    var jurisdictionBoundaryLayer = null;  // 현재 워크스루 지점 주변 관할 경계선만(동적 필터)
+    var jurisdictionFocusLayer = null;     // 지금 보고 있는 후보 1건 강조 마커
+    var jurisdictionMismatchPromise = null; // accident_jurisdiction_mismatch.json(①·② 기록≠판정)
+    var jurisdiction2025Promise = null;     // accident_jurisdiction_2025_review.json(③ 2025 단독 저신뢰)
+    var jurisdictionBoundaryPromise = null; // coastguard_jurisdiction_boundaries.json(21개서 경계 원본)
+    // 워크스루 상태 — 서 조합/2025 중 하나를 고르면 그 목록을 순서대로 자동 진행한다
+    // (2026-08-26 사용자 확정: "화면에서 조합 선택 드롭다운" + "자동으로 다음 마커로
+    // 넘어가는 워크스루" — 더는 지도에서 마커를 직접 찾아 클릭하지 않는다).
+    var jwList = [];       // 현재 선택된 데이터셋의 정규화된 후보 배열
+    var jwPos = -1;        // jwList 안에서 지금 보고 있는 위치
+    var jwChangeOpen = false; // "변경" 눌러서 인접 관할서 목록이 펼쳐진 상태인지
 
     // ── 데이터 로드 ─────────────────────────────────────────────────────────
     function fetchSource(key) {
@@ -228,6 +720,14 @@
     function typeCodeOf(key, row) {
         if (key === 'hk') return row[5];
         return row[4]; // person
+    }
+
+    /** 사고유형 필터 전용 — "좌초/좌주"(ATY041)를 "좌초"(ATY023)로 합쳐서 센다(사용자
+     * 확정 2026-08-25). hk 좌주 단독코드(ATY022)는 2013년까지만 쓰이고 이후엔 안 써서
+     * 심판원 통합 대상 기간(2016~)엔 사실상 좌초/좌초·좌주 둘뿐이라 하나로 봐도 무방
+     * — 마커 아이콘·팝업 상세는 원래 코드 그대로 두고, 필터 옵션·매칭에만 적용한다. */
+    function typeFilterCode(code) {
+        return code === 'ATY041' ? 'ATY023' : code;
     }
 
     /**
@@ -596,11 +1096,15 @@
         return new ol.Feature({ geometry: geom, features: members });
     }
 
+    var clusterVectorSources = {}; // key -> ol.source.Vector — 필터 변경 시 features 만 갈아끼우는 용도
+
     /** hazard_rocks.js buildClusterLayer 와 동일한 줌 기반 뭉치기 조절 패턴. */
-    function buildClusterLayer(map, features) {
+    function buildClusterLayer(map, key, features) {
+        var innerSource = new ol.source.Vector({ features: features });
+        clusterVectorSources[key] = innerSource;
         var clusterSource = new ol.source.Cluster({
             distance: CLUSTER_DISTANCE,
-            source: new ol.source.Vector({ features: features }),
+            source: innerSource,
             createCluster: createClusterAtRealPoint
         });
         var applyDistanceForZoom = function () {
@@ -618,10 +1122,27 @@
     function ensureClusterLayer(map, key) {
         if (clusterLayers[key]) return Promise.resolve(clusterLayers[key]);
         return ensureRawFeatures(key).then(function (features) {
-            var layer = buildClusterLayer(map, features);
+            var layer = buildClusterLayer(map, key, features);
             clusterLayers[key] = layer;
             return layer;
         });
+    }
+
+    /**
+     * filters 상태가 바뀔 때 현황(마커) 쪽에 반영 — 격자(분석) 쪽은 recomputeGrid 가
+     * 매번 rawFeatures 에서 다시 계산하므로 별도 갱신 불필요.
+     * @param {string} key - 필터를 적용할 소스(보통 state.source)
+     * [연계] ← 필터 팝업 확인 버튼
+     */
+    function applyFiltersToMarkers(key) {
+        var innerSource = clusterVectorSources[key];
+        if (!innerSource) return;
+        var all = rawFeatures[key] || [];
+        var filtered = hasActiveFilters()
+            ? all.filter(function (f) { return passesFilters(key, f.get('row')); })
+            : all;
+        innerSource.clear();
+        innerSource.addFeatures(filtered);
     }
 
     // ── 마커 팝업 ───────────────────────────────────────────────────────────
@@ -629,6 +1150,11 @@
         if (bubbleOverlay) return bubbleOverlay;
         var el = document.createElement('div');
         el.className = 'accident-popup';
+        // stopEvent:false 라 pointerdown 이 지도까지 그대로 버블링돼, 관할서 검수 팝업의
+        // 버튼(renderJurisdictionPopup)을 누르면 그 클릭이 지도 singleclick 으로도 잡혀
+        // 팝업이 다시 그려지기 직전에 사라지는 문제가 있었다 — pointerdown 단계에서
+        // 먼저 막아 버튼의 click 리스너까지는 정상 도달하게 한다.
+        el.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
         bubbleOverlay = new ol.Overlay({ element: el, positioning: 'bottom-center', offset: [0, -8], stopEvent: false });
         map.addOverlay(bubbleOverlay);
         return bubbleOverlay;
@@ -649,12 +1175,42 @@
      */
     function popupRowsFor(key, row) {
         if (key === 'hk') {
-            return [
+            var rows = [
                 ['사고발생일', formatYmd(row[2]) + (row[3] ? ' ' + row[3] : '')],
                 ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[5])],
                 ['위치', row[4] || '-'],
                 ['관할', accidentLabel(ACCIDENT_ORG_LABELS, row[8])]
             ];
+            // 심판원 매칭/단독 행에만 있는 정보(2026-08-25) — 없으면(null) 아예 안 보여줌.
+            if (row[13] != null) rows.push(['선박용도', row[13]]);
+            if (row[14] != null) rows.push(['톤수', row[14] + '톤']);
+            if (row[15] != null) rows.push(['계절', row[15]]);
+            return rows;
+        }
+        if (key === 'tribunal') {
+            // row=[lat,lon,ymd,hm,typeCd,caseNo,merged] — build_tribunal_review.js 참고.
+            var tribRows = [
+                ['사고발생일', formatYmd(row[2]) + (row[3] ? ' ' + row[3] : '')],
+                ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[4])],
+                ['사건번호', row[5] || '-'],
+                ['해경 병합 여부', row[6] ? '병합됨(hk에 있음)' : '병합 안 됨(단독 심판원)']
+            ];
+            // 병합된 행이면 해경(hk) 쪽 데이터도 같이 보여준다(사용자 확정 2026-08-25:
+            // "병합이 되어 있으면 해경에서 표출하는 데이터도 함께 표출해 종합 판단하도록"
+            // — 심판원 정보만으론 판단이 안 된다는 지적). hkRowByCaseNo 는
+            // ensureTribunalReviewLayer 가 레이어를 켤 때 미리 채워둔다.
+            var hkRow = row[6] && hkRowByCaseNo ? hkRowByCaseNo.get(row[5]) : null;
+            if (hkRow) {
+                var distKm = haversineKm(row[0], row[1], hkRow[0], hkRow[1]);
+                tribRows.push(
+                    ['해경 사고발생일', formatYmd(hkRow[2]) + (hkRow[3] ? ' ' + hkRow[3] : '')],
+                    ['해경 사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, hkRow[5])],
+                    ['해경 위치텍스트', hkRow[4] || '-'],
+                    ['해경 관할', accidentLabel(ACCIDENT_ORG_LABELS, hkRow[8])],
+                    ['심판원-해경 좌표 차이', distKm < 0.01 ? '거의 동일' : distKm.toFixed(2) + 'km']
+                );
+            }
+            return tribRows;
         }
         // person
         return [
@@ -674,13 +1230,23 @@
         bubble.setPosition(feature.getGeometry().getCoordinates());
     }
 
-    /** 검수 모드 목록에 보여줄 한 줄 요약(popupRowsFor 와 같은 컬럼을 재사용). */
-    function reviewLabelFor(key, row) {
+    /** 검수 모드 목록에 보여줄 한 줄 요약(popupRowsFor 와 같은 컬럼을 재사용).
+     * jurisdiction 키는 datasetKind(item, 있으면)에 따라 row 스키마가 달라(①·②는
+     * recorded/expected, ③2025는 currentOrg/tier) 셋째 인자로 item 을 받는다. */
+    function reviewLabelFor(key, row, item) {
         if (key === 'hk') return formatYmd(row[2]) + ' · ' + (row[4] || accidentLabel(ACCIDENT_TYPE_LABELS, row[5]));
+        if (key === 'tribunal') return formatYmd(row[2]) + ' · ' + accidentLabel(ACCIDENT_TYPE_LABELS, row[4]) + (row[6] ? ' (병합됨)' : '');
+        if (key === 'jurisdiction') {
+            if (item && item.datasetKind === 'y2025') {
+                return formatYmd(row[2]) + ' · 2025단독 ' + row[5].replace('해양경찰서', '') + '(' + row[6] + ')';
+            }
+            return formatYmd(row[2]) + ' · 기록 ' + row[5].replace('해양경찰서', '') +
+                ' → 판정 ' + row[6].replace('해양경찰서', '');
+        }
         return formatYmd(row[2]) + ' · ' + (row[3] || accidentLabel(ACCIDENT_TYPE_LABELS, row[4]));
     }
 
-    /** 검수 모드 패널을 처음 한 번만 만든다(REVIEW_MODE 일 때만 bindUi 에서 호출). */
+    /** 검수 모드 패널을 처음 한 번만 만든다(사고정보 버튼 10회 연타로 REVIEW_MODE 가 켜질 때 호출). */
     function ensureReviewPanel() {
         if (document.getElementById('accident-review-panel')) return;
         var style = document.createElement('style');
@@ -739,7 +1305,15 @@
         document.getElementById('accident-review-export').addEventListener('click', function () {
             var out = {};
             flaggedItems.forEach(function (item) {
-                (out[item.key] || (out[item.key] = [])).push(item.idx);
+                if (!out[item.key]) out[item.key] = [];
+                // jurisdiction 은 단순 삭제 후보가 아니라 "확인(유지)·변경·삭제" 액션이
+                // 필요해서 idx 만으론 부족 — apply_jurisdiction_review.js 가 읽는 형식에
+                // 맞춰 {idx, action, to} 로 담는다(action='change' 일 때만 to 가 있음).
+                if (item.key === 'jurisdiction') {
+                    out[item.key].push({ idx: item.idx, action: item.action || null, to: item.to || null });
+                } else {
+                    out[item.key].push(item.idx);
+                }
             });
             var ta = document.getElementById('accident-review-export-text');
             ta.value = JSON.stringify(out);
@@ -760,7 +1334,11 @@
             var row = document.createElement('div');
             row.className = 'arp-item';
             var label = document.createElement('span');
-            label.textContent = '[' + item.key + '] ' + reviewLabelFor(item.key, item.row);
+            var actionLabel = item.action === 'confirm' ? '확인'
+                : item.action === 'change' ? '변경→' + (item.to || '').replace('해양경찰서', '')
+                    : item.action === 'delete' ? '삭제' : '';
+            label.textContent = '[' + item.key + '] ' + reviewLabelFor(item.key, item.row, item) +
+                (actionLabel ? ' — ' + actionLabel : '');
             var rm = document.createElement('button');
             rm.type = 'button';
             rm.textContent = '✕';
@@ -804,6 +1382,236 @@
         });
     }
 
+    /** 심판원 검수용 좌표 JSON 을 한 번만 fetch 한다. */
+    function fetchTribunalReview() {
+        if (!tribunalReviewPromise) {
+            tribunalReviewPromise = fetch('/accident_tribunal_review.json').then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            }).then(function (data) { return data.rows || []; });
+        }
+        return tribunalReviewPromise;
+    }
+
+    var hkRowByCaseNo = null; // 사건번호(caseNo) -> hk row — 심판원 검수 팝업의 "병합됨" 비교용
+    /** 사건번호로 hk row 를 찾기 위한 맵을 한 번만 만든다(hk 소스를 아직 안 골랐어도
+     * fetchSource('hk') 는 dataPromises 캐시를 공유해 중복 fetch 없음). */
+    function ensureHkRowByCaseNo() {
+        if (hkRowByCaseNo) return Promise.resolve(hkRowByCaseNo);
+        return fetchSource('hk').then(function (rows) {
+            hkRowByCaseNo = new Map();
+            rows.forEach(function (r) { if (r[16]) hkRowByCaseNo.set(r[16], r); });
+            return hkRowByCaseNo;
+        });
+    }
+
+    /** 두 좌표 사이 거리(km) — build_tribunal_merge.js 의 haversineKm 과 같은 공식. */
+    function haversineKm(lat1, lon1, lat2, lon2) {
+        var R = 6371.0;
+        var p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
+        var dphi = (lat2 - lat1) * Math.PI / 180;
+        var dl = (lon2 - lon1) * Math.PI / 180;
+        var a = Math.sin(dphi / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(a));
+    }
+
+    /** hk/person 과 똑같은 줌 기반 클러스터링(buildClusterLayer) 재사용(사용자 확정
+     * 2026-08-25: "동일하게 맞춰 달라") — 낱개 점만 찍던 이전 구현은 줌과 무관하게
+     * 전부 다 보여 실제 서비스 마커와 다르게 보였다. build_tribunal_review.js 가
+     * 이제 사고유형(typeCd)도 담아주므로(초판엔 좌표만 있었다 — 아래 항목 참고)
+     * 클러스터 대표 이미지·낱개 아이콘까지 hk/person 과 완전히 동일하게 뜬다.
+     * feature 에 'row'(popupRowsFor/toggleFlag 용)·'typeCode'(클러스터 대표 이미지
+     * 계산용)·'origIndex'(검수 선택 식별용, hk/person 의 rowToFeature 와 같은 패턴)
+     * 를 얹는다. zIndex 만 검수용 레이어(flagLayer=58) 위에 오도록 59로 따로 얹는다
+     * (buildClusterLayer 기본값 56은 hk/person 레이어와 같은 층). */
+    function ensureTribunalReviewLayer(map) {
+        if (tribunalReviewLayer) return Promise.resolve(tribunalReviewLayer);
+        // hk 데이터도 함께 미리 받아둔다 — "병합됨" 팝업에서 해경 쪽 데이터를 바로
+        // 보여주려면 클릭 시점엔 이미 준비돼 있어야 한다(2026-08-25 사용자 확정:
+        // "병합이 되어 있으면 해경에서 표출하는 데이터도 함께 표출해 종합 판단하도록").
+        return Promise.all([fetchTribunalReview(), ensureHkRowByCaseNo()]).then(function (results) {
+            var rows = results[0];
+            var features = rows.map(function (row, i) {
+                var f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([row[1], row[0]])) });
+                f.set('row', row);
+                f.set('typeCode', row[4]);
+                f.set('origIndex', i);
+                return f;
+            });
+            tribunalReviewLayer = buildClusterLayer(map, 'tribunal', features);
+            tribunalReviewLayer.setZIndex(59);
+            return tribunalReviewLayer;
+        });
+    }
+
+    // 관할서 경계선 색상 — 문자열 해시로 고정 배정(재로드해도 서마다 항상 같은 색).
+    var JURISDICTION_COLORS = [
+        '#e6194b', '#3cb44b', '#ffcc00', '#4363d8', '#f58231', '#b366ff', '#42d4d4',
+        '#f032e6', '#9acd32', '#ff8fa3', '#00b3b3', '#c48eff', '#c19a6b', '#ffe680',
+        '#ff6666', '#7fffb0', '#a3a300', '#ffb366', '#6699ff', '#bfbfbf', '#66ffcc'
+    ];
+    function colorForOwner(owner) {
+        var h = 0;
+        for (var i = 0; i < owner.length; i++) h = (h * 31 + owner.charCodeAt(i)) >>> 0;
+        return JURISDICTION_COLORS[h % JURISDICTION_COLORS.length];
+    }
+
+    /** ①·② 관할서 불일치 후보(build_jurisdiction_mismatch_review.js 산출, 기록≠판정)를
+     * 한 번만 fetch 한다. row=[lat,lon,ymd,hm,typeCd,recorded,expected,distKm,hkIdx]. */
+    function fetchJurisdictionMismatch() {
+        if (!jurisdictionMismatchPromise) {
+            jurisdictionMismatchPromise = fetch('/accident_jurisdiction_mismatch.json').then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            }).then(function (data) { return data.rows || []; });
+        }
+        return jurisdictionMismatchPromise;
+    }
+
+    /** ③ 2025 심판원 단독 저신뢰 후보(build_jurisdiction_2025_review.js 산출)를 한 번만
+     * fetch. row=[lat,lon,ymd,hm,typeCd,currentOrg,tier,distKm,hkIdx]. */
+    function fetchJurisdiction2025Review() {
+        if (!jurisdiction2025Promise) {
+            jurisdiction2025Promise = fetch('/accident_jurisdiction_2025_review.json').then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            }).then(function (data) { return data.rows || []; });
+        }
+        return jurisdiction2025Promise;
+    }
+
+    /** 관할서 경계 폴리곤 JSON(build_jurisdiction_boundaries.js 산출, 21개서 원본)을
+     * 한 번만 fetch — 실제 화면에 그릴 때는 이 중 지금 보고 있는 후보 주변 것만
+     * focusMapOnCandidate 가 매번 걸러서 그린다. */
+    function fetchJurisdictionBoundaries() {
+        if (!jurisdictionBoundaryPromise) {
+            jurisdictionBoundaryPromise = fetch('/coastguard_jurisdiction_boundaries.json').then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            });
+        }
+        return jurisdictionBoundaryPromise;
+    }
+
+    function ensureJurisdictionBoundaryLayer(map) {
+        if (jurisdictionBoundaryLayer) return jurisdictionBoundaryLayer;
+        jurisdictionBoundaryLayer = new ol.layer.Vector({ source: new ol.source.Vector(), visible: false, zIndex: 57 });
+        map.addLayer(jurisdictionBoundaryLayer);
+        return jurisdictionBoundaryLayer;
+    }
+
+    /** 지금 보는 후보 1건을 강조하는 전용 레이어(빨간 테두리 flagLayer 와는 별개 —
+     * flagLayer 는 "이미 결정한 것", 이건 "지금 보고 있는 것"). */
+    function ensureJurisdictionFocusLayer(map) {
+        if (jurisdictionFocusLayer) return jurisdictionFocusLayer;
+        var style = new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 12,
+                stroke: new ol.style.Stroke({ color: '#0aff9d', width: 3 }),
+                fill: new ol.style.Fill({ color: 'rgba(10,255,157,0.25)' })
+            })
+        });
+        jurisdictionFocusLayer = new ol.layer.Vector({ source: new ol.source.Vector(), style: style, visible: false, zIndex: 61 });
+        map.addLayer(jurisdictionFocusLayer);
+        return jurisdictionFocusLayer;
+    }
+
+    /** 순수 bbox 겹침만 보면 인천처럼 해안선을 따라가는 커다란(그러나 가느다란)
+     * 면이 전혀 안 지나가는 먼 지역까지 "겹친다"고 잘못 판정된다(실측 확인 —
+     * 울진 근처인데 "변경" 후보에 인천이 뜸, 인천 면 bbox 가 lon 119~135 로
+     * 한반도 전체를 덮을 만큼 큼). 꼭짓점이 범위 안에 있거나, 범위의 네 꼭짓점
+     * 중 하나가 폴리곤 안에 있으면 실제로 겹친다고 본다(변이 딱 관통만 하고
+     * 꼭짓점도 코너도 안 걸리는 극단적인 경우는 놓칠 수 있으나, 버퍼가 작고
+     * 폴리곤이 굵은 편이라 실무적으로 충분).
+     */
+    function pointInPolygonLL(lon, lat, coords) {
+        var inside = false;
+        for (var i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+            var xi = coords[i][0], yi = coords[i][1], xj = coords[j][0], yj = coords[j][1];
+            var intersect = ((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+    function polygonIntersectsExtent(coords, lonMin, latMin, lonMax, latMax) {
+        for (var i = 0; i < coords.length; i++) {
+            var c = coords[i];
+            if (c[0] >= lonMin && c[0] <= lonMax && c[1] >= latMin && c[1] <= latMax) return true;
+        }
+        var corners = [[lonMin, latMin], [lonMax, latMin], [lonMax, latMax], [lonMin, latMax]];
+        for (var k = 0; k < corners.length; k++) {
+            if (pointInPolygonLL(corners[k][0], corners[k][1], coords)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 관할서 경계선을 lonMin/latMin~lonMax/latMax 범위와 겹치는 것만 색칠해서 다시
+     * 그린다(21개 전체를 늘 그리면 "전국이 다 나온다"는 지적이 재발하므로, 지금
+     * 보는 후보 주변만). 같은 서가 여러 조각이면 이 범위 안에서 좌표가 가장 많은
+     * 조각에만 이름 라벨을 단다.
+     * @returns {string[]} 이번에 그려진(=화면에 보이는) 관할서 이름 목록 — "변경" 버튼의
+     *   후보 목록으로도 그대로 쓴다(사용자 확정 2026-08-26: "화면에 보이는 서들만").
+     */
+    function redrawBoundaryForExtent(map, lonMin, latMin, lonMax, latMax) {
+        return fetchJurisdictionBoundaries().then(function (allFaces) {
+            var faces = allFaces.filter(function (f) {
+                return polygonIntersectsExtent(f.coords, lonMin, latMin, lonMax, latMax);
+            });
+            var labelFaceByOwner = {};
+            faces.forEach(function (f) {
+                var cur = labelFaceByOwner[f.owner];
+                if (!cur || f.coords.length > cur.coords.length) labelFaceByOwner[f.owner] = f;
+            });
+            var layer = ensureJurisdictionBoundaryLayer(map);
+            var source = layer.getSource();
+            source.clear();
+            faces.forEach(function (f) {
+                var ring = f.coords.map(function (c) { return ol.proj.fromLonLat(c); });
+                var feature = new ol.Feature({ geometry: new ol.geom.Polygon([ring]) });
+                var color = colorForOwner(f.owner);
+                var styleOpts = { stroke: new ol.style.Stroke({ color: color, width: 2 }) };
+                if (labelFaceByOwner[f.owner] === f) {
+                    styleOpts.text = new ol.style.Text({
+                        text: f.owner.replace('해양경찰서', ''),
+                        font: 'bold 11px sans-serif',
+                        fill: new ol.style.Fill({ color: '#fff' }),
+                        stroke: new ol.style.Stroke({ color: '#000', width: 3 })
+                    });
+                }
+                feature.setStyle(new ol.style.Style(styleOpts));
+                source.addFeature(feature);
+            });
+            layer.setVisible(true);
+            return Object.keys(labelFaceByOwner);
+        });
+    }
+
+    /**
+     * 검수 서브모드를 지도에 반영 — TRIBUNAL_REVIEW_ON·JURISDICTION_REVIEW_ON 을
+     * _reviewSubMode 에서 다시 계산하고, 심판원 레이어 표시 여부를 맞춘 뒤 지금 어떤
+     * 검수모드인지 토스트로 알려준다(사용자 확정 2026-08-25: "모드 바뀔때마다
+     * 어떤거 검수모드인지 알려줄 수 있도록 화면에 잠깐 표출"). 관할서 불일치 쪽은
+     * 레이어 on/off 가 아니라 ensureJurisdictionWalkPanel 로 진입/이탈을 처리한다
+     * (워크스루 방식이라 "데이터셋을 고르기 전엔 아무것도 안 뜬다"가 자연스러움).
+     */
+    function applyReviewSubMode(map) {
+        TRIBUNAL_REVIEW_ON = (_reviewSubMode === REVIEW_SUBMODE_TRIBUNAL);
+        JURISDICTION_REVIEW_ON = (_reviewSubMode === REVIEW_SUBMODE_JURISDICTION);
+        ensureTribunalReviewLayer(map).then(function (layer) { layer.setVisible(TRIBUNAL_REVIEW_ON); });
+        var panel = document.getElementById('jurisdiction-walk-panel');
+        if (JURISDICTION_REVIEW_ON) {
+            ensureJurisdictionWalkPanel(map);
+        } else {
+            if (panel) panel.style.display = 'none';
+            if (jurisdictionBoundaryLayer) jurisdictionBoundaryLayer.setVisible(false);
+            if (jurisdictionFocusLayer) jurisdictionFocusLayer.setVisible(false);
+        }
+        if (typeof window._showOceanToast === 'function') {
+            window._showOceanToast(REVIEW_SUBMODE_LABELS[_reviewSubMode], 'top', 2200);
+        }
+    }
+
     /** 낱개 마커 클릭 시 상세 팝업과 별개로 빨간 테두리 선택을 토글한다(검수 모드 전용). */
     function toggleFlag(map, key, feature) {
         if (!REVIEW_MODE) return;
@@ -817,6 +1625,241 @@
         }
         rebuildFlagLayer(map);
         renderReviewPanel();
+    }
+
+    // ── 관할서 검수 워크스루(2026-08-26 재설계) ──────────────────────────────
+    // 처음엔 마커를 지도에서 직접 찾아 클릭하는 방식이었는데, 사용자 지적으로
+    // 완전히 바꿨다: ①"서 조합 선택" 드롭다운(①·② 기록≠판정 불일치, 부산⇄울산
+    // 두 쌍만 코드에 박아뒀던 걸 화면에서 아무 조합이나 고르게) + ②2025 심판원
+    // 단독 저신뢰 후보까지 같은 화면에서, ③시스템이 후보를 하나씩 자동으로 지도
+    // 중앙에 띄우고 인접 경계가 보이는 줌으로 맞춘 뒤 "확인/변경/삭제" 3버튼만
+    // 누르면 자동으로 다음 후보로 넘어가는 워크스루(사용자 확정: "자동으로 그
+    // 다음 마커로 넘어가는... 마커는 화면 중앙에 위치하되 주변 경계 구역들이 잘
+    // 보일 수 있는 줌 레벨로"). "변경"은 21개 전체가 아니라 지금 화면에 경계선이
+    // 보이는 서만 고르게 한다(사용자 확정: "확인/변경/삭제 두 버튼만 있어도 되냐"
+    // → "변경도 필요, 화면에 보이는 서만").
+
+    /** mismatch.json 행 → 워크스루 공통 후보 객체. */
+    function normalizeMismatchRow(row) {
+        return {
+            idx: row[8], lat: row[0], lon: row[1], ymd: row[2], hm: row[3], typeCd: row[4],
+            kind: 'pair', recorded: row[5], expected: row[6], currentOrg: row[5], tier: null, distKm: row[7]
+        };
+    }
+    /** 2025_review.json 행 → 워크스루 공통 후보 객체. */
+    function normalize2025Row(row) {
+        return {
+            idx: row[8], lat: row[0], lon: row[1], ymd: row[2], hm: row[3], typeCd: row[4],
+            kind: 'y2025', recorded: null, expected: null, currentOrg: row[5], tier: row[6], distKm: row[7]
+        };
+    }
+
+    /** 워크스루 패널을 처음 한 번만 만들고, 데이터셋 선택 드롭다운을 채운다. */
+    function ensureJurisdictionWalkPanel(map) {
+        var existing = document.getElementById('jurisdiction-walk-panel');
+        if (existing) { existing.style.display = ''; return Promise.resolve(existing); }
+
+        var style = document.createElement('style');
+        style.textContent =
+            '#jurisdiction-walk-panel{position:fixed;left:12px;right:12px;max-width:360px;margin:0 auto;' +
+            'top:calc(env(safe-area-inset-top,0px) + 64px);background:rgba(20,26,32,0.96);color:#fff;' +
+            'font-size:12px;border-radius:10px;z-index:910;box-shadow:0 4px 16px rgba(0,0,0,0.4);' +
+            'font-family:sans-serif;padding:10px;box-sizing:border-box;}' +
+            '#jurisdiction-walk-panel select{width:100%;padding:6px;border-radius:6px;border:1px solid #555;' +
+            'background:#11161a;color:#fff;font-size:12px;box-sizing:border-box;}' +
+            '#jurisdiction-walk-panel .jwp-progress{margin-top:8px;color:#aaa;font-size:11px;}' +
+            '#jurisdiction-walk-panel .jwp-info{margin-top:4px;display:flex;flex-direction:column;gap:2px;}' +
+            '#jurisdiction-walk-panel .jwp-info .row{display:flex;justify-content:space-between;gap:8px;}' +
+            '#jurisdiction-walk-panel .jwp-info .row span:first-child{color:#aaa;flex:none;}' +
+            '#jurisdiction-walk-panel .jwp-info .row span:last-child{text-align:right;}' +
+            '#jurisdiction-walk-panel .jwp-done-msg{color:#8fd;padding:6px 0;}' +
+            '#jurisdiction-walk-panel .jwp-actions{display:flex;gap:6px;margin-top:8px;}' +
+            '#jurisdiction-walk-panel .jwp-btn{flex:1;padding:8px;border-radius:6px;border:1px solid #555;' +
+            'background:#2a333a;color:#fff;font-size:12px;cursor:pointer;}' +
+            '#jurisdiction-walk-panel .jwp-btn.jwp-confirm{border-color:#30d158;color:#30d158;}' +
+            '#jurisdiction-walk-panel .jwp-btn.jwp-delete{border-color:#ff453a;color:#ff453a;}' +
+            '#jurisdiction-walk-panel .jwp-change-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}' +
+            '#jurisdiction-walk-panel .jwp-owner-btn{padding:6px 10px;border-radius:6px;border:1px solid #555;' +
+            'background:#11161a;color:#fff;font-size:12px;cursor:pointer;}' +
+            '#jurisdiction-walk-panel .jwp-no-owner{color:#aaa;font-size:11px;}';
+        document.head.appendChild(style);
+
+        var panel = document.createElement('div');
+        panel.id = 'jurisdiction-walk-panel';
+        panel.innerHTML =
+            '<select id="jwp-select"><option value="">검수할 대상 선택…</option></select>' +
+            '<div class="jwp-progress" id="jwp-progress"></div>' +
+            '<div class="jwp-info" id="jwp-info"></div>' +
+            '<div class="jwp-actions" id="jwp-actions" style="display:none">' +
+            '<button type="button" class="jwp-btn jwp-confirm" data-act="confirm">확인</button>' +
+            '<button type="button" class="jwp-btn jwp-change" data-act="change">변경</button>' +
+            '<button type="button" class="jwp-btn jwp-delete" data-act="delete">삭제</button>' +
+            '</div>' +
+            '<div class="jwp-change-list" id="jwp-change-list" style="display:none"></div>';
+        document.body.appendChild(panel);
+
+        document.getElementById('jwp-select').addEventListener('change', function (e) {
+            startJurisdictionWalk(map, e.target.value);
+        });
+        document.getElementById('jwp-actions').addEventListener('click', function (e) {
+            var btn = e.target.closest('.jwp-btn');
+            if (!btn) return;
+            handleJwAction(map, btn.dataset.act);
+        });
+        document.getElementById('jwp-change-list').addEventListener('click', function (e) {
+            var btn = e.target.closest('.jwp-owner-btn');
+            if (!btn) return;
+            commitJwDecision(map, jwList[jwPos], 'change', btn.dataset.org);
+        });
+
+        return Promise.all([fetchJurisdictionMismatch(), fetchJurisdiction2025Review()]).then(function (results) {
+            var mismatchRows = results[0], y2025Rows = results[1];
+            var pairCounts = {};
+            mismatchRows.forEach(function (r) {
+                var key = [r[5], r[6]].sort().join('|');
+                pairCounts[key] = (pairCounts[key] || 0) + 1;
+            });
+            var select = document.getElementById('jwp-select');
+            Object.keys(pairCounts).sort(function (a, b) { return pairCounts[b] - pairCounts[a]; }).forEach(function (key) {
+                var names = key.split('|').map(function (n) { return n.replace('해양경찰서', ''); });
+                var opt = document.createElement('option');
+                opt.value = 'pair:' + key;
+                opt.textContent = names.join('⇄') + ' — 기록≠판정 (' + pairCounts[key] + '건)';
+                select.appendChild(opt);
+            });
+            var opt2025 = document.createElement('option');
+            opt2025.value = 'y2025';
+            opt2025.textContent = '2025 심판원 단독 저신뢰 (' + y2025Rows.length + '건)';
+            select.appendChild(opt2025);
+            return panel;
+        });
+    }
+
+    /** 드롭다운에서 데이터셋을 고르면 그 목록을 만들고 첫 미검수 후보로 진입. */
+    function startJurisdictionWalk(map, datasetKey) {
+        if (!datasetKey) { jwList = []; jwPos = -1; renderJwIdle(); return; }
+        var listPromise;
+        if (datasetKey === 'y2025') {
+            listPromise = fetchJurisdiction2025Review().then(function (rows) { return rows.map(normalize2025Row); });
+        } else {
+            var pairNames = datasetKey.slice('pair:'.length).split('|');
+            listPromise = fetchJurisdictionMismatch().then(function (rows) {
+                return rows.filter(function (r) {
+                    return (r[5] === pairNames[0] && r[6] === pairNames[1]) || (r[5] === pairNames[1] && r[6] === pairNames[0]);
+                }).map(normalizeMismatchRow);
+            });
+        }
+        listPromise.then(function (list) {
+            jwList = list;
+            jwPos = -1;
+            advanceJurisdictionWalk(map);
+        });
+    }
+
+    /** 이미 결정한(flaggedItems 에 있는) 건은 건너뛰고 다음 미검수 후보로. 다 봤으면 완료 표시. */
+    function advanceJurisdictionWalk(map) {
+        jwChangeOpen = false;
+        do { jwPos++; } while (jwPos < jwList.length && flaggedItems.has('jurisdiction:' + jwList[jwPos].idx));
+        if (jwPos >= jwList.length) { renderJwDone(); return; }
+        focusMapOnCandidate(map, jwList[jwPos]);
+    }
+
+    /** 후보를 화면 중앙에 두고 인접 경계가 보이는 줌으로 맞춘 뒤(사용자 확정 —
+     * "마커는 화면 중앙에 위치하되 주변 경계 구역이 잘 보이는 줌 레벨로 자동 조정"),
+     * 그 범위 안 경계선만 다시 그리고 카드를 채운다. */
+    function focusMapOnCandidate(map, cand) {
+        var buf = 0.4; // 도 단위 — 인접 1~3개 서 경계가 대개 같이 보이는 정도(실측 확인)
+        var lonMin = cand.lon - buf, lonMax = cand.lon + buf, latMin = cand.lat - buf, latMax = cand.lat + buf;
+        var extent3857 = ol.proj.transformExtent([lonMin, latMin, lonMax, latMax], 'EPSG:4326', 'EPSG:3857');
+        map.getView().fit(extent3857, { duration: 300, maxZoom: 10 });
+
+        var focusLayer = ensureJurisdictionFocusLayer(map);
+        focusLayer.getSource().clear();
+        focusLayer.getSource().addFeature(new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([cand.lon, cand.lat])) }));
+        focusLayer.setVisible(true);
+
+        redrawBoundaryForExtent(map, lonMin, latMin, lonMax, latMax).then(function (visibleOwners) {
+            cand._visibleOwners = visibleOwners;
+            renderJwCard(cand);
+        });
+    }
+
+    function renderJwCard(cand) {
+        document.getElementById('jwp-progress').textContent = (jwPos + 1) + ' / ' + jwList.length;
+        var rows = [
+            ['사고발생일', formatYmd(cand.ymd) + (cand.hm ? ' ' + cand.hm : '')],
+            ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, cand.typeCd)]
+        ];
+        if (cand.kind === 'pair') {
+            rows.push(['기록된 관할', cand.recorded]);
+            rows.push(['폴리곤 판정', cand.expected + ' (경계에서 ' + cand.distKm + 'km)']);
+        } else {
+            var tierLabel = cand.tier === 'direct' ? '신뢰 면 안(경계 근처)'
+                : cand.tier === 'boundary' ? '신뢰 면 밖 — 가장 가까운 경계로 보정'
+                    : '최근접이웃(kNN) 추정 — 가장 불확실';
+            rows.push(['현재 관할(추정)', cand.currentOrg]);
+            rows.push(['추정 근거', tierLabel + (cand.distKm >= 0 ? ' · 경계에서 ' + cand.distKm + 'km' : '')]);
+        }
+        document.getElementById('jwp-info').innerHTML = rows.map(function (r) {
+            return '<div class="row"><span>' + r[0] + '</span><span>' + escapeHtml(r[1]) + '</span></div>';
+        }).join('');
+        document.getElementById('jwp-actions').style.display = 'flex';
+        var changeList = document.getElementById('jwp-change-list');
+        changeList.style.display = 'none';
+        changeList.innerHTML = '';
+    }
+
+    function renderJwIdle() {
+        document.getElementById('jwp-progress').textContent = '';
+        document.getElementById('jwp-info').innerHTML = '';
+        document.getElementById('jwp-actions').style.display = 'none';
+        document.getElementById('jwp-change-list').style.display = 'none';
+        if (jurisdictionBoundaryLayer) jurisdictionBoundaryLayer.setVisible(false);
+        if (jurisdictionFocusLayer) jurisdictionFocusLayer.setVisible(false);
+    }
+
+    function renderJwDone() {
+        document.getElementById('jwp-progress').textContent = '검수 끝';
+        document.getElementById('jwp-info').innerHTML = '<div class="jwp-done-msg">이 목록은 다 확인했습니다 — 위 드롭다운에서 다른 조합을 선택하세요.</div>';
+        document.getElementById('jwp-actions').style.display = 'none';
+        document.getElementById('jwp-change-list').style.display = 'none';
+    }
+
+    /** 확인/변경/삭제 버튼 처리 — "변경"은 바로 결정하지 않고 화면에 보이는 인접
+     * 서 목록을 펼친다(그중 하나를 눌러야 commitJwDecision 이 실제로 호출됨). */
+    function handleJwAction(map, act) {
+        var cand = jwList[jwPos];
+        if (!cand) return;
+        if (act === 'change') {
+            var listEl = document.getElementById('jwp-change-list');
+            jwChangeOpen = !jwChangeOpen;
+            if (!jwChangeOpen) { listEl.style.display = 'none'; return; }
+            var owners = (cand._visibleOwners || []).filter(function (o) { return o !== cand.currentOrg; });
+            listEl.innerHTML = owners.length
+                ? owners.map(function (o) {
+                    return '<button type="button" class="jwp-owner-btn" data-org="' + escapeHtml(o) + '">' +
+                        escapeHtml(o.replace('해양경찰서', '')) + '</button>';
+                }).join('')
+                : '<span class="jwp-no-owner">화면에 다른 관할서 경계가 안 보입니다 — 지도를 줌아웃해 확인하세요.</span>';
+            listEl.style.display = 'flex';
+            return;
+        }
+        commitJwDecision(map, cand, act);
+    }
+
+    /** 결정을 flaggedItems 에 저장(기존 hk/person/tribunal 과 같은 맵, 검수 패널
+     * 목록·내보내기가 그대로 재사용됨) 하고 자동으로 다음 후보로 넘어간다. */
+    function commitJwDecision(map, cand, action, toOrg) {
+        var row = cand.kind === 'pair'
+            ? [cand.lat, cand.lon, cand.ymd, cand.hm, cand.typeCd, cand.recorded, cand.expected, cand.distKm, cand.idx]
+            : [cand.lat, cand.lon, cand.ymd, cand.hm, cand.typeCd, cand.currentOrg, cand.tier, cand.distKm, cand.idx];
+        flaggedItems.set('jurisdiction:' + cand.idx, {
+            key: 'jurisdiction', idx: cand.idx, row: row, action: action, to: toOrg || null,
+            datasetKind: cand.kind, coord: ol.proj.fromLonLat([cand.lon, cand.lat])
+        });
+        rebuildFlagLayer(map);
+        renderReviewPanel();
+        advanceJurisdictionWalk(map);
     }
 
     /**
@@ -891,6 +1934,10 @@
     function recomputeGrid(map) {
         if (!gridSource || !state.source) return;
         var feats = rawFeatures[state.source] || [];
+        if (hasActiveFilters()) {
+            var key = state.source;
+            feats = feats.filter(function (f) { return passesFilters(key, f.get('row')); });
+        }
         var extent = map.getView().calculateExtent(map.getSize());
         var w = (extent[2] - extent[0]) / GRID_COLS;
         var h = (extent[3] - extent[1]) / GRID_ROWS;
@@ -1056,6 +2103,471 @@
         return true;
     }
 
+    // ── 필터 바 + 팝업(사고유형·관할서·시간대·계절·특보·선박용도·톤수,
+    //    2026-08-24~25 사용자 확정) ──────
+    // [연계] 마크업 index2.html #accident-filter-bar(정적, 버튼 7개) · CSS style.css
+    //   ".accident-filter-*" · 적용 대상 applyFiltersToMarkers()·recomputeGrid()
+
+    var HOUR_PRESETS = [[0, 4], [4, 8], [8, 12], [12, 16], [16, 20], [20, 24]];
+    function hourPresetLabel(r) { return pad2(r[0]) + '~' + pad2(r[1] === 24 ? 0 : r[1]) + '시'; }
+
+    // 톤수 구간 프리셋 — 실측 분포(hk 10,338건, 5톤 미만이 절반 가까이) 기준으로 구간을 나눔.
+    var TONNAGE_PRESETS = [[0, 5], [5, 10], [10, 20], [20, 50], [50, 100], [100, 500], [500, 1000], [1000, Infinity]];
+    function tonnagePresetLabel(r) {
+        if (r[1] === Infinity) return r[0].toLocaleString('ko-KR') + '톤 이상';
+        if (r[0] === 0) return r[1].toLocaleString('ko-KR') + '톤 미만';
+        return r[0].toLocaleString('ko-KR') + '~' + r[1].toLocaleString('ko-KR') + '톤';
+    }
+
+    /** 현재 활성 소스(rawFeatures[state.source])에서, 이 축(excludeKey)만 빼고 나머지
+     * 필터를 이미 건 상태로 실제 존재하는 값만 옵션으로 뽑는다 — 0건짜리 선택지를 안
+     * 보여주기 위함이자, count 를 "지금까지 고른 다른 필터와의 교집합"으로 보여주기
+     * 위함(사용자 확정 2026-08-25). */
+    function buildValueOptions(getValue, labelTable, excludeKey) {
+        var key = state.source;
+        var feats = (key && rawFeatures[key]) || [];
+        var counts = {}; // value -> count
+        feats.forEach(function (f) {
+            var row = f.get('row');
+            if (!passesFiltersExcept(key, row, excludeKey)) return;
+            var v = getValue(row);
+            if (v == null) return;
+            counts[v] = (counts[v] || 0) + 1;
+        });
+        return Object.keys(counts).map(function (vStr) {
+            // 코드가 숫자(orgCd·typeCode 는 문자열, orgCd 만 숫자 — Object 키는 항상 문자열이라 되돌린다)
+            var v = /^-?\d+$/.test(vStr) ? Number(vStr) : vStr;
+            return { value: v, label: accidentLabel(labelTable, v), count: counts[vStr] };
+        }).sort(function (a, b) { return b.count - a.count; });
+    }
+
+    // 사고유형 체크박스 순서(2026-08-25 사용자 확정) — 이 9개는 이 순서로 먼저,
+    // 나머지는 원래 순서(건수 내림차순) 그대로 뒤에.
+    var TYPE_ORDER_PRIORITY = ['충돌', '침몰', '전복', '화재', '좌초', '좌주', '폭발', '표류', '접촉'];
+
+    /** 사고유형 옵션 — "-"(코드 없음)·"기타"(정확히 그 라벨인 것만, "기타(인명)" 등은
+     * 남김)는 목록에서 뺀다(사용자 확정 2026-08-25). */
+    function buildTypeOptions() {
+        var opts = buildValueOptions(function (r) { return typeFilterCode(typeCodeOf(state.source, r)); }, ACCIDENT_TYPE_LABELS, 'types')
+            .filter(function (o) { return o.value != null && o.value !== '' && o.label !== '기타'; });
+        opts.forEach(function (o, i) { o.__origIdx = i; }); // 건수 내림차순이던 원래 순서 보존
+        return opts.sort(function (a, b) {
+            var pa = TYPE_ORDER_PRIORITY.indexOf(a.label), pb = TYPE_ORDER_PRIORITY.indexOf(b.label);
+            if (pa === -1 && pb === -1) return a.__origIdx - b.__origIdx;
+            if (pa === -1) return 1;
+            if (pb === -1) return -1;
+            return pa - pb;
+        });
+    }
+    function buildOrgOptions() { return buildValueOptions(function (r) { return r[ORG_POS_IDX[state.source]]; }, ACCIDENT_ORG_LABELS, 'orgs'); }
+
+    /** 선박용도 옵션 — 값 자체가 이미 한글 문자열(코드 아님)이라 라벨표 없이 그대로 쓴다. */
+    function buildShipUseOptions() { return buildValueOptions(function (r) { return r[SHIPUSE_POS_IDX.hk]; }, null, 'shipUses'); }
+
+    /** 연속된 연도들을 "2016, 2021~2025"처럼 구간으로 묶어 표기(선박용도·톤수 필터를
+     * 실제로 걸 때 "이 정보는 몇 년도 사고에만 있다" 안내 토스트에 씀). */
+    function formatYearRanges(years) {
+        var sorted = Array.from(years).map(Number).sort(function (a, b) { return a - b; });
+        var ranges = [];
+        var start = null, prev = null;
+        sorted.forEach(function (y) {
+            if (start == null) { start = y; prev = y; return; }
+            if (y === prev + 1) { prev = y; return; }
+            ranges.push(start === prev ? String(start) : start + '~' + prev);
+            start = y; prev = y;
+        });
+        if (start != null) ranges.push(start === prev ? String(start) : start + '~' + prev);
+        return ranges.map(function (r) { return r + '년'; }).join(', ');
+    }
+
+    /** posIdx 위치에 실제 값이 있는 hk 행들의 발생연도 집합 — 위 formatYearRanges 와 짝. */
+    function yearsWithValue(posIdx) {
+        var feats = rawFeatures.hk || [];
+        var years = new Set();
+        feats.forEach(function (f) {
+            var row = f.get('row');
+            if (row[posIdx] != null) years.add(String(row[2]).slice(0, 4));
+        });
+        return years;
+    }
+
+    /** 특보종류 옵션 — 소스별로 의미있는 종류만(hk 는 태풍·풍랑, person 은 +강풍).
+     * 값이 배열(다중 발효 가능)이라 buildValueOptions 의 단일값 카운트 방식을 못 쓰고 별도 구현. */
+    function buildWarnOptions() {
+        var key = state.source;
+        var feats = (key && rawFeatures[key]) || [];
+        var counts = {};
+        feats.forEach(function (f) {
+            var row = f.get('row');
+            if (!passesFiltersExcept(key, row, 'warnTypes')) return;
+            var active = row[WARN_FLAGS_POS_IDX[key]] || [];
+            active.forEach(function (code) { counts[code] = (counts[code] || 0) + 1; });
+        });
+        return (WARN_TYPE_ORDER[key] || []).filter(function (code) { return counts[code] > 0; }).map(function (code) {
+            return { value: code, label: WARN_TYPE_LABELS[code], count: counts[code] };
+        });
+    }
+
+    // ── 팝업 셸(체크박스 목록·시간대 전용 몸통 공용) ──
+    var _filterPopupEls = null;
+    function ensureFilterPopup() {
+        if (_filterPopupEls) return _filterPopupEls;
+        var overlay = document.createElement('div');
+        overlay.className = 'accident-filter-popup-overlay';
+        overlay.style.display = 'none';
+        overlay.innerHTML =
+            '<div class="accident-filter-popup">' +
+            '<div class="accident-filter-popup-hdr"><span id="afp-title">필터</span><span class="count" id="afp-count"></span>' +
+            '<button type="button" class="accident-filter-popup-close" id="afp-close" aria-label="닫기">&times;</button></div>' +
+            '<div class="accident-filter-popup-body" id="afp-body"></div>' +
+            '<div class="accident-filter-popup-footer">' +
+            '<button type="button" id="afp-reset">전체 해제</button>' +
+            '<button type="button" class="primary" id="afp-confirm">확인</button>' +
+            '</div></div>';
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) closeFilterPopup(); });
+        document.getElementById('afp-close').addEventListener('click', closeFilterPopup);
+        _filterPopupEls = {
+            overlay: overlay,
+            title: document.getElementById('afp-title'),
+            count: document.getElementById('afp-count'),
+            body: document.getElementById('afp-body'),
+            resetBtn: document.getElementById('afp-reset'),
+            confirmBtn: document.getElementById('afp-confirm')
+        };
+        return _filterPopupEls;
+    }
+
+    function closeFilterPopup() {
+        if (_filterPopupEls) _filterPopupEls.overlay.style.display = 'none';
+    }
+
+    /**
+     * 체크박스 다중선택 팝업(관할서·사고유형·계절 공용).
+     * @param {string} title
+     * @param {Array<{value, label, count}>} options
+     * @param {Set|null} currentSelected - null 이면 "전체"(체크박스 전부 해제 상태로 시작)
+     * @param {function(Set|null)} onConfirm - 확인 눌렀을 때, 하나도 안 골랐으면 null(전체)로 넘김
+     */
+    function openCheckboxFilterPopup(title, options, currentSelected, onConfirm) {
+        var els = ensureFilterPopup();
+        els.title.textContent = title;
+        els.count.textContent = options.length + '개 항목';
+        var selected = new Set(currentSelected || []);
+        if (!options.length) {
+            els.body.innerHTML = '<div class="accident-filter-empty">지금 불러온 데이터에 표시할 항목이 없습니다.</div>';
+        } else {
+            els.body.innerHTML =
+                '<label class="accident-filter-check-row accident-filter-check-all"><input type="checkbox" id="afp-check-all">' +
+                '<span class="label">전체 선택</span></label>' +
+                options.map(function (o, i) {
+                    var checked = selected.has(o.value) ? ' checked' : '';
+                    return '<label class="accident-filter-check-row"><input type="checkbox" data-i="' + i + '"' + checked + '>' +
+                        '<span class="label">' + escapeHtml(o.label) + '</span><span class="n">' + o.count + '건</span></label>';
+                }).join('');
+        }
+        var checkboxes = els.body.querySelectorAll('input[type="checkbox"][data-i]');
+        var checkAll = document.getElementById('afp-check-all');
+        function syncCheckAll() {
+            if (!checkAll) return;
+            checkAll.checked = checkboxes.length > 0 && selected.size === checkboxes.length;
+        }
+        syncCheckAll();
+        Array.prototype.forEach.call(checkboxes, function (cb) {
+            cb.addEventListener('change', function () {
+                var o = options[Number(cb.dataset.i)];
+                if (cb.checked) selected.add(o.value); else selected.delete(o.value);
+                syncCheckAll();
+            });
+        });
+        if (checkAll) {
+            checkAll.addEventListener('change', function () {
+                selected.clear();
+                Array.prototype.forEach.call(checkboxes, function (cb) {
+                    cb.checked = checkAll.checked;
+                    if (checkAll.checked) selected.add(options[Number(cb.dataset.i)].value);
+                });
+            });
+        }
+        els.resetBtn.onclick = function () {
+            selected.clear();
+            Array.prototype.forEach.call(checkboxes, function (cb) { cb.checked = false; });
+            syncCheckAll();
+        };
+        els.confirmBtn.onclick = function () {
+            onConfirm(selected.size ? selected : null);
+            closeFilterPopup();
+        };
+        els.overlay.style.display = 'flex';
+    }
+
+    /**
+     * 범위형(구간) 필터 팝업 공용 뼈대 — 프리셋(다중 토글) + 직접 설정(임의 범위
+     * 추가, 칩으로 표시). 시간대(2026-08-24)로 처음 만들었다가 톤수(2026-08-25)에
+     * 그대로 재사용하려고 일반화했다 — CSS 클래스 이름은 시간대 때 이름
+     * (".accident-filter-hour-*")을 그대로 쓴다(스타일은 완전히 같아 새로 안 만듦).
+     * @param {Object} cfg
+     * @param {string} cfg.title
+     * @param {string} cfg.filterKey - filters 객체의 키(예: 'hourRanges'), passesFiltersExcept 에 씀
+     * @param {Array<[number,number]>} cfg.presets
+     * @param {function([number,number]):string} cfg.formatLabel
+     * @param {function(string,Array):(number|null)} cfg.valueOf - (srcKey, row) -> 비교할 값
+     * @param {string} cfg.inputType - 'time' | 'number'
+     * @param {string} cfg.defaultStartVal
+     * @param {string} cfg.defaultEndVal
+     * @param {function(string):number} cfg.parseInputVal - input.value -> 숫자(NaN 이면 무효)
+     * @param {string} [cfg.inputStep] - inputType='number' 일 때 <input step>
+     * @param {Array<[number,number]>|null} current
+     * @param {function(Array<[number,number]>|null)} onConfirm
+     */
+    function openRangeFilterPopup(cfg, current, onConfirm) {
+        var els = ensureFilterPopup();
+        els.title.textContent = cfg.title;
+        els.count.textContent = '';
+        var ranges = (current || []).slice(); // 작업용 사본
+
+        function isPresetActive(preset) {
+            return ranges.some(function (r) { return r[0] === preset[0] && r[1] === preset[1]; });
+        }
+        function togglePreset(preset) {
+            var idx = ranges.findIndex(function (r) { return r[0] === preset[0] && r[1] === preset[1]; });
+            if (idx >= 0) ranges.splice(idx, 1); else ranges.push(preset.slice());
+        }
+        function isCustomRange(r) { return !cfg.presets.some(function (p) { return p[0] === r[0] && p[1] === r[1]; }); }
+
+        /** 프리셋 옆에 보여줄 건수 — "이 구간에 실제로 값이 있는" 행만 센다(이 축만
+         * 빼고 이미 걸린 다른 필터와의 교집합, 사용자 확정 2026-08-25). 값이 없는
+         * (null) 행은 세지 않는다 — buildValueOptions·buildWarnOptions 등 다른 필터
+         * 옵션의 건수 표시와 같은 원칙(체크박스 옵션들도 null은 옵션 자체에서 뺀다).
+         * ⚠주의: passesFilters() 의 실제 필터링 동작은 이와 다르다 — 거기서는 값이
+         * 없는 행을 "판단 불가"로 통과시킨다(hourRanges 필터를 실제로 걸었을 때
+         * person 소스가 숨지 않는 것과 같은 원칙). 처음엔 이 카운트 함수도 같은
+         * "null=통과"로 세다가, 톤수(hk 35,027건 중 24,689건이 null)에서 모든
+         * 프리셋 버튼이 전부 24,000~29,000건대로 나와 사실상 의미 없는 숫자가
+         * 되는 걸 사용자가 스크린샷으로 지적해 분리했다 — hourRanges 는 hk 소스의
+         * 시각 데이터가 거의 항상 있어(0/35,027 null) 이 차이가 드러나지 않았을
+         * 뿐, person 소스로 시간대 팝업을 열면 (hour 컬럼 자체가 없어) 같은 문제가
+         * 있었다(이번에 같이 고침). */
+        function presetCount(preset) {
+            var srcKey = state.source;
+            var feats = (srcKey && rawFeatures[srcKey]) || [];
+            var cnt = 0;
+            feats.forEach(function (f) {
+                var row = f.get('row');
+                if (!passesFiltersExcept(srcKey, row, cfg.filterKey)) return;
+                var v = cfg.valueOf(srcKey, row);
+                if (v != null && v >= preset[0] && v < preset[1]) cnt++;
+            });
+            return cnt;
+        }
+
+        function render() {
+            var presetsHtml = cfg.presets.map(function (p, i) {
+                return '<button type="button" class="accident-filter-hour-preset' + (isPresetActive(p) ? ' active' : '') +
+                    '" data-preset-i="' + i + '">' + cfg.formatLabel(p) + '<span class="n">' + presetCount(p) + '건</span></button>';
+            }).join('');
+            var customRanges = ranges.filter(isCustomRange);
+            var chipsHtml = customRanges.length ? customRanges.map(function (r, i) {
+                return '<span class="accident-filter-hour-chip">' + cfg.formatLabel(r) +
+                    '<button type="button" data-custom-i="' + i + '">&times;</button></span>';
+            }).join('') : '<span style="color:var(--text-sub);font-size:0.76rem;">추가된 범위 없음</span>';
+            els.body.innerHTML =
+                '<div class="accident-filter-hour-presets">' + presetsHtml + '</div>' +
+                '<div class="accident-filter-hour-custom">' +
+                '<div class="accident-filter-hour-custom-label">직접 설정</div>' +
+                '<div class="accident-filter-hour-custom-row">' +
+                '<input type="' + cfg.inputType + '" id="afp-range-start"' + (cfg.inputStep ? ' step="' + cfg.inputStep + '"' : '') + ' value="' + cfg.defaultStartVal + '">' +
+                '<span>~</span>' +
+                '<input type="' + cfg.inputType + '" id="afp-range-end"' + (cfg.inputStep ? ' step="' + cfg.inputStep + '"' : '') + ' value="' + cfg.defaultEndVal + '">' +
+                '<button type="button" id="afp-range-add">추가</button>' +
+                '</div>' +
+                '<div class="accident-filter-hour-chips">' + chipsHtml + '</div>' +
+                '</div>';
+            Array.prototype.forEach.call(els.body.querySelectorAll('.accident-filter-hour-preset'), function (btn) {
+                btn.addEventListener('click', function () { togglePreset(cfg.presets[Number(btn.dataset.presetI)]); render(); });
+            });
+            Array.prototype.forEach.call(els.body.querySelectorAll('[data-custom-i]'), function (btn) {
+                btn.addEventListener('click', function () {
+                    var target = customRanges[Number(btn.dataset.customI)];
+                    var idx = ranges.indexOf(target);
+                    if (idx >= 0) ranges.splice(idx, 1);
+                    render();
+                });
+            });
+            document.getElementById('afp-range-add').addEventListener('click', function () {
+                var startVal = document.getElementById('afp-range-start').value;
+                var endVal = document.getElementById('afp-range-end').value;
+                var start = startVal ? cfg.parseInputVal(startVal) : NaN;
+                var end = endVal ? cfg.parseInputVal(endVal) : NaN;
+                if (isNaN(start) || isNaN(end) || start >= end) {
+                    window.alert('시작 값이 종료 값보다 작아야 합니다.');
+                    return;
+                }
+                ranges.push([start, end]);
+                render();
+            });
+        }
+        render();
+
+        els.resetBtn.onclick = function () { ranges = []; render(); };
+        els.confirmBtn.onclick = function () {
+            onConfirm(ranges.length ? ranges : null);
+            closeFilterPopup();
+        };
+        els.overlay.style.display = 'flex';
+    }
+
+    /** 시간대 팝업 — openRangeFilterPopup 에 시간대 전용 설정을 얹은 얇은 래퍼. */
+    function openHourRangeFilterPopup(current, onConfirm) {
+        openRangeFilterPopup({
+            title: '시간대', filterKey: 'hourRanges', presets: HOUR_PRESETS, formatLabel: hourPresetLabel,
+            valueOf: function (srcKey, row) { return srcKey === 'hk' ? hourOf(row[3]) : null; },
+            inputType: 'time', defaultStartVal: '09:00', defaultEndVal: '18:00',
+            parseInputVal: function (v) { return parseInt(v.split(':')[0], 10); },
+        }, current, onConfirm);
+    }
+
+    /** 톤수 팝업 — openRangeFilterPopup 에 톤수 전용 설정을 얹은 얇은 래퍼(2026-08-25). */
+    function openTonnageRangeFilterPopup(current, onConfirm) {
+        openRangeFilterPopup({
+            title: '톤수', filterKey: 'tonnageRanges', presets: TONNAGE_PRESETS, formatLabel: tonnagePresetLabel,
+            valueOf: function (srcKey, row) { return srcKey === 'hk' ? row[TONNAGE_POS_IDX.hk] : null; },
+            inputType: 'number', inputStep: '0.1', defaultStartVal: '5', defaultEndVal: '10',
+            parseInputVal: function (v) { return parseFloat(v); },
+        }, current, onConfirm);
+    }
+
+    /** 필터 버튼 라벨을 지금 filters 상태에 맞춰 갱신("전체" 또는 "N개 선택"). */
+    function updateFilterButtonLabel(filterKey, prefix) {
+        var btn = document.getElementById('accident-filter-btn-' + filterKey);
+        if (!btn) return;
+        var val = filters[filterKey];
+        var n = val ? val.size != null ? val.size : val.length : 0;
+        btn.textContent = prefix + ': ' + (n ? n + '개 선택' : '전체');
+        btn.classList.toggle('has-selection', n > 0);
+    }
+
+    function updateAllFilterButtonLabels() {
+        updateFilterButtonLabel('types', '사고유형');
+        updateFilterButtonLabel('orgs', '관할서');
+        updateFilterButtonLabel('hourRanges', '시간대');
+        updateFilterButtonLabel('seasons', '계절');
+        updateFilterButtonLabel('warnTypes', '특보');
+        updateFilterButtonLabel('shipUses', '선박용도');
+        updateFilterButtonLabel('tonnageRanges', '톤수');
+    }
+
+    /** 필터가 바뀔 때마다 현황 마커·분석 격자 양쪽에 다시 반영. */
+    function onFiltersChanged(map) {
+        updateAllFilterButtonLabels();
+        if (state.source) applyFiltersToMarkers(state.source);
+        if (state.mode === 'analysis' && state.source) recomputeGrid(map);
+        closeStatsSheet(); // 선택돼 있던 격자 셀 구성이 필터로 바뀌었을 수 있어 무효화
+    }
+
+    /** 사고정보가 켜져 있는 동안(showModeToggle 과 동일 시점)만 필터 바를 보여준다. */
+    function showFilterBar(show) {
+        var bar = document.getElementById('accident-filter-bar');
+        if (bar) bar.style.display = show ? 'flex' : 'none';
+        if (show) positionFilterBar();
+    }
+
+    /** 필터 바 위치 재계산 — 모드 전환 시 모드토글 높이가 바뀔 수 있어 호출된다.
+     * (예전엔 관할서·시간대·계절을 분석 모드에서만 보였으나, 현황에서도 똑같이
+     * 다양한 필터를 쓰고 싶다는 요청으로 5개 다 항상 노출로 바뀌어 이제 위치
+     * 재계산만 한다 — 사용자 확정 2026-08-25.) */
+    function updateFilterBarModeVisibility() {
+        positionFilterBar();
+    }
+
+    /** 필터 바의 top 을 모드토글 실측 높이 기준으로 인라인 설정 — 글자 크기 설정에
+     * 따라 모드토글 높이가 달라져 고정 px로 못 잡는다(같은 이유로 이미 JS로 위치를
+     * 계산하는 다른 오버레이 패턴은 없어 이 파일 안에서 새로 계산). */
+    function positionFilterBar() {
+        var modeToggle = document.getElementById('ocean-accident-mode-toggle');
+        var bar = document.getElementById('accident-filter-bar');
+        if (!modeToggle || !bar || bar.style.display === 'none') return;
+        bar.style.top = (modeToggle.offsetTop + modeToggle.offsetHeight + 6) + 'px';
+    }
+
+    function bindFilterBar(map) {
+        var bar = document.getElementById('accident-filter-bar');
+        if (!bar) return;
+        bar.addEventListener('click', function (e) {
+            var btn = e.target.closest('.accident-filter-btn');
+            if (!btn) return;
+            var key = btn.dataset.filter;
+            if (key === 'types') {
+                openCheckboxFilterPopup('사고유형', buildTypeOptions(), filters.types, function (sel) {
+                    filters.types = sel;
+                    onFiltersChanged(map);
+                });
+            } else if (key === 'orgs') {
+                openCheckboxFilterPopup('관할서', buildOrgOptions(), filters.orgs, function (sel) {
+                    filters.orgs = sel;
+                    onFiltersChanged(map);
+                });
+            } else if (key === 'hourRanges') {
+                openHourRangeFilterPopup(filters.hourRanges, function (val) {
+                    filters.hourRanges = val;
+                    onFiltersChanged(map);
+                });
+            } else if (key === 'seasons') {
+                var seasonOptions = SEASON_ORDER.map(function (s) {
+                    var feats = (state.source && rawFeatures[state.source]) || [];
+                    var count = feats.filter(function (f) {
+                        var row = f.get('row');
+                        return passesFiltersExcept(state.source, row, 'seasons') && seasonOf(row[2]) === s;
+                    }).length;
+                    return { value: s, label: SEASON_LABELS[s], count: count };
+                });
+                openCheckboxFilterPopup('계절', seasonOptions, filters.seasons, function (sel) {
+                    filters.seasons = sel;
+                    onFiltersChanged(map);
+                });
+            } else if (key === 'warnTypes') {
+                openCheckboxFilterPopup('특보', buildWarnOptions(), filters.warnTypes, function (sel) {
+                    filters.warnTypes = sel;
+                    onFiltersChanged(map);
+                });
+            } else if (key === 'shipUses') {
+                openCheckboxFilterPopup('선박용도', buildShipUseOptions(), filters.shipUses, function (sel) {
+                    filters.shipUses = sel;
+                    if (sel && typeof window._showOceanToast === 'function') {
+                        window._showOceanToast(
+                            '선박용도 정보는 ' + formatYearRanges(yearsWithValue(SHIPUSE_POS_IDX.hk)) + ' 사고에만 있어, 그 외 사고는 결과에서 제외됩니다.',
+                            'bottom', 3500, true);
+                    }
+                    onFiltersChanged(map);
+                });
+            } else if (key === 'tonnageRanges') {
+                openTonnageRangeFilterPopup(filters.tonnageRanges, function (val) {
+                    filters.tonnageRanges = val;
+                    if (val && typeof window._showOceanToast === 'function') {
+                        window._showOceanToast(
+                            '톤수 정보는 ' + formatYearRanges(yearsWithValue(TONNAGE_POS_IDX.hk)) + ' 사고에만 있어, 그 외 사고는 결과에서 제외됩니다.',
+                            'bottom', 3500, true);
+                    }
+                    onFiltersChanged(map);
+                });
+            }
+        });
+
+        var resetBtn = document.getElementById('accident-filter-reset-btn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function () {
+                filters.types = null;
+                filters.orgs = null;
+                filters.hourRanges = null;
+                filters.seasons = null;
+                filters.warnTypes = null;
+                filters.shipUses = null;
+                filters.tonnageRanges = null;
+                onFiltersChanged(map);
+            });
+        }
+    }
+
     // ── 버튼·팝아웃 UI ──────────────────────────────────────────────────────
     function closePopout() {
         var wrap = document.getElementById('ocean-accident-wrap');
@@ -1107,6 +2619,12 @@
         if (modeToggle) modeToggle.style.display = show ? 'flex' : 'none';
     }
 
+    /** "선택 초기화" 버튼(2026-08-25 사용자 확정) — 모드토글과 같이 보이고 같이 숨는다. */
+    function showFilterResetBtn(show) {
+        var btn = document.getElementById('accident-filter-reset-btn');
+        if (btn) btn.style.display = show ? 'block' : 'none';
+    }
+
     function selectSource(map, key) {
         var seq = ++_selectSeq;
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
@@ -1122,6 +2640,11 @@
             closePopout();
             updateSourceButtonsUi();
             showModeToggle(true);
+            showFilterResetBtn(true);
+            showFilterBar(true);
+            updateFilterBarModeVisibility();
+            updateAllFilterButtonLabels();
+            if (hasActiveFilters()) applyFiltersToMarkers(key); // 이전 소스에서 걸어둔 필터를 새 소스에도 반영
             if (toggleBtn) toggleBtn.classList.add('active');
             // 마커를 실제 지형과 대조해 보기 쉽도록 배경지도를 위성지도로 자동 전환(사용자 확정 2026-08-19)
             if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
@@ -1151,6 +2674,8 @@
         closePopout();
         updateSourceButtonsUi();
         showModeToggle(false);
+        showFilterResetBtn(false);
+        showFilterBar(false);
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
         if (toggleBtn) toggleBtn.classList.remove('active');
         if (_prevBasemap && _prevBasemap !== 'vworld' && typeof window.oceanSetBasemap === 'function') {
@@ -1163,10 +2688,10 @@
         state.mode = mode;
         applyModeVisibility(map);
         updateModeToggleUi();
+        updateFilterBarModeVisibility();
     }
 
     function bindUi(map) {
-        if (REVIEW_MODE) ensureReviewPanel();
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
         var wrap = document.getElementById('ocean-accident-wrap');
         if (toggleBtn && wrap) {
@@ -1182,6 +2707,34 @@
             document.addEventListener('click', function (e) {
                 if (!wrap.contains(e.target)) wrap.classList.remove('popup-open');
             });
+            // 검수 모드 트리거 — 위 팝아웃 열기/닫기와 별개로 같은 버튼에 탭 횟수만 센다.
+            toggleBtn.addEventListener('click', function () {
+                if (REVIEW_MODE) {
+                    // 검수 모드 안에서는 같은 버튼 5회 더 연타마다 서브모드를 한 단계씩
+                    // 순환(꺼짐→심판원→관할서불일치→꺼짐→...). 2026-08-25 이전엔 심판원
+                    // 레이어 하나만 단순 on/off였는데, 관할서 불일치 검수를 그 다음
+                    // 단계(총 20회)로 추가하며 순환식으로 바꿨다.
+                    _reviewSubModeTapCount++;
+                    clearTimeout(_reviewSubModeTapTimer);
+                    _reviewSubModeTapTimer = setTimeout(function () { _reviewSubModeTapCount = 0; }, REVIEW_MODE_TAP_RESET_MS);
+                    if (_reviewSubModeTapCount < REVIEW_SUBMODE_TAP_THRESHOLD) return;
+                    _reviewSubModeTapCount = 0;
+                    _reviewSubMode = (_reviewSubMode + 1) % 3;
+                    var map = window.getOceanMap && window.getOceanMap();
+                    if (map) applyReviewSubMode(map);
+                    return;
+                }
+                _reviewModeTapCount++;
+                clearTimeout(_reviewModeTapTimer);
+                _reviewModeTapTimer = setTimeout(function () { _reviewModeTapCount = 0; }, REVIEW_MODE_TAP_RESET_MS);
+                if (_reviewModeTapCount < REVIEW_MODE_TAP_THRESHOLD) return;
+                _reviewModeTapCount = 0;
+                REVIEW_MODE = true;
+                ensureReviewPanel();
+                if (typeof window._showOceanToast === 'function') {
+                    window._showOceanToast('기본 검수모드(해경·인명 좌표오류) 진입', 'top', 2200);
+                }
+            });
         }
 
         var modeToggle = document.getElementById('ocean-accident-mode-toggle');
@@ -1192,6 +2745,8 @@
                 setMode(map, btn.dataset.mode);
             });
         }
+
+        bindFilterBar(map);
 
         var sourceList = document.getElementById('ocean-accident-source-list');
         if (sourceList) {
@@ -1234,6 +2789,15 @@
         if (state.mode === 'status' && state.source && clusterLayers[state.source]) {
             if (tryHandleClusterClick(map, evt, state.source, clusterLayers[state.source])) return true;
         }
+        // 심판원 검수 레이어(사고정보 15회 연타로 켜짐) — state.source 와 무관하게 항상
+        // 켜져 있으면 클릭을 받는다(사용자 확정 2026-08-25: 병합 여부와 무관하게 심판원
+        // 데이터 전체를 검수 대상으로 삼음).
+        if (TRIBUNAL_REVIEW_ON && tribunalReviewLayer) {
+            if (tryHandleClusterClick(map, evt, 'tribunal', tribunalReviewLayer)) return true;
+        }
+        // 관할서 불일치 검수(20회 연타)는 지도 클릭이 아니라 jurisdiction-walk-panel
+        // 의 확인/변경/삭제 버튼으로 진행하는 워크스루 방식이라 여기서 클릭을 받지
+        // 않는다(2026-08-26 재설계 — 마커를 직접 찾아 클릭하지 않아도 됨).
         if (bubbleOverlay) bubbleOverlay.setPosition(undefined);
         return false;
     };
