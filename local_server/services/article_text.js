@@ -1105,6 +1105,33 @@ function isSelfRef(cell) {
 }
 
 /**
+ * 법령 셀이 **부칙**을 가리키는가. 예: `한국해양교통안전공단법 부칙` · `○○법 시행령 부칙`.
+ * @param {string} law
+ * @returns {boolean}
+ * [연계] → addendaLawName() · loadArticle()(부칙 구간만 보게 한다).
+ */
+function isAddendaCell(law) { return /부\s*칙/.test(String(law || '')); }
+
+/**
+ * 부칙 셀에서 **법령명만** 남긴다(못 남기면 빈 문자열).
+ * 예: addendaLawName('선박교통관제에 관한 법률 부칙(2019.12.3)') → '선박교통관제에 관한 법률'
+ *     addendaLawName('한국해양교통안전공단법 시행령 부칙')       → '한국해양교통안전공단법 시행령'
+ * ⚠`법률 제19807호 부칙`처럼 **법령명 자체가 없는 셀**은 빈 문자열을 돌려준다 — 무엇의 부칙인지
+ *   단정할 수 없으므로 지어내지 않고 그대로 실패시킨다.
+ * @param {string} law
+ * @returns {string}
+ */
+function addendaLawName(law) {
+  let s = String(law || '').replace(/[「」『』]/g, '');
+  s = s.replace(/<[^>]*>/g, ' ');                       // <제11080호,2011.11.14>
+  s = s.replace(/부\s*칙\s*\([^)]*\)/g, ' ');           // 부칙(2019.12.3)
+  s = s.replace(/부\s*칙/g, ' ');                        // 남은 "부칙"
+  s = s.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s || /^(법률|대통령령|총리령|부령)\s*제?\s*\d/.test(s)) return '';   // "법률 제19807호"뿐이면 포기
+  return s;
+}
+
+/**
  * 그 법의 raw 폴더 경로를 찾는다. 체인 행의 법령명(낫표·계층 꼬리말 떼고 재시도 포함)이 우선이고,
  * 그 셀이 법령명 없이 계층·대명사만 적힌 표기(`시행령`·`이 법`)면 그 페이지의 소속 법으로 읽는다.
  * **그 밖의 baseLaw 폴백은 고시(tier==='notice')에만 쓴다** — 고시는 제목만으로 폴더를 못
@@ -1122,6 +1149,15 @@ function isSelfRef(cell) {
 function resolveBase(law, baseLaw, tier) {
   const direct = rawPathOf(law) || rawPathOf(lawNameOnly(law));
   if (direct) return direct;
+  // ★부칙 표기(2026-08-28) — `한국해양교통안전공단법 부칙`·`선박교통관제에 관한 법률 부칙(2019.12.3)`
+  //   처럼 이름 끝에 "부칙"이 붙은 셀은 **그 법의 폴더**를 가리킨다. 부칙은 별도 폴더가 아니라
+  //   그 법 파일(법률.txt 등) 뒤에 붙어 있기 때문이다. 실측 23행이 이 이유로 죽어 있었다.
+  //   꾸밈(`(2019.12.3)`·`<제11080호,2011.11.14>`·`법률 제19807호`)을 떼고 다시 찾는다.
+  const stripped = addendaLawName(law);
+  if (stripped) {
+    const byAddenda = rawPathOf(stripped) || rawPathOf(lawNameOnly(stripped));
+    if (byAddenda) return byAddenda;
+  }
   if (isSelfRef(law)) return rawPathOf(baseLaw) || rawPathOf(lawNameOnly(baseLaw)) || null;
   return tier === 'notice' ? (rawPathOf(baseLaw) || null) : null;
 }
@@ -1429,6 +1465,19 @@ async function loadArticle(q) {
   }
   if (!text) return { ok: false, reason: 'file_not_found' };
 
+  // ★부칙 인용(2026-08-28) — 부칙은 그 법 파일 **뒤쪽**에 붙어 있고, 표기가 법률 본문(`[제10조]`)이
+  //   아니라 고시와 같은 줄머리 `제10조(제목)` 꼴이다. 그래서 ⑴본문 구간을 잘라내고 부칙 구간만
+  //   남기고 ⑵파싱만 고시 규칙으로 한다. `head.tier` 는 손대지 않는다 — 화면 배지는 그 법의
+  //   계층 그대로여야 사용자에게 정직하다.
+  //   ⚠부칙 셀일 때만 들어온다. 본문의 같은 번호 조(제2조 등)와 섞일 일이 없다.
+  let parseTier = tier;
+  if (isAddendaCell(law)) {
+    const cut = text.search(DOC_TAIL_RE);
+    if (cut < 0) return { ok: false, reason: 'article_not_found' };   // 부칙이 없는 파일이다
+    text = text.slice(cut);
+    parseTier = 'notice';
+  }
+
   // focused 는 single 갈래에서만 true 가 될 수 있다(아래 "조 하나 인용" 참고) — 나머지 갈래는
   // 강조 자체를 하지 않으므로 여기서 false 로 못박아 클라이언트가 undefined 를 만나지 않게 한다.
   const head = { ok: true, law, tier, mode: ref.mode, focused: false, addenda: '' };
@@ -1454,7 +1503,7 @@ async function loadArticle(q) {
 
   // ── 범위·전체 인용: 여러 조를 순서대로 나열한다(강조 없음 — 어디가 근거인지 단정할 수 없다) ──
   if (ref.mode !== 'single') {
-    const joList = ref.mode === 'whole' ? listArticleNumbers(text, tier) : expandRange(text, tier, ref);
+    const joList = ref.mode === 'whole' ? listArticleNumbers(text, parseTier) : expandRange(text, parseTier, ref);
     if (!joList.length) return { ok: false, reason: 'article_not_found' };
     const attachments = tier === 'notice'
       ? extractAttachments(text).map(a => ({ key: a.key, title: a.title })) : [];
@@ -1478,7 +1527,7 @@ async function loadArticle(q) {
         refsTruncated: bylCount(found) >= MAX_REFS,
       });
     }
-    const articles = buildArticles(text, tier, joList);
+    const articles = buildArticles(text, parseTier, joList);
     if (!articles.length) return { ok: false, reason: 'article_not_found' };
     const bodyText = articles.map(a => a.paragraphs.map(paraPlainText).join('\n')).join('\n');
     const found = withAtts(collectRefs(bodyText));
@@ -1501,7 +1550,7 @@ async function loadArticle(q) {
   }
 
   // ── 조 하나 인용(기존 동작 그대로): 인용된 항·호를 강조한다 ──
-  const block = extractArticleBlock(text, ref.jo, tier);
+  const block = extractArticleBlock(text, ref.jo, parseTier);
   if (!block) return { ok: false, reason: 'article_not_found' };
 
   const paragraphs = splitParagraphs(cleanBody(block.body));
@@ -1577,4 +1626,7 @@ module.exports = {
   // "이 근거 줄을 누르면 어느 원문 파일을 여는가"를 **생산과 똑같이** 계산하려고 쓴다 —
   // 따로 구현하면 검사와 코드가 어긋난다(L-136).
   resolveBase,
+  // isAddendaCell 도 같은 이유로 내보낸다(L-136) — `○○법 부칙 제2조` 인용을 게이트가
+  // 생산과 똑같이 "부칙 구간에서 찾는다"고 판단해야 숫자가 어긋나지 않는다.
+  isAddendaCell, addendaLawName,
 };

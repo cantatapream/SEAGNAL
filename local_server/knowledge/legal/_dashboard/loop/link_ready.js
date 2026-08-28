@@ -120,8 +120,12 @@ const numsCache = new Map();
  *   칸(`제7~18조`)에는 그 삭제 조가 딸려 들어온다 — 이걸 결함으로 세면 **고칠 수 없는 것을
  *   고치라고 시키는 셈**이다(삭제는 국가가 한 것이지 우리가 틀린 게 아니다).
  */
-function articleNumbersOf(file, tier) {
-  const k = file + '|' + tier;
+// ★addenda=true 면 **부칙 구간만** 본다(2026-08-28). 아래 본문 스캔은 부칙을 일부러 빼는데,
+//   `○○법 부칙 제2조` 같은 인용은 정확히 그 뺀 자리를 가리킨다 — 그래서 갈래를 나눈다.
+//   부칙은 줄머리 `제2조(제목)` 꼴이라 고시와 같은 규칙으로 읽는다(article_text.js 와 같은 판단).
+function articleNumbersOf(file, tier, addenda) {
+  let k = file + '|' + tier;
+  if (addenda) k += '#부칙';
   if (numsCache.has(k)) return numsCache.get(k);
   const out = { live: new Set(), dead: new Set() };
   try {
@@ -139,6 +143,16 @@ function articleNumbersOf(file, tier) {
     //   ⚠고치는 범위를 좁힌다: **찾는 방식만 늘리고(합집합) 줄이지 않는다.** 이 도구는
     //   게이트 계측용이므로 여기서만 보정하고, 챗봇이 쓰는 `article_text.js` 는 건드리지 않는다
     //   (런타임 동작을 바꾸는 것은 별도 판단 사항이다).
+    if (addenda) {
+      // 부칙 구간만 남기고, 그 안의 줄머리 `제N조(` 를 조로 인정한다.
+      const cut = text.search(/(?:^|\n)\s*\[?\s*부\s*칙/);
+      const tail = cut >= 0 ? text.slice(cut) : '';
+      const re2 = /(?:^|\n)제(\d+)조(?:의(\d+))?\(/g;
+      let a2;
+      while ((a2 = re2.exec(tail)) !== null) out.live.add('제' + a2[1] + '조' + (a2[2] ? '의' + a2[2] : ''));
+      numsCache.set(k, out);
+      return out;
+    }
     if (tier !== 'notice') {
       // ⚠**부칙은 빼고 본다**(2026-08-23 적대검증에서 지적).
       //   부칙에는 `제15조(다른 법령의 개정)` 처럼 **다른 법을 고치는 조문**이 적혀 있는데,
@@ -196,7 +210,7 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
         if (ex[k].length < 400) ex[k].push(`${dir}/${f}  |  ${law.slice(0, 40)}`);
         continue;
       }
-      const have = articleNumbersOf(file, tier);
+      const have = articleNumbersOf(file, tier, A.isAddendaCell && A.isAddendaCell(law));
       const miss = jos.filter(j => !have.live.has(j) && !have.dead.has(j));
       if (!miss.length) {
         // 삭제된 조만 걸린 줄은 "열린다" 로 세되 따로 표시해 둔다(고칠 수 있는 결함이 아니다).
