@@ -309,7 +309,11 @@ function readApprovalsLog() {
     throw new Error('배열이 아닙니다');
   } catch (e) {
     const moved = APPROVALS_LOG + '.broken-' + new Date().toISOString().replace(/[:.]/g, '-');
-    try { fs.renameSync(APPROVALS_LOG, moved); } catch (_) { return { log: [], brokenMovedTo: '' }; }
+    // 옮기지 못하면 **빈 배열로 진행하지 않는다.** 그대로 두고 쓰면 다음 쓰기가 이력을 통째로
+    // 덮어쓴다 — 이 함수가 막으려던 바로 그 사고다(2026-08-28 독립 검토에서 발견).
+    try { fs.renameSync(APPROVALS_LOG, moved); }
+    catch (e2) { throw new Error('승인 이력이 깨져 있는데 옆으로 옮기지도 못했습니다(' + e2.message
+      + '). 덮어쓰면 기록이 사라지므로 멈춥니다. 관리자가 ' + APPROVALS_LOG + ' 를 직접 확인해야 합니다.'); }
     console.error('[legal] ⚠승인 이력이 깨져 있어(' + e.message + ') ' + moved + ' 로 옮겼습니다. '
       + '새 파일로 다시 시작하지만 **옛 기록은 그 파일에 남아 있으니 사람이 확인해야 합니다.**');
     return { log: [], brokenMovedTo: moved };
@@ -418,10 +422,22 @@ function finalizeApproval(entry, decision, correctedValue, by) {
       : `- 승인: [x] 승인(${by}, ${dateStr})` + (correctedValue != null && correctedValue !== '' ? ` · 확정값: ${String(correctedValue)}` : '');
   // 해당 엔트리 블록 내부의 "- 승인:" 라인만 교체
   const escId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const blockRe = new RegExp('(###\\s+' + escId + ':[\\s\\S]*?)-\\s*승인:\\s*\\[[ xX]\\][^\\n]*', 'm');
+  // ⚠`[\s\S]*?` 만 쓰면 **자기 블록에 `- 승인:` 줄이 없을 때 다음 항목까지 삼켜**
+  //   남의 승인줄을 덮어쓴다(2026-08-28 독립 검토에서 발견, 실제 대기열에 그런 항목이 2개 있었다).
+  //   그래서 다음 `###` 헤더 앞에서 멈추게 한다.
+  const INBLOCK = '(?:(?!\\n###\\s)[\\s\\S])*?';
+  const blockRe = new RegExp('(###\\s+' + escId + ':' + INBLOCK + ')-\\s*승인:\\s*\\[[ xX]\\][^\\n]*', 'm');
   // 함수 치환: correctedValue/by의 '$' 특수시퀀스($1·$&·$$)가 원장을 손상시키지 않도록
   if (blockRe.test(txt)) txt = txt.replace(blockRe, (mm, p1) => p1 + mark);
-  else return { httpStatus: 500, body: { ok: false, error: '승인 라인 없음: ' + id } };
+  else {
+    // 그 항목에 `- 승인:` 줄이 아예 없는 경우 — 블록 끝에 새로 만들어 넣는다.
+    // (종전에는 500 을 냈고, 그 전에는 다음 항목의 승인줄을 덮어썼다.)
+    // ⚠`$` 는 'm' 플래그에서 **줄 끝마다** 맞아서, 승인줄이 블록 첫 줄 뒤에 끼어들었다
+    //   (2026-08-28 실기동 시험에서 발견). 진짜 문서 끝은 `(?![\s\S])` 로 잡는다.
+    const headRe = new RegExp('(###\\s+' + escId + ':' + INBLOCK + ')(?=\\n###\\s|(?![\\s\\S]))');
+    if (!headRe.test(txt)) return { httpStatus: 404, body: { ok: false, error: '대기열에 그 항목이 없습니다: ' + id } };
+    txt = txt.replace(headRe, (mm, p1) => p1.replace(/\s*$/, '') + '\n' + mark + '\n');
+  }
   writeFileAtomic(REVIEW_QUEUE, txt);
 
   // 2) 승인이면 대상 위키 페이지 canonical 승격 + 확정값 각인
@@ -483,7 +499,8 @@ function appendFindingsAttempt(id, findings, verdict, message, by) {
   const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
   let txt = fs.readFileSync(REVIEW_QUEUE, 'utf8');
   const escId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const blockRe = new RegExp('(###\\s+' + escId + ':[\\s\\S]*?)(-\\s*승인:\\s*\\[[ xX]\\][^\\n]*)', 'm');
+  // 위와 같은 이유로 블록 경계를 넘지 않게 한다(2026-08-28).
+  const blockRe = new RegExp('(###\\s+' + escId + ':(?:(?!\\n###\\s)[\\s\\S])*?)(-\\s*승인:\\s*\\[[ xX]\\][^\\n]*)', 'm');
   const mm = txt.match(blockRe);
   if (!mm) return;
   const n = (mm[1].match(/^-\s*확인\s*시도\(/gm) || []).length + 1;

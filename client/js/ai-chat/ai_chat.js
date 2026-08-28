@@ -718,7 +718,12 @@
     var refresh = host.querySelector('.nrya-rv-refresh');
     if (refresh) refresh.onclick = function () { renderReviewCards(host); };
     var st = host.querySelector('.nrya-rv-status');
-    if (st) st.onchange = function () { reviewState.status = st.value; reviewState.page = 0; renderReviewCards(host); };
+    if (st) st.onchange = function () {
+      // 법 필터를 그대로 두면, 새 목록에 그 법이 없을 때 화면엔 '전체 법'로 보이는데 실제로는
+      // 옛 법이 계속 걸려 0건이 뜬다(2026-08-28 독립 검토에서 발견·실측). 그래서 같이 푼다.
+      reviewState.status = st.value; reviewState.law = ''; reviewState.page = 0;
+      renderReviewCards(host);
+    };
     var sel = host.querySelector('.nrya-rv-law');
     if (sel) sel.onchange = function () { reviewState.law = sel.value; reviewState.page = 0; paintReviews(host); };
     var q = host.querySelector('.nrya-rv-q');
@@ -727,6 +732,25 @@
     if (prev) prev.onclick = function () { reviewState.page--; paintReviews(host); host.scrollIntoView({ block: 'start' }); };
     var next = host.querySelector('.nrya-rv-next');
     if (next) next.onclick = function () { reviewState.page++; paintReviews(host); host.scrollIntoView({ block: 'start' }); };
+  }
+
+  /**
+   * 승인/반려/되돌리기 결과를 **목록 데이터에도** 반영한다.
+   * ⚠종전에는 카드 화면만 바꿔서, 쪽을 넘겼다 오거나 필터를 건드리면 `reviewState.list` 로
+   *   다시 그려지면서 **방금 승인한 카드가 미처리 상태로 되살아났다**(2026-08-28 독립 검토에서
+   *   발견·실측). 되살아난 카드에서 또 누르면 같은 항목을 두 번 처리하게 된다.
+   * @param {string} id 리뷰 항목 번호 @param {'approve'|'reject'|'undo'} decision
+   */
+  function syncReviewState(id, decision) {
+    var it = null;
+    for (var i = 0; i < reviewState.list.length; i++) if (reviewState.list[i].id === id) { it = reviewState.list[i]; break; }
+    if (!it) return;
+    it.approved = (decision === 'approve');
+    // 지금 보고 있는 칸(대기만/승인됨)과 안 맞게 된 항목은 목록에서 뺀다 — 다시 그릴 때 사라진다.
+    if ((reviewState.status === 'pending' && it.approved) ||
+        (reviewState.status === 'approved' && !it.approved)) {
+      reviewState.list.splice(reviewState.list.indexOf(it), 1);
+    }
   }
 
   /**
@@ -1324,6 +1348,27 @@
     function clearErr() { if (!errBox) return; errBox.style.display = 'none'; errBox.textContent = ''; }
     function setBusy(b) { if (okBtn) okBtn.disabled = b; if (noBtn) noBtn.disabled = b; if (undoBtn) undoBtn.disabled = b; }
 
+    /**
+     * 승인 직후 **그 카드 안에** 되돌리기 버튼을 붙인다.
+     * 승인되면 CSS 가 액션 영역을 숨기고(`.nrya-approved .nrya-rv-actions{display:none}`),
+     * 되돌리려면 목록 위 "승인됨"으로 바꿔 167건 중에서 찾아야 했다 — 방금 누른 것을 그 자리에서
+     * 되돌릴 길이 없었다(2026-08-28 독립 검토에서 지적).
+     */
+    function addInlineUndo() {
+      var box = card.querySelector('.nrya-chain');
+      if (!box || box.querySelector('.nrya-btn-undo')) return;
+      var btn = document.createElement('button');
+      btn.className = 'nrya-btn-no nrya-btn-undo';
+      btn.style.marginTop = '8px';
+      btn.textContent = '↩ 방금 승인 되돌리기';
+      btn.onclick = function () {
+        if (!window.confirm('방금 누른 승인을 되돌립니다.\n대상 페이지는 canonical → draft 로 내려가고 확정 각인이 지워집니다.')) return;
+        btn.disabled = true; btn.textContent = '되돌리는 중…';
+        submit('undo');
+      };
+      box.appendChild(btn);
+    }
+
     function submit(decision) {
       clearErr();
       var input = card.querySelector('.nrya-correct-in');
@@ -1338,12 +1383,17 @@
         .then(function (data) {
           if (data._denied) { showErr('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'); setBusy(false); if (okBtn) okBtn.textContent = '✓ 승인'; return; }
           if (!data || !data.ok) { showErr((data && data.error) || '처리에 실패했습니다.'); setBusy(false); if (okBtn) okBtn.textContent = '✓ 승인'; return; }
+          syncReviewState(id, decision);
           if (decision === 'undo') {
             card.classList.remove('nrya-approved');
+            var stx = card.querySelector('.nrya-rv-st');
+            if (stx) { stx.className = 'nrya-rv-st nrya-wait'; stx.textContent = '검증 대기'; }
+            var box = card.querySelector('.nrya-chain');
+            if (box) box.innerHTML = '<div class="nrya-rv-st nrya-wait">↩ 되돌렸습니다 — ' + esc(data.note || '') + '</div>';
             var act = card.querySelector('.nrya-rv-actions');
-            if (act) act.innerHTML = '<span class="nrya-rv-st nrya-wait">↩ 되돌렸습니다 — ' + esc(data.note || '') + '</span>';
+            if (act) act.querySelectorAll('button').forEach(function (x) { x.disabled = false; });
           } else if (decision === 'reject') { markRejected(card, data); }
-          else { markApproved(card, val, data); }
+          else { markApproved(card, val, data); addInlineUndo(); }   // 각인 뒤에 붙여야 안 지워진다
           refreshStats(); // 대기 카운트 배지 갱신
         })
         .catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); setBusy(false); if (okBtn) okBtn.textContent = '✓ 승인'; });
@@ -1374,6 +1424,8 @@
           if (!data || !data.ok) { showErr((data && data.error) || '처리에 실패했습니다.'); setBusy(false); if (okBtn) okBtn.textContent = '✍️ 확인 내용 제출 → AI 재검토'; return; }
           if (data.autoApplied) {
             markApproved(card, '', data);
+            syncReviewState(id, 'approve');
+            addInlineUndo();
           } else {
             setBusy(false);
             if (okBtn) okBtn.textContent = '✍️ 확인 내용 다시 제출';

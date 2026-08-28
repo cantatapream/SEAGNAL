@@ -41,44 +41,107 @@ def load(path):
 
 
 def mark_of(a):
+    """서버(routes/legal.js finalizeApproval)가 찍는 승인줄과 **똑같은 문구**를 만든다.
+    ⚠종전에는 'reject' 만 따로 보고 나머지를 전부 승인으로 처리해서, **되돌리기(undo)를
+      승인으로 뒤집어 반영**했다(2026-08-28 독립 검토에서 발견). 세 결정을 모두 갈라야 한다."""
     day = (a.get('at') or '')[:10]
-    if a.get('decision') == 'reject':
-        return '- 승인: [ ] 반려(%s, %s)' % (a.get('by') or '관리자', day)
+    who = a.get('by') or '관리자'
+    d = a.get('decision')
+    if d == 'undo':
+        return '- 승인: [ ] 대기(되돌림: %s, %s)' % (who, day)
+    if d == 'reject':
+        return '- 승인: [ ] 반려(%s, %s)' % (who, day)
     v = a.get('correctedValue')
     tail = ' · 확정값: %s' % v if v not in (None, '') else ''
-    return '- 승인: [x] 승인(%s, %s)%s' % (a.get('by') or '관리자', day, tail)
+    return '- 승인: [x] 승인(%s, %s)%s' % (who, day, tail)
+
+
+# 블록 안에서만 훑는다 — 다음 `###` 헤더를 넘지 않는다.
+# ⚠종전에는 `[\s\S]*?` 라서, 그 항목에 `- 승인:` 줄이 없으면 **다음 항목의 승인줄까지 삼켜**
+#   남의 승인 기록을 덮어썬다(2026-08-28 독립 검토에서 발견 — 실제 대기열에 그런 항목이 2개 있었다).
+INBLOCK = r'(?:(?!\n###\s)[\s\S])*?'
 
 
 def apply_queue(txt, a):
-    """그 항목 블록 안의 `- 승인:` 줄만 바꾼다. 이미 같으면 그대로 둔다."""
+    """그 항목 블록 안의 `- 승인:` 줄만 바꿈다. 이미 같으면 그대로 둔다.
+    승인줄이 아예 없으면 그 블록 끝에 새로 만들어 넣는다."""
     esc = re.escape(a['id'])
-    rx = re.compile(r'(###\s+' + esc + r':[\s\S]*?)-\s*승인:\s*\[[ xX]\][^\n]*')
-    m = rx.search(txt)
-    if not m:
-        return txt, '항목 없음'
+    rx = re.compile(r'(###\s+' + esc + r':' + INBLOCK + r')-\s*승인:\s*\[[ xX]\][^\n]*')
     new = mark_of(a)
-    if m.group(0).endswith(new):
-        return txt, '이미 반영됨'
-    return rx.sub(lambda mm: mm.group(1) + new, txt, count=1), '반영'
+    m = rx.search(txt)
+    if m:
+        if m.group(0).endswith(new):
+            return txt, '이미 반영됨'
+        return rx.sub(lambda mm: mm.group(1) + new, txt, count=1), '반영'
+    head = re.compile(r'(###\s+' + esc + r':' + INBLOCK + r')(?=\n###\s|$)')
+    if not head.search(txt):
+        return txt, '항목 없음'
+    return head.sub(lambda mm: mm.group(1).rstrip() + '\n' + new + '\n', txt, count=1), '반영'
 
 
-def apply_page(rel, a):
-    p = os.path.join(LEGAL, rel)
-    if not os.path.exists(p):
+def page_path(rel, state):
+    """대기열의 '대상 페이지' 표기를 실제 파일 경로로 푼다.
+    서버(`routes/legal.js` applyToWikiPages)와 **같은 규칙**을 쓴다 — 종전에는 이 처리가 없어
+    `'…시설의귀속.md(신규)'` · `'__정의.md(권한의 위임 절 추가)'` 같은 표기가 전부 '페이지 없음'
+    으로 조용히 넘어갔다(2026-08-28 독립 검토에서 발견).
+      · `wiki/concepts/` 접두 제거   · `.md` 뒤 설명 절단
+      · `__` 로 시작하면 직전 페이지의 법 이름을 물려받는다(멀티페이지 약칭)
+    @param state {'law': 직전 법 이름} — 호출 쪽에서 한 승인 안에서 이어 쓴다
+    """
+    base = re.sub(r'^wiki/concepts/', '', str(rel)).strip()
+    base = re.sub(r'\.md\b[\s\S]*$', '', base).strip()
+    if not base:
+        return ''
+    if base.startswith('__') and state.get('law'):
+        base = state['law'] + base
+    else:
+        state['law'] = base.split('__')[0]
+    fp = os.path.join(LEGAL, 'wiki', 'concepts', base + '.md')
+    root = os.path.realpath(os.path.join(LEGAL, 'wiki', 'concepts')) + os.sep
+    if not os.path.realpath(fp).startswith(root):     # 경로 탈출 봉쇄
+        return ''
+    return fp
+
+
+def stamp_re(review_id):
+    return re.compile(r'^> ✅ 사람검증 확정[^\n]*' + re.escape(review_id) + r'[^\n]*\n?', re.M)
+
+
+def apply_page(rel, a, state):
+    """승인을 페이지에 반영한다 — status 승격 + 확정 각인.
+    ⚠재승인 시 **같은 리뷰의 옛 각인을 먼저 지운다**(서버와 같은 동작). 종전에는 문구가 조금만
+      달라도(날짜·작성자) 각인이 계속 쌓였다(2026-08-28 독립 검토에서 발견)."""
+    p = page_path(rel, state)
+    if not p or not os.path.exists(p):
         return '페이지 없음'
-    t = open(p, encoding='utf-8').read()
+    t = before = open(p, encoding='utf-8').read()
     stamp = '> ✅ 사람검증 확정(%s, %s) · %s' % ((a.get('at') or '')[:10], a.get('by') or '관리자', a['id'])
-    changed = False
-    t2 = re.sub(r'^(status:\s*)(review-pending|draft)\s*$', r'\1canonical', t, count=1, flags=re.M)
-    if t2 != t:
-        t, changed = t2, True
-    if stamp not in t:
-        t += '\n' + stamp + '\n'
-        changed = True
-    if not changed:
+    v = a.get('correctedValue')
+    if v not in (None, ''):
+        stamp += ' · 확정값: **%s**' % v
+    t = re.sub(r'^(status:\s*)(review-pending|draft)\s*$', r'\1canonical', t, count=1, flags=re.M)
+    t = stamp_re(a['id']).sub('', t)
+    t += '\n' + stamp + '\n'
+    if t == before:
         return '이미 반영됨'
     open(p, 'w', encoding='utf-8').write(t)
     return '반영'
+
+
+def undo_page(rel, a, state):
+    """되돌리기를 페이지에 반영한다 — 이 리뷰의 각인만 지우고, 다른 승인의 각인이 남아 있으면
+    canonical 을 유지한다(서버 `undoWikiPages` 와 같은 동작)."""
+    p = page_path(rel, state)
+    if not p or not os.path.exists(p):
+        return '페이지 없음'
+    t = before = open(p, encoding='utf-8').read()
+    t = stamp_re(a['id']).sub('', t)
+    if not re.search(r'^> ✅ 사람검증 확정', t, re.M):
+        t = re.sub(r'^(status:\s*)canonical\s*$', r'\1draft', t, count=1, flags=re.M)
+    if t == before:
+        return '이미 반영됨'
+    open(p, 'w', encoding='utf-8').write(t)
+    return '되돌림'
 
 
 def main():
@@ -89,15 +152,21 @@ def main():
     apply_it = '--apply' in sys.argv[1:]
     rows = load(argv[0])
     txt = open(QUEUE, encoding='utf-8').read()
-    n = {'반영': 0, '이미 반영됨': 0, '항목 없음': 0, '페이지 없음': 0}
+    n = {'반영': 0, '되돌림': 0, '이미 반영됨': 0, '항목 없음': 0, '페이지 없음': 0}
     for a in rows:
         txt, r = apply_queue(txt, a)
         n[r] = n.get(r, 0) + 1
         print('%-34s 대기열 %s' % (a['id'][:34], r))
-        if a.get('decision') != 'approve':
-            continue
+        if a.get('decision') not in ('approve', 'undo'):
+            continue                            # 반려는 페이지를 건드리지 않는다
+        state = {}                              # 한 승인 안에서 `__약칭` 이 물려받을 법 이름
         for rel in (a.get('targetPages') or []):
-            r2 = apply_page(rel, a) if apply_it else '(미리보기)'
+            if not apply_it:
+                r2 = '(미리보기)'
+            elif a.get('decision') == 'undo':
+                r2 = undo_page(rel, a, state)
+            else:
+                r2 = apply_page(rel, a, state)
             n[r2] = n.get(r2, 0) + 1
             print('%-34s   %s → %s' % ('', rel, r2))
     if apply_it:
