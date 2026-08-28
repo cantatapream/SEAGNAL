@@ -204,7 +204,10 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
         now.ok++; continue;
       }
       now.no_article++;
-      if (ex.no_article.length < 40) {
+      // 표본 상한을 40 → 400 으로 올린다(2026-08-28) — 다른 세 갈래는 이미 400 인데 여기만
+      // 40 이라, 185건을 유형별로 나누려 해도 **40건까지밖에 못 봤다.** 진단용 목록일 뿐이라
+      // 숫자(now.no_article)에는 영향이 없다.
+      if (ex.no_article.length < 400) {
         ex.no_article.push(`${dir}/${f}  |  ${law.slice(0, 30)}  |  ${String(row.article).slice(0, 26)}  ← ${miss.slice(0, 4).join('·')}  (${path.basename(file)})`);
       }
     }
