@@ -1414,7 +1414,19 @@ async function loadArticle(q) {
     filePath = base + '/' + TIER_FILE[tier];
   }
 
-  const text = await githubRaw.fetchText(filePath);
+  let text = await githubRaw.fetchText(filePath);
+  // ★발췌본 폴백(2026-08-28) — 타법은 **법 전체가 아니라 인용한 조문만** 받아 두는 것이 확정 방침이라
+  //   그 파일 이름이 `법률_발췌.txt` 다(`add_other_law_article.js`). 그런데 여기는 `법률.txt` 만
+  //   찾고 있어서, **원문이 우리 손에 있는데도 "파일 없음"으로 실패**하고 있었다.
+  //   실측(2026-08-28): `raw/15_관련타부처` 폴더 491개 중 **224개가 발췌본만** 가지고 있다 —
+  //   그 224개 법의 인용은 지금까지 하나도 안 열렸다.
+  //   ⚠순서를 지킨다: 정식 파일이 있으면 그것이 우선이고, 없을 때만 발췌본을 본다.
+  //     발췌본에 그 조가 없으면 아래에서 "그 조 없음"으로 정직하게 갈린다(없는 것을 지어내지 않는다).
+  if (!text && tier !== 'notice') {
+    const alt = base + '/' + TIER_FILE[tier].replace('.txt', '_발췌.txt');
+    const t2 = await githubRaw.fetchText(alt);
+    if (t2) { text = t2; filePath = alt; }
+  }
   if (!text) return { ok: false, reason: 'file_not_found' };
 
   // focused 는 single 갈래에서만 true 가 될 수 있다(아래 "조 하나 인용" 참고) — 나머지 갈래는

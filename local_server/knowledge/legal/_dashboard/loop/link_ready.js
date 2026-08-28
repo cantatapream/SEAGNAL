@@ -103,7 +103,13 @@ function fileOf(baseRel, tier, law) {
   }
   const f = TIER_FILE[tier] || TIER_FILE.law;
   const p = path.join(dir, f);
-  return fs.existsSync(p) ? p : null;
+  if (fs.existsSync(p)) return p;
+  // ★발췌본 폴백(2026-08-28) — 생산 코드(`article_text.js`)와 **같은 순서**로 본다.
+  //   타법은 인용한 조문만 받아 두는 것이 확정 방침이라 파일 이름이 `법률_발췌.txt` 다.
+  //   이 검사가 그걸 몰라서 **원문이 손에 있는데도 "계층 파일 없음"으로 세고 있었다**
+  //   (실측: raw/15_관련타부처 491개 폴더 중 224개가 발췌본만 가진다).
+  const alt = path.join(dir, f.replace('.txt', '_발췌.txt'));
+  return fs.existsSync(alt) ? alt : null;
 }
 
 const numsCache = new Map();

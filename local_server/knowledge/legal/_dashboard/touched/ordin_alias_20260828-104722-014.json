@@ -1,0 +1,7 @@
+{
+ "script": "ordin_alias",
+ "stamp": "20260828-104722-014",
+ "files": [
+  "local_server/knowledge/legal/_dashboard/law_raw_paths.json"
+ ]
+}
