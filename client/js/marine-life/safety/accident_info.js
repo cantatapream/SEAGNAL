@@ -20,7 +20,8 @@
  *  - 사용하는 파일 : js/shared/utils/accident_codes.js(코드값→한글 라벨,
  *                    ACCIDENT_TYPE_ICONS 마커 이미지 경로, ACCIDENT_TYPE_EXCLUDED
  *                    표출 제외 목록), client/images/accident_markers/*.png,
- *                    OpenLayers(ol.*)
+ *                    OpenLayers(ol.*), assets/vendor/chartjs/chart.umd.min.js
+ *                    (분석 뷰 차트 — admin_survey.js 와 같은 Chart.js, 2026-08-29)
  *  - 서버 API      : GET /accident_ships_hk.json · /accident_persons.json
  *                    (정적, 소스 버튼을 처음 누를 때만 지연 로드 — hazard_rocks.js
  *                    와 동일한 절약 방식)
@@ -507,6 +508,31 @@
  *   반영 안 함, 28건 전부 완전 일치 확인). 34,962 → 34,934건. 삭제로 인덱스가 또
  *   밀려 build_jurisdiction_mismatch_review.js·build_jurisdiction_2025_review.js
  *   둘 다 재실행.
+ * [분석 뷰 — 년/월/일 드릴다운 + 새 분석축 구현(2026-08-29)] 2026-08-25 에 사용자가
+ *   "분석 화면 그래프를 꺾은선으로, 년도별→월별→일별로 세분화하고 싶다"고 했다가
+ *   "아직 수정하지말고, 같이 고민해보자"로 브레인스토밍만 하고 멈췄던 항목 — 그 뒤
+ *   심판원 데이터 통합·관할서 검수로 화제가 넘어가며 그대로 미착수 상태였던 걸
+ *   2026-08-29 재확인 요청으로 발견, 이번에 실제 구현.
+ *   - 격자 클릭 시 뜨는 통계 바텀시트(#accident-stats-sheet)에 "분석 뷰" 탭 5개를
+ *     새로 얹음: 연도별 추이(Chart.js line, 점 클릭 시 연도→월→일로 드릴다운,
+ *     #accident-trend-back 으로 한 단계씩 되돌아감) · 시간대별(hk 전용, 0~23시
+ *     line, accidentIsDaytimeFromHM 로 주/야간 점 색만 구분) · 요일별(bar) ·
+ *     관할서별(가로 bar, 최대 21개 다 보여줌 — 기존 사고발생상세 tabs 의
+ *     "상위 6개만" 관례와 달리 자르지 않음) · 특보발효비율(doughnut).
+ *   - 기존 CSS 스파크라인(.accident-spark)·주야간 2-바(.accident-daynight)는
+ *     이번 시간대별 line 차트가 더 세밀한 상위호환이라 완전히 대체 — 죽은 CSS로
+ *     남기지 않고 그 자리에서 삭제(admin_survey.js 의 Chart.js 사용 패턴 그대로
+ *     재사용 — new Chart(canvas,...), 다시 그리기 전 반드시 destroy).
+ *   - 브레인스토밍 후보 중 "월별 캘린더 히트맵"은 뺐다 — 연도별 추이가 이미 월별·
+ *     일별까지 드릴다운되므로 별도 차트 타입(Chart.js 기본 미지원, 플러그인 필요)
+ *     을 새로 들이는 비용 대비 얻는 정보가 크지 않다고 판단(더 단순한 방법이
+ *     있으면 말한다는 원칙). "인명피해 추이"도 별도 축을 안 만들었다 — person
+ *     소스 자체가 인명피해 기록이라 기존 연도별 추이 탭이 person 을 볼 때 이미
+ *     그 역할을 한다(hk 격자와 person 격자를 지리적으로 교차 대조하는 건 별개의
+ *     큰 작업이라 이번 스코프에서 제외, 필요하면 다음에 별도로).
+ *   - "바텀시트 자체 필터 탭" 브레인스토밍은 격자별 데이터를 다시 필터링하는
+ *     기능이 아니라, 위 5개 분석 뷰를 전환하는 탭으로 구현(사고발생상세 탭과
+ *     같은 .accident-detail-tab 스타일 재사용, accident-view-tab 클래스로만 구분).
  * ============================================================================
  */
 
@@ -536,6 +562,9 @@
     var _activeDetailTab = {};        // source key -> 현재 선택된 "사고발생상세" 탭
     var _statsKey = null;             // 통계 시트에 지금 표시 중인 source key
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
+    var _statsView = {};              // source key -> 현재 선택된 "분석 뷰" 탭('trend'|'hourly'|'weekday'|'org'|'warn')
+    var _trendDrill = null;           // 연도별 추이 드릴다운: null(연도별) | {year} | {year,month}
+    var _statsCharts = [];            // 지금 그려진 Chart.js 인스턴스 — 다시 그리기 전 반드시 destroy
 
     /**
      * [필터 — 사고유형/관할서/시간대/계절/특보발표여부/선박용도/톤수(2026-08-24~25
@@ -1998,31 +2027,109 @@
     }
 
     // ── 통계 바텀시트 ───────────────────────────────────────────────────────
-    function yearOf(key, row) {
+    function yearOf(row) {
         var raw = row[2]; // OCRN_YMD(문자열)
         return (raw && String(raw).length >= 4) ? parseInt(String(raw).slice(0, 4), 10) : null;
     }
-
-    function yearHistogram(key, members) {
-        var counts = {};
-        members.forEach(function (f) {
-            var y = yearOf(key, f.get('row'));
-            if (!y) return;
-            counts[y] = (counts[y] || 0) + 1;
-        });
-        return Object.keys(counts).map(Number).sort(function (a, b) { return a - b; })
-            .map(function (y) { return [y, counts[y]]; });
+    function monthOf(row) {
+        var raw = String(row[2] || '');
+        return raw.length >= 6 ? parseInt(raw.slice(4, 6), 10) : null;
+    }
+    function dayOfMonthOf(row) {
+        var raw = String(row[2] || '');
+        return raw.length >= 8 ? parseInt(raw.slice(6, 8), 10) : null;
     }
 
-    /** person 은 발생 시각 컬럼이 없어 주/야간을 집계할 수 없다 — null 반환. */
-    function dayNightCounts(key, members) {
-        if (key === 'person') return null;
-        var day = 0, night = 0;
+    var WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
+    /** row[2](ymd)를 요일로 — Date.getDay()는 0=일이라 0=월로 회전. 형식이 이상하면 null. */
+    function weekdayOf(row) {
+        var raw = String(row[2] || '');
+        if (raw.length !== 8) return null;
+        var d = new Date(Number(raw.slice(0, 4)), Number(raw.slice(4, 6)) - 1, Number(raw.slice(6, 8)));
+        return isNaN(d.getTime()) ? null : (d.getDay() + 6) % 7;
+    }
+
+    /** hk 의 OCRN_HM("6:05" 형식)에서 시(0~23)만 뽑는다. person 은 이 컬럼이 없어 null. */
+    function hourOf(row) {
+        var hm = row[3];
+        if (hm == null) return null;
+        var h = parseInt(String(hm).split(':')[0], 10);
+        return isNaN(h) ? null : h;
+    }
+
+    /**
+     * "연도별 사고현황" 드릴다운 차트 데이터(2026-08-29 — 예전에 "년도별 월별
+     * 일별로 그래프가 세분화되도록" 요청했던 부분을 이번에 반영). drill 이 없으면
+     * 연도별, {year} 면 그 해의 월별, {year,month} 면 그 달의 일별로 좁혀 집계.
+     * [연계] renderActiveChart 의 line 차트 onClick 이 drill 을 한 단계씩 넣는다.
+     */
+    function trendBuckets(members, drill) {
+        var counts = {};
         members.forEach(function (f) {
             var row = f.get('row');
-            if (accidentIsDaytimeFromHM(row[3])) day++; else night++;
+            var y = yearOf(row);
+            if (!y) return;
+            if (!drill) { counts[y] = (counts[y] || 0) + 1; return; }
+            if (y !== drill.year) return;
+            if (!drill.month) {
+                var m = monthOf(row);
+                if (m) counts[m] = (counts[m] || 0) + 1;
+                return;
+            }
+            if (monthOf(row) !== drill.month) return;
+            var d = dayOfMonthOf(row);
+            if (d) counts[d] = (counts[d] || 0) + 1;
         });
-        return { day: day, night: night };
+        var keys = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
+        var unit = !drill ? '년' : (!drill.month ? '월' : '일');
+        return {
+            labels: keys.map(function (k) { return k + unit; }),
+            values: keys.map(function (k) { return counts[k]; }),
+            keys: keys
+        };
+    }
+
+    /** 시간대별(0~23시) 사고건수 — hk 전용(person 은 발생시각 컬럼이 없음). */
+    function hourlyBuckets(members) {
+        var counts = new Array(24).fill(0);
+        members.forEach(function (f) {
+            var h = hourOf(f.get('row'));
+            if (h != null) counts[h]++;
+        });
+        return counts;
+    }
+
+    /** 요일별(월~일) 사고건수. */
+    function weekdayBuckets(members) {
+        var counts = new Array(7).fill(0);
+        members.forEach(function (f) {
+            var w = weekdayOf(f.get('row'));
+            if (w != null) counts[w]++;
+        });
+        return counts;
+    }
+
+    /** 특보(태풍·풍랑·강풍 등) 발효 중이었던 사고 비율 — 기존 특보발표여부 필터와
+     * 같은 WARN_FLAGS_POS_IDX 플래그를 재사용(2026-08-24 필터 신설분). */
+    function warnBuckets(key, members) {
+        var active = 0, inactive = 0;
+        members.forEach(function (f) {
+            var flags = f.get('row')[WARN_FLAGS_POS_IDX[key]] || [];
+            if (flags.length) active++; else inactive++;
+        });
+        return { active: active, inactive: inactive };
+    }
+
+    /** 소스별 "분석 뷰" 탭 구성 — hourly 는 hk 에만(person 은 발생시각 없음). */
+    function statsViewsFor(key) {
+        var views = [
+            { id: 'trend', label: '연도별 추이' },
+            { id: 'weekday', label: '요일별' },
+            { id: 'org', label: '관할서별' },
+            { id: 'warn', label: '특보발효' }
+        ];
+        if (key === 'hk') views.splice(1, 0, { id: 'hourly', label: '시간대별' });
+        return views;
     }
 
     /** "사고발생상세" 탭 구성 — 소스마다 실제 CSV 에 있는 컬럼만큼만 보여준다. */
@@ -2031,14 +2138,24 @@
         return ['사고유형'];
     }
 
-    function aggregateCounts(members, getter, labelTable) {
+    /** members 를 getter(row)→labelTable 라벨로 묶어 [라벨,건수] 목록(건수 내림차순)으로. */
+    function countByLabel(members, getter, labelTable) {
         var counts = {};
         members.forEach(function (f) {
             var label = accidentLabel(labelTable, getter(f.get('row')));
             counts[label] = (counts[label] || 0) + 1;
         });
         return Object.keys(counts).map(function (label) { return [label, counts[label]]; })
-            .sort(function (a, b) { return b[1] - a[1]; }).slice(0, 6); // 상위 6개만
+            .sort(function (a, b) { return b[1] - a[1]; });
+    }
+
+    function aggregateCounts(members, getter, labelTable) {
+        return countByLabel(members, getter, labelTable).slice(0, 6); // 상위 6개만
+    }
+
+    /** "관할서별" 분석 뷰 — 상위 6개로 자르지 않고 전부 보여준다(최대 21개 관할서). */
+    function orgBuckets(key, members) {
+        return countByLabel(members, function (r) { return r[ORG_POS_IDX[key]]; }, ACCIDENT_ORG_LABELS);
     }
 
     function detailDataFor(key, tab, members) {
@@ -2050,29 +2167,36 @@
         return aggregateCounts(members, function (r) { return r[4]; }, ACCIDENT_TYPE_LABELS);
     }
 
-    function buildStatsHtml(key, members) {
-        var years = yearHistogram(key, members);
-        var maxY = Math.max.apply(null, years.map(function (y) { return y[1]; }).concat([1]));
-        var sparkBars = years.map(function (y) {
-            return '<i style="height:' + Math.max(6, Math.round(y[1] / maxY * 100)) + '%" title="' + y[0] + ': ' + y[1] + '건"></i>';
+    /**
+     * "분석 뷰" 탭(연도별 추이·시간대별·요일별·관할서별·특보발효) HTML —
+     * 실제 Chart.js 인스턴스는 body.innerHTML 반영 후 renderActiveChart()가 그린다
+     * (canvas 는 DOM에 붙어 있어야 Chart.js가 그릴 수 있음).
+     */
+    function buildChartViewHtml(key) {
+        var views = statsViewsFor(key);
+        if (!_statsView[key] || !views.some(function (v) { return v.id === _statsView[key]; })) _statsView[key] = 'trend';
+        var activeView = _statsView[key];
+        var viewTabsHtml = views.map(function (v) {
+            return '<button class="accident-detail-tab accident-view-tab' + (v.id === activeView ? ' active' : '') +
+                '" data-view="' + v.id + '">' + v.label + '</button>';
         }).join('');
-        var yearLabel = years.length ? (years[0][0] + '~' + years[years.length - 1][0]) : '-';
 
-        var dn = dayNightCounts(key, members);
-        var dnHtml;
-        if (dn) {
-            var total = (dn.day + dn.night) || 1;
-            var dayPct = Math.round(dn.day / total * 100);
-            dnHtml = '<div class="accident-stats-block"><div class="accident-stats-label">주/야간별 (06~18시 근사)</div>' +
-                '<div class="accident-daynight">' +
-                '<div class="accident-dn-bar"><div class="track"><div class="fill day" style="width:' + dayPct + '%"></div></div><div class="meta">주간 <b>' + dn.day + '</b></div></div>' +
-                '<div class="accident-dn-bar"><div class="track"><div class="fill night" style="width:' + (100 - dayPct) + '%"></div></div><div class="meta">야간 <b>' + dn.night + '</b></div></div>' +
-                '</div></div>';
-        } else {
-            dnHtml = '<div class="accident-stats-block"><div class="accident-stats-label">주/야간별</div>' +
-                '<div class="accident-stats-empty">이 데이터엔 발생 시각 정보가 없습니다.</div></div>';
+        var backHtml = '';
+        if (activeView === 'trend' && _trendDrill) {
+            var crumb = _trendDrill.year + '년' + (_trendDrill.month ? ' ' + _trendDrill.month + '월' : '');
+            backHtml = '<button class="accident-trend-back" id="accident-trend-back">◀ ' + crumb + ' — 전체로</button>';
         }
 
+        return '<div class="accident-stats-block">' +
+            '<div class="accident-stats-label">분석 뷰</div>' +
+            '<div class="accident-detail-tabs">' + viewTabsHtml + '</div>' +
+            backHtml +
+            '<div class="accident-chart-wrap" id="accident-chart-wrap"><canvas id="accident-stats-chart"></canvas></div>' +
+            '<div class="accident-chart-caption" id="accident-chart-caption"></div>' +
+            '</div>';
+    }
+
+    function buildStatsHtml(key, members) {
         var tabs = detailTabsFor(key);
         if (!_activeDetailTab[key] || tabs.indexOf(_activeDetailTab[key]) === -1) _activeDetailTab[key] = tabs[0];
         var activeTab = _activeDetailTab[key];
@@ -2088,17 +2212,127 @@
         }).join('');
 
         return '<h3>그리드형 사고분석 <span class="cellcount">' + members.length + '건</span></h3>' +
-            '<div class="accident-stats-block"><div class="accident-stats-label">연도별 사고현황 (' + yearLabel + ')</div>' +
-            '<div class="accident-spark">' + sparkBars + '</div></div>' +
-            dnHtml +
+            buildChartViewHtml(key) +
             '<div class="accident-stats-block"><div class="accident-stats-label">사고발생상세</div>' +
             '<div class="accident-detail-tabs">' + tabsHtml + '</div>' + barsHtml + '</div>';
+    }
+
+    /** 지금 그려진 Chart.js 인스턴스를 전부 정리 — 다시 그리기 전/시트 닫을 때 필수
+     * (안 하면 같은 canvas id 재사용 시 이전 차트가 겹쳐 그려지거나 누수됨). */
+    function destroyStatsCharts() {
+        _statsCharts.forEach(function (c) { c.destroy(); });
+        _statsCharts = [];
+    }
+
+    var CHART_COLOR = { blue: '#448aff', yellow: '#ffd740', green: '#69f0ae', red: '#ff5252' };
+    var CHART_AXIS_OPTS = {
+        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { color: '#64748b', precision: 0 }, grid: { color: 'rgba(255,255,255,0.06)' } }
+    };
+
+    /** 지금 선택된 "분석 뷰" 탭에 맞는 Chart.js 차트 하나를 그린다(그 전에 이전 걸 destroy). */
+    function renderActiveChart(key, members) {
+        destroyStatsCharts();
+        var canvas = document.getElementById('accident-stats-chart');
+        var wrap = document.getElementById('accident-chart-wrap');
+        var caption = document.getElementById('accident-chart-caption');
+        if (!canvas || !wrap) return;
+        var view = _statsView[key] || 'trend';
+        if (caption) caption.textContent = '';
+        wrap.style.height = '200px';
+
+        if (view === 'trend') {
+            var t = trendBuckets(members, _trendDrill);
+            if (!t.labels.length && caption) caption.textContent = '표시할 데이터가 없습니다.';
+            _statsCharts.push(new Chart(canvas, {
+                type: 'line',
+                data: { labels: t.labels, datasets: [{
+                    data: t.values, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.18)',
+                    fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: CHART_COLOR.blue
+                }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: CHART_AXIS_OPTS,
+                    onClick: function (evt, elements) {
+                        if (!elements.length) return;
+                        var k = t.keys[elements[0].index];
+                        if (!_trendDrill) _trendDrill = { year: k };
+                        else if (!_trendDrill.month) _trendDrill = { year: _trendDrill.year, month: k };
+                        else return; // 일별까지 가면 더 드릴다운 없음
+                        renderStatsBody();
+                    }
+                }
+            }));
+            return;
+        }
+
+        if (view === 'hourly') {
+            var hours = hourlyBuckets(members);
+            var pointColors = hours.map(function (_, h) {
+                return accidentIsDaytimeFromHM(h + ':00') ? CHART_COLOR.yellow : CHART_COLOR.blue;
+            });
+            var totalDay = 0, totalNight = 0;
+            hours.forEach(function (n, h) { if (accidentIsDaytimeFromHM(h + ':00')) totalDay += n; else totalNight += n; });
+            if (caption) caption.textContent = '주간(' + ACCIDENT_DAY_START_HOUR + '~' + ACCIDENT_DAY_END_HOUR + '시) ' + totalDay + '건 · 야간 ' + totalNight + '건';
+            _statsCharts.push(new Chart(canvas, {
+                type: 'line',
+                data: { labels: hours.map(function (_, h) { return h + '시'; }), datasets: [{
+                    data: hours, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.12)',
+                    fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: pointColors
+                }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8', font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } },
+                        y: CHART_AXIS_OPTS.y
+                    }
+                }
+            }));
+            return;
+        }
+
+        if (view === 'weekday') {
+            var wk = weekdayBuckets(members);
+            _statsCharts.push(new Chart(canvas, {
+                type: 'bar',
+                data: { labels: WEEKDAY_LABELS, datasets: [{ data: wk, backgroundColor: CHART_COLOR.green, borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: CHART_AXIS_OPTS }
+            }));
+            return;
+        }
+
+        if (view === 'org') {
+            var org = orgBuckets(key, members);
+            wrap.style.height = Math.max(200, org.length * 20) + 'px'; // 최대 21개 관할서 — 가로막대라 세로로 늘림
+            _statsCharts.push(new Chart(canvas, {
+                type: 'bar',
+                data: { labels: org.map(function (o) { return o[0]; }), datasets: [{ data: org.map(function (o) { return o[1]; }), backgroundColor: CHART_COLOR.blue, borderRadius: 4 }] },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { color: '#64748b', precision: 0 }, grid: { color: 'rgba(255,255,255,0.06)' } },
+                        y: { ticks: { color: '#cbd5e1', font: { size: 10 } }, grid: { display: false } }
+                    }
+                }
+            }));
+            return;
+        }
+
+        if (view === 'warn') {
+            var w = warnBuckets(key, members);
+            _statsCharts.push(new Chart(canvas, {
+                type: 'doughnut',
+                data: { labels: ['특보 중', '평시'], datasets: [{ data: [w.active, w.inactive], backgroundColor: [CHART_COLOR.red, 'rgba(255,255,255,0.12)'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } } } }
+            }));
+        }
     }
 
     function renderStatsBody() {
         var body = document.getElementById('accident-stats-body');
         if (!body || !_statsKey || !_statsMembers) return;
         body.innerHTML = buildStatsHtml(_statsKey, _statsMembers);
+        renderActiveChart(_statsKey, _statsMembers);
     }
 
     function openStatsSheet(key, members) {
@@ -2106,6 +2340,7 @@
         if (!sheet) return;
         _statsKey = key;
         _statsMembers = members;
+        _trendDrill = null; // 새 셀을 열 때마다 드릴다운 상태 초기화
         renderStatsBody();
         sheet.classList.add('open');
     }
@@ -2113,6 +2348,7 @@
     function closeStatsSheet() {
         var sheet = document.getElementById('accident-stats-sheet');
         if (sheet) sheet.classList.remove('open');
+        destroyStatsCharts();
         _statsKey = null;
         _statsMembers = null;
     }
@@ -2785,13 +3021,28 @@
         var closeBtn = document.getElementById('accident-stats-close');
         if (closeBtn) closeBtn.addEventListener('click', closeStatsSheet);
 
-        // "사고발생상세" 탭 전환 — 바텀시트 본문은 매번 다시 그려지므로 delegation.
+        // "사고발생상세" 탭·"분석 뷰" 탭·드릴다운 뒤로가기 — 바텀시트 본문은 매번
+        // 다시 그려지므로 delegation(2026-08-29 분석 뷰·뒤로가기 추가).
         var statsBody = document.getElementById('accident-stats-body');
         if (statsBody) {
             statsBody.addEventListener('click', function (e) {
-                var btn = e.target.closest('.accident-detail-tab');
-                if (!btn || !_statsKey) return;
-                _activeDetailTab[_statsKey] = btn.dataset.tab;
+                if (!_statsKey) return;
+                var viewBtn = e.target.closest('.accident-view-tab');
+                if (viewBtn) {
+                    _statsView[_statsKey] = viewBtn.dataset.view;
+                    _trendDrill = null; // 뷰를 바꾸면 이전 뷰의 드릴다운 상태는 무효
+                    renderStatsBody();
+                    return;
+                }
+                var backBtn = e.target.closest('#accident-trend-back');
+                if (backBtn) {
+                    _trendDrill = (_trendDrill && _trendDrill.month) ? { year: _trendDrill.year } : null;
+                    renderStatsBody();
+                    return;
+                }
+                var detailBtn = e.target.closest('.accident-detail-tab');
+                if (!detailBtn) return;
+                _activeDetailTab[_statsKey] = detailBtn.dataset.tab;
                 renderStatsBody();
             });
         }
