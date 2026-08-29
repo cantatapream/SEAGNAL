@@ -353,5 +353,83 @@ W('  관광기본법에 "관광진흥계획"이라는 문언이 없어 명칭 �
 W('- 큐에 등록된 314줄 중 3줄은 같은 ID가 두 번 등록된 것이라, 실제 항목은 311건이다.')
 W('')
 
-path = os.path.join(os.path.dirname(HERE), 'REVIEW_DECISION_DOC.md')
 print('\n'.join(out))
+
+# ── 분할 저장 ──────────────────────────────────────────────────────────
+# 왜: 한 파일에 다 넣으니 2,700줄·334KB 가 되어 **뷰어에서 열기 어렵다**는 지적을 받았다
+#     (2026-08-29 사용자). 결정용 문서는 읽으라고 만든 것이므로 열리는 크기로 나눈다.
+#     색인 한 장 + 갈래별 네 장. 색인의 링크를 눌러 필요한 갈래만 연다.
+import re as _re
+import io
+
+DOCDIR = os.path.dirname(HERE)                      # _dashboard/
+SUBDIR = os.path.join(DOCDIR, 'review_decision')    # 갈래별 파일이 들어갈 곳
+os.makedirs(SUBDIR, exist_ok=True)
+
+full = '\n'.join(out)
+
+# "## 0." ~ "## 4." 로 시작하는 갈래 절을 잘라낸다(그 앞은 색인에 남긴다).
+SPLITS = [
+    ('0', '0. 이미 해소됨', 'resolved.md'),
+    ('1', '1. 사실확인형', 'fact.md'),
+    ('2', '2. 방침결정형', 'policy.md'),
+    ('3', '3. 수집공백형', 'gap.md'),
+    ('4', '4. 분류 미상', 'unknown.md'),
+]
+lines = full.split('\n')
+starts = {}
+for i, ln in enumerate(lines):
+    for key, head, _ in SPLITS:
+        if ln.startswith('## ' + head):
+            starts.setdefault(key, i)
+tail_i = next((i for i, ln in enumerate(lines) if ln.startswith('## 이 문서를 만든 방법')), len(lines))
+
+HEADER = ('<!-- 이 파일은 assemble.py 가 만든다. 직접 고치지 말 것 — 다시 만들면 덮어쓴다. -->\n'
+          '[← 색인으로](../REVIEW_DECISION_DOC.md)\n\n')
+PART_MAX = 45          # 한 파일에 담을 항목 수 상한. 넘으면 나눈다.
+
+def _write(fname, title, body_lines, nav=''):
+    io.open(os.path.join(SUBDIR, fname), 'w', encoding='utf-8').write(
+        HEADER + (nav + '\n\n' if nav else '') + '\n'.join(body_lines).rstrip() + '\n')
+
+made = []                                   # (표시이름, 파일명, 건수)
+ordered = [(k, h, f) for k, h, f in SPLITS if k in starts]
+for n, (key, head, fname) in enumerate(ordered):
+    beg = starts[key]
+    end = starts[ordered[n + 1][0]] if n + 1 < len(ordered) else tail_i
+    seg = lines[beg:end]
+    # 항목 머리(`### `)가 있는 갈래는 항목 단위로, 표로만 된 갈래(0번)는 통째로 쓴다.
+    idxs = [i for i, ln in enumerate(seg) if ln.startswith('### ')]
+    if not idxs:                            # 표 한 장짜리 — 줄 수로 건수를 센다
+        cnt = sum(1 for ln in seg if ln.startswith('| `REVIEW'))
+        _write(fname, head, seg)
+        made.append((head, fname, cnt)); continue
+    if len(idxs) <= PART_MAX:
+        _write(fname, head, seg)
+        made.append((head, fname, len(idxs))); continue
+    # 너무 크다 — 항목 PART_MAX 개씩 나눈다. 앞머리(설명)는 각 조각에 붙인다.
+    intro, chunks = seg[:idxs[0]], []
+    for a in range(0, len(idxs), PART_MAX):
+        s0 = idxs[a]
+        s1 = idxs[a + PART_MAX] if a + PART_MAX < len(idxs) else len(seg)
+        chunks.append((seg[s0:s1], min(PART_MAX, len(idxs) - a)))
+    stem = fname[:-3]
+    names = ['%s%d.md' % (stem, i + 1) for i in range(len(chunks))]
+    for i, (body, cnt) in enumerate(chunks):
+        nav = '**' + head + '** — ' + str(len(chunks)) + '조각 중 ' + str(i + 1) + '번째 · ' + \
+              ' · '.join(('**%d**' % (j + 1)) if j == i else '[%d](%s)' % (j + 1, names[j])
+                         for j in range(len(chunks)))
+        _write(names[i], head, intro + body, nav)
+        made.append(('%s (%d/%d)' % (head, i + 1, len(chunks)), names[i], cnt))
+
+# 색인 = 갈래 절을 뺀 나머지 + 링크 표
+idx = lines[:starts[ordered[0][0]]] + ['## 갈래별 문서 — 필요한 것만 열어 보면 된다', '']
+idx += ['| 갈래 | 항목 수 | 파일 |', '|---|---:|---|']
+for head, fname, cnt in made:
+    idx.append('| %s | %d건 | [%s](review_decision/%s) |' % (head, cnt, fname, fname))
+idx += ['', '> 한 파일에 다 넣었더니 2,700줄이 넘어 열기 어려웠다. 갈래별로 나눴다.', '']
+idx += lines[tail_i:]
+io.open(os.path.join(DOCDIR, 'REVIEW_DECISION_DOC.md'), 'w', encoding='utf-8').write('\n'.join(idx) + '\n')
+print('\n색인: _dashboard/REVIEW_DECISION_DOC.md')
+for head, fname, cnt in made:
+    print('  %-16s %4d건  review_decision/%s' % (head, cnt, fname))
