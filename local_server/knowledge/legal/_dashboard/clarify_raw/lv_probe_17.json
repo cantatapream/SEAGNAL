@@ -1,0 +1,79 @@
+{
+ "query": "요즘 뉴스에 \"해양신산업\"이라는 말 나오던데 이 법에 있는 거예요?",
+ "base": "요즘 뉴스에 \"해양신산업\"이라는 말 나오던데 이 법에 있는 거예요?",
+ "ctx": null,
+ "calls": 1,
+ "log": [
+  {
+   "q": "요즘 뉴스에 \"해양신산업\"이라는 말 나오던데 이 법에 있는 거예요?",
+   "clarify": true
+  }
+ ],
+ "last": {
+  "clarify": {
+   "question": "저는 「해양신산업이 법에 명시되어 있는지 알고 싶다」로 이해했는데, 맞나요?",
+   "options": [
+    {
+     "label": "네, 맞아요",
+     "hint": "이 뜻이 맞으면 그대로 답변을 만들어 드려요",
+     "ctx": {
+      "uc": {
+       "rounds": 0,
+       "state": "confirmed",
+       "restate": "해양신산업이 법에 명시되어 있는지 알고 싶다"
+      }
+     }
+    },
+    {
+     "label": "아니요, 다시 설명할게요",
+     "hint": "어떤 상황인지 조금 더 구체적으로 적어 주세요",
+     "ctx": {
+      "uc": {
+       "rounds": 1,
+       "state": "none"
+      }
+     },
+     "act": "ask"
+    }
+   ]
+  }
+ },
+ "lastDone": {
+  "type": "done",
+  "ok": true,
+  "query": "요즘 뉴스에 \"해양신산업\"이라는 말 나오던데 이 법에 있는 거예요?",
+  "canonicalOnly": true,
+  "answer": "제가 이해한 게 맞는지 먼저 확인할게요.",
+  "sources": [],
+  "citationChain": [],
+  "note": "질문을 확인하고 있어요",
+  "clarify": {
+   "question": "저는 「해양신산업이 법에 명시되어 있는지 알고 싶다」로 이해했는데, 맞나요?",
+   "options": [
+    {
+     "label": "네, 맞아요",
+     "hint": "이 뜻이 맞으면 그대로 답변을 만들어 드려요",
+     "ctx": {
+      "uc": {
+       "rounds": 0,
+       "state": "confirmed",
+       "restate": "해양신산업이 법에 명시되어 있는지 알고 싶다"
+      }
+     }
+    },
+    {
+     "label": "아니요, 다시 설명할게요",
+     "hint": "어떤 상황인지 조금 더 구체적으로 적어 주세요",
+     "ctx": {
+      "uc": {
+       "rounds": 1,
+       "state": "none"
+      }
+     },
+     "act": "ask"
+    }
+   ]
+  },
+  "confirmKind": "understand"
+ }
+}
