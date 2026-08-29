@@ -563,14 +563,43 @@ function extractCitationChain(body) {
       if (!law || law === '—' || law === '-') continue;
       if (/^[〃″"]+$/.test(law.replace(/\s+/g, '')) && prevLaw) law = prevLaw;
       prevLaw = law;
+      const article = iArt >= 0 ? plainCell(c[iArt]) : '';
+      const effectiveDate = iEff >= 0 ? plainCell(c[iEff]) : '';
+      const gist = iGist >= 0 ? plainCell(c[iGist]) : '';
+      const step = iStep >= 0 ? plainCell(c[iStep]) : '';
+      // ★위임 화살표를 따라간다(2026-08-29) — `제29조의2 → 시행령 제18조의2` 처럼 한 칸이
+      //   **두 계층**을 가리키는 경우가 있다. 종전에는 칸 전체를 법령 이름만 보고 한 계층으로
+      //   판정해, 화살표 뒤 조문까지 법률.txt 에서 찾았다. 그 결과 **번호가 우연히 양쪽에 다
+      //   있으면 조용히 엉뚱한 조문이 열렸다**(실측 2026-08-29: 화살표가 있는 59줄 중 54줄이
+      //   그랬고, 법률에 그 번호가 아예 없어 눈에 띈 것은 5줄뿐이었다).
+      //   이제 화살표 앞뒤를 **두 줄로 갈라** 각자 제 계층에서 찾게 한다.
+      //   꼬리는 낱말 단위로 짜맞추지 않고 **화살표 뒤 원문을 통째로** 가져온다 —
+      //   `제74·75조`·`제59~67조` 같은 묶음·범위 표기를 알파벳 조합으로 잡으려다
+      //   빈 칸을 만들어 도달성 게이트를 11행 떨어뜨린 적이 있다(2026-08-29).
+      //   조문 표기(`제N조`)가 하나라도 들어 있을 때만 하위 계층 줄을 만든다.
+      const arrow = /→\s*(시행령|시행규칙)\s*([^→]*)/.exec(article);
+      //   꼬리에 조문이 있나 — 낱개(`제3조`·`제18조의2`)는 정규식으로, 묶음·범위
+      //   (`제74·75조`·`제59~67조`)는 생산 함수 articleEnumTokens 로 본다. 둘 다 봐야 한다:
+      //   articleEnumTokens 는 **묶음만** 풀고 낱개엔 []를 돌려준다.
+      const arrowSplit = !!(arrow && (/제\s*\d+\s*조/.test(arrow[2])
+        || articleEnumTokens(arrow[2]).some(t => /^제\d+조/.test(t))));
       out.push({
         law,
-        article: iArt >= 0 ? plainCell(c[iArt]) : '',
-        effectiveDate: iEff >= 0 ? plainCell(c[iEff]) : '',
-        gist: iGist >= 0 ? plainCell(c[iGist]) : '',
-        step: iStep >= 0 ? plainCell(c[iStep]) : '',
+        article: arrowSplit ? article.slice(0, arrow.index).trim().replace(/[·,\s]+$/, '') : article,
+        effectiveDate, gist, step,
         tier: classifyTier(law),
       });
+      if (arrowSplit) {
+        // 하위 계층 줄은 **기준법 이름 + 계층어**로 만든다 — classifyTier 가 그 꼴을 보고
+        //   decree/rule 을 돌려주고, resolveBase 가 같은 폴더의 시행령·시행규칙 파일을 연다.
+        const sub = law.replace(/\s*(시행령|시행규칙)\s*$/, '').trim() + ' ' + arrow[1];
+        out.push({
+          law: sub,
+          article: arrow[2].trim().replace(/[·,\s]+$/, ''),
+          effectiveDate, gist, step,
+          tier: classifyTier(sub),
+        });
+      }
     }
     return out;
   } catch (_) { return []; }
