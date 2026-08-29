@@ -880,6 +880,12 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (myEpoch !== _currentLoadEpoch) return; // 옛 응답 무시
+                // [버그수정] 응답이 오는 동안 오버레이가 꺼졌거나(탭 전환 등) 다른 레이어로
+                //   바뀌었으면 화면을 되살리지 않는다 — shrt_forecast_layer.js/vsby_forecast_layer.js/
+                //   tide_field.js 가 이미 쓰는 것과 같은 가드(state.active 체크)를 여기에도 적용.
+                //   없으면 "해양종합정보에서 유향유속 ON → 응답 오기 전에 다른 탭으로 이동" 시
+                //   이 콜백이 뒤늦게 범례를 다시 띄워, 꺼진 화면에 슬라이더가 남아있는 것처럼 보인다.
+                if (!streamActive || activeLayer !== 'current') return;
                 if (!data || data.success === false || !data.points || data.points.length === 0) {
                     if (!silent) console.warn('[OceanOverlay] KHOA stream-vector 데이터 없음');
                     _hideCurrentLoadingIndicator();
@@ -1104,6 +1110,9 @@
         fetch('/api/ocean/zone-forecasts' + timeParam)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                // [버그수정] loadCurrentData 와 동일한 이유 — 응답이 오는 동안 오버레이가
+                //   꺼졌거나 다른 레이어(current 등)로 전환됐으면 화면을 되살리지 않는다.
+                if (!streamActive || activeLayer !== layer) return;
                 if (!data || !data.success) {
                     console.warn('[OceanOverlay] zone-forecasts 데이터 없음');
                     return;
