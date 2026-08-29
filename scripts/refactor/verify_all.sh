@@ -73,6 +73,40 @@ done
 #   243건을 0으로 만들었는데, 위키는 계속 편집되므로 **게이트가 없으면 그대로 되돌아간다.**
 #   [주의] 실패하면 fix_deictic_law_cells.js 로 기계 수리 후, 남은 것만 사람이 표를 손본다.
 # ============================================================================
+# ── V5-0 계기판 최신성 — **게이트가 낡은 색인을 읽고 있지 않은가** (2026-08-29 신설, L-209) ──
+# [왜] V5-7(골든체인)·V5-8(링크 도달성)·V5-10(한쪽만 걸린 링크) 세 게이트는 위키 마크다운이
+#   아니라 **생성물 `_dashboard/index.json` 을 읽는다.** 그런데 그 파일은 위키를 고칠 때
+#   자동으로 다시 만들어지지 않는다. 실제로 몇 라운드 동안 색인이 낡은 채였고, 게이트는
+#   **낡은 스냅샷과 낡은 기준선을 비교하며 "변화 없음"을 보고**하고 있었다.
+#   2026-08-29 에 색인을 다시 만들자 그동안 쌓인 실제 상태가 한꺼번에 드러났다(한쪽만 걸린
+#   링크 2,702 → 2,710). **숫자가 나빠진 게 아니라 원래 그랬던 것이 이제 보인 것이다.**
+#   "변화 없음"은 두 가지 뜻이다 — 정말 안 변했거나, **안 보고 있거나.**
+# [무엇을] 위키 마크다운 중 가장 최근에 고쳐진 것이 색인보다 새로우면 실패시킨다.
+#   고치는 법도 함께 찍는다(자동으로 다시 만들지는 않는다 — 검증이 트리를 바꾸면 안 된다).
+echo; echo "── V5-0 계기판 최신성(색인이 위키보다 낡지 않았나) ──"
+IDX=local_server/knowledge/legal/_dashboard/index.json
+if [ ! -f "$IDX" ]; then
+  echo "  ❌ 색인이 아예 없다: $IDX"; FAIL=1
+else
+  # ⚠`wiki/_backbone.md` 는 **생성물**이다(lint_build.py 가 lint_index.py 뒤에 만든다).
+  #   그래서 항상 색인보다 새롭다 — 위키 소스로 세면 늘 실패한다. 빼고 센다.
+  FIND_SRC=(find local_server/knowledge/legal/wiki -name '*.md' ! -name '_backbone.md' -newer "$IDX")
+  NEWEST=$("${FIND_SRC[@]}" -print -quit 2>/dev/null)
+  if [ -n "$NEWEST" ]; then
+    N=$("${FIND_SRC[@]}" 2>/dev/null | wc -l)
+    echo "  ❌ 색인이 위키보다 낡았다 — 위키 ${N}장이 색인보다 새롭다"
+    echo "     예: ${NEWEST#local_server/knowledge/legal/}"
+    echo "     ⚠이 상태에서는 V5-7(골든체인)·V5-8(링크 도달성)·V5-10(한쪽만 걸린 링크)이"
+    echo "       **낡은 자료를 재고 있어 숫자를 믿을 수 없다.**"
+    echo "     고치려면: python3 local_server/knowledge/legal/_dashboard/loop/lint_index.py \\"
+    echo "            && python3 local_server/knowledge/legal/_dashboard/loop/lint_build.py"
+    echo "     그리고 다시 만든 생성물을 **소스와 같은 커밋에 담는다**(L-209)."
+    FAIL=1
+  else
+    echo "  ✅ 색인이 위키보다 최신이다 — 아래 게이트가 현재 상태를 잰다"
+  fi
+fi
+
 echo; echo "── V5-3 근거 조문 표 무결성 ──"
 node local_server/knowledge/legal/_dashboard/loop/citation_table_scan.js --gate || FAIL=1
 
