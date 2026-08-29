@@ -3074,7 +3074,14 @@ function loadRawPaths() {
 function rawPathOf(lawName) {
   const m = loadRawPaths();
   const flat = String(lawName || '').replace(/\s+/g, '');
-  return m.get(flat) || m.get(midDot(flat)) || null;
+  // ★가운뎃점을 **아예 뺀** 꼴도 마지막에 한 번 본다(2026-08-29).
+  //   경로표의 열쇠는 폴더 이름에서 만들어지는데 폴더 이름에는 가운뎃점이 없다
+  //   (`초중등교육법`). 반면 위키는 법령 원문 표기를 그대로 써서 `초ㆍ중등교육법` 이라 적는다.
+  //   midDot() 은 여러 종류의 점을 한 종류(`·`)로 **통일**할 뿐 빼지는 않아 둘이 못 만났다.
+  //   실측: 이 한 줄로 10개 법령명·14줄이 살아난다(총포ㆍ도검ㆍ화약류, 수목원ㆍ정원 등).
+  //   ⚠제일 마지막에 둔다 — 정확히 일치하는 이름이 있으면 그쪽이 먼저 이긴다.
+  const noDot = flat.replace(/[·ㆍ・]/g, '');
+  return m.get(flat) || m.get(midDot(flat)) || m.get(noDot) || null;
 }
 
 /**

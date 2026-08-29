@@ -1159,6 +1159,17 @@ function resolveBase(law, baseLaw, tier) {
     if (byAddenda) return byAddenda;
   }
   if (isSelfRef(law)) return rawPathOf(baseLaw) || rawPathOf(lawNameOnly(baseLaw)) || null;
+  // ★이름 끝의 공포번호 괄호를 떼고 한 번 더 찾는다(2026-08-29) —
+  //   `옹진군 지방보조금 관리 조례(옹진군 조례 제2624호)` 처럼 조례·규칙은 이름 뒤에
+  //   공포번호를 달고 인용되는 관행이 있는데, 경로표의 열쇠에는 그 괄호가 없다.
+  //   실측 23행이 이 이유만으로 죽어 있었다(옹진군 조례 3종).
+  //   ⚠**맨 마지막에** 둔다 — 괄호까지 포함해 정확히 일치하는 이름이 있으면 그쪽이 이긴다.
+  //   그리고 괄호 안이 다른 법을 가리키는 경우는 없다(괄호 안은 공포번호·시행일 표기다).
+  const noParen = String(law || '').replace(/\s*[（(][^)）]*[)）]\s*$/, '').trim();
+  if (noParen && noParen !== String(law || '').trim()) {
+    const byParen = rawPathOf(noParen) || rawPathOf(lawNameOnly(noParen));
+    if (byParen) return byParen;
+  }
   return tier === 'notice' ? (rawPathOf(baseLaw) || null) : null;
 }
 
