@@ -191,6 +191,27 @@ function renderArticle(u) {
   meta['추가수집'] = Array.isArray(prev) ? prev : (prev ? [prev] : []);
   meta['추가수집'].push({ 일자: today, 조문: add.map(r => r.label), 사유: why });
   fs.writeFileSync(metaPath, JSON.stringify(meta, null, 1));
+  // ★폴더를 새로 만들었으면 **지도도 같이 채운다**(2026-08-30, L-212).
+  //   챗봇은 `_dashboard/law_raw_paths.json`(법 이름 → raw 폴더)으로 원문 폴더를 찾는다.
+  //   지도에 없으면 **원문이 디스크에 있는데도 "원문 폴더를 못 찾음"으로 죽는다.**
+  //   종전에는 이 도구가 폴더만 만들고 지도를 손대지 않아, 나중에 `sync_law_paths.py` 를
+  //   사람이 기억해서 돌려야 했다 — 그리고 사람은 잊는다. 실제로 2026-08-28 에 한 번
+  //   맞춰 놓고도 2026-08-30 에 다시 2건이 밀려 있었다(그중 하나는 누가 언제 만든지도 모른다).
+  //   ⚠이미 있는 열쇠는 덮어쓰지 않는다 — 사람이 손으로 넣은 별칭이 있을 수 있다.
+  try {
+    const mapPath = path.join(LEGAL, '_dashboard', 'law_raw_paths.json');
+    const map = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
+    const key = path.basename(dir);
+    if (!map[key]) {
+      map[key] = path.relative(path.resolve(LEGAL, '..', '..', '..'), dir).split(path.sep).join('/');
+      fs.writeFileSync(mapPath, JSON.stringify(map, null, 1));
+      console.log(`   지도(law_raw_paths.json)에 「${key}」 를 새로 넣었다 → ${map[key]}`);
+    }
+  } catch (e) {
+    console.error(`   ⚠지도(law_raw_paths.json) 갱신에 실패했다: ${e.message}`);
+    console.error('     원문은 들어갔지만 챗봇이 폴더를 못 찾을 수 있다 — `python3 sync_law_paths.py --apply` 를 돌려라.');
+  }
+
   console.log(`\n✅ ${path.relative(LEGAL, file)} 에 ${add.length}개 조문을 덧붙였다.`);
   console.log('   이제 cite_row.js 로 근거 조문 행을 만들 수 있다.');
 })();
