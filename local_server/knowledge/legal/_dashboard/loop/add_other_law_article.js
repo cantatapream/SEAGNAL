@@ -137,8 +137,14 @@ function renderArticle(u) {
   for (const one of artsIn.split(/[,，]/).map(x => x.trim()).filter(Boolean)) {
     const m = /^제\s*(\d+)조(?:의\s*(\d+))?$/.exec(one.replace(/\s+/g, ''));
     if (!m) die(`"${one}" 은 조문 표기가 아니다. 제10조 / 제10조의2 꼴로 쓰라.`);
-    const u = units.find(x => String(x['조문번호']) === m[1] &&
-      String(x['조문가지번호'] || '') === (m[2] || ''));
+    // ⚠같은 조문번호로 **장·절 제목 줄**이 먼저 들어 있는 법이 있다(응답의 `조문여부`가 '전문').
+    //   실측 2026-08-30: 전기통신사업법은 `제7장 벌칙` 이라는 제목 줄이 조문번호 94 를 달고
+    //   실제 제94조(벌칙 본문)보다 **앞에** 온다. 필터 없이 find 하면 제목 줄을 집어 와서
+    //   "제94조"라는 이름 아래 `제7장 벌칙` 다섯 글자만 저장된다 — 받아 놓고도 근거가 안 열린다.
+    //   그래서 `조문여부 === '조문'` 인 것을 먼저 찾고, 없을 때만 나머지에서 찾는다.
+    const same = x => String(x['조문번호']) === m[1] &&
+      String(x['조문가지번호'] || '') === (m[2] || '');
+    const u = units.find(x => same(x) && x['조문여부'] === '조문') || units.find(same);
     if (!u) die(`「${hit['법령명한글']}」 원문에 ${one} 이 없다 — 조문 번호를 확인하라(받아 온 조문 ${units.length}개).`);
     const r = renderArticle(u);
     if (had.includes(`[${r.label}]`)) {
@@ -176,7 +182,14 @@ function renderArticle(u) {
   //   비어 있을 때만 기본 문구를 넣는다.
   if (!meta['비고']) meta['비고'] = '연결조문만 발췌 수집, 전체 아님 — 신선도 점검 대상에서 제외된다';
   meta['수집일'] = meta['수집일'] || today;
-  (meta['추가수집'] = meta['추가수집'] || []).push({ 일자: today, 조문: add.map(r => r.label), 사유: why });
+  // ⚠`추가수집` 이 **문자열**인 _meta.json 이 실제로 13개 있다(2026-08-30 전수 확인 — 항만법·선원법·
+  //   해운법·해양환경관리법·전기사업법 등, 사람이 한 줄 메모로 적어 둔 것). 종전 코드는 배열이라고
+  //   단정하고 `.push` 를 불러서 **조문을 파일에 덧붙인 바로 다음에 예외로 죽었다** — 원문은 들어갔는데
+  //   기록만 안 남고, 화면에는 스택 트레이스가 떠서 실패한 것처럼 보인다(전기사업법 제7·61조에서 실제 발생).
+  //   문자열이면 배열의 첫 항목으로 옮겨 담아 **사람이 적어 둔 메모를 잃지 않는다.**
+  const prev = meta['추가수집'];
+  meta['추가수집'] = Array.isArray(prev) ? prev : (prev ? [prev] : []);
+  meta['추가수집'].push({ 일자: today, 조문: add.map(r => r.label), 사유: why });
   fs.writeFileSync(metaPath, JSON.stringify(meta, null, 1));
   console.log(`\n✅ ${path.relative(LEGAL, file)} 에 ${add.length}개 조문을 덧붙였다.`);
   console.log('   이제 cite_row.js 로 근거 조문 행을 만들 수 있다.');
