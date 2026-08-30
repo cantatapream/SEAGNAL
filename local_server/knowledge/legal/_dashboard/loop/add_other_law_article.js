@@ -77,7 +77,11 @@ async function findLaw(name, tier) {
 function renderArticle(u) {
   const no = String(u['조문번호'] || '');
   const sub = String(u['조문가지번호'] || '');
-  const label = '제' + no + (sub ? '의' + sub : '') + '조';
+  // ⚠가지조 표기는 **제391조의3** 이지 제391의3조가 아니다(2026-08-30, L-217).
+  //   종전 코드는 '제'+번호+'의'+가지+'조' 로 이어 붙여 `[제391의3조]` 를 만들었다.
+  //   위키·챗봇은 `제391조의3` 으로 인용하므로 그 머리표로는 **받아 놓고도 못 찾는다.**
+  //   실측(2026-08-30): 이 꼴로 잘못 저장된 머리표가 raw 전체에 11개 있었다.
+  const label = '제' + no + '조' + (sub ? '의' + sub : '');
   const head = String(u['조문내용'] || '').trim();
   const out = [head];
   for (const h of [].concat(u['항'] || [])) {
