@@ -131,6 +131,28 @@ function renderArticle(u) {
   // 계층 파일 고르기: 이미 쓰던 파일이 있으면 **거기에 덧붙인다.**
   const plain = path.join(dir, `${tier}.txt`);
   const excerpt = path.join(dir, `${tier}_발췌.txt`);
+  // ★조문마다 파일이 따로 있는 옛 형식(`법률_제182조(연결조문).txt`)을 먼저 합친다
+  //   (2026-08-31, 내가 실제로 당했다). 그런 폴더에 새 조문을 넣으면 `법률_발췌.txt` 가
+  //   **새로 만들어지고**, 챗봇은 `법률.txt` → `법률_발췌.txt` 순으로만 보므로
+  //   먼저 있던 조문들이 통째로 안 열리게 된다 — 지방자치법에서 제182·198조 3행이 그렇게 죽었다.
+  //   발췌본이 두 파일로 갈리면 "받아 놓고도 못 쓴다"는 것은 이 파일 위쪽 주석이 이미 경고한 것인데,
+  //   그때는 `법률.txt` 만 살폈고 조문별 파일은 못 봤다.
+  if (!fs.existsSync(plain) && fs.existsSync(dir)) {
+    const singles = fs.readdirSync(dir)
+      .filter(n => new RegExp('^' + tier + '_제\\d+조(?:의\\d+)?\\(.*\\)\\.txt$').test(n));
+    if (singles.length) {
+      const head = fs.existsSync(excerpt) ? fs.readFileSync(excerpt, 'utf8') : `${name} — 타법연결용 발췌 (전체 아님)\n`;
+      let merged = head;
+      for (const n of singles) {
+        const t = fs.readFileSync(path.join(dir, n), 'utf8').trim();
+        const no = (/^\[제\d+조(?:의\d+)?\]/.exec(t) || [''])[0];
+        if (no && merged.includes(no)) continue;
+        merged += '\n\n' + t + '\n';
+      }
+      fs.writeFileSync(excerpt, merged);
+      console.error(`  ↳ 조문별 파일 ${singles.length}개를 ${path.basename(excerpt)} 로 합쳤다(원본은 지우지 않는다).`);
+    }
+  }
   const file = fs.existsSync(plain) ? plain : excerpt;
   const had = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   if (file === plain) {
