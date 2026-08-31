@@ -72,6 +72,40 @@ const THRESHOLD_KM = 30; // 이 이상 어긋나면 의심 후보
 const DIR_PATTERN = /^(.*?)\s*(동남|동북|서남|서북|동|서|남|북)방\s*([0-9.]+)\s*(마일|해리|km|m)/;
 const BEARING_DEG = { 북: 0, 동북: 45, 동: 90, 동남: 135, 남: 180, 서남: 225, 서: 270, 서북: 315 };
 
+// person 위치텍스트 앞의 관할구역 태그("[내해2구역/흑산파출소]" 등) — 지명이 아니라
+// 검색에 방해만 되므로 제거.
+const LEADING_TAG_PATTERN = /^\[[^\]]*\]\s*/;
+
+// fulltext 검색 시 끝에서 잘라낼 서술어(2026-08-31 사용자 지적 — "동막해수욕장 앞 갯벌"을
+// 전체 검색하지 말고 "동막해수욕장"만 검색해야 한다). person 위치텍스트 19,987건의 끝단어
+// 빈도를 실측해(node -e 로 직접 집계) 상위 빈도 중 "장소명 자체가 아니라 위치 관계·지형
+// 서술어"인 것만 골랐다 — 보건지소·보건진료소·병원·자택·선착장·방파제처럼 그 자체가
+// 검색해야 할 고유명사(또는 그 일부)인 단어는 제외(빼면 오히려 못 찾게 됨).
+// 표본: 해상 5421·갯바위 914·인근 630·해안가 307·갯벌 288·앞 267·인근해상 256·TTP 124·
+// 끝단 67·부근 65·테트라포트 60·항내 34·거주 34·내측 11·외측 12·아래 17·위 7.
+const TRAILING_FILLER_WORDS = new Set([
+    '해상', '인근해상', '인근', '부근', '앞', '근처', '끝단', '사이', '중', '내',
+    'TTP', '테트라포트', '테트라포드', '항내', '거주', '근해', '갯바위', '해안가', '갯벌', '해변', '앞바다',
+    '내측', '외측', '아래', '위', '약',
+]);
+
+// 방위 없이 "약 0.5마일"처럼 거리만 붙은 채로 끝나는 경우(DIR_PATTERN 은 방위 단어가
+// 있어야 매치되므로 이런 건 fulltext 로 넘어온다) — 숫자+단위만 있는 마지막 단어도 지운다.
+const TRAILING_DISTANCE_ONLY = /^[0-9.]+(마일|해리|km|m)$/;
+
+/** fulltext 검색어 추출 — 앞의 구역 태그, 끝의 서술어·거리표기를 걷어내고 남는 지명만
+ * 검색어로 쓴다. 다 걷어내면(원문이 필러 단어뿐이면) 원문을 그대로 돌려준다(검색 실패해도
+ * 기존과 동일). */
+function extractKeyword(posText) {
+    const text = posText.replace(LEADING_TAG_PATTERN, '').trim();
+    const words = text.split(/\s+/);
+    while (words.length > 1 && (TRAILING_FILLER_WORDS.has(words[words.length - 1]) || TRAILING_DISTANCE_ONLY.test(words[words.length - 1]))) {
+        words.pop();
+    }
+    const stripped = words.join(' ').trim();
+    return stripped || text;
+}
+
 function parseArgs() {
     const limitArg = process.argv.find((a) => a.startsWith('--limit='));
     const sourceArg = process.argv.find((a) => a.startsWith('--source='));
@@ -124,15 +158,26 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** 카카오 로컬 키워드 검색. 실패·미발견 시 null. */
-async function geocode(query) {
-    const url = `${KAKAO_URL}?query=${encodeURIComponent(query)}&size=1`;
+/** 카카오 로컬 키워드 검색. 검색어(예: "동막해수욕장")는 앞에 붙은 시·군 지명(예:
+ * "인천 강화도")으로 어느 정도 지역이 좁혀지지만, 동명 지명이 전국에 흩어져 있을 수
+ * 있다(2026-08-31 사용자 지적). size=1(1위 결과만)이 아니라 최대 15건을 받아, 그중
+ * 원본에 저장된 좌표(refLat,refLon)와 가장 가까운 결과를 고른다 — 완전히 엉뚱한 지역에
+ * 찍힌 진짜 오류라면 동명 지명 중 가까운 게 하나도 없어 그래도 멀리 떨어진 채로 남아
+ * 의심 후보로 잡히므로, 이 방식이 오류 탐지력을 떨어뜨리지 않는다. 실패·미발견 시 null. */
+async function geocode(query, refLat, refLon) {
+    const url = `${KAKAO_URL}?query=${encodeURIComponent(query)}&size=15`;
     const res = await fetch(url, { headers: { Authorization: `KakaoAK ${KAKAO_API_KEY}` } });
     if (!res.ok) return null;
     const data = await res.json();
     const docs = data.documents || [];
     if (!docs.length) return null;
-    return { lat: parseFloat(docs[0].y), lon: parseFloat(docs[0].x) };
+    let best = docs[0], bestDist = Infinity;
+    docs.forEach((d) => {
+        const lat = parseFloat(d.y), lon = parseFloat(d.x);
+        const dist = haversineKm(refLat, refLon, lat, lon);
+        if (dist < bestDist) { bestDist = dist; best = d; }
+    });
+    return { lat: parseFloat(best.y), lon: parseFloat(best.x) };
 }
 
 async function main() {
@@ -154,7 +199,7 @@ async function main() {
             const pos = row[posIdx];
             if (!pos) return;
             const dir = parseDirectionDistance(pos);
-            const parsed = dir ? { mode: 'pattern', ...dir } : { mode: 'fulltext', query: pos };
+            const parsed = dir ? { mode: 'pattern', ...dir } : { mode: 'fulltext', query: extractKeyword(pos) };
             candidates.push({ origIndex, row, parsed });
         });
     } else {
@@ -184,27 +229,30 @@ async function main() {
 
     for (let i = 0; i < targets.length; i++) {
         const { origIndex, row, parsed } = targets[i];
+        const actualLat = row[0], actualLon = row[1];
         const cacheKey = parsed.mode === 'pattern' ? parsed.base : parsed.query;
         let baseCoord = geocodeCache.get(cacheKey);
         if (baseCoord === undefined) {
-            baseCoord = await geocode(cacheKey);
+            // 같은 검색어를 쓰는 첫 행의 저장좌표를 동명 지명 disambiguation 기준점으로
+            // 쓴다(캐시는 검색어 단위라 두 번째 행부터는 재사용) — geocode() 참고.
+            baseCoord = await geocode(cacheKey, actualLat, actualLon);
             geocodeCache.set(cacheKey, baseCoord);
             await sleep(REQUEST_DELAY_MS);
         }
         if (!baseCoord) { geocodeFailCount++; continue; }
 
-        // pattern: 기준지명에서 방위·거리만큼 이동한 지점과 비교. fulltext: 텍스트 전체의
-        // 검색 1위 결과를 그 자체로 예상좌표 삼아 비교(방위·거리 보정 없음, 그만큼 부정확할
-        // 수 있어 method 로 표시).
+        // pattern: 기준지명에서 방위·거리만큼 이동한 지점과 비교. fulltext: 검색 결과(동명
+        // 지명 중 저장좌표와 가장 가까운 것)를 그 자체로 예상좌표 삼아 비교(방위·거리 보정
+        // 없음, 그만큼 부정확할 수 있어 method 로 표시).
         const expected = parsed.mode === 'pattern'
             ? destinationPoint(baseCoord.lat, baseCoord.lon, parsed.bearingDeg, parsed.distanceKm)
             : baseCoord;
-        const actualLat = row[0], actualLon = row[1];
         const offKm = haversineKm(actualLat, actualLon, expected.lat, expected.lon);
 
         if (offKm >= THRESHOLD_KM) {
             suspects.push({
                 origIndex, pos: row[posIdx], ymd: row[2], method: parsed.mode,
+                keyword: parsed.mode === 'pattern' ? parsed.base : parsed.query,
                 actual: [actualLat, actualLon],
                 baseGeocode: [baseCoord.lat, baseCoord.lon],
                 expected: [expected.lat, expected.lon],
