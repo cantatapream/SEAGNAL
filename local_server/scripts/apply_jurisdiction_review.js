@@ -27,8 +27,19 @@
  *   파일 중 하나에 "지금도" 있어야만(=candByIdx.has) 실행한다 — 없으면 반영 안
  *   하고 드리프트로 센다(추측 반영 안 함). confirm 은 애초에 데이터를 안 건드리므로
  *   대상에서 뺀다.
+ * [영속 "이미 검수함" 등록부(2026-08-31)] confirm(변경 없음 확인)·change 는 hk 의
+ * "저신뢰/불일치 판정" 자체(좌표 기반 재계산이거나 recorded 값 비교)를 바꾸지
+ * 않는다 — 그래서 build_jurisdiction_mismatch_review.js·
+ * build_jurisdiction_2025_review.js 를 다시 돌리면 "이미 검수해서 confirm/change
+ * 했던" 행이 그대로 또 후보로 잡혀 사람이 "분명 다 봤는데 왜 건수가 그대로냐"고
+ * 헷갈리게 된다(사용자가 143건 반영 후에도 2025 저신뢰가 169→164건만 줄어 이 문제로
+ * 실제 혼란 — 5건 삭제만 반영되고 133건 confirm 은 카운트에 전혀 안 잡혔던 것).
+ * idx 는 배열이 바뀌면 밀리므로 좌표+시각(lat|lon|ymd|hm)을 안정적인 키로 써서
+ * jurisdiction_review_decided.json(config/, git 추적)에 처리한 모든 pick 을 계속
+ * 누적 기록 — 두 build 스크립트가 이 목록에 있는 행은 후보에서 제외한다.
  * [실행] node local_server/scripts/apply_jurisdiction_review.js
- * [출력] client/accident_ships_hk.json 갱신(orgCd 정정 또는 행 삭제, confirm 은 무변경)
+ * [출력] client/accident_ships_hk.json 갱신(orgCd 정정 또는 행 삭제, confirm 은 무변경) +
+ *   local_server/config/jurisdiction_review_decided.json 누적 갱신
  * ============================================================================
  */
 
@@ -38,11 +49,16 @@ const fs = require('fs');
 const path = require('path');
 
 const CLIENT_DIR = path.join(__dirname, '..', '..', 'client');
+const CONFIG_DIR = path.join(__dirname, '..', 'config');
 const RAW_DIR = path.join(__dirname, '_accident_raw');
 const EXPORT_PATH = path.join(RAW_DIR, 'jurisdiction_review_export.json');
 const MISMATCH_PATH = path.join(CLIENT_DIR, 'accident_jurisdiction_mismatch.json');
 const Y2025_PATH = path.join(CLIENT_DIR, 'accident_jurisdiction_2025_review.json');
+const DECIDED_PATH = path.join(CONFIG_DIR, 'jurisdiction_review_decided.json');
 const LATLON_EPS = 1e-4; // 후보 파일 좌표(소수 5자리 반올림) vs hk 원본 좌표 비교 허용오차
+
+/** hk row → 안정적인 키(idx 는 삭제로 밀리지만 좌표+시각은 안 바뀜). */
+function rowKey(row) { return row[0] + '|' + row[1] + '|' + row[2] + '|' + row[3]; }
 
 const ORG_CODE_OF = {
     속초해양경찰서: 1532418, 동해해양경찰서: 1532440, 포항해양경찰서: 1532466, 울산해양경찰서: 1532304,
@@ -75,6 +91,11 @@ function main() {
 
     const hkData = JSON.parse(fs.readFileSync(path.join(CLIENT_DIR, 'accident_ships_hk.json'), 'utf8'));
 
+    const decided = fs.existsSync(DECIDED_PATH)
+        ? new Set(JSON.parse(fs.readFileSync(DECIDED_PATH, 'utf8')).keys)
+        : new Set();
+    const decidedBefore = decided.size;
+
     let applied = 0, confirmed = 0, unchanged = 0, skippedBadAction = 0, skippedDrift = 0;
     const deleteIdx = new Set();
     picks.forEach((p) => {
@@ -94,12 +115,15 @@ function main() {
         }
         if (p.action === 'confirm') {
             confirmed++; // 지금 값이 맞다고 확인만 함 — 데이터 변경 없음
+            decided.add(rowKey(row));
         } else if (p.action === 'delete') {
             deleteIdx.add(p.idx);
             applied++;
+            decided.add(rowKey(row));
         } else if (p.action === 'change') {
             const newCd = ORG_CODE_OF[p.to];
             if (!newCd) { skippedBadAction++; return; } // to 가 없거나 알 수 없는 관할서명
+            decided.add(rowKey(row)); // 좌표는 안 바뀌므로 change 전에 키를 만들어도 동일
             if (row[8] === newCd) { unchanged++; return; }
             row[8] = newCd;
             applied++;
@@ -112,7 +136,9 @@ function main() {
     if (deleteIdx.size) hkData.rows = hkData.rows.filter((r, i) => !deleteIdx.has(i));
 
     fs.writeFileSync(path.join(CLIENT_DIR, 'accident_ships_hk.json'), JSON.stringify(hkData));
+    fs.writeFileSync(DECIDED_PATH, JSON.stringify({ v: 1, keys: Array.from(decided).sort() }));
     console.log(`[완료] 변경 ${applied}건(삭제 ${deleteIdx.size}건 포함, ${before}→${hkData.rows.length}건), 확인만(무변경) ${confirmed}건, 이미 같은 값 ${unchanged}건, 알 수 없는/빈 액션 ${skippedBadAction}건, idx 밀림 스킵 ${skippedDrift}건`);
+    console.log(`[검수완료 등록부] ${decidedBefore} → ${decided.size}건(누적) — 이 목록에 든 행은 다음 build_jurisdiction_*_review.js 재실행 때 후보에서 빠짐`);
     if (deleteIdx.size) {
         // 삭제로 배열이 당겨지면 그 뒤(특히 맨 끝의 2025 단독행) idx 가 전부 밀린다
         // (2026-08-26 실제로 이 문제를 겪고 나서 추가한 안내 — 잊으면 다음 검수

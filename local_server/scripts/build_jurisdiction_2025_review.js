@@ -30,6 +30,13 @@
  *   [[lat, lon, ymd, hm, typeCd, currentOrg, tier, distFromBoundaryKm, idx], ...]
  *   (direct 등급만 distFromBoundaryKm 이 의미 있음, boundary/knn 은 -1)
  * [연계] client/js/marine-life/safety/accident_info.js 의 관할서 검수 워크스루
+ * [검수완료 등록부 반영(2026-08-31)] 이 저신뢰 판정은 orgCd 가 아니라 좌표만으로
+ *   매번 새로 계산돼서, confirm(무변경 확인)은 물론 change(관할서 수동 정정)를
+ *   해도 다음 재실행에서 판정 자체는 똑같이 나와 그대로 또 후보에 뜬다 — 143건을
+ *   검수해 반영해도 저신뢰 건수가 삭제분(5건)만큼만 줄어 사용자가 "확인 처리한
+ *   133건은 왜 하나도 안 줄었냐"고 혼란을 겪은 실제 사례로 발견. 이제
+ *   local_server/config/jurisdiction_review_decided.json(apply_jurisdiction_
+ *   review.js 가 매 라운드 누적 기록)에 있는 행은 판정 결과와 무관하게 후보에서 뺀다.
  * ============================================================================
  */
 
@@ -84,10 +91,21 @@ const ESTABLISHED_YMD = {
 const CONFIDENT_KM_DEG = 0.03; // ≈3.3km — 나머지 검수 스크립트들과 동일 기준
 const REVIEW_ONLY_ORGS = new Set(['인천해양경찰서', '속초해양경찰서', '동해해양경찰서', '강릉해양경찰서']);
 
+/** apply_jurisdiction_review.js 와 동일 — idx 는 삭제로 밀리지만 좌표+시각은 안 바뀜. */
+function rowKey(row) { return row[0] + '|' + row[1] + '|' + row[2] + '|' + row[3]; }
+
 function main() {
     const faces = JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, 'coastguard_jurisdiction_faces.json'), 'utf8'));
     const gangneung = JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, 'coastguard_gangneung_zone.json'), 'utf8'));
     const hkData = JSON.parse(fs.readFileSync(path.join(CLIENT_DIR, 'accident_ships_hk.json'), 'utf8'));
+    const decidedPath = path.join(CONFIG_DIR, 'jurisdiction_review_decided.json');
+    // 이미 검수 완료(confirm/change/delete)한 행은 저신뢰 판정이 그대로여도(2025
+    // 단독은 orgCd 가 아니라 좌표만으로 매번 재판정하므로 confirm·change 모두 판정
+    // 자체는 안 바뀜) 다시 후보에 안 뜨게 뺀다(2026-08-31 — apply_jurisdiction_
+    // mismatch_review.js 쪽 설명과 동일한 문제, 여기선 더 확실히 재발함).
+    const decided = fs.existsSync(decidedPath)
+        ? new Set(JSON.parse(fs.readFileSync(decidedPath, 'utf8')).keys)
+        : new Set();
 
     const trainPts = [];
     hkData.rows.forEach((r) => {
@@ -132,6 +150,7 @@ function main() {
         const ymd = String(row[2]);
         if (!(ymd.startsWith('2025') && row[16])) return; // 2025 심판원 단독행만
         total++;
+        if (decided.has(rowKey(row))) return; // 이미 검수 완료(confirm/change/delete)
         const { owner, tier, distKm } = classifyOrgWithTier(row[0], row[1], ymd);
         const lowConfidence = tier !== 'direct' || (distKm >= 0 && distKm < CONFIDENT_KM_DEG * 111);
         if (!lowConfidence) return;

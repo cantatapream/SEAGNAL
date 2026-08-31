@@ -21,6 +21,10 @@
  *   [[lat, lon, ymd, hm, typeCd, recorded, expected, distFromBoundaryKm, idx], ...]
  * [연계] client/js/marine-life/safety/accident_info.js 의
  *   ensureJurisdictionReviewLayers() 가 fetch
+ * [검수완료 등록부 반영(2026-08-31)] local_server/config/jurisdiction_review_decided.json
+ *   (apply_jurisdiction_review.js 가 confirm/change/delete 처리마다 누적 기록)에
+ *   있는 행은 recorded≠expected 가 여전히 성립해도(특히 confirm) 후보에서 뺀다 —
+ *   안 그러면 재실행할 때마다 이미 검수 끝난 행이 계속 되살아난다.
  * ============================================================================
  */
 
@@ -80,10 +84,20 @@ function distToPolygonBoundary(lon, lat, coords) {
 
 const CONFIDENT_KM_DEG = 0.03; // ≈3.3km — audit_hk_jurisdiction_mismatch.js 와 동일 기준
 
+/** apply_jurisdiction_review.js 와 동일 — idx 는 삭제로 밀리지만 좌표+시각은 안 바뀜. */
+function rowKey(row) { return row[0] + '|' + row[1] + '|' + row[2] + '|' + row[3]; }
+
 function main() {
     const faces = JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, 'coastguard_jurisdiction_faces.json'), 'utf8'));
     const gangneung = JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, 'coastguard_gangneung_zone.json'), 'utf8'));
     const hkData = JSON.parse(fs.readFileSync(path.join(CLIENT_DIR, 'accident_ships_hk.json'), 'utf8'));
+    const decidedPath = path.join(CONFIG_DIR, 'jurisdiction_review_decided.json');
+    // 이미 사람이 confirm/change/delete 로 처리한 행은 판정이 안 바뀌어도(특히
+    // confirm) 다시 후보에 안 뜨게 뺀다(2026-08-31 — 안 그러면 재실행마다 검수
+    // 완료분이 계속 되살아나 "분명 다 봤는데 건수가 그대로"인 혼란을 유발).
+    const decided = fs.existsSync(decidedPath)
+        ? new Set(JSON.parse(fs.readFileSync(decidedPath, 'utf8')).keys)
+        : new Set();
 
     function findExpected(lat, lon, ymd) {
         if (ymd >= gangneung.effective_from && pointInPolygon(lon, lat, gangneung.coords)) {
@@ -105,6 +119,7 @@ function main() {
         const recordedCd = row[8];
         const recordedName = ORG_LABEL_OF[recordedCd];
         if (recordedName === '사천해양경찰서') return; // 사천 폴리곤 없음 — 비교 불가
+        if (decided.has(rowKey(row))) return; // 이미 검수 완료(confirm/change/delete)
 
         const hit = findExpected(lat, lon, ymd);
         if (hit == null || hit.preEstablish) return;
