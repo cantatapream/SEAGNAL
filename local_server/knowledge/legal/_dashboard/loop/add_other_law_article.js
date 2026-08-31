@@ -152,7 +152,15 @@ function renderArticle(u) {
       //   `15_관련타부처/<법>/시행령.txt` 에 있는데, 그 조건 때문에 가드가 안 걸려
       //   `15_관련타부처/폐기물관리법시행규칙/` 같은 그림자 폴더를 6개 새로 만들었다.
       //   폴더가 어디에 있든 상관없다 — **그 법의 그 계층 파일이 이미 있으면 거기에 넣는다.**
-      const tierFile = [`${tier}.txt`, `${tier}_발췌.txt`].find(n => abs && fs.existsSync(path.join(abs, n)));
+      // ⚠**그 법 폴더가 있기만 하면** 거기에 넣는다(2026-09-01, 두 번째 정정).
+      //   종전에는 "그 계층 파일이 이미 있을 때만" 이라고 좁혀 놨는데, 그러면 아직 그 계층을
+      //   하나도 안 받은 법에서 또 `<법><계층>` 그림자 폴더를 만든다(이번 배치에서 3개 생겼다).
+      //   챗봇은 `가축분뇨의 관리 및 이용에 관한 법률 시행령` 을 **그 법 폴더 + 시행령 계층**으로
+      //   푸는 것이 정상 경로다(lawNameOnly 가 계층 낱말을 떼고 찾는다) — 그림자 폴더는
+      //   이름이 정확히 일치해 그 정상 경로를 가로챌 뿐이다.
+      const tierFile = abs && fs.existsSync(abs)
+        ? ([`${tier}.txt`, `${tier}_발췌.txt`].find(n => fs.existsSync(path.join(abs, n))) || `${tier}_발췌.txt`)
+        : null;
       if (tierFile) {
         console.error(`  ↳ 이 법의 ${tier} 파일이 이미 있다 — 발췌 폴더를 새로 만들지 않고 ${path.relative(LEGAL, abs)}/${tierFile} 에 넣는다.`);
         dir = abs;
