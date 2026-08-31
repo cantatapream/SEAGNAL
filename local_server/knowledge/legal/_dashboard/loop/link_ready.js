@@ -109,7 +109,16 @@ function fileOf(baseRel, tier, law) {
   //   이 검사가 그걸 몰라서 **원문이 손에 있는데도 "계층 파일 없음"으로 세고 있었다**
   //   (실측: raw/15_관련타부처 491개 폴더 중 224개가 발췌본만 가진다).
   const alt = path.join(dir, f.replace('.txt', '_발췌.txt'));
-  return fs.existsSync(alt) ? alt : null;
+  if (fs.existsSync(alt)) return alt;
+  // ★그 자체가 대통령령인 법령(공무원 여비 규정·보안업무규정 등 실측 6폴더)은 파일 이름이
+  //   `대통령령.txt`·`대통령령_발췌.txt` 다. 생산 코드와 **같은 순서**로 본다(L-136).
+  if (tier === 'decree') {
+    for (const n of ['대통령령.txt', '대통령령_발췌.txt']) {
+      const p2 = path.join(dir, n);
+      if (fs.existsSync(p2)) return p2;
+    }
+  }
+  return null;
 }
 
 const numsCache = new Map();

@@ -103,6 +103,12 @@ const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
 
 // tier → 그 법 폴더 안의 고정 파일명(행정규칙만 파일명이 제각각이라 따로 찾는다).
 const TIER_FILE = { law: '법률.txt', decree: '시행령.txt', rule: '시행규칙.txt' };
+// ★어느 법의 시행령이 아니라 **그 자체가 대통령령**인 법령이 있다(공무원 여비 규정·보안업무규정·
+//   공무원보수규정·정부표창규정·해양수산부와 그 소속기관 직제 등 실측 6개 폴더). 그런 폴더의
+//   파일 이름은 `시행령.txt` 가 아니라 `대통령령.txt`(발췌본이면 `대통령령_발췌.txt`)다.
+//   2026-08-31에 낫표 때문에 이 법령들이 고시로 잘못 분류되던 것을 고쳤더니, 이번에는
+//   `시행령.txt` 를 찾다 실패해 "그 계층 파일이 없음"으로 빠졌다 — 파일은 손에 있는데 못 여는 것이다.
+const TIER_FILE_ALT = { decree: '대통령령.txt' };
 
 // tier → `별표/` 안의 파일명·_links.json 키 앞머리(예: rule → `시행규칙_별표1.txt`, `"시행규칙 별표 1"`).
 const TIER_BYL_PREFIX = { law: '법률', decree: '시행령', rule: '시행규칙' };
@@ -1492,6 +1498,14 @@ async function loadArticle(q) {
     const alt = base + '/' + TIER_FILE[tier].replace('.txt', '_발췌.txt');
     const t2 = await githubRaw.fetchText(alt);
     if (t2) { text = t2; filePath = alt; }
+  }
+  // ★그 자체가 대통령령인 법령은 파일 이름이 `대통령령.txt`(발췌본이면 `대통령령_발췌.txt`)다.
+  //   위 두 이름으로 못 찾았을 때만 본다 — 시행령이 있으면 그쪽이 먼저다.
+  if (!text && TIER_FILE_ALT[tier]) {
+    for (const n of [TIER_FILE_ALT[tier], TIER_FILE_ALT[tier].replace('.txt', '_발췌.txt')]) {
+      const t3 = await githubRaw.fetchText(base + '/' + n);
+      if (t3) { text = t3; filePath = base + '/' + n; break; }
+    }
   }
   if (!text) return { ok: false, reason: 'file_not_found' };
 

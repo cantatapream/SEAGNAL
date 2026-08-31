@@ -452,7 +452,15 @@ function classifyTier(lawName) {
   // 우리가 원문을 가진 행정규칙 이름이면 곧바로 고시다(이름에 키워드가 없어도).
   if (admrulNameSet().has(flatName(s))) return 'notice';
   const kindMap = loadLawAliases().kind;
-  const kind = kindMap && kindMap.get(s.trim());
+  // ★낫표를 떼고도 한 번 찾는다(2026-08-31, 백로그 15회차 사서가 잡음).
+  //   위키 법령 칸은 `「공무원 여비 규정」` 처럼 낫표를 두른 채로 넘어오는데, 약칭표의 열쇠에는
+  //   낫표가 없다. 그래서 `classifyTier('공무원 여비 규정')` 은 **decree** 인데
+  //   `classifyTier('「공무원 여비 규정」')` 은 표 조회에 실패하고 아래 `/규정/` 키워드 규칙에 걸려
+  //   **notice(고시)** 로 잘못 분류됐다(직접 실행해 재현했다). 그러면 배지가 틀리고,
+  //   원문 링크도 있지도 않은 `행정규칙/` 폴더를 찾다 실패한다 — V5-8 "고시 파일을 못 고름" 에 잡힌다.
+  //   ⚠**정식명 완전일치일 때만** 쓰는 원칙은 그대로다(부분일치·추측 금지). 낫표만 벗긴다.
+  const bare = s.trim().replace(/^[「『]|[」』]$/g, '').trim();
+  const kind = kindMap && (kindMap.get(s.trim()) || kindMap.get(bare));
   if (kind) {
     if (kind === '법률' || kind === '헌법') return 'law';
     if (kind === '대통령령') return 'decree';
