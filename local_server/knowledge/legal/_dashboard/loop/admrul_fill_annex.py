@@ -97,6 +97,8 @@ def main():
     touched = Touched('admrul_fill_annex')
     rep = {'쓴파일': [], '이미있어건너뜀': [], '고시못찾음': [], 'ID없음': [], '실패': [], '별표없음': []}
     done = 0
+    fail_run = 0          # 연속 실패 수 — 사이트가 죽었을 때 일찍 멈추려고 센다
+    FAIL_RUN_MAX = 8
 
     # ★같은 고시가 여러 법 폴더에 복사돼 있으면 **전부** 채운다 (2026-08-31 실측).
     #   전에는 hits[0] 하나만 채웠다. 그런데 「목포항 항만시설운영세칙」처럼
@@ -125,7 +127,18 @@ def main():
         done += 1
         if not isinstance(d, dict) or '_err' in d:
             rep['실패'].append(name)
+            # ★사이트가 죽으면 **일찍 멈춘다**(2026-08-31, 내가 당했다).
+            #   law.go.kr 이 응답을 끊기 시작했는데(심야 점검 이력이 있다) 이 도구는
+            #   751건을 끝까지 돌며 재시도만 반복했다 — 한 건에 최대 15초씩, 남은 시간이
+            #   몇 시간이었다. 그동안 새로 받은 것은 0건이다.
+            #   연속 실패가 이어지면 "지금은 사이트가 안 된다"는 뜻이므로 멈추고 알린다.
+            fail_run += 1
+            if fail_run >= FAIL_RUN_MAX:
+                print(f'⚠연속 {fail_run}건 실패 — 지금은 law.go.kr 이 응답하지 않는다. 여기서 멈춘다.')
+                print('  받아 온 것은 그대로 저장돼 있다. 사이트가 회복된 뒤 다시 돌려라.')
+                break
             continue
+        fail_run = 0
         units = ((d.get('AdmRulService', d)).get('별표') or {}).get('별표단위')
         if units is None:
             rep['별표없음'].append(name)
