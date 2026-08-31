@@ -10,11 +10,14 @@
  * [person 은 "전수조사"(2026-08-31 사용자 확정)] hk 는 기존 그대로 "위치텍스트 유일 +
  *   방위·거리 패턴"만 검사(정밀, 대상 좁음). person 은 사용자가 "위치텍스트 21,798건
  *   전부를 조사하자, 정밀도가 낮아도 된다"고 명시적으로 골라 SOURCE_CONFIG.person.
- *   fullCensus=true — 유일 텍스트 제한을 없애고, 방위·거리 패턴이 없는 행은 위치텍스트
- *   "전체"를 카카오 키워드로 그대로 검색해 1위 결과와 저장좌표를 직접 비교한다(방위·거리
- *   보정 없이 텍스트 자체를 지명으로 취급 — 패턴 매치보다 부정확할 수 있어 후보는
- *   method 필드로 pattern/fulltext 를 구분해 남긴다. 둘 다 사람이 검수 화면에서 최종
- *   확인, 자동삭제 아님).
+ *   fullCensus=true — 유일 텍스트 제한을 없애고, 세 방식을 우선순위대로 시도한다(모두
+ *   method 필드로 구분해 후보에 남김, 전부 사람이 검수 화면에서 최종 확인·자동삭제 아님):
+ *   ① coord — 위치텍스트에 "Fix 36-03-34N, 129-31-59E"처럼 도분초 좌표가 그대로 박혀
+ *      있으면 그걸 바로 씀(카카오 호출 자체가 필요 없고 지오코딩보다 정확 — 사고 당시
+ *      실측 좌표이므로). person 78건에서 확인, 74건(94.9%) 파싱 성공.
+ *   ② pattern — 방위·거리 패턴이 있으면 기준지명을 지오코딩해 정밀 계산.
+ *   ③ fulltext — 위 둘 다 없으면 위치텍스트(서술어 제거 후)를 그대로 검색해 1위 결과와
+ *      직접 비교(방위·거리 보정 없이 텍스트 자체를 지명으로 취급 — 셋 중 가장 부정확).
  * ----------------------------------------------------------------------------
  * [배경] findCoordOutliers(client/js/marine-life/safety/accident_info.js)는 같은
  *   위치텍스트가 2건 이상일 때만 좌표를 서로 비교해 이상치를 잡는데, 실측 결과
@@ -88,15 +91,42 @@ const LEADING_TAG_PATTERN = /^\[[^\]]*\]\s*/;
 // fulltext 검색 시 끝에서 잘라낼 서술어(2026-08-31 사용자 지적 — "동막해수욕장 앞 갯벌"을
 // 전체 검색하지 말고 "동막해수욕장"만 검색해야 한다). person 위치텍스트 19,987건의 끝단어
 // 빈도를 실측해(node -e 로 직접 집계) 상위 빈도 중 "장소명 자체가 아니라 위치 관계·지형
-// 서술어"인 것만 골랐다 — 보건지소·보건진료소·병원·자택·선착장·방파제처럼 그 자체가
-// 검색해야 할 고유명사(또는 그 일부)인 단어는 제외(빼면 오히려 못 찾게 됨).
+// 서술어"인 것만 골랐다 — 보건지소·보건진료소·병원·선착장·방파제처럼 그 자체가 검색해야
+// 할 고유명사(또는 그 일부)인 단어는 제외(빼면 오히려 못 찾게 됨). "자택"(157건)은
+// 처음에 이 부류로 착각해 남겨뒀으나 — 사용자 지적대로 "자택"은 그 자체가 결코 지명이
+// 아니라("본인 집"이라는 뜻일 뿐, 카카오에 검색될 리 없음) 순수 필러라 뒤늦게 추가.
 // 표본: 해상 5421·갯바위 914·인근 630·해안가 307·갯벌 288·앞 267·인근해상 256·TTP 124·
-// 끝단 67·부근 65·테트라포트 60·항내 34·거주 34·내측 11·외측 12·아래 17·위 7.
+// 끝단 67·부근 65·테트라포트 60·항내 34·거주 34·내측 11·외측 12·아래 17·위 7·자택 157.
 const TRAILING_FILLER_WORDS = new Set([
     '해상', '인근해상', '인근', '부근', '앞', '근처', '끝단', '사이', '중', '내',
     'TTP', '테트라포트', '테트라포드', '항내', '거주', '근해', '갯바위', '해안가', '갯벌', '해변', '앞바다',
-    '내측', '외측', '아래', '위', '약',
+    '내측', '외측', '아래', '위', '약', '자택',
 ]);
+
+// 위치텍스트에 도분초 좌표가 문자 그대로 박혀 있는 경우("Fix 36-03-34N, 129-31-59E" 등,
+// 2026-08-31 사용자 지적 — "경위도가 있으면 그 경위도를 비교하면 되는거 아니니?"). person
+// 21,798건 중 78건에서 "Fix" 표기를 확인, 그중 74건(94.9%)이 이 정규식으로 파싱된다(도-분
+// 만 있고 초가 없는 표기·소수점 분 표기 둘 다 지원). 이 좌표는 카카오 검색 결과가 아니라
+// 사고 당시 기록된 실측 좌표 그 자체라 지오코딩보다 훨씬 정확 — API 호출 없이 그대로
+// "예상좌표"로 쓴다(pattern·fulltext 보다 우선순위 높음). 도-분-초 사이 구분자가 "."인
+// 표기·좌표 자체가 오타인 극소수(4건)는 못 잡지만 억지로 다 잡으려다 오탐 만드는 것보다
+// 안전(카파시: 억지로 끼워맞추면 더 큰 오탐).
+const DMS_PATTERN = /(\d{1,3})-(\d{1,2}(?:\.\d+)?)(?:-(\d{1,2}(?:\.\d+)?))?\s*N\D{0,6}(\d{1,3})-(\d{1,2}(?:\.\d+)?)(?:-(\d{1,2}(?:\.\d+)?))?\s*E/i;
+
+function dmsToDecimal(deg, min, sec) {
+    return parseInt(deg, 10) + parseFloat(min) / 60 + (sec ? parseFloat(sec) : 0) / 3600;
+}
+
+/** 위치텍스트에서 도분초 좌표를 뽑는다("Fix 36-03-34N, 129-31-59E" 형태). 없으면 null.
+ * 분·초는 0~59.99 범위를 벗어나면 원문 자체가 오타("35-94.39N"처럼 분이 60 넘음 — 실측
+ * 240건 중 1건 확인)이므로 매치를 버린다(억지로 계산하면 터무니없는 좌표가 나옴). */
+function parseEmbeddedCoord(posText) {
+    const m = posText.match(DMS_PATTERN);
+    if (!m) return null;
+    const minOk = (v) => !v || (parseFloat(v) >= 0 && parseFloat(v) < 60);
+    if (!minOk(m[2]) || !minOk(m[3]) || !minOk(m[5]) || !minOk(m[6])) return null;
+    return { lat: dmsToDecimal(m[1], m[2], m[3]), lon: dmsToDecimal(m[4], m[5], m[6]) };
+}
 
 // 방위 없이 "약 0.5마일"처럼 거리만 붙은 채로 끝나는 경우(DIR_PATTERN 은 방위 단어가
 // 있어야 매치되므로 이런 건 fulltext 로 넘어온다) — 숫자+단위만 있는 마지막 단어도 지운다.
@@ -213,13 +243,17 @@ async function main() {
 
     const candidates = [];
     if (fullCensus) {
-        // person 전수조사: 위치텍스트가 있는 행 전부(중복 텍스트도 포함) — 방위·거리
-        // 패턴이 있으면 정밀 계산(pattern), 없으면 텍스트 전체를 그대로 검색(fulltext).
+        // person 전수조사: 위치텍스트가 있는 행 전부(중복 텍스트도 포함) — 도분초 좌표가
+        // 박혀 있으면 그걸 그대로 씀(coord, 가장 정확·API 불필요), 없고 방위·거리 패턴이
+        // 있으면 정밀 계산(pattern), 둘 다 없으면 텍스트 전체를 그대로 검색(fulltext).
         rows.forEach((row, origIndex) => {
             const pos = row[posIdx];
             if (!pos) return;
-            const dir = parseDirectionDistance(pos);
-            const parsed = dir ? { mode: 'pattern', ...dir } : { mode: 'fulltext', query: cleanKeyword(pos) };
+            const coord = parseEmbeddedCoord(pos);
+            const dir = coord ? null : parseDirectionDistance(pos);
+            const parsed = coord ? { mode: 'coord', ...coord }
+                : dir ? { mode: 'pattern', ...dir }
+                : { mode: 'fulltext', query: cleanKeyword(pos) };
             candidates.push({ origIndex, row, parsed });
         });
     } else {
@@ -250,29 +284,39 @@ async function main() {
     for (let i = 0; i < targets.length; i++) {
         const { origIndex, row, parsed } = targets[i];
         const actualLat = row[0], actualLon = row[1];
-        const cacheKey = parsed.mode === 'pattern' ? parsed.base : parsed.query;
-        let baseCoord = geocodeCache.get(cacheKey);
-        if (baseCoord === undefined) {
-            // 같은 검색어를 쓰는 첫 행의 저장좌표를 동명 지명 disambiguation 기준점으로
-            // 쓴다(캐시는 검색어 단위라 두 번째 행부터는 재사용) — geocode() 참고.
-            baseCoord = await geocode(cacheKey, actualLat, actualLon);
-            geocodeCache.set(cacheKey, baseCoord);
-            await sleep(REQUEST_DELAY_MS);
-        }
-        if (!baseCoord) { geocodeFailCount++; continue; }
+        let expected, baseCoord;
 
-        // pattern: 기준지명에서 방위·거리만큼 이동한 지점과 비교. fulltext: 검색 결과(동명
-        // 지명 중 저장좌표와 가장 가까운 것)를 그 자체로 예상좌표 삼아 비교(방위·거리 보정
-        // 없음, 그만큼 부정확할 수 있어 method 로 표시).
-        const expected = parsed.mode === 'pattern'
-            ? destinationPoint(baseCoord.lat, baseCoord.lon, parsed.bearingDeg, parsed.distanceKm)
-            : baseCoord;
+        if (parsed.mode === 'coord') {
+            // 위치텍스트에 박힌 도분초 좌표를 그대로 씀 — 지오코딩(검색) 없이 바로 비교하므로
+            // API 호출·지연(sleep) 자체가 필요 없다.
+            expected = { lat: parsed.lat, lon: parsed.lon };
+            baseCoord = expected;
+        } else {
+            const cacheKey = parsed.mode === 'pattern' ? parsed.base : parsed.query;
+            baseCoord = geocodeCache.get(cacheKey);
+            if (baseCoord === undefined) {
+                // 같은 검색어를 쓰는 첫 행의 저장좌표를 동명 지명 disambiguation 기준점으로
+                // 쓴다(캐시는 검색어 단위라 두 번째 행부터는 재사용) — geocode() 참고.
+                baseCoord = await geocode(cacheKey, actualLat, actualLon);
+                geocodeCache.set(cacheKey, baseCoord);
+                await sleep(REQUEST_DELAY_MS);
+            }
+            if (!baseCoord) { geocodeFailCount++; continue; }
+
+            // pattern: 기준지명에서 방위·거리만큼 이동한 지점과 비교. fulltext: 검색 결과(동명
+            // 지명 중 저장좌표와 가장 가까운 것)를 그 자체로 예상좌표 삼아 비교(방위·거리 보정
+            // 없음, 그만큼 부정확할 수 있어 method 로 표시).
+            expected = parsed.mode === 'pattern'
+                ? destinationPoint(baseCoord.lat, baseCoord.lon, parsed.bearingDeg, parsed.distanceKm)
+                : baseCoord;
+        }
+
         const offKm = haversineKm(actualLat, actualLon, expected.lat, expected.lon);
 
         if (offKm >= THRESHOLD_KM) {
             suspects.push({
                 origIndex, pos: row[posIdx], ymd: row[2], method: parsed.mode,
-                keyword: parsed.mode === 'pattern' ? parsed.base : parsed.query,
+                keyword: parsed.mode === 'coord' ? '(위치텍스트 내 도분초 좌표)' : parsed.mode === 'pattern' ? parsed.base : parsed.query,
                 actual: [actualLat, actualLon],
                 baseGeocode: [baseCoord.lat, baseCoord.lon],
                 expected: [expected.lat, expected.lon],
