@@ -8783,20 +8783,20 @@ html[data-font-size="large"] .ocean-overlay-btn {
 
 /* "분석 뷰" 탭(연도별 추이·시간대별·요일별·관할서별·특보발효, 2026-08-29) — 예전
    CSS 스파크라인/주야간 바를 대체(Chart.js 캔버스로 교체). */
-.accident-chart-wrap { position: relative; width: 100%; height: 200px; margin-top: 2px; }
+.accident-chart-wrap { position: relative; width: 100%; height: 200px; margin-top: 2px; overflow: hidden; }
 .accident-chart-caption { font-size: 0.7rem; color: var(--text-sub); margin-top: 6px; text-align: center; }
 
 /* 특보발효 도넛(2026-08-31 사용자 확정 — 여러 차례 시안 검토 후 반영) — 평시 고리는
    고정, 맨 위 "특보 중" 원호가 태풍·풍랑·강풍×주의보·경보 6종으로 갈라지며 원호
    모양 그대로 커진다(막대·동심원 아님). 화면 뜨고 0.5초 뒤 자동 재생(사용자 확정
    "매번 재생"), 확대 중엔 화면 전체가 그 지점으로 살짝(10배 확대폭) 줌인. */
-.accident-warn-svg { display: block; margin: 0 auto; overflow: visible; }
+.accident-warn-svg { display: block; margin: 0 auto; overflow: hidden; }
 .accident-warn-wedge { transition: opacity .12s linear; }
 .accident-warn-zoom {
     transform-box: view-box;
     transition: transform .8s cubic-bezier(.22,.9,.32,1.05);
 }
-.accident-warn-zoom.zoomed { transform: scale(1.7); }
+.accident-warn-zoom.zoomed { transform: scale(1.15); } /* 2026-08-31 실사용 확인 후 하향(1.7→1.15) — 폭이 화면 절반을 넘지 않도록(부채꼴 각도도 같이 좁힘) */
 .accident-warn-revert {
     display: block;
     margin: 8px auto 0;
@@ -8918,8 +8918,8 @@ html[data-font-size="large"] .ocean-overlay-btn {
     flex: 1;
     padding: 11px;
     border-radius: 8px;
-    border: 1px solid var(--border-color);
-    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.14);
     color: var(--text-main);
     font-size: 0.82rem;
     font-weight: 700;
@@ -8939,6 +8939,7 @@ html[data-font-size="large"] .ocean-overlay-btn {
 }
 .accident-filter-select-all.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #05070d; }
 .accident-filter-btn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 4px; }
+.accident-filter-btn-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
 .accident-filter-opt-btn {
     display: flex; flex-direction: column; align-items: center; gap: 3px;
     border: 1px solid var(--border-color); background: rgba(255,255,255,0.05);
@@ -8949,6 +8950,8 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-filter-opt-btn .n { font-size: 0.66rem; font-weight: 400; color: var(--text-sub); }
 .accident-filter-opt-btn.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #05070d; }
 .accident-filter-opt-btn.active .n { color: #05070d; opacity: 0.75; }
+.accident-filter-opt-btn.danger .label { color: #ff5252; }
+.accident-filter-opt-btn.danger.active .label { color: #05070d; }
 
 /* 관할서 팝업 전용 — 지방청 구획 라벨(클릭하면 그 청 전체 선택/해제, 2026-08-31 사용자 확정) */
 .accident-filter-org-region {
@@ -8987,6 +8990,7 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-filter-hour-custom-row input[type="time"],
 .accident-filter-hour-custom-row input[type="number"] {
     flex: 1;
+    min-width: 0;
     background: rgba(255,255,255,0.06);
     border: 1px solid var(--border-color);
     border-radius: 6px;
