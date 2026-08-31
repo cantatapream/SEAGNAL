@@ -1527,6 +1527,21 @@ async function loadArticle(q) {
       if (t3) { text = t3; filePath = base + '/' + n; break; }
     }
   }
+  // ★그 자체가 "○○규칙"·"○○령"인 법령은 **그 폴더의 `법률.txt` 안에** 들어 있다(2026-08-31 실측).
+  //   `위험물 선박운송 및 저장규칙`·`선박에서의 오염방지에 관한 규칙` 은 어떤 법의 시행규칙이 아니라
+  //   그 자체가 해양수산부령인데, 이름이 `규칙` 으로 끝나 계층이 rule 로 잡히고 `시행규칙.txt` 를
+  //   찾다가 실패했다. 수집기는 그 문서 자체를 `법률.txt` 로 저장한다 — 실측 37줄이 이 때문에 죽어 있었다.
+  //   ⚠**폴더 이름이 인용된 법령 이름과 같을 때만** 이 폴백을 쓴다. 그래야 `해운법 시행규칙` 처럼
+  //     "다른 문서의 하위 계층"을 찾는 인용이 엉뚱하게 그 법 본문을 열지 않는다(환각 0).
+  if (!text && tier !== 'notice' && tier !== 'law') {
+    const folder = squash(String(base).split('/').pop());
+    if (folder && folder === squash(String(law || '').replace(/[「」『』]/g, ''))) {
+      for (const n of ['법률.txt', '법률_발췌.txt']) {
+        const t4 = await githubRaw.fetchText(base + '/' + n);
+        if (t4) { text = t4; filePath = base + '/' + n; break; }
+      }
+    }
+  }
   if (!text) return { ok: false, reason: 'file_not_found' };
 
   // ★부칙 인용(2026-08-28) — 부칙은 그 법 파일 **뒤쪽**에 붙어 있고, 표기가 법률 본문(`[제10조]`)이

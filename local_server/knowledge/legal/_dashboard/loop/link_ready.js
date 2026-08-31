@@ -32,6 +32,8 @@ const path = require('path');
 const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
 const A = require('/home/user/SEAGNAL/local_server/services/article_text.js');
 
+// 생산(`article_text.js` squash)과 같은 정규화 — 이름 비교에만 쓴다.
+const squash = s0 => String(s0 || '').replace(/\.txt$/i, '').replace(/[^0-9A-Za-z가-힣]/g, '');
 const REPO = path.resolve(__dirname, '../../../../..');   // rawPathOf 는 저장소 루트 기준 상대경로를 준다
 const WIKI = path.resolve(__dirname, '../..', 'wiki');
 const argv = process.argv.slice(2);
@@ -116,6 +118,14 @@ function fileOf(baseRel, tier, law) {
     for (const n of ['대통령령.txt', '대통령령_발췌.txt']) {
       const p2 = path.join(dir, n);
       if (fs.existsSync(p2)) return p2;
+    }
+  }
+  // ★그 자체가 "○○규칙"·"○○령"인 법령은 그 폴더의 `법률.txt` 안에 있다 — 생산과 같은 규칙(L-136).
+  //   폴더 이름이 인용된 법령 이름과 같을 때만 쓴다.
+  if (tier !== 'law' && squash(path.basename(dir)) === squash(String(law || '').replace(/[「」『』]/g, ''))) {
+    for (const n of ['법률.txt', '법률_발췌.txt']) {
+      const p3 = path.join(dir, n);
+      if (fs.existsSync(p3)) return p3;
     }
   }
   return null;
