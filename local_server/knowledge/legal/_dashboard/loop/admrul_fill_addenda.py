@@ -53,18 +53,36 @@ def api(url, tries=4):
     return {'_err': last}
 
 
-def addenda_of(admrul_id):
-    """이 고시의 부칙 문단 목록을 돌려준다. 없으면 빈 목록, 실패면 None."""
-    d = api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=admrul&type=JSON&ID={admrul_id}")
+def _paras(d):
+    """응답에서 부칙 문단만 뽑는다. 없으면 빈 목록."""
     if not isinstance(d, dict) or '_err' in d:
         return None
-    body = d.get('AdmRulService', d)
-    bc = (body.get('부칙') or {}).get('부칙내용')
+    body = d.get('AdmRulService') or d.get('PublicService') or d
+    bc = body.get('부칙')
+    bc = bc.get('부칙내용') if isinstance(bc, dict) else None   # 부칙이 빈 문자열인 응답이 있다
     if bc is None:
         return []
     if isinstance(bc, str):
         bc = [bc]
     return [t.strip() for t in bc if str(t).strip()]
+
+
+def addenda_of(admrul_id):
+    """이 고시의 부칙 문단 목록. 없으면 빈 목록, 못 받으면 None.
+
+    ⚠`target=admrul` 로 못 받았다고 "부칙이 없다"고 하지 않는다(2026-08-31, 세 번째 같은 실수).
+      공단규정·위임규정류(머리글이 `[위임규정]`)는 admrul 응답의 부칙이 **빈 문자열**로 오고,
+      같은 ID 를 `target=public` 으로 부르면 부칙이 그대로 온다 — 실측한 두 건
+      (「바다해설사 양성 및 운영에 관한 지침」·「한국어촌어항공단 정관」) 모두 경과조치를 담고 있었다.
+      그래서 admrul 이 비면 public 으로 한 번 더 물어본다.
+    """
+    got = _paras(api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=admrul&type=JSON&ID={admrul_id}"))
+    if got:
+        return got
+    again = _paras(api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=public&type=JSON&ID={admrul_id}"))
+    if again:
+        return again
+    return got if got is not None else again
 
 
 def id_from_map(path):
