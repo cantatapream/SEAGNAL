@@ -2435,9 +2435,12 @@
 
         // 접힌 상태 = 지금 특보중 원호 자리 그대로 / 펼친 상태 = 그 자리를 중심으로 옆으로
         // 넓게 부채꼴처럼 퍼지며(원호 모양 유지) 반지름도 커지고 바깥으로 밀려남(explode).
-        var EXPLODE_SPAN = 190, EXPLODE_START = WARN_CENTER - EXPLODE_SPAN / 2;
-        var R_EXP_OUT = 132, R_EXP_IN = 96, R_EXP_OFFSET = 9;
-        var GAP = 2.2;
+        // 2026-08-31 실사용 확인 후 축소 — 펼친 폭이 화면 절반을 넘던 것을 90˚(전체
+        // 원의 1/4)로 좁히고 반지름 확대폭도 줄임(92→112). 그래도 화면 밖으로 새면
+        // 안 되니 .accident-chart-wrap/.accident-warn-svg 에 overflow:hidden 까지 같이 건다.
+        var EXPLODE_SPAN = 90, EXPLODE_START = WARN_CENTER - EXPLODE_SPAN / 2;
+        var R_EXP_OUT = 112, R_EXP_IN = 78, R_EXP_OFFSET = 6;
+        var GAP = 1.2;
         var svTotal = sv.reduce(function (a, s) { return a + s.count; }, 0);
         var cursorCollapsed = warnStart, cursorExpanded = EXPLODE_START;
         var states = sv.map(function (s) {
@@ -2498,10 +2501,8 @@
             zoomGroup.classList.remove('zoomed');
         }
         function setExpandedUi() {
-            if (caption) {
-                caption.innerHTML = '한 사고에 특보가 두 종류 이상 겹쳐 있으면 두 조각에 같이 잡혀 합계가 <b>특보 중</b> 건수(' +
-                    w.active + '건)보다 클 수 있습니다.' + legendHtml();
-            }
+            // 겹침 안내 문구는 사용자 확정으로 뺌(2026-08-31 실사용 확인 후) — 범례만 남김.
+            if (caption) caption.innerHTML = legendHtml();
             if (revertBtn) revertBtn.disabled = false;
         }
 
