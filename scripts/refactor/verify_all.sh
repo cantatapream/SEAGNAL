@@ -155,6 +155,14 @@ echo; echo "── V5-8 조문 링크 도달성(눌러서 원문이 열리나) �
 node local_server/knowledge/legal/_dashboard/loop/link_ready.js \
   --base local_server/knowledge/legal/_dashboard/loop/pinned/link_ready_base.json --gate || FAIL=1
 
+echo; echo "── V5-11 별표 도달성(고시 별표를 눌러 열 수 있나) ──"
+# V5-8(link_ready)은 **조문 칸에 조(條)가 있는 줄**만 본다. 조문 칸이 `별표1`·`별지 제3호서식`
+#   뿐인 줄은 "조문 칸이 아님"으로 빼 놓아, 고시 별표를 863건 새로 채운 2026-08-31에도
+#   **몇 건이나 열리게 됐는지 잴 방법이 없었다**(품질 4축 ③ 도달의 구멍).
+#   판정은 생산 함수(extractAttachments·parseBylFile·pickNoticeFile·resolveBase)를 그대로 태운다(L-136).
+node local_server/knowledge/legal/_dashboard/loop/annex_ready.js \
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/annex_ready_base.json --gate || FAIL=1
+
 echo; echo "── V5-8b 원문 덮어쓰기 신호 — 같은 폴더에 같은 ID 가 둘 ──"
 # 재수집이 이름 바뀐 고시를 갈아끼우며 **옛 판본을 통째로 덮어쓴** 사고가 있었다(2026-08-23, L-183).
 #   위키가 인용하던 근거가 raw 에서 사라졌는데, 적대검증관이 지적하고 나서야 드러났다.

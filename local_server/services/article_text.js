@@ -1390,7 +1390,13 @@ async function resolveRefs(found, ctx) {
   if (ctx.tier === 'notice' && bylRefs.some(r => r.kind === 'missing')) {
     // 위키 표의 고시 이름엔 `…지침(고시)`·`「…」(국립수산물품질관리원, 2026-02-11 발령)`처럼
     // 꼬리표가 붙어 있어 그대로 비교하면 별표 파일의 머리말과 안 맞는다 — 괄호 주석을 걷어낸다.
-    const want = squash(String(ctx.docTitle || '').replace(/[（(][^)）]*[)）]/g, '')) || squash(ctx.docTitle);
+    const want0 = squash(String(ctx.docTitle || '').replace(/[（(][^)）]*[)）]/g, '')) || squash(ctx.docTitle);
+    // ★위키 법령 칸이 `고시「부산항 도선구 도선안전절차」` 처럼 **종류 이름표를 앞에 달고** 적힌
+    //   경우가 있다(실측 80행). 그러면 별표 파일 머리말("[부산항 도선구 도선안전절차 별표1] …")에
+    //   그 이름표가 없어 임자 확인이 실패한다 — 파일이 손에 있는데도 못 연다(2026-08-31 실측).
+    //   이름표를 뗀 꼴도 함께 본다. 이름표가 없으면 종전과 똑같다.
+    const wants = [want0, want0.replace(/^(고시|훈령|예규|행정규칙)/, '')].filter((v, i, a) => v && a.indexOf(v) === i);
+    const want = want0;
     const all = (await githubRaw.listDir(ctx.base + '/별표'))
       .filter(e => e.type === 'file' && /\.txt$/i.test(e.name) && !/^(법률|시행령|시행규칙)_/.test(e.name));
     // ★이름이 이 고시 것으로 보이는 파일을 앞으로 당긴다(2026-08-31).
@@ -1407,7 +1413,7 @@ async function resolveRefs(found, ctx) {
       if (!t) continue;
       const parsed = parseBylFile(t);
       // 그 고시 것이 맞는지 — 머리말(제목·출처 줄)에 고시 이름이 들어 있어야 인정한다.
-      if (!want || !squash(parsed.owner).includes(want)) continue;
+      if (want && !wants.some(w => squash(parsed.owner).includes(w))) continue;
       for (const r of bylRefs) {
         const en = parsed.entries.find(x => x.key === r.key);
         if (!en) continue;
