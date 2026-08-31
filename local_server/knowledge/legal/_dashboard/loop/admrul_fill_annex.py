@@ -128,17 +128,32 @@ def main():
         byldir = os.path.join(lawdir, '별표')
         gosi = title_of(p)
         for u in units:
-            no = str(u.get('별표번호') or '').lstrip('0') or '1'
-            gubun = (u.get('별표구분') or '별표').strip()
+            rows0 = []
+            for r in (u.get('별표내용') or []):
+                rows0.extend(r if isinstance(r, list) else [r])
+            # ★가지번호(9의2·9의3)를 잃지 않는다 (2026-08-31 실측).
+            #   API 의 `별표번호` 는 **가지번호를 안 준다** — 「위험물 선박운송 기준」은 별표9·별표9의2·
+            #   별표9의3 이 셋 다 `별표번호: 0009` 로 온다. 그대로 쓰면 파일 이름이 겹쳐 뒤의 둘이
+            #   통째로 사라진다(이미 있으면 건너뛰므로 조용히 없어진다).
+            #   ⓐ내용 첫 줄의 `[별표 9의2]` 표기가 가장 확실하고,
+            #   ⓑ없으면 `별표키` 뒤 두 자리(000900=본, 000902=의2, 000903=의3)로 만든다.
+            head0 = str(rows0[0]) if rows0 else ''
+            m0 = re.match(r'\s*\[?\s*(별표|별지|서식)\s*제?\s*(\d+)(?:\s*의\s*(\d+))?', head0)
+            gubun = (u.get('별표구분') or (m0.group(1) if m0 else '별표')).strip()
+            if m0:
+                no = m0.group(2) + ('의' + m0.group(3) if m0.group(3) else '')
+            else:
+                base_no = str(u.get('별표번호') or '').lstrip('0') or '1'
+                bkey = str(u.get('별표키') or '')
+                br = bkey[-2:] if len(bkey) >= 3 else ''
+                no = base_no + ('의' + str(int(br)) if br.isdigit() and int(br) > 1 else '')
             key = ('별표' if gubun == '별표' else '별지') + no
             fn = f"{safe(gosi)}_{key}.txt"
             out = os.path.join(byldir, fn)
             if os.path.exists(out):
                 rep['이미있어건너뜀'].append(fn)
                 continue
-            rows = []
-            for r in (u.get('별표내용') or []):
-                rows.extend(r if isinstance(r, list) else [r])
+            rows = rows0
             head = (f"[{gosi}] {key} — {(u.get('별표제목') or '').strip()}\n"
                     f"출처: 국가법령정보센터 행정규칙 API target=admrul ID={aid} (수집 2026-08-31)\n")
             link = u.get('별표서식PDF파일링크')

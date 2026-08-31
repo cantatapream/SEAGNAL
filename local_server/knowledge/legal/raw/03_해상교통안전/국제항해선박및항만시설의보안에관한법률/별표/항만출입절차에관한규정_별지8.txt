@@ -1,0 +1,98 @@
+[항만 출입절차에 관한 규정] 별지8 — PERSONAL QUESTIONNAIRE
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000270176 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=159503005
+
+                                                                                      
+  [별지 제8호서식]                                             (1st page)             
+                                                                                      
+                                                                                      
+                                                            ┏━━━━━━━━━━━┓
+  PERSONAL QUESTIONNAIRE                                    ┃[PHOTO]               ┃
+  * FOR OFFICIAL USE ONLY                                   ┃or photo file         ┃
+┏━━━━━━━━━━┯━━━━━━━━━━━━┯━━━┯━┩(3㎝×4㎝)ㆍ          ┃
+┃NAME                │Last/First/Middle       │GENDER│  │(3.5㎝×4.5㎝)        ┃
+┃                    │                        │      │  │                      ┃
+┠──────────┼────────────┴───┴─┤                      ┃
+┃DATE OF             │Month/Day/Year                      │                      ┃
+┃BIRTH               │                                    │                      ┃
+┠──────────┼────┬────────┬────┴───────────┨
+┃NATIONALITY         │        │PLACE OF        │City/Country                    ┃
+┃(Include any        │        │BIRTH           │                                ┃
+┃dual nationality)   │        │                │                                ┃
+┠──────────┼────┼────────┼────────────────┨
+┃ALIEN               │        │DATE &          │Month/Day/Year     City/Country ┃
+┃REGISTRATION        │        │PLACE OF        │                                ┃
+┃NUMBER              │        │ENTRY TO        │                                ┃
+┃                    │        │KOREA           │                                ┃
+┃                    │        │                │                                ┃
+┠──────────┼────┴────────┴────────────────┨
+┃ADDRESS             │                                                            ┃
+┠──────────┼─────┬───────────┬────────────┨
+┃WORK PLACE          │          │JOB/POSITION          │                        ┃
+┠──────────┼─────┴───────────┴────────────┨
+┃TELEPHONE           │ WORK :                     MOBILE :                        ┃
+┃NUMBERS             │                                                            ┃
+┃(Include Area Code) │                                                            ┃
+┠──────────┼───┬───────┬───┬─────┬────────┨
+┃EDUCATION           │SCHOOL│PERIOD        │TYPE  │REWARD &  │LOCATION        ┃
+┃                    │NAME  │(MM/YY-MM/YY) │OF    │PUNISHMENT│(City/Country)  ┃
+┃                    │      │              │DEGREE│(MM/YY)   │                ┃
+┃                    ├───┼───────┼───┼─────┼────────┨
+┃                    │      │              │      │          │                ┃
+┃                    ├───┼───────┼───┼─────┼────────┨
+┃                    │      │              │      │          │                ┃
+┃                    ├───┼───────┼───┼─────┼────────┨
+┃                    │      │              │      │          │                ┃
+┃                    ├───┼───────┼───┼─────┼────────┨
+┃                    │      │              │      │          │                ┃
+┃                    ├───┼───────┼───┼─────┼────────┨
+┃                    │      │              │      │          │                ┃
+┗━━━━━━━━━━┷━━━┷━━━━━━━┷━━━┷━━━━━┷━━━━━━━━┛
+  210㎜×297㎜ 일반용지 60g/㎡(재활용품)                                              
+                                                                                      
+                                                                                                                                      
+                                                                              (2nd page)                                              
+┏━━━━━┯━━━━━━━┯━━━━━━━━━━━━━━┯━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃WORK      │EMPLOYER/     │PERIOD                      │JOB TITLE/      │LOCATION                                              ┃
+┃EXPERIENCE│VERIFIER NAME │(MM/YY-MM/YY)               │POSITION        │(City/Country)                                        ┃
+┃AND       ├───────┼──────────────┼────────┼───────────────────────────┨
+┃ACTIVITIES│              │                            │                │                                                      ┃
+┃          ├───────┼──────────────┼────────┼───────────────────────────┨
+┃          │              │                            │                │                                                      ┃
+┃          ├───────┼──────────────┼────────┼───────────────────────────┨
+┃          │              │                            │                │                                                      ┃
+┃          ├───────┼──────────────┼────────┼───────────────────────────┨
+┃          │              │                            │                │                                                      ┃
+┠─────┼────┬──┴──────┬───────┼────┬───┼───────────────────────────┨
+┃FAMILY    │RELATION│NAME              │DATE OF BIRTH │FINAL   │CAREER│ADDRESS                                               ┃
+┃DETAILS   │        │Last/First/Middle │              │ACADEMIC│      │                                                      ┃
+┃          │        │                  │              │CAREER  │      │                                                      ┃
+┃          ├────┼─────────┼───────┼────┼───┼───────────────────────────┨
+┃          │        │                  │              │        │      │                                                      ┃
+┃          ├────┼─────────┼───────┼────┼───┼───────────────────────────┨
+┃          │        │                  │              │        │      │                                                      ┃
+┃          ├────┼─────────┼───────┼────┼───┼───────────────────────────┨
+┃          │        │                  │              │        │      │                                                      ┃
+┃          ├────┼─────────┼───────┼────┼───┼───────────────────────────┨
+┃          │        │                  │              │        │      │                                                      ┃
+┠─────┼────┴┬────────┴┬──────┴┬───┴─┬─┴───────────────────────────┨
+┃RELATIVE  │RELATION  │NAME              │CAREER        │JOB TITLE/│TELEPHONE                                                 ┃
+┃&         │          │Last/First/Middle │              │POSITION  │NUMBER                                                    ┃
+┃ASSOCIATES├─────┼─────────┼───────┼─────┼─────────────────────────────┨
+┃IN KOREA  │          │                  │              │          │                                                          ┃
+┃          ├─────┼─────────┼───────┼─────┼─────────────────────────────┨
+┃          │          │                  │              │          │                                                          ┃
+┃          ├─────┼─────────┼───────┼─────┼─────────────────────────────┨
+┃          │          │                  │              │          │                                                          ┃
+┠─────┴─────┴─────────┴───────┴─────┴─────────────────────────────┨
+┃I understand that this form may be submitted for checking against the records of police, security and credit agencies in          ┃
+┃accordance                                                                                                                        ┃
+┃with security policy. I declare that the information I have given is true and complete to the best of my knowledge and belief. I  ┃
+┃understand that any false statement or deliberate omission in the information I have given in this questionnaire may disqualify   ┃
+┃me for employment or make me liable to disciplinary action which may include dismissal.                                           ┃
+┃                                                                                                                                  ┃
+┃                                                     DATE :                                                                       ┃
+┃                                                     SIGNATURE :                                                                  ┃
+┃                                                                                                                                  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+210mm×297mm 일반용지 60g/㎡(재활용품)
