@@ -1513,16 +1513,33 @@ function docDate(text) {
 async function loadArticle(q) {
   const law = String((q && q.law) || '').trim();
   const qTier = q && q.tier;
-  const tier = Object.prototype.hasOwnProperty.call(TIER_FILE, qTier) ? qTier : (qTier === 'notice' ? 'notice' : 'law');
+  let tier = Object.prototype.hasOwnProperty.call(TIER_FILE, qTier) ? qTier : (qTier === 'notice' ? 'notice' : 'law');
   const ref = parseArticleRef((q && q.article) || '', tier, law);
   if (!law || !ref) return { ok: false, reason: 'bad_request' };
   if (!githubRaw.hasToken()) return { ok: false, reason: 'no_token' };
 
-  const base = resolveBase(law, (q && q.baseLaw) || '', tier);
+  let base = resolveBase(law, (q && q.baseLaw) || '', tier);
+  // ★이름이 우리가 가진 고시면 **그 고시가 있는 법 폴더**를 쓴다(2026-09-01 실측 32줄).
+  //   `어선설비기준`·`선박구명설비기준`처럼 **어느 법 폴더 이름과도 안 맞는 고시**가 있다.
+  //   그런 칸은 여기까지 와서 "법 폴더를 못 찾음"으로 죽었다 — 정작 그 고시 파일은
+  //   `raw/<도메인>/<법>/행정규칙/` 에 멀쩡히 있는데도.
+  //   ⚠**다른 방법이 다 실패했을 때만** 본다(자기 법 폴더가 언제나 먼저다). 이름이 정확히
+  //     맞는 고시가 있을 때만이라, 엉뚱한 문서를 여는 위험은 pickNoticeFile 의 판정에 걸린다.
+  let forcedNotice = '';
+  if (!base) {
+    const g = pickNoticeGlobal(law);
+    if (g) {
+      forcedNotice = g;
+      base = g.replace(/\/행정규칙\/[^/]+$/, '');
+      tier = 'notice';                 // 고시 파일이므로 파싱도 배지도 고시로 맞춘다
+    }
+  }
   if (!base) return { ok: false, reason: 'law_not_found' };
 
   let filePath;
-  if (tier === 'notice') {
+  if (forcedNotice) {
+    filePath = forcedNotice;
+  } else if (tier === 'notice') {
     const picked = pickNoticeFile(await githubRaw.listDir(base + '/행정규칙'), law);
     if (picked) {
       filePath = base + '/행정규칙/' + picked;

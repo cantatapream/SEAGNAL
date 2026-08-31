@@ -228,7 +228,8 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
       || (fm ? ((/^law:\s*(.+)$/m.exec(fm[1]) || [])[1] || '').trim().replace(/^["']|["']$/g, '') : '');
     for (const row of R.extractCitationChain(src.replace(/^---[\s\S]*?---\n/, ''))) {
       now.rows++;
-      const law = String(row.law || ''), tier = String(row.tier || 'law');
+      const law = String(row.law || '');
+      let tier = String(row.tier || 'law');
       // ★생산이 실제로 여는 조만 센다(2026-08-31, L-136 — 게이트가 판정을 다시 만들면 안 된다).
       //   종전에는 `joTokens` 로 칸 안의 `제N조` 를 **전부** 긁었다. 그런데 조문 칸에는
       //   `법 제8조② 위임`·`별표6(법 제52조 위임)`·`제6조·시행령 제42조①…` 처럼
@@ -252,7 +253,12 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
       const jos = (ref.joList && ref.joList.length ? ref.joList : (ref.jo ? [ref.jo] : []))
         .filter(j => /^제\d+조(?:의\d+)?$/.test(j));
       if (!jos.length) { now.skipped++; continue; }              // 별표·별지·설명뿐인 칸은 V5-5 소관
-      const baseRel = A.resolveBase(law, baseLaw, tier);
+      let baseRel = A.resolveBase(law, baseLaw, tier);
+      // 이름이 우리가 가진 고시면 그 고시가 있는 법 폴더를 쓴다 — 생산과 같은 순서(L-136).
+      if (!baseRel) {
+        const g = A.pickNoticeGlobal && A.pickNoticeGlobal(law);
+        if (g) { baseRel = g.replace(/\/행정규칙\/[^/]+$/, ''); tier = 'notice'; }
+      }
       if (!baseRel) {
         now.no_base++;
         if (ex.no_base.length < 400) ex.no_base.push(`${dir}/${f}  |  ${law.slice(0, 34)}  |  ${String(row.article).slice(0, 24)}`);

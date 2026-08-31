@@ -128,7 +128,12 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
       if (!keys.length) continue;                             // 별표·별지를 안 짚은 줄은 V5-8 소관
       now.rows++;
       const law = String(row.law || '');
-      const baseRel = A.resolveBase(law, baseLaw, 'notice');
+      let baseRel = A.resolveBase(law, baseLaw, 'notice');
+      // 이름이 우리가 가진 고시면 그 고시가 있는 법 폴더를 쓴다 — 생산과 같은 순서(L-136).
+      if (!baseRel) {
+        const g0 = A.pickNoticeGlobal && A.pickNoticeGlobal(law);
+        if (g0) baseRel = g0.replace(/\/행정규칙\/[^/]+$/, '');
+      }
       if (!baseRel) {
         now.no_base++;
         if (ex.no_base.length < 200) ex.no_base.push(`${dir}/${f}  |  ${law.slice(0, 36)}  |  ${String(row.article).slice(0, 20)}`);
