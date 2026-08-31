@@ -89,7 +89,7 @@ def main():
 
     blocks = {}
     for n in sorted(os.listdir(folder)):
-        if not (n.startswith('조약_') and n.endswith('.txt')):
+        if not (n.startswith('조약') and n.endswith('.txt')):
             continue
         text = open(os.path.join(folder, n), encoding='utf-8').read()
         got = split_run(text, *ranges[n]) if n in ranges else split_lines(text)
