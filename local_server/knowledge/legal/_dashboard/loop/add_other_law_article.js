@@ -123,6 +123,24 @@ function renderArticle(u) {
   //   `cite_row.js` 는 `법률.txt` 를 먼저 집으므로 새로 받은 조문을 못 본다 — 받아 놓고도 못 쓴다.
   const wantSlug = flat(hit['법령명한글']).replace(/[/\\]/g, '');
   let dir = path.join(OTHER, wantSlug);
+  // ★우리가 **이미 전문을 가진 법의 시행령·시행규칙**이면 그 법 폴더에 둔다(2026-08-31, 내가 당했다).
+  //   「유선 및 도선 사업법 시행령」 제20조를 받으면서 이 도구가
+  //   `15_관련타부처/유선및도선사업법시행령/시행령_발췌.txt`(1개 조) 를 새로 만들고 지도에도 넣었다.
+  //   그런데 그 법의 **진짜 시행령 40개 조**는 `10_항만물류/유선및도선사업법/시행령.txt` 에 이미 있었다.
+  //   지도는 이름이 정확히 일치하는 열쇠를 먼저 쓰므로, 그날부터 이 법의 위키 31줄이
+  //   1개 조짜리 발췌를 보게 돼 **"그 파일에 그 조 없음"** 으로 죽었다(V5-8 실측).
+  const baseSlug = wantSlug.replace(/(시행령|시행규칙)$/, '');
+  if (baseSlug !== wantSlug && !fs.existsSync(dir)) {
+    try {
+      const map = JSON.parse(fs.readFileSync(path.join(LEGAL, '_dashboard', 'law_raw_paths.json'), 'utf8'));
+      const rel = map[baseSlug];
+      const abs = rel && path.resolve(LEGAL, '..', '..', '..', rel);
+      if (abs && abs.indexOf('15_관련타부처') < 0 && fs.existsSync(path.join(abs, `${tier}.txt`))) {
+        console.error(`  ↳ 이 법은 이미 전문을 갖고 있다 — 발췌 폴더를 새로 만들지 않고 ${path.relative(LEGAL, abs)}/${tier}.txt 에 넣는다.`);
+        dir = abs;
+      }
+    } catch (e) { /* 지도를 못 읽으면 종전대로 발췌 폴더를 쓴다 */ }
+  }
   if (!fs.existsSync(dir)) {
     const found = fs.existsSync(OTHER) &&
       fs.readdirSync(OTHER).find(e => flat(e) === wantSlug);

@@ -1415,7 +1415,12 @@ async function resolveRefs(found, ctx) {
     // ★한 고시가 별표를 수십 개 가진 경우가 있다(지정교육기관기준 83개) — 이름으로 좁혀도
     //   앞 8개는 `별표1·별표10·별표10의2·별표11…` 로 채워져 정작 찾는 `별표2` 가 잘린다
     //   (2026-08-31 실측, V5-11 게이트가 잡아냈다). **찾는 번호가 파일명에 든 것을 맨 앞으로** 보낸다.
-    const need = bylRefs.filter(r => r.kind === 'missing').map(r => String(r.key || '')).filter(Boolean);
+    const need0 = bylRefs.filter(r => r.kind === 'missing').map(r => String(r.key || '')).filter(Boolean);
+    // ★열쇠는 `서식5` 인데 파일 이름은 `별지5`·`별지5호서식` 으로 적힌다(parseBylFile 이 읽을 때
+    //   별지→서식으로 맞춰 주므로 파일 자체는 맞다). 이름 정렬이 그 짝을 모르면 `별지5` 파일이
+    //   앞 8개 밖으로 밀려 **파일이 있는데도 못 연다** — 2026-08-31 실측(선박법 사무취급 요령 서식5,
+    //   같은 고시 파일이 18개라 별지5 가 9번째로 잘렸다).
+    const need = need0.concat(need0.filter(k => k.indexOf('서식') === 0).map(k => '별지' + k.slice(2)));
     const hasKey = e => need.some(k => new RegExp('(^|[^0-9A-Za-z가-힣])' + k + '([^0-9]|$)').test(e.name));
     const pool = mine.length ? mine : all;
     const cand = pool.slice().sort((a, b) => (hasKey(b) ? 1 : 0) - (hasKey(a) ? 1 : 0)).slice(0, 8);

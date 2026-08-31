@@ -87,7 +87,10 @@ function keysOf(baseRel, noticePath, law, need) {
     const mine = wants.length ? all.filter(n => wants.some(w => squash(n).startsWith(w))) : [];
     // 생산과 같은 규칙 — 찾는 번호가 파일명에 든 것을 맨 앞으로 보낸 뒤 8개를 본다
     // (한 고시가 별표를 83개 가진 경우가 있어, 이름만으로 좁히면 정작 찾는 번호가 잘린다).
-    const hasKey = n => (need || []).some(k => new RegExp('(^|[^0-9A-Za-z가-힣])' + k + '([^0-9]|$)').test(n));
+    // 열쇠 `서식5` 는 파일 이름에 `별지5` 로 적힌다 — 생산과 같은 짝짓기(article_text.js need).
+    const need0 = need || [];
+    const needAll = need0.concat(need0.filter(k => k.indexOf('서식') === 0).map(k => '별지' + k.slice(2)));
+    const hasKey = n => needAll.some(k => new RegExp('(^|[^0-9A-Za-z가-힣])' + k + '([^0-9]|$)').test(n));
     const pool = mine.length ? mine : all;
     for (const n of pool.slice().sort((a, b) => (hasKey(b) ? 1 : 0) - (hasKey(a) ? 1 : 0)).slice(0, 8)) {
       let parsed;

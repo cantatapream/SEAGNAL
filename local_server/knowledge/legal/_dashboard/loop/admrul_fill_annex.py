@@ -98,14 +98,23 @@ def main():
     rep = {'쓴파일': [], '이미있어건너뜀': [], '고시못찾음': [], 'ID없음': [], '실패': [], '별표없음': []}
     done = 0
 
+    # ★같은 고시가 여러 법 폴더에 복사돼 있으면 **전부** 채운다 (2026-08-31 실측).
+    #   전에는 hits[0] 하나만 채웠다. 그런데 「목포항 항만시설운영세칙」처럼
+    #   항만법과 선박의입항및출항등에관한법률 두 곳에 같은 이름으로 놓인 고시가 27개 있고,
+    #   article_text.js 는 **그 페이지가 속한 법 폴더**에서만 별표를 찾으므로
+    #   한 쪽만 채우면 다른 쪽 위키는 계속 "그 별표가 없다"가 된다.
+    targets = []
     for name in names:
-        hits = glob.glob(os.path.join(LEGAL, 'raw', '*', '*', '행정규칙', name))
+        hits = sorted(glob.glob(os.path.join(LEGAL, 'raw', '*', '*', '행정규칙', name)))
         if not hits:
             rep['고시못찾음'].append(name)
             continue
-        p = hits[0]
+        targets.extend(hits)
+
+    for p in targets:
         if skip and skip in p:
             continue
+        name = os.path.basename(p)
         aid = id_of(p)
         if not aid:
             rep['ID없음'].append(name)
