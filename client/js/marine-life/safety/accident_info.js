@@ -3391,13 +3391,16 @@
             showModeToggle(true);
             showFilterResetBtn(true);
             showFilterBar(true);
-            // 선박용도는 hk(사고 데이터)에만 있는 필드라 person(인명사고)에선 필터 자체가
-            // 의미 없다 — 버튼을 숨기고, 다른 소스에서 걸어둔 값이 있으면 비운다(사용자
-            // 확정 2026-08-31). 안 비우면 SHIPUSE_POS_IDX.person 이 없어 person 행이
-            // 전부 필터에 걸려 사라지는 사고가 난다.
+            // 선박용도·톤수는 hk(사고 데이터)에만 있는 필드라 person(인명사고)에선 필터
+            // 자체가 의미 없다 — 버튼을 숨기고, 다른 소스에서 걸어둔 값이 있으면 비운다
+            // (사용자 확정 2026-08-31). 안 비우면 SHIPUSE_POS_IDX.person·TONNAGE_POS_IDX.person
+            // 이 없어 person 행이 전부 필터에 걸려 사라지는 사고가 난다.
             var shipUseBtn = document.getElementById('accident-filter-btn-shipUses');
             if (shipUseBtn) shipUseBtn.style.display = key === 'person' ? 'none' : '';
             if (key === 'person' && filters.shipUses) filters.shipUses = null;
+            var tonnageBtn = document.getElementById('accident-filter-btn-tonnageRanges');
+            if (tonnageBtn) tonnageBtn.style.display = key === 'person' ? 'none' : '';
+            if (key === 'person' && filters.tonnageRanges) filters.tonnageRanges = null;
             updateFilterBarModeVisibility();
             updateAllFilterButtonLabels();
             if (hasActiveFilters()) applyFiltersToMarkers(key); // 이전 소스에서 걸어둔 필터를 새 소스에도 반영
