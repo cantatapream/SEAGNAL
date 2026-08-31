@@ -1,16 +1,21 @@
 /**
  * ============================================================================
  * 파일명: scripts/accident_geocode_check.js
- * 역할  : 위치텍스트에 "OO 동방 5마일"처럼 방위+거리가 적힌 사고정보(선박·해경) 행을
- *         카카오 로컬 키워드 검색 API로 역검증해, 텍스트가 가리키는 위치와
- *         실제 저장된 좌표가 크게 어긋나는 행을 찾아낸다.
+ * 역할  : 위치텍스트에 "OO 동방 5마일"처럼 방위+거리가 적힌 사고정보(hk=선박·해경 /
+ *         person=인명사고) 행을 카카오 로컬 키워드 검색 API로 역검증해, 텍스트가
+ *         가리키는 위치와 실제 저장된 좌표가 크게 어긋나는 행을 찾아낸다.
+ *         --source=hk(기본)|person 으로 대상을 고른다(사용자 요청 2026-08-31 —
+ *         "인명사고도 카카오맵 API로 위치 대조·보정하고 싶다"에 따라 hk 전용이던
+ *         스크립트를 소스 선택 가능하게 확장. 로직은 hk 때와 완전히 동일, 대상
+ *         파일·위치텍스트 컬럼 위치만 다르다).
  * ----------------------------------------------------------------------------
  * [배경] findCoordOutliers(client/js/marine-life/safety/accident_info.js)는 같은
  *   위치텍스트가 2건 이상일 때만 좌표를 서로 비교해 이상치를 잡는데, 실측 결과
  *   위치텍스트 있는 26,108건 중 90.4%(23,607건)가 텍스트가 유일해 비교 대상이
- *   없었다(2026-08-21 조사) — 이 필터의 사각지대. 그중 49.8%(13,010건)는
+ *   없었다(2026-08-21 조사, hk 기준) — 이 필터의 사각지대. 그중 49.8%(13,010건)는
  *   "기준지명 + 방위 + 거리" 패턴이라, 기준지명을 지오코딩해 방위·거리로 예상좌표를
- *   계산하면 검증할 수 있다.
+ *   계산하면 검증할 수 있다. person 도 위치텍스트 21,798건 전부에 이 패턴이 1,811건
+ *   있어(2026-08-31 확인) 같은 방식이 그대로 적용된다.
  * [지오코딩 서비스 — Nominatim → 카카오로 교체(2026-08-22)] 처음엔 OpenStreetMap
  *   Nominatim으로 1차 조사(전수 실행, 의심 후보 1,134건)했으나, 결과를 실제로 검토하니
  *   "임원"·"우도"·"마라도"·"정자" 같은 지명에서 Nominatim이 매번 동일한(그리고 실제
@@ -29,12 +34,12 @@
  *   (그 경우 지오코딩 실패로 건너뜀), 있어도 그 지명의 "대표 지점"과 사고 발생지점 사이에는
  *   원래 수 km 정도 오차가 있을 수 있어 THRESHOLD_KM 을 넉넉히(기본 30km) 잡았다.
  *   그래도 걸리는 건수는 자동삭제하지 말고 검수 모드로 사람이 최종 확인할 것.
- * [출력] local_server/data/accident_geocode_suspects.json — 의심 후보 목록(원본
- *   client/accident_ships_hk.json 은 건드리지 않는다).
- * [실행] node local_server/scripts/accident_geocode_check.js [--limit=50]
+ * [출력] local_server/data/accident_geocode_suspects_{source}.json — 의심 후보
+ *   목록(원본 client/accident_ships_hk.json·accident_persons.json 은 건드리지 않는다).
+ * [실행] node local_server/scripts/accident_geocode_check.js [--source=hk|person] [--limit=50]
  * [연계] client/js/marine-life/safety/accident_info.js 의 findCoordOutliers 필터,
- *   client/accident_ships_hk.json(입력), local_server/routes/tide.js 의 /api/search-place
- *   (같은 카카오 API 키를 공유하는 브라우저용 프록시)
+ *   client/accident_ships_hk.json·accident_persons.json(입력), local_server/routes/tide.js 의
+ *   /api/search-place(같은 카카오 API 키를 공유하는 브라우저용 프록시)
  * ============================================================================
  */
 
@@ -43,9 +48,13 @@
 const fs = require('fs');
 const path = require('path');
 
-const HK_JSON_PATH = path.join(__dirname, '..', '..', 'client', 'accident_ships_hk.json');
-const OUT_PATH = path.join(__dirname, '..', 'data', 'accident_geocode_suspects.json');
-const POS_IDX = 4; // hk 행: [lat, lon, ymd, hm, pos, typeCd, causeCd, shipCd, orgCd, rescue, death, missing]
+// 소스별 입력 파일·위치텍스트 컬럼 위치. hk 행: [lat, lon, ymd, hm, pos, typeCd, causeCd,
+// shipCd, orgCd, rescue, death, missing] · person 행: [lat, lon, ymd, pos, typeCd, orgCd, ...]
+// (accident_info.js 의 COORD_OUTLIER_POS_IDX 와 동일한 컬럼 위치를 그대로 씀).
+const SOURCE_CONFIG = {
+    hk: { jsonPath: path.join(__dirname, '..', '..', 'client', 'accident_ships_hk.json'), posIdx: 4 },
+    person: { jsonPath: path.join(__dirname, '..', '..', 'client', 'accident_persons.json'), posIdx: 3 },
+};
 
 const KAKAO_URL = 'https://dapi.kakao.com/v2/local/search/keyword.json';
 const KAKAO_API_KEY = process.env.KAKAO_REST_API_KEY;
@@ -58,7 +67,13 @@ const BEARING_DEG = { 북: 0, 동북: 45, 동: 90, 동남: 135, 남: 180, 서남
 
 function parseArgs() {
     const limitArg = process.argv.find((a) => a.startsWith('--limit='));
-    return { limit: limitArg ? parseInt(limitArg.split('=')[1], 10) : 50 };
+    const sourceArg = process.argv.find((a) => a.startsWith('--source='));
+    const source = sourceArg ? sourceArg.split('=')[1] : 'hk';
+    if (!SOURCE_CONFIG[source]) {
+        console.error(`알 수 없는 --source=${source} (hk 또는 person만 가능)`);
+        process.exit(1);
+    }
+    return { limit: limitArg ? parseInt(limitArg.split('=')[1], 10) : 50, source };
 }
 
 /** 위치텍스트에서 [기준지명, 방위각(도), 거리(km)]를 뽑는다. 매치 안 되면 null. */
@@ -118,14 +133,16 @@ async function main() {
         console.error('KAKAO_REST_API_KEY 환경변수가 설정되지 않았습니다.');
         process.exit(1);
     }
-    const { limit } = parseArgs();
-    const data = JSON.parse(fs.readFileSync(HK_JSON_PATH, 'utf8'));
+    const { limit, source } = parseArgs();
+    const { jsonPath, posIdx } = SOURCE_CONFIG[source];
+    const outPath = path.join(__dirname, '..', 'data', `accident_geocode_suspects_${source}.json`);
+    const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
     const rows = data.rows;
 
     // findCoordOutliers 사각지대와 동일 조건: 같은 위치텍스트가 1건뿐(비교 대상 없음).
     const textGroups = {};
     rows.forEach((row, origIndex) => {
-        const pos = row[POS_IDX];
+        const pos = row[posIdx];
         if (!pos) return;
         (textGroups[pos] || (textGroups[pos] = [])).push(origIndex);
     });
@@ -137,7 +154,7 @@ async function main() {
         if (parsed) candidates.push({ origIndex, row: rows[origIndex], parsed });
     });
 
-    console.log(`전체 ${rows.length}건 중 "위치텍스트 유일 + 방위·거리 패턴" 대상: ${candidates.length}건`);
+    console.log(`[${source}] 전체 ${rows.length}건 중 "위치텍스트 유일 + 방위·거리 패턴" 대상: ${candidates.length}건`);
     const targets = limit > 0 ? candidates.slice(0, limit) : candidates;
     console.log(`이번 실행 대상: ${targets.length}건 (--limit=${limit}, 0이면 전수)`);
 
@@ -161,7 +178,7 @@ async function main() {
 
         if (offKm >= THRESHOLD_KM) {
             suspects.push({
-                origIndex, pos: row[POS_IDX], ymd: row[2],
+                origIndex, pos: row[posIdx], ymd: row[2],
                 actual: [actualLat, actualLon],
                 baseGeocode: [baseCoord.lat, baseCoord.lon],
                 expected: [expected.lat, expected.lon],
@@ -171,9 +188,9 @@ async function main() {
         if ((i + 1) % 20 === 0) console.log(`진행 ${i + 1}/${targets.length}, 의심 후보 ${suspects.length}건`);
     }
 
-    fs.writeFileSync(OUT_PATH, JSON.stringify({ generatedAt: null, thresholdKm: THRESHOLD_KM, suspects }, null, 2));
+    fs.writeFileSync(outPath, JSON.stringify({ generatedAt: null, source, thresholdKm: THRESHOLD_KM, suspects }, null, 2));
     console.log(`완료 — 지오코딩 실패(건너뜀) ${geocodeFailCount}건, 의심 후보 ${suspects.length}건`);
-    console.log(`결과 저장: ${OUT_PATH}`);
+    console.log(`결과 저장: ${outPath}`);
     console.log(`origIndex 목록만 뽑아 검수 모드처럼 확인: ${JSON.stringify(suspects.map((s) => s.origIndex))}`);
 }
 
