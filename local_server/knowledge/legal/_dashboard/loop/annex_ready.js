@@ -61,11 +61,13 @@ function bylKeys(article) {
 /** 그 법 폴더의 행정규칙 중 이 고시 파일을 고른다(생산의 pickNoticeFile 을 그대로 쓴다). */
 function noticeFile(baseRel, law) {
   const nd = path.join(REPO, baseRel, '행정규칙');
-  if (!fs.existsSync(nd)) return null;
-  const picked = A.pickNoticeFile(
+  const picked = fs.existsSync(nd) && A.pickNoticeFile(
     fs.readdirSync(nd, { withFileTypes: true })
       .map(e => ({ name: e.name, type: e.isDirectory() ? 'dir' : 'file' })), law);
-  return picked ? path.join(nd, picked) : null;
+  if (picked) return path.join(nd, picked);
+  // 자기 법 폴더에 없으면 저장소 전체 고시 지도를 본다 — 생산과 같은 순서(L-136, 2026-08-31 신설).
+  const g = A.pickNoticeGlobal && A.pickNoticeGlobal(law);
+  return g ? path.join(REPO, g) : null;
 }
 
 /** 그 고시의 별표 열쇠 집합 — 생산과 같은 두 경로(파일 안 블록 → `별표/` 파일)로 모은다. */
@@ -77,7 +79,11 @@ function keysOf(baseRel, noticePath, law, need) {
   if (noticePath && fs.existsSync(noticePath)) {
     for (const a of A.extractAttachments(fs.readFileSync(noticePath, 'utf8'))) keys.add(a.key);
   }
-  const bd = path.join(REPO, baseRel, '별표');
+  // ★별표는 **그 고시가 실제로 있는 법 폴더**에서 찾는다 — 생산과 같다(2026-08-31).
+  //   전역 고시 지도로 남의 법 폴더에서 고시를 찾아왔으면 별표도 그 폴더에 있다.
+  const bd = noticePath
+    ? path.join(path.dirname(path.dirname(noticePath)), '별표')
+    : path.join(REPO, baseRel, '별표');
   if (fs.existsSync(bd)) {
     const all = fs.readdirSync(bd)
       .filter(n => /\.txt$/i.test(n) && !/^(법률|시행령|시행규칙)_/.test(n));

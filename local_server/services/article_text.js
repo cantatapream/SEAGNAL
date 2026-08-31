@@ -1595,8 +1595,14 @@ async function loadArticle(q) {
   // focused 는 single 갈래에서만 true 가 될 수 있다(아래 "조 하나 인용" 참고) — 나머지 갈래는
   // 강조 자체를 하지 않으므로 여기서 false 로 못박아 클라이언트가 undefined 를 만나지 않게 한다.
   const head = { ok: true, law, tier, mode: ref.mode, focused: false, addenda: '' };
+  // ★별표는 **그 문서가 실제로 있는 법 폴더**에서 찾는다(2026-08-31).
+  //   전역 고시 지도가 생기면서 고시를 다른 법 폴더에서 찾아오는 경우가 생겼는데, 그때 별표를
+  //   페이지의 법 폴더에서 찾으면 못 찾는다 — 「극지해역 운항선박 기준」은 선박안전법 폴더에 있고
+  //   그 별표도 거기 있는데, 이 고시를 짚는 위키는 해양환경관리법 페이지다.
+  //   같은 폴더에서 찾은 보통의 경우엔 값이 base 와 같아 동작이 달라지지 않는다.
+  const docBase = tier === 'notice' ? filePath.replace(/\/행정규칙\/[^/]+$/, '') : base;
   const refCtx = {
-    base, tier, docText: text, docTitle: law,
+    base: docBase, tier, docText: text, docTitle: law,
     docDir: filePath.slice(0, filePath.lastIndexOf('/')),
   };
 
