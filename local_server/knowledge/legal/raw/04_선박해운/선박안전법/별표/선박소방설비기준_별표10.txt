@@ -1,0 +1,33 @@
+[선박소방설비기준] 별표10 — 화재의 위험성이 적다고 인정되는 화물(제65조제1항제2호 관련)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000271238 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=161513759
+
+[별표 10] 〈신설 2007. 4. 6〉
+화재의 위험성이 적다고 인정되는 화물(제65조제1항제2호 관련) 
+1. 알루미늄(가공된 것) : ALUMIINIUM(processing by-products)
+2. 알루미늄 페로실리콘 가루(브리케트 포함) :
+   ALUMIINIUM FERROSILICON POWDER (including briquettes)
+3.알루미늄 실리콘 가루(코팅 안된 것) : ALUMIINIUM SILICON POWDER, uncoated
+4. 석회화된 황철석(황철석 재, 비산회): CALCINED PYRIDES(Pyritic ash, Fly ash)
+5. 직접 제련한 강괴 : DIRECT REDUCED IRON BRIQUETTES(hot moulded)
+6. 페로포스포로스(브리케트 포함) : FERROPHOSP-HORUS(including briquettes)
+7. 페로실리콘(25%이상 실리콘이 함유된 것, 브리케트 포함) :
+    FERROSILICON (more than  25% silicon, including briquettes)
+8. 플루오르스파(칼슘 풀루오르 화물) : FLUORSPAR(calcium fluoride)
+9. 석회(생석회) : LIME(unslacked)
+10. 마그네시아(생마그네시아) : MAGNESIA(unslacked)
+11. 펜슬피치 : PENCIL PITCH
+12. 석유 코우크, PETROLEUM COKE
+13. 방사성물질(저비중 활동 물질, LSA-1) :
+  RADIOACTIVE MATERAL(low specifics activity material, LSA-1)
+14. 방사성물질(표면오염 물질, SCO-1) : 
+  RADIOACTIVE MATERAL(surface contaminated objects, SCO-1)
+15. 망간규소 : SILICOMANGANESE
+16. 황(덩어리 또는 조잡한 분말가루) : SULPHUR(lump or coarse granined powder)
+17. 바나듐 광석 : VANADIUM ORE
+18. 목재칩(15%이상 습기가 포함된 것) : WOODCHIPS 
+19. 목제펄프 펠레트(15%이상 습기가 포함된 것) : WOOD PULP PELLETS
+20. 아연 재 : ZINC ASHES
+21. 아연 찌꺼기 : ZINC DROSS
+22. 아연 잔재물 : ZINC RESIDUES
+23. 아연 스키밍 : ZINC SKIMMINGS

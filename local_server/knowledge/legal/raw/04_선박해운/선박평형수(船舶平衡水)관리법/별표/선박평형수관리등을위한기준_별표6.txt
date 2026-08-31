@@ -1,0 +1,33 @@
+[선박평형수 관리 등을 위한 기준] 별표6 — 선박평형수처리설비의 환경시험 기준(제6조제1항제2호 관련)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000253670 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=148633699
+
+[별표 6]
+선박평형수처리설비의 환경시험 기준(제6조제1항제2호 관련)
+1. 일반사항
+  선박평형수처리설비는 환경시험 완료 후 만족스럽게 작동되는 것이어야 하며, 선박평형수처리설비의 구성품 중 환경시험 대상품은 적합성시험 결과 환경시험이 필요하다고 선정된 바에 따른다.
+2. 환경시험 항목
+  가. 외관검사(Visual inspection)
+  나. 성능시험(Performance test)
+  다. 전원상실시험(External power supply failure)
+  라. 전원변동시험(Power supply variations)
+  마. 동력원변동시험(Pneumatic and hydraulic variations)
+  바. 건조고온시험(Dry heat)
+  사. 온습도시험(Damp heat)
+  아. 진동시험(Vibration)
+  자. 경사시험(Inclination)
+  차. 절연저항시험(Insulation resistance)
+  카. 내전압시험(High voltage)
+  타. 저온시험(Cold)
+  파. 염수분무시험(Salt mist)
+  하. 정전기방전 내성시험(Electrostatic discharge)
+  거. 방사 전자계 내성시험(Electromagnetic field)
+  너. 전도성 저주파 간섭에 대한 내성시험(Conducted low Frequency)
+  더. 전도성 고주파 간섭에 대한 내성시험(Conducted Radio Frequency)
+  러. 전기적 패스트 트랜젠트/버스트 내성시험(Electrical Fast Transients/Burst)
+  머. 서지 내성시험(Surge)
+  버. 발산방사 측정시험(Radiated Emission)
+  서. 전도방사 측정시험(Conducted Emission)
+  어. 난연성 시험(Flame retardant)
+3. 환경시험 세부기준
+  국제해사기구가 2018년 4월 13일 채택한「평형수관리시스템의 승인을 위한 기준」(BWMS CODE)에서 규정하는 바에 따른다.

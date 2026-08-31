@@ -1,0 +1,18 @@
+[어선톤수 측정업무의 집행요령] 별표3 — 국내총톤수에 관한 부기사항(제9조제3항 관련)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000193031 (수집 2026-08-31)
+
+[별표 3]
+국내총톤수에 관한 부기사항(제9조제3항 관련)
+o 부기사항 : IMO Res A758(18)에 따라 1994. 7.18.이전의 건조(용골거치)어선의 건조년도에 따라 국제톤수증서의 비고란에 국내총톤수에 관한 부기사항을 다음과 같이 기재한다.
+(1) 1982. 7.18. 이전 건조(용골거치) 어선:
+This ship is remeasured according to article 3(2)(d) of the 1969 Tonnage Convention.
+The GROSS TONNAGE according to the measurement system previously in force to the measurement system of the international Convention on Tonnage Measurement of Ships, 1969, is :               RT,
+according to the regulation for measurement of Ship‘s Tonnage of the Government of Republic of Korea
+(2) 1982. 7.18 부터 1985.12.31 사이 건조(용골거치) 어선:
+This ship is additionally measured according to resolution A.494(ⅩⅡ)
+The GROSS TONNAGE according to the measurement system previously in force to the measurement system of the International Convention on Tonnage Measurement of Ships, 1969, is :               RT,
+according to the Regulation for Measurement of Ship‘s Tonnage of the Government of Republic of Korea
+(3) 1986. 1. 1.부터 1994. 7.17.까지 사이 건조(용골거치) 어선:
+1) 국내총톤수 1,600톤 미만 어선: (2)에 따라 부기한다.
+2) 국내총톤수 1,600톤 이상 어선: 부기사항을 기재하지 않는다.
+o 국제총톤수와 국내총톤수가 일치하는 경우에는 국제톤수증서상의 비고란에 부기사항을 기재하지 않는다.

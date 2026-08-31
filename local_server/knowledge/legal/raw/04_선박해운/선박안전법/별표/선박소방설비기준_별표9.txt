@@ -1,0 +1,50 @@
+[선박소방설비기준] 별표9 — 화재의 위험성이 적다고 인정되는 액상화 화물(제65조제1항제2호 관련)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000271238 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=161513753
+
+[별표 9] 〈신설 2007. 4. 6〉
+화재의 위험성이 적다고 인정되는 액상화 화물(제65조제1항제2호 관련)
+1. 혼합물(황화아연) : BLENDE(zinc sulphide)
+2. 황동석 : CHALCOPYRITE
+3. 니콜라이트 : COPPER NICKEL
+4. 동정광석 : COPPER ORE CONCENTRATE
+5. 동침전물 : COPPER PRECIPITATES
+6. 방연석(황화납) : GALENA(lead sulphide)
+7. 일메나이트("건성" 및 "습성") : ILMENITE("dry" and "moist")
+8. 철정광석 : IRON ORE CONCENTRATE
+9. 철광석(마그네타이트) : IRON ORE(magnetite)
+10. 철광석(펠레트피드): IRON ORE(pellet feed)
+11. 철광석(신터피드) : IRON ORE(sinter feed)
+12. 철황철석 : IRON PYRITES
+13. 납아연석회(혼합물) : LEAD AND ZINC CAL-CINES(mixed)
+14. 납아연중급품 : LEAD AND ZINC MIDD-LINGS
+15. 납정광석 : LEAD ORE CONCENTRATE
+16. 납광석잔재물 : LEAD ORE RESIDUE
+17. 납은광석 : LEAD SILVER ORE
+18. 황화납 : LEAD SULPHIDE
+19. 황화납(방연석) : LEAD SULPHIDE(galena)
+20. 마그네타이트 : MAGNETITE
+21. 마그네타이트-타코나이트 : MAGNETITE-TACONITE
+22.망간정광석(망간):MANGANIC CONCENTRATE(manganese)
+23. 섬장암(광물성) : NEFELINE SYENITE(mineral)
+24. 니켈정광석 : NICKEL ORE CONCENTRATE
+25. 펜타하이드레이트크루드 : PENTAHYDRATE CRUDE
+26. 황철석 : PYRITE
+27. 황철석(구리) : PYRITES(cupreous)
+28. 황철석(분광) : PYRITES(fine)
+29. 황철석(부유) : PYRITES(flotation)
+30. 황철석(황) : PYRITES(sulphur)
+31. 황철석개(철) : PYRITIC ASHES(iron)
+32. 황철석찌꺼기 : PYRITIC CINDERS
+33. 은납정광석 : SILVER LEAD ORE CONCEN-TRATE
+34. 슬리그(철광석) : SLIG(iron ore)
+35. 아연납석회 : ZINC AND LEAD CALCINES
+36. 아연납중급품 : ZINC AND LEAD MIDD-LINGS
+37. 아연정광석 : ZINC ORE CONCENTRATE
+38. 아연광석(구운 광석) : ZINC ORE(burnt ore)
+39. 아연광석(이극광) : ZINC ORE(calamine)
+40. 아연광석(원석) : ZINC ORE(crude)
+41. 아연신터 : ZINC SINTER
+42. 아연슬러지 : ZINC SLUDGE
+43. 황화아연 : ZINC SULPHIDE
+44. 황화아연(혼합물) : ZINC SULPHIDE(blende)
