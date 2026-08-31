@@ -1,0 +1,77 @@
+[선박위치발신장치의 설치기준 및 운영 등에 관한 규정] 별지2 — 적합성 시험 결과 보고서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000196913 (수집 2026-08-31)
+
+[별지 제2호서식]                                                
+(앞쪽)
+적합성 시험 결과 보고서
+Conformance Test Report
+선박위치발신장치의 설치기준 및 운영 등에 관한 규정 제8조제5항에 따라 발급함
+issued under the provisions of MSC.1/Circ.1296 on Guidance on the survey and certification of compliance of ships with the requirements to transmit LRIT information issued by Ministry of Oceans and Fisheries, Republic of Korea
+┌───────────────────────────┬┐
+│선 박 명(Name of ship)                                ││
+├───────────────────────────┼┤
+│등록항(Port of registry)                              ││
+├───────────────────────────┼┤
+│선박등록번호 및 호출부호                              ││
+│(Distinctive number or letters)                       ││
+├───────────────────────────┼┤
+│IMO 번호(IMO Number)                                  ││
+├───────────────────────────┼┤
+│해상이동서비스식별번호                                ││
+│(Maritime Mobile Service Identity)                    ││
+├───────────────────────────┼┤
+│총톤수(Gross tonnage)                                 ││
+├───────────────────────────┼┤
+│운항구역                                              ││
+│(Sea areas in which the ship is certified to operate) ││
+├───────────────────────────┼┤
+│보고서 유효구역                                       ││
+│(Sea areas for which this report is valid)            ││
+├───────────────────────────┼┤
+│시험수행응용서비스제공자(ASP)                         ││
+│(Application Service Provider conducting the test)    ││
+└───────────────────────────┴┘
+해양수산부
+Ministry of Oceans and Fisheries
+LRIT정보를 전송하도록 지정된 선박설비가 아래 명시한 바와 같음을 인증합니다.
+THIS IS TO CERTIFY that the shipborne equipment designated to transmit LRIT information and specified below:
+.1 has been found to meet the requirement of the provision of regulations V/19-1.6 and V/19-1.7 and of the Revised performance standards and functional requirements for the long-range identification and tracking of ships adopted by resolution MSC.263(84) and:
+                                                                            
+    .1 is of a type approved by the Administration in         □ Yes □ No  
+    accordance with the provisions of regulation                            
+    V/19-1;                                                                 
+                                                                            
+    .2 is of a type approved by the Administration in         □ Yes □ No  
+    accordance with the provisions of regulation IV/14;                     
+                                                                            
+    .3 has been certified by the Administration as meeting    □ Yes □ No  
+    the requirements of IEC 60945(2002-08) and IEC                          
+    60945 Corr.1(2008-04) on Maritime navigation and                        
+    radiocommunication equipment and systems -                              
+    General requirements - Methods of testing and                           
+    required test results;                                                  
+                                                                            
+    .4 is the ship security alert system of the ship and      □ Yes □ No  
+    has been found to comply with the provisions of                         
+    regulation XI-2/6; and of resolution MSC.136(76) on                     
+    Performance standards for a ship security alert                         
+    system/resolution MSC.147(77) on Adoption of the                        
+    Revised performance standards for a ship security                       
+    alert system;                                                           
+                                                                            
+.2 has undergone conformance testing in accordance with the procedures and provisions set out in MSC.1/Circ.1257 and has shown that it can operate within the tolerances of the acceptance criteria stated in the aforesaid circular.
+적합성시험 완료 일자:                            .
+The conformance test was satisfactorily completed on(date of completion of testing)
+┌───────────────────────────────────┐
+│선박설비 상세사항                                                     │
+│Details of the shipborne equipment used to transmit LRIT information  │
+│(e.g., maker model, serial number and shipborne equipment identifier):│
+├───────────────────────────────────┤
+│                                                                      │
+└───────────────────────────────────┘
+발행장소:                         발행일자:                    .
+Issued at  (place of issue)            on     (date of issue)
+                                       
+○○지방해양수산청 선원해사안전과장 (인)
+Director of Seafarers, Maritime Affairs and Safety Division, 
+○○ Regional Oceans and Fisheries Administration
