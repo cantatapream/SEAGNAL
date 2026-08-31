@@ -572,8 +572,9 @@
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
     var _statsView = {};              // source key -> 현재 선택된 "분석 뷰" 탭('trend'|'hourly'|'weekday'|'org'|'warn')
     var _trendDrill = null;           // 연도별 추이 드릴다운: null(연도별) | {year} | {year,month}
-    var _warnExpanded = false;        // 특보발효 도넛 — "특보 중" 조각을 눌러 유형×심각도로 펼친 상태인지
     var _statsCharts = [];            // 지금 그려진 Chart.js 인스턴스 — 다시 그리기 전 반드시 destroy
+    var _warnAnimTimer = null;        // 특보발효 도넛 — 0.5초 지연 타이머(재렌더 시 정리용)
+    var _warnAnimRaf = null;          // 특보발효 도넛 — 펼침/되돌리기 rAF 애니메이션 핸들(재렌더 시 정리용)
 
     /**
      * [필터 — 사고유형/관할서/시간대/계절/특보발표여부/선박용도/톤수(2026-08-24~25
@@ -2263,11 +2264,18 @@
             backHtml = '<button class="accident-trend-back" id="accident-trend-back">◀ ' + crumb + ' — 전체로</button>';
         }
 
+        // 특보발효는 Chart.js 캔버스가 아니라 직접 그리는 SVG(원호 확대+줌인 애니메이션,
+        // 2026-08-31) — 다른 뷰는 기존 그대로 canvas.
+        var chartInnerHtml = activeView === 'warn'
+            ? '<svg class="accident-warn-svg" id="accident-warn-svg"></svg>' +
+              '<button type="button" class="accident-warn-revert" id="accident-warn-revert" disabled>◀ 되돌리기</button>'
+            : '<canvas id="accident-stats-chart"></canvas>';
+
         return '<div class="accident-stats-block">' +
             '<div class="accident-stats-label">분석 뷰</div>' +
             '<div class="accident-detail-tabs">' + viewTabsHtml + '</div>' +
             backHtml +
-            '<div class="accident-chart-wrap" id="accident-chart-wrap"><canvas id="accident-stats-chart"></canvas></div>' +
+            '<div class="accident-chart-wrap" id="accident-chart-wrap">' + chartInnerHtml + '</div>' +
             '<div class="accident-chart-caption" id="accident-chart-caption"></div>' +
             '</div>';
     }
@@ -2316,16 +2324,225 @@
     }
     var DATALABEL_COLOR = '#e2e8f0';
 
-    /** 지금 선택된 "분석 뷰" 탭에 맞는 Chart.js 차트 하나를 그린다(그 전에 이전 걸 destroy). */
+    // ── 특보발효 도넛(2026-08-31 사용자 확정) ──────────────────────────────────
+    // 평시 고리는 고정, 맨 위 "특보 중" 원호가 태풍·풍랑·강풍×주의보·경보 6종으로
+    // 갈라지며 원호 모양 그대로 커진다(막대나 동심원이 아니라 부채꼴). 화면이 뜨고
+    // 0.5초 뒤 자동으로 0.8초에 걸쳐 펼쳐지고(사용자 확정 "매번 재생" — 이 뷰를 열
+    // 때마다 처음부터 다시 재생), 펼쳐지는 동안 화면 전체가 그 지점 쪽으로 살짝
+    // (scale 1.7배, 사용자 확정 "10배 더") 줌인된다. "되돌리기" 버튼으로 접을 수 있다.
+    // 여러 차례 HTML 시안으로 검토 후 반영(아티팩트 검토 로그: 원은 그대로 유지,
+    // 부채꼴이되 막대·스택 아님, 중심은 12시).
+    function warnPolar(cx, cy, r, deg) {
+        var rad = (deg - 90) * Math.PI / 180;
+        return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+    }
+    /** 도넛 한 조각(annular sector) path — offsetDist 만큼 이등분선 방향으로 밀어냄(explode). */
+    function warnWedgePath(cx, cy, rOuter, rInner, startDeg, endDeg, offsetDist) {
+        var span = endDeg - startDeg;
+        if (span <= 0.0001) return '';
+        var mid = (startDeg + endDeg) / 2;
+        var off = warnPolar(0, 0, offsetDist, mid);
+        var ox = cx + off[0], oy = cy + off[1];
+        var large = span >= 180 ? 1 : 0;
+        var p1 = warnPolar(ox, oy, rOuter, startDeg);
+        var p2 = warnPolar(ox, oy, rOuter, endDeg);
+        var p3 = warnPolar(ox, oy, rInner, endDeg);
+        var p4 = warnPolar(ox, oy, rInner, startDeg);
+        return [
+            'M', p1[0], p1[1],
+            'A', rOuter, rOuter, 0, large, 1, p2[0], p2[1],
+            'L', p3[0], p3[1],
+            'A', rInner, rInner, 0, large, 0, p4[0], p4[1],
+            'Z'
+        ].join(' ');
+    }
+    var SVG_NS = 'http://www.w3.org/2000/svg';
+    function warnEl(tag, attrs) {
+        var e = document.createElementNS(SVG_NS, tag);
+        for (var k in attrs) e.setAttribute(k, attrs[k]);
+        return e;
+    }
+
+    /** 재렌더/시트 닫기 전에 반드시 호출 — 대기 중인 지연 타이머·rAF 를 정리한다. */
+    function stopWarnDonutAnim() {
+        if (_warnAnimTimer) { clearTimeout(_warnAnimTimer); _warnAnimTimer = null; }
+        if (_warnAnimRaf) { cancelAnimationFrame(_warnAnimRaf); _warnAnimRaf = null; }
+    }
+
+    function renderWarnDonut(key, members) {
+        var wrap = document.getElementById('accident-chart-wrap');
+        var svg = document.getElementById('accident-warn-svg');
+        var caption = document.getElementById('accident-chart-caption');
+        var revertBtn = document.getElementById('accident-warn-revert');
+        if (!wrap || !svg) return;
+        wrap.style.height = '250px';
+
+        var w = warnBuckets(key, members);
+        var sv = warnSeverityBuckets(key, members); // 0건 조합은 이미 빠져 있음(WARN_SEVERITY_ORDER 순)
+
+        var CX = 190, CY = 190;
+        svg.setAttribute('viewBox', '0 0 380 350');
+
+        if (!w.active || !sv.length) {
+            // 특보 이력이 아예 없는 셀 — 애니메이션 없이 평시만 있는 온전한 원만 보여준다.
+            svg.innerHTML = '';
+            svg.appendChild(warnEl('path', { fill: 'rgba(255,255,255,0.12)', d: warnWedgePath(CX, CY, 92, 60, 0, 360, 0) }));
+            var emptyTotal = warnEl('text', { x: CX, y: CY - 4, 'text-anchor': 'middle', class: 'center-total n' });
+            emptyTotal.textContent = w.inactive.toLocaleString('ko-KR');
+            svg.appendChild(emptyTotal);
+            var emptyLabel = warnEl('text', { x: CX, y: CY + 14, 'text-anchor': 'middle', class: 'center-total l' });
+            emptyLabel.textContent = '전체 사고';
+            svg.appendChild(emptyLabel);
+            if (caption) caption.textContent = '이 셀에는 특보 발효 이력이 없습니다.';
+            if (revertBtn) revertBtn.style.display = 'none';
+            return;
+        }
+        if (revertBtn) revertBtn.style.display = '';
+
+        svg.innerHTML = '';
+        var zoomGroup = warnEl('g', { class: 'accident-warn-zoom' });
+        zoomGroup.style.transformOrigin = CX + 'px ' + (CY - 92) + 'px'; // 특보중 조각 지점 기준
+        svg.appendChild(zoomGroup);
+
+        var R_OUT = 92, R_IN = 60;
+        var totalAll = w.active + w.inactive;
+        var warnSpan = totalAll ? (w.active / totalAll) * 360 : 0;
+        var WARN_CENTER = 0; // 12시(맨 위)
+        var warnStart = WARN_CENTER - warnSpan / 2, warnEnd = WARN_CENTER + warnSpan / 2;
+
+        // 평시(회색, 고정 — 다시 그리지 않는다)
+        zoomGroup.appendChild(warnEl('path', { fill: 'rgba(255,255,255,0.12)', d: warnWedgePath(CX, CY, R_OUT, R_IN, warnEnd, 360 + warnStart, 0) }));
+
+        var totalText = warnEl('text', { x: CX, y: CY - 4, 'text-anchor': 'middle', class: 'center-total n' });
+        totalText.textContent = totalAll.toLocaleString('ko-KR');
+        zoomGroup.appendChild(totalText);
+        var totalLabel = warnEl('text', { x: CX, y: CY + 14, 'text-anchor': 'middle', class: 'center-total l' });
+        totalLabel.textContent = '전체 사고';
+        zoomGroup.appendChild(totalLabel);
+
+        // 특보중(작은 빨간 원호, 접힌 상태) — 펼쳐지면서 투명해지고 그 자리에 세부 원호가 대신 나타난다.
+        var warnSliceEl = warnEl('path', {
+            class: 'accident-warn-wedge', fill: CHART_COLOR.red,
+            d: warnWedgePath(CX, CY, R_OUT, R_IN, warnStart, warnEnd, 0)
+        });
+        zoomGroup.appendChild(warnSliceEl);
+
+        var wedgeEls = sv.map(function (s) {
+            var e = warnEl('path', { class: 'accident-warn-wedge', fill: s.color, opacity: '0' });
+            zoomGroup.appendChild(e);
+            return e;
+        });
+
+        // 접힌 상태 = 지금 특보중 원호 자리 그대로 / 펼친 상태 = 그 자리를 중심으로 옆으로
+        // 넓게 부채꼴처럼 퍼지며(원호 모양 유지) 반지름도 커지고 바깥으로 밀려남(explode).
+        var EXPLODE_SPAN = 190, EXPLODE_START = WARN_CENTER - EXPLODE_SPAN / 2;
+        var R_EXP_OUT = 132, R_EXP_IN = 96, R_EXP_OFFSET = 9;
+        var GAP = 2.2;
+        var svTotal = sv.reduce(function (a, s) { return a + s.count; }, 0);
+        var cursorCollapsed = warnStart, cursorExpanded = EXPLODE_START;
+        var states = sv.map(function (s) {
+            var frac = svTotal ? s.count / svTotal : 0;
+            var spanC = frac * warnSpan;
+            var c0 = cursorCollapsed, c1 = cursorCollapsed + spanC;
+            cursorCollapsed = c1;
+            var spanE = frac * (EXPLODE_SPAN - GAP * sv.length);
+            var e0 = cursorExpanded, e1 = cursorExpanded + spanE;
+            cursorExpanded = e1 + GAP;
+            return { collapsed: [c0, c1, R_OUT, R_IN, 0], expanded: [e0, e1, R_EXP_OUT, R_EXP_IN, R_EXP_OFFSET] };
+        });
+
+        function warnLerp(a, b, t) { return a + (b - a) * t; }
+        function warnEaseOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+        function warnEaseInCubic(t) { return t * t * t; }
+
+        function render(t, easeFn) {
+            var e = easeFn(Math.max(0, Math.min(1, t)));
+            warnSliceEl.setAttribute('opacity', String(1 - e));
+            wedgeEls.forEach(function (elx, i) {
+                var st = states[i];
+                var start = warnLerp(st.collapsed[0], st.expanded[0], e);
+                var end = warnLerp(st.collapsed[1], st.expanded[1], e);
+                var rOut = warnLerp(st.collapsed[2], st.expanded[2], e);
+                var rIn = warnLerp(st.collapsed[3], st.expanded[3], e);
+                var off = warnLerp(st.collapsed[4], st.expanded[4], e);
+                elx.setAttribute('d', warnWedgePath(CX, CY, rOut, rIn, start, end, off));
+                elx.setAttribute('opacity', String(e));
+            });
+        }
+        render(0, function (x) { return x; });
+
+        var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        function animateTo(target, ms, easeFn, onDone) {
+            if (_warnAnimRaf) cancelAnimationFrame(_warnAnimRaf);
+            if (reduceMotion) { render(target, function (x) { return x; }); if (onDone) onDone(); return; }
+            var from = target === 1 ? 0 : 1;
+            var t0 = performance.now();
+            function step(now) {
+                var p = Math.min(1, (now - t0) / ms);
+                render(warnLerp(from, target, p), easeFn);
+                if (p < 1) { _warnAnimRaf = requestAnimationFrame(step); }
+                else { _warnAnimRaf = null; if (onDone) onDone(); }
+            }
+            _warnAnimRaf = requestAnimationFrame(step);
+        }
+
+        function legendHtml() {
+            return '<div class="accident-warn-legend">' + sv.map(function (s) {
+                return '<span class="accident-warn-legend-item"><i style="background:' + s.color + '"></i>' +
+                    escapeHtml(s.label) + ' ' + s.count + '건</span>';
+            }).join('') + '</div>';
+        }
+        function setCollapsedUi() {
+            if (caption) caption.innerHTML = '평시와 특보 중 비율을 그대로 보여주는 중 — 잠시 후 자동으로 특보 종류별로 펼쳐집니다.';
+            if (revertBtn) revertBtn.disabled = true;
+            zoomGroup.classList.remove('zoomed');
+        }
+        function setExpandedUi() {
+            if (caption) {
+                caption.innerHTML = '한 사고에 특보가 두 종류 이상 겹쳐 있으면 두 조각에 같이 잡혀 합계가 <b>특보 중</b> 건수(' +
+                    w.active + '건)보다 클 수 있습니다.' + legendHtml();
+            }
+            if (revertBtn) revertBtn.disabled = false;
+        }
+
+        function playSequence() {
+            stopWarnDonutAnim();
+            setCollapsedUi();
+            render(0, function (x) { return x; });
+            _warnAnimTimer = setTimeout(function () {
+                _warnAnimTimer = null;
+                zoomGroup.classList.add('zoomed');
+                animateTo(1, 800, warnEaseOutCubic, setExpandedUi);
+            }, 500);
+        }
+
+        if (revertBtn) {
+            revertBtn.onclick = function () {
+                stopWarnDonutAnim();
+                zoomGroup.classList.remove('zoomed');
+                animateTo(0, 500, warnEaseInCubic, setCollapsedUi);
+            };
+        }
+
+        playSequence();
+    }
+
+    /** 지금 선택된 "분석 뷰" 탭에 맞는 차트 하나를 그린다(그 전에 이전 걸 정리).
+     * 특보발효만 Chart.js 캔버스가 아니라 직접 그리는 SVG(renderWarnDonut). */
     function renderActiveChart(key, members) {
         destroyStatsCharts();
-        var canvas = document.getElementById('accident-stats-chart');
+        stopWarnDonutAnim();
         var wrap = document.getElementById('accident-chart-wrap');
         var caption = document.getElementById('accident-chart-caption');
-        if (!canvas || !wrap) return;
+        if (!wrap) return;
         var view = _statsView[key] || 'trend';
         if (caption) caption.textContent = '';
         wrap.style.height = '200px';
+
+        if (view === 'warn') { renderWarnDonut(key, members); return; }
+
+        var canvas = document.getElementById('accident-stats-chart');
+        if (!canvas) return;
 
         if (view === 'trend') {
             var t = trendBuckets(members, _trendDrill);
@@ -2430,52 +2647,6 @@
             return;
         }
 
-        if (view === 'warn') {
-            var w = warnBuckets(key, members);
-
-            if (!_warnExpanded || !w.active) {
-                _statsCharts.push(new Chart(canvas, {
-                    type: 'doughnut',
-                    data: { labels: ['특보 중', '평시'], datasets: [{
-                        data: [w.active, w.inactive], backgroundColor: [CHART_COLOR.red, 'rgba(255,255,255,0.12)'], borderWidth: 0
-                    }] },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } },
-                            datalabels: { display: true, color: '#05070d', font: { size: 11, weight: 700 }, formatter: function (v) { return v || ''; } }
-                        },
-                        onClick: function (evt, elements) {
-                            // "특보 중" 조각(index 0)을 누르면 유형×심각도로 펼친다(2026-08-31 사용자 확정).
-                            if (!elements.length || elements[0].index !== 0 || !w.active) return;
-                            _warnExpanded = true;
-                            renderActiveChart(key, members);
-                        }
-                    }
-                }));
-                if (caption) caption.textContent = w.active ? '"특보 중" 조각을 누르면 태풍·풍랑·강풍별로 나눠 볼 수 있습니다.' : '';
-                return;
-            }
-
-            var sv = warnSeverityBuckets(key, members);
-            var labels = sv.map(function (s) { return s.label; });
-            var data = sv.map(function (s) { return s.count; });
-            var colors = sv.map(function (s) { return s.color; });
-            if (w.inactive) { labels.push('평시'); data.push(w.inactive); colors.push('rgba(255,255,255,0.12)'); }
-            _statsCharts.push(new Chart(canvas, {
-                type: 'doughnut',
-                data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 0 }] },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } },
-                        datalabels: { display: true, color: '#05070d', font: { size: 10, weight: 700 }, formatter: function (v) { return v || ''; } }
-                    },
-                    onClick: function () { _warnExpanded = false; renderActiveChart(key, members); }
-                }
-            }));
-            if (caption) caption.textContent = '한 사고에 특보가 두 종류 이상 겹쳐 있으면 두 조각에 같이 잡혀 합계가 "특보 중" 건수보다 클 수 있습니다. 다시 누르면 접힙니다.';
-        }
     }
 
     function renderStatsBody() {
@@ -2491,7 +2662,6 @@
         _statsKey = key;
         _statsMembers = members;
         _trendDrill = null; // 새 셀을 열 때마다 드릴다운 상태 초기화
-        _warnExpanded = false;
         renderStatsBody();
         sheet.classList.add('open');
     }
@@ -2500,6 +2670,7 @@
         var sheet = document.getElementById('accident-stats-sheet');
         if (sheet) sheet.classList.remove('open');
         destroyStatsCharts();
+        stopWarnDonutAnim();
         _statsKey = null;
         _statsMembers = null;
     }
