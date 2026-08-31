@@ -1391,9 +1391,16 @@ async function resolveRefs(found, ctx) {
     // 위키 표의 고시 이름엔 `…지침(고시)`·`「…」(국립수산물품질관리원, 2026-02-11 발령)`처럼
     // 꼬리표가 붙어 있어 그대로 비교하면 별표 파일의 머리말과 안 맞는다 — 괄호 주석을 걷어낸다.
     const want = squash(String(ctx.docTitle || '').replace(/[（(][^)）]*[)）]/g, '')) || squash(ctx.docTitle);
-    const cand = (await githubRaw.listDir(ctx.base + '/별표'))
-      .filter(e => e.type === 'file' && /\.txt$/i.test(e.name) && !/^(법률|시행령|시행규칙)_/.test(e.name))
-      .slice(0, 8);
+    const all = (await githubRaw.listDir(ctx.base + '/별표'))
+      .filter(e => e.type === 'file' && /\.txt$/i.test(e.name) && !/^(법률|시행령|시행규칙)_/.test(e.name));
+    // ★이름이 이 고시 것으로 보이는 파일을 앞으로 당긴다(2026-08-31).
+    //   종전에는 그냥 `.slice(0, 8)` 이었다. 고시 별표를 `별표/` 에 채워 넣자
+    //   한 폴더에 고시급 파일이 70~140개인 법이 여럿 생겼고(산업안전보건법 140·항만법 88 …),
+    //   그러면 정작 찾는 고시의 파일이 앞 8개 밖으로 밀려 **파일이 있는데도 못 연다.**
+    //   파일명이 `<고시명>_별표N.txt` 규칙이므로 이름으로 먼저 고를 수 있다.
+    //   이름으로 하나도 못 고르면 종전과 똑같이 앞 8개를 본다(동작을 좁히지 않는다).
+    const mine = want ? all.filter(e => squash(e.name).startsWith(want)) : [];
+    const cand = (mine.length ? mine : all).slice(0, 8);
     for (const e of cand) {
       if (!bylRefs.some(r => r.kind === 'missing')) break;
       const t = await githubRaw.fetchText(ctx.base + '/별표/' + e.name);
