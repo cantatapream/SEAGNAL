@@ -1167,6 +1167,30 @@ function addendaLawName(law) {
  * @returns {string|null}
  * [연계] → legal_retriever.rawPathOf(law_raw_paths.json 매핑).
  */
+let NOTICE_INDEX = null;
+/**
+ * 고시 이름을 **저장소 전체**에서 찾는다(자기 법 폴더에서 못 찾았을 때만 쓴다).
+ * 예: pickNoticeGlobal('「발굴조사의 방법 및 절차 등에 관한 규정」(고시)')
+ *     → 'local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/행정규칙/발굴조사의방법및절차등에관한규정.txt'
+ * @param {string} law - 체인 행의 법령 칸 값
+ * @returns {string|null} 저장소 상대경로. 못 찾거나 서로 다른 파일이 여럿이면 null
+ * [연계] ← loadArticle()(tier==='notice'). ← _dashboard/notice_index.json (sync_notice_index.py)
+ */
+function pickNoticeGlobal(law) {
+  if (NOTICE_INDEX === null) {
+    try {
+      NOTICE_INDEX = JSON.parse(require('fs').readFileSync(
+        require('path').resolve(__dirname, '../knowledge/legal/_dashboard/notice_index.json'), 'utf8'));
+    } catch (e) { NOTICE_INDEX = {}; }
+  }
+  const names = Object.keys(NOTICE_INDEX);
+  if (!names.length) return null;
+  const picked = pickNoticeFile(names.map(n => ({ name: n, type: 'file' })), law);
+  if (!picked) return null;
+  const dirs = NOTICE_INDEX[picked] || [];
+  return dirs.length ? dirs[0] + '/행정규칙/' + picked : null;
+}
+
 function resolveBase(law, baseLaw, tier) {
   const direct = rawPathOf(law) || rawPathOf(lawNameOnly(law));
   if (direct) return direct;
@@ -1500,8 +1524,19 @@ async function loadArticle(q) {
   let filePath;
   if (tier === 'notice') {
     const picked = pickNoticeFile(await githubRaw.listDir(base + '/행정규칙'), law);
-    if (!picked) return { ok: false, reason: 'file_not_found' };
-    filePath = base + '/행정규칙/' + picked;
+    if (picked) {
+      filePath = base + '/행정규칙/' + picked;
+    } else {
+      // ★다른 부처 소관 고시를 인용한 행(2026-08-31 실측 20줄).
+      //   고시는 그 위키가 속한 법 폴더에서만 찾는데, 위키는 남의 고시도 짚는다 — 예를 들어
+      //   독도법 페이지가 「발굴조사의 방법 및 절차 등에 관한 규정」(국가유산청 고시)을 짚는다.
+      //   그 파일은 매장유산법 폴더에 멀쩡히 있는데도 못 찾아 죽어 있었다.
+      //   ⚠**자기 폴더에서 못 찾았을 때만** 전체 지도를 본다 — 자기 폴더가 언제나 먼저다.
+      //   지도: _dashboard/notice_index.json (`sync_notice_index.py` 가 만든다)
+      const g = pickNoticeGlobal(law);
+      if (!g) return { ok: false, reason: 'file_not_found' };
+      filePath = g;
+    }
   } else {
     filePath = base + '/' + TIER_FILE[tier];
   }
@@ -1700,6 +1735,8 @@ async function loadArticle(q) {
 
 module.exports = {
   loadArticle, parseArticleRef, splitHo, splitParagraphs, extractArticleBlock, pickNoticeFile,
+  // pickNoticeGlobal 도 게이트가 같은 순서로 고시를 고르게 하려고 내보낸다(L-136).
+  pickNoticeGlobal,
   cleanBody, collectRefs, extractAttachments, parseBylFile, listArticleNumbers, buildArticles, resolveRefs,
   // resolveBase 는 순수 함수다(네트워크 없음). 위키 검사 도구(_dashboard/loop/link_ready.js)가
   // "이 근거 줄을 누르면 어느 원문 파일을 여는가"를 **생산과 똑같이** 계산하려고 쓴다 —

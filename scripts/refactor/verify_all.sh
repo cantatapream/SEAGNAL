@@ -155,6 +155,13 @@ echo; echo "── V5-8 조문 링크 도달성(눌러서 원문이 열리나) �
 node local_server/knowledge/legal/_dashboard/loop/link_ready.js \
   --base local_server/knowledge/legal/_dashboard/loop/pinned/link_ready_base.json --gate || FAIL=1
 
+echo; echo "── V5-8c 고시 지도 최신성(다른 부처 고시를 찾을 수 있나) ──"
+# 고시는 그 위키가 속한 법 폴더에서만 찾는데, 위키는 남의 부처 고시도 짚는다(독도법 페이지가
+#   국가유산청 고시를 짚는 식). 그래서 `_dashboard/notice_index.json`(고시 이름 → 법 폴더)을
+#   두고, 자기 폴더에서 못 찾았을 때만 그 지도를 본다. **고시를 새로 받아 놓고 지도를 안 돌리면
+#   그 고시는 남의 법 페이지에서 계속 안 열린다** — 그래서 어긋남을 여기서 막는다.
+python3 local_server/knowledge/legal/_dashboard/loop/sync_notice_index.py --check || FAIL=1
+
 echo; echo "── V5-11 별표 도달성(고시 별표를 눌러 열 수 있나) ──"
 # V5-8(link_ready)은 **조문 칸에 조(條)가 있는 줄**만 본다. 조문 칸이 `별표1`·`별지 제3호서식`
 #   뿐인 줄은 "조문 칸이 아님"으로 빼 놓아, 고시 별표를 863건 새로 채운 2026-08-31에도

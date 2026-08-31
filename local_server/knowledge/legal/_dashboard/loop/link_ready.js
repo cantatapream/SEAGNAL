@@ -94,14 +94,20 @@ function fileOf(baseRel, tier, law) {
   const dir = path.join(REPO, baseRel);
   if (tier === 'notice') {
     const nd = path.join(dir, '행정규칙');
-    if (!fs.existsSync(nd)) return null;
+    if (!fs.existsSync(nd)) {
+      const g0 = A.pickNoticeGlobal && A.pickNoticeGlobal(law);
+      return g0 ? path.join(REPO, g0) : null;
+    }
     // pickNoticeFile 은 GitHub Contents API 응답 모양을 받는다 — `{name, type}` 둘 다 있어야 한다.
     // ⚠`type` 을 빼먹었더니 그 함수가 전부 건너뛰어 833건이 "고시 파일 못 고름"으로 잡혔다
     //   (2026-08-21, 보고 전에 손으로 한 건 열어 보고 발견 — 파일은 멀쩡히 있었다).
     const picked = A.pickNoticeFile(
       fs.readdirSync(nd, { withFileTypes: true })
         .map(e => ({ name: e.name, type: e.isDirectory() ? 'dir' : 'file' })), law);
-    return picked ? path.join(nd, picked) : null;
+    if (picked) return path.join(nd, picked);
+    // 자기 폴더에서 못 찾으면 저장소 전체 고시 지도를 본다 — 생산과 같은 순서(L-136).
+    const g = A.pickNoticeGlobal && A.pickNoticeGlobal(law);
+    return g ? path.join(REPO, g) : null;
   }
   const f = TIER_FILE[tier] || TIER_FILE.law;
   const p = path.join(dir, f);
