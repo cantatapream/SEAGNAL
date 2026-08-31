@@ -60,7 +60,11 @@ const ACCIDENT_CAUSE_LABELS = {
 };
 
 // 선박종류(SHIP_KND_CD) — 선박(해경) 전용. 선박(심판원) CSV엔 이 컬럼이 없다.
+// KIN001 은 국립해양조사원 공식 코드정의서(개방해 데이터셋 테이블정의서.xlsx, 사용자
+// 제공 2026-08-31)에 "NULL"로 정의된 코드 — 실제 선종이 아니라 "정보 없음"을 뜻하는
+// 코드값이라 accidentLabel() 이 null/빈값에 쓰는 라벨과 통일한다.
 const ACCIDENT_SHIP_KIND_LABELS = {
+    KIN001: '- 정보없음',
     KIN002: '고무보트', KIN003: '관공선', KIN004: '낚시어선', KIN005: '모터보트',
     KIN006: '수상오토바이', KIN007: '어선', KIN008: '여객선', KIN009: '예부선',
     KIN010: '요트', KIN011: '유도선', KIN012: '유조선', KIN013: '화물선',
@@ -101,7 +105,7 @@ const ACCIDENT_ORG_LABELS = {
  * [연계] accident_info.js 의 마커 팝업·통계 패널이 호출
  */
 function accidentLabel(table, code) {
-    if (code == null || code === '') return '-';
+    if (code == null || code === '') return '- 정보없음';
     return (table && table[code] != null) ? table[code] : String(code);
 }
 

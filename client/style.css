@@ -8785,6 +8785,36 @@ html[data-font-size="large"] .ocean-overlay-btn {
    CSS 스파크라인/주야간 바를 대체(Chart.js 캔버스로 교체). */
 .accident-chart-wrap { position: relative; width: 100%; height: 200px; margin-top: 2px; }
 .accident-chart-caption { font-size: 0.7rem; color: var(--text-sub); margin-top: 6px; text-align: center; }
+
+/* 특보발효 도넛(2026-08-31 사용자 확정 — 여러 차례 시안 검토 후 반영) — 평시 고리는
+   고정, 맨 위 "특보 중" 원호가 태풍·풍랑·강풍×주의보·경보 6종으로 갈라지며 원호
+   모양 그대로 커진다(막대·동심원 아님). 화면 뜨고 0.5초 뒤 자동 재생(사용자 확정
+   "매번 재생"), 확대 중엔 화면 전체가 그 지점으로 살짝(10배 확대폭) 줌인. */
+.accident-warn-svg { display: block; margin: 0 auto; overflow: visible; }
+.accident-warn-wedge { transition: opacity .12s linear; }
+.accident-warn-zoom {
+    transform-box: view-box;
+    transition: transform .8s cubic-bezier(.22,.9,.32,1.05);
+}
+.accident-warn-zoom.zoomed { transform: scale(1.7); }
+.accident-warn-revert {
+    display: block;
+    margin: 8px auto 0;
+    border: none;
+    background: rgba(255,255,255,0.07);
+    color: var(--text-sub);
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    cursor: pointer;
+}
+.accident-warn-revert:disabled { opacity: 0.4; cursor: default; }
+.accident-warn-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 10px; margin-top: 6px; }
+.accident-warn-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; color: var(--text-sub); }
+.accident-warn-legend-item i { width: 8px; height: 8px; border-radius: 2px; flex: none; display: inline-block; }
+@media (prefers-reduced-motion: reduce) {
+    .accident-warn-zoom { transition: none !important; }
+}
 .accident-trend-back {
     display: block;
     border: none;
@@ -8814,7 +8844,7 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-bar-row .name { width: 84px; flex: none; color: var(--text-sub); }
 .accident-bar-row .track { flex: 1; background: rgba(255,255,255,0.08); border-radius: 4px; height: 7px; overflow: hidden; }
 .accident-bar-row .fill { height: 100%; background: var(--accent-green); border-radius: 4px; }
-.accident-bar-row .n { width: 30px; text-align: right; color: var(--text-main); }
+.accident-bar-row .n { width: 68px; flex: none; text-align: right; color: var(--text-main); white-space: nowrap; }
 
 /* 사고정보 필터 바(2026-08-24) — 현황: 사고유형만, 분석: 4개 전부 노출.
    버튼 하나가 [필터명: 요약] 형태 — 확정하면 "N개 선택"으로 바뀐다. */
@@ -8857,18 +8887,19 @@ html[data-font-size="large"] .ocean-overlay-btn {
     z-index: 1200;
     background: rgba(0,0,0,0.55);
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
+    padding: 20px;
 }
 .accident-filter-popup {
     width: 100%;
     max-width: 420px;
-    max-height: 78vh;
+    max-height: 80vh;
     background: var(--card-bg);
-    border-radius: 16px 16px 0 0;
+    border-radius: 16px;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 -4px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
 }
 .accident-filter-popup-hdr {
     display: flex;
@@ -8896,22 +8927,40 @@ html[data-font-size="large"] .ocean-overlay-btn {
 }
 .accident-filter-popup-footer button.primary { background: var(--accent-blue); border-color: var(--accent-blue); color: #05070d; }
 
-.accident-filter-check-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 4px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    font-size: 0.82rem;
-    color: var(--text-main);
-}
-.accident-filter-check-row:last-child { border-bottom: none; }
-.accident-filter-check-row input[type="checkbox"] { width: 18px; height: 18px; flex: none; }
-.accident-filter-check-row .label { flex: 1; }
-.accident-filter-check-row .n { color: var(--text-sub); font-size: 0.72rem; }
 .accident-filter-empty { padding: 20px 4px; text-align: center; color: var(--text-sub); font-size: 0.8rem; }
-/* "전체 선택" 행(2026-08-25) — 개별 옵션들과 구분되도록 굵게 + 아래 구분선 강조 */
-.accident-filter-check-all { font-weight: 700; border-bottom: 1px solid var(--border-color); }
+
+/* 체크박스 목록 → 버튼 그리드(2026-08-31, 사용자 확정) — 사고유형·계절·선박용도·특보·
+   관할서(지방청 그룹) 공용. 3개씩 배치, 선택 시 파란 배경으로 눌린 느낌. */
+.accident-filter-select-all {
+    display: block; width: 100%; margin-bottom: 10px;
+    border: 1px solid var(--border-color); background: rgba(255,255,255,0.05);
+    color: var(--text-main); padding: 10px; border-radius: 8px;
+    font-size: 0.82rem; font-weight: 700; text-align: center; cursor: pointer;
+}
+.accident-filter-select-all.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #05070d; }
+.accident-filter-btn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 4px; }
+.accident-filter-opt-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    border: 1px solid var(--border-color); background: rgba(255,255,255,0.05);
+    color: var(--text-main); padding: 10px 4px; border-radius: 8px;
+    font-size: 0.78rem; font-weight: 600; text-align: center; cursor: pointer;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.accident-filter-opt-btn .n { font-size: 0.66rem; font-weight: 400; color: var(--text-sub); }
+.accident-filter-opt-btn.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #05070d; }
+.accident-filter-opt-btn.active .n { color: #05070d; opacity: 0.75; }
+
+/* 관할서 팝업 전용 — 지방청 구획 라벨(클릭하면 그 청 전체 선택/해제, 2026-08-31 사용자 확정) */
+.accident-filter-org-region {
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1px solid var(--border-color); border-radius: 8px;
+    padding: 9px 12px; margin: 14px 0 8px; cursor: pointer;
+    font-size: 0.82rem; font-weight: 700; color: var(--text-main);
+}
+.accident-filter-org-region:first-child { margin-top: 0; }
+.accident-filter-org-region .hint { font-size: 0.68rem; font-weight: 400; color: var(--text-sub); }
+.accident-filter-org-region.all-selected { border-color: var(--accent-blue); color: var(--accent-blue); }
+.accident-filter-org-region.some-selected { border-color: rgba(77,171,247,0.5); }
 
 /* 시간대 팝업 전용 — 4시간 간격 프리셋 버튼(다중선택) + 직접 설정 */
 .accident-filter-hour-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
@@ -8935,7 +8984,8 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-filter-hour-custom { border-top: 1px solid var(--border-color); padding-top: 12px; }
 .accident-filter-hour-custom-label { font-size: 0.7rem; color: var(--text-sub); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
 .accident-filter-hour-custom-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.accident-filter-hour-custom-row input[type="time"] {
+.accident-filter-hour-custom-row input[type="time"],
+.accident-filter-hour-custom-row input[type="number"] {
     flex: 1;
     background: rgba(255,255,255,0.06);
     border: 1px solid var(--border-color);
