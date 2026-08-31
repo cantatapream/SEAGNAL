@@ -135,8 +135,14 @@ function renderArticle(u) {
       const map = JSON.parse(fs.readFileSync(path.join(LEGAL, '_dashboard', 'law_raw_paths.json'), 'utf8'));
       const rel = map[baseSlug];
       const abs = rel && path.resolve(LEGAL, '..', '..', '..', rel);
-      if (abs && abs.indexOf('15_관련타부처') < 0 && fs.existsSync(path.join(abs, `${tier}.txt`))) {
-        console.error(`  ↳ 이 법은 이미 전문을 갖고 있다 — 발췌 폴더를 새로 만들지 않고 ${path.relative(LEGAL, abs)}/${tier}.txt 에 넣는다.`);
+      // ⚠종전에는 여기에 `15_관련타부처 밖일 것` 이라는 조건을 달았다가 **정작 제일 흔한 경우를
+      //   놓쳤다**(2026-08-31, 넣은 그날 바로 당했다) — 타부처 법의 시행령·시행규칙이 바로
+      //   `15_관련타부처/<법>/시행령.txt` 에 있는데, 그 조건 때문에 가드가 안 걸려
+      //   `15_관련타부처/폐기물관리법시행규칙/` 같은 그림자 폴더를 6개 새로 만들었다.
+      //   폴더가 어디에 있든 상관없다 — **그 법의 그 계층 파일이 이미 있으면 거기에 넣는다.**
+      const tierFile = [`${tier}.txt`, `${tier}_발췌.txt`].find(n => abs && fs.existsSync(path.join(abs, n)));
+      if (tierFile) {
+        console.error(`  ↳ 이 법의 ${tier} 파일이 이미 있다 — 발췌 폴더를 새로 만들지 않고 ${path.relative(LEGAL, abs)}/${tierFile} 에 넣는다.`);
         dir = abs;
       }
     } catch (e) { /* 지도를 못 읽으면 종전대로 발췌 폴더를 쓴다 */ }

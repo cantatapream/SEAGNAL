@@ -698,8 +698,11 @@ function extractArticleBlock(text, jo, tier) {
     //   m 플래그는 쓰지 않는다(실측으로 확인한 함정).
     // ⚠ 부칙·별표 경계는 DOC_TAIL_SRC 하나만 쓴다(따로 좁은 패턴을 두면 마지막 조에 부칙·별표가
     //   통째로 딸려 들어가 인용하지도 않은 별표 링크가 붙는다 — leak 재발 방지).
+    // ⚠ 조 번호와 여는 괄호 사이에 **공백이 있는 고시가 있다**(`제1조 (목적)`) — 실측 23개 파일 35개 조
+    //   (수면비행선박기준·포항항예선운영세칙 등). 공백을 안 받아 주면 그 조는 파일에 있는데도
+    //   "그 조 없음"으로 죽는다(2026-08-31, V5-8 게이트가 잡아냈다). 다음 조를 찾는 쪽도 같이 받는다.
     const re = new RegExp(
-      `(?:^|\\n)${reEsc(jo)}\\(([^)]*)\\)([\\s\\S]*?)(?=\\n제\\d+조(?:의\\d+)?\\(|\\n제\\d+장|${DOC_TAIL_SRC}|$)`
+      `(?:^|\\n)${reEsc(jo)}[ \\t]*\\(([^)]*)\\)([\\s\\S]*?)(?=\\n제\\d+조(?:의\\d+)?[ \\t]*\\(|\\n제\\d+장|${DOC_TAIL_SRC}|$)`
     );
     const m = re.exec(src);
     if (!m) return null;
@@ -1204,7 +1207,7 @@ function articleRegion(text) {
 function listArticleNumbers(text, tier) {
   const src = articleRegion(text);
   const re = tier === 'notice'
-    ? /(?:^|\n)제(\d+)조(?:의(\d+))?\(/g
+    ? /(?:^|\n)제(\d+)조(?:의(\d+))?[ \t]*\(/g
     : /(?:^|\n)\[제(\d+)조(?:의(\d+))?\]/g;
   const out = [];
   let m;
