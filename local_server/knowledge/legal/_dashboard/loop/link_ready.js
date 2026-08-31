@@ -262,7 +262,19 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
         continue;
       }
       const have = articleNumbersOf(file, tier, A.isAddendaCell && A.isAddendaCell(law));
-      const miss = jos.filter(j => !have.live.has(j) && !have.dead.has(j));
+      let miss = jos.filter(j => !have.live.has(j) && !have.dead.has(j));
+      // ★"없다"고 말하기 전에 **생산 함수로 한 번 더 확인한다**(2026-08-31, L-136·§6).
+      //   빠른 판정에 쓰는 `listArticleNumbers` 는 조문 구간을 별표·부칙 앞에서 끊는다(부칙의
+      //   제1조가 본문 조로 섞이는 것을 막는 정당한 장치다). 그런데 「현장승선실습 표준협약서」처럼
+      //   **고시의 알맹이가 별표 안에 든 문서**는 그 조가 전부 경계 뒤에 있어, 파일에 멀쩡히 있는데도
+      //   "그 조 없음"으로 세어졌다. 챗봇이 한 조를 열 때 쓰는 것은 `extractArticleBlock` 이고
+      //   그쪽은 경계를 안 자르므로 실제로는 열린다. 없다고 셀 후보만 다시 보므로 비용은 미미하다.
+      if (miss.length) {
+        try {
+          const text = fs.readFileSync(file, 'utf8');
+          miss = miss.filter(j => !A.extractArticleBlock(text, j, tier));
+        } catch (_) { /* 못 읽으면 종전 판정을 그대로 둔다 */ }
+      }
       if (!miss.length) {
         // 삭제된 조만 걸린 줄은 "열린다" 로 세되 따로 표시해 둔다(고칠 수 있는 결함이 아니다).
         if (jos.some(j => !have.live.has(j) && have.dead.has(j))) now.deleted++;
