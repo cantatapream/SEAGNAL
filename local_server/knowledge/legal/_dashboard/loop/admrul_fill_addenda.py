@@ -67,6 +67,31 @@ def addenda_of(admrul_id):
     return [t.strip() for t in bc if str(t).strip()]
 
 
+def id_from_map(path):
+    """머리글에 `ID:` 가 없는 파일의 일련번호를 옆 `_admrul.json` 에서 되찾는다.
+
+    왜 (2026-08-31, 선박법 담당 사서가 잡아 줌):
+      머리글 형식이 다른 고시 파일이 69건 있다(`행정규칙명: …` 로 시작하는 옛 형식 등).
+      그중 10건은 같은 폴더의 `_admrul.json` 이 `행정규칙일련번호` 를 갖고 있어 API 로 찾아갈 수 있다.
+      "머리글에 ID가 없다"와 "찾아갈 방법이 없다"는 다른 말이다 — 이걸 뭉뚱그리면
+      받을 수 있는 것을 못 받는 것으로 잘못 보고하게 된다(오늘 실제로 그랬다).
+    """
+    mp = os.path.join(os.path.dirname(path), '_admrul.json')
+    if not os.path.exists(mp):
+        return None
+    try:
+        d = json.load(open(mp, encoding='utf-8'))
+    except Exception:
+        return None
+    base = os.path.basename(path)
+    for k, v in (d.items() if isinstance(d, dict) else []):
+        if isinstance(v, dict) and (v.get('파일') == base or k + '.txt' == base):
+            n = str(v.get('행정규칙일련번호') or '').strip()
+            if n.isdigit():
+                return n
+    return None
+
+
 def main():
     dry = '--dry' in sys.argv
     limit = None
@@ -99,12 +124,13 @@ def main():
         #   그런 파일이 22건 있었는데 전부 조용히 건너뛰고는 "ID줄이 없다"로 세었다 —
         #   "안 받아 본 것"을 "받을 수 없는 것"으로 잘못 보고한 셈이다. 머리글 몇 줄을 훑는다.
         m = re.search(r'^ID:(\d+)', '\n'.join(text.split('\n')[:8]), re.M)
-        if not m:
+        admrul_id = m.group(1) if m else id_from_map(p)
+        if not admrul_id:
             rep['ID없음'].append(name)
             continue
         if limit is not None and done >= limit:
             break
-        paras = addenda_of(m.group(1))
+        paras = addenda_of(admrul_id)
         if paras is None:
             rep['실패'].append(name)
             continue

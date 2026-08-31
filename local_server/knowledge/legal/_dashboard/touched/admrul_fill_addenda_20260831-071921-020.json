@@ -1,0 +1,16 @@
+{
+ "script": "admrul_fill_addenda",
+ "stamp": "20260831-071921-020",
+ "files": [
+  "local_server/knowledge/legal/raw/04_선박해운/선박법/행정규칙/선박법사무취급요령.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박법/행정규칙/선박전자증서발급에관한고시.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박법/행정규칙/선박톤수측정등의대행수수료.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박법/행정규칙/선박톤수측정요령.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/행정규칙/준설물질 등의 활용 등에 관한 규정.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/행정규칙/폐기물 해양배출 사업계획서의 작성에 관한 지침.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/행정규칙/해양배출 검사기관 지정에 관한 고시.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/행정규칙/해양배출 폐기물의 정밀평가에 관한 고시.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/행정규칙/해양오염퇴적물 정화명령제도 운영지침.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/행정규칙/해양오염퇴적물정화업 대체인력 관련학과 및 직무분야 고시.txt"
+ ]
+}
