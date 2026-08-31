@@ -29,7 +29,7 @@ on:
           - hk
           - person
       limit:
-        description: '조사할 건수 (0 = 전수, 시간이 오래 걸림 — 우선 50~200 권장)'
+        description: '조사할 건수 (0 = 전수. person 은 21,798건 전수조사라 0으로 돌리면 API 호출 간격 때문에 시간이 오래 걸림 — 처음엔 50~200 권장)'
         required: false
         default: '100'
 
@@ -72,10 +72,12 @@ jobs:
             lines.push('');
             lines.push('의심 임계값: ' + data.thresholdKm + 'km 이상 어긋난 경우만 후보로 표시합니다.');
             lines.push('');
-            lines.push('| 건수 | 위치텍스트 | 발생일자 | 저장된 좌표 | 예상 좌표(지오코딩) | 어긋난 거리 |');
-            lines.push('|---|---|---|---|---|---|');
+            lines.push('방식: **pattern**=\"기준지명+방위+거리\"를 정밀 계산(신뢰도 높음) · **fulltext**=위치텍스트 전체를 그대로 검색(신뢰도 낮음, 반드시 사람이 확인).');
+            lines.push('');
+            lines.push('| 건수 | 방식 | 위치텍스트 | 발생일자 | 저장된 좌표 | 예상 좌표(지오코딩) | 어긋난 거리 |');
+            lines.push('|---|---|---|---|---|---|---|');
             data.suspects.forEach(s => {
-              lines.push('| origIndex ' + s.origIndex + ' | ' + s.pos + ' | ' + s.ymd + ' | ' + s.actual.join(', ') + ' | ' + s.expected.join(', ') + ' | ' + s.offsetKm + 'km |');
+              lines.push('| origIndex ' + s.origIndex + ' | ' + (s.method || 'pattern') + ' | ' + s.pos + ' | ' + s.ymd + ' | ' + s.actual.join(', ') + ' | ' + s.expected.join(', ') + ' | ' + s.offsetKm + 'km |');
             });
             lines.push('');
             lines.push('**의심 후보 ' + data.suspects.length + '건.** 아래 origIndex 목록을 검수 모드에 붙여넣듯 확인하세요(자동삭제 아님 — 사람이 직접 지도에서 봐야 함):');

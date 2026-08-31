@@ -6,8 +6,15 @@
  *         가리키는 위치와 실제 저장된 좌표가 크게 어긋나는 행을 찾아낸다.
  *         --source=hk(기본)|person 으로 대상을 고른다(사용자 요청 2026-08-31 —
  *         "인명사고도 카카오맵 API로 위치 대조·보정하고 싶다"에 따라 hk 전용이던
- *         스크립트를 소스 선택 가능하게 확장. 로직은 hk 때와 완전히 동일, 대상
- *         파일·위치텍스트 컬럼 위치만 다르다).
+ *         스크립트를 소스 선택 가능하게 확장).
+ * [person 은 "전수조사"(2026-08-31 사용자 확정)] hk 는 기존 그대로 "위치텍스트 유일 +
+ *   방위·거리 패턴"만 검사(정밀, 대상 좁음). person 은 사용자가 "위치텍스트 21,798건
+ *   전부를 조사하자, 정밀도가 낮아도 된다"고 명시적으로 골라 SOURCE_CONFIG.person.
+ *   fullCensus=true — 유일 텍스트 제한을 없애고, 방위·거리 패턴이 없는 행은 위치텍스트
+ *   "전체"를 카카오 키워드로 그대로 검색해 1위 결과와 저장좌표를 직접 비교한다(방위·거리
+ *   보정 없이 텍스트 자체를 지명으로 취급 — 패턴 매치보다 부정확할 수 있어 후보는
+ *   method 필드로 pattern/fulltext 를 구분해 남긴다. 둘 다 사람이 검수 화면에서 최종
+ *   확인, 자동삭제 아님).
  * ----------------------------------------------------------------------------
  * [배경] findCoordOutliers(client/js/marine-life/safety/accident_info.js)는 같은
  *   위치텍스트가 2건 이상일 때만 좌표를 서로 비교해 이상치를 잡는데, 실측 결과
@@ -52,8 +59,8 @@ const path = require('path');
 // shipCd, orgCd, rescue, death, missing] · person 행: [lat, lon, ymd, pos, typeCd, orgCd, ...]
 // (accident_info.js 의 COORD_OUTLIER_POS_IDX 와 동일한 컬럼 위치를 그대로 씀).
 const SOURCE_CONFIG = {
-    hk: { jsonPath: path.join(__dirname, '..', '..', 'client', 'accident_ships_hk.json'), posIdx: 4 },
-    person: { jsonPath: path.join(__dirname, '..', '..', 'client', 'accident_persons.json'), posIdx: 3 },
+    hk: { jsonPath: path.join(__dirname, '..', '..', 'client', 'accident_ships_hk.json'), posIdx: 4, fullCensus: false },
+    person: { jsonPath: path.join(__dirname, '..', '..', 'client', 'accident_persons.json'), posIdx: 3, fullCensus: true },
 };
 
 const KAKAO_URL = 'https://dapi.kakao.com/v2/local/search/keyword.json';
@@ -134,27 +141,40 @@ async function main() {
         process.exit(1);
     }
     const { limit, source } = parseArgs();
-    const { jsonPath, posIdx } = SOURCE_CONFIG[source];
+    const { jsonPath, posIdx, fullCensus } = SOURCE_CONFIG[source];
     const outPath = path.join(__dirname, '..', 'data', `accident_geocode_suspects_${source}.json`);
     const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
     const rows = data.rows;
 
-    // findCoordOutliers 사각지대와 동일 조건: 같은 위치텍스트가 1건뿐(비교 대상 없음).
-    const textGroups = {};
-    rows.forEach((row, origIndex) => {
-        const pos = row[posIdx];
-        if (!pos) return;
-        (textGroups[pos] || (textGroups[pos] = [])).push(origIndex);
-    });
     const candidates = [];
-    Object.keys(textGroups).forEach((pos) => {
-        if (textGroups[pos].length !== 1) return;
-        const origIndex = textGroups[pos][0];
-        const parsed = parseDirectionDistance(pos);
-        if (parsed) candidates.push({ origIndex, row: rows[origIndex], parsed });
-    });
+    if (fullCensus) {
+        // person 전수조사: 위치텍스트가 있는 행 전부(중복 텍스트도 포함) — 방위·거리
+        // 패턴이 있으면 정밀 계산(pattern), 없으면 텍스트 전체를 그대로 검색(fulltext).
+        rows.forEach((row, origIndex) => {
+            const pos = row[posIdx];
+            if (!pos) return;
+            const dir = parseDirectionDistance(pos);
+            const parsed = dir ? { mode: 'pattern', ...dir } : { mode: 'fulltext', query: pos };
+            candidates.push({ origIndex, row, parsed });
+        });
+    } else {
+        // hk: findCoordOutliers 사각지대와 동일 조건 — 같은 위치텍스트가 1건뿐(비교 대상
+        // 없음) + 방위·거리 패턴이 있는 행만(기존 동작 그대로 유지).
+        const textGroups = {};
+        rows.forEach((row, origIndex) => {
+            const pos = row[posIdx];
+            if (!pos) return;
+            (textGroups[pos] || (textGroups[pos] = [])).push(origIndex);
+        });
+        Object.keys(textGroups).forEach((pos) => {
+            if (textGroups[pos].length !== 1) return;
+            const origIndex = textGroups[pos][0];
+            const dir = parseDirectionDistance(pos);
+            if (dir) candidates.push({ origIndex, row: rows[origIndex], parsed: { mode: 'pattern', ...dir } });
+        });
+    }
 
-    console.log(`[${source}] 전체 ${rows.length}건 중 "위치텍스트 유일 + 방위·거리 패턴" 대상: ${candidates.length}건`);
+    console.log(`[${source}] 전체 ${rows.length}건 중 검사 대상: ${candidates.length}건 (전수조사=${fullCensus})`);
     const targets = limit > 0 ? candidates.slice(0, limit) : candidates;
     console.log(`이번 실행 대상: ${targets.length}건 (--limit=${limit}, 0이면 전수)`);
 
@@ -164,21 +184,27 @@ async function main() {
 
     for (let i = 0; i < targets.length; i++) {
         const { origIndex, row, parsed } = targets[i];
-        let baseCoord = geocodeCache.get(parsed.base);
+        const cacheKey = parsed.mode === 'pattern' ? parsed.base : parsed.query;
+        let baseCoord = geocodeCache.get(cacheKey);
         if (baseCoord === undefined) {
-            baseCoord = await geocode(parsed.base);
-            geocodeCache.set(parsed.base, baseCoord);
+            baseCoord = await geocode(cacheKey);
+            geocodeCache.set(cacheKey, baseCoord);
             await sleep(REQUEST_DELAY_MS);
         }
         if (!baseCoord) { geocodeFailCount++; continue; }
 
-        const expected = destinationPoint(baseCoord.lat, baseCoord.lon, parsed.bearingDeg, parsed.distanceKm);
+        // pattern: 기준지명에서 방위·거리만큼 이동한 지점과 비교. fulltext: 텍스트 전체의
+        // 검색 1위 결과를 그 자체로 예상좌표 삼아 비교(방위·거리 보정 없음, 그만큼 부정확할
+        // 수 있어 method 로 표시).
+        const expected = parsed.mode === 'pattern'
+            ? destinationPoint(baseCoord.lat, baseCoord.lon, parsed.bearingDeg, parsed.distanceKm)
+            : baseCoord;
         const actualLat = row[0], actualLon = row[1];
         const offKm = haversineKm(actualLat, actualLon, expected.lat, expected.lon);
 
         if (offKm >= THRESHOLD_KM) {
             suspects.push({
-                origIndex, pos: row[posIdx], ymd: row[2],
+                origIndex, pos: row[posIdx], ymd: row[2], method: parsed.mode,
                 actual: [actualLat, actualLon],
                 baseGeocode: [baseCoord.lat, baseCoord.lon],
                 expected: [expected.lat, expected.lon],
