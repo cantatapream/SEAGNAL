@@ -1,0 +1,58 @@
+[국제평화 및 안전유지 등 의무이행을 위한 무역에 관한 특별조치 고시] 별표2 — UNSCR 1844(2008)에 따른 제재대상자
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000251134 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=146440413
+
+<별표 2의2> 
+UNSCR 1844(2008)에 따른 제재대상자 
+┌──────────────────┬─────────┐
+│대 상                               │출 처             │
+├──────────────────┼─────────┤
+│ 1. ABUBAKER SHARIFF AHMED          │UNSCR 1844에 따라 │
+├──────────────────┤설립된 위원회에서 │
+│ 2. HASSAN ABDULLAH HERSI AL-TURKI  │지정하는 자       │
+├──────────────────┤                  │
+│ 3. AHMED ABDI AW-MOHAMED           │                  │
+├──────────────────┤                  │
+│ 4. HASSAN DAHIR AWEYS              │                  │
+├──────────────────┤                  │
+│ 5. Yasin Ali Baynah                │                  │
+├──────────────────┤                  │
+│ 6. AHMED DIRIYE                    │                  │
+├──────────────────┤                  │
+│ 7. OMAR HAMMAMI                    │                  │
+├──────────────────┤                  │
+│ 8. FUAD MOHAMED KHALAF             │                  │
+├──────────────────┤                  │
+│ 9. BASHIR MOHAMED MAHAMOUD         │                  │
+├──────────────────┤                  │
+│10. FARES MOHAMMED MANA’A          │                  │
+├──────────────────┤                  │
+│11. ABOUD ROGO MOHAMMED             │                  │
+├──────────────────┤                  │
+│12. HASSAN MAHAT OMAR               │                  │
+├──────────────────┤                  │
+│13. MAALIM SALMAN                   │                  │
+├──────────────────┤                  │
+│14. Abdifatah Abubakar Abdi         │                  │
+├──────────────────┤                  │
+│15. AHMAD IMAN ALI                  │                  │
+├──────────────────┤                  │
+│16. ABUKAR ALI ADAN                 │                  │
+├──────────────────┤                  │
+│17. MAALIM AYMAN                    │                  │
+├──────────────────┤                  │
+│18. MAHAD KARATE                    │                  │
+├──────────────────┤                  │
+│19. ALI MOHAMED RAGE                │                  │
+├──────────────────┤                  │
+│20. AL-SHABAAB (단체)               │                  │
+├──────────────────┤                  │
+│21. ABDULLAHI OSMAN MOHAMED CADDOW  │                  │
+├──────────────────┤                  │
+│22. ABDIKADIR MOHAMED ADBIKADIR     │                  │
+├──────────────────┤                  │
+│23. MOHAMED MOHAMUD MIRE            │                  │
+├──────────────────┤                  │
+│24. MOHAMED OMAR MOHAMED            │                  │
+└──────────────────┴─────────┘
+/끝/

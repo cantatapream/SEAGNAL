@@ -1,0 +1,71 @@
+[국제평화 및 안전유지 등 의무이행을 위한 무역에 관한 특별조치 고시] 별표8 — UNSCR 2662(2022) Annex A~B에 따른 품목
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000251134 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=146440993
+
+<별표 8> 
+ UNSCR 2662(2022) Annex A~B에 따른 품목
+□ Annex A 품목
+┌────────────────────────┬────────────────────────┐
+│국문                                            │영문                                            │
+├────────────────────────┼────────────────────────┤
+│1. 휴대용 방공시스템(MANPADS)을 포함한 지       │1. Surface to air missiles, including           │
+│대공 미사일                                     │Man-Portable Air-Defence Systems                │
+│                                                │(MANPADS)                                       │
+│2. 구경이 12.7mm를 초과하는 무기와 이를         │2. Weapons with a calibre greater than 12.7     │
+│위해 전용 설계된 구성품 및 관련 탄약            │mm, and components specially designed           │
+│                                                │for these, and associated ammunition            │
+│주: RPG와 LAW(경대전차 무기)와 같은 견착        │Note: This does not include shoulder fired      │
+│사격 대전차 로켓 발사기, 무반동총, 총류탄,      │anti-tank rocket launchers such as RPGs         │
+│유탄발사기는 포함하지 않는다.                   │or LAWs (light anti-tank weapon),               │
+│                                                │recoilless rifles, rifle grenades, or           │
+│                                                │grenade launchers.                              │
+│3. 구경이 82mm를 초과하는 박격포와 관련 탄      │3. Mortars with a calibre greater than 82 mm    │
+│약                                              │and associated ammunition                       │
+│4. 대전차 유도미사일(ATGMs)을 포함한 대         │4. Anti-tank guided weapons, including          │
+│전차 유도무기와 탄약, 그리고 이들을 위해        │Anti-tank Guided Missiles (ATGMs) and           │
+│전용 설계된 구성품                              │ammunition and components specially             │
+│                                                │designed for these items                        │
+│                                                │                                                │
+│5. 군용으로 전용 설계되거나 개조된 장약과 장치; │5. Charges and devices specifically designed    │
+│지뢰와 관련 재료; 신관                          │or modified for military use; mines and         │
+│                                                │related material; and fuses;                    │
+│6. 열과 적외선 감지를 포함한 야간 투시 기능     │6. Weapon sights with a night vision            │
+│이 있는 무기 조준기와 부속품                    │capability, including thermal and infrared,     │
+│                                                │and accessories;                                │
+│7. 군용으로 전용 설계되거나 개조된 고정날       │7. Fixed wing, swivel wing, tilt rotor or tilt  │
+│개, 선회날개, 틸트로터 또는 틸트날개를 가       │wing aircraft, specifically designed or         │
+│진 항공기                                       │modified for military use                       │
+│8. 군용으로 전용 설계되거나 개조된 ‘선박’과 수│8. ‘Vessels’ and amphibious vehicles          │
+│륙 양용 차량                                    │specifically designed or modified for           │
+│                                                │military use                                    │
+│주: ‘선박’은 배, 표면효과선, 최소 수선 면적   │Note: ‘Vessel’ includes any ship, surface     │
+│의 선박, 수중익선 그리고 선체와 선체 일         │effect vehicle, vessel of small                 │
+│부를 포함한다.                                  │waterplane area or hydrofoil and the            │
+│                                                │hull or part of the hull of a vessel;           │
+│9. 무인 전투 항공기(UN 재래식무기 등록부의      │9. Uncrewed combat aerial vehicles (listed      │
+│카테고리 IV 품목)                               │as Category IV in the UN Register of            │
+│                                                │Conventional Arms).                             │
+└────────────────────────┴────────────────────────┘
+□ Annex B 품목
+┌────────────────────────┬───────────────────────┐
+│국문                                            │영문                                          │
+├────────────────────────┼───────────────────────┤
+│1. 구경 12.7 mm 이하인 모든 종류의 무기 및 관련 │1. All types of weapons with a calibre up     │
+│탄약                                            │to 12.7mm and associated ammunition           │
+│2. RPG-7, LAW(경대전차 무기), 무반동총          │2. RPG-7, LAWs (light anti-tank weapons)      │
+│및 관련 탄약                                    │and recoilless rifles, and associated         │
+│                                                │ammunition                                    │
+│3. 무기 조준기                                  │3. Weapon sights                              │
+│4. 군용으로 전용 설계되거나 개조된 회전날개     │4. Rotor wing or helicopters specifically     │
+│또는 헬리콥터                                   │designed or modified for military use         │
+│5. 방호복 또는 방탄조끼로서 다음의 것:          │5. Body armour or protective garments, as     │
+│                                                │follows:                                      │
+│a. III 등급(NIJ 0101.06, July 2008) 또는        │(a) Hard body armour plates providing         │
+│국내 동등규격 이상의 방탄 능력을 제공하         │ballistic protection equal to or greater that │
+│는 경성 방호복용 플레이트                       │level III (NIJ 0101.06 July 2008) or          │
+│                                                │national equivalents;                         │
+│6. 군용으로 전용 설계되거나 개조된 지상차량     │6. Ground vehicles specifically designed or   │
+│                                                │modified for military use                     │
+│7. 군용으로 전용 설계되거나 개조된 통신장비     │7. Communication equipment specifically       │
+│                                                │designed or modified for military use         │
+└────────────────────────┴───────────────────────┘

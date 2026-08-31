@@ -1,0 +1,30 @@
+[국제평화 및 안전유지 등 의무이행을 위한 무역에 관한 특별조치 고시] 별표9 — UNSCR 2551(2020) Annex C Part I에 따른 품목
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000251134 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=146440999
+
+<별표 9> 
+ UNSCR 2551(2020) Annex C Part I에 따른 품목
+┌──────────────────────┬───────────────────────┐
+│국문                                        │영문                                          │
+├──────────────────────┼───────────────────────┤
+│1. 다음의 폭발성 물질 및 전구체와 그 중 하  │1. Explosive materials and precursors, as     │
+│나 이상을 포함하는 혼합물:                  │follows, and mixtures containing one or       │
+│                                            │more thereof                                  │
+│   a. 니트로셀룰로오스 (12.5wt% 초과의 질소 │ a. Nitrocellulose (containing more than      │
+│포함)                                       │12.5% nitrogen w/w)                           │
+│   b. 트리니트로페닐메틸니트라민(테트릴)    │ b Trinitrophenylmethylnitramine (tetryl)     │
+│   c. 니트로글리세린 (개인의 의약품 복용을  │ c. Nitroglycerin (except when                │
+│위해 포장되거나 준비된 것은 제외)           │packaged/prepared in individual medicinal     │
+│                                            │doses)                                        │
+│   d. 질산                                  │ d. Nitric acid;                              │
+│   e. 황산                                  │ e. Sulphuric acid;                           │
+│2. 폭발물 관련 품목                         │2. Explosive-related goods:                   │
+│   a. 전기적 또는 비전기적 수단 (예: 점화 세│ a. Equipment and devices specially           │
+│트, 뇌관, 기폭 장치, 점화 장치, 도화선)     │designed to initiate explosives by            │
+│으로 폭발물을 점화하도록 전용 설계된        │electrical or non-electrical                  │
+│장비 및 장치                                │means (e.g. firing sets, detonators,          │
+│                                            │igniters, detonating chord)                   │
+│   b. 1 또는 2에 나열된 품목의 “생산” 또  │ b. “Technology” required for the           │
+│는 “사용”에 필요한 “기술”               │“production” or “use” of the items listed │
+│                                            │at paras. 1 & 2                               │
+└──────────────────────┴───────────────────────┘
