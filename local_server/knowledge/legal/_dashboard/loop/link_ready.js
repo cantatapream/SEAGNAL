@@ -128,7 +128,9 @@ function fileOf(baseRel, tier, law) {
   }
   // ★그 자체가 "○○규칙"·"○○령"인 법령은 그 폴더의 `법률.txt` 안에 있다 — 생산과 같은 규칙(L-136).
   //   폴더 이름이 인용된 법령 이름과 같을 때만 쓴다.
-  if (tier !== 'law' && squash(path.basename(dir)) === squash(String(law || '').replace(/[「」『』]/g, ''))) {
+  const bareLaw = String(law || '').replace(/[「」『』]/g, '').replace(/\s*[（(][^)）]*[)）]\s*$/, '').trim();
+  if (tier !== 'law' && (squash(path.basename(dir)) === squash(String(law || '').replace(/[「」『』]/g, ''))
+      || squash(path.basename(dir)) === squash(bareLaw))) {
     for (const n of ['법률.txt', '법률_발췌.txt']) {
       const p3 = path.join(dir, n);
       if (fs.existsSync(p3)) return p3;

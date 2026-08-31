@@ -60,10 +60,22 @@ function api(url) {
 
 /** 법 이름 → 현행 법령 한 건. 이름이 정확히 같은 것만 받는다(비슷한 것을 임의로 고르지 않는다). */
 async function findLaw(name, tier) {
-  const q = encodeURIComponent(name + (tier === '법률' ? '' : ' ' + tier));
-  const d = await api(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&type=JSON&target=law&display=50&query=${q}`);
-  let arr = ((d || {}).LawSearch || {}).law || [];
-  if (!Array.isArray(arr)) arr = [arr];
+  const full = name + (tier === '법률' ? '' : ' ' + tier);
+  // ★긴 이름은 law.go.kr 검색이 **0건**을 준다(2026-09-01 실측). `해양경찰 분야 과학기술진흥에
+  //   관한 규정` 을 통째로 넣으면 0건인데, 앞 토막(`해양경찰 분야 과학기술`)으로 넣으면 나온다.
+  //   그래서 0건이면 **질의만 짧게 줄여 다시 찾는다** — 고르는 기준(정식명 완전일치)은 그대로다.
+  //   짧은 질의로 후보가 여럿 와도 아래 exact 대조가 걸러 주므로 엉뚱한 법을 집지 않는다.
+  const tries = [full];
+  const words = String(name).trim().split(/\s+/);
+  if (words.length >= 3) tries.push(words.slice(0, Math.ceil(words.length / 2)).join(' '));
+  if (words.length >= 2) tries.push(words[0]);
+  let arr = [];
+  for (const t of tries) {
+    const d = await api(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&type=JSON&target=law&display=100&query=${encodeURIComponent(t)}`);
+    let got = ((d || {}).LawSearch || {}).law || [];
+    if (!Array.isArray(got)) got = [got];
+    if (got.length) { arr = got; if (t !== full) console.error(`  ↳ 전체 이름으론 0건이라 「${t}」 로 줄여 찾았다(후보 ${got.length}건).`); break; }
+  }
   const want = flat(name) + (tier === '법률' ? '' : flat(tier));
   const exact = arr.filter(x => flat(x['법령명한글']) === want);
   if (exact.length === 1) return exact[0];

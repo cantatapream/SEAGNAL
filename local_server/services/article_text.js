@@ -1586,8 +1586,10 @@ async function loadArticle(q) {
   //   ⚠**폴더 이름이 인용된 법령 이름과 같을 때만** 이 폴백을 쓴다. 그래야 `해운법 시행규칙` 처럼
   //     "다른 문서의 하위 계층"을 찾는 인용이 엉뚱하게 그 법 본문을 열지 않는다(환각 0).
   if (!text && tier !== 'notice' && tier !== 'law') {
+    // 이름 뒤의 종류 괄호(`(대통령령)`)도 떼고 견준다 — resolveBase 가 폴더를 찾을 때 쓴 이름과 같아야 한다.
     const folder = squash(String(base).split('/').pop());
-    if (folder && folder === squash(String(law || '').replace(/[「」『』]/g, ''))) {
+    const bare = String(law || '').replace(/[「」『』]/g, '').replace(/\s*[（(][^)）]*[)）]\s*$/, '').trim();
+    if (folder && (folder === squash(String(law || '').replace(/[「」『』]/g, '')) || folder === squash(bare))) {
       for (const n of ['법률.txt', '법률_발췌.txt']) {
         const t4 = await githubRaw.fetchText(base + '/' + n);
         if (t4) { text = t4; filePath = base + '/' + n; break; }
