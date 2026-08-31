@@ -70,8 +70,8 @@ function noticeFile(baseRel, law) {
 
 /** 그 고시의 별표 열쇠 집합 — 생산과 같은 두 경로(파일 안 블록 → `별표/` 파일)로 모은다. */
 const cache = new Map();
-function keysOf(baseRel, noticePath, law) {
-  const ck = baseRel + '|' + (noticePath || '') + '|' + law;
+function keysOf(baseRel, noticePath, law, need) {
+  const ck = baseRel + '|' + (noticePath || '') + '|' + law + '|' + (need || []).join(',');
   if (cache.has(ck)) return cache.get(ck);
   const keys = new Set();
   if (noticePath && fs.existsSync(noticePath)) {
@@ -85,7 +85,11 @@ function keysOf(baseRel, noticePath, law) {
     // 생산과 같은 규칙(article_text.js) — `고시「…」` 처럼 종류 이름표가 앞에 붙은 칸도 본다.
     const wants = [want, want.replace(/^(고시|훈령|예규|행정규칙)/, '')].filter((v, i, a) => v && a.indexOf(v) === i);
     const mine = wants.length ? all.filter(n => wants.some(w => squash(n).startsWith(w))) : [];
-    for (const n of (mine.length ? mine : all).slice(0, 8)) {
+    // 생산과 같은 규칙 — 찾는 번호가 파일명에 든 것을 맨 앞으로 보낸 뒤 8개를 본다
+    // (한 고시가 별표를 83개 가진 경우가 있어, 이름만으로 좁히면 정작 찾는 번호가 잘린다).
+    const hasKey = n => (need || []).some(k => new RegExp('(^|[^0-9A-Za-z가-힣])' + k + '([^0-9]|$)').test(n));
+    const pool = mine.length ? mine : all;
+    for (const n of pool.slice().sort((a, b) => (hasKey(b) ? 1 : 0) - (hasKey(a) ? 1 : 0)).slice(0, 8)) {
       let parsed;
       try { parsed = A.parseBylFile(fs.readFileSync(path.join(bd, n), 'utf8')); } catch (_) { continue; }
       if (want && !wants.some(w => squash(parsed.owner).includes(w))) continue;   // 임자 확인 — 생산과 같다
@@ -122,7 +126,7 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
         continue;
       }
       const np = noticeFile(baseRel, law);
-      const have = keysOf(baseRel, np, law);
+      const have = keysOf(baseRel, np, law, keys);
       if (!np && !have.size) {
         now.no_notice++;
         if (ex.no_notice.length < 200) ex.no_notice.push(`${dir}/${f}  |  ${law.slice(0, 40)}`);

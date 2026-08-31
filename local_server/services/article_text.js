@@ -1406,7 +1406,13 @@ async function resolveRefs(found, ctx) {
     //   파일명이 `<고시명>_별표N.txt` 규칙이므로 이름으로 먼저 고를 수 있다.
     //   이름으로 하나도 못 고르면 종전과 똑같이 앞 8개를 본다(동작을 좁히지 않는다).
     const mine = want ? all.filter(e => squash(e.name).startsWith(want)) : [];
-    const cand = (mine.length ? mine : all).slice(0, 8);
+    // ★한 고시가 별표를 수십 개 가진 경우가 있다(지정교육기관기준 83개) — 이름으로 좁혀도
+    //   앞 8개는 `별표1·별표10·별표10의2·별표11…` 로 채워져 정작 찾는 `별표2` 가 잘린다
+    //   (2026-08-31 실측, V5-11 게이트가 잡아냈다). **찾는 번호가 파일명에 든 것을 맨 앞으로** 보낸다.
+    const need = bylRefs.filter(r => r.kind === 'missing').map(r => String(r.key || '')).filter(Boolean);
+    const hasKey = e => need.some(k => new RegExp('(^|[^0-9A-Za-z가-힣])' + k + '([^0-9]|$)').test(e.name));
+    const pool = mine.length ? mine : all;
+    const cand = pool.slice().sort((a, b) => (hasKey(b) ? 1 : 0) - (hasKey(a) ? 1 : 0)).slice(0, 8);
     for (const e of cand) {
       if (!bylRefs.some(r => r.kind === 'missing')) break;
       const t = await githubRaw.fetchText(ctx.base + '/별표/' + e.name);
