@@ -312,6 +312,8 @@ function parseAnnexRefs(s) {
 
 // 계층을 가리키는 낱말(legal_retriever.classifyTier 와 같은 낱말을 본다).
 const TIER_WORD_RE = /시행규칙|시행령|법률|법/;
+// 조각이 계층을 **지목**하는가 — 그 낱말로 끝나야 인정한다(multiTierCell 주석 참고).
+const TIER_TAIL_RE = /(?:시행규칙|시행령|법률|법)$/;
 // 계층별 표기 — 조문 칸에서 "이 조가 어느 계층 것인지" 읽을 때 쓴다(정규식 조각).
 const TIER_TAG_SRC = { law: '법률|법', decree: '시행령', rule: '시행규칙' };
 
@@ -327,9 +329,15 @@ const TIER_TAG_SRC = { law: '법률|법', decree: '시행령', rule: '시행규�
  * [연계] ← parseArticleRef(). 계층이 섞인 칸은 조 번호를 어느 계층에 붙일지 단정할 수 없다.
  */
 function multiTierCell(cell) {
+  // ⚠조각이 계층 낱말을 **품고만 있어도** 세면 안 된다(2026-08-31 실측, 10행이 이 때문에 죽어 있었다).
+  //   `공익법인의 설립ㆍ운영에 관한 법률` 은 앞 조각 `공익법인의 설립` 이 "법인" 의 `법` 때문에 걸려
+  //   계층 둘로 오해됐고, `「…보험법」 부칙(2011.11.14, 법률 제11095호)` 은 공포번호의 `법률` 이 걸렸다.
+  //   그러면 tierIsCertain 이 그 행을 통째로 포기해 **조문 칸이 `제2조` 하나뿐인 멀쩡한 행도 안 열렸다.**
+  //   계층을 지목한다는 것은 조각이 그 낱말로 **끝난다**는 뜻이다(`법`·`시행령`·`양식산업발전법`).
+  //   끝의 괄호·따옴표·마침표는 떼고 본다.
   return String(cell || '').replace(/[「」『』]/g, '')
     .split(/[·ㆍ・,/]|→|⇒|➔|=>/)
-    .filter(seg => TIER_WORD_RE.test(seg)).length >= 2;
+    .filter(seg => TIER_TAIL_RE.test(seg.replace(/[)\]\s.]*$/, ''))).length >= 2;
 }
 
 /**
