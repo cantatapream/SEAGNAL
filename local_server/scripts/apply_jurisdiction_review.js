@@ -19,6 +19,14 @@
  *   accident_jurisdiction_2025_review.json(③ 2025 단독 저신뢰) — idx 는 서로
  *   절대 겹치지 않는다(후자는 2025년행만, 전자는 2025년행을 명시적으로 제외).
  *   드리프트 검증(좌표·날짜 대조)에 둘 다 합쳐서 쓴다.
+ * [change·delete 는 후보 목록에 지금도 있어야 함(2026-08-29)] PR 머지가 늦어져
+ *   화면이 옛 후보 파일(예: 30건 라운드)을 보고 있는 채로 검수·내보내기가 되는
+ *   사례를 겪었다 — 그 idx 는 지금 배열에서 완전히 다른 행을 가리키게 됐는데,
+ *   candByIdx 에 그 idx 가 아예 없으면(=지금은 후보가 아님) 드리프트 대조 자체가
+ *   스킵돼 엉뚱한 행이 바뀔 뻔했다. 그래서 confirm 이 아닌 액션은 idx 가 두 후보
+ *   파일 중 하나에 "지금도" 있어야만(=candByIdx.has) 실행한다 — 없으면 반영 안
+ *   하고 드리프트로 센다(추측 반영 안 함). confirm 은 애초에 데이터를 안 건드리므로
+ *   대상에서 뺀다.
  * [실행] node local_server/scripts/apply_jurisdiction_review.js
  * [출력] client/accident_ships_hk.json 갱신(orgCd 정정 또는 행 삭제, confirm 은 무변경)
  * ============================================================================
@@ -34,6 +42,7 @@ const RAW_DIR = path.join(__dirname, '_accident_raw');
 const EXPORT_PATH = path.join(RAW_DIR, 'jurisdiction_review_export.json');
 const MISMATCH_PATH = path.join(CLIENT_DIR, 'accident_jurisdiction_mismatch.json');
 const Y2025_PATH = path.join(CLIENT_DIR, 'accident_jurisdiction_2025_review.json');
+const LATLON_EPS = 1e-4; // 후보 파일 좌표(소수 5자리 반올림) vs hk 원본 좌표 비교 허용오차
 
 const ORG_CODE_OF = {
     속초해양경찰서: 1532418, 동해해양경찰서: 1532440, 포항해양경찰서: 1532466, 울산해양경찰서: 1532304,
@@ -72,9 +81,16 @@ function main() {
         const row = hkData.rows[p.idx];
         if (!row) { skippedDrift++; return; }
         const cand = candByIdx.get(p.idx);
-        if (cand && (row[0] !== cand[0] || row[1] !== cand[1] || row[2] !== cand[2])) {
-            skippedDrift++; // idx 가 가리키는 행이 검수 당시와 달라짐 — hk 가 그 사이 바뀐 것
-            return;
+        if (p.action !== 'confirm') {
+            // change/delete 는 지금도 후보 목록에 있어야(=candByIdx 에 있어야) 실행 —
+            // 없으면(옛 후보 파일 기준 idx 라 지금은 전혀 다른 행일 수 있음) 스킵.
+            // 좌표는 LATLON_EPS 허용오차로 비교(후보 파일이 소수 5자리로 반올림해
+            // 저장하므로 원본 hk 의 더 긴 소수와 strict 비교하면 멀쩡한 후보도 드리프트로
+            // 오판됨 — 2026-08-29 실제로 이 때문에 3건이 잘못 스킵됨을 발견).
+            if (!cand || Math.abs(row[0] - cand[0]) > LATLON_EPS || Math.abs(row[1] - cand[1]) > LATLON_EPS || row[2] !== cand[2]) {
+                skippedDrift++; // idx 가 가리키는 행이 검수 당시와 달라짐 — hk 가 그 사이 바뀐 것
+                return;
+            }
         }
         if (p.action === 'confirm') {
             confirmed++; // 지금 값이 맞다고 확인만 함 — 데이터 변경 없음

@@ -8781,23 +8781,21 @@ html[data-font-size="large"] .ocean-overlay-btn {
 }
 .accident-stats-empty { font-size: 0.76rem; color: var(--text-sub); }
 
-.accident-spark { display: flex; align-items: flex-end; gap: 2px; height: 38px; }
-.accident-spark i {
-    flex: 1;
-    background: var(--accent-blue);
-    opacity: 0.8;
-    border-radius: 2px 2px 0 0;
-    min-height: 2px;
+/* "분석 뷰" 탭(연도별 추이·시간대별·요일별·관할서별·특보발효, 2026-08-29) — 예전
+   CSS 스파크라인/주야간 바를 대체(Chart.js 캔버스로 교체). */
+.accident-chart-wrap { position: relative; width: 100%; height: 200px; margin-top: 2px; }
+.accident-chart-caption { font-size: 0.7rem; color: var(--text-sub); margin-top: 6px; text-align: center; }
+.accident-trend-back {
+    display: block;
+    border: none;
+    background: rgba(255,255,255,0.07);
+    color: var(--text-sub);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.68rem;
+    margin-bottom: 8px;
+    cursor: pointer;
 }
-
-.accident-daynight { display: flex; gap: 12px; }
-.accident-dn-bar { flex: 1; }
-.accident-dn-bar .track { background: rgba(255,255,255,0.08); border-radius: 5px; height: 8px; overflow: hidden; }
-.accident-dn-bar .fill { height: 100%; border-radius: 5px; }
-.accident-dn-bar .fill.day { background: var(--accent-yellow); }
-.accident-dn-bar .fill.night { background: var(--accent-blue); }
-.accident-dn-bar .meta { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-sub); margin-top: 4px; }
-.accident-dn-bar .meta b { color: var(--text-main); font-weight: 700; }
 
 .accident-detail-tabs { display: flex; gap: 4px; margin-bottom: 9px; flex-wrap: wrap; }
 .accident-detail-tab {

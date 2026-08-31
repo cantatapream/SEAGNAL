@@ -20,6 +20,11 @@
  *   있던 서로 판정한다(2026-08-26 사용자 강조: "개소 시점을 고려해야"). 재구현이
  *   아니라 reclassify_after_polygon_fix.js 의 classifyOrg 를 그대로 복사해 등급만
  *   추가로 얹었다(판정 자체가 달라지면 안 됨).
+ * [검수 범위 좁힘(2026-08-29 사용자 확정)] "2025 단독은 폴리곤 판정대로 하되,
+ *   인천·속초·동해·강릉만 따로 검증" — orgCd 는 이미 classifyOrg 값이 그대로 최종
+ *   값이다(reclassify_after_polygon_fix.js 가 write, 이 스크립트는 등급만 매김).
+ *   그래서 저신뢰 전체(2,211건)를 다 검수 대상으로 내보내던 걸 그만두고, 그중
+ *   판정된 관할서(owner)가 REVIEW_ONLY_ORGS 4곳인 것만 남긴다.
  * [실행] node local_server/scripts/build_jurisdiction_2025_review.js
  * [출력] client/accident_jurisdiction_2025_review.json —
  *   [[lat, lon, ymd, hm, typeCd, currentOrg, tier, distFromBoundaryKm, idx], ...]
@@ -77,6 +82,7 @@ const ESTABLISHED_YMD = {
     부안해양경찰서: '20160421', 울진해양경찰서: '20171128', 사천해양경찰서: '20220331',
 };
 const CONFIDENT_KM_DEG = 0.03; // ≈3.3km — 나머지 검수 스크립트들과 동일 기준
+const REVIEW_ONLY_ORGS = new Set(['인천해양경찰서', '속초해양경찰서', '동해해양경찰서', '강릉해양경찰서']);
 
 function main() {
     const faces = JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, 'coastguard_jurisdiction_faces.json'), 'utf8'));
@@ -129,6 +135,7 @@ function main() {
         const { owner, tier, distKm } = classifyOrgWithTier(row[0], row[1], ymd);
         const lowConfidence = tier !== 'direct' || (distKm >= 0 && distKm < CONFIDENT_KM_DEG * 111);
         if (!lowConfidence) return;
+        if (!REVIEW_ONLY_ORGS.has(owner)) return;
         out.push([row[0], row[1], row[2], row[3], row[5], owner, tier, distKm, idx]);
     });
 
