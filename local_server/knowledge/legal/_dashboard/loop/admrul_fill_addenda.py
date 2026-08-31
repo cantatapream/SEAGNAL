@@ -22,7 +22,7 @@
 [연계]
   - 읽음: raw/*/*/행정규칙/*.txt (둘째 줄 ID)
   - 호출: https://www.law.go.kr/DRF/lawService.do (OC=hyoo1431, target=admrul)
-  - 씀:   같은 .txt 파일 뒤 (append only) · _dashboard/admrul_addenda_report.json
+  - 씀:   같은 .txt 파일 뒤 (append only) · _dashboard/admrul_addenda/report_<시각>.json
   - 남김: _dashboard/touched/<이름>_<시각>.json (되돌릴 때 이 목록만 되돌린다)
 사용법: python3 admrul_fill_addenda.py [--dry] [--limit N] [--only <조각>] [--skip <경로조각>]
   --skip 은 다른 에이전트가 지금 만지고 있는 법의 폴더를 빼 둘 때 쓴다(동시 쓰기 회피).
@@ -33,7 +33,11 @@ from _touched import Touched
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.abspath(os.path.join(HERE, '..', '..'))
 OC = 'hyoo1431'
-REPORT = os.path.join(LEGAL, '_dashboard', 'admrul_addenda_report.json')
+# ⚠보고서 이름에 실행 시각을 넣는다(2026-08-31, 실제로 당했다).
+#   처음에는 고정 이름 하나였는데, 전량 백필(578건) 뒤에 --only 로 한 폴더만 다시 돌리자
+#   그 작은 실행이 578건짜리 보고서를 통째로 덮어썼다. 고친 파일 목록 자체는 Touched 기록이
+#   실행마다 따로 남겨 무사했지만, 보고서는 되살릴 수 없었다.
+REPORT_DIR = os.path.join(LEGAL, '_dashboard', 'admrul_addenda')
 
 
 def api(url, tries=4):
@@ -115,9 +119,11 @@ def main():
     for k in rep:
         print(f"{k}: {len(rep[k])}건")
     if not dry:
-        json.dump(rep, open(REPORT, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+        os.makedirs(REPORT_DIR, exist_ok=True)
+        out = os.path.join(REPORT_DIR, f'report_{touched.stamp}.json')
+        json.dump(rep, open(out, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         touched.save()
-        print('보고서:', REPORT)
+        print('보고서:', out)
 
 
 if __name__ == '__main__':
