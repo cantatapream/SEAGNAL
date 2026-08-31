@@ -1,0 +1,85 @@
+# khoa-oceanmap-probe.yml - 국립해양조사원 오션맵 인명사고 API 정찰(읽기 전용)
+#
+# [용도] 오션맵(khoa.go.kr/oceanmap)은 인명사고 위치를 정확하게 마커로 찍어
+#   보여주는데, 우리 앱은 원본 엑셀의 "위치텍스트"를 지오코딩으로 역산해야 해서
+#   오차가 크다(별도 조사: 21,798건 중 498건 의심). 오션맵이 내부적으로 쓰는
+#   API(더 정확한 좌표 소스)가 있는지 Playwright로 실제 브라우저를 열어
+#   네트워크 요청을 가로채 확인한다.
+# [왜 여기서 실행하나] 개발 샌드박스(Claude Code on the web)는 khoa.go.kr·
+#   data.go.kr 접속이 프록시 정책상 막혀 있다(2026-08-31 curl 403 + WebFetch
+#   EGRESS_BLOCKED 확인). GitHub Actions 실행 환경은 외부망이 열려 있어 여기서
+#   대신 돌린다 — accident-geocode-check.yml 과 같은 우회 패턴.
+# [결과 확인] 실행 화면 위쪽 "Summary"에 발견된 API 목록이 바로 뜬다.
+#   스크린샷 3장은 Artifacts 로 받는다(단계별로 페이지가 어떻게 바뀌는지 확인용).
+# [연계] local_server/scripts/khoa_oceanmap_probe.js
+
+name: KHOA 오션맵 API 정찰
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: 오션맵 네트워크 요청 캡처
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Playwright 설치
+        run: |
+          npm install --no-save playwright@1.48
+          npx playwright install --with-deps chromium
+
+      - name: 정찰 스크립트 실행
+        run: node local_server/scripts/khoa_oceanmap_probe.js
+
+      - name: 결과를 Summary에 정리
+        if: always()
+        run: |
+          OUT="local_server/data/khoa_probe_result.json"
+          if [ ! -f "$OUT" ]; then
+            echo "## ❌ 결과 파일이 생성되지 않았습니다 (스크립트가 중간에 실패했을 수 있음)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node -e "
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('$OUT', 'utf8'));
+            const lines = [];
+            lines.push('## KHOA 오션맵 API 정찰 결과');
+            lines.push('');
+            lines.push('대상: ' + data.target);
+            lines.push('');
+            lines.push('### 클릭 시도 로그');
+            data.clickLog.forEach(c => lines.push('- ' + JSON.stringify(c)));
+            lines.push('');
+            lines.push('### 발견된 API성 응답 (' + data.captured.length + '건)');
+            lines.push('');
+            data.captured.forEach((c, i) => {
+              lines.push('#### ' + (i + 1) + '. [' + c.status + '] ' + c.method + ' ' + c.contentType);
+              lines.push('\`' + c.url + '\`');
+              if (c.bodySample) {
+                lines.push('\`\`\`');
+                lines.push(c.bodySample.slice(0, 800));
+                lines.push('\`\`\`');
+              }
+              lines.push('');
+            });
+            fs.writeFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'), { flag: 'a' });
+          "
+
+      - name: 스크린샷·결과 파일 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khoa-oceanmap-probe-result
+          path: |
+            local_server/data/khoa_probe_result.json
+            local_server/data/khoa_probe_shots/
+          if-no-files-found: warn
