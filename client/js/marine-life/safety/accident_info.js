@@ -533,6 +533,14 @@
  *   - "바텀시트 자체 필터 탭" 브레인스토밍은 격자별 데이터를 다시 필터링하는
  *     기능이 아니라, 위 5개 분석 뷰를 전환하는 탭으로 구현(사고발생상세 탭과
  *     같은 .accident-detail-tab 스타일 재사용, accident-view-tab 클래스로만 구분).
+ * [관할서 검수 화면에 신설서 개서일 노출(2026-08-31 사용자 확정)] 후보 생성 단계
+ *   (build_jurisdiction_*_review.js)는 이미 ESTABLISHED_YMD 로 개서 이전 사고를
+ *   걸러내지만, 검수 화면 자체엔 그 표가 없어 "변경" 버튼으로 사람이 직접 개서
+ *   이전 서를 골라도 막지 못하는 구멍이 있었다 — 사용자 지적으로 발견. 서버 표와
+ *   동일한 JW_ESTABLISHED_YMD 를 클라이언트에도 둬 ①검수 카드에 판정된 서가
+ *   신설서면 개서일을 표시 ②"변경" 후보 목록에서 사고 시점에 아직 개서 전인 서는
+ *   제외(화면에 경계가 보여도). Playwright 로 2017년 동해⇄속초 건과 2025-01-14
+ *   건(둘 다 강릉 개서 2025-03-31 이전) 둘 다 강릉이 후보에서 정확히 빠지는 것 확인.
  * ============================================================================
  */
 
@@ -1510,6 +1518,18 @@
         return JURISDICTION_COLORS[h % JURISDICTION_COLORS.length];
     }
 
+    /** 신설 관할서 개서일(YYYYMMDD) — build_jurisdiction_mismatch_review.js·
+     * build_jurisdiction_2025_review.js 의 ESTABLISHED_YMD 와 동일한 표(서버가 이미
+     * 이 날짜로 후보 생성 단계에서 개서 이전 사고를 걸러내지만, 검수 화면 자체는 이
+     * 표가 없어 "변경" 버튼으로 개서 전 서를 골라도 막지 못했다 — 2026-08-31 사용자
+     * 지적으로 발견해 추가: ①검수 카드에 개서일 표시 ②"변경" 후보 목록에서 사고
+     * 시점에 아직 없던 서는 제외). */
+    var JW_ESTABLISHED_YMD = {
+        평택해양경찰서: '20110401', 창원해양경찰서: '20121227', 보령해양경찰서: '20140401',
+        부안해양경찰서: '20160421', 울진해양경찰서: '20171128', 사천해양경찰서: '20220331',
+        강릉해양경찰서: '20250331'
+    };
+
     /** ①·② 관할서 불일치 후보(build_jurisdiction_mismatch_review.js 산출, 기록≠판정)를
      * 한 번만 fetch 한다. row=[lat,lon,ymd,hm,typeCd,recorded,expected,distKm,hkIdx]. */
     function fetchJurisdictionMismatch() {
@@ -1854,6 +1874,11 @@
             rows.push(['현재 관할(추정)', cand.currentOrg]);
             rows.push(['추정 근거', tierLabel + (cand.distKm >= 0 ? ' · 경계에서 ' + cand.distKm + 'km' : '')]);
         }
+        // 신설서(개서일 있는 서)면 사고 시점과 나란히 보여준다 — 사용자 확정
+        // 2026-08-31: "검수 페이지에 개서 시점도 나와야". 판정된 서에만 표시.
+        var judgedOrg = cand.kind === 'pair' ? cand.expected : cand.currentOrg;
+        var estYmd = JW_ESTABLISHED_YMD[judgedOrg];
+        if (estYmd) rows.push([judgedOrg.replace('해양경찰서', '') + ' 개서일', formatYmd(estYmd)]);
         document.getElementById('jwp-info').innerHTML = rows.map(function (r) {
             return '<div class="row"><span>' + r[0] + '</span><span>' + escapeHtml(r[1]) + '</span></div>';
         }).join('');
@@ -1888,7 +1913,13 @@
             var listEl = document.getElementById('jwp-change-list');
             jwChangeOpen = !jwChangeOpen;
             if (!jwChangeOpen) { listEl.style.display = 'none'; return; }
-            var owners = (cand._visibleOwners || []).filter(function (o) { return o !== cand.currentOrg; });
+            // 화면에 보이는 서라도 사고 시점에 아직 개서 전이면 고를 수 없는 값이라
+            // 후보에서 뺀다(사용자 확정 2026-08-31 — "개서 시점을 고려해야").
+            var owners = (cand._visibleOwners || []).filter(function (o) {
+                if (o === cand.currentOrg) return false;
+                var est = JW_ESTABLISHED_YMD[o];
+                return !est || est <= cand.ymd;
+            });
             listEl.innerHTML = owners.length
                 ? owners.map(function (o) {
                     return '<button type="button" class="jwp-owner-btn" data-org="' + escapeHtml(o) + '">' +
