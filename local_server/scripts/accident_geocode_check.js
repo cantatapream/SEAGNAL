@@ -63,14 +63,23 @@ const SOURCE_CONFIG = {
     person: { jsonPath: path.join(__dirname, '..', '..', 'client', 'accident_persons.json'), posIdx: 3, fullCensus: true },
 };
 
-const KAKAO_URL = 'https://dapi.kakao.com/v2/local/search/keyword.json';
+const KAKAO_KEYWORD_URL = 'https://dapi.kakao.com/v2/local/search/keyword.json';
+const KAKAO_ADDRESS_URL = 'https://dapi.kakao.com/v2/local/search/address.json';
 const KAKAO_API_KEY = process.env.KAKAO_REST_API_KEY;
 const REQUEST_DELAY_MS = 100; // 카카오는 Nominatim보다 훨씬 관대하지만 안전하게 여유를 둔다
 const THRESHOLD_KM = 30; // 이 이상 어긋나면 의심 후보
 
 // "기준지명 + 방위(+거리)" 패턴. 거리 단위: 마일/해리(선박 위치 표기 관례상 해리로 간주)·km·m.
-const DIR_PATTERN = /^(.*?)\s*(동남|동북|서남|서북|동|서|남|북)방\s*([0-9.]+)\s*(마일|해리|km|m)/;
-const BEARING_DEG = { 북: 0, 동북: 45, 동: 90, 동남: 135, 남: 180, 서남: 225, 서: 270, 서북: 315 };
+// [버그 수정 2026-08-31] "동남·동북·서남·서북"(동/서가 먼저 오는 정식 표기)만 넣어뒀더니
+// 실제 데이터에 흔한 "북동·북서·남동·남서"(북/남이 먼저 오는 표기, 예: "남동방 5.5해리")를
+// 정규식이 못 알아채고 조용히 틀리게 파싱했다 — "북"/"남" 한 글자만 매치되고 그 뒤 "동"이
+// bearing으로 잘못 잡혀 base 문자열에 "...남"이 섞여 들어가고 각도도 틀렸다(200건 실측
+// 재현 확인 — pattern 12건 중 7건이 이 버그에 걸림). 두 어순 모두 명시.
+const DIR_PATTERN = /^(.*?)\s*(동남|동북|서남|서북|북동|북서|남동|남서|동|서|남|북)방\s*([0-9.]+)\s*(마일|해리|km|m)/;
+const BEARING_DEG = {
+    북: 0, 동북: 45, 북동: 45, 동: 90, 동남: 135, 남동: 135,
+    남: 180, 서남: 225, 남서: 225, 서: 270, 서북: 315, 북서: 315,
+};
 
 // person 위치텍스트 앞의 관할구역 태그("[내해2구역/흑산파출소]" 등) — 지명이 아니라
 // 검색에 방해만 되므로 제거.
@@ -93,10 +102,12 @@ const TRAILING_FILLER_WORDS = new Set([
 // 있어야 매치되므로 이런 건 fulltext 로 넘어온다) — 숫자+단위만 있는 마지막 단어도 지운다.
 const TRAILING_DISTANCE_ONLY = /^[0-9.]+(마일|해리|km|m)$/;
 
-/** fulltext 검색어 추출 — 앞의 구역 태그, 끝의 서술어·거리표기를 걷어내고 남는 지명만
- * 검색어로 쓴다. 다 걷어내면(원문이 필러 단어뿐이면) 원문을 그대로 돌려준다(검색 실패해도
- * 기존과 동일). */
-function extractKeyword(posText) {
+/** 검색어 정제 — 앞의 구역 태그, 끝의 서술어·거리표기를 걷어내고 남는 지명만 검색어로
+ * 쓴다. fulltext(위치텍스트 전체)뿐 아니라 pattern 의 기준지명(base)에도 같이 쓴다 —
+ * base 도 "[내해1구역] 전남 신안군 임자도"처럼 구역 태그가 섞이거나 "...아목섬 약"처럼
+ * 방위 앞의 "약"이 섞여 들어오는 경우가 있었다(2026-08-31 확인). 다 걷어내면(원문이 필러
+ * 단어뿐이면) 원문을 그대로 돌려준다(검색 실패해도 기존과 동일). */
+function cleanKeyword(posText) {
     const text = posText.replace(LEADING_TAG_PATTERN, '').trim();
     const words = text.split(/\s+/);
     while (words.length > 1 && (TRAILING_FILLER_WORDS.has(words[words.length - 1]) || TRAILING_DISTANCE_ONLY.test(words[words.length - 1]))) {
@@ -121,7 +132,7 @@ function parseArgs() {
 function parseDirectionDistance(posText) {
     const m = posText.match(DIR_PATTERN);
     if (!m) return null;
-    const base = m[1].trim();
+    const base = cleanKeyword(m[1].trim());
     if (!base) return null;
     const bearingDeg = BEARING_DEG[m[2]];
     let distanceKm = parseFloat(m[3]);
@@ -158,18 +169,27 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** 카카오 로컬 키워드 검색. 검색어(예: "동막해수욕장")는 앞에 붙은 시·군 지명(예:
- * "인천 강화도")으로 어느 정도 지역이 좁혀지지만, 동명 지명이 전국에 흩어져 있을 수
- * 있다(2026-08-31 사용자 지적). size=1(1위 결과만)이 아니라 최대 15건을 받아, 그중
- * 원본에 저장된 좌표(refLat,refLon)와 가장 가까운 결과를 고른다 — 완전히 엉뚱한 지역에
- * 찍힌 진짜 오류라면 동명 지명 중 가까운 게 하나도 없어 그래도 멀리 떨어진 채로 남아
- * 의심 후보로 잡히므로, 이 방식이 오류 탐지력을 떨어뜨리지 않는다. 실패·미발견 시 null. */
-async function geocode(query, refLat, refLon) {
-    const url = `${KAKAO_URL}?query=${encodeURIComponent(query)}&size=15`;
-    const res = await fetch(url, { headers: { Authorization: `KakaoAK ${KAKAO_API_KEY}` } });
-    if (!res.ok) return null;
+/** 카카오 API 한 번 호출, documents 배열만 돌려준다(실패·0건이면 빈 배열). */
+async function kakaoSearch(url, query) {
+    const full = `${url}?query=${encodeURIComponent(query)}&size=15`;
+    const res = await fetch(full, { headers: { Authorization: `KakaoAK ${KAKAO_API_KEY}` } });
+    if (!res.ok) return [];
     const data = await res.json();
-    const docs = data.documents || [];
+    return data.documents || [];
+}
+
+/** 카카오 지오코딩 — 장소·상호 이름 검색(키워드 API)을 먼저 쓰고, 결과가 없으면 지번·
+ * 도로명 주소 검색(주소 API)으로 다시 시도한다(2026-08-31 사용자 지적 — "충남 보령시
+ * 오천면 원산도리 492-2번지"처럼 번지수만 있는 텍스트는 키워드 검색으론 잘 안 걸린다).
+ * 검색어(예: "동막해수욕장")는 앞에 붙은 시·군 지명(예: "인천 강화도")으로 어느 정도
+ * 지역이 좁혀지지만, 동명 지명이 전국에 흩어져 있을 수 있다(2026-08-31 사용자 지적).
+ * size=1(1위 결과만)이 아니라 최대 15건을 받아, 그중 원본에 저장된 좌표(refLat,refLon)와
+ * 가장 가까운 결과를 고른다 — 완전히 엉뚱한 지역에 찍힌 진짜 오류라면 동명 지명 중 가까운
+ * 게 하나도 없어 그래도 멀리 떨어진 채로 남아 의심 후보로 잡히므로, 이 방식이 오류
+ * 탐지력을 떨어뜨리지 않는다. 실패·미발견 시 null. */
+async function geocode(query, refLat, refLon) {
+    let docs = await kakaoSearch(KAKAO_KEYWORD_URL, query);
+    if (!docs.length) docs = await kakaoSearch(KAKAO_ADDRESS_URL, query);
     if (!docs.length) return null;
     let best = docs[0], bestDist = Infinity;
     docs.forEach((d) => {
@@ -199,7 +219,7 @@ async function main() {
             const pos = row[posIdx];
             if (!pos) return;
             const dir = parseDirectionDistance(pos);
-            const parsed = dir ? { mode: 'pattern', ...dir } : { mode: 'fulltext', query: extractKeyword(pos) };
+            const parsed = dir ? { mode: 'pattern', ...dir } : { mode: 'fulltext', query: cleanKeyword(pos) };
             candidates.push({ origIndex, row, parsed });
         });
     } else {
