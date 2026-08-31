@@ -572,6 +572,7 @@
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
     var _statsView = {};              // source key -> 현재 선택된 "분석 뷰" 탭('trend'|'hourly'|'weekday'|'org'|'warn')
     var _trendDrill = null;           // 연도별 추이 드릴다운: null(연도별) | {year} | {year,month}
+    var _warnExpanded = false;        // 특보발효 도넛 — "특보 중" 조각을 눌러 유형×심각도로 펼친 상태인지
     var _statsCharts = [];            // 지금 그려진 Chart.js 인스턴스 — 다시 그리기 전 반드시 destroy
 
     /**
@@ -637,6 +638,22 @@
     var WARN_FLAGS_POS_IDX = { hk: 12, person: 10 };
     var WARN_TYPE_LABELS = { TY: '태풍', WV: '풍랑', GW: '강풍' };
     var WARN_TYPE_ORDER = { hk: ['TY', 'WV'], person: ['TY', 'WV', 'GW'] };
+
+    /** 심각도(주의보/경보) 포함 특보 필드 — build_accident_warn_flags.js 가 2026-08-31
+     * 통계 도넛 세분화용으로 새로 추가한 위치(["TY_경보","WV_주의보"] 형태). 위
+     * WARN_FLAGS_POS_IDX(유형만, 필터가 씀)와는 별개 필드라 필터 동작에 영향 없음. */
+    var WARN_SEVERITY_POS_IDX = { hk: 17, person: 11 };
+    var WARN_SEVERITY_ORDER = ['TY_경보', 'TY_주의보', 'WV_경보', 'WV_주의보', 'GW_경보', 'GW_주의보'];
+    var WARN_SEVERITY_LABELS = {
+        TY_경보: '태풍 경보', TY_주의보: '태풍 주의보',
+        WV_경보: '풍랑 경보', WV_주의보: '풍랑 주의보',
+        GW_경보: '강풍 경보', GW_주의보: '강풍 주의보'
+    };
+    var WARN_SEVERITY_COLORS = {
+        TY_경보: '#ff5252', TY_주의보: '#ff8a65',
+        WV_경보: '#7c4dff', WV_주의보: '#b388ff',
+        GW_경보: '#26c6da', GW_주의보: '#80deea'
+    };
 
     /** 선박용도·톤수 컬럼 위치 — hk 전용(심판원 통합 2026-08-25로 생긴 필드, person 엔
      * 없다). person 소스에서 이 두 필터를 걸어도 SHIPUSE_POS_IDX.person/TONNAGE_POS_IDX.person
@@ -2130,6 +2147,18 @@
         return counts;
     }
 
+    /** 월별(1~12월) 사고건수 — 연도 구분 없이 전체 기간 합산(2026-08-31 사용자 확정:
+     * "월별은 연도 선택 없이 전체기간 합산"). 연도별 드릴다운으로 들어가는 "연도별" 탭과
+     * 역할이 겹치지 않도록 최상위 탭에서 별도로 구성. */
+    function monthlyBuckets(members) {
+        var counts = new Array(12).fill(0);
+        members.forEach(function (f) {
+            var m = monthOf(f.get('row'));
+            if (m) counts[m - 1]++;
+        });
+        return counts;
+    }
+
     /** 요일별(월~일) 사고건수. */
     function weekdayBuckets(members) {
         var counts = new Array(7).fill(0);
@@ -2151,15 +2180,31 @@
         return { active: active, inactive: inactive };
     }
 
-    /** 소스별 "분석 뷰" 탭 구성 — hourly 는 hk 에만(person 은 발생시각 없음). */
+    /** "특보 중" 조각을 유형×심각도(태풍/풍랑/강풍 × 주의보/경보)로 쪼갠 값 — 0건짜리
+     * 조합은 목록에서 뺀다(2026-08-31 사용자 확정). 한 사고가 두 유형 이상(예: 태풍+풍랑)
+     * 동시 발효 중이면 두 조각에 같이 잡혀 합계가 warnBuckets().active 보다 클 수 있다. */
+    function warnSeverityBuckets(key, members) {
+        var counts = {};
+        members.forEach(function (f) {
+            var sev = f.get('row')[WARN_SEVERITY_POS_IDX[key]] || [];
+            sev.forEach(function (code) { counts[code] = (counts[code] || 0) + 1; });
+        });
+        return WARN_SEVERITY_ORDER.filter(function (c) { return counts[c] > 0; }).map(function (c) {
+            return { code: c, label: WARN_SEVERITY_LABELS[c], count: counts[c], color: WARN_SEVERITY_COLORS[c] };
+        });
+    }
+
+    /** 소스별 "분석 뷰" 탭 구성 — hourly 는 hk 에만(person 은 발생시각 없음).
+     * "월별"은 2026-08-31 사용자 확정으로 드릴다운 없이 최상위 탭으로 추가. */
     function statsViewsFor(key) {
         var views = [
-            { id: 'trend', label: '연도별 추이' },
+            { id: 'trend', label: '연도별' },
+            { id: 'month', label: '월별' },
             { id: 'weekday', label: '요일별' },
             { id: 'org', label: '관할서별' },
             { id: 'warn', label: '특보발효' }
         ];
-        if (key === 'hk') views.splice(1, 0, { id: 'hourly', label: '시간대별' });
+        if (key === 'hk') views.splice(2, 0, { id: 'hourly', label: '시간대별' });
         return views;
     }
 
@@ -2233,10 +2278,12 @@
         var activeTab = _activeDetailTab[key];
         var detailItems = detailDataFor(key, activeTab, members);
         var maxDetail = Math.max.apply(null, detailItems.map(function (d) { return d[1]; }).concat([1]));
+        // 게이지에 채움 비율(%)이 눈에 보이게(2026-08-31 사용자 확정) — 전체 건수 대비 비율.
         var barsHtml = detailItems.map(function (d) {
+            var pct = members.length ? Math.round(d[1] / members.length * 100) : 0;
             return '<div class="accident-bar-row"><span class="name">' + escapeHtml(d[0]) + '</span>' +
                 '<span class="track"><span class="fill" style="width:' + Math.round(d[1] / maxDetail * 100) + '%"></span></span>' +
-                '<span class="n">' + d[1] + '</span></div>';
+                '<span class="n">' + d[1] + '건 · ' + pct + '%</span></div>';
         }).join('');
         var tabsHtml = tabs.map(function (t) {
             return '<button class="accident-detail-tab' + (t === activeTab ? ' active' : '') + '" data-tab="' + t + '">' + t + '</button>';
@@ -2260,6 +2307,14 @@
         x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
         y: { beginAtZero: true, ticks: { color: '#64748b', precision: 0 }, grid: { color: 'rgba(255,255,255,0.06)' } }
     };
+    // 차트에 값을 항상(호버 없이) 보여달라는 요청(2026-08-31 사용자 확정) — 이미 로드돼
+    // 있던 chartjs-plugin-datalabels 를 등록. 기본은 꺼두고(다른 화면에 이 Chart.js를
+    // 재사용할 일이 없어 안전하지만 명시적으로), 값 표시가 필요한 차트에서만 개별로 켠다.
+    if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined' && !Chart.registry.plugins.get('datalabels')) {
+        Chart.register(ChartDataLabels);
+        Chart.defaults.set('plugins.datalabels', { display: false });
+    }
+    var DATALABEL_COLOR = '#e2e8f0';
 
     /** 지금 선택된 "분석 뷰" 탭에 맞는 Chart.js 차트 하나를 그린다(그 전에 이전 걸 destroy). */
     function renderActiveChart(key, members) {
@@ -2279,7 +2334,8 @@
                 type: 'line',
                 data: { labels: t.labels, datasets: [{
                     data: t.values, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.18)',
-                    fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: CHART_COLOR.blue
+                    fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: CHART_COLOR.blue,
+                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 } }
                 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
@@ -2297,6 +2353,20 @@
             return;
         }
 
+        if (view === 'month') {
+            var mo = monthlyBuckets(members);
+            _statsCharts.push(new Chart(canvas, {
+                type: 'line',
+                data: { labels: mo.map(function (_, i) { return (i + 1) + '월'; }), datasets: [{
+                    data: mo, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.18)',
+                    fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: CHART_COLOR.blue,
+                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 } }
+                }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: CHART_AXIS_OPTS }
+            }));
+            return;
+        }
+
         if (view === 'hourly') {
             var hours = hourlyBuckets(members);
             var pointColors = hours.map(function (_, h) {
@@ -2309,7 +2379,8 @@
                 type: 'line',
                 data: { labels: hours.map(function (_, h) { return h + '시'; }), datasets: [{
                     data: hours, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.12)',
-                    fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: pointColors
+                    fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: pointColors,
+                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 8, weight: 600 } }
                 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
@@ -2324,9 +2395,16 @@
 
         if (view === 'weekday') {
             var wk = weekdayBuckets(members);
+            var wkTotal = wk.reduce(function (a, b) { return a + b; }, 0);
             _statsCharts.push(new Chart(canvas, {
                 type: 'bar',
-                data: { labels: WEEKDAY_LABELS, datasets: [{ data: wk, backgroundColor: CHART_COLOR.green, borderRadius: 4 }] },
+                data: { labels: WEEKDAY_LABELS, datasets: [{
+                    data: wk, backgroundColor: CHART_COLOR.green, borderRadius: 4,
+                    datalabels: {
+                        display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 10, weight: 600 },
+                        formatter: function (v) { return [v + '건', (wkTotal ? Math.round(v / wkTotal * 100) : 0) + '%']; }
+                    }
+                }] },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: CHART_AXIS_OPTS }
             }));
             return;
@@ -2337,7 +2415,10 @@
             wrap.style.height = Math.max(200, org.length * 20) + 'px'; // 최대 21개 관할서 — 가로막대라 세로로 늘림
             _statsCharts.push(new Chart(canvas, {
                 type: 'bar',
-                data: { labels: org.map(function (o) { return o[0]; }), datasets: [{ data: org.map(function (o) { return o[1]; }), backgroundColor: CHART_COLOR.blue, borderRadius: 4 }] },
+                data: { labels: org.map(function (o) { return o[0]; }), datasets: [{
+                    data: org.map(function (o) { return o[1]; }), backgroundColor: CHART_COLOR.blue, borderRadius: 4,
+                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'end', font: { size: 9, weight: 600 } }
+                }] },
                 options: {
                     indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
                     scales: {
@@ -2351,11 +2432,49 @@
 
         if (view === 'warn') {
             var w = warnBuckets(key, members);
+
+            if (!_warnExpanded || !w.active) {
+                _statsCharts.push(new Chart(canvas, {
+                    type: 'doughnut',
+                    data: { labels: ['특보 중', '평시'], datasets: [{
+                        data: [w.active, w.inactive], backgroundColor: [CHART_COLOR.red, 'rgba(255,255,255,0.12)'], borderWidth: 0
+                    }] },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } },
+                            datalabels: { display: true, color: '#05070d', font: { size: 11, weight: 700 }, formatter: function (v) { return v || ''; } }
+                        },
+                        onClick: function (evt, elements) {
+                            // "특보 중" 조각(index 0)을 누르면 유형×심각도로 펼친다(2026-08-31 사용자 확정).
+                            if (!elements.length || elements[0].index !== 0 || !w.active) return;
+                            _warnExpanded = true;
+                            renderActiveChart(key, members);
+                        }
+                    }
+                }));
+                if (caption) caption.textContent = w.active ? '"특보 중" 조각을 누르면 태풍·풍랑·강풍별로 나눠 볼 수 있습니다.' : '';
+                return;
+            }
+
+            var sv = warnSeverityBuckets(key, members);
+            var labels = sv.map(function (s) { return s.label; });
+            var data = sv.map(function (s) { return s.count; });
+            var colors = sv.map(function (s) { return s.color; });
+            if (w.inactive) { labels.push('평시'); data.push(w.inactive); colors.push('rgba(255,255,255,0.12)'); }
             _statsCharts.push(new Chart(canvas, {
                 type: 'doughnut',
-                data: { labels: ['특보 중', '평시'], datasets: [{ data: [w.active, w.inactive], backgroundColor: [CHART_COLOR.red, 'rgba(255,255,255,0.12)'], borderWidth: 0 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } } } }
+                data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 0 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } },
+                        datalabels: { display: true, color: '#05070d', font: { size: 10, weight: 700 }, formatter: function (v) { return v || ''; } }
+                    },
+                    onClick: function () { _warnExpanded = false; renderActiveChart(key, members); }
+                }
             }));
+            if (caption) caption.textContent = '한 사고에 특보가 두 종류 이상 겹쳐 있으면 두 조각에 같이 잡혀 합계가 "특보 중" 건수보다 클 수 있습니다. 다시 누르면 접힙니다.';
         }
     }
 
@@ -2372,6 +2491,7 @@
         _statsKey = key;
         _statsMembers = members;
         _trendDrill = null; // 새 셀을 열 때마다 드릴다운 상태 초기화
+        _warnExpanded = false;
         renderStatsBody();
         sheet.classList.add('open');
     }
@@ -2451,10 +2571,46 @@
             return pa - pb;
         });
     }
-    function buildOrgOptions() { return buildValueOptions(function (r) { return r[ORG_POS_IDX[state.source]]; }, ACCIDENT_ORG_LABELS, 'orgs'); }
+    /** 관할서 옵션 — buildValueOptions 을 그대로 쓰면 같은 서가 신·구 관할서코드
+     * (1532xxx 현재 / 1750xxx 2014~2017 "국민안전처" 시절 코드, ACCIDENT_ORG_LABELS
+     * 참고)로 갈라져 있어 같은 이름 버튼이 두 개씩 뜬다(2026-08-31 관할서 팝업 개편
+     * 스크린샷에서 발견 — 인천·평택·태안·보령·목포·여수·군산·완도 등 8곳). 이름으로
+     * 묶어 버튼 하나로 보여주고, codes 에 실제 코드들을 모아둬 선택 시 전부 포함한다. */
+    function buildOrgOptions() {
+        var key = state.source;
+        var feats = (key && rawFeatures[key]) || [];
+        var byName = {};
+        feats.forEach(function (f) {
+            var row = f.get('row');
+            if (!passesFiltersExcept(key, row, 'orgs')) return;
+            var code = row[ORG_POS_IDX[key]];
+            if (code == null) return;
+            var label = accidentLabel(ACCIDENT_ORG_LABELS, code);
+            var entry = byName[label] || (byName[label] = { codes: [], count: 0 });
+            if (entry.codes.indexOf(code) === -1) entry.codes.push(code);
+            entry.count++;
+        });
+        return Object.keys(byName).map(function (label) {
+            return { value: label, label: label, codes: byName[label].codes, count: byName[label].count };
+        }).sort(function (a, b) { return b.count - a.count; });
+    }
+
+    // 선박용도 버튼 순서(2026-08-31 사용자 확정) — 원본 값이 이미 이 7종 그대로라 합칠 필요는
+    // 없고 순서만 고정한다.
+    var SHIPUSE_ORDER_PRIORITY = ['어선', '여객선', '수상레저기구', '예인선', '화물선', '유조선', '기타선'];
 
     /** 선박용도 옵션 — 값 자체가 이미 한글 문자열(코드 아님)이라 라벨표 없이 그대로 쓴다. */
-    function buildShipUseOptions() { return buildValueOptions(function (r) { return r[SHIPUSE_POS_IDX.hk]; }, null, 'shipUses'); }
+    function buildShipUseOptions() {
+        var opts = buildValueOptions(function (r) { return r[SHIPUSE_POS_IDX.hk]; }, null, 'shipUses');
+        opts.forEach(function (o, i) { o.__origIdx = i; });
+        return opts.sort(function (a, b) {
+            var pa = SHIPUSE_ORDER_PRIORITY.indexOf(a.label), pb = SHIPUSE_ORDER_PRIORITY.indexOf(b.label);
+            if (pa === -1 && pb === -1) return a.__origIdx - b.__origIdx;
+            if (pa === -1) return 1;
+            if (pb === -1) return -1;
+            return pa - pb;
+        });
+    }
 
     /** 연속된 연도들을 "2016, 2021~2025"처럼 구간으로 묶어 표기(선박용도·톤수 필터를
      * 실제로 걸 때 "이 정보는 몇 년도 사고에만 있다" 안내 토스트에 씀). */
@@ -2500,7 +2656,7 @@
         });
     }
 
-    // ── 팝업 셸(체크박스 목록·시간대 전용 몸통 공용) ──
+    // ── 팝업 셸(버튼그리드 목록·시간대 전용 몸통 공용, 2026-08-31 화면 중앙 모달로 변경) ──
     var _filterPopupEls = null;
     function ensureFilterPopup() {
         if (_filterPopupEls) return _filterPopupEls;
@@ -2513,12 +2669,14 @@
             '<button type="button" class="accident-filter-popup-close" id="afp-close" aria-label="닫기">&times;</button></div>' +
             '<div class="accident-filter-popup-body" id="afp-body"></div>' +
             '<div class="accident-filter-popup-footer">' +
+            '<button type="button" id="afp-cancel">취소</button>' +
             '<button type="button" id="afp-reset">전체 해제</button>' +
             '<button type="button" class="primary" id="afp-confirm">확인</button>' +
             '</div></div>';
         document.body.appendChild(overlay);
         overlay.addEventListener('click', function (e) { if (e.target === overlay) closeFilterPopup(); });
         document.getElementById('afp-close').addEventListener('click', closeFilterPopup);
+        document.getElementById('afp-cancel').addEventListener('click', closeFilterPopup);
         _filterPopupEls = {
             overlay: overlay,
             title: document.getElementById('afp-title'),
@@ -2535,10 +2693,11 @@
     }
 
     /**
-     * 체크박스 다중선택 팝업(관할서·사고유형·계절 공용).
+     * 버튼그리드 다중선택 팝업(사고유형·계절·선박용도·특보 공용, 2026-08-31 체크박스→
+     * 버튼그리드로 개편 — 3개씩 배치, 선택된 버튼은 파란 배경으로 표시).
      * @param {string} title
      * @param {Array<{value, label, count}>} options
-     * @param {Set|null} currentSelected - null 이면 "전체"(체크박스 전부 해제 상태로 시작)
+     * @param {Set|null} currentSelected - null 이면 "전체"(아무 버튼도 안 눌린 상태로 시작)
      * @param {function(Set|null)} onConfirm - 확인 눌렀을 때, 하나도 안 골랐으면 null(전체)로 넘김
      */
     function openCheckboxFilterPopup(title, options, currentSelected, onConfirm) {
@@ -2546,48 +2705,136 @@
         els.title.textContent = title;
         els.count.textContent = options.length + '개 항목';
         var selected = new Set(currentSelected || []);
-        if (!options.length) {
-            els.body.innerHTML = '<div class="accident-filter-empty">지금 불러온 데이터에 표시할 항목이 없습니다.</div>';
-        } else {
+
+        function render() {
+            if (!options.length) {
+                els.body.innerHTML = '<div class="accident-filter-empty">지금 불러온 데이터에 표시할 항목이 없습니다.</div>';
+                return;
+            }
+            var allActive = selected.size === options.length;
             els.body.innerHTML =
-                '<label class="accident-filter-check-row accident-filter-check-all"><input type="checkbox" id="afp-check-all">' +
-                '<span class="label">전체 선택</span></label>' +
+                '<button type="button" class="accident-filter-select-all' + (allActive ? ' active' : '') + '" id="afp-check-all">전체 선택</button>' +
+                '<div class="accident-filter-btn-grid">' +
                 options.map(function (o, i) {
-                    var checked = selected.has(o.value) ? ' checked' : '';
-                    return '<label class="accident-filter-check-row"><input type="checkbox" data-i="' + i + '"' + checked + '>' +
-                        '<span class="label">' + escapeHtml(o.label) + '</span><span class="n">' + o.count + '건</span></label>';
-                }).join('');
-        }
-        var checkboxes = els.body.querySelectorAll('input[type="checkbox"][data-i]');
-        var checkAll = document.getElementById('afp-check-all');
-        function syncCheckAll() {
-            if (!checkAll) return;
-            checkAll.checked = checkboxes.length > 0 && selected.size === checkboxes.length;
-        }
-        syncCheckAll();
-        Array.prototype.forEach.call(checkboxes, function (cb) {
-            cb.addEventListener('change', function () {
-                var o = options[Number(cb.dataset.i)];
-                if (cb.checked) selected.add(o.value); else selected.delete(o.value);
-                syncCheckAll();
+                    var active = selected.has(o.value) ? ' active' : '';
+                    return '<button type="button" class="accident-filter-opt-btn' + active + '" data-i="' + i + '">' +
+                        '<span class="label">' + escapeHtml(o.label) + '</span><span class="n">' + o.count + '건</span></button>';
+                }).join('') + '</div>';
+
+            var checkAll = document.getElementById('afp-check-all');
+            checkAll.addEventListener('click', function () {
+                if (allActive) selected.clear();
+                else options.forEach(function (o) { selected.add(o.value); });
+                render();
             });
-        });
-        if (checkAll) {
-            checkAll.addEventListener('change', function () {
-                selected.clear();
-                Array.prototype.forEach.call(checkboxes, function (cb) {
-                    cb.checked = checkAll.checked;
-                    if (checkAll.checked) selected.add(options[Number(cb.dataset.i)].value);
+            Array.prototype.forEach.call(els.body.querySelectorAll('.accident-filter-opt-btn'), function (btn) {
+                btn.addEventListener('click', function () {
+                    var o = options[Number(btn.dataset.i)];
+                    if (selected.has(o.value)) selected.delete(o.value); else selected.add(o.value);
+                    render();
                 });
             });
         }
-        els.resetBtn.onclick = function () {
-            selected.clear();
-            Array.prototype.forEach.call(checkboxes, function (cb) { cb.checked = false; });
-            syncCheckAll();
-        };
+        render();
+
+        els.resetBtn.onclick = function () { selected.clear(); render(); };
         els.confirmBtn.onclick = function () {
             onConfirm(selected.size ? selected : null);
+            closeFilterPopup();
+        };
+        els.overlay.style.display = 'flex';
+    }
+
+    // 관할서 팝업 지방청 그룹 구성(2026-08-31 웹서칭으로 확인, 사용자 확정) — 21개 관할서 전부 포함.
+    var ORG_REGION_ORDER = ['중부청', '서해청', '동해청', '남해청', '제주청'];
+    var ORG_REGION_OF = {
+        인천해양경찰서: '중부청', 평택해양경찰서: '중부청', 태안해양경찰서: '중부청', 보령해양경찰서: '중부청',
+        군산해양경찰서: '서해청', 부안해양경찰서: '서해청', 목포해양경찰서: '서해청', 완도해양경찰서: '서해청', 여수해양경찰서: '서해청',
+        속초해양경찰서: '동해청', 강릉해양경찰서: '동해청', 동해해양경찰서: '동해청', 울진해양경찰서: '동해청', 포항해양경찰서: '동해청',
+        부산해양경찰서: '남해청', 울산해양경찰서: '남해청', 창원해양경찰서: '남해청', 통영해양경찰서: '남해청', 사천해양경찰서: '남해청',
+        제주해양경찰서: '제주청', 서귀포해양경찰서: '제주청'
+    };
+    function orgShortName(label) { return label.replace(/해양경찰서$/, ''); }
+
+    /**
+     * 관할서 전용 팝업(2026-08-31) — 지방청(중부→서해→동해→남해→제주)별로 묶어 보여준다.
+     * 지방청 라벨을 누르면 그 청 소속 전체를 한 번에 선택/해제(사용자 확정).
+     * options 는 buildOrgOptions() 가 신·구 관할서코드를 이름으로 합친 것 — 팝업 내부
+     * 선택 상태는 이름(o.label) 기준으로 관리하고, 확인 시 그 이름의 codes 전부를 담은
+     * Set<orgCd> 로 펼쳐서 onConfirm 에 넘긴다(filters.orgs·passesFilters 는 그대로 코드
+     * 기준이라 이 경계에서만 변환).
+     * @param {Array<{value, label, codes, count}>} options
+     * @param {Set<number>|null} currentSelectedCodes - 지금 filters.orgs 값
+     * @param {function(Set<number>|null)} onConfirm
+     */
+    function openOrgFilterPopup(options, currentSelectedCodes, onConfirm) {
+        var els = ensureFilterPopup();
+        els.title.textContent = '관할서';
+        els.count.textContent = options.length + '개 항목';
+        var currentCodes = currentSelectedCodes || new Set();
+        var selected = new Set(); // Set<label>
+        options.forEach(function (o) {
+            if (o.codes.some(function (c) { return currentCodes.has(c); })) selected.add(o.label);
+        });
+
+        var byRegion = {};
+        options.forEach(function (o) {
+            var region = ORG_REGION_OF[o.label] || '기타';
+            (byRegion[region] || (byRegion[region] = [])).push(o);
+        });
+        var regions = ORG_REGION_ORDER.filter(function (r) { return byRegion[r] && byRegion[r].length; });
+        Object.keys(byRegion).forEach(function (r) { if (regions.indexOf(r) === -1) regions.push(r); });
+
+        function regionState(region) {
+            var opts = byRegion[region];
+            var n = opts.filter(function (o) { return selected.has(o.label); }).length;
+            if (n === 0) return 'none';
+            return n === opts.length ? 'all' : 'some';
+        }
+
+        function render() {
+            if (!options.length) {
+                els.body.innerHTML = '<div class="accident-filter-empty">지금 불러온 데이터에 표시할 항목이 없습니다.</div>';
+                return;
+            }
+            els.body.innerHTML = regions.map(function (region) {
+                var opts = byRegion[region];
+                var st = regionState(region);
+                var optsHtml = opts.map(function (o) {
+                    var active = selected.has(o.label) ? ' active' : '';
+                    return '<button type="button" class="accident-filter-opt-btn' + active + '" data-i="' + options.indexOf(o) + '">' +
+                        '<span class="label">' + escapeHtml(orgShortName(o.label)) + '</span><span class="n">' + o.count + '건</span></button>';
+                }).join('');
+                return '<div class="accident-filter-org-region' + (st === 'all' ? ' all-selected' : st === 'some' ? ' some-selected' : '') + '" data-region="' + escapeHtml(region) + '">' +
+                    '<span class="label">' + escapeHtml(region) + '</span><span class="hint">' + (st === 'all' ? '전체 해제' : '전체 선택') + '</span></div>' +
+                    '<div class="accident-filter-btn-grid">' + optsHtml + '</div>';
+            }).join('');
+
+            Array.prototype.forEach.call(els.body.querySelectorAll('.accident-filter-opt-btn'), function (btn) {
+                btn.addEventListener('click', function () {
+                    var o = options[Number(btn.dataset.i)];
+                    if (selected.has(o.label)) selected.delete(o.label); else selected.add(o.label);
+                    render();
+                });
+            });
+            Array.prototype.forEach.call(els.body.querySelectorAll('.accident-filter-org-region'), function (hdr) {
+                hdr.addEventListener('click', function () {
+                    var region = hdr.dataset.region;
+                    var opts = byRegion[region];
+                    var toAll = regionState(region) !== 'all';
+                    opts.forEach(function (o) { if (toAll) selected.add(o.label); else selected.delete(o.label); });
+                    render();
+                });
+            });
+        }
+        render();
+
+        els.resetBtn.onclick = function () { selected.clear(); render(); };
+        els.confirmBtn.onclick = function () {
+            if (!selected.size) { onConfirm(null); closeFilterPopup(); return; }
+            var codeSet = new Set();
+            options.forEach(function (o) { if (selected.has(o.label)) o.codes.forEach(function (c) { codeSet.add(c); }); });
+            onConfirm(codeSet);
             closeFilterPopup();
         };
         els.overlay.style.display = 'flex';
@@ -2735,6 +2982,14 @@
         if (!btn) return;
         var val = filters[filterKey];
         var n = val ? val.size != null ? val.size : val.length : 0;
+        // 관할서는 같은 서가 신·구 코드 2개로 잡혀 있을 수 있어(buildOrgOptions 참고)
+        // 코드 개수 그대로 세면 "인천 1곳만 골랐는데 2개 선택"으로 오해를 준다 —
+        // 이름 기준 고유 개수로 센다(2026-08-31).
+        if (filterKey === 'orgs' && val) {
+            var names = new Set();
+            val.forEach(function (code) { names.add(accidentLabel(ACCIDENT_ORG_LABELS, code)); });
+            n = names.size;
+        }
         btn.textContent = prefix + ': ' + (n ? n + '개 선택' : '전체');
         btn.classList.toggle('has-selection', n > 0);
     }
@@ -2759,9 +3014,24 @@
 
     /** 사고정보가 켜져 있는 동안(showModeToggle 과 동일 시점)만 필터 바를 보여준다. */
     function showFilterBar(show) {
+        _filterBarCollapsed = false; // 새로 소스를 고르거나 끌 때마다 접힘 상태 초기화
         var bar = document.getElementById('accident-filter-bar');
         if (bar) bar.style.display = show ? 'flex' : 'none';
         if (show) positionFilterBar();
+    }
+
+    // 현황/분석 버튼을 "지금 활성 모드"로 다시 누르면(재클릭) 필터 바 행만 접었다 편다
+    // (모드 자체는 그대로 유지 — 2026-08-31 사용자 확정). 소스를 새로 고르면 초기화.
+    var _filterBarCollapsed = false;
+    function toggleFilterBarCollapse() {
+        var bar = document.getElementById('accident-filter-bar');
+        if (!bar) return;
+        // 사고정보 자체가 꺼져 필터 바가 없는 상태(display:none)라면 토글 대상이 아니다.
+        // _filterBarCollapsed 로 "내가 접어서 none인지"와 구분한다 — 안 그러면 한 번
+        // 접은 뒤 재클릭해도 style.display==='none' 이라 계속 안 펴지는 버그가 생긴다.
+        if (bar.style.display === 'none' && !_filterBarCollapsed) return;
+        _filterBarCollapsed = !_filterBarCollapsed;
+        bar.style.display = _filterBarCollapsed ? 'none' : 'flex';
     }
 
     /** 필터 바 위치 재계산 — 모드 전환 시 모드토글 높이가 바뀔 수 있어 호출된다.
@@ -2795,7 +3065,7 @@
                     onFiltersChanged(map);
                 });
             } else if (key === 'orgs') {
-                openCheckboxFilterPopup('관할서', buildOrgOptions(), filters.orgs, function (sel) {
+                openOrgFilterPopup(buildOrgOptions(), filters.orgs, function (sel) {
                     filters.orgs = sel;
                     onFiltersChanged(map);
                 });
@@ -3034,6 +3304,7 @@
             modeToggle.addEventListener('click', function (e) {
                 var btn = e.target.closest('button');
                 if (!btn) return;
+                if (btn.dataset.mode === state.mode) { toggleFilterBarCollapse(); return; }
                 setMode(map, btn.dataset.mode);
             });
         }

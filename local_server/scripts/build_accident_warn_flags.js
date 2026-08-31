@@ -46,12 +46,21 @@
  *   다음 이벤트까지 10일 넘게 비면 직전 이벤트 시점에서 강제 마감).
  *
  * [출력 — 각 행 끝에 필드 추가]
- *   hk: [...기존 12개], ["TY","WV"] 형태 배열(발효중인 종류만, 없으면 [])
- *   person: [...기존 10개], ["TY","WV","GW"] 형태 배열(위와 동일)
+ *   hk[12]: ["TY","WV"] 형태 배열(발효중인 종류만, 없으면 []) — 특보 필터가 그대로 씀
+ *   person[10]: ["TY","WV","GW"] 형태 배열(위와 동일)
+ *
+ * [심각도(주의보/경보) 세분화 — 새 필드 추가(2026-08-31 사용자 확정)] 통계 시트의
+ * "특보발효" 도넛을 유형×심각도로 쪼개 보여달라는 요청 — 기존 hk[12]/person[10]
+ * (유형만, 필터가 쓰는 값)은 그대로 두고, 뒤에 심각도 필드를 새로 추가한다:
+ *   hk[17]/person[11]: ["TY_경보","WV_주의보"] 형태 배열(발효중인 유형+심각도 조합,
+ *   레벨은 항상 유형당 1개 — 격상/완화 시 구간을 그 시각에 닫고 새로 열어 겹치지 않음).
+ * 재실행 시 기존 hk[12]/person[10] 값을 다시 계산해 그대로 나오는지 먼저 대조 검증하고,
+ * 하나라도 다르면 저장하지 않고 중단한다(적대검증 — 레벨 분리로 판정 로직을 바꿨으니
+ * "유형만 보면 예전과 똑같다"는 게 재현돼야 심각도 필드도 믿을 수 있다).
  *
  * [연계] 사용하는 파일: warn_zone_parser.js · local_server/config/zone_group_map.js ·
  *        local_server/scripts/data/warn_zone_flags/*
- *        결과 소비처: client/js/marine-life/safety/accident_info.js (특보 필터)
+ *        결과 소비처: client/js/marine-life/safety/accident_info.js (특보 필터·통계 도넛)
  * ============================================================================
  */
 'use strict';
@@ -122,6 +131,16 @@ function daysBetween(a, b) {
     return (new Date(b.replace(' ', 'T')) - new Date(a.replace(' ', 'T'))) / 86400000;
 }
 
+/**
+ * [특보 세분화(2026-08-31, 사용자 확정) — 태풍/풍랑/강풍(유형) × 주의보/경보(심각도)]
+ * 원래는 zone+종류(zone|tcode) 하나로 구간을 합쳐 관리했다(주의보든 경보든 "그 종류
+ * 발효중"으로만 취급). 통계 도넛에서 심각도까지 쪼개 보여달라는 요청으로, 구간 키에
+ * 심각도를 더한 zone|tcode|level 로 나눠 관리한다. 격상/완화(예: 주의보→경보로 "대치")
+ * 는 이전 레벨 구간을 그 시각에 닫고 새 레벨 구간을 같은 시각에 연다 — 그래서 두 레벨
+ * 구간의 합집합은 예전 방식의 단일 구간과 정확히 같다(경계에서 닫힘/열림이 맞물려
+ * 빈틈이 없음). 이 성질 덕분에 기존 "발효중이었는지"(유형만, 심각도 무관) 판정은
+ * main() 에서 재계산해 기존 저장값과 대조 검증한다 — 다르면 저장하지 않고 중단.
+ */
 function buildIntervals() {
     const raw = fs.readFileSync(CSV_PATH, 'utf8');
     const lines = raw.split('\n').filter(Boolean);
@@ -129,10 +148,19 @@ function buildIntervals() {
     const idx = { 발효시각: header.indexOf('발효시각'), 해당지역: header.indexOf('해당지역') };
     const TYPE_CODE = { '태풍': 'TY', '풍랑': 'WV', '강풍': 'GW' };
 
-    const openState = {};
+    const openLevel = {};   // zoneType(zone|tcode) -> '주의보'|'경보'|null
+    const openSince = {};   // zoneType -> 그 레벨이 시작된 시각
     const lastEventAt = {};
-    const intervals = {};
+    const intervals = {};   // zoneType|level -> [{start,end}]
     const ensureArr = key => (intervals[key] || (intervals[key] = []));
+
+    function closeCurrent(zoneType, atTime) {
+        const lvl = openLevel[zoneType];
+        if (lvl == null) return;
+        ensureArr(zoneType + '|' + lvl).push({ start: openSince[zoneType], end: atTime });
+        openLevel[zoneType] = null;
+        openSince[zoneType] = null;
+    }
 
     for (let li = 1; li < lines.length; li++) {
         const cols = parseCsvLine(lines[li]);
@@ -147,6 +175,7 @@ function buildIntervals() {
             const baseType = Object.keys(TYPE_CODE).find(t => typ.includes(t));
             if (!baseType) continue;
             const tcode = TYPE_CODE[baseType];
+            const level = typ.includes('경보') ? '경보' : '주의보';
             const isSea = tcode === 'TY' || tcode === 'WV';
             const effTime = effItems[n] ? parseKoreanDatetime(effItems[n]) : null;
             if (!effTime) continue;
@@ -158,19 +187,22 @@ function buildIntervals() {
                 if (!resolved) continue; // 태풍 항목 속 육상 노이즈 등 — 정상, 스킵
 
                 for (const zone of resolved) {
-                    const key = zone + '|' + tcode;
-                    if (openState[key] != null && lastEventAt[key] != null && daysBetween(lastEventAt[key], effTime) > STALE_GAP_DAYS) {
-                        ensureArr(key).push({ start: openState[key], end: lastEventAt[key] });
-                        openState[key] = null;
+                    const zoneType = zone + '|' + tcode;
+                    if (openLevel[zoneType] != null && lastEventAt[zoneType] != null && daysBetween(lastEventAt[zoneType], effTime) > STALE_GAP_DAYS) {
+                        closeCurrent(zoneType, lastEventAt[zoneType]);
                     }
-                    if (action === '발표') {
-                        if (openState[key] == null) openState[key] = effTime;
-                    } else if (action === '해제') {
-                        if (openState[key] != null) { ensureArr(key).push({ start: openState[key], end: effTime }); openState[key] = null; }
-                    } else if (openState[key] == null) {
-                        openState[key] = effTime;
-                    }
-                    lastEventAt[key] = effTime;
+                    if (action === '해제') {
+                        closeCurrent(zoneType, effTime);
+                    } else if (openLevel[zoneType] == null) {
+                        openLevel[zoneType] = level;
+                        openSince[zoneType] = effTime;
+                    } else if (openLevel[zoneType] !== level) {
+                        // 레벨 변경(예: 주의보→경보 격상/완화) — 이전 레벨을 이 시각에 닫고 새 레벨을 연다
+                        closeCurrent(zoneType, effTime);
+                        openLevel[zoneType] = level;
+                        openSince[zoneType] = effTime;
+                    } // 같은 레벨의 반복(발표/대치/변경) — since 그대로 유지
+                    lastEventAt[zoneType] = effTime;
                 }
             }
         }
@@ -251,41 +283,56 @@ function ymdToDash(ymd) { return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.sl
 function hmToPadded(hm) { const [h, m] = String(hm).split(':'); return h.padStart(2, '0') + ':' + (m || '00').padStart(2, '0'); }
 
 function makeFlagComputers(intervals, findSeaZone, findNearLand) {
-    function activeAt(zone, type, exactTime) {
-        const arr = intervals[zone + '|' + type];
-        if (!arr) return false;
-        return arr.some(iv => exactTime >= iv.start && exactTime < iv.end);
+    // 두 레벨 구간의 합집합이 예전 단일 구간과 같으므로(위 buildIntervals 주석 참고),
+    // "발효중이었는지"(레벨 무관)는 두 레벨 중 하나라도 걸리면 true — 기존 flags 산출과 동일.
+    function levelAt(zone, type, exactTime) {
+        for (const level of ['경보', '주의보']) {
+            const arr = intervals[zone + '|' + type + '|' + level];
+            if (arr && arr.some(iv => exactTime >= iv.start && exactTime < iv.end)) return level;
+        }
+        return null;
     }
-    function activeOnDay(zone, type, dateDash) {
-        const arr = intervals[zone + '|' + type];
-        if (!arr) return false;
+    function levelOnDay(zone, type, dateDash) {
         const dayStart = dateDash + ' 00:00', dayEnd = dateDash + ' 23:59';
-        return arr.some(iv => iv.start <= dayEnd && iv.end >= dayStart);
+        for (const level of ['경보', '주의보']) {
+            const arr = intervals[zone + '|' + type + '|' + level];
+            if (arr && arr.some(iv => iv.start <= dayEnd && iv.end >= dayStart)) return level;
+        }
+        return null;
     }
     // hk: 태풍·풍랑만(강풍은 육상 개념이라 배 사고와 무관) — 정확한 시각 기준
+    // [반환] flags: 기존과 동일한 ['TY','WV'] 형태(필터가 그대로 씀) /
+    //        severity: 새로 추가된 ['TY_경보','WV_주의보'] 형태(통계 도넛 전용, 2026-08-31)
     function computeHkFlags(row) {
         const [lat, lon, ymd, hm] = row;
         const exactTime = ymdToDash(ymd) + ' ' + hmToPadded(hm);
         const zone = findSeaZone(lon, lat);
-        if (!zone) return [];
-        const flags = [];
-        if (activeAt(zone, 'TY', exactTime)) flags.push('TY');
-        if (activeAt(zone, 'WV', exactTime)) flags.push('WV');
-        return flags;
+        if (!zone) return { flags: [], severity: [] };
+        const flags = [], severity = [];
+        const tyLevel = levelAt(zone, 'TY', exactTime);
+        if (tyLevel) { flags.push('TY'); severity.push('TY_' + tyLevel); }
+        const wvLevel = levelAt(zone, 'WV', exactTime);
+        if (wvLevel) { flags.push('WV'); severity.push('WV_' + wvLevel); }
+        return { flags, severity };
     }
     // person: 태풍·풍랑·강풍 다 — 시각 정보가 없어 날짜 단위(그 날과 조금이라도 겹치면 통과)
     function computePersonFlags(row) {
         const [lat, lon, ymd] = row;
         const dateDash = ymdToDash(ymd);
-        const flags = [];
+        const flags = [], severity = [];
         const seaZone = findSeaZone(lon, lat);
         if (seaZone) {
-            if (activeOnDay(seaZone, 'TY', dateDash)) flags.push('TY');
-            if (activeOnDay(seaZone, 'WV', dateDash)) flags.push('WV');
+            const tyLevel = levelOnDay(seaZone, 'TY', dateDash);
+            if (tyLevel) { flags.push('TY'); severity.push('TY_' + tyLevel); }
+            const wvLevel = levelOnDay(seaZone, 'WV', dateDash);
+            if (wvLevel) { flags.push('WV'); severity.push('WV_' + wvLevel); }
         }
         const landZone = findNearLand(lon, lat, dateDash);
-        if (landZone && activeOnDay(landZone, 'GW', dateDash)) flags.push('GW');
-        return flags;
+        if (landZone) {
+            const gwLevel = levelOnDay(landZone, 'GW', dateDash);
+            if (gwLevel) { flags.push('GW'); severity.push('GW_' + gwLevel); }
+        }
+        return { flags, severity };
     }
     return { computeHkFlags, computePersonFlags };
 }
@@ -293,43 +340,70 @@ function makeFlagComputers(intervals, findSeaZone, findNearLand) {
 // ============================================================================
 // 실행
 // ============================================================================
-function main() {
-    console.log('[1/4] 통보문 CSV 파싱 -> 구간표 생성...');
-    const intervals = buildIntervals();
-    console.log('  (구역,종류) 조합', Object.keys(intervals).length, '개');
+// 기존 warn flags 필드 위치(최초 실행 때 이미 append됨) — 재실행 시 이 값을 다시 계산해
+// 대조 검증만 하고 덮어쓰지 않는다(레벨 분리로 판정 로직을 바꿨으니, 유형만 놓고 보면
+// 예전과 똑같이 나오는지 먼저 확인하지 않고 severity 를 얹으면 조용히 틀린 데이터가
+// 쌓일 위험이 있다 — 2026-08-31, 적대검증 원칙 적용).
+const WARN_FLAGS_POS_IDX = { hk: 12, person: 10 };
+const WARN_SEVERITY_POS_IDX = { hk: 17, person: 11 };
 
-    console.log('[2/4] 구역 지오메트리 로드...');
+function main() {
+    console.log('[1/5] 통보문 CSV 파싱 -> 구간표(유형×심각도) 생성...');
+    const intervals = buildIntervals();
+    console.log('  (구역,종류,심각도) 조합', Object.keys(intervals).length, '개');
+
+    console.log('[2/5] 구역 지오메트리 로드...');
     const { seaFeatures, landFeatures } = loadZoneFeatures();
     const { findSeaZone, findNearLand } = makeZoneFinders(seaFeatures, landFeatures);
     const { computeHkFlags, computePersonFlags } = makeFlagComputers(intervals, findSeaZone, findNearLand);
 
-    console.log('[3/4] 사고 데이터 계산...');
+    console.log('[3/5] 사고 데이터 재계산 + 기존 판정과 대조 검증...');
     const hkData = JSON.parse(fs.readFileSync(HK_JSON_PATH, 'utf8'));
     const personData = JSON.parse(fs.readFileSync(PERSON_JSON_PATH, 'utf8'));
 
-    const hkStats = {};
-    hkData.rows.forEach(row => {
-        const flags = computeHkFlags(row);
-        row.push(flags);
-        const k = flags.join('+') || '없음';
-        hkStats[k] = (hkStats[k] || 0) + 1;
-    });
-    console.log('  hk(선박)', hkData.rows.length, '건 완료 —', hkStats);
+    function verifyAndCollect(rows, computeFn, flagsIdx) {
+        let mismatch = 0;
+        const severities = rows.map(row => {
+            const { flags, severity } = computeFn(row);
+            const existing = row[flagsIdx] || [];
+            const same = existing.length === flags.length && existing.every(c => flags.includes(c));
+            if (!same) mismatch++;
+            return severity;
+        });
+        return { severities, mismatch };
+    }
 
-    const personStats = {};
-    personData.rows.forEach(row => {
-        const flags = computePersonFlags(row);
-        row.push(flags);
-        const k = flags.join('+') || '없음';
-        personStats[k] = (personStats[k] || 0) + 1;
-    });
-    console.log('  person(인명)', personData.rows.length, '건 완료 —', personStats);
+    const hkResult = verifyAndCollect(hkData.rows, computeHkFlags, WARN_FLAGS_POS_IDX.hk);
+    const personResult = verifyAndCollect(personData.rows, computePersonFlags, WARN_FLAGS_POS_IDX.person);
+    console.log('  hk 유형 판정 불일치:', hkResult.mismatch, '/', hkData.rows.length);
+    console.log('  person 유형 판정 불일치:', personResult.mismatch, '/', personData.rows.length);
+    if (hkResult.mismatch > 0 || personResult.mismatch > 0) {
+        console.error('[중단] 레벨 분리 후에도 기존 "발효중" 판정(유형만)이 똑같이 나와야 하는데 달라졌다.');
+        console.error('       buildIntervals()의 레벨 전환 로직을 다시 확인할 것 — 저장하지 않고 종료.');
+        process.exit(1);
+    }
 
-    console.log('[4/4] 저장...');
+    console.log('[4/5] 심각도(주의보/경보) 필드 반영...');
+    hkData.rows.forEach((row, i) => {
+        if (row.length > WARN_SEVERITY_POS_IDX.hk) row[WARN_SEVERITY_POS_IDX.hk] = hkResult.severities[i];
+        else row.push(hkResult.severities[i]);
+    });
+    personData.rows.forEach((row, i) => {
+        if (row.length > WARN_SEVERITY_POS_IDX.person) row[WARN_SEVERITY_POS_IDX.person] = personResult.severities[i];
+        else row.push(personResult.severities[i]);
+    });
+    const sevStats = {};
+    hkResult.severities.concat(personResult.severities).forEach(s => {
+        const k = s.length ? s.join('+') : '없음';
+        sevStats[k] = (sevStats[k] || 0) + 1;
+    });
+    console.log('  심각도 분포(hk+person):', sevStats);
+
+    console.log('[5/5] 저장...');
     fs.writeFileSync(HK_JSON_PATH, JSON.stringify(hkData));
     fs.writeFileSync(PERSON_JSON_PATH, JSON.stringify(personData));
     console.log('완료:', HK_JSON_PATH, PERSON_JSON_PATH);
 }
 
 if (require.main === module) main();
-module.exports = { buildIntervals, loadZoneFeatures, makeZoneFinders, makeFlagComputers };
+module.exports = { buildIntervals, loadZoneFeatures, makeZoneFinders, makeFlagComputers, WARN_SEVERITY_POS_IDX };
