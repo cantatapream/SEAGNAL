@@ -187,8 +187,8 @@ function articleNumbersOf(file, tier, addenda) {
   return out;
 }
 
-const now = { rows: 0, ok: 0, deleted: 0, no_article: 0, no_base: 0, no_file: 0, no_notice: 0, skipped: 0 };
-const ex = { no_article: [], no_base: [], no_file: [], no_notice: [] };
+const now = { rows: 0, ok: 0, deleted: 0, no_article: 0, no_parse: 0, no_base: 0, no_file: 0, no_notice: 0, skipped: 0 };
+const ex = { no_article: [], no_parse: [], no_base: [], no_file: [], no_notice: [] };
 
 for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities']) {
   const D = path.join(WIKI, dir);
@@ -202,7 +202,28 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
     for (const row of R.extractCitationChain(src.replace(/^---[\s\S]*?---\n/, ''))) {
       now.rows++;
       const law = String(row.law || ''), tier = String(row.tier || 'law');
-      const jos = joTokens(row.article);
+      // ★생산이 실제로 여는 조만 센다(2026-08-31, L-136 — 게이트가 판정을 다시 만들면 안 된다).
+      //   종전에는 `joTokens` 로 칸 안의 `제N조` 를 **전부** 긁었다. 그런데 조문 칸에는
+      //   `법 제8조② 위임`·`별표6(법 제52조 위임)`·`제6조·시행령 제42조①…` 처럼
+      //   **다른 문서의 조**가 함께 적힌 것이 있고, 생산(`parseArticleRef`)은 그런 번호를
+      //   애초에 열지 않는다(직접 돌려 확인함 — 앞의 셋은 각각 null·null·제6조만). 그걸
+      //   긁어다 "그 고시에 그 조가 없다"고 세면 **일어나지 않는 실패를 세는 것**이다.
+      //   ⚠이 수정으로 줄어드는 숫자는 **자료가 좋아진 것이 아니라 계측이 고쳐진 것**이다.
+      const ref = A.parseArticleRef(row.article, tier, law);
+      // ⚠생산이 이 칸을 아예 못 읽는 경우는 **따로 센다**(`no_parse`). 처음엔 "V5-5 소관"이라며
+      //   건너뛰기로 넣었다가, 실제로 세어 보니 190줄이고 **어느 게이트도 그걸 세고 있지 않았다**
+      //   (reach_eval 의 같은 갈래는 14줄뿐). 건너뛰기로 넣으면 진짜 문제를 감추게 된다.
+      //   내용은 두 갈래다 — ⓐ`법 제8조② 위임`처럼 다른 문서의 조가 적힌 칸,
+      //   ⓑ`제127조·제129조~제132조`처럼 나열과 범위를 섞어 적어 파서가 포기하는 칸.
+      //   둘 다 "챗봇이 이 줄로는 원문을 못 연다"는 점에서 같다.
+      if (!ref) {
+        now.no_parse++;
+        if (ex.no_parse.length < 400) ex.no_parse.push(`${dir}/${f}  |  ${law.slice(0, 30)}  |  ${String(row.article).slice(0, 40)}`);
+        continue;
+      }
+      if (ref.mode === 'whole' || ref.mode === 'annex') { now.skipped++; continue; }
+      const jos = (ref.joList && ref.joList.length ? ref.joList : (ref.jo ? [ref.jo] : []))
+        .filter(j => /^제\d+조(?:의\d+)?$/.test(j));
       if (!jos.length) { now.skipped++; continue; }              // 별표·별지·설명뿐인 칸은 V5-5 소관
       const baseRel = A.resolveBase(law, baseLaw, tier);
       if (!baseRel) {
@@ -250,6 +271,7 @@ console.log(`\n  ✅ 눌러서 열린다        ${String(now.ok).padStart(6)}` +
   (judged ? `  (${(now.ok * 100 / judged).toFixed(1)}%)` : '') + delta('ok'));
 console.log(`      └ 그중 삭제된 조가 낀 줄 ${String(now.deleted).padStart(4)}${delta('deleted')}   (국가가 삭제한 조 — 우리가 고칠 것 아님)`);
 console.log(`  ❌ 그 파일에 그 조 없음  ${String(now.no_article).padStart(6)}${delta('no_article')}   ← 계층 오지정 또는 수집 공백`);
+console.log(`  ❌ 칸을 못 읽음         ${String(now.no_parse).padStart(6)}${delta('no_parse')}   ← 다른 문서의 조를 적었거나(「법 제8조 위임」) 나열·범위를 섞어 적어 파서가 포기한 칸`);
 console.log(`  ⚠ 원문 폴더를 못 찾음   ${String(now.no_base).padStart(6)}${delta('no_base')}`);
 console.log(`  ⏭️ 그 계층 파일이 없음   ${String(now.no_file).padStart(6)}${delta('no_file')}   (법률·시행령·시행규칙 미수집 — 4축 ①)`);
 console.log(`  ⚠ 고시 파일을 못 고름   ${String(now.no_notice).padStart(6)}${delta('no_notice')}   (미수집이거나 위키 이름과 파일 이름이 어긋남)`);
@@ -261,7 +283,7 @@ if (unindexed.length) {
 }
 
 if (argv.includes('--examples')) {
-  for (const [k, title] of [['no_article', '그 파일에 그 조가 없음'], ['no_base', '원문 폴더를 못 찾음'], ['no_notice', '고시 파일을 못 고름'], ['no_file', '그 계층 파일이 없음']]) {
+  for (const [k, title] of [['no_article', '그 파일에 그 조가 없음'], ['no_parse', '칸을 못 읽음'], ['no_base', '원문 폴더를 못 찾음'], ['no_notice', '고시 파일을 못 고름'], ['no_file', '그 계층 파일이 없음']]) {
     if (!ex[k].length) continue;
     console.log(`\n── ${title} ──`);
     ex[k].forEach(l => console.log('  ' + l));
@@ -281,8 +303,11 @@ if (argv.includes('--gate')) {
     console.log(`\n  ❌ 색인에 없는 페이지 ${unindexed.length}장 — 만들어 놓고 색인을 안 돌렸습니다`);
     process.exit(1);
   }
-  if (now.no_article > base.no_article || now.no_base > base.no_base) {
-    console.log(`\n  ❌ 눌러도 안 열리는 줄이 늘었습니다 (조문없음 ${base.no_article}→${now.no_article} · 경로없음 ${base.no_base}→${now.no_base})`);
+  // `no_parse`(칸을 못 읽음)도 함께 막는다 — 안 그러면 조문 칸을 파서가 못 읽는 꼴로 고쳐 놓고도
+  // "조문없음이 줄었다"로 통과한다(2026-08-31 신설).
+  if (now.no_article > base.no_article || now.no_base > base.no_base ||
+      (base.no_parse !== undefined && now.no_parse > base.no_parse)) {
+    console.log(`\n  ❌ 눌러도 안 열리는 줄이 늘었습니다 (조문없음 ${base.no_article}→${now.no_article} · 경로없음 ${base.no_base}→${now.no_base} · 칸못읽음 ${base.no_parse}→${now.no_parse})`);
     process.exit(1);
   }
   console.log('\n  ✅ 기준선 대비 나빠지지 않음');
