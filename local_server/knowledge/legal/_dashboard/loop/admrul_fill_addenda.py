@@ -94,7 +94,11 @@ def main():
         if re.search(r'^\[부칙\]', text, re.M):
             rep['이미있음'].append(name)
             continue
-        m = re.search(r'^ID:(\d+)', text.split('\n')[1] if '\n' in text else '', re.M)
+        # ⚠둘째 줄만 보면 안 된다(2026-08-31, 사서가 잡아 준 결함).
+        #   첫 줄에 `⚠REVIEW(수집 …)` 배너가 붙은 파일은 ID 가 셋째 줄로 밀린다.
+        #   그런 파일이 22건 있었는데 전부 조용히 건너뛰고는 "ID줄이 없다"로 세었다 —
+        #   "안 받아 본 것"을 "받을 수 없는 것"으로 잘못 보고한 셈이다. 머리글 몇 줄을 훑는다.
+        m = re.search(r'^ID:(\d+)', '\n'.join(text.split('\n')[:8]), re.M)
         if not m:
             rep['ID없음'].append(name)
             continue

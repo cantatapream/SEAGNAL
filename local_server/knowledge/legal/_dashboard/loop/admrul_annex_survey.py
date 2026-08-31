@@ -53,7 +53,8 @@ def main():
         name = os.path.basename(p)
         text = open(p, encoding='utf-8').read()
         lines = text.split('\n')
-        m = re.match(r'^ID:(\d+)', lines[1]) if len(lines) > 1 else None
+        # ⚠둘째 줄만 보지 않는다 — 첫 줄에 ⚠REVIEW 배너가 붙어 ID 가 셋째 줄로 밀린 파일이 22건 있다.
+        m = re.search(r'^ID:(\d+)', '\n'.join(lines[:8]), re.M)
         if not m:
             res['ID없음'].append(name)
             continue
