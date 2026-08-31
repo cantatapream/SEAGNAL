@@ -637,8 +637,6 @@
      * 취급. hk 는 태풍·풍랑만 값이 들어있고(강풍은 육상 개념이라 배 사고와 무관),
      * person 은 태풍·풍랑·강풍 셋 다 들어있을 수 있다. */
     var WARN_FLAGS_POS_IDX = { hk: 12, person: 10 };
-    var WARN_TYPE_LABELS = { TY: '태풍', WV: '풍랑', GW: '강풍' };
-    var WARN_TYPE_ORDER = { hk: ['TY', 'WV'], person: ['TY', 'WV', 'GW'] };
 
     /** 심각도(주의보/경보) 포함 특보 필드 — build_accident_warn_flags.js 가 2026-08-31
      * 통계 도넛 세분화용으로 새로 추가한 위치(["TY_경보","WV_주의보"] 형태). 위
@@ -654,6 +652,12 @@
         TY_경보: '#ff5252', TY_주의보: '#ff8a65',
         WV_경보: '#7c4dff', WV_주의보: '#b388ff',
         GW_경보: '#26c6da', GW_주의보: '#80deea'
+    };
+    // 특보 필터 팝업(2026-08-31 사용자 확정 — 태풍/풍랑/강풍을 경보·주의보로 세분화해서
+    // 보여줌) — hk 는 강풍 값이 없어(선박 사고와 무관) 4개, person 은 6개 다 나온다.
+    var WARN_SEVERITY_ORDER_BY_SOURCE = {
+        hk: ['TY_경보', 'TY_주의보', 'WV_경보', 'WV_주의보'],
+        person: WARN_SEVERITY_ORDER
     };
 
     /** 선박용도·톤수 컬럼 위치 — hk 전용(심판원 통합 2026-08-25로 생긴 필드, person 엔
@@ -688,11 +692,14 @@
             if (season && !filters.seasons.has(season)) return false;
         }
         if (filters.warnTypes) {
-            var active = row[WARN_FLAGS_POS_IDX[key]] || [];
+            // 2026-08-31 사용자 확정 — 특보 필터를 유형만(태풍/풍랑)이 아니라 유형×심각도
+            // (태풍 경보·태풍 주의보 등)로 세분화하면서 WARN_SEVERITY_POS_IDX 를 본다
+            // (WARN_FLAGS_POS_IDX 는 통계 뷰에서 여전히 "발효중이었는지"만 볼 때 씀).
+            var activeSeverity = row[WARN_SEVERITY_POS_IDX[key]] || [];
             // 여러 특보종류를 동시에 켜면 OR(그 중 하나라도 발효중이면 통과) — 사용자 확정
             // 2026-08-24: "강풍+풍랑 둘 다 켰다고 AND로 하면 해상 사고는 강풍과 원래
             // 무관해서 대부분 사라져버린다"
-            var anyActive = active.some(function (code) { return filters.warnTypes.has(code); });
+            var anyActive = activeSeverity.some(function (code) { return filters.warnTypes.has(code); });
             if (!anyActive) return false;
         }
         if (filters.shipUses) {
@@ -2725,9 +2732,11 @@
         }).sort(function (a, b) { return b.count - a.count; });
     }
 
-    // 사고유형 체크박스 순서(2026-08-25 사용자 확정) — 이 9개는 이 순서로 먼저,
-    // 나머지는 원래 순서(건수 내림차순) 그대로 뒤에.
-    var TYPE_ORDER_PRIORITY = ['충돌', '침몰', '전복', '화재', '좌초', '좌주', '폭발', '표류', '접촉'];
+    // 사고유형 체크박스 순서(2026-08-31 사용자 확정 — 순서 재조정) — 이 9개는 이
+    // 순서로 먼저, 나머지는 원래 순서(건수 내림차순) 그대로 뒤에.
+    var TYPE_ORDER_PRIORITY = ['침수', '충돌', '화재', '좌초', '전복', '침몰', '좌주', '폭발', '접촉'];
+    // "침몰까지"(맨 앞 6개) 텍스트를 빨간색으로 표시(2026-08-31 사용자 확정).
+    var TYPE_DANGER_LABELS = new Set(TYPE_ORDER_PRIORITY.slice(0, 6));
 
     /** 사고유형 옵션 — "-"(코드 없음)·"기타"(정확히 그 라벨인 것만, "기타(인명)" 등은
      * 남김)는 목록에서 뺀다(사용자 확정 2026-08-25). */
@@ -2811,7 +2820,8 @@
         return years;
     }
 
-    /** 특보종류 옵션 — 소스별로 의미있는 종류만(hk 는 태풍·풍랑, person 은 +강풍).
+    /** 특보종류 옵션 — 유형×심각도로 세분화(태풍 경보·태풍 주의보·… , 2026-08-31 사용자
+     * 확정). 소스별로 의미있는 조합만(hk 는 태풍·풍랑만 4개, person 은 강풍 포함 6개).
      * 값이 배열(다중 발효 가능)이라 buildValueOptions 의 단일값 카운트 방식을 못 쓰고 별도 구현. */
     function buildWarnOptions() {
         var key = state.source;
@@ -2820,11 +2830,11 @@
         feats.forEach(function (f) {
             var row = f.get('row');
             if (!passesFiltersExcept(key, row, 'warnTypes')) return;
-            var active = row[WARN_FLAGS_POS_IDX[key]] || [];
+            var active = row[WARN_SEVERITY_POS_IDX[key]] || [];
             active.forEach(function (code) { counts[code] = (counts[code] || 0) + 1; });
         });
-        return (WARN_TYPE_ORDER[key] || []).filter(function (code) { return counts[code] > 0; }).map(function (code) {
-            return { value: code, label: WARN_TYPE_LABELS[code], count: counts[code] };
+        return (WARN_SEVERITY_ORDER_BY_SOURCE[key] || []).filter(function (code) { return counts[code] > 0; }).map(function (code) {
+            return { value: code, label: WARN_SEVERITY_LABELS[code], count: counts[code] };
         });
     }
 
@@ -2866,17 +2876,21 @@
 
     /**
      * 버튼그리드 다중선택 팝업(사고유형·계절·선박용도·특보 공용, 2026-08-31 체크박스→
-     * 버튼그리드로 개편 — 3개씩 배치, 선택된 버튼은 파란 배경으로 표시).
+     * 버튼그리드로 개편 — 기본 3개씩 배치, 선택된 버튼은 파란 배경으로 표시).
      * @param {string} title
      * @param {Array<{value, label, count}>} options
      * @param {Set|null} currentSelected - null 이면 "전체"(아무 버튼도 안 눌린 상태로 시작)
      * @param {function(Set|null)} onConfirm - 확인 눌렀을 때, 하나도 안 골랐으면 null(전체)로 넘김
+     * @param {{dangerLabels: Set, columns: number}} [opts] - dangerLabels 에 있는 라벨은
+     *   텍스트를 빨간색으로(사고유형 "침몰까지"), columns 는 그리드 열 수(기본 3, 계절·특보는 2).
      */
-    function openCheckboxFilterPopup(title, options, currentSelected, onConfirm) {
+    function openCheckboxFilterPopup(title, options, currentSelected, onConfirm, opts) {
         var els = ensureFilterPopup();
         els.title.textContent = title;
         els.count.textContent = options.length + '개 항목';
         var selected = new Set(currentSelected || []);
+        var dangerLabels = (opts && opts.dangerLabels) || null;
+        var gridClass = 'accident-filter-btn-grid' + (opts && opts.columns === 2 ? ' cols-2' : '');
 
         function render() {
             if (!options.length) {
@@ -2886,10 +2900,11 @@
             var allActive = selected.size === options.length;
             els.body.innerHTML =
                 '<button type="button" class="accident-filter-select-all' + (allActive ? ' active' : '') + '" id="afp-check-all">전체 선택</button>' +
-                '<div class="accident-filter-btn-grid">' +
+                '<div class="' + gridClass + '">' +
                 options.map(function (o, i) {
                     var active = selected.has(o.value) ? ' active' : '';
-                    return '<button type="button" class="accident-filter-opt-btn' + active + '" data-i="' + i + '">' +
+                    var danger = dangerLabels && dangerLabels.has(o.label) ? ' danger' : '';
+                    return '<button type="button" class="accident-filter-opt-btn' + active + danger + '" data-i="' + i + '">' +
                         '<span class="label">' + escapeHtml(o.label) + '</span><span class="n">' + o.count + '건</span></button>';
                 }).join('') + '</div>';
 
@@ -2918,13 +2933,13 @@
     }
 
     // 관할서 팝업 지방청 그룹 구성(2026-08-31 웹서칭으로 확인, 사용자 확정) — 21개 관할서 전부 포함.
-    var ORG_REGION_ORDER = ['중부청', '서해청', '동해청', '남해청', '제주청'];
+    var ORG_REGION_ORDER = ['중부지방해양경찰청', '서해지방해양경찰청', '동해지방해양경찰청', '남해지방해양경찰청', '제주지방해양경찰청'];
     var ORG_REGION_OF = {
-        인천해양경찰서: '중부청', 평택해양경찰서: '중부청', 태안해양경찰서: '중부청', 보령해양경찰서: '중부청',
-        군산해양경찰서: '서해청', 부안해양경찰서: '서해청', 목포해양경찰서: '서해청', 완도해양경찰서: '서해청', 여수해양경찰서: '서해청',
-        속초해양경찰서: '동해청', 강릉해양경찰서: '동해청', 동해해양경찰서: '동해청', 울진해양경찰서: '동해청', 포항해양경찰서: '동해청',
-        부산해양경찰서: '남해청', 울산해양경찰서: '남해청', 창원해양경찰서: '남해청', 통영해양경찰서: '남해청', 사천해양경찰서: '남해청',
-        제주해양경찰서: '제주청', 서귀포해양경찰서: '제주청'
+        인천해양경찰서: '중부지방해양경찰청', 평택해양경찰서: '중부지방해양경찰청', 태안해양경찰서: '중부지방해양경찰청', 보령해양경찰서: '중부지방해양경찰청',
+        군산해양경찰서: '서해지방해양경찰청', 부안해양경찰서: '서해지방해양경찰청', 목포해양경찰서: '서해지방해양경찰청', 완도해양경찰서: '서해지방해양경찰청', 여수해양경찰서: '서해지방해양경찰청',
+        속초해양경찰서: '동해지방해양경찰청', 강릉해양경찰서: '동해지방해양경찰청', 동해해양경찰서: '동해지방해양경찰청', 울진해양경찰서: '동해지방해양경찰청', 포항해양경찰서: '동해지방해양경찰청',
+        부산해양경찰서: '남해지방해양경찰청', 울산해양경찰서: '남해지방해양경찰청', 창원해양경찰서: '남해지방해양경찰청', 통영해양경찰서: '남해지방해양경찰청', 사천해양경찰서: '남해지방해양경찰청',
+        제주해양경찰서: '제주지방해양경찰청', 서귀포해양경찰서: '제주지방해양경찰청'
     };
     function orgShortName(label) { return label.replace(/해양경찰서$/, ''); }
 
@@ -3235,7 +3250,7 @@
                 openCheckboxFilterPopup('사고유형', buildTypeOptions(), filters.types, function (sel) {
                     filters.types = sel;
                     onFiltersChanged(map);
-                });
+                }, { dangerLabels: TYPE_DANGER_LABELS });
             } else if (key === 'orgs') {
                 openOrgFilterPopup(buildOrgOptions(), filters.orgs, function (sel) {
                     filters.orgs = sel;
@@ -3258,12 +3273,12 @@
                 openCheckboxFilterPopup('계절', seasonOptions, filters.seasons, function (sel) {
                     filters.seasons = sel;
                     onFiltersChanged(map);
-                });
+                }, { columns: 2 });
             } else if (key === 'warnTypes') {
                 openCheckboxFilterPopup('특보', buildWarnOptions(), filters.warnTypes, function (sel) {
                     filters.warnTypes = sel;
                     onFiltersChanged(map);
-                });
+                }, { columns: 2 });
             } else if (key === 'shipUses') {
                 openCheckboxFilterPopup('선박용도', buildShipUseOptions(), filters.shipUses, function (sel) {
                     filters.shipUses = sel;
@@ -3376,6 +3391,13 @@
             showModeToggle(true);
             showFilterResetBtn(true);
             showFilterBar(true);
+            // 선박용도는 hk(사고 데이터)에만 있는 필드라 person(인명사고)에선 필터 자체가
+            // 의미 없다 — 버튼을 숨기고, 다른 소스에서 걸어둔 값이 있으면 비운다(사용자
+            // 확정 2026-08-31). 안 비우면 SHIPUSE_POS_IDX.person 이 없어 person 행이
+            // 전부 필터에 걸려 사라지는 사고가 난다.
+            var shipUseBtn = document.getElementById('accident-filter-btn-shipUses');
+            if (shipUseBtn) shipUseBtn.style.display = key === 'person' ? 'none' : '';
+            if (key === 'person' && filters.shipUses) filters.shipUses = null;
             updateFilterBarModeVisibility();
             updateAllFilterButtonLabels();
             if (hasActiveFilters()) applyFiltersToMarkers(key); // 이전 소스에서 걸어둔 필터를 새 소스에도 반영

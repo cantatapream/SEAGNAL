@@ -8918,8 +8918,8 @@ html[data-font-size="large"] .ocean-overlay-btn {
     flex: 1;
     padding: 11px;
     border-radius: 8px;
-    border: 1px solid var(--border-color);
-    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.14);
     color: var(--text-main);
     font-size: 0.82rem;
     font-weight: 700;
@@ -8939,6 +8939,7 @@ html[data-font-size="large"] .ocean-overlay-btn {
 }
 .accident-filter-select-all.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #05070d; }
 .accident-filter-btn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 4px; }
+.accident-filter-btn-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
 .accident-filter-opt-btn {
     display: flex; flex-direction: column; align-items: center; gap: 3px;
     border: 1px solid var(--border-color); background: rgba(255,255,255,0.05);
@@ -8949,6 +8950,8 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-filter-opt-btn .n { font-size: 0.66rem; font-weight: 400; color: var(--text-sub); }
 .accident-filter-opt-btn.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #05070d; }
 .accident-filter-opt-btn.active .n { color: #05070d; opacity: 0.75; }
+.accident-filter-opt-btn.danger .label { color: #ff5252; }
+.accident-filter-opt-btn.danger.active .label { color: #05070d; }
 
 /* 관할서 팝업 전용 — 지방청 구획 라벨(클릭하면 그 청 전체 선택/해제, 2026-08-31 사용자 확정) */
 .accident-filter-org-region {
@@ -8987,6 +8990,7 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-filter-hour-custom-row input[type="time"],
 .accident-filter-hour-custom-row input[type="number"] {
     flex: 1;
+    min-width: 0;
     background: rgba(255,255,255,0.06);
     border: 1px solid var(--border-color);
     border-radius: 6px;
