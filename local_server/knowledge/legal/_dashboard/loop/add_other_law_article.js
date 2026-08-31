@@ -148,8 +148,26 @@ function renderArticle(u) {
     //   그래서 `조문여부 === '조문'` 인 것을 먼저 찾고, 없을 때만 나머지에서 찾는다.
     const same = x => String(x['조문번호']) === m[1] &&
       String(x['조문가지번호'] || '') === (m[2] || '');
-    const u = units.find(x => same(x) && x['조문여부'] === '조문') || units.find(same);
-    if (!u) die(`「${hit['법령명한글']}」 원문에 ${one} 이 없다 — 조문 번호를 확인하라(받아 온 조문 ${units.length}개).`);
+    let u = units.find(x => same(x) && x['조문여부'] === '조문') || units.find(same);
+    // ⚠못 찾았다고 곧바로 "없다"라고 하지 않는다(2026-08-31, 사서 실측).
+    //   같은 조문에 대해 첫 --apply 는 "원문에 제20조 이 없다 — 받아 온 조문 40개" 로 죽고
+    //   곧바로 다시 돌리니 정상 저장된 사례가 있었다. 응답이 JSON 으로 파싱은 됐는데
+    //   내용이 그때만 달랐던 것으로, 재현은 못 했다(같은 MST 를 세 번 다시 불러 봤으나
+    //   세 번 다 조문 40개·제20조 1건으로 같았다 — 그래서 원인을 단정하지 않는다).
+    //   확실한 것은 하나다 — **한 번 못 찾은 것을 "원문에 없다"로 말하면 안 된다.**
+    //   그래서 본문을 한 번 다시 받아 보고, 그래도 없을 때만 멈춘다. 멈출 때의 문구도
+    //   "없다"가 아니라 "두 번 받아 봤지만 못 찾았다"로 쓴다.
+    if (!u) {
+      console.error(`  ↻ ${one} 을 못 찾았다 — 본문을 한 번 다시 받아 본다(받아 온 조문 ${units.length}개).`);
+      const again = await api(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&type=JSON&target=law&MST=${mst}`);
+      let u2 = (((again || {})['법령'] || {})['조문'] || {})['조문단위'] || [];
+      if (!Array.isArray(u2)) u2 = [u2];
+      if (u2.length) {
+        units = u2;
+        u = units.find(x => same(x) && x['조문여부'] === '조문') || units.find(same);
+      }
+    }
+    if (!u) die(`「${hit['법령명한글']}」 에서 ${one} 을 못 찾았다 — 본문을 두 번 받아 봤지만 없었다(받아 온 조문 ${units.length}개). 조문 번호를 확인하라. 번호가 맞다면 잠시 뒤 다시 시도하라 — "원문에 없다"가 아니라 "못 찾았다"이다.`);
     const r = renderArticle(u);
     if (had.includes(`[${r.label}]`)) {
       console.log(`  ⏭️  이미 있음: ${r.label} ${r.title}`);
