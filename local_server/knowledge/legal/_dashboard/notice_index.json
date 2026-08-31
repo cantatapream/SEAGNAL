@@ -2,6 +2,9 @@
  "(강릉해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
  ],
+ "(강릉해양경찰서)유선및유선장게시사항과게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
+ ],
  "(강릉해양경찰서)하조대해변갯바위_출입통제장소.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
  ],
@@ -13,6 +16,9 @@
  ],
  "(군산해양경찰서)신시도_가력도_군산항남방파제_새만금신항만방파제_출입통제장소.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
+ ],
+ "(군산해양경찰서)유선·도선및유선장·도선장의게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
  ],
  "(군산해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
@@ -40,6 +46,9 @@
  ],
  "(동해해양경찰서)울릉권방파제_출입통제장소.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
+ ],
+ "(동해해양경찰서)유·도선및유·도선장게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
  ],
  "(동해해양경찰서)천곡항_임원항_테트라포드_출입통제장소.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
@@ -77,6 +86,9 @@
  "(부산해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
  ],
+ "(부산해양경찰서)유선및유선장의게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
+ ],
  "(부산해양경찰서)해양레저활동허가대상수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
@@ -94,6 +106,9 @@
  ],
  "(사천해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
+ ],
+ "(사천해양경찰서)유선·도선및유선장·도선장게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
  ],
  "(사천해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
@@ -113,6 +128,9 @@
  "(속초해양경찰서)수상레저활동금지구역고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
  ],
+ "(속초해양경찰서)유선·도선및유선장·도선장게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
+ ],
  "(속초해양경찰서)유선및도선의안전운항등에관한지침.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
  ],
@@ -121,6 +139,9 @@
  ],
  "(여수해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
+ ],
+ "(여수해양경찰서)유선ㆍ도선및유선장ㆍ도선장게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
  ],
  "(여수해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
@@ -140,6 +161,9 @@
  "(완도해양경찰서)완도신항만방파제_해제_출입통제장소.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
  ],
+ "(완도해양경찰서)유선·도선및유선장·도선장게시사항및게시장소고시에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
+ ],
  "(완도해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
@@ -148,6 +172,9 @@
  ],
  "(울산해양경찰서)울산신항_대왕암공원_중앙방파제_범월갑방파제_출입통제장소.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
+ ],
+ "(울산해양경찰서)유선및유선장의게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
  ],
  "(울산해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
@@ -173,6 +200,9 @@
  "(인천해양경찰서)영흥도내리갯벌출입통제장소지정공고.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
  ],
+ "(인천해양경찰서)유·도선및유·도선장게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
+ ],
  "(인천해양경찰서)하나개해수욕장갯벌일부출입통제구역고시.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
  ],
@@ -188,11 +218,17 @@
  "(제주해양경찰서)용수리해역_출입통제장소.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
  ],
+ "(제주해양경찰서)유·도선및유·도선장게시사항과게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
+ ],
  "(제주해양경찰서)해양레저활동허가대상수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
  "(창원해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
+ ],
+ "(창원해양경찰서)유선·도선및유선장·도선장게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
  ],
  "(창원해양경찰서)유선및도선의안전운항등에관한지침.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
@@ -206,6 +242,9 @@
  "(태안해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
  ],
+ "(태안해양경찰서)유선·도선및유선장·도선장게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
+ ],
  "(태안해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
@@ -214,6 +253,9 @@
  ],
  "(통영해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
+ ],
+ "(통영해양경찰서)유선·도선및유선장·도선장게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
  ],
  "(평택해양경찰서)구봉도주변해역_출입통제장소.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
@@ -233,6 +275,9 @@
  "(평택해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
  ],
+ "(평택해양경찰서)유선·도선및유선장·도선장게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
+ ],
  "(평택해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
@@ -241,6 +286,9 @@
  ],
  "(포항해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
+ ],
+ "(포항해양경찰서)유선·도선및유선장·도선장게시사항과게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
  ],
  "(포항해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
