@@ -74,9 +74,16 @@ def main():
             units = [units]
         want = len(units)
         have_blocks = len(re.findall(r'^\[별표', text, re.M)) + len(re.findall(r'^\[별지', text, re.M))
-        have_dir = os.path.isdir(p[:-4] + '_별표')
-        dir_files = len(glob.glob(p[:-4] + '_별표/*.txt')) if have_dir else 0
-        have = have_blocks + dir_files
+        # ★고시 별표는 `<법>/별표/<고시명>_별표N.txt` 에 있다(2026-08-31 정정).
+        #   처음에는 `행정규칙/<고시명>_별표/` 하위폴더를 셌는데, 그 자리는 **챗봇이 읽지 않는 자리**여서
+        #   그날 전부 `<법>/별표/` 로 옮겼다. 그 뒤 이 도구가 옮겨 간 파일을 못 세어
+        #   **채워 넣은 뒤에 오히려 '빠짐'이 늘어난 것처럼** 나왔다. 세는 자리를 맞춘다.
+        lawdir = os.path.dirname(os.path.dirname(p))
+        gosi_key = re.sub(r'[\\/:*?"<>|\s]', '', os.path.basename(p)[:-4])
+        byl_files = [n for n in os.listdir(os.path.join(lawdir, '별표'))
+                     if n.endswith('.txt') and re.sub(r'[\\/:*?"<>|\s]', '', n).startswith(gosi_key)] \
+                    if os.path.isdir(os.path.join(lawdir, '별표')) else []
+        have = have_blocks + len(byl_files)
         row = {'파일': name, 'API별표수': want, 'raw보유': have,
                '제목': [ (u.get('별표제목') or '')[:40] for u in units ][:6]}
         if have == 0:
