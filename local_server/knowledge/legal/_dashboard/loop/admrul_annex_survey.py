@@ -55,12 +55,28 @@ def main():
         lines = text.split('\n')
         # ⚠둘째 줄만 보지 않는다 — 첫 줄에 ⚠REVIEW 배너가 붙어 ID 가 셋째 줄로 밀린 파일이 22건 있다.
         m = re.search(r'^ID:(\d+)', '\n'.join(lines[:8]), re.M)
-        if not m:
+        # 머리글에 ID 가 없으면 옆 `_admrul.json` 의 행정규칙일련번호를 쓴다
+        # (2026-08-31 — 「선박법 사무취급 요령」이 이 이유로 조사에서 통째로 빠져 있었다).
+        aid = m.group(1) if m else None
+        if not aid:
+            mp = os.path.join(os.path.dirname(p), '_admrul.json')
+            if os.path.exists(mp):
+                try:
+                    mm = json.load(open(mp, encoding='utf-8'))
+                except Exception:
+                    mm = {}
+                for k, v in (mm.items() if isinstance(mm, dict) else []):
+                    if isinstance(v, dict) and (v.get('파일') == name or k + '.txt' == name):
+                        n = str(v.get('행정규칙일련번호') or '').strip()
+                        if n.isdigit():
+                            aid = n
+                        break
+        if not aid:
             res['ID없음'].append(name)
             continue
         if limit is not None and done >= limit:
             break
-        d = api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=admrul&type=JSON&ID={m.group(1)}")
+        d = api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=admrul&type=JSON&ID={aid}")
         done += 1
         if not isinstance(d, dict) or '_err' in d:
             res['실패'].append(name)
