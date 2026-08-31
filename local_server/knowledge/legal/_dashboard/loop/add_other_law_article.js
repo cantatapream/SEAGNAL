@@ -184,6 +184,7 @@ function renderArticle(u) {
   }
 
   const add = [];
+  const missing = [];
   for (const one of artsIn.split(/[,，]/).map(x => x.trim()).filter(Boolean)) {
     const m = /^제\s*(\d+)조(?:의\s*(\d+))?$/.exec(one.replace(/\s+/g, ''));
     if (!m) die(`"${one}" 은 조문 표기가 아니다. 제10조 / 제10조의2 꼴로 쓰라.`);
@@ -213,7 +214,16 @@ function renderArticle(u) {
         u = units.find(x => same(x) && x['조문여부'] === '조문') || units.find(same);
       }
     }
-    if (!u) die(`「${hit['법령명한글']}」 에서 ${one} 을 못 찾았다 — 본문을 두 번 받아 봤지만 없었다(받아 온 조문 ${units.length}개). 조문 번호를 확인하라. 번호가 맞다면 잠시 뒤 다시 시도하라 — "원문에 없다"가 아니라 "못 찾았다"이다.`);
+    // ★못 찾은 조 하나 때문에 **나머지를 버리지 않는다**(2026-08-31 실측).
+    //   종전에는 여기서 곧바로 멈췄다. 그래서 `제24조,제27조의2,제75조` 를 한 번에 받으면
+    //   제75조(현행 시행령에 없는 번호)에서 죽어 **앞의 두 조도 저장되지 않았다** —
+    //   실제로 개인정보 보호법 시행령 2개 조·사법경찰관리법 1개 조가 그렇게 날아갔고,
+    //   화면만 보면 "다 실패"처럼 보였다. 못 찾은 것은 모아 뒀다가 끝에 한 번에 알린다.
+    if (!u) {
+      missing.push(one);
+      console.error(`  ✖ ${one} 을 못 찾았다 — 본문을 두 번 받아 봤지만 없었다(받아 온 조문 ${units.length}개). 나머지 조문은 계속 받는다.`);
+      continue;
+    }
     const r = renderArticle(u);
     if (had.includes(`[${r.label}]`)) {
       console.log(`  ⏭️  이미 있음: ${r.label} ${r.title}`);
@@ -221,7 +231,11 @@ function renderArticle(u) {
     }
     add.push(r);
   }
-  if (!add.length) { console.log('덧붙일 조문이 없다(전부 이미 있음).'); return; }
+  if (missing.length) {
+    console.log(`\n⚠못 찾은 조문 ${missing.length}개: ${missing.join(', ')}`);
+    console.log('  조문 번호를 확인하라 — 현행 법령에 없는 번호일 수 있다(삭제·재번호). "원문에 없다"가 아니라 "못 찾았다"이다.');
+  }
+  if (!add.length) { console.log('덧붙일 조문이 없다(전부 이미 있음이거나 못 찾았다).'); return; }
 
   const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
   // ★머리줄에는 **조 제목만** 둔다(2026-08-27, 시험 중 발견).
@@ -237,7 +251,20 @@ function renderArticle(u) {
   fs.mkdirSync(dir, { recursive: true });
   const head = had ? '' :
     `${hit['법령명한글']} — 타법연결용 발췌 (전체 아님)\n\n`;
-  fs.appendFileSync(file, (had && !had.endsWith('\n') ? '\n' : '') + head + '\n' + blocks.join('\n'));
+  // ★새 조문은 **별표·부칙 앞에** 끼워 넣는다(2026-08-31 실측).
+  //   종전에는 파일 끝에 붙였다. 그런데 발췌본은 대개 `[제N조]…` 다음에 `[별표…]` 와 부칙이
+  //   이어지는 꼴이라, 끝에 붙이면 새 조문이 **별표·부칙 뒤로** 간다.
+  //   `article_text.listArticleNumbers()` 는 조문 구간을 별표·부칙 앞에서 끊으므로
+  //   ("부칙에도 제1조가 있어" 섞이는 것을 막는 장치다) 그렇게 들어간 조는
+  //   **문서 전체 나열에서 통째로 안 보인다** — 실제로 4개 파일 27개 조가 그 상태였다.
+  const tailRe = /\n(?:\[(?:별표|별지|서식)|[ \t]*\[?\s*부\s*칙)/;
+  const at = had ? had.search(tailRe) : -1;
+  if (at >= 0) {
+    fs.writeFileSync(file, had.slice(0, at) + '\n' + blocks.join('\n') + had.slice(at));
+    console.error('  ↳ 별표·부칙 앞에 끼워 넣었다 — 끝에 붙이면 조문 나열에서 안 보인다.');
+  } else {
+    fs.appendFileSync(file, (had && !had.endsWith('\n') ? '\n' : '') + head + '\n' + blocks.join('\n'));
+  }
   const metaPath = path.join(dir, '_meta.json');
   let meta = {};
   try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch (e) { /* 없으면 새로 만든다 */ }
