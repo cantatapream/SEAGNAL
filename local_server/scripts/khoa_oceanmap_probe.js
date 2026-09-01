@@ -53,6 +53,14 @@
  *   직후 지도 캔버스를 찾아 사고가 밀집한 남해안(부산·거제·제주 방향)으로 마우스
  *   휠 확대를 여러 단계 실행한 뒤, 그 지점 주변 여러 좌표를 클릭해 마커를 맞춰
  *   본다(정확한 마커 픽셀 위치를 모르므로 격자로 여러 점을 시도).
+ * [2026-09-01 수정6] 6차 실행: 마우스 휠 확대 8단계 + 격자 클릭 9곳 시도했지만 새로
+ *   뜬 API(selectOLMPData.json)는 인명사고와 무관한 부이(buoy_A01) 실시간 데이터
+ *   주기 조회였다(응답도 다 {"list":null}) — 격자 클릭도 전부 "새 응답 없음".
+ *   사용자 확인: 마우스 휠 8단계로는 부족하고, 스크린샷상 개별 마커가 나오려면
+ *   더 많은 단계 확대가 필요했다. 픽셀 좌표를 계속 추측하는 대신 OpenLayers Map
+ *   인스턴스를 window 에서 직접 찾아 setCenter/setZoom(부산 인근, 줌 15)으로
+ *   정확히 이동을 시도하고, 못 찾으면 더블클릭 확대(15회, 휠보다 예측 가능)로
+ *   대체한다. 격자 클릭 범위도 화면 정중앙 기준으로 더 촘촘하게(20px 간격) 늘림.
  * [출력] 콘솔 요약(엔드포인트 목록) + local_server/data/khoa_probe_result.json
  *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 다수(단계별 확인용)
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
@@ -280,30 +288,69 @@ async function main() {
     await page.screenshot({ path: path.join(SHOT_DIR, '6_person_layer_on.png'), fullPage: false }).catch(() => {});
     await dumpVisibleTexts(page, '인명사고 토글 클릭 직후');
 
-    console.log('[7/8] 사고 밀집 지역(남해안, 부산·거제·제주 방향)으로 확대');
+    console.log('[7/9] 지도 객체(OpenLayers Map 인스턴스) 직접 찾기 시도');
+    // 6차 실행에서 마우스 휠 8단계로는 부족했다(사용자 확인 — 스크린샷 상 여러 단계를
+    // 더 확대해야 개별 마커가 나옴). 픽셀 좌표를 추측하는 대신, OpenLayers Map
+    // 인스턴스를 window 에서 직접 찾아 setCenter/setZoom 으로 정확히 이동한다
+    // (KGD2002_UNIFIED 투영좌표로 부산 인근을 계산해둠 — accident_geocode_check.js
+    // 와 동일 투영식).
+    const BUSAN_PROJECTED = [1141273.66, 1679416.70]; // 부산 인근(EPSG:5179 상당)
+    const mapApiResult = await page.evaluate((center) => {
+        const candidates = [];
+        for (const key of Object.keys(window)) {
+            try {
+                const v = window[key];
+                if (v && typeof v.getView === 'function' && typeof v.getTargetElement === 'function') {
+                    candidates.push(key);
+                }
+            } catch (_) { /* 일부 window 속성은 접근만 해도 예외를 던짐 — 무시 */ }
+        }
+        if (!candidates.length) return { ok: false, reason: 'window 에서 OL Map 인스턴스 못 찾음', candidates: [] };
+        try {
+            const map = window[candidates[0]];
+            const view = map.getView();
+            const beforeZoom = view.getZoom();
+            view.setCenter(center);
+            view.setZoom(15);
+            return { ok: true, mapKey: candidates[0], beforeZoom, afterZoom: view.getZoom(), allCandidates: candidates };
+        } catch (e) {
+            return { ok: false, reason: String(e.message || e), candidates };
+        }
+    }, BUSAN_PROJECTED);
+    console.log('  window에서 발견된 Map-형태 후보:', JSON.stringify(mapApiResult));
+    clickLog.push({ step: 'OL Map setCenter/setZoom 직접 호출', ok: mapApiResult.ok, reason: mapApiResult.ok ? `key=${mapApiResult.mapKey}, zoom ${mapApiResult.beforeZoom}→${mapApiResult.afterZoom}` : mapApiResult.reason });
+
     const mapBox = await findMapCanvasBox(page);
-    if (mapBox) {
-        // 전국이 보이는 화면에서 남동쪽(부산·거제·제주 방향)으로 확대 중심을 잡는다
-        // — 사용자 스크린샷에서 그쪽 클러스터 숫자(11411·3531 등)가 가장 컸다.
+    if (!mapApiResult.ok && mapBox) {
+        // API를 못 찾았으면 더블클릭 줌으로 대체(더블클릭은 OL 기본 상호작용으로 보통
+        // 1회당 정확히 1레벨씩 확대돼 휠보다 예측 가능하다). 훨씬 깊게(15회) 시도.
+        console.log('  Map API 실패 — 더블클릭 확대로 대체(15회, 남동쪽 부산·거제 방향)');
         const zx = mapBox.x + mapBox.width * 0.60;
         const zy = mapBox.y + mapBox.height * 0.68;
-        await page.mouse.move(zx, zy);
-        for (let i = 0; i < 8; i++) {
-            await page.mouse.wheel(0, -700);
-            await page.waitForTimeout(700);
+        for (let i = 0; i < 15; i++) {
+            await page.mouse.dblclick(zx, zy);
+            await page.waitForTimeout(600);
         }
-        await page.waitForTimeout(2500);
-        await page.screenshot({ path: path.join(SHOT_DIR, '7_zoomed_in.png'), fullPage: false }).catch(() => {});
-        console.log(`  확대 중심점: (${Math.round(zx)}, ${Math.round(zy)})`);
+    }
+    await page.waitForTimeout(3000);
+    await page.screenshot({ path: path.join(SHOT_DIR, '7_zoomed_in.png'), fullPage: false }).catch(() => {});
 
-        console.log('[8/8] 확대된 지점 주변 격자를 클릭해 마커 맞춰보기');
-        const offsets = [[0, 0], [-40, -40], [40, -40], [-40, 40], [40, 40], [0, -80], [0, 80], [-80, 0], [80, 0]];
+    console.log('[8/9] 확대 중심(화면 정중앙) 주변 격자를 클릭해 마커 맞춰보기');
+    const centerBox = await findMapCanvasBox(page);
+    if (centerBox) {
+        const cxBase = centerBox.x + centerBox.width / 2;
+        const cyBase = centerBox.y + centerBox.height / 2;
+        const offsets = [
+            [0, 0], [-20, -20], [20, -20], [-20, 20], [20, 20],
+            [0, -40], [0, 40], [-40, 0], [40, 0],
+            [-60, -60], [60, -60], [-60, 60], [60, 60],
+        ];
         for (let i = 0; i < offsets.length; i++) {
             const [dx, dy] = offsets[i];
-            const cx = zx + dx, cy = zy + dy;
+            const cx = cxBase + dx, cy = cyBase + dy;
             const beforeCount = captured.length;
             await page.mouse.click(cx, cy);
-            await page.waitForTimeout(1200);
+            await page.waitForTimeout(1000);
             const newCount = captured.length - beforeCount;
             clickLog.push({ step: `마커 격자 클릭 #${i + 1} (${Math.round(cx)},${Math.round(cy)})`, ok: newCount > 0, reason: newCount > 0 ? `새 응답 ${newCount}건` : '새 응답 없음' });
             if (newCount > 0) {
@@ -311,11 +358,12 @@ async function main() {
             }
         }
         await page.screenshot({ path: path.join(SHOT_DIR, '9_after_grid_clicks.png'), fullPage: false }).catch(() => {});
+        await dumpVisibleTexts(page, '격자 클릭 완료 후');
     } else {
-        clickLog.push({ step: '지도 캔버스 찾기', ok: false, reason: 'canvas 요소를 못 찾음' });
+        clickLog.push({ step: '지도 캔버스 찾기(2차)', ok: false, reason: 'canvas 요소를 못 찾음' });
     }
 
-    console.log('추가 대기 후 네트워크 수집 마감');
+    console.log('[9/9] 추가 대기 후 네트워크 수집 마감');
     await page.waitForTimeout(3000);
 
     await browser.close();
