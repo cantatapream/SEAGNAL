@@ -8779,6 +8779,11 @@ html[data-font-size="large"] .ocean-overlay-btn {
    2026-09-01 재설계 — 어떤 영역·기간을 보고 있는지 한눈에 보이도록). 스크롤해도
    안 가려지게 고정(2026-09-01 사용자 확정) — 배경을 시트 그라데이션 맨 위쪽
    색과 맞춰 뒤 내용이 안 비치게, body 좌우 패딩은 음수 마진으로 상쇄. */
+/* 닫기(✕) 버튼은 아래 #accident-stats-header(sticky, z-index:5)보다 위에 있어야
+   한다 — 둘이 같은 쌓임 맥락 안에 있는데 헤더가 불투명 배경이라, 기본
+   .ocean-sheet-close(z-index:2) 그대로 두면 헤더가 버튼을 덮어 ✕ 가 반쯤
+   잘려 보였다(2026-09-01 사용자가 스크린샷으로 지적). */
+.accident-stats-sheet .ocean-sheet-close { z-index: 10; }
 #accident-stats-header {
     position: sticky;
     top: 0;
