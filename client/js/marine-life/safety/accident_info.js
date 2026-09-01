@@ -2294,6 +2294,10 @@
         Chart.defaults.set('plugins.datalabels', { display: false });
     }
     var DATALABEL_COLOR = '#e2e8f0';
+    var DATALABEL_COLOR_ON_LIGHT = '#05070d'; // 밝은 막대 색(초록 등) 안에 놓일 때 대비용 어두운 글씨
+    // 천 단위 콤마(2026-09-01 사용자 확정) — Chart.js 축 눈금은 기본 로케일 포맷을
+    // 쓰지만 datalabels 플러그인 값 표시는 그냥 String(v)라 콤마가 안 붙어 있었다.
+    function fmtN(v) { return Number(v).toLocaleString('ko-KR'); }
 
     // ── 특보발효 도넛(2026-08-31 사용자 확정) ──────────────────────────────────
     // 평시 고리는 고정, 맨 위 "특보 중" 원호가 태풍·풍랑·강풍×주의보·경보 6종으로
@@ -2437,10 +2441,29 @@
         // 라벨 위치는 펼친(expanded) 최종 각도로 한 번만 계산 — warnWedgePath 와 같은
         // 방식(이등분선 방향으로 R_EXP_OFFSET 만큼 밀어낸 중심 기준)으로 좌표를 구한다.
         var MIN_INLINE_SPAN_DEG = 22; // 이보다 좁은 조각은 안에 글자가 안 들어가 리더라인 사용
+        var mids = states.map(function (st) { return (st.expanded[0] + st.expanded[1]) / 2; });
+        var spans = states.map(function (st) { return st.expanded[1] - st.expanded[0]; });
+
+        // 좁은 조각(리더라인 대상)이 서로 가까이 몰려 라벨이 겹치던 문제(2026-09-01
+        // 사용자 지적) — 실제 조각 각도 그대로 라벨을 두지 않고, 최소 각도 간격을
+        // 두고 고르게 펼쳐 배치한 뒤 조각→그 위치까지 꺾인 리더라인(radial + 호)으로
+        // 잇는다. 조각이 몰린 자리를 중심으로 펼치므로 원래 위치에서 크게 안 벗어난다.
+        var LABEL_MIN_GAP_DEG = 11;
+        var smallIdx = [];
+        states.forEach(function (st, i) { if (spans[i] < MIN_INLINE_SPAN_DEG) smallIdx.push(i); });
+        smallIdx.sort(function (a, b) { return mids[a] - mids[b]; });
+        var labelAngle = {};
+        if (smallIdx.length) {
+            var avgMid = smallIdx.reduce(function (a, i) { return a + mids[i]; }, 0) / smallIdx.length;
+            var n = smallIdx.length;
+            smallIdx.forEach(function (i, k) {
+                labelAngle[i] = avgMid - (n - 1) / 2 * LABEL_MIN_GAP_DEG + k * LABEL_MIN_GAP_DEG;
+            });
+        }
+
         states.forEach(function (st, i) {
             var s = sv[i];
-            var e0 = st.expanded[0], e1 = st.expanded[1];
-            var mid = (e0 + e1) / 2, span = e1 - e0;
+            var mid = mids[i], span = spans[i];
             var offPt = warnPolar(0, 0, R_EXP_OFFSET, mid);
             var ox = CX + offPt[0], oy = CY + offPt[1];
             var text = s.label + ' ' + s.count + '건';
@@ -2455,13 +2478,15 @@
                 t1.textContent = text;
                 g.appendChild(t1);
             } else {
-                var pOuter = warnPolar(ox, oy, R_EXP_OUT, mid);
-                var pLeader = warnPolar(ox, oy, R_EXP_OUT + 16, mid);
-                var goRight = pLeader[0] >= ox;
-                var pText = warnPolar(ox, oy, R_EXP_OUT + 19, mid);
-                var line = warnEl('line', {
-                    x1: pOuter[0], y1: pOuter[1], x2: pLeader[0], y2: pLeader[1],
-                    class: 'accident-warn-leader'
+                var labelDeg = labelAngle[i];
+                var pOuter = warnPolar(ox, oy, R_EXP_OUT, mid);          // 조각 바깥 끝(리더라인 시작점)
+                var pBend = warnPolar(CX, CY, R_EXP_OUT + 13, mid);      // 일단 조각 각도로 짧게 뻗고
+                var pSpread = warnPolar(CX, CY, R_EXP_OUT + 13, labelDeg); // 펼친 각도로 꺾어서
+                var pText = warnPolar(CX, CY, R_EXP_OUT + 16, labelDeg);  // 텍스트는 그 끝에
+                var goRight = pSpread[0] >= CX;
+                var line = warnEl('polyline', {
+                    points: pOuter[0] + ',' + pOuter[1] + ' ' + pBend[0] + ',' + pBend[1] + ' ' + pSpread[0] + ',' + pSpread[1],
+                    class: 'accident-warn-leader', fill: 'none'
                 });
                 g.appendChild(line);
                 var t2 = warnEl('text', {
@@ -2590,7 +2615,7 @@
                 data: { labels: t.labels, datasets: [{
                     data: t.values, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.18)',
                     fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: CHART_COLOR.blue,
-                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 } }
+                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 }, formatter: fmtN }
                 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
@@ -2615,7 +2640,7 @@
                 data: { labels: mo.map(function (_, i) { return (i + 1) + '월'; }), datasets: [{
                     data: mo, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.18)',
                     fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: CHART_COLOR.blue,
-                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 } }
+                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 }, formatter: fmtN }
                 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
@@ -2638,7 +2663,7 @@
                 data: { labels: hours.map(function (_, h) { return h + '시'; }), datasets: [{
                     data: hours, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.12)',
                     fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: pointColors,
-                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 8, weight: 600 } }
+                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 8, weight: 600 }, formatter: fmtN }
                 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
@@ -2661,10 +2686,13 @@
                 data: { labels: WEEKDAY_LABELS, datasets: [{
                     data: wk, backgroundColor: CHART_COLOR.green, borderRadius: 4,
                     datalabels: {
-                        display: true, color: DATALABEL_COLOR, font: { size: 10, weight: 600 },
+                        display: true, font: { size: 10, weight: 600 },
                         anchor: function (ctx) { return verticalBarLabelPlacement(ctx, WK_MIN_PX) === 'outside' ? 'end' : 'center'; },
                         align: function (ctx) { return verticalBarLabelPlacement(ctx, WK_MIN_PX) === 'outside' ? 'top' : 'center'; },
-                        formatter: function (v) { return [v + '건', (wkTotal ? Math.round(v / wkTotal * 100) : 0) + '%']; }
+                        // 막대 안(밝은 초록)에 놓일 땐 어두운 글씨, 막대 밖(어두운 배경)이면 밝은
+                        // 글씨(사용자 확정 2026-09-01 — 흰 글씨가 초록 막대 안에서 안 보이던 문제).
+                        color: function (ctx) { return verticalBarLabelPlacement(ctx, WK_MIN_PX) === 'outside' ? DATALABEL_COLOR : DATALABEL_COLOR_ON_LIGHT; },
+                        formatter: function (v) { return [fmtN(v) + '건', (wkTotal ? Math.round(v / wkTotal * 100) : 0) + '%']; }
                     }
                 }] },
                 options: {
@@ -2684,7 +2712,7 @@
                 data: { labels: org.map(function (o) { return o[0]; }), datasets: [{
                     data: org.map(function (o) { return o[1]; }), backgroundColor: CHART_COLOR.blue, borderRadius: 4,
                     datalabels: {
-                        display: true, color: DATALABEL_COLOR, font: { size: 9, weight: 600 },
+                        display: true, color: DATALABEL_COLOR, font: { size: 9, weight: 600 }, formatter: fmtN,
                         anchor: function (ctx) { return horizontalBarLabelPlacement(ctx, ORG_MIN_PX) === 'outside' ? 'end' : 'center'; },
                         align: function (ctx) { return horizontalBarLabelPlacement(ctx, ORG_MIN_PX) === 'outside' ? 'end' : 'center'; }
                     }
