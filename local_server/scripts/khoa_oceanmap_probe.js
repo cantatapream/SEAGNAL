@@ -144,6 +144,21 @@
  *   이동처럼 로딩을 트리거했는지 불확실했으므로(zoom 15→12로 클램프된 것만 확인,
  *   moveend 이후 뜨는 벌크 요청은 못 봤음), 확대 후 작은 추가 이동(pan)을 한 번 더
  *   넣어 moveend 계열 이벤트가 확실히 발생하게 만든 뒤 벡터 피처를 재조회한다.
+ * [2026-09-01 수정12] 12차 실행 결과 확인: 로그가 하도 커져(45만자) 이번엔 내가
+ *   불러온 로그 조회 도구 자체가 앞부분(olmp.js 전체덤프·JS 번들 스캔 목록)을
+ *   잘라먹었다 — 그런데 그 덕에 datasetolmp.js 뒷부분(잘리지 않은 tail)에서
+ *   결정적인 대목이 나왔다: `datasetOLMP.prototype.addEvents` 안에
+ *   `this.map.on('moveend', function(e){ ... if(this.checkZoom()){ ...
+ *   this.changeSqlLayer(zoom); ... } })` 로 등록돼 있었다 — **줌 "레벨이
+ *   변경되었을 경우"(checkZoom() true)에만** changeSqlLayer 가 불린다. 12차의
+ *   추가 이동(pan)은 줌은 그대로 두고 중심좌표만 옮겼으므로 checkZoom() 이 false였을
+ *   것이다(그래서 재조회해도 여전히 인명사고 0건) — 자체 버그였다. 13차: moveend
+ *   이벤트가 실제로 뜨는지 계속 흉내내는 대신, **`changeSqlLayer(zoom)` 를
+ *   `window.olmp`/`window.datasetolmp` 인스턴스에서 직접 호출**한다(메서드명·호출
+ *   패턴을 소스에서 실제로 확인했으므로 추측이 아님 — `this.changeSqlLayer(zoom)`
+ *   그대로). 이러면 이벤트 발생 여부와 무관하게 그 함수가 실행되어, 안에서 실제로
+ *   무슨 네트워크 요청을 쏘는지(우리가 찾던 gid+좌표 벌크로더일 가능성) 바로 확인
+ *   가능하다.
  * [출력] 콘솔 요약(엔드포인트 목록) + JS 번들 스캔 결과 + local_server/data/khoa_probe_result.json
  *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 다수(단계별 확인용)
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
@@ -575,25 +590,24 @@ async function main() {
     await page.waitForTimeout(3000);
     await page.screenshot({ path: path.join(SHOT_DIR, '7_zoomed_in.png'), fullPage: false }).catch(() => {});
 
-    console.log('[7b2/10] 작은 추가 이동으로 moveend 계열 이벤트 확실히 발생시키기 (9차 setCenter/setZoom 한 번만으로는 changeSqlLayer 의 줌 로더가 진짜 켜졌는지 불확실했음)');
-    const panResult = await page.evaluate(() => {
-        function panOne(name) {
+    console.log('[7b2/10] changeSqlLayer(zoom) 직접 호출 — 12차에서 확인: moveend 안에서도 checkZoom()==true(줌 "레벨"이 실제로 바뀐 경우)일 때만 이 함수가 불린다. 12차의 순수 이동(pan)은 줌을 안 바꿔서 이 조건을 못 만족했을 것 — 이벤트에 기대지 않고 메서드를 직접 부른다(datasetOLMP.prototype.addEvents 소스에서 확인한 실제 호출 패턴 this.changeSqlLayer(zoom) 그대로, 추측 아님)');
+    const sqlLayerResult = await page.evaluate(() => {
+        function callOne(name) {
             try {
-                const wrapper = window[name];
-                if (!wrapper || !wrapper.map || typeof wrapper.map.getView !== 'function') return null;
-                const view = wrapper.map.getView();
-                const center = view.getCenter();
-                if (!center) return { name, error: 'center 없음' };
-                view.setCenter([center[0] + 200, center[1] + 200]);
-                return { name, ok: true };
+                const w = window[name];
+                if (!w || !w.map || typeof w.map.getView !== 'function') return { name, ok: false, reason: '인스턴스 없음' };
+                if (typeof w.changeSqlLayer !== 'function') return { name, ok: false, reason: 'changeSqlLayer 메서드 없음' };
+                const zoom = w.map.getView().getZoom();
+                w.changeSqlLayer(zoom);
+                return { name, ok: true, zoom };
             } catch (e) {
-                return { name, error: String(e.message || e) };
+                return { name, ok: false, reason: String(e.message || e) };
             }
         }
-        return { olmp: panOne('olmp'), datasetolmp: panOne('datasetolmp') };
+        return { olmp: callOne('olmp'), datasetolmp: callOne('datasetolmp') };
     });
-    console.log('  추가 이동(pan) 결과:', JSON.stringify(panResult));
-    await page.waitForTimeout(3000); // moveend 이후 뜨는 벌크 로드 요청 대기
+    console.log('  changeSqlLayer 직접 호출 결과:', JSON.stringify(sqlLayerResult));
+    await page.waitForTimeout(3000); // changeSqlLayer 내부 AJAX 응답 대기
 
     console.log('[7c/10] 확대 후 벡터 피처 재조회 (datasetOLMP.changeSqlLayer 는 일정 줌 레벨 이상에서만 데이터를 채운다 — limitZoom 게이트 확인됨)');
     const vectorScanResult2 = await page.evaluate(() => {
