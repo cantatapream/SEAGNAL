@@ -44,8 +44,17 @@
  *   사고발생일 20180228·사고유형 ATY001)은 지명이 이미 해석돼 있어, 토글을
  *   켰을 때 뜨는 벌크 API 응답에 있을 가능성이 가장 높다 — watchAllJson 으로
  *   그 응답을 통째로 잡는다.
+ * [2026-09-01 수정5] 5차 실행: "인명사고" 토글 클릭은 성공했지만(evalClick ok:true),
+ *   그 직후 새로 뜬 요청은 지도 배경 WMS 타일 이미지·메뉴 로그뿐이었다 — 마커
+ *   데이터 API가 없었다. 사용자가 원인을 확인해줬다: 전국 축소 화면에서는 "3032"
+ *   같은 뭉친 숫자(클러스터)만 뜨고, **여러 단계 확대해야** 개별 마커가 나오고
+ *   그제서야 데이터가 로드되는 방식이다(같은 위치에 여러 건이 겹쳐 있으면 마커
+ *   하나 클릭 시 그 아래 여러 건이 목록으로 함께 뜬다고도 확인해줌). 이번엔 토글
+ *   직후 지도 캔버스를 찾아 사고가 밀집한 남해안(부산·거제·제주 방향)으로 마우스
+ *   휠 확대를 여러 단계 실행한 뒤, 그 지점 주변 여러 좌표를 클릭해 마커를 맞춰
+ *   본다(정확한 마커 픽셀 위치를 모르므로 격자로 여러 점을 시도).
  * [출력] 콘솔 요약(엔드포인트 목록) + local_server/data/khoa_probe_result.json
- *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 5장(단계별 확인용)
+ *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 다수(단계별 확인용)
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
  * ============================================================================
  */
@@ -156,6 +165,21 @@ async function evalClickByText(page, text, log) {
     }
 }
 
+/** 지도를 그리는 가장 큰 canvas 요소의 화면상 위치를 찾는다(줌·클릭 좌표 계산용). */
+async function findMapCanvasBox(page) {
+    return page.evaluate(() => {
+        const canvases = Array.from(document.querySelectorAll('canvas'));
+        if (!canvases.length) return null;
+        let best = null, bestArea = 0;
+        canvases.forEach((c) => {
+            const r = c.getBoundingClientRect();
+            const area = r.width * r.height;
+            if (area > bestArea) { bestArea = area; best = r; }
+        });
+        return best ? { x: best.left, y: best.top, width: best.width, height: best.height } : null;
+    });
+}
+
 async function dumpVisibleTexts(page, label) {
     try {
         const texts = await page.evaluate(() => {
@@ -255,6 +279,41 @@ async function main() {
     await page.waitForTimeout(5000); // 마커 데이터 로드 대기
     await page.screenshot({ path: path.join(SHOT_DIR, '6_person_layer_on.png'), fullPage: false }).catch(() => {});
     await dumpVisibleTexts(page, '인명사고 토글 클릭 직후');
+
+    console.log('[7/8] 사고 밀집 지역(남해안, 부산·거제·제주 방향)으로 확대');
+    const mapBox = await findMapCanvasBox(page);
+    if (mapBox) {
+        // 전국이 보이는 화면에서 남동쪽(부산·거제·제주 방향)으로 확대 중심을 잡는다
+        // — 사용자 스크린샷에서 그쪽 클러스터 숫자(11411·3531 등)가 가장 컸다.
+        const zx = mapBox.x + mapBox.width * 0.60;
+        const zy = mapBox.y + mapBox.height * 0.68;
+        await page.mouse.move(zx, zy);
+        for (let i = 0; i < 8; i++) {
+            await page.mouse.wheel(0, -700);
+            await page.waitForTimeout(700);
+        }
+        await page.waitForTimeout(2500);
+        await page.screenshot({ path: path.join(SHOT_DIR, '7_zoomed_in.png'), fullPage: false }).catch(() => {});
+        console.log(`  확대 중심점: (${Math.round(zx)}, ${Math.round(zy)})`);
+
+        console.log('[8/8] 확대된 지점 주변 격자를 클릭해 마커 맞춰보기');
+        const offsets = [[0, 0], [-40, -40], [40, -40], [-40, 40], [40, 40], [0, -80], [0, 80], [-80, 0], [80, 0]];
+        for (let i = 0; i < offsets.length; i++) {
+            const [dx, dy] = offsets[i];
+            const cx = zx + dx, cy = zy + dy;
+            const beforeCount = captured.length;
+            await page.mouse.click(cx, cy);
+            await page.waitForTimeout(1200);
+            const newCount = captured.length - beforeCount;
+            clickLog.push({ step: `마커 격자 클릭 #${i + 1} (${Math.round(cx)},${Math.round(cy)})`, ok: newCount > 0, reason: newCount > 0 ? `새 응답 ${newCount}건` : '새 응답 없음' });
+            if (newCount > 0) {
+                await page.screenshot({ path: path.join(SHOT_DIR, `8_marker_hit_${i + 1}.png`), fullPage: false }).catch(() => {});
+            }
+        }
+        await page.screenshot({ path: path.join(SHOT_DIR, '9_after_grid_clicks.png'), fullPage: false }).catch(() => {});
+    } else {
+        clickLog.push({ step: '지도 캔버스 찾기', ok: false, reason: 'canvas 요소를 못 찾음' });
+    }
 
     console.log('추가 대기 후 네트워크 수집 마감');
     await page.waitForTimeout(3000);
