@@ -61,7 +61,13 @@
  *   인스턴스를 window 에서 직접 찾아 setCenter/setZoom(부산 인근, 줌 15)으로
  *   정확히 이동을 시도하고, 못 찾으면 더블클릭 확대(15회, 휠보다 예측 가능)로
  *   대체한다. 격자 클릭 범위도 화면 정중앙 기준으로 더 촘촘하게(20px 간격) 늘림.
- * [출력] 콘솔 요약(엔드포인트 목록) + local_server/data/khoa_probe_result.json
+ * [2026-09-01 수정7] 7차 실행: window 에 OL Map 인스턴스가 없었고(번들이 안 감쌈),
+ *   더블클릭 확대 15회 뒤 격자 클릭 13곳도 전부 "새 응답 없음"이었다 — 클릭
+ *   자동화로 마커에 명중시키는 접근을 8차례 시도했지만 계속 못 맞췄다. 방향을
+ *   바꿔서, 클릭으로 추측하는 대신 **페이지가 실제로 로드하는 JS 번들 소스를
+ *   직접 읽어** 마커 클릭 시 호출되는 함수·엔드포인트 이름을 찾는다
+ *   (scanLoadedScripts) — 훨씬 확실한 방법이다.
+ * [출력] 콘솔 요약(엔드포인트 목록) + JS 번들 스캔 결과 + local_server/data/khoa_probe_result.json
  *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 다수(단계별 확인용)
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
  * ============================================================================
@@ -188,6 +194,46 @@ async function findMapCanvasBox(page) {
     });
 }
 
+// 마커 클릭 관련 함수/엔드포인트를 코드에서 직접 찾는다 — 7차 실행까지 클릭
+// 자동화(휠 확대·더블클릭·격자 클릭)로는 못 찾았고, window 에도 지도 인스턴스가
+// 노출돼 있지 않았다(2026-09-01). 추측성 클릭 대신 페이지가 실제로 로드하는
+// JS 번들 소스 안에서 관련 키워드를 직접 찾는 게 더 확실하다.
+const JS_SCAN_KEYWORDS = /(NSHPAC|nshpac|인명사고|selectNSH|olmp|OLMP|getFeatureInfo|markerClick|popupInfo|acdntInfo|ACDNT_TYPE|nonShip|non_ship)/;
+
+async function scanLoadedScripts(page) {
+    const scriptUrls = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('script[src]')).map((s) => s.src)
+    );
+    console.log(`\n[JS 번들 스캔] 로드된 script 태그 ${scriptUrls.length}개`);
+    scriptUrls.forEach((u) => console.log('  -', u));
+
+    let totalMatches = 0;
+    for (const url of scriptUrls) {
+        if (totalMatches >= 50) break;
+        let text;
+        try {
+            text = await page.evaluate((u) => fetch(u).then((r) => r.text()), url);
+        } catch (e) {
+            console.log(`  [가져오기 실패] ${url}: ${e.message}`);
+            continue;
+        }
+        const matches = [];
+        let m;
+        const re = new RegExp(JS_SCAN_KEYWORDS.source, 'g');
+        while ((m = re.exec(text)) && matches.length < 15) {
+            const start = Math.max(0, m.index - 80);
+            const end = Math.min(text.length, m.index + 120);
+            matches.push(text.slice(start, end).replace(/\s+/g, ' '));
+        }
+        if (matches.length) {
+            console.log(`\n  [매치 ${matches.length}건] ${url}`);
+            matches.forEach((snippet, i) => console.log(`    #${i + 1}: ...${snippet}...`));
+            totalMatches += matches.length;
+        }
+    }
+    console.log(`\n[JS 번들 스캔 완료] 총 매치 ${totalMatches}건`);
+}
+
 async function dumpVisibleTexts(page, label) {
     try {
         const texts = await page.evaluate(() => {
@@ -252,6 +298,8 @@ async function main() {
     });
     await page.waitForTimeout(4000);
     await page.screenshot({ path: path.join(SHOT_DIR, '1_initial.png'), fullPage: false }).catch(() => {});
+
+    await scanLoadedScripts(page);
 
     console.log('[2/6] "데이터셋" 탭 진입');
     await evalClickByText(page, '데이터셋', clickLog);
