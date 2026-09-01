@@ -389,6 +389,9 @@
  "검사시료수거및검사결과표시방법에관한고시.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
+ "검정기관지정세부절차및운영요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
  "검정수수료면제대상수산물.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
@@ -605,7 +608,16 @@
  "농산물검사·검정방법및절차등에관한규정.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
+ "농산물검사관교육기관지정·운영요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "농산물검사관기술교육및경진대회운영요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
  "농산물검사관자격시험및관리요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "농산물검사기관지정및업무범위.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
  "농산물검사기준.txt": [
@@ -623,10 +635,16 @@
  "농산물우수관리기준.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
+ "농산물우수관리시설의지정및운영요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
  "농산물우수관리인증기관지정및운영요령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
  "농산물우수관리인증기관지정및운영요령_별표.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "농산물우수관리인증등에관한세부실시요령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
  "농산물원산지표시업무권한의재위임고시.txt": [
@@ -1218,6 +1236,9 @@
  "수산물의지리적표시등록및공고요령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
+ "수산물의품질인증기관지정및운영요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
  "수산물이력추적관리세부실시요령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/수산물유통의관리및지원에관한법률"
  ],
@@ -1806,6 +1827,9 @@
   "local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률"
  ],
  "임산물명예감시원운영요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "임산물표준규격.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
  "임진강유역폐수배출시설설치제한을위한대상지역및시설지정.txt": [
