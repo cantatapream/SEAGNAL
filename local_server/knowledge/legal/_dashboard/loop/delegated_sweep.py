@@ -91,10 +91,48 @@ def sweep(law):
                     if sid and sid != '0' and title:
                         found.setdefault(title, set()).add(sid)
 
+    # ★대조는 **ID 로 먼저** 한다(2026-09-01 두 번 데었다).
+    #   파일 이름으로만 맞추면 이미 받아 둔 것을 "없다"고 잘못 보고한다 —
+    #   raw 파일명은 줄여 저장돼 있다(예: 「군산항 도선사의 승선·하선 구역 고시」 → 승선하선구역_군산항.txt).
+    #   다행히 수집된 파일 머리에 `ID:2100000270010` 이 적혀 있으므로 그것으로 맞춘다.
+    #   ID 가 없는 옛 파일만 이름으로 맞춘다.
     admdir = os.path.join(base, '행정규칙')
-    have = [n[:-4] for n in sorted(os.listdir(admdir))] if os.path.isdir(admdir) else []
-    have_txt = [n for n in have if not n.startswith('_')]
-    missing = [t for t in found if not any(squash(t) == squash(h) for h in have_txt)]
+    have_txt, have_ids = [], set()
+    if os.path.isdir(admdir):
+        for n in sorted(os.listdir(admdir)):
+            if n.startswith('_') or not n.endswith('.txt'):
+                continue
+            have_txt.append(n[:-4])
+            try:
+                head = open(os.path.join(admdir, n), encoding='utf-8').read(600)
+            except Exception:
+                head = ''
+            for m in re.finditer(r'\bID[=:]\s*(\d{6,})', head):
+                have_ids.add(m.group(1))
+    # ★이름도 흔들린다(2026-09-01 세 번째로 데었다).
+    #   ⓐ raw 파일명이 줄여 저장된다 — 「군산항 도선사의 승선·하선 구역 고시」 → `승선하선구역_군산항.txt`.
+    #   ⓑ lsDelegated 가 주는 ID 가 **옛 판**일 수 있다 — 군산항은 API 가 219772 를 주는데
+    #      우리가 가진 파일은 270010(더 최신)이다. ID 만 맞추면 최신본을 "없다"고 잘못 본다.
+    #   그래서 ID·정확이름·**글자 겹침**을 다 본 뒤에도 안 맞는 것만 남기고,
+    #   그것도 "없다"가 아니라 **"확인 필요"** 라고 부른다 — 도구는 "안 받은 것"과
+    #   "다른 이름·다른 판으로 받아 둔 것"을 못 가른다.
+    def bigrams(x):
+        x = squash(x)
+        return {x[i:i + 2] for i in range(len(x) - 1)} or {x}
+
+    def similar(a, b):
+        A, B = bigrams(a), bigrams(b)
+        return len(A & B) / max(1, min(len(A), len(B)))
+
+    missing = []
+    for t in found:
+        if found[t] & have_ids:
+            continue
+        if any(squash(t) == squash(h) for h in have_txt):
+            continue
+        if any(similar(t, h) >= 0.6 for h in have_txt):
+            continue
+        missing.append(t)
 
     now = datetime.now(KST).strftime('%Y-%m-%d')
     os.makedirs(OUTDIR, exist_ok=True)
@@ -113,15 +151,17 @@ def sweep(law):
         if not found:
             fp.write('(없음 — 이 법은 위임 행정규칙이 없다고 응답했다)\n\n')
         for t in sorted(found):
-            mark = '❌ raw 에 없음' if t in missing else '✅ raw 수집됨'
+            mark = '⚠확인 필요(raw 에서 못 찾음)' if t in missing else '✅ raw 수집됨'
             fp.write(f'- {t} (ID {"·".join(sorted(found[t]))}) — {mark}\n')
         fp.write('\n## raw 에 있는 행정규칙 파일\n\n')
         for h in have_txt:
             fp.write(f'- {h}\n')
         fp.write('\n## 이 기록을 어떻게 쓰나\n\n')
         if missing:
-            fp.write('⚠**빠진 고시가 있다.** 아래 고시를 받기 전에는 이 법에서 "규정이 없다"고 단정하면 안 된다 —\n')
-            fp.write('그 고시가 그 사항을 정하고 있을 수 있다.\n\n')
+            fp.write('⚠**아래 고시를 raw 에서 못 찾았다.** 그러나 이것이 곧 "안 받았다"는 뜻은 아니다 —\n')
+            fp.write('도구는 **다른 이름·다른 판으로 이미 받아 둔 것**과 구별하지 못한다(실측으로 세 번 헷갈렸다).\n')
+            fp.write('**하나씩 눈으로 확인한 뒤에만** "안 받았다"고 말할 수 있다.\n')
+            fp.write('확인 결과 정말 없으면, 그것을 받기 전에는 이 법에서 "규정이 없다"고 단정하면 안 된다.\n\n')
             for t in missing:
                 fp.write(f'- {t}\n')
         else:
@@ -129,7 +169,7 @@ def sweep(law):
             fp.write('따라서 이 법의 raw 전문(법률·시행령·시행규칙·위 행정규칙)을 대조해 없으면,\n')
             fp.write('그것은 §6-B-1 ⓑ 가 요구하는 조회를 거친 "없음"이다.\n')
         fp.write('\n⚠이 조회는 **위임 관계가 있는 행정규칙만** 본다. 위임 없이 따로 있는 고시·훈령은 못 잡는다.\n')
-    print(f'✅ {law}: 위임 {len(found)}건 · raw 미수집 {len(missing)}건 → {os.path.relpath(out, LEGAL)}')
+    print(f'✅ {law}: 위임 {len(found)}건 · 확인필요 {len(missing)}건 → {os.path.relpath(out, LEGAL)}')
     return {'law': law, 'found': len(found), 'missing': missing}
 
 
