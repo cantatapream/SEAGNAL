@@ -23,7 +23,7 @@
 [연계]
   - 읽음: _dashboard/delegated_sweep/*.md · _dashboard/law_raw_paths.json
   - 씀:   raw/<도메인>/<법>/행정규칙/<고시이름>.txt
-사용법: python3 collect_missing_admrul.py [<법이름> ...] [--all] [--dry]
+사용법: python3 collect_missing_admrul.py [<법이름> ...] [--all] [--fuzzy] [--dry]
         (법 이름을 안 주면 sweep 기록이 있는 법 전부)
 """
 import json, os, re, sys, time, urllib.request
@@ -37,6 +37,10 @@ SWEEP = os.path.join(LEGAL, '_dashboard', 'delegated_sweep')
 INDIV = re.compile(r'지형도면|보호구역.*(지정|조정|추가)|(지정|해제|조정|변경|정정).*고시$'
                    r'|구역 (조정|정정)|공개제한|지정사유 변경|지정명칭 변경')
 ROW = re.compile(r'- (.+?) \(ID ([0-9·]+)\) — ⚠확인 필요')
+# ★`--fuzzy` 를 줄 때만 "⚠유사이름만 있음" 줄도 받는다(2026-09-01, L-238).
+#   그 줄은 **사람이 눈으로 확인한 뒤에만** 받아야 한다 — 닮은 파일이 사실 같은 고시일 수 있고,
+#   그러면 같은 고시가 이름만 다르게 raw 에 두 번 들어간다.
+ROWF = re.compile(r'- (.+?) \(ID ([0-9·]+)\) — ⚠유사이름만 있음')
 
 
 def api(url):
@@ -64,6 +68,7 @@ def s(x):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     take_all = '--all' in sys.argv
+    with_fuzzy = '--fuzzy' in sys.argv
     dry = '--dry' in sys.argv
     paths = json.load(open(os.path.join(LEGAL, '_dashboard', 'law_raw_paths.json'), encoding='utf-8'))
 
@@ -76,7 +81,7 @@ def main():
             print(f'✖ {law}: sweep 기록이 없다 — delegated_sweep.py 를 먼저 돌려라'); continue
         todo = []
         for line in open(p, encoding='utf-8'):
-            m = ROW.match(line.strip())
+            m = ROW.match(line.strip()) or (ROWF.match(line.strip()) if with_fuzzy else None)
             if not m:
                 continue
             title, ids = m.group(1), m.group(2).split('·')

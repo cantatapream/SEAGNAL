@@ -132,13 +132,20 @@ def sweep(law):
         A, B = bigrams(a), bigrams(b)
         return len(A & B) / max(1, min(len(A), len(B)))
 
-    missing = []
+    #   ⓒ ★글자 겹침은 "수집됨"의 근거가 못 된다(2026-09-01 네 번째로 데었다).
+    #      「임산물 표준규격」을 `농산물표준규격.txt` 와 0.83 으로 맞춰 "✅ raw 수집됨" 이라고 적었는데,
+    #      그 고시는 raw 어디에도 없었다(ID 2100000076109 전수검색 0건). 이 분야는
+    #      **농산물·수산물·임산물**처럼 한 글자만 다른 이름이 떼로 있어 글자 겹침이 특히 위험하다.
+    #      그래서 겹침으로 맞은 것은 ✅ 가 아니라 **별도 칸(유사이름 — 사람이 확인)** 으로 뺀다.
+    missing, fuzzy = [], {}
     for t in found:
         if found[t] & have_ids:
             continue
         if any(squash(t) == squash(h) for h in have_txt):
             continue
-        if any(similar(t, h) >= 0.6 for h in have_txt):
+        near = [h for h in have_txt if similar(t, h) >= 0.6]
+        if near:
+            fuzzy[t] = near
             continue
         missing.append(t)
 
@@ -159,12 +166,24 @@ def sweep(law):
         if not found:
             fp.write('(없음 — 이 법은 위임 행정규칙이 없다고 응답했다)\n\n')
         for t in sorted(found):
-            mark = '⚠확인 필요(raw 에서 못 찾음)' if t in missing else '✅ raw 수집됨'
+            if t in missing:
+                mark = '⚠확인 필요(raw 에서 못 찾음)'
+            elif t in fuzzy:
+                mark = '⚠유사이름만 있음 — 사람이 확인할 것 (닮은 파일: ' + ' · '.join(fuzzy[t]) + ')'
+            else:
+                mark = '✅ raw 수집됨'
             fp.write(f'- {t} (ID {"·".join(sorted(found[t]))}) — {mark}\n')
         fp.write('\n## raw 에 있는 행정규칙 파일\n\n')
         for h in have_txt:
             fp.write(f'- {h}\n')
         fp.write('\n## 이 기록을 어떻게 쓰나\n\n')
+        if fuzzy:
+            fp.write('⚠**아래 고시는 이름이 닮은 파일이 있을 뿐, 그 고시 자체를 찾은 것이 아니다.**\n')
+            fp.write('이 분야는 **농산물·수산물·임산물**처럼 한 글자만 다른 이름이 떼로 있다.\n')
+            fp.write('닮은 파일을 열어 정말 같은 고시인지 눈으로 확인하기 전에는 "받아 뒀다"고 쓰면 안 된다.\n\n')
+            for t in sorted(fuzzy):
+                fp.write(f'- {t} — 닮은 파일: ' + ' · '.join(fuzzy[t]) + '\n')
+            fp.write('\n')
         if missing:
             fp.write('⚠**아래 고시를 raw 에서 못 찾았다.** 그러나 이것이 곧 "안 받았다"는 뜻은 아니다 —\n')
             fp.write('도구는 **다른 이름·다른 판으로 이미 받아 둔 것**과 구별하지 못한다(실측으로 세 번 헷갈렸다).\n')
@@ -172,13 +191,14 @@ def sweep(law):
             fp.write('확인 결과 정말 없으면, 그것을 받기 전에는 이 법에서 "규정이 없다"고 단정하면 안 된다.\n\n')
             for t in missing:
                 fp.write(f'- {t}\n')
-        else:
+        elif not fuzzy:
             fp.write('law.go.kr 이 말하는 위임 행정규칙이 **전부 raw 에 수집돼 있다.**\n')
             fp.write('따라서 이 법의 raw 전문(법률·시행령·시행규칙·위 행정규칙)을 대조해 없으면,\n')
             fp.write('그것은 §6-B-1 ⓑ 가 요구하는 조회를 거친 "없음"이다.\n')
         fp.write('\n⚠이 조회는 **위임 관계가 있는 행정규칙만** 본다. 위임 없이 따로 있는 고시·훈령은 못 잡는다.\n')
-    print(f'✅ {law}: 위임 {len(found)}건 · 확인필요 {len(missing)}건 → {os.path.relpath(out, LEGAL)}')
-    return {'law': law, 'found': len(found), 'missing': missing}
+    print(f'✅ {law}: 위임 {len(found)}건 · 확인필요 {len(missing)}건 · 유사이름 {len(fuzzy)}건 '
+          f'→ {os.path.relpath(out, LEGAL)}')
+    return {'law': law, 'found': len(found), 'missing': missing, 'fuzzy': sorted(fuzzy)}
 
 
 if __name__ == '__main__':
