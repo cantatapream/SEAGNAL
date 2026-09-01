@@ -18,12 +18,13 @@
  *     데이터의 날짜만으로는 이 정밀도가 안 나옴) — 1:1 그리디 매칭(가까운 거리부터
  *     확정, 이미 매칭된 쪽은 제외) — build_tribunal_merge.js matchAgainstBucket 과
  *     같은 3km/5분 버킷 탐색을 재사용하되, 여기선 1:1 전역 매칭으로 확장.
- *   - 사고유형: 매칭된 것 중 해경=접촉·심판원=충돌(또는 반대) 처럼 접촉/충돌
- *     쌍이 갈리면 충돌로 통일(기존 build_tribunal_merge.js 선례 확장). 해경만
- *     있고(매칭 안 됨) 유형이 접촉/충돌 쌍 중 하나면 접촉으로(심판원 미확인 상태
- *     이므로 보수적으로) 반영. 심판원만 있는 데이터는 심판원 자체 유형(공식 CSV에
- *     ATY0xx 코드가 이미 있음 — 해경과 같은 코드공간 공유, 텍스트 매핑 불필요)
- *     그대로 사용, 강제 변환 없음.
+ *   - 사고유형(2026-09-01 재확정): 매칭된 것(해경+심판원 둘 다 있음) 중 접촉/충돌
+ *     쌍이 갈리면 심판원이 명시한 쪽을 그대로 따른다(심판원 조사 결과가 우선 —
+ *     해경 접수 당시 표기가 이겨선 안 됨). 해경단독(매칭 안 됨)은 원래 해경
+ *     표기(접촉이든 충돌이든)를 그대로 두고 하향·보정하지 않는다(첫 초안의
+ *     "해경단독 충돌→접촉 하향"은 사용자가 명시적으로 철회). 심판원만 있는
+ *     데이터는 심판원 자체 유형(공식 CSV에 ATY0xx 코드가 이미 있음 — 해경과 같은
+ *     코드공간 공유, 텍스트 매핑 불필요) 그대로 사용, 강제 변환 없음.
  *   - 관할서(orgCd): 해경 있는 행(매칭·해경단독)은 해경 원본 CMPTNC_KCGOFC_CD
  *     그대로. 심판원단독 행(공식 CSV에 관할서 필드 없음)은 법령 기반 21개 서
  *     경계 폴리곤(classifyOrg, build_tribunal_merge.js 그대로 재사용)으로 추정.
@@ -47,6 +48,9 @@
  *   warnFlags 는 전부 [](미계산) — build_accident_warn_flags.js 로 별도 재계산 필요
  *   (그 스크립트는 기존 행 재계산값이 달라지면 중단하는 자기검증이 있어, 이 전면
  *   재구축 이후엔 그 검증을 다시 보고 판단해야 함 — 사용자에게 별도 보고).
+ * [좌표 범위 필터, 2026-09-01 사용자 확정] 조립 마지막 단계에서 한국 근해 범위
+ *   밖(위도 30~40·경도 122~134 밖) 좌표를 제거한다(원본 CSV 자체의 좌표 오류로
+ *   추정 — build_accidents.js buildPersons() 의 inKorea() 와 같은 기준).
  * [실행] node local_server/scripts/build_ship_accidents_v2.js
  * [연계] client/js/marine-life/safety/accident_info.js
  * ============================================================================
@@ -378,30 +382,29 @@ function main() {
 
     // ============ 5) 최종 행 조립 ============
     const rows = [];
-    let typeUnifiedToCollision = 0, typeDowngradedToContact = 0;
+    let typeFollowedTribunal = 0;
     let supEnrichedMatched = 0, supEnrichedHkOnly = 0, supEnrichedHsOnly = 0;
 
-    // 5-a) 매칭된 해경 행 — hk 필드 기준 + 필요 시 유형 통일 + 보조파일 선박용도 보강
+    // 5-a) 매칭된 해경 행 — hk 필드 기준 + 보조파일 선박용도 보강.
+    // [사고유형 2026-09-01 사용자 재확정] 접촉/충돌 쌍은 "심판원이 명시한 쪽"을 그대로
+    // 따른다(매칭됐고 심판원 유형이 접촉/충돌 중 하나면 그 값으로) — 해경 자체 표기가
+    // 이겨선 안 됨. 해경단독(미매칭)은 원래 해경 표기를 그대로 두고 하향/보정하지 않는다
+    // (이전 초안의 "해경단독 충돌→접촉 하향"은 사용자가 명시적으로 철회함).
     hk.forEach((h, hkIdx) => {
         const hsIdx = hkMatchedTo.get(hkIdx);
         let typeCd = h.typeCd;
         let shipUse = null, tonnage = null, season = null;
         if (hsIdx != null) {
             const hsType = hs[hsIdx].typeCd;
-            const pair = new Set([TYPE_LABELS[typeCd], TYPE_LABELS[hsType]]);
-            if (pair.has('접촉') && pair.has('충돌') && typeCd !== hsType) {
-                typeCd = 'ATY027';
-                typeUnifiedToCollision++;
+            if ((hsType === 'ATY019' || hsType === 'ATY027') && hsType !== typeCd) {
+                typeCd = hsType;
+                typeFollowedTribunal++;
             }
         }
         const sup = enrichFromSupplement(h.lat, h.lon, h.ymd, h.t);
         if (sup) {
             shipUse = sup.shipUse; tonnage = sup.tonnage; season = sup.season;
             if (hsIdx != null) supEnrichedMatched++; else supEnrichedHkOnly++;
-        }
-        if (hsIdx == null && typeCd === 'ATY027') {
-            typeCd = 'ATY019';
-            typeDowngradedToContact++;
         }
         rows.push([
             h.lat, h.lon, h.ymd, h.hm, h.pos, typeCd, h.causeCd, h.shipCd, h.orgCd || 0,
@@ -458,11 +461,16 @@ function main() {
     console.log(`[2025 단독] ${rows2025}건 추가(강릉 ${gangneungCount}건)`);
     if (Object.keys(unmappedTypes).length) console.log('[2025 단독] 사고유형 매핑 안 된 텍스트:', unmappedTypes);
 
-    console.log(`[유형 조정] 매칭 후 접촉/충돌 충돌로 통일 ${typeUnifiedToCollision}건, 해경단독 접촉/충돌 접촉으로 하향 ${typeDowngradedToContact}건`);
+    console.log(`[유형 조정] 매칭행 중 심판원이 접촉/충돌 명시한 쪽 따름 ${typeFollowedTribunal}건 (해경단독은 원표기 유지, 하향 없음)`);
     console.log(`[보조파일 보강] 매칭행 ${supEnrichedMatched}건·해경단독 ${supEnrichedHkOnly}건·심판원단독(08-24) ${supEnrichedHsOnly}건`);
 
-    fs.writeFileSync(path.join(CLIENT_DIR, 'accident_ships_hk.json'), JSON.stringify({ v: 1, rows }));
-    console.log(`[완료] 총 ${rows.length}건 저장 (해경계열 ${hk.length} + 심판원단독 08-24 ${hsOnlyCount} + 2025단독 ${rows2025})`);
+    // 한국 근해 범위 밖 좌표(원본 CSV 자체의 좌표 오류로 추정) 제거 — 사용자 확정 2026-09-01.
+    const beforeBoundsFilter = rows.length;
+    const finalRows = rows.filter((r) => r[0] >= 30 && r[0] <= 40 && r[1] >= 122 && r[1] <= 134);
+    console.log(`[좌표 범위 필터] 한국 근해 밖 ${beforeBoundsFilter - finalRows.length}건 제외`);
+
+    fs.writeFileSync(path.join(CLIENT_DIR, 'accident_ships_hk.json'), JSON.stringify({ v: 1, rows: finalRows }));
+    console.log(`[완료] 총 ${finalRows.length}건 저장 (해경계열 ${hk.length} + 심판원단독 08-24 ${hsOnlyCount} + 2025단독 ${rows2025}, 범위밖 제외 전 ${beforeBoundsFilter})`);
 }
 
 main();
