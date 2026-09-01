@@ -22,13 +22,17 @@
  *   계속 진행하고 실패 사실을 결과에 남긴다).
  * [출력] 콘솔 요약(엔드포인트 목록) + local_server/data/khoa_probe_result.json
  *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 3장(단계별 확인용)
- * [2026-09-01 수정] 1차 실행 결과 "사고정보" 메뉴 클릭이 5초 타임아웃으로 실패
- *   (다른 요소에 가려짐 — 흔한 오버레이 문제)했지만, 페이지 로드만으로도
- *   listOLMPData.json 이라는 자체 POST API가 이미 호출되는 걸 확인함. 이
- *   API가 인명사고 데이터인지 확인하려면 요청/응답 본문을 봐야 하는데, 산출물
- *   파일(zip)·Summary 둘 다 이 세션에서 못 받는 구조라 KEY_ENDPOINT_HINT에
- *   걸리는 응답은 본문을 콘솔에 직접 찍는다(get_job_logs로 읽을 수 있음).
- *   클릭도 force:true로 오버레이를 무시하도록 강화.
+ * [2026-09-01 수정1] 1차 실행: "사고정보" 클릭 타임아웃(오버레이 문제). 페이지
+ *   로드만으로 listOLMPData.json 호출 확인 → 본문을 콘솔에 직접 출력하도록 함.
+ * [2026-09-01 수정2] 2차 실행: listOLMPData.json 은 "레이어 정의 목록"(가공선로·
+ *   해저케이블 등 WMS 레이어 메타데이터)이었고 buoyList.json 은 항로표지(등부표)
+ *   좌표였다 — 둘 다 인명사고 데이터가 아니다. force:true 클릭도 "Element is
+ *   not visible"로 여전히 실패("사고정보" 메뉴 자체가 로딩 스피너 등에 가려져
+ *   있었을 가능성). Playwright의 actionability 검사를 아예 우회하려고
+ *   page.evaluate() 로 DOM에서 직접 .click() 을 호출하는 방식으로 바꿈(실제
+ *   마우스 이벤트가 아니라 그 요소에 걸린 클릭 핸들러를 코드로 바로 실행 —
+ *   가려짐·애니메이션과 무관하게 항상 실행됨). 어떤 요소를 클릭할지 알아내려고
+ *   상단 내비게이션의 data-id 목록도 같이 콘솔에 찍는다.
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
  * ============================================================================
  */
@@ -56,21 +60,49 @@ function isInteresting(url, contentType) {
 // 요청/응답 본문을 콘솔에 직접 찍는다(산출물 파일은 이 세션에서 못 받으므로).
 const KEY_ENDPOINT_HINT = /(listOLMPData|buoyList|accident|person|인명)/i;
 
-async function safeClickByText(page, text, log) {
+// Playwright locator.click() 은 "보이는지·가려지지 않았는지·안정적인지"를
+// 검사하는데(actionability check) 이 사이트는 그 검사를 계속 통과 못했다
+// (오버레이·스피너 등으로 실제로는 클릭 가능해도 검사만 실패하는 경우가 흔함).
+// document.evaluate 로 텍스트가 일치하는 요소를 찾아 .click() 을 코드로 직접
+// 호출 — 이건 실제 마우스 클릭이 아니라 그 요소의 클릭 핸들러를 즉시 실행하는
+// 것이라 위 검사를 아예 거치지 않는다.
+async function evalClickByText(page, text, log) {
     try {
-        const loc = page.getByText(text, { exact: false }).first();
-        const count = await loc.count();
-        if (count === 0) {
-            log.push({ step: `click:"${text}"`, ok: false, reason: '요소 못 찾음' });
+        const clicked = await page.evaluate((needle) => {
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+            let node;
+            while ((node = walker.nextNode())) {
+                const own = Array.from(node.childNodes)
+                    .filter((n) => n.nodeType === 3)
+                    .map((n) => n.textContent.trim())
+                    .join('');
+                if (own.includes(needle)) {
+                    node.click();
+                    return true;
+                }
+            }
             return false;
-        }
-        await loc.scrollIntoViewIfNeeded().catch(() => {});
-        await loc.click({ timeout: 8000, force: true });
-        log.push({ step: `click:"${text}"`, ok: true });
-        return true;
+        }, text);
+        log.push({ step: `evalClick:"${text}"`, ok: clicked, reason: clicked ? null : '요소 못 찾음(직접 텍스트 소유 노드 기준)' });
+        return clicked;
     } catch (e) {
-        log.push({ step: `click:"${text}"`, ok: false, reason: String(e.message || e).slice(0, 200) });
+        log.push({ step: `evalClick:"${text}"`, ok: false, reason: String(e.message || e).slice(0, 200) });
         return false;
+    }
+}
+
+async function dumpNavIds(page, log) {
+    try {
+        const navItems = await page.evaluate(() =>
+            Array.from(document.querySelectorAll('[data-id]')).slice(0, 60).map((el) => ({
+                dataId: el.getAttribute('data-id'),
+                text: el.textContent.trim().slice(0, 30),
+                tag: el.tagName,
+            }))
+        );
+        console.log('[내비게이션 data-id 목록]', JSON.stringify(navItems));
+    } catch (e) {
+        log.push({ step: 'dumpNavIds', ok: false, reason: String(e.message || e).slice(0, 200) });
     }
 }
 
@@ -83,12 +115,17 @@ async function main() {
     const page = await context.newPage();
 
     const captured = [];
+    // "인명사고" 클릭 이후엔 URL 패턴을 몰라도(사전에 짐작한 이름이 틀렸을 수
+    // 있으므로) 새 JSON 응답을 전부 콘솔에 찍는다 — 클릭 전/후 차집합이 바로
+    // 그 레이어가 부른 API다.
+    let afterPersonClick = false;
     page.on('response', async (res) => {
         try {
             const url = res.url();
             const headers = res.headers();
             const contentType = headers['content-type'] || '';
-            if (!isInteresting(url, contentType)) return;
+            const jsonLike = /json/i.test(contentType);
+            if (!isInteresting(url, contentType) && !(afterPersonClick && jsonLike)) return;
             const req = res.request();
             const postData = req.postData();
             let bodySample = null;
@@ -100,8 +137,8 @@ async function main() {
                 url, status: res.status(), contentType,
                 method: req.method(), postData, bodySample,
             });
-            if (KEY_ENDPOINT_HINT.test(url)) {
-                console.log(`\n[핵심API] ${req.method()} ${url}`);
+            if (KEY_ENDPOINT_HINT.test(url) || (afterPersonClick && jsonLike)) {
+                console.log(`\n[핵심API${afterPersonClick ? '·클릭후' : ''}] ${req.method()} ${url}`);
                 console.log('  요청 본문:', (postData || '(없음)').slice(0, 1000));
                 console.log('  응답 본문:', (bodySample || '(없음)').slice(0, 3000));
             }
@@ -116,14 +153,17 @@ async function main() {
     });
     await page.waitForTimeout(4000);
     await page.screenshot({ path: path.join(SHOT_DIR, '1_initial.png'), fullPage: false }).catch(() => {});
+    await dumpNavIds(page, clickLog);
 
-    console.log('[2/4] "사고정보" 메뉴 진입 시도');
-    await safeClickByText(page, '사고정보', clickLog);
+    console.log('[2/4] "사고정보" 메뉴 진입 시도 (evaluate 직접 클릭)');
+    await evalClickByText(page, '사고정보', clickLog);
     await page.waitForTimeout(5000); // 드롭다운/서브메뉴 애니메이션 대기
     await page.screenshot({ path: path.join(SHOT_DIR, '2_after_accident_menu.png'), fullPage: false }).catch(() => {});
+    await dumpNavIds(page, clickLog);
 
-    console.log('[3/4] "인명사고" 레이어 토글 시도');
-    await safeClickByText(page, '인명사고', clickLog);
+    console.log('[3/4] "인명사고" 레이어 토글 시도 (evaluate 직접 클릭)');
+    afterPersonClick = true;
+    await evalClickByText(page, '인명사고', clickLog);
     await page.waitForTimeout(3000);
     await page.screenshot({ path: path.join(SHOT_DIR, '3_after_person_layer.png'), fullPage: false }).catch(() => {});
 
