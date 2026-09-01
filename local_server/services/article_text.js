@@ -1185,7 +1185,16 @@ let NOTICE_INDEX = null;
  * @returns {string|null} 저장소 상대경로. 못 찾거나 서로 다른 파일이 여럿이면 null
  * [연계] ← loadArticle()(tier==='notice'). ← _dashboard/notice_index.json (sync_notice_index.py)
  */
+// ★가리키는 말은 이름이 아니다 — 저장소 전체에서 고르면 안 된다(2026-09-01, L-235).
+//   위키 법령 칸에 `위 고시`·`이 고시`·`같은 고시` 처럼 **앞 줄을 가리키는 말**만 적힌 곳이 있다.
+//   그건 이름이 아닌데도 pickNoticeFile 이 저장소 전체 이름과 견주다 보니 **엉뚱한 법의 고시**를
+//   골라 버린다. 실제로 raw 에 고시를 86개 더 넣자, 갯벌 페이지의 `위 고시` 두 줄이
+//   「재외동포(F-4) 자격의 취업활동 제한범위 고시」(출입국관리법)로 붙었다.
+//   못 고르는 것보다 **엉뚱한 걸 고르는 것이 훨씬 나쁘다** — 그런 칸은 정직하게 실패시킨다.
+const POINTER_ONLY_RE = /^(?:[「『]?\s*)?(?:위|이|같은|해당|동)\s*(?:고시|규정|규칙|훈령|예규|지침)(?:\s*[」』])?\s*$/;
+
 function pickNoticeGlobal(law) {
+  if (POINTER_ONLY_RE.test(String(law || '').replace(/[「」『』]/g, '').trim())) return null;
   if (NOTICE_INDEX === null) {
     try {
       NOTICE_INDEX = JSON.parse(require('fs').readFileSync(

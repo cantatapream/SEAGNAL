@@ -41,6 +41,9 @@
  "(대산지방해양수산청)항행안전에관한고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
+ "(동해지방해양수산청)공유수면점용·사용허가면제대상시설고시.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"
+ ],
  "(동해해양경찰서)수상레저활동금지구역지정.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
  ],
@@ -55,6 +58,9 @@
  ],
  "(동해해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
+ ],
+ "(마산지방해양수산청)공유수면점용·사용허가면제대상시설등의기준.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"
  ],
  "(목포해양경찰서)수상레저활동금지구역공고.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
@@ -82,6 +88,9 @@
  ],
  "(보령해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
+ ],
+ "(부산지방해양수산청)공유수면점용·사용허가의면제기준고시.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"
  ],
  "(부산해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
@@ -137,6 +146,9 @@
  "(속초해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
+ "(여수지방해양수산청)공유수면점용·사용허가면제대상.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"
+ ],
  "(여수해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
  ],
@@ -190,6 +202,9 @@
  ],
  "(원주지방환경청)수질오염물질의배출허용기준중별도배출허용기준고시.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
+ ],
+ "(인천지방해양수산청)공유수면점용·사용허가의면제대상시설고시.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"
  ],
  "(인천지방해양수산청)장안서부근해역항행안전에관한고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
@@ -284,6 +299,9 @@
  "(포항지방해양수산청)공사구역을표시하는항로표지등의설치·관리수역지정에관한고시.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/항로표지법"
  ],
+ "(포항지방해양수산청)공유수면점용·사용허가면제대상변경고시.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"
+ ],
  "(포항해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
  ],
@@ -332,6 +350,9 @@
  "가스연료추진선박기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
  ],
+ "각종체류허가등의신청및수령의대리에관한규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
  "강선의구조기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
  ],
@@ -359,11 +380,23 @@
  "갯벌생태해설사의운영및양성기관의지정·운영에관한규정.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/갯벌및그주변지역의지속가능한관리와복원에관한법률"
  ],
+ "거문오름용암동굴계상류동굴군(웃산전굴,북오름굴,대림굴)국가지정문화재(천연기념물)지정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/자연유산의보존및활용에관한법률"
+ ],
  "검사대상농산물.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "검사시료수거및검사결과표시방법에관한고시.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "검정수수료면제대상수산물.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
  "견내량수로내(구)거제대교통항안전에관한고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
+ ],
+ "결혼동거목적의사증발급에필요한요건및심사면제기준고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
  ],
  "경산공공폐수처리시설기본계획(변경)승인.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
@@ -423,14 +456,26 @@
  "공유수면점용·사용허가(새만금에코숲벨트조성).txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"
  ],
+ "공유수면점용·사용허가면제대상행위및시설.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"
+ ],
  "공장입지기준고시.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만법"
  ],
  "공해저층어업에관한UN결의사항이행에관한고시.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
  ],
+ "과학기술분야톱티어비자발급추천절차등에관한지침.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
+ "과학기술정보통신부방송분야외국인고용추천절차등에관한지침.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
  "국가귀속유산의관리등에관한규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률"
+ ],
+ "국가긴급방제계획에포함하는위험·유해물질지정고시.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
  ],
  "국가어업지도선운용관리및지도선직원복무규칙.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/수산업법"
@@ -447,6 +492,9 @@
  "국가해양기준점이전경비산정기준.txt": [
   "local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률"
  ],
+ "국가해양환경정보통합관리에관한규정.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
+ ],
  "국동어항항행속력제한에관한고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
@@ -462,6 +510,9 @@
  "국외반출승인대상해양수산생명자원지정고시.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양수산생명자원의확보ㆍ관리및이용등에관한법률"
  ],
+ "국제결혼안내프로그램이수대상및운영사항고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
  "국제수산기구의어업규제사항이행에관한고시.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
  ],
@@ -474,6 +525,9 @@
   "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법"
  ],
  "군산ㆍ장항항예선운영세칙.txt": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
+ ],
+ "군산항예선의대기장소에관한기준.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
  ],
  "극지해역운항선박기준.txt": [
@@ -563,6 +617,9 @@
  "농산물등의원산지검정방법및세부기준에관한규정.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
  ],
+ "농산물명예감시원의운영요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
  "농산물우수관리기준.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
@@ -581,7 +638,13 @@
  "농산물이력추적관리기준및그밖에농산물의수확후관리를하는시설.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
+ "농산물이력추적관리제도세부실시요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
  "농산물표준규격.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "농산물품질관리사교육실시기관지정·운영요령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
  "농수산물원산지표시제도교육시행지침.txt": [
@@ -687,6 +750,9 @@
  "마산항예선운영세칙.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
  ],
+ "마산항의선박출입신고면제대상선박.txt": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
+ ],
  "마산항한정하역사업등록기준.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법"
  ],
@@ -713,6 +779,9 @@
  "매장유산지표조사의방법및절차등에관한규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률"
  ],
+ "명예해양환경감시원운영규정.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
+ ],
  "목선의구조기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
  ],
@@ -723,6 +792,9 @@
   "local_server/knowledge/legal/raw/10_항만물류/항만법"
  ],
  "목포항예선운영세칙.txt": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
+ ],
+ "목포항예선의대기장소에관한기준.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
  ],
  "목포항항만시설운영세칙.txt": [
@@ -782,6 +854,9 @@
  "방사성물질운송선박의안전기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
  ],
+ "방송통신위원회외국인고용추천절차등에관한지침.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
  "방제대책본부운영규칙.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
  ],
@@ -797,6 +872,9 @@
  "범선의구조및설비등에관한기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
  ],
+ "보호일시해제업무처리규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
  "부두운영회사성과평가업무지침.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법"
  ],
@@ -807,6 +885,9 @@
   "local_server/knowledge/legal/raw/04_선박해운/도선법"
  ],
  "부산항예선운영세칙.txt": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
+ ],
+ "부산항예선의대기장소에관한기준고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
  ],
  "부산항한정하역사업등록기준.txt": [
@@ -846,6 +927,9 @@
  "비관리청항만공사시행허가등에관한업무처리요령.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만법"
  ],
+ "비자신청센터운영기관지정·운영에관한규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
  "비점오염관리를위한물순환관리지표산정지침.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
@@ -865,6 +949,18 @@
   "local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법"
  ],
  "사회통합자원봉사위원기본규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
+ "사회통합프로그램기본소양평가관리규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
+ "사회통합프로그램기본소양평가응시수수료고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
+ "사회통합프로그램다문화사회전문가인정기준등에관한규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
+ "사회통합프로그램참여자교육수수료고시.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
  ],
  "산업인력을운송하는선박에대한시설기준.txt": [
@@ -908,6 +1004,21 @@
  ],
  "생태계교란_생물_지정_고시.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/생물다양성보전및이용에관한법률"
+ ],
+ "생활계유해폐기물의종류.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "생활계유해폐기물처리계획수립및평가등에관한지침.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "생활폐기물반입협력금산정에관한고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "생활폐기물수집·운반대행계약을위한원가계산산정방법에관한규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "생활폐기물중특정품목의대행에관한고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
  "서귀포해양경찰서수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
@@ -1013,6 +1124,7 @@
  "선박전자증서발급에관한고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법",
   "local_server/knowledge/legal/raw/04_선박해운/선박법",
+  "local_server/knowledge/legal/raw/04_선박해운/선박안전법",
   "local_server/knowledge/legal/raw/04_선박해운/선박평형수(船舶平衡水)관리법"
  ],
  "선박톤수측정등의대행수수료.txt": [
@@ -1058,6 +1170,9 @@
  "수산관계법령_위반행위에_대한_행정처분의_기준과_절차에_관한_규칙.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/수산업법"
  ],
+ "수산관계법령위반행위신고자에대한포상기준및방법등에관한규정.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법"
+ ],
  "수산물가공수산업협동조합정관(예).txt": [
   "local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법"
  ],
@@ -1067,7 +1182,16 @@
  "수산물검정기관지정세부절차및운영등에관한요령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
+ "수산물과수산특산물의품질인증세부기준.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "수산물과수산특산물의품질인증에관한세부실시요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
  "수산물등의검정에관한세부요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "수산물명예감시원운영요령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
  "수산물산지거점유통센터시설및운영기준.txt": [
@@ -1100,7 +1224,13 @@
  "수산물자급률목표에관한고시.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법"
  ],
+ "수산물적재선박의항만국검색에관한고시.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
+ ],
  "수산물표준규격.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "수산물품질관리사교육실시기관지정·운영요령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
  "수산발전기금운용관리요령.txt": [
@@ -1134,6 +1264,9 @@
   "local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법"
  ],
  "수산자원의이식승인기준.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법"
+ ],
+ "수산자원의정밀조사·평가의방법및내용에관한고시.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법"
  ],
  "수산자원의포획금지기간에관한고시.txt": [
@@ -1479,6 +1612,9 @@
  "업종별수산업협동조합정관(예).txt": [
   "local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법"
  ],
+ "에너지회수효율측정·산정방법및절차등에관한고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
  "여객선사업계획변경인가업무처리지침.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/해운법"
  ],
@@ -1487,6 +1623,9 @@
  ],
  "여객선안전관리책임자교육에관한규정.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/해운법"
+ ],
+ "여수·광양항산적액체해상환적준수수칙.txt": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
  ],
  "여수·광양항선박교통안전규정.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
@@ -1544,6 +1683,9 @@
  "영산강·섬진강유역폐수배출시설설치제한을위한대상지역및시설지정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
+ "영주자격자의배우자결혼동거목적사증발급에필요한소득요건고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
  "영흥수도항행안전에관한고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
@@ -1562,6 +1704,9 @@
  "오염총량관리조사연구반운영규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
+ "온라인사증발급및사증추천인에관한업무처리지침.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
  "옹진장봉도갯벌습지보호지역지정.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/갯벌및그주변지역의지속가능한관리와복원에관한법률"
  ],
@@ -1574,10 +1719,16 @@
  "완충저류시설설치및운영관리지침.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
+ "외국인자동출입국심사이용대상자등록요건및절차.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
  "외국적시운전선박에대한임시항해검사지침.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
  ],
  "외항운송사업면허및등록등사무처리요령.txt": [
+  "local_server/knowledge/legal/raw/04_선박해운/해운법"
+ ],
+ "외항운송사업자운임공표업무처리요령.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/해운법"
  ],
  "외항운송사업자운임및요금의공표등에관한규정.txt": [
@@ -1585,6 +1736,9 @@
  ],
  "우수선화주기업인증제도운영에관한규정.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/해운법"
+ ],
+ "울산항위험물해상환적가능부두고시.txt": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
  ],
  "울산항항만시설운영세칙.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률",
@@ -1636,6 +1790,9 @@
  "유해화학물질예외적사용수산부산물재활용시환경오염방지기준에관한고시.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/수산부산물재활용촉진에관한법률"
  ],
+ "음식물류폐기물발생억제계획의수립주기및평가방법등에관한지침.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
  "의료폐기물전용용기검사수수료고시.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
@@ -1647,6 +1804,9 @@
  ],
  "일반수로측량기술지도및적합성심사규정.txt": [
   "local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률"
+ ],
+ "임산물명예감시원운영요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
  "임진강유역폐수배출시설설치제한을위한대상지역및시설지정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
@@ -1666,11 +1826,35 @@
  "장승포항어항구설정고시.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만법"
  ],
+ "재외동포(F-4)자격의취업활동제한범위고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
+ "재활용이금지또는제한되는폐기물지정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "재활용환경성평가기관지정·관리에관한업무처리지침.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "재활용환경성평가를위한절차와방법등에관한규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "재활용환경성평가서작성기준및방법등에관한규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "재활용환경성평가수수료고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "재활용환경성평가에따른재활용승인관련업무처리지침.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
  "전기추진동력수상레저기구설비기준.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저기구의등록및검사에관한법률"
  ],
  "전기추진선박기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
+ ],
+ "전자민원창구운영에관한고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
  ],
  "제주항_승하선구역_Stage-B-2차_확인메모.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/도선법"
@@ -1712,6 +1896,9 @@
  "지정사업장의설비및확인대상선박용물건등에관한기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
  ],
+ "지정폐기물공공처리시설반입수수료.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
  "지정해역의지정고시.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
@@ -1736,16 +1923,28 @@
  "천연기념물식물관리지침.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/자연유산의보존및활용에관한법률"
  ],
+ "체류자격외활동허가등의신청및수령의대리에관한규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
  "체불선박소유자명단공개및체불자료제공관련업무처리규정.txt": [
   "local_server/knowledge/legal/raw/06_선원노동/선원법"
  ],
  "총톤수10톤미만소형어선의구조및설비기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/어선법"
  ],
+ "축산농가등폐석면배출시설물지정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
  "축전지추진어선의설비기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/어선법"
  ],
  "출입국관리법시행규칙별표6의규정에의한권한의일부위임범위.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
+ "출입국관리법시행령제26조의2제1항에따라신고만으로근무처변경·추가를할수있는외국인의요건고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
+ "출입국기록관리및정보화업무처리지침.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
  ],
  "출입국사범단속과정의적법절차및인권보호준칙.txt": [
@@ -1809,6 +2008,7 @@
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
  "패류생산해역수질의위생기준.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법",
   "local_server/knowledge/legal/raw/05_수산어업/양식산업발전법"
  ],
  "패류양식업및어류등양식업중대기업및그계열기업등이양식가능한품종.txt": [
@@ -1849,13 +2049,28 @@
  "폐기물매립시설사후관리이행보증금의비용산출기준등에관한규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
+ "폐기물매립시설상부를덮는시설물등의설치및관리기준.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
  "폐기물시험·분석수수료.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
  "폐기물유해성정보자료작성수수료고시.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
+ "폐기물재활용시설외의장소에서의폐기물재활용용도또는방법에관한규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "폐기물적정처리추진센터의운영등에관한규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "폐기물전자정보처리프로그램운영및사용등에관한고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
  "폐기물처리시설검사기관지정및사후관리에관한운영규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "폐기물처리시설설치의환경성조사서에포함되어야할사항.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
  "폐기물처리시설의검사방법에관한규정.txt": [
@@ -1867,11 +2082,17 @@
  "폐기물처리신고업무처리지침.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
+ "폐기물처리업자등에대한영상정보처리기기의설치·운영등에관한고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
  "폐수처리업의폐수처리시설정기검사수수료에관한규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
  "폐수처리업의폐수처리시설정기검사에관한규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
+ ],
+ "포락지조사증명기관의지정.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"
  ],
  "포항항1종항만배후단지관리규정.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만법"
@@ -1938,6 +2159,9 @@
  "항로표지장비·용품등의기능및규격기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/항로표지법"
  ],
+ "항로표지장비및용품의표준화규정.txt": [
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법"
+ ],
  "항만건설작업선의선박시설등에관한기준.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만법"
  ],
@@ -1995,6 +2219,9 @@
  "항만시설보안료징수방법및징수요율산정등에관한업무처리요령.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률"
  ],
+ "항만시설장비검사기준.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/항만법"
+ ],
  "항만운송업무처리지침.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법"
  ],
@@ -2049,6 +2276,9 @@
  "해수욕장평가위원회운영규정.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/해수욕장의이용및관리에관한법률"
  ],
+ "해양경찰청명예해양환경감시원운영규칙.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
+ ],
  "해양경찰청함정내구연한에관한규칙.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/해양경비법"
  ],
@@ -2100,8 +2330,14 @@
  "해양생태축지정고시.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양생태계의보전및관리에관한법률"
  ],
+ "해양수산건설공사의신기술활용업무처리지침.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/항만법"
+ ],
  "해양수산국제개발협력전문기관지정및운영에관한규정.txt": [
   "local_server/knowledge/legal/raw/01_해양주권정책/해양수산발전기본법"
+ ],
+ "해양수산국제협력업무처리에관한규정.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법"
  ],
  "해양수산부항만재개발사업업무처리규정.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만재개발및주변지역발전에관한법률"
@@ -2115,7 +2351,19 @@
  "해양수산생명자원의분양과용도변경승인절차및보유량의기준에관한고시.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양수산생명자원의확보ㆍ관리및이용등에관한법률"
  ],
+ "해양수산정보의공동이용에관한지침.txt": [
+  "local_server/knowledge/legal/raw/01_해양주권정책/해양수산발전기본법"
+ ],
+ "해양예보업무규정.txt": [
+  "local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률"
+ ],
  "해양오염방제기술지원협의회운영규칙.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
+ ],
+ "해양오염방제자재·약제의성능시험기준및검정기준.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
+ ],
+ "해양오염조사규칙.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
  ],
  "해양오염퇴적물 정화명령제도 운영지침.txt": [
@@ -2127,8 +2375,14 @@
  "해양오염퇴적물정화업 대체인력 관련학과 및 직무분야 고시.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법"
  ],
+ "해양오염퇴적물조사및정화·복원범위등에관한규정.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
+ ],
  "해양용도구역관리지침.txt": [
   "local_server/knowledge/legal/raw/01_해양주권정책/해양공간계획및관리에관한법률"
+ ],
+ "해양자율방제대운영규칙.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
  ],
  "해양정보간행물의제작기준등에관한규정.txt": [
   "local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률"
@@ -2152,6 +2406,9 @@
   "local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률"
  ],
  "해양조사기술자학력경력인정방법및절차등에관한규정.txt": [
+  "local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률"
+ ],
+ "해양조사장비성능검사규정.txt": [
   "local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률"
  ],
  "해양조사장비의성능검사수수료.txt": [
@@ -2187,6 +2444,9 @@
  "해양환경기준.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양환경보전및활용에관한법률"
  ],
+ "해양환경측정망구성·운영계획.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
+ ],
  "해외수역어획물전재허가에관한고시.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
  ],
@@ -2211,6 +2471,9 @@
  "현장승선실습표준협약서.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박직원법"
  ],
+ "형식승인대상외방제자재·약제의성능인증심의규정.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
+ ],
  "호소환경조사대상호소.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
@@ -2227,10 +2490,14 @@
   "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
  ],
  "환경보전협회교육수수료.txt": [
-  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
  "환경생태유량산정지침.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
+ ],
+ "환경오염물질배출시설등에관한통합지도·점검규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
  "훈련기록부에관한규정.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박직원법"
