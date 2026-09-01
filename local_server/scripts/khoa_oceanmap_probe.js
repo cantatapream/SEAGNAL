@@ -22,6 +22,13 @@
  *   계속 진행하고 실패 사실을 결과에 남긴다).
  * [출력] 콘솔 요약(엔드포인트 목록) + local_server/data/khoa_probe_result.json
  *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 3장(단계별 확인용)
+ * [2026-09-01 수정] 1차 실행 결과 "사고정보" 메뉴 클릭이 5초 타임아웃으로 실패
+ *   (다른 요소에 가려짐 — 흔한 오버레이 문제)했지만, 페이지 로드만으로도
+ *   listOLMPData.json 이라는 자체 POST API가 이미 호출되는 걸 확인함. 이
+ *   API가 인명사고 데이터인지 확인하려면 요청/응답 본문을 봐야 하는데, 산출물
+ *   파일(zip)·Summary 둘 다 이 세션에서 못 받는 구조라 KEY_ENDPOINT_HINT에
+ *   걸리는 응답은 본문을 콘솔에 직접 찍는다(get_job_logs로 읽을 수 있음).
+ *   클릭도 force:true로 오버레이를 무시하도록 강화.
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
  * ============================================================================
  */
@@ -45,6 +52,10 @@ function isInteresting(url, contentType) {
     return API_URL_HINT.test(url) || INTERESTING_CONTENT_TYPE.test(contentType || '');
 }
 
+// 1차 실행에서 실제로 발견된, 사고 데이터일 가능성이 높은 자체 API — 이건
+// 요청/응답 본문을 콘솔에 직접 찍는다(산출물 파일은 이 세션에서 못 받으므로).
+const KEY_ENDPOINT_HINT = /(listOLMPData|buoyList|accident|person|인명)/i;
+
 async function safeClickByText(page, text, log) {
     try {
         const loc = page.getByText(text, { exact: false }).first();
@@ -53,7 +64,8 @@ async function safeClickByText(page, text, log) {
             log.push({ step: `click:"${text}"`, ok: false, reason: '요소 못 찾음' });
             return false;
         }
-        await loc.click({ timeout: 5000 });
+        await loc.scrollIntoViewIfNeeded().catch(() => {});
+        await loc.click({ timeout: 8000, force: true });
         log.push({ step: `click:"${text}"`, ok: true });
         return true;
     } catch (e) {
@@ -77,6 +89,8 @@ async function main() {
             const headers = res.headers();
             const contentType = headers['content-type'] || '';
             if (!isInteresting(url, contentType)) return;
+            const req = res.request();
+            const postData = req.postData();
             let bodySample = null;
             try {
                 const buf = await res.body();
@@ -84,8 +98,13 @@ async function main() {
             } catch (_) { /* 바디 못 읽는 응답(리다이렉트 등)은 무시 */ }
             captured.push({
                 url, status: res.status(), contentType,
-                method: res.request().method(), bodySample,
+                method: req.method(), postData, bodySample,
             });
+            if (KEY_ENDPOINT_HINT.test(url)) {
+                console.log(`\n[핵심API] ${req.method()} ${url}`);
+                console.log('  요청 본문:', (postData || '(없음)').slice(0, 1000));
+                console.log('  응답 본문:', (bodySample || '(없음)').slice(0, 3000));
+            }
         } catch (_) { /* 개별 응답 실패는 전체 흐름에 영향 없게 무시 */ }
     });
 
@@ -100,7 +119,7 @@ async function main() {
 
     console.log('[2/4] "사고정보" 메뉴 진입 시도');
     await safeClickByText(page, '사고정보', clickLog);
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(5000); // 드롭다운/서브메뉴 애니메이션 대기
     await page.screenshot({ path: path.join(SHOT_DIR, '2_after_accident_menu.png'), fullPage: false }).catch(() => {});
 
     console.log('[3/4] "인명사고" 레이어 토글 시도');
