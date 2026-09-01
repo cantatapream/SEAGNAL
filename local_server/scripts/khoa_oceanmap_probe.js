@@ -67,6 +67,34 @@
  *   바꿔서, 클릭으로 추측하는 대신 **페이지가 실제로 로드하는 JS 번들 소스를
  *   직접 읽어** 마커 클릭 시 호출되는 함수·엔드포인트 이름을 찾는다
  *   (scanLoadedScripts) — 훨씬 확실한 방법이다.
+ * [2026-09-01 수정8] 8차 실행 결과 확인: JS 번들 스캔이 핵심 단서를 찾았다 —
+ *   "인명사고" 토글 클릭 직후 POST listOLMPData.json 응답에
+ *   `{"layr_nm":"vi_nshpac_p","service":"CLUSTER","tile_yn":"Y","clickyn":"Y",...}`
+ *   가 확인됐다(레이어 메타데이터). tile_yn:"Y" 는 이 레이어가 서버에서 미리
+ *   PNG로 구운 지도 타일(wmsVectordata.do?REQUEST=GetMap)로 그려진다는 뜻이고,
+ *   ol-ext.min.js 안에 `getFeatureInfoUrl`/`getFeatureInfo`(GetMap→GetFeatureInfo로
+ *   치환해 좌표별 속성을 조회하는 OpenLayers 표준 패턴)가 있다는 것도 확인됨.
+ *   즉 마커를 클릭하면 이 타일 URL을 GetFeatureInfo로 바꿔 그 픽셀 좌표의
+ *   사고정보를 서버에 물어보는 구조로 추정된다 — 하지만 8차까지의 격자 클릭
+ *   (총 22회)이 전부 "새 응답 없음"이었던 건 실제 마커 픽셀을 못 맞췄기 때문일
+ *   가능성이 높다(전국 축소 화면에서 더블클릭 15회로는 개별 마커가 보일 만큼
+ *   확대됐는지 불확실 — window 에 지도 인스턴스가 없어 setCenter/setZoom 직접
+ *   호출도 실패했었음).
+ *   olmp.js/datasetolmp.js 소스에는 `var olmp = null;`/`var datasetolmp = null;`
+ *   가 최상위(전역) 선언이라 클래식 `<script>` 태그로 로드되면 `window.olmp`·
+ *   `window.datasetolmp` 로 접근 가능해야 한다 — 7차의 실패 원인은 duck-typing
+ *   스캔이 `window[key]` 1단계만 검사해서다(실제 OL Map은 `olmp.map` 처럼
+ *   한 단계 더 안쪽에 있음, OLMP.prototype.init 에서 `this.map = ...`로 생성).
+ *   9차: ①이름을 확정해서(window.olmp, window.datasetolmp) 직접 `.map` 접근
+ *   ②찾으면 클릭 좌표 계산 대신, **레이어의 벡터소스에서 이미 로드된 피처를
+ *   getFeatures()로 직접 읽어버린다** — CLUSTER 서비스는 보통 OpenLayers
+ *   Cluster소스가 내부 벡터소스를 감싸는 구조라, 화면에 뜬 순간 이미 브라우저
+ *   메모리에 전체 피처(속성 포함)가 올라와 있을 가능성이 높다(클릭·픽셀 명중이
+ *   전혀 필요 없는 방법). ③olmp-click.js·otms-clickinfo.js·otms-popup.js·
+ *   otms-data.js(파일명으로 봐서 클릭·팝업 처리 담당으로 추정, 7차 키워드
+ *   스캔에서는 매치가 0건이었지만 그건 NSHPAC 같은 리터럴이 없어서일 뿐 —
+ *   범용 클릭 핸들러라 레이어명을 변수로 받을 것이다)의 전체 소스를 무조건
+ *   덤프해 실제 클릭→조회 흐름을 코드로 확인한다.
  * [출력] 콘솔 요약(엔드포인트 목록) + JS 번들 스캔 결과 + local_server/data/khoa_probe_result.json
  *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 다수(단계별 확인용)
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
@@ -234,6 +262,31 @@ async function scanLoadedScripts(page) {
     console.log(`\n[JS 번들 스캔 완료] 총 매치 ${totalMatches}건`);
 }
 
+// 파일명 자체가 "클릭/팝업 처리 담당"으로 보이는 스크립트는 키워드 매치 여부와
+// 무관하게 전체 내용을 덤프한다(범용 핸들러라 레이어명이 리터럴로 안 박혀
+// 있을 수 있음, 2026-09-01 8차 결과로 확인).
+const FULL_DUMP_URL_SUBSTRINGS = ['olmp-click', 'otms-clickinfo', 'otms-popup', 'otms-data'];
+const FULL_DUMP_MAX_CHARS = 6000;
+
+async function dumpFullFileContents(page) {
+    const scriptUrls = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('script[src]')).map((s) => s.src)
+    );
+    for (const url of scriptUrls) {
+        if (!FULL_DUMP_URL_SUBSTRINGS.some((s) => url.includes(s))) continue;
+        let text;
+        try {
+            text = await page.evaluate((u) => fetch(u).then((r) => r.text()), url);
+        } catch (e) {
+            console.log(`\n[전체덤프 가져오기 실패] ${url}: ${e.message}`);
+            continue;
+        }
+        const clipped = text.length > FULL_DUMP_MAX_CHARS ? text.slice(0, FULL_DUMP_MAX_CHARS) + `\n...(이하 ${text.length - FULL_DUMP_MAX_CHARS}자 생략)` : text;
+        console.log(`\n[전체덤프] ${url} (전체 ${text.length}자)`);
+        console.log(clipped);
+    }
+}
+
 async function dumpVisibleTexts(page, label) {
     try {
         const texts = await page.evaluate(() => {
@@ -300,6 +353,7 @@ async function main() {
     await page.screenshot({ path: path.join(SHOT_DIR, '1_initial.png'), fullPage: false }).catch(() => {});
 
     await scanLoadedScripts(page);
+    await dumpFullFileContents(page);
 
     console.log('[2/6] "데이터셋" 탭 진입');
     await evalClickByText(page, '데이터셋', clickLog);
@@ -336,37 +390,88 @@ async function main() {
     await page.screenshot({ path: path.join(SHOT_DIR, '6_person_layer_on.png'), fullPage: false }).catch(() => {});
     await dumpVisibleTexts(page, '인명사고 토글 클릭 직후');
 
-    console.log('[7/9] 지도 객체(OpenLayers Map 인스턴스) 직접 찾기 시도');
-    // 6차 실행에서 마우스 휠 8단계로는 부족했다(사용자 확인 — 스크린샷 상 여러 단계를
-    // 더 확대해야 개별 마커가 나옴). 픽셀 좌표를 추측하는 대신, OpenLayers Map
-    // 인스턴스를 window 에서 직접 찾아 setCenter/setZoom 으로 정확히 이동한다
-    // (KGD2002_UNIFIED 투영좌표로 부산 인근을 계산해둠 — accident_geocode_check.js
-    // 와 동일 투영식).
+    console.log('[7/10] window.olmp / window.datasetolmp 이름으로 직접 지도 인스턴스 찾기');
+    // 7차 실행은 window[key] 1단계만 duck-typing 스캔해서 실패했다 — 실제 OL Map은
+    // olmp.map / datasetolmp.map 처럼 한 단계 안쪽에 있다(olmp.js 소스 확인:
+    // "var olmp = null;" 전역선언 + "OLMP.prototype.init"에서 "this.map = ...").
+    // 이번엔 이름을 확정해서 바로 접근한다.
     const BUSAN_PROJECTED = [1141273.66, 1679416.70]; // 부산 인근(EPSG:5179 상당)
     const mapApiResult = await page.evaluate((center) => {
-        const candidates = [];
-        for (const key of Object.keys(window)) {
+        function tryOne(name) {
             try {
-                const v = window[key];
-                if (v && typeof v.getView === 'function' && typeof v.getTargetElement === 'function') {
-                    candidates.push(key);
-                }
-            } catch (_) { /* 일부 window 속성은 접근만 해도 예외를 던짐 — 무시 */ }
+                const wrapper = window[name];
+                if (!wrapper || !wrapper.map || typeof wrapper.map.getView !== 'function') return null;
+                const view = wrapper.map.getView();
+                const beforeZoom = view.getZoom();
+                view.setCenter(center);
+                view.setZoom(15);
+                return { name, beforeZoom, afterZoom: view.getZoom() };
+            } catch (e) {
+                return { name, error: String(e.message || e) };
+            }
         }
-        if (!candidates.length) return { ok: false, reason: 'window 에서 OL Map 인스턴스 못 찾음', candidates: [] };
-        try {
-            const map = window[candidates[0]];
-            const view = map.getView();
-            const beforeZoom = view.getZoom();
-            view.setCenter(center);
-            view.setZoom(15);
-            return { ok: true, mapKey: candidates[0], beforeZoom, afterZoom: view.getZoom(), allCandidates: candidates };
-        } catch (e) {
-            return { ok: false, reason: String(e.message || e), candidates };
-        }
+        const olmpResult = tryOne('olmp');
+        const datasetResult = tryOne('datasetolmp');
+        const hit = (olmpResult && !olmpResult.error) ? olmpResult : ((datasetResult && !datasetResult.error) ? datasetResult : null);
+        return {
+            ok: !!hit,
+            mapKey: hit ? hit.name : null,
+            beforeZoom: hit ? hit.beforeZoom : null,
+            afterZoom: hit ? hit.afterZoom : null,
+            olmpResult, datasetResult,
+        };
     }, BUSAN_PROJECTED);
-    console.log('  window에서 발견된 Map-형태 후보:', JSON.stringify(mapApiResult));
-    clickLog.push({ step: 'OL Map setCenter/setZoom 직접 호출', ok: mapApiResult.ok, reason: mapApiResult.ok ? `key=${mapApiResult.mapKey}, zoom ${mapApiResult.beforeZoom}→${mapApiResult.afterZoom}` : mapApiResult.reason });
+    console.log('  window.olmp/window.datasetolmp 조회 결과:', JSON.stringify(mapApiResult));
+    clickLog.push({ step: 'olmp.map / datasetolmp.map 직접 접근', ok: mapApiResult.ok, reason: mapApiResult.ok ? `key=${mapApiResult.mapKey}, zoom ${mapApiResult.beforeZoom}→${mapApiResult.afterZoom}` : JSON.stringify({ olmp: mapApiResult.olmpResult, dataset: mapApiResult.datasetResult }) });
+
+    console.log('[7b/10] 지도 인스턴스를 찾았으면 벡터 레이어에서 이미 로드된 피처를 직접 읽기 시도 (클릭 불필요)');
+    const vectorScanResult = await page.evaluate(() => {
+        function describeMap(mapObj, label) {
+            if (!mapObj || typeof mapObj.getLayers !== 'function') return null;
+            const out = { label, layers: [] };
+            function walk(layers) {
+                layers.forEach((l) => {
+                    try {
+                        if (typeof l.getLayers === 'function') { walk(l.getLayers().getArray()); return; }
+                        const src = typeof l.getSource === 'function' ? l.getSource() : null;
+                        if (!src) return;
+                        let inner = src;
+                        let kind = src.constructor ? src.constructor.name : '?';
+                        if (typeof src.getSource === 'function') {
+                            try {
+                                const s2 = src.getSource();
+                                if (s2) { inner = s2; kind += '>' + (s2.constructor ? s2.constructor.name : '?'); }
+                            } catch (_) { /* 클러스터가 아닌 소스는 getSource 접근 시 예외 가능 — 무시 */ }
+                        }
+                        if (inner && typeof inner.getFeatures === 'function') {
+                            const feats = inner.getFeatures();
+                            const sample = feats.slice(0, 5).map((f) => {
+                                try {
+                                    const props = f.getProperties ? Object.assign({}, f.getProperties()) : {};
+                                    if (props.geometry) delete props.geometry;
+                                    let coord = null;
+                                    try {
+                                        const g = f.getGeometry && f.getGeometry();
+                                        coord = g && g.getCoordinates ? g.getCoordinates() : (g && g.getFirstCoordinate ? g.getFirstCoordinate() : null);
+                                    } catch (_) { /* 좌표 추출 실패는 무시 */ }
+                                    return { props, coord };
+                                } catch (_) { return null; }
+                            });
+                            out.layers.push({ kind, featureCount: feats.length, sample });
+                        }
+                    } catch (_) { /* 레이어 하나 실패해도 나머지는 계속 */ }
+                });
+            }
+            try { walk(mapObj.getLayers().getArray()); } catch (_) { /* 전체 실패 시 빈 결과 */ }
+            return out;
+        }
+        const results = [];
+        if (window.olmp && window.olmp.map) results.push(describeMap(window.olmp.map, 'olmp'));
+        if (window.datasetolmp && window.datasetolmp.map) results.push(describeMap(window.datasetolmp.map, 'datasetolmp'));
+        return { hasOlmp: !!(window.olmp && window.olmp.map), hasDatasetolmp: !!(window.datasetolmp && window.datasetolmp.map), results: results.filter(Boolean) };
+    });
+    console.log('  벡터 피처 직접 읽기 결과:', JSON.stringify(vectorScanResult).slice(0, 8000));
+    clickLog.push({ step: '벡터 레이어 getFeatures() 직접 읽기', ok: vectorScanResult.results.some((r) => r.layers.some((l) => l.featureCount > 0)), reason: JSON.stringify({ hasOlmp: vectorScanResult.hasOlmp, hasDatasetolmp: vectorScanResult.hasDatasetolmp, layerCounts: vectorScanResult.results.map((r) => ({ label: r.label, layers: r.layers.map((l) => ({ kind: l.kind, count: l.featureCount })) })) }) });
 
     const mapBox = await findMapCanvasBox(page);
     if (!mapApiResult.ok && mapBox) {
@@ -383,7 +488,56 @@ async function main() {
     await page.waitForTimeout(3000);
     await page.screenshot({ path: path.join(SHOT_DIR, '7_zoomed_in.png'), fullPage: false }).catch(() => {});
 
-    console.log('[8/9] 확대 중심(화면 정중앙) 주변 격자를 클릭해 마커 맞춰보기');
+    console.log('[7c/10] 확대 후 벡터 피처 재조회 (datasetOLMP.changeSqlLayer 는 일정 줌 레벨 이상에서만 데이터를 채운다 — limitZoom 게이트 확인됨)');
+    const vectorScanResult2 = await page.evaluate(() => {
+        function describeMap(mapObj, label) {
+            if (!mapObj || typeof mapObj.getLayers !== 'function') return null;
+            const out = { label, layers: [] };
+            function walk(layers) {
+                layers.forEach((l) => {
+                    try {
+                        if (typeof l.getLayers === 'function') { walk(l.getLayers().getArray()); return; }
+                        const src = typeof l.getSource === 'function' ? l.getSource() : null;
+                        if (!src) return;
+                        let inner = src;
+                        let kind = src.constructor ? src.constructor.name : '?';
+                        if (typeof src.getSource === 'function') {
+                            try {
+                                const s2 = src.getSource();
+                                if (s2) { inner = s2; kind += '>' + (s2.constructor ? s2.constructor.name : '?'); }
+                            } catch (_) { /* 무시 */ }
+                        }
+                        if (inner && typeof inner.getFeatures === 'function') {
+                            const feats = inner.getFeatures();
+                            const sample = feats.slice(0, 5).map((f) => {
+                                try {
+                                    const props = f.getProperties ? Object.assign({}, f.getProperties()) : {};
+                                    if (props.geometry) delete props.geometry;
+                                    let coord = null;
+                                    try {
+                                        const g = f.getGeometry && f.getGeometry();
+                                        coord = g && g.getCoordinates ? g.getCoordinates() : (g && g.getFirstCoordinate ? g.getFirstCoordinate() : null);
+                                    } catch (_) { /* 무시 */ }
+                                    return { props, coord };
+                                } catch (_) { return null; }
+                            });
+                            out.layers.push({ kind, featureCount: feats.length, sample });
+                        }
+                    } catch (_) { /* 무시 */ }
+                });
+            }
+            try { walk(mapObj.getLayers().getArray()); } catch (_) { /* 무시 */ }
+            return out;
+        }
+        const results = [];
+        if (window.olmp && window.olmp.map) results.push(describeMap(window.olmp.map, 'olmp'));
+        if (window.datasetolmp && window.datasetolmp.map) results.push(describeMap(window.datasetolmp.map, 'datasetolmp'));
+        return { results: results.filter(Boolean) };
+    });
+    console.log('  확대 후 벡터 피처 재조회 결과:', JSON.stringify(vectorScanResult2).slice(0, 8000));
+    clickLog.push({ step: '확대 후 벡터 레이어 재조회', ok: vectorScanResult2.results.some((r) => r.layers.some((l) => l.featureCount > 0)), reason: JSON.stringify(vectorScanResult2.results.map((r) => ({ label: r.label, layers: r.layers.map((l) => ({ kind: l.kind, count: l.featureCount })) }))) });
+
+    console.log('[8/10] 확대 중심(화면 정중앙) 주변 격자를 클릭해 마커 맞춰보기');
     const centerBox = await findMapCanvasBox(page);
     if (centerBox) {
         const cxBase = centerBox.x + centerBox.width / 2;
