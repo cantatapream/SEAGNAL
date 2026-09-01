@@ -570,7 +570,26 @@
     // 건수가 많아 45면 화면에 클러스터가 너무 많이 보여(사용자 확정 2026-08-19) 100으로 키움.
     var CLUSTER_DISTANCE = 100;
     var SPREAD_ZOOM = 14;
-    var GRID_COLS = 6, GRID_ROWS = 5; // 분석 모드 격자 — 화면 현재 범위를 이 칸수로 나눔
+    // 분석 모드 격자 — 화면 현재 범위를 이 칸수로 나눈다. 예전엔 6×5 고정이었으나
+    // 참고 이미지("확대/축소에 따른 박스 변화": 전국은 성글게, 지역으로 확대할수록
+    // 잘게)에 맞춰 줌 레벨별 3단계로 바꿈(사용자 확정 2026-09-01).
+    var GRID_DIMS_BY_ZOOM = [
+        { maxZoom: 8, cols: 4, rows: 4 },   // 전국 — 큰 덩어리로 뭉쳐 보기
+        { maxZoom: 11, cols: 6, rows: 5 },  // 권역 — 기존 기본값
+        { maxZoom: Infinity, cols: 8, rows: 7 } // 지역 — 잘게 쪼개 세부 확인
+    ];
+    /** 지금 줌 레벨에 맞는 격자 칸수 — recomputeGrid 가 매 재계산마다 다시 묻는다. */
+    function gridDimsForZoom(zoom) {
+        for (var i = 0; i < GRID_DIMS_BY_ZOOM.length; i++) {
+            if (zoom < GRID_DIMS_BY_ZOOM[i].maxZoom) return GRID_DIMS_BY_ZOOM[i];
+        }
+        return GRID_DIMS_BY_ZOOM[GRID_DIMS_BY_ZOOM.length - 1];
+    }
+    // 참고 이미지의 "핵심 영역만 숫자 표시(임계값 이상)" — 화면에서 가장 진한 칸의
+    // 이 비율보다 적은 칸은 숫자를 숨겨 지도를 덜 어지럽게 한다. 절대값 임계값을
+    // 못 쓰는 이유: 줌에 따라 건수 규모가 크게 달라진다(전국은 최대 1만 건대,
+    // 지역으로 확대하면 최대 수백 건대).
+    var GRID_LABEL_MIN_RATIO = 0.03;
     var ICON_SCALE = 0.2875;    // hazard_rocks.js 와 동일 — 아이콘 원본이 같은 120px 캔버스
 
     var dataPromises = {};    // key -> Promise<row[]>
@@ -1977,28 +1996,37 @@
     // 그래서 색은 OL 내장 히트맵 레이어(heatmapLayer, ol.layer.Heatmap — 점 밀도
     // 기반 커널)로 따로 만들고, 격자(gridLayer)는 칸 경계선+숫자+선택 강조만
     // 담당하도록 역할을 분리했다.
-    // 화면에 들어온 점 개수에 반비례하는 히트맵 점 가중치(2026-09-01 재조정) —
-    // 축소(줌아웃)할수록 한 화면에 잡히는 점이 수백 건→수만 건으로 급격히 늘어,
-    // weight를 고정값(기본 1)으로 두면 해안 대부분이 알파 1.0(그라데이션 최고
-    // 단계=빨강)로 바로 클리핑돼 "10건 칸"과 "8,667건 칸"이 똑같이 새빨갛게
-    // 보였다(사용자가 스크린샷으로 지적). recomputeGrid가 화면에 실제로 로드한
-    // 점 개수(heatFeatures.length)를 알고 있으므로, 그 개수에 반비례해 점 하나의
-    // 기여도를 낮춘다 — 점이 적을 때(지역 확대)는 거의 그대로(1에 가까움), 점이
-    // 많을 때(전국 축소)는 크게 낮아져 성긴 지역은 계속 옅게, 정말로 조밀한
-    // 지역만 여전히 진하게 남는다.
+    // 히트맵 점 가중치(weight) — "가장 붐비는 자리"를 기준으로 매번 다시 잡는다
+    // (2026-09-01 재조정, 사용자 확정 "줌 인 줌 아웃 상관없이 조밀하게 표현").
+    // OL 히트맵은 겹치는 점들의 알파를 더해 쌓다가 1.0에서 잘라 버리므로, weight를
+    // 고정해 두면 점이 조금만 겹쳐도 곧바로 최고 단계(빨강)에 닿아 "10건 칸"과
+    // "8,667건 칸"이 똑같이 새빨갛게 보인다.
+    // 처음엔 화면 안의 점 "개수"에 반비례시켰는데, 그러면 개수가 적은 확대
+    // 화면에서는 보정이 1.0으로 잘려 아예 안 걸리는 문제가 있었다(줌 8 이상에서
+    // 실측 확인: 16,953개→weight 1.000). 그래서 개수가 아니라 커널(radius+blur)
+    // 한 칸에 최대 몇 개가 겹치는지(=화면에서 가장 붐비는 자리의 밀도)를 세어,
+    // 그 자리가 딱 최고 단계에 닿도록 weight 를 정한다. 이렇게 하면 줌 레벨·
+    // 화면 구도와 무관하게 "가장 진한 곳=빨강, 나머지는 그에 비례"가 항상 유지된다.
     // [주의] 이전에 "weight를 균일하게 낮춰도 효과 없었다"고 판단한 적이 있는데,
     // 그건 이 세션에서 뒤늦게 발견한 별개의 버그(express-static-gzip이 서버
     // 재시작 전 코드 변경을 브라우저에 전혀 반영 안 함) 때문에 실제로는 옛 코드로
     // 테스트한 것이었다 — 버그 수정 후 재검증해 이 접근이 유효함을 확인함.
-    var HEATMAP_WEIGHT_BUDGET = 20000; // 화면에 이 정도 점이 있으면 평균적으로 weight ≈ 1
+    var HEATMAP_RADIUS = 6, HEATMAP_BLUR = 12;
+    // 기준을 "제일 붐비는 한 자리"로 잡으면 안 된다 — 같은 항구 좌표에 수천 건이
+    // 그대로 쌓인 자리가 있어(실측: 전국 보기에서 최다 2,321건 vs 중간값 28건)
+    // 그 한 자리에 맞추면 나머지가 전부 안 보이게 눌린다. 그래서 "위에서 N%
+    // 지점"의 밀도를 기준으로 삼는다 — 이러면 어느 줌에서든 붐비는 상위 N%가
+    // 빨강에 닿고 나머지가 그 아래로 골고루 퍼진다.
+    var HEATMAP_PEAK_PERCENTILE = 0.05; // 상위 5% 지점을 기준 밀도로
+    var HEATMAP_TARGET_PEAK = 20;       // 그 기준 밀도가 최고 단계에 닿도록 하는 배수
     var _heatmapWeight = 1;
 
     function ensureHeatmapLayer(map) {
         if (heatmapLayer) return heatmapLayer;
         heatmapLayer = new ol.layer.Heatmap({
             source: new ol.source.Vector(),
-            blur: 12,
-            radius: 6,
+            blur: HEATMAP_BLUR,
+            radius: HEATMAP_RADIUS,
             weight: function () { return _heatmapWeight; },
             // 밀도가 낮은 곳은 투명하게(배경 기본맵의 짙은 남색이 그대로 비쳐 "낮음"을
             // 나타냄), 밀도가 높아질수록 점점 진한 빨강으로(사용자 확정 2026-09-01 —
@@ -2018,22 +2046,43 @@
     /** 격자칸은 이제 색을 칠하지 않는다(위 히트맵이 색 담당) — 경계선+숫자+선택
      * 강조만. fill 은 완전히 투명하지 않고 아주 옅게 남겨야 클릭 히트테스트가
      * 칸 안쪽 어디를 눌러도 잡힌다(OL 은 fill 이 없는 폴리곤은 테두리 선 위를
-     * 클릭해야만 인식). */
+     * 클릭해야만 인식).
+     * 숫자는 "핵심 영역만"(화면 최대 건수의 GRID_LABEL_MIN_RATIO 이상) 보여주고,
+     * 선택한 칸은 건수와 무관하게 항상 보여준다(내가 지금 누른 칸의 건수는 늘
+     * 보여야 하므로).
+     * 선택 칸은 넓고 옅은 테두리를 밑에 깔고 그 위에 가는 흰 테두리를 겹쳐
+     * 발광처럼 보이게 한다(참고 이미지의 "테두리 + 발광 효과") — OL Stroke 에는
+     * 그림자·glow 옵션이 없어 스타일을 여러 겹 쌓는 방식으로 구현. */
     function gridCellStyle(feature) {
         var count = feature.get('count');
+        var maxCount = feature.get('_maxInView') || 1;
         var selected = feature === _selectedGridFeature;
-        return new ol.style.Style({
-            fill: new ol.style.Fill({ color: 'rgba(0,0,0,0.01)' }),
-            stroke: new ol.style.Stroke({ color: selected ? '#7dd3fc' : 'rgba(255,255,255,0.35)', width: selected ? 3 : 1 }),
-            text: new ol.style.Text({
-                // 밑에 깔리는 히트맵 색이 파랑↔빨강으로 다양하므로 흰 글씨+검정
-                // 테두리로 통일(어느 색 위에서도 읽힘).
-                text: fmtN(count),
-                font: (selected ? 'bold 13px' : 'bold 12px') + ' "Roboto Mono", monospace',
-                fill: new ol.style.Fill({ color: '#ffffff' }),
-                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.65)', width: 3 })
-            })
+        var showLabel = selected || count >= maxCount * GRID_LABEL_MIN_RATIO;
+        var textStyle = new ol.style.Text({
+            // 밑에 깔리는 히트맵 색이 파랑↔빨강으로 다양하므로 흰 글씨+검정
+            // 테두리로 통일(어느 색 위에서도 읽힘).
+            text: showLabel ? fmtN(count) : '',
+            font: (selected ? 'bold 13px' : 'bold 12px') + ' "Roboto Mono", monospace',
+            fill: new ol.style.Fill({ color: '#ffffff' }),
+            stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.65)', width: 3 })
         });
+        if (!selected) {
+            return new ol.style.Style({
+                fill: new ol.style.Fill({ color: 'rgba(0,0,0,0.01)' }),
+                stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.35)', width: 1 }),
+                text: textStyle
+            });
+        }
+        return [
+            // 바깥쪽부터 옅은 → 진한 순으로 겹쳐 발광 느낌을 낸다.
+            new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(125,211,252,0.25)', width: 10 }) }),
+            new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(125,211,252,0.55)', width: 6 }) }),
+            new ol.style.Style({
+                fill: new ol.style.Fill({ color: 'rgba(0,0,0,0.01)' }),
+                stroke: new ol.style.Stroke({ color: '#ffffff', width: 2.5 }),
+                text: textStyle
+            })
+        ];
     }
 
     function ensureGridLayer(map) {
@@ -2045,9 +2094,9 @@
     }
 
     /**
-     * 현재 지도 화면(extent)을 GRID_COLS×GRID_ROWS 칸으로 나눠 활성 소스의
-     * 포인트를 세어 격자 폴리곤 feature 로 다시 그린다. 줌/이동(moveend)마다
-     * 다시 호출되므로 격자 크기가 화면 범위에 맞춰 자동으로 재계산된다.
+     * 현재 지도 화면(extent)을 지금 줌 레벨에 맞는 칸수(gridDimsForZoom)로 나눠
+     * 활성 소스의 포인트를 세어 격자 폴리곤 feature 로 다시 그린다. 줌/이동
+     * (moveend)마다 다시 호출되므로, 확대할수록 칸이 더 잘게 쪼개진다.
      * @param {ol.Map} map
      */
     function recomputeGrid(map) {
@@ -2057,10 +2106,20 @@
             var key = state.source;
             feats = feats.filter(function (f) { return passesFilters(key, f.get('row')); });
         }
-        var extent = map.getView().calculateExtent(map.getSize());
-        var w = (extent[2] - extent[0]) / GRID_COLS;
-        var h = (extent[3] - extent[1]) / GRID_ROWS;
+        var view = map.getView();
+        var dims = gridDimsForZoom(view.getZoom());
+        var cols = dims.cols, rows = dims.rows;
+        var extent = view.calculateExtent(map.getSize());
+        var w = (extent[2] - extent[0]) / cols;
+        var h = (extent[3] - extent[1]) / rows;
         if (!(w > 0) || !(h > 0)) return;
+
+        // 히트맵 커널(radius+blur) 한 칸 크기를 좌표 단위로 환산 — 이 크기로 점을
+        // 나눠 담아 "가장 붐비는 자리에 몇 개가 겹치는지"를 센다(위 ensureHeatmapLayer 주석).
+        var mapSize = map.getSize() || [1, 1];
+        var coordPerPx = (extent[2] - extent[0]) / Math.max(1, mapSize[0]);
+        var binSize = (HEATMAP_RADIUS + HEATMAP_BLUR) * coordPerPx;
+        var densityBins = {};
 
         var buckets = {}; // "col,row" -> ol.Feature[]
         var heatFeatures = []; // 히트맵용 — 격자칸과 무관하게 지점 좌표 그대로
@@ -2068,20 +2127,29 @@
             var c = f.getGeometry().getCoordinates();
             if (c[0] < extent[0] || c[0] > extent[2] || c[1] < extent[1] || c[1] > extent[3]) return;
             heatFeatures.push(new ol.Feature({ geometry: new ol.geom.Point(c) }));
-            var col = Math.min(Math.floor((c[0] - extent[0]) / w), GRID_COLS - 1);
-            var row = Math.min(Math.floor((c[1] - extent[1]) / h), GRID_ROWS - 1);
+            var bk = Math.floor(c[0] / binSize) + ',' + Math.floor(c[1] / binSize);
+            densityBins[bk] = (densityBins[bk] || 0) + 1;
+            var col = Math.min(Math.floor((c[0] - extent[0]) / w), cols - 1);
+            var row = Math.min(Math.floor((c[1] - extent[1]) / h), rows - 1);
             var k = col + ',' + row;
             (buckets[k] || (buckets[k] = [])).push(f);
         });
 
-        // 화면에 로드된 점 개수에 반비례해 점 하나의 기여도를 낮춘다(위 ensureHeatmapLayer
-        // 주석 참고) — addFeatures 전에 갱신해야 새로 그려질 때부터 반영된다.
-        _heatmapWeight = Math.min(1, HEATMAP_WEIGHT_BUDGET / Math.max(1, heatFeatures.length));
+        // 붐비는 상위 N% 지점이 최고 단계(빨강)에 닿도록 점 하나의 기여도를 정한다
+        // (위 ensureHeatmapLayer 주석) — addFeatures 전에 갱신해야 새로 그려질 때부터 반영된다.
+        var binCounts = Object.keys(densityBins).map(function (k) { return densityBins[k]; })
+            .sort(function (a, b) { return b - a; });
+        var refIdx = Math.min(binCounts.length - 1, Math.floor(binCounts.length * HEATMAP_PEAK_PERCENTILE));
+        var refDensity = binCounts.length ? binCounts[Math.max(0, refIdx)] : 1;
+        _heatmapWeight = Math.min(1, HEATMAP_TARGET_PEAK / Math.max(1, refDensity));
         var heatSource = ensureHeatmapLayer(map).getSource();
         heatSource.clear();
         heatSource.addFeatures(heatFeatures);
 
         gridSource.clear();
+        // 화면에서 가장 건수가 많은 칸 — 숫자를 보여줄지 말지(임계값) 판정 기준.
+        var maxCount = 0;
+        Object.keys(buckets).forEach(function (k) { if (buckets[k].length > maxCount) maxCount = buckets[k].length; });
         Object.keys(buckets).forEach(function (k) {
             var parts = k.split(',');
             var col = parseInt(parts[0], 10), row = parseInt(parts[1], 10);
@@ -2092,6 +2160,7 @@
             });
             cellFeature.set('count', buckets[k].length);
             cellFeature.set('members', buckets[k]);
+            cellFeature.set('_maxInView', maxCount);
             gridSource.addFeature(cellFeature);
         });
         _selectedGridFeature = null;
@@ -2883,16 +2952,34 @@
     /** 격자 셀 중심 좌표가 어느 해경서 관할 폴리곤 안에 있는지 찾아 8개 권역 라벨로
      * 변환(위 fetchJurisdictionBoundaries/pointInPolygonLL 재사용). 못 찾으면 null. */
     function resolveRegionLabelForCell(cellFeature) {
-        var extent = cellFeature.getGeometry().getExtent();
-        var center = ol.extent.getCenter(extent);
-        var lonLat = ol.proj.toLonLat(center);
+        // 칸의 기하학적 중심 하나만 보면, 축소 화면처럼 칸이 커질 때 중심이 관할
+        // 경계 밖(먼바다)에 떨어져 뱃지가 안 뜬다(줌별 칸 세분화 도입 후 실측 확인).
+        // 그래서 "그 칸에 실제로 담긴 사고들"이 어느 권역에 많은지로 정한다 —
+        // 뱃지의 뜻(이 칸 사고들이 어느 권역인가)에도 이쪽이 더 맞다. 건수가
+        // 수천이어도 되도록 최대 60개만 고르게 뽑아 본다(경계 판정이 비싸다).
+        var members = cellFeature.get('members') || [];
+        var samples = [];
+        var step = Math.max(1, Math.floor(members.length / 60));
+        for (var i = 0; i < members.length; i += step) {
+            samples.push(ol.proj.toLonLat(members[i].getGeometry().getCoordinates()));
+        }
+        if (!samples.length) {
+            samples.push(ol.proj.toLonLat(ol.extent.getCenter(cellFeature.getGeometry().getExtent())));
+        }
         return fetchJurisdictionBoundaries().then(function (allFaces) {
-            for (var i = 0; i < allFaces.length; i++) {
-                if (pointInPolygonLL(lonLat[0], lonLat[1], allFaces[i].coords)) {
-                    return REGION_OF_OWNER[allFaces[i].owner] || null;
+            var votes = {};
+            samples.forEach(function (ll) {
+                for (var i = 0; i < allFaces.length; i++) {
+                    if (pointInPolygonLL(ll[0], ll[1], allFaces[i].coords)) {
+                        var region = REGION_OF_OWNER[allFaces[i].owner];
+                        if (region) votes[region] = (votes[region] || 0) + 1;
+                        return;
+                    }
                 }
-            }
-            return null;
+            });
+            var best = null, bestN = 0;
+            Object.keys(votes).forEach(function (r) { if (votes[r] > bestN) { bestN = votes[r]; best = r; } });
+            return best;
         }).catch(function () { return null; });
     }
 
