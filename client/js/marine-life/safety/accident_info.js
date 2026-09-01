@@ -1977,12 +1977,29 @@
     // 그래서 색은 OL 내장 히트맵 레이어(heatmapLayer, ol.layer.Heatmap — 점 밀도
     // 기반 커널)로 따로 만들고, 격자(gridLayer)는 칸 경계선+숫자+선택 강조만
     // 담당하도록 역할을 분리했다.
+    // 화면에 들어온 점 개수에 반비례하는 히트맵 점 가중치(2026-09-01 재조정) —
+    // 축소(줌아웃)할수록 한 화면에 잡히는 점이 수백 건→수만 건으로 급격히 늘어,
+    // weight를 고정값(기본 1)으로 두면 해안 대부분이 알파 1.0(그라데이션 최고
+    // 단계=빨강)로 바로 클리핑돼 "10건 칸"과 "8,667건 칸"이 똑같이 새빨갛게
+    // 보였다(사용자가 스크린샷으로 지적). recomputeGrid가 화면에 실제로 로드한
+    // 점 개수(heatFeatures.length)를 알고 있으므로, 그 개수에 반비례해 점 하나의
+    // 기여도를 낮춘다 — 점이 적을 때(지역 확대)는 거의 그대로(1에 가까움), 점이
+    // 많을 때(전국 축소)는 크게 낮아져 성긴 지역은 계속 옅게, 정말로 조밀한
+    // 지역만 여전히 진하게 남는다.
+    // [주의] 이전에 "weight를 균일하게 낮춰도 효과 없었다"고 판단한 적이 있는데,
+    // 그건 이 세션에서 뒤늦게 발견한 별개의 버그(express-static-gzip이 서버
+    // 재시작 전 코드 변경을 브라우저에 전혀 반영 안 함) 때문에 실제로는 옛 코드로
+    // 테스트한 것이었다 — 버그 수정 후 재검증해 이 접근이 유효함을 확인함.
+    var HEATMAP_WEIGHT_BUDGET = 20000; // 화면에 이 정도 점이 있으면 평균적으로 weight ≈ 1
+    var _heatmapWeight = 1;
+
     function ensureHeatmapLayer(map) {
         if (heatmapLayer) return heatmapLayer;
         heatmapLayer = new ol.layer.Heatmap({
             source: new ol.source.Vector(),
             blur: 12,
             radius: 6,
+            weight: function () { return _heatmapWeight; },
             // 밀도가 낮은 곳은 투명하게(배경 기본맵의 짙은 남색이 그대로 비쳐 "낮음"을
             // 나타냄), 밀도가 높아질수록 점점 진한 빨강으로(사용자 확정 2026-09-01 —
             // "밀도가 클수록 빨간색, 적을수록 점차 투명하게"). 레이어 자체의 opacity는
@@ -2057,6 +2074,9 @@
             (buckets[k] || (buckets[k] = [])).push(f);
         });
 
+        // 화면에 로드된 점 개수에 반비례해 점 하나의 기여도를 낮춘다(위 ensureHeatmapLayer
+        // 주석 참고) — addFeatures 전에 갱신해야 새로 그려질 때부터 반영된다.
+        _heatmapWeight = Math.min(1, HEATMAP_WEIGHT_BUDGET / Math.max(1, heatFeatures.length));
         var heatSource = ensureHeatmapLayer(map).getSource();
         heatSource.clear();
         heatSource.addFeatures(heatFeatures);
