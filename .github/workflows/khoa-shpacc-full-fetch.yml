@@ -1,0 +1,44 @@
+# khoa-shpacc-full-fetch.yml - KHOA 오션맵 선박사고(해경·심판원) 좌표+속성 전수 수집
+#
+# [용도] khoa_shpacc_full_fetch.js 를 돌려 오션맵 라이브 지도가 실제로 쓰는
+#   선박사고 두 레이어(tl_shpacc_hk_p·tl_shpacc_hs_p)의 gid+좌표+속성을 받아온다.
+#   인명사고(khoa-nshpac-full-fetch.yml)와 같은 패턴.
+# [결과] local_server/data/khoa_shpacc_full.json 을 결과 브랜치에 커밋해 푸시한다.
+# [연계] local_server/scripts/khoa_shpacc_full_fetch.js
+
+name: KHOA 선박사고 전수 수집
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    name: 좌표+속성 전수 수집 및 결과 커밋
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Playwright·proj4 설치
+        run: |
+          npm install --no-save --legacy-peer-deps playwright@1.48 proj4@2.21.0
+          npx playwright install --with-deps chromium
+
+      - name: 수집 스크립트 실행
+        run: node local_server/scripts/khoa_shpacc_full_fetch.js
+
+      - name: 결과 커밋·푸시
+        run: |
+          git config user.name "khoa-shpacc-full-fetch-bot"
+          git config user.email "actions@github.com"
+          BRANCH="data/khoa-shpacc-full-fetch-result-${{ github.run_number }}"
+          git checkout -B "$BRANCH"
+          git add local_server/data/khoa_shpacc_full.json
+          git commit -m "KHOA 선박사고 전수 수집 결과 (run ${{ github.run_number }})"
+          git push origin "$BRANCH"
