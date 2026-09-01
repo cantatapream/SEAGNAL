@@ -541,6 +541,20 @@
  *   신설서면 개서일을 표시 ②"변경" 후보 목록에서 사고 시점에 아직 개서 전인 서는
  *   제외(화면에 경계가 보여도). Playwright 로 2017년 동해⇄속초 건과 2025-01-14
  *   건(둘 다 강릉 개서 2025-03-31 이전) 둘 다 강릉이 후보에서 정확히 빠지는 것 확인.
+ * [심판원 데이터 검수모드 제거(2026-09-01 사용자 확정)] 선박사고(해경·심판원)를
+ *   원본 CSV부터 전면 재구축(build_ship_accidents_v2.js)하며, 이 검수모드의
+ *   목적이던 "심판원 CSV 좌표파싱이 맞는지"는 라이브 데이터(khoa.go.kr/oceanmap
+ *   내부 API) 대조로 서브미터 정밀도까지 이미 검증됐고, "병합 여부" 비교 기능은
+ *   그 재구축이 사건번호(caseNo) 필드 자체를 없애 어차피 못 쓰게 됐다 — 사용자가
+ *   "이제 필요 없는 거 아니냐" 지적해 제거하기로 확정. 제거한 것: fetchTribunalReview·
+ *   ensureHkRowByCaseNo·ensureTribunalReviewLayer 함수, TRIBUNAL_REVIEW_ON·
+ *   tribunalReviewLayer·tribunalReviewPromise·hkRowByCaseNo 변수, popupRowsFor·
+ *   reviewLabelFor 의 'tribunal' 분기, _accidentInfoTryHandleClick 의 tribunal 클릭
+ *   라우팅, local_server/scripts/build_tribunal_review.js·client/accident_tribunal_
+ *   review.json 파일 자체. 검수 서브모드는 4단(꺼짐→심판원→관할서불일치→카카오
+ *   지오코딩→꺼짐)에서 3단(꺼짐→관할서불일치→카카오지오코딩→꺼짐)으로 줄어
+ *   각 서브모드 진입에 필요한 탭 횟수가 5회씩 당겨졌다(관할서불일치 20→15회,
+ *   카카오지오코딩 25→20회) — 관리자 전용 숨김 기능이라 공개 영향 없음.
  * ============================================================================
  */
 
@@ -640,8 +654,10 @@
 
     /** 심각도(주의보/경보) 포함 특보 필드 — build_accident_warn_flags.js 가 2026-08-31
      * 통계 도넛 세분화용으로 새로 추가한 위치(["TY_경보","WV_주의보"] 형태). 위
-     * WARN_FLAGS_POS_IDX(유형만, 필터가 씀)와는 별개 필드라 필터 동작에 영향 없음. */
-    var WARN_SEVERITY_POS_IDX = { hk: 17, person: 11 };
+     * WARN_FLAGS_POS_IDX(유형만, 필터가 씀)와는 별개 필드라 필터 동작에 영향 없음.
+     * [hk: 17→16, 2026-09-01] 선박사고 전면 재구축으로 hk 스키마가 17개→16개(사건번호
+     * 필드 제거)가 되며 season(15) 바로 다음 자리로 당겨짐. */
+    var WARN_SEVERITY_POS_IDX = { hk: 16, person: 11 };
     var WARN_SEVERITY_ORDER = ['TY_경보', 'TY_주의보', 'WV_경보', 'WV_주의보', 'GW_경보', 'GW_주의보'];
     var WARN_SEVERITY_LABELS = {
         TY_경보: '태풍 경보', TY_주의보: '태풍 주의보',
@@ -762,26 +778,23 @@
     var flagLayer = null;         // 빨간 테두리 오버레이(소스 무관 공용)
 
     /**
-     * [검수 서브모드 4단 순환(2026-08-25 3단 신설 → 2026-09-01 카카오 검수 추가로 4단)]
-     * 처음엔 심판원 레이어 하나만 검수 모드 진입 후 같은 버튼 5회 더 연타로 토글하는
-     * 단순 on/off 였는데, 관할서 불일치 검수 레이어를 그 다음 단계(5회 더, 총 20회)로
-     * 추가하면서 "매번 토글"이 아니라 "none → 심판원 → 관할서불일치 → none → ..."
-     * 순환으로 바꿨다(사용자 확정 2026-08-25: "20회로 하고" + "모드 바뀔때마다 어떤
-     * 검수모드인지 화면에 표출"). 인명사고 카카오 지오코딩 검수(498건, 사용자 요청
-     * 2026-09-01: "관할서 불일치 검수모드에서 추가로 사고정보를 5회 클릭하면 해당
-     * 모드가 나타나도록")를 그 다음 단계(5회 더, 총 25회)로 추가.
-     * TRIBUNAL_REVIEW_ON·JURISDICTION_REVIEW_ON 은 기존 코드(클릭 라우팅 등)와
-     * 호환을 위해 _reviewSubMode 에서 파생시킨 boolean 으로 계속 둔다.
+     * [검수 서브모드 3단 순환(2026-08-25 3단 신설 → 2026-09-01 카카오 검수 추가로 4단
+     * → 같은 날 심판원 데이터 검수 제거로 다시 3단)]
+     * 관할서 불일치 검수 레이어 진입 후 같은 버튼 5회 더 연타마다 "none → 관할서불일치
+     * → 카카오지오코딩검수 → none → ..." 순환한다(사용자 확정 2026-08-25: "모드 바뀔때마다
+     * 어떤 검수모드인지 화면에 표출"). 심판원 데이터 검수모드(원래 이 자리의 1단계)는
+     * 선박사고 전면 재구축(2026-09-01, 원본 CSV+라이브 데이터 서브미터 정밀도 대조로
+     * 좌표파싱 자체는 이미 검증됨)으로 필요 없어져 사용자 확정으로 제거했다.
+     * JURISDICTION_REVIEW_ON 은 기존 코드(클릭 라우팅 등)와 호환을 위해
+     * _reviewSubMode 에서 파생시킨 boolean 으로 계속 둔다.
      */
-    var REVIEW_SUBMODE_NONE = 0, REVIEW_SUBMODE_TRIBUNAL = 1, REVIEW_SUBMODE_JURISDICTION = 2, REVIEW_SUBMODE_KAKAO_PERSON = 3;
-    var REVIEW_SUBMODE_LABELS = ['심판원 검수 꺼짐', '심판원 데이터 검수모드', '관할서 불일치 검수모드', '인명사고 카카오 지오코딩 검수모드'];
+    var REVIEW_SUBMODE_NONE = 0, REVIEW_SUBMODE_JURISDICTION = 1, REVIEW_SUBMODE_KAKAO_PERSON = 2;
+    var REVIEW_SUBMODE_COUNT = 3;
+    var REVIEW_SUBMODE_LABELS = ['검수 서브모드 꺼짐', '관할서 불일치 검수모드', '인명사고 카카오 지오코딩 검수모드'];
     var _reviewSubMode = REVIEW_SUBMODE_NONE;
     var REVIEW_SUBMODE_TAP_THRESHOLD = 5;
     var _reviewSubModeTapCount = 0;
     var _reviewSubModeTapTimer = null;
-    var TRIBUNAL_REVIEW_ON = false;
-    var tribunalReviewLayer = null;
-    var tribunalReviewPromise = null;
     var JURISDICTION_REVIEW_ON = false;
     var jurisdictionBoundaryLayer = null;  // 현재 워크스루 지점 주변 관할 경계선만(동적 필터)
     var jurisdictionFocusLayer = null;     // 지금 보고 있는 후보 1건 강조 마커
@@ -1277,31 +1290,6 @@
             if (row[15] != null) rows.push(['계절', row[15]]);
             return rows;
         }
-        if (key === 'tribunal') {
-            // row=[lat,lon,ymd,hm,typeCd,caseNo,merged] — build_tribunal_review.js 참고.
-            var tribRows = [
-                ['사고발생일', formatYmd(row[2]) + (row[3] ? ' ' + row[3] : '')],
-                ['사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, row[4])],
-                ['사건번호', row[5] || '-'],
-                ['해경 병합 여부', row[6] ? '병합됨(hk에 있음)' : '병합 안 됨(단독 심판원)']
-            ];
-            // 병합된 행이면 해경(hk) 쪽 데이터도 같이 보여준다(사용자 확정 2026-08-25:
-            // "병합이 되어 있으면 해경에서 표출하는 데이터도 함께 표출해 종합 판단하도록"
-            // — 심판원 정보만으론 판단이 안 된다는 지적). hkRowByCaseNo 는
-            // ensureTribunalReviewLayer 가 레이어를 켤 때 미리 채워둔다.
-            var hkRow = row[6] && hkRowByCaseNo ? hkRowByCaseNo.get(row[5]) : null;
-            if (hkRow) {
-                var distKm = haversineKm(row[0], row[1], hkRow[0], hkRow[1]);
-                tribRows.push(
-                    ['해경 사고발생일', formatYmd(hkRow[2]) + (hkRow[3] ? ' ' + hkRow[3] : '')],
-                    ['해경 사고유형', accidentLabel(ACCIDENT_TYPE_LABELS, hkRow[5])],
-                    ['해경 위치텍스트', hkRow[4] || '-'],
-                    ['해경 관할', accidentLabel(ACCIDENT_ORG_LABELS, hkRow[8])],
-                    ['심판원-해경 좌표 차이', distKm < 0.01 ? '거의 동일' : distKm.toFixed(2) + 'km']
-                );
-            }
-            return tribRows;
-        }
         // person
         return [
             ['사고발생일', formatYmd(row[2])],
@@ -1325,7 +1313,6 @@
      * recorded/expected, ③2025는 currentOrg/tier) 셋째 인자로 item 을 받는다. */
     function reviewLabelFor(key, row, item) {
         if (key === 'hk') return formatYmd(row[2]) + ' · ' + (row[4] || accidentLabel(ACCIDENT_TYPE_LABELS, row[5]));
-        if (key === 'tribunal') return formatYmd(row[2]) + ' · ' + accidentLabel(ACCIDENT_TYPE_LABELS, row[4]) + (row[6] ? ' (병합됨)' : '');
         if (key === 'jurisdiction') {
             if (item && item.datasetKind === 'y2025') {
                 return formatYmd(row[2]) + ' · 2025단독 ' + row[5].replace('해양경찰서', '') + '(' + row[6] + ')';
@@ -1469,68 +1456,6 @@
         source.clear();
         flaggedItems.forEach(function (item) {
             source.addFeature(new ol.Feature({ geometry: new ol.geom.Point(item.coord) }));
-        });
-    }
-
-    /** 심판원 검수용 좌표 JSON 을 한 번만 fetch 한다. */
-    function fetchTribunalReview() {
-        if (!tribunalReviewPromise) {
-            tribunalReviewPromise = fetch('/accident_tribunal_review.json').then(function (r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                return r.json();
-            }).then(function (data) { return data.rows || []; });
-        }
-        return tribunalReviewPromise;
-    }
-
-    var hkRowByCaseNo = null; // 사건번호(caseNo) -> hk row — 심판원 검수 팝업의 "병합됨" 비교용
-    /** 사건번호로 hk row 를 찾기 위한 맵을 한 번만 만든다(hk 소스를 아직 안 골랐어도
-     * fetchSource('hk') 는 dataPromises 캐시를 공유해 중복 fetch 없음). */
-    function ensureHkRowByCaseNo() {
-        if (hkRowByCaseNo) return Promise.resolve(hkRowByCaseNo);
-        return fetchSource('hk').then(function (rows) {
-            hkRowByCaseNo = new Map();
-            rows.forEach(function (r) { if (r[16]) hkRowByCaseNo.set(r[16], r); });
-            return hkRowByCaseNo;
-        });
-    }
-
-    /** 두 좌표 사이 거리(km) — build_tribunal_merge.js 의 haversineKm 과 같은 공식. */
-    function haversineKm(lat1, lon1, lat2, lon2) {
-        var R = 6371.0;
-        var p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
-        var dphi = (lat2 - lat1) * Math.PI / 180;
-        var dl = (lon2 - lon1) * Math.PI / 180;
-        var a = Math.sin(dphi / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
-        return 2 * R * Math.asin(Math.sqrt(a));
-    }
-
-    /** hk/person 과 똑같은 줌 기반 클러스터링(buildClusterLayer) 재사용(사용자 확정
-     * 2026-08-25: "동일하게 맞춰 달라") — 낱개 점만 찍던 이전 구현은 줌과 무관하게
-     * 전부 다 보여 실제 서비스 마커와 다르게 보였다. build_tribunal_review.js 가
-     * 이제 사고유형(typeCd)도 담아주므로(초판엔 좌표만 있었다 — 아래 항목 참고)
-     * 클러스터 대표 이미지·낱개 아이콘까지 hk/person 과 완전히 동일하게 뜬다.
-     * feature 에 'row'(popupRowsFor/toggleFlag 용)·'typeCode'(클러스터 대표 이미지
-     * 계산용)·'origIndex'(검수 선택 식별용, hk/person 의 rowToFeature 와 같은 패턴)
-     * 를 얹는다. zIndex 만 검수용 레이어(flagLayer=58) 위에 오도록 59로 따로 얹는다
-     * (buildClusterLayer 기본값 56은 hk/person 레이어와 같은 층). */
-    function ensureTribunalReviewLayer(map) {
-        if (tribunalReviewLayer) return Promise.resolve(tribunalReviewLayer);
-        // hk 데이터도 함께 미리 받아둔다 — "병합됨" 팝업에서 해경 쪽 데이터를 바로
-        // 보여주려면 클릭 시점엔 이미 준비돼 있어야 한다(2026-08-25 사용자 확정:
-        // "병합이 되어 있으면 해경에서 표출하는 데이터도 함께 표출해 종합 판단하도록").
-        return Promise.all([fetchTribunalReview(), ensureHkRowByCaseNo()]).then(function (results) {
-            var rows = results[0];
-            var features = rows.map(function (row, i) {
-                var f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([row[1], row[0]])) });
-                f.set('row', row);
-                f.set('typeCode', row[4]);
-                f.set('origIndex', i);
-                return f;
-            });
-            tribunalReviewLayer = buildClusterLayer(map, 'tribunal', features);
-            tribunalReviewLayer.setZIndex(59);
-            return tribunalReviewLayer;
         });
     }
 
@@ -1690,17 +1615,15 @@
     }
 
     /**
-     * 검수 서브모드를 지도에 반영 — TRIBUNAL_REVIEW_ON·JURISDICTION_REVIEW_ON 을
-     * _reviewSubMode 에서 다시 계산하고, 심판원 레이어 표시 여부를 맞춘 뒤 지금 어떤
-     * 검수모드인지 토스트로 알려준다(사용자 확정 2026-08-25: "모드 바뀔때마다
-     * 어떤거 검수모드인지 알려줄 수 있도록 화면에 잠깐 표출"). 관할서 불일치 쪽은
-     * 레이어 on/off 가 아니라 ensureJurisdictionWalkPanel 로 진입/이탈을 처리한다
-     * (워크스루 방식이라 "데이터셋을 고르기 전엔 아무것도 안 뜬다"가 자연스러움).
+     * 검수 서브모드를 지도에 반영 — JURISDICTION_REVIEW_ON 을 _reviewSubMode 에서
+     * 다시 계산하고, 지금 어떤 검수모드인지 토스트로 알려준다(사용자 확정 2026-08-25:
+     * "모드 바뀔때마다 어떤거 검수모드인지 알려줄 수 있도록 화면에 잠깐 표출").
+     * 관할서 불일치 쪽은 레이어 on/off 가 아니라 ensureJurisdictionWalkPanel 로
+     * 진입/이탈을 처리한다(워크스루 방식이라 "데이터셋을 고르기 전엔 아무것도
+     * 안 뜬다"가 자연스러움).
      */
     function applyReviewSubMode(map) {
-        TRIBUNAL_REVIEW_ON = (_reviewSubMode === REVIEW_SUBMODE_TRIBUNAL);
         JURISDICTION_REVIEW_ON = (_reviewSubMode === REVIEW_SUBMODE_JURISDICTION);
-        ensureTribunalReviewLayer(map).then(function (layer) { layer.setVisible(TRIBUNAL_REVIEW_ON); });
         var panel = document.getElementById('jurisdiction-walk-panel');
         if (JURISDICTION_REVIEW_ON) {
             ensureJurisdictionWalkPanel(map);
@@ -1967,7 +1890,7 @@
         commitJwDecision(map, cand, act);
     }
 
-    /** 결정을 flaggedItems 에 저장(기존 hk/person/tribunal 과 같은 맵, 검수 패널
+    /** 결정을 flaggedItems 에 저장(기존 hk/person 과 같은 맵, 검수 패널
      * 목록·내보내기가 그대로 재사용됨) 하고 자동으로 다음 후보로 넘어간다. */
     function commitJwDecision(map, cand, action, toOrg) {
         var row = cand.kind === 'pair'
@@ -3480,16 +3403,14 @@
             toggleBtn.addEventListener('click', function () {
                 if (REVIEW_MODE) {
                     // 검수 모드 안에서는 같은 버튼 5회 더 연타마다 서브모드를 한 단계씩
-                    // 순환(꺼짐→심판원→관할서불일치→카카오지오코딩검수→꺼짐→...). 2026-08-25
-                    // 이전엔 심판원 레이어 하나만 단순 on/off였는데, 관할서 불일치 검수(총
-                    // 20회)·인명사고 카카오 지오코딩 검수(총 25회, 2026-09-01)를 차례로
-                    // 추가하며 순환식으로 바꿨다.
+                    // 순환(꺼짐→관할서불일치→카카오지오코딩검수→꺼짐→...). 2026-09-01
+                    // 심판원 데이터 검수모드(원래 1단계) 제거로 3단 순환.
                     _reviewSubModeTapCount++;
                     clearTimeout(_reviewSubModeTapTimer);
                     _reviewSubModeTapTimer = setTimeout(function () { _reviewSubModeTapCount = 0; }, REVIEW_MODE_TAP_RESET_MS);
                     if (_reviewSubModeTapCount < REVIEW_SUBMODE_TAP_THRESHOLD) return;
                     _reviewSubModeTapCount = 0;
-                    _reviewSubMode = (_reviewSubMode + 1) % 4;
+                    _reviewSubMode = (_reviewSubMode + 1) % REVIEW_SUBMODE_COUNT;
                     var map = window.getOceanMap && window.getOceanMap();
                     if (map) applyReviewSubMode(map);
                     return;
@@ -3575,13 +3496,7 @@
         if (state.mode === 'status' && state.source && clusterLayers[state.source]) {
             if (tryHandleClusterClick(map, evt, state.source, clusterLayers[state.source])) return true;
         }
-        // 심판원 검수 레이어(사고정보 15회 연타로 켜짐) — state.source 와 무관하게 항상
-        // 켜져 있으면 클릭을 받는다(사용자 확정 2026-08-25: 병합 여부와 무관하게 심판원
-        // 데이터 전체를 검수 대상으로 삼음).
-        if (TRIBUNAL_REVIEW_ON && tribunalReviewLayer) {
-            if (tryHandleClusterClick(map, evt, 'tribunal', tribunalReviewLayer)) return true;
-        }
-        // 관할서 불일치 검수(20회 연타)는 지도 클릭이 아니라 jurisdiction-walk-panel
+        // 관할서 불일치 검수(15회 연타)는 지도 클릭이 아니라 jurisdiction-walk-panel
         // 의 확인/변경/삭제 버튼으로 진행하는 워크스루 방식이라 여기서 클릭을 받지
         // 않는다(2026-08-26 재설계 — 마커를 직접 찾아 클릭하지 않아도 됨).
         if (bubbleOverlay) bubbleOverlay.setPosition(undefined);
