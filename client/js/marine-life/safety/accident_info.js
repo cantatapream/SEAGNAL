@@ -584,6 +584,7 @@
     var _activeDetailTab = {};        // source key -> 현재 선택된 "사고발생상세" 탭
     var _statsKey = null;             // 통계 시트에 지금 표시 중인 source key
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
+    var _statsRegionLabel = null;     // 지금 열린 셀의 권역 뱃지 라벨(비동기로 채워짐, 2026-09-01)
     var _statsView = {};              // source key -> 현재 선택된 "분석 뷰" 탭('trend'|'hourly'|'weekday'|'org'|'warn')
     var _trendDrill = null;           // 연도별 추이 드릴다운: null(연도별) | {year} | {year,month}
     var _statsCharts = [];            // 지금 그려진 Chart.js 인스턴스 — 다시 그리기 전 반드시 destroy
@@ -621,7 +622,7 @@
      *   - tonnageRanges : [[minTon,maxTon), ...] | null — 톤수(TONNAGE_POS_IDX 위치).
      *                     hk 전용, shipUses 와 같은 이유로 값 없는 행(null)은 제외.
      */
-    var filters = { types: null, orgs: null, hourRanges: null, seasons: null, warnTypes: null, shipUses: null, tonnageRanges: null };
+    var filters = { types: null, orgs: null, hourRanges: null, seasons: null, warnTypes: null, shipUses: null, tonnageRanges: null, dateRange: null };
 
     var SEASON_LABELS = { spring: '봄', summer: '여름', fall: '가을', winter: '겨울' };
     var SEASON_ORDER = ['spring', 'summer', 'fall', 'winter'];
@@ -735,13 +736,17 @@
             var inAnyT = filters.tonnageRanges.some(function (r) { return tonnage >= r[0] && tonnage < r[1]; });
             if (!inAnyT) return false;
         }
+        if (filters.dateRange) {
+            var ymdStr = String(row[2] || '');
+            if (ymdStr < filters.dateRange[0] || ymdStr > filters.dateRange[1]) return false;
+        }
         return true;
     }
 
     /** 필터에 걸려있는 게 하나라도 있는지 — 필터바 버튼 강조 등에 씀. */
     function hasActiveFilters() {
         return !!(filters.types || filters.orgs || filters.hourRanges || filters.seasons || filters.warnTypes ||
-            filters.shipUses || filters.tonnageRanges);
+            filters.shipUses || filters.tonnageRanges || filters.dateRange);
     }
 
     /** passesFilters 를 excludeKey 축만 빼고 판정 — 팝업을 열 때 "다른 축은 이미 걸린
@@ -1267,6 +1272,31 @@
     function formatYmd(ymd) {
         if (!ymd || ymd.length !== 8) return ymd || '-';
         return ymd.slice(0, 4) + '-' + ymd.slice(4, 6) + '-' + ymd.slice(6, 8);
+    }
+
+    // ── 기간(날짜범위) 필터용 날짜 변환 헬퍼(2026-09-01) ─────────────────────
+    /** "YYYYMMDD" → "YYYY.MM.DD"(바텀시트 헤더 표시용, 목업 이미지 표기 그대로). */
+    function fmtYmdDot(ymd) {
+        var s = String(ymd);
+        return s.slice(0, 4) + '.' + s.slice(4, 6) + '.' + s.slice(6, 8);
+    }
+    /** "YYYYMMDD" → "YYYY-MM-DD"(<input type=date> value 형식). */
+    function ymdToInputDate(ymd) {
+        var s = String(ymd);
+        return s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8);
+    }
+    /** "YYYY-MM-DD"(<input type=date> value) → "YYYYMMDD". */
+    function inputDateToYmd(v) { return v.replace(/-/g, ''); }
+    function todayYmd() {
+        var d = new Date();
+        return String(d.getFullYear()) + pad2(d.getMonth() + 1) + pad2(d.getDate());
+    }
+    /** ymd 에서 deltaMonths 개월 전(음수) 날짜를 "YYYYMMDD"로. 기간 필터 프리셋(최근 N개월/년)에 씀. */
+    function ymdAddMonths(ymd, deltaMonths) {
+        var s = String(ymd);
+        var d = new Date(parseInt(s.slice(0, 4), 10), parseInt(s.slice(4, 6), 10) - 1, parseInt(s.slice(6, 8), 10));
+        d.setMonth(d.getMonth() + deltaMonths);
+        return String(d.getFullYear()) + pad2(d.getMonth() + 1) + pad2(d.getDate());
     }
     function escapeHtml(s) {
         return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1937,25 +1967,40 @@
     }
 
     // ── 분석 모드: 격자 히트맵 ──────────────────────────────────────────────
+    // 파랑(낮음)→노랑(중간)→빨강(높음) 3단 그라데이션(2026-09-01 세련화 — 사용자가
+    // 다른 AI에게 자문받은 디자인 참고). 반투명도를 올려(0.82→0.55) 위성지도가
+    // 은은하게 비치게 한다("반투명 사고밀도 영역").
     function lerpColor(t) {
-        var a = [255, 215, 64], b = [255, 82, 82]; // 노랑(낮음) → 빨강(높음)
-        var r = Math.round(a[0] + (b[0] - a[0]) * t);
-        var g = Math.round(a[1] + (b[1] - a[1]) * t);
-        var bl = Math.round(a[2] + (b[2] - a[2]) * t);
-        return 'rgba(' + r + ',' + g + ',' + bl + ',0.82)';
+        var stops = [[37, 99, 235], [250, 204, 21], [239, 68, 68]];
+        var seg = t < 0.5 ? 0 : 1;
+        var lt = t < 0.5 ? t * 2 : (t - 0.5) * 2;
+        var a = stops[seg], b = stops[seg + 1];
+        var r = Math.round(a[0] + (b[0] - a[0]) * lt);
+        var g = Math.round(a[1] + (b[1] - a[1]) * lt);
+        var bl = Math.round(a[2] + (b[2] - a[2]) * lt);
+        return 'rgba(' + r + ',' + g + ',' + bl + ',0.55)';
     }
+
+    /** 지금 선택된 격자칸(있다면) — 재선택·해제 판정에 씀. */
+    var _selectedGridFeature = null;
 
     function gridCellStyle(feature) {
         var count = feature.get('count');
         var maxCount = feature.get('_maxInView') || 1;
         var t = Math.min(count / maxCount, 1);
+        var selected = feature === _selectedGridFeature;
         return new ol.style.Style({
             fill: new ol.style.Fill({ color: lerpColor(t) }),
-            stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.35)', width: 1 }),
+            // 경계선을 은은하게, 선택된 칸만 밝은 테두리로 강조(2026-09-01 사용자 확정 —
+            // "격자 경계선이 너무 강하다" 피드백 + 선택 칸 강조).
+            stroke: new ol.style.Stroke({ color: selected ? '#7dd3fc' : 'rgba(255,255,255,0.15)', width: selected ? 3 : 1 }),
             text: new ol.style.Text({
-                text: String(count),
-                font: 'bold 12px "Roboto Mono", monospace',
-                fill: new ol.style.Fill({ color: t > 0.5 ? '#2a0000' : '#241a00' })
+                // 밝기가 파랑↔빨강을 오가므로 어두운 글씨 대신 흰 글씨+검정 테두리로
+                // 통일(어느 색 위에서도 읽힘 — 특보발효 도넛 중앙 텍스트와 같은 원칙).
+                text: fmtN(count),
+                font: (selected ? 'bold 13px' : 'bold 12px') + ' "Roboto Mono", monospace',
+                fill: new ol.style.Fill({ color: '#ffffff' }),
+                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.6)', width: 3 })
             })
         });
     }
@@ -2012,7 +2057,30 @@
             cellFeature.set('_maxInView', maxCount);
             gridSource.addFeature(cellFeature);
         });
+        _selectedGridFeature = null;
         closeStatsSheet(); // 격자가 다시 그려졌으니 이전 선택은 무효
+        fadeInGridLayer(); // 부드러운 등장(2026-09-01 — "확대/축소 애니메이션" 피드백,
+        // 칸 경계를 실제로 모핑하진 않고 옅게 나타나는 정도로 단순화)
+    }
+
+    /** 격자가 다시 그려질 때마다 살짝 옅게 시작해 또렷해지는 페이드인(2026-09-01) —
+     * 칸이 갈라지고 합쳐지는 모습 자체를 애니메이션으로 보여주려면 이전/이후 칸을
+     * 1:1로 대응시켜 모핑해야 하는데(상당한 작업), 그 전 단계로 "다시 계산됐다"는
+     * 것만 부드럽게 느껴지도록 우선 처리. */
+    var _gridFadeRaf = null;
+    function fadeInGridLayer() {
+        if (!gridLayer) return;
+        if (_gridFadeRaf) cancelAnimationFrame(_gridFadeRaf);
+        var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduceMotion) { gridLayer.setOpacity(1); return; }
+        var t0 = performance.now(), ms = 220, from = 0.35;
+        gridLayer.setOpacity(from);
+        function step(now) {
+            var p = Math.min(1, (now - t0) / ms);
+            gridLayer.setOpacity(from + (1 - from) * p);
+            if (p < 1) { _gridFadeRaf = requestAnimationFrame(step); } else { _gridFadeRaf = null; }
+        }
+        _gridFadeRaf = requestAnimationFrame(step);
     }
 
     // ── 통계 바텀시트 ───────────────────────────────────────────────────────
@@ -2258,8 +2326,25 @@
             '<div class="accident-detail-tabs">' + tabsHtml + '</div>' + barsHtml + '</div>';
     }
 
+    /** 바텀시트 헤더(2026-09-01 재설계) — 왼쪽에 권역 뱃지(비동기로 채워짐, 처음엔
+     * 숨김)·분석기간(기간 필터 값 또는 "전체 기간"), 오른쪽에 선택 영역 건수. */
     function buildStatsHtml(key, members) {
-        return '<h3>그리드형 사고분석 <span class="cellcount">' + members.length + '건</span></h3>' +
+        var regionBadgeHtml = '<span class="ash-region-badge" id="ash-region-badge"' +
+            (_statsRegionLabel ? '' : ' style="display:none;"') + '>' +
+            escapeHtml(_statsRegionLabel || '') + '</span>';
+        var periodText = filters.dateRange
+            ? '분석기간 ' + fmtYmdDot(filters.dateRange[0]) + ' ~ ' + fmtYmdDot(filters.dateRange[1])
+            : '전체 기간';
+        return '<div id="accident-stats-header">' +
+            '<div>' +
+            '<div class="ash-title-row">📍 선택 영역 사고분석' + regionBadgeHtml + '</div>' +
+            '<div class="ash-period">' + escapeHtml(periodText) + '</div>' +
+            '</div>' +
+            '<div class="ash-right">' +
+            '<div class="ash-count-n">' + fmtN(members.length) + '건</div>' +
+            '<div class="ash-count-l">선택 영역 내 사고 발생</div>' +
+            '</div>' +
+            '</div>' +
             buildChartViewHtml(key) +
             buildDetailBlockHtml(key, members);
     }
@@ -2738,19 +2823,61 @@
         renderActiveChart(_statsKey, _statsMembers);
     }
 
-    function openStatsSheet(key, members) {
+    // 21개 해경서 → 8개 광역권(2026-09-01, 목업 이미지의 "경남권" 뱃지 반영해 사용자 확정).
+    // coastguard_jurisdiction_boundaries.json 의 owner(해경서 이름) 기준.
+    var REGION_OF_OWNER = {
+        속초해양경찰서: '강원권', 동해해양경찰서: '강원권', 강릉해양경찰서: '강원권',
+        포항해양경찰서: '경북권', 울진해양경찰서: '경북권',
+        울산해양경찰서: '경남권', 부산해양경찰서: '경남권', 창원해양경찰서: '경남권', 통영해양경찰서: '경남권', 사천해양경찰서: '경남권',
+        여수해양경찰서: '전남권', 완도해양경찰서: '전남권', 목포해양경찰서: '전남권',
+        군산해양경찰서: '전북권', 부안해양경찰서: '전북권',
+        보령해양경찰서: '충남권', 태안해양경찰서: '충남권',
+        평택해양경찰서: '경기인천권', 인천해양경찰서: '경기인천권',
+        제주해양경찰서: '제주권', 서귀포해양경찰서: '제주권'
+    };
+
+    /** 격자 셀 중심 좌표가 어느 해경서 관할 폴리곤 안에 있는지 찾아 8개 권역 라벨로
+     * 변환(위 fetchJurisdictionBoundaries/pointInPolygonLL 재사용). 못 찾으면 null. */
+    function resolveRegionLabelForCell(cellFeature) {
+        var extent = cellFeature.getGeometry().getExtent();
+        var center = ol.extent.getCenter(extent);
+        var lonLat = ol.proj.toLonLat(center);
+        return fetchJurisdictionBoundaries().then(function (allFaces) {
+            for (var i = 0; i < allFaces.length; i++) {
+                if (pointInPolygonLL(lonLat[0], lonLat[1], allFaces[i].coords)) {
+                    return REGION_OF_OWNER[allFaces[i].owner] || null;
+                }
+            }
+            return null;
+        }).catch(function () { return null; });
+    }
+
+    function openStatsSheet(key, members, cellFeature) {
         var sheet = document.getElementById('accident-stats-sheet');
         if (!sheet) return;
         _statsKey = key;
         _statsMembers = members;
         _trendDrill = null; // 새 셀을 열 때마다 드릴다운 상태 초기화
+        _statsRegionLabel = null;
         renderStatsBody();
         sheet.classList.add('open');
+        if (cellFeature) {
+            var openedForKey = key, openedForMembers = members;
+            resolveRegionLabelForCell(cellFeature).then(function (label) {
+                if (!label) return;
+                // 그 사이 다른 셀을 열었을 수 있으니 여전히 같은 셀인지 확인 후 반영.
+                if (_statsKey !== openedForKey || _statsMembers !== openedForMembers) return;
+                _statsRegionLabel = label;
+                var badge = document.getElementById('ash-region-badge');
+                if (badge) { badge.textContent = label; badge.style.display = ''; }
+            });
+        }
     }
 
     function closeStatsSheet() {
         var sheet = document.getElementById('accident-stats-sheet');
         if (sheet) sheet.classList.remove('open');
+        if (_selectedGridFeature) { var prev = _selectedGridFeature; _selectedGridFeature = null; prev.changed(); }
         destroyStatsCharts();
         stopWarnDonutAnim();
         _statsKey = null;
@@ -2764,7 +2891,12 @@
             if (lyr === gridLayer) { hit = feature; return true; }
         }, { layerFilter: function (l) { return l === gridLayer; } });
         if (!hit) { closeStatsSheet(); return false; }
-        openStatsSheet(state.source, hit.get('members'));
+        // 선택 칸 강조(2026-09-01) — 이전 선택·이번 선택 둘 다 다시 그려서 테두리를 갱신.
+        var prev = _selectedGridFeature;
+        _selectedGridFeature = hit;
+        if (prev) prev.changed();
+        hit.changed();
+        openStatsSheet(state.source, hit.get('members'), hit);
         return true;
     }
 
@@ -3237,6 +3369,63 @@
         }, current, onConfirm);
     }
 
+    var DATE_RANGE_PRESETS = [
+        { label: '최근 1개월', months: 1 },
+        { label: '최근 6개월', months: 6 },
+        { label: '최근 1년', months: 12 },
+        { label: '최근 3년', months: 36 }
+    ];
+
+    /** 기간(날짜범위) 필터 팝업(2026-09-01 사용자 확정 — "기간을 설정할 수 있도록") —
+     * 프리셋(최근 1/6/12/36개월) + 직접 시작~종료 날짜 입력. openRangeFilterPopup 은
+     * "여러 구간 동시 선택 + 칩" 구조라 시작~종료 한 쌍뿐인 날짜범위엔 안 맞아 별도로
+     * 작성(공용 모달 셸 ensureFilterPopup()만 재사용). */
+    function openDateRangeFilterPopup(current, onConfirm) {
+        var els = ensureFilterPopup();
+        els.title.textContent = '기간';
+        els.count.textContent = '';
+        var today = todayYmd();
+        var start = current ? current[0] : ymdAddMonths(today, -12);
+        var end = current ? current[1] : today;
+
+        function render() {
+            var presetsHtml = DATE_RANGE_PRESETS.map(function (p, i) {
+                var pStart = ymdAddMonths(today, -p.months);
+                var active = start === pStart && end === today;
+                return '<button type="button" class="accident-filter-hour-preset' + (active ? ' active' : '') +
+                    '" data-preset-i="' + i + '">' + p.label + '</button>';
+            }).join('');
+            els.body.innerHTML =
+                '<div class="accident-filter-hour-presets">' + presetsHtml + '</div>' +
+                '<div class="accident-filter-hour-custom">' +
+                '<div class="accident-filter-hour-custom-label">직접 설정</div>' +
+                '<div class="accident-filter-hour-custom-row">' +
+                '<input type="date" id="afp-date-start" value="' + ymdToInputDate(start) + '">' +
+                '<span>~</span>' +
+                '<input type="date" id="afp-date-end" value="' + ymdToInputDate(end) + '">' +
+                '</div></div>';
+            Array.prototype.forEach.call(els.body.querySelectorAll('.accident-filter-hour-preset'), function (btn) {
+                btn.addEventListener('click', function () {
+                    var p = DATE_RANGE_PRESETS[Number(btn.dataset.presetI)];
+                    start = ymdAddMonths(today, -p.months);
+                    end = today;
+                    render();
+                });
+            });
+            document.getElementById('afp-date-start').addEventListener('change', function (e) { start = inputDateToYmd(e.target.value); });
+            document.getElementById('afp-date-end').addEventListener('change', function (e) { end = inputDateToYmd(e.target.value); });
+        }
+        render();
+
+        els.resetBtn.onclick = function () { onConfirm(null); closeFilterPopup(); };
+        els.confirmBtn.onclick = function () {
+            if (!start || !end || start > end) { window.alert('시작일이 종료일보다 늦을 수 없습니다.'); return; }
+            onConfirm([start, end]);
+            closeFilterPopup();
+        };
+        els.overlay.style.display = 'flex';
+    }
+
     /** 필터 버튼 라벨을 지금 filters 상태에 맞춰 갱신("전체" 또는 "N개 선택"). */
     function updateFilterButtonLabel(filterKey, prefix) {
         var btn = document.getElementById('accident-filter-btn-' + filterKey);
@@ -3255,6 +3444,16 @@
         btn.classList.toggle('has-selection', n > 0);
     }
 
+    /** 기간 필터 버튼 라벨 — 값이 [start,end] 쌍이라 updateFilterButtonLabel 의 "N개
+     * 선택" 형식과 안 맞아 별도로 둠. */
+    function updateDateRangeButtonLabel() {
+        var btn = document.getElementById('accident-filter-btn-dateRange');
+        if (!btn) return;
+        var val = filters.dateRange;
+        btn.textContent = val ? '기간: ' + fmtYmdDot(val[0]) + '~' + fmtYmdDot(val[1]) : '기간: 전체';
+        btn.classList.toggle('has-selection', !!val);
+    }
+
     function updateAllFilterButtonLabels() {
         updateFilterButtonLabel('types', '사고유형');
         updateFilterButtonLabel('orgs', '관할서');
@@ -3263,6 +3462,7 @@
         updateFilterButtonLabel('warnTypes', '특보');
         updateFilterButtonLabel('shipUses', '선박용도');
         updateFilterButtonLabel('tonnageRanges', '톤수');
+        updateDateRangeButtonLabel();
     }
 
     /** 필터가 바뀔 때마다 현황 마커·분석 격자 양쪽에 다시 반영. */
@@ -3373,6 +3573,11 @@
                     }
                     onFiltersChanged(map);
                 });
+            } else if (key === 'dateRange') {
+                openDateRangeFilterPopup(filters.dateRange, function (val) {
+                    filters.dateRange = val;
+                    onFiltersChanged(map);
+                });
             }
         });
 
@@ -3386,6 +3591,7 @@
                 filters.warnTypes = null;
                 filters.shipUses = null;
                 filters.tonnageRanges = null;
+                filters.dateRange = null;
                 onFiltersChanged(map);
             });
         }
@@ -3422,10 +3628,18 @@
         if (state.mode === 'analysis' && key) {
             ensureGridLayer(map).setVisible(true);
             recomputeGrid(map);
+            showGridLegend(true);
         } else {
             if (gridLayer) gridLayer.setVisible(false);
             closeStatsSheet();
+            showGridLegend(false);
         }
+    }
+
+    /** 격자(분석) 모드일 때만 색상 범례를 보여준다. */
+    function showGridLegend(show) {
+        var el = document.getElementById('accident-grid-legend');
+        if (el) el.style.display = show ? 'flex' : 'none';
     }
 
     // ON 시점의 배경지도를 기억해 뒀다 OFF 시 되돌린다(access_control.js/fishing_ban.js 와 동일 패턴).

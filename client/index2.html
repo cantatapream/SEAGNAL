@@ -3499,12 +3499,23 @@
                              필드, hk 전용(person 소스엔 없어 필터를 걸어도 자동 통과된다). -->
                         <div class="accident-filter-bar" id="accident-filter-bar" style="display:none;">
                             <button type="button" class="accident-filter-btn" data-filter="types" id="accident-filter-btn-types">사고유형: 전체</button>
+                            <button type="button" class="accident-filter-btn" data-filter="dateRange" id="accident-filter-btn-dateRange">기간: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="orgs" id="accident-filter-btn-orgs">관할서: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="hourRanges" id="accident-filter-btn-hourRanges">시간대: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="seasons" id="accident-filter-btn-seasons">계절: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="warnTypes" id="accident-filter-btn-warnTypes">특보: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="shipUses" id="accident-filter-btn-shipUses">선박용도: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="tonnageRanges" id="accident-filter-btn-tonnageRanges">톤수: 전체</button>
+                        </div>
+
+                        <!-- 분석(격자) 모드에서만 보이는 색상 범례 — 격자칸 색이 그 칸의 사고
+                             밀도(파랑=낮음~빨강=높음)를 나타낸다는 걸 알려준다.
+                             [연계] js/marine-life/safety/accident_info.js showGridLegend() -->
+                        <div class="accident-grid-legend" id="accident-grid-legend" style="display:none;">
+                            <span class="agl-title">사고건수</span>
+                            <span class="agl-lo">낮음</span>
+                            <span class="agl-bar"></span>
+                            <span class="agl-hi">높음</span>
                         </div>
                     </div>
 
