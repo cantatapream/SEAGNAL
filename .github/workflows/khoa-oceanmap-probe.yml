@@ -34,7 +34,7 @@ jobs:
 
       - name: Playwright 설치
         run: |
-          npm install --no-save playwright@1.48
+          npm install --no-save --legacy-peer-deps playwright@1.48
           npx playwright install --with-deps chromium
 
       - name: 정찰 스크립트 실행
