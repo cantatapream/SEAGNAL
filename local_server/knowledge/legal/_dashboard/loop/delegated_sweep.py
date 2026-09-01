@@ -105,7 +105,7 @@ def sweep(law):
     #   다행히 수집된 파일 머리에 `ID:2100000270010` 이 적혀 있으므로 그것으로 맞춘다.
     #   ID 가 없는 옛 파일만 이름으로 맞춘다.
     admdir = os.path.join(base, '행정규칙')
-    have_txt, have_ids = [], set()
+    have_txt, have_titles, have_ids = [], [], set()
     if os.path.isdir(admdir):
         for n in sorted(os.listdir(admdir)):
             if n.startswith('_') or not n.endswith('.txt'):
@@ -117,6 +117,14 @@ def sweep(law):
                 head = ''
             for m in re.finditer(r'\bID[=:]\s*(\d{6,})', head):
                 have_ids.add(m.group(1))
+            # ★파일 이름 말고 **파일이 스스로 적어 둔 제목**으로 맞춘다(2026-09-01).
+            #   raw 파일명은 줄여 저장되지만(`승선하선구역_군산항.txt`),
+            #   머리줄에는 원래 제목이 그대로 있다(`[고시/행정규칙] 군산항 도선사의 승선·하선 구역 고시`).
+            #   이걸 쓰면 도선법 8건처럼 "이름만 줄인 것"을 글자 겹침에 기대지 않고 정확히 맞출 수 있다.
+            #   (머리줄이 있는 파일은 2026-09-01 기준 2,146개 중 795개다 — 없으면 예전처럼 파일명으로 본다.)
+            mt = re.match(r'\[고시/행정규칙\]\s*(.+)', head)
+            if mt:
+                have_titles.append(mt.group(1).strip())
     # ★이름도 흔들린다(2026-09-01 세 번째로 데었다).
     #   ⓐ raw 파일명이 줄여 저장된다 — 「군산항 도선사의 승선·하선 구역 고시」 → `승선하선구역_군산항.txt`.
     #   ⓑ lsDelegated 가 주는 ID 가 **옛 판**일 수 있다 — 군산항은 API 가 219772 를 주는데
@@ -141,7 +149,7 @@ def sweep(law):
     for t in found:
         if found[t] & have_ids:
             continue
-        if any(squash(t) == squash(h) for h in have_txt):
+        if any(squash(t) == squash(h) for h in have_txt + have_titles):
             continue
         near = [h for h in have_txt if similar(t, h) >= 0.6]
         if near:
