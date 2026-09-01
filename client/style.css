@@ -8775,23 +8775,31 @@ html[data-font-size="large"] .ocean-overlay-btn {
     flex: 1;
     min-height: 0; /* flex 자식이 내용 높이만큼 안 늘어나고 부모 안에서 스크롤되게 */
 }
-.accident-stats-body h3 {
-    /* 스크롤해도 제목이 안 가려지도록 고정(2026-09-01 사용자 확정) — 배경을 시트
-       그라데이션 맨 위쪽 색과 맞춰 뒤 내용이 비치지 않게 하고, body 의 좌우 패딩을
-       음수 마진으로 상쇄해 고정 시 좌우 끝까지 배경이 덮이게 한다. */
+/* 바텀시트 헤더 — "선택 영역 사고분석" + 권역뱃지 + 기간(왼쪽), 건수(오른쪽,
+   2026-09-01 재설계 — 어떤 영역·기간을 보고 있는지 한눈에 보이도록). 스크롤해도
+   안 가려지게 고정(2026-09-01 사용자 확정) — 배경을 시트 그라데이션 맨 위쪽
+   색과 맞춰 뒤 내용이 안 비치게, body 좌우 패딩은 음수 마진으로 상쇄. */
+#accident-stats-header {
     position: sticky;
     top: 0;
     z-index: 5;
     margin: -4px -16px 12px;
     padding: 10px 16px 8px;
     background: #0c1a3a;
-    font-size: 0.92rem;
-    font-weight: 700;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 10px;
 }
-.accident-stats-body h3 .cellcount { color: var(--accent-yellow); }
+#accident-stats-header .ash-title-row { font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 5px; }
+#accident-stats-header .ash-region-badge {
+    font-size: 0.64rem; font-weight: 700; color: var(--accent-blue);
+    background: rgba(77,171,247,0.15); border-radius: 5px; padding: 1px 6px;
+}
+#accident-stats-header .ash-period { font-size: 0.68rem; color: var(--text-sub); margin-top: 3px; }
+#accident-stats-header .ash-right { text-align: right; flex: none; }
+#accident-stats-header .ash-count-n { font-size: 1.05rem; font-weight: 800; color: var(--accent-yellow); white-space: nowrap; }
+#accident-stats-header .ash-count-l { font-size: 0.64rem; color: var(--text-sub); margin-top: 2px; }
 .accident-stats-block { margin-bottom: 14px; }
 .accident-stats-block:last-child { margin-bottom: 0; }
 .accident-stats-label {
@@ -8911,6 +8919,32 @@ html[data-font-size="large"] .ocean-overlay-btn {
     border-color: var(--accent-blue);
     color: var(--accent-blue);
     background: rgba(77, 171, 247, 0.12);
+}
+
+/* 분석(격자) 모드 색상 범례(2026-09-01) — 격자칸 색=사고밀도(파랑~빨강)라는 걸 알려줌.
+   [연계] index2.html #accident-grid-legend · accident_info.js showGridLegend() */
+.accident-grid-legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 6px 8px;
+    background: rgba(10, 15, 28, 0.94);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.66rem;
+    color: var(--text-sub);
+    width: 150px;
+    box-sizing: border-box;
+}
+.accident-grid-legend .agl-title { font-weight: 700; color: var(--text-main); flex: none; }
+.accident-grid-legend .agl-bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #2563eb 0%, #facc15 50%, #ef4444 100%);
 }
 
 /* 필터 팝업 — 체크박스 다중선택(관할서·사고유형·계절) 공용 + 시간대 전용 몸통 */
