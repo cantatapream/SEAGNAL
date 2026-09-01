@@ -159,6 +159,24 @@
  *   그대로). 이러면 이벤트 발생 여부와 무관하게 그 함수가 실행되어, 안에서 실제로
  *   무슨 네트워크 요청을 쏘는지(우리가 찾던 gid+좌표 벌크로더일 가능성) 바로 확인
  *   가능하다.
+ * [2026-09-01 수정13] 13차 실행 결과 확인: changeSqlLayer(zoom) 직접 호출은
+ *   에러 없이 성공했다(olmp, zoom 12) — 그런데도 재조회 결과는 여전히 인명사고
+ *   0건이었다. 네트워크 캡처 전체를 다시 훑어보니 **1~13차 통틀어 단 한 번도
+ *   인명사고 레이어(vi_nshpac_p) 관련 타일·데이터 요청 자체가 뜬 적이 없었다** —
+ *   listOLMPData.json 메타데이터 조회만 매번 떴을 뿐. 즉 "인명사고" 토글 클릭이
+ *   화면상 성공(evalClick ok:true)으로 찍혀도, 실제로 레이어를 켜는 동작까지는
+ *   한 번도 완결되지 못했다는 뜻 — changeSqlLayer 를 직접 불러도 애초에 "켜진
+ *   레이어" 목록에 인명사고가 없으니 처리할 게 없었을 것이다.
+ *   otms-gis.js 에서 확인한 다른 토글(연안재해취약성평가, fn_pd_click) 패턴을
+ *   보면 진짜 스위치는 `<input type="checkbox" onclick="fn_xxx_click(this,
+ *   'layerNm^type')">` 이고 `$this.is(':checked')` 로 상태를 직접 확인해
+ *   addLayer 를 부른다 — 지금까지는 "인명사고" 텍스트를 소유한 요소를 찾아
+ *   `.click()` 했을 뿐이라, 그 요소가 checkbox 와 `<label for=..>` 로 정식
+ *   연결돼 있지 않으면 checkbox 자체는 안 눌렸을 수 있다(텍스트 요소 클릭이
+ *   checkbox 로 이벤트를 전파 안 시켰을 가능성). 14차: 텍스트 근처에서 진짜
+ *   `<input type="checkbox">` 를 찾아 그것 자체를 `.click()`(checked 토글 +
+ *   click/change 이벤트 정상 발생)한다 — 못 찾으면 주변 마크업을 그대로 찍어
+ *   다음 판단 근거로 남긴다.
  * [출력] 콘솔 요약(엔드포인트 목록) + JS 번들 스캔 결과 + local_server/data/khoa_probe_result.json
  *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 다수(단계별 확인용)
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
@@ -383,6 +401,66 @@ async function tryClickClusterDirect(page, layerNm, gidStart, gidEnd, label) {
     return result;
 }
 
+// 13차까지 인명사고 레이어 관련 네트워크 요청이 단 한 번도 안 떴다 — 매번
+// evalClickByText 로 텍스트를 소유한 요소를 찾아 .click() 했지만, otms-gis.js
+// 에서 확인한 다른 토글(연안재해취약성평가) 패턴을 보면 실제 스위치는
+// <input type="checkbox" onclick="fn_xxx_click(this,'layerNm^type')"> 이고
+// checked 상태를 직접 확인해 addLayer 를 호출한다 — 텍스트 라벨을 클릭해도
+// 그 라벨이 checkbox 와 <label for=..> 로 정식 연결돼 있지 않으면 checkbox 자체가
+// 안 눌릴 수 있다. 14차: 텍스트 근처에서 실제 checkbox 를 찾아 그것 자체를
+// .click() 한다(checkbox.click() 은 checked 상태 토글 + click/change 이벤트를
+// 전부 정상 발생시킴 — 텍스트 요소를 클릭하는 것과 다름). 못 찾으면 주변 마크업을
+// 그대로 찍어 다음 판단 근거로 남긴다(추측 대신 실제 구조 확인).
+async function findAndToggleCheckbox(page, text, log) {
+    const result = await page.evaluate((needle) => {
+        function collectTextOwners(root) {
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+            const out = [];
+            let node;
+            while ((node = walker.nextNode())) {
+                const own = Array.from(node.childNodes)
+                    .filter((n) => n.nodeType === 3)
+                    .map((n) => n.textContent.trim())
+                    .join('');
+                if (own) out.push({ el: node, text: own });
+            }
+            return out;
+        }
+        const owners = collectTextOwners(document.body).filter((o) => o.text.includes(needle));
+        if (!owners.length) return { ok: false, reason: '텍스트 소유 요소 못 찾음', matches: 0 };
+
+        for (const owner of owners) {
+            // 텍스트 요소 자신 → 부모로 최대 5단계 올라가며 checkbox 탐색
+            let container = owner.el;
+            for (let depth = 0; depth < 5 && container; depth++) {
+                const cb = container.querySelector && container.querySelector('input[type="checkbox"]');
+                if (cb) {
+                    const before = cb.checked;
+                    cb.click();
+                    return {
+                        ok: true,
+                        matches: owners.length,
+                        depth,
+                        beforeChecked: before,
+                        afterChecked: cb.checked,
+                        cbOuterHtml: cb.outerHTML.slice(0, 300),
+                        containerHtml: container.outerHTML.slice(0, 1500),
+                    };
+                }
+                container = container.parentElement;
+            }
+        }
+        // checkbox 를 못 찾았으면 첫 매치 주변 마크업이라도 남긴다
+        const first = owners[0].el;
+        let ctx = first;
+        for (let i = 0; i < 3 && ctx.parentElement; i++) ctx = ctx.parentElement;
+        return { ok: false, reason: '5단계 내 checkbox 못 찾음', matches: owners.length, containerHtml: ctx.outerHTML.slice(0, 2000) };
+    }, text);
+    console.log(`\n[checkbox 토글] "${text}" 검색 결과:`, JSON.stringify(result).slice(0, 3000));
+    log.push({ step: `findAndToggleCheckbox:"${text}"`, ok: result.ok, reason: result.ok ? `depth=${result.depth}, checked ${result.beforeChecked}→${result.afterChecked}` : result.reason });
+    return result;
+}
+
 async function dumpVisibleTexts(page, label) {
     try {
         const texts = await page.evaluate(() => {
@@ -476,14 +554,21 @@ async function main() {
     await page.screenshot({ path: path.join(SHOT_DIR, '5_density_section.png'), fullPage: false }).catch(() => {});
     await dumpVisibleTexts(page, '선박사고밀도 펼친 직후');
 
-    console.log('[6/6] "인명사고" 토글 클릭');
+    console.log('[6/6] "인명사고" 토글 — checkbox 직접 탐색 우선 시도(14차)');
     watchAllJson = true;
-    // 4차 실행에서 이웃 텍스트("선박사고(해양") 기준 스코프가 실패했다 — 이 화면
-    // 안에서는 "인명사고"가 유일한 텍스트일 가능성이 높아 스코프 없이 먼저 시도하고,
-    // 실패하면 이미 확인된 안전한 이웃("선박사고분석")으로 재시도한다.
-    let personClicked = await evalClickByText(page, '인명사고', clickLog);
+    // 13차까지 텍스트 클릭(evalClickByText)만 썼는데 인명사고 레이어 네트워크
+    // 요청이 한 번도 안 떴다 — 실제 스위치가 checkbox 일 가능성이 커서 이번엔
+    // 그것부터 찾아 직접 누른다. 실패하면 기존 방식(텍스트 클릭)으로 폴백한다.
+    const cbResult = await findAndToggleCheckbox(page, '인명사고', clickLog);
+    let personClicked = cbResult.ok;
     if (!personClicked) {
-        personClicked = await evalClickScoped(page, '인명사고', ['선박사고분석'], clickLog);
+        // 4차 실행에서 이웃 텍스트("선박사고(해양") 기준 스코프가 실패했다 — 이 화면
+        // 안에서는 "인명사고"가 유일한 텍스트일 가능성이 높아 스코프 없이 먼저 시도하고,
+        // 실패하면 이미 확인된 안전한 이웃("선박사고분석")으로 재시도한다.
+        personClicked = await evalClickByText(page, '인명사고', clickLog);
+        if (!personClicked) {
+            personClicked = await evalClickScoped(page, '인명사고', ['선박사고분석'], clickLog);
+        }
     }
     await page.waitForTimeout(5000); // 마커 데이터 로드 대기
     await page.screenshot({ path: path.join(SHOT_DIR, '6_person_layer_on.png'), fullPage: false }).catch(() => {});
