@@ -654,8 +654,10 @@
 
     /** 심각도(주의보/경보) 포함 특보 필드 — build_accident_warn_flags.js 가 2026-08-31
      * 통계 도넛 세분화용으로 새로 추가한 위치(["TY_경보","WV_주의보"] 형태). 위
-     * WARN_FLAGS_POS_IDX(유형만, 필터가 씀)와는 별개 필드라 필터 동작에 영향 없음. */
-    var WARN_SEVERITY_POS_IDX = { hk: 17, person: 11 };
+     * WARN_FLAGS_POS_IDX(유형만, 필터가 씀)와는 별개 필드라 필터 동작에 영향 없음.
+     * [hk: 17→16, 2026-09-01] 선박사고 전면 재구축으로 hk 스키마가 17개→16개(사건번호
+     * 필드 제거)가 되며 season(15) 바로 다음 자리로 당겨짐. */
+    var WARN_SEVERITY_POS_IDX = { hk: 16, person: 11 };
     var WARN_SEVERITY_ORDER = ['TY_경보', 'TY_주의보', 'WV_경보', 'WV_주의보', 'GW_경보', 'GW_주의보'];
     var WARN_SEVERITY_LABELS = {
         TY_경보: '태풍 경보', TY_주의보: '태풍 주의보',

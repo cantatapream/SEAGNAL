@@ -52,11 +52,15 @@
  * [심각도(주의보/경보) 세분화 — 새 필드 추가(2026-08-31 사용자 확정)] 통계 시트의
  * "특보발효" 도넛을 유형×심각도로 쪼개 보여달라는 요청 — 기존 hk[12]/person[10]
  * (유형만, 필터가 쓰는 값)은 그대로 두고, 뒤에 심각도 필드를 새로 추가한다:
- *   hk[17]/person[11]: ["TY_경보","WV_주의보"] 형태 배열(발효중인 유형+심각도 조합,
+ *   hk[16]/person[11]: ["TY_경보","WV_주의보"] 형태 배열(발효중인 유형+심각도 조합,
  *   레벨은 항상 유형당 1개 — 격상/완화 시 구간을 그 시각에 닫고 새로 열어 겹치지 않음).
+ *   (hk 는 원래 17 이었으나 2026-09-01 선박사고 전면 재구축으로 사건번호 필드가
+ *   빠지며 16으로 당겨짐 — 아래 WARN_SEVERITY_POS_IDX 참고)
  * 재실행 시 기존 hk[12]/person[10] 값을 다시 계산해 그대로 나오는지 먼저 대조 검증하고,
  * 하나라도 다르면 저장하지 않고 중단한다(적대검증 — 레벨 분리로 판정 로직을 바꿨으니
- * "유형만 보면 예전과 똑같다"는 게 재현돼야 심각도 필드도 믿을 수 있다).
+ * "유형만 보면 예전과 똑같다"는 게 재현돼야 심각도 필드도 믿을 수 있다). 단, hk 가
+ * 원본 CSV로 전면 재구축돼 유형(row[12])이 전부 미계산([])인 경우는 --recompute-hk
+ * 플래그로 이 검증을 건너뛰고 유형까지 새로 쓴다(아래 RECOMPUTE_HK 참고).
  *
  * [연계] 사용하는 파일: warn_zone_parser.js · local_server/config/zone_group_map.js ·
  *        local_server/scripts/data/warn_zone_flags/*
@@ -345,7 +349,11 @@ function makeFlagComputers(intervals, findSeaZone, findNearLand) {
 // 예전과 똑같이 나오는지 먼저 확인하지 않고 severity 를 얹으면 조용히 틀린 데이터가
 // 쌓일 위험이 있다 — 2026-08-31, 적대검증 원칙 적용).
 const WARN_FLAGS_POS_IDX = { hk: 12, person: 10 };
-const WARN_SEVERITY_POS_IDX = { hk: 17, person: 11 };
+// [hk: 17→16, 2026-09-01] 선박사고 전면 재구축(build_ship_accidents_v2.js)이 hk
+// 스키마에서 사건번호(caseNo, 옛 index16) 필드를 없애 17개→16개가 됐다 — season(15)
+// 바로 다음이 severity 자리라 16으로 당김(client/js/marine-life/safety/accident_info.js
+// 의 같은 이름 상수도 함께 갱신해야 함).
+const WARN_SEVERITY_POS_IDX = { hk: 16, person: 11 };
 
 function main() {
     console.log('[1/5] 통보문 CSV 파싱 -> 구간표(유형×심각도) 생성...');
@@ -363,21 +371,34 @@ function main() {
 
     function verifyAndCollect(rows, computeFn, flagsIdx) {
         let mismatch = 0;
-        const severities = rows.map(row => {
+        const severities = [], flagsList = [];
+        rows.forEach((row) => {
             const { flags, severity } = computeFn(row);
             const existing = row[flagsIdx] || [];
             const same = existing.length === flags.length && existing.every(c => flags.includes(c));
             if (!same) mismatch++;
-            return severity;
+            severities.push(severity);
+            flagsList.push(flags);
         });
-        return { severities, mismatch };
+        return { severities, flagsList, mismatch };
     }
+
+    // [--recompute-hk/--recompute-person, 2026-09-01] hk 는 원본 CSV로 전면 재구축돼
+    // (build_ship_accidents_v2.js) row[12](특보유형)가 전부 자리만 맞춘 빈 배열([],
+    // "미계산")이다. person 도 이번 세션에 ERR_CD 필터로 다시 만들어져(build_accidents.js
+    // buildPersons()) row 가 10개 필드뿐 — warnFlags/severity 필드 자체가 없다(직접
+    // 확인: field-length 10, row[10] 전부 undefined). 두 경우 다 아래 자기검증("기존
+    // 저장값과 같아야 한다")의 전제 자체가 안 맞는다 — 기존 값이 애초에 미계산이라
+    // "달라졌는지" 볼 대상이 없다. 그래서 해당 소스는 검증 없이 유형까지 새로 쓴다
+    // (사용자 확정 2026-09-01: "재계산 진행하자").
+    const RECOMPUTE_HK = process.argv.includes('--recompute-hk');
+    const RECOMPUTE_PERSON = process.argv.includes('--recompute-person');
 
     const hkResult = verifyAndCollect(hkData.rows, computeHkFlags, WARN_FLAGS_POS_IDX.hk);
     const personResult = verifyAndCollect(personData.rows, computePersonFlags, WARN_FLAGS_POS_IDX.person);
-    console.log('  hk 유형 판정 불일치:', hkResult.mismatch, '/', hkData.rows.length);
-    console.log('  person 유형 판정 불일치:', personResult.mismatch, '/', personData.rows.length);
-    if (hkResult.mismatch > 0 || personResult.mismatch > 0) {
+    console.log('  hk 유형 판정 불일치:', hkResult.mismatch, '/', hkData.rows.length, RECOMPUTE_HK ? '(재계산 모드 — 무시하고 새로 씀)' : '');
+    console.log('  person 유형 판정 불일치:', personResult.mismatch, '/', personData.rows.length, RECOMPUTE_PERSON ? '(재계산 모드 — 무시하고 새로 씀)' : '');
+    if ((!RECOMPUTE_HK && hkResult.mismatch > 0) || (!RECOMPUTE_PERSON && personResult.mismatch > 0)) {
         console.error('[중단] 레벨 분리 후에도 기존 "발효중" 판정(유형만)이 똑같이 나와야 하는데 달라졌다.');
         console.error('       buildIntervals()의 레벨 전환 로직을 다시 확인할 것 — 저장하지 않고 종료.');
         process.exit(1);
@@ -385,10 +406,12 @@ function main() {
 
     console.log('[4/5] 심각도(주의보/경보) 필드 반영...');
     hkData.rows.forEach((row, i) => {
+        if (RECOMPUTE_HK) row[WARN_FLAGS_POS_IDX.hk] = hkResult.flagsList[i]; // 유형도 새로 씀
         if (row.length > WARN_SEVERITY_POS_IDX.hk) row[WARN_SEVERITY_POS_IDX.hk] = hkResult.severities[i];
         else row.push(hkResult.severities[i]);
     });
     personData.rows.forEach((row, i) => {
+        if (RECOMPUTE_PERSON) row[WARN_FLAGS_POS_IDX.person] = personResult.flagsList[i]; // 유형도 새로 씀
         if (row.length > WARN_SEVERITY_POS_IDX.person) row[WARN_SEVERITY_POS_IDX.person] = personResult.severities[i];
         else row.push(personResult.severities[i]);
     });
