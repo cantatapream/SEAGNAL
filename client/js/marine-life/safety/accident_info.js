@@ -2019,7 +2019,26 @@
     // 빨강에 닿고 나머지가 그 아래로 골고루 퍼진다.
     var HEATMAP_PEAK_PERCENTILE = 0.05; // 상위 5% 지점을 기준 밀도로
     var HEATMAP_TARGET_PEAK = 20;       // 그 기준 밀도가 최고 단계에 닿도록 하는 배수
+    // 한 화면에 히트맵으로 넘길 점의 상한 — 화면 폭이 400px 남짓이라 이 이상은
+    // 눈에 보이는 차이가 없는데 지도를 움직일 때마다 다시 넣느라 버벅인다(recomputeGrid 참고).
+    var HEATMAP_MAX_POINTS = 6000;
     var _heatmapWeight = 1;
+
+    /** 히트맵에 넣을 점 feature 를 소스별로 딱 한 번만 만들어 두고 재사용한다.
+     * 예전엔 지도를 움직일 때마다 화면 안의 점 수만 개를 new ol.Feature 로 새로
+     * 만들었는데, 그게 버벅임의 주원인이었다(실측: 전국 보기 이동 한 번 768ms).
+     * rawFeatures[key] 와 같은 순서·같은 길이라 인덱스로 1:1 대응한다. */
+    var _heatFeatureCache = {};
+    function ensureHeatFeatureCache(key, all) {
+        var cache = _heatFeatureCache[key];
+        if (cache && cache.length === all.length) return cache;
+        cache = new Array(all.length);
+        for (var i = 0; i < all.length; i++) {
+            cache[i] = new ol.Feature({ geometry: new ol.geom.Point(all[i].getGeometry().getCoordinates()) });
+        }
+        _heatFeatureCache[key] = cache;
+        return cache;
+    }
 
     function ensureHeatmapLayer(map) {
         if (heatmapLayer) return heatmapLayer;
@@ -2101,11 +2120,10 @@
      */
     function recomputeGrid(map) {
         if (!gridSource || !state.source) return;
-        var feats = rawFeatures[state.source] || [];
-        if (hasActiveFilters()) {
-            var key = state.source;
-            feats = feats.filter(function (f) { return passesFilters(key, f.get('row')); });
-        }
+        var key = state.source;
+        var all = rawFeatures[key] || [];
+        var heatCache = ensureHeatFeatureCache(key, all);
+        var filtering = hasActiveFilters();
         var view = map.getView();
         var dims = gridDimsForZoom(view.getZoom());
         var cols = dims.cols, rows = dims.rows;
@@ -2114,26 +2132,41 @@
         var h = (extent[3] - extent[1]) / rows;
         if (!(w > 0) || !(h > 0)) return;
 
-        // 히트맵 커널(radius+blur) 한 칸 크기를 좌표 단위로 환산 — 이 크기로 점을
-        // 나눠 담아 "가장 붐비는 자리에 몇 개가 겹치는지"를 센다(위 ensureHeatmapLayer 주석).
-        var mapSize = map.getSize() || [1, 1];
-        var coordPerPx = (extent[2] - extent[0]) / Math.max(1, mapSize[0]);
-        var binSize = (HEATMAP_RADIUS + HEATMAP_BLUR) * coordPerPx;
-        var densityBins = {};
-
+        // 1) 화면 안에 들어오는 것만 추린다. 칸별 건수(buckets)는 표시용 숫자라
+        //    솎아내지 않고 전부 정확히 센다.
         var buckets = {}; // "col,row" -> ol.Feature[]
-        var heatFeatures = []; // 히트맵용 — 격자칸과 무관하게 지점 좌표 그대로
-        feats.forEach(function (f) {
+        var inViewIdx = [];
+        for (var i = 0; i < all.length; i++) {
+            var f = all[i];
+            if (filtering && !passesFilters(key, f.get('row'))) continue;
             var c = f.getGeometry().getCoordinates();
-            if (c[0] < extent[0] || c[0] > extent[2] || c[1] < extent[1] || c[1] > extent[3]) return;
-            heatFeatures.push(new ol.Feature({ geometry: new ol.geom.Point(c) }));
-            var bk = Math.floor(c[0] / binSize) + ',' + Math.floor(c[1] / binSize);
-            densityBins[bk] = (densityBins[bk] || 0) + 1;
+            if (c[0] < extent[0] || c[0] > extent[2] || c[1] < extent[1] || c[1] > extent[3]) continue;
+            inViewIdx.push(i);
             var col = Math.min(Math.floor((c[0] - extent[0]) / w), cols - 1);
             var row = Math.min(Math.floor((c[1] - extent[1]) / h), rows - 1);
             var k = col + ',' + row;
             (buckets[k] || (buckets[k] = [])).push(f);
-        });
+        }
+
+        // 2) 히트맵에 넘길 점은 상한(HEATMAP_MAX_POINTS)까지만 고르게 솎아 쓴다 —
+        //    화면 폭이 400px 남짓이라 5만 점을 다 넘겨도 눈에 보이는 결과는 같은데,
+        //    지도를 움직일 때마다 그만큼을 매번 다시 넣느라 크게 버벅였다(실측:
+        //    전국 보기에서 이동 한 번에 768ms). 아래 weight 는 "솎아낸 점들"의 밀도로
+        //    정하므로, 솎아내도 진하기는 그대로 유지된다(점 수가 1/n로 줄면 기준
+        //    밀도도 1/n로 줄어 weight 가 n배가 되어 서로 상쇄).
+        var step = Math.max(1, Math.ceil(inViewIdx.length / HEATMAP_MAX_POINTS));
+        var mapSize = map.getSize() || [1, 1];
+        var coordPerPx = (extent[2] - extent[0]) / Math.max(1, mapSize[0]);
+        var binSize = (HEATMAP_RADIUS + HEATMAP_BLUR) * coordPerPx;
+        var densityBins = {};
+        var heatFeatures = [];
+        for (var j = 0; j < inViewIdx.length; j += step) {
+            var idx = inViewIdx[j];
+            heatFeatures.push(heatCache[idx]);
+            var hc = all[idx].getGeometry().getCoordinates();
+            var bk = Math.floor(hc[0] / binSize) + ',' + Math.floor(hc[1] / binSize);
+            densityBins[bk] = (densityBins[bk] || 0) + 1;
+        }
 
         // 붐비는 상위 N% 지점이 최고 단계(빨강)에 닿도록 점 하나의 기여도를 정한다
         // (위 ensureHeatmapLayer 주석) — addFeatures 전에 갱신해야 새로 그려질 때부터 반영된다.
