@@ -129,6 +129,21 @@
  *   것처럼 인명사고 gid도 그럴 가능성이 있어, gid 0~99 를 무작정 넣어 응답이 오는지
  *   시험한다(선행 조건 없이도 동작하면 지도 자동화 전체가 필요 없어짐 — 클릭 한 번
  *   없이 전체 데이터를 gid 순회로 받아올 길이 열릴 수 있다).
+ * [2026-09-01 수정11] 11차 실행 결과 확인: clickCluster.json 은 지도 조작 없이도
+ *   바로 됐다(gid 0~499 무작정 넣어 실제 사고 레코드 다수 확인 — 예: gid 26 =
+ *   "2022-12-02, 울산항 SK6부두 인근 해상"). **하지만 응답에 위도/경도 좌표가 아예
+ *   없다** — accloc(지명 텍스트)·accymd(날짜)·acctyp(유형)·accckr(전부 null)뿐이라,
+ *   이건 우리가 이미 갖고 있는 원본 엑셀의 "위치텍스트"와 같은 성격의 정보다(오히려
+ *   좌표가 없어 우리가 가진 것보다 적음). 즉 클릭 시 뜨는 이 API는 사고 "속성"만
+ *   주지 "좌표"는 안 준다 — 지도에 마커를 정확히 찍는 진짜 좌표는 여전히 다른
+ *   경로(9차에서 찾다 만 gid+좌표 벌크로더, 등부표의 buoyList.json에 해당하는
+ *   무언가)에 있다. 12차: 그 로더의 실체를 코드로 확정하려고 `olmp.js`·
+ *   `datasetolmp.js`(9차 keyword-scan 이 15건 매치 제한에 걸려 앞부분만 봤던 —
+ *   `changeSqlLayer` 함수 시작부만 보였음)를 dumpFullFileContents 대상에 추가해
+ *   전체 본문을 읽는다. 추가로, 9차의 setCenter/setZoom 직접 호출이 진짜 사용자
+ *   이동처럼 로딩을 트리거했는지 불확실했으므로(zoom 15→12로 클램프된 것만 확인,
+ *   moveend 이후 뜨는 벌크 요청은 못 봤음), 확대 후 작은 추가 이동(pan)을 한 번 더
+ *   넣어 moveend 계열 이벤트가 확실히 발생하게 만든 뒤 벡터 피처를 재조회한다.
  * [출력] 콘솔 요약(엔드포인트 목록) + JS 번들 스캔 결과 + local_server/data/khoa_probe_result.json
  *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 다수(단계별 확인용)
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
@@ -299,7 +314,11 @@ async function scanLoadedScripts(page) {
 // 파일명 자체가 "클릭/팝업 처리 담당"으로 보이는 스크립트는 키워드 매치 여부와
 // 무관하게 전체 내용을 덤프한다(범용 핸들러라 레이어명이 리터럴로 안 박혀
 // 있을 수 있음, 2026-09-01 8차 결과로 확인).
-const FULL_DUMP_URL_SUBSTRINGS = ['olmp-click', 'otms-clickinfo', 'otms-popup', 'otms-data'];
+const FULL_DUMP_URL_SUBSTRINGS = ['olmp-click', 'otms-clickinfo', 'otms-popup', 'otms-data', 'olmp.js'];
+// 'olmp.js' 는 olmp.js 자신과 datasetolmp.js(둘 다 파일명이 "olmp.js"로 끝남) 둘 다
+// 잡고, olmp-click.js 는 안 잡는다("olmp-click.js" 안에 "olmp.js"라는 연속 문자열이
+// 없음 — "olmp" 다음이 "-click.js"지 ".js"가 아님). 12차: changeSqlLayer(줌 게이트
+// 걸린 실제 데이터 로더) 전체 본문을 보려고 추가.
 const FULL_DUMP_MAX_CHARS = 70000; // 9차에서 6000자로 잘라 핵심 부분(NSHPAC 항목·실제 호출부)을 놓쳤다 — 4개 파일 다 통째로
 
 async function dumpFullFileContents(page) {
@@ -555,6 +574,26 @@ async function main() {
     }
     await page.waitForTimeout(3000);
     await page.screenshot({ path: path.join(SHOT_DIR, '7_zoomed_in.png'), fullPage: false }).catch(() => {});
+
+    console.log('[7b2/10] 작은 추가 이동으로 moveend 계열 이벤트 확실히 발생시키기 (9차 setCenter/setZoom 한 번만으로는 changeSqlLayer 의 줌 로더가 진짜 켜졌는지 불확실했음)');
+    const panResult = await page.evaluate(() => {
+        function panOne(name) {
+            try {
+                const wrapper = window[name];
+                if (!wrapper || !wrapper.map || typeof wrapper.map.getView !== 'function') return null;
+                const view = wrapper.map.getView();
+                const center = view.getCenter();
+                if (!center) return { name, error: 'center 없음' };
+                view.setCenter([center[0] + 200, center[1] + 200]);
+                return { name, ok: true };
+            } catch (e) {
+                return { name, error: String(e.message || e) };
+            }
+        }
+        return { olmp: panOne('olmp'), datasetolmp: panOne('datasetolmp') };
+    });
+    console.log('  추가 이동(pan) 결과:', JSON.stringify(panResult));
+    await page.waitForTimeout(3000); // moveend 이후 뜨는 벌크 로드 요청 대기
 
     console.log('[7c/10] 확대 후 벡터 피처 재조회 (datasetOLMP.changeSqlLayer 는 일정 줌 레벨 이상에서만 데이터를 채운다 — limitZoom 게이트 확인됨)');
     const vectorScanResult2 = await page.evaluate(() => {
