@@ -31,6 +31,19 @@
  *   범위를 좁혀야 정확한 요소를 찾을 수 있다(예: "안전"은 "지형/지명"·"항해지원"과
  *   같은 목록에 있는 것만, "사고정보"는 "갯골(상세)"와 같은 목록에 있는 것만).
  *   evalClickScoped() 가 이 방식으로 클릭 대상을 찾는다.
+ * [2026-09-01 수정4] 4차 실행: "데이터셋→안전→사고정보" 3단계는 전부 성공(로그로
+ *   확인, breadcrumb "안전 > 사고정보" 화면 도달). 마지막 "인명사고" 토글만
+ *   실패("컨테이너 안에서 target 못 찾음") — 이웃 텍스트로 준 "선박사고(해양"가
+ *   실제 DOM 텍스트와 정확히 안 맞았을 가능성이 크다(사용자 스크린샷 재확인 결과
+ *   "선박사고분석"·"선박사고밀도"는 아코디언이 아니라 그 아래 "선박사고(해양…)"
+ *   ×2행 + "인명사고(25년)"행이 처음부터 같이 보이는 목록형 화면이었다). 화면
+ *   텍스트 스냅샷도 150개 제한에 걸려 "인명사고"가 나오기 전에 잘렸다. 이번엔
+ *   ①스냅샷 한도를 늘리고 ②"인명사고" 클릭은 이 화면 안에서 유일할 가능성이
+ *   높아 스코프 없이 바로 시도(실패하면 스코프를 "선박사고분석" 하나로만)한다.
+ *   사용자가 실제 마커를 클릭해 보여준 팝업(전북 고창군 구시포항(신항)·
+ *   사고발생일 20180228·사고유형 ATY001)은 지명이 이미 해석돼 있어, 토글을
+ *   켰을 때 뜨는 벌크 API 응답에 있을 가능성이 가장 높다 — watchAllJson 으로
+ *   그 응답을 통째로 잡는다.
  * [출력] 콘솔 요약(엔드포인트 목록) + local_server/data/khoa_probe_result.json
  *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 5장(단계별 확인용)
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
@@ -148,16 +161,16 @@ async function dumpVisibleTexts(page, label) {
         const texts = await page.evaluate(() => {
             const out = [];
             document.querySelectorAll('body *').forEach((el) => {
-                if (out.length > 150) return;
+                if (out.length > 400) return;
                 const own = Array.from(el.childNodes)
                     .filter((n) => n.nodeType === 3)
                     .map((n) => n.textContent.trim())
                     .join('');
-                if (own && own.length <= 40) out.push(own);
+                if (own && own.length <= 60) out.push(own);
             });
             return out;
         });
-        console.log(`[${label} 화면 텍스트 스냅샷] ${JSON.stringify(texts)}`);
+        console.log(`[${label} 화면 텍스트 스냅샷·${texts.length}개] ${JSON.stringify(texts)}`);
     } catch (e) {
         console.log(`[${label} 텍스트 덤프 실패]`, e.message);
     }
@@ -230,11 +243,18 @@ async function main() {
     await page.screenshot({ path: path.join(SHOT_DIR, '5_density_section.png'), fullPage: false }).catch(() => {});
     await dumpVisibleTexts(page, '선박사고밀도 펼친 직후');
 
-    console.log('[6/6] "인명사고" 토글 클릭 (이웃: 선박사고(해양)');
+    console.log('[6/6] "인명사고" 토글 클릭');
     watchAllJson = true;
-    await evalClickScoped(page, '인명사고', ['선박사고(해양'], clickLog);
-    await page.waitForTimeout(4000);
+    // 4차 실행에서 이웃 텍스트("선박사고(해양") 기준 스코프가 실패했다 — 이 화면
+    // 안에서는 "인명사고"가 유일한 텍스트일 가능성이 높아 스코프 없이 먼저 시도하고,
+    // 실패하면 이미 확인된 안전한 이웃("선박사고분석")으로 재시도한다.
+    let personClicked = await evalClickByText(page, '인명사고', clickLog);
+    if (!personClicked) {
+        personClicked = await evalClickScoped(page, '인명사고', ['선박사고분석'], clickLog);
+    }
+    await page.waitForTimeout(5000); // 마커 데이터 로드 대기
     await page.screenshot({ path: path.join(SHOT_DIR, '6_person_layer_on.png'), fullPage: false }).catch(() => {});
+    await dumpVisibleTexts(page, '인명사고 토글 클릭 직후');
 
     console.log('추가 대기 후 네트워크 수집 마감');
     await page.waitForTimeout(3000);
