@@ -112,6 +112,23 @@
  *   잘려나갔다 — 확인 안 하고 넘어갈 뻔한 케이스라 이번엔 자르지 않는다(추측
  *   금지 — 실제로 다 읽어야 함). 10차: FULL_DUMP_MAX_CHARS 를 6000→70000으로
  *   올려 4개 파일 전부를 통째로(총 약 13만5천자) 출력한다.
+ * [2026-09-01 수정10] 10차 실행 결과 확인: 잘림을 없애자 핵심 코드가 다 나왔다 —
+ *   `otms-popup.js`에 `clusterPopupNS.vi_nshpac_p = function(feature, data){...}`
+ *   가 있고, 그 안에서 `data.result[i].accymd`(사고발생일)·`acctyp`(사고유형)·
+ *   `accloc`(사고지점, 탭 제목으로 씀) 3개 필드를 꺼내 팝업을 그린다. 이 `data`가
+ *   어디서 오는지도 같은 파일 `fn_cluster_selected(features)`에서 확인됨 —
+ *   클릭된 피처들의 `layerNm`·`gid`를 모아 **`POST {ctxPath}/map/cmm/
+ *   clickCluster.json`**  본문 `{LAYER:layerNm, ARRGID:[gid,...]}`로 던지면
+ *   `{result:[{accymd,acctyp,accloc,...}]}` 를 돌려주는 구조였다(실제 엔드포인트
+ *   이름·요청/응답 스키마를 코드로 확정 — 추측 아님). 다만 이 gid 값 자체가 어디서
+ *   브라우저에 로드되는지는 여전히 못 봤다(9차 벡터스캔에서 인명사고 레이어는
+ *   0건이었음 — gid를 미리 받아두는 별도 벌크 로드 API가 있을 텐데 10차까지
+ *   한 번도 안 잡혔음, 등부표의 `buoyList.json`과 같은 역할을 하는 무언가로 추정).
+ *   11차: 지도 클릭·줌 흉내를 계속 추측하는 대신, **이 clickCluster.json 엔드포인트를
+ *   지도 조작 없이 직접 호출**해본다 — 등부표 gid가 0부터 시작하는 작은 정수였던
+ *   것처럼 인명사고 gid도 그럴 가능성이 있어, gid 0~99 를 무작정 넣어 응답이 오는지
+ *   시험한다(선행 조건 없이도 동작하면 지도 자동화 전체가 필요 없어짐 — 클릭 한 번
+ *   없이 전체 데이터를 gid 순회로 받아올 길이 열릴 수 있다).
  * [출력] 콘솔 요약(엔드포인트 목록) + JS 번들 스캔 결과 + local_server/data/khoa_probe_result.json
  *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 다수(단계별 확인용)
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
@@ -304,6 +321,34 @@ async function dumpFullFileContents(page) {
     }
 }
 
+// 10차 dumpFullFileContents 로 otms-popup.js 안에서 실제 클릭→조회 API를 코드로
+// 확정했다: 클릭된 피처의 layerNm·gid 를 모아 POST clickCluster.json 에
+// {LAYER, ARRGID} 로 던지면 {result:[{accymd,acctyp,accloc,...}]} 를 준다
+// (fn_cluster_selected 함수, otms-popup.js). 지도 클릭 자동화를 계속 추측하는
+// 대신, 이 엔드포인트를 gid 를 무작정 순회하며 직접 호출해본다 — 등부표 gid가
+// 0부터 시작하는 정수였던 것과 같은 패턴이면 지도 조작 없이 데이터를 받을 수 있다.
+async function tryClickClusterDirect(page, layerNm, gidStart, gidEnd, label) {
+    const gidArr = [];
+    for (let g = gidStart; g <= gidEnd; g++) gidArr.push(g);
+    const result = await page.evaluate(async ({ layerNm, gidArr }) => {
+        try {
+            const res = await fetch('/oceanmap/map/cmm/clickCluster.json', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ LAYER: layerNm, ARRGID: gidArr }),
+            });
+            const status = res.status;
+            const text = await res.text();
+            return { ok: true, status, text: text.slice(0, 8000), textLength: text.length };
+        } catch (e) {
+            return { ok: false, error: String(e.message || e) };
+        }
+    }, { layerNm, gidArr });
+    console.log(`\n[clickCluster.json 직접 호출·${label}] LAYER=${layerNm} ARRGID=${gidStart}..${gidEnd}`);
+    console.log('  결과:', JSON.stringify(result).slice(0, 8500));
+    return result;
+}
+
 async function dumpVisibleTexts(page, label) {
     try {
         const texts = await page.evaluate(() => {
@@ -372,6 +417,9 @@ async function main() {
     await scanLoadedScripts(page);
     await dumpFullFileContents(page);
 
+    console.log('[1b/6] clickCluster.json 직접 호출 시험 (탐색 이전 — 선행조건 없이도 되는지 확인)');
+    await tryClickClusterDirect(page, 'vi_nshpac_p', 0, 99, '탐색전');
+
     console.log('[2/6] "데이터셋" 탭 진입');
     await evalClickByText(page, '데이터셋', clickLog);
     await page.waitForTimeout(2000);
@@ -406,6 +454,9 @@ async function main() {
     await page.waitForTimeout(5000); // 마커 데이터 로드 대기
     await page.screenshot({ path: path.join(SHOT_DIR, '6_person_layer_on.png'), fullPage: false }).catch(() => {});
     await dumpVisibleTexts(page, '인명사고 토글 클릭 직후');
+
+    console.log('[6b/6] clickCluster.json 직접 호출 재시험 (토글 이후 — 세션 상태가 필요한 경우 대비, 범위 넓힘)');
+    await tryClickClusterDirect(page, 'vi_nshpac_p', 0, 499, '토글후');
 
     console.log('[7/10] window.olmp / window.datasetolmp 이름으로 직접 지도 인스턴스 찾기');
     // 7차 실행은 window[key] 1단계만 duck-typing 스캔해서 실패했다 — 실제 OL Map은
