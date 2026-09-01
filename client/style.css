@@ -8748,7 +8748,13 @@ html[data-font-size="large"] .ocean-overlay-btn {
     background: linear-gradient(180deg, #0c1a3a 0%, #162d5a 100%);
     border-radius: 20px 20px 0 0;
     z-index: 70;
-    overflow-y: auto;
+    /* 스크롤은 .accident-stats-body 안에서만 일어나게 바꿈(2026-09-01 사용자 확정) —
+       예전엔 이 시트 자체가 스크롤 컨테이너라 안의 <h3> 제목에 position:sticky 를
+       걸어도 시트가 스크롤될 때 같이 밀려 사라졌다(스크롤 컨테이너와 sticky 대상이
+       같은 요소면 sticky가 의미가 없음). 시트는 이제 스크롤 안 하고 높이만 고정. */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     box-shadow: 0 -4px 30px rgba(0,0,0,0.5);
     transform: translateY(100%);
     transition: transform 0.28s cubic-bezier(0.22,1,0.36,1);
@@ -8759,10 +8765,26 @@ html[data-font-size="large"] .ocean-overlay-btn {
     background: rgba(255,255,255,0.2);
     border-radius: 2px;
     margin: 10px auto 4px;
+    flex: none;
 }
-.accident-stats-body { padding: 4px 16px 18px; font-size: 0.8rem; color: var(--text-main); }
+.accident-stats-body {
+    padding: 4px 16px 18px;
+    font-size: 0.8rem;
+    color: var(--text-main);
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0; /* flex 자식이 내용 높이만큼 안 늘어나고 부모 안에서 스크롤되게 */
+}
 .accident-stats-body h3 {
-    margin: 4px 0 12px;
+    /* 스크롤해도 제목이 안 가려지도록 고정(2026-09-01 사용자 확정) — 배경을 시트
+       그라데이션 맨 위쪽 색과 맞춰 뒤 내용이 비치지 않게 하고, body 의 좌우 패딩을
+       음수 마진으로 상쇄해 고정 시 좌우 끝까지 배경이 덮이게 한다. */
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: -4px -16px 12px;
+    padding: 10px 16px 8px;
+    background: #0c1a3a;
     font-size: 0.92rem;
     font-weight: 700;
     display: flex;
@@ -8791,6 +8813,11 @@ html[data-font-size="large"] .ocean-overlay-btn {
    모양 그대로 커진다(막대·동심원 아님). 화면 뜨고 0.5초 뒤 자동 재생(사용자 확정
    "매번 재생"), 확대 중엔 화면 전체가 그 지점으로 살짝(10배 확대폭) 줌인. */
 .accident-warn-svg { display: block; margin: 0 auto; overflow: hidden; }
+/* 도넛 중앙 "전체 사고"/건수 텍스트 — CSS가 아예 없어 SVG 기본값(검정 채움)으로 뜨는
+   바람에 어두운 배경에서 안 보이던 문제(2026-09-01 확인). 흰 글씨 + 검정 테두리로. */
+.center-total { fill: #ffffff; stroke: #000000; stroke-width: 3px; paint-order: stroke; stroke-linejoin: round; font-weight: 800; text-shadow: none; }
+.center-total.n { font-size: 26px; }
+.center-total.l { font-size: 13px; font-weight: 600; stroke-width: 2px; }
 .accident-warn-wedge { transition: opacity .12s linear; }
 .accident-warn-zoom {
     transform-box: view-box;
@@ -8809,6 +8836,10 @@ html[data-font-size="large"] .ocean-overlay-btn {
     cursor: pointer;
 }
 .accident-warn-revert:disabled { opacity: 0.4; cursor: default; }
+/* 조각 라벨(2026-09-01) — 조각이 크면 안쪽 중앙 텍스트, 작으면 리더라인+텍스트. */
+.accident-warn-inline-label { fill: #05070d; font-size: 9px; font-weight: 700; }
+.accident-warn-leader { stroke: rgba(255,255,255,0.5); stroke-width: 1; fill: none; stroke-linejoin: round; }
+.accident-warn-leader-label { fill: var(--text-main); font-size: 9px; font-weight: 600; }
 .accident-warn-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 10px; margin-top: 6px; }
 .accident-warn-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; color: var(--text-sub); }
 .accident-warn-legend-item i { width: 8px; height: 8px; border-radius: 2px; flex: none; display: inline-block; }
@@ -8842,8 +8873,10 @@ html[data-font-size="large"] .ocean-overlay-btn {
 
 .accident-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.74rem; }
 .accident-bar-row .name { width: 84px; flex: none; color: var(--text-sub); }
-.accident-bar-row .track { flex: 1; background: rgba(255,255,255,0.08); border-radius: 4px; height: 7px; overflow: hidden; }
-.accident-bar-row .fill { height: 100%; background: var(--accent-green); border-radius: 4px; }
+/* display:block 필수 — span은 기본 inline이라 width/height가 안 먹어(2026-09-01
+   확인: 이래서 게이지가 항상 빈 채로 보였음), block이어야 채움 비율(%)이 실제로 그려짐. */
+.accident-bar-row .track { display: block; flex: 1; background: rgba(255,255,255,0.08); border-radius: 4px; height: 7px; overflow: hidden; }
+.accident-bar-row .fill { display: block; height: 100%; background: var(--accent-green); border-radius: 4px; }
 .accident-bar-row .n { width: 68px; flex: none; text-align: right; color: var(--text-main); white-space: nowrap; }
 
 /* 사고정보 필터 바(2026-08-24) — 현황: 사고유형만, 분석: 4개 전부 노출.

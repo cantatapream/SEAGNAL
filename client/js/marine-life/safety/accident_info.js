@@ -2155,19 +2155,32 @@
         return ['사고유형'];
     }
 
-    /** members 를 getter(row)→labelTable 라벨로 묶어 [라벨,건수] 목록(건수 내림차순)으로. */
+    /** members 를 getter(row)→labelTable 라벨로 묶어 [라벨,건수] 목록(건수 내림차순)으로.
+     * "정보없음"은 비중이 아무리 커도 항상 맨 마지막에 오도록 예외 처리(사용자 확정
+     * 2026-09-01 — "정보없음"은 실제 항목이 아니라 데이터 결손 표시라 다른 항목과
+     * 같은 기준으로 순위를 매기면 안 됨). */
     function countByLabel(members, getter, labelTable) {
         var counts = {};
         members.forEach(function (f) {
             var label = accidentLabel(labelTable, getter(f.get('row')));
             counts[label] = (counts[label] || 0) + 1;
         });
-        return Object.keys(counts).map(function (label) { return [label, counts[label]]; })
+        var entries = Object.keys(counts).map(function (label) { return [label, counts[label]]; })
             .sort(function (a, b) { return b[1] - a[1]; });
+        var known = entries.filter(function (e) { return e[0] !== '정보없음'; });
+        var unknown = entries.filter(function (e) { return e[0] === '정보없음'; });
+        return known.concat(unknown);
     }
 
+    /** 상위 6개만 보여주되, "정보없음"은 countByLabel 이 항상 맨 뒤에 둔 것이므로
+     * 상위 6건에서 밀려도 잘리지 않게 별도로 붙인다(사용자 확정: 비중이 커도 맨
+     * 아래에 위치할 뿐 아예 안 보이면 안 됨). */
     function aggregateCounts(members, getter, labelTable) {
-        return countByLabel(members, getter, labelTable).slice(0, 6); // 상위 6개만
+        var entries = countByLabel(members, getter, labelTable);
+        var last = entries.length && entries[entries.length - 1][0] === '정보없음' ? entries[entries.length - 1] : null;
+        var known = last ? entries.slice(0, -1) : entries;
+        var top = known.slice(0, last ? 5 : 6);
+        return last ? top.concat([last]) : top;
     }
 
     /** "관할서별" 분석 뷰 — 상위 6개로 자르지 않고 전부 보여준다(최대 21개 관할서). */
@@ -2212,7 +2225,6 @@
             : '<canvas id="accident-stats-chart"></canvas>';
 
         return '<div class="accident-stats-block">' +
-            '<div class="accident-stats-label">분석 뷰</div>' +
             '<div class="accident-detail-tabs">' + viewTabsHtml + '</div>' +
             backHtml +
             '<div class="accident-chart-wrap" id="accident-chart-wrap">' + chartInnerHtml + '</div>' +
@@ -2220,7 +2232,12 @@
             '</div>';
     }
 
-    function buildStatsHtml(key, members) {
+    /** "사고발생상세" 블록만 — id 를 붙여 이 블록만 따로 갈아끼울 수 있게 한다
+     * (2026-09-01 사용자 확정 — 이 탭을 바꿀 때 위 "분석 뷰" 차트까지 통째로
+     * 다시 그려지면서 특보발효 도넛 펼침 애니메이션이 매번 재생되던 문제 수정 —
+     * 이 블록은 차트와 무관하니 이 블록만 갱신하면 차트 DOM/Chart.js 인스턴스가
+     * 그대로 유지돼 애니메이션이 재생되지 않는다). */
+    function buildDetailBlockHtml(key, members) {
         var tabs = detailTabsFor(key);
         if (!_activeDetailTab[key] || tabs.indexOf(_activeDetailTab[key]) === -1) _activeDetailTab[key] = tabs[0];
         var activeTab = _activeDetailTab[key];
@@ -2237,10 +2254,14 @@
             return '<button class="accident-detail-tab' + (t === activeTab ? ' active' : '') + '" data-tab="' + t + '">' + t + '</button>';
         }).join('');
 
+        return '<div class="accident-stats-block" id="accident-detail-block">' +
+            '<div class="accident-detail-tabs">' + tabsHtml + '</div>' + barsHtml + '</div>';
+    }
+
+    function buildStatsHtml(key, members) {
         return '<h3>그리드형 사고분석 <span class="cellcount">' + members.length + '건</span></h3>' +
             buildChartViewHtml(key) +
-            '<div class="accident-stats-block"><div class="accident-stats-label">사고발생상세</div>' +
-            '<div class="accident-detail-tabs">' + tabsHtml + '</div>' + barsHtml + '</div>';
+            buildDetailBlockHtml(key, members);
     }
 
     /** 지금 그려진 Chart.js 인스턴스를 전부 정리 — 다시 그리기 전/시트 닫을 때 필수
@@ -2255,6 +2276,16 @@
         x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
         y: { beginAtZero: true, ticks: { color: '#64748b', precision: 0 }, grid: { color: 'rgba(255,255,255,0.06)' } }
     };
+    // 꺾은선 그래프(연도별·월별·시간대별) 전용 — x축에도 옅은 세로 가이드선을 그려
+    // 지금 보는 점이 어느 눈금인지 추적하기 쉽게 한다(사용자 확정 2026-09-01).
+    // 막대그래프(요일별)는 막대 자체가 각 눈금을 가리키므로 대상에서 뺌(기존 CHART_AXIS_OPTS 유지).
+    var CHART_AXIS_OPTS_LINE = {
+        x: { ticks: CHART_AXIS_OPTS.x.ticks, grid: { display: true, color: 'rgba(255,255,255,0.06)', drawTicks: false } },
+        y: CHART_AXIS_OPTS.y
+    };
+    // 꺾은선 그래프 최고점 라벨(anchor:'end',align:'top')이 캔버스 위쪽 끝에서 잘리지
+    // 않도록 여유 공간을 둠(사용자 확정 2026-09-01).
+    var CHART_TOP_PADDING = { padding: { top: 22 } };
     // 차트에 값을 항상(호버 없이) 보여달라는 요청(2026-08-31 사용자 확정) — 이미 로드돼
     // 있던 chartjs-plugin-datalabels 를 등록. 기본은 꺼두고(다른 화면에 이 Chart.js를
     // 재사용할 일이 없어 안전하지만 명시적으로), 값 표시가 필요한 차트에서만 개별로 켠다.
@@ -2263,6 +2294,10 @@
         Chart.defaults.set('plugins.datalabels', { display: false });
     }
     var DATALABEL_COLOR = '#e2e8f0';
+    var DATALABEL_COLOR_ON_LIGHT = '#05070d'; // 밝은 막대 색(초록 등) 안에 놓일 때 대비용 어두운 글씨
+    // 천 단위 콤마(2026-09-01 사용자 확정) — Chart.js 축 눈금은 기본 로케일 포맷을
+    // 쓰지만 datalabels 플러그인 값 표시는 그냥 String(v)라 콤마가 안 붙어 있었다.
+    function fmtN(v) { return Number(v).toLocaleString('ko-KR'); }
 
     // ── 특보발효 도넛(2026-08-31 사용자 확정) ──────────────────────────────────
     // 평시 고리는 고정, 맨 위 "특보 중" 원호가 태풍·풍랑·강풍×주의보·경보 6종으로
@@ -2372,6 +2407,15 @@
             zoomGroup.appendChild(e);
             return e;
         });
+        // 각 조각의 값 라벨(2026-09-01 사용자 확정) — 조각이 펼쳐진 뒤 충분히 크면
+        // 조각 안쪽 중앙에 텍스트, 작으면 조각에서 선을 빼서(리더라인) 바깥에 텍스트.
+        // 관리자센터 화면의 도넛 라벨 방식과 동일한 패턴. 위치는 펼친(expanded) 최종
+        // 각도 기준으로 한 번만 계산해 고정하고, 조각과 같은 투명도로 서서히 나타난다.
+        var labelEls = sv.map(function () {
+            var g = warnEl('g', { opacity: '0' });
+            zoomGroup.appendChild(g);
+            return g;
+        });
 
         // 접힌 상태 = 지금 특보중 원호 자리 그대로 / 펼친 상태 = 그 자리를 중심으로 옆으로
         // 넓게 부채꼴처럼 퍼지며(원호 모양 유지) 반지름도 커지고 바깥으로 밀려남(explode).
@@ -2394,6 +2438,66 @@
             return { collapsed: [c0, c1, R_OUT, R_IN, 0], expanded: [e0, e1, R_EXP_OUT, R_EXP_IN, R_EXP_OFFSET] };
         });
 
+        // 라벨 위치는 펼친(expanded) 최종 각도로 한 번만 계산 — warnWedgePath 와 같은
+        // 방식(이등분선 방향으로 R_EXP_OFFSET 만큼 밀어낸 중심 기준)으로 좌표를 구한다.
+        var MIN_INLINE_SPAN_DEG = 22; // 이보다 좁은 조각은 안에 글자가 안 들어가 리더라인 사용
+        var mids = states.map(function (st) { return (st.expanded[0] + st.expanded[1]) / 2; });
+        var spans = states.map(function (st) { return st.expanded[1] - st.expanded[0]; });
+
+        // 좁은 조각(리더라인 대상)이 서로 가까이 몰려 라벨이 겹치던 문제(2026-09-01
+        // 사용자 지적) — 실제 조각 각도 그대로 라벨을 두지 않고, 최소 각도 간격을
+        // 두고 고르게 펼쳐 배치한 뒤 조각→그 위치까지 꺾인 리더라인(radial + 호)으로
+        // 잇는다. 조각이 몰린 자리를 중심으로 펼치므로 원래 위치에서 크게 안 벗어난다.
+        var LABEL_MIN_GAP_DEG = 11;
+        var smallIdx = [];
+        states.forEach(function (st, i) { if (spans[i] < MIN_INLINE_SPAN_DEG) smallIdx.push(i); });
+        smallIdx.sort(function (a, b) { return mids[a] - mids[b]; });
+        var labelAngle = {};
+        if (smallIdx.length) {
+            var avgMid = smallIdx.reduce(function (a, i) { return a + mids[i]; }, 0) / smallIdx.length;
+            var n = smallIdx.length;
+            smallIdx.forEach(function (i, k) {
+                labelAngle[i] = avgMid - (n - 1) / 2 * LABEL_MIN_GAP_DEG + k * LABEL_MIN_GAP_DEG;
+            });
+        }
+
+        states.forEach(function (st, i) {
+            var s = sv[i];
+            var mid = mids[i], span = spans[i];
+            var offPt = warnPolar(0, 0, R_EXP_OFFSET, mid);
+            var ox = CX + offPt[0], oy = CY + offPt[1];
+            var text = s.label + ' ' + s.count + '건';
+            var g = labelEls[i];
+            g.innerHTML = '';
+            if (span >= MIN_INLINE_SPAN_DEG) {
+                var pMid = warnPolar(ox, oy, (R_EXP_OUT + R_EXP_IN) / 2, mid);
+                var t1 = warnEl('text', {
+                    x: pMid[0], y: pMid[1], 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+                    class: 'accident-warn-inline-label'
+                });
+                t1.textContent = text;
+                g.appendChild(t1);
+            } else {
+                var labelDeg = labelAngle[i];
+                var pOuter = warnPolar(ox, oy, R_EXP_OUT, mid);          // 조각 바깥 끝(리더라인 시작점)
+                var pBend = warnPolar(CX, CY, R_EXP_OUT + 13, mid);      // 일단 조각 각도로 짧게 뻗고
+                var pSpread = warnPolar(CX, CY, R_EXP_OUT + 13, labelDeg); // 펼친 각도로 꺾어서
+                var pText = warnPolar(CX, CY, R_EXP_OUT + 16, labelDeg);  // 텍스트는 그 끝에
+                var goRight = pSpread[0] >= CX;
+                var line = warnEl('polyline', {
+                    points: pOuter[0] + ',' + pOuter[1] + ' ' + pBend[0] + ',' + pBend[1] + ' ' + pSpread[0] + ',' + pSpread[1],
+                    class: 'accident-warn-leader', fill: 'none'
+                });
+                g.appendChild(line);
+                var t2 = warnEl('text', {
+                    x: pText[0], y: pText[1], 'text-anchor': goRight ? 'start' : 'end',
+                    'dominant-baseline': 'middle', class: 'accident-warn-leader-label'
+                });
+                t2.textContent = text;
+                g.appendChild(t2);
+            }
+        });
+
         function warnLerp(a, b, t) { return a + (b - a) * t; }
         function warnEaseOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
         function warnEaseInCubic(t) { return t * t * t; }
@@ -2411,6 +2515,7 @@
                 elx.setAttribute('d', warnWedgePath(CX, CY, rOut, rIn, start, end, off));
                 elx.setAttribute('opacity', String(e));
             });
+            labelEls.forEach(function (g) { g.setAttribute('opacity', String(e)); });
         }
         render(0, function (x) { return x; });
 
@@ -2429,20 +2534,21 @@
             _warnAnimRaf = requestAnimationFrame(step);
         }
 
-        function legendHtml() {
-            return '<div class="accident-warn-legend">' + sv.map(function (s) {
+        // 계산된 값은 애니메이션 완료를 기다리지 않고 처음부터 보여준다(사용자 확정
+        // 2026-09-01) — 예전엔 "펼쳐지는 중" 안내문구만 보이다 다 펼쳐져야 실제 값이
+        // 나왔다. 이제 조각별 값은 리더라인으로 차트 위에도 바로 나오므로(위 labelEls),
+        // 캡션은 로딩 문구 없이 처음부터 같은 범례를 보여주기만 한다.
+        if (caption) {
+            caption.innerHTML = '<div class="accident-warn-legend">' + sv.map(function (s) {
                 return '<span class="accident-warn-legend-item"><i style="background:' + s.color + '"></i>' +
                     escapeHtml(s.label) + ' ' + s.count + '건</span>';
             }).join('') + '</div>';
         }
         function setCollapsedUi() {
-            if (caption) caption.innerHTML = '평시와 특보 중 비율을 그대로 보여주는 중 — 잠시 후 자동으로 특보 종류별로 펼쳐집니다.';
             if (revertBtn) revertBtn.disabled = true;
             zoomGroup.classList.remove('zoomed');
         }
         function setExpandedUi() {
-            // 겹침 안내 문구는 사용자 확정으로 뺌(2026-08-31 실사용 확인 후) — 범례만 남김.
-            if (caption) caption.innerHTML = legendHtml();
             if (revertBtn) revertBtn.disabled = false;
         }
 
@@ -2485,6 +2591,22 @@
         var canvas = document.getElementById('accident-stats-chart');
         if (!canvas) return;
 
+        // 막대 안에 라벨이 들어갈 만큼 길면 중앙, 너무 짧으면 막대 밖(세로 막대는 위쪽,
+        // 가로 막대는 오른쪽)에 배치(사용자 확정 2026-09-01 — 항상 막대 밖에 두면
+        // 큰 값의 라벨이 캔버스 밖으로 잘리고, 중앙만 고집하면 짧은 막대엔 안 들어감).
+        function verticalBarLabelPlacement(ctx, minPx) {
+            var v = ctx.dataset.data[ctx.dataIndex];
+            var scale = ctx.chart.scales.y;
+            var barLen = Math.abs(scale.getPixelForValue(0) - scale.getPixelForValue(v));
+            return barLen < minPx ? 'outside' : 'inside';
+        }
+        function horizontalBarLabelPlacement(ctx, minPx) {
+            var v = ctx.dataset.data[ctx.dataIndex];
+            var scale = ctx.chart.scales.x;
+            var barLen = Math.abs(scale.getPixelForValue(v) - scale.getPixelForValue(0));
+            return barLen < minPx ? 'outside' : 'inside';
+        }
+
         if (view === 'trend') {
             var t = trendBuckets(members, _trendDrill);
             if (!t.labels.length && caption) caption.textContent = '표시할 데이터가 없습니다.';
@@ -2493,11 +2615,11 @@
                 data: { labels: t.labels, datasets: [{
                     data: t.values, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.18)',
                     fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: CHART_COLOR.blue,
-                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 } }
+                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 }, formatter: fmtN }
                 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                    scales: CHART_AXIS_OPTS,
+                    layout: CHART_TOP_PADDING, scales: CHART_AXIS_OPTS_LINE,
                     onClick: function (evt, elements) {
                         if (!elements.length) return;
                         var k = t.keys[elements[0].index];
@@ -2518,9 +2640,12 @@
                 data: { labels: mo.map(function (_, i) { return (i + 1) + '월'; }), datasets: [{
                     data: mo, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.18)',
                     fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: CHART_COLOR.blue,
-                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 } }
+                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 }, formatter: fmtN }
                 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: CHART_AXIS_OPTS }
+                options: {
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    layout: CHART_TOP_PADDING, scales: CHART_AXIS_OPTS_LINE
+                }
             }));
             return;
         }
@@ -2538,12 +2663,13 @@
                 data: { labels: hours.map(function (_, h) { return h + '시'; }), datasets: [{
                     data: hours, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.12)',
                     fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: pointColors,
-                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 8, weight: 600 } }
+                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 8, weight: 600 }, formatter: fmtN }
                 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    layout: CHART_TOP_PADDING,
                     scales: {
-                        x: { ticks: { color: '#94a3b8', font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } },
+                        x: { ticks: { color: '#94a3b8', font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: true, color: 'rgba(255,255,255,0.06)', drawTicks: false } },
                         y: CHART_AXIS_OPTS.y
                     }
                 }
@@ -2554,16 +2680,25 @@
         if (view === 'weekday') {
             var wk = weekdayBuckets(members);
             var wkTotal = wk.reduce(function (a, b) { return a + b; }, 0);
+            var WK_MIN_PX = 28; // 2줄("22건"/"16%")이 안에 들어갈 최소 막대 길이
             _statsCharts.push(new Chart(canvas, {
                 type: 'bar',
                 data: { labels: WEEKDAY_LABELS, datasets: [{
                     data: wk, backgroundColor: CHART_COLOR.green, borderRadius: 4,
                     datalabels: {
-                        display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 10, weight: 600 },
-                        formatter: function (v) { return [v + '건', (wkTotal ? Math.round(v / wkTotal * 100) : 0) + '%']; }
+                        display: true, font: { size: 10, weight: 600 },
+                        anchor: function (ctx) { return verticalBarLabelPlacement(ctx, WK_MIN_PX) === 'outside' ? 'end' : 'center'; },
+                        align: function (ctx) { return verticalBarLabelPlacement(ctx, WK_MIN_PX) === 'outside' ? 'top' : 'center'; },
+                        // 막대 안(밝은 초록)에 놓일 땐 어두운 글씨, 막대 밖(어두운 배경)이면 밝은
+                        // 글씨(사용자 확정 2026-09-01 — 흰 글씨가 초록 막대 안에서 안 보이던 문제).
+                        color: function (ctx) { return verticalBarLabelPlacement(ctx, WK_MIN_PX) === 'outside' ? DATALABEL_COLOR : DATALABEL_COLOR_ON_LIGHT; },
+                        formatter: function (v) { return [fmtN(v) + '건', (wkTotal ? Math.round(v / wkTotal * 100) : 0) + '%']; }
                     }
                 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: CHART_AXIS_OPTS }
+                options: {
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    layout: CHART_TOP_PADDING, scales: CHART_AXIS_OPTS
+                }
             }));
             return;
         }
@@ -2571,14 +2706,20 @@
         if (view === 'org') {
             var org = orgBuckets(key, members);
             wrap.style.height = Math.max(200, org.length * 20) + 'px'; // 최대 21개 관할서 — 가로막대라 세로로 늘림
+            var ORG_MIN_PX = 26; // 숫자 라벨이 안에 들어갈 최소 막대 길이
             _statsCharts.push(new Chart(canvas, {
                 type: 'bar',
                 data: { labels: org.map(function (o) { return o[0]; }), datasets: [{
                     data: org.map(function (o) { return o[1]; }), backgroundColor: CHART_COLOR.blue, borderRadius: 4,
-                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'end', font: { size: 9, weight: 600 } }
+                    datalabels: {
+                        display: true, color: DATALABEL_COLOR, font: { size: 9, weight: 600 }, formatter: fmtN,
+                        anchor: function (ctx) { return horizontalBarLabelPlacement(ctx, ORG_MIN_PX) === 'outside' ? 'end' : 'center'; },
+                        align: function (ctx) { return horizontalBarLabelPlacement(ctx, ORG_MIN_PX) === 'outside' ? 'end' : 'center'; }
+                    }
                 }] },
                 options: {
                     indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    layout: { padding: { right: 34 } },
                     scales: {
                         x: { beginAtZero: true, ticks: { color: '#64748b', precision: 0 }, grid: { color: 'rgba(255,255,255,0.06)' } },
                         y: { ticks: { color: '#cbd5e1', font: { size: 10 } }, grid: { display: false } }
@@ -3474,7 +3615,10 @@
                 var detailBtn = e.target.closest('.accident-detail-tab');
                 if (!detailBtn) return;
                 _activeDetailTab[_statsKey] = detailBtn.dataset.tab;
-                renderStatsBody();
+                // 이 블록만 갱신 — 위 "분석 뷰" 차트(canvas/svg)는 손대지 않는다
+                // (2026-09-01: 특보발효 도넛이 이 탭 전환마다 재생되던 문제 수정).
+                var block = document.getElementById('accident-detail-block');
+                if (block) block.outerHTML = buildDetailBlockHtml(_statsKey, _statsMembers);
             });
         }
 
