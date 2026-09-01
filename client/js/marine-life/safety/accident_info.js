@@ -570,20 +570,20 @@
     // 건수가 많아 45면 화면에 클러스터가 너무 많이 보여(사용자 확정 2026-08-19) 100으로 키움.
     var CLUSTER_DISTANCE = 100;
     var SPREAD_ZOOM = 14;
-    // 분석 모드 격자 — 화면 현재 범위를 이 칸수로 나눈다. 예전엔 6×5 고정이었으나
-    // 참고 이미지("확대/축소에 따른 박스 변화": 전국은 성글게, 지역으로 확대할수록
-    // 잘게)에 맞춰 줌 레벨별 3단계로 바꿈(사용자 확정 2026-09-01).
-    var GRID_DIMS_BY_ZOOM = [
-        { maxZoom: 8, cols: 4, rows: 4 },   // 전국 — 큰 덩어리로 뭉쳐 보기
-        { maxZoom: 11, cols: 6, rows: 5 },  // 권역 — 기존 기본값
-        { maxZoom: Infinity, cols: 8, rows: 7 } // 지역 — 잘게 쪼개 세부 확인
-    ];
-    /** 지금 줌 레벨에 맞는 격자 칸수 — recomputeGrid 가 매 재계산마다 다시 묻는다. */
-    function gridDimsForZoom(zoom) {
-        for (var i = 0; i < GRID_DIMS_BY_ZOOM.length; i++) {
-            if (zoom < GRID_DIMS_BY_ZOOM[i].maxZoom) return GRID_DIMS_BY_ZOOM[i];
-        }
-        return GRID_DIMS_BY_ZOOM[GRID_DIMS_BY_ZOOM.length - 1];
+    // 분석 모드 격자 — 지도 절대좌표에 고정된 격자다(2026-09-01 사용자 확정).
+    // 예전에는 "지금 화면 범위를 N×M 칸으로 나누기"였는데, 그러면 축척이 같아도
+    // 지도를 드래그할 때마다 칸 경계가 같이 따라 움직여서 같은 자리의 집계값이
+    // 계속 달라졌다(사용자 지적). 이제는 칸 경계를 지도 좌표(EPSG:3857) 기준
+    // 고정 격자에 맞추므로, 같은 축척에서는 아무리 움직여도 같은 칸=같은 값이다.
+    // 칸 크기는 줌(resolution)에 따라 정하되 1·2·5×10ⁿ 로 딱 떨어지게 맞춰서,
+    // 확대하면 칸이 단계적으로 잘게 쪼개진다(참고 이미지의 줌 레벨 1~3 흐름).
+    var GRID_TARGET_PX = 110; // 칸 하나가 화면에서 대략 이 정도(px)로 보이도록
+    /** 지금 축척에 맞는 격자 한 칸 크기(지도 좌표 단위) — 같은 축척이면 항상 같은 값. */
+    function gridCellSizeFor(resolution) {
+        var raw = GRID_TARGET_PX * resolution;
+        var pow = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+        var n = raw / pow; // 1 이상 10 미만
+        return (n >= 5 ? 5 : n >= 2 ? 2 : 1) * pow;
     }
     // 참고 이미지의 "핵심 영역만 숫자 표시(임계값 이상)" — 화면에서 가장 진한 칸의
     // 이 비율보다 적은 칸은 숫자를 숨겨 지도를 덜 어지럽게 한다. 절대값 임계값을
@@ -598,7 +598,11 @@
     var gridLayer = null;     // 분석 모드 — 소스 전환/모드 전환마다 내용만 갈아끼움
     var gridSource = null;
     var heatmapLayer = null;  // 분석 모드 색상 표현 — 격자칸과 무관하게 사고 지점 밀도로 부드럽게 칠함(2026-09-01)
-    var HEATMAP_BASE_OPACITY = 1; // 그라데이션 자체에 alpha를 넣었으므로 레이어 opacity는 그대로 1
+    // 히트맵 전체 진하기 — 배경지도(위성사진)가 색 아래로 비쳐 보이도록 상한을 둔다
+    // (2026-09-01 사용자 확정, 여러 번 요청). 색이 가장 진한 곳도 이 값이 상한이라
+    // 지도가 아예 안 보이는 일이 없다. gradient 의 alpha 로는 조절되지 않는다 —
+    // 이유는 ensureHeatmapLayer 의 gradient 주석 참고.
+    var HEATMAP_BASE_OPACITY = 0.58;
     var bubbleOverlay = null; // 현황 모드 마커 팝업
 
     var state = { source: null, mode: 'status' };
@@ -2051,7 +2055,14 @@
             // 나타냄), 밀도가 높아질수록 점점 진한 빨강으로(사용자 확정 2026-09-01 —
             // "밀도가 클수록 빨간색, 적을수록 점차 투명하게"). 레이어 자체의 opacity는
             // 1로 두고 이 그라데이션 안에 alpha를 직접 넣어 단계별로 조절한다.
-            gradient: ['rgba(37,99,235,0)', 'rgba(37,99,235,0.45)', 'rgba(250,204,21,0.75)', 'rgba(239,68,68,0.95)'],
+            // ⚠여기 색의 alpha 는 무시된다. OL 히트맵의 마무리 셰이더가
+            //     gl_FragColor.a   = color.a * u_opacity;   // 누적 밀도 × 레이어 opacity
+            //     gl_FragColor.rgb = texture2D(u_gradientTexture, ...).rgb;  // .rgb 만 읽음
+            // 이라서, 화면에 실제로 적용되는 투명도는 "그 지점의 밀도 × 레이어 opacity"다.
+            // 그래서 전체 진하기는 아래 opacity(HEATMAP_BASE_OPACITY)로 조절한다 —
+            // 전에 이 gradient 의 alpha 를 낮춰 봤자 아무 변화가 없었던 이유가 이것이다
+            // (사용자가 "투명도 좀"이라고 여러 번 말했는데도 안 고쳐졌던 원인).
+            gradient: ['#2563eb', '#2563eb', '#facc15', '#ef4444'],
             visible: false,
             zIndex: 56
         });
@@ -2113,9 +2124,9 @@
     }
 
     /**
-     * 현재 지도 화면(extent)을 지금 줌 레벨에 맞는 칸수(gridDimsForZoom)로 나눠
-     * 활성 소스의 포인트를 세어 격자 폴리곤 feature 로 다시 그린다. 줌/이동
-     * (moveend)마다 다시 호출되므로, 확대할수록 칸이 더 잘게 쪼개진다.
+     * 지도 절대좌표에 고정된 격자(gridCellSizeFor)로 활성 소스의 포인트를 세어
+     * 격자 폴리곤 feature 로 다시 그린다. 줌/이동(moveend)마다 다시 호출되며,
+     * 확대하면 칸 크기가 단계적으로 작아진다(칸 경계 자체는 축척이 같으면 고정).
      * @param {ol.Map} map
      */
     function recomputeGrid(map) {
@@ -2125,15 +2136,23 @@
         var heatCache = ensureHeatFeatureCache(key, all);
         var filtering = hasActiveFilters();
         var view = map.getView();
-        var dims = gridDimsForZoom(view.getZoom());
-        var cols = dims.cols, rows = dims.rows;
-        var extent = view.calculateExtent(map.getSize());
-        var w = (extent[2] - extent[0]) / cols;
-        var h = (extent[3] - extent[1]) / rows;
-        if (!(w > 0) || !(h > 0)) return;
+        var cellSize = gridCellSizeFor(view.getResolution());
+        var viewExtent = view.calculateExtent(map.getSize());
+        if (!(cellSize > 0)) return;
+        // 화면 범위를 칸 경계까지 바깥으로 늘려서 센다 — 화면 가장자리에 반쯤 걸친
+        // 칸도 칸 전체의 점을 세게 하기 위함. 화면 범위 그대로 자르면 그 칸은 화면
+        // 안에 들어온 부분만 세어져, 드래그할 때마다 같은 칸의 값이 계속 달라진다
+        // (2026-09-01 사용자 지적의 나머지 절반 — 칸 경계 고정만으로는 안 없어짐).
+        var extent = [
+            Math.floor(viewExtent[0] / cellSize) * cellSize,
+            Math.floor(viewExtent[1] / cellSize) * cellSize,
+            Math.ceil(viewExtent[2] / cellSize) * cellSize,
+            Math.ceil(viewExtent[3] / cellSize) * cellSize
+        ];
 
-        // 1) 화면 안에 들어오는 것만 추린다. 칸별 건수(buckets)는 표시용 숫자라
-        //    솎아내지 않고 전부 정확히 센다.
+        // 1) 화면 안에 들어오는 것만 추린다. 칸 경계는 화면이 아니라 지도 절대좌표
+        //    기준이라(위 gridCellSizeFor 주석) 드래그해도 같은 칸=같은 값이 유지된다.
+        //    칸별 건수(buckets)는 표시용 숫자라 솎아내지 않고 전부 정확히 센다.
         var buckets = {}; // "col,row" -> ol.Feature[]
         var inViewIdx = [];
         for (var i = 0; i < all.length; i++) {
@@ -2142,9 +2161,7 @@
             var c = f.getGeometry().getCoordinates();
             if (c[0] < extent[0] || c[0] > extent[2] || c[1] < extent[1] || c[1] > extent[3]) continue;
             inViewIdx.push(i);
-            var col = Math.min(Math.floor((c[0] - extent[0]) / w), cols - 1);
-            var row = Math.min(Math.floor((c[1] - extent[1]) / h), rows - 1);
-            var k = col + ',' + row;
+            var k = Math.floor(c[0] / cellSize) + ',' + Math.floor(c[1] / cellSize);
             (buckets[k] || (buckets[k] = [])).push(f);
         }
 
@@ -2155,9 +2172,9 @@
         //    정하므로, 솎아내도 진하기는 그대로 유지된다(점 수가 1/n로 줄면 기준
         //    밀도도 1/n로 줄어 weight 가 n배가 되어 서로 상쇄).
         var step = Math.max(1, Math.ceil(inViewIdx.length / HEATMAP_MAX_POINTS));
-        var mapSize = map.getSize() || [1, 1];
-        var coordPerPx = (extent[2] - extent[0]) / Math.max(1, mapSize[0]);
-        var binSize = (HEATMAP_RADIUS + HEATMAP_BLUR) * coordPerPx;
+        // resolution 이 곧 "픽셀 하나가 덮는 지도 좌표 크기"다(위 extent 는 칸 경계까지
+        // 늘려 놓은 값이라 화면 폭으로 나누면 안 된다).
+        var binSize = (HEATMAP_RADIUS + HEATMAP_BLUR) * view.getResolution();
         var densityBins = {};
         var heatFeatures = [];
         for (var j = 0; j < inViewIdx.length; j += step) {
@@ -2186,8 +2203,8 @@
         Object.keys(buckets).forEach(function (k) {
             var parts = k.split(',');
             var col = parseInt(parts[0], 10), row = parseInt(parts[1], 10);
-            var x0 = extent[0] + col * w, x1 = x0 + w;
-            var y0 = extent[1] + row * h, y1 = y0 + h;
+            var x0 = col * cellSize, x1 = x0 + cellSize;
+            var y0 = row * cellSize, y1 = y0 + cellSize;
             var cellFeature = new ol.Feature({
                 geometry: new ol.geom.Polygon([[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]])
             });
@@ -3025,6 +3042,10 @@
         _statsRegionLabel = null;
         renderStatsBody();
         sheet.classList.add('open');
+        // 휴대폰 뒤로가기로 이 시트를 닫을 수 있게 공용 팝업 스택에 등록한다
+        // (core/backbutton.js 의 window.PopupStack — 다른 팝업들이 쓰는 것과 같은 방식).
+        // 등록을 안 해서 뒤로가기를 눌러도 시트가 안 닫혔다(2026-09-01 사용자 지적).
+        if (window.PopupStack) window.PopupStack.push(STATS_SHEET_POPUP_ID, closeStatsSheet);
         if (cellFeature) {
             var openedForKey = key, openedForMembers = members;
             resolveRegionLabelForCell(cellFeature).then(function (label) {
@@ -3038,8 +3059,15 @@
         }
     }
 
+    /** 뒤로가기 처리를 위한 공용 팝업 스택 등록 id(core/backbutton.js). */
+    var STATS_SHEET_POPUP_ID = 'accident-stats-sheet';
+
     function closeStatsSheet() {
         var sheet = document.getElementById('accident-stats-sheet');
+        // 스택에서 먼저 뺀다 — 뒤로가기(PopupStack.popLast)로 들어온 경우엔 이미
+        // 빠진 뒤라 무해하고, 닫기 버튼으로 들어온 경우엔 여기서 빠져야 다음
+        // 뒤로가기가 엉뚱하게 이 시트를 또 닫으려 하지 않는다.
+        if (window.PopupStack) window.PopupStack.remove(STATS_SHEET_POPUP_ID);
         if (sheet) sheet.classList.remove('open');
         if (_selectedGridFeature) { var prev = _selectedGridFeature; _selectedGridFeature = null; prev.changed(); }
         destroyStatsCharts();
@@ -3923,18 +3951,14 @@
         _prevBasemap = null;
     }
 
-    /** 모드별 배경지도 전환(2026-09-01, 참고 이미지와 비교해 사용자 확정) — 현황(마커)은
-     * 실제 지형과 대조해야 해 위성지도(2026-08-19 결정 유지), 분석(격자)은 위성사진의
-     * 잡다한 색이 파랑~빨강 그라데이션과 섞여 탁해지므로 사고정보를 켜기 전 쓰던
-     * 배경지도로(그마저 위성지도였다면 기본맵 'rltm'으로) 돌아간다. */
+    /** 사고정보를 켜면 배경지도를 위성지도로 맞춘다(2026-08-19 결정).
+     * 한때 분석(격자) 모드만 기본맵으로 돌렸었는데 — 위성사진의 잡다한 색과 섞여
+     * 색이 탁해진다는 이유 — 히트맵 투명도를 낮춰 배경이 비치게 고치면서 그럴
+     * 이유가 없어졌고, 사용자가 "배경지도는 기본적으로 위성지도였으면 좋겠다"고
+     * 확정(2026-09-01)해 두 모드 모두 위성지도로 되돌렸다. */
     function syncBasemapToMode() {
         if (typeof window.oceanGetBasemap !== 'function' || typeof window.oceanSetBasemap !== 'function') return;
-        if (state.mode === 'analysis') {
-            var cleanBase = (_prevBasemap && _prevBasemap !== 'vworld') ? _prevBasemap : 'rltm';
-            if (window.oceanGetBasemap() !== cleanBase) window.oceanSetBasemap(cleanBase);
-        } else if (state.mode === 'status') {
-            if (window.oceanGetBasemap() !== 'vworld') window.oceanSetBasemap('vworld');
-        }
+        if (window.oceanGetBasemap() !== 'vworld') window.oceanSetBasemap('vworld');
     }
 
     function setMode(map, mode) {
