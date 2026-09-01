@@ -95,6 +95,23 @@
  *   스캔에서는 매치가 0건이었지만 그건 NSHPAC 같은 리터럴이 없어서일 뿐 —
  *   범용 클릭 핸들러라 레이어명을 변수로 받을 것이다)의 전체 소스를 무조건
  *   덤프해 실제 클릭→조회 흐름을 코드로 확인한다.
+ * [2026-09-01 수정9] 9차 실행 결과 확인: 이번엔 window.olmp 를 이름으로 바로 찾는 데
+ *   성공했다(7차의 실패 원인이 맞았음 — duck-typing이 1단계만 봐서 놓쳤던 것).
+ *   setZoom(15) 호출도 성공했지만 실제로는 12로 클램프됐다(olmp.js 소스에 있는
+ *   `resolutions` 배열 길이와 일치 — 이 지도의 최대 줌은 12가 맞다). 그런데 벡터
+ *   피처 직접 읽기는 등부표(buoy_A01) 레이어만 찾았고 인명사고(vi_nshpac_p)는
+ *   0건이었다 — 줌을 최대(12)까지 올리고 재조회해도 마찬가지였다. 이건 8차의
+ *   tile_yn:"Y" 추정과 일치한다: 인명사고 레이어는 브라우저에 벡터로 캐시되는 게
+ *   아니라 진짜 서버가 구운 래스터(PNG) 타일이라 getFeatures() 로는 애초에 안
+ *   잡힌다 — 클릭 시 서버에 물어보는 방식이 맞을 가능성이 더 커졌다.
+ *   한편 dumpFullFileContents 로 4개 파일(olmp-click.js 54825자·otms-data.js
+ *   4144자·otms-clickinfo.js 60137자·otms-popup.js 16384자)을 모두 무사히
+ *   가져왔지만, 각 파일을 6000자까지만 잘라서 찍었더니 정작 필요한 부분(각
+ *   파일의 나머지 대부분, 특히 올림프클릭 필터 표에서 VI_NSHPAC_P 항목이 있을
+ *   자리 및 그 값을 실제로 서버에 보내는 함수 본문)이 전부 "...생략"으로
+ *   잘려나갔다 — 확인 안 하고 넘어갈 뻔한 케이스라 이번엔 자르지 않는다(추측
+ *   금지 — 실제로 다 읽어야 함). 10차: FULL_DUMP_MAX_CHARS 를 6000→70000으로
+ *   올려 4개 파일 전부를 통째로(총 약 13만5천자) 출력한다.
  * [출력] 콘솔 요약(엔드포인트 목록) + JS 번들 스캔 결과 + local_server/data/khoa_probe_result.json
  *   (호출된 API 목록·샘플 응답 일부) + 스크린샷 다수(단계별 확인용)
  * [연계] .github/workflows/khoa-oceanmap-probe.yml
@@ -266,7 +283,7 @@ async function scanLoadedScripts(page) {
 // 무관하게 전체 내용을 덤프한다(범용 핸들러라 레이어명이 리터럴로 안 박혀
 // 있을 수 있음, 2026-09-01 8차 결과로 확인).
 const FULL_DUMP_URL_SUBSTRINGS = ['olmp-click', 'otms-clickinfo', 'otms-popup', 'otms-data'];
-const FULL_DUMP_MAX_CHARS = 6000;
+const FULL_DUMP_MAX_CHARS = 70000; // 9차에서 6000자로 잘라 핵심 부분(NSHPAC 항목·실제 호출부)을 놓쳤다 — 4개 파일 다 통째로
 
 async function dumpFullFileContents(page) {
     const scriptUrls = await page.evaluate(() =>
