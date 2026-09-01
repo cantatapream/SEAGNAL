@@ -1,0 +1,48 @@
+# khoa-nshpac-full-fetch.yml - KHOA 오션맵 인명사고 좌표+속성 전수 수집
+#
+# [용도] khoa_oceanmap_probe.js(1~14차 정찰)로 확정한 오션맵 내부 API
+#   (selectListCluster.json·clickCluster.json)로 인명사고 전체 지점의
+#   gid+좌표(x,y)+속성(사고발생일·유형·지명)을 실제로 받아와 저장한다.
+#   우리 앱(client/accident_persons.json)의 좌표와 전수 비교하기 위한 것.
+# [왜 여기서 실행하나] khoa.go.kr 접속이 개발 샌드박스에서 막혀 있어
+#   (2026-08-31 확인) GitHub Actions 에서 대신 돈다.
+# [결과] local_server/data/khoa_nshpac_full.json 을 결과 브랜치에 커밋해
+#   푸시한다(수 MB 급 데이터라 PR 본문·로그로 옮기지 않고 커밋으로 남김).
+# [연계] local_server/scripts/khoa_nshpac_full_fetch.js
+
+name: KHOA 인명사고 전수 수집
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    name: 좌표+속성 전수 수집 및 결과 커밋
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Playwright·proj4 설치
+        run: |
+          npm install --no-save --legacy-peer-deps playwright@1.48 proj4@2.21.0
+          npx playwright install --with-deps chromium
+
+      - name: 수집 스크립트 실행
+        run: node local_server/scripts/khoa_nshpac_full_fetch.js
+
+      - name: 결과 커밋·푸시
+        run: |
+          git config user.name "khoa-nshpac-full-fetch-bot"
+          git config user.email "actions@github.com"
+          BRANCH="data/khoa-nshpac-full-fetch-result-${{ github.run_number }}"
+          git checkout -B "$BRANCH"
+          git add local_server/data/khoa_nshpac_full.json
+          git commit -m "KHOA 인명사고 전수 수집 결과 (run ${{ github.run_number }})"
+          git push origin "$BRANCH"
