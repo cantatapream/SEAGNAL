@@ -8921,25 +8921,27 @@ html[data-font-size="large"] .ocean-overlay-btn {
     background: rgba(77, 171, 247, 0.12);
 }
 
-/* 분석(격자) 모드 색상 범례(2026-09-01) — 격자칸 색=사고밀도(파랑~빨강)라는 걸 알려줌.
+/* 분석(격자) 모드 색상 범례(2026-09-01, 참고 이미지 비교 후 세로형 카드로 재설계) —
+   격자칸 색=사고밀도(파랑~빨강)라는 걸 알려줌. 위치는 accident_info.js
+   positionFilterBar() 가 필터 바 바로 아래로 실측 배치.
    [연계] index2.html #accident-grid-legend · accident_info.js showGridLegend() */
 .accident-grid-legend {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 6px;
-    padding: 6px 8px;
-    background: rgba(10, 15, 28, 0.94);
+    flex-direction: column;
+    gap: 4px;
+    padding: 7px 9px;
+    background: rgba(10, 15, 28, 0.9);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    font-size: 0.66rem;
+    font-size: 0.64rem;
     color: var(--text-sub);
     width: 150px;
     box-sizing: border-box;
 }
-.accident-grid-legend .agl-title { font-weight: 700; color: var(--text-main); flex: none; }
+.accident-grid-legend .agl-title { font-weight: 700; color: var(--text-main); }
+.accident-grid-legend .agl-scale { display: flex; align-items: center; gap: 5px; }
 .accident-grid-legend .agl-bar {
     flex: 1;
     height: 6px;

@@ -1968,8 +1968,10 @@
 
     // ── 분석 모드: 격자 히트맵 ──────────────────────────────────────────────
     // 파랑(낮음)→노랑(중간)→빨강(높음) 3단 그라데이션(2026-09-01 세련화 — 사용자가
-    // 다른 AI에게 자문받은 디자인 참고). 반투명도를 올려(0.82→0.55) 위성지도가
-    // 은은하게 비치게 한다("반투명 사고밀도 영역").
+    // 다른 AI에게 자문받은 디자인 참고). 위성지도(항공사진) 위에서는 반투명 색이
+    // 지형의 잡다한 색과 섞여 탁해져서(사용자가 참고 이미지와 비교해 지적) 분석
+    // 모드에서는 위성지도 대신 기본맵으로 자동 전환하도록 바꿨다(syncBasemapToMode
+    // 참고) — 그 위에서 또렷하게 보이도록 반투명도도 0.55→0.65로 올림.
     function lerpColor(t) {
         var stops = [[37, 99, 235], [250, 204, 21], [239, 68, 68]];
         var seg = t < 0.5 ? 0 : 1;
@@ -1978,7 +1980,7 @@
         var r = Math.round(a[0] + (b[0] - a[0]) * lt);
         var g = Math.round(a[1] + (b[1] - a[1]) * lt);
         var bl = Math.round(a[2] + (b[2] - a[2]) * lt);
-        return 'rgba(' + r + ',' + g + ',' + bl + ',0.55)';
+        return 'rgba(' + r + ',' + g + ',' + bl + ',0.65)';
     }
 
     /** 지금 선택된 격자칸(있다면) — 재선택·해제 판정에 씀. */
@@ -2000,7 +2002,7 @@
                 text: fmtN(count),
                 font: (selected ? 'bold 13px' : 'bold 12px') + ' "Roboto Mono", monospace',
                 fill: new ol.style.Fill({ color: '#ffffff' }),
-                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.6)', width: 3 })
+                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.55)', width: 2 })
             })
         });
     }
@@ -3469,7 +3471,7 @@
     function onFiltersChanged(map) {
         updateAllFilterButtonLabels();
         if (state.source) applyFiltersToMarkers(state.source);
-        if (state.mode === 'analysis' && state.source) recomputeGrid(map);
+        if (state.mode === 'analysis' && state.source) { recomputeGrid(map); updateGridLegendTitle(); }
         closeStatsSheet(); // 선택돼 있던 격자 셀 구성이 필터로 바뀌었을 수 있어 무효화
     }
 
@@ -3511,6 +3513,10 @@
         var bar = document.getElementById('accident-filter-bar');
         if (!modeToggle || !bar || bar.style.display === 'none') return;
         bar.style.top = (modeToggle.offsetTop + modeToggle.offsetHeight + 6) + 'px';
+        // 범례를 필터 바 바로 아래 붙임 — 필터 바처럼 글자 크기 설정에 따라 실제 줄 수가
+        // 바뀌어(칩이 좁으면 여러 줄로 감김) 고정 px로 못 잡고 매번 실측한다.
+        var legend = document.getElementById('accident-grid-legend');
+        if (legend) legend.style.top = (bar.offsetTop + bar.offsetHeight + 6) + 'px';
     }
 
     function bindFilterBar(map) {
@@ -3639,7 +3645,20 @@
     /** 격자(분석) 모드일 때만 색상 범례를 보여준다. */
     function showGridLegend(show) {
         var el = document.getElementById('accident-grid-legend');
-        if (el) el.style.display = show ? 'flex' : 'none';
+        if (!el) return;
+        el.style.display = show ? 'flex' : 'none';
+        if (show) {
+            updateGridLegendTitle();
+            positionFilterBar(); // 필터 바 아래 위치 재계산(필터 바 실측 높이 기준)
+        }
+    }
+
+    /** 범례 제목에 기간 필터가 걸려 있으면 안내를 덧붙임(목업 이미지의
+     * "사고건수 (최근 1년)" 참고, 2026-09-01). */
+    function updateGridLegendTitle() {
+        var el = document.getElementById('agl-title');
+        if (!el) return;
+        el.textContent = filters.dateRange ? '사고건수 (기간 지정)' : '사고건수';
     }
 
     // ON 시점의 배경지도를 기억해 뒀다 OFF 시 되돌린다(access_control.js/fishing_ban.js 와 동일 패턴).
@@ -3693,11 +3712,8 @@
             updateAllFilterButtonLabels();
             if (hasActiveFilters()) applyFiltersToMarkers(key); // 이전 소스에서 걸어둔 필터를 새 소스에도 반영
             if (toggleBtn) toggleBtn.classList.add('active');
-            // 마커를 실제 지형과 대조해 보기 쉽도록 배경지도를 위성지도로 자동 전환(사용자 확정 2026-08-19)
-            if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
-                _prevBasemap = window.oceanGetBasemap();
-                if (_prevBasemap !== 'vworld') window.oceanSetBasemap('vworld');
-            }
+            if (typeof window.oceanGetBasemap === 'function') _prevBasemap = window.oceanGetBasemap();
+            syncBasemapToMode();
             if (window.trackUsage) window.trackUsage('ocean.accident_info');
         }).catch(function (e) {
             if (seq !== _selectSeq) return;
@@ -3731,11 +3747,26 @@
         _prevBasemap = null;
     }
 
+    /** 모드별 배경지도 전환(2026-09-01, 참고 이미지와 비교해 사용자 확정) — 현황(마커)은
+     * 실제 지형과 대조해야 해 위성지도(2026-08-19 결정 유지), 분석(격자)은 위성사진의
+     * 잡다한 색이 파랑~빨강 그라데이션과 섞여 탁해지므로 사고정보를 켜기 전 쓰던
+     * 배경지도로(그마저 위성지도였다면 기본맵 'rltm'으로) 돌아간다. */
+    function syncBasemapToMode() {
+        if (typeof window.oceanGetBasemap !== 'function' || typeof window.oceanSetBasemap !== 'function') return;
+        if (state.mode === 'analysis') {
+            var cleanBase = (_prevBasemap && _prevBasemap !== 'vworld') ? _prevBasemap : 'rltm';
+            if (window.oceanGetBasemap() !== cleanBase) window.oceanSetBasemap(cleanBase);
+        } else if (state.mode === 'status') {
+            if (window.oceanGetBasemap() !== 'vworld') window.oceanSetBasemap('vworld');
+        }
+    }
+
     function setMode(map, mode) {
         state.mode = mode;
         applyModeVisibility(map);
         updateModeToggleUi();
         updateFilterBarModeVisibility();
+        syncBasemapToMode();
     }
 
     function bindUi(map) {

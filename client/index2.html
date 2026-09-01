@@ -977,6 +977,15 @@
             left: 0;
             pointer-events: auto;
         }
+        /* 분석 모드 색상 범례 — 필터 바 바로 아래 고정(2026-09-01 버그 수정: 이 규칙이
+           없어 flex 부모 안에서 위성지도·안내 버튼과 같은 줄로 흘러 화면 위쪽 중앙에
+           엉뚱하게 떠 있었다 — 참고 이미지와 비교해 사용자가 지적). top 은 필터 바와
+           같은 방식으로 accident_info.js 가 실측해 인라인 설정. */
+        #ocean-topleft-controls > .accident-grid-legend {
+            position: absolute !important;
+            left: 0;
+            pointer-events: auto;
+        }
 
         /* ──────────────────────────────────────────────────────────
            안내사항 팝업 내부 탭 구조 (seagnal-modal 안에 주입되는 HTML)
@@ -3512,10 +3521,12 @@
                              밀도(파랑=낮음~빨강=높음)를 나타낸다는 걸 알려준다.
                              [연계] js/marine-life/safety/accident_info.js showGridLegend() -->
                         <div class="accident-grid-legend" id="accident-grid-legend" style="display:none;">
-                            <span class="agl-title">사고건수</span>
-                            <span class="agl-lo">낮음</span>
-                            <span class="agl-bar"></span>
-                            <span class="agl-hi">높음</span>
+                            <span class="agl-title" id="agl-title">사고건수</span>
+                            <span class="agl-scale">
+                                <span class="agl-lo">낮음</span>
+                                <span class="agl-bar"></span>
+                                <span class="agl-hi">높음</span>
+                            </span>
                         </div>
                     </div>
 
