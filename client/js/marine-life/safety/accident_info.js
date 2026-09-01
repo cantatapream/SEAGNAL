@@ -578,6 +578,8 @@
     var clusterLayers = {};   // key -> ol.layer.Vector (현황 모드)
     var gridLayer = null;     // 분석 모드 — 소스 전환/모드 전환마다 내용만 갈아끼움
     var gridSource = null;
+    var heatmapLayer = null;  // 분석 모드 색상 표현 — 격자칸과 무관하게 사고 지점 밀도로 부드럽게 칠함(2026-09-01)
+    var HEATMAP_BASE_OPACITY = 1; // 그라데이션 자체에 alpha를 넣었으므로 레이어 opacity는 그대로 1
     var bubbleOverlay = null; // 현황 모드 마커 팝업
 
     var state = { source: null, mode: 'status' };
@@ -1966,43 +1968,53 @@
         return true;
     }
 
-    // ── 분석 모드: 격자 히트맵 ──────────────────────────────────────────────
-    // 파랑(낮음)→노랑(중간)→빨강(높음) 3단 그라데이션(2026-09-01 세련화 — 사용자가
-    // 다른 AI에게 자문받은 디자인 참고). 위성지도(항공사진) 위에서는 반투명 색이
-    // 지형의 잡다한 색과 섞여 탁해져서(사용자가 참고 이미지와 비교해 지적) 분석
-    // 모드에서는 위성지도 대신 기본맵으로 자동 전환하도록 바꿨다(syncBasemapToMode
-    // 참고) — 그 위에서 또렷하게 보이도록 반투명도도 0.55→0.65로 올림.
-    function lerpColor(t) {
-        var stops = [[37, 99, 235], [250, 204, 21], [239, 68, 68]];
-        var seg = t < 0.5 ? 0 : 1;
-        var lt = t < 0.5 ? t * 2 : (t - 0.5) * 2;
-        var a = stops[seg], b = stops[seg + 1];
-        var r = Math.round(a[0] + (b[0] - a[0]) * lt);
-        var g = Math.round(a[1] + (b[1] - a[1]) * lt);
-        var bl = Math.round(a[2] + (b[2] - a[2]) * lt);
-        return 'rgba(' + r + ',' + g + ',' + bl + ',0.65)';
+    // ── 분석 모드: 히트맵 + 격자 라벨 ────────────────────────────────────────
+    // 2026-09-01 재설계(사용자가 참고 이미지와 비교해 지적) — 처음엔 "격자칸 하나를
+    // 통째로 그 칸의 건수 하나로 단색 칠하기"였는데, 그러면 칸 경계에서 색이 뚝뚝
+    // 끊기는 블록형이 된다. 참고 이미지는 색상(사고 지점 밀도)과 격자(칸 경계선+
+    // 숫자)가 서로 다른 두 레이어 — 색은 지점 좌표 하나하나를 기반으로 픽셀 단위로
+    // 부드럽게 번지고, 격자는 그 위에 그냥 얹힌 안내선일 뿐 색을 칠하지 않는다.
+    // 그래서 색은 OL 내장 히트맵 레이어(heatmapLayer, ol.layer.Heatmap — 점 밀도
+    // 기반 커널)로 따로 만들고, 격자(gridLayer)는 칸 경계선+숫자+선택 강조만
+    // 담당하도록 역할을 분리했다.
+    function ensureHeatmapLayer(map) {
+        if (heatmapLayer) return heatmapLayer;
+        heatmapLayer = new ol.layer.Heatmap({
+            source: new ol.source.Vector(),
+            blur: 12,
+            radius: 6,
+            // 밀도가 낮은 곳은 투명하게(배경 기본맵의 짙은 남색이 그대로 비쳐 "낮음"을
+            // 나타냄), 밀도가 높아질수록 점점 진한 빨강으로(사용자 확정 2026-09-01 —
+            // "밀도가 클수록 빨간색, 적을수록 점차 투명하게"). 레이어 자체의 opacity는
+            // 1로 두고 이 그라데이션 안에 alpha를 직접 넣어 단계별로 조절한다.
+            gradient: ['rgba(37,99,235,0)', 'rgba(37,99,235,0.45)', 'rgba(250,204,21,0.75)', 'rgba(239,68,68,0.95)'],
+            visible: false,
+            zIndex: 56
+        });
+        map.addLayer(heatmapLayer);
+        return heatmapLayer;
     }
 
     /** 지금 선택된 격자칸(있다면) — 재선택·해제 판정에 씀. */
     var _selectedGridFeature = null;
 
+    /** 격자칸은 이제 색을 칠하지 않는다(위 히트맵이 색 담당) — 경계선+숫자+선택
+     * 강조만. fill 은 완전히 투명하지 않고 아주 옅게 남겨야 클릭 히트테스트가
+     * 칸 안쪽 어디를 눌러도 잡힌다(OL 은 fill 이 없는 폴리곤은 테두리 선 위를
+     * 클릭해야만 인식). */
     function gridCellStyle(feature) {
         var count = feature.get('count');
-        var maxCount = feature.get('_maxInView') || 1;
-        var t = Math.min(count / maxCount, 1);
         var selected = feature === _selectedGridFeature;
         return new ol.style.Style({
-            fill: new ol.style.Fill({ color: lerpColor(t) }),
-            // 경계선을 은은하게, 선택된 칸만 밝은 테두리로 강조(2026-09-01 사용자 확정 —
-            // "격자 경계선이 너무 강하다" 피드백 + 선택 칸 강조).
-            stroke: new ol.style.Stroke({ color: selected ? '#7dd3fc' : 'rgba(255,255,255,0.15)', width: selected ? 3 : 1 }),
+            fill: new ol.style.Fill({ color: 'rgba(0,0,0,0.01)' }),
+            stroke: new ol.style.Stroke({ color: selected ? '#7dd3fc' : 'rgba(255,255,255,0.35)', width: selected ? 3 : 1 }),
             text: new ol.style.Text({
-                // 밝기가 파랑↔빨강을 오가므로 어두운 글씨 대신 흰 글씨+검정 테두리로
-                // 통일(어느 색 위에서도 읽힘 — 특보발효 도넛 중앙 텍스트와 같은 원칙).
+                // 밑에 깔리는 히트맵 색이 파랑↔빨강으로 다양하므로 흰 글씨+검정
+                // 테두리로 통일(어느 색 위에서도 읽힘).
                 text: fmtN(count),
                 font: (selected ? 'bold 13px' : 'bold 12px') + ' "Roboto Mono", monospace',
                 fill: new ol.style.Fill({ color: '#ffffff' }),
-                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.55)', width: 2 })
+                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.65)', width: 3 })
             })
         });
     }
@@ -2034,18 +2046,22 @@
         if (!(w > 0) || !(h > 0)) return;
 
         var buckets = {}; // "col,row" -> ol.Feature[]
+        var heatFeatures = []; // 히트맵용 — 격자칸과 무관하게 지점 좌표 그대로
         feats.forEach(function (f) {
             var c = f.getGeometry().getCoordinates();
             if (c[0] < extent[0] || c[0] > extent[2] || c[1] < extent[1] || c[1] > extent[3]) return;
+            heatFeatures.push(new ol.Feature({ geometry: new ol.geom.Point(c) }));
             var col = Math.min(Math.floor((c[0] - extent[0]) / w), GRID_COLS - 1);
             var row = Math.min(Math.floor((c[1] - extent[1]) / h), GRID_ROWS - 1);
             var k = col + ',' + row;
             (buckets[k] || (buckets[k] = [])).push(f);
         });
 
+        var heatSource = ensureHeatmapLayer(map).getSource();
+        heatSource.clear();
+        heatSource.addFeatures(heatFeatures);
+
         gridSource.clear();
-        var maxCount = 0;
-        Object.keys(buckets).forEach(function (k) { if (buckets[k].length > maxCount) maxCount = buckets[k].length; });
         Object.keys(buckets).forEach(function (k) {
             var parts = k.split(',');
             var col = parseInt(parts[0], 10), row = parseInt(parts[1], 10);
@@ -2056,7 +2072,6 @@
             });
             cellFeature.set('count', buckets[k].length);
             cellFeature.set('members', buckets[k]);
-            cellFeature.set('_maxInView', maxCount);
             gridSource.addFeature(cellFeature);
         });
         _selectedGridFeature = null;
@@ -2065,21 +2080,28 @@
         // 칸 경계를 실제로 모핑하진 않고 옅게 나타나는 정도로 단순화)
     }
 
-    /** 격자가 다시 그려질 때마다 살짝 옅게 시작해 또렷해지는 페이드인(2026-09-01) —
-     * 칸이 갈라지고 합쳐지는 모습 자체를 애니메이션으로 보여주려면 이전/이후 칸을
-     * 1:1로 대응시켜 모핑해야 하는데(상당한 작업), 그 전 단계로 "다시 계산됐다"는
-     * 것만 부드럽게 느껴지도록 우선 처리. */
+    /** 격자·히트맵이 다시 그려질 때마다 살짝 옅게 시작해 또렷해지는 페이드인(2026-09-01,
+     * 히트맵 분리 후 같이 페이드하도록 확장) — 칸이 갈라지고 합쳐지는 모습 자체를
+     * 애니메이션으로 보여주려면 이전/이후 칸을 1:1로 대응시켜 모핑해야 하는데(상당한
+     * 작업), 그 전 단계로 "다시 계산됐다"는 것만 부드럽게 느껴지도록 우선 처리. */
     var _gridFadeRaf = null;
     function fadeInGridLayer() {
         if (!gridLayer) return;
         if (_gridFadeRaf) cancelAnimationFrame(_gridFadeRaf);
         var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (reduceMotion) { gridLayer.setOpacity(1); return; }
+        if (reduceMotion) {
+            gridLayer.setOpacity(1);
+            if (heatmapLayer) heatmapLayer.setOpacity(HEATMAP_BASE_OPACITY);
+            return;
+        }
         var t0 = performance.now(), ms = 220, from = 0.35;
         gridLayer.setOpacity(from);
+        if (heatmapLayer) heatmapLayer.setOpacity(from * HEATMAP_BASE_OPACITY);
         function step(now) {
             var p = Math.min(1, (now - t0) / ms);
-            gridLayer.setOpacity(from + (1 - from) * p);
+            var t = from + (1 - from) * p;
+            gridLayer.setOpacity(t);
+            if (heatmapLayer) heatmapLayer.setOpacity(t * HEATMAP_BASE_OPACITY);
             if (p < 1) { _gridFadeRaf = requestAnimationFrame(step); } else { _gridFadeRaf = null; }
         }
         _gridFadeRaf = requestAnimationFrame(step);
@@ -3495,6 +3517,10 @@
         if (bar.style.display === 'none' && !_filterBarCollapsed) return;
         _filterBarCollapsed = !_filterBarCollapsed;
         bar.style.display = _filterBarCollapsed ? 'none' : 'flex';
+        // 필터 바 높이가 바뀌었으니 그 아래 붙는 범례도 다시 위치 계산(2026-09-01 버그
+        // 수정 — 이걸 안 하면 필터 바를 접었을 때 범례가 예전(펼쳐졌을 때) 위치에 그대로
+        // 남아 지도 한가운데 엉뚱하게 떠 있는다, 사용자가 스크린샷으로 지적).
+        positionFilterBar();
     }
 
     /** 필터 바 위치 재계산 — 모드 전환 시 모드토글 높이가 바뀔 수 있어 호출된다.
@@ -3511,12 +3537,20 @@
     function positionFilterBar() {
         var modeToggle = document.getElementById('ocean-accident-mode-toggle');
         var bar = document.getElementById('accident-filter-bar');
-        if (!modeToggle || !bar || bar.style.display === 'none') return;
-        bar.style.top = (modeToggle.offsetTop + modeToggle.offsetHeight + 6) + 'px';
-        // 범례를 필터 바 바로 아래 붙임 — 필터 바처럼 글자 크기 설정에 따라 실제 줄 수가
-        // 바뀌어(칩이 좁으면 여러 줄로 감김) 고정 px로 못 잡고 매번 실측한다.
+        // 모드토글 자체가 꺼져 있으면(=사고정보 자체가 꺼진 상태) 위치 잡을 대상이 없다.
+        // 필터 바만 접혀 있는 경우(display:none)는 여기서 return 하지 않는다 — 그러면
+        // 범례가 "필터 바 펼쳐졌을 때" 계산해 둔 옛 top 에 그대로 남아 지도 한가운데
+        // 엉뚱하게 떠 있게 된다(2026-09-01 사용자가 스크린샷으로 지적한 버그).
+        if (!modeToggle || modeToggle.style.display === 'none') return;
+        var barTop = modeToggle.offsetTop + modeToggle.offsetHeight + 6;
+        var barCollapsed = !bar || bar.style.display === 'none';
+        if (bar && !barCollapsed) bar.style.top = barTop + 'px';
+        // 범례를 필터 바 바로 아래 붙임(필터 바가 접혀 있으면 그만큼 위로 당겨짐) —
+        // 필터 바처럼 글자 크기 설정에 따라 실제 줄 수가 바뀌어(칩이 좁으면 여러 줄로
+        // 감김) 고정 px로 못 잡고 매번 실측한다.
         var legend = document.getElementById('accident-grid-legend');
-        if (legend) legend.style.top = (bar.offsetTop + bar.offsetHeight + 6) + 'px';
+        var afterBarTop = barCollapsed ? barTop : (barTop + bar.offsetHeight + 6);
+        if (legend) legend.style.top = afterBarTop + 'px';
     }
 
     function bindFilterBar(map) {
@@ -3633,10 +3667,12 @@
         if (state.mode !== 'status' && bubbleOverlay) bubbleOverlay.setPosition(undefined);
         if (state.mode === 'analysis' && key) {
             ensureGridLayer(map).setVisible(true);
+            ensureHeatmapLayer(map).setVisible(true);
             recomputeGrid(map);
             showGridLegend(true);
         } else {
             if (gridLayer) gridLayer.setVisible(false);
+            if (heatmapLayer) heatmapLayer.setVisible(false);
             closeStatsSheet();
             showGridLegend(false);
         }
