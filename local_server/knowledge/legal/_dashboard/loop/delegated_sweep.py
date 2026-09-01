@@ -69,12 +69,20 @@ def sweep(law):
     meta = json.load(open(meta_p, encoding='utf-8'))
     fams = meta.get('families') or {}
 
+    # ⚠families 의 값이 **목록일 수 있다**(2026-09-01 전수 조회 중 해양경찰법에서 터졌다).
+    #   한 계층에 여러 대통령령이 걸린 법이 그렇다 — 해양경찰법 시행령은 위원회 규정·긴급중요사건
+    #   범위 규정·과학기술진흥 규정 셋이다. 그래서 목록이면 하나씩 다 조회한다.
     asked, found = [], {}
+    fam_items = []
     for tier, f in fams.items():
+        for one in (f if isinstance(f, list) else [f]):
+            if isinstance(one, dict):
+                fam_items.append((tier, one))
+    for tier, f in fam_items:
         mst = str(f.get('MST') or '')
         if not mst:
             continue
-        asked.append((tier, mst))
+        asked.append((f.get('법령명') or tier, mst))
         d = api(f'https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=lsDelegated&type=JSON&MST={mst}')
         if d is None:
             print(f'  ⚠ {law} {tier}(MST={mst}) 응답 없음 — 이 기록은 불완전하다')
