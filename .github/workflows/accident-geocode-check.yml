@@ -1,4 +1,4 @@
-# accident-geocode-check.yml - 사고정보(선박·해경) 위치텍스트-좌표 대조 조사
+# accident-geocode-check.yml - 사고정보(hk=선박·해경 / person=인명사고) 위치텍스트-좌표 대조 조사
 #
 # [용도] 개발 샌드박스(Claude Code on the web)는 dapi.kakao.com 접속이 막혀 있고 로컬에
 #   API 키도 없어 local_server/scripts/accident_geocode_check.js 를 거기서 실행할 수 없다.
@@ -6,18 +6,30 @@
 #   모바일에서도 GitHub 앱/브라우저로 이 페이지에 들어와 "Run workflow" 버튼만 누르면
 #   실행할 수 있다(PC·터미널 불필요).
 # [필요 설정] 저장소 Settings → Secrets and variables → Actions 에 KAKAO_REST_API_KEY
-#   가 등록되어 있어야 한다(fly.io 프로덕션에 이미 설정된 것과 같은 카카오 REST API 키).
+#   가 등록되어 있어야 한다(fly.io 프로덕션에 이미 설정된 것과 같은 카카오 REST API 키 —
+#   둘 다 이미 등록돼 있음, 2026-08-31 fly.io Secrets 화면으로 재확인).
+# [소스 선택(2026-08-31 추가)] hk(선박사고)뿐 아니라 person(인명사고)도 위치텍스트가
+#   부정확한 경우가 많아 같은 방식으로 대조·보정하고 싶다는 요청으로 source 입력을 추가.
 # [결과 확인] 실행이 끝나면 이 워크플로우 실행 화면 위쪽 "Summary"에 의심 후보 표와
 #   origIndex 목록이 바로 뜬다(다운로드 불필요). 상세 JSON은 Artifacts에서 받을 수 있다.
-# [연계] local_server/scripts/accident_geocode_check.js, client/accident_ships_hk.json
+# [연계] local_server/scripts/accident_geocode_check.js, client/accident_ships_hk.json,
+#   client/accident_persons.json
 
 name: 사고정보 지오코딩 대조 조사
 
 on:
   workflow_dispatch:
     inputs:
+      source:
+        description: '대상 소스'
+        required: false
+        default: 'hk'
+        type: choice
+        options:
+          - hk
+          - person
       limit:
-        description: '조사할 건수 (0 = 전수, 시간이 오래 걸림 — 우선 50~200 권장)'
+        description: '조사할 건수 (0 = 전수. person 은 21,798건 전수조사라 0으로 돌리면 API 호출 간격 때문에 시간이 오래 걸림 — 처음엔 50~200 권장)'
         required: false
         default: '100'
 
@@ -37,14 +49,17 @@ jobs:
 
       - name: 지오코딩 대조 스크립트 실행
         env:
+          SOURCE: ${{ github.event.inputs.source }}
           LIMIT: ${{ github.event.inputs.limit }}
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-        run: node local_server/scripts/accident_geocode_check.js --limit="$LIMIT"
+        run: node local_server/scripts/accident_geocode_check.js --source="$SOURCE" --limit="$LIMIT"
 
       - name: 결과를 Summary에 표로 정리
         if: always()
+        env:
+          SOURCE: ${{ github.event.inputs.source }}
         run: |
-          OUT=local_server/data/accident_geocode_suspects.json
+          OUT="local_server/data/accident_geocode_suspects_${SOURCE}.json"
           if [ ! -f "$OUT" ]; then
             echo "## ❌ 결과 파일이 생성되지 않았습니다 (스크립트가 중간에 실패했을 수 있음)" >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -53,28 +68,32 @@ jobs:
             const fs = require('fs');
             const data = JSON.parse(fs.readFileSync('$OUT', 'utf8'));
             const lines = [];
-            lines.push('## 사고정보 지오코딩 대조 결과');
+            lines.push('## 사고정보 지오코딩 대조 결과 (' + data.source + ')');
             lines.push('');
             lines.push('의심 임계값: ' + data.thresholdKm + 'km 이상 어긋난 경우만 후보로 표시합니다.');
             lines.push('');
-            lines.push('| 건수 | 위치텍스트 | 발생일자 | 저장된 좌표 | 예상 좌표(지오코딩) | 어긋난 거리 |');
-            lines.push('|---|---|---|---|---|---|');
+            lines.push('방식: **coord**=위치텍스트에 박힌 도분초 좌표를 그대로 사용(가장 정확, API 미호출) · **pattern**=\"기준지명+방위+거리\"를 정밀 계산(신뢰도 높음) · **fulltext**=위치텍스트 전체를 그대로 검색(신뢰도 낮음, 반드시 사람이 확인).');
+            lines.push('');
+            lines.push('| 건수 | 방식 | 검색 키워드 | 위치텍스트(원문) | 발생일자 | 저장된 좌표 | 예상 좌표(지오코딩) | 어긋난 거리 |');
+            lines.push('|---|---|---|---|---|---|---|---|');
             data.suspects.forEach(s => {
-              lines.push('| origIndex ' + s.origIndex + ' | ' + s.pos + ' | ' + s.ymd + ' | ' + s.actual.join(', ') + ' | ' + s.expected.join(', ') + ' | ' + s.offsetKm + 'km |');
+              lines.push('| origIndex ' + s.origIndex + ' | ' + (s.method || 'pattern') + ' | ' + (s.keyword || '') + ' | ' + s.pos + ' | ' + s.ymd + ' | ' + s.actual.join(', ') + ' | ' + s.expected.join(', ') + ' | ' + s.offsetKm + 'km |');
             });
             lines.push('');
             lines.push('**의심 후보 ' + data.suspects.length + '건.** 아래 origIndex 목록을 검수 모드에 붙여넣듯 확인하세요(자동삭제 아님 — 사람이 직접 지도에서 봐야 함):');
             lines.push('');
             lines.push('\`\`\`json');
-            lines.push(JSON.stringify({ hk: data.suspects.map(s => s.origIndex) }));
+            lines.push(JSON.stringify({ [data.source]: data.suspects.map(s => s.origIndex) }));
             lines.push('\`\`\`');
             fs.writeFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'), { flag: 'a' });
           "
 
       - name: 결과 파일 업로드
         if: always()
+        env:
+          SOURCE: ${{ github.event.inputs.source }}
         uses: actions/upload-artifact@v4
         with:
-          name: accident-geocode-suspects
-          path: local_server/data/accident_geocode_suspects.json
+          name: accident-geocode-suspects-${{ github.event.inputs.source }}
+          path: local_server/data/accident_geocode_suspects_${{ github.event.inputs.source }}.json
           if-no-files-found: warn

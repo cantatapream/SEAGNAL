@@ -762,16 +762,19 @@
     var flagLayer = null;         // 빨간 테두리 오버레이(소스 무관 공용)
 
     /**
-     * [검수 서브모드 3단 순환(2026-08-25)] 처음엔 심판원 레이어 하나만 검수 모드
-     * 진입 후 같은 버튼 5회 더 연타로 토글하는 단순 on/off 였는데, 관할서 불일치
-     * 검수 레이어를 그 다음 단계(5회 더, 총 20회)로 추가하면서 "매번 토글"이 아니라
-     * "none → 심판원 → 관할서불일치 → none → ..." 순환으로 바꿨다(사용자 확정
-     * 2026-08-25: "20회로 하고" + "모드 바뀔때마다 어떤 검수모드인지 화면에 표출").
+     * [검수 서브모드 4단 순환(2026-08-25 3단 신설 → 2026-09-01 카카오 검수 추가로 4단)]
+     * 처음엔 심판원 레이어 하나만 검수 모드 진입 후 같은 버튼 5회 더 연타로 토글하는
+     * 단순 on/off 였는데, 관할서 불일치 검수 레이어를 그 다음 단계(5회 더, 총 20회)로
+     * 추가하면서 "매번 토글"이 아니라 "none → 심판원 → 관할서불일치 → none → ..."
+     * 순환으로 바꿨다(사용자 확정 2026-08-25: "20회로 하고" + "모드 바뀔때마다 어떤
+     * 검수모드인지 화면에 표출"). 인명사고 카카오 지오코딩 검수(498건, 사용자 요청
+     * 2026-09-01: "관할서 불일치 검수모드에서 추가로 사고정보를 5회 클릭하면 해당
+     * 모드가 나타나도록")를 그 다음 단계(5회 더, 총 25회)로 추가.
      * TRIBUNAL_REVIEW_ON·JURISDICTION_REVIEW_ON 은 기존 코드(클릭 라우팅 등)와
      * 호환을 위해 _reviewSubMode 에서 파생시킨 boolean 으로 계속 둔다.
      */
-    var REVIEW_SUBMODE_NONE = 0, REVIEW_SUBMODE_TRIBUNAL = 1, REVIEW_SUBMODE_JURISDICTION = 2;
-    var REVIEW_SUBMODE_LABELS = ['심판원 검수 꺼짐', '심판원 데이터 검수모드', '관할서 불일치 검수모드'];
+    var REVIEW_SUBMODE_NONE = 0, REVIEW_SUBMODE_TRIBUNAL = 1, REVIEW_SUBMODE_JURISDICTION = 2, REVIEW_SUBMODE_KAKAO_PERSON = 3;
+    var REVIEW_SUBMODE_LABELS = ['심판원 검수 꺼짐', '심판원 데이터 검수모드', '관할서 불일치 검수모드', '인명사고 카카오 지오코딩 검수모드'];
     var _reviewSubMode = REVIEW_SUBMODE_NONE;
     var REVIEW_SUBMODE_TAP_THRESHOLD = 5;
     var _reviewSubModeTapCount = 0;
@@ -1705,6 +1708,13 @@
             if (panel) panel.style.display = 'none';
             if (jurisdictionBoundaryLayer) jurisdictionBoundaryLayer.setVisible(false);
             if (jurisdictionFocusLayer) jurisdictionFocusLayer.setVisible(false);
+        }
+        // 인명사고 카카오 지오코딩 검수(accident_geocode_review_person.js) — 전체화면
+        // 오버레이라 지도 레이어가 아니라 그 화면 자체를 열고/닫는다.
+        if (_reviewSubMode === REVIEW_SUBMODE_KAKAO_PERSON) {
+            if (window.AccidentGeocodeReviewPerson) window.AccidentGeocodeReviewPerson.open();
+        } else if (window.AccidentGeocodeReviewPerson) {
+            window.AccidentGeocodeReviewPerson.close();
         }
         if (typeof window._showOceanToast === 'function') {
             window._showOceanToast(REVIEW_SUBMODE_LABELS[_reviewSubMode], 'top', 2200);
@@ -3391,13 +3401,16 @@
             showModeToggle(true);
             showFilterResetBtn(true);
             showFilterBar(true);
-            // 선박용도는 hk(사고 데이터)에만 있는 필드라 person(인명사고)에선 필터 자체가
-            // 의미 없다 — 버튼을 숨기고, 다른 소스에서 걸어둔 값이 있으면 비운다(사용자
-            // 확정 2026-08-31). 안 비우면 SHIPUSE_POS_IDX.person 이 없어 person 행이
-            // 전부 필터에 걸려 사라지는 사고가 난다.
+            // 선박용도·톤수는 hk(사고 데이터)에만 있는 필드라 person(인명사고)에선 필터
+            // 자체가 의미 없다 — 버튼을 숨기고, 다른 소스에서 걸어둔 값이 있으면 비운다
+            // (사용자 확정 2026-08-31). 안 비우면 SHIPUSE_POS_IDX.person·TONNAGE_POS_IDX.person
+            // 이 없어 person 행이 전부 필터에 걸려 사라지는 사고가 난다.
             var shipUseBtn = document.getElementById('accident-filter-btn-shipUses');
             if (shipUseBtn) shipUseBtn.style.display = key === 'person' ? 'none' : '';
             if (key === 'person' && filters.shipUses) filters.shipUses = null;
+            var tonnageBtn = document.getElementById('accident-filter-btn-tonnageRanges');
+            if (tonnageBtn) tonnageBtn.style.display = key === 'person' ? 'none' : '';
+            if (key === 'person' && filters.tonnageRanges) filters.tonnageRanges = null;
             updateFilterBarModeVisibility();
             updateAllFilterButtonLabels();
             if (hasActiveFilters()) applyFiltersToMarkers(key); // 이전 소스에서 걸어둔 필터를 새 소스에도 반영
@@ -3467,15 +3480,16 @@
             toggleBtn.addEventListener('click', function () {
                 if (REVIEW_MODE) {
                     // 검수 모드 안에서는 같은 버튼 5회 더 연타마다 서브모드를 한 단계씩
-                    // 순환(꺼짐→심판원→관할서불일치→꺼짐→...). 2026-08-25 이전엔 심판원
-                    // 레이어 하나만 단순 on/off였는데, 관할서 불일치 검수를 그 다음
-                    // 단계(총 20회)로 추가하며 순환식으로 바꿨다.
+                    // 순환(꺼짐→심판원→관할서불일치→카카오지오코딩검수→꺼짐→...). 2026-08-25
+                    // 이전엔 심판원 레이어 하나만 단순 on/off였는데, 관할서 불일치 검수(총
+                    // 20회)·인명사고 카카오 지오코딩 검수(총 25회, 2026-09-01)를 차례로
+                    // 추가하며 순환식으로 바꿨다.
                     _reviewSubModeTapCount++;
                     clearTimeout(_reviewSubModeTapTimer);
                     _reviewSubModeTapTimer = setTimeout(function () { _reviewSubModeTapCount = 0; }, REVIEW_MODE_TAP_RESET_MS);
                     if (_reviewSubModeTapCount < REVIEW_SUBMODE_TAP_THRESHOLD) return;
                     _reviewSubModeTapCount = 0;
-                    _reviewSubMode = (_reviewSubMode + 1) % 3;
+                    _reviewSubMode = (_reviewSubMode + 1) % 4;
                     var map = window.getOceanMap && window.getOceanMap();
                     if (map) applyReviewSubMode(map);
                     return;
