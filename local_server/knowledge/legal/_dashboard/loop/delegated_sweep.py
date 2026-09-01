@@ -159,6 +159,10 @@ def sweep(law):
 
     now = datetime.now(KST).strftime('%Y-%m-%d')
     os.makedirs(OUTDIR, exist_ok=True)
+    try:
+        CONFIRMED = json.load(open(os.path.join(OUTDIR, '_confirmed.json'), encoding='utf-8'))
+    except Exception:
+        CONFIRMED = {}
     out = os.path.join(OUTDIR, law + '.md')
     with open(out, 'w', encoding='utf-8') as fp:
         fp.write(f'# {law} — 위임 행정규칙 조회 기록\n\n')
@@ -177,7 +181,13 @@ def sweep(law):
             if t in missing:
                 mark = '⚠확인 필요(raw 에서 못 찾음)'
             elif t in fuzzy:
-                mark = '⚠유사이름만 있음 — 사람이 확인할 것 (닮은 파일: ' + ' · '.join(fuzzy[t]) + ')'
+                # 사람이 이미 눈으로 확인한 것은 그 결론을 그대로 보여 준다(_confirmed.json).
+                # 안 그러면 라운드마다 같은 39건을 다시 확인하게 된다.
+                said = CONFIRMED.get(law, {}).get(t)
+                # 사람이 봤지만 결론을 못 낸 것(⚠로 시작)은 "확인함"이라고 쓰면 안 된다.
+                pre = '☐사람이 봤으나 결론 못 냄: ' if str(said).startswith('⚠') else '✔사람이 확인함: '
+                mark = (pre + said) if said else (
+                    '⚠유사이름만 있음 — 사람이 확인할 것 (닮은 파일: ' + ' · '.join(fuzzy[t]) + ')')
             else:
                 mark = '✅ raw 수집됨'
             fp.write(f'- {t} (ID {"·".join(sorted(found[t]))}) — {mark}\n')
@@ -185,12 +195,13 @@ def sweep(law):
         for h in have_txt:
             fp.write(f'- {h}\n')
         fp.write('\n## 이 기록을 어떻게 쓰나\n\n')
-        if fuzzy:
+        unseen = {t: v for t, v in fuzzy.items() if not CONFIRMED.get(law, {}).get(t)}
+        if unseen:
             fp.write('⚠**아래 고시는 이름이 닮은 파일이 있을 뿐, 그 고시 자체를 찾은 것이 아니다.**\n')
             fp.write('이 분야는 **농산물·수산물·임산물**처럼 한 글자만 다른 이름이 떼로 있다.\n')
             fp.write('닮은 파일을 열어 정말 같은 고시인지 눈으로 확인하기 전에는 "받아 뒀다"고 쓰면 안 된다.\n\n')
-            for t in sorted(fuzzy):
-                fp.write(f'- {t} — 닮은 파일: ' + ' · '.join(fuzzy[t]) + '\n')
+            for t in sorted(unseen):
+                fp.write(f'- {t} — 닮은 파일: ' + ' · '.join(unseen[t]) + '\n')
             fp.write('\n')
         if missing:
             fp.write('⚠**아래 고시를 raw 에서 못 찾았다.** 그러나 이것이 곧 "안 받았다"는 뜻은 아니다 —\n')
@@ -199,7 +210,7 @@ def sweep(law):
             fp.write('확인 결과 정말 없으면, 그것을 받기 전에는 이 법에서 "규정이 없다"고 단정하면 안 된다.\n\n')
             for t in missing:
                 fp.write(f'- {t}\n')
-        elif not fuzzy:
+        elif not unseen:
             fp.write('law.go.kr 이 말하는 위임 행정규칙이 **전부 raw 에 수집돼 있다.**\n')
             fp.write('따라서 이 법의 raw 전문(법률·시행령·시행규칙·위 행정규칙)을 대조해 없으면,\n')
             fp.write('그것은 §6-B-1 ⓑ 가 요구하는 조회를 거친 "없음"이다.\n')
