@@ -165,11 +165,21 @@ function buildShipsHs() {
     console.log(`[선박·심판원] ${rows.length}건 저장, ${skipped}건 좌표 불가 제외 (전체 ${records.length}건)`);
 }
 
-/** 인명사고 — TL_NSHPAC.csv (좌표가 TM 투영이라 proj4 역변환 필요) */
+/** 인명사고 — TL_NSHPAC.csv (좌표가 TM 투영이라 proj4 역변환 필요)
+ * [ERR_CD 필터] 2026-09-01 사용자 확정: 오션맵(khoa.go.kr/oceanmap) 라이브 지도가
+ *   실제로 쓰는 인명사고 API(selectListCluster.json)와 전수 대조한 결과, 라이브 지도가
+ *   보여주는 14,358건은 정확히 ERR_CD 컬럼이 빈 값인 행과 일치했다(ERR004 7,443건·
+ *   ERR002 147건은 라이브 지도에서 아예 제외됨). 그래서 이 필터를 그대로 반영한다 —
+ *   다만 ERR004 는 예전 조사(2026-08)에서 "내륙 판정 오탐(대부분 정상 해안사고)"으로
+ *   이미 확인된 플래그라, 이 필터는 좌표 오류를 걸러내는 게 아니라 KHOA 자신이
+ *   보수적으로 숨기는 범위를 그대로 따라가는 것 — 정상 사고 다수가 함께 빠진다는
+ *   것을 사용자가 인지한 상태에서 확정함.
+ */
 function buildPersons() {
     const records = readCsvAsRecords(path.join(RAW_DIR, 'TL_NSHPAC.csv'));
-    let skipped = 0;
+    let skipped = 0, errFiltered = 0;
     const rows = records.map((r) => {
+        if ((r.ERR_CD || '').trim() !== '') { errFiltered++; return null; }
         const x = parseFloat(r.XCDNT), y = parseFloat(r.YCDNT);
         if (!Number.isFinite(x) || !Number.isFinite(y)) { skipped++; return null; }
         const [lon, lat] = proj4(KGD2002_UNIFIED, proj4.WGS84, [x, y]);
@@ -180,7 +190,7 @@ function buildPersons() {
             toInt(r.DTH_PRSN), toInt(r.MISG_PRSN)];
     }).filter(Boolean);
     writeJson('accident_persons.json', rows);
-    console.log(`[인명] ${rows.length}건 저장, ${skipped}건 좌표변환 실패/범위 밖 제외 (전체 ${records.length}건)`);
+    console.log(`[인명] ${rows.length}건 저장, ERR_CD 있음 ${errFiltered}건 제외, ${skipped}건 좌표변환 실패/범위 밖 제외 (전체 ${records.length}건)`);
 }
 
 function round5(n) {
