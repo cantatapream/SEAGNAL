@@ -64,7 +64,7 @@ const ACCIDENT_CAUSE_LABELS = {
 // 제공 2026-08-31)에 "NULL"로 정의된 코드 — 실제 선종이 아니라 "정보 없음"을 뜻하는
 // 코드값이라 accidentLabel() 이 null/빈값에 쓰는 라벨과 통일한다.
 const ACCIDENT_SHIP_KIND_LABELS = {
-    KIN001: '- 정보없음',
+    KIN001: '정보없음',
     KIN002: '고무보트', KIN003: '관공선', KIN004: '낚시어선', KIN005: '모터보트',
     KIN006: '수상오토바이', KIN007: '어선', KIN008: '여객선', KIN009: '예부선',
     KIN010: '요트', KIN011: '유도선', KIN012: '유조선', KIN013: '화물선',
@@ -105,7 +105,7 @@ const ACCIDENT_ORG_LABELS = {
  * [연계] accident_info.js 의 마커 팝업·통계 패널이 호출
  */
 function accidentLabel(table, code) {
-    if (code == null || code === '') return '- 정보없음';
+    if (code == null || code === '') return '정보없음';
     return (table && table[code] != null) ? table[code] : String(code);
 }
 
