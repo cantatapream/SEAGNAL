@@ -605,6 +605,12 @@
  "내항해운에관한업무지침.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/해운법"
  ],
+ "내항화물선의선령제한에관한고시.txt": [
+  "local_server/knowledge/legal/raw/04_선박해운/해운법"
+ ],
+ "내항화물운송사업자유류세보조금지급지침.txt": [
+  "local_server/knowledge/legal/raw/04_선박해운/해운법"
+ ],
  "내항화물운송사업자의외국적선박용선제한에관한고시.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/해운법"
  ],
@@ -1727,6 +1733,9 @@
  ],
  "연안사고안전관리규정.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
+ ],
+ "연안선박현대화펀드운영에관한고시.txt": [
+  "local_server/knowledge/legal/raw/04_선박해운/해운법"
  ],
  "연안안전지킴이운영규칙.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
