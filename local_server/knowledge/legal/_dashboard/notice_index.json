@@ -483,6 +483,9 @@
  "국가어업지도선운용관리및지도선직원복무규칙.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/수산업법"
  ],
+ "국가어항의공공디자인가이드라인.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법"
+ ],
  "국가지정유산_역사문화환경보존지역내_건축행위등에관한허용기준작성지침.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/자연유산의보존및활용에관한법률"
  ],
@@ -1635,6 +1638,15 @@
  ],
  "어촌계정관(예).txt": [
   "local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법"
+ ],
+ "어항시설성능개선기준.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법"
+ ],
+ "어항시설의안전시설설치및관리지침.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법"
+ ],
+ "어항시설최소유지관리기준.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법"
  ],
  "어획할당량배분등에관한고시.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
