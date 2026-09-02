@@ -501,6 +501,9 @@
  "국동어항항행속력제한에관한고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
+ "국립수산과학원수산종자분양지침.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법"
+ ],
  "국립수산과학원종자분쟁조정협의회운영에관한규정.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법"
  ],
@@ -922,6 +925,9 @@
  ],
  "부유식해상구조물의구조및설비등에관한기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
+ ],
+ "분쟁대상종자에대한시험분석처리지침.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법"
  ],
  "불법·비보고·비규제어업행위를한자등에대한과징금부과기준에관한고시.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
@@ -2015,6 +2021,9 @@
  ],
  "태안해양경찰서통개항해역출입통제구역지정공고.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
+ ],
+ "통계작성의변경승인(협의)고시(수산종자생산업실태조사).txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법"
  ],
  "통상임금및승선평균임금의산정지침.txt": [
   "local_server/knowledge/legal/raw/06_선원노동/선원법"
