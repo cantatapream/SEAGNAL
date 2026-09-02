@@ -3278,7 +3278,23 @@
         return _filterPopupEls;
     }
 
+    /** 뒤로가기 처리를 위한 공용 팝업 스택 등록 id(core/backbutton.js). */
+    var FILTER_POPUP_ID = 'accident-filter-popup';
+
+    /** 필터 팝업을 실제로 띄운다 — 모든 open*FilterPopup 이 마지막에 이걸 부른다.
+     * 휴대폰 뒤로가기로 닫히도록 공용 팝업 스택에도 함께 등록한다(등록이 빠져 있어
+     * 뒤로가기를 눌러도 팝업이 안 닫혔다 — 2026-09-01 사용자 지적). 바텀시트가 이미
+     * 스택에 있어도 이게 나중에 쌓이므로, 뒤로가기는 팝업 → 시트 순서로 닫힌다. */
+    function showFilterPopup(els) {
+        els.overlay.style.display = 'flex';
+        if (window.PopupStack) window.PopupStack.push(FILTER_POPUP_ID, closeFilterPopup);
+    }
+
     function closeFilterPopup() {
+        // 스택에서 먼저 뺀다 — 뒤로가기(PopupStack.popLast)로 들어온 경우엔 이미 빠진
+        // 뒤라 무해하고, ✕·취소·바깥클릭으로 닫은 경우엔 여기서 빠져야 다음 뒤로가기가
+        // 엉뚱하게 이 팝업을 또 닫으려 하지 않는다(바텀시트와 같은 방식).
+        if (window.PopupStack) window.PopupStack.remove(FILTER_POPUP_ID);
         if (_filterPopupEls) _filterPopupEls.overlay.style.display = 'none';
     }
 
@@ -3337,7 +3353,7 @@
             onConfirm(selected.size ? selected : null);
             closeFilterPopup();
         };
-        els.overlay.style.display = 'flex';
+        showFilterPopup(els);
     }
 
     // 관할서 팝업 지방청 그룹 구성(2026-08-31 웹서칭으로 확인, 사용자 확정) — 21개 관할서 전부 포함.
@@ -3432,7 +3448,7 @@
             onConfirm(codeSet);
             closeFilterPopup();
         };
-        els.overlay.style.display = 'flex';
+        showFilterPopup(els);
     }
 
     /**
@@ -3548,7 +3564,7 @@
             onConfirm(ranges.length ? ranges : null);
             closeFilterPopup();
         };
-        els.overlay.style.display = 'flex';
+        showFilterPopup(els);
     }
 
     /** 시간대 팝업 — openRangeFilterPopup 에 시간대 전용 설정을 얹은 얇은 래퍼. */
@@ -3590,12 +3606,30 @@
         var start = current ? current[0] : ymdAddMonths(today, -12);
         var end = current ? current[1] : today;
 
+        /** 프리셋 옆 건수 — 시간대·톤수 팝업의 presetCount 와 같은 원칙으로,
+         * 이 축(기간)만 빼고 이미 걸린 다른 필터와의 교집합을 센다. */
+        function presetCount(pStart) {
+            var srcKey = state.source;
+            var feats = (srcKey && rawFeatures[srcKey]) || [];
+            var cnt = 0;
+            feats.forEach(function (f) {
+                var row = f.get('row');
+                if (!passesFiltersExcept(srcKey, row, 'dateRange')) return;
+                var ymd = String(row[2] || '');
+                if (ymd >= pStart && ymd <= today) cnt++;
+            });
+            return cnt;
+        }
+
         function render() {
+            // 프리셋 버튼을 "제목 + 건수" 두 줄로 — 시간대·톤수 팝업과 같은 모양으로
+            // 맞춘다(기간 팝업만 건수가 없어 따로 놀았다, 2026-09-01 사용자 지적).
             var presetsHtml = DATE_RANGE_PRESETS.map(function (p, i) {
                 var pStart = ymdAddMonths(today, -p.months);
                 var active = start === pStart && end === today;
                 return '<button type="button" class="accident-filter-hour-preset' + (active ? ' active' : '') +
-                    '" data-preset-i="' + i + '">' + p.label + '</button>';
+                    '" data-preset-i="' + i + '">' + p.label +
+                    '<span class="n">' + fmtN(presetCount(pStart)) + '건</span></button>';
             }).join('');
             els.body.innerHTML =
                 '<div class="accident-filter-hour-presets">' + presetsHtml + '</div>' +
@@ -3625,7 +3659,7 @@
             onConfirm([start, end]);
             closeFilterPopup();
         };
-        els.overlay.style.display = 'flex';
+        showFilterPopup(els);
     }
 
     /** 필터 버튼 라벨을 지금 filters 상태에 맞춰 갱신("전체" 또는 "N개 선택"). */
