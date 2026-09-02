@@ -38,9 +38,16 @@ HEAD = re.compile(r'^\[(제\d+조(?:의\d+)?)\]\s*(.*)$')
 
 
 def articles(path):
-    """`[제N조] 제목` 으로 갈라 (조번호, 제목, 본문) 목록을 만든다."""
+    """`[제N조] 제목` 으로 갈라 (조번호, 제목, 본문) 목록을 만든다.
+
+    ★부칙에서 멈춘다(2026-09-02, 사서가 잡음). 부칙에는 **다른 법을 고치는 개정문**이 들어 있어
+      그것이 앞 조의 본문에 붙어 버렸다 — 수산업ㆍ어촌발전기본법 제52조가 항 없는 단일 조인데
+      "제11항"이 있는 것처럼 잡힌 것이 그 때문이다(5건).
+    """
     out, num, title, buf = [], None, '', []
     for line in open(path, encoding='utf-8'):
+        if re.match(r'^\s*부칙(\s|<|$|\()', line):
+            break
         m = HEAD.match(line.rstrip('\n'))
         if m:
             if num:
@@ -75,12 +82,24 @@ def cited(path):
         txt = txt[:cut.start()]
     # ★`법 제N조` 만 센다(2026-09-02). `영 제25조제3항`·`규칙 제5조` 는 **자기 계층**을 가리키는 말이라
     #   상위법을 받은 근거가 못 된다 — 실제로 항만법 시행규칙의 `영 제25조제3항` 이 그렇게 잡혔다.
-    REF = r'법\s*제(\d+조(?:의\d+)?)((?:제\d+항)?)'
+    # ★`법 제N조` 만 보면 **시행령 첫 조의 표준 문형을 통째로 놓친다**(2026-09-02, 사서가 잡음).
+    #   시행령·시행규칙 제2조는 거의 항상 이렇게 쓴다:
+    #     「해양경비법」(이하 "법"이라 한다) 제2조제11호에서 "…"이란 …
+    #   여기엔 `법 제2조` 가 아니라 `한다) 제2조` 가 있어 매칭이 안 됐다.
+    #   실제로 한 사서가 맡은 22건 중 13건이 정확히 이 문형이었다.
+    #   그래서 ⓐ`법 제N조` ⓑ`」 … 제N조`(법령명 인용 뒤) 둘 다 센다.
+    #   ⚠2026-09-02 오후 재수정 — `」` 를 통째로 허용했더니 **과교정**이 났다.
+    #     `「어선법」 제17조` 처럼 **남의 법**을 인용한 것, `「…시행령」(이하 "영"이라 한다) 제3조`
+    #     처럼 **자기 계층**을 가리킨 것까지 "받았다"로 세어, 실제 빈자리(수산업법 제17조③ →
+    #     「어업ㆍ양식업등록령」)를 오히려 숨겼다. 그래서 두 꼴만 센다:
+    #       ⓐ `법 제N조`   ⓑ `"법"이라 한다) 제N조`(시행령 제1·2조의 표준 문형)
     jo, johang = set(), set()
-    for m in re.finditer(REF, txt):
-        jo.add('제' + m.group(1))
-        if m.group(2):
-            johang.add('제' + m.group(1) + m.group(2))
+    for pat in (r'법\s*제(\d+조(?:의\d+)?)((?:제\d+항)?)',
+                r'"법"이라\s*한다\)\s*제(\d+조(?:의\d+)?)((?:제\d+항)?)'):
+        for m in re.finditer(pat, txt):
+            jo.add('제' + m.group(1))
+            if m.group(2):
+                johang.add('제' + m.group(1) + m.group(2))
     return jo, johang
 
 
@@ -107,6 +126,17 @@ def scan(law, rel):
         return {'law': law, 'no_lower': True, 'gaps': [], 'weak': []}
     jo = (dec[0] if dec else set()) | (rul[0] if rul else set())
     johang = (dec[1] if dec else set()) | (rul[1] if rul else set())
+    # ★같은 폴더의 **다른 부령 파일**도 본다(2026-09-02, 사서가 잡음).
+    #   항만법 제32조①②의 답은 시행규칙이 아니라 같은 폴더의
+    #   `항만시설장비관리규칙.txt`(별도 해양수산부령)에 있었다. 시행령·시행규칙 두 파일만 읽어 놓친 것이다.
+    for n in sorted(os.listdir(base)):
+        if not n.endswith('.txt') or n in ('법률.txt', '시행령.txt', '시행규칙.txt', '부칙.txt'):
+            continue
+        if n.startswith('법률_') or n.startswith('_'):
+            continue
+        got = cited(os.path.join(base, n))
+        if got:
+            jo |= got[0]; johang |= got[1]
     gaps, weak = [], []
     for num, title, body in articles(lawf):
         for hn, htxt in hangs(body):
