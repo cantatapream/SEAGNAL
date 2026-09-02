@@ -178,7 +178,12 @@ def sweep(law):
         if not found:
             fp.write('(없음 — 이 법은 위임 행정규칙이 없다고 응답했다)\n\n')
         for t in sorted(found):
-            if t in missing:
+            said_m = CONFIRMED.get(law, {}).get(t)
+            if t in missing and said_m:
+                # 사람이 이미 본 것은 그 결론을 보여 준다 — 못 받는 이유가 확인됐으면 매번 다시 쫓지 않는다.
+                pre = '☐사람이 봤으나 결론 못 냄: ' if str(said_m).startswith('⚠') else '✔사람이 확인함: '
+                mark = pre + said_m
+            elif t in missing:
                 mark = '⚠확인 필요(raw 에서 못 찾음)'
             elif t in fuzzy:
                 # 사람이 이미 눈으로 확인한 것은 그 결론을 그대로 보여 준다(_confirmed.json).

@@ -1,0 +1,67 @@
+[법률] 별표5의2 — 액상화물질 수분함량 측정표
+
+[별지 제5호의2서식]                                                                          
+                                                                                                                
+    제     호                                                                                                   
+    No.                                                                                                         
+                                                                                                                
+  액상화물질 수분함량 측정표                                                                                    
+   Certificate of the moisture content of the cargoes which may liquefy                                         
+                                                                                                                
+                                                                                                                
+───────┬──────────────────────────────────┬─────────────
+  신청인      │성명(법인은 명칭 및 대표자 성명) Name/status,                       │생년월일 Date of one's    
+  Applicant   │company/organization                                                │birth                     
+              ├──────────────────────────────────┼─────────────
+              │주소(법인은 주된 사무소 소재지) Address, Location of main office    │전화번호 Telephone        
+              │                                                                    │Number                    
+───────┴──────────────────────────────────┴─────────────
+                                                                                                                
+──────┬─────────┬───────────────────────────────────────
+  액상화    │종류              │                                                                              
+  물질      │Type              │                                                                              
+  Cargoes   ├─────────┼───────────────────────────────────────
+  which may │시료 채취 장소    │                                                                              
+  liquefy   │Place of sampling │                                                                              
+            ├─────────┼───────────────────────────────────────
+            │부시료의 명칭     │                                                                              
+            │Name of sub-sample│                                                                              
+            ├─────────┼───────────────────────────────────────
+            │부시료의 질량     │                                                                              
+            │Mass of sub-sample│                                                                              
+            ├─────────┼───────────────────────────────────────
+            │시료 채취 연월일  │                                                                              
+            │Date of sampling  │                                                                              
+            ├─────────┼───────────────────────────────────────
+            │수분함량          │                                                                              
+            │Moisture content  │                                                                              
+──────┴─────────┴───────────────────────────────────────
+    「특수화물 선박운송 규칙」 제19조제4항에 따라 위와 같이 액상화물질 수분함량 측정표를 발                     
+  급합니다.                                                                                                     
+    This certificate is issued under the provisions 4.3.2 of the International Maritime Solid Bulk              
+  Cargoes Code under the authority of the Government of Republic of Korea.                                      
+                                                                                                                
+                                                                                                                
+         년(Y)      월(M)      일(D)                                                                            
+                                                                                                                
+                                          ┏━━━━━┓                                                        
+      지방해양수산청장                    ┃직인      ┃                                                        
+      Administrator of Regional Office of ┃Signature ┃                                                        
+      Oceans and Fisheries                ┃          ┃                                                        
+                                          ┃          ┃                                                        
+      지정측정기관의 장                   ┃          ┃                                                        
+      President of Measuring Organization ┃          ┃                                                        
+                                          ┗━━━━━┛                                                        
+                                                                                                                
+───────┬────────────────────────────────────────────────
+  확인서      │위 화물의 수분함량은 본인의 지식과 신념으로 미루어 이 측정표가 선장에게 제출된                  
+  Declaration │시점에서의 화물의 평균적인 수분함량임을 확인합니다.                                             
+              │I hereby declare that the moisture content is, to the best of my knowledge and belief, the      
+              │average moisture content of the cargo at the time the declaration is presented to the master    
+───────┴────────────────────────────────────────────────
+  일자(date):          년(Y)        월(M)        일(D)                                                          
+                                                                                                                
+  송하인(또는 대리인)                                                               (서명 또는 인)              
+  Name/status, company/organization of signatory (Signature on behalf of shipper)    (Signature )               
+────────────────────────────────────────────────────────
+  210mm×297mm(일반용지 60g/㎡(재활용품))
