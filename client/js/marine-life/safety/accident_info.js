@@ -3040,7 +3040,17 @@
         _statsMembers = members;
         _trendDrill = null; // 새 셀을 열 때마다 드릴다운 상태 초기화
         _statsRegionLabel = null;
+        // 시트를 새로 열 때는 항상 기본 상태로 시작한다(2026-09-01 사용자 확정) —
+        // 예전엔 뷰 탭 선택이 소스별로 남아 있어서, 특보발효를 보다가 닫고 다른
+        // 칸을 누르면 특보발효가 열린 채로 시작했다. 아래 스크롤 초기화와 같은 취지.
+        _statsView[key] = 'trend';
+        _activeDetailTab[key] = null;
         renderStatsBody();
+        // 스크롤을 맨 위로 — 이걸 안 하면 이전에 내려 둔 위치가 그대로 남아
+        // 연도별·월별 탭이 화면 밖에 있는 채로 열린다(2026-09-01 사용자 지적).
+        // innerHTML 을 갈아끼워도 브라우저가 scrollTop 을 유지하는 경우가 있어 명시적으로 되돌린다.
+        var body = document.getElementById('accident-stats-body');
+        if (body) body.scrollTop = 0;
         sheet.classList.add('open');
         // 휴대폰 뒤로가기로 이 시트를 닫을 수 있게 공용 팝업 스택에 등록한다
         // (core/backbutton.js 의 window.PopupStack — 다른 팝업들이 쓰는 것과 같은 방식).

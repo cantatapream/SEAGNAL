@@ -8744,7 +8744,10 @@ html[data-font-size="large"] .ocean-overlay-btn {
        (#ocean-map-section 등 참고). safe-area 는 그 변수에 이미 포함돼 있어
        여기서 env() 를 또 더하지 않는다(index2.html 상단 주석 참고, 중복 방지). */
     bottom: var(--main-tab-height, 68px);
-    max-height: 62vh;
+    /* 위로 조금 더 키움(62vh → 72vh, 2026-09-01 사용자 확정) — 아래 헤더 위쪽
+       여백을 넓혀 ✕ 버튼이 건수 숫자에 바짝 붙지 않게 하면서도, 그만큼 내용이
+       잘리지 않도록 시트 자체를 키운다. */
+    max-height: 72vh;
     background: linear-gradient(180deg, #0c1a3a 0%, #162d5a 100%);
     border-radius: 20px 20px 0 0;
     z-index: 70;
@@ -8789,7 +8792,10 @@ html[data-font-size="large"] .ocean-overlay-btn {
     top: 0;
     z-index: 5;
     margin: -4px -16px 12px;
-    padding: 10px 16px 8px;
+    /* 위쪽 여백을 10px → 26px 로 — ✕ 버튼(top:8px, 높이 30px)이 끝나는 지점보다
+       아래에서 내용이 시작되게 해서, ✕ 가 건수 숫자에 바짝 붙어 답답해 보이던
+       문제를 없앤다(2026-09-01 사용자 지적). */
+    padding: 26px 16px 8px;
     background: #0c1a3a;
     display: flex;
     justify-content: space-between;
