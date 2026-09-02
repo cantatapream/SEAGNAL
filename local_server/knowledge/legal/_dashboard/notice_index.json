@@ -902,6 +902,9 @@
  "배출부과금사무처리규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
+ "배타적경제수역내난파물제거비용보증에관한고시.txt": [
+  "local_server/knowledge/legal/raw/01_해양주권정책/배타적경제수역및대륙붕에관한법률"
+ ],
  "범선의구조및설비등에관한기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
  ],
@@ -1855,6 +1858,15 @@
  ],
  "유도선_게시사항_게시장소_고시_15개관할서.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
+ ],
+ "유류오염사고에따른손해배상또는보상을받지못한자의지원에관한규정.txt": [
+  "local_server/knowledge/legal/raw/14_해양사법/유류오염손해배상보장법"
+ ],
+ "유류오염사고조정위원회운영규정.txt": [
+  "local_server/knowledge/legal/raw/14_해양사법/유류오염손해배상보장법"
+ ],
+ "유류오염사고피해주민손해보전의지원에관한규정.txt": [
+  "local_server/knowledge/legal/raw/14_해양사법/유류오염손해배상보장법"
  ],
  "유전자변형농수산물표시위반신고포상금지급요령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
