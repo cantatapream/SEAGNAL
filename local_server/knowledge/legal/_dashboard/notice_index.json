@@ -656,6 +656,9 @@
  "농산물원산지표시업무권한의재위임고시.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
  ],
+ "농산물원산지표시조사요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
+ ],
  "농산물의지리적표시등록및공고요령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
@@ -702,6 +705,9 @@
  ],
  "대산항항만출입절차에관한운영세칙.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률"
+ ],
+ "대외무역관리규정.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
  ],
  "대청호상수원수질보전특별대책지역특별배출허용기준고시.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
@@ -1240,6 +1246,9 @@
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
  "수산물원산지표시업무권한의재위임고시.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
+ ],
+ "수산물원산지표시위반행위신고처리지침.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
  ],
  "수산물의생산·가공시설및해역의위생관리기준.txt": [
@@ -1786,6 +1795,15 @@
   "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률",
   "local_server/knowledge/legal/raw/10_항만물류/항만법",
   "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법"
+ ],
+ "원산지인증기관지정·관리및인증품등관리요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
+ ],
+ "원산지표시위반단속기관협의회운영에관한훈령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
+ ],
+ "원산지표시제도운영에관한고시.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
  ],
  "원양어선안전펀드운영에관한고시.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
