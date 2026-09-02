@@ -9061,8 +9061,11 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-filter-hour-custom { border-top: 1px solid var(--border-color); padding-top: 12px; }
 .accident-filter-hour-custom-label { font-size: 0.7rem; color: var(--text-sub); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
 .accident-filter-hour-custom-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+/* date 를 빠뜨리면 기간 팝업의 날짜칸만 브라우저 기본 스타일(흰 배경·검은 글씨)로
+   떠서 다른 팝업과 따로 논다(2026-09-01 사용자가 스크린샷으로 지적). */
 .accident-filter-hour-custom-row input[type="time"],
-.accident-filter-hour-custom-row input[type="number"] {
+.accident-filter-hour-custom-row input[type="number"],
+.accident-filter-hour-custom-row input[type="date"] {
     flex: 1;
     min-width: 0;
     background: rgba(255,255,255,0.06);
@@ -9071,6 +9074,14 @@ html[data-font-size="large"] .ocean-overlay-btn {
     color: var(--text-main);
     padding: 8px;
     font-size: 0.8rem;
+    /* 브라우저가 그리는 부분(날짜 스피너·달력 아이콘)도 어두운 테마로 그리게 한다. */
+    color-scheme: dark;
+    font-family: inherit;
+}
+/* 달력 열기 아이콘이 어두운 배경에서 안 보이지 않도록 밝게 */
+.accident-filter-hour-custom-row input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) opacity(0.6);
+    cursor: pointer;
 }
 .accident-filter-hour-custom-row span { color: var(--text-sub); font-size: 0.76rem; }
 .accident-filter-hour-custom-row button {
