@@ -314,6 +314,9 @@
  "(한강유역환경청)공공폐수처리시설기본계획통합고시.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
+ "(해양경찰청)긴급구조지원기관능력평가에관한규정.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
+ ],
  "(해양수산부)갯벌생태관광의인증에관한규정.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/갯벌및그주변지역의지속가능한관리와복원에관한법률"
  ],
@@ -474,6 +477,9 @@
  "과학기술정보통신부방송분야외국인고용추천절차등에관한지침.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
  ],
+ "구조본부구성및운영등에관한규칙.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
+ ],
  "국가귀속유산의관리등에관한규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률"
  ],
@@ -527,6 +533,9 @@
  ],
  "국제수산기구의어업규제사항이행에관한고시.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
+ ],
+ "국제조난및안전통신운영규칙.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
  ],
  "국제평화및안전유지등의무이행을위한무역에관한특별조치고시.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/국제평화및안전유지등의무이행을위한무역에관한특별조치고시"
@@ -1360,6 +1369,9 @@
   "local_server/knowledge/legal/raw/09_레저관광/수상레저기구의등록및검사에관한법률",
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
  ],
+ "수색구조수당지급규칙.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
+ ],
  "수생태계연속성조사및평가방법등에관한지침.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
@@ -1992,6 +2004,9 @@
   "local_server/knowledge/legal/raw/10_항만물류/항만법",
   "local_server/knowledge/legal/raw/10_항만물류/항만재개발및주변지역발전에관한법률"
  ],
+ "중앙해양특수구조단운영규칙.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
+ ],
  "지구별수산업협동조합정관(예).txt": [
   "local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법"
  ],
@@ -2249,6 +2264,9 @@
  "한국해양교통안전공단정관.txt": [
   "local_server/knowledge/legal/raw/13_공공기관/한국해양교통안전공단법"
  ],
+ "항공수색구조안전감독관운영등에관한규칙.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
+ ],
  "항로표지시설관리지침.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/항로표지법"
  ],
@@ -2383,6 +2401,12 @@
  ],
  "해수욕장평가위원회운영규정.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/해수욕장의이용및관리에관한법률"
+ ],
+ "해양경찰구조·구급장비도입위원회운영규칙.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
+ ],
+ "해양경찰구조대운영규칙.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
  ],
  "해양경찰청명예해양환경감시원운영규칙.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
