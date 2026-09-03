@@ -77,6 +77,9 @@
  "(보령해양경찰서)수상레저활동금지구역지정고시.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
  ],
+ "(보령해양경찰서)유선·도선및유선장·도선장게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
+ ],
  "(보령해양경찰서)죽도방파제_동백정방파제_출입통제장소.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
  ],
@@ -1897,6 +1900,9 @@
  ],
  "위험해역·고위험해역지정및범위설정에관한고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박등에대한해적행위피해예방에관한법률"
+ ],
+ "유·도선_국민안전현장관찰단_구성·운영_규정.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
  ],
  "유·도선의규격및시설·설비기준.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
