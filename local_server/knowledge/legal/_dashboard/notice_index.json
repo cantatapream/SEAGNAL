@@ -486,6 +486,9 @@
  "국가긴급방제계획에포함하는위험·유해물질지정고시.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
  ],
+ "국가보호종보전협의회의구성및운영에관한규정.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양생태계의보전및관리에관한법률"
+ ],
  "국가어업지도선운용관리및지도선직원복무규칙.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/수산업법"
  ],
@@ -654,6 +657,9 @@
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
  ],
  "농산물명예감시원의운영요령.txt": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "농산물안전정보시스템운영및정보관리에관한규정.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
  "농산물우수관리기준.txt": [
@@ -2451,6 +2457,9 @@
   "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법"
  ],
  "해양보호구역의관리등에관한규정.txt": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양생태계의보전및관리에관한법률"
+ ],
+ "해양보호생물의지정에관한업무처리지침.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양생태계의보전및관리에관한법률"
  ],
  "해양사고의조사및심판에관한법률의적용대상이아닌수상레저기구.txt": [
