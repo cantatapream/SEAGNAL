@@ -65,6 +65,9 @@
  "(목포해양경찰서)수상레저활동금지구역공고.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
  ],
+ "(목포해양경찰서)유선·도선및유선장·도선장게시사항및게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
+ ],
  "(목포해양경찰서)해양레저활동허가필요수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
@@ -112,6 +115,9 @@
  ],
  "(부안해양경찰서)위험구역현황종합_출입통제장소.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
+ ],
+ "(부안해양경찰서)유선·도선및유선장·도선장의게시사항과게시장소에관한고시.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
  ],
  "(부안해양경찰서)해양레저활동허가대상수역고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
