@@ -471,6 +471,9 @@
  "공해저층어업에관한UN결의사항이행에관한고시.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
  ],
+ "과태료의_가중처분에_관한_세부_지침.txt": [
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률"
+ ],
  "과학기술분야톱티어비자발급추천절차등에관한지침.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
  ],
@@ -2476,6 +2479,12 @@
  ],
  "해양보호생물의지정에관한업무처리지침.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양생태계의보전및관리에관한법률"
+ ],
+ "해양사고관련자_징계량_결정_지침.txt": [
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률"
+ ],
+ "해양사고의_조사_및_심판에_관한_사무처리요령.txt": [
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률"
  ],
  "해양사고의조사및심판에관한법률의적용대상이아닌수상레저기구.txt": [
   "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률"
