@@ -39,7 +39,45 @@ LEGAL = os.path.normpath(os.path.join(HERE, '..', '..'))
 WIKI = os.path.join(LEGAL, 'wiki')
 QUEUE = os.path.join(LEGAL, '_dashboard', 'review_queue.md')
 
-MARK = re.compile(r'⚠\s*REVIEW[^\s]*\s*[(:：\-–—]?\s*([^|\n]{0,300})')
+# ★2026-09-03 정정 — 종전 `⚠\s*REVIEW[^\s]*` 는 **공백 앞까지를 통째로 마커로 먹었다.**
+#   그래서 본문이 `⚠REVIEW(신규, 미등록…): 설명` 꼴이면 "(신규," 까지를 마커로 삼고
+#   그 **다음 낱말부터** 사유로 떠 왔다 — 제목이 문장 한가운데서 시작해 무슨 논점인지
+#   알 수 없는 항목이 실제로 생겼다. 이제 마커 뒤 꼬리를 아래처럼 **형태별로** 끊는다.
+#   (draft 페이지의 ⚠REVIEW 줄 577개로 옛 방식과 대조해 181줄이 달라지고,
+#    그중 짧아진 13줄을 전부 눈으로 확인했다 — 전부 앞쪽 군더더기가 빠진 것이었다.)
+MARK = re.compile(
+    r'⚠\s*REVIEW'          # 마커
+    r'`?'                    # `⚠REVIEW`로 처럼 코드표시 백틱이 붙는 경우
+    r'(?:[가-힣]{1,3})?'      # ⚠REVIEW로 / ⚠REVIEW를 — 마커에 바로 붙은 조사
+    r'(?:〔[^〕]*〕)?'         # 〔REVIEW-법-7 대기열 등록됨〕 같은 ID 표기
+    r'(?:-[^\s(（:：|]+)?'    # -해양경비법-07 / -02 같은 ID 꼬리
+    r'\s*')
+SEP = re.compile(r'^[:：\-–—]?\s*')
+# (신규, 미등록) (출처미확인) 처럼 **상태만 적은 괄호**는 사유가 아니라 꼬리표다 — 건너뛴다.
+PAREN = re.compile(r'^[(（][^)）]{0,60}[)）][*\s]*[:：\-–—]?\s*')
+# 다만 괄호 뒤가 조사로 이어지면(…등)를 포함하기 때문") 그 괄호가 곧 내용이다 — 남긴다.
+JOSA = re.compile(r'^[를을이가는은와과로의에도만][\s가-힣]')
+TRIM = ' `)*,、·.:：'
+
+
+def why_of(ln):
+    """⚠REVIEW 표시 줄에서 **사유 문장**만 뽑는다.
+       예) '⚠REVIEW(신규, 미등록): 제3조 정의가 …' → '제3조 정의가 …'
+       [연계] scan() 이 대기열 제목·인용을 만들 때 쓴다. 표시가 없으면 None."""
+    m = MARK.search(ln)
+    if not m:
+        return None
+    rest = SEP.sub('', ln[m.end():], count=1)
+    cand = rest.split('|')[0][:300].strip(TRIM)
+    pm = PAREN.match(rest)
+    if pm:
+        tail = rest[pm.end():]
+        after = tail.split('|')[0][:300].strip(TRIM)
+        if len(after) >= 15 and not JOSA.match(tail):
+            return after
+    return cand
+
+
 NAMED = re.compile(r'REVIEW-[^\s,)\]|]+?-\d+')
 # 페이지가 자기 안에 검토 질문을 소제목으로 적어 둔 경우 — 그 질문이 곧 사유다
 HEAD = re.compile(r'^###\s+(REVIEW-[^\s:]+):\s*(.+)$', re.M)
@@ -89,12 +127,12 @@ def scan():
             # ① 표시 옆에 적힌 설명(종전 방식)
             best, line, marker_line = '', 0, 0
             for i, ln in live:
-                m = MARK.search(ln)
-                if not m:
+                why = why_of(ln)
+                if why is None:
                     continue
                 if not marker_line:
                     marker_line = i          # 표시가 있는 첫 줄(설명이 표시 뒤에 없어도 기억한다)
-                why = m.group(1).strip(' `)*')
+                why = why.strip(TRIM)
                 if len(why) > len(best):
                     best, line, marker_line = why, i, i
             rid = None
