@@ -513,6 +513,9 @@
  "국동어항항행속력제한에관한고시.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법"
  ],
+ "국립수산과학원국제옵서버운영에관한규정.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
+ ],
  "국립수산과학원수산종자분양지침.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법"
  ],
@@ -738,6 +741,9 @@
  ],
  "대한민국과러시아간수출·입수산물및수산가공품의품질관리및위생안전.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
+ ],
+ "대한민국과러시아연방정부간IUU어업방지협정이행에관한고시.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
  ],
  "대한민국과베트남사회주의공화국간수산물위생및식품안전관리와검역에관한고시.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
@@ -1597,6 +1603,9 @@
  "양식산업발전법에따른위탁사무수탁기관및업무내용고시.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/양식산업발전법"
  ],
+ "양식수산동식물의월동구역지정등에관한고시.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/양식산업발전법"
+ ],
  "양식업면허심사평가방법및절차등에관한규정.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/양식산업발전법"
  ],
@@ -1857,6 +1866,9 @@
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
  ],
  "원양어선안전펀드운영에관한고시.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
+ ],
+ "원양어업용선박용품무상반출확인사무취급요령.txt": [
   "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
  ],
  "원양어업허가제한기준에관한고시.txt": [
@@ -2326,6 +2338,9 @@
  ],
  "항만물류통합정보체계구축운영및이용절차에관한규정.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만법"
+ ],
+ "항만및어항건설정보시스템운영규정.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법"
  ],
  "항만배후단지개발사업업무처리규정.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만법"
