@@ -1,10 +1,10 @@
 {
- "rows": 17506,
- "dead": 24,
+ "rows": 17535,
+ "dead": 20,
  "enum_branch": 0,
  "annex_form_run": 0,
- "buchik": 4,
- "not_article": 13,
+ "buchik": 3,
+ "not_article": 10,
  "other": 7,
  "law_cell_unusable": 0
 }
