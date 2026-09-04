@@ -9304,6 +9304,53 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .ash-dlegend div { display: flex; align-items: center; gap: 0.35em; white-space: nowrap; }
 .ash-dlegend b { margin-left: auto; font-weight: 700; }
 
+/* 기간 + 칩 줄[S17] — 목업 .meta 원문 그대로(구분선이 아주 옅다: .055 알파).
+   좁은 화면에서는 목업 @media(≤439px) 규칙대로 기간과 칩이 각각 전체 폭을 쓴다.
+   우리 시트는 휴대폰 폭(약 412px)이라 사실상 늘 두 줄이 된다.
+   [연계] accident_info.js buildMetaHtml / 분석서 §3 구분선·§4.4 칩 */
+.ash-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.6em 0.55em;
+    flex-wrap: wrap;
+    padding: 0.9em 0 0.95em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+    margin-bottom: 0.9em;
+}
+.ash-period { flex: 1 1 100%; min-width: 0; word-break: keep-all; }
+.ash-period-1 { font-size: 0.78em; color: #b8c7da; }
+.ash-period-1 b { color: #e6eef8; font-weight: 700; margin-left: 0.3em; white-space: nowrap; }
+.ash-period-2 { font-size: 0.71em; color: var(--ash-dim); margin-top: 0.4em; }
+.ash-meta .ash-chips { flex: 1 1 100%; }
+
+/* 시트 안 필터 줄[S17] — 목업에 없는 요소라 분석서 §7 유추안을 따른다.
+   재질은 more/hint 와 같고(--ash-sub / --ash-sub-br / radius .8em), 값이 걸린 버튼만
+   활성 탭과 같은 파란 알약이다 — 목업이 "지금 고른 것"을 나타내는 어법이 그것뿐이다.
+   [연계] accident_info.js buildSheetFiltersHtml */
+.ash-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    margin-bottom: 0.8em;
+}
+.ash-filter {
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.8em;
+    padding: 0.45em 0.62em;
+    font-size: 0.74em;
+    font-weight: 600;
+    color: #c6d4e6;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.ash-filter.on {
+    background: var(--ash-blue);
+    border-color: var(--ash-blue);
+    color: #fff;
+    box-shadow: 0 0.2em 0.6em rgba(43, 124, 240, 0.35);
+}
+
 /* 안내 문구 — 목업 .hint[S7]. 더보기 버튼과 같은 재질(--ash-sub)이라 "조작할 수 있는
    것"과 "알려 주는 것"이 한 톤으로 묶인다. [연계] accident_info.js buildChartViewHtml */
 .ash-hint {

@@ -171,6 +171,14 @@
  * [관할 미상(orgCd=0) 전량 삭제(2026-08-23)] 사용자 요청으로 관할해경서 코드가 0(원본 CSV
  *   빈 값, `accident_codes.js`에서 "관할 미상"으로 표시되던 것)인 행 2,448건 삭제.
  *   25,990 → 23,542건.
+ * [필터 정리·시트 이전(2026-09-04, S17)] 필터를 5개(사고유형·기간·관할서·시간대·특보)로
+ *   줄였다. 뺀 셋의 이유가 서로 다르다 — 톤수는 값 없음이 73.1% 라 "10톤 미만"을 고르면
+ *   실제의 약 1/4만 나오는데 화면엔 그게 전부처럼 보여 거짓 결론을 만들고, 선박용도는
+ *   값 없음 49.7% 에 "선박종류"와 축이 거의 같으며, 계절은 틀린 값을 내던 게 아니라
+ *   월별 탭·기간 필터와 겹칠 뿐이다. 그리고 분석 모드의 필터를 지도에서 바텀시트 안으로
+ *   옮겼다(격자가 필터를 안 타게 된 S15 의 결과 — 지도에 두면 걸어둔 걸 잊게 된다).
+ *   현황 모드 필터 바는 지도에 그대로 남긴다. 시트 안 필터는 다른 격자 칸을 누르면
+ *   초기화된다(사용자 확정 2026-09-04).
  * [진입 동선 개편(2026-09-04, S16)] 소스 선택 팝아웃(#ocean-accident-popup /
  *   #ocean-accident-source-list)을 없앴다. 사고정보 버튼을 누르면 곧바로 분석 모드로
  *   켜지고(state 기본값 mode:'analysis'), 다시 누르면 꺼진다. 분석은 선박+인명
@@ -231,7 +239,7 @@
  *     예: 사고유형=전복 선택 후 관할서 팝업을 열면, 각 관할서 옆 숫자는 "전복이면서 그
  *     관할서인" 건수. 시간대 프리셋 버튼에도 같은 방식으로 건수를 표시.
  *   - 모드토글 오른쪽에 "선택 초기화" 버튼 추가(#accident-filter-reset-btn) — 걸어둔
- *     필터 5개(types·orgs·hourRanges·seasons·warnTypes) 전부 null 로 되돌린다.
+ *     필터 전부 null 로 되돌린다(S17 이후 5개: types·dateRange·orgs·hourRanges·warnTypes).
  *   - 사고유형 체크박스 순서를 충돌·침몰·전복·화재·좌초·좌주·폭발·표류·접촉 9개 먼저,
  *     나머지는 원래 순서(건수 내림차순) 그대로 뒤에 붙도록 고정(TYPE_ORDER_PRIORITY).
  * [현황도 필터 5개 다 노출(2026-08-25 사용자 확정)] 관할서·시간대·계절·특보가 분석
@@ -674,20 +682,15 @@
      *   - tonnageRanges : [[minTon,maxTon), ...] | null — 톤수(TONNAGE_POS_IDX 위치).
      *                     hk 전용, shipUses 와 같은 이유로 값 없는 행(null)은 제외.
      */
-    var filters = { types: null, orgs: null, hourRanges: null, seasons: null, warnTypes: null, shipUses: null, tonnageRanges: null, dateRange: null };
+    // ★[S17] 필터는 5개다 — 선박용도·톤수·계절을 뺐다(사용자 확정 2026-09-04).
+    // 톤수: 값이 없는 행이 73.1% 라 "10톤 미만"을 고르면 실제 10톤 미만 사고의 약 1/4만
+    //       나오는데 화면엔 그게 전부처럼 보인다 — 거짓 결론을 만든다.
+    // 선박용도: 값 없음 49.7% 에 "선박종류"와 축이 거의 같다(교차 실측: 어선/어선 6,793 ·
+    //       모터보트/수상레저기구 2,196 … 선박용도는 선박종류의 거친 버전).
+    // 계절: 틀린 값을 내던 게 아니라 위 "월별" 탭·기간 필터와 겹칠 뿐이다.
+    var filters = { types: null, orgs: null, hourRanges: null, warnTypes: null, dateRange: null };
 
-    var SEASON_LABELS = { spring: '봄', summer: '여름', fall: '가을', winter: '겨울' };
-    var SEASON_ORDER = ['spring', 'summer', 'fall', 'winter'];
-
-    /** ymd("YYYYMMDD")의 월로 계절 판정. 월 정보가 없으면 null(필터 통과 취급). */
-    function seasonOf(ymd) {
-        if (!ymd || String(ymd).length < 6) return null;
-        var mm = parseInt(String(ymd).slice(4, 6), 10);
-        if (mm >= 3 && mm <= 5) return 'spring';
-        if (mm >= 6 && mm <= 8) return 'summer';
-        if (mm >= 9 && mm <= 11) return 'fall';
-        return 'winter'; // 12, 1, 2
-    }
+    // [S17에서 삭제] SEASON_LABELS / SEASON_ORDER / seasonOf — 계절 필터를 없앴다.
 
     /** hk 전용 — hm("H:MM"~"HH:MM") 문자열의 시(hour). 파싱 실패/없음이면 null. */
     function hourOf(hm) {
@@ -729,11 +732,8 @@
         person: WARN_SEVERITY_ORDER
     };
 
-    /** 선박용도·톤수 컬럼 위치 — hk 전용(심판원 통합 2026-08-25로 생긴 필드, person 엔
-     * 없다). person 소스에서 이 두 필터를 걸어도 SHIPUSE_POS_IDX.person/TONNAGE_POS_IDX.person
-     * 이 undefined 라 row[undefined] === undefined 로 항상 null 취급되어 자동 통과된다. */
-    var SHIPUSE_POS_IDX = { hk: 13 };
-    var TONNAGE_POS_IDX = { hk: 14 };
+    // [S17에서 삭제] SHIPUSE_POS_IDX / TONNAGE_POS_IDX — 선박용도·톤수 필터를 없앴다.
+    // 원본 데이터의 그 칸(선박 13·14번)은 그대로 있고, 지금은 아무 데서도 읽지 않는다.
 
     /**
      * 현재 filters 상태를 기준으로 이 행이 통과하는지 — 현황(마커)·분석(격자) 양쪽이
@@ -756,10 +756,6 @@
                 if (!inAny) return false;
             }
         }
-        if (filters.seasons) {
-            var season = seasonOf(row[2]);
-            if (season && !filters.seasons.has(season)) return false;
-        }
         if (filters.warnTypes) {
             // 2026-08-31 사용자 확정 — 특보 필터를 유형만(태풍/풍랑)이 아니라 유형×심각도
             // (태풍 경보·태풍 주의보 등)로 세분화하면서 WARN_SEVERITY_POS_IDX 를 본다
@@ -771,23 +767,6 @@
             var anyActive = activeSeverity.some(function (code) { return filters.warnTypes.has(code); });
             if (!anyActive) return false;
         }
-        if (filters.shipUses) {
-            // 톤수와 달리 여기는 "판단 불가=통과"가 아니라 "정보 없음=제외"다(사용자
-            // 확정 2026-08-25) — hourRanges/warnTypes 처럼 값이 그 소스에 거의 항상
-            // 있는 게 아니라, 선박용도·톤수는 심판원 매칭 연도(2016·2021~2025)에만
-            // 있고 그 외 연도(2008~2015·2017~2020)엔 아예 없다. "값 없음=통과"로
-            // 두면 이 필터를 걸어도 데이터 없는 연도가 전부 같이 남아 필터가 거의
-            // 안 먹는 것처럼 보인다(사용자가 스크린샷으로 지적).
-            var shipUse = row[SHIPUSE_POS_IDX[key]];
-            if (shipUse == null || !filters.shipUses.has(shipUse)) return false;
-        }
-        if (filters.tonnageRanges) {
-            // 위 shipUses 와 같은 이유로 "정보 없음=제외".
-            var tonnage = row[TONNAGE_POS_IDX[key]];
-            if (tonnage == null) return false;
-            var inAnyT = filters.tonnageRanges.some(function (r) { return tonnage >= r[0] && tonnage < r[1]; });
-            if (!inAnyT) return false;
-        }
         if (filters.dateRange) {
             var ymdStr = String(row[2] || '');
             if (ymdStr < filters.dateRange[0] || ymdStr > filters.dateRange[1]) return false;
@@ -797,8 +776,7 @@
 
     /** 필터에 걸려있는 게 하나라도 있는지 — 필터바 버튼 강조 등에 씀. */
     function hasActiveFilters() {
-        return !!(filters.types || filters.orgs || filters.hourRanges || filters.seasons || filters.warnTypes ||
-            filters.shipUses || filters.tonnageRanges || filters.dateRange);
+        return !!(filters.types || filters.orgs || filters.hourRanges || filters.warnTypes || filters.dateRange);
     }
 
     /** passesFilters 를 excludeKey 축만 빼고 판정 — 팝업을 열 때 "다른 축은 이미 걸린
@@ -2960,14 +2938,15 @@
             '<div class="ash-badge" aria-hidden="true"><i class="fa-solid fa-crosshairs"></i></div>' +
             '<div class="ash-head-main">' +
             '<div class="ash-region" id="ash-region">' + escapeHtml(_statsRegionLabel || '선택 영역') + '</div>' +
-            '<div class="ash-region-sub">선택 영역 · ' + escapeHtml(periodText) + '</div>' +
+            '<div class="ash-region-sub">선택 영역 · 격자 내 통합 사고</div>' +
             '</div>' +
             '<div class="ash-right">' +
             '<div class="ash-count-n">' + fmtN(members.length) + '<span>건</span></div>' +
-            '<div class="ash-count-l">선택 영역 내 사고</div>' +
+            '<div class="ash-count-l">선박사고 + 인명사고 합계</div>' +
             '</div>' +
             '</div>' +
-            buildSourceChipsHtml(key, members) +
+            buildMetaHtml(members, periodText) +
+            buildSheetFiltersHtml() +
             buildTrendSummaryHtml(key, members) +
             buildChartViewHtml(key) +
             buildWarnCardHtml(key, members) +
@@ -3744,6 +3723,66 @@
         }).join('') + '</div>';
     }
 
+    /**
+     * 기간 + 칩 줄[S17] — 목업 `.meta`(원문 101~111행)를 그대로 되살린 것.
+     *
+     * 예시:
+     *   전체 기간 2008.01 ~ 2025.12 (18년)      [🚢 선박사고 …] [👤 인명사고 …]
+     *   최근 데이터 기준: 2025년
+     *
+     * 목업은 기간을 헤더가 아니라 이 줄에 두고, 아래에 아주 옅은 구분선(rgba(255,255,255,.055))
+     * 을 깐다. 우리는 그동안 기간을 헤더 부제에 넣어 뒀는데, 시트 안으로 필터를 들여오면서
+     * (S17) 목업 구조로 되돌렸다 — 필터 줄이 바로 아래 붙으므로 "무엇을 보고 있는지(기간·종류)"
+     * 와 "무엇으로 거를지(필터)"가 한 덩어리로 읽힌다.
+     *
+     * @param {ol.Feature[]} members 지금 집계 중인 목록
+     * @param {string} periodText 기간 필터 문구('전체 기간' 또는 'YYYY.MM.DD ~ YYYY.MM.DD')
+     * @returns {string} HTML
+     * [연계] 스타일 style.css .ash-meta/.ash-period / 칩 buildSourceChipsHtml */
+    function buildMetaHtml(members, periodText) {
+        var lo = null, hi = null;
+        members.forEach(function (f) {
+            var ymd = String(f.get('row')[2] || '');
+            if (ymd.length < 6) return;
+            if (lo === null || ymd < lo) lo = ymd;
+            if (hi === null || ymd > hi) hi = ymd;
+        });
+        var span = '';
+        if (lo) {
+            var years = +hi.slice(0, 4) - +lo.slice(0, 4) + 1;
+            span = '<b>' + lo.slice(0, 4) + '.' + lo.slice(4, 6) + ' ~ ' +
+                hi.slice(0, 4) + '.' + hi.slice(4, 6) + ' (' + years + '년)</b>';
+        }
+        var lead = filters.dateRange ? '지정 기간' : '전체 기간';
+        return '<div class="ash-meta">' +
+            '<div class="ash-period">' +
+            '<div class="ash-period-1">' + lead + ' ' + (span || '자료 없음') + '</div>' +
+            '<div class="ash-period-2">' + (hi ? '최근 데이터 기준: ' + hi.slice(0, 4) + '년' : escapeHtml(periodText)) + '</div>' +
+            '</div>' +
+            buildSourceChipsHtml(null, members) +
+            '</div>';
+    }
+
+    /**
+     * 시트 안 필터 줄[S17] — 분석 모드의 필터는 지도가 아니라 여기에 있다.
+     *
+     * 왜 시트로 옮기나(사용자 확정 2026-09-04): 격자·히트맵이 필터를 안 타게 되면서
+     * (S15) 지도에 필터를 둘 이유가 없어졌다. 지도에 두면 "걸어둔 걸 잊어서 지도 숫자가
+     * 이상해지는" 문제가 생기는데, 보는 곳(시트)에 두면 그 문제가 원천적으로 없다.
+     *
+     * 디자인은 분석서 §7 유추안대로 — more/hint 와 같은 재질이고, 값이 걸린 버튼만
+     * 활성 탭과 같은 파란 알약이다(목업이 "지금 고른 것"을 나타내는 어법이 그것뿐).
+     *
+     * @returns {string} HTML
+     * [연계] 스타일 style.css .ash-filters / 클릭 statsBody delegation → openFilterPopupFor */
+    function buildSheetFiltersHtml() {
+        return '<div class="ash-filters">' + SHEET_FILTER_AXES.map(function (a) {
+            var l = filterButtonLabel(a.key, a.label);
+            return '<button type="button" class="ash-filter' + (l.on ? ' on' : '') +
+                '" data-sheetfilter="' + a.key + '">' + escapeHtml(l.text) + '</button>';
+        }).join('') + '</div>';
+    }
+
     /** 시트 맨 아래 각주 — 목업 .foot(항목 앞에 작은 점이 붙는 목록).
      * 지금은 자료 범위만 알린다. 앞으로 단계가 진행되면 "2014·2015년은 인명피해가
      * 기록돼 있지 않아 제외" 같은 집계 단서가 여기 함께 들어간다(설계서 작업 9·10).
@@ -4347,6 +4386,10 @@
         // 격자 칸에는 선박·인명이 합쳐 담긴다[S15]. 시트는 항상 "전체"로 열고,
         // 종류를 갈라 보는 것은 칩이 한다.
         _statsAll = members;
+        // ★새 칸을 열 때 필터를 비운다(사용자 확정 2026-09-04 "시트 안 필터는 다른
+        // 격자 칸을 누르면 초기화한다") — 새 칸은 항상 전체 상태로 시작한다.
+        clearAllFilters();
+        updateAllFilterButtonLabels();
         _statsScope = 'all';
         _typeCardSrc = 'hk';
         _statsKey = 'hk';
@@ -4593,13 +4636,7 @@
     var HOUR_PRESETS = [[0, 4], [4, 8], [8, 12], [12, 16], [16, 20], [20, 24]];
     function hourPresetLabel(r) { return pad2(r[0]) + '~' + pad2(r[1] === 24 ? 0 : r[1]) + '시'; }
 
-    // 톤수 구간 프리셋 — 실측 분포(hk 10,338건, 5톤 미만이 절반 가까이) 기준으로 구간을 나눔.
-    var TONNAGE_PRESETS = [[0, 5], [5, 10], [10, 20], [20, 50], [50, 100], [100, 500], [500, 1000], [1000, Infinity]];
-    function tonnagePresetLabel(r) {
-        if (r[1] === Infinity) return r[0].toLocaleString('ko-KR') + '톤 이상';
-        if (r[0] === 0) return r[1].toLocaleString('ko-KR') + '톤 미만';
-        return r[0].toLocaleString('ko-KR') + '~' + r[1].toLocaleString('ko-KR') + '톤';
-    }
+    // [S17에서 삭제] TONNAGE_PRESETS / tonnagePresetLabel — 톤수 필터를 없앴다.
 
     /** 현재 활성 소스(rawFeatures[state.source])에서, 이 축(excludeKey)만 빼고 나머지
      * 필터를 이미 건 상태로 실제 존재하는 값만 옵션으로 뽑는다 — 0건짜리 선택지를 안
@@ -4667,49 +4704,9 @@
         }).sort(function (a, b) { return b.count - a.count; });
     }
 
-    // 선박용도 버튼 순서(2026-08-31 사용자 확정) — 원본 값이 이미 이 7종 그대로라 합칠 필요는
-    // 없고 순서만 고정한다.
-    var SHIPUSE_ORDER_PRIORITY = ['어선', '여객선', '수상레저기구', '예인선', '화물선', '유조선', '기타선'];
-
-    /** 선박용도 옵션 — 값 자체가 이미 한글 문자열(코드 아님)이라 라벨표 없이 그대로 쓴다. */
-    function buildShipUseOptions() {
-        var opts = buildValueOptions(function (r) { return r[SHIPUSE_POS_IDX.hk]; }, null, 'shipUses');
-        opts.forEach(function (o, i) { o.__origIdx = i; });
-        return opts.sort(function (a, b) {
-            var pa = SHIPUSE_ORDER_PRIORITY.indexOf(a.label), pb = SHIPUSE_ORDER_PRIORITY.indexOf(b.label);
-            if (pa === -1 && pb === -1) return a.__origIdx - b.__origIdx;
-            if (pa === -1) return 1;
-            if (pb === -1) return -1;
-            return pa - pb;
-        });
-    }
-
-    /** 연속된 연도들을 "2016, 2021~2025"처럼 구간으로 묶어 표기(선박용도·톤수 필터를
-     * 실제로 걸 때 "이 정보는 몇 년도 사고에만 있다" 안내 토스트에 씀). */
-    function formatYearRanges(years) {
-        var sorted = Array.from(years).map(Number).sort(function (a, b) { return a - b; });
-        var ranges = [];
-        var start = null, prev = null;
-        sorted.forEach(function (y) {
-            if (start == null) { start = y; prev = y; return; }
-            if (y === prev + 1) { prev = y; return; }
-            ranges.push(start === prev ? String(start) : start + '~' + prev);
-            start = y; prev = y;
-        });
-        if (start != null) ranges.push(start === prev ? String(start) : start + '~' + prev);
-        return ranges.map(function (r) { return r + '년'; }).join(', ');
-    }
-
-    /** posIdx 위치에 실제 값이 있는 hk 행들의 발생연도 집합 — 위 formatYearRanges 와 짝. */
-    function yearsWithValue(posIdx) {
-        var feats = rawFeatures.hk || [];
-        var years = new Set();
-        feats.forEach(function (f) {
-            var row = f.get('row');
-            if (row[posIdx] != null) years.add(String(row[2]).slice(0, 4));
-        });
-        return years;
-    }
+    // [S17에서 삭제] SHIPUSE_ORDER_PRIORITY / buildShipUseOptions / formatYearRanges /
+    // yearsWithValue — 선박용도·톤수 필터를 없애면서 그 옵션 목록과 "이 정보는 몇 년도
+    // 사고에만 있다" 안내 토스트도 함께 필요 없어졌다.
 
     /** 특보종류 옵션 — 유형×심각도로 세분화(태풍 경보·태풍 주의보·… , 2026-08-31 사용자
      * 확정). 소스별로 의미있는 조합만(hk 는 태풍·풍랑만 4개, person 은 강풍 포함 6개).
@@ -5060,15 +5057,8 @@
         }, current, onConfirm);
     }
 
-    /** 톤수 팝업 — openRangeFilterPopup 에 톤수 전용 설정을 얹은 얇은 래퍼(2026-08-25). */
-    function openTonnageRangeFilterPopup(current, onConfirm) {
-        openRangeFilterPopup({
-            title: '톤수', filterKey: 'tonnageRanges', presets: TONNAGE_PRESETS, formatLabel: tonnagePresetLabel,
-            valueOf: function (srcKey, row) { return srcKey === 'hk' ? row[TONNAGE_POS_IDX.hk] : null; },
-            inputType: 'number', inputStep: '0.1', defaultStartVal: '5', defaultEndVal: '10',
-            parseInputVal: function (v) { return parseFloat(v); },
-        }, current, onConfirm);
-    }
+    // [S17에서 삭제] openTonnageRangeFilterPopup — 톤수 필터를 없앴다.
+    // 공용 뼈대(openRangeFilterPopup)는 시간대 필터가 계속 쓴다.
 
     var DATE_RANGE_PRESETS = [
         { label: '최근 1개월', months: 1 },
@@ -5146,10 +5136,18 @@
     }
 
     /** 필터 버튼 라벨을 지금 filters 상태에 맞춰 갱신("전체" 또는 "N개 선택"). */
-    function updateFilterButtonLabel(filterKey, prefix) {
-        var btn = document.getElementById('accident-filter-btn-' + filterKey);
-        if (!btn) return;
+    /** 필터 축 하나의 버튼에 쓸 글자와 "걸려 있는지"[S17에서 분리] — 지도 버튼과
+     * 시트 버튼이 같은 문구를 쓰도록 한 군데로 모았다.
+     * @param {string} filterKey 필터 축
+     * @param {string} prefix 축 이름(예: '사고유형')
+     * @returns {{text:string, on:boolean}} */
+    function filterButtonLabel(filterKey, prefix) {
         var val = filters[filterKey];
+        if (filterKey === 'dateRange') {
+            return val
+                ? { text: prefix + ': ' + fmtYmdDot(val[0]) + '~' + fmtYmdDot(val[1]), on: true }
+                : { text: prefix + ': 전체', on: false };
+        }
         var n = val ? val.size != null ? val.size : val.length : 0;
         // 관할서는 같은 서가 신·구 코드 2개로 잡혀 있을 수 있어(buildOrgOptions 참고)
         // 코드 개수 그대로 세면 "인천 1곳만 골랐는데 2개 선택"으로 오해를 준다 —
@@ -5159,29 +5157,28 @@
             val.forEach(function (code) { names.add(accidentLabel(ACCIDENT_ORG_LABELS, code)); });
             n = names.size;
         }
-        btn.textContent = prefix + ': ' + (n ? n + '개 선택' : '전체');
-        btn.classList.toggle('has-selection', n > 0);
+        return { text: prefix + ': ' + (n ? n + '개 선택' : '전체'), on: n > 0 };
     }
 
-    /** 기간 필터 버튼 라벨 — 값이 [start,end] 쌍이라 updateFilterButtonLabel 의 "N개
-     * 선택" 형식과 안 맞아 별도로 둠. */
-    function updateDateRangeButtonLabel() {
-        var btn = document.getElementById('accident-filter-btn-dateRange');
+    /** 시트 안 필터 줄에 넣을 축 목록[S17] — 남은 5개(사용자 확정 2026-09-04). */
+    var SHEET_FILTER_AXES = [
+        { key: 'types', label: '사고유형' },
+        { key: 'dateRange', label: '기간' },
+        { key: 'orgs', label: '관할서' },
+        { key: 'hourRanges', label: '시간대' },
+        { key: 'warnTypes', label: '특보' }
+    ];
+
+    function updateFilterButtonLabel(filterKey, prefix) {
+        var btn = document.getElementById('accident-filter-btn-' + filterKey);
         if (!btn) return;
-        var val = filters.dateRange;
-        btn.textContent = val ? '기간: ' + fmtYmdDot(val[0]) + '~' + fmtYmdDot(val[1]) : '기간: 전체';
-        btn.classList.toggle('has-selection', !!val);
+        var l = filterButtonLabel(filterKey, prefix);
+        btn.textContent = l.text;
+        btn.classList.toggle('has-selection', l.on);
     }
 
     function updateAllFilterButtonLabels() {
-        updateFilterButtonLabel('types', '사고유형');
-        updateFilterButtonLabel('orgs', '관할서');
-        updateFilterButtonLabel('hourRanges', '시간대');
-        updateFilterButtonLabel('seasons', '계절');
-        updateFilterButtonLabel('warnTypes', '특보');
-        updateFilterButtonLabel('shipUses', '선박용도');
-        updateFilterButtonLabel('tonnageRanges', '톤수');
-        updateDateRangeButtonLabel();
+        SHEET_FILTER_AXES.forEach(function (a) { updateFilterButtonLabel(a.key, a.label); });
     }
 
     /**
@@ -5237,7 +5234,12 @@
         var isStatus = state.mode === 'status';
         var tgl = document.getElementById('accident-source-toggle');
         if (tgl) tgl.style.display = isStatus ? 'flex' : 'none';
-        if (state.source) showFilterResetBtn(isStatus);
+        if (state.source) {
+            showFilterResetBtn(isStatus);
+            // ★분석 모드에서는 지도 위 필터 바를 아예 감춘다[S17] — 필터가 시트 안으로
+            // 옮겨 갔다. 현황 모드에서는 지금처럼 지도에 남긴다(마커를 보면서 걸러야 한다).
+            showFilterBar(isStatus);
+        }
         positionFilterBar();
     }
 
@@ -5263,13 +5265,18 @@
         if (legend) legend.style.top = afterBarTop + 'px';
     }
 
-    function bindFilterBar(map) {
-        var bar = document.getElementById('accident-filter-bar');
-        if (!bar) return;
-        bar.addEventListener('click', function (e) {
-            var btn = e.target.closest('.accident-filter-btn');
-            if (!btn) return;
-            var key = btn.dataset.filter;
+    /**
+     * 필터 축 하나의 팝업을 연다[S17에서 함수로 분리].
+     *
+     * 지도 위 필터 바(현황)와 바텀시트 안 필터 줄(분석)이 **같은 팝업**을 쓴다 —
+     * 필터가 두 군데에 있게 되면서, 팝업을 여는 코드가 필터 바 클릭 처리 안에 묶여
+     * 있으면 시트에서 재사용할 수 없어 분리했다.
+     *
+     * @param {ol.Map} map
+     * @param {string} key 필터 축('types'|'orgs'|'hourRanges'|'warnTypes'|'dateRange')
+     * [연계] bindFilterBar(지도) / statsBody 클릭 delegation(시트) */
+    function openFilterPopupFor(map, key) {
+        {
             if (key === 'types') {
                 openCheckboxFilterPopup('사고유형', buildTypeOptions(), filters.types, function (sel) {
                     filters.types = sel;
@@ -5285,63 +5292,43 @@
                     filters.hourRanges = val;
                     onFiltersChanged(map);
                 });
-            } else if (key === 'seasons') {
-                var seasonOptions = SEASON_ORDER.map(function (s) {
-                    var feats = (state.source && rawFeatures[state.source]) || [];
-                    var count = feats.filter(function (f) {
-                        var row = f.get('row');
-                        return passesFiltersExcept(state.source, row, 'seasons') && seasonOf(row[2]) === s;
-                    }).length;
-                    return { value: s, label: SEASON_LABELS[s], count: count };
-                });
-                openCheckboxFilterPopup('계절', seasonOptions, filters.seasons, function (sel) {
-                    filters.seasons = sel;
-                    onFiltersChanged(map);
-                }, { columns: 2 });
             } else if (key === 'warnTypes') {
                 openCheckboxFilterPopup('특보', buildWarnOptions(), filters.warnTypes, function (sel) {
                     filters.warnTypes = sel;
                     onFiltersChanged(map);
                 }, { columns: 2 });
-            } else if (key === 'shipUses') {
-                openCheckboxFilterPopup('선박용도', buildShipUseOptions(), filters.shipUses, function (sel) {
-                    filters.shipUses = sel;
-                    if (sel && typeof window._showOceanToast === 'function') {
-                        window._showOceanToast(
-                            '선박용도 정보는 ' + formatYearRanges(yearsWithValue(SHIPUSE_POS_IDX.hk)) + ' 사고에만 있어, 그 외 사고는 결과에서 제외됩니다.',
-                            'bottom', 3500, true);
-                    }
-                    onFiltersChanged(map);
-                });
-            } else if (key === 'tonnageRanges') {
-                openTonnageRangeFilterPopup(filters.tonnageRanges, function (val) {
-                    filters.tonnageRanges = val;
-                    if (val && typeof window._showOceanToast === 'function') {
-                        window._showOceanToast(
-                            '톤수 정보는 ' + formatYearRanges(yearsWithValue(TONNAGE_POS_IDX.hk)) + ' 사고에만 있어, 그 외 사고는 결과에서 제외됩니다.',
-                            'bottom', 3500, true);
-                    }
-                    onFiltersChanged(map);
-                });
             } else if (key === 'dateRange') {
                 openDateRangeFilterPopup(filters.dateRange, function (val) {
                     filters.dateRange = val;
                     onFiltersChanged(map);
                 });
             }
-        });
+        }
+    }
 
+    /** 걸린 필터를 전부 해제한다[S17에서 함수로 분리] — 지도의 "선택 초기화" 버튼과
+     * 시트를 새 칸으로 열 때가 같은 목록을 쓰도록. */
+    function clearAllFilters() {
+        filters.types = null;
+        filters.orgs = null;
+        filters.hourRanges = null;
+        filters.warnTypes = null;
+        filters.dateRange = null;
+    }
+
+    function bindFilterBar(map) {
+        var bar = document.getElementById('accident-filter-bar');
+        if (bar) {
+            bar.addEventListener('click', function (e) {
+                var btn = e.target.closest('.accident-filter-btn');
+                if (!btn) return;
+                openFilterPopupFor(map, btn.dataset.filter);
+            });
+        }
         var resetBtn = document.getElementById('accident-filter-reset-btn');
         if (resetBtn) {
             resetBtn.addEventListener('click', function () {
-                filters.types = null;
-                filters.orgs = null;
-                filters.hourRanges = null;
-                filters.seasons = null;
-                filters.warnTypes = null;
-                filters.shipUses = null;
-                filters.tonnageRanges = null;
-                filters.dateRange = null;
+                clearAllFilters();
                 onFiltersChanged(map);
             });
         }
@@ -5454,17 +5441,7 @@
             updateSourceToggleUi();
             showModeToggle(true);
             showFilterResetBtn(state.mode === 'status');   // 분석에는 지도 필터가 없다[S16]
-            showFilterBar(true);
-            // 선박용도·톤수는 hk(사고 데이터)에만 있는 필드라 person(인명사고)에선 필터
-            // 자체가 의미 없다 — 버튼을 숨기고, 다른 소스에서 걸어둔 값이 있으면 비운다
-            // (사용자 확정 2026-08-31). 안 비우면 SHIPUSE_POS_IDX.person·TONNAGE_POS_IDX.person
-            // 이 없어 person 행이 전부 필터에 걸려 사라지는 사고가 난다.
-            var shipUseBtn = document.getElementById('accident-filter-btn-shipUses');
-            if (shipUseBtn) shipUseBtn.style.display = key === 'person' ? 'none' : '';
-            if (key === 'person' && filters.shipUses) filters.shipUses = null;
-            var tonnageBtn = document.getElementById('accident-filter-btn-tonnageRanges');
-            if (tonnageBtn) tonnageBtn.style.display = key === 'person' ? 'none' : '';
-            if (key === 'person' && filters.tonnageRanges) filters.tonnageRanges = null;
+            showFilterBar(state.mode === 'status');        // 분석 필터는 시트 안에 있다[S17]
             updateFilterBarModeVisibility();
             updateAllFilterButtonLabels();
             if (hasActiveFilters()) applyFiltersToMarkers(key); // 이전 소스에서 걸어둔 필터를 새 소스에도 반영
@@ -5574,7 +5551,12 @@
             modeToggle.addEventListener('click', function (e) {
                 var btn = e.target.closest('button');
                 if (!btn) return;
-                if (btn.dataset.mode === state.mode) { toggleFilterBarCollapse(); return; }
+                // 같은 모드를 다시 누르면 필터 바를 접었다 편다 — 단 분석 모드에는
+                // 지도 필터 바가 없으므로(S17) 아무 일도 하지 않는다.
+                if (btn.dataset.mode === state.mode) {
+                    if (state.mode === 'status') toggleFilterBarCollapse();
+                    return;
+                }
                 setMode(map, btn.dataset.mode);
             });
         }
@@ -5615,6 +5597,9 @@
                     renderStatsBody();
                     return;
                 }
+                // 시트 안 필터 버튼[S17] — 지도 필터 바와 같은 팝업을 띈다.
+                var fBtn = e.target.closest('[data-sheetfilter]');
+                if (fBtn) { openFilterPopupFor(map, fBtn.dataset.sheetfilter); return; }
                 // "상위 발생 유형" 카드의 선박↔인명 토글(칩이 전체일 때만 있다)[S15].
                 var srcTgl = e.target.closest('[data-typesrc]');
                 if (srcTgl) {
