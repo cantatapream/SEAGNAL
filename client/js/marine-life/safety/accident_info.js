@@ -3962,7 +3962,11 @@
         var w = el.offsetWidth, h = el.offsetHeight;
         var left = Math.min(Math.max(6, r.left + r.width / 2 - w / 2), window.innerWidth - w - 6);
         var top = r.top - h - 8;
-        if (top < 6) top = r.bottom + 8;   // 위에 자리가 없으면 아래로
+        // 꼬리 방향도 함께 바꾼다 — 위로 뜨면 아래쪽 꼬리, 아래로 뜨면 위쪽 꼬리.
+        var below = top < 6;
+        if (below) top = r.bottom + 8;
+        el.classList.toggle('above', !below);
+        el.classList.toggle('below', below);
         el.style.left = Math.round(left) + 'px';
         el.style.top = Math.round(top) + 'px';
     }

@@ -356,8 +356,8 @@ new IntersectionObserver(cb, { threshold:0.2, rootMargin:'0px 0px -8% 0px' })
 | **"표본 적음" 회색 처리** | 행 전체 `opacity:.55`, 이름 뒤에 `<em>` 로 "(표본 적음)" — `.val em` 과 같은 muted 600 |
 | **특보 타일** | `.stat` 블록과 같은 재질(`--sub`/`--sub-br`/radius .9em). 안은 `아이콘 + 종류명(.72em 종류색) / 건수(1.35em/800) / 비율(.72em muted) / 하단 진행바(.35em, `--track` 위 종류색)`. 이미지의 타일이 정확히 이 구성이다 |
 | **특보 종류 색** | 태풍=`--purple #a35ff0` · 풍랑=`--blue #2b7cf0` · 강풍=`--teal #16c8a3`. **경보는 기준색, 주의보는 같은 계열의 밝은색**(도넛 그라데이션의 "밝은색" 값 사용: 보라 `#dcabff`, 파랑 `#86b6ff`, 청록 `#6cf0d4`). 사용자 확정 "같은 종류는 같은 색 계열" |
-| **말풍선(툴팁)** | 목업 차트의 툴팁을 따른다 — `rect rx:6.5 fill:var(--blue)`, 흰 글자 700. HTML 말풍선으로 만들 땐 `background:#2b7cf0; border-radius:.55em; padding:.5em .7em; font-size:.72em; color:#fff; box-shadow:0 .3em .9em rgba(0,0,0,.5)` + 아래쪽 삼각 꼬리 |
-| **"전국 기준" 배지** | 헤더 배지가 아니라 카드 제목 옆 작은 pill: `font-size:.68em; font-weight:700; color:#3b8bff; background:rgba(43,124,240,.14); border:1px solid rgba(43,124,240,.3); border-radius:.5em; padding:.12em .45em` |
+| **말풍선(툴팁)** | 목업 차트의 툴팁을 따른다 — `rect rx:6.5 fill:var(--blue)`, 흰 글자 700. HTML 말풍선으로 만들 땐 `background:#2b7cf0; border-radius:.55em; padding:.5em .7em; color:#fff; box-shadow:0 .3em .9em rgba(0,0,0,.5)` + 삼각 꼬리(위로 뜨면 아래쪽, 아래로 뜨면 위쪽). **글자 크기만 예외 — `.72em`(시트 기준 약 9.6px)은 목업의 "숫자 하나짜리" 툴팁에서 유추한 값이라 우리처럼 다섯 줄짜리 계산 내역에는 너무 작다. `12px` 고정을 쓴다(2026-09-04 판단). 말풍선은 시트 밖 body 에 붙어 시트의 em 스케일을 받지 않기도 한다.** |
+| **"전국 기준" 배지** | 헤더 배지가 아니라 카드 제목 옆 작은 pill: `font-size:.68em`(**시트 기준**. `em` 은 부모를 따르므로 카드 제목(1.02em) 안에서는 `.667em`, stat 라벨(0.75em) 안에서는 `.907em` 으로 보정해야 같은 크기가 된다); font-weight:700; color:#3b8bff; background:rgba(43,124,240,.14); border:1px solid rgba(43,124,240,.3); border-radius:.5em; padding:.12em .45em` |
 | **"2016.08~" 배지** | 위와 같은 형태, 색만 `--muted` 계열(`color:#8194ad; background:rgba(129,148,173,.12); border-color:rgba(129,148,173,.28)`) — 강조가 아니라 단서이므로 |
 | **드래그 손잡이 활성** | 잡는 동안 `#3a4c66` → `#6d84a3` 로 밝히고 높이 `.3em → .38em` |
 

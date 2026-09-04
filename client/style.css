@@ -9231,7 +9231,10 @@ html[data-font-size="large"] .ocean-overlay-btn {
    강조가 아니라 단서라 파랑이 아닌 muted 계열로(디자인 분석서 §7). */
 .ash-badge-note {
     display: inline-block;
-    font-size: 0.85em; font-weight: 700;
+    /* 사양(디자인 분석서 §7)은 "시트 기준 .68em". em 은 부모를 따르므로 부모가 다른
+       두 자리에서 같은 크기가 되도록 아래에서 각각 보정한다(카드 제목 1.02em,
+       stat 라벨 0.75em). 이 값은 보정이 없을 때의 기본값이다. */
+    font-size: 0.68em; font-weight: 700;
     color: var(--ash-muted);
     background: rgba(129, 148, 173, 0.12);
     border: 1px solid rgba(129, 148, 173, 0.28);
@@ -9240,6 +9243,9 @@ html[data-font-size="large"] .ocean-overlay-btn {
     margin-left: 0.3em;
     white-space: nowrap;
 }
+/* 0.68 ÷ 1.02 = 0.667 · 0.68 ÷ 0.75 = 0.907 — 둘 다 시트 기준 0.68em 이 된다. */
+.ash-card-title .ash-badge-note { font-size: 0.667em; }
+.ash-stat-lab .ash-badge-note { font-size: 0.907em; }
 
 /* 도넛 + 범례를 세로로 — 추세 요약 세 번째 칸(설계서 C-3: 도넛을 충분히 크게). */
 .ash-donut-stack { display: flex; flex-direction: column; align-items: center; gap: 0.5em; margin-top: 0.45em; width: 100%; }
@@ -9311,10 +9317,10 @@ html[data-font-size="large"] .ocean-overlay-btn {
     display: flex; flex-direction: column; gap: 0.4em;
 }
 .ash-warn-tile .t {
-    font-size: 0.75em; font-weight: 700;
+    font-size: 0.72em; font-weight: 700;
     display: flex; align-items: center; gap: 0.35em;
 }
-.ash-warn-tile .n { font-size: 1.25em; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.ash-warn-tile .n { font-size: 1.35em; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
 .ash-warn-tile .n small { font-size: 0.55em; font-weight: 600; color: #b6c6da; margin-left: 0.1em; }
 .ash-warn-tile .p { font-size: 0.72em; color: var(--ash-muted); }
 .ash-warn-tile .bar { height: 0.35em; border-radius: 1em; background: var(--ash-track); overflow: hidden; }
@@ -9327,12 +9333,15 @@ html[data-font-size="large"] .ocean-overlay-btn {
     position: fixed;
     z-index: 200;
     max-width: 80vw;
-    padding: 0.65em 0.8em;
-    background: #16233a;
-    border: 1px solid #2b3f5e;
-    border-radius: 0.6em;
-    box-shadow: 0 0.4em 1.2em rgba(0, 0, 0, 0.55);
-    color: #e6eef8;
+    padding: 0.5em 0.7em;
+    background: var(--ash-blue, #2b7cf0);
+    border-radius: 0.55em;
+    box-shadow: 0 0.3em 0.9em rgba(0, 0, 0, 0.5);
+    color: #fff;
+    /* 사양(§7)은 .72em 인데, 그 값은 목업 차트의 "숫자 하나짜리" 툴팁에서 유추한 것이라
+       우리처럼 다섯 줄짜리 계산 내역에는 너무 작다(시트 기준 약 9.6px). 색·모양·여백은
+       사양대로 맞추고 글자 크기만 12px 로 둔다 — 말풍선은 시트 밖(body)에 붙어 시트의
+       em 스케일을 받지 않기도 한다. 이 판단은 스타일 분석서 §7 에도 기록했다. */
     font-size: 12px;
     line-height: 1.6;
     white-space: pre;
@@ -9342,6 +9351,15 @@ html[data-font-size="large"] .ocean-overlay-btn {
     transition: opacity 0.28s ease;
 }
 .ash-tip.on { opacity: 1; }
+.ash-tip::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    margin-left: -0.4em;
+    border: 0.4em solid transparent;
+}
+.ash-tip.above::after { top: 100%; border-top-color: var(--ash-blue, #2b7cf0); }
+.ash-tip.below::after { bottom: 100%; border-bottom-color: var(--ash-blue, #2b7cf0); }
 @media (prefers-reduced-motion: reduce) { .ash-tip { transition: none; } }
 
 /* 말풍선을 부르는 요소 — 길게 눌러도 텍스트 선택·복사 메뉴가 뜨지 않게 막는다.
