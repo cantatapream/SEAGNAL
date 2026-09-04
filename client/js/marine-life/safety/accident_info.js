@@ -2828,6 +2828,217 @@
      * 실제보다 낮게 나온다(설계서 작업 5 F-8). */
     var WARN_DATA_START_YMD = '20160826';
 
+    // ── 특보 발효 일수[S11] ────────────────────────────────────────────────
+    // "이 바다에 특보가 며칠 떠 있었나"를 낸다. 사고 건수와 달리 이 값은 사고와 무관한
+    // 순수 기상 자료라, 빌드 때 만들어 둔 구간 파일(client/warn_intervals.json)과
+    // 구역 폴리곤을 읽어 계산한다(만드는 쪽은 local_server/scripts/build_warn_intervals.js).
+    //
+    // ★핵심 규칙(사용자 확정 2026-09-04): 격자 칸이 걸치는 특보구역들의 발효 날짜를
+    // **합집합**으로 센다. 두 구역이 같은 날 동시에 발효였으면 그 날은 하루로만 센다.
+    // 예: 제주도북부앞바다 100일 + 제주도동부앞바다 100일에 겹치는 날이 30일이면 170일.
+    var _warnIntervalsPromise = null;
+    var _warnZonePolys = null;   // {sea:[{name,rings}], land:[{name,rings}]}
+    var _warnDays = null;        // 지금 선택한 칸의 계산 결과(비동기로 채워짐)
+
+    function normWarnZoneName(name) { return String(name).replace(/[\s·.]/g, ''); }
+
+    /** GeoJSON 폴리곤/멀티폴리곤에서 바깥 링만 뽑는다 — 겹침 판정에 구멍은 필요 없다. */
+    function outerRingsOf(geometry) {
+        if (!geometry) return [];
+        if (geometry.type === 'Polygon') return [geometry.coordinates[0]];
+        if (geometry.type === 'MultiPolygon') return geometry.coordinates.map(function (p) { return p[0]; });
+        return [];
+    }
+
+    function ringBbox(ring) {
+        var b = [Infinity, Infinity, -Infinity, -Infinity];
+        for (var i = 0; i < ring.length; i++) {
+            if (ring[i][0] < b[0]) b[0] = ring[i][0];
+            if (ring[i][1] < b[1]) b[1] = ring[i][1];
+            if (ring[i][0] > b[2]) b[2] = ring[i][0];
+            if (ring[i][1] > b[3]) b[3] = ring[i][1];
+        }
+        return b;
+    }
+
+    /** 특보 구간 자료와 구역 폴리곤을 한 번만 받아 둔다. */
+    function ensureWarnIntervals() {
+        if (_warnIntervalsPromise) return _warnIntervalsPromise;
+        _warnIntervalsPromise = Promise.all([
+            fetch('/warn_intervals.json').then(function (r) { return r.json(); }),
+            fetch('/assets/warn_zones.geojson').then(function (r) { return r.json(); }),
+            fetch('/assets/warn_zones_land_coastal.geojson').then(function (r) { return r.json(); })
+        ]).then(function (res) {
+            function prep(geo, nameOf) {
+                var out = [];
+                geo.features.forEach(function (f) {
+                    outerRingsOf(f.geometry).forEach(function (ring) {
+                        out.push({ name: normWarnZoneName(nameOf(f)), ring: ring, bbox: ringBbox(ring) });
+                    });
+                });
+                return out;
+            }
+            _warnZonePolys = {
+                sea: prep(res[1], function (f) { return f.properties.name; }),
+                land: prep(res[2], function (f) { return f.properties.name; })
+            };
+            return res[0];
+        });
+        return _warnIntervalsPromise;
+    }
+
+    /** 격자 칸(EPSG:3857 extent)이 걸치는 구역 이름들.
+     *
+     * 판정: 폴리곤 bbox 와 칸이 겹치고, 그 위에 ①폴리곤 꼭짓점이 칸 안에 있거나
+     * ②칸의 네 꼭짓점이나 중심이 폴리곤 안에 있으면 걸친 것으로 본다. 정밀한
+     * 다각형 교차 대신 이 근사를 쓰는 이유: 격자 칸은 보통 수 km 이상이고 특보구역은
+     * 훨씬 커서, 둘이 걸치면 거의 항상 위 두 조건 중 하나에 걸린다. 판정이 한 칸에서
+     * 수백 번 돌아가므로 값싼 검사가 필요하다.
+     *
+     * @param {Array} extent [minX,minY,maxX,maxY] (EPSG:3857)
+     * @returns {{sea:string[], land:string[]}} 정규화된 구역 이름 목록(중복 제거)
+     */
+    function warnZonesForExtent(extent) {
+        var sw = ol.proj.toLonLat([extent[0], extent[1]]);
+        var ne = ol.proj.toLonLat([extent[2], extent[3]]);
+        var box = [sw[0], sw[1], ne[0], ne[1]];
+        var corners = [[box[0], box[1]], [box[2], box[1]], [box[0], box[3]], [box[2], box[3]],
+            [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2]];
+        function pick(list) {
+            var seen = {};
+            list.forEach(function (z) {
+                if (seen[z.name]) return;
+                if (z.bbox[2] < box[0] || z.bbox[0] > box[2] || z.bbox[3] < box[1] || z.bbox[1] > box[3]) return;
+                var hit = false;
+                for (var i = 0; i < z.ring.length && !hit; i++) {
+                    var p = z.ring[i];
+                    if (p[0] >= box[0] && p[0] <= box[2] && p[1] >= box[1] && p[1] <= box[3]) hit = true;
+                }
+                for (var j = 0; j < corners.length && !hit; j++) {
+                    if (pointInPolygonLL(corners[j][0], corners[j][1], z.ring)) hit = true;
+                }
+                if (hit) seen[z.name] = true;
+            });
+            return Object.keys(seen);
+        }
+        return { sea: pick(_warnZonePolys.sea), land: pick(_warnZonePolys.land) };
+    }
+
+    /** YYYYMMDD 정수 -> 일 번호(1970-01-01 = 0). 날짜 산술을 정수로 하려고 쓴다. */
+    function ymdToDayNum(ymd) {
+        return Math.round(Date.UTC(Math.floor(ymd / 10000), Math.floor(ymd / 100) % 100 - 1, ymd % 100) / 86400000);
+    }
+
+    /** 지금 걸린 기간 필터를 특보 자료 범위로 자른 [시작,끝] 일번호. */
+    function warnDayWindow(data) {
+        var lo = ymdToDayNum(Number(data.start));
+        var hi = ymdToDayNum(Number(data.end));
+        if (filters.dateRange) {
+            var fl = ymdToDayNum(Number(filters.dateRange[0]));
+            var fh = ymdToDayNum(Number(filters.dateRange[1]));
+            if (fl > lo) lo = fl;
+            if (fh < hi) hi = fh;
+        }
+        return [lo, hi];
+    }
+
+    /** 구역 여러 개의 날짜 구간을 합집합으로 세어 일수를 낸다[S11].
+     *
+     * 예시: A구역 [1,10], B구역 [5,20] 이면 각각 10일·16일이지만 합집합은 [1,20] 20일,
+     * 겹치는 6일은 한 번만 센다. 반환값의 overlap 은 "각각 더한 값 - 합집합" 이다.
+     *
+     * @param {Object} data warn_intervals.json 내용
+     * @param {string[]} zoneNames 구역 이름들
+     * @param {string} subKey "WV|주의보" 같은 종류+레벨, 또는 null 이면 전부
+     * @param {Array} win [시작,끝] 일번호
+     * @returns {{total:number, perZone:Object, overlap:number, zonesWithData:string[]}}
+     */
+    function warnUnionDays(data, zoneNames, subKey, win) {
+        var all = [], perZone = {}, sum = 0, withData = [];
+        zoneNames.forEach(function (z) {
+            var byKind = data.zones[z];
+            if (!byKind) return;
+            var keys = subKey ? (byKind[subKey] ? [subKey] : []) : Object.keys(byKind);
+            if (!keys.length) return;
+            var mine = [];
+            keys.forEach(function (k) {
+                byKind[k].forEach(function (r) {
+                    var a = Math.max(win[0], ymdToDayNum(r[0]));
+                    var b = Math.min(win[1], ymdToDayNum(r[1]));
+                    if (a <= b) mine.push([a, b]);
+                });
+            });
+            if (!mine.length) return;
+            var d = mergeDayRanges(mine);
+            var n = 0;
+            d.forEach(function (r) { n += r[1] - r[0] + 1; });
+            perZone[z] = n;
+            sum += n;
+            withData.push(z);
+            all = all.concat(mine);
+        });
+        var merged = mergeDayRanges(all);
+        var total = 0;
+        merged.forEach(function (r) { total += r[1] - r[0] + 1; });
+        return { total: total, perZone: perZone, overlap: sum - total, zonesWithData: withData };
+    }
+
+    /** 일번호 구간들을 정렬해 겹치거나 붙은 것을 합친다. */
+    function mergeDayRanges(ranges) {
+        if (!ranges.length) return [];
+        ranges = ranges.slice().sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+        var out = [ranges[0].slice()];
+        for (var i = 1; i < ranges.length; i++) {
+            var cur = out[out.length - 1], r = ranges[i];
+            if (r[0] <= cur[1] + 1) { if (r[1] > cur[1]) cur[1] = r[1]; }
+            else out.push(r.slice());
+        }
+        return out;
+    }
+
+    /**
+     * 선택한 칸의 특보 발효 일수를 계산해 _warnDays 에 담고 시트를 다시 그린다[S11].
+     *
+     * 전국 보기(칸 없음)에서는 계산하지 않는다 — 44개 구역 전체의 합집합은 거의 매일이라
+     * 뜻이 없다(사용자 확정 2026-09-04 "전국은 발효일수 제외").
+     *
+     * @param {ol.Feature} cellFeature 선택된 격자 칸
+     * @param {ol.Feature[]} members 변경 감지용
+     * [연계] → buildWarnCardHtml 이 _warnDays 를 읽는다 */
+    function resolveWarnDays(cellFeature, members) {
+        _warnDays = null;
+        if (!cellFeature) return;
+        var extent = cellFeature.getGeometry().getExtent();
+        ensureWarnIntervals().then(function (data) {
+            if (_statsMembers !== members) return;
+            var zones = warnZonesForExtent(extent);
+            var win = warnDayWindow(data);
+            var res = { sea: {}, land: {}, seaZones: zones.sea, landZones: zones.land, win: win };
+            res.seaAll = warnUnionDays(data, zones.sea, null, win);
+            res.landAll = warnUnionDays(data, zones.land, null, win);
+            ASH_WARN_KINDS.forEach(function (k) {
+                var sub = k.code.replace('_', '|');
+                res.sea[k.code] = warnUnionDays(data, zones.sea, sub, win);
+                res.land[k.code] = warnUnionDays(data, zones.land, sub, win);
+            });
+            _warnDays = res;
+            renderStatsBody();
+        }).catch(function (e) {
+            console.warn('[AccidentInfo] 특보 구간 자료를 못 받았다 —', e && e.message);
+        });
+    }
+
+    /** 말풍선에 넣을 계산 내역 — 구역별 일수, 동시발효 제외, 합계[S11 · H-5].
+     * 사용자 확정 형식: 구역마다 한 줄, 동시발효 제외 한 줄, 합계 한 줄. */
+    function warnDaysTipText(u, label) {
+        if (!u || !u.zonesWithData.length) return label + ' 발효 자료 없음';
+        var lines = u.zonesWithData.map(function (z) { return z + '  ' + fmtN(u.perZone[z]) + '일'; });
+        if (u.overlap > 0) lines.push('동시 발효 ' + fmtN(u.overlap) + '일 제외');
+        lines.push('───');
+        lines.push('합계  ' + fmtN(u.total) + '일');
+        return lines.join('\n');
+    }
+
     /** 특보 종류·심각도 6종의 표시 정보 — 이름·색·아이콘[S10].
      * 같은 종류는 같은 색 계열, 경보는 기준색, 주의보는 그 계열의 밝은색이다
      * (사용자 확정 2026-09-04 "같은 종류의 특보는 같은 색상으로"). 밝은색은 도넛
@@ -2903,13 +3114,37 @@
         var tiles = kinds.map(function (k) {
             var n = st.sev[k.code] || 0;
             var pct = st.warn ? n / st.warn * 100 : 0;
-            return '<div class="ash-warn-tile">' +
+            // 발효 일수는 종류마다 다르다 — 강풍은 육상 구역, 나머지는 해상 구역 기준.
+            var u = _warnDays ? (k.type === 'GW' ? _warnDays.land[k.code] : _warnDays.sea[k.code]) : null;
+            var daysHtml = u
+                ? '<div class="d">발효 ' + fmtN(u.total) + '일</div>'
+                : '';
+            var tip = u ? warnDaysTipText(u, k.label) : '';
+            return '<div class="ash-warn-tile"' + (tip ? ' data-tip="' + escapeHtml(tip) + '"' : '') + '>' +
                 '<div class="t" style="color:' + k.color + '"><i class="fa-solid ' + k.icon + '"></i>' + k.label + '</div>' +
                 '<div class="n">' + fmtN(n) + '<small>건</small></div>' +
                 '<div class="p">' + pct.toFixed(1) + '%</div>' +
+                daysHtml +
                 '<div class="bar"><i style="width:' + Math.round(n / maxSev * 100) + '%;background:' + k.color + '"></i></div>' +
                 '</div>';
         }).join('');
+
+        // 발효 일수 칸 — 해상은 늘, 육상은 그 칸이 해안에 걸칠 때만 한 줄 더[G-4].
+        // 전국 보기에는 아예 넣지 않는다(44개 구역 합집합은 거의 매일이라 뜻이 없다).
+        var daysBoxHtml = '';
+        if (_warnDays) {
+            var seaLine = '<div class="ash-warn-v">해상 ' + fmtN(_warnDays.seaAll.total) + '<small>일</small></div>';
+            var landLine = _warnDays.landAll.zonesWithData.length
+                ? '<div class="ash-warn-v">육상 ' + fmtN(_warnDays.landAll.total) + '<small>일</small></div>'
+                : '';
+            var zoneNames = _warnDays.seaAll.zonesWithData;
+            var zoneLabel = zoneNames.length
+                ? (zoneNames[0] + (zoneNames.length > 1 ? ' 등 ' + zoneNames.length + '곳' : ''))
+                : '해당 구역 없음';
+            daysBoxHtml = '<div data-tip="' + escapeHtml(warnDaysTipText(_warnDays.seaAll, '해상 특보')) + '">' +
+                '<div class="ash-warn-k">특보 발효 일수</div>' + seaLine + landLine +
+                '<div class="ash-warn-zone">' + escapeHtml(zoneLabel) + '</div></div>';
+        }
 
         // 선박·인명 나눔 — 반대쪽은 비동기로 세어 온 값을 쓴다(없으면 이 줄을 생략).
         var srcRow = '';
@@ -2935,6 +3170,7 @@
             '<div><div class="ash-warn-k">특보 중 사고 건수</div>' +
             '<div class="ash-warn-v">' + fmtN(st.warn) + '<small>건</small>' +
             '<em>' + (st.denom ? '전체 대비 ' + (st.warn / st.denom * 100).toFixed(1) + '%' : '자료 없음') + '</em></div></div>' +
+            daysBoxHtml +
             '</div>' +
             srcRow +
             '<div class="ash-warn-sub">특보 종류별 사고 건수</div>' +
@@ -3671,6 +3907,7 @@
         // 등록을 안 해서 뒤로가기를 눌러도 시트가 안 닫혔다(2026-09-01 사용자 지적).
         if (window.PopupStack) window.PopupStack.push(STATS_SHEET_POPUP_ID, closeStatsSheet);
         resolveCombinedCounts(cellFeature, key, members);
+        resolveWarnDays(cellFeature, members);
         if (cellFeature) {
             var openedForKey = key, openedForMembers = members;
             resolveRegionLabelForCell(cellFeature).then(function (label) {
@@ -3682,6 +3919,96 @@
                 if (regionEl) regionEl.textContent = label;
             });
         }
+    }
+
+    /** 말풍선 — data-tip 이 붙은 요소를 누르고 있으면 계산 내역을 띄운다[S11 · H-1~H-5].
+     *
+     * 예시: 풍랑주의보 타일을 0.2초 이상 누르고 있으면
+     *   제주도북부앞바다  100일
+     *   제주도동부앞바다  100일
+     *   동시 발효 30일 제외
+     *   ───
+     *   합계  170일
+     * 이 뜨고, 손을 떼면 0.5초 뒤 서서히 사라진다.
+     *
+     * 왜 0.2초를 기다리나: 시트 본문은 세로 스크롤 영역이라, 손을 대자마자 띄우면
+     * 스크롤하려던 손짓에도 말풍선이 뜬다. 손가락이 10px 넘게 움직이면 스크롤로 보고
+     * 취소한다. PC 에서는 기다릴 이유가 없어 마우스를 올리면 바로 띄운다.
+     *
+     * @param {HTMLElement} body 시트 본문
+     * [연계] 스타일 style.css .ash-tip / 붙는 곳 buildWarnCardHtml 의 data-tip */
+    var _tipEl = null, _tipTimer = null, _tipHideTimer = null, _tipStart = null;
+    var TIP_PRESS_MS = 200, TIP_HIDE_MS = 500, TIP_MOVE_CANCEL_PX = 10;
+
+    function ensureTipEl() {
+        if (_tipEl) return _tipEl;
+        _tipEl = document.createElement('div');
+        _tipEl.className = 'ash-tip';
+        document.body.appendChild(_tipEl);
+        return _tipEl;
+    }
+
+    function showTip(target) {
+        var text = target.getAttribute('data-tip');
+        if (!text) return;
+        var el = ensureTipEl();
+        clearTimeout(_tipHideTimer);
+        el.textContent = text;
+        el.classList.add('on');
+        // 대상 위쪽 가운데에 띄우되, 화면 밖으로 나가지 않게 좌우를 밀어 넣는다.
+        var r = target.getBoundingClientRect();
+        el.style.left = '0px';
+        el.style.top = '0px';
+        var w = el.offsetWidth, h = el.offsetHeight;
+        var left = Math.min(Math.max(6, r.left + r.width / 2 - w / 2), window.innerWidth - w - 6);
+        var top = r.top - h - 8;
+        if (top < 6) top = r.bottom + 8;   // 위에 자리가 없으면 아래로
+        el.style.left = Math.round(left) + 'px';
+        el.style.top = Math.round(top) + 'px';
+    }
+
+    function hideTip(delayed) {
+        if (!_tipEl) return;
+        clearTimeout(_tipHideTimer);
+        if (delayed) _tipHideTimer = setTimeout(function () { _tipEl.classList.remove('on'); }, TIP_HIDE_MS);
+        else _tipEl.classList.remove('on');
+    }
+
+    function bindTipHandlers(body) {
+        if (body._ashTipBound) return;
+        body._ashTipBound = true;
+        body.addEventListener('pointerdown', function (e) {
+            var t = e.target.closest('[data-tip]');
+            if (!t) return;
+            if (e.pointerType === 'mouse') return; // 마우스는 아래 hover 로 처리
+            _tipStart = { x: e.clientX, y: e.clientY, target: t };
+            clearTimeout(_tipTimer);
+            _tipTimer = setTimeout(function () { if (_tipStart) showTip(_tipStart.target); }, TIP_PRESS_MS);
+        });
+        body.addEventListener('pointermove', function (e) {
+            if (!_tipStart) return;
+            if (Math.abs(e.clientX - _tipStart.x) > TIP_MOVE_CANCEL_PX ||
+                Math.abs(e.clientY - _tipStart.y) > TIP_MOVE_CANCEL_PX) {
+                clearTimeout(_tipTimer);   // 스크롤하려는 손짓이다 — 양보한다
+                _tipStart = null;
+                hideTip(false);
+            }
+        });
+        function endPress() {
+            clearTimeout(_tipTimer);
+            _tipStart = null;
+            hideTip(true);
+        }
+        body.addEventListener('pointerup', endPress);
+        body.addEventListener('pointercancel', endPress);
+        // PC — 올리면 바로, 벗어나면 0.5초 뒤
+        body.addEventListener('mouseover', function (e) {
+            var t = e.target.closest('[data-tip]');
+            if (t) showTip(t);
+        });
+        body.addEventListener('mouseout', function (e) {
+            if (e.target.closest('[data-tip]')) hideTip(true);
+        });
     }
 
     /** 시트 높이 조절 — 손잡이를 잡고 위아래로 끌면 시트가 커지고 작아진다[S2].
@@ -3761,6 +4088,7 @@
         // 뒤로가기가 엉뚱하게 이 시트를 또 닫으려 하지 않는다.
         if (window.PopupStack) window.PopupStack.remove(STATS_SHEET_POPUP_ID);
         if (sheet) sheet.classList.remove('open');
+        hideTip(false);
         if (_selectedGridFeature) { var prev = _selectedGridFeature; _selectedGridFeature = null; prev.changed(); }
         destroyStatsCharts();
         stopWarnDonutAnim();
@@ -4767,6 +5095,8 @@
         if (closeBtn) closeBtn.addEventListener('click', closeStatsSheet);
 
         bindSheetHandleDrag();
+        var tipBody = document.getElementById('accident-stats-body');
+        if (tipBody) bindTipHandlers(tipBody);
 
         // "사고발생상세" 탭·"분석 뷰" 탭·드릴다운 뒤로가기 — 바텀시트 본문은 매번
         // 다시 그려지므로 delegation(2026-08-29 분석 뷰·뒤로가기 추가).

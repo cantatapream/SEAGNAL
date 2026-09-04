@@ -9320,6 +9320,44 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .ash-warn-tile .bar { height: 0.35em; border-radius: 1em; background: var(--ash-track); overflow: hidden; }
 .ash-warn-tile .bar > i { display: block; height: 100%; border-radius: 1em; }
 
+/* 말풍선[S11] — 특보 타일이나 발효 일수를 누르고 있는 동안 계산 내역을 보여 준다.
+   시트 밖(body)에 붙는다 — 시트 안에 두면 overflow:hidden 에 잘린다.
+   여러 줄을 그대로 보여야 해서 white-space:pre 를 쓴다. */
+.ash-tip {
+    position: fixed;
+    z-index: 200;
+    max-width: 80vw;
+    padding: 0.65em 0.8em;
+    background: #16233a;
+    border: 1px solid #2b3f5e;
+    border-radius: 0.6em;
+    box-shadow: 0 0.4em 1.2em rgba(0, 0, 0, 0.55);
+    color: #e6eef8;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre;
+    font-variant-numeric: tabular-nums;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease;
+}
+.ash-tip.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .ash-tip { transition: none; } }
+
+/* 말풍선을 부르는 요소 — 길게 눌러도 텍스트 선택·복사 메뉴가 뜨지 않게 막는다.
+   안 막으면 안드로이드·iOS 에서 롱프레스에 시스템 메뉴가 먼저 뜬다(H-4). */
+[data-tip] {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    cursor: help;
+}
+
+/* 발효 일수 칸의 구역 이름 — "제주도북부앞바다 등 4곳"(G-6) */
+.ash-warn-zone { font-size: 0.7em; color: var(--ash-dim); }
+/* 타일 안 발효 일수 줄 */
+.ash-warn-tile .d { font-size: 0.72em; color: var(--ash-muted); }
+
 /* 푸터 각주 — 목업 .foot. 항목 앞에 작은 점이 붙는 목록으로, "2014·2015년 제외"
    같은 집계 단서를 담는다(설계서 작업 9·10). */
 .accident-stats-foot {
