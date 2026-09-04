@@ -2409,6 +2409,43 @@
     /** 상위 6개만 보여주되, "정보없음"은 countByLabel 이 항상 맨 뒤에 둔 것이므로
      * 상위 6건에서 밀려도 잘리지 않게 별도로 붙인다(사용자 확정: 비중이 커도 맨
      * 아래에 위치할 뿐 아예 안 보이면 안 됨). */
+    /** 막대 행에 돌려 쓰는 색 — 목업이 행마다 다른 색 점을 쓰는 것을 그대로 옮긴 것.
+     * "기타"·"정보없음"처럼 실제 항목이 아닌 것은 순서와 무관하게 회색으로 고정한다
+     * (목업도 기타를 회색으로 뒀다). [연계] buildBarRowsHtml */
+    var ASH_ROW_COLORS = ['#2b7cf0', '#16c8a3', '#25d0a6', '#f9821f', '#a35ff0'];
+    var ASH_ROW_GRAY = '#5b6c85';
+    function ashRowColor(label, i) {
+        if (/^(기타|정보없음|원인미상|관할 미상)/.test(label)) return ASH_ROW_GRAY;
+        return ASH_ROW_COLORS[i % ASH_ROW_COLORS.length];
+    }
+
+    /** [라벨, 건수] 목록을 목업 .row 구조의 막대 행 HTML 로 바꾼다[S4].
+     *
+     * 예시: [['충돌', 120], ['좌초', 30]] · total 200 · max 120 이면
+     *   ● 충돌   ██████████  120건 (60%)
+     *   ● 좌초   ██░░░░░░░░   30건 (15%)
+     * 게이지 길이는 "가장 큰 항목 대비"(항목끼리 비교가 목적), 괄호 안 비율은
+     * "전체 대비"(그 항목이 전체에서 차지하는 몫)다 — 둘의 기준이 다르다.
+     *
+     * @param {Array.<Array>} entries [라벨, 건수] 배열(건수 내림차순)
+     * @param {number} total 비율 계산에 쓸 전체 건수
+     * @returns {string} 행 목록 HTML
+     * [연계] 스타일 style.css .ash-rows/.ash-row / 디자인 근거
+     *        accident_stats_sheet.style.md §4.8 */
+    function buildBarRowsHtml(entries, total) {
+        var max = Math.max.apply(null, entries.map(function (d) { return d[1]; }).concat([1]));
+        return '<div class="ash-rows">' + entries.map(function (d, i) {
+            var color = ashRowColor(d[0], i);
+            var pct = total ? Math.round(d[1] / total * 100) : 0;
+            return '<div class="ash-row">' +
+                '<span class="ash-dot" style="background-color:' + color + '"></span>' +
+                '<span class="nm" title="' + escapeHtml(d[0]) + '">' + escapeHtml(d[0]) + '</span>' +
+                '<span class="ash-bar"><i style="width:' + Math.round(d[1] / max * 100) + '%;background:' + color + '"></i></span>' +
+                '<span class="val">' + fmtN(d[1]) + '건 <em>(' + pct + '%)</em></span>' +
+                '</div>';
+        }).join('') + '</div>';
+    }
+
     function aggregateCounts(members, getter, labelTable) {
         var entries = countByLabel(members, getter, labelTable);
         var last = entries.length && entries[entries.length - 1][0] === '정보없음' ? entries[entries.length - 1] : null;
@@ -2422,13 +2459,15 @@
         return countByLabel(members, function (r) { return r[ORG_POS_IDX[key]]; }, ACCIDENT_ORG_LABELS);
     }
 
-    function detailDataFor(key, tab, members) {
+    function detailDataFor(key, tab, members, all) {
+        // all 이 true 면 상위 몇 개로 자르지 않고 전부 — 아코디언 "전체 보기"[S4].
+        var agg = all ? countByLabel : aggregateCounts;
         if (key === 'hk') {
-            if (tab === '발생유형') return aggregateCounts(members, function (r) { return r[5]; }, ACCIDENT_TYPE_LABELS);
-            if (tab === '발생원인') return aggregateCounts(members, function (r) { return r[6]; }, ACCIDENT_CAUSE_LABELS);
-            return aggregateCounts(members, function (r) { return r[7]; }, ACCIDENT_SHIP_KIND_LABELS);
+            if (tab === '발생유형') return agg(members, function (r) { return r[5]; }, ACCIDENT_TYPE_LABELS);
+            if (tab === '발생원인') return agg(members, function (r) { return r[6]; }, ACCIDENT_CAUSE_LABELS);
+            return agg(members, function (r) { return r[7]; }, ACCIDENT_SHIP_KIND_LABELS);
         }
-        return aggregateCounts(members, function (r) { return r[4]; }, ACCIDENT_TYPE_LABELS);
+        return agg(members, function (r) { return r[4]; }, ACCIDENT_TYPE_LABELS);
     }
 
     /**
@@ -2463,12 +2502,16 @@
               '<button type="button" class="accident-warn-revert" id="accident-warn-revert" disabled>◀ 되돌리기</button>'
             : '<canvas id="accident-stats-chart"></canvas>';
 
-        return '<div class="accident-stats-block">' +
-            '<div class="' + tabsCls + '">' + viewTabsHtml + '</div>' +
+        // 탭 줄은 카드 밖(시트 바로 아래)에, 차트는 카드 안에 둔다 — 탭은 "무엇을 볼지"
+        // 고르는 조작부고 카드는 "고른 것"이라, 목업도 이 둘을 따로 놓는다.
+        var viewLabel = (views.filter(function (v) { return v.id === activeView; })[0] || {}).label || '';
+        return '<div class="' + tabsCls + '">' + viewTabsHtml + '</div>' +
+            '<section class="ash-card">' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">' + escapeHtml(viewLabel) + ' 추이</h2></div>' +
             backHtml +
             '<div class="accident-chart-wrap" id="accident-chart-wrap">' + chartInnerHtml + '</div>' +
             '<div class="accident-chart-caption" id="accident-chart-caption"></div>' +
-            '</div>';
+            '</section>';
     }
 
     /** "사고발생상세" 블록만 — id 를 붙여 이 블록만 따로 갈아끼울 수 있게 한다
@@ -2476,25 +2519,50 @@
      * 다시 그려지면서 특보발효 도넛 펼침 애니메이션이 매번 재생되던 문제 수정 —
      * 이 블록은 차트와 무관하니 이 블록만 갱신하면 차트 DOM/Chart.js 인스턴스가
      * 그대로 유지돼 애니메이션이 재생되지 않는다). */
+    /** 탭별로 "전체 보기"가 펼쳐져 있는지 — key(소스)·탭 조합마다 따로 기억한다[S4].
+     * 탭을 바꾸면 접힌 상태로 시작한다(다른 축을 보는 것이므로). */
+    var _detailExpanded = {};
+    /** 펼치기 직전의 스크롤 위치 — 접을 때 여기로 되돌린다. 33종짜리 목록을 펼쳤다
+     * 접으면 화면이 엉뚱한 곳에 가 있게 되는 걸 막는다(설계서 작업 8 중점). */
+    var _detailScrollBefore = null;
+
+    function detailExpandKey(key, tab) { return key + '|' + tab; }
+
     function buildDetailBlockHtml(key, members) {
         var tabs = detailTabsFor(key);
         if (!_activeDetailTab[key] || tabs.indexOf(_activeDetailTab[key]) === -1) _activeDetailTab[key] = tabs[0];
         var activeTab = _activeDetailTab[key];
-        var detailItems = detailDataFor(key, activeTab, members);
-        var maxDetail = Math.max.apply(null, detailItems.map(function (d) { return d[1]; }).concat([1]));
-        // 게이지에 채움 비율(%)이 눈에 보이게(2026-08-31 사용자 확정) — 전체 건수 대비 비율.
-        var barsHtml = detailItems.map(function (d) {
-            var pct = members.length ? Math.round(d[1] / members.length * 100) : 0;
-            return '<div class="accident-bar-row"><span class="name">' + escapeHtml(d[0]) + '</span>' +
-                '<span class="track"><span class="fill" style="width:' + Math.round(d[1] / maxDetail * 100) + '%"></span></span>' +
-                '<span class="n">' + d[1] + '건 · ' + pct + '%</span></div>';
-        }).join('');
+        var expanded = !!_detailExpanded[detailExpandKey(key, activeTab)];
+        var items = detailDataFor(key, activeTab, members, expanded);
+        var allCount = detailDataFor(key, activeTab, members, true).length;
+
         var tabsHtml = tabs.map(function (t) {
             return '<button class="accident-detail-tab' + (t === activeTab ? ' active' : '') + '" data-tab="' + t + '">' + t + '</button>';
         }).join('');
+        // 전체가 이미 다 보이면(항목이 애초에 5개 이하) 더보기 버튼을 달지 않는다.
+        var moreHtml = '';
+        if (allCount > items.length || expanded) {
+            moreHtml = '<button type="button" class="ash-more' + (expanded ? ' is-collapse' : '') +
+                '" data-more="detail" aria-expanded="' + (expanded ? 'true' : 'false') + '">' +
+                (expanded ? '접기' : '전체 ' + allCount + '종 보기') +
+                '<i class="fa-solid fa-chevron-right"></i></button>';
+        }
+        return '<section class="ash-card" id="accident-detail-block">' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">사고 발생 상세' +
+            (expanded ? '' : ' <em>(Top 5)</em>') + '</h2></div>' +
+            '<div class="accident-detail-tabs">' + tabsHtml + '</div>' +
+            buildBarRowsHtml(items, members.length) +
+            moreHtml +
+            '</section>';
+    }
 
-        return '<div class="accident-stats-block" id="accident-detail-block">' +
-            '<div class="accident-detail-tabs">' + tabsHtml + '</div>' + barsHtml + '</div>';
+    /** 사고발생상세 카드만 다시 그린다 — 위 "분석 뷰" 차트(canvas/svg)는 손대지 않는다
+     * (2026-09-01: 특보발효 도넛이 탭 전환마다 재생되던 문제 수정). 하위 탭 전환과
+     * 아코디언 펼침/접힘이 둘 다 이 함수를 쓴다.
+     * [연계] ← statsBody 클릭 delegation */
+    function redrawDetailBlock() {
+        var block = document.getElementById('accident-detail-block');
+        if (block) block.outerHTML = buildDetailBlockHtml(_statsKey, _statsMembers);
     }
 
     /** 바텀시트 헤더 — 목업(marineaccidentdashboard.html) .head 구조로 재구성[S2].
@@ -3111,6 +3179,8 @@
         // 칸을 누르면 특보발효가 열린 채로 시작했다. 아래 스크롤 초기화와 같은 취지.
         _statsView[key] = 'trend';
         _activeDetailTab[key] = null;
+        _detailExpanded = {};      // 펼쳐 둔 "전체 보기"도 접힌 상태로[S4]
+        _detailScrollBefore = null;
         // 손잡이로 낮춰 둔 높이도 기본(80vh)으로 되돌린다 — 위 탭·스크롤 초기화와 같은
         // 취지(시트는 열 때마다 같은 모습으로 시작한다). 안 되돌리면 한 번 낮춰 놓은 뒤
         // 다른 칸을 열었을 때 내용이 잘린 채로 뜬다.
@@ -4264,13 +4334,27 @@
                     renderStatsBody();
                     return;
                 }
+                // "전체 보기" / "접기" — 아코디언[S4]. 펼치기 직전 스크롤 위치를 기억했다가
+                // 접을 때 되돌린다(33종을 펼쳤다 접으면 화면이 엉뚱한 데 가 있다).
+                var moreBtn = e.target.closest('.ash-more');
+                if (moreBtn) {
+                    var ek = detailExpandKey(_statsKey, _activeDetailTab[_statsKey]);
+                    if (_detailExpanded[ek]) {
+                        _detailExpanded[ek] = false;
+                        redrawDetailBlock();
+                        if (_detailScrollBefore != null) { statsBody.scrollTop = _detailScrollBefore; _detailScrollBefore = null; }
+                    } else {
+                        _detailScrollBefore = statsBody.scrollTop;
+                        _detailExpanded[ek] = true;
+                        redrawDetailBlock();
+                    }
+                    return;
+                }
                 var detailBtn = e.target.closest('.accident-detail-tab');
                 if (!detailBtn) return;
                 _activeDetailTab[_statsKey] = detailBtn.dataset.tab;
-                // 이 블록만 갱신 — 위 "분석 뷰" 차트(canvas/svg)는 손대지 않는다
-                // (2026-09-01: 특보발효 도넛이 이 탭 전환마다 재생되던 문제 수정).
-                var block = document.getElementById('accident-detail-block');
-                if (block) block.outerHTML = buildDetailBlockHtml(_statsKey, _statsMembers);
+                _detailScrollBefore = null;
+                redrawDetailBlock();
             });
         }
 

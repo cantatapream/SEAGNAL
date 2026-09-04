@@ -9065,6 +9065,101 @@ html[data-font-size="large"] .ocean-overlay-btn {
 }
 .ash-tab[disabled] i { opacity: 0.5; }
 
+/* 카드 — 목업 .card[S4]. 시트 안 내용은 전부 이 카드 위에 얹힌다.
+   3단 깊이(시트 → 카드 → 카드 안 작은 블록)를 지킨다 — 카드 안에 카드를 또 넣지 않는다
+   (디자인 분석서 §0·§9). 카드 안 작은 블록은 --ash-sub 를 쓴다.
+   [연계] 마크업 accident_info.js buildChartViewHtml·buildDetailBlockHtml */
+.ash-card {
+    background: var(--ash-card);
+    border: 1px solid var(--ash-card-br);
+    border-radius: 1.1em;
+    padding: 0.95em 0.9em;
+    margin-bottom: 0.7em;
+}
+.ash-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.6em;
+    margin-bottom: 0.85em;
+    flex-wrap: wrap;
+}
+.ash-card-title { font-size: 1.02em; font-weight: 800; letter-spacing: -0.01em; }
+/* 제목 옆 작은 부제 — "(Top 5)" 가 이것이다. 아코디언을 펼치면 지운다(전부 보이는데
+   "Top 5" 라고 써 있으면 거짓말이 되므로 — 2026-09-04 사용자 확정). */
+.ash-card-title em {
+    font-style: normal;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--ash-muted);
+    margin-left: 0.15em;
+}
+.ash-card-aside { font-size: 0.78em; color: var(--ash-muted); }
+
+/* 막대 행 — 목업 .row[S4]. 유형·원인·선박종류·치명도가 전부 이 부품을 쓴다.
+   [점 · 이름 4.6em · 게이지 · 값 5.4em] 네 칸 고정 폭 구조라 여러 행의 게이지 시작점과
+   값 끝점이 세로로 딱 맞는다. */
+.ash-rows { display: flex; flex-direction: column; gap: 0.62em; }
+.ash-row { display: flex; align-items: center; gap: 0.45em; font-size: 0.76em; }
+.ash-row .nm {
+    width: 4.6em; flex: none;
+    color: #d3dfee;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ash-bar {
+    flex: 1; min-width: 1.5em;
+    height: 0.5em;
+    border-radius: 1em;
+    background: var(--ash-track);
+    overflow: hidden;
+}
+/* display:block 필수 — span 은 기본 inline 이라 width/height 가 안 먹는다
+   (기존 .accident-bar-row 에서 같은 이유로 게이지가 늘 비어 보였던 전례가 있다). */
+.ash-bar > i { display: block; height: 100%; border-radius: 1em; }
+.ash-row .val {
+    width: 5.4em; flex: none;
+    text-align: right; font-weight: 700; white-space: nowrap;
+}
+.ash-row .val em {
+    font-style: normal; color: var(--ash-muted); font-weight: 600; margin-left: 0.25em;
+}
+/* 점 — 단색 원이 아니라 단색 위에 광택을 겹친다(목업 .dot). 바탕색은 인라인 style 로
+   주고, 아래 그라데이션이 overlay 로 섞여 입체감을 만든다. */
+.ash-dot {
+    width: 0.58em; height: 0.58em;
+    border-radius: 50%;
+    flex: none;
+    background-image: linear-gradient(145deg, rgba(255,255,255,0.55), rgba(0,0,0,0.35));
+    background-blend-mode: overlay;
+    box-shadow: 0 0.08em 0.16em rgba(0,0,0,0.5);
+}
+
+/* 더보기 / 접기 — 목업 .more[S4]. 아코디언 동작은 목업에 없어 유추했다(분석서 §7):
+   펼치면 꺾쇠가 90도 돌고, 펼친 목록 맨 아래에 같은 재질의 "접기" 버튼이 하나 더 붙는다. */
+.ash-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35em;
+    width: 100%;
+    margin-top: 0.85em;
+    padding: 0.72em;
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.8em;
+    color: #c6d4e6;
+    font-size: 0.8em;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+}
+.ash-more i { font-size: 0.85em; opacity: 0.75; transition: transform 0.18s ease; }
+.ash-more[aria-expanded="true"] i { transform: rotate(90deg); }
+.ash-more.is-collapse i { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) {
+    .ash-more i { transition: none; }
+}
+
 /* 푸터 각주 — 목업 .foot. 항목 앞에 작은 점이 붙는 목록으로, "2014·2015년 제외"
    같은 집계 단서를 담는다(설계서 작업 9·10). */
 .accident-stats-foot {
