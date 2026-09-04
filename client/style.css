@@ -8984,6 +8984,44 @@ html[data-font-size="large"] .ocean-overlay-btn {
     color: var(--ash-txt);
 }
 .ash-chip-body { min-width: 0; flex: 1; }
+/* 칩에 새로 붙는 두 값[S15] — 라벨 줄의 연도 범위와 값 줄의 비율. 분석서 §4.4 의
+   2줄 구성을 3줄로 늘리지 않으려고, 연도 범위는 라벨 옆에 비율은 건수 옆에 붙였다.
+   비율은 막대 행의 .val em 과 같은 어법(muted 600)이라 화면 전체가 한 어법으로 읽힌다. */
+.ash-chip-t1 em, .ash-chip-t2 em {
+    font-style: normal;
+    font-weight: 600;
+    color: var(--ash-muted);
+    margin-left: 0.25em;
+}
+.ash-chip[aria-pressed="true"] .ash-chip-t1 em,
+.ash-chip[aria-pressed="true"] .ash-chip-t2 em { color: rgba(255, 255, 255, 0.75); }
+
+/* "상위 발생 유형" 카드의 선박↔인명 토글[S15] — 칩이 "전체"일 때만 나온다.
+   탭 바(분석서 §4.5)의 어법을 그대로 줄인 것: 눌린 쪽이 파란 알약이다.
+   [연계] accident_info.js buildTypeSrcToggleHtml */
+.ash-srctoggle {
+    display: flex;
+    gap: 0.15em;
+    padding: 0.16em;
+    border: 1px solid var(--ash-card-br);
+    border-radius: 0.7em;
+    background: rgba(255, 255, 255, 0.015);
+}
+.ash-srctoggle button {
+    border: 0;
+    background: transparent;
+    padding: 0.3em 0.55em;
+    border-radius: 0.55em;
+    font-size: 0.72em;
+    font-weight: 600;
+    color: #8ea1b9;
+    cursor: pointer;
+}
+.ash-srctoggle button.on {
+    background: var(--ash-blue);
+    color: #fff;
+    box-shadow: 0 0.2em 0.6em rgba(43, 124, 240, 0.35);
+}
 
 .ash-chip.hk { border-color: rgba(43, 124, 240, 0.28); }
 .ash-chip.hk .ash-chip-ic { background: rgba(43, 124, 240, 0.16); color: var(--ash-blue-soft); }
