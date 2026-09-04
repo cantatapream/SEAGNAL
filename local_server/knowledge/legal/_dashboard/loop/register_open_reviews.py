@@ -164,9 +164,38 @@ def scan():
     return rich, bare, nomark
 
 
+_WIKI_IDS = None
+
+
+def _wiki_used():
+    """위키 전체에서 이미 쓰인 REVIEW 번호를 법별로 모은다(한 번만 훑는다).
+
+    ★2026-09-04 신설 — 종전 next_no 는 `review_queue.md` 만 보고 번호를 붙였다.
+      그런데 **위키 페이지 자신도 `### REVIEW-<법>-<번호>:` 소제목을 갖는다.**
+      그래서 큐에 없고 위키에만 있는 번호를 다시 발급해 **같은 번호가 서로 다른 논점 둘에
+      붙는 사고**가 났다(39회차 항만운송사업법 사서가 발견 — 804 가 큐에서는 "자가운송",
+      위키에서는 "일반 이메일 제출"이었다. 805 도 같았다).
+      이제 큐와 위키를 **둘 다** 보고 그 다음 번호를 준다.
+    """
+    global _WIKI_IDS
+    if _WIKI_IDS is None:
+        _WIKI_IDS = {}
+        pat = re.compile(r'REVIEW-([^\s:|,)\]]+?)-(\d+)')
+        for d in ('concepts', 'statutes', 'comparisons', 'annexes'):
+            for p in glob.glob(os.path.join(WIKI, d, '*.md')):
+                try:
+                    t = open(p, encoding='utf-8').read()
+                except Exception:
+                    continue
+                for law, no in pat.findall(t):
+                    _WIKI_IDS.setdefault(law, set()).add(int(no))
+    return _WIKI_IDS
+
+
 def next_no(q, law):
-    """그 법의 다음 항목 번호. 기존 번호와 안 겹치게."""
+    """그 법의 다음 항목 번호. **대기열과 위키 양쪽**의 기존 번호와 안 겹치게."""
     used = [int(x) for x in re.findall(r'^###\s+REVIEW-' + re.escape(law) + r'-(\d+):', q, re.M)]
+    used += sorted(_wiki_used().get(law, ()))
     return max(used) + 1 if used else 901      # 901부터 = 이번에 기계로 올린 것
 
 
