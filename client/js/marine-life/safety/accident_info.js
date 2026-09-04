@@ -606,7 +606,6 @@
     var bubbleOverlay = null; // 현황 모드 마커 팝업
 
     var state = { source: null, mode: 'status' };
-    var _activeDetailTab = {};        // source key -> 현재 선택된 "사고발생상세" 탭
     var _statsKey = null;             // 통계 시트에 지금 표시 중인 source key
     var _statsMembers = null;         // 통계 시트에 지금 표시 중인 격자 셀의 feature 목록
     var _statsRegionLabel = null;     // 지금 열린 셀의 권역 뱃지 라벨(비동기로 채워짐, 2026-09-01)
@@ -2381,9 +2380,21 @@
     }
 
     /** "사고발생상세" 탭 구성 — 소스마다 실제 CSV 에 있는 컬럼만큼만 보여준다. */
-    function detailTabsFor(key) {
-        if (key === 'hk') return ['발생유형', '발생원인', '선박종류'];
-        return ['사고유형'];
+    /** 상세 카드로 보여 줄 "축" 목록 — 소스마다 원본 CSV 에 실제로 있는 칸만큼만[S8].
+     * 목업은 유형·원인·선박종류가 각각 별도 카드라, 예전의 하위 탭 대신 카드를 나눈다.
+     * @param {string} key 소스 키
+     * @returns {Array} [{id, title, getter, table}] */
+    function detailAxesFor(key) {
+        if (key === 'hk') {
+            return [
+                { id: '발생유형', title: '상위 발생 유형', getter: function (r) { return r[5]; }, table: ACCIDENT_TYPE_LABELS, donut: true },
+                { id: '발생원인', title: '주요 발생 원인', getter: function (r) { return r[6]; }, table: ACCIDENT_CAUSE_LABELS },
+                { id: '선박종류', title: '선박 종류별', getter: function (r) { return r[7]; }, table: ACCIDENT_SHIP_KIND_LABELS }
+            ];
+        }
+        return [
+            { id: '사고유형', title: '상위 사고 유형', getter: function (r) { return r[4]; }, table: ACCIDENT_TYPE_LABELS, donut: true }
+        ];
     }
 
     /** members 를 getter(row)→labelTable 라벨로 묶어 [라벨,건수] 목록(건수 내림차순)으로.
@@ -2403,9 +2414,42 @@
         return known.concat(unknown);
     }
 
-    /** 상위 6개만 보여주되, "정보없음"은 countByLabel 이 항상 맨 뒤에 둔 것이므로
-     * 상위 6건에서 밀려도 잘리지 않게 별도로 붙인다(사용자 확정: 비중이 커도 맨
-     * 아래에 위치할 뿐 아예 안 보이면 안 됨). */
+    /** 순위에서 빼는 라벨 — "기타"·"정보없음"·"원인미상"·"관할 미상"[S8].
+     * 왜 빼나: 이것들은 실제 항목이 아니라 "분류가 안 됐다"는 표시다. 순위에 섞으면
+     * 대개 1~2위를 차지해 정작 알고 싶은 항목을 밀어낸다(실측: 선박 발생원인은
+     * 정보없음 36.5% + 기타 4.3% + 원인미상 0.8% 로 41.5%, 선박종류는 48.0%).
+     * [연계] topEntriesExcluding */
+    var ASH_EXCLUDED_LABEL = /^(기타|정보없음|원인미상|관할 미상)/;
+
+    /**
+     * 한 축의 상위 항목을 "분류 안 된 것"을 뺀 채로 뽑는다[S8].
+     *
+     * 예시: 5,583건 중 정보없음·기타가 2,319건이면
+     *   { entries:[['정비불량',900],...], kept:3264, dropped:2319 }
+     * 이고 화면에는 "정보없음·기타·원인미상 제외 (전체 5,583건 중 3,264건 기준)" 이라고
+     * 분모를 밝힌다 — 안 밝히면 남은 것만으로 100% 를 다시 나눠 실제보다 커 보인다
+     * (정비불량은 전체의 26.6% 인데 제외 후엔 45.5% 로 보인다).
+     *
+     * @param {ol.Feature[]} members 이 칸의 사고들
+     * @param {Function} getter row -> 코드
+     * @param {Object} table 코드 -> 라벨
+     * @param {boolean} all true 면 상위로 자르지 않고 전부
+     * @returns {{entries:Array, kept:number, dropped:number, allCount:number}}
+     * [연계] buildDetailCardHtml */
+    function topEntriesExcluding(members, getter, table, all) {
+        var entries = countByLabel(members, getter, table);
+        var kept = 0, dropped = 0, keepList = [];
+        entries.forEach(function (e) {
+            if (ASH_EXCLUDED_LABEL.test(e[0])) { dropped += e[1]; return; }
+            kept += e[1];
+            keepList.push(e);
+        });
+        return {
+            entries: all ? keepList : keepList.slice(0, 5),
+            kept: kept, dropped: dropped, allCount: keepList.length
+        };
+    }
+
     /** 막대 행에 돌려 쓰는 색 — 목업이 행마다 다른 색 점을 쓰는 것을 그대로 옮긴 것.
      * "기타"·"정보없음"처럼 실제 항목이 아닌 것은 순서와 무관하게 회색으로 고정한다
      * (목업도 기타를 회색으로 뒀다). [연계] buildBarRowsHtml */
@@ -2557,17 +2601,6 @@
         return countByLabel(members, function (r) { return r[ORG_POS_IDX[key]]; }, ACCIDENT_ORG_LABELS);
     }
 
-    function detailDataFor(key, tab, members, all) {
-        // all 이 true 면 상위 몇 개로 자르지 않고 전부 — 아코디언 "전체 보기"[S4].
-        var agg = all ? countByLabel : aggregateCounts;
-        if (key === 'hk') {
-            if (tab === '발생유형') return agg(members, function (r) { return r[5]; }, ACCIDENT_TYPE_LABELS);
-            if (tab === '발생원인') return agg(members, function (r) { return r[6]; }, ACCIDENT_CAUSE_LABELS);
-            return agg(members, function (r) { return r[7]; }, ACCIDENT_SHIP_KIND_LABELS);
-        }
-        return agg(members, function (r) { return r[4]; }, ACCIDENT_TYPE_LABELS);
-    }
-
     /**
      * "분석 뷰" 탭(연도별 추이·시간대별·요일별·관할서별·특보발효) HTML —
      * 실제 Chart.js 인스턴스는 body.innerHTML 반영 후 renderActiveChart()가 그린다
@@ -2630,56 +2663,76 @@
      * 접으면 화면이 엉뚱한 곳에 가 있게 되는 걸 막는다(설계서 작업 8 중점). */
     var _detailScrollBefore = null;
 
-    function detailExpandKey(key, tab) { return key + '|' + tab; }
+    function detailExpandKey(key, axisId) { return key + '|' + axisId; }
 
-    function buildDetailBlockHtml(key, members) {
-        var tabs = detailTabsFor(key);
-        if (!_activeDetailTab[key] || tabs.indexOf(_activeDetailTab[key]) === -1) _activeDetailTab[key] = tabs[0];
-        var activeTab = _activeDetailTab[key];
-        var expanded = !!_detailExpanded[detailExpandKey(key, activeTab)];
-        var items = detailDataFor(key, activeTab, members, expanded);
-        var allCount = detailDataFor(key, activeTab, members, true).length;
+    /**
+     * 축 하나를 카드 하나로 그린다[S8] — 목업의 "3. 상위 발생 유형" / "4. 주요 발생 원인" /
+     * "5. 선박 종류별". 첫 카드에는 도넛이 함께 붙는다.
+     *
+     * @param {string} key 소스 키
+     * @param {Object} axis detailAxesFor 항목
+     * @param {number} no 카드 번호(3부터)
+     * @param {ol.Feature[]} members 이 칸의 사고들
+     * @returns {string} 카드 HTML
+     * [연계] 스타일 style.css .ash-card / 막대 buildBarRowsHtml / 도넛 buildDonutHtml */
+    function buildDetailCardHtml(key, axis, no, members) {
+        var ek = detailExpandKey(key, axis.id);
+        var expanded = !!_detailExpanded[ek];
+        var got = topEntriesExcluding(members, axis.getter, axis.table, expanded);
+        var items = got.entries;
 
-        var tabsHtml = tabs.map(function (t) {
-            return '<button class="accident-detail-tab' + (t === activeTab ? ' active' : '') + '" data-tab="' + t + '">' + t + '</button>';
-        }).join('');
-        // 전체가 이미 다 보이면(항목이 애초에 5개 이하) 더보기 버튼을 달지 않는다.
         var moreHtml = '';
-        if (allCount > items.length || expanded) {
+        if (got.allCount > 5) {
             moreHtml = '<button type="button" class="ash-more' + (expanded ? ' is-collapse' : '') +
-                '" data-more="detail" aria-expanded="' + (expanded ? 'true' : 'false') + '">' +
-                (expanded ? '접기' : '전체 ' + allCount + '종 보기') +
+                '" data-axis="' + escapeHtml(axis.id) + '" aria-expanded="' + (expanded ? 'true' : 'false') + '">' +
+                (expanded ? '접기' : '전체 ' + got.allCount + '종 보기') +
                 '<i class="fa-solid fa-chevron-right"></i></button>';
         }
-        // 도넛은 접힌 상태(Top 5)에서만 그린다 — 펼치면 조각이 25개까지 늘어 색이 뭉개지고
-        // 아무것도 못 읽는다. 목업도 도넛과 나란한 목록은 상위 몇 개뿐이다.
-        var donutHtml = '';
-        if (!expanded && items.length) {
-            donutHtml = buildDonutHtml(items.map(function (d, i) {
-                return [d[0], d[1], ashRowColor(d[0], i)];
-            }), { centerNum: fmtN(members.length), centerCap: '전체 사고' });
-        }
-        var bodyHtml = donutHtml
-            ? '<div class="ash-donut-body">' + donutHtml + buildBarRowsHtml(items, members.length) + '</div>'
-            : buildBarRowsHtml(items, members.length);
 
-        return '<section class="ash-card" id="accident-detail-block">' +
-            '<div class="ash-card-head"><h2 class="ash-card-title">3. 사고 발생 상세' +
+        // 도넛은 접힌 상태에서만 — 펼치면 조각이 수십 개로 늘어 색이 뭉개진다.
+        var bodyHtml;
+        if (axis.donut && !expanded && items.length) {
+            bodyHtml = '<div class="ash-donut-body">' +
+                buildDonutHtml(items.map(function (d, i) { return [d[0], d[1], ashRowColor(d[0], i)]; }),
+                    { centerNum: fmtN(got.kept), centerCap: '분류된 사고' }) +
+                buildBarRowsHtml(items, got.kept) + '</div>';
+        } else {
+            bodyHtml = buildBarRowsHtml(items, got.kept);
+        }
+
+        // ★분모를 반드시 밝힌다 — 안 밝히면 남은 것만으로 100%를 다시 나눠 실제보다 크게
+        // 보인다(설계서 작업 8 D-3). 뺀 게 없으면 문구도 없다.
+        var noteHtml = got.dropped
+            ? '<div class="ash-note">정보없음·기타·원인미상 제외 (전체 ' + fmtN(members.length) +
+              '건 중 ' + fmtN(got.kept) + '건 기준)</div>'
+            : '';
+
+        return '<section class="ash-card ash-detail-card" data-axis="' + escapeHtml(axis.id) + '">' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">' + no + '. ' + escapeHtml(axis.title) +
             (expanded ? '' : ' <em>(Top 5)</em>') + '</h2></div>' +
-            '<div class="accident-detail-tabs">' + tabsHtml + '</div>' +
-            bodyHtml +
-            moreHtml +
+            bodyHtml + noteHtml + moreHtml +
             '</section>';
     }
 
-    /** 사고발생상세 카드만 다시 그린다 — 위 "분석 뷰" 차트(canvas/svg)는 손대지 않는다
-     * (2026-09-01: 특보발효 도넛이 탭 전환마다 재생되던 문제 수정). 하위 탭 전환과
-     * 아코디언 펼침/접힘이 둘 다 이 함수를 쓴다.
-     * [연계] ← statsBody 클릭 delegation */
-    function redrawDetailBlock() {
-        var block = document.getElementById('accident-detail-block');
-        if (!block) return;
-        block.outerHTML = buildDetailBlockHtml(_statsKey, _statsMembers);
+    /** 상세 카드 전부(선박이면 3개, 인명이면 1개)를 이어 붙인다[S8]. */
+    function buildDetailCardsHtml(key, members) {
+        return detailAxesFor(key).map(function (axis, i) {
+            return buildDetailCardHtml(key, axis, i + 3, members);
+        }).join('');
+    }
+
+    /** 상세 카드 하나만 다시 그린다[S8] — 위 차트(canvas/svg)는 손대지 않는다
+     * (2026-09-01: 특보발효 도넛이 탭 전환마다 재생되던 문제 수정).
+     * @param {string} axisId 다시 그릴 축 id
+     * [연계] ← statsBody 클릭 delegation(아코디언) */
+    function redrawDetailCard(axisId) {
+        var el = document.querySelector('.ash-detail-card[data-axis="' + axisId + '"]');
+        if (!el) return;
+        var axes = detailAxesFor(_statsKey);
+        var idx = -1;
+        axes.forEach(function (a, i) { if (a.id === axisId) idx = i; });
+        if (idx < 0) return;
+        el.outerHTML = buildDetailCardHtml(_statsKey, axes[idx], idx + 3, _statsMembers);
         // outerHTML 로 갈아 끼우면 예전 노드가 사라져 감시가 끊긴다 — 다시 건다[S5].
         var body = document.getElementById('accident-stats-body');
         if (body) armCardReveal(body);
@@ -2719,7 +2772,7 @@
             buildSourceChipsHtml(key, members) +
             buildTrendSummaryHtml(key, members) +
             buildChartViewHtml(key) +
-            buildDetailBlockHtml(key, members) +
+            buildDetailCardsHtml(key, members) +
             buildStatsFootHtml();
     }
 
@@ -3476,7 +3529,6 @@
         // 예전엔 뷰 탭 선택이 소스별로 남아 있어서, 특보발효를 보다가 닫고 다른
         // 칸을 누르면 특보발효가 열린 채로 시작했다. 아래 스크롤 초기화와 같은 취지.
         _statsView[key] = 'trend';
-        _activeDetailTab[key] = null;
         _detailExpanded = {};      // 펼쳐 둔 "전체 보기"도 접힌 상태로[S4]
         _detailScrollBefore = null;
         _combinedCounts = null;    // 다른 소스 건수는 이 칸에 대해 다시 센다[S6]
@@ -4634,16 +4686,15 @@
                     renderStatsBody();
                     return;
                 }
-                // "전체 보기" / "접기" — 아코디언[S4]. 펼치기 직전 스크롤 위치를 기억했다가
-                // 접을 때 되돌린다(33종을 펼쳤다 접으면 화면이 엉뚱한 데 가 있다).
+                // "전체 보기" / "접기" — 축별 아코디언[S4·S8]. 펼치기 직전 스크롤 위치를
+                // 기억했다가 접을 때 되돌린다(수십 종을 펼쳤다 접으면 화면이 엉뚱한 데 간다).
                 var moreBtn = e.target.closest('.ash-more');
                 if (moreBtn) {
-                    var ek = detailExpandKey(_statsKey, _activeDetailTab[_statsKey]);
+                    var axisId = moreBtn.dataset.axis;
+                    var ek = detailExpandKey(_statsKey, axisId);
                     if (_detailExpanded[ek]) {
                         _detailExpanded[ek] = false;
-                        redrawDetailBlock();
-                        // 레이아웃이 새로 잡힌 뒤에 되돌린다 — 바로 넣으면 아직 옛 높이
-                        // 기준이라 브라우저가 다시 보정해 버린다.
+                        redrawDetailCard(axisId);
                         if (_detailScrollBefore != null) {
                             var back = _detailScrollBefore;
                             _detailScrollBefore = null;
@@ -4652,15 +4703,10 @@
                     } else {
                         _detailScrollBefore = statsBody.scrollTop;
                         _detailExpanded[ek] = true;
-                        redrawDetailBlock();
+                        redrawDetailCard(axisId);
                     }
                     return;
                 }
-                var detailBtn = e.target.closest('.accident-detail-tab');
-                if (!detailBtn) return;
-                _activeDetailTab[_statsKey] = detailBtn.dataset.tab;
-                _detailScrollBefore = null;
-                redrawDetailBlock();
             });
         }
 
