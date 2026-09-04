@@ -9108,6 +9108,9 @@ html[data-font-size="large"] .ocean-overlay-btn {
 }
 .ash-bar {
     flex: 1; min-width: 1.5em;
+    /* 조각이 둘(치명도 카드의 회색+종류색)일 때 나란히 놓이게 flex 로 둔다.
+       조각이 하나뿐인 다른 카드에서는 width:% 가 그대로 먹어 영향이 없다. */
+    display: flex;
     height: 0.5em;
     border-radius: 1em;
     background: var(--ash-track);
@@ -9375,6 +9378,39 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .ash-warn-zone { font-size: 0.7em; color: var(--ash-dim); }
 /* 타일 안 발효 일수 줄 */
 .ash-warn-tile .d { font-size: 0.72em; color: var(--ash-muted); }
+
+/* 치명도 카드[S12] — 막대 행(.ash-row)을 그대로 쓰되 바 안에 조각이 둘이다.
+   회색이 사망·실종 몫이고 왼쪽에 먼저 온다(디자인 분석서 §4.8·§7).
+   안전 앱이라 "얼마나 죽었나"가 먼저 눈에 닿아야 해서 왼쪽에 둔다.
+   [연계] accident_info.js buildFatalityRowsHtml */
+.ash-bar > i.fatal { background: var(--ash-gray); }
+/* 표본이 얇아 순위에서 뺀 행 — 지우지 않고 흐리게 남긴다(§7). */
+.ash-row.thin { opacity: 0.55; }
+.ash-row .nm em {
+    font-style: normal;
+    color: var(--ash-muted);
+    font-weight: 600;
+    margin-left: 0.25em;
+}
+/* "전국 기준" 배지 — 자료범위 배지와 같은 모양, 색만 파랑 계열(§7).
+   부모가 카드 제목(1.02em)이라 시트 기준 .68em 이 되도록 보정한다. */
+.ash-badge-scope {
+    display: inline-block;
+    font-size: 0.667em; font-weight: 700;
+    color: var(--ash-blue-soft);
+    background: rgba(43, 124, 240, 0.14);
+    border: 1px solid rgba(43, 124, 240, 0.3);
+    border-radius: 0.5em;
+    padding: 0.12em 0.45em;
+    margin-left: 0.3em;
+    white-space: nowrap;
+}
+/* 카드 첫 줄 — 이 구역의 실제값(전국 순위와 잣대가 다름을 밝히는 자리) */
+.ash-scope-line {
+    font-size: 0.78em;
+    color: #c2d0e2;
+    margin: -0.35em 0 0.85em;
+}
 
 /* 푸터 각주 — 목업 .foot. 항목 앞에 작은 점이 붙는 목록으로, "2014·2015년 제외"
    같은 집계 단서를 담는다(설계서 작업 9·10). */

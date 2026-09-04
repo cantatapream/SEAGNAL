@@ -2728,6 +2728,12 @@
     function redrawDetailCard(axisId) {
         var el = document.querySelector('.ash-detail-card[data-axis="' + axisId + '"]');
         if (!el) return;
+        if (axisId === '치명도') {
+            el.outerHTML = buildFatalityCardHtml(_statsKey, detailAxesFor(_statsKey).length + 4, _statsMembers);
+            var b2 = document.getElementById('accident-stats-body');
+            if (b2) armCardReveal(b2);
+            return;
+        }
         var axes = detailAxesFor(_statsKey);
         var idx = -1;
         axes.forEach(function (a, i) { if (a.id === axisId) idx = i; });
@@ -2774,6 +2780,7 @@
             buildChartViewHtml(key) +
             buildWarnCardHtml(key, members) +
             buildDetailCardsHtml(key, members) +
+            (key === 'hk' ? buildFatalityCardHtml(key, detailAxesFor(key).length + 4, members) : '') +
             buildStatsFootHtml();
     }
 
@@ -3037,6 +3044,134 @@
         lines.push('───');
         lines.push('합계  ' + fmtN(u.total) + '일');
         return lines.join('\n');
+    }
+
+    // ── 치명도[S12] ───────────────────────────────────────────────────────
+    // "어떤 사고가 사람이 죽는 사고인가". 건수 순위와 치명률 순위가 완전히 다르다는 것이
+    // 이 카드의 요지다 — 선박은 기관손상이 최다(14,532건)인데 치명률은 0.1% 이고,
+    // 인명사상은 2,020건뿐인데 21.1% 다.
+    //
+    // ★이 카드만 전국 기준이다(사용자 확정 2026-09-04). 격자 칸 하나로는 순위를 낼 수
+    // 없기 때문이다 — 실측으로 10km 칸의 사망·실종 건수 중앙값이 1건, 5km 칸은 0건이고
+    // 10km 칸의 38%·5km 칸의 53%는 아예 0건이다. 반면 권역별로 갈라 봐도 치명률 순위는
+    // 뒤집히지 않는다(인명사상 어디서나 1위, 기관손상 어디서나 꼴찌). 즉 치명률은 지역의
+    // 성질이 아니라 사고 유형의 성질이다.
+    var FATAL_MIN_SAMPLE = 100;         // 이보다 적은 유형은 순위에서 뺀다
+    var FATAL_EXCLUDED_YEARS = { '2014': 1, '2015': 1 };
+    // 성격상 치명률이 당연히 높아 순위를 왜곡하는 인명 유형 — 순위에서 빼고 펼침에서 회색.
+    var FATAL_GRAY_TYPES = { '변사자': 1, '자살자': 1 };
+    // 사람 사고가 아니라 아예 뺀다(1,004건에 관련 인원이 전체 통틀어 1명).
+    var FATAL_DROP_TYPES = { '해양오염': 1 };
+
+    /**
+     * 전국 기준 치명도 순위를 낸다[S12].
+     *
+     * 선박은 "건" 기준(사망·실종이 한 명이라도 난 사고가 몇 건인가), 인명은 "명" 기준
+     * (관련 인원 중 몇 명이 사망·실종인가)이다. 선박에 "명"을 쓰면 안 되는 이유:
+     * 선박 데이터에는 관련 인원 칸이 없고 구조 인원 기록이 부실해서, 추진축계손상은
+     * 895건인데 기록 인원이 13명뿐이고 그 13명이 전부 사망·실종이라 치명률 100%로
+     * 1위가 된다. 건수 기준으로 바꾸면 0.6% 로 제자리를 찾는다.
+     *
+     * @param {string} key 소스 키
+     * @returns {{rows:Array, zeroCount:number}} rows=[{label,scale,fatal,rate,thin,gray}]
+     *   scale 은 막대 길이의 기준(선박=건수, 인명=인원), fatal 은 그 중 사망·실종.
+     * [연계] buildFatalityCardHtml / 설계서 작업 9 */
+    function fatalityRanking(key) {
+        var feats = rawFeatures[key] || [];
+        var typeIdx = key === 'hk' ? 5 : 4;
+        var m = {};
+        feats.forEach(function (f) {
+            var row = f.get('row');
+            if (FATAL_EXCLUDED_YEARS[String(row[2]).slice(0, 4)]) return;
+            var label = accidentLabel(ACCIDENT_TYPE_LABELS, row[typeIdx]);
+            if (ASH_EXCLUDED_LABEL.test(label) || FATAL_DROP_TYPES[label]) return;
+            var e = m[label] || (m[label] = { label: label, scale: 0, fatal: 0 });
+            if (key === 'hk') {
+                e.scale += 1;
+                if ((+row[10] || 0) + (+row[11] || 0) > 0) e.fatal += 1;
+            } else {
+                e.scale += (+row[6] || 0);
+                e.fatal += (+row[8] || 0) + (+row[9] || 0);
+            }
+        });
+        var all = Object.keys(m).map(function (k) {
+            var e = m[k];
+            e.rate = e.scale ? e.fatal / e.scale * 100 : 0;
+            e.thin = e.scale < FATAL_MIN_SAMPLE;      // 표본이 얇아 비율이 튄다
+            e.gray = !!FATAL_GRAY_TYPES[e.label];     // 성격상 순위를 왜곡한다
+            return e;
+        });
+        // 사망·실종이 한 건도 없는 유형은 목록에서 빼고 개수만 알린다.
+        var zero = all.filter(function (e) { return e.fatal === 0; });
+        var live = all.filter(function (e) { return e.fatal > 0; });
+        live.sort(function (a, b) { return b.rate - a.rate; });
+        return { rows: live, zeroCount: zero.length };
+    }
+
+    /** 치명도 막대 행 — .row 구조를 그대로 쓰되 바 안에 조각이 둘이다[S12].
+     * 회색이 사망·실종 몫이고 왼쪽에 온다(안전 앱이라 위험을 먼저 보여준다). */
+    function buildFatalityRowsHtml(rows, unit) {
+        var max = 1;
+        rows.forEach(function (e) { if (e.scale > max) max = e.scale; });
+        return '<div class="ash-rows">' + rows.map(function (e, i) {
+            var color = e.gray || e.thin ? ASH_ROW_GRAY : ASH_ROW_COLORS[i % ASH_ROW_COLORS.length];
+            var fill = e.scale / max * 100;                 // 바 전체 길이(가장 큰 유형이 꽉 참)
+            var fatalW = fill * (e.fatal / (e.scale || 1)); // 그 안에서 사망·실종 몫
+            return '<div class="ash-row' + (e.thin || e.gray ? ' thin' : '') + '">' +
+                '<span class="ash-dot" style="background-color:' + color + '"></span>' +
+                '<span class="nm" title="' + escapeHtml(e.label) + '">' + escapeHtml(e.label) +
+                (e.thin ? '<em>(표본 적음)</em>' : '') + '</span>' +
+                '<span class="ash-bar">' +
+                '<i class="fatal" style="width:' + fatalW.toFixed(1) + '%"></i>' +
+                '<i style="width:' + (fill - fatalW).toFixed(1) + '%;background:' + color + '"></i>' +
+                '</span>' +
+                '<span class="val">' + e.rate.toFixed(1) + '%</span>' +
+                '</div>';
+        }).join('') + '</div>';
+    }
+
+    /**
+     * 치명도 카드[S12] — "사망·실종 발생률이 높은 사고".
+     * @param {string} key 소스 키
+     * @param {number} no 카드 번호
+     * @param {ol.Feature[]} members 이 칸의 사고들(첫 줄의 "이 구역" 값에만 쓴다)
+     * @returns {string} 카드 HTML
+     */
+    function buildFatalityCardHtml(key, no, members) {
+        var ek = detailExpandKey(key, '치명도');
+        var expanded = !!_detailExpanded[ek];
+        var r = fatalityRanking(key);
+        // Top 5 후보는 표본이 넉넉하고 순위를 왜곡하지 않는 것만.
+        var ranked = r.rows.filter(function (e) { return !e.thin && !e.gray; });
+        var rows = expanded ? r.rows : ranked.slice(0, 5);
+
+        // 이 칸의 실제값 — 전국 순위와 잣대가 다르다는 것을 첫 줄에 밝힌다.
+        var cellFatal = 0;
+        members.forEach(function (f) {
+            var row = f.get('row');
+            var d = key === 'hk' ? (+row[10] || 0) + (+row[11] || 0) : (+row[8] || 0) + (+row[9] || 0);
+            if (d > 0) cellFatal++;
+        });
+
+        var moreHtml = r.rows.length > rows.length || expanded
+            ? '<button type="button" class="ash-more' + (expanded ? ' is-collapse' : '') +
+              '" data-axis="치명도" aria-expanded="' + (expanded ? 'true' : 'false') + '">' +
+              (expanded ? '접기' : '전체 ' + r.rows.length + '종 보기') +
+              '<i class="fa-solid fa-chevron-right"></i></button>'
+            : '';
+
+        return '<section class="ash-card ash-detail-card" data-axis="치명도">' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">' + no + '. 사망·실종 발생률이 높은 사고' +
+            (expanded ? '' : ' <em>(Top 5)</em>') +
+            '<span class="ash-badge-scope">전국 기준</span></h2></div>' +
+            '<div class="ash-scope-line">이 구역에서는 사망·실종 사고가 ' + fmtN(cellFatal) + '건 있었습니다.</div>' +
+            buildFatalityRowsHtml(rows, key === 'hk' ? '건' : '명') +
+            '<div class="ash-note">' +
+            '2014·2015년은 인명피해가 기록돼 있지 않아 제외했습니다. ' +
+            '건수 ' + FATAL_MIN_SAMPLE + '건 미만인 유형은 비율이 튀어 순위에서 뺐습니다' +
+            (r.zeroCount ? ' · 이 밖에 ' + r.zeroCount + '종은 사망·실종 사고가 없습니다' : '') + '.' +
+            '</div>' + moreHtml +
+            '</section>';
     }
 
     /** 특보 종류·심각도 6종의 표시 정보 — 이름·색·아이콘[S10].
