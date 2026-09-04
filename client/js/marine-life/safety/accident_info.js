@@ -3027,6 +3027,8 @@
     // 예: 제주도북부앞바다 100일 + 제주도동부앞바다 100일에 겹치는 날이 30일이면 170일.
     var _warnIntervalsPromise = null;
     var _warnZonePolys = null;   // {sea:[{name,rings}], land:[{name,rings}]}
+    /** 구역 이름 → 상위(광역) 구역 이름들[S20]. 세부구역이 통보문에 없을 때 대신 본다. */
+    var _warnZoneParent = {};
     var _warnDays = null;        // 지금 선택한 칸의 계산 결과(비동기로 채워짐)
 
     function normWarnZoneName(name) { return String(name).replace(/[\s·.]/g, ''); }
@@ -3047,11 +3049,14 @@
      * 이겨 버린다(그게 이 결함의 원인이었다).
      *
      * @param {string} name 폴리곤 쪽 구역 이름
+     * @param {string[]} [parents] 그 구역의 상위(광역) 구역 이름들[S20] — 세부구역 이름이
+     *   통보문에 아예 없고 상위로만 발표되는 경우에 쓴다(백령도·대청도 → 서해5도).
+     *   **맨 뒤** 후보로 둔다: 자기 이름이 있으면 그것이 먼저다.
      * @returns {string[]} 찾아볼 이름 후보(중복 없음)
      * [연계] warnUnionDays / 만드는 쪽 local_server/scripts/build_coastal_land_zones.js
      */
     var WARN_ZONE_DIR_SUFFIX = /(중부|서부|동부|남부|북부|영종|도서)$/;
-    function warnZoneNameCandidates(name) {
+    function warnZoneNameCandidates(name, parents) {
         var out = [];
         function push(v) { if (v && out.indexOf(v) < 0) out.push(v); }
         var n = normWarnZoneName(name);
@@ -3068,6 +3073,19 @@
             push(base.replace(/(시|군|구)$/, ''));
             push(b + '평지');                                     // 속초시→속초시평지(연안)
             push(b.replace(/(시|군|구)$/, '') + '평지');
+            // 반대 방향도 본다 — 폴리곤이 `속초산지`인데 통보문은 `속초시산지` 인 경우.
+            var tail = b.match(/(평지|산지)$/);
+            if (tail) {
+                var head = b.slice(0, -tail[0].length);
+                ['시', '군', '구'].forEach(function (u) { push(head + u + tail[0]); });
+            }
+        });
+        // 세부구역 이름이 통보문에 아예 없고 상위로만 발표되는 경우(백령도·대청도 →
+        // 서해5도)를 맨 뒤 후보로 둔다 — 자기 이름이 있으면 그것이 먼저다.
+        (parents || []).forEach(function (pp) {
+            var pn = normWarnZoneName(pp);
+            push(pn);
+            push(pn.replace(/(특별자치도|광역시|시|도)$/, ''));
         });
         return out;
     }
@@ -3102,8 +3120,12 @@
             function prep(geo, nameOf) {
                 var out = [];
                 geo.features.forEach(function (f) {
+                    var nm = normWarnZoneName(nameOf(f));
+                    // 상위(광역) 구역 이름을 기억해 둔다 — 세부구역 이름이 통보문에 없고
+                    // 상위로만 발표되는 경우에 대신 찾아본다(백령도·대청도 → 서해5도).
+                    if (f.properties && f.properties.parents) _warnZoneParent[nm] = f.properties.parents;
                     outerRingsOf(f.geometry).forEach(function (ring) {
-                        out.push({ name: normWarnZoneName(nameOf(f)), ring: ring, bbox: ringBbox(ring) });
+                        out.push({ name: nm, ring: ring, bbox: ringBbox(ring) });
                     });
                 });
                 return out;
@@ -3187,7 +3209,7 @@
         var all = [], perZone = {}, sum = 0, withData = [];
         zoneNames.forEach(function (z) {
             // 같은 장소의 여러 표기를 모두 찾아 합친다[S19] — warnZoneNameCandidates 주석 참고.
-            var found = warnZoneNameCandidates(z).filter(function (c) { return data.zones[c]; });
+            var found = warnZoneNameCandidates(z, _warnZoneParent[z]).filter(function (c) { return data.zones[c]; });
             if (!found.length) return;
             var mine = [];
             found.forEach(function (c) {

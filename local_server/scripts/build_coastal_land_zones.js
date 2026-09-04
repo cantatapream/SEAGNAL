@@ -50,6 +50,31 @@ const NEW_JEJU_NAMES = ['제주시서부', '제주시동부', '제주시북부',
 
 function normZone(name) { return String(name).replace(/[\s·.]/g, ''); }
 
+function bboxOverlap(a, b) {
+    return !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
+}
+
+/** 세부구역의 무게중심이 어느 상위(level 1) 구역 안에 드는지 — 그 이름을 돌려준다.
+ * 백령도·대청도, 연평도·우도처럼 통보문이 세부구역 이름을 안 쓰고 상위("서해5도")로만
+ * 발표하는 경우에 대신 볼 이름이 된다(사용자 지적 2026-09-04). 못 찾으면 null. */
+function parentsOf(feature, l1List) {
+    // 무게중심이 상위 폴리곤 밖에 떨어지는 섬 구역이 있어(백령도·대청도) 교차로 본다.
+    // 상위가 여럿 걸릴 수 있어 **전부** 담는다 — 어느 이름이 통보문에 있는지는
+    // 화면 쪽이 정한다(여기서는 통보문 자료를 안 읽는다).
+    const out = [];
+    let fb;
+    try { fb = turf.bbox(feature); } catch (e) { return out; }
+    l1List.forEach((p) => {
+        try {
+            if (!bboxOverlap(fb, turf.bbox(p))) return;
+            if (!turf.booleanIntersects(feature, p)) return;
+            const nm = p.properties.regko || p.properties.regKo;
+            if (nm && out.indexOf(nm) < 0) out.push(nm);
+        } catch (e) { /* 이상 지오메트리 */ }
+    });
+    return out;
+}
+
 function main() {
     console.log('[1/4] 원본 읽기...');
     const land = JSON.parse(fs.readFileSync(LAND_PATH, 'utf8'));
@@ -64,15 +89,21 @@ function main() {
         const b = turf.buffer(f, NEAR_LAND_KM, { units: 'kilometers' });
         return { geom: b, bbox: turf.bbox(b) };
     });
-    function bboxOverlap(a, b) {
-        return !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
-    }
+    // 상위(광역) 구역 — 세부구역이 통보문에 없을 때 대신 볼 이름을 찾는 데 쓴다.
+    const l1 = land.features.filter((f) => f.properties.level === 1);
 
     console.log('[3/4] 해안에 닿는 육상구역만 고르고 경계 단순화...');
     const cands = [];
     land.features.forEach((f) => {
         if (f.properties.level !== 2 || f.properties.ground !== 'local') return;
-        const name = f.properties.regKo || f.properties.regko;
+        // ★짧은 표기(regko)를 먼저 쓴다[2026-09-04 정정].
+        // 원본에는 이름 칸이 둘이다 — regKo 는 행정구역 표기(`부안군(위도면 제외)`),
+        // regko 는 통보문 표기(`부안(위도면 제외)`). 특보 통보문은 2017-01-20 무렵부터
+        // 짧은 표기로 바뀌었는데 우리가 긴 쪽을 골라, 발효 구간과 이름이 안 맞았다.
+        // 실측: level2 육상 280개 중 통보문과 맞는 것이 긴 이름 75개 · 짧은 이름 164개.
+        // 상위 구역명(parents)도 함께 남긴다 — 백령도·대청도처럼 세부구역이 통보문에
+        // 없고 상위("서해5도")로만 발표되는 경우에 쓴다(사용자 지적 2026-09-04).
+        const name = f.properties.regko || f.properties.regKo;
         if (!name || NEW_JEJU_NAMES.includes(name)) return;
         cands.push({ name: name, geom: f });
     });
@@ -92,7 +123,10 @@ function main() {
         try {
             simplified = turf.simplify(c.geom, { tolerance: SIMPLIFY_TOLERANCE, highQuality: false, mutate: false });
         } catch (e) { simplified = c.geom; }
-        out.push({ type: 'Feature', properties: { name: normZone(c.name) }, geometry: simplified.geometry });
+        const props = { name: normZone(c.name) };
+        const parents = parentsOf(c.geom, l1).map(normZone);
+        if (parents.length) props.parents = parents;
+        out.push({ type: 'Feature', properties: props, geometry: simplified.geometry });
     });
 
     console.log('[4/4] 저장...');
