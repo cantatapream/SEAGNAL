@@ -8699,6 +8699,16 @@ html[data-font-size="large"] .ocean-overlay-btn {
     color: #241a00;
 }
 
+/* 필터 바 맨 위 선박/인명 토글[S16] — 없앤 소스 선택 팝아웃의 역할을 대신한다.
+   모드 토글(.accident-mode-toggle)의 재질을 그대로 물려받고, 필터 바 안에 들어가므로
+   고정폭(120px)만 풀어 한 줄을 꽉 채운다. 글자는 "선박사고"가 들어가야 해 한 단계 작게.
+   [연계] 마크업 index2.html #accident-source-toggle · 동작 accident_info.js bindSourceToggle */
+.accident-filter-bar .accident-source-toggle {
+    width: auto;
+    margin-bottom: 1px;
+}
+.accident-filter-bar .accident-source-toggle button { font-size: 0.64rem; padding: 5px 0; }
+
 /* 선택 초기화 버튼(2026-08-25) — 모드토글과 같은 톤의 알약형 버튼. */
 .accident-filter-reset-btn {
     background: rgba(10, 15, 28, 0.94);
@@ -8735,7 +8745,44 @@ html[data-font-size="large"] .ocean-overlay-btn {
 
 
 /* 분석 모드 — 격자 클릭 시 뜨는 통계 바텀시트 (.ocean-bottom-sheet 톤 재사용) */
+/* ============================================================================
+   사고분석 바텀시트 — 목업(marineaccidentdashboard.html) 스타일 이식 [단계 S2]
+   설계 근거: client/js/marine-life/safety/accident_stats_sheet.style.md (디자인 분석서)
+             client/js/marine-life/safety/accident_stats_sheet.design.md (기능 설계서)
+   [연계] 마크업 index2.html #accident-stats-sheet / 동작 js/marine-life/safety/accident_info.js
+   ============================================================================ */
+
+/* [1] 시트 전용 색 토큰 — 목업 :root 값을 그대로 옮긴 것.
+   왜 전역 --accent-* 를 안 쓰고 새로 만드나: 그 변수들은 예보·지도 등 앱 전체가
+   같이 쓰고 있어서 여기서 값을 바꾸면 관계없는 화면까지 함께 바뀐다. 그래서 시트
+   안에서만 통하는 이름(--ash-*)을 따로 둔다(디자인 분석서 §9 체크리스트).
+   [2] em 스케일 기준점 — 목업의 핵심 구조.
+   시트 하나에 font-size 를 걸고 안쪽 치수를 전부 em 으로 적으면, 화면 폭이 바뀔 때
+   글자·여백·모서리·아이콘이 한 덩어리로 커지고 작아진다(디자인 분석서 §2).
+   그래서 이 아래 새로 쓰는 값은 px·rem 이 아니라 em 이다.
+   tnum 은 숫자를 고정폭으로 만들어 표에서 자릿수가 흔들리지 않게 한다. */
 .accident-stats-sheet {
+    --ash-sheet-1: #0b1524;
+    --ash-sheet-2: #081020;
+    --ash-border: #1a293e;
+    --ash-card: #0c1829;
+    --ash-card-br: #182740;
+    --ash-sub: #0f1e33;
+    --ash-sub-br: #1b2b45;
+    --ash-txt: #eaf1fa;
+    --ash-muted: #8194ad;
+    --ash-dim: #61748c;
+    --ash-blue: #2b7cf0;
+    --ash-blue-soft: #3b8bff;
+    --ash-teal: #16c8a3;
+    --ash-orange: #f9821f;
+    --ash-purple: #a35ff0;
+    --ash-gray: #5b6c85;
+    --ash-track: #182842;
+
+    font-size: clamp(11.2px, 3.22vw, 15px);
+    font-feature-settings: "tnum" 1;
+
     position: fixed;
     left: 0; right: 0;
     /* index2.html #bottom-tab-bar(하단 메인탭, z:60)에 가려 바닥 내용이 잘리던
@@ -8744,12 +8791,21 @@ html[data-font-size="large"] .ocean-overlay-btn {
        (#ocean-map-section 등 참고). safe-area 는 그 변수에 이미 포함돼 있어
        여기서 env() 를 또 더하지 않는다(index2.html 상단 주석 참고, 중복 방지). */
     bottom: var(--main-tab-height, 68px);
-    /* 위로 조금 더 키움(62vh → 72vh, 2026-09-01 사용자 확정) — 아래 헤더 위쪽
-       여백을 넓혀 ✕ 버튼이 건수 숫자에 바짝 붙지 않게 하면서도, 그만큼 내용이
-       잘리지 않도록 시트 자체를 키운다. */
-    max-height: 72vh;
-    background: linear-gradient(180deg, #0c1a3a 0%, #162d5a 100%);
-    border-radius: 20px 20px 0 0;
+    /* 기본 높이 80vh(2026-09-04 사용자 확정) — "지도가 거의 보이지 않아도 상관없다".
+       실제 높이는 아래 드래그 손잡이가 --ash-h 를 바꿔 조절한다(accident_info.js). */
+    --ash-h: 80vh;
+    height: var(--ash-h);
+    max-height: 88vh;
+    /* 목업은 위가 밝고 아래로 갈수록 어두워진다(#0b1524 → #081020). 기존 앱은 반대로
+       아래가 밝았다(#0c1a3a → #162d5a) — 뒤집는다(디자인 분석서 §1 대조표). */
+    background: linear-gradient(180deg, var(--ash-sheet-1) 0%, var(--ash-sheet-2) 100%);
+    color: var(--ash-txt);
+    /* 목업은 사방이 떠 있는 카드라 테두리·모서리가 사방이지만 우리는 화면 바닥에
+       붙는 바텀시트다 — 위 두 모서리와 위·좌·우 테두리만, 그림자는 위쪽으로. */
+    border: 1px solid var(--ash-border);
+    border-bottom: 0;
+    border-radius: 1.6em 1.6em 0 0;
+    box-shadow: 0 -1.5em 3em rgba(0, 0, 0, 0.55);
     z-index: 70;
     /* 스크롤은 .accident-stats-body 안에서만 일어나게 바꿈(2026-09-01 사용자 확정) —
        예전엔 이 시트 자체가 스크롤 컨테이너라 안의 <h3> 제목에 position:sticky 를
@@ -8758,59 +8814,755 @@ html[data-font-size="large"] .ocean-overlay-btn {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 -4px 30px rgba(0,0,0,0.5);
     transform: translateY(100%);
-    transition: transform 0.28s cubic-bezier(0.22,1,0.36,1);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .accident-stats-sheet.open { transform: translateY(0); }
+/* 손잡이를 끄는 동안엔 높이가 손가락을 그대로 따라와야 한다 — transition 이 걸려
+   있으면 한 박자 늦게 따라와 미끄러지는 느낌이 난다. */
+.accident-stats-sheet.ash-dragging { transition: none; }
+
+/* 손잡이 — 목업 값(3.4em × .3em, #3a4c66). 기존(40px × 4px, 흰색 20%)보다 또렷하다.
+   ::before 로 좌우·상하에 넓은 hit area 를 깔아 손가락으로 집기 쉽게 한다
+   (드래그로 높이를 조절하게 되면서 실제로 집을 일이 생겼다 — 그 전엔 장식이었다). */
 .accident-sheet-handle {
-    width: 40px; height: 4px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 2px;
-    margin: 10px auto 4px;
+    position: relative;
+    width: 3.4em; height: 0.3em;
+    background: #3a4c66;
+    border-radius: 1em;
+    margin: 0.75em auto 0.35em;
     flex: none;
+    cursor: grab;
+    touch-action: none; /* 브라우저 기본 스크롤에 터치를 뺏기지 않게 — 우리가 직접 처리 */
+    transition: background 0.15s, height 0.15s;
 }
+.accident-sheet-handle::before {
+    content: "";
+    position: absolute;
+    left: -2.5em; right: -2.5em; top: -0.8em; bottom: -0.8em;
+}
+.accident-stats-sheet.ash-dragging .accident-sheet-handle {
+    background: #6d84a3; height: 0.38em; cursor: grabbing;
+}
+
+/* 닫기(✕) — 목업 값(2.5em 정사각, radius .85em, 옅은 테두리). 기존은 원형이었다.
+   z-index 10 인 이유: 아래 #accident-stats-header 가 sticky(z-index:5) + 불투명
+   배경이라, 기본값(.ocean-sheet-close z-index:2)이면 헤더가 ✕ 를 덮어 반쯤 잘려
+   보였다(2026-09-01 사용자가 스크린샷으로 지적). */
+.accident-stats-sheet .ocean-sheet-close {
+    top: 1.1em; right: 1em;
+    width: 2.5em; height: 2.5em;
+    border: 1px solid #22344d;
+    border-radius: 0.85em;
+    background: rgba(255, 255, 255, 0.02);
+    color: #93a6bf;
+    font-size: 1em;
+    z-index: 10;
+}
+.accident-stats-sheet .ocean-sheet-close:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--ash-txt);
+}
+
+/* 본문 — font-size 를 1em 으로 두어야 시트의 clamp 스케일이 안쪽까지 내려간다
+   (예전엔 0.8rem 고정이라 시트 크기와 무관했다). 좌우 여백은 목업 시트 padding
+   (.85em 1em 1.2em) 중 좌우·아래 값. */
 .accident-stats-body {
-    padding: 4px 16px 18px;
-    font-size: 0.8rem;
-    color: var(--text-main);
+    padding: 0 1em 1.2em;
+    font-size: 1em;
+    line-height: 1.5;
+    color: var(--ash-txt);
     overflow-y: auto;
     flex: 1;
     min-height: 0; /* flex 자식이 내용 높이만큼 안 늘어나고 부모 안에서 스크롤되게 */
 }
-/* 바텀시트 헤더 — "선택 영역 사고분석" + 권역뱃지 + 기간(왼쪽), 건수(오른쪽,
-   2026-09-01 재설계 — 어떤 영역·기간을 보고 있는지 한눈에 보이도록). 스크롤해도
-   안 가려지게 고정(2026-09-01 사용자 확정) — 배경을 시트 그라데이션 맨 위쪽
-   색과 맞춰 뒤 내용이 안 비치게, body 좌우 패딩은 음수 마진으로 상쇄. */
-/* 닫기(✕) 버튼은 아래 #accident-stats-header(sticky, z-index:5)보다 위에 있어야
-   한다 — 둘이 같은 쌓임 맥락 안에 있는데 헤더가 불투명 배경이라, 기본
-   .ocean-sheet-close(z-index:2) 그대로 두면 헤더가 버튼을 덮어 ✕ 가 반쯤
-   잘려 보였다(2026-09-01 사용자가 스크린샷으로 지적). */
-.accident-stats-sheet .ocean-sheet-close { z-index: 10; }
+
+/* 헤더 — 목업 .head 구조([배지] [지역명 + 부제] … [총건수 + 캡션]).
+   목업은 margin-top:2.1em 으로 닫기 버튼 자리를 비우는데, 우리는 헤더가 sticky 라
+   같은 몫을 padding-top 으로 준다(스크롤해도 ✕ 아래에서 내용이 시작되도록).
+   좌우 패딩은 본문 패딩을 음수 마진으로 상쇄해 시트 가장자리까지 배경을 채운 것 —
+   스크롤할 때 뒤 내용이 헤더 옆으로 비쳐 보이지 않게 한다. */
 #accident-stats-header {
     position: sticky;
     top: 0;
     z-index: 5;
-    margin: -4px -16px 12px;
-    /* 위쪽 여백을 10px → 26px 로 — ✕ 버튼(top:8px, 높이 30px)이 끝나는 지점보다
-       아래에서 내용이 시작되게 해서, ✕ 가 건수 숫자에 바짝 붙어 답답해 보이던
-       문제를 없앤다(2026-09-01 사용자 지적). */
-    padding: 26px 16px 8px;
-    background: #0c1a3a;
+    margin: 0 -1em 0.9em;
+    padding: 2.1em 1em 0.9em;
+    /* sticky 라 뒤 내용이 비치면 안 된다 — 시트 그라데이션 맨 위쪽 색으로 채운다. */
+    background: var(--ash-sheet-1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.055);
     display: flex;
-    justify-content: space-between;
     align-items: flex-start;
-    gap: 10px;
+    gap: 0.7em;
 }
-#accident-stats-header .ash-title-row { font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 5px; }
-#accident-stats-header .ash-region-badge {
-    font-size: 0.64rem; font-weight: 700; color: var(--accent-blue);
-    background: rgba(77,171,247,0.15); border-radius: 5px; padding: 1px 6px;
+/* 지역 배지 — 목업 .badge(2.7em 정사각, 파란 테두리·바탕에 아이콘). */
+#accident-stats-header .ash-badge {
+    flex: none;
+    width: 2.7em; height: 2.7em;
+    margin-top: 0.1em;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(59, 139, 255, 0.35);
+    border-radius: 0.9em;
+    background: rgba(43, 124, 240, 0.12);
+    color: var(--ash-blue-soft);
+    font-size: 1em;
 }
-#accident-stats-header .ash-period { font-size: 0.68rem; color: var(--text-sub); margin-top: 3px; }
-#accident-stats-header .ash-right { text-align: right; flex: none; }
-#accident-stats-header .ash-count-n { font-size: 1.05rem; font-weight: 800; color: var(--accent-yellow); white-space: nowrap; }
-#accident-stats-header .ash-count-l { font-size: 0.64rem; color: var(--text-sub); margin-top: 2px; }
+#accident-stats-header .ash-head-main { min-width: 0; flex: 1; }
+/* 지역명 — 목업 .region(1.46em/800/-.02em). 목업에 있던 드롭다운 화살표는 우리
+   설계에서 뺐다(설계서 I-4 — 누를 수 있는 것처럼 보이는데 아무 일도 안 일어남). */
+#accident-stats-header .ash-region {
+    font-size: 1.46em;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+}
+#accident-stats-header .ash-region-sub {
+    font-size: 0.75em;
+    color: var(--ash-muted);
+    margin-top: 0.45em;
+}
+#accident-stats-header .ash-right {
+    margin-left: auto;
+    flex: none;
+    text-align: right;
+    padding-top: 0.15em;
+}
+/* 총건수 — 목업 .total-num(1.58em/800). 색을 노랑(--accent-yellow)에서 본문색으로
+   바꿨다: 목업 팔레트에 노랑이 아예 없고, 강조가 파랑 하나로 모여야 위계가 선다. */
+#accident-stats-header .ash-count-n {
+    font-size: 1.58em;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--ash-txt);
+    white-space: nowrap;
+}
+#accident-stats-header .ash-count-n span {
+    font-size: 0.5em;
+    font-weight: 600;
+    color: #a9bad0;
+    margin-left: 0.15em;
+}
+#accident-stats-header .ash-count-l {
+    font-size: 0.7em;
+    color: var(--ash-muted);
+    margin-top: 0.5em;
+}
+
+/* 소스 칩(선박사고 / 인명사고) — 목업 .chip[S3].
+   색 공식은 목업에서 뽑은 것: 아이콘 배경 = 종류색 alpha .14~.16, 테두리 = alpha
+   .26~.28, 글자 = 종류색 원본. 선택 상태는 목업에 없어서(정적 시안이라) 같은 어법으로
+   유추했다 — 배경 .26, 테두리 .55, 글자 흰색(디자인 분석서 §7).
+   [연계] 마크업 accident_info.js buildSourceChipsHtml / 클릭 처리 같은 파일 delegation */
+.ash-chips {
+    display: flex;
+    gap: 0.5em;
+    margin-bottom: 0.75em;
+}
+.ash-chip {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.45em;
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.85em;
+    background: rgba(255, 255, 255, 0.018);
+    padding: 0.45em 0.58em;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.ash-chip-ic {
+    width: 1.7em; height: 1.7em;
+    flex: none;
+    border-radius: 0.55em;
+    display: grid;
+    place-items: center;
+    font-size: 1em;
+}
+/* display:block 필수 — span 은 기본 inline 이라 두 줄이 한 줄로 붙어 버린다
+   (목업은 div 였다. 2026-09-04 화면 확인으로 발견). */
+.ash-chip-t1 { display: block; font-size: 0.68em; line-height: 1; }
+.ash-chip-t2 {
+    display: block;
+    font-size: 0.72em; font-weight: 700;
+    margin-top: 0.38em; line-height: 1;
+    white-space: nowrap;
+    color: var(--ash-txt);
+}
+.ash-chip-body { min-width: 0; flex: 1; }
+/* 칩에 새로 붙는 두 값[S15] — 라벨 줄의 연도 범위와 값 줄의 비율. 분석서 §4.4 의
+   2줄 구성을 3줄로 늘리지 않으려고, 연도 범위는 라벨 옆에 비율은 건수 옆에 붙였다.
+   비율은 막대 행의 .val em 과 같은 어법(muted 600)이라 화면 전체가 한 어법으로 읽힌다. */
+.ash-chip-t1 em, .ash-chip-t2 em {
+    font-style: normal;
+    font-weight: 600;
+    color: var(--ash-muted);
+    margin-left: 0.25em;
+}
+.ash-chip[aria-pressed="true"] .ash-chip-t1 em,
+.ash-chip[aria-pressed="true"] .ash-chip-t2 em { color: rgba(255, 255, 255, 0.75); }
+
+/* "상위 발생 유형" 카드의 선박↔인명 토글[S15] — 칩이 "전체"일 때만 나온다.
+   탭 바(분석서 §4.5)의 어법을 그대로 줄인 것: 눌린 쪽이 파란 알약이다.
+   [연계] accident_info.js buildTypeSrcToggleHtml */
+.ash-srctoggle {
+    display: flex;
+    gap: 0.15em;
+    padding: 0.16em;
+    border: 1px solid var(--ash-card-br);
+    border-radius: 0.7em;
+    background: rgba(255, 255, 255, 0.015);
+}
+.ash-srctoggle button {
+    border: 0;
+    background: transparent;
+    padding: 0.3em 0.55em;
+    border-radius: 0.55em;
+    font-size: 0.72em;
+    font-weight: 600;
+    color: #8ea1b9;
+    cursor: pointer;
+}
+.ash-srctoggle button.on {
+    background: var(--ash-blue);
+    color: #fff;
+    box-shadow: 0 0.2em 0.6em rgba(43, 124, 240, 0.35);
+}
+
+.ash-chip.hk { border-color: rgba(43, 124, 240, 0.28); }
+.ash-chip.hk .ash-chip-ic { background: rgba(43, 124, 240, 0.16); color: var(--ash-blue-soft); }
+.ash-chip.hk .ash-chip-t1 { color: var(--ash-blue-soft); }
+.ash-chip.person { border-color: rgba(22, 200, 163, 0.26); }
+.ash-chip.person .ash-chip-ic { background: rgba(22, 200, 163, 0.14); color: var(--ash-teal); }
+.ash-chip.person .ash-chip-t1 { color: var(--ash-teal); }
+
+.ash-chip.hk[aria-pressed="true"] {
+    border-color: rgba(43, 124, 240, 0.55);
+    background: rgba(43, 124, 240, 0.1);
+}
+.ash-chip.hk[aria-pressed="true"] .ash-chip-ic { background: rgba(43, 124, 240, 0.26); color: #fff; }
+.ash-chip.hk[aria-pressed="true"] .ash-chip-t1 { color: #fff; }
+.ash-chip.person[aria-pressed="true"] {
+    border-color: rgba(22, 200, 163, 0.55);
+    background: rgba(22, 200, 163, 0.09);
+}
+.ash-chip.person[aria-pressed="true"] .ash-chip-ic { background: rgba(22, 200, 163, 0.26); color: #fff; }
+.ash-chip.person[aria-pressed="true"] .ash-chip-t1 { color: #fff; }
+
+/* 분석 뷰 탭 — 목업 .tabs/.tab[S3].
+   왜 탭 사이에만 세로 구분선을 긋고 활성 탭 좌우는 지우나: 활성 탭이 파란 알약이라
+   그 옆에 선이 남으면 알약을 자르는 것처럼 보인다(목업이 쓰는 방식 그대로).
+   [연계] 마크업 accident_info.js buildChartViewHtml */
+.ash-tabs {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--ash-card-br);
+    border-radius: 1em;
+    background: rgba(255, 255, 255, 0.015);
+    padding: 0.28em;
+    margin-bottom: 0.75em;
+}
+.ash-tab {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3em;
+    padding: 0.7em 0.1em;
+    border-radius: 0.75em;
+    font-size: 0.76em;
+    font-weight: 600;
+    color: #8ea1b9;
+    background: none;
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: background 0.18s ease, color 0.18s ease;
+}
+.ash-tab i { font-size: 1.15em; flex: none; opacity: 0.9; }
+/* 탭이 6개인 동안(특보발효가 아직 카드로 안 내려감)에는 아이콘을 숨긴다 — 412px 폭에서
+   6개에 아이콘+글자를 가로로 넣으면 탭 하나가 64px 밖에 안 돼 글자가 잘린다.
+   S10 에서 특보가 카드로 내려가 5개가 되면 아이콘이 다시 나온다. */
+.ash-tabs.is-crowded .ash-tab i { display: none; }
+.ash-tab + .ash-tab::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 22%;
+    height: 56%;
+    border-left: 1px solid rgba(255, 255, 255, 0.07);
+}
+.ash-tab.active {
+    background: var(--ash-blue);
+    color: #fff;
+    box-shadow: 0 0.2em 0.6em rgba(43, 124, 240, 0.35);
+}
+.ash-tab.active::before, .ash-tab.active + .ash-tab::before { border-color: transparent; }
+/* 비활성 — 인명사고에는 발생 시각이 없어 "시간대별"을 누를 수 없다. 배경은 그대로 두고
+   흐리게만 한다(배경까지 바꾸면 눌린 것처럼 보인다 — 디자인 분석서 §7). */
+.ash-tab[disabled] {
+    opacity: 0.45;
+    color: var(--ash-dim);
+    cursor: not-allowed;
+}
+.ash-tab[disabled] i { opacity: 0.5; }
+
+/* 카드 — 목업 .card[S4]. 시트 안 내용은 전부 이 카드 위에 얹힌다.
+   3단 깊이(시트 → 카드 → 카드 안 작은 블록)를 지킨다 — 카드 안에 카드를 또 넣지 않는다
+   (디자인 분석서 §0·§9). 카드 안 작은 블록은 --ash-sub 를 쓴다.
+   [연계] 마크업 accident_info.js buildChartViewHtml·buildDetailBlockHtml */
+.ash-card {
+    background: var(--ash-card);
+    border: 1px solid var(--ash-card-br);
+    border-radius: 1.1em;
+    padding: 0.95em 0.9em;
+    margin-bottom: 0.7em;
+}
+.ash-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.6em;
+    margin-bottom: 0.85em;
+    flex-wrap: wrap;
+}
+.ash-card-title { font-size: 1.02em; font-weight: 800; letter-spacing: -0.01em; }
+/* 제목 옆 작은 부제 — "(Top 5)" 가 이것이다. 아코디언을 펼치면 지운다(전부 보이는데
+   "Top 5" 라고 써 있으면 거짓말이 되므로 — 2026-09-04 사용자 확정). */
+.ash-card-title em {
+    font-style: normal;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--ash-muted);
+    margin-left: 0.15em;
+}
+.ash-card-aside { font-size: 0.78em; color: var(--ash-muted); }
+
+/* 막대 행 — 목업 .row[S4]. 유형·원인·선박종류·치명도가 전부 이 부품을 쓴다.
+   [점 · 이름 4.6em · 게이지 · 값 5.4em] 네 칸 고정 폭 구조라 여러 행의 게이지 시작점과
+   값 끝점이 세로로 딱 맞는다. */
+.ash-rows { display: flex; flex-direction: column; gap: 0.62em; }
+.ash-row { display: flex; align-items: center; gap: 0.45em; font-size: 0.76em; }
+.ash-row .nm {
+    width: 4.6em; flex: none;
+    color: #d3dfee;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ash-bar {
+    flex: 1; min-width: 1.5em;
+    /* 조각이 둘(치명도 카드의 회색+종류색)일 때 나란히 놓이게 flex 로 둔다.
+       조각이 하나뿐인 다른 카드에서는 width:% 가 그대로 먹어 영향이 없다. */
+    display: flex;
+    height: 0.5em;
+    border-radius: 1em;
+    background: var(--ash-track);
+    overflow: hidden;
+}
+/* display:block 필수 — span 은 기본 inline 이라 width/height 가 안 먹는다
+   (기존 .accident-bar-row 에서 같은 이유로 게이지가 늘 비어 보였던 전례가 있다). */
+.ash-bar > i { display: block; height: 100%; border-radius: 1em; }
+.ash-row .val {
+    width: 5.4em; flex: none;
+    text-align: right; font-weight: 700; white-space: nowrap;
+}
+.ash-row .val em {
+    font-style: normal; color: var(--ash-muted); font-weight: 600; margin-left: 0.25em;
+}
+/* 점 — 단색 원이 아니라 단색 위에 광택을 겹친다(목업 .dot). 바탕색은 인라인 style 로
+   주고, 아래 그라데이션이 overlay 로 섞여 입체감을 만든다. */
+.ash-dot {
+    width: 0.58em; height: 0.58em;
+    border-radius: 50%;
+    flex: none;
+    background-image: linear-gradient(145deg, rgba(255,255,255,0.55), rgba(0,0,0,0.35));
+    background-blend-mode: overlay;
+    box-shadow: 0 0.08em 0.16em rgba(0,0,0,0.5);
+}
+
+/* 더보기 / 접기 — 목업 .more[S4]. 아코디언 동작은 목업에 없어 유추했다(분석서 §7):
+   펼치면 꺾쇠가 90도 돌고, 펼친 목록 맨 아래에 같은 재질의 "접기" 버튼이 하나 더 붙는다. */
+.ash-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35em;
+    width: 100%;
+    margin-top: 0.85em;
+    padding: 0.72em;
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.8em;
+    color: #c6d4e6;
+    font-size: 0.8em;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+}
+.ash-more i { font-size: 0.85em; opacity: 0.75; transition: transform 0.18s ease; }
+.ash-more[aria-expanded="true"] i { transform: rotate(90deg); }
+.ash-more.is-collapse i { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) {
+    .ash-more i { transition: none; }
+}
+
+/* 도넛 — 목업 .type-donut / .donut-wrap[S5].
+   목업 도넛은 색 고리 하나가 아니라 네 겹을 겹쳐 그린다(트랙·본체·바깥 흰 림·안쪽 검은
+   코어). 한 겹만 그리면 목업의 질감이 안 나온다(디자인 분석서 §5).
+   [연계] 마크업 accident_info.js buildDonutHtml */
+.ash-donut-body { display: flex; align-items: center; gap: 0.7em; }
+/* 목록이 남은 폭을 다 차지해야 게이지가 제 길이로 늘어난다 — flex:1 이 없으면 목록이
+   내용 크기로만 잡혀 막대가 손톱만 하게 짜부라진다(2026-09-04 화면 확인으로 발견). */
+.ash-donut-body .ash-rows { flex: 1; min-width: 0; }
+.ash-donut { position: relative; flex: none; width: 8.4em; height: 8.4em; }
+.ash-donut.sm { width: 4.1em; height: 4.1em; }
+.ash-donut svg { width: 100%; height: 100%; overflow: visible; }
+.ash-donut-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 0.25em;
+    pointer-events: none;
+}
+.ash-donut-center b { font-size: 1.15em; font-weight: 800; letter-spacing: -0.02em; }
+.ash-donut-center span { font-size: 0.68em; color: var(--ash-muted); }
+
+/* 한 붓 그리기 — 12시부터 시계방향으로 조각이 이어서 그려진다.
+   paused 로 첫 프레임(길이 0)에 멈춰 뒀다가, 카드가 화면에 들어와 .reveal 이 붙으면
+   재생한다. 지속시간·지연은 조각 길이에 비례해 JS 가 인라인으로 넣는다
+   (다음 지연 = 이전 지연 + 이전 지속시간 → 끊김 없이 한 바퀴로 이어진다). */
+@keyframes ashDrawSeg { from { stroke-dasharray: 0 100; } }
+.ash-seg { animation: ashDrawSeg 0.6s linear both paused; }
+.ash-card.reveal .ash-seg { animation-play-state: running; }
+@media (prefers-reduced-motion: reduce) {
+    .ash-seg { animation: none; }
+}
+
+/* 좁은 화면에서는 도넛과 목록을 세로로 쌓는다(목업 359px 분기 그대로). */
+@media (max-width: 359px) {
+    .ash-donut-body { flex-direction: column; }
+    .ash-donut { width: 7.6em; height: 7.6em; }
+    .ash-row .nm { width: 5em; }
+}
+
+/* 추세 요약 세 칸 — 목업 .stats/.stat[S6].
+   목업은 세 번째 칸(도넛)이 1.42배 넓지만, 우리는 도넛을 세로로 쌓기로 해서(설계서 C-3)
+   세 칸을 균등하게 나눈다 — 사용자 확정 "각 칸이 균일하게 채워지면 될 것 같은데".
+   카드 안 작은 블록이라 --ash-sub 를 쓴다(3단 깊이의 세 번째 층).
+   [연계] 마크업 accident_info.js buildTrendSummaryHtml */
+.ash-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5em; }
+.ash-stat {
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.9em;
+    padding: 0.85em 0.6em;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.ash-stat-lab { font-size: 0.75em; color: var(--ash-muted); }
+.ash-stat-big {
+    font-size: 1.55em; font-weight: 800; letter-spacing: -0.02em;
+    margin-top: 0.5em; line-height: 1;
+}
+.ash-stat-big small { font-size: 0.52em; font-weight: 600; color: #b6c6da; margin-left: 0.1em; }
+.ash-stat-sub { font-size: 0.78em; color: #c2d0e2; margin-top: 0.5em; }
+.ash-stat-foot { font-size: 0.75em; margin-top: 0.55em; font-weight: 600; }
+.ash-up { color: var(--ash-blue-soft); }
+.ash-down { color: var(--ash-teal); }
+
+/* 자료 범위 배지 — 특보처럼 "언제부터의 자료인지"가 다른 항목과 다를 때 붙인다.
+   강조가 아니라 단서라 파랑이 아닌 muted 계열로(디자인 분석서 §7). */
+.ash-badge-note {
+    display: inline-block;
+    /* 사양(디자인 분석서 §7)은 "시트 기준 .68em". em 은 부모를 따르므로 부모가 다른
+       두 자리에서 같은 크기가 되도록 아래에서 각각 보정한다(카드 제목 1.02em,
+       stat 라벨 0.75em). 이 값은 보정이 없을 때의 기본값이다. */
+    font-size: 0.68em; font-weight: 700;
+    color: var(--ash-muted);
+    background: rgba(129, 148, 173, 0.12);
+    border: 1px solid rgba(129, 148, 173, 0.28);
+    border-radius: 0.5em;
+    padding: 0.12em 0.45em;
+    margin-left: 0.3em;
+    white-space: nowrap;
+}
+/* 0.68 ÷ 1.02 = 0.667 · 0.68 ÷ 0.75 = 0.907 — 둘 다 시트 기준 0.68em 이 된다. */
+.ash-card-title .ash-badge-note { font-size: 0.667em; }
+.ash-stat-lab .ash-badge-note { font-size: 0.907em; }
+
+/* 도넛 + 범례를 세로로 — 추세 요약 세 번째 칸(설계서 C-3: 도넛을 충분히 크게). */
+.ash-donut-stack { display: flex; flex-direction: column; align-items: center; gap: 0.5em; margin-top: 0.45em; width: 100%; }
+.ash-dlegend { display: flex; flex-direction: column; gap: 0.35em; font-size: 0.72em; width: 100%; }
+.ash-dlegend div { display: flex; align-items: center; gap: 0.35em; white-space: nowrap; }
+.ash-dlegend b { margin-left: auto; font-weight: 700; }
+
+/* 기간 + 칩 줄[S17] — 목업 .meta 원문 그대로(구분선이 아주 옅다: .055 알파).
+   좁은 화면에서는 목업 @media(≤439px) 규칙대로 기간과 칩이 각각 전체 폭을 쓴다.
+   우리 시트는 휴대폰 폭(약 412px)이라 사실상 늘 두 줄이 된다.
+   [연계] accident_info.js buildMetaHtml / 분석서 §3 구분선·§4.4 칩 */
+.ash-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.6em 0.55em;
+    flex-wrap: wrap;
+    padding: 0.9em 0 0.95em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+    margin-bottom: 0.9em;
+}
+.ash-period { flex: 1 1 100%; min-width: 0; word-break: keep-all; }
+.ash-period-1 { font-size: 0.78em; color: #b8c7da; }
+.ash-period-1 b { color: #e6eef8; font-weight: 700; margin-left: 0.3em; white-space: nowrap; }
+.ash-period-2 { font-size: 0.71em; color: var(--ash-dim); margin-top: 0.4em; }
+.ash-meta .ash-chips { flex: 1 1 100%; }
+
+/* 시트 안 필터 줄[S17] — 목업에 없는 요소라 분석서 §7 유추안을 따른다.
+   재질은 more/hint 와 같고(--ash-sub / --ash-sub-br / radius .8em), 값이 걸린 버튼만
+   활성 탭과 같은 파란 알약이다 — 목업이 "지금 고른 것"을 나타내는 어법이 그것뿐이다.
+   [연계] accident_info.js buildSheetFiltersHtml */
+.ash-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    margin-bottom: 0.8em;
+}
+.ash-filter {
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.8em;
+    padding: 0.45em 0.62em;
+    font-size: 0.74em;
+    font-weight: 600;
+    color: #c6d4e6;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.ash-filter.on {
+    background: var(--ash-blue);
+    border-color: var(--ash-blue);
+    color: #fff;
+    box-shadow: 0 0.2em 0.6em rgba(43, 124, 240, 0.35);
+}
+
+/* 안내 문구 — 목업 .hint[S7]. 더보기 버튼과 같은 재질(--ash-sub)이라 "조작할 수 있는
+   것"과 "알려 주는 것"이 한 톤으로 묶인다. [연계] accident_info.js buildChartViewHtml */
+.ash-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45em;
+    margin-top: 0.7em;
+    padding: 0.65em;
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.8em;
+    font-size: 0.76em;
+    color: #93a6bf;
+}
+.ash-hint i { font-size: 1em; flex: none; opacity: 0.8; }
+
+/* 분모 안내 — "정보없음·기타·원인미상 제외 (전체 N건 중 M건 기준)"[S8].
+   ★이 문구가 없으면 화면이 거짓말을 한다: 뺀 것을 빼고 남은 것만으로 100%를 다시 나누기
+   때문에, 전체의 26.6%인 항목이 45.5%로 보인다. 그래서 분모를 항상 밝힌다.
+   [연계] accident_info.js buildDetailCardHtml */
+.ash-note {
+    margin-top: 0.7em;
+    font-size: 0.72em;
+    color: var(--ash-dim);
+    line-height: 1.5;
+}
+
+/* 특보 카드[S10] — 사용자가 준 "특보 중 사고 발생 현황" 이미지를 그대로 옮긴 것.
+   위쪽 요약 줄(카드 안 작은 블록 --ash-sub)과 아래 종류별 타일로 나뉜다.
+   [연계] 마크업 accident_info.js buildWarnCardHtml */
+.ash-warn-lead { font-size: 0.78em; color: var(--ash-muted); margin: -0.35em 0 0.85em; line-height: 1.5; }
+.ash-warn-box {
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.9em;
+    display: flex;
+    margin-bottom: 0.6em;
+}
+.ash-warn-box > div {
+    flex: 1; min-width: 0;
+    padding: 0.85em 0.9em;
+    display: flex; flex-direction: column; gap: 0.4em;
+}
+/* 칸 사이 얇은 세로선 — 목업이 두 값을 한 상자 안에서 가르는 방식 */
+.ash-warn-box > div + div { border-left: 1px solid var(--ash-sub-br); }
+.ash-warn-k { font-size: 0.75em; color: var(--ash-muted); }
+/* "(종류 구분 없음)" 같은 단서[S19] — 라벨보다 한 단계 옅게. */
+.ash-warn-k em { font-style: normal; color: var(--ash-dim); margin-left: 0.3em; }
+.ash-warn-v { font-size: 1.35em; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.ash-warn-v small { font-size: 0.5em; font-weight: 600; color: #b6c6da; margin-left: 0.15em; }
+.ash-warn-v em { font-style: normal; font-size: 0.5em; font-weight: 600; color: var(--ash-muted); margin-left: 0.5em; }
+.ash-warn-src .ash-warn-k { display: flex; align-items: center; gap: 0.4em; }
+.ash-warn-src.hk .ash-warn-k { color: var(--ash-blue-soft); }
+.ash-warn-src.person .ash-warn-k { color: var(--ash-teal); }
+
+.ash-warn-sub { font-size: 0.85em; font-weight: 800; margin: 0.9em 0 0.55em; }
+.ash-warn-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em; }
+.ash-warn-tile {
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.9em;
+    padding: 0.75em 0.7em;
+    display: flex; flex-direction: column; gap: 0.4em;
+}
+.ash-warn-tile .t {
+    font-size: 0.72em; font-weight: 700;
+    display: flex; align-items: center; gap: 0.35em;
+}
+.ash-warn-tile .n { font-size: 1.35em; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.ash-warn-tile .n small { font-size: 0.55em; font-weight: 600; color: #b6c6da; margin-left: 0.1em; }
+.ash-warn-tile .p { font-size: 0.72em; color: var(--ash-muted); }
+.ash-warn-tile .bar { height: 0.35em; border-radius: 1em; background: var(--ash-track); overflow: hidden; }
+.ash-warn-tile .bar > i { display: block; height: 100%; border-radius: 1em; }
+
+/* 말풍선[S11] — 특보 타일이나 발효 일수를 누르고 있는 동안 계산 내역을 보여 준다.
+   시트 밖(body)에 붙는다 — 시트 안에 두면 overflow:hidden 에 잘린다.
+   여러 줄을 그대로 보여야 해서 white-space:pre 를 쓴다. */
+.ash-tip {
+    position: fixed;
+    z-index: 200;
+    max-width: 80vw;
+    padding: 0.5em 0.7em;
+    background: var(--ash-blue, #2b7cf0);
+    border-radius: 0.55em;
+    box-shadow: 0 0.3em 0.9em rgba(0, 0, 0, 0.5);
+    color: #fff;
+    /* 사양(§7)은 .72em 인데, 그 값은 목업 차트의 "숫자 하나짜리" 툴팁에서 유추한 것이라
+       우리처럼 다섯 줄짜리 계산 내역에는 너무 작다(시트 기준 약 9.6px). 색·모양·여백은
+       사양대로 맞추고 글자 크기만 12px 로 둔다 — 말풍선은 시트 밖(body)에 붙어 시트의
+       em 스케일을 받지 않기도 한다. 이 판단은 스타일 분석서 §7 에도 기록했다. */
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre;
+    font-variant-numeric: tabular-nums;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease;
+}
+.ash-tip.on { opacity: 1; }
+.ash-tip::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    margin-left: -0.4em;
+    border: 0.4em solid transparent;
+}
+.ash-tip.above::after { top: 100%; border-top-color: var(--ash-blue, #2b7cf0); }
+.ash-tip.below::after { bottom: 100%; border-bottom-color: var(--ash-blue, #2b7cf0); }
+@media (prefers-reduced-motion: reduce) { .ash-tip { transition: none; } }
+
+/* 말풍선을 부르는 요소 — 길게 눌러도 텍스트 선택·복사 메뉴가 뜨지 않게 막는다.
+   안 막으면 안드로이드·iOS 에서 롱프레스에 시스템 메뉴가 먼저 뜬다(H-4). */
+[data-tip] {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    cursor: help;
+}
+
+/* 발효 일수 칸의 구역 이름 — "제주도북부앞바다 등 4곳"(G-6) */
+.ash-warn-zone { font-size: 0.7em; color: var(--ash-dim); }
+/* 타일 안 발효 일수 줄 */
+.ash-warn-tile .d { font-size: 0.72em; color: var(--ash-muted); }
+
+/* 치명도 카드[S12] — 막대 행(.ash-row)을 그대로 쓰되 바 안에 조각이 둘이다.
+   회색이 사망·실종 몫이고 왼쪽에 먼저 온다(디자인 분석서 §4.8·§7).
+   안전 앱이라 "얼마나 죽었나"가 먼저 눈에 닿아야 해서 왼쪽에 둔다.
+   [연계] accident_info.js buildFatalityRowsHtml */
+.ash-bar > i.fatal { background: var(--ash-gray); }
+/* 표본이 얇아 순위에서 뺀 행 — 지우지 않고 흐리게 남긴다(§7). */
+.ash-row.thin { opacity: 0.55; }
+.ash-row .nm em {
+    font-style: normal;
+    color: var(--ash-muted);
+    font-weight: 600;
+    margin-left: 0.25em;
+}
+/* "전국 기준" 배지 — 자료범위 배지와 같은 모양, 색만 파랑 계열(§7).
+   부모가 카드 제목(1.02em)이라 시트 기준 .68em 이 되도록 보정한다. */
+.ash-badge-scope {
+    display: inline-block;
+    font-size: 0.667em; font-weight: 700;
+    color: var(--ash-blue-soft);
+    background: rgba(43, 124, 240, 0.14);
+    border: 1px solid rgba(43, 124, 240, 0.3);
+    border-radius: 0.5em;
+    padding: 0.12em 0.45em;
+    margin-left: 0.3em;
+    white-space: nowrap;
+}
+/* 카드 안의 절 구분[S13] — 인명 피해 현황 카드는 위(이 칸 기준)와 아래(전국 기준)로
+   잣대가 갈린다. 3단 깊이 규칙상 카드 안에 카드를 또 넣을 수 없어(분석서 §9), 목업이
+   meta 아래에 쓰던 가장 옅은 구분선과 소제목으로만 가른다.
+   [연계] accident_info.js buildCasualtyCardHtml / 분석서 §3 구분선 */
+.ash-card-sec {
+    margin-top: 1em;
+    padding-top: 0.9em;
+    border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+/* 소제목 크기는 목업에 없어 유추한 값 — 카드 제목(1.02em)과 stat 라벨(0.75em) 사이. */
+.ash-card-sec-title {
+    margin: 0 0 0.7em;
+    font-size: 0.9em;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--ash-txt);
+}
+/* 카드 제목의 부제(.card-title em)와 같은 어법 — "(Top 5)" 가 여기 들어간다(§4.6). */
+.ash-card-sec-title em {
+    font-style: normal;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--ash-muted);
+    margin-left: 0.15em;
+}
+/* 배지는 시트 기준 .68em 이어야 한다 — 부모가 0.9em 이므로 .68/.9 로 되돌린다(§7). */
+.ash-card-sec-title .ash-badge-scope { font-size: 0.756em; }
+
+/* 카드 첫 줄 — 이 구역의 실제값(전국 순위와 잣대가 다름을 밝히는 자리) */
+.ash-scope-line {
+    font-size: 0.78em;
+    color: #c2d0e2;
+    margin: -0.35em 0 0.85em;
+}
+
+/* 푸터 각주 — 목업 .foot. 항목 앞에 작은 점이 붙는 목록으로, "2014·2015년 제외"
+   같은 집계 단서를 담는다(설계서 작업 9·10). */
+.accident-stats-foot {
+    display: flex;
+    gap: 1.1em;
+    flex-wrap: wrap;
+    padding: 0.35em 0.3em 0;
+    margin-top: 1em;
+}
+.accident-stats-foot span {
+    font-size: 0.72em;
+    color: var(--ash-dim);
+    position: relative;
+    padding-left: 0.7em;
+}
+.accident-stats-foot span::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0.5em;
+    width: 0.25em; height: 0.25em;
+    border-radius: 50%;
+    background: #4a5c74;
+}
+
+/* 아래는 아직 목업 스타일로 옮기지 않은 기존 블록들(단계 S4 이후에 교체된다).
+   rem 고정값이라 시트의 em 스케일을 따르지 않는다 — 의도된 과도기 상태. */
 .accident-stats-block { margin-bottom: 14px; }
 .accident-stats-block:last-child { margin-bottom: 0; }
 .accident-stats-label {
@@ -8827,44 +9579,9 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-chart-wrap { position: relative; width: 100%; height: 200px; margin-top: 2px; overflow: hidden; }
 .accident-chart-caption { font-size: 0.7rem; color: var(--text-sub); margin-top: 6px; text-align: center; }
 
-/* 특보발효 도넛(2026-08-31 사용자 확정 — 여러 차례 시안 검토 후 반영) — 평시 고리는
-   고정, 맨 위 "특보 중" 원호가 태풍·풍랑·강풍×주의보·경보 6종으로 갈라지며 원호
-   모양 그대로 커진다(막대·동심원 아님). 화면 뜨고 0.5초 뒤 자동 재생(사용자 확정
-   "매번 재생"), 확대 중엔 화면 전체가 그 지점으로 살짝(10배 확대폭) 줌인. */
-.accident-warn-svg { display: block; margin: 0 auto; overflow: hidden; }
-/* 도넛 중앙 "전체 사고"/건수 텍스트 — CSS가 아예 없어 SVG 기본값(검정 채움)으로 뜨는
-   바람에 어두운 배경에서 안 보이던 문제(2026-09-01 확인). 흰 글씨 + 검정 테두리로. */
-.center-total { fill: #ffffff; stroke: #000000; stroke-width: 3px; paint-order: stroke; stroke-linejoin: round; font-weight: 800; text-shadow: none; }
-.center-total.n { font-size: 26px; }
-.center-total.l { font-size: 13px; font-weight: 600; stroke-width: 2px; }
-.accident-warn-wedge { transition: opacity .12s linear; }
-.accident-warn-zoom {
-    transform-box: view-box;
-    transition: transform .8s cubic-bezier(.22,.9,.32,1.05);
-}
-.accident-warn-zoom.zoomed { transform: scale(1.15); } /* 2026-08-31 실사용 확인 후 하향(1.7→1.15) — 폭이 화면 절반을 넘지 않도록(부채꼴 각도도 같이 좁힘) */
-.accident-warn-revert {
-    display: block;
-    margin: 8px auto 0;
-    border: none;
-    background: rgba(255,255,255,0.07);
-    color: var(--text-sub);
-    padding: 5px 12px;
-    border-radius: 6px;
-    font-size: 0.7rem;
-    cursor: pointer;
-}
-.accident-warn-revert:disabled { opacity: 0.4; cursor: default; }
-/* 조각 라벨(2026-09-01) — 조각이 크면 안쪽 중앙 텍스트, 작으면 리더라인+텍스트. */
-.accident-warn-inline-label { fill: #05070d; font-size: 9px; font-weight: 700; }
-.accident-warn-leader { stroke: rgba(255,255,255,0.5); stroke-width: 1; fill: none; stroke-linejoin: round; }
-.accident-warn-leader-label { fill: var(--text-main); font-size: 9px; font-weight: 600; }
-.accident-warn-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 10px; margin-top: 6px; }
-.accident-warn-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; color: var(--text-sub); }
-.accident-warn-legend-item i { width: 8px; height: 8px; border-radius: 2px; flex: none; display: inline-block; }
-@media (prefers-reduced-motion: reduce) {
-    .accident-warn-zoom { transition: none !important; }
-}
+/* [S19에서 삭제] 특보발효 도넛 스타일(.accident-warn-svg · .center-total ·
+   .accident-warn-wedge/zoom/revert/inline-label/leader/legend) — "특보발효" 탭이
+   S10 에서 카드로 내려가면서 그 마크업을 만드는 코드가 없어졌다. */
 .accident-trend-back {
     display: block;
     border: none;
@@ -8890,13 +9607,8 @@ html[data-font-size="large"] .ocean-overlay-btn {
 }
 .accident-detail-tab.active { background: var(--accent-blue); color: #05070d; }
 
-.accident-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.74rem; }
-.accident-bar-row .name { width: 84px; flex: none; color: var(--text-sub); }
-/* display:block 필수 — span은 기본 inline이라 width/height가 안 먹어(2026-09-01
-   확인: 이래서 게이지가 항상 빈 채로 보였음), block이어야 채움 비율(%)이 실제로 그려짐. */
-.accident-bar-row .track { display: block; flex: 1; background: rgba(255,255,255,0.08); border-radius: 4px; height: 7px; overflow: hidden; }
-.accident-bar-row .fill { display: block; height: 100%; background: var(--accent-green); border-radius: 4px; }
-.accident-bar-row .n { width: 68px; flex: none; text-align: right; color: var(--text-main); white-space: nowrap; }
+/* [S19에서 삭제] .accident-bar-row — 예전 막대 행. S4 에서 목업 부품(.ash-row)으로
+   갈아치우면서 이 클래스를 쓰는 마크업이 없어졌다. */
 
 /* 사고정보 필터 바(2026-08-24) — 현황: 사고유형만, 분석: 4개 전부 노출.
    버튼 하나가 [필터명: 요약] 형태 — 확정하면 "N개 선택"으로 바뀐다. */
