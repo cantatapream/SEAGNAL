@@ -172,6 +172,13 @@
  * [관할 미상(orgCd=0) 전량 삭제(2026-08-23)] 사용자 요청으로 관할해경서 코드가 0(원본 CSV
  *   빈 값, `accident_codes.js`에서 "관할 미상"으로 표시되던 것)인 행 2,448건 삭제.
  *   25,990 → 23,542건.
+ * [관할 미상 폴리곤 재판정(2026-09-04, S14)] 위 삭제는 그 시점 데이터(25,990행) 기준이고,
+ *   그 뒤 원본을 다시 만들면서 orgCd=0 인 행이 다시 들어와 있었다(선박 2,239 · 인명 2,124,
+ *   합 4,363건 — 2026-09-04 실측). 사용자 확정으로 이 행들의 좌표를 해경서 관할 폴리곤에
+ *   대입해 실제 서로 채웠다(local_server/scripts/assign_unknown_jurisdiction.js, 4,110건).
+ *   어느 폴리곤에도 안 들어가는 먼바다 253건만 관할 미상으로 남으며, 이건 관할서가 아니라
+ *   "판정 못 함" 표시라 관할서별 통계 목록에서 뺀다(orgBuckets). 지도 관할서 필터에는
+ *   그대로 남긴다 — 그 사고들이 지도에 실재하기 때문이다.
  * [필터 바 — 사고유형·관할서·시간대·계절(2026-08-24 사용자 확정)] "지금은 사고마커에
  *   관한 모든 정보가 다 표출되는데, 필터로 손쉽게 골라 보고 싶다"는 요청으로 추가.
  *   처음엔 현황(마커 표출)은 사고유형 필터만, 분석(격자 집계)은 관할서·사고유형·시간대·
@@ -2595,9 +2602,29 @@
         return last ? top.concat([last]) : top;
     }
 
-    /** "관할서별" 분석 뷰 — 상위 6개로 자르지 않고 전부 보여준다(최대 21개 관할서). */
+    /**
+     * "관할서별" 분석 뷰 — 상위 6개로 자르지 않고 전부 보여준다(최대 21개 관할서).
+     *
+     * ★"관할 미상"은 목록에서 뺀다[S14]. 관할서 칸이 비어 있던 사고는 좌표를 해경서
+     * 관할 폴리곤에 대입해 실제 서로 채웠고(assign_unknown_jurisdiction.js), 그래도
+     * 어느 폴리곤에도 안 들어가는 먼바다 사고만 "관할 미상"으로 남는다. 이건 관할서가
+     * 아니라 "판정 못 함" 표시라 다른 서와 같은 줄에 세우면 안 된다(사용자 확정
+     * 2026-09-04 "263건은 제외하도록 하고 나머지는 폴리곤 안에 들어가도록 하자").
+     * 대신 몇 건을 뺐는지는 차트 아래에 반드시 밝힌다 — 안 밝히면 분모가 조용히 준다.
+     *
+     * @param {string} key 소스 키
+     * @param {ol.Feature[]} members 이 칸의 사고들
+     * @returns {{entries:Array, dropped:number}} entries=[[관할서명, 건수], ...]
+     * [연계] renderActiveChart 의 view==='org' 가지 / 설계서 작업 11
+     */
     function orgBuckets(key, members) {
-        return countByLabel(members, function (r) { return r[ORG_POS_IDX[key]]; }, ACCIDENT_ORG_LABELS);
+        var all = countByLabel(members, function (r) { return r[ORG_POS_IDX[key]]; }, ACCIDENT_ORG_LABELS);
+        var entries = [], dropped = 0;
+        all.forEach(function (e) {
+            if (ASH_EXCLUDED_LABEL.test(e[0])) dropped += e[1];
+            else entries.push(e);
+        });
+        return { entries: entries, dropped: dropped };
     }
 
     /**
@@ -4020,7 +4047,14 @@
         }
 
         if (view === 'org') {
-            var org = orgBuckets(key, members);
+            var orgGot = orgBuckets(key, members);
+            var org = orgGot.entries;
+            // 뺀 것이 있으면 분모를 밝힌다[S14] — 관할서별 카드에는 .ash-note 자리가
+            // 없으므로 차트 아래 캡션 줄을 쓴다.
+            if (caption && orgGot.dropped) {
+                caption.textContent = '관할 미상 ' + fmtN(orgGot.dropped) + '건 제외 (전체 ' +
+                    fmtN(members.length) + '건 중 ' + fmtN(members.length - orgGot.dropped) + '건 기준)';
+            }
             wrap.style.height = Math.max(200, org.length * 20) + 'px'; // 최대 21개 관할서 — 가로막대라 세로로 늘림
             var ORG_MIN_PX = 26; // 숫자 라벨이 안에 들어갈 최소 막대 길이
             _statsCharts.push(new Chart(canvas, {
