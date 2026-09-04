@@ -2374,8 +2374,7 @@
             { id: 'month', label: '월별', icon: 'fa-calendar' },
             { id: 'hourly', label: '시간대별', icon: 'fa-clock', disabled: key !== 'hk' },
             { id: 'weekday', label: '요일별', icon: 'fa-calendar-week' },
-            { id: 'org', label: '관할서별', icon: 'fa-building-columns' },
-            { id: 'warn', label: '특보발효', icon: 'fa-triangle-exclamation' }
+            { id: 'org', label: '관할서별', icon: 'fa-building-columns' }
         ];
     }
 
@@ -2717,7 +2716,8 @@
     /** 상세 카드 전부(선박이면 3개, 인명이면 1개)를 이어 붙인다[S8]. */
     function buildDetailCardsHtml(key, members) {
         return detailAxesFor(key).map(function (axis, i) {
-            return buildDetailCardHtml(key, axis, i + 3, members);
+            // 앞에 1.추세요약 2.연도별추이 3.특보 가 있으므로 상세는 4번부터.
+            return buildDetailCardHtml(key, axis, i + 4, members);
         }).join('');
     }
 
@@ -2772,6 +2772,7 @@
             buildSourceChipsHtml(key, members) +
             buildTrendSummaryHtml(key, members) +
             buildChartViewHtml(key) +
+            buildWarnCardHtml(key, members) +
             buildDetailCardsHtml(key, members) +
             buildStatsFootHtml();
     }
@@ -2779,6 +2780,8 @@
     /** 선택한 칸의 선박·인명 건수 — {hk:n, person:m}. 다른 소스는 비동기로 세어 오므로
      * 처음엔 null 이고, 다 세면 채워진 뒤 시트를 다시 그린다. [연계] resolveCombinedCounts */
     var _combinedCounts = null;
+    /** 소스별 특보 통계 {hk:{...}, person:{...}} — 위와 같은 시점에 채워진다[S10]. */
+    var _combinedWarn = null;
 
     /** 지금 켜진 소스 말고 "다른 쪽" 사고가 이 칸에 몇 건인지 세어 온다[S6].
      *
@@ -2795,21 +2798,25 @@
      * [연계] → buildTrendSummaryHtml·buildSourceChipsHtml 이 _combinedCounts 를 읽는다 */
     function resolveCombinedCounts(cellFeature, key, members) {
         _combinedCounts = null;
+        _combinedWarn = null;
         if (!cellFeature) return;
         var other = key === 'hk' ? 'person' : 'hk';
         var ex = cellFeature.getGeometry().getExtent();
         ensureRawFeatures(other).then(function (feats) {
             if (_statsMembers !== members) return; // 그 사이 다른 칸을 열었다
-            var n = 0;
+            var otherRows = [];
             for (var i = 0; i < feats.length; i++) {
                 var c = feats[i].getGeometry().getCoordinates();
                 if (c[0] < ex[0] || c[0] > ex[2] || c[1] < ex[1] || c[1] > ex[3]) continue;
                 if (!passesFilters(other, feats[i].get('row'))) continue;
-                n++;
+                otherRows.push(feats[i].get('row'));
             }
             _combinedCounts = {};
             _combinedCounts[key] = members.length;
-            _combinedCounts[other] = n;
+            _combinedCounts[other] = otherRows.length;
+            _combinedWarn = {};
+            _combinedWarn[key] = warnStatsOf(key, members);
+            _combinedWarn[other] = warnStatsOfRows(other, otherRows);
             renderStatsBody();
         }).catch(function () { /* 반대쪽 자료를 못 받으면 도넛만 안 나온다 */ });
     }
@@ -2820,6 +2827,122 @@
      * 이 날 이후로 잘라야 한다 — 안 자르면 자료가 없는 기간이 분모를 부풀려 비율이
      * 실제보다 낮게 나온다(설계서 작업 5 F-8). */
     var WARN_DATA_START_YMD = '20160826';
+
+    /** 특보 종류·심각도 6종의 표시 정보 — 이름·색·아이콘[S10].
+     * 같은 종류는 같은 색 계열, 경보는 기준색, 주의보는 그 계열의 밝은색이다
+     * (사용자 확정 2026-09-04 "같은 종류의 특보는 같은 색상으로"). 밝은색은 도넛
+     * 그라데이션 표(ASH_DONUT_GRADS)의 첫 번째 값과 같은 값을 쓴다. */
+    var ASH_WARN_KINDS = [
+        { code: 'GW_경보', label: '강풍경보', color: '#16c8a3', icon: 'fa-wind', type: 'GW' },
+        { code: 'GW_주의보', label: '강풍주의보', color: '#6cf0d4', icon: 'fa-wind', type: 'GW' },
+        { code: 'WV_경보', label: '풍랑경보', color: '#2b7cf0', icon: 'fa-water', type: 'WV' },
+        { code: 'WV_주의보', label: '풍랑주의보', color: '#86b6ff', icon: 'fa-water', type: 'WV' },
+        { code: 'TY_경보', label: '태풍경보', color: '#a35ff0', icon: 'fa-hurricane', type: 'TY' },
+        { code: 'TY_주의보', label: '태풍주의보', color: '#dcabff', icon: 'fa-hurricane', type: 'TY' }
+    ];
+
+    /** 한 소스의 사고 목록에서 특보 통계를 낸다[S10].
+     * @param {string} key 소스 키
+     * @param {ol.Feature[]} members 사고들
+     * @returns {{total:number, denom:number, warn:number, sev:Object}}
+     *   denom 은 2016-08-26 이후 사고 수 — 비율의 분모다. */
+    function warnStatsOf(key, members) {
+        var sevIdx = WARN_SEVERITY_POS_IDX[key];
+        var out = { total: members.length, denom: 0, warn: 0, sev: {} };
+        members.forEach(function (f) {
+            var row = f.get('row');
+            if (String(row[2]) < WARN_DATA_START_YMD) return;
+            out.denom++;
+            var codes = row[sevIdx] || [];
+            if (codes.length) out.warn++;
+            codes.forEach(function (c) { out.sev[c] = (out.sev[c] || 0) + 1; });
+        });
+        return out;
+    }
+
+    /** 같은 계산을 "행 배열"에 대해 한다 — 반대쪽 소스는 피처만 있고 members 가 없다. */
+    function warnStatsOfRows(key, rows) {
+        var sevIdx = WARN_SEVERITY_POS_IDX[key];
+        var out = { total: rows.length, denom: 0, warn: 0, sev: {} };
+        rows.forEach(function (row) {
+            if (String(row[2]) < WARN_DATA_START_YMD) return;
+            out.denom++;
+            var codes = row[sevIdx] || [];
+            if (codes.length) out.warn++;
+            codes.forEach(function (c) { out.sev[c] = (out.sev[c] || 0) + 1; });
+        });
+        return out;
+    }
+
+    /**
+     * 특보 카드[S10] — 사용자가 준 "특보 중 사고 발생 현황" 이미지 그대로.
+     *
+     * ★분모가 다른 카드와 다르다: 특보 원본 통보문이 2016-08-26 부터라 그 이전 사고는
+     * 특보를 판정할 자료 자체가 없어 전부 "특보 없음"으로 기록돼 있다. 분모를 안 자르면
+     * 자료 없는 기간이 분모를 부풀려 비율이 실제보다 낮게 나온다 — 전국 기준으로
+     * 2.8% 로 보이던 것이 제대로 자르면 선박 4.0%·인명 6.3%·통합 4.3% 다.
+     * 그래서 제목 옆에 "2016.08~" 배지를 달아 잣대가 다름을 밝힌다.
+     *
+     * 타일은 지금 보고 있는 소스에 따라 다르다 — 선박사고는 태풍·풍랑만 판정하도록
+     * 만들어 뒀고(강풍특보는 육상 개념이라 배 사고와 무관, 2026-08-24 확정) 실제로
+     * 선박 59,664건의 강풍은 경보·주의보 모두 0건이다. 그래서 선박일 때는 강풍 타일을
+     * 아예 숨긴다 — 0건으로 보여 주면 "이 바다엔 강풍이 안 분다"로 오해된다.
+     *
+     * @param {string} key 소스 키
+     * @param {ol.Feature[]} members 이 칸의 사고들
+     * @returns {string} 카드 HTML
+     * [연계] 스타일 style.css .ash-warn-* / 설계서 작업 5(F-1~F-9) */
+    function buildWarnCardHtml(key, members) {
+        var st = warnStatsOf(key, members);
+        var kinds = ASH_WARN_KINDS.filter(function (k) {
+            return key === 'hk' ? k.type !== 'GW' : true;
+        });
+        var maxSev = 1;
+        kinds.forEach(function (k) { if ((st.sev[k.code] || 0) > maxSev) maxSev = st.sev[k.code]; });
+
+        var tiles = kinds.map(function (k) {
+            var n = st.sev[k.code] || 0;
+            var pct = st.warn ? n / st.warn * 100 : 0;
+            return '<div class="ash-warn-tile">' +
+                '<div class="t" style="color:' + k.color + '"><i class="fa-solid ' + k.icon + '"></i>' + k.label + '</div>' +
+                '<div class="n">' + fmtN(n) + '<small>건</small></div>' +
+                '<div class="p">' + pct.toFixed(1) + '%</div>' +
+                '<div class="bar"><i style="width:' + Math.round(n / maxSev * 100) + '%;background:' + k.color + '"></i></div>' +
+                '</div>';
+        }).join('');
+
+        // 선박·인명 나눔 — 반대쪽은 비동기로 세어 온 값을 쓴다(없으면 이 줄을 생략).
+        var srcRow = '';
+        if (_combinedWarn && _combinedWarn.hk && _combinedWarn.person) {
+            var hw = _combinedWarn.hk.warn, pw = _combinedWarn.person.warn, tw = hw + pw;
+            function srcCell(cls, label, icon, n) {
+                return '<div class="ash-warn-src ' + cls + '">' +
+                    '<div class="ash-warn-k"><i class="fa-solid ' + icon + '"></i>' + label + '</div>' +
+                    '<div class="ash-warn-v">' + fmtN(n) + '<small>건</small>' +
+                    '<em>(' + (tw ? (n / tw * 100).toFixed(1) : '0.0') + '%)</em></div></div>';
+            }
+            srcRow = '<div class="ash-warn-box">' +
+                srcCell('hk', '선박사고', 'fa-ship', hw) +
+                srcCell('person', '인명사고', 'fa-person', pw) +
+                '</div>';
+        }
+
+        return '<section class="ash-card">' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">3. 특보 중 사고 발생 현황' +
+            '<span class="ash-badge-note">2016.08~</span></h2></div>' +
+            '<div class="ash-warn-lead">전체 사고 중 특보가 발효된 시점에 발생한 사고만 집계한 자료입니다.</div>' +
+            '<div class="ash-warn-box">' +
+            '<div><div class="ash-warn-k">특보 중 사고 건수</div>' +
+            '<div class="ash-warn-v">' + fmtN(st.warn) + '<small>건</small>' +
+            '<em>' + (st.denom ? '전체 대비 ' + (st.warn / st.denom * 100).toFixed(1) + '%' : '자료 없음') + '</em></div></div>' +
+            '</div>' +
+            srcRow +
+            '<div class="ash-warn-sub">특보 종류별 사고 건수</div>' +
+            '<div class="ash-warn-tiles">' + tiles + '</div>' +
+            '<div class="ash-note">특보 발효 시간과 사고 발생 시간이 겹치는 경우에만 집계했습니다. ' +
+            '2016년 8월 이전 사고는 특보 자료가 없어 분모에서 제외했습니다.</div>' +
+            '</section>';
+    }
 
     /** 선택 영역의 추세 요약 수치를 한 번에 계산한다[S6].
      *

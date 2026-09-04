@@ -9275,6 +9275,51 @@ html[data-font-size="large"] .ocean-overlay-btn {
     line-height: 1.5;
 }
 
+/* 특보 카드[S10] — 사용자가 준 "특보 중 사고 발생 현황" 이미지를 그대로 옮긴 것.
+   위쪽 요약 줄(카드 안 작은 블록 --ash-sub)과 아래 종류별 타일로 나뉜다.
+   [연계] 마크업 accident_info.js buildWarnCardHtml */
+.ash-warn-lead { font-size: 0.78em; color: var(--ash-muted); margin: -0.35em 0 0.85em; line-height: 1.5; }
+.ash-warn-box {
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.9em;
+    display: flex;
+    margin-bottom: 0.6em;
+}
+.ash-warn-box > div {
+    flex: 1; min-width: 0;
+    padding: 0.85em 0.9em;
+    display: flex; flex-direction: column; gap: 0.4em;
+}
+/* 칸 사이 얇은 세로선 — 목업이 두 값을 한 상자 안에서 가르는 방식 */
+.ash-warn-box > div + div { border-left: 1px solid var(--ash-sub-br); }
+.ash-warn-k { font-size: 0.75em; color: var(--ash-muted); }
+.ash-warn-v { font-size: 1.35em; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.ash-warn-v small { font-size: 0.5em; font-weight: 600; color: #b6c6da; margin-left: 0.15em; }
+.ash-warn-v em { font-style: normal; font-size: 0.5em; font-weight: 600; color: var(--ash-muted); margin-left: 0.5em; }
+.ash-warn-src .ash-warn-k { display: flex; align-items: center; gap: 0.4em; }
+.ash-warn-src.hk .ash-warn-k { color: var(--ash-blue-soft); }
+.ash-warn-src.person .ash-warn-k { color: var(--ash-teal); }
+
+.ash-warn-sub { font-size: 0.85em; font-weight: 800; margin: 0.9em 0 0.55em; }
+.ash-warn-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em; }
+.ash-warn-tile {
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.9em;
+    padding: 0.75em 0.7em;
+    display: flex; flex-direction: column; gap: 0.4em;
+}
+.ash-warn-tile .t {
+    font-size: 0.75em; font-weight: 700;
+    display: flex; align-items: center; gap: 0.35em;
+}
+.ash-warn-tile .n { font-size: 1.25em; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.ash-warn-tile .n small { font-size: 0.55em; font-weight: 600; color: #b6c6da; margin-left: 0.1em; }
+.ash-warn-tile .p { font-size: 0.72em; color: var(--ash-muted); }
+.ash-warn-tile .bar { height: 0.35em; border-radius: 1em; background: var(--ash-track); overflow: hidden; }
+.ash-warn-tile .bar > i { display: block; height: 100%; border-radius: 1em; }
+
 /* 푸터 각주 — 목업 .foot. 항목 앞에 작은 점이 붙는 목록으로, "2014·2015년 제외"
    같은 집계 단서를 담는다(설계서 작업 9·10). */
 .accident-stats-foot {
