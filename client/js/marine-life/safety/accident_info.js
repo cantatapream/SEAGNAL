@@ -2369,15 +2369,18 @@
     /** 소스별 "분석 뷰" 탭 구성 — hourly 는 hk 에만(person 은 발생시각 없음).
      * "월별"은 2026-08-31 사용자 확정으로 드릴다운 없이 최상위 탭으로 추가. */
     function statsViewsFor(key) {
-        var views = [
-            { id: 'trend', label: '연도별' },
-            { id: 'month', label: '월별' },
-            { id: 'weekday', label: '요일별' },
-            { id: 'org', label: '관할서별' },
-            { id: 'warn', label: '특보발효' }
+        // 인명사고에는 발생 시각(hm)이 없다. 예전에는 "시간대별"을 목록에서 아예 빼서
+        // 탭 개수가 소스마다 달라졌는데, 그러면 소스를 바꿀 때 탭 줄이 흔들리고
+        // "이 앱엔 시간대별이 없나?" 로 읽힌다. 이제는 자리를 그대로 두고 회색으로
+        // 잠근다(2026-09-04 사용자 확정 — "회색으로 비활성화돼서 선택할 수 없도록").
+        return [
+            { id: 'trend', label: '연도별', icon: 'fa-chart-line' },
+            { id: 'month', label: '월별', icon: 'fa-calendar' },
+            { id: 'hourly', label: '시간대별', icon: 'fa-clock', disabled: key !== 'hk' },
+            { id: 'weekday', label: '요일별', icon: 'fa-calendar-week' },
+            { id: 'org', label: '관할서별', icon: 'fa-building-columns' },
+            { id: 'warn', label: '특보발효', icon: 'fa-triangle-exclamation' }
         ];
-        if (key === 'hk') views.splice(2, 0, { id: 'hourly', label: '시간대별' });
-        return views;
     }
 
     /** "사고발생상세" 탭 구성 — 소스마다 실제 CSV 에 있는 컬럼만큼만 보여준다. */
@@ -2435,12 +2438,17 @@
      */
     function buildChartViewHtml(key) {
         var views = statsViewsFor(key);
-        if (!_statsView[key] || !views.some(function (v) { return v.id === _statsView[key]; })) _statsView[key] = 'trend';
+        // 잠긴 탭(인명의 시간대별)이 선택돼 있으면 안 된다 — 소스를 바꿨을 때 빈 차트가 뜬다.
+        var cur = _statsView[key];
+        if (!cur || !views.some(function (v) { return v.id === cur && !v.disabled; })) _statsView[key] = 'trend';
         var activeView = _statsView[key];
         var viewTabsHtml = views.map(function (v) {
-            return '<button class="accident-detail-tab accident-view-tab' + (v.id === activeView ? ' active' : '') +
-                '" data-view="' + v.id + '">' + v.label + '</button>';
+            return '<button class="ash-tab accident-view-tab' + (v.id === activeView ? ' active' : '') +
+                '" data-view="' + v.id + '"' + (v.disabled ? ' disabled title="인명사고는 발생 시각 정보가 없습니다"' : '') +
+                '><i class="fa-solid ' + v.icon + '"></i>' + v.label + '</button>';
         }).join('');
+        // 탭이 6개면 좁아서 아이콘을 숨긴다(style.css .ash-tabs.is-crowded 참고).
+        var tabsCls = 'ash-tabs' + (views.length > 5 ? ' is-crowded' : '');
 
         var backHtml = '';
         if (activeView === 'trend' && _trendDrill) {
@@ -2456,7 +2464,7 @@
             : '<canvas id="accident-stats-chart"></canvas>';
 
         return '<div class="accident-stats-block">' +
-            '<div class="accident-detail-tabs">' + viewTabsHtml + '</div>' +
+            '<div class="' + tabsCls + '">' + viewTabsHtml + '</div>' +
             backHtml +
             '<div class="accident-chart-wrap" id="accident-chart-wrap">' + chartInnerHtml + '</div>' +
             '<div class="accident-chart-caption" id="accident-chart-caption"></div>' +
@@ -2520,9 +2528,43 @@
             '<div class="ash-count-l">선택 영역 내 사고</div>' +
             '</div>' +
             '</div>' +
+            buildSourceChipsHtml(key, members) +
             buildChartViewHtml(key) +
             buildDetailBlockHtml(key, members) +
             buildStatsFootHtml();
+    }
+
+    /** 소스 칩(선박사고 / 인명사고) — 목업 .chip[S3].
+     *
+     * 예시: 선박사고가 켜진 상태에서 격자 칸에 1,284건이 있으면
+     *   [🚢 선박사고 / 1,284건]  [👤 인명사고 / (빈칸)]
+     * 이고, 인명사고 칩을 누르면 지도·시트가 인명사고로 바뀐다.
+     *
+     * ⚠지금은 임시 동작이다. 최종 설계에서 이 칩은 "선박+인명을 합쳐 놓은 것"을 걸러
+     * 보는 스위치이고 건수 옆에 비율(%)도 붙는다. 그런데 합계 전환은 뒤 단계(S15)라,
+     * 그때까지는 예전 소스 선택 팝아웃이 하던 일을 이 칩이 대신한다 — 켜져 있는 쪽만
+     * 건수를 갖고, 반대쪽은 누르면 전환된다.
+     *
+     * @param {string} key 지금 켜져 있는 소스('hk'|'person')
+     * @param {ol.Feature[]} members 이 격자 칸에 담긴 사고들
+     * @returns {string} 칩 두 개 HTML
+     * [연계] 스타일 style.css .ash-chips/.ash-chip / 클릭 처리 아래 statsBody delegation
+     *        / 디자인 근거 accident_stats_sheet.style.md §4.4·§7 */
+    function buildSourceChipsHtml(key, members) {
+        var defs = [
+            { id: 'hk', label: '선박사고', icon: 'fa-ship' },
+            { id: 'person', label: '인명사고', icon: 'fa-person' }
+        ];
+        return '<div class="ash-chips">' + defs.map(function (d) {
+            var on = d.id === key;
+            return '<button type="button" class="ash-chip ' + d.id + '" data-chip="' + d.id + '"' +
+                ' aria-pressed="' + (on ? 'true' : 'false') + '">' +
+                '<span class="ash-chip-ic"><i class="fa-solid ' + d.icon + '"></i></span>' +
+                '<span class="ash-chip-body">' +
+                '<span class="ash-chip-t1">' + d.label + '</span>' +
+                '<span class="ash-chip-t2">' + (on ? fmtN(members.length) + '건' : '&nbsp;') + '</span>' +
+                '</span></button>';
+        }).join('') + '</div>';
     }
 
     /** 시트 맨 아래 각주 — 목업 .foot(항목 앞에 작은 점이 붙는 목록).
@@ -4030,7 +4072,9 @@
         var iconEl = toggleBtn && toggleBtn.querySelector('i');
         var originalIconClass = iconEl ? iconEl.className : '';
         if (iconEl) iconEl.className = 'fa-solid fa-spinner fa-spin';
-        ensureClusterLayer(map, key).then(function () {
+        // 프로미스를 돌려준다 — 소스 칩(S3)이 "전환이 끝난 뒤" 같은 자리 격자 칸을
+        // 다시 열려면 완료 시점을 알아야 한다.
+        return ensureClusterLayer(map, key).then(function () {
             if (iconEl) iconEl.className = originalIconClass;
             if (seq !== _selectSeq) return; // 그 사이 껐거나 다른 소스를 골랐으면 이 결과는 버린다
             state.source = key;
@@ -4185,6 +4229,28 @@
         if (statsBody) {
             statsBody.addEventListener('click', function (e) {
                 if (!_statsKey) return;
+                // 소스 칩(선박↔인명) — 지금은 소스 자체를 바꾼다(S3 임시 동작, S15 에서
+                // 합계를 거르는 방식으로 바뀐다). 바꾸고 나면 격자가 다시 계산되므로,
+                // 보고 있던 칸의 중심 좌표를 기억해 두었다가 같은 자리를 다시 연다 —
+                // 안 그러면 칩을 누를 때마다 시트가 닫혀 "어디를 보고 있었는지" 잃는다.
+                var chipBtn = e.target.closest('.ash-chip');
+                if (chipBtn) {
+                    var nextKey = chipBtn.dataset.chip;
+                    if (nextKey === _statsKey) return;
+                    var center = _selectedGridFeature
+                        ? ol.extent.getCenter(_selectedGridFeature.getGeometry().getExtent()) : null;
+                    var done = selectSource(map, nextKey);
+                    if (done && done.then && center) {
+                        done.then(function () {
+                            // 격자 다시 그려질 틈을 한 프레임 준 뒤 같은 자리를 연다.
+                            setTimeout(function () {
+                                var px = map.getPixelFromCoordinate(center);
+                                if (px) tryHandleGridClick(map, { pixel: px });
+                            }, 0);
+                        });
+                    }
+                    return;
+                }
                 var viewBtn = e.target.closest('.accident-view-tab');
                 if (viewBtn) {
                     _statsView[_statsKey] = viewBtn.dataset.view;

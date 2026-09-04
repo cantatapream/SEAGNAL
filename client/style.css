@@ -8940,6 +8940,131 @@ html[data-font-size="large"] .ocean-overlay-btn {
     margin-top: 0.5em;
 }
 
+/* 소스 칩(선박사고 / 인명사고) — 목업 .chip[S3].
+   색 공식은 목업에서 뽑은 것: 아이콘 배경 = 종류색 alpha .14~.16, 테두리 = alpha
+   .26~.28, 글자 = 종류색 원본. 선택 상태는 목업에 없어서(정적 시안이라) 같은 어법으로
+   유추했다 — 배경 .26, 테두리 .55, 글자 흰색(디자인 분석서 §7).
+   [연계] 마크업 accident_info.js buildSourceChipsHtml / 클릭 처리 같은 파일 delegation */
+.ash-chips {
+    display: flex;
+    gap: 0.5em;
+    margin-bottom: 0.75em;
+}
+.ash-chip {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.45em;
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.85em;
+    background: rgba(255, 255, 255, 0.018);
+    padding: 0.45em 0.58em;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.ash-chip-ic {
+    width: 1.7em; height: 1.7em;
+    flex: none;
+    border-radius: 0.55em;
+    display: grid;
+    place-items: center;
+    font-size: 1em;
+}
+/* display:block 필수 — span 은 기본 inline 이라 두 줄이 한 줄로 붙어 버린다
+   (목업은 div 였다. 2026-09-04 화면 확인으로 발견). */
+.ash-chip-t1 { display: block; font-size: 0.68em; line-height: 1; }
+.ash-chip-t2 {
+    display: block;
+    font-size: 0.72em; font-weight: 700;
+    margin-top: 0.38em; line-height: 1;
+    white-space: nowrap;
+    color: var(--ash-txt);
+}
+.ash-chip-body { min-width: 0; flex: 1; }
+
+.ash-chip.hk { border-color: rgba(43, 124, 240, 0.28); }
+.ash-chip.hk .ash-chip-ic { background: rgba(43, 124, 240, 0.16); color: var(--ash-blue-soft); }
+.ash-chip.hk .ash-chip-t1 { color: var(--ash-blue-soft); }
+.ash-chip.person { border-color: rgba(22, 200, 163, 0.26); }
+.ash-chip.person .ash-chip-ic { background: rgba(22, 200, 163, 0.14); color: var(--ash-teal); }
+.ash-chip.person .ash-chip-t1 { color: var(--ash-teal); }
+
+.ash-chip.hk[aria-pressed="true"] {
+    border-color: rgba(43, 124, 240, 0.55);
+    background: rgba(43, 124, 240, 0.1);
+}
+.ash-chip.hk[aria-pressed="true"] .ash-chip-ic { background: rgba(43, 124, 240, 0.26); color: #fff; }
+.ash-chip.hk[aria-pressed="true"] .ash-chip-t1 { color: #fff; }
+.ash-chip.person[aria-pressed="true"] {
+    border-color: rgba(22, 200, 163, 0.55);
+    background: rgba(22, 200, 163, 0.09);
+}
+.ash-chip.person[aria-pressed="true"] .ash-chip-ic { background: rgba(22, 200, 163, 0.26); color: #fff; }
+.ash-chip.person[aria-pressed="true"] .ash-chip-t1 { color: #fff; }
+
+/* 분석 뷰 탭 — 목업 .tabs/.tab[S3].
+   왜 탭 사이에만 세로 구분선을 긋고 활성 탭 좌우는 지우나: 활성 탭이 파란 알약이라
+   그 옆에 선이 남으면 알약을 자르는 것처럼 보인다(목업이 쓰는 방식 그대로).
+   [연계] 마크업 accident_info.js buildChartViewHtml */
+.ash-tabs {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--ash-card-br);
+    border-radius: 1em;
+    background: rgba(255, 255, 255, 0.015);
+    padding: 0.28em;
+    margin-bottom: 0.75em;
+}
+.ash-tab {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3em;
+    padding: 0.7em 0.1em;
+    border-radius: 0.75em;
+    font-size: 0.76em;
+    font-weight: 600;
+    color: #8ea1b9;
+    background: none;
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: background 0.18s ease, color 0.18s ease;
+}
+.ash-tab i { font-size: 1.15em; flex: none; opacity: 0.9; }
+/* 탭이 6개인 동안(특보발효가 아직 카드로 안 내려감)에는 아이콘을 숨긴다 — 412px 폭에서
+   6개에 아이콘+글자를 가로로 넣으면 탭 하나가 64px 밖에 안 돼 글자가 잘린다.
+   S10 에서 특보가 카드로 내려가 5개가 되면 아이콘이 다시 나온다. */
+.ash-tabs.is-crowded .ash-tab i { display: none; }
+.ash-tab + .ash-tab::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 22%;
+    height: 56%;
+    border-left: 1px solid rgba(255, 255, 255, 0.07);
+}
+.ash-tab.active {
+    background: var(--ash-blue);
+    color: #fff;
+    box-shadow: 0 0.2em 0.6em rgba(43, 124, 240, 0.35);
+}
+.ash-tab.active::before, .ash-tab.active + .ash-tab::before { border-color: transparent; }
+/* 비활성 — 인명사고에는 발생 시각이 없어 "시간대별"을 누를 수 없다. 배경은 그대로 두고
+   흐리게만 한다(배경까지 바꾸면 눌린 것처럼 보인다 — 디자인 분석서 §7). */
+.ash-tab[disabled] {
+    opacity: 0.45;
+    color: var(--ash-dim);
+    cursor: not-allowed;
+}
+.ash-tab[disabled] i { opacity: 0.5; }
+
 /* 푸터 각주 — 목업 .foot. 항목 앞에 작은 점이 붙는 목록으로, "2014·2015년 제외"
    같은 집계 단서를 담는다(설계서 작업 9·10). */
 .accident-stats-foot {
