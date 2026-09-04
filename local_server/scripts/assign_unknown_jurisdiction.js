@@ -50,6 +50,27 @@ const path = require('path');
 const CLIENT_DIR = path.join(__dirname, '..', '..', 'client');
 const DRY = process.argv.indexOf('--dry') >= 0;
 
+// ★개서일 — 그 날 이전 사고를 이 서로 배정하면 "그때 없던 기관"에 넣는 셈이 된다[S19 정정].
+// 이 표는 이 저장소가 이미 갖고 있던 것을 그대로 가져왔다
+// (local_server/scripts/audit_hk_jurisdiction_mismatch.js 의 ESTABLISHED_YMD — 2026-08-25
+//  웹서핑 조사 결과). 그 감사 스크립트는 같은 폴리곤을 쓰면서 이 게이트를 이미 걸고
+// 있었는데, 처음 이 스크립트를 쓸 때 그것을 가져오지 않아 실제로 사고가 났다:
+// 울진해양경찰서(2017-11-28 개서)에 2016년 사고 117건이 들어갔다(적대검증에서 발견).
+//
+// 개서일 이전 사고가 그 서의 폴리곤 안에 들면 **그 면을 건너뛰고 다른 면을 계속 찾는다.**
+// 이웃 서의 면이 그 점을 덮고 있으면 그쪽으로 가고(그때 실제 관할이던 서일 가능성이
+// 높다 — 신설서는 이웃 서 관할을 떼어 만든 것이다), 어느 면도 안 덮으면 관할 미상으로
+// 남긴다. "전신 서가 어디였는지"를 단정하지는 않는다.
+const ESTABLISHED_YMD = {
+    평택해양경찰서: '20110401',   // 인천·태안 관할 일부 이관
+    창원해양경찰서: '20121227',   // 통영 관할이던 창원·부산강서 일부 이관
+    보령해양경찰서: '20140401',   // 태안 관할이던 보령·홍성·서천 이관
+    부안해양경찰서: '20160421',   // 군산 관할이던 부안 이관
+    울진해양경찰서: '20171128',   // 포항 관할이던 울진 이관
+    사천해양경찰서: '20220331',   // 통영 관할이던 사천 이관(폴리곤 자체가 없어 지금은 안 걸린다)
+    강릉해양경찰서: '20250331'    // 동해 관할이던 강릉 이관
+};
+
 // 해경서 이름 → 사고데이터에 쓰는 관할서 코드. 코드표에는 1532xxx(현행)와
 // 1750xxx(옛 통합기관 시절) 두 계열이 같은 이름으로 들어 있는데, 화면 집계는
 // 코드가 아니라 이름(라벨)으로 묶으므로 어느 쪽을 써도 결과가 같다. 현행 계열로 쓴다.
@@ -90,11 +111,30 @@ function pointInPolygon(lon, lat, poly) {
     return inside;
 }
 
-/** 좌표가 들어가는 해경서 이름. 어느 폴리곤에도 안 들어가면 null(먼바다). */
-function ownerAt(faces, lon, lat) {
+/**
+ * 좌표가 들어가는 해경서 이름. 어느 폴리곤에도 안 들어가면 null.
+ *
+ * ⚠null 은 "먼바다"가 아니다[S19 정정]. 남은 253건의 폴리곤 경계까지 거리를 재 보니
+ * 중앙값이 선박 0.30km · 인명 0.07km 이고 209건이 1km 이내였다 — 항내·연안인데
+ * 폴리곤이 항만·내만을 안 덮어서 빠진 것이다(장소명도 "격포항내"·"부산 감천항 5부두"
+ * 같은 항내가 많다). 그러니 "판정 못 함"이라고만 말해야 한다.
+ *
+ * ⚠면이 겹칠 때는 **배열에서 먼저 나오는 면이 이긴다.** 관할 미상 중 162건이 서로 다른
+ * 서의 면 2개 이상에 동시에 든다. 면적 최소 우선으로 바꿔 시험해 봤으나 일치율이
+ * 나아지지 않아(94.1%→93.7%) 그대로 두되, 순서가 답을 정한다는 사실을 여기 적어 둔다.
+ *
+ * @param {Array} faces bb 가 붙은 폴리곤 목록
+ * @param {number} lon 경도
+ * @param {number} lat 위도
+ * @param {string} ymd 사고 발생일(YYYYMMDD) — 개서 이전 서는 건너뛴다
+ * @returns {string|null} 해경서 이름
+ */
+function ownerAt(faces, lon, lat, ymd) {
     for (let i = 0; i < faces.length; i++) {
         const b = faces[i].bb;
         if (lon < b[0] || lon > b[2] || lat < b[1] || lat > b[3]) continue;
+        const open = ESTABLISHED_YMD[faces[i].owner];
+        if (open && String(ymd) < open) continue;   // 그때 없던 서 — 다음 면을 본다
         if (pointInPolygon(lon, lat, faces[i].coords)) return faces[i].owner;
     }
     return null;
@@ -112,7 +152,7 @@ function run() {
         data.rows.forEach(function (r) {
             if (+r[orgIdx] !== 0) return;          // 이미 적힌 행은 건드리지 않는다
             unknown++;
-            const owner = ownerAt(faces, r[1], r[0]);
+            const owner = ownerAt(faces, r[1], r[0], r[2]);
             const code = owner && CODE_OF_OWNER[owner];
             if (!code) { outside++; return; }       // 먼바다 — 0 그대로 둔다
             r[orgIdx] = code;
@@ -120,7 +160,7 @@ function run() {
             byOwner[owner] = (byOwner[owner] || 0) + 1;
         });
         console.log('\n[' + name + '] ' + file);
-        console.log('  관할 미상 ' + unknown + '건 → 채움 ' + filled + '건 / 폴리곤 밖 ' + outside + '건(관할 미상으로 남김)');
+        console.log('  관할 미상 ' + unknown + '건 → 채움 ' + filled + '건 / 판정 못 함 ' + outside + '건(관할 미상으로 남김)');
         console.log('  ' + Object.keys(byOwner).sort(function (a, b) { return byOwner[b] - byOwner[a]; })
             .map(function (k) { return k.replace('해양경찰서', '') + ' ' + byOwner[k]; }).join(' · '));
         if (DRY) { console.log('  (--dry 라 파일은 안 바꿨다)'); return; }

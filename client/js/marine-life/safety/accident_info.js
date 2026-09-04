@@ -642,6 +642,9 @@
     var _statsAll = null;             // 그 칸의 사고 전부(칩·필터를 안 거른 원본 목록)
     /** 지금 시트가 "전국 보기"인가[S18] — 격자 칸 하나가 아니라 전체 데이터를 본다. */
     var _statsNationwide = false;
+    /** 지금 시트가 보고 있는 격자 칸(전국 보기면 null)[S19] — 필터가 바뀌면 특보 발효
+     * 일수를 그 칸으로 다시 세야 하는데, 그때 이 값이 필요하다. */
+    var _statsCellFeature = null;
     // 칩이 '전체'일 때 "상위 발생 유형" 카드가 어느 소스를 보여줄지[S15] — 선박과 인명은
     // 유형 이름이 완전히 달라(충돌·침몰 vs 익수자·추락자) 한 도넛에 섞으면 뜻이 없다.
     // 그래서 이 카드만 카드 제목 오른쪽 토글로 한 소스씩 보여준다(설계서 작업 8).
@@ -692,12 +695,13 @@
 
     // [S17에서 삭제] SEASON_LABELS / SEASON_ORDER / seasonOf — 계절 필터를 없앴다.
 
-    /** hk 전용 — hm("H:MM"~"HH:MM") 문자열의 시(hour). 파싱 실패/없음이면 null. */
-    function hourOf(hm) {
-        if (!hm) return null;
-        var h = parseInt(String(hm).split(':')[0], 10);
-        return isNaN(h) ? null : h;
-    }
+    // [S19에서 삭제] hourOf(hm) — 시각 문자열을 받던 판.
+    // ★같은 범위에 hourOf 가 두 번 선언돼 있었고(2026-08-24 필터용 + 2026-08-29 차트용),
+    // 자바스크립트는 **나중 선언이 이긴다.** 그래서 필터가 hourOf(row[3]) 로 문자열을
+    // 넘기면 나중 판이 그것을 "행"으로 보고 row[3] = 문자열의 4번째 글자를 읽었다.
+    // 실측: "18:05" → 0시, "6:05" → 5시. 선박 59,664건 중 57,113건(95.7%)이 틀린 시로
+    // 판정돼, "18~21시"를 고르면 0건이 나왔다(적대검증 두 명이 각각 발견).
+    // 이제 행을 받는 판 하나만 두고 이름을 hourOfRow 로 바꿔 다시는 겹치지 않게 한다.
 
     /** 소스별 관할해경서(orgCd) 컬럼 위치. person 도 hk 와 마찬가지로 이 컬럼이 있다. */
     var ORG_POS_IDX = { hk: 8, person: 5 };
@@ -750,7 +754,7 @@
             if (!filters.orgs.has(org)) return false;
         }
         if (filters.hourRanges && key === 'hk') {
-            var hour = hourOf(row[3]);
+            var hour = hourOfRow(row);
             if (hour != null) {
                 var inAny = filters.hourRanges.some(function (r) { return hour >= r[0] && hour < r[1]; });
                 if (!inAny) return false;
@@ -2246,7 +2250,10 @@
             gridSource.addFeature(cellFeature);
         });
         _selectedGridFeature = null;
-        closeStatsSheet(); // 격자가 다시 그려졌으니 이전 선택은 무효
+        // 격자가 다시 그려졌으니 "그 칸" 시트는 무효다. 다만 전국 보기는 격자 칸을
+        // 쓰지 않으므로 닫을 이유가 없다[S19 정정] — 예전에는 전국 통계를 열고 지도를
+        // 한 번 끌기만 해도 시트가 닫혔다(설계서 작업 12 "지도 상태와 무관하게").
+        if (!_statsNationwide) closeStatsSheet();
         fadeInGridLayer(); // 부드러운 등장(2026-09-01 — "확대/축소 애니메이션" 피드백,
         // 칸 경계를 실제로 모핑하진 않고 옅게 나타나는 정도로 단순화)
     }
@@ -2298,12 +2305,23 @@
         return isNaN(d.getTime()) ? null : (d.getDay() + 6) % 7;
     }
 
-    /** hk 의 OCRN_HM("6:05" 형식)에서 시(0~23)만 뽑는다. person 은 이 컬럼이 없어 null. */
-    function hourOf(row) {
+    /**
+     * 선박(hk) 행의 OCRN_HM("6:05" 형식)에서 시(0~23)만 뽑는다[S19에 hourOf 에서 개명].
+     *
+     * ⚠**행을 받는다**(시각 문자열이 아니라). 인명(person) 행의 같은 자리(row[3])는
+     * 발생시각이 아니라 **발생장소 텍스트**라, 그것이 숫자로 시작하면 엉뚱한 값이 나온다
+     * (실측: "1750259 동구 방어진…" → 1750259). 그래서 여기서 0~23 범위를 벗어나면
+     * null 을 돌려준다 — 부르는 쪽이 소스를 가려 주더라도 이 함수가 스스로 막는다.
+     *
+     * @param {Array} row 사고 한 행
+     * @returns {number|null} 0~23 또는 null
+     */
+    function hourOfRow(row) {
         var hm = row[3];
         if (hm == null) return null;
         var h = parseInt(String(hm).split(':')[0], 10);
-        return isNaN(h) ? null : h;
+        if (isNaN(h) || h < 0 || h > 23) return null;
+        return h;
     }
 
     /**
@@ -2401,11 +2419,22 @@
         return members.filter(function (f) { return srcOfFeat(f) === src; });
     }
 
-    /** 시간대별(0~23시) 사고건수 — hk 전용(person 은 발생시각 컬럼이 없음). */
+    /**
+     * 시간대별(0~23시) 사고건수 — 선박 전용(인명에는 발생시각 칸이 없다).
+     *
+     * ★인명 행을 명시적으로 걸러낸다[S19 정정]. S15 로 시트 목록이 선박+인명 합계가
+     * 되면서 이 함수에 인명 행이 들어오기 시작했는데, 인명의 row[3] 은 발생장소
+     * 텍스트라 46건이 24 이상으로 파싱돼 **배열 길이가 1,750,260 까지 늘어나고
+     * 야간 합계가 NaN 이 됐다**(적대검증에서 발견).
+     *
+     * @param {ol.Feature[]} members
+     * @returns {number[]} 길이 24
+     */
     function hourlyBuckets(members) {
         var counts = new Array(24).fill(0);
         members.forEach(function (f) {
-            var h = hourOf(f.get('row'));
+            if (srcOfFeat(f) !== 'hk') return;
+            var h = hourOfRow(f.get('row'));
             if (h != null) counts[h]++;
         });
         return counts;
@@ -2492,6 +2521,10 @@
      * 정보없음 36.5% + 기타 4.3% + 원인미상 0.8% 로 41.5%, 선박종류는 48.0%).
      * [연계] topEntriesExcluding */
     var ASH_EXCLUDED_LABEL = /^(기타|정보없음|원인미상|관할 미상)/;
+    /** 사람 사고가 아니라 통계에서 아예 빼는 유형[S12, S19에 유형 카드와 공용으로 승격].
+     * 해양오염 1,004건의 관련 인원은 전체 통틀어 1명이다(그 1명은 사망자 — 2020-07-04
+     * 강릉시 송정해변). 치명도·인명피해·유형 카드가 모두 이 표를 쓴다. */
+    var FATAL_DROP_TYPES = { '해양오염': 1 };
 
     /**
      * 한 축의 상위 항목을 "분류 안 된 것"을 뺀 채로 뽑는다[S8].
@@ -2510,15 +2543,24 @@
      * [연계] buildDetailCardHtml */
     function topEntriesExcluding(members, getter, table, all) {
         var entries = countByLabel(members, getter, table);
-        var kept = 0, dropped = 0, keepList = [];
+        var kept = 0, dropped = 0, keepList = [], droppedLabels = [];
         entries.forEach(function (e) {
-            if (ASH_EXCLUDED_LABEL.test(e[0])) { dropped += e[1]; return; }
+            // ★해양오염도 뺀다[S19 정정] — 치명도·인명피해 카드는 빼는데 이 카드만 남겨
+            // 두면 같은 시트에서 한 카드는 "해양오염은 제외했습니다", 다른 카드는
+            // 해양오염을 정식 사고유형 7위(인명 전체의 7.0%)로 보여 준다. 설계서 작업 9가
+            // "기타(인명)·해양오염도 제외(작업 8·10과 일관)"라고 적어 둔 그대로 맞춘다.
+            if (ASH_EXCLUDED_LABEL.test(e[0]) || FATAL_DROP_TYPES[e[0]]) {
+                dropped += e[1];
+                if (droppedLabels.indexOf(e[0]) < 0) droppedLabels.push(e[0]);
+                return;
+            }
             kept += e[1];
             keepList.push(e);
         });
         return {
             entries: all ? keepList : keepList.slice(0, 5),
-            kept: kept, dropped: dropped, allCount: keepList.length
+            kept: kept, dropped: dropped, allCount: keepList.length,
+            droppedLabels: droppedLabels
         };
     }
 
@@ -2687,7 +2729,11 @@
         var all = countByLabel(members, function (r, f) { return featAt(f, ORG_POS_IDX); }, ACCIDENT_ORG_LABELS);
         var entries = [], dropped = 0;
         all.forEach(function (e) {
-            if (ASH_EXCLUDED_LABEL.test(e[0])) dropped += e[1];
+            // 라벨이 숫자 그대로면 코드표에 없는 관할서 코드다[S19 정정] — accidentLabel 은
+            // 표에 없으면 코드를 문자열로 돌려주므로, 예전에는 "1532018"이 관할서 항목으로
+            // 화면에 떴다(인명 15건, 2018년 울진·영덕 일대. 그 코드가 어느 서인지는
+            // 확인하지 못했다). 관할서가 아니라 "판정 못 함"이므로 관할 미상과 같이 뺀다.
+            if (ASH_EXCLUDED_LABEL.test(e[0]) || /^\d+$/.test(e[0])) dropped += e[1];
             else entries.push(e);
         });
         return { entries: entries, dropped: dropped };
@@ -2761,8 +2807,8 @@
      * 화면이 엉뚱한 데 가 있게 된다).
      * @param {string} axisId 접을 카드의 축 id
      */
-    function collapseDetailCard(axisId) {
-        var ek = detailExpandKey(_statsKey, axisId);
+    function collapseDetailCard(axisId, srcKey) {
+        var ek = detailExpandKey(srcKey || _statsKey, axisId);
         if (!_detailExpanded[ek]) return;
         _detailExpanded[ek] = false;
         if (window.PopupStack) window.PopupStack.remove(ACCORDION_POPUP_ID + axisId);
@@ -2794,7 +2840,8 @@
         var moreHtml = '';
         if (got.allCount > 5) {
             moreHtml = '<button type="button" class="ash-more' + (expanded ? ' is-collapse' : '') +
-                '" data-axis="' + escapeHtml(axis.id) + '" aria-expanded="' + (expanded ? 'true' : 'false') + '">' +
+                '" data-axis="' + escapeHtml(axis.id) + '" data-src="' + escapeHtml(key) +
+                '" aria-expanded="' + (expanded ? 'true' : 'false') + '">' +
                 (expanded ? '접기' : '전체 ' + got.allCount + '종 보기') +
                 '<i class="fa-solid fa-chevron-right"></i></button>';
         }
@@ -2809,12 +2856,20 @@
         } else {
             bodyHtml = buildBarRowsHtml(items, got.kept);
         }
+        // 필터를 걸어 남은 것이 없으면 제목만 있는 빈 상자가 된다 — 인명 카드와 같은
+        // 어법으로 안내를 넣는다[S19 정정].
+        if (!items.length) {
+            bodyHtml = '<div class="ash-hint"><i class="fa-solid fa-circle-info"></i>' +
+                '고른 조건에 맞는 사고가 없습니다.</div>';
+        }
 
         // ★분모를 반드시 밝힌다 — 안 밝히면 남은 것만으로 100%를 다시 나눠 실제보다 크게
         // 보인다(설계서 작업 8 D-3). 뺀 게 없으면 문구도 없다.
+        // 뺀 항목을 **실제로 뺀 것만** 적는다[S19 정정] — 예전에는 축과 무관하게
+        // "정보없음·기타·원인미상"이라고 고정 문구를 썼다.
         var noteHtml = got.dropped
-            ? '<div class="ash-note">정보없음·기타·원인미상 제외 (전체 ' + fmtN(members.length) +
-              '건 중 ' + fmtN(got.kept) + '건 기준)</div>'
+            ? '<div class="ash-note">' + escapeHtml(got.droppedLabels.join('·')) + ' 제외 (전체 ' +
+              fmtN(members.length) + '건 중 ' + fmtN(got.kept) + '건 기준)</div>'
             : '';
 
         return '<section class="ash-card ash-detail-card" data-axis="' + escapeHtml(axis.id) + '">' +
@@ -2976,6 +3031,47 @@
 
     function normWarnZoneName(name) { return String(name).replace(/[\s·.]/g, ''); }
 
+    /**
+     * 한 구역 이름으로 **구간 자료에서 찾아볼 이름 후보들**[S19 신설].
+     *
+     * ★왜 필요한가(적대검증에서 발견, 실측): 육상 폴리곤의 이름은 행정구역 표기
+     * (`목포시`·`영덕군`·`속초시`)인데, 특보 통보문은 2017-01-20 무렵부터 짧은 표기
+     * (`목포`·`영덕`·`속초평지`)로 바뀌었다. 그래서 이름을 그대로 찾으면
+     *   목포시 → 2016년 4구간(9일)  ↔  실제 목포 159구간(375일)
+     * 처럼 **실제의 2.7% 만 세어졌다.** 게다가 강원 동해안은 `속초시` 가 아예 없고
+     * `속초시평지`(연안)와 `속초시산지`(내륙)로만 있어, 연안 값을 못 보고 있었다.
+     * 이름이 아예 안 맞는 구역도 107개 중 48개였다(부산중부·인천남부·울산동부 …).
+     *
+     * 후보를 하나만 고르지 않고 **맞는 후보 전부의 구간을 합집합**한다 — 같은 장소의
+     * 두 표기(`목포시`+`목포`)라 합쳐야 전 기간이 나오고, 어느 하나를 고르면 옛 표기가
+     * 이겨 버린다(그게 이 결함의 원인이었다).
+     *
+     * @param {string} name 폴리곤 쪽 구역 이름
+     * @returns {string[]} 찾아볼 이름 후보(중복 없음)
+     * [연계] warnUnionDays / 만드는 쪽 local_server/scripts/build_coastal_land_zones.js
+     */
+    var WARN_ZONE_DIR_SUFFIX = /(중부|서부|동부|남부|북부|영종|도서)$/;
+    function warnZoneNameCandidates(name) {
+        var out = [];
+        function push(v) { if (v && out.indexOf(v) < 0) out.push(v); }
+        var n = normWarnZoneName(name);
+        push(n);
+        var noTag = n.replace(/__.*$/, '');          // 제주도북부__pre20221217 → 제주도북부
+        push(noTag);
+        var noParen = noTag.replace(/\(.*?\)/g, ''); // 보령(도서제외) → 보령
+        push(noParen);
+        [noTag, noParen].forEach(function (b) {
+            push(b.replace(/(시|군|구)(?=(평지|산지)?$)/, ''));   // 목포시→목포 · 속초시평지→속초평지
+            push(b.replace(/(시|군|구)/g, ''));                   // 울진군평지→울진평지
+            var base = b.replace(WARN_ZONE_DIR_SUFFIX, '');       // 부산중부→부산
+            push(base);
+            push(base.replace(/(시|군|구)$/, ''));
+            push(b + '평지');                                     // 속초시→속초시평지(연안)
+            push(b.replace(/(시|군|구)$/, '') + '평지');
+        });
+        return out;
+    }
+
     /** GeoJSON 폴리곤/멀티폴리곤에서 바깥 링만 뽑는다 — 겹침 판정에 구멍은 필요 없다. */
     function outerRingsOf(geometry) {
         if (!geometry) return [];
@@ -3090,16 +3186,19 @@
     function warnUnionDays(data, zoneNames, subKey, win) {
         var all = [], perZone = {}, sum = 0, withData = [];
         zoneNames.forEach(function (z) {
-            var byKind = data.zones[z];
-            if (!byKind) return;
-            var keys = subKey ? (byKind[subKey] ? [subKey] : []) : Object.keys(byKind);
-            if (!keys.length) return;
+            // 같은 장소의 여러 표기를 모두 찾아 합친다[S19] — warnZoneNameCandidates 주석 참고.
+            var found = warnZoneNameCandidates(z).filter(function (c) { return data.zones[c]; });
+            if (!found.length) return;
             var mine = [];
-            keys.forEach(function (k) {
-                byKind[k].forEach(function (r) {
-                    var a = Math.max(win[0], ymdToDayNum(r[0]));
-                    var b = Math.min(win[1], ymdToDayNum(r[1]));
-                    if (a <= b) mine.push([a, b]);
+            found.forEach(function (c) {
+                var byKind = data.zones[c];
+                var keys = subKey ? (byKind[subKey] ? [subKey] : []) : Object.keys(byKind);
+                keys.forEach(function (k) {
+                    byKind[k].forEach(function (r) {
+                        var a = Math.max(win[0], ymdToDayNum(r[0]));
+                        var b = Math.min(win[1], ymdToDayNum(r[1]));
+                        if (a <= b) mine.push([a, b]);
+                    });
                 });
             });
             if (!mine.length) return;
@@ -3170,7 +3269,12 @@
     function warnDaysTipText(u, label) {
         if (!u || !u.zonesWithData.length) return label + ' 발효 자료 없음';
         var lines = u.zonesWithData.map(function (z) { return z + '  ' + fmtN(u.perZone[z]) + '일'; });
-        if (u.overlap > 0) lines.push('동시 발효 ' + fmtN(u.overlap) + '일 제외');
+        // ★"동시 발효 N일 제외"라고 쓰면 안 된다[S19 정정]. overlap 은 구역별 일수를
+        // 그냥 더한 값과 합집합의 차이(sum − total)이고, 구역이 3개 이상이면 그 값은
+        // "동시 발효였던 날 수"가 아니다(실측: 부산앞바다 칸에서 overlap 915일인데
+        // 전체 창이 3,412일·합집합이 526일이라 성립할 수 없는 말이 됐다).
+        // 뺄셈 자체는 맞으므로 "겹쳐 세지 않은 몫"이라고 사실대로 적는다.
+        if (u.overlap > 0) lines.push('구역끼리 겹친 ' + fmtN(u.overlap) + '일은 한 번만 셈');
         lines.push('───');
         lines.push('합계  ' + fmtN(u.total) + '일');
         return lines.join('\n');
@@ -3190,8 +3294,8 @@
     var FATAL_EXCLUDED_YEARS = { '2014': 1, '2015': 1 };
     // 성격상 치명률이 당연히 높아 순위를 왜곡하는 인명 유형 — 순위에서 빼고 펼침에서 회색.
     var FATAL_GRAY_TYPES = { '변사자': 1, '자살자': 1 };
-    // 사람 사고가 아니라 아예 뺀다(1,004건에 관련 인원이 전체 통틀어 1명).
-    var FATAL_DROP_TYPES = { '해양오염': 1 };
+    // FATAL_DROP_TYPES 는 위(ASH_EXCLUDED_LABEL 옆)로 옮겼다[S19] — 유형 카드도 같은
+    // 표를 쓰게 되면서, 선언보다 먼저 쓰이는 모양이 되지 않게 하기 위함이다.
 
     /**
      * 전국 기준 치명도 순위를 낸다[S12].
@@ -3238,16 +3342,33 @@
         return { rows: live, zeroCount: zero.length };
     }
 
-    /** 치명도 막대 행 — .row 구조를 그대로 쓰되 바 안에 조각이 둘이다[S12].
-     * 회색이 사망·실종 몫이고 왼쪽에 온다(안전 앱이라 위험을 먼저 보여준다). */
-    function buildFatalityRowsHtml(rows, unit) {
+    /**
+     * 치명도 막대 행 — .row 구조를 그대로 쓰되 바 안에 조각이 둘이다[S12].
+     * 회색이 사망·실종 몫이고 왼쪽에 온다(안전 앱이라 위험을 먼저 보여준다).
+     *
+     * ★막대 길이의 기준(max)은 **지금 보이는 행이 아니라 순위 전체**에서 잡는다[S19 정정].
+     * 보이는 행에서만 잡으면 "전체 보기"를 펼치는 것만으로 같은 유형의 막대가 짧아진다
+     * (실측: 충돌 100% → 57.8%, 인명사상 22.4% → 12.9%). 설계가 말한 "유형 간 비교"가
+     * 접었다 펴는 것으로 흔들리면 안 된다.
+     *
+     * ★값에 단위와 실수치를 함께 적는다[S19 정정] — 선박은 "건", 인명은 "명"이라
+     * 단위가 다른데 비율만 있으면 그걸 알 길이 없다(설계서 작업 9 중점). 분석서 §7 의
+     * 유추안은 값 자리에 실수치만 두는 안이었으나, 이 카드의 주제가 비율이라 비율을
+     * 앞에 두고 실수치를 muted 로 뒤에 붙였다(.val em 과 같은 어법).
+     *
+     * @param {Array} rows 화면에 그릴 행
+     * @param {string} unit '건'(선박) | '명'(인명)
+     * @param {Array} [allRows] 순위 전체 — 막대 기준을 여기서 잡는다(없으면 rows)
+     * @returns {string} HTML
+     */
+    function buildFatalityRowsHtml(rows, unit, allRows) {
         var max = 1;
-        rows.forEach(function (e) { if (e.scale > max) max = e.scale; });
+        (allRows || rows).forEach(function (e) { if (e.scale > max) max = e.scale; });
         return '<div class="ash-rows">' + rows.map(function (e, i) {
             var color = e.gray || e.thin ? ASH_ROW_GRAY : ASH_ROW_COLORS[i % ASH_ROW_COLORS.length];
             var fill = e.scale / max * 100;                 // 바 전체 길이(가장 큰 유형이 꽉 참)
             var fatalW = fill * (e.fatal / (e.scale || 1)); // 그 안에서 사망·실종 몫
-            return '<div class="ash-row' + (e.thin || e.gray ? ' thin' : '') + '">' +
+            return '<div class="ash-row ash-fatal-row' + (e.thin || e.gray ? ' thin' : '') + '">' +
                 '<span class="ash-dot" style="background-color:' + color + '"></span>' +
                 '<span class="nm" title="' + escapeHtml(e.label) + '">' + escapeHtml(e.label) +
                 (e.thin ? '<em>(표본 적음)</em>' : '') + '</span>' +
@@ -3255,7 +3376,8 @@
                 '<i class="fatal" style="width:' + fatalW.toFixed(1) + '%"></i>' +
                 '<i style="width:' + (fill - fatalW).toFixed(1) + '%;background:' + color + '"></i>' +
                 '</span>' +
-                '<span class="val">' + e.rate.toFixed(1) + '%</span>' +
+                '<span class="val">' + e.rate.toFixed(1) + '%' +
+                '<em>(' + fmtN(e.fatal) + '/' + fmtN(e.scale) + unit + ')</em></span>' +
                 '</div>';
         }).join('') + '</div>';
     }
@@ -3287,32 +3409,54 @@
         // (사망·실종 인원). 인명인데 "건"으로 쓰면 바로 위 요약의 "79명·22명"과 숫자가
         // 어긋나 같은 카드 안에서 잣대가 둘로 보인다(사용자 확정 "인명만 명으로").
         var cellFatal = 0;
+        // ★게이지와 **같은 제외 규칙**으로 센다[S19 정정]. 예전에는 아무것도 안 빼서
+        // 첫 줄과 게이지가 서로 다른 잣대를 썼다(실측: 선박 전체 1,132건 중 기타 39 ·
+        // 기타(선박) 8 · 해양오염 1 이 첫 줄에만 들어가 48건이 어긋났다).
+        var cellDenom = 0;
         members.forEach(function (f) {
             var row = f.get('row');
+            if (FATAL_EXCLUDED_YEARS[String(row[2]).slice(0, 4)]) return;
+            var label = accidentLabel(ACCIDENT_TYPE_LABELS, row[key === 'hk' ? 5 : 4]);
+            if (ASH_EXCLUDED_LABEL.test(label) || FATAL_DROP_TYPES[label]) return;
             if (key === 'hk') {
+                cellDenom++;
                 if ((+row[10] || 0) + (+row[11] || 0) > 0) cellFatal++;
             } else {
+                cellDenom += (+row[6] || 0);
                 cellFatal += (+row[8] || 0) + (+row[9] || 0);
             }
         });
 
         var moreHtml = r.rows.length > rows.length || expanded
             ? '<button type="button" class="ash-more' + (expanded ? ' is-collapse' : '') +
-              '" data-axis="치명도" aria-expanded="' + (expanded ? 'true' : 'false') + '">' +
+              '" data-axis="치명도" data-src="' + escapeHtml(key) +
+              '" aria-expanded="' + (expanded ? 'true' : 'false') + '">' +
               (expanded ? '접기' : '전체 ' + r.rows.length + '종 보기') +
               '<i class="fa-solid fa-chevron-right"></i></button>'
             : '';
 
-        return '<div class="ash-scope-line">' +
-            (key === 'hk'
-                ? '이 구역에서는 사망·실종 사고가 ' + fmtN(cellFatal) + '건 있었습니다.'
-                : '이 구역에서는 사망·실종이 ' + fmtN(cellFatal) + '명 있었습니다.') +
-            '</div>' +
-            buildFatalityRowsHtml(rows, key === 'hk' ? '건' : '명') +
+        // 전국 보기에서는 "이 구역"이라는 말이 거짓이 된다[S19 정정].
+        var here = _statsNationwide ? '전국에서는' : '이 구역에서는';
+        var unit = key === 'hk' ? '건' : '명';
+        var scopeLine = key === 'hk'
+            ? here + ' 사망·실종 사고가 ' + fmtN(cellFatal) + '건 있었습니다(' + fmtN(cellDenom) + '건 중).'
+            : here + ' 사망·실종이 ' + fmtN(cellFatal) + '명 있었습니다(' + fmtN(cellDenom) + '명 중).';
+        // 회색으로 내려간 유형이 실제로 보이는 경우에만 그 이유를 적는다[S19 정정] —
+        // 예전에는 "100건 미만이라 뺐다"만 적혀 있어서, 변사자(545명)·자살자(577명)처럼
+        // 100 을 훨씬 넘는 유형이 회색으로 떠 있는데 화면이 틀린 이유를 대고 있었다.
+        var grayShown = rows.some(function (e) { return e.gray; });
+        var thinShown = rows.some(function (e) { return e.thin; });
+        return '<div class="ash-scope-line">' + scopeLine + '</div>' +
+            buildFatalityRowsHtml(rows, unit, r.rows) +
             '<div class="ash-note">' +
+            // ★이 게이지는 전국 기준이라 시트 안 필터를 타지 않는다 — 안 밝히면
+            // 필터를 걸었는데 막대가 그대로여서 앱이 고장 난 것처럼 보인다.
+            '이 순위는 전국 자료로 낸 것이라 위에서 고른 필터를 따르지 않습니다. ' +
             (skipYearNote ? '' : '2014·2015년은 인명피해가 기록돼 있지 않아 제외했습니다. ') +
-            '건수 ' + FATAL_MIN_SAMPLE + '건 미만인 유형은 비율이 튀어 순위에서 뺐습니다' +
-            (r.zeroCount ? ' · 이 밖에 ' + r.zeroCount + '종은 사망·실종 사고가 없습니다' : '') + '.' +
+            '기타·정보없음·원인미상·해양오염도 뺐습니다' +
+            (thinShown ? ' · 규모 ' + FATAL_MIN_SAMPLE + unit + ' 미만인 유형은 비율이 튀어 순위에서 빼고 회색으로 뒀습니다' : '') +
+            (grayShown ? ' · 변사자·자살자는 성격상 비율이 높을 수밖에 없어 순위에서 빼고 회색으로 뒀습니다' : '') +
+            (r.zeroCount ? ' · 이 밖에 ' + r.zeroCount + '종은 사망·실종이 없습니다' : '') + '.' +
             '</div>' + moreHtml;
     }
 
@@ -3395,27 +3539,42 @@
      */
     function buildCasualtyCardHtml(key, no, members) {
         var s = casualtySummary(members);
+        // ★표시 비율의 합이 정확히 100.0% 가 되게 맞춘다[S19 정정] — 그냥 toFixed(1) 하면
+        // 실종 1.9503% 가 2.0 으로 올림돼 합이 100.1% 로 보였다. 가장 큰 항목이 남은
+        // 몫을 흡수하는 방식(최대잉여법)으로, 큰 값의 소수 한 자리만 조정된다.
+        var pcts = CASUALTY_ROWS.map(function (c, i) { return s.total ? s.vals[i] / s.total * 100 : 0; });
+        var shown = pcts.map(function (v) { return Math.round(v * 10) / 10; });
+        var biggest = 0;
+        shown.forEach(function (v, i) { if (v > shown[biggest]) biggest = i; });
+        if (s.total) {
+            var diff = Math.round((100 - shown.reduce(function (a, b) { return a + b; }, 0)) * 10) / 10;
+            shown[biggest] = Math.round((shown[biggest] + diff) * 10) / 10;
+        }
+        var here = _statsNationwide ? '전국에는' : '이 구역에는';
         var body = s.total
             ? '<div class="ash-rows">' + CASUALTY_ROWS.map(function (c, i) {
-                var n = s.vals[i], pct = n / s.total * 100;
                 return '<div class="ash-row">' +
                     '<span class="ash-dot" style="background-color:' + c.color + '"></span>' +
                     '<span class="nm">' + c.label + '</span>' +
-                    '<span class="ash-bar"><i style="width:' + pct.toFixed(1) + '%;background:' + c.color + '"></i></span>' +
-                    '<span class="val">' + fmtN(n) + '명<em>(' + pct.toFixed(1) + '%)</em></span>' +
+                    '<span class="ash-bar"><i style="width:' + pcts[i].toFixed(1) + '%;background:' + c.color + '"></i></span>' +
+                    '<span class="val">' + fmtN(s.vals[i]) + '명<em>(' + shown[i].toFixed(1) + '%)</em></span>' +
                     '</div>';
             }).join('') + '</div>'
             : '<div class="ash-hint"><i class="fa-solid fa-circle-info"></i>' +
-              '이 구역에는 인명 피해 인원이 기록된 사고가 없습니다.</div>';
+              here + ' 인명 피해 인원이 기록된 사고가 없습니다.</div>';
 
         return '<section class="ash-card ash-detail-card" data-axis="치명도">' +
             '<div class="ash-card-head"><h2 class="ash-card-title">' + no + '. 인명 피해 현황' +
-            ' <em>(선택 영역)</em></h2></div>' +
+            ' <em>(' + (_statsNationwide ? '전국' : '선택 영역') + ')</em></h2></div>' +
             body +
             '<div class="ash-note">' +
             '2014·2015년은 인명피해가 기록돼 있지 않아 제외했습니다 · ' +
-            '해양오염은 인명피해가 없어 제외했습니다' +
-            (s.dropped ? ' (이 구역에서 ' + fmtN(s.dropped) + '건 제외)' : '') + '.' +
+            // ★"해양오염은 인명피해가 없어 제외"는 사실이 아니다[S19 정정] — 해양오염
+            // 1,004건의 관련 인원 1명은 구조자가 아니라 **사망자**다(2020-07-04 강릉시
+            // 송정해변, 직접 확인). 사람 사고가 아니라서 빼는 것이지 인명피해가 0인
+            // 것은 아니므로, 빼는 이유를 사실대로 적는다.
+            '해양오염은 사람 사고가 아니라 제외했습니다(관련 인원 1,004건 중 1명)' +
+            (s.dropped ? ' · ' + (_statsNationwide ? '전국에서' : '이 구역에서') + ' ' + fmtN(s.dropped) + '건 제외' : '') + '.' +
             '</div>' +
             '<div class="ash-card-sec">' +
             '<h3 class="ash-card-sec-title">사망·실종 발생률이 높은 사고' +
@@ -3491,10 +3650,15 @@
             var pct = st.warn ? n / st.warn * 100 : 0;
             // 발효 일수는 종류마다 다르다 — 강풍은 육상 구역, 나머지는 해상 구역 기준.
             var u = _warnDays ? (k.type === 'GW' ? _warnDays.land[k.code] : _warnDays.sea[k.code]) : null;
-            var daysHtml = u
-                ? '<div class="d">발효 ' + fmtN(u.total) + '일</div>'
-                : '';
-            var tip = u ? warnDaysTipText(u, k.label) : '';
+            // ★자료가 있는 구역이 하나도 없으면 "발효 0일"을 찍지 않는다[S19 정정].
+            // 설계서(작업 5 중점)가 명시적으로 금지한 것이다 — 0일은 "정말 한 번도
+            // 안 걸렸다"와 "애초에 계산 대상이 아니다"를 같은 모양으로 만든다.
+            // warnUnionDays 는 자료가 없어도 항상 객체를 돌려주므로 u 만 보면 안 되고
+            // zonesWithData 를 봐야 한다(실측: 50km 격자 249칸 중 179칸에서 강풍 타일이
+            // "발효 0일"로 떠 있었다).
+            var hasDays = !!(u && u.zonesWithData && u.zonesWithData.length);
+            var daysHtml = hasDays ? '<div class="d">발효 ' + fmtN(u.total) + '일</div>' : '';
+            var tip = hasDays ? warnDaysTipText(u, k.label) : '';
             return '<div class="ash-warn-tile"' + (tip ? ' data-tip="' + escapeHtml(tip) + '"' : '') + '>' +
                 '<div class="t" style="color:' + k.color + '"><i class="fa-solid ' + k.icon + '"></i>' + k.label + '</div>' +
                 '<div class="n">' + fmtN(n) + '<small>건</small></div>' +
@@ -3516,8 +3680,11 @@
             var zoneLabel = zoneNames.length
                 ? (zoneNames[0] + (zoneNames.length > 1 ? ' 등 ' + zoneNames.length + '곳' : ''))
                 : '해당 구역 없음';
+            // 이 값은 종류(태풍·풍랑·강풍)를 구분하지 않은 합집합이다 — 설계서 "할 일"의
+            // 두 줄 표기와 "중점"의 "전체 특보 일수 합계는 만들지 말라"가 서로 부딪히는
+            // 자리라, 표기는 사용자 확정대로 두고 **뭉갠 값이라는 것을 라벨에 밝힌다**[S19].
             daysBoxHtml = '<div data-tip="' + escapeHtml(warnDaysTipText(_warnDays.seaAll, '해상 특보')) + '">' +
-                '<div class="ash-warn-k">특보 발효 일수</div>' + seaLine + landLine +
+                '<div class="ash-warn-k">특보 발효 일수<em>(종류 구분 없음)</em></div>' + seaLine + landLine +
                 '<div class="ash-warn-zone">' + escapeHtml(zoneLabel) + '</div></div>';
         }
 
@@ -4109,10 +4276,16 @@
         // 종류를 갈라 보는 것은 칩이 한다.
         _statsAll = members;
         _statsNationwide = !cellFeature;   // 칸 없이 열면 전국 보기다[S18]
+        _statsCellFeature = cellFeature;   // 필터가 바뀔 때 발효 일수를 다시 세려면 필요하다[S19]
         // ★새 칸을 열 때 필터를 비운다(사용자 확정 2026-09-04 "시트 안 필터는 다른
         // 격자 칸을 누르면 초기화한다") — 새 칸은 항상 전체 상태로 시작한다.
         clearAllFilters();
         updateAllFilterButtonLabels();
+        // ★비운 필터를 현황 마커에도 반영한다[S19 정정] — filters 는 현황·분석이
+        // 공유하는 하나의 상태다. 예전에는 여기서 값만 비우고 마커를 안 되돌려서,
+        // 현황에서 걸어 둔 필터가 지도에는 남고 버튼은 "전체"가 되어 사용자가
+        // 되돌릴 길이 없었다(적대검증에서 발견).
+        if (state.source) applyFiltersToMarkers(state.source);
         _statsScope = 'all';
         _typeCardSrc = 'hk';
         _statsKey = 'hk';
@@ -4345,6 +4518,7 @@
         _statsKey = null;
         _statsMembers = null;
         _statsAll = null;   // 닫힌 시트를 필터 변경이 다시 그리려 하지 않도록[S15]
+        _statsCellFeature = null;
     }
 
     /**
@@ -4397,16 +4571,31 @@
      * 필터를 이미 건 상태로 실제 존재하는 값만 옵션으로 뽑는다 — 0건짜리 선택지를 안
      * 보여주기 위함이자, count 를 "지금까지 고른 다른 필터와의 교집합"으로 보여주기
      * 위함(사용자 확정 2026-08-25). */
+    /** 필터 옵션을 만들 때 훑을 소스 목록[S19 정정].
+     *
+     * ★분석 모드에서는 시트가 선박+인명 합계라(S15) 옵션도 두 소스를 다 봐야 한다.
+     * 예전에는 `state.source` 하나만 봐서, 분석에서 사고유형 팝업에 **인명 유형 8종
+     * (익수자·추락자·고립자·응급환자 …)이 아예 없었다.** 두 소스의 유형코드 교집합이
+     * 해양오염·기타 둘뿐이라, 무엇을 골라도 인명 13,283건(인명의 92.5%)이 통째로
+     * 사라졌다(적대검증에서 발견). 특보 옵션에서 강풍을 못 고르던 것도 같은 원인이다.
+     * 현황 모드는 마커가 한 종류씩이라 지금처럼 켠 소스만 본다.
+     * @returns {string[]} */
+    function filterOptionSources() {
+        if (state.mode === 'analysis') return ['hk', 'person'];
+        return state.source ? [state.source] : [];
+    }
+
     function buildValueOptions(getValue, labelTable, excludeKey) {
-        var key = state.source;
-        var feats = (key && rawFeatures[key]) || [];
         var counts = {}; // value -> count
-        feats.forEach(function (f) {
-            var row = f.get('row');
-            if (!passesFiltersExcept(key, row, excludeKey)) return;
-            var v = getValue(row);
-            if (v == null) return;
-            counts[v] = (counts[v] || 0) + 1;
+        filterOptionSources().forEach(function (key) {
+            var feats = rawFeatures[key] || [];
+            feats.forEach(function (f) {
+                var row = f.get('row');
+                if (!passesFiltersExcept(key, row, excludeKey)) return;
+                var v = getValue(row, key);
+                if (v == null) return;
+                counts[v] = (counts[v] || 0) + 1;
+            });
         });
         return Object.keys(counts).map(function (vStr) {
             // 코드가 숫자(orgCd·typeCode 는 문자열, orgCd 만 숫자 — Object 키는 항상 문자열이라 되돌린다)
@@ -4424,7 +4613,7 @@
     /** 사고유형 옵션 — "-"(코드 없음)·"기타"(정확히 그 라벨인 것만, "기타(인명)" 등은
      * 남김)는 목록에서 뺀다(사용자 확정 2026-08-25). */
     function buildTypeOptions() {
-        var opts = buildValueOptions(function (r) { return typeFilterCode(typeCodeOf(state.source, r)); }, ACCIDENT_TYPE_LABELS, 'types')
+        var opts = buildValueOptions(function (r, srcKey) { return typeFilterCode(typeCodeOf(srcKey, r)); }, ACCIDENT_TYPE_LABELS, 'types')
             .filter(function (o) { return o.value != null && o.value !== '' && o.label !== '기타'; });
         opts.forEach(function (o, i) { o.__origIdx = i; }); // 건수 내림차순이던 원래 순서 보존
         return opts.sort(function (a, b) {
@@ -4441,18 +4630,18 @@
      * 스크린샷에서 발견 — 인천·평택·태안·보령·목포·여수·군산·완도 등 8곳). 이름으로
      * 묶어 버튼 하나로 보여주고, codes 에 실제 코드들을 모아둬 선택 시 전부 포함한다. */
     function buildOrgOptions() {
-        var key = state.source;
-        var feats = (key && rawFeatures[key]) || [];
         var byName = {};
-        feats.forEach(function (f) {
-            var row = f.get('row');
-            if (!passesFiltersExcept(key, row, 'orgs')) return;
-            var code = row[ORG_POS_IDX[key]];
-            if (code == null) return;
-            var label = accidentLabel(ACCIDENT_ORG_LABELS, code);
-            var entry = byName[label] || (byName[label] = { codes: [], count: 0 });
-            if (entry.codes.indexOf(code) === -1) entry.codes.push(code);
-            entry.count++;
+        filterOptionSources().forEach(function (key) {     // 분석은 두 소스 합계[S19]
+            (rawFeatures[key] || []).forEach(function (f) {
+                var row = f.get('row');
+                if (!passesFiltersExcept(key, row, 'orgs')) return;
+                var code = row[ORG_POS_IDX[key]];
+                if (code == null) return;
+                var label = accidentLabel(ACCIDENT_ORG_LABELS, code);
+                var entry = byName[label] || (byName[label] = { codes: [], count: 0 });
+                if (entry.codes.indexOf(code) === -1) entry.codes.push(code);
+                entry.count++;
+            });
         });
         return Object.keys(byName).map(function (label) {
             return { value: label, label: label, codes: byName[label].codes, count: byName[label].count };
@@ -4467,16 +4656,22 @@
      * 확정). 소스별로 의미있는 조합만(hk 는 태풍·풍랑만 4개, person 은 강풍 포함 6개).
      * 값이 배열(다중 발효 가능)이라 buildValueOptions 의 단일값 카운트 방식을 못 쓰고 별도 구현. */
     function buildWarnOptions() {
-        var key = state.source;
-        var feats = (key && rawFeatures[key]) || [];
-        var counts = {};
-        feats.forEach(function (f) {
-            var row = f.get('row');
-            if (!passesFiltersExcept(key, row, 'warnTypes')) return;
-            var active = row[WARN_SEVERITY_POS_IDX[key]] || [];
-            active.forEach(function (code) { counts[code] = (counts[code] || 0) + 1; });
+        var counts = {}, order = [];
+        filterOptionSources().forEach(function (key) {     // 분석은 두 소스 합계[S19]
+            (WARN_SEVERITY_ORDER_BY_SOURCE[key] || []).forEach(function (c) {
+                if (order.indexOf(c) < 0) order.push(c);
+            });
+            (rawFeatures[key] || []).forEach(function (f) {
+                var row = f.get('row');
+                if (!passesFiltersExcept(key, row, 'warnTypes')) return;
+                var active = row[WARN_SEVERITY_POS_IDX[key]] || [];
+                active.forEach(function (code) { counts[code] = (counts[code] || 0) + 1; });
+            });
         });
-        return (WARN_SEVERITY_ORDER_BY_SOURCE[key] || []).filter(function (code) { return counts[code] > 0; }).map(function (code) {
+        // 표시 순서는 WARN_SEVERITY_ORDER(태풍→풍랑→강풍) 기준으로 되돌린다.
+        return WARN_SEVERITY_ORDER.filter(function (code) {
+            return order.indexOf(code) >= 0 && counts[code] > 0;
+        }).map(function (code) {
             return { value: code, label: WARN_SEVERITY_LABELS[code], count: counts[code] };
         });
     }
@@ -4734,14 +4929,14 @@
          * 뿐, person 소스로 시간대 팝업을 열면 (hour 컬럼 자체가 없어) 같은 문제가
          * 있었다(이번에 같이 고침). */
         function presetCount(preset) {
-            var srcKey = state.source;
-            var feats = (srcKey && rawFeatures[srcKey]) || [];
             var cnt = 0;
-            feats.forEach(function (f) {
-                var row = f.get('row');
-                if (!passesFiltersExcept(srcKey, row, cfg.filterKey)) return;
-                var v = cfg.valueOf(srcKey, row);
-                if (v != null && v >= preset[0] && v < preset[1]) cnt++;
+            filterOptionSources().forEach(function (srcKey) {   // 분석은 두 소스 합계[S19]
+                (rawFeatures[srcKey] || []).forEach(function (f) {
+                    var row = f.get('row');
+                    if (!passesFiltersExcept(srcKey, row, cfg.filterKey)) return;
+                    var v = cfg.valueOf(srcKey, row);
+                    if (v != null && v >= preset[0] && v < preset[1]) cnt++;
+                });
             });
             return cnt;
         }
@@ -4806,7 +5001,7 @@
     function openHourRangeFilterPopup(current, onConfirm) {
         openRangeFilterPopup({
             title: '시간대', filterKey: 'hourRanges', presets: HOUR_PRESETS, formatLabel: hourPresetLabel,
-            valueOf: function (srcKey, row) { return srcKey === 'hk' ? hourOf(row[3]) : null; },
+            valueOf: function (srcKey, row) { return srcKey === 'hk' ? hourOfRow(row) : null; },
             inputType: 'time', defaultStartVal: '09:00', defaultEndVal: '18:00',
             parseInputVal: function (v) { return parseInt(v.split(':')[0], 10); },
         }, current, onConfirm);
@@ -4837,14 +5032,14 @@
         /** 프리셋 옆 건수 — 시간대·톤수 팝업의 presetCount 와 같은 원칙으로,
          * 이 축(기간)만 빼고 이미 걸린 다른 필터와의 교집합을 센다. */
         function presetCount(pStart) {
-            var srcKey = state.source;
-            var feats = (srcKey && rawFeatures[srcKey]) || [];
             var cnt = 0;
-            feats.forEach(function (f) {
-                var row = f.get('row');
-                if (!passesFiltersExcept(srcKey, row, 'dateRange')) return;
-                var ymd = String(row[2] || '');
-                if (ymd >= pStart && ymd <= today) cnt++;
+            filterOptionSources().forEach(function (srcKey) {   // 분석은 두 소스 합계[S19]
+                (rawFeatures[srcKey] || []).forEach(function (f) {
+                    var row = f.get('row');
+                    if (!passesFiltersExcept(srcKey, row, 'dateRange')) return;
+                    var ymd = String(row[2] || '');
+                    if (ymd >= pStart && ymd <= today) cnt++;
+                });
             });
             return cnt;
         }
@@ -4949,7 +5144,14 @@
     function onFiltersChanged(map) {
         updateAllFilterButtonLabels();
         if (state.source) applyFiltersToMarkers(state.source);
-        if (state.mode === 'analysis' && _statsAll) renderStatsBody();
+        if (state.mode === 'analysis' && _statsAll) {
+            // ★발효 일수도 다시 센다[S19 정정] — warnDayWindow 가 기간 필터를 반영하도록
+            // 만들어져 있는데(설계서 작업 6 "기간 필터를 따라간다"), 다시 세는 호출이
+            // 없어서 그 분기가 한 번도 실행되지 않았다. 기간을 좁히면 사고 건수만
+            // 줄고 발효 일수는 전체 기간 값이 그대로 남았다(적대검증 두 명이 발견).
+            if (!_statsNationwide && _statsCellFeature) resolveWarnDays(_statsCellFeature, _statsAll);
+            renderStatsBody();
+        }
     }
 
     /** 사고정보가 켜져 있는 동안(showModeToggle 과 동일 시점)만 필터 바를 보여준다. */
@@ -5020,7 +5222,12 @@
         // 필터 바처럼 글자 크기 설정에 따라 실제 줄 수가 바뀌어(칩이 좁으면 여러 줄로
         // 감김) 고정 px로 못 잡고 매번 실측한다.
         var legend = document.getElementById('accident-grid-legend');
-        var afterBarTop = barCollapsed ? barTop : (barTop + bar.offsetHeight + 6);
+        // 범례는 "그 자리에 있는 것" 아래에 붙는다[S19 정정]. 분석 모드에서는 필터 바가
+        // 늘 접힌 상태인데 그 자리를 전국 통계 버튼이 대신하므로(S18), 접힘만 보고
+        // barTop 을 그대로 주면 버튼과 범례가 겹친다(적대검증 지적, 실측 확인).
+        var occupant = (nwBtn && nwBtn.style.display !== 'none') ? nwBtn
+            : (barCollapsed ? null : bar);
+        var afterBarTop = occupant ? (barTop + occupant.offsetHeight + 6) : barTop;
         if (legend) legend.style.top = afterBarTop + 'px';
     }
 
@@ -5401,16 +5608,22 @@
                 var moreBtn = e.target.closest('.ash-more');
                 if (moreBtn) {
                     var axisId = moreBtn.dataset.axis;
-                    if (_detailExpanded[detailExpandKey(_statsKey, axisId)]) collapseDetailCard(axisId);
+                    // ★펼침 키의 소스는 **그 카드가 쓰는 소스**여야 한다[S19 정정].
+                    // 예전에는 _statsKey(칩이 전체면 항상 'hk')로 키를 만들었는데, 유형
+                    // 카드는 토글로 person 이 될 수 있어 그리는 쪽('person|사고유형')과
+                    // 누르는 쪽('hk|사고유형')이 갈렸다 — 인명 유형 카드의 "전체 9종
+                    // 보기"가 눌러도 아무 일이 없었고, 뒤로가기 한 번이 헛되게 소모됐다.
+                    var mSrc = moreBtn.dataset.src || _statsKey;
+                    if (_detailExpanded[detailExpandKey(mSrc, axisId)]) collapseDetailCard(axisId, mSrc);
                     else {
                         _detailScrollBefore = statsBody.scrollTop;
-                        _detailExpanded[detailExpandKey(_statsKey, axisId)] = true;
+                        _detailExpanded[detailExpandKey(mSrc, axisId)] = true;
                         redrawDetailCard(axisId);
                         // ★뒤로가기로도 접히게 스택에 올린다[S19] — 검증 기준이 "뒤로가기로
                         // 시트·필터 팝업·아코디언이 순서대로 닫힘" 이다. 안 올려 두면 펼친
                         // 상태에서 뒤로가기를 누르면 아코디언을 건너뛰고 시트가 닫힌다.
                         if (window.PopupStack) {
-                            window.PopupStack.push(ACCORDION_POPUP_ID + axisId, function () { collapseDetailCard(axisId); });
+                            window.PopupStack.push(ACCORDION_POPUP_ID + axisId, function () { collapseDetailCard(axisId, mSrc); });
                         }
                     }
                     return;

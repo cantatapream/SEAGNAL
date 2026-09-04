@@ -9398,6 +9398,8 @@ html[data-font-size="large"] .ocean-overlay-btn {
 /* 칸 사이 얇은 세로선 — 목업이 두 값을 한 상자 안에서 가르는 방식 */
 .ash-warn-box > div + div { border-left: 1px solid var(--ash-sub-br); }
 .ash-warn-k { font-size: 0.75em; color: var(--ash-muted); }
+/* "(종류 구분 없음)" 같은 단서[S19] — 라벨보다 한 단계 옅게. */
+.ash-warn-k em { font-style: normal; color: var(--ash-dim); margin-left: 0.3em; }
 .ash-warn-v { font-size: 1.35em; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
 .ash-warn-v small { font-size: 0.5em; font-weight: 600; color: #b6c6da; margin-left: 0.15em; }
 .ash-warn-v em { font-style: normal; font-size: 0.5em; font-weight: 600; color: var(--ash-muted); margin-left: 0.5em; }
