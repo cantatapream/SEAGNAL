@@ -970,6 +970,13 @@
             margin-top: 6px;
             pointer-events: auto;
         }
+        /* 전국 통계 버튼[S18] — 분석 모드에서 필터 바가 있던 자리. top 은 필터 바와
+           같은 방식으로 accident_info.js positionFilterBar 가 실측해 인라인 설정. */
+        #ocean-topleft-controls > #accident-nationwide-btn {
+            position: absolute !important;
+            left: 0;
+            pointer-events: auto;
+        }
         /* 필터 바 — top 은 accident_info.js 가 모드토글 실측 높이로 매번 인라인 설정
            (글자 크기 설정에 따라 모드토글 높이가 달라져 고정 px로 못 잡음). */
         #ocean-topleft-controls > #accident-filter-bar {
@@ -3498,6 +3505,13 @@
                         <!-- 선택 초기화 버튼(2026-08-25 사용자 확정) — 모드토글 오른쪽에 위치,
                              걸어둔 필터(사고유형·관할서·시간대·계절·특보·선박용도·톤수) 전부 해제. -->
                         <button type="button" class="accident-filter-reset-btn" id="accident-filter-reset-btn" style="display:none;">선택 초기화</button>
+
+                        <!-- [S18] 전국 통계 버튼 — 분석 모드에서만 보인다(그 자리가 원래
+                             필터 바 자리였고, 분석 필터는 S17 로 바텀시트 안으로 옮겨 갔다).
+                             누르면 지도 상태와 무관하게 전체 데이터(74,018건)를 시트로 연다.
+                             재질은 옆의 "선택 초기화" 버튼과 같게 — 지도 위 컨트롤은 지도
+                             어법으로 묶고 바텀시트 전용 --ash-* 토큰은 쓰지 않는다. -->
+                        <button type="button" class="accident-filter-reset-btn accident-nationwide-btn" id="accident-nationwide-btn" style="display:none;">전국 통계</button>
 
                         <!-- 사고정보 필터 바 — 처음엔 관할서·시간대·계절·특보가 분석 모드에서만
                              보였으나(2026-08-24), 현황에서도 똑같이 다양한 필터를 쓰고 싶다는

@@ -640,6 +640,8 @@
     // (사용자 확정 2026-09-04 "시트를 열면 둘 다 포함된 전체 상태. 칩을 누르면 그 종류만").
     var _statsScope = 'all';
     var _statsAll = null;             // 그 칸의 사고 전부(칩·필터를 안 거른 원본 목록)
+    /** 지금 시트가 "전국 보기"인가[S18] — 격자 칸 하나가 아니라 전체 데이터를 본다. */
+    var _statsNationwide = false;
     // 칩이 '전체'일 때 "상위 발생 유형" 카드가 어느 소스를 보여줄지[S15] — 선박과 인명은
     // 유형 이름이 완전히 달라(충돌·침몰 vs 익수자·추락자) 한 도넛에 섞으면 뜻이 없다.
     // 그래서 이 카드만 카드 제목 오른쪽 토글로 한 소스씩 보여준다(설계서 작업 8).
@@ -2938,7 +2940,9 @@
             '<div class="ash-badge" aria-hidden="true"><i class="fa-solid fa-crosshairs"></i></div>' +
             '<div class="ash-head-main">' +
             '<div class="ash-region" id="ash-region">' + escapeHtml(_statsRegionLabel || '선택 영역') + '</div>' +
-            '<div class="ash-region-sub">선택 영역 · 격자 내 통합 사고</div>' +
+            '<div class="ash-region-sub">' +
+            (_statsNationwide ? '전국 기준 · 통합 사고' : '선택 영역 · 격자 내 통합 사고') +
+            '</div>' +
             '</div>' +
             '<div class="ash-right">' +
             '<div class="ash-count-n">' + fmtN(members.length) + '<span>건</span></div>' +
@@ -3152,7 +3156,10 @@
         if (!cellFeature) return;
         var extent = cellFeature.getGeometry().getExtent();
         ensureWarnIntervals().then(function (data) {
-            if (_statsMembers !== members) return;
+            // ★"그 사이 다른 칸을 열었나"는 _statsAll(그 칸의 원본 목록)로 봐야 한다[S18 정정].
+            // S15 부터 _statsMembers 는 칩·필터를 거른 새 배열이라 여기 넘어온 members 와
+            // 절대 같지 않게 됐고, 그 바람에 이 결과가 늘 버려져 발효 일수가 안 떴다.
+            if (_statsAll !== members) return;
             var zones = warnZonesForExtent(extent);
             var win = warnDayWindow(data);
             var res = { sea: {}, land: {}, seaZones: zones.sea, landZones: zones.land, win: win };
@@ -4386,6 +4393,7 @@
         // 격자 칸에는 선박·인명이 합쳐 담긴다[S15]. 시트는 항상 "전체"로 열고,
         // 종류를 갈라 보는 것은 칩이 한다.
         _statsAll = members;
+        _statsNationwide = !cellFeature;   // 칸 없이 열면 전국 보기다[S18]
         // ★새 칸을 열 때 필터를 비운다(사용자 확정 2026-09-04 "시트 안 필터는 다른
         // 격자 칸을 누르면 초기화한다") — 새 칸은 항상 전체 상태로 시작한다.
         clearAllFilters();
@@ -4395,7 +4403,7 @@
         _statsKey = 'hk';
         _statsMembers = members;
         _trendDrill = null; // 새 셀을 열 때마다 드릴다운 상태 초기화
-        _statsRegionLabel = null;
+        _statsRegionLabel = _statsNationwide ? '전국' : null;
         // 시트를 새로 열 때는 항상 기본 상태로 시작한다(2026-09-01 사용자 확정) —
         // 예전엔 뷰 탭 선택이 소스별로 남아 있어서, 특보발효를 보다가 닫고 다른
         // 칸을 누르면 특보발효가 열린 채로 시작했다. 아래 스크롤 초기화와 같은 취지.
@@ -4418,7 +4426,9 @@
         // (core/backbutton.js 의 window.PopupStack — 다른 팝업들이 쓰는 것과 같은 방식).
         // 등록을 안 해서 뒤로가기를 눌러도 시트가 안 닫혔다(2026-09-01 사용자 지적).
         if (window.PopupStack) window.PopupStack.push(STATS_SHEET_POPUP_ID, closeStatsSheet);
-        resolveWarnDays(cellFeature, members);
+        // 전국 보기에서는 발효 일수를 감춘다[S18] — 44개 구역 합집합은 거의 매일이라
+        // "며칠 떠 있었나"가 뜻을 잃는다(설계서 작업 12).
+        if (_statsNationwide) _warnDays = null; else resolveWarnDays(cellFeature, members);
         if (cellFeature) {
             var openedForMembers = members;
             resolveRegionLabelForCell(cellFeature).then(function (label) {
@@ -4610,6 +4620,26 @@
         _statsKey = null;
         _statsMembers = null;
         _statsAll = null;   // 닫힌 시트를 필터 변경이 다시 그리려 하지 않도록[S15]
+    }
+
+    /**
+     * 전국 보기[S18] — 지도 상태와 무관하게 전체 데이터를 시트로 연다.
+     *
+     * 왜 화면 영역이 아니라 전체인가(사용자 확정 2026-09-04): "전국"이라 부르는 이상
+     * 화면에 보이는 범위만 세면 거짓이 된다. 화면 영역 통계가 필요하면 이름을
+     * "화면 영역"으로 따로 만든다.
+     *
+     * 성능: 74,018건 전체를 4축으로 집계하는 데 실측 48ms 라 그대로 센다.
+     *
+     * @param {ol.Map} map
+     * [연계] ← 지도 "전국 통계" 버튼 / 설계서 작업 12 */
+    function openNationwideStats(map) {
+        ensureAnalysisSources(map).then(function () {
+            if (state.mode !== 'analysis' || !state.source) return;
+            // 칸 선택 강조를 지운다 — 전국을 보는 중에 특정 칸이 선택돼 보이면 안 된다.
+            if (_selectedGridFeature) { var prev = _selectedGridFeature; _selectedGridFeature = null; prev.changed(); }
+            openStatsSheet(null, analysisFeaturesAll(), null);
+        });
     }
 
     function tryHandleGridClick(map, evt) {
@@ -5239,6 +5269,7 @@
             // ★분석 모드에서는 지도 위 필터 바를 아예 감춘다[S17] — 필터가 시트 안으로
             // 옮겨 갔다. 현황 모드에서는 지금처럼 지도에 남긴다(마커를 보면서 걸러야 한다).
             showFilterBar(isStatus);
+            showNationwideBtn(!isStatus);   // 그 자리를 전국 통계 버튼이 대신한다[S18]
         }
         positionFilterBar();
     }
@@ -5257,6 +5288,9 @@
         var barTop = modeToggle.offsetTop + modeToggle.offsetHeight + 6;
         var barCollapsed = !bar || bar.style.display === 'none';
         if (bar && !barCollapsed) bar.style.top = barTop + 'px';
+        // 전국 통계 버튼은 필터 바가 있던 그 자리에 놓인다(분석 모드 전용)[S18].
+        var nwBtn = document.getElementById('accident-nationwide-btn');
+        if (nwBtn) nwBtn.style.top = barTop + 'px';
         // 범례를 필터 바 바로 아래 붙임(필터 바가 접혀 있으면 그만큼 위로 당겨짐) —
         // 필터 바처럼 글자 크기 설정에 따라 실제 줄 수가 바뀌어(칩이 좁으면 여러 줄로
         // 감김) 고정 px로 못 잡고 매번 실측한다.
@@ -5424,6 +5458,14 @@
         if (btn) btn.style.display = show ? 'block' : 'none';
     }
 
+    /** "전국 통계" 버튼은 분석 모드에서만 보인다[S18] — 현황은 마커 화면이라 전국 집계가
+     * 뜻이 없고, 그 자리는 현황에서 필터 바가 쓴다. */
+    function showNationwideBtn(show) {
+        var btn = document.getElementById('accident-nationwide-btn');
+        if (btn) btn.style.display = show ? 'block' : 'none';
+        if (show) positionFilterBar();
+    }
+
     function selectSource(map, key) {
         var seq = ++_selectSeq;
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
@@ -5442,6 +5484,7 @@
             showModeToggle(true);
             showFilterResetBtn(state.mode === 'status');   // 분석에는 지도 필터가 없다[S16]
             showFilterBar(state.mode === 'status');        // 분석 필터는 시트 안에 있다[S17]
+            showNationwideBtn(state.mode !== 'status');    // 전국 통계 버튼[S18]
             updateFilterBarModeVisibility();
             updateAllFilterButtonLabels();
             if (hasActiveFilters()) applyFiltersToMarkers(key); // 이전 소스에서 걸어둔 필터를 새 소스에도 반영
@@ -5471,6 +5514,7 @@
         showModeToggle(false);
         showFilterResetBtn(false);
         showFilterBar(false);
+        showNationwideBtn(false);
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
         if (toggleBtn) toggleBtn.classList.remove('active');
         if (_prevBasemap && _prevBasemap !== 'vworld' && typeof window.oceanSetBasemap === 'function') {
@@ -5562,6 +5606,10 @@
         }
 
         bindFilterBar(map);
+
+        // 전국 통계 버튼[S18].
+        var nwBtn = document.getElementById('accident-nationwide-btn');
+        if (nwBtn) nwBtn.addEventListener('click', function () { openNationwideStats(map); });
 
         // 현황 모드 필터 바 맨 위 선박/인명 토글[S16] — 없앤 팝아웃의 역할.
         var srcToggle = document.getElementById('accident-source-toggle');
