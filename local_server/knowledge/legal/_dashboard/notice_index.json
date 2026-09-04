@@ -2185,6 +2185,9 @@
  "평택·당진항도선구도선안전절차.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/도선법"
  ],
+ "평택·당진항선박통항안전규칙.txt": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
+ ],
  "평택·당진항예선운영세칙.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
  ],
@@ -2193,9 +2196,6 @@
  ],
  "평택·당진항출입절차예규.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률"
- ],
- "평택·당진항항계내항행선박최고속력제한에관한고시.txt": [
-  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
  ],
  "평택·당진항항만시설운영세칙.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률",
