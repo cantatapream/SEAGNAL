@@ -75,6 +75,36 @@ function parentsOf(feature, l1List) {
     return out;
 }
 
+/**
+ * 세부구역이 쪼개져 나오기 전의 "시·군 전체" 구역 이름. 없으면 null.
+ *
+ * 원본의 regid 는 자리값을 갖는다 — 완도군 전체가 `L1053300`, 거기서 갈라져 나온
+ * `완도(여서도 제외)` 가 `L1053310`, `완도여서도` 가 `L1053320` 이다. 끝 두 자리가
+ * `00` 이 아니면 갈라져 나온 구역이고, 그 자리를 `00` 으로 되돌리면 부모가 나온다.
+ *
+ * [왜 필요한가 — 2026-09-04, 사용자가 기상청 안내서를 주고 확인함]
+ *   `완도여서도`·`영광낙월면`·`부안위도면`·`군산옥도면(어청도제외)`·`군산어청도` 다섯은
+ *   기상청 「특보구역 상세 안내」('26.6.1 기준)에 **정확히 그 이름의 특보구역으로** 실려 있다.
+ *   그런데 우리가 가진 통보문 자료(2016-08-26~2025-12-31)에는 그 이름도, 짝인
+ *   `(…제외)` 이름도 **한 번도 안 나온다**(원본 CSV 를 직접 검색해 0건 확인).
+ *   같은 성격의 섬 구역인 `거문도.초도` 826건 · `흑산도.홍도` · `추자도` 183건과 대조적이다.
+ *   즉 **자료 기간 동안 이 다섯은 아직 갈라지기 전이었고, 시·군 전체 이름으로 발표됐다.**
+ *   그래서 이 다섯의 과거 발효 기록은 부모 구역(`완도`·`영광`·`부안`·`군산`)의 기록이다.
+ *   ⚠나중에 통보문이 실제로 갈라진 이름을 쓰기 시작하면 이 대체는 **과다 계산**이 된다
+ *     (그때는 `완도` 가 여서도를 뺀 뜻이 되기 때문). 통보문 자료를 갱신할 때 다시 볼 것.
+ *
+ * @param {object} feature 세부구역 피처
+ * @param {object} byId regid -> 피처
+ * @returns {string|null} 부모 구역의 통보문 표기 이름
+ */
+function baseZoneName(feature, byId) {
+    const id = String(feature.properties.regid || feature.properties.regId || '');
+    if (!/\d{2}$/.test(id) || id.slice(-2) === '00') return null;
+    const parent = byId[id.slice(0, -2) + '00'];
+    if (!parent) return null;
+    return parent.properties.regko || parent.properties.regKo || null;
+}
+
 function main() {
     console.log('[1/4] 원본 읽기...');
     const land = JSON.parse(fs.readFileSync(LAND_PATH, 'utf8'));
@@ -91,6 +121,12 @@ function main() {
     });
     // 상위(광역) 구역 — 세부구역이 통보문에 없을 때 대신 볼 이름을 찾는 데 쓴다.
     const l1 = land.features.filter((f) => f.properties.level === 1);
+    // regid -> 피처. 갈라져 나온 구역의 "시·군 전체" 부모를 찾는 데 쓴다(baseZoneName 참고).
+    const byId = {};
+    land.features.forEach((f) => {
+        const id = f.properties && (f.properties.regid || f.properties.regId);
+        if (id) byId[String(id)] = f;
+    });
 
     console.log('[3/4] 해안에 닿는 육상구역만 고르고 경계 단순화...');
     const cands = [];
@@ -105,7 +141,7 @@ function main() {
         // 없고 상위("서해5도")로만 발표되는 경우에 쓴다(사용자 지적 2026-09-04).
         const name = f.properties.regko || f.properties.regKo;
         if (!name || NEW_JEJU_NAMES.includes(name)) return;
-        cands.push({ name: name, geom: f });
+        cands.push({ name: name, geom: f, base: baseZoneName(f, byId) });
     });
     jejuOld.features.forEach((f) => cands.push({ name: f.properties.name, geom: f }));
 
@@ -124,7 +160,13 @@ function main() {
             simplified = turf.simplify(c.geom, { tolerance: SIMPLIFY_TOLERANCE, highQuality: false, mutate: false });
         } catch (e) { simplified = c.geom; }
         const props = { name: normZone(c.name) };
-        const parents = parentsOf(c.geom, l1).map(normZone);
+        // 대신 볼 이름들 — **가까운 것부터**. 갈라지기 전 시·군 전체 이름이 먼저이고,
+        // 광역(전라남도 등)·앞바다 구역은 그 뒤다. 화면은 앞에서부터 통보문에 있는지 본다.
+        const parents = [];
+        if (c.base) parents.push(normZone(c.base));
+        parentsOf(c.geom, l1).map(normZone).forEach((n) => {
+            if (parents.indexOf(n) < 0) parents.push(n);
+        });
         if (parents.length) props.parents = parents;
         out.push({ type: 'Feature', properties: props, geometry: simplified.geometry });
     });

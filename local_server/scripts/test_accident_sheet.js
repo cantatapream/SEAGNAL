@@ -168,17 +168,27 @@ ok('분모 시작일 상수가 그대로다',
         return out;
     }
     const seen = new Set();
+    const miss = [];
     let matched = 0, total = 0;
     geo.features.forEach((f) => {
         const k = f.properties.name;
         if (seen.has(k)) return;
         seen.add(k); total++;
-        if (cands(k, f.properties.parents).find(has)) matched++;
+        if (cands(k, f.properties.parents).find(has)) matched++; else miss.push(k);
     });
-    ok('육상 특보구역 이름이 통보문과 이어진다(95% 이상)',
-        matched / total >= 0.95, matched + '/' + total);
-    ok('육상 구역 파일이 상위(광역) 구역을 함께 갖고 있다',
+    ok('육상 특보구역 이름이 통보문과 전부 이어진다',
+        matched === total, matched + '/' + total +
+        (matched === total ? '' : ' — 못 이은 것: ' + miss.join(' · ')));
+    ok('육상 구역 파일이 대신 볼 이름(상위·부모 구역)을 함께 갖고 있다',
         geo.features.some((f) => (f.properties.parents || []).length > 0));
+    // 2026-09-04 사용자가 준 기상청 안내서로 확인한 다섯 — 갈라지기 전 시·군 이름으로 이어져야 한다.
+    [['완도여서도', '완도'], ['영광낙월면', '영광'], ['부안위도면', '부안'],
+     ['군산옥도면(어청도제외)', '군산'], ['군산어청도', '군산']].forEach((pair) => {
+        const f = geo.features.find((x) => x.properties.name === norm(pair[0]));
+        ok('섬 구역 ' + pair[0] + ' 이 부모 구역 ' + pair[1] + ' 을 첫 대체 이름으로 갖는다',
+            !!f && (f.properties.parents || [])[0] === pair[1],
+            f ? JSON.stringify(f.properties.parents) : '피처 없음');
+    });
     // 해상 44구역은 예전부터 전부 맞았다 — 그것이 깨지면 바로 알아야 한다.
     const sea = JSON.parse(fs.readFileSync(path.join(CLIENT, 'assets', 'warn_zones.geojson'), 'utf8'));
     const seaNames = new Set();
