@@ -9405,6 +9405,34 @@ html[data-font-size="large"] .ocean-overlay-btn {
     margin-left: 0.3em;
     white-space: nowrap;
 }
+/* 카드 안의 절 구분[S13] — 인명 피해 현황 카드는 위(이 칸 기준)와 아래(전국 기준)로
+   잣대가 갈린다. 3단 깊이 규칙상 카드 안에 카드를 또 넣을 수 없어(분석서 §9), 목업이
+   meta 아래에 쓰던 가장 옅은 구분선과 소제목으로만 가른다.
+   [연계] accident_info.js buildCasualtyCardHtml / 분석서 §3 구분선 */
+.ash-card-sec {
+    margin-top: 1em;
+    padding-top: 0.9em;
+    border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+/* 소제목 크기는 목업에 없어 유추한 값 — 카드 제목(1.02em)과 stat 라벨(0.75em) 사이. */
+.ash-card-sec-title {
+    margin: 0 0 0.7em;
+    font-size: 0.9em;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--ash-txt);
+}
+/* 카드 제목의 부제(.card-title em)와 같은 어법 — "(Top 5)" 가 여기 들어간다(§4.6). */
+.ash-card-sec-title em {
+    font-style: normal;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--ash-muted);
+    margin-left: 0.15em;
+}
+/* 배지는 시트 기준 .68em 이어야 한다 — 부모가 0.9em 이므로 .68/.9 로 되돌린다(§7). */
+.ash-card-sec-title .ash-badge-scope { font-size: 0.756em; }
+
 /* 카드 첫 줄 — 이 구역의 실제값(전국 순위와 잣대가 다름을 밝히는 자리) */
 .ash-scope-line {
     font-size: 0.78em;

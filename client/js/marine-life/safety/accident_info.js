@@ -2729,7 +2729,11 @@
         var el = document.querySelector('.ash-detail-card[data-axis="' + axisId + '"]');
         if (!el) return;
         if (axisId === '치명도') {
-            el.outerHTML = buildFatalityCardHtml(_statsKey, detailAxesFor(_statsKey).length + 4, _statsMembers);
+            // 인명은 치명도가 "인명 피해 현황" 카드의 아랫절이라 카드째로 다시 그린다[S13].
+            var no = detailAxesFor(_statsKey).length + 4;
+            el.outerHTML = _statsKey === 'hk'
+                ? buildFatalityCardHtml(_statsKey, no, _statsMembers)
+                : buildCasualtyCardHtml(_statsKey, no, _statsMembers);
             var b2 = document.getElementById('accident-stats-body');
             if (b2) armCardReveal(b2);
             return;
@@ -2738,7 +2742,7 @@
         var idx = -1;
         axes.forEach(function (a, i) { if (a.id === axisId) idx = i; });
         if (idx < 0) return;
-        el.outerHTML = buildDetailCardHtml(_statsKey, axes[idx], idx + 3, _statsMembers);
+        el.outerHTML = buildDetailCardHtml(_statsKey, axes[idx], idx + 4, _statsMembers);
         // outerHTML 로 갈아 끼우면 예전 노드가 사라져 감시가 끊긴다 — 다시 건다[S5].
         var body = document.getElementById('accident-stats-body');
         if (body) armCardReveal(body);
@@ -2780,7 +2784,9 @@
             buildChartViewHtml(key) +
             buildWarnCardHtml(key, members) +
             buildDetailCardsHtml(key, members) +
-            (key === 'hk' ? buildFatalityCardHtml(key, detailAxesFor(key).length + 4, members) : '') +
+            (key === 'hk'
+                ? buildFatalityCardHtml(key, detailAxesFor(key).length + 4, members)
+                : buildCasualtyCardHtml(key, detailAxesFor(key).length + 4, members)) +
             buildStatsFootHtml();
     }
 
@@ -3131,13 +3137,20 @@
     }
 
     /**
-     * 치명도 카드[S12] — "사망·실종 발생률이 높은 사고".
+     * 치명도 절의 알맹이[S12·S13] — 첫 줄(이 구역 실제값) + 게이지 행 + 주석 + 더보기.
+     *
+     * 선박은 이것을 카드 하나로 쓰고(buildFatalityCardHtml), 인명은 "인명 피해 현황"
+     * 카드의 아랫절로 끌어다 쓴다(buildCasualtyCardHtml). 두 곳이 같은 마크업을 쓰도록
+     * 알맹이만 따로 뗀 것이다.
+     *
      * @param {string} key 소스 키
-     * @param {number} no 카드 번호
      * @param {ol.Feature[]} members 이 칸의 사고들(첫 줄의 "이 구역" 값에만 쓴다)
-     * @returns {string} 카드 HTML
+     * @param {boolean} [skipYearNote] 2014·2015년 주석을 빼고 그린다 — 인명 피해 현황
+     *   카드는 위쪽 요약에서 이미 같은 문장을 쓰므로 한 카드에 두 번 나오면 군더더기다.
+     * @returns {string} 절 안쪽 HTML
+     * [연계] buildFatalityCardHtml / buildCasualtyCardHtml / 설계서 작업 9
      */
-    function buildFatalityCardHtml(key, no, members) {
+    function fatalityInnerHtml(key, members, skipYearNote) {
         var ek = detailExpandKey(key, '치명도');
         var expanded = !!_detailExpanded[ek];
         var r = fatalityRanking(key);
@@ -3146,11 +3159,17 @@
         var rows = expanded ? r.rows : ranked.slice(0, 5);
 
         // 이 칸의 실제값 — 전국 순위와 잣대가 다르다는 것을 첫 줄에 밝힌다.
+        // 단위는 게이지와 같게 맞춘다: 선박은 "건"(사망·실종이 난 사고 수), 인명은 "명"
+        // (사망·실종 인원). 인명인데 "건"으로 쓰면 바로 위 요약의 "79명·22명"과 숫자가
+        // 어긋나 같은 카드 안에서 잣대가 둘로 보인다(사용자 확정 "인명만 명으로").
         var cellFatal = 0;
         members.forEach(function (f) {
             var row = f.get('row');
-            var d = key === 'hk' ? (+row[10] || 0) + (+row[11] || 0) : (+row[8] || 0) + (+row[9] || 0);
-            if (d > 0) cellFatal++;
+            if (key === 'hk') {
+                if ((+row[10] || 0) + (+row[11] || 0) > 0) cellFatal++;
+            } else {
+                cellFatal += (+row[8] || 0) + (+row[9] || 0);
+            }
         });
 
         var moreHtml = r.rows.length > rows.length || expanded
@@ -3160,17 +3179,115 @@
               '<i class="fa-solid fa-chevron-right"></i></button>'
             : '';
 
-        return '<section class="ash-card ash-detail-card" data-axis="치명도">' +
-            '<div class="ash-card-head"><h2 class="ash-card-title">' + no + '. 사망·실종 발생률이 높은 사고' +
-            (expanded ? '' : ' <em>(Top 5)</em>') +
-            '<span class="ash-badge-scope">전국 기준</span></h2></div>' +
-            '<div class="ash-scope-line">이 구역에서는 사망·실종 사고가 ' + fmtN(cellFatal) + '건 있었습니다.</div>' +
+        return '<div class="ash-scope-line">' +
+            (key === 'hk'
+                ? '이 구역에서는 사망·실종 사고가 ' + fmtN(cellFatal) + '건 있었습니다.'
+                : '이 구역에서는 사망·실종이 ' + fmtN(cellFatal) + '명 있었습니다.') +
+            '</div>' +
             buildFatalityRowsHtml(rows, key === 'hk' ? '건' : '명') +
             '<div class="ash-note">' +
-            '2014·2015년은 인명피해가 기록돼 있지 않아 제외했습니다. ' +
+            (skipYearNote ? '' : '2014·2015년은 인명피해가 기록돼 있지 않아 제외했습니다. ') +
             '건수 ' + FATAL_MIN_SAMPLE + '건 미만인 유형은 비율이 튀어 순위에서 뺐습니다' +
             (r.zeroCount ? ' · 이 밖에 ' + r.zeroCount + '종은 사망·실종 사고가 없습니다' : '') + '.' +
-            '</div>' + moreHtml +
+            '</div>' + moreHtml;
+    }
+
+    /** 치명도가 몇 등까지 있는지 — 제목의 "(Top 5)" 를 붙일지 판단하는 데만 쓴다[S13]. */
+    function fatalityExpanded(key) { return !!_detailExpanded[detailExpandKey(key, '치명도')]; }
+
+    /**
+     * 치명도 카드[S12] — "사망·실종 발생률이 높은 사고"(선박 전용 단독 카드).
+     * 인명은 이 카드를 따로 두지 않고 인명 피해 현황 카드 안으로 넣는다(설계서 작업 10).
+     * @param {string} key 소스 키
+     * @param {number} no 카드 번호
+     * @param {ol.Feature[]} members 이 칸의 사고들
+     * @returns {string} 카드 HTML
+     */
+    function buildFatalityCardHtml(key, no, members) {
+        return '<section class="ash-card ash-detail-card" data-axis="치명도">' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">' + no + '. 사망·실종 발생률이 높은 사고' +
+            (fatalityExpanded(key) ? '' : ' <em>(Top 5)</em>') +
+            '<span class="ash-badge-scope">전국 기준</span></h2></div>' +
+            fatalityInnerHtml(key, members) +
+            '</section>';
+    }
+
+    // ── 인명 피해 현황[S13] ───────────────────────────────────────────────
+    // 인명 모드 전용 카드. 위쪽은 이 칸의 구조/사망/실종 합계(칸 기준), 아래쪽은 치명도
+    // 게이지(전국 기준)라 한 카드 안에서 잣대가 갈린다 — 그래서 아래 절에만 배지를 단다.
+    //
+    // ★2014·2015년을 뺀다: 원본 TL_NSHPAC.csv 를 연도별로 갈라 보면 "미기재"가 그 두 해에
+    // 100% 몰려 있다(2014년 824건·2015년 1,251건, 나머지 해는 0%). 세월호(2014-04-16
+    // 08:58 전남 진도군 조도면 병풍도 북방 1.5해리) 행조차 구조 0·사망 0·실종 0 이다.
+    // 즉 일부 사고의 결과가 빠진 게 아니라 그 두 해의 칸 자체가 안 채워진 것이라,
+    // "미기재"를 항목으로 보여주는 대신 그 두 해를 분모에서 뺀다(사용자 확정 2026-09-04).
+    //
+    // ★분모는 "관련 인원"이 아니라 "구조+사망+실종 합"이다(2026-09-04 구현 시 확정).
+    // 원본에 세 항목 합이 관련 인원보다 큰 행이 3건 있어 관련 인원을 분모로 쓰면 비율 합이
+    // 100%를 넘는다. 세 항목 합을 분모로 쓰면 항상 정확히 100% 로 맞는다.
+    var CASUALTY_ROWS = [
+        { label: '구조', idx: 7, color: '#16c8a3' },
+        { label: '사망', idx: 8, color: '#f9821f' },
+        { label: '실종', idx: 9, color: '#a35ff0' }
+    ];
+
+    /**
+     * 이 칸의 인명 피해 결과를 센다[S13].
+     * @param {ol.Feature[]} members 이 칸의 사고들
+     * @returns {{vals:number[], total:number, dropped:number}}
+     *   vals=[구조,사망,실종] 인원, total=세 항목 합(=분모), dropped=제외한 사고 건수
+     * [연계] buildCasualtyCardHtml / 설계서 작업 10
+     */
+    function casualtySummary(members) {
+        var vals = [0, 0, 0], dropped = 0;
+        members.forEach(function (f) {
+            var row = f.get('row');
+            // 결과 칸이 통째로 빈 두 해, 그리고 사람 사고가 아닌 해양오염을 뺀다.
+            if (FATAL_EXCLUDED_YEARS[String(row[2]).slice(0, 4)] ||
+                FATAL_DROP_TYPES[accidentLabel(ACCIDENT_TYPE_LABELS, row[4])]) { dropped++; return; }
+            CASUALTY_ROWS.forEach(function (c, i) { vals[i] += (+row[c.idx] || 0); });
+        });
+        var total = vals[0] + vals[1] + vals[2];
+        return { vals: vals, total: total, dropped: dropped };
+    }
+
+    /**
+     * 인명 피해 현황 카드[S13] — 인명 모드 전용(설계서 작업 10, 카드 4·5 통합).
+     * @param {string} key 소스 키('person')
+     * @param {number} no 카드 번호
+     * @param {ol.Feature[]} members 이 칸의 사고들
+     * @returns {string} 카드 HTML
+     */
+    function buildCasualtyCardHtml(key, no, members) {
+        var s = casualtySummary(members);
+        var body = s.total
+            ? '<div class="ash-rows">' + CASUALTY_ROWS.map(function (c, i) {
+                var n = s.vals[i], pct = n / s.total * 100;
+                return '<div class="ash-row">' +
+                    '<span class="ash-dot" style="background-color:' + c.color + '"></span>' +
+                    '<span class="nm">' + c.label + '</span>' +
+                    '<span class="ash-bar"><i style="width:' + pct.toFixed(1) + '%;background:' + c.color + '"></i></span>' +
+                    '<span class="val">' + fmtN(n) + '명<em>(' + pct.toFixed(1) + '%)</em></span>' +
+                    '</div>';
+            }).join('') + '</div>'
+            : '<div class="ash-hint"><i class="fa-solid fa-circle-info"></i>' +
+              '이 구역에는 인명 피해 인원이 기록된 사고가 없습니다.</div>';
+
+        return '<section class="ash-card ash-detail-card" data-axis="치명도">' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">' + no + '. 인명 피해 현황' +
+            ' <em>(선택 영역)</em></h2></div>' +
+            body +
+            '<div class="ash-note">' +
+            '2014·2015년은 인명피해가 기록돼 있지 않아 제외했습니다 · ' +
+            '해양오염은 인명피해가 없어 제외했습니다' +
+            (s.dropped ? ' (이 구역에서 ' + fmtN(s.dropped) + '건 제외)' : '') + '.' +
+            '</div>' +
+            '<div class="ash-card-sec">' +
+            '<h3 class="ash-card-sec-title">사망·실종 발생률이 높은 사고' +
+            (fatalityExpanded(key) ? '' : ' <em>(Top 5)</em>') +
+            '<span class="ash-badge-scope">전국 기준</span></h3>' +
+            fatalityInnerHtml(key, members, true) +
+            '</div>' +
             '</section>';
     }
 
