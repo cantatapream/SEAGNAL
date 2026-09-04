@@ -9577,44 +9577,9 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .accident-chart-wrap { position: relative; width: 100%; height: 200px; margin-top: 2px; overflow: hidden; }
 .accident-chart-caption { font-size: 0.7rem; color: var(--text-sub); margin-top: 6px; text-align: center; }
 
-/* 특보발효 도넛(2026-08-31 사용자 확정 — 여러 차례 시안 검토 후 반영) — 평시 고리는
-   고정, 맨 위 "특보 중" 원호가 태풍·풍랑·강풍×주의보·경보 6종으로 갈라지며 원호
-   모양 그대로 커진다(막대·동심원 아님). 화면 뜨고 0.5초 뒤 자동 재생(사용자 확정
-   "매번 재생"), 확대 중엔 화면 전체가 그 지점으로 살짝(10배 확대폭) 줌인. */
-.accident-warn-svg { display: block; margin: 0 auto; overflow: hidden; }
-/* 도넛 중앙 "전체 사고"/건수 텍스트 — CSS가 아예 없어 SVG 기본값(검정 채움)으로 뜨는
-   바람에 어두운 배경에서 안 보이던 문제(2026-09-01 확인). 흰 글씨 + 검정 테두리로. */
-.center-total { fill: #ffffff; stroke: #000000; stroke-width: 3px; paint-order: stroke; stroke-linejoin: round; font-weight: 800; text-shadow: none; }
-.center-total.n { font-size: 26px; }
-.center-total.l { font-size: 13px; font-weight: 600; stroke-width: 2px; }
-.accident-warn-wedge { transition: opacity .12s linear; }
-.accident-warn-zoom {
-    transform-box: view-box;
-    transition: transform .8s cubic-bezier(.22,.9,.32,1.05);
-}
-.accident-warn-zoom.zoomed { transform: scale(1.15); } /* 2026-08-31 실사용 확인 후 하향(1.7→1.15) — 폭이 화면 절반을 넘지 않도록(부채꼴 각도도 같이 좁힘) */
-.accident-warn-revert {
-    display: block;
-    margin: 8px auto 0;
-    border: none;
-    background: rgba(255,255,255,0.07);
-    color: var(--text-sub);
-    padding: 5px 12px;
-    border-radius: 6px;
-    font-size: 0.7rem;
-    cursor: pointer;
-}
-.accident-warn-revert:disabled { opacity: 0.4; cursor: default; }
-/* 조각 라벨(2026-09-01) — 조각이 크면 안쪽 중앙 텍스트, 작으면 리더라인+텍스트. */
-.accident-warn-inline-label { fill: #05070d; font-size: 9px; font-weight: 700; }
-.accident-warn-leader { stroke: rgba(255,255,255,0.5); stroke-width: 1; fill: none; stroke-linejoin: round; }
-.accident-warn-leader-label { fill: var(--text-main); font-size: 9px; font-weight: 600; }
-.accident-warn-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 10px; margin-top: 6px; }
-.accident-warn-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; color: var(--text-sub); }
-.accident-warn-legend-item i { width: 8px; height: 8px; border-radius: 2px; flex: none; display: inline-block; }
-@media (prefers-reduced-motion: reduce) {
-    .accident-warn-zoom { transition: none !important; }
-}
+/* [S19에서 삭제] 특보발효 도넛 스타일(.accident-warn-svg · .center-total ·
+   .accident-warn-wedge/zoom/revert/inline-label/leader/legend) — "특보발효" 탭이
+   S10 에서 카드로 내려가면서 그 마크업을 만드는 코드가 없어졌다. */
 .accident-trend-back {
     display: block;
     border: none;
@@ -9640,13 +9605,8 @@ html[data-font-size="large"] .ocean-overlay-btn {
 }
 .accident-detail-tab.active { background: var(--accent-blue); color: #05070d; }
 
-.accident-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.74rem; }
-.accident-bar-row .name { width: 84px; flex: none; color: var(--text-sub); }
-/* display:block 필수 — span은 기본 inline이라 width/height가 안 먹어(2026-09-01
-   확인: 이래서 게이지가 항상 빈 채로 보였음), block이어야 채움 비율(%)이 실제로 그려짐. */
-.accident-bar-row .track { display: block; flex: 1; background: rgba(255,255,255,0.08); border-radius: 4px; height: 7px; overflow: hidden; }
-.accident-bar-row .fill { display: block; height: 100%; background: var(--accent-green); border-radius: 4px; }
-.accident-bar-row .n { width: 68px; flex: none; text-align: right; color: var(--text-main); white-space: nowrap; }
+/* [S19에서 삭제] .accident-bar-row — 예전 막대 행. S4 에서 목업 부품(.ash-row)으로
+   갈아치우면서 이 클래스를 쓰는 마크업이 없어졌다. */
 
 /* 사고정보 필터 바(2026-08-24) — 현황: 사고유형만, 분석: 4개 전부 노출.
    버튼 하나가 [필터명: 요약] 형태 — 확정하면 "N개 선택"으로 바뀐다. */

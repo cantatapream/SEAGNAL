@@ -647,11 +647,9 @@
     // 그래서 이 카드만 카드 제목 오른쪽 토글로 한 소스씩 보여준다(설계서 작업 8).
     var _typeCardSrc = 'hk';
     var _statsRegionLabel = null;     // 지금 열린 셀의 권역 뱃지 라벨(비동기로 채워짐, 2026-09-01)
-    var _statsView = {};              // source key -> 현재 선택된 "분석 뷰" 탭('trend'|'hourly'|'weekday'|'org'|'warn')
+    var _statsView = {};              // source key -> 현재 선택된 "분석 뷰" 탭('trend'|'month'|'hourly'|'weekday'|'org')
     var _trendDrill = null;           // 연도별 추이 드릴다운: null(연도별) | {year} | {year,month}
     var _statsCharts = [];            // 지금 그려진 Chart.js 인스턴스 — 다시 그리기 전 반드시 destroy
-    var _warnAnimTimer = null;        // 특보발효 도넛 — 0.5초 지연 타이머(재렌더 시 정리용)
-    var _warnAnimRaf = null;          // 특보발효 도넛 — 펼침/되돌리기 rAF 애니메이션 핸들(재렌더 시 정리용)
 
     /**
      * [필터 — 사고유형/관할서/시간대/계절/특보발표여부/선박용도/톤수(2026-08-24~25
@@ -2289,10 +2287,7 @@
         var raw = String(row[2] || '');
         return raw.length >= 6 ? parseInt(raw.slice(4, 6), 10) : null;
     }
-    function dayOfMonthOf(row) {
-        var raw = String(row[2] || '');
-        return raw.length >= 8 ? parseInt(raw.slice(6, 8), 10) : null;
-    }
+    // [S19에서 삭제] dayOfMonthOf — 일 단위 드릴다운을 만들지 않기로 하면서(S7) 쓰는 곳이 없어졌다.
 
     var WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
     /** row[2](ymd)를 요일로 — Date.getDay()는 0=일이라 0=월로 회전. 형식이 이상하면 null. */
@@ -2436,31 +2431,6 @@
             if (w != null) counts[w]++;
         });
         return counts;
-    }
-
-    /** 특보(태풍·풍랑·강풍 등) 발효 중이었던 사고 비율 — 기존 특보발표여부 필터와
-     * 같은 WARN_FLAGS_POS_IDX 플래그를 재사용(2026-08-24 필터 신설분). */
-    function warnBuckets(key, members) {
-        var active = 0, inactive = 0;
-        members.forEach(function (f) {
-            var flags = featAt(f, WARN_FLAGS_POS_IDX) || [];   // 피처별 소스로 읽는다[S15]
-            if (flags.length) active++; else inactive++;
-        });
-        return { active: active, inactive: inactive };
-    }
-
-    /** "특보 중" 조각을 유형×심각도(태풍/풍랑/강풍 × 주의보/경보)로 쪼갠 값 — 0건짜리
-     * 조합은 목록에서 뺀다(2026-08-31 사용자 확정). 한 사고가 두 유형 이상(예: 태풍+풍랑)
-     * 동시 발효 중이면 두 조각에 같이 잡혀 합계가 warnBuckets().active 보다 클 수 있다. */
-    function warnSeverityBuckets(key, members) {
-        var counts = {};
-        members.forEach(function (f) {
-            var sev = featAt(f, WARN_SEVERITY_POS_IDX) || [];   // 피처별 소스로 읽는다[S15]
-            sev.forEach(function (code) { counts[code] = (counts[code] || 0) + 1; });
-        });
-        return WARN_SEVERITY_ORDER.filter(function (c) { return counts[c] > 0; }).map(function (c) {
-            return { code: c, label: WARN_SEVERITY_LABELS[c], count: counts[c], color: WARN_SEVERITY_COLORS[c] };
-        });
     }
 
     /** 소스별 "분석 뷰" 탭 구성 — hourly 는 hk 에만(person 은 발생시각 없음).
@@ -2748,12 +2718,7 @@
             backHtml = '<button class="accident-trend-back" id="accident-trend-back">◀ ' + crumb + ' — 전체로</button>';
         }
 
-        // 특보발효는 Chart.js 캔버스가 아니라 직접 그리는 SVG(원호 확대+줌인 애니메이션,
-        // 2026-08-31) — 다른 뷰는 기존 그대로 canvas.
-        var chartInnerHtml = activeView === 'warn'
-            ? '<svg class="accident-warn-svg" id="accident-warn-svg"></svg>' +
-              '<button type="button" class="accident-warn-revert" id="accident-warn-revert" disabled>◀ 되돌리기</button>'
-            : '<canvas id="accident-stats-chart"></canvas>';
+        var chartInnerHtml = '<canvas id="accident-stats-chart"></canvas>';
 
         // 탭 줄은 카드 밖(시트 바로 아래)에, 차트는 카드 안에 둔다 — 탭은 "무엇을 볼지"
         // 고르는 조작부고 카드는 "고른 것"이라, 목업도 이 둘을 따로 놓는다.
@@ -2786,6 +2751,29 @@
     var _detailScrollBefore = null;
 
     function detailExpandKey(key, axisId) { return key + '|' + axisId; }
+
+    /** 뒤로가기 스택에 올릴 아코디언 id 접두사[S19]. */
+    var ACCORDION_POPUP_ID = 'accident-accordion-';
+
+    /**
+     * 펼쳐 둔 아코디언 하나를 접는다[S19에서 함수로 분리] — 접기 버튼과 뒤로가기가
+     * 같은 길을 타도록. 펼치기 직전 스크롤 위치로 되돌린다(수십 종을 펼쳤다 접으면
+     * 화면이 엉뚱한 데 가 있게 된다).
+     * @param {string} axisId 접을 카드의 축 id
+     */
+    function collapseDetailCard(axisId) {
+        var ek = detailExpandKey(_statsKey, axisId);
+        if (!_detailExpanded[ek]) return;
+        _detailExpanded[ek] = false;
+        if (window.PopupStack) window.PopupStack.remove(ACCORDION_POPUP_ID + axisId);
+        redrawDetailCard(axisId);
+        if (_detailScrollBefore != null) {
+            var back = _detailScrollBefore;
+            _detailScrollBefore = null;
+            var body = document.getElementById('accident-stats-body');
+            if (body) requestAnimationFrame(function () { body.scrollTop = back; });
+        }
+    }
 
     /**
      * 축 하나를 카드 하나로 그린다[S8] — 목업의 "3. 상위 발생 유형" / "4. 주요 발생 원인" /
@@ -3836,294 +3824,21 @@
     // 쓰지만 datalabels 플러그인 값 표시는 그냥 String(v)라 콤마가 안 붙어 있었다.
     function fmtN(v) { return Number(v).toLocaleString('ko-KR'); }
 
-    // ── 특보발효 도넛(2026-08-31 사용자 확정) ──────────────────────────────────
-    // 평시 고리는 고정, 맨 위 "특보 중" 원호가 태풍·풍랑·강풍×주의보·경보 6종으로
-    // 갈라지며 원호 모양 그대로 커진다(막대나 동심원이 아니라 부채꼴). 화면이 뜨고
-    // 0.5초 뒤 자동으로 0.8초에 걸쳐 펼쳐지고(사용자 확정 "매번 재생" — 이 뷰를 열
-    // 때마다 처음부터 다시 재생), 펼쳐지는 동안 화면 전체가 그 지점 쪽으로 살짝
-    // (scale 1.7배, 사용자 확정 "10배 더") 줌인된다. "되돌리기" 버튼으로 접을 수 있다.
-    // 여러 차례 HTML 시안으로 검토 후 반영(아티팩트 검토 로그: 원은 그대로 유지,
-    // 부채꼴이되 막대·스택 아님, 중심은 12시).
-    function warnPolar(cx, cy, r, deg) {
-        var rad = (deg - 90) * Math.PI / 180;
-        return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
-    }
-    /** 도넛 한 조각(annular sector) path — offsetDist 만큼 이등분선 방향으로 밀어냄(explode). */
-    function warnWedgePath(cx, cy, rOuter, rInner, startDeg, endDeg, offsetDist) {
-        var span = endDeg - startDeg;
-        if (span <= 0.0001) return '';
-        var mid = (startDeg + endDeg) / 2;
-        var off = warnPolar(0, 0, offsetDist, mid);
-        var ox = cx + off[0], oy = cy + off[1];
-        var large = span >= 180 ? 1 : 0;
-        var p1 = warnPolar(ox, oy, rOuter, startDeg);
-        var p2 = warnPolar(ox, oy, rOuter, endDeg);
-        var p3 = warnPolar(ox, oy, rInner, endDeg);
-        var p4 = warnPolar(ox, oy, rInner, startDeg);
-        return [
-            'M', p1[0], p1[1],
-            'A', rOuter, rOuter, 0, large, 1, p2[0], p2[1],
-            'L', p3[0], p3[1],
-            'A', rInner, rInner, 0, large, 0, p4[0], p4[1],
-            'Z'
-        ].join(' ');
-    }
-    var SVG_NS = 'http://www.w3.org/2000/svg';
-    function warnEl(tag, attrs) {
-        var e = document.createElementNS(SVG_NS, tag);
-        for (var k in attrs) e.setAttribute(k, attrs[k]);
-        return e;
-    }
-
-    /** 재렌더/시트 닫기 전에 반드시 호출 — 대기 중인 지연 타이머·rAF 를 정리한다. */
-    function stopWarnDonutAnim() {
-        if (_warnAnimTimer) { clearTimeout(_warnAnimTimer); _warnAnimTimer = null; }
-        if (_warnAnimRaf) { cancelAnimationFrame(_warnAnimRaf); _warnAnimRaf = null; }
-    }
-
-    function renderWarnDonut(key, members) {
-        var wrap = document.getElementById('accident-chart-wrap');
-        var svg = document.getElementById('accident-warn-svg');
-        var caption = document.getElementById('accident-chart-caption');
-        var revertBtn = document.getElementById('accident-warn-revert');
-        if (!wrap || !svg) return;
-        wrap.style.height = '250px';
-
-        var w = warnBuckets(key, members);
-        var sv = warnSeverityBuckets(key, members); // 0건 조합은 이미 빠져 있음(WARN_SEVERITY_ORDER 순)
-
-        var CX = 190, CY = 190;
-        svg.setAttribute('viewBox', '0 0 380 350');
-
-        if (!w.active || !sv.length) {
-            // 특보 이력이 아예 없는 셀 — 애니메이션 없이 평시만 있는 온전한 원만 보여준다.
-            svg.innerHTML = '';
-            svg.appendChild(warnEl('path', { fill: 'rgba(255,255,255,0.12)', d: warnWedgePath(CX, CY, 92, 60, 0, 360, 0) }));
-            var emptyTotal = warnEl('text', { x: CX, y: CY - 4, 'text-anchor': 'middle', class: 'center-total n' });
-            emptyTotal.textContent = w.inactive.toLocaleString('ko-KR');
-            svg.appendChild(emptyTotal);
-            var emptyLabel = warnEl('text', { x: CX, y: CY + 14, 'text-anchor': 'middle', class: 'center-total l' });
-            emptyLabel.textContent = '전체 사고';
-            svg.appendChild(emptyLabel);
-            if (caption) caption.textContent = '이 셀에는 특보 발효 이력이 없습니다.';
-            if (revertBtn) revertBtn.style.display = 'none';
-            return;
-        }
-        if (revertBtn) revertBtn.style.display = '';
-
-        svg.innerHTML = '';
-        var zoomGroup = warnEl('g', { class: 'accident-warn-zoom' });
-        zoomGroup.style.transformOrigin = CX + 'px ' + (CY - 92) + 'px'; // 특보중 조각 지점 기준
-        svg.appendChild(zoomGroup);
-
-        var R_OUT = 92, R_IN = 60;
-        var totalAll = w.active + w.inactive;
-        var warnSpan = totalAll ? (w.active / totalAll) * 360 : 0;
-        var WARN_CENTER = 0; // 12시(맨 위)
-        var warnStart = WARN_CENTER - warnSpan / 2, warnEnd = WARN_CENTER + warnSpan / 2;
-
-        // 평시(회색, 고정 — 다시 그리지 않는다)
-        zoomGroup.appendChild(warnEl('path', { fill: 'rgba(255,255,255,0.12)', d: warnWedgePath(CX, CY, R_OUT, R_IN, warnEnd, 360 + warnStart, 0) }));
-
-        var totalText = warnEl('text', { x: CX, y: CY - 4, 'text-anchor': 'middle', class: 'center-total n' });
-        totalText.textContent = totalAll.toLocaleString('ko-KR');
-        zoomGroup.appendChild(totalText);
-        var totalLabel = warnEl('text', { x: CX, y: CY + 14, 'text-anchor': 'middle', class: 'center-total l' });
-        totalLabel.textContent = '전체 사고';
-        zoomGroup.appendChild(totalLabel);
-
-        // 특보중(작은 빨간 원호, 접힌 상태) — 펼쳐지면서 투명해지고 그 자리에 세부 원호가 대신 나타난다.
-        var warnSliceEl = warnEl('path', {
-            class: 'accident-warn-wedge', fill: CHART_COLOR.red,
-            d: warnWedgePath(CX, CY, R_OUT, R_IN, warnStart, warnEnd, 0)
-        });
-        zoomGroup.appendChild(warnSliceEl);
-
-        var wedgeEls = sv.map(function (s) {
-            var e = warnEl('path', { class: 'accident-warn-wedge', fill: s.color, opacity: '0' });
-            zoomGroup.appendChild(e);
-            return e;
-        });
-        // 각 조각의 값 라벨(2026-09-01 사용자 확정) — 조각이 펼쳐진 뒤 충분히 크면
-        // 조각 안쪽 중앙에 텍스트, 작으면 조각에서 선을 빼서(리더라인) 바깥에 텍스트.
-        // 관리자센터 화면의 도넛 라벨 방식과 동일한 패턴. 위치는 펼친(expanded) 최종
-        // 각도 기준으로 한 번만 계산해 고정하고, 조각과 같은 투명도로 서서히 나타난다.
-        var labelEls = sv.map(function () {
-            var g = warnEl('g', { opacity: '0' });
-            zoomGroup.appendChild(g);
-            return g;
-        });
-
-        // 접힌 상태 = 지금 특보중 원호 자리 그대로 / 펼친 상태 = 그 자리를 중심으로 옆으로
-        // 넓게 부채꼴처럼 퍼지며(원호 모양 유지) 반지름도 커지고 바깥으로 밀려남(explode).
-        // 2026-08-31 실사용 확인 후 축소 — 펼친 폭이 화면 절반을 넘던 것을 90˚(전체
-        // 원의 1/4)로 좁히고 반지름 확대폭도 줄임(92→112). 그래도 화면 밖으로 새면
-        // 안 되니 .accident-chart-wrap/.accident-warn-svg 에 overflow:hidden 까지 같이 건다.
-        var EXPLODE_SPAN = 90, EXPLODE_START = WARN_CENTER - EXPLODE_SPAN / 2;
-        var R_EXP_OUT = 112, R_EXP_IN = 78, R_EXP_OFFSET = 6;
-        var GAP = 1.2;
-        var svTotal = sv.reduce(function (a, s) { return a + s.count; }, 0);
-        var cursorCollapsed = warnStart, cursorExpanded = EXPLODE_START;
-        var states = sv.map(function (s) {
-            var frac = svTotal ? s.count / svTotal : 0;
-            var spanC = frac * warnSpan;
-            var c0 = cursorCollapsed, c1 = cursorCollapsed + spanC;
-            cursorCollapsed = c1;
-            var spanE = frac * (EXPLODE_SPAN - GAP * sv.length);
-            var e0 = cursorExpanded, e1 = cursorExpanded + spanE;
-            cursorExpanded = e1 + GAP;
-            return { collapsed: [c0, c1, R_OUT, R_IN, 0], expanded: [e0, e1, R_EXP_OUT, R_EXP_IN, R_EXP_OFFSET] };
-        });
-
-        // 라벨 위치는 펼친(expanded) 최종 각도로 한 번만 계산 — warnWedgePath 와 같은
-        // 방식(이등분선 방향으로 R_EXP_OFFSET 만큼 밀어낸 중심 기준)으로 좌표를 구한다.
-        var MIN_INLINE_SPAN_DEG = 22; // 이보다 좁은 조각은 안에 글자가 안 들어가 리더라인 사용
-        var mids = states.map(function (st) { return (st.expanded[0] + st.expanded[1]) / 2; });
-        var spans = states.map(function (st) { return st.expanded[1] - st.expanded[0]; });
-
-        // 좁은 조각(리더라인 대상)이 서로 가까이 몰려 라벨이 겹치던 문제(2026-09-01
-        // 사용자 지적) — 실제 조각 각도 그대로 라벨을 두지 않고, 최소 각도 간격을
-        // 두고 고르게 펼쳐 배치한 뒤 조각→그 위치까지 꺾인 리더라인(radial + 호)으로
-        // 잇는다. 조각이 몰린 자리를 중심으로 펼치므로 원래 위치에서 크게 안 벗어난다.
-        var LABEL_MIN_GAP_DEG = 11;
-        var smallIdx = [];
-        states.forEach(function (st, i) { if (spans[i] < MIN_INLINE_SPAN_DEG) smallIdx.push(i); });
-        smallIdx.sort(function (a, b) { return mids[a] - mids[b]; });
-        var labelAngle = {};
-        if (smallIdx.length) {
-            var avgMid = smallIdx.reduce(function (a, i) { return a + mids[i]; }, 0) / smallIdx.length;
-            var n = smallIdx.length;
-            smallIdx.forEach(function (i, k) {
-                labelAngle[i] = avgMid - (n - 1) / 2 * LABEL_MIN_GAP_DEG + k * LABEL_MIN_GAP_DEG;
-            });
-        }
-
-        states.forEach(function (st, i) {
-            var s = sv[i];
-            var mid = mids[i], span = spans[i];
-            var offPt = warnPolar(0, 0, R_EXP_OFFSET, mid);
-            var ox = CX + offPt[0], oy = CY + offPt[1];
-            var text = s.label + ' ' + s.count + '건';
-            var g = labelEls[i];
-            g.innerHTML = '';
-            if (span >= MIN_INLINE_SPAN_DEG) {
-                var pMid = warnPolar(ox, oy, (R_EXP_OUT + R_EXP_IN) / 2, mid);
-                var t1 = warnEl('text', {
-                    x: pMid[0], y: pMid[1], 'text-anchor': 'middle', 'dominant-baseline': 'middle',
-                    class: 'accident-warn-inline-label'
-                });
-                t1.textContent = text;
-                g.appendChild(t1);
-            } else {
-                var labelDeg = labelAngle[i];
-                var pOuter = warnPolar(ox, oy, R_EXP_OUT, mid);          // 조각 바깥 끝(리더라인 시작점)
-                var pBend = warnPolar(CX, CY, R_EXP_OUT + 13, mid);      // 일단 조각 각도로 짧게 뻗고
-                var pSpread = warnPolar(CX, CY, R_EXP_OUT + 13, labelDeg); // 펼친 각도로 꺾어서
-                var pText = warnPolar(CX, CY, R_EXP_OUT + 16, labelDeg);  // 텍스트는 그 끝에
-                var goRight = pSpread[0] >= CX;
-                var line = warnEl('polyline', {
-                    points: pOuter[0] + ',' + pOuter[1] + ' ' + pBend[0] + ',' + pBend[1] + ' ' + pSpread[0] + ',' + pSpread[1],
-                    class: 'accident-warn-leader', fill: 'none'
-                });
-                g.appendChild(line);
-                var t2 = warnEl('text', {
-                    x: pText[0], y: pText[1], 'text-anchor': goRight ? 'start' : 'end',
-                    'dominant-baseline': 'middle', class: 'accident-warn-leader-label'
-                });
-                t2.textContent = text;
-                g.appendChild(t2);
-            }
-        });
-
-        function warnLerp(a, b, t) { return a + (b - a) * t; }
-        function warnEaseOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
-        function warnEaseInCubic(t) { return t * t * t; }
-
-        function render(t, easeFn) {
-            var e = easeFn(Math.max(0, Math.min(1, t)));
-            warnSliceEl.setAttribute('opacity', String(1 - e));
-            wedgeEls.forEach(function (elx, i) {
-                var st = states[i];
-                var start = warnLerp(st.collapsed[0], st.expanded[0], e);
-                var end = warnLerp(st.collapsed[1], st.expanded[1], e);
-                var rOut = warnLerp(st.collapsed[2], st.expanded[2], e);
-                var rIn = warnLerp(st.collapsed[3], st.expanded[3], e);
-                var off = warnLerp(st.collapsed[4], st.expanded[4], e);
-                elx.setAttribute('d', warnWedgePath(CX, CY, rOut, rIn, start, end, off));
-                elx.setAttribute('opacity', String(e));
-            });
-            labelEls.forEach(function (g) { g.setAttribute('opacity', String(e)); });
-        }
-        render(0, function (x) { return x; });
-
-        var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        function animateTo(target, ms, easeFn, onDone) {
-            if (_warnAnimRaf) cancelAnimationFrame(_warnAnimRaf);
-            if (reduceMotion) { render(target, function (x) { return x; }); if (onDone) onDone(); return; }
-            var from = target === 1 ? 0 : 1;
-            var t0 = performance.now();
-            function step(now) {
-                var p = Math.min(1, (now - t0) / ms);
-                render(warnLerp(from, target, p), easeFn);
-                if (p < 1) { _warnAnimRaf = requestAnimationFrame(step); }
-                else { _warnAnimRaf = null; if (onDone) onDone(); }
-            }
-            _warnAnimRaf = requestAnimationFrame(step);
-        }
-
-        // 계산된 값은 애니메이션 완료를 기다리지 않고 처음부터 보여준다(사용자 확정
-        // 2026-09-01) — 예전엔 "펼쳐지는 중" 안내문구만 보이다 다 펼쳐져야 실제 값이
-        // 나왔다. 이제 조각별 값은 리더라인으로 차트 위에도 바로 나오므로(위 labelEls),
-        // 캡션은 로딩 문구 없이 처음부터 같은 범례를 보여주기만 한다.
-        if (caption) {
-            caption.innerHTML = '<div class="accident-warn-legend">' + sv.map(function (s) {
-                return '<span class="accident-warn-legend-item"><i style="background:' + s.color + '"></i>' +
-                    escapeHtml(s.label) + ' ' + s.count + '건</span>';
-            }).join('') + '</div>';
-        }
-        function setCollapsedUi() {
-            if (revertBtn) revertBtn.disabled = true;
-            zoomGroup.classList.remove('zoomed');
-        }
-        function setExpandedUi() {
-            if (revertBtn) revertBtn.disabled = false;
-        }
-
-        function playSequence() {
-            stopWarnDonutAnim();
-            setCollapsedUi();
-            render(0, function (x) { return x; });
-            _warnAnimTimer = setTimeout(function () {
-                _warnAnimTimer = null;
-                zoomGroup.classList.add('zoomed');
-                animateTo(1, 800, warnEaseOutCubic, setExpandedUi);
-            }, 500);
-        }
-
-        if (revertBtn) {
-            revertBtn.onclick = function () {
-                stopWarnDonutAnim();
-                zoomGroup.classList.remove('zoomed');
-                animateTo(0, 500, warnEaseInCubic, setCollapsedUi);
-            };
-        }
-
-        playSequence();
-    }
+    // [S19에서 삭제] 특보발효 도넛(renderWarnDonut 과 그 도우미 warnPolar·warnWedgePath·
+    // warnEl·warnEase*·stopWarnDonutAnim, 집계 warnBuckets·warnSeverityBuckets) —
+    // "특보발효" 탭이 S10 에서 카드로 내려가면서(statsViewsFor 에서 제거) 이 코드가
+    // 닿을 수 없게 됐다. 특보 통계는 이제 buildWarnCardHtml + warnStatsOf 가 낸다.
 
     /** 지금 선택된 "분석 뷰" 탭에 맞는 차트 하나를 그린다(그 전에 이전 걸 정리).
-     * 특보발효만 Chart.js 캔버스가 아니라 직접 그리는 SVG(renderWarnDonut). */
+     */
     function renderActiveChart(key, members) {
         destroyStatsCharts();
-        stopWarnDonutAnim();
         var wrap = document.getElementById('accident-chart-wrap');
         var caption = document.getElementById('accident-chart-caption');
         if (!wrap) return;
         var view = _statsView[key] || 'trend';
         if (caption) caption.textContent = '';
         wrap.style.height = '200px';
-
-        if (view === 'warn') { renderWarnDonut(key, members); return; }
 
         var canvas = document.getElementById('accident-stats-chart');
         if (!canvas) return;
@@ -4409,6 +4124,7 @@
         // 칸을 누르면 특보발효가 열린 채로 시작했다. 아래 스크롤 초기화와 같은 취지.
         _statsView.hk = 'trend';
         _statsView.person = 'trend';
+        clearAccordionStack();     // 이전 칸에서 올려 둔 아코디언 스택 항목을 치운다[S19]
         _detailExpanded = {};      // 펼쳐 둔 "전체 보기"도 접힌 상태로[S4]
         _detailScrollBefore = null;
         // 손잡이로 낮춰 둔 높이도 기본(80vh)으로 되돌린다 — 위 탭·스크롤 초기화와 같은
@@ -4606,17 +4322,26 @@
     /** 뒤로가기 처리를 위한 공용 팝업 스택 등록 id(core/backbutton.js). */
     var STATS_SHEET_POPUP_ID = 'accident-stats-sheet';
 
+    /** 뒤로가기 스택에 남은 아코디언 항목을 전부 뺀다[S19] — 시트를 닫거나 새 칸을
+     * 열 때, 칩을 바꿀 때처럼 펼침 상태가 통째로 초기화되는 경우에 쓴다. */
+    function clearAccordionStack() {
+        if (!window.PopupStack) return;
+        Object.keys(_detailExpanded).forEach(function (ek) {
+            if (_detailExpanded[ek]) window.PopupStack.remove(ACCORDION_POPUP_ID + ek.split('|')[1]);
+        });
+    }
+
     function closeStatsSheet() {
         var sheet = document.getElementById('accident-stats-sheet');
         // 스택에서 먼저 뺀다 — 뒤로가기(PopupStack.popLast)로 들어온 경우엔 이미
         // 빠진 뒤라 무해하고, 닫기 버튼으로 들어온 경우엔 여기서 빠져야 다음
         // 뒤로가기가 엉뚱하게 이 시트를 또 닫으려 하지 않는다.
+        clearAccordionStack();
         if (window.PopupStack) window.PopupStack.remove(STATS_SHEET_POPUP_ID);
         if (sheet) sheet.classList.remove('open');
         hideTip(false);
         if (_selectedGridFeature) { var prev = _selectedGridFeature; _selectedGridFeature = null; prev.changed(); }
         destroyStatsCharts();
-        stopWarnDonutAnim();
         _statsKey = null;
         _statsMembers = null;
         _statsAll = null;   // 닫힌 시트를 필터 변경이 다시 그리려 하지 않도록[S15]
@@ -5641,6 +5366,7 @@
                 if (chipBtn) {
                     var picked = chipBtn.dataset.chip;
                     _statsScope = (_statsScope === picked) ? 'all' : picked;
+                    clearAccordionStack();  // 뒤로가기 스택도 함께 치운다[S19]
                     _detailExpanded = {};   // 다른 축을 보게 되므로 펼침은 접는다
                     renderStatsBody();
                     return;
@@ -5652,6 +5378,7 @@
                 var srcTgl = e.target.closest('[data-typesrc]');
                 if (srcTgl) {
                     _typeCardSrc = srcTgl.dataset.typesrc;
+                    clearAccordionStack();
                     _detailExpanded = {};
                     renderStatsBody();
                     return;
@@ -5674,19 +5401,17 @@
                 var moreBtn = e.target.closest('.ash-more');
                 if (moreBtn) {
                     var axisId = moreBtn.dataset.axis;
-                    var ek = detailExpandKey(_statsKey, axisId);
-                    if (_detailExpanded[ek]) {
-                        _detailExpanded[ek] = false;
-                        redrawDetailCard(axisId);
-                        if (_detailScrollBefore != null) {
-                            var back = _detailScrollBefore;
-                            _detailScrollBefore = null;
-                            requestAnimationFrame(function () { statsBody.scrollTop = back; });
-                        }
-                    } else {
+                    if (_detailExpanded[detailExpandKey(_statsKey, axisId)]) collapseDetailCard(axisId);
+                    else {
                         _detailScrollBefore = statsBody.scrollTop;
-                        _detailExpanded[ek] = true;
+                        _detailExpanded[detailExpandKey(_statsKey, axisId)] = true;
                         redrawDetailCard(axisId);
+                        // ★뒤로가기로도 접히게 스택에 올린다[S19] — 검증 기준이 "뒤로가기로
+                        // 시트·필터 팝업·아코디언이 순서대로 닫힘" 이다. 안 올려 두면 펼친
+                        // 상태에서 뒤로가기를 누르면 아코디언을 건너뛰고 시트가 닫힌다.
+                        if (window.PopupStack) {
+                            window.PopupStack.push(ACCORDION_POPUP_ID + axisId, function () { collapseDetailCard(axisId); });
+                        }
                     }
                     return;
                 }
