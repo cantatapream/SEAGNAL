@@ -9160,6 +9160,45 @@ html[data-font-size="large"] .ocean-overlay-btn {
     .ash-more i { transition: none; }
 }
 
+/* 도넛 — 목업 .type-donut / .donut-wrap[S5].
+   목업 도넛은 색 고리 하나가 아니라 네 겹을 겹쳐 그린다(트랙·본체·바깥 흰 림·안쪽 검은
+   코어). 한 겹만 그리면 목업의 질감이 안 나온다(디자인 분석서 §5).
+   [연계] 마크업 accident_info.js buildDonutHtml */
+.ash-donut-body { display: flex; align-items: center; gap: 0.7em; }
+/* 목록이 남은 폭을 다 차지해야 게이지가 제 길이로 늘어난다 — flex:1 이 없으면 목록이
+   내용 크기로만 잡혀 막대가 손톱만 하게 짜부라진다(2026-09-04 화면 확인으로 발견). */
+.ash-donut-body .ash-rows { flex: 1; min-width: 0; }
+.ash-donut { position: relative; flex: none; width: 8.4em; height: 8.4em; }
+.ash-donut.sm { width: 4.1em; height: 4.1em; }
+.ash-donut svg { width: 100%; height: 100%; overflow: visible; }
+.ash-donut-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 0.25em;
+    pointer-events: none;
+}
+.ash-donut-center b { font-size: 1.15em; font-weight: 800; letter-spacing: -0.02em; }
+.ash-donut-center span { font-size: 0.68em; color: var(--ash-muted); }
+
+/* 한 붓 그리기 — 12시부터 시계방향으로 조각이 이어서 그려진다.
+   paused 로 첫 프레임(길이 0)에 멈춰 뒀다가, 카드가 화면에 들어와 .reveal 이 붙으면
+   재생한다. 지속시간·지연은 조각 길이에 비례해 JS 가 인라인으로 넣는다
+   (다음 지연 = 이전 지연 + 이전 지속시간 → 끊김 없이 한 바퀴로 이어진다). */
+@keyframes ashDrawSeg { from { stroke-dasharray: 0 100; } }
+.ash-seg { animation: ashDrawSeg 0.6s linear both paused; }
+.ash-card.reveal .ash-seg { animation-play-state: running; }
+@media (prefers-reduced-motion: reduce) {
+    .ash-seg { animation: none; }
+}
+
+/* 좁은 화면에서는 도넛과 목록을 세로로 쌓는다(목업 359px 분기 그대로). */
+@media (max-width: 359px) {
+    .ash-donut-body { flex-direction: column; }
+    .ash-donut { width: 7.6em; height: 7.6em; }
+    .ash-row .nm { width: 5em; }
+}
+
 /* 푸터 각주 — 목업 .foot. 항목 앞에 작은 점이 붙는 목록으로, "2014·2015년 제외"
    같은 집계 단서를 담는다(설계서 작업 9·10). */
 .accident-stats-foot {

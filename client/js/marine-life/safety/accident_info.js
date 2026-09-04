@@ -2419,6 +2419,107 @@
         return ASH_ROW_COLORS[i % ASH_ROW_COLORS.length];
     }
 
+    /** 조각 색 3단 그라데이션 표 — 목업이 준 네 색(파랑·청록·보라·회색)에,
+     * 목업에 없던 초록·주황을 같은 공식(기준색 대비 명도 ±40%)으로 만들어 더한 것.
+     * 순서는 [밝은색, 기준색, 어두운색]. [연계] buildDonutHtml */
+    var ASH_DONUT_GRADS = {
+        '#2b7cf0': ['#86b6ff', '#2b7cf0', '#12448a'],
+        '#16c8a3': ['#6cf0d4', '#1cc9a4', '#08765f'],
+        '#25d0a6': ['#7ff0cf', '#25d0a6', '#0d7a5e'],
+        '#f9821f': ['#ffb26b', '#f9821f', '#8a4405'],
+        '#a35ff0': ['#dcabff', '#a35ff0', '#5d2a9e'],
+        '#5b6c85': ['#9ea8b6', '#6d7787', '#38404d']
+    };
+    /** 도넛마다 붙일 일련번호 — SVG 의 gradient id 는 문서 전역이라, 도넛을 두 개
+     * 그리면 나중 것이 먼저 것의 색을 덮어쓴다. 접두사로 갈라 준다. */
+    var _ashDonutSeq = 0;
+
+    /**
+     * 목업 구조 그대로의 도넛 하나를 그린다[S5] — 네 겹(배경 트랙·본체·바깥 흰 림·
+     * 안쪽 검은 코어)을 겹쳐 그리고, 조각마다 3단 그라데이션과 드롭섀도를 준다.
+     *
+     * 예시: buildDonutHtml([['충돌',120,'#2b7cf0'],['좌초',80,'#16c8a3']], {centerNum:'200', centerCap:'전체 사고'})
+     * → 12시부터 시계방향으로 60%·40% 두 조각이 이어서 그려지는 도넛.
+     *
+     * 비율은 pathLength="100" 덕분에 그대로 stroke-dasharray 로 쓸 수 있다(원 둘레를
+     * 계산할 필요가 없다). 림·코어도 본체와 똑같은 dasharray/offset 을 써야 같은 조각
+     * 위에 정확히 겹친다.
+     *
+     * @param {Array.<Array>} entries [라벨, 값, 색] 배열
+     * @param {{small?:boolean, centerNum?:string, centerCap?:string}} opts
+     * @returns {string} 도넛 HTML(중앙 텍스트 포함)
+     * [연계] 스타일 style.css .ash-donut / 디자인 근거 accident_stats_sheet.style.md §5·§6
+     */
+    function buildDonutHtml(entries, opts) {
+        opts = opts || {};
+        var sm = !!opts.small;
+        var uid = 'ashd' + (++_ashDonutSeq);
+        var R = sm ? 30 : 34, W = sm ? 15 : 16;
+        var RIM = sm ? 36.3 : 40.8, RIMW = sm ? 2.2 : 2.4;
+        var CORE = sm ? 24 : 27.5, COREW = sm ? 2.6 : 3;
+        var SHADOW = sm ? { dy: 1.8, sd: 2, op: 0.55 } : { dy: 2, sd: 2.4, op: 0.6 };
+        var GAP = 0.8; // 조각 사이 틈(목업과 같은 값)
+
+        var total = entries.reduce(function (a, d) { return a + d[1]; }, 0) || 1;
+        var defs = '', body = '', rim = '', core = '';
+        var offset = 0, delay = 0.18;
+        entries.forEach(function (d, i) {
+            var pct = d[1] / total * 100;
+            var g = ASH_DONUT_GRADS[d[2]] || [d[2], d[2], d[2]];
+            var gid = uid + 'g' + i;
+            defs += '<linearGradient id="' + gid + '" gradientUnits="userSpaceOnUse"' +
+                ' gradientTransform="rotate(90 50 50)" x1="12" y1="6" x2="88" y2="94">' +
+                '<stop offset="0" stop-color="' + g[0] + '"/>' +
+                '<stop offset=".46" stop-color="' + g[1] + '"/>' +
+                '<stop offset="1" stop-color="' + g[2] + '"/></linearGradient>';
+            var dash = pct.toFixed(2) + ' ' + (100 - pct).toFixed(2);
+            var off = (-offset).toFixed(2);
+            // 지속시간을 조각 길이에 비례시키고 지연을 앞 조각 끝에 맞추면 한 바퀴가
+            // 끊김 없이 이어진다(디자인 분석서 §6).
+            var dur = Math.max(0.08, pct * 0.014);
+            var anim = ' style="animation-duration:' + dur.toFixed(2) + 's;animation-delay:' + delay.toFixed(2) + 's"';
+            delay += dur;
+            offset += pct + GAP;
+            function seg(r, w, stroke) {
+                return '<circle class="ash-seg" cx="50" cy="50" r="' + r + '" pathLength="100"' +
+                    ' stroke-width="' + w + '" stroke="' + stroke + '"' +
+                    ' stroke-dasharray="' + dash + '" stroke-dashoffset="' + off + '"' + anim + '/>';
+            }
+            body += seg(R, W, 'url(#' + gid + ')');
+            rim += seg(RIM, RIMW, 'url(#' + uid + 'rim)');
+            core += seg(CORE, COREW, 'url(#' + uid + 'core)');
+        });
+
+        var center = '';
+        if (opts.centerNum) {
+            center = '<div class="ash-donut-center"><b>' + escapeHtml(opts.centerNum) + '</b>' +
+                (opts.centerCap ? '<span>' + escapeHtml(opts.centerCap) + '</span>' : '') + '</div>';
+        }
+        return '<div class="ash-donut' + (sm ? ' sm' : '') + '">' +
+            '<svg viewBox="0 0 100 100" role="img" aria-label="' +
+            escapeHtml(entries.map(function (d) { return d[0]; }).join(', ')) + '">' +
+            '<defs>' + defs +
+            '<linearGradient id="' + uid + 'rim" gradientUnits="userSpaceOnUse"' +
+            ' gradientTransform="rotate(90 50 50)" x1="18" y1="8" x2="82" y2="92">' +
+            '<stop offset="0" stop-color="#ffffff" stop-opacity=".6"/>' +
+            '<stop offset=".45" stop-color="#ffffff" stop-opacity=".13"/>' +
+            '<stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient>' +
+            '<linearGradient id="' + uid + 'core" gradientUnits="userSpaceOnUse"' +
+            ' gradientTransform="rotate(90 50 50)" x1="18" y1="8" x2="82" y2="92">' +
+            '<stop offset="0" stop-color="#000814" stop-opacity=".06"/>' +
+            '<stop offset="1" stop-color="#000814" stop-opacity=".5"/></linearGradient>' +
+            '<filter id="' + uid + 'sh" x="-30%" y="-30%" width="160%" height="160%">' +
+            '<feDropShadow dx="0" dy="' + SHADOW.dy + '" stdDeviation="' + SHADOW.sd +
+            '" flood-color="#000610" flood-opacity="' + SHADOW.op + '"/></filter>' +
+            '</defs>' +
+            '<circle cx="50" cy="50" r="' + R + '" fill="none" stroke="#101d2f" stroke-width="' + W + '"/>' +
+            '<g transform="rotate(-90 50 50)" filter="url(#' + uid + 'sh)">' +
+            '<g fill="none" stroke-width="' + W + '">' + body + '</g>' +
+            '<g fill="none" stroke-width="' + RIMW + '">' + rim + '</g>' +
+            '<g fill="none" stroke-width="' + COREW + '">' + core + '</g>' +
+            '</g></svg>' + center + '</div>';
+    }
+
     /** [라벨, 건수] 목록을 목업 .row 구조의 막대 행 HTML 로 바꾼다[S4].
      *
      * 예시: [['충돌', 120], ['좌초', 30]] · total 200 · max 120 이면
@@ -2547,11 +2648,23 @@
                 (expanded ? '접기' : '전체 ' + allCount + '종 보기') +
                 '<i class="fa-solid fa-chevron-right"></i></button>';
         }
+        // 도넛은 접힌 상태(Top 5)에서만 그린다 — 펼치면 조각이 25개까지 늘어 색이 뭉개지고
+        // 아무것도 못 읽는다. 목업도 도넛과 나란한 목록은 상위 몇 개뿐이다.
+        var donutHtml = '';
+        if (!expanded && items.length) {
+            donutHtml = buildDonutHtml(items.map(function (d, i) {
+                return [d[0], d[1], ashRowColor(d[0], i)];
+            }), { centerNum: fmtN(members.length), centerCap: '전체 사고' });
+        }
+        var bodyHtml = donutHtml
+            ? '<div class="ash-donut-body">' + donutHtml + buildBarRowsHtml(items, members.length) + '</div>'
+            : buildBarRowsHtml(items, members.length);
+
         return '<section class="ash-card" id="accident-detail-block">' +
             '<div class="ash-card-head"><h2 class="ash-card-title">사고 발생 상세' +
             (expanded ? '' : ' <em>(Top 5)</em>') + '</h2></div>' +
             '<div class="accident-detail-tabs">' + tabsHtml + '</div>' +
-            buildBarRowsHtml(items, members.length) +
+            bodyHtml +
             moreHtml +
             '</section>';
     }
@@ -2562,7 +2675,11 @@
      * [연계] ← statsBody 클릭 delegation */
     function redrawDetailBlock() {
         var block = document.getElementById('accident-detail-block');
-        if (block) block.outerHTML = buildDetailBlockHtml(_statsKey, _statsMembers);
+        if (!block) return;
+        block.outerHTML = buildDetailBlockHtml(_statsKey, _statsMembers);
+        // outerHTML 로 갈아 끼우면 예전 노드가 사라져 감시가 끊긴다 — 다시 건다[S5].
+        var body = document.getElementById('accident-stats-body');
+        if (body) armCardReveal(body);
     }
 
     /** 바텀시트 헤더 — 목업(marineaccidentdashboard.html) .head 구조로 재구성[S2].
@@ -3118,6 +3235,34 @@
         if (!body || !_statsKey || !_statsMembers) return;
         body.innerHTML = buildStatsHtml(_statsKey, _statsMembers);
         renderActiveChart(_statsKey, _statsMembers);
+        armCardReveal(body);
+    }
+
+    /** 카드가 화면에 들어오면 .reveal 을 붙여 도넛 애니메이션을 재생시킨다[S5].
+     *
+     * ⚠root 를 시트 본문으로 지정해야 한다 — 스크롤이 일어나는 곳이 브라우저 창이
+     * 아니라 이 요소 안이라서, 기본값(창)으로 두면 "이미 다 보인다"고 판정해 아래쪽
+     * 카드까지 한꺼번에 재생돼 버린다(디자인 분석서 §6).
+     * 한 번 붙으면 그만 본다 — 스크롤을 오르내릴 때마다 다시 그려지면 산만하다.
+     *
+     * @param {HTMLElement} body 시트 본문(스크롤 컨테이너)
+     * [연계] 스타일 style.css .ash-card.reveal .ash-seg */
+    var _cardRevealObserver = null;
+    function armCardReveal(body) {
+        if (_cardRevealObserver) _cardRevealObserver.disconnect();
+        var cards = body.querySelectorAll('.ash-card');
+        if (!window.IntersectionObserver) {
+            Array.prototype.forEach.call(cards, function (c) { c.classList.add('reveal'); });
+            return;
+        }
+        _cardRevealObserver = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+                if (!e.isIntersecting) return;
+                e.target.classList.add('reveal');
+                _cardRevealObserver.unobserve(e.target);
+            });
+        }, { root: body, threshold: 0.2, rootMargin: '0px 0px -8% 0px' });
+        Array.prototype.forEach.call(cards, function (c) { _cardRevealObserver.observe(c); });
     }
 
     // 21개 해경서 → 8개 광역권(2026-09-01, 목업 이미지의 "경남권" 뱃지 반영해 사용자 확정).
