@@ -26,9 +26,8 @@
  *                    (정적, 소스 버튼을 처음 누를 때만 지연 로드 — hazard_rocks.js
  *                    와 동일한 절약 방식)
  *  - 마크업        : index2.html 의 #ocean-accident-toggle-btn(버튼),
- *                    #ocean-accident-wrap/#ocean-accident-popup(소스 선택 팝아웃),
- *                    #ocean-accident-source-list, #ocean-accident-mode-toggle
- *                    (현황/분석 — #ocean-topleft-controls 안, 해양안전 화면이
+ *                    #ocean-accident-wrap, #ocean-accident-mode-toggle
+ *                    (분석/현황 — #ocean-topleft-controls 안, 해양안전 화면이
  *                    빌려 쓰는 해양종합정보 기본맵·안내 버튼 바로 아래),
  *                    #accident-stats-sheet/#accident-stats-body(격자 클릭 시 통계),
  *                    #accident-filter-bar(필터 버튼 7개 — 사고유형/관할서/시간대/계절/
@@ -172,6 +171,14 @@
  * [관할 미상(orgCd=0) 전량 삭제(2026-08-23)] 사용자 요청으로 관할해경서 코드가 0(원본 CSV
  *   빈 값, `accident_codes.js`에서 "관할 미상"으로 표시되던 것)인 행 2,448건 삭제.
  *   25,990 → 23,542건.
+ * [진입 동선 개편(2026-09-04, S16)] 소스 선택 팝아웃(#ocean-accident-popup /
+ *   #ocean-accident-source-list)을 없앴다. 사고정보 버튼을 누르면 곧바로 분석 모드로
+ *   켜지고(state 기본값 mode:'analysis'), 다시 누르면 꺼진다. 분석은 선박+인명
+ *   합계라(S15) 켤 때 소스를 고를 이유가 없다. 종류 선택은 분석에서는 시트 안 칩,
+ *   현황에서는 필터 바 맨 위 토글(#accident-source-toggle, 기본 선박)이 한다.
+ *   모드 토글 순서도 분석·현황으로 바꾸고, 분석 모드에서는 "선택 초기화"를 숨긴다
+ *   (되돌릴 필터가 지도에 없다). 사고정보 버튼의 10회·20회 연타 검수 트리거는
+ *   팝아웃 리스너와 별개 리스너라 그대로 남아 있다.
  * [관할 미상 폴리곤 재판정(2026-09-04, S14)] 위 삭제는 그 시점 데이터(25,990행) 기준이고,
  *   그 뒤 원본을 다시 만들면서 orgCd=0 인 행이 다시 들어와 있었다(선박 2,239 · 인명 2,124,
  *   합 4,363건 — 2026-09-04 실측). 사용자 확정으로 이 행들의 좌표를 해경서 관할 폴리곤에
@@ -612,7 +619,11 @@
     var HEATMAP_BASE_OPACITY = 0.58;
     var bubbleOverlay = null; // 현황 모드 마커 팝업
 
-    var state = { source: null, mode: 'status' };
+    // ★기본 모드가 분석이다[S16] — 사고정보 버튼을 누르면 곧바로 분석(격자+히트맵)으로
+    // 켜진다(사용자 확정 2026-09-04). source 는 여전히 "꺼짐(null)/켜짐" 을 나타내며,
+    // 분석은 선박+인명 합계라 어느 값이든 되지만 현황으로 바꿀 때의 기본이 선박이므로
+    // 켤 때 'hk' 로 채운다.
+    var state = { source: null, mode: 'analysis' };
     var _statsKey = null;             // 시트의 "선박 전용 카드" 잣대가 되는 source key
                                       // (칩이 인명이면 'person', 그 밖에는 'hk')
     var _statsMembers = null;         // 지금 화면에 집계 중인 목록(칩·필터를 걸러낸 뒤)
@@ -5219,7 +5230,14 @@
      * (예전엔 관할서·시간대·계절을 분석 모드에서만 보였으나, 현황에서도 똑같이
      * 다양한 필터를 쓰고 싶다는 요청으로 5개 다 항상 노출로 바뀌어 이제 위치
      * 재계산만 한다 — 사용자 확정 2026-08-25.) */
+    /** 모드에 따라 지도 위 필터 관련 UI 노출을 맞춘다[S16].
+     * 분석 모드에는 되돌릴 필터가 지도에 없으므로 "선택 초기화"를 숨기고,
+     * 선박/인명 토글도 현황 모드에서만 보여준다(분석은 합계라 고를 것이 없다). */
     function updateFilterBarModeVisibility() {
+        var isStatus = state.mode === 'status';
+        var tgl = document.getElementById('accident-source-toggle');
+        if (tgl) tgl.style.display = isStatus ? 'flex' : 'none';
+        if (state.source) showFilterResetBtn(isStatus);
         positionFilterBar();
     }
 
@@ -5329,16 +5347,15 @@
         }
     }
 
-    // ── 버튼·팝아웃 UI ──────────────────────────────────────────────────────
-    function closePopout() {
-        var wrap = document.getElementById('ocean-accident-wrap');
-        if (wrap) wrap.classList.remove('popup-open');
-    }
+    // ── 버튼 UI ────────────────────────────────────────────────────────────
+    // [S16에서 삭제] closePopout / updateSourceButtonsUi — 소스 선택 팝아웃이 없어졌다.
+    // 종류 선택은 분석에서는 시트 안 칩, 현황에서는 필터 바 맨 위 토글이 한다.
 
-    function updateSourceButtonsUi() {
-        var list = document.getElementById('ocean-accident-source-list');
-        if (!list) return;
-        Array.prototype.forEach.call(list.children, function (btn) {
+    /** 현황 모드 필터 바 맨 위 선박/인명 토글의 눌림 표시를 지금 소스에 맞춘다[S16]. */
+    function updateSourceToggleUi() {
+        var tgl = document.getElementById('accident-source-toggle');
+        if (!tgl) return;
+        Array.prototype.forEach.call(tgl.children, function (btn) {
             btn.classList.toggle('active', btn.dataset.source === state.source);
         });
     }
@@ -5406,6 +5423,8 @@
     // "꺼도 지도에 남아있음" — 헤드리스 브라우저로 네트워크 지연을 인위로 걸어 재현
     // 확인). turnOff() 가 이 카운터를 올려 진행 중이던 selectSource 콜백을 무효화한다.
     var _selectSeq = 0;
+    /** 사고정보를 켜는 중(데이터 받아 오는 중)인가[S16] — 위 버튼 클릭 주석 참고. */
+    var _turningOn = false;
 
     function showModeToggle(show) {
         var modeToggle = document.getElementById('ocean-accident-mode-toggle');
@@ -5432,10 +5451,9 @@
             state.source = key;
             Object.keys(clusterLayers).forEach(function (k) { clusterLayers[k].setVisible(false); });
             applyModeVisibility(map);
-            closePopout();
-            updateSourceButtonsUi();
+            updateSourceToggleUi();
             showModeToggle(true);
-            showFilterResetBtn(true);
+            showFilterResetBtn(state.mode === 'status');   // 분석에는 지도 필터가 없다[S16]
             showFilterBar(true);
             // 선박용도·톤수는 hk(사고 데이터)에만 있는 필드라 person(인명사고)에선 필터
             // 자체가 의미 없다 — 버튼을 숨기고, 다른 소스에서 걸어둔 값이 있으면 비운다
@@ -5473,8 +5491,6 @@
         _selectSeq++;
         state.source = null;
         applyModeVisibility(map);
-        closePopout();
-        updateSourceButtonsUi();
         showModeToggle(false);
         showFilterResetBtn(false);
         showFilterBar(false);
@@ -5508,17 +5524,21 @@
         var toggleBtn = document.getElementById('ocean-accident-toggle-btn');
         var wrap = document.getElementById('ocean-accident-wrap');
         if (toggleBtn && wrap) {
+            // ★[S16] 팝아웃 없이 곧바로 켠다 — 누르면 분석 모드로 진입하고, 다시 누르면 끈다.
+            // _turningOn 은 "받아 오는 중"을 뜻한다. 로딩 중에 한 번 더 누르면 꺼야 하는데
+            // state.source 는 로딩이 끝난 뒤에야 채워지므로, 이 깃발이 없으면 로딩 중 두 번째
+            // 클릭이 또 켜기로 읽힌다(2026-08-20 "꺼도 지도에 남아있음" 과 같은 종류의 문제).
             toggleBtn.addEventListener('click', function (e) {
                 e.stopPropagation();
-                if (state.source) { turnOff(map); return; } // 이미 데이터가 켜져 있으면 전체 끄기
-                // 아직 안 켜졌어도(소스 선택 직후 fetch 로딩 중일 수 있음) 진행 중인 로딩을
-                // 취소한다 — 안 그러면 몇 초 후 로딩이 끝나면서 "끈" 데이터가 다시 나타난다
-                // (사용자 보고 2026-08-20: 꺼도 지도에 남아있음 — 로딩 중 재현 확인).
-                _selectSeq++;
-                wrap.classList.toggle('popup-open'); // 소스 선택 팝아웃 열기/닫기
-            });
-            document.addEventListener('click', function (e) {
-                if (!wrap.contains(e.target)) wrap.classList.remove('popup-open');
+                if (state.source || _turningOn) { _turningOn = false; turnOff(map); return; }
+                _turningOn = true;
+                // 켤 때는 늘 분석부터 — 앞서 현황으로 바꿔 두고 껐더라도 그 상태가
+                // 남아 있으면 안 된다(사용자 확정 "누르면 곧바로 분석").
+                state.mode = 'analysis';
+                updateModeToggleUi();
+                var done = selectSource(map, 'hk');
+                if (done && done.then) done.then(function () { _turningOn = false; },
+                    function () { _turningOn = false; });
             });
             // 검수 모드 트리거 — 위 팝아웃 열기/닫기와 별개로 같은 버튼에 탭 횟수만 센다.
             toggleBtn.addEventListener('click', function () {
@@ -5561,11 +5581,12 @@
 
         bindFilterBar(map);
 
-        var sourceList = document.getElementById('ocean-accident-source-list');
-        if (sourceList) {
-            sourceList.addEventListener('click', function (e) {
+        // 현황 모드 필터 바 맨 위 선박/인명 토글[S16] — 없앤 팝아웃의 역할.
+        var srcToggle = document.getElementById('accident-source-toggle');
+        if (srcToggle) {
+            srcToggle.addEventListener('click', function (e) {
                 var btn = e.target.closest('button');
-                if (!btn) return;
+                if (!btn || btn.dataset.source === state.source) return;
                 selectSource(map, btn.dataset.source);
             });
         }

@@ -8699,6 +8699,16 @@ html[data-font-size="large"] .ocean-overlay-btn {
     color: #241a00;
 }
 
+/* 필터 바 맨 위 선박/인명 토글[S16] — 없앤 소스 선택 팝아웃의 역할을 대신한다.
+   모드 토글(.accident-mode-toggle)의 재질을 그대로 물려받고, 필터 바 안에 들어가므로
+   고정폭(120px)만 풀어 한 줄을 꽉 채운다. 글자는 "선박사고"가 들어가야 해 한 단계 작게.
+   [연계] 마크업 index2.html #accident-source-toggle · 동작 accident_info.js bindSourceToggle */
+.accident-filter-bar .accident-source-toggle {
+    width: auto;
+    margin-bottom: 1px;
+}
+.accident-filter-bar .accident-source-toggle button { font-size: 0.64rem; padding: 5px 0; }
+
 /* 선택 초기화 버튼(2026-08-25) — 모드토글과 같은 톤의 알약형 버튼. */
 .accident-filter-reset-btn {
     background: rgba(10, 15, 28, 0.94);
