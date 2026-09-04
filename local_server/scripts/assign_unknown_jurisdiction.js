@@ -84,10 +84,31 @@ const CODE_OF_OWNER = {
     울진해양경찰서: 1532609, 사천해양경찰서: 1532759, 강릉해양경찰서: 1532865
 };
 
-/** 폴리곤 목록을 읽어 bbox 를 미리 붙인다 — 253면을 매번 다 훑으면 느리다. */
-function loadFaces() {
-    const raw = JSON.parse(fs.readFileSync(path.join(CLIENT_DIR, 'coastguard_jurisdiction_boundaries.json'), 'utf8'));
-    const faces = Array.isArray(raw) ? raw : Object.keys(raw).map(function (k) { return raw[k]; });
+/**
+ * 폴리곤 두 벌을 읽는다[S20] — 먼저 볼 것과 그래도 못 찾았을 때 볼 것.
+ *
+ * ①`client/coastguard_jurisdiction_boundaries.json` — 사고 데이터에서 역추정한 면들.
+ *   해안·항만을 촘촘히 덮어 실제 사고 위치에 잘 맞는다(기록과 96.9% 일치).
+ * ②`config/coastguard_jurisdiction_law.json` — 법제처 별표의 법정 관할(신설).
+ *   ①이 안 덮는 먼바다·빈 구역을 메운다. 특히 부안처럼 ①이 사고 11건으로만
+ *   그려져 관할의 0.8% 밖에 못 덮던 곳을 법정 범위로 채운다.
+ *
+ * ★왜 ①을 먼저 보나(실측 2026-09-04): 관할서가 이미 적힌 69,640건으로 재판정해 비교했다.
+ *     ① 단독          89.9%   (판정된 것 중 96.9%)
+ *     ② 단독          83.0%   (판정된 것 중 92.5%)
+ *     ①→② 합쳐 쓰기  **94.0%** (판정된 것 중 96.1%) ← 채택
+ *   ②가 단독으로 더 나쁜 것은 법령이 관할을 "선의 **내측 해역**"이라는 **열린 선**으로
+ *   적기 때문이다 — 해안선을 따라 닫아야 정확한데 그럴 수 없어 근사했고, 그래서 만·항만
+ *   가장자리를 놓친다. 반대로 ①은 그 자리를 잘 덮는다(단, 이 사고들로 만든 것이라
+ *   유리하게 나오는 면이 있다). 그래서 ①을 먼저 보고 못 찾은 것만 ②로 메운다.
+ *
+ * @returns {{near:Array, law:Array}}
+ */
+function loadFaceSets() {
+    return { near: loadFaces(), law: loadLawFaces() };
+}
+
+function withBbox(faces) {
     faces.forEach(function (f) {
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         f.coords.forEach(function (c) {
@@ -99,6 +120,22 @@ function loadFaces() {
         f.bb = [x0, y0, x1, y1];
     });
     return faces;
+}
+
+/** 역추정 면(기존) — 해안·항만을 촘촘히 덮는다. */
+function loadFaces() {
+    const raw = JSON.parse(fs.readFileSync(path.join(CLIENT_DIR, 'coastguard_jurisdiction_boundaries.json'), 'utf8'));
+    return withBbox(Array.isArray(raw) ? raw : Object.keys(raw).map(function (k) { return raw[k]; }));
+}
+
+/** 법정 관할 면 — 없으면 빈 배열(먼저 build_jurisdiction_from_law.js 를 돌려야 한다). */
+function loadLawFaces() {
+    const p = path.join(__dirname, '..', 'config', 'coastguard_jurisdiction_law.json');
+    if (!fs.existsSync(p)) {
+        console.log('⚠ 법정 관할 파일이 없다 — node local_server/scripts/build_jurisdiction_from_law.js 를 먼저 돌린다.');
+        return [];
+    }
+    return withBbox(JSON.parse(fs.readFileSync(p, 'utf8')));
 }
 
 /** 점이 폴리곤 안인가 — ray casting. accident_info.js pointInPolygonLL 과 같은 식. */
@@ -130,6 +167,7 @@ function pointInPolygon(lon, lat, poly) {
  * @returns {string|null} 해경서 이름
  */
 function ownerAt(faces, lon, lat, ymd) {
+    if (!faces) return null;
     for (let i = 0; i < faces.length; i++) {
         const b = faces[i].bb;
         if (lon < b[0] || lon > b[2] || lat < b[1] || lat > b[3]) continue;
@@ -141,26 +179,31 @@ function ownerAt(faces, lon, lat, ymd) {
 }
 
 function run() {
-    const faces = loadFaces();
-    console.log('관할 폴리곤 ' + faces.length + '면 읽음');
+    const sets = loadFaceSets();
+    console.log('관할 폴리곤 — 역추정 ' + sets.near.length + '면 · 법정 ' + sets.law.length + '면');
     [['accident_ships_hk.json', 8, '선박'], ['accident_persons.json', 5, '인명']].forEach(function (spec) {
         const file = spec[0], orgIdx = spec[1], name = spec[2];
         const p = path.join(CLIENT_DIR, file);
         const data = JSON.parse(fs.readFileSync(p, 'utf8'));
-        let unknown = 0, filled = 0, outside = 0;
+        let unknown = 0, filled = 0, outside = 0, byLaw = 0;
         const byOwner = {};
         data.rows.forEach(function (r) {
             if (+r[orgIdx] !== 0) return;          // 이미 적힌 행은 건드리지 않는다
             unknown++;
-            const owner = ownerAt(faces, r[1], r[0], r[2]);
+            // 역추정 면을 먼저 보고, 못 찾으면 법정 면으로 메운다[S20 — 위 loadFaceSets 주석].
+            let owner = ownerAt(sets.near, r[1], r[0], r[2]);
+            let fromLaw = false;
+            if (!owner) { owner = ownerAt(sets.law, r[1], r[0], r[2]); fromLaw = !!owner; }
             const code = owner && CODE_OF_OWNER[owner];
-            if (!code) { outside++; return; }       // 먼바다 — 0 그대로 둔다
+            if (!code) { outside++; return; }       // 어느 쪽에서도 못 찾음 — 0 그대로 둔다
             r[orgIdx] = code;
             filled++;
+            if (fromLaw) byLaw++;
             byOwner[owner] = (byOwner[owner] || 0) + 1;
         });
         console.log('\n[' + name + '] ' + file);
-        console.log('  관할 미상 ' + unknown + '건 → 채움 ' + filled + '건 / 판정 못 함 ' + outside + '건(관할 미상으로 남김)');
+        console.log('  관할 미상 ' + unknown + '건 → 채움 ' + filled + '건(그중 법정 관할이 메운 것 ' + byLaw +
+            '건) / 판정 못 함 ' + outside + '건(관할 미상으로 남김)');
         console.log('  ' + Object.keys(byOwner).sort(function (a, b) { return byOwner[b] - byOwner[a]; })
             .map(function (k) { return k.replace('해양경찰서', '') + ' ' + byOwner[k]; }).join(' · '));
         if (DRY) { console.log('  (--dry 라 파일은 안 바꿨다)'); return; }
