@@ -2291,17 +2291,14 @@
             if (!y) return;
             if (!drill) { counts[y] = (counts[y] || 0) + 1; return; }
             if (y !== drill.year) return;
-            if (!drill.month) {
-                var m = monthOf(row);
-                if (m) counts[m] = (counts[m] || 0) + 1;
-                return;
-            }
-            if (monthOf(row) !== drill.month) return;
-            var d = dayOfMonthOf(row);
-            if (d) counts[d] = (counts[d] || 0) + 1;
+            // 연 -> 월까지만 판다. 일 단위는 만들지 않는다(2026-09-04 사용자 확정) —
+            // 선박사고 59,664건을 18년·전국에 흩뿌리면 하루 평균 9건이고 격자 한 칸은
+            // 그 일부라, 일별로 쪼개면 대부분의 날이 0건이 되어 톱니만 남는다.
+            var m = monthOf(row);
+            if (m) counts[m] = (counts[m] || 0) + 1;
         });
         var keys = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
-        var unit = !drill ? '년' : (!drill.month ? '월' : '일');
+        var unit = drill ? '월' : '년';
         return {
             labels: keys.map(function (k) { return k + unit; }),
             values: keys.map(function (k) { return counts[k]; }),
@@ -2592,7 +2589,7 @@
 
         var backHtml = '';
         if (activeView === 'trend' && _trendDrill) {
-            var crumb = _trendDrill.year + '년' + (_trendDrill.month ? ' ' + _trendDrill.month + '월' : '');
+            var crumb = _trendDrill.year + '년';
             backHtml = '<button class="accident-trend-back" id="accident-trend-back">◀ ' + crumb + ' — 전체로</button>';
         }
 
@@ -2606,12 +2603,18 @@
         // 탭 줄은 카드 밖(시트 바로 아래)에, 차트는 카드 안에 둔다 — 탭은 "무엇을 볼지"
         // 고르는 조작부고 카드는 "고른 것"이라, 목업도 이 둘을 따로 놓는다.
         var viewLabel = (views.filter(function (v) { return v.id === activeView; })[0] || {}).label || '';
+        // 연도별 화면에서만 "눌러서 파고들 수 있다"고 알려 준다 — 이미 월별로 들어간
+        // 상태이거나 다른 축(월별·요일별 등)에서는 더 팔 곳이 없어 안내가 거짓이 된다.
+        var hintHtml = (activeView === 'trend' && !_trendDrill)
+            ? '<div class="ash-hint"><i class="fa-solid fa-hand-pointer"></i>연도를 누르면 그 해의 월별로 바뀝니다</div>'
+            : '';
         return '<div class="' + tabsCls + '">' + viewTabsHtml + '</div>' +
             '<section class="ash-card">' +
-            '<div class="ash-card-head"><h2 class="ash-card-title">' + escapeHtml(viewLabel) + ' 추이</h2></div>' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">2. ' + escapeHtml(viewLabel) + ' 추이</h2></div>' +
             backHtml +
             '<div class="accident-chart-wrap" id="accident-chart-wrap">' + chartInnerHtml + '</div>' +
             '<div class="accident-chart-caption" id="accident-chart-caption"></div>' +
+            hintHtml +
             '</section>';
     }
 
@@ -2661,7 +2664,7 @@
             : buildBarRowsHtml(items, members.length);
 
         return '<section class="ash-card" id="accident-detail-block">' +
-            '<div class="ash-card-head"><h2 class="ash-card-title">사고 발생 상세' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">3. 사고 발생 상세' +
             (expanded ? '' : ' <em>(Top 5)</em>') + '</h2></div>' +
             '<div class="accident-detail-tabs">' + tabsHtml + '</div>' +
             bodyHtml +
@@ -3271,9 +3274,10 @@
                     onClick: function (evt, elements) {
                         if (!elements.length) return;
                         var k = t.keys[elements[0].index];
-                        if (!_trendDrill) _trendDrill = { year: k };
-                        else if (!_trendDrill.month) _trendDrill = { year: _trendDrill.year, month: k };
-                        else return; // 일별까지 가면 더 드릴다운 없음
+                        // 연도를 누르면 그 해의 월별로. 월을 눌러도 더 내려가지 않는다
+                        // (일 단위는 만들지 않기로 확정 — 위 trendBuckets 주석 참고).
+                        if (_trendDrill) return; // 월 아래로는 안 판다
+                        _trendDrill = { year: k };
                         renderStatsBody();
                     }
                 }

@@ -9247,6 +9247,23 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .ash-dlegend div { display: flex; align-items: center; gap: 0.35em; white-space: nowrap; }
 .ash-dlegend b { margin-left: auto; font-weight: 700; }
 
+/* 안내 문구 — 목업 .hint[S7]. 더보기 버튼과 같은 재질(--ash-sub)이라 "조작할 수 있는
+   것"과 "알려 주는 것"이 한 톤으로 묶인다. [연계] accident_info.js buildChartViewHtml */
+.ash-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45em;
+    margin-top: 0.7em;
+    padding: 0.65em;
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.8em;
+    font-size: 0.76em;
+    color: #93a6bf;
+}
+.ash-hint i { font-size: 1em; flex: none; opacity: 0.8; }
+
 /* 푸터 각주 — 목업 .foot. 항목 앞에 작은 점이 붙는 목록으로, "2014·2015년 제외"
    같은 집계 단서를 담는다(설계서 작업 9·10). */
 .accident-stats-foot {
