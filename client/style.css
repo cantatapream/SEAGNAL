@@ -9199,6 +9199,54 @@ html[data-font-size="large"] .ocean-overlay-btn {
     .ash-row .nm { width: 5em; }
 }
 
+/* 추세 요약 세 칸 — 목업 .stats/.stat[S6].
+   목업은 세 번째 칸(도넛)이 1.42배 넓지만, 우리는 도넛을 세로로 쌓기로 해서(설계서 C-3)
+   세 칸을 균등하게 나눈다 — 사용자 확정 "각 칸이 균일하게 채워지면 될 것 같은데".
+   카드 안 작은 블록이라 --ash-sub 를 쓴다(3단 깊이의 세 번째 층).
+   [연계] 마크업 accident_info.js buildTrendSummaryHtml */
+.ash-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5em; }
+.ash-stat {
+    background: var(--ash-sub);
+    border: 1px solid var(--ash-sub-br);
+    border-radius: 0.9em;
+    padding: 0.85em 0.6em;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.ash-stat-lab { font-size: 0.75em; color: var(--ash-muted); }
+.ash-stat-big {
+    font-size: 1.55em; font-weight: 800; letter-spacing: -0.02em;
+    margin-top: 0.5em; line-height: 1;
+}
+.ash-stat-big small { font-size: 0.52em; font-weight: 600; color: #b6c6da; margin-left: 0.1em; }
+.ash-stat-sub { font-size: 0.78em; color: #c2d0e2; margin-top: 0.5em; }
+.ash-stat-foot { font-size: 0.75em; margin-top: 0.55em; font-weight: 600; }
+.ash-up { color: var(--ash-blue-soft); }
+.ash-down { color: var(--ash-teal); }
+
+/* 자료 범위 배지 — 특보처럼 "언제부터의 자료인지"가 다른 항목과 다를 때 붙인다.
+   강조가 아니라 단서라 파랑이 아닌 muted 계열로(디자인 분석서 §7). */
+.ash-badge-note {
+    display: inline-block;
+    font-size: 0.85em; font-weight: 700;
+    color: var(--ash-muted);
+    background: rgba(129, 148, 173, 0.12);
+    border: 1px solid rgba(129, 148, 173, 0.28);
+    border-radius: 0.5em;
+    padding: 0.12em 0.45em;
+    margin-left: 0.3em;
+    white-space: nowrap;
+}
+
+/* 도넛 + 범례를 세로로 — 추세 요약 세 번째 칸(설계서 C-3: 도넛을 충분히 크게). */
+.ash-donut-stack { display: flex; flex-direction: column; align-items: center; gap: 0.5em; margin-top: 0.45em; width: 100%; }
+.ash-dlegend { display: flex; flex-direction: column; gap: 0.35em; font-size: 0.72em; width: 100%; }
+.ash-dlegend div { display: flex; align-items: center; gap: 0.35em; white-space: nowrap; }
+.ash-dlegend b { margin-left: auto; font-weight: 700; }
+
 /* 푸터 각주 — 목업 .foot. 항목 앞에 작은 점이 붙는 목록으로, "2014·2015년 제외"
    같은 집계 단서를 담는다(설계서 작업 9·10). */
 .accident-stats-foot {

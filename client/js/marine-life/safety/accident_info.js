@@ -2714,9 +2714,155 @@
             '</div>' +
             '</div>' +
             buildSourceChipsHtml(key, members) +
+            buildTrendSummaryHtml(key, members) +
             buildChartViewHtml(key) +
             buildDetailBlockHtml(key, members) +
             buildStatsFootHtml();
+    }
+
+    /** 선택한 칸의 선박·인명 건수 — {hk:n, person:m}. 다른 소스는 비동기로 세어 오므로
+     * 처음엔 null 이고, 다 세면 채워진 뒤 시트를 다시 그린다. [연계] resolveCombinedCounts */
+    var _combinedCounts = null;
+
+    /** 지금 켜진 소스 말고 "다른 쪽" 사고가 이 칸에 몇 건인지 세어 온다[S6].
+     *
+     * 왜 필요한가: 추세 요약의 "사고 유형 구성" 도넛이 선박 대 인명 비중을 보여주는데,
+     * 격자는 켜진 소스 하나만 담고 있어 반대쪽 건수를 모른다. 그래서 반대쪽 원본
+     * 피처를 불러(이미 받아 뒀으면 그대로 쓴다) 이 칸 범위 안에 든 것을 센다.
+     * 필터도 똑같이 걸어야 화면의 다른 숫자와 잣대가 맞는다.
+     *
+     * 다 세고 나면 시트를 다시 그린다 — 그 사이 사용자가 다른 칸을 눌렀으면 버린다.
+     *
+     * @param {ol.Feature} cellFeature 선택된 격자 칸
+     * @param {string} key 지금 켜진 소스
+     * @param {ol.Feature[]} members 이 칸의 사고들(변경 감지용 신원 확인에 씀)
+     * [연계] → buildTrendSummaryHtml·buildSourceChipsHtml 이 _combinedCounts 를 읽는다 */
+    function resolveCombinedCounts(cellFeature, key, members) {
+        _combinedCounts = null;
+        if (!cellFeature) return;
+        var other = key === 'hk' ? 'person' : 'hk';
+        var ex = cellFeature.getGeometry().getExtent();
+        ensureRawFeatures(other).then(function (feats) {
+            if (_statsMembers !== members) return; // 그 사이 다른 칸을 열었다
+            var n = 0;
+            for (var i = 0; i < feats.length; i++) {
+                var c = feats[i].getGeometry().getCoordinates();
+                if (c[0] < ex[0] || c[0] > ex[2] || c[1] < ex[1] || c[1] > ex[3]) continue;
+                if (!passesFilters(other, feats[i].get('row'))) continue;
+                n++;
+            }
+            _combinedCounts = {};
+            _combinedCounts[key] = members.length;
+            _combinedCounts[other] = n;
+            renderStatsBody();
+        }).catch(function () { /* 반대쪽 자료를 못 받으면 도넛만 안 나온다 */ });
+    }
+
+    /** 특보 자료가 시작되는 날 — 원본 통보문(fct_wrn_2016_2025.csv)의 첫 줄이 이 날이다.
+     * 그 이전 사고는 특보를 판정할 자료 자체가 없어 전부 "특보 없음"으로 기록돼 있다
+     * (실측: 선박 17,172건·인명 7,178건이 그렇다). 그래서 특보 비율을 낼 때는 분모를
+     * 이 날 이후로 잘라야 한다 — 안 자르면 자료가 없는 기간이 분모를 부풀려 비율이
+     * 실제보다 낮게 나온다(설계서 작업 5 F-8). */
+    var WARN_DATA_START_YMD = '20160826';
+
+    /** 선택 영역의 추세 요약 수치를 한 번에 계산한다[S6].
+     *
+     * 예시: 2008~2025년에 933건이 담긴 칸이면
+     *   { maxYear:2023, maxCount:95, yearAvg:51.8, vsAvg:+83.5,
+     *     warnNum:38, warnDenom:640, warnPct:5.9 }
+     *
+     * 연평균은 "자료가 있는 연도 범위"로 나눈다(빈 해도 분모에 넣는다 — 사고가 0건인
+     * 해도 그 해가 지나간 것은 사실이므로).
+     *
+     * @param {string} key 소스 키
+     * @param {ol.Feature[]} members 이 칸의 사고들
+     * @returns {Object} 위 예시 형태
+     * [연계] buildTrendSummaryHtml */
+    function trendSummaryStats(key, members) {
+        var warnIdx = WARN_FLAGS_POS_IDX[key];
+        var byYear = {}, minY = null, maxY = null;
+        var warnNum = 0, warnDenom = 0;
+        members.forEach(function (f) {
+            var row = f.get('row');
+            var ymd = String(row[2]);
+            var y = +ymd.slice(0, 4);
+            if (y) {
+                byYear[y] = (byYear[y] || 0) + 1;
+                if (minY === null || y < minY) minY = y;
+                if (maxY === null || y > maxY) maxY = y;
+            }
+            if (ymd >= WARN_DATA_START_YMD) {
+                warnDenom++;
+                if ((row[warnIdx] || []).length) warnNum++;
+            }
+        });
+        var years = Object.keys(byYear);
+        var best = null, bestN = -1;
+        years.forEach(function (y) { if (byYear[y] > bestN) { bestN = byYear[y]; best = +y; } });
+        var span = (minY !== null && maxY !== null) ? (maxY - minY + 1) : 0;
+        var avg = span ? members.length / span : 0;
+        return {
+            maxYear: best, maxCount: bestN < 0 ? 0 : bestN,
+            yearAvg: avg,
+            vsAvg: avg ? (bestN / avg - 1) * 100 : 0,
+            warnNum: warnNum, warnDenom: warnDenom,
+            warnPct: warnDenom ? warnNum / warnDenom * 100 : 0
+        };
+    }
+
+    /** 추세 요약 카드[S6] — 목업 "1. 추세 요약". 세 칸이 나란히 균등하게 들어간다.
+     *
+     *   최다 발생 연도 | 특보 중 사고 ('16.08~) | 사고 유형 구성
+     *      2023년      |      38건              |     (도넛)
+     *       95건       |    전체의 5.9%          |  선박 62% / 인명 38%
+     *   ▲연평균 대비 +83.5%
+     *
+     * 목업에 있던 "최근 1년 변화" 칸은 뺐다 — 2026년 자료가 없어 "최근"이라는 말이 맞지
+     * 않고, 그 자리에 특보 요약을 넣는 편이 낫다(2026-09-04 사용자 확정).
+     *
+     * @param {string} key 소스 키
+     * @param {ol.Feature[]} members 이 칸의 사고들
+     * @returns {string} 카드 HTML
+     * [연계] 스타일 style.css .ash-stats / 도넛 buildDonutHtml / 설계서 작업 4(C-1~C-4) */
+    function buildTrendSummaryHtml(key, members) {
+        var st = trendSummaryStats(key, members);
+        var up = st.vsAvg >= 0;
+        var maxCell = '<div class="ash-stat">' +
+            '<div class="ash-stat-lab">최다 발생 연도</div>' +
+            '<div class="ash-stat-big">' + (st.maxYear || '-') + '<small>년</small></div>' +
+            '<div class="ash-stat-sub">' + fmtN(st.maxCount) + '건</div>' +
+            '<div class="ash-stat-foot ' + (up ? 'ash-up' : 'ash-down') + '">' +
+            (up ? '▲' : '▼') + ' 연평균 대비 ' + (up ? '+' : '') + st.vsAvg.toFixed(1) + '%</div>' +
+            '</div>';
+
+        var warnCell = '<div class="ash-stat">' +
+            '<div class="ash-stat-lab">특보 중 사고<span class="ash-badge-note">’16.08~</span></div>' +
+            '<div class="ash-stat-big">' + fmtN(st.warnNum) + '<small>건</small></div>' +
+            '<div class="ash-stat-sub">' + (st.warnDenom ? '전체의 ' + st.warnPct.toFixed(1) + '%' : '자료 없음') + '</div>' +
+            '</div>';
+
+        // 사고 유형 구성 — 선박·인명 비중. 두 소스 건수가 다 모였을 때만 그린다
+        // (다른 소스는 비동기로 세어 온다 — resolveCombinedCounts).
+        var mix = '<div class="ash-stat-sub">집계 중…</div>';
+        if (_combinedCounts) {
+            var hk = _combinedCounts.hk || 0, pr = _combinedCounts.person || 0;
+            var tot = hk + pr;
+            if (tot) {
+                mix = '<div class="ash-donut-stack">' +
+                    buildDonutHtml([['선박사고', hk, '#2b7cf0'], ['인명사고', pr, '#16c8a3']], { small: true }) +
+                    '<div class="ash-dlegend">' +
+                    '<div><span class="ash-dot" style="background-color:#2b7cf0"></span>선박사고 <b>' + (hk / tot * 100).toFixed(1) + '%</b></div>' +
+                    '<div><span class="ash-dot" style="background-color:#16c8a3"></span>인명사고 <b>' + (pr / tot * 100).toFixed(1) + '%</b></div>' +
+                    '</div></div>';
+            }
+        }
+        var mixCell = '<div class="ash-stat"><div class="ash-stat-lab">사고 유형 구성</div>' + mix + '</div>';
+
+        return '<section class="ash-card">' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">1. 추세 요약</h2>' +
+            '<div class="ash-card-aside">연평균 ' + fmtN(Math.round(st.yearAvg)) + '건</div></div>' +
+            '<div class="ash-stats">' + maxCell + warnCell + mixCell + '</div>' +
+            '</section>';
     }
 
     /** 소스 칩(선박사고 / 인명사고) — 목업 .chip[S3].
@@ -2747,7 +2893,10 @@
                 '<span class="ash-chip-ic"><i class="fa-solid ' + d.icon + '"></i></span>' +
                 '<span class="ash-chip-body">' +
                 '<span class="ash-chip-t1">' + d.label + '</span>' +
-                '<span class="ash-chip-t2">' + (on ? fmtN(members.length) + '건' : '&nbsp;') + '</span>' +
+                '<span class="ash-chip-t2">' +
+                (on ? fmtN(members.length) + '건'
+                    : (_combinedCounts && _combinedCounts[d.id] != null ? fmtN(_combinedCounts[d.id]) + '건' : '&nbsp;')) +
+                '</span>' +
                 '</span></button>';
         }).join('') + '</div>';
     }
@@ -3326,6 +3475,7 @@
         _activeDetailTab[key] = null;
         _detailExpanded = {};      // 펼쳐 둔 "전체 보기"도 접힌 상태로[S4]
         _detailScrollBefore = null;
+        _combinedCounts = null;    // 다른 소스 건수는 이 칸에 대해 다시 센다[S6]
         // 손잡이로 낮춰 둔 높이도 기본(80vh)으로 되돌린다 — 위 탭·스크롤 초기화와 같은
         // 취지(시트는 열 때마다 같은 모습으로 시작한다). 안 되돌리면 한 번 낮춰 놓은 뒤
         // 다른 칸을 열었을 때 내용이 잘린 채로 뜬다.
@@ -3341,6 +3491,7 @@
         // (core/backbutton.js 의 window.PopupStack — 다른 팝업들이 쓰는 것과 같은 방식).
         // 등록을 안 해서 뒤로가기를 눌러도 시트가 안 닫혔다(2026-09-01 사용자 지적).
         if (window.PopupStack) window.PopupStack.push(STATS_SHEET_POPUP_ID, closeStatsSheet);
+        resolveCombinedCounts(cellFeature, key, members);
         if (cellFeature) {
             var openedForKey = key, openedForMembers = members;
             resolveRegionLabelForCell(cellFeature).then(function (label) {
@@ -4487,7 +4638,13 @@
                     if (_detailExpanded[ek]) {
                         _detailExpanded[ek] = false;
                         redrawDetailBlock();
-                        if (_detailScrollBefore != null) { statsBody.scrollTop = _detailScrollBefore; _detailScrollBefore = null; }
+                        // 레이아웃이 새로 잡힌 뒤에 되돌린다 — 바로 넣으면 아직 옛 높이
+                        // 기준이라 브라우저가 다시 보정해 버린다.
+                        if (_detailScrollBefore != null) {
+                            var back = _detailScrollBefore;
+                            _detailScrollBefore = null;
+                            requestAnimationFrame(function () { statsBody.scrollTop = back; });
+                        }
                     } else {
                         _detailScrollBefore = statsBody.scrollTop;
                         _detailExpanded[ek] = true;
