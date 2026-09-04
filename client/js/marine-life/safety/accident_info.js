@@ -2489,27 +2489,51 @@
             '<div class="accident-detail-tabs">' + tabsHtml + '</div>' + barsHtml + '</div>';
     }
 
-    /** 바텀시트 헤더(2026-09-01 재설계) — 왼쪽에 권역 뱃지(비동기로 채워짐, 처음엔
-     * 숨김)·분석기간(기간 필터 값 또는 "전체 기간"), 오른쪽에 선택 영역 건수. */
+    /** 바텀시트 헤더 — 목업(marineaccidentdashboard.html) .head 구조로 재구성[S2].
+     * 왼쪽부터 [조준경 배지] [지역명 + 부제] … 오른쪽에 [총건수 + 캡션].
+     *
+     * 예시: 제주 근처 격자를 누르면
+     *   [◎] 제주권                          1,284건
+     *       선택 영역 · 전체 기간        선택 영역 내 사고
+     *
+     * 지역명은 격자에 담긴 사고들의 다수결로 뒤늦게 정해진다(resolveRegionLabelForCell
+     * 가 비동기). 그래서 처음엔 "선택 영역"으로 띄우고 값이 오면 갈아 끼운다 —
+     * 예전처럼 작은 뱃지를 숨겼다 보여주면 제목 줄 폭이 그때 흔들려 눈에 거슬린다.
+     *
+     * @param {string} key 소스 키('hk'|'person')
+     * @param {ol.Feature[]} members 이 격자 칸에 담긴 사고들
+     * @returns {string} 시트 본문 HTML
+     * [연계] 스타일 style.css #accident-stats-header / 지역명 갱신 openStatsSheet
+     *        / 디자인 근거 accident_stats_sheet.style.md §4.3 */
     function buildStatsHtml(key, members) {
-        var regionBadgeHtml = '<span class="ash-region-badge" id="ash-region-badge"' +
-            (_statsRegionLabel ? '' : ' style="display:none;"') + '>' +
-            escapeHtml(_statsRegionLabel || '') + '</span>';
         var periodText = filters.dateRange
-            ? '분석기간 ' + fmtYmdDot(filters.dateRange[0]) + ' ~ ' + fmtYmdDot(filters.dateRange[1])
+            ? fmtYmdDot(filters.dateRange[0]) + ' ~ ' + fmtYmdDot(filters.dateRange[1])
             : '전체 기간';
         return '<div id="accident-stats-header">' +
-            '<div>' +
-            '<div class="ash-title-row">📍 선택 영역 사고분석' + regionBadgeHtml + '</div>' +
-            '<div class="ash-period">' + escapeHtml(periodText) + '</div>' +
+            '<div class="ash-badge" aria-hidden="true"><i class="fa-solid fa-crosshairs"></i></div>' +
+            '<div class="ash-head-main">' +
+            '<div class="ash-region" id="ash-region">' + escapeHtml(_statsRegionLabel || '선택 영역') + '</div>' +
+            '<div class="ash-region-sub">선택 영역 · ' + escapeHtml(periodText) + '</div>' +
             '</div>' +
             '<div class="ash-right">' +
-            '<div class="ash-count-n">' + fmtN(members.length) + '건</div>' +
-            '<div class="ash-count-l">선택 영역 내 사고 발생</div>' +
+            '<div class="ash-count-n">' + fmtN(members.length) + '<span>건</span></div>' +
+            '<div class="ash-count-l">선택 영역 내 사고</div>' +
             '</div>' +
             '</div>' +
             buildChartViewHtml(key) +
-            buildDetailBlockHtml(key, members);
+            buildDetailBlockHtml(key, members) +
+            buildStatsFootHtml();
+    }
+
+    /** 시트 맨 아래 각주 — 목업 .foot(항목 앞에 작은 점이 붙는 목록).
+     * 지금은 자료 범위만 알린다. 앞으로 단계가 진행되면 "2014·2015년은 인명피해가
+     * 기록돼 있지 않아 제외" 같은 집계 단서가 여기 함께 들어간다(설계서 작업 9·10).
+     * @returns {string} 각주 HTML
+     * [연계] 스타일 style.css .accident-stats-foot */
+    function buildStatsFootHtml() {
+        return '<div class="accident-stats-foot">' +
+            '<span>선박사고 2008~2025년 · 인명사고 2009~2024년</span>' +
+            '</div>';
     }
 
     /** 지금 그려진 Chart.js 인스턴스를 전부 정리 — 다시 그리기 전/시트 닫을 때 필수
@@ -3045,6 +3069,10 @@
         // 칸을 누르면 특보발효가 열린 채로 시작했다. 아래 스크롤 초기화와 같은 취지.
         _statsView[key] = 'trend';
         _activeDetailTab[key] = null;
+        // 손잡이로 낮춰 둔 높이도 기본(80vh)으로 되돌린다 — 위 탭·스크롤 초기화와 같은
+        // 취지(시트는 열 때마다 같은 모습으로 시작한다). 안 되돌리면 한 번 낮춰 놓은 뒤
+        // 다른 칸을 열었을 때 내용이 잘린 채로 뜬다.
+        sheet.style.removeProperty('--ash-h');
         renderStatsBody();
         // 스크롤을 맨 위로 — 이걸 안 하면 이전에 내려 둔 위치가 그대로 남아
         // 연도별·월별 탭이 화면 밖에 있는 채로 열린다(2026-09-01 사용자 지적).
@@ -3063,10 +3091,77 @@
                 // 그 사이 다른 셀을 열었을 수 있으니 여전히 같은 셀인지 확인 후 반영.
                 if (_statsKey !== openedForKey || _statsMembers !== openedForMembers) return;
                 _statsRegionLabel = label;
-                var badge = document.getElementById('ash-region-badge');
-                if (badge) { badge.textContent = label; badge.style.display = ''; }
+                var regionEl = document.getElementById('ash-region');
+                if (regionEl) regionEl.textContent = label;
             });
         }
+    }
+
+    /** 시트 높이 조절 — 손잡이를 잡고 위아래로 끌면 시트가 커지고 작아진다[S2].
+     *
+     * 예시: 80%로 열린 시트의 손잡이를 아래로 120px 끌면 시트가 그만큼 낮아지고,
+     * 손을 떼면 가장 가까운 지점(30% · 55% · 80%)에 달라붙는다.
+     *
+     * 왜 손잡이에서 시작한 터치만 받나: 시트 본문은 세로 스크롤 영역이라, 본문에서
+     * 시작한 터치까지 여기서 가로채면 시트 안 스크롤이 죽는다. 그래서 리스너를
+     * 손잡이에만 걸고(본문 터치는 브라우저에 그대로 넘긴다), 손잡이에는 CSS 로
+     * touch-action:none 을 줘 브라우저가 먼저 스크롤로 채가지 못하게 한다.
+     *
+     * 왜 pointer 이벤트인가: touch/mouse 를 따로 쓰면 같은 코드를 두 벌 쓰게 되고
+     * 마우스에서 시트 밖으로 커서가 나갔을 때 놓친다. setPointerCapture 로 잡아 두면
+     * 손가락·커서가 어디로 가든 끝까지 따라온다.
+     *
+     * [연계] 마크업 index2.html .accident-sheet-handle / 스타일 style.css
+     *        .accident-stats-sheet(--ash-h)·.ash-dragging / 설계 근거
+     *        accident_stats_sheet.design.md 작업 B-2 */
+    var SHEET_SNAP_VH = [30, 55, 80]; // 손을 떼면 달라붙는 지점(화면 높이 %)
+    var SHEET_MIN_VH = 24, SHEET_MAX_VH = 88;
+
+    function bindSheetHandleDrag() {
+        var sheet = document.getElementById('accident-stats-sheet');
+        if (!sheet) return;
+        var handle = sheet.querySelector('.accident-sheet-handle');
+        if (!handle) return;
+
+        var startY = 0, startVh = 0, dragging = false;
+
+        function vhToPx(vh) { return window.innerHeight * vh / 100; }
+
+        handle.addEventListener('pointerdown', function (e) {
+            dragging = true;
+            startY = e.clientY;
+            // 지금 실제 높이에서 시작한다 — --ash-h 는 '80vh' 같은 문자열이라 그대로
+            // 못 빼고, 화면에 그려진 높이를 재서 vh 로 환산한다.
+            startVh = sheet.getBoundingClientRect().height / window.innerHeight * 100;
+            sheet.classList.add('ash-dragging');
+            handle.setPointerCapture(e.pointerId);
+            e.preventDefault();
+        });
+
+        handle.addEventListener('pointermove', function (e) {
+            if (!dragging) return;
+            // 아래로 끌면(clientY 증가) 시트가 작아진다 — 그래서 부호가 반대.
+            var vh = startVh - (e.clientY - startY) / window.innerHeight * 100;
+            vh = Math.max(SHEET_MIN_VH, Math.min(SHEET_MAX_VH, vh));
+            sheet.style.setProperty('--ash-h', vh + 'vh');
+        });
+
+        function endDrag(e) {
+            if (!dragging) return;
+            dragging = false;
+            sheet.classList.remove('ash-dragging');
+            if (handle.hasPointerCapture && handle.hasPointerCapture(e.pointerId)) {
+                handle.releasePointerCapture(e.pointerId);
+            }
+            var nowPx = sheet.getBoundingClientRect().height;
+            var best = SHEET_SNAP_VH[0];
+            SHEET_SNAP_VH.forEach(function (vh) {
+                if (Math.abs(vhToPx(vh) - nowPx) < Math.abs(vhToPx(best) - nowPx)) best = vh;
+            });
+            sheet.style.setProperty('--ash-h', best + 'vh');
+        }
+        handle.addEventListener('pointerup', endDrag);
+        handle.addEventListener('pointercancel', endDrag);
     }
 
     /** 뒤로가기 처리를 위한 공용 팝업 스택 등록 id(core/backbutton.js). */
@@ -4081,6 +4176,8 @@
 
         var closeBtn = document.getElementById('accident-stats-close');
         if (closeBtn) closeBtn.addEventListener('click', closeStatsSheet);
+
+        bindSheetHandleDrag();
 
         // "사고발생상세" 탭·"분석 뷰" 탭·드릴다운 뒤로가기 — 바텀시트 본문은 매번
         // 다시 그려지므로 delegation(2026-08-29 분석 뷰·뒤로가기 추가).
