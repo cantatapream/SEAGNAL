@@ -287,5 +287,67 @@ ok('범례가 "(기간 지정)"이라고 쓰지 않는다(격자가 기간 필�
 ok('비동기 결과 가드가 _statsAll 을 본다(_statsMembers 는 매번 새 배열이라 늘 버려진다)',
     /_statsAll !== members/.test(SRC) && !/_statsMembers !== members/.test(SRC));
 
+console.log('\n[7] 연도별 추이 그래프 — 세 선·머리글·안내[S24]');
+
+const CSS = fs.readFileSync(path.join(CLIENT, 'style.css'), 'utf8');
+
+ok('집계가 선박·인명을 따로 낸다',
+    /function trendBuckets[\s\S]{0,1600}hk: hk,[\s\S]{0,60}person: person,/.test(SRC));
+ok('전체 선은 두 소스의 합이다',
+    /values: keys\.map\(function \(k, i\) \{ return hk\[i\] \+ person\[i\]; \}\)/.test(SRC));
+ok('추이 그래프는 위 칩을 따르지 않는다(늘 세 선)',
+    /function trendMembers[\s\S]{0,400}_statsAll[\s\S]{0,200}passesFilters/.test(CODE) &&
+    /trendBuckets\(trendMembers\(\)/.test(CODE));
+ok('세 선의 색이 서로 다르고 도넛 범례와 같다',
+    /TREND_COLOR = \{ all: '#ffd740', hk: '#2b7cf0', person: '#16c8a3' \}/.test(SRC) &&
+    /\['선박사고', hk, '#2b7cf0'\], \['인명사고', pr, '#16c8a3'\]/.test(SRC));
+ok('숫자는 전체선에만 붙는다',
+    /datalabels: isTotal[\s\S]{0,240}: \{ display: false \}/.test(SRC));
+ok('선이 셋이라 범례를 켠다', /legend: \{[\s\S]{0,80}display: true/.test(CODE));
+
+ok('제목이 월별로 들어가면 "N년 월별 추이"가 된다',
+    /_trendDrill\.year \+ '년 월별 추이'/.test(SRC));
+ok('되돌아가는 버튼 이름이 "연도별로"다',
+    /id="accident-trend-back"[\s\S]{0,160}연도별로/.test(SRC));
+ok('버튼·자료범위 문구가 카드 머리(ash-card-head) 안에 있다',
+    /ash-card-head[\s\S]{0,200}asideHtml/.test(SRC));
+ok('자료범위 문구가 "’NN년~’NN년 사고를 표출" 꼴이다',
+    /년~’' \+[\s\S]{0,80}년 사고만 표출<\/div>/.test(SRC));
+ok('옛 문구("겹치는 …년만 표시합니다")가 없다',
+    !/년만 표시합니다/.test(CODE));
+
+ok('옛 안내 상자가 없어졌다', !/연도를 누르면 그 해의 월별로 바뀝니다<\/div>/.test(CODE) ||
+    /ash-chart-toast[\s\S]{0,200}연도를 누르면 그 해의 월별로 바뀝니다/.test(SRC));
+ok('안내가 그래프 안 토스트로 들어갔다',
+    /accident-chart-wrap[\s\S]{0,300}ash-chart-toast/.test(SRC));
+ok('토스트는 화면 가운데 띠에 들어올 때만 뜬다',
+    /rootMargin: '-40% 0px -40% 0px'/.test(SRC));
+ok('토스트는 시트를 열 때마다 한 번만 뜬다',
+    /_trendToastShown = false;\s*\/\/ 안내 토스트는 시트를 열 때마다 한 번/.test(SRC) &&
+    /if \(!toast \|\| !wrap \|\| _trendToastShown \|\| _trendDrill\) return;/.test(SRC));
+ok('토스트 문구가 한 줄로 잘리지 않는다(nowrap 아님)',
+    /\.ash-chart-toast \{[\s\S]{0,700}text-align: center;/.test(CSS) &&
+    !/\.ash-chart-toast \{[\s\S]{0,700}white-space: nowrap/.test(CSS));
+
+ok('점 깜빡임 플러그인이 등록돼 있다',
+    /Chart\.register\(PointPulsePlugin\)/.test(CODE) && /id: 'pointPulse'/.test(CODE));
+ok('점 깜빡임은 연도별에서만 켠다',
+    /pointPulse: \{ on: !_trendDrill \}/.test(CODE) &&
+    /if \(!_trendDrill\) startPointPulse\(trendChart\);/.test(CODE));
+ok('차트를 지울 때 깜빡임 타이머도 멈춘다',
+    /function destroyStatsCharts\(\) \{\s*stopPointPulse\(\);/.test(CODE));
+ok('지워진 차트를 다시 그리지 않는다(콘솔 오류 방지)',
+    /if \(!ctx\) return;/.test(CODE) && /canvas\.isConnected/.test(CODE));
+ok('연도 클릭 중에 곧바로 다시 그리지 않는다(Chart.js 오류 방지)',
+    /setTimeout\(renderStatsBody, 0\);/.test(CODE));
+
+ok('추세 요약 세 칸이 위로 붙는다(제목 높이가 같아진다)',
+    /\.ash-stat \{[\s\S]{0,600}justify-content: flex-start;/.test(CSS));
+ok('추세 요약 도넛이 4.1em 보다 크다',
+    (function () {
+        const m = CSS.match(/\.ash-donut\.sm \{ width: ([\d.]+)em/);
+        return !!m && parseFloat(m[1]) > 4.1;
+    })(), (CSS.match(/\.ash-donut\.sm \{ width: ([\d.]+)em/) || [])[1] + 'em');
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);
