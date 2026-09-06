@@ -511,7 +511,7 @@ ok('뒤로가기로 닫히도록 팝업 스택에 등록한다',
     /PopupStack\.push\(WARN_DETAIL_POPUP_ID/.test(CODE) &&
     /PopupStack\.remove\(WARN_DETAIL_POPUP_ID\)/.test(CODE));
 ok('열 때 소스 탭은 시트 칩을 물려받는다',
-    /_warnDetail = \{ src: _statsScope \|\| 'all', warn: 'all', page: 0, open: null \};/.test(CODE));
+    /_warnDetail = \{ src: _statsScope \|\| 'all', warn: 'all', sort: 'recent', page: 0, open: null \};/.test(CODE));
 ok('한 쪽에 20건',
     /WARN_DETAIL_PER_PAGE = 20/.test(CODE));
 ok('특보가 발효 중이던 사고만 담는다',
@@ -577,6 +577,16 @@ ok('겹친 특보 안내를 한 줄 적는다',
     ok('팝업 색 토큰이 시트와 같은 값', bad.length === 0, bad.join(' · '));
 })();
 
+ok('정렬 버튼 두 개(최신순 · 피해 큰 순)',
+    /\[\['recent', '최신순'\], \['fatal', '피해 큰 순'\]\]/.test(CODE) &&
+    /\.ash-d-sort \{/.test(CSS));
+ok('"피해 큰 순"은 사망+실종 인원 내림차순, 같으면 최신순',
+    /function casOf[\s\S]{0,220}\+\(?\+?r\[hk \? 11 : 9\]/.test(CODE) &&
+    /_warnDetail\.sort === 'fatal'[\s\S]{0,200}casOf\(b\) - casOf\(a\)[\s\S]{0,120}byRecent\(a, b\)/.test(CODE));
+ok('정렬을 바꾸면 첫 쪽으로 돌아간다',
+    /closest\('\[data-dsort\]'\)[\s\S]{0,240}_warnDetail\.page = 0;/.test(CODE));
+ok('팝업을 열 때는 최신순으로 시작',
+    /sort: 'recent', page: 0, open: null \};/.test(CODE));
 ok('기간·칩 줄 위아래 여백을 1/5 로 줄였다',
     /\.ash-meta \{[\s\S]{0,700}padding: 0\.18em 0 0\.19em;[\s\S]{0,200}margin-bottom: 0\.18em;/.test(CSS));
 

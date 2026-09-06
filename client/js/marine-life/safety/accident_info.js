@@ -3873,7 +3873,7 @@
     var WARN_DETAIL_PER_PAGE = 20;
     /** 팝업 상태. src='all'|'hk'|'person' · warn='all'|'WV_주의보' 등 · page=0부터 ·
      *  open=펼친 카드의 전체 목록 기준 번호(없으면 null). */
-    var _warnDetail = { src: 'all', warn: 'all', page: 0, open: null };
+    var _warnDetail = { src: 'all', warn: 'all', sort: 'recent', page: 0, open: null };
     var _warnDetailEls = null;
 
     /** 팝업 껍데기를 처음 한 번만 만든다.
@@ -3918,7 +3918,7 @@
         // 다만 소스 탭만은 **시트 칩을 물려받는다**. 그래야 팝업을 열자마자 보이는
         // 건수가 방금 누른 특보 카드의 건수와 같다(칩이 걸린 채로 팝업만 전체를
         // 보여 주면 두 숫자가 달라 사용자가 어느 쪽을 믿을지 알 수 없다).
-        _warnDetail = { src: _statsScope || 'all', warn: 'all', page: 0, open: null };
+        _warnDetail = { src: _statsScope || 'all', warn: 'all', sort: 'recent', page: 0, open: null };
         Array.prototype.forEach.call(els.tabs.children, function (b) {
             b.classList.toggle('on', b.dataset.dsrc === _warnDetail.src);
         });
@@ -3964,10 +3964,23 @@
             if (p.length !== 2) return -1;
             return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
         }
-        out.sort(function (a, b) {
+        function byRecent(a, b) {
             var d = String(b.row[2]).localeCompare(String(a.row[2]));
             return d !== 0 ? d : minutesOf(b) - minutesOf(a);
-        });
+        }
+        // ★"피해 큰 순"[S27-2, 2026-09-06 사용자 제안]. 최신순으로만 두면 첫 쪽이
+        //   2025년 자료로 채워지는데, 그 해는 위치·원인이 100% 비어 있어 훑을 것이 없다.
+        //   사망·실종 **인원** 내림차순으로 보고, 같으면 최신순으로 가른다.
+        function casOf(it) {
+            var r = it.row, hk = it.key === 'hk';
+            return (+r[hk ? 10 : 8] || 0) + (+r[hk ? 11 : 9] || 0);
+        }
+        out.sort(_warnDetail.sort === 'fatal'
+            ? function (a, b) {
+                var d = casOf(b) - casOf(a);
+                return d !== 0 ? d : byRecent(a, b);
+            }
+            : byRecent);
         return out;
     }
 
@@ -4199,8 +4212,14 @@
             }
         }
 
-        html += '<div class="ash-d-listhead"><h3>사고 목록</h3>' +
-            '<div class="cnt">최신순 · ' + fmtN(list.length) + '건</div></div>';
+        html += '<div class="ash-d-listhead">' +
+            '<h3>사고 목록<em>' + fmtN(list.length) + '건</em></h3>' +
+            '<div class="ash-d-sort">' +
+            [['recent', '최신순'], ['fatal', '피해 큰 순']].map(function (o) {
+                return '<button type="button" data-dsort="' + o[0] + '"' +
+                    (_warnDetail.sort === o[0] ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') +
+                    '>' + o[1] + '</button>';
+            }).join('') + '</div></div>';
 
         if (!list.length) {
             html += '<div class="ash-d-empty">해당하는 사고가 없습니다.</div>';
@@ -4249,6 +4268,15 @@
                 var keep = els.body.scrollTop;
                 renderWarnDetail();
                 els.body.scrollTop = keep;   // 펼치느라 화면이 튀지 않게 자리를 지킨다
+                return;
+            }
+            var st = e.target.closest('[data-dsort]');
+            if (st) {
+                _warnDetail.sort = st.dataset.dsort;
+                _warnDetail.page = 0;
+                _warnDetail.open = null;
+                renderWarnDetail();
+                els.body.scrollTop = 0;
                 return;
             }
             var pg = e.target.closest('[data-dpage]');

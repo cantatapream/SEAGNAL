@@ -9958,7 +9958,21 @@ html[data-font-size="large"] .ocean-overlay-btn {
 
 .ash-d-listhead { display: flex; align-items: baseline; justify-content: space-between; margin: 1em 0 0.5em; }
 .ash-d-listhead h3 { margin: 0; font-size: 0.92em; font-weight: 800; }
-.ash-d-listhead .cnt { font-size: 0.74em; color: var(--ash-muted); }
+.ash-d-listhead h3 em { font-style: normal; font-weight: 600; font-size: 0.8em; color: var(--ash-muted); margin-left: 0.4em; }
+/* 정렬 — 최신순 / 피해 큰 순[S27-2]. 위 소스 탭과 같은 알약 어법을 작게 쓴다. */
+.ash-d-sort {
+    display: inline-flex; gap: 0.1em; padding: 0.1em;
+    border: 1px solid var(--ash-card-br); border-radius: 0.55em;
+    background: rgba(255, 255, 255, 0.015);
+}
+.ash-d-sort button {
+    border: 0; background: transparent; padding: 0.22em 0.5em; border-radius: 0.42em;
+    font-family: inherit; font-size: 0.7em; font-weight: 700; color: #8ea1b9;
+    cursor: pointer; white-space: nowrap;
+}
+.ash-d-sort button.on {
+    background: var(--ash-blue); color: #fff; box-shadow: 0 0.15em 0.5em rgba(43, 124, 240, 0.35);
+}
 .ash-d-empty { padding: 2em 1em; text-align: center; color: var(--ash-dim); font-size: 0.8em; }
 
 /* 사고 카드(아코디언) */
