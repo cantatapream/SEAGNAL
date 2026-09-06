@@ -207,6 +207,11 @@ padding:.85em 1em 1.2em; box-shadow:0 1.5em 3em rgba(0,0,0,.55);
        display:flex; flex-direction:column; align-items:center; justify-content:center; }
 ```
 **세 번째 칸이 1.42배 넓다** — 도넛이 들어가기 때문. 우리 설계는 도넛을 세로로 쌓기로 했으므로(기능 설계서 C-3) **세 칸을 1fr 1fr 1fr 균등**으로 바꾸고, 도넛 칸은 `제목 / 도넛 / 범례 2줄` 세로 배치로 높이를 맞춘다.
+
+> **★우리 판 정정 [S24-1, 2026-09-05 사용자 지적]**: 목업의 `justify-content:center` 를 그대로 가져왔더니
+> **세 칸의 제목 높이가 서로 어긋났다.** 세 칸은 그리드라 높이가 같은데, 가운데 정렬이면 내용이 짧은
+> 칸일수록 제목이 아래로 밀린다(목업은 세 칸의 내용 길이가 비슷해 티가 안 났다).
+> → 우리 판은 **`justify-content:flex-start`**. 그리고 도넛(`.ash-donut.sm`)은 **4.1em → 5.6em**.
 - 라벨 `.75em muted` → 큰 값 `1.55em/800`(`margin-top:.5em`) → 부가값 `.78em #c2d0e2`(`.5em`) → 각주 `.75em/600`(`.55em`)
 - 단위는 `small { font-size:.52em; font-weight:600; color:#b6c6da }`
 - 상승 `.up{color:#3b8bff}` / 하락 `.down{color:#16c8a3}` / 강조 `.drop{color:#16c8a3;font-weight:800}`
@@ -234,6 +239,18 @@ padding:.85em 1em 1.2em; box-shadow:0 1.5em 3em rgba(0,0,0,.55);
 ```
 바탕색은 인라인 `style="background:var(--blue)"` 로 주고, 위 그라데이션이 **overlay 로 겹쳐** 입체감을 만든다. 단색 원이 아니다.
 - **치명도 게이지 바(우리 신규)** 도 이 `.row` 구조를 그대로 쓰되, `.bar` 안에 회색 조각을 **왼쪽에** 먼저 놓는다 → §7
+
+### 4.9-2 그래프 안 토스트 (우리 신규 · 목업에 없음) [S24-5]
+```css
+.ash-chart-toast{ position:absolute; left:50%; top:.6em; transform:translate(-50%,-.4em);
+  padding:.5em .75em; border:1px solid #1b2b45; border-radius:.8em;
+  background:rgba(15,30,51,.94); box-shadow:0 .3em .9em rgba(0,0,0,.45);
+  color:#93a6bf; font-size:.76em; font-weight:600; text-align:center; line-height:1.35;
+  opacity:0; pointer-events:none; transition:opacity .28s ease, transform .28s ease; }
+.ash-chart-toast.show{ opacity:1; transform:translate(-50%,0); }
+```
+힌트(§4.9)와 **같은 톤**이되 떠 있는 것이라 그림자를 준다. `white-space:nowrap` 을 쓰면
+휴대폰 폭에서 오른쪽이 잘린다(실제로 잘렸다) — 넘치면 다음 줄로 넘기고 가운데 정렬.
 
 ### 4.9 더보기 버튼 / 힌트 — 같은 톤
 ```css

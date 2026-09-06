@@ -2368,26 +2368,39 @@
     }
 
     function trendBuckets(members, drill) {
-        var counts = {};
-        var span = activeYearSpan();
+        // ★소스별로 따로 센다[S24-2, 2026-09-05 사용자 확정 "선박·인명·전체 세 선을
+        //   각각 다른 색으로"]. 전체는 두 소스의 합이므로 따로 세지 않고 더한다.
+        var counts = { hk: {}, person: {} };
+        var span = combinedYearSpan();
         members.forEach(function (f) {
             var row = f.get('row');
             var y = yearOf(row);
             if (!y) return;
             if (span && (y < span[0] || y > span[1])) return;   // 한 소스만 있는 해는 뺀다[S15]
-            if (!drill) { counts[y] = (counts[y] || 0) + 1; return; }
+            var bag = counts[srcOfFeat(f)];
+            if (!bag) return;
+            if (!drill) { bag[y] = (bag[y] || 0) + 1; return; }
             if (y !== drill.year) return;
             // 연 -> 월까지만 판다. 일 단위는 만들지 않는다(2026-09-04 사용자 확정) —
             // 선박사고 59,664건을 18년·전국에 흩뿌리면 하루 평균 9건이고 격자 한 칸은
             // 그 일부라, 일별로 쪼개면 대부분의 날이 0건이 되어 톱니만 남는다.
             var m = monthOf(row);
-            if (m) counts[m] = (counts[m] || 0) + 1;
+            if (m) bag[m] = (bag[m] || 0) + 1;
         });
-        var keys = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
+        // 가로축은 두 소스의 눈금을 합집합으로 만든다 — 한쪽에만 있는 해/달이 빠지면
+        // 선이 끊겨 보인다.
+        var seen = {};
+        Object.keys(counts.hk).forEach(function (k) { seen[k] = 1; });
+        Object.keys(counts.person).forEach(function (k) { seen[k] = 1; });
+        var keys = Object.keys(seen).map(Number).sort(function (a, b) { return a - b; });
         var unit = drill ? '월' : '년';
+        var hk = keys.map(function (k) { return counts.hk[k] || 0; });
+        var person = keys.map(function (k) { return counts.person[k] || 0; });
         return {
             labels: keys.map(function (k) { return k + unit; }),
-            values: keys.map(function (k) { return counts[k]; }),
+            values: keys.map(function (k, i) { return hk[i] + person[i]; }),
+            hk: hk,
+            person: person,
             keys: keys
         };
     }
@@ -2758,29 +2771,41 @@
         // 탭이 6개면 좁아서 아이콘을 숨긴다(style.css .ash-tabs.is-crowded 참고).
         var tabsCls = 'ash-tabs' + (views.length > 5 ? ' is-crowded' : '');
 
-        var backHtml = '';
-        if (activeView === 'trend' && _trendDrill) {
-            var crumb = _trendDrill.year + '년';
-            backHtml = '<button class="accident-trend-back" id="accident-trend-back">◀ ' + crumb + ' — 전체로</button>';
-        }
-
         var chartInnerHtml = '<canvas id="accident-stats-chart"></canvas>';
 
         // 탭 줄은 카드 밖(시트 바로 아래)에, 차트는 카드 안에 둔다 — 탭은 "무엇을 볼지"
         // 고르는 조작부고 카드는 "고른 것"이라, 목업도 이 둘을 따로 놓는다.
         var viewLabel = (views.filter(function (v) { return v.id === activeView; })[0] || {}).label || '';
-        // 연도별 화면에서만 "눌러서 파고들 수 있다"고 알려 준다 — 이미 월별로 들어간
-        // 상태이거나 다른 축(월별·요일별 등)에서는 더 팔 곳이 없어 안내가 거짓이 된다.
-        var hintHtml = (activeView === 'trend' && !_trendDrill)
-            ? '<div class="ash-hint"><i class="fa-solid fa-hand-pointer"></i>연도를 누르면 그 해의 월별로 바뀝니다</div>'
-            : '';
+        // ★제목은 지금 무엇을 보고 있는지를 그대로 말한다[S24-3, 2026-09-05 사용자 확정].
+        //   연도별: "2. 연도별 추이" / 어느 해로 들어가면: "2. 2021년 월별 추이".
+        var titleText = (activeView === 'trend' && _trendDrill)
+            ? '2. ' + _trendDrill.year + '년 월별 추이'
+            : '2. ' + viewLabel + ' 추이';
+        // ★제목 오른쪽 자리[S24-3] — 한 자리를 두 용도가 번갈아 쓴다(동시에 뜰 일이 없다).
+        //   · 연도별 화면: 자료 범위 안내(그래프 아래에 있던 문구를 여기로 올림)
+        //   · 월별 화면: 되돌아가는 버튼(옛 "◀ 2021년 — 전체로" → "연도별로")
+        var asideHtml = '';
+        if (activeView === 'trend' && _trendDrill) {
+            asideHtml = '<button type="button" class="accident-trend-back" id="accident-trend-back">' +
+                '<i class="fa-solid fa-chevron-left"></i>연도별로</button>';
+        } else if (activeView === 'trend') {
+            var tSpan = combinedYearSpan();
+            if (tSpan) {
+                asideHtml = '<div class="ash-card-aside">’' + String(tSpan[0]).slice(2) + '년~’' +
+                    String(tSpan[1]).slice(2) + '년 사고만 표출</div>';
+            }
+        }
         return '<div class="' + tabsCls + '">' + viewTabsHtml + '</div>' +
-            '<section class="ash-card">' +
-            '<div class="ash-card-head"><h2 class="ash-card-title">2. ' + escapeHtml(viewLabel) + ' 추이</h2></div>' +
-            backHtml +
-            '<div class="accident-chart-wrap" id="accident-chart-wrap">' + chartInnerHtml + '</div>' +
+            '<section class="ash-card" id="accident-trend-card">' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">' + escapeHtml(titleText) + '</h2>' +
+            asideHtml + '</div>' +
+            '<div class="accident-chart-wrap" id="accident-chart-wrap">' + chartInnerHtml +
+            // 안내는 상자로 자리를 차지하지 않고, 그래프가 화면 가운데 왔을 때만
+            // 그래프 안에서 잠깐 뜬다[S24-5, 2026-09-05 사용자 확정].
+            '<div class="ash-chart-toast" id="accident-trend-toast" hidden>' +
+            '<i class="fa-solid fa-hand-pointer"></i>연도를 누르면 그 해의 월별로 바뀝니다</div>' +
+            '</div>' +
             '<div class="accident-chart-caption" id="accident-chart-caption"></div>' +
-            hintHtml +
             '</section>';
     }
 
@@ -3981,11 +4006,70 @@
     /** 지금 그려진 Chart.js 인스턴스를 전부 정리 — 다시 그리기 전/시트 닫을 때 필수
      * (안 하면 같은 canvas id 재사용 시 이전 차트가 겹쳐 그려지거나 누수됨). */
     function destroyStatsCharts() {
+        stopPointPulse();
         _statsCharts.forEach(function (c) { c.destroy(); });
         _statsCharts = [];
     }
 
     var CHART_COLOR = { blue: '#448aff', yellow: '#ffd740', green: '#69f0ae', red: '#ff5252' };
+    /** 연도별·월별 추이 세 선의 색[S24-2].
+     *  선박·인명은 추세 요약 도넛 범례와 **같은 색**을 쓴다(같은 뜻엔 같은 색).
+     *  전체는 그 둘과 겹치지 않으면서 가장 눈에 띄는 색 — 숫자를 달고 있는 선이다. */
+    var TREND_COLOR = { all: '#ffd740', hk: '#2b7cf0', person: '#16c8a3' };
+
+    /** 점 주변 번짐(glow)이 커졌다 작아졌다 하는 효과[S24-4, 2026-09-05 사용자 요청
+     *  "클릭할 만한 부분이다 라는 느낌을 주고 싶어"].
+     *  전체선(첫 번째 데이터셋)의 점 뒤에만 그린다 — 세 선 모두에 넣으면 화면이 어지럽다.
+     *  월별로 들어간 뒤에는 끈다(월을 눌러도 더 파고들 곳이 없어 거짓 신호가 된다).
+     *  [연계] 켜는 곳 renderActiveChart(plugins.pointPulse.on) · 다시 그리는 타이머 startPointPulse */
+    var PointPulsePlugin = {
+        id: 'pointPulse',
+        afterDatasetsDraw: function (chart, args, opts) {
+            if (!opts || !opts.on) return;
+            var meta = chart.getDatasetMeta(0);
+            if (!meta || meta.hidden || !meta.data || !meta.data.length) return;
+            // 1.6초에 한 번 부풀었다 꺼진다. cos 로 만들어 시작·끝이 부드럽다.
+            var k = 0.5 - 0.5 * Math.cos((Date.now() % 1600) / 1600 * Math.PI * 2);
+            // ⚠차트가 지워지는 중이면 ctx 가 null 이다 — 타이머가 그 사이에 한 번 더
+            // 그리려 들면 여기서 터진다(실제로 헤드리스 검증에서 콘솔 오류로 잡혔다).
+            var ctx = chart.ctx;
+            if (!ctx) return;
+            ctx.save();
+            meta.data.forEach(function (pt) {
+                if (pt.x == null || pt.y == null) return;
+                var r = 5 + 6 * k;
+                var g = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r);
+                g.addColorStop(0, 'rgba(255,215,64,' + (0.42 - 0.22 * k).toFixed(3) + ')');
+                g.addColorStop(1, 'rgba(255,215,64,0)');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.restore();
+        }
+    };
+    if (typeof Chart !== 'undefined' && !Chart.registry.plugins.get('pointPulse')) {
+        Chart.register(PointPulsePlugin);
+        Chart.defaults.set('plugins.pointPulse', { on: false });
+    }
+
+    /** 위 번짐 효과를 실제로 움직이게 하는 타이머 — Chart.js 는 스스로 다시 그리지 않는다.
+     *  20프레임/초로 충분하고(1.6초 주기라 눈에 끊겨 보이지 않는다), 화면이 가려져 있으면
+     *  건너뛴다. 차트를 지울 때 반드시 멈춘다(destroyStatsCharts). */
+    var _pulseTimer = null;
+    function stopPointPulse() {
+        if (_pulseTimer) { clearInterval(_pulseTimer); _pulseTimer = null; }
+    }
+    function startPointPulse(chart) {
+        stopPointPulse();
+        _pulseTimer = setInterval(function () {
+            // 캔버스가 화면에서 떨어져 나갔으면(본문을 통째로 갈아끼운 뒤) 더 그리지 않는다.
+            if (!chart || !chart.ctx || !chart.canvas || !chart.canvas.isConnected) { stopPointPulse(); return; }
+            if (document.hidden) return;
+            chart.draw();
+        }, 50);
+    }
     var CHART_AXIS_OPTS = {
         x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
         y: { beginAtZero: true, ticks: { color: '#64748b', precision: 0 }, grid: { color: 'rgba(255,255,255,0.06)' } }
@@ -4049,22 +4133,45 @@
         }
 
         if (view === 'trend') {
-            var t = trendBuckets(members, _trendDrill);
+            // ★이 그래프만은 위 칩(선박/인명)을 따르지 않는다[S24-2, 2026-09-05 사용자 확정
+            //   "칩으로 무엇을 고르든 늘 세 선을 함께"]. 칩을 따르면 고르지 않은 쪽 선이
+            //   전 구간 0이 되어 거짓말이 된다. 기간·유형 등 시트 필터는 그대로 건다.
+            var t = trendBuckets(trendMembers(), _trendDrill);
             if (!t.labels.length && caption) caption.textContent = '표시할 데이터가 없습니다.';
-            // 칩이 "전체"면 두 자료가 겹치는 해만 그린다 — 그 사실을 밝힌다[S15].
-            var tSpan = !_trendDrill && activeYearSpan();
-            if (tSpan && caption && t.labels.length) {
-                caption.textContent = '선박·인명 자료가 겹치는 ' + tSpan[0] + '~' + tSpan[1] + '년만 표시합니다';
-            }
-            _statsCharts.push(new Chart(canvas, {
+            // (블록 안이라 함수 선언이 아니라 변수에 담는다 — 이 파일은 'use strict' 다.)
+            var trendSeries = function (label, data, color, isTotal) {
+                return {
+                    label: label, data: data, borderColor: color, borderWidth: isTotal ? 2.4 : 1.6,
+                    backgroundColor: isTotal ? 'rgba(255,215,64,0.10)' : 'transparent',
+                    fill: isTotal, tension: 0.35,
+                    pointRadius: isTotal ? 3 : 2.4, pointHoverRadius: 5, pointBackgroundColor: color,
+                    // ★숫자는 전체선에만 붙인다(2026-09-05 사용자 확정) — 세 선 모두에
+                    //   붙이면 값이 가까운 해에서 숫자가 3겹으로 겹쳐 읽을 수 없다.
+                    datalabels: isTotal
+                        ? { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 }, formatter: fmtN }
+                        : { display: false }
+                };
+            };
+            var trendChart = new Chart(canvas, {
                 type: 'line',
-                data: { labels: t.labels, datasets: [{
-                    data: t.values, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.18)',
-                    fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: CHART_COLOR.blue,
-                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 }, formatter: fmtN }
-                }] },
+                data: { labels: t.labels, datasets: [
+                    trendSeries('전체', t.values, TREND_COLOR.all, true),
+                    // 선박·인명 색은 추세 요약 도넛의 범례와 같게 맞춘다 — 같은 뜻에
+                    // 다른 색을 쓰면 화면 안에서 색이 뜻을 잃는다(스타일 사양 §1).
+                    trendSeries('선박사고', t.hk, TREND_COLOR.hk, false),
+                    trendSeries('인명사고', t.person, TREND_COLOR.person, false)
+                ] },
                 options: {
-                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        // 선이 셋이 되면서 범례가 없으면 무슨 선인지 알 수 없다.
+                        legend: {
+                            display: true, position: 'bottom',
+                            labels: { color: '#93a6bf', boxWidth: 8, boxHeight: 8, usePointStyle: true,
+                                pointStyle: 'circle', padding: 12, font: { size: 10, weight: 600 } }
+                        },
+                        pointPulse: { on: !_trendDrill }
+                    },
                     layout: CHART_TOP_PADDING, scales: CHART_AXIS_OPTS_LINE,
                     onClick: function (evt, elements) {
                         if (!elements.length) return;
@@ -4073,10 +4180,19 @@
                         // (일 단위는 만들지 않기로 확정 — 위 trendBuckets 주석 참고).
                         if (_trendDrill) return; // 월 아래로는 안 판다
                         _trendDrill = { year: k };
-                        renderStatsBody();
+                        // ⚠여기서 곧바로 다시 그리면 안 된다[S24-2 검증에서 발견].
+                        // 이 함수는 Chart.js 가 클릭을 처리하는 **도중**에 불리는데,
+                        // renderStatsBody 는 그 차트를 지워 버린다. Chart.js 는 우리
+                        // 손을 떠난 뒤 같은 차트를 한 번 더 그리려 하고, 그때 이미
+                        // 지워진 캔버스를 만나 콘솔 오류가 난다("Cannot read properties
+                        // of null (reading 'save')" — 헤드리스 검증에서 실제로 잡힘).
+                        // 한 박자 미뤄 Chart.js 의 클릭 처리가 끝난 뒤에 다시 그린다.
+                        setTimeout(renderStatsBody, 0);
                     }
                 }
-            }));
+            });
+            _statsCharts.push(trendChart);
+            if (!_trendDrill) startPointPulse(trendChart);   // 연도별 화면에서만 깜빡인다
             return;
         }
 
@@ -4196,6 +4312,20 @@
      *
      * @returns {ol.Feature[]}
      * [연계] renderStatsBody / passesFilters */
+    /** 연도별·월별 추이 그래프 전용 목록[S24-2] — 위 칩(선박/인명)은 무시하고 두 소스를
+     *  모두 담되, 시트 필터는 그대로 건다. 세 선을 늘 함께 보여주기로 했기 때문이다
+     *  (칩을 따르면 고르지 않은 쪽 선이 전 구간 0이 되어 거짓말이 된다).
+     * @returns {ol.Feature[]}
+     * [연계] renderActiveChart(view==='trend') / trendBuckets */
+    function trendMembers() {
+        var out = [];
+        (_statsAll || []).forEach(function (f) {
+            if (!passesFilters(srcOfFeat(f), f.get('row'))) return;
+            out.push(f);
+        });
+        return out;
+    }
+
     function scopedMembers() {
         var out = [];
         (_statsAll || []).forEach(function (f) {
@@ -4215,6 +4345,7 @@
         body.innerHTML = buildStatsHtml(_statsKey, _statsMembers);
         renderActiveChart(_statsKey, _statsMembers);
         armCardReveal(body);
+        armTrendToast(body);
     }
 
     /** 카드가 화면에 들어오면 .reveal 을 붙여 도넛 애니메이션을 재생시킨다[S5].
@@ -4242,6 +4373,47 @@
             });
         }, { root: body, threshold: 0.2, rootMargin: '0px 0px -8% 0px' });
         Array.prototype.forEach.call(cards, function (c) { _cardRevealObserver.observe(c); });
+    }
+
+    /**
+     * 연도별 추이 그래프가 화면 가운데쯤 왔을 때 안내를 잠깐 띄운다[S24-5].
+     *
+     * 왜 이렇게 하나: 예전에는 "연도를 누르면 그 해의 월별로 바뀝니다" 가 그래프 아래
+     * **상자로 늘 떠 있어** 자리를 차지했다. 사용자 확정(2026-09-05)은 *"그 텍스트 영역을
+     * 지우고, 스크롤해서 그 그래프가 화면 중앙쯤 오면 그래프 안에서 토스트로"* 다.
+     *
+     * ⚠root 를 시트 본문으로 준다 — 스크롤이 창이 아니라 시트 안에서 일어난다
+     * (armCardReveal 과 같은 이유). rootMargin 위·아래를 40%씩 깎아 **가운데 20% 띠**만
+     * 남기면, 그 띠에 그래프가 걸칠 때만 걸린다 = "화면 중앙쯤 왔을 때".
+     * 시트를 열 때마다 한 번만 뜬다(_trendToastShown).
+     *
+     * @param {HTMLElement} body 시트 본문(스크롤 컨테이너)
+     * [연계] 마크업 buildChartViewHtml(#accident-trend-toast) · 스타일 style.css .ash-chart-toast */
+    var _trendToastShown = false;
+    var _trendToastObserver = null;
+    var _trendToastTimer = null;
+    function armTrendToast(body) {
+        if (_trendToastObserver) { _trendToastObserver.disconnect(); _trendToastObserver = null; }
+        var toast = document.getElementById('accident-trend-toast');
+        var wrap = document.getElementById('accident-chart-wrap');
+        // 월별로 들어간 뒤에는 더 팔 곳이 없어 안내가 거짓이 된다 — 띄우지 않는다.
+        if (!toast || !wrap || _trendToastShown || _trendDrill) return;
+        if (!window.IntersectionObserver) return;   // 못 띄우면 그냥 안 띄운다(안내일 뿐)
+        _trendToastObserver = new IntersectionObserver(function (entries) {
+            if (!entries.some(function (e) { return e.isIntersecting; })) return;
+            _trendToastObserver.disconnect();
+            _trendToastObserver = null;
+            _trendToastShown = true;
+            toast.hidden = false;
+            // hidden 을 막 벗긴 요소에 바로 클래스를 주면 브라우저가 전환을 건너뛴다.
+            requestAnimationFrame(function () { toast.classList.add('show'); });
+            clearTimeout(_trendToastTimer);
+            _trendToastTimer = setTimeout(function () {
+                toast.classList.remove('show');
+                setTimeout(function () { toast.hidden = true; }, 300);
+            }, 3200);
+        }, { root: body, threshold: 0, rootMargin: '-40% 0px -40% 0px' });
+        _trendToastObserver.observe(wrap);
     }
 
     // 21개 해경서 → 8개 광역권(2026-09-01, 목업 이미지의 "경남권" 뱃지 반영해 사용자 확정).
@@ -4313,6 +4485,7 @@
         _statsKey = 'hk';
         _statsMembers = members;
         _trendDrill = null; // 새 셀을 열 때마다 드릴다운 상태 초기화
+        _trendToastShown = false;   // 안내 토스트는 시트를 열 때마다 한 번[S24-5]
         _statsRegionLabel = _statsNationwide ? '전국' : null;
         // 시트를 새로 열 때는 항상 기본 상태로 시작한다(2026-09-01 사용자 확정) —
         // 예전엔 뷰 탭 선택이 소스별로 남아 있어서, 특보발효를 보다가 닫고 다른
