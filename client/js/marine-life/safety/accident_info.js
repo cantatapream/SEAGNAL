@@ -4190,8 +4190,10 @@
 
         function legend(entries) {
             return '<div class="ash-d-leg">' + entries.map(function (d) {
-                return '<div><i style="background:' + d[2] + '"></i>' + escapeHtml(d[0]) +
-                    '<span>' + fmtN(d[1]) + '</span></div>';
+                // 라벨을 <b> 로 감싼다 — 한 줄에 둘씩 놓으면 칸이 좁아 긴 이름은
+                // 말줄임이 필요한데, 텍스트 노드에는 걸 수 없다.
+                return '<div><i style="background:' + d[2] + '"></i><b>' + escapeHtml(d[0]) +
+                    '</b><span>' + fmtN(d[1]) + '</span></div>';
             }).join('') + '</div>';
         }
         function dcard(title, entries, cls) {

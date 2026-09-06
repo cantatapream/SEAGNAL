@@ -587,6 +587,18 @@ ok('정렬을 바꾸면 첫 쪽으로 돌아간다',
     /closest\('\[data-dsort\]'\)[\s\S]{0,240}_warnDetail\.page = 0;/.test(CODE));
 ok('팝업을 열 때는 최신순으로 시작',
     /sort: 'recent', page: 0, open: null \};/.test(CODE));
+ok('특보 칩은 옆으로 밀지 않고 두 줄로 접는다',
+    /\.ash-detail-chips \{[\s\S]{0,200}flex-wrap: wrap;/.test(CSS) &&
+    !/\.ash-detail-chips[\s\S]{0,200}overflow-x: auto/.test(CSS));
+ok('팝업 도넛을 키웠다(5.6→7.2em)',
+    /\.ash-d-donut \.ash-donut\.sm \{ width: 7\.2em; height: 7\.2em; \}/.test(CSS));
+ok('도넛 가운데 숫자와 단위 사이 여백이 1/2',
+    /\.ash-d-donut \.ash-donut-center \{ gap: 0\.06em; \}/.test(CSS));
+ok('범례가 한 줄에 둘씩',
+    /\.ash-d-leg \{[^}]*grid-template-columns: 1fr 1fr;/.test(CSS));
+ok('범례 라벨은 말줄임이 되도록 <b> 로 감싼다',
+    /<\/i><b>' \+ escapeHtml\(d\[0\]\) \+\s*'<\/b><span>/.test(CODE) &&
+    /\.ash-d-leg b \{[^}]*text-overflow: ellipsis;/.test(CSS));
 ok('기간·칩 줄 위아래 여백을 1/5 로 줄였다',
     /\.ash-meta \{[\s\S]{0,700}padding: 0\.18em 0 0\.19em;[\s\S]{0,200}margin-bottom: 0\.18em;/.test(CSS));
 
