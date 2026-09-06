@@ -1,0 +1,46 @@
+# navwarn-probe.yml - 항행경보 "불러오는 중" 무한로딩 원인 확정용 정찰(읽기 전용)
+#
+# [왜 필요한가] 운영 서버(seagnal-server.fly.dev)에서 /api/navigational-warning/list 가
+#   30초를 기다려도 응답을 주지 않는다(2026-09-06 확인, 서버 로그에도 아무 기록 없음
+#   = 실패한 게 아니라 멈춰 있음). 항행경보는 바깥 창구 두 곳을 쓰는데
+#   (KHOA 홈페이지 긁어오기 + 공공데이터포털 인증키 API), 어느 쪽이 멈춘 것인지와
+#   KHOA 응답에 제목·본문이 함께 오는지를 실제로 찍어봐야 정확히 고칠 수 있다.
+#
+# [왜 여기서 실행하나] 개발 샌드박스(Claude Code on the web)는 khoa.go.kr·
+#   apis.data.go.kr 접속이 프록시 정책으로 막혀 있다(2026-09-06 curl 403 +
+#   WebFetch EGRESS_BLOCKED 로 재확인). GitHub Actions 는 바깥망이 열려 있어
+#   여기서 대신 돌린다 — khoa-oceanmap-probe.yml 과 같은 우회 방식이지만,
+#   대상(오션맵 인명사고 ≠ 항행경보)이 다르므로 별도 워크플로로 둔다.
+#
+# [결과 확인] 실행 화면 위쪽 "Summary" 에 결과가 바로 정리돼 뜬다.
+# [연계] local_server/scripts/navwarn_probe.js
+#        local_server/routes/navigational_warning.js (정찰 대상과 같은 주소·순서)
+
+name: 항행경보 정찰
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '조회할 날짜 (YYYYMMDD, 비우면 오늘)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: 바깥 창구 두 곳 응답 확인
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 정찰 실행
+        env:
+          PROBE_DATE: ${{ inputs.date }}
+        run: node local_server/scripts/navwarn_probe.js
