@@ -246,7 +246,7 @@
 
     /**
      * 진짜 해양종합정보 탭으로 갈 때, 해양안전 때문에 꺼뒀던 오버레이를 되살린다.
-     * 예: 특보구역·주요지명을 켠 채로 해양안전에 들렀다 돌아오면 그대로 다시 켜져 있음
+     * 예: 특보구역을 켠 채로 해양안전에 들렀다 돌아오면 그대로 다시 켜져 있음
      * [연계] ← _wrapTabSwitchers() 의 switchMainTab 래퍼(targetId==='ocean-map-section')
      */
     function _restoreOceanOverlays() {
