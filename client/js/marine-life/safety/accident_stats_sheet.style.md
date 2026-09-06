@@ -212,6 +212,10 @@ padding:.85em 1em 1.2em; box-shadow:0 1.5em 3em rgba(0,0,0,.55);
 > **세 칸의 제목 높이가 서로 어긋났다.** 세 칸은 그리드라 높이가 같은데, 가운데 정렬이면 내용이 짧은
 > 칸일수록 제목이 아래로 밀린다(목업은 세 칸의 내용 길이가 비슷해 티가 안 났다).
 > → 우리 판은 **`justify-content:flex-start`**. 그리고 도넛(`.ash-donut.sm`)은 **4.1em → 5.6em**.
+>
+> **★2차 정정 [S25-1, 2026-09-06]**: 도넛 칸의 세로 간격이 카드 높이를 불필요하게 키우고 있었다.
+> 세 곳을 **1/3** 로 — 제목↔도넛 `0.45→0.15em` · 도넛↔범례 `0.5→0.17em` · 범례 줄 사이 `0.35→0.12em`.
+> 도넛 가운데 숫자↔라벨도 `0.25→0.12em`(§5 중앙 텍스트).
 - 라벨 `.75em muted` → 큰 값 `1.55em/800`(`margin-top:.5em`) → 부가값 `.78em #c2d0e2`(`.5em`) → 각주 `.75em/600`(`.55em`)
 - 단위는 `small { font-size:.52em; font-weight:600; color:#b6c6da }`
 - 상승 `.up{color:#3b8bff}` / 하락 `.down{color:#16c8a3}` / 강조 `.drop{color:#16c8a3;font-weight:800}`
@@ -240,7 +244,25 @@ padding:.85em 1em 1.2em; box-shadow:0 1.5em 3em rgba(0,0,0,.55);
 바탕색은 인라인 `style="background:var(--blue)"` 로 주고, 위 그라데이션이 **overlay 로 겹쳐** 입체감을 만든다. 단색 원이 아니다.
 - **치명도 게이지 바(우리 신규)** 도 이 `.row` 구조를 그대로 쓰되, `.bar` 안에 회색 조각을 **왼쪽에** 먼저 놓는다 → §7
 
-### 4.9-2 그래프 안 토스트 (우리 신규 · 목업에 없음) [S24-5]
+### 4.8-2 값 칸 폭은 **재서** 정한다 (우리 신규) [S25-2]
+`.ash-row .val` 을 좁게 고정해 두면 긴 값이 칸을 넘어 카드 밖으로 삐져나온다.
+폭은 눈대중이 아니라 화면에서 글자 폭을 직접 재서 정했다 —
+일반 카드 `8.7em`(가장 긴 값 `16,976건 (56%)` = 8.01em) ·
+치명도 `.ash-fatal-row .val` `11em`(가장 긴 값 `25.4%(422/1,663건)` = 10.36em).
+막대(`.ash-bar`)가 남는 공간을 먹으므로 값 칸을 넓히면 막대가 저절로 좁아진다.
+⚠**넘침을 위치로 재면 안 된다** — 칸 폭은 고정이라 글자만 삐져나오면 위치로는 안 잡힌다.
+`scrollWidth > clientWidth` 로 봐야 한다(실제로 그렇게 잘못 통과한 적이 있다).
+
+### 4.9-2 카드 제목 아래 안내 한 줄 (우리 신규 · 목업에 없음) [S25-7]
+```css
+.ash-card-hint{ display:flex; align-items:center; gap:.35em;
+  margin:-.5em 0 .5em; font-size:.74em; color:var(--ash-dim); }
+.ash-card-hint::before{ content:"\f25a"; font-family:"Font Awesome 6 Free"; font-weight:900; }
+```
+상자를 두르지 않는다 — 두르면 옛 `.ash-hint` 처럼 다시 자리를 차지한다.
+[S24-5 의 `.ash-chart-toast`(그래프 안에 잠깐 뜨던 토스트)는 S25-7 에서 삭제하고 이것으로 대체]
+
+### (삭제됨) 4.9-3 그래프 안 토스트 [S24-5 → S25-7 에서 제거]
 ```css
 .ash-chart-toast{ position:absolute; left:50%; top:.6em; transform:translate(-50%,-.4em);
   padding:.5em .75em; border:1px solid #1b2b45; border-radius:.8em;
