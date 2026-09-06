@@ -1,0 +1,9 @@
+[(대산지방해양수산청) 항행안전에 관한 고시] 별표3 — 주의(CAUTION)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000261814 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=154531207
+
+[별표 3] 주의(CAUTION)
+ <국문>
+ "옹도 항로는 소형선박과 어선의 횡단이 빈번하므로 주의하여 항행할 것을 권고한다."
+ <영문>
+ "All vessels are recommended to navigate with caution when transiting the Ongdo route since it is frequently crossed by small vessels and fishing boats."

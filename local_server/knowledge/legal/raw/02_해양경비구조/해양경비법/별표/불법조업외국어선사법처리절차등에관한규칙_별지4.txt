@@ -1,0 +1,40 @@
+[불법조업 외국어선 사법처리 절차 등에 관한 규칙] 별지4 — 체포(구속) 통보
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000181898 (수집 2026-08-31)
+
+〔별지 제4호 서식〕
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                  ┃
+┃                                                                  ┃
+┃○○해양경찰서                                                    ┃
+┃(○○ COAST GUARD STATION)                                        ┃
+┃                                 전화(Telephone) : 전화번호       ┃
+┃                                 팩스(Fax) : 팩스번호             ┃
+┃                                                                  ┃
+┃수 신(To) : 수신                                                  ┃
+┃제 목(Subject) : 체포(구속) 통보 (Arrest(Detention) Notification) ┃
+┃                                                                  ┃
+┃                                                                  ┃
+┃                                                                  ┃
+┃1. 피의자(Personal details of the arrested)                       ┃
+┃성  명(Name) : 성명(영문명)                                       ┃
+┃생년월일(Date of Birth) : 0000.00.00.생(000000-0000000)           ┃
+┃여권번호(Passport No.) : 여권번호                                 ┃
+┃국적(Nationality) : 국적                                          ┃
+┃                                                                  ┃
+┃2. 체포일시 및 장소 (Date ＆ Place of arrest)                     ┃
+┃체포일시 : 0000.00.00. 00:00                                      ┃
+┃체포장소 : 체포장소                                               ┃
+┃                                                                  ┃
+┃3. 사건개요(Details of the case)                                  ┃
+┃사건개요                                                          ┃
+┃                                                                  ┃
+┃4. 경찰 조치(Actions taken by the police)                         ┃
+┃                                                                  ┃
+┃                                                                  ┃
+┃                                                                  ┃
+┃  사법경찰관(Officer in charge)   계급                            ┃
+┃                                                                  ┃
+┃                                                                  ┃
+┃                                                                  ┃
+┃                                                                  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

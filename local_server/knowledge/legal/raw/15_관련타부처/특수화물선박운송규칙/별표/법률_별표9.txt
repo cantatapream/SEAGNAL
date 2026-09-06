@@ -1,0 +1,57 @@
+[법률] 별표9 — 함수액상화물질 운반선 인정서
+
+[별지 제9호서식]                                                                         
+                                                                                                            
+    제     호                                                                                               
+    No.                                                                                                     
+                                                                                                            
+  함수액상화물질 운반선 인정서                                                                              
+  Certificate of Cargo Ship carrying the cargoes which may liquefy                                          
+                                                                                                            
+                                                                                                            
+───────┬────────────────────────────────┬─────────────
+  신청인      │성명(법인은 명칭 및 대표자 성명) Name/status,                   │생년월일 Date of one's    
+  Applicant   │company/organization                                            │birth                     
+              ├────────────────────────────────┼─────────────
+              │주소(법인은 주된 사무소 소재지) Address, Location of main office│전화번호 Telephone        
+              │                                                                │Number                    
+───────┴────────────────────────────────┴─────────────
+                                                                                                            
+──────┬──────┬────────────┬──────────────┬────────────
+  선박 제원 │선박 이름   │                        │선박 종류                   │                        
+  Ship's    │Ship's name │                        │Type                        │                        
+  particuler├──────┼────────────┼──────────────┼────────────
+            │선박번호    │                        │총톤수                      │                        
+            │IMO Number  │                        │Gross tonnage               │                        
+──────┴──────┴────────────┴──────────────┴────────────
+                                                                                                            
+──────────────────────────┬───────────────────────────
+   함수액상화물질을 적재하는 화물창                 │                                                      
+   Cargo hold for loading cargoes which may liquefy │                                                      
+──────────────────────────┼───────────────────────────
+   유지해야 할 건현                                 │                                                      
+   Distance from waterline to hatch coaming         │                                                      
+──────────────────────────┼──────────────┬────────────
+   횡경사의 복원에 사용되는 선박 평형수 펌프        │명칭 Name                   │                        
+   Ship ballast pump for stability of heeling       ├──────────────┼────────────
+                                                    │처리능력                    │톤/시(ton/h)            
+                                                    │Capacity                    │                        
+──────────────────────────┴──────────────┴────────────
+   「특수화물 선박운송 규칙」 제29조제4항에 따라 함수액상화물질운반선 인정서를 발급합                       
+  니다.                                                                                                     
+    This certificate is issued under the provisions 7.3.2 of the International Maritime Solid Bulk          
+  Cargoes Code under the authority of the Government of Republic of Korea.                                  
+                                                                                                            
+                                                                                                            
+         년(Y)      월(M)      일(D)                                                                        
+                                                                                                            
+                                                                                                            
+                          ┏━━━━━┓                                                                    
+      지방해양수산청장    ┃직인      ┃                                                                    
+      Administrator of    ┃Signature ┃                                                                    
+      Regional Office of  ┃          ┃                                                                    
+      Oceans and Fisheries┃          ┃                                                                    
+                          ┗━━━━━┛                                                                    
+                                                                                                            
+──────────────────────────────────────────────────────
+  210mm×297mm(일반용지 60g/㎡(재활용품))

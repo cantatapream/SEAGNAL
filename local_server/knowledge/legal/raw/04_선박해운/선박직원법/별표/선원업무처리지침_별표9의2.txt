@@ -1,0 +1,46 @@
+[선원업무 처리지침] 별표9의2 — 승무자격증 발급 및 기재요령(「선박직원법 시행규칙」 제22조의2 및 「선원업무 처리지침」 제51조관련)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000279130 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=164201205
+
+[별표 9의2]
+ 
+승무자격증 발급 및 기재요령
+(「선박직원법 시행규칙」 제22조의2 및 「선원업무 처리지침」 제51조관련)
+1. 일반기준
+ ○ 승무자격증 신청은 외국인해기사 본인(외국인해기사와 근로계약을 체결한 선사 포함)의 신청에 의해서만 발급한다.
+ ○ 면접시험 또는 교육을 이수해야할 경우에는 그것을 증명할 수 있는 서류를 제출받은 후 발급한다.
+2. 승무자격증 제1쪽 기재 요령
+ ○ 사진, 유효기간, 관인, 갱신일, 지방해양수산청장 서명의 기재는 별표 5의 해기사면허 발급 및 기재요령과 동일하게 기재
+3. 승무자격증 제2쪽 기재 요령
+ ○ 승무자격증 번호란 : 별표 11 2의2호의 부여방법에 따름
+ ○ 본문 공란
+   <시행규칙 별지 제12호의4서식>
+   - 대한민국정부는 ....... ① ...... 정부에 의해서 또는 대신하여 ....... ② ....... 에게 발급된 증서번호 ....... ③ ....... 의 면허가 위 개정협약의 제Ⅰ/10조의 규정에 의하여 해기사자격을 갖추었다는 것과 ....... ④ ....... 까지 또는 이 승무자격증의 유효기간에 대한 갱신기간의 만료일까지, 아래에 표시된 면허의 한정을 조건으로 명시된 등급의 기능을 수행하기 위한 해기능력을 갖추었음을 증명합니다.
+   - The Government of the Republic of Korea certifies that certificate No ........ ③ ....... issued to ....... ② ....... by or on behalf of the Government of ....... ① ....... has been found duly qualified in accordance with provisions of regulation Ⅰ/10 of the above Convention, as amended, and the lawful holder is authorized to perform the following functions, at the levels specified, subject to any limitations indicated until ....... ④ ....... or until the date of any extension of the validity of this endorsement as may be shown below.
+   - 기재방법
+    ㆍ① : 외국인해기사 국가(영문 대문자 표기)
+    ㆍ② : 외국인해기사 이름(영문 대문자 표기)
+    ㆍ③ : 외국인해기사 해기사면허증 번호
+    ㆍ④ : 승무자격증의 유효기간( 2005. 9. 9 → SEP. 9, 2005)
+ ○ 기능, 등급, 적용제한 란은 외국인해기사 면허증의 기능, 등급, 적용제한으로 함
+   <시행규칙 별지 제12호의5서식>
+   - 대한민국정부는 ....... ① ...... 정부에 의해서 또는 대신하여 ....... ② ....... 에게 발급된 증서번호 ....... ③ ....... 의 면허가 위 개정협약의 제Ⅰ/7조의 규정에 의하여 해기사자격을 갖추었다는 것과 ....... ④ ....... 까지 또는 이 승무자격증의 유효기간에 대한 갱신기간의 만료일까지, 아래에 표시된 면허의 한정을 조건으로 명시된 직무를 수행하기 위한 해기능력을 갖추었음을 증명합니다.
+   - The Government of the Republic of Korea certified that certificate No ........ ③ ....... issued to ....... ② ....... by or on behalf of the Government of ....... ① ....... has been found duly qualified in accordance with provisions of regulation Ⅰ/7 of the above Convention, as amended, and the lawful holder is authorized to serve as specified below, subject to any limitations indicated until ....... ④ ....... or until the date of expiry of any extension of the validity of this endorsement as may be shown above.
+   - 기재방법
+    ㆍ① : 외국인해기사 국가(영문 대문자 표기)
+    ㆍ② : 외국인해기사 이름(영문 대문자 표기)
+    ㆍ③ : 외국인해기사 해기사면허증 번호
+    ㆍ④ : 승무자격증의 유효기간( 2005. 9. 9 → SEP. 9, 2005)
+  ○ 직무(CAPACITY), 적용제한(LIMITATION APPLYING) 기재
+    - 외국인해기사 면허증의 직무 및 적용제한 내용을 이기하되
+    - 기관부문의 Fourth Engineer는 3등 기관사에 해당하나 Fourth Mate는 4등 항해사로 우리나라 승무기준에 해당되지 않으므로 승무자격증을 발급할 수 없다.
+4. 승무자격증 제3쪽 기재 요령
+ ○ 직무(CAPACITY), 적용제한(LIMITATION APPLYING) 기재
+    - 외국인해기사 면허증의 직무 및 적용제한 내용을 이기하되
+    - 기관부문의 Fourth Engineer는 3등 기관사에 해당하나 Fourth Mate는 4등 항해사로 우리나라 승무기준에 해당되지 않으므로 승무자격증을 발급할 수 없다.
+ ○ 승선선박
+    - 외국인해기사가 근로계약을 체결한 해당선박의 제원 표기
+    - 동일선사의 선박이라 하더라도 전선시에는 자격증 기재사항 변경으로 처리
+ ○ 생년월일 : 외국인해기사 생년월일(월은 영문, 일과 년은 숫자로 표기)
+ ○ 발 급 일 : 승무자격증 발급일
+ ○ 기    타 : 별표 5의 기재요령과 동일

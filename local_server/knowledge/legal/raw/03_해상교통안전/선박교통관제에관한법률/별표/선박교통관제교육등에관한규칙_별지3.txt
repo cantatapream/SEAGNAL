@@ -1,0 +1,31 @@
+[선박교통관제 교육 등에 관한 규칙] 별지3 — 선임선박교통관제사 증서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000260342 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=153121979
+
+■ 선박교통관제 교육 등에 관한 규칙 [별지 제3호서식]
+선임선박교통관제사 증서
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                ┃
+┃┌──┐                        ┌───┐                                      ┃
+┃│IALA│선임선박교통관제사 증서 │해양  │                                      ┃
+┃│logo│VTS Supervisor          │경찰청│                                      ┃
+┃│    │Course Certificate      │로 고 │                                      ┃
+┃└──┘                        └───┘                                      ┃
+┃                                                                                ┃
+┃아래사항을 증명함                                                               ┃
+┃This is to certify that                                                         ┃
+┃0  0  0                                                                         ┃
+┃선임선박교통관제사 교육을 성공적으로 이수하였음                                 ┃
+┃has successfully completed a                                                    ┃
+┃C0103-2 VTS Supervisor Training Course                                          ┃
+┃                                                                                ┃
+┃  Issued on behalf of                                     Course Certificate No:┃
+┃   Korea Coast Guard                             Awarded at                     ┃
+┃  Republic of Korea                          Signature             Date         ┃
+┃                                                                                ┃
+┃IALA 권고 R0103과 C0103-2 교육과정에 따라서 이 증서를 수여함                    ┃
+┃    This Course Certificate is awarded in accordance with IALA Recommendation   ┃
+┃R0103 and Model Course C0103-2                                                  ┃
+┃                                                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+210mm× 297mm[백상지(150g/㎡)]

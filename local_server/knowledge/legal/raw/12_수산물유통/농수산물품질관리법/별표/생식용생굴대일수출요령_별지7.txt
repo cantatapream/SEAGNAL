@@ -1,0 +1,56 @@
+[생식용 생굴 대일 수출 요령] 별지7 — CERTIFICATE OF CATCHING(PRODUCTING) AREA
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000219392 (수집 2026-08-31)
+
+[별지 제7호서식]
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃NATIONAL FISHERY PRODUCTS QUALITY MANAGEMENT SERVICES                     ┃
+┃MINISTRY OF OCEANS AND FISHERIES OF REPUBLIC OF KOREA                     ┃
+┃CERTIFICATE OF CATCHING(PRODUCTING) AREA                                  ┃
+┃(原  産  地  證  明  書)                                                  ┃
+┃  Serial No:                         Date:                                ┃
+┠─────────────────────────────────────┨
+┃ Export Company (輸出會社)                                                ┃
+┠───────────────┬─────────────────────┨
+┃  Name and Representative     │                                          ┃
+┃ (會社名 및 代表者)           │                                          ┃
+┠───────────────┼─────────────────────┨
+┃ Address (輸出會社 住所)      │                                          ┃
+┠───────────────┴─────────────────────┨
+┃ Import Company (輸入會社)                                                ┃
+┠───────────────┬─────────────────────┨
+┃ Name and Representative      │                                          ┃
+┃ (會社名 및 代表者)           │                                          ┃
+┠───────────────┼─────────────────────┨
+┃ Address (輸入會社 住所)      │                                          ┃
+┠───────────────┴─────────────────────┨
+┃ Contents of Certification                                                ┃
+┠───────────────┬─────────────────────┨
+┃ Commodity(品名)              │                                          ┃
+┠───────────────┼─────────────────────┨
+┃ Quantity (數量)              │                                          ┃
+┠───────────────┼─────────────────────┨
+┃ Lot Number of Export         │                                          ┃
+┃ (輸出LOT番號)                │                                          ┃
+┠───────────────┼─────────────────────┨
+┃ Culture Area(Registered      │     號 海域(養殖場登錄番號:           )  ┃
+┃ farm number)                 │                                          ┃
+┃ 生産海域(養殖場登錄番號)     │                                          ┃
+┠───────────────┼─────────────────────┨
+┃ Processor(Registered number) │             (登錄番號:                )  ┃
+┃ 加工工場名(登錄番號)         │                                          ┃
+┠───────────────┼─────────────────────┨
+┃ Date of Production           │                                          ┃
+┃ (採取年月日)                 │                                          ┃
+┠───────────────┼─────────────────────┨
+┃ Remark (備考)                │ P.S.P. 檢査結果 (適合, 不適合)           ┃
+┠───────────────┴─────────────────────┨
+┃      This is to certify that the above mentioned oyster is produced in   ┃
+┃the area approved by the Korea Government in reference to the standards   ┃
+┃and guidances of the Japanese & Korean Food Sanitation Law on raw oyster  ┃
+┃and Paralytic Shellfish Poisoning (PSP) Control.                          ┃
+┃                                                                          ┃
+┃                                                                          ┃
+┃  President of  Oyster             Director of        Regional Office     ┃
+┃  Hanging Culture                  NATIONAL FISHERY PRODUCTS              ┃
+┃  Cooperative of Korea             QUALITY MANAGEMENT SERVICES            ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

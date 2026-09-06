@@ -1,0 +1,554 @@
+[극지해역 운항선박 기준] 별지1 — 극지선박증서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000271216 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=160517769
+
+                                                                                                                    
+  [별지 서식] <개정 2021. 6. 14.>                                                                                   
+                                                  (1면)                                                             
+                                                                                                                    
+  증서번호 제                  호                                                                                   
+  Cert.no.                                                                                                          
+                                                                                                                    
+                                                                                                                    
+  극 지 선 박 증 서                                                                                                 
+  POLAR SHIP CERTIFICATE                                                                                            
+                                                                                                                    
+  대    한    민   국                                                                                               
+  REPUBLIC OF KOREA                                                                                                 
+                                                                                                                    
+  이 증서에는 극지선박증서에 대한 설비기록부를 추록으로 첨부하여야 합니다.                                          
+  This certificate shall be supplemented by a Record of Equipment for the Polar Ship Certificate.                   
+                                                                                                                    
+  개정된 1974년 해상에서의 인명안전을 위한 국제협약」에 따라 대한민국 정부의 권한으로 발행합니다.                   
+  Issued under the provisions of the International Convention for the Safety of Life at Sea, 1974, as               
+  amended under the authority of the Government of Republic of Korea by                            .                
+                                                                                                                    
+  ┌──────┬─────────┬────────┬───────┬──────┐                              
+  │선      명  │선 박 번 호       │선  적  항      │총 톤 수      │IMO 번호*   │                              
+  │Name of Ship│Distinctive Number│Port of Registry│Gross Tonnage │IMO Number* │                              
+  │            │or Letters        │                │              │            │                              
+  ├──────┼─────────┼────────┼───────┼──────┤                              
+  │            │                  │                │              │            │                              
+  └──────┴─────────┴────────┴───────┴──────┘                              
+                                                                                                                    
+  이 증서는 다음을 증명합니다:                                                                                      
+  THIS IS TO CERTIFY:                                                                                               
+                                                                                                                    
+  1. 이 선박은 극지해역 운항 선박에 대한 국제 코드의 안전관련 규정에 적합합니다.                                    
+   That the ship has been surveyed in accordance with the applicable safety-related provisions of the               
+  International Code for Ships Operating in Polar Waters.                                                           
+                                                                                                                    
+  2. 선박 검사결과 이 선박의 구조, 설비, 의장, 무선설비, 선박 재료 및 그 상태는 모든 면에서 코드의 관련             
+  규정에 적합합니다.                                                                                                
+  That the survey** showed that the structure, equipment, fittings, radio station                                   
+  arrangements, and  materials of the ship and the condition thereof are in all respects                            
+  satisfactory and that the ship complies with the relevant provisions of the Code.                                 
+                                                                                                                    
+  다음과 같은 범주 A/B/C*** 선박   Category A/B/C *** ship as follows:                                              
+                                                                                                                    
+  대빙 등급 및 흘수 범위  Ice Class and Ice Strengthened Draft Range                                                
+  ┌─────┬───────┬───────┐                                                                    
+  │대빙 등급 │최대 흘수     │최소 흘수     │                                                                    
+  │Ice class │Maximum draft │Minimum draft │                                                                    
+  │          ├───┬───┼───┬───┤                                                                    
+  │          │후 Aft│전 Fwd│후 Aft│전 Fwd│                                                                    
+  ├─────┼───┼───┼───┼───┤                                                                    
+  │          │      │      │      │      │                                                                    
+  ├─────┼───┼───┼───┼───┤                                                                    
+  │          │      │      │      │      │                                                                    
+  └─────┴───┴───┴───┴───┘                                                                    
+    2.1 선종 Ship type:  탱커 Tanker  /  여객선 passenger ship  /  그 외 선박 other***                              
+                                                                                                                    
+    2.2 선박이 얼음이 없는 해역 / 개방해역 / 기타 얼음 조건***의 해역에서만 운항하도록 제한되었음                   
+        Ship restricted to operate in ice free waters / open waters / other ice conditions***                       
+                                                                                                                    
+  *   IMO에서 A.1117(30)로 채택된 IMO 선박식별번호계획을 따를 것.                                                   
+  In accordance with IMO ship identification number scheme, adopted by the Organization by resolution A.1117(30).   
+  **  극지해역을 운항하는 선박에 대한 국제 코드의 1.3규칙에 따를 것                                                 
+  Subject to regulation 1.3 of the International Code for Ships Operating in Polar Waters.                          
+  *** 해당되지 아니하는 것은 지울 것  Delete as appropriate.                                                        
+                                                                                                                    
+    210㎜×297㎜[백상지 150g/㎡]                                                                                    
+                                                                                                                    
+                                                                                                                    
+    (2면)                                                                                                           
+                                                                                                                    
+    2.3 저온에서의 운항을 위한 선박 여부:  예 / 아니오 *                                                            
+   Ship intended to operate in low air temperature: Yes / No*                                                       
+      2.3.1 극지운항온도*                                                                                           
+      Polar Service Temperature:  ℃ / Not Applicable*                                                              
+                                                                                                                    
+    2.4 최대예상구조시간                                                                                            
+        Maximum expected time of rescue         days                                                                
+                                                                                                                    
+  3. 이 선박은 개정된 「1974년 해상에서의 인명안전을 위한 국제협약」의 제14장 4규칙에 따라 대체                     
+  설계 및ㆍ배치되었음 / 배치되지 않았음*                                                                            
+     The ship was / was not* subjected to an alternative design and arrangements in pursuance of                    
+  regulation(s) XIV/4 of the International Convention for the Safety of Life at Sea, 1974, as amended.              
+                                                                                                                    
+  4. 구조, 기관설비, 전기설비, 소방설비 및 구명설비와 그 배치에 대한 대체 설계 및 배치를 승                         
+  인한 문서가 이 증서에 첨부되었음 / 첨부되지 않았음*                                                               
+  A Document of approval of alternative design and arrangements for structure, machinery and electrical             
+  installations/fire protection/life-saving appliances and arrangements is / is not* appended to this Certificate.  
+                                                                                                                    
+  5. 운항 제한 Operational limitations                                                                              
+     이 선박은 극지해역에서 운항 시 다음 제한조건이 있음.                                                           
+     The ship has been assigned the following limitations for operation in polar waters:                            
+                                                                                                                    
+    5.1 얼음 조건  Ice conditions:                                                                                  
+                                                                                                                    
+    5.2 온도  Temperature:                                                                                          
+                                                                                                                    
+    5.3 고위도  High latitudes:                                                                                     
+                                                                                                                    
+  이 증서는 코드의 1.3규칙에 따라 연차검사 및 중간검사를 받는 조건으로       년   월   일까지                       
+  유효합니다.                                                                                                       
+  This certificate is valid until                                    subject to the                                 
+  annual/periodical/intermediate surveys in accordance with regulation 1.3 of the Code.                             
+                                                                                                                    
+  이 증서의 발급을 위한 검사완료일:                                                                                 
+  Completion date of the survey on which this certificate is based:                                                 
+                                                                                                                    
+             년        월        일                                에서 발행합니다.                                 
+  Issued at                              on the            day of                        .                          
+                       (증서 발행 장소 Place of issued of certificate)                                              
+                                                                                                                    
+                                                                                                                    
+                                                                                                                    
+      ───────────────────                                                                        
+        해양수산부장관 ??                                                                                         
+        Minister of Oceans and Fisheries                                                                            
+        한국해양교통안전공단(한글 및 영문)                                                                          
+         선급법인명(한글 및 영문)                                                                                   
+                                                                                                                    
+                                                                                                                    
+  *  해당되지 아니하는 것은 지울 것                                                                                 
+     Delete as appropriate.                                                                                         
+                                                                                                                    
+                                                                                              
+  ( 3 면/ Page)                                                                               
+                                                                                              
+                                                                                              
+  연차, 정기 및 중간검사 확인 Endorsement for annual, periodical and intermediate survey      
+                                                                                              
+                                                                                              
+                                                                                              
+  이 증서는 코드의 1.3규칙에 따라 요구되는 검사결과 이 선박이 코드의 관련 요건에 적합함을     
+  증명합니다.                                                                                 
+  THIS IS TO CERTIFY that, at a survey required by regulation 1.3 of the Code, the            
+  ship was found to comply with the relevant requirements of the Code.                        
+                                                                                              
+                                                                                              
+                                                                                              
+  연차검사 Annual survey:                   서명:                                             
+                                                    ─────────────────────
+                                            Signed:   (Signature of authorized official)      
+                                                                                              
+                                            장소:                                             
+                                                                                              
+                                            Place:                                            
+                                                    ─────────────────────
+                                            날짜:                                             
+                                                                                              
+                                            Date:                                             
+                                                    ─────────────────────
+                                                                                              
+                                                                                              
+                                                                                              
+                                                                                              
+  연차/정기/중간 검사                       서명:                                             
+                                                    ─────────────────────
+  Annual/Periodical/Intermediate** survey:  Signed:   (Signature of authorized official)      
+                                                                                              
+                                            장소:                                             
+                                                                                              
+                                            Place:                                            
+                                                    ─────────────────────
+                                            날짜:                                             
+                                                                                              
+                                            Date:                                             
+                                                    ─────────────────────
+                                                                                              
+                                                                                              
+                                                                                              
+                                                                                              
+  연차/정기/중간 검사                       서명:                                             
+                                                      ────────────────────
+  Annual/Periodical/Intermediate** survey:  Signed:     (Signature of authorized official)    
+                                                                                              
+                                            장소:                                             
+                                                                                              
+                                            Place:                                            
+                                                      ────────────────────
+                                            날짜:                                             
+                                                                                              
+                                            Date:                                             
+                                                      ────────────────────
+                                                                                              
+                                                                                              
+                                                                                              
+                                                                                              
+  연차검사 Annual survey:                   서명:                                             
+                                                        ───────────────────
+                                            Signed:       (Signature of authorized official)  
+                                                                                              
+                                            장소:                                             
+                                                                                              
+                                            Place:                                            
+                                                        ───────────────────
+                                            날짜:                                             
+                                                                                              
+                                            Date:                                             
+                                                        ───────────────────
+                                                                                              
+                                                                                              
+                                                                                              
+                                                                                              
+                                                                                              
+                                                                                              
+  ** 해당되지 아니하는 것은 지울 것 Delete as appropriate.                                    
+                                                                                              
+                                                                                            
+  ( 4 면/ Page)                                                                             
+                                                                                            
+                                                                                            
+  국제해상인명안전협약의 제I장 제14규칙 (c)항이 적용되는 경우 증서의 유효기간이 5년 미만    
+  일 때 증서의 유효기간을 연장하기 위한 이서**                                              
+  Endorsement to extend the certificate if valid for less than five years where             
+  regulation I/14(c) of the Convention applies**                                            
+                                                                                            
+                                                                                            
+                                                                                            
+  이 증서는 선박이 협약의 관련 요건에 적합하므로 협약의 제I장 제14규칙 (c)항에 따라         
+                  까지 유효한 것으로 인정합니다.                                            
+  This ship complies with the relevant requirements of the Convention, and this             
+  certificate shall, in accordance with regulation I/14(c) of the Convention, be accepted   
+  as valid until _________________________                                                  
+                                                                                            
+                                                                                            
+                                                                                            
+    서명:                                                                                   
+            ────────────────────────────────────────
+    Signed:   (Signature of authorized official)                                            
+                                                                                            
+    장소:                                                                                   
+                                                                                            
+    Place:                                                                                  
+            ────────────────────────────────────────
+    날짜:                                                                                   
+                                                                                            
+    Date:                                                                                   
+            ────────────────────────────────────────
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+  정기검사 완료 후 국제해상인명안전협약 제I장 제14규칙 (d)항이 적용되는 경우의 이서**       
+  Endorsement where the renewal survey has been completed and regulation I/14(d) of         
+  the Convention applies**                                                                  
+                                                                                            
+                                                                                            
+                                                                                            
+  이 증서는 선박이 협약의 관련 요건에 적합하므로 협약의 제I장 제14규칙 (d)항에 따라         
+                까지 유효한 것으로 인정합니다.                                              
+  The ship complies with the relevant requirements of the Convention, and this              
+  certificate shall, in accordance with regulation I/14(d) of the Convention, be accepted   
+  as valid until __________________________                                                 
+                                                                                            
+                                                                                            
+                                                                                            
+    서명:                                                                                   
+            ────────────────────────────────────────
+    Signed:   (Signature of authorized official)                                            
+                                                                                            
+    장소:                                                                                   
+                                                                                            
+    Place:                                                                                  
+            ────────────────────────────────────────
+    날짜:                                                                                   
+                                                                                            
+    Date:                                                                                   
+            ────────────────────────────────────────
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+  ** 해당되지 아니하는 것은 지울 것 Delete as appropriate.                                  
+                                                                                            
+                                                                                            
+  ( 5 면/ Page)                                                                             
+                                                                                            
+                                                                                            
+  국제해상인명안전협약 제I장 제14규칙 (e)항 또는 (f)항이 적용되는 경우 검사예정항에 도착시  
+  까지 또는 유예기간까지 증서의 유효기간을 연장하기 위한 이서**                             
+  Endorsement to extend the validity of the certificate until reaching the port of survey   
+  or for a period of grace where regulation I/4(e) or I/14(f) of the Convention applies**   
+                                                                                            
+                                                                                            
+                                                                                            
+  이 증서는 협약의 제I장 제14규칙 (e)항/제I장 제14규칙 (f)항**에 따라서                       
+                 까지 유효한 것으로 인정합니다.                                             
+  This certificate shall, in accordance with regulation I/14(e)/I/14(f)** of the Convention,   
+  be accepted as valid until                                                                
+                                                                                            
+                                                                                            
+                                                                                            
+      서명:                                                                                 
+              ───────────────────────────────────────
+      Signed:   (Signature of authorized official)                                          
+                                                                                            
+      장소:                                                                                 
+                                                                                            
+      Place:                                                                                
+              ───────────────────────────────────────
+      날짜:                                                                                 
+                                                                                            
+      Date:                                                                                 
+              ───────────────────────────────────────
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+  제I장 제14규칙 (h)항이 적용되는 경우 연차일을 앞당기는 것에 대한 이서**                   
+  Endorsement for advancement of anniversary date where regulation I/14(h) of the           
+  Convention applies**                                                                      
+                                                                                            
+                                                                                            
+                                                                                            
+  협약의 제I장 제14규칙 (h)항에 따라 새로운 연차일은                       이다.            
+  In accordance with regulation I/14(h) of the Convention, the new anniversary date is      
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+    서명:                                                                                   
+            ────────────────────────────────────────
+    Signed:   (Signature of authorized official)                                            
+                                                                                            
+    장소:                                                                                   
+                                                                                            
+    Place:                                                                                  
+            ────────────────────────────────────────
+    날짜:                                                                                   
+                                                                                            
+    Date:                                                                                   
+            ────────────────────────────────────────
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+  협약의 제I장 제14규칙 (h)항에 따라 새로운 연차일은                     이다.              
+  In accordance with regulation I/14(h) of the Convention, the new anniversary date is      
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+    서명:                                                                                   
+            ────────────────────────────────────────
+    Signed:   (Signature of authorized official)                                            
+                                                                                            
+    장소:                                                                                   
+                                                                                            
+    Place:                                                                                  
+            ────────────────────────────────────────
+    날짜:                                                                                   
+                                                                                            
+    Date:                                                                                   
+            ────────────────────────────────────────
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+  ** 해당되지 아니하는 것은 지울 것 Delete as appropriate.                                  
+                                                                                            
+                                                                      
+  ( 6 면/ Page)                                                       
+                                                                      
+                                                                      
+  극지선박증서에 대한 설비기록부                                      
+  Record of Equipment for the Polar Ship Certificate                  
+                                                                      
+                                                                      
+                                                                      
+  이 기록부는 극지선박증서에 영구적으로 첨부하여야 합니다.            
+  This record shall be permanently attached to the Polar Ships Certificate  
+                                                                      
+                                                                      
+                                                                      
+  「극지해역을 운항하는 선박에 대한 국제 코드」에 따른 설비의 기록부  
+  RECORD OF EQUIPMENT FOR COMPLIANCE WITH THE INTERNATIONAL CODE      
+  FOR SHIPS OPERATING IN POLAR WATERS                                 
+                                                                      
+                                                                      
+                                                                      
+  1.    선박 제원 Particulars of ship                                 
+                                                                      
+                                                                      
+                                                                      
+  선명 Name of ship:                                                  
+                    ────────────────────────  
+  선박번호 Distinctive number or letters:                             
+                                          ─────────────  
+                                                                      
+                                                                      
+  2    설비의 상세 Record of equipment                                
+                                                                      
+                                                                      
+                                                                      
+  2.1  구명설비의 상세 Life-saving appliances                         
+┌────────────────────────────────┬┐
+│1   단열기능을 갖춘 방수복의 전체 수량                          ││
+│    Total number of immersion suits with insulation:            ││
+│                                                                ├┤
+│1.1   선원용 for crew                                           ││
+│                                                                ├┤
+│1.2   여객용 for passengers                                     ││
+│                                                                ├┤
+│2   보온구의 전체 수량 Total number of thermal protective aids  ││
+│                                                                ├┤
+│3   개인 및 그룹 생존장비                                       ││
+│    Personal and Group Survival Equipment                       ││
+│                                                                ├┤
+│3.1     개인 생존장비-       명                                 ││
+│        Personal survival equipment-for number of persons       ││
+│                                                                ├┤
+│3.2     그룹 생존장비-       명                                 ││
+│        Group survival equipment-for number persons             ││
+│                                                                ├┤
+│3.3     폴라코드 제8장에 부합하는 구명뗏목의 전체 수용능력      ││
+│        Total capacity of liferafts in compliance with chapter 8 ││
+│        of the Polar Code                                       ││
+│                                                                ├┤
+│3.4     폴라코드 제8장에 따른 구명정의 전체 수용능력            ││
+│        Total capacity of lifeboats in compliance with chapter  ││
+│        8 of the Polar Code                                     ││
+└────────────────────────────────┴┘
+                                                                      
+                                                                      
+                                                                          
+  ( 7 면/ Page)                                                           
+                                                                          
+                                                                          
+  2.2  항해설비의 상세 Navigation equipment                               
+┌──────────────────────────────────┬┐
+│1   두 개의 독립된 음향측심기 또는 두 개의 분리된 독립적인 변환     ││
+│    기를 갖춘 하나의 음향측심기                                     ││
+│    Two independent echo-sounding devices or a device with          ││
+│    two separate independent transducers                            ││
+│                                                                    ├┤
+│2   선교에서 조종 가능한 원격 회전이 가능하며 광폭이 좁은 두 개     ││
+│    의 탐조등 또는 시각적으로 얼음을 발견할 수 있는 기타 수단       ││
+│    Remotely rotatable, narrow-beam search lights controllable      ││
+│    from the bridge or other means to visually detect ice           ││
+│                                                                    ├┤
+│3   선미 방향에서 보이는 수동으로 작동하는 붉은 섬광등(쇄빙선       ││
+│    유도운항을 하는 선박에 한정함)                                  ││
+│    Manually initiated flashing red light visible from astern (for  ││
+│    ships involved in icebreaking operations)                       ││
+│                                                                    ├┤
+│4   자기컴파스 외에 선수방위를 결정하고 디스플레이 하는 두 개       ││
+│    이상의 독립된 수단                                              ││
+│    Two or more non-magnetic independent means to                   ││
+│    determine and display heading                                   ││
+│                                                                    ├┤
+│5   GNSS 컴파스 또는 이와 동등한 수단(위도 80도 이상을 항해하는     ││
+│    선박에 한정함)                                                  ││
+│    GNSS compass or equivalent (for ships proceeding to             ││
+│    latitudes over 80 degrees)                                      ││
+└──────────────────────────────────┴┘
+                                                                        
+  2.3  통신설비의 상세 Communication equipment                          
+┌─────────────────────────────────┬┐
+│1   뒤 따르는 선박에 호송 및 비상 운전상태를 알릴 수 있는 선미를  ││
+│    향한 음향 신호 시스템(쇄빙 유도업무를 하는 선박에 한정함)     ││
+│    Sound signaling system mounted to face astern to indicate     ││
+│    escort and emergency maneuvres to following ships as          ││
+│    described in the International Code of Signals (for ships     ││
+│    intended to provide icebreaking escort).                      ││
+│                                                                  ├┤
+│                                                                  ││
+│                                                                  ││
+│2   구조 협력 센터와의 통화 및 데이터 통신                        ││
+│    Voice and/or data communications with relevant rescue         ││
+│    coordination centres.                                         ││
+│                                                                  ├┤
+│                                                                  ││
+│                                                                  ││
+│3   121.5와 123.1 메가헤르쯔에서 항공기와의 통화를 위한 장비      ││
+│    Equipment for voice communications with aircraft on 121.5     ││
+│    and 123.1 MHz.                                                ││
+│                                                                  ├┤
+│                                                                  ││
+│                                                                  ││
+│4   쌍방향 통화 및 데이터 통신을 통한 원격의료지원 서비스         ││
+│    Two-way voice and data communication with a                   ││
+│    Telemedical Assistance Service (TMAS).                        ││
+│                                                                  ├┤
+│                                                                  ││
+                                                                        
+                                                                                            
+                                                                        ( 8 면/ Page)       
+                                                                                            
+                                                                                            
+│5   모든 구조정, 구명정은 다음의 기기를 갖추어야 함(저온에서 운     │                  │
+│    항하는 선박에 한정함)                                           │                  │
+│    All rescue boats and lifeboats, whenever released for           │                  │
+│    evacuation, have a device (for ships certified to operate in    │                  │
+│    low air temperature):                                           │                  │
+│                                                                    │                  │
+│                                                                    │                  │
+│                                                                    │                  │
+│5.1         선박 대 육상간 경보를 송신하는 기기                     │                  │
+│            for transmitting vessel to shore alerts;                │                  │
+│                                                                    ├─────────┤
+│5.2         위치 신호를 송신하는 기기                               │                  │
+│            for transmitting signals for location;                  │                  │
+│                                                                    ├─────────┤
+│5.3         현장 통신을 송수신 할 수 있는 기기                      │                  │
+│            for transmitting and receiving on-scene communications. │                  │
+│                                                                    ├─────────┤
+│                                                                    │                  │
+│                                                                    │                  │
+│6   모든 생존정은 다음의 기기를 갖추어야 함                         │                  │
+│    All other survival craft have a device:                         │                  │
+│                                                                    │                  │
+│                                                                    │                  │
+│                                                                    ├─────────┤
+│6.1         위치 신호를 송신하는 기기                               │                  │
+│            for transmitting signals for location; and              │                  │
+│                                                                    ├─────────┤
+│6.2         현장 통신을 송수신 할 수 있는 기기                      │                  │
+│            for transmitting and receiving on-scene communications. │                  │
+└──────────────────────────────────┴─────────┘
+                                                                                            
+                                                                                            
+  이 기록부는 모든 점에서 정확함을 증명합니다.                                              
+                                                                                            
+  THIS IS TO CERTIFY that this Record is correct in all respects                            
+                                                                                            
+                                                                                            
+                                                                                            
+           년      월      일                          에서 발행합니다.                     
+                                                                                            
+  Issued at                         on the            day of                            .   
+                                                                                            
+               (기록부의 발행 장소 Place of issue of the Record)                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                  ─────────────────────────────────────
+                    해양수산부장관 ??                                                     
+                                                                                            
+                    Minister of Oceans and Fisheries                                        
+                                                                                            
+                    한국해양교통안전공단(한글 및 영문)                                      
+                                                                                            
+                     선급법인명(한글 및 영문)                                               
+                                                                                            

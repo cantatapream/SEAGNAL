@@ -32,6 +32,8 @@ const path = require('path');
 const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
 const A = require('/home/user/SEAGNAL/local_server/services/article_text.js');
 
+// 생산(`article_text.js` squash)과 같은 정규화 — 이름 비교에만 쓴다.
+const squash = s0 => String(s0 || '').replace(/\.txt$/i, '').replace(/[^0-9A-Za-z가-힣]/g, '');
 const REPO = path.resolve(__dirname, '../../../../..');   // rawPathOf 는 저장소 루트 기준 상대경로를 준다
 const WIKI = path.resolve(__dirname, '../..', 'wiki');
 const argv = process.argv.slice(2);
@@ -92,14 +94,20 @@ function fileOf(baseRel, tier, law) {
   const dir = path.join(REPO, baseRel);
   if (tier === 'notice') {
     const nd = path.join(dir, '행정규칙');
-    if (!fs.existsSync(nd)) return null;
+    if (!fs.existsSync(nd)) {
+      const g0 = A.pickNoticeGlobal && A.pickNoticeGlobal(law);
+      return g0 ? path.join(REPO, g0) : null;
+    }
     // pickNoticeFile 은 GitHub Contents API 응답 모양을 받는다 — `{name, type}` 둘 다 있어야 한다.
     // ⚠`type` 을 빼먹었더니 그 함수가 전부 건너뛰어 833건이 "고시 파일 못 고름"으로 잡혔다
     //   (2026-08-21, 보고 전에 손으로 한 건 열어 보고 발견 — 파일은 멀쩡히 있었다).
     const picked = A.pickNoticeFile(
       fs.readdirSync(nd, { withFileTypes: true })
         .map(e => ({ name: e.name, type: e.isDirectory() ? 'dir' : 'file' })), law);
-    return picked ? path.join(nd, picked) : null;
+    if (picked) return path.join(nd, picked);
+    // 자기 폴더에서 못 찾으면 저장소 전체 고시 지도를 본다 — 생산과 같은 순서(L-136).
+    const g = A.pickNoticeGlobal && A.pickNoticeGlobal(law);
+    return g ? path.join(REPO, g) : null;
   }
   const f = TIER_FILE[tier] || TIER_FILE.law;
   const p = path.join(dir, f);
@@ -109,7 +117,26 @@ function fileOf(baseRel, tier, law) {
   //   이 검사가 그걸 몰라서 **원문이 손에 있는데도 "계층 파일 없음"으로 세고 있었다**
   //   (실측: raw/15_관련타부처 491개 폴더 중 224개가 발췌본만 가진다).
   const alt = path.join(dir, f.replace('.txt', '_발췌.txt'));
-  return fs.existsSync(alt) ? alt : null;
+  if (fs.existsSync(alt)) return alt;
+  // ★그 자체가 대통령령인 법령(공무원 여비 규정·보안업무규정 등 실측 6폴더)은 파일 이름이
+  //   `대통령령.txt`·`대통령령_발췌.txt` 다. 생산 코드와 **같은 순서**로 본다(L-136).
+  if (tier === 'decree') {
+    for (const n of ['대통령령.txt', '대통령령_발췌.txt']) {
+      const p2 = path.join(dir, n);
+      if (fs.existsSync(p2)) return p2;
+    }
+  }
+  // ★그 자체가 "○○규칙"·"○○령"인 법령은 그 폴더의 `법률.txt` 안에 있다 — 생산과 같은 규칙(L-136).
+  //   폴더 이름이 인용된 법령 이름과 같을 때만 쓴다.
+  const bareLaw = String(law || '').replace(/[「」『』]/g, '').replace(/\s*[（(][^)）]*[)）]\s*$/, '').trim();
+  if (tier !== 'law' && (squash(path.basename(dir)) === squash(String(law || '').replace(/[「」『』]/g, ''))
+      || squash(path.basename(dir)) === squash(bareLaw))) {
+    for (const n of ['법률.txt', '법률_발췌.txt']) {
+      const p3 = path.join(dir, n);
+      if (fs.existsSync(p3)) return p3;
+    }
+  }
+  return null;
 }
 
 const numsCache = new Map();
@@ -120,8 +147,12 @@ const numsCache = new Map();
  *   칸(`제7~18조`)에는 그 삭제 조가 딸려 들어온다 — 이걸 결함으로 세면 **고칠 수 없는 것을
  *   고치라고 시키는 셈**이다(삭제는 국가가 한 것이지 우리가 틀린 게 아니다).
  */
-function articleNumbersOf(file, tier) {
-  const k = file + '|' + tier;
+// ★addenda=true 면 **부칙 구간만** 본다(2026-08-28). 아래 본문 스캔은 부칙을 일부러 빼는데,
+//   `○○법 부칙 제2조` 같은 인용은 정확히 그 뺀 자리를 가리킨다 — 그래서 갈래를 나눈다.
+//   부칙은 줄머리 `제2조(제목)` 꼴이라 고시와 같은 규칙으로 읽는다(article_text.js 와 같은 판단).
+function articleNumbersOf(file, tier, addenda) {
+  let k = file + '|' + tier;
+  if (addenda) k += '#부칙';
   if (numsCache.has(k)) return numsCache.get(k);
   const out = { live: new Set(), dead: new Set() };
   try {
@@ -139,6 +170,16 @@ function articleNumbersOf(file, tier) {
     //   ⚠고치는 범위를 좁힌다: **찾는 방식만 늘리고(합집합) 줄이지 않는다.** 이 도구는
     //   게이트 계측용이므로 여기서만 보정하고, 챗봇이 쓰는 `article_text.js` 는 건드리지 않는다
     //   (런타임 동작을 바꾸는 것은 별도 판단 사항이다).
+    if (addenda) {
+      // 부칙 구간만 남기고, 그 안의 줄머리 `제N조(` 를 조로 인정한다.
+      const cut = text.search(/(?:^|\n)\s*\[?\s*부\s*칙/);
+      const tail = cut >= 0 ? text.slice(cut) : '';
+      const re2 = /(?:^|\n)제(\d+)조(?:의(\d+))?\(/g;
+      let a2;
+      while ((a2 = re2.exec(tail)) !== null) out.live.add('제' + a2[1] + '조' + (a2[2] ? '의' + a2[2] : ''));
+      numsCache.set(k, out);
+      return out;
+    }
     if (tier !== 'notice') {
       // ⚠**부칙은 빼고 본다**(2026-08-23 적대검증에서 지적).
       //   부칙에는 `제15조(다른 법령의 개정)` 처럼 **다른 법을 고치는 조문**이 적혀 있는데,
@@ -154,18 +195,29 @@ function articleNumbersOf(file, tier) {
         out.live.add('제' + a[1] + '조' + (a[2] ? '의' + a[2] : ''));
       }
     }
+    // ★"삭제된 조" 표기가 실제로는 여러 꼴이다(2026-08-31 전수 확인 — 종전 패턴 263개 → 342개).
+    //   실측 표기: `제42조 삭 제 <2018.12.31.>`(삭제 사이 공백) · `제10조 < 삭  제`(공백 둘) ·
+    //   `제47조 <개정 2008.7.18.> <삭제 2020.9.4>`(앞에 다른 꺾쇠가 하나 더) ·
+    //   `제63조 ～ 제65조 <삭제 2002.1.18>`(여러 조를 한 번에 삭제).
+    //   못 잡으면 **국가가 지운 조를 "우리가 못 받아온 조"로 세게 된다** — 실제로 선박설비기준
+    //   제63~65조·어선설비기준 제42·62조 등이 그렇게 결함으로 집계되고 있었다.
     const re = tier === 'notice'
-      ? /(?:^|\n)제(\d+)조(?:의(\d+))?\s*(?:<[^>]*)?삭제/g
-      : /(?:^|\n)\[제(\d+)조(?:의(\d+))?\][^\n]*삭제/g;
+      ? /(?:^|\n)제(\d+)조(?:의(\d+))?\s*(?:[~～∼]\s*제(\d+)조\s*)?(?:<[^>]*>\s*)*[<(]?\s*삭\s*제/g
+      : /(?:^|\n)\[제(\d+)조(?:의(\d+))?\][^\n]*삭\s*제/g;
     let m;
-    while ((m = re.exec(text)) !== null) out.dead.add('제' + m[1] + '조' + (m[2] ? '의' + m[2] : ''));
+    while ((m = re.exec(text)) !== null) {
+      out.dead.add('제' + m[1] + '조' + (m[2] ? '의' + m[2] : ''));
+      // `제63조 ～ 제65조 <삭제>` 는 그 사이 조가 통째로 지워진 것이다 — 사이 번호도 다 담는다.
+      const to = m[3] ? parseInt(m[3], 10) : 0;
+      for (let n = parseInt(m[1], 10) + 1; to && n <= to; n++) out.dead.add('제' + n + '조');
+    }
   } catch (_) { /* 못 읽으면 빈 집합 */ }
   numsCache.set(k, out);
   return out;
 }
 
-const now = { rows: 0, ok: 0, deleted: 0, no_article: 0, no_base: 0, no_file: 0, no_notice: 0, skipped: 0 };
-const ex = { no_article: [], no_base: [], no_file: [], no_notice: [] };
+const now = { rows: 0, ok: 0, deleted: 0, no_article: 0, no_parse: 0, no_base: 0, no_file: 0, no_notice: 0, skipped: 0 };
+const ex = { no_article: [], no_parse: [], no_base: [], no_file: [], no_notice: [] };
 
 for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities']) {
   const D = path.join(WIKI, dir);
@@ -178,10 +230,37 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
       || (fm ? ((/^law:\s*(.+)$/m.exec(fm[1]) || [])[1] || '').trim().replace(/^["']|["']$/g, '') : '');
     for (const row of R.extractCitationChain(src.replace(/^---[\s\S]*?---\n/, ''))) {
       now.rows++;
-      const law = String(row.law || ''), tier = String(row.tier || 'law');
-      const jos = joTokens(row.article);
+      const law = String(row.law || '');
+      let tier = String(row.tier || 'law');
+      // ★생산이 실제로 여는 조만 센다(2026-08-31, L-136 — 게이트가 판정을 다시 만들면 안 된다).
+      //   종전에는 `joTokens` 로 칸 안의 `제N조` 를 **전부** 긁었다. 그런데 조문 칸에는
+      //   `법 제8조② 위임`·`별표6(법 제52조 위임)`·`제6조·시행령 제42조①…` 처럼
+      //   **다른 문서의 조**가 함께 적힌 것이 있고, 생산(`parseArticleRef`)은 그런 번호를
+      //   애초에 열지 않는다(직접 돌려 확인함 — 앞의 셋은 각각 null·null·제6조만). 그걸
+      //   긁어다 "그 고시에 그 조가 없다"고 세면 **일어나지 않는 실패를 세는 것**이다.
+      //   ⚠이 수정으로 줄어드는 숫자는 **자료가 좋아진 것이 아니라 계측이 고쳐진 것**이다.
+      const ref = A.parseArticleRef(row.article, tier, law);
+      // ⚠생산이 이 칸을 아예 못 읽는 경우는 **따로 센다**(`no_parse`). 처음엔 "V5-5 소관"이라며
+      //   건너뛰기로 넣었다가, 실제로 세어 보니 190줄이고 **어느 게이트도 그걸 세고 있지 않았다**
+      //   (reach_eval 의 같은 갈래는 14줄뿐). 건너뛰기로 넣으면 진짜 문제를 감추게 된다.
+      //   내용은 두 갈래다 — ⓐ`법 제8조② 위임`처럼 다른 문서의 조가 적힌 칸,
+      //   ⓑ`제127조·제129조~제132조`처럼 나열과 범위를 섞어 적어 파서가 포기하는 칸.
+      //   둘 다 "챗봇이 이 줄로는 원문을 못 연다"는 점에서 같다.
+      if (!ref) {
+        now.no_parse++;
+        if (ex.no_parse.length < 400) ex.no_parse.push(`${dir}/${f}  |  ${law.slice(0, 30)}  |  ${String(row.article).slice(0, 40)}`);
+        continue;
+      }
+      if (ref.mode === 'whole' || ref.mode === 'annex') { now.skipped++; continue; }
+      const jos = (ref.joList && ref.joList.length ? ref.joList : (ref.jo ? [ref.jo] : []))
+        .filter(j => /^제\d+조(?:의\d+)?$/.test(j));
       if (!jos.length) { now.skipped++; continue; }              // 별표·별지·설명뿐인 칸은 V5-5 소관
-      const baseRel = A.resolveBase(law, baseLaw, tier);
+      let baseRel = A.resolveBase(law, baseLaw, tier);
+      // 이름이 우리가 가진 고시면 그 고시가 있는 법 폴더를 쓴다 — 생산과 같은 순서(L-136).
+      if (!baseRel) {
+        const g = A.pickNoticeGlobal && A.pickNoticeGlobal(law);
+        if (g) { baseRel = g.replace(/\/행정규칙\/[^/]+$/, ''); tier = 'notice'; }
+      }
       if (!baseRel) {
         now.no_base++;
         if (ex.no_base.length < 400) ex.no_base.push(`${dir}/${f}  |  ${law.slice(0, 34)}  |  ${String(row.article).slice(0, 24)}`);
@@ -196,15 +275,30 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
         if (ex[k].length < 400) ex[k].push(`${dir}/${f}  |  ${law.slice(0, 40)}`);
         continue;
       }
-      const have = articleNumbersOf(file, tier);
-      const miss = jos.filter(j => !have.live.has(j) && !have.dead.has(j));
+      const have = articleNumbersOf(file, tier, A.isAddendaCell && A.isAddendaCell(law));
+      let miss = jos.filter(j => !have.live.has(j) && !have.dead.has(j));
+      // ★"없다"고 말하기 전에 **생산 함수로 한 번 더 확인한다**(2026-08-31, L-136·§6).
+      //   빠른 판정에 쓰는 `listArticleNumbers` 는 조문 구간을 별표·부칙 앞에서 끊는다(부칙의
+      //   제1조가 본문 조로 섞이는 것을 막는 정당한 장치다). 그런데 「현장승선실습 표준협약서」처럼
+      //   **고시의 알맹이가 별표 안에 든 문서**는 그 조가 전부 경계 뒤에 있어, 파일에 멀쩡히 있는데도
+      //   "그 조 없음"으로 세어졌다. 챗봇이 한 조를 열 때 쓰는 것은 `extractArticleBlock` 이고
+      //   그쪽은 경계를 안 자르므로 실제로는 열린다. 없다고 셀 후보만 다시 보므로 비용은 미미하다.
+      if (miss.length) {
+        try {
+          const text = fs.readFileSync(file, 'utf8');
+          miss = miss.filter(j => !A.extractArticleBlock(text, j, tier));
+        } catch (_) { /* 못 읽으면 종전 판정을 그대로 둔다 */ }
+      }
       if (!miss.length) {
         // 삭제된 조만 걸린 줄은 "열린다" 로 세되 따로 표시해 둔다(고칠 수 있는 결함이 아니다).
         if (jos.some(j => !have.live.has(j) && have.dead.has(j))) now.deleted++;
         now.ok++; continue;
       }
       now.no_article++;
-      if (ex.no_article.length < 40) {
+      // 표본 상한을 40 → 400 으로 올린다(2026-08-28) — 다른 세 갈래는 이미 400 인데 여기만
+      // 40 이라, 185건을 유형별로 나누려 해도 **40건까지밖에 못 봤다.** 진단용 목록일 뿐이라
+      // 숫자(now.no_article)에는 영향이 없다.
+      if (ex.no_article.length < 400) {
         ex.no_article.push(`${dir}/${f}  |  ${law.slice(0, 30)}  |  ${String(row.article).slice(0, 26)}  ← ${miss.slice(0, 4).join('·')}  (${path.basename(file)})`);
       }
     }
@@ -224,6 +318,7 @@ console.log(`\n  ✅ 눌러서 열린다        ${String(now.ok).padStart(6)}` +
   (judged ? `  (${(now.ok * 100 / judged).toFixed(1)}%)` : '') + delta('ok'));
 console.log(`      └ 그중 삭제된 조가 낀 줄 ${String(now.deleted).padStart(4)}${delta('deleted')}   (국가가 삭제한 조 — 우리가 고칠 것 아님)`);
 console.log(`  ❌ 그 파일에 그 조 없음  ${String(now.no_article).padStart(6)}${delta('no_article')}   ← 계층 오지정 또는 수집 공백`);
+console.log(`  ❌ 칸을 못 읽음         ${String(now.no_parse).padStart(6)}${delta('no_parse')}   ← 다른 문서의 조를 적었거나(「법 제8조 위임」) 나열·범위를 섞어 적어 파서가 포기한 칸`);
 console.log(`  ⚠ 원문 폴더를 못 찾음   ${String(now.no_base).padStart(6)}${delta('no_base')}`);
 console.log(`  ⏭️ 그 계층 파일이 없음   ${String(now.no_file).padStart(6)}${delta('no_file')}   (법률·시행령·시행규칙 미수집 — 4축 ①)`);
 console.log(`  ⚠ 고시 파일을 못 고름   ${String(now.no_notice).padStart(6)}${delta('no_notice')}   (미수집이거나 위키 이름과 파일 이름이 어긋남)`);
@@ -235,7 +330,7 @@ if (unindexed.length) {
 }
 
 if (argv.includes('--examples')) {
-  for (const [k, title] of [['no_article', '그 파일에 그 조가 없음'], ['no_base', '원문 폴더를 못 찾음'], ['no_notice', '고시 파일을 못 고름'], ['no_file', '그 계층 파일이 없음']]) {
+  for (const [k, title] of [['no_article', '그 파일에 그 조가 없음'], ['no_parse', '칸을 못 읽음'], ['no_base', '원문 폴더를 못 찾음'], ['no_notice', '고시 파일을 못 고름'], ['no_file', '그 계층 파일이 없음']]) {
     if (!ex[k].length) continue;
     console.log(`\n── ${title} ──`);
     ex[k].forEach(l => console.log('  ' + l));
@@ -255,8 +350,11 @@ if (argv.includes('--gate')) {
     console.log(`\n  ❌ 색인에 없는 페이지 ${unindexed.length}장 — 만들어 놓고 색인을 안 돌렸습니다`);
     process.exit(1);
   }
-  if (now.no_article > base.no_article || now.no_base > base.no_base) {
-    console.log(`\n  ❌ 눌러도 안 열리는 줄이 늘었습니다 (조문없음 ${base.no_article}→${now.no_article} · 경로없음 ${base.no_base}→${now.no_base})`);
+  // `no_parse`(칸을 못 읽음)도 함께 막는다 — 안 그러면 조문 칸을 파서가 못 읽는 꼴로 고쳐 놓고도
+  // "조문없음이 줄었다"로 통과한다(2026-08-31 신설).
+  if (now.no_article > base.no_article || now.no_base > base.no_base ||
+      (base.no_parse !== undefined && now.no_parse > base.no_parse)) {
+    console.log(`\n  ❌ 눌러도 안 열리는 줄이 늘었습니다 (조문없음 ${base.no_article}→${now.no_article} · 경로없음 ${base.no_base}→${now.no_base} · 칸못읽음 ${base.no_parse}→${now.no_parse})`);
     process.exit(1);
   }
   console.log('\n  ✅ 기준선 대비 나빠지지 않음');

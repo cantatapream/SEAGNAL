@@ -1,0 +1,57 @@
+[출입국사범 단속과정의 적법절차 및 인권보호 준칙] 별지5 — 여권 등 미휴대/미제시 사실 확인서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000213061 (수집 2026-08-31)
+
+                                                                                                                            
+  〔별지 5〕                                                                                                                
+                                                                                                                            
+  여권 등 미휴대/미제시 사실 확인서                                                                                         
+  (Confirmation of Absence of Passport, etc.)                                                                               
+  (未携?或未出示?照等?件事????)                                                                                      
+                                                                                                                            
+  인적사항              │성명(Full name/姓名)  │생년월일(Date of Birth/出生日期)                                          
+  (Person to            ├───────────┼─────────────────────────────────────
+  whom the              │국적(Nationality/?籍)│성별(Gender/性?)                                                         
+  notification          │                      │남 Male/男 [ ] 여 Female/女 [ ]                                           
+  concerns/             ├───────────┼─────────────────────────────────────
+  ?人信息)             │직업(Occupation/??) │연락처(Phone No./?系??)                                                
+                        ├───────────┴─────────────────────────────────────
+                        │대한민국 내 주소(Address in Korea/在?住址)                                                       
+────────────┴─────────────────────────────────────────────────
+                                                                                                                            
+────────────┬─────────────────────────────────────────────────
+  위반 일시/장소        │          년      월       일            장소                                                     
+  (Date/Location        │date    (Year)     (Month)    (Day)      place                                                    
+  of Violation/         │          年      月       日            地点                                                     
+  ?反日期/地点)        │                                                                                                  
+────────────┼─────────────────────────────────────────────────
+  위반사실              │여권 등(여권ㆍ선원신분증명서ㆍ외국인입국허가서ㆍ외국인등록증 또는 상륙허가서) 미휴대/미제시       
+  (Offense              │(Violation of obligation to carry or present passport, etc. (passport, seafarers’ identity       
+  Charged/              │document, alien entry permit, alien registration certificate, or landing permit))                 
+  ?反事?)             │(未携?或未出示?照等?件(?照、船?身??明、外?人入境?可、外?人登??或登??可)             
+────────────┴─────────────────────────────────────────────────
+                                                                                                                            
+────────────┬─────────────────────────────────────────────────
+  적용 법조             │출입국관리법 제27조(여권 등의 휴대 및 제시), 제98조 제1호                                         
+  (Applicable Provision │(Article 27 (Carrying and Presentation of Passports, etc.) and Article 98(1) of Immigration Act)  
+  /适用法律)            │(大?民?「出入?管理法」第二十七?(携?及出示?照等?件)及第九十八?第一?)                      
+────────────┴─────────────────────────────────────────────────
+  - 상기 본인은 권한 있는 공무원으로부터 여권 등의 제시요구를 받았으나 여권 등을 미휴대 또는 미제시하였고,                  
+  단속 공무원으로부터 출입국관리법 제98조에 따른 처벌대상임을 고지 받았음을 확인합니다.                                     
+    (I was demanded to present my passport, etc. by a competent public official but did not carry or                        
+  present my passport, etc., and I hereby confirm that I was notified by the official that I am subject                     
+  to punishment according to Article 98 of Immigration Act.)                                                                
+    (具有?限的公??要求本人出示?照等?件，但因未携?或未出示?照等?件?由，被??管制公??告知                         
+  根据大?民?「出入?管理法」第九十八??定成????象，本人特此??。)                                                   
+                                                                                                                            
+  - 별도 의견이 있는 경우 기재 :                                                                                            
+    (Opinion(if any)/如有意???出?) :                                                                                    
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                           년          월         일                        
+                                                         Date             (Year/年)    (Month/月)    (Day/日)               
+                                                                                                                            
+  확인자(Confirmed by/??者)                                   (서명 또는 인) Signature or Seal/?章                       
+                                                                                                                            
+   ○○출입국ㆍ외국인청(사무소ㆍ출장소)장  귀하                                                                             
+   To Head of ○○ Immigration Office                                                                                       
+   至○○出入?外?人???(事?所所?ㆍ?事???)                                                                         
+                                                                                                                            

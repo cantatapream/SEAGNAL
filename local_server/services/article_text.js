@@ -103,6 +103,12 @@ const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
 
 // tier → 그 법 폴더 안의 고정 파일명(행정규칙만 파일명이 제각각이라 따로 찾는다).
 const TIER_FILE = { law: '법률.txt', decree: '시행령.txt', rule: '시행규칙.txt' };
+// ★어느 법의 시행령이 아니라 **그 자체가 대통령령**인 법령이 있다(공무원 여비 규정·보안업무규정·
+//   공무원보수규정·정부표창규정·해양수산부와 그 소속기관 직제 등 실측 6개 폴더). 그런 폴더의
+//   파일 이름은 `시행령.txt` 가 아니라 `대통령령.txt`(발췌본이면 `대통령령_발췌.txt`)다.
+//   2026-08-31에 낫표 때문에 이 법령들이 고시로 잘못 분류되던 것을 고쳤더니, 이번에는
+//   `시행령.txt` 를 찾다 실패해 "그 계층 파일이 없음"으로 빠졌다 — 파일은 손에 있는데 못 여는 것이다.
+const TIER_FILE_ALT = { decree: '대통령령.txt' };
 
 // tier → `별표/` 안의 파일명·_links.json 키 앞머리(예: rule → `시행규칙_별표1.txt`, `"시행규칙 별표 1"`).
 const TIER_BYL_PREFIX = { law: '법률', decree: '시행령', rule: '시행규칙' };
@@ -151,7 +157,11 @@ const RANGE_B = /제\s*(\d+)\s*[~～∼\-–—]\s*(\d+)\s*조/;
 //   안 받으면 나열 판정 자체를 포기하고 단일 정규식이 앞의 제28조만 집어, 뒤의 제30조가 경고도
 //   없이 사라진다("부분 실패는 정직하게 표시" 계약 위반). 조가 결국 하나뿐이면(`제28조제1항제14호·
 //   제28조제4항`) parseJoEnum 이 null 로 물러나 기존 단일 처리로 그대로 흘러간다.
-const LIST_ONLY_RE = /^[\s제조의항호0-9·ㆍ・,~～∼]+$/;
+// ⚠ 동그라미 항 번호(①②…)도 글자로 받는다 — `제12조①·제21~23조·제35조②` 처럼 **조마다
+//   항을 동그라미로 달아 놓은 나열**이 실측 14줄 있는데, 안 받으면 나열 판정을 통째로 포기해
+//   그 줄이 아예 안 열린다(2026-09-01). 동그라미 자체는 아래 parseJoEnum 이 항목 끝에서 떼어낸다 —
+//   조를 나열한 것이지 항을 나열한 것이 아니기 때문이다(항 강조는 나열 갈래에 원래 없다).
+const LIST_ONLY_RE = /^[\s제조의항호0-9·ㆍ・,~～∼①-⑳]+$/;
 // 항목 = 조 하나(`제55조`·`110`·`12조의2`·`17의2`). 실측에 `제19조의2조`처럼 '조'가 덧붙은 오타가
 // 있어 꼬리 '조'는 선택으로 둔다. 꼬리에 붙은 항·호(`제28조제4항`)는 조를 가리키는 데 쓰지 않으므로
 // 읽고 버린다(나열은 강조를 하지 않는다 — 여러 조 중 어디가 근거인지 단정할 수 없다).
@@ -169,7 +179,11 @@ const LIST_ITEM_BRANCH_RE = /^\s*의\s*(\d+)\s*$/;
 // ⚠ 끝에 가지번호가 붙는 표기(`제82~89조의2`)도 받는다 — 안 받으면 나열 전체가 null 로 물러나
 //   범위 정규식이 `제82~89조`만 집고 뒤에 나열된 `93·94`를 조용히 버린다(실측 1건). 가지번호
 //   자체는 expandRange 가 원문에서 그 구간의 가지번호 조를 주워담아 채운다.
-const LIST_ITEM_RANGE_RE = /^\s*제?\s*(\d+)\s*[~～∼]\s*(\d+)\s*(?:조\s*의\s*\d+)?\s*조?\s*$/;
+// ⚠ `제129조~제132조`처럼 **양쪽에 `제…조`를 다 붙인** 범위 표기도 받는다(2026-08-31 실측).
+//   종전에는 `제129~132조` 꼴만 받아서, 나열 안에 이 표기가 하나라도 섞이면 나열 전체가
+//   null 로 물러나 **그 줄이 통째로 안 열렸다**(형법 `제127조·제129조~제132조`,
+//   국토계획법 `제57조~제60조·제62조` 등 — V5-8 게이트에 "칸을 못 읽음"으로 잡혔다).
+const LIST_ITEM_RANGE_RE = /^\s*제?\s*(\d+)\s*조?\s*[~～∼]\s*제?\s*(\d+)\s*(?:조\s*의\s*\d+)?\s*조?\s*$/;
 
 /**
  * `제53조·제55조`·`제109·110조`처럼 **가운뎃점(·ㆍ・)이나 쉼표로 나열된 여러 조**를 조 번호
@@ -205,7 +219,12 @@ function parseJoEnum(s) {
   const spans = [];
   let prevBranchJo = 0;   // 바로 앞 항목이 `제N조의M`이었으면 그 본조 번호 N(아니면 0)
   for (let i = 0; i < toks.length; i++) {
-    const t = toks[i];
+    // ★항 동그라미는 항목 **끝에서만** 뗀다(2026-09-01). `제42조②` → `제42조`.
+    //   ⚠가운데 붙은 것(`제4조④~⑦` = 항의 범위)은 떼도 `제4조~` 가 남아 아래에서 못 읽고
+    //     통째로 null 이 된다 — 그게 맞다. 그건 조의 나열이 아니라 **항의 범위**라
+    //     우리가 조로 바꿔 읽으면 안 된다.
+    const t = toks[i].replace(/[①-⑳]+$/, '').trim();
+    if (!t) return null;                       // 동그라미만 있던 항목(`⑥`) — 조가 아니다
     const rm = LIST_ITEM_RANGE_RE.exec(t);
     if (rm) {
       const from = parseInt(rm[1], 10), to = parseInt(rm[2], 10);
@@ -302,6 +321,8 @@ function parseAnnexRefs(s) {
 
 // 계층을 가리키는 낱말(legal_retriever.classifyTier 와 같은 낱말을 본다).
 const TIER_WORD_RE = /시행규칙|시행령|법률|법/;
+// 조각이 계층을 **지목**하는가 — 그 낱말로 끝나야 인정한다(multiTierCell 주석 참고).
+const TIER_TAIL_RE = /(?:시행규칙|시행령|법률|법)$/;
 // 계층별 표기 — 조문 칸에서 "이 조가 어느 계층 것인지" 읽을 때 쓴다(정규식 조각).
 const TIER_TAG_SRC = { law: '법률|법', decree: '시행령', rule: '시행규칙' };
 
@@ -317,9 +338,15 @@ const TIER_TAG_SRC = { law: '법률|법', decree: '시행령', rule: '시행규�
  * [연계] ← parseArticleRef(). 계층이 섞인 칸은 조 번호를 어느 계층에 붙일지 단정할 수 없다.
  */
 function multiTierCell(cell) {
+  // ⚠조각이 계층 낱말을 **품고만 있어도** 세면 안 된다(2026-08-31 실측, 10행이 이 때문에 죽어 있었다).
+  //   `공익법인의 설립ㆍ운영에 관한 법률` 은 앞 조각 `공익법인의 설립` 이 "법인" 의 `법` 때문에 걸려
+  //   계층 둘로 오해됐고, `「…보험법」 부칙(2011.11.14, 법률 제11095호)` 은 공포번호의 `법률` 이 걸렸다.
+  //   그러면 tierIsCertain 이 그 행을 통째로 포기해 **조문 칸이 `제2조` 하나뿐인 멀쩡한 행도 안 열렸다.**
+  //   계층을 지목한다는 것은 조각이 그 낱말로 **끝난다**는 뜻이다(`법`·`시행령`·`양식산업발전법`).
+  //   끝의 괄호·따옴표·마침표는 떼고 본다.
   return String(cell || '').replace(/[「」『』]/g, '')
     .split(/[·ㆍ・,/]|→|⇒|➔|=>/)
-    .filter(seg => TIER_WORD_RE.test(seg)).length >= 2;
+    .filter(seg => TIER_TAIL_RE.test(seg.replace(/[)\]\s.]*$/, ''))).length >= 2;
 }
 
 /**
@@ -692,8 +719,11 @@ function extractArticleBlock(text, jo, tier) {
     //   m 플래그는 쓰지 않는다(실측으로 확인한 함정).
     // ⚠ 부칙·별표 경계는 DOC_TAIL_SRC 하나만 쓴다(따로 좁은 패턴을 두면 마지막 조에 부칙·별표가
     //   통째로 딸려 들어가 인용하지도 않은 별표 링크가 붙는다 — leak 재발 방지).
+    // ⚠ 조 번호와 여는 괄호 사이에 **공백이 있는 고시가 있다**(`제1조 (목적)`) — 실측 23개 파일 35개 조
+    //   (수면비행선박기준·포항항예선운영세칙 등). 공백을 안 받아 주면 그 조는 파일에 있는데도
+    //   "그 조 없음"으로 죽는다(2026-08-31, V5-8 게이트가 잡아냈다). 다음 조를 찾는 쪽도 같이 받는다.
     const re = new RegExp(
-      `(?:^|\\n)${reEsc(jo)}\\(([^)]*)\\)([\\s\\S]*?)(?=\\n제\\d+조(?:의\\d+)?\\(|\\n제\\d+장|${DOC_TAIL_SRC}|$)`
+      `(?:^|\\n)${reEsc(jo)}[ \\t]*\\(([^)]*)\\)([\\s\\S]*?)(?=\\n제\\d+조(?:의\\d+)?[ \\t]*\\(|\\n제\\d+장|${DOC_TAIL_SRC}|$)`
     );
     const m = re.exec(src);
     if (!m) return null;
@@ -1105,6 +1135,33 @@ function isSelfRef(cell) {
 }
 
 /**
+ * 법령 셀이 **부칙**을 가리키는가. 예: `한국해양교통안전공단법 부칙` · `○○법 시행령 부칙`.
+ * @param {string} law
+ * @returns {boolean}
+ * [연계] → addendaLawName() · loadArticle()(부칙 구간만 보게 한다).
+ */
+function isAddendaCell(law) { return /부\s*칙/.test(String(law || '')); }
+
+/**
+ * 부칙 셀에서 **법령명만** 남긴다(못 남기면 빈 문자열).
+ * 예: addendaLawName('선박교통관제에 관한 법률 부칙(2019.12.3)') → '선박교통관제에 관한 법률'
+ *     addendaLawName('한국해양교통안전공단법 시행령 부칙')       → '한국해양교통안전공단법 시행령'
+ * ⚠`법률 제19807호 부칙`처럼 **법령명 자체가 없는 셀**은 빈 문자열을 돌려준다 — 무엇의 부칙인지
+ *   단정할 수 없으므로 지어내지 않고 그대로 실패시킨다.
+ * @param {string} law
+ * @returns {string}
+ */
+function addendaLawName(law) {
+  let s = String(law || '').replace(/[「」『』]/g, '');
+  s = s.replace(/<[^>]*>/g, ' ');                       // <제11080호,2011.11.14>
+  s = s.replace(/부\s*칙\s*\([^)]*\)/g, ' ');           // 부칙(2019.12.3)
+  s = s.replace(/부\s*칙/g, ' ');                        // 남은 "부칙"
+  s = s.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s || /^(법률|대통령령|총리령|부령)\s*제?\s*\d/.test(s)) return '';   // "법률 제19807호"뿐이면 포기
+  return s;
+}
+
+/**
  * 그 법의 raw 폴더 경로를 찾는다. 체인 행의 법령명(낫표·계층 꼬리말 떼고 재시도 포함)이 우선이고,
  * 그 셀이 법령명 없이 계층·대명사만 적힌 표기(`시행령`·`이 법`)면 그 페이지의 소속 법으로 읽는다.
  * **그 밖의 baseLaw 폴백은 고시(tier==='notice')에만 쓴다** — 고시는 제목만으로 폴더를 못
@@ -1119,10 +1176,63 @@ function isSelfRef(cell) {
  * @returns {string|null}
  * [연계] → legal_retriever.rawPathOf(law_raw_paths.json 매핑).
  */
+let NOTICE_INDEX = null;
+/**
+ * 고시 이름을 **저장소 전체**에서 찾는다(자기 법 폴더에서 못 찾았을 때만 쓴다).
+ * 예: pickNoticeGlobal('「발굴조사의 방법 및 절차 등에 관한 규정」(고시)')
+ *     → 'local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/행정규칙/발굴조사의방법및절차등에관한규정.txt'
+ * @param {string} law - 체인 행의 법령 칸 값
+ * @returns {string|null} 저장소 상대경로. 못 찾거나 서로 다른 파일이 여럿이면 null
+ * [연계] ← loadArticle()(tier==='notice'). ← _dashboard/notice_index.json (sync_notice_index.py)
+ */
+// ★가리키는 말은 이름이 아니다 — 저장소 전체에서 고르면 안 된다(2026-09-01, L-235).
+//   위키 법령 칸에 `위 고시`·`이 고시`·`같은 고시` 처럼 **앞 줄을 가리키는 말**만 적힌 곳이 있다.
+//   그건 이름이 아닌데도 pickNoticeFile 이 저장소 전체 이름과 견주다 보니 **엉뚱한 법의 고시**를
+//   골라 버린다. 실제로 raw 에 고시를 86개 더 넣자, 갯벌 페이지의 `위 고시` 두 줄이
+//   「재외동포(F-4) 자격의 취업활동 제한범위 고시」(출입국관리법)로 붙었다.
+//   못 고르는 것보다 **엉뚱한 걸 고르는 것이 훨씬 나쁘다** — 그런 칸은 정직하게 실패시킨다.
+const POINTER_ONLY_RE = /^(?:[「『]?\s*)?(?:위|이|같은|해당|동)\s*(?:고시|규정|규칙|훈령|예규|지침)(?:\s*[」』])?\s*$/;
+
+function pickNoticeGlobal(law) {
+  if (POINTER_ONLY_RE.test(String(law || '').replace(/[「」『』]/g, '').trim())) return null;
+  if (NOTICE_INDEX === null) {
+    try {
+      NOTICE_INDEX = JSON.parse(require('fs').readFileSync(
+        require('path').resolve(__dirname, '../knowledge/legal/_dashboard/notice_index.json'), 'utf8'));
+    } catch (e) { NOTICE_INDEX = {}; }
+  }
+  const names = Object.keys(NOTICE_INDEX);
+  if (!names.length) return null;
+  const picked = pickNoticeFile(names.map(n => ({ name: n, type: 'file' })), law);
+  if (!picked) return null;
+  const dirs = NOTICE_INDEX[picked] || [];
+  return dirs.length ? dirs[0] + '/행정규칙/' + picked : null;
+}
+
 function resolveBase(law, baseLaw, tier) {
   const direct = rawPathOf(law) || rawPathOf(lawNameOnly(law));
   if (direct) return direct;
+  // ★부칙 표기(2026-08-28) — `한국해양교통안전공단법 부칙`·`선박교통관제에 관한 법률 부칙(2019.12.3)`
+  //   처럼 이름 끝에 "부칙"이 붙은 셀은 **그 법의 폴더**를 가리킨다. 부칙은 별도 폴더가 아니라
+  //   그 법 파일(법률.txt 등) 뒤에 붙어 있기 때문이다. 실측 23행이 이 이유로 죽어 있었다.
+  //   꾸밈(`(2019.12.3)`·`<제11080호,2011.11.14>`·`법률 제19807호`)을 떼고 다시 찾는다.
+  const stripped = addendaLawName(law);
+  if (stripped) {
+    const byAddenda = rawPathOf(stripped) || rawPathOf(lawNameOnly(stripped));
+    if (byAddenda) return byAddenda;
+  }
   if (isSelfRef(law)) return rawPathOf(baseLaw) || rawPathOf(lawNameOnly(baseLaw)) || null;
+  // ★이름 끝의 공포번호 괄호를 떼고 한 번 더 찾는다(2026-08-29) —
+  //   `옹진군 지방보조금 관리 조례(옹진군 조례 제2624호)` 처럼 조례·규칙은 이름 뒤에
+  //   공포번호를 달고 인용되는 관행이 있는데, 경로표의 열쇠에는 그 괄호가 없다.
+  //   실측 23행이 이 이유만으로 죽어 있었다(옹진군 조례 3종).
+  //   ⚠**맨 마지막에** 둔다 — 괄호까지 포함해 정확히 일치하는 이름이 있으면 그쪽이 이긴다.
+  //   그리고 괄호 안이 다른 법을 가리키는 경우는 없다(괄호 안은 공포번호·시행일 표기다).
+  const noParen = String(law || '').replace(/\s*[（(][^)）]*[)）]\s*$/, '').trim();
+  if (noParen && noParen !== String(law || '').trim()) {
+    const byParen = rawPathOf(noParen) || rawPathOf(lawNameOnly(noParen));
+    if (byParen) return byParen;
+  }
   return tier === 'notice' ? (rawPathOf(baseLaw) || null) : null;
 }
 
@@ -1151,7 +1261,7 @@ function articleRegion(text) {
 function listArticleNumbers(text, tier) {
   const src = articleRegion(text);
   const re = tier === 'notice'
-    ? /(?:^|\n)제(\d+)조(?:의(\d+))?\(/g
+    ? /(?:^|\n)제(\d+)조(?:의(\d+))?[ \t]*\(/g
     : /(?:^|\n)\[제(\d+)조(?:의(\d+))?\]/g;
   const out = [];
   let m;
@@ -1343,17 +1453,41 @@ async function resolveRefs(found, ctx) {
   if (ctx.tier === 'notice' && bylRefs.some(r => r.kind === 'missing')) {
     // 위키 표의 고시 이름엔 `…지침(고시)`·`「…」(국립수산물품질관리원, 2026-02-11 발령)`처럼
     // 꼬리표가 붙어 있어 그대로 비교하면 별표 파일의 머리말과 안 맞는다 — 괄호 주석을 걷어낸다.
-    const want = squash(String(ctx.docTitle || '').replace(/[（(][^)）]*[)）]/g, '')) || squash(ctx.docTitle);
-    const cand = (await githubRaw.listDir(ctx.base + '/별표'))
-      .filter(e => e.type === 'file' && /\.txt$/i.test(e.name) && !/^(법률|시행령|시행규칙)_/.test(e.name))
-      .slice(0, 8);
+    const want0 = squash(String(ctx.docTitle || '').replace(/[（(][^)）]*[)）]/g, '')) || squash(ctx.docTitle);
+    // ★위키 법령 칸이 `고시「부산항 도선구 도선안전절차」` 처럼 **종류 이름표를 앞에 달고** 적힌
+    //   경우가 있다(실측 80행). 그러면 별표 파일 머리말("[부산항 도선구 도선안전절차 별표1] …")에
+    //   그 이름표가 없어 임자 확인이 실패한다 — 파일이 손에 있는데도 못 연다(2026-08-31 실측).
+    //   이름표를 뗀 꼴도 함께 본다. 이름표가 없으면 종전과 똑같다.
+    const wants = [want0, want0.replace(/^(고시|훈령|예규|행정규칙)/, '')].filter((v, i, a) => v && a.indexOf(v) === i);
+    const want = want0;
+    const all = (await githubRaw.listDir(ctx.base + '/별표'))
+      .filter(e => e.type === 'file' && /\.txt$/i.test(e.name) && !/^(법률|시행령|시행규칙)_/.test(e.name));
+    // ★이름이 이 고시 것으로 보이는 파일을 앞으로 당긴다(2026-08-31).
+    //   종전에는 그냥 `.slice(0, 8)` 이었다. 고시 별표를 `별표/` 에 채워 넣자
+    //   한 폴더에 고시급 파일이 70~140개인 법이 여럿 생겼고(산업안전보건법 140·항만법 88 …),
+    //   그러면 정작 찾는 고시의 파일이 앞 8개 밖으로 밀려 **파일이 있는데도 못 연다.**
+    //   파일명이 `<고시명>_별표N.txt` 규칙이므로 이름으로 먼저 고를 수 있다.
+    //   이름으로 하나도 못 고르면 종전과 똑같이 앞 8개를 본다(동작을 좁히지 않는다).
+    const mine = want ? all.filter(e => squash(e.name).startsWith(want)) : [];
+    // ★한 고시가 별표를 수십 개 가진 경우가 있다(지정교육기관기준 83개) — 이름으로 좁혀도
+    //   앞 8개는 `별표1·별표10·별표10의2·별표11…` 로 채워져 정작 찾는 `별표2` 가 잘린다
+    //   (2026-08-31 실측, V5-11 게이트가 잡아냈다). **찾는 번호가 파일명에 든 것을 맨 앞으로** 보낸다.
+    const need0 = bylRefs.filter(r => r.kind === 'missing').map(r => String(r.key || '')).filter(Boolean);
+    // ★열쇠는 `서식5` 인데 파일 이름은 `별지5`·`별지5호서식` 으로 적힌다(parseBylFile 이 읽을 때
+    //   별지→서식으로 맞춰 주므로 파일 자체는 맞다). 이름 정렬이 그 짝을 모르면 `별지5` 파일이
+    //   앞 8개 밖으로 밀려 **파일이 있는데도 못 연다** — 2026-08-31 실측(선박법 사무취급 요령 서식5,
+    //   같은 고시 파일이 18개라 별지5 가 9번째로 잘렸다).
+    const need = need0.concat(need0.filter(k => k.indexOf('서식') === 0).map(k => '별지' + k.slice(2)));
+    const hasKey = e => need.some(k => new RegExp('(^|[^0-9A-Za-z가-힣])' + k + '([^0-9]|$)').test(e.name));
+    const pool = mine.length ? mine : all;
+    const cand = pool.slice().sort((a, b) => (hasKey(b) ? 1 : 0) - (hasKey(a) ? 1 : 0)).slice(0, 8);
     for (const e of cand) {
       if (!bylRefs.some(r => r.kind === 'missing')) break;
       const t = await githubRaw.fetchText(ctx.base + '/별표/' + e.name);
       if (!t) continue;
       const parsed = parseBylFile(t);
       // 그 고시 것이 맞는지 — 머리말(제목·출처 줄)에 고시 이름이 들어 있어야 인정한다.
-      if (!want || !squash(parsed.owner).includes(want)) continue;
+      if (want && !wants.some(w => squash(parsed.owner).includes(w))) continue;
       for (const r of bylRefs) {
         const en = parsed.entries.find(x => x.key === r.key);
         if (!en) continue;
@@ -1397,19 +1531,47 @@ function docDate(text) {
 async function loadArticle(q) {
   const law = String((q && q.law) || '').trim();
   const qTier = q && q.tier;
-  const tier = Object.prototype.hasOwnProperty.call(TIER_FILE, qTier) ? qTier : (qTier === 'notice' ? 'notice' : 'law');
+  let tier = Object.prototype.hasOwnProperty.call(TIER_FILE, qTier) ? qTier : (qTier === 'notice' ? 'notice' : 'law');
   const ref = parseArticleRef((q && q.article) || '', tier, law);
   if (!law || !ref) return { ok: false, reason: 'bad_request' };
   if (!githubRaw.hasToken()) return { ok: false, reason: 'no_token' };
 
-  const base = resolveBase(law, (q && q.baseLaw) || '', tier);
+  let base = resolveBase(law, (q && q.baseLaw) || '', tier);
+  // ★이름이 우리가 가진 고시면 **그 고시가 있는 법 폴더**를 쓴다(2026-09-01 실측 32줄).
+  //   `어선설비기준`·`선박구명설비기준`처럼 **어느 법 폴더 이름과도 안 맞는 고시**가 있다.
+  //   그런 칸은 여기까지 와서 "법 폴더를 못 찾음"으로 죽었다 — 정작 그 고시 파일은
+  //   `raw/<도메인>/<법>/행정규칙/` 에 멀쩡히 있는데도.
+  //   ⚠**다른 방법이 다 실패했을 때만** 본다(자기 법 폴더가 언제나 먼저다). 이름이 정확히
+  //     맞는 고시가 있을 때만이라, 엉뚱한 문서를 여는 위험은 pickNoticeFile 의 판정에 걸린다.
+  let forcedNotice = '';
+  if (!base) {
+    const g = pickNoticeGlobal(law);
+    if (g) {
+      forcedNotice = g;
+      base = g.replace(/\/행정규칙\/[^/]+$/, '');
+      tier = 'notice';                 // 고시 파일이므로 파싱도 배지도 고시로 맞춘다
+    }
+  }
   if (!base) return { ok: false, reason: 'law_not_found' };
 
   let filePath;
-  if (tier === 'notice') {
+  if (forcedNotice) {
+    filePath = forcedNotice;
+  } else if (tier === 'notice') {
     const picked = pickNoticeFile(await githubRaw.listDir(base + '/행정규칙'), law);
-    if (!picked) return { ok: false, reason: 'file_not_found' };
-    filePath = base + '/행정규칙/' + picked;
+    if (picked) {
+      filePath = base + '/행정규칙/' + picked;
+    } else {
+      // ★다른 부처 소관 고시를 인용한 행(2026-08-31 실측 20줄).
+      //   고시는 그 위키가 속한 법 폴더에서만 찾는데, 위키는 남의 고시도 짚는다 — 예를 들어
+      //   독도법 페이지가 「발굴조사의 방법 및 절차 등에 관한 규정」(국가유산청 고시)을 짚는다.
+      //   그 파일은 매장유산법 폴더에 멀쩡히 있는데도 못 찾아 죽어 있었다.
+      //   ⚠**자기 폴더에서 못 찾았을 때만** 전체 지도를 본다 — 자기 폴더가 언제나 먼저다.
+      //   지도: _dashboard/notice_index.json (`sync_notice_index.py` 가 만든다)
+      const g = pickNoticeGlobal(law);
+      if (!g) return { ok: false, reason: 'file_not_found' };
+      filePath = g;
+    }
   } else {
     filePath = base + '/' + TIER_FILE[tier];
   }
@@ -1427,13 +1589,57 @@ async function loadArticle(q) {
     const t2 = await githubRaw.fetchText(alt);
     if (t2) { text = t2; filePath = alt; }
   }
+  // ★그 자체가 대통령령인 법령은 파일 이름이 `대통령령.txt`(발췌본이면 `대통령령_발췌.txt`)다.
+  //   위 두 이름으로 못 찾았을 때만 본다 — 시행령이 있으면 그쪽이 먼저다.
+  if (!text && TIER_FILE_ALT[tier]) {
+    for (const n of [TIER_FILE_ALT[tier], TIER_FILE_ALT[tier].replace('.txt', '_발췌.txt')]) {
+      const t3 = await githubRaw.fetchText(base + '/' + n);
+      if (t3) { text = t3; filePath = base + '/' + n; break; }
+    }
+  }
+  // ★그 자체가 "○○규칙"·"○○령"인 법령은 **그 폴더의 `법률.txt` 안에** 들어 있다(2026-08-31 실측).
+  //   `위험물 선박운송 및 저장규칙`·`선박에서의 오염방지에 관한 규칙` 은 어떤 법의 시행규칙이 아니라
+  //   그 자체가 해양수산부령인데, 이름이 `규칙` 으로 끝나 계층이 rule 로 잡히고 `시행규칙.txt` 를
+  //   찾다가 실패했다. 수집기는 그 문서 자체를 `법률.txt` 로 저장한다 — 실측 37줄이 이 때문에 죽어 있었다.
+  //   ⚠**폴더 이름이 인용된 법령 이름과 같을 때만** 이 폴백을 쓴다. 그래야 `해운법 시행규칙` 처럼
+  //     "다른 문서의 하위 계층"을 찾는 인용이 엉뚱하게 그 법 본문을 열지 않는다(환각 0).
+  if (!text && tier !== 'notice' && tier !== 'law') {
+    // 이름 뒤의 종류 괄호(`(대통령령)`)도 떼고 견준다 — resolveBase 가 폴더를 찾을 때 쓴 이름과 같아야 한다.
+    const folder = squash(String(base).split('/').pop());
+    const bare = String(law || '').replace(/[「」『』]/g, '').replace(/\s*[（(][^)）]*[)）]\s*$/, '').trim();
+    if (folder && (folder === squash(String(law || '').replace(/[「」『』]/g, '')) || folder === squash(bare))) {
+      for (const n of ['법률.txt', '법률_발췌.txt']) {
+        const t4 = await githubRaw.fetchText(base + '/' + n);
+        if (t4) { text = t4; filePath = base + '/' + n; break; }
+      }
+    }
+  }
   if (!text) return { ok: false, reason: 'file_not_found' };
+
+  // ★부칙 인용(2026-08-28) — 부칙은 그 법 파일 **뒤쪽**에 붙어 있고, 표기가 법률 본문(`[제10조]`)이
+  //   아니라 고시와 같은 줄머리 `제10조(제목)` 꼴이다. 그래서 ⑴본문 구간을 잘라내고 부칙 구간만
+  //   남기고 ⑵파싱만 고시 규칙으로 한다. `head.tier` 는 손대지 않는다 — 화면 배지는 그 법의
+  //   계층 그대로여야 사용자에게 정직하다.
+  //   ⚠부칙 셀일 때만 들어온다. 본문의 같은 번호 조(제2조 등)와 섞일 일이 없다.
+  let parseTier = tier;
+  if (isAddendaCell(law)) {
+    const cut = text.search(DOC_TAIL_RE);
+    if (cut < 0) return { ok: false, reason: 'article_not_found' };   // 부칙이 없는 파일이다
+    text = text.slice(cut);
+    parseTier = 'notice';
+  }
 
   // focused 는 single 갈래에서만 true 가 될 수 있다(아래 "조 하나 인용" 참고) — 나머지 갈래는
   // 강조 자체를 하지 않으므로 여기서 false 로 못박아 클라이언트가 undefined 를 만나지 않게 한다.
   const head = { ok: true, law, tier, mode: ref.mode, focused: false, addenda: '' };
+  // ★별표는 **그 문서가 실제로 있는 법 폴더**에서 찾는다(2026-08-31).
+  //   전역 고시 지도가 생기면서 고시를 다른 법 폴더에서 찾아오는 경우가 생겼는데, 그때 별표를
+  //   페이지의 법 폴더에서 찾으면 못 찾는다 — 「극지해역 운항선박 기준」은 선박안전법 폴더에 있고
+  //   그 별표도 거기 있는데, 이 고시를 짚는 위키는 해양환경관리법 페이지다.
+  //   같은 폴더에서 찾은 보통의 경우엔 값이 base 와 같아 동작이 달라지지 않는다.
+  const docBase = tier === 'notice' ? filePath.replace(/\/행정규칙\/[^/]+$/, '') : base;
   const refCtx = {
-    base, tier, docText: text, docTitle: law,
+    base: docBase, tier, docText: text, docTitle: law,
     docDir: filePath.slice(0, filePath.lastIndexOf('/')),
   };
 
@@ -1454,7 +1660,7 @@ async function loadArticle(q) {
 
   // ── 범위·전체 인용: 여러 조를 순서대로 나열한다(강조 없음 — 어디가 근거인지 단정할 수 없다) ──
   if (ref.mode !== 'single') {
-    const joList = ref.mode === 'whole' ? listArticleNumbers(text, tier) : expandRange(text, tier, ref);
+    const joList = ref.mode === 'whole' ? listArticleNumbers(text, parseTier) : expandRange(text, parseTier, ref);
     if (!joList.length) return { ok: false, reason: 'article_not_found' };
     const attachments = tier === 'notice'
       ? extractAttachments(text).map(a => ({ key: a.key, title: a.title })) : [];
@@ -1478,7 +1684,7 @@ async function loadArticle(q) {
         refsTruncated: bylCount(found) >= MAX_REFS,
       });
     }
-    const articles = buildArticles(text, tier, joList);
+    const articles = buildArticles(text, parseTier, joList);
     if (!articles.length) return { ok: false, reason: 'article_not_found' };
     const bodyText = articles.map(a => a.paragraphs.map(paraPlainText).join('\n')).join('\n');
     const found = withAtts(collectRefs(bodyText));
@@ -1501,7 +1707,7 @@ async function loadArticle(q) {
   }
 
   // ── 조 하나 인용(기존 동작 그대로): 인용된 항·호를 강조한다 ──
-  const block = extractArticleBlock(text, ref.jo, tier);
+  const block = extractArticleBlock(text, ref.jo, parseTier);
   if (!block) return { ok: false, reason: 'article_not_found' };
 
   const paragraphs = splitParagraphs(cleanBody(block.body));
@@ -1572,9 +1778,14 @@ async function loadArticle(q) {
 
 module.exports = {
   loadArticle, parseArticleRef, splitHo, splitParagraphs, extractArticleBlock, pickNoticeFile,
+  // pickNoticeGlobal 도 게이트가 같은 순서로 고시를 고르게 하려고 내보낸다(L-136).
+  pickNoticeGlobal,
   cleanBody, collectRefs, extractAttachments, parseBylFile, listArticleNumbers, buildArticles, resolveRefs,
   // resolveBase 는 순수 함수다(네트워크 없음). 위키 검사 도구(_dashboard/loop/link_ready.js)가
   // "이 근거 줄을 누르면 어느 원문 파일을 여는가"를 **생산과 똑같이** 계산하려고 쓴다 —
   // 따로 구현하면 검사와 코드가 어긋난다(L-136).
   resolveBase,
+  // isAddendaCell 도 같은 이유로 내보낸다(L-136) — `○○법 부칙 제2조` 인용을 게이트가
+  // 생산과 똑같이 "부칙 구간에서 찾는다"고 판단해야 숫자가 어긋나지 않는다.
+  isAddendaCell, addendaLawName,
 };

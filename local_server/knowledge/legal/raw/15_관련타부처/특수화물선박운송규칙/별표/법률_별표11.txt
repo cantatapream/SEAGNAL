@@ -1,0 +1,106 @@
+[법률] 별표11 — 화물정보신고서
+
+[별지 제11호서식]                                                                              
+                                                                                                                  
+  화물정보신고서                                                                                                  
+  CARGO INFORMATION for Solid Bulk Cargoes                                                                        
+                                                                                                                  
+  (앞쪽)                                                                                                          
+──────────┬────────────────────────────────┬─────────────
+  고체화물 □       │품명                                                            │                          
+                    │BCSN                                                            │                          
+──────────┼────────────────────────────────┼─────────────
+  고체위험물질 □   │국제해상위험물규칙(IMDG Code)에 따른 품명(PSN)                  │국제연합번호              
+                    │                                                                │UN No.                    
+                    ├────────────────────────────────┤                          
+                    │화학 또는 전문 명칭 Chemical or Technical Name                  │                          
+                    │                                                                │                          
+                    ├────────────────────────────────┤                          
+                    │특성을 나타내는 구체적 설명                                     │                          
+                    │Specific description to identify the properties of the material │                          
+                    │                                                                │                          
+──────────┴──┬────────────┬────────────────┼─────────────
+  운송명/수단             │                        │운송서류번호                    │                          
+  Name/means of transport │                        │Transport document number       │                          
+─────────────┼────────────┼────────────────┼─────────────
+  적재항                  │                        │양하항                          │                          
+  Port/place of departure │                        │Port/place of destination       │                          
+─────────────┼────────────┴────────────────┴─────────────
+  운송인                  │                                                                                      
+  Carrier                 │                                                                                      
+─────────────┴───────────────────────────────────────────
+                                                                                                                  
+─────────┬─────────────────────────────────┬─────────────
+  송하인          │성명(법인은 명칭 및 대표자 성명) Name/status, company/organization│전화번호 Telephone        
+  Shipper         │                                                                  │Number                    
+                  ├─────────────────────────────────┼─────────────
+                  │주소 Address                                                      │                          
+─────────┼─────────────────────────────────┼─────────────
+  수하인          │성명(법인은 명칭 및 대표자 성명) Name/status, company/organization│전화번호 Telephone        
+  Consignee       │                                                                  │Number                    
+                  ├─────────────────────────────────┼─────────────
+                  │주소 Address                                                      │                          
+─────────┴─────────────────────────────────┴─────────────
+                                                                                                                  
+─────────┬───────────────┬──┬───────────────┬────────────
+  화물 명세       │화물 형태                     │    │운송허용수분치                │                        
+  General         │Type of material              │    │Transportable moisture        │                        
+  description of  │                              │    │limit                         │                        
+  the cargo       ├───────────────┼──┼───────────────┼────────────
+                  │입자 크기                     │    │선적 시 수분량                │                        
+                  │particle size                 │    │Moisture content at           │                        
+                  │                              │    │shipment                      │                        
+                  ├───────────────┼──┼───────────────┼────────────
+                  │총량(m/t)                     │    │적하계수(m3/t)                │                        
+                  │Gross mass(kg/tonnes)         │    │Stowage factor                │                        
+                  ├───────────────┼──┼───────────────┼────────────
+                  │정지각                        │    │짐고르기 절차                 │                        
+                  │Angle of repose               │    │Trimming procedures           │                        
+                  ├───────────────┼──┴───────────────┴────────────
+                  │그룹 분류                     │□ 그룹 A 및 B     □ 그룹 A      □ 그룹 B      □ 그룹 C    
+                  │Group of the cargo            │  Group A and B    GroupA        Group B        Group C       
+─────────┴───────────────┴───────────────────────────────
+                                                                                                                  
+─────────┬───────────────┬───────────────────────────────
+  화물의 특성     │잠재적 위험성                 │                                                              
+  Relevant        │Specifications of bulk cargo  │                                                              
+  special         ├───────────────┴─────────────┬─────────────────
+  properties of   │해양환경 유해화물 여부 (MARPOL 1973/78 부속서 5장 부록Ⅰ) │□ Yes   □ No                    
+  the cargo       │Classification as harmful to the marine environment       │                                  
+                  │in accordance with appendix I of Annex V of MARPOL1973/78 │                                  
+                  ├───────────────┬─┬───────────┼─────────────────
+                  │위험물 분류                   │  │고체화학물질 여부     │                                  
+                  │Class                         │  │MHB                   │□ Yes   □ No                    
+                  ├───────────────┼─┴───────────┴─────────────────
+                  │지침 또는 그 밖의 사항        │                                                              
+                  │Instructions or other matters │                                                              
+─────────┴───────────────┴───────────────────────────────
+                                                                                                                  
+─────────┬───────────────────────────────────────────────
+  확인서          │위 위탁화물의 정보가 완전하게 정확히 기술되었고 본인의 지식과 신념에 비추어                   
+  Declaration     │기재된 시험결과 및 내용이 정확함을 확인합니다.                                                
+                  │I hereby declare that the consignment is fully and accurately described and that the given    
+                  │test results and other specifications are correct to the best of my knowledge and belief      
+                  │and can be considered as representative for the cargo to be loaded.                           
+─────────┴───────────────────────────────────────────────
+                                                                                                                  
+  (뒤쪽)                                                                                                          
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                  
+                                                                                                                  
+     「특수화물 선박운송 규칙」 제16조의5제1항에 따라 화물정보신고서를 제출합니다.                                
+    This information is submitted under the provisions 4.2.1 of the International Maritime Solid Bulk Cargoes     
+  Code.                                                                                                           
+                                                                                                                  
+  발급 장소(place):                                   발급 일자(date):          년(Y)        월(M)        일(D)   
+                                                                                                                  
+  송하인(또는 대리인)                                                                   (서명 또는 인)            
+      Name/status, company/organization of signatory (Signature on behalf of shipper)    (Signature)              
+                                                                                                                  
+                                                                                                                  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                  
+─────────────────────────────────────────────────────────
+                                                                                                                  
+                                                                                                                  
+  210mm×297mm(일반용지 60g/㎡(재활용품))

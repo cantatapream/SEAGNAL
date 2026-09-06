@@ -146,7 +146,7 @@ console.log(`법령 칸이 답변에 나올 수 없는 꼴인 행: ${now.law_cel
 if (argv.includes('--examples')) (ex.law_cell || []).slice(0, 10).forEach(x => console.log('        · ' + x));
 for (const k of Object.keys(LABEL)) {
   console.log(`  ${String(now[k]).padStart(4)}  ${LABEL[k]}${delta(k)}`);
-  if (argv.includes('--examples')) (ex[k] || []).slice(0, 8).forEach(x => console.log('        · ' + x));
+  if (argv.includes('--examples')) (ex[k] || []).slice(0, Number(arg("--n") || 8)).forEach(x => console.log('        · ' + x));
 }
 
 if (argv.includes('--gate')) {

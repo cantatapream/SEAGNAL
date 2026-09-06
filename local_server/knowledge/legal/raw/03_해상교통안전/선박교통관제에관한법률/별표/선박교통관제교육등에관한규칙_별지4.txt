@@ -1,0 +1,33 @@
+[선박교통관제 교육 등에 관한 규칙] 별지4 — 선박교통관제사 현장직무교육 강사 증서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000260342 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=153121985
+
+■ 선박교통관제 교육 등에 관한 규칙 [별지 제4호서식]
+선박교통관제사 현장직무교육 강사 증서
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                    ┃
+┃┌──┐                            ┌───┐                                      ┃
+┃│IALA│선박교통관제사 현장직무교육 │해양  │                                      ┃
+┃│logo│강사 증서                   │경찰청│                                      ┃
+┃│    │VTS Operator On-the-Job     │로 고 │                                      ┃
+┃│    │Training Instructor         │      │                                      ┃
+┃│    │ Course Certificate         │      │                                      ┃
+┃└──┘                            └───┘                                      ┃
+┃                                                                                    ┃
+┃아래사항을 증명함                                                                   ┃
+┃This is to certify that                                                             ┃
+┃0  0  0                                                                             ┃
+┃선박교통관제사 현장직무교육 강사 양성교육을 성공적으로 이수하였음                   ┃
+┃has successfully completed a                                                        ┃
+┃C0103-4 VTS Operator On-the-Job Training Instructor Course                          ┃
+┃                                                                                    ┃
+┃  Issued on behalf of                                     Course Certificate No:    ┃
+┃   Korea Coast Guard                             Awarded at                         ┃
+┃  Republic of Korea                          Signature             Date             ┃
+┃                                                                                    ┃
+┃IALA 권고 R0103과 C0103-4 교육과정에 따라서 이 증서를 수여함                        ┃
+┃    This Course Certificate is awarded in accordance with IALA Recommendation R0103 ┃
+┃and Model Course C0103-4                                                            ┃
+┃                                                                                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+210mm× 297mm[백상지(150g/㎡)]

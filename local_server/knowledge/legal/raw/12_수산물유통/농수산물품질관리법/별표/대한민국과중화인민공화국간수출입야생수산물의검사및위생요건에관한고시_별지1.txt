@@ -1,0 +1,164 @@
+[대한민국과 중화인민공화국 간 수출입 야생 수산물의 검사 및 위생 요건에 관한 고시] 별지1 — 위생증명서(한국에서 중국으로 수출하는 경우)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000282018 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=166930281
+
+[별지1┌┐
+││
+└┘
+]
+??? Num.Ref : 
+大?民?　海洋水?部　?立水?物品?管理院
+NATIONAL FISHERY PRODUCTS QUALITY MANAGEMENT SERVICE
+MINISTRY OF OCEANS AND FISHERIES OF THE REPUBLIC OF KOREA
+大?民?向中?人民共和?出口水?品?生?? 
+Health Certificate
+For Aquatic products intended for export from the Republic of 
+Korea to the People's Republic of China
+┌─────────────────────────────────────────────────────┐
+│I.主管?局信息 Information of Competent Authority                                                         │
+├──────────────────────┬──────────────────────────────┤
+│?出? /Country of Export                   │REPUBLIC OF KOREA                                           │
+├──────────────────────┼──────────────────────────────┤
+│生?? /Country of  Production              │                                                            │
+├──────────────────────┼──────────────────────────────┤
+│主管?局 /Competent Authority               │NATIONAL FISHERY PRODUCTS QUALITY                           │
+│                                            │MANAGEMENT SERVICE, MINISTRY OF OCEANS                      │
+│                                            │AND FISHERIES OF THE REPUBLIC OF KOREA                      │
+├──────────────────────┼──────────────────────────────┤
+│出?部? /Department of Certificate Issuance│                                                            │
+├──────────────────────┴──────────────────────────────┤
+│II.水?品信息 Identification of the Aquatic Products                                                      │
+├──────────────────────┬──────────────────────────────┤
+│商品名? /Commodity Name                    │                                                            │
+├──────────────────────┼──────────────────────────────┤
+│?    名 /Scientific Name                   │                                                            │
+├──────────────────────┼──────────────────────────────┤
+│包??量 /Number of Packages                │                                                            │
+├──────────────────────┼──────────────────────────────┤
+│?    重 /Net Weight                        │                                                            │
+├──────────────────────┼──────────────────────────────┤
+│生?日期 /Production Date                   │                                                            │
+├──────────────────────┼──────────────────────────────┤
+│生?批? /Lot No. of Products               │                                                            │
+├──────────────────────┴──────────────────────────────┤
+│III.水?品?源 Origin of the Aquatic Products                                                             │
+├──────────────────────┬──────────────────────────────┤
+│原料原?? /Country of  Origin of   Raw     │                                                            │
+│Materials                                   │                                                            │
+├──────────────────────┼──────────────────────────────┤
+│加工方式 /Processing Type                   │□??/Chilled   □冷?/Frozen   □干制/Dried  □??/Salted│
+│                                            │□熏制/Smoked   □罐?/Canned   □其他/Other                │
+├──────────────────────┼──────────────────────────────┤
+│生?水域性? /Character of Productive Water │□ 淡水/Fresh Water      □ 海水/Sea Water                  │
+│Area                                        │□ 咸淡水/Brackish Water                                    │
+├──────────────────────┼──────────────────────────────┤
+│生?方式 /Mode of Production                │□ ?殖/Aquacultured      □ 野生捕?/Wild Caught           │
+├──────────────────────┼──────────────────────────────┤
+│捕??域 /Catch Area                        │                                                            │
+├──────────────────────┼──────────────────────────────┤
+│?殖?域 /Aquaculture Area                  │                                                            │
+└──────────────────────┴──────────────────────────────┘
+      ??? Num.Ref : 
+┌─────────────────────────────────────────────────┐
+│IV.企?信息 Information of the Establishments                                                     │
+├──────────────────────────┬──────────────────────┤
+│?殖?名?和原料原??官方批准的注???/           │                                            │
+│Name of Aquaculture Farm and Registration           │                                            │
+│Number Approved by Country of Origin of Raw         │                                            │
+│Materials                                           │                                            │
+├──────────────────────────┼──────────────────────┤
+│捕??船船名、注???和船籍/Name of Fishing        │                                            │
+│Vessel, Registration Number and Flag of the         │                                            │
+│Vessel                                              │                                            │
+├──────────────────────────┼──────────────────────┤
+│捕?加工?船船名、注???和船籍/Name of Fishing    │                                            │
+│and Factory Vessel, Registration Number and Flag of │                                            │
+│the Vessel                                          │                                            │
+├──────────────────────────┼──────────────────────┤
+│???船船名、注???和船籍/Name of Transport      │                                            │
+│Fishing Vessel, Registration Number and Flag of     │                                            │
+│the Vessel                                          │                                            │
+├──────────────────────────┼──────────────────────┤
+│加工?名?、注???和所??/Name of Processing     │                                            │
+│Plant, Registration Number and Host Country of the  │                                            │
+│Processing Plant                                    │                                            │
+├──────────────────────────┼──────────────────────┤
+│?立冷?名?、注???和所??/Name of Independent  │                                            │
+│Cold Storage, Registration Number and Host Country  │                                            │
+│of the Storage                                      │                                            │
+├──────────────────────────┴──────────────────────┤
+│V.??信息 Information of Transport                                                               │
+├──────────────────────────┬──────────────────────┤
+│??人名?及地址/Name and Address of Consignor      │                                            │
+├──────────────────────────┼──────────────────────┤
+│收?人名?及地址/Name and Address of Consignee      │                                            │
+├──────────────────────────┼──────────────────────┤
+│??地 /Place of Dispatch Production                │                                            │
+├──────────────────────────┼──────────────────────┤
+│目的地 /Place of Destination                        │                                            │
+├──────────────────────────┼──────────────────────┤
+│? ? 工 具 信 息 /Means of Transport               │  □ 船只/Vessel                            │
+│                                                    │船只名?/Name of Vessel:                    │
+│                                                    ├──────────────────────┤
+│                                                    │  □ 航班/Flight                            │
+│                                                    │航班?/Flight Number:                       │
+│                                                    │                                            │
+│                                                    ├──────────────────────┤
+│                                                    │  □ 其他??工具信息/Other Transport Means:│
+│                                                    │                                            │
+├──────────────────────────┼──────────────────────┤
+│集?箱? /Container Number                          │                                            │
+├──────────────────────────┼──────────────────────┤
+│封?? /Seal Number                                 │                                            │
+├──────────────────────────┼──────────────────────┤
+│??日期 /Date of Departure                         │                                            │
+└──────────────────────────┴──────────────────────┘
+                              ??? Num.Ref: 
+┌─────────────────────────────────────────────────────┐
+│VI.健康?明 Health Attestation                                                                            │
+├─────────────────────────────────────────────────────┤
+│??明：This is to certify that:                                                                          │
+│1.??品由在?注?的捕??船、???船、捕?加工?船、?立冷?和加工企?捕?、加工、包?、?              │
+│存和??（如信息适用）。The products are fished, processed, packaged, stored and transported in fishing   │
+│vessels, transport fishing vessels, fishing and factory vessels, independent cold storages and processing │
+│plants, which are registered in China (If the information is applicable).                                 │
+│2.??品在?生?件下生?、包?、?藏和??，?置于主管?局?督之下。The products were produced,           │
+│packed, stored, and transported under sanitary condition, which were under the supervision of the         │
+│competent authority.                                                                                      │
+│3.??品?主管?局???疫，未??中??定的致病微生物、有毒有害物?和?物，及中?和世界?物              │
+│?生??（WOAH）所列的疫病。The products were inspected and quarantined by competent authority and        │
+│not found any diseases, pathogenic microorganism, harmful substances and foreign substances regulated in  │
+│the P.R.China and the diseases listed by China and WOAH.                                                  │
+│4.??品符合食品安全和?生要求，适合人?食用。The products meet  food safety and sanitary                 │
+│requirements and are fit for human consumption.                                                           │
+├─────────────────────────────────────────────────────┤
+│如有其?需要?明的情?，?注明：If there are any other situations that need to be declared, please        │
+│indicate:                                                                                                 │
+├────────────┬────────────────────────────────────────┤
+│??地点 Place of Issue │??日期 Date of Issue                                                          │
+├────────────┼────────────────────────────────────────┤
+│官方印章 Official Stamp │官方授?人?字 Official Authorizer Signature                                    │
+│                        │                                                                                │
+│                        │                                                                                │
+│                        │                                                                                │
+├────────────┴────────────────────────────────────────┤
+│?子????方式 （?址或二??等） Electronic certificate verification method (website or QR code, etc.) │
+└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│???明 Introduction for filling:                                                                          │
+│1.生??是指?品完成最后一道外包?工序的所在?。 Country of production is referring to the country          │
+│where the last outer packing procedure of the product was completed.                                        │
+│2.?出?主管部??完整??所涉及的?捕?、加工、包?、存?、??和出口等全?程中涉及的原料原                │
+│??、?品生??和?????的企?信息，包括加工?、捕??船（?限具有冷?或冷藏功能的捕??                │
+│船）、捕?加工?船、???船和?立冷?的名?和注???，?殖?名?和原料原??官方批准的注                  │
+│???，不得?漏上述任何??中涉及的企?信息。                                                              │
+│The competent authority of the exporting country fill in the establishments’ information on country of     │
+│origin of raw materials, country of production and country of certificates involved in the whole process of │
+│fishing, processing, packaging, storage, transportation and export, including the names and registration    │
+│numbers of processing plants, fishing vessels (only for the fishing vessels with freezing or refrigeration  │
+│function), fishing and  factory  vessels,  transport  fishing  vessels  and  independent  cold  storage,    │
+│and the aquaculture farm name   and registration number approved by country of origin of raw                │
+│materials. The establishments information involved in any of the above links shall not be omitted.          │
+│3.此???容不适用部分以***?充。If  any of the information required is not applicable, then the blank      │
+│area must be filled with ***.                                                                               │
+└──────────────────────────────────────────────────────┘

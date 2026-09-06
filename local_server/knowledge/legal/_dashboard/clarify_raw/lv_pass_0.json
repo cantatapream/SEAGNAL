@@ -1,0 +1,132 @@
+{
+ "query": "옹진장봉도 습지보호지역 지정 근거가 습지보전법 몇 조인가요?",
+ "base": "옹진장봉도 습지보호지역 지정 근거가 습지보전법 몇 조인가요?",
+ "ctx": {
+  "uc": {
+   "rounds": 0,
+   "state": "none",
+   "restate": ""
+  },
+  "scope": [],
+  "prof": {
+   "decided": []
+  },
+  "topic": "해양용도구역"
+ },
+ "calls": 1,
+ "log": [
+  {
+   "q": "옹진장봉도 습지보호지역 지정 근거가 습지보전법 몇 조인가요?",
+   "clarify": false
+  }
+ ],
+ "last": {
+  "clarify": null
+ },
+ "lastDone": {
+  "type": "done",
+  "ok": true,
+  "query": "옹진장봉도 습지보호지역 지정 근거가 습지보전법 몇 조인가요?",
+  "canonicalOnly": true,
+  "answer": "쉽게 말하면, 옹진장봉도 습지보호지역은 「습지보전법」 제8조에 따라 지정되었습니다.",
+  "sources": [
+   {
+    "file": "갯벌및그주변지역의지속가능한관리와복원에관한법률__갯벌생태마을지정",
+    "law": "갯벌 및 그 주변지역의 지속가능한 관리와 복원에 관한 법률",
+    "topic": "갯벌생태마을지정",
+    "kind": "concept",
+    "status": "canonical",
+    "score": 109.9763325702566,
+    "hop": false,
+    "gapNotices": []
+   },
+   {
+    "file": "갯벌및그주변지역의지속가능한관리와복원에관한법률__갯벌복원사업시행및계획",
+    "law": "갯벌 및 그 주변지역의 지속가능한 관리와 복원에 관한 법률",
+    "topic": "갯벌복원사업시행및계획",
+    "kind": "concept",
+    "status": "canonical",
+    "score": 108.18355569153178,
+    "hop": false,
+    "gapNotices": []
+   },
+   {
+    "file": "해양공간계획및관리에관한법률__해양용도구역",
+    "law": "해양공간계획 및 관리에 관한 법률",
+    "topic": "해양용도구역",
+    "kind": "concept",
+    "status": "canonical",
+    "score": 69.27972177864329,
+    "hop": false,
+    "gapNotices": []
+   },
+   {
+    "file": "해양생태계의보전및관리에관한법률__기본계획및해양생태도",
+    "law": "해양생태계의 보전 및 관리에 관한 법률",
+    "topic": "기본계획및해양생태도",
+    "kind": "concept",
+    "status": "canonical",
+    "score": 69.12423278121072,
+    "hop": false,
+    "gapNotices": []
+   },
+   {
+    "file": "갯벌및그주변지역의지속가능한관리와복원에관한법률__갯벌관리구역행위제한",
+    "law": "갯벌 및 그 주변지역의 지속가능한 관리와 복원에 관한 법률",
+    "topic": "갯벌관리구역행위제한",
+    "kind": "concept",
+    "status": "draft",
+    "score": 66.0595963442374,
+    "hop": false,
+    "gapNotices": []
+   },
+   {
+    "file": "해양공간계획및관리에관한법률__부산해양공간관리계획",
+    "law": "해양공간계획 및 관리에 관한 법률",
+    "topic": "부산해양공간관리계획",
+    "kind": "concept",
+    "status": "draft",
+    "score": 66.0595963442374,
+    "hop": false,
+    "gapNotices": []
+   }
+  ],
+  "citationChain": [
+   {
+    "law": "습지보전법",
+    "article": "제8조①",
+    "effectiveDate": "2025-10-01",
+    "gist": "습지보호지역 → 환경·생태계관리구역 자동 전환(부칙 제4조)",
+    "step": "",
+    "tier": "law",
+    "contact": null,
+    "citedArticle": "제8조",
+    "subject": "",
+    "baseLaw": "해양공간계획 및 관리에 관한 법률",
+    "excerpt": "① 기후에너지환경부장관, 해양수산부장관 또는 시ㆍ도지사는 습지 중 다음 각 호의 어느 하나에 해당하는 지역으로서 특별히 보전할 가치가 있는 지역을 습지보호지역으로 지정하고, 그 주변지역을 습지주변관리지역으로 지정할 수 있다. <개정 2025.10.1>…"
+   }
+  ],
+  "forms": [],
+  "citeLaws": [
+   {
+    "law": "습지보전법",
+    "tier": "law",
+    "base": "습지보전법",
+    "contact": null
+   }
+  ],
+  "note": "",
+  "ctxNext": {
+   "uc": {
+    "rounds": 0,
+    "state": "none",
+    "restate": ""
+   },
+   "scope": [],
+   "prof": {
+    "decided": []
+   },
+   "topic": "해양용도구역"
+  }
+ }
+}

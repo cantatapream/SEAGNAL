@@ -1,0 +1,26 @@
+[골프장의 농약사용량 조사 및 농약잔류량 검사방법 등에 관한 규정] 별표1 — 검사 항목(제4조 관련)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000266670 (수집 2026-08-31)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=157809079
+
+[별표 1]
+검사 항목(제4조 관련)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃대상 농약(27종)                                                           ┃
+┣━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃기본항목(25종)│다이아지논(Diazinon), 디니코나졸(Diniconazol),            ┃
+┃              │디메토에이트(Dimethoate), 디클로르보스(Dichlorvos),       ┃
+┃              │디클로베닐(Dichlobenil), 아세페이트(Acephate),            ┃
+┃              │아족시스트로빈(Azoxystrobin), 이프로디온(Iprodione),      ┃
+┃              │카두사포스(Cadusafos), 카바릴(Carbaryl), 카벤다짐(Carben  ┃
+┃              │dazim), 클로로탈로닐(Chlorothalonil), 클로르피리포스(Chlo ┃
+┃              │rpyrifos), 테부코나졸(Tebuconazole), 트리플록시스트로빈(T ┃
+┃              │rifloxystrobin), 트리플루미졸(Triflumizole),              ┃
+┃              │티오파네이트메틸(Thiophanate-methyl), 티플루자마이드(T    ┃
+┃              │hifluzamide), 페니트로티온(Fenitrothion), 포레이트(Phorat ┃
+┃              │e), 포스티아제이트(Fosthiazate),                          ┃
+┃              │프로파모카브하이드로클로라이드(Propamocarb-hydrochlori    ┃
+┃              │de), 플루톨라닐(Flutolanil), 피리메타닐(Pyrimethanil),    ┃
+┃              │피프로닐(Fipronil)                                        ┃
+┠───────┼─────────────────────────────┨
+┃선택항목(2종) │옥신코퍼(Oxine-copper), 티람(Thiram)                      ┃
+┗━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

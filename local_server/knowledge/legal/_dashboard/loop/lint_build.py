@@ -51,18 +51,25 @@ for c,v in sorted(cc.items(),key=lambda x:-len(x[1]))[:40]:
 open(f'{WIKI}/_backbone.md','w',encoding='utf-8').write('\n'.join(lines)+'\n')
 
 # --- build_index.md: 전체 statute/concept 인덱스 + 테마·링크갭 요약 ---
-laws=collections.defaultdict(lambda:{'statute':None,'concepts':[]})
+# ★종류별로 나눠 센다(2026-09-03). 종전에는 statute 가 아닌 것을 전부 'concepts' 로 몰아
+#   담아 놓고 머리글에는 statute·concept 수만 찍어, **annex 198·comparison 49 가 어디에도
+#   안 보였다**(총 페이지 1285 인데 74+963 만 적혀 있었다). 그 탓에 "annexes·comparisons 가
+#   색인에 0건"이라는 오해가 여러 회차 이어졌다 — 실제로는 index.json 에 다 들어 있다.
+KINDS=['statute','concept','annex','comparison','activity']
+laws=collections.defaultdict(lambda:{'statute':None,'concept':[],'annex':[],'comparison':[],'activity':[]})
 for p in idx:
     if p['kind']=='statute': laws[p['law']]['statute']=p['file']
-    else: laws[p['law']]['concepts'].append(p['topic'])
-bi=['# 위키 빌드 인덱스 (lint 자동생성)','',f"- 총 페이지: **{rep['page_count']}** (statute {sum(1 for p in idx if p['kind']=='statute')} · concept {sum(1 for p in idx if p['kind']=='concept')})",
+    else: laws[p['law']].setdefault(p['kind'],[]).append(p['topic'])
+kc=collections.Counter(p['kind'] for p in idx)
+bi=['# 위키 빌드 인덱스 (lint 자동생성)','',f"- 총 페이지: **{rep['page_count']}** (" + ' · '.join(f'{k} {kc.get(k,0)}' for k in KINDS if kc.get(k)) + ")",
  f"- 비대칭 링크 갭: **{len(rep['asym_link_gaps'])}건** (역링크 필요 — 후속 lint에서 보강)",'',
  '## 교차 테마(2법 이상)','','| 테마 | 관련 법 수 | 페이지 수 |','|---|---|---|']
 for t,l in rep['theme_laws'].items():
     if len(l)>=2: bi.append(f"| {t} | {len(l)} | {rep['theme_page_count'][t]} |")
-bi+=['','## 법령별 페이지','','| 법령 | statute | concept 수 |','|---|---|---|']
+bi+=['','## 법령별 페이지','','| 법령 | statute | concept | annex | comparison |','|---|---|---|---|---|']
 for law in sorted(laws):
-    d=laws[law]; bi.append(f"| {law[:30]} | {'✓' if d['statute'] else '—'} | {len(d['concepts'])} |")
+    d=laws[law]
+    bi.append(f"| {law[:30]} | {'✓' if d['statute'] else '—'} | {len(d.get('concept',[]))} | {len(d.get('annex',[]))} | {len(d.get('comparison',[]))} |")
 open(f'{DASH}/build_index.md','w',encoding='utf-8').write('\n'.join(bi)+'\n')
 
 print('graph.json:',len(nodes),'노드',len(ed2),'엣지')

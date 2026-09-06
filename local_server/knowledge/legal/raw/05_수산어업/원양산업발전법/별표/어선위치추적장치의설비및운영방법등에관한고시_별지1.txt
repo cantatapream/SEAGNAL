@@ -1,0 +1,71 @@
+[어선위치추적장치의 설비 및 운영방법 등에 관한 고시] 별지1 — 봉인 확인서 서식
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000203501 (수집 2026-08-31)
+
+■ 어선위치추적장치의 설비 및 운영방법 등에 관한 고시 [별지 제1호서식] <신 설> 
+봉인 확인서 서식
+┌───────────────────────────────────────┐
+│Fisheries Monitoring Center (FMC)                                             │
+│638, Gijanghaean-ro, Gijang-eup, Gijang-gun,                                  │
+│Busan, 46079, Republic of Korea                                               │
+│Tel:+82-51-410-1410, Fax:+82-51-410-1409                                      │
+│E-mail: fmc2014@korea.kr                                                      │
+│                                                                              │
+│                                                                              │
+│MM. DD. YYYY.                                                                 │
+│                                                                              │
+│(수신자 또는 업체 정보)                                                       │
+│                                                                              │
+│                                                                              │
+│Confirmation of Official Seals applied to ACL                                 │
+│                                                                              │
+│This is to confirm that the Automatic Location Communicator (ALC)             │
+│installed on board the following vessel has been duly checked and officially  │
+│sealed by the Fisheries Monitoring Center in the Republic of Korea, in        │
+│accordance with the applicable rules and regulations:                         │
+│                                                                              │
+│┌─────────────────────────────────┐        │
+││1. Vessel details:                                                │        │
+│├────────┬────────┬────────┬──────┤        │
+││Name (Kor/Eng)  │                │Flag State      │            │        │
+│├────────┼────────┼────────┼──────┤        │
+││Call Sign       │                │IMO No.         │            │        │
+│├────────┴────────┼────────┴──────┤        │
+││Authorization No. (given by flag  │                              │        │
+││State)                            │                              │        │
+│├─────────────────┴───────────────┤        │
+││2. ALC Information:                                               │        │
+│├────────┬────────┬────────┬──────┤        │
+││ALC Model       │                │Serial No.      │            │        │
+│├────────┼────────┼────────┼──────┤        │
+││ALC Satellite   │                │Date of         │            │        │
+││Type            │                │Installation    │            │        │
+│├────────┼────────┼────────┼──────┤        │
+││ALC Manufacturer│                │                │            │        │
+│├────────┴────────┴────────┴──────┤        │
+││3. Sealing Information:                                           │        │
+│├────────┬────────┬────────┬──────┤        │
+││Type of Sealing │                │Seals applied on│(mm.dd.yyyy)│        │
+│├────────┴────────┼────────┴──────┤        │
+││4. Official Seals: Serial numbers │Location of Application       │        │
+│├─────────────────┼───────────────┤        │
+││1.                                │                              │        │
+│├─────────────────┼───────────────┤        │
+││2.                                │                              │        │
+│├─────────────────┼───────────────┤        │
+││3.                                │                              │        │
+│├─────────────────┼───────────────┤        │
+││4.                                │                              │        │
+│├─────────────────┼───────────────┤        │
+││5.                                │                              │        │
+│└─────────────────┴───────────────┘        │
+│                                                                              │
+│                                                                              │
+│With best regards,                                                            │
+│                                                                              │
+│┌──┐NAME                                                                  │
+││직인│                                                                      │
+│└──┘                                                                      │
+│Head of Fisheries Monitoring Center                                           │
+│Ministry of Oceans and Fisheries                                              │
+│Republic of Korea                                                             │
+└───────────────────────────────────────┘

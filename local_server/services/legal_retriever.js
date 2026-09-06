@@ -452,11 +452,40 @@ function classifyTier(lawName) {
   // 우리가 원문을 가진 행정규칙 이름이면 곧바로 고시다(이름에 키워드가 없어도).
   if (admrulNameSet().has(flatName(s))) return 'notice';
   const kindMap = loadLawAliases().kind;
-  const kind = kindMap && kindMap.get(s.trim());
+  // ★낫표를 떼고도 한 번 찾는다(2026-08-31, 백로그 15회차 사서가 잡음).
+  //   위키 법령 칸은 `「공무원 여비 규정」` 처럼 낫표를 두른 채로 넘어오는데, 약칭표의 열쇠에는
+  //   낫표가 없다. 그래서 `classifyTier('공무원 여비 규정')` 은 **decree** 인데
+  //   `classifyTier('「공무원 여비 규정」')` 은 표 조회에 실패하고 아래 `/규정/` 키워드 규칙에 걸려
+  //   **notice(고시)** 로 잘못 분류됐다(직접 실행해 재현했다). 그러면 배지가 틀리고,
+  //   원문 링크도 있지도 않은 `행정규칙/` 폴더를 찾다 실패한다 — V5-8 "고시 파일을 못 고름" 에 잡힌다.
+  //   ⚠**정식명 완전일치일 때만** 쓰는 원칙은 그대로다(부분일치·추측 금지). 낫표만 벗긴다.
+  const bare = s.trim().replace(/^[「『]|[」』]$/g, '').trim();
+  const kind = kindMap && (kindMap.get(s.trim()) || kindMap.get(bare));
   if (kind) {
     if (kind === '법률' || kind === '헌법') return 'law';
     if (kind === '대통령령') return 'decree';
     if (/령$|규칙$/.test(kind)) return 'rule';        // ○○부령·총리령·대법원규칙
+  }
+  // ★위키가 괄호로 **종류를 직접 적어 준** 칸은 그 말을 그대로 믿는다(2026-09-01 실측).
+  //   `「정부 표창 규정」(대통령령)`·`해양경찰 분야 과학기술진흥에 관한 규정(대통령령)` 처럼
+  //   이름은 `…규정`으로 끝나지만 실제로는 대통령령인 것을 위키가 괄호로 알려 주고 있었다.
+  //   약칭표(kindMap)는 정식명 완전일치만 보므로 괄호가 붙은 이 칸들을 못 찾았고,
+  //   아래 키워드 규칙에 걸려 고시로 분류돼 **있지도 않은 `행정규칙/` 폴더를 찾다 실패**했다.
+  //   ⚠약칭표(위)가 먼저다 — 표에 정식명이 있으면 그쪽이 이긴다. 괄호는 그 다음이다.
+  // ★그 이름으로 **우리 raw 에 법 폴더가 있으면** 고시가 아니다(2026-09-01 실측).
+  //   `선원노동위원회규정` 은 이름이 `…규정`으로 끝나지만 대통령령이고, 우리는 그것을
+  //   `raw/15_관련타부처/선원노동위원회규정/` 에 법 계열 파일로 받아 뒀다. 그런데 아래 키워드 규칙이
+  //   고시로 분류해 **있지도 않은 `행정규칙/` 폴더를 찾다 실패**했다.
+  //   우리 배치에서 고시는 `<법>/행정규칙/` 안에 살지 제 폴더를 갖지 않는다 — 그래서
+  //   "제 폴더가 있다"는 것은 곧 법 계열 문서라는 뜻이다.
+  //   ⚠고시 이름표(admrulNameSet)와 약칭표(kindMap)가 먼저다 — 여기는 그 다음이다.
+  if (rawPathOf(s.trim()) || rawPathOf(s.trim().replace(/^[「『]|[」』]$/g, '').trim())) return 'law';
+  const paren = /[（(]\s*(대통령령|총리령|[가-힣]{2,10}부령|헌법|법률)\s*[)）]/.exec(s);
+  if (paren) {
+    const k = paren[1];
+    if (k === '법률' || k === '헌법') return 'law';
+    if (k === '대통령령') return 'decree';
+    return 'rule';                                   // 총리령·○○부령
   }
   if (/고시|지침|훈령|예규|규정|요령|행정규칙|통항규칙/.test(s)) return 'notice';
   // `…기준`으로 끝나는 이름은 거의 전부 고시다(P0 선행 실측: 위키 근거조문 표에 쓰인 '기준' 포함
@@ -563,14 +592,43 @@ function extractCitationChain(body) {
       if (!law || law === '—' || law === '-') continue;
       if (/^[〃″"]+$/.test(law.replace(/\s+/g, '')) && prevLaw) law = prevLaw;
       prevLaw = law;
+      const article = iArt >= 0 ? plainCell(c[iArt]) : '';
+      const effectiveDate = iEff >= 0 ? plainCell(c[iEff]) : '';
+      const gist = iGist >= 0 ? plainCell(c[iGist]) : '';
+      const step = iStep >= 0 ? plainCell(c[iStep]) : '';
+      // ★위임 화살표를 따라간다(2026-08-29) — `제29조의2 → 시행령 제18조의2` 처럼 한 칸이
+      //   **두 계층**을 가리키는 경우가 있다. 종전에는 칸 전체를 법령 이름만 보고 한 계층으로
+      //   판정해, 화살표 뒤 조문까지 법률.txt 에서 찾았다. 그 결과 **번호가 우연히 양쪽에 다
+      //   있으면 조용히 엉뚱한 조문이 열렸다**(실측 2026-08-29: 화살표가 있는 59줄 중 54줄이
+      //   그랬고, 법률에 그 번호가 아예 없어 눈에 띈 것은 5줄뿐이었다).
+      //   이제 화살표 앞뒤를 **두 줄로 갈라** 각자 제 계층에서 찾게 한다.
+      //   꼬리는 낱말 단위로 짜맞추지 않고 **화살표 뒤 원문을 통째로** 가져온다 —
+      //   `제74·75조`·`제59~67조` 같은 묶음·범위 표기를 알파벳 조합으로 잡으려다
+      //   빈 칸을 만들어 도달성 게이트를 11행 떨어뜨린 적이 있다(2026-08-29).
+      //   조문 표기(`제N조`)가 하나라도 들어 있을 때만 하위 계층 줄을 만든다.
+      const arrow = /→\s*(시행령|시행규칙)\s*([^→]*)/.exec(article);
+      //   꼬리에 조문이 있나 — 낱개(`제3조`·`제18조의2`)는 정규식으로, 묶음·범위
+      //   (`제74·75조`·`제59~67조`)는 생산 함수 articleEnumTokens 로 본다. 둘 다 봐야 한다:
+      //   articleEnumTokens 는 **묶음만** 풀고 낱개엔 []를 돌려준다.
+      const arrowSplit = !!(arrow && (/제\s*\d+\s*조/.test(arrow[2])
+        || articleEnumTokens(arrow[2]).some(t => /^제\d+조/.test(t))));
       out.push({
         law,
-        article: iArt >= 0 ? plainCell(c[iArt]) : '',
-        effectiveDate: iEff >= 0 ? plainCell(c[iEff]) : '',
-        gist: iGist >= 0 ? plainCell(c[iGist]) : '',
-        step: iStep >= 0 ? plainCell(c[iStep]) : '',
+        article: arrowSplit ? article.slice(0, arrow.index).trim().replace(/[·,\s]+$/, '') : article,
+        effectiveDate, gist, step,
         tier: classifyTier(law),
       });
+      if (arrowSplit) {
+        // 하위 계층 줄은 **기준법 이름 + 계층어**로 만든다 — classifyTier 가 그 꼴을 보고
+        //   decree/rule 을 돌려주고, resolveBase 가 같은 폴더의 시행령·시행규칙 파일을 연다.
+        const sub = law.replace(/\s*(시행령|시행규칙)\s*$/, '').trim() + ' ' + arrow[1];
+        out.push({
+          law: sub,
+          article: arrow[2].trim().replace(/[·,\s]+$/, ''),
+          effectiveDate, gist, step,
+          tier: classifyTier(sub),
+        });
+      }
     }
     return out;
   } catch (_) { return []; }
@@ -3045,7 +3103,14 @@ function loadRawPaths() {
 function rawPathOf(lawName) {
   const m = loadRawPaths();
   const flat = String(lawName || '').replace(/\s+/g, '');
-  return m.get(flat) || m.get(midDot(flat)) || null;
+  // ★가운뎃점을 **아예 뺀** 꼴도 마지막에 한 번 본다(2026-08-29).
+  //   경로표의 열쇠는 폴더 이름에서 만들어지는데 폴더 이름에는 가운뎃점이 없다
+  //   (`초중등교육법`). 반면 위키는 법령 원문 표기를 그대로 써서 `초ㆍ중등교육법` 이라 적는다.
+  //   midDot() 은 여러 종류의 점을 한 종류(`·`)로 **통일**할 뿐 빼지는 않아 둘이 못 만났다.
+  //   실측: 이 한 줄로 10개 법령명·14줄이 살아난다(총포ㆍ도검ㆍ화약류, 수목원ㆍ정원 등).
+  //   ⚠제일 마지막에 둔다 — 정확히 일치하는 이름이 있으면 그쪽이 먼저 이긴다.
+  const noDot = flat.replace(/[·ㆍ・]/g, '');
+  return m.get(flat) || m.get(midDot(flat)) || m.get(noDot) || null;
 }
 
 /**
@@ -3951,7 +4016,30 @@ const PROFILE_YES = '네, 그 조건으로';
 const PROFILE_NO = '아니요, 이번엔 다른 조건이에요';
 // 재진술에 법 이야기가 섞였는지 보는 후검사(§4.2) — 근거자료를 아직 안 읽은 단계라 여기서 조문·
 // 형량이 나오면 그건 환각이다. 하나라도 걸리면 그 판정을 **버린다**(= 확인하지 않고 통과).
+// ★"…법"으로 끝나는 법령 이름을 더한다(2026-08-29) — 이 잣대는 재진술에 **법 이야기를
+//   새로 들여오지 못하게** 막는 것인데, `법률`·`법령` 은 잡으면서 정작 실제 법 이름 꼴인
+//   `…특별법`·`…기본법` 은 못 잡고 있었다. 실측(2026-08-28 라이브 32문항)에서 재진술 자리에
+//   뜻풀이 대신 **법 이름 한 줄**이 그대로 나온 사고가 1건 있었다
+//   (`준보전무인도서에서 조리·야영…` → 재진술이 "독도 등 도서지역의 생태계보전에 관한 특별법").
+//   ⚠일반 낱말 "법"은 막지 않는다 — 2글자 이상 앞말이 붙고 뒤에 아무것도 없을 때만 본다
+//   ("이 법이 적용되나" 같은 정상 표현을 지우지 않기 위해서다).
 const RESTATE_BAN = /제\s*\d+\s*조|법률|법령|벌금|과태료|징역|「|」|만원/;
+// ★재진술이 **통째로 법 이름**이면 막는다(2026-08-29). 위 RESTATE_BAN 이 `법률`·`법령` 은
+//   잡으면서 정작 실제 법 이름 꼴(`…특별법`·`…기본법`)은 못 잡았다. 실측(2026-08-28 라이브
+//   ⚠**2026-08-29 정정 — 근거를 바꿔 적는다.** 처음엔 "라이브에서 재진술이 법 이름으로 나온
+//   사고가 1건 있었다"를 근거로 댔는데, 독립 검산 결과 **그런 사고는 없었다.** 그 문항
+//   (`준보전무인도서에서 조리·야영…`, lv_pass_2)은 `restate` 가 빈 값이고 `note` 가
+//   "추가 정보가 필요해요"인 **정상 조건 되묻기**였다 — 법 이름은 재진술이 아니라
+//   **되묻기 질문 문장 안**에 있었다(그 자리에서는 정상이다). 그날 실행기록의 restate 값
+//   106개 중 법 이름 꼴은 **0개**다.
+//   그래도 이 검사를 남기는 이유: RESTATE_BAN 은 `「`·`」` 가 붙은 인용 꼴만 막으므로
+//   **낫표 없는 맨 법 이름**은 그대로 통과한다. 설계가 금지한 것("법 이야기를 새로
+//   들여오지 않는다")에 실제로 빈칸이 있고, 이 검사는 그 빈칸을 막는다.
+//   즉 **관측된 사고가 아니라 규칙의 빈칸**을 막는 것이다.
+//   ⚠문장 **전체**가 법 이름일 때만 본다 — "이 법이 적용되는지 알고 싶다" 같은 정상 재진술은
+//   `법` 으로 끝나지 않으므로 걸리지 않는다. `방법`으로 끝나는 정상 문장은 따로 빼 준다.
+const RESTATE_LAWNAME = /^[가-힣0-9ㆍ·()\s]{4,}법(?:률)?\s*$/;
+const RESTATE_LAWNAME_OK = /(?:방법|용법|수법|어법|화법|기법)\s*$/;
 // ★실측 발견(2026-08-14, 프로덕션 최종재검증): 발동은 정상인데 재진술이 **대명사를 그대로 둔 채
 //   어미만 바꾼** 수준이었다 — "그거 언제까지 해야 돼?" → "그것을 언제까지 해야 하는지 알려주세요."
 //   이러면 "네"를 눌러도 스위치 off일 때와 똑같은 흐름이라, 왕복 1회+Gemini 1회만 늘고 얻는 게 없다.
@@ -3987,6 +4075,7 @@ function restateAllowed(s) {
   const t = clarifyStr(s, RESTATE_MAX);
   if (!t) return '';
   if (RESTATE_BAN.test(t) || RESTATE_DEICTIC.test(t) || RESTATE_BLANK.test(t)) return '';
+  if (RESTATE_LAWNAME.test(t) && !RESTATE_LAWNAME_OK.test(t)) return '';   // 통째로 법 이름
   return t;
 }
 

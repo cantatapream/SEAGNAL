@@ -1,25 +1,1742 @@
-지중해 배출규제해역(제6조제2항제2호의4 관련)
+유해액체물질의 분류를 위한 세부기준 및 물질목록(제3조제2항 관련)
 
-■ 선박에서의 오염방지에 관한 규칙 [별표 1의4]                              
-  지중해 배출규제해역(제6조제2항제2호의4 관련)                                                  
-                                                                                                
-  제1호부터 제3호까지에 따른 경계선과 유럽, 아프리카 및 아시아의 연안으로 둘                    
-  러싸인 지중해 해역. 다만, 제4호에 따른 해역은 제외한다.                                       
-    1. 스페인의 트라팔가 곶(북위 36도11분00초, 서경 6도02분00초)과 모로코의                     
-  스파르텔 곶(북위 35도48분00초, 서경 5도55분00초)을 연결하는 측지선으로                        
-  정하는 지브롤터 해협의 서쪽 입구                                                              
-    2. 터키의 메흐메칙 곶(북위 40도03분, 동경 26도11분)과 쿰칼레 곶(북위 40도                   
-  01분00초, 동경 26도12분00초)을 연결하는 측지선으로 정하는 차나칼레 해                         
-  협의 남서쪽 입구                                                                              
-    3. 수에즈 운하의 북쪽 입구                                                                  
-  ┌─────────┬─────────┐  4. 다음 좌표를 연결하는 측지선으로 둘러싸인 해역  
-  │위도              │경도              │                                                    
-  ├─────────┼─────────┤                                                    
-  │북위 31도29분00초 │동경 32도16분00초 │                                                    
-  ├─────────┼─────────┤                                                    
-  │북위 31도29분00초 │동경 32도28분48초 │                                                    
-  ├─────────┼─────────┤                                                    
-  │북위 31도14분00초 │동경 32도32분62초 │                                                    
-  ├─────────┼─────────┤                                                    
-  │북위 31도14분00초 │동경 32도16분00초 │                                                    
-  └─────────┴─────────┘
+■ 선박에서의 오염방지에   관한 규칙  [별표 1] <개정 2025. 8. 12.>
+
+   유해액체물질의        분류를    위한    세부기준     및  물질목록(제3조제2항          관련)
+
+
+1. 유해액체물질의      분류를   위한   세부기준
+  아래  표와   같이  GESAMP(  해양환경전문가그룹       ) 위험성    분석표에    반영된    것처럼   물
+ 질의   특성평가에     기초를   두고   물질에   오염범주를     배정한다.
+
+                              B2       D3            E2
+규칙     A1      A2      B1   만성적인     장기적인      해양생물    및  해저    분류
+     생체축적   생물분해     극독성      독성      건강에     서식지에     대한  영향
+                                       영향
+  1                   ≧5
+  2    ≧4              4                                         X
+  3            NR      4
+  4    ≧4      NR                    CMRTNI
+  5                    4
+  6                    3
+  7                    2
+  8    ≧4      NR            Not 0                               Y
+  9                           ≧1
+ 10                                             무기물질이     아닌
+                                              경우   FpㆍF  또는   S
+ 11                                  CMRTNI
+ 12 규칙   1부터   11까지  및  규칙   13의 기준을    충족하지    못하는   물질         Z
+    A1란에서    ≦2,  A2란에서    R, D3란  공백,  E2란에서    FpㆍF  또는   S가
+ 13 아님(무기물질이       아닌   경우)에   해당하고   , GESAMP   위험성    분석표의    OS
+    다른   란에   “0”으로  식별된   모든   물질
+비고
+GESAMP  위험성    평가절차에     대한  범례는   다음과    같다.
+                      A                              B
+              생체축적    및 생물분해                수중   생물에   대한  독성
+                                             B1            B2
+                 A1               A2        극독성       만성적인    독성
+ 수량           생체축적              생물분해     LC/EC/IC50      EC10 or
+ 등급                                         (mg/L)        NOEC
+                                                         (mg/L)
+       A1a: log     A1b: BCF
+         Pow
+        log <1,                   R:
+  0    log > ca.7 BCF  측정불가     생물분해      AT  >1000      CT  >1
+        MW   >                  가  쉽게
+         1000                     됨
+  1   1≤  log <2  1≤  BCF <10     NR:      100< AT     0.1< CT ≤1
+                                생물분해        ≤1000
+  2   2≤  log <3   10≤ BCF <100 가  쉽게    10<AT  ≤100   0.01< CT ≤0.1
+  3   3≤  log <4  100≤ BCF <500   되지      1<AT  ≤10   0.001 <CT ≤0.01
+ 4   4≤  log <5  500≤ BCF <4000  않음      0.1< AT ≤1    CT  ≤0.001
+ 5   5≤ log < ca.7BCF  ≥4000            0.01< AT ≤0.1
+ 6                                        AT ≤0.01
+
+                                  C
+                          포유류에    유독한   영향
+        C1             C2                       C3
+수   구강에    독성      피부에    독성                흡입시    독성
+량                                         C3a               C3b
+등    LD50/ATE       LD50/ATE     증기/미스트       미스트만         증기만
+급     (mg/kg)        (mg/kg)     LC50/ATE    LC50/ATE    LC50/ATE
+                                   (mg/L)      (mg/L)      (mg/L)
+0   ATE  >2000     ATE  >2000     ATE  >20    ATE  >5    ATE  >20
+1  300< ATE ≤2000 1000< ATE ≤200010< ATE ≤20  1< ATE ≤5  10< ATE ≤20
+2   50< ATE ≤300  200< ATE ≤1000 2< ATE ≤10  0.5< ATE ≤1 2< ATE ≤10
+3    5< ATE ≤50    50< ATE ≤200  0.5< ATE ≤2  0.05< ATE  0.5< ATE ≤2
+                                                ≤0.5
+4      ATE ≤5        ATE ≤50      ATE ≤0.5    ATE ≤0.05   ATE ≤0.5
+
+                                    D
+                     자극,  부식   및 장기적인     건강에   영향
+수량             D1                  D2                   D3
+등급      피부   자극  및  부식        눈자극   및  부식       장기적인    건강에   영향
+  0         무자극성                 무자극성          C  - 발암인자
+  1        약간   자극성            약간   자극성        M  - 돌연변이
+  2          자극성                  자극성          R  - 생물번식에     독성
+                                               Ss  - 피부에   과민성
+        심각한   자극성    또는                        Sr - 호흡계    과민성
+             부식성                               A  - 흡입위험
+  3     3A  부식  (≤4시간)        심각한    자극성       T   -  대상기관     계통
+        3B 부식   (≤1시간)                         손상
+         3C 부식   (≤3분)                         N  - 신경   독성
+                                               I - 면역   독성
+
+                                    E
+                        그  밖의   해양의   이용에    영향
+                                   E2                  E3
+수량             E1              해양생물    및         연안의   문화시설에
+등급      가연성    인화점(℃)       해저서식지에      대한             영향
+                                  영향
+  0     불연성,   타지   않음     Fp -  지속적으로      물  영향   없음
+                               표면에      떠있는    경고   없음
+                               물질              약간   불쾌함
+  1        인화점   >93       F -  물  표면에    떠있   경고   (문화시설폐쇄
+                           는  물질               불필요)
+  2      60< 인화점   ≤93                         상당히    불쾌함
+                             S -  가라앉는    물질      문화시설폐쇄       가능함
+   3      23≤  인화점    ≤60    G  - 가스
+                             E  - 증발하는    물질      굉장히    불쾌함
+   4         인화점   <23       D  -  용해되는      물질   문화시설폐쇄
+                                 및  그  조합
+
+
+2. 유해액체물질의       목록
+
+
+                             품명                                  오염분류
+아세트산                                                                 Z
+Aceticacid
+아세트산    무수물                                                          Z
+Aceticanhydride
+아세토클로르                                                              X
+Acetochlor
+아세톤   시아노히드린                                                        Y
+Acetone cyanohydrin
+아세토니트릴                                                               Z
+Acetonitrile
+아세토니트릴(저순도)                                                         Y
+Acetonitrile(Lowpuritygrade)
+대두,  옥수수    및 해바라기유      정제   유산혼합물                                 Y
+Acidoilmixturefrom soya bean,corn(maize)andsunfloweroilrefining
+아크릴아미드용액(50%        이하)                                             Y
+Acrylamidesolution(50% or less)
+아크릴산                                                                Y
+Acrylicacid
+포스  포  네이트기를      갖는  아크릴산/에      텐설  폰산   공중   합체,  나트륨    염
+용액                                                                   Z
+Acrylicacid/ethenesulphonicacidcopolymerwithphosphonategroups,
+sodium saltsolution
+아크릴로니트릴                                                             Y
+Acrylonitrile
+아크릴로니트릴-스틸렌          공중합체와     폴리에테르      폴리올의     혼합물              Y
+Acrylonitrile-Styrenecopolymerdispersioninpolyetherpolyol
+아디포니트릴                                                               Z
+Adiponitrile
+알라클로르(농도가        90% 이상)                                            X
+Alachlortechnical(90%or more)
+알코올(C9-C11)폴리(2.5-9)       에톡실레이트                                            Y
+Alcohol (C9-C11)  poly(2.5-9) ethoxylate
+알코올(C6-C17)(2차)폴리(3-6)에톡실레이트                                                 Y
+Alcohol (C6-C17)(secondary)   poly(3-6) ethoxylates
+알코올(C6-C17)(2차)폴리(7-12)에톡실레이트                                                Y
+Alcohol (C6-C17)(secondary)   poly(7-12) ethoxylates
+알코올(C10-C18)폴리(7)       에톡실레이트                                               Y
+Alcohol(C10-C18)  poly(7) ethoxylate
+알코올(C12-C16)폴리(1-6)        에톡실레이트                                            Y
+Alcohol(C12-C16)  poly(1-6) ethoxylates
+알코올(C12-C16)폴리(20+)        에톡실레이트                                            Y
+Alcohol(C12-C16)  poly(20+) ethoxylates
+알코올(C12-C16)폴리(7-19)        에톡실레이트                                           Y
+Alcohol(C12-C16)  poly(7-19)  ethoxylates
+알코올(C13+)                                                                    Y
+Alcohols(C13+)
+알코올(C12+),    1차,  선형                                                        Y
+Alcohols(C12+), primary, linear
+알코올(C8-C11),     1차,  선형   및  본질적     선형                                     Y
+Alcohols(C8-C11),  primary, linearand  essentiallylinear
+알코올(C12-C13),     1차,  선형   및  본질적     선형                                    Y
+Alcohols (C12-C13),  primary, linear and essentially linear
+알코올(C14-C18),     1차,  선형   및  본질적     선형                                    Y
+Alcohols(C14-C18),  primary, linear and essentially linear
+알칸(C6-C9)                                                                    X
+Alkanes(C6-C9)
+이소   및  시클로     알칸(C10-C11)                                                  Y
+Iso- and cyclo-alkanes(C10-C11)
+이소   및  시클로     알칸(C12+)                                                     Y
+Iso- and cyclo-alkanes(C12+)
+n-알칸(C9-C11)                                                                 Y
+n-Alkanes(C9-C11)
+n-알칸(C10-C20)                                                                Y
+n-Alkanes(C10  －   C20)
+알칼리    폴리에테르(C9-C20)                                                         Y
+Alkaryl polyethers(C9-C20)
+알케노산,     폴리   하이드록시       에테르     붕산화                                       Y
+Alkenoic acid, polyhydroxy  ester borated
+알케닐(C11+)    아마이드                                                         X
+Alkenyl(C11+) amide
+알케닐(C16-C20)     숙신산    무수물                                               Z
+Alkenyl(C16-C20)  succinicanhydride
+톨루엔    알킬   아크릴    레이트/비닐피리딘          공중합체                                Y
+Alkyl acrylate/vinylpyridinecopolymer in toluene
+알킬라릴     포스페이트      혼합물(디페닐       톨릴   포스페이트       40%초과,   오르토
+이성질체     0.02% 미만)                                                        X
+Alkylarylphosphate mixtures(more than 40%  Diphenyl tolylphosphate,
+lessthan 0.02% ortho-isomers)
+알킬화된(C4-C9)      간섭   페놀                                                  Y
+Alkylated(C4-C9) hindered phenols
+알킬벤젠     알킬리단     알킬리덴      혼합물(각각      C12-C17)                          Z
+Alkylbenzene, alkylindane,alkylindene mixture(each C12-C17)
+알킬   벤젠   증류   찌꺼기                                                        Y
+Alkyl benzene distillationbottoms
+알킬   벤젠   혼합물(50    %  이상의    톨루엔     함유)                                 Y
+Alkylbenzene mixtures(Containing  atleast 50%  of toluene)
+알킬   벤젠   혼합물(나프탈렌        함유)                                             X
+Alkylbenzenes mixtures(Containing  naphthalene)
+알킬(C3-C4)   벤젠                                                            Y
+Alkyl(C3-C4) benzenes
+알킬(C5-C8)   벤젠                                                            X
+Alkyl(C5-C8) benzenes
+알킬(C9+)   벤젠                                                              Y
+Alkyl(C9+)benzenes
+알킬(C11-C17)    벤젠   술포닉산                                                  Y
+Alkyl(C11-C17)  benzene sulphonic acid
+알킬   벤젠   술포닉산,     나트륨염     용액                                           Y
+Alkylbenzene sulphonic acid,sodium  salt solution
+알킬/사이클로(C4-C5)        알코올                                                 Y
+Alkyl/cyclo(C4-C5) alcohols
+알킬(C10-C15,   C12  리치)   페놀   폴리(4-12)에톡실레이트                              Y
+Alkyl(C10-C15, C12  rich)phenol poly(4-12) ethoxylate
+알킬(C12+)   디메틸아민                                                          X
+Alkyl(C12+) dimethylamine
+알킬   디티오카바메이트(C19-C35)                                                    Y
+Alkyl dithiocarbamate(C19-C35)
+알칼디티오티아디졸(C6-C24)                                                          Y
+Alkyldithiothiadiazole(C6-C24)
+알킬   에스테르     공중합체(C4-C20)                                                 Y
+Alkyl estercopolymer(C4-C20)
+알킬(C7-C9)    질산염                                                           Y
+Alkyl(C7-C9)  nitrates
+알킬(C8-C10)/(C12-C14):(40%     이하/60%    이상)  폴리글루코사이드          용액
+(55% 이하)                                                                   Y
+Alkyl(C8-C10)/(C12-C14):(40%   or  less/60% or more)  polyglucoside
+solution(55%  or less)
+알킬(C8-C10)/(C12-C14):(60%     이상/40%    이하)  폴리글루코사이드          용액
+(55% 이하)                                                                   Y
+Alkyl(C8-C10)/(C12-C14):(60%   or  more/40%  or less) polyglucoside
+solution(55% or less)
+알킬(C7-C11)페놀폴리(4-12)에톡실레이트                                                 Y
+Alkyl(C7-C11)phenol  poly(4-12) ethoxylate
+알킬(C8-C40)    페놀   설파이드                                                    Z
+Alkyl(C8-C40)  phenol sulphide
+방향족화합물용제에          녹아있는      알킬(C8-C9)    페닐아민                             Y
+Alkyl(C8-C9)  phenylamine  inaromatic  solvents
+알킬(C9-C15)    페닐   프로폭실레이트                                                 Z
+Alkyl(C9-C15)  phenyl propoxylate
+알킬(C8-C10)    폴리글루코사이드          용액(65%    이하)                              Y
+Alkyl(C8-C10)  polyglucoside solution(65% or less)
+알킬(C8-C10)/(C12-C14):(50%/50%)    폴리글루코사이드         용액(55%   이하)            Y
+Alkyl(C8-C10)/(C12-C14):(50%/50%) polyglucoside solution(55%or less)
+알킬(C12-C14)    폴리글루코사이드          용액(55%    이하)                             Y
+Alkyl(C12-C14)  polyglucoside solution(55% or less)
+알킬(C12-C16)프로폭시아민          에톡실레이트                                          X
+Alkyl(C12-C16)  propoxyamine  ethoxylate
+알킬(C10-C20,   포화    및  불포화된     것)  포스파이트                                  Y
+Alkyl(C10-C20, saturated and  unsaturated) phosphite
+페놀의    알킬   술포닉    산                                                       Y
+Alkyl sulphonic acid esterof phenol
+알킬(C18+)   톨루엔                                                             Y
+Alkyl(C18+) toluenes
+알킬(C18-C28)    톨루엔술폰산                                                      Y
+Alkyl(C18-C28)  toluenesulphonicacid
+알킬(C18-C28)    톨루엔술폰산,       칼슘염,    붕산화                                   Y
+Alkyl(C18-C28) toluenesulphonic acid,calcium  salts,borated
+알킬(C18-C28)   톨루엔술폰산,       칼슘염,    저염기                                   Y
+Alkyl(C18-C28) toluenesulphonic acid,calcium  salts,low overbase
+알킬(C18-C28)   톨루엔술폰산,       칼슘염,    고염기                                   Y
+Alkyl(C18-C28) toluenesulphonic acid,calcium  salts,high overbase
+알릴알코올                                                                     Y
+Allylalcohol
+염화알릴                                                                      Y
+Allylchloride
+염화   알루미늄     / 염화수소     용액                                               Y
+Aluminium  chloride/Hydrogen chloride solution
+수산화    알루미늄,     수산화    나트륨,    탄산나트륨용액(40        %  이하)
+Aluminium hydroxide,sodium  hydroxide,sodium carbonate solution(40%       Y
+orless)
+황산알루미늄       용액                                                           Y
+Aluminium  sulphate solution
+2-(2-아미노에톡시)       에탄올                                                    Z
+2-(2-Aminoethoxy)  ethanol
+아미노에틸디에타놀라민/아미노에틸에타놀라민용액                                                  Z
+Aminoethyldiethanolamine/Aminoethylethanolamine   solution
+아미노에틸      에탄올아민                                                          Z
+Aminoethyl ethanolamine
+N-아미노에틸피페라진                                                               Z
+N-Aminoethylpiperazine
+2-아미노-2-메틸-1-프로판올                                                         Z
+2-Amino-2-methyl-1-propanol
+암모니아     수용액(28%     이하)                                                  Y
+Ammonia   aqueous(28%  or less)
+염화암모늄용액(25%         미만)(*)                                                Z
+Ammonium    chloridesolution(lessthan 25%)(*)
+인산암모늄수소        용액                                                         Z
+Ammonium    hydrogen phosphate  solution
+암모늄    리그노술포네이트용액                                                         Z
+Ammonium    lignosulphonatesolutions
+질산암모늄      용액(93%    이하)                                                  Z
+Ammonium    nitratesolution(93% or less)(*)
+암모늄    폴리인산염      용액                                                      Z
+Ammonium    polyphosphate solution
+황화암모늄      용액                                                           Z
+Ammonium   sulphate solution
+황화암모늄      용액(45%   이하)                                                 Y
+Ammonium   sulphide solution(45% or less)(*)
+암모늄    티오황산용액(60%        이하)                                            Z
+Ammonium   thiosulphatesolution(60% or less)
+아세트산아밀(모든         이성질체)                                                 Y
+Amyl  acetate(allisomers)
+n-아밀   알코올                                                              Z
+n-Amyl  alcohol
+아밀   알코올,   일차                                                          Z
+Amyl  alcohol,primary
+sec-아밀   알코올                                                            Z
+sec-Amyl  alcohol
+tert-아밀  알코올                                                            Z
+tert-Amyl alcohol
+tert-아밀  에틸   에테르                                                       Z
+tert-Amyl ethyl ether
+tert-아밀  메틸   에테르                                                       X
+tert-Amyl methyl ether
+아닐린                                                                     Y
+Aniline
+아릴   폴리올레핀(C11-C50)                                                     Y
+Aryl polyolefins(C11-C50)
+항공용   알킬레이트(C8       파라핀    및  이소파라핀으로        비등점이     95-120℃)*        X
+Aviationalkylates(C8 paraffinsand iso-paraffinsBPT  95 -  120°C)
+장쇄알카릴슬폰산바륨(C11-C50)                                                     Y
+Barium long chain(C11-C50)  alkarylsulphonate
+벤젠   및  벤젠이    10%  이상   포함된    혼합물                                     Y
+Benzene and mixtures  having 10%  benzene or more(i)
+벤젠   술포닐    염화화합물                                                       Y
+Benzene sulphonyl chloride
+벤젠트리카르복실산,트리옥틸             에스테르                                         Y
+Benzenetricarboxylicacid,trioctylester
+아세트산     벤질                                                             Y
+Benzyl acetate
+벤질   알코올                                                                Y
+Benzyl alcohol
+염화벤질                                                                    Y
+Benzyl chloride
+디젤/가스    오일  및  FAME의   바이오연료혼합물(>        25 %이지만    <99 부피   %)        X
+Bio-fuelblendsofDiesel/gasoiland FAME(>25%   but <99% by volume)
+디젤/가스    오일   및  식물성   오일의    바이오연료혼합물(>         25 %이지만     <99
+부피   %)                                                                 X
+Bio-fuelblends of Diesel/gasoil and vegetable oil(>25% but <99%
+by volume)
+가솔린과    에틸알코올의       바이오연료      혼합물(>    25 %이지만     <99 부피   %)
+Bio-fuelblends of Gasoline and Ethyl  alcohol(>25% but <99%   by        X
+volume)
+비스(2-에틸헥실)      테레프탈레이트                                                 Y
+Bis(2-ethylhexyl)terephthalate
+브레이크액혼합물폴리(2-8)          알킬렌(C2-C3)    글리콜/폴리알킬렌(C2-C10)
+모노알킬(C1-C4)     에테르와     붕산에스테르                                         Z
+Brake fluidbase mix: Poly(2-8)alkylene(C2-C3) glycols/Polyalkylene
+(C2-C10) glycolsmonoalkyl(C1-C4)  ethers and theirborate esters
+브로모클로르메탄                                                                Z
+Bromochloromethane
+부텐   올리고머                                                               X
+Butene oligomer
+2-부톡시에탄올(58%)/하이퍼브랜치             폴리에스테르아미드(42%)(혼합물)                    Y
+2-Butoxyethanol(58%)/Hyperbranched  polyesteramide(42%)(mixture)
+아세트산부틸(모든        이성질체)                                                  Y
+Butylacetate(allisomers)
+아크릴산부틸(모든        이성질체)                                                  Y
+Butylacrylate(allisomers)
+tert-부틸  알코올                                                            Z
+tert-Butylalcohol
+부틸아민(모든      이성질체)                                                      Y
+Butylamine(allisomers)
+부틸벤젠(모든      이성질체)                                                      X
+Butylbenzene(allisomers)
+프탈산    벤질부틸                                                             X
+Butylbenzyl phthalate
+부티르산부틸(모든        이성질체)                                                  Y
+Butylbutyrate(allisomers)
+부틸/데실/세틸/메타아크릴산            에이코실의      혼합물                               Y
+Butyl/Decyl/Cetyl/Eicosylmethacrylatemixture
+부틸렌    글리콜                                                               Z
+Butylene glycol
+산화   1,2-부틸렌                                                             Y
+1,2-Butyleneoxide
+n-부틸에테르                                                                  Y
+n-Butyl ether
+메타크릴산      부틸                                                            Z
+Butyl methacrylate
+프로피온산      n-부틸                                                          Y
+n-Butyl propionate
+부틸알데히드(모든         이성질체)                                                  Y
+Butyraldehyde(allisomers)
+부티르산                                                                     Y
+Butyricacid
+감마-부티로락톤                                                                 Y
+gamma-Butyrolactone
+칼슘   알칼리    설포네이트(C11-C50)                                               Z
+Calcium alkarylsulphonate(C11-C50)
+칼슘   알킬(C10-C28)   살리실레이트                                                Y
+Calcium alkyl(C10-C28) salicylate
+탄화칼슘슬러리                                                                  Y
+Calcium hydroxide slurry
+하이포아염소산        칼슘   용액(15%    이하)                                        Y
+Calcium hypochloritesolution(15%  orless)
+하이포아염소산        칼슘   용액(15%    초과)                                        X
+Calcium hypochloritesolution(more than 15%)
+칼슘   리그노술포네이트용액                                                          Z
+Calcium lignosulphonate solutions
+장쇄알킬페네이트칼슘(C5-C10)                                                       Y
+Calcium long-chain alkyl(C5-C10) phenate
+장쇄알킬페네이트칼슘(C11-C40)                                                      Y
+Calcium long-chain alkyl(C11-C40) phenate
+황화장쇄알킬페네이트칼슘(C8-C40)                                                     Y
+Calcium long-chain alkyl phenate sulphide(C8-C40)
+장쇄알킬살리실염화칼슘(C13+)                                                        Y
+Calcium long-chain alkyl salicylate(C13+)
+칼슘   장쇄   알킬(C18-C28)    살리실레이트                                          Y
+Calcium long-chain alkyl(C18-C28) salicylate
+질산칼슘/질산마그네슘/염화칼륨용액                                                       Z
+Calcium nitrate/Magnesium  nitrate/Potassiumchloridesolution
+질산   칼슘   용액(50%    이하)                                                  Z
+Calcium nitratesolution(50% or less)
+카멜리나     오일                                                              Y
+Camelina oil
+엡실론-카프로락탐(용융상            또는   수용액)                                       Z
+epsilon-Caprolactam(molten or aqueous solutions)
+석탄산오일                                                                    Y
+Carbolicoil
+이황화탄소                                                                    Y
+Carbon disulphide
+사염화탄소                                                                    Y
+Carbon tetrachloride
+캐슈너트     쉘유(미가공)                                                         Y
+Cashew  nut shelloil(untreated)
+파마자유                                                                     Y
+Castor oil
+세슘   포름   산염   용액(*)                                                     Y
+Cesium formate  solution(*)
+메타크릴산세틸/메타크릴산             에이코실     혼합물                                   Y
+Cetyl/Eicosylmethacrylate mixture
+염소산화     파라핀류(C10-C13)                                                   X
+Chlorinatedparaffins(C10-C13)
+염소산화     파라핀류(C14-C17)(염소        50%  이상과    C13 1%  이하   또는   더
+짧은   체인)                                                                 X
+Chlorinatedparaffins(C14-C17) (with 50%  chlorineor more, and less
+than 1%  C13 or shorter chains)
+클로로아세트산(80%         이하)                                                  Y
+Chloroaceticacid(80% or less)
+클로로벤젠                                                                    Y
+Chlorobenzene
+클로로포름                                                                    Y
+Chloroform
+클로로히드린(정제하지           않은   것)                                            Y
+Chlorohydrins(crude)
+4-클로로-2-메틸렌옥시아세트산              디메틸아민염       용액                           Y
+4-chloro-2-methylphenoxyacetic acid, dimethylamine saltsolution
+o-클로니트로벤젠                                                                Y
+o-Chloronitrobenzene
+1-(4-클로로페닐)-4,4-디메틸-펜탄-3-one)                                            Y
+1-(4-Chlorophenyl)-4,4- dimethyl-pentan-3-one
+2-또는   3-클로로프로      피온산                                                  Z
+2- or 3-Chloropropionicacid
+클로로술폰산                                                                   Y
+Chlorosulphonicacid
+m-클로로톨루엔                                                                 Y
+m-Chlorotoluene
+o-클로로톨루엔                                                                 Y
+o-Chlorotoluene
+p-클로로톨루엔                                                                 Y
+p-Chlorotoluene
+클로로톨루엔(혼합         이성질체)                                                  Y
+Chlorotoluenes(mixed isomers)
+염화콜린     용액                                                              Z
+Cholinechloride solutions
+시트르산(70%      이하)                                                        Z
+Citricacid(70% or less)
+콜타르                                                                      X
+Coal tar
+콜타르    나프타    용제                                                         Y
+Coal tarnaphtha  solvent
+콜타르피치(용융상태)(*)                                                           X
+Coal tarpitch(molten)(*)
+코코아버터                                                                    Y
+Cocoa butter
+야자유                                                                      Y
+Coconut oil
+지방산야자      유                                                             Y
+Coconut oilfatty acid
+지방산    야자유    메틸   에스테르                                                  Y
+Coconut oilfatty acid methyl ester
+장연쇄(C17+)    알케이노산구리염                                                    Y
+Copper saltof long chain(C17+) alkanoic acid
+옥수수유                                                                     Y
+Corn Oil
+면실유                                                                   Y
+Cottonseed oil
+크레오소트(콜타르)                                                             X
+Creosote(coaltar)
+크레솔(모든     이성질체)                                                      Y
+Cresols(allisomers)
+크레졸/페놀/자일레놀         혼합물                                               Y
+Cresol/Phenol/Xylenolmixture
+크레실산,    석탄산으로      분해되지     않은   것                                   Y
+Cresylicacid,dephenolized
+크레졸산    나트륨염     용액                                                   Y
+Cresylicacid,sodium saltsolution
+크로톤알데히드                                                                X
+Crotonaldehyde
+1.5.9-시클로도데카트리엔                                                        X
+1,5,9-Cyclododecatriene
+시클로헵탄                                                                  X
+Cycloheptane
+시클로헥산                                                                 Y
+Cyclohexane
+시클로   헥산-1,   2-디카르복실산,       디이소노닐에스테르                               Y
+Cyclohexane-1,2-dicarboxylicacid,diisononylester
+시클로헥산     산화   생성물,    나트륨염     용액                                     Z
+Cyclohexane oxidationproducts,sodium  saltssolution
+시클로헥산올                                                                Y
+Cyclohexanol
+시클로헥산온                                                                 Z
+Cyclohexanone
+시클로헥산온,      시클로헥산올       혼합물                                         Y
+Cyclohexanone,Cyclohexanol mixture
+아세트산    시클로헥실                                                         Y
+Cyclohexylacetate
+시클로헥실아민                                                               Y
+Cyclohexylamine
+1.3-시클로펜타디엔       이합체(용융상)                                            Y
+1,3-Cyclopentadienedimer(molten)
+시클로펜탄                                                                 Y
+Cyclopentane
+시클로펜텐                                                                  Y
+Cyclopentene
+p-시멘                                                                   Y
+p-Cymene
+데카히드로나프탈렌                                                              Y
+Decahydronaphthalene
+데칸산                                                                    X
+Decanoic acid
+데센                                                                     X
+Decene
+아크릴산    데실                                                             X
+Decyl acrylate
+데실  알코올(모든      이성질체)                                                  Y
+Decyl alcohol(allisomers)
+데실/도데실/테트라데실          알코올    혼합물                                       Y
+Decyl/Dodecyl/Tetradecylalcoholmixture
+데실옥시테트라하이드로티오펜              디옥사이드                                      X
+Decyloxytetrahydrothiophenedioxide
+디아세톤    알코올                                                            Z
+Diacetonealcohol
+디알킬(C8-C9)    디페닐아민                                                    Z
+Dialkyl(C8-C9)diphenylamines
+디알킬(C7-C13)프탈레이트                                                       X
+Dialkyl(C7-C13)phthalates
+디알킬(C9-C10)    프탈레이트                                                   Y
+Dialkyl(C9-C10)phthalates
+디알킬   티오포스페이트        나트륨용액                                             Y
+Dialkylthiophosphatessodium  saltssolution
+2,6-디아미노헥사노익         산  포스포네이트       혼합염용액                             Z
+2,6-Diaminohexanoicacid phosphonate mixed  saltssolution
+디브로모메탄                                                                 Y
+Dibromomethane
+디부틸아민                                                                  Y
+Dibutylamine
+인산염   수소   디부틸                                                         Y
+Dibutylhydrogen  phosphonate
+2,6-다이-더트-부틸페놀                                                         X
+2,6-Di-tert-butylphenol
+프탈산    디부틸                                                               X
+Dibutylphthalate
+디부틸    테레프탈레이트                                                           Y
+Dibutylterephthalate
+디클로로벤젠(모든         이성질체)                                                  X
+Dichlorobenzene(allisomers)
+3,4-디클로르-1-부텐                                                            Y
+3,4-Dichloro-1-butene
+1,1-디클로로에탄                                                                Z
+1,1-Dichloroethane
+디클로로에틸       에테르                                                         Y
+Dichloroethylether
+1,6-디클로헥산                                                                Y
+1,6-Dichlorohexane
+2.2'-디클로로이소프로필에테르                                                        Y
+2,2'-Dichloroisopropylether
+디클로로메탄                                                                   Y
+Dichloromethane
+2.4-디클로로페놀                                                               Y
+2,4-Dichlorophenol
+2,4-디클로로페녹시아세트산,            디에탄올아민염용액                                    Y
+2,4-Dichlorophenoxyaceticacid, diethanolamine saltsolution
+2,4-디클로로페녹시아세트산,            디메틸아민염용액(70          %  이하)                  Y
+2,4-Dichlorophenoxyaceticacid,dimethylaminesaltsolution(70%or less)
+2,4-디클로로페녹시아세트산,            트리이소프로판올아민염용액                                Y
+2,4-Dichlorophenoxyaceticacid, triisopropanolaminesaltsolution
+1.1-디클로로프로판                                                              Y
+1,1-Dichloropropane
+1.2-디클로로프로판                                                              Y
+1,2-Dichloropropane
+1,3-디클로로프로판                                                              X
+1,3-Dichloropropene
+디클로로프로펜/디클로로프로판               혼합물                                        X
+Dichloropropene/Dichloropropane mixtures
+2,2-디클로로프로피온산                                                            Y
+2,2-Dichloropropionicacid
+디시클로펜타디엔,         수지   등급   81~89%                                       Y
+Dicyclopentadiene,Resin Grade, 81-89%
+디에탄올아민                                                                  Y
+Diethanolamine
+디에틸아민                                                                   Y
+Diethylamine
+디에틸아미노에탄올                                                               Y
+Diethylaminoethanol
+2,6-디에틸아닐린                                                              Y
+2,6-Diethylaniline
+디에틸벤젠                                                                   Y
+Diethylbenzene
+디에틸렌     글리콜                                                            Z
+Diethyleneglycol
+디에틸렌     글리콜    디  부틸   에테르                                             Z
+Diethyleneglycol dibutylether
+디에틸렌     글리콜    디  에틸   에테르                                             Z
+Diethyleneglycol diethylether
+디에틸렌     글리콜,   프탈레이트                                                   Y
+Diethyleneglycol phthalate
+디에틸렌트리아민                                                                Y
+Diethylenetriamine
+디에틸렌트리아민펜타아세트산,              펜타나트륨염용액                                   Z
+Diethylenetriaminepentaaceticacid,pentasodiumsalt solution
+디에틸에테르                                                                  Z
+Diethylether(*)
+아디프산     디-(2-에틸헥실)                                                     Y
+Di-(2-ethylhexyl)adipate
+Di-(2-에틸헥실)인산                                                           Y
+Di-(2-ethylhexyl)phosphoric acid
+프랄산    디에틸                                                              Y
+Diethylphthalate
+황산   디에틸                                                                Y
+Diethylsulphate
+비스페놀     A 디글리시딜      에테르                                               X
+Diglycidyletherof bisphenol A
+비스페놀     F 디글리시딜      에테르                                               Y
+Diglycidyletherof bisphenol F
+디헵틸    프탈레이트                                                            Y
+Diheptylphthalate
+아디프산    디-n-헥실                                                         X
+Di-n-hexyl adipate
+디헥실   프탈레이트                                                            Y
+Dihexylphthalate
+디이소부틸아민                                                                Y
+Diisobutylamine
+디이소부틸렌                                                                 Y
+Diisobutylene
+디이소부틸     케톤                                                           Y
+Diisobutylketone
+프탈산   디이소부틸                                                            X
+Diisobutylphthalate
+디이소노닐     아디페이트                                                        Y
+Diisononyladipate
+디이소옥틸     프탈산                                                          Y
+Diisooctylphthalate
+디이소프로판올아민                                                              Z
+Diisopropanolamine
+디이소프로필아민                                                               Y
+Diisopropylamine
+디이소프로필벤젠(모든          이성질체)                                             X
+Diisopropylbenzene(allisomers)
+디이소프로필나프탈렌                                                             Y
+Diisopropylnaphthalene
+N,N-디메틸아세트아미드                                                          Z
+N,N-Dimethylacetamide
+N.N-디메틸아세트아미드          용액(40%    이하)                                   Z
+N,N-Dimethylacetamide solution(40% or less)
+아디프산    디메틸                                                            Y
+Dimethyl adipate
+디메틸아민     용액(45%    이하)                                                Y
+Dimethylamine solution(45% or less)
+디에틸아민     용액(45%    초과   55%  이하)                                      Y
+Dimethylamine solution(greaterthan45%  but not greaterthan 55%)
+디에틸아민     용액(55%    초과   65%  이하)                                      Y
+Dimethylamine solution(greaterthan55%  but not greaterthan 65%)
+N.N-디메탈시클로헥실아민                                                         Y
+N,N-Dimethylcyclohexylamine
+디메틸    디설파이드                                                           Y
+Dimethyl disulphide
+N,N-디메틸도데실아민                                                           Y
+N,N-Dimethyldodecylamine
+디메틸에탄올아민                                                               Y
+Dimethylethanolamine
+디메틸포름아미드                                                               Y
+Dimethylformamide
+글루타르산      디메틸                                                         Y
+Dimethyl glutarate
+인산   수소   디메틸                                                          Y
+Dimethyl hydrogen phosphite
+디메틸    옥탄산                                                             Y
+Dimethyl octanoicacid
+프탈산    디메틸                                                             Y
+Dimethyl phthalate
+디메틸폴리실록산                                                               Y
+Dimethylpolysiloxane
+2,2-디메틸프로판-1,      3-디올(용융상      또는   용액)                               Z
+2,2-Dimethylpropane-1,3-diol(moltenorsolution)
+숙신산    디메틸                                                             Y
+Dimethyl succinate
+디니트로톨루엔(용융상)                                                           X
+Dinitrotoluene(molten)
+디노닐    프탈레이트                                                           Y
+Dinonyl phthalate
+디옥틸    프탈레이트                                                           Y
+Dioctylphthalate
+1,4-디옥산                                                                Y
+1,4-dioxane
+디펜텐                                                                    Y
+Dipentene
+디페닐                                                                    X
+Diphenyl
+디페닐아민(용융)                                                              Y
+Diphenylamine(molten)
+디페닐아민,     2,2,4-트리메틸     펜텐과의     반응   생성물                            Y
+Diphenylamine,reaction product with 2,2,4-Trimethylpentene
+디페닐아민,     알킬화                                                        Y
+Diphenylamines,alkylated
+디페닐/디페닐      에테르    혼합물                                               X
+Diphenyl/Diphenylethermixtures
+디페닐   에테르                                                             X
+Diphenylether
+디페닐   에테르/디페닐       페닐   에테르    혼합물
+Diphenylether/Diphenylphenyl ether mixture                            X
+디페닐메탄     디  이소시아네이트                                                  Y
+Diphenylmethane diisocyanate
+디페닐올    프로판-에피클로로히드린            수지                                    X
+Diphenylolpropane-epichlorohydrinresins
+디-n-프로필아민                                                             Y
+Di-n-propylamine
+디프로필렌     글리콜                                                         Z
+Dipropyleneglycol
+디티오카바메이트        에스테르(C7-C35)                                          X
+Dithiocarbamateester(C7-C35)
+디트리데실     아디   페이트                                                    Y
+Ditridecyladipate
+디트리데실     프탈레이트                                                       Y
+Ditridecylphthalate
+프탈산   디운데실                                                            Y
+Diundecylphthalate
+도데칸(모든     이성질체)                                                      Y
+Dodecane(allisomers)
+tert-도데칸에티올                                                           Y
+tert-Dodecanethiol
+1-도데센                                                                 Y
+1-Dodecene
+도데센(모든     이성질체)                                                      X
+Dodecene(allisomers)
+도데실알코올                                                                Y
+Dodecyl alcohol
+N-도데실    메르캅탄                                                         X
+n-Dodecyl mercaptan
+도데실아민/테트라        데실   아민   혼합물                                        Y
+Dodecylamine/Tetradecylaminemixture
+도데실벤젠                                                                 Y
+Dodecylbenzene
+도데실   디페닐    에테르    디설포네이트       용액                                   X
+Dodecyl diphenylether disulphonatesolution
+도데실   하이드록시프로필         설파이드                                           X
+Dodecyl hydroxypropyl sulphide
+메타크릴산     도테실                                                         Y
+Dodecyl methacrylate
+도데실/메타크릴산        옥타데실     혼합물                                         Y
+Dodecyl/Octadecylmethacrylate mixture
+도데실/메타크릴산        펜타데실     혼합물                                         Y
+Dodecyl/Pentadecylmethacrylate mixture
+도데실   페놀                                                              X
+Dodecyl phenol
+도데실   자일렌                                                             Y
+Dodecyl Xylene
+드릴링   염수(염화     아연   함유)                                              X
+Drillingbrines(Containingzincchloride)
+드릴링   염수(브롬화      칼슘   함유)                                            Z
+Drillingbrines(Containingcalciumbromide)
+에피클로로히드린                                                              Y
+Epichlorohydrin
+에탄올아민                                                                 Y
+Ethanolamine
+아세트산    2-에톡시에틸                                                       Y
+2-Ethoxyethylacetate
+에톡시레이티드       장쇄(C16+)   알킬옥시알킬아민                                     Y
+Ethoxylatedlong chain(C16+) alkyloxyalkylamine
+에톡  실화   수지   아민(>    95%)                                            X
+Ethoxylatedtallow amine(> 95%)
+아세트산    에틸                                                            Z
+Ethylacetate
+아세토아세트산       에틸                                                      Z
+Ethylacetoacetate
+아크릴산    에틸                                                            Y
+Ethylacrylate
+에틸아민                                                                  Y
+Ethylamine(*)
+에틸아밀케톤                                                               Y
+Ethylamyl  ketone
+에틸벤젠                                                                 Y
+Ethylbenzene
+에틸  tert-부틸  에테르                                                     Y
+Ethyltert-butylether
+에틸  부티레이트                                                            Y
+Ethylbutyrate
+에틸시클로헥산                                                              Y
+Ethylcyclohexane
+N-에틸시클로헥실아민                                                          Y
+N-Ethylcyclohexylamine
+S-에틸   디프로필티오카바메이트                                                   Y
+S-Ethyl dipropylthiocarbamate
+에틸렌   카보네이트                                                           Z
+Ethylenecarbonate
+에틸렌   클로로히드린                                                         Y
+Ethylenechlorohydrin
+에틸렌   시아노히드린                                                         Y
+Ethylenecyanohydrin
+에틸렌디아민                                                               Y
+Ethylenediamine
+에틸렌디아민테트라아세트산,            테트라나트륨염용액                                  Y
+Ethylenediaminetetraaceticacid,tetrasodiumsaltsolution
+이브롬화    에틸렌                                                          Y
+Ethylenedibromide
+이염화에틸렌                                                               Y
+Ethylenedichloride
+에틸렌   글리콜                                                             Z
+Ethyleneglycol
+에틸렌   글리콜    아세테이트                                                   Y
+Ethyleneglycolacetate
+아세트산    에틸렌글리콜       부틸에테르                                           Y
+Ethyleneglycolbutyl etheracetate
+디아세트산     에틸렌글리콜                                                     Y
+Ethyleneglycoldiacetate
+에틸렌   글리콜    메틸   에테르    아세테이트                                       Y
+Ethyleneglycolmethyl  etheracetate
+에틸렌글리콜      모노알킬에테르                                                    Y
+Ethyleneglycol monoalkyl ethers
+에틸렌   글리콜    페닐   에테르                                                  Z
+Ethyleneglycol phenyl ether
+에틸렌   글리콜    페닐   에테르    / 디  에틸렌    글리콜    페닐   에테르    혼합물            Z
+Ethyleneglycol phenyl ether/Diethyleneglycolphenyl ether mixture
+에틸렌   글리콜(>     75 %) / 나트륨    알킬   카르   복실   레이트    / 붕  혼합물          Y
+Ethyleneglycol(>75%)/sodium  alkylcarboxylates/borax mixture
+에틸렌   글리콜(>     85 %) / 나트륨    알킬   카르   복실   레이트의     혼합물             Z
+Ethyleneglycol(>85%)/sodium  alkylcarboxylates mixture
+산화  에틸렌/산화      프로필렌     혼합물로     산화   에틸렌이     질량비    30%  이하
+인 것                                                                    Y
+Ethyleneoxide/Propyleneoxidemixture withan ethyleneoxide Content
+ofnot more than 30%  by mass
+메틸렌-비닐      아세트산     공중합체(에멀젼)                                         Y
+Ethylene-vinylacetatecopolymer(emulsion)
+에틸-3-에록시프로시피온산                                                         Y
+Ethyl-3-ethoxypropionate
+2-에틸헥산산                                                                Y
+2-Ethylhexanoicacid
+아크릴산    2-에틸헥실                                                         Y
+2-Ethylhexylacrylate
+2-에틸헥실아민                                                               Y
+2-Ethylhexylamine
+2-에틸-2-(히드록시메틸)프로판-1,3-디올,(C8-C10)             에스테르                    Y
+2-Ethyl-2-(hydroxymethyl) propane-1,3-diol(C8-C10)ester
+에틸릳덴    노르보르넨                                                          Y
+Ethylidenenorbornene
+메타클릴산     에틸                                                           Y
+Ethylmethacrylate
+N-에틸메틸아릴아민                                                             Y
+N-Ethylmethylallylamine
+프로피온산에틸                                                                Y
+Ethylpropionate
+2-에틸-3-프로필아크로레인                                                        Y
+2-Ethyl-3-propylacrolein
+에틸  톨루엔                                                                Y
+Ethyltoluene
+지방산(포화된       것  C13+)                                                    Y
+Fatty acidsaturated(C13+)
+지방산    메틸   에스테르(m)                                                       Y
+Fatty acidmethyl  esters(m)
+지방산(C8-C10)                                                               Y
+Fatty acids,(C8-C10)
+지방산(C12    +)                                                             Y
+Fatty acids,(C12+)
+지방산(C16    +)                                                             Y
+Fatty acids,(C16+)
+지방산,   본질적     선형,  C6-C18,  2-에틸헥실      에스테르                             Y
+Fatty acids,essentiallylinear(C6-C18) 2-ethylhexyl ester
+염화   제2철   용액                                                             Y
+Ferricchloride solutions
+질산/질산     제2철의    용액                                                      Y
+Ferricnitrate/Nitricacidsolution
+어유                                                                        Y
+Fish oil
+물고기    사료   단백질    농축    물(4  % 아세트산을       함유하는     이하    포름산)           Y
+Fish silageprotein concentrate(Containing 4%  or lessformic acid)
+어류   단백질    농축   물(4  %  이하   포름산     함유)                                 Z
+Fish proteinconcentrate(Containing 4%  or less formic acid)
+플루오르화규소산         용액(20-30%)                                               Y
+Fluorosilicicacidsolution(20-30%)
+포름알데히드       용액(45%    이하)                                                Y
+Formaldehyde  solutions(45% or less)
+포마이드                                                                      Y
+Formamide
+포름산(85    %  이하인    산)                                                    Y
+Formic acid(85%  or lessacid)
+포름산(85    %  이상)                                                          Y
+Formic acid(over 85%)
+(18%  프로피온산       및  25 %  포름산    나트륨까지      함유하는)     혼합   포름산
+Formic acid mixture(Containing up  to 18%  propionicacid and up  to       Z
+25%  sodium formate)
+푸르푸랄                                                                      Y
+Furfural
+푸르푸릴     알코올                                                              Y
+Furfurylalcohol
+글루시    톨  /글리세롤      혼합   프로   폭  실화(아민     10 %  미만   함유)              Z
+Glucitol/glycerolblendpropoxylated(Containinglessthan10%  amines)
+글루시    톨  /글리세롤      혼합   프로   폭  실화(아민     10 %  이상   함유)              Y
+Glucitol/glycerolblendpropoxylated(Containing10% or more  amines)
+글루타르알데히드         용액(50%    이하)                                          Y
+Glutaraldehydesolutions(50% or less)
+글리세린                                                                    Z
+Glycerine
+글리세롤     모노   올  레이트                                                    Y
+Glycerolmonooleate
+프로폭실산화       글리세롤                                                       Z
+Glycerolpropoxylated
+프로폭실산화       및  에톡실산화      글리세롤                                         Z
+Glycerol,propoxylatedand  ethoxylated
+프로폭실산화       및  에톡실산화      글리세롤/자단       혼합물                            Z
+Glycerol/sucroseblend propoxylated and ethoxylated
+글리세릴     트리아세트산                                                         Z
+Glyceryltriacetate
+트리알킬(C10)아세트산         글리   시딜   에스테르                                    Y
+Glycidylester ofC10  trialkylaceticacid
+글리신,   나트륨    염  용액                                                     Z
+Glycine,sodium salt solution
+글리콜릭산      용액(70%   이하)                                                 Z
+Glycolicacid solution(70% orless)
+글리옥살     용액(40%   이하)                                                   Y
+Glyoxal solution(40%or less)
+글리옥실산용액(50%        이하)                                                  Y
+Glyoxylicacid solution(50% or less)
+글리포스페이트        용액(계면활성제        미  함유)                                   Y
+Glyphosate solution(notContaining surfactant)
+포도씨    유                                                                Y
+Grape Seed Oil
+땅콩   기름                                                                 Y
+Groundnut oil
+헵탄(모든    이성질체)                                                          X
+Heptane(allisomers)
+노르말-헵탄산                                                                 Z
+n-Heptanoic acid
+헵탄올(모든     이성질체)                                                       Y
+Heptanol(allisomers)(d)
+헵텐(모든    이성질체)                                                         Y
+Heptene(allisomers)
+아세트산    헵틸                                                             Y
+Heptylacetate
+1-헥사데실나프탈렌/1,4-비스(헥사데실)나프탈렌                 혼합물                        Y
+1-Hexadecylnaphthalene/1,4-bis(hexadecyl)naphthalenemixture
+헥사메틸렌디아민(용융상)                                                          Y
+Hexamethylenediamine(molten)
+헥사메틸렌디아민아디페이트(50%              수용액)                                    Z
+Hexamethylenediamine adipate(50% in water)
+헥사메틸렌디아민        용액                                                     Y
+Hexamethylenediamine solution
+헥사메틸렌     디이소시안산                                                       Y
+Hexamethylene diisocyanate
+헥사메틸렌     글리콜                                                          Z
+Hexamethylene glycol
+헥사메틸렌이민                                                                Y
+Hexamethyleneimine
+헥사  메틸렌    테트라민용액                                                      Z
+Hexamethylenetetramine solutions
+헥산(모든    이성질체)                                                         Y
+Hexane(allisomers)
+1,6-헥산디올,    증류   탑정                                                   Y
+1,6-Hexanediol,distillationoverheads
+헥산산                                                                    Y
+Hexanoic acid
+헥산올                                                                    Y
+Hexanol
+헥센(모든    이성질체)                                                         Y
+Hexene(allisomers)
+아세트산    헥실                                                             Y
+Hexyl acetate
+헥실렌   글리콜                                                              Z
+Hexylene glycol
+탄화수소    왁스                                                             X
+Hydrocarbon wax
+염산                                                                     Z
+Hydrochloricacid(*)
+과산화수소     용액(질량     60%  이상   70%  이하)                                 Y
+Hydrogen peroxide solutions(over60%  but notover 70%  by  mass)
+과산화수소     용액(질량     8%  이상   60%  이하)                                  Y
+Hydrogen peroxide solutions(over8%  but notover 60%  by  mass)
+아크릴산2-히드록시에틸                                                           Y
+2-Hydroxyethyl acrylate
+N-(히드록시에틸)에틸렌디아민삼아세트산,                 삼나트륨염      용액                   Y
+N-(Hydroxyethyl)ethylenediaminetriaceticacid,trisodiumsaltsolution
+2-히드록시-4-(메틸티오)부탄산                                                     Z
+2-Hydroxy-4-(methylthio)butanoic acid
+일라입유                                                                   Y
+Illipeoil
+이소아밀    알코올                                                            Z
+Isoamyl alcohol
+이소부틸    알코올                                                            Z
+Isobutylalcohol
+포름산   이소부틸                                                             Z
+Isobutylformate
+메타크릴산     이소부틸                                                         Z
+Isobutylmethacrylate
+이소포론                                                                   Y
+Isophorone
+이소포론디아민                                                                Y
+Isophoronediamine
+디이소시안산이소포론                                                             Y
+Isophoronediisocyanate
+이소프렌                                                                   Y
+Isoprene
+이소프로판올아민                                                               Y
+Isopropanolamine
+아세트산    이소프로필                                                          Z
+Isopropylacetate
+이소프로필아민                                                                Y
+Isopropylamine
+이소프로필라민용액(70%이하)                                                       Y
+Isopropylamine(70%  or less)solution
+이소프로필시클로헥산                                                                Y
+Isopropylcyclohexane
+이소프로필      에테르                                                            Y
+Isopropylether
+자트로파     오일                                                               Y
+Jatrophaoil
+젖산                                                                        Z
+Lacticacid
+락토니트릴      용액(80%    이하)                                                  Y
+Lactonitrilesolution(80%or less)
+라드                                                                        Y
+Lard
+라텍스,   암모니아(1%      이하)                                                   Y
+Latex,ammonia(1%    or less)-inhibited
+라텍스:   카복시기함유        스틸렌-부타딘        공중합체와      스틸렌-부타딘        고무
+Latex:Carboxylated  styrene-Butadiene copolymer; Styrene-Butadiene        Z
+rubber
+라우르산                                                                      X
+Lauric acid
+리그닌    술폰산,    마그네슘     염  용액                                             Z
+Ligninsulphonicacid, magnesium   saltsolution
+리그닌술포닉산,        나트륨염용액                                                    Z
+Ligninsulphonicacid, sodium  saltsolution
+아마인유                                                                      Y
+Linseed oil
+액체화학폐기물                                                                   X
+Liquidchemical  wastes
+장쇄알카릴폴리에테르(C11-C20)                                                       Y
+Long-chain  alkarylpolyether(C11-C20)
+장쇄알킬술포닉산(C16-C60)                                                         Y
+Long-chain  alkarylsulphonic acid(C16-C60)
+장쇄알킬피네이트/페놀선파이드혼합물                                                        Y
+Long-chain  alkylphenate/Phenolsulphide mixture
+장쇄   알킬   페놀(C14-C18)                                                     Y
+Long-chain  alkylphenol(C14-C18)
+장쇄   알킬   페놀(C18-C30)                                                     Y
+Long-chain  alkylphenol(C18-C30)
+L-리신   용액(60%    이하)                                                    Z
+L-Lysine solution(60% or less)
+염화마그네슘       용액                                                         Z
+Magnesium  chloridesolution
+수산화    마그네슘     슬러리                                                     Z
+Magnesium  hydroxide slurry
+장쇄알카릴술폰산         마그네슘(C11-C50)                                          Y
+Magnesium  long-chain alkarylsulphonate(C11-C50)
+장쇄알킬살리실산마그네슘(C11+)                                                      Y
+Magnesium  long-chain alkyl salicylate(C11+)
+말레산    무수물                                                              Y
+Maleic anhydride
+말레산    무수물-알릴설폰산         나트륨    공중   합체   용액                            Z
+Maleic anhydride-sodium allylsulphonatecopolymer solution
+망고씨유                                                                    Y
+Mango  kerneloil
+메라캅토벤조티아졸-나트륨염              용액                                          X
+Mercaptobenzothiazol,sodium salt solution
+산화메시틸                                                                   Z
+Mesityloxide
+메탐   나트륨염     용액                                                        X
+Metam  sodium solution
+메타크릴산                                                                   Y
+Methacrylicacid
+메타크리클릭산-알콕시폴리(산화알킬렌)메타크릴산혼성중합체,                           나트륨
+염수요액(45%이하)                                                             Z
+Methacrylicacid- alkoxypoly(alkyleneoxide)methacrylate copolymer,
+sodium saltaqueous solution(45% or less)
+이염화에틸렌에        녹아   있는   메타   크릴산수지                                     Y
+Methacrylicresin in ethylenedichloride
+메타크릴로니브릴                                                                Y
+Methacrylonitrile
+3-메톡시-1-부탄올                                                             Z
+3-methoxy-1-butanol
+3-메톡시부틸      아세트산                                                       Y
+3-Methoxybutyl acetate
+N-(2-메톡시-1-메틸       에틸)-2-에틸-6-메틸       클로로아세트아닐리드                      X
+N-(2-Methoxy-1-methyl   ethyl)-2-ethyl-6-methyl chloroacetanilide
+메틸  아세트산                                                              Z
+Methyl acetate
+메틸  아세토아세트산                                                           Z
+Methyl acetoacetate
+아크릴산    메틸                                                            Y
+Methyl acrylate
+메틸  알코올                                                               Y
+Methyl alcohol(*)
+메틸아민    용액(42%    이하)                                                 Y
+Methylamine solutions(42% orless)
+아세트산    메틸아밀                                                          Y
+Methylamyl acetate
+메틸아밀    알코올                                                           Z
+Methylamyl alcohol
+메틸아밀    케톤                                                            Z
+Methyl amyl ketone
+N-메틸아닐린                                                               Y
+N-Methylaniline
+알파-메틸     벤질  알코올과     아세토    페논(15   %  이하)                          Y
+alpha-Methylbenzylalcohol with acetophenone(15% or less)
+메틸부텐올                                                                 Y
+Methylbutenol
+메틸  tert-부틸에테르                                                        Z
+Methyl tert-butylether
+메틸  부틸   케톤                                                           Y
+Methyl butylketone
+메틸부티놀                                                                 Z
+Methylbutynol
+부티르산    메틸                                                            Y
+Methyl butyrate
+메틸시클로헥산*                                                              Y
+Methylcyclohexane
+메틸시클로펜타디엔         이합체                                                 Y
+Methylcyclopentadienedimer
+메틸시클로펜타디엔일          망간   트리카보닐                                        X
+Methylcyclopentadienylmanganese  tricarbonyl
+메틸  디에탄올-아민                                                           Y
+Methyl diethanolamine
+2-메틸-6-에틸     아닐린                                                       Y
+2-Methyl-6-ethyl aniline
+메틸   에틸   케톤                                                            Z
+Methyl ethyl ketone
+2-메틸-5-에틸피린딘                                                            Y
+2-Methyl-5-ethyl pyridine
+포름산    메틸                                                               Z
+Methyl formate
+2- 메틸   글루   타로   니트릴과     2- 에틸   숙  시노    니트릴(12    % 이하)             Z
+2-Methylglutaronitrilewith2-Ethylsuccinonitrile(12%or less)
+2-메틸-2-히드록시-3-부틴                                                        Z
+2-Methyl-2-hydroxy-3-butyne
+메틸   이소부틸     케톤                                                        Z
+Methyl isobutylketone
+메타크릴산      메틸                                                           Y
+Methyl methacrylate
+3-메틸-3-메톡시부탄올                                                           Z
+3-Methyl-3-methoxybutanol
+메틸나프탈렌(용용상)                                                             X
+Methyl naphthalene(molten)
+N- 메틸   글루   카민    용액(70  %  이하)                                        Z
+N-Methylglucamine  solution(70% or less)
+2-메틸-1,  3-프로판디올                                                        Z
+2-Methyl-1,3-propanediol
+2-메틸피리딘                                                                 Z
+2-Methylpyridine
+3-메틸피리딘                                                                 Z
+3-Methylpyridine
+4-메틸피리딘                                                                 Z
+4-Methylpyridine
+N-메틸-2-피롤리돈                                                             Y
+N-Methyl-2-pyrrolidone
+메틸   프로필    케톤                                                          Z
+Methyl propyl ketone
+살리실산     메틸                                                             Y
+Methyl salicylate
+알파-메틸스티렌                                                                Y
+alpha-Methylstyrene
+3-(메틸티오)프로피온알데히드                                                        Y
+3-(methylthio)propionaldehyde
+몰리브데늄다황화물          롱체인    알킬   디티온카바마이드         혼합물                     Y
+Molybdenum  polysulphide long chain alkyldithiocarbamide complex
+모르폴린                                                                    Y
+Morpholine
+자동차연료용       노킹억제     화합물(알킬아연을         함유한    것)                       X
+Motor fuel anti-knock compound(Containing  leadalkyls)
+미르신                                                                     X
+Myrcene
+나프탈렌(용융상)                                                               X
+Naphthalene(molten)
+나프탈렌     원유(용융)                                                         Y
+Naphthalene crude(molten)
+나프탈렌술포닉산-포름알데이드혼성중합체,                    나트륨염용액                         Z
+Naphthalenesulphonicacid-Formaldehydecopolymer,sodium saltsolution
+네오데칸산                                                                   Y
+Neodecanoic acid
+혼산(질산과     황산의     혼합물)                                                 Y
+Nitratingacid(mixture ofsulphuric and nitricacids)
+질산(70%   이상)                                                            Y
+Nitricacid(70% and over)
+질산(70%   미만)                                                            Y
+Nitricacid(lessthan 70%)
+니트릴로트리아세트산,          트리나트륨염        용액                                   Y
+Nitrilotriaceticacid,trisodiumsaltsolution
+니트로벤젠                                                                   Y
+Nitrobenzene
+니트로에탄                                                                   Y
+Nitroethane
+니트로에탄(80%)/니트로프로판(20%)                                                  Y
+Nitroethane(80%)/Nitropropane(20%)
+니트로에탄,     1-니트로프로판        혼합물(각15%이상)                                  Y
+Nitroethane,1-Nitropropane(each 15%  or more) mixture
+o-니트로페놀(용융상)                                                            Y
+o-Nitrophenol(molten)
+1-또는   2-니트로프로판                                                         Y
+1- or 2-Nitropropane
+니트로프로판(60%)/니트로에탄(40%)            혼합물                                   Y
+Nitropropane(60%)/Nitroethane(40%)  mixture
+o- 또는   P-톨루엔                                                           Y
+o- or p-Nitrotoluenes
+노난(모든    이성질체)                                                          X
+Nonane(allisomers)
+노난산(모든     이성질체)                                                        Y
+Nonanoic acid(allisomers)
+비  식용   산업용    등급의    ​​팜오일                                             Y
+Non-edible industrialgradepalm  oil
+노넨                                                                      Y
+Nonene(allisomers)
+노닐   알코올(모든     이성질체)                                                   Y
+Nonyl alcohol(allisomers)
+노닐   메타크릴레이트        모노머                                                 Y
+Nonyl methacrylate monomer
+노닐페놀                                                                    X
+Nonylphenol
+노닐페놀     폴리(4+)  에톡실레이트                                                 Y
+Nonylphenol poly(4+)ethoxylate
+기타의   유해액체물질(1)(인화점이           60℃를   초과하고,    선형이    1에  해당되
+는  X류  물질)                                                              X
+Noxious liquid,NF,(1)n.o.s.(tradename ....,Contains....)ST1,Cat.X
+기타의    유해액체물질(2)(인화점이          60℃이하이고,      선형이    1에  해당되는
+X류  물질)                                                                 X
+Noxious liquid,F,(2)n.o.s.(tradename ....,Contains....)ST1,Cat.X
+기타의   유해액체물질(3)(인화점이           60℃를   초과하고,    선형이    2에  해당되
+는  X류  물질)                                                              X
+Noxious liquid,NF,(3)n.o.s.(tradename ....,Contains....)ST2,Cat.X
+기타의    유해액체물질(4)(인화점이          60℃이하이고,      선형이    2에  해당되는
+X류  물질)                                                                 X
+Noxious liquid,F,(4)n.o.s.(tradename ....,Contains....)ST2,Cat.X
+기타의   유해액체물질(5)(인화점이           60℃를   초과하고,    선형이    2에  해당되
+는  Y류  물질)                                                              Y
+Noxious liquid,NF,(5)n.o.s.(tradename ....,Contains....)ST2,Cat.Y
+기타의   유해액체물질(6)(인화점이           60℃이하    이고,  선형이    2에  해당되는
+Y류  물질)                                                                 Y
+Noxious liquid,F,(6)n.o.s.(tradename ....,Contains....)ST2,Cat.Y
+기타의   유해액체물질(7)(인화점이          60℃를  초과하고,    선형이    3인  Y류  물질)         Y
+Noxious liquid,NF,(7) n.o.s.(tradename ....,Contains....)ST3,Cat. Y
+기타의    유해액체물질(8)(인화점이           60℃이하    이고,   선형이    3인  Y류  물질)          Y
+Noxious liquid,F,(8)n.o.s.(trade name  ....,Contains....)ST3,Cat. Y
+기타의   유해액체물질(9)(인화점이           60℃를   초과하고,    선형이    3인  Z류  물질)          Z
+Noxious liquid,NF,(9) n.o.s.(tradename ....,Contains....)ST3,Cat. Z
+기타의    유해액체물질(10)(인화점이           60℃이하이고,      선형이    3인  Z류  물질)          Z
+Noxious liquid,F,(10) n.o.s.(tradename ....,Contains....)ST3,Cat. Z
+옥타   메틸   사이클로      테트라    실록산                                             Y
+Octamethylcyclotetrasiloxane
+옥탄(모든     이성질체)                                                            X
+Octane(allisomers)
+옥탄산(모든      이성질체)                                                          Y
+Octanoic acid(allisomers)
+옥탄올(모든      이성질체)                                                          Y
+Octanol(allisomers)
+옥텐(모든     이성질체)                                                            Y
+Octene(allisomers)
+n-옥틸   아세트산                                                                Y
+n-Octyl acetate
+옥틸   알데히드                                                                  Y
+Octyl aldehydes
+아디프산     옥틸데실                                                              Y
+Octyl decyl adipate
+n-옥틸   메르   캅탄                                                             X
+n-Octyl mercaptan
+해양   오염   벌크   액체    P(O)                                                  X
+Offshore Contaminated  bulk liquidP(o)
+해양   오염   벌크   액체    S(O)                                                  X
+Offshore Contaminated  bulk liquidS(o)
+알킬올레핀      에스테르      혼성중합체(분자량         2000+)                              Y
+Olefin-Alkyl estercopolymer(molecular  weight  2000+)
+올레핀    혼합물(C7-C9)     C8  풍부,  안정화                                         X
+OlefinMixture(C7-C9)   C8 rich, stabilised
+올레핀혼합물(C5-C7)                                                              Y
+Olefinmixtures(C5-C7)
+올레핀혼합물(C5-C15)                                                             X
+Olefinmixtures(C5-C15)
+올레핀(C13+,    모든   이성질체)                                                    Y
+Olefins(C13+,allisomers)
+알파올레핀혼합물(C6-C18)                                                       X
+alpha-Olefins(C6-C18)mixtures
+올레인산                                                                   Y
+Oleicacid
+올륨                                                                     Y
+Oleum
+올레일아민                                                                  X
+Oleylamine
+올리브유                                                                   Y
+Oliveoil
+함산소지방족탄화수소혼합물                                                           Z
+Oxygenated aliphatichydrocarbon mixture
+팜산유                                                                    Y
+Palm acid oil
+팜지방산     증류액                                                           Y
+Palm fattyacid distillate
+야자씨유     산화오일                                                          Y
+Palm kernel acidoil
+팜  커널   지방산    증류                                                      Y
+Palm kernel fattyacid distillate
+팜씨유
+Palm kernel oil                                                        Y
+팜씨올레인                                                                  Y
+Palm kernel olein
+팜씨스테아린                                                                 Y
+Palm kernel stearin
+팜유(유리    지방산    함유량이     5%  미만)                                       Y
+Palm mid-fraction
+팜유                                                                     Y
+Palm oil
+팜유지방산메틸에스테르                                                            Y
+Palm oilfatty acidmethyl ester
+팜  올레인                                                                 Y
+Palm olein
+팜  스테아린                                                                Y
+Palm stearin
+파라핀    왁스,  고도-정제                                                      Y
+Paraffinwax, highly-refined
+파라핀    왁스,  세미-정제                                                        X
+Paraffinwax, semi-refined
+파라알데히드                                                                   Z
+Paraldehyde
+파라알데히드-암모니아           반응   제품                                            Y
+Paraldehyde-ammonia  reaction product
+펜타클로로에탄                                                                  Y
+Pentachloroethane
+1,3-펜타디엔                                                                 Y
+1,3-Pentadiene
+1,3-펜타  디엔(50   %  이상),   사이클로     펜텐   및  이성질체,     혼합물                 Y
+1,3-Pentadiene(greaterthan50%), cyclopentene and isomers,mixtures
+펜타에틸렌헥사민                                                                 X
+Pentaethylenehexamine
+펜탄(모든     이성질체)     *                                                    Y
+Pentane(allisomers)
+펜탄산                                                                      Y
+Pentanoic acid
+n-펜탄산(64%)/2-메틸       부틸산(36%)    혼합물                                    Y
+n-Pentanoic acid(64%)/2-Methyl  butyricacid(36%)  mixture
+펜텐(모든     이성질체)     *                                                    Y
+Pentene(allisomers)
+프로피온산      n-펜틸                                                          Y
+n-Pentyl propionate
+퍼클로로에틸렌                                                                  Y
+Perchloroethylene
+페놀                                                                       Y
+Phenol
+1-페닐-1-크시릴에탄*                                                            Y
+1-Phenyl-1-xylyl ethane
+포스페이트에스터,        알킬아민(C12-C14)                                           Y
+Phosphate esters,alkyl(C12-C14) amine
+인산                                                                       Z
+Phosphoric acid
+인, 황색   또는   백색                                                          X
+Phosphorus, yellow or white(*)
+프탈산    무수물(용융상)                                                          Y
+Phthalicanhydride(molten)
+알파-피넨                                                                   X
+alpha-Pinene
+베타-피넨                                                                   X
+beta-Pinene
+소나무    유                                                                X
+Pineoil
+피페   라진,  68 %  용액                                                      Y
+Piperazine,68% solution
+폴리아크릴산용액(40%이하)                                                          Z
+Polyacrylicacidsolution(40% or less)
+자일렌에     녹아있는     아크릴산     폴리알킬(C18-C22)                                Y
+Polyalkyl(C18-C22) acrylatein xylene
+폴리   알킬   알켄   아민   숙신이    미드,   몰리브덴     옥시   설파이드                     Y
+Polyalkylalkenaminesuccinimide,molybdenum   oxysulphide
+폴리(2-8)알킬렌     글리콜모노알킬(C1-C6)         에테르                                Z
+Poly(2-8)alkyleneglycolmonoalkyl(C1-C6)   ether
+폴리(2-8)알킬렌     글리콜모노알킬(C1-C6)         에테르     아세테이트                     Y
+Poly(2-8)alkyleneglycolmonoalkyl  (C1-C6)  etheracetate
+폴리알킬(C10-C20)     메타크릴레이트                                               Y
+Polyalkyl(C10-C20) methacrylate
+폴리알킬(C10-C18)     메타크릴레이트/에틸렌-프로필렌                혼성중합체      혼합
+물                                                                       Y
+Polyalkyl(C10-C18)methacrylate/ethylene-propylenecopolymermixture
+폴리   알루미늄     클로라이드      용액                                              Z
+Polyaluminium chloride solution
+폴리부텐                                                                    Y
+Polybutene
+폴리부테닐숙신이미드                                                              Y
+Polybutenylsuccinimide
+폴리(2+)시클릭     방향족                                                       X
+Poly(2+)cyclicaromatics
+폴리에테르(분자량         1350+)                                                Y
+Polyether(molecularweight 1350+)
+폴리에틸렌      글리콜                                                           Z
+Polyethyleneglycol
+폴리에틸렌      글리콜    디메틸    에테르                                             Z
+Polyethyleneglycol dimethyl ether
+폴리(에틸렌     글리콜)    메틸   부  에테르(MW>       1,000)                         Z
+Poly(ethyleneglycol)methylbutenyl ether(MW>1000)
+폴리에틸렌      폴리아민                                                         Y
+Polyethylenepolyamines
+폴리에틸렌      폴리아민(50    %  이상의    C5  -C20 파라핀    오일)                     Y
+Polyethylenepolyamines(more  than 50%  C5 -C20  paraffinoil)
+폴리황산     제2철   용액                                                       Y
+Polyferricsulphatesolution
+폴리(이미노에틸렌)-융합-N-폴리(에틸렌옥시)                  용액(90%    이하)                Z
+Poly(iminoethylene)-graft-N-poly(ethyleneoxy)solution(90%or less)
+지방족(C10-C14)    용제에    녹아있는     폴리이소부텐아민                                Y
+Polyisobutenamine inaliphatic(C10-C14)solvent
+폴리이소부테닐        무수물    부가체                                               Y
+(Polyisobutene)amino products in aliphatichydrocarbons
+폴리이소부테닐        무수물    부가체                                               Z
+Polyisobutenylanhydride adduct
+폴리(4+),  이소   부틸   렌(MW>    224)                                        X
+Poly(4+)isobutylene(MW>224)
+폴리   이소   부틸   렌(MW≤224)                                                Y
+Polyisobutylene(MW≤224)
+폴리   글리세린,    나트륨    염  용액(3   %  미만의    수산화    나트륨    함유)
+Polyglycerin,sodium salt solution(Containingless than 3%  sodium        Z
+hydroxide)
+폴리메틸렌      폴리페닐     이소시안산                                               Y
+Polymethylene polyphenyl isocyanate
+폴리올레핀(분자량300+)                                                          Y
+Polyolefin(molecularweight300+)
+폴리올레핀      아미드    알켄아민(C17+)                                            Y
+Polyolefinamide alkeneamine(C17+)
+폴리올레핀      아미드    알켄아민     붕산염(C28-C250)                                Y
+Polyolefinamide alkeneamine borate(C28-C250)
+폴리올레핀      아미드    알켄   아민   폴리올                                         Y
+Polyolefinamide alkeneamine polyol
+폴리올레핀아민(C28-C250)                                                       Y
+Polyolefinamine(C28-C250)
+알킬(C2-C4)벤젠에      녹아있는     폴리올레핀아민                                      Y
+Polyolefinaminein alkyl(C2-C4) benzenes
+방향족화합물에        녹아있는     폴리올레핀아민                                         Y
+Polyolefinaminein aromatic solvent
+폴리올레핀      아미노에스테르염(분자량2000+)                                            Y
+Polyolefinaminoester salts(molecularweight  2000+)
+폴리올레핀      무수물                                                           Y
+Polyolefinanhydride
+폴리올레핀      에테르(C28-C250)                                                 Y
+Polyolefinester(C28-C250)
+폴리올레핀      석탄산    아민(C28-C250)                                           Y
+Polyolefinphenolicamine(C28-C250)
+포스포러스황화        폴리   올레핀바륨       유도체(C28-C250)                            Y
+Polyolefinphosphorosulphide, barium derivative(C28-C250)
+폴리(20)옥시에틸린        소르비탄     모노올레인산                                       Y
+Poly(20)oxyethylene sorbitanmonooleate
+폴리(5+)프로필렌                                                               Y
+Poly(5+)propylene
+폴리프로필렌       글리콜                                                          Z
+Polypropylene glycol
+폴리실록산                                                                    Y
+Polysiloxane
+염화칼륨     용액                                                               Z
+Potassium chloride solution
+수산화칼륨      용액                                                            Y
+Potassium hydroxide  solution(*)
+포름산    칼륨   용액                                                            Z
+Potassium formate solutions
+유산염    칼륨                                                                Y
+Potassium oleate
+티오황산염      칼륨(50%    이하)                                                 Y
+Potassium thiosulphate(50% or less)
+n-프로판올아민                                                                 Y
+n-Propanolamine
+2-프로   펜  -1- 아미   늄,  N, N- 디메틸    -N-2-  프로   페닐-,   염화물,   동종
+중합체    용액                                                                Y
+2-Propene-1-aminium,    N,   N-dimethyl-N-2-propenyl-,    chloride,
+homopolymer  solution
+beta-프로피오락톤                                                              Y
+beta-Propiolactone
+프로피온알데히드                                                                 Y
+Propionaldehyde
+프로피온산                                                                 Y
+Propionicacid
+프로피온산     무수물                                                         Y
+Propionicanhydride
+프로피온니트릴                                                               Y
+Propionitrile
+n-프로필    아세트산                                                         Y
+n-Propyl acetate
+n-프로필    알코올                                                          Y
+n-Propyl alcohol
+n-프로필아민                                                               Z
+n-Propylamine
+프로필벤젠(모든       이성질체)                                                  Y
+Propylbenzene(allisomers)
+프로필렌    카보네이트                                                         Z
+Propylenecarbonate
+프로필렌    글리콜    메틸   에테르    아세트산                                       Z
+Propyleneglycol methyl etheracetate
+프로필렌    글리콜    모노알킬     에테르                                           Z
+Propyleneglycol monoalkyl ether
+프로필렌    글리콜    페닐   에테르                                               Z
+Propyleneglycol phenylether
+산화프로필렌                                                                Y
+Propyleneoxide
+프로필렌    사합체                                                           X
+Propylenetetramer
+프로필렌    삼합체                                                           Y
+Propylenetrimer
+피리딘                                                                   Y
+Pyridine
+열분해가솔린(벤젠포함)                                                          Y
+Pyrolysisgasoline(Containingbenzene)
+평지씨유                                                                  Y
+Rapeseed oil
+평지씨유(저     에르크산,    유리   지방산    함유량이     4%  미만)                      Y
+Rapeseed oil(lowerucicacidContaininglessthan 4%  freefattyacids)
+유채씨유지방산메틸에스터                                                          Y
+Rape seed oil fattyacid methyl esters
+수지   오일,  증류                                                              Y
+Resin oil,distilled
+쌀겨유                                                                       Y
+Rice bran oil
+로진                                                                        Y
+Rosin
+홍화유                                                                       Y
+Safflower oil
+쉐어버터                                                                      Y
+Shea butter
+술폰산알킬(C14-C17)       나트륨(60-65%용액)                                        Y
+Sodium  alkyl(C14-C17) sulphonates(60-65%  solution)
+알루미늄화규산        나트륨    슬러리                                                 Z
+Sodium  aluminosilicateslurry
+벤조산    나트륨                                                                Z
+Sodium  benzoate
+붕수소화나트륨(15%이하)/수산화              나트륨    용액                                 Y
+Sodium  borohydride(15%  or less)/Sodium hydroxide solution(*)
+나트륨    탄산염    용액                                                          Y
+Sodium  bromide solution(lessthan 50%)(*)
+염소산나트륨       용액(50%이하)                                                    Z
+Sodium  carbonate solution(*)
+중크롬산나트륨        용액(70%이하)                                                  Z
+Sodium  chloratesolution(50% or less)(*)
+황화수소나트륨(6%         이하)   /탄산나트륨(3%       이하)   용액                         Y
+Sodium  dichromate solution(70% or less)
+황화수소나트륨(6%         이하)   / 탄산나트륨(3%       이하)   용액
+Sodium hydrogen  sulphide(6%  orless)/Sodium carbonate(3%  or less)       Z
+solution
+아황산수소나트륨         용액(45%    이하)                                            Z
+Sodium  hydrogen sulphite solution(45% or less)
+황화암모늄/황화수소나트륨             용액                                              Y
+Sodium  hydrosulphide/Ammonium    sulphidesolution(*)
+황화수소나트륨        용액(45%이하)                                                  Z
+Sodium  hydrosulphide solution(45% or less)(*)
+수산화나트륨       용액                                                           Y
+Sodium  hydroxide solution(*)
+하이포아염소산나트륨           용액(15%    이하)                                       Y
+Sodium  hypochloritesolution(15% or less)
+메틸   알콜의    나트륨    메틸   21-30  %                                         Y
+Sodium  methylate 21-30%  in methyl alcohol
+아질산나트륨       용액                                                          Y
+Sodium  nitritesolution
+술폰산석유나트륨                                                                 Y
+Sodium  petroleum sulphonate
+폴리(4+)아크릴나트륨용액                                                           Z
+Sodium  poly(4+)acrylatesolutions
+규산나트륨      용액                                                            Y
+Sodium  silicatesolution
+황화나트륨      용액(15%    이하)                                                 Z
+Sodium  sulphatesolutions
+황화나트륨      용액(15%    이하)                                                 Y
+Sodium  sulphidesolution(15% or less)
+아황산나트륨       용액(25%이하)                                                   Y
+Sodium  sulphitesolution(25% or less)
+티오시안산나트륨         용액(56%    이하)                                           Y
+Sodium  thiocyanatesolution(56% or less)
+대두유                                                                      Y
+Soyabean  oil
+콩기름    지방산    메틸에스테르                                                     Y
+Soybean Oil Fatty Acid  Methyl Ester
+스틸렌모노머                                                                   Y
+Styrene monomer
+황화탄화수소(C3-C88)                                                           Y
+Sulphohydrocarbon(C3-C88)
+술포란                                                                      Y
+Sulpholane
+황(용융상)                                                                   Z
+Sulphur(molten)(*)
+황산                                                                       Y
+Sulphuricacid
+폐황산                                                                      Y
+Sulphuricacid, spent
+황산화    지방(C14-C20)                                                       Z
+Sulphurized fat(C14-C20)
+황산화폴리올피나미드알칸(C28-C250)아민                                                Z
+Sulphurizedpolyolefinamidealkene(C28-C250)  amine
+해바라기씨      유                                                            Y
+Sunflower seed oil
+톨유(원유)                                                                  Y
+Talloil,crude
+톨유(정제유)                                                                 Y
+Talloil,distilled
+톨유지방산(수지산        20%미만)                                                 Y
+Talloilfatty acid(resinacidsless than 20%)
+톨유   피치                                                                 Y
+Talloilpitch
+톨유   비누,  원유                                                            Y
+Talloilsoap, crude
+수지                                                                      Y
+Tallow
+수지지방산                                                                   Y
+Tallow fattyacid
+테트라클로로에탄                                                                Y
+Tetrachloroethane
+테트라에틸렌       클리콜                                                        Z
+Tetraethyleneglycol
+테트라에틸렌       펜타아민                                                       Y
+Tetraethylenepentamine
+테트라히드로푸란                                                                Z
+Tetrahydrofuran
+테트라히드로나프탈렌                                                              Y
+Tetrahydronaphthalene
+테트라메틸벤젠(모든         이성질체)                                                X
+Tetramethylbenzene(allisomers)
+이산화    티타늄    슬러리                                                       Z
+Titanium dioxideslurry
+톨루엔                                                                     Y
+Toluene
+톨루엔디아민                                                                  Y
+Toluenediamine
+디이소시안산       톨루엔                                                        Y
+Toluene diisocyanate
+o-톨루이딘                                                                   Y
+o-Toluidine
+인산   트리부틸                                                                Y
+Tributylphosphate
+1.2.3-트리클로로벤젠(용융상)                                                       X
+1,2,3-Trichlorobenzene(molten)
+1.2.4-트리클로로벤젠                                                            X
+1,2,4-Trichlorobenzene
+1.1.1-트리클로로에탄                                                            Y
+1,1,1-Trichloroethane
+1.1.2-트리클로로에탄                                                            Y
+1,1,2-Trichloroethane
+트리클로로에틸렌                                                                 Y
+Trichloroethylene
+1.2.3-트리클로로프로판                                                           Y
+1,2,3-Trichloropropane
+1.1.2-트리클로로-1.2.2-트리플루오로에탄                                               Y
+1,1,2-Trichloro-1,2,2-Trifluoroethane
+인산   트리크레실(오르토         이성질체     1%  이상   함유)                             Y
+Tricresylphosphate(Containing 1%  or more  ortho-isomer)
+인산트라이크레실(오르토이성질체1%미만                   함유)                               Y
+Tricresylphosphate(Containing less than 1%  ortho-isomer)
+트리데칸                                                                     Y
+Tridecane
+트리데칸산                                                                    Y
+Tridecanoicacid
+트리데킬     아세트산                                                            Y
+Tridecylacetate
+트리에탄올아민                                                                  Z
+Triethanolamine
+트리에틸아민                                                                   Y
+Triethylamine
+트리에틸벤젠                                                                   X
+Triethylbenzene
+트리에틸렌테트라민                                                                Y
+Triethylenetetramine
+트리에틸     인산                                                              Z
+Triethylphosphate
+아인산트리에틸                                                                 Z
+Triethylphosphite
+트리이소프로판올아민                                                              Z
+Triisopropanolamine
+인산트리이소프로필화페닐                                                            X
+Triisopropylatedphenyl phosphates
+트리메틸아세트산                                                                Y
+Trimethylaceticacid
+트리메틸아민       용액(30%이하)                                                  Z
+Trimethylamine solution(30% or less)
+트리메틸벤젠(모든        이성질체)                                                  X
+Trimethylbenzene(allisomers)
+프로폭실산트리메틸올           프로판                                                Z
+Trimethylolpropane propoxylated
+2,2,4-트리메틸-1,3-펜탄디올        디이소부티르산염                                     Y
+2,2,4-Trimethyl-1,3-pentanedioldiisobutyrate
+2,2,4-트리메틸-1,3-펜탄디올-1-이소부티르산염                                           Y
+2,2,4-Trimethyl-1,3-pentanediol-1-isobutyrate
+1.3.5-트리옥산                                                              Y
+1,3,5-Trioxane
+트리프로필렌       글리콜                                                        Z
+Tripropyleneglycol
+인산트리크심릴                                                                 X
+Trixylylphosphate
+유동유                                                                     Y
+Tung  oil
+생송지                                                                     X
+Turpentine
+운데칸산                                                                    Y
+Undecanoic acid
+l-운데센                                                                   X
+1-Undecene
+운데실    알코올                                                              X
+Undecyl alcohol
+요소/질산암모늄       용액                                                       Y
+Urea/Ammonium   nitratesolution
+요소/인산암모늄       용액                                                       Y
+Urea/Ammonium   phosphate  solution
+요소   용액                                                                 Z
+Urea solution
+폐  식용유(m)                                                               X
+Used cooking oil(m)
+사용한    식용유(트리글리        세라이드,    C16-C18  및  C18  불포화)(m)(n)             Y
+Used cooking oil(Triglycerides,C16-C18 and C18 unsaturated)(m)(n)
+발레르알데히드(모든          이성질체)                                               Y
+Valeraldehyde(allisomers)
+식물성    산화유(m)
+Vegetable acidoils(m)                                                   Y
+식물성    지방산    증류   액(m)                                                 Y
+Vegetable fattyacid distillates(m)
+유리   지방산(m)이     15 %  미만인    식물성    기름   혼합물                           Y
+Vegetable oilmixtures,Containing less than 15%  freefatty acid(m)
+아세트산비닐                                                                  Y
+Vinyl acetate
+비닐에틸에테르                                                                 Z
+Vinyl ethylether
+염화비닐리덴                                                                  Y
+Vinylidenechloride
+네오데칸산비닐                                                                 Y
+Vinyl neodecanoate
+비닐를루엔                                                                   Y
+Vinyltoluene
+백색주정,    저방향족(15~20%)                                                   Y
+White spirit,low(15-20%) aromatic
+아세트산     나트륨    / 옥살산    나트륨    함유   목재   리그닌                           Z
+Wood  ligninwith sodium  acetate/oxalate
+자일렌                                                                     Y
+Xylenes
+자일렌/에틸벤젠혼합물(10%이상)                                                      Y
+Xylenes/ethylbenzene(10% or more) mixture
+자일렌올                                                                    Y
+Xylenol
+디티오인산아연알카릴(C7-C16)                                                      Y
+Zincalkaryl dithiophosphate(C7-C16)
+카르복스아마이드아연알키닐                                                           Y
+Zincalkenyl carboxamide
+디티오인산    아연알킬(C3-C14)                                           Y
+Zincalkyldithiophosphate(C3-C14)
+
+  비고
+    이 표  외의   물질에   대하여는    「위험화학품      산적운송선박의       구조   및  설비를   위한
+  국제코드」(IBC     Code)에  따른다.

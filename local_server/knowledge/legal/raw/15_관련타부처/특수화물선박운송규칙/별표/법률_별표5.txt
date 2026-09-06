@@ -1,0 +1,57 @@
+[법률] 별표5 — 액상화물질 운송허용수분치 측정표
+
+[별지 제5호서식]                                                                   
+                                                                                                      
+    제     호                                                                                         
+    No.                                                                                               
+                                                                                                      
+  액상화물질 운송허용수분치 측정표                                                                    
+  Certificate of the transportable moisture limit of the cargoes which may liquefy                    
+                                                                                                      
+                                                                                                      
+───────┬─────────────────────────────┬─────────────
+  신청인      │성명(법인은 명칭 및 대표자 성명) Name/status,             │생년월일 Date of one's    
+  Applicant   │company/organization                                      │birth                     
+              ├─────────────────────────────┼─────────────
+              │주소(법인은 주된 사무소 소재지) Address, Location of main │전화번호 Telephone        
+              │office                                                    │Number                    
+───────┴─────────────────────────────┴─────────────
+                                                                                                      
+───────┬─────────────────────────────┬─────────────
+  제조자      │성명(법인은 명칭 및 대표자 성명) Name/status,             │생년월일 Date of one's    
+  Manufacturer│company/organization                                      │birth                     
+              ├─────────────────────────────┼─────────────
+              │주소(법인은 주된 사무지 소재지) Address, Location of main │전화번호 Telephone        
+              │office                                                    │Number                    
+───────┴─────────────────────────────┴─────────────
+                                                                                                      
+───────┬──────────────┬────────────────────────────
+  액상화물질  │종류                        │                                                        
+  Cargoes     │Type                        │                                                        
+  which may   ├──────────────┼────────────────────────────
+  liquefy     │조성, 성분 및 입자의 크기   │                                                        
+              │Composition, Component and  │                                                        
+              │Particle size               │                                                        
+              ├──────────────┼────────────────────────────
+              │운송허용수분치              │                                                        
+              │Transportable moisture limit│                                                        
+───────┴──────────────┴────────────────────────────
+   「특수화물 선박운송 규칙」 제19조제4항에 따라 위와 같이 액상화물질 운송허용수분치                  
+  측정표를 발급합니다.                                                                                
+    This certificate is issued under the provisions 4.3.2 of the International Maritime Solid         
+  Bulk Cargoes Code under the authority of the Government of Republic of Korea.                       
+                                                                                                      
+                                                                                                      
+         년(Y)      월(M)      일(D)                                                                  
+                                                                                                      
+                                                  ┏━━━━━┓                                      
+      지방해양수산청장                            ┃직인      ┃                                      
+      Administrator of Regional Office of Oceans  ┃Signature ┃                                      
+      and Fisheries                               ┃          ┃                                      
+                                                  ┃          ┃                                      
+      지정측정기관의 장                           ┃          ┃                                      
+      President of Measuring Organization         ┃          ┃                                      
+                                                  ┗━━━━━┛                                      
+                                                                                                      
+───────────────────────────────────────────────────
+  210mm×297mm(일반용지 60g/㎡(재활용품))

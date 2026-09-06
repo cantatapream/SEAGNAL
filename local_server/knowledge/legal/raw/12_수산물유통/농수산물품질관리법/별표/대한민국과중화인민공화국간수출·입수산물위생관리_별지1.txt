@@ -1,0 +1,52 @@
+[대한민국과 중화인민공화국 간 수출·입 수산물 위생관리] 별지1 — SANITARY(HEALTH) CERTIFICATE(위생증명서)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000219394 (수집 2026-08-31)
+
+[별지 제1호서식]
+┌─────────────────────────────────────────────────────┐
+│대한민국 해양수산부 국립수산물품질관리원                                                                  │
+│NATIONAL FISHERY PRODUCTS QUALITY MANAGEMENT SERVICE                                                      │
+│MINISTRY OF OCEANS AND FISHERIES OF REPUBLIC OF KOREA                                                     │
+│SANITARY(HEALTH) CERTIFICATE(위생증명서)                                                                  │
+│                                                 Serial No(발행번호):                                     │
+│                                                                                                          │
+│Name and Address of Consignor:                                                                            │
+│(선적자 성명 및 주소)                                                                                     │
+│Name and Address of Consignee:                                                                            │
+│(수하인 성명 및 주소)                                                                                     │
+│Description of Goods:                                                                                     │
+│(제품명)                                                                                                  │
+│Weight Declared:                                                                                          │
+│(신고수량)                                                                                                │
+│Number and Type of Packages:                                                                              │
+│(포장 개수 및 형태)                                                                                       │
+│Container No.:       Seal No.:                                                                            │
+│(콘테이너 번호)               (봉인번호)                                                                  │
+│Name, Address and Approval No.                                                                            │
+│of the Establishment Approved:                                                                            │
+│(등록공장 명칭, 주소 및 등록번호)                                                                         │
+│Place of Dispatch(Port):           Place of Destination(Port):                                            │
+│(선적지 항구) (도착지 항구)                                                                               │
+│Means of Conveyance:        Date of Dispatch:                                                             │
+│(운송수단) (선적일자)                                                                                     │
+│Date(Period) of Production:                                                                               │
+│[생산일자 (기간)]                                                                                         │
+│                                                                                                          │
+│This is to certify that(이 증명서는 다음 사항을 증명한다):                                                │
+│1. The above fishery products were come from the establishment approved by Ministry of oceans             │
+│and fisheries of Republic of Korea.                                                                       │
+│   [상기의 수산물은 해양수산부에 등록된 가공공장에서 생산되었음]                                          │
+│2. The products were produced, packed, stored and transported under sanitary condition, which were under  │
+│the supervision of Ministry of oceans and fisheries of Republic of Korea.                                 │
+│   [본 제품은 해양수산부의 관리하에 위생적인 조건에서 생산, 포장, 저장 및 운송되었음]                     │
+│3. The products were inspected by National fishery products quality management service of                 │
+│Korea and not found any pathogenic bacteria, harmful substances and foreign substanceregulated in the     │
+│People’s Republic of China.                                                                              │
+│(본 제품은 국립수산물품질관리원이 검사하였으며, 중국에서 규정하고 있는 병원성세균, 위해물질 및 이물       │
+│질이 발견되지 않았음)                                                                                     │
+│4. The products meet sanitary requirements and fit for human consumption.                                 │
+│(본 제품은 위생조건에 충족하고 식용에 적합함)                                                             │
+│                                     Date of Issue(발행일자):                                             │
+│Stamp:                                  SIGNATURE                                                         │
+│                                       Director of ○○ Regional Office                                   │
+│NATIONAL FISHERY PRODUCTS QUALITY MANAGEMENT SERVICES                                                     │
+└─────────────────────────────────────────────────────┘

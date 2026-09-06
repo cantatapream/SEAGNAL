@@ -1,0 +1,42 @@
+[불법조업 외국어선 사법처리 절차 등에 관한 규칙] 별지3 — 領事機關 通報要請確認書
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000181898 (수집 2026-08-31)
+
+〔별지 제3호 서식〕
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃領事機關 通報要請確認書                                                       ┃
+┃Date/ Month/ Year                                                             ┃
+┃Confirmation of Request for Notification to the Consulate                     ┃
+┠───────┬───────────────────────────────┨
+┃被逮捕者 姓名 │擔當警察官 所屬, 階級, 姓名                                   ┃
+┃              │                             印                               ┃
+┠───────┴───────────────────────────────┨
+┃당신은 귀국에서 파견된 영사관원에게 체포된 사실을 통보?요구할 권리 및        ┃
+┃대한민국의 법령 내에서 위 영사관원에 편지를 보낼 권리를 가지고 있습니다.      ┃
+┃You have the rights to demand us to notify an official in the consulate       ┃
+┃dispatched by your government that you are arrested and to send a letter      ┃
+┃to the official pursuant to relevant laws of Republic of Korea.               ┃
+┃당신이 원하는 항목의 (   )에 ∨표를 한 후, 끝으로 공란에 국명을 기입하고 서   ┃
+┃명해 주십시오.                                                                ┃
+┃Choose one between the following alternatives and mark it with ∨ in the      ┃
+┃parenthesis.                                                                  ┃
+┃Finally write your nationality(country of origin) and sign underneath.        ┃
+┃나는 자국 영사관원에 대한 통보를 요청합니다.                                  ┃
+┃I request you to notify an official in the consulate of my country that I am  ┃
+┃arrested. (      )                                                            ┃
+┃나는 통보를 요청하지 않습니다.                                                ┃
+┃I do not request you to notify. (      )                                      ┃
+┃              (            )                (               )                 ┃
+┃                국     명                    피체포자 서명                    ┃
+┃        Nationality(Country of Origin)           Signature                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+ ※ 注意 : 1. 국명확인은 여권 또는 외국인 등록 증명서에 의할 것
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃通    報    書                                                        ┃
+┃     년   월   일                                                     ┃
+┃본직은 다음과 같이 상기의 외국인을 체포한 것을 영사관에 통보하였음    ┃
+┃(1)  통보일시                                                         ┃
+┃(2)  통보대상 영사기관                                                ┃
+┃                                                                  ??┃
+┃담당경찰관 소속, 계급, 성명, 인                                       ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+※ 송치서류에 복사본을 편철할 것
