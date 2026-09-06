@@ -346,8 +346,7 @@ ok('추세 요약 도넛이 4.1em 보다 크다',
 
 console.log('\n[8] 화면 다듬기[S25] — 여백·라벨·뱃지·0건 타일');
 
-ok('추세 요약 도넛 칸 세로 간격이 1/3로 줄었다',
-    /\.ash-donut-stack \{[^}]*gap: 0\.17em; margin-top: 0\.15em/.test(CSS) &&
+ok('추세 요약 도넛 칸 범례 간격이 좁다',
     /\.ash-dlegend \{[^}]*gap: 0\.12em/.test(CSS));
 ok('도넛 가운데 숫자와 라벨 간격이 절반(0.25→0.12em)',
     /\.ash-donut-center \{[\s\S]{0,400}gap: 0\.12em;/.test(CSS));
@@ -356,8 +355,8 @@ ok('숫자를 점 위·아래로 번갈아 놓는다',
     /align: function \(ctx\) \{ return ctx\.dataIndex % 2 \? 'bottom' : 'top'; \}/.test(CODE));
 ok('점과 숫자 사이 간격이 절반(플러그인 기본 4 → 2)',
     /function trendTotalDatalabels[\s\S]{0,400}offset: 2,/.test(CODE));
-ok('숫자 색이 전체선과 같은 노란색',
-    /function trendTotalDatalabels[\s\S]{0,400}color: TREND_COLOR\.all,/.test(CODE));
+ok('숫자 색이 그 선의 색을 따른다',
+    /function trendTotalDatalabels\(color\)[\s\S]{0,400}color: color,/.test(CODE));
 ok('숫자가 아래로도 가므로 캔버스 아래 여백이 있다',
     /TREND_CHART_PADDING = \{ padding: \{ top: 22, bottom: 6 \} \}/.test(CODE));
 
@@ -383,7 +382,7 @@ ok('월별도 소스별로 세어 세 선을 그린다',
 ok('월별도 연도별과 같은 기간으로 자른다',
     /function monthlyBuckets[\s\S]{0,600}combinedYearSpan\(\)/.test(CODE));
 ok('연도별·월별이 같은 선 정의를 쓴다',
-    (CODE.match(/trendSeriesSpec\(/g) || []).length >= 7);
+    /datasets: trendDatasets\(t\)/.test(CODE) && /datasets: trendDatasets\(mo\)/.test(CODE));
 
 ok('카드 머리 뱃지 문구를 만드는 함수가 있다',
     /function chartSpanBadgeText[\s\S]{0,900}'선박사고만'/.test(CODE));
@@ -396,6 +395,109 @@ ok('토스트가 완전히 없어졌다',
     !/armTrendToast\(/.test(CODE) && !/ash-chart-toast/.test(CODE));
 ok('시간대별 아래 긴 문구가 없어졌다',
     !/ACCIDENT_DAY_START_HOUR \+ '~'/.test(CODE));
+
+// ── [9] 화면 다듬기[S26] — 2026-09-06 사용자 지적 9묶음 ────────────────────────
+console.log('\n[9] 화면 다듬기[S26] — 여백·요일막대·말풍선·색·레저선박·치명도·칩');
+
+// S26-1 도넛 칸 여백
+ok('도넛 칸 위·사이 여백을 1/3로 줄였다',
+    /\.ash-donut-stack \{[^}]*gap: 0\.06em; margin-top: 0\.05em/.test(CSS));
+ok('칸 아래 여백을 1/5로 줄였다',
+    /\.ash-stat \{[\s\S]{0,400}padding: 0\.85em 0\.6em 0\.17em;/.test(CSS));
+
+// S26-2 요일별 막대
+ok('요일 막대 숫자를 늘 막대 가운데에 둔다',
+    /view === 'weekday'[\s\S]{0,900}anchor: 'center', align: 'center',/.test(CODE));
+ok('요일 막대 숫자에 흰 글자·검은 외곽선을 준다',
+    /view === 'weekday'[\s\S]{0,900}color: '#fff', textStrokeColor: '#000', textStrokeWidth: 3,/.test(CODE));
+ok('요일 막대 색을 진하게 낮췄다',
+    /CHART_COLOR = \{[^}]*green: '#0f8f74'/.test(CODE) && !/green: '#69f0ae'/.test(CODE));
+ok('요일 막대가 바닥에서 자란다',
+    /view === 'weekday'[\s\S]{0,1400}y: \{ from: function \(ctx\) \{ return ctx\.chart\.scales\.y\.getPixelForValue\(0\); \} \}/.test(CODE));
+ok('세로 막대 라벨 바깥배치 함수는 더 쓰지 않는다',
+    !/verticalBarLabelPlacement/.test(CODE));
+
+// S26-3 특보 카드·말풍선
+ok('말풍선에 해역별 일수만 남는다(합계·겹침 줄 없음)',
+    /function warnDaysTipText[\s\S]{0,500}\}/.test(CODE) &&
+    !/구역끼리 겹친/.test(CODE) && !/'합계  '/.test(CODE));
+ok('특보 종류 타일에는 말풍선을 안 붙인다',
+    !/ash-warn-tile"' \+ \(tip/.test(CODE) && /'<div class="ash-warn-tile">'/.test(CODE));
+ok('한 번 누르면 1초 뒤 저절로 사라진다',
+    /TIP_HOLD_MS = 1000/.test(CODE) && /showTip\(_tipStart\.target, TIP_HOLD_MS\)/.test(CODE) &&
+    !/TIP_PRESS_MS/.test(CODE));
+ok('말풍선이 서서히 뜨고 사라진다',
+    /\.ash-tip \{[\s\S]{0,1200}transition: opacity/.test(CSS) &&
+    /\.ash-tip\.on \{ opacity: 1; \}/.test(CSS));
+ok('특보 카드 아래 안내 문구가 없어졌다',
+    !/특보 발효 시간과 사고 발생 시간이/.test(CODE));
+
+// S26-4 4·5번 카드
+ok('토글 상자 아무 데나 눌러도 선박↔인명이 바뀐다',
+    /closest\('\.ash-srctoggle'\)/.test(CODE));
+ok('막대·도넛 색표에서 겹치던 청록을 뺐다',
+    !/#25d0a6/.test(CODE) && /ASH_ROW_COLORS = \['#2b7cf0', '#16c8a3', '#ffc233'/.test(CODE));
+ok('바뀐 색의 도넛 그라데이션도 표에 있다',
+    /'#ffc233': \['#ffdd85', '#ffc233', '#9a6c00'\]/.test(CODE));
+ok('막대 게이지가 차오른다',
+    /@keyframes ashFillBar \{ from \{ width: 0; \} \}/.test(CSS) &&
+    /\.ash-card\.reveal \.ash-bar > i \{ animation-play-state: running; \}/.test(CSS));
+ok('같은 시트에서 다시 그릴 때는 막대 애니메이션을 끈다',
+    /\.ash-noanim \.ash-bar > i \{ animation: none; \}/.test(CSS));
+
+// S26-5 레저선박
+ok('기타(레저선박)을 이름만 바꿔 순위에 살린다',
+    /ASH_RENAME_LABELS = \{ '기타\(레저선박\)': '레저선박\(분류없음\)' \}/.test(CODE) &&
+    /if \(ASH_RENAME_LABELS\[e\[0\]\]\) e = \[ASH_RENAME_LABELS\[e\[0\]\], e\[1\]\];/.test(CODE));
+ok('이름 칸이 레저선박(분류없음)을 담을 만큼 넓다(실측 기준)',
+    /\.ash-row \.nm \{[\s\S]{0,700}width: 8\.7em;/.test(CSS));
+ok('바뀐 이름은 제외 규칙에 안 걸린다',
+    !/^(기타|정보없음|원인미상|관할 미상)/.test('레저선박(분류없음)'));
+
+// S26-6 치명도 카드
+ok('치명도 첫 줄(이 구역 실제값)이 없어졌다',
+    !/ash-scope-line/.test(CODE) && !/사망·실종 사고가 ' \+ fmtN/.test(CODE));
+ok('치명도 아래 긴 안내문이 없어졌다',
+    !/이 순위는 전국 자료로 낸 것이라/.test(CODE));
+ok('값 칸이 무슨 숫자인지 알려 주는 줄이 있다',
+    /ash-fatal-legend">' \+ legend/.test(CODE) &&
+    /'\(<b>사망\+실종<\/b> \/ 총 ' \+ \(key === 'hk' \? '사고수' : '인원'\) \+ '\)'/.test(CODE));
+ok('사망+실종 글자와 괄호 왼쪽 숫자가 빨간색이다',
+    /\.ash-fatal-legend b \{ color: #ff5252;/.test(CSS) &&
+    /\.ash-fatal-row \.val em b \{ color: #ff5252;/.test(CSS) &&
+    /'<em>\(<b>' \+ fmtN\(e\.fatal\) \+ '<\/b>\/' \+ fmtN\(e\.scale\)/.test(CODE));
+
+// S26-7 칩
+ok('칩이 전체·선박·인명 셋이다',
+    /\{ id: 'all', label: '전체', icon: 'fa-layer-group' \}/.test(CODE));
+ok('전체 칩에도 건수·기간이 들어간다',
+    /stat\.all = \{[\s\S]{0,240}n: total,/.test(CODE));
+ok('전체 칩 색이 따로 있다', /\.ash-chip\.all \{/.test(CSS));
+ok('한 종류를 고르면 그 한 선만 그린다',
+    /_statsScope === 'hk'\) return \[trendSeriesSpec\('선박사고', bk\.hk, TREND_COLOR\.hk, true\)\]/.test(CODE) &&
+    /_statsScope === 'person'\) return \[trendSeriesSpec\('인명사고', bk\.person, TREND_COLOR\.person, true\)\]/.test(CODE));
+ok('한 선만 그릴 때 선 아래 칠도 그 색을 따른다',
+    /function trendFillOf/.test(CODE) && /backgroundColor: isTotal \? trendFillOf\(color\)/.test(CODE));
+
+// S26-8 치명도 구역↔전국 토글
+ok('전국 기준 뱃지가 토글로 바뀌었다',
+    /function fatalityScopeHtml[\s\S]{0,700}data-fatalscope="/.test(CODE) &&
+    /\[\['cell', '이 구역'\], \['nation', '전국'\]\]/.test(CODE));
+ok('전국 보기로 연 시트에서는 토글 대신 (전국) 뱃지',
+    /if \(_statsNationwide\) return '<span class="ash-badge-scope">전국<\/span>';/.test(CODE));
+ok('시트를 열 때는 이 구역으로 시작한다',
+    /var _fatalScope = 'cell';/.test(CODE) && /_fatalScope = 'cell';\s*$/m.test(CODE.replace(/ +\/\/.*$/gm, '')));
+ok('이 구역을 고르면 그 구역 목록으로 순위를 낸다',
+    /var useCell = !_statsNationwide && _fatalScope === 'cell';/.test(CODE) &&
+    /fatalityRanking\(key, useCell \? cellMembers : null\)/.test(CODE));
+ok('구역 자료일 때 표본 기준을 낮춘다',
+    /FATAL_MIN_SAMPLE_CELL = 10/.test(CODE) &&
+    /var minSample = members \? FATAL_MIN_SAMPLE_CELL : FATAL_MIN_SAMPLE;/.test(CODE));
+ok('후보가 하나도 없으면 표본 얇은 것까지 보여 준다',
+    /var base = ranked\.length \? ranked : r\.rows\.filter/.test(CODE));
+ok('토글을 누르면 다시 그린다',
+    /closest\('\[data-fatalscope\]'\)/.test(CODE));
+ok('토글에 전용 스타일이 있다', /\.ash-scopetoggle \{/.test(CSS));
 
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);
