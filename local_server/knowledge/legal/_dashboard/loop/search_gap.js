@@ -73,7 +73,8 @@ function kindOf(file) {
   const rows = [];
   for (const q of qs) {
     const arts = G.artsOf(q.expect_article);
-    const owners = G.ownersOf(idx, q.expect_law, arts);
+    // 부칙/본문 구분은 golden_eval 과 같은 판정을 쓴다(L-136 — 같은 대조는 같은 눈금으로).
+    const owners = G.ownersOf(idx, q.expect_law, arts, G.isAddenda(q.expect_article));
     if (!owners.length) continue;                       // §6-E — 이 검사의 대상이 아니다
     let res = null;
     try { res = await R.search(q.question, {}); } catch (_) { res = null; }
