@@ -9382,9 +9382,13 @@ html[data-font-size="large"] .ocean-overlay-btn {
     align-items: center;
     gap: 0.6em 0.55em;
     flex-wrap: wrap;
-    padding: 0.9em 0 0.95em;
+    /* ★위아래 여백을 1/5 로 줄였다[S27, 2026-09-06 사용자 지적].
+       헤더 아래(0.9em)와, 칩 줄에서 필터 버튼 줄까지의 사이(0.95em + 0.9em = 1.85em)가
+       너무 넓어 첫 화면에 빈 띠가 두 개 생겼다. 구분선을 가운데 두고 위아래를 같은
+       비율로 줄인다 — 0.9→0.18em · (0.95+0.9)→(0.19+0.18)em. */
+    padding: 0.18em 0 0.19em;
     border-bottom: 1px solid rgba(255, 255, 255, 0.055);
-    margin-bottom: 0.9em;
+    margin-bottom: 0.18em;
 }
 .ash-period { flex: 1 1 100%; min-width: 0; word-break: keep-all; }
 .ash-period-1 { font-size: 0.78em; color: #b8c7da; }
@@ -9476,7 +9480,27 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .ash-warn-src.hk .ash-warn-k { color: var(--ash-blue-soft); }
 .ash-warn-src.person .ash-warn-k { color: var(--ash-teal); }
 
-.ash-warn-sub { font-size: 0.85em; font-weight: 800; margin: 0.9em 0 0.55em; }
+.ash-warn-sub {
+    font-size: 0.85em; font-weight: 800; margin: 0.9em 0 0.55em;
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5em;
+}
+/* "사고 내역 보기"[S27] — 시트 안 필터 버튼(.ash-sheetfilter)과 같은 파란 알약 어법.
+   [연계] accident_info.js buildWarnCardHtml 의 소제목 줄 / openWarnDetailPopup */
+.ash-warn-more {
+    flex: none;
+    border: 1px solid rgba(43, 124, 240, 0.42);
+    background: rgba(43, 124, 240, 0.13);
+    color: #8fbcff;
+    border-radius: 0.6em;
+    padding: 0.34em 0.6em;
+    font-family: inherit;
+    font-size: 0.8em;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 0.35em;
+    white-space: nowrap;
+}
+.ash-warn-more i { font-size: 0.8em; opacity: 0.8; }
 .ash-warn-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em; }
 .ash-warn-tile {
     background: var(--ash-sub);
@@ -9815,6 +9839,182 @@ html[data-font-size="large"] .ocean-overlay-btn {
     border-radius: 3px;
     background: linear-gradient(90deg, #2563eb 0%, #facc15 50%, #ef4444 100%);
 }
+
+/* ── 특보 중 사고 내역 팝업[S27, 2026-09-06 사용자 확정] ─────────────────────
+   특보 카드의 "사고 내역 보기"로 열린다. 시트 위에 전체를 덮는 판이다.
+
+   ★색 토큰을 여기서 한 번 더 선언하는 이유: 이 팝업은 body 에 붙어 **시트 밖**에 있다.
+     --ash-* 는 .accident-stats-sheet 안에만 정의돼 있어 그대로는 물려받지 못한다.
+     값은 그 블록과 **같아야 한다** — 어긋나면 팝업만 다른 색이 되므로 회귀 테스트가
+     두 곳의 값이 같은지 본다(test_accident_sheet.js).
+   [연계] accident_info.js openWarnDetailPopup / renderWarnDetail */
+.ash-detail-overlay {
+    --ash-card: #0c1829;
+    --ash-card-br: #182740;
+    --ash-sub: #0f1e33;
+    --ash-sub-br: #1b2b45;
+    --ash-txt: #eaf1fa;
+    --ash-muted: #8194ad;
+    --ash-dim: #61748c;
+    --ash-blue: #2b7cf0;
+    --ash-track: #182842;
+    --ash-red: #ff5252;
+
+    position: fixed;
+    inset: 0;
+    z-index: 1300;   /* 필터 팝업(1200)보다 위 — 시트에서 열리는 판이다 */
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    font-size: clamp(11.2px, 3.22vw, 15px);
+    font-feature-settings: "tnum" 1;
+    color: var(--ash-txt);
+}
+.ash-detail {
+    width: 100%;
+    max-width: 460px;
+    height: 92vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, #0b1524, #081020);
+    border: 1px solid #1a293e;
+    border-bottom: 0;
+    border-radius: 1.1em 1.1em 0 0;
+    box-shadow: 0 -0.6em 2em rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+}
+/* 도넛 조각은 카드가 화면에 들어올 때 한 붓으로 그려지는데(.ash-seg), 이 팝업에는
+   .ash-card 가 없어 그 신호가 오지 않는다. 멈춘 채로 두면 조각 길이가 0이라 빈 원만
+   보이므로 여기서는 애니메이션을 끄고 완성형으로 그린다. */
+.ash-detail .ash-seg { animation: none; }
+
+.ash-detail-head { flex: none; padding: 0.9em 0.95em 0.75em; border-bottom: 1px solid #1a293e; }
+.ash-detail-head .l1 { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6em; }
+.ash-detail-title { margin: 0; font-size: 1.15em; font-weight: 800; letter-spacing: -0.01em; }
+.ash-detail-scope { margin-top: 0.2em; font-size: 0.76em; color: var(--ash-muted); line-height: 1.45; }
+.ash-detail-x {
+    flex: none; width: 1.9em; height: 1.9em; border-radius: 50%;
+    border: 1px solid var(--ash-card-br); background: var(--ash-sub);
+    color: var(--ash-muted); font-size: 1em; line-height: 1; cursor: pointer;
+}
+/* 전체 · 선박사고 · 인명사고 — 시트의 선박↔인명 토글과 같은 어법 */
+.ash-detail-tabs {
+    display: flex; gap: 0.3em; margin-top: 0.7em; padding: 0.16em;
+    border: 1px solid var(--ash-card-br); border-radius: 0.7em;
+    background: rgba(255, 255, 255, 0.015);
+}
+.ash-detail-tabs button {
+    flex: 1; border: 0; background: transparent; padding: 0.42em 0.3em; border-radius: 0.55em;
+    font-family: inherit; font-size: 0.76em; font-weight: 700; color: #8ea1b9; cursor: pointer;
+}
+.ash-detail-tabs button.on {
+    background: var(--ash-blue); color: #fff; box-shadow: 0 0.2em 0.6em rgba(43, 124, 240, 0.35);
+}
+
+/* 특보 종류 칩 — 종류가 여섯이라 가로로 넘긴다 */
+.ash-detail-chips {
+    flex: none; display: flex; gap: 0.35em; overflow-x: auto;
+    padding: 0.7em 0.95em 0.2em; scrollbar-width: none;
+}
+.ash-detail-chips::-webkit-scrollbar { display: none; }
+.ash-d-chip {
+    flex: none; display: flex; align-items: center; gap: 0.35em; white-space: nowrap;
+    border: 1px solid var(--ash-sub-br); background: var(--ash-sub); border-radius: 0.7em;
+    padding: 0.4em 0.62em; font-family: inherit; font-size: 0.74em; font-weight: 700;
+    color: #b7c6d8; cursor: pointer;
+}
+.ash-d-chip i { width: 0.5em; height: 0.5em; border-radius: 50%; flex: none; }
+.ash-d-chip .n { color: var(--ash-dim); font-weight: 600; }
+.ash-d-chip.on { color: #fff; background: var(--ash-blue); border-color: var(--ash-blue); }
+.ash-d-chip.on .n { color: rgba(255, 255, 255, 0.72); }
+
+.ash-detail-body { flex: 1; overflow-y: auto; padding: 0.9em 0.95em 1.2em; }
+
+/* 요약 */
+.ash-d-sum { background: var(--ash-card); border: 1px solid var(--ash-card-br); border-radius: 0.9em; padding: 0.85em 0.9em; }
+.ash-d-sum .t { font-size: 0.8em; color: var(--ash-muted); }
+.ash-d-sum .n { font-size: 1.7em; font-weight: 800; letter-spacing: -0.02em; }
+.ash-d-sum .n small { font-size: 0.46em; font-weight: 700; color: var(--ash-muted); margin-left: 0.15em; }
+.ash-d-sum .cells { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4em; margin-top: 0.7em; }
+.ash-d-sum .c { background: var(--ash-sub); border: 1px solid var(--ash-sub-br); border-radius: 0.6em; padding: 0.5em 0.6em; }
+.ash-d-sum .k { font-size: 0.7em; color: var(--ash-dim); }
+.ash-d-sum .v { font-size: 0.95em; font-weight: 800; margin-top: 0.15em; }
+.ash-d-sum .v.red { color: var(--ash-red); }
+.ash-d-sum .note { margin-top: 0.55em; font-size: 0.7em; color: var(--ash-dim); line-height: 1.5; }
+
+/* 도넛 — 시트 카드의 도넛 부품(buildDonutHtml)을 그대로 쓴다 */
+.ash-d-donuts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em; margin-top: 0.7em; }
+.ash-d-donut { background: var(--ash-card); border: 1px solid var(--ash-card-br); border-radius: 0.9em; padding: 0.75em 0.7em; }
+.ash-d-donut h4 { margin: 0 0 0.5em; font-size: 0.75em; font-weight: 700; color: var(--ash-muted); }
+.ash-d-donut h4 em { font-style: normal; font-weight: 600; color: var(--ash-dim); }
+.ash-d-donut .wrap { display: flex; flex-direction: column; align-items: center; gap: 0.35em; }
+.ash-d-donut.wide { margin-top: 0.7em; }
+.ash-d-donut.wide .wrap { flex-direction: row; align-items: center; gap: 1em; }
+.ash-d-leg { width: 100%; display: flex; flex-direction: column; gap: 0.16em; }
+.ash-d-leg div { display: flex; align-items: center; gap: 0.32em; font-size: 0.68em; color: #c3d2e6; }
+.ash-d-leg i { width: 0.45em; height: 0.45em; border-radius: 50%; flex: none; }
+.ash-d-leg span { margin-left: auto; font-weight: 700; color: var(--ash-txt); }
+
+.ash-d-listhead { display: flex; align-items: baseline; justify-content: space-between; margin: 1em 0 0.5em; }
+.ash-d-listhead h3 { margin: 0; font-size: 0.92em; font-weight: 800; }
+.ash-d-listhead .cnt { font-size: 0.74em; color: var(--ash-muted); }
+.ash-d-empty { padding: 2em 1em; text-align: center; color: var(--ash-dim); font-size: 0.8em; }
+
+/* 사고 카드(아코디언) */
+.ash-d-card { background: var(--ash-card); border: 1px solid var(--ash-card-br); border-radius: 0.85em; margin-bottom: 0.45em; overflow: hidden; }
+.ash-d-card.fatal { border-color: rgba(255, 82, 82, 0.35); }
+.ash-d-head {
+    display: flex; gap: 0.6em; width: 100%; padding: 0.7em 0.75em; align-items: flex-start;
+    background: transparent; border: 0; text-align: left; font-family: inherit; color: inherit; cursor: pointer;
+}
+.ash-d-head.flat { cursor: default; }
+.ash-d-head .ic {
+    width: 2.5em; height: 2.5em; flex: none; border-radius: 50%;
+    background: var(--ash-sub); border: 1px solid var(--ash-sub-br);
+    display: grid; place-items: center; overflow: hidden;
+}
+.ash-d-head .ic img { width: 100%; height: 100%; object-fit: contain; }
+.ash-d-head .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.22em; }
+.ash-d-head .l1 { display: flex; align-items: center; gap: 0.4em; flex-wrap: wrap; }
+.ash-d-head .dt { font-size: 0.8em; font-weight: 800; letter-spacing: -0.01em; }
+.ash-d-head .ty, .ash-d-head .kd, .ash-d-warn {
+    font-size: 0.68em; font-weight: 700; padding: 0.12em 0.42em; border-radius: 0.45em; border: 1px solid;
+}
+.ash-d-head .ty { background: rgba(43, 124, 240, 0.16); color: #8fbcff; border-color: rgba(43, 124, 240, 0.28); }
+.ash-d-head .kd { background: rgba(22, 200, 163, 0.13); color: #5fdcc0; border-color: rgba(22, 200, 163, 0.26); }
+.ash-d-head .pos { font-size: 0.72em; color: #b7c6d8; line-height: 1.4; word-break: break-all; }
+.ash-d-head .pos.coord { color: var(--ash-muted); font-variant-numeric: tabular-nums; }
+.ash-d-head .l3 { display: flex; align-items: center; gap: 0.45em; flex-wrap: wrap; font-size: 0.72em; }
+.ash-d-head .cas { font-weight: 700; color: var(--ash-red); }
+.ash-d-head .cas.none { font-weight: 600; color: var(--ash-dim); }
+.ash-d-head .org { color: var(--ash-muted); }
+.ash-d-head .org::before { content: "·"; margin-right: 0.45em; color: var(--ash-dim); }
+.ash-d-head .chev { flex: none; align-self: center; color: var(--ash-dim); font-size: 0.75em; transition: transform 0.18s ease; }
+.ash-d-card.open .chev { transform: rotate(180deg); }
+.ash-d-body { display: none; padding: 0 0.75em 0.75em 3.85em; flex-direction: column; gap: 0.3em; }
+.ash-d-card.open .ash-d-body { display: flex; }
+.ash-d-body .r { display: flex; gap: 0.5em; font-size: 0.72em; border-top: 1px solid var(--ash-sub-br); padding-top: 0.35em; }
+.ash-d-body .r span:first-child { width: 4.6em; flex: none; color: var(--ash-dim); white-space: nowrap; }
+.ash-d-body .r span:last-child { color: #c3d2e6; }
+
+/* 쪽 넘김 — 게시판식 « ‹ 1 2 3 4 5 › » */
+.ash-d-pager { display: flex; align-items: center; justify-content: center; gap: 0.25em; margin-top: 0.9em; }
+.ash-d-pager button {
+    border: 1px solid var(--ash-sub-br); background: var(--ash-sub); color: #c6d4e6;
+    border-radius: 0.5em; min-width: 2.1em; padding: 0.42em 0.3em;
+    font-family: inherit; font-size: 0.76em; font-weight: 700; cursor: pointer;
+    font-variant-numeric: tabular-nums;
+}
+.ash-d-pager button:disabled { opacity: 0.3; cursor: default; }
+.ash-d-pager button.e { color: var(--ash-muted); }
+.ash-d-pager button.n.on {
+    background: var(--ash-blue); border-color: var(--ash-blue); color: #fff;
+    box-shadow: 0 0.2em 0.6em rgba(43, 124, 240, 0.35);
+}
+.ash-d-pagenote { margin-top: 0.45em; text-align: center; font-size: 0.72em; color: var(--ash-dim); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) { .ash-d-head .chev { transition: none; } }
 
 /* 필터 팝업 — 체크박스 다중선택(관할서·사고유형·계절) 공용 + 시간대 전용 몸통 */
 .accident-filter-popup-overlay {
