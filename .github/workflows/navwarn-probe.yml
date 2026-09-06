@@ -18,6 +18,8 @@
 
 name: 항행경보 정찰
 
+# 정찰 파일이 바뀌어 올라오면 바로 돌린다. 수동 실행(workflow_dispatch)은 기본
+# 브랜치에 올라간 뒤에만 쓸 수 있어, 조사 중에는 push 로 돌린다.
 on:
   workflow_dispatch:
     inputs:
@@ -25,6 +27,10 @@ on:
         description: '조회할 날짜 (YYYYMMDD, 비우면 오늘)'
         required: false
         default: ''
+  push:
+    paths:
+      - 'local_server/scripts/navwarn_probe.js'
+      - '.github/workflows/navwarn-probe.yml'
 
 permissions:
   contents: read
