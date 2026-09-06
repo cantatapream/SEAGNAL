@@ -303,7 +303,8 @@ ok('세 선의 색이 서로 다르고 도넛 범례와 같다',
     /\['선박사고', hk, '#2b7cf0'\], \['인명사고', pr, '#16c8a3'\]/.test(SRC));
 ok('숫자는 전체선에만 붙는다',
     /datalabels: isTotal[\s\S]{0,240}: \{ display: false \}/.test(SRC));
-ok('선이 셋이라 범례를 켠다', /legend: \{[\s\S]{0,80}display: true/.test(CODE));
+ok('선이 셋이라 범례를 켠다',
+    /TREND_LEGEND = \{\s*display: true/.test(CODE) && /legend: TREND_LEGEND/.test(CODE));
 
 ok('제목이 월별로 들어가면 "N년 월별 추이"가 된다',
     /_trendDrill\.year \+ '년 월별 추이'/.test(SRC));
@@ -311,23 +312,17 @@ ok('되돌아가는 버튼 이름이 "연도별로"다',
     /id="accident-trend-back"[\s\S]{0,160}연도별로/.test(SRC));
 ok('버튼·자료범위 문구가 카드 머리(ash-card-head) 안에 있다',
     /ash-card-head[\s\S]{0,200}asideHtml/.test(SRC));
-ok('자료범위 문구가 "’NN년~’NN년 사고를 표출" 꼴이다',
-    /년~’' \+[\s\S]{0,80}년 사고만 표출<\/div>/.test(SRC));
+// [S25-7에서 바뀜] 긴 문구 → 맨 위 자료범위 뱃지와 같은 모양의 짧은 뱃지(’09~’24).
+ok('자료범위가 제목 옆 뱃지로 들어간다',
+    /ash-badge-note">' \+ escapeHtml\(badge\)/.test(SRC) &&
+    /'’' \+ String\(a\)\.slice\(2\) \+ '~’' \+ String\(b\)\.slice\(2\)/.test(CODE));
 ok('옛 문구("겹치는 …년만 표시합니다")가 없다',
     !/년만 표시합니다/.test(CODE));
 
-ok('옛 안내 상자가 없어졌다', !/연도를 누르면 그 해의 월별로 바뀝니다<\/div>/.test(CODE) ||
-    /ash-chart-toast[\s\S]{0,200}연도를 누르면 그 해의 월별로 바뀝니다/.test(SRC));
-ok('안내가 그래프 안 토스트로 들어갔다',
-    /accident-chart-wrap[\s\S]{0,300}ash-chart-toast/.test(SRC));
-ok('토스트는 화면 가운데 띠에 들어올 때만 뜬다',
-    /rootMargin: '-40% 0px -40% 0px'/.test(SRC));
-ok('토스트는 시트를 열 때마다 한 번만 뜬다',
-    /_trendToastShown = false;\s*\/\/ 안내 토스트는 시트를 열 때마다 한 번/.test(SRC) &&
-    /if \(!toast \|\| !wrap \|\| _trendToastShown \|\| _trendDrill\) return;/.test(SRC));
-ok('토스트 문구가 한 줄로 잘리지 않는다(nowrap 아님)',
-    /\.ash-chart-toast \{[\s\S]{0,700}text-align: center;/.test(CSS) &&
-    !/\.ash-chart-toast \{[\s\S]{0,700}white-space: nowrap/.test(CSS));
+// [S25-7에서 삭제] 토스트 관련 검사 4개 — 사용자 확정(2026-09-06)으로 토스트를 없애고
+//   카드 제목 바로 아래 고정 한 줄(.ash-card-hint)로 바꿨다. 새 동작은 [8]에서 본다.
+ok('옛 안내 상자(.ash-hint)를 이 카드에 다시 쓰지 않는다',
+    !/ash-hint"><i class="fa-solid fa-hand-pointer"/.test(CODE));
 
 ok('점 깜빡임 플러그인이 등록돼 있다',
     /Chart\.register\(PointPulsePlugin\)/.test(CODE) && /id: 'pointPulse'/.test(CODE));
@@ -348,6 +343,59 @@ ok('추세 요약 도넛이 4.1em 보다 크다',
         const m = CSS.match(/\.ash-donut\.sm \{ width: ([\d.]+)em/);
         return !!m && parseFloat(m[1]) > 4.1;
     })(), (CSS.match(/\.ash-donut\.sm \{ width: ([\d.]+)em/) || [])[1] + 'em');
+
+console.log('\n[8] 화면 다듬기[S25] — 여백·라벨·뱃지·0건 타일');
+
+ok('추세 요약 도넛 칸 세로 간격이 1/3로 줄었다',
+    /\.ash-donut-stack \{[^}]*gap: 0\.17em; margin-top: 0\.15em/.test(CSS) &&
+    /\.ash-dlegend \{[^}]*gap: 0\.12em/.test(CSS));
+ok('도넛 가운데 숫자와 라벨 간격이 절반(0.25→0.12em)',
+    /\.ash-donut-center \{[\s\S]{0,400}gap: 0\.12em;/.test(CSS));
+
+ok('숫자를 점 위·아래로 번갈아 놓는다',
+    /align: function \(ctx\) \{ return ctx\.dataIndex % 2 \? 'bottom' : 'top'; \}/.test(CODE));
+ok('점과 숫자 사이 간격이 절반(플러그인 기본 4 → 2)',
+    /function trendTotalDatalabels[\s\S]{0,400}offset: 2,/.test(CODE));
+ok('숫자 색이 전체선과 같은 노란색',
+    /function trendTotalDatalabels[\s\S]{0,400}color: TREND_COLOR\.all,/.test(CODE));
+ok('숫자가 아래로도 가므로 캔버스 아래 여백이 있다',
+    /TREND_CHART_PADDING = \{ padding: \{ top: 22, bottom: 6 \} \}/.test(CODE));
+
+ok('같은 시트에서 다시 그릴 때는 등장 애니메이션을 끈다',
+    /body\.classList\.add\('ash-noanim'\)/.test(CODE) &&
+    /\.ash-noanim \.ash-seg \{ animation: none; \}/.test(CSS));
+ok('시트를 새로 열 때만 애니메이션이 돈다',
+    /_cardRevealDone = false;\s*\/\/ 시트를 새로 열 때만/.test(SRC) &&
+    /_cardRevealDone = true;/.test(CODE));
+
+ok('사고 0건인 특보 타일은 그리지 않는다',
+    /kinds = kinds\.filter\(function \(k\) \{ return \(st\.sev\[k\.code\] \|\| 0\) > 0; \}\);/.test(CODE));
+ok('남은 타일이 없으면 소제목도 함께 숨긴다',
+    /kinds\.length[\s\S]{0,200}특보 종류별 사고 건수/.test(SRC));
+
+ok('값 칸이 가장 긴 값보다 넓다(실측 기준)',
+    /\.ash-row \.val \{[\s\S]{0,80}width: 8\.7em;/.test(CSS) &&
+    /\.ash-fatal-row \.val \{ width: 11em; \}/.test(CSS));
+
+ok('월별도 소스별로 세어 세 선을 그린다',
+    /function monthlyBuckets[\s\S]{0,900}srcOfFeat\(f\) === 'person'/.test(CODE) &&
+    /monthlyBuckets\(trendMembers\(\)\)/.test(CODE));
+ok('월별도 연도별과 같은 기간으로 자른다',
+    /function monthlyBuckets[\s\S]{0,600}combinedYearSpan\(\)/.test(CODE));
+ok('연도별·월별이 같은 선 정의를 쓴다',
+    (CODE.match(/trendSeriesSpec\(/g) || []).length >= 7);
+
+ok('카드 머리 뱃지 문구를 만드는 함수가 있다',
+    /function chartSpanBadgeText[\s\S]{0,900}'선박사고만'/.test(CODE));
+ok('연도별·월별 뱃지는 기간만 짧게',
+    /view === 'trend' \|\| view === 'month'[\s\S]{0,160}yy\(sp\[0\], sp\[1\]\)/.test(CODE));
+ok('안내가 제목 바로 아래 한 줄로 들어간다',
+    /ash-card-hint">연도를 누르면 그 해의 월별로 바뀝니다/.test(SRC) &&
+    /\.ash-card-hint \{/.test(CSS));
+ok('토스트가 완전히 없어졌다',
+    !/armTrendToast\(/.test(CODE) && !/ash-chart-toast/.test(CODE));
+ok('시간대별 아래 긴 문구가 없어졌다',
+    !/ACCIDENT_DAY_START_HOUR \+ '~'/.test(CODE));
 
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);
