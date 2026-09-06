@@ -776,7 +776,7 @@
            물빠짐(갯벌 노출 예측)은 해양종합정보 지도에만 붙어 있는 기능이라,
            지도를 새로 만들지 않고 그 섹션(#ocean-map-section)을 그대로 빌려 쓴다.
            대신 이 화면에서는 물빠짐 · 안내 · 배경지도 · 내 위치만 남기고
-           나머지 오버레이 버튼(유향·풍향·파고·주요지명·부이·특보·해구도·천기·
+           나머지 오버레이 버튼(유향·풍향·파고·부이·특보·해구도·천기·
            태풍·CCTV)과 검색창·진북·즐겨찾기 바는 감춘다.
            [연계] js/marine-life/safety/life_safety.js — body.ls-safety 토글 */
         body.ls-mode.ls-safety #ocean-overlay-controls > * { display: none !important; }
@@ -3552,7 +3552,7 @@
                         </div>
                     </div>
 
-                    <!-- 오버레이 토글 버튼 + 주요지명 + GPS (지도 우측) -->
+                    <!-- 오버레이 토글 버튼 + GPS (지도 우측) -->
                     <div class="ocean-overlay-controls" id="ocean-overlay-controls">
                         <button class="ocean-overlay-btn" data-layer="current" title="유향·유속">
                             <i class="fa-solid fa-arrows-spin"></i>
@@ -3565,10 +3565,6 @@
                         <button class="ocean-overlay-btn" data-layer="wave" title="파고·파향">
                             <i class="fa-solid fa-water"></i>
                             <span class="ocean-overlay-label" data-line1="파고" data-line2="파향">파고·파향</span>
-                        </button>
-                        <button class="ocean-overlay-btn" id="ocean-marker-toggle-btn" title="주요지명">
-                            <i class="fa-solid fa-location-dot"></i>
-                            <span class="ocean-overlay-label" data-line1="주요" data-line2="지명">주요지명</span>
                         </button>
                         <button class="ocean-overlay-btn" id="ocean-buoy-toggle-btn" title="기상부이">
                             <i class="fa-solid fa-anchor"></i>
@@ -5614,7 +5610,6 @@
             'ov-current': '.ocean-overlay-btn[data-layer="current"]',
             'ov-wind': '.ocean-overlay-btn[data-layer="wind"]',
             'ov-wave': '.ocean-overlay-btn[data-layer="wave"]',
-            'ov-marker': '#ocean-marker-toggle-btn',
             'ov-buoy': '#ocean-buoy-toggle-btn',
             'ov-warn-zone': '#ocean-warn-zone-toggle-btn',
             'ov-marine-zone': '#ocean-marine-zone-toggle-btn',

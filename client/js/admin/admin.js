@@ -4594,7 +4594,6 @@ async function renderMaintenanceFullTab(container) {
             { id: 'ov-current', label: '유향·유속' },
             { id: 'ov-wind', label: '풍향·풍속' },
             { id: 'ov-wave', label: '파고·파향' },
-            { id: 'ov-marker', label: '주요지명' },
             { id: 'ov-buoy', label: '기상부이', linked: ['weather-buoy'] },
             { id: 'ov-warn-zone', label: '특보구역', linked: ['weather-alert'] },
             { id: 'ov-marine-zone', label: '해구도' },
