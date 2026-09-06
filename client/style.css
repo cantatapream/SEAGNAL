@@ -9033,6 +9033,17 @@ html[data-font-size="large"] .ocean-overlay-btn {
     box-shadow: 0 0.2em 0.6em rgba(43, 124, 240, 0.35);
 }
 
+/* "전체" 칩[S26-7] — 노랑은 연도별 추이의 전체선과 같은 색이라, 칩과 그래프가
+   같은 것을 가리킨다는 게 색만 보고도 이어진다. */
+.ash-chip.all { border-color: rgba(255, 215, 64, 0.26); }
+.ash-chip.all .ash-chip-ic { background: rgba(255, 215, 64, 0.14); color: #ffd740; }
+.ash-chip.all .ash-chip-t1 { color: #ffd740; }
+.ash-chip.all[aria-pressed="true"] {
+    border-color: rgba(255, 215, 64, 0.55);
+    background: rgba(255, 215, 64, 0.09);
+}
+.ash-chip.all[aria-pressed="true"] .ash-chip-ic { background: rgba(255, 215, 64, 0.26); color: #fff; }
+.ash-chip.all[aria-pressed="true"] .ash-chip-t1 { color: #fff; }
 .ash-chip.hk { border-color: rgba(43, 124, 240, 0.28); }
 .ash-chip.hk .ash-chip-ic { background: rgba(43, 124, 240, 0.16); color: var(--ash-blue-soft); }
 .ash-chip.hk .ash-chip-t1 { color: var(--ash-blue-soft); }
@@ -9142,7 +9153,10 @@ html[data-font-size="large"] .ocean-overlay-btn {
     color: var(--ash-muted);
     margin-left: 0.15em;
 }
-.ash-card-aside { font-size: 0.78em; color: var(--ash-muted); }
+/* ★margin-left:auto 를 준다[S26-8]. 치명도 카드 제목 뒤에 [이 구역|전국] 토글이
+   붙으면서 머리 한 줄이 꽉 차, "선박사고 기준"이 다음 줄 **왼쪽**으로 떨어졌다.
+   auto 여백을 주면 줄이 바뀌어도 늘 오른쪽 끝에 붙는다(화면 확인). */
+.ash-card-aside { font-size: 0.78em; color: var(--ash-muted); margin-left: auto; }
 
 /* 막대 행 — 목업 .row[S4]. 유형·원인·선박종류·치명도가 전부 이 부품을 쓴다.
    [점 · 이름 4.6em · 게이지 · 값 5.4em] 네 칸 고정 폭 구조라 여러 행의 게이지 시작점과
@@ -9150,7 +9164,13 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .ash-rows { display: flex; flex-direction: column; gap: 0.62em; }
 .ash-row { display: flex; align-items: center; gap: 0.45em; font-size: 0.76em; }
 .ash-row .nm {
-    width: 4.6em; flex: none;
+    /* ★4.6em → 8.2em[S26-5, 2026-09-06]. 선박 종류에 `레저선박(분류없음)` 이 새로
+       들어오면서 이름이 `레저선박…` 으로 잘려 무슨 종류인지 알 수 없게 됐다.
+       ★4.6em → 8.7em. 폭은 전국 화면에서 모든 목록을 펼쳐 **글자 폭을 실측**해서
+       잡았다 — 가장 긴 이름이 `침수침몰(표본 적음)` 6.56em(시트 기준)이라, 이 행
+       기준으로 8.63em 이 필요하다. 막대는 남는 공간을 먹으므로 그만큼 짧아지는데,
+       가장 짧은 막대도 여전히 139px 남는다(같은 실측). */
+    width: 8.7em; flex: none;
     color: #d3dfee;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -9264,11 +9284,26 @@ html[data-font-size="large"] .ocean-overlay-btn {
     .ash-seg { animation: none; }
 }
 
+/* 막대 게이지 차오름[S26-4, 2026-09-06 사용자 지적 — 이미지 4] — 도넛 한 붓 그리기와
+   똑같은 방식이다. 폭 0 에서 멈춰 있다가 카드가 화면에 들어와 .reveal 이 붙으면
+   제 길이까지 왼쪽에서 오른쪽으로 자란다. 시트를 새로 열 때만 한 번 재생된다
+   (같은 시트 안 탭 전환·아코디언 펼침에서는 .ash-noanim 이 붙어 아예 안 돈다).
+   길이는 JS 가 인라인 style="width:NN%" 로 넣는데, CSS 애니메이션 선언이 인라인
+   스타일보다 우선하므로 keyframes 의 width:0 이 시작점으로 먹는다.
+   [연계] accident_info.js armCardReveal / buildBarRowsHtml·buildFatalityRowsHtml */
+@keyframes ashFillBar { from { width: 0; } }
+.ash-bar > i { animation: ashFillBar 0.7s cubic-bezier(0.22, 0.8, 0.3, 1) both paused; }
+.ash-card.reveal .ash-bar > i { animation-play-state: running; }
+.ash-noanim .ash-bar > i { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+    .ash-bar > i { animation: none; }
+}
+
 /* 좁은 화면에서는 도넛과 목록을 세로로 쌓는다(목업 359px 분기 그대로). */
 @media (max-width: 359px) {
     .ash-donut-body { flex-direction: column; }
     .ash-donut { width: 7.6em; height: 7.6em; }
-    .ash-row .nm { width: 5em; }
+    .ash-row .nm { width: 9.1em; }
 }
 
 /* 추세 요약 세 칸 — 목업 .stats/.stat[S6].
@@ -9281,7 +9316,9 @@ html[data-font-size="large"] .ocean-overlay-btn {
     background: var(--ash-sub);
     border: 1px solid var(--ash-sub-br);
     border-radius: 0.9em;
-    padding: 0.85em 0.6em;
+    /* 아래 여백만 이전의 1/5 로 줄인다[S26-1] — 범례 밑에 남던 빈 줄을 걷어낸다.
+       위 여백(0.85em)은 제목이 칸 테두리에 붙지 않게 그대로 둔다. */
+    padding: 0.85em 0.6em 0.17em;
     text-align: center;
     display: flex;
     flex-direction: column;
@@ -9327,7 +9364,11 @@ html[data-font-size="large"] .ocean-overlay-btn {
 /* ★세로 간격을 1/3 로 줄였다[S25-1, 2026-09-06 사용자 지적 — 이미지 1].
    세 칸은 그리드라 높이가 함께 묶이는데, 도넛 칸이 가장 높아 카드 높이를 정하고 있었다.
    제목↔도넛 0.45→0.15em · 도넛↔범례 0.5→0.17em · 범례 줄 사이 0.35→0.12em. */
-.ash-donut-stack { display: flex; flex-direction: column; align-items: center; gap: 0.17em; margin-top: 0.15em; width: 100%; }
+/* ★칸 안 여백을 바짝 좁힌다[S26-1, 2026-09-06 사용자 지적 — 이미지 1].
+   제목↔도넛(margin-top)·도넛↔범례(gap) 를 각각 이전의 1/3 로 줄였다
+   (0.15em→0.05em, 0.17em→0.06em). 도넛을 더 키우는 대신 빈자리를 걷어내
+   같은 칸 안에서 그림이 커 보이게 하는 쪽을 골랐다. */
+.ash-donut-stack { display: flex; flex-direction: column; align-items: center; gap: 0.06em; margin-top: 0.05em; width: 100%; }
 .ash-dlegend { display: flex; flex-direction: column; gap: 0.12em; font-size: 0.72em; width: 100%; }
 .ash-dlegend div { display: flex; align-items: center; gap: 0.35em; white-space: nowrap; }
 .ash-dlegend b { margin-left: auto; font-weight: 700; }
@@ -9558,12 +9599,53 @@ html[data-font-size="large"] .ocean-overlay-btn {
 /* 배지는 시트 기준 .68em 이어야 한다 — 부모가 0.9em 이므로 .68/.9 로 되돌린다(§7). */
 .ash-card-sec-title .ash-badge-scope { font-size: 0.756em; }
 
-/* 카드 첫 줄 — 이 구역의 실제값(전국 순위와 잣대가 다름을 밝히는 자리) */
-.ash-scope-line {
-    font-size: 0.78em;
-    color: #c2d0e2;
-    margin: -0.35em 0 0.85em;
+/* 치명도 카드의 "이 구역 ↔ 전국" 토글[S26-8, 2026-09-06 사용자 확정].
+   제목 줄 안에 들어가는 아주 작은 토글이라, 카드 헤더의 선박↔인명 토글(.ash-srctoggle)
+   보다 한 단계 작게 잡았다. 제목이 굵어서 글자 굵기는 눌러 준다.
+   [연계] accident_info.js fatalityScopeHtml */
+.ash-scopetoggle {
+    display: inline-flex;
+    gap: 0.1em;
+    margin-left: 0.4em;
+    padding: 0.1em;
+    vertical-align: middle;
+    border: 1px solid var(--ash-card-br);
+    border-radius: 0.55em;
+    background: rgba(255, 255, 255, 0.015);
 }
+.ash-scopetoggle button {
+    border: 0;
+    background: transparent;
+    padding: 0.15em 0.4em;
+    border-radius: 0.42em;
+    font-family: inherit;
+    font-size: 0.68em;
+    font-weight: 600;
+    color: #8ea1b9;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.ash-scopetoggle button.on {
+    background: var(--ash-blue);
+    color: #fff;
+    box-shadow: 0 0.15em 0.5em rgba(43, 124, 240, 0.35);
+}
+
+/* 치명도 값 칸 설명 한 줄[S26-6, 2026-09-06 사용자 확정 — 이미지 6].
+   값 칸이 `25.4% (422/1,663건)` 처럼 생겨서 괄호 안 두 숫자가 각각 무엇인지 몰라
+   물어 오셨다. 그래서 값 칸 바로 위, 같은 오른쪽 끝에 `(사망+실종 / 총 사고수)` 를
+   붙이고 **왼쪽 몫만 빨간 글씨**로 두어 아래 괄호의 빨간 숫자와 눈으로 잇는다.
+   (전에 이 자리에 있던 "이 구역에서는 …" 줄은 같은 지시로 없앴다.)
+   [연계] accident_info.js fatalityInnerHtml / buildFatalityRowsHtml */
+.ash-fatal-legend {
+    font-size: 0.72em;
+    color: var(--ash-dim);
+    text-align: right;
+    margin: -0.35em 0 0.5em;
+}
+.ash-fatal-legend b { color: #ff5252; font-weight: 700; }
+/* 값 괄호의 왼쪽 숫자(사망·실종 몫). em 이 muted 색이라 b 로 덮어쓴다. */
+.ash-fatal-row .val em b { color: #ff5252; font-weight: 700; }
 
 /* 푸터 각주 — 목업 .foot. 항목 앞에 작은 점이 붙는 목록으로, "2014·2015년 제외"
    같은 집계 단서를 담는다(설계서 작업 9·10). */
