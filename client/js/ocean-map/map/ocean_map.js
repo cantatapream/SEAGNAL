@@ -9,12 +9,10 @@
  * 조석지도/해양현황 분리 모드 없이 단일 통합 지도 뷰로 동작합니다.
  * - 베이스맵: 기본맵 / 전자해도 / 해안도 / 세계지도 / 위성지도 (피커로 선택)
  * - 오버레이: 조류/바람/파고 (항상 표시되는 우측 버튼)
- * - 주요지명: 조석 마커 토글 버튼
  * - 타임라인: 항상 표시 (조류=1h 스텝, 바람/파고=3h 스텝)
  *
  * [연계 파일]
  * - index.html → #ocean-map, #ocean-map-section
- * - ocean_markers.js → 조석 마커, 클릭 처리
  * - ocean_bottom_sheet.js → 바텀시트 표시
  * - ocean_overlay.js → 캔버스 오버레이
  * - ocean_timeline.js → 타임라인 슬라이더
@@ -864,13 +862,6 @@
             // 베이스맵 선택 피커 바인딩
             bindBasemapPicker();
 
-            // 마커 초기화 후 바로 토글 버튼 바인딩
-            // (bindMarkerToggle 내부에서 localStorage 복원 + showOceanMarkers 초기 적용)
-            if (window.initOceanMarkers) {
-                window.initOceanMarkers(oceanMap);
-            }
-            bindMarkerToggle();
-
             // 기상부이 + 통합 클러스터 초기화 (INDEX2 전용, ocean_buoy.js에서 정의)
             // INDEX1에서는 함수가 없으므로 이 블록 자체가 실행되지 않음
             if (window.initOceanBuoys) {
@@ -1051,27 +1042,6 @@
         // 지도 클릭 시 메뉴 닫기
         oceanMap.on('click', function () {
             menu.style.display = 'none';
-        });
-    }
-
-    // ========================================================================
-    // 주요지명 마커 토글
-    // ========================================================================
-
-    function bindMarkerToggle() {
-        var btn = document.getElementById('ocean-marker-toggle-btn');
-        if (!btn) return;
-
-        // localStorage에서 이전 상태 복원 (기본값: 숨김)
-        var markersVisible = localStorage.getItem('seagnal_markers_visible') === 'true';
-        btn.classList.toggle('active', markersVisible);
-        if (window.showOceanMarkers) window.showOceanMarkers(markersVisible);
-
-        btn.addEventListener('click', function () {
-            markersVisible = !markersVisible;
-            btn.classList.toggle('active', markersVisible);
-            if (window.showOceanMarkers) window.showOceanMarkers(markersVisible);
-            try { localStorage.setItem('seagnal_markers_visible', markersVisible); } catch (e) {}
         });
     }
 
