@@ -3968,7 +3968,7 @@
             var d = String(b.row[2]).localeCompare(String(a.row[2]));
             return d !== 0 ? d : minutesOf(b) - minutesOf(a);
         }
-        // ★"피해 큰 순"[S27-2, 2026-09-06 사용자 제안]. 최신순으로만 두면 첫 쪽이
+        // ★"피해순"[S27-2, 2026-09-06 사용자 제안]. 최신순으로만 두면 첫 쪽이
         //   2025년 자료로 채워지는데, 그 해는 위치·원인이 100% 비어 있어 훑을 것이 없다.
         //   사망·실종 **인원** 내림차순으로 보고, 같으면 최신순으로 가른다.
         function casOf(it) {
@@ -4215,7 +4215,7 @@
         html += '<div class="ash-d-listhead">' +
             '<h3>사고 목록<em>' + fmtN(list.length) + '건</em></h3>' +
             '<div class="ash-d-sort">' +
-            [['recent', '최신순'], ['fatal', '피해 큰 순']].map(function (o) {
+            [['recent', '최신순'], ['fatal', '피해순']].map(function (o) {
                 return '<button type="button" data-dsort="' + o[0] + '"' +
                     (_warnDetail.sort === o[0] ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') +
                     '>' + o[1] + '</button>';

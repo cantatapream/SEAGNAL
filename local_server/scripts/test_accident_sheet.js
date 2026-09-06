@@ -577,10 +577,10 @@ ok('겹친 특보 안내를 한 줄 적는다',
     ok('팝업 색 토큰이 시트와 같은 값', bad.length === 0, bad.join(' · '));
 })();
 
-ok('정렬 버튼 두 개(최신순 · 피해 큰 순)',
-    /\[\['recent', '최신순'\], \['fatal', '피해 큰 순'\]\]/.test(CODE) &&
+ok('정렬 버튼 두 개(최신순 · 피해순)',
+    /\[\['recent', '최신순'\], \['fatal', '피해순'\]\]/.test(CODE) &&
     /\.ash-d-sort \{/.test(CSS));
-ok('"피해 큰 순"은 사망+실종 인원 내림차순, 같으면 최신순',
+ok('"피해순"은 사망+실종 인원 내림차순, 같으면 최신순',
     /function casOf[\s\S]{0,220}\+\(?\+?r\[hk \? 11 : 9\]/.test(CODE) &&
     /_warnDetail\.sort === 'fatal'[\s\S]{0,200}casOf\(b\) - casOf\(a\)[\s\S]{0,120}byRecent\(a, b\)/.test(CODE));
 ok('정렬을 바꾸면 첫 쪽으로 돌아간다',
