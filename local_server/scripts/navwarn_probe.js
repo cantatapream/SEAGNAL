@@ -56,7 +56,12 @@ async function fetchWithTimeout(url, options) {
     } catch (e) {
         const ms = Date.now() - started;
         const timedOut = (e.name === 'TimeoutError' || e.name === 'AbortError');
-        throw Object.assign(new Error(timedOut ? '무응답(시간 초과)' : e.message), { ms: ms, timedOut: timedOut });
+        // 'fetch failed' 만으로는 원인을 알 수 없다 — 이름을 못 찾은 것(DNS)인지,
+        // 거절당한 것인지, 연결이 안 열린 것인지는 cause 에 들어 있으므로 함께 넘긴다.
+        const cause = e.cause ? (e.cause.code || e.cause.message || String(e.cause)) : null;
+        throw Object.assign(new Error(timedOut ? '무응답(시간 초과)' : e.message), {
+            ms: ms, timedOut: timedOut, cause: cause
+        });
     }
 }
 
@@ -164,33 +169,54 @@ async function probeKhoa(dateYmd) {
         return null;
     }
 
-    // 3) 구역 좌표
+    // 3) 구역 좌표 — 문서마다 구역이 있을 수도 없을 수도 있다(안내성 문서는 0건).
+    //    첫 문서만 보면 "구역이 원래 안 온다"고 잘못 볼 수 있어, 구역이 나오는
+    //    문서를 만날 때까지 목록을 차례로 훑는다.
     const rows = (listData && listData.RESULT_DATA) || [];
     if (!rows.length) return listData;
-    const firstId = rows[0].ID;
-    try {
-        const areaRes = await khoaPost('getDocAreaPoint.do', { id: firstId, searchArea: '' }, session.cookie);
-        say('- **3단계 getDocAreaPoint.do** (문서 ID ' + firstId + '): HTTP ' + areaRes.status + ', ' + areaRes.ms + 'ms');
-        let areaData;
+
+    let withZone = 0;
+    let shownSample = false;
+    const perDoc = [];
+
+    for (const row of rows) {
         try {
-            areaData = JSON.parse(areaRes.text);
-        } catch (parseErr) {
-            say('  - ❌ **JSON 이 아님** — 응답 앞부분:');
-            say('```');
-            say(areaRes.text.slice(0, 500));
-            say('```');
-            return listData;
+            const areaRes = await khoaPost('getDocAreaPoint.do', { id: row.ID, searchArea: '' }, session.cookie);
+            let areaData;
+            try {
+                areaData = JSON.parse(areaRes.text);
+            } catch (parseErr) {
+                perDoc.push('  - ' + row.DOC_NUM + ' (ID ' + row.ID + '): ❌ JSON 아님');
+                continue;
+            }
+            const areas = areaData.RESULT_DATA || [];
+            perDoc.push('  - ' + row.DOC_NUM + ' (ID ' + row.ID + '): 구역 ' + areas.length + '건 · RESULT_CODE ' + areaData.RESULT_CODE + ' · ' + areaRes.ms + 'ms');
+            if (areas.length) withZone++;
+
+            // 구역이 있는 첫 문서의 항목 구성을 한 번만 자세히 보여준다.
+            if (areas.length && !shownSample) {
+                shownSample = true;
+                say('- **3단계 getDocAreaPoint.do** — 구역이 있는 문서를 찾음: ' + row.DOC_NUM + ' (ID ' + row.ID + ')');
+                say('  - 제목: ' + row.TITLE_KR);
+                say('  - **첫 구역에 들어있는 항목 전부** (좌표·기간·시간대가 여기 있는지가 핵심):');
+                say(describeFields(areas[0]));
+                if (areas.length > 1) {
+                    say('  - 두 번째 구역 이름: ' + (areas[1].POSITION_NM || '(없음)'));
+                }
+                say('');
+            }
+        } catch (e) {
+            perDoc.push('  - ' + row.DOC_NUM + ' (ID ' + row.ID + '): ❌ ' + e.message);
         }
-        const areas = areaData.RESULT_DATA || [];
-        say('  - RESULT_CODE = `' + areaData.RESULT_CODE + '` · 구역 ' + areas.length + '건');
-        if (areas.length) {
-            say('  - **첫 구역에 들어있는 항목 전부**:');
-            say(describeFields(areas[0]));
-        }
-        say('');
-    } catch (e) {
-        say('- ❌ **3단계 getDocAreaPoint.do 실패** : ' + e.message + ' (' + e.ms + 'ms)');
     }
+
+    if (!shownSample) {
+        say('- ⚠ **3단계**: 오늘 문서 ' + rows.length + '건 모두 구역 0건 — 좌표 항목 구성을 확인하지 못함');
+        say('');
+    }
+    say('- **문서별 구역 건수** (구역 있는 문서 ' + withZone + '/' + rows.length + '건):');
+    perDoc.forEach(function (line) { say(line); });
+    say('');
     return listData;
 }
 
@@ -207,6 +233,26 @@ async function probeKhoa(dateYmd) {
 async function probeOfficial(dateYmd) {
     say('## B. 공공데이터포털 창구 (apis.data.go.kr)');
     say('');
+
+    // B-0. 주소(도메인) 자체가 이름 조회되는지 — 'fetch failed' 가 이름을 못 찾은
+    //      것인지, 이름은 찾았는데 연결이 안 되는 것인지 가르기 위한 사전 확인.
+    try {
+        const dns = require('dns').promises;
+        const found = await dns.lookup('apis.data.go.kr', { all: true });
+        say('- 주소 조회(DNS): ✅ ' + found.map(function (a) { return a.address; }).join(', '));
+    } catch (e) {
+        say('- 주소 조회(DNS): ❌ 실패 — ' + (e.code || e.message));
+    }
+
+    // B-1. 공공데이터포털 대문 페이지 — API 창구만 문제인지, 포털 전체가 안 열리는지 구분.
+    try {
+        const { res, ms } = await fetchWithTimeout('https://www.data.go.kr', { method: 'GET' });
+        say('- 포털 대문(www.data.go.kr): ✅ HTTP ' + res.status + ', ' + ms + 'ms');
+    } catch (e) {
+        say('- 포털 대문(www.data.go.kr): ❌ ' + e.message + (e.cause ? ' (' + e.cause + ')' : '') + ' — ' + e.ms + 'ms');
+    }
+
+    // B-2. 실제 항행경보 API 창구.
     const key = process.env.ROMS_SERVICE_KEY || 'PROBE-NO-KEY';
     const usingRealKey = !!process.env.ROMS_SERVICE_KEY;
     say('- 인증키: ' + (usingRealKey ? '실제 키 사용' : '없음(접속 가능 여부만 확인)'));
@@ -225,7 +271,7 @@ async function probeOfficial(dateYmd) {
             say('- ❌ **무응답** (' + e.ms + 'ms 동안 아무 답 없음)');
             say('  - → 바깥망이 열린 곳에서도 똑같이 무응답. **정부 API 쪽 문제**로 좁혀짐.');
         } else {
-            say('- ❌ **실패**: ' + e.message + ' (' + e.ms + 'ms)');
+            say('- ❌ **실패**: ' + e.message + (e.cause ? ' — 원인 코드 `' + e.cause + '`' : '') + ' (' + e.ms + 'ms)');
         }
     }
     say('');
