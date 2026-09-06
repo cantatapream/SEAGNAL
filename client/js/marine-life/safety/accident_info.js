@@ -3835,13 +3835,458 @@
             srcRow +
             // 남은 종류가 하나도 없으면 소제목만 덩그러니 남으므로 줄째로 뺀다[S25-3].
             (kinds.length
-                ? '<div class="ash-warn-sub">특보 종류별 사고 건수</div>' +
+                // ★소제목 오른쪽에 "사고 내역 보기" 버튼[S27, 2026-09-06 사용자 확정].
+                //   건수만 있고 "그게 어떤 사고였는지"를 볼 길이 없다는 지적에서 나왔다.
+                ? '<div class="ash-warn-sub">특보 종류별 사고 건수' +
+                  '<button type="button" class="ash-warn-more" id="accident-warn-detail-open">' +
+                  '사고 내역 보기<i class="fa-solid fa-chevron-right"></i></button></div>' +
                   '<div class="ash-warn-tiles">' + tiles + '</div>'
                 : '') +
             // ★카드 아래 안내 문구는 뺐다[S26-3, 2026-09-06 사용자 확정 — 이미지 3].
             //   ⚠맞바꾼 것: "특보 시간과 사고 시간이 겹칠 때만 셌다"·"2016년 8월 이전은
             //   특보 자료가 없어 분모에서 뺐다"는 두 전제가 화면에서 사라진다.
             '</section>';
+    }
+
+    // ── 특보 중 사고 내역 팝업[S27, 2026-09-06 사용자 확정] ──────────────────
+    //
+    // [왜 있나] 특보 카드는 "태풍 때 5건" 같은 **건수만** 보여 준다. 사용자 원문:
+    //   *"그 사고가 발생했다는 것은 알지만 그게 어떤 사고였는지 확인할 수 없어서
+    //   그게 문제야."* 그래서 건수를 눌러 그 사고들을 실제로 훑어볼 수 있게 한다.
+    //
+    // [무엇을 못 보여 주나 — 먼저 밝힌다] 원본에 **선박 이름 칸이 없다.** `어선`·
+    //   `모터보트` 같은 종류까지가 한계다. 그리고 특보 중 선박사고 1,695건 기준으로
+    //   위치 설명이 70.2%, 사고 원인·선박 종류가 각각 39.3% 비어 있고, 구조·사망·실종이
+    //   모두 0인 행이 58.1%다(원본을 세어 확인). 그래서:
+    //     · 위치 설명이 없으면 **좌표**로 대신 적는다.
+    //     · 인명피해가 모두 0이면 "인명피해 기록 없음"이라고 적는다 — "피해 없음"이라고
+    //       쓰면 거짓이 될 수 있다. 원본이 "안 다쳤다"와 "기록을 안 했다"를 구분하지 않는다.
+    //     · 빈 칸은 줄째로 뺀다. 그래서 펼칠 것이 하나도 없는 카드가 생기는데(선박 37.2% ·
+    //       인명 15.4%), 그런 카드는 펼침 화살표를 감추고 눌러도 안 열리게 한다.
+    //
+    // [연계] 여는 곳 buildWarnCardHtml 의 .ash-warn-more 버튼 / 스타일 style.css
+    //        .ash-detail-overlay~ / 뒤로가기 core/backbutton.js PopupStack
+
+    /** 뒤로가기 처리를 위한 공용 팝업 스택 등록 id(core/backbutton.js). */
+    var WARN_DETAIL_POPUP_ID = 'accident-warn-detail';
+    /** 한 쪽에 보여 줄 사고 수 — 전국 풍랑주의보가 1,857건이라 한꺼번에 그리면 버틴다. */
+    var WARN_DETAIL_PER_PAGE = 20;
+    /** 팝업 상태. src='all'|'hk'|'person' · warn='all'|'WV_주의보' 등 · page=0부터 ·
+     *  open=펼친 카드의 전체 목록 기준 번호(없으면 null). */
+    var _warnDetail = { src: 'all', warn: 'all', sort: 'recent', page: 0, open: null };
+    var _warnDetailEls = null;
+
+    /** 팝업 껍데기를 처음 한 번만 만든다.
+     * @returns {{overlay:HTMLElement, scope:HTMLElement, tabs:HTMLElement, chips:HTMLElement, body:HTMLElement}} */
+    function ensureWarnDetailPopup() {
+        if (_warnDetailEls) return _warnDetailEls;
+        var overlay = document.createElement('div');
+        overlay.className = 'ash-detail-overlay';
+        overlay.style.display = 'none';
+        overlay.innerHTML =
+            '<div class="ash-detail">' +
+            '<div class="ash-detail-head">' +
+            '<div class="l1"><div><h2 class="ash-detail-title">특보 중 사고 내역</h2>' +
+            '<div class="ash-detail-scope" id="awd-scope"></div></div>' +
+            '<button type="button" class="ash-detail-x" id="awd-close" aria-label="닫기">&times;</button></div>' +
+            '<div class="ash-detail-tabs" id="awd-tabs">' +
+            ['all', 'hk', 'person'].map(function (sc) {
+                return '<button type="button" data-dsrc="' + sc + '"' + (sc === 'all' ? ' class="on"' : '') + '>' +
+                    (sc === 'all' ? '전체' : sc === 'hk' ? '선박사고' : '인명사고') + '</button>';
+            }).join('') +
+            '</div></div>' +
+            '<div class="ash-detail-chips" id="awd-chips"></div>' +
+            '<div class="ash-detail-body" id="awd-body"></div>' +
+            '</div>';
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) closeWarnDetailPopup(); });
+        document.getElementById('awd-close').addEventListener('click', closeWarnDetailPopup);
+        _warnDetailEls = {
+            overlay: overlay,
+            scope: document.getElementById('awd-scope'),
+            tabs: document.getElementById('awd-tabs'),
+            chips: document.getElementById('awd-chips'),
+            body: document.getElementById('awd-body')
+        };
+        bindWarnDetailHandlers(_warnDetailEls);
+        return _warnDetailEls;
+    }
+
+    function openWarnDetailPopup() {
+        var els = ensureWarnDetailPopup();
+        // 열 때마다 기본 상태로 — 시트를 새로 열 때와 같은 원칙(2026-09-01 사용자 확정).
+        // 다만 소스 탭만은 **시트 칩을 물려받는다**. 그래야 팝업을 열자마자 보이는
+        // 건수가 방금 누른 특보 카드의 건수와 같다(칩이 걸린 채로 팝업만 전체를
+        // 보여 주면 두 숫자가 달라 사용자가 어느 쪽을 믿을지 알 수 없다).
+        _warnDetail = { src: _statsScope || 'all', warn: 'all', sort: 'recent', page: 0, open: null };
+        Array.prototype.forEach.call(els.tabs.children, function (b) {
+            b.classList.toggle('on', b.dataset.dsrc === _warnDetail.src);
+        });
+        renderWarnDetail();
+        els.overlay.style.display = 'flex';
+        els.body.scrollTop = 0;
+        if (window.PopupStack) window.PopupStack.push(WARN_DETAIL_POPUP_ID, closeWarnDetailPopup);
+    }
+
+    function closeWarnDetailPopup() {
+        // 스택에서 먼저 뺀다 — 뒤로가기로 들어온 경우엔 이미 빠진 뒤라 무해하고,
+        // ✕·바깥클릭으로 닫은 경우엔 여기서 빠져야 다음 뒤로가기가 이 팝업을 또
+        // 닫으려 하지 않는다(필터 팝업·바텀시트와 같은 방식).
+        if (window.PopupStack) window.PopupStack.remove(WARN_DETAIL_POPUP_ID);
+        if (_warnDetailEls) _warnDetailEls.overlay.style.display = 'none';
+    }
+
+    /** 팝업이 다룰 사고 목록 — 시트 필터를 통과하고 **특보가 발효 중이던** 사고만,
+     * 팝업 위쪽 탭(전체/선박/인명)을 걸어 최신순으로 돌려준다[S27].
+     *
+     * 시트 칩(_statsScope)이 아니라 팝업 탭(_warnDetail.src)을 본다 — 팝업을 열 때
+     * 탭을 시트 칩과 같게 맞춰 두므로, 처음 보이는 건수는 특보 카드의 건수와 같다.
+     *
+     * @returns {Array.<{key:string, row:Array, sev:string[]}>} 최신순
+     * [연계] renderWarnDetail */
+    function warnDetailPool() {
+        var out = [];
+        (_statsAll || []).forEach(function (f) {
+            var key = srcOfFeat(f), row = f.get('row');
+            if (!passesFilters(key, row)) return;
+            var sev = row[WARN_SEVERITY_POS_IDX[key]] || [];
+            if (!sev.length) return;
+            if (_warnDetail.src !== 'all' && key !== _warnDetail.src) return;
+            out.push({ key: key, row: row, sev: sev });
+        });
+        // 최신순. 같은 날이면 늦은 시각이 먼저다 — 인명사고는 시각 칸이 원본에 없어
+        // -1 로 두고 뒤로 보낸다. 문자열끼리 비교하면 "6:05" > "16:17" 이 되므로
+        // 반드시 분으로 환산해서 견준다.
+        function minutesOf(it) {
+            if (it.key !== 'hk') return -1;
+            var hm = String(it.row[3] || '');
+            var p = hm.split(':');
+            if (p.length !== 2) return -1;
+            return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+        }
+        function byRecent(a, b) {
+            var d = String(b.row[2]).localeCompare(String(a.row[2]));
+            return d !== 0 ? d : minutesOf(b) - minutesOf(a);
+        }
+        // ★"피해순"[S27-2, 2026-09-06 사용자 제안]. 최신순으로만 두면 첫 쪽이
+        //   2025년 자료로 채워지는데, 그 해는 위치·원인이 100% 비어 있어 훑을 것이 없다.
+        //   사망·실종 **인원** 내림차순으로 보고, 같으면 최신순으로 가른다.
+        function casOf(it) {
+            var r = it.row, hk = it.key === 'hk';
+            return (+r[hk ? 10 : 8] || 0) + (+r[hk ? 11 : 9] || 0);
+        }
+        out.sort(_warnDetail.sort === 'fatal'
+            ? function (a, b) {
+                var d = casOf(b) - casOf(a);
+                return d !== 0 ? d : byRecent(a, b);
+            }
+            : byRecent);
+        return out;
+    }
+
+    /** 한 건에서 화면에 쓸 값만 뽑아 둔다 — 소스마다 칸 위치가 달라 한 번에 정리한다.
+     * @param {{key:string,row:Array,sev:string[]}} it
+     * @returns {Object} */
+    function warnDetailFields(it) {
+        var r = it.row, hk = it.key === 'hk';
+        return {
+            key: it.key,
+            ymd: String(r[2] || ''),
+            hm: hk ? (r[3] || '') : '',
+            pos: (hk ? r[4] : r[3]) || '',
+            lat: r[0], lon: r[1],
+            typeLabel: accidentLabel(ACCIDENT_TYPE_LABELS, r[hk ? 5 : 4]),
+            icon: ACCIDENT_TYPE_ICONS[r[hk ? 5 : 4]] || '',
+            cause: hk && r[6] ? accidentLabel(ACCIDENT_CAUSE_LABELS, r[6]) : '',
+            kind: hk && r[7] ? accidentLabel(ACCIDENT_SHIP_KIND_LABELS, r[7]) : '',
+            org: accidentLabel(ACCIDENT_ORG_LABELS, r[ORG_POS_IDX[it.key]]),
+            prsn: hk ? 0 : (+r[6] || 0),
+            resc: +r[hk ? 9 : 7] || 0,
+            dead: +r[hk ? 10 : 8] || 0,
+            miss: +r[hk ? 11 : 9] || 0,
+            sev: it.sev
+        };
+    }
+
+    /** 위치 설명이 없을 때 대신 적는 좌표 — "34.683°N 125.433°E"[S27 사용자 확정]. */
+    function warnDetailCoord(f) {
+        function one(v, pos, neg) {
+            return Math.abs(v).toFixed(3) + '°' + (v >= 0 ? pos : neg);
+        }
+        return one(f.lat, 'N', 'S') + ' ' + one(f.lon, 'E', 'W');
+    }
+
+    /** 특보 배지 한 벌 — 한 사고가 두 특보에 걸린 경우가 있어 배열로 돈다. */
+    function warnDetailBadges(sev) {
+        return sev.map(function (code) {
+            var c = WARN_SEVERITY_COLORS[code] || '#8194ad';
+            return '<span class="ash-d-warn" style="color:' + c + ';border-color:' + c +
+                '44;background:' + c + '1f">' + (WARN_SEVERITY_LABELS[code] || code).replace(/ /g, '') + '</span>';
+        }).join('');
+    }
+
+    /** 팝업 위쪽 특보 종류 칩 — 건수 0인 종류는 그리지 않는다(특보 타일과 같은 규칙). */
+    function buildWarnDetailChips(pool) {
+        var cnt = {};
+        pool.forEach(function (it) {
+            it.sev.forEach(function (k) { cnt[k] = (cnt[k] || 0) + 1; });
+        });
+        var all = _warnDetail.warn === 'all';
+        var html = '<button type="button" class="ash-d-chip' + (all ? ' on' : '') + '" data-dwarn="all">' +
+            '전체<span class="n">' + fmtN(pool.length) + '</span></button>';
+        WARN_SEVERITY_ORDER.forEach(function (code) {
+            if (!cnt[code]) return;
+            var on = _warnDetail.warn === code, c = WARN_SEVERITY_COLORS[code];
+            html += '<button type="button" class="ash-d-chip' + (on ? ' on' : '') + '" data-dwarn="' + code + '"' +
+                (on ? ' style="background:' + c + ';border-color:' + c + ';color:#08111e"' : '') + '>' +
+                '<i style="background:' + c + '"></i>' +
+                (WARN_SEVERITY_LABELS[code] || code).replace(/ /g, '') +
+                '<span class="n">' + fmtN(cnt[code]) + '</span></button>';
+        });
+        return html;
+    }
+
+    /** 사고 한 건을 카드 하나로. 접힌 면은 소스마다 다르다[S27 사용자 확정].
+     *
+     * 선박만 볼 때는 선박에만 있는 **시각·선박 종류**를 첫 줄로 올리고, 인명만 볼 때는
+     * 시각이 원본에 없으므로 날짜만 쓰고 **관련 인원**을 대신 올린다. 전체를 볼 때는
+     * 두 자료에 **공통으로 있는 칸만** 쓴다 — 안 그러면 카드마다 줄 수가 달라진다.
+     *
+     * @param {Object} f warnDetailFields 결과
+     * @param {number} idx 전체 목록 기준 번호(펼침 상태를 기억하는 데 쓴다)
+     * @returns {string} */
+    function buildWarnDetailCard(f, idx) {
+        var fatal = (f.dead + f.miss) > 0;
+        var showTime = _warnDetail.src === 'hk' && f.hm;
+        var showKind = _warnDetail.src === 'hk' && f.kind;
+        var showPrsn = _warnDetail.src === 'person' && f.prsn;
+        var hasPos = !!f.pos;
+
+        // 0 인 항목은 아예 쓰지 않는다 — "사망 0 · 실종 1" 처럼 0이 섞이면 읽기가 나쁘다.
+        var parts = [];
+        if (f.dead) parts.push('사망 ' + f.dead);
+        if (f.miss) parts.push('실종 ' + f.miss);
+        if (f.resc) parts.push('구조 ' + f.resc);
+        var cas = fatal
+            ? '<span class="cas">' + parts.join(' · ') + '</span>'
+            : (f.resc ? '<span class="cas none">구조 ' + f.resc + '명</span>'
+                      : '<span class="cas none">인명피해 기록 없음</span>');
+
+        // 펼쳐서 보여 줄 것만 모은다. 특보 종류는 위 배지에 이미 있으므로 넣지 않고,
+        // 구조·사망·실종이 모두 0이면 그 줄도 넣지 않는다(0 이 "안 다쳤다"는 뜻이 아니다).
+        var detail = '';
+        function row(k, v) { return '<div class="r"><span>' + k + '</span><span>' + v + '</span></div>'; }
+        if (f.cause) detail += row('사고 원인', escapeHtml(f.cause));
+        if (f.key !== 'hk' && f.prsn) detail += row('관련 인원', f.prsn + '명');
+        if (f.resc + f.dead + f.miss > 0) {
+            detail += row('인명피해', '구조 ' + f.resc + ' · 사망 ' + f.dead + ' · 실종 ' + f.miss);
+        }
+        if (hasPos) detail += row('좌표', warnDetailCoord(f));
+
+        return '<div class="ash-d-card' + (fatal ? ' fatal' : '') +
+            (detail && _warnDetail.open === idx ? ' open' : '') + '">' +
+            '<button type="button" class="ash-d-head' + (detail ? '' : ' flat') + '"' +
+            (detail ? ' data-dopen="' + idx + '"' : '') + '>' +
+            '<span class="ic">' + (f.icon ? '<img src="' + f.icon + '" alt="">' : '') + '</span>' +
+            '<span class="main">' +
+            '<span class="l1">' +
+            '<span class="dt">' + formatYmd(f.ymd) + (showTime ? ' ' + escapeHtml(f.hm) : '') + '</span>' +
+            '<span class="ty">' + escapeHtml(f.typeLabel) + '</span>' +
+            (showKind ? '<span class="kd">' + escapeHtml(f.kind) + '</span>' : '') +
+            (showPrsn ? '<span class="kd">관련 ' + f.prsn + '명</span>' : '') +
+            warnDetailBadges(f.sev) +
+            '</span>' +
+            '<span class="pos' + (hasPos ? '' : ' coord') + '">' +
+            (hasPos ? escapeHtml(f.pos) : warnDetailCoord(f)) + '</span>' +
+            '<span class="l3">' + cas + '<span class="org">' + escapeHtml(f.org) + '</span></span>' +
+            '</span>' +
+            (detail ? '<span class="chev"><i class="fa-solid fa-chevron-down"></i></span>' : '') +
+            '</button>' +
+            (detail ? '<div class="ash-d-body">' + detail + '</div>' : '') +
+            '</div>';
+    }
+
+    /** 게시판식 쪽 번호 — « ‹ 1 2 3 4 5 › »(한 번에 5개씩)[S27 사용자 확정]. */
+    function buildWarnDetailPager(total) {
+        if (total <= WARN_DETAIL_PER_PAGE) return '';
+        var maxPage = Math.ceil(total / WARN_DETAIL_PER_PAGE) - 1;
+        var WIN = 5;
+        var from = Math.max(0, Math.min(_warnDetail.page - Math.floor(WIN / 2), maxPage - WIN + 1));
+        var to = Math.min(maxPage, from + WIN - 1);
+        var nums = '';
+        for (var i = from; i <= to; i++) {
+            nums += '<button type="button" class="n' + (i === _warnDetail.page ? ' on' : '') +
+                '" data-dpage="' + i + '">' + (i + 1) + '</button>';
+        }
+        function edge(p, label, aria, off) {
+            return '<button type="button" class="e" data-dpage="' + p + '"' + (off ? ' disabled' : '') +
+                ' aria-label="' + aria + '">' + label + '</button>';
+        }
+        var first = _warnDetail.page === 0, last = _warnDetail.page === maxPage;
+        return '<div class="ash-d-pager">' +
+            edge(0, '&laquo;', '첫 쪽', first) +
+            edge(_warnDetail.page - 1, '&lsaquo;', '이전 쪽', first) +
+            nums +
+            edge(_warnDetail.page + 1, '&rsaquo;', '다음 쪽', last) +
+            edge(maxPage, '&raquo;', '마지막 쪽', last) +
+            '</div><div class="ash-d-pagenote">' + (_warnDetail.page + 1) + ' / ' + (maxPage + 1) +
+            '쪽 · 모두 ' + fmtN(total) + '건</div>';
+    }
+
+    /** 팝업 안쪽을 통째로 다시 그린다 — 탭·칩·쪽을 바꿀 때마다 부른다[S27]. */
+    function renderWarnDetail() {
+        var els = _warnDetailEls;
+        if (!els) return;
+
+        var pool = warnDetailPool();
+        var list = _warnDetail.warn === 'all'
+            ? pool
+            : pool.filter(function (it) { return it.sev.indexOf(_warnDetail.warn) >= 0; });
+
+        var maxPage = Math.max(0, Math.ceil(list.length / WARN_DETAIL_PER_PAGE) - 1);
+        if (_warnDetail.page > maxPage) _warnDetail.page = maxPage;
+
+        var where = _statsNationwide ? '전국' : (_statsRegionLabel || '선택 영역');
+        var span = combinedYearSpan();
+        els.scope.textContent = where + (span ? ' · ' + span[0] + '~' + span[1] : '') +
+            (hasActiveFilters() ? ' · 시트 필터 반영됨' : '');
+        els.chips.innerHTML = buildWarnDetailChips(pool);
+
+        var hk = 0, dead = 0, miss = 0, resc = 0;
+        var fields = list.map(warnDetailFields);
+        fields.forEach(function (f) {
+            if (f.key === 'hk') hk++;
+            dead += f.dead; miss += f.miss; resc += f.resc;
+        });
+        var pe = list.length - hk;
+        var label = _warnDetail.warn === 'all'
+            ? '모든 특보 발효 중 사고'
+            : (WARN_SEVERITY_LABELS[_warnDetail.warn] || '').replace(/ /g, '') + ' 발효 중 사고';
+
+        var html = '<div class="ash-d-sum">' +
+            '<div class="t">' + label + '</div>' +
+            '<div class="n">' + fmtN(list.length) + '<small>건</small></div>' +
+            '<div class="cells">' +
+            (_warnDetail.src === 'all'
+                ? '<div class="c"><div class="k">선박사고</div><div class="v">' + fmtN(hk) + '건</div></div>' +
+                  '<div class="c"><div class="k">인명사고</div><div class="v">' + fmtN(pe) + '건</div></div>'
+                : '') +
+            '<div class="c"><div class="k">사망·실종</div><div class="v' + ((dead + miss) ? ' red' : '') + '">' +
+            fmtN(dead + miss) + '명</div></div>' +
+            '<div class="c"><div class="k">구조</div><div class="v">' + fmtN(resc) + '명</div></div>' +
+            '</div>' +
+            '<div class="note">한 사고가 두 특보에 함께 걸린 경우가 있어, 종류별 건수를 더하면 전체보다 조금 큽니다.</div>' +
+            '</div>';
+
+        // 사고 유형 도넛(상위 5 + 그 밖). 한 종류만 보고 있으면 "사고 주체" 도넛은
+        // 색 하나짜리 원이 되어 뜻이 없으므로 유형 도넛 하나만 넓게 둔다.
+        var tc = {};
+        fields.forEach(function (f) { tc[f.typeLabel] = (tc[f.typeLabel] || 0) + 1; });
+        var te = Object.keys(tc).map(function (k) { return [k, tc[k]]; })
+            .sort(function (a, b) { return b[1] - a[1]; });
+        var typeEntries = te.slice(0, 5).map(function (d, i) { return [d[0], d[1], ASH_ROW_COLORS[i]]; });
+        var rest = te.slice(5).reduce(function (a, d) { return a + d[1]; }, 0);
+        if (rest) typeEntries.push(['그 밖 ' + (te.length - 5) + '종', rest, ASH_ROW_GRAY]);
+
+        function legend(entries) {
+            return '<div class="ash-d-leg">' + entries.map(function (d) {
+                return '<div><i style="background:' + d[2] + '"></i>' + escapeHtml(d[0]) +
+                    '<span>' + fmtN(d[1]) + '</span></div>';
+            }).join('') + '</div>';
+        }
+        function dcard(title, entries, cls) {
+            return '<div class="ash-d-donut' + (cls || '') + '"><h4>' + title + '</h4>' +
+                '<div class="wrap">' +
+                buildDonutHtml(entries, { small: true, centerNum: fmtN(list.length), centerCap: '건' }) +
+                legend(entries) + '</div></div>';
+        }
+        if (list.length) {
+            if (_warnDetail.src === 'all') {
+                var srcEntries = [];
+                if (hk) srcEntries.push(['선박사고', hk, '#2b7cf0']);
+                if (pe) srcEntries.push(['인명사고', pe, '#16c8a3']);
+                html += '<div class="ash-d-donuts">' +
+                    dcard('사고 주체', srcEntries) + dcard('사고 유형', typeEntries) + '</div>';
+            } else {
+                html += dcard('사고 유형 <em>' + te.length + '종</em>', typeEntries, ' wide');
+            }
+        }
+
+        html += '<div class="ash-d-listhead">' +
+            '<h3>사고 목록<em>' + fmtN(list.length) + '건</em></h3>' +
+            '<div class="ash-d-sort">' +
+            [['recent', '최신순'], ['fatal', '피해순']].map(function (o) {
+                return '<button type="button" data-dsort="' + o[0] + '"' +
+                    (_warnDetail.sort === o[0] ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') +
+                    '>' + o[1] + '</button>';
+            }).join('') + '</div></div>';
+
+        if (!list.length) {
+            html += '<div class="ash-d-empty">해당하는 사고가 없습니다.</div>';
+        } else {
+            var from = _warnDetail.page * WARN_DETAIL_PER_PAGE;
+            fields.slice(from, from + WARN_DETAIL_PER_PAGE).forEach(function (f, i) {
+                html += buildWarnDetailCard(f, from + i);
+            });
+            html += buildWarnDetailPager(list.length);
+        }
+        els.body.innerHTML = html;
+    }
+
+    /** 팝업 안 클릭 처리 — 탭·칩·펼치기·쪽 넘김을 한 곳에서 받는다[S27]. */
+    function bindWarnDetailHandlers(els) {
+        els.tabs.addEventListener('click', function (e) {
+            var b = e.target.closest('button[data-dsrc]');
+            if (!b) return;
+            _warnDetail.src = b.dataset.dsrc;
+            _warnDetail.page = 0;
+            _warnDetail.open = null;
+            Array.prototype.forEach.call(els.tabs.children, function (x) { x.classList.toggle('on', x === b); });
+            // 고른 소스에 그 특보가 하나도 없으면 칩을 "전체"로 되돌린다 — 안 그러면
+            // 빈 목록이 뜨고 왜 비었는지 알 길이 없다.
+            if (_warnDetail.warn !== 'all') {
+                var still = warnDetailPool().some(function (it) { return it.sev.indexOf(_warnDetail.warn) >= 0; });
+                if (!still) _warnDetail.warn = 'all';
+            }
+            renderWarnDetail();
+            els.body.scrollTop = 0;
+        });
+        els.chips.addEventListener('click', function (e) {
+            var b = e.target.closest('button[data-dwarn]');
+            if (!b) return;
+            _warnDetail.warn = b.dataset.dwarn;
+            _warnDetail.page = 0;
+            _warnDetail.open = null;
+            renderWarnDetail();
+            els.body.scrollTop = 0;
+        });
+        els.body.addEventListener('click', function (e) {
+            var head = e.target.closest('[data-dopen]');
+            if (head) {
+                var i = Number(head.dataset.dopen);
+                _warnDetail.open = (_warnDetail.open === i) ? null : i;
+                var keep = els.body.scrollTop;
+                renderWarnDetail();
+                els.body.scrollTop = keep;   // 펼치느라 화면이 튀지 않게 자리를 지킨다
+                return;
+            }
+            var st = e.target.closest('[data-dsort]');
+            if (st) {
+                _warnDetail.sort = st.dataset.dsort;
+                _warnDetail.page = 0;
+                _warnDetail.open = null;
+                renderWarnDetail();
+                els.body.scrollTop = 0;
+                return;
+            }
+            var pg = e.target.closest('[data-dpage]');
+            if (pg && !pg.disabled) {
+                _warnDetail.page = Number(pg.dataset.dpage);
+                _warnDetail.open = null;
+                renderWarnDetail();
+                els.body.scrollTop = 0;
+            }
+        });
     }
 
     /** 선택 영역의 추세 요약 수치를 한 번에 계산한다[S6].
@@ -5921,6 +6366,8 @@
                     renderStatsBody();
                     return;
                 }
+                // 특보 카드의 "사고 내역 보기"[S27] — 그 자리에서 팝업을 띄운다.
+                if (e.target.closest('#accident-warn-detail-open')) { openWarnDetailPopup(); return; }
                 // 치명도 카드의 "이 구역 ↔ 전국" 토글[S26-8] — 그 카드만 다시 그린다.
                 var fsBtn = e.target.closest('[data-fatalscope]');
                 if (fsBtn) {

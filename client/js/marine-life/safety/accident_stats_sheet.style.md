@@ -316,6 +316,33 @@ padding:.85em 1em 1.2em; box-shadow:0 1.5em 3em rgba(0,0,0,.55);
 토글이 넓어 카드 머리 한 줄이 꽉 차므로, `.ash-card-aside`("선박사고 기준")에
 `margin-left:auto` 를 줘서 줄이 바뀌어도 오른쪽 끝에 붙게 한다.
 
+### 4.9-5 특보 중 사고 내역 팝업 (우리 신규 · 목업에 없음) [S27]
+특보 카드에서 여는 전체 화면 판. 목업에 없는 요소라 §7 유추안의 원칙을 따르되,
+**시트 안의 부품을 그대로 재사용**한다 — 카드는 `--ash-card`/`--ash-card-br`/radius `.9em`,
+도넛은 `buildDonutHtml`(small), 칩은 소스 칩과 같은 알약, 탭은 선박↔인명 토글과 같은 어법.
+
+```css
+/* 판 — 아래에서 올라오는 시트 모양(높이 92vh, 위만 둥글게) */
+.ash-detail-overlay{ position:fixed; inset:0; z-index:1300;   /* 필터 팝업 1200 위 */
+  background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center;
+  font-size:clamp(11.2px,3.22vw,15px); font-feature-settings:"tnum" 1; }
+.ash-detail{ width:100%; max-width:460px; height:92vh; border-radius:1.1em 1.1em 0 0;
+  background:linear-gradient(180deg,#0b1524,#081020); border:1px solid #1a293e; border-bottom:0; }
+```
+
+**★색 토큰을 여기서 한 번 더 선언한다.** 이 판은 `body` 에 붙어 **시트 밖**에 있어
+`.accident-stats-sheet` 안에만 정의된 `--ash-*` 를 물려받지 못한다. 값은 시트와 **같아야
+하고**, 어긋나면 팝업만 다른 색이 되므로 회귀 테스트(`test_accident_sheet.js`)가 두 블록의
+토큰 값을 대조한다.
+
+**★도넛 애니메이션은 끈다.** `.ash-seg` 는 `.ash-card` 가 화면에 들어올 때(`.reveal`)
+재생되도록 `paused` 로 멈춰 있는데, 이 판에는 그 카드가 없어 신호가 오지 않는다.
+멈춘 채로 두면 `stroke-dasharray: 0 100` 이라 **빈 원**만 보인다 —
+`.ash-detail .ash-seg { animation: none; }` 로 완성형으로 그린다.
+
+사고 카드(아코디언)와 게시판식 쪽 넘김(`« ‹ 1 2 3 4 5 › »`)의 치수는 style.css 의
+`.ash-d-*` 규칙에 주석과 함께 적어 두었다.
+
 ### 4.10 푸터
 ```css
 .foot{ display:flex; gap:1.1em; flex-wrap:wrap; padding:.35em .3em 0; }

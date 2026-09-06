@@ -499,5 +499,96 @@ ok('토글을 누르면 다시 그린다',
     /closest\('\[data-fatalscope\]'\)/.test(CODE));
 ok('토글에 전용 스타일이 있다', /\.ash-scopetoggle \{/.test(CSS));
 
+// ── [10] 특보 중 사고 내역 팝업[S27] ────────────────────────────────────────
+console.log('\n[10] 특보 중 사고 내역 팝업[S27]');
+
+ok('특보 카드 소제목에 "사고 내역 보기" 버튼이 붙는다',
+    /ash-warn-more" id="accident-warn-detail-open"/.test(CODE) &&
+    /\.ash-warn-more \{/.test(CSS));
+ok('버튼을 누르면 팝업이 열린다',
+    /closest\('#accident-warn-detail-open'\)\) \{ openWarnDetailPopup\(\); return; \}/.test(CODE));
+ok('뒤로가기로 닫히도록 팝업 스택에 등록한다',
+    /PopupStack\.push\(WARN_DETAIL_POPUP_ID/.test(CODE) &&
+    /PopupStack\.remove\(WARN_DETAIL_POPUP_ID\)/.test(CODE));
+ok('열 때 소스 탭은 시트 칩을 물려받는다',
+    /_warnDetail = \{ src: _statsScope \|\| 'all', warn: 'all', sort: 'recent', page: 0, open: null \};/.test(CODE));
+ok('한 쪽에 20건',
+    /WARN_DETAIL_PER_PAGE = 20/.test(CODE));
+ok('특보가 발효 중이던 사고만 담는다',
+    /function warnDetailPool[\s\S]{0,900}var sev = row\[WARN_SEVERITY_POS_IDX\[key\]\] \|\| \[\];[\s\S]{0,80}if \(!sev\.length\) return;/.test(CODE));
+ok('시트 필터를 그대로 건다',
+    /function warnDetailPool[\s\S]{0,600}if \(!passesFilters\(key, row\)\) return;/.test(CODE));
+ok('시각은 문자열이 아니라 분으로 견준다(6:05 > 16:17 방지)',
+    /function minutesOf[\s\S]{0,300}\* 60 \+/.test(CODE));
+
+ok('위치 설명이 없으면 좌표로 대신 적는다',
+    /function warnDetailCoord/.test(CODE) &&
+    /hasPos \? escapeHtml\(f\.pos\) : warnDetailCoord\(f\)/.test(CODE));
+ok('인명피해가 모두 0이면 "인명피해 기록 없음"',
+    /'<span class="cas none">인명피해 기록 없음<\/span>'/.test(CODE));
+ok('접힌 줄의 인명피해는 0인 항목을 빼고 적는다',
+    /if \(f\.dead\) parts\.push/.test(CODE) && /if \(f\.miss\) parts\.push/.test(CODE) &&
+    /if \(f\.resc\) parts\.push/.test(CODE));
+ok('펼침에 특보 종류 줄을 넣지 않는다(배지에 이미 있다)',
+    !/row\('발효 특보'/.test(CODE));
+ok('구조·사망·실종이 모두 0이면 펼침에 그 줄도 없다',
+    /if \(f\.resc \+ f\.dead \+ f\.miss > 0\) \{/.test(CODE));
+ok('펼칠 것이 없으면 화살표를 감추고 못 누르게 한다',
+    /class="ash-d-head' \+ \(detail \? '' : ' flat'\)/.test(CODE) &&
+    /\(detail \? ' data-dopen="' \+ idx \+ '"' : ''\)/.test(CODE) &&
+    /\.ash-d-head\.flat \{ cursor: default; \}/.test(CSS));
+ok('소스마다 접힌 줄이 다르다(선박=시각·종류 / 인명=관련 인원)',
+    /var showTime = _warnDetail\.src === 'hk' && f\.hm;/.test(CODE) &&
+    /var showKind = _warnDetail\.src === 'hk' && f\.kind;/.test(CODE) &&
+    /var showPrsn = _warnDetail\.src === 'person' && f\.prsn;/.test(CODE));
+ok('한 종류만 볼 때는 사고 주체 도넛을 빼고 유형 도넛 하나만 넓게',
+    /if \(_warnDetail\.src === 'all'\) \{[\s\S]{0,400}dcard\('사고 주체'/.test(CODE) &&
+    /dcard\('사고 유형 <em>' \+ te\.length \+ '종<\/em>', typeEntries, ' wide'\)/.test(CODE));
+ok('도넛은 시트 카드의 부품을 그대로 쓴다',
+    /buildDonutHtml\(entries, \{ small: true, centerNum: fmtN\(list\.length\)/.test(CODE));
+ok('팝업 도넛은 멈춘 애니메이션을 끈다(빈 원 방지)',
+    /\.ash-detail \.ash-seg \{ animation: none; \}/.test(CSS));
+ok('쪽 넘김이 게시판식(« ‹ 1..5 › »)',
+    /function buildWarnDetailPager[\s\S]{0,1200}&laquo;[\s\S]{0,400}&raquo;/.test(CODE) &&
+    /var WIN = 5;/.test(CODE));
+ok('겹친 특보 안내를 한 줄 적는다',
+    /한 사고가 두 특보에 함께 걸린 경우가 있어/.test(CODE));
+
+// 팝업은 시트 밖(body)에 붙어 --ash-* 를 물려받지 못해 값을 다시 적는다.
+// 두 곳이 어긋나면 팝업만 다른 색이 되므로 여기서 값이 같은지 본다.
+(function () {
+    function tokensOf(sel) {
+        var m = CSS.match(new RegExp(sel.replace('.', '\\.') + ' \\{([\\s\\S]*?)\\}'));
+        if (!m) return null;
+        var out = {};
+        (m[1].match(/--ash-[a-z-]+:\s*[^;]+;/g) || []).forEach(function (line) {
+            var kv = line.split(':');
+            out[kv[0].trim()] = kv[1].replace(';', '').trim();
+        });
+        return out;
+    }
+    var sheet = tokensOf('.accident-stats-sheet'), pop = tokensOf('.ash-detail-overlay');
+    var bad = [];
+    if (!sheet || !pop) bad.push('토큰 블록을 못 찾음');
+    else Object.keys(pop).forEach(function (k) {
+        if (k === '--ash-red') return;           // 팝업에만 있는 값
+        if (sheet[k] !== pop[k]) bad.push(k + ' ' + sheet[k] + ' ≠ ' + pop[k]);
+    });
+    ok('팝업 색 토큰이 시트와 같은 값', bad.length === 0, bad.join(' · '));
+})();
+
+ok('정렬 버튼 두 개(최신순 · 피해순)',
+    /\[\['recent', '최신순'\], \['fatal', '피해순'\]\]/.test(CODE) &&
+    /\.ash-d-sort \{/.test(CSS));
+ok('"피해순"은 사망+실종 인원 내림차순, 같으면 최신순',
+    /function casOf[\s\S]{0,220}\+\(?\+?r\[hk \? 11 : 9\]/.test(CODE) &&
+    /_warnDetail\.sort === 'fatal'[\s\S]{0,200}casOf\(b\) - casOf\(a\)[\s\S]{0,120}byRecent\(a, b\)/.test(CODE));
+ok('정렬을 바꾸면 첫 쪽으로 돌아간다',
+    /closest\('\[data-dsort\]'\)[\s\S]{0,240}_warnDetail\.page = 0;/.test(CODE));
+ok('팝업을 열 때는 최신순으로 시작',
+    /sort: 'recent', page: 0, open: null \};/.test(CODE));
+ok('기간·칩 줄 위아래 여백을 1/5 로 줄였다',
+    /\.ash-meta \{[\s\S]{0,700}padding: 0\.18em 0 0\.19em;[\s\S]{0,200}margin-bottom: 0\.18em;/.test(CSS));
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);
