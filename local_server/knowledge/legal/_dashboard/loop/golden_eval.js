@@ -146,6 +146,24 @@ function tierWordOnly(name) {
  */
 function isAddenda(s) { return /부\s*칙/.test(String(s || '')); }
 
+/**
+ * 부칙 근거를 찾을 때 쓰는 **추가 열쇠**를 만든다 — `부칙 제20939호` · `부칙 2025.4.22` 꼴.
+ * ★왜 필요한가(2026-09-06): 생산 매처는 부칙 행을 **호수·공포일**로 살려 낸다. 그래서 기대 근거를
+ *   `제2조` 하나로만 두면, 위키에 맞는 부칙 행이 **있어도** 못 찾는다(실측: 수산업ㆍ어촌발전기본법
+ *   페이지에 `부칙(제20939호) 제2조` 행을 넣어도 owners 가 비었다).
+ *   `reach_eval.js` 의 `friendlyAnswer()` 가 이미 같은 열쇠를 만들고 있어 **그 규칙을 그대로 쓴다**
+ *   (L-136 — 같은 대조를 두 곳에서 다르게 구현하면 숫자가 헛것이 된다).
+ */
+function addendaKeys(s) {
+  const t = String(s || ''); const out = [];
+  if (!isAddenda(t)) return out;
+  const ho = /제\s*(\d{3,6})\s*호/.exec(t);
+  if (ho) { out.push('부칙 제' + ho[1] + '호'); return out; }
+  const d = /(\d{4})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})/.exec(t);
+  if (d) out.push('부칙 ' + d[1] + '.' + Number(d[2]) + '.' + Number(d[3]));
+  return out;
+}
+
 function ownersOf(idx, law, arts, wantAddenda) {
   const L = flat(law); const out = new Set();
   for (const [rl, entries] of idx) {
@@ -162,7 +180,18 @@ function ownersOf(idx, law, arts, wantAddenda) {
       if (tierWordOnly(e.row.law) && !(L && flat(e.baseLaw) && L.startsWith(flat(e.baseLaw)))) continue;
       // ★부칙과 본문을 가른다(2026-09-06) — 위 isAddenda 머리말 참고.
       if (!!wantAddenda !== (isAddenda(e.row.law) || isAddenda(e.row.article))) continue;
-      for (const a of arts) {
+      // ★기대 근거가 부칙인데 **호수를 안 적은** 경우가 있다(`부칙 제3조·제20조·제82조`).
+      //   그때는 **행이 스스로 적어 둔 호수**를 열쇠로 써 본다 — 생산 매처가 부칙 행을 살려 내는
+      //   열쇠가 호수·공포일이기 때문이다(reach_eval friendlyAnswer 와 같은 규칙).
+      //   ⚠아무 부칙 행에나 붙지 않게, **그 행이 기대한 조(제3조 등)를 실제로 담고 있을 때만** 쓴다.
+      const tries = arts.slice();
+      if (wantAddenda) {
+        const rowKeys = addendaKeys(`${e.row.law} ${e.row.article}`);
+        if (rowKeys.length && arts.some(a => !/^부칙/.test(a) && flat(e.row.article).includes(flat(a)))) {
+          tries.push(...rowKeys);
+        }
+      }
+      for (const a of tries) {
         const answer = `\u300c${e.row.law}\u300d ${a}에 따릅니다.`;
         if (R.filterCitationChainByAnswer([Object.assign({}, e.row)], answer, e.baseLaw).length) {
           out.add(e.file); break;
@@ -232,7 +261,7 @@ async function run() {
   for (const q of qs) {
     if (q.skip) continue;                       // 되묻기가 정답인 문항 등은 채점에서 뺀다
     if (!q.verified) continue;                  // ★사서가 원문·위키로 확인한 라벨만 채점한다(L-125)
-    const wantArts = artsOf(q.expect_article);
+    const wantArts = artsOf(q.expect_article).concat(addendaKeys(q.expect_article));
     const owners = ownersOf(idx, q.expect_law, wantArts, isAddenda(q.expect_article));
     let res;
     try { res = await R.search(q.question, {}); } catch (e) { res = null; }
@@ -256,7 +285,7 @@ async function run() {
 // ★다른 검사도 같은 판정을 쓰도록 열어 둔다(2026-08-21). 판정을 두 번 구현하면 어긋난다(L-136) —
 //   `search_gap.js` 가 "그 행을 가진 페이지가 어디인가"를 여기서 그대로 가져다 쓴다.
 //   ⚠아래 실행부는 **직접 실행할 때만** 돈다(require 로 불러도 안 돈다).
-module.exports = { buildRowIndex, ownersOf, artsOf, flat, buildRawArticleIndex, inRaw, tierWordOnly, isAddenda };
+module.exports = { buildRowIndex, ownersOf, artsOf, flat, buildRawArticleIndex, inRaw, tierWordOnly, isAddenda, addendaKeys };
 if (require.main === module) main();
 
 function main() {
