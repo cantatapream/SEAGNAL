@@ -31,7 +31,7 @@
   "note": "",
   "clarify_rounds": 2,
   "sec": 28.5,
-  "verdict2": "confirmed"
+  "verdict2": "partial"
  },
  {
   "law": "갯벌및그주변지역의지속가능한관리와복원에관한법률",
@@ -198,7 +198,7 @@
   "note": "",
   "clarify_rounds": 1,
   "sec": 15.0,
-  "verdict2": "wrong_tier"
+  "verdict2": "confirmed"
  },
  {
   "law": "낚시관리및육성법",
@@ -360,7 +360,7 @@
   "note": "",
   "clarify_rounds": 0,
   "sec": 16.2,
-  "verdict2": "confirmed"
+  "verdict2": "partial"
  },
  {
   "law": "무인도서의보전및관리에관한법률",
@@ -540,7 +540,7 @@
   "note": "",
   "clarify_rounds": 2,
   "sec": 22.7,
-  "verdict2": "wrong_tier"
+  "verdict2": "confirmed"
  },
  {
   "law": "선박직원법",
@@ -560,7 +560,7 @@
   "note": "",
   "clarify_rounds": 0,
   "sec": 17.7,
-  "verdict2": "wrong_tier"
+  "verdict2": "confirmed"
  },
  {
   "law": "선원법",
@@ -691,7 +691,7 @@
   "note": "",
   "clarify_rounds": 4,
   "sec": 31.0,
-  "verdict2": "confirmed"
+  "verdict2": "partial"
  },
  {
   "law": "양식산업발전법",
@@ -709,7 +709,7 @@
   "note": "",
   "clarify_rounds": 2,
   "sec": 18.5,
-  "verdict2": "confirmed"
+  "verdict2": "partial"
  },
  {
   "law": "양식산업발전법",
@@ -1338,7 +1338,7 @@
   "note": "",
   "clarify_rounds": 1,
   "sec": 18.8,
-  "verdict2": "confirmed"
+  "verdict2": "partial"
  },
  {
   "law": "해양생태계의보전및관리에관한법률",
@@ -1353,7 +1353,7 @@
   "note": "",
   "clarify_rounds": 1,
   "sec": 19.0,
-  "verdict2": "confirmed"
+  "verdict2": "partial"
  },
  {
   "law": "해양생태계의보전및관리에관한법률",
@@ -1388,7 +1388,7 @@
   "note": "",
   "clarify_rounds": 2,
   "sec": 26.7,
-  "verdict2": "confirmed"
+  "verdict2": "partial"
  },
  {
   "law": "해양수산발전기본법",
@@ -1626,7 +1626,7 @@
   "note": "",
   "clarify_rounds": 1,
   "sec": 18.7,
-  "verdict2": "confirmed"
+  "verdict2": "partial"
  },
  {
   "law": "농수산물의원산지표시등에관한법률",
@@ -1723,7 +1723,7 @@
   "note": "",
   "clarify_rounds": 2,
   "sec": 16.6,
-  "verdict2": "wrong_tier"
+  "verdict2": "confirmed"
  },
  {
   "law": "농수산물품질관리법",
@@ -1738,7 +1738,7 @@
   "note": "",
   "clarify_rounds": 3,
   "sec": 19.4,
-  "verdict2": "wrong_tier"
+  "verdict2": "confirmed"
  },
  {
   "law": "농수산물품질관리법",
@@ -1758,7 +1758,7 @@
   "note": "",
   "clarify_rounds": 2,
   "sec": 30.8,
-  "verdict2": "wrong_tier"
+  "verdict2": "confirmed"
  },
  {
   "law": "농수산물품질관리법",
@@ -1865,7 +1865,7 @@
   "note": "",
   "clarify_rounds": 2,
   "sec": 25.7,
-  "verdict2": "wrong_tier"
+  "verdict2": "confirmed"
  },
  {
   "law": "도선법",
@@ -1966,7 +1966,7 @@
   "note": "",
   "clarify_rounds": 3,
   "sec": 34.0,
-  "verdict2": "confirmed"
+  "verdict2": "partial"
  },
  {
   "law": "마리나항만의조성및관리등에관한법률",

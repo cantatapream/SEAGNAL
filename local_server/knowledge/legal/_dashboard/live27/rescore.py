@@ -29,12 +29,12 @@ def keys(s):
     return out
 
 
-def tier(s):
-    """법령의 층(법률/시행령/시행규칙/고시)을 가른다 — 같은 제N조라도 층이 다르면 다른 조문이다."""
-    s = s or ''
-    if '시행규칙' in s: return '규칙'
-    if '시행령' in s:  return '령'
-    return '법'
+# ⚠층(법률/시행령/시행규칙)을 따로 채점하려던 시도는 걷어냈다(2026-09-07).
+#   골든 문항의 `expect_law` 칸은 대개 **부모 법 이름(묶음 열쇠)** 이고 층 정보가 아니다.
+#   예: 「농수산물품질관리법 | 별표4」 — 그런데 이 법 법률.txt 에는 '별표' 가 0건이고
+#   별표4 는 시행규칙에 있다(내용도 질문과 일치: "가. 거짓이나 그 밖의 부정한 방법 → 지정 취소").
+#   즉 챗봇이 「시행규칙 별표4」라고 답한 것이 맞고 라벨이 부정확했다. 층으로 감점하면
+#   챗봇이 맞은 것을 틀렸다고 세게 된다. 그래서 조문·별표 번호만 대조한다.
 
 
 def split_laws(s):
@@ -54,26 +54,23 @@ def rescore(r):
         return 'no_evidence'
     want_laws = split_laws(r['expect_law'])
     want = keys(r['expect_article'])
-    # 층까지 같은 줄을 먼저 찾고, 없으면 층만 다른 줄을 따로 모은다.
-    same, othertier = [], []
-    for g in got:
-        ng = norm(g)
-        for wl in want_laws:
-            if wl and wl in ng:
-                (same if tier(wl) == tier(g) else othertier).append(g)
-                break
-    if not same and not othertier:
+    # 기대 법령이 근거줄에 하나라도 나왔는가.
+    hits = [g for g in got if any(wl and wl in norm(g) for wl in want_laws)]
+    if not hits:
         return 'no_evidence'
     if not want:
-        return 'confirmed' if same else 'wrong_tier'
-    for g in same:
-        if keys(g) & want:
-            return 'confirmed'
-    # 조문 번호는 맞는데 층이 다른 경우 — 법 제37조 vs 시행규칙 제37조는 다른 조문이다.
-    for g in othertier:
-        if keys(g) & want:
-            return 'wrong_tier'
-    return 'wrong_article' if same else 'no_evidence'
+        return 'confirmed'          # 기대값에 조문·별표 표기가 없으면 법만 맞으면 통과
+    # 기대 근거가 여러 개인 문항이 많다(예: "제90조제2항제1호·시행령 별표2").
+    # 맞음/틀림 둘로 가르지 말고 **몇 개 중 몇 개를 댔는지**로 본다.
+    hit_keys = set()
+    for g in hits:
+        hit_keys |= keys(g)
+    matched = hit_keys & want
+    if not matched:
+        return 'wrong_article'      # 법은 맞는데 기대한 조문·별표는 하나도 없음
+    if matched == want:
+        return 'confirmed'
+    return 'partial'                # 일부만 댔다 — 답이 불완전할 수 있는 자리
 
 
 if __name__ == '__main__':
@@ -94,7 +91,7 @@ if __name__ == '__main__':
     c = collections.Counter(r['verdict2'] for r in uniq)
     n = len(uniq) - c.get('skipped', 0)
     print(f'기록 {len(uniq)}건 / 잴 수 없었던 것 {c.get("skipped", 0)}건 / 유효 {n}건')
-    for k in ['confirmed', 'wrong_tier', 'wrong_article', 'no_evidence', 'clarify', 'error']:
+    for k in ['confirmed', 'partial', 'wrong_article', 'no_evidence', 'clarify', 'error']:
         v = c.get(k, 0)
         print(f'  {k:14s} {v:4d}  ({round(v * 100 / n, 1) if n else 0}%)')
     d = collections.Counter((r['verdict'], r['verdict2']) for r in uniq if r['verdict'] != r['verdict2'])
