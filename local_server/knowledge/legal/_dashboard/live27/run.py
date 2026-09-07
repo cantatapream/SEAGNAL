@@ -80,7 +80,8 @@ def run(qs, outp):
         qtext = q['question']
         hist=[{'role':'user','content':q['question']}]
         rounds=0
-        for _ in range(5):
+        for _ in range(10):   # 서버 상한(CLARIFY_MAX_ROUNDS=5)보다 넉넉해야 한다 —
+                              # 5 로 두었더니 '서버는 답을 냈는데 내가 안 받은' 경우가 생겼다(발견 03).
             cl=(res or {}).get('clarify')
             opts=(cl or {}).get('options') or []
             if not cl or not opts: break
