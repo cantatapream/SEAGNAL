@@ -33,8 +33,8 @@ const snap = (parents = {}, children = {}) => ({
 const ageBy = (zone, ms) => { if (mc._parentReleasePending[zone]) mc._parentReleasePending[zone].firstMissingAt -= ms; };
 const reset = () => { for (const k of Object.keys(mc._parentReleasePending)) delete mc._parentReleasePending[k]; };
 
-console.log('\n[T0] 관찰창 길이 = 1분 30초 (사용자 확정)');
-ok('PARENT_RELEASE_DEBOUNCE_MS === 90초', WIN === 90 * 1000, String(WIN));
+console.log('\n[T0] 관찰창 길이 = 3분 (사용자 확정 2026-09-07)');
+ok('PARENT_RELEASE_DEBOUNCE_MS === 3분', WIN === 3 * 60 * 1000, String(WIN));
 
 // ── T1. 발효중 부모가 사라지면 이어받아 관찰 ────────────────────────────────
 console.log('\n[T1] 발효중 부모 소멸 → 이어받기(해제 푸시 안 나감)');
@@ -61,20 +61,21 @@ console.log('\n[T2] 45초 만에 복귀 → 글리치 확정 (2026-09-07 실사�
     ok('부모 그대로 유지', back.parents.has(PN));
 }
 
-// ── T3. 90초 넘게 없으면 진짜 해제로 확정 ───────────────────────────────────
-console.log('\n[T3] 90초 연속 부재 → 진짜 해제 확정');
+// ── T3. 관찰창을 넘겨 계속 없으면 진짜 해제로 확정 ──────────────────────────
+//   관찰창 길이에 상대적으로 검사한다 — 상수가 바뀌어도 테스트가 따라간다.
+console.log('\n[T3] 관찰창 초과 부재 → 진짜 해제 확정');
 {
     reset();
     const prev = snap({ [PN]: P('주의보') }, { [PN]: { [KID]: C() } });
+    mc._applyParentReleaseDebounce(prev, snap({}, {}));
+    ageBy(PN, WIN - 1000);                                    // 만료 1초 전
     const c1 = snap({}, {});
     mc._applyParentReleaseDebounce(prev, c1);
-    ok('89초 시점엔 아직 이어받음', (ageBy(PN, 89 * 1000), (() => {
-        const c = snap({}, {}); mc._applyParentReleaseDebounce(prev, c); return c.parents.has(PN);
-    })()));
-    ageBy(PN, 2 * 1000);                                      // 총 91초
+    ok('만료 1초 전엔 아직 이어받음', c1.parents.has(PN));
+    ageBy(PN, 2000);                                          // 만료 1초 후
     const c2 = snap({}, {});
     mc._applyParentReleaseDebounce(prev, c2);
-    ok('91초 시점엔 이어받기 중단', !c2.parents.has(PN));
+    ok('만료 후엔 이어받기 중단', !c2.parents.has(PN));
     ok('관찰실 비워짐', Object.keys(mc._parentReleasePending).length === 0);
 }
 
@@ -129,6 +130,47 @@ console.log('\n[T7] 종단: 이어받는 동안 해제 change 없음');
     const changes = mc._buildUserPushChanges(prev, curr);
     const rel = changes.filter(c => c.zone === PN && c.type === 'CURRENT_CHANGE' && !c.curr);
     ok('해제 change 0건', rel.length === 0, `changes=${changes.map(c => c.type).join(',') || '없음'}`);
+}
+
+// ── T9. [사용자 확정] 예정대로의 해제만 관찰 없이 즉시 발사 ─────────────────
+console.log('\n[T9] 해제예정 시각으로 "예정된 해제 / 의심스러운 소멸" 가르기');
+{
+    // 판정 함수 단위 — 정확시각이고 도래했을 때만 true
+    const 어제 = (() => { const d = new Date(Date.now() + 9 * 3600000 - 24 * 3600000);
+        return `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')} 10:00`; })();
+    const 내일 = (() => { const d = new Date(Date.now() + 9 * 3600000 + 24 * 3600000);
+        return `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')} 10:00`; })();
+    ok('정확시각 + 도래 → 즉시', mc._isScheduledRelease(어제) === true, 어제);
+    ok('정확시각 + 미도래 → 관찰', mc._isScheduledRelease(내일) === false, 내일);
+    ok('범위형 → 관찰', mc._isScheduledRelease('8일 오전(09시~12시)') === false);
+    ok('값 없음 → 관찰', mc._isScheduledRelease('') === false);
+    ok('못 읽는 형태 → 관찰(기다리는 쪽)', mc._isScheduledRelease('알 수 없음') === false);
+
+    // 종단 — 예정대로 해제된 해역은 이어받지 않는다(해제 알림이 즉시 나가야 함)
+    reset();
+    const done = Object.assign(P('주의보'), { clrNtcTm: 어제 });
+    const prev = snap({ [PN]: done }, {});
+    const curr = snap({}, {});
+    mc._applyParentReleaseDebounce(prev, curr);
+    ok('예정 해제는 이어받지 않음', !curr.parents.has(PN));
+    ok('관찰실 비어 있음', Object.keys(mc._parentReleasePending).length === 0);
+
+    // 종단 — 아직 시각이 안 됐는데 사라지면 이어받는다 (2026-09-07 사고 유형)
+    reset();
+    const notYet = Object.assign(P('주의보'), { clrNtcTm: 내일 });
+    const prev2 = snap({ [PN]: notYet }, {});
+    const curr2 = snap({}, {});
+    mc._applyParentReleaseDebounce(prev2, curr2);
+    ok('시각 미도래 소멸은 이어받음', curr2.parents.has(PN));
+
+    // 종단 — 범위형(실사고 데이터 그대로)은 이어받는다
+    reset();
+    const rangeType = Object.assign(P('주의보'), { clrNtcTm: '8일 오전(09시~12시)' });
+    const prev3 = snap({ [PN]: rangeType }, {});
+    const curr3 = snap({}, {});
+    mc._applyParentReleaseDebounce(prev3, curr3);
+    ok('범위형 소멸은 이어받음 (실사고 데이터)', curr3.parents.has(PN));
+    reset();
 }
 
 // ── T8. 실사고 규모 — 발효중 10곳 전멸 ──────────────────────────────────────
