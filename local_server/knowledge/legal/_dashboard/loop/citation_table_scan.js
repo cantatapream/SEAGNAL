@@ -85,7 +85,10 @@ function scan() {
         s.deictic++;
         if (s.examples.bare_tier.length < 8) s.examples.bare_tier.push(path.basename(f) + ' | ' + law + ' | ' + art);
       } else if (TIER_OK.test(flat)) {
-        s.tier_ok++;                                    // 결함 아님 — 코드가 페이지 법으로 펼친다
+        // 원문 찾아오기는 된다(코드가 페이지 법으로 펼친다). **보여주기**는 화면이 따로 막는다 —
+        // ai_chat.js displayLawName(2026-09-07 27차 라이브 검증에서 발견해 추가). 자세한 경위는
+        // _dashboard/live27/FINDING-01_법령명없는인용.md 참고.
+        s.tier_ok++;
       } else if (TIER_ANNEX.test(flat)) {
         s.tier_annex++;                                 // 결함 아님(ⓐ-2 갈래가 받는다) — 추이만 본다
       } else if (TIER_BAD.test(flat)) {
@@ -122,7 +125,12 @@ const LABEL = {
   paren: '⑤ 법령 칸에 괄호 주석(코드가 감당함 — 추이 관찰용)',
 };
 console.log(`개념 페이지 ${now.pages}개 · 근거 조문 행 ${now.rows}개`);
-console.log(`(참고: 법령 칸이 '시행령'·'시행규칙'뿐인 행 ${now.tier_ok}개 — 코드가 페이지의 법을 붙여 대조하므로 결함 아님)`);
+console.log(`(참고: 법령 칸이 '시행령'·'시행규칙'뿐인 행 ${now.tier_ok}개 — 원문 **찾아오기**는 된다`);
+console.log(`   (코드가 페이지의 법을 붙여 대조한다). 다만 **보여주기**는 화면 쪽에서 따로 막고 있다 —`);
+console.log(`   여러 법이 섞인 답변에서 근거 목록이 "시행규칙 제1조의2"처럼 어느 법인지 없이 나오던 것을`);
+console.log(`   2026-09-07 27차 라이브 검증에서 찾아, ai_chat.js displayLawName 이 페이지의 법을 붙여 그린다.`);
+console.log(`   → 이 숫자가 늘어도 게이트는 막지 않는다. 다만 **화면 밖의 새 소비자**(알림·내보내기 등)를`);
+console.log(`     만들 때는 같은 함정에 빠지므로 그때 displayLawName 과 같은 처리를 꼭 넣어야 한다.)`);
 console.log(`(참고: 법령 칸이 '시행령 별표N'·'시행규칙 별지N' 꼴인 행 ${now.tier_annex}개 — 코드 ⓐ-2 갈래가 페이지의 법을 붙여 받는다)`);
 console.log('─'.repeat(78));
 for (const k of Object.keys(LABEL)) {
