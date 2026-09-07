@@ -1034,17 +1034,27 @@ function markUnresolvedReview(body) {
 const UNVERIFIED_HEAD = '[미확인 — 아래는 사람 검토가 끝나지 않은 내용이다. 결론으로 쓰지 말고, 확인되지 않았다는 사실과 함께 그대로 안내하라.]';
 
 /**
- * canonicalOnly 모드에서 draft(비-statute) 페이지가 실제로 인용에 쓸 수 있는 본문을 만든다.
- * statute·canonical 페이지는 그대로(REVIEW 잔존이 있어선 안 되는 상태이므로 손대지 않음),
- * draft인 concept·comparison 페이지만 stripUnresolvedReview로 걸러 "검증된 부분만" 남긴다.
+ * canonicalOnly 모드에서 비-statute 페이지가 실제로 인용에 쓸 수 있는 본문을 만든다.
+ * statute(법령 원문 페이지)는 그대로 두고, concept·comparison·annex 페이지는 status 와 무관하게
+ * markUnresolvedReview 로 걸러 아직 안 끝난 판단을 [미확인] 머리표 아래로 옮긴다.
+ * (2026-09-07 이전에는 canonical 을 건너뛰었는데, canonical 366개에 미해결 REVIEW 1,198줄이
+ *  남아 있어 그 줄들이 표시 없이 나가고 있었다 — 아래 본문 주석 참조.)
  * @param {{kind:string,status?:string,file:string}} p - 인덱스 페이지 메타
  * @param {boolean} canonicalOnly
- * @returns {string} 인용 가능한 본문(비-canonicalOnly거나 canonical/statute면 원문 그대로)
+ * @returns {string} 인용 가능한 본문(비-canonicalOnly거나 statute면 원문 그대로)
  */
 function citableBody(p, canonicalOnly) {
   const page = readPage(p.kind, p.file);
   const body = page ? page.body : '';
-  if (canonicalOnly && p.kind !== 'statute' && p.status !== 'canonical') {
+  // ⚠2026-09-07: 종전에는 `p.status !== 'canonical'` 조건을 두어 **canonical 페이지는 이 걸러내기를
+  //   통째로 건너뛰었다.** 근거는 "canonical 은 REVIEW 잔존이 있어선 안 되는 상태"라는 가정이었는데,
+  //   그 가정이 **사실이 아니다** — 실측 결과 canonical 페이지 366개에 아직 안 끝난 REVIEW 줄이
+  //   1,198줄 남아 있었다(예: "확정 답변 금지", "원표 서식 일부 손상, 세부 문구 재대조 필요",
+  //   "최종 확정은 법률전문가 확인 권장"). 그 줄들이 [미확인] 머리표 없이 그대로 근거로 나가고 있었다.
+  //   승격(draft→canonical)이 곧 "주의 문구 끄기"가 되어 버리는 구조이기도 했다.
+  //   그래서 statute(원문 그대로여야 하는 법령 페이지)만 빼고 **status 와 무관하게** 걸러낸다.
+  //   REVIEW 가 없는 페이지에는 아무 영향이 없다(markUnresolvedReview 가 본문을 그대로 돌려준다).
+  if (canonicalOnly && p.kind !== 'statute') {
     return markUnresolvedReview(body);
   }
   return body;
