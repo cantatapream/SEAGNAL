@@ -284,7 +284,7 @@
                 return;
             }
 
-            let html = '<div style="font-size:0.7rem;color:#64748b;margin-bottom:12px;padding:6px 10px;background:rgba(100,116,139,0.1);border-radius:6px;"><i class="fa-solid fa-circle-info" style="margin-right:4px;"></i>제보 내역은 90일 후 자동 삭제됩니다.</div>';
+            let html = '<div style="font-size:0.7rem;color:#64748b;margin-bottom:12px;padding:6px 10px;background:rgba(100,116,139,0.1);border-radius:6px;"><i class="fa-solid fa-circle-info" style="margin-right:4px;"></i>제보 내역은 1년 후 자동 삭제됩니다.</div>';
 
             reports.forEach(r => {
                 const statusColor = r.status === '답변완료' ? '#22c55e' : '#eab308';
