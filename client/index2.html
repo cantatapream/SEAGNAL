@@ -3765,12 +3765,18 @@
                                  합계라 고를 것이 없다. 종류를 갈라 보는 것은 바텀시트 안 칩(분석)과
                                  필터 바 맨 위 토글(현황)이 한다(사용자 확정 2026-09-04). -->
                         </div>
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/ocean-map/map/ocean_map.js goToMyLocation()
                         <button class="ocean-overlay-btn ocean-myloc-btn" id="ocean-myloc-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
-                            <!-- 큰 텍스트 모드 전용 라벨 — 보통 모드에선 .ocean-overlay-label[data-line1] CSS
-                                 의 font-size: 0 가 적용되어 보이지 않음. 큰 모드에서만 ::before/::after 표출. -->
+                            (큰 텍스트 모드 전용 라벨 — 보통 모드에선 .ocean-overlay-label[data-line1] CSS 의
+                             font-size: 0 가 적용되어 보이지 않음. 큰 모드에서만 ::before/::after 표출.)
                             <span class="ocean-overlay-label" data-line1="내" data-line2="위치"></span>
                         </button>
+                        -->
                         <!-- [제거됨] CCTV ON 시에만 뜨던 유의사항 버튼(#ocean-cctv-notice-btn)
                              → 지도 좌측 상단 "기본맵" 옆 #ocean-info-btn 으로 상시 노출 대체
                              [연계] js/ocean_cctv.js -->
@@ -4449,9 +4455,15 @@
 
                     <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/fishing/fishing.js _moveToMyLocation()
                         <button id="fishing-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="fishing-notice-btn" class="life-map-icon-btn" title="유의사항">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -4547,9 +4559,15 @@
 
                     <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/surfing/surfing1.js _goToSurfingMyLocation()
                         <button id="surfing-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="surfing-notice-btn" class="life-map-icon-btn" title="유의사항">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -4635,9 +4653,15 @@
 
                     <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/mudflat/mudflat.js _moveToMyLocation()
                         <button id="mudflat-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="mudflat-notice-btn" class="life-map-icon-btn" title="유의사항">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -4700,9 +4724,15 @@
 
                     <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/swimming/swimming.js _moveToMyLocation()
                         <button id="swim-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="swim-notice-btn" class="life-map-icon-btn" title="유의사항">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -4778,9 +4808,15 @@
 
                     <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/scuba/scuba.js _moveToMyLocation()
                         <button id="scuba-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="scuba-notice-btn" class="life-map-icon-btn" title="유의사항">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -4897,9 +4933,15 @@
 
                     <!-- 우측 상단: 내 위치 / 안내 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/ripcurrent/ripcurrent.js _moveToMyLocation()
                         <button id="rip-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="rip-notice-btn" class="life-map-icon-btn" title="이안류 지수 안내">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -5024,11 +5066,17 @@
             <button class="ocean-overlay-btn ls-act-btn" data-act="mudflat-section"><span>갯벌</span><span>체험</span></button>
             <button class="ocean-overlay-btn ls-act-btn" data-act="sea-parting-section"><span>바다</span><span>갈라짐</span></button>
 
-            <!-- 내 위치: 활동이 원래 갖고 있던 GPS 버튼을 대신 눌러 동작 -->
+            <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                 '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                 추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                 getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                 [연계] js/marine-life/safety/life_safety.js _bindChrome() / _syncChrome()
+            (내 위치: 활동이 원래 갖고 있던 GPS 버튼을 대신 눌러 동작)
             <button id="ls-gps-btn" class="ocean-overlay-btn ocean-myloc-btn" title="내 위치">
                 <i class="fa-solid fa-location-crosshairs"></i>
                 <span class="ocean-overlay-label" data-line1="내" data-line2="위치"></span>
             </button>
+            -->
         </div>
 
         <!-- ================================================================
