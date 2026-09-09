@@ -9568,6 +9568,17 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .ash-warn-zone { font-size: 0.7em; color: var(--ash-dim); }
 /* 타일 안 발효 일수 줄 */
 .ash-warn-tile .d { font-size: 0.72em; color: var(--ash-muted); }
+/* 타일 안 선박·인명 나눔 두 줄[S28-8, 2026-09-09 사용자 지시].
+   라벨은 왼쪽, 건수는 오른쪽 끝에 붙여 두 줄의 숫자가 세로로 맞는다.
+   색은 시트 전체에서 쓰는 선박=파랑 · 인명=청록 그대로.
+   [연계] accident_info.js buildWarnCardHtml 의 splitHtml */
+.ash-warn-tile .s {
+    display: flex; align-items: baseline; gap: 0.35em;
+    font-size: 0.72em; color: var(--ash-muted);
+}
+.ash-warn-tile .s b { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ash-warn-tile .s.hk b { color: var(--ash-blue-soft); }
+.ash-warn-tile .s.person b { color: var(--ash-teal); }
 
 /* 치명도 카드[S12] — 막대 행(.ash-row)을 그대로 쓰되 바 안에 조각이 둘이다.
    회색이 사망·실종 몫이고 왼쪽에 먼저 온다(디자인 분석서 §4.8·§7).
