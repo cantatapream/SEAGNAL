@@ -1053,6 +1053,51 @@ let _childReleasePending = {};                     // key: parent child → { fi
 //   가짜 "예비취소" 푸시가 나가던 문제 방지. 자식 해제 디바운스와 동일 정책(3분).
 const UPCOMING_CANCEL_DEBOUNCE_MS = 3 * 60 * 1000;
 let _upcomingCancelPending = {};                   // zone → { firstMissingAt, block, inParents }
+
+// ============================================================================
+// [부모 해제 디바운스] (2026-09-07 실사고 §7.7.28) — 발효중 부모해역이 사라졌을 때 1분 30초 관찰
+// ============================================================================
+//   [배경] 2026-09-07 20:52 MMIS 글리치로 **발효중 부모 10곳 전부**가 한 사이클 사라졌다
+//   45초 만에 그대로 복귀. 그 사이 "풍랑주의보 해제"(914명) → 다음 사이클 "풍랑주의보 발효"
+//   (1523명) 가 연달아 오발송됐다. 같은 순간 사라진 **예비 4곳은 예비취소 디바운스가 막았다**
+//   (로그: "45초 만에 복귀, 가짜 예비취소 억제됨"). 즉 같은 글리치인데 예비만 보호되고
+//   발효중은 무방비였다 — 부모 발효중 해제에는 관찰 절차가 아예 없었다.
+//   기존 의심 가드(_applySuspiciousGuard)는 **해제예고(clrNtcTm)가 등록된 zone 을 먼저
+//   "정상 해제"로 빼내므로** 이번처럼 전원이 해제예고를 가진 경우 임계(3곳)에 도달조차 못 한다.
+//   [정책] 자식·예비 디바운스와 같은 이어받기 방식. **다만 무조건 기다리지는 않는다** —
+//   해제예정 시각이 (a)범위형이 아닌 **정확시각**이고 (b)그 시각이 **이미 도래**했다면,
+//   그 소멸은 예정대로의 진짜 해제이므로 기다리지 않고 즉시 발사한다(사용자 확정 2026-09-07).
+//   정확시각은 기상청이 **정식 해제 통보문을 발행했을 때** 비로소 채워진다(V10 보강) —
+//   즉 "정확시각 + 도래" = "해제 통보문이 나왔고 그 시각이 됐다" 라는 신뢰할 만한 신호다.
+//   그 외(범위형 / 시각 미도래 / 값 없음 / 읽기 불가)는 전부 관찰 대상.
+//   [길이] 3분 — 프로젝트 표준 디바운스(자식 해제·예비취소)와 동일. 의심스러운 경우에만
+//   걸리므로, 종전 1분 30초 일괄 적용보다 지연 총량이 오히려 줄었다(진짜 해제는 지연 0).
+//   [부작용] 범위형 예고를 가진 진짜 해제는 최대 3분 늦어진다. 해제는 안전 급박도가 낮아 수용.
+//   [잔여 위험] 정확시각 도래 직후 기상청이 연장으로 뒤집었는데 그 통보문을 받기 전(최대 1분)에
+//   글리치가 겹치면 즉시 발사된다. 두 드문 일이 1분 안에 겹쳐야 성립 — 관찰 항목으로 남긴다.
+const PARENT_RELEASE_DEBOUNCE_MS = 3 * 60 * 1000;  // 3분 (사용자 확정 2026-09-07)
+let _parentReleasePending = {};                    // zone → { firstMissingAt, block }
+
+/**
+ * 이 해제가 "예정대로의 진짜 해제"인가 — 관찰 없이 즉시 발사해도 되는지 판정.
+ * 예) '2026.09.08 10:00' 이고 지금이 10:01 → true / '8일 오전(09시~12시)' → false
+ * @param {string} clrNtcTm 부모의 해제예정 시각 문자열
+ * @returns {boolean} 정확시각이고 그 시각이 이미 지났으면 true
+ * [연계] _applyParentReleaseDebounce — false 면 3분 관찰 대상.
+ *   읽어내지 못하면(_timeKey null) false 를 돌려 **기다리는 쪽**으로 넘긴다 —
+ *   모르는 것을 "정상 해제"로 단정하면 2026-09-07 사고가 그대로 재발한다.
+ */
+function _isScheduledRelease(clrNtcTm) {
+    const s = String(clrNtcTm || '').trim();
+    if (!s) return false;                       // 값 없음 → 예정된 해제라 볼 근거 없음
+    if (_isRangeTime(s)) return false;          // 범위형 → 확정 시각이 아님
+    const k = _timeKey(s);
+    if (k == null) return false;                // 못 읽음 → 기다린다
+    const d = new Date(Date.now() + 9 * 3600000);   // KST
+    const nowKey = (d.getUTCMonth() + 1) * 1000000 + d.getUTCDate() * 10000
+        + d.getUTCHours() * 100 + d.getUTCMinutes();
+    return k <= nowKey;                         // 예정 시각 도래
+}
 let _childReleaseNoticeSet = new Set();            // 이번 사이클 해제 통보문 있는 자식 (enrich 가 채움)
 
 // [자식 예비취소 재확인] (§7.7.19) 예비 자식 소멸(releasedPrelim)은 즉발하지 않고 3분(앱 표준
@@ -1567,6 +1612,75 @@ function _applyChildReleaseDebounce(prev, curr) {
             console.log(`[Marine] ⚡ 자식 깜빡임 감지(글리치): ${p} > ${ch} — ${elapsedSec}초 만에 복귀, 가짜 해제 억제됨`);
         }
         delete _childReleasePending[key];
+    }
+}
+
+/**
+ * [부모 해제 디바운스] 발효중 부모해역이 curr 에서 사라지면 1분 30초 이어받아 관찰한다.
+ * 예) 20:52 MMIS 글리치로 울산앞바다가 빠짐 → curr 에 복원(해제 푸시 안 나감) →
+ *     20:53 복귀 → "깜빡임(글리치)" 로그 남기고 관찰 종료. 90초 계속 없으면 진짜 해제 확정.
+ * @param {Object} prev 직전 사이클 스냅샷
+ * @param {Object} curr 이번 사이클 스냅샷 (in-place 변형 — 관찰 중인 zone 을 되살림)
+ * @returns {void}
+ * [연계] run() 4-A 에서 _applySuspiciousGuard·_applyChildReleaseDebounce **보다 먼저** 호출.
+ *   먼저 돌려야 ①관찰 중엔 zone 이 살아 있어 의심 가드가 헛돌지 않고 ②자식 해제 디바운스의
+ *   "부모 없으면 건너뜀" 게이트가 풀려 자식 보호도 함께 살아난다.
+ *   자식·예비 디바운스(_applyChildReleaseDebounce·_applyUpcomingCancelDebounce)와 형제.
+ */
+function _applyParentReleaseDebounce(prev, curr) {
+    if (!prev || !prev.parents || !curr || !curr.parents) return;
+    const now = Date.now();
+    const stillPending = new Set();
+
+    for (const [zone, info] of prev.parents) {
+        // 발효중(주의보/경보)만 대상 — 예비는 _applyUpcomingCancelDebounce 가 따로 본다.
+        if (!info || !info.wrnLvlNm || info.wrnLvlNm === '예비' || info.wrnLvlNm === '해제') continue;
+        if (curr.parents.has(zone)) {
+            // 그대로 있음 → 관찰 중이었다면 글리치로 확정하고 종료.
+            if (_parentReleasePending[zone]) {
+                const sec = Math.round((now - _parentReleasePending[zone].firstMissingAt) / 1000);
+                console.log(`[Marine] ⚡ 발효 깜빡임 감지(글리치): ${zone} — ${sec}초 만에 복귀, 가짜 해제·재발효 억제됨`);
+                delete _parentReleasePending[zone];
+            }
+            continue;
+        }
+        // [사용자 확정 2026-09-07] 예정대로의 해제(정확시각 + 도래)는 관찰 없이 즉시 발사.
+        //   기상청이 해제 통보문을 내야 비로소 정확시각이 채워지므로 신뢰할 수 있는 신호다.
+        //   범위형·시각 미도래·값 없음·읽기 불가는 전부 아래 관찰로 넘어간다.
+        if (_isScheduledRelease(info.clrNtcTm)) {
+            if (_parentReleasePending[zone]) delete _parentReleasePending[zone];
+            console.log(`[Marine] 부모 정상 해제(예정 시각 도래): ${zone} — 관찰 없이 즉시 처리 (해제예정 ${info.clrNtcTm})`);
+            continue;
+        }
+        // 발효중이던 부모가 사라짐 → 글리치 의심 → 관찰 시작
+        if (!_parentReleasePending[zone]) {
+            _parentReleasePending[zone] = { firstMissingAt: now, block: Object.assign({}, info) };
+            console.log(`[Marine] 부모 해제 디바운스 시작: ${zone} (발효중 사라짐, ${PARENT_RELEASE_DEBOUNCE_MS / 1000}초 관찰)`);
+        }
+        const p = _parentReleasePending[zone];
+        if (now - p.firstMissingAt < PARENT_RELEASE_DEBOUNCE_MS) {
+            // 관찰 중 — 직전 부모를 curr 에 이어받아 가짜 해제/재발효 푸시와 화면 깜빡임 방지.
+            curr.parents.set(zone, Object.assign({}, p.block));
+            // 부모만 되살리면 자식이 비어 "(연안바다 미발효)" 오표기가 난다 → 자식도 함께.
+            //   [§7.7.27 F2] 되살린 자식에는 _liveEvidence 표식 — C1(live) 집계 제외 대상이 아님.
+            const pkids = prev.children ? prev.children.get(zone) : null;
+            if (pkids && pkids.size > 0 && (!curr.children || !curr.children.has(zone))) {
+                if (!curr.children) curr.children = new Map();
+                const restored = new Map();
+                for (const [cn, ci] of pkids) restored.set(cn, Object.assign({}, ci, { _liveEvidence: true }));
+                curr.children.set(zone, restored);
+            }
+            stillPending.add(zone);
+        } else {
+            // 90초 연속 부재 — 진짜 해제 확정 (이어받기 중단 → diff 가 CURRENT_CHANGE 해제 발사)
+            console.log(`[Marine] 부모 해제 확정(디바운스 ${Math.round((now - p.firstMissingAt) / 1000)}초 경과): ${zone}`);
+            delete _parentReleasePending[zone];
+        }
+    }
+
+    // prev 에 없어진(=이미 확정 처리됐거나 대상 아님) 잔여 관찰 기억 정리 — 메모리 누수 방지.
+    for (const z of Object.keys(_parentReleasePending)) {
+        if (!stillPending.has(z)) delete _parentReleasePending[z];
     }
 }
 
@@ -4330,6 +4444,14 @@ async function run(opts = {}) {
         //    관리자 결정(normal/invalid) 전까지 자동 처리 안 됨 (10분마다 재push).
         //    정상 해제 (clr_ntc_tm 등록) 는 영향 받지 않음.
         const prevForDiff = _prevSnapshot;
+
+        // 4-0) [부모 해제 디바운스 — §7.7.28] 발효중 부모가 사라지면 1분 30초 이어받아 관찰.
+        //    의심 가드보다 **먼저** 돌려야 한다: ①관찰 중엔 zone 이 살아 있어 의심 사례가 헛돌지 않고
+        //    ②자식 해제 디바운스의 "부모 없으면 건너뜀" 게이트가 풀려 자식 보호도 함께 살아난다.
+        //    (2026-09-07 20:52 글리치 — 발효중 10곳 전멸 후 45초 만에 복귀했는데, 예비만 보호되고
+        //     발효중은 무방비라 해제 914명 + 재발효 1523명 오발송.)
+        _applyParentReleaseDebounce(prevForDiff, curr);
+
         _applySuspiciousGuard(prevForDiff, curr);
 
         // 4-B) [자식 해제 디바운스] 해제예고 없이 사라진 자식을 3분 관찰 — 글리치성
@@ -4519,6 +4641,11 @@ module.exports = {
     CONFIRM_PENDING_FILE,
     CONFIRM_WINDOW_MS,
     _applyChildReleaseDebounce,
+    // [§7.7.28] 부모 해제 디바운스 (테스트용 노출)
+    _applyParentReleaseDebounce,
+    _isScheduledRelease,
+    _parentReleasePending,
+    PARENT_RELEASE_DEBOUNCE_MS,
     _updateExtensionMemory,
     _timeKey,
     _applyAnnounceAnchor,
