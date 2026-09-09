@@ -9,9 +9,12 @@
  *             + 챗봇 노출 토글(서버 전역 설정)을 렌더한다.
  *         (B) 사용자 챗봇 — 우측 하단 FAB + 카카오톡풍 채팅 팝업(생각중·스켈레톤·
  *             근거법령 아코디언 = 위임흐름 체인 + 조문 카드를 누르면 뜨는 조문 원문 팝업).
- *             헤더 🕘 는 이 기기에 저장해둔 **지난 대화 기록**(localStorage
- *             'nariya_history_v1' — 질문·답변 문장만, 근거 법령은 저장 안 함)을
- *             날짜별 목록으로 열고, 항목을 누르면 그 질문/답변을 말풍선으로 되살린다.
+ *             헤더 [대화이력] 은 이 기기에 저장해둔 **지난 대화 기록**(localStorage
+ *             'nariya_history_v1')을 **대화 단위**로 묶어 열고(2026-09-09 ⑥ — 채팅창을
+ *             연 뒤 닫기 전까지가 한 대화다), 한 줄을 누르면 그 대화에서 오간 질문·답변이
+ *             순서대로 이어 붙는다. 대화 식별자가 없는 옛 기록은 날짜별로 묶어 보여준다.
+ *             헤더 [내 정보] 는 온디바이스 프로필 화면을 연다(2026-09-09 ② — 예전에는
+ *             ⚙·🕘 아이콘이었으나 무엇인지 알 수 없다는 지적으로 글자 버튼이 됐다).
  *             #nrya-overlays(body) 에 산다.
  *         FAB 는 (1) 앱 메인 특보 탭일 때만, (2) 서버 노출설정이 허용할 때만 보인다.
  *         (초보자용: 이 파일이 관리자용 나리야 콘솔과 사용자용 챗봇 버튼/창을 만든다)
@@ -536,7 +539,17 @@
     var r = ROOMS[k]; var host = document.getElementById('nryaRoomContent'); if (!host) return;
     var intro = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">' + r.ic + '</div><div><div class="nrya-intro-name">' + esc(k) + ' 방</div><div class="nrya-intro-tag">' + esc(r.tag) + '</div></div></div>' +
       '<div class="nrya-intro-desc">' + r.desc + '</div><div class="nrya-intro-meta">' + r.meta.map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('') + '</div></div>';
-    host.innerHTML = intro + r.render() + '<div class="nrya-foot-note">대표 예시 · 실제 데이터는 해당 방 폴더에서 로드됩니다.</div>';
+    // ⚠2026-09-09: 종전 문구는 "실제 데이터는 해당 방 폴더에서 로드됩니다" 였는데, **로드하는 코드가
+    //   없다.** 위 갈래 버튼 숫자도 아래 목록도 전부 ROOMS 에 박아 넣은 상수이고, 그 값은
+    //   client/mockups/ai_chat_rooms.html 의 디자인 시안을 그대로 옮긴 것이다.
+    //   실제와 크게 어긋난다(2026-09-09 실측): 위키개념 919↔963 · 비교허브 26↔49 ·
+    //   별표서식 98↔199 · 그래프 88노드/1,310엣지↔109노드/2,180엣지 ·
+    //   개념 status canonical 8↔734 · draft 842↔226.
+    //   특히 **시행일자가 위험하다** — 선박안전법 화면 2025-01-24 ↔ 원문 2023-06-28,
+    //   수산업법 2024-12-20 ↔ 2026-04-23, 해양환경관리법 2025-07-25 ↔ 2026-07-01,
+    //   수상레저안전법 2024-07-31 ↔ 2025-06-21. 관리자가 이 화면을 보고 원문 최신판을
+    //   오인할 수 있다. 실데이터 API 가 붙기 전까지는 **예시임을 분명히 말한다.**
+    host.innerHTML = intro + r.render() + '<div class="nrya-foot-note">⚠ 위 숫자와 아래 목록은 <b>화면 설계 예시</b>입니다 — 실제 데이터가 아니며 시행일자도 실제와 다릅니다.</div>';
     bindAcc();
   }
 
@@ -1527,7 +1540,11 @@
       return res.json().catch(function () { return null; });
     }).then(function (data) {
       if (!data || !data.ok) return;
-      adminStatsCache = { draft: data.draft, feedback: data.feedback, candidates: data.candidates, amendments: data.amendments };
+      // ⚠2026-09-09: `freshness` 가 빠져 있어 관리자 화면 '원문신선도' 배지에 `undefined` 가
+      //   그대로 찍히고 있었다(끝 탭이라 잘려 `undefine` 으로 보였다). 서버는
+      //   routes/legal.js:599 에서 정상적으로 보내고 있고 ADMIN_STAT_KEY 도 'freshness' 로
+      //   매핑돼 있었다 — 받는 쪽 한 칸만 빠진 것이었다.
+      adminStatsCache = { draft: data.draft, feedback: data.feedback, candidates: data.candidates, amendments: data.amendments, freshness: data.freshness };
       renderSubtabs(curAdminSubtab); // 현재 보고 있는 탭을 유지한 채 배지만 최신화
     }).catch(function () { /* 무시 */ });
   }
@@ -1557,17 +1574,20 @@
         '<div class="nrya-chat">' +
           '<div class="nrya-chat-top">' +
             '<div class="nrya-ava" id="nryaChatOrb"><img src="' + NARIYA_IMG + '" alt="나리야"></div>' +
-            '<div><div class="nrya-chat-name">해양법령 도우미</div></div>' +
+            '<div class="nrya-chat-titles"><div class="nrya-chat-name">해양법령 도우미</div></div>' +
             '<div class="nrya-chat-acts">' +
               '<button class="nrya-chat-x nrya-chat-back" id="nryaChatBack" title="뒤로" style="display:none">‹</button>' +
-              // [H-37 §7.2] 나에 대해서 설명하기(온디바이스 프로필) — 이 기기에만 저장된다
-              '<button class="nrya-chat-x nrya-chat-prof" id="nryaChatProf" title="나에 대해서 설명하기">⚙</button>' +
-              '<button class="nrya-chat-x nrya-chat-hist" id="nryaChatHist" title="대화 기록">🕘</button>' +
+              // [H-37 §7.2] 나에 대해서 설명하기(온디바이스 프로필) — 이 기기에만 저장된다.
+              // ②2026-09-09: 톱니(⚙)·시계(🕘) 아이콘을 **글자 버튼**으로 바꿨다 — 사용자 지적
+              //   "아이콘만으로는 무엇인지 알 수 없다". 여는 화면·동작은 하나도 안 바뀐다.
+              '<button class="nrya-chat-x nrya-chat-txt nrya-chat-prof" id="nryaChatProf" title="나에 대해서 설명하기">내 정보</button>' +
+              '<button class="nrya-chat-x nrya-chat-txt nrya-chat-hist" id="nryaChatHist" title="대화 기록">대화이력</button>' +
               '<button class="nrya-chat-x" id="nryaChatX">×</button>' +
             '</div>' +
           '</div>' +
           '<div class="nrya-chat-body" id="nryaChatBody">' +
-            '<div class="nrya-krow nrya-ai"><div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div></div></div></div>' +
+            // ⑦ 아바타(.nrya-kava)를 뺐다 — 답변 영역을 왼쪽 끝까지 넓게 쓴다(이름 줄은 유지).
+            '<div class="nrya-krow nrya-ai"><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div></div></div></div>' +
           '</div>' +
           // 대화 기록(기기 저장) 목록 화면 — 열릴 때만 보이고 그동안 위 대화 영역은 숨는다
           '<div class="nrya-hist" id="nryaHistPanel" style="display:none"></div>' +
@@ -1676,6 +1696,7 @@
   function openChat() {
     ensureOverlays();
     var wrap = document.getElementById('nryaChatWrap'); if (!wrap) return;
+    startConversation();          // ⑥ 이번에 연 창이 "한 대화"의 시작이다(기록을 이 단위로 묶는다)
     wrap.classList.add('nrya-open');
     ensureAliases();              // 답변 본문의 「약칭」을 정식명으로 맞춰볼 표를 미리 받아둔다
     setUnread(0);                 // 열어서 보는 순간 안읽음 해제
@@ -1691,6 +1712,7 @@
     removeVV();
     // 답이 오기 전에 채팅창을 닫으면 동의배너 타이머도 취소한다 — 안 보는 사이 뜬금없이 뜨지 않게.
     if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; }
+    chatConvEnded = true; // ⑥ 이 대화는 여기서 끝 — 다음에 열 때 startConversation 이 새 번호를 딴다
     closeHistory(true);   // 기록 화면을 켜둔 채 닫았어도 다음에 열면 평소 대화 화면부터
   }
 
@@ -1701,9 +1723,30 @@
   //    버튼이 통째로 사라지는 게 더 나쁘다는 실사용 지적으로 저장 대상을 넓혔다). HISTORY_MAX=200건
   //    기준 늘어나는 용량은 수백 KB 안팎으로 추정(로컬 저장 한도 대비 미미).
 
+  // ── ⑥ 대화 단위 묶기(2026-09-09 사용자 지적) ──────────────────────────────────
+  //   증상: 9월 7일에 **한 대화창에서 이어서 물은 것**이 목록에 4줄로 나뉘어 떠 연속성이 안 보였다.
+  //   원인: pushHistory 가 질문 하나·답변 하나를 한 건으로 저장하고, 목록도 그 건마다 한 줄이었다.
+  //   고침: 채팅창을 연 순간부터 닫을 때까지를 **한 대화(cid)** 로 보고, 그 대화 안의 질문들을
+  //         한 줄로 묶어 보여준다. 줄을 누르면 그 대화에서 오간 것을 순서대로 이어 붙인다.
+  //   ⚠기존에 기기에 쌓인 옛 기록에는 cid 가 없다 — **지우지 않는다.** cid 없는 건은 예전처럼
+  //     날짜로 묶어(그날 = 한 묶음) 보여준다. 저장 파일은 손대지 않고 읽는 쪽만 바뀐다.
+  var chatConvId = null;        // 지금 진행 중인 대화의 식별자(메모리에만 — 새로고침하면 새 대화)
+  var chatConvEnded = false;    // 창을 닫았나(닫힌 뒤 도착한 늦은 답변은 **그 대화에** 남긴다)
+
+  /**
+   * 채팅창을 열 때 부른다 — 이번에 연 것이 새 대화면 새 번호를 딴다.
+   * 예: 처음 열면 'c1757...' 발급 · 닫았다 다시 열면 새 번호 · 안 닫고 계속 쓰면 같은 번호
+   * [연계] ← openChat. → pushHistory(저장할 때 이 번호를 함께 남긴다).
+   */
+  function startConversation() {
+    if (chatConvId && !chatConvEnded) return;   // 안 닫고 계속 쓰는 중이면 같은 대화다
+    chatConvId = 'c' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+    chatConvEnded = false;
+  }
+
   /**
    * 저장된 대화 기록을 배열로 읽는다(없거나 깨졌으면 빈 배열 — 절대 예외를 던지지 않는다).
-   * @returns {Array<{q:string,a:string,note:string,sources:Array,chain:Array,forms:Array,ts:number}>} 오래된 것부터
+   * @returns {Array<{q:string,a:string,note:string,sources:Array,chain:Array,forms:Array,cid:string,ts:number}>} 오래된 것부터
    */
   function loadHistory() {
     try {
@@ -1719,7 +1762,7 @@
    * 예: pushHistory('5톤 낚시어선 야간조업?', {answer:'…', note:'…', citationChain:[…], forms:[…]})
    * @param {string} q - 사용자 질문
    * @param {object} data - done 응답({answer, note, sources, citationChain, forms})
-   * [연계] ← doSend 의 최종 렌더 직후(되묻기·오류 제외). → openHistory 목록, openHistoryEntry.
+   * [연계] ← doSend 의 최종 렌더 직후(되묻기·오류 제외). → openHistory 목록, openHistoryGroup.
    */
   function pushHistory(q, data) {
     try {
@@ -1731,6 +1774,10 @@
         // ★2026-08-18: 대화 맥락도 함께 남긴다 — 없으면 기록에서 다시 연 답변의 "🔁 관련해서 더
         //   궁금해요"가 빈손이 되어, 이어 물으면 주제가 안 실린다(푸시 복원과 같은 결함).
         ctxNext: (data && data.ctxNext) || null,
+        // ⑥ 이 질문이 **어느 대화**에서 나왔는지. 창을 닫기 전까지는 같은 값이라, 목록에서 한 줄로 묶인다.
+        //   ⚠늦게 도착한 답변(창을 닫은 뒤 도착)도 그 대화 번호를 그대로 쓴다 — 그래야 원래
+        //     묻던 흐름에 남는다. 새 번호는 **다음에 창을 열 때** startConversation 이 딴다.
+        cid: chatConvId || '',
         ts: Date.now(),
       });
       if (arr.length > HISTORY_MAX) arr = arr.slice(arr.length - HISTORY_MAX);
@@ -1758,23 +1805,60 @@
     return Math.floor(s / 86400) + '일 전';
   }
 
+  /** 한 기록 건이 속한 **묶음 열쇠**. cid 가 있으면 그 대화, 없는 옛 기록은 그 날짜로 묶는다.
+   * 예: {cid:'c17…'} → 'c:c17…' · cid 없는 2026-09-07 건 → 'd:2026-9-7'
+   * @param {object} e - loadHistory() 원소 @returns {string}
+   * [연계] ← historyGroups. ⚠옛 기록에 cid 를 **써 넣지 않는다**(기록 파일은 읽기만 한다).
+   */
+  function histGroupKey(e) {
+    if (e && e.cid) return 'c:' + e.cid;
+    var d = new Date((e && e.ts) || 0);
+    return 'd:' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  }
+
+  /**
+   * 저장된 기록을 **대화 단위**로 묶어 최신 대화부터 돌려준다(대화 안은 물어본 순서 그대로).
+   * 예: 9월 7일 한 창에서 4번 이어 물었으면 → 묶음 1개(items 4개)
+   * @returns {Array<{key:string, items:Array, ts:number}>} ts 는 그 대화의 마지막 질문 시각
+   * [연계] ← historyListHTML(목록 한 줄 = 묶음 하나) · openHistoryGroup(누르면 items 를 순서대로 되살린다).
+   */
+  function historyGroups() {
+    var list = loadHistory(), map = {}, order = [];
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i] || {}, k = histGroupKey(e);
+      if (!map[k]) { map[k] = { key: k, items: [], ts: 0 }; order.push(map[k]); }
+      map[k].items.push(e);
+      if ((e.ts || 0) > map[k].ts) map[k].ts = e.ts || 0;
+    }
+    // 최신 대화가 위로. ⚠나온 순서를 뒤집는 게 아니라 **시각으로** 정렬한다 — 창을 닫은 뒤
+    //   늦게 도착한 답변이 옛 대화에 붙으면(pushHistory 주석) 그 대화가 목록에서 다시 위로
+    //   올라와야 하는데, 뒤집기만 하면 저장 순서에 눌려 엉뚱한 자리에 남는다.
+    order.sort(function (a, b) { return b.ts - a.ts; });
+    return order;
+  }
+
   /**
    * 기록 목록 HTML(최신 → 과거, 날짜 머리글로 묶음)을 만든다. 질문이 길면 CSS 로 말줄임한다.
+   * ⑥한 줄 = **한 대화**다(예전엔 한 줄 = 질문 하나여서 이어 물은 대화가 여러 줄로 쪼개져 보였다).
+   * 줄에 적는 질문은 그 대화의 **첫 질문**이고, 질문이 둘 이상이면 개수를 알약으로 덧붙인다.
    * @returns {string} HTML(기록이 없으면 안내 문구)
    */
   function historyListHTML() {
-    var list = loadHistory();
-    if (!list.length) {
+    var groups = historyGroups();
+    if (!groups.length) {
       return '<div class="nrya-hist-empty">아직 저장된 대화가 없어요.<br>질문하고 답변을 받으면 여기에 쌓입니다.</div>';
     }
     var html = '', lastDay = '';
-    for (var i = list.length - 1; i >= 0; i--) {
-      var e = list[i] || {};
-      var day = histDayLabel(e.ts);
+    for (var i = 0; i < groups.length; i++) {
+      // e = 그 대화의 **첫 기록 건**(줄 제목에 쓴다). ⚠이름을 바꾸지 말 것 — 회귀 스위트
+      //   test_ask_context 가 `splitAskedQuery(e.q).question` 을 글자 그대로 잠가 두었다.
+      var g = groups[i], e = g.items[0] || {};
+      var day = histDayLabel(g.ts);
       if (day !== lastDay) { lastDay = day; html += '<div class="nrya-hist-day">' + esc(day) + '</div>'; }
-      html += '<button type="button" class="nrya-hist-item" data-ts="' + esc(String(e.ts)) + '">' +
+      html += '<button type="button" class="nrya-hist-item" data-g="' + esc(g.key) + '">' +
         '<span class="nrya-hist-q">' + esc(splitAskedQuery(e.q).question || '(질문 없음)') + '</span>' +
-        '<span class="nrya-hist-t">' + esc(histTimeLabel(e.ts)) + '</span>' +
+        (g.items.length > 1 ? '<span class="nrya-hist-n">질문 ' + g.items.length + '개</span>' : '') +
+        '<span class="nrya-hist-t">' + esc(histTimeLabel(g.ts)) + '</span>' +
       '</button>';
     }
     return html;
@@ -1841,12 +1925,57 @@
   //   ⚠톤수·길이는 버튼이 아니라 숫자 입력이다 — `tonnage_facet.json`의 임계값은 **법마다 다른**
   //     경계라 하나의 공통 구간표가 없고, 그걸 클라이언트에 상수로 박으면 자산이 바뀔 때 화면이
   //     거짓말을 한다(L-81 "데이터의 범위를 코드가 산문으로 단언하지 말 것"). → 설계 대비 변경점.
+  // ── ⑤ 어업 종류 목록(2026-09-09) ─────────────────────────────────────────────
+  //   예전에는 칩 4개('연안자망'·'근해통발'·'양식'·'그 밖')뿐이라 실제로 하는 어업을 고를 수 없었다
+  //   (사용자 지적). 아래 목록은 **전부 우리 raw 원문에서 그대로 옮긴 것이고, 지어낸 이름이 없다.**
+  //   가져온 자리(법령명·조문·시행일)는 다음과 같다 — 값이 라벨과 글자까지 같아야 서버의 축 대조가
+  //   성립하므로(설계 §7.4.2 · legal_retriever.js profileConfirmStep 은 **완전일치**만 본다) 원문 표기를
+  //   한 글자도 고치지 않았다.
+  //     · 면허어업  : raw/05_수산어업/수산업법/시행령.txt 제6조(정치망어업 3종, 2026-07-01 시행) +
+  //                   수산업법 법률.txt 제7조제1항제2호(마을어업, 2026-04-23 시행)
+  //     · 근해어업  : 같은 시행령 제21조제1항 1~21호 (21종)
+  //     · 연안어업  : 같은 시행령 제22조제1항 1~8호 (8종). 8호 '연안복합어업'의 가~마목
+  //                   (낚시어업·문어단지어업·손꽁치어업·패류껍질어업·패류미끼망어업)도 같은 묶음에 넣었다
+  //     · 구획어업  : 같은 시행령 제23조제1항 1~12호 (12종)
+  //     · 신고어업  : 같은 시행령 제26조제1항 1~2호 (나잠어업·맨손어업)
+  //     · 양식업    : raw/05_수산어업/양식산업발전법/법률.txt 제10조제1항(면허 7종) ·
+  //                   제43조제1항(허가 2종, 2025-01-24 시행)
+  //   ⚠못 담은 갈래(정직 기록): ①한시어업(수산업법 제43조)은 그때그때 시·도지사가 정하는 것이라
+  //     원문에 **종류 목록 자체가 없다** ②시험·연구·교습어업(제46조)도 마찬가지다 ③내수면어업법의
+  //     내수면 어업 종류는 이 앱(바다)의 범위 밖이라 넣지 않았다. 이 셋은 아래 "직접 입력"으로 적는다.
+  var FISHERY_TYPES = [
+    { g: '면허어업 (수산업법 제7조)', opts: ['대형정치망어업', '중형정치망어업', '소형정치망어업', '마을어업'] },
+    { g: '허가어업 — 근해어업 (시행령 제21조)', opts: [
+      '외끌이대형저인망어업', '쌍끌이대형저인망어업', '동해구외끌이중형저인망어업', '서남해구외끌이중형저인망어업',
+      '서남해구쌍끌이중형저인망어업', '대형트롤어업', '동해구중형트롤어업', '대형선망어업', '소형선망어업',
+      '근해채낚기어업', '근해자망어업', '근해안강망어업', '근해봉수망어업', '근해자리돔들망어업',
+      '근해장어통발어업', '근해문어단지어업', '근해통발어업', '근해연승어업', '근해형망어업',
+      '기선권현망어업', '잠수기어업'] },
+    { g: '허가어업 — 연안어업 (시행령 제22조)', opts: [
+      '연안개량안강망어업', '연안선망어업', '연안통발어업', '연안조망어업', '연안선인망어업',
+      '연안자망어업', '연안들망어업', '연안복합어업',
+      '낚시어업', '문어단지어업', '손꽁치어업', '패류껍질어업', '패류미끼망어업'] },
+    { g: '허가어업 — 구획어업 (시행령 제23조)', opts: [
+      '건간망어업', '건망어업', '들망어업', '선인망어업', '승망류어업', '안강망어업', '장망류어업',
+      '지인망어업', '해선망어업', '새우조망어업', '실뱀장어안강망어업', '패류형망어업'] },
+    { g: '신고어업 (시행령 제26조)', opts: ['나잠어업', '맨손어업'] },
+    { g: '양식업 — 면허 (양식산업발전법 제10조)', opts: [
+      '해조류양식업', '패류양식업', '어류등양식업', '복합양식업', '협동양식업', '외해양식업', '내수면양식업'] },
+    { g: '양식업 — 허가 (양식산업발전법 제43조)', opts: ['육상해수양식업', '육상등 내수양식업'] },
+  ];
+
   var PROFILE_MENU = [
     { k: '직군', opts: ['어업인', '비어업인', '해양종사자', '공무원', '그 밖'] },
     { k: '선박용도', opts: ['낚시어선', '어선', '레저', '일반'] },
-    { k: '톤수', input: '숫자만(예: 9.77) — 총톤수', suffix: '톤' },
-    { k: '길이', input: '숫자만(예: 12) — 선박 길이', suffix: '미터' },
-    { k: '어업종류', opts: ['연안자망', '근해통발', '양식', '그 밖'] },
+    // ④톤수·길이는 한 줄에 나란히 놓고 단위를 칸 오른쪽에 붙인다(2026-09-09 사용자 확정).
+    //   저장값에는 예전 그대로 우리말 단위를 붙인다("9.77" → "9.77톤") — 서버로 가는 값의 모양이
+    //   바뀌면 안 되기 때문이다. 화면에 보이는 단위(t·m)와 저장 단위(톤·미터)는 일부러 다르다.
+    { pair: [
+      { k: '톤수', unit: 't', suffix: '톤', ph: '예: 9.77' },
+      { k: '길이', unit: 'm', suffix: '미터', ph: '예: 12' },
+    ] },
+    // ⑤칩 4개 → 글자를 치면 걸러지는 드롭다운(FISHERY_TYPES). 목록에 없는 것도 직접 적어 저장할 수 있다.
+    { k: '어업종류', search: FISHERY_TYPES },
     { k: '면허·자격', opts: ['소형선박조종사', '해기사', '없음'] },
     { k: '주 조업구역', opts: ['특정해역', '조업자제해역', '일반해역', '해외수역'] },
     { k: '야간조업', opts: ['예', '아니오'] },
@@ -1898,6 +2027,85 @@
     return !!(p && p.style.display !== 'none');
   }
 
+  /**
+   * 프로필 항목 하나의 머리글 줄("직군  현재: 어업인 (2026-09-09 저장)")을 만든다.
+   * 예: profLabelHTML('톤수', {v:'9.77톤', at:'2026-09-09T…'}) → '<div …>톤수 <span …>현재: 9.77톤 …</span></div>'
+   * @param {string} k - 항목 이름 @param {object} [cur] - 저장된 값 {v, at}
+   * @returns {string} HTML
+   * [연계] ← profPanelHTML(세 갈래 — 칩·숫자쌍·검색 — 이 같은 머리글을 쓴다).
+   *          `nrya-prof-cur` 는 ④ 숫자칸이 화면을 다시 그리지 않고 이 자리만 갱신할 때 쓴다.
+   */
+  function profLabelHTML(k, cur) {
+    return '<div class="nrya-hist-day">' + esc(k) +
+      ' <span class="nrya-hist-t nrya-prof-cur" data-k="' + esc(k) + '">' + esc(profCurText(cur)) + '</span></div>';
+  }
+
+  /** 머리글에 적을 "현재: …" 문구(저장값이 없으면 빈 문자열). @param {object} [cur] @returns {string} */
+  function profCurText(cur) {
+    if (!cur || !cur.v) return '';
+    return '현재: ' + cur.v + (cur.at ? ' (' + String(cur.at).slice(0, 10) + ' 저장)' : '');
+  }
+
+  /**
+   * ④ 톤수·길이 두 칸을 한 줄에 그린다(단위는 칸 오른쪽). [저장] 버튼은 두지 않는다.
+   * 예: profPairHTML(PROFILE_MENU[2], loadProfile()) → '톤수 [9.77] t | 길이 [12] m'
+   * @param {object} m - PROFILE_MENU 의 { pair:[{k,unit,suffix,ph}, …] } 항목
+   * @param {object} p - loadProfile() 결과
+   * @returns {string} HTML
+   * [연계] ← profPanelHTML. → bindChat 의 nrya-prof-num 입력/blur 처리(숫자만 + 손 떼면 저장).
+   *   ⚠[저장] 버튼을 없앤 이유: 한 줄에 칸 둘·단위 둘·버튼 둘은 360px 화면에 들어가지 않는다.
+   *     그리고 이 패널의 다른 항목(칩)은 이미 **누르는 즉시** 저장한다 — 숫자칸만 버튼을 요구하면
+   *     같은 화면 안에서 저장 방식이 둘로 갈린다. 그래서 "칸에서 손을 떼면 저장"으로 맞췄다.
+   */
+  function profPairHTML(m, p) {
+    var cells = m.pair.map(function (f) {
+      var cur = p.fields[f.k];
+      // 저장값에는 우리말 단위가 붙어 있다("9.77톤") — 칸에는 숫자만 되돌려 놓는다.
+      var num = String((cur && cur.v) || '').replace(f.suffix, '');
+      return '<div class="nrya-prof-cell">' + profLabelHTML(f.k, cur) +
+        '<div class="nrya-prof-numrow">' +
+          // data-init = 그릴 때 넣은 값. blur 저장이 **손댔을 때만** 일어나게 하는 표식이다
+          // (아래 saveProfNum 주석 참고 — 안 그러면 그냥 눌렀다 뗀 것만으로 값이 지워진다).
+          '<input class="nrya-prof-num" inputmode="decimal" data-k="' + esc(f.k) + '" data-suffix="' + esc(f.suffix) + '"' +
+            ' data-init="' + esc(num) + '" placeholder="' + esc(f.ph) + '" value="' + esc(num) + '">' +
+          '<span class="nrya-prof-unit">' + esc(f.unit) + '</span>' +
+        '</div></div>';
+    }).join('');
+    return '<div class="nrya-prof-pair">' + cells + '</div>';
+  }
+
+  /**
+   * ⑤ 어업종류 — 글자를 치면 걸러지는 드롭다운을 그린다(목록은 FISHERY_TYPES = 법령 원문).
+   * 예: '통발' 이라고 치면 근해통발어업·근해장어통발어업·연안통발어업만 남는다
+   * @param {object} m - PROFILE_MENU 의 { k, search:[{g,opts}] } 항목
+   * @param {object} [cur] - 저장된 값 {v, at}
+   * @returns {string} HTML
+   * [연계] ← profPanelHTML. → bindChat 의 nrya-prof-search 입력 처리(filterProfList) ·
+   *          nrya-prof-opt 클릭(그 값으로 저장).
+   *   ⚠목록에 없는 것도 그대로 저장할 수 있게 뒀다(맨 아래 "직접 입력"). 이유 두 가지 —
+   *     ①한시어업·시험어업·내수면 어업처럼 **원문에 종류 목록 자체가 없는** 갈래가 실제로 있다.
+   *     ②서버는 프로필 값이 되묻기 선택지 라벨과 **글자까지 같을 때만** 그 축을 쓴다
+   *       (legal_retriever.js profileConfirmStep). 목록 밖 값은 그 대조에 안 걸릴 뿐이고,
+   *       걸리지 않으면 평소대로 되묻는다 — 막는 것보다 안전하다.
+   */
+  function profSearchHTML(m, cur) {
+    var curV = (cur && cur.v) || '';
+    var rows = m.search.map(function (grp) {
+      return '<div class="nrya-prof-grp" data-grp="1">' + esc(grp.g) + '</div>' +
+        grp.opts.map(function (o) {
+          return '<button type="button" class="nrya-prof-opt nrya-prof-pick' + (o === curV ? ' nrya-prof-cur-opt' : '') +
+            '" data-k="' + esc(m.k) + '" data-v="' + esc(o) + '">' + esc(o) + '</button>';
+        }).join('');
+    }).join('');
+    return '<input class="nrya-prof-search" data-k="' + esc(m.k) + '" placeholder="어업 이름을 치면 걸러져요(예: 통발)">' +
+      '<div class="nrya-prof-list">' + rows +
+        '<div class="nrya-prof-none" hidden>목록에 없어요. 아래 “직접 입력”으로 그대로 저장할 수 있어요.</div>' +
+        '<button type="button" class="nrya-prof-opt nrya-prof-free" data-k="' + esc(m.k) + '" hidden></button>' +
+      '</div>' +
+      (curV ? '<div class="nrya-consent-btns nrya-prof-row"><button type="button" class="nrya-consent-btn nrya-prof-btn"' +
+        ' data-k="' + esc(m.k) + '" data-v="">이 항목 지우기</button></div>' : '');
+  }
+
   /** 프로필 화면 HTML(저장된 값 + 카테고리별 버튼/입력). @returns {string} */
   function profPanelHTML() {
     var p = loadProfile();
@@ -1905,10 +2113,12 @@
       '<div class="nrya-disc">여기 적은 내용은 <b>이 기기에만</b> 저장돼요. 답이 조건에 따라 갈릴 때 ' +
       '나리야가 "저장된 정보로 답할까요?"라고 먼저 확인해요.</div>';
     PROFILE_MENU.forEach(function (m, mi) {
+      if (m.pair) { h += profPairHTML(m, p); return; }          // ④ 톤수·길이(한 줄·숫자만)
       var cur = p.fields[m.k];
-      h += '<div class="nrya-hist-day">' + esc(m.k) +
-        (cur ? ' <span class="nrya-hist-t">현재: ' + esc(cur.v) + (cur.at ? ' (' + esc(String(cur.at).slice(0, 10)) + ' 저장)' : '') + '</span>' : '') +
-        '</div><div class="nrya-consent-btns">';
+      h += profLabelHTML(m.k, cur);
+      if (m.search) { h += profSearchHTML(m, cur); return; }     // ⑤ 어업종류(검색 드롭다운)
+      // ③ 칩 줄. nrya-prof-row 가 붙어야 글자가 접히는 대신 **버튼째** 다음 줄로 넘어간다(CSS 참고).
+      h += '<div class="nrya-consent-btns nrya-prof-row">';
       if (m.opts) {
         h += m.opts.map(function (o) {
           return '<button type="button" class="nrya-consent-btn nrya-prof-btn" data-k="' + esc(m.k) + '" data-v="' + esc(o) + '">' + esc(o) + '</button>';
@@ -1921,8 +2131,50 @@
       if (cur) h += '<button type="button" class="nrya-consent-btn nrya-prof-btn" data-k="' + esc(m.k) + '" data-v="">이 항목 지우기</button>';
       h += '</div>';
     });
-    h += '<div class="nrya-consent-btns"><button type="button" class="nrya-consent-btn nrya-prof-reset">전체 초기화</button></div>';
+    h += '<div class="nrya-consent-btns nrya-prof-row"><button type="button" class="nrya-consent-btn nrya-prof-reset">전체 초기화</button></div>';
     return h;
+  }
+
+  /** ③ 칩 자간을 좁혀 볼 단계(사용자 표현 "자간 -10" = 최대 -0.10em). 왼쪽이 평소 자간이다. */
+  var PROF_CHIP_TRACKING = ['', '-0.02em', '-0.04em', '-0.06em', '-0.08em', '-0.10em'];
+
+  /**
+   * ③ 칩 줄("어업인"·"비어업인"…)의 자간을 **필요한 만큼만** 좁힌다(최대 -0.10em).
+   * 예: 어떤 줄이 평소 자간이면 3줄인데 -0.06em 이면 2줄로 줄어든다 → -0.06em 을 고른다.
+   *     원래 한 줄에 들어가는 줄(면허·자격 칩 3개 등)은 아무것도 안 건드린다(빈 문자열 = 평소 자간).
+   *     좁혀도 줄 수가 그대로면 역시 평소 자간을 남긴다(아래 [실측 기록] 참고).
+   * @param {HTMLElement} root - 프로필 패널(#nryaProfPanel)
+   * @returns {void}
+   * [연계] ← openProf(패널을 그린 직후 — 화면에 붙은 뒤라야 높이를 잴 수 있다).
+   *          CSS 의 .nrya-prof-row(flex-wrap)·.nrya-prof-btn(nowrap)과 한 몸이다.
+   *   [고른 방법] "한 줄에 들어가나"가 아니라 **줄 수를 재서** 고른다. 자간을 다 좁혀도 한 줄이
+   *     안 되는 줄(직군 5칩이 실제로 그렇다)에서 "한 줄 기준"만 보면 목표를 못 이뤘는데도
+   *     -0.10em 이 그대로 남아 글자만 빽빽해진다. 줄 수로 재면 ①한 줄에 들어가면 자간을 안 건드리고
+   *     ②안 들어가면 줄 수를 가장 적게 만드는 **가장 느슨한** 자간을 고른다 — 사용자가 말한
+   *     "좁혀서 맞춰 보고, 그래도 안 되면 다음 줄로"가 두 경우 모두에서 그대로 성립한다.
+   *   ⚠여기까지가 전부다. 글자 크기를 줄이거나 버튼을 좁히지 않는다(읽을 수 없게 되는 쪽이 더 나쁘다).
+   *     남은 넘침은 CSS 의 flex-wrap 이 버튼째 다음 줄로 내려 해결한다.
+   *   [실측 기록 2026-09-09] 화면 폭 300~440px 을 10px 씩 훑어 재 보니, 지금 칩 글자와 11.5px 글자
+   *     크기에서는 **-0.10em 까지 좁혀도 줄 수가 안 줄어든다**(칩 하나가 50~70px 인데 -0.10em 로
+   *     아끼는 건 칩당 3~5px 뿐이다). 그래서 실제로는 늘 '평소 자간'이 골라지고, 넘치는 칩은 아래
+   *     flex-wrap 이 다음 줄로 내린다 — 사용자가 말한 2단계 중 **2단계가 실제로 작동하는 쪽**이다.
+   *     이 함수를 남겨 두는 이유는 칩 글자가 바뀌거나(예: 라벨 추가) 화면이 넓어져 **한 칩 차이로
+   *     갈리는 경우**가 생기면 그때 자동으로 좁혀 주기 때문이고, 재 보고 고르므로 헛되이 좁히지 않는다.
+   */
+  function fitProfChips(root) {
+    if (!root) return;
+    var rows = root.querySelectorAll('.nrya-prof-row');
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (row.children.length < 2) continue;       // 버튼 하나짜리 줄은 좁힐 이유가 없다
+      var last = PROF_CHIP_TRACKING[PROF_CHIP_TRACKING.length - 1];
+      row.style.letterSpacing = last;
+      var best = row.offsetHeight;                 // 가장 좁혔을 때의 줄 수(=최소 높이)
+      for (var k = 0; k < PROF_CHIP_TRACKING.length; k++) {
+        row.style.letterSpacing = PROF_CHIP_TRACKING[k];
+        if (row.offsetHeight <= best) break;       // 같은 줄 수를 내는 가장 느슨한 자간에서 멈춘다
+      }
+    }
   }
 
   /** 프로필 화면을 연다(대화 영역을 숨기고 패널을 채운다 — 기록 화면과 같은 방식). */
@@ -1934,6 +2186,7 @@
     panel.scrollTop = 0;
     var body = document.getElementById('nryaChatBody'); if (body) body.style.display = 'none';
     setHistHeader(true);
+    fitProfChips(panel);   // ③ 칩 글자가 두 줄로 접히지 않게 자간을 좁혀 맞춘다(패널이 보인 뒤에 재야 한다)
   }
 
   /** 프로필 화면을 닫고 대화 화면으로 되돌린다. */
@@ -1946,20 +2199,35 @@
   }
 
   /**
-   * 기록 항목을 눌렀을 때: 그 질문/답변을 평소 말풍선 쌍으로 대화창에 붙이고 대화 화면으로 돌아간다.
-   * 붙인 뒤에도 입력창은 그대로라 이어서 새 질문을 할 수 있고, 헤더 ‹ 로 목록에 다시 갈 수 있다.
-   * @param {string} ts - 항목의 data-ts(저장 시각 = 식별자)
-   * [연계] → renderRestoredAnswer(푸시 복원과 같은 말풍선 쌍 렌더를 재사용).
+   * 목록에서 대화 한 줄을 눌렀을 때: 그 대화에서 오간 질문·답변을 **물어본 순서대로** 이어 붙이고
+   * 대화 화면으로 돌아간다. 붙인 뒤에도 입력창은 그대로라 이어서 새 질문을 할 수 있고,
+   * 헤더 ‹ 로 목록에 다시 갈 수 있다.
+   * 예: openHistoryGroup('c1757…') → 그날 그 창에서 물은 4건이 질문1·답변1·질문2·답변2… 로 이어 붙는다
+   * @param {string} key - 목록 버튼의 data-g(histGroupKey 가 만든 묶음 열쇠)
+   * [연계] ← 기록 패널 클릭 위임(bindChat). → renderRestoredAnswer(푸시 복원과 같은 말풍선 쌍 렌더를 재사용).
    */
-  function openHistoryEntry(ts) {
-    var list = loadHistory(), hit = null;
-    for (var i = list.length - 1; i >= 0; i--) { if (String(list[i] && list[i].ts) === String(ts)) { hit = list[i]; break; } }
-    if (!hit) return;
+  function openHistoryGroup(key) {
+    var groups = historyGroups(), grp = null;
+    for (var i = 0; i < groups.length; i++) { if (groups[i].key === String(key)) { grp = groups[i]; break; } }
+    if (!grp || !grp.items.length) return;
     closeHistory(false);   // 목록만 닫고 ‹ 는 남긴다
-    renderRestoredAnswer({
-      ok: true, query: hit.q, answer: hit.a, note: hit.note,
-      sources: hit.sources || [], citationChain: hit.chain || [], forms: hit.forms || [], citeLaws: hit.citeLaws || [],
-      ctxNext: hit.ctxNext || null,
+    var body = document.getElementById('nryaChatBody');
+    if (body) {
+      // 지금 하고 있는 대화와 섞이지 않게 "여기부터 지난 대화"라고 한 줄 끼운다.
+      var sep = document.createElement('div'); sep.className = 'nrya-hist-sep';
+      sep.textContent = histDayLabel(grp.ts) + ' 대화 (' + grp.items.length + '건)';
+      body.appendChild(sep);
+    }
+    // ⚠되살리는 한 건의 이름을 `hit` 에서 바꾸지 말 것 — 회귀 스위트 test_ask_context 가
+    //   `citationChain: hit.chain || [], forms: hit.forms || []` · `ctxNext: hit.ctxNext || null,` ·
+    //   `citeLaws: hit.citeLaws || []` 을 **글자 그대로** 잠가 두었다(근거·서식·맥락이 복원에서
+    //   빠지는 회귀를 막는 자물쇠다). 이름만 바꿔도 그 자물쇠가 헛돈다.
+    grp.items.forEach(function (hit) {
+      renderRestoredAnswer({
+        ok: true, query: hit.q, answer: hit.a, note: hit.note,
+        sources: hit.sources || [], citationChain: hit.chain || [], forms: hit.forms || [], citeLaws: hit.citeLaws || [],
+        ctxNext: hit.ctxNext || null,
+      });
     });
   }
 
@@ -2043,7 +2311,7 @@
     var panel = document.getElementById('nryaHistPanel');
     if (panel) panel.addEventListener('click', function (e) {
       var it = e.target.closest('.nrya-hist-item');
-      if (it) openHistoryEntry(it.getAttribute('data-ts'));
+      if (it) openHistoryGroup(it.getAttribute('data-g'));   // ⑥ 한 줄 = 한 대화
     });
 
     // [H-37 §7.2] 프로필 패널(버튼 선택 · 직접 입력 저장 · 항목/전체 삭제) — 저장 즉시 다시 그린다.
@@ -2051,6 +2319,9 @@
     if (pp) pp.addEventListener('click', function (e) {
       var b = e.target.closest('.nrya-prof-btn');
       if (b) { saveProfileField(b.getAttribute('data-k'), b.getAttribute('data-v') || ''); openProf(); return; }
+      // ⑤ 어업종류 드롭다운에서 고른 값(목록 안 항목 · "직접 입력" 둘 다 data-v 를 들고 있다)
+      var opt = e.target.closest('.nrya-prof-opt');
+      if (opt) { saveProfileField(opt.getAttribute('data-k'), opt.getAttribute('data-v') || ''); openProf(); return; }
       var s = e.target.closest('.nrya-prof-save');
       if (s) {
         var el = document.getElementById(s.getAttribute('data-in'));
@@ -2065,6 +2336,100 @@
         openProf();
       }
     });
+    // ④숫자칸(톤수·길이) — 치는 동안 숫자가 아닌 글자는 아예 안 들어가고, 손을 떼면(blur) 저장한다.
+    // ⑤검색칸 — 친 글자로 목록을 거른다.
+    //   ⚠둘 다 위 click 위임과 **같은 패널**에 걸지만 이벤트가 달라 서로 안 부딪힌다.
+    //   ⚠blur 는 거품(bubble)이 안 올라오므로 캡처 단계(세 번째 인자 true)로 받는다 — 이걸 빼면
+    //     칸에서 손을 떼도 아무 일이 안 일어난다.
+    if (pp) {
+      pp.addEventListener('input', function (e) {
+        var n = e.target.closest ? e.target.closest('.nrya-prof-num') : null;
+        if (n) { n.value = numericOnly(n.value); return; }
+        var q = e.target.closest ? e.target.closest('.nrya-prof-search') : null;
+        if (q) filterProfList(q);
+      });
+      pp.addEventListener('blur', function (e) {
+        var n = e.target.closest ? e.target.closest('.nrya-prof-num') : null;
+        if (n) saveProfNum(n);
+      }, true);
+    }
+  }
+
+  /**
+   * 숫자칸에 넣어도 되는 글자만 남긴다(소수점 하나까지 — 톤수 예시가 9.77 이다).
+   * 예: numericOnly('9.7a7.5') → '9.775' · numericOnly('abc') → ''
+   * @param {string} v - 사용자가 친 그대로의 값
+   * @returns {string} 숫자와 소수점 하나만 남은 값
+   * [연계] ← bindChat 의 프로필 패널 input 처리(④ 톤수·길이 칸).
+   */
+  function numericOnly(v) {
+    var s = String(v || '').replace(/[^0-9.]/g, '');
+    var i = s.indexOf('.');
+    if (i < 0) return s;
+    return s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, '');   // 두 번째부터의 소수점은 버린다
+  }
+
+  /**
+   * ④ 숫자칸에서 손을 뗐을 때 그 값을 저장하고 머리글의 "현재: …"만 바꿔 준다.
+   * 예: 톤수 칸에 9.77 을 적고 다른 곳을 누르면 → '9.77톤' 으로 저장 + 머리글이 '현재: 9.77톤 (… 저장)'
+   * @param {HTMLInputElement} el - .nrya-prof-num 입력칸
+   * @returns {void}
+   * [연계] ← bindChat 의 blur 처리. → saveProfileField(이 기기에만 저장).
+   *   ⚠화면을 통째로 다시 그리지 않는다(openProf 를 안 부른다) — 다시 그리면 방금 옮겨 간 포커스와
+   *     스크롤 위치가 튄다. 값이 안 바뀌었으면 저장도 건너뛴다(저장 시각 at 이 헛되이 갱신되지 않게).
+   */
+  function saveProfNum(el) {
+    // ⚠손대지 않았으면 아무것도 안 한다. 이걸 빼면 **칸을 눌렀다 떼기만 해도** 저장이 돌아,
+    //   예전 방식으로 숫자가 아닌 값이 들어가 있던 기기(옛 톤수 칸은 아무 글자나 받았다)에서
+    //   그 값이 소리 없이 지워진다. data-init 은 그릴 때 넣어둔 값이다.
+    if (el.value === (el.getAttribute('data-init') || '')) return;
+    var k = el.getAttribute('data-k'), sfx = el.getAttribute('data-suffix') || '';
+    var num = numericOnly(el.value).replace(/\.$/, '');    // '9.' 처럼 소수점만 남은 꼴은 버린다
+    el.value = num;
+    el.setAttribute('data-init', num);   // 다음 blur 부터는 "또 바뀌었을 때"만 저장한다
+    var next = num ? num + sfx : '';
+    var cur = loadProfile().fields[k];
+    if (String((cur && cur.v) || '') === next) return;
+    saveProfileField(k, next);
+    var lab = document.querySelector('#nryaProfPanel .nrya-prof-cur[data-k="' + k + '"]');
+    if (lab) lab.textContent = profCurText(loadProfile().fields[k]);
+  }
+
+  /**
+   * ⑤ 검색칸에 친 글자로 어업 목록을 거른다(공백은 무시하고 부분일치로 본다).
+   * 예: '통발' → 근해장어통발어업·근해통발어업·연안통발어업만 남고, 항목이 하나도 없는 묶음 머리글은 숨는다
+   * @param {HTMLInputElement} input - .nrya-prof-search
+   * @returns {void}
+   * [연계] ← bindChat 의 input 처리. 목록 원본은 FISHERY_TYPES(법령 원문).
+   *   목록에 **정확히 같은 이름이 없으면** 맨 아래 "직접 입력" 버튼이 그 글자로 나타난다(저장 가능).
+   */
+  function filterProfList(input) {
+    var list = input.nextElementSibling; if (!list || !list.classList.contains('nrya-prof-list')) return;
+    var q = String(input.value || '').replace(/\s+/g, '');
+    var kids = list.children, shownInGrp = 0, lastGrp = null, total = 0, exact = false;
+    for (var i = 0; i < kids.length; i++) {
+      var el = kids[i];
+      if (el.hasAttribute('data-grp')) {
+        if (lastGrp) lastGrp.hidden = (shownInGrp === 0);
+        lastGrp = el; shownInGrp = 0; continue;
+      }
+      if (!el.classList.contains('nrya-prof-pick')) continue;   // 안내문·직접입력 버튼은 아래에서 따로 본다
+      var label = el.getAttribute('data-v') || '';
+      var hit = !q || label.replace(/\s+/g, '').indexOf(q) >= 0;
+      el.hidden = !hit;
+      if (hit) { shownInGrp++; total++; }
+      if (label === input.value.trim()) exact = true;
+    }
+    if (lastGrp) lastGrp.hidden = (shownInGrp === 0);
+    var free = list.querySelector('.nrya-prof-free');
+    var none = list.querySelector('.nrya-prof-none');
+    var typed = input.value.trim();
+    if (free) {
+      free.hidden = !(typed && !exact);
+      free.setAttribute('data-v', typed);
+      free.textContent = '직접 입력: “' + typed + '” 으로 저장';
+    }
+    if (none) none.hidden = !(typed && total === 0);
   }
 
   /** 👍는 바로 전송, 👎는 사유(선택) 입력칸을 펼친다. @param {HTMLElement} btn */
@@ -3113,8 +3478,9 @@
     var body = document.getElementById('nryaChatBody'); if (!body) return null;
     var row = document.createElement('div'); row.className = 'nrya-krow nrya-ai';
     if (rowId) row.id = rowId;
-    row.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div>' +
-      '<div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow">' +
+    // ⑦2026-09-09: 아바타(.nrya-kava)를 뺀다 — 이 함수가 doSend·복원 화면과 **같은 골격**을 쓰므로
+    //   여기 한 줄이 답변·안내 말풍선 전부의 왼쪽 여백을 결정한다.
+    row.innerHTML = '<div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow">' +
       '<div class="nrya-kbub nrya-ai"></div></div></div>';
     var bub = row.querySelector('.nrya-kbub');
     bub.innerHTML = innerHTML;
@@ -3325,7 +3691,9 @@
 
     // 생각중(스켈레톤 + 상태 텍스트)
     var th = document.createElement('div'); th.className = 'nrya-krow nrya-ai';
-    th.innerHTML = '<div class="nrya-kava"><div class="nrya-ava nrya-think"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">' +
+    // ⑦아바타를 뺀다. "생각 중"의 펄스 애니메이션은 헤더 오브(#nryaChatOrb, 아래 nrya-think)가
+    //   그대로 맡는다. 답변이 오면 말풍선이 옆으로 튀지 않게 생각중 행도 같이 빼야 한다.
+    th.innerHTML = '<div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">' +
       '<div class="nrya-sk-line" style="width:130px"></div><div class="nrya-sk-line" style="width:90px"></div>' +
       '<div class="nrya-think-status"><span class="nrya-ts">생각하고 있습니다</span><span class="nrya-think-dots"><i></i><i></i><i></i></span></div></div></div></div>';
     body.appendChild(th); body.scrollTop = body.scrollHeight;
@@ -3341,7 +3709,7 @@
       if (bubbleEl) return;
       clearInterval(iv); if (orb) orb.classList.remove('nrya-think'); th.remove();
       var a = document.createElement('div'); a.className = 'nrya-krow nrya-ai';
-      a.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai"></div></div></div>';
+      a.innerHTML = '<div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai"></div></div></div>';
       body.appendChild(a);
       bubbleEl = a.querySelector('.nrya-kbub');
     }
