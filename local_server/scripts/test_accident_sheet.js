@@ -723,5 +723,39 @@ console.log('\n[12] 안내 팝업 "사고정보" 탭[S28-6]');
         JSON.parse(fs.readFileSync(path.join(CLIENT, 'warn_intervals.json'), 'utf8')).start === '20160826');
 })();
 
+// ── [13] 금지구역 버튼 — 지도 준비 대기 + 위성지도 보장[S28-7] ────────────────
+console.log('\n[13] 금지구역 버튼 — 지도 준비 대기 + 위성지도 보장[S28-7]');
+
+(function () {
+    const BZ = fs.readFileSync(path.join(CLIENT, 'js', 'marine-life', 'safety', 'ban_zone.js'), 'utf8');
+
+    // ★결함: 버튼 존재만 보고 리스너를 붙이면, 두 모듈이 아직 리스너를 안 붙인 사이에
+    //   누른 클릭이 허공에 떨어진다(폴리곤도 안 뜨고 배경지도도 안 바뀌는데 버튼만
+    //   "켜진 척"). 두 모듈과 같은 조건(getOceanMap)으로 기다려야 한다.
+    ok('지도가 준비된 뒤에 리스너를 붙인다',
+        /function _installWhenReady[\s\S]{0,320}window\.getOceanMap && window\.getOceanMap\(\)/.test(BZ) &&
+        /if \(map && bind\(\)\) return;/.test(BZ));
+    ok('버튼 존재만 보고 붙이던 옛 코드가 없다',
+        !/if \(!bind\(\)\) \{/.test(BZ) && !/setInterval\(/.test(BZ));
+    ok('두 모듈과 같은 설치 어법(DOMContentLoaded → 폴링)',
+        /document\.addEventListener\('DOMContentLoaded', _installWhenReady\)/.test(BZ));
+    ok('켤 때 배경지도를 위성지도로 보장한다(2026-09-09 사용자 지시)',
+        /if \(turnOn && typeof window\.oceanSetBasemap === 'function'/.test(BZ) &&
+        /window\.oceanGetBasemap\(\) !== 'vworld'/.test(BZ) &&
+        /window\.oceanSetBasemap\('vworld'\)/.test(BZ));
+    ok('이미 위성지도면 건드리지 않는다(끌 때 되돌림을 깨지 않게)',
+        /!== 'vworld'\) \{\s*\n\s*window\.oceanSetBasemap\('vworld'\);/.test(BZ));
+    ok('두 원래 버튼을 대신 누르는 방식은 그대로',
+        /acBtn\.click\(\);/.test(BZ) && /fbBtn\.click\(\);/.test(BZ));
+
+    // 두 모듈 쪽 위성 전환 코드가 살아 있는지도 함께 본다 — 여기만 고치고 그쪽이
+    // 사라지면 끌 때 되돌림이 없어진다.
+    ['access_control.js', 'fishing_ban.js'].forEach(function (f) {
+        const src = fs.readFileSync(path.join(CLIENT, 'js', 'marine-life', 'safety', f), 'utf8');
+        ok(f + ' 이 켤 때 vworld 로 바꾸고 끌 때 되돌린다',
+            /oceanSetBasemap\('vworld'\)/.test(src) && /oceanSetBasemap\(_prevBasemap\)/.test(src));
+    });
+})();
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);

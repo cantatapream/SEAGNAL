@@ -26,7 +26,20 @@
  *
  * ⚠배경지도: 두 모듈이 각각 "켤 때의 배경지도"를 기억해 끌 때 되돌린다. 함께 켜면
  *   먼저 켜진 쪽이 원래 지도를, 나중 쪽은 위성지도를 기억하는데, 끌 때 나중 쪽이
- *   먼저 처리돼도 결국 먼저 켜진 쪽이 원래 지도로 되돌리므로 결과는 같다(실측 확인).
+ *   먼저 처리돼도 결국 먼저 켜진 쪽이 원래 지도로 되돌리므로 결과는 같다(실측 확인:
+ *   rltm → 켬 vworld → 끔 rltm, 두 번 반복해도 같다).
+ *
+ * ★[2026-09-09 결함 수정] 처음에는 버튼이 있는지만 보고 바로 리스너를 붙였는데,
+ *   그러면 **아무 일도 안 일어나는 창**이 생긴다. 두 모듈은 window.getOceanMap() 이
+ *   지도를 돌려줄 때까지 250ms 씩 기다린 뒤에야 자기 버튼에 리스너를 붙인다. 그런데
+ *   해양안전 화면은 진입 200ms 뒤에 비로소 지도를 만들기 시작하므로, 들어가서 곧바로
+ *   이 버튼을 누르면 원래 버튼에 아직 리스너가 없어 클릭이 허공에 떨어진다 — 폴리곤도
+ *   안 뜨고 배경지도도 안 바뀐다(헤드리스 실측에서 재현: 눌렀는데 두 원래 버튼의
+ *   active 가 false, 배경지도 rltm 그대로).
+ *   그래서 ①**지도가 준비된 뒤에** 리스너를 붙이고(두 모듈과 같은 조건이라 그 시점엔
+ *   상대 리스너도 반드시 있다) ②켤 때 위성지도 전환을 **여기서도 한 번 더 보장**한다
+ *   (사용자 지시 2026-09-09: "금지구역의 기본맵은 위성지도로 설정될 수 있도록").
+ *   ②는 이미 vworld 면 아무 일도 하지 않으므로 끌 때의 되돌림에 영향이 없다.
  */
 
 (function () {
@@ -51,17 +64,36 @@
             if (acBtn.classList.contains('active') !== turnOn) acBtn.click();
             if (fbBtn.classList.contains('active') !== turnOn) fbBtn.click();
             btn.classList.toggle('active', turnOn);
+            // 켤 때는 배경지도를 위성지도로 — 두 모듈도 각자 하지만, 여기서 한 번 더
+            // 보장해 두면 어느 쪽이 먼저 켜지든 결과가 같다. 이미 vworld 면 그대로 둔다.
+            if (turnOn && typeof window.oceanSetBasemap === 'function' &&
+                typeof window.oceanGetBasemap === 'function' &&
+                window.oceanGetBasemap() !== 'vworld') {
+                window.oceanSetBasemap('vworld');
+            }
         });
         return true;
     }
 
-    // 두 원래 버튼은 각 모듈이 "지도 준비 후"에 리스너를 붙이므로, 붙기 전에 우리가
-    // 먼저 눌러 버리면 아무 일도 안 일어난다. 버튼이 생길 때까지만 짧게 기다린다
-    // (access_control.js 의 window.getOceanMap 폴링과 같은 취지).
-    if (!bind()) {
-        var tries = 0;
-        var timer = setInterval(function () {
-            if (bind() || ++tries > 100) clearInterval(timer);
-        }, 100);
+    /** 지도가 준비될 때까지 기다렸다가 리스너를 붙인다.
+     *
+     * 두 모듈도 똑같이 window.getOceanMap() 을 기다린 뒤 자기 버튼에 리스너를 붙이므로,
+     * 이 조건을 같게 두면 우리 버튼이 눌릴 수 있게 된 순간 **상대 리스너도 반드시 있다**.
+     * 버튼 존재만 보고 먼저 붙였다가 클릭이 허공에 떨어지던 결함을 이렇게 막는다
+     * (위 파일 헤더 ★ 항목 참고). 폴링 간격·횟수는 access_control.js 와 같은 어법이다.
+     */
+    function _installWhenReady() {
+        function _try(tries) {
+            var map = window.getOceanMap && window.getOceanMap();
+            if (map && bind()) return;
+            if (tries > 0) setTimeout(function () { _try(tries - 1); }, 250);
+        }
+        _try(240);   // 최대 60초 — 해양안전은 진입 뒤에야 지도를 만들기 시작한다
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _installWhenReady);
+    } else {
+        _installWhenReady();
     }
 })();
