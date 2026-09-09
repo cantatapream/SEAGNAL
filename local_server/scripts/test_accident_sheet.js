@@ -602,5 +602,126 @@ ok('범례 라벨은 말줄임이 되도록 <b> 로 감싼다',
 ok('기간·칩 줄 위아래 여백을 1/5 로 줄였다',
     /\.ash-meta \{[\s\S]{0,700}padding: 0\.18em 0 0\.19em;[\s\S]{0,200}margin-bottom: 0\.18em;/.test(CSS));
 
+// ── [11] 지도 위 배치·버튼 정리[S28] ────────────────────────────────────────
+console.log('\n[11] 지도 위 배치·버튼 정리[S28]');
+
+const HTML = fs.readFileSync(path.join(CLIENT, 'index2.html'), 'utf8');
+
+ok('격자 범례가 지도 좌측 하단(출처표기 바로 위)에 붙는다',
+    /#ocean-topleft-controls > \.accident-grid-legend \{[\s\S]{0,300}position: fixed !important;[\s\S]{0,200}left: 8px;[\s\S]{0,200}bottom: calc\(var\(--main-tab-height, 68px\) \+ 8px \+ 25px\)/.test(HTML));
+ok('서브탭이 열리면 범례도 그만큼 올라간다',
+    /body\.sub-tabs-open #ocean-topleft-controls > \.accident-grid-legend \{[\s\S]{0,200}var\(--sub-tab-height, 50px\)/.test(HTML));
+ok('해양안전에서도 출처표기(물빠짐 슬라이더 포함)를 따라간다',
+    /body\.ls-mode\.ls-safety #ocean-topleft-controls > \.accident-grid-legend/.test(HTML) &&
+    /body\.ls-mode\.ls-safety\.ls-mudflat-on #ocean-topleft-controls > \.accident-grid-legend/.test(HTML));
+ok('범례 top 을 JS 가 더 이상 인라인으로 넣지 않는다',
+    /if \(legend\) legend\.style\.top = '';/.test(CODE) &&
+    !/legend\.style\.top = afterBarTop/.test(CODE));
+
+ok('전국 통계 버튼 폭이 모드토글(120px)과 같고 글자가 가운데',
+    /#ocean-topleft-controls > #accident-nationwide-btn \{[\s\S]{0,400}width: 120px;[\s\S]{0,80}text-align: center;/.test(HTML));
+
+ok('"금지구역" 버튼이 있다',
+    /id="ocean-banzone-toggle-btn"/.test(HTML) &&
+    /body\.ls-mode\.ls-safety #ocean-banzone-toggle-btn,/.test(HTML));
+ok('출입통제·낚시금지 원래 버튼은 숨기되 지우지 않는다(모듈이 참조)',
+    /#ocean-access-control-toggle-btn,\s*\n\s*#ocean-fishing-ban-toggle-btn \{ display: none !important; \}/.test(HTML) &&
+    /id="ocean-access-control-toggle-btn"/.test(HTML) && /id="ocean-fishing-ban-toggle-btn"/.test(HTML));
+ok('금지구역 버튼이 두 원래 버튼을 대신 누른다',
+    /ban_zone\.js/.test(HTML) &&
+    (function () {
+        const bz = fs.readFileSync(path.join(CLIENT, 'js', 'marine-life', 'safety', 'ban_zone.js'), 'utf8');
+        return /acBtn\.classList\.contains\('active'\) !== turnOn\) acBtn\.click\(\)/.test(bz) &&
+               /fbBtn\.classList\.contains\('active'\) !== turnOn\) fbBtn\.click\(\)/.test(bz);
+    })());
+ok('금지구역 스크립트가 두 모듈보다 뒤에 로드된다',
+    (function () {
+        // <script src=...> 만 본다 — 주석에도 파일명이 적혀 있어 문자열 첫 등장을
+        // 그대로 쓰면 주석 위치를 잡는다(처음 이 검사를 그렇게 썼다가 걸렸다).
+        function at(name) {
+            const m = HTML.match(new RegExp('<script src="js/marine-life/safety/' + name + '[^"]*"'));
+            return m ? HTML.indexOf(m[0]) : -1;
+        }
+        const bz = at('ban_zone\\.js'), fb = at('fishing_ban\\.js'), ac = at('access_control\\.js');
+        return bz > 0 && fb > 0 && ac > 0 && bz > fb && bz > ac;
+    })());
+ok('안내 팝업 탭도 "금지구역" 하나로 합쳐졌다',
+    (function () {
+        const ls = fs.readFileSync(path.join(CLIENT, 'js', 'marine-life', 'safety', 'life_safety.js'), 'utf8');
+        return /\{ id: 'banzone', label: '금지구역'/.test(ls) && !/id: 'fishingban'/.test(ls);
+    })());
+
+ok('CCTV·물빠짐 버튼은 해양종합정보에서만 숨긴다',
+    /body:not\(\.ls-safety\) #ocean-cctv-toggle-btn,\s*\n\s*body:not\(\.ls-safety\) #ocean-mudflat-toggle-btn \{ display: none !important; \}/.test(HTML) &&
+    /body\.ls-mode\.ls-safety #ocean-cctv-toggle-btn,/.test(HTML) &&
+    /body\.ls-mode\.ls-safety #ocean-mudflat-toggle-btn,/.test(HTML));
+
+// ── [12] 안내 팝업 "사고정보" 탭[S28-6] ─────────────────────────────────────
+// 이 탭은 숫자를 사람이 손으로 적은 글이다. 원본이 바뀌면 조용히 거짓말이 되므로,
+// 여기서 **원본을 다시 세어 글의 숫자와 대조**한다(추측 금지 규칙의 자동화).
+console.log('\n[12] 안내 팝업 "사고정보" 탭[S28-6]');
+
+(function () {
+    const LS = fs.readFileSync(path.join(CLIENT, 'js', 'marine-life', 'safety', 'life_safety.js'), 'utf8');
+
+    ok('안내에 "사고정보" 탭이 있다',
+        /\{ id: 'accident', label: '사고정보', html:/.test(LS));
+    ok('틀이 세 절(목적 · 사용법·구성 · 데이터 산출 내역)로 되어 있다',
+        /<strong>1\. 목적<\/strong>/.test(LS) &&
+        /<strong>2\. 사용법 · 구성<\/strong>/.test(LS) &&
+        /<strong>3\. 데이터 산출 내역<\/strong>/.test(LS));
+    ok('"예보가 아니다"를 밝힌다',
+        /지금의 위험을 예보하는 기능이 아닙니다/.test(LS));
+    ok('원본 자료에 오류가 있을 수 있음을 밝힌다(2026-09-09 사용자 지시)',
+        /원본 자료 자체에 오류가 섞여 있을 수 있습니다/.test(LS) &&
+        /참고용<\/strong>/.test(LS));
+    ok('선박 이름이 없다는 한계를 밝힌다',
+        /선박 이름은 어떤 화면에도 없습니다/.test(LS));
+
+    // ── 글에 적은 숫자 ↔ 원본을 다시 센 값 대조 ──
+    const hk = JSON.parse(fs.readFileSync(path.join(CLIENT, 'accident_ships_hk.json'), 'utf8')).rows;
+    const pe = JSON.parse(fs.readFileSync(path.join(CLIENT, 'accident_persons.json'), 'utf8')).rows;
+    const EXCLUDED_TYPES = { ATY012: 1, ATY013: 1, ATY014: 1, ATY020: 1 };
+
+    const rawTotal = hk.length + pe.length;
+    ok('원본 합계 74,018 이 맞다', rawTotal === 74018, String(rawTotal));
+
+    const typeDropped = hk.filter(r => EXCLUDED_TYPES[r[5]]).length +
+                        pe.filter(r => EXCLUDED_TYPES[r[4]]).length;
+    ok('사고유형 4종 제외 347건이 맞다', typeDropped === 347, String(typeDropped));
+
+    // 표출 건수는 앱이 좌표 이상치·위치 미상 뭉침까지 걸러 낸 뒤의 값이라 여기서는
+    // 다시 셀 수 없다. 대신 글이 쓴 값끼리 산수가 맞는지 본다.
+    const shown = 57167 + 14325;
+    ok('표출 합계 71,492 = 57,167 + 14,325', shown === 71492, String(shown));
+    ok('빠진 수 2,526 = 74,018 − 71,492', rawTotal - shown === 2526, String(rawTotal - shown));
+    ok('빠진 수 내역 2,526 = 347 + 2,179', 347 + 2179 === 2526);
+
+    ['74,018', '71,492', '57,167', '14,325', '2,526', '347', '2,179'].forEach(function (n) {
+        ok('글에 ' + n + ' 이 적혀 있다', LS.indexOf(n) >= 0);
+    });
+
+    // 2025년 선박사고 결측 — 글이 "3,775건 전부"라고 단정했으므로 그대로 확인한다.
+    const y25 = hk.filter(r => String(r[2]).slice(0, 4) === '2025');
+    const y25AllBlank = y25.every(r => !r[4] && !r[6] && !r[7]);
+    ok('2025년 선박사고 3,775건이 맞다', y25.length === 3775, String(y25.length));
+    ok('그 3,775건의 위치·원인·선박종류가 실제로 전부 빈칸', y25AllBlank);
+    ok('글에 3,775 가 적혀 있다', LS.indexOf('3,775') >= 0);
+
+    // 2024년 위치 설명도 "하나도 없다"고 단정했다.
+    const y24 = hk.filter(r => String(r[2]).slice(0, 4) === '2024');
+    ok('2024년 선박사고도 위치 설명이 하나도 없다',
+        y24.length > 0 && y24.every(r => !r[4]), y24.length + '건 중 ' + y24.filter(r => !r[4]).length + '건 빈칸');
+
+    // 인명피해 셋 다 0 — "절반가량"이라고 썼다(50~60% 사이여야 그 표현이 맞다).
+    const zeroCas = hk.filter(r => !(+r[9]) && !(+r[10]) && !(+r[11])).length;
+    const pct = zeroCas / hk.length * 100;
+    ok('인명피해 셋 다 0 인 선박사고가 "절반가량"이다', pct >= 45 && pct <= 60, pct.toFixed(1) + '%');
+
+    ok('특보 집계 시작일 2016-08-26 이 글과 자료에서 같다',
+        /2016년 8월 26일 이후/.test(LS) &&
+        JSON.parse(fs.readFileSync(path.join(CLIENT, 'warn_intervals.json'), 'utf8')).start === '20160826');
+})();
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);
