@@ -171,23 +171,35 @@
     }
 
     /**
-     * 지금 켜져 있는 버튼 조합으로 클러스터 대표 아이콘을 고른다.
-     *   노출암만 켜짐 / 둘 다 켜짐 → 노출암 이미지
-     *   간출암 등만 켜짐          → 세암·암암(잠김) 이미지
-     * 두 레이어가 이 함수를 공유하므로, 버튼을 새로 켜고 끌 때마다(다음 렌더
-     * 시점에) 자동으로 다시 계산된다 — 레이어 생성 시점에 고정하지 않는다.
+     * 뭉친 원 안에 실제로 들어 있는 종류를 세어, 가장 많은 종류의 아이콘을 대표로 고른다.
+     * 예: 갯바위 8개 + 노출암 2개가 뭉쳤으면 → 갯바위 아이콘
+     *     노출암 5개 + 갯바위 5개로 같으면   → 노출암 아이콘(k 가 작은 쪽을 먼저 쓴다)
+     * @param {Array<ol.Feature>} members - 그 클러스터에 묶인 원본 feature 들
      * @returns {string} 아이콘 data URI
+     * [연계] ← makeClusterStyle() — "안에 무엇이 들었든 노출암 그림"으로만 보이던 것을
+     *          내용에 맞게 보여주려고 쓴다(사용자 확정 2026-09-09).
      */
-    function clusterIconFor() {
-        var rockOn = !!(rockLayer && rockLayer.getVisible());
-        var exposedOn = !!(exposedLayer && exposedLayer.getVisible());
-        return (rockOn && !exposedOn) ? ICON_SUBMERGED : ICON_EXPOSED;
+    function clusterIconFor(members) {
+        var counts = {};
+        for (var i = 0; i < members.length; i++) {
+            var k = members[i].get('k');
+            counts[k] = (counts[k] || 0) + 1;
+        }
+        var bestK = null, bestN = -1;
+        // k 오름차순(0 노출암 → 1 간출암 → 2 세암 → 3 암암 → 4 갯바위)으로 훑어
+        // 동수일 때는 먼저 나온 쪽이 대표가 된다.
+        Object.keys(counts).map(Number).sort(function (a, b) { return a - b; })
+            .forEach(function (k) {
+                if (counts[k] > bestN) { bestN = counts[k]; bestK = k; }
+            });
+        return iconFor(bestK == null ? 0 : bestK);
     }
 
     /**
      * 클러스터 레이어의 스타일 함수. 뭉친 개수가 1개면 종류별 아이콘 그대로,
      * 여러 개면 대표 아이콘 안쪽에 개수를 텍스트로만 얹는다(따로 원 배지를
      * 두지 않음 — 원이 두 겹이라 지저분하다는 피드백 반영).
+     * 대표 아이콘은 그 원 안에 가장 많이 든 종류를 따른다(clusterIconFor 참고).
      * @returns {function(ol.Feature): ol.style.Style}
      */
     function makeClusterStyle() {
@@ -197,7 +209,7 @@
                 return singleStyle(members[0].get('k'));
             }
             return new ol.style.Style({
-                image: new ol.style.Icon({ src: clusterIconFor(), scale: ICON_SCALE, anchor: [0.5, 0.5] }),
+                image: new ol.style.Icon({ src: clusterIconFor(members), scale: ICON_SCALE, anchor: [0.5, 0.5] }),
                 text: new ol.style.Text({
                     text: members.length > 999 ? '999+' : String(members.length),
                     font: 'bold 11px sans-serif',
@@ -953,10 +965,6 @@
                 if (!visible) hideTideCurveOverlay();
                 // 갯바위 면은 노출암 마커와 한 몸 — 노출암 버튼을 따라간다.
                 if (btnId === 'ocean-exposed-toggle-btn' && shoreAreaLayer) shoreAreaLayer.setVisible(visible);
-                // 클러스터 대표 아이콘(clusterIconFor)이 "두 레이어의 켜짐 상태 조합"에
-                // 따라 바뀌므로, 방금 안 바뀐 다른 레이어도 다시 그려야 아이콘이 즉시 갱신된다.
-                if (exposedLayer && exposedLayer !== layer) exposedLayer.changed();
-                if (rockLayer && rockLayer !== layer) rockLayer.changed();
                 // 잠김경고는 간출암 등 레이어가 켜져 있을 때만 폴링(꺼지면 즉시 중단).
                 if (btnId === 'ocean-rock-toggle-btn') {
                     if (visible) startWarningPolling(map); else stopWarningPolling();
