@@ -757,5 +757,28 @@ console.log('\n[13] 금지구역 버튼 — 지도 준비 대기 + 위성지도 
     });
 })();
 
+// ── [14] 특보 타일에 선박·인명 나눔[S28-8] ──────────────────────────────────
+console.log('\n[14] 특보 타일에 선박·인명 나눔[S28-8]');
+
+ok('칩이 "전체"일 때만 두 줄을 그린다',
+    /var splitSrc = _statsScope === 'all';/.test(CODE) &&
+    /if \(splitSrc\) \{[\s\S]{0,300}var hn = \(hkSt\.sev\[k\.code\] \|\| 0\), pn = \(peSt\.sev\[k\.code\] \|\| 0\);/.test(CODE));
+ok('타일에 선박·인명 두 줄 마크업이 있다',
+    /class="s hk"><span>선박사고<\/span><b>/.test(CODE) &&
+    /class="s person"><span>인명사고<\/span><b>/.test(CODE));
+ok('소스별 집계를 한 번만 하고 아래 칸과 함께 쓴다(중복 순회 제거)',
+    /var hkSt = splitSrc \? warnStatsOf\('hk', membersOfSrc\(members, 'hk'\)\) : null;/.test(CODE) &&
+    /var hw = hkSt\.warn, pw = peSt\.warn;/.test(CODE) &&
+    (CODE.match(/warnStatsOf\('hk', membersOfSrc/g) || []).length === 1);
+ok('카드 상단 선박·인명 칸은 그대로 남아 있다',
+    /class="ash-warn-src ' \+ cls \+ '"/.test(CODE) &&
+    /srcCell\('hk', '선박사고', 'fa-ship', hw\)/.test(CODE) &&
+    /srcCell\('person', '인명사고', 'fa-person', pw\)/.test(CODE));
+ok('두 줄 색이 시트의 선박=파랑·인명=청록과 같다',
+    /\.ash-warn-tile \.s\.hk b \{ color: var\(--ash-blue-soft\); \}/.test(CSS) &&
+    /\.ash-warn-tile \.s\.person b \{ color: var\(--ash-teal\); \}/.test(CSS));
+ok('건수는 오른쪽 끝으로 밀고 자릿수를 고정한다',
+    /\.ash-warn-tile \.s b \{ margin-left: auto;[^}]*tabular-nums; \}/.test(CSS));
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);

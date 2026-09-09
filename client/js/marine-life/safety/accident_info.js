@@ -3759,6 +3759,15 @@
         //   사라진다. 사용자가 그 점을 알고 고른 선택이다.
         kinds = kinds.filter(function (k) { return (st.sev[k.code] || 0) > 0; });
 
+        // ★타일마다 선박·인명을 나눠 적는다[S28-8, 2026-09-09 사용자 지시:
+        //   "선박 몇건 인명사고 몇건인지 표출하고 싶어"]. 칩이 "전체"일 때만 뜻이 있다 —
+        //   한 종류만 보고 있으면 한쪽이 늘 0이라 두 줄이 군더더기다.
+        //   집계는 여기서 한 번만 하고 아래 선박·인명 나눔 칸(srcRow)과 함께 쓴다
+        //   (예전에는 srcRow 가 같은 순회를 또 돌았다).
+        var splitSrc = _statsScope === 'all';
+        var hkSt = splitSrc ? warnStatsOf('hk', membersOfSrc(members, 'hk')) : null;
+        var peSt = splitSrc ? warnStatsOf('person', membersOfSrc(members, 'person')) : null;
+
         var tiles = kinds.map(function (k) {
             var n = st.sev[k.code] || 0;
             var pct = st.warn ? n / st.warn * 100 : 0;
@@ -3775,10 +3784,19 @@
             // ★타일에는 말풍선을 붙이지 않는다[S26-3, 2026-09-06 사용자 지적].
             //   말풍선은 아래 "특보 발효 일수" 칸에서만 뜬다 — 풍랑주의보 같은 타일을
             //   눌렀을 때도 같은 해상 구역 목록이 떠서 무엇에 대한 설명인지 헷갈렸다.
+            // 선박·인명 나눔 두 줄. 합이 위 총건수와 맞는지는 회귀 테스트가 본다.
+            var splitHtml = '';
+            if (splitSrc) {
+                var hn = (hkSt.sev[k.code] || 0), pn = (peSt.sev[k.code] || 0);
+                splitHtml =
+                    '<div class="s hk"><span>선박사고</span><b>' + fmtN(hn) + '건</b></div>' +
+                    '<div class="s person"><span>인명사고</span><b>' + fmtN(pn) + '건</b></div>';
+            }
             return '<div class="ash-warn-tile">' +
                 '<div class="t" style="color:' + k.color + '"><i class="fa-solid ' + k.icon + '"></i>' + k.label + '</div>' +
                 '<div class="n">' + fmtN(n) + '<small>건</small></div>' +
                 '<div class="p">' + pct.toFixed(1) + '%</div>' +
+                splitHtml +
                 daysHtml +
                 '<div class="bar"><i style="width:' + Math.round(n / maxSev * 100) + '%;background:' + k.color + '"></i></div>' +
                 '</div>';
@@ -3806,9 +3824,8 @@
 
         // 선박·인명 나눔 — 칩이 "전체"일 때만 뜻이 있다(한 종류만 보고 있으면 나눌 게 없다).
         var srcRow = '';
-        if (_statsScope === 'all') {
-            var hw = warnStatsOf('hk', membersOfSrc(members, 'hk')).warn;
-            var pw = warnStatsOf('person', membersOfSrc(members, 'person')).warn;
+        if (splitSrc) {
+            var hw = hkSt.warn, pw = peSt.warn;   // 위 타일과 같은 집계를 다시 쓴다
             var tw = hw + pw;
             function srcCell(cls, label, icon, n) {
                 return '<div class="ash-warn-src ' + cls + '">' +
