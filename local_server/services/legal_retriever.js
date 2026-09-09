@@ -45,6 +45,8 @@ const fs = require('fs');
 const path = require('path');
 const gemini = require('./gemini_client');
 const githubRaw = require('./github_raw');
+// 예고본·시행일 마커 전환(H-29 트랙 C) — 오늘(KST) 계산과 접기 규칙은 이 모듈 한 곳에 있다.
+const effectiveDate = require('./effective_date');
 
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const INDEX_JSON = path.join(LEGAL_DIR, '_dashboard', 'index.json');
@@ -360,13 +362,16 @@ function resolvePage(byFile, raw) {
 }
 
 // ── 페이지 본문 캐시(mtime 감지): frontmatter + body 분리 ──
-const _bodyCache = new Map(); // key: fp → { mtime, frontmatter, body }
+const _bodyCache = new Map(); // key: fp → { mtime, today, frontmatter, body }
 function readPage(kind, file) {
   const fp = pageFilePath(kind, file);
   let mt;
   try { mt = fs.statSync(fp).mtimeMs; } catch (_) { return null; }
   const cached = _bodyCache.get(fp);
-  if (cached && cached.mtime === mt) return cached;
+  // ★시행일 마커가 있는 페이지는 **오늘 날짜**도 캐시 키다(2026-09-10, H-29 트랙 C) — 자정이 지나면
+  //   같은 파일이라도 다른 본문(새 서술)이 되어야 한다. 마커 없는 페이지는 종전처럼 mtime 만 본다.
+  const today = effectiveDate.todayKST();
+  if (cached && cached.mtime === mt && (cached.today === null || cached.today === today)) return cached;
   const raw = fs.readFileSync(fp, 'utf8');
   const fmMatch = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   const frontmatter = {};
@@ -378,7 +383,12 @@ function readPage(kind, file) {
       if (kv) frontmatter[kv[1].trim()] = kv[2].trim();
     }
   }
-  const entry = { mtime: mt, frontmatter, body };
+  // ★예고본 서술 접기 — `<!--시행 d-->`/`<!--시행전 d-->` 중 오늘 유효한 쪽만 남긴다. 이 함수가 본문의
+  //   유일한 입구라(scoreOne·termWeights·citableBody·search 컨텍스트·되묻기 전부 여기서 출발) 여기서 접으면
+  //   모든 소비처가 같은 본문을 본다. 마커 없는 페이지는 문자열 검사 한 번 뒤 그대로다.
+  const staged = effectiveDate.hasStageMarkers(body);
+  if (staged) body = effectiveDate.applyStageMarkers(body, today);
+  const entry = { mtime: mt, today: staged ? today : null, frontmatter, body };
   _bodyCache.set(fp, entry);
   return entry;
 }
@@ -3186,8 +3196,11 @@ async function pickCandidateLaws(query, lawNames) {
 async function loadLawBundle(law) {
   const base = rawPathOf(law);
   if (!base) return null;
+  // 시행일이 지난 예고본이 있으면 그 법률.txt 를 읽는다(조문 팝업과 같은 규칙 — article_text.loadArticle 참고).
+  const staged = effectiveDate.stagedRawPath(base, '법률.txt');
   const [lawText, top] = await Promise.all([
-    githubRaw.fetchText(base + '/법률.txt'),
+    staged ? githubRaw.fetchText(staged).then(t => t || githubRaw.fetchText(base + '/법률.txt'))
+      : githubRaw.fetchText(base + '/법률.txt'),
     githubRaw.listDir(base),
   ]);
   if (!lawText) return null;
@@ -5093,7 +5106,9 @@ function withAssumedNotice(answer, assumed) {
 // termsOf 는 순수 함수다(네트워크·AI 없음). 검사 도구(_dashboard/loop/search_gap.js)가
 // "검색이 이 질문을 어떤 낱말로 쪼개는지"를 **생산과 똑같이** 보려고 쓴다 — 따로 쪼개면
 // 검사와 코드가 어긋나 엉뚱한 결론이 난다(L-136·L-153).
-module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex,
+  // readPage 는 시행일 마커 접기(effective_date)가 본문 입구에서 도는지 회귀 테스트(test_pending_law)가 보려고 내보낸다.
+  readPage, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어

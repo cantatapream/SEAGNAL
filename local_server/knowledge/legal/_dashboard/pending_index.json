@@ -1,0 +1,42 @@
+{
+ "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법": [
+  {
+   "date": "20260911",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "283875"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20260810_5373b9"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률": [
+  {
+   "date": "20260917",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "273681"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20260810_d57609"
+   }
+  },
+  {
+   "date": "20260918",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "284343"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20260810_a5f82d"
+   }
+  }
+ ]
+}

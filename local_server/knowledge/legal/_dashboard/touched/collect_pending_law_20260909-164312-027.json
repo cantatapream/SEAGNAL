@@ -1,0 +1,13 @@
+{
+ "script": "collect_pending_law",
+ "stamp": "20260909-164312-027",
+ "files": [
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/_대기/20260918/법률.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/_대기/20260918/_meta.json",
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/_대기/20260917/법률.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/_대기/20260917/_meta.json",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/_대기/20260911/법률.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/_대기/20260911/_meta.json",
+  "local_server/knowledge/legal/_dashboard/pending_index.json"
+ ]
+}
