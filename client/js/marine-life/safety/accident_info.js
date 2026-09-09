@@ -3785,12 +3785,15 @@
             //   말풍선은 아래 "특보 발효 일수" 칸에서만 뜬다 — 풍랑주의보 같은 타일을
             //   눌렀을 때도 같은 해상 구역 목록이 떠서 무엇에 대한 설명인지 헷갈렸다.
             // 선박·인명 나눔 두 줄. 합이 위 총건수와 맞는지는 회귀 테스트가 본다.
+            //   라벨은 "선박"·"인명"만 쓴다[2026-09-09 사용자 지시: "사고자를 빼고"] —
+            //   타일이 좁아 "선박사고"까지 넣으면 숫자와 붙어 읽힌다.
+            //   카드 머리의 나눔 칸(srcRow)은 넓어서 "선박사고"를 그대로 둔다.
             var splitHtml = '';
             if (splitSrc) {
                 var hn = (hkSt.sev[k.code] || 0), pn = (peSt.sev[k.code] || 0);
                 splitHtml =
-                    '<div class="s hk"><span>선박사고</span><b>' + fmtN(hn) + '건</b></div>' +
-                    '<div class="s person"><span>인명사고</span><b>' + fmtN(pn) + '건</b></div>';
+                    '<div class="s hk"><span>선박</span><b>' + fmtN(hn) + '건</b></div>' +
+                    '<div class="s person"><span>인명</span><b>' + fmtN(pn) + '건</b></div>';
             }
             return '<div class="ash-warn-tile">' +
                 '<div class="t" style="color:' + k.color + '"><i class="fa-solid ' + k.icon + '"></i>' + k.label + '</div>' +
