@@ -601,7 +601,7 @@ router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => 
       draft: pages.filter(p => p.kind === 'concept' && p.status === 'draft').length,
       feedback: adminQueues.countPending(FEEDBACK_FILE),
       candidates: adminQueues.countPending(CANDIDATES_FILE),
-      amendments: adminQueues.countPending(amendmentScanner.QUEUE_FILE),
+      amendments: adminQueues.countPending(amendmentScanner.queueFile()),
       freshness: adminQueues.countPending(freshScanner.QUEUE_FILE) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
@@ -753,6 +753,8 @@ router.post('/api/legal/candidates/:id/decide', adminAuth.requireAdminToken, (re
 // 개정 검토 — services/legal_amendment_scanner.js가 매일 밤(server.js cron) law.go.kr을
 // 정기 조회해 공포번호·시행일자가 바뀐 법을 찾아 큐에 적재한다. 여기는 그 큐를 보여주고
 // 사람이 승인/반려하는 API만 — 승인해도 재수집·재빌드는 이 자리에서 자동 실행하지 않는다
+// 큐 파일은 Fly 볼륨(`data/legal_amendments_queue.jsonl`)에 있고 `queueFile()` 이 첫 접근 때
+// git 사본(`_amendments/queue.jsonl`)으로 시드한다 — 상수 경로를 직접 읽으면 시드가 안 된다(2026-09-10).
 // (_amendments/README.md 설계: "승인 → 매니페스트 재생성 → 재수집 → 재빌드 → 재감사"는
 // 사람이 다음 세션에서 orchestrate하는 별도 단계, 자동 파이프라인 아님 — 환각0 승인게이트).
 // ============================================================================
@@ -761,7 +763,7 @@ router.post('/api/legal/candidates/:id/decide', adminAuth.requireAdminToken, (re
 router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
   try {
     const status = req.query.status || 'pending';
-    let list = adminQueues.readJsonl(amendmentScanner.QUEUE_FILE).reverse();
+    let list = adminQueues.readJsonl(amendmentScanner.queueFile()).reverse();
     if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
     res.json({ ok: true, count: list.length, amendments: list });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
@@ -771,7 +773,7 @@ router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
 router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (req, res) => {
   try {
     const { decision = 'approved', by = '관리자' } = req.body || {};
-    const updated = adminQueues.updateJsonlById(amendmentScanner.QUEUE_FILE, req.params.id, { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
+    const updated = adminQueues.updateJsonlById(amendmentScanner.queueFile(), req.params.id, { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
     if (!updated) return res.status(404).json({ ok: false, error: 'amendment not found: ' + req.params.id });
     res.json({ ok: true, amendment: updated });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }

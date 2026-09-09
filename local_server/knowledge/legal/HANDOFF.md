@@ -699,6 +699,13 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 연안관리 인공구조물 1건 → 8줄 · 수산부산물 "영업" 1건 → 7줄 · 선원법 정책 1건 → 14줄 ·
 유선및도선 승인 5건 → 그 법 0 · 공유수면 유권해석 1건 → 그 법 0).
 
+**개정검토(개정 감지) — 실서비스 배선 정정 완료(트랙 B, 2026-09-10 02:30 KST).** 그동안 프로덕션에서 결과를 낸 적이 없던 원인 셋
+(스크립트 절대경로·이미지 안 큐 경로·8분 상한)을 고쳤다: `detect_law_changes.py`·`build_change_baseline.py` 는 `__file__` 기준 상대경로,
+큐 두 개는 Fly 볼륨 `local_server/data/legal_amendments_queue.jsonl`·`law_change_queue.json`(첫 접근 때 git 사본 76건으로 시드), 상한 30분
+(이 세션 실측 10~11분). 카드는 종류별로 바뀐 조문·공포/발령/시행일·부처·관련법을 보여 주고 링크도 법령/행정규칙을 가른다.
+신규 고시는 본문에서 우리 74법 인용을 찾아 `related_laws` 를 채우고 무관이면 관리자 큐에 안 올린다(소급 실측 39건 중 32건 무관 —
+기존 76건 정리 여부는 사용자 결정 대기). 로컬 실제 스캔 1회: 새 항목 26건(무관 16건 거름) → 관리자 큐 76→86건.
+
 ## 6. 다음 할 일 (우선순위 순, ★2026-08-23 16:30 KST 갱신 — 행정규칙 신선도 백로그 추가)
 
 **★★★[2026-08-23 갱신] 행정규칙 신선도 트랙 백로그 — 대부분 같은 날 해소됨 (상세는 `MASTER_PLAN.md` H-49)**
@@ -888,6 +895,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ---
 
 ## 작업 로그 (append-only · 최신이 위)
+
+### [2026-09-10 02:29 KST] ✅완료 — 개정감지 서비스 배선·카드·관련성(트랙 B)
+고친 파일: services/legal_amendment_scanner.js(볼륨 큐·시드·related_laws 필터·30분 상한·toLegacyEntry 전체 필드) · routes/legal.js(queueFile() 사용) · client/js/ai-chat/ai_chat.js(amendmentCardHTML 종류별 카드·링크 분기) · _dashboard/loop/detect_law_changes.py(__file__ 상대경로·--out·rel_raw·related_laws 본문 판정) · build_change_baseline.py(상대경로) · .gitignore(볼륨 산출물 2개) · _amendments/README.md · server.js(주석). 검증: node --check 4파일 통과 · 로컬 서버 GET /api/legal/amendments 시드 76건 확인 · scan-now 실제 스캔(11분 28초) → law_change_queue.json 102건(새 26: law_pending 4·law_dept_changed 1·admrul_unknown_new 21 중 무관 16) · 관리자 큐 86건(새 10건은 kind_code·changed_articles·related_laws 실림) · cd / 에서 직접 실행 성공(10분 3초) · verify_all.sh: 나빠진 항목 0(총정리 블록의 ❌는 V4 환경 404/콘솔에러와 기존 위키 수치, 기준선 대비 악화 없음). 관련성 판정 근거: 행정규칙 상세 API에 관련법령 필드 없음(3건 실측) → 본문에서 정식명(어디서나)·약칭(「」안) 인용 찾기. 소급: 기존 39건 중 관련 7·무관 32(정리는 사용자 결정). 남은 결정: ①기존 무관 32건 정리 여부 ②기존 76건에 새 필드 소급 채움 여부 ③본문 인용 판정이 '위임'이 아니라 '언급'까지 잡는 한계(예: 신재생에너지 지침이 5법 인용). 트랙 C 참고: 관리자 큐 경로 local_server/data/legal_amendments_queue.jsonl, 항목 필드 kind_code·changed_articles·related_laws·이전/현재{공포번호,공포일자,발령일자,시행일자,법령명,소관부처명,제개정구분명,현행연혁코드,MST,ID}.
+
+
+### [2026-09-10 01:44 KST] 🟢착수 — 개정감지 서비스 배선·카드·관련성(트랙 B)
+detect_law_changes.py·build_change_baseline.py 절대경로 제거(__file__ 기준) → 서비스 컨테이너(/app)에서도 baseline을 열 수 있게. 큐 산출물(law_change_queue.json·관리자 큐 legal_amendments_queue.jsonl)을 Fly 볼륨(local_server/data)으로 옮기고 첫 접근 시 git의 _amendments/queue.jsonl 76건으로 시드. toLegacyEntry가 changed_articles·제개정구분명·부처·발령일자 등을 싣게 하고 카드(amendmentCardHTML)가 종류별로 바뀐 조문·날짜·부처·관련법을 보여주게. admrul_unknown_new 는 상세 본문에 우리 74법 이름 인용 여부로 관련성 판정(related_laws) — 무관이면 관리자 큐에 안 올림. 검증: node --check, 로컬 서버 API, 실제 스캔 1회, verify_all.sh.
+
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
 ### [2026-09-10 01:41 KST] 🟢착수 — 예고본 사전수집·시행일 전환(트랙 C)

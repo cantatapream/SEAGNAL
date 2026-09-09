@@ -14,7 +14,8 @@ import json, os, re
 from datetime import datetime, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))   # 컨테이너는 UTC로 도니 KST는 명시 변환(CLAUDE.md 시간 표기 규칙)
-LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
+# 이 파일 기준 상대경로(…/_dashboard/loop → legal) — 절대경로는 서비스 컨테이너(/app)에서 깨진다(2026-09-10).
+LEGAL = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 SRC = f"{LEGAL}/_dashboard/lawid_backfill.json"
 H28 = f"{LEGAL}/_dashboard/delegation_scan_result.json"
 OUT = f"{LEGAL}/_dashboard/law_change_baseline.json"
