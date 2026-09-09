@@ -358,6 +358,14 @@ async function computeAllCrossings(opts = {}) {
         const region = classifyRegion(rock.lat, rock.lon);
         counts[region] = (counts[region] || 0) + 1;
         if (region === 'skip') continue;
+        // [동해 제외 — 사용자 확정 2026-09-09]
+        //   동해는 조차가 14~38cm 로 매우 작아(서해 664cm 대비 1/20~1/45) 잠김 경고의
+        //   실익이 적고, 우리가 동해용으로 따로 조위를 수집하지도 않는다(표준항 조석표를
+        //   보간해 쓸 뿐이다). 그래서 지도 표시는 그대로 두되 "잠김 시각" 계산만 건너뛴다.
+        //   classifyRegion 은 건드리지 않는다 — getTideCurve 가 같은 함수를 쓰므로
+        //   거기서 막으면 조석 곡선 팝업까지 사라진다. 여기서만 건너뛰면 곡선은 계속
+        //   보이고 잠김 표시(submersion.json 조회분)만 자연히 비게 된다.
+        if (region === 'eastsea') { counts.eastseaSkipped = (counts.eastseaSkipped || 0) + 1; continue; }
         const targetCm = rock.v * 100;
 
         let absMins = [];
@@ -387,7 +395,7 @@ async function computeAllCrossings(opts = {}) {
     const tmp = SUBMERSION_PATH + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(out), 'utf8');
     fs.renameSync(tmp, SUBMERSION_PATH);
-    log(`잠김시각 계산 완료: 서남해 ${counts.westsouth}, 제주 ${counts.jeju}, 동해 ${counts.eastsea}, 미커버 제외 ${counts.skip} ` +
+    log(`잠김시각 계산 완료: 서남해 ${counts.westsouth}, 제주 ${counts.jeju}, 동해 ${counts.eastsea}(계산 제외), 미커버 제외 ${counts.skip} ` +
         `→ 교차시각 보유 암초 ${Object.keys(crossings).length}개`);
     return out;
 }
