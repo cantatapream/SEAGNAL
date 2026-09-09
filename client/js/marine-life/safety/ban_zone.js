@@ -2,11 +2,16 @@
  * ============================================================================
  * 파일명: js/marine-life/safety/ban_zone.js
  * 역할  : "금지구역" 버튼 하나로 출입통제구역과 낚시금지구역을 함께 켜고 끈다.
+ *         켜져 있는 동안에는 기본맵 버튼 아래에 범례가 떠서, 어떤 색이 어떤 구역인지
+ *         알려주고 종류별로 따로 켜고 끌 수 있게 한다.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : 없음(두 모듈의 원래 버튼을 대신 눌러 로직을 그대로 재사용)
+ *  - 사용하는 파일 : window.accessControlSetShown()(access_control.js) ·
+ *                    window.fishingBanSetShown()(fishing_ban.js) — 범례 스위치용.
+ *                    켜고 끄기 자체는 두 모듈의 원래 버튼을 대신 눌러 그대로 재사용한다.
  *  - 서버 API      : 없음
  *  - 마크업        : index2.html #ocean-banzone-toggle-btn — 해양안전 전용.
+ *                    #banzone-legend(범례 상자) · #bzl-row-ac · #bzl-row-fb(스위치 줄)
  *                    원래 버튼 #ocean-access-control-toggle-btn ·
  *                    #ocean-fishing-ban-toggle-btn 은 CSS 로 숨긴 채 그대로 둔다.
  *  - 나를 쓰는 곳  : 없음(스스로 버튼에 붙는다)
@@ -29,6 +34,14 @@
  *   먼저 처리돼도 결국 먼저 켜진 쪽이 원래 지도로 되돌리므로 결과는 같다(실측 확인:
  *   rltm → 켬 vworld → 끔 rltm, 두 번 반복해도 같다).
  *
+ * [범례 — 2026-09-09 사용자 확정]
+ * 금지구역을 켜면 기본맵 버튼 아래에 범례가 뜬다. 색칩+이름으로 어떤 색이 어떤 구역인지
+ * 알려주고, 오른쪽 스위치로 종류별로 따로 껐다 켤 수 있다(둘 다 켜도, 하나만 켜도 된다).
+ * **둘 다 꺼도 범례는 남는다** — 다시 켤 수단이 사라지면 안 되기 때문이다(사용자 선택).
+ * 스위치는 원래 버튼을 누르지 않고 두 모듈이 새로 내놓은 SetShown() 만 호출한다.
+ * 원래 버튼을 눌렀다면 그 모듈이 배경지도를 원래대로 되돌려, 한쪽만 껐을 뿐인데
+ * 위성지도가 일반지도로 바뀌는 일이 생긴다.
+ *
  * ★[2026-09-09 결함 수정] 처음에는 버튼이 있는지만 보고 바로 리스너를 붙였는데,
  *   그러면 **아무 일도 안 일어나는 창**이 생긴다. 두 모듈은 window.getOceanMap() 이
  *   지도를 돌려줄 때까지 250ms 씩 기다린 뒤에야 자기 버튼에 리스너를 붙인다. 그런데
@@ -45,6 +58,82 @@
 (function () {
     'use strict';
 
+    /**
+     * 범례 상자를 띄우거나 감춘다. 띄울 때는 두 스위치를 모두 켠 상태로 되돌린다
+     * (원래 버튼이 새로 켜지면서 두 모듈의 _shown 도 true 로 돌아가므로 화면과 맞다).
+     * 예: _showLegend(true) → 상자가 기본맵 버튼 아래에 뜨고 두 줄 다 초록 스위치
+     * @param {boolean} on - true 띄우기 / false 감추기
+     * [연계] ← bind() 의 "금지구역" 버튼 클릭 → _positionLegend()
+     */
+    function _showLegend(on) {
+        var box = document.getElementById('banzone-legend');
+        if (!box) return;
+        if (on) {
+            ['bzl-row-ac', 'bzl-row-fb'].forEach(function (id) {
+                var row = document.getElementById(id);
+                if (row) row.classList.add('on');
+            });
+            box.style.display = 'flex';
+            _positionLegend();
+        } else {
+            box.style.display = 'none';
+        }
+    }
+
+    /**
+     * 범례를 기본맵 버튼 줄 아래에 놓되, 사고정보 모드토글이 떠 있으면 그만큼 더 내린다.
+     * 예: 모드토글이 보이면(실측 높이 34px) margin-top 이 6px → 46px 가 된다
+     * [연계] ← _showLegend() · _watchAccidentToggle() — 좌측 상단 같은 자리를 쓰는 두 요소가
+     *          겹치지 않게 한다(accident_info.js 가 필터 바 위치를 실측해 잡는 것과 같은 어법).
+     */
+    function _positionLegend() {
+        var box = document.getElementById('banzone-legend');
+        var modeToggle = document.getElementById('ocean-accident-mode-toggle');
+        if (!box) return;
+        var extra = 0;
+        if (modeToggle && modeToggle.offsetParent !== null) {
+            extra = modeToggle.offsetHeight + 6;
+        }
+        box.style.marginTop = (6 + extra) + 'px';
+    }
+
+    /**
+     * 사고정보 모드토글이 나타나거나 사라지면 범례 위치를 다시 잡는다.
+     * 예: 금지구역을 먼저 켜 둔 상태에서 사고정보를 켜면, 범례가 모드토글 아래로 내려간다
+     * [연계] ← bind() — 표시할 때 한 번만 계산하면 "나중에 사고정보를 켠" 경우를 놓쳐
+     *          두 상자가 겹친다(헤드리스 실측으로 확인한 결함). 그래서 style·class 변화를
+     *          지켜보다가 그때그때 다시 계산한다.
+     */
+    function _watchAccidentToggle() {
+        var modeToggle = document.getElementById('ocean-accident-mode-toggle');
+        if (!modeToggle || modeToggle._bzlWatched || typeof MutationObserver !== 'function') return;
+        modeToggle._bzlWatched = true;
+        new MutationObserver(function () {
+            var box = document.getElementById('banzone-legend');
+            if (box && box.style.display !== 'none') _positionLegend();
+        }).observe(modeToggle, { attributes: true, attributeFilter: ['style', 'class'] });
+    }
+
+    /**
+     * 범례의 두 줄에 스위치 동작을 붙인다(한 번만).
+     * 예: "낚시금지구역" 줄을 탭 → 그 줄이 흐려지고 주황 폴리곤만 지도에서 사라진다.
+     *     출입통제는 그대로 남고, 배경지도도 위성 그대로다.
+     * [연계] ← bind() → window.accessControlSetShown() · window.fishingBanSetShown()
+     */
+    function _bindLegendRows() {
+        [['bzl-row-ac', 'accessControlSetShown'], ['bzl-row-fb', 'fishingBanSetShown']]
+            .forEach(function (pair) {
+                var row = document.getElementById(pair[0]);
+                if (!row || row._bzlBound) return;
+                row._bzlBound = true;
+                row.addEventListener('click', function () {
+                    var on = !row.classList.contains('on');
+                    row.classList.toggle('on', on);
+                    if (typeof window[pair[1]] === 'function') window[pair[1]](on);
+                });
+            });
+    }
+
     /** 원래 버튼 둘을 대신 누르고, 새 버튼의 눌린 표시를 둘 중 하나에 맞춘다.
      *
      * 예시: 꺼진 상태에서 "금지구역"을 누르면 출입통제·낚시금지 폴리곤이 함께 뜨고
@@ -56,6 +145,9 @@
         var fbBtn = document.getElementById('ocean-fishing-ban-toggle-btn');
         if (!btn || !acBtn || !fbBtn) return false;
 
+        _bindLegendRows();
+        _watchAccidentToggle();
+
         btn.addEventListener('click', function () {
             // 두 레이어의 켜짐 상태를 늘 같게 맞춘다 — 어느 한쪽만 켜져 있는 상태가
             // 생기면 버튼 하나로는 되돌릴 수 없다. 새로 켤지 끌지는 새 버튼 자신의
@@ -64,6 +156,7 @@
             if (acBtn.classList.contains('active') !== turnOn) acBtn.click();
             if (fbBtn.classList.contains('active') !== turnOn) fbBtn.click();
             btn.classList.toggle('active', turnOn);
+            _showLegend(turnOn);
             // 켤 때는 배경지도를 위성지도로 — 두 모듈도 각자 하지만, 여기서 한 번 더
             // 보장해 두면 어느 쪽이 먼저 켜지든 결과가 같다. 이미 vworld 면 그대로 둔다.
             if (turnOn && typeof window.oceanSetBasemap === 'function' &&

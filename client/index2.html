@@ -978,6 +978,80 @@
             margin-top: 6px;
             pointer-events: auto;
         }
+        /* 금지구역 범례[2026-09-09] — 사고정보 모드토글과 같은 방식으로 기본맵·안내 버튼
+           줄 바로 아래에 붙인다(부모가 position:absolute 라 그 기준으로 계산됨).
+           ★사고정보 모드토글이 떠 있으면 자리가 겹치므로, ban_zone.js 가 그 높이를 실측해
+             margin-top 을 인라인으로 더 준다(accident_info.js positionFilterBar 와 같은 어법). */
+        #ocean-topleft-controls > .banzone-legend {
+            position: absolute !important;
+            top: 100%;
+            left: 0;
+            margin-top: 6px;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 6px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+        }
+        .banzone-legend .bzl-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 2px 4px;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            cursor: pointer;
+            font-size: 12px;
+            color: #222;
+            white-space: nowrap;
+        }
+        .banzone-legend .bzl-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            flex: 0 0 auto;
+        }
+        /* 지도 폴리곤과 같은 색 — access_control.js / fishing_ban.js 의 채움·선 색 */
+        .banzone-legend .bzl-swatch-ac {
+            background: rgba(255, 82, 82, 0.35);
+            border: 1.5px solid rgba(255, 82, 82, 0.9);
+        }
+        .banzone-legend .bzl-swatch-fb {
+            background: rgba(255, 152, 0, 0.35);
+            border: 1.5px solid rgba(255, 152, 0, 0.9);
+        }
+        .banzone-legend .bzl-name { flex: 1 1 auto; text-align: left; }
+        /* 켜고 끄는 스위치(작은 토글 모양) */
+        .banzone-legend .bzl-switch {
+            position: relative;
+            width: 28px;
+            height: 16px;
+            border-radius: 8px;
+            background: #c8c8c8;
+            flex: 0 0 auto;
+            transition: background 0.15s;
+        }
+        .banzone-legend .bzl-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #fff;
+            transition: left 0.15s;
+        }
+        .banzone-legend .bzl-row.on .bzl-switch { background: #2e7d32; }
+        .banzone-legend .bzl-row.on .bzl-switch::after { left: 14px; }
+        /* 꺼진 줄은 글자·색칩을 흐리게 해 상태가 한눈에 보이게 */
+        .banzone-legend .bzl-row:not(.on) .bzl-name,
+        .banzone-legend .bzl-row:not(.on) .bzl-swatch { opacity: 0.45; }
+
         /* 선택 초기화 버튼 — 모드토글(고정폭 120px) 바로 오른쪽. */
         #ocean-topleft-controls > #accident-filter-reset-btn {
             position: absolute !important;
@@ -3574,6 +3648,24 @@
                         <!-- 분석(격자) 모드에서만 보이는 색상 범례 — 격자칸 색이 그 칸의 사고
                              밀도(파랑=낮음~빨강=높음)를 나타낸다는 걸 알려준다.
                              [연계] js/marine-life/safety/accident_info.js showGridLegend() -->
+                        <!-- 금지구역 범례[2026-09-09 사용자 확정] — "금지구역" 버튼을 켜면
+                             기본맵 버튼 바로 아래에 뜬다. 색이 무엇을 뜻하는지 알려주고,
+                             오른쪽 스위치로 종류별로 따로 켜고 끈다(둘 다 켜도, 하나만 켜도 됨.
+                             둘 다 꺼도 범례는 남아 다시 켤 수 있다).
+                             [연계] js/marine-life/safety/ban_zone.js 가 표시·스위치를 담당 →
+                                    window.accessControlSetShown() · window.fishingBanSetShown() -->
+                        <div class="banzone-legend" id="banzone-legend" style="display:none;">
+                            <button type="button" class="bzl-row on" id="bzl-row-ac">
+                                <span class="bzl-swatch bzl-swatch-ac"></span>
+                                <span class="bzl-name">출입통제구역</span>
+                                <span class="bzl-switch"></span>
+                            </button>
+                            <button type="button" class="bzl-row on" id="bzl-row-fb">
+                                <span class="bzl-swatch bzl-swatch-fb"></span>
+                                <span class="bzl-name">낚시금지구역</span>
+                                <span class="bzl-switch"></span>
+                            </button>
+                        </div>
                         <div class="accident-grid-legend" id="accident-grid-legend" style="display:none;">
                             <span class="agl-title" id="agl-title">사고건수</span>
                             <span class="agl-scale">
