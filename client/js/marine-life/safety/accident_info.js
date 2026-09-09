@@ -5991,17 +5991,12 @@
         // 전국 통계 버튼은 필터 바가 있던 그 자리에 놓인다(분석 모드 전용)[S18].
         var nwBtn = document.getElementById('accident-nationwide-btn');
         if (nwBtn) nwBtn.style.top = barTop + 'px';
-        // 범례를 필터 바 바로 아래 붙임(필터 바가 접혀 있으면 그만큼 위로 당겨짐) —
-        // 필터 바처럼 글자 크기 설정에 따라 실제 줄 수가 바뀌어(칩이 좁으면 여러 줄로
-        // 감김) 고정 px로 못 잡고 매번 실측한다.
+        // ★범례는 이제 지도 **좌측 하단**(출처표기 바로 위)에 CSS 로 붙어 있다
+        //   [S28-1, 2026-09-09 사용자 확정]. 예전에는 여기서 "필터 바(또는 전국 통계
+        //   버튼) 아래"로 실측해 top 을 넣었는데, 지도 위쪽을 가려 아래로 내렸다.
+        //   인라인 top 이 남아 있으면 그 CSS 를 덮어써 다시 위로 올라가므로 지워 준다.
         var legend = document.getElementById('accident-grid-legend');
-        // 범례는 "그 자리에 있는 것" 아래에 붙는다[S19 정정]. 분석 모드에서는 필터 바가
-        // 늘 접힌 상태인데 그 자리를 전국 통계 버튼이 대신하므로(S18), 접힘만 보고
-        // barTop 을 그대로 주면 버튼과 범례가 겹친다(적대검증 지적, 실측 확인).
-        var occupant = (nwBtn && nwBtn.style.display !== 'none') ? nwBtn
-            : (barCollapsed ? null : bar);
-        var afterBarTop = occupant ? (barTop + occupant.offsetHeight + 6) : barTop;
-        if (legend) legend.style.top = afterBarTop + 'px';
+        if (legend) legend.style.top = '';
     }
 
     /**

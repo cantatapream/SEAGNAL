@@ -113,6 +113,7 @@
     "hazard_rocks.js",
     "access_control.js",
     "fishing_ban.js",
+    "ban_zone.js",
     "vts_zone.js",
     "seaway.js",
     "navigational_warning.js",

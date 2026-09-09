@@ -639,12 +639,16 @@
             { id: 'mudflat', label: '물빠짐' },
             { id: 'hazardrock', label: '노출암·간출암' },
             { id: 'cctv', label: 'CCTV' },
-            { id: 'fishingban', label: '낚시금지', html:
-                '<p><i class="fa-solid fa-circle-check"></i> 낚시 관리 및 육성법 제6조와 지자체 조례에 따라 낚시가 금지되거나 제한된 구역을 지도 위에 주황색으로 표시합니다.</p>'
+            // 낚시금지 · 출입통제를 "금지구역" 한 탭으로 합쳤다[S28-3, 2026-09-09 사용자 확정].
+            // 버튼도 하나로 합쳐(ban_zone.js) 두 구역이 함께 뜨므로 안내도 한 자리에 둔다.
+            { id: 'banzone', label: '금지구역', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 버튼 하나로 <strong>낚시금지구역</strong>과 <strong>출입통제구역</strong>을 함께 표시합니다. 둘 다 "여기서는 하면 안 된다"는 뜻의 구역입니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>낚시금지구역</strong>(236곳) — 낚시 관리 및 육성법 제6조와 지자체 조례에 따라 낚시가 금지되거나 제한된 구역입니다. 주황색으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>출입통제구역</strong>(35곳) — 연안사고 예방에 관한 법률 제10조에 따라 각 해양경찰서가 지정한 구역입니다.</p>'
               + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 실제 지형과 비교하기 쉽도록 배경지도가 위성지도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
               + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 위치, 지정 사유, 통제 기간·시간, 대상, 벌칙, 고시번호 등 상세 정보를 확인할 수 있습니다.</p>'
-              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 국립해양조사원이 파악한 구역만 반영되어 있어 최신 지정 현황과 다를 수 있습니다. 실제 낚시 전에는 현장 안내판이나 관할 지자체 공고를 꼭 확인하세요.</p>'
-              + '<div class="ocean-info-src">최종 갱신일자 · 2025-12-12<br>출처 · 국립해양조사원 낚시통제구역 주제도</div>' },
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 낚시금지구역은 국립해양조사원이 파악한 구역만, 출입통제구역은 원본 고시·공고에 <strong>경위도 좌표가 온전히 적힌 구역만</strong> 반영되어 있습니다(나머지는 원본에 손그림 경계선만 있어 확정할 수 없었습니다). 최신 지정 현황과 다를 수 있으니 실제 활동 전에는 현장 안내판이나 관할 지자체·해양경찰서 공고를 꼭 확인하세요.</p>'
+              + '<div class="ocean-info-src">최종 갱신일자 · 낚시금지 2025-12-12 · 출입통제 2026-09-04<br>출처 · 국립해양조사원 낚시통제구역 주제도 · 각 해양경찰서 고시·공고</div>' },
             { id: 'vts', label: '관제구역', html:
                 '<p>해양경찰청이 공고한 선박교통관제구역(VTS)을 지도 위에 남색(인디고)으로 표시하며, 명칭에 실제 관제채널(예: Ch. 09)이 함께 표기됩니다.</p>'
               + '<p>버튼을 켜면 배경지도가 전자해도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'

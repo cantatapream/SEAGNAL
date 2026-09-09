@@ -602,5 +602,59 @@ ok('범례 라벨은 말줄임이 되도록 <b> 로 감싼다',
 ok('기간·칩 줄 위아래 여백을 1/5 로 줄였다',
     /\.ash-meta \{[\s\S]{0,700}padding: 0\.18em 0 0\.19em;[\s\S]{0,200}margin-bottom: 0\.18em;/.test(CSS));
 
+// ── [11] 지도 위 배치·버튼 정리[S28] ────────────────────────────────────────
+console.log('\n[11] 지도 위 배치·버튼 정리[S28]');
+
+const HTML = fs.readFileSync(path.join(CLIENT, 'index2.html'), 'utf8');
+
+ok('격자 범례가 지도 좌측 하단(출처표기 바로 위)에 붙는다',
+    /#ocean-topleft-controls > \.accident-grid-legend \{[\s\S]{0,300}position: fixed !important;[\s\S]{0,200}left: 8px;[\s\S]{0,200}bottom: calc\(var\(--main-tab-height, 68px\) \+ 8px \+ 25px\)/.test(HTML));
+ok('서브탭이 열리면 범례도 그만큼 올라간다',
+    /body\.sub-tabs-open #ocean-topleft-controls > \.accident-grid-legend \{[\s\S]{0,200}var\(--sub-tab-height, 50px\)/.test(HTML));
+ok('해양안전에서도 출처표기(물빠짐 슬라이더 포함)를 따라간다',
+    /body\.ls-mode\.ls-safety #ocean-topleft-controls > \.accident-grid-legend/.test(HTML) &&
+    /body\.ls-mode\.ls-safety\.ls-mudflat-on #ocean-topleft-controls > \.accident-grid-legend/.test(HTML));
+ok('범례 top 을 JS 가 더 이상 인라인으로 넣지 않는다',
+    /if \(legend\) legend\.style\.top = '';/.test(CODE) &&
+    !/legend\.style\.top = afterBarTop/.test(CODE));
+
+ok('전국 통계 버튼 폭이 모드토글(120px)과 같고 글자가 가운데',
+    /#ocean-topleft-controls > #accident-nationwide-btn \{[\s\S]{0,400}width: 120px;[\s\S]{0,80}text-align: center;/.test(HTML));
+
+ok('"금지구역" 버튼이 있다',
+    /id="ocean-banzone-toggle-btn"/.test(HTML) &&
+    /body\.ls-mode\.ls-safety #ocean-banzone-toggle-btn,/.test(HTML));
+ok('출입통제·낚시금지 원래 버튼은 숨기되 지우지 않는다(모듈이 참조)',
+    /#ocean-access-control-toggle-btn,\s*\n\s*#ocean-fishing-ban-toggle-btn \{ display: none !important; \}/.test(HTML) &&
+    /id="ocean-access-control-toggle-btn"/.test(HTML) && /id="ocean-fishing-ban-toggle-btn"/.test(HTML));
+ok('금지구역 버튼이 두 원래 버튼을 대신 누른다',
+    /ban_zone\.js/.test(HTML) &&
+    (function () {
+        const bz = fs.readFileSync(path.join(CLIENT, 'js', 'marine-life', 'safety', 'ban_zone.js'), 'utf8');
+        return /acBtn\.classList\.contains\('active'\) !== turnOn\) acBtn\.click\(\)/.test(bz) &&
+               /fbBtn\.classList\.contains\('active'\) !== turnOn\) fbBtn\.click\(\)/.test(bz);
+    })());
+ok('금지구역 스크립트가 두 모듈보다 뒤에 로드된다',
+    (function () {
+        // <script src=...> 만 본다 — 주석에도 파일명이 적혀 있어 문자열 첫 등장을
+        // 그대로 쓰면 주석 위치를 잡는다(처음 이 검사를 그렇게 썼다가 걸렸다).
+        function at(name) {
+            const m = HTML.match(new RegExp('<script src="js/marine-life/safety/' + name + '[^"]*"'));
+            return m ? HTML.indexOf(m[0]) : -1;
+        }
+        const bz = at('ban_zone\\.js'), fb = at('fishing_ban\\.js'), ac = at('access_control\\.js');
+        return bz > 0 && fb > 0 && ac > 0 && bz > fb && bz > ac;
+    })());
+ok('안내 팝업 탭도 "금지구역" 하나로 합쳐졌다',
+    (function () {
+        const ls = fs.readFileSync(path.join(CLIENT, 'js', 'marine-life', 'safety', 'life_safety.js'), 'utf8');
+        return /\{ id: 'banzone', label: '금지구역'/.test(ls) && !/id: 'fishingban'/.test(ls);
+    })());
+
+ok('CCTV·물빠짐 버튼은 해양종합정보에서만 숨긴다',
+    /body:not\(\.ls-safety\) #ocean-cctv-toggle-btn,\s*\n\s*body:not\(\.ls-safety\) #ocean-mudflat-toggle-btn \{ display: none !important; \}/.test(HTML) &&
+    /body\.ls-mode\.ls-safety #ocean-cctv-toggle-btn,/.test(HTML) &&
+    /body\.ls-mode\.ls-safety #ocean-mudflat-toggle-btn,/.test(HTML));
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);
