@@ -764,8 +764,8 @@ ok('칩이 "전체"일 때만 두 줄을 그린다',
     /var splitSrc = _statsScope === 'all';/.test(CODE) &&
     /if \(splitSrc\) \{[\s\S]{0,300}var hn = \(hkSt\.sev\[k\.code\] \|\| 0\), pn = \(peSt\.sev\[k\.code\] \|\| 0\);/.test(CODE));
 ok('타일에 선박·인명 두 줄 마크업이 있다',
-    /class="s hk"><span>선박사고<\/span><b>/.test(CODE) &&
-    /class="s person"><span>인명사고<\/span><b>/.test(CODE));
+    /class="s hk"><span>선박<\/span><b>/.test(CODE) &&
+    /class="s person"><span>인명<\/span><b>/.test(CODE));
 ok('소스별 집계를 한 번만 하고 아래 칸과 함께 쓴다(중복 순회 제거)',
     /var hkSt = splitSrc \? warnStatsOf\('hk', membersOfSrc\(members, 'hk'\)\) : null;/.test(CODE) &&
     /var hw = hkSt\.warn, pw = peSt\.warn;/.test(CODE) &&

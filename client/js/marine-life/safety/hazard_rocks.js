@@ -858,8 +858,11 @@
         map.addOverlay(overlay);
         return { overlay: overlay, textEl: el.querySelector('.hazard-rock-warning-text'), targetMs: 0 };
     }
-    /** "OO:OO 후 완전히 잠김" 텍스트 갱신(시:분, 지금부터 남은 시간). */
+    /** "OO:OO 후 완전히 잠김" 텍스트 갱신(시:분, 지금부터 남은 시간).
+     *  뭉친 원(cluster)에는 시각을 적지 않는다 — 그 안 여러 암초 중 어느 것의 시각인지
+     *  가리킬 수 없기 때문이다(사용자 확정 2026-09-09). 빨간 테두리만 보여 준다. */
     function updateCountdownText(entry) {
+        if (entry.cluster) { entry.textEl.innerHTML = ''; return; }
         var remainMin = Math.max(0, Math.round((entry.targetMs - Date.now()) / 60000));
         var hh = String(Math.floor(remainMin / 60)).padStart(2, '0');
         var mm = String(remainMin % 60).padStart(2, '0');
@@ -892,15 +895,38 @@
             var viewExtent = map.getView().calculateExtent(map.getSize());
             rockLayer.getSource().getFeatures().forEach(function (clusterFeature) {
                 var members = clusterFeature.get('features');
-                if (members.length !== 1) return; // 뭉쳐 있으면 어느 암초인지 특정 불가 — 건너뜀
-                var f = members[0];
-                if (f.get('k') !== 1) return; // 간출암만(세암/암암/노출암은 잠김 개념 없음)
-                var id = String(f.get('id'));
-                var targetMs = _warningTargets[id];
-                if (targetMs == null || targetMs <= now) return;
-                var coord = f.getGeometry().getCoordinates();
-                if (!ol.extent.containsCoordinate(viewExtent, coord)) return;
-                activeIds[id] = { coord: coord, targetMs: targetMs };
+                var cCoord = clusterFeature.getGeometry().getCoordinates();
+                if (!ol.extent.containsCoordinate(viewExtent, cCoord)) return;
+
+                if (members.length === 1) {
+                    var f = members[0];
+                    if (f.get('k') !== 1) return; // 간출암만(세암/암암/노출암은 잠김 개념 없음)
+                    var id = String(f.get('id'));
+                    var targetMs = _warningTargets[id];
+                    if (targetMs == null || targetMs <= now) return;
+                    activeIds[id] = { coord: f.getGeometry().getCoordinates(), targetMs: targetMs };
+                    return;
+                }
+
+                // [뭉친 원 — 2026-09-09 사용자 확정] 크게 확대해 낱개로 갈라져야만 빨갛게
+                // 되던 것을, 뭉쳐 있는 동안에도 "이 안에 곧 잠기는 암초가 있다"를 보여 준다.
+                //   · 시각은 적지 않는다 — 여럿 중 누구의 시각인지 가리킬 수 없다.
+                //   · 키는 그 안 경고 대상 중 가장 작은 id 로 만든다. 클러스터 자체에는
+                //     안정적인 id 가 없어(줌마다 새로 만들어짐) 그대로 두면 매번 오버레이가
+                //     지워졌다 다시 생겨 깜빡인다.
+                var keyId = null, soonest = null;
+                for (var i = 0; i < members.length; i++) {
+                    var mf = members[i];
+                    if (mf.get('k') !== 1) continue;
+                    var t = _warningTargets[String(mf.get('id'))];
+                    if (t == null || t <= now) continue;
+                    var idNum = Number(mf.get('id'));
+                    if (keyId === null || idNum < keyId) keyId = idNum;
+                    if (soonest === null || t < soonest) soonest = t;
+                }
+                if (keyId !== null) {
+                    activeIds['c' + keyId] = { coord: cCoord, targetMs: soonest, cluster: true };
+                }
             });
         }
         // 더는 대상이 아닌 오버레이 제거
@@ -920,6 +946,7 @@
                 _warningOverlays.set(id, entry);
             }
             entry.targetMs = info.targetMs;
+            entry.cluster = !!info.cluster;
             entry.overlay.setPosition(info.coord);
             updateCountdownText(entry);
         });
