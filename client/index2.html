@@ -1053,6 +1053,9 @@
             font-size: 0.7rem;
             font-weight: 700;
             white-space: nowrap;
+            /* 글자색은 "전국 통계" 버튼(.accident-filter-reset-btn)과 같게 — 지정하지 않으면
+               버튼이 상위에서 색을 물려받아 노랗게 나온다(사용자 지적 2026-09-09). */
+            color: var(--text-sub);
         }
         /* 색칩(네모) 없이 **글자 색으로** 구분한다 — 지도 폴리곤과 같은 색
            (access_control.js 빨강 / fishing_ban.js 주황). */
