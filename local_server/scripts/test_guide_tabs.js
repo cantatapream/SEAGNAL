@@ -18,7 +18,7 @@
  *
  * [실행] node local_server/scripts/test_guide_tabs.js
  * [연계] ← scripts/refactor/verify_all.sh SUITES
- *        → client/js/ocean-map/cctv/ocean_cctv.js (해양종합정보 안내 12탭)
+ *        → client/js/ocean-map/cctv/ocean_cctv.js (해양종합정보 안내 13탭)
  *        → client/js/marine-life/safety/life_safety.js (해양안전 안내 8탭)
  *        → client/index2.html (화면 버튼 존재 여부)
  */
@@ -71,10 +71,10 @@ const OCEAN_EXPECT = [
     ['basemap', '지도 종류'], ['search', '위치 검색'], ['northup', '진북 정렬'],
     ['wind', '풍향·풍속'], ['current', '유향·유속'], ['wave', '파고·파향'],
     ['buoy', '기상부이'], ['seagrid', '해구기상'], ['warnzone', '특보구역'],
-    ['otherwx', '천기'], ['depth', '수심'], ['tide', '조석']
+    ['typhoon', '태풍'], ['otherwx', '천기'], ['depth', '수심'], ['tide', '조석']
 ];
 ok('탭을 읽어 낼 수 있다', Array.isArray(oceanTabs), String(oceanTabs));
-ok('탭이 12개다', (oceanTabs || []).length === 12, String((oceanTabs || []).length));
+ok('탭이 13개다', (oceanTabs || []).length === 13, String((oceanTabs || []).length));
 ok('탭 id·라벨·순서가 화면 버튼 순서와 같다',
     JSON.stringify((oceanTabs || []).map(t => [t.id, t.label])) === JSON.stringify(OCEAN_EXPECT),
     (oceanTabs || []).map(t => t.label).join(' | '));
@@ -198,6 +198,8 @@ console.log('\n[4] 표기 통일');
 ok('TideBED 를 "조위관측자료"라고 부르지 않는다(예측 자료다)',
     !/조위관측자료/.test(oceanText + safetyText));
 ok('TideBED 표기가 대문자다(조석 탭)', /조석예측자료\(TideBED/.test(oceanText));
+ok('태풍 출처가 기상청 방재기상플랫폼이다(사용자 확정)',
+    /기상청 방재기상플랫폼/.test((oceanTabs || []).filter(t => t.id === 'typhoon').map(t => t.src || '').join('')));
 
 // ── [5] 게이트 등록 ───────────────────────────────────────────────────────
 console.log('\n[5] 게이트 등록');

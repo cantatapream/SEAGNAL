@@ -9,9 +9,9 @@
 |------|------|-----------|
 | `cctv1.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | — |
 | `cctv4.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `handleCctvMapClick`, `showCctvPopup`, `_initCctvHlsPlayer`, `_startCoastImageRefresh`, `_stopCoastImageRefresh`, `_initSeafogSlider` |
-| `ocean_cctv.js` | CCTV 레이어 + **해양종합정보 「안내」 팝업(12탭)** | `_buildInfoHtml`, `_buildSingleStyle`, `_buildFeatures`, `_ensureCctvLayer`, `_favLocStyle`, `_ensureFavLocLayer` |
+| `ocean_cctv.js` | CCTV 레이어 + **해양종합정보 「안내」 팝업(13탭)** | `_buildInfoHtml`, `_buildSingleStyle`, `_buildFeatures`, `_ensureCctvLayer`, `_favLocStyle`, `_ensureFavLocLayer` |
 
-### 해양종합정보 「안내」 팝업 (2026-09-09 개편)
+### 해양종합정보 「안내」 팝업 (2026-09-09 개편, 13탭)
 
 `INFO_TAB_ITEMS` 가 탭 목록이다. **원칙: 탭이 곧 그 화면의 버튼이다** — 화면에 버튼이 없는 기능은
 탭으로 두지 않는다(사용자 확정). 그래서 옛 18탭에서 7개를 뺐다:
@@ -23,7 +23,8 @@
 | 특보 ON/OFF | 별도 버튼이 아니라 **특보구역에 딸린 곁가지** → 특보구역 탭에 합침 |
 | 시정 | **천기 팝아웃의 7번째 항목** → 천기 탭에 합침 |
 
-새로 넣은 탭은 **천기**(버튼은 있는데 안내가 없었다). 이름이 바뀐 탭은 부이→**기상부이**,
+새로 넣은 탭은 **천기**와 **태풍**(둘 다 버튼은 있는데 안내가 없었다 — 태풍 출처는
+사용자 확정으로 *기상청 방재기상플랫폼*, `typhoon_crawler.js` 가 dmdw.kma.go.kr 에서 10분마다 수집). 이름이 바뀐 탭은 부이→**기상부이**,
 해구도→**해구기상**. 조석 탭은 실제 동작(누른 좌표로 TideBED 직접 조회)에 맞춰 전면 재작성했다.
 탭 순서는 화면 오버레이 버튼 순서를 그대로 따른다.
 
