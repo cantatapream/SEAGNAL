@@ -133,7 +133,38 @@ function tierWordOnly(name) {
   return t.replace(/^(이|동|본)/, '').replace(/(법률|법령|법|시행령|시행규칙|[·ㆍ・,\/]|→)/g, '') === '';
 }
 
-function ownersOf(idx, law, arts) {
+/**
+ * 기대 근거·행이 **부칙**을 가리키는가.
+ * ★왜 필요한가(2026-09-06, 소유자 결정 ⑤ⓐ로 고침): `artsOf()` 는 `부칙(제20939호) 제2조` 에서
+ *   호수를 떼고 **`제2조` 하나로 뭉갠다.** 그러면 "이 근거를 가진 페이지"를 찾을 때 **법 본문
+ *   제2조(정의)를 가진 엉뚱한 페이지**가 잡힌다 — 실측으로 확인했다(수산업ㆍ어촌발전기본법
+ *   `부칙(제20939호) 제2조` 문항에서 `__수산업수산인어업인정의` 와 허브 페이지가 잡혔고,
+ *   정작 그 부칙을 실은 페이지는 검색 후보 4위로 들어와 있는데도 실패로 찍혔다).
+ *   부칙은 본문과 **다른 조문 공간**이다. 같은 "제2조"라도 서로 다른 것이므로 갈라 본다.
+ * ⚠호수(제20939호)까지 맞추지는 않는다 — 위키가 호수를 적는 꼴이 제각각이라 그것까지 맞추면
+ *   맞는 행도 떨어진다. 여기서는 **부칙이냐 본문이냐**만 가른다(그것만으로 오매칭이 사라진다).
+ */
+function isAddenda(s) { return /부\s*칙/.test(String(s || '')); }
+
+/**
+ * 부칙 근거를 찾을 때 쓰는 **추가 열쇠**를 만든다 — `부칙 제20939호` · `부칙 2025.4.22` 꼴.
+ * ★왜 필요한가(2026-09-06): 생산 매처는 부칙 행을 **호수·공포일**로 살려 낸다. 그래서 기대 근거를
+ *   `제2조` 하나로만 두면, 위키에 맞는 부칙 행이 **있어도** 못 찾는다(실측: 수산업ㆍ어촌발전기본법
+ *   페이지에 `부칙(제20939호) 제2조` 행을 넣어도 owners 가 비었다).
+ *   `reach_eval.js` 의 `friendlyAnswer()` 가 이미 같은 열쇠를 만들고 있어 **그 규칙을 그대로 쓴다**
+ *   (L-136 — 같은 대조를 두 곳에서 다르게 구현하면 숫자가 헛것이 된다).
+ */
+function addendaKeys(s) {
+  const t = String(s || ''); const out = [];
+  if (!isAddenda(t)) return out;
+  const ho = /제\s*(\d{3,6})\s*호/.exec(t);
+  if (ho) { out.push('부칙 제' + ho[1] + '호'); return out; }
+  const d = /(\d{4})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})/.exec(t);
+  if (d) out.push('부칙 ' + d[1] + '.' + Number(d[2]) + '.' + Number(d[3]));
+  return out;
+}
+
+function ownersOf(idx, law, arts, wantAddenda) {
   const L = flat(law); const out = new Set();
   for (const [rl, entries] of idx) {
     if (!(rl.includes(L) || L.includes(rl))) continue;
@@ -147,7 +178,20 @@ function ownersOf(idx, law, arts) {
       //     법의 시행령을 말하든 살아남는다). 그건 그것대로 결함이지만, **측정은 그 느슨함을
       //     물려받으면 안 된다** — 여기서 기대 법과 맞는지 따로 본다.
       if (tierWordOnly(e.row.law) && !(L && flat(e.baseLaw) && L.startsWith(flat(e.baseLaw)))) continue;
-      for (const a of arts) {
+      // ★부칙과 본문을 가른다(2026-09-06) — 위 isAddenda 머리말 참고.
+      if (!!wantAddenda !== (isAddenda(e.row.law) || isAddenda(e.row.article))) continue;
+      // ★기대 근거가 부칙인데 **호수를 안 적은** 경우가 있다(`부칙 제3조·제20조·제82조`).
+      //   그때는 **행이 스스로 적어 둔 호수**를 열쇠로 써 본다 — 생산 매처가 부칙 행을 살려 내는
+      //   열쇠가 호수·공포일이기 때문이다(reach_eval friendlyAnswer 와 같은 규칙).
+      //   ⚠아무 부칙 행에나 붙지 않게, **그 행이 기대한 조(제3조 등)를 실제로 담고 있을 때만** 쓴다.
+      const tries = arts.slice();
+      if (wantAddenda) {
+        const rowKeys = addendaKeys(`${e.row.law} ${e.row.article}`);
+        if (rowKeys.length && arts.some(a => !/^부칙/.test(a) && flat(e.row.article).includes(flat(a)))) {
+          tries.push(...rowKeys);
+        }
+      }
+      for (const a of tries) {
         const answer = `\u300c${e.row.law}\u300d ${a}에 따릅니다.`;
         if (R.filterCitationChainByAnswer([Object.assign({}, e.row)], answer, e.baseLaw).length) {
           out.add(e.file); break;
@@ -217,8 +261,8 @@ async function run() {
   for (const q of qs) {
     if (q.skip) continue;                       // 되묻기가 정답인 문항 등은 채점에서 뺀다
     if (!q.verified) continue;                  // ★사서가 원문·위키로 확인한 라벨만 채점한다(L-125)
-    const wantArts = artsOf(q.expect_article);
-    const owners = ownersOf(idx, q.expect_law, wantArts);
+    const wantArts = artsOf(q.expect_article).concat(addendaKeys(q.expect_article));
+    const owners = ownersOf(idx, q.expect_law, wantArts, isAddenda(q.expect_article));
     let res;
     try { res = await R.search(q.question, {}); } catch (e) { res = null; }
     const pages = (res && res.contextPages) || [];
@@ -241,7 +285,7 @@ async function run() {
 // ★다른 검사도 같은 판정을 쓰도록 열어 둔다(2026-08-21). 판정을 두 번 구현하면 어긋난다(L-136) —
 //   `search_gap.js` 가 "그 행을 가진 페이지가 어디인가"를 여기서 그대로 가져다 쓴다.
 //   ⚠아래 실행부는 **직접 실행할 때만** 돈다(require 로 불러도 안 돈다).
-module.exports = { buildRowIndex, ownersOf, artsOf, flat, buildRawArticleIndex, inRaw, tierWordOnly };
+module.exports = { buildRowIndex, ownersOf, artsOf, flat, buildRawArticleIndex, inRaw, tierWordOnly, isAddenda, addendaKeys };
 if (require.main === module) main();
 
 function main() {

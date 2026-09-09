@@ -2976,7 +2976,11 @@
     var gist = el.getAttribute('data-gist') || '';
     var chip = document.getElementById('nryaArtChip');
     chip.className = 'nrya-artpop-chip'; chip.textContent = '';   // 조 하나면 빈 채로 둔다
-    document.getElementById('nryaArtLaw').textContent = law;
+    // ⚠제목에 찍는 이름과 서버에 보내는 이름은 다르다. `law`(data-law)는 원문을 찾을 때 쓰는
+    //   값이라 그대로 두고, 제목에는 계층 낱말뿐인 이름에 페이지의 법을 붙인 것을 쓴다
+    //   (chainStepHTML 이 data-lawshow 로 실어 보낸다 — displayLawName 참고).
+    //   실어 오지 않은 옛 기록이면 예전처럼 law 를 그대로 쓴다(나빠지지 않게).
+    document.getElementById('nryaArtLaw').textContent = el.getAttribute('data-lawshow') || law;
     document.getElementById('nryaArtTitle').textContent = article || '조문 원문';
     document.getElementById('nryaArtEff').textContent = '';
     document.getElementById('nryaArtGist').textContent = '';
@@ -3688,6 +3692,41 @@
   }
 
   /**
+   * 근거 줄의 법령명을 **화면에 보여줄 문자열**로 만든다.
+   * 법령명이 `시행령`·`시행규칙`처럼 **계층 낱말뿐**이면 그 줄이 실려 있던 위키 페이지의 법
+   * (row.baseLaw)을 앞에 붙여 준다.
+   *
+   * 예: displayLawName({law:'시행규칙', baseLaw:'해양경비법'})      → '해양경비법 시행규칙'
+   *     displayLawName({law:'시행령 별표3', baseLaw:'어선법'})     → '어선법 시행령 별표3'
+   *     displayLawName({law:'수산업법 시행령'})                    → '수산업법 시행령'(그대로)
+   *
+   * [왜 필요한가 — 2026-09-07 27차 라이브 검증에서 발견]
+   *   위키 `## 근거 조문` 표에는 법령 칸을 `시행규칙` 처럼 계층 낱말만 적은 행이 흔하다
+   *   (개념 페이지 163행·위키 전체 194행). `시행령 별표3` 처럼 계층 낱말 + 별표/별지 번호만 적은
+   *   행도 같은 이유로 12행 있다. 그 페이지 안에서는 어느 법인지 자명해서다.
+   *   서버는 이 꼴을 알고 baseLaw 로 원문을 잘 찾아온다(legal_retriever.js BARE_TIER_CELL_RE, B3).
+   *   **그런데 화면이 그 baseLaw 를 안 써서**, 여러 법이 섞인 답변에서는 근거 목록에
+   *   "시행규칙 제1조의2" 처럼 어느 법인지 없는 줄이 그대로 나왔다. 실제 사례:
+   *   "헬기로 정선명령을 방송해도 효력이 있나" 답변에 어선안전조업법 시행규칙과
+   *   해양경비법 시행규칙이 함께 실렸는데 뒤엣것이 "시행규칙"으로만 표시됐다.
+   *
+   * ⚠**보여줄 글자만 만든다 — 판정에 쓰는 값(row.law)은 건드리지 않는다.**
+   *   row.law 는 조문 원문을 어느 폴더에서 읽을지 정하는 열쇠로도 쓰이고, 그 판정은
+   *   "법령 칸이 계층 낱말뿐인가"를 조건으로 삼는다(usesBaseLaw). 값 자체를 바꾸면
+   *   그 판정이 뒤집혀 엉뚱한 원문을 열 수 있다.
+   * @param {{law:string, baseLaw:string}} row - citationChain 한 줄
+   * @returns {string} 화면에 찍을 법령명(붙일 게 없으면 원래 값 그대로)
+   * [연계] ← chainStepHTML(근거 목록 카드) · openArtPop(조문 원문 팝업 제목).
+   */
+  function displayLawName(row) {
+    var nm = String((row && row.law) || '').trim();
+    var base = String((row && row.baseLaw) || '').trim();
+    // 계층 낱말 하나로 끝나거나, 그 뒤에 별표·별지·서식 번호만 붙은 꼴까지 받는다.
+    if (!base || !/^(시행령|시행규칙)(\s*(별표|별지|서식)\s*제?\s*\d+(의\d+)?\s*호?)?$/.test(nm)) return nm;
+    return base + ' ' + nm;
+  }
+
+  /**
    * 인용사슬 한 조문을 체인 한 칸으로 그린다.
    * 제목 줄은 **[뱃지] 법령명 조문번호** 한 줄로 짧게 끝내고(시행일자는 그 줄 오른쪽 끝의 작은 칩),
    * 그 아래에 그 조문의 **원문 발췌**(row.excerpt — 서버가 조문 원문에서 그대로 잘라 실어준 것)를
@@ -3746,7 +3785,10 @@
     // (조 하나를 못 짚어 강조를 할 수 없는 대신 방향을 잡아주는 문구 — 가공 없이 원문 그대로).
     // [계약1] `citedArticle` = 답변 문장이 이 줄을 인용할 때 실제로 쓴 표기 전체(`제58조제5항제7호`).
     //   비어 있지 않으면 그걸 보내야 팝업이 그 항·호만 짚어준다(없으면 예전처럼 위키 표의 조문 칸).
-    var hitAttrs = ' data-law="' + esc(row.law || '') + '" data-article="' + esc(row.citedArticle || row.article || '') +
+    // ⚠data-law 는 **서버에 그대로 넘길 값**이라 손대지 않는다. 화면에 보여줄 이름은
+    //   data-lawshow 로 따로 싣는다(displayLawName — 계층 낱말뿐인 법령명에 페이지의 법을 붙인 것).
+    var hitAttrs = ' data-law="' + esc(row.law || '') + '" data-lawshow="' + esc(displayLawName(row)) +
+      '" data-article="' + esc(row.citedArticle || row.article || '') +
       '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(row.baseLaw || '') +
       '" data-gist="' + esc(row.gist || '') + '"' +
       (penalty ? ' data-pen="1"' : '');
@@ -3761,7 +3803,7 @@
       '<div class="nrya-chain-content">' +
         '<div class="nrya-chain-hit"' + hitAttrs + '>' +
           '<div class="nrya-chain-head"><span class="nrya-chain-tier">' + head + '</span>' +
-            '<span class="nrya-chain-art">' + esc(row.law || '') + (row.article ? ' ' + esc(row.article) : '') + '</span>' + eff + '</div>' +
+            '<span class="nrya-chain-art">' + esc(displayLawName(row)) + (row.article ? ' ' + esc(row.article) : '') + '</span>' + eff + '</div>' +
           step +
           quote +
         '</div>' +
