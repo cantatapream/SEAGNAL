@@ -528,10 +528,23 @@
         apply(visible);   // 페이지 진입 시 복원된 상태를 즉시 반영
 
         // ── ④ 클릭 핸들러: 상태 뒤집고 저장 ─────────────────────────
+        // ON 시점의 배경지도를 기억해 OFF 때 되돌린다(출입통제·낚시금지와 같은 패턴).
+        let prevBasemap = null;
         btn.addEventListener('click', function () {
             visible = !visible;
             apply(visible);
             try { localStorage.setItem('seagnal_marine_zone_visible', String(visible)); } catch (e) {}
+            // [배경지도] 해구기상은 격자와 숫자를 읽는 화면이라 위성사진 위에서는 잘 안 보인다.
+            //   켤 때 기본맵으로 바꾸고, 끌 때 원래 지도로 되돌린다(사용자 확정 2026-09-09).
+            if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
+                if (visible) {
+                    prevBasemap = window.oceanGetBasemap();
+                    if (prevBasemap !== 'rltm') window.oceanSetBasemap('rltm');
+                } else if (prevBasemap && prevBasemap !== 'rltm') {
+                    window.oceanSetBasemap(prevBasemap);
+                    prevBasemap = null;
+                }
+            }
             // OFF 로 돌아갈 때는 "선택 상태" 도 같이 비워서 다음에 켤 때 깨끗하게 시작.
             if (!visible) _resetMarineZoneSelection();
             // [단독 표출] 해구도 ON 시 물빠짐이 켜져 있으면 끔.

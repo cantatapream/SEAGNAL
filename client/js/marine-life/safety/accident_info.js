@@ -3797,6 +3797,8 @@
             var splitHtml = '';
             if (splitSrc) {
                 var hn = (hkSt.sev[k.code] || 0), pn = (peSt.sev[k.code] || 0);
+                // 라벨은 "선박"·"인명" 으로 짧게[2026-09-09 사용자 확정] — 2열 배치에서
+                // 오른쪽 칸이 좁아, "선박사고"까지 적으면 큰 숫자와 맞물려 빠듯하다.
                 splitHtml =
                     '<div class="s hk"><span>선박</span><b>' + fmtN(hn) + '건</b></div>' +
                     '<div class="s person"><span>인명</span><b>' + fmtN(pn) + '건</b></div>';

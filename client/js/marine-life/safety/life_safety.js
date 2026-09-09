@@ -856,6 +856,55 @@
     }
 
     // ========================================================================
+    // 5-B. 해양안전 오버레이 단독 표출 (2026-09-09 사용자 확정)
+    // ========================================================================
+
+    /** 해양안전 화면 우측 버튼 8개 — 이 중 하나만 켜지게 한다. */
+    var SOLO_BTN_IDS = [
+        'ocean-terrain-toggle-btn',   // 위험지형
+        'ocean-accident-toggle-btn',  // 사고정보
+        'ocean-banzone-toggle-btn',   // 금지구역
+        'ocean-navwarn-btn',          // 항행경보
+        'ocean-mudflat-toggle-btn',   // 물빠짐
+        'ocean-cctv-toggle-btn',      // CCTV
+        'ocean-vts-toggle-btn',       // 관제구역
+        'ocean-seaway-toggle-btn'     // 항로·해역
+    ];
+    var _soloBusy = false;   // 우리가 끄려고 누른 클릭이 다시 이 로직을 타지 않게 하는 빗장
+
+    /**
+     * 해양안전 오버레이 버튼을 "한 번에 하나만" 켜지도록 묶는다.
+     * 예: 금지구역이 켜져 있을 때 위험지형을 누르면 → 금지구역이 먼저 꺼지고 위험지형만 켜진다
+     *
+     * 각 기능의 끄는 절차(폴리곤 정리·배경지도 복귀·폴링 중단)를 그대로 쓰려고
+     * **그 버튼을 대신 눌러서** 끈다. 새로 켜는 클릭보다 먼저 처리해야 하므로
+     * 캡처 단계에서 듣는다(끄기 → 그 다음 원래 리스너가 자기를 켠다).
+     * 이미 켜져 있는 버튼을 다시 눌러 끄는 경우에는 아무것도 하지 않는다.
+     * [연계] ← DOMContentLoaded → 각 모듈의 원래 토글 리스너(대신 클릭으로 호출)
+     */
+    function _bindSoloOverlays() {
+        SOLO_BTN_IDS.forEach(function (id) {
+            var btn = document.getElementById(id);
+            if (!btn) return;
+            btn.addEventListener('click', function () {
+                if (_soloBusy) return;
+                // 지금 꺼져 있는 버튼을 누른 경우에만(= 새로 켜려는 경우) 나머지를 끈다
+                if (btn.classList.contains('active')) return;
+                _soloBusy = true;
+                try {
+                    SOLO_BTN_IDS.forEach(function (otherId) {
+                        if (otherId === id) return;
+                        var other = document.getElementById(otherId);
+                        if (other && other.classList.contains('active')) other.click();
+                    });
+                } finally {
+                    _soloBusy = false;
+                }
+            }, true);   // ★캡처 단계 — 원래 토글 리스너보다 먼저 실행돼야 한다
+        });
+    }
+
+    // ========================================================================
     // 6. 초기화
     // ========================================================================
 
@@ -865,6 +914,7 @@
         _wrapTabSwitchers();
         _watchMudflatToggle();
         _watchBottomSheets();
+        _bindSoloOverlays();
     });
 
 })();

@@ -781,8 +781,7 @@
            [연계] js/marine-life/safety/life_safety.js — body.ls-safety 토글 */
         body.ls-mode.ls-safety #ocean-overlay-controls > * { display: none !important; }
         body.ls-mode.ls-safety #ocean-mudflat-toggle-btn,
-        body.ls-mode.ls-safety #ocean-exposed-toggle-btn,
-        body.ls-mode.ls-safety #ocean-rock-toggle-btn,
+        body.ls-mode.ls-safety #ocean-terrain-toggle-btn,
         body.ls-mode.ls-safety #ocean-banzone-toggle-btn,
         body.ls-mode.ls-safety #ocean-vts-toggle-btn,
         body.ls-mode.ls-safety #ocean-seaway-toggle-btn,
@@ -798,6 +797,38 @@
            click 을 듣고 동작하기 때문이다(ban_zone.js 가 이 둘을 대신 누른다). */
         #ocean-access-control-toggle-btn,
         #ocean-fishing-ban-toggle-btn { display: none !important; }
+        /* ──────────────────────────────────────────────────────────
+           오버레이 버튼 세로 순서[2026-09-09 사용자 확정]
+           마크업 순서는 그대로 두고 flex order 로만 정한다 — 두 화면이 서로 다른
+           순서를 쓰는데 마크업은 하나뿐이라, 순서를 화면별로 따로 줄 수 있어야 한다.
+           (#ocean-overlay-controls 는 flex-direction:column 이라 order 가 그대로 세로 순서)
+           ────────────────────────────────────────────────────────── */
+        /* 해양종합정보 */
+        #ocean-overlay-controls > [data-layer="wind"]       { order: 1; }
+        #ocean-overlay-controls > [data-layer="current"]    { order: 2; }
+        #ocean-overlay-controls > [data-layer="wave"]       { order: 3; }
+        #ocean-overlay-controls > #ocean-buoy-toggle-btn    { order: 4; }
+        #ocean-overlay-controls > #ocean-marine-zone-toggle-btn { order: 5; }
+        #ocean-overlay-controls > .ocean-warn-zone-wrap     { order: 6; }
+        #ocean-overlay-controls > #ocean-typhoon-toggle-btn { order: 7; }
+        #ocean-overlay-controls > #ocean-other-wx-wrap      { order: 8; }
+        /* 해양안전 — 이 화면에서 보이는 8개만 다시 매긴다 */
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-terrain-toggle-btn { order: 1; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-accident-wrap      { order: 2; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-banzone-toggle-btn { order: 3; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-navwarn-btn        { order: 4; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-mudflat-toggle-btn { order: 5; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-cctv-toggle-btn    { order: 6; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-vts-toggle-btn     { order: 7; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-seaway-toggle-btn  { order: 8; }
+
+        /* ★"금지구역"·"위험지형" 은 해양안전 전용 버튼이라 해양종합정보에서는 감춘다
+           [2026-09-09 사용자 확정] — 아래 body.ls-mode.ls-safety 규칙이 그 화면에서만 다시 켠다.
+           위험지형이 대신 누르는 노출암·간출암 원래 버튼도 화면에서는 감춘다. */
+        #ocean-banzone-toggle-btn,
+        #ocean-terrain-toggle-btn,
+        #ocean-exposed-toggle-btn,
+        #ocean-rock-toggle-btn { display: none !important; }
         /* ★CCTV·물빠짐 버튼은 **해양종합정보에서만** 감춘다[S28-4·S28-5, 2026-09-09
            사용자 확정 — 해양안전에서는 그대로 남긴다]. */
         body:not(.ls-safety) #ocean-cctv-toggle-btn,
@@ -982,12 +1013,20 @@
            줄 바로 아래에 붙인다(부모가 position:absolute 라 그 기준으로 계산됨).
            ★사고정보 모드토글이 떠 있으면 자리가 겹치므로, ban_zone.js 가 그 높이를 실측해
              margin-top 을 인라인으로 더 준다(accident_info.js positionFilterBar 와 같은 어법). */
-        #ocean-topleft-controls > .banzone-legend {
+        /* 범례 묶음 — 기본맵·안내 버튼 줄 아래에 붙고, 안에서 범례들이 세로로 쌓인다.
+           (사고정보 모드토글과 자리가 겹치면 ban_zone.js 가 margin-top 을 실측해 더 준다) */
+        #ocean-topleft-controls > .ocean-legend-stack {
             position: absolute !important;
             top: 100%;
             left: 0;
             margin-top: 6px;
             pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+        }
+        .ocean-legend-stack > .banzone-legend {
             display: flex;
             flex-direction: column;
             gap: 2px;
@@ -1014,6 +1053,9 @@
             font-size: 0.7rem;
             font-weight: 700;
             white-space: nowrap;
+            /* 글자색은 "전국 통계" 버튼(.accident-filter-reset-btn)과 같게 — 지정하지 않으면
+               버튼이 상위에서 색을 물려받아 노랗게 나온다(사용자 지적 2026-09-09). */
+            color: var(--text-sub);
         }
         /* 색칩(네모) 없이 **글자 색으로** 구분한다 — 지도 폴리곤과 같은 색
            (access_control.js 빨강 / fishing_ban.js 주황). */
@@ -3650,15 +3692,33 @@
                              둘 다 꺼도 범례는 남아 다시 켤 수 있다).
                              [연계] js/marine-life/safety/ban_zone.js 가 표시·스위치를 담당 →
                                     window.accessControlSetShown() · window.fishingBanSetShown() -->
-                        <div class="banzone-legend" id="banzone-legend" style="display:none;">
-                            <button type="button" class="bzl-row bzl-row-ac on" id="bzl-row-ac">
-                                <span class="bzl-name">출입통제구역</span>
-                                <span class="bzl-switch"></span>
-                            </button>
-                            <button type="button" class="bzl-row bzl-row-fb on" id="bzl-row-fb">
-                                <span class="bzl-name">낚시금지구역</span>
-                                <span class="bzl-switch"></span>
-                            </button>
+                        <!-- 좌측 상단 범례 묶음 — 위험지형·금지구역 범례가 함께 떠도 겹치지
+                             않도록 한 컨테이너에 세로로 쌓는다. 사고정보 모드토글과의 세로 간격은
+                             ban_zone.js 가 실측해 이 묶음의 margin-top 으로 준다. -->
+                        <div class="ocean-legend-stack" id="ocean-legend-stack">
+                            <!-- 위험지형 범례[2026-09-09 사용자 확정] — "위험지형" 버튼을 켜면 뜬다.
+                                 두 줄을 각각 껐다 켤 수 있다(둘 다 켜도, 하나만 켜도 됨).
+                                 [연계] js/marine-life/safety/hazard_rocks.js 가 표시·스위치를 담당 -->
+                            <div class="banzone-legend" id="terrain-legend" style="display:none;">
+                                <button type="button" class="bzl-row on" id="tgl-row-exposed">
+                                    <span class="bzl-name">노출암/갯바위</span>
+                                    <span class="bzl-switch"></span>
+                                </button>
+                                <button type="button" class="bzl-row on" id="tgl-row-rock">
+                                    <span class="bzl-name">간출암, 암암 등</span>
+                                    <span class="bzl-switch"></span>
+                                </button>
+                            </div>
+                            <div class="banzone-legend" id="banzone-legend" style="display:none;">
+                                <button type="button" class="bzl-row bzl-row-ac on" id="bzl-row-ac">
+                                    <span class="bzl-name">출입통제구역</span>
+                                    <span class="bzl-switch"></span>
+                                </button>
+                                <button type="button" class="bzl-row bzl-row-fb on" id="bzl-row-fb">
+                                    <span class="bzl-name">낚시금지구역</span>
+                                    <span class="bzl-switch"></span>
+                                </button>
+                            </div>
                         </div>
                         <div class="accident-grid-legend" id="accident-grid-legend" style="display:none;">
                             <span class="agl-title" id="agl-title">사고건수</span>
@@ -3717,9 +3777,9 @@
                              클라이언트 측에서 각 셀을 3×3 분할해 줌인 시 소해구도 함께 그림.
                              [데이터] /marine_zone_area.json (local_server/ 루트 직속, 정적 GeoJSON)
                                       data/ 가 .dockerignore + fly.io 볼륨 마운트라 루트로 이동시킴 -->
-                        <button class="ocean-overlay-btn" id="ocean-marine-zone-toggle-btn" title="해구도">
+                        <button class="ocean-overlay-btn" id="ocean-marine-zone-toggle-btn" title="해구기상">
                             <i class="fa-solid fa-table-cells"></i>
-                            <span class="ocean-overlay-label" data-line1="해구">해구도</span>
+                            <span class="ocean-overlay-label" data-line1="해구" data-line2="기상">해구기상</span>
                         </button>
                         <!-- 물빠짐 토글: js/tide_field.js 가 바인딩 (서해·남해 한정).
                              ON 시 /api/tide-field?time= 로 그 시각의 갯벌 노출/잠김 2색 벡터 레이어 표출 +
@@ -3741,6 +3801,14 @@
                                       /shore_rocks.json (갯바위 면, 2017년 위험정보 — 서·남해만 있고
                                       동해·제주는 원본에 자료가 없다). 둘 다 정적이며 버튼을 처음
                                       누를 때만 지연 로드. -->
+                        <!-- 위험지형 토글[2026-09-09 사용자 확정]: js/marine-life/safety/hazard_rocks.js 가
+                             바인딩. 아래 노출암·간출암 버튼 **둘을 대신 눌러** 한 버튼으로 묶는다
+                             (금지구역 버튼이 출입통제·낚시금지를 묶는 것과 같은 방식). 켜져 있는 동안
+                             좌측 상단 범례(#terrain-legend)에서 종류별로 따로 껐다 켤 수 있다. -->
+                        <button class="ocean-overlay-btn" id="ocean-terrain-toggle-btn" title="위험지형 (노출암·갯바위·간출암 등)">
+                            <i class="fa-solid fa-mountain-sun"></i>
+                            <span class="ocean-overlay-label" data-line1="위험" data-line2="지형">위험지형</span>
+                        </button>
                         <button class="ocean-overlay-btn" id="ocean-exposed-toggle-btn" title="노출암 (항상 물 위, 갯바위 포함)">
                             <i class="fa-solid fa-mountain"></i>
                             <span class="ocean-overlay-label" data-line1="노출암">노출암</span>
