@@ -820,9 +820,13 @@
    */
   function lawBodyHTML(d) {
     var files = (d.files || []).map(function (f) {
+      // 챗봇이 실제로 읽는 판을 그대로 보여준다 — 시행일이 지난 예고본이 있으면 그 파일이다(staged).
+      // 아직 시행 전인 예고본은 pending 으로 "언제부터 바뀐다"만 알려 준다.
+      var note = f.staged ? '<span class="nrya-file-amd">· 예고본 적용</span>'
+        : (f.pending && f.pending.length ? '<span class="nrya-file-amd">· ' + esc(effLabel(f.pending[0])) + ' 개정 예정</span>' : '');
       return '<a class="nrya-file" href="' + esc(f.src) + '" target="_blank" rel="noopener">' +
         '<div class="nrya-file-ic' + (f.ic === '법' ? '' : ' nrya-rule') + '">' + esc(f.ic) + '</div>' +
-        '<div class="nrya-file-nm">' + esc(f.label) + (f.amd ? '<span class="nrya-file-amd">· ' + esc(f.amd) + '</span>' : '') + '</div>' +
+        '<div class="nrya-file-nm">' + esc(f.label) + (f.amd ? '<span class="nrya-file-amd">· ' + esc(f.amd) + '</span>' : '') + note + '</div>' +
         '<div class="nrya-file-eff">' + (f.eff ? '시행 ' + effLabel(f.eff) : '시행일 확인 안 됨') + '</div></a>';
     }).join('') || '<div class="nrya-file"><div class="nrya-file-nm">계층 원문 파일이 없습니다.</div></div>';
 

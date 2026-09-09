@@ -60,6 +60,7 @@ const adminAuth = require('../services/admin_auth');
 const { writeFileAtomic } = require('../services/atomic_write');
 const legalRetriever = require('../services/legal_retriever');
 const articleText = require('../services/article_text');
+const effectiveDate = require('../services/effective_date');   // 지식 방 '원문'이 챗봇과 같은 판(예고본 포함)을 보여주게
 const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
 const adminQueues = require('../services/legal_admin_queues');
@@ -2038,12 +2039,27 @@ router.get('/api/legal/rooms/law', adminAuth.requireAdminToken, (req, res) => {
     const abs = path.join(RAW_DIR, dir);
 
     // ① 계층 원문 — 있는 파일만. 시행일을 못 읽으면 ''(화면이 "확인 안 됨"으로 표시)
+    //    ★시행일이 지난 예고본(`_대기/<시행일>/`)이 있으면 **챗봇이 실제로 읽는 그 파일**을 보여준다.
+    //      종전에는 이 방만 현행 파일을 읽어, 시행일 뒤에 조문 팝업은 새 원문인데 원문 방은 옛 시행일을
+    //      보여줬다(2026-09-10 독립 검토 medium). 아직 시행 전인 대기본은 `pending` 으로 따로 알려 준다.
+    const rel = path.relative(path.join(__dirname, '..', '..'), abs).split(path.sep).join('/');
+    const today = effectiveDate.todayKST();
+    const stageList = (effectiveDate.loadPendingIndex()[rel] || []);
     const files = [];
     for (const t of RAW_TIERS) {
-      const f = path.join(abs, t.file);
+      let f = path.join(abs, t.file);
       if (!fs.existsSync(f)) continue;
+      const stagedRel = effectiveDate.stagedRawPath(rel, t.file, today);
+      const staged = stagedRel && fs.existsSync(path.join(__dirname, '..', '..', stagedRel)) ? stagedRel : '';
+      if (staged) f = path.join(__dirname, '..', '..', staged);
       const { eff, amd } = effOfTxt(f);
-      files.push({ label: t.label, ic: t.ic, eff, amd, src: srcUrl(dir + '/' + t.file) });
+      const pending = stageList.filter(e => e.date > today && (e.files || []).indexOf(t.file) >= 0).map(e => e.date).sort();
+      files.push({
+        label: t.label, ic: t.ic, eff, amd,
+        src: staged ? srcUrl(staged.replace(/^.*\/raw\//, '')) : srcUrl(dir + '/' + t.file),
+        staged: staged ? (staged.match(/_대기\/(\d{8})\//) || [])[1] || '' : '',
+        pending,
+      });
     }
 
     // ② 별표·별지 서식 — `별표/_links.json` 이 수집 당시의 제목·원본(HWP·이미지) 링크를 갖고 있다.
