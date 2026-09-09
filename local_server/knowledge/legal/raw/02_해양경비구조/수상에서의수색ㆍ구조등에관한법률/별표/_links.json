@@ -1,33 +1,4 @@
 {
-  "시행령 별표 1": {
-    "제목": "자격시험의 과목 및 배점(제30조의4제2항 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159290267",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159290271"
-    ]
-  },
-  "시행령 별표 1의2": {
-    "제목": "수상구조사의 등급별 자격기준 및 업무수행 범위(제30조의7 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159290273",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159290277"
-    ]
-  },
-  "시행령 별표 1의3": {
-    "제목": "해양경찰청장에게 통보해야 하는 개인정보의 내용(제30조의9제2항 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159290279",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159290283"
-    ]
-  },
-  "시행령 별표 2": {
-    "제목": "과태료의 부과기준(제41조 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159290285",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159290289",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=159290291"
-    ]
-  },
   "시행규칙 별표 1": {
     "제목": "광역 및 지역 구조본부의 명칭ㆍ위치 및 수난구호 관할해역(제3조제1항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159389131",
@@ -288,6 +259,35 @@
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=159389369",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=159389373"
+    ]
+  },
+  "시행령 별표 1": {
+    "제목": "자격시험의 과목 및 배점(제30조의4제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=168554851",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=168554855"
+    ]
+  },
+  "시행령 별표 1의2": {
+    "제목": "수상구조사의 등급별 자격기준 및 업무수행 범위(제30조의7 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=168554857",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=168555101"
+    ]
+  },
+  "시행령 별표 1의3": {
+    "제목": "해양경찰청장에게 통보해야 하는 개인정보의 내용(제30조의9제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=168555103",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=168555107"
+    ]
+  },
+  "시행령 별표 2": {
+    "제목": "과태료의 부과기준(제41조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=168555109",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=168555113",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=168555115"
     ]
   }
 }

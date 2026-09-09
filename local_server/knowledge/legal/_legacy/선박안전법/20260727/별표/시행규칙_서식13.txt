@@ -1,0 +1,343 @@
+[시행규칙] 서식13 — 화물선안전구조증서 CARGO SHIP SAFETY CONSTRUCTION CERTIFICATE
+
+■ 선박안전법 시행규칙 [별지 제13호서식]    (1면)                                               
+                                                                                                                    
+  증서번호 제                                                                                                       
+  호                                                                                                                
+  Cert. No.                                                                                                         
+                                                                                                                    
+                                                                                                                    
+                                                                                                                    
+  화 물 선 안 전 구 조 증 서                                                                                        
+  CARGO SHIP SAFETY CONSTRUCTION CERTIFICATE                                                                        
+                                                                                                                    
+  대   한   민   국                                                                                                 
+  REPUBLIC OF KOREA                                                                                                 
+                                                                                                                    
+                                                                                                                    
+  「1974년 해상에서의 인명안전을 위한 국제협약」 및 같은 협약에 관한 1988년 의                                      
+  정서에 따라 대한민국 정부의 권한으로 발행합니다.                                                                  
+  Issued under the provisions of the International Convention for the Safety of Life at Sea, 1974, as modified by   
+  the Protocol of 1988 relating thereto under the authority of the Government of Republic of Korea by               
+                    .                                                                                               
+  ┌──────┬─────────┬─────┬────┬─────────┬───┐                            
+  │선          │선 박 번 호       │선  적  항│총  톤  │재화중량톤수(미터 │IMO 번│                            
+  │명          │Distinctive Number│Port of   │수      │톤)*              │호    │                            
+  │Name of Ship│or Letters        │Registry  │Gross   │Deadweight        │IMO   │                            
+  │            │                  │          │Tonnage │(metric tons)*    │Number│                            
+  ├──────┼─────────┼─────┼────┼─────────┼───┤                            
+  │            │                  │          │        │                  │      │                            
+  └──────┴─────────┴─────┴────┴─────────┴───┘                            
+  선박의 종류**                                                                                                     
+  Type of Ship**                                                                                                    
+    산적화물선             유조선              케미칼 탱커           가스캐리어                                     
+    Bulk carrier               Oil tanker              Chemical tanker             Gas carrier                      
+    그 밖에 위의 이외의 화물선                                                                                      
+    Cargo ship other than any of the above                                                                          
+                                                                                                                    
+  건조일 :                                                                                                          
+  Date of build:                                                                                                    
+  - 건조 계약일                                                                                                     
+     Date of building contract                                                                                      
+  - 용골이 거치되거나 또는 그와 동등의 건조 단계에 달한 날                                                          
+     Date on which keel was laid or ship was at similar stage of construction                                       
+  - 인도일                                                                                                          
+     Date of delivery                                                                                               
+  - 해당되는 경우, 주요 특성의 개조나 변경 또는 수정작업의 시작일                                                   
+     Date on which work for a conversion or an alteration or modification of a major character was                  
+     commenced (where applicable)                                                                                   
+  적용 가능한 모든 일자를 기재할 것.                                                                                
+  All applicable dates shall be completed.                                                                          
+                                                                                                                    
+  이 증서는 다음 사항을 증명합니다:                                                                                 
+  THIS IS TO CERTIFY:                                                                                               
+  1. 이 선박의 협약의 제Ⅰ장 제10규칙의 요건에 따라서 검사되었음                                                    
+   That the ship has been surveyed in accordance with the requirements of regulation I/10 of the                    
+  Convention.                                                                                                       
+                                                                                                                    
+                                                                                                                    
+                                                                                                                    
+  *  유조선, 케미칼 탱커 및 가스캐리어에만 사용                                                                     
+      For oil tankers, chemical tankers and gas carriers only                                                       
+  ** 해당되지 아니하는 것은 지울 것.                                                                                
+      Delete as appropriate.                                                                                        
+                                                                                                                    
+                                                                                                                    
+                                      210㎜×297㎜[백상지 150g/㎡]                                                  
+                                                                                                                    
+                                                                                                                
+    (2면)                                                                                                       
+                                                                                                                
+    2. 검사 결과는 다음과 같음:                                                                                 
+       That the survey showed that:                                                                             
+    .1 위의 규칙에 규정된 바와 같이 구조, 기관 및 설비가 만족스러운 상태에 있으며                               
+  협약 제II-1장 및 제II-2장의 관련 요건을 갖춤(화재안전장치 및 설비, 화재제어                                   
+  도에 관한 사항은 제외);                                                                                       
+       the condition of the structure, machinery and equipment as defined in the above regulation was           
+  satisfactory and that the ship complied with the relevant requirements of chapters II-1 and II-2 of           
+  the Convention (other than those relating to fire safety systems and appliances and fire control              
+  plans);                                                                                                       
+    .2 이 선박은             을(를) 연료로 사용함으로써 협약 제II-1장 G편의 요건                                
+  을 갖춤* /해당사항 없음*                                                                                      
+      the ship complied with part G of chapter II-1 of the Convention using               as fuel* /N.A.*       
+                                                                                                                
+  3. 선저외판에 대한 최근 2회의 검사는    및     에 실시되었음                                                  
+                                                                                                                
+                                      ──   ──                                                               
+   That the last two inspections of the outside of the ship's bottom took place on     and     .                
+                                                                                                                
+                                                                                   ──    ──                 
+                                                                                                                
+  4. 면제증서가 발행되었음*/발행되지 아니하였음*                                                                
+     That an Exemption Certificate has*/has not* been issued.                                                   
+                                                                                                                
+  5. 이 선박은 협약 제Ⅱ-1장 제55규칙*/Ⅱ-2장 제17규칙*에 따른 대체설계 및 배치                                 
+  가 적용되었음*/적용되지 않았음*;                                                                              
+   The ship was*/was not* subjected to an alternative design and arrangements in pursuance of                   
+    regulation(s) II-1/55*/Ⅱ-2/17* of the Convention;                                                          
+                                                                                                                
+  6. 기관 및 전기설비*/화재안전*에 대한 대체설계 및 배치의 승인서류가 이 증서에                                 
+  첨부되었음*/첨부되지 않았음*.                                                                                 
+   A Document of approval of alternative design and arrangements for machinery and electrical                   
+   installations*/fire safety*  is*/is not* appended to this Certificate.                                       
+                                                                                                                
+  이 증서는 협약 제I장 제10규칙에 따라서 연차검사, 중간검사 및 선저외판의 검사를                                
+  받는 것을 조건으로     년     월    일까지 유효합니다.                                                        
+                                                                                                                
+                     ──   ──  ──                                                                          
+  This certificate is valid until     day of          subject to the annual and                                 
+                                                                                                                
+                                  ──      ── ──                                                           
+  intermediate surveys and inspections of the outside of the ship's bottom in accordance with regulation I/10   
+  of the Convention.                                                                                            
+                                                                                                                
+  이 증서 발급을 위한 검사완료일:                                                                               
+  Completion date of the survey on which this certificate is based:                                             
+                                                                                                                
+      년     월     일     에서 발행합니다.                                                                     
+                                                                                                                
+  ──   ──   ──   ──                                                                                     
+  Issued at     on the     day of           .                                                                   
+                                                                                                                
+            ──       ──       ──  ──                                                                    
+                                                                                                                
+                                                                                                                
+                                                                                                                
+    해 양 수 산 부 장 관                                                                                        
+    Minister of Oceans and Fisheries  ┏━━┓                                                                  
+    한국해양교통안전공단(한글 및 영문)┃직인┃                                                                  
+    선 급 법 인 명(한글 및 영문)      ┗━━┛                                                                  
+                                                                                                                
+                                                                                                                
+                                                                                                                
+                                                                                                                
+                                                                                                                
+  *  해당되지 아니하는 것은 지울 것                                                                             
+     Delete as appropriate.                                                                                     
+                                                                                                                
+                                                                                                              
+                                                                                                              
+      (3면)                                                                                                   
+                                                                                                              
+  검  사  의   확  인                                                                                         
+  ENDORSEMENT FOR ANNUAL AND INTERMEDIATE SURVEYS                                                             
+                                                                                                              
+  이 증서는 선박이 협약의 제Ⅰ장 제10규칙에 따른 협약의 관련 요건에 적합함을 증                               
+  명합니다.                                                                                                   
+  THIS IS TO CERTIFY that, at a survey required by regulation Ⅰ/10 of the Convention, the ship was found     
+  to comply with the relevant requirements of the Convention.                                                 
+                                                                                                              
+                                                                                                              
+  연 차 검 사                                          서 명                                                  
+  Annual Survey:                                             Signed:                                          
+                                                                                                              
+                                                       장 소                                                  
+                                                             Place:                                           
+                                                                                                              
+                                                       날 짜                                                  
+                                                             Date:                                            
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  연차*/중간* 검사                                     서 명                                                  
+  Annual*/Intermediate* Survey:                              Signed:                                          
+                                                                                                              
+                                                       장 소                                                  
+                                                             Place:                                           
+                                                                                                              
+                                                       날 짜                                                  
+                                                             Date:                                            
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  연차*/중간* 검사                                     서 명                                                  
+  Annual*/Intermediate* Survey:                              Signed:                                          
+                                                                                                              
+                                                       장 소                                                  
+                                                             Place:                                           
+                                                                                                              
+                                                       날 짜                                                  
+                                                             Date:                                            
+                                                                                                              
+                                                                                                              
+  연 차 검 사                                          서 명                                                  
+  Annual Survey:                                             Signed:                                          
+                                                                                                              
+                                                       장 소                                                  
+                                                             Place:                                           
+                                                                                                              
+                                                       날 짜                                                  
+                                                             Date:                                            
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  * 해당되지 아니하는 것은 지울 것                                                                            
+     Delete as appropriate.                                                                                   
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+      (4면)                                                                                                   
+                                                                                                              
+                                                                                                              
+  제I장 제14규칙 (h)(iii)항에 따른 연차검사/중간검사                                                          
+  Annual/intermediate survey in accordance with regulation I/14(h)(iii)                                       
+                                                                                                              
+  이 증서는 선박이 협약의 제I장 제14규칙 (h)(iii)항에 따른 연차검사*/중간검사*의 결                           
+  과 협약의 관련 요건에 적합함을 증명합니다.                                                                  
+  THIS IS TO CERTIFY that, at an annual*/intermediate* survey in accordance with regulation I/14(h)(iii) of   
+  the Convention, the ship was found to comply with the relevant requirements of Convention.                  
+                                                서 명                                                         
+                                                           Signed:                                            
+                                                장 소                                                         
+                                                           Place:                                             
+                                                날 짜                                                         
+                                                           Date:                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  선저외판의 검사에 대한 확인**                                                                               
+  Endorsement for inspections of the outside of ship's bottom**                                               
+                                                                                                              
+  이 증서는 선박이 협약의 제I장 제10규칙에 의하여 요구되는 검사결과 협약의 관련                               
+  요건에 적합함을 증명합니다.                                                                                 
+  THIS IS TO CERTIFY that, at an inspection required by regulation I/10 of the Convention, the ship was       
+  found to comply with the relevant requirements of the Convention.                                           
+                                                                                                              
+  제1차 검사      서 명                                                                                       
+  First inspection:                                         Signed:                                           
+                                                 장 소                                                        
+                                                          Place:                                              
+                                                날 짜                                                         
+                                                           Date:                                              
+  제2차 검사                                     서 명                                                        
+  Second inspection:                                      Signed:                                             
+                                                 장 소                                                        
+                                                           Place:                                             
+                                                 날 짜                                                        
+                                                           Date:                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  제I장 제14규칙 (c)항이 적용되는 경우 유효기간이 5년 미만일 때 증서를 연장하기 위                            
+  한 이서                                                                                                     
+  Endorsement to extend the certificate if valid for less than 5 years where regulation I/14(c) applies       
+                                                                                                              
+  이 증서는 선박이 협약의 관련 요건에 적합하므로 협약의 제I장 제14규칙 (c)항에 따                             
+  라서     까지 유효한 것으로 인정합니다.                                                                     
+                                                                                                              
+       ──                                                                                                   
+  The ship complies with the relevant requirements of the Convention, and this certificate shall, in          
+  accordance with regulation I/14(c) of the Convention, be accepted as valid until     .                      
+                                                                                                              
+                                                                                   ──                       
+                                                 서 명                                                        
+                                                            Signed:                                           
+                                                 장 소                                                        
+                                                            Place:                                            
+                                                 날 짜                                                        
+                                                            Date:                                             
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+  *   해당되지 아니하는 것은 지울 것                                                                          
+      Delete as appropriate.                                                                                  
+  ** 추가적인 검사를 위하여 규정을 제정할 수 있음                                                             
+      Provision may be made for additional inspections.                                                       
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                                
+      (5면)                                                                                                     
+                                                                                                                
+  정기검사가 완료되고 제I장 제14규칙 (d)항이 적용되는 경우의 이서                                               
+  Endorsement where the renewal survey has been completed and regulation I/14(d) applies                        
+                                                                                                                
+  이 증서는 선박이 협약의 관련 요건에 적합하므로 제I장 제14규칙 (d)항에 따라서                                  
+                                                                                                                
+  까지 유효한 것으로 인정합니다.                                                                                
+  The ship complies with the relevant requirements of the Convention, and this certificate shall, in            
+  accordance with regulation  I/14(d) of the Convention, be accepted as valid until                         .   
+                                                                                                                
+                                                 서 명                                                          
+                                                            Signed:                                             
+                                                 장 소                                                          
+                                                            Place:                                              
+                                                 날 짜                                                          
+                                                            Date:                                               
+                                                                                                                
+                                                                                                                
+                                                                                                                
+  제I장 제14규칙 (e)항 또는 (f)항이 적용되는 경우에 검사예정항에                                                
+  도착시까지 또는 유예기간까지 증서의 유효기간을 연장하기 위한 이서                                             
+  Endorsement to extend the validity of the certificate until reaching the port                                 
+  of survey or a period of grace where regulation I/14(e) or I/14(f) applies                                    
+                                                                                                                
+  이 증서는 협약의 제I장 제14규칙 (e)항*/제I장 제14규칙 (f)항*에 따라                                           
+           까지 유효한 것으로 인정합니다.                                                                       
+  This certificate shall, in accordance with regulation I/14(e)*/I/14(f)* of the Convention, be accepted as     
+  valid until                             .                                                                     
+                                                 서 명                                                          
+                                                            Signed:                                             
+                                                 장 소                                                          
+                                                            Place:                                              
+                                                 날 짜                                                          
+                                                            Date:                                               
+                                                                                                                
+                                                                                                                
+                                                                                                                
+  제I장 제14규칙 (h)항이 적용되는 경우 연차일을 앞당기는 것에 대한 이서                                         
+  Endorsement for advancement of anniversary date where regulation I/14(h) applies                              
+                                                                                                                
+  협약의 제I장 제14규칙 (h)항에 따라 새로운 연차일은                           입                               
+  니다.                                                                                                         
+  In accordance with regulation I/14(h) of the Convention, the new anniversary date is                      .   
+                                                                                                                
+                                                 서 명                                                          
+                                                            Signed:                                             
+                                                 장 소                                                          
+                                                            Place:                                              
+                                                 날 짜                                                          
+                                                            Date:                                               
+                                                                                                                
+  협약의 제I장 제14규칙 (h)항에 따라 새로운 연차일은                           입                               
+  니다.                                                                                                         
+  In accordance with regulation I/14(h) of the Convention, the new anniversary date is                      .   
+                                                                                                                
+                                                 서 명                                                          
+                                                            Signed:                                             
+                                                 장 소                                                          
+                                                            Place:                                              
+                                                 날 짜                                                          
+                                                            Date:                                               
+                                                                                                                
+                                                                                                                
+  * 해당되지 아니하는 것은 지울 것                                                                              
+    Delete as appropriate.

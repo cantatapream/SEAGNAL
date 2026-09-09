@@ -20,15 +20,15 @@
   Issued under the provisions of the International Convention for the Safety of Life at Sea, 1974, as modified by     
   the protocol of 1988 relating thereto under the authority of the Government of Republic of Korea by                 
                .                                                                                                      
-  ┌──────┬─────────┬────────┬────┬───────────┬─────┐                
-  │선      명  │선 박 번 호       │선  적  항      │총 톤 수│재화중량톤수(미터톤)* │IMO 번호**│                
-  │Name of Ship│Distinctive Number│Port of Registry│Gross   │Deadweight            │IMO       │                
-  │            │or Letters        │                │ Tonnage│(metric tons)*        │Number**  │                
-  ├──────┼─────────┼────────┼────┼───────────┼─────┤                
-  │            │                  │                │        │                      │          │                
-  └──────┴─────────┴────────┴────┴───────────┴─────┘                
-  선박의 길이(제Ⅲ장 제3규칙 12항):                                                                                   
-    Length of Ship(regulation Ⅲ/3.12):                                                                               
+  ┌──────┬─────────┬────────┬────┬───────────┬──────┐              
+  │선      명  │선 박 번 호       │선  적  항      │총 톤 수│재화중량톤수(미터톤)* │IMO 번호**  │              
+  │Name of Ship│Distinctive Number│Port of Registry│Gross   │Deadweight            │IMO Number**│              
+  │            │or Letters        │                │ Tonnage│(metric tons)*        │            │              
+  ├──────┼─────────┼────────┼────┼───────────┼──────┤              
+  │            │                  │                │        │                      │            │              
+  └──────┴─────────┴────────┴────┴───────────┴──────┘              
+  선박의 길이(제3장 제3규칙 12항)                                                                                     
+  Length of Ship(regulation Ⅲ/3.12)                                                                                  
                                                                                                                       
   선박의 종류***                                                                                                      
   Type of Ship***                                                                                                     
@@ -40,24 +40,26 @@
   Chemical tanker                                                                                                     
   가스캐리어                                                                                                          
   Gas carrier                                                                                                         
+  컨테이너운반선                                                                                                      
+  Containership                                                                                                       
   그 밖의 화물선                                                                                                      
   Cargo ship other than any of the above                                                                              
                                                                                                                       
-  용골 거치일 또는 이와 동등한 건조단계일, 또는 해당되는 경우 주요 특성의 개조나 변경 또는 수정                       
+  용골 거치일 또는 그와 동등한 건조 단계일, 또는 해당되는 경우 주요 특성의 개조나 변경 또는 수정                      
   작업의 시작일:                                                                                                      
   Date on which keel was laid or ship was at a similar stage of construction or, where applicable, date on            
   which work for a conversion or an alteration or modification of a major character was commenced:                    
                                                                                                                       
                                                                                                                       
-  이 증서는 다음 사항을 증명함:                                                                                       
+  이 증서는 다음 사항을 증명합니다.                                                                                   
   THIS IS TO CERTIFY:                                                                                                 
                                                                                                                       
-  1. 이 선박은 협약의 제Ⅰ장 제8규칙의 요건에 따라서 검사되었음.                                                      
+  1. 이 선박은 협약의 제1장 제8규칙의 요건에 따라서 검사되었음.                                                       
    That the ship has been surveyed in accordance with the requirements of regulation I/8 of the                       
   Convention.                                                                                                         
                                                                                                                       
-  *   유조선, 케미컬 탱커 및 가스캐리어의 경우만 작성                                                                 
-      For oil tankers, chemical tankers and gas carriers only.                                                        
+  *   유조선, 케미컬 탱커 및 가스캐리어의 경우만 기재할 것                                                            
+       For oil tankers, chemical tankers and gas carriers only.                                                       
   **  IMO에서 Res. A.600(15)로 채택된 IMO 선박식별번호계획에 따를 것                                                  
       In accordance with IMO ship identification number scheme adopted by the Organization by resolution A.600(15).   
   *** 해당하지 않는 것은 지울 것                                                                                      
@@ -444,49 +446,79 @@
      Refer to the 1983 amendments to SOLAS (MSC.6(48)), applicable to ships constructed on or after 1 July 1986, but          
   before 1 July 1998 in the case of self-righting partially enclosed lifeboat(s) on board.                                    
                                                                                                                               
-                                                                                                              
-                                                                                                              
-      (8면)                                                                                                   
-                                                                                                              
-  2. 구명설비의 상세(계속)                                                                                    
-     DETAILS OF LIFE-SAVING APPLIANCES(Continued)                                                             
-  ┌─────────────────┬───┬────┬──────────────────┬─────┐  
-  │항목                              │좌현  │우현    │항목                                │실제조치  │  
-  │Item                              │port  │Starb'd │Item                                │Actual    │  
-  │                                  │side  │side    │                                    │provision │  
-  ├─────────────────┼───┼────┼──────────────────┼─────┤  
-  │6. 구명뗏목                       │      │        │6.3 제3장 제31규칙 1.4항에 따라     │          │  
-  │   Liferafts                      │      │        │요구되는 구명뗏목의 수              │          │  
-  │                                  │      │        │    Number of liferafts required    │          │  
-  │                                  │      │        │    by regulation III/31.1.4        │          │  
-  ├─────────────────┼───┼────┼──────────────────┼─────┤  
-  │6.1 승인된 진수장치가 필요한 것   │      │        │7. 구명부환(救命浮環)의 수          │          │  
-  │    Those for which approved      │      │        │   Number of lifebuoys              │          │  
-  │launching appliances are          │      │        │                                    │          │  
-  │required                          │      │        │                                    │          │  
-  ├─────────────────┼───┼────┼──────────────────┼─────┤  
-  │6.1.1 구명뗏목의 수               │      │        │8. 구명조끼의 수                    │          │  
-  │      Number of liferafts         │      │        │   Number of lifejackets            │          │  
-  ├─────────────────┼───┼────┼──────────────────┼─────┤  
-  │6.1.2 수용인원                    │      │        │9. 방수복                           │          │  
-  │      Number of persons           │      │        │   I㎜ersion suits                  │          │  
-  │accommodated by them              │      │        │                                    │          │  
-  ├─────────────────┼───┼────┼──────────────────┼─────┤  
-  │6.2 승인된 진수장치가 필요 없는 것│      │        │9.1 총수량                          │          │  
-  │    Those for which approved      │      │        │    Total number                    │          │  
-  │    launching appliances are not  │      │        │                                    │          │  
-  │    required                      │      │        │                                    │          │  
-  ├─────────────────┼───┼────┼──────────────────┼─────┤  
-  │6.2.1 구명뗏목의 수               │      │        │9.2 구명조끼의 요건을 갖춘 방수     │          │  
-  │      Number of liferafts         │      │        │복의 수                             │          │  
-  │                                  │      │        │    Number of suits complying with  │          │  
-  │                                  │      │        │    the requirements for lifejackets│          │  
-  ├─────────────────┼───┼────┼──────────────────┼─────┤  
-  │6.2.2 수용인원                    │      │        │10. 노출보호복의 수                 │          │  
-  │      Number of persons           │      │        │    Number of anti-exposure suits   │          │  
-  │      accommodated by them        │      │        │                                    │          │  
-  └─────────────────┴───┴────┴──────────────────┴─────┘  
-                                                                                                              
+                                                                                                          
+                                                                                                          
+      (8면)                                                                                               
+                                                                                                          
+  2. 구명설비의 상세(계속)                                                                                
+     DETAILS OF LIFE-SAVING APPLIANCES(Continued)                                                         
+  ┌────────────────┬───┬────┬─────────────────┬─────┐  
+  │                                │      │        │                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │항목                            │좌현  │우현    ┃항목                              │실제조치  │  
+  │Item                            │Port  │Starb'd ┃Item                              │Actual    │  
+  │                                │side  │side    ┃                                  │provision │  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  ├────────────────┼───┼────╂─────────────────┼─────┤  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │6.    구명뗏목                  │      │        ┃6.3 제3장 제31규칙 1.4항에 따     │          │  
+  │       Liferafts                │      │        ┃라 요구되는 구명뗏목의 수         │          │  
+  │                                │      │        ┃     Number of liferafts required │          │  
+  │                                │      │        ┃     by regulation III/31.1.4     │          │  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  ├────────────────┼───┼────╂─────────────────┼─────┤  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │6.1   승인된 진수장치가 필요한  │      │        ┃7.  구명부환(救命浮環)의 수       │          │  
+  │것                              │      │        ┃     Number of lifebuoys          │          │  
+  │       Those for which approved │      │        ┃                                  │          │  
+  │launching appliances are        │      │        ┃                                  │          │  
+  │required                        │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  ├────────────────┼───┼────╂─────────────────┼─────┤  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │6.1.1 구명뗏목의 수             │      │        ┃8.  구명조끼의 수                 │          │  
+  │       Number of liferafts      │      │        ┃     Number of lifejackets        │          │  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  ├────────────────┼───┼────╂─────────────────┼─────┤  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │6.1.2 수용인원                  │      │        ┃9.  방수복의 수                   │          │  
+  │       Number of persons        │      │        ┃     Number of immersion suits    │          │  
+  │accommodated by them            │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  ├────────────────┼───┼────╂─────────────────┼─────┤  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │6.2   승인된 진수장치가 필요 없 │      │        ┃10. 노출보호복의 수               │          │  
+  │는 것                           │      │        ┃     Number of anti-exposure suits│          │  
+  │       Those for which approved │      │        ┃                                  │          │  
+  │       launching appliances are │      │        ┃                                  │          │  
+  │not required                    │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  ├────────────────┼───┼────╂─────────────────┼─────┤  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │6.2.1 구명뗏목의 수             │      │        ┃                                  │          │  
+  │       Number of liferafts      │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  ├────────────────┼───┼────╂─────────────────┼─────┤  
+  │6.2.2 수용인원                  │      │        ┃                                  │          │  
+  │       Number of persons        │      │        ┃                                  │          │  
+  │       accommodated by them     │      │        ┃                                  │          │  
+  │                                │      │        ┃                                  │          │  
+  │                                │      │        │                                  │          │  
+  └────────────────┴───┴────┴─────────────────┴─────┘  
+                                                                                                          
                                                                                                                       
                                                                                                                       
       (9면)                                                                                                           
@@ -560,35 +592,39 @@
                                                                                                                         
   3. 항해장비 및 설비의 상세(계속)                                                                                      
      DETAIL OF  NAVIGATIONAL SYSTEM AND EQUIPMENT(Continued)                                                            
-  ┌──────────────────────┬─────┰───────────────────┬─────┐      
-  │항목                                        │실제조치  ┃항목                                  │실제조치  │      
-  │Item                                        │Actual    ┃Item                                  │Actual    │      
-  │                                            │provision ┃                                      │provision │      
-  ├──────────────────────┼─────╂───────────────────┼─────┤      
-  │ 6.1 선속거리계(대수속력)*                  │          ┃10 비상조타실의 전화*                 │          │      
-  │      Speed and distance measuring          │          ┃    Telephone to emergency steering   │          │      
-  │device(through the water)*                  │          ┃position*                             │          │      
-  ├──────────────────────┼─────╂───────────────────┼─────┤      
-  │ 6.2 선속거리계(대지속력)*                  │          ┃11 주간신호등*                        │          │      
-  │      Speed and distance  measuring         │          ┃    Daylight signalling lamp*         │          │      
-  │device(over the ground in the               │          ┃                                      │          │      
-  │forward and athwartship direction)*         │          ┃                                      │          │      
-  ├──────────────────────┼─────╂───────────────────┼─────┤      
-  │ 7  음향측심기*                             │          ┃12 레이더 반사기*                     │          │      
-  │     Echo sounding device*                  │          ┃    Radar reflector*                  │          │      
-  ├──────────────────────┼─────╂───────────────────┼─────┤      
-  │ 8.1 타각지시기 등*                         │          ┃13 국제신호서                         │          │      
-  │      Rudder, propeller, thrust, pitch and  │          ┃    International code of signals     │          │      
-  │operational mode indicator*                 │          ┃                                      │          │      
-  ├──────────────────────┼─────╂───────────────────┼─────┤      
-  │ 8.2 회두각 속도계*                         │          ┃14국제항공 및 해상수색구조매뉴얼 제3권│          │      
-  │      Rate-of-turn indicator*               │          ┃    IAMSAR Manual, Volume III         │          │      
-  ├──────────────────────┼─────╂───────────────────┼─────┤      
-  │ 9  음향수신장치*                           │          ┃15 선교항해당직경보장치               │          │      
-  │     Sound reception system*                │          ┃    Bridge navigational watch alarm   │          │      
-  │                                            │          ┃system (BNWAS)                        │          │      
-  └──────────────────────┴─────┸───────────────────┴─────┘      
-                                                                                                                        
+  ┌───────────────────┬─────┰───────────────────┬─────┐            
+  │항목                                  │실제조치  ┃항목                                  │실제조치  │            
+  │Item                                  │Actual    ┃Item                                  │Actual    │            
+  │                                      │provision ┃                                      │provision │            
+  ├───────────────────┼─────╂───────────────────┼─────┤            
+  │6.1 선속거리계(대수속력)*             │          ┃11. 주간신호등*                       │          │            
+  │     Speed and distance measuring     │          ┃     Daylight signalling lamp*        │          │            
+  │device(through the water)*            │          ┃                                      │          │            
+  ├───────────────────┼─────╂───────────────────┼─────┤            
+  │6.2 선속거리계(대지속력)*             │          ┃12. 레이더 반사기*                    │          │            
+  │     Speed and distance measuring     │          ┃     Radar reflector*                 │          │            
+  │device(over the ground in the         │          ┃                                      │          │            
+  │forward and athwartship               │          ┃                                      │          │            
+  │direction)*                           │          ┃                                      │          │            
+  ├───────────────────┼─────╂───────────────────┼─────┤            
+  │7.  음향측심기*                       │          ┃13. 국제신호서                        │          │            
+  │     Echo sounding device*            │          ┃     International code of signals    │          │            
+  ├───────────────────┼─────╂───────────────────┼─────┤            
+  │8.1 타각지시기 등*                    │          ┃14. 국제항공 및 해상수색구조매뉴얼    │          │            
+  │     Rudder, propeller, thrust, pitch │          ┃제3권                                 │          │            
+  │and operational mode indicator*       │          ┃     IAMSAR Manual, Volume III        │          │            
+  ├───────────────────┼─────╂───────────────────┼─────┤            
+  │8.2 회두각 속도계*                    │          ┃15. 선교항해당직경보장치              │          │            
+  │     Rate-of-turn indicator*          │          ┃     Bridge navigational watch alarm  │          │            
+  │                                      │          ┃system (BNWAS)                        │          │            
+  ├───────────────────┼─────╂───────────────────┼─────┤            
+  │9.  음향수신장치*                     │          ┃16. 전자식 경사계                     │          │            
+  │     Sound reception system*          │          ┃     Electronic inclinometer          │          │            
+  ├───────────────────┼─────╂───────────────────┼─────┤            
+  │10. 비상조타실의 전화*                │          ┃                                      │          │            
+  │     Telephone to emergency           │          ┃                                      │          │            
+  │steering position*                    │          ┃                                      │          │            
+  └───────────────────┴─────┸───────────────────┴─────┘            
                                                                                                                         
                                                                                                                         
   이 기록부는 모든 점에서 정확함을 증명합니다.                                                                          
@@ -596,10 +632,6 @@
                                                                                                                         
               년      월      일                         에서 발행합니다.                                               
   Issued at                       on the            day of                            .                                 
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
                                                                                                                         
                                                                                                                         
                                                                                                                         
