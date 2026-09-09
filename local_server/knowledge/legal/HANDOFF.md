@@ -890,6 +890,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-09-10 01:41 KST] 🟢착수 — 예고본 사전수집·시행일 전환(트랙 C)
+H-29 5~7항: 개정 예고본을 raw/_대기/<시행일>/ 에 미리 수집(collect_pending_law.py), article_text.js·legal_retriever.js 가 KST 날짜로 현행/예고본 중 한쪽을 고르는 런타임 전환, 위키 마커(<!--시행 d-->) 규약, 시행일 후 승격 도구(fold_effective.py). 설계 문서 H29_stage_design.md 먼저 쓰고 적대검증 3인 후 구현·테스트. 소유 파일만 건드림(트랙 B/D/트리아지와 병렬).
+
+
 ### [2026-09-10 01:19 KST] ✅완료 — 개정검토(사서 개정감지) 기능 점검 — 결함 5건 확인, 수정은 사용자 결정 대기
 ①감지 자체: 로컬(세션 컨테이너)에서는 작동 확인(law_change_queue.json scans 이력 08-10×3·08-22·08-24, 큐 76건). 그러나 프로덕션(Fly)에서는 작동 불가 — detect_law_changes.py·build_change_baseline.py 가 LEGAL='/home/user/SEAGNAL/...' 절대경로를 하드코딩했는데 컨테이너는 WORKDIR /app 이라 baseline 파일을 못 열고 종료코드 1 → runAmendmentScan 이 errors:1·changed:0. 게다가 _amendments/queue.jsonl·law_change_queue.json 은 이미지 안(볼륨 /app/local_server/data 밖)이라 배포마다 git 상태로 초기화 — cron 결과도 관리자 승인/무시 결정도 다음 배포 때 사라진다. 프로덕션 화면 76건 = git 파일 그대로. ②카드가 '? → ?'인 이유: toLegacyEntry 가 H-29 항목의 changed_articles(법률 시행예정 28건 전부 채워져 있음)·제개정구분명·소관부처명·발령일자·현행연혁코드를 버리고 공포번호·시행일자만 옮김. 행정규칙에는 공포번호 필드 자체가 없고 신규고시는 before 가 정의상 빈칸. 'law_amended' 는 KIND_LABEL 누락으로 영문 노출. law.go.kr 링크는 lsSc.do?menuId=1(법령 탭) 제목검색이라 행정규칙은 항상 '검색결과 없음' — 행정규칙은 admRulSc.do?menuId=5, 법령은 lsInfoP.do?lsiSeq=<MST>&efYd= 로 직접 링크 가능(둘 다 curl 200 확인). 신규고시 39건은 관련성 판정 없이 8개 부처의 최근 발령 전부(baseline 에 없는 제목이면 전부 적재) — law.slug 빈칸이라 어느 법에 영향인지 화면이 알 수 없음. ③시행일 전후 전환: MASTER_PLAN H-29 5~7항(승인 방+run_once_at 예약반영+예고본 사전수집)은 2026-08-10 '이번 범위 제외·다음 결정 대기'로 남긴 뒤 결정 기록 없음(HANDOFF 7501 미결정 목록 그대로). 승인 API 는 status 만 바꾸고, scheduled_for 는 76건 전부 null 이며 소비 코드 없음, _대기/ 폴더 없음, legal_retriever 에 시행일 분기 없음. 결과: 시행예정 28건 중 6건은 이미 시행됐는데 raw MST 그대로(항만운송사업법 0813 제2조 등 5개조·폐기물관리법 0820·농수산물품질관리법 0827·해양환경관리법 법률 0828 제65·115조·해양환경관리법 시행규칙 0828·유도선법 시행규칙 0830), 30일 내 8건 추가. 원문신선도(주간 law_fresh.py)가 이를 '구버전'으로 잡아야 하는데 화면 0건 — 프로덕션 data 볼륨은 여기서 못 봐 원인 미확인.
 
