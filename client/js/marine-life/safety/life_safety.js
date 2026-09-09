@@ -246,7 +246,7 @@
 
     /**
      * 진짜 해양종합정보 탭으로 갈 때, 해양안전 때문에 꺼뒀던 오버레이를 되살린다.
-     * 예: 특보구역·주요지명을 켠 채로 해양안전에 들렀다 돌아오면 그대로 다시 켜져 있음
+     * 예: 특보구역을 켠 채로 해양안전에 들렀다 돌아오면 그대로 다시 켜져 있음
      * [연계] ← _wrapTabSwitchers() 의 switchMainTab 래퍼(targetId==='ocean-map-section')
      */
     function _restoreOceanOverlays() {
@@ -639,12 +639,16 @@
             { id: 'mudflat', label: '물빠짐' },
             { id: 'hazardrock', label: '노출암·간출암' },
             { id: 'cctv', label: 'CCTV' },
-            { id: 'fishingban', label: '낚시금지', html:
-                '<p><i class="fa-solid fa-circle-check"></i> 낚시 관리 및 육성법 제6조와 지자체 조례에 따라 낚시가 금지되거나 제한된 구역을 지도 위에 주황색으로 표시합니다.</p>'
+            // 낚시금지 · 출입통제를 "금지구역" 한 탭으로 합쳤다[S28-3, 2026-09-09 사용자 확정].
+            // 버튼도 하나로 합쳐(ban_zone.js) 두 구역이 함께 뜨므로 안내도 한 자리에 둔다.
+            { id: 'banzone', label: '금지구역', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 버튼 하나로 <strong>낚시금지구역</strong>과 <strong>출입통제구역</strong>을 함께 표시합니다. 둘 다 "여기서는 하면 안 된다"는 뜻의 구역입니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>낚시금지구역</strong>(236곳) — 낚시 관리 및 육성법 제6조와 지자체 조례에 따라 낚시가 금지되거나 제한된 구역입니다. 주황색으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>출입통제구역</strong>(35곳) — 연안사고 예방에 관한 법률 제10조에 따라 각 해양경찰서가 지정한 구역입니다.</p>'
               + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 실제 지형과 비교하기 쉽도록 배경지도가 위성지도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
               + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 위치, 지정 사유, 통제 기간·시간, 대상, 벌칙, 고시번호 등 상세 정보를 확인할 수 있습니다.</p>'
-              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 국립해양조사원이 파악한 구역만 반영되어 있어 최신 지정 현황과 다를 수 있습니다. 실제 낚시 전에는 현장 안내판이나 관할 지자체 공고를 꼭 확인하세요.</p>'
-              + '<div class="ocean-info-src">최종 갱신일자 · 2025-12-12<br>출처 · 국립해양조사원 낚시통제구역 주제도</div>' },
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 낚시금지구역은 국립해양조사원이 파악한 구역만, 출입통제구역은 원본 고시·공고에 <strong>경위도 좌표가 온전히 적힌 구역만</strong> 반영되어 있습니다(나머지는 원본에 손그림 경계선만 있어 확정할 수 없었습니다). 최신 지정 현황과 다를 수 있으니 실제 활동 전에는 현장 안내판이나 관할 지자체·해양경찰서 공고를 꼭 확인하세요.</p>'
+              + '<div class="ocean-info-src">최종 갱신일자 · 낚시금지 2025-12-12 · 출입통제 2026-09-04<br>출처 · 국립해양조사원 낚시통제구역 주제도 · 각 해양경찰서 고시·공고</div>' },
             { id: 'vts', label: '관제구역', html:
                 '<p>해양경찰청이 공고한 선박교통관제구역(VTS)을 지도 위에 남색(인디고)으로 표시하며, 명칭에 실제 관제채널(예: Ch. 09)이 함께 표기됩니다.</p>'
               + '<p>버튼을 켜면 배경지도가 전자해도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
@@ -662,7 +666,40 @@
               + '<p><i class="fa-solid fa-circle-check"></i> 상단 날짜 내비게이션(◀▶)으로 다른 날짜를 조회하고, 하단 기준 시각 슬라이더로 그 날짜의 특정 시각을 지정하면 이미 시각이 지난 구역은 회색으로 바뀌고 라벨도 사라집니다(활성 구역만 라벨 표시, 겹치면 큰 구역 우선). 슬라이더 위치는 날짜를 넘겨도 그대로 유지됩니다.</p>'
               + '<p><i class="fa-solid fa-circle-check"></i> 구역이 화면에서 작게 보일 때 누르면 먼저 그 구역으로 확대되고, 충분히 커진 뒤 다시 누르면 팝업이 뜹니다. 팝업엔 그 구역의 시간대별 내용이 구분돼 표시됩니다(구분, 발표기관, 유효기간, 근거, 본문 — 이미 끝난 시간대는 흐리게 "종료" 표시).</p>'
               + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 좌표는 국립해양조사원 "항행경보 상황판" 자료를 보강해 표시한 것으로, 정식 항행경보 원문과 다를 수 있습니다. 실제 항해 시에는 반드시 항행경보 상황판(khoa.go.kr/nwb)이나 수로도서지 원문을 확인하세요.</p>'
-              + '<div class="ocean-info-src">갱신 주기 · 30분<br>출처 · 국립해양조사원 항행경보</div>' }
+              + '<div class="ocean-info-src">갱신 주기 · 30분<br>출처 · 국립해양조사원 항행경보</div>' },
+            // 사고정보[S28-6, 2026-09-09 사용자 확정 — 초안 보고 후 승인].
+            // 틀은 사용자가 지정했다: ①목적 ②사용법·구성 ③데이터 산출 내역.
+            // ★숫자는 전부 원본 파일을 세어 확인한 값이다(추측 없음). 근거는
+            //   accident_stats_sheet.design.md 작업 19-2 와 아래 주석에 남겼다:
+            //     · 앱 표출 71,492건 = 선박 57,167(2008~2025) + 인명 14,325(2009~2024)
+            //     · 원본 74,018건 대비 2,526건(3.4%) 제외 — 사고유형 4종 347건 + 나머지 2,179건
+            //     · 2025년 선박사고 3,775건은 위치·원인·선박종류가 100% 빈칸
+            //   사용자 지시로 "데이터 자체에 오류가 있을 수 있다"는 점도 함께 밝힌다.
+            { id: 'accident', label: '사고정보', html:
+                '<p><strong>1. 목적</strong></p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 우리 바다에서 <strong>실제로 어떤 사고가, 어디서, 얼마나</strong> 일어났는지 지도에서 바로 확인할 수 있게 합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 사고가 잦은 해역과 시기를 미리 알고 <strong>활동 계획에 참고</strong>하시라고 만들었습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 지나간 사고 기록입니다. <strong>지금의 위험을 예보하는 기능이 아닙니다.</strong></p>'
+
+              + '<p><strong>2. 사용법 · 구성</strong></p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 화면 왼쪽 위에 <strong>[분석 · 현황]</strong> 토글이 생깁니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>현황</strong> — 사고 한 건마다 마커를 찍습니다. 가까운 것끼리 묶여 숫자로 보이고, 확대하면 갈라집니다. 마커를 누르면 발생일·사고유형·위치·관할서를 볼 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>분석</strong> — 지도를 격자로 나눠 <strong>칸 색으로 사고 건수</strong>를 보여줍니다(파랑=적음 → 빨강=많음). 칸 크기는 확대할수록 잘게 쪼개집니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 칸을 누르면 <strong>통계 시트</strong>가 열립니다. <strong>전국 통계</strong> 버튼을 누르면 전국 기준으로 봅니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 시트에서 <strong>전체 / 선박사고 / 인명사고</strong>를 고를 수 있고, 사고유형·기간·관할서·시간대·특보 <strong>5가지 필터</strong>를 걸 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 시트 카드 7개 — ①추세 요약 ②연도별 추이(월별·시간대별·요일별·관할서별로 전환) ③특보 중 사고 ④상위 발생 유형 ⑤주요 발생 원인 ⑥선박 종류별 ⑦사망·실종 발생률.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> ③번 카드의 <strong>사고 내역 보기</strong>를 누르면 특보가 떠 있을 때 난 사고를 한 건씩 훑어볼 수 있습니다(최신순·피해순 정렬, 20건씩).</p>'
+
+              + '<p><strong>3. 데이터 산출 내역</strong></p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>들어간 자료</strong> — 국립해양조사원 개방海의 <strong>선박사고(해경)</strong>와 <strong>인명사고</strong> 두 종류입니다. 선박사고 2008~2025년 <strong>57,167건</strong> + 인명사고 2009~2024년 <strong>14,325건</strong> = <strong>71,492건</strong>.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>빠진 자료</strong> — 원본 74,018건 중 2,526건(3.4%)을 뺐습니다. <strong>347건</strong>은 선체결함·속구손상·시설물손상·조난으로, 지도에 쓸 아이콘이 없어 제외했습니다. <strong>2,179건</strong>은 좌표가 잘못 들어간 사고(같은 위치인데 33km 이상 떨어진 것)와, 위치가 기록되지 않아 관할 해양경찰서 청사 좌표로 채워진 사고입니다 — 실제 사고 지점이 아니라 뺐습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>선박 이름은 어떤 화면에도 없습니다.</strong> 원본에 그 칸 자체가 없습니다. <strong>어선·모터보트</strong> 같은 종류까지가 한계입니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>2024·2025년 선박사고는 위치 설명이 하나도 없습니다.</strong> 2025년은 사고 원인·선박 종류까지 3,775건 전부 비어 있습니다. 그래서 사고 내역에서 위치 설명 대신 <strong>좌표</strong>로 표시되는 경우가 많습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>구조·사망·실종이 모두 0으로 기록된 선박사고가 절반가량</strong>입니다. 원본이 "아무도 안 다쳤다"와 "기록을 안 했다"를 구분하지 않아, 화면에는 <strong>인명피해 기록 없음</strong>으로 적습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>특보 중 사고</strong>는 <strong>2016년 8월 26일 이후</strong>만 셉니다. 그 이전 특보 자료가 없어 분모에서 뺐습니다. 한 사고가 두 특보에 함께 걸린 경우가 있어, 특보 종류별 건수를 더하면 전체보다 조금 큽니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>사망·실종 발생률</strong>은 전국 자료로 냅니다. 인명피해가 통째로 기록되지 않은 <strong>2014·2015년</strong>, 해양오염, 표본이 아주 적은 유형, 성격상 비율이 높을 수밖에 없는 변사자·자살자는 순위에서 뺐습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <strong>원본 자료 자체에 오류가 섞여 있을 수 있습니다.</strong> 위 좌표 오류처럼 눈에 띄는 것은 걸러냈지만, 발생일시·사고유형·인명피해 같은 값이 잘못 기록됐거나 누락된 경우까지 모두 가려낼 수는 없습니다. 통계 수치는 <strong>참고용</strong>으로 보시고, 공식 통계나 법적 근거가 필요할 때는 국립해양조사원·해양경찰청 원자료를 확인하세요.</p>'
+              + '<div class="ocean-info-src">출처 · 국립해양조사원 개방海(선박사고·인명사고) · 기상청 특보 이력</div>' }
         ];
         var tabsHtml = '<div class="ocean-info-tabs">';
         var panelsHtml = '<div class="ocean-info-panels">';
@@ -819,6 +856,55 @@
     }
 
     // ========================================================================
+    // 5-B. 해양안전 오버레이 단독 표출 (2026-09-09 사용자 확정)
+    // ========================================================================
+
+    /** 해양안전 화면 우측 버튼 8개 — 이 중 하나만 켜지게 한다. */
+    var SOLO_BTN_IDS = [
+        'ocean-terrain-toggle-btn',   // 위험지형
+        'ocean-accident-toggle-btn',  // 사고정보
+        'ocean-banzone-toggle-btn',   // 금지구역
+        'ocean-navwarn-btn',          // 항행경보
+        'ocean-mudflat-toggle-btn',   // 물빠짐
+        'ocean-cctv-toggle-btn',      // CCTV
+        'ocean-vts-toggle-btn',       // 관제구역
+        'ocean-seaway-toggle-btn'     // 항로·해역
+    ];
+    var _soloBusy = false;   // 우리가 끄려고 누른 클릭이 다시 이 로직을 타지 않게 하는 빗장
+
+    /**
+     * 해양안전 오버레이 버튼을 "한 번에 하나만" 켜지도록 묶는다.
+     * 예: 금지구역이 켜져 있을 때 위험지형을 누르면 → 금지구역이 먼저 꺼지고 위험지형만 켜진다
+     *
+     * 각 기능의 끄는 절차(폴리곤 정리·배경지도 복귀·폴링 중단)를 그대로 쓰려고
+     * **그 버튼을 대신 눌러서** 끈다. 새로 켜는 클릭보다 먼저 처리해야 하므로
+     * 캡처 단계에서 듣는다(끄기 → 그 다음 원래 리스너가 자기를 켠다).
+     * 이미 켜져 있는 버튼을 다시 눌러 끄는 경우에는 아무것도 하지 않는다.
+     * [연계] ← DOMContentLoaded → 각 모듈의 원래 토글 리스너(대신 클릭으로 호출)
+     */
+    function _bindSoloOverlays() {
+        SOLO_BTN_IDS.forEach(function (id) {
+            var btn = document.getElementById(id);
+            if (!btn) return;
+            btn.addEventListener('click', function () {
+                if (_soloBusy) return;
+                // 지금 꺼져 있는 버튼을 누른 경우에만(= 새로 켜려는 경우) 나머지를 끈다
+                if (btn.classList.contains('active')) return;
+                _soloBusy = true;
+                try {
+                    SOLO_BTN_IDS.forEach(function (otherId) {
+                        if (otherId === id) return;
+                        var other = document.getElementById(otherId);
+                        if (other && other.classList.contains('active')) other.click();
+                    });
+                } finally {
+                    _soloBusy = false;
+                }
+            }, true);   // ★캡처 단계 — 원래 토글 리스너보다 먼저 실행돼야 한다
+        });
+    }
+
+    // ========================================================================
     // 6. 초기화
     // ========================================================================
 
@@ -828,6 +914,7 @@
         _wrapTabSwitchers();
         _watchMudflatToggle();
         _watchBottomSheets();
+        _bindSoloOverlays();
     });
 
 })();

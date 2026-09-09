@@ -39,6 +39,7 @@
 |---|---|
 | `test_child_relevance.js` | 자식 정합 필터 — "이번 특보에 해당하는 자식"만 집계 |
 | `test_child_confirm.js` | 자식 확정 관찰창 — 대기·재관찰·만료·폐기·복원 |
+| `test_parent_release_debounce.js` | 부모 해제 디바운스 — 발효중 해역이 사라졌을 때 1분 30초 관찰 |
 | `test_child_unknown_gate.js` | 자식 정보 '미상' 게이트 — 모르면 침묵 |
 | `test_ef_exact_refine.js` | 범위형 → 정확시각 정밀화 통지 |
 | `test_cancel_verdict_room.js` | 예비취소 판정 보류실 |

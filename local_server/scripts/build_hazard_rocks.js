@@ -1,6 +1,8 @@
 /**
  * 위험물(간출암·노출암) 데이터 생성 스크립트
- * 실행: node local_server/scripts/build_hazard_rocks.js <UWTROC_LV5_디렉토리> <LNDARE_LV5_디렉토리>
+ * 실행: node local_server/scripts/build_hazard_rocks.js <UWTROC_LV5_디렉토리> [LNDARE_LV5_디렉토리]
+ *       (노출암 디렉토리를 생략하면 기존 client/hazard_rocks.json 의 노출암을 그대로 물려받고
+ *        간출암·세암·암암만 새 자료로 갱신한다)
  *
  * 국립해양조사원 개방海(khoa.go.kr/oceanmap) 국가해양정보 마켓센터에서 받은
  * 전자해도 shapefile 중 TL_UWTROC_P_LV5(간출암·세암·암암)·TL_LNDARE_P_LV5(노출암)
@@ -11,8 +13,17 @@
  *
  * [원본 데이터 특성 — 첨부 설명서 기준]
  *   VALSOU(측심값)는 음수일 때 "해도 기준면(약최저저조면) 위로 드러난 높이(m)".
+ *   ※ 2026-08 배포본으로 교체(자료 제작일 MNYMD=2024-11-30). 이전 배포본은 VALSOU 가
+ *     1m 단위로 올림(ceil)돼 있었다 — 예전 3 = 새 2.1, 예전 1 = 새 0.3. 동해안 간출암이
+ *     예외 없이 1.0m 로 보이던 것이 이 올림 때문이었고(실제 0.1~0.9m), 국립해양조사원에
+ *     문의해 표기 오류로 확인받아 수정 배포된 자료다(2026-08). 값이 있는 2170개 중
+ *     1411개가 바뀌었고(평균 0.39m·최대 0.9m 과대), 지점 좌표·개수·순서는 그대로다.
  *   이 기준면은 우리 앱의 조위 데이터(TideBED/조석표)와 동일 기준면이라
  *   별도 보정 없이 직접 비교 가능(services/tide_field_common.js 주석 참고).
+ *
+ * [배포본에 따라 달라지는 것 — 파서가 양쪽 다 받아들이도록 해 둠]
+ *   · 속성 필드명: 예전 대문자(VALSOU) / 2026-08 소문자(valsou) → readDbf 가 대문자로 통일
+ *   · 점 형식:    예전 PointZ(11) / 2026-08 Point(1)          → readShpPoints 가 둘 다 인식
  */
 const fs = require('fs');
 const path = require('path');
@@ -53,7 +64,7 @@ function readShpPoints(shpPath) {
     while (off < buf.length) {
         off += 8; // 레코드 헤더(레코드번호+길이, big-endian) — 내용은 안 씀
         const shapeType = buf.readInt32LE(off);
-        if (shapeType === 11) { // PointZ
+        if (shapeType === 11 || shapeType === 1) { // PointZ(예전 자료) / Point(2026-08 자료)
             pts.push([buf.readDoubleLE(off + 4), buf.readDoubleLE(off + 12)]);
         } else {
             pts.push(null);
@@ -77,7 +88,9 @@ function readDbf(dbfPath) {
     while (off < hlen - 1) {
         const raw = buf.slice(off, off + 11);
         const nulIdx = raw.indexOf(0);
-        const name = raw.slice(0, nulIdx === -1 ? 11 : nulIdx).toString('utf8');
+        // 자료 배포본에 따라 필드명이 대문자(VALSOU)이기도 소문자(valsou)이기도 해서
+        // 대문자로 통일해 읽는다(아래 r.VALSOU/r.WATLEV 참조가 양쪽 모두에서 동작하도록).
+        const name = raw.slice(0, nulIdx === -1 ? 11 : nulIdx).toString('utf8').toUpperCase();
         const len = buf.readUInt8(off + 16);
         fields.push({ name, len });
         off += 32;
@@ -116,18 +129,36 @@ function loadLv5(dir, prefix) {
     return out;
 }
 
+/**
+ * 기존 결과물(client/hazard_rocks.json)에서 노출암(k=0)만 뽑아 loadLv5 와 같은 모양으로 돌려준다.
+ * 예: 기존 파일에 노출암이 4287개 있으면 → [{ lon: 126.53, lat: 34.32 }, ...] 4287개
+ * @param {string} jsonPath - 기존 결과물 경로
+ * @returns {Array<{lon:number,lat:number}>} 노출암 좌표 목록(기존 파일에 있던 순서 그대로)
+ * [연계] ← main() — 노출암 shapefile 없이 간출암류만 갱신할 때, 이전 노출암을 그대로
+ *          이어써 id 부여 순서와 개수를 유지하려고 부른다.
+ */
+function exposedFromPrevious(jsonPath) {
+    const prev = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    return prev.features
+        .filter((f) => f.properties.k === 0)
+        .map((f) => ({ lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }));
+}
+
 // WATLEV(수준면효과) 코드 → 종류 번호. 1=간출암 2=세암 3=암암 (0=노출암은 LNDARE 전용)
 const WATLEV_KIND = { WTV004: 1, WTV005: 2, WTV003: 3 };
 
 function main() {
     const [, , uwDir, lnDir] = process.argv;
-    if (!uwDir || !lnDir) {
-        console.error('사용법: node build_hazard_rocks.js <UWTROC_LV5_디렉토리> <LNDARE_LV5_디렉토리>');
+    if (!uwDir) {
+        console.error('사용법: node build_hazard_rocks.js <UWTROC_LV5_디렉토리> [LNDARE_LV5_디렉토리]');
         process.exit(1);
     }
+    const outPath = path.join(__dirname, '..', '..', 'client', 'hazard_rocks.json');
 
     const uw = loadLv5(uwDir, 'tl_uwtroc_p_lv5');
-    const ln = loadLv5(lnDir, 'tl_lndare_p_lv5');
+    // 노출암 디렉토리를 안 주면 기존 결과물의 노출암(k=0)을 그대로 물려받는다
+    // (간출암류만 새 자료로 갱신할 때 씀 — 노출암은 갱신 대상이 아니라 이전 값 유지).
+    const ln = lnDir ? loadLv5(lnDir, 'tl_lndare_p_lv5') : exposedFromPrevious(outPath);
 
     const features = [];
     let withValue = 0;
@@ -147,7 +178,6 @@ function main() {
     }
 
     const geojson = { type: 'FeatureCollection', features };
-    const outPath = path.join(__dirname, '..', '..', 'client', 'hazard_rocks.json');
     fs.writeFileSync(outPath, JSON.stringify(geojson));
 
     console.log(`간출암류(UWTROC): ${uw.length}건 (수치 있음 ${withValue}건) / 노출암(LNDARE): ${ln.length}건`);

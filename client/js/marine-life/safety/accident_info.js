@@ -642,6 +642,10 @@
     var _statsAll = null;             // 그 칸의 사고 전부(칩·필터를 안 거른 원본 목록)
     /** 지금 시트가 "전국 보기"인가[S18] — 격자 칸 하나가 아니라 전체 데이터를 본다. */
     var _statsNationwide = false;
+    /** 치명도 카드를 "이 구역" 자료로 볼지 "전국" 자료로 볼지[S26-8, 2026-09-06 사용자
+     * 확정]. 시트를 열 때마다 '이 구역'으로 시작한다. 전국 보기로 연 시트에서는
+     * 두 값이 같은 뜻이라 토글 대신 (전국) 뱃지만 보여 준다. */
+    var _fatalScope = 'cell';
     /** 지금 시트가 보고 있는 격자 칸(전국 보기면 null)[S19] — 필터가 바뀌면 특보 발효
      * 일수를 그 칸으로 다시 세야 하는데, 그때 이 값이 필요하다. */
     var _statsCellFeature = null;
@@ -2341,6 +2345,14 @@
      * @returns {number[]|null} [시작연도, 끝연도] — 아직 한쪽을 못 받았으면 null
      * [연계] trendBuckets / trendSummaryStats */
     var _combinedYearSpan = null;
+    var _srcYearSpan = null;      // {hk:[시작,끝], person:[시작,끝]} — combinedYearSpan 이 채운다
+    /** 한 소스만의 자료 연도 구간[S25-7] — 시간대별 뱃지("’08~’25 · 선박사고만")에 쓴다.
+     * @param {string} k 'hk' | 'person'
+     * @returns {number[]|null} [시작연도, 끝연도] */
+    function sourceYearSpan(k) {
+        combinedYearSpan();       // 아직 안 쟀으면 여기서 재진다
+        return (_srcYearSpan && _srcYearSpan[k]) || null;
+    }
     function combinedYearSpan() {
         if (_combinedYearSpan) return _combinedYearSpan;
         var span = {};
@@ -2357,6 +2369,7 @@
             span[k] = [lo, hi];
         });
         if (!ok) return null;
+        _srcYearSpan = span;      // 소스별 구간도 남긴다[S25-7]
         _combinedYearSpan = [Math.max(span.hk[0], span.person[0]), Math.min(span.hk[1], span.person[1])];
         return _combinedYearSpan;
     }
@@ -2368,26 +2381,39 @@
     }
 
     function trendBuckets(members, drill) {
-        var counts = {};
-        var span = activeYearSpan();
+        // ★소스별로 따로 센다[S24-2, 2026-09-05 사용자 확정 "선박·인명·전체 세 선을
+        //   각각 다른 색으로"]. 전체는 두 소스의 합이므로 따로 세지 않고 더한다.
+        var counts = { hk: {}, person: {} };
+        var span = combinedYearSpan();
         members.forEach(function (f) {
             var row = f.get('row');
             var y = yearOf(row);
             if (!y) return;
             if (span && (y < span[0] || y > span[1])) return;   // 한 소스만 있는 해는 뺀다[S15]
-            if (!drill) { counts[y] = (counts[y] || 0) + 1; return; }
+            var bag = counts[srcOfFeat(f)];
+            if (!bag) return;
+            if (!drill) { bag[y] = (bag[y] || 0) + 1; return; }
             if (y !== drill.year) return;
             // 연 -> 월까지만 판다. 일 단위는 만들지 않는다(2026-09-04 사용자 확정) —
             // 선박사고 59,664건을 18년·전국에 흩뿌리면 하루 평균 9건이고 격자 한 칸은
             // 그 일부라, 일별로 쪼개면 대부분의 날이 0건이 되어 톱니만 남는다.
             var m = monthOf(row);
-            if (m) counts[m] = (counts[m] || 0) + 1;
+            if (m) bag[m] = (bag[m] || 0) + 1;
         });
-        var keys = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
+        // 가로축은 두 소스의 눈금을 합집합으로 만든다 — 한쪽에만 있는 해/달이 빠지면
+        // 선이 끊겨 보인다.
+        var seen = {};
+        Object.keys(counts.hk).forEach(function (k) { seen[k] = 1; });
+        Object.keys(counts.person).forEach(function (k) { seen[k] = 1; });
+        var keys = Object.keys(seen).map(Number).sort(function (a, b) { return a - b; });
         var unit = drill ? '월' : '년';
+        var hk = keys.map(function (k) { return counts.hk[k] || 0; });
+        var person = keys.map(function (k) { return counts.person[k] || 0; });
         return {
             labels: keys.map(function (k) { return k + unit; }),
-            values: keys.map(function (k) { return counts[k]; }),
+            values: keys.map(function (k, i) { return hk[i] + person[i]; }),
+            hk: hk,
+            person: person,
             keys: keys
         };
     }
@@ -2444,12 +2470,24 @@
      * "월별은 연도 선택 없이 전체기간 합산"). 연도별 드릴다운으로 들어가는 "연도별" 탭과
      * 역할이 겹치지 않도록 최상위 탭에서 별도로 구성. */
     function monthlyBuckets(members) {
-        var counts = new Array(12).fill(0);
+        // ★소스별로 따로 센다[S25-6, 2026-09-06 사용자 지적 — 이미지 6].
+        //   연도별과 똑같이 전체·선박·인명 세 선을 그린다. 기간도 연도별과 같은 기준
+        //   (두 자료가 겹치는 해)으로 자른다 — 안 그러면 두 화면의 숫자가 서로 안 맞는다.
+        var hk = new Array(12).fill(0), person = new Array(12).fill(0);
+        var span = combinedYearSpan();
         members.forEach(function (f) {
-            var m = monthOf(f.get('row'));
-            if (m) counts[m - 1]++;
+            var row = f.get('row');
+            var y = yearOf(row);
+            if (span && (!y || y < span[0] || y > span[1])) return;
+            var m = monthOf(row);
+            if (!m) return;
+            if (srcOfFeat(f) === 'person') person[m - 1]++; else hk[m - 1]++;
         });
-        return counts;
+        return {
+            values: hk.map(function (v, i) { return v + person[i]; }),
+            hk: hk,
+            person: person
+        };
     }
 
     /** 요일별(월~일) 사고건수. */
@@ -2521,6 +2559,12 @@
      * 정보없음 36.5% + 기타 4.3% + 원인미상 0.8% 로 41.5%, 선박종류는 48.0%).
      * [연계] topEntriesExcluding */
     var ASH_EXCLUDED_LABEL = /^(기타|정보없음|원인미상|관할 미상)/;
+    /** 이름만 바꿔서 순위에 살려 두는 라벨[S26-5, 2026-09-06 사용자 확정 — 이미지 5].
+     * 선박 종류의 "기타(레저선박)"은 이름이 "기타"로 시작한다는 이유만으로 위 규칙에
+     * 걸려 빠지고 있었는데, 이건 "분류가 안 됐다"가 아니라 **레저선박이라는 실제 종류**다
+     * (원본 코드표에서 모터보트·요트 등으로 더 잘게 나뉘지 않은 레저선박이 여기 온다).
+     * 이름을 바꿔 주면 위 정규식에 안 걸려 그대로 순위에 들어간다. */
+    var ASH_RENAME_LABELS = { '기타(레저선박)': '레저선박(분류없음)' };
     /** 사람 사고가 아니라 통계에서 아예 빼는 유형[S12, S19에 유형 카드와 공용으로 승격].
      * 해양오염 1,004건의 관련 인원은 전체 통틀어 1명이다(그 1명은 사망자 — 2020-07-04
      * 강릉시 송정해변). 치명도·인명피해·유형 카드가 모두 이 표를 쓴다. */
@@ -2545,6 +2589,9 @@
         var entries = countByLabel(members, getter, table);
         var kept = 0, dropped = 0, keepList = [], droppedLabels = [];
         entries.forEach(function (e) {
+            // 이름만 바꿔 살리는 라벨은 여기서 먼저 갈아 끼운다[S26-5] — 바뀐 이름은
+            // 아래 제외 규칙(^기타…)에 안 걸리므로 그대로 순위에 남는다.
+            if (ASH_RENAME_LABELS[e[0]]) e = [ASH_RENAME_LABELS[e[0]], e[1]];
             // ★해양오염도 뺀다[S19 정정] — 치명도·인명피해 카드는 빼는데 이 카드만 남겨
             // 두면 같은 시트에서 한 카드는 "해양오염은 제외했습니다", 다른 카드는
             // 해양오염을 정식 사고유형 7위(인명 전체의 7.0%)로 보여 준다. 설계서 작업 9가
@@ -2567,7 +2614,10 @@
     /** 막대 행에 돌려 쓰는 색 — 목업이 행마다 다른 색 점을 쓰는 것을 그대로 옮긴 것.
      * "기타"·"정보없음"처럼 실제 항목이 아닌 것은 순서와 무관하게 회색으로 고정한다
      * (목업도 기타를 회색으로 뒀다). [연계] buildBarRowsHtml */
-    var ASH_ROW_COLORS = ['#2b7cf0', '#16c8a3', '#25d0a6', '#f9821f', '#a35ff0'];
+    // ★셋째 색을 청록(#25d0a6)에서 노랑으로 바꿨다[S26-4, 2026-09-06 사용자 지적 —
+    //   둘째(#16c8a3)와 색상이 거의 같아 도넛 조각과 막대가 구분되지 않았다].
+    //   다섯 색이 색상환에서 파랑·청록·노랑·주황·보라로 고르게 벌어진다.
+    var ASH_ROW_COLORS = ['#2b7cf0', '#16c8a3', '#ffc233', '#f9821f', '#a35ff0'];
     var ASH_ROW_GRAY = '#5b6c85';
     function ashRowColor(label, i) {
         if (/^(기타|정보없음|원인미상|관할 미상)/.test(label)) return ASH_ROW_GRAY;
@@ -2580,7 +2630,7 @@
     var ASH_DONUT_GRADS = {
         '#2b7cf0': ['#86b6ff', '#2b7cf0', '#12448a'],
         '#16c8a3': ['#6cf0d4', '#1cc9a4', '#08765f'],
-        '#25d0a6': ['#7ff0cf', '#25d0a6', '#0d7a5e'],
+        '#ffc233': ['#ffdd85', '#ffc233', '#9a6c00'],
         '#f9821f': ['#ffb26b', '#f9821f', '#8a4405'],
         '#a35ff0': ['#dcabff', '#a35ff0', '#5d2a9e'],
         '#5b6c85': ['#9ea8b6', '#6d7787', '#38404d']
@@ -2744,6 +2794,34 @@
      * 실제 Chart.js 인스턴스는 body.innerHTML 반영 후 renderActiveChart()가 그린다
      * (canvas 는 DOM에 붙어 있어야 Chart.js가 그릴 수 있음).
      */
+    /**
+     * 차트 카드 제목 옆 뱃지 문구[S25-7] — "무슨 자료를 보고 있나"를 한 줄로.
+     *
+     *   연도별·월별 → `’09~’24`      (두 자료가 겹치는 해만 그리므로)
+     *   시간대별     → `’08~’25 · 선박사고만`(인명사고에는 발생 시각이 없다)
+     *   그 밖        → 없음
+     *
+     * 시간대별의 옛 설명("주간 39,180건 · 야간 17,987건 · 선박사고만…")은 그래프 아래
+     * 한 줄로 길게 깔려 지저분했다 — 사용자 확정(2026-09-06)으로 **아래 문구는 전부 지우고**
+     * 이 뱃지만 남긴다.
+     *
+     * @param {string} view 지금 보고 있는 뷰 id
+     * @returns {string} 뱃지 문구(없으면 빈 문자열)
+     * [연계] buildChartViewHtml · 스타일 style.css .ash-badge-note
+     */
+    function chartSpanBadgeText(view) {
+        function yy(a, b) { return '’' + String(a).slice(2) + '~’' + String(b).slice(2); }
+        if (view === 'trend' || view === 'month') {
+            var sp = combinedYearSpan();
+            return sp ? yy(sp[0], sp[1]) : '';
+        }
+        if (view === 'hourly') {
+            var hs = sourceYearSpan('hk');
+            return (hs ? yy(hs[0], hs[1]) + ' · ' : '') + '선박사고만';
+        }
+        return '';
+    }
+
     function buildChartViewHtml(key) {
         var views = statsViewsFor(key);
         // 잠긴 탭(인명의 시간대별)이 선택돼 있으면 안 된다 — 소스를 바꿨을 때 빈 차트가 뜬다.
@@ -2758,29 +2836,40 @@
         // 탭이 6개면 좁아서 아이콘을 숨긴다(style.css .ash-tabs.is-crowded 참고).
         var tabsCls = 'ash-tabs' + (views.length > 5 ? ' is-crowded' : '');
 
-        var backHtml = '';
-        if (activeView === 'trend' && _trendDrill) {
-            var crumb = _trendDrill.year + '년';
-            backHtml = '<button class="accident-trend-back" id="accident-trend-back">◀ ' + crumb + ' — 전체로</button>';
-        }
-
         var chartInnerHtml = '<canvas id="accident-stats-chart"></canvas>';
 
         // 탭 줄은 카드 밖(시트 바로 아래)에, 차트는 카드 안에 둔다 — 탭은 "무엇을 볼지"
         // 고르는 조작부고 카드는 "고른 것"이라, 목업도 이 둘을 따로 놓는다.
         var viewLabel = (views.filter(function (v) { return v.id === activeView; })[0] || {}).label || '';
-        // 연도별 화면에서만 "눌러서 파고들 수 있다"고 알려 준다 — 이미 월별로 들어간
-        // 상태이거나 다른 축(월별·요일별 등)에서는 더 팔 곳이 없어 안내가 거짓이 된다.
-        var hintHtml = (activeView === 'trend' && !_trendDrill)
-            ? '<div class="ash-hint"><i class="fa-solid fa-hand-pointer"></i>연도를 누르면 그 해의 월별로 바뀝니다</div>'
-            : '';
+        // ★제목은 지금 무엇을 보고 있는지를 그대로 말한다[S24-3, 2026-09-05 사용자 확정].
+        //   연도별: "2. 연도별 추이" / 어느 해로 들어가면: "2. 2021년 월별 추이".
+        var titleText = (activeView === 'trend' && _trendDrill)
+            ? '2. ' + _trendDrill.year + '년 월별 추이'
+            : '2. ' + viewLabel + ' 추이';
+        // ★제목 오른쪽 자리[S24-3] — 한 자리를 두 용도가 번갈아 쓴다(동시에 뜰 일이 없다).
+        //   · 연도별 화면: 자료 범위 안내(그래프 아래에 있던 문구를 여기로 올림)
+        //   · 월별 화면: 되돌아가는 버튼(옛 "◀ 2021년 — 전체로" → "연도별로")
+        var asideHtml = '';
+        if (activeView === 'trend' && _trendDrill) {
+            asideHtml = '<button type="button" class="accident-trend-back" id="accident-trend-back">' +
+                '<i class="fa-solid fa-chevron-left"></i>연도별로</button>';
+        } else {
+            // ★맨 위 자료범위 뱃지(’16.08~)와 같은 모양으로 통일[S25-7, 2026-09-06 사용자 지적
+            //   — 이미지 5·7]. 긴 문장을 그래프 아래에 늘어놓지 않고 제목 옆에 짧게 붙인다.
+            var badge = chartSpanBadgeText(activeView);
+            if (badge) asideHtml = '<span class="ash-badge-note">' + escapeHtml(badge) + '</span>';
+        }
         return '<div class="' + tabsCls + '">' + viewTabsHtml + '</div>' +
-            '<section class="ash-card">' +
-            '<div class="ash-card-head"><h2 class="ash-card-title">2. ' + escapeHtml(viewLabel) + ' 추이</h2></div>' +
-            backHtml +
+            '<section class="ash-card" id="accident-trend-card">' +
+            '<div class="ash-card-head"><h2 class="ash-card-title">' + escapeHtml(titleText) + '</h2>' +
+            asideHtml + '</div>' +
+            // ★안내는 제목 바로 아래 한 줄로[S25-7, 2026-09-06 사용자 확정].
+            //   S24-5 의 토스트(그래프가 화면 가운데 왔을 때 잠깐 뜨던 것)는 삭제했다 —
+            //   사용자 원문: *"그래프 아래 두는 것이 아닌 제목 아래 … 토스트는 삭제"*.
+            (activeView === 'trend' && !_trendDrill
+                ? '<div class="ash-card-hint">연도를 누르면 그 해의 월별로 바뀝니다</div>' : '') +
             '<div class="accident-chart-wrap" id="accident-chart-wrap">' + chartInnerHtml + '</div>' +
             '<div class="accident-chart-caption" id="accident-chart-caption"></div>' +
-            hintHtml +
             '</section>';
     }
 
@@ -3000,7 +3089,8 @@
             buildDetailCardsHtml(key, members) +
             (_statsScope === 'person'
                 ? buildCasualtyCardHtml('person', detailCardSpecs(members).length + 4, members)
-                : buildFatalityCardHtml('hk', detailCardSpecs(members).length + 4, fatalityCellMembers(members))) +
+                : buildFatalityCardHtml('hk', detailCardSpecs(members).length + 4,
+                    fatalityCellMembers(members))) +
             buildStatsFootHtml();
     }
 
@@ -3286,20 +3376,18 @@
         });
     }
 
-    /** 말풍선에 넣을 계산 내역 — 구역별 일수, 동시발효 제외, 합계[S11 · H-5].
-     * 사용자 확정 형식: 구역마다 한 줄, 동시발효 제외 한 줄, 합계 한 줄. */
+    /** 말풍선에 넣을 계산 내역 — 해역마다 한 줄, 그것만[S11 · H-5 / S26-3 축소].
+     *
+     * ★2026-09-06 사용자 확정: "각 해역별로 며칠인지만 나오도록". 전에는 여기에
+     *   "구역끼리 겹친 N일은 한 번만 셈" 줄과 구분선·합계 줄이 더 붙어 있었는데,
+     *   합계는 말풍선을 부르는 칸("해상 926일")에 이미 적혀 있어 겹쳤다.
+     *   ⚠맞바꾼 것: 해역별 일수를 다 더한 값과 칸의 합계가 다른 이유(겹치는 날을
+     *   한 번만 세기 때문)가 화면에서 사라진다. 사용자가 그 점을 알고 고른 선택이다. */
     function warnDaysTipText(u, label) {
         if (!u || !u.zonesWithData.length) return label + ' 발효 자료 없음';
-        var lines = u.zonesWithData.map(function (z) { return z + '  ' + fmtN(u.perZone[z]) + '일'; });
-        // ★"동시 발효 N일 제외"라고 쓰면 안 된다[S19 정정]. overlap 은 구역별 일수를
-        // 그냥 더한 값과 합집합의 차이(sum − total)이고, 구역이 3개 이상이면 그 값은
-        // "동시 발효였던 날 수"가 아니다(실측: 부산앞바다 칸에서 overlap 915일인데
-        // 전체 창이 3,412일·합집합이 526일이라 성립할 수 없는 말이 됐다).
-        // 뺄셈 자체는 맞으므로 "겹쳐 세지 않은 몫"이라고 사실대로 적는다.
-        if (u.overlap > 0) lines.push('구역끼리 겹친 ' + fmtN(u.overlap) + '일은 한 번만 셈');
-        lines.push('───');
-        lines.push('합계  ' + fmtN(u.total) + '일');
-        return lines.join('\n');
+        return u.zonesWithData.map(function (z) {
+            return z + '  ' + fmtN(u.perZone[z]) + '일';
+        }).join('\n');
     }
 
     // ── 치명도[S12] ───────────────────────────────────────────────────────
@@ -3313,6 +3401,7 @@
     // 뒤집히지 않는다(인명사상 어디서나 1위, 기관손상 어디서나 꼴찌). 즉 치명률은 지역의
     // 성질이 아니라 사고 유형의 성질이다.
     var FATAL_MIN_SAMPLE = 100;         // 이보다 적은 유형은 순위에서 뺀다
+    var FATAL_MIN_SAMPLE_CELL = 10;     // 구역 자료를 볼 때의 같은 기준[S26-8]
     var FATAL_EXCLUDED_YEARS = { '2014': 1, '2015': 1 };
     // 성격상 치명률이 당연히 높아 순위를 왜곡하는 인명 유형 — 순위에서 빼고 펼침에서 회색.
     var FATAL_GRAY_TYPES = { '변사자': 1, '자살자': 1 };
@@ -3332,8 +3421,12 @@
      * @returns {{rows:Array, zeroCount:number}} rows=[{label,scale,fatal,rate,thin,gray}]
      *   scale 은 막대 길이의 기준(선박=건수, 인명=인원), fatal 은 그 중 사망·실종.
      * [연계] buildFatalityCardHtml / 설계서 작업 9 */
-    function fatalityRanking(key) {
-        var feats = rawFeatures[key] || [];
+    function fatalityRanking(key, members) {
+        // members 를 주면 그 목록(=선택한 구역)으로, 안 주면 전국 자료로 순위를 낸다[S26-8].
+        var feats = members || rawFeatures[key] || [];
+        // 구역 자료는 전국의 수백분의 일이라 "규모 100건 미만은 뺀다"를 그대로 걸면
+        // 거의 모든 유형이 빠져 화면이 비어 버린다. 구역을 볼 때만 기준을 10 으로 낮춘다.
+        var minSample = members ? FATAL_MIN_SAMPLE_CELL : FATAL_MIN_SAMPLE;
         var typeIdx = key === 'hk' ? 5 : 4;
         var m = {};
         feats.forEach(function (f) {
@@ -3353,7 +3446,7 @@
         var all = Object.keys(m).map(function (k) {
             var e = m[k];
             e.rate = e.scale ? e.fatal / e.scale * 100 : 0;
-            e.thin = e.scale < FATAL_MIN_SAMPLE;      // 표본이 얇아 비율이 튄다
+            e.thin = e.scale < minSample;             // 표본이 얇아 비율이 튄다
             e.gray = !!FATAL_GRAY_TYPES[e.label];     // 성격상 순위를 왜곡한다
             return e;
         });
@@ -3398,56 +3491,43 @@
                 '<i class="fatal" style="width:' + fatalW.toFixed(1) + '%"></i>' +
                 '<i style="width:' + (fill - fatalW).toFixed(1) + '%;background:' + color + '"></i>' +
                 '</span>' +
+                // 괄호 왼쪽(사망·실종 몫)만 빨간 글씨로 갈라 준다[S26-6, 2026-09-06
+                // 사용자 확정 — 두 숫자가 각각 무엇인지 색으로도 알아볼 수 있게].
                 '<span class="val">' + e.rate.toFixed(1) + '%' +
-                '<em>(' + fmtN(e.fatal) + '/' + fmtN(e.scale) + unit + ')</em></span>' +
+                '<em>(<b>' + fmtN(e.fatal) + '</b>/' + fmtN(e.scale) + unit + ')</em></span>' +
                 '</div>';
         }).join('') + '</div>';
     }
 
     /**
-     * 치명도 절의 알맹이[S12·S13] — 첫 줄(이 구역 실제값) + 게이지 행 + 주석 + 더보기.
+     * 치명도 절의 알맹이[S12·S13] — 값 칸 설명 한 줄 + 게이지 행 + 더보기.
      *
      * 선박은 이것을 카드 하나로 쓰고(buildFatalityCardHtml), 인명은 "인명 피해 현황"
      * 카드의 아랫절로 끌어다 쓴다(buildCasualtyCardHtml). 두 곳이 같은 마크업을 쓰도록
      * 알맹이만 따로 뗀 것이다.
      *
      * @param {string} key 소스 키
-     * @param {ol.Feature[]} members 이 칸의 사고들(첫 줄의 "이 구역" 값에만 쓴다)
-     * @param {boolean} [skipYearNote] 2014·2015년 주석을 빼고 그린다 — 인명 피해 현황
-     *   카드는 위쪽 요약에서 이미 같은 문장을 쓰므로 한 카드에 두 번 나오면 군더더기다.
+     * @param {ol.Feature[]} [cellMembers] 선택한 구역의 사고들 — "이 구역" 토글일 때
+     *   이 목록으로 순위를 낸다. 전국 토글이거나 전국 보기면 쓰지 않는다[S26-8].
      * @returns {string} 절 안쪽 HTML
      * [연계] buildFatalityCardHtml / buildCasualtyCardHtml / 설계서 작업 9
      */
-    function fatalityInnerHtml(key, members, skipYearNote) {
+    function fatalityInnerHtml(key, cellMembers) {
         var ek = detailExpandKey(key, '치명도');
         var expanded = !!_detailExpanded[ek];
-        var r = fatalityRanking(key);
-        // Top 5 후보는 표본이 넉넉하고 순위를 왜곡하지 않는 것만.
+        // 전국 보기로 연 시트는 어차피 둘이 같은 값이라 늘 전국 자료로 낸다[S26-8].
+        var useCell = !_statsNationwide && _fatalScope === 'cell';
+        var r = fatalityRanking(key, useCell ? cellMembers : null);
+        // Top 5 후보는 표본이 넉넉하고 순위를 왜곡하지 않는 것만. 다만 구역 자료는
+        // 그 조건을 넘는 유형이 하나도 없을 수 있어, 그럴 때는 표본이 얇은 것까지
+        // 후보로 쓴다(빈 카드보다는 "표본 적음" 딱지를 단 순위가 낫다)[S26-8].
         var ranked = r.rows.filter(function (e) { return !e.thin && !e.gray; });
-        var rows = expanded ? r.rows : ranked.slice(0, 5);
+        var base = ranked.length ? ranked : r.rows.filter(function (e) { return !e.gray; });
+        var rows = expanded ? r.rows : base.slice(0, 5);
 
-        // 이 칸의 실제값 — 전국 순위와 잣대가 다르다는 것을 첫 줄에 밝힌다.
-        // 단위는 게이지와 같게 맞춘다: 선박은 "건"(사망·실종이 난 사고 수), 인명은 "명"
-        // (사망·실종 인원). 인명인데 "건"으로 쓰면 바로 위 요약의 "79명·22명"과 숫자가
-        // 어긋나 같은 카드 안에서 잣대가 둘로 보인다(사용자 확정 "인명만 명으로").
-        var cellFatal = 0;
-        // ★게이지와 **같은 제외 규칙**으로 센다[S19 정정]. 예전에는 아무것도 안 빼서
-        // 첫 줄과 게이지가 서로 다른 잣대를 썼다(실측: 선박 전체 1,132건 중 기타 39 ·
-        // 기타(선박) 8 · 해양오염 1 이 첫 줄에만 들어가 48건이 어긋났다).
-        var cellDenom = 0;
-        members.forEach(function (f) {
-            var row = f.get('row');
-            if (FATAL_EXCLUDED_YEARS[String(row[2]).slice(0, 4)]) return;
-            var label = accidentLabel(ACCIDENT_TYPE_LABELS, row[key === 'hk' ? 5 : 4]);
-            if (ASH_EXCLUDED_LABEL.test(label) || FATAL_DROP_TYPES[label]) return;
-            if (key === 'hk') {
-                cellDenom++;
-                if ((+row[10] || 0) + (+row[11] || 0) > 0) cellFatal++;
-            } else {
-                cellDenom += (+row[6] || 0);
-                cellFatal += (+row[8] || 0) + (+row[9] || 0);
-            }
-        });
+        // ※이 칸의 실제값(맨 윗줄)은 S26-6 에서 없앴다 — 그와 함께 그 값을 세던 코드와
+        //   members·skipYearNote 인자도 함께 지웠다. 순위는 원래부터 전국 자료라
+        //   이 함수는 더 이상 선택 영역의 목록을 쓰지 않는다.
 
         var moreHtml = r.rows.length > rows.length || expanded
             ? '<button type="button" class="ash-more' + (expanded ? ' is-collapse' : '') +
@@ -3457,29 +3537,16 @@
               '<i class="fa-solid fa-chevron-right"></i></button>'
             : '';
 
-        // 전국 보기에서는 "이 구역"이라는 말이 거짓이 된다[S19 정정].
-        var here = _statsNationwide ? '전국에서는' : '이 구역에서는';
         var unit = key === 'hk' ? '건' : '명';
-        var scopeLine = key === 'hk'
-            ? here + ' 사망·실종 사고가 ' + fmtN(cellFatal) + '건 있었습니다(' + fmtN(cellDenom) + '건 중).'
-            : here + ' 사망·실종이 ' + fmtN(cellFatal) + '명 있었습니다(' + fmtN(cellDenom) + '명 중).';
-        // 회색으로 내려간 유형이 실제로 보이는 경우에만 그 이유를 적는다[S19 정정] —
-        // 예전에는 "100건 미만이라 뺐다"만 적혀 있어서, 변사자(545명)·자살자(577명)처럼
-        // 100 을 훨씬 넘는 유형이 회색으로 떠 있는데 화면이 틀린 이유를 대고 있었다.
-        var grayShown = rows.some(function (e) { return e.gray; });
-        var thinShown = rows.some(function (e) { return e.thin; });
-        return '<div class="ash-scope-line">' + scopeLine + '</div>' +
-            buildFatalityRowsHtml(rows, unit, r.rows) +
-            '<div class="ash-note">' +
-            // ★이 게이지는 전국 기준이라 시트 안 필터를 타지 않는다 — 안 밝히면
-            // 필터를 걸었는데 막대가 그대로여서 앱이 고장 난 것처럼 보인다.
-            '이 순위는 전국 자료로 낸 것이라 위에서 고른 필터를 따르지 않습니다. ' +
-            (skipYearNote ? '' : '2014·2015년은 인명피해가 기록돼 있지 않아 제외했습니다. ') +
-            '기타·정보없음·원인미상·해양오염도 뺐습니다' +
-            (thinShown ? ' · 규모 ' + FATAL_MIN_SAMPLE + unit + ' 미만인 유형은 비율이 튀어 순위에서 빼고 회색으로 뒀습니다' : '') +
-            (grayShown ? ' · 변사자·자살자는 성격상 비율이 높을 수밖에 없어 순위에서 빼고 회색으로 뒀습니다' : '') +
-            (r.zeroCount ? ' · 이 밖에 ' + r.zeroCount + '종은 사망·실종이 없습니다' : '') + '.' +
-            '</div>' + moreHtml;
+        // ★맨 윗줄("이 구역에서는 사망·실종 사고가 N건 있었습니다")과 맨 아랫줄 안내문을
+        //   뺐다[S26-6, 2026-09-06 사용자 확정 — 이미지 6]. 대신 그 자리에 **값 칸이 무슨
+        //   숫자인지 알려 주는 한 줄**을 둔다 — 괄호 안 두 숫자가 무엇인지 몰라 물어 오셨다.
+        //   ⚠맞바꾼 것: "이 순위는 전국 자료라 필터를 안 탄다"·"2014·2015년 제외"·"표본이
+        //   적어 회색으로 내린 유형" 같은 전제가 화면에서 사라진다. 제목 옆 '전국 기준'
+        //   뱃지만 남는다.
+        var legend = '(<b>사망+실종</b> / 총 ' + (key === 'hk' ? '사고수' : '인원') + ')';
+        return '<div class="ash-fatal-legend">' + legend + '</div>' +
+            buildFatalityRowsHtml(rows, unit, r.rows) + moreHtml;
     }
 
     /** 치명도가 몇 등까지 있는지 — 제목의 "(Top 5)" 를 붙일지 판단하는 데만 쓴다[S13]. */
@@ -3500,13 +3567,31 @@
         return '<section class="ash-card ash-detail-card" data-axis="치명도">' +
             '<div class="ash-card-head"><h2 class="ash-card-title">' + no + '. 사망·실종 발생률이 높은 사고' +
             (fatalityExpanded(key) ? '' : ' <em>(Top 5)</em>') +
-            '<span class="ash-badge-scope">전국 기준</span></h2>' + aside + '</div>' +
+            fatalityScopeHtml() + '</h2>' + aside + '</div>' +
             fatalityInnerHtml(key, members) +
             '</section>';
     }
 
-    /** 치명도 카드의 "이 구역" 줄에 넣을 목록[S15] — 이 카드는 선박 기준이라 칩이
-     * 전체일 때 인명 사고까지 세면 안 된다.
+    /** 치명도 카드의 "이 구역 ↔ 전국" 토글[S26-8, 2026-09-06 사용자 확정].
+     *
+     * 전에는 `전국 기준` 이라고 적힌 뱃지 하나였다 — 순위가 전국 자료로만 나온다는
+     * 사실을 알려 줄 뿐, 선택한 구역의 순위는 볼 길이 없었다. 이제 눌러서 바꾼다.
+     * 전국 보기로 연 시트에서는 바꿀 것이 없으므로 `(전국)` 뱃지만 남긴다.
+     *
+     * @returns {string} 카드 제목 뒤에 붙는 HTML
+     * [연계] 스타일 style.css .ash-scopetoggle / 클릭 처리 statsBody delegation */
+    function fatalityScopeHtml() {
+        if (_statsNationwide) return '<span class="ash-badge-scope">전국</span>';
+        return '<span class="ash-scopetoggle">' +
+            [['cell', '이 구역'], ['nation', '전국']].map(function (p) {
+                return '<button type="button" data-fatalscope="' + p[0] + '"' +
+                    (_fatalScope === p[0] ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') +
+                    '>' + p[1] + '</button>';
+            }).join('') + '</span>';
+    }
+
+    /** 치명도 카드에 넘길 목록[S15] — 이 카드는 선박 기준이라 칩이 전체일 때
+     * 인명 사고까지 세면 안 된다.
      * @param {ol.Feature[]} members 칩·필터를 통과한 목록
      * @returns {ol.Feature[]} */
     function fatalityCellMembers(members) {
@@ -3601,8 +3686,8 @@
             '<div class="ash-card-sec">' +
             '<h3 class="ash-card-sec-title">사망·실종 발생률이 높은 사고' +
             (fatalityExpanded(key) ? '' : ' <em>(Top 5)</em>') +
-            '<span class="ash-badge-scope">전국 기준</span></h3>' +
-            fatalityInnerHtml(key, members, true) +
+            fatalityScopeHtml() + '</h3>' +
+            fatalityInnerHtml(key, members) +
             '</div>' +
             '</section>';
     }
@@ -3667,6 +3752,22 @@
         var maxSev = 1;
         kinds.forEach(function (k) { if ((st.sev[k.code] || 0) > maxSev) maxSev = st.sev[k.code]; });
 
+        // ★사고 0건인 종류는 타일을 아예 안 그린다[S25-3, 2026-09-06 사용자 확정 — 이미지 3].
+        //   사용자 원문: *"특보가 0건인 경우에는 그 특보 카드를 표출할 필요는 없을 것 같아.
+        //   괜히 자리만 차지하는 것 같아"* — 발효 일수가 있어도 숨긴다(확인 질문에서 확정).
+        //   ⚠맞바꾼 것: "강풍주의보가 415일 떠 있었는데 사고는 0건"이라는 사실이 화면에서
+        //   사라진다. 사용자가 그 점을 알고 고른 선택이다.
+        kinds = kinds.filter(function (k) { return (st.sev[k.code] || 0) > 0; });
+
+        // ★타일마다 선박·인명을 나눠 적는다[S28-8, 2026-09-09 사용자 지시:
+        //   "선박 몇건 인명사고 몇건인지 표출하고 싶어"]. 칩이 "전체"일 때만 뜻이 있다 —
+        //   한 종류만 보고 있으면 한쪽이 늘 0이라 두 줄이 군더더기다.
+        //   집계는 여기서 한 번만 하고 아래 선박·인명 나눔 칸(srcRow)과 함께 쓴다
+        //   (예전에는 srcRow 가 같은 순회를 또 돌았다).
+        var splitSrc = _statsScope === 'all';
+        var hkSt = splitSrc ? warnStatsOf('hk', membersOfSrc(members, 'hk')) : null;
+        var peSt = splitSrc ? warnStatsOf('person', membersOfSrc(members, 'person')) : null;
+
         var tiles = kinds.map(function (k) {
             var n = st.sev[k.code] || 0;
             var pct = st.warn ? n / st.warn * 100 : 0;
@@ -3680,11 +3781,24 @@
             // "발효 0일"로 떠 있었다).
             var hasDays = !!(u && u.zonesWithData && u.zonesWithData.length);
             var daysHtml = hasDays ? '<div class="d">발효 ' + fmtN(u.total) + '일</div>' : '';
-            var tip = hasDays ? warnDaysTipText(u, k.label) : '';
-            return '<div class="ash-warn-tile"' + (tip ? ' data-tip="' + escapeHtml(tip) + '"' : '') + '>' +
+            // ★타일에는 말풍선을 붙이지 않는다[S26-3, 2026-09-06 사용자 지적].
+            //   말풍선은 아래 "특보 발효 일수" 칸에서만 뜬다 — 풍랑주의보 같은 타일을
+            //   눌렀을 때도 같은 해상 구역 목록이 떠서 무엇에 대한 설명인지 헷갈렸다.
+            // 선박·인명 나눔 두 줄. 합이 위 총건수와 맞는지는 회귀 테스트가 본다.
+            var splitHtml = '';
+            if (splitSrc) {
+                var hn = (hkSt.sev[k.code] || 0), pn = (peSt.sev[k.code] || 0);
+                // 라벨은 "선박"·"인명" 으로 짧게[2026-09-09 사용자 확정] — 2열 배치에서
+                // 오른쪽 칸이 좁아, "선박사고"까지 적으면 큰 숫자와 맞물려 빠듯하다.
+                splitHtml =
+                    '<div class="s hk"><span>선박</span><b>' + fmtN(hn) + '건</b></div>' +
+                    '<div class="s person"><span>인명</span><b>' + fmtN(pn) + '건</b></div>';
+            }
+            return '<div class="ash-warn-tile">' +
                 '<div class="t" style="color:' + k.color + '"><i class="fa-solid ' + k.icon + '"></i>' + k.label + '</div>' +
                 '<div class="n">' + fmtN(n) + '<small>건</small></div>' +
                 '<div class="p">' + pct.toFixed(1) + '%</div>' +
+                splitHtml +
                 daysHtml +
                 '<div class="bar"><i style="width:' + Math.round(n / maxSev * 100) + '%;background:' + k.color + '"></i></div>' +
                 '</div>';
@@ -3712,9 +3826,8 @@
 
         // 선박·인명 나눔 — 칩이 "전체"일 때만 뜻이 있다(한 종류만 보고 있으면 나눌 게 없다).
         var srcRow = '';
-        if (_statsScope === 'all') {
-            var hw = warnStatsOf('hk', membersOfSrc(members, 'hk')).warn;
-            var pw = warnStatsOf('person', membersOfSrc(members, 'person')).warn;
+        if (splitSrc) {
+            var hw = hkSt.warn, pw = peSt.warn;   // 위 타일과 같은 집계를 다시 쓴다
             var tw = hw + pw;
             function srcCell(cls, label, icon, n) {
                 return '<div class="ash-warn-src ' + cls + '">' +
@@ -3739,11 +3852,462 @@
             daysBoxHtml +
             '</div>' +
             srcRow +
-            '<div class="ash-warn-sub">특보 종류별 사고 건수</div>' +
-            '<div class="ash-warn-tiles">' + tiles + '</div>' +
-            '<div class="ash-note">특보 발효 시간과 사고 발생 시간이 겹치는 경우에만 집계했습니다. ' +
-            '2016년 8월 이전 사고는 특보 자료가 없어 분모에서 제외했습니다.</div>' +
+            // 남은 종류가 하나도 없으면 소제목만 덩그러니 남으므로 줄째로 뺀다[S25-3].
+            (kinds.length
+                // ★소제목 오른쪽에 "사고 내역 보기" 버튼[S27, 2026-09-06 사용자 확정].
+                //   건수만 있고 "그게 어떤 사고였는지"를 볼 길이 없다는 지적에서 나왔다.
+                ? '<div class="ash-warn-sub">특보 종류별 사고 건수' +
+                  '<button type="button" class="ash-warn-more" id="accident-warn-detail-open">' +
+                  '사고 내역 보기<i class="fa-solid fa-chevron-right"></i></button></div>' +
+                  '<div class="ash-warn-tiles">' + tiles + '</div>'
+                : '') +
+            // ★카드 아래 안내 문구는 뺐다[S26-3, 2026-09-06 사용자 확정 — 이미지 3].
+            //   ⚠맞바꾼 것: "특보 시간과 사고 시간이 겹칠 때만 셌다"·"2016년 8월 이전은
+            //   특보 자료가 없어 분모에서 뺐다"는 두 전제가 화면에서 사라진다.
             '</section>';
+    }
+
+    // ── 특보 중 사고 내역 팝업[S27, 2026-09-06 사용자 확정] ──────────────────
+    //
+    // [왜 있나] 특보 카드는 "태풍 때 5건" 같은 **건수만** 보여 준다. 사용자 원문:
+    //   *"그 사고가 발생했다는 것은 알지만 그게 어떤 사고였는지 확인할 수 없어서
+    //   그게 문제야."* 그래서 건수를 눌러 그 사고들을 실제로 훑어볼 수 있게 한다.
+    //
+    // [무엇을 못 보여 주나 — 먼저 밝힌다] 원본에 **선박 이름 칸이 없다.** `어선`·
+    //   `모터보트` 같은 종류까지가 한계다. 그리고 특보 중 선박사고 1,695건 기준으로
+    //   위치 설명이 70.2%, 사고 원인·선박 종류가 각각 39.3% 비어 있고, 구조·사망·실종이
+    //   모두 0인 행이 58.1%다(원본을 세어 확인). 그래서:
+    //     · 위치 설명이 없으면 **좌표**로 대신 적는다.
+    //     · 인명피해가 모두 0이면 "인명피해 기록 없음"이라고 적는다 — "피해 없음"이라고
+    //       쓰면 거짓이 될 수 있다. 원본이 "안 다쳤다"와 "기록을 안 했다"를 구분하지 않는다.
+    //     · 빈 칸은 줄째로 뺀다. 그래서 펼칠 것이 하나도 없는 카드가 생기는데(선박 37.2% ·
+    //       인명 15.4%), 그런 카드는 펼침 화살표를 감추고 눌러도 안 열리게 한다.
+    //
+    // [연계] 여는 곳 buildWarnCardHtml 의 .ash-warn-more 버튼 / 스타일 style.css
+    //        .ash-detail-overlay~ / 뒤로가기 core/backbutton.js PopupStack
+
+    /** 뒤로가기 처리를 위한 공용 팝업 스택 등록 id(core/backbutton.js). */
+    var WARN_DETAIL_POPUP_ID = 'accident-warn-detail';
+    /** 한 쪽에 보여 줄 사고 수 — 전국 풍랑주의보가 1,857건이라 한꺼번에 그리면 버틴다. */
+    var WARN_DETAIL_PER_PAGE = 20;
+    /** 팝업 상태. src='all'|'hk'|'person' · warn='all'|'WV_주의보' 등 · page=0부터 ·
+     *  open=펼친 카드의 전체 목록 기준 번호(없으면 null). */
+    var _warnDetail = { src: 'all', warn: 'all', sort: 'recent', page: 0, open: null };
+    var _warnDetailEls = null;
+
+    /** 팝업 껍데기를 처음 한 번만 만든다.
+     * @returns {{overlay:HTMLElement, scope:HTMLElement, tabs:HTMLElement, chips:HTMLElement, body:HTMLElement}} */
+    function ensureWarnDetailPopup() {
+        if (_warnDetailEls) return _warnDetailEls;
+        var overlay = document.createElement('div');
+        overlay.className = 'ash-detail-overlay';
+        overlay.style.display = 'none';
+        overlay.innerHTML =
+            '<div class="ash-detail">' +
+            '<div class="ash-detail-head">' +
+            '<div class="l1"><div><h2 class="ash-detail-title">특보 중 사고 내역</h2>' +
+            '<div class="ash-detail-scope" id="awd-scope"></div></div>' +
+            '<button type="button" class="ash-detail-x" id="awd-close" aria-label="닫기">&times;</button></div>' +
+            '<div class="ash-detail-tabs" id="awd-tabs">' +
+            ['all', 'hk', 'person'].map(function (sc) {
+                return '<button type="button" data-dsrc="' + sc + '"' + (sc === 'all' ? ' class="on"' : '') + '>' +
+                    (sc === 'all' ? '전체' : sc === 'hk' ? '선박사고' : '인명사고') + '</button>';
+            }).join('') +
+            '</div></div>' +
+            '<div class="ash-detail-chips" id="awd-chips"></div>' +
+            '<div class="ash-detail-body" id="awd-body"></div>' +
+            '</div>';
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) closeWarnDetailPopup(); });
+        document.getElementById('awd-close').addEventListener('click', closeWarnDetailPopup);
+        _warnDetailEls = {
+            overlay: overlay,
+            scope: document.getElementById('awd-scope'),
+            tabs: document.getElementById('awd-tabs'),
+            chips: document.getElementById('awd-chips'),
+            body: document.getElementById('awd-body')
+        };
+        bindWarnDetailHandlers(_warnDetailEls);
+        return _warnDetailEls;
+    }
+
+    function openWarnDetailPopup() {
+        var els = ensureWarnDetailPopup();
+        // 열 때마다 기본 상태로 — 시트를 새로 열 때와 같은 원칙(2026-09-01 사용자 확정).
+        // 다만 소스 탭만은 **시트 칩을 물려받는다**. 그래야 팝업을 열자마자 보이는
+        // 건수가 방금 누른 특보 카드의 건수와 같다(칩이 걸린 채로 팝업만 전체를
+        // 보여 주면 두 숫자가 달라 사용자가 어느 쪽을 믿을지 알 수 없다).
+        _warnDetail = { src: _statsScope || 'all', warn: 'all', sort: 'recent', page: 0, open: null };
+        Array.prototype.forEach.call(els.tabs.children, function (b) {
+            b.classList.toggle('on', b.dataset.dsrc === _warnDetail.src);
+        });
+        renderWarnDetail();
+        els.overlay.style.display = 'flex';
+        els.body.scrollTop = 0;
+        if (window.PopupStack) window.PopupStack.push(WARN_DETAIL_POPUP_ID, closeWarnDetailPopup);
+    }
+
+    function closeWarnDetailPopup() {
+        // 스택에서 먼저 뺀다 — 뒤로가기로 들어온 경우엔 이미 빠진 뒤라 무해하고,
+        // ✕·바깥클릭으로 닫은 경우엔 여기서 빠져야 다음 뒤로가기가 이 팝업을 또
+        // 닫으려 하지 않는다(필터 팝업·바텀시트와 같은 방식).
+        if (window.PopupStack) window.PopupStack.remove(WARN_DETAIL_POPUP_ID);
+        if (_warnDetailEls) _warnDetailEls.overlay.style.display = 'none';
+    }
+
+    /** 팝업이 다룰 사고 목록 — 시트 필터를 통과하고 **특보가 발효 중이던** 사고만,
+     * 팝업 위쪽 탭(전체/선박/인명)을 걸어 최신순으로 돌려준다[S27].
+     *
+     * 시트 칩(_statsScope)이 아니라 팝업 탭(_warnDetail.src)을 본다 — 팝업을 열 때
+     * 탭을 시트 칩과 같게 맞춰 두므로, 처음 보이는 건수는 특보 카드의 건수와 같다.
+     *
+     * @returns {Array.<{key:string, row:Array, sev:string[]}>} 최신순
+     * [연계] renderWarnDetail */
+    function warnDetailPool() {
+        var out = [];
+        (_statsAll || []).forEach(function (f) {
+            var key = srcOfFeat(f), row = f.get('row');
+            if (!passesFilters(key, row)) return;
+            var sev = row[WARN_SEVERITY_POS_IDX[key]] || [];
+            if (!sev.length) return;
+            if (_warnDetail.src !== 'all' && key !== _warnDetail.src) return;
+            out.push({ key: key, row: row, sev: sev });
+        });
+        // 최신순. 같은 날이면 늦은 시각이 먼저다 — 인명사고는 시각 칸이 원본에 없어
+        // -1 로 두고 뒤로 보낸다. 문자열끼리 비교하면 "6:05" > "16:17" 이 되므로
+        // 반드시 분으로 환산해서 견준다.
+        function minutesOf(it) {
+            if (it.key !== 'hk') return -1;
+            var hm = String(it.row[3] || '');
+            var p = hm.split(':');
+            if (p.length !== 2) return -1;
+            return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+        }
+        function byRecent(a, b) {
+            var d = String(b.row[2]).localeCompare(String(a.row[2]));
+            return d !== 0 ? d : minutesOf(b) - minutesOf(a);
+        }
+        // ★"피해순"[S27-2, 2026-09-06 사용자 제안]. 최신순으로만 두면 첫 쪽이
+        //   2025년 자료로 채워지는데, 그 해는 위치·원인이 100% 비어 있어 훑을 것이 없다.
+        //   사망·실종 **인원** 내림차순으로 보고, 같으면 최신순으로 가른다.
+        function casOf(it) {
+            var r = it.row, hk = it.key === 'hk';
+            return (+r[hk ? 10 : 8] || 0) + (+r[hk ? 11 : 9] || 0);
+        }
+        out.sort(_warnDetail.sort === 'fatal'
+            ? function (a, b) {
+                var d = casOf(b) - casOf(a);
+                return d !== 0 ? d : byRecent(a, b);
+            }
+            : byRecent);
+        return out;
+    }
+
+    /** 한 건에서 화면에 쓸 값만 뽑아 둔다 — 소스마다 칸 위치가 달라 한 번에 정리한다.
+     * @param {{key:string,row:Array,sev:string[]}} it
+     * @returns {Object} */
+    function warnDetailFields(it) {
+        var r = it.row, hk = it.key === 'hk';
+        return {
+            key: it.key,
+            ymd: String(r[2] || ''),
+            hm: hk ? (r[3] || '') : '',
+            pos: (hk ? r[4] : r[3]) || '',
+            lat: r[0], lon: r[1],
+            typeLabel: accidentLabel(ACCIDENT_TYPE_LABELS, r[hk ? 5 : 4]),
+            icon: ACCIDENT_TYPE_ICONS[r[hk ? 5 : 4]] || '',
+            cause: hk && r[6] ? accidentLabel(ACCIDENT_CAUSE_LABELS, r[6]) : '',
+            kind: hk && r[7] ? accidentLabel(ACCIDENT_SHIP_KIND_LABELS, r[7]) : '',
+            org: accidentLabel(ACCIDENT_ORG_LABELS, r[ORG_POS_IDX[it.key]]),
+            prsn: hk ? 0 : (+r[6] || 0),
+            resc: +r[hk ? 9 : 7] || 0,
+            dead: +r[hk ? 10 : 8] || 0,
+            miss: +r[hk ? 11 : 9] || 0,
+            sev: it.sev
+        };
+    }
+
+    /** 위치 설명이 없을 때 대신 적는 좌표 — "34.683°N 125.433°E"[S27 사용자 확정]. */
+    function warnDetailCoord(f) {
+        function one(v, pos, neg) {
+            return Math.abs(v).toFixed(3) + '°' + (v >= 0 ? pos : neg);
+        }
+        return one(f.lat, 'N', 'S') + ' ' + one(f.lon, 'E', 'W');
+    }
+
+    /** 특보 배지 한 벌 — 한 사고가 두 특보에 걸린 경우가 있어 배열로 돈다. */
+    function warnDetailBadges(sev) {
+        return sev.map(function (code) {
+            var c = WARN_SEVERITY_COLORS[code] || '#8194ad';
+            return '<span class="ash-d-warn" style="color:' + c + ';border-color:' + c +
+                '44;background:' + c + '1f">' + (WARN_SEVERITY_LABELS[code] || code).replace(/ /g, '') + '</span>';
+        }).join('');
+    }
+
+    /** 팝업 위쪽 특보 종류 칩 — 건수 0인 종류는 그리지 않는다(특보 타일과 같은 규칙). */
+    function buildWarnDetailChips(pool) {
+        var cnt = {};
+        pool.forEach(function (it) {
+            it.sev.forEach(function (k) { cnt[k] = (cnt[k] || 0) + 1; });
+        });
+        var all = _warnDetail.warn === 'all';
+        var html = '<button type="button" class="ash-d-chip' + (all ? ' on' : '') + '" data-dwarn="all">' +
+            '전체<span class="n">' + fmtN(pool.length) + '</span></button>';
+        WARN_SEVERITY_ORDER.forEach(function (code) {
+            if (!cnt[code]) return;
+            var on = _warnDetail.warn === code, c = WARN_SEVERITY_COLORS[code];
+            html += '<button type="button" class="ash-d-chip' + (on ? ' on' : '') + '" data-dwarn="' + code + '"' +
+                (on ? ' style="background:' + c + ';border-color:' + c + ';color:#08111e"' : '') + '>' +
+                '<i style="background:' + c + '"></i>' +
+                (WARN_SEVERITY_LABELS[code] || code).replace(/ /g, '') +
+                '<span class="n">' + fmtN(cnt[code]) + '</span></button>';
+        });
+        return html;
+    }
+
+    /** 사고 한 건을 카드 하나로. 접힌 면은 소스마다 다르다[S27 사용자 확정].
+     *
+     * 선박만 볼 때는 선박에만 있는 **시각·선박 종류**를 첫 줄로 올리고, 인명만 볼 때는
+     * 시각이 원본에 없으므로 날짜만 쓰고 **관련 인원**을 대신 올린다. 전체를 볼 때는
+     * 두 자료에 **공통으로 있는 칸만** 쓴다 — 안 그러면 카드마다 줄 수가 달라진다.
+     *
+     * @param {Object} f warnDetailFields 결과
+     * @param {number} idx 전체 목록 기준 번호(펼침 상태를 기억하는 데 쓴다)
+     * @returns {string} */
+    function buildWarnDetailCard(f, idx) {
+        var fatal = (f.dead + f.miss) > 0;
+        var showTime = _warnDetail.src === 'hk' && f.hm;
+        var showKind = _warnDetail.src === 'hk' && f.kind;
+        var showPrsn = _warnDetail.src === 'person' && f.prsn;
+        var hasPos = !!f.pos;
+
+        // 0 인 항목은 아예 쓰지 않는다 — "사망 0 · 실종 1" 처럼 0이 섞이면 읽기가 나쁘다.
+        var parts = [];
+        if (f.dead) parts.push('사망 ' + f.dead);
+        if (f.miss) parts.push('실종 ' + f.miss);
+        if (f.resc) parts.push('구조 ' + f.resc);
+        var cas = fatal
+            ? '<span class="cas">' + parts.join(' · ') + '</span>'
+            : (f.resc ? '<span class="cas none">구조 ' + f.resc + '명</span>'
+                      : '<span class="cas none">인명피해 기록 없음</span>');
+
+        // 펼쳐서 보여 줄 것만 모은다. 특보 종류는 위 배지에 이미 있으므로 넣지 않고,
+        // 구조·사망·실종이 모두 0이면 그 줄도 넣지 않는다(0 이 "안 다쳤다"는 뜻이 아니다).
+        var detail = '';
+        function row(k, v) { return '<div class="r"><span>' + k + '</span><span>' + v + '</span></div>'; }
+        if (f.cause) detail += row('사고 원인', escapeHtml(f.cause));
+        if (f.key !== 'hk' && f.prsn) detail += row('관련 인원', f.prsn + '명');
+        if (f.resc + f.dead + f.miss > 0) {
+            detail += row('인명피해', '구조 ' + f.resc + ' · 사망 ' + f.dead + ' · 실종 ' + f.miss);
+        }
+        if (hasPos) detail += row('좌표', warnDetailCoord(f));
+
+        return '<div class="ash-d-card' + (fatal ? ' fatal' : '') +
+            (detail && _warnDetail.open === idx ? ' open' : '') + '">' +
+            '<button type="button" class="ash-d-head' + (detail ? '' : ' flat') + '"' +
+            (detail ? ' data-dopen="' + idx + '"' : '') + '>' +
+            '<span class="ic">' + (f.icon ? '<img src="' + f.icon + '" alt="">' : '') + '</span>' +
+            '<span class="main">' +
+            '<span class="l1">' +
+            '<span class="dt">' + formatYmd(f.ymd) + (showTime ? ' ' + escapeHtml(f.hm) : '') + '</span>' +
+            '<span class="ty">' + escapeHtml(f.typeLabel) + '</span>' +
+            (showKind ? '<span class="kd">' + escapeHtml(f.kind) + '</span>' : '') +
+            (showPrsn ? '<span class="kd">관련 ' + f.prsn + '명</span>' : '') +
+            warnDetailBadges(f.sev) +
+            '</span>' +
+            '<span class="pos' + (hasPos ? '' : ' coord') + '">' +
+            (hasPos ? escapeHtml(f.pos) : warnDetailCoord(f)) + '</span>' +
+            '<span class="l3">' + cas + '<span class="org">' + escapeHtml(f.org) + '</span></span>' +
+            '</span>' +
+            (detail ? '<span class="chev"><i class="fa-solid fa-chevron-down"></i></span>' : '') +
+            '</button>' +
+            (detail ? '<div class="ash-d-body">' + detail + '</div>' : '') +
+            '</div>';
+    }
+
+    /** 게시판식 쪽 번호 — « ‹ 1 2 3 4 5 › »(한 번에 5개씩)[S27 사용자 확정]. */
+    function buildWarnDetailPager(total) {
+        if (total <= WARN_DETAIL_PER_PAGE) return '';
+        var maxPage = Math.ceil(total / WARN_DETAIL_PER_PAGE) - 1;
+        var WIN = 5;
+        var from = Math.max(0, Math.min(_warnDetail.page - Math.floor(WIN / 2), maxPage - WIN + 1));
+        var to = Math.min(maxPage, from + WIN - 1);
+        var nums = '';
+        for (var i = from; i <= to; i++) {
+            nums += '<button type="button" class="n' + (i === _warnDetail.page ? ' on' : '') +
+                '" data-dpage="' + i + '">' + (i + 1) + '</button>';
+        }
+        function edge(p, label, aria, off) {
+            return '<button type="button" class="e" data-dpage="' + p + '"' + (off ? ' disabled' : '') +
+                ' aria-label="' + aria + '">' + label + '</button>';
+        }
+        var first = _warnDetail.page === 0, last = _warnDetail.page === maxPage;
+        return '<div class="ash-d-pager">' +
+            edge(0, '&laquo;', '첫 쪽', first) +
+            edge(_warnDetail.page - 1, '&lsaquo;', '이전 쪽', first) +
+            nums +
+            edge(_warnDetail.page + 1, '&rsaquo;', '다음 쪽', last) +
+            edge(maxPage, '&raquo;', '마지막 쪽', last) +
+            '</div><div class="ash-d-pagenote">' + (_warnDetail.page + 1) + ' / ' + (maxPage + 1) +
+            '쪽 · 모두 ' + fmtN(total) + '건</div>';
+    }
+
+    /** 팝업 안쪽을 통째로 다시 그린다 — 탭·칩·쪽을 바꿀 때마다 부른다[S27]. */
+    function renderWarnDetail() {
+        var els = _warnDetailEls;
+        if (!els) return;
+
+        var pool = warnDetailPool();
+        var list = _warnDetail.warn === 'all'
+            ? pool
+            : pool.filter(function (it) { return it.sev.indexOf(_warnDetail.warn) >= 0; });
+
+        var maxPage = Math.max(0, Math.ceil(list.length / WARN_DETAIL_PER_PAGE) - 1);
+        if (_warnDetail.page > maxPage) _warnDetail.page = maxPage;
+
+        var where = _statsNationwide ? '전국' : (_statsRegionLabel || '선택 영역');
+        var span = combinedYearSpan();
+        els.scope.textContent = where + (span ? ' · ' + span[0] + '~' + span[1] : '') +
+            (hasActiveFilters() ? ' · 시트 필터 반영됨' : '');
+        els.chips.innerHTML = buildWarnDetailChips(pool);
+
+        var hk = 0, dead = 0, miss = 0, resc = 0;
+        var fields = list.map(warnDetailFields);
+        fields.forEach(function (f) {
+            if (f.key === 'hk') hk++;
+            dead += f.dead; miss += f.miss; resc += f.resc;
+        });
+        var pe = list.length - hk;
+        var label = _warnDetail.warn === 'all'
+            ? '모든 특보 발효 중 사고'
+            : (WARN_SEVERITY_LABELS[_warnDetail.warn] || '').replace(/ /g, '') + ' 발효 중 사고';
+
+        var html = '<div class="ash-d-sum">' +
+            '<div class="t">' + label + '</div>' +
+            '<div class="n">' + fmtN(list.length) + '<small>건</small></div>' +
+            '<div class="cells">' +
+            (_warnDetail.src === 'all'
+                ? '<div class="c"><div class="k">선박사고</div><div class="v">' + fmtN(hk) + '건</div></div>' +
+                  '<div class="c"><div class="k">인명사고</div><div class="v">' + fmtN(pe) + '건</div></div>'
+                : '') +
+            '<div class="c"><div class="k">사망·실종</div><div class="v' + ((dead + miss) ? ' red' : '') + '">' +
+            fmtN(dead + miss) + '명</div></div>' +
+            '<div class="c"><div class="k">구조</div><div class="v">' + fmtN(resc) + '명</div></div>' +
+            '</div>' +
+            '<div class="note">한 사고가 두 특보에 함께 걸린 경우가 있어, 종류별 건수를 더하면 전체보다 조금 큽니다.</div>' +
+            '</div>';
+
+        // 사고 유형 도넛(상위 5 + 그 밖). 한 종류만 보고 있으면 "사고 주체" 도넛은
+        // 색 하나짜리 원이 되어 뜻이 없으므로 유형 도넛 하나만 넓게 둔다.
+        var tc = {};
+        fields.forEach(function (f) { tc[f.typeLabel] = (tc[f.typeLabel] || 0) + 1; });
+        var te = Object.keys(tc).map(function (k) { return [k, tc[k]]; })
+            .sort(function (a, b) { return b[1] - a[1]; });
+        var typeEntries = te.slice(0, 5).map(function (d, i) { return [d[0], d[1], ASH_ROW_COLORS[i]]; });
+        var rest = te.slice(5).reduce(function (a, d) { return a + d[1]; }, 0);
+        if (rest) typeEntries.push(['그 밖 ' + (te.length - 5) + '종', rest, ASH_ROW_GRAY]);
+
+        function legend(entries) {
+            return '<div class="ash-d-leg">' + entries.map(function (d) {
+                // 라벨을 <b> 로 감싼다 — 한 줄에 둘씩 놓으면 칸이 좁아 긴 이름은
+                // 말줄임이 필요한데, 텍스트 노드에는 걸 수 없다.
+                return '<div><i style="background:' + d[2] + '"></i><b>' + escapeHtml(d[0]) +
+                    '</b><span>' + fmtN(d[1]) + '</span></div>';
+            }).join('') + '</div>';
+        }
+        function dcard(title, entries, cls) {
+            return '<div class="ash-d-donut' + (cls || '') + '"><h4>' + title + '</h4>' +
+                '<div class="wrap">' +
+                buildDonutHtml(entries, { small: true, centerNum: fmtN(list.length), centerCap: '건' }) +
+                legend(entries) + '</div></div>';
+        }
+        if (list.length) {
+            if (_warnDetail.src === 'all') {
+                var srcEntries = [];
+                if (hk) srcEntries.push(['선박사고', hk, '#2b7cf0']);
+                if (pe) srcEntries.push(['인명사고', pe, '#16c8a3']);
+                html += '<div class="ash-d-donuts">' +
+                    dcard('사고 주체', srcEntries) + dcard('사고 유형', typeEntries) + '</div>';
+            } else {
+                html += dcard('사고 유형 <em>' + te.length + '종</em>', typeEntries, ' wide');
+            }
+        }
+
+        html += '<div class="ash-d-listhead">' +
+            '<h3>사고 목록<em>' + fmtN(list.length) + '건</em></h3>' +
+            '<div class="ash-d-sort">' +
+            [['recent', '최신순'], ['fatal', '피해순']].map(function (o) {
+                return '<button type="button" data-dsort="' + o[0] + '"' +
+                    (_warnDetail.sort === o[0] ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') +
+                    '>' + o[1] + '</button>';
+            }).join('') + '</div></div>';
+
+        if (!list.length) {
+            html += '<div class="ash-d-empty">해당하는 사고가 없습니다.</div>';
+        } else {
+            var from = _warnDetail.page * WARN_DETAIL_PER_PAGE;
+            fields.slice(from, from + WARN_DETAIL_PER_PAGE).forEach(function (f, i) {
+                html += buildWarnDetailCard(f, from + i);
+            });
+            html += buildWarnDetailPager(list.length);
+        }
+        els.body.innerHTML = html;
+    }
+
+    /** 팝업 안 클릭 처리 — 탭·칩·펼치기·쪽 넘김을 한 곳에서 받는다[S27]. */
+    function bindWarnDetailHandlers(els) {
+        els.tabs.addEventListener('click', function (e) {
+            var b = e.target.closest('button[data-dsrc]');
+            if (!b) return;
+            _warnDetail.src = b.dataset.dsrc;
+            _warnDetail.page = 0;
+            _warnDetail.open = null;
+            Array.prototype.forEach.call(els.tabs.children, function (x) { x.classList.toggle('on', x === b); });
+            // 고른 소스에 그 특보가 하나도 없으면 칩을 "전체"로 되돌린다 — 안 그러면
+            // 빈 목록이 뜨고 왜 비었는지 알 길이 없다.
+            if (_warnDetail.warn !== 'all') {
+                var still = warnDetailPool().some(function (it) { return it.sev.indexOf(_warnDetail.warn) >= 0; });
+                if (!still) _warnDetail.warn = 'all';
+            }
+            renderWarnDetail();
+            els.body.scrollTop = 0;
+        });
+        els.chips.addEventListener('click', function (e) {
+            var b = e.target.closest('button[data-dwarn]');
+            if (!b) return;
+            _warnDetail.warn = b.dataset.dwarn;
+            _warnDetail.page = 0;
+            _warnDetail.open = null;
+            renderWarnDetail();
+            els.body.scrollTop = 0;
+        });
+        els.body.addEventListener('click', function (e) {
+            var head = e.target.closest('[data-dopen]');
+            if (head) {
+                var i = Number(head.dataset.dopen);
+                _warnDetail.open = (_warnDetail.open === i) ? null : i;
+                var keep = els.body.scrollTop;
+                renderWarnDetail();
+                els.body.scrollTop = keep;   // 펼치느라 화면이 튀지 않게 자리를 지킨다
+                return;
+            }
+            var st = e.target.closest('[data-dsort]');
+            if (st) {
+                _warnDetail.sort = st.dataset.dsort;
+                _warnDetail.page = 0;
+                _warnDetail.open = null;
+                renderWarnDetail();
+                els.body.scrollTop = 0;
+                return;
+            }
+            var pg = e.target.closest('[data-dpage]');
+            if (pg && !pg.disabled) {
+                _warnDetail.page = Number(pg.dataset.dpage);
+                _warnDetail.open = null;
+                renderWarnDetail();
+                els.body.scrollTop = 0;
+            }
+        });
     }
 
     /** 선택 영역의 추세 요약 수치를 한 번에 계산한다[S6].
@@ -3885,7 +4449,18 @@
             if (e.max === null || y > e.max) e.max = y;
         });
         var total = stat.hk.n + stat.person.n;
+        // ★"전체" 칩[S26-7, 2026-09-06 사용자 확정 — 이미지 8]. 전에는 선박·인명 둘뿐이라
+        //   한 종류를 고른 뒤 전체로 돌아가려면 **같은 칩을 한 번 더** 눌러야 했는데,
+        //   그 규칙을 화면 어디에도 안 적어 둬서 돌아갈 길이 없어 보였다.
+        var mins = [stat.hk.min, stat.person.min].filter(function (v) { return v !== null; });
+        var maxs = [stat.hk.max, stat.person.max].filter(function (v) { return v !== null; });
+        stat.all = {
+            n: total,
+            min: mins.length ? Math.min.apply(null, mins) : null,
+            max: maxs.length ? Math.max.apply(null, maxs) : null
+        };
         var defs = [
+            { id: 'all', label: '전체', icon: 'fa-layer-group' },
             { id: 'hk', label: '선박사고', icon: 'fa-ship' },
             { id: 'person', label: '인명사고', icon: 'fa-person' }
         ];
@@ -3981,11 +4556,153 @@
     /** 지금 그려진 Chart.js 인스턴스를 전부 정리 — 다시 그리기 전/시트 닫을 때 필수
      * (안 하면 같은 canvas id 재사용 시 이전 차트가 겹쳐 그려지거나 누수됨). */
     function destroyStatsCharts() {
+        stopPointPulse();
         _statsCharts.forEach(function (c) { c.destroy(); });
         _statsCharts = [];
     }
 
-    var CHART_COLOR = { blue: '#448aff', yellow: '#ffd740', green: '#69f0ae', red: '#ff5252' };
+    // green 은 요일별 막대에만 쓴다. ★2026-09-06 사용자 지적(S26-2)으로 밝은 형광
+    // 연두(#69f0ae)를 진한 청록으로 낮췄다 — 막대 안 흰 글씨가 안 읽히던 원인이다.
+    var CHART_COLOR = { blue: '#448aff', yellow: '#ffd740', green: '#0f8f74', red: '#ff5252' };
+    /** 연도별·월별 추이 세 선의 색[S24-2].
+     *  선박·인명은 추세 요약 도넛 범례와 **같은 색**을 쓴다(같은 뜻엔 같은 색).
+     *  전체는 그 둘과 겹치지 않으면서 가장 눈에 띄는 색 — 숫자를 달고 있는 선이다. */
+    var TREND_COLOR = { all: '#ffd740', hk: '#2b7cf0', person: '#16c8a3' };
+
+    /**
+     * 추이 그래프(연도별·월별)의 "전체선" 숫자 라벨 설정[S25-5, 2026-09-06 사용자 지적].
+     *
+     * 세 가지를 사용자 지시대로 바꿨다(이미지 2):
+     *   ①**위·아래 번갈아** — 전부 점 위에만 붙이니 값이 가까운 해끼리 좌우로 겹쳤다
+     *     (2,928 ↔ 2,982). 한 칸씩 번갈아 놓으면 이웃끼리 높이가 달라 겹치지 않는다.
+     *   ②**점과 숫자 사이 간격을 절반으로** — 플러그인 기본 offset 이 4 라 2 로.
+     *   ③**노란색** — 전체선과 같은 색이라 "이 숫자는 전체 사고 건수"임이 색으로 읽힌다.
+     *
+     * @returns {Object} chartjs-plugin-datalabels 설정
+     * [연계] renderActiveChart(view==='trend'|'month') · 색 TREND_COLOR.all
+     */
+    /** 추이 그래프의 선 하나를 만든다[S25-6에서 연도별·월별 공용으로 뺌].
+     * @param {string} label 범례 이름
+     * @param {number[]} data 값
+     * @param {string} color 선 색(TREND_COLOR)
+     * @param {boolean} isTotal 전체선인가 — 전체선만 면을 칠하고 숫자를 붙인다
+     * @returns {Object} Chart.js dataset */
+    /** '#2b7cf0' 같은 6자리 색을 'rgba(43,124,240,0.1)' 로 바꾼다 — 선 아래 옅은
+     * 칠에 쓴다. 주선(主線)의 색이 칩에 따라 바뀌므로 칠도 따라가야 한다[S26-7]. */
+    function trendFillOf(hex) {
+        return 'rgba(' + parseInt(hex.slice(1, 3), 16) + ',' + parseInt(hex.slice(3, 5), 16) +
+            ',' + parseInt(hex.slice(5, 7), 16) + ',0.10)';
+    }
+
+    function trendSeriesSpec(label, data, color, isTotal) {
+        return {
+            label: label, data: data, borderColor: color, borderWidth: isTotal ? 2.4 : 1.6,
+            backgroundColor: isTotal ? trendFillOf(color) : 'transparent',
+            fill: isTotal, tension: 0.35,
+            pointRadius: isTotal ? 3 : 2.4, pointHoverRadius: 5, pointBackgroundColor: color,
+            // ★숫자는 주선에만(2026-09-05 사용자 확정) — 세 선 모두면 3겹으로 겹친다.
+            datalabels: isTotal ? trendTotalDatalabels(color) : { display: false }
+        };
+    }
+
+    /**
+     * 칩(전체/선박사고/인명사고)에 맞춰 그릴 선을 정한다[S26-7, 2026-09-06 사용자 확정
+     * — 이미지 7]. 전체면 종전대로 세 선(전체는 굵은 노랑 주선, 선박·인명은 가는 선),
+     * 한 종류를 골랐으면 **그 한 선만** 그 종류의 색으로 굵게 그리고 숫자를 붙인다.
+     *
+     * ⚠2026-09-05 에 확정했던 "칩으로 무엇을 고르든 늘 세 선"을 사용자가 뒤집은 것이다.
+     *   그때 세 선을 고집한 이유는 "고르지 않은 쪽 선이 전 구간 0이 되어 거짓말이 된다"
+     *   였는데, 아예 안 그리면 그 문제는 생기지 않는다.
+     *
+     * @param {{values:number[], hk:number[], person:number[]}} bk 월별·연도별 집계
+     * @returns {Object[]} Chart.js datasets
+     * [연계] renderStatsChart 의 trend·month 뷰 */
+    function trendDatasets(bk) {
+        if (_statsScope === 'hk') return [trendSeriesSpec('선박사고', bk.hk, TREND_COLOR.hk, true)];
+        if (_statsScope === 'person') return [trendSeriesSpec('인명사고', bk.person, TREND_COLOR.person, true)];
+        return [
+            trendSeriesSpec('전체', bk.values, TREND_COLOR.all, true),
+            // 선박·인명 색은 추세 요약 도넛의 범례와 같게 맞춘다 — 같은 뜻에
+            // 다른 색을 쓰면 화면 안에서 색이 뜻을 잃는다(스타일 사양 §1).
+            trendSeriesSpec('선박사고', bk.hk, TREND_COLOR.hk, false),
+            trendSeriesSpec('인명사고', bk.person, TREND_COLOR.person, false)
+        ];
+    }
+
+    /** 선이 셋이라 범례가 없으면 무슨 선인지 알 수 없다 — 연도별·월별 공용. */
+    var TREND_LEGEND = {
+        display: true, position: 'bottom',
+        labels: {
+            color: '#93a6bf', boxWidth: 8, boxHeight: 8, usePointStyle: true,
+            pointStyle: 'circle', padding: 12, font: { size: 10, weight: 600 }
+        }
+    };
+
+    function trendTotalDatalabels(color) {
+        return {
+            display: true,
+            color: color,
+            anchor: 'end',
+            align: function (ctx) { return ctx.dataIndex % 2 ? 'bottom' : 'top'; },
+            offset: 2,
+            font: { size: 9, weight: 600 },
+            formatter: fmtN
+        };
+    }
+
+    /** 점 주변 번짐(glow)이 커졌다 작아졌다 하는 효과[S24-4, 2026-09-05 사용자 요청
+     *  "클릭할 만한 부분이다 라는 느낌을 주고 싶어"].
+     *  전체선(첫 번째 데이터셋)의 점 뒤에만 그린다 — 세 선 모두에 넣으면 화면이 어지럽다.
+     *  월별로 들어간 뒤에는 끈다(월을 눌러도 더 파고들 곳이 없어 거짓 신호가 된다).
+     *  [연계] 켜는 곳 renderActiveChart(plugins.pointPulse.on) · 다시 그리는 타이머 startPointPulse */
+    var PointPulsePlugin = {
+        id: 'pointPulse',
+        afterDatasetsDraw: function (chart, args, opts) {
+            if (!opts || !opts.on) return;
+            var meta = chart.getDatasetMeta(0);
+            if (!meta || meta.hidden || !meta.data || !meta.data.length) return;
+            // 1.6초에 한 번 부풀었다 꺼진다. cos 로 만들어 시작·끝이 부드럽다.
+            var k = 0.5 - 0.5 * Math.cos((Date.now() % 1600) / 1600 * Math.PI * 2);
+            // ⚠차트가 지워지는 중이면 ctx 가 null 이다 — 타이머가 그 사이에 한 번 더
+            // 그리려 들면 여기서 터진다(실제로 헤드리스 검증에서 콘솔 오류로 잡혔다).
+            var ctx = chart.ctx;
+            if (!ctx) return;
+            ctx.save();
+            meta.data.forEach(function (pt) {
+                if (pt.x == null || pt.y == null) return;
+                var r = 5 + 6 * k;
+                var g = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r);
+                g.addColorStop(0, 'rgba(255,215,64,' + (0.42 - 0.22 * k).toFixed(3) + ')');
+                g.addColorStop(1, 'rgba(255,215,64,0)');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.restore();
+        }
+    };
+    if (typeof Chart !== 'undefined' && !Chart.registry.plugins.get('pointPulse')) {
+        Chart.register(PointPulsePlugin);
+        Chart.defaults.set('plugins.pointPulse', { on: false });
+    }
+
+    /** 위 번짐 효과를 실제로 움직이게 하는 타이머 — Chart.js 는 스스로 다시 그리지 않는다.
+     *  20프레임/초로 충분하고(1.6초 주기라 눈에 끊겨 보이지 않는다), 화면이 가려져 있으면
+     *  건너뛴다. 차트를 지울 때 반드시 멈춘다(destroyStatsCharts). */
+    var _pulseTimer = null;
+    function stopPointPulse() {
+        if (_pulseTimer) { clearInterval(_pulseTimer); _pulseTimer = null; }
+    }
+    function startPointPulse(chart) {
+        stopPointPulse();
+        _pulseTimer = setInterval(function () {
+            // 캔버스가 화면에서 떨어져 나갔으면(본문을 통째로 갈아끼운 뒤) 더 그리지 않는다.
+            if (!chart || !chart.ctx || !chart.canvas || !chart.canvas.isConnected) { stopPointPulse(); return; }
+            if (document.hidden) return;
+            chart.draw();
+        }, 50);
+    }
     var CHART_AXIS_OPTS = {
         x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
         y: { beginAtZero: true, ticks: { color: '#64748b', precision: 0 }, grid: { color: 'rgba(255,255,255,0.06)' } }
@@ -4000,6 +4717,8 @@
     // 꺾은선 그래프 최고점 라벨(anchor:'end',align:'top')이 캔버스 위쪽 끝에서 잘리지
     // 않도록 여유 공간을 둠(사용자 확정 2026-09-01).
     var CHART_TOP_PADDING = { padding: { top: 22 } };
+    // 추이 그래프는 숫자가 점 아래로도 가므로(S25-5 번갈아 배치) 아래쪽에도 여유를 둔다.
+    var TREND_CHART_PADDING = { padding: { top: 22, bottom: 6 } };
     // 차트에 값을 항상(호버 없이) 보여달라는 요청(2026-08-31 사용자 확정) — 이미 로드돼
     // 있던 chartjs-plugin-datalabels 를 등록. 기본은 꺼두고(다른 화면에 이 Chart.js를
     // 재사용할 일이 없어 안전하지만 명시적으로), 값 표시가 필요한 차트에서만 개별로 켠다.
@@ -4008,7 +4727,6 @@
         Chart.defaults.set('plugins.datalabels', { display: false });
     }
     var DATALABEL_COLOR = '#e2e8f0';
-    var DATALABEL_COLOR_ON_LIGHT = '#05070d'; // 밝은 막대 색(초록 등) 안에 놓일 때 대비용 어두운 글씨
     // 천 단위 콤마(2026-09-01 사용자 확정) — Chart.js 축 눈금은 기본 로케일 포맷을
     // 쓰지만 datalabels 플러그인 값 표시는 그냥 String(v)라 콤마가 안 붙어 있었다.
     function fmtN(v) { return Number(v).toLocaleString('ko-KR'); }
@@ -4032,15 +4750,10 @@
         var canvas = document.getElementById('accident-stats-chart');
         if (!canvas) return;
 
-        // 막대 안에 라벨이 들어갈 만큼 길면 중앙, 너무 짧으면 막대 밖(세로 막대는 위쪽,
-        // 가로 막대는 오른쪽)에 배치(사용자 확정 2026-09-01 — 항상 막대 밖에 두면
-        // 큰 값의 라벨이 캔버스 밖으로 잘리고, 중앙만 고집하면 짧은 막대엔 안 들어감).
-        function verticalBarLabelPlacement(ctx, minPx) {
-            var v = ctx.dataset.data[ctx.dataIndex];
-            var scale = ctx.chart.scales.y;
-            var barLen = Math.abs(scale.getPixelForValue(0) - scale.getPixelForValue(v));
-            return barLen < minPx ? 'outside' : 'inside';
-        }
+        // 막대 안에 라벨이 들어갈 만큼 길면 중앙, 너무 짧으면 막대 밖(오른쪽)에 배치
+        // (사용자 확정 2026-09-01 — 항상 막대 밖에 두면 큰 값의 라벨이 캔버스 밖으로
+        // 잘리고, 중앙만 고집하면 짧은 막대엔 안 들어감). 세로 막대(요일별)용 짝은
+        // S26-2 에서 없앴다 — 그 그래프는 이제 늘 가운데에 두고 외곽선으로 읽힌다.
         function horizontalBarLabelPlacement(ctx, minPx) {
             var v = ctx.dataset.data[ctx.dataIndex];
             var scale = ctx.chart.scales.x;
@@ -4049,23 +4762,20 @@
         }
 
         if (view === 'trend') {
-            var t = trendBuckets(members, _trendDrill);
+            // 집계는 늘 두 소스를 모두 담아 두고(trendMembers), 어떤 선을 그릴지는
+            // trendDatasets 가 칩을 보고 정한다[S26-7]. 기간·유형 등 시트 필터는 그대로 건다.
+            var t = trendBuckets(trendMembers(), _trendDrill);
             if (!t.labels.length && caption) caption.textContent = '표시할 데이터가 없습니다.';
-            // 칩이 "전체"면 두 자료가 겹치는 해만 그린다 — 그 사실을 밝힌다[S15].
-            var tSpan = !_trendDrill && activeYearSpan();
-            if (tSpan && caption && t.labels.length) {
-                caption.textContent = '선박·인명 자료가 겹치는 ' + tSpan[0] + '~' + tSpan[1] + '년만 표시합니다';
-            }
-            _statsCharts.push(new Chart(canvas, {
+            var trendChart = new Chart(canvas, {
                 type: 'line',
-                data: { labels: t.labels, datasets: [{
-                    data: t.values, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.18)',
-                    fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: CHART_COLOR.blue,
-                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 }, formatter: fmtN }
-                }] },
+                data: { labels: t.labels, datasets: trendDatasets(t) },
                 options: {
-                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                    layout: CHART_TOP_PADDING, scales: CHART_AXIS_OPTS_LINE,
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: TREND_LEGEND,
+                        pointPulse: { on: !_trendDrill }
+                    },
+                    layout: TREND_CHART_PADDING, scales: CHART_AXIS_OPTS_LINE,
                     onClick: function (evt, elements) {
                         if (!elements.length) return;
                         var k = t.keys[elements[0].index];
@@ -4073,25 +4783,35 @@
                         // (일 단위는 만들지 않기로 확정 — 위 trendBuckets 주석 참고).
                         if (_trendDrill) return; // 월 아래로는 안 판다
                         _trendDrill = { year: k };
-                        renderStatsBody();
+                        // ⚠여기서 곧바로 다시 그리면 안 된다[S24-2 검증에서 발견].
+                        // 이 함수는 Chart.js 가 클릭을 처리하는 **도중**에 불리는데,
+                        // renderStatsBody 는 그 차트를 지워 버린다. Chart.js 는 우리
+                        // 손을 떠난 뒤 같은 차트를 한 번 더 그리려 하고, 그때 이미
+                        // 지워진 캔버스를 만나 콘솔 오류가 난다("Cannot read properties
+                        // of null (reading 'save')" — 헤드리스 검증에서 실제로 잡힘).
+                        // 한 박자 미뤄 Chart.js 의 클릭 처리가 끝난 뒤에 다시 그린다.
+                        setTimeout(renderStatsBody, 0);
                     }
                 }
-            }));
+            });
+            _statsCharts.push(trendChart);
+            if (!_trendDrill) startPointPulse(trendChart);   // 연도별 화면에서만 깜빡인다
             return;
         }
 
         if (view === 'month') {
-            var mo = monthlyBuckets(members);
+            // 연도별과 같은 목록·같은 규칙을 쓴다[S25-6] — 어떤 선을 그릴지도 같다[S26-7].
+            var mo = monthlyBuckets(trendMembers());
             _statsCharts.push(new Chart(canvas, {
                 type: 'line',
-                data: { labels: mo.map(function (_, i) { return (i + 1) + '월'; }), datasets: [{
-                    data: mo, borderColor: CHART_COLOR.blue, backgroundColor: 'rgba(68,138,255,0.18)',
-                    fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: CHART_COLOR.blue,
-                    datalabels: { display: true, color: DATALABEL_COLOR, anchor: 'end', align: 'top', font: { size: 9, weight: 600 }, formatter: fmtN }
-                }] },
+                data: {
+                    labels: mo.values.map(function (_, i) { return (i + 1) + '월'; }),
+                    datasets: trendDatasets(mo)
+                },
                 options: {
-                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                    layout: CHART_TOP_PADDING, scales: CHART_AXIS_OPTS_LINE
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: TREND_LEGEND },
+                    layout: TREND_CHART_PADDING, scales: CHART_AXIS_OPTS_LINE
                 }
             }));
             return;
@@ -4102,12 +4822,10 @@
             var pointColors = hours.map(function (_, h) {
                 return accidentIsDaytimeFromHM(h + ':00') ? CHART_COLOR.yellow : CHART_COLOR.blue;
             });
-            var totalDay = 0, totalNight = 0;
-            hours.forEach(function (n, h) { if (accidentIsDaytimeFromHM(h + ':00')) totalDay += n; else totalNight += n; });
-            // 인명사고에는 발생 시각이 없어 이 그래프에는 선박사고만 잡힌다 —
-            // 칩이 "전체"일 때는 그 사실을 밝힌다(안 밝히면 합계인 줄 오해한다)[S15].
-            if (caption) caption.textContent = '주간(' + ACCIDENT_DAY_START_HOUR + '~' + ACCIDENT_DAY_END_HOUR + '시) ' + totalDay + '건 · 야간 ' + totalNight + '건' +
-                (_statsScope === 'all' ? ' · 선박사고만(인명사고는 발생 시각 정보가 없습니다)' : '');
+            // [S25-7에서 삭제] 그래프 아래 한 줄로 깔리던 설명
+            //   ("주간(6~18시) 39,180건 · 야간 17,987건 · 선박사고만(…)").
+            //   사용자 확정(2026-09-06 · 이미지 7) — 아래 문구는 전부 지우고 제목 옆
+            //   뱃지("’08~’25 · 선박사고만")만 남긴다. 주·야간 구분은 점 색으로 이미 보인다.
             _statsCharts.push(new Chart(canvas, {
                 type: 'line',
                 data: { labels: hours.map(function (_, h) { return h + '시'; }), datasets: [{
@@ -4130,24 +4848,34 @@
         if (view === 'weekday') {
             var wk = weekdayBuckets(members);
             var wkTotal = wk.reduce(function (a, b) { return a + b; }, 0);
-            var WK_MIN_PX = 28; // 2줄("22건"/"16%")이 안에 들어갈 최소 막대 길이
+            // ★막대 안 숫자를 늘 막대 가운데에 둔다[S26-2, 2026-09-06 사용자 지적 — 이미지 2].
+            //   전에는 막대가 28px 보다 낮으면 숫자를 막대 위로 빼서, 요일마다 숫자 높이가
+            //   들쭉날쭉했다. 대신 어떤 배경에서도 읽히도록 **흰 글씨에 검은 외곽선**을 준다
+            //   (datalabels 의 textStroke*). 막대 색도 진하게 낮췄다 — CHART_COLOR 주석 참고.
             _statsCharts.push(new Chart(canvas, {
                 type: 'bar',
                 data: { labels: WEEKDAY_LABELS, datasets: [{
                     data: wk, backgroundColor: CHART_COLOR.green, borderRadius: 4,
+                    // 숫자("12,388건")가 막대보다 넓어 옆 막대까지 넘어가던 것을 막는다
+                    // [S26-2 화면 확인]. 막대를 넓히고(기본 0.8×0.9 → 0.92×0.96)
+                    // 글자를 한 호 줄여 실측 44px 막대에 40px 글자가 들어간다.
+                    categoryPercentage: 0.92, barPercentage: 0.96,
                     datalabels: {
-                        display: true, font: { size: 10, weight: 600 },
-                        anchor: function (ctx) { return verticalBarLabelPlacement(ctx, WK_MIN_PX) === 'outside' ? 'end' : 'center'; },
-                        align: function (ctx) { return verticalBarLabelPlacement(ctx, WK_MIN_PX) === 'outside' ? 'top' : 'center'; },
-                        // 막대 안(밝은 초록)에 놓일 땐 어두운 글씨, 막대 밖(어두운 배경)이면 밝은
-                        // 글씨(사용자 확정 2026-09-01 — 흰 글씨가 초록 막대 안에서 안 보이던 문제).
-                        color: function (ctx) { return verticalBarLabelPlacement(ctx, WK_MIN_PX) === 'outside' ? DATALABEL_COLOR : DATALABEL_COLOR_ON_LIGHT; },
+                        display: true, font: { size: 9, weight: 600 },
+                        anchor: 'center', align: 'center',
+                        color: '#fff', textStrokeColor: '#000', textStrokeWidth: 3,
                         formatter: function (v) { return [fmtN(v) + '건', (wkTotal ? Math.round(v / wkTotal * 100) : 0) + '%']; }
                     }
                 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                    layout: CHART_TOP_PADDING, scales: CHART_AXIS_OPTS
+                    layout: CHART_TOP_PADDING, scales: CHART_AXIS_OPTS,
+                    // 막대가 바닥에서 위로 차오른다[S26-2] — 막대 윗변의 시작 위치를
+                    // 0 의 픽셀 좌표(=바닥)로 잡으면 높이 0 에서 자라는 모양이 된다.
+                    animation: {
+                        duration: 700, easing: 'easeOutQuart',
+                        y: { from: function (ctx) { return ctx.chart.scales.y.getPixelForValue(0); } }
+                    }
                 }
             }));
             return;
@@ -4196,6 +4924,20 @@
      *
      * @returns {ol.Feature[]}
      * [연계] renderStatsBody / passesFilters */
+    /** 연도별·월별 추이 그래프 전용 목록[S24-2] — 위 칩(선박/인명)은 무시하고 두 소스를
+     *  모두 담되, 시트 필터는 그대로 건다. 세 선을 늘 함께 보여주기로 했기 때문이다
+     *  (칩을 따르면 고르지 않은 쪽 선이 전 구간 0이 되어 거짓말이 된다).
+     * @returns {ol.Feature[]}
+     * [연계] renderActiveChart(view==='trend') / trendBuckets */
+    function trendMembers() {
+        var out = [];
+        (_statsAll || []).forEach(function (f) {
+            if (!passesFilters(srcOfFeat(f), f.get('row'))) return;
+            out.push(f);
+        });
+        return out;
+    }
+
     function scopedMembers() {
         var out = [];
         (_statsAll || []).forEach(function (f) {
@@ -4227,9 +4969,25 @@
      * @param {HTMLElement} body 시트 본문(스크롤 컨테이너)
      * [연계] 스타일 style.css .ash-card.reveal .ash-seg */
     var _cardRevealObserver = null;
+    /** 이 시트를 연 뒤 등장 애니메이션을 이미 한 번 보여 줬는가[S25-4].
+     *  탭(월별·시간대별 등)을 누르면 본문을 통째로 다시 그리는데, 그때마다 카드가 새로
+     *  만들어져 도넛 애니메이션이 처음부터 재생됐다(2026-09-06 사용자 지적 — 이미지 2).
+     *  시트를 새로 열 때만 재생하고, 같은 시트 안에서 다시 그릴 때는 다 나온 상태로 시작한다. */
+    var _cardRevealDone = false;
     function armCardReveal(body) {
         if (_cardRevealObserver) _cardRevealObserver.disconnect();
         var cards = body.querySelectorAll('.ash-card');
+        // 같은 시트 안에서 다시 그린 것이면 애니메이션 없이 바로 다 보이게 한다[S25-4].
+        // ⚠`reveal` 만 붙여서는 부족하다 — DOM 이 새로 만들어지면 CSS 애니메이션은
+        //   0초부터 다시 재생된다(실제로 탭 전환 화면을 찍어 보니 도넛이 다시 그려지고
+        //   있었다). 그래서 본문에 `ash-noanim` 을 붙여 애니메이션 자체를 끈다.
+        //   조각의 최종 모양은 SVG 속성(stroke-dasharray)에 이미 들어 있어 그대로 보인다.
+        if (_cardRevealDone) {
+            body.classList.add('ash-noanim');
+            Array.prototype.forEach.call(cards, function (c) { c.classList.add('reveal'); });
+            return;
+        }
+        body.classList.remove('ash-noanim');
         if (!window.IntersectionObserver) {
             Array.prototype.forEach.call(cards, function (c) { c.classList.add('reveal'); });
             return;
@@ -4242,7 +5000,14 @@
             });
         }, { root: body, threshold: 0.2, rootMargin: '0px 0px -8% 0px' });
         Array.prototype.forEach.call(cards, function (c) { _cardRevealObserver.observe(c); });
+        _cardRevealDone = true;   // 다음 렌더부터는 애니메이션 없이[S25-4]
     }
+
+    // [S25-7에서 삭제] armTrendToast — 그래프가 화면 가운데 왔을 때 잠깐 뜨던 안내 토스트
+    //   (_trendToastShown / _trendToastObserver / _trendToastTimer 포함).
+    //   사용자 확정(2026-09-06 · 이미지 5): *"토스트는 삭제"* — 대신 카드 제목 바로 아래에
+    //   `.ash-card-hint` 한 줄로 늘 보이게 바꿨다(buildChartViewHtml 참고).
+
 
     // 21개 해경서 → 8개 광역권(2026-09-01, 목업 이미지의 "경남권" 뱃지 반영해 사용자 확정).
     // coastguard_jurisdiction_boundaries.json 의 owner(해경서 이름) 기준.
@@ -4310,9 +5075,11 @@
         if (state.source) applyFiltersToMarkers(state.source);
         _statsScope = 'all';
         _typeCardSrc = 'hk';
+        _fatalScope = 'cell';       // 치명도는 늘 '이 구역'으로 시작한다[S26-8]
         _statsKey = 'hk';
         _statsMembers = members;
         _trendDrill = null; // 새 셀을 열 때마다 드릴다운 상태 초기화
+        _cardRevealDone = false;    // 시트를 새로 열 때만 등장 애니메이션[S25-4]
         _statsRegionLabel = _statsNationwide ? '전국' : null;
         // 시트를 새로 열 때는 항상 기본 상태로 시작한다(2026-09-01 사용자 확정) —
         // 예전엔 뷰 탭 선택이 소스별로 남아 있어서, 특보발효를 보다가 닫고 다른
@@ -4355,22 +5122,23 @@
 
     /** 말풍선 — data-tip 이 붙은 요소를 누르고 있으면 계산 내역을 띄운다[S11 · H-1~H-5].
      *
-     * 예시: 풍랑주의보 타일을 0.2초 이상 누르고 있으면
+     * 예시: "특보 발효 일수" 칸을 한 번 톡 누르면
      *   제주도북부앞바다  100일
      *   제주도동부앞바다  100일
-     *   동시 발효 30일 제외
-     *   ───
-     *   합계  170일
-     * 이 뜨고, 손을 떼면 0.5초 뒤 서서히 사라진다.
+     * 이 서서히 나타나 1초 머물렀다가 서서히 사라진다.
      *
-     * 왜 0.2초를 기다리나: 시트 본문은 세로 스크롤 영역이라, 손을 대자마자 띄우면
-     * 스크롤하려던 손짓에도 말풍선이 뜬다. 손가락이 10px 넘게 움직이면 스크롤로 보고
-     * 취소한다. PC 에서는 기다릴 이유가 없어 마우스를 올리면 바로 띄운다.
+     * ★2026-09-06 사용자 확정[S26-3]: 전에는 "0.2초 이상 누르고 있어야 뜨고, 손을 떼면
+     *   0.5초 뒤 사라지는" 길게누르기였다. 이제는 **한 번 누르면(손을 떼는 순간) 뜨고
+     *   1초 뒤 저절로 사라진다.** 나타나고 사라지는 것은 CSS opacity 전환이 맡는다.
+     *
+     * 손가락이 10px 넘게 움직이면 스크롤하려던 손짓으로 보고 띄우지 않는다 — 시트
+     * 본문이 세로 스크롤 영역이라 이 양보가 없으면 스크롤할 때마다 말풍선이 뜬다.
+     * PC 에서는 마우스를 올리면 바로 띄우고 벗어나면 0.5초 뒤 지운다(종전 그대로).
      *
      * @param {HTMLElement} body 시트 본문
-     * [연계] 스타일 style.css .ash-tip / 붙는 곳 buildWarnCardHtml 의 data-tip */
-    var _tipEl = null, _tipTimer = null, _tipHideTimer = null, _tipStart = null;
-    var TIP_PRESS_MS = 200, TIP_HIDE_MS = 500, TIP_MOVE_CANCEL_PX = 10;
+     * [연계] 스타일 style.css .ash-tip / 붙는 곳 buildWarnCardHtml 의 발효 일수 칸 */
+    var _tipEl = null, _tipAutoTimer = null, _tipHideTimer = null, _tipStart = null;
+    var TIP_HOLD_MS = 1000, TIP_HIDE_MS = 500, TIP_MOVE_CANCEL_PX = 10;
 
     function ensureTipEl() {
         if (_tipEl) return _tipEl;
@@ -4380,11 +5148,17 @@
         return _tipEl;
     }
 
-    function showTip(target) {
+    /** @param {HTMLElement} target 말풍선을 부른 요소
+     *  @param {number} [autoHideMs] 주면 그 시간 뒤 저절로 사라진다(탭 경로에서 1초) */
+    function showTip(target, autoHideMs) {
         var text = target.getAttribute('data-tip');
         if (!text) return;
         var el = ensureTipEl();
         clearTimeout(_tipHideTimer);
+        clearTimeout(_tipAutoTimer);
+        if (autoHideMs) {
+            _tipAutoTimer = setTimeout(function () { el.classList.remove('on'); }, autoHideMs);
+        }
         el.textContent = text;
         el.classList.add('on');
         // 대상 위쪽 가운데에 띄우되, 화면 밖으로 나가지 않게 좌우를 밀어 넣는다.
@@ -4406,6 +5180,7 @@
     function hideTip(delayed) {
         if (!_tipEl) return;
         clearTimeout(_tipHideTimer);
+        clearTimeout(_tipAutoTimer);
         if (delayed) _tipHideTimer = setTimeout(function () { _tipEl.classList.remove('on'); }, TIP_HIDE_MS);
         else _tipEl.classList.remove('on');
     }
@@ -4418,25 +5193,20 @@
             if (!t) return;
             if (e.pointerType === 'mouse') return; // 마우스는 아래 hover 로 처리
             _tipStart = { x: e.clientX, y: e.clientY, target: t };
-            clearTimeout(_tipTimer);
-            _tipTimer = setTimeout(function () { if (_tipStart) showTip(_tipStart.target); }, TIP_PRESS_MS);
         });
         body.addEventListener('pointermove', function (e) {
             if (!_tipStart) return;
             if (Math.abs(e.clientX - _tipStart.x) > TIP_MOVE_CANCEL_PX ||
                 Math.abs(e.clientY - _tipStart.y) > TIP_MOVE_CANCEL_PX) {
-                clearTimeout(_tipTimer);   // 스크롤하려는 손짓이다 — 양보한다
-                _tipStart = null;
-                hideTip(false);
+                _tipStart = null;      // 스크롤하려는 손짓이다 — 양보한다
             }
         });
-        function endPress() {
-            clearTimeout(_tipTimer);
+        body.addEventListener('pointerup', function () {
+            if (!_tipStart) return;
+            showTip(_tipStart.target, TIP_HOLD_MS);   // 톡 누르면 뜨고 1초 뒤 저절로 사라진다
             _tipStart = null;
-            hideTip(true);
-        }
-        body.addEventListener('pointerup', endPress);
-        body.addEventListener('pointercancel', endPress);
+        });
+        body.addEventListener('pointercancel', function () { _tipStart = null; });
         // PC — 올리면 바로, 벗어나면 0.5초 뒤
         body.addEventListener('mouseover', function (e) {
             var t = e.target.closest('[data-tip]');
@@ -5240,17 +6010,12 @@
         // 전국 통계 버튼은 필터 바가 있던 그 자리에 놓인다(분석 모드 전용)[S18].
         var nwBtn = document.getElementById('accident-nationwide-btn');
         if (nwBtn) nwBtn.style.top = barTop + 'px';
-        // 범례를 필터 바 바로 아래 붙임(필터 바가 접혀 있으면 그만큼 위로 당겨짐) —
-        // 필터 바처럼 글자 크기 설정에 따라 실제 줄 수가 바뀌어(칩이 좁으면 여러 줄로
-        // 감김) 고정 px로 못 잡고 매번 실측한다.
+        // ★범례는 이제 지도 **좌측 하단**(출처표기 바로 위)에 CSS 로 붙어 있다
+        //   [S28-1, 2026-09-09 사용자 확정]. 예전에는 여기서 "필터 바(또는 전국 통계
+        //   버튼) 아래"로 실측해 top 을 넣었는데, 지도 위쪽을 가려 아래로 내렸다.
+        //   인라인 top 이 남아 있으면 그 CSS 를 덮어써 다시 위로 올라가므로 지워 준다.
         var legend = document.getElementById('accident-grid-legend');
-        // 범례는 "그 자리에 있는 것" 아래에 붙는다[S19 정정]. 분석 모드에서는 필터 바가
-        // 늘 접힌 상태인데 그 자리를 전국 통계 버튼이 대신하므로(S18), 접힘만 보고
-        // barTop 을 그대로 주면 버튼과 범례가 겹친다(적대검증 지적, 실측 확인).
-        var occupant = (nwBtn && nwBtn.style.display !== 'none') ? nwBtn
-            : (barCollapsed ? null : bar);
-        var afterBarTop = occupant ? (barTop + occupant.offsetHeight + 6) : barTop;
-        if (legend) legend.style.top = afterBarTop + 'px';
+        if (legend) legend.style.top = '';
     }
 
     /**
@@ -5604,11 +6369,26 @@
                 var fBtn = e.target.closest('[data-sheetfilter]');
                 if (fBtn) { openFilterPopupFor(map, fBtn.dataset.sheetfilter); return; }
                 // "상위 발생 유형" 카드의 선박↔인명 토글(칩이 전체일 때만 있다)[S15].
+                // ★버튼 글자뿐 아니라 토글 상자 안 아무 데나 눌러도 먹는다[S26-4,
+                //   2026-09-06 사용자 지적 — 글자를 정확히 짚어야 해서 잘 안 눌렸다].
+                //   버튼을 짚었으면 그 값으로, 상자 여백을 짚었으면 반대쪽으로 넘긴다.
                 var srcTgl = e.target.closest('[data-typesrc]');
-                if (srcTgl) {
-                    _typeCardSrc = srcTgl.dataset.typesrc;
+                var srcBox = srcTgl ? null : e.target.closest('.ash-srctoggle');
+                if (srcTgl || srcBox) {
+                    _typeCardSrc = srcTgl ? srcTgl.dataset.typesrc
+                        : (_typeCardSrc === 'hk' ? 'person' : 'hk');
                     clearAccordionStack();
                     _detailExpanded = {};
+                    renderStatsBody();
+                    return;
+                }
+                // 특보 카드의 "사고 내역 보기"[S27] — 그 자리에서 팝업을 띄운다.
+                if (e.target.closest('#accident-warn-detail-open')) { openWarnDetailPopup(); return; }
+                // 치명도 카드의 "이 구역 ↔ 전국" 토글[S26-8] — 그 카드만 다시 그린다.
+                var fsBtn = e.target.closest('[data-fatalscope]');
+                if (fsBtn) {
+                    _fatalScope = fsBtn.dataset.fatalscope;
+                    _detailExpanded = {};   // 잣대가 바뀌므로 펼쳐 둔 목록은 접는다
                     renderStatsBody();
                     return;
                 }

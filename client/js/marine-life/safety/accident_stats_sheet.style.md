@@ -207,6 +207,15 @@ padding:.85em 1em 1.2em; box-shadow:0 1.5em 3em rgba(0,0,0,.55);
        display:flex; flex-direction:column; align-items:center; justify-content:center; }
 ```
 **세 번째 칸이 1.42배 넓다** — 도넛이 들어가기 때문. 우리 설계는 도넛을 세로로 쌓기로 했으므로(기능 설계서 C-3) **세 칸을 1fr 1fr 1fr 균등**으로 바꾸고, 도넛 칸은 `제목 / 도넛 / 범례 2줄` 세로 배치로 높이를 맞춘다.
+
+> **★우리 판 정정 [S24-1, 2026-09-05 사용자 지적]**: 목업의 `justify-content:center` 를 그대로 가져왔더니
+> **세 칸의 제목 높이가 서로 어긋났다.** 세 칸은 그리드라 높이가 같은데, 가운데 정렬이면 내용이 짧은
+> 칸일수록 제목이 아래로 밀린다(목업은 세 칸의 내용 길이가 비슷해 티가 안 났다).
+> → 우리 판은 **`justify-content:flex-start`**. 그리고 도넛(`.ash-donut.sm`)은 **4.1em → 5.6em**.
+>
+> **★2차 정정 [S25-1, 2026-09-06]**: 도넛 칸의 세로 간격이 카드 높이를 불필요하게 키우고 있었다.
+> 세 곳을 **1/3** 로 — 제목↔도넛 `0.45→0.15em` · 도넛↔범례 `0.5→0.17em` · 범례 줄 사이 `0.35→0.12em`.
+> 도넛 가운데 숫자↔라벨도 `0.25→0.12em`(§5 중앙 텍스트).
 - 라벨 `.75em muted` → 큰 값 `1.55em/800`(`margin-top:.5em`) → 부가값 `.78em #c2d0e2`(`.5em`) → 각주 `.75em/600`(`.55em`)
 - 단위는 `small { font-size:.52em; font-weight:600; color:#b6c6da }`
 - 상승 `.up{color:#3b8bff}` / 하락 `.down{color:#16c8a3}` / 강조 `.drop{color:#16c8a3;font-weight:800}`
@@ -225,6 +234,11 @@ padding:.85em 1em 1.2em; box-shadow:0 1.5em 3em rgba(0,0,0,.55);
 ```
 - 값 표기는 **"5,730건 *(22%)*"** — 절대값 700 굵게 + 괄호 비율은 muted 600
 - 이름 칸이 `4.6em` 고정이라 긴 이름은 말줄임. 359px 미만에서 `5em` 으로 넓힌다.
+  **★S26-5 정정(2026-09-06): `8.7em` / `9.1em` 으로 넓혔다.** 선박 종류에
+  `레저선박(분류없음)` 이 새로 들어오면서 `레저선박…` 으로 잘려 무슨 종류인지 알 수
+  없게 됐다. 폭은 눈대중이 아니라 전국 화면에서 모든 목록을 펼쳐 **글자 폭을 실측**해
+  잡았다 — 가장 긴 이름 `침수침몰(표본 적음)` 이 시트 기준 6.56em, 이 행 기준 8.63em.
+  막대는 그만큼 짧아지지만 가장 짧은 막대도 139.5px 남는다(같은 실측).
 - **점(dot)에 광택이 있다**:
 ```css
 .dot{ width:.58em; height:.58em; border-radius:50%;
@@ -235,6 +249,36 @@ padding:.85em 1em 1.2em; box-shadow:0 1.5em 3em rgba(0,0,0,.55);
 바탕색은 인라인 `style="background:var(--blue)"` 로 주고, 위 그라데이션이 **overlay 로 겹쳐** 입체감을 만든다. 단색 원이 아니다.
 - **치명도 게이지 바(우리 신규)** 도 이 `.row` 구조를 그대로 쓰되, `.bar` 안에 회색 조각을 **왼쪽에** 먼저 놓는다 → §7
 
+### 4.8-2 값 칸 폭은 **재서** 정한다 (우리 신규) [S25-2]
+`.ash-row .val` 을 좁게 고정해 두면 긴 값이 칸을 넘어 카드 밖으로 삐져나온다.
+폭은 눈대중이 아니라 화면에서 글자 폭을 직접 재서 정했다 —
+일반 카드 `8.7em`(가장 긴 값 `16,976건 (56%)` = 8.01em) ·
+치명도 `.ash-fatal-row .val` `11em`(가장 긴 값 `25.4%(422/1,663건)` = 10.36em).
+막대(`.ash-bar`)가 남는 공간을 먹으므로 값 칸을 넓히면 막대가 저절로 좁아진다.
+⚠**넘침을 위치로 재면 안 된다** — 칸 폭은 고정이라 글자만 삐져나오면 위치로는 안 잡힌다.
+`scrollWidth > clientWidth` 로 봐야 한다(실제로 그렇게 잘못 통과한 적이 있다).
+
+### 4.9-2 카드 제목 아래 안내 한 줄 (우리 신규 · 목업에 없음) [S25-7]
+```css
+.ash-card-hint{ display:flex; align-items:center; gap:.35em;
+  margin:-.5em 0 .5em; font-size:.74em; color:var(--ash-dim); }
+.ash-card-hint::before{ content:"\f25a"; font-family:"Font Awesome 6 Free"; font-weight:900; }
+```
+상자를 두르지 않는다 — 두르면 옛 `.ash-hint` 처럼 다시 자리를 차지한다.
+[S24-5 의 `.ash-chart-toast`(그래프 안에 잠깐 뜨던 토스트)는 S25-7 에서 삭제하고 이것으로 대체]
+
+### (삭제됨) 4.9-3 그래프 안 토스트 [S24-5 → S25-7 에서 제거]
+```css
+.ash-chart-toast{ position:absolute; left:50%; top:.6em; transform:translate(-50%,-.4em);
+  padding:.5em .75em; border:1px solid #1b2b45; border-radius:.8em;
+  background:rgba(15,30,51,.94); box-shadow:0 .3em .9em rgba(0,0,0,.45);
+  color:#93a6bf; font-size:.76em; font-weight:600; text-align:center; line-height:1.35;
+  opacity:0; pointer-events:none; transition:opacity .28s ease, transform .28s ease; }
+.ash-chart-toast.show{ opacity:1; transform:translate(-50%,0); }
+```
+힌트(§4.9)와 **같은 톤**이되 떠 있는 것이라 그림자를 준다. `white-space:nowrap` 을 쓰면
+휴대폰 폭에서 오른쪽이 잘린다(실제로 잘렸다) — 넘치면 다음 줄로 넘기고 가운데 정렬.
+
 ### 4.9 더보기 버튼 / 힌트 — 같은 톤
 ```css
 .more, .hint{ background:#0f1e33; border:1px solid #1b2b45; border-radius:.8em; }
@@ -244,6 +288,60 @@ padding:.85em 1em 1.2em; box-shadow:0 1.5em 3em rgba(0,0,0,.55);
 .hint{ padding:.65em; font-size:.76em; color:#93a6bf; gap:.45em; }
 ```
 ※ 우리는 **아코디언**이라 화살표가 펼침에 따라 `›` → `⌄` 로 바뀌고, 펼친 목록 맨 아래에 **접기 버튼**이 하나 더 붙는다(같은 `.more` 스타일 재사용).
+
+### 4.9-3 치명도 값 칸 설명 한 줄 (우리 신규 · 목업에 없음) [S26-6]
+값 칸이 `25.4% (422/1,663건)` 처럼 생겨서 괄호 안 두 숫자가 각각 무엇인지 알 수 없다는
+지적을 받았다(2026-09-06). 값 칸 바로 위, 같은 오른쪽 끝에 한 줄을 둔다.
+```css
+.ash-fatal-legend{ font-size:.72em; color:var(--ash-dim); text-align:right; margin:-.35em 0 .5em; }
+.ash-fatal-legend b{ color:#ff5252; font-weight:700; }      /* "사망+실종" */
+.ash-fatal-row .val em b{ color:#ff5252; font-weight:700; } /* 괄호 왼쪽 숫자 */
+```
+`(사망+실종 / 총 사고수)` — 왼쪽 몫만 빨강으로 두어 아래 괄호의 빨간 숫자와 눈으로 잇는다.
+전에 이 자리에 있던 "이 구역에서는 …" 줄은 같은 지시로 없앴다.
+
+### 4.9-4 치명도 "이 구역 ↔ 전국" 토글 (우리 신규 · 목업에 없음) [S26-8]
+아래 §7 의 **"전국 기준" 배지**를 대신한다(2026-09-06 사용자 확정). 제목 줄 안에 들어가는
+아주 작은 토글이라 카드 헤더의 선박↔인명 토글(`.ash-srctoggle`)보다 한 단계 작게 잡았다.
+```css
+.ash-scopetoggle{ display:inline-flex; gap:.1em; margin-left:.4em; padding:.1em;
+  vertical-align:middle; border:1px solid var(--ash-card-br); border-radius:.55em;
+  background:rgba(255,255,255,.015); }
+.ash-scopetoggle button{ padding:.15em .4em; border-radius:.42em; font-size:.68em;
+  font-weight:600; color:#8ea1b9; }
+.ash-scopetoggle button.on{ background:var(--ash-blue); color:#fff;
+  box-shadow:0 .15em .5em rgba(43,124,240,.35); }
+```
+전국 통계로 연 시트에서는 바꿀 것이 없으므로 `(전국)` 배지만 남긴다(배지 스타일은 §7 그대로).
+토글이 넓어 카드 머리 한 줄이 꽉 차므로, `.ash-card-aside`("선박사고 기준")에
+`margin-left:auto` 를 줘서 줄이 바뀌어도 오른쪽 끝에 붙게 한다.
+
+### 4.9-5 특보 중 사고 내역 팝업 (우리 신규 · 목업에 없음) [S27]
+특보 카드에서 여는 전체 화면 판. 목업에 없는 요소라 §7 유추안의 원칙을 따르되,
+**시트 안의 부품을 그대로 재사용**한다 — 카드는 `--ash-card`/`--ash-card-br`/radius `.9em`,
+도넛은 `buildDonutHtml`(small), 칩은 소스 칩과 같은 알약, 탭은 선박↔인명 토글과 같은 어법.
+
+```css
+/* 판 — 아래에서 올라오는 시트 모양(높이 92vh, 위만 둥글게) */
+.ash-detail-overlay{ position:fixed; inset:0; z-index:1300;   /* 필터 팝업 1200 위 */
+  background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center;
+  font-size:clamp(11.2px,3.22vw,15px); font-feature-settings:"tnum" 1; }
+.ash-detail{ width:100%; max-width:460px; height:92vh; border-radius:1.1em 1.1em 0 0;
+  background:linear-gradient(180deg,#0b1524,#081020); border:1px solid #1a293e; border-bottom:0; }
+```
+
+**★색 토큰을 여기서 한 번 더 선언한다.** 이 판은 `body` 에 붙어 **시트 밖**에 있어
+`.accident-stats-sheet` 안에만 정의된 `--ash-*` 를 물려받지 못한다. 값은 시트와 **같아야
+하고**, 어긋나면 팝업만 다른 색이 되므로 회귀 테스트(`test_accident_sheet.js`)가 두 블록의
+토큰 값을 대조한다.
+
+**★도넛 애니메이션은 끈다.** `.ash-seg` 는 `.ash-card` 가 화면에 들어올 때(`.reveal`)
+재생되도록 `paused` 로 멈춰 있는데, 이 판에는 그 카드가 없어 신호가 오지 않는다.
+멈춘 채로 두면 `stroke-dasharray: 0 100` 이라 **빈 원**만 보인다 —
+`.ash-detail .ash-seg { animation: none; }` 로 완성형으로 그린다.
+
+사고 카드(아코디언)와 게시판식 쪽 넘김(`« ‹ 1 2 3 4 5 › »`)의 치수는 style.css 의
+`.ash-d-*` 규칙에 주석과 함께 적어 두었다.
 
 ### 4.10 푸터
 ```css
@@ -356,8 +454,10 @@ new IntersectionObserver(cb, { threshold:0.2, rootMargin:'0px 0px -8% 0px' })
 | **"표본 적음" 회색 처리** | 행 전체 `opacity:.55`, 이름 뒤에 `<em>` 로 "(표본 적음)" — `.val em` 과 같은 muted 600 |
 | **특보 타일** | `.stat` 블록과 같은 재질(`--sub`/`--sub-br`/radius .9em). 안은 `아이콘 + 종류명(.72em 종류색) / 건수(1.35em/800) / 비율(.72em muted) / 하단 진행바(.35em, `--track` 위 종류색)`. 이미지의 타일이 정확히 이 구성이다 |
 | **특보 종류 색** | 태풍=`--purple #a35ff0` · 풍랑=`--blue #2b7cf0` · 강풍=`--teal #16c8a3`. **경보는 기준색, 주의보는 같은 계열의 밝은색**(도넛 그라데이션의 "밝은색" 값 사용: 보라 `#dcabff`, 파랑 `#86b6ff`, 청록 `#6cf0d4`). 사용자 확정 "같은 종류는 같은 색 계열" |
-| **말풍선(툴팁)** | 목업 차트의 툴팁을 따른다 — `rect rx:6.5 fill:var(--blue)`, 흰 글자 700. HTML 말풍선으로 만들 땐 `background:#2b7cf0; border-radius:.55em; padding:.5em .7em; color:#fff; box-shadow:0 .3em .9em rgba(0,0,0,.5)` + 삼각 꼬리(위로 뜨면 아래쪽, 아래로 뜨면 위쪽). **글자 크기만 예외 — `.72em`(시트 기준 약 9.6px)은 목업의 "숫자 하나짜리" 툴팁에서 유추한 값이라 우리처럼 다섯 줄짜리 계산 내역에는 너무 작다. `12px` 고정을 쓴다(2026-09-04 판단). 말풍선은 시트 밖 body 에 붙어 시트의 em 스케일을 받지 않기도 한다.** |
-| **"전국 기준" 배지** | 헤더 배지가 아니라 카드 제목 옆 작은 pill: `font-size:.68em`(**시트 기준**. `em` 은 부모를 따르므로 카드 제목(1.02em) 안에서는 `.667em`, stat 라벨(0.75em) 안에서는 `.907em` 으로 보정해야 같은 크기가 된다); font-weight:700; color:#3b8bff; background:rgba(43,124,240,.14); border:1px solid rgba(43,124,240,.3); border-radius:.5em; padding:.12em .45em` |
+| **말풍선(툴팁)**<br>**★S26-3 정정** | **2026-09-06: 부르는 방법과 내용이 바뀌었다.** ①길게누르기(0.2초) → **한 번 톡 누르면 뜨고 1초 뒤 저절로 사라짐** ②특보 종류 타일에는 안 붙이고 **"특보 발효 일수" 칸에서만** ③내용은 **해역별 일수 줄만**(겹침·구분선·합계 줄 삭제). 나타나고 사라지는 것은 아래의 opacity 전환 그대로. 아래는 모양 사양(그대로 유효). |
+| **말풍선 모양** | 목업 차트의 툴팁을 따른다 — `rect rx:6.5 fill:var(--blue)`, 흰 글자 700. HTML 말풍선으로 만들 땐 `background:#2b7cf0; border-radius:.55em; padding:.5em .7em; color:#fff; box-shadow:0 .3em .9em rgba(0,0,0,.5)` + 삼각 꼬리(위로 뜨면 아래쪽, 아래로 뜨면 위쪽). **글자 크기만 예외 — `.72em`(시트 기준 약 9.6px)은 목업의 "숫자 하나짜리" 툴팁에서 유추한 값이라 우리처럼 다섯 줄짜리 계산 내역에는 너무 작다. `12px` 고정을 쓴다(2026-09-04 판단). 말풍선은 시트 밖 body 에 붙어 시트의 em 스케일을 받지 않기도 한다.** |
+| **"전국 기준" 배지**<br>**★S26-8 정정** | **2026-09-06: 치명도 카드에서는 이 배지가 `[이 구역\|전국]` 토글로 바뀌었다(§4.9-4).** 배지는 전국 통계로 연 시트에서 `(전국)` 으로만 남는다. 아래는 배지 모양 사양(그대로 유효). |
+| **배지 모양** | 헤더 배지가 아니라 카드 제목 옆 작은 pill: `font-size:.68em`(**시트 기준**. `em` 은 부모를 따르므로 카드 제목(1.02em) 안에서는 `.667em`, stat 라벨(0.75em) 안에서는 `.907em` 으로 보정해야 같은 크기가 된다); font-weight:700; color:#3b8bff; background:rgba(43,124,240,.14); border:1px solid rgba(43,124,240,.3); border-radius:.5em; padding:.12em .45em` |
 | **"2016.08~" 배지** | 위와 같은 형태, 색만 `--muted` 계열(`color:#8194ad; background:rgba(129,148,173,.12); border-color:rgba(129,148,173,.28)`) — 강조가 아니라 단서이므로 |
 | **시트 안 필터 버튼**(S17) | `.more`/`.hint` 와 같은 재질(`--ash-sub` 바탕 · `--ash-sub-br` 테두리 · radius `.8em`), `padding:.45em .62em`, `font-size:.74em; font-weight:600; color:#c6d4e6`. **값이 걸린 버튼만 활성 탭과 같은 파란 알약**(`background:--ash-blue; color:#fff; box-shadow:0 .2em .6em rgba(43,124,240,.35)`) — 목업이 "지금 고른 것"을 나타내는 어법이 그것 하나뿐이다. 줄바꿈 허용(`flex-wrap`), `gap:.35em` |
 | **드래그 손잡이 활성** | 잡는 동안 `#3a4c66` → `#6d84a3` 로 밝히고 높이 `.3em → .38em` |
@@ -370,7 +470,7 @@ new IntersectionObserver(cb, { threshold:0.2, rootMargin:'0px 0px -8% 0px' })
 |---|---|
 | 기본 | `.stats` 3열(1fr 1fr 1.42fr), 칩 2개가 기간과 한 줄 |
 | `≤439px` | `.period` 와 `.chips` 가 각각 전체 폭(칩이 아랫줄로 내려가 절반씩) |
-| `≤359px` | `.stats` 2열 + 마지막 칸이 전체 폭 / `.type-body` 세로 배치 / 도넛 8.4em→7.6em / 이름칸 4.6em→5em |
+| `≤359px` | `.stats` 2열 + 마지막 칸이 전체 폭 / `.type-body` 세로 배치 / 도넛 8.4em→7.6em / 이름칸 8.7em→9.1em(S26-5 정정 전 4.6em→5em) |
 | `≥461px` | 시트 바깥 여백 확대 |
 
 우리 앱은 바텀시트라 `max-width:460px` 대신 **화면 폭 100%** 를 쓴다. 단 큰 화면에서 글자가 과하게 커지지 않도록 `clamp` 상한 15px 은 유지한다.

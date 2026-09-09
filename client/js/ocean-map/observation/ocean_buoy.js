@@ -539,8 +539,8 @@ if (window.__SEAGNAL_PAGE === 'index2') {
             window.OceanGridSampler.refresh();
         };
 
-        // localStorage 에서 이전 상태 복원
-        _stationsVisible = localStorage.getItem('seagnal_markers_visible') === 'true';
+        // 주요지명 토글 버튼이 삭제되어 항상 숨김 (예전 localStorage 값 무시)
+        _stationsVisible = false;
         if (_origShowOceanMarkers) _origShowOceanMarkers(false);
 
         // 부이 토글 버튼 바인딩

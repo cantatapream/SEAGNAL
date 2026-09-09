@@ -776,15 +776,13 @@
            물빠짐(갯벌 노출 예측)은 해양종합정보 지도에만 붙어 있는 기능이라,
            지도를 새로 만들지 않고 그 섹션(#ocean-map-section)을 그대로 빌려 쓴다.
            대신 이 화면에서는 물빠짐 · 안내 · 배경지도 · 내 위치만 남기고
-           나머지 오버레이 버튼(유향·풍향·파고·주요지명·부이·특보·해구도·천기·
+           나머지 오버레이 버튼(유향·풍향·파고·부이·특보·해구도·천기·
            태풍·CCTV)과 검색창·진북·즐겨찾기 바는 감춘다.
            [연계] js/marine-life/safety/life_safety.js — body.ls-safety 토글 */
         body.ls-mode.ls-safety #ocean-overlay-controls > * { display: none !important; }
         body.ls-mode.ls-safety #ocean-mudflat-toggle-btn,
-        body.ls-mode.ls-safety #ocean-exposed-toggle-btn,
-        body.ls-mode.ls-safety #ocean-rock-toggle-btn,
-        body.ls-mode.ls-safety #ocean-access-control-toggle-btn,
-        body.ls-mode.ls-safety #ocean-fishing-ban-toggle-btn,
+        body.ls-mode.ls-safety #ocean-terrain-toggle-btn,
+        body.ls-mode.ls-safety #ocean-banzone-toggle-btn,
         body.ls-mode.ls-safety #ocean-vts-toggle-btn,
         body.ls-mode.ls-safety #ocean-seaway-toggle-btn,
         body.ls-mode.ls-safety #ocean-navwarn-btn,
@@ -794,6 +792,47 @@
            #ocean-overlay-controls 의 직계 자식이라 위 flex 규칙과 별도로 켜준다
            (wrap 자체는 position:relative 만 필요 — 버튼처럼 flex 아님). */
         body.ls-mode.ls-safety #ocean-accident-wrap { display: block !important; }
+        /* ★출입통제·낚시금지 원래 버튼은 "금지구역" 버튼이 대신 누르므로 화면에서 감춘다
+           [S28-3]. 지우지 않는 이유: access_control.js·fishing_ban.js 가 이 버튼의
+           click 을 듣고 동작하기 때문이다(ban_zone.js 가 이 둘을 대신 누른다). */
+        #ocean-access-control-toggle-btn,
+        #ocean-fishing-ban-toggle-btn { display: none !important; }
+        /* ──────────────────────────────────────────────────────────
+           오버레이 버튼 세로 순서[2026-09-09 사용자 확정]
+           마크업 순서는 그대로 두고 flex order 로만 정한다 — 두 화면이 서로 다른
+           순서를 쓰는데 마크업은 하나뿐이라, 순서를 화면별로 따로 줄 수 있어야 한다.
+           (#ocean-overlay-controls 는 flex-direction:column 이라 order 가 그대로 세로 순서)
+           ────────────────────────────────────────────────────────── */
+        /* 해양종합정보 */
+        #ocean-overlay-controls > [data-layer="wind"]       { order: 1; }
+        #ocean-overlay-controls > [data-layer="current"]    { order: 2; }
+        #ocean-overlay-controls > [data-layer="wave"]       { order: 3; }
+        #ocean-overlay-controls > #ocean-buoy-toggle-btn    { order: 4; }
+        #ocean-overlay-controls > #ocean-marine-zone-toggle-btn { order: 5; }
+        #ocean-overlay-controls > .ocean-warn-zone-wrap     { order: 6; }
+        #ocean-overlay-controls > #ocean-typhoon-toggle-btn { order: 7; }
+        #ocean-overlay-controls > #ocean-other-wx-wrap      { order: 8; }
+        /* 해양안전 — 이 화면에서 보이는 8개만 다시 매긴다 */
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-terrain-toggle-btn { order: 1; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-accident-wrap      { order: 2; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-banzone-toggle-btn { order: 3; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-navwarn-btn        { order: 4; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-mudflat-toggle-btn { order: 5; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-cctv-toggle-btn    { order: 6; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-vts-toggle-btn     { order: 7; }
+        body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-seaway-toggle-btn  { order: 8; }
+
+        /* ★"금지구역"·"위험지형" 은 해양안전 전용 버튼이라 해양종합정보에서는 감춘다
+           [2026-09-09 사용자 확정] — 아래 body.ls-mode.ls-safety 규칙이 그 화면에서만 다시 켠다.
+           위험지형이 대신 누르는 노출암·간출암 원래 버튼도 화면에서는 감춘다. */
+        #ocean-banzone-toggle-btn,
+        #ocean-terrain-toggle-btn,
+        #ocean-exposed-toggle-btn,
+        #ocean-rock-toggle-btn { display: none !important; }
+        /* ★CCTV·물빠짐 버튼은 **해양종합정보에서만** 감춘다[S28-4·S28-5, 2026-09-09
+           사용자 확정 — 해양안전에서는 그대로 남긴다]. */
+        body:not(.ls-safety) #ocean-cctv-toggle-btn,
+        body:not(.ls-safety) #ocean-mudflat-toggle-btn { display: none !important; }
         /* [버그 수정 2026-08-23] 사고정보 검수 모드 패널(#accident-review-panel, accident_info.js
            REVIEW_MODE)이 이 "기본 숨김 + 해양안전에서만 노출" 목록에 아예 빠져 있어, 페이지가
            뜨자마자(해양안전생활 진입 여부·10회 연타 여부와 무관하게) 해양종합정보를 포함한
@@ -852,6 +891,14 @@
         }
         body.ls-mode.ls-safety.ls-mudflat-on .ol-attribution {
             bottom: calc(var(--ls-bottom-chrome) + 2.25rem + 6px) !important;
+        }
+        /* 사고 격자 범례[S28-1] — 출처표기 바로 위(19px + 6px). 물빠짐 슬라이더가
+           떠 있으면 출처표기가 그만큼 올라가므로 범례도 같이 올라간다. */
+        body.ls-mode.ls-safety #ocean-topleft-controls > .accident-grid-legend {
+            bottom: calc(var(--ls-bottom-chrome) + 6px + 25px) !important;
+        }
+        body.ls-mode.ls-safety.ls-mudflat-on #ocean-topleft-controls > .accident-grid-legend {
+            bottom: calc(var(--ls-bottom-chrome) + 2.25rem + 6px + 25px) !important;
         }
         /* 축척 막대는 우측 하단이라 물빠짐 슬라이더(좌측/전폭)와 안 겹침 — 탭바만 피하면 됨 */
         body.ls-mode.ls-safety .ol-scale-line {
@@ -962,6 +1009,87 @@
             margin-top: 6px;
             pointer-events: auto;
         }
+        /* 금지구역 범례[2026-09-09] — 사고정보 모드토글과 같은 방식으로 기본맵·안내 버튼
+           줄 바로 아래에 붙인다(부모가 position:absolute 라 그 기준으로 계산됨).
+           ★사고정보 모드토글이 떠 있으면 자리가 겹치므로, ban_zone.js 가 그 높이를 실측해
+             margin-top 을 인라인으로 더 준다(accident_info.js positionFilterBar 와 같은 어법). */
+        /* 범례 묶음 — 기본맵·안내 버튼 줄 아래에 붙고, 안에서 범례들이 세로로 쌓인다.
+           (사고정보 모드토글과 자리가 겹치면 ban_zone.js 가 margin-top 을 실측해 더 준다) */
+        #ocean-topleft-controls > .ocean-legend-stack {
+            position: absolute !important;
+            top: 100%;
+            left: 0;
+            margin-top: 6px;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+        }
+        .ocean-legend-stack > .banzone-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            /* 재질은 "전국 통계" 버튼(.accident-filter-reset-btn)과 같게 맞춘다
+               [2026-09-09 사용자 확정] — 같은 자리에 나란히 뜨는 요소라 톤이 어긋나면
+               따로 노는 상자처럼 보인다. 모서리만 두 줄짜리 상자에 맞게 알약(999px)
+               대신 12px 로 둔다. */
+            background: rgba(10, 15, 28, 0.94);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 4px;
+        }
+        .banzone-legend .bzl-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 8px;
+            border: 0;
+            border-radius: 999px;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: 700;
+            white-space: nowrap;
+            /* 글자색은 "전국 통계" 버튼(.accident-filter-reset-btn)과 같게 — 지정하지 않으면
+               버튼이 상위에서 색을 물려받아 노랗게 나온다(사용자 지적 2026-09-09). */
+            color: var(--text-sub);
+        }
+        /* 색칩(네모) 없이 **글자 색으로** 구분한다 — 지도 폴리곤과 같은 색
+           (access_control.js 빨강 / fishing_ban.js 주황). */
+        .banzone-legend .bzl-row-ac .bzl-name { color: rgb(255, 82, 82); }
+        .banzone-legend .bzl-row-fb .bzl-name { color: rgb(255, 152, 0); }
+        .banzone-legend .bzl-name { flex: 1 1 auto; text-align: left; }
+        /* 꺼진 줄은 흐리게 — 색은 남겨 어느 구역인지 계속 알아볼 수 있게 한다 */
+        .banzone-legend .bzl-row:not(.on) .bzl-name { opacity: 0.4; }
+        /* 켜고 끄는 스위치(작은 토글 모양) */
+        .banzone-legend .bzl-switch {
+            position: relative;
+            width: 28px;
+            height: 16px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.25);
+            flex: 0 0 auto;
+            transition: background 0.15s;
+        }
+        .banzone-legend .bzl-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #fff;
+            transition: left 0.15s;
+        }
+        /* 켜짐 색은 "분석/현황" 토글의 활성 색과 같게 맞춘다(사용자 확정 2026-09-09).
+           손잡이는 켜짐·꺼짐 모두 흰색으로 둔다(사용자 확정). */
+        .banzone-legend .bzl-row.on .bzl-switch { background: var(--accent-yellow); }
+        .banzone-legend .bzl-row.on .bzl-switch::after { left: 14px; }
+
         /* 선택 초기화 버튼 — 모드토글(고정폭 120px) 바로 오른쪽. */
         #ocean-topleft-controls > #accident-filter-reset-btn {
             position: absolute !important;
@@ -975,6 +1103,11 @@
         #ocean-topleft-controls > #accident-nationwide-btn {
             position: absolute !important;
             left: 0;
+            /* ★폭을 위 모드토글(고정 120px)과 같게 맞추고 글자를 가운데로
+               [S28-2, 2026-09-09 사용자 확정] — 글자 길이에 따라 폭이 달라
+               토글과 왼쪽만 맞고 오른쪽이 들쭉날쭉했다. */
+            width: 120px;
+            text-align: center;
             pointer-events: auto;
         }
         /* 필터 바 — top 은 accident_info.js 가 모드토글 실측 높이로 매번 인라인 설정
@@ -984,14 +1117,25 @@
             left: 0;
             pointer-events: auto;
         }
-        /* 분석 모드 색상 범례 — 필터 바 바로 아래 고정(2026-09-01 버그 수정: 이 규칙이
-           없어 flex 부모 안에서 위성지도·안내 버튼과 같은 줄로 흘러 화면 위쪽 중앙에
-           엉뚱하게 떠 있었다 — 참고 이미지와 비교해 사용자가 지적). top 은 필터 바와
-           같은 방식으로 accident_info.js 가 실측해 인라인 설정. */
+        /* 분석 모드 색상 범례[S28-1, 2026-09-09 사용자 확정] — **지도 좌측 하단**,
+           출처표기("국토교통부 브이월드") 바로 위.
+           예전에는 필터 바 아래(화면 위쪽)에 있었는데 지도를 가려 아래로 내렸다.
+
+           ★출처표기와 **같은 계산식**을 쓰고 그 높이(실측 19px)와 간격 6px 만 더한다.
+             그래서 하단 메인탭·서브탭이 열리고 닫힐 때, 물빠짐 슬라이더가 뜰 때
+             출처표기가 움직이는 만큼 범례도 같이 따라 움직인다(따로 계산하지 않는다).
+           ★position:fixed 인 이유: 기준 박스(#ocean-map-wrapper)가 서브탭 상태에 따라
+             늘었다 줄었다 해서 bottom 값을 한 벌로 맞출 수 없다(출처표기가 해양안전에서
+             fixed 를 쓰는 것과 같은 이유). */
         #ocean-topleft-controls > .accident-grid-legend {
-            position: absolute !important;
-            left: 0;
+            position: fixed !important;
+            left: 8px;
+            top: auto !important;
+            bottom: calc(var(--main-tab-height, 68px) + 8px + 25px);
             pointer-events: auto;
+        }
+        body.sub-tabs-open #ocean-topleft-controls > .accident-grid-legend {
+            bottom: calc(var(--main-tab-height, 68px) + var(--sub-tab-height, 50px) + 8px + 25px);
         }
 
         /* ──────────────────────────────────────────────────────────
@@ -3542,6 +3686,40 @@
                         <!-- 분석(격자) 모드에서만 보이는 색상 범례 — 격자칸 색이 그 칸의 사고
                              밀도(파랑=낮음~빨강=높음)를 나타낸다는 걸 알려준다.
                              [연계] js/marine-life/safety/accident_info.js showGridLegend() -->
+                        <!-- 금지구역 범례[2026-09-09 사용자 확정] — "금지구역" 버튼을 켜면
+                             기본맵 버튼 바로 아래에 뜬다. 색이 무엇을 뜻하는지 알려주고,
+                             오른쪽 스위치로 종류별로 따로 켜고 끈다(둘 다 켜도, 하나만 켜도 됨.
+                             둘 다 꺼도 범례는 남아 다시 켤 수 있다).
+                             [연계] js/marine-life/safety/ban_zone.js 가 표시·스위치를 담당 →
+                                    window.accessControlSetShown() · window.fishingBanSetShown() -->
+                        <!-- 좌측 상단 범례 묶음 — 위험지형·금지구역 범례가 함께 떠도 겹치지
+                             않도록 한 컨테이너에 세로로 쌓는다. 사고정보 모드토글과의 세로 간격은
+                             ban_zone.js 가 실측해 이 묶음의 margin-top 으로 준다. -->
+                        <div class="ocean-legend-stack" id="ocean-legend-stack">
+                            <!-- 위험지형 범례[2026-09-09 사용자 확정] — "위험지형" 버튼을 켜면 뜬다.
+                                 두 줄을 각각 껐다 켤 수 있다(둘 다 켜도, 하나만 켜도 됨).
+                                 [연계] js/marine-life/safety/hazard_rocks.js 가 표시·스위치를 담당 -->
+                            <div class="banzone-legend" id="terrain-legend" style="display:none;">
+                                <button type="button" class="bzl-row on" id="tgl-row-exposed">
+                                    <span class="bzl-name">노출암/갯바위</span>
+                                    <span class="bzl-switch"></span>
+                                </button>
+                                <button type="button" class="bzl-row on" id="tgl-row-rock">
+                                    <span class="bzl-name">간출암, 암암 등</span>
+                                    <span class="bzl-switch"></span>
+                                </button>
+                            </div>
+                            <div class="banzone-legend" id="banzone-legend" style="display:none;">
+                                <button type="button" class="bzl-row bzl-row-ac on" id="bzl-row-ac">
+                                    <span class="bzl-name">출입통제구역</span>
+                                    <span class="bzl-switch"></span>
+                                </button>
+                                <button type="button" class="bzl-row bzl-row-fb on" id="bzl-row-fb">
+                                    <span class="bzl-name">낚시금지구역</span>
+                                    <span class="bzl-switch"></span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="accident-grid-legend" id="accident-grid-legend" style="display:none;">
                             <span class="agl-title" id="agl-title">사고건수</span>
                             <span class="agl-scale">
@@ -3552,7 +3730,7 @@
                         </div>
                     </div>
 
-                    <!-- 오버레이 토글 버튼 + 주요지명 + GPS (지도 우측) -->
+                    <!-- 오버레이 토글 버튼 + GPS (지도 우측) -->
                     <div class="ocean-overlay-controls" id="ocean-overlay-controls">
                         <button class="ocean-overlay-btn" data-layer="current" title="유향·유속">
                             <i class="fa-solid fa-arrows-spin"></i>
@@ -3565,10 +3743,6 @@
                         <button class="ocean-overlay-btn" data-layer="wave" title="파고·파향">
                             <i class="fa-solid fa-water"></i>
                             <span class="ocean-overlay-label" data-line1="파고" data-line2="파향">파고·파향</span>
-                        </button>
-                        <button class="ocean-overlay-btn" id="ocean-marker-toggle-btn" title="주요지명">
-                            <i class="fa-solid fa-location-dot"></i>
-                            <span class="ocean-overlay-label" data-line1="주요" data-line2="지명">주요지명</span>
                         </button>
                         <button class="ocean-overlay-btn" id="ocean-buoy-toggle-btn" title="기상부이">
                             <i class="fa-solid fa-anchor"></i>
@@ -3603,9 +3777,9 @@
                              클라이언트 측에서 각 셀을 3×3 분할해 줌인 시 소해구도 함께 그림.
                              [데이터] /marine_zone_area.json (local_server/ 루트 직속, 정적 GeoJSON)
                                       data/ 가 .dockerignore + fly.io 볼륨 마운트라 루트로 이동시킴 -->
-                        <button class="ocean-overlay-btn" id="ocean-marine-zone-toggle-btn" title="해구도">
+                        <button class="ocean-overlay-btn" id="ocean-marine-zone-toggle-btn" title="해구기상">
                             <i class="fa-solid fa-table-cells"></i>
-                            <span class="ocean-overlay-label" data-line1="해구">해구도</span>
+                            <span class="ocean-overlay-label" data-line1="해구" data-line2="기상">해구기상</span>
                         </button>
                         <!-- 물빠짐 토글: js/tide_field.js 가 바인딩 (서해·남해 한정).
                              ON 시 /api/tide-field?time= 로 그 시각의 갯벌 노출/잠김 2색 벡터 레이어 표출 +
@@ -3616,19 +3790,42 @@
                             <i class="fa-solid fa-water"></i>
                             <span class="ocean-overlay-label" data-line1="물빠짐">물빠짐</span>
                         </button>
-                        <!-- 노출암 / 간출암 등 토글: js/marine-life/safety/hazard_rocks.js 가 바인딩.
+                        <!-- 노출암·갯바위 / 간출암 등 토글: js/marine-life/safety/hazard_rocks.js 가 바인딩.
                              둘 다 해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
                              CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고). 두 버튼은 서로
                              독립적이라 동시에 켤 수 있다.
-                             [데이터] /hazard_rocks.json (국립해양조사원 전자해도 간출암·노출암, 정적,
-                                      두 버튼 모두 처음 누를 때만 지연 로드) -->
-                        <button class="ocean-overlay-btn" id="ocean-exposed-toggle-btn" title="노출암 (항상 물 위)">
+                             왼쪽 버튼은 노출암(점)과 갯바위(면+마커)를 **한 버튼으로 함께** 켠다
+                             (사용자 확정 2026-09-09 — 둘 다 물 위로 드러난 바위를 점·면으로
+                             다르게 표현한 것이라 나눌 이유가 없다).
+                             [데이터] /hazard_rocks.json (전자해도 간출암·노출암) +
+                                      /shore_rocks.json (갯바위 면, 2017년 위험정보 — 서·남해만 있고
+                                      동해·제주는 원본에 자료가 없다). 둘 다 정적이며 버튼을 처음
+                                      누를 때만 지연 로드. -->
+                        <!-- 위험지형 토글[2026-09-09 사용자 확정]: js/marine-life/safety/hazard_rocks.js 가
+                             바인딩. 아래 노출암·간출암 버튼 **둘을 대신 눌러** 한 버튼으로 묶는다
+                             (금지구역 버튼이 출입통제·낚시금지를 묶는 것과 같은 방식). 켜져 있는 동안
+                             좌측 상단 범례(#terrain-legend)에서 종류별로 따로 껐다 켤 수 있다. -->
+                        <button class="ocean-overlay-btn" id="ocean-terrain-toggle-btn" title="위험지형 (노출암·갯바위·간출암 등)">
+                            <i class="fa-solid fa-mountain-sun"></i>
+                            <span class="ocean-overlay-label" data-line1="위험" data-line2="지형">위험지형</span>
+                        </button>
+                        <button class="ocean-overlay-btn" id="ocean-exposed-toggle-btn" title="노출암 (항상 물 위, 갯바위 포함)">
                             <i class="fa-solid fa-mountain"></i>
                             <span class="ocean-overlay-label" data-line1="노출암">노출암</span>
                         </button>
                         <button class="ocean-overlay-btn" id="ocean-rock-toggle-btn" title="간출암 등 (저조 시 드러남)">
                             <i class="fa-solid fa-triangle-exclamation"></i>
                             <span class="ocean-overlay-label" data-line1="간출암" data-line2="등">간출암 등</span>
+                        </button>
+                        <!-- 금지구역 토글[S28-3, 2026-09-09 사용자 확정]: js/marine-life/safety/ban_zone.js 가
+                             바인딩. 아래 출입통제·낚시금지 버튼 **둘을 대신 누른다** — 둘 다
+                             "여기서는 하면 안 된다"는 같은 뜻의 구역이라 버튼을 나눠 둘 이유가
+                             없었다(사용자 원문: "낚시금지구역과 출입통제구역 버튼을 «금지구역»으로
+                             일원화하고 그것을 눌렀을 때 두 종류의 데이터가 한 화면에 표출").
+                             아래 두 버튼은 각 모듈이 그대로 참조하므로 지우지 않고 CSS 로 숨긴다. -->
+                        <button class="ocean-overlay-btn" id="ocean-banzone-toggle-btn" title="금지구역 (출입통제·낚시금지)">
+                            <i class="fa-solid fa-ban"></i>
+                            <span class="ocean-overlay-label" data-line1="금지" data-line2="구역">금지구역</span>
                         </button>
                         <!-- 출입통제 토글: js/marine-life/safety/access_control.js 가 바인딩.
                              해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
@@ -3769,12 +3966,18 @@
                                  합계라 고를 것이 없다. 종류를 갈라 보는 것은 바텀시트 안 칩(분석)과
                                  필터 바 맨 위 토글(현황)이 한다(사용자 확정 2026-09-04). -->
                         </div>
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/ocean-map/map/ocean_map.js goToMyLocation()
                         <button class="ocean-overlay-btn ocean-myloc-btn" id="ocean-myloc-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
-                            <!-- 큰 텍스트 모드 전용 라벨 — 보통 모드에선 .ocean-overlay-label[data-line1] CSS
-                                 의 font-size: 0 가 적용되어 보이지 않음. 큰 모드에서만 ::before/::after 표출. -->
+                            (큰 텍스트 모드 전용 라벨 — 보통 모드에선 .ocean-overlay-label[data-line1] CSS 의
+                             font-size: 0 가 적용되어 보이지 않음. 큰 모드에서만 ::before/::after 표출.)
                             <span class="ocean-overlay-label" data-line1="내" data-line2="위치"></span>
                         </button>
+                        -->
                         <!-- [제거됨] CCTV ON 시에만 뜨던 유의사항 버튼(#ocean-cctv-notice-btn)
                              → 지도 좌측 상단 "기본맵" 옆 #ocean-info-btn 으로 상시 노출 대체
                              [연계] js/ocean_cctv.js -->
@@ -4453,9 +4656,15 @@
 
                     <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/fishing/fishing.js _moveToMyLocation()
                         <button id="fishing-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="fishing-notice-btn" class="life-map-icon-btn" title="유의사항">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -4551,9 +4760,15 @@
 
                     <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/surfing/surfing1.js _goToSurfingMyLocation()
                         <button id="surfing-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="surfing-notice-btn" class="life-map-icon-btn" title="유의사항">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -4639,9 +4854,15 @@
 
                     <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/mudflat/mudflat.js _moveToMyLocation()
                         <button id="mudflat-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="mudflat-notice-btn" class="life-map-icon-btn" title="유의사항">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -4704,9 +4925,15 @@
 
                     <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/swimming/swimming.js _moveToMyLocation()
                         <button id="swim-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="swim-notice-btn" class="life-map-icon-btn" title="유의사항">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -4782,9 +5009,15 @@
 
                     <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/scuba/scuba.js _moveToMyLocation()
                         <button id="scuba-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="scuba-notice-btn" class="life-map-icon-btn" title="유의사항">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -4901,9 +5134,15 @@
 
                     <!-- 우측 상단: 내 위치 / 안내 아이콘 버튼 세로 스택 -->
                     <div class="life-map-controls-topright">
+                        <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                             '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                             추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                             getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                             [연계] js/marine-life/ripcurrent/ripcurrent.js _moveToMyLocation()
                         <button id="rip-my-location-btn" class="life-map-icon-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
+                        -->
                         <button id="rip-notice-btn" class="life-map-icon-btn" title="이안류 지수 안내">
                             <i class="fa-solid fa-circle-exclamation"></i>
                         </button>
@@ -5028,11 +5267,17 @@
             <button class="ocean-overlay-btn ls-act-btn" data-act="mudflat-section"><span>갯벌</span><span>체험</span></button>
             <button class="ocean-overlay-btn ls-act-btn" data-act="sea-parting-section"><span>바다</span><span>갈라짐</span></button>
 
-            <!-- 내 위치: 활동이 원래 갖고 있던 GPS 버튼을 대신 눌러 동작 -->
+            <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
+                 '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
+                 추후 다시 쓸 때 이 주석을 풀면 그대로 동작한다. 클릭 핸들러는 모두
+                 getElementById 결과를 null 검사하므로 버튼이 없어도 오류 없이 건너뛴다.
+                 [연계] js/marine-life/safety/life_safety.js _bindChrome() / _syncChrome()
+            (내 위치: 활동이 원래 갖고 있던 GPS 버튼을 대신 눌러 동작)
             <button id="ls-gps-btn" class="ocean-overlay-btn ocean-myloc-btn" title="내 위치">
                 <i class="fa-solid fa-location-crosshairs"></i>
                 <span class="ocean-overlay-label" data-line1="내" data-line2="위치"></span>
             </button>
+            -->
         </div>
 
         <!-- ================================================================
@@ -5359,6 +5604,9 @@
     <!-- 선박교통관제(VTS)구역 레이어 — 해양안전 하위탭 전용. fishing_ban.js 와 동일하게
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
+    <!-- 금지구역(출입통제+낚시금지 통합 버튼)[S28-3] — 위 두 파일이 원래 버튼에
+         리스너를 붙인 뒤여야 대신 누를 수 있으므로 반드시 그 다음에 온다. -->
+    <script src="js/marine-life/safety/ban_zone.js?v=BanZone_20260909"></script>
     <script src="js/marine-life/safety/vts_zone.js?v=VtsZoom_20260803b"></script>
 
     <!-- 항로·해역 레이어 — 해양안전 하위탭 전용. vts_zone.js 와 동일하게
@@ -5614,7 +5862,6 @@
             'ov-current': '.ocean-overlay-btn[data-layer="current"]',
             'ov-wind': '.ocean-overlay-btn[data-layer="wind"]',
             'ov-wave': '.ocean-overlay-btn[data-layer="wave"]',
-            'ov-marker': '#ocean-marker-toggle-btn',
             'ov-buoy': '#ocean-buoy-toggle-btn',
             'ov-warn-zone': '#ocean-warn-zone-toggle-btn',
             'ov-marine-zone': '#ocean-marine-zone-toggle-btn',

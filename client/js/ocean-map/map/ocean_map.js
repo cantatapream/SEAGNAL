@@ -9,12 +9,10 @@
  * 조석지도/해양현황 분리 모드 없이 단일 통합 지도 뷰로 동작합니다.
  * - 베이스맵: 기본맵 / 전자해도 / 해안도 / 세계지도 / 위성지도 (피커로 선택)
  * - 오버레이: 조류/바람/파고 (항상 표시되는 우측 버튼)
- * - 주요지명: 조석 마커 토글 버튼
  * - 타임라인: 항상 표시 (조류=1h 스텝, 바람/파고=3h 스텝)
  *
  * [연계 파일]
  * - index.html → #ocean-map, #ocean-map-section
- * - ocean_markers.js → 조석 마커, 클릭 처리
  * - ocean_bottom_sheet.js → 바텀시트 표시
  * - ocean_overlay.js → 캔버스 오버레이
  * - ocean_timeline.js → 타임라인 슬라이더
@@ -530,10 +528,23 @@
         apply(visible);   // 페이지 진입 시 복원된 상태를 즉시 반영
 
         // ── ④ 클릭 핸들러: 상태 뒤집고 저장 ─────────────────────────
+        // ON 시점의 배경지도를 기억해 OFF 때 되돌린다(출입통제·낚시금지와 같은 패턴).
+        let prevBasemap = null;
         btn.addEventListener('click', function () {
             visible = !visible;
             apply(visible);
             try { localStorage.setItem('seagnal_marine_zone_visible', String(visible)); } catch (e) {}
+            // [배경지도] 해구기상은 격자와 숫자를 읽는 화면이라 위성사진 위에서는 잘 안 보인다.
+            //   켤 때 기본맵으로 바꾸고, 끌 때 원래 지도로 되돌린다(사용자 확정 2026-09-09).
+            if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
+                if (visible) {
+                    prevBasemap = window.oceanGetBasemap();
+                    if (prevBasemap !== 'rltm') window.oceanSetBasemap('rltm');
+                } else if (prevBasemap && prevBasemap !== 'rltm') {
+                    window.oceanSetBasemap(prevBasemap);
+                    prevBasemap = null;
+                }
+            }
             // OFF 로 돌아갈 때는 "선택 상태" 도 같이 비워서 다음에 켤 때 깨끗하게 시작.
             if (!visible) _resetMarineZoneSelection();
             // [단독 표출] 해구도 ON 시 물빠짐이 켜져 있으면 끔.
@@ -864,13 +875,6 @@
             // 베이스맵 선택 피커 바인딩
             bindBasemapPicker();
 
-            // 마커 초기화 후 바로 토글 버튼 바인딩
-            // (bindMarkerToggle 내부에서 localStorage 복원 + showOceanMarkers 초기 적용)
-            if (window.initOceanMarkers) {
-                window.initOceanMarkers(oceanMap);
-            }
-            bindMarkerToggle();
-
             // 기상부이 + 통합 클러스터 초기화 (INDEX2 전용, ocean_buoy.js에서 정의)
             // INDEX1에서는 함수가 없으므로 이 블록 자체가 실행되지 않음
             if (window.initOceanBuoys) {
@@ -1051,27 +1055,6 @@
         // 지도 클릭 시 메뉴 닫기
         oceanMap.on('click', function () {
             menu.style.display = 'none';
-        });
-    }
-
-    // ========================================================================
-    // 주요지명 마커 토글
-    // ========================================================================
-
-    function bindMarkerToggle() {
-        var btn = document.getElementById('ocean-marker-toggle-btn');
-        if (!btn) return;
-
-        // localStorage에서 이전 상태 복원 (기본값: 숨김)
-        var markersVisible = localStorage.getItem('seagnal_markers_visible') === 'true';
-        btn.classList.toggle('active', markersVisible);
-        if (window.showOceanMarkers) window.showOceanMarkers(markersVisible);
-
-        btn.addEventListener('click', function () {
-            markersVisible = !markersVisible;
-            btn.classList.toggle('active', markersVisible);
-            if (window.showOceanMarkers) window.showOceanMarkers(markersVisible);
-            try { localStorage.setItem('seagnal_markers_visible', markersVisible); } catch (e) {}
         });
     }
 
