@@ -808,6 +808,13 @@ ok('라벨 갱신은 mapOnly 축까지 전부 돈다',
 ok('시간대 필터 자체(hk 행에만 적용)는 그대로 살아 있다',
     /if \(filters\.hourRanges && key === 'hk'\) \{/.test(CODE) &&
     /openHourRangeFilterPopup/.test(CODE));
+// 지도 현황 모드 — 인명사고를 고른 동안만 시간대 버튼을 감춘다(2026-09-09 사용자 확정).
+// 선박사고일 때는 정상 작동하므로 감추지 않는다.
+ok('현황 모드 시간대 버튼을 인명일 때만 감춘다',
+    /function updateFilterBarModeVisibility[\s\S]{0,900}var hourBtn = document\.getElementById\('accident-filter-btn-hourRanges'\);[\s\S]{0,120}hourBtn\.style\.display = state\.source === 'person' \? 'none' : '';/.test(CODE));
+ok('감추기는 소스·모드가 바뀔 때마다 다시 판정된다(한 군데로 모임)',
+    /function selectSource[\s\S]{0,3000}updateFilterBarModeVisibility\(\);/.test(CODE) &&
+    /function updateFilterBarModeVisibility[\s\S]{0,1400}positionFilterBar\(\);/.test(CODE));
 
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);

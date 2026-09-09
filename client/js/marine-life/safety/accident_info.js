@@ -6000,6 +6000,16 @@
         var isStatus = state.mode === 'status';
         var tgl = document.getElementById('accident-source-toggle');
         if (tgl) tgl.style.display = isStatus ? 'flex' : 'none';
+        // ★인명사고를 보는 동안에는 시간대 버튼을 감춘다[2026-09-09 사용자 확정].
+        //   인명 데이터에는 발생 시각 칸이 없어(accident_persons.json 한 행 12칸)
+        //   passesFilters 가 시간대를 hk 행에만 적용한다 — 그래서 인명 마커를 보며
+        //   시간대를 걸면 한 건도 안 걸러지고 버튼만 켜진다("걸었는데 안 변한다").
+        //   선박사고일 때는 정상 작동하므로 그대로 보여준다(실측 57,167 → 5,534건).
+        //   같은 방식의 선례: 시트 분석 뷰의 "시간대별" 탭도 인명일 때 잠근다.
+        //   값이 걸린 채로 인명으로 넘어가도 인명 마커에는 영향이 없고(위 가드),
+        //   선박으로 돌아오면 버튼이 다시 나오며 라벨에 "N개 선택"이 그대로 보인다.
+        var hourBtn = document.getElementById('accident-filter-btn-hourRanges');
+        if (hourBtn) hourBtn.style.display = state.source === 'person' ? 'none' : '';
         if (state.source) {
             showFilterResetBtn(isStatus);
             // ★분석 모드에서는 지도 위 필터 바를 아예 감춘다[S17] — 필터가 시트 안으로
