@@ -1,10 +1,12 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/safety/hazard_rocks.js
- * 역할  : 해양안전 지도에 "노출암·갯바위" / "간출암 등" 두 토글 버튼을 얹는다. 항상
- *         드러난 바위(노출암·갯바위)와 저조 시 드러나는 바위(간출암/세암/암암)를 각각
- *         독립적으로 켤 수 있고(동시에 켜도 됨), 탭하면 종류(+수치)를 말풍선으로
- *         보여준다. 포인트가 많은 지역은 줌 레벨에 따라 숫자로 뭉쳐 표시하다가
+ * 역할  : 해양안전 지도에 "위험지형" 버튼 하나를 얹어, 항상 드러난 바위(노출암·갯바위)와
+ *         저조 시 드러나는 바위(간출암/세암/암암)를 함께 켜고 끈다. 켜져 있는 동안
+ *         좌측 상단 범례에서 두 종류를 따로 껐다 켤 수 있고(둘 다 켜도, 하나만 켜도 됨),
+ *         마커를 탭하면 종류(+수치)를 말풍선으로 보여준다.
+ *         (원래의 노출암·간출암 버튼 2개는 화면에서 감춘 채 그대로 두고, 위험지형 버튼이
+ *          그 둘을 대신 눌러 각자의 로직을 그대로 재사용한다 — ban_zone.js 와 같은 방식) 포인트가 많은 지역은 줌 레벨에 따라 숫자로 뭉쳐 표시하다가
  *         확대할수록 낱개로 펼쳐진다(OpenLayers 클러스터). 간출암 등이 켜져 있는
  *         동안엔 서버가 미리 계산한 잠김경고(3시간 이내 잠기는 암초)를 1분마다
  *         폴링해, 낱개로 보이는 간출암 위에 빨간 펄스 테두리 + "OO:OO 후 완전히
@@ -19,7 +21,9 @@
  *                    GET /shore_rocks.json (갯바위 면, 정적, 같은 시점에 함께 로드) ·
  *                    GET /api/hazard-rocks/submersion (잠김경고, 간출암 등 켜진 동안 1분 폴링) ·
  *                    GET /api/hazard-rocks/tide-curve?id=&day= (간출암 탭 시 조석 곡선 팝업)
- *  - 마크업        : index2.html 의 #ocean-exposed-toggle-btn(노출암·갯바위),
+ *  - 마크업        : index2.html 의 #ocean-terrain-toggle-btn(위험지형, 실제로 보이는 버튼) ·
+ *                    #terrain-legend(범례) · #tgl-row-exposed · #tgl-row-rock(스위치 줄) ·
+ *                    #ocean-exposed-toggle-btn(노출암·갯바위, 감춰진 원래 버튼),
  *                    #ocean-rock-toggle-btn(간출암 등) — 둘 다 해양안전 전용,
  *                    .rock-tide-popup(조석 곡선 팝업 CSS)
  *  - 나를 쓰는 곳  : ocean_map.js buildMap() → window.initHazardRocksLayer(oceanMap)
@@ -974,14 +978,90 @@
     }
 
     /**
-     * [외부 API] 위험물(노출암/간출암류) 토글 버튼 2개를 지도와 연결한다.
+     * 위험지형 범례를 띄우거나 감춘다. 띄울 때는 두 스위치를 모두 켠 상태로 되돌린다
+     * (원래 버튼이 새로 켜지면서 두 레이어도 다시 보이므로 화면과 맞다).
+     * 예: showTerrainLegend(true) → 상자가 기본맵 버튼 아래 범례 묶음에 뜨고 두 줄 다 노란 스위치
+     * @param {boolean} on - true 띄우기 / false 감추기
+     * [연계] ← bindTerrainToggle() 의 "위험지형" 버튼 클릭
+     *          → window.oceanLegendStackReposition()(ban_zone.js) — 사고정보 모드토글과 겹치지 않게
+     */
+    function showTerrainLegend(on) {
+        var box = document.getElementById('terrain-legend');
+        if (!box) return;
+        if (on) {
+            ['tgl-row-exposed', 'tgl-row-rock'].forEach(function (id) {
+                var row = document.getElementById(id);
+                if (row) row.classList.add('on');
+            });
+            box.style.display = 'flex';
+        } else {
+            box.style.display = 'none';
+        }
+        if (typeof window.oceanLegendStackReposition === 'function') window.oceanLegendStackReposition();
+    }
+
+    /**
+     * 범례의 두 줄에 스위치 동작을 붙인다(한 번만).
+     * 예: "간출암, 암암 등" 줄을 탭 → 그 줄이 흐려지고 간출암류 마커만 지도에서 사라진다.
+     *     노출암·갯바위는 그대로 남고, 잠김경고 폴링도 그대로다.
+     * [연계] ← bindTerrainToggle() — 레이어 가시성만 직접 바꾼다(원래 버튼을 누르지 않는다).
+     *          원래 버튼을 눌렀다면 잠김경고 폴링이 멈추고 배경지도가 되돌아간다.
+     */
+    function bindTerrainLegendRows() {
+        [['tgl-row-exposed', function () { return exposedLayer; }, function () { return shoreAreaLayer; }],
+         ['tgl-row-rock', function () { return rockLayer; }, null]]
+            .forEach(function (row3) {
+                var row = document.getElementById(row3[0]);
+                if (!row || row._tglBound) return;
+                row._tglBound = true;
+                row.addEventListener('click', function () {
+                    var on = !row.classList.contains('on');
+                    row.classList.toggle('on', on);
+                    var layer = row3[1]();
+                    if (layer) layer.setVisible(on);
+                    var extra = row3[2] && row3[2]();
+                    if (extra) extra.setVisible(on);
+                    if (!on && bubbleOverlay) bubbleOverlay.setPosition(undefined);
+                    if (!on) hideTideCurveOverlay();
+                });
+            });
+    }
+
+    /**
+     * "위험지형" 버튼 하나로 노출암·갯바위와 간출암류를 함께 켜고 끈다.
+     * 원래 버튼 두 개를 대신 눌러 각 레이어의 로직(지연 로드·잠김경고 폴링)을 그대로 재사용한다
+     * — 금지구역 버튼이 출입통제·낚시금지를 묶는 것과 같은 방식(ban_zone.js).
+     * @param {ol.Map} map
+     * [연계] ← window.initHazardRocksLayer → showTerrainLegend()·bindTerrainLegendRows()
+     */
+    function bindTerrainToggle(map) {
+        var btn = document.getElementById('ocean-terrain-toggle-btn');
+        var exBtn = document.getElementById('ocean-exposed-toggle-btn');
+        var rkBtn = document.getElementById('ocean-rock-toggle-btn');
+        if (!btn || !exBtn || !rkBtn) return;
+        bindTerrainLegendRows();
+
+        btn.addEventListener('click', function () {
+            var turnOn = !btn.classList.contains('active');
+            if (exBtn.classList.contains('active') !== turnOn) exBtn.click();
+            if (rkBtn.classList.contains('active') !== turnOn) rkBtn.click();
+            btn.classList.toggle('active', turnOn);
+            showTerrainLegend(turnOn);
+        });
+    }
+
+    /**
+     * [외부 API] 위험지형 버튼(노출암·갯바위 + 간출암류)을 지도와 연결한다.
      * 레이어 자체는 버튼을 처음 누를 때 지연 생성된다(성능·트래픽 절약).
      * @param {ol.Map} map - 해양종합정보/해양안전이 함께 쓰는 OL 지도 인스턴스
      * [연계] ← ocean_map.js buildMap() (index2 전용) → 여기서 1회 호출
      */
     window.initHazardRocksLayer = function (map) {
+        // 원래 버튼 둘은 화면에서 감춰져 있지만(index2.html CSS), 위험지형 버튼이 대신
+        // 누르므로 리스너는 그대로 붙여 둔다.
         bindToggle(map, 'ocean-exposed-toggle-btn', function () { return exposedLayer; }, 'ocean.hazard_exposed');
         bindToggle(map, 'ocean-rock-toggle-btn', function () { return rockLayer; }, 'ocean.hazard_rock');
+        bindTerrainToggle(map);
     };
 
     /**

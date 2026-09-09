@@ -81,13 +81,16 @@
     }
 
     /**
-     * 범례를 기본맵 버튼 줄 아래에 놓되, 사고정보 모드토글이 떠 있으면 그만큼 더 내린다.
+     * 범례 묶음(#ocean-legend-stack)을 기본맵 버튼 줄 아래에 놓되, 사고정보 모드토글이
+     * 떠 있으면 그만큼 더 내린다. 묶음 하나만 움직이면 그 안의 범례들(위험지형·금지구역)이
+     * 함께 따라온다.
      * 예: 모드토글이 보이면(실측 높이 34px) margin-top 이 6px → 46px 가 된다
-     * [연계] ← _showLegend() · _watchAccidentToggle() — 좌측 상단 같은 자리를 쓰는 두 요소가
-     *          겹치지 않게 한다(accident_info.js 가 필터 바 위치를 실측해 잡는 것과 같은 어법).
+     * [연계] ← _showLegend() · _watchAccidentToggle() · hazard_rocks.js showTerrainLegend()
+     *          (window.oceanLegendStackReposition 으로 노출) — 좌측 상단 같은 자리를 쓰는
+     *          요소들이 겹치지 않게 한다(accident_info.js 가 필터 바 위치를 실측하는 것과 같은 어법).
      */
     function _positionLegend() {
-        var box = document.getElementById('banzone-legend');
+        var box = document.getElementById('ocean-legend-stack');
         var modeToggle = document.getElementById('ocean-accident-mode-toggle');
         if (!box) return;
         var extra = 0;
@@ -96,6 +99,7 @@
         }
         box.style.marginTop = (6 + extra) + 'px';
     }
+    window.oceanLegendStackReposition = _positionLegend;
 
     /**
      * 사고정보 모드토글이 나타나거나 사라지면 범례 위치를 다시 잡는다.
@@ -108,10 +112,8 @@
         var modeToggle = document.getElementById('ocean-accident-mode-toggle');
         if (!modeToggle || modeToggle._bzlWatched || typeof MutationObserver !== 'function') return;
         modeToggle._bzlWatched = true;
-        new MutationObserver(function () {
-            var box = document.getElementById('banzone-legend');
-            if (box && box.style.display !== 'none') _positionLegend();
-        }).observe(modeToggle, { attributes: true, attributeFilter: ['style', 'class'] });
+        new MutationObserver(function () { _positionLegend(); })
+            .observe(modeToggle, { attributes: true, attributeFilter: ['style', 'class'] });
     }
 
     /**
