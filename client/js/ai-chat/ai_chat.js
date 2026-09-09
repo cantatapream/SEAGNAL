@@ -4,7 +4,9 @@
  * 역할  : 해양법령 챗봇(나리야) 인앱 모듈. 두 갈래로 나뉜다.
  *         (A) 관리자 콘솔 — 통합관리자 센터의 "나리야 법령" 탭이 부르는
  *             window.NariyaChat.renderAdminInto(container) 로, 지식 방 브라우저
- *             (원문/위키개념/법령/비교허브/별표/지식그래프 + 역할설명 인트로카드)
+ *             (원문/위키개념/법령/비교허브/별표/지식그래프 + 역할설명 인트로카드 —
+ *              2026-09-09부터 숫자·목록·시행일이 전부 서버 실데이터이고 목록은 한 쪽 10개씩
+ *              « ‹ 1 2 3 4 5 › » 로 넘긴다)
  *             + 관리자 검토센터(6개 서브탭·원본 vs AI값·교정입력·승인/반려·반영사슬)
  *             + 챗봇 노출 토글(서버 전역 설정)을 렌더한다.
  *         (B) 사용자 챗봇 — 우측 하단 FAB + 카카오톡풍 채팅 팝업(생각중·스켈레톤·
@@ -42,6 +44,14 @@
  *                    POST /api/legal/freshness/:id/decide       (처리완료/해당없음)
  *                    POST /api/legal/freshness/scan-now         (즉시 1회 점검, 백그라운드 20~30분)
  *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
+ *                    GET  /api/legal/rooms/stats               (지식 방 갈래 버튼 6개 숫자 +
+ *                                                               인트로 칩 — 개념 status·그래프 엣지 종류.
+ *                                                               2026-09-09: 종전에는 이 숫자가 전부
+ *                                                               시안에서 베낀 상수였다)
+ *                    GET  /api/legal/rooms/list?room&page       (방 6개 목록 · 한 쪽 10개 페이지네이션.
+ *                                                               room=raw|concept|statute|comparison|annex|graph)
+ *                    GET  /api/legal/rooms/law?dir              (원문 방 아코디언 한 칸 — 계층별 **실제
+ *                                                               시행일**(.txt 머리말)·별표/서식·고시)
  *                    POST /api/legal/ask {query, deviceId, notifyOnComplete, ctx?, profile?, lastQuestion?}
  *                                                              (질문→AI 답변 스트리밍(NDJSON)+근거 법령
  *                                                               · done 에 clarify{question,options} 가 오면
@@ -241,106 +251,96 @@
   function avatarHTML(extra) { return '<div class="nrya-ava' + (extra ? ' ' + extra : '') + '"><img src="' + NARIYA_IMG + '" alt="나리야"></div>'; }
 
   // ============================================================================
-  // 지식 방 데이터 모델 (대표 정적 콘텐츠 · nrya- 접두어)
+  // 지식 방 데이터 모델 (nrya- 접두어)
+  //   ★숫자·목록·시행일은 **전부 서버 실데이터**다 — GET /api/legal/rooms/stats · /rooms/list · /rooms/law.
+  //   ⚠2026-09-09 이전에는 이 자리에 client/mockups/ai_chat_rooms.html 의 **디자인 시안 숫자를 그대로
+  //     박아** 두었고(위키개념 919·법령 73·비교허브 26·별표서식 98·그래프 88노드/1,310엣지·
+  //     개념 canonical 8/draft 842), 실제와 크게 어긋나 있었다(963·74·49·199·109노드/2,180엣지·
+  //     canonical 734/draft 226). 특히 **시행일자**가 원문과 달라(선박안전법 화면 2025-01-24 ↔
+  //     원문 2023-06-28) 관리자가 원문 최신판을 오인할 수 있었다. 그래서 상수를 전부 없앴다 —
+  //     ROOMS 에 남은 것은 화면 설명글(ic·tag·desc)뿐이고, 숫자는 roomStats 에서만 온다.
+  //     시안 파일의 숫자를 다시 베끼지 말 것.
   // ============================================================================
-  var accHTML =
-    '<div class="nrya-acc nrya-open"><div class="nrya-acc-head"><div style="flex:1;min-width:0"><div class="nrya-acc-name">해상교통안전법</div><div class="nrya-acc-dom">03 해상교통안전 · 해양수산부</div></div><div class="nrya-eff"><span class="nrya-lbl">시행</span>2024. 7. 26.</div><div class="nrya-chev">▼</div></div>' +
-      '<div class="nrya-acc-body">' +
-        '<div class="nrya-file"><div class="nrya-file-ic">법</div><div class="nrya-file-nm">법률<span class="nrya-file-amd">· 일부개정</span></div><div class="nrya-file-eff">시행 2024. 7. 26.</div></div>' +
-        '<div class="nrya-file"><div class="nrya-file-ic nrya-rule">령</div><div class="nrya-file-nm">시행령<span class="nrya-file-amd">· 일부개정</span></div><div class="nrya-file-eff">시행 2025. 5. 20.</div></div>' +
-        '<div class="nrya-file"><div class="nrya-file-ic nrya-rule">칙</div><div class="nrya-file-nm">시행규칙</div><div class="nrya-file-eff">시행 2024. 7. 26.</div></div>' +
-        '<div class="nrya-byl-title">별표 · 별지 서식 (64건)</div>' +
-        '<div class="nrya-byl"><span class="nrya-byl-no">령 별표1</span><div style="flex:1"><div class="nrya-byl-nm">교통안전특정해역의 범위(제5조 관련)</div><div class="nrya-dl"><a href="#">⬇ HWP 원본</a><a href="#" class="nrya-img">🖼 이미지</a><a href="#">📄 본문(텍스트)</a></div></div></div>' +
-        '<div class="nrya-byl"><span class="nrya-byl-no">칙 별표3</span><div style="flex:1"><div class="nrya-byl-nm">해양사고 관련 보고 서식</div><div class="nrya-dl"><a href="#">⬇ HWP 원본</a><a href="#">📄 본문</a></div></div></div>' +
-      '</div></div>' +
-    ['선박안전법|02 선박 · 별표 147|2025. 1. 24.', '수산업법|06 수산 · 별표 122|2024. 12. 20.', '해양환경관리법|09 해양환경|2025. 7. 25.', '수상레저안전법|05 레저 · 해양경찰청|2024. 7. 31.']
-      .map(function (x) { var p = x.split('|'); return '<div class="nrya-acc"><div class="nrya-acc-head"><div style="flex:1;min-width:0"><div class="nrya-acc-name">' + p[0] + '</div><div class="nrya-acc-dom">' + p[1] + '</div></div><div class="nrya-eff"><span class="nrya-lbl">시행</span>' + p[2] + '</div><div class="nrya-chev">▼</div></div><div class="nrya-acc-body"></div></div>'; }).join('');
 
-  /** 리스트 래퍼. @param {string[]} arr @returns {string} */
-  function items(arr) { return '<div class="nrya-list">' + arr.join('') + '</div>'; }
-
-  /** 개념 리스트 아이템 1개 HTML. @returns {string} */
-  function concept(t, s, st, stc, chips) {
-    return '<div class="nrya-item"><div class="nrya-item-b"><div class="nrya-item-t">' + t + '</div><div class="nrya-item-s">' + s + '</div>' +
-      (chips ? '<div class="nrya-chips">' + chips.map(function (c) { return '<span class="nrya-chip">' + c + '</span>'; }).join('') + '</div>' : '') +
-      '</div>' + (st ? '<span class="nrya-stbadge ' + stc + '">' + st + '</span>' : '') + '</div>';
-  }
+  // 방 이름(화면·한글) → 서버 room 파라미터(ASCII). 한글을 쿼리에 그대로 싣지 않기 위한 대응표.
+  var ROOM_KEY = { 원문: 'raw', 위키개념: 'concept', 법령: 'statute', 비교허브: 'comparison', '별표·서식': 'annex', 지식그래프: 'graph' };
 
   var ROOMS = {
     원문: {
-      ic: '📁', tag: 'raw/ · 원문 보관실', n: '70법 · 7,203 원문',
-      desc: '국가법령정보센터 <b>원문 아카이브(불변)</b>입니다. 위키의 재료가 되는 1층. 법률·시행령·시행규칙 전문 + 별표·서식 + 고시(행정규칙)를 법령별로 보관합니다. 누르면 법령별 아코디언 → 시행일·별표 다운로드.',
-      meta: ['불변', '15 도메인', '별표·고시 포함'],
-      render: function () { return items([accHTML]); }
+      ic: '📁', tag: 'raw/ · 원문 보관실',
+      desc: '국가법령정보센터 <b>원문 아카이브(불변)</b>입니다. 위키의 재료가 되는 1층. 법률·시행령·시행규칙 전문 + 별표·서식 + 고시(행정규칙)를 법령별로 보관합니다. 누르면 법령별 아코디언 → 계층별 실제 시행일·별표·고시.'
     },
     위키개념: {
-      ic: '📗', tag: 'wiki/concepts/ · 답변 근거실', n: '919 개념',
-      desc: '원문을 엮은 <b>개념 페이지</b>. 챗봇이 실제 답변에 사용하는 핵심 근거(2층). 정의우선·처벌 3축·타법연결을 담습니다. status(승인상태)에 따라 챗봇 인용 여부가 결정됩니다.',
-      meta: ['canonical 8', 'review-pending 83', 'draft 842'],
-      render: function () {
-        return items([
-          concept('음주운항조타', '해상교통안전법 · 혈중알코올 0.03% 기준', 'canonical', 'nrya-st-can', ['처벌 3축', '↔ 수상레저']),
-          concept('어선등록총톤수', '어선법 · 등록·검사 정의', 'canonical', 'nrya-st-can', ['정의우선']),
-          concept('만재흘수선복원성', '선박안전법 · 안전수치 포함', 'review-pending', 'nrya-st-rev', ['⚠ 사람승인 대기']),
-          concept('허가어업', '수산업법 · 톤수 구간·처벌', 'review-pending', 'nrya-st-rev', ['처벌 포함']),
-          concept('연안출입통제구역', '연안사고예방법 · 초안', 'draft', 'nrya-st-draft', ['미승인'])]);
-      }
+      ic: '📗', tag: 'wiki/concepts/ · 답변 근거실',
+      desc: '원문을 엮은 <b>개념 페이지</b>. 챗봇이 실제 답변에 사용하는 핵심 근거(2층). 정의우선·처벌 3축·타법연결을 담습니다. status(승인상태)에 따라 챗봇 인용 여부가 결정됩니다.'
     },
     법령: {
-      ic: '📘', tag: 'wiki/statutes/ · 법령 허브', n: '73 법령',
-      desc: '각 법의 <b>허브 페이지</b>(2층). 목차·타법연결 표·처벌 요약을 한 곳에 모아, 그 법의 전체 그림과 다른 법과의 연결을 봅니다. 개념 페이지들의 착지점.',
-      meta: ['70 기준법 + 교차참조'],
-      render: function () {
-        return items([
-          concept('해상교통안전법', '타법연결 12 · 개념 22', '', 'nrya-st-can', ['허브']),
-          concept('수산업법', '타법연결 28 · 개념 19', '', 'nrya-st-can', ['최대 백본']),
-          concept('선박안전법', '타법연결 · 별표 147', '', 'nrya-st-can', []),
-          concept('영해 및 접속수역법', '정의 백본 · 19법이 인용', '', 'nrya-st-can', ['정의 허브'])]);
-      }
+      ic: '📘', tag: 'wiki/statutes/ · 법령 허브',
+      desc: '각 법의 <b>허브 페이지</b>(2층). 목차·타법연결 표·처벌 요약을 한 곳에 모아, 그 법의 전체 그림과 다른 법과의 연결을 봅니다. 개념 페이지들의 착지점.'
     },
     비교허브: {
-      ic: '🔀', tag: 'wiki/comparisons/ · 테마 비교실', n: '26 허브',
-      desc: '여러 법을 <b>하나의 축으로 비교</b>하는 방(신경망 허브). "음주운항 처벌은 법마다 어떻게 다른가" 같은 교차 질문에 답합니다. 톤수·조업형태·지역 조건 컬럼으로 프로필 필터와 연결.',
-      meta: ['교차법 비교', '신경망 허브'],
-      render: function () {
-        return items([
-          concept('음주운항_측정거부', '5개 법 · 0.03% 기준 비교', '', 'nrya-st-can', ['처벌축']),
-          concept('형사절차_일반', '공소시효·미수·경합범', '', 'nrya-st-can', []),
-          concept('신고_허가_면허', '행정행위 강도 3분해', '', 'nrya-st-can', ['조건 컬럼']),
-          concept('폐기물_해양오염', '배출·투기 규제 비교', '', 'nrya-st-can', [])]);
-      }
+      ic: '🔀', tag: 'wiki/comparisons/ · 테마 비교실',
+      desc: '여러 법을 <b>하나의 축으로 비교</b>하는 방(신경망 허브). "음주운항 처벌은 법마다 어떻게 다른가" 같은 교차 질문에 답합니다. 톤수·조업형태·지역 조건 컬럼으로 프로필 필터와 연결.'
     },
     '별표·서식': {
-      ic: '📊', tag: 'wiki/annexes/ · 별표·서식실', n: '98 정리본',
-      desc: '별표(표·기준)와 별지 서식의 <b>정리본</b>. 원문 이미지/HWP를 표로 정리하고, 서식은 원버튼 다운로드를 제공합니다. 이미지 판독 수치는 ⚠REVIEW로 사람 검증 대기.',
-      meta: ['표 정리', '서식 다운로드', '⚠REVIEW 일부'],
-      render: function () {
-        return items([
-          concept('수상레저안전법 시행규칙 별표6', '조종면허 취소·정지 세부기준', '', 'nrya-st-can', ['⬇ 다운로드']),
-          concept('선박안전법 별표1의2', '대행검사기관 협정내용', 'review-pending', 'nrya-st-rev', ['⚠ 판독값']),
-          concept('해상교통안전법 별표1', '교통안전특정해역 좌표', '', 'nrya-st-can', ['🗺 지도'])]);
-      }
+      ic: '📊', tag: 'wiki/annexes/ · 별표·서식실',
+      desc: '별표(표·기준)와 별지 서식의 <b>정리본</b>. 원문 이미지/HWP를 표로 정리하고, 서식은 원버튼 다운로드를 제공합니다. 이미지 판독 수치는 ⚠REVIEW로 사람 검증 대기.'
     },
     지식그래프: {
-      ic: '🕸️', tag: 'wiki/graph.json · 신경망', n: '88 노드 · 1,310 엣지',
-      desc: '법·개념을 <b>노드</b>, 인용·[[링크]]를 <b>엣지</b>로 본 신경망(그래프층). 챗봇 멀티홉 검색이 이 인접구조를 타고 근거를 확장합니다. 관리자는 고립노드·비대칭·허브결손을 눈으로 점검.',
-      meta: ['멀티홉 기반', 'cite+link 639', 'link 395'],
-      render: function () {
-        var g = '<div class="nrya-g-stats"><div class="nrya-g-stat"><div class="nrya-g-num">88</div><div class="nrya-g-lab">노드(법)</div></div><div class="nrya-g-stat"><div class="nrya-g-num">1,310</div><div class="nrya-g-lab">엣지(인용·링크)</div></div></div>';
-        var canvas = '<div class="nrya-g-canvas">';
-        var pos = [[15, 30], [45, 20], [75, 35], [30, 65], [60, 70], [85, 60], [50, 45], [20, 50]];
-        pos.forEach(function (p) { canvas += '<div class="nrya-g-node" style="left:' + p[0] + '%;top:' + p[1] + '%"></div>'; });
-        [[0, 6], [1, 6], [2, 6], [6, 3], [6, 4], [4, 5], [7, 0], [7, 3]].forEach(function (e) {
-          var a = pos[e[0]], b = pos[e[1]]; var dx = (b[0] - a[0]), dy = (b[1] - a[1]); var len = Math.sqrt(dx * dx + dy * dy); var ang = Math.atan2(dy * 1.5, dx * 6) * 180 / Math.PI;
-          canvas += '<div class="nrya-g-edge" style="left:' + a[0] + '%;top:' + a[1] + '%;width:' + len * 5.5 + 'px;transform:rotate(' + ang + 'deg)"></div>';
-        });
-        canvas += '</div>';
-        return '<div class="nrya-list">' + g + canvas + '<div class="nrya-skel-box" style="text-align:left"><div class="nrya-skel-t">그래프 뷰 · 골격</div><div style="font-size:12px;color:var(--nrya-text-sub);line-height:1.6">실배선 시: 노드 탭 → 그 법의 인접 법·개념 하이라이트, 고립노드 빨강 표시, 비대칭 링크 경고. 관리자가 ⚠REVIEW·개정 큐와 연동해 점검.</div></div></div>';
-      }
+      ic: '🕸️', tag: 'wiki/graph.json · 신경망',
+      desc: '법·개념을 <b>노드</b>, 인용·[[링크]]를 <b>엣지</b>로 본 신경망(그래프층). 챗봇 멀티홉 검색이 이 인접구조를 타고 근거를 확장합니다. 아래 목록은 연결이 많은 법부터 — 관리자는 고립노드·허브결손을 여기서 봅니다.'
     }
   };
   var ROOM_ORDER = ['원문', '위키개념', '법령', '비교허브', '별표·서식', '지식그래프'];
   var ROOM_N = { 원문: true, 위키개념: true };
+
+  var roomStats = null;      // GET /api/legal/rooms/stats 결과(방 통계). 못 받았으면 null.
+  var roomPage = {};         // 방마다 지금 보고 있는 쪽(1부터). 방을 다시 열면 그 쪽으로 돌아온다.
+  var curRoom = '원문';      // 지금 열려 있는 방 — 인트로 카드를 다시 칠할 때 쓴다.
+  var roomSeq = 0;           // 목록 요청 일련번호. 쪽·방을 빨리 바꾸면 늦게 온 응답이 최신 화면을
+                             //   덮어써 "3쪽을 눌렀는데 2쪽이 보이는" 일이 생긴다 — 최신 것만 그린다.
+  var ROOM_PAGE_WINDOW = 5;  // 쪽 번호를 한 번에 5개까지만 보인다(사고내역 팝업과 같은 규칙).
+
+  /** 숫자를 1,286 처럼 세 자리마다 끊어 쓴다. @param {number} n @returns {string} */
+  function nfmt(n) { return Number(n || 0).toLocaleString('ko-KR'); }
+
+  /**
+   * 원문 머리말의 시행일(YYYYMMDD)을 화면 표기로 바꾼다. 값이 없으면 지어내지 않는다.
+   * 예: effLabel('20230628') → '2023. 6. 28.' · effLabel('') → ''
+   * @param {string} s - 8자리 숫자 문자열
+   * @returns {string} 8자리가 아니면 '' (호출부가 "확인 안 됨"을 대신 쓴다)
+   * [연계] ← rawRowHTML/lawBodyHTML. 서버 /api/legal/rooms/law 이 .txt 머리말에서 읽어 준 값을 그대로 표시.
+   */
+  function effLabel(s) {
+    var m = /^(\d{4})(\d{2})(\d{2})$/.exec(String(s || ''));
+    return m ? m[1] + '. ' + Number(m[2]) + '. ' + Number(m[3]) + '.' : '';
+  }
+
+  /** 도메인 폴더명을 사람이 읽는 꼴로. 예: '04_선박해운' → '04 선박해운'. @param {string} d @returns {string} */
+  function domLabel(d) { return String(d || '').replace('_', ' '); }
+
+  /** status 값에 맞는 배지 CSS 클래스. @param {string} st @returns {string} */
+  function stClass(st) { return st === 'canonical' ? 'nrya-st-can' : (st === 'review-pending' ? 'nrya-st-rev' : 'nrya-st-draft'); }
+
+  /** 리스트 래퍼. @param {string[]} arr @returns {string} */
+  function items(arr) { return '<div class="nrya-list">' + arr.join('') + '</div>'; }
+
+  /**
+   * 목록 아이템 1개 HTML(개념·법령·비교허브·별표서식·그래프 공용).
+   * 예: itemHTML('음주운항조타', '해상교통안전법', 'canonical', ['처벌 포함'])
+   * @param {string} t - 제목
+   * @param {string} s - 부제(법 이름·수치 요약)
+   * @param {string} st - 오른쪽 배지 글자(없으면 배지를 안 그린다)
+   * @param {string} stc - 배지 CSS 클래스
+   * @param {string[]} [chips] - 파란 칩 목록
+   * @returns {string}
+   * [연계] ← paintRoomList. 서버 /api/legal/rooms/list 가 준 값만 넣는다(지어낸 값 없음).
+   */
+  function itemHTML(t, s, st, stc, chips) {
+    return '<div class="nrya-item"><div class="nrya-item-b"><div class="nrya-item-t">' + esc(t) + '</div><div class="nrya-item-s">' + esc(s) + '</div>' +
+      (chips && chips.length ? '<div class="nrya-chips">' + chips.map(function (c) { return '<span class="nrya-chip">' + esc(c) + '</span>'; }).join('') + '</div>' : '') +
+      '</div>' + (st ? '<span class="nrya-stbadge ' + stc + '">' + esc(st) + '</span>' : '') + '</div>';
+  }
 
   // ============================================================================
   // 관리자 검토 데이터 모델 (5개 서브탭 전부 서버 연동 — 배지: refreshAdminStats/refreshStats,
@@ -435,6 +435,7 @@
 
     // 서버에서 노출설정·통계를 받아 토글/배지 갱신
     fetchConfig();
+    refreshRoomStats();   // 지식 방 갈래 버튼 6개 숫자·인트로 칩(실데이터)
     refreshStats();
     refreshAdminStats();
   }
@@ -522,35 +523,214 @@
     }).catch(function (e) { segError('네트워크 오류: ' + String(e && e.message || e)); });
   }
 
-  /** 방 pill 목록을 그린다(활성 방 표시 + N 배지). @param {string} active */
+  /**
+   * 갈래 버튼(방 pill) 6개의 숫자를 서버 통계에서 만든다. 아직 못 받았으면 '…'.
+   * 예: roomCount('위키개념') → '963' · roomCount('원문') → '70법'
+   * @param {string} k - 방 이름
+   * @returns {string} 버튼에 찍을 짧은 숫자
+   * [연계] ← renderRoomPills. → roomStats(GET /api/legal/rooms/stats). 상수 금지 — 못 받으면 '…'.
+   */
+  function roomCount(k) {
+    var s = roomStats; if (!s) return '…';
+    if (k === '원문') return nfmt(s.raw.laws) + '법';
+    if (k === '지식그래프') return nfmt(s.graph.nodes) + '노드';
+    var m = { 위키개념: 'concept', 법령: 'statute', 비교허브: 'comparison', '별표·서식': 'annex' }[k];
+    return m ? nfmt(s[m].total) : '…';
+  }
+
+  /**
+   * 인트로 카드 아래 회색 칩 목록을 서버 통계로 만든다(옛 하드코딩 meta 배열을 대체).
+   * 예: roomChips('위키개념') → ['canonical 734', 'review-pending 3', 'draft 226']
+   * @param {string} k - 방 이름
+   * @returns {string[]} 통계를 못 받았으면 설명 칩만
+   * [연계] ← renderRoom. → roomStats. status 칩은 **서버가 실제로 센 키만** 그린다(없는 키를 0으로 지어내지 않음).
+   */
+  function roomChips(k) {
+    var s = roomStats;
+    if (!s) return ['숫자 불러오는 중…'];
+    var ST = ['canonical', 'review-pending', 'draft'];
+    var statusChips = function (o) { return ST.filter(function (x) { return o[x]; }).map(function (x) { return x + ' ' + nfmt(o[x]); }); };
+    if (k === '원문') return ['불변', nfmt(s.raw.domains) + ' 도메인', '원문 ' + nfmt(s.raw.txtFiles) + '건', '별표·고시 포함'];
+    if (k === '위키개념') return statusChips(s.concept.status);
+    if (k === '법령') return ['기준법 ' + nfmt(s.statute.inRaw), '타부처 ' + nfmt(s.statute.notInRaw)].concat(statusChips(s.statute.status));
+    if (k === '비교허브') return ['교차법 비교'].concat(statusChips(s.comparison.status));
+    if (k === '별표·서식') return statusChips(s.annex.status);
+    if (k === '지식그래프') {
+      return ['엣지 ' + nfmt(s.graph.edges)].concat(Object.keys(s.graph.kinds).sort().map(function (x) { return x + ' ' + nfmt(s.graph.kinds[x]); }));
+    }
+    return [];
+  }
+
+  /**
+   * 서버에서 방 통계를 받아 갈래 버튼·인트로 칩을 다시 그린다.
+   * [연계] → GET /api/legal/rooms/stats(관리자 토큰 필요). ← renderAdminInto(콘솔을 열 때 1회).
+   *          실패해도 화면은 '…' 인 채로 살아 있게 둔다 — 숫자를 지어내지 않는다.
+   */
+  function refreshRoomStats() {
+    return legalGet('/api/legal/rooms/stats').then(function (res) {
+      return res.json().catch(function () { return null; });
+    }).then(function (d) {
+      if (!d || !d.ok) return;
+      roomStats = d;
+      if (document.getElementById('nryaRoomPills')) { renderRoomPills(curRoom); paintRoomIntro(curRoom); }
+    }).catch(function () { /* 숫자는 '…' 로 남는다 */ });
+  }
+
+  /** 방 pill 목록을 그린다(활성 방 표시 + 실데이터 N + N 배지). @param {string} active */
   function renderRoomPills(active) {
     var el = document.getElementById('nryaRoomPills'); if (!el) return; el.innerHTML = '';
     ROOM_ORDER.forEach(function (k) {
-      var r = ROOMS[k];
       var b = document.createElement('div'); b.className = 'nrya-room' + (k === active ? ' nrya-active' : '');
-      b.innerHTML = esc(k) + '<span class="nrya-cnt">' + esc(r.n.split(' ')[0]) + '</span>' + (ROOM_N[k] ? '<span class="nrya-new-badge">N</span>' : '');
+      b.innerHTML = esc(k) + '<span class="nrya-cnt">' + esc(roomCount(k)) + '</span>' + (ROOM_N[k] ? '<span class="nrya-new-badge">N</span>' : '');
       b.addEventListener('click', function () { renderRoomPills(k); renderRoom(k); });
       el.appendChild(b);
     });
   }
 
-  /** 선택한 방의 인트로 카드 + 대표 내용을 그린다. @param {string} k 방 이름 */
+  /** 인트로 카드(설명 + 실데이터 칩)만 다시 그린다. @param {string} k 방 이름 */
+  function paintRoomIntro(k) {
+    var host = document.getElementById('nryaRoomIntro'); if (!host || !ROOMS[k]) return;
+    var r = ROOMS[k];
+    host.innerHTML = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">' + r.ic + '</div><div><div class="nrya-intro-name">' + esc(k) + ' 방</div><div class="nrya-intro-tag">' + esc(r.tag) + '</div></div></div>' +
+      '<div class="nrya-intro-desc">' + r.desc + '</div><div class="nrya-intro-meta">' +
+      roomChips(k).map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('') + '</div></div>';
+  }
+
+  /**
+   * 선택한 방을 그린다 — 인트로 카드 + (서버에서 받은) 목록 + 쪽 이동 단추.
+   * 목록은 여기서 그리지 않고 loadRoomList 가 서버 응답을 받아 채운다.
+   * @param {string} k - 방 이름
+   * [연계] ← renderRoomPills 클릭 · renderAdminInto 초기 렌더. → loadRoomList.
+   */
   function renderRoom(k) {
-    var r = ROOMS[k]; var host = document.getElementById('nryaRoomContent'); if (!host) return;
-    var intro = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">' + r.ic + '</div><div><div class="nrya-intro-name">' + esc(k) + ' 방</div><div class="nrya-intro-tag">' + esc(r.tag) + '</div></div></div>' +
-      '<div class="nrya-intro-desc">' + r.desc + '</div><div class="nrya-intro-meta">' + r.meta.map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('') + '</div></div>';
-    // ⚠2026-09-09: 종전 문구는 "실제 데이터는 해당 방 폴더에서 로드됩니다" 였는데, **로드하는 코드가
-    //   없다.** 위 갈래 버튼 숫자도 아래 목록도 전부 ROOMS 에 박아 넣은 상수이고, 그 값은
-    //   client/mockups/ai_chat_rooms.html 의 디자인 시안을 그대로 옮긴 것이다.
-    //   실제와 크게 어긋난다(2026-09-09 실측): 위키개념 919↔963 · 비교허브 26↔49 ·
-    //   별표서식 98↔199 · 그래프 88노드/1,310엣지↔109노드/2,180엣지 ·
-    //   개념 status canonical 8↔734 · draft 842↔226.
-    //   특히 **시행일자가 위험하다** — 선박안전법 화면 2025-01-24 ↔ 원문 2023-06-28,
-    //   수산업법 2024-12-20 ↔ 2026-04-23, 해양환경관리법 2025-07-25 ↔ 2026-07-01,
-    //   수상레저안전법 2024-07-31 ↔ 2025-06-21. 관리자가 이 화면을 보고 원문 최신판을
-    //   오인할 수 있다. 실데이터 API 가 붙기 전까지는 **예시임을 분명히 말한다.**
-    host.innerHTML = intro + r.render() + '<div class="nrya-foot-note">⚠ 위 숫자와 아래 목록은 <b>화면 설계 예시</b>입니다 — 실제 데이터가 아니며 시행일자도 실제와 다릅니다.</div>';
-    bindAcc();
+    var host = document.getElementById('nryaRoomContent'); if (!host || !ROOMS[k]) return;
+    curRoom = k;
+    host.innerHTML = '<div id="nryaRoomIntro"></div><div id="nryaRoomBody"></div>';
+    paintRoomIntro(k);
+    loadRoomList(k, roomPage[k] || 1);
+  }
+
+  /**
+   * 방 목록 한 쪽(10개)을 서버에서 받아 그린다.
+   * 예: loadRoomList('위키개념', 3) → GET /api/legal/rooms/list?room=concept&page=3
+   * @param {string} k - 방 이름
+   * @param {number} page - 1부터 세는 쪽 번호
+   * [연계] → GET /api/legal/rooms/list. ← renderRoom · 쪽 이동 단추. 늦게 온 응답은 curRoom 으로 걸러 버린다.
+   */
+  function loadRoomList(k, page) {
+    roomPage[k] = page;
+    var seq = ++roomSeq;
+    var body = document.getElementById('nryaRoomBody'); if (!body) return;
+    body.innerHTML = '<div class="nrya-list"><div class="nrya-notice-box"><span class="nrya-em">⏳</span>목록을 불러오는 중…</div></div>';
+    legalGet('/api/legal/rooms/list?room=' + ROOM_KEY[k] + '&page=' + page).then(function (res) {
+      if (res.status === 401 || res.status === 403) return { _denied: true };
+      return res.json().catch(function () { return null; });
+    }).then(function (d) {
+      if (seq !== roomSeq) return;                                // 더 최근 요청이 있으면 이 응답은 버린다
+      var b = document.getElementById('nryaRoomBody'); if (!b) return;
+      if (d && d._denied) { b.innerHTML = adminLockHTML(); return; }
+      if (!d || !d.ok) { b.innerHTML = roomErrHTML((d && d.error) || '목록을 불러오지 못했습니다.'); return; }
+      roomPage[k] = d.page;   // 범위 밖 쪽을 서버가 당겨 줬으면 그 값으로 맞춘다
+      paintRoomList(b, k, d);
+    }).catch(function (e) {
+      if (seq !== roomSeq) return;
+      var b = document.getElementById('nryaRoomBody');
+      if (b) b.innerHTML = roomErrHTML('네트워크 오류: ' + String(e && e.message || e));
+    });
+  }
+
+  /** 목록을 못 불러왔을 때의 안내(숫자를 지어내지 않고 사실만 적는다). @param {string} msg @returns {string} */
+  function roomErrHTML(msg) {
+    return '<div class="nrya-list"><div class="nrya-notice-box"><span class="nrya-em">⚠</span>' + esc(msg) + '</div></div>';
+  }
+
+  /**
+   * 받은 한 쪽을 실제 DOM 으로 그린다(목록 10줄 + 쪽 이동 단추 + "N / M쪽 · 모두 K건").
+   * @param {HTMLElement} host - #nryaRoomBody
+   * @param {string} k - 방 이름
+   * @param {object} d - 서버 응답 {items,page,pages,total,perPage}
+   * [연계] ← loadRoomList. → rawRowHTML/listRowHTML · roomPagerHTML · bindRoomPager · bindLawAcc.
+   */
+  function paintRoomList(host, k, d) {
+    var rows = (d.items || []).map(k === '원문' ? rawRowHTML : function (it) { return listRowHTML(k, it); });
+    host.innerHTML = items(rows.length ? rows : ['<div class="nrya-notice-box"><span class="nrya-em">🔎</span>이 방에 항목이 없습니다.</div>']) +
+      roomPagerHTML(d);
+    bindRoomPager(host, k);
+    if (k === '원문') bindLawAcc(host);
+  }
+
+  /**
+   * 원문 방 한 줄 — 법 하나의 아코디언 머리(펼치면 계층 원문·별표·고시를 그때 불러온다).
+   * @param {object} l - {name, dir, domain, ministry, eff}
+   * @returns {string}
+   * [연계] ← paintRoomList. → bindLawAcc(펼침) · GET /api/legal/rooms/law.
+   */
+  function rawRowHTML(l) {
+    var eff = effLabel(l.eff);
+    return '<div class="nrya-acc" data-dir="' + esc(l.dir) + '"><div class="nrya-acc-head"><div style="flex:1;min-width:0">' +
+      '<div class="nrya-acc-name">' + esc(l.name) + '</div>' +
+      '<div class="nrya-acc-dom">' + esc(domLabel(l.domain) + (l.ministry ? ' · ' + l.ministry : '')) + '</div></div>' +
+      '<div class="nrya-eff"><span class="nrya-lbl">시행</span>' + (eff || '확인 안 됨') + '</div>' +
+      '<div class="nrya-chev">▼</div></div><div class="nrya-acc-body"></div></div>';
+  }
+
+  /**
+   * 원문 말고 다섯 방의 한 줄. 방마다 부제에 쓰는 수치가 다르다(전부 서버가 센 값).
+   * @param {string} k - 방 이름
+   * @param {object} it - 서버 응답 items[i]
+   * @returns {string}
+   * [연계] ← paintRoomList. → itemHTML.
+   */
+  function listRowHTML(k, it) {
+    if (k === '지식그래프') {
+      return itemHTML(it.title, '위키 ' + nfmt(it.pages) + '쪽 · 나가는 링크 ' + nfmt(it.out) + ' · 들어오는 링크 ' + nfmt(it.in),
+        '연결 ' + nfmt(it.degree), 'nrya-st-draft', []);
+    }
+    var chips = [];
+    if (it.penalty) chips.push('처벌 포함');
+    if (it.byls) chips.push('별표 ' + nfmt(it.byls));
+    var sub;
+    if (k === '법령') sub = '개념 ' + nfmt(it.concepts) + ' · 타법연결 ' + nfmt(it.xlaw) + ' · 링크 ' + nfmt(it.links);
+    else if (k === '비교허브') sub = '다루는 법 ' + nfmt(it.xlaw) + ' · 링크 ' + nfmt(it.links);
+    else sub = it.law || '';
+    return itemHTML(it.title, sub, it.status, stClass(it.status), chips);
+  }
+
+  /**
+   * 쪽 이동 단추 — « ‹ 1 2 3 4 5 › » (쪽 번호는 5개까지, 현재 쪽 주위로 따라 움직인다).
+   * 사고내역 팝업(accident_info.js buildWarnDetailPager)과 **같은 방식**을 따른다.
+   * 예: 97쪽 중 1쪽 → « ‹ 가 disabled, 1 2 3 4 5 › » + '1 / 97쪽 · 모두 963건'
+   * @param {object} d - 서버 응답 {page,pages,total}
+   * @returns {string} 한 쪽뿐이면 단추 없이 건수만
+   * [연계] ← paintRoomList. → bindRoomPager(클릭 처리).
+   */
+  function roomPagerHTML(d) {
+    var note = '<div class="nrya-pagenote">' + nfmt(d.page) + ' / ' + nfmt(d.pages) + '쪽 · 모두 ' + nfmt(d.total) + '건</div>';
+    if (d.pages <= 1) return note;
+    var from = Math.max(1, Math.min(d.page - Math.floor(ROOM_PAGE_WINDOW / 2), d.pages - ROOM_PAGE_WINDOW + 1));
+    var to = Math.min(d.pages, from + ROOM_PAGE_WINDOW - 1);
+    var nums = '';
+    for (var i = from; i <= to; i++) {
+      nums += '<button type="button" class="n' + (i === d.page ? ' on' : '') + '" data-rpage="' + i + '">' + i + '</button>';
+    }
+    var edge = function (p, label, aria, off) {
+      return '<button type="button" class="e" data-rpage="' + p + '"' + (off ? ' disabled' : '') + ' aria-label="' + aria + '">' + label + '</button>';
+    };
+    var first = d.page === 1, last = d.page === d.pages;
+    return '<div class="nrya-pager">' +
+      edge(1, '&laquo;', '첫 쪽', first) + edge(d.page - 1, '&lsaquo;', '이전 쪽', first) + nums +
+      edge(d.page + 1, '&rsaquo;', '다음 쪽', last) + edge(d.pages, '&raquo;', '마지막 쪽', last) +
+      '</div>' + note;
+  }
+
+  /** 쪽 단추 클릭 → 그 쪽을 서버에서 다시 받아 그린다. @param {HTMLElement} host @param {string} k */
+  function bindRoomPager(host, k) {
+    host.querySelectorAll('.nrya-pager button[data-rpage]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (b.disabled) return;
+        loadRoomList(k, parseInt(b.dataset.rpage, 10) || 1);
+      });
+    });
   }
 
   // 서브탭 배지가 참조할 adminStatsCache 필드명(⚠수치검증은 statsCache.pending을 따로 씀)
@@ -597,11 +777,88 @@
     }
   }
 
-  // ── 지식 방 아코디언 바인딩 ──
-  function bindAcc() {
-    var host = document.getElementById('nryaRoomContent'); if (!host) return;
-    host.querySelectorAll('.nrya-acc-head').forEach(function (h) {
-      h.onclick = function () { h.parentElement.classList.toggle('nrya-open'); };
+  // ── 원문 방 아코디언 — 펼칠 때 그 법의 계층 원문·별표·고시를 서버에서 그때 받아 채운다 ──
+
+  /**
+   * 법 목록의 아코디언 머리에 클릭을 걸고, 처음 펼칠 때 한 번만 내용을 불러온다.
+   * (70법치를 미리 다 읽지 않기 위해 지연 로딩 — 한 법에 별표가 147건인 경우도 있다)
+   * @param {HTMLElement} host - 목록을 담은 #nryaRoomBody
+   * [연계] ← paintRoomList(원문 방). → GET /api/legal/rooms/law · lawBodyHTML.
+   */
+  function bindLawAcc(host) {
+    host.querySelectorAll('.nrya-acc').forEach(function (acc) {
+      var head = acc.querySelector('.nrya-acc-head'); if (!head) return;
+      head.onclick = function () {
+        var opened = acc.classList.toggle('nrya-open');
+        var body = acc.querySelector('.nrya-acc-body');
+        if (!opened || !body || body.dataset.state) return;        // 이미 불렀거나 부르는 중이면 그대로
+        body.dataset.state = 'loading';
+        body.innerHTML = '<div class="nrya-file"><div class="nrya-file-nm">원문 목록을 불러오는 중…</div></div>';
+        legalGet('/api/legal/rooms/law?dir=' + encodeURIComponent(acc.dataset.dir)).then(function (res) {
+          if (res.status === 401 || res.status === 403) return { _denied: true };
+          return res.json().catch(function () { return null; });
+        }).then(function (d) {
+          if (d && d._denied) { body.innerHTML = adminLockHTML(); body.dataset.state = ''; return; }
+          if (!d || !d.ok) { body.innerHTML = '<div class="nrya-file"><div class="nrya-file-nm">' + esc((d && d.error) || '불러오지 못했습니다.') + '</div></div>'; body.dataset.state = ''; return; }
+          body.innerHTML = lawBodyHTML(d);
+          body.dataset.state = 'loaded';
+          bindLawDl(body);
+        }).catch(function (e) {
+          body.innerHTML = '<div class="nrya-file"><div class="nrya-file-nm">네트워크 오류: ' + esc(String(e && e.message || e)) + '</div></div>';
+          body.dataset.state = '';
+        });
+      };
+    });
+  }
+
+  /**
+   * 펼친 법 하나의 내용 HTML — 계층 원문(실제 시행일)·별표/별지 서식·고시(행정규칙).
+   * ★시행일은 서버가 각 .txt 머리말에서 읽은 값이다. 없으면 '확인 안 됨' — 지어내지 않는다.
+   * @param {object} d - GET /api/legal/rooms/law 응답
+   * @returns {string}
+   * [연계] ← bindLawAcc. 링크는 /api/legal/src(우리 raw 원문)와 law.go.kr 원본(HWP·이미지).
+   */
+  function lawBodyHTML(d) {
+    var files = (d.files || []).map(function (f) {
+      return '<a class="nrya-file" href="' + esc(f.src) + '" target="_blank" rel="noopener">' +
+        '<div class="nrya-file-ic' + (f.ic === '법' ? '' : ' nrya-rule') + '">' + esc(f.ic) + '</div>' +
+        '<div class="nrya-file-nm">' + esc(f.label) + (f.amd ? '<span class="nrya-file-amd">· ' + esc(f.amd) + '</span>' : '') + '</div>' +
+        '<div class="nrya-file-eff">' + (f.eff ? '시행 ' + effLabel(f.eff) : '시행일 확인 안 됨') + '</div></a>';
+    }).join('') || '<div class="nrya-file"><div class="nrya-file-nm">계층 원문 파일이 없습니다.</div></div>';
+
+    var byls = (d.byls || []).map(function (b) {
+      var dl = [];
+      if (b.src) dl.push('<a href="' + esc(b.src) + '" target="_blank" rel="noopener">📄 본문(텍스트)</a>');
+      if (b.hwp) dl.push('<a href="' + esc(b.hwp) + '" data-dl="1">⬇ HWP 원본</a>');
+      if (b.pdf) dl.push('<a href="' + esc(b.pdf) + '" data-dl="1">⬇ PDF</a>');
+      if (b.img) dl.push('<a href="' + esc(b.img) + '" data-dl="1" class="nrya-img">🖼 이미지</a>');
+      return '<div class="nrya-byl"><span class="nrya-byl-no">' + esc(b.badge) + '</span><div style="flex:1">' +
+        '<div class="nrya-byl-nm">' + esc(b.title || '(제목 확인 안 됨)') + '</div>' +
+        (dl.length ? '<div class="nrya-dl">' + dl.join('') + '</div>' : '') + '</div></div>';
+    }).join('');
+
+    // 고시 머리말에 시행일이 적힌 것은 738건 중 203건뿐이다(2026-09-09 실측) — 없으면 **빈칸으로 둔다**.
+    var adms = (d.admruls || []).map(function (a) {
+      return '<div class="nrya-byl"><span class="nrya-byl-no">고시</span><div style="flex:1">' +
+        '<div class="nrya-byl-nm">' + esc(a.title) +
+        (a.eff ? '<span class="nrya-file-amd">· 시행 ' + effLabel(a.eff) + '</span>' : '') + '</div>' +
+        '<div class="nrya-dl"><a href="' + esc(a.src) + '" target="_blank" rel="noopener">📄 본문(텍스트)</a></div>' +
+        '</div></div>';
+    }).join('');
+
+    return files +
+      '<div class="nrya-acc-scroll">' +
+      '<div class="nrya-byl-title">별표 · 별지 서식 (' + nfmt((d.byls || []).length) + '건)</div>' +
+      (byls || '<div class="nrya-byl"><div class="nrya-byl-nm">수집된 별표·서식이 없습니다.</div></div>') +
+      '<div class="nrya-byl-title">고시 · 행정규칙 (' + nfmt((d.admruls || []).length) + '건)</div>' +
+      (adms || '<div class="nrya-byl"><div class="nrya-byl-nm">수집된 고시가 없습니다.</div></div>') +
+      '</div>';
+  }
+
+  /** law.go.kr 원본(HWP·PDF·이미지) 링크는 앱 웹뷰에서도 열리도록 openDownloadUrl 로 넘긴다. @param {HTMLElement} body */
+  function bindLawDl(body) {
+    body.querySelectorAll('a[data-dl]').forEach(function (a) {
+      a.addEventListener('click', function (e) { e.preventDefault(); openDownloadUrl(a.href); });
     });
   }
 

@@ -110,6 +110,23 @@
 .nrya-console .nrya-dl{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
 .nrya-console .nrya-dl a{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:600; text-decoration:none; color:#8bb6ff; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.25); border-radius:14px; padding:3px 9px}
 .nrya-console .nrya-dl a.nrya-img{color:#69f0ae; background:rgba(105,240,174,.08); border-color:rgba(105,240,174,.25)}
+/* 계층 원문 줄은 원문 파일로 가는 링크다 — a 로 바꿔도 위 .nrya-file 배치를 그대로 쓴다 */
+.nrya-console a.nrya-file{text-decoration:none; color:inherit}
+/* 별표가 147건인 법도 있어(선박안전법) 아코디언 몸통 안에서 따로 스크롤시킨다 */
+.nrya-console .nrya-acc-scroll{max-height:520px; overflow-y:auto; margin-top:4px}
+
+/* 쪽 이동 « ‹ 1 2 3 4 5 › » — 사고내역 팝업(.ash-d-pager)과 같은 방식·같은 결 */
+.nrya-console .nrya-pager{display:flex; align-items:center; justify-content:center; gap:4px; margin-top:12px; flex-wrap:wrap}
+.nrya-console .nrya-pager button{
+  border:1px solid var(--nrya-border); background:rgba(255,255,255,.05); color:#c6d4e6;
+  border-radius:8px; min-width:30px; padding:6px 5px;
+  font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer;
+  font-variant-numeric:tabular-nums;
+}
+.nrya-console .nrya-pager button:disabled{opacity:.3; cursor:default}
+.nrya-console .nrya-pager button.e{color:var(--nrya-text-sub)}
+.nrya-console .nrya-pager button.n.on{background:var(--nrya-accent-blue); border-color:var(--nrya-accent-blue); color:#04122e}
+.nrya-console .nrya-pagenote{margin-top:7px; text-align:center; font-size:11px; color:var(--nrya-text-sub); font-weight:600; font-variant-numeric:tabular-nums; padding-bottom:6px}
 
 /* 일반 리스트 아이템 */
 .nrya-console .nrya-item{display:flex; align-items:center; gap:10px; padding:12px 13px; border-radius:11px; background:var(--nrya-card-bg); border:1px solid var(--nrya-border); cursor:pointer}
