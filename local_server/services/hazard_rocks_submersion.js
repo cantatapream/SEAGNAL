@@ -44,6 +44,7 @@ const TFC = require('./tide_field_common');
 const TFCollector = require('./tide_field_collector');
 const HRC = require('./hazard_rocks_tide_common');
 const HRCollector = require('./hazard_rocks_tide_collector');
+const PrevPeaks = require('./hazard_rocks_prev_peaks');
 
 const HAZARD_ROCKS_JSON = path.join(__dirname, '..', '..', 'client', 'hazard_rocks.json');
 const SUBMERSION_PATH = path.join(HRC.HAZARD_ROCKS_TIDE_DIR, 'submersion.json');
@@ -542,6 +543,108 @@ function buildEastSeaDayCurve(lat, lon, dates, dayIdx) {
     return { samples: samples.length ? samples : null, peaks };
 }
 
+/** 어제 극값을 섞을 때 "같은 물때"로 볼 시간 폭(분).
+ *  물때는 지점이 달라도 한 시간 남짓 안에 나타나므로 90분을 넘으면 다른 물때로 본다. */
+const PREV_CLUSTER_GAP_MIN = 90;
+
+/**
+ * 여러 지점의 극값을 "같은 물때끼리" 묶어 거리 가중(IDW)으로 하나씩 만든다.
+ * 예: 강양항 12:20 저조 · 해운대 12:57 저조 · 울산 12:17 저조 → 저조 1개로 합침
+ * @param {Array<{m:number,cm:number,type:string,w:number,near:boolean}>} entries
+ *   m=0~1439분, cm=조위, type='high'|'low', w=가중치(1/거리²), near=가장 가까운 지점인가
+ * @returns {Array<{m:number,cm:number,type:'high'|'low'}>} 시각순으로 합쳐진 극값
+ * [연계] ← stationExtremaOfDay() · anchorPrevExtrema() — 둘이 같은 규칙을 쓰게 하려고 뺐다.
+ *   ⚠번호(1번 저조·2번 저조)로 짝지으면 안 된다 — 지점마다 그날 저조 개수가 달라서
+ *     "해운대 00:39 저조"와 "강양항 12:20 저조"가 같은 1번으로 묶여 07:38 같은 엉뚱한
+ *     값이 나온다(2026-09-09 실제 자료로 확인). 그래서 시각으로 묶는다.
+ *   ⚠가장 가까운 지점에 없는 물때는 버린다 — 그 지역엔 없는 물때이기 때문이다.
+ */
+function blendExtremaByTime(entries) {
+    const sorted = entries.slice().sort((a, b) => a.m - b.m);
+    const groups = [];
+    for (const e of sorted) {
+        const g = groups[groups.length - 1];
+        if (g && g.type === e.type && (e.m - g.lastM) <= PREV_CLUSTER_GAP_MIN) {
+            g.items.push(e); g.lastM = e.m;
+        } else {
+            groups.push({ type: e.type, lastM: e.m, items: [e] });
+        }
+    }
+    const out = [];
+    for (const g of groups) {
+        if (!g.items.some(x => x.near)) continue;   // 가장 가까운 지점에 없는 물때는 제외
+        let wsum = 0, msum = 0, csum = 0;
+        for (const it of g.items) { wsum += it.w; msum += it.w * it.m; csum += it.w * it.cm; }
+        if (wsum > 0) out.push({ m: Math.round(msum / wsum), cm: Math.round((csum / wsum) * 10) / 10, type: g.type });
+    }
+    return out.sort((a, b) => a.m - b.m);
+}
+
+/**
+ * 표준항 연간 조석표에서 그 날짜의 극값(고조/저조)을 구한다 — 동해 경로 전용.
+ * 예: stationExtremaOfDay(35.28, 129.26, 20260909) → [{m:413,cm:65,type:'high'}, ...]
+ * @param {number} lat - 위도
+ * @param {number} lon - 경도
+ * @param {number} ymd - 날짜(YYYYMMDD)
+ * @returns {Array<{m:number,cm:number,type:'high'|'low'}>} 그날 극값(시각순, m=0~1439분)
+ * [연계] ← getTideCurve — day=0 일 때 "어제 마지막 극값"을 구하려고 어제 날짜로 부른다.
+ *   동해는 앵커 곡선을 수집하지 않고 연간 조석표로 계산하므로, 어제도 저장 없이 바로 구해진다.
+ *   종류(고조/저조)는 이웃과 비교하지 않고 조석표의 칸 이름(highTide/lowTide)에서 그대로 가져온다.
+ */
+function stationExtremaOfDay(lat, lon, ymd) {
+    const scored = findNearestStationsWithData(lat, lon, ymd, 3);
+    if (!scored.length) return [];
+    const entries = [];
+    scored.forEach((sc, idx) => {
+        const w = sc.distKm < 0.1 ? 1e6 : 1 / (sc.distKm * sc.distKm);
+        for (const kind of ['highTide', 'lowTide']) {
+            for (let i = 1; i <= 4; i++) {
+                const t = sc.row[`${kind}${i}Time`], v = sc.row[`${kind}${i}Level`];
+                if (t === undefined || v === undefined) continue;
+                const m = timeToMinutes(t);
+                if (m == null || isNaN(m)) continue;
+                entries.push({ m, cm: Math.round(Number(v)), type: kind === 'highTide' ? 'high' : 'low', w, near: idx === 0 });
+            }
+        }
+    });
+    return blendExtremaByTime(entries);
+}
+
+/**
+ * 저장해 둔 어제 극값(앵커별)을 거리 가중(IDW)으로 섞어 암초 위치의 극값으로 만든다.
+ * 예: anchorPrevExtrema(refs, 20260908) → [{m:90,cm:77,type:'low'}, ...]
+ * @param {Array<{id:string,distKm:number}>} refs - 가까운 앵커 목록(거리 오름차순)
+ * @param {number} ymd - 날짜(YYYYMMDD)
+ * @returns {Array<{m:number,cm:number,type:'high'|'low'}>} 섞은 극값(시각순)
+ * [연계] ← getTideCurve — 서해·남해·제주 경로에서 "어제 마지막 극값"을 구할 때.
+ *   → services/hazard_rocks_prev_peaks.js 가 수집 때 남겨 둔 요약을 읽는다.
+ *   ⚠오늘 극값은 "곡선을 먼저 섞고 극값을 찾는" 순서인데 여기는 "극값을 먼저 찾고 섞는"
+ *     순서다(어제 곡선을 통째로 보관하지 않기로 한 결정에 따른 것). 그래서 어제 값은
+ *     오늘 값과 수 cm 차이가 날 수 있다.
+ */
+function anchorPrevExtrema(refs, ymd) {
+    const table = PrevPeaks.load(ymd);
+    const entries = [];
+    (refs || []).forEach((r, idx) => {
+        const ex = table[r.id];
+        if (!Array.isArray(ex) || !ex.length) return;
+        const w = r.distKm < 0.1 ? 1e6 : 1 / (r.distKm * r.distKm);
+        for (const e of ex) {
+            const m = timeToMinutes(e.t);
+            if (m == null || isNaN(m) || e.cm == null) continue;
+            entries.push({ m, cm: e.cm, type: e.type, w, near: idx === 0 });
+        }
+    });
+    if (!entries.length) return [];
+    // refs[0](가장 가까운 앵커)의 극값이 요약에 없을 수 있으므로, near 가 하나도 없으면
+    //   가장 앞선 앵커를 기준으로 다시 표시한다(그래야 전부 버려지지 않는다).
+    if (!entries.some(e => e.near)) {
+        const firstW = entries[0].w;
+        entries.forEach(e => { if (e.w === firstW) e.near = true; });
+    }
+    return blendExtremaByTime(entries);
+}
+
 /**
  * 간출암 1개의 하루치(dayOffset=0 오늘·1 내일·2 모레) 조석 곡선 + 극값 + 잠김
  * 기준선(VALSOU)을 반환 — 마커 팝업 차트용. computeAllCrossings 와 달리 요청
@@ -549,7 +652,12 @@ function buildEastSeaDayCurve(lat, lon, dates, dayIdx) {
  * @returns {{ready:boolean, reason?:string, date?:number, region?:string,
  *   valsouCm?:number, points?:Array<{t:string,cm:number}>,
  *   peaks?:Array<{t:string,cm:number,type:'high'|'low'}>,
+ *   prevPeaks?:Array<{t:string,cm:number,type:'high'|'low'}>,
  *   submergedAt?:Array<string>}}
+ *   prevPeaks 는 day=0 일 때만 채운다 — 그날 첫 물때의 "직전 대비 증감"을 계산하려면
+ *   어제 마지막 극값이 필요한데, 어제 곡선 파일은 매일 밤 지워지기 때문이다.
+ *   동해는 연간 조석표로 그 자리에서 구하고(저장 0), 그 밖 해역은 수집 때 남겨 둔
+ *   극값 요약(services/hazard_rocks_prev_peaks.js)에서 읽는다.
  */
 function getTideCurve(rockId, dayOffset) {
     const day = Math.max(0, Math.min(2, Number(dayOffset) || 0));
@@ -563,11 +671,11 @@ function getTideCurve(rockId, dayOffset) {
     if (day >= dates.length) return { ready: false, reason: 'out_of_window' };
     const targetCm = rock.v * 100;
 
-    let samples = null, peaks = [];
+    let samples = null, peaks = [], refs = null;
     if (region === 'westsouth' || region === 'jeju') {
         const anchors = region === 'westsouth' ? (TFCollector.loadAnchors() || []) : (HRCollector.loadAnchors() || []);
         const curvePathFn = region === 'westsouth' ? TFCollector.curvePath : HRCollector.curvePath;
-        const refs = nearestRefs(rock.lat, rock.lon, anchors);
+        refs = nearestRefs(rock.lat, rock.lon, anchors);
         if (!refs.length) return { ready: false, reason: 'no_curve_data' };
         samples = buildAnchorDayCurve(refs, curvePathFn, dates[day]);
         if (samples) peaks = findLocalExtrema(samples);
@@ -576,6 +684,19 @@ function getTideCurve(rockId, dayOffset) {
         samples = r.samples; peaks = r.peaks;
     }
     if (!samples) return { ready: false, reason: 'no_curve_data' };
+
+    // [어제 극값] "오늘" 화면에서만 필요하다 — 내일·모레 화면은 앞날(오늘·내일)을 이미
+    //   캐시에 갖고 있어 화면 쪽에서 해결된다(client hazard_rocks.js prefetchAllTideDays).
+    //   실패해도 오늘 곡선은 그대로 내보낸다(어제 값만 빈 배열).
+    let prevPeaks = [];
+    if (day === 0) {
+        try {
+            const prevYmd = addDaysToYmd(dates[0], -1);
+            prevPeaks = region === 'eastsea'
+                ? stationExtremaOfDay(rock.lat, rock.lon, prevYmd)
+                : anchorPrevExtrema(refs, prevYmd);
+        } catch (e) { prevPeaks = []; }
+    }
 
     let submergedAt = [];
     try {
@@ -599,6 +720,10 @@ function getTideCurve(rockId, dayOffset) {
         valsouCm: Math.round(targetCm * 10) / 10,
         points: samples.map(s => ({ t: minutesToHHMM(s.m), cm: s.cm })),
         peaks: peaks.map(p => ({ t: minutesToHHMM(p.m), cm: p.cm, type: p.type })),
+        // 어제 극값 — 시각은 "어제 자신의 00:00~23:59" 로 준다.
+        //   화면 쪽이 스스로 하루를 빼서(p.m - 1440) 앞날로 밀기 때문에 여기서 음수로 주면 이틀이 밀린다.
+        //   [연계] client/js/marine-life/safety/hazard_rocks.js renderTideCurveDay → renderBottomTideCard
+        prevPeaks: prevPeaks.map(p => ({ t: minutesToHHMM(p.m), cm: p.cm, type: p.type })),
         submergedAt
     };
 }
