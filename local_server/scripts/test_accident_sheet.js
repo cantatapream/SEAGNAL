@@ -763,9 +763,14 @@ console.log('\n[14] 특보 타일에 선박·인명 나눔[S28-8]');
 ok('칩이 "전체"일 때만 두 줄을 그린다',
     /var splitSrc = _statsScope === 'all';/.test(CODE) &&
     /if \(splitSrc\) \{[\s\S]{0,300}var hn = \(hkSt\.sev\[k\.code\] \|\| 0\), pn = \(peSt\.sev\[k\.code\] \|\| 0\);/.test(CODE));
+// 라벨은 "선박"·"인명"만 — 2026-09-09 사용자 지시로 "사고"를 뺐다.
+// 카드 머리 칸(srcCell)은 "선박사고"를 유지하므로 아래 검사와 헷갈리지 말 것.
 ok('타일에 선박·인명 두 줄 마크업이 있다',
     /class="s hk"><span>선박<\/span><b>/.test(CODE) &&
     /class="s person"><span>인명<\/span><b>/.test(CODE));
+ok('타일 라벨에는 "사고"가 붙지 않는다',
+    !/class="s hk"><span>선박사고</.test(CODE) &&
+    !/class="s person"><span>인명사고</.test(CODE));
 ok('소스별 집계를 한 번만 하고 아래 칸과 함께 쓴다(중복 순회 제거)',
     /var hkSt = splitSrc \? warnStatsOf\('hk', membersOfSrc\(members, 'hk'\)\) : null;/.test(CODE) &&
     /var hw = hkSt\.warn, pw = peSt\.warn;/.test(CODE) &&
@@ -779,6 +784,37 @@ ok('두 줄 색이 시트의 선박=파랑·인명=청록과 같다',
     /\.ash-warn-tile \.s\.person b \{ color: var\(--ash-teal\); \}/.test(CSS));
 ok('건수는 오른쪽 끝으로 밀고 자릿수를 고정한다',
     /\.ash-warn-tile \.s b \{ margin-left: auto;[^}]*tabular-nums; \}/.test(CSS));
+
+// ── [15] 시트 필터 줄에서 시간대 삭제[2026-09-09 사용자 지시] ────────────────
+console.log('\n[15] 시트 필터 줄에서 시간대 삭제');
+
+ok('축 목록에 시간대가 mapOnly 로 표시돼 있다',
+    /\{ key: 'hourRanges', label: '시간대', mapOnly: true \}/.test(CODE));
+ok('시트 필터 줄이 mapOnly 축을 뺀다',
+    /function buildSheetFiltersHtml[\s\S]{0,200}FILTER_AXES\.filter\(function \(a\) \{[\s\S]{0,120}return !a\.mapOnly;/.test(CODE));
+ok('나머지 네 축은 시트에 그대로 남아 있다',
+    /\{ key: 'types', label: '사고유형' \}/.test(CODE) &&
+    /\{ key: 'dateRange', label: '기간' \}/.test(CODE) &&
+    /\{ key: 'orgs', label: '관할서' \}/.test(CODE) &&
+    /\{ key: 'warnTypes', label: '특보' \}/.test(CODE));
+ok('지도 위 현황 모드 시간대 버튼은 남아 있다',
+    /id="accident-filter-btn-hourRanges"/.test(HTML) &&
+    /data-filter="hourRanges"/.test(HTML));
+// 지도 버튼 라벨은 같은 목록을 돌며 갱신되므로 mapOnly 축까지 포함해야 한다 —
+// 여기서 시간대를 빼면 지도 버튼이 "시간대: 전체"에서 안 바뀐다.
+ok('라벨 갱신은 mapOnly 축까지 전부 돈다',
+    /function updateAllFilterButtonLabels[\s\S]{0,160}FILTER_AXES\.forEach/.test(CODE) &&
+    !/updateAllFilterButtonLabels[\s\S]{0,160}mapOnly/.test(CODE));
+ok('시간대 필터 자체(hk 행에만 적용)는 그대로 살아 있다',
+    /if \(filters\.hourRanges && key === 'hk'\) \{/.test(CODE) &&
+    /openHourRangeFilterPopup/.test(CODE));
+// 지도 현황 모드 — 인명사고를 고른 동안만 시간대 버튼을 감춘다(2026-09-09 사용자 확정).
+// 선박사고일 때는 정상 작동하므로 감추지 않는다.
+ok('현황 모드 시간대 버튼을 인명일 때만 감춘다',
+    /function updateFilterBarModeVisibility[\s\S]{0,900}var hourBtn = document\.getElementById\('accident-filter-btn-hourRanges'\);[\s\S]{0,120}hourBtn\.style\.display = state\.source === 'person' \? 'none' : '';/.test(CODE));
+ok('감추기는 소스·모드가 바뀔 때마다 다시 판정된다(한 군데로 모임)',
+    /function selectSource[\s\S]{0,3000}updateFilterBarModeVisibility\(\);/.test(CODE) &&
+    /function updateFilterBarModeVisibility[\s\S]{0,1400}positionFilterBar\(\);/.test(CODE));
 
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);
