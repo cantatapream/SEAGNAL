@@ -39,6 +39,11 @@
     var _fillLayer = null;   // 채움 layer
     var _source = null;
     var _visible = false;
+    // 범례("금지구역" 켰을 때 뜨는 상자)의 개별 스위치로 이 구역만 잠시 감출 때 쓰는 플래그.
+    // _visible(버튼으로 켠 상태)과 곱해져 실제 표시 여부가 된다 — 버튼 상태를 건드리지
+    // 않으므로 스위치를 껐다 켜도 배경지도 되돌림·데이터 재적재가 일어나지 않는다.
+    // [연계] ← ban_zone.js 의 범례 스위치 → window.fishingBanSetShown()
+    var _shown = true;
     var _loaded = false;
     var _loading = false;
 
@@ -229,7 +234,7 @@
      *        바텀시트 로직과 같은 클릭에 동시에 반응해버려 팝업+바텀시트가 함께 뜬다.
      */
     window._fishingBanTryHandleClick = function (map, evt) {
-        if (!_visible || !_fillLayer) return false;
+        if (!_visible || !_shown || !_fillLayer) return false;
         var hit = map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
             if (layer === _fillLayer) return feature;
             // 줌아웃 상태에선 폴리곤이 몇 px 밖에 안 돼 채움만으로는 잘 안 잡힌다 —
@@ -284,6 +289,7 @@
 
         btn.addEventListener('click', function () {
             _visible = !_visible;
+            _shown = true;   // 버튼으로 새로 켤 때는 범례 스위치도 켜진 상태에서 시작한다
             btn.classList.toggle('active', _visible);
             if (_layer) _layer.setVisible(_visible);
             if (_fillLayer) _fillLayer.setVisible(_visible);
@@ -320,6 +326,21 @@
         }
         _try();
     }
+
+    /**
+     * [외부 API] 낚시금지구역을 지도에서 잠시 감추거나 다시 보이게 한다.
+     * 예: fishingBanSetShown(false) → 주황 폴리곤·라벨이 사라지고 그 위 클릭도 안 먹는다.
+     *     버튼(active)·배경지도·이미 받아 둔 데이터는 그대로여서, 다시 true 로 주면 즉시 복원된다.
+     * @param {boolean} on - true 보이기 / false 감추기
+     * [연계] ← js/marine-life/safety/ban_zone.js 의 범례 스위치 —
+     *          "금지구역" 버튼으로 둘을 함께 켠 뒤 종류별로 하나씩 끄고 켜기 위해 쓴다.
+     */
+    window.fishingBanSetShown = function (on) {
+        _shown = !!on;
+        var v = _visible && _shown;
+        if (_layer) _layer.setVisible(v);
+        if (_fillLayer) _fillLayer.setVisible(v);
+    };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _installWhenReady);
