@@ -42,10 +42,35 @@ jobs:
 
       # superfly/flyctl-actions@master 아카이브를 GitHub codeload 가 내려받지 못해
       # 배포가 시작 전 실패하던 문제 → 공식 설치 스크립트로 flyctl 직접 설치(액션 의존 제거).
+      #
+      # [2026-09-09] 그 설치 스크립트 다운로드가 중간에 끊겨(curl exit 18 = 전송이 남은
+      # 데이터를 두고 닫힘) 배포가 또 시작 전에 실패했다(run 2080). 같은 워크플로의 8분 전
+      # 실행(run 2079)은 성공했으므로 스크립트나 우리 코드 문제가 아니라 전송 실패다.
+      # 두 가지를 고쳤다:
+      #  ① 파일로 먼저 받고 성공했을 때만 실행한다. 예전 `curl … | sh` 방식은 절반만
+      #     내려온 스크립트를 그대로 sh 에 흘려 넣었다(끊긴 지점까지 실행됨).
+      #  ② 세 번까지 다시 시도한다(curl 자체 재시도 + 바깥 루프). 그래도 안 되면 실패시킨다.
+      # 설치 직후 flyctl version 으로 실제로 쓸 수 있는지 확인해, 망가진 설치가 다음
+      # 단계까지 끌려가지 않게 한다.
       - name: Install flyctl
         run: |
-          curl -fsSL https://fly.io/install.sh | sh
+          for i in 1 2 3; do
+            if curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors \
+                 --connect-timeout 20 --max-time 120 \
+                 https://fly.io/install.sh -o /tmp/fly-install.sh \
+               && sh /tmp/fly-install.sh; then
+              break
+            fi
+            rm -f /tmp/fly-install.sh
+            if [ "$i" = 3 ]; then
+              echo "::error::flyctl 설치를 세 번 시도했으나 모두 실패했다(다운로드 또는 설치 단계)"
+              exit 1
+            fi
+            echo "flyctl 설치 ${i}회 실패 — 10초 뒤 다시 시도"
+            sleep 10
+          done
           echo "$HOME/.fly/bin" >> "$GITHUB_PATH"
+          "$HOME/.fly/bin/flyctl" version
 
       - name: Deploy to Fly.io
         id: deploy
