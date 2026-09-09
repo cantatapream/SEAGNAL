@@ -1041,12 +1041,24 @@
         if (!btn || !exBtn || !rkBtn) return;
         bindTerrainLegendRows();
 
+        var prevBasemap = null;  // ON 시점 배경지도를 기억해 OFF 때 되돌린다
         btn.addEventListener('click', function () {
             var turnOn = !btn.classList.contains('active');
             if (exBtn.classList.contains('active') !== turnOn) exBtn.click();
             if (rkBtn.classList.contains('active') !== turnOn) rkBtn.click();
             btn.classList.toggle('active', turnOn);
             showTerrainLegend(turnOn);
+            // [배경지도] 바위 위치를 실제 지형과 대조해 보기 쉽도록 위성지도로 전환한다
+            //   (사용자 확정 2026-09-09). 금지구역·출입통제와 같은 방식.
+            if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
+                if (turnOn) {
+                    prevBasemap = window.oceanGetBasemap();
+                    if (prevBasemap !== 'vworld') window.oceanSetBasemap('vworld');
+                } else if (prevBasemap && prevBasemap !== 'vworld') {
+                    window.oceanSetBasemap(prevBasemap);
+                    prevBasemap = null;
+                }
+            }
         });
     }
 
