@@ -60,7 +60,6 @@
     var SHORE_DATA_URL = '/shore_rocks.json';   // 갯바위(면) — 노출암 버튼이 같이 켠다
     var CLUSTER_DISTANCE = 45;   // px — 이 거리 안의 점들을 한 원으로 뭉친다
     var SPREAD_ZOOM = 14;        // 이 줌 이상에서는 뭉치지 않고 낱개 마커로 고정 표시
-    var SHORE_AREA_MIN_ZOOM = 13; // 갯바위 면(폴리곤)을 그리기 시작하는 줌(이보다 작으면 마커만)
 
     var dataPromise = null;    // 두 버튼이 나눠 쓰는 공유 fetch(1회만 요청)
     var exposedLayer = null;   // 노출암(k=0) + 갯바위 마커(k=4)
@@ -713,7 +712,8 @@
      * @param {Array<ol.Feature>} features - 갯바위 면 feature 목록
      * @returns {ol.layer.Vector} 처음엔 꺼진(setVisible(false)) 상태로 돌려준다
      * [연계] ← ensureLayersReady() — 노출암 버튼이 마커와 함께 이 면도 켜고 끈다.
-     *          면적 중앙값이 18㎡ 라 확대해야 보이므로, 눈에 띄는 건 마커 쪽이다.
+     *          면적 중앙값이 18㎡ 라 확대해야 눈에 들어오므로, 멀리서 위치를 알려주는
+     *          역할은 같은 자리에 얹히는 마커(클러스터)가 한다.
      */
     function buildShoreAreaLayer(features) {
         var layer = new ol.layer.Vector({
@@ -722,10 +722,9 @@
                 fill: new ol.style.Fill({ color: 'rgba(90, 150, 190, 0.35)' }),
                 stroke: new ol.style.Stroke({ color: 'rgba(40, 90, 130, 0.9)', width: 1 })
             }),
-            // 면 9,959개(꼭짓점 18만)를 멀리서까지 그리면 무겁기만 하다. 면적 중앙값이
-            // 18㎡(약 4m×4m)라 이 줌 아래에서는 어차피 점 하나 크기도 안 된다.
-            // 그 구간에서는 마커(클러스터)만 보이고, 확대해야 면이 나타난다.
-            minZoom: SHORE_AREA_MIN_ZOOM,
+            // 줌 제한을 두지 않는다(사용자 확정 2026-09-09) — 어느 줌에서든 면을 그린다.
+            // 면적 중앙값이 18㎡ 라 멀리서는 사실상 안 보이지만, 같은 자리의 마커가
+            // 클러스터로 뭉쳐 위치를 알려주므로 정보가 사라지지는 않는다.
             zIndex: 3
         });
         layer.setVisible(false);
