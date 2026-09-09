@@ -179,6 +179,12 @@
  *   옮겼다(격자가 필터를 안 타게 된 S15 의 결과 — 지도에 두면 걸어둔 걸 잊게 된다).
  *   현황 모드 필터 바는 지도에 그대로 남긴다. 시트 안 필터는 다른 격자 칸을 누르면
  *   초기화된다(사용자 확정 2026-09-04).
+ * [시트 필터에서 시간대 삭제(2026-09-09)] 시트 안 필터 줄은 이제 4개(사고유형·기간·
+ *   관할서·특보)다. 인명사고 데이터에 발생 시각 칸이 없어(accident_persons.json 12칸)
+ *   passesFilters 가 시간대를 hk 행에만 적용하는데, 그러면 인명사고를 보는 중에 시간대를
+ *   골라도 한 건도 안 걸러지고 칩만 켜져 "걸렀는데 숫자가 안 변한다"가 된다. 시간대 필터
+ *   자체와 지도 위 현황 모드 버튼은 남긴다(선박 마커를 볼 때는 유효) — FILTER_AXES 의
+ *   mapOnly 표시로 시트에만 안 낸다.
  * [진입 동선 개편(2026-09-04, S16)] 소스 선택 팝아웃(#ocean-accident-popup /
  *   #ocean-accident-source-list)을 없앴다. 사고정보 버튼을 누르면 곧바로 분석 모드로
  *   켜지고(state 기본값 mode:'analysis'), 다시 누르면 꺼진다. 분석은 선박+인명
@@ -3785,6 +3791,9 @@
             //   말풍선은 아래 "특보 발효 일수" 칸에서만 뜬다 — 풍랑주의보 같은 타일을
             //   눌렀을 때도 같은 해상 구역 목록이 떠서 무엇에 대한 설명인지 헷갈렸다.
             // 선박·인명 나눔 두 줄. 합이 위 총건수와 맞는지는 회귀 테스트가 본다.
+            //   라벨은 "선박"·"인명"만 쓴다[2026-09-09 사용자 지시: "사고자를 빼고"] —
+            //   타일이 좁아 "선박사고"까지 넣으면 숫자와 붙어 읽힌다.
+            //   카드 머리의 나눔 칸(srcRow)은 넓어서 "선박사고"를 그대로 둔다.
             var splitHtml = '';
             if (splitSrc) {
                 var hn = (hkSt.sev[k.code] || 0), pn = (peSt.sev[k.code] || 0);
@@ -4535,7 +4544,9 @@
      * @returns {string} HTML
      * [연계] 스타일 style.css .ash-filters / 클릭 statsBody delegation → openFilterPopupFor */
     function buildSheetFiltersHtml() {
-        return '<div class="ash-filters">' + SHEET_FILTER_AXES.map(function (a) {
+        return '<div class="ash-filters">' + FILTER_AXES.filter(function (a) {
+            return !a.mapOnly;   // 시간대는 시트에 안 낸다(위 FILTER_AXES 주석 참고)
+        }).map(function (a) {
             var l = filterButtonLabel(a.key, a.label);
             return '<button type="button" class="ash-filter' + (l.on ? ' on' : '') +
                 '" data-sheetfilter="' + a.key + '">' + escapeHtml(l.text) + '</button>';
@@ -5902,12 +5913,18 @@
         return { text: prefix + ': ' + (n ? n + '개 선택' : '전체'), on: n > 0 };
     }
 
-    /** 시트 안 필터 줄에 넣을 축 목록[S17] — 남은 5개(사용자 확정 2026-09-04). */
-    var SHEET_FILTER_AXES = [
+    /** 필터 축 목록[S17] — 시트 안 필터 줄(buildSheetFiltersHtml)과 지도 위 현황 모드
+     * 필터 바 버튼 라벨(updateAllFilterButtonLabels)이 같은 목록을 쓴다.
+     * mapOnly 인 축은 시트에 칩을 만들지 않는다 — 지금은 시간대뿐이다[2026-09-09 사용자
+     * 지시: "상단의 시간대 선택하는 부분은 삭제"]. 인명사고 행에는 발생 시각 칸이 아예
+     * 없어(accident_persons.json 12칸) passesFilters 가 시간대를 hk 행에만 적용한다 —
+     * 인명사고를 보는 중에 시간대를 골라도 한 건도 걸러지지 않아 칩만 파랗게 켜졌다.
+     * 지도 위 현황 모드 버튼은 그대로 남긴다(거기서는 선박 마커를 보며 거르므로 유효). */
+    var FILTER_AXES = [
         { key: 'types', label: '사고유형' },
         { key: 'dateRange', label: '기간' },
         { key: 'orgs', label: '관할서' },
-        { key: 'hourRanges', label: '시간대' },
+        { key: 'hourRanges', label: '시간대', mapOnly: true },
         { key: 'warnTypes', label: '특보' }
     ];
 
@@ -5920,7 +5937,7 @@
     }
 
     function updateAllFilterButtonLabels() {
-        SHEET_FILTER_AXES.forEach(function (a) { updateFilterButtonLabel(a.key, a.label); });
+        FILTER_AXES.forEach(function (a) { updateFilterButtonLabel(a.key, a.label); });
     }
 
     /**
@@ -5983,6 +6000,16 @@
         var isStatus = state.mode === 'status';
         var tgl = document.getElementById('accident-source-toggle');
         if (tgl) tgl.style.display = isStatus ? 'flex' : 'none';
+        // ★인명사고를 보는 동안에는 시간대 버튼을 감춘다[2026-09-09 사용자 확정].
+        //   인명 데이터에는 발생 시각 칸이 없어(accident_persons.json 한 행 12칸)
+        //   passesFilters 가 시간대를 hk 행에만 적용한다 — 그래서 인명 마커를 보며
+        //   시간대를 걸면 한 건도 안 걸러지고 버튼만 켜진다("걸었는데 안 변한다").
+        //   선박사고일 때는 정상 작동하므로 그대로 보여준다(실측 57,167 → 5,534건).
+        //   같은 방식의 선례: 시트 분석 뷰의 "시간대별" 탭도 인명일 때 잠근다.
+        //   값이 걸린 채로 인명으로 넘어가도 인명 마커에는 영향이 없고(위 가드),
+        //   선박으로 돌아오면 버튼이 다시 나오며 라벨에 "N개 선택"이 그대로 보인다.
+        var hourBtn = document.getElementById('accident-filter-btn-hourRanges');
+        if (hourBtn) hourBtn.style.display = state.source === 'person' ? 'none' : '';
         if (state.source) {
             showFilterResetBtn(isStatus);
             // ★분석 모드에서는 지도 위 필터 바를 아예 감춘다[S17] — 필터가 시트 안으로

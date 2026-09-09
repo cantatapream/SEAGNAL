@@ -3679,6 +3679,9 @@
                             <button type="button" class="accident-filter-btn" data-filter="types" id="accident-filter-btn-types">사고유형: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="dateRange" id="accident-filter-btn-dateRange">기간: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="orgs" id="accident-filter-btn-orgs">관할서: 전체</button>
+                            <!-- 시간대는 인명사고를 고른 동안 JS가 감춘다(2026-09-09 사용자 확정) —
+                                 인명 데이터에 발생 시각 칸이 없어 걸어도 안 걸러진다.
+                                 [연계] accident_info.js updateFilterBarModeVisibility -->
                             <button type="button" class="accident-filter-btn" data-filter="hourRanges" id="accident-filter-btn-hourRanges">시간대: 전체</button>
                             <button type="button" class="accident-filter-btn" data-filter="warnTypes" id="accident-filter-btn-warnTypes">특보: 전체</button>
                         </div>
