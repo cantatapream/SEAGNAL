@@ -990,48 +990,45 @@
             pointer-events: auto;
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            padding: 6px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.94);
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+            gap: 2px;
+            /* 재질은 "전국 통계" 버튼(.accident-filter-reset-btn)과 같게 맞춘다
+               [2026-09-09 사용자 확정] — 같은 자리에 나란히 뜨는 요소라 톤이 어긋나면
+               따로 노는 상자처럼 보인다. 모서리만 두 줄짜리 상자에 맞게 알약(999px)
+               대신 12px 로 둔다. */
+            background: rgba(10, 15, 28, 0.94);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 4px;
         }
         .banzone-legend .bzl-row {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 2px 4px;
+            gap: 10px;
+            padding: 4px 8px;
             border: 0;
-            border-radius: 6px;
+            border-radius: 999px;
             background: transparent;
             cursor: pointer;
-            font-size: 12px;
-            color: #222;
+            font-size: 0.7rem;
+            font-weight: 700;
             white-space: nowrap;
         }
-        .banzone-legend .bzl-swatch {
-            width: 12px;
-            height: 12px;
-            border-radius: 3px;
-            flex: 0 0 auto;
-        }
-        /* 지도 폴리곤과 같은 색 — access_control.js / fishing_ban.js 의 채움·선 색 */
-        .banzone-legend .bzl-swatch-ac {
-            background: rgba(255, 82, 82, 0.35);
-            border: 1.5px solid rgba(255, 82, 82, 0.9);
-        }
-        .banzone-legend .bzl-swatch-fb {
-            background: rgba(255, 152, 0, 0.35);
-            border: 1.5px solid rgba(255, 152, 0, 0.9);
-        }
+        /* 색칩(네모) 없이 **글자 색으로** 구분한다 — 지도 폴리곤과 같은 색
+           (access_control.js 빨강 / fishing_ban.js 주황). */
+        .banzone-legend .bzl-row-ac .bzl-name { color: rgb(255, 82, 82); }
+        .banzone-legend .bzl-row-fb .bzl-name { color: rgb(255, 152, 0); }
         .banzone-legend .bzl-name { flex: 1 1 auto; text-align: left; }
+        /* 꺼진 줄은 흐리게 — 색은 남겨 어느 구역인지 계속 알아볼 수 있게 한다 */
+        .banzone-legend .bzl-row:not(.on) .bzl-name { opacity: 0.4; }
         /* 켜고 끄는 스위치(작은 토글 모양) */
         .banzone-legend .bzl-switch {
             position: relative;
             width: 28px;
             height: 16px;
             border-radius: 8px;
-            background: #c8c8c8;
+            background: rgba(255, 255, 255, 0.25);
             flex: 0 0 auto;
             transition: background 0.15s;
         }
@@ -1046,11 +1043,10 @@
             background: #fff;
             transition: left 0.15s;
         }
-        .banzone-legend .bzl-row.on .bzl-switch { background: #2e7d32; }
+        /* 켜짐 색은 "분석/현황" 토글의 활성 색과 같게 맞춘다(사용자 확정 2026-09-09).
+           손잡이는 켜짐·꺼짐 모두 흰색으로 둔다(사용자 확정). */
+        .banzone-legend .bzl-row.on .bzl-switch { background: var(--accent-yellow); }
         .banzone-legend .bzl-row.on .bzl-switch::after { left: 14px; }
-        /* 꺼진 줄은 글자·색칩을 흐리게 해 상태가 한눈에 보이게 */
-        .banzone-legend .bzl-row:not(.on) .bzl-name,
-        .banzone-legend .bzl-row:not(.on) .bzl-swatch { opacity: 0.45; }
 
         /* 선택 초기화 버튼 — 모드토글(고정폭 120px) 바로 오른쪽. */
         #ocean-topleft-controls > #accident-filter-reset-btn {
@@ -3655,13 +3651,11 @@
                              [연계] js/marine-life/safety/ban_zone.js 가 표시·스위치를 담당 →
                                     window.accessControlSetShown() · window.fishingBanSetShown() -->
                         <div class="banzone-legend" id="banzone-legend" style="display:none;">
-                            <button type="button" class="bzl-row on" id="bzl-row-ac">
-                                <span class="bzl-swatch bzl-swatch-ac"></span>
+                            <button type="button" class="bzl-row bzl-row-ac on" id="bzl-row-ac">
                                 <span class="bzl-name">출입통제구역</span>
                                 <span class="bzl-switch"></span>
                             </button>
-                            <button type="button" class="bzl-row on" id="bzl-row-fb">
-                                <span class="bzl-swatch bzl-swatch-fb"></span>
+                            <button type="button" class="bzl-row bzl-row-fb on" id="bzl-row-fb">
                                 <span class="bzl-name">낚시금지구역</span>
                                 <span class="bzl-switch"></span>
                             </button>
