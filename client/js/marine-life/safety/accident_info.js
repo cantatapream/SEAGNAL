@@ -179,6 +179,12 @@
  *   옮겼다(격자가 필터를 안 타게 된 S15 의 결과 — 지도에 두면 걸어둔 걸 잊게 된다).
  *   현황 모드 필터 바는 지도에 그대로 남긴다. 시트 안 필터는 다른 격자 칸을 누르면
  *   초기화된다(사용자 확정 2026-09-04).
+ * [시트 필터에서 시간대 삭제(2026-09-09)] 시트 안 필터 줄은 이제 4개(사고유형·기간·
+ *   관할서·특보)다. 인명사고 데이터에 발생 시각 칸이 없어(accident_persons.json 12칸)
+ *   passesFilters 가 시간대를 hk 행에만 적용하는데, 그러면 인명사고를 보는 중에 시간대를
+ *   골라도 한 건도 안 걸러지고 칩만 켜져 "걸렀는데 숫자가 안 변한다"가 된다. 시간대 필터
+ *   자체와 지도 위 현황 모드 버튼은 남긴다(선박 마커를 볼 때는 유효) — FILTER_AXES 의
+ *   mapOnly 표시로 시트에만 안 낸다.
  * [진입 동선 개편(2026-09-04, S16)] 소스 선택 팝아웃(#ocean-accident-popup /
  *   #ocean-accident-source-list)을 없앴다. 사고정보 버튼을 누르면 곧바로 분석 모드로
  *   켜지고(state 기본값 mode:'analysis'), 다시 누르면 꺼진다. 분석은 선박+인명
@@ -4536,7 +4542,9 @@
      * @returns {string} HTML
      * [연계] 스타일 style.css .ash-filters / 클릭 statsBody delegation → openFilterPopupFor */
     function buildSheetFiltersHtml() {
-        return '<div class="ash-filters">' + SHEET_FILTER_AXES.map(function (a) {
+        return '<div class="ash-filters">' + FILTER_AXES.filter(function (a) {
+            return !a.mapOnly;   // 시간대는 시트에 안 낸다(위 FILTER_AXES 주석 참고)
+        }).map(function (a) {
             var l = filterButtonLabel(a.key, a.label);
             return '<button type="button" class="ash-filter' + (l.on ? ' on' : '') +
                 '" data-sheetfilter="' + a.key + '">' + escapeHtml(l.text) + '</button>';
@@ -5903,12 +5911,18 @@
         return { text: prefix + ': ' + (n ? n + '개 선택' : '전체'), on: n > 0 };
     }
 
-    /** 시트 안 필터 줄에 넣을 축 목록[S17] — 남은 5개(사용자 확정 2026-09-04). */
-    var SHEET_FILTER_AXES = [
+    /** 필터 축 목록[S17] — 시트 안 필터 줄(buildSheetFiltersHtml)과 지도 위 현황 모드
+     * 필터 바 버튼 라벨(updateAllFilterButtonLabels)이 같은 목록을 쓴다.
+     * mapOnly 인 축은 시트에 칩을 만들지 않는다 — 지금은 시간대뿐이다[2026-09-09 사용자
+     * 지시: "상단의 시간대 선택하는 부분은 삭제"]. 인명사고 행에는 발생 시각 칸이 아예
+     * 없어(accident_persons.json 12칸) passesFilters 가 시간대를 hk 행에만 적용한다 —
+     * 인명사고를 보는 중에 시간대를 골라도 한 건도 걸러지지 않아 칩만 파랗게 켜졌다.
+     * 지도 위 현황 모드 버튼은 그대로 남긴다(거기서는 선박 마커를 보며 거르므로 유효). */
+    var FILTER_AXES = [
         { key: 'types', label: '사고유형' },
         { key: 'dateRange', label: '기간' },
         { key: 'orgs', label: '관할서' },
-        { key: 'hourRanges', label: '시간대' },
+        { key: 'hourRanges', label: '시간대', mapOnly: true },
         { key: 'warnTypes', label: '특보' }
     ];
 
@@ -5921,7 +5935,7 @@
     }
 
     function updateAllFilterButtonLabels() {
-        SHEET_FILTER_AXES.forEach(function (a) { updateFilterButtonLabel(a.key, a.label); });
+        FILTER_AXES.forEach(function (a) { updateFilterButtonLabel(a.key, a.label); });
     }
 
     /**
