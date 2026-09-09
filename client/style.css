@@ -9513,7 +9513,10 @@ html[data-font-size="large"] .ocean-overlay-btn {
        건수·비율·발효일수·막대의 자리는 그대로다. */
     display: grid;
     grid-template-columns: auto 1fr;
-    column-gap: 0.5em;
+    /* 0.5em 이었는데 건수("1,732건")와 오른쪽 선박·인명 칸이 너무 붙어 보인다는
+       사용자 지적으로 3배(2026-09-09). 오른쪽 칸은 1fr 이라 남는 만큼만 차지하므로
+       벌려도 타일 밖으로 넘치지 않는다(실측: 넘친 타일 0개·줄바꿈 0개). */
+    column-gap: 1.5em;
     row-gap: 0.4em;
     align-content: start;
 }
