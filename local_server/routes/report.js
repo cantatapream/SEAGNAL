@@ -812,12 +812,12 @@ async function sendReportPush(deviceId, body) {
 }
 
 // ============================================================================
-// 90일 경과 제보 자동 삭제 (외부에서 호출)
+// 1년(365일) 경과 제보 자동 삭제 (외부에서 호출)
 // ============================================================================
 function cleanupExpiredReports() {
     const reports = getReports();
     const now = new Date();
-    const RETENTION_DAYS = 90;
+    const RETENTION_DAYS = 365;  // 보관기간 1년 (사용자 확정 2026-09-09, 종전 90일)
 
     const expired = reports.filter(r => {
         const created = new Date(r.createdAt);
@@ -840,7 +840,7 @@ function cleanupExpiredReports() {
     });
 
     saveReports(remaining);
-    console.log(`🧹 [Report] 90일 경과 제보 ${expired.length}건 자동 삭제`);
+    console.log(`🧹 [Report] 1년 경과 제보 ${expired.length}건 자동 삭제`);
     return expired.length;
 }
 
