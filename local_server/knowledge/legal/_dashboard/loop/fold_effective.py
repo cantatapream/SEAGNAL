@@ -34,6 +34,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from _touched import Touched                                   # noqa: E402
 import collect_pending_law as cpl                              # noqa: E402  (지도 재생성·경로 상수 공유)
+from stage_markers import INLINE_RE, OPEN_LINE_RE, CLOSE_LINE_RE, check_markers  # noqa: E402  (마커 규칙 한 곳)
 
 LEGAL, REPO, RAW, WIKI = cpl.LEGAL, cpl.REPO, cpl.RAW, cpl.WIKI
 LEGACY_RAW = os.path.join(LEGAL, '_legacy', 'raw')
@@ -47,11 +48,6 @@ class _NullTouched:
     def add(self, path): pass
     def save(self): return None
 
-INLINE_RE = re.compile(r'<!--(시행전|시행) (\d{8})-->(.*?)<!--/\1-->')
-OPEN_LINE_RE = re.compile(r'^\s*<!--(시행전|시행) (\d{8})-->\s*$')
-CLOSE_LINE_RE = re.compile(r'^\s*<!--/(시행전|시행)-->\s*$')
-
-
 def today_kst():
     return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime('%Y%m%d')
 
@@ -62,8 +58,12 @@ def _active(kind, date, today):
 
 def fold_markers(body, today):
     """effective_date.js applyStageMarkers 와 같은 규칙. 여기서는 `d <= today` 인 마커만 접고,
-    아직 시행 전인 마커(둘 다 today < d)는 **그대로 둔다** — 런타임이 계속 날짜로 고르게."""
+    아직 시행 전인 마커(둘 다 today < d)는 **그대로 둔다** — 런타임이 계속 날짜로 고르게.
+    ★짝·형식이 깨져 있으면 **접지 않고 원문을 그대로 돌려준다**(2026-09-10 독립 검토 high) —
+      종전에는 닫는 짝을 못 찾은 블록 아래를 파일 끝까지 버려서 위키 파일이 잘린 채 저장됐다."""
     if '<!--시행' not in body:
+        return body
+    if check_markers(body):
         return body
 
     def inl(m):
@@ -127,6 +127,16 @@ def fold_raw(today, dry, touched):
                     if not dry:
                         os.remove(staged); touched.add(staged)
                     continue
+                # ★현행이 이 대기본보다 **뒤 시행본**이면 승격하지 않는다(2026-09-10 독립 검토 high).
+                #   트랙 D(recollect_tier.py)가 먼저 재수집해 두면 현행이 더 새 판인데, 종전에는 MST 가
+                #   다르다는 이유만으로 승격해 새 판을 _legacy 로 밀어내고 옛 예고본을 현행으로 되돌렸다
+                #   (_meta 의 시행일도 뒤로 갔다). 한 법에 대기 날짜가 여럿인 사례가 실제로 있다.
+                cur_eff = _file_eff(cur) if os.path.exists(cur) else ''
+                if cur_eff and cur_eff != '00000000' and cur_eff > d:
+                    print(f'↩ {label} — 현행이 이미 시행 {cur_eff} 판(대기본 {d} 보다 뒤) → 대기본만 지운다')
+                    if not dry:
+                        os.remove(staged); touched.add(staged)
+                    continue
                 print(f'⬆ {label}')
                 if dry:
                     continue
@@ -159,6 +169,11 @@ def fold_wiki(today, dry, touched):
     for p in sorted(glob.glob(os.path.join(WIKI, '*', '*.md'))):
         src = open(p, encoding='utf-8').read()
         if '<!--시행' not in src:
+            continue
+        errs = check_markers(src)
+        if errs:
+            print('⚠ %s — 마커가 깨져 건너뛴다: %s'
+                  % (os.path.relpath(p, WIKI), ' / '.join('%d행 %s' % e for e in errs[:3])))
             continue
         dates = sorted(set(d for d in re.findall(r'<!--시행(?:전)? (\d{8})-->', src) if d <= today))
         if not dates:

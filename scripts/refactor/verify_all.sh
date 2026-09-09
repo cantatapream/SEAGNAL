@@ -210,6 +210,13 @@ node local_server/knowledge/legal/_dashboard/loop/link_sym.js \
 echo; echo "── V5-2 위키 링크 무결성 ──"
 ( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || FAIL=1
 
+# V5-12 시행일 마커 짝·형식 (2026-09-10 신설)
+# [왜] 마커(`<!--시행 d-->`)의 닫는 짝이 없거나 종류가 어긋나면, 접기 코드가 그 블록 아래를 파일 끝까지
+#   버렸다 — **시행일이 되는 순간** 그 페이지의 뒷부분(근거 조문 표 포함)이 답변에서 사라졌다.
+#   시행 전에는 아무 증상이 없어 사람 눈으로는 못 잡는다. 런타임은 이제 깨진 페이지를 접지 않고 넘기지만
+#   그러면 옛·새 서술이 함께 나가므로, 커밋 전에 여기서 막는다(독립 검토 high, `H29_stage_review_2026-09-10.json`).
+python3 local_server/knowledge/legal/_dashboard/loop/lint_stage_markers.py || FAIL=1
+
 # 서버 API + 이동 JS 경로 스모크
 echo; echo "── 서버 스모크 (대표 엔드포인트) ──"
 SMOKE=("/api/health:200" "/api/app-version:200" "/:200" "/sw.js:200" "/style.css:200"

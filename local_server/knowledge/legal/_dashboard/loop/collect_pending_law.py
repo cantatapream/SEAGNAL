@@ -201,8 +201,33 @@ def current_mst(base, layer):
         return None
 
 
+def file_eff(path):
+    """그 .txt 머리의 실제 시행일. 못 읽으면 ''.
+    예: file_eff('…/법률.txt') → '20260828'
+    [연계] ← verify(⑩′ 현행이 대기본보다 뒤 판인지) · fold_effective._file_eff 와 같은 규칙."""
+    try:
+        m = re.search(r'\(시행 (\d{8})', open(path, encoding='utf-8').read(4000))
+        return m.group(1) if m else ''
+    except Exception:
+        return ''
+
+
+def read_staged(base, d, fname):
+    """받아 둔 대기본 원문. 없으면 None. [연계] ← verify(①″ 같은 MST 내용 갱신 대조)."""
+    try:
+        return open(os.path.join(base, STAGE_DIR, d, fname), encoding='utf-8').read()
+    except Exception:
+        return None
+
+
+def _norm(s):
+    """줄 끝 공백·파일 끝 빈 줄만 무시하고 비교한다(내용 차이만 잡으려고)."""
+    return '\n'.join(line.rstrip() for line in str(s or '').split('\n')).strip()
+
+
 def verify(prune, touched, from_json=None):
-    """받아 둔 대기본이 아직 맞는가 — ②연기 ③철회 ⑨dismissed ⑩이미 현행. ❌는 --prune 이면 지운다."""
+    """받아 둔 대기본이 아직 맞는가 — ②연기 ③철회 ⑨dismissed ⑩이미 현행 ⑩′현행이 더 뒤 판
+    ①″같은 MST 인데 내용이 달라짐. ❌는 --prune 이면 지운다."""
     q, _ = load_queue()
     status_of = {i.get('id'): i.get('status') for i in q.get('items', [])}
     idx = build_index()
@@ -221,12 +246,26 @@ def verify(prune, touched, from_json=None):
                     print(f'❌ {label} — 큐 항목 {qid} 이 {st}'); bad.append((base, d, fname)); continue
                 if mst and current_mst(base, layer) == str(mst):
                     print(f'↩ {label} — 현행 _meta.json 과 MST 동일(이미 현행) → fold_effective.py 가 접는다'); continue
+                # ⑩′ 현행이 이 대기본보다 **뒤 시행본**이면 승격할 것이 없다 — 트랙 D 가 먼저 재수집한 경우다
+                #    (2026-09-10 독립 검토 high: 종전에는 MST 만 봐서 새 판을 옛 예고본으로 되돌릴 뻔했다).
+                cur_eff = file_eff(os.path.join(base, fname))
+                if cur_eff and cur_eff > d:
+                    print(f'❌ {label} — 현행이 이미 시행 {cur_eff} 판(대기본 {d} 보다 뒤) → 쓸모없다')
+                    bad.append((base, d, fname)); continue
                 body = fetch_eflaw(mst, d, from_json) if mst else None
                 bi = ((body or {}).get('법령') or {}).get('기본정보') or {}
                 if not bi:
                     print(f'❌ {label} — API 재조회가 비었다(철회 의심)'); bad.append((base, d, fname)); continue
                 if str(bi.get('시행일자')) != d:
                     print(f"❌ {label} — 시행일자가 {bi.get('시행일자')} 로 바뀜(연기·변경)"); bad.append((base, d, fname)); continue
+                # ①″ **같은 MST 라도 내용이 바뀐다** — 시행예정 판은 MST 를 유지한 채 나중에 공포된 개정을
+                #    흡수한다(실측: 양식산업발전법 MST 281971 이 2026-03-31 공포 개정을 담고 있었다).
+                #    시행일자만 대조하면 낡은 예고본이 ✅ 로 통과해 시행일에 그대로 켜진다. 본문을 대조한다.
+                fresh = stage_text(body)
+                saved = read_staged(base, d, fname)
+                if fresh and saved is not None and _norm(fresh) != _norm(saved):
+                    print(f'❌ {label} — 같은 MST 인데 내용이 달라졌다(중간 개정 흡수) → 다시 받아야 한다')
+                    bad.append((base, d, fname)); continue
                 print(f'✅ {label} — 유효')
     if prune and bad:
         for base, d, fname in bad:

@@ -13,11 +13,14 @@
  *   T-verify-1~3 연기·철회·dismissed 를 ❌ 로 잡는다                              (②③⑨)
  *   T-status-1 사서가 마커를 안 넣은 대기본을 ⚠ 로 찍는다                        (⑦)
  *   T-fold-1~2 fold_effective 의 파이썬 접기 == JS 접기 · 현행과 같은 MST 면 대기본만 지운다 (⑩)
+ *   T-broken-1~6 **마커가 깨졌을 때 본문이 사라지지 않는다** — 검사가 잡고, 런타임은 접지 않고 마커만
+ *               걷어내며, 파이썬 접기는 원문 그대로, 게이트(lint_stage_markers.py)가 종료코드 1  (⑭)
+ *   T-newer-1~3 같은 MST 인데 내용이 달라지면 ❌ · 현행이 대기본보다 뒤 판이면 승격하지 않는다 (①″⑩′)
  *   T-popup-1  실제 수집한 어선원법 대기본으로 조문 팝업이 날짜에 따라 갈린다(githubRaw 를 로컬 파일로 대체)
  *
  * [주의] 시각 의존 금지 — 모든 날짜는 setTodayForTest·--today 로 주입한다. 네트워크 없음(--from-json).
  * [연계] ← services/effective_date.js · services/article_text.js · services/legal_retriever.js
- *        ← _dashboard/loop/collect_pending_law.py · fold_effective.py
+ *        ← _dashboard/loop/collect_pending_law.py · fold_effective.py · stage_markers.py · lint_stage_markers.py
  *        ← scripts/refactor/verify_all.sh SUITES
  */
 'use strict';
@@ -226,6 +229,79 @@ console.log('── T-fold 시행일 뒤 정리 ──');
   py('collect_pending_law.py', ['q1', '--force'], FIXJ);
   const out3 = py('fold_effective.py', ['--today', '20260910']);
   ok('T-fold-2 시행 전에는 손대지 않는다', fs.existsSync(path.join(TRAW, '_대기', '20260911', '법률.txt')) && /승격 raw 0층/.test(out3));
+}
+
+console.log('── T-broken 마커가 깨졌을 때(2026-09-10 독립 검토 high) ──');
+{
+  // 종전에는 닫는 짝을 못 찾은 블록 아래를 파일 끝까지 버렸다 — 시행일이 되는 순간 그 페이지의
+  // 뒷부분(근거 조문 표 포함)이 답변에서 사라졌다. 지금은 접지 않고 마커 표기만 걷어낸다.
+  const BROKEN = {
+    'A 안 닫힘': '## 요지\n앞 문장\n<!--시행전 20260918-->\n옛\n## 뒤 절\n| 법령 | 조문 |\n|---|---|\n| 법 | 제54조 |',
+    'B 닫는 종류 불일치': '앞\n<!--시행 20260918-->\n새\n<!--/시행전-->\n뒤',
+    'C 중첩': '앞\n<!--시행 20260918-->\n<!--시행전 20260918-->\n옛\n<!--/시행전-->\n<!--/시행-->\n뒤',
+    'D 짝 없는 닫기': '앞\n<!--/시행-->\n뒤',
+    'E 줄 가운데 여는 마커': '- <!--시행 20260918-->새 서술\n뒤',
+    'F 날짜가 8자리가 아님': '앞\n<!--시행 2026-09-11-->\n새\n<!--/시행-->\n뒤',
+  };
+  for (const [name, body] of Object.entries(BROKEN)) {
+    const chk = E.checkStageMarkers(body);
+    ok(`T-broken-1 ${name} — 검사가 잡는다`, !chk.ok && chk.errors.length > 0, JSON.stringify(chk));
+    for (const day of ['20260917', '20260918']) {
+      const out = E.applyStageMarkers(body, day);
+      const kept = body.split('\n').map(l => l.replace(/<!--[^>]*-->/g, '').trim()).filter(Boolean);
+      const got = out.split('\n').map(l => l.trim()).filter(Boolean);
+      ok(`T-broken-2 ${name} @${day} — 내용이 하나도 사라지지 않는다`, kept.every(l => got.includes(l)), JSON.stringify(out));
+      ok(`T-broken-3 ${name} @${day} — 마커 표기는 남지 않는다`, !/<!--/.test(out), JSON.stringify(out));
+    }
+  }
+  ok('T-broken-4 정상 마커는 종전대로 접힌다', E.checkStageMarkers(WIKI_FX).ok
+    && E.applyStageMarkers(WIKI_FX, '20261231') !== WIKI_FX && !/<!--/.test(E.applyStageMarkers(WIKI_FX, '20261231')));
+  // 파이썬 접기도 같은 규칙 — 깨졌으면 원문 그대로(위키 파일이 잘린 채 저장되지 않는다)
+  const fxDir2 = path.join(TMP, 'brokenfx'); fs.mkdirSync(fxDir2, { recursive: true });
+  const pyFold2 = (body, today) => execFileSync('python3', ['-c',
+    `import sys; sys.path.insert(0, ${JSON.stringify(LOOP)}); import fold_effective as f; sys.stdout.write(f.fold_markers(open(sys.argv[1], encoding='utf-8').read(), sys.argv[2]))`,
+    (() => { const q = path.join(fxDir2, 'b.md'); fs.writeFileSync(q, body); return q; })(), today], { env, encoding: 'utf8' });
+  ok('T-broken-5 파이썬 fold_markers 도 깨진 마커는 접지 않고 원문 그대로', pyFold2(BROKEN['A 안 닫힘'], '20260918') === BROKEN['A 안 닫힘']);
+  // 게이트(lint_stage_markers.py): 깨진 페이지가 있으면 종료코드 1
+  const badPage = path.join(TLEGAL, 'wiki', 'concepts', '_깨진마커시험.md');
+  fs.writeFileSync(badPage, '---\nstatus: draft\n---\n앞\n<!--시행전 20260918-->\n옛\n## 뒤 절\n');
+  let lcode = 0, lout = '';
+  try { lout = py('lint_stage_markers.py', []); } catch (e) { lcode = e.status; lout = String(e.stdout || ''); }
+  ok('T-broken-6 게이트가 깨진 페이지를 잡고 종료코드 1', lcode === 1 && /깨진 페이지 1쪽/.test(lout) && /닫히지 않았다/.test(lout), lout.slice(-300));
+  fs.unlinkSync(badPage);
+  const lout2 = py('lint_stage_markers.py', []);
+  ok('T-broken-6 성한 트리는 통과', /깨진 마커 없음/.test(lout2), lout2.slice(-200));
+}
+
+console.log('── T-newer 현행이 대기본보다 뒤 판일 때(트랙 D 가 먼저 재수집) ──');
+{
+  const STAGE = path.join(TRAW, '_대기');
+  // ①″ 같은 MST 인데 내용이 달라졌다 — 시행예정 판은 MST 를 유지한 채 중간 개정을 흡수한다(실측).
+  py('collect_pending_law.py', ['q2', '--force'], FIXJ);          // 대기본 MST 를 999999 로(현행 283875 와 다르게)
+  const st911 = path.join(STAGE, '20260911', '법률.txt');
+  fs.appendFileSync(st911, '\n[제99조] 없는 조 (시행 20260911 · 신설)\n뒤에 붙인 줄\n');
+  let code = 0, out = '';
+  try { out = py('collect_pending_law.py', ['--verify'], FIXJ); } catch (e) { code = e.status; out = String(e.stdout || ''); }
+  ok('T-newer-1 같은 MST 라도 본문이 다르면 ❌(다시 받아야 한다)', code === 1 && /내용이 달라졌다/.test(out), out.slice(-300));
+  // ⑩′ 현행이 대기본보다 뒤 시행본이면 승격하지 않는다(옛 예고본으로 되돌리지 않는다)
+  py('collect_pending_law.py', ['q1', '--force'], FIXJ);          // 20260911 을 원래대로
+  const older = path.join(STAGE, '20260801');
+  fs.mkdirSync(older, { recursive: true });
+  fs.copyFileSync(st911, path.join(older, '법률.txt'));
+  const om = JSON.parse(fs.readFileSync(path.join(STAGE, '20260911', '_meta.json'), 'utf8'));
+  om.시행일자 = '20260801'; om.families.법률.MST = '111111'; om.families.법률.시행일자 = '20260801';
+  fs.writeFileSync(path.join(older, '_meta.json'), JSON.stringify(om));
+  py('collect_pending_law.py', ['--rebuild-index']);
+  const curBefore = fs.readFileSync(path.join(TRAW, '법률.txt'), 'utf8');
+  code = 0; out = '';
+  try { out = py('collect_pending_law.py', ['--verify'], FIXJ); } catch (e) { code = e.status; out = String(e.stdout || ''); }
+  ok('T-newer-2 verify 가 "현행이 이미 더 뒤 판" 을 ❌ 로 잡는다', /보다 뒤/.test(out), out.slice(-400));
+  const fout = py('fold_effective.py', ['--today', '20260911', '--raw-only']);
+  ok('T-newer-3 fold 가 현행을 옛 예고본으로 되돌리지 않는다', /↩.*보다 뒤/.test(fout)
+    && fs.readFileSync(path.join(TRAW, '법률.txt'), 'utf8') === curBefore
+    && !fs.existsSync(path.join(older, '법률.txt')), fout.slice(-400));
+  ok('T-newer-3 _meta 시행일이 뒤로 가지 않는다',
+    JSON.parse(fs.readFileSync(path.join(TRAW, '_meta.json'), 'utf8')).시행일 === '20260911');
 }
 
 console.log('── T-popup 실제 대기본으로 조문 팝업 전환(githubRaw → 로컬 파일) ──');

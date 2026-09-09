@@ -3307,7 +3307,10 @@ async function searchRawFallback(query, hint) {
 
     const picks = await pickRawFiles(qPick, bundles);
     const extras = (await Promise.all(picks.map(async p => {
-      const text = await githubRaw.fetchText(p.base + '/' + p.file);
+      // 시행일이 지난 예고본이 있으면 그 층도 대기본을 읽는다 — 종전에는 법률.txt 만 대기본을 쓰고
+      // 시행령·시행규칙은 늘 현행을 읽어, 시행일 뒤 조문 팝업과 2차 조회 답이 어긋났다(2026-09-10 검토).
+      const staged = effectiveDate.stagedRawPath(p.base, p.file);
+      const text = (staged && await githubRaw.fetchText(staged)) || await githubRaw.fetchText(p.base + '/' + p.file);
       return text ? { law: p.law, file: p.file, text } : null;
     }))).filter(Boolean);
 
