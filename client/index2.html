@@ -978,6 +978,76 @@
             margin-top: 6px;
             pointer-events: auto;
         }
+        /* 금지구역 범례[2026-09-09] — 사고정보 모드토글과 같은 방식으로 기본맵·안내 버튼
+           줄 바로 아래에 붙인다(부모가 position:absolute 라 그 기준으로 계산됨).
+           ★사고정보 모드토글이 떠 있으면 자리가 겹치므로, ban_zone.js 가 그 높이를 실측해
+             margin-top 을 인라인으로 더 준다(accident_info.js positionFilterBar 와 같은 어법). */
+        #ocean-topleft-controls > .banzone-legend {
+            position: absolute !important;
+            top: 100%;
+            left: 0;
+            margin-top: 6px;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            /* 재질은 "전국 통계" 버튼(.accident-filter-reset-btn)과 같게 맞춘다
+               [2026-09-09 사용자 확정] — 같은 자리에 나란히 뜨는 요소라 톤이 어긋나면
+               따로 노는 상자처럼 보인다. 모서리만 두 줄짜리 상자에 맞게 알약(999px)
+               대신 12px 로 둔다. */
+            background: rgba(10, 15, 28, 0.94);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 4px;
+        }
+        .banzone-legend .bzl-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 8px;
+            border: 0;
+            border-radius: 999px;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        /* 색칩(네모) 없이 **글자 색으로** 구분한다 — 지도 폴리곤과 같은 색
+           (access_control.js 빨강 / fishing_ban.js 주황). */
+        .banzone-legend .bzl-row-ac .bzl-name { color: rgb(255, 82, 82); }
+        .banzone-legend .bzl-row-fb .bzl-name { color: rgb(255, 152, 0); }
+        .banzone-legend .bzl-name { flex: 1 1 auto; text-align: left; }
+        /* 꺼진 줄은 흐리게 — 색은 남겨 어느 구역인지 계속 알아볼 수 있게 한다 */
+        .banzone-legend .bzl-row:not(.on) .bzl-name { opacity: 0.4; }
+        /* 켜고 끄는 스위치(작은 토글 모양) */
+        .banzone-legend .bzl-switch {
+            position: relative;
+            width: 28px;
+            height: 16px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.25);
+            flex: 0 0 auto;
+            transition: background 0.15s;
+        }
+        .banzone-legend .bzl-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #fff;
+            transition: left 0.15s;
+        }
+        /* 켜짐 색은 "분석/현황" 토글의 활성 색과 같게 맞춘다(사용자 확정 2026-09-09).
+           손잡이는 켜짐·꺼짐 모두 흰색으로 둔다(사용자 확정). */
+        .banzone-legend .bzl-row.on .bzl-switch { background: var(--accent-yellow); }
+        .banzone-legend .bzl-row.on .bzl-switch::after { left: 14px; }
+
         /* 선택 초기화 버튼 — 모드토글(고정폭 120px) 바로 오른쪽. */
         #ocean-topleft-controls > #accident-filter-reset-btn {
             position: absolute !important;
@@ -3574,6 +3644,22 @@
                         <!-- 분석(격자) 모드에서만 보이는 색상 범례 — 격자칸 색이 그 칸의 사고
                              밀도(파랑=낮음~빨강=높음)를 나타낸다는 걸 알려준다.
                              [연계] js/marine-life/safety/accident_info.js showGridLegend() -->
+                        <!-- 금지구역 범례[2026-09-09 사용자 확정] — "금지구역" 버튼을 켜면
+                             기본맵 버튼 바로 아래에 뜬다. 색이 무엇을 뜻하는지 알려주고,
+                             오른쪽 스위치로 종류별로 따로 켜고 끈다(둘 다 켜도, 하나만 켜도 됨.
+                             둘 다 꺼도 범례는 남아 다시 켤 수 있다).
+                             [연계] js/marine-life/safety/ban_zone.js 가 표시·스위치를 담당 →
+                                    window.accessControlSetShown() · window.fishingBanSetShown() -->
+                        <div class="banzone-legend" id="banzone-legend" style="display:none;">
+                            <button type="button" class="bzl-row bzl-row-ac on" id="bzl-row-ac">
+                                <span class="bzl-name">출입통제구역</span>
+                                <span class="bzl-switch"></span>
+                            </button>
+                            <button type="button" class="bzl-row bzl-row-fb on" id="bzl-row-fb">
+                                <span class="bzl-name">낚시금지구역</span>
+                                <span class="bzl-switch"></span>
+                            </button>
+                        </div>
                         <div class="accident-grid-legend" id="accident-grid-legend" style="display:none;">
                             <span class="agl-title" id="agl-title">사고건수</span>
                             <span class="agl-scale">
@@ -3644,13 +3730,18 @@
                             <i class="fa-solid fa-water"></i>
                             <span class="ocean-overlay-label" data-line1="물빠짐">물빠짐</span>
                         </button>
-                        <!-- 노출암 / 간출암 등 토글: js/marine-life/safety/hazard_rocks.js 가 바인딩.
+                        <!-- 노출암·갯바위 / 간출암 등 토글: js/marine-life/safety/hazard_rocks.js 가 바인딩.
                              둘 다 해양안전(해양안전생활 하위탭)에서만 노출 — 해양종합정보에서는
                              CSS 로 숨김(아래 body.ls-mode.ls-safety 규칙 참고). 두 버튼은 서로
                              독립적이라 동시에 켤 수 있다.
-                             [데이터] /hazard_rocks.json (국립해양조사원 전자해도 간출암·노출암, 정적,
-                                      두 버튼 모두 처음 누를 때만 지연 로드) -->
-                        <button class="ocean-overlay-btn" id="ocean-exposed-toggle-btn" title="노출암 (항상 물 위)">
+                             왼쪽 버튼은 노출암(점)과 갯바위(면+마커)를 **한 버튼으로 함께** 켠다
+                             (사용자 확정 2026-09-09 — 둘 다 물 위로 드러난 바위를 점·면으로
+                             다르게 표현한 것이라 나눌 이유가 없다).
+                             [데이터] /hazard_rocks.json (전자해도 간출암·노출암) +
+                                      /shore_rocks.json (갯바위 면, 2017년 위험정보 — 서·남해만 있고
+                                      동해·제주는 원본에 자료가 없다). 둘 다 정적이며 버튼을 처음
+                                      누를 때만 지연 로드. -->
+                        <button class="ocean-overlay-btn" id="ocean-exposed-toggle-btn" title="노출암 (항상 물 위, 갯바위 포함)">
                             <i class="fa-solid fa-mountain"></i>
                             <span class="ocean-overlay-label" data-line1="노출암">노출암</span>
                         </button>

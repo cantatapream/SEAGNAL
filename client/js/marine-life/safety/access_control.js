@@ -39,6 +39,11 @@
     var _fillLayer = null;   // 채움 layer
     var _source = null;
     var _visible = false;
+    // 범례("금지구역" 켰을 때 뜨는 상자)의 개별 스위치로 이 구역만 잠시 감출 때 쓰는 플래그.
+    // _visible(버튼으로 켠 상태)과 곱해져 실제 표시 여부가 된다 — 버튼 상태를 건드리지
+    // 않으므로 스위치를 껐다 켜도 배경지도 되돌림·데이터 재적재가 일어나지 않는다.
+    // [연계] ← ban_zone.js 의 범례 스위치 → window.accessControlSetShown()
+    var _shown = true;
     var _loaded = false;
     var _loading = false;
 
@@ -167,7 +172,7 @@
         // 맞물리는 'postrender'(패닝/줌 애니메이션 중에도 프레임마다 발생) 콜백 안에서
         // 바로 다시 그려야 OL 레이어와 같은 프레임에 맞춰져 지연 없이 따라 움직인다
         // (requestAnimationFrame 으로 한 번 더 감싸면 그만큼 한 프레임 늦게 그려진다).
-        map.on('postrender', function () { if (_visible) _drawLabels(); });
+        map.on('postrender', function () { if (_visible && _shown) _drawLabels(); });
     }
 
     /** 지도 뷰포트 위에 겹쳐지는 라벨 전용 캔버스를 1회 생성(pointer-events:none —
@@ -429,7 +434,7 @@
      *        바텀시트 로직과 같은 클릭에 동시에 반응해버려 팝업+바텀시트가 함께 뜬다.
      */
     window._accessControlTryHandleClick = function (map, evt) {
-        if (!_visible || !_fillLayer) return false;
+        if (!_visible || !_shown || !_fillLayer) return false;
         var hit = map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
             if (layer === _fillLayer) return feature;
             // 채움이 없는 선(LineString, 예: 용수리 가~나 통제경계선)은 _fillLayer로는
@@ -480,6 +485,7 @@
 
         btn.addEventListener('click', function () {
             _visible = !_visible;
+            _shown = true;   // 버튼으로 새로 켤 때는 범례 스위치도 켜진 상태에서 시작한다
             btn.classList.toggle('active', _visible);
             if (_layer) _layer.setVisible(_visible);
             if (_fillLayer) _fillLayer.setVisible(_visible);
@@ -522,6 +528,27 @@
         }
         _try();
     }
+
+    /**
+     * [외부 API] 출입통제구역을 지도에서 잠시 감추거나 다시 보이게 한다.
+     * 예: accessControlSetShown(false) → 빨간 폴리곤·라벨이 사라지고 그 위 클릭도 안 먹는다.
+     *     버튼(active)·배경지도·이미 받아 둔 데이터는 그대로여서, 다시 true 로 주면 즉시 복원된다.
+     * @param {boolean} on - true 보이기 / false 감추기
+     * [연계] ← js/marine-life/safety/ban_zone.js 의 범례 스위치 —
+     *          "금지구역" 버튼으로 둘을 함께 켠 뒤 종류별로 하나씩 끄고 켜기 위해 쓴다.
+     */
+    window.accessControlSetShown = function (on) {
+        _shown = !!on;
+        var v = _visible && _shown;
+        if (_layer) _layer.setVisible(v);
+        if (_fillLayer) _fillLayer.setVisible(v);
+        if (!v && _labelCtx && _labelCanvas) {
+            _labelCtx.clearRect(0, 0, _labelCanvas.width, _labelCanvas.height);
+            _labelRects.clear();
+        } else if (v) {
+            _scheduleLabelUpdate();
+        }
+    };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _installWhenReady);
