@@ -1242,12 +1242,32 @@
       line('시행일', ef ? ef + (cur.현행연혁코드 ? ' (' + esc(cur.현행연혁코드) + ')' : '') : null);
       line('부처', arrow(prev.소관부처명, cur.소관부처명));
     }
+    // ★바뀐 조문마다 '개정 전 → 개정 후' 본문을 접었다 펴서 보여준다(사용자 확정 2026-09-10).
+    //   종전에는 조 번호·제목만 있어 "뭐가 어떻게 바뀌는지"를 알 수 없었다.
+    //   `신설` 은 탐지기가 우리 원문에 그 조가 없는 것으로 판정한 값이다(API 는 신설을 안 알려 준다).
+    //   옛 카드(본문을 안 받아 오던 시절 것)는 본문 칸이 비어 있으므로 **지어내지 말고** 그렇다고 적는다.
     var arts = am.changed_articles || [];
-    var artsHTML = arts.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📝 바뀐 조문 (' + arts.length + ')</div><div class="nrya-rv-fval">' +
+    var newCnt = arts.filter(function (a) { return a.신설; }).length;
+    function artBlock(lab, txt, cls) {
+      return '<div class="nrya-art-side ' + cls + '"><div class="nrya-art-lab">' + esc(lab) + '</div>' +
+        '<div class="nrya-art-txt">' + esc(txt) + '</div></div>';
+    }
+    var artsHTML = arts.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📝 바뀐 조문 (' + arts.length +
+      (newCnt ? ' · 신설 ' + newCnt : '') + ')</div><div class="nrya-rv-fval">' +
       arts.map(function (a) {
         var no = '제' + esc(a.조문번호 || '') + '조' + (a.조문가지번호 && a.조문가지번호 !== '0' ? '의' + esc(a.조문가지번호) : '');
-        return no + (a.조문제목 ? '(' + esc(a.조문제목) + ')' : '') + (a.조문제개정유형 ? ' · ' + esc(a.조문제개정유형) : '') + (a.조문시행일자 ? ' · ' + esc(ymd(a.조문시행일자)) : '');
-      }).join('<br>') + '</div></div>' : '';
+        var head = no + (a.조문제목 ? '(' + esc(a.조문제목) + ')' : '') +
+          (a.신설 ? ' <span class="nrya-art-new">신설</span>' : (a.조문제개정유형 ? ' · ' + esc(a.조문제개정유형) : '')) +
+          (a.조문시행일자 ? ' · ' + esc(ymd(a.조문시행일자)) : '');
+        var hasText = !!(a.새본문 || a.옛본문);
+        var body = !hasText
+          ? '<div class="nrya-art-none">이 항목은 본문을 받아 오기 전에 감지된 것이라 조문 내용이 없습니다. 「지금 스캔」을 다시 돌리면 채워집니다.</div>'
+          : (a.신설
+              ? artBlock('개정 전', '우리가 가진 원문에는 이 조가 없습니다 — 새로 만들어지는 조문으로 봅니다. (원문이 낡았을 때도 이렇게 나올 수 있으니, 원문 방에서 그 법의 시행일을 함께 확인하세요.)', 'nrya-art-old nrya-art-empty')
+              : artBlock('개정 전', a.옛본문 || '우리 원문에서 이 조를 찾지 못했습니다.', 'nrya-art-old')) +
+            artBlock('개정 후', a.새본문 || '(새 본문을 받지 못했습니다)', 'nrya-art-new-side');
+        return '<details class="nrya-art"><summary>' + head + '</summary>' + body + '</details>';
+      }).join('') + '</div></div>' : '';
     // ★승인 게이트(2026-09-10): 이 항목의 예고본을 이미 받아 뒀으면, 승인이 곧 "답변 전환"이라는 것을 알린다.
     var stg = am.stage || null;
     var stageHTML = stg ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📅 미리 받아 둔 새 원문</div><div class="nrya-rv-fval">' +

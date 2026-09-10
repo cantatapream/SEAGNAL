@@ -201,6 +201,24 @@
 .nrya-console .nrya-rv-field{margin-bottom:10px}
 .nrya-console .nrya-rv-flab{font-size:11px; font-weight:700; color:#a9c6ff; margin-bottom:4px; display:flex; align-items:center; gap:5px}
 .nrya-console .nrya-rv-fval{font-size:12.5px; color:#dfe7f5; line-height:1.55; background:rgba(255,255,255,.03); border:1px solid var(--nrya-border); border-radius:8px; padding:8px 10px; word-break:break-word}
+
+/* [바뀐 조문 전/후] 개정검토 카드에서 조문마다 접었다 펴서 '개정 전 → 개정 후' 본문을 본다
+   (사용자 확정 2026-09-10). <details> 라 자바스크립트 없이 열고 닫힌다. */
+.nrya-console .nrya-art{border:1px solid rgba(255,255,255,.10); border-radius:9px; margin:6px 0; background:rgba(255,255,255,.03)}
+.nrya-console .nrya-art>summary{cursor:pointer; padding:8px 10px; font-size:12.5px; font-weight:700; color:var(--nrya-text-main); list-style:none}
+.nrya-console .nrya-art>summary::-webkit-details-marker{display:none}
+.nrya-console .nrya-art>summary::before{content:"▸"; display:inline-block; width:13px; color:var(--nrya-text-sub)}
+.nrya-console .nrya-art[open]>summary::before{content:"▾"}
+.nrya-console .nrya-art[open]>summary{border-bottom:1px solid rgba(255,255,255,.08)}
+.nrya-console .nrya-art-new{background:rgba(105,240,174,.16); color:#8fe6bb; border-radius:5px; padding:1px 6px; font-size:11px; font-weight:800}
+.nrya-console .nrya-art-side{padding:8px 10px}
+.nrya-console .nrya-art-side+.nrya-art-side{border-top:1px dashed rgba(255,255,255,.10)}
+.nrya-console .nrya-art-lab{font-size:11px; font-weight:800; letter-spacing:.02em; margin-bottom:4px}
+.nrya-console .nrya-art-old .nrya-art-lab{color:#ffab91}
+.nrya-console .nrya-art-new-side .nrya-art-lab{color:#8fe6bb}
+.nrya-console .nrya-art-txt{font-size:12.5px; line-height:1.65; white-space:pre-wrap; word-break:keep-all; overflow-wrap:anywhere; color:var(--nrya-text-main)}
+.nrya-console .nrya-art-empty .nrya-art-txt{color:var(--nrya-text-sub); font-style:italic}
+.nrya-console .nrya-art-none{padding:8px 10px; font-size:12px; color:var(--nrya-text-sub)}
 .nrya-console .nrya-rv-fval-pre{font-family:var(--nrya-mono); font-size:11.5px; color:#cdd8ee; white-space:pre-wrap; max-height:220px; overflow-y:auto}
 .nrya-console .nrya-rv-links{margin:4px 0 12px}
 .nrya-console .nrya-rv-link{display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; text-decoration:none; color:#8bb6ff; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.28); border-radius:9px; padding:9px 11px; margin-top:6px; word-break:break-all}

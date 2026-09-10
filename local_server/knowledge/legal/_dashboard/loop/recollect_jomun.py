@@ -33,6 +33,41 @@ def strip_title(jo_no,jo_ga,content):
     pat+=r'(\([^)]*\))?\s*'
     return re.sub(pat,'',content,count=1).strip()
 
+def article_lines(a, with_head=True):
+    """조문단위 1개를 우리 raw 파일과 같은 꼴의 줄 목록으로 만든다.
+    예: article_lines({'조문번호':'28','조문제목':'장례비',…}) → ['[제28조] 장례비 (시행 20260911 · 일부개정)', '① …']
+    @param {dict} a  API 응답의 조문단위 하나
+    @param {bool} with_head  `[제N조] 제목 (시행 … · …)` 머리줄을 넣을지
+    @returns {list[str]}
+    [연계] ← build_text(파일 전체) · detect_law_changes.changed_articles(카드에 실을 조문 본문).
+           두 곳이 **같은 함수**를 써야 카드 본문과 raw 파일의 꼴이 어긋나지 않는다.
+    """
+    no=s(a.get('조문번호')); ga=s(a.get('조문가지번호'))
+    out=[]
+    if with_head:
+        label='제%s조'%no + ('의%s'%str(int(ga)) if ga and ga.strip('0') else '')
+        title=s(a.get('조문제목'))
+        siheng=s(a.get('조문시행일자')); typ=s(a.get('조문제개정유형'))
+        head=f"[{label}] {title}".rstrip()
+        meta=' · '.join([x for x in [('시행 '+siheng) if siheng else '', typ] if x])
+        if meta: head+=f" ({meta})"
+        out.append(head)
+    chap=strip_title(no,ga,s(a.get('조문내용')))
+    if chap: out.append(chap)          # ★ 누락되던 chapeau(형량 도입문 등) 복구
+    for h in L(a.get('항')):
+        hn=s(h.get('항번호')).strip()
+        hc=s(h.get('항내용')).strip()
+        if hc: out.append(hc if hn and hc.startswith(hn) else ((hn+' ' if hn else '')+hc))
+        for x in L(h.get('호')):
+            xc=s(x.get('호내용')).strip()
+            if xc: out.append('   '+xc)
+            for m in L(x.get('목')):
+                mc=s(m.get('목내용')).strip()
+                if mc: out.append('      '+mc)
+    # 항이 없고 호가 조 직속인 경우 위 루프의 빈 항(항번호 None)이 호를 담고 있음 → 이미 처리됨
+    return out
+
+
 def build_text(body):
     try: jos=L(body['법령']['조문']['조문단위'])
     except (KeyError,TypeError): return None
@@ -42,27 +77,9 @@ def build_text(body):
             t=s(a.get('조문내용')).strip()
             if t: out.append(t)
             continue
-        no=s(a.get('조문번호')); ga=s(a.get('조문가지번호'))
-        label='제%s조'%no + ('의%s'%str(int(ga)) if ga and ga.strip('0') else '')
-        title=s(a.get('조문제목'))
-        siheng=s(a.get('조문시행일자')); typ=s(a.get('조문제개정유형'))
-        head=f"[{label}] {title}".rstrip()
-        meta=' · '.join([x for x in [('시행 '+siheng) if siheng else '', typ] if x])
-        if meta: head+=f" ({meta})"
-        out.append('\n'+head)
-        chap=strip_title(no,ga,s(a.get('조문내용')))
-        if chap: out.append(chap)          # ★ 누락되던 chapeau(형량 도입문 등) 복구
-        for h in L(a.get('항')):
-            hn=s(h.get('항번호')).strip()
-            hc=s(h.get('항내용')).strip()
-            if hc: out.append(hc if hn and hc.startswith(hn) else ((hn+' ' if hn else '')+hc))
-            for x in L(h.get('호')):
-                xc=s(x.get('호내용')).strip()
-                if xc: out.append('   '+xc)
-                for m in L(x.get('목')):
-                    mc=s(m.get('목내용')).strip()
-                    if mc: out.append('      '+mc)
-        # 항이 없고 호가 조 직속인 경우 위 루프의 빈 항(항번호 None)이 호를 담고 있음 → 이미 처리됨
+        lines=article_lines(a)
+        out.append('\n'+lines[0])
+        out.extend(lines[1:])
     return '\n'.join(out).strip()+'\n'
 
 def run():

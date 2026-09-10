@@ -32,6 +32,10 @@ PENDING_YEARS = 5       # 시행예정 전수질의(W3)가 훑을 미래 범위
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from build_change_baseline import norm_title  # noqa: E402  (baseline과 같은 정규화 규칙을 공유)
+from recollect_jomun import article_lines     # noqa: E402  (raw 파일과 같은 꼴로 조문 본문을 만든다)
+
+# 층 이름 → raw 폴더 안 파일 이름. 옛 조문 본문을 우리 원문에서 찾을 때 쓴다.
+LAYER_FILE = {"법률": "법률.txt", "시행령": "시행령.txt", "시행규칙": "시행규칙.txt"}
 
 
 def api(url):
@@ -114,10 +118,46 @@ def changed_articles(mst, efyd):
     for j in jos:
         if j.get("조문변경여부") != "Y":
             continue
+        # ★새 조문 **본문**도 싣는다(2026-09-10 사용자 지시 "변경 전, 후"). 종전에는 번호·제목만 남기고
+        #   본문을 버려서, 관리자 카드가 "무엇이 어떻게 바뀌는지"를 못 보여 줬다. 응답에 이미 들어 있다.
         out.append({"조문번호": str(j.get("조문번호", "")), "조문가지번호": str(j.get("조문가지번호", "") or ""),
                     "조문제목": j.get("조문제목", ""), "조문제개정유형": j.get("조문제개정유형", ""),
-                    "조문시행일자": str(j.get("조문시행일자", ""))})
+                    "조문시행일자": str(j.get("조문시행일자", "")),
+                    "새본문": "\n".join(article_lines(j, with_head=False)).strip()})
     return out, body.get("기본정보") or {}
+
+
+def article_label(no, ga):
+    """조문 번호를 사람이 읽는 이름으로. 예: article_label('54','2') → '제54조의2'"""
+    lab = "제%s조" % str(no)
+    if ga and str(ga).strip("0"):
+        lab += "의%s" % str(int(ga))
+    return lab
+
+
+def old_article_text(raw_rel, layer, no, ga):
+    """우리 raw 원문에서 **지금 쓰고 있는 그 조의 본문**을 꺼낸다(= 개정 전 문장).
+    예: old_article_text('raw/07_해양환경생태/공유수면관리및매립에관한법률', '법률', '21', '')
+        → '① 공유수면관리청은 …'
+    @param {str} raw_rel  큐 항목 law.raw (legal 기준 상대경로. 옛 항목은 절대경로일 수 있다)
+    @param {str} layer    '법률'·'시행령'·'시행규칙'
+    @param {str} no, ga   조문번호·조문가지번호
+    @returns {str|None}  못 찾으면 None — **"없다"와 "안 찾아봤다"를 구분해야 하므로** 빈 문자열을 쓰지 않는다.
+    [연계] → 카드의 '개정 전' 칸. 여기서 None 이면 그 조가 지금 원문에 없다는 뜻이라 **신설**로 본다.
+    """
+    fn = LAYER_FILE.get(layer or "")
+    if not fn or not raw_rel:
+        return None
+    i = str(raw_rel).find("raw/")
+    path = os.path.join(LEGAL, str(raw_rel)[i:]) if i >= 0 else os.path.join(LEGAL, str(raw_rel))
+    path = os.path.join(path, fn)
+    try:
+        src = open(path, encoding="utf-8").read()
+    except Exception:
+        return None
+    lab = re.escape(article_label(no, ga))
+    m = re.search(r"^\[" + lab + r"\][^\n]*\n([\s\S]*?)(?=\n\[제\d|\n부칙|\Z)", src, re.M)
+    return m.group(1).strip() if m else None
 
 
 def admrul_detail(admrul_id):
@@ -299,6 +339,13 @@ def scan_laws(base, by_lawid, days):
             if status == "연혁" and str(row.get("공포일자", "")) <= fam.get("공포일자", ""):
                 continue    # 우리 것보다 오래된 과거 버전 — 무시
             arts, info = changed_articles(mst, efyd)
+            # ★개정 전 본문을 우리 raw 에서 붙이고, 지금 원문에 그 조가 아예 없으면 **신설**로 표시한다
+            #   (2026-09-10 사용자 지시). API 의 `조문제개정유형` 은 '일부개정'·'타법개정' 만 오고
+            #   신설 여부를 알려 주지 않는다(실측 68건 전부 그 둘) — 그래서 원문 대조로 가른다.
+            for _a in arts:
+                _old = old_article_text(rel_raw(law["raw"]), layer, _a["조문번호"], _a["조문가지번호"])
+                _a["옛본문"] = _old if _old is not None else ""
+                _a["신설"] = _old is None
             time.sleep(SLEEP)
             if info.get("소관부처"):
                 소관 = info["소관부처"]
