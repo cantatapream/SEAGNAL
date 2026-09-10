@@ -103,6 +103,15 @@ console.log('── 페이지 상태 안내줄(draft — 미승인)은 밀려나
   ok('T-banner-3 안내줄이 [미확인]으로 옮겨지지 않는다', !/draft — 미승인/.test(moved));
   ok('T-banner-4 진짜 판단 줄은 여전히 [미확인]으로 옮겨진다', /"소유"에 임차가 포함/.test(moved));
   ok('T-banner-5 REVIEW 없는 줄은 그대로 남는다', /제5조: 어선을 소유한 자/.test(kept));
+
+  // 배너 뒷말이 여러 가지다(전 위키 실측): `미승인` 말고 `draft로 환원`·`draft 유지`·`사람 승인 대기` 도 있다.
+  for (const head of ['> ⚠ **draft로 환원(2026-07-21, L-15 패턴)** — 본문에 AI 법리추론형 REVIEW 가 남아 있다.',
+    '> ⚠ **draft 유지(H-34 재트리아지, 2026-08-05)** — REVIEW 두 건 중 하나만 해소됐다.',
+    '> ⚠ **draft — 사람 승인 대기.** 이 페이지는 원래 다른 쪽에 있던 REVIEW 를 분리한 것이다.']) {
+    const o = R.markUnresolvedReview(head + '\n- 제5조: 어선을 소유한 자는 등록하여야 한다.');
+    const h = o.indexOf(HEAD);
+    ok('T-banner-6 배너 변형도 본문에 남는다 — ' + head.slice(0, 24), (h < 0 ? o : o.slice(0, h)).indexOf(head) >= 0);
+  }
 }
 
 console.log('── 답변 규칙에 "단정하지 마라"가 있다 ──');

@@ -1012,8 +1012,13 @@ function sliceRelevant(body, terms, maxChars) {
  * @param {string} body - 페이지 마크다운 본문(원문)
  * @returns {string} "REVIEW" 단어가 포함된 줄을 제거한 본문
  */
-/** 페이지 맨 앞의 상태 안내줄. 예: `> ⚠ **draft — 미승인(2026-07-21 환원).** 이 페이지는 …` */
-const DRAFT_BANNER = /^\s*>?\s*⚠?\s*\*\*draft\s*[—-]\s*미승인/;
+/**
+ * 페이지 맨 앞의 상태 안내줄. 예: `> ⚠ **draft — 미승인(2026-07-21 환원).** 이 페이지는 …`
+ * ⚠뒷말이 여러 가지다 — 실측(2026-09-10, `wiki/concepts` 전수): `draft — 미승인`(대다수) 말고도
+ *   `draft로 환원(…)` 10 · `draft 유지(H-34 재트리아지)` 4 · `draft — 사람 승인 대기.` 2 가 있다.
+ *   처음에 `미승인` 까지 붙여 잡았다가 이 변형들을 놓쳐, **`**draft` 로 시작하는 줄**을 기준으로 넓혔다.
+ */
+const DRAFT_BANNER = /^\s*>?\s*⚠?\s*\*\*draft\b/i;
 
 function markUnresolvedReview(body) {
   if (!body) return body;
