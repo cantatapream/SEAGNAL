@@ -1,0 +1,8 @@
+{
+ "script": "admrul_recollect_stale",
+ "stamp": "20260909-231308-032",
+ "files": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률/행정규칙/여수·광양항산적액체해상환적준수수칙.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률/행정규칙/_admrul.json"
+ ]
+}

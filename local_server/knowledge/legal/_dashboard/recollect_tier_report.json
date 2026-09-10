@@ -199,6 +199,30 @@
      "status": "갱신"
     }
    ]
+  },
+  {
+   "ran_at": "2026-09-10 08:26 KST",
+   "results": [
+    {
+     "slug": "해양환경관리법",
+     "tier": "시행령",
+     "old_mst": "287499",
+     "new_mst": "287499",
+     "old_eff": "20260701",
+     "new_eff": "20260828",
+     "old_chars": 72261,
+     "new_chars": 71355,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "allowed_marks": [
+      "⚠REVIEW"
+     ],
+     "old_byl": 3,
+     "legacy": "_legacy/해양환경관리법/20260701",
+     "new_byl": 22,
+     "status": "갱신"
+    }
+   ]
   }
  ]
 }

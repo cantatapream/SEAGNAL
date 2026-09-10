@@ -132,7 +132,14 @@ def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, 
     old_mst = str(fam.get('MST') or '')
     if held_mst and old_mst != str(held_mst):
         return {'slug': slug, 'tier': tier, 'status': '보류(meta MST %s ≠ 보고서 %s)' % (old_mst, held_mst)}
-    if old_mst == str(new_mst):
+    # ★MST 가 같아도 같은 판이 아닐 수 있다 (2026-09-10 실측, 해양환경관리법 시행령).
+    #   한 MST 가 시행일 여러 개로 등재되는 경우가 있다 — MST 287499 는 20260630·20260701·20260828
+    #   세 시행일을 갖고, 우리 파일은 20260701 판이었는데 현행은 20260828 판이다(제89조⑥ 삭제 등).
+    #   MST 만 비교하면 '이미 현행'으로 지나쳐 개정이 영원히 안 잡힌다. 파일 안의 시행일도 본다.
+    _path = os.path.join(base, tier + '.txt')
+    _old_txt = open(_path, encoding='utf-8').read() if os.path.exists(_path) else ''
+    _old_eff = old_effective_date(_old_txt, meta.get('시행일'))
+    if old_mst == str(new_mst) and str(_old_eff or '') == str(efyd):
         return {'slug': slug, 'tier': tier, 'status': '이미 현행'}
 
     law = fetch_law(new_mst, efyd)
@@ -216,6 +223,26 @@ def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, 
                 if f.startswith(tier + '_') and f.endswith('.txt'):
                     touched.add(os.path.join(bdir, f))
             rec['new_byl'] = n
+            # ★같은 별표를 **계층 접두 없이** 들고 있는 폴더가 있다(`별표19.txt`). 이 도구는
+            #   `<계층>_별표N.txt` 만 세고 쓰므로, 그런 폴더에서는 "별표가 3개뿐"으로 잘못 세고
+            #   나머지를 **중복으로 새로 쓴다**(2026-09-10 해양환경관리법 시행령에서 17쌍이 그랬다).
+            #   읽는 쪽(services/article_text.js)은 접두 파일을 먼저 보므로 동작에는 문제가 없지만,
+            #   증감 숫자를 그대로 "새로 확보"라고 읽으면 틀린다. 지우지 않고 **사실만 남긴다.**
+            twins_same, twins_diff = [], []
+            for f in sorted(os.listdir(bdir)):
+                if not (f.startswith(tier + '_별표') and f.endswith('.txt')):
+                    continue
+                bare = os.path.join(bdir, f[len(tier) + 1:])
+                if not os.path.exists(bare):
+                    continue
+                def _body(q):
+                    return '\n'.join(open(q, encoding='utf-8', errors='replace').read().split('\n')[2:]).strip()
+                (twins_same if _body(os.path.join(bdir, f)) == _body(bare) else twins_diff).append(f)
+            if twins_same or twins_diff:
+                rec['bare_twins'] = {'same': twins_same, 'diff': twins_diff}
+                rec['byl_note'] = ('접두 없는 같은 이름 별표 파일이 %d개 있다(본문 같음 %d · 다름 %d) — '
+                                   'new_byl 증가분을 "새로 확보"로 읽지 말 것. 정리는 사람 판단.'
+                                   % (len(twins_same) + len(twins_diff), len(twins_same), len(twins_diff)))
         elif old_byl:
             rec['new_byl'] = None
             rec['byl_note'] = '응답에 별표가 없어 옛 별표 파일 %d개를 그대로 두었다(사람 확인 필요)' % len(old_byl)

@@ -1,25 +1,4 @@
 {
-  "시행령 별표 3": {
-    "제목": "폐기물의 단위당 부과금액 및 종류별 부과계수(제25조제3항 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116579",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116583"
-    ]
-  },
-  "시행령 별표 3의2": {
-    "제목": "선박 또는 해양시설에서 배출되는 오염물질(제25조의2제1항 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116585",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116589"
-    ]
-  },
-  "시행령 별표 3의3": {
-    "제목": "오염물질의 단위당 부과금액 및 종류별 부과계수(제25조의2제5항 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116591",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116595"
-    ]
-  },
   "선박오염방지규칙 서식 5의5": {
     "제목": "선박연료유 사용량등 보고 및 검증 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=168067675",
@@ -1036,6 +1015,167 @@
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166919599",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166919601"
+    ]
+  },
+  "시행령 별표 1": {
+    "제목": "삭제 &lt;2019. 7. 2.&gt;",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116487",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116491"
+    ]
+  },
+  "시행령 별표 2": {
+    "제목": "삭제 &lt;2019. 7. 2.&gt;",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116493",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116497"
+    ]
+  },
+  "시행령 별표 3": {
+    "제목": "폐기물의 단위당 부과금액 및 종류별 부과계수(제25조제3항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116579",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116583"
+    ]
+  },
+  "시행령 별표 3의2": {
+    "제목": "선박 또는 해양시설에서 배출되는 오염물질(제25조의2제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116585",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116589"
+    ]
+  },
+  "시행령 별표 3의3": {
+    "제목": "오염물질의 단위당 부과금액 및 종류별 부과계수(제25조의2제5항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116591",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116595"
+    ]
+  },
+  "시행령 별표 4": {
+    "제목": "해양공간의 범위(제34조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116597",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116601"
+    ]
+  },
+  "시행령 별표 5": {
+    "제목": "해양오염방지관리인 및 그 대리자의 자격(제39조제1항 및 제40조제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116603",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116607"
+    ]
+  },
+  "시행령 별표 6": {
+    "제목": "오염물질 배출 시 신고기준(제47조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116609",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116613"
+    ]
+  },
+  "시행령 별표 7": {
+    "제목": "방제조치 비용부담의 범위(제50조제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116615",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116619"
+    ]
+  },
+  "시행령 별표 8": {
+    "제목": "방제선·방제장비의 배치·설치기준(제51조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116621",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116625",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116627"
+    ]
+  },
+  "시행령 별표 9": {
+    "제목": "방제분담금의 부과기준 및 절차(제54조제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116629",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116633",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116635"
+    ]
+  },
+  "시행령 별표 10": {
+    "제목": "삭제 &lt;2020. 12. 29.&gt;",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116637",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116641"
+    ]
+  },
+  "시행령 별표 11": {
+    "제목": "삭제 &lt;2020. 12. 29.&gt;",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116643",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116647"
+    ]
+  },
+  "시행령 별표 12": {
+    "제목": "해양오염영향조사를 실시하여야 하는 경우(제58조제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116649",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116653"
+    ]
+  },
+  "시행령 별표 13": {
+    "제목": "해양오염영향조사기관의 지정기준(제58조제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116655",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116659",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116661"
+    ]
+  },
+  "시행령 별표 14": {
+    "제목": "해양오염영향조사의 분야별 세부항목(제59조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116663",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116667"
+    ]
+  },
+  "시행령 별표 15": {
+    "제목": "삭제 &lt;2024. 12. 31.&gt;",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116669",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116673"
+    ]
+  },
+  "시행령 별표 16": {
+    "제목": "삭제 &lt;2024. 12. 31.&gt;",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116675",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116679"
+    ]
+  },
+  "시행령 별표 17": {
+    "제목": "삭제 &lt;2024. 12. 31.&gt;",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116681",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116685"
+    ]
+  },
+  "시행령 별표 18": {
+    "제목": "협정의 내용(제88조제3항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116687",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116691"
+    ]
+  },
+  "시행령 별표 18의2": {
+    "제목": "포상금 지급기준(제91조의2제3항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116693",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116697"
+    ]
+  },
+  "시행령 별표 19": {
+    "제목": "과태료의 부과기준(제98조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116699",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116703",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116705",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116707",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116709",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=166116711"
     ]
   }
 }

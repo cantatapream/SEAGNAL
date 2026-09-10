@@ -20,6 +20,10 @@ law.go.kr 에 `lawSearch.do?target=eflaw&LID=<법령ID>` 로 그 법의 판 목�
   그대로 맨 위와 비교하면 **아직 시행도 안 된 개정 때문에 멀쩡한 사본이 "구버전"으로 잡힌다.**
   그래서 시행일자로 걸러 낸다. 시행예정 판은 결함이 아니라 **참고 정보**로 따로 담는다.
 
+★**번호가 같아도 판이 다를 수 있다**(2026-09-10 실측). 한 MST 가 시행일 여럿으로 등재되는 단계시행이 있다 —
+  「해양환경관리법 시행령」 287499 는 20260630·20260701·20260828 세 개다. 그래서 번호가 같으면
+  **우리 파일 안 조문 머리글의 `(시행 …)`** 과 현행판 시행일도 맞춰 본다(`file_effective_date`).
+
 ⚠**한계**: 판번호만 본다. 번호가 같아도 우리가 옮겨 적는 과정에서 조문이 빠졌는지는 못 잡는다
   (그건 `mok_audit.py` 몫이다). 통과했다고 원문이 완전하다는 뜻이 아니다.
 
@@ -36,6 +40,7 @@ law.go.kr 에 `lawSearch.do?target=eflaw&LID=<법령ID>` 로 그 법의 판 목�
 """
 import json
 import os
+import re
 import sys
 import glob
 import time
@@ -92,6 +97,34 @@ def pick_current(rows, today):
     return live[-1], future
 
 
+def file_effective_date(slug, tier):
+    """우리 raw 파일이 **어느 시행일 판**인지. 조문 머리글의 `(시행 YYYYMMDD` 첫 값. 없으면 None.
+
+    ★왜 필요한가 (2026-09-10 실측): **한 MST 가 시행일 여러 개로 등재되는 경우가 있다.**
+      「해양환경관리법 시행령」 MST 287499 는 `lawSearch(target=eflaw&LID=010632)` 응답에
+      시행일 20260630 · 20260701 · 20260828 로 세 번 나온다(공포는 제36478호 하나 —
+      개정 조문마다 시행일을 달리 둔 단계시행이다). 우리 파일은 20260701 판이었고
+      현행은 20260828 판이라 **제89조⑥ 삭제·제94조⑤ 2의2·2의3 신설**을 갖고 있지 않았다.
+      그런데 MST 숫자만 비교하면 287499 == 287499 이라 **'현행'으로 통과한다.**
+      이 유형은 이 게이트로는 영원히 안 잡히던 자리다.
+    [연계] recollect_tier.old_effective_date 와 같은 규칙(파일 안 첫 `(시행 …`)을 쓴다.
+    """
+    for p_ in sorted(glob.glob(os.path.join(RAW, '*', slug, tier + '.txt'))):
+        # raw/15_관련타부처/ 는 **발췌본**이라 판번호 대조 대상이 아니다(위 targets 루프와 같은 이유).
+        # 같은 법이 두 폴더에 있을 때 발췌본을 집으면 엉뚱한 시행일을 읽는다(2026-09-10 실측:
+        # 해양환경관리법 법률이 전문 20260828 인데 발췌본 20260701 을 읽어 오판할 뻔했다).
+        if '15_관련타부처' in p_:
+            continue
+        try:
+            with open(p_, encoding='utf-8', errors='replace') as f:
+                m = re.search(r'\(시행 (\d{8})', f.read())
+        except Exception:
+            continue
+        if m:
+            return m.group(1)
+    return None
+
+
 def wiki_pages_of(slug):
     """이 법의 위키 페이지 목록 — 관리자 화면의 "무엇을 고쳐야 하나" 칸에 쓴다."""
     out = []
@@ -146,6 +179,7 @@ def main():
 
     rows, fresh, stale, unknown = [], 0, 0, 0
     for i, t in enumerate(targets, 1):
+        same_eff_case = False
         got = rows_of(t['lid'])
         if got is None:
             verdict, cur, future = '조회실패', None, []
@@ -156,8 +190,19 @@ def main():
                 verdict = '조회실패'
                 unknown += 1
             elif str(cur.get('법령일련번호') or '') == t['mst']:
-                verdict = '현행'
-                fresh += 1
+                # ★번호가 같아도 **시행일이 다르면 다른 판이다**(위 file_effective_date 주석 참조).
+                feff = file_effective_date(t['slug'], t['tier'])
+                ceff = str(cur.get('시행일자') or '')
+                if feff and ceff and feff < ceff:
+                    # 판정 이름은 그냥 '구버전' 으로 둔다 — 관리자 화면(services/admrul_fresh_scanner.js)이
+                    # `verdict === '구버전'` 만 큐에 올리므로 새 이름을 만들면 화면에서 사라진다.
+                    # 어떤 종류인지는 아래 same_mst_diff_eff 플래그로 따로 남긴다.
+                    verdict = '구버전'
+                    same_eff_case = True
+                    stale += 1
+                else:
+                    verdict = '현행'
+                    fresh += 1
             else:
                 verdict = '구버전'
                 stale += 1
@@ -176,6 +221,13 @@ def main():
                             'no': str(x.get('공포번호') or '')} for x in (future or [])][:5]}
         if verdict == '구버전':
             row['wiki_pages'] = wiki_pages_of(t['slug'])
+        if same_eff_case:
+            row['same_mst_diff_eff'] = True
+            row['file_eff'] = file_effective_date(t['slug'], t['tier'])
+            row['note'] = ('일련번호는 같은데 우리 파일은 %s 판, 현행은 %s 판이다 — 한 번호가 시행일을 '
+                           '여럿 갖는 단계시행이다. recollect_tier.py --one %s %s %s %s 로 받는다.'
+                           % (row['file_eff'], row['current']['issued'], t['slug'], t['tier'],
+                              t['mst'], row['current']['issued']))
         rows.append(row)
         print('[%d/%d] %s %s' % (i, len(targets), verdict, title), flush=True)
         time.sleep(0.15)
