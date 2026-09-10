@@ -2002,11 +2002,13 @@
             if (!atMaxZoom) {
                 view.fit(extent, { padding: [60, 60, 60, 60], maxZoom: view.getMaxZoom(), duration: 300 });
             } else {
+                if (window.trackUsage) window.trackUsage('safety.accident.marker');  // [사용량] 팝업이 뜰 때만
                 renderPopup(map, key, members[0]); // 최대 줌에서도 안 갈라짐 — 대표 1건만
                 toggleFlag(map, key, members[0]);
             }
             return true;
         }
+        if (window.trackUsage) window.trackUsage('safety.accident.marker');  // [사용량] 마커 클릭 1건
         renderPopup(map, key, members[0]);
         toggleFlag(map, key, members[0]);
         return true;
@@ -5356,6 +5358,7 @@
         _selectedGridFeature = hit;
         if (prev) prev.changed();
         hit.changed();
+        if (window.trackUsage) window.trackUsage('safety.accident.zone');  // [사용량] 구역(칸) 클릭 1건
         openStatsSheet(state.source, hit.get('members'), hit);
         return true;
     }
@@ -6237,7 +6240,6 @@
             if (toggleBtn) toggleBtn.classList.add('active');
             if (typeof window.oceanGetBasemap === 'function') _prevBasemap = window.oceanGetBasemap();
             syncBasemapToMode();
-            if (window.trackUsage) window.trackUsage('ocean.accident_info');
         }).catch(function (e) {
             if (seq !== _selectSeq) return;
             if (iconEl) iconEl.className = originalIconClass;
@@ -6299,6 +6301,9 @@
                 e.stopPropagation();
                 if (state.source || _turningOn) { _turningOn = false; turnOff(map); return; }
                 _turningOn = true;
+                // [사용량] 사용자가 사고정보 버튼을 눌러 켤 때 1건(사용자 확정 2026-09-10).
+                //   종전엔 selectSource() 안에서 세어 소스 전환도 함께 잡혔다.
+                if (window.trackUsage) window.trackUsage('ocean.accident_info');
                 // 켤 때는 늘 분석부터 — 앞서 현황으로 바꿔 두고 껐더라도 그 상태가
                 // 남아 있으면 안 된다(사용자 확정 "누르면 곧바로 분석").
                 state.mode = 'analysis';

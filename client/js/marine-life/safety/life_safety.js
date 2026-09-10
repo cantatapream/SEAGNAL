@@ -217,7 +217,10 @@
     function _silently(fn) {
         var orig = window._showOceanToast;
         window._showOceanToast = function () {};
-        try { fn(); } finally { window._showOceanToast = orig; }
+        // 사용량 집계도 함께 막는다 — 여기서 누르는 버튼은 사용자가 누른 게 아니라
+        // 화면 전환 복원이므로(사용자 확정 2026-09-10 "해양종합정보 탭 자체는 세지 않는다").
+        var run = window.withUsageSuppressed || function (f) { f(); };
+        try { run(fn); } finally { window._showOceanToast = orig; }
     }
 
     function _suspendOceanOverlays() {

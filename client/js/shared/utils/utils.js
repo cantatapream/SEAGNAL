@@ -270,6 +270,24 @@ function decodeHtmlEntities(text) {
 // ----------------------------------------------------------------------------
 // 사용량 통계(Usage Analytics) — fire-and-forget 카운트 전송
 // ----------------------------------------------------------------------------
+// 프로그램이 대신 버튼을 누르는 동안(화면 전환 복원·묶음 버튼) 집계를 잠시 끄는 깊이 카운터.
+//   0 이면 정상 집계. withUsageSuppressed() 안에서만 1 이상이 된다.
+var _usageSuppressDepth = 0;
+
+/**
+ * fn 을 실행하는 동안 trackUsage/trackUsageMany 를 세지 않게 한다.
+ * 예: window.withUsageSuppressed(function () { hiddenBtn.click(); })  → 그 클릭의 집계는 0건
+ * @param {Function} fn - 이 안에서 일어나는 프로그램 클릭은 집계되지 않는다
+ * @returns {*} fn 의 반환값
+ * [연계] ← marine-life/safety/life_safety.js _silently() (오버레이 복원) ·
+ *          marine-life/safety/hazard_rocks.js bindTerrainToggle() · ban_zone.js (묶음 버튼)
+ *          — 사람이 직접 누른 것만 세기 위해(사용자 확정 2026-09-10)
+ */
+window.withUsageSuppressed = function withUsageSuppressed(fn) {
+    _usageSuppressDepth++;
+    try { return fn(); } finally { _usageSuppressDepth--; }
+};
+
 /**
  * 특정 기능 사용을 서버에 1건 기록한다 (fire-and-forget).
  *
@@ -284,6 +302,7 @@ function decodeHtmlEntities(text) {
 window.trackUsage = function trackUsage(featureKey) {
     try {
         if (!featureKey) return;
+        if (_usageSuppressDepth > 0) return;   // 프로그램 클릭 중 — 세지 않음
         var deviceId = 'anonymous';
         try {
             deviceId = localStorage.getItem('seagnal_device_id') || 'anonymous';
@@ -308,6 +327,7 @@ window.trackUsage = function trackUsage(featureKey) {
 window.trackUsageMany = function trackUsageMany(keys) {
     try {
         if (!keys || !keys.length) return;
+        if (_usageSuppressDepth > 0) return;   // 프로그램 클릭 중 — 세지 않음
         // 중복 제거 (같은 key 가 여러 번 들어와도 서버는 각 건을 +1 하므로,
         //  "표출된 종류마다 1건" 규칙에 맞춰 여기서 한 번만 세도록 dedup)
         var seen = {};

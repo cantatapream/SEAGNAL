@@ -20,6 +20,7 @@
  *   - server.js                → app.use(require('./routes/usage'))
  *   - js/utils.js              → window.trackUsage / trackUsageMany 가 POST /api/usage 호출
  *   - js/admin_collect.js      → renderUsageStatsContent() 가 GET /api/stats/usage 호출
+ *   - client/js/shared/utils/usage_keys.js → CSV 의 기능 한글 이름표(화면과 공용)
  * ============================================================================
  */
 
@@ -336,52 +337,8 @@ router.get('/api/stats/affiliations', (req, res) => {
 //   설문 CSV(/api/surveys/:id/csv)와 동일하게 실제 서버 URL + Content-Disposition
 //   + BOM 으로 내려준다. (기능명은 한글 라벨로 표기)
 // ============================================================================
-const USAGE_CSV_LABELS = {
-    'main.kma_marine_outlook_open': '기상청 해상기상 전망 펼침',
-    'main.warn_region_open': '해역별 특보현황 펼침',
-    'main.weather_region_open': '해역별 기상현황 펼침',
-    'main.region_btn.forecast': '해역 버튼 · 기상예보',
-    'main.region_btn.gugu': '해역 버튼 · 해구기상',
-    'main.region_btn.windy': '해역 버튼 · 윈디',
-    'main.region_btn.overview': '해역 버튼 · 종합정보',
-    'buoy.info_view': '부이 정보 조회',
-    'chart.load': '해상일기도 로딩',
-    'chart.play': '해상일기도 재생',
-    'ocean.current': '유향유속(조류)',
-    'ocean.wind': '풍향풍속(바람)',
-    'ocean.wave': '파고/파향',
-    'ocean.warn_zone': '특보 표출',
-    'ocean.gugu_forecast': '해구 전망표/그래프',
-    'ocean.cctv_open': 'CCTV 팝업',
-    'ocean.typhoon': '태풍',
-    'ocean.mudflat': '물빠짐',
-    'ocean.basemap.rltm': '배경 · 기본맵',
-    'ocean.basemap.enc': '배경 · 전자해도',
-    'ocean.basemap.coast': '배경 · 해안도',
-    'ocean.basemap.osm': '배경 · 세계지도',
-    'ocean.basemap.vworld': '배경 · 위성지도',
-    'ocean.hazard_exposed': '노출암',
-    'ocean.hazard_rock': '간출암 등',
-    'shrt.rain_prob': '강수확률',
-    'shrt.rain_amount': '강수량',
-    'shrt.snow': '적설',
-    'shrt.sky': '하늘상태',
-    'shrt.temp_air': '기온(천기)',
-    'shrt.vsby': '시정',
-    'sheet.bottom_sheet': '해점 바텀시트',
-    'sheet.tide': '조석',
-    'sheet.astro': '천문(일출몰/월출몰)',
-    'sheet.moon': '월령(달 위상)',
-    'sheet.depth': '수심',
-    'sheet.water_temp': '수온',
-    'life.fishing.tab': '바다낚시 탭 진입',
-    'life.surfing.tab': '서핑 탭 진입',
-    'life.parting.tab': '바다갈라짐 탭 진입',
-    'life.fishing.point.갯바위': '바다낚시 지점 · 갯바위',
-    'life.fishing.point.선상': '바다낚시 지점 · 선상',
-    'life.surfing.point': '서핑 지점 클릭',
-    'life.parting.region': '바다갈라짐 지역 선택'
-};
+// 기능 키 → 한글 이름표. 관리자 화면(admin_collect.js)과 같은 파일을 쓴다(2026-09-10 한 장으로 통합).
+const USAGE_CSV_LABELS = require('../../client/js/shared/utils/usage_keys.js');
 router.get('/api/stats/usage/csv', (req, res) => {
     try {
         const d = computeUsageAggregation(req.query);

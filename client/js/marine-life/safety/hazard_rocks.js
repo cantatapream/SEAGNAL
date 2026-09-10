@@ -983,9 +983,10 @@
      * @param {ol.Map} map
      * @param {string} btnId
      * @param {function(): ol.layer.Vector} getLayer - 이 버튼이 다룰 레이어를 돌려주는 함수
-     * @param {string} usageKey - trackUsage 에 넘길 키
+     * [사용량] 여기서는 세지 않는다 — 두 버튼은 감춰져 있고 위험지형(bindTerrainToggle)이
+     *          대신 누르므로, 위험지형 켬 1건으로만 센다(사용자 확정 2026-09-10).
      */
-    function bindToggle(map, btnId, getLayer, usageKey) {
+    function bindToggle(map, btnId, getLayer) {
         var btn = document.getElementById(btnId);
         if (!btn) return;
         var iconEl = btn.querySelector('i');
@@ -1016,7 +1017,6 @@
                 var visible = !layer.getVisible();
                 layer.setVisible(visible);
                 btn.classList.toggle('active', visible);
-                if (visible && window.trackUsage) window.trackUsage(usageKey);
                 if (!visible && bubbleOverlay) bubbleOverlay.setPosition(undefined);
                 if (!visible) hideTideCurveOverlay();
                 // 갯바위 면은 노출암 마커와 한 몸 — 노출암 버튼을 따라간다.
@@ -1096,8 +1096,14 @@
         var prevBasemap = null;  // ON 시점 배경지도를 기억해 OFF 때 되돌린다
         btn.addEventListener('click', function () {
             var turnOn = !btn.classList.contains('active');
-            if (exBtn.classList.contains('active') !== turnOn) exBtn.click();
-            if (rkBtn.classList.contains('active') !== turnOn) rkBtn.click();
+            // [사용량] 숨은 버튼 2개를 대신 누르는 동안은 세지 않고, 위험지형 켬 1건만 센다
+            //   (사용자 확정 2026-09-10 — 종전엔 노출암·간출암 각 1건씩 2건으로 잡혔다).
+            var run = window.withUsageSuppressed || function (f) { f(); };
+            run(function () {
+                if (exBtn.classList.contains('active') !== turnOn) exBtn.click();
+                if (rkBtn.classList.contains('active') !== turnOn) rkBtn.click();
+            });
+            if (turnOn && window.trackUsage) window.trackUsage('safety.terrain');
             btn.classList.toggle('active', turnOn);
             showTerrainLegend(turnOn);
             // [배경지도] 바위 위치를 실제 지형과 대조해 보기 쉽도록 위성지도로 전환한다
@@ -1123,8 +1129,8 @@
     window.initHazardRocksLayer = function (map) {
         // 원래 버튼 둘은 화면에서 감춰져 있지만(index2.html CSS), 위험지형 버튼이 대신
         // 누르므로 리스너는 그대로 붙여 둔다.
-        bindToggle(map, 'ocean-exposed-toggle-btn', function () { return exposedLayer; }, 'ocean.hazard_exposed');
-        bindToggle(map, 'ocean-rock-toggle-btn', function () { return rockLayer; }, 'ocean.hazard_rock');
+        bindToggle(map, 'ocean-exposed-toggle-btn', function () { return exposedLayer; });
+        bindToggle(map, 'ocean-rock-toggle-btn', function () { return rockLayer; });
         bindTerrainToggle(map);
     };
 
@@ -1175,6 +1181,7 @@
             } else {
                 // 좌표가 사실상 같거나(원본 데이터 중복) 이미 최대 줌 — 더 확대해도
                 // 안 갈라지므로 번호 매긴 목록으로 한 번에 보여준다.
+                if (window.trackUsage) window.trackUsage('safety.terrain.marker');  // [사용량] 정보가 보일 때만
                 var listBubble = ensureBubble(map);
                 fillBubbleList(listBubble, members);
                 listBubble.setPosition(hit.getGeometry().getCoordinates());
@@ -1182,6 +1189,8 @@
             return true;
         }
 
+        // [사용량] 낱개 마커 클릭 = 1건(확대만 한 경우는 위에서 return 돼 세지 않음)
+        if (window.trackUsage) window.trackUsage('safety.terrain.marker');
         // 간출암(k=1) 낱개 마커 — 화면 가운데 조석 곡선 팝업(노출암 등은 아직
         // 미지원, 기존 텍스트 말풍선 그대로 — HAZARD_ROCKS_HANDOFF_BRIEF.md Task #18 참고).
         if (members[0].get('k') === 1) {

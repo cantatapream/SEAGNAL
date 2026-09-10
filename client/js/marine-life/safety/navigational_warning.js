@@ -334,6 +334,7 @@
         }
 
         var zone = hit.get('zone');
+        if (window.trackUsage) window.trackUsage('safety.navwarn.zone');  // [사용량] 구역 눌러 정보를 볼 때 1건
         if (typeof window.showSeagnalModal === 'function') {
             window.showSeagnalModal(zone.name || '항행경보', _buildDetailHtml(hit), 'info');
             var modalContent = document.querySelector('#seagnal-custom-modal .seagnal-modal-content');
@@ -377,8 +378,9 @@
             _load();
             _restyle();
         }
-        if (prevBtn) prevBtn.addEventListener('click', function () { _go(-1); });
-        if (nextBtn) nextBtn.addEventListener('click', function () { _go(1); });
+        // [사용량] 사용자가 ◀▶ 로 날짜를 넘길 때마다 1건(사용자 확정 2026-09-10)
+        if (prevBtn) prevBtn.addEventListener('click', function () { if (window.trackUsage) window.trackUsage('safety.navwarn.date'); _go(-1); });
+        if (nextBtn) nextBtn.addEventListener('click', function () { if (window.trackUsage) window.trackUsage('safety.navwarn.date'); _go(1); });
     }
 
     function _bindTimeSlider() {
@@ -419,6 +421,7 @@
             if (_fillLayer) _fillLayer.setVisible(_visible);
             _setBarsVisible(_visible);
             if (_visible) {
+                if (window.trackUsage) window.trackUsage('safety.navwarn');  // [사용량] 켤 때만 1건
                 _updateDateNavUI();
                 if (slider) slider.value = String(_refMinutes);
                 if (valueEl) valueEl.textContent = _fmtMin(_refMinutes);
