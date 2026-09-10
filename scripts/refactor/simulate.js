@@ -75,9 +75,24 @@ const LIFE_SUBTABS = ['fishing-section', 'surfing-section', 'swimming-section',
             let visible = false;
             try {
                 await page.waitForFunction((t) => {
-                    const groupMap = { 'weather-group': 'weather-alert-section', 'ocean-life-group': 'fishing-section' };
-                    const el = document.getElementById(groupMap[t] || t);
-                    return !!el && el.classList.contains('active');
+                    // 그룹 탭은 눌러도 그룹 자체가 아니라 그 안의 섹션이 켜진다 → 어떤 섹션이
+                    //   켜지면 성공으로 볼지 적어 둔다. 여러 개인 것은 화면 전환 과정에서
+                    //   둘 중 하나가 켜질 수 있기 때문이다.
+                    // [2026-09-10] 'ocean-life-group' 기대값 정정 — 해양안전생활이 정식 탭이
+                    //   되면서 이 그룹은 'fishing-section'(바다낚시)이 아니라 해양안전 화면을
+                    //   먼저 연다. 그 화면은 자리표시 섹션(ocean-safety-section)을 잠깐 켰다가
+                    //   해양종합정보 지도 섹션(ocean-map-section)을 빌려 쓰므로 둘 다 인정한다
+                    //   (life_safety.js _enterSafety). 이 줄을 안 고치면 멀쩡한 화면이
+                    //   "깨진 시나리오"로 잡힌다.
+                    const groupMap = {
+                        'weather-group': ['weather-alert-section'],
+                        'ocean-life-group': ['ocean-map-section', 'ocean-safety-section']
+                    };
+                    const ids = groupMap[t] || [t];
+                    return ids.some((id) => {
+                        const el = document.getElementById(id);
+                        return !!el && el.classList.contains('active');
+                    });
                 }, target, { timeout: 10000 });
                 visible = true;
             } catch (_e) { /* 10초 내 활성화 안 됨 → 실패로 기록 */ }
@@ -88,6 +103,9 @@ const LIFE_SUBTABS = ['fishing-section', 'surfing-section', 'swimming-section',
         }
     }
     for (const t of MAIN_TABS) await clickTab(t, `메인탭:${t}`);
+    // ⚠라벨은 기준선(baseline)과 대조하는 **키**라 바꾸지 않는다. 이름을 바꾸면 기준선에서
+    //   짝을 못 찾아 그 시나리오가 조용히 통과 처리된다(검사가 약해진다).
+    //   화면상의 이름은 2026-09-10 부터 "해양안전생활" 이다.
     await clickTab('ocean-life-group', '메인탭 재진입:해양생활');
     for (const t of LIFE_SUBTABS) await clickTab(t, `서브탭:${t}`);
 
