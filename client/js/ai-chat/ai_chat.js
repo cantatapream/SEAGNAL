@@ -1289,9 +1289,74 @@
         stageHTML + artsHTML + relHTML +
         '<a class="nrya-rv-link" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">🔗 law.go.kr에서 확인</a>' +
         (am.status === 'pending' ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 승인(재수집 필요)</button><button class="nrya-btn-no">✗ 무시</button></div>' : '') +
+        // ★승인 뒤 위키를 사람이 고쳐야 한다 — 무엇을 어디서 고칠지 적힌 글을 뽑아 준다.
+        //   그 글만 복사해 AI 에게 붙여 넣으면 된다(사용자 확정 2026-09-10). 무시한 건은 뽑지 않는다.
+        (am.status !== 'dismissed'
+          ? '<button class="nrya-btn-brief" type="button">📋 위키 반영 지시문 만들기</button>' +
+            '<div class="nrya-brief nrya-hidden"></div>'
+          : '') +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
       '</div>';
     return '<div class="nrya-rv" data-id="' + esc(am.id) + '"><div class="nrya-rv-head"><span class="nrya-rv-id">📌</span><div class="nrya-rv-t">' + esc(lawName || am.id) + '<small>' + esc(shortTs(am.ts)) + '</small></div>' + st + '</div>' + body + '</div>';
+  }
+
+  /**
+   * 카드의 「📋 위키 반영 지시문 만들기」 버튼을 묶는다.
+   * 누르면 서버가 그 개정의 **개정 전/후 원문 + 고칠 위키 목록 + 해야 할 일**을 한 덩어리 글로 만들어 주고,
+   * 그 글을 화면에 펼쳐 준다. 복사 버튼이 되면 클립보드로, 안 되면 글상자를 통째로 선택해 준다
+   * (앱 웹뷰는 클립보드가 막혀 있을 수 있어 **두 갈래를 다 둔다**).
+   * @param {HTMLElement} card - `.nrya-rv` 카드
+   * [연계] → GET /api/legal/amendments/:id/wiki-brief · services/legal_wiki_brief.js.
+   */
+  function bindBriefButton(card) {
+    var btn = card.querySelector('.nrya-btn-brief'); if (!btn) return;
+    var box = card.querySelector('.nrya-brief');
+    var id = card.dataset.id;
+    var LABEL = '📋 위키 반영 지시문 만들기';
+    btn.onclick = function () {
+      if (box && !box.classList.contains('nrya-hidden') && box.dataset.loaded === '1') {
+        box.classList.add('nrya-hidden'); btn.textContent = LABEL; return;   // 다시 누르면 접는다
+      }
+      btn.disabled = true; btn.textContent = '만드는 중…';
+      legalGet('/api/legal/amendments/' + encodeURIComponent(id) + '/wiki-brief').then(function (res) {
+        return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+      }).then(function (d) {
+        btn.disabled = false;
+        if (!d || !d.ok) { btn.textContent = LABEL; showCardErr(card, (d && d.error) || '지시문을 만들지 못했습니다.'); return; }
+        btn.textContent = '📋 지시문 접기';
+        box.dataset.loaded = '1';
+        box.classList.remove('nrya-hidden');
+        box.innerHTML = '<div class="nrya-brief-help">아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 위키 반영 작업을 이어서 할 수 있습니다. ' +
+          '고칠 위키 후보 <b>' + nfmt((d.pages || []).length) + '쪽</b>이 함께 적혀 있습니다.</div>' +
+          '<div class="nrya-brief-acts"><button type="button" class="nrya-btn-copy">📄 복사</button>' +
+          '<button type="button" class="nrya-btn-selall">전체 선택</button></div>' +
+          '<textarea class="nrya-brief-txt" readonly rows="14"></textarea>';
+        var ta = box.querySelector('.nrya-brief-txt');
+        ta.value = d.text || '';
+        box.querySelector('.nrya-btn-copy').onclick = function () {
+          var b = this;
+          var done = function (ok) { b.textContent = ok ? '✅ 복사됨' : '⚠ 복사 실패 — 전체 선택 후 직접 복사하세요'; setTimeout(function () { b.textContent = '📄 복사'; }, 2500); };
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(ta.value).then(function () { done(true); }, function () { done(false); });
+              return;
+            }
+          } catch (_) { /* 아래 폴백 */ }
+          try { ta.select(); done(document.execCommand && document.execCommand('copy')); }
+          catch (_) { done(false); }
+        };
+        box.querySelector('.nrya-btn-selall').onclick = function () { ta.focus(); ta.select(); };
+      }).catch(function (e) {
+        btn.disabled = false; btn.textContent = LABEL;
+        showCardErr(card, '네트워크 오류: ' + String(e && e.message || e));
+      });
+    };
+  }
+
+  /** 카드 안 인라인 오류줄에 메시지를 띄운다(카드마다 하나씩 있다). @param {HTMLElement} card @param {string} msg */
+  function showCardErr(card, msg) {
+    var el = card.querySelector('.nrya-inline-err'); if (!el) return;
+    el.classList.remove('nrya-hidden'); el.style.display = 'block'; el.textContent = msg;
   }
 
   /**
@@ -1342,7 +1407,10 @@
       var list = data.amendments || [];
       if (!list.length) { listHost.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">✅</span>감지된 개정이 없습니다.</div>'; return; }
       listHost.innerHTML = '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">총 ' + list.length + '건</div>' + list.map(amendmentCardHTML).join('');
-      listHost.querySelectorAll('.nrya-rv').forEach(function (card) { bindDecideCard(card, '/api/legal/amendments', 'approved', 'dismissed', '승인(재수집 필요)', '무시'); });
+      listHost.querySelectorAll('.nrya-rv').forEach(function (card) {
+        bindDecideCard(card, '/api/legal/amendments', 'approved', 'dismissed', '승인(재수집 필요)', '무시');
+        bindBriefButton(card);
+      });
     }).catch(function (e) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
   }
 
