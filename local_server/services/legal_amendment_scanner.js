@@ -46,6 +46,8 @@
  *    즉시 응답(백그라운드 진행, 완료를 기다리지 않음 — HTTP 응답을 몇 분씩 붙들면 리버스
  *    프록시 타임아웃 위험).
  *  - _dashboard/loop/detect_law_changes.py → 실제 탐지 엔진(H-29), `--out` 으로 `data/law_change_queue.json` 산출.
+ *  - services/admin_push.js → 새로 감지되면 등록된 관리자 기기로 푸시(2026-09-10 사용자 확정).
+ *  - services/legal_wiki_brief.js → 승인 뒤 "무엇을 어디서 고칠지" 인계문을 만든다(GET …/wiki-brief).
  *  - data/legal_amendments_queue.jsonl → 관리자 UI가 보는 최종 큐(각 줄 1건, status 필드로 상태 관리).
  *    최초 시드 원본은 _amendments/queue.jsonl(git). 트랙 C(예고본 사전수집)도 이 파일을 읽는다.
  * ============================================================================
@@ -268,12 +270,45 @@ async function runAmendmentScan() {
     const known = existingLegacyIds();
     const fresh = pending.filter((it) => !known.has(it.id));
     const relevant = fresh.filter(isRelevant);
-    appendQueue(relevant.map(toLegacyEntry));
+    const cards = relevant.map(toLegacyEntry);      // 한 번만 만든다(적재·알림이 같은 것을 본다)
+    appendQueue(cards);
     const filtered = fresh.length - relevant.length;
     console.log(`[나리야 개정감지] 탐지 pending ${pending.length}건 · 새 항목 ${fresh.length}건 중 무관 신규 고시로 거른 ${filtered}건 · 관리자 큐 적재 ${relevant.length}건`);
+    // ★새로 감지된 것이 있으면 등록된 관리자 기기로 알린다(사용자 확정 2026-09-10).
+    //   푸시가 실패해도 스캔 결과는 그대로 돌려준다 — 알림 때문에 감지를 잃으면 안 된다.
+    if (cards.length) await notifyAdmins(cards);
     return { scanned: pending.length, changed: relevant.length, filtered, errors: r.ok ? 0 : 1 };
   } finally {
     _scanning = false;
+  }
+}
+
+/**
+ * 새로 감지된 개정을 **등록된 관리자 기기**로 푸시한다(사용자 확정 2026-09-10).
+ * 예: notifyAdmins([{법령명:'어선원 및 어선 재해보상보험법', 현재:{시행일자:'20260911'}}, …])
+ * @param {Array<object>} entries 이번에 관리자 큐에 새로 올린 카드들
+ * @returns {Promise<void>} 실패는 로그만 남기고 삼킨다 — 알림 때문에 스캔이 죽으면 안 된다
+ * [연계] → services/admin_push.sendAdminPush(통합관리자센터 '등록' 버튼으로 등록한 기기들).
+ *   ★본문에 **"승인 후 위키 수동 갱신이 필요하다"** 를 반드시 넣는다 — 승인만 하면 끝나는 줄 알면
+ *     위키가 옛 내용으로 남는다(승인은 답변 전환·재수집 표시까지만 한다, `_amendments/README.md`).
+ */
+async function notifyAdmins(entries) {
+  try {
+    const { sendAdminPush } = require('./admin_push');
+    const names = [];
+    for (const e of entries) {
+      const n = e.법령명 || e.law || '';
+      if (n && names.indexOf(n) < 0) names.push(n);
+    }
+    const head = names.slice(0, 3).join(' · ') + (names.length > 3 ? ` 외 ${names.length - 3}건` : '');
+    const arts = entries.reduce((n, e) => n + ((e.changed_articles || []).length), 0);
+    const title = `⚖ 법령 개정 ${entries.length}건 감지`;
+    // 푸시 본문은 **평문**이다 — 별표(**) 같은 마크다운 표시는 그대로 글자로 보인다.
+    const body = `${head}${arts ? ` · 바뀐 조문 ${arts}개` : ''}\n승인 후 위키를 사람이 갱신해야 합니다. 개정검토 방에서 승인하고 「위키 반영 지시문」을 복사하세요.`;
+    const r = await sendAdminPush(title, body, { url: 'https://seagnal-server.fly.dev/?tab=admin', kind: 'legal_amendment' });
+    console.log(`[나리야 개정감지] 관리자 푸시 — 성공 ${r.sent}건 · 실패 ${r.failed}건`);
+  } catch (e) {
+    console.error('[나리야 개정감지] 관리자 푸시 실패(스캔은 정상):', e && e.message);
   }
 }
 
@@ -291,4 +326,4 @@ function startAmendmentScan() {
 }
 
 module.exports = { runAmendmentScan, startAmendmentScan, queueFile, h29QueueFile, mirrorDecisionToH29,
-  toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE };
+  notifyAdmins, toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE };
