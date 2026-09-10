@@ -172,8 +172,41 @@ console.log('\n[6] 해양안전생활 N 배지');
     ok('9/13 00:00 KST 부터는 안 붙는다', kstToUtc(2026, 8, 13, 0, 0) >= until);
 })();
 
-// ── [7] 게이트 등록 ───────────────────────────────────────────────────────
-console.log('\n[7] 게이트 등록');
+// ── [7] 축척 막대(거리 눈금) — 하단 탭·하위탭을 따라 움직이는가 ───────────
+console.log('\n[7] 축척 막대');
+
+(function () {
+    // 기준 박스가 지도 컨테이너면 하위탭이 열린 동안 높이를 이중으로 더해
+    // 막대가 화면 한가운데까지 떠오른다(2026-09-10 사용자 보고). 화면 기준 고정이어야 한다.
+    // 앞에 조상 선택자가 붙지 않은(줄 맨 앞에서 시작하는) 규칙만 고른다 —
+    // 그냥 찾으면 위쪽의 `body.ls-mode.ls-safety .ol-scale-line {` 이 먼저 걸린다.
+    const block = INDEX_SRC.match(/\n\s*\.ol-scale-line \{[\s\S]*?\}/);
+    ok('.ol-scale-line 규칙을 찾았다', !!block);
+    ok('화면(viewport) 기준으로 고정한다(position: fixed)',
+        !!block && /position:\s*fixed\s*!important/.test(block[0]));
+    ok('우측 하단에 붙인다(right/bottom 지정, left·top 해제)',
+        !!block && /right:\s*8px\s*!important/.test(block[0]) &&
+        /left:\s*auto\s*!important/.test(block[0]) && /top:\s*auto\s*!important/.test(block[0]));
+
+    ok('하위탭이 열리면 그만큼 올라간다(body.sub-tabs-open)',
+        /body\.sub-tabs-open \.ol-scale-line \{[\s\S]{0,200}var\(--sub-tab-height/.test(INDEX_SRC));
+    ok('해양안전 화면에서는 출처표기와 같은 높이에 선다(--ls-bottom-chrome + 6px)',
+        /body\.ls-mode\.ls-safety \.ol-scale-line \{\s*bottom: calc\(var\(--ls-bottom-chrome\) \+ 6px\)/.test(INDEX_SRC));
+    ok('물빠짐이 켜지면 슬라이더(전폭·z-index 1200) 위로 함께 올라간다',
+        /body\.ls-mode\.ls-safety\.ls-mudflat-on \.ol-scale-line \{\s*bottom: calc\(var\(--ls-bottom-chrome\) \+ 2\.25rem \+ 6px\)/.test(INDEX_SRC));
+
+    // 색: 검은 글씨·검은 눈금 + 흰 테두리(사용자 확정 2026-09-10)
+    const inner = INDEX_SRC.match(/\.ol-scale-line-inner \{[\s\S]*?\}/);
+    ok('.ol-scale-line-inner 규칙을 찾았다', !!inner);
+    ok('글씨와 눈금이 검정이다', !!inner && /color:\s*#000\s*!important/.test(inner[0]) &&
+        /border-color:\s*#000\s*!important/.test(inner[0]));
+    ok('옛 흰 글씨로 돌아가지 않았다', !!inner && !/color:\s*#fff/.test(inner[0]));
+    ok('척도 전체에 흰 테두리를 두른다(drop-shadow)',
+        /\.ol-scale-line \{[\s\S]{0,300}filter:[\s\S]{0,200}drop-shadow\(0 0 1px #fff\)/.test(INDEX_SRC));
+})();
+
+// ── [8] 게이트 등록 ───────────────────────────────────────────────────────
+console.log('\n[8] 게이트 등록');
 ok('verify_all.sh SUITES 에 test_tab_structure 가 있다', /test_tab_structure/.test(VERIFY_SRC));
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

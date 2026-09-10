@@ -900,9 +900,17 @@
         body.ls-mode.ls-safety.ls-mudflat-on #ocean-topleft-controls > .accident-grid-legend {
             bottom: calc(var(--ls-bottom-chrome) + 2.25rem + 6px + 25px) !important;
         }
-        /* 축척 막대는 우측 하단이라 물빠짐 슬라이더(좌측/전폭)와 안 겹침 — 탭바만 피하면 됨 */
+        /* 축척 막대 — 출처표기와 같은 높이(하단 탭 + 하위탭 위 6px)에 나란히 둔다.
+           위치 계산이 화면 기준인 것은 위 .ol-scale-line 규칙의 position:fixed 덕분이다.
+           [2026-09-10 정정] 예전 주석은 "우측 하단이라 물빠짐 슬라이더와 안 겹침" 이라고
+             적혀 있었으나, 슬라이더(.shrt-fcst-slider-bar)는 left:0;right:0 인 전폭 바이고
+             z-index 도 1200 이라 실제로는 축척을 덮는다. 그래서 출처표기와 똑같이
+             물빠짐이 켜져 있으면 슬라이더 높이(2.25rem)만큼 함께 올린다. */
         body.ls-mode.ls-safety .ol-scale-line {
             bottom: calc(var(--ls-bottom-chrome) + 6px) !important;
+        }
+        body.ls-mode.ls-safety.ls-mudflat-on .ol-scale-line {
+            bottom: calc(var(--ls-bottom-chrome) + 2.25rem + 6px) !important;
         }
         /* 범례("갯벌 노출")는 출처표기 위로 */
         body.ls-mode.ls-safety.ls-mudflat-on #mudflat-legend {
@@ -2431,8 +2439,19 @@
             color: #333;
             text-shadow: none;
         }
-        /* 축척 막대(거리 눈금) — 출처표기와 같은 원리로 우측 하단, 탭바에 안 가리게 */
+        /* 축척 막대(거리 눈금) — 출처표기와 같은 원리로 우측 하단, 탭바에 안 가리게.
+           [position:fixed 인 이유 — 2026-09-10 사용자 보고]
+             이 막대의 원래 기준 박스(.ol-overlaycontainer-stopevent)는 하위탭이
+             열려 있으면 하위탭 바 위에서 끝나고, 닫히면 화면 끝까지 늘어난다.
+             그 위에 다시 "탭 + 하위탭 높이"를 더하니 하위탭이 열린 동안 그 높이만큼
+             이중으로 밀려 막대가 화면 한가운데까지 떠올랐다(실측: 하위탭 바 위 107px).
+             그러다 지도를 움직여 하위탭이 접히면 제자리로 내려와, 사용자에게는
+             "처음엔 튀어 올라와 있다가 화면을 움직이면 내려간다"로 보였다.
+             화면(viewport) 기준으로 고정하면 이중 계산이 사라져, 해양종합정보와
+             해양안전생활 모두 처음부터 우측 하단에 붙고 하위탭이 오르내리는 만큼만
+             따라 움직인다(출처표기 .ol-attribution 이 쓰는 방식과 같다). */
         .ol-scale-line {
+            position: fixed !important;
             left: auto !important;
             right: 8px !important;
             bottom: calc(var(--main-tab-height, 68px) + 8px) !important;
@@ -2441,18 +2460,27 @@
         body.sub-tabs-open .ol-scale-line {
             bottom: calc(var(--main-tab-height, 68px) + var(--sub-tab-height, 50px) + 8px) !important;
         }
-        /* 배경 없이 지도 위에 바로 뜨는 눈금 — 흰 글씨·굵은 선 + 그림자로 어떤
-           배경(위성/해도/바다색)에서도 잘 읽히게 한다 */
+        /* 배경 없이 지도 위에 바로 뜨는 눈금 — 검은 글씨·굵은 선에 흰 테두리를 둘러
+           어떤 배경(위성/해도/바다색)에서도 잘 읽히게 한다(사용자 확정 2026-09-10.
+           그전에는 흰 글씨 + 검은 그림자였는데, 밝은 바다색 위에서 흐릿했다).
+           [왜 drop-shadow 인가] 눈금은 아래·좌·우 3면만 테두리가 있는 ㄷ 모양이라
+           box-shadow 를 쓰면 없는 윗변까지 흰 선이 생긴다. drop-shadow 는 실제로
+           그려진 모양(테두리 + 글자)만 따라가므로 "척도 전체"에 테두리가 둘러진다.
+           같은 값을 세 번 겹치는 것은 한 번으로는 테두리가 너무 옅어서다.
+           [해 본 것] 흐림 없이 상하좌우로 1px 씩 미는 방식(drop-shadow(1px 0 0 #fff) …)도
+             시험했는데, drop-shadow 는 앞 결과에 다시 그림자를 얹는 방식이라 네 방향이
+             더해지지 않고 한쪽으로 쏠려 테두리가 삐뚤어졌다. 그래서 흐림 방식으로 되돌렸다. */
         .ol-scale-line {
             background: transparent !important;
             padding: 0 !important;
+            filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);
         }
         .ol-scale-line-inner {
-            border-color: #fff !important;
+            border-color: #000 !important;
             border-width: 2px !important;
-            color: #fff !important;
+            color: #000 !important;
             font-weight: 700 !important;
-            text-shadow: 0 0 3px rgba(0, 0, 0, 0.75), 0 1px 2px rgba(0, 0, 0, 0.75);
+            text-shadow: none !important;
         }
 
         /* ── 해양생활 풀스크린 지도: 출처표기·범례 위치 보정 ─────────────
