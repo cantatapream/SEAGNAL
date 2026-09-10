@@ -522,7 +522,12 @@
             for (var i = 0; i < chrono.length; i++) {
                 if (chrono[i].m <= nowMin) prevPeak = chrono[i]; else { nextPeak = chrono[i]; break; }
             }
-            if (prevPeak && nextPeak) {
+            // 게이지 유효성 검사[2026-09-09 신설] — 앞뒤 극값 간격이 0 이하이거나 13시간(780분)을
+            //   넘으면 그 구간은 물때 한 주기로 볼 수 없다(자료 결손·경계 이상). 형제 화면 두 곳은
+            //   이미 같은 검사를 하는데(ocean_bottom_sheet3.js·tide.js) 이 파일에만 빠져 있었다.
+            //   어제 극값을 게이지에 쓰기 시작하면 이 검사가 없을 때 엉뚱한 진행률이 늘어난다.
+            var gapMin = (prevPeak && nextPeak) ? (nextPeak.m - prevPeak.m) : 0;
+            if (prevPeak && nextPeak && gapMin > 0 && gapMin <= 780) {
                 var rising = nextPeak.type === 'high';
                 var pct = ((nowMin - prevPeak.m) / (nextPeak.m - prevPeak.m)) * 100;
                 if (pct < 0) pct = 0; if (pct > 100) pct = 100;
@@ -562,11 +567,27 @@
         }
 
         // 각 극값의 "직전 극값 대비 증감" — 시간순으로 바로 앞 극값과의 cm 차이(전날 마지막
-        // 극값이 있으면 오늘 첫 극값의 증감도 구해짐). ocean_bottom_sheet3.js 의 diff 와
-        // 동일한 정의(요일 비교가 아니라 "직전 물때"와의 변화량)임을 실측으로 재확인.
+        // 극값이 있으면 오늘 첫 극값의 증감도 구해짐).
+        // ⚠ocean_bottom_sheet3.js 와 "같은 정의"가 아니다[2026-09-09 정정] — 그쪽은 "직전 **반대
+        //   종류**" 극값을 찾고 3단 폴백까지 둔다(ocean_bottom_sheet3.js 의 dprev 계산).
+        //   물때가 고조·저조로 규칙적으로 갈마들면 결과가 같지만, 어제 마지막과 오늘 첫 극값이
+        //   둘 다 고조인 날에는 "고조에서 고조를 뺀" 값이 나온다. 값이 작아 정상처럼 보이는
+        //   조용한 오류라, 아래에서 **오늘 첫 극값 하나만** 반대 종류와 짝지어 바로잡는다
+        //   (나머지 행은 종전 그대로 둬야 내일·모레 화면의 기존 숫자가 안 바뀐다).
         var diffByKey = {};
         for (var j = 1; j < chrono.length; j++) {
             diffByKey[chrono[j].m + '_' + chrono[j].type] = Math.round(chrono[j].cm - chrono[j - 1].cm);
+        }
+        // 오늘 첫 극값 = chrono 에서 어제 극값(prevSorted) 다음 자리.
+        var firstIdx = prevSorted.length;
+        if (firstIdx > 0 && firstIdx < chrono.length) {
+            var first = chrono[firstIdx], opp = null;
+            for (var k = firstIdx - 1; k >= 0; k--) {
+                if (chrono[k].type !== first.type) { opp = chrono[k]; break; }
+            }
+            var firstKey = first.m + '_' + first.type;
+            if (opp) diffByKey[firstKey] = Math.round(first.cm - opp.cm);
+            else delete diffByKey[firstKey];   // 반대 종류가 없으면 지어내지 않고 빈칸으로 둔다
         }
 
         function peakGroupHtml(label, cls, list, arrow) {
@@ -665,7 +686,11 @@
 
         var prevDay = state.cache[state.day - 1];
         var nextDay = state.cache[state.day + 1];
-        var prevDayPeaks = (prevDay && prevDay.ready) ? prevDay.peaks : null;
+        // 어제 극값 — 앞날이 캐시에 있으면(내일·모레 화면) 그것을 그대로 쓰고, 없을 때만
+        //   서버가 함께 보내 준 prevPeaks 를 쓴다[2026-09-09]. 순서를 뒤집으면 지금 잘 나오는
+        //   내일·모레 화면의 첫 극값 증감까지 다른 출처로 바뀐다.
+        //   [연계] local_server/services/hazard_rocks_submersion.js getTideCurve 의 prevPeaks
+        var prevDayPeaks = (prevDay && prevDay.ready) ? prevDay.peaks : ((data && data.prevPeaks) || null);
         var nextDayPeaks = (nextDay && nextDay.ready) ? nextDay.peaks : null;
         var y = +dateStr.slice(0, 4), mo = +dateStr.slice(4, 6) - 1, d = +dateStr.slice(6, 8);
         var dateObj = new Date(Date.UTC(y, mo, d, 3, 0, 0)); // KST 정오(=UTC 03시) — 물때(월령) 계산용

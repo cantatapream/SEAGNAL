@@ -33,6 +33,7 @@ const path = require('path');
 
 const HRC = require('./hazard_rocks_tide_common');
 const { findTidePeaks } = require('../peak_finder');
+const prevPeaks = require('./hazard_rocks_prev_peaks');
 
 let _tc = null;
 function getTideCollector() {
@@ -297,6 +298,12 @@ async function _collectInner(opts) {
         log(`⛔ 회로 차단기 발동 — 연속 ${FAIL_ABORT_THRESHOLD}회 하드 실패. 수집 중단(${done}/${tasks.length} 처리).`);
     }
     log(`수집 종료: 처리 ${done}/${tasks.length}건, ${elapsed}s, 상태 ${JSON.stringify(byStatus)}`);
+    // [어제 극값 요약] 곡선을 지우기 전에 그날 극값만 따로 남긴다 — 서해·남해 수집기와 같은 이유.
+    //   [연계] services/hazard_rocks_prev_peaks.js → hazard_rocks_submersion.getTideCurve
+    try {
+        const r = prevPeaks.captureWindow('hr', dates, anchors.map(a => a.id), curvePath, log);
+        log(`극값 요약: ${r.captured}일 저장, 옛 파일 ${r.pruned}개 정리`);
+    } catch (e) { log(`⚠️ 극값 요약 실패(수집 결과에는 영향 없음): ${e.message}`); }
     try { purgeStaleCurves(log); } catch (e) { /* 정리 실패는 수집 결과에 영향 없음 */ }
     return { ok: true, collected: done, total: tasks.length, aborted, elapsedSec: +elapsed, byStatus };
 }

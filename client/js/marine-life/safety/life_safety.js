@@ -634,21 +634,77 @@
      *          → index2.html 의 .ocean-info-tabs/.ocean-info-panel/.ocean-info-src CSS, window.__lsInfoSwitch
      */
     function _buildSafetyInfoHtml() {
-        var fn = window.oceanInfoTabHtml;
+        // [탭 = 이 화면의 버튼 — 2026-09-09 사용자 확정]
+        //   순서·이름·내용을 화면 버튼(위험지형→사고정보→금지구역→항행경보→물빠짐→CCTV→
+        //   관제구역→항로·해역)과 똑같이 맞춘다. 예전에는 물빠짐·CCTV·노출암간출암 본문을
+        //   해양종합정보 안내(window.oceanInfoTabHtml)에서 빌려 썼는데, 두 화면의 동작이
+        //   서로 달라(해양종합정보에는 그 버튼이 이제 아예 없다) 여기서 따로 쓴다.
         var items = [
-            { id: 'mudflat', label: '물빠짐' },
-            { id: 'hazardrock', label: '노출암·간출암' },
-            { id: 'cctv', label: 'CCTV' },
-            // 낚시금지 · 출입통제를 "금지구역" 한 탭으로 합쳤다[S28-3, 2026-09-09 사용자 확정].
-            // 버튼도 하나로 합쳐(ban_zone.js) 두 구역이 함께 뜨므로 안내도 한 자리에 둔다.
+            // 위험지형[S28, 2026-09-09] — 옛 "노출암·간출암" 두 버튼이 하나로 합쳐졌고
+            //   갯바위(면)가 새로 생겼으며 동해는 잠김경고에서 빠졌다.
+            { id: 'hazardrock', label: '위험지형', html:
+                '<p><i class="fa-solid fa-circle-check"></i> <strong>「위험지형」 버튼 하나로</strong> 바다 위·물속의 바위를 함께 표시합니다. 켜면 화면 왼쪽 위에 <strong>「노출암/갯바위」</strong>와 <strong>「간출암, 암암 등」</strong> 스위치가 생겨 원하는 것만 골라 볼 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>노출암</strong>(4,287개) — 썰물 때도 늘 물 위에 드러나 있는 바위입니다. <strong>갯바위</strong>(9,959곳)는 해안을 따라 이어진 바위 지대를 <strong>면으로</strong> 그립니다. 갯바위 안에 들어 있는 노출암 475개는 표시가 겹치지 않도록 <strong>갯바위로만</strong> 보여줍니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>간출암</strong>(1,778개) · <strong>세암</strong>(658개) · <strong>암암</strong>(106개) — 물때에 따라 드러났다 잠겼다 하거나 늘 물속에 있는 바위입니다. 마커를 누르면 종류와 <strong>썰물 때 드러나는 높이</strong>를 확인할 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 바위가 많은 곳은 <strong>숫자로 뭉쳐</strong> 보이다가, 확대하면 낱개 마커로 펼쳐집니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>잠김 경고</strong> — 간출암이 밀물에 완전히 잠기기 <strong>3시간 전부터</strong> 마커 테두리가 빨갛게 깜빡이고 남은 시간이 표시됩니다. 마커가 뭉쳐 있는 동안에도 그 안에 잠기는 바위가 있으면 <strong>뭉친 원 둘레가 빨갛게</strong> 됩니다(그 안 어느 바위의 시각인지 가릴 수 없어 시간은 적지 않습니다).</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 실제 지형과 비교하기 쉽도록 <strong>배경지도가 위성지도로 자동 전환</strong>되고, 끄면 원래 배경지도로 돌아갑니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <strong>동해는 잠김 경고를 제공하지 않습니다.</strong> 동해는 밀물·썰물의 차가 작아 잠기는 시각을 믿을 만큼 계산하기 어려워 제외했습니다(바위 표시와 조석 곡선은 그대로 나옵니다).</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 예측 자료이므로 실제 현장의 물때·기상 상황을 반드시 직접 확인하세요.</p>'
+              + '<div class="ocean-info-src">최종 갱신일자 · 전자해도 2026-08 배포본<br>출처 · 국립해양조사원 전자해도(노출암·갯바위·간출암·세암·암암) · 조석예측자료(TideBED) · 연간 조석표</div>' },
+            // 사고정보[S28-6·S28-8] — 틀은 사용자가 지정했다: ①목적 ②사용법·구성 ③데이터 산출 내역.
+            //   ★숫자는 전부 원본 파일을 세어 확인한 값이다(추측 없음).
+            //     근거는 accident_stats_sheet.design.md 작업 19-2 참고.
+            { id: 'accident', label: '사고정보', html:
+                '<p><strong>1. 목적</strong></p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 우리 바다에서 <strong>실제로 어떤 사고가, 어디서, 얼마나</strong> 일어났는지 지도에서 바로 확인할 수 있게 합니다. 사고가 잦은 해역과 시기를 미리 알고 <strong>활동 계획에 참고</strong>하시라고 만들었습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 지나간 사고 기록입니다. <strong>지금의 위험을 예보하는 기능이 아닙니다.</strong></p>'
+              + '<p><strong>2. 사용법 · 구성</strong></p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 화면 왼쪽 위에 <strong>[분석 · 현황]</strong> 토글이 생깁니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>현황</strong> — 사고 한 건마다 마커를 찍습니다. 가까운 것끼리 묶여 숫자로 보이고, 확대하면 갈라집니다. 마커를 누르면 발생일·사고유형·위치·관할서를 볼 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>분석</strong> — 지도를 격자로 나눠 <strong>칸 색으로 사고 건수</strong>를 보여줍니다(파랑=적음 → 빨강=많음). 칸을 누르면 <strong>통계 시트</strong>가 열리고, <strong>전국 통계</strong> 버튼으로 전국 기준을 볼 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 시트에서 <strong>전체 / 선박사고 / 인명사고</strong>를 고를 수 있고, 사고유형·기간·관할서·시간대·특보 <strong>5가지 필터</strong>를 걸 수 있습니다. 특보 종류별 타일에는 <strong>선박·인명 건수가 나뉘어</strong> 함께 표시됩니다(「전체」를 골랐을 때).</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 시트 카드 7개 — ①추세 요약 ②연도별 추이(월별·시간대별·요일별·관할서별로 전환) ③특보 중 사고 ④상위 발생 유형 ⑤주요 발생 원인 ⑥선박 종류별 ⑦사망·실종 발생률. ③번 카드의 <strong>사고 내역 보기</strong>로 특보 중 사고를 한 건씩 훑어볼 수 있습니다.</p>'
+              + '<p><strong>3. 데이터 산출 내역</strong></p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>들어간 자료</strong> — 국립해양조사원 개방海의 <strong>선박사고(해경)</strong>와 <strong>인명사고</strong> 두 종류입니다. 선박사고 2008~2025년 <strong>57,167건</strong> + 인명사고 2009~2024년 <strong>14,325건</strong> = <strong>71,492건</strong>.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>빠진 자료</strong> — 원본 74,018건 중 2,526건(3.4%)을 뺐습니다. <strong>347건</strong>은 선체결함·속구손상·시설물손상·조난으로, 지도에 쓸 아이콘이 없어 제외했습니다. <strong>2,179건</strong>은 좌표가 잘못 들어간 사고(같은 위치인데 33km 이상 떨어진 것)와, 위치가 기록되지 않아 관할 해양경찰서 청사 좌표로 채워진 사고입니다 — 실제 사고 지점이 아니라 뺐습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>선박 이름은 어떤 화면에도 없습니다.</strong> 원본에 그 칸 자체가 없습니다. <strong>어선·모터보트</strong> 같은 종류까지가 한계입니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>2024·2025년 선박사고는 위치 설명이 하나도 없습니다.</strong> 2025년은 사고 원인·선박 종류까지 3,775건 전부 비어 있습니다. 그래서 사고 내역에서 위치 설명 대신 <strong>좌표</strong>로 표시되는 경우가 많습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>구조·사망·실종이 모두 0으로 기록된 선박사고가 절반가량</strong>입니다. 원본이 "아무도 안 다쳤다"와 "기록을 안 했다"를 구분하지 않아, 화면에는 <strong>인명피해 기록 없음</strong>으로 적습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>특보 중 사고</strong>는 <strong>2016년 8월 26일 이후</strong>만 셉니다. 그 이전 특보 자료가 없어 분모에서 뺐습니다. 한 사고가 두 특보에 함께 걸린 경우가 있어, 특보 종류별 건수를 더하면 전체보다 조금 큽니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>사망·실종 발생률</strong>은 전국 자료로 냅니다. 인명피해가 통째로 기록되지 않은 <strong>2014·2015년</strong>, 해양오염, 표본이 아주 적은 유형, 성격상 비율이 높을 수밖에 없는 변사자·자살자는 순위에서 뺐습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <strong>원본 자료 자체에 오류가 섞여 있을 수 있습니다.</strong> 위 좌표 오류처럼 눈에 띄는 것은 걸러냈지만, 발생일시·사고유형·인명피해 같은 값이 잘못 기록됐거나 누락된 경우까지 모두 가려낼 수는 없습니다. 통계 수치는 <strong>참고용</strong>으로 보시고, 공식 통계나 법적 근거가 필요할 때는 국립해양조사원·해양경찰청 원자료를 확인하세요.</p>'
+              + '<div class="ocean-info-src">출처 · 국립해양조사원 개방海(선박사고·인명사고) · 기상청 특보 이력</div>' },
+            // 금지구역[S28-3] — 낚시금지 · 출입통제를 한 버튼으로 합쳤고, 범례에서 따로 켤 수 있다.
             { id: 'banzone', label: '금지구역', html:
                 '<p><i class="fa-solid fa-circle-check"></i> 버튼 하나로 <strong>낚시금지구역</strong>과 <strong>출입통제구역</strong>을 함께 표시합니다. 둘 다 "여기서는 하면 안 된다"는 뜻의 구역입니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>낚시금지구역</strong>(236곳) — 낚시 관리 및 육성법 제6조와 지자체 조례에 따라 낚시가 금지되거나 제한된 구역입니다. 주황색으로 표시합니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>출입통제구역</strong>(35곳) — 연안사고 예방에 관한 법률 제10조에 따라 각 해양경찰서가 지정한 구역입니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 실제 지형과 비교하기 쉽도록 배경지도가 위성지도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 위치, 지정 사유, 통제 기간·시간, 대상, 벌칙, 고시번호 등 상세 정보를 확인할 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 켜면 화면 왼쪽 위에 <strong>범례</strong>가 나타납니다. 「출입통제구역」·「낚시금지구역」 스위치로 <strong>한 종류만 골라</strong> 볼 수도 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>낚시금지구역</strong>(236곳) — 낚시 관리 및 육성법 제6조와 지자체 조례에 따라 낚시가 금지되거나 제한된 구역입니다. <strong>주황색</strong>으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>출입통제구역</strong>(35곳) — 연안사고 예방에 관한 법률 제10조에 따라 각 해양경찰서가 지정한 구역입니다. <strong>빨간색</strong>으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 위치, 지정 사유, 통제 기간·시간, 대상, 벌칙, 고시번호 등 상세 정보를 확인할 수 있습니다. 켜면 실제 지형과 비교하기 쉽도록 <strong>배경지도가 위성지도로 자동 전환</strong>됩니다.</p>'
               + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 낚시금지구역은 국립해양조사원이 파악한 구역만, 출입통제구역은 원본 고시·공고에 <strong>경위도 좌표가 온전히 적힌 구역만</strong> 반영되어 있습니다(나머지는 원본에 손그림 경계선만 있어 확정할 수 없었습니다). 최신 지정 현황과 다를 수 있으니 실제 활동 전에는 현장 안내판이나 관할 지자체·해양경찰서 공고를 꼭 확인하세요.</p>'
-              + '<div class="ocean-info-src">최종 갱신일자 · 낚시금지 2025-12-12 · 출입통제 2026-09-04<br>출처 · 국립해양조사원 낚시통제구역 주제도 · 각 해양경찰서 고시·공고</div>' },
+              + '<div class="ocean-info-src">최종 갱신일자 · 낚시금지 2025-12-12 · 출입통제 2026-09-09<br>출처 · 국립해양조사원 낚시통제구역 주제도 · 각 해양경찰서 고시·공고</div>' },
+            { id: 'navwarn', label: '항행경보', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 선택한 날짜에 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련 등)의 구역을 지도 위에 진한 빨간 점선 원형/다각형으로 표시합니다. 켜면 배경지도가 위성지도로 자동 전환됩니다. 같은 구역이 시간대만 다르게 여러 번 있으면 하나로 합쳐 라벨이 겹치지 않게 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 상단 날짜 내비게이션(◀▶)으로 다른 날짜를 조회하고, 하단 기준 시각 슬라이더로 그 날짜의 특정 시각을 지정하면 이미 시각이 지난 구역은 회색으로 바뀌고 라벨도 사라집니다(활성 구역만 라벨 표시, 겹치면 큰 구역 우선). 슬라이더 위치는 날짜를 넘겨도 그대로 유지됩니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 구역이 화면에서 작게 보일 때 누르면 먼저 그 구역으로 확대되고, 충분히 커진 뒤 다시 누르면 팝업이 뜹니다. 팝업엔 그 구역의 시간대별 내용이 구분돼 표시됩니다(구분, 발표기관, 유효기간, 근거, 본문 — 이미 끝난 시간대는 흐리게 "종료" 표시).</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 좌표는 국립해양조사원 "항행경보 상황판" 자료를 보강해 표시한 것으로, 정식 항행경보 원문과 다를 수 있습니다. 실제 항해 시에는 반드시 항행경보 상황판(khoa.go.kr/nwb)이나 수로도서지 원문을 확인하세요.</p>'
+              + '<div class="ocean-info-src">갱신 주기 · 30분<br>출처 · 국립해양조사원 항행경보</div>' },
+            // 물빠짐 — 해양종합정보에서 빌려 쓰던 문구를 이 화면용으로 옮겨 적었다
+            //   (그 화면에는 이제 물빠짐 버튼이 없어 "다른 기상 기능이 꺼진다"는 문장이 맞지 않는다).
+            { id: 'mudflat', label: '물빠짐', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 서해·남해 갯벌 해안을 대상으로, 간조 시 물이 얼마나 빠지는지를 미리 예측해 지도 위에 <strong>갈색</strong>으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 하단 슬라이더로 오늘부터 <strong>3일치 예측을 1시간 단위</strong>로 확인하고, 재생(▶) 버튼으로 시간 흐름에 따른 갯벌 노출·침수 변화를 자동으로 볼 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 갈색으로 표시된 갯벌 지점을 누르면, <strong>물이 다시 차기까지 남은 예측 시간</strong>과 예측 기준 시각을 확인할 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 정확도를 높이기 위해, 조위 기준면은 서해·남해 표준항 <strong>128곳</strong>으로 맞추고, 시간별 물빠짐은 연안 임의해점 <strong>315곳</strong>의 조석 예측 자료로 채워 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 예측 자료이므로 실제 현장의 기상·해양 상황을 반드시 직접 확인하세요. <strong>동해와 제주 해역은 제공되지 않습니다.</strong></p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 다수 해점 자료를 동시에 처리하므로 지도 표시에 약간의 시간이 걸릴 수 있습니다.</p>'
+              + '<div class="ocean-info-src">출처 · 국립해양조사원 · 표준항 128곳(기준면) · 수심측량자료(BADA2024) · 조석예측자료(TideBed, 임의해점 315곳)</div>' },
+            { id: 'cctv', label: 'CCTV', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 어항 안전상태와 해상 기상현황을 눈으로 확인할 수 있도록, 공공에 공개된 해안 CCTV 영상을 보여줍니다. <strong>본 앱은 영상을 수집·저장하지 않습니다.</strong></p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 옹진군 CCTV의 지도 위치는 명칭·지명을 참고해 수기로 배치한 것으로, 실제 설치 위치와 다를 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 영상 정보의 정확성과 이를 활용함에 따른 민·형사상 법적 책임은 정보활용 주체에 있으며, 정보 제공주체 및 본 앱은 이에 대한 책임을 지지 않습니다.</p>'
+              + '<div class="ocean-info-src">출처 · 지자체(부산·거제·옹진) · 해양수산부 연안포털 · KBS 재난센터</div>' },
             { id: 'vts', label: '관제구역', html:
                 '<p>해양경찰청이 공고한 선박교통관제구역(VTS)을 지도 위에 남색(인디고)으로 표시하며, 명칭에 실제 관제채널(예: Ch. 09)이 함께 표기됩니다.</p>'
               + '<p>버튼을 켜면 배경지도가 전자해도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
@@ -661,45 +717,6 @@
               + '<p>항로를 누르면 항로명, 종류(통항분리대/통항분리수역 등), 근거·참고 문서를 확인할 수 있습니다. 한중잠정조치수역·한일중간수역·한중과도수역 등 국제 해양경계 수역을 누르면 정의, 근거, 담당부서·연락처까지 함께 확인할 수 있습니다.</p>'
               + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 항로·수역 종류에 따라 통항 방법과 적용 근거가 다르니, 실제 항해 전 관련 법령·고시·협정 원문을 반드시 확인하세요.</p>'
               + '<div class="ocean-info-src">최종 갱신일자 · 2026-08-11<br>출처 · 국립해양조사원 개방海(실시간 해양공간정보) · 해양수산부 한중·한일 어업협정</div>' },
-            { id: 'navwarn', label: '항행경보', html:
-                '<p><i class="fa-solid fa-circle-check"></i> 선택한 날짜에 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련 등)의 구역을 지도 위에 진한 빨간 점선 원형/다각형으로 표시합니다. 켜면 배경지도가 위성지도로 자동 전환됩니다. 같은 구역이 시간대만 다르게 여러 번 있으면 하나로 합쳐 라벨이 겹치지 않게 표시합니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 상단 날짜 내비게이션(◀▶)으로 다른 날짜를 조회하고, 하단 기준 시각 슬라이더로 그 날짜의 특정 시각을 지정하면 이미 시각이 지난 구역은 회색으로 바뀌고 라벨도 사라집니다(활성 구역만 라벨 표시, 겹치면 큰 구역 우선). 슬라이더 위치는 날짜를 넘겨도 그대로 유지됩니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 구역이 화면에서 작게 보일 때 누르면 먼저 그 구역으로 확대되고, 충분히 커진 뒤 다시 누르면 팝업이 뜹니다. 팝업엔 그 구역의 시간대별 내용이 구분돼 표시됩니다(구분, 발표기관, 유효기간, 근거, 본문 — 이미 끝난 시간대는 흐리게 "종료" 표시).</p>'
-              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 좌표는 국립해양조사원 "항행경보 상황판" 자료를 보강해 표시한 것으로, 정식 항행경보 원문과 다를 수 있습니다. 실제 항해 시에는 반드시 항행경보 상황판(khoa.go.kr/nwb)이나 수로도서지 원문을 확인하세요.</p>'
-              + '<div class="ocean-info-src">갱신 주기 · 30분<br>출처 · 국립해양조사원 항행경보</div>' },
-            // 사고정보[S28-6, 2026-09-09 사용자 확정 — 초안 보고 후 승인].
-            // 틀은 사용자가 지정했다: ①목적 ②사용법·구성 ③데이터 산출 내역.
-            // ★숫자는 전부 원본 파일을 세어 확인한 값이다(추측 없음). 근거는
-            //   accident_stats_sheet.design.md 작업 19-2 와 아래 주석에 남겼다:
-            //     · 앱 표출 71,492건 = 선박 57,167(2008~2025) + 인명 14,325(2009~2024)
-            //     · 원본 74,018건 대비 2,526건(3.4%) 제외 — 사고유형 4종 347건 + 나머지 2,179건
-            //     · 2025년 선박사고 3,775건은 위치·원인·선박종류가 100% 빈칸
-            //   사용자 지시로 "데이터 자체에 오류가 있을 수 있다"는 점도 함께 밝힌다.
-            { id: 'accident', label: '사고정보', html:
-                '<p><strong>1. 목적</strong></p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 우리 바다에서 <strong>실제로 어떤 사고가, 어디서, 얼마나</strong> 일어났는지 지도에서 바로 확인할 수 있게 합니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 사고가 잦은 해역과 시기를 미리 알고 <strong>활동 계획에 참고</strong>하시라고 만들었습니다.</p>'
-              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 지나간 사고 기록입니다. <strong>지금의 위험을 예보하는 기능이 아닙니다.</strong></p>'
-
-              + '<p><strong>2. 사용법 · 구성</strong></p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 화면 왼쪽 위에 <strong>[분석 · 현황]</strong> 토글이 생깁니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>현황</strong> — 사고 한 건마다 마커를 찍습니다. 가까운 것끼리 묶여 숫자로 보이고, 확대하면 갈라집니다. 마커를 누르면 발생일·사고유형·위치·관할서를 볼 수 있습니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>분석</strong> — 지도를 격자로 나눠 <strong>칸 색으로 사고 건수</strong>를 보여줍니다(파랑=적음 → 빨강=많음). 칸 크기는 확대할수록 잘게 쪼개집니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 칸을 누르면 <strong>통계 시트</strong>가 열립니다. <strong>전국 통계</strong> 버튼을 누르면 전국 기준으로 봅니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 시트에서 <strong>전체 / 선박사고 / 인명사고</strong>를 고를 수 있고, 사고유형·기간·관할서·시간대·특보 <strong>5가지 필터</strong>를 걸 수 있습니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 시트 카드 7개 — ①추세 요약 ②연도별 추이(월별·시간대별·요일별·관할서별로 전환) ③특보 중 사고 ④상위 발생 유형 ⑤주요 발생 원인 ⑥선박 종류별 ⑦사망·실종 발생률.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> ③번 카드의 <strong>사고 내역 보기</strong>를 누르면 특보가 떠 있을 때 난 사고를 한 건씩 훑어볼 수 있습니다(최신순·피해순 정렬, 20건씩).</p>'
-
-              + '<p><strong>3. 데이터 산출 내역</strong></p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>들어간 자료</strong> — 국립해양조사원 개방海의 <strong>선박사고(해경)</strong>와 <strong>인명사고</strong> 두 종류입니다. 선박사고 2008~2025년 <strong>57,167건</strong> + 인명사고 2009~2024년 <strong>14,325건</strong> = <strong>71,492건</strong>.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>빠진 자료</strong> — 원본 74,018건 중 2,526건(3.4%)을 뺐습니다. <strong>347건</strong>은 선체결함·속구손상·시설물손상·조난으로, 지도에 쓸 아이콘이 없어 제외했습니다. <strong>2,179건</strong>은 좌표가 잘못 들어간 사고(같은 위치인데 33km 이상 떨어진 것)와, 위치가 기록되지 않아 관할 해양경찰서 청사 좌표로 채워진 사고입니다 — 실제 사고 지점이 아니라 뺐습니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>선박 이름은 어떤 화면에도 없습니다.</strong> 원본에 그 칸 자체가 없습니다. <strong>어선·모터보트</strong> 같은 종류까지가 한계입니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>2024·2025년 선박사고는 위치 설명이 하나도 없습니다.</strong> 2025년은 사고 원인·선박 종류까지 3,775건 전부 비어 있습니다. 그래서 사고 내역에서 위치 설명 대신 <strong>좌표</strong>로 표시되는 경우가 많습니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>구조·사망·실종이 모두 0으로 기록된 선박사고가 절반가량</strong>입니다. 원본이 "아무도 안 다쳤다"와 "기록을 안 했다"를 구분하지 않아, 화면에는 <strong>인명피해 기록 없음</strong>으로 적습니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>특보 중 사고</strong>는 <strong>2016년 8월 26일 이후</strong>만 셉니다. 그 이전 특보 자료가 없어 분모에서 뺐습니다. 한 사고가 두 특보에 함께 걸린 경우가 있어, 특보 종류별 건수를 더하면 전체보다 조금 큽니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>사망·실종 발생률</strong>은 전국 자료로 냅니다. 인명피해가 통째로 기록되지 않은 <strong>2014·2015년</strong>, 해양오염, 표본이 아주 적은 유형, 성격상 비율이 높을 수밖에 없는 변사자·자살자는 순위에서 뺐습니다.</p>'
-              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <strong>원본 자료 자체에 오류가 섞여 있을 수 있습니다.</strong> 위 좌표 오류처럼 눈에 띄는 것은 걸러냈지만, 발생일시·사고유형·인명피해 같은 값이 잘못 기록됐거나 누락된 경우까지 모두 가려낼 수는 없습니다. 통계 수치는 <strong>참고용</strong>으로 보시고, 공식 통계나 법적 근거가 필요할 때는 국립해양조사원·해양경찰청 원자료를 확인하세요.</p>'
-              + '<div class="ocean-info-src">출처 · 국립해양조사원 개방海(선박사고·인명사고) · 기상청 특보 이력</div>' }
         ];
         var tabsHtml = '<div class="ocean-info-tabs">';
         var panelsHtml = '<div class="ocean-info-panels">';
