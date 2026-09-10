@@ -27,6 +27,16 @@ BASELINE = f"{LEGAL}/_dashboard/law_change_baseline.json"
 ALIASES = f"{LEGAL}/_dashboard/law_aliases.json"
 QUEUE = f"{LEGAL}/_dashboard/law_change_queue.json"   # 기본값. 서버는 --out 으로 볼륨 경로를 준다
 SLEEP = 0.25
+# 진행률 보고 — 관리자 화면 「지금 스캔」의 게이지 바가 이 줄을 읽는다(사람이 읽는 print 와 섞여도
+# 되도록 `@@PROG ` 접두어를 붙인 한 줄 JSON 이다). 서비스 쪽(legal_amendment_scanner.js)이
+# stdout 을 줄 단위로 훑어 이 줄만 골라 쓴다. 이 줄이 없어도 스캔 자체는 그대로 돈다.
+def prog(**kw):
+    """진행률 한 줄을 stdout 에 찍는다. 예: prog(phase='행정규칙', done=3, total=8, label='해양수산부')"""
+    try:
+        print("@@PROG " + json.dumps(kw, ensure_ascii=False), flush=True)
+    except Exception:
+        pass   # 진행률 때문에 스캔이 죽으면 안 된다
+
 MAX_PAGES = 10          # 광역질의 페이징 안전상한(1페이지 100건)
 PENDING_YEARS = 5       # 시행예정 전수질의(W3)가 훑을 미래 범위
 
@@ -305,8 +315,10 @@ def scan_laws(base, by_lawid, days):
     seen, items = set(), []
     plans = [("W1", "", f"&ancYd={frm}~{to}"), ("W2", "", f"&efYd={frm}~{to}")]
     plans += [("W3", org, f"&org={org}&efYd={tomorrow}~{far}") for org in base["ministries"]]
+    prog(phase='법령', done=0, total=len(plans), label='시작')
     for tag, org, extra in plans:
         queries += 1
+        prog(phase='법령', done=queries, total=len(plans), label=f"{tag} {org or '전부처'}")
         for row in search_rows("eflaw", "law", extra):
             lid = str(row.get("법령ID", ""))
             hit = by_lawid.get(lid)
@@ -369,8 +381,12 @@ def scan_admruls(base, by_admrul, days, name_index):
     """
     cutoff = (datetime.now(KST).date() - timedelta(days=days)).strftime("%Y%m%d")
     items, queries = [], 0
-    for org in base["ministries"]:
+    orgs = base["ministries"]
+    detail_hits = 0        # 고시 본문·상세를 실제로 받아 온 횟수(게이지 옆 살아 있는 숫자)
+    prog(phase='행정규칙', done=0, total=len(orgs), label='시작')
+    for org in orgs:
         queries += 1
+        prog(phase='행정규칙', done=queries, total=len(orgs), label=org, detail=detail_hits)
         rows, page = [], 1
         while page <= MAX_PAGES:
             got = api(f"https://www.law.go.kr/DRF/lawSearch.do?OC={OC}&type=JSON&target=admrul"
@@ -400,6 +416,8 @@ def scan_admruls(base, by_admrul, days, name_index):
                 text = admrul_fulltext(new_id) if new_id else None
                 related = related_laws_in(text, name_index) if text is not None else []
                 ev["relevance"] = "checked" if text is not None else "unchecked"
+                detail_hits += 1
+                prog(phase='행정규칙', done=queries, total=len(orgs), label=org, detail=detail_hits)
                 time.sleep(SLEEP)
                 items.append(make_item("admrul_unknown_new", law0, "행정규칙",
                                        {"행정규칙ID": str(row.get("행정규칙ID", "")), "ID": new_id},
@@ -413,6 +431,8 @@ def scan_admruls(base, by_admrul, days, name_index):
                 if not new_id or new_id == a["ID"]:
                     continue
                 cur, old = admrul_detail(new_id), admrul_detail(a["ID"])
+                detail_hits += 2
+                prog(phase='행정규칙', done=queries, total=len(orgs), label=org, detail=detail_hits)
                 time.sleep(SLEEP)
                 if not cur or not old:
                     continue

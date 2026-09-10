@@ -43,6 +43,10 @@
  *                                                               + last: 마지막 점검이 언제·어떻게 끝났나)
  *                    POST /api/legal/freshness/:id/decide       (처리완료/해당없음)
  *                    POST /api/legal/freshness/scan-now         (즉시 1회 점검, 백그라운드 20~30분)
+ *                    POST /api/legal/amendments/decide-all      (개정검토 전체 승인 — 2026-09-10 신설)
+ *                    GET  /api/legal/amendments/decide-all/preview (전체 승인 전 미리보기: 대기 N건 중
+ *                                                               몇 건이 승인 즉시 답변을 바꾸나)
+ *                    GET  /api/legal/amendments/wiki-brief-all  (승인분 전 건을 한 덩어리 지시문으로)
  *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
  *                    GET  /api/legal/rooms/stats               (지식 방 갈래 버튼 6개 숫자 +
  *                                                               인트로 칩 — 개념 status·그래프 엣지 종류.
@@ -107,6 +111,7 @@
   //   메모리에만 둔다 — localStorage 에 저장하면 새로고침 뒤 오래된 대기가 되살아난다(설계 §9.1 #3).
   var pendingCtx = null;
   var chatPending = 0;   // 답을 기다리는 중인 요청 수 — 0 이어야 채팅창을 홈으로 비운다(resetToHome)
+  var histRestorePoint = null;  // 지난 대화를 붙이기 직전의 채팅창 HTML([채팅창으로]가 여기로 되돌린다)
   // [H-37 §3.2 · 2026-08-14 적대검증 F2] 서버가 마지막 답변에 실어 보낸 ctxNext(= 지금까지 확정된
   //   맥락). **ctx 를 안 든 선택지 버튼**(기존 되묻기·트리 되묻기)을 눌러도 이 값을 이어 보내야
   //   직전에 확정한 조건이 사라지지 않는다 — 안 그러면 프로필로 "네"를 누른 축을 서버가 다시 묻는
@@ -354,7 +359,7 @@
     초안승인: { n: '…', desc: '사서(AI)가 만든 <b>미승인 초안(draft)</b> 대기실. 순수 정의·절차는 재검증 파이프라인이 자동 승격, 처벌·안전값 포함분은 ⚠수치검증 방에서 사람이 승인해야 canonical이 됩니다.', render: null /* 서버 연동: renderDraftCards */ },
     피드백: { n: '…', desc: '답변 <b>👍/👎 익명 로그</b>를 모아 원인 분류(triage) 후 관리자에게 올리는 방. 👎가 쌓인 주제 → 위키 보강으로 연결.', render: null /* 서버 연동: renderFeedbackCards */ },
     새지식후보: { n: '…', desc: '대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).', render: null /* 서버 연동: renderCandidateCards */ },
-    개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 바뀐 조문마다 <b>개정 전 → 개정 후 본문</b>을 펼쳐 볼 수 있고, 우리 원문에 없는 조는 <b>신설</b>로 표시됩니다.<br><b>승인을 누르면</b> ①미리 받아 둔 새 원문이 있는 건은 <b>시행일부터 챗봇 답변이 새 내용으로 바뀝니다</b>(시행일이 이미 지났으면 즉시) ②재수집 대상으로 표시됩니다. <b>원문 재수집과 위키 수정은 자동으로 되지 않습니다</b> — 서버는 저장소에 글을 쓸 수 없어, 작업 세션이 받아서 반영해야 합니다.', render: null /* 서버 연동: renderAmendCards */ },
+    개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 바뀐 조문마다 <b>개정 전 → 개정 후 본문</b>을 펼쳐 볼 수 있고, 우리 원문에 없는 조는 <b>신설</b>로 표시됩니다.<br><b>승인을 누르면</b> ①미리 받아 둔 새 원문이 있는 건은 <b>시행일부터 챗봇 답변이 새 내용으로 바뀝니다</b>(시행일이 이미 지났으면 즉시) ②재수집 대상으로 표시됩니다. <b>원문 재수집과 위키 수정은 자동으로 되지 않습니다</b> — 서버는 저장소에 글을 쓸 수 없어, 작업 세션이 받아서 반영해야 합니다.<br><b>[✓ 전체 승인]</b> 은 대기 중인 건을 한 번에 승인합니다. <b>두 번 눌러야</b> 실행되며, 첫 번째 클릭에서 <b>몇 건이 승인 즉시(또는 시행일부터) 답변이 바뀌는지</b>를 먼저 알려 줍니다. 승인이 끝나면 <b>방금 승인한 전 건을 한 덩어리로 묶은 위키 반영 지시문</b>이 바로 펼쳐집니다.<br><b>[📋 승인분 전체 지시문]</b> 은 그 글을 나중에 다시 뽑을 때 씁니다(개별 카드의 지시문과 별개).', render: null /* 서버 연동: renderAmendCards */ },
     원문신선도: { n: '…', desc: '우리가 받아 둔 <b>법령·고시 원문이 낡았는지</b> 매주 자동 대조해 모아두는 방. 대상은 <b>행정규칙(고시·훈령) 653건 + 법률·시행령·시행규칙 222건</b>. 원문 머리글의 수집 일련번호와 law.go.kr 현행 일련번호를 기계로 비교한다(2026-08-23에 「위험물 선박운송 기준」이 2016년판으로 남아 있어 <b>이미 삭제된 조문을 현행처럼</b> 설명하던 사고가 있었다). 카드마다 <b>어느 위키를 고쳐야 하는지·무엇을 해야 하는지</b>가 함께 적힌다.', render: null /* 서버 연동: renderFreshCards */ },
     '⚠수치검증': { n: '…', desc: '별표 <b>이미지 판독값(OCR)·조번호 재편</b> 및 처벌·안전수치를 사람이 검증하는 방(가장 급함). 서버 review_queue.md 의 검증 대기 항목을 불러와 승인/반려한다.', render: null /* 서버 연동: renderReviewCards */ }
   };
@@ -757,6 +762,7 @@
   /** 선택한 관리자 방을 그린다(6방 전부 서버 연동). @param {string} k */
   function renderAdmin(k) {
     var a = ADMIN[k]; var host = document.getElementById('nryaAdminContent'); if (!host) return;
+    stopScanGauge();   // 다른 방으로 옮기면 진행률 폴링을 멈춘다(스캔 자체는 서버에서 계속 돈다)
     var intro = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">🛠</div><div><div class="nrya-intro-name">' + esc(k) + '</div><div class="nrya-intro-tag">관리자 검토 방 · 승인→자동반영</div></div></div><div class="nrya-intro-desc">' + a.desc + '</div></div>';
     if (k === '⚠수치검증') {
       host.innerHTML = intro + '<div class="nrya-panel" id="nryaReviewHost" style="padding:6px 0 4px"></div>';
@@ -1327,28 +1333,9 @@
         btn.disabled = false;
         if (!d || !d.ok) { btn.textContent = LABEL; showCardErr(card, (d && d.error) || '지시문을 만들지 못했습니다.'); return; }
         btn.textContent = '📋 지시문 접기';
-        box.dataset.loaded = '1';
-        box.classList.remove('nrya-hidden');
-        box.innerHTML = '<div class="nrya-brief-help">아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 위키 반영 작업을 이어서 할 수 있습니다. ' +
-          '고칠 위키 후보 <b>' + nfmt((d.pages || []).length) + '쪽</b>이 함께 적혀 있습니다.</div>' +
-          '<div class="nrya-brief-acts"><button type="button" class="nrya-btn-copy">📄 복사</button>' +
-          '<button type="button" class="nrya-btn-selall">전체 선택</button></div>' +
-          '<textarea class="nrya-brief-txt" readonly rows="14"></textarea>';
-        var ta = box.querySelector('.nrya-brief-txt');
-        ta.value = d.text || '';
-        box.querySelector('.nrya-btn-copy').onclick = function () {
-          var b = this;
-          var done = function (ok) { b.textContent = ok ? '✅ 복사됨' : '⚠ 복사 실패 — 전체 선택 후 직접 복사하세요'; setTimeout(function () { b.textContent = '📄 복사'; }, 2500); };
-          try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(ta.value).then(function () { done(true); }, function () { done(false); });
-              return;
-            }
-          } catch (_) { /* 아래 폴백 */ }
-          try { ta.select(); done(document.execCommand && document.execCommand('copy')); }
-          catch (_) { done(false); }
-        };
-        box.querySelector('.nrya-btn-selall').onclick = function () { ta.focus(); ta.select(); };
+        renderBriefBox(box, d.text,
+          '아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 위키 반영 작업을 이어서 할 수 있습니다. ' +
+          '고칠 위키 후보 <b>' + nfmt((d.pages || []).length) + '쪽</b>이 함께 적혀 있습니다.');
       }).catch(function (e) {
         btn.disabled = false; btn.textContent = LABEL;
         showCardErr(card, '네트워크 오류: ' + String(e && e.message || e));
@@ -1363,6 +1350,141 @@
   }
 
   /**
+   * 인계문 글상자를 그린다(단건·일괄이 같은 모양을 쓴다). 복사 버튼이 되면 클립보드로,
+   * 안 되면 글상자를 통째로 선택해 준다 — 앱 웹뷰는 클립보드가 막혀 있을 수 있어 **두 갈래를 다 둔다**.
+   * @param {HTMLElement} box - `.nrya-brief` 상자
+   * @param {string} text - 인계문 전문
+   * @param {string} helpHTML - 상자 맨 위 안내 한 줄(HTML 허용 — 호출부가 만든 문장만 넣는다)
+   * [연계] ← bindBriefButton(단건) · bindAmendBulk(일괄).
+   */
+  function renderBriefBox(box, text, helpHTML) {
+    box.dataset.loaded = '1';
+    box.classList.remove('nrya-hidden');
+    box.innerHTML = '<div class="nrya-brief-help">' + helpHTML + '</div>' +
+      '<div class="nrya-brief-acts"><button type="button" class="nrya-btn-copy">📄 복사</button>' +
+      '<button type="button" class="nrya-btn-selall">전체 선택</button></div>' +
+      '<textarea class="nrya-brief-txt" readonly rows="14"></textarea>';
+    var ta = box.querySelector('.nrya-brief-txt');
+    ta.value = text || '';
+    box.querySelector('.nrya-btn-copy').onclick = function () {
+      var b = this;
+      var done = function (ok) { b.textContent = ok ? '✅ 복사됨' : '⚠ 복사 실패 — 전체 선택 후 직접 복사하세요'; setTimeout(function () { b.textContent = '📄 복사'; }, 2500); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(ta.value).then(function () { done(true); }, function () { done(false); });
+          return;
+        }
+      } catch (_) { /* 아래 폴백 */ }
+      try { ta.select(); done(document.execCommand && document.execCommand('copy')); }
+      catch (_) { done(false); }
+    };
+    box.querySelector('.nrya-btn-selall').onclick = function () { ta.focus(); ta.select(); };
+  }
+
+  /**
+   * 개정검토 방 상단의 일괄 버튼 둘을 묶는다 — [✓ 전체 승인] 과 [📋 승인분 전체 지시문].
+   *
+   * **전체 승인은 두 번 눌러야 실행된다.** 첫 클릭은 서버에 미리보기를 물어
+   * *"N건 승인 · 그중 M건은 승인 즉시(또는 시행일부터) 챗봇 답변이 바뀝니다"* 를 보여주고
+   * 버튼 글자를 확인용으로 바꾼다. 되돌릴 수 없는 일이라 네이티브 confirm 대신 이 방식을 쓴다
+   * (앱 웹뷰에서 confirm 이 막히거나 덮이는 경우가 있다).
+   *
+   * 승인이 끝나면 **방금 승인한 건들만** 묶은 일괄 인계문을 곧바로 펼쳐 준다 — 사용자가 그 글을
+   * 복사해 AI 에게 붙여 넣는 것이 다음 단계이기 때문이다(사용자 확정 2026-09-10).
+   * [연계] → GET /api/legal/amendments/decide-all/preview · POST /api/legal/amendments/decide-all
+   *          · GET /api/legal/amendments/wiki-brief-all · renderBriefBox · loadAmendList.
+   */
+  function bindAmendBulk() {
+    var allBtn = document.getElementById('nryaAmendAllBtn');
+    var briefBtn = document.getElementById('nryaAmendAllBriefBtn');
+    var box = document.getElementById('nryaAmendAllBrief');
+    var err = document.getElementById('nryaAmendScanErr');
+    var ALL_LABEL = '✓ 전체 승인';
+    var BRIEF_LABEL = '📋 승인분 전체 지시문';
+    var armed = null;   // 확인 대기 중인 건수·id (두 번째 클릭에서 쓴다)
+
+    function fail(msg) { if (err) { err.classList.remove('nrya-hidden'); err.style.display = 'block'; err.textContent = msg; } }
+    function clearErr() { if (err) { err.style.display = 'none'; err.textContent = ''; } }
+    /** 응답을 JSON 으로. 권한 없음은 _denied 로 구분해 올린다. */
+    function asJson(res) {
+      if (res.status === 401 || res.status === 403) return { _denied: true };
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }
+    function disarm() { armed = null; if (allBtn) { allBtn.textContent = ALL_LABEL; allBtn.classList.remove('nrya-btn-danger'); } }
+
+    /** 일괄 인계문을 받아 상자에 펼친다. @param {string} qs - 쿼리스트링(ids= 또는 status=) */
+    function loadBulkBrief(qs, headline) {
+      briefBtn.disabled = true; briefBtn.textContent = '만드는 중…';
+      return legalGet('/api/legal/amendments/wiki-brief-all' + qs).then(asJson).then(function (d) {
+        briefBtn.disabled = false; briefBtn.textContent = BRIEF_LABEL;
+        if (d && d._denied) { fail('관리자 로그인 필요'); return; }
+        if (!d || !d.ok) { fail((d && d.error) || '지시문을 만들지 못했습니다.'); return; }
+        renderBriefBox(box, d.text,
+          headline +
+          ' 그중 <b>' + nfmt(d.detailed) + '건</b>은 바뀐 조문까지 적혀 있고, ' +
+          '<b>' + nfmt(d.listed) + '건</b>은 비교할 옛 원문이 없어 목록으로만 담았습니다. ' +
+          '고칠 위키 후보는 모두 <b>' + nfmt(d.pages) + '쪽</b>입니다. ' +
+          '아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 위키 반영 작업을 이어서 할 수 있습니다.');
+      }).catch(function (e) {
+        briefBtn.disabled = false; briefBtn.textContent = BRIEF_LABEL;
+        fail('네트워크 오류: ' + String(e && e.message || e));
+      });
+    }
+
+    if (briefBtn) briefBtn.onclick = function () {
+      clearErr();
+      if (box && !box.classList.contains('nrya-hidden') && box.dataset.loaded === '1') {
+        box.classList.add('nrya-hidden'); return;   // 다시 누르면 접는다
+      }
+      loadBulkBrief('?status=approved', '승인된 <b>전 건</b>을 한 덩어리로 묶었습니다.');
+    };
+
+    if (allBtn) allBtn.onclick = function () {
+      clearErr();
+      if (armed) {                                  // ── 두 번째 클릭: 실제로 승인한다 ──
+        var n = armed.pending;
+        allBtn.disabled = true; allBtn.textContent = '승인하는 중…';
+        legalPost('/api/legal/amendments/decide-all', { decision: 'approved' }).then(asJson).then(function (d) {
+          allBtn.disabled = false; disarm();
+          if (d && d._denied) { fail('관리자 로그인 필요'); return; }
+          if (!d || !d.ok) { fail((d && d.error) || '전체 승인에 실패했습니다.'); return; }
+          loadAmendList();                          // 목록을 새로 그린다(승인분은 대기 목록에서 빠진다)
+          if (!d.decided) { fail('승인할 대기 건이 없습니다.'); return; }
+          // 방금 승인한 건만 묶어 곧바로 펼친다 — 이게 다음 단계다.
+          loadBulkBrief('?ids=' + encodeURIComponent((d.ids || []).join(',')),
+            '방금 <b>' + nfmt(d.decided) + '건</b>을 승인했습니다' +
+            (d.staged ? ' — 그중 <b>' + nfmt(d.staged) + '건</b>은 미리 받아 둔 새 원문이 있어 <b>챗봇 답변이 이미 바뀌었거나 시행일부터 바뀝니다</b>.' : '.') +
+            ' 재수집 대상 표시는 ' + nfmt(d.mirrored) + '건에 옮겨 적었습니다.');
+        }).catch(function (e) {
+          allBtn.disabled = false; disarm();
+          fail('네트워크 오류: ' + String(e && e.message || e));
+        });
+        return;
+      }
+      // ── 첫 번째 클릭: 무엇이 벌어지는지 먼저 보여주고 확인을 받는다 ──
+      allBtn.disabled = true; allBtn.textContent = '확인하는 중…';
+      legalGet('/api/legal/amendments/decide-all/preview').then(asJson).then(function (d) {
+        allBtn.disabled = false;
+        if (d && d._denied) { allBtn.textContent = ALL_LABEL; fail('관리자 로그인 필요'); return; }
+        if (!d || !d.ok) { allBtn.textContent = ALL_LABEL; fail((d && d.error) || '미리보기를 받지 못했습니다.'); return; }
+        if (!d.pending) { allBtn.textContent = ALL_LABEL; fail('승인할 대기 건이 없습니다.'); return; }
+        armed = d;
+        allBtn.classList.add('nrya-btn-danger');
+        allBtn.textContent = '한 번 더 눌러 ' + nfmt(d.pending) + '건 전체 승인';
+        fail('대기 ' + nfmt(d.pending) + '건을 승인합니다. ' +
+          (d.staged
+            ? '그중 ' + nfmt(d.staged) + '건은 미리 받아 둔 새 원문이 있어 승인 즉시(시행일이 아직이면 그날부터) 챗봇 답변이 새 내용으로 바뀝니다. '
+            : '미리 받아 둔 새 원문이 있는 건은 없어 챗봇 답변은 지금 바뀌지 않습니다. ') +
+          '나머지는 「재수집 필요」 표시만 붙습니다. 위키는 자동으로 안 바뀌니, 승인 뒤 나오는 지시문으로 사람이 반영해야 합니다. ' +
+          '취소하려면 이 방을 벗어났다 다시 들어오세요.');
+      }).catch(function (e) {
+        allBtn.disabled = false; allBtn.textContent = ALL_LABEL;
+        fail('네트워크 오류: ' + String(e && e.message || e));
+      });
+    };
+  }
+
+  /**
    * 개정 검토 방: 상단 "지금 스캔" 버튼(정기 cron과 별개로 즉시 1회, 백그라운드 3~4분) + 목록.
    * 승인해도 재수집·재빌드는 여기서 자동 실행하지 않는다(사람이 다음 단계로 orchestrate).
    * [연계] → POST /api/legal/amendments/scan-now(백그라운드 시작, 즉시 응답), GET /api/legal/amendments?status=pending, bindDecideCard.
@@ -1371,9 +1493,21 @@
   function renderAmendCards(host) {
     if (!host) return;
     var SCAN_LABEL = '🔍 지금 스캔 (백그라운드 · 완료까지 3~4분)';
-    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:10px"><button class="nrya-btn-ok" id="nryaAmendScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
+    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:8px"><button class="nrya-btn-ok" id="nryaAmendScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
+      // ★일괄 처리 줄(2026-09-10 사용자 요청). 전체 승인은 **누르기 전에 무엇이 벌어지는지 먼저 보여준다**.
+      '<div class="nrya-rv-actions" style="margin-bottom:10px">' +
+        '<button class="nrya-btn-ok" id="nryaAmendAllBtn" style="flex:1 1 auto;padding:8px 16px">✓ 전체 승인</button>' +
+        '<button class="nrya-btn-brief" id="nryaAmendAllBriefBtn" type="button" style="flex:1 1 auto;margin:0;padding:8px 16px">📋 승인분 전체 지시문</button>' +
+      '</div>' +
       '<div class="nrya-inline-err nrya-hidden" id="nryaAmendScanErr" style="display:none"></div>' +
+      '<div class="nrya-gauge nrya-hidden" id="nryaScanGauge"></div>' +
+      '<div class="nrya-brief nrya-hidden" id="nryaAmendAllBrief"></div>' +
       '<div id="nryaAmendListHost"></div>';
+    bindAmendBulk();
+    // 스캔을 걸어 두고 이 방을 벗어났다 돌아온 경우 — 게이지를 **이어서** 보여 준다.
+    legalGet('/api/legal/amendments/scan-progress').then(function (res) {
+      return res.ok ? res.json().catch(function () { return null; }) : null;
+    }).then(function (d) { if (d && d.ok && d.running) startScanGauge(); }).catch(function () {});
     var scanBtn = document.getElementById('nryaAmendScanBtn');
     var scanErr = document.getElementById('nryaAmendScanErr');
     if (scanBtn) scanBtn.onclick = function () {
@@ -1386,15 +1520,89 @@
         scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL;
         if (data && data._denied) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '관리자 로그인 필요'; } return; }
         if (!data || !data.ok) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '스캔 실패'; } return; }
-        // started:true — 백그라운드에서 계속 진행 중, 아직 새 항목은 안 들어와 있으니 목록을
-        // 지금 다시 그려봐야 그대로다(혼동 방지). 안내 문구만 목록 위에 한 번 얹는다.
-        var listHost = document.getElementById('nryaAmendListHost');
-        if (listHost) {
-          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 스캔이 시작됐습니다. 완료까지 최대 4분 — 잠시 후 이 방을 다시 열어 새로고침해 주세요.</div>');
-        }
+        // started:true — 백그라운드에서 계속 진행 중. 게이지 바를 띄우고 2초마다 진행률을 물어본다.
+        startScanGauge();
       }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
     };
     loadAmendList();
+  }
+
+  var scanPollTimer = null;   // 게이지 폴링 타이머(방을 떠나면 멈춘다)
+
+  /**
+   * 「지금 스캔」 진행률 게이지를 띄우고 2초마다 서버에 진행 상황을 물어 갱신한다.
+   *
+   * ★막대는 **질의 진행도**이지 남은 시간이 아니다 — 부처마다 고시 수가 들쭉날쭉해 시간으로
+   *   환산하면 거짓 예측이 된다. 그래서 막대 아래에 지금 무엇을 하고 있는지(단계·부처)와
+   *   고시 상세를 받아 온 횟수를 함께 적어, 막대가 한동안 안 움직여도 **멈춘 게 아님**을 보인다.
+   * 스캔이 끝나면 결과(새로 올린 건수)를 적고 목록을 자동으로 새로 그린다 —
+   *   종전에는 "잠시 후 이 방을 다시 열어 새로고침해 주세요"라고만 적혀 있었다.
+   * [연계] → GET /api/legal/amendments/scan-progress · loadAmendList(끝나면 자동 새로고침).
+   */
+  function startScanGauge() {
+    var box = document.getElementById('nryaScanGauge'); if (!box) return;
+    stopScanGauge();
+    box.classList.remove('nrya-hidden');
+    paintGauge({ running: true, percent: 0, phase: '준비', label: '스캔을 시작하는 중', detail: 0 });
+    var misses = 0;                       // 연달아 실패한 조회 수(너무 많으면 폴링을 멈춘다)
+    scanPollTimer = setInterval(function () {
+      legalGet('/api/legal/amendments/scan-progress').then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return null; });
+      }).then(function (d) {
+        if (!d || d._denied || !d.ok) {
+          if (++misses >= 5) { stopScanGauge(); paintGauge({ done: true, err: '진행률을 받지 못했습니다. 잠시 후 이 방을 다시 열어 확인해 주세요.' }); }
+          return;
+        }
+        misses = 0;
+        paintGauge(d);
+        if (!d.running && d.finishedAt) {   // 끝났다 — 폴링을 멈추고 목록을 새로 그린다
+          stopScanGauge();
+          loadAmendList();
+        }
+      }).catch(function () {
+        if (++misses >= 5) { stopScanGauge(); paintGauge({ done: true, err: '진행률을 받지 못했습니다. 잠시 후 이 방을 다시 열어 확인해 주세요.' }); }
+      });
+    }, 2000);
+  }
+
+  /** 게이지 폴링을 멈춘다(멱등 — 두 번 불러도 안전). */
+  function stopScanGauge() {
+    if (scanPollTimer) { clearInterval(scanPollTimer); scanPollTimer = null; }
+  }
+
+  /**
+   * 게이지 한 장을 그린다.
+   * @param {object} d - 서버 진행률({running,percent,phase,label,detail,result}) 또는
+   *                     {done:true, err:'…'}(폴링 실패 안내)
+   */
+  function paintGauge(d) {
+    var box = document.getElementById('nryaScanGauge'); if (!box) return;
+    if (d && d.err) {
+      box.innerHTML = '<div class="nrya-gauge-head"><b>⚠ 스캔 진행률</b></div><div class="nrya-gauge-sub">' + esc(d.err) + '</div>';
+      return;
+    }
+    var pct = Math.max(0, Math.min(100, Number(d.percent) || 0));
+    var finished = d.running === false && d.finishedAt;
+    var r = d.result || null;
+    var headTxt = finished
+      ? (r ? '✅ 스캔 완료 — 새로 올린 개정 ' + nfmt(r.changed) + '건'
+             + (r.filtered ? ' · 우리 법과 무관해 거른 신규 고시 ' + nfmt(r.filtered) + '건' : '')
+             + (r.errors ? ' · ⚠ 탐지 스크립트 오류 있음(서버 로그 확인)' : '')
+           : '✅ 스캔 완료')
+      : '🔄 스캔 중 — ' + pct + '%';
+    var sub = finished
+      ? '아래 목록을 방금 새로 그렸습니다.'
+      : (d.phase === '법령' ? '1단계: 법령 개정 광역질의'
+        : d.phase === '행정규칙' ? '2단계: 행정규칙(고시) 광역질의'
+        : '준비 중') +
+        (d.label ? ' · ' + esc(String(d.label)) : '') +
+        (d.total ? ' (' + nfmt(d.done) + '/' + nfmt(d.total) + ' 질의)' : '') +
+        (d.detail ? ' · 고시 상세 ' + nfmt(d.detail) + '건 확인' : '');
+    box.innerHTML = '<div class="nrya-gauge-head"><b>' + headTxt + '</b></div>' +
+      '<div class="nrya-gauge-bar"><i style="width:' + (finished ? 100 : pct) + '%"></i></div>' +
+      '<div class="nrya-gauge-sub">' + sub + '</div>' +
+      (finished ? '' : '<div class="nrya-gauge-note">막대는 <b>질의 진행도</b>입니다(남은 시간이 아닙니다). 부처마다 고시 수가 달라 한동안 안 움직일 수 있지만, 아래 숫자가 늘고 있으면 정상입니다. 이 방을 벗어나도 스캔은 계속 돕니다.</div>');
   }
 
   /** renderAmendCards 의 목록 부분만 새로고침(스캔 버튼은 그대로 둔다). */
@@ -2130,6 +2338,7 @@
     chatConvEnded = true; // ⑥ 이 대화는 여기서 끝 — 다음에 열 때 startConversation 이 새 번호를 딴다
     closeHistory(true);   // 기록 화면을 켜둔 채 닫았어도 다음에 열면 평소 대화 화면부터
     closeProf();          // 내 정보 화면도 마찬가지 — 켜둔 채 닫으면 다음에 그 화면이 그대로 떴다
+    histRestorePoint = null;  // 되돌리기 지점도 버린다 — 다음에 열면 홈부터 새로 시작한다
   }
 
   /**
@@ -2359,7 +2568,22 @@
   function onHistBack() {
     if (isProfOpen()) closeProf();
     if (isHistoryOpen()) closeHistory(true);
-    else setHistHeader(false);   // 지난 대화를 펼쳐 둔 상태(목록은 이미 닫힘) — 헤더만 홈으로
+    else setHistHeader(false);
+    restoreFromHistory();   // 지난 대화를 펼쳐 뒀다면 펼치기 직전 상태로 되돌린다
+  }
+
+  /**
+   * 지난 대화를 채팅창에 붙이기 **직전**의 상태로 되돌린다(붙인 적이 없으면 아무것도 안 한다).
+   * 2026-09-10 사용자 지적으로 넣었다 — *"채팅창으로를 눌러도 초기화된 화면이 아니라 기존
+   * 화면에서 위 버튼만 바뀌는데?"* 종전에는 헤더만 바뀌고 붙인 대화가 그대로 남았다.
+   * 되돌린 뒤에도 그 대화는 기기에 저장돼 있어 [대화이력]에서 언제든 다시 볼 수 있다.
+   * [연계] ← onHistBack · closeChat. → openHistoryGroup(여기서 되돌릴 자리를 찍는다).
+   */
+  function restoreFromHistory() {
+    if (histRestorePoint === null) return;
+    var body = document.getElementById('nryaChatBody');
+    if (body) { body.innerHTML = histRestorePoint; _scrollChatBottom(); }
+    histRestorePoint = null;
   }
 
   // ── [H-37 §7] 나에 대해서 설명하기(온디바이스 프로필) ─────────────────────────
@@ -2662,6 +2886,12 @@
     if (!grp || !grp.items.length) return;
     closeHistory(false);   // 목록만 닫고 ‹ 는 남긴다
     var body = document.getElementById('nryaChatBody');
+    // ★[채팅창으로]로 되돌아갈 자리를 먼저 찍어 둔다(2026-09-10 사용자 지적).
+    //   종전에는 지난 대화를 채팅창에 붙인 뒤 [채팅창으로]를 눌러도 **버튼만 바뀌고 붙인 내용이
+    //   그대로 남아** 홈으로 못 갔다. 붙이기 **직전**의 채팅창을 기억해 뒀다가 그 상태로 되돌린다
+    //   — 통째로 비우지 않는 이유는, 지난 대화를 열어 보기 전에 하던 **진행 중 대화**까지
+    //   날아가면 안 되기 때문이다. 여러 건을 연달아 펼쳐도 **맨 처음 자리**로 돌아간다.
+    if (body && histRestorePoint === null) histRestorePoint = body.innerHTML;
     if (body) {
       // 지금 하고 있는 대화와 섞이지 않게 "여기부터 지난 대화"라고 한 줄 끼운다.
       var sep = document.createElement('div'); sep.className = 'nrya-hist-sep';
