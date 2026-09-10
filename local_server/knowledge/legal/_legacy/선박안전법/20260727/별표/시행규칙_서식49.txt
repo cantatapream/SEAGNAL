@@ -1,0 +1,56 @@
+[시행규칙] 서식49 — 지정사업장지정서 CERTIFICATE OF RECOGNIZED MANUFACTURING (MAINTENANCE) FACTORY
+
+■ 선박안전법 시행규칙 [별지 제49호서식]                         
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                ┃
+┃지정사업장지정서                                                                ┃
+┃CERTIFICATE OF RECOGNIZED MANUFACTURING                                         ┃
+┃(MAINTENANCE) FACTORY                                                           ┃
+┃ 발 급 번 호 : 제   -   호                             증 서 번 호 : 제     -    호┃
+┃ Issuing No. :                                              Certificate No.:    ┃
+┠────┬───────────┬───────────────────────┨
+┃사 업 자│상      호            │                                              ┃
+┃        │Company               │                                              ┃
+┃        ├───────────┼───────────────────────┨
+┃        │대  표  자            │                                              ┃
+┃        │Name                  │                                              ┃
+┃        ├───────────┼───────────────────────┨
+┃        │사업자등록번호        │                                              ┃
+┃        │Registration No.      │                                              ┃
+┃        ├───────────┼───────────────────────┨
+┃        │주     소             │                                              ┃
+┃        │Address               │                                              ┃
+┠────┴───────────┼───────────────────────┨
+┃사업장의 주소                   │                                              ┃
+┃Factory Address                 │                                              ┃
+┠────────────────┴───────────────────────┨
+┃선박용물건 또는 소형선박                                                        ┃
+┃Particular of Articles                                                          ┃
+┠───────────────┬────────┬───┬───────────┨
+┃형식승인증서 번호             │품    명        │규  격│형  식                ┃
+┃Type Approval Certificate No. │Name of Articles│Size  │Type                  ┃
+┠───────────────┼────────┼───┼───────────┨
+┃                              │                │      │                      ┃
+┠─────┬─────────┴────────┴───┴───────────┨
+┃비  고    │                                                                    ┃
+┃Remarks   │                                                                    ┃
+┠─────┴──────────────────────────────────┨
+┃                                                                                ┃
+┃「선박안전법 시행규칙」 제48조제2항에 따라 이 지정서를 발급합니다.              ┃
+┃ This is to certify that the factory above has been designated as a recognized  ┃
+┃manufacturing and maintenance factory in accordance with Article 48.2 of the    ┃
+┃Enforcement Decree of the                                                       ┃
+┃ Ship Safety Act.                                                               ┃
+┃                                                                                ┃
+┃                              년      월      일                                ┃
+┃                                                             Y        M       D ┃
+┃                                                                                ┃
+┃                                                                                ┃
+┃  지 방 해 양 수 산 청 장                                                       ┃
+┃  Director General of the Regional Oceans and ┏━━┓                          ┃
+┃  Fisheries Office                            ┃직인┃                          ┃
+┃                                              ┗━━┛                          ┃
+┃                                                                                ┃
+┃                                                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210mm×297mm[백상지 150g/㎡]

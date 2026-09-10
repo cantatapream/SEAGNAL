@@ -353,7 +353,9 @@ cron.schedule('1 0 * * *', () => {
 
 // 매일 KST 01:00 에 나리야(해양법령) 개정 감지 스캔 — H-29 탐지엔진
 // (detect_law_changes.py)이 74법 소관부처 단위로 law.go.kr에 광역질의해 최근 변동을
-// 훑고, 바뀐 게 있으면 _amendments/queue.jsonl에 적재(위키는 자동 수정 안 함).
+// 훑고, 바뀐 게 있으면 볼륨의 data/legal_amendments_queue.jsonl 에 적재(위키는 자동 수정 안 함).
+// (2026-09-10: 스크립트 절대경로·이미지 안 큐 경로 때문에 실서비스에서 결과를 낸 적이 없던 것을 고쳤다 —
+//  상세는 services/legal_amendment_scanner.js 머리 주석. 소요는 3~11분(실측), 상한 30분.)
 // [연계] services/legal_amendment_scanner.js, routes/legal.js GET /api/legal/amendments
 cron.schedule('0 1 * * *', () => {
     console.log('⏰ [Daily Schedule] 나리야 개정 감지 스캔을 시작합니다.');

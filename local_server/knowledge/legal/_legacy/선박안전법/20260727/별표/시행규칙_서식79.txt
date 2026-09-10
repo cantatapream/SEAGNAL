@@ -1,0 +1,298 @@
+[시행규칙] 서식79 — 항만국통제점검보고서
+
+■ 선박안전법 시행규칙 [별지 제79호서식]                                                                             
+                                                                                                                                          
+  항만국통제점검보고서                               FORM A                                                                               
+                                                                                                                                          
+  REPORT OF INSPECTION IN ACCORDANCE WITH THE MEMORANDUM OF                                                                               
+  UNDERSTANDING ON PORT STATE CONTROL IN THE ASIA-PACIFIC REGION1)                                                                        
+                                                                                                                                          
+  (reporting authority) Ministry of Oceans and Fisheries, Republic of Korea           Copy to: master                                     
+  (address) Sejong Government Complex, 94, Dasom-2ro, Sejong,                                  head office                                
+            Republic of Korea                                                                  PSCO                                       
+  (telephone) +82-44-200-5815                                                         If ship is detained, copy to:                       
+  (telefax) +82-44-200-5848                                                                    flag State                                 
+  (e-mail address) psckorea@korea.kr                                                           IMO                                        
+                                                                                               recognized organization, if applicable     
+                                                                                                                                          
+                                                                                                                                          
+                                                                                                                                          
+  1       name of reporting authority   REPUBLIC OF KOREA               2     name of ship                                                
+                                      ─────────────────                          ────────────────────
+  3       flag of ship                          4   type of ship                                5a    call sign     5b MMSI number        
+                      ─────────────                ────────────────                ──                  ──
+  6       IMO number                            7   gross tonnage                               8     deadweight (where applicable)       
+                        ────────────                    ──────────────                                    ───
+  9       date keel laid                        10  date of inspection                          11    place of inspection                 
+                          ───────────                        ────────────                          ────────
+  12      classification society                13  date of release from detention2)                                                      
+                                ────────                                          ────────────────────────
+  14a     IMO company number                        14b particulars of company                                                            
+                            ────────────                              ────────────────────────────
+                                                                                                                                          
+                                                                                                                                          
+  15      name and signature of master to certify that the information under 14b is correct:                                              
+                                                                                                                                          
+          name                                                         signature                                                          
+              ───────────────────────────            ─────────────────────────────
+                                                                                                                                          
+                                                                                                                                          
+  16      details of ship certificates                                                                                                    
+                                                                                                                                          
+  a   title                                 b   issuing authority                                 c   date of issue and expiry            
+                                                                                                                                          
+                                                                                                                                          
+                                                                                                                                          
+  1                                                                                                                                       
+      ────────────────────────────────────────────  ──────────        ───────
+  2                                                                                                                                       
+      ────────────────────────────────────────────  ──────────        ───────
+  3                                                                                                                                       
+      ────────────────────────────────────────────  ──────────        ───────
+  4                                                                                                                                       
+      ────────────────────────────────────────────  ──────────        ───────
+  5                                                                                                                                       
+      ────────────────────────────────────────────  ──────────        ───────
+  6                                                                                                                                       
+      ────────────────────────────────────────────  ──────────        ───────
+  7                                                                                                                                       
+      ────────────────────────────────────────────  ──────────        ───────
+  8                                                                                                                                       
+      ────────────────────────────────────────────  ──────────        ───────
+  9                                                                                                                                       
+      ────────────────────────────────────────────  ──────────        ───────
+  10                                                                                                                                      
+      ────────────────────────────────────────────  ──────────        ───────
+  11                                                                                                                                      
+      ────────────────────────────────────────────  ──────────        ───────
+  12                                                                                                                                      
+      ────────────────────────────────────────────  ──────────        ───────
+  13                                                                                                                                      
+      ────────────────────────────────────────────  ──────────        ───────
+  14                                                                                                                                      
+      ────────────────────────────────────────────  ──────────        ───────
+  15                                                                                                                                      
+      ────────────────────────────────────────────  ──────────        ───────
+  16                                                                                                                                      
+      ────────────────────────────────────────────  ──────────        ───────
+  17                                                                                                                                      
+      ────────────────────────────────────────────  ──────────        ───────
+                                                                                                                                          
+                                                                                                                                          
+  d   information on last intermediate or annual survey                                                                                   
+                                                                                                                                          
+        date                                  surveying authority                                 place                                   
+                                                                                                                                          
+                                                                                                                                          
+                                                                                                                                          
+  1                                                                                                                                       
+      ──────────────────  ─────────────────────────  ─────────────────────
+  2                                                                                                                                       
+      ──────────────────  ─────────────────────────  ─────────────────────
+  3                                                                                                                                       
+      ──────────────────  ─────────────────────────  ─────────────────────
+  4                                                                                                                                       
+      ──────────────────  ─────────────────────────  ─────────────────────
+  5                                                                                                                                       
+      ──────────────────  ─────────────────────────  ─────────────────────
+                                                                                                                                          
+                                                                                                                                          
+  17    deficiencies                                                                    □  no          □  yes (see attached FORM B)     
+                                                                                                                                          
+  18    ship detained                                                                   □  no          □  yes3)                         
+                                                                                                                                          
+  19    supporting documentation                                                        □  no          □  yes (see annex)               
+                                                                                                                                          
+                                                                                                                                          
+                                                                                                                                          
+  issuing office                                                            name                                                          
+                ──────────────────────────            ─────────────────────────────
+                                                                                    (duly authorized PSCO of reporting authority)         
+                                                                                                                                          
+  telephone                                                                                                                                
+                ──────────────────────────                                                                      
+  telefax                                                                   signature                                                     
+                ──────────────────────────                    ─────────────────────────
+   * This report must be retained on board for period of two years and must be available for consultation by Port State Control Officers at all times.  
+   * If the owner of a ship objects to the detention of a vessel, he will have a right of appeal against a detention within 90days from date of detention.  
+                                                                                                                                          
+                                                                                                                                          
+───────────────────────────                                                                                    
+  1)  This inspection report has been issued solely for the purpose of informing the master and other port State that an inspection by the port   
+      State, mentioned in the heading, has taken place. This inspection report cannot be construed as a seaworthiness certificate in excess of   
+      the certificates the ship is required to carry.                                                                                     
+                                                                                                                                          
+  2)  To be completed in the event of a detention.                                                                                        
+                                                                                                                                          
+  3)  Masters and companies are advised that detailed information on a detention may be subject to future publication.                    
+                                                                                                                                          
+  210mm×297mm(백상지 80g/㎡)                                                                                                             
+                                                                                                                                          
+                                                                                                                                                  
+                                                                                                                                                  
+                                                                                                                                                  
+  FORM B                                                                                                                                          
+                                                                                                                                                  
+  REPORT OF INSPECTION IN ACCORDANCE WITH THE MEMORANDUM OF                                                                                       
+  UNDERSTANDING ON PORT STATE CONTROL IN THE ASIA-PACIFIC REGION1)                                                                                
+                                                                                                                                                  
+  (reporting authority) Ministry of Oceans and Fisheries, Republic of Korea   Copy to: master                                                     
+  (address) Sejong Government Complex, 94, Dasom-2ro, Sejong,                          head office                                                
+            Republic of Korea                                                          PSCO                                                       
+  (telephone) +82-44-200-5815                                                 If ship is detained, copy to:                                       
+  (telefax) +82-44-200-5848                                                            flag State                                                 
+  (e-mail address) psckorea@korea.kr                                                   IMO                                                        
+                                                                                       recognized organization, if applicable                     
+                                                                                                                                                  
+                                                                                                                                                  
+                                                                                                                                                  
+  2     name of ship                                        6   IMO number                                                                        
+                    ────────────────────                    ─────────────────────────────────
+  10    date of inspection                                  11  place of inspection                                                               
+                          ─────────────────                        ───────────────────────────────
+                                                                                                                                                  
+                                                                                                                                                  
+  20 number       21 code       nature of deficiency 4)       convention 5)         22 action taken 6)    23  responsible RO  5)                  
+                                                              reference                                                                           
+                                                                                                                                                  
+                                                                                                                                                  
+                                                                                                                                                  
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+───────  ─────────────────────  ──────────  ────────────────────────────────
+                                                                                                                                                  
+                                                                                                                                                  
+  Page :                                                          name                                                                            
+                                                                      ──────────────────────────────────────
+                                                                          (duly authorized PSCO of reporting authority)                           
+                                                                                                                                                  
+                                                                                                                                                  
+                                                                                                                                                  
+                                                                  signature                                                                       
+                                                                              ──────────────────────────────────
+                                                                                                                                                  
+                                                                                                                                                  
+                                                                                                                                                  
+─────────────────                                                                                                                
+  4)  This inspection was not a full survey and deficiencies listed may not be exhaustive. In the event of a detention, it is recommended that    
+      full survey is carried out and all deficiencies are rectified before an application for re-inspection is made.                              
+                                                                                                                                                  
+  5)  To be completed in the event of a detention.                                                                                                
+                                                                                                                                                  
+  6)  Applicable Deficiency Action Codes (see reverse side of copy) to be entered.                                                                
+                                                                                                                                                  
+                                                                                                                                                  
+                                                                                                                                                  
+                                                                                
+                                                                                
+────────────────────────────────────────
+  (reverse side of Form B)                                                      
+┎───────────────────────────────────────
+┃  codes for action taken                                                      
+┃                                                                            ┃
+┃                                                                              
+                                                                                
+                                                                                
+┎───────────────────────────────────────
+┃  code                                                                        
+┃                                                                            ┃
+┃                                                                              
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+    Deficiency action code                                                      
+                                                                                
+                                                                                
+                                                                                
+     10   Deficiency rectified                                                  
+                                                                                
+     15   Rectify deficiency at next port                                       
+                                                                                
+     16   Rectify deficiency within 14 days                                     
+                                                                                
+     17   Rectify deficiency before departure                                   
+                                                                                
+     18   Rectify deficiency within 3 months                                    
+                                                                                
+     30   Detainable deficiency                                                 
+                                                                                
+     46   Rectify detainable deficiency at agreed repair port                   
+                                                                                
+     48   As in the agreed flag state condition                                 
+                                                                                
+     49   As in the agreed rectification action plan                            
+                                                                                
+     99   Other (specify in clear text)                                         
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+    PSC inspection action code (tick as applicable)                             
+                                                                                
+                                                                                
+                                                                                
+     26   Competent security authority informed                             □  
+                                                                                
+     27   Ship expelled in security grounds                                 □  
+                                                                                
+     40   Next port informed                                                □  
+                                                                                
+     50   Flag State/consul informed                                        □  
+                                                                                
+     55   Flag State/consulted                                              □  
+                                                                                
+     70   Recognized organization informed                                  □  
+                                                                                
+     85   Investigation of contravention of discharge provisions (MARPOL)   □  
+                                                                                
+    151   ILO informed                                                      □  
+                                                                                
+    152   Seafarers’ organization informed                                 □  
+                                                                                
+    155   Ship owner representative informed                                □

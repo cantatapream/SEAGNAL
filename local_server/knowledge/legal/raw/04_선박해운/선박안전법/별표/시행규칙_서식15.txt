@@ -18,20 +18,20 @@
   This certificate shall be supplemented by a Record of Equipment for Cargo Ship Safety (Form C).                       
   「1974년 해상에서의 인명안전을 위한 국제협약」에 따라 대한민국 정부의 권한으로 발행합니다.                            
   Issued under the provisions of the International Convention for the Safety of Life at Sea, 1974, as amended           
-  under the authority of the Government of Republic of Korea by                      .                                  
+  under the authority of the Government of Republic of Korea by                     .                                   
                                                                                                                         
   ┌──────┬─────────┬────────┬────┬──────────┬──────┐                  
-  │선        명│선 박 번 호       │선  적  항      │총 톤 수│선박의 재화중량톤수 │IMO번호     │                  
+  │선        명│선 박 번 호       │선  적  항      │총 톤 수│선박의 재화중량톤수 │IMO 번호    │                  
   │Name of Ship│Distinctive Number│Port of Registry│Gross   │Deadweight of ship  │IMO Number**│                  
   │            │or Letters        │                │Tonnage │(metric tons)*      │            │                  
   ├──────┼─────────┼────────┼────┼──────────┼──────┤                  
   │            │                  │                │        │                    │            │                  
   └──────┴─────────┴────────┴────┴──────────┴──────┘                  
   선박의 길이(제3장 제3규칙 12항)                                                                                       
-  Length of Ship(regulation Ⅲ/3.12):                                                                                   
+  Length of Ship(regulation Ⅲ/3.12)                                                                                    
                                                                                                                         
   선박의 운항구역(제4장 제2규칙)                                                                                        
-  Sea areas in which ship is certified to operate(regulation Ⅳ/2)***:                                                  
+  Sea areas in which ship is certified to operate(regulation Ⅳ/2)***                                                   
                                                                                                                         
   선박의 종류                                                                                                           
   Type of Ship****                                                                                                      
@@ -39,10 +39,10 @@
     산적화물선               유조선               케미컬 탱커               가스캐리어                                  
     Bulk carrier             Oil tanker              Chemical tanker             Gas carrier                            
                                                                                                                         
-    그 밖의 이외의 화물선                                                                                               
-    Cargo ship other than any of the above                                                                              
+    컨테이너운반선           그 밖의 화물선                                                                             
+  Containership               Cargo ship other than any of the above                                                    
                                                                                                                         
-  건조일 :                                                                                                              
+  건조일:                                                                                                               
   Date of build:                                                                                                        
   - 건조 계약일                                                                                                         
     Date of building contract                                                                                           
@@ -53,8 +53,8 @@
   - 해당되는 경우, 주요 특성의 개조나 변경 또는 수정작업의 시작일                                                       
     Date on which work for a conversion or an alteration or modification of a major character was                       
      commenced (where applicable)                                                                                       
-  적용 가능한 모든 일자를 기재할 것.                                                                                    
-  All applicable dates shall be completed.                                                                              
+    적용 가능한 모든 일자를 기재할 것.                                                                                  
+    All applicable dates shall be completed.                                                                            
                                                                                                                         
   이 증서는 다음 사항을 증명합니다.                                                                                     
   THIS IS TO CERTIFY:                                                                                                   
@@ -67,8 +67,8 @@
        For oil tankers, chemical tankers and gas carriers only.                                                         
      IMO에서 Res.A1117(30)으로 채택된 IMO 선박식별번호계획에 따를 것                                                    
        In accordance with IMO ship identification number scheme adopted by the Organization by resolution A.1117(30).   
-  ***  A3 해역에서의 운항이 인증된 선박의 경우, 인정된 이동위성 서비스를 괄호 안에로 표시할 것                          
-  For a ship certified to operate in sea area A3, indicate the recognized mobile satellite service in brackets.         
+  ***  A3 해역에서 운항할 수 있도록 인증된 선박의 경우, 인정된 이동식 위성서비스를 괄호 안에 표시할 것                  
+   For a ship certified to operate in sea area A3, indicate the recognized mobile satellite service in brackets.        
   * 해당하지 않는 것은 지울 것                                                                                          
        Delete as appropriate.                                                                                           
                                                                                                                         
@@ -273,42 +273,70 @@
                                                                                                                         
   2. 구명설비의 상세(계속)                                                                                              
      DETAILS OF LIFE-SAVING APPLIANCES(Continued)                                                                       
-  ┌───────────────────┬───┬────┰───────────────────┬─────┐      
-  │항목                                  │좌현  │우현    ┃항목                                  │실제조치  │      
-  │Item                                  │Port  │Starb'd ┃Item                                  │Actual    │      
-  │                                      │side  │side    ┃                                      │provision │      
-  ├───────────────────┼───┼────╂───────────────────┼─────┤      
-  │6. 구명뗏목                           │      │        ┃6.3 제III장 제31규칙 1.4항에 의하     │          │      
-  │    Liferafts                         │      │        ┃여 요구되는 구명뗏목의 수             │          │      
-  │                                      │      │        ┃     Number of liferafts required by  │          │      
-  │                                      │      │        ┃regulation III/31.1.4                 │          │      
-  ├───────────────────┼───┼────╂───────────────────┼─────┤      
-  │6.1 승인된 진수장치가 필요한 것       │      │        ┃7. 구명부환(救命浮環)의 수            │          │      
-  │     Those for which approved         │      │        ┃   Number of lifebuoys                │          │      
-  │     launching appliances are required│      │        ┃                                      │          │      
-  ├───────────────────┼───┼────╂───────────────────┼─────┤      
-  │6.1.1 구명뗏목의 수                   │      │        ┃8. 구명조끼의 수                      │          │      
-  │       Number of liferafts            │      │        ┃   Number of life jackets             │          │      
-  ├───────────────────┼───┼────╂───────────────────┼─────┤      
-  │6.1.2 수용인원                        │      │        ┃9. 방수복 Immersion suits             │          │      
-  │       Number of persons              │      │        ┃                                      │          │      
-  │       accommodated by them           │      │        ┃                                      │          │      
-  ├───────────────────┼───┼────╂───────────────────┼─────┤      
-  │6.2 승인된 진수장치가 필요 없는 것    │      │        ┃9.1 총수량 Total number               │          │      
-  │    Those for which approved          │      │        ┃                                      │          │      
-  │     launching appliances are not     │      │        ┃                                      │          │      
-  │     required                         │      │        ┃                                      │          │      
-  ├───────────────────┼───┼────┨                                      │          │      
-  │6.2.1 구명뗏목의 수                   │      │        ┠───────────────────┼─────┤      
-  │       Number of liferafts            │      │        ┃9.2 구명조끼의 요건을 갖춘 방수       │          │      
-  │                                      │      │        ┃복의 수                               │          │      
-  │                                      │      │        ┃     Number of suits complying with   │          │      
-  │                                      │      │        ┃the  requirements for lifejackets     │          │      
-  ├───────────────────┼───┼────╂───────────────────┼─────┤      
-  │6.2.2 수용인원                        │      │        ┃10. 노출보호복의 수                   │          │      
-  │       Number of persons              │      │        ┃   Number of anti-exposure suits      │          │      
-  │       accommodated by them           │      │        ┃                                      │          │      
-  └───────────────────┴───┴────┸───────────────────┴─────┘      
+  ┌──────────────────┬───┬────┰──────────────────┬─────┐          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │항목                                │좌현  │우현    ┃항목                                │실제조치  │          
+  │Item                                │Port  │Starb'd ┃Item                                │Actual    │          
+  │                                    │side  │side    ┃                                    │provision │          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  ├──────────────────┼───┼────╂──────────────────┼─────┤          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │6.    구명뗏목                      │      │        ┃6.3 제III장 제31규칙 1.4항에 의     │          │          
+  │       Liferafts                    │      │        ┃하여 요구되는 구명뗏목의 수         │          │          
+  │                                    │      │        ┃      Number of liferafts required  │          │          
+  │                                    │      │        ┃by regulation III/31.1.4            │          │          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  ├──────────────────┼───┼────╂──────────────────┼─────┤          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │6.1   승인된 진수장치가 필요한 것   │      │        ┃7.  구명부환(救命浮環)의 수         │          │          
+  │       Those for which approved     │      │        ┃     Number of lifebuoys            │          │          
+  │        launching appliances are    │      │        ┃                                    │          │          
+  │required                            │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  ├──────────────────┼───┼────╂──────────────────┼─────┤          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │6.1.1 구명뗏목의 수                 │      │        ┃8.  구명조끼의 수                   │          │          
+  │       Number of liferafts          │      │        ┃     Number of life jackets         │          │          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  ├──────────────────┼───┼────╂──────────────────┼─────┤          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │6.1.2 수용인원                      │      │        ┃9.  방수복의 수                     │          │          
+  │       Number of persons            │      │        ┃    Number of immersion suits       │          │          
+  │       accommodated by them         │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  ├──────────────────┼───┼────╂──────────────────┼─────┤          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │6.2   승인된 진수장치가 필요 없는 것│      │        ┃10. 노출보호복의 수                 │          │          
+  │       Those for which approved     │      │        ┃    Number of anti-exposure suits   │          │          
+  │       launching appliances are not │      │        ┃                                    │          │          
+  │required                            │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  ├──────────────────┼───┼────╂──────────────────┼─────┤          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │6.2.1 구명뗏목의 수                 │      │        ┃                                    │          │          
+  │       Number of liferafts          │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  ├──────────────────┼───┼────╂──────────────────┼─────┤          
+  │6.2.2 수용인원                      │      │        ┃                                    │          │          
+  │       Number of persons            │      │        ┃                                    │          │          
+  │       accommodated by them         │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  │                                    │      │        ┃                                    │          │          
+  └──────────────────┴───┴────┸──────────────────┴─────┘          
                                                                                                                         
   3. 무선설비의 상세                                                                                                    
      DETAIL OF  RADIO FACILITIES                                                                                        
@@ -384,99 +412,174 @@
                                                                                                                                   
   5. 항해장비 및 설비의 상세                                                                                                      
      DETAILS OF  NAVIGATIONAL SYSTEM AND EQUIPMENT                                                                                
-  ┌──────────────────────┬─────┰─────────────────────┬─────┐            
-  │항목                                        │실제조치  ┃항목                                      │실제조치  │            
-  │Item                                        │Actual    ┃Item                                      │Actual    │            
-  │                                            │provision ┃                                          │provision │            
-  ├──────────────────────┼─────╂─────────────────────┼─────┤            
-  │1.1 기준 자기 컴퍼스*                       │          ┃3.7 플로팅설비*                           │          │            
-  │    Standard magnetic compass*              │          ┃     Electronic plotting aid*             │          │            
-  ├──────────────────────┼─────┨                                          │          │            
-  │1.2 예비의 자기 컴퍼스*                     │          ┠─────────────────────┼─────┤            
-  │    Spare magnetic compass**                │          ┃4.1 자동식별장치                          │          │            
-  │                                            │          ┃    Automatic identification system(AIS)  │          │            
-  ├──────────────────────┼─────╂─────────────────────┼─────┤            
-  │1.3 자이로 컴퍼스*                          │          ┃4.2 장거리 식별 및 추적장치               │          │            
-  │    Gyro compass*                           │          ┃     Long-range identification and        │          │            
-  ├──────────────────────┼─────┨     tracking system                      │          │            
-  │1.4 자이로 컴퍼스 선수 리피터*              │          ┠─────────────────────┼─────┤            
-  │    Gyro compass heading repeater*          │          ┃5.1 항해자료기록장치**                    │          │            
-  ├──────────────────────┼─────┨     Voyage data recorder(VDR)**          │          │            
-  │1.5 자이로 컴퍼스 방위 리피터*              │          ┃                                          │          │            
-  │    Gyro compass bearing repeater*          │          ┠─────────────────────┼─────┤            
-  │                                            │          ┃5.2 간이항해자료기록장치**                │          │            
-  ├──────────────────────┼─────┨    Simplified Voyage data recorder       │          │            
-  │1.6 선수 또는 항적 제어장치*                │          ┃    (S-VDR)**                             │          │            
-  │     Heading or track control system*       │          ┃                                          │          │            
-  │                                            │          ┠─────────────────────┼─────┤            
-  │                                            │          ┃6.1 선속거리계(대수속력)*                 │          │            
-  ├──────────────────────┼─────┨     Speed and distance measuring         │          │            
-  │1.7 방위환 또는 컴퍼스 방위장치*            │          ┃     device(through the water)*           │          │            
-  │     Pelorus or compass bearing device*     │          ┃                                          │          │            
-  ├──────────────────────┼─────┨                                          │          │            
-  │1.8 선수방위 수정장치                       │          ┠─────────────────────┼─────┤            
-  │     Means of correcting heading and        │          ┃6.2 선속거리계(대지속력)*                 │          │            
-  │bearing                                     │          ┃     Speed and distance measuring         │          │            
-  ├──────────────────────┼─────┨     device(over the ground in the        │          │            
-  │1.9 선수방위 발신기*                        │          ┃     forward and athwartship direction)*  │          │            
-  │    Transmitting heading device(THD)*       │          ┃                                          │          │            
-  │                                            │          ┃                                          │          │            
-  │                                            │          ┠─────────────────────┼─────┤            
-  │                                            │          ┃7  음향측심기*                            │          │            
-  ├──────────────────────┼─────┨    Echo sounding device*                 │          │            
-  │2.1 해도/전자해도 표시 및 정보시스템**      │          ┃                                          │          │            
-  │    Nautical chart/Electronic chart display │          ┠─────────────────────┼─────┤            
-  │and information system (ECDIS)**            │          ┃8.1 타각지시기 등*,**                     │          │            
-  │                                            │          ┃     Rudder, propeller, thrust, pitch and │          │            
-  ├──────────────────────┼─────┨     operational mode indicator*,**       │          │            
-  │2.2 ECDIS의 이중화                          │          ┃                                          │          │            
-  │    Back up arrangement for ECDIS           │          ┃                                          │          │            
-  │                                            │          ┠─────────────────────┼─────┤            
-  │                                            │          ┃8.2 회두각 속도계*                        │          │            
-  ├──────────────────────┼─────┨     Rate of turn indicator*              │          │            
-  │2.3 항해용간행물                            │          ┃                                          │          │            
-  │    Nautical publications                   │          ┠─────────────────────┼─────┤            
-  │                                            │          ┃9  음향수신장치*                          │          │            
-  ├──────────────────────┼─────┨   Sound reception system*                │          │            
-  │2.4 전자 항해용간행물의 이중화              │          ┃                                          │          │            
-  │    Back up arrangement for electronic      │          ┠─────────────────────┼─────┤            
-  │    nautical publications                   │          ┃10 비상조타실의 전화*                     │          │            
-  │                                            │          ┃    Telephone to emergency steering       │          │            
-  ├──────────────────────┼─────┨    position*                             │          │            
-  │3.1 위성항법장치/지상파무선항법장치용       │          ┃                                          │          │            
-  │수신기/다중무선항해장치용 수신기*,**        │          ┃                                          │          │            
-  │    Receiver for a global navigation        │          ┠─────────────────────┼─────┤            
-  │satellite system/terrestrial radio          │          ┃11 주간신호등*                            │          │            
-  │navigation system/multi-system              │          ┃    Daylight signalling lamp*             │          │            
-  │shipborne radionavigation                   │          ┠─────────────────────┼─────┤            
-  │receiver*,**                                │          ┃12 레이더 반사기*                         │          │            
-  │                                            │          ┃    Radar reflector*                      │          │            
-  │                                            │          ┃                                          │          │            
-  ├──────────────────────┼─────┨                                          │          │            
-  │3.2 9GHz 레이더*                            │          ┃                                          │          │            
-  │    9GHz radar*                             │          ┠─────────────────────┼─────┤            
-  │                                            │          ┃13 국제신호서                             │          │            
-  ├──────────────────────┼─────┨    International code of signals         │          │            
-  │3.3 제2 항해용 레이더(3 GHz/9 GHz**)*       │          ┃                                          │          │            
-  │    Second radar(3 GHz/9 GHz**)*            │          ┠─────────────────────┼─────┤            
-  │                                            │          ┃14 국제항공 및 해상수색구조매뉴얼         │          │            
-  ├──────────────────────┼─────┨제3권                                     │          │            
-  │3.4 자동충돌예방보조장치*                   │          ┃     IAMSAR Manual, Volume III            │          │            
-  │    Automatic radar plotting aid (ARPA)*    │          ┃                                          │          │            
-  ├──────────────────────┼─────╂─────────────────────┼─────┤            
-  │3.5 자동추적장치*                           │          ┃15 선교항해당직경보장치                   │          │            
-  │ Automatic tracking aid*                    │          ┃    Bridge navigational watch alarm       │          │            
-  ├──────────────────────┼─────┨system (BNWAS)                            │          │            
-  │3.6 제2 자동추적장치*                       │          ┃                                          │          │            
-  │    Second automatic tracking aid*          │          ┃                                          │          │            
-  └──────────────────────┴─────┸─────────────────────┴─────┘            
+  ┌────────────────────┬─────┰────────────────────┬─────┐                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │항목                                    │실제조치  ┃항목                                    │실제조치  │                  
+  │Item                                    │Actual    ┃Item                                    │Actual    │                  
+  │                                        │provision ┃                                        │provision │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │1.1 기준 자기 컴퍼스*                   │          ┃3.7 플로팅설비*                         │          │                  
+  │     Standard magnetic compass*         │          ┃     Electronic plotting aid*           │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │1.2 예비의 자기 컴퍼스*                 │          ┃4.1 자동식별장치                        │          │                  
+  │     Spare magnetic compass**           │          ┃     Automatic identification           │          │                  
+  │                                        │          ┃system(AIS)                             │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │1.3 자이로 컴퍼스*                      │          ┃4.2 장거리 식별 및 추적장치             │          │                  
+  │     Gyro compass*                      │          ┃     Long-range identification and      │          │                  
+  │                                        │          ┃     tracking system                    │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │1.4 자이로 컴퍼스 선수 리피터*          │          ┃5.1 항해자료기록장치**                  │          │                  
+  │     Gyro compass heading repeater*     │          ┃     Voyage data recorder(VDR)**        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │1.5 자이로 컴퍼스 방위 리피터*          │          ┃5.2 간이항해자료기록장치**              │          │                  
+  │     Gyro compass bearing repeater*     │          ┃     Simplified Voyage data recorder    │          │                  
+  │                                        │          ┃     (S-VDR)**                          │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │1.6 선수 또는 항적 제어장치*            │          ┃6.1 선속거리계(대수속력)*               │          │                  
+  │     Heading or track control system*   │          ┃     Speed and distance measuring       │          │                  
+  │                                        │          ┃     device(through the water)*         │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │1.7 방위환 또는 컴퍼스 방위장치*        │          ┃6.2 선속거리계(대지속력)*               │          │                  
+  │     Pelorus or compass bearing device* │          ┃     Speed and distance measuring       │          │                  
+  │                                        │          ┃     device(over the ground in the      │          │                  
+  │                                        │          ┃     forward and athwartship direction)*│          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │1.8 선수방위 수정장치                   │          ┃7.  음향측심기*                         │          │                  
+  │     Means of correcting heading and    │          ┃     Echo sounding device*              │          │                  
+  │bearing                                 │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │1.9 선수방위 발신기*                    │          ┃8.1 타각지시기 등***                    │          │                  
+  │     Transmitting heading device(THD)*  │          ┃     Rudder, propeller, thrust, pitch   │          │                  
+  │                                        │          ┃and operational mode indicator***       │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │2.1 해도/전자해도 표시 및               │          ┃8.2 회두각 속도계*                      │          │                  
+  │정보시스템**                            │          ┃     Rate of turn indicator*            │          │                  
+  │     Nautical chart/Electronic chart    │          ┃                                        │          │                  
+  │display and information system          │          ┃                                        │          │                  
+  │(ECDIS)**                               │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │2.2 ECDIS의 이중화                      │          ┃9.  음향수신장치*                       │          │                  
+  │     Back up arrangement for ECDIS      │          ┃     Sound reception system*            │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │2.3 항해용간행물                        │          ┃10. 비상조타실의 전화*                  │          │                  
+  │     Nautical publications              │          ┃     Telephone to emergency steering    │          │                  
+  │                                        │          ┃     position*                          │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │2.4 전자 항해용간행물의 이중화          │          ┃11. 주간신호등*                         │          │                  
+  │     Back up arrangement for            │          ┃     Daylight signalling lamp*          │          │                  
+  │electronic nautical publications        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │3.1 위성항법장치/지상파무선항법장치용   │          ┃12. 레이더 반사기*                      │          │                  
+  │수신기/다중무선항해장치용 수신기*,**    │          ┃     Radar reflector*                   │          │                  
+  │     Receiver for a global navigation   │          ┃                                        │          │                  
+  │satellite system/terrestrial radio      │          ┃                                        │          │                  
+  │navigation system/multi-system          │          ┃                                        │          │                  
+  │shipborne radionavigation               │          ┃                                        │          │                  
+  │receiver***                             │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │3.2 9 GHz 레이더*                       │          ┃13. 국제신호서                          │          │                  
+  │     9 GHz radar*                       │          ┃     International code of signals      │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │3.3 제2 항해용 레이더(3 GHz/9 GHz**)*   │          ┃14. 국제항공 및 해상수색구조매뉴얼      │          │                  
+  │     Second radar(3 GHz/9 GHz**)*       │          ┃제3권                                   │          │                  
+  │                                        │          ┃     IAMSAR Manual, Volume III          │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │3.4 자동충돌예방보조장치*               │          ┃15. 선교항해당직경보장치                │          │                  
+  │     Automatic radar plotting aid       │          ┃     Bridge navigational watch alarm    │          │                  
+  │(ARPA)*                                 │          ┃system (BNWAS)                          │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │3.5 자동추적장치*                       │          ┃16. 전자식 경사계                       │          │                  
+  │     Automatic tracking aid*            │          ┃     Electronic inclinometer            │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  ├────────────────────┼─────╂────────────────────┼─────┤                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │3.6 제2 자동추적장치*                   │          ┃                                        │          │                  
+  │     Second automatic tracking aid*     │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  │                                        │          ┃                                        │          │                  
+  └────────────────────┴─────┸────────────────────┴─────┘                  
                                                                                                                                   
   *   제5장 제19규칙에 따라 이 요건에 대한 대체설비는 허용된다. 그 밖의 설비의 경우 이를 구체적으로 명시할 것                     
         Alternative means of meeting this requirement are permitted under regulation V/19. In case of other means they shall be   
         specified.                                                                                                                
   **  해당하지 않는 것은 지울 것                                                                                                  
         Delete as appropriate.                                                                                                    
-                                                                                                                                  
                                                                                                                                   
                                                                                                                                   
                                                                                                                                   

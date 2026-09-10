@@ -43,6 +43,12 @@ EXCLUDED = {
     # 가짜 판정**이 나왔다. 형제 항목을 뺄 때 이것도 같이 뺐어야 했다.
     '한국해양교통안전공단 정관': 'ID 2200000091523 — 2200000 계열(어항공단 정관과 동일). '
                        '이 ID 로 열면 「부부재산약정등기 사무처리 지침」이 나온다',
+    # 2026-09-10 추가 — 위 둘과 **똑같은 2200000 계열**인데 빠져 있었다. 2차 대조가 이 ID
+    # (2200000092763)로 본문을 열자 「농촌근대화촉진법 제170조의 확정일부 있는 서류」(1962년)가
+    # 나와 'ID불일치'로 남아 있었다. 공단 내부규정이라 행정규칙 창구로는 애초에 확인이 안 된다.
+    '(한국어촌어항공단) 바다해설사 양성 및 운영에 관한 지침':
+        'ID 2200000092763 — 2200000 계열(어항공단 정관과 동일). 이 ID 로 열면 '
+        '「농촌근대화촉진법 제170조의 확정일부 있는 서류」가 나온다. 공단규정은 이 창구 밖이다',
 }
 
 TITLE_RE = re.compile(r'^\[[^\]]*\]\s*(.+?)\s*$')
@@ -104,6 +110,35 @@ ARCHIVE_MARK = re.compile(r'구\s*판|전사본|보존용|보존\)|폐지\s*당�
 def is_archive(title, path):
     """제목이나 파일명이 스스로 '옛 판 보존본'이라 밝히고 있나."""
     return bool(ARCHIVE_MARK.search(str(title or '')) or ARCHIVE_MARK.search(os.path.basename(path or '')))
+
+
+def held_is_live(serial):
+    """우리가 가진 일련번호 자체가 지금 `현행여부: Y` 인가. → True/False/None(조회실패)
+
+    ★왜 필요한가 (2026-09-10 실측으로 드러남):
+      `strip_org()` 가 제목 앞의 기관 표시를 떼어내는 바람에 **다른 기관의 같은 이름 고시**와
+      구분이 안 된다. 실측:
+        우리 「(해양경찰청) 긴급구조지원기관 능력평가에 관한 규정」 ID 2100000249244
+            = 해양경찰청 고시 2024-10 · **현행여부 Y** · 「재난안전법 시행령」 제66조의3제5항(해양)
+        검색이 고른 현행 2100000280102 = **소방청** 고시 2026-27 · 같은 이름 · 제66조의3제2항(육상)
+      이름만 맞춰 "구버전"으로 판정했고, 그대로 재수집했으면 **해양 고시를 육상 고시로 갈아치울
+      뻔했다**(본문 20,846자 → 396자).
+    ⚠한계: "우리 것이 Y" 는 "재수집하면 안 된다"까지만 말해 준다. 둘 중 어느 쪽이 이 자리에 맞는
+      문서인지는 사람이 본다. 그래서 '현행'으로 되돌리되 이유를 row 에 적어 남긴다.
+    """
+    url = ('https://www.law.go.kr/DRF/lawService.do?OC=%s&type=JSON&target=admrul&ID=%s'
+           % (OC, serial))
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    for _ in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=25) as r:
+                d = json.loads(r.read().decode('utf-8', 'replace'))
+            b = (d.get('AdmRulService') or {}).get('행정규칙기본정보') or {}
+            v = str(b.get('현행여부') or '').strip()
+            return (v == 'Y') if v else None
+        except Exception:
+            time.sleep(1.5)
+    return None
 
 
 def scan_files():
@@ -257,6 +292,7 @@ def main():
 
     rows, stale, fresh, unknown, mismatch, future_held = [], 0, 0, 0, 0, 0
     for i, t in enumerate(titles, 1):
+        same_name_note = None
         cur, why, cands = api_current(t)
         held = sorted({f['id'] for f in by_title[t]})
         if cur is None:
@@ -273,6 +309,16 @@ def main():
         else:
             verdict = '구버전'
             stale += 1
+            # ★우리가 가진 번호가 **그 자체로 현행**이면 구버전일 수 없다 — 이름만 같은
+            #   다른 기관 고시를 현행으로 잘못 고른 것이다(위 held_is_live 주석의 실측 사례).
+            #   구버전으로 잡힌 몇 건에만 호출하므로 비용은 사실상 없다.
+            if held_is_live(held[0]) is True:
+                verdict = '현행'
+                stale -= 1
+                fresh += 1
+                same_name_note = ('보유 ID %s 는 지금도 현행(Y)이다. 검색이 고른 %s 는 '
+                                  '이름만 같은 다른 문서일 가능성이 높다 — 재수집 금지, 사람이 확인.'
+                                  % (held[0], cur['serial']))
         # ★우리가 가진 번호가 **아직 시행 전인 판**이면 그것도 사고다(구버전의 반대 경우).
         #   옛 판정이 검색 첫 줄(=시행예정 판)을 현행으로 보고 재수집했다면 이렇게 남는다.
         if cur and verdict != '현행':
@@ -284,6 +330,8 @@ def main():
                     break
         row = {'title': t, 'held_ids': held, 'current': cur, 'verdict': verdict,
                'files': [f['path'] for f in by_title[t]]}
+        if same_name_note:
+            row['same_name_note'] = same_name_note
         if verdict in ('이름불일치', '현행표시없음'):
             row['candidates'] = cands
         if cur and cur.get('pending'):

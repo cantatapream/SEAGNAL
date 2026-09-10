@@ -1,0 +1,17 @@
+{
+ "script": "collect_pending_law",
+ "stamp": "20260909-170512-028",
+ "files": [
+  "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법/_대기/20260918/법률.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법/_대기/20260918/_meta.json",
+  "local_server/knowledge/legal/raw/05_수산어업/양식산업발전법/_대기/20261001/법률.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/양식산업발전법/_대기/20261001/_meta.json",
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법/_대기/20260918/법률.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법/_대기/20260918/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20260918/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20260918/_meta.json",
+  "local_server/knowledge/legal/raw/10_항만물류/신항만건설촉진법/_대기/20260918/시행령.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/신항만건설촉진법/_대기/20260918/_meta.json",
+  "local_server/knowledge/legal/_dashboard/pending_index.json"
+ ]
+}

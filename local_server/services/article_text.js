@@ -97,6 +97,8 @@
 
 const githubRaw = require('./github_raw');
 const { rawPathOf } = require('./legal_retriever');
+// 예고본 전환(H-29 트랙 C) — "오늘 유효한 판" 은 이 모듈이 한 곳에서 정한다(_dashboard/H29_stage_design.md).
+const effectiveDate = require('./effective_date');
 
 // 항 머리기호(원문자) — 인덱스+1 이 항 번호다(①=1항).
 const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
@@ -1622,7 +1624,20 @@ async function loadArticle(q) {
     filePath = base + '/' + TIER_FILE[tier];
   }
 
-  let text = await githubRaw.fetchText(filePath);
+  // ★예고본 전환(2026-09-10, H-29 트랙 C) — 시행일이 지난 대기본(`_대기/<시행일>/<층>.txt`)이 있으면
+  //   현행 대신 **그 파일**을 읽는다. 시행일 전에는 지도에 있어도 고르지 않으므로 현행 그대로다.
+  //   지도(`_dashboard/pending_index.json`)는 로컬 파일이라 GitHub 호출이 늘지 않는다 — 대기본을 읽는
+  //   법에서는 현행 조회가 빠지고 대기본 조회가 들어가 호출 수가 같다. 대기본 조회가 실패하면(일시 오류)
+  //   아래 현행 경로로 내려간다 — 답이 안 나오는 것보다 현행이 낫고, 실패는 github_raw 가 로그에 남긴다.
+  let text = null;
+  if (tier !== 'notice') {
+    const staged = effectiveDate.stagedRawPath(base, TIER_FILE[tier]);
+    if (staged) {
+      text = await githubRaw.fetchText(staged);
+      if (text) filePath = staged;
+    }
+  }
+  if (!text) text = await githubRaw.fetchText(filePath);
   // ★발췌본 폴백(2026-08-28) — 타법은 **법 전체가 아니라 인용한 조문만** 받아 두는 것이 확정 방침이라
   //   그 파일 이름이 `법률_발췌.txt` 다(`add_other_law_article.js`). 그런데 여기는 `법률.txt` 만
   //   찾고 있어서, **원문이 우리 손에 있는데도 "파일 없음"으로 실패**하고 있었다.
