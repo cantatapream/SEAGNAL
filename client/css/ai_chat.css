@@ -272,6 +272,37 @@
 .nrya-console .nrya-rv-actions button{flex:1; border:none; border-radius:8px; font-family:inherit; font-weight:700; font-size:13px; padding:10px 0; cursor:pointer}
 .nrya-console .nrya-rv-actions button:disabled{opacity:.55; cursor:default}
 .nrya-console .nrya-btn-ok{background:var(--nrya-accent-green); color:#053824}
+/* 전체 승인 버튼이 **확인 대기**로 바뀐 상태 — 한 번 더 누르면 되돌릴 수 없이 실행된다는 신호.
+   (2026-09-10 일괄 승인 신설. 색만 바꾸고 크기·자리는 그대로 둬 화면이 안 튀게 한다.) */
+.nrya-console .nrya-btn-ok.nrya-btn-danger{background:#ffb020; color:#3a2400}
+
+/* 「지금 스캔」 진행률 게이지(2026-09-10 사용자 요청 "진행률이 게이지 바로 나오도록").
+   ★막대는 **질의 진행도**다 — 남은 시간이 아니다. 부처마다 고시 수가 달라 시간으로 환산하면
+   거짓 예측이 되므로, 막대 아래에 지금 하는 일과 살아 있는 숫자를 함께 적는다. */
+.nrya-console .nrya-gauge{margin:0 0 10px; padding:10px 12px; border-radius:12px;
+  border:1px solid rgba(68,138,255,.35); background:rgba(68,138,255,.10)}
+.nrya-console .nrya-gauge-head{font-size:12.5px; color:#dbe7f5; margin-bottom:7px}
+.nrya-console .nrya-gauge-bar{height:9px; border-radius:6px; background:rgba(255,255,255,.10); overflow:hidden}
+.nrya-console .nrya-gauge-bar > i{display:block; height:100%; border-radius:6px;
+  background:linear-gradient(90deg,#4d8cff,#7ee0c0); transition:width .4s ease}
+.nrya-console .nrya-gauge-sub{margin-top:7px; font-size:11.5px; color:var(--nrya-text-sub); line-height:1.6}
+.nrya-console .nrya-gauge-note{margin-top:6px; font-size:10.5px; color:var(--nrya-text-sub); line-height:1.65; opacity:.85}
+
+/* 초안승인 방 — 초안 펼쳐보기(2026-09-10 사용자 요청 "초안을 확인할 수 있는 방안이 현재 없어").
+   ★위쪽 빨간 칸이 **승인 대상**(사람 검토가 안 끝나 답변에서 「미확인」으로 밀려나는 줄)이고,
+   아래 회색 칸은 지금도 그대로 근거로 쓰이는 본문이다. 둘을 색으로 갈라 둔 이유는,
+   "이 페이지가 통째로 막혀 있다"는 오해가 이 방 이름 때문에 반복돼 왔기 때문이다. */
+.nrya-console .nrya-draft-body{margin-top:8px}
+.nrya-console .nrya-draft-sec{margin-bottom:9px; padding:9px 11px; border-radius:10px;
+  border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.04)}
+.nrya-console .nrya-draft-un{border-color:rgba(255,138,128,.40); background:rgba(255,138,128,.10)}
+.nrya-console .nrya-draft-ok{border-color:rgba(126,224,192,.40); background:rgba(126,224,192,.10)}
+.nrya-console .nrya-draft-lab{font-size:11.5px; font-weight:700; color:#dbe7f5; margin-bottom:6px}
+.nrya-console .nrya-draft-line{font-size:11.5px; line-height:1.75; color:#f2e2e0; padding:5px 0;
+  border-top:1px dashed rgba(255,255,255,.10); word-break:break-all}
+.nrya-console .nrya-draft-line:first-of-type{border-top:none}
+.nrya-console .nrya-draft-pre{margin:0; max-height:340px; overflow:auto; white-space:pre-wrap;
+  word-break:break-all; font-family:inherit; font-size:11.5px; line-height:1.75; color:var(--nrya-text-sub)}
 .nrya-console .nrya-btn-no{background:rgba(255,82,82,.15); color:#ff8a8a; border:1px solid rgba(255,82,82,.35) !important}
 .nrya-console .nrya-inline-err{margin-top:9px; font-size:11.5px; color:#ff8a8a; background:rgba(255,82,82,.08); border:1px solid rgba(255,82,82,.3); border-radius:8px; padding:8px 10px; line-height:1.5}
 .nrya-console .nrya-chain{margin-top:11px; padding:11px; border-radius:9px; background:rgba(105,240,174,.06); border:1px solid rgba(105,240,174,.25); display:none}

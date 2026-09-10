@@ -608,14 +608,66 @@ router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => 
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
-// GET /api/legal/drafts — 초안승인 탭 목록(index.json의 status=draft 개념 페이지, 법·주제·처벌포함여부)
+// 초안승인 방이 쓰는 표시([미확인] 머리표). legal_retriever 가 본문에 넣는 것과 **같은 글자**여야
+// 한다 — 이 글자로 "확정 서술"과 "사람 검토가 안 끝난 줄"을 가른다.
+const UNVERIFIED_MARK = '[미확인 — 아래는 사람 검토가 끝나지 않은 내용이다.';
+
+/**
+ * 초안 한 쪽을 **챗봇이 실제로 쓰는 모습 그대로** 갈라서 돌려준다.
+ * 운영 코드(`legal_retriever.markUnresolvedReview`)를 그대로 불러 쓴다 — 규칙을 여기서 다시
+ * 구현하면 화면과 실제 답변이 어긋나기 때문이다.
+ * @param {string} file - 개념 페이지 파일명(확장자 없음)
+ * @returns {{ok:boolean, body:string, kept:string, unverified:Array<string>, error?:string}}
+ *   kept: 지금도 그대로 근거로 쓰이는 부분 · unverified: [미확인]으로 밀려난 줄들
+ * [연계] ← GET /api/legal/drafts/detail.
+ */
+function splitDraftBody(file) {
+  const page = legalRetriever.readPage('concept', file);
+  if (!page) return { ok: false, body: '', kept: '', unverified: [], error: '페이지를 찾지 못했습니다: ' + file };
+  const body = page.body || '';
+  const out = legalRetriever.markUnresolvedReview(body);
+  const i = out.indexOf(UNVERIFIED_MARK);
+  const kept = i < 0 ? out : out.slice(0, i);
+  const unverified = i < 0 ? [] : out.slice(i).split('\n').slice(1).map((l) => l.trim()).filter(Boolean);
+  return { ok: true, body, kept, unverified };
+}
+
+// GET /api/legal/drafts?page=1&per=20 — 초안승인 탭 목록(index.json의 status=draft 개념 페이지).
+//   ★2026-09-10 사용자 요청으로 **쪽 나누기**를 넣었다(224건이 한 화면에 통째로 쏟아졌다).
+//   카드마다 **[미확인]으로 밀려난 줄이 몇 줄인지**(unverified)를 함께 준다 — "이 초안이 왜
+//   대기 중인가"가 그 숫자이기 때문이다. 0이면 승격 후보다.
 router.get('/api/legal/drafts', adminAuth.requireAdminToken, (req, res) => {
   try {
-    const drafts = (loadIndex().pages || [])
+    const all = (loadIndex().pages || [])
       .filter(p => p.kind === 'concept' && p.status === 'draft')
-      .map(p => ({ file: p.file, law: p.law, topic: p.topic, penalty: !!p.penalty }))
-      .sort((a, b) => (a.law || '').localeCompare(b.law || ''));
-    res.json({ ok: true, count: drafts.length, drafts });
+      .sort((a, b) => (a.law || '').localeCompare(b.law || '') || (a.topic || '').localeCompare(b.topic || ''));
+    const per = Math.max(1, Math.min(100, parseInt(req.query.per, 10) || 20));
+    const pages = Math.max(1, Math.ceil(all.length / per));
+    const page = Math.max(1, Math.min(pages, parseInt(req.query.page, 10) || 1));
+    const drafts = all.slice((page - 1) * per, page * per).map((p) => {
+      const r = splitDraftBody(p.file);
+      return { file: p.file, law: p.law, topic: p.topic, penalty: !!p.penalty,
+               unverified: r.ok ? r.unverified.length : -1 };
+    });
+    res.json({ ok: true, count: all.length, total: all.length, page, pages, per, drafts });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/drafts/detail?file=<파일명> — 초안 한 쪽의 내용을 본다(사용자 요청 2026-09-10:
+//   "해당 페이지에서 초안을 확인할 수 있는 방안이 현재 없어").
+//   ★그냥 본문을 주지 않고 **챗봇이 쓰는 모습 그대로 갈라서** 준다 — 지금도 근거로 쓰이는 부분과
+//   [미확인]으로 밀려난 줄을 나눠 줘야, 관리자가 "무엇을 승인해야 하는지"를 바로 본다.
+//   파일명에 `ㆍ`·괄호가 섞여 있어 경로가 아니라 쿼리로 받는다.
+router.get('/api/legal/drafts/detail', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ ok: false, error: 'file 이 필요합니다.' });
+    const meta = (loadIndex().pages || []).find(p => p.kind === 'concept' && p.file === file);
+    if (!meta) return res.status(404).json({ ok: false, error: '개념 페이지를 찾지 못했습니다: ' + file });
+    const r = splitDraftBody(file);
+    if (!r.ok) return res.status(404).json({ ok: false, error: r.error });
+    res.json({ ok: true, file, law: meta.law, topic: meta.topic, status: meta.status,
+               penalty: !!meta.penalty, kept: r.kept, unverified: r.unverified, body: r.body });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -761,6 +813,40 @@ router.post('/api/legal/candidates/:id/decide', adminAuth.requireAdminToken, (re
 // 사람이 다음 세션에서 orchestrate하는 별도 단계, 자동 파이프라인 아님 — 환각0 승인게이트).
 // ============================================================================
 
+/**
+ * 미리 받아 둔 예고본(pending_index.json)을 **큐 id → 그 예고본 정보** 로 뒤집은 표를 만든다.
+ * 예: stageByQueueId().get('am_17...') → { law:'양식산업발전법', date:'20261001', file:'법률.txt', due:false }
+ * `due:true` 는 시행일이 이미 지났다는 뜻 — 승인 전이라 챗봇이 아직 옛 내용을 답하고 있다.
+ * @returns {Map<string, {law:string,date:string,file:string,due:boolean}>}
+ * [연계] ← GET /api/legal/amendments(카드에 붙일 stage) · countStagedIds(일괄 승인 미리보기).
+ */
+function stageByQueueId() {
+  const idx = effectiveDate.loadPendingIndex();
+  const today = effectiveDate.todayKST();
+  const m = new Map();
+  for (const base of Object.keys(idx)) {
+    for (const e of idx[base] || []) {
+      for (const f of Object.keys((e && e.queue_id) || {})) {
+        m.set(String(e.queue_id[f]), { law: base.split('/').pop(), date: String(e.date), file: f, due: String(e.date) <= today });
+      }
+    }
+  }
+  return m;
+}
+
+/**
+ * 주어진 큐 id 들 중 **승인하면 챗봇 답변이 실제로 바뀌는 건**이 몇 개인지 센다.
+ * 예고본을 미리 받아 둔 건만 해당한다 — 나머지는 승인해도 "재수집 필요" 표시만 붙는다.
+ * @param {Array<string>} ids @returns {number}
+ * [연계] ← POST /api/legal/amendments/decide-all · GET .../decide-all/preview.
+ */
+function countStagedIds(ids) {
+  const m = stageByQueueId();
+  let n = 0;
+  for (const id of ids || []) if (m.has(String(id))) n++;
+  return n;
+}
+
 // GET /api/legal/amendments?status=pending|approved|dismissed|all (관리자)
 router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
   try {
@@ -770,16 +856,7 @@ router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
     // ★승인 게이트(2026-09-10): 이 항목에 **미리 받아 둔 예고본**이 있으면 알려 준다. 승인해야 그 판이
     //   답변에 반영되므로, 관리자는 "승인만 하면 바로 바뀌는 건인지"를 카드에서 알아야 한다.
     //   시행일이 이미 지났는데 승인이 안 됐으면(due:true) 지금 챗봇은 **옛 내용**을 내보내는 중이다.
-    const idx = effectiveDate.loadPendingIndex();
-    const todayStage = effectiveDate.todayKST();
-    const byQueue = new Map();
-    for (const base of Object.keys(idx)) {
-      for (const e of idx[base] || []) {
-        for (const f of Object.keys((e && e.queue_id) || {})) {
-          byQueue.set(String(e.queue_id[f]), { law: base.split('/').pop(), date: String(e.date), file: f, due: String(e.date) <= todayStage });
-        }
-      }
-    }
+    const byQueue = stageByQueueId();
     list = list.map((e) => (byQueue.has(e.id) ? Object.assign({}, e, { stage: byQueue.get(e.id) }) : e));
     res.json({ ok: true, count: list.length, amendments: list });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
@@ -800,6 +877,75 @@ router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (re
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
+// POST /api/legal/amendments/decide-all (관리자) — body: { decision:'approved'|'dismissed', ids?:[...], by? }
+//   대기 중인 건을 **한 번에** 처리한다(사용자 확정 2026-09-10: "전체 승인 할 수 있도록 버튼을 만들어주고").
+//   ids 를 주면 그 건만, 안 주면 status==='pending' 인 전 건이 대상이다.
+//   ★왜 한 번에 눌러도 되나: 이 큐의 근거는 law.go.kr 이 스스로 공표한 "이 날부터 이 내용"이라,
+//     개정 사실 자체는 다투는 값이 아니다. 승인 게이트가 있는 이유는 개정을 의심해서가 아니라
+//     **위키가 자동으로 안 바뀌기 때문**이다(서버는 저장소에 글을 못 쓴다). 그래서 응답에
+//     `staged`(승인 즉시 챗봇 답변이 바뀌는 건 수)를 함께 돌려준다 — 화면이 그 숫자를 먼저 보여
+//     주고 확인을 받는다.
+router.post('/api/legal/amendments/decide-all', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const { decision = 'approved', ids = null, by = '관리자' } = req.body || {};
+    if (decision !== 'approved' && decision !== 'dismissed') {
+      return res.status(400).json({ ok: false, error: "decision 은 'approved' 또는 'dismissed' 여야 합니다." });
+    }
+    const rows = adminQueues.readJsonl(amendmentScanner.queueFile());
+    const want = Array.isArray(ids) && ids.length ? new Set(ids.map(String)) : null;
+    const targets = rows.filter((e) => (want ? want.has(String(e.id)) : (e.status || 'pending') === 'pending'));
+    if (!targets.length) return res.json({ ok: true, decided: 0, mirrored: 0, ids: [], staged: 0 });
+    const decidedAt = new Date().toISOString();
+    const done = [];
+    let mirrored = 0;
+    for (const t of targets) {
+      const u = adminQueues.updateJsonlById(amendmentScanner.queueFile(), t.id, { status: decision, decidedBy: by, decidedAt });
+      if (!u) continue;
+      done.push(String(t.id));
+      // 개별 승인과 같은 처리 — 재수집 도구가 보는 탐지 큐에도 옮겨 적는다.
+      if (amendmentScanner.mirrorDecisionToH29(t.id, decision)) mirrored++;
+    }
+    res.json({ ok: true, decided: done.length, mirrored, ids: done, staged: countStagedIds(done) });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/amendments/decide-all/preview (관리자) — 전체 승인을 누르기 **전에** 무엇이 벌어지는지.
+//   대기 건수와, 그중 "승인 즉시(또는 시행일부터) 챗봇 답변이 바뀌는" 건수를 돌려준다.
+router.get('/api/legal/amendments/decide-all/preview', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const rows = adminQueues.readJsonl(amendmentScanner.queueFile());
+    const pending = rows.filter((e) => (e.status || 'pending') === 'pending');
+    const ids = pending.map((e) => String(e.id));
+    const withArts = pending.filter((e) => (e.changed_articles || []).length).length;
+    res.json({ ok: true, pending: pending.length, staged: countStagedIds(ids), withArticles: withArts });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/amendments/wiki-brief-all?status=approved (관리자) — 승인한 **전 건**을 한 덩어리
+//   인계문으로. 개별 지시문(위 :id/wiki-brief)과 별개다(사용자 확정 2026-09-10).
+//   ids 를 콤마로 주면 그 건만 묶는다(방금 일괄 승인한 것만 뽑을 때 쓴다).
+router.get('/api/legal/amendments/wiki-brief-all', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const rows = adminQueues.readJsonl(amendmentScanner.queueFile());
+    const idsQ = String(req.query.ids || '').split(',').map((v) => v.trim()).filter(Boolean);
+    let list;
+    if (idsQ.length) {
+      const want = new Set(idsQ);
+      list = rows.filter((e) => want.has(String(e.id)));
+    } else {
+      const status = req.query.status || 'approved';
+      list = status === 'all' ? rows : rows.filter((e) => (e.status || 'pending') === status);
+    }
+    if (!list.length) {
+      // 빈 결과는 오류가 아니라 **아직 승인한 게 없다**는 상태다 — 화면이 그대로 옮겨 적을 문장을 준다.
+      return res.status(404).json({ ok: false, error: idsQ.length ? '그 id 로 묶을 항목을 찾지 못했습니다.' : '아직 승인한 건이 없습니다. 카드에서 승인하거나 「전체 승인」을 먼저 누르세요.' });
+    }
+    const r = wikiBrief.buildBulkWikiBrief(list, effectiveDate.todayKST());
+    if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
+    res.json({ ok: true, count: r.count, detailed: r.detailed, listed: r.listed, pages: r.pages, text: r.text });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
 // GET /api/legal/amendments/:id/wiki-brief (관리자) — 승인한 개정을 위키에 반영하려면 무엇을 어디서
 //   고쳐야 하는지 한 덩어리 글로 준다. 관리자가 그 글만 복사해 AI 에게 붙여 넣으면 된다
 //   (사용자 확정 2026-09-10: "승인한 내역에 대해 어떤 부분이 바뀌었고 어떤 부분에 집중해 위키를
@@ -813,6 +959,14 @@ router.get('/api/legal/amendments/:id/wiki-brief', adminAuth.requireAdminToken, 
     if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
     res.json({ ok: true, id: am.id, 법령명: am.법령명 || '', status: am.status || '', text: r.text, pages: r.pages });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/amendments/scan-progress (관리자) — 「지금 스캔」 진행률(화면 게이지 바용).
+//   탐지 스크립트가 stdout 으로 찍는 진행 줄을 스캐너가 모아 둔 것을 그대로 준다.
+//   ★이 값은 **질의 진행도**이지 남은 시간이 아니다(부처별 고시 수가 들쭉날쭉해 시간 예측은 거짓이 된다).
+router.get('/api/legal/amendments/scan-progress', adminAuth.requireAdminToken, (req, res) => {
+  try { res.json(Object.assign({ ok: true }, amendmentScanner.getScanProgress())); }
+  catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
 // POST /api/legal/amendments/scan-now (관리자) — 정기 cron과 별개로 즉시 1회 스캔(H-29
