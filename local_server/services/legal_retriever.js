@@ -1012,6 +1012,9 @@ function sliceRelevant(body, terms, maxChars) {
  * @param {string} body - 페이지 마크다운 본문(원문)
  * @returns {string} "REVIEW" 단어가 포함된 줄을 제거한 본문
  */
+/** 페이지 맨 앞의 상태 안내줄. 예: `> ⚠ **draft — 미승인(2026-07-21 환원).** 이 페이지는 …` */
+const DRAFT_BANNER = /^\s*>?\s*⚠?\s*\*\*draft\s*[—-]\s*미승인/;
+
 function markUnresolvedReview(body) {
   if (!body) return body;
   const keep = [], moved = [];
@@ -1020,6 +1023,16 @@ function markUnresolvedReview(body) {
     if (/^#{2,3}\s*변경\s*이력/.test(line)) inLog = true;
     else if (/^#{2,3}\s/.test(line)) inLog = false;
     if (!/\bREVIEW\b/.test(line)) { keep.push(line); continue; }
+    // ⓞ 페이지 상태 안내줄(`> ⚠ **draft — 미승인** …`)은 **판단이 아니라 "이 페이지는 초안"이라는 표시**다.
+    //   그런데 그 안내문이 "REVIEW 가 남아 있어 draft 로 되돌렸다"고 사유를 적기 때문에 REVIEW 라는
+    //   낱말이 들어가고, 그 이유만으로 밀려나거나(ⓒ) 지워지고 있었다(ⓑ).
+    //   ⚠이 관례는 안내문 **뒤에 그 페이지의 본문이 이어 붙는다** — 2026-09-10 실측으로 전 위키
+    //     224줄 중 125줄이 [미확인]으로 밀리고 2줄은 통째로 지워지고 있었으며, 초안 118줄 중
+    //     48줄은 안내문 뒤에 실제 서술이 붙어 있었다. 즉 상태 표시 하나 때문에 **멀쩡한 본문이
+    //     함께 빠지고** 관리자 화면의 "미확인 N줄"도 부풀려졌다.
+    //   그 페이지에 진짜로 남아 있는 판단은 **그 문장들이 각자** 이 함수에 걸려 따로 옮겨진다 —
+    //   안내줄을 남긴다고 미검증 주장이 새지 않는다. (사용자 확정 2026-09-10: "빼자")
+    if (DRAFT_BANNER.test(line)) { keep.push(line); continue; }
     // ⓐ 변경이력 절·날짜로 시작하는 표 행 — 모델에게 쓸모없다(종전처럼 버린다). 전 위키 실측 46.7%.
     if (inLog || /^\|\s*20\d\d-\d\d-\d\d\s*\|/.test(line)) continue;
     // ⓑ "REVIEW-XX 해소·해제·완료" 처럼 **이미 끝났다는 언급** — 역시 버린다. 실측 9.5%.

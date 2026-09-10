@@ -49,6 +49,18 @@ function ymd(v) {
 function flat(s) { return String(s || '').replace(/\s+/g, ''); }
 
 /**
+ * 그 자리의 `제6조` 가 **정말 제6조인가** — 바로 뒤가 `의2` 면 그건 `제6조의2`, 다른 조다.
+ * 예: wholeLabelAt('제6조의2', 0, '제6조') → false · wholeLabelAt('제6조제1항', 0, '제6조') → true
+ * @param {string} s - 찾은 문자열 전체  @param {number} i - 라벨이 시작한 자리  @param {string} label - `제6조` 꼴
+ * @returns {boolean}
+ * [연계] ← articleCellHas · bodyMentions.
+ *   ★2026-09-10 실측: `제6조` 로 찾으면 `농수산물의원산지표시등에관한법률 시행규칙 제6조의2` 가 걸렸다.
+ */
+function wholeLabelAt(s, i, label) {
+  return !/^의\s*\d/.test(String(s).slice(i + label.length));
+}
+
+/**
  * 근거 조문 표의 한 칸(`제22~30조`·`제27조·제29조`·`제54조의2` 처럼 여러 꼴)이 **우리가 찾는 조**를 담는가.
  * 예: articleCellHas('제22~30조', '28', '') → true · articleCellHas('제27조·제29조', '28', '') → false
  * @param {string} cell - 표의 조문 칸 문자열
@@ -62,7 +74,10 @@ function articleCellHas(cell, no, ga) {
   const n = parseInt(no, 10);
   const g = String(ga || '').replace(/^0+$/, '');
   if (!n) return false;
-  if (s.indexOf(articleLabel(no, ga)) >= 0) return true;          // 그대로 적힌 경우
+  const lab = articleLabel(no, ga);
+  for (let i = s.indexOf(lab); i >= 0; i = s.indexOf(lab, i + 1)) {
+    if (wholeLabelAt(s, i, lab)) return true;                     // 그대로 적힌 경우
+  }
   if (g) return false;                                            // 가지번호 있는 조는 범위 해석 안 한다
   let m;
   const range = /제\s*(\d+)\s*[~∼-]\s*(\d+)\s*조/g;
@@ -73,24 +88,43 @@ function articleCellHas(cell, no, ga) {
   return false;
 }
 
+/** 위키 링크를 **그 링크가 가리키는 법 이름**으로 바꾼다. `[[공유수면…법__점용사용허가|점용사용허가]]` → `공유수면…법` */
+const WIKILINK = /\[\[([^\]|]+?)(?:__[^\]|]*)?(?:\|[^\]]*)?\]\]/g;
+
+/** 법 이름과 조문 사이에 올 수 있는 **이어 주는 글자**만(닫는 따옴표·표 칸 구분자 등). 3자를 넘으면 딴 문장이다. */
+const JOINER = /^[」』\)\]\|·ㆍ,]{0,3}$/;
+
+/** 바로 앞에 이런 말이 있으면 그 조는 **하위법령의 조**다(법 자신의 조가 아니다). */
+const SUBORD = /(시행령|대통령령|총리령|부령|규칙|고시|훈령|예규)/;
+
 /**
- * 본문 서술에서 **그 법 이름 가까이에** 그 조가 적혀 있나(표가 아니라 문장에서 언급한 자리).
- * 예: bodyMentions('…「어선원 및 어선 재해보상보험법」 제28조에 따라…', '어선원 및 어선 재해보상보험법', '제28조') → true
+ * 본문 서술에서 그 조가 **이 법의 조로** 적혀 있나(표가 아니라 문장에서 언급한 자리).
+ * 예: bodyMentions('…「어선원 및 어선 재해보상보험법」 제28조에 따라…', '어선원 및 어선 재해보상보험법', '제28조', false) → true
  * @param {string} body - 위키 본문  @param {string} lawName - 법령명  @param {string} label - `제28조` 꼴
+ * @param {boolean} mine - 이 페이지가 **그 법 자신의 페이지**인가(index 의 `law` 가 같은가)
  * @returns {boolean}
  * [연계] ← candidatePages.
- *   ★법 이름을 함께 보지 않으면 **다른 법의 같은 번호 조문**까지 잡힌다(2026-09-10 실측: `제2조` 하나로
- *     낚시관리법·선원법 등 43쪽이 딸려 왔다). 그래서 앞 200자 안에 법 이름이 있을 때만 인정한다.
+ *   ★판정을 두 갈래로 나눈다(2026-09-10 실측으로 고침 — 한 갈래로는 둘 중 하나가 반드시 틀렸다):
+ *   ①**남의 법 페이지**에서는 법 이름 **바로 뒤**에 적혔을 때만 인정한다. 처음엔 "앞 200자 안"으로
+ *     뒀는데 느슨했다 — `…법률 제45조에 따른 준공검사 … 건축법 제22조 … 제8조 11호` 처럼 200자 안에
+ *     딴 법 조문이 섞여 들어왔다(어촌·어항법 쪽에서 실측).
+ *   ②**그 법 자신의 페이지**에서는 법 이름을 다시 안 적고 `제21조:` 처럼만 쓰는 것이 보통이라,
+ *     바로 뒤 규칙만 쓰면 **진짜 걸린 것을 놓친다**(15개 표본에서 5개를 놓쳤다). 그래서 여기서는
+ *     맨 조문도 인정하되, **앞 40자 안에 「시행령·규칙·고시」 같은 말이 있으면 뺀다** — 그건 그 법이 아니라
+ *     하위법령의 조다(`해양폐기물…법` 쪽 `제11조` 가 전부 이 경우였다).
+ *     개정된 것 자체가 하위법령이면(법령명이 「…시행규칙」 등으로 끝나면) 이 걸림돌은 걸지 않는다.
  */
-function bodyMentions(body, lawName, label) {
-  const t = flat(body);
+function bodyMentions(body, lawName, label, mine) {
+  const t = flat(String(body || '').replace(WIKILINK, '$1'));
   const want = flat(lawName);
   const lab = flat(label);
   if (!want || !lab) return false;
-  let i = t.indexOf(lab);
-  while (i >= 0) {
-    if (t.lastIndexOf(want, i) >= 0 && i - t.lastIndexOf(want, i) <= 200) return true;
-    i = t.indexOf(lab, i + 1);
+  const subGuard = !SUBORD.test(want);
+  for (let i = t.indexOf(lab); i >= 0; i = t.indexOf(lab, i + 1)) {
+    if (!wholeLabelAt(t, i, lab)) continue;
+    const j = t.lastIndexOf(want, i);
+    if (j >= 0 && JOINER.test(t.slice(j + want.length, i))) return true;
+    if (mine && !(subGuard && SUBORD.test(t.slice(Math.max(0, i - 40), i)))) return true;
   }
   return false;
 }
@@ -122,7 +156,7 @@ function candidatePages(lawName, arts) {
       try { rows = legalRetriever.extractCitationChain(body) || []; } catch (_) { rows = []; }
       const mineRows = rows.filter((r) => flat(r.law) === want);
       const byTable = arts.filter((a) => mineRows.some((r) => articleCellHas(r.article, a.no, a.ga)));
-      const byBody = arts.filter((a) => byTable.indexOf(a) < 0 && bodyMentions(body, lawName, a.label));
+      const byBody = arts.filter((a) => byTable.indexOf(a) < 0 && bodyMentions(body, lawName, a.label, mine));
       hits = byTable.concat(byBody).map((a) => a.label);
       where = byTable.length ? (byBody.length ? '근거표+본문' : '근거표') : (byBody.length ? '본문' : '');
     }
@@ -219,7 +253,7 @@ function pageLines(f, citeCap) {
   const rest = pages.filter((p) => !p.hits.length);
   const L = [];
   if (hit.length) {
-    L.push('**바뀐 조문이 실제로 적힌 페이지 — 여기부터 본다.** `근거표` = 「## 근거 조문」 표에 그 법·그 조로 적힌 행이 있음(가장 확실), `본문` = 문장에서 그 법 이름 가까이 언급됨.');
+    L.push('**바뀐 조문이 실제로 적힌 페이지 — 여기부터 본다.** `근거표` = 「## 근거 조문」 표에 그 법·그 조로 적힌 행이 있음(가장 확실), `본문` = 문장에서 그 법 이름 바로 뒤에 적혔거나, 그 법 자신의 페이지에서 그 조를 다뤘음.');
     L.push('');
     for (const p of hit) L.push(`- \`wiki/${KIND_DIR[p.kind] || p.kind}/${p.file}.md\` — ${p.hits.join('·')}${p.where ? ` (${p.where})` : ''}${p.status ? ` · status: ${p.status}` : ''}`);
     L.push('');
@@ -437,4 +471,6 @@ function buildBulkWikiBrief(list, today) {
   return { ok: true, text: L.join('\n'), count: rows.length, detailed: detail.length, listed: brief.length, pages: pageCount };
 }
 
-module.exports = { buildWikiBrief, buildBulkWikiBrief, candidatePages, articleLabel };
+// bodyMentions·articleCellHas 는 **검사(scripts/test_wiki_brief_bulk.js)가 직접 붙잡으려고** 함께 내보낸다.
+// 이 둘이 지시문의 오탐/누락을 결정하는 자리라, 실제 위키 없이도 규칙을 고정해 둔다.
+module.exports = { buildWikiBrief, buildBulkWikiBrief, candidatePages, articleLabel, bodyMentions, articleCellHas };
