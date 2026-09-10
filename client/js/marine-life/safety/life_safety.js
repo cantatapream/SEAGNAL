@@ -30,11 +30,6 @@
     // 상수
     // ========================================================================
 
-    /** 트리거: 해양생활 탭을 몇 번 눌러야 열리는가 (ocean_typhoon.js 의 잠금해제와 동일 규격) */
-    var TAP_THRESHOLD = 10;
-    /** 트리거: 이 시간(ms) 안에 다음 탭이 없으면 카운트 초기화 */
-    var TAP_RESET_MS = 3000;
-
     /**
      * 오른쪽 세로 버튼(레일)에 올릴 활동 목록.
      *  - id      : 기존 섹션 DOM id (그대로 재사용)
@@ -67,9 +62,11 @@
     // 상태 (전부 메모리 — localStorage 에 남기지 않으므로 새로고침하면 원상복구)
     // ========================================================================
 
-    var _tapCount = 0;          // 해양생활 탭 연타 횟수
-    var _tapTimer = null;       // 연타 초기화 타이머
-    var _unlocked = false;      // 해양안전생활 화면이 열렸는가
+    // [2026-09-10] 해양안전생활이 정식 탭이 되어 "잠금해제"라는 개념이 없어졌다.
+    //   이 값은 아래 _syncChrome()·switchMainTab 래퍼가 "이 화면 규칙을 적용할지" 판단하는
+    //   스위치로만 남는다(항상 켜짐). 지우지 않는 이유는 그 두 곳의 조건문을 그대로 두어
+    //   변경 범위를 좁히기 위해서다.
+    var _unlocked = true;
     var _currentAct = 'fishing-section';  // 현재 보고 있는 활동 섹션 id
     var _currentBase = 'rltm';  // 현재 배경지도 종류
     var _lastView = null;       // 활동을 바꿔도 지도 위치가 이어지도록 기억 {center, zoom}
@@ -77,60 +74,23 @@
     var _suspended = [];        // 해양안전 진입 때 잠시 꺼둔 해양종합정보 오버레이 버튼들
 
     // ========================================================================
-    // 1. 트리거 — 해양생활 탭 10회 연타
+    // 1. 화면 준비 — 해양안전생활은 정식 탭이다
     // ========================================================================
 
     /**
-     * 하단 "해양생활" 메인탭에 연타 감지를 붙인다.
-     * 예: 3초 안에 10번 누르면 해양안전생활 화면이 열린다(그 전까지는 평소대로 동작).
-     * [연계] → _unlock() — 임계치에 닿았을 때 화면을 바꾼다.
-     *          index2.html 의 .tab-btn[data-target="ocean-life-group"] 이 대상
+     * 이 화면의 표시 규칙(body.ls-mode)을 켠다.
+     * 예: 앱이 뜨면 곧바로 호출되어, 해양생활 활동 화면이 자기 컨트롤 대신
+     *     이 화면의 오른쪽 세로 레일(#ls-rail)을 쓰도록 만든다.
+     * [연계] → index2.html 의 body.ls-mode / body.ls-mode.ls-life 규칙
+     *
+     * ⚠[2026-09-10] 예전에는 하단 "해양생활" 탭을 3초 안에 10번 눌러야 이 화면이 열렸다
+     *   (숨은 기능). 사용자 확정으로 정식 탭이 되면서 연타 트리거를 없앴고, 탭 이름
+     *   ("해양안전생활")과 하위탭 바([해양안전 | 해양생활]), 먼저 열리는 하위탭(해양안전)은
+     *   각각 index2.html 과 marine.js 의 기본값으로 옮겼다 — 그래야 화면이 뜬 뒤 자바스크립트가
+     *   이름을 바꿔 다는 깜빡임이 없다.
      */
-    function _bindTrigger() {
-        var tabBtn = document.querySelector('.main-tabs .tab-btn[data-target="ocean-life-group"]');
-        if (!tabBtn) return;
-
-        tabBtn.addEventListener('click', function () {
-            if (_unlocked) return;
-
-            _tapCount++;
-            clearTimeout(_tapTimer);
-            _tapTimer = setTimeout(function () { _tapCount = 0; }, TAP_RESET_MS);
-
-            if (_tapCount < TAP_THRESHOLD) return;
-            _tapCount = 0;
-            _unlock();
-        });
-    }
-
-    /**
-     * 해양안전생활 화면으로 전환한다 (이 세션 동안만).
-     * 하위탭 바를 [해양안전 | 해양생활] 로 갈아끼우고 body 에 표시용 클래스를 붙인 뒤
-     * 해양생활 탭을 다시 열어 새 화면이 그려지게 한다.
-     * [연계] → marine.js 의 TAB_GROUP_SUBTABS (그룹이 어떤 하위탭 바를 쓰는지의 출처)
-     *          → window.switchMainTab — 실제 화면 전환
-     */
-    function _unlock() {
-        _unlocked = true;
-
-        // 해양생활 그룹이 쓰는 하위탭 바를 새 것으로 교체
-        if (typeof TAB_GROUP_SUBTABS !== 'undefined') {
-            TAB_GROUP_SUBTABS['ocean-life-group'] = 'ocean-safety-sub-tabs';
-        }
-        // 이 화면에 들어오면 '해양안전' 하위탭이 먼저 열리도록 기본값 변경
-        if (typeof TAB_GROUP_DEFAULTS !== 'undefined') {
-            TAB_GROUP_DEFAULTS['ocean-life-group'] = 'ocean-safety-section';
-        }
-
-        // 하단 메인탭 이름도 화면 이름에 맞춘다 ("해양종합정보"와 같은 6글자라 폭 문제 없음)
-        var tabLabel = document.querySelector('.main-tabs .tab-btn[data-target="ocean-life-group"] .tab-btn-label');
-        if (tabLabel) tabLabel.textContent = '해양안전생활';
-
+    function _enableSafetyChrome() {
         document.body.classList.add('ls-mode');
-
-        if (typeof window.switchMainTab === 'function') {
-            window.switchMainTab('ocean-life-group');
-        }
     }
 
     // ========================================================================
@@ -926,7 +886,7 @@
     // ========================================================================
 
     document.addEventListener('DOMContentLoaded', function () {
-        _bindTrigger();
+        _enableSafetyChrome();
         _bindControls();
         _wrapTabSwitchers();
         _watchMudflatToggle();

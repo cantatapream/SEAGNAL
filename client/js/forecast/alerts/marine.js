@@ -1381,15 +1381,18 @@ function _ensureMarineVisSkeletonStyle() {
 // 그룹 탭 → 기본 서브 섹션 매핑 (그룹 클릭 시 어떤 서브 섹션을 표시할지)
 const TAB_GROUP_DEFAULTS = {
     'weather-group': 'weather-alert-section',
-    'ocean-life-group': 'fishing-section'
+    // 해양안전생활[2026-09-10 사용자 확정] — 들어가면 [해양안전] 이 먼저 열린다.
+    //   (예전엔 'fishing-section' = 바다낚시가 먼저 열렸다)
+    'ocean-life-group': 'ocean-safety-section'
 };
 
 // 그룹 탭 → 서브 탭 nav 요소 ID 매핑
-// [주의] 'ocean-life-group' 값은 해양안전생활 화면(js/marine-life/safety/life_safety.js)이
-//        진입 시 'ocean-safety-sub-tabs' 로 교체한다(그 세션 동안만, 저장 안 함).
+// [2026-09-10] 'ocean-life-group' 은 이제 처음부터 해양안전생활 하위탭 바를 쓴다
+//   ([해양안전 | 해양생활] 두 갈래). 예전에는 'ocean-life-sub-tabs'(활동 6개 바)를 쓰다가
+//   10회 연타 잠금해제 때 life_safety.js 가 바꿔치기했는데, 정식 기능이 되어 기본값이 됐다.
 const TAB_GROUP_SUBTABS = {
     'weather-group': 'weather-sub-tabs',
-    'ocean-life-group': 'ocean-life-sub-tabs'
+    'ocean-life-group': 'ocean-safety-sub-tabs'
 };
 
 // 섹션 ID → 소속 그룹 역매핑 (섹션 ID로 switchMainTab 호출 시 올바른 그룹 활성화)
