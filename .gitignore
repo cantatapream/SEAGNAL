@@ -95,6 +95,7 @@ local_server/data/marine_vs.json
 local_server/data/marine_warning_state.json
 local_server/data/marine_wh_buoys.json
 local_server/data/vsby_smallzone.json.gz
+local_server/data/swell_smallzone.json.gz
 local_server/data/mid_term_sea_forecasts.json
 local_server/data/fishing_index.json
 local_server/data/surfing_index.json

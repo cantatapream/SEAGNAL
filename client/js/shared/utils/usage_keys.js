@@ -76,6 +76,7 @@
     'life.scuba.tab': '스킨스쿠버 탭 진입',
     'life.ripcurrent.tab': '이안류 탭 진입',
     'life.swimming.tab': '해수욕 탭 진입',
+    'life.swell.tab': '너울 탭 진입',
     'life.fishing.point.갯바위': '바다낚시 지점 · 갯바위',
     'life.fishing.point.선상': '바다낚시 지점 · 선상',
     'life.surfing.point': '서핑 지점 클릭',

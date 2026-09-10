@@ -6243,6 +6243,8 @@
         }).catch(function (e) {
             if (seq !== _selectSeq) return;
             if (iconEl) iconEl.className = originalIconClass;
+            // 못 받았으면 켜진 척하지 않는다(위에서 미리 붙여 둔 표시를 되돌린다).
+            if (toggleBtn) toggleBtn.classList.remove('active');
             console.warn('[AccidentInfo] 데이터 로드 실패:', e.message);
         });
     }
@@ -6301,6 +6303,14 @@
                 e.stopPropagation();
                 if (state.source || _turningOn) { _turningOn = false; turnOff(map); return; }
                 _turningOn = true;
+                // ★[버그 수정 2026-09-10] 켜짐 표시를 자료 도착 전에 붙인다.
+                //   예전에는 selectSource() 의 .then() 안에서야 붙었다(아래 참고). 그런데
+                //   해양안전의 "한 번에 하나만" 장치(life_safety.js _bindSoloOverlays)는
+                //   active 가 붙은 버튼만 찾아서 끄므로, 7.1MB 를 받는 동안(휴대폰에서 몇 초)
+                //   이 버튼은 **끌 대상으로 아예 안 보였다.** 그래서 다른 버튼을 눌러도
+                //   사고정보가 안 꺼지고 두 화면이 겹쳤다(사용자 보고).
+                //   늦게 온 응답은 turnOff() 가 올리는 _selectSeq 가 이미 막아 준다.
+                if (toggleBtn) toggleBtn.classList.add('active');
                 // [사용량] 사용자가 사고정보 버튼을 눌러 켤 때 1건(사용자 확정 2026-09-10).
                 //   종전엔 selectSource() 안에서 세어 소스 전환도 함께 잡혔다.
                 if (window.trackUsage) window.trackUsage('ocean.accident_info');

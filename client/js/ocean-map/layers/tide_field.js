@@ -358,6 +358,13 @@
         showLoading();   // 슬라이더·범례·첫 화면 준비될 때까지 중앙 로딩 표시
 
         ensureMeta().then(function (ok) {
+            // ★[버그 수정 2026-09-10] 받는 동안 꺼졌으면 여기서 끝낸다.
+            //   레이어와 그리기 쪽은 곳곳의 `if (!_active) return` 이 막아 주는데
+            //   이 첫머리에만 확인이 없어서, 꺼진 뒤 도착한 자료가 아래
+            //   showSliderBar(true) 를 실행해 **물빠짐은 꺼져 있는데 시간 슬라이더 바만
+            //   되살아나는** 상태가 됐다(deactivate() 는 showSliderBar(false) 로 치웠는데
+            //   늦게 온 이 콜백이 다시 띄운 것).
+            if (!_active) return;
             if (!ok) {
                 toast('물빠짐 예측 데이터가 아직 준비되지 않았습니다.');
                 deactivate();

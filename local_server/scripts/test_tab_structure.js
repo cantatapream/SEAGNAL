@@ -88,8 +88,9 @@ console.log('\n[2] 하위탭 — 두 갈래와 기본 선택');
     ok('먼저 열리는 하위탭이 "해양안전" 이다(사용자 확정)',
         shown[0] && shown[0].active && !(shown[1] && shown[1].active),
         shown.map(x => x.label + (x.active ? '★' : '')).join(' | '));
-    ok('활동 6개는 하위탭 바에서 숨겨져 있다(오른쪽 세로 레일에서 고른다)',
-        (bar[0].match(/ls-hidden-sub/g) || []).length === 6,
+    // 7 = 바다낚시·서핑·해수욕·스킨스쿠버·갯벌체험·바다갈라짐 + 너울(2026-09-10 신설)
+    ok('활동 7개는 하위탭 바에서 숨겨져 있다(오른쪽 세로 레일에서 고른다)',
+        (bar[0].match(/ls-hidden-sub/g) || []).length === 7,
         String((bar[0].match(/ls-hidden-sub/g) || []).length));
 })();
 
