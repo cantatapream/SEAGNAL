@@ -83,6 +83,7 @@ fold_effective.py [--today YYYYMMDD]
 - 남는 반론: "시행일 전에 사서가 위키를 못 고치면?" → §5 ⑦. 트리거가 있어도 이 경우는 못 막는다(사서가 안 한 일을 트리거가 대신하지 않는다).
 
 ## 5. 대기 중 상태 변화 표 (승인 후 ~ 시행일 사이) — 회귀 테스트와 1:1
+| ⑮ | **승인 전에 시행일이 지남**(사용자 확정 2026-09-10 "승인게이트 묶고") | 종전에는 날짜만 보고 갈아탔다 — 사서가 미리 받아 둔 것이 **승인 없이** 답변에 나갔다. 지금은 개정검토 큐의 `status:'approved'` 인 것만 반영한다(`pending_index.queue_id` 로 이어진다). 승인 기록이 없으면 **닫는다**. raw·위키·fold 세 곳에 같은 규칙 | 관리자 '원문' 방 칩이 "n월 n일 시행분 승인 대기(옛 판 표시 중)", fold 출력이 `⏸` | T-approve-1~7 |
 
 | # | 상태 변화 | 무슨 일이 일어나나 | 어떻게 드러나나 / 막나 | 테스트 |
 |---|---|---|---|---|
@@ -140,7 +141,8 @@ fold_effective.py [--today YYYYMMDD]
 |---|---|
 | 런타임 | `services/effective_date.js`(신설) · `article_text.loadArticle` 대기본 우선 읽기 · `legal_retriever.readPage` 마커 접기(캐시 키에 오늘 포함) · `loadLawBundle` 같은 규칙. 편집 직후 `node --check` 통과, export 유지(+`readPage` 추가) |
 | 도구 | `loop/collect_pending_law.py`(수집·`--verify`·`--status`·`--rebuild-index`) · `loop/fold_effective.py`(승격·접기) — 둘 다 `Touched` 기록, 테스트 트리에서는 기록 끔 |
-| 테스트 | `scripts/test_pending_law.js` **80 PASS / 0 FAIL**(2026-09-10 오후 독립 검토 반영으로 42→80), `verify_all.sh` SUITES 등록. §5 표 16행 중 ⑫(별표 한계)만 테스트 없음 |
+| 테스트 | `scripts/test_pending_law.js` **96 PASS / 0 FAIL**(42 → 80 독립 검토 반영 → 96 승인 게이트), `verify_all.sh` SUITES 등록. §5 표 17행 중 ⑫(별표 한계)만 테스트 없음 |
+| 승인 게이트(2026-09-10 저녁, 사용자 확정 "승인게이트 묶고") | 승인된 대기본만 반영. 승인 출처는 개정검토 큐(`data/legal_amendments_queue.jsonl`)의 `status:'approved'`, 대기본과는 `pending_index.queue_id` 로 연결. 세 곳에 같은 규칙 — `stagedRawPath`(raw) · `applyStageMarkers(body, today, blocked)`(위키) · `fold_effective.py`(승격·접기, `--allow-unapproved` 로만 우회). 승인 기록이 없으면 닫는다. 관리자 화면: '원문' 방 칩 3분기(예고본 적용/승인 대기/개정 예정) · 개정검토 카드에 「📅 미리 받아 둔 새 원문」 줄. 실데이터 확인: 대기 8건 전부 `pending` 이라 `stagedRawPath` 8건 모두 null, `fold --today 20261231 --dry-run` 이 raw 8층·위키 8쪽 전부 `⏸` |
 | 실데이터 | 어선원법 20260911(MST 283875)·공유수면법 20260917(273681)·20260918(284343) 예고본 3건 `_대기/` 수집. `--verify` 3건 ✅(API 재조회 시행일자 일치·큐 상태 정상). `--status` 3건 ⚠(위키 마커 0쪽 — 사서 단계 미착수, 인용 위키 64·128쪽) |
 | 팝업 전환(실데이터) | `setTodayForTest('20260910')` → 제28조 현행(시행 2024-07-24), `'20260911'` → 대기본(시행 2026-09-11), 읽은 경로 `_대기/20260911/법률.txt`, 호 쪼개기·강조 정상(T-popup-1·2) |
 | 형식 대조 | 어선원법 대기본 vs 현행: 조 99=99, 본문 동일 75조, 다른 24조 중 큐가 말한 개정 3조(제2·28·45조) 외 21조는 **호 머리 공백(`1.  `→`1. `)만** 다름(API 출력 변화 — 말뭉치에 이미 한 칸 4,330줄·두 칸 25,233줄 섞여 있어 파서가 둘 다 받는다) |

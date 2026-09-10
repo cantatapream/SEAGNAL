@@ -370,8 +370,11 @@ function readPage(kind, file) {
   const cached = _bodyCache.get(fp);
   // ★시행일 마커가 있는 페이지는 **오늘 날짜**도 캐시 키다(2026-09-10, H-29 트랙 C) — 자정이 지나면
   //   같은 파일이라도 다른 본문(새 서술)이 되어야 한다. 마커 없는 페이지는 종전처럼 mtime 만 본다.
+  //   ★승인 상태도 캐시 키다(2026-09-10 승인 게이트) — 관리자가 폰에서 승인을 누르면 큐 파일 mtime 이
+  //   바뀌고, 그 순간부터 같은 파일이라도 새 서술을 내야 한다. 마커 없는 페이지는 여기까지 오지 않는다.
   const today = effectiveDate.todayKST();
-  if (cached && cached.mtime === mt && (cached.today === null || cached.today === today)) return cached;
+  if (cached && cached.mtime === mt
+      && (cached.today === null || (cached.today === today && cached.appr === effectiveDate.approvalStamp()))) return cached;
   const raw = fs.readFileSync(fp, 'utf8');
   const fmMatch = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   const frontmatter = {};
@@ -386,9 +389,16 @@ function readPage(kind, file) {
   // ★예고본 서술 접기 — `<!--시행 d-->`/`<!--시행전 d-->` 중 오늘 유효한 쪽만 남긴다. 이 함수가 본문의
   //   유일한 입구라(scoreOne·termWeights·citableBody·search 컨텍스트·되묻기 전부 여기서 출발) 여기서 접으면
   //   모든 소비처가 같은 본문을 본다. 마커 없는 페이지는 문자열 검사 한 번 뒤 그대로다.
+  //   ★승인 안 된 대기본의 시행일은 접지 않는다 — 그 법(파일이름 `<법>__<주제>`의 앞부분)의
+  //   미승인 시행일 집합을 넘긴다. 지도에 없는 날짜(손으로 넣은 마커)는 종전처럼 날짜만으로 갈린다.
   const staged = effectiveDate.hasStageMarkers(body);
-  if (staged) body = effectiveDate.applyStageMarkers(body, today);
-  const entry = { mtime: mt, today: staged ? today : null, frontmatter, body };
+  let appr = -1;
+  if (staged) {
+    appr = effectiveDate.approvalStamp();
+    const blocked = effectiveDate.unapprovedStageDates(String(file || '').split('__')[0]);
+    body = effectiveDate.applyStageMarkers(body, today, blocked);
+  }
+  const entry = { mtime: mt, today: staged ? today : null, appr, frontmatter, body };
   _bodyCache.set(fp, entry);
   return entry;
 }

@@ -16,6 +16,9 @@
  *   T-broken-1~6 **마커가 깨졌을 때 본문이 사라지지 않는다** — 검사가 잡고, 런타임은 접지 않고 마커만
  *               걷어내며, 파이썬 접기는 원문 그대로, 게이트(lint_stage_markers.py)가 종료코드 1  (⑭)
  *   T-newer-1~3 같은 MST 인데 내용이 달라지면 ❌ · 현행이 대기본보다 뒤 판이면 승격하지 않는다 (①″⑩′)
+ *   T-approve-1~6 **승인 게이트** — 관리자가 승인한 대기본만 반영한다(사용자 확정 2026-09-10).
+ *               승인 전에는 시행일이 지나도 raw 는 현행, 위키는 옛 서술. 승인 기록이 없으면 닫는다.
+ *               파이썬 접기(fold_effective)도 같은 규칙이어야 한다.
  *   T-popup-1  실제 수집한 어선원법 대기본으로 조문 팝업이 날짜에 따라 갈린다(githubRaw 를 로컬 파일로 대체)
  *
  * [주의] 시각 의존 금지 — 모든 날짜는 setTodayForTest·--today 로 주입한다. 네트워크 없음(--from-json).
@@ -82,15 +85,37 @@ console.log('── T-date 오늘(KST) 계산 ──');
 console.log('── T-raw 대기본 고르기(지도) ──');
 {
   const base = 'local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법';
+  // 승인 게이트가 생겨(2026-09-10) 모든 대기본은 `queue_id` 로 개정검토 큐와 이어지고, 승인된 것만 고른다.
   const idx = { [base]: [
-    { date: '20260911', files: ['법률.txt'] }, { date: '20261001', files: ['법률.txt', '시행령.txt'] },
+    { date: '20260911', files: ['법률.txt'], queue_id: { '법률.txt': 'q-a' } },
+    { date: '20261001', files: ['법률.txt', '시행령.txt'], queue_id: { '법률.txt': 'q-b', '시행령.txt': 'q-c' } },
   ] };
-  ok('T-raw-1 시행일 전에는 null(현행)', E.stagedRawPath(base, '법률.txt', '20260910', idx) === null);
-  ok('T-raw-2 시행일 당일부터 그 판', E.stagedRawPath(base, '법률.txt', '20260911', idx) === base + '/_대기/20260911/법률.txt');
-  ok('T-raw-3 두 판이 지났으면 최신 하나(뒤 판이 앞 판을 포함 — 설계 F6)', E.stagedRawPath(base, '법률.txt', '20261001', idx) === base + '/_대기/20261001/법률.txt');
-  ok('T-raw-4 층별 독립 — 시행령은 그 층의 대기본이 있는 날부터만', E.stagedRawPath(base, '시행령.txt', '20260911', idx) === null
-    && E.stagedRawPath(base, '시행령.txt', '20261001', idx) === base + '/_대기/20261001/시행령.txt');
-  ok('T-raw-4 지도에 없는 법은 null', E.stagedRawPath('local_server/knowledge/legal/raw/x/y', '법률.txt', '20261231', idx) === null);
+  const OKALL = new Set(['q-a', 'q-b', 'q-c']);            // 셋 다 승인된 상태
+  ok('T-raw-1 시행일 전에는 null(현행)', E.stagedRawPath(base, '법률.txt', '20260910', idx, OKALL) === null);
+  ok('T-raw-2 시행일 당일부터 그 판', E.stagedRawPath(base, '법률.txt', '20260911', idx, OKALL) === base + '/_대기/20260911/법률.txt');
+  ok('T-raw-3 두 판이 지났으면 최신 하나(뒤 판이 앞 판을 포함 — 설계 F6)', E.stagedRawPath(base, '법률.txt', '20261001', idx, OKALL) === base + '/_대기/20261001/법률.txt');
+  ok('T-raw-4 층별 독립 — 시행령은 그 층의 대기본이 있는 날부터만', E.stagedRawPath(base, '시행령.txt', '20260911', idx, OKALL) === null
+    && E.stagedRawPath(base, '시행령.txt', '20261001', idx, OKALL) === base + '/_대기/20261001/시행령.txt');
+  ok('T-raw-4 지도에 없는 법은 null', E.stagedRawPath('local_server/knowledge/legal/raw/x/y', '법률.txt', '20261231', idx, OKALL) === null);
+
+  // ── T-approve 승인 게이트(사용자 확정 2026-09-10) ──
+  const NONE = new Set();
+  ok('T-approve-1 승인 전이면 시행일이 지나도 현행을 읽는다', E.stagedRawPath(base, '법률.txt', '20261231', idx, NONE) === null);
+  ok('T-approve-2 승인된 층만 열린다(법률만 승인 → 시행령은 여전히 현행)',
+    E.stagedRawPath(base, '법률.txt', '20261001', idx, new Set(['q-b'])) === base + '/_대기/20261001/법률.txt'
+    && E.stagedRawPath(base, '시행령.txt', '20261001', idx, new Set(['q-b'])) === null);
+  ok('T-approve-2 앞 판만 승인되면 그 앞 판을 읽는다(뒤 판은 승인 전이라 건너뛴다)',
+    E.stagedRawPath(base, '법률.txt', '20261001', idx, new Set(['q-a'])) === base + '/_대기/20260911/법률.txt');
+  ok('T-approve-3 queue_id 가 없는 항목은 닫는다(승인 기록을 못 찾으면 열지 않는다)',
+    E.stagedRawPath(base, '법률.txt', '20261231', { [base]: [{ date: '20260911', files: ['법률.txt'] }] }, OKALL) === null);
+  ok('T-approve-3 isStageApproved — 전 층 승인일 때만 항목 승인',
+    E.isStageApproved(idx[base][1], null, OKALL) === true
+    && E.isStageApproved(idx[base][1], null, new Set(['q-b'])) === false
+    && E.isStageApproved(idx[base][1], '법률.txt', new Set(['q-b'])) === true);
+  ok('T-approve-4 unapprovedStageDates 는 그 법의 미승인 시행일만 준다',
+    [...E.unapprovedStageDates('어선원및어선재해보상보험법', idx, new Set(['q-a']))].join(',') === '20261001'
+    && E.unapprovedStageDates('어선원및어선재해보상보험법', idx, OKALL).size === 0
+    && E.unapprovedStageDates('없는법', idx, NONE).size === 0);
 }
 
 console.log('── T-wiki 마커 접기 ──');
@@ -111,6 +136,14 @@ const WIKI_FX = [
   const chain = R.extractCitationChain(after);
   ok('T-wiki-3 표가 끊기지 않는다(마커 행 뒤 제54조 행이 살아 있다)', chain.some(r => r.article === '제54조') && chain.some(r => r.article === '제21조' && /새 요지/.test(r.gist || JSON.stringify(r))));
   ok('T-wiki-3 마커 없는 본문은 그대로', E.applyStageMarkers('a\nb', '20260101') === 'a\nb');
+  // ── T-approve 위키 쪽 게이트 ──
+  const blocked = new Set(['20260918']);
+  const held = E.applyStageMarkers(WIKI_FX, '20260918', blocked);
+  ok('T-approve-5 승인 전 시행일은 접지 않는다(옛 서술이 계속 나간다)',
+    held.includes('(옛)') && !held.includes('(새)') && held.includes('| 옛 요지 |') && !held.includes('새 요지'));
+  ok('T-approve-5 승인 전이라도 마커 표기는 남지 않는다', !/<!--/.test(held));
+  ok('T-approve-5 막은 날짜와 시행 전 날짜의 결과가 같다', held === E.applyStageMarkers(WIKI_FX, '20260917'));
+  ok('T-approve-5 다른 날짜를 막아도 그날 마커는 정상 전환', E.applyStageMarkers(WIKI_FX, '20260918', new Set(['20261231'])) === after);
 }
 {
   // T-wiki-4 readPage 캐시가 자정을 넘긴다 — 위키 폴더에 잠깐 페이지를 만들어 읽고 곧 지운다.
@@ -209,6 +242,26 @@ console.log('── T-fold 시행일 뒤 정리 ──');
   const future = '<!--시행전 20270101-->옛<!--/시행전--><!--시행 20270101-->새<!--/시행-->\n<!--시행 20260918-->\n지난 것\n<!--/시행-->';
   const pf = pyFold(future, '20260918');
   ok('T-fold-1 시행 전 마커는 파이썬이 그대로 보존(런타임이 계속 고른다)', pf.includes('<!--시행전 20270101-->옛<!--/시행전-->') && pf.includes('지난 것') && !pf.includes('<!--시행 20260918-->'));
+  // T-approve-6 파이썬 접기도 **승인 전 날짜는 안 접는다** — JS 와 같은 결과여야 한다(두 구현이 갈리면 안 된다).
+  const pyFoldBlocked = (body, today, blk) => execFileSync('python3', ['-c',
+    `import sys; sys.path.insert(0, ${JSON.stringify(LOOP)}); import fold_effective as f; sys.stdout.write(f.fold_markers(open(sys.argv[1], encoding='utf-8').read(), sys.argv[2], set(sys.argv[3].split(','))))`,
+    (() => { const q = path.join(fxDir, 'c.md'); fs.writeFileSync(q, body); return q; })(), today, blk], { env, encoding: 'utf8' });
+  ok('T-approve-6 파이썬도 승인 전 날짜는 안 접는다(마커째 보존)',
+    /<!--시행전 20260918-->/.test(pyFoldBlocked(WIKI_FX, '20260918', '20260918')));
+  ok('T-approve-6 파이썬(승인됨) == JS(승인됨)', pyFoldBlocked(WIKI_FX, '20260918', '20991231') === E.applyStageMarkers(WIKI_FX, '20260918'));
+  // T-approve-7 승인 게이트 — **승인 기록이 없으면 fold 가 승격도 접기도 하지 않는다.**
+  //   승인은 개정검토 큐(`_amendments/queue.jsonl`, 실서비스는 볼륨 사본)의 status 다.
+  const APPR_Q = path.join(TLEGAL, '_amendments', 'queue.jsonl');
+  const out0 = py('fold_effective.py', ['--today', '20260911']);
+  ok('T-approve-7 승인 기록이 없으면 승격하지 않는다', /승격 raw 0층 · 위키 0쪽/.test(out0) && /승인 전이라 승격 안 함/.test(out0)
+    && fs.existsSync(path.join(TRAW, '_대기', '20260911', '법률.txt')), out0.slice(-400));
+  ok('T-approve-7 승인 전에는 위키도 접지 않는다', /승인 전 시행일 20260911 은 접지 않는다/.test(out0)
+    && /<!--시행 20260911-->/.test(fs.readFileSync(path.join(TLEGAL, 'wiki', 'concepts', '어선원및어선재해보상보험법__장례비.md'), 'utf8')), out0.slice(-400));
+  fs.mkdirSync(path.dirname(APPR_Q), { recursive: true });
+  fs.writeFileSync(APPR_Q, [
+    JSON.stringify({ id: 'q1', status: 'approved' }),
+    JSON.stringify({ id: 'q2', status: 'pending' }),
+  ].join('\n') + '\n');
   // T-fold-2 raw 승격: 현행 MST 259243 ≠ 대기본 283875 → 승격 + _legacy 보관 + _meta 갱신
   const out = py('fold_effective.py', ['--today', '20260911']);
   const cur = fs.readFileSync(path.join(TRAW, '법률.txt'), 'utf8');
@@ -318,8 +371,16 @@ console.log('── T-popup 실제 대기본으로 조문 팝업 전환(githubRa
     githubRaw.hasToken = () => true;
     githubRaw.listDir = async () => [];
     githubRaw.fetchText = async (p) => { fetched.push(p); try { return fs.readFileSync(path.join(REPO, p), 'utf8'); } catch (_) { return null; } };
+    // 승인 게이트(2026-09-10): 실데이터 대기본은 아직 승인 전이라 그냥은 안 열린다.
+    //   이 절은 "승인된 뒤에 팝업이 날짜로 갈리는가"를 보는 것이므로 승인 목록을 주입한다.
+    //   실제 큐 파일은 건드리지 않는다(setTodayForTest 와 같은 방식).
+    const stageEntry = (realIndex[key] || []).find(e => e.date === '20260911') || {};
+    const stageQid = ((stageEntry.queue_id || {})['법률.txt']) || '';
     (async () => {
       try {
+        ok('T-popup-0 승인 전에는 대기본을 열지 않는다', E.stagedRawPath(key, '법률.txt', '20260911') === null);
+        E.setApprovedForTest(stageQid ? [stageQid] : []);
+        ok('T-popup-0 승인하면 대기본이 열린다', E.stagedRawPath(key, '법률.txt', '20260911') === key + '/_대기/20260911/법률.txt', 'queue_id=' + stageQid);
         E.setTodayForTest('20260910');
         const before = await A.loadArticle({ law: '어선원 및 어선 재해보상보험법', article: '제28조', tier: 'law' });
         E.setTodayForTest('20260911');
@@ -334,6 +395,7 @@ console.log('── T-popup 실제 대기본으로 조문 팝업 전환(githubRa
           && def.paragraphs.some(p => p.items && p.items.some(it => it.label === '1' && it.hit)), JSON.stringify(def).slice(0, 300));
       } finally {
         E.setTodayForTest(null);
+        E.setApprovedForTest(null);
         Object.assign(githubRaw, orig);
         fs.rmSync(TMP, { recursive: true, force: true });
         console.log(`\n${pass} PASS / ${fail} FAIL`);

@@ -14,7 +14,13 @@
   wiki  · `<!--시행 d-->…<!--/시행-->` 는 본문으로, `<!--시행전 d-->…<!--/시행전-->` 는 삭제(d <= 오늘 인 것만)
         · 바뀐 페이지의 「## 변경 이력」 표 끝에 한 줄 추가
 
-쓰는 법: python3 fold_effective.py [--today YYYYMMDD] [--dry-run] [--raw-only | --wiki-only]
+★승인 게이트(사용자 확정 2026-09-10): **관리자가 승인한 대기본만** 승격·접기 한다. 승인 상태는
+  개정검토 큐(`local_server/data/legal_amendments_queue.jsonl`, 없으면 git 시드 `_amendments/queue.jsonl`)의
+  `status:'approved'` 이고, 대기본과는 `pending_index.json` 의 `queue_id` 로 이어진다.
+  ⚠작업 컴퓨터가 보는 큐 사본은 실서비스 승인보다 **뒤처져 있을 수 있다** — 폰에서 방금 승인한 것은
+  안 보인다. 그럴 때만 `--allow-unapproved` 로 사람이 책임지고 넘긴다(이유를 커밋 메시지에 적을 것).
+
+쓰는 법: python3 fold_effective.py [--today YYYYMMDD] [--dry-run] [--raw-only | --wiki-only] [--allow-unapproved]
   --today 는 테스트·리허설용(기본은 오늘 KST). --dry-run 은 무엇을 할지만 찍는다.
 ⚠경합위험: 현행 raw·_meta.json·위키를 **고친다.** 다른 에이전트가 같은 법 raw 나 위키를 손보는 중이면
   단독으로 돌린다(CLAUDE.md 병렬 작업 안전 규칙). 고친 파일은 Touched 로 남긴다.
@@ -56,9 +62,10 @@ def _active(kind, date, today):
     return today >= date if kind == '시행' else today < date
 
 
-def fold_markers(body, today):
+def fold_markers(body, today, blocked=None):
     """effective_date.js applyStageMarkers 와 같은 규칙. 여기서는 `d <= today` 인 마커만 접고,
     아직 시행 전인 마커(둘 다 today < d)는 **그대로 둔다** — 런타임이 계속 날짜로 고르게.
+    ★blocked 에 든 날짜(승인 전 대기본)도 **그대로 둔다** — 승인 게이트(2026-09-10).
     ★짝·형식이 깨져 있으면 **접지 않고 원문을 그대로 돌려준다**(2026-09-10 독립 검토 high) —
       종전에는 닫는 짝을 못 찾은 블록 아래를 파일 끝까지 버려서 위키 파일이 잘린 채 저장됐다."""
     if '<!--시행' not in body:
@@ -66,10 +73,12 @@ def fold_markers(body, today):
     if check_markers(body):
         return body
 
+    blk = blocked or set()
+
     def inl(m):
         kind, date, inner = m.group(1), m.group(2), m.group(3)
-        if date > today:
-            return m.group(0)                       # 아직 시행 전 — 손대지 않는다
+        if date > today or date in blk:
+            return m.group(0)                       # 아직 시행 전이거나 승인 전 — 손대지 않는다
         return inner if _active(kind, date, today) else ''
     s = INLINE_RE.sub(inl, body)
     out, drop, open_kind, keep_raw = [], False, None, False
@@ -77,7 +86,7 @@ def fold_markers(body, today):
         o = OPEN_LINE_RE.match(line)
         if o and open_kind is None:
             open_kind = o.group(1)
-            if o.group(2) > today:                  # 시행 전 블록 — 마커째 보존
+            if o.group(2) > today or o.group(2) in blk:   # 시행 전이거나 승인 전 — 마커째 보존
                 keep_raw = True; out.append(line); continue
             keep_raw = False; drop = not _active(o.group(1), o.group(2), today); continue
         c = CLOSE_LINE_RE.match(line)
@@ -91,6 +100,48 @@ def fold_markers(body, today):
     return '\n'.join(out)
 
 
+# ── 승인 게이트(사용자 확정 2026-09-10) ────────────────────────────────────────
+# 예고본은 **관리자가 승인한 것만** 현행으로 승격한다. 런타임(effective_date.js)이 읽기 시점에
+# 같은 규칙으로 막고 있는데, 여기서 승격해 버리면 대기본이 아니라 "현행"이 되어 게이트를 우회한다.
+# 승인 상태가 있는 곳: 실서비스는 Fly 볼륨의 `local_server/data/legal_amendments_queue.jsonl`,
+# 작업 컴퓨터에는 그 사본이 있을 수도 없을 수도 있어 없으면 git 시드(`_amendments/queue.jsonl`)를 본다.
+# ⚠작업 컴퓨터가 보는 사본은 **실서비스 승인보다 뒤처져 있을 수 있다** — 폰에서 방금 승인한 것은
+#   여기에 안 보인다. 그때만 `--allow-unapproved` 로 사람이 책임지고 넘긴다(이유를 커밋에 적을 것).
+QUEUE_VOL = os.path.join(REPO, 'local_server', 'data', 'legal_amendments_queue.jsonl')
+QUEUE_SEED = os.path.join(LEGAL, '_amendments', 'queue.jsonl')
+
+
+def approved_ids():
+    """승인된 개정검토 큐 항목 id 집합. 파일이 없으면 빈 집합(= 아무것도 승격 안 함).
+    예: approved_ids() → {'chg_20260810_5373b9'}
+    [연계] services/effective_date.js loadApprovedIds() 와 같은 규칙(status == 'approved').
+    """
+    path = QUEUE_VOL if os.path.exists(QUEUE_VOL) else QUEUE_SEED
+    ids = set()
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                if r.get('status') == 'approved' and r.get('id'):
+                    ids.add(str(r['id']))
+    except Exception:
+        pass
+    return ids
+
+
+def entry_approved(e, fname, ids):
+    """대기본 한 항목(fname 을 주면 그 층만)이 승인됐나. 승인 기록이 없으면 False(닫는다)."""
+    qmap = (e or {}).get('queue_id') or {}
+    want = [qmap.get(fname)] if fname else list(qmap.values())
+    return bool(want) and all(q and str(q) in ids for q in want)
+
+
 def _file_eff(path):
     try:
         m = re.search(r'\(시행 (\d{8})', open(path, encoding='utf-8').read(4000))
@@ -99,9 +150,9 @@ def _file_eff(path):
         return '00000000'
 
 
-def fold_raw(today, dry, touched):
+def fold_raw(today, dry, touched, ids, allow_unapproved=False):
     idx = cpl.build_index()
-    n = 0
+    n = skipped = 0
     for key, ents in idx.items():
         base = os.path.join(REPO, key)
         meta_p = os.path.join(base, '_meta.json')
@@ -115,6 +166,12 @@ def fold_raw(today, dry, touched):
                 continue
             ddir = os.path.join(base, cpl.STAGE_DIR, d)
             for fname in e['files']:
+                # ★승인 게이트 — 승인 안 된 대기본은 승격하지 않는다(대기본으로 남겨 둔다).
+                if not allow_unapproved and not entry_approved(e, fname, ids):
+                    q = ((e.get('queue_id') or {}).get(fname)) or '(큐 연결 없음)'
+                    print(f"⏸ {key.split('/')[-1]} {LAYER_OF.get(fname, fname)} 시행 {d} — 승인 전이라 승격 안 함(개정검토 큐 {q})")
+                    skipped += 1
+                    continue
                 layer = LAYER_OF.get(fname, fname)
                 staged = os.path.join(ddir, fname)
                 cur = os.path.join(base, fname)
@@ -160,11 +217,28 @@ def fold_raw(today, dry, touched):
         if meta is not None and not dry:
             json.dump(meta, open(meta_p, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
             touched.add(meta_p)
+    if skipped:
+        print(f'\n⏸ 승인 전이라 건너뛴 층 {skipped}개 — 관리자 화면 "개정검토"에서 승인한 뒤 다시 돌린다.')
+        print('   폰에서 이미 승인했는데 여기 안 보이면(작업 컴퓨터 큐 사본이 뒤처진 경우) --allow-unapproved 로 넘긴다.')
     return n
 
 
-def fold_wiki(today, dry, touched):
-    n = 0
+def unapproved_dates_of(law_slug, idx, ids):
+    """그 법의 대기본 중 **승인되지 않은 시행일** 집합 — 위키에서 접으면 안 되는 날짜들.
+    [연계] services/effective_date.js unapprovedStageDates() 와 같은 규칙."""
+    out = set()
+    for base, ents in idx.items():
+        if base != law_slug and not base.endswith('/' + law_slug):
+            continue
+        for e in ents:
+            if e.get('date') and not entry_approved(e, None, ids):
+                out.add(str(e['date']))
+    return out
+
+
+def fold_wiki(today, dry, touched, ids, allow_unapproved=False):
+    n = held = 0
+    idx = cpl.build_index()
     stamp = time.strftime('%Y-%m-%d')
     for p in sorted(glob.glob(os.path.join(WIKI, '*', '*.md'))):
         src = open(p, encoding='utf-8').read()
@@ -176,9 +250,18 @@ def fold_wiki(today, dry, touched):
                   % (os.path.relpath(p, WIKI), ' / '.join('%d행 %s' % e for e in errs[:3])))
             continue
         dates = sorted(set(d for d in re.findall(r'<!--시행(?:전)? (\d{8})-->', src) if d <= today))
+        # ★승인 게이트 — 승인 안 된 시행일은 접지 않는다(런타임도 그 날짜를 "아직 시행 전"으로 다룬다).
+        blocked = set()
+        if not allow_unapproved:
+            blocked = unapproved_dates_of(os.path.basename(p)[:-3].split('__')[0], idx, ids)
+            keep = [d for d in dates if d in blocked]
+            if keep:
+                print('⏸ %s — 승인 전 시행일 %s 은 접지 않는다' % (os.path.relpath(p, WIKI), ', '.join(keep)))
+                held += 1
+            dates = [d for d in dates if d not in blocked]
         if not dates:
             continue
-        out = fold_markers(src, today)
+        out = fold_markers(src, today, None if allow_unapproved else blocked)
         if out == src:
             continue
         note = f"| {stamp} | 시행일 마커 접기 — 시행 {', '.join(dates)} 서술을 본문으로, 시행전 서술 삭제 | fold_effective.py |"
@@ -192,21 +275,26 @@ def fold_wiki(today, dry, touched):
         if not dry:
             open(p, 'w', encoding='utf-8').write(out); touched.add(p)
         n += 1
+    if held:
+        print(f'\n⏸ 승인 전이라 접지 않은 위키 {held}쪽 — 관리자 화면 "개정검토"에서 승인한 뒤 다시 돌린다.')
     return n
 
 
 def main(argv):
     today = argv[argv.index('--today') + 1] if '--today' in argv else today_kst()
     dry = '--dry-run' in argv
+    allow = '--allow-unapproved' in argv
+    ids = approved_ids()
     touched = Touched('fold_effective') if not os.environ.get('NRYA_LEGAL_DIR') else _NullTouched()
-    print(f"기준일 {today}{' (dry-run)' if dry else ''}")
+    print(f"기준일 {today}{' (dry-run)' if dry else ''} · 승인된 개정 {len(ids)}건"
+          + (' · ⚠--allow-unapproved (승인 확인 없이 진행)' if allow else ''))
     nr = nw = 0
     if '--wiki-only' not in argv:
-        nr = fold_raw(today, dry, touched)
+        nr = fold_raw(today, dry, touched, ids, allow)
         if not dry:
             cpl.write_index(touched)
     if '--raw-only' not in argv:
-        nw = fold_wiki(today, dry, touched)
+        nw = fold_wiki(today, dry, touched, ids, allow)
     print(f'\n승격 raw {nr}층 · 위키 {nw}쪽')
     if not dry:
         touched.save()

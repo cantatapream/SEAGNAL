@@ -766,6 +766,20 @@ router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
     const status = req.query.status || 'pending';
     let list = adminQueues.readJsonl(amendmentScanner.queueFile()).reverse();
     if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
+    // ★승인 게이트(2026-09-10): 이 항목에 **미리 받아 둔 예고본**이 있으면 알려 준다. 승인해야 그 판이
+    //   답변에 반영되므로, 관리자는 "승인만 하면 바로 바뀌는 건인지"를 카드에서 알아야 한다.
+    //   시행일이 이미 지났는데 승인이 안 됐으면(due:true) 지금 챗봇은 **옛 내용**을 내보내는 중이다.
+    const idx = effectiveDate.loadPendingIndex();
+    const todayStage = effectiveDate.todayKST();
+    const byQueue = new Map();
+    for (const base of Object.keys(idx)) {
+      for (const e of idx[base] || []) {
+        for (const f of Object.keys((e && e.queue_id) || {})) {
+          byQueue.set(String(e.queue_id[f]), { law: base.split('/').pop(), date: String(e.date), file: f, due: String(e.date) <= todayStage });
+        }
+      }
+    }
+    list = list.map((e) => (byQueue.has(e.id) ? Object.assign({}, e, { stage: byQueue.get(e.id) }) : e));
     res.json({ ok: true, count: list.length, amendments: list });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
@@ -2054,11 +2068,15 @@ router.get('/api/legal/rooms/law', adminAuth.requireAdminToken, (req, res) => {
       if (staged) f = path.join(__dirname, '..', '..', staged);
       const { eff, amd } = effOfTxt(f);
       const pending = stageList.filter(e => e.date > today && (e.files || []).indexOf(t.file) >= 0).map(e => e.date).sort();
+      // ★시행일이 지났는데 **승인이 안 나** 아직 옛 판을 읽고 있는 층(2026-09-10 승인 게이트).
+      //   이걸 안 보여주면 관리자는 "왜 시행일이 지났는데 안 바뀌지"를 알 길이 없다.
+      const waiting = stageList.filter(e => e.date <= today && (e.files || []).indexOf(t.file) >= 0
+        && !effectiveDate.isStageApproved(e, t.file)).map(e => e.date).sort();
       files.push({
         label: t.label, ic: t.ic, eff, amd,
         src: staged ? srcUrl(staged.replace(/^.*\/raw\//, '')) : srcUrl(dir + '/' + t.file),
         staged: staged ? (staged.match(/_대기\/(\d{8})\//) || [])[1] || '' : '',
-        pending,
+        pending, waiting,
       });
     }
 

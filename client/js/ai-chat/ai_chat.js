@@ -822,8 +822,10 @@
     var files = (d.files || []).map(function (f) {
       // 챗봇이 실제로 읽는 판을 그대로 보여준다 — 시행일이 지난 예고본이 있으면 그 파일이다(staged).
       // 아직 시행 전인 예고본은 pending 으로 "언제부터 바뀐다"만 알려 준다.
+      // 예고본 적용 / 승인 대기(시행일은 지났는데 승인이 안 나 옛 판을 읽는 중) / 개정 예정 — 셋을 구분한다.
       var note = f.staged ? '<span class="nrya-file-amd">· 예고본 적용</span>'
-        : (f.pending && f.pending.length ? '<span class="nrya-file-amd">· ' + esc(effLabel(f.pending[0])) + ' 개정 예정</span>' : '');
+        : (f.waiting && f.waiting.length ? '<span class="nrya-file-amd">· ' + esc(effLabel(f.waiting[0])) + ' 시행분 승인 대기(옛 판 표시 중)</span>'
+        : (f.pending && f.pending.length ? '<span class="nrya-file-amd">· ' + esc(effLabel(f.pending[0])) + ' 개정 예정</span>' : ''));
       return '<a class="nrya-file" href="' + esc(f.src) + '" target="_blank" rel="noopener">' +
         '<div class="nrya-file-ic' + (f.ic === '법' ? '' : ' nrya-rule') + '">' + esc(f.ic) + '</div>' +
         '<div class="nrya-file-nm">' + esc(f.label) + (f.amd ? '<span class="nrya-file-amd">· ' + esc(f.amd) + '</span>' : '') + note + '</div>' +
@@ -1247,6 +1249,14 @@
         var no = '제' + esc(a.조문번호 || '') + '조' + (a.조문가지번호 && a.조문가지번호 !== '0' ? '의' + esc(a.조문가지번호) : '');
         return no + (a.조문제목 ? '(' + esc(a.조문제목) + ')' : '') + (a.조문제개정유형 ? ' · ' + esc(a.조문제개정유형) : '') + (a.조문시행일자 ? ' · ' + esc(ymd(a.조문시행일자)) : '');
       }).join('<br>') + '</div></div>' : '';
+    // ★승인 게이트(2026-09-10): 이 항목의 예고본을 이미 받아 뒀으면, 승인이 곧 "답변 전환"이라는 것을 알린다.
+    var stg = am.stage || null;
+    var stageHTML = stg ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📅 미리 받아 둔 새 원문</div><div class="nrya-rv-fval">' +
+      esc(ymd(stg.date)) + ' 시행 · ' + esc(stg.file || '') +
+      (stg.due
+        ? ' — <b>시행일이 지났지만 승인 전이라 챗봇은 아직 옛 내용을 답합니다.</b> 승인하면 바로 새 내용으로 바뀝니다.'
+        : ' — 승인해 두면 시행일부터 자동으로 새 내용을 답합니다.') +
+      '</div></div>' : '';
     var rel = am.related_laws || [];
     var relHTML = isAdm && rel.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📚 관련 법(본문 인용)</div><div class="nrya-rv-fval">' + rel.map(function (r) { return esc(r.name || r.slug || ''); }).join(' · ') + '</div></div>' : '';
     var ident = isAdm ? (cur.ID ? 'ID ' + esc(cur.ID) : (am.mst ? 'ID ' + esc(am.mst) : '')) : (cur.MST || am.mst ? 'MST ' + esc(cur.MST || am.mst) : '');
@@ -1257,7 +1267,7 @@
       '<div class="nrya-rv-body">' +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">📌 종류</div><div class="nrya-rv-fval">' + esc(am.kind || '') + (ident ? ' · ' + ident : '') + '</div></div>' +
         (lines.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔄 변경</div><div class="nrya-rv-fval">' + lines.join('<br>') + '</div></div>' : '') +
-        artsHTML + relHTML +
+        stageHTML + artsHTML + relHTML +
         '<a class="nrya-rv-link" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">🔗 law.go.kr에서 확인</a>' +
         (am.status === 'pending' ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 승인(재수집 필요)</button><button class="nrya-btn-no">✗ 무시</button></div>' : '') +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
