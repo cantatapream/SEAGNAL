@@ -3,6 +3,7 @@
  * 파일명: scripts/test_wiki_brief_bulk.js
  * 역할: 「위키 반영 지시문」을 만드는 `services/legal_wiki_brief.js` 가 **큐에 있는 것만** 옮겨
  *       적는지, 없는 것을 지어내지 않는지, 일괄본이 단건본과 어긋나지 않는지 검사한다.
+ *       그리고 「지금 스캔」 게이지가 읽는 **진행률 한 줄 파서**(legal_amendment_scanner.js)도 함께 본다.
  * ============================================================================
  *
  * [왜 있나 — 2026-09-10 사용자 요청으로 일괄본을 만들면서 함께 넣었다]
@@ -15,6 +16,7 @@
  *
  * [연계]
  * - services/legal_wiki_brief.js → buildWikiBrief(단건) · buildBulkWikiBrief(일괄)
+ * - services/legal_amendment_scanner.js → applyProgressLine · getScanProgress(게이지 값)
  * - scripts/refactor/verify_all.sh → SUITES 에 등록돼 있다(등록 안 하면 아무도 안 돌린다 — L-…)
  * [로드 순서] 번들 없음(서버 스크립트). `node local_server/scripts/test_wiki_brief_bulk.js`
  * ============================================================================
@@ -161,6 +163,39 @@ console.log('\n── 위키 반영 지시문(단건·일괄) ──');
   } else {
     console.log(`  ⏭️ T-bulk-21~23 건너뜀 — 이 위키에서 해양환경관리법 인용 페이지가 ${n}쪽이라 상한(20)에 안 걸린다`);
   }
+}
+
+// ── ⑨ 「지금 스캔」 진행률 — 탐지 스크립트가 찍는 한 줄을 제대로 읽나 ────────────────
+//    이 파서가 잘못되면 게이지가 **엉뚱한 숫자로 차오르거나 멈춘 것처럼 보인다.** 화면이 그대로
+//    믿는 값이라 여기서 고정한다. 실제 스캔(외부 API·3~4분)은 돌리지 않는다 — 파서만 먹여 본다.
+{
+  const S = require('../services/legal_amendment_scanner.js');
+  console.log('\n── 「지금 스캔」 진행률 파서 ──');
+
+  S.applyProgressLine('@@PROG {"phase":"법령","done":4,"total":10,"label":"W3 해양수산부"}');
+  let g = S.getScanProgress();
+  ok('T-prog-1 1단계 값을 그대로 읽는다', g.phase === '법령' && g.done === 4 && g.total === 10 && g.label === 'W3 해양수산부',
+    JSON.stringify(g));
+  ok('T-prog-2 1단계 퍼센트는 done/total 이다', g.percent === 40, `percent=${g.percent}`);
+
+  // 2단계는 1단계 총량 뒤를 이어 차오른다(막대가 중간에 되돌아가면 안 된다).
+  S.applyProgressLine('@@PROG {"phase":"행정규칙","done":3,"total":8,"label":"해양경찰청","detail":12}');
+  const g2 = S.getScanProgress();
+  ok('T-prog-3 2단계는 1단계 총량 뒤를 이어 센다(3+10)/(8+10)',
+    g2.done === 13 && g2.total === 18 && g2.percent === 72, JSON.stringify(g2));
+  ok('T-prog-4 고시 상세 확인 횟수를 함께 읽는다', g2.detail === 12, JSON.stringify(g2));
+  ok('T-prog-5 막대는 뒤로 가지 않는다(1단계 40% → 2단계 72%)', g2.percent >= g.percent);
+
+  // 사람이 읽는 print 줄·깨진 줄은 흘려보낸다(진행률 때문에 스캔이 죽으면 안 된다).
+  const before = JSON.stringify(S.getScanProgress());
+  S.applyProgressLine('baseline 74법 · 법령ID 300 · 고시 500 — 최근 7일 스캔 시작');
+  S.applyProgressLine('@@PROG {깨진 JSON');
+  S.applyProgressLine('');
+  S.applyProgressLine(null);
+  ok('T-prog-6 사람이 읽는 줄·깨진 줄·빈 줄은 무시한다(값이 안 바뀐다)',
+    JSON.stringify(S.getScanProgress()) === before, S.getScanProgress().phase);
+
+  ok('T-prog-7 스캔이 안 돌 때는 running:false 다', S.getScanProgress().running === false);
 }
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

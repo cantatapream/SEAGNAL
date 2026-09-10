@@ -909,6 +909,14 @@ router.get('/api/legal/amendments/:id/wiki-brief', adminAuth.requireAdminToken, 
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
+// GET /api/legal/amendments/scan-progress (관리자) — 「지금 스캔」 진행률(화면 게이지 바용).
+//   탐지 스크립트가 stdout 으로 찍는 진행 줄을 스캐너가 모아 둔 것을 그대로 준다.
+//   ★이 값은 **질의 진행도**이지 남은 시간이 아니다(부처별 고시 수가 들쭉날쭉해 시간 예측은 거짓이 된다).
+router.get('/api/legal/amendments/scan-progress', adminAuth.requireAdminToken, (req, res) => {
+  try { res.json(Object.assign({ ok: true }, amendmentScanner.getScanProgress())); }
+  catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
 // POST /api/legal/amendments/scan-now (관리자) — 정기 cron과 별개로 즉시 1회 스캔(H-29
 // detect_law_changes.py, 실측 3~4분 소요) 백그라운드 시작. HTTP 응답을 그만큼 붙들면
 // 리버스 프록시·브라우저 타임아웃 위험이라 완료를 기다리지 않고 즉시 응답(started:true) —

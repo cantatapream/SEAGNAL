@@ -82,6 +82,10 @@ const KIND_LABEL = {
 };
 
 let _scanning = false; // 중복 실행 락(cron·수동스캔 동시 발동 시 law_change_queue.json 경합 방지)
+// 「지금 스캔」 진행 상황(메모리에만 — 서버가 재시작하면 사라진다). 탐지 스크립트가 stdout 으로
+// 찍는 `@@PROG` 줄을 applyProgressLine 이 여기에 옮겨 적고, getScanProgress 가 화면에 준다.
+const _progress = { phase: '', done: 0, total: 0, label: '', detail: 0, lawTotal: 0,
+                    startedAt: 0, finishedAt: 0, result: null };
 
 /**
  * 볼륨에 파일이 없으면 git 사본으로 시드한다(있으면 아무것도 안 함 — 볼륨 쪽이 항상 정본).
@@ -158,13 +162,70 @@ function runDetectScript(days) {
     const timer = setTimeout(() => { killedByTimeout = true; child.kill('SIGKILL'); }, DETECT_TIMEOUT_MS);
     let stderr = '';
     child.stderr.on('data', (c) => { stderr += c; });
+    // ★stdout 을 반드시 **읽어 준다**(2026-09-10). 종전에는 pipe 로 열어 두고 아무도 안 읽어서,
+    //   파이프 버퍼(리눅스 기본 64KB)가 차면 파이썬이 write 에서 멈출 수 있었다. 겸사겸사
+    //   진행률 줄(`@@PROG {json}`)을 여기서 골라 화면용 상태에 반영한다.
+    let outBuf = '';
+    child.stdout.on('data', (c) => {
+      outBuf += c;
+      const lines = outBuf.split('\n');
+      outBuf = lines.pop();                     // 마지막 조각은 아직 안 끝난 줄일 수 있다
+      for (const ln of lines) applyProgressLine(ln);
+    });
     child.on('error', (e) => { clearTimeout(timer); resolve({ ok: false, code: null, error: e.message }); });
     child.on('exit', (code) => {
       clearTimeout(timer);
+      if (outBuf) applyProgressLine(outBuf);
       if (killedByTimeout) return resolve({ ok: false, code, error: `timeout(${DETECT_TIMEOUT_MS}ms)` });
       resolve({ ok: code === 0, code, error: code === 0 ? null : stderr.slice(-2000) });
     });
   });
+}
+
+/**
+ * 탐지 스크립트가 찍은 한 줄에서 진행률(`@@PROG {json}`)만 골라 `_progress` 에 반영한다.
+ * 사람이 읽는 print 줄은 그냥 흘려보낸다(형식이 바뀌어도 스캔은 안 죽는다).
+ * @param {string} line
+ * [연계] ← runDetectScript(stdout). → getScanProgress()(관리자 화면 게이지).
+ */
+function applyProgressLine(line) {
+  const t = String(line || '').trim();
+  if (!t.startsWith('@@PROG ')) return;
+  try {
+    const d = JSON.parse(t.slice(7));
+    if (!d || typeof d !== 'object') return;
+    _progress.phase = String(d.phase || '');
+    _progress.done = Number(d.done) || 0;
+    _progress.total = Number(d.total) || 0;
+    // 1단계(법령)의 총량을 기억해 둔다 — 2단계 막대가 그 뒤를 이어 차오르게 하려면 필요하다.
+    if (_progress.phase === '법령') _progress.lawTotal = _progress.total;
+    _progress.label = String(d.label || '');
+    if (d.detail !== undefined) _progress.detail = Number(d.detail) || 0;
+    _progress.at = Date.now();
+  } catch (_) { /* 진행률 한 줄이 깨져도 스캔은 계속 간다 */ }
+}
+
+/**
+ * 「지금 스캔」 진행 상황을 돌려준다 — 관리자 화면이 2초마다 물어 게이지 바를 그린다.
+ *
+ * ★게이지는 **질의 진행도**이지 남은 시간이 아니다. 두 단계(법령 광역질의 → 행정규칙 광역질의)의
+ *   질의 수를 합쳐 세고, 행정규칙 단계에서 고시 상세를 받아 온 횟수(`detail`)를 따로 얹어
+ *   "멈춘 게 아니라 지금도 받고 있다"를 보여 준다. 시간 비율로 환산하지 않는 이유는 부처별
+ *   고시 수가 들쭉날쭉해 **거짓 예측이 되기 때문**이다.
+ * @returns {{running:boolean, phase:string, done:number, total:number, percent:number,
+ *            label:string, detail:number, startedAt:number, finishedAt:number, result:object|null}}
+ * [연계] ← routes/legal.js GET /api/legal/amendments/scan-progress.
+ */
+function getScanProgress() {
+  // 두 단계를 이어 붙여 하나의 막대로 만든다. 1단계(법령)가 끝나면 그 총량은 이미 채워진 것으로 본다.
+  const p = _progress;
+  let done = p.done, total = p.total;
+  if (p.phase === '행정규칙' && p.lawTotal) { done += p.lawTotal; total += p.lawTotal; }
+  const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  return {
+    running: _scanning, phase: p.phase, done, total, percent, label: p.label, detail: p.detail,
+    startedAt: p.startedAt, finishedAt: p.finishedAt, result: p.result,
+  };
 }
 
 /** H-29 큐(`law_change_queue.json`)에서 status:pending 항목만 읽는다. 파일 없거나 파싱 실패면 []. */
@@ -261,6 +322,10 @@ function appendQueue(entries) {
 async function runAmendmentScan() {
   if (_scanning) return { scanned: 0, changed: 0, filtered: 0, errors: 0 };
   _scanning = true;
+  // 이번 실행의 진행률을 초기화한다(지난 실행 값이 남아 게이지가 100%부터 시작하면 안 된다).
+  _progress.phase = '준비'; _progress.done = 0; _progress.total = 0; _progress.label = '';
+  _progress.detail = 0; _progress.lawTotal = 0;
+  _progress.startedAt = Date.now(); _progress.finishedAt = 0; _progress.result = null;
   try {
     queueFile();
     seedIfMissing(H29_QUEUE_FILE, SEED_H29_QUEUE_FILE);
@@ -277,9 +342,12 @@ async function runAmendmentScan() {
     // ★새로 감지된 것이 있으면 등록된 관리자 기기로 알린다(사용자 확정 2026-09-10).
     //   푸시가 실패해도 스캔 결과는 그대로 돌려준다 — 알림 때문에 감지를 잃으면 안 된다.
     if (cards.length) await notifyAdmins(cards);
-    return { scanned: pending.length, changed: relevant.length, filtered, errors: r.ok ? 0 : 1 };
+    const out = { scanned: pending.length, changed: relevant.length, filtered, errors: r.ok ? 0 : 1 };
+    _progress.result = out;
+    return out;
   } finally {
     _scanning = false;
+    _progress.finishedAt = Date.now();
   }
 }
 
@@ -325,5 +393,7 @@ function startAmendmentScan() {
   return { ok: true, started: true };
 }
 
-module.exports = { runAmendmentScan, startAmendmentScan, queueFile, h29QueueFile, mirrorDecisionToH29,
+module.exports = { runAmendmentScan, startAmendmentScan, getScanProgress,
+  // 진행률 한 줄 파서는 검사(test_wiki_brief_bulk.js)가 직접 먹여 보려고 함께 내보낸다.
+  applyProgressLine, queueFile, h29QueueFile, mirrorDecisionToH29,
   notifyAdmins, toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE };

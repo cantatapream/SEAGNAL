@@ -111,6 +111,7 @@
   //   메모리에만 둔다 — localStorage 에 저장하면 새로고침 뒤 오래된 대기가 되살아난다(설계 §9.1 #3).
   var pendingCtx = null;
   var chatPending = 0;   // 답을 기다리는 중인 요청 수 — 0 이어야 채팅창을 홈으로 비운다(resetToHome)
+  var histRestorePoint = null;  // 지난 대화를 붙이기 직전의 채팅창 HTML([채팅창으로]가 여기로 되돌린다)
   // [H-37 §3.2 · 2026-08-14 적대검증 F2] 서버가 마지막 답변에 실어 보낸 ctxNext(= 지금까지 확정된
   //   맥락). **ctx 를 안 든 선택지 버튼**(기존 되묻기·트리 되묻기)을 눌러도 이 값을 이어 보내야
   //   직전에 확정한 조건이 사라지지 않는다 — 안 그러면 프로필로 "네"를 누른 축을 서버가 다시 묻는
@@ -761,6 +762,7 @@
   /** 선택한 관리자 방을 그린다(6방 전부 서버 연동). @param {string} k */
   function renderAdmin(k) {
     var a = ADMIN[k]; var host = document.getElementById('nryaAdminContent'); if (!host) return;
+    stopScanGauge();   // 다른 방으로 옮기면 진행률 폴링을 멈춘다(스캔 자체는 서버에서 계속 돈다)
     var intro = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">🛠</div><div><div class="nrya-intro-name">' + esc(k) + '</div><div class="nrya-intro-tag">관리자 검토 방 · 승인→자동반영</div></div></div><div class="nrya-intro-desc">' + a.desc + '</div></div>';
     if (k === '⚠수치검증') {
       host.innerHTML = intro + '<div class="nrya-panel" id="nryaReviewHost" style="padding:6px 0 4px"></div>';
@@ -1498,9 +1500,14 @@
         '<button class="nrya-btn-brief" id="nryaAmendAllBriefBtn" type="button" style="flex:1 1 auto;margin:0;padding:8px 16px">📋 승인분 전체 지시문</button>' +
       '</div>' +
       '<div class="nrya-inline-err nrya-hidden" id="nryaAmendScanErr" style="display:none"></div>' +
+      '<div class="nrya-gauge nrya-hidden" id="nryaScanGauge"></div>' +
       '<div class="nrya-brief nrya-hidden" id="nryaAmendAllBrief"></div>' +
       '<div id="nryaAmendListHost"></div>';
     bindAmendBulk();
+    // 스캔을 걸어 두고 이 방을 벗어났다 돌아온 경우 — 게이지를 **이어서** 보여 준다.
+    legalGet('/api/legal/amendments/scan-progress').then(function (res) {
+      return res.ok ? res.json().catch(function () { return null; }) : null;
+    }).then(function (d) { if (d && d.ok && d.running) startScanGauge(); }).catch(function () {});
     var scanBtn = document.getElementById('nryaAmendScanBtn');
     var scanErr = document.getElementById('nryaAmendScanErr');
     if (scanBtn) scanBtn.onclick = function () {
@@ -1513,15 +1520,89 @@
         scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL;
         if (data && data._denied) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '관리자 로그인 필요'; } return; }
         if (!data || !data.ok) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '스캔 실패'; } return; }
-        // started:true — 백그라운드에서 계속 진행 중, 아직 새 항목은 안 들어와 있으니 목록을
-        // 지금 다시 그려봐야 그대로다(혼동 방지). 안내 문구만 목록 위에 한 번 얹는다.
-        var listHost = document.getElementById('nryaAmendListHost');
-        if (listHost) {
-          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 스캔이 시작됐습니다. 완료까지 최대 4분 — 잠시 후 이 방을 다시 열어 새로고침해 주세요.</div>');
-        }
+        // started:true — 백그라운드에서 계속 진행 중. 게이지 바를 띄우고 2초마다 진행률을 물어본다.
+        startScanGauge();
       }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
     };
     loadAmendList();
+  }
+
+  var scanPollTimer = null;   // 게이지 폴링 타이머(방을 떠나면 멈춘다)
+
+  /**
+   * 「지금 스캔」 진행률 게이지를 띄우고 2초마다 서버에 진행 상황을 물어 갱신한다.
+   *
+   * ★막대는 **질의 진행도**이지 남은 시간이 아니다 — 부처마다 고시 수가 들쭉날쭉해 시간으로
+   *   환산하면 거짓 예측이 된다. 그래서 막대 아래에 지금 무엇을 하고 있는지(단계·부처)와
+   *   고시 상세를 받아 온 횟수를 함께 적어, 막대가 한동안 안 움직여도 **멈춘 게 아님**을 보인다.
+   * 스캔이 끝나면 결과(새로 올린 건수)를 적고 목록을 자동으로 새로 그린다 —
+   *   종전에는 "잠시 후 이 방을 다시 열어 새로고침해 주세요"라고만 적혀 있었다.
+   * [연계] → GET /api/legal/amendments/scan-progress · loadAmendList(끝나면 자동 새로고침).
+   */
+  function startScanGauge() {
+    var box = document.getElementById('nryaScanGauge'); if (!box) return;
+    stopScanGauge();
+    box.classList.remove('nrya-hidden');
+    paintGauge({ running: true, percent: 0, phase: '준비', label: '스캔을 시작하는 중', detail: 0 });
+    var misses = 0;                       // 연달아 실패한 조회 수(너무 많으면 폴링을 멈춘다)
+    scanPollTimer = setInterval(function () {
+      legalGet('/api/legal/amendments/scan-progress').then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return null; });
+      }).then(function (d) {
+        if (!d || d._denied || !d.ok) {
+          if (++misses >= 5) { stopScanGauge(); paintGauge({ done: true, err: '진행률을 받지 못했습니다. 잠시 후 이 방을 다시 열어 확인해 주세요.' }); }
+          return;
+        }
+        misses = 0;
+        paintGauge(d);
+        if (!d.running && d.finishedAt) {   // 끝났다 — 폴링을 멈추고 목록을 새로 그린다
+          stopScanGauge();
+          loadAmendList();
+        }
+      }).catch(function () {
+        if (++misses >= 5) { stopScanGauge(); paintGauge({ done: true, err: '진행률을 받지 못했습니다. 잠시 후 이 방을 다시 열어 확인해 주세요.' }); }
+      });
+    }, 2000);
+  }
+
+  /** 게이지 폴링을 멈춘다(멱등 — 두 번 불러도 안전). */
+  function stopScanGauge() {
+    if (scanPollTimer) { clearInterval(scanPollTimer); scanPollTimer = null; }
+  }
+
+  /**
+   * 게이지 한 장을 그린다.
+   * @param {object} d - 서버 진행률({running,percent,phase,label,detail,result}) 또는
+   *                     {done:true, err:'…'}(폴링 실패 안내)
+   */
+  function paintGauge(d) {
+    var box = document.getElementById('nryaScanGauge'); if (!box) return;
+    if (d && d.err) {
+      box.innerHTML = '<div class="nrya-gauge-head"><b>⚠ 스캔 진행률</b></div><div class="nrya-gauge-sub">' + esc(d.err) + '</div>';
+      return;
+    }
+    var pct = Math.max(0, Math.min(100, Number(d.percent) || 0));
+    var finished = d.running === false && d.finishedAt;
+    var r = d.result || null;
+    var headTxt = finished
+      ? (r ? '✅ 스캔 완료 — 새로 올린 개정 ' + nfmt(r.changed) + '건'
+             + (r.filtered ? ' · 우리 법과 무관해 거른 신규 고시 ' + nfmt(r.filtered) + '건' : '')
+             + (r.errors ? ' · ⚠ 탐지 스크립트 오류 있음(서버 로그 확인)' : '')
+           : '✅ 스캔 완료')
+      : '🔄 스캔 중 — ' + pct + '%';
+    var sub = finished
+      ? '아래 목록을 방금 새로 그렸습니다.'
+      : (d.phase === '법령' ? '1단계: 법령 개정 광역질의'
+        : d.phase === '행정규칙' ? '2단계: 행정규칙(고시) 광역질의'
+        : '준비 중') +
+        (d.label ? ' · ' + esc(String(d.label)) : '') +
+        (d.total ? ' (' + nfmt(d.done) + '/' + nfmt(d.total) + ' 질의)' : '') +
+        (d.detail ? ' · 고시 상세 ' + nfmt(d.detail) + '건 확인' : '');
+    box.innerHTML = '<div class="nrya-gauge-head"><b>' + headTxt + '</b></div>' +
+      '<div class="nrya-gauge-bar"><i style="width:' + (finished ? 100 : pct) + '%"></i></div>' +
+      '<div class="nrya-gauge-sub">' + sub + '</div>' +
+      (finished ? '' : '<div class="nrya-gauge-note">막대는 <b>질의 진행도</b>입니다(남은 시간이 아닙니다). 부처마다 고시 수가 달라 한동안 안 움직일 수 있지만, 아래 숫자가 늘고 있으면 정상입니다. 이 방을 벗어나도 스캔은 계속 돕니다.</div>');
   }
 
   /** renderAmendCards 의 목록 부분만 새로고침(스캔 버튼은 그대로 둔다). */
@@ -2257,6 +2338,7 @@
     chatConvEnded = true; // ⑥ 이 대화는 여기서 끝 — 다음에 열 때 startConversation 이 새 번호를 딴다
     closeHistory(true);   // 기록 화면을 켜둔 채 닫았어도 다음에 열면 평소 대화 화면부터
     closeProf();          // 내 정보 화면도 마찬가지 — 켜둔 채 닫으면 다음에 그 화면이 그대로 떴다
+    histRestorePoint = null;  // 되돌리기 지점도 버린다 — 다음에 열면 홈부터 새로 시작한다
   }
 
   /**
@@ -2486,7 +2568,22 @@
   function onHistBack() {
     if (isProfOpen()) closeProf();
     if (isHistoryOpen()) closeHistory(true);
-    else setHistHeader(false);   // 지난 대화를 펼쳐 둔 상태(목록은 이미 닫힘) — 헤더만 홈으로
+    else setHistHeader(false);
+    restoreFromHistory();   // 지난 대화를 펼쳐 뒀다면 펼치기 직전 상태로 되돌린다
+  }
+
+  /**
+   * 지난 대화를 채팅창에 붙이기 **직전**의 상태로 되돌린다(붙인 적이 없으면 아무것도 안 한다).
+   * 2026-09-10 사용자 지적으로 넣었다 — *"채팅창으로를 눌러도 초기화된 화면이 아니라 기존
+   * 화면에서 위 버튼만 바뀌는데?"* 종전에는 헤더만 바뀌고 붙인 대화가 그대로 남았다.
+   * 되돌린 뒤에도 그 대화는 기기에 저장돼 있어 [대화이력]에서 언제든 다시 볼 수 있다.
+   * [연계] ← onHistBack · closeChat. → openHistoryGroup(여기서 되돌릴 자리를 찍는다).
+   */
+  function restoreFromHistory() {
+    if (histRestorePoint === null) return;
+    var body = document.getElementById('nryaChatBody');
+    if (body) { body.innerHTML = histRestorePoint; _scrollChatBottom(); }
+    histRestorePoint = null;
   }
 
   // ── [H-37 §7] 나에 대해서 설명하기(온디바이스 프로필) ─────────────────────────
@@ -2789,6 +2886,12 @@
     if (!grp || !grp.items.length) return;
     closeHistory(false);   // 목록만 닫고 ‹ 는 남긴다
     var body = document.getElementById('nryaChatBody');
+    // ★[채팅창으로]로 되돌아갈 자리를 먼저 찍어 둔다(2026-09-10 사용자 지적).
+    //   종전에는 지난 대화를 채팅창에 붙인 뒤 [채팅창으로]를 눌러도 **버튼만 바뀌고 붙인 내용이
+    //   그대로 남아** 홈으로 못 갔다. 붙이기 **직전**의 채팅창을 기억해 뒀다가 그 상태로 되돌린다
+    //   — 통째로 비우지 않는 이유는, 지난 대화를 열어 보기 전에 하던 **진행 중 대화**까지
+    //   날아가면 안 되기 때문이다. 여러 건을 연달아 펼쳐도 **맨 처음 자리**로 돌아간다.
+    if (body && histRestorePoint === null) histRestorePoint = body.innerHTML;
     if (body) {
       // 지금 하고 있는 대화와 섞이지 않게 "여기부터 지난 대화"라고 한 줄 끼운다.
       var sep = document.createElement('div'); sep.className = 'nrya-hist-sep';
