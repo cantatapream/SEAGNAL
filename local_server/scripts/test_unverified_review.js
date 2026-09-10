@@ -84,6 +84,27 @@ console.log('── REVIEW 가 없으면 본문을 건드리지 않는다 ──
   ok('머리표를 붙이지 않는다', R.markUnresolvedReview(body) === body);
 }
 
+console.log('── 페이지 상태 안내줄(draft — 미승인)은 밀려나지 않는다 ──');
+{
+  // 2026-09-10 사용자 확정("빼자"). 안내줄 뒤에 그 페이지 본문이 이어 붙는 관례라,
+  // 상태 표시 하나 때문에 멀쩡한 서술까지 [미확인]으로 빠지고 있었다(전 위키 실측 125줄).
+  const body = [
+    '> ⚠ **draft — 미승인(2026-07-21 환원).** 본문에 AI 법리추론형 REVIEW 가 남아 draft 유지 대상.'
+      + ' 이 페이지는 어선 등록 절차를 다룬다.',
+    '- 제5조: 어선을 소유한 자는 등록하여야 한다.',
+    '- ⚠REVIEW: "소유"에 임차가 포함되는지는 원문이 정하지 않는다.',
+  ].join('\n');
+  const out = R.markUnresolvedReview(body);
+  const head = out.indexOf(HEAD);
+  const kept = head < 0 ? out : out.slice(0, head);
+  const moved = head < 0 ? '' : out.slice(head);
+  ok('T-banner-1 상태 안내줄은 본문에 그대로 남는다', /draft — 미승인/.test(kept));
+  ok('T-banner-2 안내줄 뒤에 이어 붙은 서술도 함께 남는다', /어선 등록 절차를 다룬다/.test(kept));
+  ok('T-banner-3 안내줄이 [미확인]으로 옮겨지지 않는다', !/draft — 미승인/.test(moved));
+  ok('T-banner-4 진짜 판단 줄은 여전히 [미확인]으로 옮겨진다', /"소유"에 임차가 포함/.test(moved));
+  ok('T-banner-5 REVIEW 없는 줄은 그대로 남는다', /제5조: 어선을 소유한 자/.test(kept));
+}
+
 console.log('── 답변 규칙에 "단정하지 마라"가 있다 ──');
 {
   const rules = R.ANSWER_RULES_BODY || '';

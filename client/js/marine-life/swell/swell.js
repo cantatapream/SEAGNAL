@@ -12,6 +12,8 @@
  *  - 마크업        : index2.html 의 #swell-section (#swell-map, #swell-publish-time 등)
  *  - 나를 쓰는 곳  : js/forecast/alerts/marine.js 의 _onSectionActivated('swell-section')
  *                    → window.initSwellMap() 호출
+ *                    js/marine-life/safety/life_safety.js → window.getSwellMap()
+ *                    (오른쪽 세로 레일에서 고르고 배경지도를 갈아끼울 때)
  * [로드 순서] js/marine-life/ripcurrent/ripcurrent.js 다음 — 순서 변경 금지
  *
  * [왜 해안선을 칠하나]
@@ -95,6 +97,15 @@
         _loadAndDraw();
     };
 
+    /**
+     * 이 탭의 지도 인스턴스를 준다(아직 안 만들었으면 null).
+     * 예: 해양안전생활 화면이 배경지도를 "전자해도"로 바꿀 때 이 지도를 받아 갈아끼운다.
+     * @returns {ol.Map|null}
+     * [연계] ← js/marine-life/safety/life_safety.js 의 ACTIVITIES[].getMap
+     *          다른 활동(getFishingMap·getSwimmingMap 등)과 같은 규약이다.
+     */
+    window.getSwellMap = function () { return swellMap; };
+
     // ========================================================================
     // 2. 자료 받아 그리기
     // ========================================================================
@@ -107,7 +118,11 @@
      *          → _draw() 가 실제로 선을 만든다.
      */
     async function _loadAndDraw() {
-        _setStatus('불러오는 중…');
+        // 불러오는 동안에는 '기준: -' 그대로 둔다. 해양안전생활 화면이 이 칸을 읽어
+        // 토스트로 띄우는데(life_safety.js _toastPublishTime), '-' 를 "아직 값 없음"으로
+        // 보고 0.5초 간격으로 네 번 다시 보기 때문이다. '불러오는 중…' 을 넣으면
+        // 그것을 값으로 오해해 그대로 띄운다.
+        _setStatus('기준: -');
         try {
             if (!segments) {
                 const r = await fetch(SEGMENTS_URL);

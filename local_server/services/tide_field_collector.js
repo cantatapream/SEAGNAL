@@ -43,6 +43,7 @@ const { spawn } = require('child_process');
 const C = require('./tide_field_common');
 const CFG = C.TIDE_FIELD_CONFIG;
 const { findTidePeaks } = require('../peak_finder');
+const prevPeaks = require('./hazard_rocks_prev_peaks');
 
 // tide_collector 는 server_config(→dotenv/express) 체인을 끌어온다. 실제 수집
 // 시점에만 필요하므로 lazy-require 로 둔다. 덕분에 helper(날짜/경로/완전성)만
@@ -638,6 +639,14 @@ async function _collectTideFieldInner(opts = {}) {
     // 수집 직후 프리컴퓨트(자식 프로세스, fire-and-forget). 회로 차단(aborted)으로
     //   부분 수집됐어도 최신 곡선으로 프레임을 갱신해 두는 편이 낫다(폴백 안전).
     spawnPrecompute(log);
+    // [어제 극값 요약] 곡선을 지우기 전에 그날 극값만 따로 남긴다 — 간출암 조석 팝업이
+    //   "그날 첫 물때의 증감"을 계산하려면 어제 마지막 극값이 필요한데, 곡선 파일은
+    //   바로 아래에서 지워지기 때문이다(사용자 확정 2026-09-09).
+    //   [연계] services/hazard_rocks_prev_peaks.js → hazard_rocks_submersion.getTideCurve
+    try {
+        const r = prevPeaks.captureWindow('tf', dates, anchorList.map(a => a.id), curvePath, log);
+        log(`극값 요약: ${r.captured}일 저장, 옛 파일 ${r.pruned}개 정리`);
+    } catch (e) { log(`⚠️ 극값 요약 실패(수집 결과에는 영향 없음): ${e.message}`); }
     // [retention] 수집 직후 윈도우 밖(과거 날짜) 곡선 파일 정리 → 볼륨 누적/ENOSPC 방지.
     try { purgeStaleCurves(log); } catch (e) { /* 정리 실패는 수집 결과에 영향 없음 */ }
     return { ok: true, collected: done, total: tasks.length, aborted, elapsedSec: +elapsed, byStatus };

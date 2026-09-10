@@ -50,6 +50,10 @@ local_server/data/admrul_fresh_report.json
 local_server/data/law_fresh_report.json
 local_server/data/admrul_fresh_queue.jsonl
 local_server/data/admrul_fresh_status.json
+# 개정검토(services/legal_amendment_scanner.js) 산출물 — 같은 이유로 볼륨에만 둔다(2026-09-10).
+# 첫 배포 때 git 사본(_amendments/queue.jsonl · _dashboard/law_change_queue.json)으로 시드된다.
+local_server/data/legal_amendments_queue.jsonl
+local_server/data/law_change_queue.json
 
 # 법률위키 사람검증 승인 이력 — 서버가 관리자 승인 때마다 쓰는 런타임 상태(볼륨).
 # 저장소에 반영할 때는 GET /api/legal/reviews/approvals 로 받아

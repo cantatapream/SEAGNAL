@@ -290,6 +290,7 @@
         }
         // 이미 선택돼 있던 구역을 다시 탭 — 상세 팝업 표시.
         var name = hit.get('name') || '선박교통관제구역';
+        if (window.trackUsage) window.trackUsage('safety.vts.zone');  // [사용량] 폴리곤 눌러 정보를 볼 때 1건
         if (typeof window.showSeagnalModal === 'function') {
             window.showSeagnalModal(name, _buildDetailHtml(hit), 'info');
             // 관제센터 주소가 길어 기본 폭(320px)보다 넓게 — 출입통제 팝업과 같은 클래스를 재사용
@@ -323,6 +324,7 @@
             if (_layer) _layer.setVisible(_visible);
             if (_fillLayer) _fillLayer.setVisible(_visible);
             if (_visible) {
+                if (window.trackUsage) window.trackUsage('safety.vts');  // [사용량] 켤 때만 1건
                 _load();
                 // 관제구역은 항로·항계와 함께 보는 항해 정보라, 위성지도가 아니라
                 // 전자해도(enc)로 배경을 자동 전환한다(사용자 지시).

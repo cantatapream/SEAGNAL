@@ -4,14 +4,19 @@
  * 역할  : 해양법령 챗봇(나리야) 인앱 모듈. 두 갈래로 나뉜다.
  *         (A) 관리자 콘솔 — 통합관리자 센터의 "나리야 법령" 탭이 부르는
  *             window.NariyaChat.renderAdminInto(container) 로, 지식 방 브라우저
- *             (원문/위키개념/법령/비교허브/별표/지식그래프 + 역할설명 인트로카드)
+ *             (원문/위키개념/법령/비교허브/별표/지식그래프 + 역할설명 인트로카드 —
+ *              2026-09-09부터 숫자·목록·시행일이 전부 서버 실데이터이고 목록은 한 쪽 10개씩
+ *              « ‹ 1 2 3 4 5 › » 로 넘긴다)
  *             + 관리자 검토센터(6개 서브탭·원본 vs AI값·교정입력·승인/반려·반영사슬)
  *             + 챗봇 노출 토글(서버 전역 설정)을 렌더한다.
  *         (B) 사용자 챗봇 — 우측 하단 FAB + 카카오톡풍 채팅 팝업(생각중·스켈레톤·
  *             근거법령 아코디언 = 위임흐름 체인 + 조문 카드를 누르면 뜨는 조문 원문 팝업).
- *             헤더 🕘 는 이 기기에 저장해둔 **지난 대화 기록**(localStorage
- *             'nariya_history_v1' — 질문·답변 문장만, 근거 법령은 저장 안 함)을
- *             날짜별 목록으로 열고, 항목을 누르면 그 질문/답변을 말풍선으로 되살린다.
+ *             헤더 [대화이력] 은 이 기기에 저장해둔 **지난 대화 기록**(localStorage
+ *             'nariya_history_v1')을 **대화 단위**로 묶어 열고(2026-09-09 ⑥ — 채팅창을
+ *             연 뒤 닫기 전까지가 한 대화다), 한 줄을 누르면 그 대화에서 오간 질문·답변이
+ *             순서대로 이어 붙는다. 대화 식별자가 없는 옛 기록은 날짜별로 묶어 보여준다.
+ *             헤더 [내 정보] 는 온디바이스 프로필 화면을 연다(2026-09-09 ② — 예전에는
+ *             ⚙·🕘 아이콘이었으나 무엇인지 알 수 없다는 지적으로 글자 버튼이 됐다).
  *             #nrya-overlays(body) 에 산다.
  *         FAB 는 (1) 앱 메인 특보 탭일 때만, (2) 서버 노출설정이 허용할 때만 보인다.
  *         (초보자용: 이 파일이 관리자용 나리야 콘솔과 사용자용 챗봇 버튼/창을 만든다)
@@ -38,7 +43,19 @@
  *                                                               + last: 마지막 점검이 언제·어떻게 끝났나)
  *                    POST /api/legal/freshness/:id/decide       (처리완료/해당없음)
  *                    POST /api/legal/freshness/scan-now         (즉시 1회 점검, 백그라운드 20~30분)
+ *                    POST /api/legal/amendments/decide-all      (개정검토 전체 승인 — 2026-09-10 신설)
+ *                    GET  /api/legal/amendments/decide-all/preview (전체 승인 전 미리보기: 대기 N건 중
+ *                                                               몇 건이 승인 즉시 답변을 바꾸나)
+ *                    GET  /api/legal/amendments/wiki-brief-all  (승인분 전 건을 한 덩어리 지시문으로)
  *                    GET  /api/legal/drafts                    (초안승인 탭 목록)
+ *                    GET  /api/legal/rooms/stats               (지식 방 갈래 버튼 6개 숫자 +
+ *                                                               인트로 칩 — 개념 status·그래프 엣지 종류.
+ *                                                               2026-09-09: 종전에는 이 숫자가 전부
+ *                                                               시안에서 베낀 상수였다)
+ *                    GET  /api/legal/rooms/list?room&page       (방 6개 목록 · 한 쪽 10개 페이지네이션.
+ *                                                               room=raw|concept|statute|comparison|annex|graph)
+ *                    GET  /api/legal/rooms/law?dir              (원문 방 아코디언 한 칸 — 계층별 **실제
+ *                                                               시행일**(.txt 머리말)·별표/서식·고시)
  *                    POST /api/legal/ask {query, deviceId, notifyOnComplete, ctx?, profile?, lastQuestion?}
  *                                                              (질문→AI 답변 스트리밍(NDJSON)+근거 법령
  *                                                               · done 에 clarify{question,options} 가 오면
@@ -93,12 +110,16 @@
   // [H-37 §4.3] "아니요, 다시 설명할게요"를 누른 뒤 사용자가 새로 칠 문장 **한 번**에만 실릴 ctx.
   //   메모리에만 둔다 — localStorage 에 저장하면 새로고침 뒤 오래된 대기가 되살아난다(설계 §9.1 #3).
   var pendingCtx = null;
+  var chatPending = 0;   // 답을 기다리는 중인 요청 수 — 0 이어야 채팅창을 홈으로 비운다(resetToHome)
+  var histRestorePoint = null;  // 지난 대화를 붙이기 직전의 채팅창 HTML([채팅창으로]가 여기로 되돌린다)
   // [H-37 §3.2 · 2026-08-14 적대검증 F2] 서버가 마지막 답변에 실어 보낸 ctxNext(= 지금까지 확정된
   //   맥락). **ctx 를 안 든 선택지 버튼**(기존 되묻기·트리 되묻기)을 눌러도 이 값을 이어 보내야
   //   직전에 확정한 조건이 사라지지 않는다 — 안 그러면 프로필로 "네"를 누른 축을 서버가 다시 묻는
   //   무한루프가 된다(라이브 재현). 사용자가 **새 질문을 직접 타이핑**하면 그 순간 비운다(§9.1 #1).
   //   pendingCtx 와 마찬가지로 메모리에만 둔다(새로고침하면 소멸).
   var lastCtx = null;
+  // 채팅창을 처음 열었을 때 보이는 인사말 한 줄. 창을 닫았다 다시 열면 이 상태(=홈)로 되돌린다.
+  var GREETING_HTML = '<div class="nrya-krow nrya-ai"><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div></div></div></div>';
   // [H-37 최소 절충안, 2026-08-15] 직전에 보낸 질문 원문 — lastCtx와 달리 **새 질문을 타이핑해도
   //   안 비운다**(그게 이 값의 존재 이유다). ctx가 아니라 별도 필드로만 보내 서버가 "확정된 조건"이
   //   아니라 "확인 후보" 하나를 되묻기에 더 보여줄 때만 쓴다(routes/legal.js `lastQuestion` 참고).
@@ -238,106 +259,96 @@
   function avatarHTML(extra) { return '<div class="nrya-ava' + (extra ? ' ' + extra : '') + '"><img src="' + NARIYA_IMG + '" alt="나리야"></div>'; }
 
   // ============================================================================
-  // 지식 방 데이터 모델 (대표 정적 콘텐츠 · nrya- 접두어)
+  // 지식 방 데이터 모델 (nrya- 접두어)
+  //   ★숫자·목록·시행일은 **전부 서버 실데이터**다 — GET /api/legal/rooms/stats · /rooms/list · /rooms/law.
+  //   ⚠2026-09-09 이전에는 이 자리에 client/mockups/ai_chat_rooms.html 의 **디자인 시안 숫자를 그대로
+  //     박아** 두었고(위키개념 919·법령 73·비교허브 26·별표서식 98·그래프 88노드/1,310엣지·
+  //     개념 canonical 8/draft 842), 실제와 크게 어긋나 있었다(963·74·49·199·109노드/2,180엣지·
+  //     canonical 734/draft 226). 특히 **시행일자**가 원문과 달라(선박안전법 화면 2025-01-24 ↔
+  //     원문 2023-06-28) 관리자가 원문 최신판을 오인할 수 있었다. 그래서 상수를 전부 없앴다 —
+  //     ROOMS 에 남은 것은 화면 설명글(ic·tag·desc)뿐이고, 숫자는 roomStats 에서만 온다.
+  //     시안 파일의 숫자를 다시 베끼지 말 것.
   // ============================================================================
-  var accHTML =
-    '<div class="nrya-acc nrya-open"><div class="nrya-acc-head"><div style="flex:1;min-width:0"><div class="nrya-acc-name">해상교통안전법</div><div class="nrya-acc-dom">03 해상교통안전 · 해양수산부</div></div><div class="nrya-eff"><span class="nrya-lbl">시행</span>2024. 7. 26.</div><div class="nrya-chev">▼</div></div>' +
-      '<div class="nrya-acc-body">' +
-        '<div class="nrya-file"><div class="nrya-file-ic">법</div><div class="nrya-file-nm">법률<span class="nrya-file-amd">· 일부개정</span></div><div class="nrya-file-eff">시행 2024. 7. 26.</div></div>' +
-        '<div class="nrya-file"><div class="nrya-file-ic nrya-rule">령</div><div class="nrya-file-nm">시행령<span class="nrya-file-amd">· 일부개정</span></div><div class="nrya-file-eff">시행 2025. 5. 20.</div></div>' +
-        '<div class="nrya-file"><div class="nrya-file-ic nrya-rule">칙</div><div class="nrya-file-nm">시행규칙</div><div class="nrya-file-eff">시행 2024. 7. 26.</div></div>' +
-        '<div class="nrya-byl-title">별표 · 별지 서식 (64건)</div>' +
-        '<div class="nrya-byl"><span class="nrya-byl-no">령 별표1</span><div style="flex:1"><div class="nrya-byl-nm">교통안전특정해역의 범위(제5조 관련)</div><div class="nrya-dl"><a href="#">⬇ HWP 원본</a><a href="#" class="nrya-img">🖼 이미지</a><a href="#">📄 본문(텍스트)</a></div></div></div>' +
-        '<div class="nrya-byl"><span class="nrya-byl-no">칙 별표3</span><div style="flex:1"><div class="nrya-byl-nm">해양사고 관련 보고 서식</div><div class="nrya-dl"><a href="#">⬇ HWP 원본</a><a href="#">📄 본문</a></div></div></div>' +
-      '</div></div>' +
-    ['선박안전법|02 선박 · 별표 147|2025. 1. 24.', '수산업법|06 수산 · 별표 122|2024. 12. 20.', '해양환경관리법|09 해양환경|2025. 7. 25.', '수상레저안전법|05 레저 · 해양경찰청|2024. 7. 31.']
-      .map(function (x) { var p = x.split('|'); return '<div class="nrya-acc"><div class="nrya-acc-head"><div style="flex:1;min-width:0"><div class="nrya-acc-name">' + p[0] + '</div><div class="nrya-acc-dom">' + p[1] + '</div></div><div class="nrya-eff"><span class="nrya-lbl">시행</span>' + p[2] + '</div><div class="nrya-chev">▼</div></div><div class="nrya-acc-body"></div></div>'; }).join('');
 
-  /** 리스트 래퍼. @param {string[]} arr @returns {string} */
-  function items(arr) { return '<div class="nrya-list">' + arr.join('') + '</div>'; }
-
-  /** 개념 리스트 아이템 1개 HTML. @returns {string} */
-  function concept(t, s, st, stc, chips) {
-    return '<div class="nrya-item"><div class="nrya-item-b"><div class="nrya-item-t">' + t + '</div><div class="nrya-item-s">' + s + '</div>' +
-      (chips ? '<div class="nrya-chips">' + chips.map(function (c) { return '<span class="nrya-chip">' + c + '</span>'; }).join('') + '</div>' : '') +
-      '</div>' + (st ? '<span class="nrya-stbadge ' + stc + '">' + st + '</span>' : '') + '</div>';
-  }
+  // 방 이름(화면·한글) → 서버 room 파라미터(ASCII). 한글을 쿼리에 그대로 싣지 않기 위한 대응표.
+  var ROOM_KEY = { 원문: 'raw', 위키개념: 'concept', 법령: 'statute', 비교허브: 'comparison', '별표·서식': 'annex', 지식그래프: 'graph' };
 
   var ROOMS = {
     원문: {
-      ic: '📁', tag: 'raw/ · 원문 보관실', n: '70법 · 7,203 원문',
-      desc: '국가법령정보센터 <b>원문 아카이브(불변)</b>입니다. 위키의 재료가 되는 1층. 법률·시행령·시행규칙 전문 + 별표·서식 + 고시(행정규칙)를 법령별로 보관합니다. 누르면 법령별 아코디언 → 시행일·별표 다운로드.',
-      meta: ['불변', '15 도메인', '별표·고시 포함'],
-      render: function () { return items([accHTML]); }
+      ic: '📁', tag: 'raw/ · 원문 보관실',
+      desc: '국가법령정보센터 <b>원문 아카이브(불변)</b>입니다. 위키의 재료가 되는 1층. 법률·시행령·시행규칙 전문 + 별표·서식 + 고시(행정규칙)를 법령별로 보관합니다. 누르면 법령별 아코디언 → 계층별 실제 시행일·별표·고시.'
     },
     위키개념: {
-      ic: '📗', tag: 'wiki/concepts/ · 답변 근거실', n: '919 개념',
-      desc: '원문을 엮은 <b>개념 페이지</b>. 챗봇이 실제 답변에 사용하는 핵심 근거(2층). 정의우선·처벌 3축·타법연결을 담습니다. status(승인상태)에 따라 챗봇 인용 여부가 결정됩니다.',
-      meta: ['canonical 8', 'review-pending 83', 'draft 842'],
-      render: function () {
-        return items([
-          concept('음주운항조타', '해상교통안전법 · 혈중알코올 0.03% 기준', 'canonical', 'nrya-st-can', ['처벌 3축', '↔ 수상레저']),
-          concept('어선등록총톤수', '어선법 · 등록·검사 정의', 'canonical', 'nrya-st-can', ['정의우선']),
-          concept('만재흘수선복원성', '선박안전법 · 안전수치 포함', 'review-pending', 'nrya-st-rev', ['⚠ 사람승인 대기']),
-          concept('허가어업', '수산업법 · 톤수 구간·처벌', 'review-pending', 'nrya-st-rev', ['처벌 포함']),
-          concept('연안출입통제구역', '연안사고예방법 · 초안', 'draft', 'nrya-st-draft', ['미승인'])]);
-      }
+      ic: '📗', tag: 'wiki/concepts/ · 답변 근거실',
+      desc: '원문을 엮은 <b>개념 페이지</b>. 챗봇이 실제 답변에 사용하는 핵심 근거(2층). 정의우선·처벌 3축·타법연결을 담습니다. status(승인상태)에 따라 챗봇 인용 여부가 결정됩니다.'
     },
     법령: {
-      ic: '📘', tag: 'wiki/statutes/ · 법령 허브', n: '73 법령',
-      desc: '각 법의 <b>허브 페이지</b>(2층). 목차·타법연결 표·처벌 요약을 한 곳에 모아, 그 법의 전체 그림과 다른 법과의 연결을 봅니다. 개념 페이지들의 착지점.',
-      meta: ['70 기준법 + 교차참조'],
-      render: function () {
-        return items([
-          concept('해상교통안전법', '타법연결 12 · 개념 22', '', 'nrya-st-can', ['허브']),
-          concept('수산업법', '타법연결 28 · 개념 19', '', 'nrya-st-can', ['최대 백본']),
-          concept('선박안전법', '타법연결 · 별표 147', '', 'nrya-st-can', []),
-          concept('영해 및 접속수역법', '정의 백본 · 19법이 인용', '', 'nrya-st-can', ['정의 허브'])]);
-      }
+      ic: '📘', tag: 'wiki/statutes/ · 법령 허브',
+      desc: '각 법의 <b>허브 페이지</b>(2층). 목차·타법연결 표·처벌 요약을 한 곳에 모아, 그 법의 전체 그림과 다른 법과의 연결을 봅니다. 개념 페이지들의 착지점.'
     },
     비교허브: {
-      ic: '🔀', tag: 'wiki/comparisons/ · 테마 비교실', n: '26 허브',
-      desc: '여러 법을 <b>하나의 축으로 비교</b>하는 방(신경망 허브). "음주운항 처벌은 법마다 어떻게 다른가" 같은 교차 질문에 답합니다. 톤수·조업형태·지역 조건 컬럼으로 프로필 필터와 연결.',
-      meta: ['교차법 비교', '신경망 허브'],
-      render: function () {
-        return items([
-          concept('음주운항_측정거부', '5개 법 · 0.03% 기준 비교', '', 'nrya-st-can', ['처벌축']),
-          concept('형사절차_일반', '공소시효·미수·경합범', '', 'nrya-st-can', []),
-          concept('신고_허가_면허', '행정행위 강도 3분해', '', 'nrya-st-can', ['조건 컬럼']),
-          concept('폐기물_해양오염', '배출·투기 규제 비교', '', 'nrya-st-can', [])]);
-      }
+      ic: '🔀', tag: 'wiki/comparisons/ · 테마 비교실',
+      desc: '여러 법을 <b>하나의 축으로 비교</b>하는 방(신경망 허브). "음주운항 처벌은 법마다 어떻게 다른가" 같은 교차 질문에 답합니다. 톤수·조업형태·지역 조건 컬럼으로 프로필 필터와 연결.'
     },
     '별표·서식': {
-      ic: '📊', tag: 'wiki/annexes/ · 별표·서식실', n: '98 정리본',
-      desc: '별표(표·기준)와 별지 서식의 <b>정리본</b>. 원문 이미지/HWP를 표로 정리하고, 서식은 원버튼 다운로드를 제공합니다. 이미지 판독 수치는 ⚠REVIEW로 사람 검증 대기.',
-      meta: ['표 정리', '서식 다운로드', '⚠REVIEW 일부'],
-      render: function () {
-        return items([
-          concept('수상레저안전법 시행규칙 별표6', '조종면허 취소·정지 세부기준', '', 'nrya-st-can', ['⬇ 다운로드']),
-          concept('선박안전법 별표1의2', '대행검사기관 협정내용', 'review-pending', 'nrya-st-rev', ['⚠ 판독값']),
-          concept('해상교통안전법 별표1', '교통안전특정해역 좌표', '', 'nrya-st-can', ['🗺 지도'])]);
-      }
+      ic: '📊', tag: 'wiki/annexes/ · 별표·서식실',
+      desc: '별표(표·기준)와 별지 서식의 <b>정리본</b>. 원문 이미지/HWP를 표로 정리하고, 서식은 원버튼 다운로드를 제공합니다. 이미지 판독 수치는 ⚠REVIEW로 사람 검증 대기.'
     },
     지식그래프: {
-      ic: '🕸️', tag: 'wiki/graph.json · 신경망', n: '88 노드 · 1,310 엣지',
-      desc: '법·개념을 <b>노드</b>, 인용·[[링크]]를 <b>엣지</b>로 본 신경망(그래프층). 챗봇 멀티홉 검색이 이 인접구조를 타고 근거를 확장합니다. 관리자는 고립노드·비대칭·허브결손을 눈으로 점검.',
-      meta: ['멀티홉 기반', 'cite+link 639', 'link 395'],
-      render: function () {
-        var g = '<div class="nrya-g-stats"><div class="nrya-g-stat"><div class="nrya-g-num">88</div><div class="nrya-g-lab">노드(법)</div></div><div class="nrya-g-stat"><div class="nrya-g-num">1,310</div><div class="nrya-g-lab">엣지(인용·링크)</div></div></div>';
-        var canvas = '<div class="nrya-g-canvas">';
-        var pos = [[15, 30], [45, 20], [75, 35], [30, 65], [60, 70], [85, 60], [50, 45], [20, 50]];
-        pos.forEach(function (p) { canvas += '<div class="nrya-g-node" style="left:' + p[0] + '%;top:' + p[1] + '%"></div>'; });
-        [[0, 6], [1, 6], [2, 6], [6, 3], [6, 4], [4, 5], [7, 0], [7, 3]].forEach(function (e) {
-          var a = pos[e[0]], b = pos[e[1]]; var dx = (b[0] - a[0]), dy = (b[1] - a[1]); var len = Math.sqrt(dx * dx + dy * dy); var ang = Math.atan2(dy * 1.5, dx * 6) * 180 / Math.PI;
-          canvas += '<div class="nrya-g-edge" style="left:' + a[0] + '%;top:' + a[1] + '%;width:' + len * 5.5 + 'px;transform:rotate(' + ang + 'deg)"></div>';
-        });
-        canvas += '</div>';
-        return '<div class="nrya-list">' + g + canvas + '<div class="nrya-skel-box" style="text-align:left"><div class="nrya-skel-t">그래프 뷰 · 골격</div><div style="font-size:12px;color:var(--nrya-text-sub);line-height:1.6">실배선 시: 노드 탭 → 그 법의 인접 법·개념 하이라이트, 고립노드 빨강 표시, 비대칭 링크 경고. 관리자가 ⚠REVIEW·개정 큐와 연동해 점검.</div></div></div>';
-      }
+      ic: '🕸️', tag: 'wiki/graph.json · 신경망',
+      desc: '법·개념을 <b>노드</b>, 인용·[[링크]]를 <b>엣지</b>로 본 신경망(그래프층). 챗봇 멀티홉 검색이 이 인접구조를 타고 근거를 확장합니다. 아래 목록은 연결이 많은 법부터 — 관리자는 고립노드·허브결손을 여기서 봅니다.'
     }
   };
   var ROOM_ORDER = ['원문', '위키개념', '법령', '비교허브', '별표·서식', '지식그래프'];
   var ROOM_N = { 원문: true, 위키개념: true };
+
+  var roomStats = null;      // GET /api/legal/rooms/stats 결과(방 통계). 못 받았으면 null.
+  var roomPage = {};         // 방마다 지금 보고 있는 쪽(1부터). 방을 다시 열면 그 쪽으로 돌아온다.
+  var curRoom = '원문';      // 지금 열려 있는 방 — 인트로 카드를 다시 칠할 때 쓴다.
+  var roomSeq = 0;           // 목록 요청 일련번호. 쪽·방을 빨리 바꾸면 늦게 온 응답이 최신 화면을
+                             //   덮어써 "3쪽을 눌렀는데 2쪽이 보이는" 일이 생긴다 — 최신 것만 그린다.
+  var ROOM_PAGE_WINDOW = 5;  // 쪽 번호를 한 번에 5개까지만 보인다(사고내역 팝업과 같은 규칙).
+
+  /** 숫자를 1,286 처럼 세 자리마다 끊어 쓴다. @param {number} n @returns {string} */
+  function nfmt(n) { return Number(n || 0).toLocaleString('ko-KR'); }
+
+  /**
+   * 원문 머리말의 시행일(YYYYMMDD)을 화면 표기로 바꾼다. 값이 없으면 지어내지 않는다.
+   * 예: effLabel('20230628') → '2023. 6. 28.' · effLabel('') → ''
+   * @param {string} s - 8자리 숫자 문자열
+   * @returns {string} 8자리가 아니면 '' (호출부가 "확인 안 됨"을 대신 쓴다)
+   * [연계] ← rawRowHTML/lawBodyHTML. 서버 /api/legal/rooms/law 이 .txt 머리말에서 읽어 준 값을 그대로 표시.
+   */
+  function effLabel(s) {
+    var m = /^(\d{4})(\d{2})(\d{2})$/.exec(String(s || ''));
+    return m ? m[1] + '. ' + Number(m[2]) + '. ' + Number(m[3]) + '.' : '';
+  }
+
+  /** 도메인 폴더명을 사람이 읽는 꼴로. 예: '04_선박해운' → '04 선박해운'. @param {string} d @returns {string} */
+  function domLabel(d) { return String(d || '').replace('_', ' '); }
+
+  /** status 값에 맞는 배지 CSS 클래스. @param {string} st @returns {string} */
+  function stClass(st) { return st === 'canonical' ? 'nrya-st-can' : (st === 'review-pending' ? 'nrya-st-rev' : 'nrya-st-draft'); }
+
+  /** 리스트 래퍼. @param {string[]} arr @returns {string} */
+  function items(arr) { return '<div class="nrya-list">' + arr.join('') + '</div>'; }
+
+  /**
+   * 목록 아이템 1개 HTML(개념·법령·비교허브·별표서식·그래프 공용).
+   * 예: itemHTML('음주운항조타', '해상교통안전법', 'canonical', ['처벌 포함'])
+   * @param {string} t - 제목
+   * @param {string} s - 부제(법 이름·수치 요약)
+   * @param {string} st - 오른쪽 배지 글자(없으면 배지를 안 그린다)
+   * @param {string} stc - 배지 CSS 클래스
+   * @param {string[]} [chips] - 파란 칩 목록
+   * @returns {string}
+   * [연계] ← paintRoomList. 서버 /api/legal/rooms/list 가 준 값만 넣는다(지어낸 값 없음).
+   */
+  function itemHTML(t, s, st, stc, chips) {
+    return '<div class="nrya-item"><div class="nrya-item-b"><div class="nrya-item-t">' + esc(t) + '</div><div class="nrya-item-s">' + esc(s) + '</div>' +
+      (chips && chips.length ? '<div class="nrya-chips">' + chips.map(function (c) { return '<span class="nrya-chip">' + esc(c) + '</span>'; }).join('') + '</div>' : '') +
+      '</div>' + (st ? '<span class="nrya-stbadge ' + stc + '">' + esc(st) + '</span>' : '') + '</div>';
+  }
 
   // ============================================================================
   // 관리자 검토 데이터 모델 (5개 서브탭 전부 서버 연동 — 배지: refreshAdminStats/refreshStats,
@@ -348,7 +359,7 @@
     초안승인: { n: '…', desc: '사서(AI)가 만든 <b>미승인 초안(draft)</b> 대기실. 순수 정의·절차는 재검증 파이프라인이 자동 승격, 처벌·안전값 포함분은 ⚠수치검증 방에서 사람이 승인해야 canonical이 됩니다.', render: null /* 서버 연동: renderDraftCards */ },
     피드백: { n: '…', desc: '답변 <b>👍/👎 익명 로그</b>를 모아 원인 분류(triage) 후 관리자에게 올리는 방. 👎가 쌓인 주제 → 위키 보강으로 연결.', render: null /* 서버 연동: renderFeedbackCards */ },
     새지식후보: { n: '…', desc: '대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).', render: null /* 서버 연동: renderCandidateCards */ },
-    개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 시행일·MST diff로 신설·삭제·금액·조번재편을 적재.', render: null /* 서버 연동: renderAmendCards */ },
+    개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 바뀐 조문마다 <b>개정 전 → 개정 후 본문</b>을 펼쳐 볼 수 있고, 우리 원문에 없는 조는 <b>신설</b>로 표시됩니다.<br><b>승인을 누르면</b> ①미리 받아 둔 새 원문이 있는 건은 <b>시행일부터 챗봇 답변이 새 내용으로 바뀝니다</b>(시행일이 이미 지났으면 즉시) ②재수집 대상으로 표시됩니다. <b>원문 재수집과 위키 수정은 자동으로 되지 않습니다</b> — 서버는 저장소에 글을 쓸 수 없어, 작업 세션이 받아서 반영해야 합니다.<br><b>[✓ 전체 승인]</b> 은 대기 중인 건을 한 번에 승인합니다. <b>두 번 눌러야</b> 실행되며, 첫 번째 클릭에서 <b>몇 건이 승인 즉시(또는 시행일부터) 답변이 바뀌는지</b>를 먼저 알려 줍니다. 승인이 끝나면 <b>방금 승인한 전 건을 한 덩어리로 묶은 위키 반영 지시문</b>이 바로 펼쳐집니다.<br><b>[📋 승인분 전체 지시문]</b> 은 그 글을 나중에 다시 뽑을 때 씁니다(개별 카드의 지시문과 별개).', render: null /* 서버 연동: renderAmendCards */ },
     원문신선도: { n: '…', desc: '우리가 받아 둔 <b>법령·고시 원문이 낡았는지</b> 매주 자동 대조해 모아두는 방. 대상은 <b>행정규칙(고시·훈령) 653건 + 법률·시행령·시행규칙 222건</b>. 원문 머리글의 수집 일련번호와 law.go.kr 현행 일련번호를 기계로 비교한다(2026-08-23에 「위험물 선박운송 기준」이 2016년판으로 남아 있어 <b>이미 삭제된 조문을 현행처럼</b> 설명하던 사고가 있었다). 카드마다 <b>어느 위키를 고쳐야 하는지·무엇을 해야 하는지</b>가 함께 적힌다.', render: null /* 서버 연동: renderFreshCards */ },
     '⚠수치검증': { n: '…', desc: '별표 <b>이미지 판독값(OCR)·조번호 재편</b> 및 처벌·안전수치를 사람이 검증하는 방(가장 급함). 서버 review_queue.md 의 검증 대기 항목을 불러와 승인/반려한다.', render: null /* 서버 연동: renderReviewCards */ }
   };
@@ -387,11 +398,10 @@
           '</div>' +
           '<div id="nryaViewAdmin" class="nrya-hidden">' +
             '<div class="nrya-panel">' +
-              // 리뷰 전용 페이지(폰·PC에서 크게 읽고 승인) 바로가기
-              '<button type="button" onclick="window.open(\'/legal_review.html\',\'_blank\',\'noopener\')" ' +
-                'style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid rgba(105,240,174,.45);' +
-                'background:rgba(105,240,174,.12);color:#8fe6bb;font-family:inherit;font-weight:800;font-size:14px;padding:13px;border-radius:11px;margin-bottom:12px;cursor:pointer;">' +
-                '🔗 리뷰 전용 페이지 크게 열기 (승인 시 위키 자동 반영)</button>' +
+              // [2026-09-10 사용자 확정] 리뷰 전용 페이지(client/legal_review.html)를 없앴다 —
+              //   그 페이지가 쓰던 API(`/api/legal/reviews`·`/reviews/stats`·`/reviews/:id/approve`)를
+              //   이 콘솔의 ⚠수치검증 방이 전부 쓰고 `submit-findings` 까지 더 갖고 있어, 화면이 둘로
+              //   갈려 있을 이유가 없었다. 좁아서 못 읽던 문제는 이 콘솔을 전체화면으로 키워 해결한다.
               '<div class="nrya-card">' +
                 '<div class="nrya-card-lab"><span class="nrya-pipe"></span>AI 챗봇 노출 설정 (서버 전역)</div>' +
                 '<div class="nrya-seg" id="nryaSeg">' +
@@ -432,6 +442,7 @@
 
     // 서버에서 노출설정·통계를 받아 토글/배지 갱신
     fetchConfig();
+    refreshRoomStats();   // 지식 방 갈래 버튼 6개 숫자·인트로 칩(실데이터)
     refreshStats();
     refreshAdminStats();
   }
@@ -519,25 +530,214 @@
     }).catch(function (e) { segError('네트워크 오류: ' + String(e && e.message || e)); });
   }
 
-  /** 방 pill 목록을 그린다(활성 방 표시 + N 배지). @param {string} active */
+  /**
+   * 갈래 버튼(방 pill) 6개의 숫자를 서버 통계에서 만든다. 아직 못 받았으면 '…'.
+   * 예: roomCount('위키개념') → '963' · roomCount('원문') → '70법'
+   * @param {string} k - 방 이름
+   * @returns {string} 버튼에 찍을 짧은 숫자
+   * [연계] ← renderRoomPills. → roomStats(GET /api/legal/rooms/stats). 상수 금지 — 못 받으면 '…'.
+   */
+  function roomCount(k) {
+    var s = roomStats; if (!s) return '…';
+    if (k === '원문') return nfmt(s.raw.laws) + '법';
+    if (k === '지식그래프') return nfmt(s.graph.nodes) + '노드';
+    var m = { 위키개념: 'concept', 법령: 'statute', 비교허브: 'comparison', '별표·서식': 'annex' }[k];
+    return m ? nfmt(s[m].total) : '…';
+  }
+
+  /**
+   * 인트로 카드 아래 회색 칩 목록을 서버 통계로 만든다(옛 하드코딩 meta 배열을 대체).
+   * 예: roomChips('위키개념') → ['canonical 734', 'review-pending 3', 'draft 226']
+   * @param {string} k - 방 이름
+   * @returns {string[]} 통계를 못 받았으면 설명 칩만
+   * [연계] ← renderRoom. → roomStats. status 칩은 **서버가 실제로 센 키만** 그린다(없는 키를 0으로 지어내지 않음).
+   */
+  function roomChips(k) {
+    var s = roomStats;
+    if (!s) return ['숫자 불러오는 중…'];
+    var ST = ['canonical', 'review-pending', 'draft'];
+    var statusChips = function (o) { return ST.filter(function (x) { return o[x]; }).map(function (x) { return x + ' ' + nfmt(o[x]); }); };
+    if (k === '원문') return ['불변', nfmt(s.raw.domains) + ' 도메인', '원문 ' + nfmt(s.raw.txtFiles) + '건', '별표·고시 포함'];
+    if (k === '위키개념') return statusChips(s.concept.status);
+    if (k === '법령') return ['기준법 ' + nfmt(s.statute.inRaw), '타부처 ' + nfmt(s.statute.notInRaw)].concat(statusChips(s.statute.status));
+    if (k === '비교허브') return ['교차법 비교'].concat(statusChips(s.comparison.status));
+    if (k === '별표·서식') return statusChips(s.annex.status);
+    if (k === '지식그래프') {
+      return ['엣지 ' + nfmt(s.graph.edges)].concat(Object.keys(s.graph.kinds).sort().map(function (x) { return x + ' ' + nfmt(s.graph.kinds[x]); }));
+    }
+    return [];
+  }
+
+  /**
+   * 서버에서 방 통계를 받아 갈래 버튼·인트로 칩을 다시 그린다.
+   * [연계] → GET /api/legal/rooms/stats(관리자 토큰 필요). ← renderAdminInto(콘솔을 열 때 1회).
+   *          실패해도 화면은 '…' 인 채로 살아 있게 둔다 — 숫자를 지어내지 않는다.
+   */
+  function refreshRoomStats() {
+    return legalGet('/api/legal/rooms/stats').then(function (res) {
+      return res.json().catch(function () { return null; });
+    }).then(function (d) {
+      if (!d || !d.ok) return;
+      roomStats = d;
+      if (document.getElementById('nryaRoomPills')) { renderRoomPills(curRoom); paintRoomIntro(curRoom); }
+    }).catch(function () { /* 숫자는 '…' 로 남는다 */ });
+  }
+
+  /** 방 pill 목록을 그린다(활성 방 표시 + 실데이터 N + N 배지). @param {string} active */
   function renderRoomPills(active) {
     var el = document.getElementById('nryaRoomPills'); if (!el) return; el.innerHTML = '';
     ROOM_ORDER.forEach(function (k) {
-      var r = ROOMS[k];
       var b = document.createElement('div'); b.className = 'nrya-room' + (k === active ? ' nrya-active' : '');
-      b.innerHTML = esc(k) + '<span class="nrya-cnt">' + esc(r.n.split(' ')[0]) + '</span>' + (ROOM_N[k] ? '<span class="nrya-new-badge">N</span>' : '');
+      b.innerHTML = esc(k) + '<span class="nrya-cnt">' + esc(roomCount(k)) + '</span>' + (ROOM_N[k] ? '<span class="nrya-new-badge">N</span>' : '');
       b.addEventListener('click', function () { renderRoomPills(k); renderRoom(k); });
       el.appendChild(b);
     });
   }
 
-  /** 선택한 방의 인트로 카드 + 대표 내용을 그린다. @param {string} k 방 이름 */
+  /** 인트로 카드(설명 + 실데이터 칩)만 다시 그린다. @param {string} k 방 이름 */
+  function paintRoomIntro(k) {
+    var host = document.getElementById('nryaRoomIntro'); if (!host || !ROOMS[k]) return;
+    var r = ROOMS[k];
+    host.innerHTML = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">' + r.ic + '</div><div><div class="nrya-intro-name">' + esc(k) + ' 방</div><div class="nrya-intro-tag">' + esc(r.tag) + '</div></div></div>' +
+      '<div class="nrya-intro-desc">' + r.desc + '</div><div class="nrya-intro-meta">' +
+      roomChips(k).map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('') + '</div></div>';
+  }
+
+  /**
+   * 선택한 방을 그린다 — 인트로 카드 + (서버에서 받은) 목록 + 쪽 이동 단추.
+   * 목록은 여기서 그리지 않고 loadRoomList 가 서버 응답을 받아 채운다.
+   * @param {string} k - 방 이름
+   * [연계] ← renderRoomPills 클릭 · renderAdminInto 초기 렌더. → loadRoomList.
+   */
   function renderRoom(k) {
-    var r = ROOMS[k]; var host = document.getElementById('nryaRoomContent'); if (!host) return;
-    var intro = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">' + r.ic + '</div><div><div class="nrya-intro-name">' + esc(k) + ' 방</div><div class="nrya-intro-tag">' + esc(r.tag) + '</div></div></div>' +
-      '<div class="nrya-intro-desc">' + r.desc + '</div><div class="nrya-intro-meta">' + r.meta.map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('') + '</div></div>';
-    host.innerHTML = intro + r.render() + '<div class="nrya-foot-note">대표 예시 · 실제 데이터는 해당 방 폴더에서 로드됩니다.</div>';
-    bindAcc();
+    var host = document.getElementById('nryaRoomContent'); if (!host || !ROOMS[k]) return;
+    curRoom = k;
+    host.innerHTML = '<div id="nryaRoomIntro"></div><div id="nryaRoomBody"></div>';
+    paintRoomIntro(k);
+    loadRoomList(k, roomPage[k] || 1);
+  }
+
+  /**
+   * 방 목록 한 쪽(10개)을 서버에서 받아 그린다.
+   * 예: loadRoomList('위키개념', 3) → GET /api/legal/rooms/list?room=concept&page=3
+   * @param {string} k - 방 이름
+   * @param {number} page - 1부터 세는 쪽 번호
+   * [연계] → GET /api/legal/rooms/list. ← renderRoom · 쪽 이동 단추. 늦게 온 응답은 curRoom 으로 걸러 버린다.
+   */
+  function loadRoomList(k, page) {
+    roomPage[k] = page;
+    var seq = ++roomSeq;
+    var body = document.getElementById('nryaRoomBody'); if (!body) return;
+    body.innerHTML = '<div class="nrya-list"><div class="nrya-notice-box"><span class="nrya-em">⏳</span>목록을 불러오는 중…</div></div>';
+    legalGet('/api/legal/rooms/list?room=' + ROOM_KEY[k] + '&page=' + page).then(function (res) {
+      if (res.status === 401 || res.status === 403) return { _denied: true };
+      return res.json().catch(function () { return null; });
+    }).then(function (d) {
+      if (seq !== roomSeq) return;                                // 더 최근 요청이 있으면 이 응답은 버린다
+      var b = document.getElementById('nryaRoomBody'); if (!b) return;
+      if (d && d._denied) { b.innerHTML = adminLockHTML(); return; }
+      if (!d || !d.ok) { b.innerHTML = roomErrHTML((d && d.error) || '목록을 불러오지 못했습니다.'); return; }
+      roomPage[k] = d.page;   // 범위 밖 쪽을 서버가 당겨 줬으면 그 값으로 맞춘다
+      paintRoomList(b, k, d);
+    }).catch(function (e) {
+      if (seq !== roomSeq) return;
+      var b = document.getElementById('nryaRoomBody');
+      if (b) b.innerHTML = roomErrHTML('네트워크 오류: ' + String(e && e.message || e));
+    });
+  }
+
+  /** 목록을 못 불러왔을 때의 안내(숫자를 지어내지 않고 사실만 적는다). @param {string} msg @returns {string} */
+  function roomErrHTML(msg) {
+    return '<div class="nrya-list"><div class="nrya-notice-box"><span class="nrya-em">⚠</span>' + esc(msg) + '</div></div>';
+  }
+
+  /**
+   * 받은 한 쪽을 실제 DOM 으로 그린다(목록 10줄 + 쪽 이동 단추 + "N / M쪽 · 모두 K건").
+   * @param {HTMLElement} host - #nryaRoomBody
+   * @param {string} k - 방 이름
+   * @param {object} d - 서버 응답 {items,page,pages,total,perPage}
+   * [연계] ← loadRoomList. → rawRowHTML/listRowHTML · roomPagerHTML · bindRoomPager · bindLawAcc.
+   */
+  function paintRoomList(host, k, d) {
+    var rows = (d.items || []).map(k === '원문' ? rawRowHTML : function (it) { return listRowHTML(k, it); });
+    host.innerHTML = items(rows.length ? rows : ['<div class="nrya-notice-box"><span class="nrya-em">🔎</span>이 방에 항목이 없습니다.</div>']) +
+      roomPagerHTML(d);
+    bindRoomPager(host, k);
+    if (k === '원문') bindLawAcc(host);
+  }
+
+  /**
+   * 원문 방 한 줄 — 법 하나의 아코디언 머리(펼치면 계층 원문·별표·고시를 그때 불러온다).
+   * @param {object} l - {name, dir, domain, ministry, eff}
+   * @returns {string}
+   * [연계] ← paintRoomList. → bindLawAcc(펼침) · GET /api/legal/rooms/law.
+   */
+  function rawRowHTML(l) {
+    var eff = effLabel(l.eff);
+    return '<div class="nrya-acc" data-dir="' + esc(l.dir) + '"><div class="nrya-acc-head"><div style="flex:1;min-width:0">' +
+      '<div class="nrya-acc-name">' + esc(l.name) + '</div>' +
+      '<div class="nrya-acc-dom">' + esc(domLabel(l.domain) + (l.ministry ? ' · ' + l.ministry : '')) + '</div></div>' +
+      '<div class="nrya-eff"><span class="nrya-lbl">시행</span>' + (eff || '확인 안 됨') + '</div>' +
+      '<div class="nrya-chev">▼</div></div><div class="nrya-acc-body"></div></div>';
+  }
+
+  /**
+   * 원문 말고 다섯 방의 한 줄. 방마다 부제에 쓰는 수치가 다르다(전부 서버가 센 값).
+   * @param {string} k - 방 이름
+   * @param {object} it - 서버 응답 items[i]
+   * @returns {string}
+   * [연계] ← paintRoomList. → itemHTML.
+   */
+  function listRowHTML(k, it) {
+    if (k === '지식그래프') {
+      return itemHTML(it.title, '위키 ' + nfmt(it.pages) + '쪽 · 나가는 링크 ' + nfmt(it.out) + ' · 들어오는 링크 ' + nfmt(it.in),
+        '연결 ' + nfmt(it.degree), 'nrya-st-draft', []);
+    }
+    var chips = [];
+    if (it.penalty) chips.push('처벌 포함');
+    if (it.byls) chips.push('별표 ' + nfmt(it.byls));
+    var sub;
+    if (k === '법령') sub = '개념 ' + nfmt(it.concepts) + ' · 타법연결 ' + nfmt(it.xlaw) + ' · 링크 ' + nfmt(it.links);
+    else if (k === '비교허브') sub = '다루는 법 ' + nfmt(it.xlaw) + ' · 링크 ' + nfmt(it.links);
+    else sub = it.law || '';
+    return itemHTML(it.title, sub, it.status, stClass(it.status), chips);
+  }
+
+  /**
+   * 쪽 이동 단추 — « ‹ 1 2 3 4 5 › » (쪽 번호는 5개까지, 현재 쪽 주위로 따라 움직인다).
+   * 사고내역 팝업(accident_info.js buildWarnDetailPager)과 **같은 방식**을 따른다.
+   * 예: 97쪽 중 1쪽 → « ‹ 가 disabled, 1 2 3 4 5 › » + '1 / 97쪽 · 모두 963건'
+   * @param {object} d - 서버 응답 {page,pages,total}
+   * @returns {string} 한 쪽뿐이면 단추 없이 건수만
+   * [연계] ← paintRoomList. → bindRoomPager(클릭 처리).
+   */
+  function roomPagerHTML(d) {
+    var note = '<div class="nrya-pagenote">' + nfmt(d.page) + ' / ' + nfmt(d.pages) + '쪽 · 모두 ' + nfmt(d.total) + '건</div>';
+    if (d.pages <= 1) return note;
+    var from = Math.max(1, Math.min(d.page - Math.floor(ROOM_PAGE_WINDOW / 2), d.pages - ROOM_PAGE_WINDOW + 1));
+    var to = Math.min(d.pages, from + ROOM_PAGE_WINDOW - 1);
+    var nums = '';
+    for (var i = from; i <= to; i++) {
+      nums += '<button type="button" class="n' + (i === d.page ? ' on' : '') + '" data-rpage="' + i + '">' + i + '</button>';
+    }
+    var edge = function (p, label, aria, off) {
+      return '<button type="button" class="e" data-rpage="' + p + '"' + (off ? ' disabled' : '') + ' aria-label="' + aria + '">' + label + '</button>';
+    };
+    var first = d.page === 1, last = d.page === d.pages;
+    return '<div class="nrya-pager">' +
+      edge(1, '&laquo;', '첫 쪽', first) + edge(d.page - 1, '&lsaquo;', '이전 쪽', first) + nums +
+      edge(d.page + 1, '&rsaquo;', '다음 쪽', last) + edge(d.pages, '&raquo;', '마지막 쪽', last) +
+      '</div>' + note;
+  }
+
+  /** 쪽 단추 클릭 → 그 쪽을 서버에서 다시 받아 그린다. @param {HTMLElement} host @param {string} k */
+  function bindRoomPager(host, k) {
+    host.querySelectorAll('.nrya-pager button[data-rpage]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (b.disabled) return;
+        loadRoomList(k, parseInt(b.dataset.rpage, 10) || 1);
+      });
+    });
   }
 
   // 서브탭 배지가 참조할 adminStatsCache 필드명(⚠수치검증은 statsCache.pending을 따로 씀)
@@ -562,6 +762,7 @@
   /** 선택한 관리자 방을 그린다(6방 전부 서버 연동). @param {string} k */
   function renderAdmin(k) {
     var a = ADMIN[k]; var host = document.getElementById('nryaAdminContent'); if (!host) return;
+    stopScanGauge();   // 다른 방으로 옮기면 진행률 폴링을 멈춘다(스캔 자체는 서버에서 계속 돈다)
     var intro = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">🛠</div><div><div class="nrya-intro-name">' + esc(k) + '</div><div class="nrya-intro-tag">관리자 검토 방 · 승인→자동반영</div></div></div><div class="nrya-intro-desc">' + a.desc + '</div></div>';
     if (k === '⚠수치검증') {
       host.innerHTML = intro + '<div class="nrya-panel" id="nryaReviewHost" style="padding:6px 0 4px"></div>';
@@ -584,11 +785,94 @@
     }
   }
 
-  // ── 지식 방 아코디언 바인딩 ──
-  function bindAcc() {
-    var host = document.getElementById('nryaRoomContent'); if (!host) return;
-    host.querySelectorAll('.nrya-acc-head').forEach(function (h) {
-      h.onclick = function () { h.parentElement.classList.toggle('nrya-open'); };
+  // ── 원문 방 아코디언 — 펼칠 때 그 법의 계층 원문·별표·고시를 서버에서 그때 받아 채운다 ──
+
+  /**
+   * 법 목록의 아코디언 머리에 클릭을 걸고, 처음 펼칠 때 한 번만 내용을 불러온다.
+   * (70법치를 미리 다 읽지 않기 위해 지연 로딩 — 한 법에 별표가 147건인 경우도 있다)
+   * @param {HTMLElement} host - 목록을 담은 #nryaRoomBody
+   * [연계] ← paintRoomList(원문 방). → GET /api/legal/rooms/law · lawBodyHTML.
+   */
+  function bindLawAcc(host) {
+    host.querySelectorAll('.nrya-acc').forEach(function (acc) {
+      var head = acc.querySelector('.nrya-acc-head'); if (!head) return;
+      head.onclick = function () {
+        var opened = acc.classList.toggle('nrya-open');
+        var body = acc.querySelector('.nrya-acc-body');
+        if (!opened || !body || body.dataset.state) return;        // 이미 불렀거나 부르는 중이면 그대로
+        body.dataset.state = 'loading';
+        body.innerHTML = '<div class="nrya-file"><div class="nrya-file-nm">원문 목록을 불러오는 중…</div></div>';
+        legalGet('/api/legal/rooms/law?dir=' + encodeURIComponent(acc.dataset.dir)).then(function (res) {
+          if (res.status === 401 || res.status === 403) return { _denied: true };
+          return res.json().catch(function () { return null; });
+        }).then(function (d) {
+          if (d && d._denied) { body.innerHTML = adminLockHTML(); body.dataset.state = ''; return; }
+          if (!d || !d.ok) { body.innerHTML = '<div class="nrya-file"><div class="nrya-file-nm">' + esc((d && d.error) || '불러오지 못했습니다.') + '</div></div>'; body.dataset.state = ''; return; }
+          body.innerHTML = lawBodyHTML(d);
+          body.dataset.state = 'loaded';
+          bindLawDl(body);
+        }).catch(function (e) {
+          body.innerHTML = '<div class="nrya-file"><div class="nrya-file-nm">네트워크 오류: ' + esc(String(e && e.message || e)) + '</div></div>';
+          body.dataset.state = '';
+        });
+      };
+    });
+  }
+
+  /**
+   * 펼친 법 하나의 내용 HTML — 계층 원문(실제 시행일)·별표/별지 서식·고시(행정규칙).
+   * ★시행일은 서버가 각 .txt 머리말에서 읽은 값이다. 없으면 '확인 안 됨' — 지어내지 않는다.
+   * @param {object} d - GET /api/legal/rooms/law 응답
+   * @returns {string}
+   * [연계] ← bindLawAcc. 링크는 /api/legal/src(우리 raw 원문)와 law.go.kr 원본(HWP·이미지).
+   */
+  function lawBodyHTML(d) {
+    var files = (d.files || []).map(function (f) {
+      // 챗봇이 실제로 읽는 판을 그대로 보여준다 — 시행일이 지난 예고본이 있으면 그 파일이다(staged).
+      // 아직 시행 전인 예고본은 pending 으로 "언제부터 바뀐다"만 알려 준다.
+      // 예고본 적용 / 승인 대기(시행일은 지났는데 승인이 안 나 옛 판을 읽는 중) / 개정 예정 — 셋을 구분한다.
+      var note = f.staged ? '<span class="nrya-file-amd">· 예고본 적용</span>'
+        : (f.waiting && f.waiting.length ? '<span class="nrya-file-amd">· ' + esc(effLabel(f.waiting[0])) + ' 시행분 승인 대기(옛 판 표시 중)</span>'
+        : (f.pending && f.pending.length ? '<span class="nrya-file-amd">· ' + esc(effLabel(f.pending[0])) + ' 개정 예정</span>' : ''));
+      return '<a class="nrya-file" href="' + esc(f.src) + '" target="_blank" rel="noopener">' +
+        '<div class="nrya-file-ic' + (f.ic === '법' ? '' : ' nrya-rule') + '">' + esc(f.ic) + '</div>' +
+        '<div class="nrya-file-nm">' + esc(f.label) + (f.amd ? '<span class="nrya-file-amd">· ' + esc(f.amd) + '</span>' : '') + note + '</div>' +
+        '<div class="nrya-file-eff">' + (f.eff ? '시행 ' + effLabel(f.eff) : '시행일 확인 안 됨') + '</div></a>';
+    }).join('') || '<div class="nrya-file"><div class="nrya-file-nm">계층 원문 파일이 없습니다.</div></div>';
+
+    var byls = (d.byls || []).map(function (b) {
+      var dl = [];
+      if (b.src) dl.push('<a href="' + esc(b.src) + '" target="_blank" rel="noopener">📄 본문(텍스트)</a>');
+      if (b.hwp) dl.push('<a href="' + esc(b.hwp) + '" data-dl="1">⬇ HWP 원본</a>');
+      if (b.pdf) dl.push('<a href="' + esc(b.pdf) + '" data-dl="1">⬇ PDF</a>');
+      if (b.img) dl.push('<a href="' + esc(b.img) + '" data-dl="1" class="nrya-img">🖼 이미지</a>');
+      return '<div class="nrya-byl"><span class="nrya-byl-no">' + esc(b.badge) + '</span><div style="flex:1">' +
+        '<div class="nrya-byl-nm">' + esc(b.title || '(제목 확인 안 됨)') + '</div>' +
+        (dl.length ? '<div class="nrya-dl">' + dl.join('') + '</div>' : '') + '</div></div>';
+    }).join('');
+
+    // 고시 머리말에 시행일이 적힌 것은 738건 중 203건뿐이다(2026-09-09 실측) — 없으면 **빈칸으로 둔다**.
+    var adms = (d.admruls || []).map(function (a) {
+      return '<div class="nrya-byl"><span class="nrya-byl-no">고시</span><div style="flex:1">' +
+        '<div class="nrya-byl-nm">' + esc(a.title) +
+        (a.eff ? '<span class="nrya-file-amd">· 시행 ' + effLabel(a.eff) + '</span>' : '') + '</div>' +
+        '<div class="nrya-dl"><a href="' + esc(a.src) + '" target="_blank" rel="noopener">📄 본문(텍스트)</a></div>' +
+        '</div></div>';
+    }).join('');
+
+    return files +
+      '<div class="nrya-acc-scroll">' +
+      '<div class="nrya-byl-title">별표 · 별지 서식 (' + nfmt((d.byls || []).length) + '건)</div>' +
+      (byls || '<div class="nrya-byl"><div class="nrya-byl-nm">수집된 별표·서식이 없습니다.</div></div>') +
+      '<div class="nrya-byl-title">고시 · 행정규칙 (' + nfmt((d.admruls || []).length) + '건)</div>' +
+      (adms || '<div class="nrya-byl"><div class="nrya-byl-nm">수집된 고시가 없습니다.</div></div>') +
+      '</div>';
+  }
+
+  /** law.go.kr 원본(HWP·PDF·이미지) 링크는 앱 웹뷰에서도 열리도록 openDownloadUrl 로 넘긴다. @param {HTMLElement} body */
+  function bindLawDl(body) {
+    body.querySelectorAll('a[data-dl]').forEach(function (a) {
+      a.addEventListener('click', function (e) { e.preventDefault(); openDownloadUrl(a.href); });
     });
   }
 
@@ -614,10 +898,28 @@
    * [연계] → GET /api/legal/drafts.
    * @param {HTMLElement} host - 카드를 담을 컨테이너
    */
-  function renderDraftCards(host) {
+  var draftPage = 1;              // 초안승인 방에서 보고 있는 쪽(방을 나갔다 와도 1쪽부터 다시)
+
+  /**
+   * 미승인 초안(draft) 목록을 서버에서 불러와 카드로 렌더한다.
+   *
+   * 2026-09-10 사용자 지적 두 가지를 함께 고쳤다:
+   *   ①**쪽 나누기가 없었다** — 224건이 한 화면에 통째로 쏟아졌다. 이제 한 쪽 20건 + « ‹ 1 2 3 4 5 › ».
+   *   ②**초안을 열어 볼 방법이 없었다** — 카드에 [📄 초안 보기]를 달았다.
+   *
+   * ★카드에 「미확인 N줄」을 함께 보여 준다. 이 방의 이름이 "초안승인"이라 페이지 전체가 막혀
+   *   있는 것처럼 읽히지만 **그렇지 않다** — draft 페이지도 챗봇이 그대로 쓰고, 그중 사람 검토가
+   *   안 끝난 **줄만** [미확인]으로 밀려난다(`_SCHEMA.md` §5). 그러니 승인해야 할 실체는
+   *   "페이지"가 아니라 **그 N줄**이다. 0줄이면 승격 후보다.
+   * [연계] → GET /api/legal/drafts?page=&per=20 · roomPagerHTML(지식 방과 같은 쪽 단추).
+   * @param {HTMLElement} host - 카드를 담을 컨테이너
+   * @param {number} [page] - 볼 쪽(없으면 마지막으로 보던 쪽)
+   */
+  function renderDraftCards(host, page) {
     if (!host) return;
+    draftPage = page || draftPage || 1;
     host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>초안 목록을 불러오는 중…</div>';
-    legalGet('/api/legal/drafts').then(function (res) {
+    legalGet('/api/legal/drafts?page=' + draftPage + '&per=20').then(function (res) {
       if (res.status === 401 || res.status === 403) {
         host.innerHTML = DRAFT_NOTE + adminLockHTML();
         return null;
@@ -634,14 +936,82 @@
         host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">✅</span>대기 중인 초안이 없습니다.</div>';
         return;
       }
-      host.innerHTML = DRAFT_NOTE + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">총 ' + list.length + '건</div>' +
-        list.map(function (d) {
-          var st = d.penalty ? '<span class="nrya-rv-st nrya-warn">처벌 포함·사람승인</span>' : '<span class="nrya-rv-st nrya-wait">자동승격 대상</span>';
-          return '<div class="nrya-rv"><div class="nrya-rv-head"><span class="nrya-rv-id">draft</span><div class="nrya-rv-t">' + esc(d.topic || d.file) + '<small>' + esc(d.law || '') + '</small></div>' + st + '</div></div>';
-        }).join('');
+      host.innerHTML = DRAFT_NOTE +
+        '<div class="nrya-dual-note">이 방의 초안은 <b>챗봇이 이미 쓰고 있습니다.</b> 페이지가 통째로 막힌 것이 아니라, ' +
+          '사람 검토가 안 끝난 <b>줄만</b> 답변에서 「미확인」으로 표시돼 나갑니다(<code>_SCHEMA.md</code> §5). ' +
+          '그래서 승인해야 할 것은 페이지가 아니라 <b>아래 「미확인 N줄」</b>이고, <b>0줄이면 승격 후보</b>입니다.</div>' +
+        list.map(draftCardHTML).join('') +
+        roomPagerHTML({ page: data.page, pages: data.pages, total: data.total });
+      host.querySelectorAll('.nrya-rv').forEach(bindDraftCard);
+      host.querySelectorAll('.nrya-pager button[data-rpage]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (b.disabled) return;
+          renderDraftCards(host, parseInt(b.dataset.rpage, 10) || 1);
+        });
+      });
     }).catch(function (e) {
       host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>';
     });
+  }
+
+  /**
+   * 초안 카드 한 장. 「미확인 N줄」이 이 초안이 대기 중인 **이유**이므로 상태 자리에 그것을 둔다.
+   * @param {object} d - {file,law,topic,penalty,unverified}
+   * @returns {string}
+   */
+  function draftCardHTML(d) {
+    var n = Number(d.unverified);
+    var st = n === 0 ? '<span class="nrya-rv-st nrya-done">미확인 0줄 · 승격 후보</span>'
+      : n > 0 ? '<span class="nrya-rv-st nrya-warn">미확인 ' + nfmt(n) + '줄</span>'
+      : '<span class="nrya-rv-st nrya-wait">본문을 읽지 못함</span>';
+    return '<div class="nrya-rv" data-file="' + esc(d.file) + '">' +
+      '<div class="nrya-rv-head"><span class="nrya-rv-id">draft</span>' +
+        '<div class="nrya-rv-t">' + esc(d.topic || d.file) + '<small>' + esc(d.law || '') +
+          (d.penalty ? ' · 처벌·수치 포함' : '') + '</small></div>' + st + '</div>' +
+      '<button class="nrya-btn-brief nrya-btn-draft" type="button">📄 초안 보기</button>' +
+      '<div class="nrya-draft-body nrya-hidden"></div>' +
+      '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
+      '</div>';
+  }
+
+  /**
+   * 카드의 [📄 초안 보기]를 묶는다 — 누르면 그 초안을 **챗봇이 쓰는 모습 그대로** 갈라서 펼친다:
+   * 위쪽에 「미확인」으로 밀려난 줄들(= 승인해야 할 것), 아래에 지금도 근거로 쓰이는 본문.
+   * 다시 누르면 접는다.
+   * @param {HTMLElement} card
+   * [연계] → GET /api/legal/drafts/detail?file=…
+   */
+  function bindDraftCard(card) {
+    var btn = card.querySelector('.nrya-btn-draft'); if (!btn) return;
+    var box = card.querySelector('.nrya-draft-body');
+    var LABEL = '📄 초안 보기';
+    btn.onclick = function () {
+      if (box.dataset.loaded === '1' && !box.classList.contains('nrya-hidden')) {
+        box.classList.add('nrya-hidden'); btn.textContent = LABEL; return;
+      }
+      if (box.dataset.loaded === '1') { box.classList.remove('nrya-hidden'); btn.textContent = '📄 접기'; return; }
+      btn.disabled = true; btn.textContent = '여는 중…';
+      legalGet('/api/legal/drafts/detail?file=' + encodeURIComponent(card.dataset.file)).then(function (res) {
+        return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+      }).then(function (d) {
+        btn.disabled = false;
+        if (!d || !d.ok) { btn.textContent = LABEL; showCardErr(card, (d && d.error) || '초안을 열지 못했습니다.'); return; }
+        btn.textContent = '📄 접기';
+        box.dataset.loaded = '1';
+        box.classList.remove('nrya-hidden');
+        var un = d.unverified || [];
+        box.innerHTML =
+          (un.length
+            ? '<div class="nrya-draft-sec nrya-draft-un"><div class="nrya-draft-lab">⚠ 사람 검토가 안 끝난 줄 ' + nfmt(un.length) + '줄 — <b>이것이 승인 대상입니다</b></div>' +
+                un.map(function (l) { return '<div class="nrya-draft-line">' + esc(l) + '</div>'; }).join('') + '</div>'
+            : '<div class="nrya-draft-sec nrya-draft-ok"><div class="nrya-draft-lab">✅ 사람 검토가 안 끝난 줄이 <b>없습니다</b> — 승격 후보입니다.</div></div>') +
+          '<div class="nrya-draft-sec"><div class="nrya-draft-lab">📖 지금도 그대로 근거로 쓰이는 본문</div>' +
+            '<pre class="nrya-draft-pre">' + esc(d.kept || '') + '</pre></div>';
+      }).catch(function (e) {
+        btn.disabled = false; btn.textContent = LABEL;
+        showCardErr(card, '네트워크 오류: ' + String(e && e.message || e));
+      });
+    };
   }
 
   // ============================================================================
@@ -919,23 +1289,289 @@
     }).catch(function (e) { host.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
   }
 
-  /** 개정 후보 카드 1건. @param {object} am - {id,ts,law,kind,mst,법령명,이전,현재,status} @returns {string} */
+  /**
+   * 개정 후보 카드 1건 — 종류별로 "무엇이 바뀌는지"를 보여 준다(2026-09-10 정정 전엔 공포번호·시행일자
+   * `? → ?` 두 줄뿐이라 관리자가 승인/무시를 판단할 정보가 없었다).
+   *   · 법률류(law_pending·law_amended·law_renamed·law_dept_changed): 바뀐 조문 목록, 공포번호·공포일·시행일 이전→현재, 부처.
+   *   · 행정규칙류(admrul_amended·admrul_unknown_new): 발령일·시행일·개정구분·부처(공포번호 칸 없음 — 행정규칙엔 그 항목이 없다),
+   *     신규 고시는 "새로 발령" + 본문이 인용한 우리 법(related_laws).
+   *   · 없는 값은 줄을 통째로 생략한다(`?` 표기 금지).
+   *   · 링크는 종류별로 다르다 — 법령은 lsInfoP.do?lsiSeq=<MST>&efYd=<시행일>, 행정규칙은 admRulSc.do(행정규칙 탭 검색).
+   *     종전 lsSc.do(법령 탭)는 행정규칙 제목으로 검색하면 항상 "결과 없음"이었다(2026-09-10 curl 확인).
+   * @param {object} am - {id,ts,law,kind,kind_code,layer,mst,법령명,이전,현재,changed_articles,related_laws,status}
+   *   (kind_code 가 없는 옛 항목은 kind 라벨·layer 로 종류를 가른다)
+   * @returns {string}
+   * [연계] ← GET /api/legal/amendments (services/legal_amendment_scanner.js toLegacyEntry 스키마)
+   */
   function amendmentCardHTML(am) {
     var st = am.status === 'approved' ? '<span class="nrya-rv-st nrya-done">✓ 승인·재수집 필요</span>'
       : am.status === 'dismissed' ? '<span class="nrya-rv-st nrya-rej">✗ 무시</span>'
       : '<span class="nrya-rv-st nrya-warn">개정 감지</span>';
     var prev = am.이전 || {}; var cur = am.현재 || {};
     var lawName = am.법령명 || am.law || '';
-    var link = 'https://www.law.go.kr/lsSc.do?menuId=1&query=' + encodeURIComponent(lawName);
+    var code = am.kind_code || '';
+    var isAdm = code ? code.indexOf('admrul_') === 0 : (am.layer === '행정규칙' || /행정규칙/.test(am.kind || ''));
+    var isNew = code === 'admrul_unknown_new' || (!code && /신규/.test(am.kind || ''));
+    function ymd(v) { v = String(v || ''); return /^\d{8}$/.test(v) ? v.slice(0, 4) + '-' + v.slice(4, 6) + '-' + v.slice(6) : v; }
+    /** 이전→현재 한 줄. 둘 다 없으면 null(줄 생략), 같으면 값만, 다르면 화살표. */
+    function arrow(a, b) {
+      a = a || ''; b = b || '';
+      if (!a && !b) return null;
+      if (!a) return '<b>' + esc(b) + '</b>';
+      if (!b || a === b) return esc(a);
+      return esc(a) + ' → <b>' + esc(b) + '</b>';
+    }
+    var lines = [];
+    function line(label, html) { if (html) lines.push(esc(label) + ' ' + html); }
+    if (isAdm) {
+      if (isNew) lines.push('<b>새로 발령</b>' + (cur.제개정구분명 ? ' (' + esc(cur.제개정구분명) + ')' : ''));
+      else line('개정구분', cur.제개정구분명 ? '<b>' + esc(cur.제개정구분명) + '</b>' : null);
+      line('발령일', arrow(ymd(prev.발령일자), ymd(cur.발령일자)));
+      line('시행일', arrow(ymd(prev.시행일자), ymd(cur.시행일자)));
+      line('부처', arrow(prev.소관부처명, cur.소관부처명));
+    } else {
+      line('법령명', prev.법령명 && cur.법령명 && prev.법령명 !== cur.법령명 ? arrow(prev.법령명, cur.법령명) : null);
+      line('공포번호', arrow(prev.공포번호, cur.공포번호));
+      line('공포일', arrow(ymd(prev.공포일자), ymd(cur.공포일자)));
+      var ef = arrow(ymd(prev.시행일자), ymd(cur.시행일자));
+      line('시행일', ef ? ef + (cur.현행연혁코드 ? ' (' + esc(cur.현행연혁코드) + ')' : '') : null);
+      line('부처', arrow(prev.소관부처명, cur.소관부처명));
+    }
+    // ★바뀐 조문마다 '개정 전 → 개정 후' 본문을 접었다 펴서 보여준다(사용자 확정 2026-09-10).
+    //   종전에는 조 번호·제목만 있어 "뭐가 어떻게 바뀌는지"를 알 수 없었다.
+    //   `신설` 은 탐지기가 우리 원문에 그 조가 없는 것으로 판정한 값이다(API 는 신설을 안 알려 준다).
+    //   옛 카드(본문을 안 받아 오던 시절 것)는 본문 칸이 비어 있으므로 **지어내지 말고** 그렇다고 적는다.
+    var arts = am.changed_articles || [];
+    var newCnt = arts.filter(function (a) { return a.신설; }).length;
+    function artBlock(lab, txt, cls) {
+      return '<div class="nrya-art-side ' + cls + '"><div class="nrya-art-lab">' + esc(lab) + '</div>' +
+        '<div class="nrya-art-txt">' + esc(txt) + '</div></div>';
+    }
+    var artsHTML = arts.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📝 바뀐 조문 (' + arts.length +
+      (newCnt ? ' · 신설 ' + newCnt : '') + ')</div><div class="nrya-rv-fval">' +
+      arts.map(function (a) {
+        var no = '제' + esc(a.조문번호 || '') + '조' + (a.조문가지번호 && a.조문가지번호 !== '0' ? '의' + esc(a.조문가지번호) : '');
+        var head = no + (a.조문제목 ? '(' + esc(a.조문제목) + ')' : '') +
+          (a.신설 ? ' <span class="nrya-art-new">신설</span>' : (a.조문제개정유형 ? ' · ' + esc(a.조문제개정유형) : '')) +
+          (a.조문시행일자 ? ' · ' + esc(ymd(a.조문시행일자)) : '');
+        var hasText = !!(a.새본문 || a.옛본문);
+        var body = !hasText
+          ? '<div class="nrya-art-none">이 항목은 본문을 받아 오기 전에 감지된 것이라 조문 내용이 없습니다. 「지금 스캔」을 다시 돌리면 채워집니다.</div>'
+          : (a.신설
+              ? artBlock('개정 전', '우리가 가진 원문에는 이 조가 없습니다 — 새로 만들어지는 조문으로 봅니다. (원문이 낡았을 때도 이렇게 나올 수 있으니, 원문 방에서 그 법의 시행일을 함께 확인하세요.)', 'nrya-art-old nrya-art-empty')
+              : artBlock('개정 전', a.옛본문 || '우리 원문에서 이 조를 찾지 못했습니다.', 'nrya-art-old')) +
+            artBlock('개정 후', a.새본문 || '(새 본문을 받지 못했습니다)', 'nrya-art-new-side');
+        return '<details class="nrya-art"><summary>' + head + '</summary>' + body + '</details>';
+      }).join('') + '</div></div>' : '';
+    // ★승인 게이트(2026-09-10): 이 항목의 예고본을 이미 받아 뒀으면, 승인이 곧 "답변 전환"이라는 것을 알린다.
+    var stg = am.stage || null;
+    var stageHTML = stg ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📅 미리 받아 둔 새 원문</div><div class="nrya-rv-fval">' +
+      esc(ymd(stg.date)) + ' 시행 · ' + esc(stg.file || '') +
+      (stg.due
+        ? ' — <b>시행일이 지났지만 승인 전이라 챗봇은 아직 옛 내용을 답합니다.</b> 승인하면 바로 새 내용으로 바뀝니다.'
+        : ' — 승인해 두면 시행일부터 자동으로 새 내용을 답합니다.') +
+      '</div></div>' : '';
+    var rel = am.related_laws || [];
+    var relHTML = isAdm && rel.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📚 관련 법(본문 인용)</div><div class="nrya-rv-fval">' + rel.map(function (r) { return esc(r.name || r.slug || ''); }).join(' · ') + '</div></div>' : '';
+    var ident = isAdm ? (cur.ID ? 'ID ' + esc(cur.ID) : (am.mst ? 'ID ' + esc(am.mst) : '')) : (cur.MST || am.mst ? 'MST ' + esc(cur.MST || am.mst) : '');
+    var link = isAdm
+      ? 'https://www.law.go.kr/admRulSc.do?menuId=5&subMenuId=41&query=' + encodeURIComponent(lawName)
+      : 'https://www.law.go.kr/lsInfoP.do?lsiSeq=' + encodeURIComponent(cur.MST || am.mst || '') + (cur.시행일자 ? '&efYd=' + encodeURIComponent(cur.시행일자) : '');
     var body =
       '<div class="nrya-rv-body">' +
-        '<div class="nrya-rv-field"><div class="nrya-rv-flab">📌 종류</div><div class="nrya-rv-fval">' + esc(am.kind || '') + ' · MST ' + esc(am.mst || '') + '</div></div>' +
-        '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔄 변경</div><div class="nrya-rv-fval">공포번호 ' + esc(prev.공포번호 || '?') + ' → <b>' + esc(cur.공포번호 || '?') + '</b><br>시행일자 ' + esc(prev.시행일자 || '?') + ' → <b>' + esc(cur.시행일자 || '?') + '</b></div></div>' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">📌 종류</div><div class="nrya-rv-fval">' + esc(am.kind || '') + (ident ? ' · ' + ident : '') + '</div></div>' +
+        (lines.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔄 변경</div><div class="nrya-rv-fval">' + lines.join('<br>') + '</div></div>' : '') +
+        stageHTML + artsHTML + relHTML +
         '<a class="nrya-rv-link" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">🔗 law.go.kr에서 확인</a>' +
         (am.status === 'pending' ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 승인(재수집 필요)</button><button class="nrya-btn-no">✗ 무시</button></div>' : '') +
+        // ★승인 뒤 위키를 사람이 고쳐야 한다 — 무엇을 어디서 고칠지 적힌 글을 뽑아 준다.
+        //   그 글만 복사해 AI 에게 붙여 넣으면 된다(사용자 확정 2026-09-10). 무시한 건은 뽑지 않는다.
+        (am.status !== 'dismissed'
+          ? '<button class="nrya-btn-brief" type="button">📋 위키 반영 지시문 만들기</button>' +
+            '<div class="nrya-brief nrya-hidden"></div>'
+          : '') +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
       '</div>';
     return '<div class="nrya-rv" data-id="' + esc(am.id) + '"><div class="nrya-rv-head"><span class="nrya-rv-id">📌</span><div class="nrya-rv-t">' + esc(lawName || am.id) + '<small>' + esc(shortTs(am.ts)) + '</small></div>' + st + '</div>' + body + '</div>';
+  }
+
+  /**
+   * 카드의 「📋 위키 반영 지시문 만들기」 버튼을 묶는다.
+   * 누르면 서버가 그 개정의 **개정 전/후 원문 + 고칠 위키 목록 + 해야 할 일**을 한 덩어리 글로 만들어 주고,
+   * 그 글을 화면에 펼쳐 준다. 복사 버튼이 되면 클립보드로, 안 되면 글상자를 통째로 선택해 준다
+   * (앱 웹뷰는 클립보드가 막혀 있을 수 있어 **두 갈래를 다 둔다**).
+   * @param {HTMLElement} card - `.nrya-rv` 카드
+   * [연계] → GET /api/legal/amendments/:id/wiki-brief · services/legal_wiki_brief.js.
+   */
+  function bindBriefButton(card) {
+    var btn = card.querySelector('.nrya-btn-brief'); if (!btn) return;
+    var box = card.querySelector('.nrya-brief');
+    var id = card.dataset.id;
+    var LABEL = '📋 위키 반영 지시문 만들기';
+    btn.onclick = function () {
+      if (box && !box.classList.contains('nrya-hidden') && box.dataset.loaded === '1') {
+        box.classList.add('nrya-hidden'); btn.textContent = LABEL; return;   // 다시 누르면 접는다
+      }
+      btn.disabled = true; btn.textContent = '만드는 중…';
+      legalGet('/api/legal/amendments/' + encodeURIComponent(id) + '/wiki-brief').then(function (res) {
+        return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+      }).then(function (d) {
+        btn.disabled = false;
+        if (!d || !d.ok) { btn.textContent = LABEL; showCardErr(card, (d && d.error) || '지시문을 만들지 못했습니다.'); return; }
+        btn.textContent = '📋 지시문 접기';
+        renderBriefBox(box, d.text,
+          '아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 위키 반영 작업을 이어서 할 수 있습니다. ' +
+          '고칠 위키 후보 <b>' + nfmt((d.pages || []).length) + '쪽</b>이 함께 적혀 있습니다.');
+      }).catch(function (e) {
+        btn.disabled = false; btn.textContent = LABEL;
+        showCardErr(card, '네트워크 오류: ' + String(e && e.message || e));
+      });
+    };
+  }
+
+  /** 카드 안 인라인 오류줄에 메시지를 띄운다(카드마다 하나씩 있다). @param {HTMLElement} card @param {string} msg */
+  function showCardErr(card, msg) {
+    var el = card.querySelector('.nrya-inline-err'); if (!el) return;
+    el.classList.remove('nrya-hidden'); el.style.display = 'block'; el.textContent = msg;
+  }
+
+  /**
+   * 인계문 글상자를 그린다(단건·일괄이 같은 모양을 쓴다). 복사 버튼이 되면 클립보드로,
+   * 안 되면 글상자를 통째로 선택해 준다 — 앱 웹뷰는 클립보드가 막혀 있을 수 있어 **두 갈래를 다 둔다**.
+   * @param {HTMLElement} box - `.nrya-brief` 상자
+   * @param {string} text - 인계문 전문
+   * @param {string} helpHTML - 상자 맨 위 안내 한 줄(HTML 허용 — 호출부가 만든 문장만 넣는다)
+   * [연계] ← bindBriefButton(단건) · bindAmendBulk(일괄).
+   */
+  function renderBriefBox(box, text, helpHTML) {
+    box.dataset.loaded = '1';
+    box.classList.remove('nrya-hidden');
+    box.innerHTML = '<div class="nrya-brief-help">' + helpHTML + '</div>' +
+      '<div class="nrya-brief-acts"><button type="button" class="nrya-btn-copy">📄 복사</button>' +
+      '<button type="button" class="nrya-btn-selall">전체 선택</button></div>' +
+      '<textarea class="nrya-brief-txt" readonly rows="14"></textarea>';
+    var ta = box.querySelector('.nrya-brief-txt');
+    ta.value = text || '';
+    box.querySelector('.nrya-btn-copy').onclick = function () {
+      var b = this;
+      var done = function (ok) { b.textContent = ok ? '✅ 복사됨' : '⚠ 복사 실패 — 전체 선택 후 직접 복사하세요'; setTimeout(function () { b.textContent = '📄 복사'; }, 2500); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(ta.value).then(function () { done(true); }, function () { done(false); });
+          return;
+        }
+      } catch (_) { /* 아래 폴백 */ }
+      try { ta.select(); done(document.execCommand && document.execCommand('copy')); }
+      catch (_) { done(false); }
+    };
+    box.querySelector('.nrya-btn-selall').onclick = function () { ta.focus(); ta.select(); };
+  }
+
+  /**
+   * 개정검토 방 상단의 일괄 버튼 둘을 묶는다 — [✓ 전체 승인] 과 [📋 승인분 전체 지시문].
+   *
+   * **전체 승인은 두 번 눌러야 실행된다.** 첫 클릭은 서버에 미리보기를 물어
+   * *"N건 승인 · 그중 M건은 승인 즉시(또는 시행일부터) 챗봇 답변이 바뀝니다"* 를 보여주고
+   * 버튼 글자를 확인용으로 바꾼다. 되돌릴 수 없는 일이라 네이티브 confirm 대신 이 방식을 쓴다
+   * (앱 웹뷰에서 confirm 이 막히거나 덮이는 경우가 있다).
+   *
+   * 승인이 끝나면 **방금 승인한 건들만** 묶은 일괄 인계문을 곧바로 펼쳐 준다 — 사용자가 그 글을
+   * 복사해 AI 에게 붙여 넣는 것이 다음 단계이기 때문이다(사용자 확정 2026-09-10).
+   * [연계] → GET /api/legal/amendments/decide-all/preview · POST /api/legal/amendments/decide-all
+   *          · GET /api/legal/amendments/wiki-brief-all · renderBriefBox · loadAmendList.
+   */
+  function bindAmendBulk() {
+    var allBtn = document.getElementById('nryaAmendAllBtn');
+    var briefBtn = document.getElementById('nryaAmendAllBriefBtn');
+    var box = document.getElementById('nryaAmendAllBrief');
+    var err = document.getElementById('nryaAmendScanErr');
+    var ALL_LABEL = '✓ 전체 승인';
+    var BRIEF_LABEL = '📋 승인분 전체 지시문';
+    var armed = null;   // 확인 대기 중인 건수·id (두 번째 클릭에서 쓴다)
+
+    function fail(msg) { if (err) { err.classList.remove('nrya-hidden'); err.style.display = 'block'; err.textContent = msg; } }
+    function clearErr() { if (err) { err.style.display = 'none'; err.textContent = ''; } }
+    /** 응답을 JSON 으로. 권한 없음은 _denied 로 구분해 올린다. */
+    function asJson(res) {
+      if (res.status === 401 || res.status === 403) return { _denied: true };
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }
+    function disarm() { armed = null; if (allBtn) { allBtn.textContent = ALL_LABEL; allBtn.classList.remove('nrya-btn-danger'); } }
+
+    /** 일괄 인계문을 받아 상자에 펼친다. @param {string} qs - 쿼리스트링(ids= 또는 status=) */
+    function loadBulkBrief(qs, headline) {
+      briefBtn.disabled = true; briefBtn.textContent = '만드는 중…';
+      return legalGet('/api/legal/amendments/wiki-brief-all' + qs).then(asJson).then(function (d) {
+        briefBtn.disabled = false; briefBtn.textContent = BRIEF_LABEL;
+        if (d && d._denied) { fail('관리자 로그인 필요'); return; }
+        if (!d || !d.ok) { fail((d && d.error) || '지시문을 만들지 못했습니다.'); return; }
+        renderBriefBox(box, d.text,
+          headline +
+          ' 그중 <b>' + nfmt(d.detailed) + '건</b>은 바뀐 조문까지 적혀 있고, ' +
+          '<b>' + nfmt(d.listed) + '건</b>은 비교할 옛 원문이 없어 목록으로만 담았습니다. ' +
+          '고칠 위키 후보는 모두 <b>' + nfmt(d.pages) + '쪽</b>입니다. ' +
+          '아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 위키 반영 작업을 이어서 할 수 있습니다.');
+      }).catch(function (e) {
+        briefBtn.disabled = false; briefBtn.textContent = BRIEF_LABEL;
+        fail('네트워크 오류: ' + String(e && e.message || e));
+      });
+    }
+
+    if (briefBtn) briefBtn.onclick = function () {
+      clearErr();
+      if (box && !box.classList.contains('nrya-hidden') && box.dataset.loaded === '1') {
+        box.classList.add('nrya-hidden'); return;   // 다시 누르면 접는다
+      }
+      loadBulkBrief('?status=approved', '승인된 <b>전 건</b>을 한 덩어리로 묶었습니다.');
+    };
+
+    if (allBtn) allBtn.onclick = function () {
+      clearErr();
+      if (armed) {                                  // ── 두 번째 클릭: 실제로 승인한다 ──
+        var n = armed.pending;
+        allBtn.disabled = true; allBtn.textContent = '승인하는 중…';
+        legalPost('/api/legal/amendments/decide-all', { decision: 'approved' }).then(asJson).then(function (d) {
+          allBtn.disabled = false; disarm();
+          if (d && d._denied) { fail('관리자 로그인 필요'); return; }
+          if (!d || !d.ok) { fail((d && d.error) || '전체 승인에 실패했습니다.'); return; }
+          loadAmendList();                          // 목록을 새로 그린다(승인분은 대기 목록에서 빠진다)
+          // ★위쪽 서브탭 배지(개정검토 44)도 그 자리에서 다시 센다(2026-09-10 사용자 지적:
+          //   "승인을 했다면 위에 개정검토 44가 갱신되어야 하는데 갱신되지 않았어").
+          //   종전에는 배지를 방을 다시 열 때만 갱신해, 승인 뒤에도 옛 숫자가 남아 있었다.
+          refreshAdminStats();
+          if (!d.decided) { fail('승인할 대기 건이 없습니다.'); return; }
+          // 방금 승인한 건만 묶어 곧바로 펼친다 — 이게 다음 단계다.
+          loadBulkBrief('?ids=' + encodeURIComponent((d.ids || []).join(',')),
+            '방금 <b>' + nfmt(d.decided) + '건</b>을 승인했습니다' +
+            (d.staged ? ' — 그중 <b>' + nfmt(d.staged) + '건</b>은 미리 받아 둔 새 원문이 있어 <b>챗봇 답변이 이미 바뀌었거나 시행일부터 바뀝니다</b>.' : '.') +
+            ' 재수집 대상 표시는 ' + nfmt(d.mirrored) + '건에 옮겨 적었습니다.');
+        }).catch(function (e) {
+          allBtn.disabled = false; disarm();
+          fail('네트워크 오류: ' + String(e && e.message || e));
+        });
+        return;
+      }
+      // ── 첫 번째 클릭: 무엇이 벌어지는지 먼저 보여주고 확인을 받는다 ──
+      allBtn.disabled = true; allBtn.textContent = '확인하는 중…';
+      legalGet('/api/legal/amendments/decide-all/preview').then(asJson).then(function (d) {
+        allBtn.disabled = false;
+        if (d && d._denied) { allBtn.textContent = ALL_LABEL; fail('관리자 로그인 필요'); return; }
+        if (!d || !d.ok) { allBtn.textContent = ALL_LABEL; fail((d && d.error) || '미리보기를 받지 못했습니다.'); return; }
+        if (!d.pending) { allBtn.textContent = ALL_LABEL; fail('승인할 대기 건이 없습니다.'); return; }
+        armed = d;
+        allBtn.classList.add('nrya-btn-danger');
+        allBtn.textContent = '한 번 더 눌러 ' + nfmt(d.pending) + '건 전체 승인';
+        fail('대기 ' + nfmt(d.pending) + '건을 승인합니다. ' +
+          (d.staged
+            ? '그중 ' + nfmt(d.staged) + '건은 미리 받아 둔 새 원문이 있어 승인 즉시(시행일이 아직이면 그날부터) 챗봇 답변이 새 내용으로 바뀝니다. '
+            : '미리 받아 둔 새 원문이 있는 건은 없어 챗봇 답변은 지금 바뀌지 않습니다. ') +
+          '나머지는 「재수집 필요」 표시만 붙습니다. 위키는 자동으로 안 바뀌니, 승인 뒤 나오는 지시문으로 사람이 반영해야 합니다. ' +
+          '취소하려면 이 방을 벗어났다 다시 들어오세요.');
+      }).catch(function (e) {
+        allBtn.disabled = false; allBtn.textContent = ALL_LABEL;
+        fail('네트워크 오류: ' + String(e && e.message || e));
+      });
+    };
   }
 
   /**
@@ -947,9 +1583,21 @@
   function renderAmendCards(host) {
     if (!host) return;
     var SCAN_LABEL = '🔍 지금 스캔 (백그라운드 · 완료까지 3~4분)';
-    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:10px"><button class="nrya-btn-ok" id="nryaAmendScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
+    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:8px"><button class="nrya-btn-ok" id="nryaAmendScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
+      // ★일괄 처리 줄(2026-09-10 사용자 요청). 전체 승인은 **누르기 전에 무엇이 벌어지는지 먼저 보여준다**.
+      '<div class="nrya-rv-actions" style="margin-bottom:10px">' +
+        '<button class="nrya-btn-ok" id="nryaAmendAllBtn" style="flex:1 1 auto;padding:8px 16px;white-space:nowrap">✓ 전체 승인</button>' +
+        '<button class="nrya-btn-brief" id="nryaAmendAllBriefBtn" type="button" style="flex:1 1 auto;margin:0;padding:8px 16px;white-space:nowrap">📋 승인분 전체 지시문</button>' +
+      '</div>' +
       '<div class="nrya-inline-err nrya-hidden" id="nryaAmendScanErr" style="display:none"></div>' +
+      '<div class="nrya-gauge nrya-hidden" id="nryaScanGauge"></div>' +
+      '<div class="nrya-brief nrya-hidden" id="nryaAmendAllBrief"></div>' +
       '<div id="nryaAmendListHost"></div>';
+    bindAmendBulk();
+    // 스캔을 걸어 두고 이 방을 벗어났다 돌아온 경우 — 게이지를 **이어서** 보여 준다.
+    legalGet('/api/legal/amendments/scan-progress').then(function (res) {
+      return res.ok ? res.json().catch(function () { return null; }) : null;
+    }).then(function (d) { if (d && d.ok && d.running) startScanGauge(); }).catch(function () {});
     var scanBtn = document.getElementById('nryaAmendScanBtn');
     var scanErr = document.getElementById('nryaAmendScanErr');
     if (scanBtn) scanBtn.onclick = function () {
@@ -962,15 +1610,89 @@
         scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL;
         if (data && data._denied) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '관리자 로그인 필요'; } return; }
         if (!data || !data.ok) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '스캔 실패'; } return; }
-        // started:true — 백그라운드에서 계속 진행 중, 아직 새 항목은 안 들어와 있으니 목록을
-        // 지금 다시 그려봐야 그대로다(혼동 방지). 안내 문구만 목록 위에 한 번 얹는다.
-        var listHost = document.getElementById('nryaAmendListHost');
-        if (listHost) {
-          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 스캔이 시작됐습니다. 완료까지 최대 4분 — 잠시 후 이 방을 다시 열어 새로고침해 주세요.</div>');
-        }
+        // started:true — 백그라운드에서 계속 진행 중. 게이지 바를 띄우고 2초마다 진행률을 물어본다.
+        startScanGauge();
       }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
     };
     loadAmendList();
+  }
+
+  var scanPollTimer = null;   // 게이지 폴링 타이머(방을 떠나면 멈춘다)
+
+  /**
+   * 「지금 스캔」 진행률 게이지를 띄우고 2초마다 서버에 진행 상황을 물어 갱신한다.
+   *
+   * ★막대는 **질의 진행도**이지 남은 시간이 아니다 — 부처마다 고시 수가 들쭉날쭉해 시간으로
+   *   환산하면 거짓 예측이 된다. 그래서 막대 아래에 지금 무엇을 하고 있는지(단계·부처)와
+   *   고시 상세를 받아 온 횟수를 함께 적어, 막대가 한동안 안 움직여도 **멈춘 게 아님**을 보인다.
+   * 스캔이 끝나면 결과(새로 올린 건수)를 적고 목록을 자동으로 새로 그린다 —
+   *   종전에는 "잠시 후 이 방을 다시 열어 새로고침해 주세요"라고만 적혀 있었다.
+   * [연계] → GET /api/legal/amendments/scan-progress · loadAmendList(끝나면 자동 새로고침).
+   */
+  function startScanGauge() {
+    var box = document.getElementById('nryaScanGauge'); if (!box) return;
+    stopScanGauge();
+    box.classList.remove('nrya-hidden');
+    paintGauge({ running: true, percent: 0, phase: '준비', label: '스캔을 시작하는 중', detail: 0 });
+    var misses = 0;                       // 연달아 실패한 조회 수(너무 많으면 폴링을 멈춘다)
+    scanPollTimer = setInterval(function () {
+      legalGet('/api/legal/amendments/scan-progress').then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return null; });
+      }).then(function (d) {
+        if (!d || d._denied || !d.ok) {
+          if (++misses >= 5) { stopScanGauge(); paintGauge({ done: true, err: '진행률을 받지 못했습니다. 잠시 후 이 방을 다시 열어 확인해 주세요.' }); }
+          return;
+        }
+        misses = 0;
+        paintGauge(d);
+        if (!d.running && d.finishedAt) {   // 끝났다 — 폴링을 멈추고 목록을 새로 그린다
+          stopScanGauge();
+          loadAmendList();
+        }
+      }).catch(function () {
+        if (++misses >= 5) { stopScanGauge(); paintGauge({ done: true, err: '진행률을 받지 못했습니다. 잠시 후 이 방을 다시 열어 확인해 주세요.' }); }
+      });
+    }, 2000);
+  }
+
+  /** 게이지 폴링을 멈춘다(멱등 — 두 번 불러도 안전). */
+  function stopScanGauge() {
+    if (scanPollTimer) { clearInterval(scanPollTimer); scanPollTimer = null; }
+  }
+
+  /**
+   * 게이지 한 장을 그린다.
+   * @param {object} d - 서버 진행률({running,percent,phase,label,detail,result}) 또는
+   *                     {done:true, err:'…'}(폴링 실패 안내)
+   */
+  function paintGauge(d) {
+    var box = document.getElementById('nryaScanGauge'); if (!box) return;
+    if (d && d.err) {
+      box.innerHTML = '<div class="nrya-gauge-head"><b>⚠ 스캔 진행률</b></div><div class="nrya-gauge-sub">' + esc(d.err) + '</div>';
+      return;
+    }
+    var pct = Math.max(0, Math.min(100, Number(d.percent) || 0));
+    var finished = d.running === false && d.finishedAt;
+    var r = d.result || null;
+    var headTxt = finished
+      ? (r ? '✅ 스캔 완료 — 새로 올린 개정 ' + nfmt(r.changed) + '건'
+             + (r.filtered ? ' · 우리 법과 무관해 거른 신규 고시 ' + nfmt(r.filtered) + '건' : '')
+             + (r.errors ? ' · ⚠ 탐지 스크립트 오류 있음(서버 로그 확인)' : '')
+           : '✅ 스캔 완료')
+      : '🔄 스캔 중 — ' + pct + '%';
+    var sub = finished
+      ? '아래 목록을 방금 새로 그렸습니다.'
+      : (d.phase === '법령' ? '1단계: 법령 개정 광역질의'
+        : d.phase === '행정규칙' ? '2단계: 행정규칙(고시) 광역질의'
+        : '준비 중') +
+        (d.label ? ' · ' + esc(String(d.label)) : '') +
+        (d.total ? ' (' + nfmt(d.done) + '/' + nfmt(d.total) + ' 질의)' : '') +
+        (d.detail ? ' · 고시 상세 ' + nfmt(d.detail) + '건 확인' : '');
+    box.innerHTML = '<div class="nrya-gauge-head"><b>' + headTxt + '</b></div>' +
+      '<div class="nrya-gauge-bar"><i style="width:' + (finished ? 100 : pct) + '%"></i></div>' +
+      '<div class="nrya-gauge-sub">' + sub + '</div>' +
+      (finished ? '' : '<div class="nrya-gauge-note">막대는 <b>질의 진행도</b>입니다(남은 시간이 아닙니다). 부처마다 고시 수가 달라 한동안 안 움직일 수 있지만, 아래 숫자가 늘고 있으면 정상입니다. 이 방을 벗어나도 스캔은 계속 돕니다.</div>');
   }
 
   /** renderAmendCards 의 목록 부분만 새로고침(스캔 버튼은 그대로 둔다). */
@@ -986,7 +1708,10 @@
       var list = data.amendments || [];
       if (!list.length) { listHost.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">✅</span>감지된 개정이 없습니다.</div>'; return; }
       listHost.innerHTML = '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">총 ' + list.length + '건</div>' + list.map(amendmentCardHTML).join('');
-      listHost.querySelectorAll('.nrya-rv').forEach(function (card) { bindDecideCard(card, '/api/legal/amendments', 'approved', 'dismissed', '승인(재수집 필요)', '무시'); });
+      listHost.querySelectorAll('.nrya-rv').forEach(function (card) {
+        bindDecideCard(card, '/api/legal/amendments', 'approved', 'dismissed', '승인(재수집 필요)', '무시');
+        bindBriefButton(card);
+      });
     }).catch(function (e) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
   }
 
@@ -1527,7 +2252,11 @@
       return res.json().catch(function () { return null; });
     }).then(function (data) {
       if (!data || !data.ok) return;
-      adminStatsCache = { draft: data.draft, feedback: data.feedback, candidates: data.candidates, amendments: data.amendments };
+      // ⚠2026-09-09: `freshness` 가 빠져 있어 관리자 화면 '원문신선도' 배지에 `undefined` 가
+      //   그대로 찍히고 있었다(끝 탭이라 잘려 `undefine` 으로 보였다). 서버는
+      //   routes/legal.js:599 에서 정상적으로 보내고 있고 ADMIN_STAT_KEY 도 'freshness' 로
+      //   매핑돼 있었다 — 받는 쪽 한 칸만 빠진 것이었다.
+      adminStatsCache = { draft: data.draft, feedback: data.feedback, candidates: data.candidates, amendments: data.amendments, freshness: data.freshness };
       renderSubtabs(curAdminSubtab); // 현재 보고 있는 탭을 유지한 채 배지만 최신화
     }).catch(function () { /* 무시 */ });
   }
@@ -1557,17 +2286,20 @@
         '<div class="nrya-chat">' +
           '<div class="nrya-chat-top">' +
             '<div class="nrya-ava" id="nryaChatOrb"><img src="' + NARIYA_IMG + '" alt="나리야"></div>' +
-            '<div><div class="nrya-chat-name">해양법령 도우미</div></div>' +
+            '<div class="nrya-chat-titles"><div class="nrya-chat-name">해양법령 도우미</div></div>' +
             '<div class="nrya-chat-acts">' +
-              '<button class="nrya-chat-x nrya-chat-back" id="nryaChatBack" title="뒤로" style="display:none">‹</button>' +
-              // [H-37 §7.2] 나에 대해서 설명하기(온디바이스 프로필) — 이 기기에만 저장된다
-              '<button class="nrya-chat-x nrya-chat-prof" id="nryaChatProf" title="나에 대해서 설명하기">⚙</button>' +
-              '<button class="nrya-chat-x nrya-chat-hist" id="nryaChatHist" title="대화 기록">🕘</button>' +
+              '<button class="nrya-chat-x nrya-chat-txt nrya-chat-back" id="nryaChatBack" title="채팅창으로 돌아가기" style="display:none">채팅창으로</button>' +
+              // [H-37 §7.2] 나에 대해서 설명하기(온디바이스 프로필) — 이 기기에만 저장된다.
+              // ②2026-09-09: 톱니(⚙)·시계(🕘) 아이콘을 **글자 버튼**으로 바꿨다 — 사용자 지적
+              //   "아이콘만으로는 무엇인지 알 수 없다". 여는 화면·동작은 하나도 안 바뀐다.
+              '<button class="nrya-chat-x nrya-chat-txt nrya-chat-prof" id="nryaChatProf" title="나에 대해서 설명하기">내 정보</button>' +
+              '<button class="nrya-chat-x nrya-chat-txt nrya-chat-hist" id="nryaChatHist" title="대화 기록">대화이력</button>' +
               '<button class="nrya-chat-x" id="nryaChatX">×</button>' +
             '</div>' +
           '</div>' +
           '<div class="nrya-chat-body" id="nryaChatBody">' +
-            '<div class="nrya-krow nrya-ai"><div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div></div></div></div>' +
+            // ⑦ 아바타(.nrya-kava)를 뺐다 — 답변 영역을 왼쪽 끝까지 넓게 쓴다(이름 줄은 유지).
+            GREETING_HTML +
           '</div>' +
           // 대화 기록(기기 저장) 목록 화면 — 열릴 때만 보이고 그동안 위 대화 영역은 숨는다
           '<div class="nrya-hist" id="nryaHistPanel" style="display:none"></div>' +
@@ -1676,6 +2408,8 @@
   function openChat() {
     ensureOverlays();
     var wrap = document.getElementById('nryaChatWrap'); if (!wrap) return;
+    resetToHome();                // 다시 열면 늘 인사말 한 줄짜리 홈부터 (2026-09-10 사용자 지적)
+    startConversation();          // ⑥ 이번에 연 창이 "한 대화"의 시작이다(기록을 이 단위로 묶는다)
     wrap.classList.add('nrya-open');
     ensureAliases();              // 답변 본문의 「약칭」을 정식명으로 맞춰볼 표를 미리 받아둔다
     setUnread(0);                 // 열어서 보는 순간 안읽음 해제
@@ -1691,7 +2425,35 @@
     removeVV();
     // 답이 오기 전에 채팅창을 닫으면 동의배너 타이머도 취소한다 — 안 보는 사이 뜬금없이 뜨지 않게.
     if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; }
+    chatConvEnded = true; // ⑥ 이 대화는 여기서 끝 — 다음에 열 때 startConversation 이 새 번호를 딴다
     closeHistory(true);   // 기록 화면을 켜둔 채 닫았어도 다음에 열면 평소 대화 화면부터
+    closeProf();          // 내 정보 화면도 마찬가지 — 켜둔 채 닫으면 다음에 그 화면이 그대로 떴다
+    histRestorePoint = null;  // 되돌리기 지점도 버린다 — 다음에 열면 홈부터 새로 시작한다
+  }
+
+  /**
+   * 채팅창을 **처음 연 상태(홈)** 로 되돌린다 — 인사말 한 줄만 남기고 지난 대화 내용을 지운다.
+   * 2026-09-10 사용자 지적: *"채팅을 보았다가 해당 창을 끄고 다시 챗봇을 들어오면 홈이 나오도록
+   * 하고 싶은데 계속 직전 화면이 표시됨."* 종전에는 채팅 영역의 DOM 이 그대로 남아 있어서, 창을
+   * 닫았다 열면 지난 대화가 끝까지 스크롤된 채 다시 보였다.
+   *
+   * ★지우는 것은 **화면뿐**이다 — 주고받은 질문·답변은 기기에 저장돼 있어(pushHistory) 헤더
+   *   [대화이력]에서 그대로 다시 볼 수 있다.
+   *
+   * 두 경우에는 **지우지 않는다**(지우면 사용자가 볼 것을 잃는다):
+   *   ①안읽음이 남아 있을 때 — 창을 닫아둔 사이 도착한 답변이 화면에 그려져 있고, FAB 뱃지가
+   *     그것을 보라고 알린 상태다.
+   *   ②답을 기다리는 중일 때 — 보낸 질문의 답변 말풍선이 아직 채워지는 중이라, 여기서 비우면
+   *     그 말풍선이 화면에서 떨어져 나가 답이 도착해도 보이지 않는다.
+   * [연계] ← openChat. → forgetChatMemory(이어 묻기 맥락도 함께 끊는다).
+   */
+  function resetToHome() {
+    if (getUnread() > 0 || chatPending > 0) return;
+    var body = document.getElementById('nryaChatBody');
+    if (body) { body.innerHTML = GREETING_HTML; body.scrollTop = 0; }
+    forgetChatMemory();
+    lastCtx = null; pendingCtx = null;
+    setChatPlaceholder(false);   // 홈의 입력창 안내문은 '메시지 입력'
   }
 
   // ── 대화 기록(기기 저장): 헤더 🕘 → 날짜별 목록 → 누르면 그 질문/답변을 말풍선으로 ──────
@@ -1701,9 +2463,30 @@
   //    버튼이 통째로 사라지는 게 더 나쁘다는 실사용 지적으로 저장 대상을 넓혔다). HISTORY_MAX=200건
   //    기준 늘어나는 용량은 수백 KB 안팎으로 추정(로컬 저장 한도 대비 미미).
 
+  // ── ⑥ 대화 단위 묶기(2026-09-09 사용자 지적) ──────────────────────────────────
+  //   증상: 9월 7일에 **한 대화창에서 이어서 물은 것**이 목록에 4줄로 나뉘어 떠 연속성이 안 보였다.
+  //   원인: pushHistory 가 질문 하나·답변 하나를 한 건으로 저장하고, 목록도 그 건마다 한 줄이었다.
+  //   고침: 채팅창을 연 순간부터 닫을 때까지를 **한 대화(cid)** 로 보고, 그 대화 안의 질문들을
+  //         한 줄로 묶어 보여준다. 줄을 누르면 그 대화에서 오간 것을 순서대로 이어 붙인다.
+  //   ⚠기존에 기기에 쌓인 옛 기록에는 cid 가 없다 — **지우지 않는다.** cid 없는 건은 예전처럼
+  //     날짜로 묶어(그날 = 한 묶음) 보여준다. 저장 파일은 손대지 않고 읽는 쪽만 바뀐다.
+  var chatConvId = null;        // 지금 진행 중인 대화의 식별자(메모리에만 — 새로고침하면 새 대화)
+  var chatConvEnded = false;    // 창을 닫았나(닫힌 뒤 도착한 늦은 답변은 **그 대화에** 남긴다)
+
+  /**
+   * 채팅창을 열 때 부른다 — 이번에 연 것이 새 대화면 새 번호를 딴다.
+   * 예: 처음 열면 'c1757...' 발급 · 닫았다 다시 열면 새 번호 · 안 닫고 계속 쓰면 같은 번호
+   * [연계] ← openChat. → pushHistory(저장할 때 이 번호를 함께 남긴다).
+   */
+  function startConversation() {
+    if (chatConvId && !chatConvEnded) return;   // 안 닫고 계속 쓰는 중이면 같은 대화다
+    chatConvId = 'c' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+    chatConvEnded = false;
+  }
+
   /**
    * 저장된 대화 기록을 배열로 읽는다(없거나 깨졌으면 빈 배열 — 절대 예외를 던지지 않는다).
-   * @returns {Array<{q:string,a:string,note:string,sources:Array,chain:Array,forms:Array,ts:number}>} 오래된 것부터
+   * @returns {Array<{q:string,a:string,note:string,sources:Array,chain:Array,forms:Array,cid:string,ts:number}>} 오래된 것부터
    */
   function loadHistory() {
     try {
@@ -1719,7 +2502,7 @@
    * 예: pushHistory('5톤 낚시어선 야간조업?', {answer:'…', note:'…', citationChain:[…], forms:[…]})
    * @param {string} q - 사용자 질문
    * @param {object} data - done 응답({answer, note, sources, citationChain, forms})
-   * [연계] ← doSend 의 최종 렌더 직후(되묻기·오류 제외). → openHistory 목록, openHistoryEntry.
+   * [연계] ← doSend 의 최종 렌더 직후(되묻기·오류 제외). → openHistory 목록, openHistoryGroup.
    */
   function pushHistory(q, data) {
     try {
@@ -1731,6 +2514,10 @@
         // ★2026-08-18: 대화 맥락도 함께 남긴다 — 없으면 기록에서 다시 연 답변의 "🔁 관련해서 더
         //   궁금해요"가 빈손이 되어, 이어 물으면 주제가 안 실린다(푸시 복원과 같은 결함).
         ctxNext: (data && data.ctxNext) || null,
+        // ⑥ 이 질문이 **어느 대화**에서 나왔는지. 창을 닫기 전까지는 같은 값이라, 목록에서 한 줄로 묶인다.
+        //   ⚠늦게 도착한 답변(창을 닫은 뒤 도착)도 그 대화 번호를 그대로 쓴다 — 그래야 원래
+        //     묻던 흐름에 남는다. 새 번호는 **다음에 창을 열 때** startConversation 이 딴다.
+        cid: chatConvId || '',
         ts: Date.now(),
       });
       if (arr.length > HISTORY_MAX) arr = arr.slice(arr.length - HISTORY_MAX);
@@ -1758,33 +2545,75 @@
     return Math.floor(s / 86400) + '일 전';
   }
 
+  /** 한 기록 건이 속한 **묶음 열쇠**. cid 가 있으면 그 대화, 없는 옛 기록은 그 날짜로 묶는다.
+   * 예: {cid:'c17…'} → 'c:c17…' · cid 없는 2026-09-07 건 → 'd:2026-9-7'
+   * @param {object} e - loadHistory() 원소 @returns {string}
+   * [연계] ← historyGroups. ⚠옛 기록에 cid 를 **써 넣지 않는다**(기록 파일은 읽기만 한다).
+   */
+  function histGroupKey(e) {
+    if (e && e.cid) return 'c:' + e.cid;
+    var d = new Date((e && e.ts) || 0);
+    return 'd:' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  }
+
+  /**
+   * 저장된 기록을 **대화 단위**로 묶어 최신 대화부터 돌려준다(대화 안은 물어본 순서 그대로).
+   * 예: 9월 7일 한 창에서 4번 이어 물었으면 → 묶음 1개(items 4개)
+   * @returns {Array<{key:string, items:Array, ts:number}>} ts 는 그 대화의 마지막 질문 시각
+   * [연계] ← historyListHTML(목록 한 줄 = 묶음 하나) · openHistoryGroup(누르면 items 를 순서대로 되살린다).
+   */
+  function historyGroups() {
+    var list = loadHistory(), map = {}, order = [];
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i] || {}, k = histGroupKey(e);
+      if (!map[k]) { map[k] = { key: k, items: [], ts: 0 }; order.push(map[k]); }
+      map[k].items.push(e);
+      if ((e.ts || 0) > map[k].ts) map[k].ts = e.ts || 0;
+    }
+    // 최신 대화가 위로. ⚠나온 순서를 뒤집는 게 아니라 **시각으로** 정렬한다 — 창을 닫은 뒤
+    //   늦게 도착한 답변이 옛 대화에 붙으면(pushHistory 주석) 그 대화가 목록에서 다시 위로
+    //   올라와야 하는데, 뒤집기만 하면 저장 순서에 눌려 엉뚱한 자리에 남는다.
+    order.sort(function (a, b) { return b.ts - a.ts; });
+    return order;
+  }
+
   /**
    * 기록 목록 HTML(최신 → 과거, 날짜 머리글로 묶음)을 만든다. 질문이 길면 CSS 로 말줄임한다.
+   * ⑥한 줄 = **한 대화**다(예전엔 한 줄 = 질문 하나여서 이어 물은 대화가 여러 줄로 쪼개져 보였다).
+   * 줄에 적는 질문은 그 대화의 **첫 질문**이고, 질문이 둘 이상이면 개수를 알약으로 덧붙인다.
    * @returns {string} HTML(기록이 없으면 안내 문구)
    */
   function historyListHTML() {
-    var list = loadHistory();
-    if (!list.length) {
+    var groups = historyGroups();
+    if (!groups.length) {
       return '<div class="nrya-hist-empty">아직 저장된 대화가 없어요.<br>질문하고 답변을 받으면 여기에 쌓입니다.</div>';
     }
     var html = '', lastDay = '';
-    for (var i = list.length - 1; i >= 0; i--) {
-      var e = list[i] || {};
-      var day = histDayLabel(e.ts);
+    for (var i = 0; i < groups.length; i++) {
+      // e = 그 대화의 **첫 기록 건**(줄 제목에 쓴다). ⚠이름을 바꾸지 말 것 — 회귀 스위트
+      //   test_ask_context 가 `splitAskedQuery(e.q).question` 을 글자 그대로 잠가 두었다.
+      var g = groups[i], e = g.items[0] || {};
+      var day = histDayLabel(g.ts);
       if (day !== lastDay) { lastDay = day; html += '<div class="nrya-hist-day">' + esc(day) + '</div>'; }
-      html += '<button type="button" class="nrya-hist-item" data-ts="' + esc(String(e.ts)) + '">' +
+      html += '<button type="button" class="nrya-hist-item" data-g="' + esc(g.key) + '">' +
         '<span class="nrya-hist-q">' + esc(splitAskedQuery(e.q).question || '(질문 없음)') + '</span>' +
-        '<span class="nrya-hist-t">' + esc(histTimeLabel(e.ts)) + '</span>' +
+        (g.items.length > 1 ? '<span class="nrya-hist-n">질문 ' + g.items.length + '개</span>' : '') +
+        '<span class="nrya-hist-t">' + esc(histTimeLabel(g.ts)) + '</span>' +
       '</button>';
     }
     return html;
   }
 
   /**
-   * 헤더 오른쪽 버튼을 기록 모드/평소 모드로 바꾼다(‹ 뒤로 ↔ 🕘 기록). ✕ 는 항상 그대로 둔다.
-   * @param {boolean} backMode - true 면 ‹ 만, false 면 🕘 만 보인다
+   * 헤더 오른쪽 버튼을 하위화면 모드/홈 모드로 바꾼다. ✕ 는 항상 그대로 둔다.
+   * 하위화면(내 정보·대화이력)에서는 [내 정보]·[대화이력]을 **둘 다 감추고** [채팅창으로]만 남긴다
+   * — 2026-09-10 사용자 지적: "누른 상태에서는 내정보 버튼이나 내역 버튼이 나오지 않도록 해줘."
+   * (종전에는 누른 그 버튼만 감춰서, 대화이력을 보는 중에도 [내 정보]가 [채팅창으로] 바로 옆에
+   *  남아 잘못 눌리기 쉬웠다.)
+   * @param {boolean} backMode - true 면 [채팅창으로]만, false 면 [내 정보]·[대화이력]만 보인다
    */
   function setHistHeader(backMode) {
+    var pb = document.getElementById('nryaChatProf'); if (pb) pb.style.display = backMode ? 'none' : '';
     var hb = document.getElementById('nryaChatHist'); if (hb) hb.style.display = backMode ? 'none' : '';
     var bb = document.getElementById('nryaChatBack'); if (bb) bb.style.display = backMode ? '' : 'none';
   }
@@ -1821,11 +2650,30 @@
     _scrollChatBottom();
   }
 
-  /** 헤더 ‹ 버튼: 목록을 보고 있으면 대화로, 지난 답변을 펼친 뒤라면 목록으로 돌아간다. */
+  /**
+   * 헤더 [채팅창으로] 버튼: 어느 하위화면에 있든 **채팅창으로 되돌린다.**
+   * 2026-09-10 사용자 지적으로 동작을 하나로 통일했다 — 종전에는 지난 대화를 펼친 뒤 누르면
+   * 목록으로 되돌아가(openHistory) 채팅창으로 못 가는 길이 있었다.
+   */
   function onHistBack() {
-    if (isProfOpen()) { closeProf(); return; }   // 프로필 화면에서 ‹ 는 대화로 되돌린다
+    if (isProfOpen()) closeProf();
     if (isHistoryOpen()) closeHistory(true);
-    else openHistory();
+    else setHistHeader(false);
+    restoreFromHistory();   // 지난 대화를 펼쳐 뒀다면 펼치기 직전 상태로 되돌린다
+  }
+
+  /**
+   * 지난 대화를 채팅창에 붙이기 **직전**의 상태로 되돌린다(붙인 적이 없으면 아무것도 안 한다).
+   * 2026-09-10 사용자 지적으로 넣었다 — *"채팅창으로를 눌러도 초기화된 화면이 아니라 기존
+   * 화면에서 위 버튼만 바뀌는데?"* 종전에는 헤더만 바뀌고 붙인 대화가 그대로 남았다.
+   * 되돌린 뒤에도 그 대화는 기기에 저장돼 있어 [대화이력]에서 언제든 다시 볼 수 있다.
+   * [연계] ← onHistBack · closeChat. → openHistoryGroup(여기서 되돌릴 자리를 찍는다).
+   */
+  function restoreFromHistory() {
+    if (histRestorePoint === null) return;
+    var body = document.getElementById('nryaChatBody');
+    if (body) { body.innerHTML = histRestorePoint; _scrollChatBottom(); }
+    histRestorePoint = null;
   }
 
   // ── [H-37 §7] 나에 대해서 설명하기(온디바이스 프로필) ─────────────────────────
@@ -1841,12 +2689,57 @@
   //   ⚠톤수·길이는 버튼이 아니라 숫자 입력이다 — `tonnage_facet.json`의 임계값은 **법마다 다른**
   //     경계라 하나의 공통 구간표가 없고, 그걸 클라이언트에 상수로 박으면 자산이 바뀔 때 화면이
   //     거짓말을 한다(L-81 "데이터의 범위를 코드가 산문으로 단언하지 말 것"). → 설계 대비 변경점.
+  // ── ⑤ 어업 종류 목록(2026-09-09) ─────────────────────────────────────────────
+  //   예전에는 칩 4개('연안자망'·'근해통발'·'양식'·'그 밖')뿐이라 실제로 하는 어업을 고를 수 없었다
+  //   (사용자 지적). 아래 목록은 **전부 우리 raw 원문에서 그대로 옮긴 것이고, 지어낸 이름이 없다.**
+  //   가져온 자리(법령명·조문·시행일)는 다음과 같다 — 값이 라벨과 글자까지 같아야 서버의 축 대조가
+  //   성립하므로(설계 §7.4.2 · legal_retriever.js profileConfirmStep 은 **완전일치**만 본다) 원문 표기를
+  //   한 글자도 고치지 않았다.
+  //     · 면허어업  : raw/05_수산어업/수산업법/시행령.txt 제6조(정치망어업 3종, 2026-07-01 시행) +
+  //                   수산업법 법률.txt 제7조제1항제2호(마을어업, 2026-04-23 시행)
+  //     · 근해어업  : 같은 시행령 제21조제1항 1~21호 (21종)
+  //     · 연안어업  : 같은 시행령 제22조제1항 1~8호 (8종). 8호 '연안복합어업'의 가~마목
+  //                   (낚시어업·문어단지어업·손꽁치어업·패류껍질어업·패류미끼망어업)도 같은 묶음에 넣었다
+  //     · 구획어업  : 같은 시행령 제23조제1항 1~12호 (12종)
+  //     · 신고어업  : 같은 시행령 제26조제1항 1~2호 (나잠어업·맨손어업)
+  //     · 양식업    : raw/05_수산어업/양식산업발전법/법률.txt 제10조제1항(면허 7종) ·
+  //                   제43조제1항(허가 2종, 2025-01-24 시행)
+  //   ⚠못 담은 갈래(정직 기록): ①한시어업(수산업법 제43조)은 그때그때 시·도지사가 정하는 것이라
+  //     원문에 **종류 목록 자체가 없다** ②시험·연구·교습어업(제46조)도 마찬가지다 ③내수면어업법의
+  //     내수면 어업 종류는 이 앱(바다)의 범위 밖이라 넣지 않았다. 이 셋은 아래 "직접 입력"으로 적는다.
+  var FISHERY_TYPES = [
+    { g: '면허어업 (수산업법 제7조)', opts: ['대형정치망어업', '중형정치망어업', '소형정치망어업', '마을어업'] },
+    { g: '허가어업 — 근해어업 (시행령 제21조)', opts: [
+      '외끌이대형저인망어업', '쌍끌이대형저인망어업', '동해구외끌이중형저인망어업', '서남해구외끌이중형저인망어업',
+      '서남해구쌍끌이중형저인망어업', '대형트롤어업', '동해구중형트롤어업', '대형선망어업', '소형선망어업',
+      '근해채낚기어업', '근해자망어업', '근해안강망어업', '근해봉수망어업', '근해자리돔들망어업',
+      '근해장어통발어업', '근해문어단지어업', '근해통발어업', '근해연승어업', '근해형망어업',
+      '기선권현망어업', '잠수기어업'] },
+    { g: '허가어업 — 연안어업 (시행령 제22조)', opts: [
+      '연안개량안강망어업', '연안선망어업', '연안통발어업', '연안조망어업', '연안선인망어업',
+      '연안자망어업', '연안들망어업', '연안복합어업',
+      '낚시어업', '문어단지어업', '손꽁치어업', '패류껍질어업', '패류미끼망어업'] },
+    { g: '허가어업 — 구획어업 (시행령 제23조)', opts: [
+      '건간망어업', '건망어업', '들망어업', '선인망어업', '승망류어업', '안강망어업', '장망류어업',
+      '지인망어업', '해선망어업', '새우조망어업', '실뱀장어안강망어업', '패류형망어업'] },
+    { g: '신고어업 (시행령 제26조)', opts: ['나잠어업', '맨손어업'] },
+    { g: '양식업 — 면허 (양식산업발전법 제10조)', opts: [
+      '해조류양식업', '패류양식업', '어류등양식업', '복합양식업', '협동양식업', '외해양식업', '내수면양식업'] },
+    { g: '양식업 — 허가 (양식산업발전법 제43조)', opts: ['육상해수양식업', '육상등 내수양식업'] },
+  ];
+
   var PROFILE_MENU = [
     { k: '직군', opts: ['어업인', '비어업인', '해양종사자', '공무원', '그 밖'] },
     { k: '선박용도', opts: ['낚시어선', '어선', '레저', '일반'] },
-    { k: '톤수', input: '숫자만(예: 9.77) — 총톤수', suffix: '톤' },
-    { k: '길이', input: '숫자만(예: 12) — 선박 길이', suffix: '미터' },
-    { k: '어업종류', opts: ['연안자망', '근해통발', '양식', '그 밖'] },
+    // ④톤수·길이는 한 줄에 나란히 놓고 단위를 칸 오른쪽에 붙인다(2026-09-09 사용자 확정).
+    //   저장값에는 예전 그대로 우리말 단위를 붙인다("9.77" → "9.77톤") — 서버로 가는 값의 모양이
+    //   바뀌면 안 되기 때문이다. 화면에 보이는 단위(t·m)와 저장 단위(톤·미터)는 일부러 다르다.
+    { pair: [
+      { k: '톤수', unit: 't', suffix: '톤', ph: '예: 9.77' },
+      { k: '길이', unit: 'm', suffix: '미터', ph: '예: 12' },
+    ] },
+    // ⑤칩 4개 → 글자를 치면 걸러지는 드롭다운(FISHERY_TYPES). 목록에 없는 것도 직접 적어 저장할 수 있다.
+    { k: '어업종류', search: FISHERY_TYPES },
     { k: '면허·자격', opts: ['소형선박조종사', '해기사', '없음'] },
     { k: '주 조업구역', opts: ['특정해역', '조업자제해역', '일반해역', '해외수역'] },
     { k: '야간조업', opts: ['예', '아니오'] },
@@ -1898,6 +2791,85 @@
     return !!(p && p.style.display !== 'none');
   }
 
+  /**
+   * 프로필 항목 하나의 머리글 줄("직군  현재: 어업인 (2026-09-09 저장)")을 만든다.
+   * 예: profLabelHTML('톤수', {v:'9.77톤', at:'2026-09-09T…'}) → '<div …>톤수 <span …>현재: 9.77톤 …</span></div>'
+   * @param {string} k - 항목 이름 @param {object} [cur] - 저장된 값 {v, at}
+   * @returns {string} HTML
+   * [연계] ← profPanelHTML(세 갈래 — 칩·숫자쌍·검색 — 이 같은 머리글을 쓴다).
+   *          `nrya-prof-cur` 는 ④ 숫자칸이 화면을 다시 그리지 않고 이 자리만 갱신할 때 쓴다.
+   */
+  function profLabelHTML(k, cur) {
+    return '<div class="nrya-hist-day">' + esc(k) +
+      ' <span class="nrya-hist-t nrya-prof-cur" data-k="' + esc(k) + '">' + esc(profCurText(cur)) + '</span></div>';
+  }
+
+  /** 머리글에 적을 "현재: …" 문구(저장값이 없으면 빈 문자열). @param {object} [cur] @returns {string} */
+  function profCurText(cur) {
+    if (!cur || !cur.v) return '';
+    return '현재: ' + cur.v + (cur.at ? ' (' + String(cur.at).slice(0, 10) + ' 저장)' : '');
+  }
+
+  /**
+   * ④ 톤수·길이 두 칸을 한 줄에 그린다(단위는 칸 오른쪽). [저장] 버튼은 두지 않는다.
+   * 예: profPairHTML(PROFILE_MENU[2], loadProfile()) → '톤수 [9.77] t | 길이 [12] m'
+   * @param {object} m - PROFILE_MENU 의 { pair:[{k,unit,suffix,ph}, …] } 항목
+   * @param {object} p - loadProfile() 결과
+   * @returns {string} HTML
+   * [연계] ← profPanelHTML. → bindChat 의 nrya-prof-num 입력/blur 처리(숫자만 + 손 떼면 저장).
+   *   ⚠[저장] 버튼을 없앤 이유: 한 줄에 칸 둘·단위 둘·버튼 둘은 360px 화면에 들어가지 않는다.
+   *     그리고 이 패널의 다른 항목(칩)은 이미 **누르는 즉시** 저장한다 — 숫자칸만 버튼을 요구하면
+   *     같은 화면 안에서 저장 방식이 둘로 갈린다. 그래서 "칸에서 손을 떼면 저장"으로 맞췄다.
+   */
+  function profPairHTML(m, p) {
+    var cells = m.pair.map(function (f) {
+      var cur = p.fields[f.k];
+      // 저장값에는 우리말 단위가 붙어 있다("9.77톤") — 칸에는 숫자만 되돌려 놓는다.
+      var num = String((cur && cur.v) || '').replace(f.suffix, '');
+      return '<div class="nrya-prof-cell">' + profLabelHTML(f.k, cur) +
+        '<div class="nrya-prof-numrow">' +
+          // data-init = 그릴 때 넣은 값. blur 저장이 **손댔을 때만** 일어나게 하는 표식이다
+          // (아래 saveProfNum 주석 참고 — 안 그러면 그냥 눌렀다 뗀 것만으로 값이 지워진다).
+          '<input class="nrya-prof-num" inputmode="decimal" data-k="' + esc(f.k) + '" data-suffix="' + esc(f.suffix) + '"' +
+            ' data-init="' + esc(num) + '" placeholder="' + esc(f.ph) + '" value="' + esc(num) + '">' +
+          '<span class="nrya-prof-unit">' + esc(f.unit) + '</span>' +
+        '</div></div>';
+    }).join('');
+    return '<div class="nrya-prof-pair">' + cells + '</div>';
+  }
+
+  /**
+   * ⑤ 어업종류 — 글자를 치면 걸러지는 드롭다운을 그린다(목록은 FISHERY_TYPES = 법령 원문).
+   * 예: '통발' 이라고 치면 근해통발어업·근해장어통발어업·연안통발어업만 남는다
+   * @param {object} m - PROFILE_MENU 의 { k, search:[{g,opts}] } 항목
+   * @param {object} [cur] - 저장된 값 {v, at}
+   * @returns {string} HTML
+   * [연계] ← profPanelHTML. → bindChat 의 nrya-prof-search 입력 처리(filterProfList) ·
+   *          nrya-prof-opt 클릭(그 값으로 저장).
+   *   ⚠목록에 없는 것도 그대로 저장할 수 있게 뒀다(맨 아래 "직접 입력"). 이유 두 가지 —
+   *     ①한시어업·시험어업·내수면 어업처럼 **원문에 종류 목록 자체가 없는** 갈래가 실제로 있다.
+   *     ②서버는 프로필 값이 되묻기 선택지 라벨과 **글자까지 같을 때만** 그 축을 쓴다
+   *       (legal_retriever.js profileConfirmStep). 목록 밖 값은 그 대조에 안 걸릴 뿐이고,
+   *       걸리지 않으면 평소대로 되묻는다 — 막는 것보다 안전하다.
+   */
+  function profSearchHTML(m, cur) {
+    var curV = (cur && cur.v) || '';
+    var rows = m.search.map(function (grp) {
+      return '<div class="nrya-prof-grp" data-grp="1">' + esc(grp.g) + '</div>' +
+        grp.opts.map(function (o) {
+          return '<button type="button" class="nrya-prof-opt nrya-prof-pick' + (o === curV ? ' nrya-prof-cur-opt' : '') +
+            '" data-k="' + esc(m.k) + '" data-v="' + esc(o) + '">' + esc(o) + '</button>';
+        }).join('');
+    }).join('');
+    return '<input class="nrya-prof-search" data-k="' + esc(m.k) + '" placeholder="어업 이름을 치면 걸러져요(예: 통발)">' +
+      '<div class="nrya-prof-list">' + rows +
+        '<div class="nrya-prof-none" hidden>목록에 없어요. 아래 “직접 입력”으로 그대로 저장할 수 있어요.</div>' +
+        '<button type="button" class="nrya-prof-opt nrya-prof-free" data-k="' + esc(m.k) + '" hidden></button>' +
+      '</div>' +
+      (curV ? '<div class="nrya-consent-btns nrya-prof-row"><button type="button" class="nrya-consent-btn nrya-prof-btn"' +
+        ' data-k="' + esc(m.k) + '" data-v="">이 항목 지우기</button></div>' : '');
+  }
+
   /** 프로필 화면 HTML(저장된 값 + 카테고리별 버튼/입력). @returns {string} */
   function profPanelHTML() {
     var p = loadProfile();
@@ -1905,10 +2877,12 @@
       '<div class="nrya-disc">여기 적은 내용은 <b>이 기기에만</b> 저장돼요. 답이 조건에 따라 갈릴 때 ' +
       '나리야가 "저장된 정보로 답할까요?"라고 먼저 확인해요.</div>';
     PROFILE_MENU.forEach(function (m, mi) {
+      if (m.pair) { h += profPairHTML(m, p); return; }          // ④ 톤수·길이(한 줄·숫자만)
       var cur = p.fields[m.k];
-      h += '<div class="nrya-hist-day">' + esc(m.k) +
-        (cur ? ' <span class="nrya-hist-t">현재: ' + esc(cur.v) + (cur.at ? ' (' + esc(String(cur.at).slice(0, 10)) + ' 저장)' : '') + '</span>' : '') +
-        '</div><div class="nrya-consent-btns">';
+      h += profLabelHTML(m.k, cur);
+      if (m.search) { h += profSearchHTML(m, cur); return; }     // ⑤ 어업종류(검색 드롭다운)
+      // ③ 칩 줄. nrya-prof-row 가 붙어야 글자가 접히는 대신 **버튼째** 다음 줄로 넘어간다(CSS 참고).
+      h += '<div class="nrya-consent-btns nrya-prof-row">';
       if (m.opts) {
         h += m.opts.map(function (o) {
           return '<button type="button" class="nrya-consent-btn nrya-prof-btn" data-k="' + esc(m.k) + '" data-v="' + esc(o) + '">' + esc(o) + '</button>';
@@ -1921,8 +2895,50 @@
       if (cur) h += '<button type="button" class="nrya-consent-btn nrya-prof-btn" data-k="' + esc(m.k) + '" data-v="">이 항목 지우기</button>';
       h += '</div>';
     });
-    h += '<div class="nrya-consent-btns"><button type="button" class="nrya-consent-btn nrya-prof-reset">전체 초기화</button></div>';
+    h += '<div class="nrya-consent-btns nrya-prof-row"><button type="button" class="nrya-consent-btn nrya-prof-reset">전체 초기화</button></div>';
     return h;
+  }
+
+  /** ③ 칩 자간을 좁혀 볼 단계(사용자 표현 "자간 -10" = 최대 -0.10em). 왼쪽이 평소 자간이다. */
+  var PROF_CHIP_TRACKING = ['', '-0.02em', '-0.04em', '-0.06em', '-0.08em', '-0.10em'];
+
+  /**
+   * ③ 칩 줄("어업인"·"비어업인"…)의 자간을 **필요한 만큼만** 좁힌다(최대 -0.10em).
+   * 예: 어떤 줄이 평소 자간이면 3줄인데 -0.06em 이면 2줄로 줄어든다 → -0.06em 을 고른다.
+   *     원래 한 줄에 들어가는 줄(면허·자격 칩 3개 등)은 아무것도 안 건드린다(빈 문자열 = 평소 자간).
+   *     좁혀도 줄 수가 그대로면 역시 평소 자간을 남긴다(아래 [실측 기록] 참고).
+   * @param {HTMLElement} root - 프로필 패널(#nryaProfPanel)
+   * @returns {void}
+   * [연계] ← openProf(패널을 그린 직후 — 화면에 붙은 뒤라야 높이를 잴 수 있다).
+   *          CSS 의 .nrya-prof-row(flex-wrap)·.nrya-prof-btn(nowrap)과 한 몸이다.
+   *   [고른 방법] "한 줄에 들어가나"가 아니라 **줄 수를 재서** 고른다. 자간을 다 좁혀도 한 줄이
+   *     안 되는 줄(직군 5칩이 실제로 그렇다)에서 "한 줄 기준"만 보면 목표를 못 이뤘는데도
+   *     -0.10em 이 그대로 남아 글자만 빽빽해진다. 줄 수로 재면 ①한 줄에 들어가면 자간을 안 건드리고
+   *     ②안 들어가면 줄 수를 가장 적게 만드는 **가장 느슨한** 자간을 고른다 — 사용자가 말한
+   *     "좁혀서 맞춰 보고, 그래도 안 되면 다음 줄로"가 두 경우 모두에서 그대로 성립한다.
+   *   ⚠여기까지가 전부다. 글자 크기를 줄이거나 버튼을 좁히지 않는다(읽을 수 없게 되는 쪽이 더 나쁘다).
+   *     남은 넘침은 CSS 의 flex-wrap 이 버튼째 다음 줄로 내려 해결한다.
+   *   [실측 기록 2026-09-09] 화면 폭 300~440px 을 10px 씩 훑어 재 보니, 지금 칩 글자와 11.5px 글자
+   *     크기에서는 **-0.10em 까지 좁혀도 줄 수가 안 줄어든다**(칩 하나가 50~70px 인데 -0.10em 로
+   *     아끼는 건 칩당 3~5px 뿐이다). 그래서 실제로는 늘 '평소 자간'이 골라지고, 넘치는 칩은 아래
+   *     flex-wrap 이 다음 줄로 내린다 — 사용자가 말한 2단계 중 **2단계가 실제로 작동하는 쪽**이다.
+   *     이 함수를 남겨 두는 이유는 칩 글자가 바뀌거나(예: 라벨 추가) 화면이 넓어져 **한 칩 차이로
+   *     갈리는 경우**가 생기면 그때 자동으로 좁혀 주기 때문이고, 재 보고 고르므로 헛되이 좁히지 않는다.
+   */
+  function fitProfChips(root) {
+    if (!root) return;
+    var rows = root.querySelectorAll('.nrya-prof-row');
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (row.children.length < 2) continue;       // 버튼 하나짜리 줄은 좁힐 이유가 없다
+      var last = PROF_CHIP_TRACKING[PROF_CHIP_TRACKING.length - 1];
+      row.style.letterSpacing = last;
+      var best = row.offsetHeight;                 // 가장 좁혔을 때의 줄 수(=최소 높이)
+      for (var k = 0; k < PROF_CHIP_TRACKING.length; k++) {
+        row.style.letterSpacing = PROF_CHIP_TRACKING[k];
+        if (row.offsetHeight <= best) break;       // 같은 줄 수를 내는 가장 느슨한 자간에서 멈춘다
+      }
+    }
   }
 
   /** 프로필 화면을 연다(대화 영역을 숨기고 패널을 채운다 — 기록 화면과 같은 방식). */
@@ -1934,6 +2950,7 @@
     panel.scrollTop = 0;
     var body = document.getElementById('nryaChatBody'); if (body) body.style.display = 'none';
     setHistHeader(true);
+    fitProfChips(panel);   // ③ 칩 글자가 두 줄로 접히지 않게 자간을 좁혀 맞춘다(패널이 보인 뒤에 재야 한다)
   }
 
   /** 프로필 화면을 닫고 대화 화면으로 되돌린다. */
@@ -1946,20 +2963,41 @@
   }
 
   /**
-   * 기록 항목을 눌렀을 때: 그 질문/답변을 평소 말풍선 쌍으로 대화창에 붙이고 대화 화면으로 돌아간다.
-   * 붙인 뒤에도 입력창은 그대로라 이어서 새 질문을 할 수 있고, 헤더 ‹ 로 목록에 다시 갈 수 있다.
-   * @param {string} ts - 항목의 data-ts(저장 시각 = 식별자)
-   * [연계] → renderRestoredAnswer(푸시 복원과 같은 말풍선 쌍 렌더를 재사용).
+   * 목록에서 대화 한 줄을 눌렀을 때: 그 대화에서 오간 질문·답변을 **물어본 순서대로** 이어 붙이고
+   * 대화 화면으로 돌아간다. 붙인 뒤에도 입력창은 그대로라 이어서 새 질문을 할 수 있고,
+   * 헤더 ‹ 로 목록에 다시 갈 수 있다.
+   * 예: openHistoryGroup('c1757…') → 그날 그 창에서 물은 4건이 질문1·답변1·질문2·답변2… 로 이어 붙는다
+   * @param {string} key - 목록 버튼의 data-g(histGroupKey 가 만든 묶음 열쇠)
+   * [연계] ← 기록 패널 클릭 위임(bindChat). → renderRestoredAnswer(푸시 복원과 같은 말풍선 쌍 렌더를 재사용).
    */
-  function openHistoryEntry(ts) {
-    var list = loadHistory(), hit = null;
-    for (var i = list.length - 1; i >= 0; i--) { if (String(list[i] && list[i].ts) === String(ts)) { hit = list[i]; break; } }
-    if (!hit) return;
+  function openHistoryGroup(key) {
+    var groups = historyGroups(), grp = null;
+    for (var i = 0; i < groups.length; i++) { if (groups[i].key === String(key)) { grp = groups[i]; break; } }
+    if (!grp || !grp.items.length) return;
     closeHistory(false);   // 목록만 닫고 ‹ 는 남긴다
-    renderRestoredAnswer({
-      ok: true, query: hit.q, answer: hit.a, note: hit.note,
-      sources: hit.sources || [], citationChain: hit.chain || [], forms: hit.forms || [], citeLaws: hit.citeLaws || [],
-      ctxNext: hit.ctxNext || null,
+    var body = document.getElementById('nryaChatBody');
+    // ★[채팅창으로]로 되돌아갈 자리를 먼저 찍어 둔다(2026-09-10 사용자 지적).
+    //   종전에는 지난 대화를 채팅창에 붙인 뒤 [채팅창으로]를 눌러도 **버튼만 바뀌고 붙인 내용이
+    //   그대로 남아** 홈으로 못 갔다. 붙이기 **직전**의 채팅창을 기억해 뒀다가 그 상태로 되돌린다
+    //   — 통째로 비우지 않는 이유는, 지난 대화를 열어 보기 전에 하던 **진행 중 대화**까지
+    //   날아가면 안 되기 때문이다. 여러 건을 연달아 펼쳐도 **맨 처음 자리**로 돌아간다.
+    if (body && histRestorePoint === null) histRestorePoint = body.innerHTML;
+    if (body) {
+      // 지금 하고 있는 대화와 섞이지 않게 "여기부터 지난 대화"라고 한 줄 끼운다.
+      var sep = document.createElement('div'); sep.className = 'nrya-hist-sep';
+      sep.textContent = histDayLabel(grp.ts) + ' 대화 (' + grp.items.length + '건)';
+      body.appendChild(sep);
+    }
+    // ⚠되살리는 한 건의 이름을 `hit` 에서 바꾸지 말 것 — 회귀 스위트 test_ask_context 가
+    //   `citationChain: hit.chain || [], forms: hit.forms || []` · `ctxNext: hit.ctxNext || null,` ·
+    //   `citeLaws: hit.citeLaws || []` 을 **글자 그대로** 잠가 두었다(근거·서식·맥락이 복원에서
+    //   빠지는 회귀를 막는 자물쇠다). 이름만 바꿔도 그 자물쇠가 헛돈다.
+    grp.items.forEach(function (hit) {
+      renderRestoredAnswer({
+        ok: true, query: hit.q, answer: hit.a, note: hit.note,
+        sources: hit.sources || [], citationChain: hit.chain || [], forms: hit.forms || [], citeLaws: hit.citeLaws || [],
+        ctxNext: hit.ctxNext || null,
+      });
     });
   }
 
@@ -2043,7 +3081,7 @@
     var panel = document.getElementById('nryaHistPanel');
     if (panel) panel.addEventListener('click', function (e) {
       var it = e.target.closest('.nrya-hist-item');
-      if (it) openHistoryEntry(it.getAttribute('data-ts'));
+      if (it) openHistoryGroup(it.getAttribute('data-g'));   // ⑥ 한 줄 = 한 대화
     });
 
     // [H-37 §7.2] 프로필 패널(버튼 선택 · 직접 입력 저장 · 항목/전체 삭제) — 저장 즉시 다시 그린다.
@@ -2051,6 +3089,9 @@
     if (pp) pp.addEventListener('click', function (e) {
       var b = e.target.closest('.nrya-prof-btn');
       if (b) { saveProfileField(b.getAttribute('data-k'), b.getAttribute('data-v') || ''); openProf(); return; }
+      // ⑤ 어업종류 드롭다운에서 고른 값(목록 안 항목 · "직접 입력" 둘 다 data-v 를 들고 있다)
+      var opt = e.target.closest('.nrya-prof-opt');
+      if (opt) { saveProfileField(opt.getAttribute('data-k'), opt.getAttribute('data-v') || ''); openProf(); return; }
       var s = e.target.closest('.nrya-prof-save');
       if (s) {
         var el = document.getElementById(s.getAttribute('data-in'));
@@ -2065,6 +3106,100 @@
         openProf();
       }
     });
+    // ④숫자칸(톤수·길이) — 치는 동안 숫자가 아닌 글자는 아예 안 들어가고, 손을 떼면(blur) 저장한다.
+    // ⑤검색칸 — 친 글자로 목록을 거른다.
+    //   ⚠둘 다 위 click 위임과 **같은 패널**에 걸지만 이벤트가 달라 서로 안 부딪힌다.
+    //   ⚠blur 는 거품(bubble)이 안 올라오므로 캡처 단계(세 번째 인자 true)로 받는다 — 이걸 빼면
+    //     칸에서 손을 떼도 아무 일이 안 일어난다.
+    if (pp) {
+      pp.addEventListener('input', function (e) {
+        var n = e.target.closest ? e.target.closest('.nrya-prof-num') : null;
+        if (n) { n.value = numericOnly(n.value); return; }
+        var q = e.target.closest ? e.target.closest('.nrya-prof-search') : null;
+        if (q) filterProfList(q);
+      });
+      pp.addEventListener('blur', function (e) {
+        var n = e.target.closest ? e.target.closest('.nrya-prof-num') : null;
+        if (n) saveProfNum(n);
+      }, true);
+    }
+  }
+
+  /**
+   * 숫자칸에 넣어도 되는 글자만 남긴다(소수점 하나까지 — 톤수 예시가 9.77 이다).
+   * 예: numericOnly('9.7a7.5') → '9.775' · numericOnly('abc') → ''
+   * @param {string} v - 사용자가 친 그대로의 값
+   * @returns {string} 숫자와 소수점 하나만 남은 값
+   * [연계] ← bindChat 의 프로필 패널 input 처리(④ 톤수·길이 칸).
+   */
+  function numericOnly(v) {
+    var s = String(v || '').replace(/[^0-9.]/g, '');
+    var i = s.indexOf('.');
+    if (i < 0) return s;
+    return s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, '');   // 두 번째부터의 소수점은 버린다
+  }
+
+  /**
+   * ④ 숫자칸에서 손을 뗐을 때 그 값을 저장하고 머리글의 "현재: …"만 바꿔 준다.
+   * 예: 톤수 칸에 9.77 을 적고 다른 곳을 누르면 → '9.77톤' 으로 저장 + 머리글이 '현재: 9.77톤 (… 저장)'
+   * @param {HTMLInputElement} el - .nrya-prof-num 입력칸
+   * @returns {void}
+   * [연계] ← bindChat 의 blur 처리. → saveProfileField(이 기기에만 저장).
+   *   ⚠화면을 통째로 다시 그리지 않는다(openProf 를 안 부른다) — 다시 그리면 방금 옮겨 간 포커스와
+   *     스크롤 위치가 튄다. 값이 안 바뀌었으면 저장도 건너뛴다(저장 시각 at 이 헛되이 갱신되지 않게).
+   */
+  function saveProfNum(el) {
+    // ⚠손대지 않았으면 아무것도 안 한다. 이걸 빼면 **칸을 눌렀다 떼기만 해도** 저장이 돌아,
+    //   예전 방식으로 숫자가 아닌 값이 들어가 있던 기기(옛 톤수 칸은 아무 글자나 받았다)에서
+    //   그 값이 소리 없이 지워진다. data-init 은 그릴 때 넣어둔 값이다.
+    if (el.value === (el.getAttribute('data-init') || '')) return;
+    var k = el.getAttribute('data-k'), sfx = el.getAttribute('data-suffix') || '';
+    var num = numericOnly(el.value).replace(/\.$/, '');    // '9.' 처럼 소수점만 남은 꼴은 버린다
+    el.value = num;
+    el.setAttribute('data-init', num);   // 다음 blur 부터는 "또 바뀌었을 때"만 저장한다
+    var next = num ? num + sfx : '';
+    var cur = loadProfile().fields[k];
+    if (String((cur && cur.v) || '') === next) return;
+    saveProfileField(k, next);
+    var lab = document.querySelector('#nryaProfPanel .nrya-prof-cur[data-k="' + k + '"]');
+    if (lab) lab.textContent = profCurText(loadProfile().fields[k]);
+  }
+
+  /**
+   * ⑤ 검색칸에 친 글자로 어업 목록을 거른다(공백은 무시하고 부분일치로 본다).
+   * 예: '통발' → 근해장어통발어업·근해통발어업·연안통발어업만 남고, 항목이 하나도 없는 묶음 머리글은 숨는다
+   * @param {HTMLInputElement} input - .nrya-prof-search
+   * @returns {void}
+   * [연계] ← bindChat 의 input 처리. 목록 원본은 FISHERY_TYPES(법령 원문).
+   *   목록에 **정확히 같은 이름이 없으면** 맨 아래 "직접 입력" 버튼이 그 글자로 나타난다(저장 가능).
+   */
+  function filterProfList(input) {
+    var list = input.nextElementSibling; if (!list || !list.classList.contains('nrya-prof-list')) return;
+    var q = String(input.value || '').replace(/\s+/g, '');
+    var kids = list.children, shownInGrp = 0, lastGrp = null, total = 0, exact = false;
+    for (var i = 0; i < kids.length; i++) {
+      var el = kids[i];
+      if (el.hasAttribute('data-grp')) {
+        if (lastGrp) lastGrp.hidden = (shownInGrp === 0);
+        lastGrp = el; shownInGrp = 0; continue;
+      }
+      if (!el.classList.contains('nrya-prof-pick')) continue;   // 안내문·직접입력 버튼은 아래에서 따로 본다
+      var label = el.getAttribute('data-v') || '';
+      var hit = !q || label.replace(/\s+/g, '').indexOf(q) >= 0;
+      el.hidden = !hit;
+      if (hit) { shownInGrp++; total++; }
+      if (label === input.value.trim()) exact = true;
+    }
+    if (lastGrp) lastGrp.hidden = (shownInGrp === 0);
+    var free = list.querySelector('.nrya-prof-free');
+    var none = list.querySelector('.nrya-prof-none');
+    var typed = input.value.trim();
+    if (free) {
+      free.hidden = !(typed && !exact);
+      free.setAttribute('data-v', typed);
+      free.textContent = '직접 입력: “' + typed + '” 으로 저장';
+    }
+    if (none) none.hidden = !(typed && total === 0);
   }
 
   /** 👍는 바로 전송, 👎는 사유(선택) 입력칸을 펼친다. @param {HTMLElement} btn */
@@ -2976,7 +4111,11 @@
     var gist = el.getAttribute('data-gist') || '';
     var chip = document.getElementById('nryaArtChip');
     chip.className = 'nrya-artpop-chip'; chip.textContent = '';   // 조 하나면 빈 채로 둔다
-    document.getElementById('nryaArtLaw').textContent = law;
+    // ⚠제목에 찍는 이름과 서버에 보내는 이름은 다르다. `law`(data-law)는 원문을 찾을 때 쓰는
+    //   값이라 그대로 두고, 제목에는 계층 낱말뿐인 이름에 페이지의 법을 붙인 것을 쓴다
+    //   (chainStepHTML 이 data-lawshow 로 실어 보낸다 — displayLawName 참고).
+    //   실어 오지 않은 옛 기록이면 예전처럼 law 를 그대로 쓴다(나빠지지 않게).
+    document.getElementById('nryaArtLaw').textContent = el.getAttribute('data-lawshow') || law;
     document.getElementById('nryaArtTitle').textContent = article || '조문 원문';
     document.getElementById('nryaArtEff').textContent = '';
     document.getElementById('nryaArtGist').textContent = '';
@@ -3109,8 +4248,9 @@
     var body = document.getElementById('nryaChatBody'); if (!body) return null;
     var row = document.createElement('div'); row.className = 'nrya-krow nrya-ai';
     if (rowId) row.id = rowId;
-    row.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div>' +
-      '<div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow">' +
+    // ⑦2026-09-09: 아바타(.nrya-kava)를 뺀다 — 이 함수가 doSend·복원 화면과 **같은 골격**을 쓰므로
+    //   여기 한 줄이 답변·안내 말풍선 전부의 왼쪽 여백을 결정한다.
+    row.innerHTML = '<div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow">' +
       '<div class="nrya-kbub nrya-ai"></div></div></div>';
     var bub = row.querySelector('.nrya-kbub');
     bub.innerHTML = innerHTML;
@@ -3302,6 +4442,7 @@
     //   친 질문은 sendCtx 가 없고 pendingCtx 로 들어오므로, 위에서 버리면 이어 묻기가 통째로 죽는다.
     if (!ctx) forgetChatMemory();
     setChatPlaceholder(false);
+    chatPending++;                 // 답이 올 때까지는 채팅창을 홈으로 비우지 않는다(resetToHome)
 
     // 내 말풍선. ★되묻기 선택지로 보낸 요청(hideMe)은 **그리지 않는다** — 라운드마다
     //   "원래질문 — 라벨1 — 라벨2"가 통째로 다시 뜨면서 화면에 누적되기 때문이다(사용자 확정).
@@ -3321,7 +4462,9 @@
 
     // 생각중(스켈레톤 + 상태 텍스트)
     var th = document.createElement('div'); th.className = 'nrya-krow nrya-ai';
-    th.innerHTML = '<div class="nrya-kava"><div class="nrya-ava nrya-think"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">' +
+    // ⑦아바타를 뺀다. "생각 중"의 펄스 애니메이션은 헤더 오브(#nryaChatOrb, 아래 nrya-think)가
+    //   그대로 맡는다. 답변이 오면 말풍선이 옆으로 튀지 않게 생각중 행도 같이 빼야 한다.
+    th.innerHTML = '<div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">' +
       '<div class="nrya-sk-line" style="width:130px"></div><div class="nrya-sk-line" style="width:90px"></div>' +
       '<div class="nrya-think-status"><span class="nrya-ts">생각하고 있습니다</span><span class="nrya-think-dots"><i></i><i></i><i></i></span></div></div></div></div>';
     body.appendChild(th); body.scrollTop = body.scrollHeight;
@@ -3337,7 +4480,7 @@
       if (bubbleEl) return;
       clearInterval(iv); if (orb) orb.classList.remove('nrya-think'); th.remove();
       var a = document.createElement('div'); a.className = 'nrya-krow nrya-ai';
-      a.innerHTML = '<div class="nrya-kava"><div class="nrya-ava"><img src="' + NARIYA_IMG + '" alt="나리야"></div></div><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai"></div></div></div>';
+      a.innerHTML = '<div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai"></div></div></div>';
       body.appendChild(a);
       bubbleEl = a.querySelector('.nrya-kbub');
     }
@@ -3419,7 +4562,11 @@
         if (data && data.ok && !data.clarify && data.answer) rememberTurn(q, data.answer);
         // 답변이 도착했는데 채팅창을 닫아둔 상태면 FAB 뱃지로 알린다(열려 있으면 이미 보는 중).
         if (!isChatOpen()) setUnread(getUnread() + 1);
-      });
+        if (chatPending > 0) chatPending--;
+      })
+      // 위 단계 어디서든 예기치 못한 오류가 나도 대기 수는 반드시 되돌린다 —
+      // 안 그러면 chatPending 이 0 으로 안 내려와 채팅창이 영영 홈으로 안 비워진다.
+      .catch(function () { if (chatPending > 0) chatPending--; });
   }
 
   // 답변 본문에서 눌러볼 인용을 찾는 표현. 다섯 갈래를 한 번에 훑는다.
@@ -3688,6 +4835,41 @@
   }
 
   /**
+   * 근거 줄의 법령명을 **화면에 보여줄 문자열**로 만든다.
+   * 법령명이 `시행령`·`시행규칙`처럼 **계층 낱말뿐**이면 그 줄이 실려 있던 위키 페이지의 법
+   * (row.baseLaw)을 앞에 붙여 준다.
+   *
+   * 예: displayLawName({law:'시행규칙', baseLaw:'해양경비법'})      → '해양경비법 시행규칙'
+   *     displayLawName({law:'시행령 별표3', baseLaw:'어선법'})     → '어선법 시행령 별표3'
+   *     displayLawName({law:'수산업법 시행령'})                    → '수산업법 시행령'(그대로)
+   *
+   * [왜 필요한가 — 2026-09-07 27차 라이브 검증에서 발견]
+   *   위키 `## 근거 조문` 표에는 법령 칸을 `시행규칙` 처럼 계층 낱말만 적은 행이 흔하다
+   *   (개념 페이지 163행·위키 전체 194행). `시행령 별표3` 처럼 계층 낱말 + 별표/별지 번호만 적은
+   *   행도 같은 이유로 12행 있다. 그 페이지 안에서는 어느 법인지 자명해서다.
+   *   서버는 이 꼴을 알고 baseLaw 로 원문을 잘 찾아온다(legal_retriever.js BARE_TIER_CELL_RE, B3).
+   *   **그런데 화면이 그 baseLaw 를 안 써서**, 여러 법이 섞인 답변에서는 근거 목록에
+   *   "시행규칙 제1조의2" 처럼 어느 법인지 없는 줄이 그대로 나왔다. 실제 사례:
+   *   "헬기로 정선명령을 방송해도 효력이 있나" 답변에 어선안전조업법 시행규칙과
+   *   해양경비법 시행규칙이 함께 실렸는데 뒤엣것이 "시행규칙"으로만 표시됐다.
+   *
+   * ⚠**보여줄 글자만 만든다 — 판정에 쓰는 값(row.law)은 건드리지 않는다.**
+   *   row.law 는 조문 원문을 어느 폴더에서 읽을지 정하는 열쇠로도 쓰이고, 그 판정은
+   *   "법령 칸이 계층 낱말뿐인가"를 조건으로 삼는다(usesBaseLaw). 값 자체를 바꾸면
+   *   그 판정이 뒤집혀 엉뚱한 원문을 열 수 있다.
+   * @param {{law:string, baseLaw:string}} row - citationChain 한 줄
+   * @returns {string} 화면에 찍을 법령명(붙일 게 없으면 원래 값 그대로)
+   * [연계] ← chainStepHTML(근거 목록 카드) · openArtPop(조문 원문 팝업 제목).
+   */
+  function displayLawName(row) {
+    var nm = String((row && row.law) || '').trim();
+    var base = String((row && row.baseLaw) || '').trim();
+    // 계층 낱말 하나로 끝나거나, 그 뒤에 별표·별지·서식 번호만 붙은 꼴까지 받는다.
+    if (!base || !/^(시행령|시행규칙)(\s*(별표|별지|서식)\s*제?\s*\d+(의\d+)?\s*호?)?$/.test(nm)) return nm;
+    return base + ' ' + nm;
+  }
+
+  /**
    * 인용사슬 한 조문을 체인 한 칸으로 그린다.
    * 제목 줄은 **[뱃지] 법령명 조문번호** 한 줄로 짧게 끝내고(시행일자는 그 줄 오른쪽 끝의 작은 칩),
    * 그 아래에 그 조문의 **원문 발췌**(row.excerpt — 서버가 조문 원문에서 그대로 잘라 실어준 것)를
@@ -3746,7 +4928,10 @@
     // (조 하나를 못 짚어 강조를 할 수 없는 대신 방향을 잡아주는 문구 — 가공 없이 원문 그대로).
     // [계약1] `citedArticle` = 답변 문장이 이 줄을 인용할 때 실제로 쓴 표기 전체(`제58조제5항제7호`).
     //   비어 있지 않으면 그걸 보내야 팝업이 그 항·호만 짚어준다(없으면 예전처럼 위키 표의 조문 칸).
-    var hitAttrs = ' data-law="' + esc(row.law || '') + '" data-article="' + esc(row.citedArticle || row.article || '') +
+    // ⚠data-law 는 **서버에 그대로 넘길 값**이라 손대지 않는다. 화면에 보여줄 이름은
+    //   data-lawshow 로 따로 싣는다(displayLawName — 계층 낱말뿐인 법령명에 페이지의 법을 붙인 것).
+    var hitAttrs = ' data-law="' + esc(row.law || '') + '" data-lawshow="' + esc(displayLawName(row)) +
+      '" data-article="' + esc(row.citedArticle || row.article || '') +
       '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(row.baseLaw || '') +
       '" data-gist="' + esc(row.gist || '') + '"' +
       (penalty ? ' data-pen="1"' : '');
@@ -3761,7 +4946,7 @@
       '<div class="nrya-chain-content">' +
         '<div class="nrya-chain-hit"' + hitAttrs + '>' +
           '<div class="nrya-chain-head"><span class="nrya-chain-tier">' + head + '</span>' +
-            '<span class="nrya-chain-art">' + esc(row.law || '') + (row.article ? ' ' + esc(row.article) : '') + '</span>' + eff + '</div>' +
+            '<span class="nrya-chain-art">' + esc(displayLawName(row)) + (row.article ? ' ' + esc(row.article) : '') + '</span>' + eff + '</div>' +
           step +
           quote +
         '</div>' +

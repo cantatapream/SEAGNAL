@@ -18,6 +18,10 @@
  *                                       담아 대기 유지 + review_queue.md에 시도 이력 append
  *  - GET  /api/legal/admin/stats      → 관리자 검토센터 서브탭(초안·피드백·새지식후보·개정검토) 실카운트
  *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
+ *  - GET  /api/legal/rooms/stats      → 지식 방 갈래 버튼 6개 숫자 + 인트로 칩(개념 status·그래프 엣지)
+ *  - GET  /api/legal/rooms/list       → 지식 방 6개 목록(room=raw|concept|statute|comparison|annex|graph,
+ *                                       한 쪽 10개 페이지네이션)
+ *  - GET  /api/legal/rooms/law        → 원문 방 아코디언 한 칸(계층별 **실제 시행일**·별표·고시)
  *  - POST /api/legal/ask              → 하이브리드 검색 + Gemini 답변 스트리밍 합성(NDJSON, services/legal_retriever.js)
  *                                       조건에 따라 답이 갈리는 질문은 종합답변 대신 되묻기(질문+선택지)를
  *                                       done 이벤트의 clarify 필드로 내려보낸다(legal_retriever.decideClarify)
@@ -33,7 +37,9 @@
  * [연계 파일]
  * - knowledge/legal/_dashboard/review_queue.md   → 검증 대기 원장(승인 마킹 대상)
  * - knowledge/legal/wiki/concepts/*.md           → 대상 페이지(status 승격 대상)
- * - knowledge/legal/_dashboard/index.json        → 답변 검색 색인(사전 생성됨)
+ * - knowledge/legal/_dashboard/index.json        → 답변 검색 색인(사전 생성됨) + 지식 방 목록 4종
+ * - knowledge/legal/wiki/graph.json              → 지식 방 '지식그래프' 노드·엣지
+ * - knowledge/legal/raw/01~14 도메인/<법>/       → 지식 방 '원문' 목록·아코디언(.txt 머리말의 실제 시행일)
  * - knowledge/legal/_dashboard/review_approvals.json → 승인·교정 이력(감사 추적)
  * - services/admin_auth.js  → X-Admin-Token 검증(관리자 전용 게이트)
  * - services/atomic_write.js → 원자적 파일쓰기(경합 방지)
@@ -54,10 +60,12 @@ const adminAuth = require('../services/admin_auth');
 const { writeFileAtomic } = require('../services/atomic_write');
 const legalRetriever = require('../services/legal_retriever');
 const articleText = require('../services/article_text');
+const effectiveDate = require('../services/effective_date');   // 지식 방 '원문'이 챗봇과 같은 판(예고본 포함)을 보여주게
 const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
 const adminQueues = require('../services/legal_admin_queues');
 const amendmentScanner = require('../services/legal_amendment_scanner');
+const wikiBrief = require('../services/legal_wiki_brief');
 const freshScanner = require('../services/admrul_fresh_scanner');
 const { DATA_DIR, FILES } = require('../config/server_config');
 
@@ -595,19 +603,71 @@ router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => 
       draft: pages.filter(p => p.kind === 'concept' && p.status === 'draft').length,
       feedback: adminQueues.countPending(FEEDBACK_FILE),
       candidates: adminQueues.countPending(CANDIDATES_FILE),
-      amendments: adminQueues.countPending(amendmentScanner.QUEUE_FILE),
+      amendments: adminQueues.countPending(amendmentScanner.queueFile()),
       freshness: adminQueues.countPending(freshScanner.QUEUE_FILE) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
-// GET /api/legal/drafts — 초안승인 탭 목록(index.json의 status=draft 개념 페이지, 법·주제·처벌포함여부)
+// 초안승인 방이 쓰는 표시([미확인] 머리표). legal_retriever 가 본문에 넣는 것과 **같은 글자**여야
+// 한다 — 이 글자로 "확정 서술"과 "사람 검토가 안 끝난 줄"을 가른다.
+const UNVERIFIED_MARK = '[미확인 — 아래는 사람 검토가 끝나지 않은 내용이다.';
+
+/**
+ * 초안 한 쪽을 **챗봇이 실제로 쓰는 모습 그대로** 갈라서 돌려준다.
+ * 운영 코드(`legal_retriever.markUnresolvedReview`)를 그대로 불러 쓴다 — 규칙을 여기서 다시
+ * 구현하면 화면과 실제 답변이 어긋나기 때문이다.
+ * @param {string} file - 개념 페이지 파일명(확장자 없음)
+ * @returns {{ok:boolean, body:string, kept:string, unverified:Array<string>, error?:string}}
+ *   kept: 지금도 그대로 근거로 쓰이는 부분 · unverified: [미확인]으로 밀려난 줄들
+ * [연계] ← GET /api/legal/drafts/detail.
+ */
+function splitDraftBody(file) {
+  const page = legalRetriever.readPage('concept', file);
+  if (!page) return { ok: false, body: '', kept: '', unverified: [], error: '페이지를 찾지 못했습니다: ' + file };
+  const body = page.body || '';
+  const out = legalRetriever.markUnresolvedReview(body);
+  const i = out.indexOf(UNVERIFIED_MARK);
+  const kept = i < 0 ? out : out.slice(0, i);
+  const unverified = i < 0 ? [] : out.slice(i).split('\n').slice(1).map((l) => l.trim()).filter(Boolean);
+  return { ok: true, body, kept, unverified };
+}
+
+// GET /api/legal/drafts?page=1&per=20 — 초안승인 탭 목록(index.json의 status=draft 개념 페이지).
+//   ★2026-09-10 사용자 요청으로 **쪽 나누기**를 넣었다(224건이 한 화면에 통째로 쏟아졌다).
+//   카드마다 **[미확인]으로 밀려난 줄이 몇 줄인지**(unverified)를 함께 준다 — "이 초안이 왜
+//   대기 중인가"가 그 숫자이기 때문이다. 0이면 승격 후보다.
 router.get('/api/legal/drafts', adminAuth.requireAdminToken, (req, res) => {
   try {
-    const drafts = (loadIndex().pages || [])
+    const all = (loadIndex().pages || [])
       .filter(p => p.kind === 'concept' && p.status === 'draft')
-      .map(p => ({ file: p.file, law: p.law, topic: p.topic, penalty: !!p.penalty }))
-      .sort((a, b) => (a.law || '').localeCompare(b.law || ''));
-    res.json({ ok: true, count: drafts.length, drafts });
+      .sort((a, b) => (a.law || '').localeCompare(b.law || '') || (a.topic || '').localeCompare(b.topic || ''));
+    const per = Math.max(1, Math.min(100, parseInt(req.query.per, 10) || 20));
+    const pages = Math.max(1, Math.ceil(all.length / per));
+    const page = Math.max(1, Math.min(pages, parseInt(req.query.page, 10) || 1));
+    const drafts = all.slice((page - 1) * per, page * per).map((p) => {
+      const r = splitDraftBody(p.file);
+      return { file: p.file, law: p.law, topic: p.topic, penalty: !!p.penalty,
+               unverified: r.ok ? r.unverified.length : -1 };
+    });
+    res.json({ ok: true, count: all.length, total: all.length, page, pages, per, drafts });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/drafts/detail?file=<파일명> — 초안 한 쪽의 내용을 본다(사용자 요청 2026-09-10:
+//   "해당 페이지에서 초안을 확인할 수 있는 방안이 현재 없어").
+//   ★그냥 본문을 주지 않고 **챗봇이 쓰는 모습 그대로 갈라서** 준다 — 지금도 근거로 쓰이는 부분과
+//   [미확인]으로 밀려난 줄을 나눠 줘야, 관리자가 "무엇을 승인해야 하는지"를 바로 본다.
+//   파일명에 `ㆍ`·괄호가 섞여 있어 경로가 아니라 쿼리로 받는다.
+router.get('/api/legal/drafts/detail', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ ok: false, error: 'file 이 필요합니다.' });
+    const meta = (loadIndex().pages || []).find(p => p.kind === 'concept' && p.file === file);
+    if (!meta) return res.status(404).json({ ok: false, error: '개념 페이지를 찾지 못했습니다: ' + file });
+    const r = splitDraftBody(file);
+    if (!r.ok) return res.status(404).json({ ok: false, error: r.error });
+    res.json({ ok: true, file, law: meta.law, topic: meta.topic, status: meta.status,
+               penalty: !!meta.penalty, kept: r.kept, unverified: r.unverified, body: r.body });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -747,16 +807,57 @@ router.post('/api/legal/candidates/:id/decide', adminAuth.requireAdminToken, (re
 // 개정 검토 — services/legal_amendment_scanner.js가 매일 밤(server.js cron) law.go.kr을
 // 정기 조회해 공포번호·시행일자가 바뀐 법을 찾아 큐에 적재한다. 여기는 그 큐를 보여주고
 // 사람이 승인/반려하는 API만 — 승인해도 재수집·재빌드는 이 자리에서 자동 실행하지 않는다
+// 큐 파일은 Fly 볼륨(`data/legal_amendments_queue.jsonl`)에 있고 `queueFile()` 이 첫 접근 때
+// git 사본(`_amendments/queue.jsonl`)으로 시드한다 — 상수 경로를 직접 읽으면 시드가 안 된다(2026-09-10).
 // (_amendments/README.md 설계: "승인 → 매니페스트 재생성 → 재수집 → 재빌드 → 재감사"는
 // 사람이 다음 세션에서 orchestrate하는 별도 단계, 자동 파이프라인 아님 — 환각0 승인게이트).
 // ============================================================================
+
+/**
+ * 미리 받아 둔 예고본(pending_index.json)을 **큐 id → 그 예고본 정보** 로 뒤집은 표를 만든다.
+ * 예: stageByQueueId().get('am_17...') → { law:'양식산업발전법', date:'20261001', file:'법률.txt', due:false }
+ * `due:true` 는 시행일이 이미 지났다는 뜻 — 승인 전이라 챗봇이 아직 옛 내용을 답하고 있다.
+ * @returns {Map<string, {law:string,date:string,file:string,due:boolean}>}
+ * [연계] ← GET /api/legal/amendments(카드에 붙일 stage) · countStagedIds(일괄 승인 미리보기).
+ */
+function stageByQueueId() {
+  const idx = effectiveDate.loadPendingIndex();
+  const today = effectiveDate.todayKST();
+  const m = new Map();
+  for (const base of Object.keys(idx)) {
+    for (const e of idx[base] || []) {
+      for (const f of Object.keys((e && e.queue_id) || {})) {
+        m.set(String(e.queue_id[f]), { law: base.split('/').pop(), date: String(e.date), file: f, due: String(e.date) <= today });
+      }
+    }
+  }
+  return m;
+}
+
+/**
+ * 주어진 큐 id 들 중 **승인하면 챗봇 답변이 실제로 바뀌는 건**이 몇 개인지 센다.
+ * 예고본을 미리 받아 둔 건만 해당한다 — 나머지는 승인해도 "재수집 필요" 표시만 붙는다.
+ * @param {Array<string>} ids @returns {number}
+ * [연계] ← POST /api/legal/amendments/decide-all · GET .../decide-all/preview.
+ */
+function countStagedIds(ids) {
+  const m = stageByQueueId();
+  let n = 0;
+  for (const id of ids || []) if (m.has(String(id))) n++;
+  return n;
+}
 
 // GET /api/legal/amendments?status=pending|approved|dismissed|all (관리자)
 router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
   try {
     const status = req.query.status || 'pending';
-    let list = adminQueues.readJsonl(amendmentScanner.QUEUE_FILE).reverse();
+    let list = adminQueues.readJsonl(amendmentScanner.queueFile()).reverse();
     if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
+    // ★승인 게이트(2026-09-10): 이 항목에 **미리 받아 둔 예고본**이 있으면 알려 준다. 승인해야 그 판이
+    //   답변에 반영되므로, 관리자는 "승인만 하면 바로 바뀌는 건인지"를 카드에서 알아야 한다.
+    //   시행일이 이미 지났는데 승인이 안 됐으면(due:true) 지금 챗봇은 **옛 내용**을 내보내는 중이다.
+    const byQueue = stageByQueueId();
+    list = list.map((e) => (byQueue.has(e.id) ? Object.assign({}, e, { stage: byQueue.get(e.id) }) : e));
     res.json({ ok: true, count: list.length, amendments: list });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
@@ -765,10 +866,107 @@ router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
 router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (req, res) => {
   try {
     const { decision = 'approved', by = '관리자' } = req.body || {};
-    const updated = adminQueues.updateJsonlById(amendmentScanner.QUEUE_FILE, req.params.id, { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
+    const updated = adminQueues.updateJsonlById(amendmentScanner.queueFile(), req.params.id, { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
     if (!updated) return res.status(404).json({ ok: false, error: 'amendment not found: ' + req.params.id });
-    res.json({ ok: true, amendment: updated });
+    // ★승인을 **탐지 큐에도** 옮겨 적는다(2026-09-10에 찾은 결함). 재수집 도구
+    //   `_dashboard/loop/collect_pending_law.py --all-approved` 는 승인 여부를
+    //   `data/law_change_queue.json` 에서 찾는데, 종전에는 이 버튼이 `queue.jsonl` 에만 써서
+    //   **승인해도 재수집 대상이 0건**이었다. 옮겨 적기가 실패해도 승인 자체는 막지 않고 결과만 알려 준다.
+    const mirrored = amendmentScanner.mirrorDecisionToH29(req.params.id, decision);
+    res.json({ ok: true, amendment: updated, mirrored });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/amendments/decide-all (관리자) — body: { decision:'approved'|'dismissed', ids?:[...], by? }
+//   대기 중인 건을 **한 번에** 처리한다(사용자 확정 2026-09-10: "전체 승인 할 수 있도록 버튼을 만들어주고").
+//   ids 를 주면 그 건만, 안 주면 status==='pending' 인 전 건이 대상이다.
+//   ★왜 한 번에 눌러도 되나: 이 큐의 근거는 law.go.kr 이 스스로 공표한 "이 날부터 이 내용"이라,
+//     개정 사실 자체는 다투는 값이 아니다. 승인 게이트가 있는 이유는 개정을 의심해서가 아니라
+//     **위키가 자동으로 안 바뀌기 때문**이다(서버는 저장소에 글을 못 쓴다). 그래서 응답에
+//     `staged`(승인 즉시 챗봇 답변이 바뀌는 건 수)를 함께 돌려준다 — 화면이 그 숫자를 먼저 보여
+//     주고 확인을 받는다.
+router.post('/api/legal/amendments/decide-all', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const { decision = 'approved', ids = null, by = '관리자' } = req.body || {};
+    if (decision !== 'approved' && decision !== 'dismissed') {
+      return res.status(400).json({ ok: false, error: "decision 은 'approved' 또는 'dismissed' 여야 합니다." });
+    }
+    const rows = adminQueues.readJsonl(amendmentScanner.queueFile());
+    const want = Array.isArray(ids) && ids.length ? new Set(ids.map(String)) : null;
+    const targets = rows.filter((e) => (want ? want.has(String(e.id)) : (e.status || 'pending') === 'pending'));
+    if (!targets.length) return res.json({ ok: true, decided: 0, mirrored: 0, ids: [], staged: 0 });
+    const decidedAt = new Date().toISOString();
+    const done = [];
+    let mirrored = 0;
+    for (const t of targets) {
+      const u = adminQueues.updateJsonlById(amendmentScanner.queueFile(), t.id, { status: decision, decidedBy: by, decidedAt });
+      if (!u) continue;
+      done.push(String(t.id));
+      // 개별 승인과 같은 처리 — 재수집 도구가 보는 탐지 큐에도 옮겨 적는다.
+      if (amendmentScanner.mirrorDecisionToH29(t.id, decision)) mirrored++;
+    }
+    res.json({ ok: true, decided: done.length, mirrored, ids: done, staged: countStagedIds(done) });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/amendments/decide-all/preview (관리자) — 전체 승인을 누르기 **전에** 무엇이 벌어지는지.
+//   대기 건수와, 그중 "승인 즉시(또는 시행일부터) 챗봇 답변이 바뀌는" 건수를 돌려준다.
+router.get('/api/legal/amendments/decide-all/preview', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const rows = adminQueues.readJsonl(amendmentScanner.queueFile());
+    const pending = rows.filter((e) => (e.status || 'pending') === 'pending');
+    const ids = pending.map((e) => String(e.id));
+    const withArts = pending.filter((e) => (e.changed_articles || []).length).length;
+    res.json({ ok: true, pending: pending.length, staged: countStagedIds(ids), withArticles: withArts });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/amendments/wiki-brief-all?status=approved (관리자) — 승인한 **전 건**을 한 덩어리
+//   인계문으로. 개별 지시문(위 :id/wiki-brief)과 별개다(사용자 확정 2026-09-10).
+//   ids 를 콤마로 주면 그 건만 묶는다(방금 일괄 승인한 것만 뽑을 때 쓴다).
+router.get('/api/legal/amendments/wiki-brief-all', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const rows = adminQueues.readJsonl(amendmentScanner.queueFile());
+    const idsQ = String(req.query.ids || '').split(',').map((v) => v.trim()).filter(Boolean);
+    let list;
+    if (idsQ.length) {
+      const want = new Set(idsQ);
+      list = rows.filter((e) => want.has(String(e.id)));
+    } else {
+      const status = req.query.status || 'approved';
+      list = status === 'all' ? rows : rows.filter((e) => (e.status || 'pending') === status);
+    }
+    if (!list.length) {
+      // 빈 결과는 오류가 아니라 **아직 승인한 게 없다**는 상태다 — 화면이 그대로 옮겨 적을 문장을 준다.
+      return res.status(404).json({ ok: false, error: idsQ.length ? '그 id 로 묶을 항목을 찾지 못했습니다.' : '아직 승인한 건이 없습니다. 카드에서 승인하거나 「전체 승인」을 먼저 누르세요.' });
+    }
+    const r = wikiBrief.buildBulkWikiBrief(list, effectiveDate.todayKST());
+    if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
+    res.json({ ok: true, count: r.count, detailed: r.detailed, listed: r.listed, pages: r.pages, text: r.text });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/amendments/:id/wiki-brief (관리자) — 승인한 개정을 위키에 반영하려면 무엇을 어디서
+//   고쳐야 하는지 한 덩어리 글로 준다. 관리자가 그 글만 복사해 AI 에게 붙여 넣으면 된다
+//   (사용자 확정 2026-09-10: "승인한 내역에 대해 어떤 부분이 바뀌었고 어떤 부분에 집중해 위키를
+//   수정검토해야 하는지 텍스트로 정리"). 승인 전이어도 뽑을 수 있다 — 미리 읽어 보라고 막지 않는다.
+router.get('/api/legal/amendments/:id/wiki-brief', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const rows = adminQueues.readJsonl(amendmentScanner.queueFile());
+    const am = rows.find((e) => String(e.id) === String(req.params.id));
+    if (!am) return res.status(404).json({ ok: false, error: 'amendment not found: ' + req.params.id });
+    const r = wikiBrief.buildWikiBrief(am, effectiveDate.todayKST());
+    if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
+    res.json({ ok: true, id: am.id, 법령명: am.법령명 || '', status: am.status || '', text: r.text, pages: r.pages });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/amendments/scan-progress (관리자) — 「지금 스캔」 진행률(화면 게이지 바용).
+//   탐지 스크립트가 stdout 으로 찍는 진행 줄을 스캐너가 모아 둔 것을 그대로 준다.
+//   ★이 값은 **질의 진행도**이지 남은 시간이 아니다(부처별 고시 수가 들쭉날쭉해 시간 예측은 거짓이 된다).
+router.get('/api/legal/amendments/scan-progress', adminAuth.requireAdminToken, (req, res) => {
+  try { res.json(Object.assign({ ok: true }, amendmentScanner.getScanProgress())); }
+  catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
 // POST /api/legal/amendments/scan-now (관리자) — 정기 cron과 별개로 즉시 1회 스캔(H-29
@@ -1722,6 +1920,374 @@ router.get('/api/legal/article-text', async (req, res) => {
     console.error('[Legal] 조문 원문 조회 실패:', e && e.message);
     res.json({ ok: false, reason: 'error' });
   }
+});
+
+// ============================================================================
+// 지식 방(관리자 콘솔 "지식 방" 화면) — 실데이터 통계·목록 API
+// ----------------------------------------------------------------------------
+// [왜 만들었나] 2026-09-09 이전의 지식 방 화면은 갈래 버튼 숫자도 아래 목록도 전부
+//   client/js/ai-chat/ai_chat.js 의 ROOMS 상수(디자인 시안 복사본)였다. 실제와 크게
+//   어긋나 있었고(위키개념 919↔963 · 비교허브 26↔49 · 별표서식 98↔199 · 그래프
+//   88노드↔109노드), 특히 **시행일자가 실제 원문과 달라** 관리자가 원문 최신판을
+//   오인할 수 있었다. 그래서 화면이 쓸 실데이터를 이 세 엔드포인트로 내려준다.
+// [엔드포인트 셋을 이렇게 가른 이유]
+//   · stats / list 를 하나로 합치지 않은 것 — 갈래 버튼 숫자는 방을 열 때 한 번만 필요하고,
+//     목록은 쪽을 넘길 때마다 필요하다. 합치면 쪽을 넘길 때마다 6방 통계를 다시 센다.
+//   · list 를 방마다 6개로 쪼개지 않은 것 — 여섯 방이 전부 같은 재료(index.json·graph.json·
+//     raw 스캔)에서 나오고 쪽 계산·권한 게이트가 똑같다. 쪼개면 그 셈을 여섯 벌 두게 된다.
+//   · law(원문 한 법의 아코디언 내용)만 따로 뗀 것 — 이건 목록과 재료가 다르다(.txt 머리말·
+//     별표/_links.json·행정규칙 폴더). 목록에 미리 담으면 70법치를 매번 다 읽어야 한다.
+// [데이터 출처]
+//   · _dashboard/index.json  → 위키개념·법령·비교허브·별표서식 (legal_retriever.loadIndex 캐시 공유)
+//   · wiki/graph.json        → 지식그래프 (mtime 캐시)
+//   · raw/01~14 도메인의 <법> 폴더      → 원문 (프로세스 1회 스캔 캐시)
+// ============================================================================
+
+const GRAPH_JSON = path.join(LEGAL_DIR, 'wiki', 'graph.json');
+const ROOM_PAGE_SIZE = 10;                 // 한 쪽에 10개(사용자 확정 2026-09-09)
+const RAW_DOMAIN_RE = /^(0[1-9]|1[0-4])_/; // 기준법 도메인만(15_관련타부처·_자치법규 제외)
+const RAW_TIERS = [                        // raw 법 폴더 바로 밑의 계층 원문(있는 것만 보여준다)
+  { file: '법률.txt', label: '법률', ic: '법' },
+  { file: '시행령.txt', label: '시행령', ic: '령' },
+  { file: '시행규칙.txt', label: '시행규칙', ic: '칙' },
+];
+const BYL_TIER_SHORT = { 법률: '법', 시행령: '령', 시행규칙: '칙' };
+
+// ── graph.json 캐시(mtime 감지) — loadIndex 와 같은 방식 ──
+let _graphCache = null, _graphMtime = 0;
+/**
+ * wiki/graph.json 을 읽어 캐시한다(파일이 바뀌면 다시 읽는다).
+ * 예: loadGraph().nodes.length → 109
+ * @returns {{nodes:Array<{id:string,type:string,pages:number}>, edges:Array<{from:string,to:string,kind:string}>}}
+ * [연계] → 지식그래프 방의 통계·노드 목록. loadIndex(legal_retriever)와 같은 mtime 캐시 관례.
+ */
+function loadGraph() {
+  try {
+    const mt = fs.statSync(GRAPH_JSON).mtimeMs;
+    if (_graphCache && mt === _graphMtime) return _graphCache;
+    const j = JSON.parse(fs.readFileSync(GRAPH_JSON, 'utf8'));
+    _graphCache = { nodes: Array.isArray(j.nodes) ? j.nodes : [], edges: Array.isArray(j.edges) ? j.edges : [] };
+    _graphMtime = mt;
+  } catch (_) { if (!_graphCache) _graphCache = { nodes: [], edges: [] }; }
+  return _graphCache;
+}
+
+/**
+ * 파일 앞부분만 읽는다(큰 원문 전체를 메모리에 올리지 않기 위함).
+ * 예: readHead('/…/법률.txt', 4096) → '제1장 총칙\n\n[제1조] 목적 (시행 20230628 · 일부개정)…'
+ * @param {string} file - 절대 경로
+ * @param {number} bytes - 읽을 바이트 수
+ * @returns {string} UTF-8 문자열(끝이 잘려도 무해 — 찾는 표기는 전부 앞쪽에 있다)
+ * [연계] ← effOfTxt/admrulHead. 원문 .txt 머리말에서 시행일·제목만 뽑는 데 쓴다.
+ */
+function readHead(file, bytes) {
+  let fd = null;
+  try {
+    fd = fs.openSync(file, 'r');
+    const buf = Buffer.alloc(bytes);
+    const n = fs.readSync(fd, buf, 0, bytes, 0);
+    return buf.slice(0, n).toString('utf8');
+  } catch (_) { return ''; }
+  finally { if (fd !== null) { try { fs.closeSync(fd); } catch (_) { /* 무시 */ } } }
+}
+
+/**
+ * 법령 원문 .txt 의 **파일별 실제 시행일**을 머리말에서 읽는다.
+ * 조문 머리표가 `[제1조] 목적 (시행 20230628 · 일부개정)` 꼴이고, 한 파일 안의 모든 조문이
+ * 같은 날짜를 갖는다(70법 199개 파일 전수 확인, 섞인 파일 0개). 그래서 첫 표기를 쓴다.
+ * ⚠ _meta.json 의 `시행일` 은 **법률 계층의 대표 시행일**이라 시행령·시행규칙에는 안 맞는다
+ *   (예: 선박안전법 대표 20230628 / 시행령 20241112 / 시행규칙 20260727).
+ * 예: effOfTxt('/…/시행령.txt') → { eff:'20241112', amd:'타법개정' }
+ * @param {string} file - 원문 .txt 절대 경로
+ * @returns {{eff:string, amd:string}} 못 읽으면 둘 다 '' — 화면은 "확인 안 됨"으로 둔다(지어내지 않음)
+ * [연계] ← buildRawLaws(법 목록의 대표 시행일) · /api/legal/rooms/law(계층별 시행일).
+ */
+function effOfTxt(file) {
+  const m = readHead(file, 8192).match(/\(시행\s*(\d{8})(?:\s*·\s*([^)]+))?\)/);
+  return m ? { eff: m[1], amd: (m[2] || '').trim() } : { eff: '', amd: '' };
+}
+
+/**
+ * 디렉터리 아래 .txt 파일 개수를 재귀로 센다(원문 보관량 표시용).
+ * 예: countTxt('/…/raw/04_선박해운/선박안전법') → 992
+ * @param {string} dir - 절대 경로
+ * @returns {number}
+ * [연계] ← buildRawLaws. 원문 방 인트로 칩의 "원문 N건".
+ */
+function countTxt(dir) {
+  let n = 0;
+  let ents;
+  try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return 0; }
+  for (const e of ents) {
+    if (e.isDirectory()) n += countTxt(path.join(dir, e.name));
+    else if (e.name.endsWith('.txt')) n++;
+  }
+  return n;
+}
+
+// ── raw 법 목록 캐시(프로세스 1회) ──
+// raw/ 는 컨테이너 이미지에 통째로 구워져 배포되므로(Dockerfile `COPY . .`) 서버가 도는 동안
+// 바뀌지 않는다. 재수집은 저장소에서 하고 재배포 = 프로세스 재기동이라 그때 다시 스캔된다.
+let _rawLawsCache = null;
+/**
+ * raw/01~14 도메인의 <법> 폴더 을 훑어 기준법 목록을 만든다(프로세스 1회, 이후 캐시).
+ * 각 법의 이름·소관부처는 `_meta.json`, **대표 시행일은 법률.txt 머리말**에서 읽는다.
+ * 예: buildRawLaws().laws[0] → { name:'배타적 경제수역 및 대륙붕에 관한 법률',
+ *      dir:'01_해양주권정책/배타적경제수역및대륙붕에관한법률', eff:'20170321' }
+ * @returns {{laws:Array<object>, domains:number, txtFiles:number, related:number, local:number}}
+ * [연계] ← /api/legal/rooms/stats · /api/legal/rooms/list?room=raw · /api/legal/rooms/law.
+ */
+function buildRawLaws() {
+  if (_rawLawsCache) return _rawLawsCache;
+  const laws = [];
+  let txtFiles = 0;
+  let doms = [];
+  try { doms = fs.readdirSync(RAW_DIR).filter(d => RAW_DOMAIN_RE.test(d)).sort(); } catch (_) { doms = []; }
+  for (const d of doms) {
+    let names = [];
+    try { names = fs.readdirSync(path.join(RAW_DIR, d), { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name).sort(); } catch (_) { names = []; }
+    for (const n of names) {
+      const abs = path.join(RAW_DIR, d, n);
+      let meta = {};
+      try { meta = JSON.parse(fs.readFileSync(path.join(abs, '_meta.json'), 'utf8')); } catch (_) { meta = {}; }
+      const eff = effOfTxt(path.join(abs, '법률.txt')).eff;
+      txtFiles += countTxt(abs);
+      laws.push({
+        name: String(meta['법령명'] || n),
+        dir: d + '/' + n,
+        domain: d,
+        ministry: String(meta['소관부처'] || ''),
+        eff,                                     // 법률.txt 머리말의 실제 시행일(없으면 '')
+      });
+    }
+  }
+  const countDirs = (sub) => {
+    try { return fs.readdirSync(path.join(RAW_DIR, sub), { withFileTypes: true }).filter(e => e.isDirectory()).length; }
+    catch (_) { return 0; }
+  };
+  _rawLawsCache = { laws, domains: doms.length, txtFiles, related: countDirs('15_관련타부처'), local: countDirs('_자치법규') };
+  return _rawLawsCache;
+}
+
+/** raw/ 아래 상대경로를 브라우저가 열 수 있는 원본 링크로. @param {string} rel @returns {string} */
+function srcUrl(rel) { return '/api/legal/src?p=' + encodeURIComponent(rel); }
+
+/** law.go.kr 별표 링크가 상대경로로 적힌 파일이 있어 절대 URL로 만든다. @param {string} u @returns {string} */
+function absLawUrl(u) {
+  const s = String(u || '').trim();
+  if (!s) return '';
+  if (/^https?:\/\//i.test(s)) return s;
+  return s.startsWith('/') ? 'https://www.law.go.kr' + s : '';
+}
+
+/**
+ * 이 장이 **다른 법과 이어진 수**를 센다. 갈래마다 셈이 다르다.
+ *  · 법령 허브 : `links` 의 `statutes/…` — 다른 법 허브로 가는 실제 위키 링크.
+ *  · 비교 허브 : `links` 가 가리키는 개념들의 **법 이름 가짓수**. 비교허브는 `statutes/` 링크가
+ *               거의 없어(49장 중 48장이 0건, 2026-09-09 실측) 같은 셈을 쓰면 화면이 전부 0이 된다.
+ * ⚠ `cited` 칸은 쓰지 않는다 — 실측 결과 법령 허브 74장 중 **15장이 자기 법 이름을 담고 있고**,
+ *   '관련 개념'·'변경 이력' 같은 **문단 제목**을 비롯해 법령명이 아닌 항목 1,679종이 섞여 있다.
+ *   즉 `cited.length` 는 "타법의 수"가 아니다(해상교통안전법: cited 11 중 자기 1 · 문단제목 2).
+ * 예: crossLawCount(해상교통안전법 허브) → 8
+ * @param {object} p - index.json 의 페이지 한 장
+ * @returns {number}
+ * [연계] ← pagesOf. → 화면의 '타법연결 N'(법령) · '다루는 법 N'(비교허브).
+ */
+function crossLawCount(p) {
+  const links = (p.links || []).map(String);
+  if (p.kind === 'statute') return links.filter(l => l.startsWith('statutes/')).length;
+  const s = new Set();
+  for (const l of links) {
+    if (l.startsWith('statutes/')) s.add(l.slice('statutes/'.length).split('|')[0]);
+    else if (l.includes('__') && !/^(annexes|comparisons)\//.test(l) && !l.startsWith('concept_')) s.add(l.split('__')[0]);
+  }
+  return s.size;
+}
+
+/**
+ * index.json 페이지 배열에서 한 갈래(kind)만 뽑아 화면용 행으로 바꾼다.
+ * 예: pagesOf('concept')[0] → { file:'갯벌…__갯벌관리구역지정및관리계획', title:'갯벌관리구역지정및관리계획',
+ *      law:'갯벌 및 그 주변지역의 지속가능한 관리와 복원에 관한 법률', status:'canonical' }
+ * @param {'concept'|'statute'|'comparison'|'annex'} kind
+ * @returns {Array<object>} 법 이름 → 주제 순으로 정렬된 행
+ * [연계] ← roomItems. → legalRetriever.loadIndex(mtime 캐시 공유).
+ */
+function pagesOf(kind) {
+  const pages = (loadIndex().pages || []).filter(p => p.kind === kind);
+  const conceptCount = {};
+  if (kind === 'statute') {
+    for (const p of (loadIndex().pages || [])) {
+      if (p.kind === 'concept') conceptCount[p.law] = (conceptCount[p.law] || 0) + 1;
+    }
+  }
+  return pages.map(p => {
+    const row = {
+      file: p.file,
+      title: p.topic || p.law || p.file,
+      law: p.law || '',
+      status: p.status || '',
+      penalty: !!p.penalty,
+      xlaw: crossLawCount(p),
+      links: (p.links || []).length,
+      byls: (p.byls || []).length,
+    };
+    if (kind === 'statute') { row.title = p.law || p.file; row.concepts = conceptCount[p.law] || 0; }
+    return row;
+  }).sort((a, b) => (a.law || '').localeCompare(b.law || '', 'ko') || (a.title || '').localeCompare(b.title || '', 'ko'));
+}
+
+/**
+ * 지식그래프 방의 목록 행 — 노드(법)마다 몇 갈래로 이어져 있는지 센다.
+ * 예: graphItems()[0] → { title:'낚시 관리 및 육성법', pages:42, out:64, in:64, degree:128 }
+ * @returns {Array<object>} 연결 많은 노드부터
+ * [연계] ← roomItems. → loadGraph().
+ */
+function graphItems() {
+  const g = loadGraph();
+  const out = {}, inn = {};
+  for (const e of g.edges) { out[e.from] = (out[e.from] || 0) + 1; inn[e.to] = (inn[e.to] || 0) + 1; }
+  return g.nodes.map(n => ({
+    title: n.id, pages: n.pages || 0,
+    out: out[n.id] || 0, in: inn[n.id] || 0, degree: (out[n.id] || 0) + (inn[n.id] || 0),
+  })).sort((a, b) => b.degree - a.degree || a.title.localeCompare(b.title, 'ko'));
+}
+
+/**
+ * 방 이름(ASCII 키)에 해당하는 전체 목록을 만든다(쪽 나누기 전).
+ * @param {string} room - raw|concept|statute|comparison|annex|graph
+ * @returns {Array<object>|null} 모르는 방이면 null
+ * [연계] ← GET /api/legal/rooms/list.
+ */
+function roomItems(room) {
+  if (room === 'raw') return buildRawLaws().laws;
+  if (room === 'graph') return graphItems();
+  if (room === 'concept' || room === 'statute' || room === 'comparison' || room === 'annex') return pagesOf(room);
+  return null;
+}
+
+// GET /api/legal/rooms/stats — 갈래 버튼 6개 숫자 + 인트로 카드 칩(개념 status·그래프 엣지 종류).
+//   숫자는 전부 그 자리에서 센 값이다(상수 없음).
+router.get('/api/legal/rooms/stats', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const pages = loadIndex().pages || [];
+    const countBy = (kind, field) => {
+      const o = {};
+      for (const p of pages) if (p.kind === kind) o[p[field] || ''] = (o[p[field] || ''] || 0) + 1;
+      return o;
+    };
+    const kindTotal = (kind) => pages.filter(p => p.kind === kind).length;
+    const g = loadGraph();
+    const edgeKinds = {};
+    for (const e of g.edges) edgeKinds[e.kind] = (edgeKinds[e.kind] || 0) + 1;
+    const raw = buildRawLaws();
+    // 법령 허브 페이지가 74장인데 raw 기준법은 70개다. 그 차이를 74-70 으로 빼서 쓰지 않고
+    // **이름 대조로** 센다(모든 기준법에 허브가 있다는 보장이 코드 어디에도 없기 때문).
+    const rawNames = new Set(raw.laws.map(l => l.name));
+    const statutePages = pages.filter(p => p.kind === 'statute');
+    const inRaw = statutePages.filter(p => rawNames.has(p.law)).length;
+    res.json({
+      ok: true,
+      raw: { laws: raw.laws.length, domains: raw.domains, txtFiles: raw.txtFiles, related: raw.related, local: raw.local },
+      concept: { total: kindTotal('concept'), status: countBy('concept', 'status') },
+      statute: { total: kindTotal('statute'), status: countBy('statute', 'status'), inRaw, notInRaw: statutePages.length - inRaw },
+      comparison: { total: kindTotal('comparison'), status: countBy('comparison', 'status') },
+      annex: { total: kindTotal('annex'), status: countBy('annex', 'status') },
+      graph: { nodes: g.nodes.length, edges: g.edges.length, kinds: edgeKinds },
+    });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/rooms/list?room=<raw|concept|statute|comparison|annex|graph>&page=<1부터>
+//   한 쪽에 10개씩(ROOM_PAGE_SIZE). 범위를 벗어난 page 는 마지막 쪽으로 당긴다(빈 화면 방지).
+router.get('/api/legal/rooms/list', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const room = String((req.query && req.query.room) || '').trim();
+    const all = roomItems(room);
+    if (!all) return res.status(400).json({ ok: false, error: '모르는 방: ' + room });
+    const total = all.length;
+    const pages = Math.max(1, Math.ceil(total / ROOM_PAGE_SIZE));
+    let page = parseInt((req.query && req.query.page) || '1', 10);
+    if (!Number.isFinite(page) || page < 1) page = 1;
+    if (page > pages) page = pages;
+    res.json({
+      ok: true, room, page, pages, total, perPage: ROOM_PAGE_SIZE,
+      items: all.slice((page - 1) * ROOM_PAGE_SIZE, page * ROOM_PAGE_SIZE),
+    });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/rooms/law?dir=<도메인>/<법폴더> — 원문 방 아코디언 한 칸의 내용.
+//   계층 원문(법률·시행령·시행규칙)의 **시행일은 각 .txt 머리말에서 읽은 실제 값**이고,
+//   별표·별지 서식은 `별표/_links.json`(수집 당시의 제목·원본 링크), 고시는 `행정규칙/*.txt` 머리말이다.
+//   ⚠ dir 은 캐시된 법 목록에 있는 값만 받는다(경로 이탈 차단 + 오타로 엉뚱한 폴더를 읽는 것 방지).
+router.get('/api/legal/rooms/law', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const dir = String((req.query && req.query.dir) || '').trim();
+    const law = buildRawLaws().laws.find(l => l.dir === dir);
+    if (!law) return res.status(404).json({ ok: false, error: '없는 법: ' + dir });
+    const abs = path.join(RAW_DIR, dir);
+
+    // ① 계층 원문 — 있는 파일만. 시행일을 못 읽으면 ''(화면이 "확인 안 됨"으로 표시)
+    //    ★시행일이 지난 예고본(`_대기/<시행일>/`)이 있으면 **챗봇이 실제로 읽는 그 파일**을 보여준다.
+    //      종전에는 이 방만 현행 파일을 읽어, 시행일 뒤에 조문 팝업은 새 원문인데 원문 방은 옛 시행일을
+    //      보여줬다(2026-09-10 독립 검토 medium). 아직 시행 전인 대기본은 `pending` 으로 따로 알려 준다.
+    const rel = path.relative(path.join(__dirname, '..', '..'), abs).split(path.sep).join('/');
+    const today = effectiveDate.todayKST();
+    const stageList = (effectiveDate.loadPendingIndex()[rel] || []);
+    const files = [];
+    for (const t of RAW_TIERS) {
+      let f = path.join(abs, t.file);
+      if (!fs.existsSync(f)) continue;
+      const stagedRel = effectiveDate.stagedRawPath(rel, t.file, today);
+      const staged = stagedRel && fs.existsSync(path.join(__dirname, '..', '..', stagedRel)) ? stagedRel : '';
+      if (staged) f = path.join(__dirname, '..', '..', staged);
+      const { eff, amd } = effOfTxt(f);
+      const pending = stageList.filter(e => e.date > today && (e.files || []).indexOf(t.file) >= 0).map(e => e.date).sort();
+      // ★시행일이 지났는데 **승인이 안 나** 아직 옛 판을 읽고 있는 층(2026-09-10 승인 게이트).
+      //   이걸 안 보여주면 관리자는 "왜 시행일이 지났는데 안 바뀌지"를 알 길이 없다.
+      const waiting = stageList.filter(e => e.date <= today && (e.files || []).indexOf(t.file) >= 0
+        && !effectiveDate.isStageApproved(e, t.file)).map(e => e.date).sort();
+      files.push({
+        label: t.label, ic: t.ic, eff, amd,
+        src: staged ? srcUrl(staged.replace(/^.*\/raw\//, '')) : srcUrl(dir + '/' + t.file),
+        staged: staged ? (staged.match(/_대기\/(\d{8})\//) || [])[1] || '' : '',
+        pending, waiting,
+      });
+    }
+
+    // ② 별표·별지 서식 — `별표/_links.json` 이 수집 당시의 제목·원본(HWP·이미지) 링크를 갖고 있다.
+    //    같은 이름의 .txt 가 실제로 있을 때만 "본문" 링크를 준다(없는 링크를 만들지 않는다).
+    let links = {};
+    try { links = JSON.parse(fs.readFileSync(path.join(abs, '별표', '_links.json'), 'utf8')) || {}; } catch (_) { links = {}; }
+    const byls = Object.keys(links).map(key => {
+      const v = links[key] || {};
+      const m = key.match(/^(\S+)\s+(별표|서식)\s+(\S+)$/);
+      const txt = key.replace(/\s*(별표|서식)\s*/, '_$1');
+      const hasTxt = fs.existsSync(path.join(abs, '별표', txt + '.txt'));
+      const imgs = Array.isArray(v['이미지']) ? v['이미지'].map(absLawUrl).filter(Boolean) : [];
+      return {
+        badge: m ? (BYL_TIER_SHORT[m[1]] || m[1]) + ' ' + m[2] + m[3] : key,
+        title: String(v['제목'] || ''),
+        src: hasTxt ? srcUrl(dir + '/별표/' + txt + '.txt') : '',
+        hwp: absLawUrl(v['HWP']), pdf: absLawUrl(v['PDF']), img: imgs[0] || '',
+      };
+    });
+
+    // ③ 고시(행정규칙) — 머리말이 두 꼴이다: `[고시/행정규칙] 제목` / `# 제목`.
+    //    제목을 못 읽으면 파일명을 그대로 쓴다(파일명도 실제 값이다). 시행일은 738개 중 203개에만
+    //    적혀 있어(2026-09-09 실측) 없는 것은 **빈칸으로 둔다** — 지어내지 않는다.
+    let admFiles = [];
+    try { admFiles = fs.readdirSync(path.join(abs, '행정규칙')).filter(f => f.endsWith('.txt') && f[0] !== '_').sort(); } catch (_) { admFiles = []; }
+    const admruls = admFiles.map(f => {
+      const head = readHead(path.join(abs, '행정규칙', f), 2048);
+      const l1 = (head.split('\n')[0] || '').trim();
+      const mt = l1.match(/^\[고시\/행정규칙\]\s*(.+)$/) || l1.match(/^#\s*(.+)$/);
+      const me = head.match(/시행일[:\s]*(\d{8})/);
+      return { title: mt ? mt[1].trim() : f.replace(/\.txt$/, ''), eff: me ? me[1] : '', src: srcUrl(dir + '/행정규칙/' + f) };
+    });
+
+    res.json({ ok: true, name: law.name, dir, domain: law.domain, ministry: law.ministry, files, byls, admruls });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
 module.exports = router;

@@ -97,6 +97,8 @@
 
 const githubRaw = require('./github_raw');
 const { rawPathOf } = require('./legal_retriever');
+// 예고본 전환(H-29 트랙 C) — "오늘 유효한 판" 은 이 모듈이 한 곳에서 정한다(_dashboard/H29_stage_design.md).
+const effectiveDate = require('./effective_date');
 
 // 항 머리기호(원문자) — 인덱스+1 이 항 번호다(①=1항).
 const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
@@ -433,8 +435,23 @@ function readArticleRef(article, tier, lawCell) {
   if (!s) return null;
 
   // ⚠ 부칙 조문(`부칙(제30106호) 제2조`)은 본문 조와 번호가 겹친다 — 그대로 읽으면 부칙 제2조 대신
-  //   **본문 제2조**가 근거인 척 열린다(실측 3행). 부칙 전용 파싱은 아직 없으므로 정직하게 실패한다.
-  if (/부칙/.test(s)) return null;
+  //   **본문 제2조**가 근거인 척 열린다(실측 3행).
+  //   ★2026-09-07: **공포번호가 함께 적혀 있을 때만** 부칙으로 읽는다.
+  //     로더에는 이미 부칙 처리가 있었지만(`isAddendaCell` — **법령 칸**이 부칙인 경우) **조문 칸**이
+  //     부칙인 경우는 여기서 통째로 막고 있었다. 그 결과 게이트 "칸을 못 읽음" 212건 중 102건이
+  //     부칙이었다(26차 잔여 과제).
+  //     공포번호(`제21368호`)를 요구하는 이유: 한 법에 부칙이 수십 개라 번호가 없으면 어느 부칙의
+  //     제2조인지 단정할 수 없다. 번호가 없으면 예전처럼 정직하게 실패한다(지어내지 않는다).
+  //     ⚠`항`만 적힌 칸(`부칙 <제65호> 제2항`)도 조가 없으므로 실패시킨다 — 항은 조 안에 있어
+  //       조를 모르면 짚을 수 없다.
+  if (/부칙/.test(s)) {
+    const no = (s.match(/제\s*(\d+)\s*호/) || [])[1];
+    // 공포번호를 지운 뒤 조를 찾는다 — `제21368호`의 숫자를 조 번호로 오인하지 않기 위해서다.
+    const jo = (s.replace(/제\s*\d+\s*호/g, ' ').match(/제\s*(\d+)\s*조/) || [])[1];
+    if (!no || !jo) return null;
+    return { mode: 'single', jo: `제${jo}조`, joList: [], mark: '', ho: 0,
+      label: `부칙(제${no}호) 제${jo}조`, addenda: true, addNo: no };
+  }
 
   // ⓪ 나열 — `제53조·제55조`는 단일 정규식이 앞의 `제53조`만 집어 **절반만** 보여주고(팝업 제목엔
   //    두 조가 다 떠서 전부 본 줄 안다), `제168~173·179조`는 범위 정규식이 앞 범위만 집어 마지막
@@ -1143,6 +1160,37 @@ function isSelfRef(cell) {
 function isAddendaCell(law) { return /부\s*칙/.test(String(law || '')); }
 
 /**
+ * 부칙 구간 안에서 **공포번호가 그 번호인 부칙 덩어리 하나**만 잘라 돌려준다(없으면 빈 문자열).
+ *
+ * 한 법에는 부칙이 수십 개 붙어 있고 저마다 제1조·제2조를 갖는다. 번호로 좁히지 않으면
+ * 맨 앞 부칙의 같은 번호 조가 열려 **엉뚱한 원문**을 보여준다.
+ *
+ * raw 에 실제로 있는 부칙 머리줄 두 꼴을 모두 받는다(2026-09-07 실측):
+ *   `[부칙 제13383호, 2015.6.22]`  ·  `부칙 <제3641호,1982.12.31>`
+ * 타법개정 부칙(`[부칙(배타적 경제수역…) 제14605호, 2017.3.21]`)도 같은 줄에 번호가 있어 잡힌다.
+ *
+ * 예: sliceAddendaBlock(부칙구간, '13383') → '[부칙 제13383호, 2015.6.22]\n제1조…\n제2조…'
+ * @param {string} tailText - 이미 부칙 구간으로 잘라 놓은 원문
+ * @param {string} no - 공포번호(숫자만)
+ * @returns {string} 그 부칙 덩어리(못 찾으면 '')
+ * [연계] ← loadArticle(ref.addNo 가 있을 때). ← readArticleRef 가 조문 칸에서 뽑은 번호.
+ */
+function sliceAddendaBlock(tailText, no) {
+  const lines = String(tailText || '').split('\n');
+  const heads = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*\[?\s*부\s*칙/.test(lines[i]) && /제?\s*\d+\s*호/.test(lines[i])) heads.push(i);
+  }
+  for (let k = 0; k < heads.length; k++) {
+    const n = (lines[heads[k]].match(/제?\s*(\d+)\s*호/) || [])[1];
+    if (n !== String(no)) continue;
+    const end = k + 1 < heads.length ? heads[k + 1] : lines.length;
+    return lines.slice(heads[k], end).join('\n');
+  }
+  return '';
+}
+
+/**
  * 부칙 셀에서 **법령명만** 남긴다(못 남기면 빈 문자열).
  * 예: addendaLawName('선박교통관제에 관한 법률 부칙(2019.12.3)') → '선박교통관제에 관한 법률'
  *     addendaLawName('한국해양교통안전공단법 시행령 부칙')       → '한국해양교통안전공단법 시행령'
@@ -1576,7 +1624,20 @@ async function loadArticle(q) {
     filePath = base + '/' + TIER_FILE[tier];
   }
 
-  let text = await githubRaw.fetchText(filePath);
+  // ★예고본 전환(2026-09-10, H-29 트랙 C) — 시행일이 지난 대기본(`_대기/<시행일>/<층>.txt`)이 있으면
+  //   현행 대신 **그 파일**을 읽는다. 시행일 전에는 지도에 있어도 고르지 않으므로 현행 그대로다.
+  //   지도(`_dashboard/pending_index.json`)는 로컬 파일이라 GitHub 호출이 늘지 않는다 — 대기본을 읽는
+  //   법에서는 현행 조회가 빠지고 대기본 조회가 들어가 호출 수가 같다. 대기본 조회가 실패하면(일시 오류)
+  //   아래 현행 경로로 내려간다 — 답이 안 나오는 것보다 현행이 낫고, 실패는 github_raw 가 로그에 남긴다.
+  let text = null;
+  if (tier !== 'notice') {
+    const staged = effectiveDate.stagedRawPath(base, TIER_FILE[tier]);
+    if (staged) {
+      text = await githubRaw.fetchText(staged);
+      if (text) filePath = staged;
+    }
+  }
+  if (!text) text = await githubRaw.fetchText(filePath);
   // ★발췌본 폴백(2026-08-28) — 타법은 **법 전체가 아니라 인용한 조문만** 받아 두는 것이 확정 방침이라
   //   그 파일 이름이 `법률_발췌.txt` 다(`add_other_law_article.js`). 그런데 여기는 `법률.txt` 만
   //   찾고 있어서, **원문이 우리 손에 있는데도 "파일 없음"으로 실패**하고 있었다.
@@ -1622,10 +1683,19 @@ async function loadArticle(q) {
   //   계층 그대로여야 사용자에게 정직하다.
   //   ⚠부칙 셀일 때만 들어온다. 본문의 같은 번호 조(제2조 등)와 섞일 일이 없다.
   let parseTier = tier;
-  if (isAddendaCell(law)) {
+  // ★조문 칸이 부칙인 행(`부칙(제21368호) 제3조`)도 같은 길을 탄다(ref.addenda — 2026-09-07 신설).
+  //   종전에는 법령 칸이 부칙일 때(isAddendaCell)만 여기 들어왔다.
+  if (isAddendaCell(law) || (ref && ref.addenda)) {
     const cut = text.search(DOC_TAIL_RE);
     if (cut < 0) return { ok: false, reason: 'article_not_found' };   // 부칙이 없는 파일이다
     text = text.slice(cut);
+    // 공포번호를 아는 행은 **그 부칙 하나로 더 좁힌다.** 한 법에 부칙이 수십 개라, 안 좁히면
+    // 맨 앞 부칙의 같은 번호 조가 열려 엉뚱한 원문을 보여준다.
+    if (ref && ref.addNo) {
+      const narrowed = sliceAddendaBlock(text, ref.addNo);
+      if (!narrowed) return { ok: false, reason: 'article_not_found' };  // 그 번호의 부칙이 없다
+      text = narrowed;
+    }
     parseTier = 'notice';
   }
 

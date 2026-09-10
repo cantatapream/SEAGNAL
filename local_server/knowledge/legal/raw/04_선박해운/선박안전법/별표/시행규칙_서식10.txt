@@ -350,57 +350,78 @@
                                                                                                                                   
                                                                                                                                   
                                                                                                                                   
-                                                                                                            
-    (7면)                                                                                                   
-                                                                                                            
-  2. 구명설비의 상세(계속)                                                                                  
-     DETAILS OF LIFE-SAVING APPLIANCES(Continued)                                                           
-  ┌──────────────────┬─────┰───────────────────┬─────┐  
-  │항목                                │실제조치  ┃항목                                  │실제조치  │  
-  │Item                                │Actual    ┃Item                                  │Actual    │  
-  │                                    │provision ┃                                      │provision │  
-  ├──────────────────┼─────╂───────────────────┼─────┤  
-  │6. 강하식 탑승장치의 수             │          ┃9.2 어린이용                          │          │  
-  │    Number of Marine Evacuation     │          ┃    Number of child lifejackets       │          │  
-  │Systems(MES)                        │          ┃                                      │          │  
-  ├──────────────────┼─────╂───────────────────┼─────┤  
-  │6.1 강하식 탑승장치에 의하여 탑승   │          ┃9.3 유아용                            │          │  
-  │하는 구명뗏목의 수                  │          ┃    Number of infant lifejackets      │          │  
-  │     Number of liferafts served by  │          ┃                                      │          │  
-  │them                                │          ┃                                      │          │  
-  ├──────────────────┼─────╂───────────────────┼─────┤  
-  │6.2 강하식 탑승장치에 의하여 탑승   │          ┃10. 방수복                            │          │  
-  │하는 구명뗏목의 수                  │          ┃   Immersion suits                    │          │  
-  │     Number of liferafts served by  │          ┃                                      │          │  
-  │them                                │          ┃                                      │          │  
-  ├──────────────────┼─────╂───────────────────┼─────┤  
-  │7. 구명부기(救命浮器)               │          ┃10.1 총수량                           │          │  
-  │   Buoyant apparatus                │          ┃     Total number                     │          │  
-  ├──────────────────┼─────╂───────────────────┼─────┤  
-  │7.1 구명부기의 수                   │          ┃10.2 구명조끼의 요건을 갖춘 방수      │          │  
-  │     Number of apparatus            │          ┃복의 수                               │          │  
-  │                                    │          ┃      Number of suits complying with  │          │  
-  │                                    │          ┃the requirements for lifejackets      │          │  
-  ├──────────────────┼─────╂───────────────────┼─────┤  
-  │7.2 구명부기를 사용하는 전체 인원   │          ┃11. 노출보호복의 수                   │          │  
-  │수                                  │          ┃    Number of anti-exposure suits     │          │  
-  │     Number of persons capable of   │          ┃                                      │          │  
-  │     being supported                │          ┃                                      │          │  
-  ├──────────────────┼─────┨                                      │          │  
-  │8. 구명부환(救命浮環)의 수          │          ┃                                      │          │  
-  │   Number of lifebuoys              │          ┃                                      │          │  
-  ├──────────────────┼─────╂───────────────────┼─────┤  
-  │9. 총구명조끼의 수                  │          ┃12. 보온구의 수*                      │          │  
-  │   Number of lifejackets(total)     │          ┃     Number of thermal protective     │          │  
-  │                                    │          ┃aids*                                 │          │  
-  ├──────────────────┼─────╂───────────────────┼─────┤  
-  │9.1 성인용                          │          ┃                                      │          │  
-  │    Number of adult lifejackets     │          ┃                                      │          │  
-  └──────────────────┴─────┸───────────────────┴─────┘  
-                                                                                                            
-  *  LSA Code 4.1.5.1.24, 4.4.8.31 및 5.1.2.2.13항에 따라 요구되는 것은 제외                                
-     Excluding those required by the LSA Code, paragraphs 4.1.5.1.24; 4.4.8.31 and 5.1.2.2.13.              
-                                                                                                            
+                                                                                                                
+    (7면)                                                                                                       
+                                                                                                                
+  2. 구명설비의 상세(계속)                                                                                      
+     DETAILS OF LIFE-SAVING APPLIANCES(Continued)                                                               
+  ┌───────────────────┬─────┰────────────────────┬─────┐  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │항목                                  │실제조치  ┃항목                                    │실제조치  │  
+  │Item                                  │Actual    ┃Item                                    │Actual    │  
+  │                                      │provision ┃                                        │provision │  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  ├───────────────────┼─────╂────────────────────┼─────┤  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │6.  강하식 탑승장치의 수              │          ┃9.  총구명조끼의 수                     │          │  
+  │     Number of Marine Evacuation      │          ┃     Number of lifejackets(total)       │          │  
+  │Systems(MES)                          │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  ├───────────────────┼─────╂────────────────────┼─────┤  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │6.1 강하식 탑승장치에 의하여          │          ┃9.1 성인용                              │          │  
+  │탑승하는 구명뗏목의 수                │          ┃     Number of adult lifejackets        │          │  
+  │    Number of liferafts served by them│          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  ├───────────────────┼─────╂────────────────────┼─────┤  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │6.2 수용인원                          │          ┃9.2 어린이용                            │          │  
+  │    Number of persons accommodated    │          ┃     Number of child lifejackets        │          │  
+  │by them                               │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  ├───────────────────┼─────╂────────────────────┼─────┤  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │7.  구명부기(救命浮器)                │          ┃9.3 유아용                              │          │  
+  │     Buoyant apparatus                │          ┃     Number of infant lifejackets       │          │  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  ├───────────────────┼─────╂────────────────────┼─────┤  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │7.1 구명부기의 수                     │          ┃10. 방수복의 수                         │          │  
+  │     Number of apparatus              │          ┃     Number of immersion suits          │          │  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  ├───────────────────┼─────╂────────────────────┼─────┤  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │7.2 구명부기를 사용하는 전체          │          ┃11. 노출보호복의 수                     │          │  
+  │인원수                                │          ┃     Number of anti-exposure suits      │          │  
+  │     Number of persons capable of     │          ┃                                        │          │  
+  │     being supported                  │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  ├───────────────────┼─────╂────────────────────┼─────┤  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  │8.  구명부환(救命浮環)의 수           │          ┃12. 보온구의 수*                        │          │  
+  │     Number of lifebuoys              │          ┃     Number of thermal protective aids* │          │  
+  │                                      │          ┃                                        │          │  
+  │                                      │          ┃                                        │          │  
+  └───────────────────┴─────┸────────────────────┴─────┘  
+                                                                                                                
+  *  LSA Code 4.1.5.1.24, 4.4.8.31 및 5.1.2.2.13항에 따라 요구되는 것은 제외                                    
+     Excluding those required by the LSA Code, paragraphs 4.1.5.1.24; 4.4.8.31 and 5.1.2.2.13.                  
+                                                                                                                
                                                                                                                       
                                                                                                                       
     (8면)                                                                                                             

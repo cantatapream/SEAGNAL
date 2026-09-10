@@ -1,12 +1,13 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/safety/life_safety.js
- * 역할  : "해양안전생활" 화면 — 하단 해양생활 탭을 10번 연달아 누르면 열리는 시험용 화면.
- *         하위탭을 [해양안전 | 해양생활] 로 바꾸고, 해양생활 쪽은 6개 활동(바다낚시·서핑·
+ * 역할  : "해양안전생활" 화면 — 하단 메인 탭 4개 중 세 번째 정식 탭이다(2026-09-10 사용자 확정.
+ *         그 전까지는 하단 "해양생활" 탭을 10번 연달아 눌러야 열리는 숨은 화면이었다).
+ *         하위탭 [해양안전 | 해양생활] 중 해양생활 쪽은 6개 활동(바다낚시·서핑·
  *         해수욕·스킨스쿠버·갯벌체험·바다갈라짐)을 화면 오른쪽 세로 버튼으로 갈아끼우며,
  *         배경지도(기본맵·전자해도·해안도·세계지도)를 해양종합정보와 같은 방식으로 고른다.
  *         여기에 더해 위성지도(브이월드)는 시험 단계라 이 화면에서만 고를 수 있다.
- *         새로고침(앱 재시작)하면 원래 해양생활 화면으로 돌아온다 — 저장하지 않음.
+ *         탭이 새로 생긴 것을 알리는 빨간 N 배지도 여기서 붙인다(배포일 포함 3일간만).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 해아름 WMS 레이어,
@@ -16,8 +17,10 @@
  *                    forecast/alerts/marine.js(TAB_GROUP_SUBTABS·SECTION_TO_GROUP·switchSubTab)
  *  - 서버 API      : 없음 (활동별 데이터 호출은 각 활동 모듈이 기존대로 담당)
  *  - 마크업        : index2.html 의 #ocean-safety-section, #ocean-safety-sub-tabs,
- *                    #ls-topleft-controls, #ls-rail
- *  - 나를 쓰는 곳  : 없음 — 스스로 하단 해양생활 탭 클릭을 세어 진입한다
+ *                    #ls-topleft-controls, #ls-rail,
+ *                    .main-tabs .tab-btn[data-target="ocean-life-group"](N 배지를 붙이는 탭) ·
+ *                    style.css 의 .new-badge(공지사항 탭과 같은 배지 스타일)
+ *  - 나를 쓰는 곳  : 없음 — 앱이 뜨면 스스로 이 화면의 표시 규칙(body.ls-mode)을 켠다
  * [로드 순서] js/core/index2_patch.js 다음 — index2_patch 가 감싼 switchMainTab/
  *             switchSubTab 위에 한 겹 더 얹어야 하므로 반드시 그 뒤 · 순서 변경 금지
  * ============================================================================
@@ -30,11 +33,6 @@
     // 상수
     // ========================================================================
 
-    /** 트리거: 해양생활 탭을 몇 번 눌러야 열리는가 (ocean_typhoon.js 의 잠금해제와 동일 규격) */
-    var TAP_THRESHOLD = 10;
-    /** 트리거: 이 시간(ms) 안에 다음 탭이 없으면 카운트 초기화 */
-    var TAP_RESET_MS = 3000;
-
     /**
      * 오른쪽 세로 버튼(레일)에 올릴 활동 목록.
      *  - id      : 기존 섹션 DOM id (그대로 재사용)
@@ -42,6 +40,8 @@
      *  - gpsBtn  : 그 활동이 이미 갖고 있는 "내 위치" 버튼 id (없으면 null)
      *  - getMap  : 그 활동의 OpenLayers 지도 인스턴스를 얻는 함수 (지도 없는 활동은 null)
      * [주의] 이안류(ripcurrent)는 현재 하위탭에서도 숨김 상태라 여기서도 뺀다.
+ * [2026-09-10] 너울(swell) 추가 — 마커가 아니라 해안선 자체를 색칠하는 지도라
+ *   바텀시트가 없지만, 레일에서 고르고 배경지도를 바꾸는 방식은 다른 활동과 같다.
      */
     var ACTIVITIES = [
         { id: 'fishing-section',     label: '바다낚시',   gpsBtn: 'fishing-my-location-btn', pub: 'fishing-publish-time', getMap: function () { return window.getFishingMap && window.getFishingMap(); } },
@@ -49,7 +49,8 @@
         { id: 'swimming-section',    label: '해수욕',     gpsBtn: 'swim-my-location-btn',    pub: 'swim-publish-time',    getMap: function () { return window.getSwimmingMap && window.getSwimmingMap(); } },
         { id: 'scuba-section',       label: '스킨스쿠버', gpsBtn: 'scuba-my-location-btn',   pub: 'scuba-publish-time',   getMap: function () { return window.getScubaMap && window.getScubaMap(); } },
         { id: 'mudflat-section',     label: '갯벌체험',   gpsBtn: 'mudflat-my-location-btn', pub: 'mudflat-publish-time', getMap: function () { return window.getMudflatMap && window.getMudflatMap(); } },
-        { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      pub: 'sp-publish-time',      getMap: null }
+        { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      pub: 'sp-publish-time',      getMap: null },
+        { id: 'swell-section',       label: '너울',       gpsBtn: 'swell-my-location-btn',   pub: 'swell-publish-time',   getMap: function () { return window.getSwellMap && window.getSwellMap(); } }
     ];
 
     /** 배경지도 종류 → 버튼에 표시할 이름 (해양종합정보 switchBaseLayer 와 동일 표기)
@@ -67,9 +68,11 @@
     // 상태 (전부 메모리 — localStorage 에 남기지 않으므로 새로고침하면 원상복구)
     // ========================================================================
 
-    var _tapCount = 0;          // 해양생활 탭 연타 횟수
-    var _tapTimer = null;       // 연타 초기화 타이머
-    var _unlocked = false;      // 해양안전생활 화면이 열렸는가
+    // [2026-09-10] 해양안전생활이 정식 탭이 되어 "잠금해제"라는 개념이 없어졌다.
+    //   이 값은 아래 _syncChrome()·switchMainTab 래퍼가 "이 화면 규칙을 적용할지" 판단하는
+    //   스위치로만 남는다(항상 켜짐). 지우지 않는 이유는 그 두 곳의 조건문을 그대로 두어
+    //   변경 범위를 좁히기 위해서다.
+    var _unlocked = true;
     var _currentAct = 'fishing-section';  // 현재 보고 있는 활동 섹션 id
     var _currentBase = 'rltm';  // 현재 배경지도 종류
     var _lastView = null;       // 활동을 바꿔도 지도 위치가 이어지도록 기억 {center, zoom}
@@ -77,60 +80,52 @@
     var _suspended = [];        // 해양안전 진입 때 잠시 꺼둔 해양종합정보 오버레이 버튼들
 
     // ========================================================================
-    // 1. 트리거 — 해양생활 탭 10회 연타
+    // 1. 화면 준비 — 해양안전생활은 정식 탭이다
     // ========================================================================
 
     /**
-     * 하단 "해양생활" 메인탭에 연타 감지를 붙인다.
-     * 예: 3초 안에 10번 누르면 해양안전생활 화면이 열린다(그 전까지는 평소대로 동작).
-     * [연계] → _unlock() — 임계치에 닿았을 때 화면을 바꾼다.
-     *          index2.html 의 .tab-btn[data-target="ocean-life-group"] 이 대상
+     * 이 화면의 표시 규칙(body.ls-mode)을 켠다.
+     * 예: 앱이 뜨면 곧바로 호출되어, 해양생활 활동 화면이 자기 컨트롤 대신
+     *     이 화면의 오른쪽 세로 레일(#ls-rail)을 쓰도록 만든다.
+     * [연계] → index2.html 의 body.ls-mode / body.ls-mode.ls-life 규칙
+     *
+     * ⚠[2026-09-10] 예전에는 하단 "해양생활" 탭을 3초 안에 10번 눌러야 이 화면이 열렸다
+     *   (숨은 기능). 사용자 확정으로 정식 탭이 되면서 연타 트리거를 없앴고, 탭 이름
+     *   ("해양안전생활")과 하위탭 바([해양안전 | 해양생활]), 먼저 열리는 하위탭(해양안전)은
+     *   각각 index2.html 과 marine.js 의 기본값으로 옮겼다 — 그래야 화면이 뜬 뒤 자바스크립트가
+     *   이름을 바꿔 다는 깜빡임이 없다.
      */
-    function _bindTrigger() {
-        var tabBtn = document.querySelector('.main-tabs .tab-btn[data-target="ocean-life-group"]');
-        if (!tabBtn) return;
-
-        tabBtn.addEventListener('click', function () {
-            if (_unlocked) return;
-
-            _tapCount++;
-            clearTimeout(_tapTimer);
-            _tapTimer = setTimeout(function () { _tapCount = 0; }, TAP_RESET_MS);
-
-            if (_tapCount < TAP_THRESHOLD) return;
-            _tapCount = 0;
-            _unlock();
-        });
+    function _enableSafetyChrome() {
+        document.body.classList.add('ls-mode');
     }
 
+    // ── 신규 표시(N) — 하단 "해양안전생활" 탭 [사용자 확정 2026-09-10] ──────────
+    //   탭이 새로 생긴 것을 알리려고, 공지사항 탭이 새 글에 붙이는 것과 똑같은
+    //   빨간 N 배지(.new-badge)를 배포일 포함 3일간만 붙인다.
+    //   공지사항(promo.js)은 "글이 올라온 지 하루가 지났나"를 매번 따져 붙였다 뗐다
+    //   하지만, 여기서 붙이는 이유는 "탭이 새로 생겼다" 하나뿐이라 끝나는 시각만
+    //   상수로 둔다 — 그 시각이 지나면 이 함수는 아무것도 하지 않는다(코드는 남지만
+    //   화면에는 안 나온다).
+    //   2026-09-12 24:00 KST = 2026-09-12 15:00 UTC.
+    var NEW_BADGE_UNTIL = Date.UTC(2026, 8, 12, 15, 0, 0);
+
     /**
-     * 해양안전생활 화면으로 전환한다 (이 세션 동안만).
-     * 하위탭 바를 [해양안전 | 해양생활] 로 갈아끼우고 body 에 표시용 클래스를 붙인 뒤
-     * 해양생활 탭을 다시 열어 새 화면이 그려지게 한다.
-     * [연계] → marine.js 의 TAB_GROUP_SUBTABS (그룹이 어떤 하위탭 바를 쓰는지의 출처)
-     *          → window.switchMainTab — 실제 화면 전환
+     * 하단 "해양안전생활" 탭에 빨간 N 배지를 붙인다(3일 지나면 안 붙임).
+     * 예: 2026-09-11 에 앱을 켜면 "해양안전생활" 글자 옆에 N 이 붙고,
+     *     2026-09-13 에 켜면 아무것도 안 붙는다.
+     * [연계] → index2.html 의 .new-badge 스타일(공지사항 탭과 공용) ·
+     *          .main-tabs .tab-btn[data-target="ocean-life-group"]
      */
-    function _unlock() {
-        _unlocked = true;
-
-        // 해양생활 그룹이 쓰는 하위탭 바를 새 것으로 교체
-        if (typeof TAB_GROUP_SUBTABS !== 'undefined') {
-            TAB_GROUP_SUBTABS['ocean-life-group'] = 'ocean-safety-sub-tabs';
-        }
-        // 이 화면에 들어오면 '해양안전' 하위탭이 먼저 열리도록 기본값 변경
-        if (typeof TAB_GROUP_DEFAULTS !== 'undefined') {
-            TAB_GROUP_DEFAULTS['ocean-life-group'] = 'ocean-safety-section';
-        }
-
-        // 하단 메인탭 이름도 화면 이름에 맞춘다 ("해양종합정보"와 같은 6글자라 폭 문제 없음)
-        var tabLabel = document.querySelector('.main-tabs .tab-btn[data-target="ocean-life-group"] .tab-btn-label');
-        if (tabLabel) tabLabel.textContent = '해양안전생활';
-
-        document.body.classList.add('ls-mode');
-
-        if (typeof window.switchMainTab === 'function') {
-            window.switchMainTab('ocean-life-group');
-        }
+    function _markNewBadge() {
+        if (Date.now() >= NEW_BADGE_UNTIL) return;
+        var btn = document.querySelector('.main-tabs .tab-btn[data-target="ocean-life-group"]');
+        if (!btn || btn.querySelector('.new-badge')) return;
+        var badge = document.createElement('span');
+        badge.className = 'new-badge';
+        badge.textContent = 'N';
+        // 라벨 span 안에 넣어야 탭 높이가 안 늘어난다(promo.js 와 같은 이유 —
+        // 버튼 직접 자식으로 붙이면 아이콘·라벨 아래 3번째 줄로 쌓여 탭이 잘린다).
+        (btn.querySelector('.tab-btn-label') || btn).appendChild(badge);
     }
 
     // ========================================================================
@@ -225,7 +220,10 @@
     function _silently(fn) {
         var orig = window._showOceanToast;
         window._showOceanToast = function () {};
-        try { fn(); } finally { window._showOceanToast = orig; }
+        // 사용량 집계도 함께 막는다 — 여기서 누르는 버튼은 사용자가 누른 게 아니라
+        // 화면 전환 복원이므로(사용자 확정 2026-09-10 "해양종합정보 탭 자체는 세지 않는다").
+        var run = window.withUsageSuppressed || function (f) { f(); };
+        try { run(fn); } finally { window._showOceanToast = orig; }
     }
 
     function _suspendOceanOverlays() {
@@ -634,17 +632,77 @@
      *          → index2.html 의 .ocean-info-tabs/.ocean-info-panel/.ocean-info-src CSS, window.__lsInfoSwitch
      */
     function _buildSafetyInfoHtml() {
-        var fn = window.oceanInfoTabHtml;
+        // [탭 = 이 화면의 버튼 — 2026-09-09 사용자 확정]
+        //   순서·이름·내용을 화면 버튼(위험지형→사고정보→금지구역→항행경보→물빠짐→CCTV→
+        //   관제구역→항로·해역)과 똑같이 맞춘다. 예전에는 물빠짐·CCTV·노출암간출암 본문을
+        //   해양종합정보 안내(window.oceanInfoTabHtml)에서 빌려 썼는데, 두 화면의 동작이
+        //   서로 달라(해양종합정보에는 그 버튼이 이제 아예 없다) 여기서 따로 쓴다.
         var items = [
-            { id: 'mudflat', label: '물빠짐' },
-            { id: 'hazardrock', label: '노출암·간출암' },
-            { id: 'cctv', label: 'CCTV' },
-            { id: 'fishingban', label: '낚시금지', html:
-                '<p><i class="fa-solid fa-circle-check"></i> 낚시 관리 및 육성법 제6조와 지자체 조례에 따라 낚시가 금지되거나 제한된 구역을 지도 위에 주황색으로 표시합니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 실제 지형과 비교하기 쉽도록 배경지도가 위성지도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 위치, 지정 사유, 통제 기간·시간, 대상, 벌칙, 고시번호 등 상세 정보를 확인할 수 있습니다.</p>'
-              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 국립해양조사원이 파악한 구역만 반영되어 있어 최신 지정 현황과 다를 수 있습니다. 실제 낚시 전에는 현장 안내판이나 관할 지자체 공고를 꼭 확인하세요.</p>'
-              + '<div class="ocean-info-src">최종 갱신일자 · 2025-12-12<br>출처 · 국립해양조사원 낚시통제구역 주제도</div>' },
+            // 위험지형[S28, 2026-09-09] — 옛 "노출암·간출암" 두 버튼이 하나로 합쳐졌고
+            //   갯바위(면)가 새로 생겼으며 동해는 잠김경고에서 빠졌다.
+            { id: 'hazardrock', label: '위험지형', html:
+                '<p><i class="fa-solid fa-circle-check"></i> <strong>「위험지형」 버튼 하나로</strong> 바다 위·물속의 바위를 함께 표시합니다. 켜면 화면 왼쪽 위에 <strong>「노출암/갯바위」</strong>와 <strong>「간출암, 암암 등」</strong> 스위치가 생겨 원하는 것만 골라 볼 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>노출암</strong>(4,287개) — 썰물 때도 늘 물 위에 드러나 있는 바위입니다. <strong>갯바위</strong>(9,959곳)는 해안을 따라 이어진 바위 지대를 <strong>면으로</strong> 그립니다. 갯바위 안에 들어 있는 노출암 475개는 표시가 겹치지 않도록 <strong>갯바위로만</strong> 보여줍니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>간출암</strong>(1,778개) · <strong>세암</strong>(658개) · <strong>암암</strong>(106개) — 물때에 따라 드러났다 잠겼다 하거나 늘 물속에 있는 바위입니다. 마커를 누르면 종류와 <strong>썰물 때 드러나는 높이</strong>를 확인할 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 바위가 많은 곳은 <strong>숫자로 뭉쳐</strong> 보이다가, 확대하면 낱개 마커로 펼쳐집니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>잠김 경고</strong> — 간출암이 밀물에 완전히 잠기기 <strong>3시간 전부터</strong> 마커 테두리가 빨갛게 깜빡이고 남은 시간이 표시됩니다. 마커가 뭉쳐 있는 동안에도 그 안에 잠기는 바위가 있으면 <strong>뭉친 원 둘레가 빨갛게</strong> 됩니다(그 안 어느 바위의 시각인지 가릴 수 없어 시간은 적지 않습니다).</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 실제 지형과 비교하기 쉽도록 <strong>배경지도가 위성지도로 자동 전환</strong>되고, 끄면 원래 배경지도로 돌아갑니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <strong>동해는 잠김 경고를 제공하지 않습니다.</strong> 동해는 밀물·썰물의 차가 작아 잠기는 시각을 믿을 만큼 계산하기 어려워 제외했습니다(바위 표시와 조석 곡선은 그대로 나옵니다).</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 예측 자료이므로 실제 현장의 물때·기상 상황을 반드시 직접 확인하세요.</p>'
+              + '<div class="ocean-info-src">최종 갱신일자 · 전자해도 2026-08 배포본<br>출처 · 국립해양조사원 전자해도(노출암·갯바위·간출암·세암·암암) · 조석예측자료(TideBED) · 연간 조석표</div>' },
+            // 사고정보[S28-6·S28-8] — 틀은 사용자가 지정했다: ①목적 ②사용법·구성 ③데이터 산출 내역.
+            //   ★숫자는 전부 원본 파일을 세어 확인한 값이다(추측 없음).
+            //     근거는 accident_stats_sheet.design.md 작업 19-2 참고.
+            { id: 'accident', label: '사고정보', html:
+                '<p><strong>1. 목적</strong></p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 우리 바다에서 <strong>실제로 어떤 사고가, 어디서, 얼마나</strong> 일어났는지 지도에서 바로 확인할 수 있게 합니다. 사고가 잦은 해역과 시기를 미리 알고 <strong>활동 계획에 참고</strong>하시라고 만들었습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 지나간 사고 기록입니다. <strong>지금의 위험을 예보하는 기능이 아닙니다.</strong></p>'
+              + '<p><strong>2. 사용법 · 구성</strong></p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 화면 왼쪽 위에 <strong>[분석 · 현황]</strong> 토글이 생깁니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>현황</strong> — 사고 한 건마다 마커를 찍습니다. 가까운 것끼리 묶여 숫자로 보이고, 확대하면 갈라집니다. 마커를 누르면 발생일·사고유형·위치·관할서를 볼 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>분석</strong> — 지도를 격자로 나눠 <strong>칸 색으로 사고 건수</strong>를 보여줍니다(파랑=적음 → 빨강=많음). 칸을 누르면 <strong>통계 시트</strong>가 열리고, <strong>전국 통계</strong> 버튼으로 전국 기준을 볼 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 시트에서 <strong>전체 / 선박사고 / 인명사고</strong>를 고를 수 있고, 사고유형·기간·관할서·시간대·특보 <strong>5가지 필터</strong>를 걸 수 있습니다. 특보 종류별 타일에는 <strong>선박·인명 건수가 나뉘어</strong> 함께 표시됩니다(「전체」를 골랐을 때).</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 시트 카드 7개 — ①추세 요약 ②연도별 추이(월별·시간대별·요일별·관할서별로 전환) ③특보 중 사고 ④상위 발생 유형 ⑤주요 발생 원인 ⑥선박 종류별 ⑦사망·실종 발생률. ③번 카드의 <strong>사고 내역 보기</strong>로 특보 중 사고를 한 건씩 훑어볼 수 있습니다.</p>'
+              + '<p><strong>3. 데이터 산출 내역</strong></p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>들어간 자료</strong> — 국립해양조사원 개방海의 <strong>선박사고(해경)</strong>와 <strong>인명사고</strong> 두 종류입니다. 선박사고 2008~2025년 <strong>57,167건</strong> + 인명사고 2009~2024년 <strong>14,325건</strong> = <strong>71,492건</strong>.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>빠진 자료</strong> — 원본 74,018건 중 2,526건(3.4%)을 뺐습니다. <strong>347건</strong>은 선체결함·속구손상·시설물손상·조난으로, 지도에 쓸 아이콘이 없어 제외했습니다. <strong>2,179건</strong>은 좌표가 잘못 들어간 사고(같은 위치인데 33km 이상 떨어진 것)와, 위치가 기록되지 않아 관할 해양경찰서 청사 좌표로 채워진 사고입니다 — 실제 사고 지점이 아니라 뺐습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>선박 이름은 어떤 화면에도 없습니다.</strong> 원본에 그 칸 자체가 없습니다. <strong>어선·모터보트</strong> 같은 종류까지가 한계입니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>2024·2025년 선박사고는 위치 설명이 하나도 없습니다.</strong> 2025년은 사고 원인·선박 종류까지 3,775건 전부 비어 있습니다. 그래서 사고 내역에서 위치 설명 대신 <strong>좌표</strong>로 표시되는 경우가 많습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>구조·사망·실종이 모두 0으로 기록된 선박사고가 절반가량</strong>입니다. 원본이 "아무도 안 다쳤다"와 "기록을 안 했다"를 구분하지 않아, 화면에는 <strong>인명피해 기록 없음</strong>으로 적습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>특보 중 사고</strong>는 <strong>2016년 8월 26일 이후</strong>만 셉니다. 그 이전 특보 자료가 없어 분모에서 뺐습니다. 한 사고가 두 특보에 함께 걸린 경우가 있어, 특보 종류별 건수를 더하면 전체보다 조금 큽니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>사망·실종 발생률</strong>은 전국 자료로 냅니다. 인명피해가 통째로 기록되지 않은 <strong>2014·2015년</strong>, 해양오염, 표본이 아주 적은 유형, 성격상 비율이 높을 수밖에 없는 변사자·자살자는 순위에서 뺐습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <strong>원본 자료 자체에 오류가 섞여 있을 수 있습니다.</strong> 위 좌표 오류처럼 눈에 띄는 것은 걸러냈지만, 발생일시·사고유형·인명피해 같은 값이 잘못 기록됐거나 누락된 경우까지 모두 가려낼 수는 없습니다. 통계 수치는 <strong>참고용</strong>으로 보시고, 공식 통계나 법적 근거가 필요할 때는 국립해양조사원·해양경찰청 원자료를 확인하세요.</p>'
+              + '<div class="ocean-info-src">출처 · 국립해양조사원 개방海(선박사고·인명사고) · 기상청 특보 이력</div>' },
+            // 금지구역[S28-3] — 낚시금지 · 출입통제를 한 버튼으로 합쳤고, 범례에서 따로 켤 수 있다.
+            { id: 'banzone', label: '금지구역', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 버튼 하나로 <strong>낚시금지구역</strong>과 <strong>출입통제구역</strong>을 함께 표시합니다. 둘 다 "여기서는 하면 안 된다"는 뜻의 구역입니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 켜면 화면 왼쪽 위에 <strong>범례</strong>가 나타납니다. 「출입통제구역」·「낚시금지구역」 스위치로 <strong>한 종류만 골라</strong> 볼 수도 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>낚시금지구역</strong>(236곳) — 낚시 관리 및 육성법 제6조와 지자체 조례에 따라 낚시가 금지되거나 제한된 구역입니다. <strong>주황색</strong>으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>출입통제구역</strong>(39곳) — 연안사고 예방에 관한 법률 제10조에 따라 각 해양경찰서가 지정한 구역입니다. <strong>빨간색</strong>으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 위치, 지정 사유, 통제 기간·시간, 대상, 벌칙, 고시번호 등 상세 정보를 확인할 수 있습니다. 켜면 실제 지형과 비교하기 쉽도록 <strong>배경지도가 위성지도로 자동 전환</strong>됩니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 낚시금지구역은 국립해양조사원이 파악한 구역만, 출입통제구역은 원본 고시·공고에 <strong>경위도 좌표가 온전히 적힌 구역만</strong> 반영되어 있습니다(나머지는 원본에 손그림 경계선만 있어 확정할 수 없었습니다). 최신 지정 현황과 다를 수 있으니 실제 활동 전에는 현장 안내판이나 관할 지자체·해양경찰서 공고를 꼭 확인하세요.</p>'
+              + '<div class="ocean-info-src">최종 갱신일자 · 낚시금지 2025-12-12 · 출입통제 2026-09-10<br>출처 · 국립해양조사원 낚시통제구역 주제도 · 각 해양경찰서 고시·공고</div>' },
+            { id: 'navwarn', label: '항행경보', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 선택한 날짜에 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련 등)의 구역을 지도 위에 진한 빨간 점선 원형/다각형으로 표시합니다. 켜면 배경지도가 위성지도로 자동 전환됩니다. 같은 구역이 시간대만 다르게 여러 번 있으면 하나로 합쳐 라벨이 겹치지 않게 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 상단 날짜 내비게이션(◀▶)으로 다른 날짜를 조회하고, 하단 기준 시각 슬라이더로 그 날짜의 특정 시각을 지정하면 이미 시각이 지난 구역은 회색으로 바뀌고 라벨도 사라집니다(활성 구역만 라벨 표시, 겹치면 큰 구역 우선). 슬라이더 위치는 날짜를 넘겨도 그대로 유지됩니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 구역이 화면에서 작게 보일 때 누르면 먼저 그 구역으로 확대되고, 충분히 커진 뒤 다시 누르면 팝업이 뜹니다. 팝업엔 그 구역의 시간대별 내용이 구분돼 표시됩니다(구분, 발표기관, 유효기간, 근거, 본문 — 이미 끝난 시간대는 흐리게 "종료" 표시).</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 좌표는 국립해양조사원 "항행경보 상황판" 자료를 보강해 표시한 것으로, 정식 항행경보 원문과 다를 수 있습니다. 실제 항해 시에는 반드시 항행경보 상황판(khoa.go.kr/nwb)이나 수로도서지 원문을 확인하세요.</p>'
+              + '<div class="ocean-info-src">갱신 주기 · 30분<br>출처 · 국립해양조사원 항행경보</div>' },
+            // 물빠짐 — 해양종합정보에서 빌려 쓰던 문구를 이 화면용으로 옮겨 적었다
+            //   (그 화면에는 이제 물빠짐 버튼이 없어 "다른 기상 기능이 꺼진다"는 문장이 맞지 않는다).
+            { id: 'mudflat', label: '물빠짐', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 서해·남해 갯벌 해안을 대상으로, 간조 시 물이 얼마나 빠지는지를 미리 예측해 지도 위에 <strong>갈색</strong>으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 하단 슬라이더로 오늘부터 <strong>3일치 예측을 1시간 단위</strong>로 확인하고, 재생(▶) 버튼으로 시간 흐름에 따른 갯벌 노출·침수 변화를 자동으로 볼 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 갈색으로 표시된 갯벌 지점을 누르면, <strong>물이 다시 차기까지 남은 예측 시간</strong>과 예측 기준 시각을 확인할 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 정확도를 높이기 위해, 조위 기준면은 서해·남해 표준항 <strong>128곳</strong>으로 맞추고, 시간별 물빠짐은 연안 임의해점 <strong>315곳</strong>의 조석 예측 자료로 채워 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 예측 자료이므로 실제 현장의 기상·해양 상황을 반드시 직접 확인하세요. <strong>동해와 제주 해역은 제공되지 않습니다.</strong></p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 다수 해점 자료를 동시에 처리하므로 지도 표시에 약간의 시간이 걸릴 수 있습니다.</p>'
+              + '<div class="ocean-info-src">출처 · 국립해양조사원 · 표준항 128곳(기준면) · 수심측량자료(BADA2024) · 조석예측자료(TideBed, 임의해점 315곳)</div>' },
+            { id: 'cctv', label: 'CCTV', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 어항 안전상태와 해상 기상현황을 눈으로 확인할 수 있도록, 공공에 공개된 해안 CCTV 영상을 보여줍니다. <strong>본 앱은 영상을 수집·저장하지 않습니다.</strong></p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 옹진군 CCTV의 지도 위치는 명칭·지명을 참고해 수기로 배치한 것으로, 실제 설치 위치와 다를 수 있습니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 영상 정보의 정확성과 이를 활용함에 따른 민·형사상 법적 책임은 정보활용 주체에 있으며, 정보 제공주체 및 본 앱은 이에 대한 책임을 지지 않습니다.</p>'
+              + '<div class="ocean-info-src">출처 · 지자체(부산·거제·옹진) · 해양수산부 연안포털 · KBS 재난센터</div>' },
             { id: 'vts', label: '관제구역', html:
                 '<p>해양경찰청이 공고한 선박교통관제구역(VTS)을 지도 위에 남색(인디고)으로 표시하며, 명칭에 실제 관제채널(예: Ch. 09)이 함께 표기됩니다.</p>'
               + '<p>버튼을 켜면 배경지도가 전자해도로 자동 전환됩니다. 끄면 원래 배경지도로 돌아갑니다.</p>'
@@ -657,12 +715,6 @@
               + '<p>항로를 누르면 항로명, 종류(통항분리대/통항분리수역 등), 근거·참고 문서를 확인할 수 있습니다. 한중잠정조치수역·한일중간수역·한중과도수역 등 국제 해양경계 수역을 누르면 정의, 근거, 담당부서·연락처까지 함께 확인할 수 있습니다.</p>'
               + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 항로·수역 종류에 따라 통항 방법과 적용 근거가 다르니, 실제 항해 전 관련 법령·고시·협정 원문을 반드시 확인하세요.</p>'
               + '<div class="ocean-info-src">최종 갱신일자 · 2026-08-11<br>출처 · 국립해양조사원 개방海(실시간 해양공간정보) · 해양수산부 한중·한일 어업협정</div>' },
-            { id: 'navwarn', label: '항행경보', html:
-                '<p><i class="fa-solid fa-circle-check"></i> 선택한 날짜에 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련 등)의 구역을 지도 위에 진한 빨간 점선 원형/다각형으로 표시합니다. 켜면 배경지도가 위성지도로 자동 전환됩니다. 같은 구역이 시간대만 다르게 여러 번 있으면 하나로 합쳐 라벨이 겹치지 않게 표시합니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 상단 날짜 내비게이션(◀▶)으로 다른 날짜를 조회하고, 하단 기준 시각 슬라이더로 그 날짜의 특정 시각을 지정하면 이미 시각이 지난 구역은 회색으로 바뀌고 라벨도 사라집니다(활성 구역만 라벨 표시, 겹치면 큰 구역 우선). 슬라이더 위치는 날짜를 넘겨도 그대로 유지됩니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> 구역이 화면에서 작게 보일 때 누르면 먼저 그 구역으로 확대되고, 충분히 커진 뒤 다시 누르면 팝업이 뜹니다. 팝업엔 그 구역의 시간대별 내용이 구분돼 표시됩니다(구분, 발표기관, 유효기간, 근거, 본문 — 이미 끝난 시간대는 흐리게 "종료" 표시).</p>'
-              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 좌표는 국립해양조사원 "항행경보 상황판" 자료를 보강해 표시한 것으로, 정식 항행경보 원문과 다를 수 있습니다. 실제 항해 시에는 반드시 항행경보 상황판(khoa.go.kr/nwb)이나 수로도서지 원문을 확인하세요.</p>'
-              + '<div class="ocean-info-src">갱신 주기 · 30분<br>출처 · 국립해양조사원 항행경보</div>' }
         ];
         var tabsHtml = '<div class="ocean-info-tabs">';
         var panelsHtml = '<div class="ocean-info-panels">';
@@ -819,15 +871,66 @@
     }
 
     // ========================================================================
+    // 5-B. 해양안전 오버레이 단독 표출 (2026-09-09 사용자 확정)
+    // ========================================================================
+
+    /** 해양안전 화면 우측 버튼 8개 — 이 중 하나만 켜지게 한다. */
+    var SOLO_BTN_IDS = [
+        'ocean-terrain-toggle-btn',   // 위험지형
+        'ocean-accident-toggle-btn',  // 사고정보
+        'ocean-banzone-toggle-btn',   // 금지구역
+        'ocean-navwarn-btn',          // 항행경보
+        'ocean-mudflat-toggle-btn',   // 물빠짐
+        'ocean-cctv-toggle-btn',      // CCTV
+        'ocean-vts-toggle-btn',       // 관제구역
+        'ocean-seaway-toggle-btn'     // 항로·해역
+    ];
+    var _soloBusy = false;   // 우리가 끄려고 누른 클릭이 다시 이 로직을 타지 않게 하는 빗장
+
+    /**
+     * 해양안전 오버레이 버튼을 "한 번에 하나만" 켜지도록 묶는다.
+     * 예: 금지구역이 켜져 있을 때 위험지형을 누르면 → 금지구역이 먼저 꺼지고 위험지형만 켜진다
+     *
+     * 각 기능의 끄는 절차(폴리곤 정리·배경지도 복귀·폴링 중단)를 그대로 쓰려고
+     * **그 버튼을 대신 눌러서** 끈다. 새로 켜는 클릭보다 먼저 처리해야 하므로
+     * 캡처 단계에서 듣는다(끄기 → 그 다음 원래 리스너가 자기를 켠다).
+     * 이미 켜져 있는 버튼을 다시 눌러 끄는 경우에는 아무것도 하지 않는다.
+     * [연계] ← DOMContentLoaded → 각 모듈의 원래 토글 리스너(대신 클릭으로 호출)
+     */
+    function _bindSoloOverlays() {
+        SOLO_BTN_IDS.forEach(function (id) {
+            var btn = document.getElementById(id);
+            if (!btn) return;
+            btn.addEventListener('click', function () {
+                if (_soloBusy) return;
+                // 지금 꺼져 있는 버튼을 누른 경우에만(= 새로 켜려는 경우) 나머지를 끈다
+                if (btn.classList.contains('active')) return;
+                _soloBusy = true;
+                try {
+                    SOLO_BTN_IDS.forEach(function (otherId) {
+                        if (otherId === id) return;
+                        var other = document.getElementById(otherId);
+                        if (other && other.classList.contains('active')) other.click();
+                    });
+                } finally {
+                    _soloBusy = false;
+                }
+            }, true);   // ★캡처 단계 — 원래 토글 리스너보다 먼저 실행돼야 한다
+        });
+    }
+
+    // ========================================================================
     // 6. 초기화
     // ========================================================================
 
     document.addEventListener('DOMContentLoaded', function () {
-        _bindTrigger();
+        _enableSafetyChrome();
+        _markNewBadge();
         _bindControls();
         _wrapTabSwitchers();
         _watchMudflatToggle();
         _watchBottomSheets();
+        _bindSoloOverlays();
     });
 
 })();

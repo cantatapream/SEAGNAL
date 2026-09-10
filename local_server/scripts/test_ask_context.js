@@ -120,7 +120,10 @@ console.log('\n[T5][#6] 옛 카드 — 카드에 박힌 data-q·data-ctx 로 전
 // ── T6 [#7]. 기록에서 복원한 답변에는 되묻기 버튼이 안 생긴다 ─────────────────────
 console.log('\n[T6][#7] 기록 복원 답변 — clarify 가 없어 버튼이 안 붙는다');
 {
-  const OPEN_HIST_ENTRY = CLIENT_SRC.slice(CLIENT_SRC.indexOf('function openHistoryEntry'));
+  // 2026-09-09: 기록 목록이 **대화 단위**로 묶이면서 openHistoryEntry(한 건) → openHistoryGroup(한 대화)
+  //   으로 바뀌었다. 이름을 안 고치면 indexOf 가 -1 이라 이 검사가 **빈 문자열을 시험하며 늘 통과**한다.
+  const OPEN_HIST_ENTRY = CLIENT_SRC.slice(CLIENT_SRC.indexOf('function openHistoryGroup'));
+  if (CLIENT_SRC.indexOf('function openHistoryGroup') < 0) { console.log('  ❌ FAIL: openHistoryGroup 을 못 찾음'); fail++; }
   const RESTORE_CALL = OPEN_HIST_ENTRY.slice(0, OPEN_HIST_ENTRY.indexOf('renderRestoredAnswer(') + 400);
   ok('복원 렌더에 clarify 를 넘기지 않는다', !/clarify/.test(RESTORE_CALL.split('renderRestoredAnswer(')[1]));
   ok('기록 복원은 근거법령·서식도 함께 되살린다(2026-08-18 사용자 확정)',

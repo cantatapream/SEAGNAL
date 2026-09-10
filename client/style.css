@@ -4367,6 +4367,22 @@ line-height: 1.1;
     }
 }
 
+/* [나리야 전체화면] AI > 챗봇 하위탭은 읽을 것이 많아(근거 조문 표·원문 발췌·리뷰 카드) 800px 칸에
+   가두면 글씨가 작아지고 표가 접힌다. 그 탭일 때만 모달을 화면 가득 채운다(사용자 확정 2026-09-10).
+   `admin-fullscreen` 은 admin.js switchAiSubTab 이 붙였다 뗀다 — 다른 탭은 종전 크기 그대로다. */
+#unified-admin-modal.admin-fullscreen .unified-admin-wrapper {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+}
+
+#unified-admin-modal.admin-fullscreen .unified-admin-body {
+    padding: 1rem 1.25rem;
+}
+
 .unified-admin-wrapper {
     background: linear-gradient(145deg, #1e293b, #0f172a);
     width: 95%;
@@ -9507,13 +9523,37 @@ html[data-font-size="large"] .ocean-overlay-btn {
     border: 1px solid var(--ash-sub-br);
     border-radius: 0.9em;
     padding: 0.75em 0.7em;
-    display: flex; flex-direction: column; gap: 0.4em;
+    /* 2열 배치[2026-09-09 사용자 확정] — 왼쪽에 건수·비율, 오른쪽에 선박/인명 나눔.
+       전에는 한 줄로 쌓여 나눔 두 줄이 비율 아래로 내려가 타일이 세로로 길었다.
+       칸을 행·열로 못 박아 두므로, 나눔 두 줄이 없는 타일(전체 칩이 아닐 때)에서도
+       건수·비율·발효일수·막대의 자리는 그대로다. */
+    display: grid;
+    grid-template-columns: auto 1fr;
+    /* 0.5em 이었는데 건수("1,732건")와 오른쪽 선박·인명 칸이 너무 붙어 보인다는
+       사용자 지적으로 3배(2026-09-09). 오른쪽 칸은 1fr 이라 남는 만큼만 차지하므로
+       벌려도 타일 밖으로 넘치지 않는다(실측: 넘친 타일 0개·줄바꿈 0개). */
+    column-gap: 1.5em;
+    row-gap: 0.4em;
+    align-content: start;
 }
+.ash-warn-tile > .t   { grid-column: 1 / -1; grid-row: 1; }
+.ash-warn-tile > .n   { grid-column: 1; grid-row: 2; }
+.ash-warn-tile > .p   { grid-column: 1; grid-row: 3; }
+.ash-warn-tile > .s.hk     { grid-column: 2; grid-row: 2; }
+.ash-warn-tile > .s.person { grid-column: 2; grid-row: 3; }
+.ash-warn-tile > .d   { grid-column: 1 / -1; grid-row: 4; }
+.ash-warn-tile > .bar { grid-column: 1 / -1; grid-row: 5; }
 .ash-warn-tile .t {
     font-size: 0.72em; font-weight: 700;
     display: flex; align-items: center; gap: 0.35em;
 }
-.ash-warn-tile .n { font-size: 1.35em; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.ash-warn-tile .n {
+    /* 1.35em 이었는데, 2열 배치에서 "1,732" 같은 네 자리 수가 왼쪽 칸을 넓게 먹어
+       오른쪽 나눔 칸을 밀어냈다. 한 단계 줄여 둘이 나란히 들어가게 한다.
+       nowrap 이 없으면 "1,732" 뒤의 "건" 이 다음 줄로 내려간다(실측). */
+    font-size: 1.2em; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
+    white-space: nowrap;
+}
 .ash-warn-tile .n small { font-size: 0.55em; font-weight: 600; color: #b6c6da; margin-left: 0.1em; }
 .ash-warn-tile .p { font-size: 0.72em; color: var(--ash-muted); }
 .ash-warn-tile .bar { height: 0.35em; border-radius: 1em; background: var(--ash-track); overflow: hidden; }
@@ -9568,6 +9608,19 @@ html[data-font-size="large"] .ocean-overlay-btn {
 .ash-warn-zone { font-size: 0.7em; color: var(--ash-dim); }
 /* 타일 안 발효 일수 줄 */
 .ash-warn-tile .d { font-size: 0.72em; color: var(--ash-muted); }
+/* 타일 안 선박·인명 나눔 두 줄[S28-8, 2026-09-09 사용자 지시].
+   라벨은 왼쪽, 건수는 오른쪽 끝에 붙여 두 줄의 숫자가 세로로 맞는다.
+   색은 시트 전체에서 쓰는 선박=파랑 · 인명=청록 그대로.
+   [연계] accident_info.js buildWarnCardHtml 의 splitHtml */
+.ash-warn-tile .s {
+    display: flex; align-items: baseline; gap: 0.35em;
+    font-size: 0.72em; color: var(--ash-muted);
+    /* 2열 배치에서 오른쪽 칸이 좁아지면 "선박사/고" 처럼 잘려 내려간다 — 줄바꿈 금지 */
+    white-space: nowrap;
+}
+.ash-warn-tile .s b { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ash-warn-tile .s.hk b { color: var(--ash-blue-soft); }
+.ash-warn-tile .s.person b { color: var(--ash-teal); }
 
 /* 치명도 카드[S12] — 막대 행(.ash-row)을 그대로 쓰되 바 안에 조각이 둘이다.
    회색이 사망·실종 몫이고 왼쪽에 먼저 온다(디자인 분석서 §4.8·§7).

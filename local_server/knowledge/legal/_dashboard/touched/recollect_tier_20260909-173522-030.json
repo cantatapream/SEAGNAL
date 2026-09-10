@@ -1,0 +1,9 @@
+{
+ "script": "recollect_tier",
+ "stamp": "20260909-173522-030",
+ "files": [
+  "local_server/knowledge/legal/_legacy/폐기물관리법/20260326/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_meta.json"
+ ]
+}

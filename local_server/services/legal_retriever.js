@@ -45,6 +45,8 @@ const fs = require('fs');
 const path = require('path');
 const gemini = require('./gemini_client');
 const githubRaw = require('./github_raw');
+// 예고본·시행일 마커 전환(H-29 트랙 C) — 오늘(KST) 계산과 접기 규칙은 이 모듈 한 곳에 있다.
+const effectiveDate = require('./effective_date');
 
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const INDEX_JSON = path.join(LEGAL_DIR, '_dashboard', 'index.json');
@@ -360,13 +362,19 @@ function resolvePage(byFile, raw) {
 }
 
 // ── 페이지 본문 캐시(mtime 감지): frontmatter + body 분리 ──
-const _bodyCache = new Map(); // key: fp → { mtime, frontmatter, body }
+const _bodyCache = new Map(); // key: fp → { mtime, today, frontmatter, body }
 function readPage(kind, file) {
   const fp = pageFilePath(kind, file);
   let mt;
   try { mt = fs.statSync(fp).mtimeMs; } catch (_) { return null; }
   const cached = _bodyCache.get(fp);
-  if (cached && cached.mtime === mt) return cached;
+  // ★시행일 마커가 있는 페이지는 **오늘 날짜**도 캐시 키다(2026-09-10, H-29 트랙 C) — 자정이 지나면
+  //   같은 파일이라도 다른 본문(새 서술)이 되어야 한다. 마커 없는 페이지는 종전처럼 mtime 만 본다.
+  //   ★승인 상태도 캐시 키다(2026-09-10 승인 게이트) — 관리자가 폰에서 승인을 누르면 큐 파일 mtime 이
+  //   바뀌고, 그 순간부터 같은 파일이라도 새 서술을 내야 한다. 마커 없는 페이지는 여기까지 오지 않는다.
+  const today = effectiveDate.todayKST();
+  if (cached && cached.mtime === mt
+      && (cached.today === null || (cached.today === today && cached.appr === effectiveDate.approvalStamp()))) return cached;
   const raw = fs.readFileSync(fp, 'utf8');
   const fmMatch = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   const frontmatter = {};
@@ -378,7 +386,19 @@ function readPage(kind, file) {
       if (kv) frontmatter[kv[1].trim()] = kv[2].trim();
     }
   }
-  const entry = { mtime: mt, frontmatter, body };
+  // ★예고본 서술 접기 — `<!--시행 d-->`/`<!--시행전 d-->` 중 오늘 유효한 쪽만 남긴다. 이 함수가 본문의
+  //   유일한 입구라(scoreOne·termWeights·citableBody·search 컨텍스트·되묻기 전부 여기서 출발) 여기서 접으면
+  //   모든 소비처가 같은 본문을 본다. 마커 없는 페이지는 문자열 검사 한 번 뒤 그대로다.
+  //   ★승인 안 된 대기본의 시행일은 접지 않는다 — 그 법(파일이름 `<법>__<주제>`의 앞부분)의
+  //   미승인 시행일 집합을 넘긴다. 지도에 없는 날짜(손으로 넣은 마커)는 종전처럼 날짜만으로 갈린다.
+  const staged = effectiveDate.hasStageMarkers(body);
+  let appr = -1;
+  if (staged) {
+    appr = effectiveDate.approvalStamp();
+    const blocked = effectiveDate.unapprovedStageDates(String(file || '').split('__')[0]);
+    body = effectiveDate.applyStageMarkers(body, today, blocked);
+  }
+  const entry = { mtime: mt, today: staged ? today : null, appr, frontmatter, body };
   _bodyCache.set(fp, entry);
   return entry;
 }
@@ -992,6 +1012,9 @@ function sliceRelevant(body, terms, maxChars) {
  * @param {string} body - 페이지 마크다운 본문(원문)
  * @returns {string} "REVIEW" 단어가 포함된 줄을 제거한 본문
  */
+/** 페이지 맨 앞의 상태 안내줄. 예: `> ⚠ **draft — 미승인(2026-07-21 환원).** 이 페이지는 …` */
+const DRAFT_BANNER = /^\s*>?\s*⚠?\s*\*\*draft\s*[—-]\s*미승인/;
+
 function markUnresolvedReview(body) {
   if (!body) return body;
   const keep = [], moved = [];
@@ -1000,11 +1023,32 @@ function markUnresolvedReview(body) {
     if (/^#{2,3}\s*변경\s*이력/.test(line)) inLog = true;
     else if (/^#{2,3}\s/.test(line)) inLog = false;
     if (!/\bREVIEW\b/.test(line)) { keep.push(line); continue; }
+    // ⓞ 페이지 상태 안내줄(`> ⚠ **draft — 미승인** …`)은 **판단이 아니라 "이 페이지는 초안"이라는 표시**다.
+    //   그런데 그 안내문이 "REVIEW 가 남아 있어 draft 로 되돌렸다"고 사유를 적기 때문에 REVIEW 라는
+    //   낱말이 들어가고, 그 이유만으로 밀려나거나(ⓒ) 지워지고 있었다(ⓑ).
+    //   ⚠이 관례는 안내문 **뒤에 그 페이지의 본문이 이어 붙는다** — 2026-09-10 실측으로 전 위키
+    //     224줄 중 125줄이 [미확인]으로 밀리고 2줄은 통째로 지워지고 있었으며, 초안 118줄 중
+    //     48줄은 안내문 뒤에 실제 서술이 붙어 있었다. 즉 상태 표시 하나 때문에 **멀쩡한 본문이
+    //     함께 빠지고** 관리자 화면의 "미확인 N줄"도 부풀려졌다.
+    //   그 페이지에 진짜로 남아 있는 판단은 **그 문장들이 각자** 이 함수에 걸려 따로 옮겨진다 —
+    //   안내줄을 남긴다고 미검증 주장이 새지 않는다. (사용자 확정 2026-09-10: "빼자")
+    if (DRAFT_BANNER.test(line)) { keep.push(line); continue; }
     // ⓐ 변경이력 절·날짜로 시작하는 표 행 — 모델에게 쓸모없다(종전처럼 버린다). 전 위키 실측 46.7%.
     if (inLog || /^\|\s*20\d\d-\d\d-\d\d\s*\|/.test(line)) continue;
     // ⓑ "REVIEW-XX 해소·해제·완료" 처럼 **이미 끝났다는 언급** — 역시 버린다. 실측 9.5%.
+    //   ⚠2026-09-07: 이 규칙이 **아직 안 끝났다고 말하는 줄까지 지우고 있었다.** 문장 어딘가에
+    //     "승격"·"정정" 같은 낱말이 있으면 끝난 것으로 보는데, 실제로는 "canonical 로 **승격하지
+    //     않는다**"·"⚠REVIEW 표시는 **그대로 둔다**"·"사람 **승인 대기**"처럼 정반대 뜻이었다.
+    //     그렇게 지워지면 수치는 남고 주의 문구만 사라져, 이 파일 위쪽 주석이 경계한 바로 그
+    //     "안전장치가 오히려 환각을 만드는" 꼴이 된다. 위키 실측 15줄이 이렇게 지워지고 있었다.
+    //     그래서 아래 예외 목록에 "아직 사람 손이 남았다"는 표현을 추가한다. 예외에 걸리면
+    //     지우는 대신 ⓒ로 내려가 [미확인] 머리표 아래로 **옮겨진다** — 넓게 잡아도 안전한 방향이다.
+    //   ⚠"미확인 해소"처럼 뒤에 끝났다는 말이 붙는 경우는 예외에서 뺀다(그건 진짜로 끝난 것이다).
     if (/해소|해제|완료|정정|승격/.test(line)
-      && !/미해소|미승인|보류|확정\s*불가|확인\s*불가|판단\s*보류/.test(line)) continue;
+      && !/미해소|미승인|보류|확정\s*불가|확인\s*불가|판단\s*보류/.test(line)
+      && !/승인\s*(?:필요|대기|전)|승격하지\s*않|승격\s*(?:불가|보류)|그대로\s*두|검증\s*전|잔여\s*REVIEW|확정하지\s*않/.test(line)
+      && !/사람\s*(?:확인|판단|검토|검수)|확인\s*(?:대상|필요)|단정(?:하지\s*않|적으로\s*인용해서는\s*안)/.test(line)
+      && !/(?:미확인|미검증|미확정)(?!\s*(?:해소|해제|정정|확인))/.test(line)) continue;
     // ⓒ 나머지 — **진짜 "아직 모른다"는 판단**(실측 43.8%). 버리지 않고 옮긴다.
     moved.push(line);
   }
@@ -1024,17 +1068,27 @@ function markUnresolvedReview(body) {
 const UNVERIFIED_HEAD = '[미확인 — 아래는 사람 검토가 끝나지 않은 내용이다. 결론으로 쓰지 말고, 확인되지 않았다는 사실과 함께 그대로 안내하라.]';
 
 /**
- * canonicalOnly 모드에서 draft(비-statute) 페이지가 실제로 인용에 쓸 수 있는 본문을 만든다.
- * statute·canonical 페이지는 그대로(REVIEW 잔존이 있어선 안 되는 상태이므로 손대지 않음),
- * draft인 concept·comparison 페이지만 stripUnresolvedReview로 걸러 "검증된 부분만" 남긴다.
+ * canonicalOnly 모드에서 비-statute 페이지가 실제로 인용에 쓸 수 있는 본문을 만든다.
+ * statute(법령 원문 페이지)는 그대로 두고, concept·comparison·annex 페이지는 status 와 무관하게
+ * markUnresolvedReview 로 걸러 아직 안 끝난 판단을 [미확인] 머리표 아래로 옮긴다.
+ * (2026-09-07 이전에는 canonical 을 건너뛰었는데, canonical 366개에 미해결 REVIEW 1,198줄이
+ *  남아 있어 그 줄들이 표시 없이 나가고 있었다 — 아래 본문 주석 참조.)
  * @param {{kind:string,status?:string,file:string}} p - 인덱스 페이지 메타
  * @param {boolean} canonicalOnly
- * @returns {string} 인용 가능한 본문(비-canonicalOnly거나 canonical/statute면 원문 그대로)
+ * @returns {string} 인용 가능한 본문(비-canonicalOnly거나 statute면 원문 그대로)
  */
 function citableBody(p, canonicalOnly) {
   const page = readPage(p.kind, p.file);
   const body = page ? page.body : '';
-  if (canonicalOnly && p.kind !== 'statute' && p.status !== 'canonical') {
+  // ⚠2026-09-07: 종전에는 `p.status !== 'canonical'` 조건을 두어 **canonical 페이지는 이 걸러내기를
+  //   통째로 건너뛰었다.** 근거는 "canonical 은 REVIEW 잔존이 있어선 안 되는 상태"라는 가정이었는데,
+  //   그 가정이 **사실이 아니다** — 실측 결과 canonical 페이지 366개에 아직 안 끝난 REVIEW 줄이
+  //   1,198줄 남아 있었다(예: "확정 답변 금지", "원표 서식 일부 손상, 세부 문구 재대조 필요",
+  //   "최종 확정은 법률전문가 확인 권장"). 그 줄들이 [미확인] 머리표 없이 그대로 근거로 나가고 있었다.
+  //   승격(draft→canonical)이 곧 "주의 문구 끄기"가 되어 버리는 구조이기도 했다.
+  //   그래서 statute(원문 그대로여야 하는 법령 페이지)만 빼고 **status 와 무관하게** 걸러낸다.
+  //   REVIEW 가 없는 페이지에는 아무 영향이 없다(markUnresolvedReview 가 본문을 그대로 돌려준다).
+  if (canonicalOnly && p.kind !== 'statute') {
     return markUnresolvedReview(body);
   }
   return body;
@@ -2961,8 +3015,13 @@ const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
     - 대신 **확인되지 않았다는 사실을 그대로 알린다** — 예: "이 부분은 법령 원문에 명시돼 있지 않아 확인되지 않습니다. 관할 소관부서에 확인하시는 것이 정확합니다."
     - 그 부분이 **왜** 확정되지 않는지가 적혀 있으면(예: "원문이 지방자치단체를 포함하지도 제외하지도 않는다") 그 이유까지 함께 알려 준다 — 사용자가 무엇이 걸림돌인지 알 수 있어야 한다.
     - ★이 머리표 아래 내용은 **조문번호를 근거로 인용하지 마라.** 확인되지 않은 것을 근거로 내세우면, 본문에서는 "확인 안 됐다"고 하면서 근거로는 내세우는 셈이 된다.
-    - 머리표 위쪽(검토가 끝난 부분)은 종전대로 규칙 1~14를 그대로 따른다.
-    - 틀린 조문번호는 빈칸보다 나쁘다 — 화면이 그 표기를 눌러 원문을 여는 자리로 바꾸므로, 사용자는 **엉뚱한 법의 엉뚱한 조문**을 근거로 믿게 된다(실측: 「내항해운에관한업무지침」 제14조②의 비용 8항목이 「해운법 시행규칙」 제14조제2항으로 인용됐는데, 그 조문에는 제2항 자체가 없다).`;
+    - 머리표 위쪽(검토가 끝난 부분)은 종전대로 규칙 1~14와 16을 그대로 따른다.
+    - 틀린 조문번호는 빈칸보다 나쁘다 — 화면이 그 표기를 눌러 원문을 여는 자리로 바꾸므로, 사용자는 **엉뚱한 법의 엉뚱한 조문**을 근거로 믿게 된다(실측: 「내항해운에관한업무지침」 제14조②의 비용 8항목이 「해운법 시행규칙」 제14조제2항으로 인용됐는데, 그 조문에는 제2항 자체가 없다).
+16. ★**한 물음의 답이 두 자리 이상에 나뉘어 있으면 그 자리를 전부 인용한다.** 우리 법령은 "무엇을 해야 하는가(의무·위반)"와 "안 하면 어떻게 되는가(처벌·금액·차수)"가 **서로 다른 조문이나 별표**에 나뉘어 있는 일이 매우 흔하다. 한 자리만 대고 끝내면 사용자가 정작 알고 싶은 값을 못 받는다.
+    - 잘못된 예: "저장시설 운영자가 위반하면 처분이 몇 차까지?"에 법 제38조·제38조의3(처분 근거)만 인용하고, **차수별 기준이 실제로 적힌 시행규칙 별표를 빠뜨리는 것.**
+    - 올바른 예: 위반 조문과 함께 **그 값이 실제로 적힌 자리**(별표·별지·다른 조)를 같이 인용한다.
+    - ⚠이건 규칙 11(같은 조의 각 호를 반복해 적지 말라)과 다른 이야기다. 규칙 11은 **한 조 안**의 반복을 막는 것이고, 이 규칙은 **서로 다른 조·별표**를 빠뜨리지 말라는 것이다. 규칙 11 자신도 "다른 법·다른 조에서 나온 항목은 그 항목에만 따로 적는다"를 예외로 두고 있다.
+    - [근거자료]에 그 자리가 **없으면** 지어내지 말고, 그 부분은 확인되지 않는다고 밝힌다(규칙 2).`;
 
 const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
 
@@ -3160,8 +3219,11 @@ async function pickCandidateLaws(query, lawNames) {
 async function loadLawBundle(law) {
   const base = rawPathOf(law);
   if (!base) return null;
+  // 시행일이 지난 예고본이 있으면 그 법률.txt 를 읽는다(조문 팝업과 같은 규칙 — article_text.loadArticle 참고).
+  const staged = effectiveDate.stagedRawPath(base, '법률.txt');
   const [lawText, top] = await Promise.all([
-    githubRaw.fetchText(base + '/법률.txt'),
+    staged ? githubRaw.fetchText(staged).then(t => t || githubRaw.fetchText(base + '/법률.txt'))
+      : githubRaw.fetchText(base + '/법률.txt'),
     githubRaw.listDir(base),
   ]);
   if (!lawText) return null;
@@ -3268,7 +3330,10 @@ async function searchRawFallback(query, hint) {
 
     const picks = await pickRawFiles(qPick, bundles);
     const extras = (await Promise.all(picks.map(async p => {
-      const text = await githubRaw.fetchText(p.base + '/' + p.file);
+      // 시행일이 지난 예고본이 있으면 그 층도 대기본을 읽는다 — 종전에는 법률.txt 만 대기본을 쓰고
+      // 시행령·시행규칙은 늘 현행을 읽어, 시행일 뒤 조문 팝업과 2차 조회 답이 어긋났다(2026-09-10 검토).
+      const staged = effectiveDate.stagedRawPath(p.base, p.file);
+      const text = (staged && await githubRaw.fetchText(staged)) || await githubRaw.fetchText(p.base + '/' + p.file);
       return text ? { law: p.law, file: p.file, text } : null;
     }))).filter(Boolean);
 
@@ -5067,7 +5132,9 @@ function withAssumedNotice(answer, assumed) {
 // termsOf 는 순수 함수다(네트워크·AI 없음). 검사 도구(_dashboard/loop/search_gap.js)가
 // "검색이 이 질문을 어떤 낱말로 쪼개는지"를 **생산과 똑같이** 보려고 쓴다 — 따로 쪼개면
 // 검사와 코드가 어긋나 엉뚱한 결론이 난다(L-136·L-153).
-module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex,
+  // readPage 는 시행일 마커 접기(effective_date)가 본문 입구에서 도는지 회귀 테스트(test_pending_law)가 보려고 내보낸다.
+  readPage, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어

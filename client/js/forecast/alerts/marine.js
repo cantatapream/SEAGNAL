@@ -1381,15 +1381,18 @@ function _ensureMarineVisSkeletonStyle() {
 // 그룹 탭 → 기본 서브 섹션 매핑 (그룹 클릭 시 어떤 서브 섹션을 표시할지)
 const TAB_GROUP_DEFAULTS = {
     'weather-group': 'weather-alert-section',
-    'ocean-life-group': 'fishing-section'
+    // 해양안전생활[2026-09-10 사용자 확정] — 들어가면 [해양안전] 이 먼저 열린다.
+    //   (예전엔 'fishing-section' = 바다낚시가 먼저 열렸다)
+    'ocean-life-group': 'ocean-safety-section'
 };
 
 // 그룹 탭 → 서브 탭 nav 요소 ID 매핑
-// [주의] 'ocean-life-group' 값은 해양안전생활 화면(js/marine-life/safety/life_safety.js)이
-//        진입 시 'ocean-safety-sub-tabs' 로 교체한다(그 세션 동안만, 저장 안 함).
+// [2026-09-10] 'ocean-life-group' 은 이제 처음부터 해양안전생활 하위탭 바를 쓴다
+//   ([해양안전 | 해양생활] 두 갈래). 예전에는 'ocean-life-sub-tabs'(활동 6개 바)를 쓰다가
+//   10회 연타 잠금해제 때 life_safety.js 가 바꿔치기했는데, 정식 기능이 되어 기본값이 됐다.
 const TAB_GROUP_SUBTABS = {
     'weather-group': 'weather-sub-tabs',
-    'ocean-life-group': 'ocean-life-sub-tabs'
+    'ocean-life-group': 'ocean-safety-sub-tabs'
 };
 
 // 섹션 ID → 소속 그룹 역매핑 (섹션 ID로 switchMainTab 호출 시 올바른 그룹 활성화)
@@ -1466,7 +1469,20 @@ window.switchMainTab = function (targetId) {
         if (subTabNav) {
             subTabNav.classList.add('sub-tabs-visible');
             // 이전에 선택했던 서브 탭이 있으면 그것을 표시, 없으면 기본 서브 섹션
-            const activeSubBtn = subTabNav.querySelector('.sub-tab-btn.active');
+            let activeSubBtn = subTabNav.querySelector('.sub-tab-btn.active');
+            // [점검 차단] 보여줄 서브탭이 차단됐으면(예: 해양안전만 점검) 같은 nav 의 첫 비차단 버튼으로 간다.
+            //   여기서 안 막으면 메인탭만 눌러도 차단된 섹션이 그대로 보인다(관리자 모드는 그대로).
+            //   [연계] index2.html applyFeatureBlocks() → dataset.blocked / .feat-blocked
+            const chosenBtn = activeSubBtn || subTabNav.querySelector(`.sub-tab-btn[data-target="${defaultSection}"]`);
+            if (chosenBtn && chosenBtn.dataset.blocked === 'true' && localStorage.getItem('seagnal_admin_mode') !== 'true') {
+                const alt = Array.from(subTabNav.querySelectorAll('.sub-tab-btn'))
+                    .find(b => b.dataset.blocked !== 'true' && !b.classList.contains('feat-blocked'));
+                if (alt) {
+                    subTabNav.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+                    alt.classList.add('active');
+                    activeSubBtn = alt;
+                }
+            }
             const sectionToShow = activeSubBtn ? activeSubBtn.getAttribute('data-target') : defaultSection;
             const section = document.getElementById(sectionToShow);
             if (section) section.classList.add('active');

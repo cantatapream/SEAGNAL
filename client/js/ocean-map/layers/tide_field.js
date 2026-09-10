@@ -296,6 +296,17 @@
         if (_anchorLayer) _anchorLayer.setVisible(false);
     }
 
+    /**
+     * 물빠짐 사용량 키를 화면에 따라 고른다.
+     * 예: 해양안전생활 > 해양안전 화면(body.ls-safety)이면 'safety.mudflat', 해양종합정보면 'ocean.mudflat'
+     * @returns {string} trackUsage 에 넘길 키
+     * [연계] ← bindToggle() 클릭 핸들러 / body.ls-safety 는 marine-life/safety/life_safety.js 가 붙인다
+     *          — 같은 버튼을 두 화면이 빌려 쓰므로 어느 화면에서 켰는지 나눠 세기 위해(사용자 확정 2026-09-10)
+     */
+    function _usageKey() {
+        return document.body.classList.contains('ls-safety') ? 'safety.mudflat' : 'ocean.mudflat';
+    }
+
     function bindToggle() {
         var btn = $('ocean-mudflat-toggle-btn');
         if (!btn) return;
@@ -316,7 +327,7 @@
                     setUnlocked();
                     applyLockedLook(btn, false);
                     toast('물빠짐 기능이 활성화되었습니다.');
-                    if (window.trackUsage) window.trackUsage('ocean.mudflat');  // [사용량] 켤 때만 1회
+                    if (window.trackUsage) window.trackUsage(_usageKey());  // [사용량] 켤 때만 1회
                     activate(); // 해제 직후 바로 표출
                 } else {
                     toast('물빠짐 활성화까지 ' + (UNLOCK_CLICKS - n) + '회 남았습니다.');
@@ -326,7 +337,7 @@
             // 잠금 해제됨: 정상 토글
             if (_active) deactivate();
             else {
-                if (window.trackUsage) window.trackUsage('ocean.mudflat');  // [사용량] 켤 때만 1회
+                if (window.trackUsage) window.trackUsage(_usageKey());  // [사용량] 켤 때만 1회
                 activate();
             }
         });

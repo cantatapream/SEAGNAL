@@ -275,7 +275,12 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
         if (ex[k].length < 400) ex[k].push(`${dir}/${f}  |  ${law.slice(0, 40)}`);
         continue;
       }
-      const have = articleNumbersOf(file, tier, A.isAddendaCell && A.isAddendaCell(law));
+      // ★부칙 여부는 **법령 칸과 조문 칸 둘 다** 본다(2026-09-07).
+      //   종전에는 법령 칸(`…법 부칙`)만 봤다. 그런데 생산이 조문 칸 부칙(`부칙(제21368호) 제3조`)도
+      //   읽게 되면서(article_text.js ref.addenda), 그 줄은 부칙 구간을 봐야 조가 나온다.
+      //   여기서 안 맞추면 **생산은 여는데 게이트만 "그 조 없음"이라 세는** 어긋남이 난다(L-136).
+      const isAdd = (A.isAddendaCell && A.isAddendaCell(law)) || !!ref.addenda;
+      const have = articleNumbersOf(file, tier, isAdd);
       let miss = jos.filter(j => !have.live.has(j) && !have.dead.has(j));
       // ★"없다"고 말하기 전에 **생산 함수로 한 번 더 확인한다**(2026-08-31, L-136·§6).
       //   빠른 판정에 쓰는 `listArticleNumbers` 는 조문 구간을 별표·부칙 앞에서 끊는다(부칙의
@@ -286,7 +291,8 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
       if (miss.length) {
         try {
           const text = fs.readFileSync(file, 'utf8');
-          miss = miss.filter(j => !A.extractArticleBlock(text, j, tier));
+          // 부칙 줄은 부칙 머리표기(고시와 같은 줄머리 `제6조(제목)`)로 적혀 있어 계층 규칙이 다르다.
+          miss = miss.filter(j => !A.extractArticleBlock(text, j, isAdd ? 'notice' : tier));
         } catch (_) { /* 못 읽으면 종전 판정을 그대로 둔다 */ }
       }
       if (!miss.length) {

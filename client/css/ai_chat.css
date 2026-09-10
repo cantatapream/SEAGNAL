@@ -41,6 +41,10 @@
 }
 .nrya-console *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 .nrya-console .nrya-app{max-width:640px; margin:0 auto; position:relative; padding-bottom:24px;}
+/* [전체화면] 관리자 센터가 화면을 가득 채울 때(admin.js 가 `admin-fullscreen` 을 붙인다)는 640px 칸을
+   푼다 — 근거 조문 표·원문 발췌·리뷰 카드가 좁아서 접히던 것을 넓게 본다(사용자 확정 2026-09-10).
+   1180px 로 두는 이유: 화면 폭을 그대로 쓰면 본문 한 줄이 너무 길어져 읽기 어렵다(표는 스크롤로 본다). */
+#unified-admin-modal.admin-fullscreen .nrya-console .nrya-app{max-width:1180px;}
 .nrya-console .nrya-hidden{display:none !important}
 
 /* 환경 리본 */
@@ -110,6 +114,23 @@
 .nrya-console .nrya-dl{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
 .nrya-console .nrya-dl a{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:600; text-decoration:none; color:#8bb6ff; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.25); border-radius:14px; padding:3px 9px}
 .nrya-console .nrya-dl a.nrya-img{color:#69f0ae; background:rgba(105,240,174,.08); border-color:rgba(105,240,174,.25)}
+/* 계층 원문 줄은 원문 파일로 가는 링크다 — a 로 바꿔도 위 .nrya-file 배치를 그대로 쓴다 */
+.nrya-console a.nrya-file{text-decoration:none; color:inherit}
+/* 별표가 147건인 법도 있어(선박안전법) 아코디언 몸통 안에서 따로 스크롤시킨다 */
+.nrya-console .nrya-acc-scroll{max-height:520px; overflow-y:auto; margin-top:4px}
+
+/* 쪽 이동 « ‹ 1 2 3 4 5 › » — 사고내역 팝업(.ash-d-pager)과 같은 방식·같은 결 */
+.nrya-console .nrya-pager{display:flex; align-items:center; justify-content:center; gap:4px; margin-top:12px; flex-wrap:wrap}
+.nrya-console .nrya-pager button{
+  border:1px solid var(--nrya-border); background:rgba(255,255,255,.05); color:#c6d4e6;
+  border-radius:8px; min-width:30px; padding:6px 5px;
+  font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer;
+  font-variant-numeric:tabular-nums;
+}
+.nrya-console .nrya-pager button:disabled{opacity:.3; cursor:default}
+.nrya-console .nrya-pager button.e{color:var(--nrya-text-sub)}
+.nrya-console .nrya-pager button.n.on{background:var(--nrya-accent-blue); border-color:var(--nrya-accent-blue); color:#04122e}
+.nrya-console .nrya-pagenote{margin-top:7px; text-align:center; font-size:11px; color:var(--nrya-text-sub); font-weight:600; font-variant-numeric:tabular-nums; padding-bottom:6px}
 
 /* 일반 리스트 아이템 */
 .nrya-console .nrya-item{display:flex; align-items:center; gap:10px; padding:12px 13px; border-radius:11px; background:var(--nrya-card-bg); border:1px solid var(--nrya-border); cursor:pointer}
@@ -180,6 +201,38 @@
 .nrya-console .nrya-rv-field{margin-bottom:10px}
 .nrya-console .nrya-rv-flab{font-size:11px; font-weight:700; color:#a9c6ff; margin-bottom:4px; display:flex; align-items:center; gap:5px}
 .nrya-console .nrya-rv-fval{font-size:12.5px; color:#dfe7f5; line-height:1.55; background:rgba(255,255,255,.03); border:1px solid var(--nrya-border); border-radius:8px; padding:8px 10px; word-break:break-word}
+
+/* [바뀐 조문 전/후] 개정검토 카드에서 조문마다 접었다 펴서 '개정 전 → 개정 후' 본문을 본다
+   (사용자 확정 2026-09-10). <details> 라 자바스크립트 없이 열고 닫힌다. */
+.nrya-console .nrya-art{border:1px solid rgba(255,255,255,.10); border-radius:9px; margin:6px 0; background:rgba(255,255,255,.03)}
+.nrya-console .nrya-art>summary{cursor:pointer; padding:8px 10px; font-size:12.5px; font-weight:700; color:var(--nrya-text-main); list-style:none}
+.nrya-console .nrya-art>summary::-webkit-details-marker{display:none}
+.nrya-console .nrya-art>summary::before{content:"▸"; display:inline-block; width:13px; color:var(--nrya-text-sub)}
+.nrya-console .nrya-art[open]>summary::before{content:"▾"}
+.nrya-console .nrya-art[open]>summary{border-bottom:1px solid rgba(255,255,255,.08)}
+.nrya-console .nrya-art-new{background:rgba(105,240,174,.16); color:#8fe6bb; border-radius:5px; padding:1px 6px; font-size:11px; font-weight:800}
+.nrya-console .nrya-art-side{padding:8px 10px}
+.nrya-console .nrya-art-side+.nrya-art-side{border-top:1px dashed rgba(255,255,255,.10)}
+.nrya-console .nrya-art-lab{font-size:11px; font-weight:800; letter-spacing:.02em; margin-bottom:4px}
+.nrya-console .nrya-art-old .nrya-art-lab{color:#ffab91}
+.nrya-console .nrya-art-new-side .nrya-art-lab{color:#8fe6bb}
+.nrya-console .nrya-art-txt{font-size:12.5px; line-height:1.65; white-space:pre-wrap; word-break:keep-all; overflow-wrap:anywhere; color:var(--nrya-text-main)}
+.nrya-console .nrya-art-empty .nrya-art-txt{color:var(--nrya-text-sub); font-style:italic}
+.nrya-console .nrya-art-none{padding:8px 10px; font-size:12px; color:var(--nrya-text-sub)}
+
+/* [위키 반영 지시문] 승인한 개정을 위키에 옮기려면 무엇을 어디서 고칠지 적힌 글. 통째로 복사해
+   AI 에게 붙여 넣는 용도라 **글상자(textarea)** 로 둔다 — 앱 웹뷰는 클립보드가 막힐 수 있어
+   '전체 선택'으로 손복사하는 길을 함께 남긴다(사용자 확정 2026-09-10). */
+.nrya-console .nrya-btn-brief{width:100%; margin-top:8px; border:1px solid rgba(68,138,255,.45); background:rgba(68,138,255,.12);
+  color:#9dc4ff; font-family:inherit; font-weight:800; font-size:13px; padding:10px; border-radius:9px; cursor:pointer}
+.nrya-console .nrya-btn-brief:disabled{opacity:.6; cursor:default}
+.nrya-console .nrya-brief{margin-top:8px; border:1px solid var(--nrya-border); border-radius:9px; padding:9px; background:rgba(255,255,255,.03)}
+.nrya-console .nrya-brief-help{font-size:12px; color:var(--nrya-text-sub); line-height:1.6; margin-bottom:8px}
+.nrya-console .nrya-brief-acts{display:flex; gap:6px; margin-bottom:7px}
+.nrya-console .nrya-brief-acts button{flex:1; border:1px solid var(--nrya-border); background:rgba(255,255,255,.06); color:var(--nrya-text-main);
+  font-family:inherit; font-weight:700; font-size:12px; padding:8px; border-radius:7px; cursor:pointer}
+.nrya-console .nrya-brief-txt{width:100%; resize:vertical; background:#0e1524; border:1px solid var(--nrya-border); border-radius:8px;
+  padding:9px 11px; color:#dfe7f5; font-family:var(--nrya-mono); font-size:11.5px; line-height:1.65; outline:none; white-space:pre}
 .nrya-console .nrya-rv-fval-pre{font-family:var(--nrya-mono); font-size:11.5px; color:#cdd8ee; white-space:pre-wrap; max-height:220px; overflow-y:auto}
 .nrya-console .nrya-rv-links{margin:4px 0 12px}
 .nrya-console .nrya-rv-link{display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; text-decoration:none; color:#8bb6ff; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.28); border-radius:9px; padding:9px 11px; margin-top:6px; word-break:break-all}
@@ -219,6 +272,37 @@
 .nrya-console .nrya-rv-actions button{flex:1; border:none; border-radius:8px; font-family:inherit; font-weight:700; font-size:13px; padding:10px 0; cursor:pointer}
 .nrya-console .nrya-rv-actions button:disabled{opacity:.55; cursor:default}
 .nrya-console .nrya-btn-ok{background:var(--nrya-accent-green); color:#053824}
+/* 전체 승인 버튼이 **확인 대기**로 바뀐 상태 — 한 번 더 누르면 되돌릴 수 없이 실행된다는 신호.
+   (2026-09-10 일괄 승인 신설. 색만 바꾸고 크기·자리는 그대로 둬 화면이 안 튀게 한다.) */
+.nrya-console .nrya-btn-ok.nrya-btn-danger{background:#ffb020; color:#3a2400}
+
+/* 「지금 스캔」 진행률 게이지(2026-09-10 사용자 요청 "진행률이 게이지 바로 나오도록").
+   ★막대는 **질의 진행도**다 — 남은 시간이 아니다. 부처마다 고시 수가 달라 시간으로 환산하면
+   거짓 예측이 되므로, 막대 아래에 지금 하는 일과 살아 있는 숫자를 함께 적는다. */
+.nrya-console .nrya-gauge{margin:0 0 10px; padding:10px 12px; border-radius:12px;
+  border:1px solid rgba(68,138,255,.35); background:rgba(68,138,255,.10)}
+.nrya-console .nrya-gauge-head{font-size:12.5px; color:#dbe7f5; margin-bottom:7px}
+.nrya-console .nrya-gauge-bar{height:9px; border-radius:6px; background:rgba(255,255,255,.10); overflow:hidden}
+.nrya-console .nrya-gauge-bar > i{display:block; height:100%; border-radius:6px;
+  background:linear-gradient(90deg,#4d8cff,#7ee0c0); transition:width .4s ease}
+.nrya-console .nrya-gauge-sub{margin-top:7px; font-size:11.5px; color:var(--nrya-text-sub); line-height:1.6}
+.nrya-console .nrya-gauge-note{margin-top:6px; font-size:10.5px; color:var(--nrya-text-sub); line-height:1.65; opacity:.85}
+
+/* 초안승인 방 — 초안 펼쳐보기(2026-09-10 사용자 요청 "초안을 확인할 수 있는 방안이 현재 없어").
+   ★위쪽 빨간 칸이 **승인 대상**(사람 검토가 안 끝나 답변에서 「미확인」으로 밀려나는 줄)이고,
+   아래 회색 칸은 지금도 그대로 근거로 쓰이는 본문이다. 둘을 색으로 갈라 둔 이유는,
+   "이 페이지가 통째로 막혀 있다"는 오해가 이 방 이름 때문에 반복돼 왔기 때문이다. */
+.nrya-console .nrya-draft-body{margin-top:8px}
+.nrya-console .nrya-draft-sec{margin-bottom:9px; padding:9px 11px; border-radius:10px;
+  border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.04)}
+.nrya-console .nrya-draft-un{border-color:rgba(255,138,128,.40); background:rgba(255,138,128,.10)}
+.nrya-console .nrya-draft-ok{border-color:rgba(126,224,192,.40); background:rgba(126,224,192,.10)}
+.nrya-console .nrya-draft-lab{font-size:11.5px; font-weight:700; color:#dbe7f5; margin-bottom:6px}
+.nrya-console .nrya-draft-line{font-size:11.5px; line-height:1.75; color:#f2e2e0; padding:5px 0;
+  border-top:1px dashed rgba(255,255,255,.10); word-break:break-all}
+.nrya-console .nrya-draft-line:first-of-type{border-top:none}
+.nrya-console .nrya-draft-pre{margin:0; max-height:340px; overflow:auto; white-space:pre-wrap;
+  word-break:break-all; font-family:inherit; font-size:11.5px; line-height:1.75; color:var(--nrya-text-sub)}
 .nrya-console .nrya-btn-no{background:rgba(255,82,82,.15); color:#ff8a8a; border:1px solid rgba(255,82,82,.35) !important}
 .nrya-console .nrya-inline-err{margin-top:9px; font-size:11.5px; color:#ff8a8a; background:rgba(255,82,82,.08); border:1px solid rgba(255,82,82,.3); border-radius:8px; padding:8px 10px; line-height:1.5}
 .nrya-console .nrya-chain{margin-top:11px; padding:11px; border-radius:9px; background:rgba(105,240,174,.06); border:1px solid rgba(105,240,174,.25); display:none}
@@ -261,6 +345,11 @@
 /* FAB: 앱 하단 탭 바 위, 우측(600px 컬럼 안쪽) · 나리야 캐릭터 + "AI 챗봇" 라벨 · 흰색 글로우 */
 #nrya-overlays .nrya-fab{position:fixed; right:calc(50% - 300px + 16px); bottom:calc(var(--main-tab-height,68px) + 16px); z-index:55; width:68px;height:68px;border-radius:50%; border:none; cursor:pointer; background:#0e1524; box-shadow:0 0 0 2px rgba(255,255,255,.55), 0 0 14px rgba(255,255,255,.35), 0 6px 20px rgba(0,0,0,.45); display:grid; place-items:center; padding:0; overflow:hidden;}
 @media(max-width:632px){#nrya-overlays .nrya-fab{right:16px}}
+/* ① 하단 서브탭이 열리면 그 높이만큼 FAB 을 위로 올린다(닫히면 위 기본값으로 되돌아간다).
+   ⚠새 계산식을 만들지 않는다 — 지도의 출처표기(.ol-attribution)·축척(.ol-scale-line)이
+   index2.html 에서 이미 쓰고 있는 **같은 공식**(body.sub-tabs-open + --sub-tab-height)을 그대로
+   따른다. 클래스는 core/index2_patch.js 가 서브탭을 펴고 접을 때 body 에 붙였다 뗀다. */
+body.sub-tabs-open #nrya-overlays .nrya-fab{bottom:calc(var(--main-tab-height,68px) + var(--sub-tab-height,50px) + 16px)}
 #nrya-overlays .nrya-fab-inner{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; width:100%; height:100%;}
 #nrya-overlays .nrya-fab-inner img{width:38px; height:36px; object-fit:contain; display:block; margin-top:5px}
 #nrya-overlays .nrya-fab-label{font-size:8.5px; font-weight:800; color:#eaf2ff; letter-spacing:-.02em; line-height:1; margin-bottom:5px}
@@ -280,12 +369,33 @@
 #nrya-overlays .nrya-chat-wrap.nrya-open{opacity:1; visibility:visible}
 #nrya-overlays .nrya-chat{position:fixed; left:50%; top:28px; transform:translateX(-50%) scale(.96); width:min(600px, calc(100vw - 48px)); height:calc(100vh - 56px); background:#0e1524; border-radius:20px; box-shadow:0 18px 60px rgba(0,0,0,.6); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--nrya-border); opacity:0; transition:transform .2s ease, opacity .2s ease}
 #nrya-overlays .nrya-chat-wrap.nrya-open .nrya-chat{transform:translateX(-50%) scale(1); opacity:1}
-#nrya-overlays .nrya-chat-top{display:flex; align-items:center; gap:11px; padding:13px 15px; background:rgba(15,20,35,.9); border-bottom:1px solid var(--nrya-border)}
-#nrya-overlays .nrya-chat-name{font-size:14.5px; font-weight:700; color:#fff}
-#nrya-overlays .nrya-chat-acts{margin-left:auto; display:flex; align-items:center; gap:4px}
-#nrya-overlays .nrya-chat-x{background:none; border:none; color:var(--nrya-text-sub); font-size:22px; cursor:pointer; line-height:1; padding:0 3px}
-#nrya-overlays .nrya-chat-hist{font-size:16px}
-#nrya-overlays .nrya-chat-back{font-size:26px}
+/* ② 헤더 우측을 아이콘(⚙·🕘)이 아니라 **글자 버튼**(내 정보·대화이력)으로 바꾸면서(2026-09-09
+   사용자 지적 "아이콘만으로는 무엇인지 알 수 없다"), 좁은 화면에서 글자가 잘리지 않도록
+   가로 배분을 다시 잡았다. 규칙은 두 줄이다:
+   ①글자 버튼 묶음(.nrya-chat-acts)은 **절대 안 줄어든다**(flex:0 0 auto + nowrap).
+   ②모자란 폭은 **이름 칸**이 내준다(min-width:0 + 말줄임). 아래 값들로 실측하니 360px 화면에서
+     이름("해양법령 도우미" 110px)도 버튼도 안 잘렸다. 양보 순서를 못박아 두는 것은 사용자가
+     시스템 글자 크기를 키웠을 때 **버튼 글자가 아니라 이름이** 줄어들게 하기 위해서다.
+   버튼 자리는 이렇게 만들었다(전부 실측하며 조금씩 줄인 값이다):
+     좌우 여백 15px→10px · 아바타와 이름 사이 간격 11px→8px · 헤더 아바타 38px→30px ·
+     버튼 사이 간격 4px→3px · ✕ 글자 22px→20px(좌우 여백 3px→2px). */
+#nrya-overlays .nrya-chat-top{display:flex; align-items:center; gap:8px; padding:13px 10px; background:rgba(15,20,35,.9); border-bottom:1px solid var(--nrya-border)}
+/* 헤더 아바타만 38px → 30px. .nrya-ava 는 관리자 콘솔·말풍선도 쓰는 공용 클래스라 여기서만 덮는다. */
+#nrya-overlays .nrya-chat-top .nrya-ava{width:30px; height:30px}
+#nrya-overlays .nrya-chat-titles{flex:1 1 auto; min-width:0}
+#nrya-overlays .nrya-chat-name{font-size:14.5px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+/* 2026-09-10 사용자 지적: "버튼간의 간격과 x버튼이 너무 가까이 있어서 잘못누를 가능성이 높아."
+   ①글자 버튼끼리는 3px → 7px 로 벌리고 ②✕ 앞에는 추가로 9px 을 더 둬(총 16px) 실수로 창이
+   닫히는 것을 막는다. ③✕ 자체의 손가락 닿는 면적도 좌우 2px → 7px 로 넓혔다.
+   하위화면에서는 글자 버튼이 하나([채팅창으로])만 남으므로 폭은 종전보다 오히려 여유가 있다. */
+#nrya-overlays .nrya-chat-acts{flex:0 0 auto; display:flex; align-items:center; gap:7px}
+#nrya-overlays .nrya-chat-x{background:none; border:none; color:var(--nrya-text-sub); font-size:20px; cursor:pointer; line-height:1; padding:0 2px}
+#nrya-overlays .nrya-chat-acts > #nryaChatX{margin-left:9px; padding:2px 7px}
+/* 글자 버튼(내 정보·대화이력) — 칩과 같은 톤. white-space:nowrap 이 "내 정보"가 "내 / 정보"로
+   접히는 것을 막는다(직군 칩에서 실제로 났던 증상과 같은 원인). */
+#nrya-overlays .nrya-chat-txt{font-family:inherit; font-size:10.5px; font-weight:700; line-height:1; white-space:nowrap; padding:6px 6px; border-radius:11px; cursor:pointer; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#dbe7f5}
+/* [채팅창으로] — 다른 글자 버튼(.nrya-chat-txt)과 같은 톤이되, 돌아가는 길임을 ‹ 로 보인다. */
+#nrya-overlays .nrya-chat-back::before{content:'\2039'; font-size:15px; line-height:1; margin-right:3px; vertical-align:-1px}
 #nrya-overlays .nrya-chat-body{flex:1; overflow-y:auto; padding:14px 12px; display:flex; flex-direction:column; gap:11px; background:#1c2a38}
 
 /* 대화 기록 목록(헤더 🕘) — 대화 영역과 같은 자리를 번갈아 차지한다(열리면 대화 영역은 숨김).
@@ -298,17 +408,61 @@
 #nrya-overlays .nrya-hist-q{flex:1; min-width:0; font-size:13px; color:#eef4fb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 #nrya-overlays .nrya-hist-t{flex:0 0 auto; font-size:10.5px; color:#93a4b9}
 #nrya-overlays .nrya-hist-empty{padding:34px 16px; text-align:center; font-size:12.5px; line-height:1.7; color:#93a4b9}
-/* AI 행: 아바타가 "나리야" 이름과 같은 높이(위)에 오도록 top 정렬 */
+/* ⑥ 대화 기록을 **대화 단위**로 묶으면서 붙인 줄들(2026-09-09).
+   한 대화에 질문이 여러 개면 그 개수를 오른쪽 시각 앞에 작은 알약으로 보여준다. */
+#nrya-overlays .nrya-hist-n{flex:0 0 auto; font-size:10px; font-weight:700; color:#a9c6ff; background:rgba(68,138,255,.16); border:1px solid rgba(68,138,255,.32); border-radius:10px; padding:1px 7px}
+/* 지난 대화를 펼쳤을 때 "여기부터 그때 대화" 라고 알려주는 구분선 */
+#nrya-overlays .nrya-hist-sep{align-self:center; font-size:10.5px; color:#93a4b9; background:rgba(255,255,255,.06); border-radius:10px; padding:3px 10px}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   내 정보(프로필) 패널 전용 — ③칩 줄바꿈 · ④톤수/길이 한 줄 · ⑤어업종류 검색 드롭다운
+   (2026-09-09 사용자 지적 3건. 전부 이 패널 안에서만 쓰는 클래스라 되묻기 카드·동의 배너
+    같은 공용 .nrya-consent-btns 사용처에는 영향이 없다.)
+   ───────────────────────────────────────────────────────────────────────── */
+/* ③ 칩 줄("어업인"·"비어업인"…)이 한 줄에 다 못 들어가면 **버튼째 다음 줄로** 넘어간다.
+   ⚠원인: .nrya-consent-btns 는 flex-wrap 이 없어 버튼이 줄지 못한 채 눌렸고, 그러면
+     버튼 **안에서** 글자가 접혀 "어업 / 인" 이 됐다. 두 가지를 함께 걸어야 낫는다 —
+     ①줄 자체가 wrap 되게(여기) ②글자는 절대 안 접히게(.nrya-prof-btn 의 nowrap).
+   그 앞 단계로 fitProfChips(ai_chat.js)가 자간을 최대 -0.10em 까지 좁혀 한 줄에 맞춰 본다. */
+#nrya-overlays .nrya-prof-row{flex-wrap:wrap}
+#nrya-overlays .nrya-prof-btn{white-space:nowrap}
+/* ④ 톤수·길이 — 두 칸을 한 줄에 나란히, 단위(t·m)는 칸 오른쪽에 붙인다. */
+#nrya-overlays .nrya-prof-pair{display:flex; gap:10px; margin-top:9px}
+#nrya-overlays .nrya-prof-cell{flex:1 1 0; min-width:0}
+#nrya-overlays .nrya-prof-cell .nrya-hist-day{margin:0 3px 5px}
+#nrya-overlays .nrya-prof-numrow{display:flex; align-items:center; gap:6px}
+#nrya-overlays .nrya-prof-num{flex:1 1 auto; min-width:0; width:100%; font-family:inherit; font-size:12.5px; padding:8px 10px; border-radius:12px; border:1px solid var(--nrya-border); background:rgba(255,255,255,.06); color:#e7eefb; outline:none}
+#nrya-overlays .nrya-prof-num:focus{border-color:var(--nrya-accent-yellow)}
+#nrya-overlays .nrya-prof-unit{flex:0 0 auto; font-size:12.5px; font-weight:700; color:#a9c6ff}
+/* ⑤ 어업종류 — 글자를 치면 걸러지는 드롭다운(칩 4개로는 실제 어업을 고를 수 없다는 지적). */
+#nrya-overlays .nrya-prof-search{width:100%; font-family:inherit; font-size:12.5px; padding:8px 10px; border-radius:12px; border:1px solid var(--nrya-border); background:rgba(255,255,255,.06); color:#e7eefb; outline:none; margin-top:9px}
+#nrya-overlays .nrya-prof-search:focus{border-color:var(--nrya-accent-yellow)}
+#nrya-overlays .nrya-prof-list{max-height:210px; overflow-y:auto; margin-top:6px; border:1px solid var(--nrya-border); border-radius:12px; background:rgba(255,255,255,.04)}
+#nrya-overlays .nrya-prof-grp{font-size:10px; font-weight:700; color:#8fa6c0; padding:7px 10px 3px}
+#nrya-overlays .nrya-prof-opt{display:block; width:100%; text-align:left; font-family:inherit; font-size:12.5px; color:#e7eefb; background:none; border:none; padding:7px 10px; cursor:pointer}
+#nrya-overlays .nrya-prof-opt:hover,#nrya-overlays .nrya-prof-opt:active{background:rgba(255,255,255,.08)}
+/* 지금 저장돼 있는 값은 목록 안에서 강조색으로 표시(내 말풍선과 같은 노랑) */
+#nrya-overlays .nrya-prof-opt.nrya-prof-cur-opt{color:#231c00; background:#ffe14d; font-weight:700}
+#nrya-overlays .nrya-prof-free{color:#a9c6ff; font-weight:700}
+#nrya-overlays .nrya-prof-none{font-size:11.5px; color:#93a4b9; padding:9px 10px}
+/* ⚠걸러서 감출 때 el.hidden 을 쓰는데, 위 .nrya-prof-opt 의 display:block 이 브라우저 기본
+   [hidden]{display:none} 보다 우선순위가 높아 **안 감춰진다.** 그래서 여기서 못박는다. */
+#nrya-overlays .nrya-prof-list [hidden]{display:none !important}
+/* AI 행: 예전에는 말풍선 왼쪽에 나리야 얼굴 아바타(.nrya-kava, 36px + gap 7px)가 붙어 있었다.
+   ⑦2026-09-09 사용자 확정으로 **아바타를 뺐다**(이름 줄 "해양법령 도우미"는 그대로 둔다) —
+   좁은 휴대폰에서 43px 을 아이콘이 먹어 답변 글이 눌렸다. 아바타 자리가 사라졌으므로
+   아래 .nrya-kcol 의 max-width 도 92% → 100% 로 함께 넓힌다(둘은 한 몸이다). */
 #nrya-overlays .nrya-krow{display:flex; align-items:flex-start; gap:7px; max-width:100%}
 #nrya-overlays .nrya-krow.nrya-me{flex-direction:row-reverse; align-self:flex-end}
-#nrya-overlays .nrya-kava{width:36px;height:36px;flex:0 0 auto}
 /* ⚠ min-width:0 이 없으면 flex 항목은 **min-content 아래로 안 줄어든다**(flex 기본 min-width:auto).
    그래서 말풍선 안 근거카드 헤더([뱃지]+[시행일자 칩])의 최소폭이 좁은 화면의 92%를 넘는 순간
    말풍선이 통째로 오른쪽으로 삐져나가 가로 스크롤이 생겼다(2026-08-18 실기기 재현: 360px 화면
    기준 필요 235px > 가용 227px). 뱃지 글자 수(벌칙/시행규칙)에 따라 넘칠 때와 아닐 때가 갈려
    "어떨 땐 되고 어떨 땐 안 되는" 증상으로 보였다. 안쪽 요소들은 이미 min-width:0·말줄임을
    갖췄으므로, 이 사슬만 줄어들 수 있게 하면 자기 칸 안에서 알아서 접힌다. */
-#nrya-overlays .nrya-kcol{display:flex; flex-direction:column; max-width:92%; min-width:0}
+/* ⑦ 아바타를 뺀 만큼 답변이 왼쪽 끝까지 쓰도록 92% → 100%.
+   ⚠내 말풍선(.nrya-me)은 여기를 안 쓴다(.nrya-mecol) — 오른쪽 정렬 그대로다. */
+#nrya-overlays .nrya-kcol{display:flex; flex-direction:column; max-width:100%; min-width:0}
 #nrya-overlays .nrya-kbrow{min-width:0}
 #nrya-overlays .nrya-kbub{min-width:0}
 #nrya-overlays .nrya-kwho{font-size:11.5px; color:#b8c6da; margin:0 0 4px 3px}

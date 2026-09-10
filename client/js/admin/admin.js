@@ -614,6 +614,10 @@ window.switchUnifiedAdminTab = function (tabId) {
     const body = document.getElementById('unified-admin-body');
     if (!body) return;
 
+    // [나리야 전체화면] 메인 탭을 옮기면 일단 해제한다 — AI 탭이면 switchAiSubTab 이 곧바로 다시 붙인다.
+    const _modal = document.getElementById('unified-admin-modal');
+    if (_modal) _modal.classList.remove('admin-fullscreen');
+
     // 기존 내용 비우기
     body.innerHTML = `
         <div style="text-align:center;padding:100px;color:#64748b;">
@@ -710,6 +714,10 @@ window.switchAiSubTab = function (which) {
     });
     var sub = document.getElementById('ai-subtab-body');
     if (!sub) return;
+    // [나리야 전체화면] 챗봇 콘솔만 화면 가득. 다른 하위탭으로 돌아가면 종전 크기로 되돌린다.
+    //   (모달 폭은 style.css 의 `#unified-admin-modal.admin-fullscreen` 이 정한다)
+    var _m = document.getElementById('unified-admin-modal');
+    if (_m) _m.classList.toggle('admin-fullscreen', which === 'chatbot');
     if (which === 'test') renderAiTestSubtab(sub);
     else if (which === 'chatbot') {
         // [AI 챗봇] 나리야 법령 챗봇 관리 콘솔 — 지식 방 브라우저 + 리뷰 검토센터(승인/교정) + 노출토글 (js/ai-chat/ai_chat.js)
@@ -4572,6 +4580,7 @@ async function renderMaintenanceFullTab(container) {
             { id: 'weather-alert-tab', label: '특보 및 전망', children: [
                 { id: 'report-btn', label: '오류 제보 버튼' },
                 { id: 'marine-forecast', label: '기상청 해상 기상 전망' },
+                { id: 'advisory-prediction', label: '특보 예측' },
                 { id: 'weather-alert', label: '해역별 특보현황', linked: ['ov-warn-zone'] },
                 { id: 'weather-buoy', label: '해역별 기상현황', linked: ['ov-buoy'], children: [
                     { id: 'status-forecast', label: '기상예보 버튼' },
@@ -4591,25 +4600,61 @@ async function renderMaintenanceFullTab(container) {
             { id: 'basemap-rltm', label: '배경지도 · 기본맵' },
             { id: 'basemap-enc', label: '배경지도 · 전자해도' },
             { id: 'basemap-coast', label: '배경지도 · 해안도' },
+            { id: 'basemap-osm', label: '배경지도 · 세계지도' },
+            { id: 'basemap-vworld', label: '배경지도 · 위성지도' },
             { id: 'ov-current', label: '유향·유속' },
             { id: 'ov-wind', label: '풍향·풍속' },
             { id: 'ov-wave', label: '파고·파향' },
             { id: 'ov-buoy', label: '기상부이', linked: ['weather-buoy'] },
             { id: 'ov-warn-zone', label: '특보구역', linked: ['weather-alert'] },
-            { id: 'ov-marine-zone', label: '해구도' },
+            { id: 'ov-warn-active', label: '활성특보 색칠' },
+            { id: 'ov-marine-zone', label: '해구도 (해구 전망표 포함)' },
             { id: 'ov-other-wx', label: '천기' },
-            { id: 'ov-cctv', label: 'CCTV' },
-            { id: 'ov-gps', label: 'GPS (내 위치)' },
-            { id: 'ocean-bottomsheet', label: '해점 바텀시트' },
-            { id: 'ocean-search', label: '위치 검색창' },
+            { id: 'ov-vsby', label: '시정' },
+            { id: 'ov-typhoon', label: '태풍' },
+            // ── 아래 6개는 해양안전(해양안전생활 지도)과 같은 버튼을 씀 → 막으면 두 화면 모두 막힘 ──
+            { id: 'ov-mudflat', label: '물빠짐 (해양안전 공용)' },
+            { id: 'ov-cctv', label: 'CCTV (해양안전 공용)' },
+            { id: 'ov-info', label: '안내 ⓘ (해양안전 공용)' },
+            { id: 'ov-gps', label: 'GPS · 내 위치 (해양안전 공용)' },
+            { id: 'ocean-bottomsheet', label: '해점 바텀시트 (해양안전 공용)' },
+            { id: 'ocean-search', label: '위치 검색창 (해양안전 공용)' },
+            { id: 'ov-northup', label: '진북 정렬' },
+            { id: 'ov-fav', label: '즐겨찾기' },
         ]},
-        { id: 'main-life', label: '해양생활', children: [
-            { id: 'fishing', label: '바다낚시' },
-            { id: 'surfing', label: '서핑' },
-            { id: 'swimming', label: '해수욕' },
-            { id: 'scuba', label: '스킨스쿠버' },
-            { id: 'mudflat', label: '갯벌체험' },
-            { id: 'sea-parting', label: '바다갈라짐' },
+        // [2026-09-10] 해양생활 → 해양안전생활 정식 전환에 맞춰 트리 갱신. 해양안전 8개 버튼 중
+        //   위험지형·사고정보·금지구역·항행경보·관제구역·항로해역은 이 화면 전용, 물빠짐·CCTV 는
+        //   위 해양종합정보 항목과 같은 버튼(공용).
+        { id: 'main-life', label: '해양안전생활', children: [
+            { id: 'ocean-safety', label: '해양안전 (지도 하위탭)', children: [
+                { id: 'sf-terrain', label: '위험지형 (노출암·간출암)' },
+                { id: 'sf-accident', label: '사고정보' },
+                { id: 'sf-banzone', label: '금지구역 (출입통제·낚시금지)' },
+                { id: 'sf-navwarn', label: '항행경보' },
+                { id: 'sf-vts', label: '관제구역' },
+                { id: 'sf-seaway', label: '항로·해역' },
+            ]},
+            { id: 'life-activities', label: '해양생활 (활동 하위탭)', children: [
+                { id: 'fishing', label: '바다낚시' },
+                { id: 'surfing', label: '서핑' },
+                { id: 'swimming', label: '해수욕' },
+                { id: 'scuba', label: '스킨스쿠버' },
+                { id: 'mudflat', label: '갯벌체험' },
+                { id: 'sea-parting', label: '바다갈라짐' },
+                { id: 'ls-basemap', label: '배경지도 고르기' },
+                { id: 'ls-gps', label: '내 위치' },
+                { id: 'ls-gubun', label: '갯바위/선상 전환' },
+                { id: 'ls-info', label: '활동 안내 ⓘ' },
+            ]},
+        ]},
+        { id: 'main-etc', label: '탭 밖 기능', children: [
+            { id: 'nariya-chat', label: '나리야 법령 챗봇 (우측 하단 버튼)' },
+            { id: 'settings-btn', label: '앱 설정 (헤더 톱니바퀴)', children: [
+                { id: 'settings-interest', label: '관심 해역 설정' },
+                { id: 'settings-notify', label: '알림 설정' },
+                { id: 'location-alert', label: '위치기반 특보 알림 동의' },
+            ]},
+            { id: 'survey-popup', label: '설문조사 자동 팝업' },
         ]},
         { id: 'main-promo', label: '공지사항' },
     ];

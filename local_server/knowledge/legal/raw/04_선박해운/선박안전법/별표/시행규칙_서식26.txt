@@ -421,44 +421,40 @@
 (7면)
 ┌──────────────────────────────────┬─────────────┐
 │                                                                    │                          │
-│ 5.  구명뗏목                                                       │                          │
-│     Liferafts                                                      │..........................│
 │                                                                    │                          │
-│ 5.1 승인된 진수장치가 필요한 것                                    │                          │
-│     Those for which approved launching appliance are required      │..........................│
 │                                                                    │                          │
-│ 5.1.1 구명뗏목의 수                                                │                          │
+│ 5.    구명뗏목                                                     │                          │
+│       Liferafts                                                    │..........................│
+│                                                                    │                          │
+│ 5.1   승인된 진수장치가 필요한 것                                  │                          │
+│       Those for which approved launching appliance are required    │..........................│
+│                                                                    │                          │
+│ 5.1.1  구명뗏목의 수                                               │                          │
 │       Number of liferafts                                          │..........................│
 │                                                                    │                          │
-│ 5.1.2 수용인원의 수                                                │                          │
+│ 5.1.2  수용인원의 수                                               │                          │
 │       Number of persons acco㎜odated by them                       │..........................│
 │                                                                    │                          │
-│ 5.2 승인된 진수장치가 필요 없는 것                                 │                          │
-│     Those for which approved launching appliance are not required  │..........................│
+│ 5.2   승인된 진수장치가 필요 없는 것                               │                          │
+│       Those for which approved launching appliance are not required│..........................│
 │                                                                    │                          │
-│ 5.2.1 구명뗏목의 수                                                │                          │
+│ 5.2.1  구명뗏목의 수                                               │                          │
 │       Number of liferafts                                          │..........................│
 │                                                                    │                          │
-│ 5.2.2 수용인원의 수                                                │                          │
+│ 5.2.2  수용인원의 수                                               │                          │
 │       Number of persons acco㎜odated by them                       │..........................│
 │                                                                    │                          │
-│ 6. 구명부환(救命浮環)의 수                                         │                          │
-│    Number of lifebuoys                                             │..........................│
+│ 6.    구명부환(救命浮環)의 수                                      │                          │
+│       Number of lifebuoys                                          │..........................│
 │                                                                    │                          │
-│ 7. 구명조끼의 수                                                   │                          │
-│    Number of lifejackets                                           │..........................│
+│ 7.    구명조끼의 수                                                │                          │
+│       Number of lifejackets                                        │..........................│
 │                                                                    │                          │
-│ 8. 방수복                                                          │                          │
-│    I㎜ersion suits                                                 │..........................│
+│ 8.    방수복의 수                                                  │                          │
+│       Number of i㎜ersion suits                                    │..........................│
 │                                                                    │                          │
-│ 8.1 총 수량                                                        │..........................│
-│     Total number                                                   │                          │
-│                                                                    │                          │
-│ 8.2 구명조끼의 요건을 갖춘 방수복의 수                             │                          │
-│     Number of suits complying with the requirements for lifejackets│..........................│
-│                                                                    │                          │
-│ 9. 보온기구의 수*                                                  │                          │
-│     Number of thermal protective aids*                             │..........................│
+│ 9.    보온기구의 수*                                               │                          │
+│       Number of thermal protective aids*                           │..........................│
 │                                                                    │                          │
 │                                                                    │                          │
 └──────────────────────────────────┴─────────────┘

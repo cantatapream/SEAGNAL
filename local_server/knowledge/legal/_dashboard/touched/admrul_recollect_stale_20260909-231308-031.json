@@ -1,0 +1,10 @@
+{
+ "script": "admrul_recollect_stale",
+ "stamp": "20260909-231308-031",
+ "files": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법/행정규칙/농산물검사·검정방법및절차등에관한규정.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법/행정규칙/_admrul.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/행정규칙/재활용환경성평가기관지정·관리에관한업무처리지침.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/행정규칙/_admrul.json"
+ ]
+}

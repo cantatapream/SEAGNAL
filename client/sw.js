@@ -86,6 +86,7 @@ const BLACKLIST_EXACT = new Set([
     '/access_control_zones.json',
     '/fishing_ban_zones.json',
     '/hazard_rocks.json',
+    '/shore_rocks.json',
     '/seaway_zones.json',
     '/vts_zones.json',
 ]);
