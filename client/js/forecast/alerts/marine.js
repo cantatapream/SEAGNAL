@@ -1405,6 +1405,7 @@ const SECTION_TO_GROUP = {
     'scuba-section': 'ocean-life-group',
     'sea-parting-section': 'ocean-life-group',
     'ripcurrent-section': 'ocean-life-group',
+    'swell-section': 'ocean-life-group',
     // 해양안전생활(10회 연타 진입) 화면의 '해양안전' 하위탭 — 같은 해양생활 그룹 소속
     'ocean-safety-section': 'ocean-life-group'
 };
@@ -1784,6 +1785,16 @@ function _onSectionActivated(sectionId) {
         setTimeout(() => {
             if (window.initRipCurrent) {
                 window.initRipCurrent();
+            }
+        }, 200);
+    }
+    // 너울 탭 활성화 시 지도 초기화 (해안선을 등급 색으로 칠하는 지도형)
+    if (sectionId === 'swell-section') {
+        // [사용량] 너울 하위 탭 진입
+        if (window.trackUsage) window.trackUsage('life.swell.tab');
+        setTimeout(() => {
+            if (window.initSwellMap) {
+                window.initSwellMap();
             }
         }, 200);
     }

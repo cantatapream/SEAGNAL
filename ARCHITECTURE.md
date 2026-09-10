@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 106개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 107개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -108,6 +108,8 @@ client/js/
 │   │   ├── surfing3.js
 │   │   ├── surfing4.js
 │   │   └── surfing5.js
+│   ├── swell/
+│   │   └── swell.js
 │   └── swimming/
 │       └── swimming.js
 ├── notice/  ← [탭4] 공지사항
@@ -328,6 +330,12 @@ client/js/
 | `surfing3.js` | 서핑지수 프론트엔드 - 팝업 열기/닫기 + 이벤트 바인딩 + 날짜 네비게이션 |
 | `surfing4.js` | 서핑지수 프론트엔드 - 팝업 콘텐츠 렌더링 (서핑지수 테이블 + 상세정보) |
 | `surfing5.js` | 서핑지수 프론트엔드 - 해상특보 맵 구축 + 해상특보 HTML 생성 |
+
+### `client/js/marine-life/swell/`
+
+| 파일 | 역할 |
+|------|------|
+| `swell.js` | 해양생활 "너울" 탭 — 해안선을 소해구별 너울 위험등급 색으로 칠해 보여준다. |
 
 ### `client/js/marine-life/swimming/`
 

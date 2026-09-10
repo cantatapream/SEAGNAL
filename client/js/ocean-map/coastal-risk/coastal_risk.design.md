@@ -358,6 +358,32 @@ MMIS가 숫자를 3시간 간격으로만 주길래, 같은 모델의 예측 그
 **이 세션에서 직접 못 받는 이유**: marine.kma.go.kr 접근이 차단돼 있다
 (2026-09-10 재확인 — curl `CONNECT tunnel failed, response 403`).
 
+#### 구현 (2026-09-10) — 해양생활 "너울" 탭
+
+위 (나)를 그대로 코드로 옮겼다. 연안 위험도 종합 화면(§9)보다 먼저,
+**너울 하나만 해안선에 색으로 보여주는 화면**을 사용자 요청으로 만들었다.
+
+| 파일 | 하는 일 |
+|---|---|
+| `local_server/services/swell_smallzone.js` | WFS 수집·캐시. `baseTm` 바뀔 때만 재수집, 최신 런만 저장 |
+| `local_server/routes/swell_smallzone.js` | `GET /api/swell-smallzone?coast=1` → 해안 소해구 등급표 |
+| `local_server/scripts/build_coastline_segments.js` | 해안선을 소해구별 조각으로 잘라 파일로 굳힘(1회) |
+| `client/coastline_segments.json` | 조각 1,934개 · 소해구 424개 · 388KB(gzip 112KB) |
+| `client/js/marine-life/swell/swell.js` | `#swell-section` 지도에 해안선을 등급 색으로 그림 |
+
+**해안선을 칠하기로 한 이유**(사용자 지시): 너울은 먼바다보다 해안에 부딪힐 때 위험하다.
+바다 전체를 칠하면 §9 의 종합 화면과 겹치고, 정작 봐야 할 연안이 묻힌다.
+
+측정값(2026-09-10 실행):
+- 해안선 점 19,984개(격자 밖 10개 제외) → 조각 1,934개
+- 해안에 닿는 소해구 **424개** (전체 3,381개의 12.5%)
+- 조각 점의 자기 소해구 이탈 3건 — 전부 좌표 4자리 반올림 오차(3.3e-05°≈3m)로 확인
+
+**아직 확인하지 못한 것**: 위 WFS 응답은 사용자의 브라우저에서 받은 것이다.
+우리 서버에서도 같은 응답이 오는지는 **배포 후 `GET /api/swell-smallzone/status` 로 확인해야 한다**
+(이 세션에서는 차단돼 수집 자체를 못 돌려 봤다 — 가짜 캐시로 캐시 로드·해안 필터·
+`nearestFrame()` 만 검증했다).
+
 ---
 
 ## § 7. 사고 이력 축 — 오늘 점수와 분리한다

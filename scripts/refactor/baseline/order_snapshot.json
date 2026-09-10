@@ -54,6 +54,7 @@
     "mudflat.js",
     "scuba.js",
     "ripcurrent.js",
+    "swell.js",
     "swimming.js",
     "ocean_map.js",
     "ocean_markers.js",
