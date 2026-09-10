@@ -351,7 +351,7 @@
     초안승인: { n: '…', desc: '사서(AI)가 만든 <b>미승인 초안(draft)</b> 대기실. 순수 정의·절차는 재검증 파이프라인이 자동 승격, 처벌·안전값 포함분은 ⚠수치검증 방에서 사람이 승인해야 canonical이 됩니다.', render: null /* 서버 연동: renderDraftCards */ },
     피드백: { n: '…', desc: '답변 <b>👍/👎 익명 로그</b>를 모아 원인 분류(triage) 후 관리자에게 올리는 방. 👎가 쌓인 주제 → 위키 보강으로 연결.', render: null /* 서버 연동: renderFeedbackCards */ },
     새지식후보: { n: '…', desc: '대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).', render: null /* 서버 연동: renderCandidateCards */ },
-    개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 시행일·MST diff로 신설·삭제·금액·조번재편을 적재.', render: null /* 서버 연동: renderAmendCards */ },
+    개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 바뀐 조문마다 <b>개정 전 → 개정 후 본문</b>을 펼쳐 볼 수 있고, 우리 원문에 없는 조는 <b>신설</b>로 표시됩니다.<br><b>승인을 누르면</b> ①미리 받아 둔 새 원문이 있는 건은 <b>시행일부터 챗봇 답변이 새 내용으로 바뀝니다</b>(시행일이 이미 지났으면 즉시) ②재수집 대상으로 표시됩니다. <b>원문 재수집과 위키 수정은 자동으로 되지 않습니다</b> — 서버는 저장소에 글을 쓸 수 없어, 작업 세션이 받아서 반영해야 합니다.', render: null /* 서버 연동: renderAmendCards */ },
     원문신선도: { n: '…', desc: '우리가 받아 둔 <b>법령·고시 원문이 낡았는지</b> 매주 자동 대조해 모아두는 방. 대상은 <b>행정규칙(고시·훈령) 653건 + 법률·시행령·시행규칙 222건</b>. 원문 머리글의 수집 일련번호와 law.go.kr 현행 일련번호를 기계로 비교한다(2026-08-23에 「위험물 선박운송 기준」이 2016년판으로 남아 있어 <b>이미 삭제된 조문을 현행처럼</b> 설명하던 사고가 있었다). 카드마다 <b>어느 위키를 고쳐야 하는지·무엇을 해야 하는지</b>가 함께 적힌다.', render: null /* 서버 연동: renderFreshCards */ },
     '⚠수치검증': { n: '…', desc: '별표 <b>이미지 판독값(OCR)·조번호 재편</b> 및 처벌·안전수치를 사람이 검증하는 방(가장 급함). 서버 review_queue.md 의 검증 대기 항목을 불러와 승인/반려한다.', render: null /* 서버 연동: renderReviewCards */ }
   };
@@ -390,11 +390,10 @@
           '</div>' +
           '<div id="nryaViewAdmin" class="nrya-hidden">' +
             '<div class="nrya-panel">' +
-              // 리뷰 전용 페이지(폰·PC에서 크게 읽고 승인) 바로가기
-              '<button type="button" onclick="window.open(\'/legal_review.html\',\'_blank\',\'noopener\')" ' +
-                'style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid rgba(105,240,174,.45);' +
-                'background:rgba(105,240,174,.12);color:#8fe6bb;font-family:inherit;font-weight:800;font-size:14px;padding:13px;border-radius:11px;margin-bottom:12px;cursor:pointer;">' +
-                '🔗 리뷰 전용 페이지 크게 열기 (승인 시 위키 자동 반영)</button>' +
+              // [2026-09-10 사용자 확정] 리뷰 전용 페이지(client/legal_review.html)를 없앴다 —
+              //   그 페이지가 쓰던 API(`/api/legal/reviews`·`/reviews/stats`·`/reviews/:id/approve`)를
+              //   이 콘솔의 ⚠수치검증 방이 전부 쓰고 `submit-findings` 까지 더 갖고 있어, 화면이 둘로
+              //   갈려 있을 이유가 없었다. 좁아서 못 읽던 문제는 이 콘솔을 전체화면으로 키워 해결한다.
               '<div class="nrya-card">' +
                 '<div class="nrya-card-lab"><span class="nrya-pipe"></span>AI 챗봇 노출 설정 (서버 전역)</div>' +
                 '<div class="nrya-seg" id="nryaSeg">' +
@@ -1243,12 +1242,32 @@
       line('시행일', ef ? ef + (cur.현행연혁코드 ? ' (' + esc(cur.현행연혁코드) + ')' : '') : null);
       line('부처', arrow(prev.소관부처명, cur.소관부처명));
     }
+    // ★바뀐 조문마다 '개정 전 → 개정 후' 본문을 접었다 펴서 보여준다(사용자 확정 2026-09-10).
+    //   종전에는 조 번호·제목만 있어 "뭐가 어떻게 바뀌는지"를 알 수 없었다.
+    //   `신설` 은 탐지기가 우리 원문에 그 조가 없는 것으로 판정한 값이다(API 는 신설을 안 알려 준다).
+    //   옛 카드(본문을 안 받아 오던 시절 것)는 본문 칸이 비어 있으므로 **지어내지 말고** 그렇다고 적는다.
     var arts = am.changed_articles || [];
-    var artsHTML = arts.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📝 바뀐 조문 (' + arts.length + ')</div><div class="nrya-rv-fval">' +
+    var newCnt = arts.filter(function (a) { return a.신설; }).length;
+    function artBlock(lab, txt, cls) {
+      return '<div class="nrya-art-side ' + cls + '"><div class="nrya-art-lab">' + esc(lab) + '</div>' +
+        '<div class="nrya-art-txt">' + esc(txt) + '</div></div>';
+    }
+    var artsHTML = arts.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📝 바뀐 조문 (' + arts.length +
+      (newCnt ? ' · 신설 ' + newCnt : '') + ')</div><div class="nrya-rv-fval">' +
       arts.map(function (a) {
         var no = '제' + esc(a.조문번호 || '') + '조' + (a.조문가지번호 && a.조문가지번호 !== '0' ? '의' + esc(a.조문가지번호) : '');
-        return no + (a.조문제목 ? '(' + esc(a.조문제목) + ')' : '') + (a.조문제개정유형 ? ' · ' + esc(a.조문제개정유형) : '') + (a.조문시행일자 ? ' · ' + esc(ymd(a.조문시행일자)) : '');
-      }).join('<br>') + '</div></div>' : '';
+        var head = no + (a.조문제목 ? '(' + esc(a.조문제목) + ')' : '') +
+          (a.신설 ? ' <span class="nrya-art-new">신설</span>' : (a.조문제개정유형 ? ' · ' + esc(a.조문제개정유형) : '')) +
+          (a.조문시행일자 ? ' · ' + esc(ymd(a.조문시행일자)) : '');
+        var hasText = !!(a.새본문 || a.옛본문);
+        var body = !hasText
+          ? '<div class="nrya-art-none">이 항목은 본문을 받아 오기 전에 감지된 것이라 조문 내용이 없습니다. 「지금 스캔」을 다시 돌리면 채워집니다.</div>'
+          : (a.신설
+              ? artBlock('개정 전', '우리가 가진 원문에는 이 조가 없습니다 — 새로 만들어지는 조문으로 봅니다. (원문이 낡았을 때도 이렇게 나올 수 있으니, 원문 방에서 그 법의 시행일을 함께 확인하세요.)', 'nrya-art-old nrya-art-empty')
+              : artBlock('개정 전', a.옛본문 || '우리 원문에서 이 조를 찾지 못했습니다.', 'nrya-art-old')) +
+            artBlock('개정 후', a.새본문 || '(새 본문을 받지 못했습니다)', 'nrya-art-new-side');
+        return '<details class="nrya-art"><summary>' + head + '</summary>' + body + '</details>';
+      }).join('') + '</div></div>' : '';
     // ★승인 게이트(2026-09-10): 이 항목의 예고본을 이미 받아 뒀으면, 승인이 곧 "답변 전환"이라는 것을 알린다.
     var stg = am.stage || null;
     var stageHTML = stg ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📅 미리 받아 둔 새 원문</div><div class="nrya-rv-fval">' +
