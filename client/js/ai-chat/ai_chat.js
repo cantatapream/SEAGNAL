@@ -106,12 +106,15 @@
   // [H-37 §4.3] "아니요, 다시 설명할게요"를 누른 뒤 사용자가 새로 칠 문장 **한 번**에만 실릴 ctx.
   //   메모리에만 둔다 — localStorage 에 저장하면 새로고침 뒤 오래된 대기가 되살아난다(설계 §9.1 #3).
   var pendingCtx = null;
+  var chatPending = 0;   // 답을 기다리는 중인 요청 수 — 0 이어야 채팅창을 홈으로 비운다(resetToHome)
   // [H-37 §3.2 · 2026-08-14 적대검증 F2] 서버가 마지막 답변에 실어 보낸 ctxNext(= 지금까지 확정된
   //   맥락). **ctx 를 안 든 선택지 버튼**(기존 되묻기·트리 되묻기)을 눌러도 이 값을 이어 보내야
   //   직전에 확정한 조건이 사라지지 않는다 — 안 그러면 프로필로 "네"를 누른 축을 서버가 다시 묻는
   //   무한루프가 된다(라이브 재현). 사용자가 **새 질문을 직접 타이핑**하면 그 순간 비운다(§9.1 #1).
   //   pendingCtx 와 마찬가지로 메모리에만 둔다(새로고침하면 소멸).
   var lastCtx = null;
+  // 채팅창을 처음 열었을 때 보이는 인사말 한 줄. 창을 닫았다 다시 열면 이 상태(=홈)로 되돌린다.
+  var GREETING_HTML = '<div class="nrya-krow nrya-ai"><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div></div></div></div>';
   // [H-37 최소 절충안, 2026-08-15] 직전에 보낸 질문 원문 — lastCtx와 달리 **새 질문을 타이핑해도
   //   안 비운다**(그게 이 값의 존재 이유다). ctx가 아니라 별도 필드로만 보내 서버가 "확정된 조건"이
   //   아니라 "확인 후보" 하나를 되묻기에 더 보여줄 때만 쓴다(routes/legal.js `lastQuestion` 참고).
@@ -1987,7 +1990,7 @@
             '<div class="nrya-ava" id="nryaChatOrb"><img src="' + NARIYA_IMG + '" alt="나리야"></div>' +
             '<div class="nrya-chat-titles"><div class="nrya-chat-name">해양법령 도우미</div></div>' +
             '<div class="nrya-chat-acts">' +
-              '<button class="nrya-chat-x nrya-chat-back" id="nryaChatBack" title="뒤로" style="display:none">‹</button>' +
+              '<button class="nrya-chat-x nrya-chat-txt nrya-chat-back" id="nryaChatBack" title="채팅창으로 돌아가기" style="display:none">채팅창으로</button>' +
               // [H-37 §7.2] 나에 대해서 설명하기(온디바이스 프로필) — 이 기기에만 저장된다.
               // ②2026-09-09: 톱니(⚙)·시계(🕘) 아이콘을 **글자 버튼**으로 바꿨다 — 사용자 지적
               //   "아이콘만으로는 무엇인지 알 수 없다". 여는 화면·동작은 하나도 안 바뀐다.
@@ -1998,7 +2001,7 @@
           '</div>' +
           '<div class="nrya-chat-body" id="nryaChatBody">' +
             // ⑦ 아바타(.nrya-kava)를 뺐다 — 답변 영역을 왼쪽 끝까지 넓게 쓴다(이름 줄은 유지).
-            '<div class="nrya-krow nrya-ai"><div class="nrya-kcol"><div class="nrya-kwho">해양법령 도우미</div><div class="nrya-kbrow"><div class="nrya-kbub nrya-ai">안녕하세요! 해양법령에 대해 편하게 물어보세요. 예: "5톤 낚시어선인데 야간에 조업해도 되나요?"</div></div></div></div>' +
+            GREETING_HTML +
           '</div>' +
           // 대화 기록(기기 저장) 목록 화면 — 열릴 때만 보이고 그동안 위 대화 영역은 숨는다
           '<div class="nrya-hist" id="nryaHistPanel" style="display:none"></div>' +
@@ -2107,6 +2110,7 @@
   function openChat() {
     ensureOverlays();
     var wrap = document.getElementById('nryaChatWrap'); if (!wrap) return;
+    resetToHome();                // 다시 열면 늘 인사말 한 줄짜리 홈부터 (2026-09-10 사용자 지적)
     startConversation();          // ⑥ 이번에 연 창이 "한 대화"의 시작이다(기록을 이 단위로 묶는다)
     wrap.classList.add('nrya-open');
     ensureAliases();              // 답변 본문의 「약칭」을 정식명으로 맞춰볼 표를 미리 받아둔다
@@ -2125,6 +2129,32 @@
     if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; }
     chatConvEnded = true; // ⑥ 이 대화는 여기서 끝 — 다음에 열 때 startConversation 이 새 번호를 딴다
     closeHistory(true);   // 기록 화면을 켜둔 채 닫았어도 다음에 열면 평소 대화 화면부터
+    closeProf();          // 내 정보 화면도 마찬가지 — 켜둔 채 닫으면 다음에 그 화면이 그대로 떴다
+  }
+
+  /**
+   * 채팅창을 **처음 연 상태(홈)** 로 되돌린다 — 인사말 한 줄만 남기고 지난 대화 내용을 지운다.
+   * 2026-09-10 사용자 지적: *"채팅을 보았다가 해당 창을 끄고 다시 챗봇을 들어오면 홈이 나오도록
+   * 하고 싶은데 계속 직전 화면이 표시됨."* 종전에는 채팅 영역의 DOM 이 그대로 남아 있어서, 창을
+   * 닫았다 열면 지난 대화가 끝까지 스크롤된 채 다시 보였다.
+   *
+   * ★지우는 것은 **화면뿐**이다 — 주고받은 질문·답변은 기기에 저장돼 있어(pushHistory) 헤더
+   *   [대화이력]에서 그대로 다시 볼 수 있다.
+   *
+   * 두 경우에는 **지우지 않는다**(지우면 사용자가 볼 것을 잃는다):
+   *   ①안읽음이 남아 있을 때 — 창을 닫아둔 사이 도착한 답변이 화면에 그려져 있고, FAB 뱃지가
+   *     그것을 보라고 알린 상태다.
+   *   ②답을 기다리는 중일 때 — 보낸 질문의 답변 말풍선이 아직 채워지는 중이라, 여기서 비우면
+   *     그 말풍선이 화면에서 떨어져 나가 답이 도착해도 보이지 않는다.
+   * [연계] ← openChat. → forgetChatMemory(이어 묻기 맥락도 함께 끊는다).
+   */
+  function resetToHome() {
+    if (getUnread() > 0 || chatPending > 0) return;
+    var body = document.getElementById('nryaChatBody');
+    if (body) { body.innerHTML = GREETING_HTML; body.scrollTop = 0; }
+    forgetChatMemory();
+    lastCtx = null; pendingCtx = null;
+    setChatPlaceholder(false);   // 홈의 입력창 안내문은 '메시지 입력'
   }
 
   // ── 대화 기록(기기 저장): 헤더 🕘 → 날짜별 목록 → 누르면 그 질문/답변을 말풍선으로 ──────
@@ -2276,10 +2306,15 @@
   }
 
   /**
-   * 헤더 오른쪽 버튼을 기록 모드/평소 모드로 바꾼다(‹ 뒤로 ↔ 🕘 기록). ✕ 는 항상 그대로 둔다.
-   * @param {boolean} backMode - true 면 ‹ 만, false 면 🕘 만 보인다
+   * 헤더 오른쪽 버튼을 하위화면 모드/홈 모드로 바꾼다. ✕ 는 항상 그대로 둔다.
+   * 하위화면(내 정보·대화이력)에서는 [내 정보]·[대화이력]을 **둘 다 감추고** [채팅창으로]만 남긴다
+   * — 2026-09-10 사용자 지적: "누른 상태에서는 내정보 버튼이나 내역 버튼이 나오지 않도록 해줘."
+   * (종전에는 누른 그 버튼만 감춰서, 대화이력을 보는 중에도 [내 정보]가 [채팅창으로] 바로 옆에
+   *  남아 잘못 눌리기 쉬웠다.)
+   * @param {boolean} backMode - true 면 [채팅창으로]만, false 면 [내 정보]·[대화이력]만 보인다
    */
   function setHistHeader(backMode) {
+    var pb = document.getElementById('nryaChatProf'); if (pb) pb.style.display = backMode ? 'none' : '';
     var hb = document.getElementById('nryaChatHist'); if (hb) hb.style.display = backMode ? 'none' : '';
     var bb = document.getElementById('nryaChatBack'); if (bb) bb.style.display = backMode ? '' : 'none';
   }
@@ -2316,11 +2351,15 @@
     _scrollChatBottom();
   }
 
-  /** 헤더 ‹ 버튼: 목록을 보고 있으면 대화로, 지난 답변을 펼친 뒤라면 목록으로 돌아간다. */
+  /**
+   * 헤더 [채팅창으로] 버튼: 어느 하위화면에 있든 **채팅창으로 되돌린다.**
+   * 2026-09-10 사용자 지적으로 동작을 하나로 통일했다 — 종전에는 지난 대화를 펼친 뒤 누르면
+   * 목록으로 되돌아가(openHistory) 채팅창으로 못 가는 길이 있었다.
+   */
   function onHistBack() {
-    if (isProfOpen()) { closeProf(); return; }   // 프로필 화면에서 ‹ 는 대화로 되돌린다
+    if (isProfOpen()) closeProf();
     if (isHistoryOpen()) closeHistory(true);
-    else openHistory();
+    else setHistHeader(false);   // 지난 대화를 펼쳐 둔 상태(목록은 이미 닫힘) — 헤더만 홈으로
   }
 
   // ── [H-37 §7] 나에 대해서 설명하기(온디바이스 프로필) ─────────────────────────
@@ -4083,6 +4122,7 @@
     //   친 질문은 sendCtx 가 없고 pendingCtx 로 들어오므로, 위에서 버리면 이어 묻기가 통째로 죽는다.
     if (!ctx) forgetChatMemory();
     setChatPlaceholder(false);
+    chatPending++;                 // 답이 올 때까지는 채팅창을 홈으로 비우지 않는다(resetToHome)
 
     // 내 말풍선. ★되묻기 선택지로 보낸 요청(hideMe)은 **그리지 않는다** — 라운드마다
     //   "원래질문 — 라벨1 — 라벨2"가 통째로 다시 뜨면서 화면에 누적되기 때문이다(사용자 확정).
@@ -4202,7 +4242,11 @@
         if (data && data.ok && !data.clarify && data.answer) rememberTurn(q, data.answer);
         // 답변이 도착했는데 채팅창을 닫아둔 상태면 FAB 뱃지로 알린다(열려 있으면 이미 보는 중).
         if (!isChatOpen()) setUnread(getUnread() + 1);
-      });
+        if (chatPending > 0) chatPending--;
+      })
+      // 위 단계 어디서든 예기치 못한 오류가 나도 대기 수는 반드시 되돌린다 —
+      // 안 그러면 chatPending 이 0 으로 안 내려와 채팅창이 영영 홈으로 안 비워진다.
+      .catch(function () { if (chatPending > 0) chatPending--; });
   }
 
   // 답변 본문에서 눌러볼 인용을 찾는 표현. 다섯 갈래를 한 번에 훑는다.
