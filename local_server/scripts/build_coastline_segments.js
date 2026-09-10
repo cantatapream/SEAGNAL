@@ -12,6 +12,16 @@
  * [입력]
  *   client/land_mask_korea.json   → { rings: [[[lon,lat],...], ...] } 해안선 폴리곤
  *   client/marine_zone_area.json  → 대해구(0.5°) 경계. 소해구는 이것을 3×3 으로 나눈 칸.
+ *   local_server/data/tide_field/coastline_cells.json
+ *                                 → 국립해양조사원 전자해도 해안선(우리나라 것만).
+ *                                    "이 해안선이 우리나라 것인가"를 가리는 데 쓴다.
+ *
+ * [왜 우리나라 것만 남기나]
+ *   land_mask_korea.json 은 이름과 달리 잘라낸 상자 안의 모든 육지를 담고 있다 —
+ *   일본 규슈·고토열도, 중국 산둥, 북한 해안이 함께 들어 있다. 이것을 그대로 쓰면
+ *   기상청 너울 모델이 일본 앞바다까지 덮고 있어서 **일본 해안선에도 색이 칠해진다.**
+ *   (2026-09-10 실서비스에서 실제로 그렇게 나온 것을 확인하고 고쳤다.)
+ *   그래서 전자해도 해안선에서 KEEP_KM 이내인 조각만 남긴다.
  *
  * [출력]
  *   client/coastline_segments.json
@@ -37,12 +47,32 @@ const CLIENT_DIR = path.join(__dirname, '..', '..', 'client');
 const LAND_PATH = path.join(CLIENT_DIR, 'land_mask_korea.json');
 const ZONE_PATH = path.join(CLIENT_DIR, 'marine_zone_area.json');
 const OUT_PATH = path.join(CLIENT_DIR, 'coastline_segments.json');
+const KHOA_COAST_PATH = path.join(__dirname, '..', 'data', 'tide_field', 'coastline_cells.json');
 
 /** 우리가 다루는 한국 범위(이 밖의 해안선은 버린다). */
 const BBOX = { lonMin: 124.0, lonMax: 132.0, latMin: 32.0, latMax: 39.0 };
 
 /** 좌표 소수 자릿수. 4자리 ≈ 11m — 해안선 표시에 충분하고 용량이 절반이 된다. */
 const COORD_DIGITS = 4;
+
+/**
+ * 전자해도 해안선에서 이 거리 안에 있으면 "우리나라 해안"으로 본다(km).
+ * 두 자료(성긴 land_mask / 정밀한 전자해도)가 어긋나는 폭을 흡수할 만큼 넉넉하되,
+ * 가장 가까운 남의 해안(쓰시마 ↔ 부산 약 50km)보다는 훨씬 작아야 한다.
+ * 실측: 1km 56.5% · 5km 57.8% · 10km 58.6% — 3~10km 사이에서 결과가 거의 안 변한다.
+ */
+const KEEP_KM = 5;
+
+/**
+ * 전자해도 해안선 자료가 못 담는 우리 섬 — 여기 안이면 거리와 무관하게 남긴다.
+ * coastline_cells.json 은 경도 124.59~129.59 범위라 울릉도·독도가 빠져 있다.
+ * (독도는 land_mask 해상도에서 조각이 잡히지 않아 실제로는 남는 것이 없지만,
+ *  자료가 정밀해지면 자동으로 들어오도록 함께 적어 둔다.)
+ */
+const EXTRA_KEEP_BOXES = [
+    { name: '울릉도', lonMin: 130.75, lonMax: 131.00, latMin: 37.40, latMax: 37.60 },
+    { name: '독도',   lonMin: 131.80, lonMax: 131.95, latMin: 37.20, latMax: 37.30 }
+];
 
 /**
  * 이웃한 두 점이 이보다 멀면 다른 해안으로 보고 선을 끊는다(도 단위, 약 5.5km).
@@ -103,19 +133,74 @@ function zoneKeyOf(lon, lat, box, grid) {
     return `${no}-${r * 3 + c + 1}`;
 }
 
+/**
+ * 전자해도 해안선(우리나라)을 0.1° 칸으로 색인해 둔다.
+ * 예: idx.get("1266_374") → 그 칸 안의 해안선 점 [[126.61,37.45], ...]
+ * @returns {Map<string, Array<[number,number]>>}
+ * [연계] → isKoreanCoast() 가 가까운 점을 빨리 찾으려고 쓴다.
+ *          점 9만 5천 개를 매번 다 훑으면 20만 번 × 9만 5천 = 너무 느리다.
+ */
+function loadKhoaCoastIndex() {
+    const j = JSON.parse(fs.readFileSync(KHOA_COAST_PATH, 'utf8'));
+    const deg = j.cell_deg;
+    const idx = new Map();
+    for (const k of j.cells) {
+        const t = k.split('_');
+        const x = Number(t[0]) * deg, y = Number(t[1]) * deg;
+        const gk = `${Math.floor(x / 0.1)}_${Math.floor(y / 0.1)}`;
+        let arr = idx.get(gk);
+        if (!arr) { arr = []; idx.set(gk, arr); }
+        arr.push([x, y]);
+    }
+    return idx;
+}
+
+/**
+ * 이 점이 우리나라 해안인지 본다.
+ * 예: isKoreanCoast(129.16, 35.16, idx) → true (해운대, 전자해도 해안선 0.17km)
+ *     isKoreanCoast(129.9, 33.0, idx)  → false (일본 고토열도)
+ * @param {number} lon 경도
+ * @param {number} lat 위도
+ * @param {Map} idx loadKhoaCoastIndex() 결과
+ * @returns {boolean}
+ * [연계] ← build() 가 조각마다 부른다.
+ *          land_mask_korea.json 에 일본·중국·북한 해안이 섞여 있어서 가려내야 한다.
+ */
+function isKoreanCoast(lon, lat, idx) {
+    for (const b of EXTRA_KEEP_BOXES) {
+        if (lon >= b.lonMin && lon <= b.lonMax && lat >= b.latMin && lat <= b.latMax) return true;
+    }
+    // 위도 1° ≈ 111km, 경도 1° ≈ 88.8km(북위 36° 부근) 로 근사한다.
+    const lim = KEEP_KM * KEEP_KM;
+    const span = Math.ceil(KEEP_KM / 8.88);   // 0.1° ≈ 8.88km → 훑을 칸 수
+    const gx = Math.floor(lon / 0.1), gy = Math.floor(lat / 0.1);
+    for (let dx = -span; dx <= span; dx++) {
+        for (let dy = -span; dy <= span; dy++) {
+            const arr = idx.get(`${gx + dx}_${gy + dy}`);
+            if (!arr) continue;
+            for (const [px, py] of arr) {
+                const ex = (px - lon) * 88.8, ey = (py - lat) * 111.0;
+                if (ex * ex + ey * ey <= lim) return true;
+            }
+        }
+    }
+    return false;
+}
+
 /** 좌표를 COORD_DIGITS 자리로 반올림한다(용량 절약). */
 function rd(v) { return Number(v.toFixed(COORD_DIGITS)); }
 
 // ────────────────────────────────────────────────────────────────────────────
 /**
  * 해안선 폴리곤을 소해구별 조각으로 잘라 파일로 쓴다.
- * 예: 링 1,873개 → 조각 수천 개 + 소해구 424개
+ * 예: 링 1,873개 → (우리나라 해안만) 조각 1,100여 개 + 소해구 230여 개
  * @returns {void}
  * [연계] ← 명령줄 실행 / → loadZoneBoxes()·zoneKeyOf()
  */
 function build() {
     const t0 = Date.now();
     const { box, grid } = loadZoneBoxes();
+    const khoaIdx = loadKhoaCoastIndex();
     const rings = JSON.parse(fs.readFileSync(LAND_PATH, 'utf8')).rings;
 
     const segments = [];
@@ -154,20 +239,39 @@ function build() {
     }
 
     // 점이 1개뿐인 조각은 선이 되지 않으므로 버린다.
-    const kept = segments.filter(s => s.c.length >= 4);
+    const drawable = segments.filter(s => s.c.length >= 4);
+
+    // 우리나라 해안이 아닌 조각(일본·중국·북한)을 걸러낸다.
+    //   조각 안의 점이 하나라도 우리 해안이면 그 조각을 남긴다 — 조각은 짧고(중앙값 6점),
+    //   한 조각이 두 나라에 걸칠 일은 없다.
+    const kept = [];
+    let dropped = 0;
+    for (const s of drawable) {
+        let ours = false;
+        for (let i = 0; i < s.c.length && !ours; i += 2) {
+            if (isKoreanCoast(s.c[i], s.c[i + 1], khoaIdx)) ours = true;
+        }
+        if (ours) kept.push(s); else dropped++;
+    }
+    // 살아남은 조각들의 소해구만 다시 모은다(등급 API 가 이 목록으로 걸러 받는다).
+    const finalZones = new Set(kept.map(s => s.z));
 
     const out = {
         generated_at: new Date().toISOString(),
-        source: 'client/land_mask_korea.json + client/marine_zone_area.json',
+        source: 'client/land_mask_korea.json + client/marine_zone_area.json'
+            + ' (우리나라 해안 판정: local_server/data/tide_field/coastline_cells.json)',
         bbox: BBOX,
+        keep_km: KEEP_KM,
         coord_digits: COORD_DIGITS,
-        zones: Array.from(zoneSet).sort(),
+        zones: Array.from(finalZones).sort(),
         segments: kept
     };
     fs.writeFileSync(OUT_PATH, JSON.stringify(out));
 
     const bytes = fs.statSync(OUT_PATH).size;
     console.log(`[coastline_segments] 해안선 점 ${ptsIn}개(격자 밖 ${ptsSkipped}개 제외)`);
+    console.log(`[coastline_segments] 우리나라 해안이 아니라 걸러낸 조각 ${dropped}개`
+        + ` (일본·중국·북한 — 전자해도 해안선에서 ${KEEP_KM}km 초과)`);
     console.log(`[coastline_segments] 조각 ${kept.length}개 · 소해구 ${out.zones.length}개`);
     console.log(`[coastline_segments] 저장 ${OUT_PATH} (${(bytes / 1024).toFixed(0)}KB, ${((Date.now() - t0) / 1000).toFixed(1)}s)`);
 }
