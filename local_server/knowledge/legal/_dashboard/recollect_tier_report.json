@@ -1,0 +1,228 @@
+{
+ "runs": [
+  {
+   "ran_at": "2026-09-10 02:36 KST",
+   "results": [
+    {
+     "slug": "수상에서의수색ㆍ구조등에관한법률",
+     "tier": "시행령",
+     "old_mst": "280303",
+     "new_mst": "288731",
+     "old_eff": "20251221",
+     "new_eff": "20260825",
+     "old_chars": 29966,
+     "new_chars": 29930,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 4,
+     "legacy": "_legacy/수상에서의수색ㆍ구조등에관한법률/20251221",
+     "new_byl": 4,
+     "status": "갱신"
+    },
+    {
+     "slug": "선박안전법",
+     "tier": "시행규칙",
+     "old_mst": "288417",
+     "new_mst": "289035",
+     "old_eff": "20260727",
+     "new_eff": "20260825",
+     "old_chars": 71919,
+     "new_chars": 98260,
+     "old_has_budchik": false,
+     "new_has_budchik": true,
+     "old_byl": 144,
+     "legacy": "_legacy/선박안전법/20260727",
+     "new_byl": 144,
+     "status": "갱신"
+    },
+    {
+     "slug": "선박직원법",
+     "tier": "시행규칙",
+     "old_mst": "288051",
+     "new_mst": "289165",
+     "old_eff": "20260713",
+     "new_eff": "20260901",
+     "old_chars": 31733,
+     "new_chars": 31624,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 27,
+     "legacy": "_legacy/선박직원법/20260713",
+     "new_byl": 27,
+     "status": "갱신"
+    },
+    {
+     "slug": "해운법",
+     "tier": "시행령",
+     "old_mst": "281329",
+     "new_mst": "289023",
+     "old_eff": "20260102",
+     "new_eff": "20260901",
+     "old_chars": 33061,
+     "new_chars": 32686,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 0,
+     "legacy": "_legacy/해운법/20260102",
+     "new_byl": 4,
+     "status": "갱신"
+    },
+    {
+     "slug": "해양환경관리법",
+     "tier": "법률",
+     "old_mst": "281975",
+     "new_mst": "283747",
+     "old_eff": "20260701",
+     "new_eff": "20260828",
+     "old_chars": 116366,
+     "new_chars": 116419,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 0,
+     "legacy": "_legacy/해양환경관리법/20260701",
+     "status": "갱신"
+    },
+    {
+     "slug": "해양환경관리법",
+     "tier": "시행규칙",
+     "old_mst": "288191",
+     "new_mst": "287955",
+     "old_eff": "20260713",
+     "new_eff": "20260828",
+     "old_chars": 57469,
+     "new_chars": 57062,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "allowed_marks": [
+      "⚠REVIEW"
+     ],
+     "old_byl": 132,
+     "legacy": "_legacy/해양환경관리법/20260713",
+     "new_byl": 132,
+     "status": "갱신"
+    },
+    {
+     "slug": "유선및도선사업법",
+     "tier": "시행규칙",
+     "old_mst": "282091",
+     "new_mst": "288487",
+     "old_eff": "20251226",
+     "new_eff": "20260830",
+     "old_chars": 13538,
+     "new_chars": 13786,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 33,
+     "legacy": "_legacy/유선및도선사업법/20251226",
+     "new_byl": 33,
+     "status": "갱신"
+    },
+    {
+     "slug": "항만운송사업법",
+     "tier": "법률",
+     "old_mst": "251927",
+     "new_mst": "285943",
+     "old_eff": "20231221",
+     "new_eff": "20260813",
+     "old_chars": 28970,
+     "new_chars": 28965,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 0,
+     "legacy": "_legacy/항만운송사업법/20231221",
+     "status": "갱신"
+    },
+    {
+     "slug": "농수산물품질관리법",
+     "tier": "법률",
+     "old_mst": "276415",
+     "new_mst": "273431",
+     "old_eff": "20251001",
+     "new_eff": "20260827",
+     "old_chars": 94715,
+     "new_chars": 94256,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 0,
+     "legacy": "_legacy/농수산물품질관리법/20251001",
+     "status": "갱신"
+    },
+    {
+     "slug": "농수산물품질관리법",
+     "tier": "시행령",
+     "old_mst": "277847",
+     "new_mst": "288973",
+     "old_eff": "20251001",
+     "new_eff": "20260825",
+     "old_chars": 32097,
+     "new_chars": 31966,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 4,
+     "legacy": "_legacy/농수산물품질관리법/20251001",
+     "new_byl": 4,
+     "status": "갱신"
+    },
+    {
+     "slug": "수산업ㆍ어촌발전기본법",
+     "tier": "시행령",
+     "old_mst": "281685",
+     "new_mst": "288665",
+     "old_eff": "20260102",
+     "new_eff": "20260811",
+     "old_chars": 25296,
+     "new_chars": 25491,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 0,
+     "legacy": "_legacy/수산업ㆍ어촌발전기본법/20260102",
+     "status": "갱신"
+    }
+   ]
+  },
+  {
+   "ran_at": "2026-09-10 02:36 KST",
+   "results": [
+    {
+     "slug": "폐기물관리법",
+     "tier": "법률",
+     "old_mst": "276797",
+     "new_mst": "283447",
+     "old_eff": "20260326",
+     "new_eff": "20260820",
+     "old_chars": 109974,
+     "new_chars": 110082,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 0,
+     "legacy": "_legacy/폐기물관리법/20260326",
+     "status": "갱신"
+    }
+   ]
+  },
+  {
+   "ran_at": "2026-09-10 08:26 KST",
+   "results": [
+    {
+     "slug": "해양환경관리법",
+     "tier": "시행령",
+     "old_mst": "287499",
+     "new_mst": "287499",
+     "old_eff": "20260701",
+     "new_eff": "20260828",
+     "old_chars": 72261,
+     "new_chars": 71355,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "allowed_marks": [
+      "⚠REVIEW"
+     ],
+     "old_byl": 3,
+     "legacy": "_legacy/해양환경관리법/20260701",
+     "new_byl": 22,
+     "status": "갱신"
+    }
+   ]
+  }
+ ]
+}

@@ -1,39 +1,4 @@
 {
-  "시행령 별표 1": {
-    "제목": "시정명령 등의 처분기준(제11조 및 제16조 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928915",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928919",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928921",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928923"
-    ]
-  },
-  "시행령 별표 2": {
-    "제목": "중지ㆍ개선ㆍ보수명령등 및 등록취소의 기준(제29조제1항 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928925",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928929",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928931",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928933",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928935"
-    ]
-  },
-  "시행령 별표 3": {
-    "제목": "검사대상 농산물의 종류별 품목(제30조제2항 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928937",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928941"
-    ]
-  },
-  "시행령 별표 4": {
-    "제목": "과태료의 부과기준(제45조 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928943",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928947",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928949",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928951"
-    ]
-  },
   "시행규칙 별표 1": {
     "제목": "우수관리인증농산물의 표시(제13조제1항 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166258851",
@@ -941,6 +906,41 @@
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166262535",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166262539"
+    ]
+  },
+  "시행령 별표 1": {
+    "제목": "시정명령 등의 처분기준(제11조 및 제16조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928915",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928919",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928921",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928923"
+    ]
+  },
+  "시행령 별표 2": {
+    "제목": "중지ㆍ개선ㆍ보수명령등 및 등록취소의 기준(제29조제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928925",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928929",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928931",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928933",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928935"
+    ]
+  },
+  "시행령 별표 3": {
+    "제목": "검사대상 농산물의 종류별 품목(제30조제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928937",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928941"
+    ]
+  },
+  "시행령 별표 4": {
+    "제목": "과태료의 부과기준(제45조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928943",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928947",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928949",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156928951"
     ]
   }
 }

@@ -79,6 +79,24 @@ def official_name(serial):
     return None
 
 
+def held_is_live(serial):
+    """보유 일련번호가 그 자체로 `현행여부: Y` 인가. → True/False/None(조회실패)
+
+    1차(admrul_fresh.py)의 같은 이름 함수와 짝이다. 2차도 이름으로 다시 검색하므로
+    **다른 기관의 같은 이름 고시**를 현행으로 고르는 같은 함정에 빠진다.
+    (실측 사례는 admrul_fresh.held_is_live 주석 참조 — 해양경찰청 vs 소방청 동명 고시.)
+    """
+    url = ('https://www.law.go.kr/DRF/lawService.do?OC=%s&type=JSON&target=admrul&ID=%s'
+           % (OC, serial))
+    try:
+        d = json.loads(curl(url))
+    except Exception:
+        return None
+    b = (d.get('AdmRulService') or {}).get('행정규칙기본정보') or {}
+    v = str(b.get('현행여부') or '').strip()
+    return (v == 'Y') if v else None
+
+
 def search(name):
     url = ('https://www.law.go.kr/DRF/lawSearch.do?OC=%s&type=JSON&target=admrul'
            '&display=50&query=%s' % (OC, quote(name)))
@@ -240,12 +258,33 @@ def main():
             r['official_name'] = off
             r['verdict'] = '현행' if cur['serial'] in r['held_ids'] else '구버전'
             r['pass2'] = '공식명 역조회로 재판정'
+            # ★보유 ID 가 그 자체로 현행이면 구버전이 아니다(이름만 같은 다른 문서).
+            if r['verdict'] == '구버전' and held_is_live(r['held_ids'][0]) is True:
+                r['verdict'] = '현행'
+                r['same_name_note'] = ('보유 ID %s 는 지금도 현행(Y)이다. 역조회가 고른 %s 는 '
+                                       '이름만 같은 다른 문서일 가능성이 높다 — 재수집 금지, 사람이 확인.'
+                                       % (r['held_ids'][0], cur['serial']))
             if pend:
                 r['pending'] = pend
         else:
             r['official_name'] = off
             cands = rename_candidates(r['title'])
-            if cands:
+            # ★후보의 일련번호가 **우리가 가진 번호와 같으면** 그건 이름이 바뀐 게 아니라
+            #   우리 제목이 공식명과 다르게 적혀 있는 것이다 — 같은 문서의 현행판을 이미 갖고 있다.
+            #   (rename_candidates 는 '현행'만 돌려주므로 번호가 같으면 현행이라는 뜻이다.)
+            #   실측 2026-09-10: 28건 중 4건이 이 경우였다 — 「(목포해양경찰서) 유선ㆍ도선…」(ㆍ↔·),
+            #   「(부안해양경찰서) 수상레저활동 금지구역 공고」(→'지정 고시'),
+            #   「해양수산생명자원 기탁등록보존기관 지정 절차 및 관리 등에 관한 고시」('등' 유무),
+            #   「해양환경관리공단의 방제업무에…」(공단 개칭). 전부 재수집이 필요 없다.
+            hit = next((c for c in cands if c.get('serial') in r['held_ids']), None)
+            if hit:
+                r['verdict'] = '현행'
+                r['official_name'] = hit['name']
+                r['rename_candidates'] = cands
+                r['pass2'] = ('우리 제목이 공식명과 다를 뿐 같은 문서의 현행판이다(보유 ID %s = 현행 ID). '
+                              '공식명: 「%s」 — 제목만 맞추면 다음부터 자동 확인된다.'
+                              % (hit['serial'], hit['name']))
+            elif cands:
                 r['rename_candidates'] = cands
                 r['verdict'] = '이름바뀜의심'
                 r['pass2'] = ('같은 이름의 현행은 없는데 **이름이 비슷한 현행**이 있다 — '

@@ -17,3 +17,5 @@
 - 자동 라이브 반영 금지 불변식(환각0)에 따라, **개정도 사람 승인 게이트를 거쳐** 위키에 들어간다.
 
 **실배선 완료(2026-08-10)**: 탐지 엔진은 H-29(`_dashboard/loop/detect_law_changes.py`, `_dashboard/H29_design.md`) — `services/legal_amendment_scanner.js`가 이를 자식 프로세스로 실행해 결과를 이 방(`queue.jsonl`)으로 mirror한다. 매일 KST 01:00 cron + 관리자 "지금 스캔" 버튼(백그라운드) 둘 다 이 경로.
+
+**큐 위치 변경(2026-09-10)**: 관리자 UI가 읽고 쓰는 실제 큐는 이제 Fly 볼륨의 `local_server/data/legal_amendments_queue.jsonl` 이다(탐지 엔진 산출물도 `local_server/data/law_change_queue.json`). 이 폴더의 `queue.jsonl` 은 **첫 배포 때 볼륨으로 복사되는 시드(초기값) 사본**이고, 이후 서버가 여기에 쓰지 않는다 — 이미지 안 경로에 두면 재배포마다 스캔 결과·승인/무시 기록이 git 상태로 되돌아갔기 때문(그동안 실서비스에서 개정검토가 결과를 낸 적이 없던 원인 중 하나). 항목 스키마는 `services/legal_amendment_scanner.js` `toLegacyEntry()` — 종류(`kind_code`)·바뀐 조문(`changed_articles`)·관련 법(`related_laws`)·이전/현재의 공포·발령·시행일·부처·개정구분을 담는다. 우리 법과 무관한 신규 고시(`related_laws` 빈 것)는 관리자 큐에 올리지 않는다.

@@ -820,9 +820,15 @@
    */
   function lawBodyHTML(d) {
     var files = (d.files || []).map(function (f) {
+      // 챗봇이 실제로 읽는 판을 그대로 보여준다 — 시행일이 지난 예고본이 있으면 그 파일이다(staged).
+      // 아직 시행 전인 예고본은 pending 으로 "언제부터 바뀐다"만 알려 준다.
+      // 예고본 적용 / 승인 대기(시행일은 지났는데 승인이 안 나 옛 판을 읽는 중) / 개정 예정 — 셋을 구분한다.
+      var note = f.staged ? '<span class="nrya-file-amd">· 예고본 적용</span>'
+        : (f.waiting && f.waiting.length ? '<span class="nrya-file-amd">· ' + esc(effLabel(f.waiting[0])) + ' 시행분 승인 대기(옛 판 표시 중)</span>'
+        : (f.pending && f.pending.length ? '<span class="nrya-file-amd">· ' + esc(effLabel(f.pending[0])) + ' 개정 예정</span>' : ''));
       return '<a class="nrya-file" href="' + esc(f.src) + '" target="_blank" rel="noopener">' +
         '<div class="nrya-file-ic' + (f.ic === '법' ? '' : ' nrya-rule') + '">' + esc(f.ic) + '</div>' +
-        '<div class="nrya-file-nm">' + esc(f.label) + (f.amd ? '<span class="nrya-file-amd">· ' + esc(f.amd) + '</span>' : '') + '</div>' +
+        '<div class="nrya-file-nm">' + esc(f.label) + (f.amd ? '<span class="nrya-file-amd">· ' + esc(f.amd) + '</span>' : '') + note + '</div>' +
         '<div class="nrya-file-eff">' + (f.eff ? '시행 ' + effLabel(f.eff) : '시행일 확인 안 됨') + '</div></a>';
     }).join('') || '<div class="nrya-file"><div class="nrya-file-nm">계층 원문 파일이 없습니다.</div></div>';
 
@@ -1189,18 +1195,79 @@
     }).catch(function (e) { host.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
   }
 
-  /** 개정 후보 카드 1건. @param {object} am - {id,ts,law,kind,mst,법령명,이전,현재,status} @returns {string} */
+  /**
+   * 개정 후보 카드 1건 — 종류별로 "무엇이 바뀌는지"를 보여 준다(2026-09-10 정정 전엔 공포번호·시행일자
+   * `? → ?` 두 줄뿐이라 관리자가 승인/무시를 판단할 정보가 없었다).
+   *   · 법률류(law_pending·law_amended·law_renamed·law_dept_changed): 바뀐 조문 목록, 공포번호·공포일·시행일 이전→현재, 부처.
+   *   · 행정규칙류(admrul_amended·admrul_unknown_new): 발령일·시행일·개정구분·부처(공포번호 칸 없음 — 행정규칙엔 그 항목이 없다),
+   *     신규 고시는 "새로 발령" + 본문이 인용한 우리 법(related_laws).
+   *   · 없는 값은 줄을 통째로 생략한다(`?` 표기 금지).
+   *   · 링크는 종류별로 다르다 — 법령은 lsInfoP.do?lsiSeq=<MST>&efYd=<시행일>, 행정규칙은 admRulSc.do(행정규칙 탭 검색).
+   *     종전 lsSc.do(법령 탭)는 행정규칙 제목으로 검색하면 항상 "결과 없음"이었다(2026-09-10 curl 확인).
+   * @param {object} am - {id,ts,law,kind,kind_code,layer,mst,법령명,이전,현재,changed_articles,related_laws,status}
+   *   (kind_code 가 없는 옛 항목은 kind 라벨·layer 로 종류를 가른다)
+   * @returns {string}
+   * [연계] ← GET /api/legal/amendments (services/legal_amendment_scanner.js toLegacyEntry 스키마)
+   */
   function amendmentCardHTML(am) {
     var st = am.status === 'approved' ? '<span class="nrya-rv-st nrya-done">✓ 승인·재수집 필요</span>'
       : am.status === 'dismissed' ? '<span class="nrya-rv-st nrya-rej">✗ 무시</span>'
       : '<span class="nrya-rv-st nrya-warn">개정 감지</span>';
     var prev = am.이전 || {}; var cur = am.현재 || {};
     var lawName = am.법령명 || am.law || '';
-    var link = 'https://www.law.go.kr/lsSc.do?menuId=1&query=' + encodeURIComponent(lawName);
+    var code = am.kind_code || '';
+    var isAdm = code ? code.indexOf('admrul_') === 0 : (am.layer === '행정규칙' || /행정규칙/.test(am.kind || ''));
+    var isNew = code === 'admrul_unknown_new' || (!code && /신규/.test(am.kind || ''));
+    function ymd(v) { v = String(v || ''); return /^\d{8}$/.test(v) ? v.slice(0, 4) + '-' + v.slice(4, 6) + '-' + v.slice(6) : v; }
+    /** 이전→현재 한 줄. 둘 다 없으면 null(줄 생략), 같으면 값만, 다르면 화살표. */
+    function arrow(a, b) {
+      a = a || ''; b = b || '';
+      if (!a && !b) return null;
+      if (!a) return '<b>' + esc(b) + '</b>';
+      if (!b || a === b) return esc(a);
+      return esc(a) + ' → <b>' + esc(b) + '</b>';
+    }
+    var lines = [];
+    function line(label, html) { if (html) lines.push(esc(label) + ' ' + html); }
+    if (isAdm) {
+      if (isNew) lines.push('<b>새로 발령</b>' + (cur.제개정구분명 ? ' (' + esc(cur.제개정구분명) + ')' : ''));
+      else line('개정구분', cur.제개정구분명 ? '<b>' + esc(cur.제개정구분명) + '</b>' : null);
+      line('발령일', arrow(ymd(prev.발령일자), ymd(cur.발령일자)));
+      line('시행일', arrow(ymd(prev.시행일자), ymd(cur.시행일자)));
+      line('부처', arrow(prev.소관부처명, cur.소관부처명));
+    } else {
+      line('법령명', prev.법령명 && cur.법령명 && prev.법령명 !== cur.법령명 ? arrow(prev.법령명, cur.법령명) : null);
+      line('공포번호', arrow(prev.공포번호, cur.공포번호));
+      line('공포일', arrow(ymd(prev.공포일자), ymd(cur.공포일자)));
+      var ef = arrow(ymd(prev.시행일자), ymd(cur.시행일자));
+      line('시행일', ef ? ef + (cur.현행연혁코드 ? ' (' + esc(cur.현행연혁코드) + ')' : '') : null);
+      line('부처', arrow(prev.소관부처명, cur.소관부처명));
+    }
+    var arts = am.changed_articles || [];
+    var artsHTML = arts.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📝 바뀐 조문 (' + arts.length + ')</div><div class="nrya-rv-fval">' +
+      arts.map(function (a) {
+        var no = '제' + esc(a.조문번호 || '') + '조' + (a.조문가지번호 && a.조문가지번호 !== '0' ? '의' + esc(a.조문가지번호) : '');
+        return no + (a.조문제목 ? '(' + esc(a.조문제목) + ')' : '') + (a.조문제개정유형 ? ' · ' + esc(a.조문제개정유형) : '') + (a.조문시행일자 ? ' · ' + esc(ymd(a.조문시행일자)) : '');
+      }).join('<br>') + '</div></div>' : '';
+    // ★승인 게이트(2026-09-10): 이 항목의 예고본을 이미 받아 뒀으면, 승인이 곧 "답변 전환"이라는 것을 알린다.
+    var stg = am.stage || null;
+    var stageHTML = stg ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📅 미리 받아 둔 새 원문</div><div class="nrya-rv-fval">' +
+      esc(ymd(stg.date)) + ' 시행 · ' + esc(stg.file || '') +
+      (stg.due
+        ? ' — <b>시행일이 지났지만 승인 전이라 챗봇은 아직 옛 내용을 답합니다.</b> 승인하면 바로 새 내용으로 바뀝니다.'
+        : ' — 승인해 두면 시행일부터 자동으로 새 내용을 답합니다.') +
+      '</div></div>' : '';
+    var rel = am.related_laws || [];
+    var relHTML = isAdm && rel.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📚 관련 법(본문 인용)</div><div class="nrya-rv-fval">' + rel.map(function (r) { return esc(r.name || r.slug || ''); }).join(' · ') + '</div></div>' : '';
+    var ident = isAdm ? (cur.ID ? 'ID ' + esc(cur.ID) : (am.mst ? 'ID ' + esc(am.mst) : '')) : (cur.MST || am.mst ? 'MST ' + esc(cur.MST || am.mst) : '');
+    var link = isAdm
+      ? 'https://www.law.go.kr/admRulSc.do?menuId=5&subMenuId=41&query=' + encodeURIComponent(lawName)
+      : 'https://www.law.go.kr/lsInfoP.do?lsiSeq=' + encodeURIComponent(cur.MST || am.mst || '') + (cur.시행일자 ? '&efYd=' + encodeURIComponent(cur.시행일자) : '');
     var body =
       '<div class="nrya-rv-body">' +
-        '<div class="nrya-rv-field"><div class="nrya-rv-flab">📌 종류</div><div class="nrya-rv-fval">' + esc(am.kind || '') + ' · MST ' + esc(am.mst || '') + '</div></div>' +
-        '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔄 변경</div><div class="nrya-rv-fval">공포번호 ' + esc(prev.공포번호 || '?') + ' → <b>' + esc(cur.공포번호 || '?') + '</b><br>시행일자 ' + esc(prev.시행일자 || '?') + ' → <b>' + esc(cur.시행일자 || '?') + '</b></div></div>' +
+        '<div class="nrya-rv-field"><div class="nrya-rv-flab">📌 종류</div><div class="nrya-rv-fval">' + esc(am.kind || '') + (ident ? ' · ' + ident : '') + '</div></div>' +
+        (lines.length ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔄 변경</div><div class="nrya-rv-fval">' + lines.join('<br>') + '</div></div>' : '') +
+        stageHTML + artsHTML + relHTML +
         '<a class="nrya-rv-link" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">🔗 law.go.kr에서 확인</a>' +
         (am.status === 'pending' ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 승인(재수집 필요)</button><button class="nrya-btn-no">✗ 무시</button></div>' : '') +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +

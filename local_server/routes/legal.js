@@ -60,6 +60,7 @@ const adminAuth = require('../services/admin_auth');
 const { writeFileAtomic } = require('../services/atomic_write');
 const legalRetriever = require('../services/legal_retriever');
 const articleText = require('../services/article_text');
+const effectiveDate = require('../services/effective_date');   // 지식 방 '원문'이 챗봇과 같은 판(예고본 포함)을 보여주게
 const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
 const adminQueues = require('../services/legal_admin_queues');
@@ -601,7 +602,7 @@ router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => 
       draft: pages.filter(p => p.kind === 'concept' && p.status === 'draft').length,
       feedback: adminQueues.countPending(FEEDBACK_FILE),
       candidates: adminQueues.countPending(CANDIDATES_FILE),
-      amendments: adminQueues.countPending(amendmentScanner.QUEUE_FILE),
+      amendments: adminQueues.countPending(amendmentScanner.queueFile()),
       freshness: adminQueues.countPending(freshScanner.QUEUE_FILE) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
@@ -753,6 +754,8 @@ router.post('/api/legal/candidates/:id/decide', adminAuth.requireAdminToken, (re
 // 개정 검토 — services/legal_amendment_scanner.js가 매일 밤(server.js cron) law.go.kr을
 // 정기 조회해 공포번호·시행일자가 바뀐 법을 찾아 큐에 적재한다. 여기는 그 큐를 보여주고
 // 사람이 승인/반려하는 API만 — 승인해도 재수집·재빌드는 이 자리에서 자동 실행하지 않는다
+// 큐 파일은 Fly 볼륨(`data/legal_amendments_queue.jsonl`)에 있고 `queueFile()` 이 첫 접근 때
+// git 사본(`_amendments/queue.jsonl`)으로 시드한다 — 상수 경로를 직접 읽으면 시드가 안 된다(2026-09-10).
 // (_amendments/README.md 설계: "승인 → 매니페스트 재생성 → 재수집 → 재빌드 → 재감사"는
 // 사람이 다음 세션에서 orchestrate하는 별도 단계, 자동 파이프라인 아님 — 환각0 승인게이트).
 // ============================================================================
@@ -761,8 +764,22 @@ router.post('/api/legal/candidates/:id/decide', adminAuth.requireAdminToken, (re
 router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
   try {
     const status = req.query.status || 'pending';
-    let list = adminQueues.readJsonl(amendmentScanner.QUEUE_FILE).reverse();
+    let list = adminQueues.readJsonl(amendmentScanner.queueFile()).reverse();
     if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
+    // ★승인 게이트(2026-09-10): 이 항목에 **미리 받아 둔 예고본**이 있으면 알려 준다. 승인해야 그 판이
+    //   답변에 반영되므로, 관리자는 "승인만 하면 바로 바뀌는 건인지"를 카드에서 알아야 한다.
+    //   시행일이 이미 지났는데 승인이 안 됐으면(due:true) 지금 챗봇은 **옛 내용**을 내보내는 중이다.
+    const idx = effectiveDate.loadPendingIndex();
+    const todayStage = effectiveDate.todayKST();
+    const byQueue = new Map();
+    for (const base of Object.keys(idx)) {
+      for (const e of idx[base] || []) {
+        for (const f of Object.keys((e && e.queue_id) || {})) {
+          byQueue.set(String(e.queue_id[f]), { law: base.split('/').pop(), date: String(e.date), file: f, due: String(e.date) <= todayStage });
+        }
+      }
+    }
+    list = list.map((e) => (byQueue.has(e.id) ? Object.assign({}, e, { stage: byQueue.get(e.id) }) : e));
     res.json({ ok: true, count: list.length, amendments: list });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
@@ -771,7 +788,7 @@ router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
 router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (req, res) => {
   try {
     const { decision = 'approved', by = '관리자' } = req.body || {};
-    const updated = adminQueues.updateJsonlById(amendmentScanner.QUEUE_FILE, req.params.id, { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
+    const updated = adminQueues.updateJsonlById(amendmentScanner.queueFile(), req.params.id, { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
     if (!updated) return res.status(404).json({ ok: false, error: 'amendment not found: ' + req.params.id });
     res.json({ ok: true, amendment: updated });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
@@ -2036,12 +2053,31 @@ router.get('/api/legal/rooms/law', adminAuth.requireAdminToken, (req, res) => {
     const abs = path.join(RAW_DIR, dir);
 
     // ① 계층 원문 — 있는 파일만. 시행일을 못 읽으면 ''(화면이 "확인 안 됨"으로 표시)
+    //    ★시행일이 지난 예고본(`_대기/<시행일>/`)이 있으면 **챗봇이 실제로 읽는 그 파일**을 보여준다.
+    //      종전에는 이 방만 현행 파일을 읽어, 시행일 뒤에 조문 팝업은 새 원문인데 원문 방은 옛 시행일을
+    //      보여줬다(2026-09-10 독립 검토 medium). 아직 시행 전인 대기본은 `pending` 으로 따로 알려 준다.
+    const rel = path.relative(path.join(__dirname, '..', '..'), abs).split(path.sep).join('/');
+    const today = effectiveDate.todayKST();
+    const stageList = (effectiveDate.loadPendingIndex()[rel] || []);
     const files = [];
     for (const t of RAW_TIERS) {
-      const f = path.join(abs, t.file);
+      let f = path.join(abs, t.file);
       if (!fs.existsSync(f)) continue;
+      const stagedRel = effectiveDate.stagedRawPath(rel, t.file, today);
+      const staged = stagedRel && fs.existsSync(path.join(__dirname, '..', '..', stagedRel)) ? stagedRel : '';
+      if (staged) f = path.join(__dirname, '..', '..', staged);
       const { eff, amd } = effOfTxt(f);
-      files.push({ label: t.label, ic: t.ic, eff, amd, src: srcUrl(dir + '/' + t.file) });
+      const pending = stageList.filter(e => e.date > today && (e.files || []).indexOf(t.file) >= 0).map(e => e.date).sort();
+      // ★시행일이 지났는데 **승인이 안 나** 아직 옛 판을 읽고 있는 층(2026-09-10 승인 게이트).
+      //   이걸 안 보여주면 관리자는 "왜 시행일이 지났는데 안 바뀌지"를 알 길이 없다.
+      const waiting = stageList.filter(e => e.date <= today && (e.files || []).indexOf(t.file) >= 0
+        && !effectiveDate.isStageApproved(e, t.file)).map(e => e.date).sort();
+      files.push({
+        label: t.label, ic: t.ic, eff, amd,
+        src: staged ? srcUrl(staged.replace(/^.*\/raw\//, '')) : srcUrl(dir + '/' + t.file),
+        staged: staged ? (staged.match(/_대기\/(\d{8})\//) || [])[1] || '' : '',
+        pending, waiting,
+      });
     }
 
     // ② 별표·별지 서식 — `별표/_links.json` 이 수집 당시의 제목·원본(HWP·이미지) 링크를 갖고 있다.

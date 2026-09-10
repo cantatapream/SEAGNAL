@@ -31,6 +31,10 @@ OC = 'hyoo1431'
 CA = '/root/.ccr/ca-bundle.crt'
 PROXY = os.environ.get('HTTPS_PROXY', '')
 DRY = '--dry' in sys.argv
+# 원문 머리글에 남길 '현행화' 날짜(KST). 종전에는 2026-08-23 이 박혀 있어, 다른 날 돌리면
+# 원문에 틀린 날짜가 적혔다 — 언제 갈아끼웠는지가 나중에 판단 근거가 되므로 실제 날짜를 쓴다.
+TODAY = subprocess.run(['date', '-u', '-d', '+9 hours', '+%Y-%m-%d'],
+                       capture_output=True, text=True).stdout.strip() or '(날짜미상)'
 
 # 기존 파일에만 있고 새 본문에 없으면 덮어쓰지 않는다 — 사람/도구가 손으로 넣은 것들이다.
 HUMAN_MARKS = ['【이미지판독', '⚠REVIEW', '첨부파일 전사', '판독불가']
@@ -141,13 +145,18 @@ def main():
                       % (i, len(stale), '·'.join(lost), title[:32]), flush=True)
                 continue
             hdr = [re.sub(r'^ID:\s*\d+', 'ID:' + serial, h) for h in hdr]
+            # 머리글 ID 줄에 옛 '시행일:·발령일:' 이 함께 적혀 있으면 지운다 — 아래에서
+            # 새 판의 발령·시행일을 권위 있는 한 줄로 다시 붙이므로, 남겨 두면 같은 머리글이
+            # 2016년과 2026년을 동시에 말한다(2026-09-10 재활용환경성평가기관 지침에서 실제로 그랬다).
+            hdr = [re.sub(r'\s*·\s*(시행일|발령일)\s*:\s*\d{8}', '', h) if h.startswith('ID:') else h
+                   for h in hdr]
             issued = flat(info.get('발령일자')) or r['current']['issued']
             eff = flat(info.get('시행일자'))
             hdr = [h for h in hdr if not h.startswith('발령:')]
             hdr.append('발령: %s %s · 발령일자 %s · 시행일자 %s'
                        % (flat(info.get('제개정구분명')), flat(info.get('발령번호')), issued, eff))
-            hdr.append('현행화: 2026-08-23 admrul_recollect_stale.py (구ID %s → 현행 %s)'
-                       % (','.join(r['held_ids']), serial))
+            hdr.append('현행화: %s admrul_recollect_stale.py (구ID %s → 현행 %s)'
+                       % (TODAY, ','.join(r['held_ids']), serial))
             new = '\n'.join(hdr) + '\n\n' + body + '\n'
             if not DRY:
                 open(path, 'w', encoding='utf-8').write(new)
@@ -171,7 +180,7 @@ def main():
                   % (i, len(stale), title[:32], len(oldbody), len(body)), flush=True)
         time.sleep(0.3)
 
-    json.dump({'ran_at': '2026-08-23', 'dry': DRY, 'results': results},
+    json.dump({'ran_at': TODAY, 'dry': DRY, 'results': results},
               open(OUT, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     touched.save()
     n = lambda s: sum(1 for x in results if x['status'] == s)

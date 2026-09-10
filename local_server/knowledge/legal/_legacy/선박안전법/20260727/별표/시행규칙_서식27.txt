@@ -1,0 +1,306 @@
+[시행규칙] 서식27 — 국제만재흘수선증서
+
+[별지 제27호서식]                                                                                                                   
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+  증서번호   제                 호                                                                                                                      
+  Cert. No.                                                                                                                                             
+                                                                                                                                                        
+                                                                                                                                                        
+  국 제 만 재 흘 수 선 증 서                                                                                                                            
+  INTERNATIONAL LOAD LINE CERTIFICATE                                                                                                                   
+                                                                                                                                                        
+  대     한     민     국                                                                                                                               
+  REPUBLIC OF KOREA                                                                                                                                     
+                                                                                                                                                        
+  「1966년 만재흘수선에 관한 국제협약」 및 같은 협약에 관한 1988년 의정서에 따라 대한민국 정부의 권한으로 발행합니                                      
+  다.                                                                                                                                                   
+  Issued under the provisions of the International Convention on Load Lines, 1966, as modified by the Protocol of                                       
+  1988 relating thereto under the authority of the Government of the Republic of Korea by                                                               
+   .                                                                                                                                                    
+┌───────┬───────────────┬────────┬──────────────────┬──────────────────────┐
+│선          명│선 박 번 호                   │선  적  항      │제2조 (8)에 정의된 길이(L)          │IMO 번호                                    │
+│Name of Ship  │Distinctive Number or Letters │Port of Registry│Length(L) as defined in Article 2(8)│IMO Number                                  │
+├───────┼───────────────┼────────┼──────────────────┼──────────────────────┤
+│              │                              │                │                                    │                                            │
+└───────┴───────────────┴────────┴──────────────────┴──────────────────────┘
+                                                                                                                                                        
+      지정된 건현                         선박의 형식                                                                                                   
+      Freeboard assigned as:              Type of ship:                                                                                                 
+                                                                                                                                                        
+       *    신  선 A new ship              *    ??A'형          Type ??A'                                                                           
+        ┌─현존선 An existing ship         ┌─??B'형          Type ??B'                                                                           
+        │                                  │  건현이 감소된 ??B'형 Type ??B' with reduced freeboard                                               
+        │                                  │  건현이 증가된 ??B'형 Type ??B' with increased                                                       
+        │                                  │  freeboard                                                                                               
+        └─                                │                                                                                                          
+                                            │                                                                                                          
+                                            │                                                                                                          
+                                            │                                                                                                          
+                                            │                                                                                                          
+                                            │                                                                                                          
+                                            └─                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+  갑판선으로부터의 건현        만재흘수선                                                                                                               
+  Freeboard from deck line          Load Line                                                                                                           
+  열    대 Tropical                                  밀리미터 ㎜ (T)(S)의 상방                                                                          
+       밀리미터 ㎜ above(S)                                                                                                                             
+  하    기 Su㎜er                                   밀리미터 ㎜ (S)   원표의 중심을 지나는 선의 상연                                                    
+                                                       Upper edge of line through centre of ring                                                        
+  동    기 Winter                                   밀리미터 ㎜ (W)    (S)의 하방                밀리미터 ㎜ below(S)                                   
+  동기북대서양 Winter North Atlantic                  밀리미터 ㎜ (WNA) (S)의 하방                                                                      
+       밀리미터 ㎜ below(S)                                                                                                                             
+  목재열대 Timber Tropical                           밀리미터 ㎜ (LT)(LS)의 상방                                                                        
+        밀리미터 ㎜ above(LS)                                                                                                                           
+  목재하기 Timber Su㎜er                           밀리미터 ㎜ (LS)   (S)의 상방                밀리미터 ㎜ above(S)                                    
+  목재동기 Timber Winter                            밀리미터 ㎜ (LW)   (LS)의 하방                                                                      
+        밀리미터 ㎜ below(LS)                                                                                                                           
+  목재동기북대서양 Timber Winter North Atlantic       밀리미터 ㎜ (LWNA)(LS)의 하방                                                                     
+        밀리미터 ㎜ below(LS)                                                                                                                           
+                                                                                                                                                        
+  목재 건현 이외의 모든 건현에 대하여 담수에 대한 여유         밀리미터목재 건현에 대하여 담수에 대한 여유      밀리미                                  
+  터                                                                                                                                                    
+  Allowance for fresh water for all freeboards other than timber       ㎜.For timber freeboards                       ㎜.                               
+                                                                                                                                                        
+  위에 적은 건현을 측정할 때 기준이 되는 갑판선의 상연은 선측에 있어서           갑판의           ㎜         방에 있음.                                 
+  The upper edge of the deck line from which these freeboards are measured is           ㎜                                                              
+  deck at side.                                                                                                                                         
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+   * 해당되지 아니하는 것은 지울 것                                                                                                                     
+     Delete as appropriate.                                                                                                                             
+  비 고: 1. 선박이 하천 또는 내수에 있는 항구부터 출항할 때에는  출항지에서 외해로 이르는 동안 소비되는 연료 및 그 밖에 필요한 모든 물자의 중량         
+  에 상당하는 여분의 적재를 허용함.                                                                                                                     
+  2. 선박이 비중 1인 담수에 있을 때에는 위의 담수에 대한 여유량만큼 그 해당 흘수선을 침수시켜도 무방함. 비중이 1이 아닌 때에는 여유를                   
+  1.025와 실제와의 차이에 비례하여 정하는 것으로 함.                                                                                                    
+  Note: 1. When a ship departs from a port situated on river or inland waters, deeper loading shall be permitted corresponding to the weight of fuel    
+  and all  other materials required for consumption between the point of departure and the sea.                                                         
+        2. When a ship is in fresh water of unit density the appropriate load line may be submerged by the amount of fresh water allowance              
+  shown above. Where the density is other than unity, an allowance shall be made proportional to the difference between 1.025 and the                   
+  actual density.                                                                                                                                       
+                                                                                                                                                        
+  210㎜ x297㎜[보존용지(1종) 220g/㎡]                                                                                                                   
+                                                                                                                                                        
+                                                                                                                                
+  이 증서는 다음 사항을 증명합니다:                                                                                             
+  THIS IS TO CERTIFY:                                                                                                           
+                                                                                                                                
+  1. 이 선박은 이 협약의 제14조의 요건에 따라 검사되었음                                                                        
+     That the ship has been surveyed in accordance with the requirements of article 14 of the Convention.                       
+                                                                                                                                
+  2. 검사 결과 협약에 따라 건현이 지정되어 있고 위의 만재흘수선이 표시되어 있음                                                 
+     That the survey showed that the freeboards have been assigned and load lines shown above have been marked in               
+  accordance with the Convention.                                                                                               
+                                                                                                                                
+  이 증서는 위의 협약의 제14조(1)(c)에 따른 연차검사를 받는 조건으로     년     월     일까지 유효합니다.                       
+  This certificate is valid until      day of                subject to annual surveys in accordance with Article 14(1)(c) of   
+  the Convention.                                                                                                               
+                                                                                                                                
+  이 증서 발급을 위한 검사완료일:                                                                                               
+  Completion date of the survey on which this certificate is based:                                                             
+                                                                                                                                
+               년       월      일                                에서 발행합니다.                                              
+  Issued at       on the           day of                                                                                       
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+  ──────────────────────                                                                                  
+      해  양  수  산  부  장  관                                                                                                
+      Minister of Oceans and Fisheries                                                                                          
+      한국해양교통안전공단(한 글 및 영 문)                                                                                      
+      선   급   법   인   명(한 글 및 영 문)                                                                                    
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+  검   사   의    확   인                                                                                                       
+                                                                                                                                
+  ENDORSEMENT FOR ANNUAL SURVEYS                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+  이 증서는 선박이 협약 제14조 (1)(c)항에 요구되는 연차 검사의 결과 협약의 관련 요건에 적합함을 증명합니다.                     
+  THIS IS TO CERTIFY that, at an annual survey required by article 14(1)(c) of the Convention, the ship was                     
+  found to comply with the relevant requirements of the Convention.                                                             
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+  연 차 검 사                                서 명                                                                              
+  Annual Survey                Signed:                                                                                          
+                                                                                                                                
+  장 소                                                                                                                         
+  Place:                                                                                                                        
+                                                                                                                                
+  날 짜                                                                                                                         
+  Date:                                                                                                                         
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+  연 차 검 사                     서 명                                                                                         
+  Annual Survey       Signed:                                                                                                   
+                                                                                                                                
+  장 소                                                                                                                         
+  Place:                                                                                                                        
+                                                                                                                                
+  날 짜                                                                                                                         
+  Date:                                                                                                                         
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                        
+  연 차 검 사                     서 명                                                                                 
+  Annual Survey       Signed:                                                                                           
+                                                                                                                        
+  장 소                                                                                                                 
+  Place:                                                                                                                
+                                                                                                                        
+  날 짜                                                                                                                 
+  Date:                                                                                                                 
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+  연 차 검 사                                서  명                                                                     
+  Annual Survey                Signed:                                                                                  
+                                                                                                                        
+  장  소                                                                                                                
+  Place:                                                                                                                
+                                                                                                                        
+  날  짜                                                                                                                
+  Date:                                                                                                                 
+                                                                                                                        
+                                                                                                                        
+  제19조 (8)(c)항에 의한 연차검사                                                                                       
+  Annual survey in accordance with article 19(8)(c)                                                                     
+                                                                                                                        
+                                                                                                                        
+  이 증서는 선박이 협약 제19조 (8)(c)항에 의한 검사 결과 협약의 관련 요건에 적합함을 증명합니다.                        
+  THIS IS TO CERTIFY that, at a survey in accordance with article 19(8)(c) of the Convention, the ship was              
+  found to comply with the relevant requirements of the Convention.                                                     
+                                                                                                                        
+                                                                                                                        
+  서 명                                                                                                                 
+  Signed:                                                                                                               
+                                                                                                                        
+  장 소                                                                                                                 
+  Place:                                                                                                                
+                                                                                                                        
+  날 짜                                                                                                                 
+  Date:                                                                                                                 
+                                                                                                                        
+                                                                                                                        
+  제19조 (3)항이 적용되는 경우 증서의 유효기간이                                                                        
+  5년 미만일 때 연장하기 위한 이서                                                                                      
+  Endorsement to extend the certificate if valid for less than 5 years where article 19(3)                              
+  applies                                                                                                               
+                                                                                                                        
+                                                                                                                        
+  이 증서는 선박이 협약의 관련 요건에 적합하므로 협약의 제19조 (3)항에 따라                                             
+  까지 유효한 것으로 인정합니다.                                                                                        
+  The ship complies with the relevant requirements of the Convention, and this certificate shall, in accordance with    
+  article 19(3) of the Convention, be accepted as valid until                                              .            
+                                                                                                                        
+                                                                                                                        
+  서 명                                                                                                                 
+  Signed:                                                                                                               
+                                                                                                                        
+  장 소                                                                                                                 
+  Place:                                                                                                                
+                                                                                                                        
+  날 짜                                                                                                                 
+  Date:                                                                                                                 
+                                                                                                                        
+                                                                                                                                
+  정기검사가 완료되고 제19조 (4)항이 적용되는 경우의 이서                                                                       
+   Endorsement where the renewal survey has been completed and article 19(4)                                                    
+  applies                                                                                                                       
+                                                                                                                                
+                                                                                                                                
+  이 증서는 선박이 협약의 관련 요건에 적합하므로 협약 제19조 (4)항에 따라                                  까                   
+  지 유효한 것으로 인정합니다.                                                                                                  
+  The ship complies with the relevant requirements of the Convention, and this certificate shall, in accordance with            
+  article 19(4) of the Convention, be accepted as valid until                                          .                        
+                                                                                                                                
+                                                                                                                                
+  서 명                                                                                                                         
+  Signed:                                                                                                                       
+                                                                                                                                
+  장 소                                                                                                                         
+  Place:                                                                                                                        
+                                                                                                                                
+  날 짜                                                                                                                         
+  Date:                                                                                                                         
+                                                                                                                                
+  제19조 (5)항 또는 제19조 (6)항이 적용되는 경우에 검사예정항에                                                                 
+  도착 시까지 또는 유예기간 동안 증서의 유효기간을 연장하기 위한 이서                                                           
+  Endorsement to extend the validity of the certificate until reaching                                                          
+  the port of survey or for a period of grace where article 19(5) or 19(6) applies                                              
+                                                                                                                                
+                                                                                                                                
+  이 증서는 협약 제19조 (5)항*/제19조 (6)항*에 따라                               까지 유효한 것으로 인정합니다.                
+  This certificate shall, in accordance with article 19(5)*/19(6)* of the Convention, be accepted as valid until                
+   .                                                                                                                            
+                                                                                                                                
+                                                                                                                                
+  서 명                                                                                                                         
+  Signed:                                                                                                                       
+                                                                                                                                
+  장 소                                                                                                                         
+  Place:                                                                                                                        
+                                                                                                                                
+  날 짜                                                                                                                         
+  Date:                                                                                                                         
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+  제19조 (8)항이 적용되는 경우에 연차일을 앞당기는 것에 대한 이서                                                               
+  Endorsement for advancement of anniversary date where article 19(8) applies                                                   
+                                                                                                                                
+                                                                                                                                
+  협약의 제19조 (8)항에 따라 새로운 연차일은                                                이다.                               
+  In accordance with article 19(8) of the Convention the new anniversary date is                              .                 
+                                                                                                                                
+                                                                                                                                
+  서 명                                                                                                                         
+  Signed:                                                                                                                       
+                                                                                                                                
+  장 소                                                                                                                         
+  Place:                                                                                                                        
+                                                                                                                                
+  날 짜                                                                                                                         
+  Date:                                                                                                                         
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+   * 해당되지 아니하는 것은 지울 것                                                                                             
+     Delete as appropriate                                                                                                      
+                                                                                                                                
+                                                                                                                  
+  협약 제19조 (8)항에 따라 새로운 연차일은                                                이다.                   
+  In accordance with article 19(8) of the Convention the new anniversary date is                               .  
+                                                                                                                  
+                                                                                                                  
+  서 명                                                                                                           
+  Signed:                                                                                                         
+                                                                                                                  
+  장 소                                                                                                           
+  Place:                                                                                                          
+                                                                                                                  
+  날 짜                                                                                                           
+  Date:
