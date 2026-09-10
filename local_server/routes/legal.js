@@ -790,7 +790,12 @@ router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (re
     const { decision = 'approved', by = '관리자' } = req.body || {};
     const updated = adminQueues.updateJsonlById(amendmentScanner.queueFile(), req.params.id, { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
     if (!updated) return res.status(404).json({ ok: false, error: 'amendment not found: ' + req.params.id });
-    res.json({ ok: true, amendment: updated });
+    // ★승인을 **탐지 큐에도** 옮겨 적는다(2026-09-10에 찾은 결함). 재수집 도구
+    //   `_dashboard/loop/collect_pending_law.py --all-approved` 는 승인 여부를
+    //   `data/law_change_queue.json` 에서 찾는데, 종전에는 이 버튼이 `queue.jsonl` 에만 써서
+    //   **승인해도 재수집 대상이 0건**이었다. 옮겨 적기가 실패해도 승인 자체는 막지 않고 결과만 알려 준다.
+    const mirrored = amendmentScanner.mirrorDecisionToH29(req.params.id, decision);
+    res.json({ ok: true, amendment: updated, mirrored });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 

@@ -104,6 +104,43 @@ function queueFile() {
 }
 
 /**
+ * H-29 탐지 큐 파일 경로(볼륨). 첫 호출 때 git 의 `_dashboard/law_change_queue.json` 으로 시드한다.
+ * @returns {string}
+ * [연계] routes/legal.js 의 decide 가 **승인 상태를 이 파일에도 옮겨 적는다** — 재수집 도구
+ *   (`_dashboard/loop/collect_pending_law.py --all-approved`)가 승인 여부를 **이 파일에서** 찾기 때문이다.
+ *   2026-09-10 이전에는 승인이 queue.jsonl 에만 남아, 승인해도 재수집 대상이 0건이었다.
+ */
+function h29QueueFile() {
+  seedIfMissing(H29_QUEUE_FILE, SEED_H29_QUEUE_FILE);
+  return H29_QUEUE_FILE;
+}
+
+/**
+ * 관리자 결정(승인/무시)을 H-29 탐지 큐(`law_change_queue.json`)에도 옮겨 적는다.
+ * 예: mirrorDecisionToH29('chg_20260810_5373b9', 'approved') → {ok:true, found:true}
+ * @param {string} id 큐 항목 id(두 파일이 같은 id 를 쓴다 — toLegacyEntry 가 그대로 물려준다)
+ * @param {string} decision 'approved' | 'dismissed'
+ * @returns {{ok:boolean, found:boolean, error?:string}} 실패해도 승인 자체를 막지 않는다(결과만 알려 준다)
+ * [연계] ← routes/legal.js POST /api/legal/amendments/:id/decide.
+ *        → _dashboard/loop/collect_pending_law.py 가 이 파일에서 status==='approved' 를 찾는다.
+ */
+function mirrorDecisionToH29(id, decision) {
+  try {
+    const p = h29QueueFile();
+    const d = JSON.parse(fs.readFileSync(p, 'utf8'));
+    const items = d.items || [];
+    const hit = items.find((x) => String(x.id) === String(id));
+    if (!hit) return { ok: true, found: false };
+    hit.status = decision;
+    hit.decidedAt = new Date().toISOString();
+    fs.writeFileSync(p, JSON.stringify(d, null, 1), 'utf8');
+    return { ok: true, found: true };
+  } catch (e) {
+    return { ok: false, found: false, error: String(e.message || e) };
+  }
+}
+
+/**
  * H-29 탐지엔진(`detect_law_changes.py`)을 자식 프로세스로 1회 실행한다. 비동기(spawn) —
  * 실행 중에도 Node 이벤트루프는 막히지 않는다(다른 API 요청은 정상 처리됨).
  * @param {number} days 최근 N일 창(기본 DETECT_DAYS)
@@ -253,4 +290,5 @@ function startAmendmentScan() {
   return { ok: true, started: true };
 }
 
-module.exports = { runAmendmentScan, startAmendmentScan, queueFile, toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE };
+module.exports = { runAmendmentScan, startAmendmentScan, queueFile, h29QueueFile, mirrorDecisionToH29,
+  toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE };
