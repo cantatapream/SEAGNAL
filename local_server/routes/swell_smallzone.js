@@ -6,7 +6,7 @@
  *   GET /api/swell-smallzone/status          → 캐시 상태(생산시각·프레임 수·소해구 수)
  *   GET /api/swell-smallzone                 → 지금 시각에 가장 가까운 예보의 소해구별 등급표
  *   GET /api/swell-smallzone?frame=3         → 그 예보시각(3번째)의 등급표
- *   GET /api/swell-smallzone?frame=0&coast=1 → 해안 소해구(424개)만 골라서
+ *   GET /api/swell-smallzone?frame=0&coast=1 → 우리 해안 소해구(233개)만 골라서
  *   GET /api/swell-smallzone/cell?key=144-9  → 한 소해구의 예보 시계열
  *
  * 등급은 숫자 1~4 로 준다(1 관심 / 2 주의 / 3 경계 / 4 위험). 색·이름 표기는
