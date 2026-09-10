@@ -9,7 +9,8 @@
 |------|------|-----------|
 | `mappings.js` | 연안바다/평수구역 매핑, 부이 위치 매핑, 부이 타입 정의 | — |
 | `accident_codes.js` | 사고정보(선박해경·인명) `_CD` 코드값 → 한글 라벨 매핑(사고유형·발생원인·선박종류·관할해경서) + 주/야간 판정 헬퍼(선박(심판원) 전용이던 해역 라벨과 `accidentIsDaytimeFromTmz`는 2026-08-21 심판원 소스 제외로 함께 삭제) | `accidentLabel`, `accidentIsDaytimeFromHM` |
-| `utils.js` | 전역 상태(appState), 유틸리티 함수, 날짜/시간 포맷팅 | `getSeaArea`, `formatDate`, `formatWarningTime`, `getKfTime`, `getProxiedUrl`, `decodeHtmlEntities` |
+| `utils.js` | 전역 상태(appState), 유틸리티 함수, 날짜/시간 포맷팅, 사용량 집계 전송(`trackUsage`) | `getSeaArea`, `formatDate`, `formatWarningTime`, `getKfTime`, `getProxiedUrl`, `decodeHtmlEntities`, `trackUsage`, `trackUsageMany`, `withUsageSuppressed` |
+| `usage_keys.js` | 사용량 통계 "기능 키 → 한글 이름표" 한 장(관리자 화면·CSV 공용). `trackUsage('키')` 를 새로 달면 같은 커밋에서 여기에 이름을 적는다 — 빠지면 `local_server/scripts/test_usage_keys.js`(verify_all)가 실패 | — |
 
 ## 로드 순서
 

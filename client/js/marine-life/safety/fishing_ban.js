@@ -263,6 +263,7 @@
         }
 
         var name = hit.get('name') || '낚시금지구역';
+        if (window.trackUsage) window.trackUsage('safety.ban_zone.area');  // [사용량] 영역 눌러 정보를 볼 때 1건
         if (typeof window.showSeagnalModal === 'function') {
             window.showSeagnalModal(name, _buildDetailHtml(hit), 'info');
             // 항목 수가 많아 기본 폭(320px)보다 넓게 — 출입통제 팝업과 같은 클래스를 재사용

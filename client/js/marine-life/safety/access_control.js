@@ -459,6 +459,7 @@
         }
 
         var location = hit.get('location') || '출입통제구역';
+        if (window.trackUsage) window.trackUsage('safety.ban_zone.area');  // [사용량] 영역 눌러 정보를 볼 때 1건
         if (typeof window.showSeagnalModal === 'function') {
             window.showSeagnalModal(location, _buildDetailHtml(hit), 'info');
             // 항목 수가 많아 기본 폭(320px)보다 넓게 — 이 팝업에만 적용, 다른 showSeagnalModal 호출부는 그대로

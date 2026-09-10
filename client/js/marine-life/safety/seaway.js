@@ -533,6 +533,7 @@
         }
 
         var name = _displayName(hit);
+        if (window.trackUsage) window.trackUsage('safety.seaway.zone');  // [사용량] 폴리곤 눌러 정보를 볼 때 1건
         if (typeof window.showSeagnalModal === 'function') {
             window.showSeagnalModal(name, _buildDetailHtml(hit), 'info');
             // 항목 수가 많아 기본 폭(320px)보다 넓게 — 출입통제 팝업과 같은 클래스를 재사용
@@ -563,6 +564,7 @@
             if (_layer) _layer.setVisible(_visible);
             if (_fillLayer) _fillLayer.setVisible(_visible);
             if (_visible) {
+                if (window.trackUsage) window.trackUsage('safety.seaway');  // [사용량] 켤 때만 1건
                 _load();
                 // 항로는 관제구역과 마찬가지로 항해 정보라, 위성지도가 아니라
                 // 전자해도(enc)로 배경을 자동 전환한다(사용자 지시).

@@ -5461,7 +5461,7 @@
     <script src="js/core/config.js"></script>
     <script src="js/shared/utils/mappings.js"></script>
     <script src="js/shared/utils/accident_codes.js?v=Kin001InfoNone_20260831"></script>
-    <script src="js/shared/utils/utils.js"></script>
+    <script src="js/shared/utils/utils.js?v=Usage_20260910"></script>
     <script src="js/forecast/alerts/data.js"></script>
     <script src="js/forecast/alerts/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
     <script src="js/forecast/alerts/render.js?v=BuoyClip_20260612"></script>
@@ -5537,7 +5537,7 @@
     <script src="js/ocean-map/layers/shrt_forecast_layer.js"></script>
     <!-- 물빠짐 (서해·남해 갯벌 노출 예측): 토글 버튼 + 시간 슬라이더/재생 + 2색 벡터 레이어 + 클릭 팝업
          (의존: ocean_map.js 의 window.__getOceanMap, /api/tide-field) -->
-    <script src="js/ocean-map/layers/tide_field.js?v=Patch_20260706_03"></script>
+    <script src="js/ocean-map/layers/tide_field.js?v=Usage_20260910"></script>
     <!-- 시정예측 (KMA RDPS 시정/안개 PNG 오버레이): 토글 버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 (천기 메커니즘 복제) -->
     <script src="js/ocean-map/layers/vsby_forecast_layer.js"></script>
 
@@ -5553,8 +5553,10 @@
          관리자 리스트 화면(admin.js / admin_collect.js / admin_survey.js / admin_report.js / alert_push.js)에서
          사용하므로 반드시 이 스크립트들보다 먼저 로드되어야 함 -->
     <script src="js/admin/pagination_helper.js"></script>
+    <!-- 사용량 통계 기능 키 → 한글 이름표(화면·CSV 공용). admin_collect.js 보다 먼저 -->
+    <script src="js/shared/utils/usage_keys.js"></script>
     <script src="js/admin/admin.js?v=Patch_20260707_01"></script>
-    <script src="js/admin/admin_collect.js"></script>
+    <script src="js/admin/admin_collect.js?v=Usage_20260910"></script>
     <script src="js/admin/admin_survey.js"></script>
     <script src="js/admin/admin_report.js"></script>
     <script src="js/admin/advisory_manage_admin.js"></script>
@@ -5604,47 +5606,47 @@
     <!-- 위험물(간출암·노출암) 레이어 — 해양안전 하위탭 전용. ocean_map.js buildMap()
          이 window.initHazardRocksLayer 를 찾으므로 그 스크립트 다음이면 순서 무관하지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
-    <script src="js/marine-life/safety/hazard_rocks.js"></script>
+    <script src="js/marine-life/safety/hazard_rocks.js?v=Usage_20260910"></script>
 
     <!-- 출입통제구역 레이어 — 해양안전 하위탭 전용. ocean_warn_zone.js 와 동일하게
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
-    <script src="js/marine-life/safety/access_control.js"></script>
+    <script src="js/marine-life/safety/access_control.js?v=Usage_20260910"></script>
 
     <!-- 낚시금지구역 레이어 — 해양안전 하위탭 전용. access_control.js 와 동일하게
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
-    <script src="js/marine-life/safety/fishing_ban.js?v=FishingBanZoom_20260803"></script>
+    <script src="js/marine-life/safety/fishing_ban.js?v=Usage_20260910"></script>
 
     <!-- 선박교통관제(VTS)구역 레이어 — 해양안전 하위탭 전용. fishing_ban.js 와 동일하게
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
     <!-- 금지구역(출입통제+낚시금지 통합 버튼)[S28-3] — 위 두 파일이 원래 버튼에
          리스너를 붙인 뒤여야 대신 누를 수 있으므로 반드시 그 다음에 온다. -->
-    <script src="js/marine-life/safety/ban_zone.js?v=BanZone_20260909"></script>
-    <script src="js/marine-life/safety/vts_zone.js?v=VtsZoom_20260803b"></script>
+    <script src="js/marine-life/safety/ban_zone.js?v=Usage_20260910"></script>
+    <script src="js/marine-life/safety/vts_zone.js?v=Usage_20260910"></script>
 
     <!-- 항로·해역 레이어 — 해양안전 하위탭 전용. vts_zone.js 와 동일하게
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
-    <script src="js/marine-life/safety/seaway.js?v=SeawayCapLenFilter_20260812"></script>
+    <script src="js/marine-life/safety/seaway.js?v=Usage_20260910"></script>
 
     <!-- 항행경보 구역 레이어 — 해양안전 하위탭 전용. seaway.js 와 동일하게
          스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다. -->
-    <script src="js/marine-life/safety/navigational_warning.js"></script>
+    <script src="js/marine-life/safety/navigational_warning.js?v=Usage_20260910"></script>
 
     <!-- 사고정보(선박·인명) 레이어 — 해양안전 하위탭 전용. navigational_warning.js 와
          동일하게 스스로 window.getOceanMap 을 폴링해 설치하므로 로드 순서 제약이 없지만,
          같은 marine-life/safety 그룹으로 life_safety.js 바로 앞에 둔다.
          accident_codes.js(라벨 매핑)를 먼저 읽으므로 그 뒤에 위치. -->
-    <script src="js/marine-life/safety/accident_info.js?v=FilterPolish4_20260831"></script>
+    <script src="js/marine-life/safety/accident_info.js?v=Usage_20260910"></script>
     <script src="js/marine-life/safety/accident_geocode_review.js?v=20260823b"></script>
     <script src="js/marine-life/safety/accident_geocode_review_person.js?v=20260901"></script>
 
     <!-- 해양안전생활 (해양생활 탭 10회 연타 진입) — index2_patch 가 감싼
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
-    <script src="js/marine-life/safety/life_safety.js?v=LifeSafety_20260812"></script>
+    <script src="js/marine-life/safety/life_safety.js?v=Usage_20260910"></script>
 
     <!-- 선택적 차단 표시용 스타일 (버튼 자물쇠 배지 / 해상일기도·바텀시트 점검중) -->
     <style>

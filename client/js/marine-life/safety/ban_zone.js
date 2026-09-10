@@ -155,8 +155,13 @@
             // 생기면 버튼 하나로는 되돌릴 수 없다. 새로 켤지 끌지는 새 버튼 자신의
             // 표시(active)로 정한다.
             var turnOn = !btn.classList.contains('active');
-            if (acBtn.classList.contains('active') !== turnOn) acBtn.click();
-            if (fbBtn.classList.contains('active') !== turnOn) fbBtn.click();
+            // [사용량] 원래 버튼 2개를 대신 누르는 동안은 세지 않고, 금지구역 켬 1건만 센다(사용자 확정 2026-09-10).
+            var run = window.withUsageSuppressed || function (f) { f(); };
+            run(function () {
+                if (acBtn.classList.contains('active') !== turnOn) acBtn.click();
+                if (fbBtn.classList.contains('active') !== turnOn) fbBtn.click();
+            });
+            if (turnOn && window.trackUsage) window.trackUsage('safety.ban_zone');
             btn.classList.toggle('active', turnOn);
             _showLegend(turnOn);
             // 켤 때는 배경지도를 위성지도로 — 두 모듈도 각자 하지만, 여기서 한 번 더
