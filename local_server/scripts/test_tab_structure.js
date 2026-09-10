@@ -140,8 +140,40 @@ console.log('\n[5] 해양안전 화면 버튼');
         JSON.stringify(order.filter(Boolean)) === JSON.stringify(EXPECT), order.filter(Boolean).join(','));
 })();
 
-// ── [6] 게이트 등록 ───────────────────────────────────────────────────────
-console.log('\n[6] 게이트 등록');
+// ── [6] 신규 표시(N) 배지 — 3일 뒤 저절로 사라지는가 ──────────────────────
+console.log('\n[6] 해양안전생활 N 배지');
+
+(function () {
+    ok('N 배지를 붙이는 함수(_markNewBadge)가 있다', /function _markNewBadge\(\)/.test(LS_SRC));
+    ok('앱이 뜰 때 호출한다', /DOMContentLoaded[\s\S]{0,300}_markNewBadge\(\);/.test(LS_SRC));
+    ok('공지사항 탭과 같은 배지 스타일(.new-badge)을 쓴다',
+        /className = 'new-badge'/.test(LS_SRC) && /textContent = 'N'/.test(LS_SRC));
+    ok('붙이는 대상이 하단 "해양안전생활" 탭이다',
+        /tab-btn\[data-target="ocean-life-group"\]/.test(LS_SRC));
+    ok('탭 높이가 안 늘어나도록 라벨 span 안에 넣는다',
+        /querySelector\('\.tab-btn-label'\) \|\| btn\)\.appendChild\(badge\)/.test(LS_SRC));
+
+    // 끝나는 시각을 실제로 평가해 본다 — 주석이 아니라 값으로 확인한다.
+    const m = LS_SRC.match(/var NEW_BADGE_UNTIL = (Date\.UTC\([^)]*\));/);
+    ok('끝나는 시각(NEW_BADGE_UNTIL)이 상수로 박혀 있다', !!m);
+    if (!m) return;
+    const sb = {}; vm.createContext(sb);
+    vm.runInContext('this.__t = ' + m[1] + ';', sb);
+    const until = sb.__t;
+    // KST(UTC+9) 로 옮겨 본다 — 9/12 24:00 KST 는 곧 9/13 00:00 KST 와 같은 순간이다.
+    const kst = new Date(until + 9 * 3600 * 1000);
+    ok('배포일(9/10) 포함 3일이 끝나는 순간 = 2026-09-13 00:00 KST 이다',
+        kst.getUTCFullYear() === 2026 && kst.getUTCMonth() === 8 &&
+        kst.getUTCDate() === 13 && kst.getUTCHours() === 0 && kst.getUTCMinutes() === 0,
+        new Date(until).toISOString());
+    // 경계를 한 번 더 — 9/12 23:59 KST 는 붙고, 9/13 00:00 KST 는 안 붙는다.
+    const kstToUtc = (y, mo, d, h, mi) => Date.UTC(y, mo, d, h - 9, mi);
+    ok('9/12 23:59 KST 에는 아직 붙는다', kstToUtc(2026, 8, 12, 23, 59) < until);
+    ok('9/13 00:00 KST 부터는 안 붙는다', kstToUtc(2026, 8, 13, 0, 0) >= until);
+})();
+
+// ── [7] 게이트 등록 ───────────────────────────────────────────────────────
+console.log('\n[7] 게이트 등록');
 ok('verify_all.sh SUITES 에 test_tab_structure 가 있다', /test_tab_structure/.test(VERIFY_SRC));
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

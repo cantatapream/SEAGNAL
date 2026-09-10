@@ -3856,7 +3856,7 @@
                              선박교통관제에 관한 법률 제12조([별표 1])에 따른 선박교통관제(VTS)구역.
                              켜면 배경지도가 전자해도로 자동 전환된다(항해 정보라 해도가 맞음).
                              [데이터] /vts_zones.json (해양경찰청 전국 20개 VTS센터 페이지의
-                                      공식 관제구역 34개, 정적, 처음 누를 때만 지연 로드) -->
+                                      공식 관제구역 33개, 정적, 처음 누를 때만 지연 로드) -->
                         <button class="ocean-overlay-btn" id="ocean-vts-toggle-btn" title="관제구역">
                             <i class="fa-solid fa-tower-broadcast"></i>
                             <span class="ocean-overlay-label" data-line1="관제" data-line2="구역">관제구역</span>
@@ -5352,8 +5352,11 @@
         </nav>
         <!-- 해양안전생활 서브탭 (해양안전 | 해양생활)
              ----------------------------------------------------------------
-             해양생활 탭 10회 연타로 진입했을 때만 위 #ocean-life-sub-tabs 대신 사용된다
-             (life_safety.js 가 TAB_GROUP_SUBTABS['ocean-life-group'] 를 이 id 로 교체).
+             [2026-09-10] 하단 "해양안전생활" 탭이 항상 쓰는 서브탭 바다 — 위
+             #ocean-life-sub-tabs 는 더 이상 쓰지 않는다(marine.js 의
+             TAB_GROUP_SUBTABS['ocean-life-group'] 가 처음부터 이 id 를 가리킨다).
+             예전에는 "해양생활 탭 10회 연타"로 들어갔을 때만 life_safety.js 가
+             그 값을 이 id 로 바꿔치기했으나, 정식 기능이 되면서 기본값이 됐다.
              - "해양생활" 버튼의 data-target 은 현재 보고 있는 활동으로 계속 동기화됨
              - 아래 .ls-hidden-sub 6개는 화면에 안 보이며, switchSubTab 이 같은 그룹
                섹션을 정리(비활성)할 수 있도록 목록만 유지하는 용도
