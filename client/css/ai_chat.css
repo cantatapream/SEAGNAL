@@ -353,12 +353,18 @@ body.sub-tabs-open #nrya-overlays .nrya-fab{bottom:calc(var(--main-tab-height,68
 #nrya-overlays .nrya-chat-top .nrya-ava{width:30px; height:30px}
 #nrya-overlays .nrya-chat-titles{flex:1 1 auto; min-width:0}
 #nrya-overlays .nrya-chat-name{font-size:14.5px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-#nrya-overlays .nrya-chat-acts{flex:0 0 auto; display:flex; align-items:center; gap:3px}
+/* 2026-09-10 사용자 지적: "버튼간의 간격과 x버튼이 너무 가까이 있어서 잘못누를 가능성이 높아."
+   ①글자 버튼끼리는 3px → 7px 로 벌리고 ②✕ 앞에는 추가로 9px 을 더 둬(총 16px) 실수로 창이
+   닫히는 것을 막는다. ③✕ 자체의 손가락 닿는 면적도 좌우 2px → 7px 로 넓혔다.
+   하위화면에서는 글자 버튼이 하나([채팅창으로])만 남으므로 폭은 종전보다 오히려 여유가 있다. */
+#nrya-overlays .nrya-chat-acts{flex:0 0 auto; display:flex; align-items:center; gap:7px}
 #nrya-overlays .nrya-chat-x{background:none; border:none; color:var(--nrya-text-sub); font-size:20px; cursor:pointer; line-height:1; padding:0 2px}
+#nrya-overlays .nrya-chat-acts > #nryaChatX{margin-left:9px; padding:2px 7px}
 /* 글자 버튼(내 정보·대화이력) — 칩과 같은 톤. white-space:nowrap 이 "내 정보"가 "내 / 정보"로
    접히는 것을 막는다(직군 칩에서 실제로 났던 증상과 같은 원인). */
-#nrya-overlays .nrya-chat-txt{font-family:inherit; font-size:10.5px; font-weight:700; line-height:1; white-space:nowrap; padding:6px 7px; border-radius:11px; cursor:pointer; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#dbe7f5}
-#nrya-overlays .nrya-chat-back{font-size:26px}
+#nrya-overlays .nrya-chat-txt{font-family:inherit; font-size:10.5px; font-weight:700; line-height:1; white-space:nowrap; padding:6px 6px; border-radius:11px; cursor:pointer; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#dbe7f5}
+/* [채팅창으로] — 다른 글자 버튼(.nrya-chat-txt)과 같은 톤이되, 돌아가는 길임을 ‹ 로 보인다. */
+#nrya-overlays .nrya-chat-back::before{content:'\2039'; font-size:15px; line-height:1; margin-right:3px; vertical-align:-1px}
 #nrya-overlays .nrya-chat-body{flex:1; overflow-y:auto; padding:14px 12px; display:flex; flex-direction:column; gap:11px; background:#1c2a38}
 
 /* 대화 기록 목록(헤더 🕘) — 대화 영역과 같은 자리를 번갈아 차지한다(열리면 대화 영역은 숨김).
