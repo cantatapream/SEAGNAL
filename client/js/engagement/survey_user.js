@@ -93,6 +93,14 @@
                     return;
                 }
 
+                // [점검 차단] 관리자가 점검 목록에 '설문조사 자동 팝업'을 넣었으면 띄우지 않는다(관리자 모드 제외).
+                //   [연계] index2.html applyFeatureBlocks() → window._blockedFeatures (admin.js 트리 id 'survey-popup')
+                if ((window._blockedFeatures || []).indexOf('survey-popup') !== -1 &&
+                    localStorage.getItem('seagnal_admin_mode') !== 'true') {
+                    triggerNoticeAfterSurvey();
+                    return;
+                }
+
                 showSurveyInvitePopup(pending);
             } catch (e) {
                 // 설문 로드 실패해도 공지사항은 표시

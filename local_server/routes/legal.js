@@ -65,6 +65,7 @@ const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
 const adminQueues = require('../services/legal_admin_queues');
 const amendmentScanner = require('../services/legal_amendment_scanner');
+const wikiBrief = require('../services/legal_wiki_brief');
 const freshScanner = require('../services/admrul_fresh_scanner');
 const { DATA_DIR, FILES } = require('../config/server_config');
 
@@ -796,6 +797,21 @@ router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (re
     //   **승인해도 재수집 대상이 0건**이었다. 옮겨 적기가 실패해도 승인 자체는 막지 않고 결과만 알려 준다.
     const mirrored = amendmentScanner.mirrorDecisionToH29(req.params.id, decision);
     res.json({ ok: true, amendment: updated, mirrored });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/amendments/:id/wiki-brief (관리자) — 승인한 개정을 위키에 반영하려면 무엇을 어디서
+//   고쳐야 하는지 한 덩어리 글로 준다. 관리자가 그 글만 복사해 AI 에게 붙여 넣으면 된다
+//   (사용자 확정 2026-09-10: "승인한 내역에 대해 어떤 부분이 바뀌었고 어떤 부분에 집중해 위키를
+//   수정검토해야 하는지 텍스트로 정리"). 승인 전이어도 뽑을 수 있다 — 미리 읽어 보라고 막지 않는다.
+router.get('/api/legal/amendments/:id/wiki-brief', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const rows = adminQueues.readJsonl(amendmentScanner.queueFile());
+    const am = rows.find((e) => String(e.id) === String(req.params.id));
+    if (!am) return res.status(404).json({ ok: false, error: 'amendment not found: ' + req.params.id });
+    const r = wikiBrief.buildWikiBrief(am, effectiveDate.todayKST());
+    if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
+    res.json({ ok: true, id: am.id, 법령명: am.법령명 || '', status: am.status || '', text: r.text, pages: r.pages });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 

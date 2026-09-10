@@ -217,7 +217,10 @@
     function _silently(fn) {
         var orig = window._showOceanToast;
         window._showOceanToast = function () {};
-        try { fn(); } finally { window._showOceanToast = orig; }
+        // 사용량 집계도 함께 막는다 — 여기서 누르는 버튼은 사용자가 누른 게 아니라
+        // 화면 전환 복원이므로(사용자 확정 2026-09-10 "해양종합정보 탭 자체는 세지 않는다").
+        var run = window.withUsageSuppressed || function (f) { f(); };
+        try { run(fn); } finally { window._showOceanToast = orig; }
     }
 
     function _suspendOceanOverlays() {
@@ -672,10 +675,10 @@
                 '<p><i class="fa-solid fa-circle-check"></i> 버튼 하나로 <strong>낚시금지구역</strong>과 <strong>출입통제구역</strong>을 함께 표시합니다. 둘 다 "여기서는 하면 안 된다"는 뜻의 구역입니다.</p>'
               + '<p><i class="fa-solid fa-circle-check"></i> 켜면 화면 왼쪽 위에 <strong>범례</strong>가 나타납니다. 「출입통제구역」·「낚시금지구역」 스위치로 <strong>한 종류만 골라</strong> 볼 수도 있습니다.</p>'
               + '<p><i class="fa-solid fa-circle-check"></i> <strong>낚시금지구역</strong>(236곳) — 낚시 관리 및 육성법 제6조와 지자체 조례에 따라 낚시가 금지되거나 제한된 구역입니다. <strong>주황색</strong>으로 표시합니다.</p>'
-              + '<p><i class="fa-solid fa-circle-check"></i> <strong>출입통제구역</strong>(35곳) — 연안사고 예방에 관한 법률 제10조에 따라 각 해양경찰서가 지정한 구역입니다. <strong>빨간색</strong>으로 표시합니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>출입통제구역</strong>(39곳) — 연안사고 예방에 관한 법률 제10조에 따라 각 해양경찰서가 지정한 구역입니다. <strong>빨간색</strong>으로 표시합니다.</p>'
               + '<p><i class="fa-solid fa-circle-check"></i> 구역을 누르면 위치, 지정 사유, 통제 기간·시간, 대상, 벌칙, 고시번호 등 상세 정보를 확인할 수 있습니다. 켜면 실제 지형과 비교하기 쉽도록 <strong>배경지도가 위성지도로 자동 전환</strong>됩니다.</p>'
               + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 낚시금지구역은 국립해양조사원이 파악한 구역만, 출입통제구역은 원본 고시·공고에 <strong>경위도 좌표가 온전히 적힌 구역만</strong> 반영되어 있습니다(나머지는 원본에 손그림 경계선만 있어 확정할 수 없었습니다). 최신 지정 현황과 다를 수 있으니 실제 활동 전에는 현장 안내판이나 관할 지자체·해양경찰서 공고를 꼭 확인하세요.</p>'
-              + '<div class="ocean-info-src">최종 갱신일자 · 낚시금지 2025-12-12 · 출입통제 2026-09-09<br>출처 · 국립해양조사원 낚시통제구역 주제도 · 각 해양경찰서 고시·공고</div>' },
+              + '<div class="ocean-info-src">최종 갱신일자 · 낚시금지 2025-12-12 · 출입통제 2026-09-10<br>출처 · 국립해양조사원 낚시통제구역 주제도 · 각 해양경찰서 고시·공고</div>' },
             { id: 'navwarn', label: '항행경보', html:
                 '<p><i class="fa-solid fa-circle-check"></i> 선택한 날짜에 발효 중인 항행경보(선박사고·표류장애물·수중장애물·해상사격훈련 등)의 구역을 지도 위에 진한 빨간 점선 원형/다각형으로 표시합니다. 켜면 배경지도가 위성지도로 자동 전환됩니다. 같은 구역이 시간대만 다르게 여러 번 있으면 하나로 합쳐 라벨이 겹치지 않게 표시합니다.</p>'
               + '<p><i class="fa-solid fa-circle-check"></i> 상단 날짜 내비게이션(◀▶)으로 다른 날짜를 조회하고, 하단 기준 시각 슬라이더로 그 날짜의 특정 시각을 지정하면 이미 시각이 지난 구역은 회색으로 바뀌고 라벨도 사라집니다(활성 구역만 라벨 표시, 겹치면 큰 구역 우선). 슬라이더 위치는 날짜를 넘겨도 그대로 유지됩니다.</p>'

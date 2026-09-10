@@ -14,6 +14,8 @@
  *
  * 순수 부분(buildSnapshot/selectTargetTokens/buildDataMessage)은 테스트로 검증.
  * 실제 전송 sendFn / 동의자 getConsents 는 주입 가능(테스트 시 mock).
+ * 점검 모드(2026-09-10): push_sender.isPushBlocked() 가 true(점검 중 + 푸시 차단)면 보내지 않는다
+ *   — opts.isPushBlocked 로 주입 가능. 검사: scripts/test_maintenance_tree.js
  * ============================================================================
  */
 'use strict';
@@ -172,6 +174,11 @@ async function _defaultSendFn(tokens, message) {
  * @param opts { sendFn, getConsents, now } (테스트 주입용)
  */
 async function dispatchWake(activeWarnings, opts = {}) {
+    // [점검 모드] 관리자가 "푸시 알림 차단"을 켠 점검 중에는 위치기반 깨우기도 보내지 않는다
+    //   — 특보 푸시(push_sender)·태풍(typhoon_notifier)과 같은 규칙(사용자 확정 2026-09-10).
+    //   종전엔 이 경로만 점검 설정을 안 봐서 점검 중에도 나갔다. 테스트는 opts.isPushBlocked 로 주입.
+    const isPushBlocked = opts.isPushBlocked || (() => require('../push_sender').isPushBlocked());
+    if (isPushBlocked()) return { sent: 0, targets: 0, reason: 'push_blocked_maintenance' };
     const snapshot = buildSnapshot(activeWarnings, opts.now);
     if (!snapshot.zones || Object.keys(snapshot.zones).length === 0) {
         return { sent: 0, targets: 0, reason: 'no_active_zones' };

@@ -196,3 +196,32 @@ mudflat.js / sea_parting.js / swimming.js)을 그대로 씁니다.** 이 모듈�
   해수욕은 이제 스킨스쿠버와 동일한 지도형이라(`swimming.js`) 다른 지도 활동들과
   같은 방식(우측 레일이 fixed 오버레이로 뜸)으로 동작하며 별도 padding 보정이 없습니다.
 - 이안류(`ripcurrent-section`)는 현재 하위탭에서도 숨김 상태라 레일에도 넣지 않았습니다.
+
+## 점검(선택 차단)에서 이 화면이 잠기는 방식 (2026-09-10)
+
+관리자 센터 > 점검 > 선택 차단 트리의 "해양안전생활" 아래에서 고른다. 해양안전 하위탭 자체(`ocean-safety`)와
+전용 버튼 6개(위험지형·사고정보·금지구역·항행경보·관제구역·항로해역)는 따로 잠글 수 있고, 물빠짐·CCTV·안내·
+내 위치·검색창·바텀시트는 해양종합정보와 **같은 버튼**이라 그쪽 항목("(해양안전 공용)")으로 잠근다.
+잠긴 버튼은 흐려지고 자물쇠가 붙으며, 눌러도 점검 안내만 뜬다(`index2.html applyFeatureBlocks` — 이 화면의
+`_bindControls` 캡처 리스너보다 먼저 듣도록 window 캡처에 걸려 있다). 해양안전이 잠긴 채 해양안전생활 탭에
+들어오면 `marine.js switchMainTab` 이 해양생활 쪽으로 자동 전환한다.
+
+## 사용량 집계 규칙 (사용자 확정 2026-09-10)
+
+관리자 센터 > 종합통계 > 사용자 통계 > "기능별 누적 사용"에 이 화면이 어떻게 잡히는지.
+**사람이 직접 누른 것만 센다** — 화면을 오갈 때 `life_safety.js` 가 오버레이 버튼을 대신 껐다 켜는
+동안(`_silently`)과 묶음 버튼(위험지형·금지구역)이 숨은 버튼을 대신 누르는 동안은
+`window.withUsageSuppressed`(utils.js)로 세지 않는다. 끌 때는 세지 않는다.
+
+| 버튼 | 켤 때 | 지도 위 동작 |
+|---|---|---|
+| 물빠짐 | `safety.mudflat` 1건 (해양종합정보에서 켜면 `ocean.mudflat`) | — |
+| 위험지형 | `safety.terrain` 1건 (노출암·간출암 각각 세지 않음) | 마커를 눌러 말풍선/조석 팝업이 뜨면 `safety.terrain.marker` 1건. 확대만 되는 클릭은 안 셈 |
+| 사고정보 | `ocean.accident_info` 1건 | 구역(칸) 클릭 `safety.accident.zone` · 마커 클릭 `safety.accident.marker` 각 1건 |
+| 금지구역 | `safety.ban_zone` 1건 | 출입통제·낚시금지 영역을 눌러 팝업이 뜨면 `safety.ban_zone.area` 1건 |
+| 항행경보 | `safety.navwarn` 1건 | ◀▶ 날짜 이동 `safety.navwarn.date` · 구역 클릭 `safety.navwarn.zone` 각 1건 |
+| CCTV | — | CCTV 마커를 눌러 팝업이 뜨면 `ocean.cctv_open` 1건 |
+| 관제구역 | `safety.vts` 1건 | 폴리곤을 눌러 팝업이 뜨면 `safety.vts.zone` 1건 (첫 탭은 하이라이트만, 두 번째 탭에 팝업) |
+| 항로·해역 | `safety.seaway` 1건 | 폴리곤을 눌러 팝업이 뜨면 `safety.seaway.zone` 1건 |
+
+이름표는 `client/js/shared/utils/usage_keys.js` 한 장이고, 빠지면 `local_server/scripts/test_usage_keys.js` 가 실패한다.
