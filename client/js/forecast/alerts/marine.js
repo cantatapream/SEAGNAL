@@ -1468,7 +1468,20 @@ window.switchMainTab = function (targetId) {
         if (subTabNav) {
             subTabNav.classList.add('sub-tabs-visible');
             // 이전에 선택했던 서브 탭이 있으면 그것을 표시, 없으면 기본 서브 섹션
-            const activeSubBtn = subTabNav.querySelector('.sub-tab-btn.active');
+            let activeSubBtn = subTabNav.querySelector('.sub-tab-btn.active');
+            // [점검 차단] 보여줄 서브탭이 차단됐으면(예: 해양안전만 점검) 같은 nav 의 첫 비차단 버튼으로 간다.
+            //   여기서 안 막으면 메인탭만 눌러도 차단된 섹션이 그대로 보인다(관리자 모드는 그대로).
+            //   [연계] index2.html applyFeatureBlocks() → dataset.blocked / .feat-blocked
+            const chosenBtn = activeSubBtn || subTabNav.querySelector(`.sub-tab-btn[data-target="${defaultSection}"]`);
+            if (chosenBtn && chosenBtn.dataset.blocked === 'true' && localStorage.getItem('seagnal_admin_mode') !== 'true') {
+                const alt = Array.from(subTabNav.querySelectorAll('.sub-tab-btn'))
+                    .find(b => b.dataset.blocked !== 'true' && !b.classList.contains('feat-blocked'));
+                if (alt) {
+                    subTabNav.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+                    alt.classList.add('active');
+                    activeSubBtn = alt;
+                }
+            }
             const sectionToShow = activeSubBtn ? activeSubBtn.getAttribute('data-target') : defaultSection;
             const section = document.getElementById(sectionToShow);
             if (section) section.classList.add('active');
