@@ -48,6 +48,12 @@
     "name": "공유수면 관리 및 매립에 관한 법률",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"
    },
+   "related_laws": [
+    {
+     "slug": "공유수면관리및매립에관한법률",
+     "name": "공유수면 관리 및 매립에 관한 법률"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "011186"
@@ -98,6 +104,12 @@
     "name": "공유수면 관리 및 매립에 관한 법률",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"
    },
+   "related_laws": [
+    {
+     "slug": "공유수면관리및매립에관한법률",
+     "name": "공유수면 관리 및 매립에 관한 법률"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "011186"
@@ -155,6 +167,12 @@
     "name": "농수산물의 원산지 표시 등에 관한 법률",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
    },
+   "related_laws": [
+    {
+     "slug": "농수산물의원산지표시등에관한법률",
+     "name": "농수산물의 원산지 표시 등에 관한 법률"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "011154"
@@ -188,6 +206,12 @@
     "name": "농수산물의 원산지 표시 등에 관한 법률",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률"
    },
+   "related_laws": [
+    {
+     "slug": "농수산물의원산지표시등에관한법률",
+     "name": "농수산물의 원산지 표시 등에 관한 법률"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "011154"
@@ -252,6 +276,12 @@
     "name": "농수산물 품질관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
    },
+   "related_laws": [
+    {
+     "slug": "농수산물품질관리법",
+     "name": "농수산물 품질관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "001978"
@@ -285,6 +315,12 @@
     "name": "농수산물 품질관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
    },
+   "related_laws": [
+    {
+     "slug": "농수산물품질관리법",
+     "name": "농수산물 품질관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "001978"
@@ -335,6 +371,12 @@
     "name": "수산업법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/수산업법"
    },
+   "related_laws": [
+    {
+     "slug": "수산업법",
+     "name": "수산업법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "001486"
@@ -434,6 +476,12 @@
     "name": "수산자원관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/수산자원관리법"
    },
+   "related_laws": [
+    {
+     "slug": "수산자원관리법",
+     "name": "수산자원관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "010965"
@@ -484,6 +532,12 @@
     "name": "수산자원관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/수산자원관리법"
    },
+   "related_laws": [
+    {
+     "slug": "수산자원관리법",
+     "name": "수산자원관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "010965"
@@ -534,6 +588,12 @@
     "name": "양식산업발전법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/양식산업발전법"
    },
+   "related_laws": [
+    {
+     "slug": "양식산업발전법",
+     "name": "양식산업발전법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "013574"
@@ -612,6 +672,12 @@
     "name": "양식산업발전법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/양식산업발전법"
    },
+   "related_laws": [
+    {
+     "slug": "양식산업발전법",
+     "name": "양식산업발전법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "013574"
@@ -662,6 +728,12 @@
     "name": "어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/어선안전조업및어선원의안전ㆍ보건증진등에관한법률"
    },
+   "related_laws": [
+    {
+     "slug": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
+     "name": "어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률"
+    }
+   ],
    "layer": "시행규칙",
    "식별자": {
     "법령ID": "013852"
@@ -712,6 +784,12 @@
     "name": "어선원 및 어선 재해보상보험법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법"
    },
+   "related_laws": [
+    {
+     "slug": "어선원및어선재해보상보험법",
+     "name": "어선원 및 어선 재해보상보험법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "009486"
@@ -776,6 +854,12 @@
     "name": "어촌ㆍ어항법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법"
    },
+   "related_laws": [
+    {
+     "slug": "어촌ㆍ어항법",
+     "name": "어촌ㆍ어항법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "009943"
@@ -889,6 +973,12 @@
     "name": "원양산업발전법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
    },
+   "related_laws": [
+    {
+     "slug": "원양산업발전법",
+     "name": "원양산업발전법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "010511"
@@ -939,6 +1029,12 @@
     "name": "항만법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/항만법"
    },
+   "related_laws": [
+    {
+     "slug": "항만법",
+     "name": "항만법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "001737"
@@ -989,6 +1085,12 @@
     "name": "항만운송사업법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/항만운송사업법"
    },
+   "related_laws": [
+    {
+     "slug": "항만운송사업법",
+     "name": "항만운송사업법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "000062"
@@ -1067,6 +1169,12 @@
     "name": "해양폐기물 및 해양오염퇴적물 관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법"
    },
+   "related_laws": [
+    {
+     "slug": "해양폐기물및해양오염퇴적물관리법",
+     "name": "해양폐기물 및 해양오염퇴적물 관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "013616"
@@ -1117,6 +1225,12 @@
     "name": "해양환경관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
    },
+   "related_laws": [
+    {
+     "slug": "해양환경관리법",
+     "name": "해양환경관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "010379"
@@ -1174,6 +1288,12 @@
     "name": "해양환경관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
    },
+   "related_laws": [
+    {
+     "slug": "해양환경관리법",
+     "name": "해양환경관리법"
+    }
+   ],
    "layer": "시행규칙",
    "식별자": {
     "법령ID": "010636"
@@ -1224,6 +1344,12 @@
     "name": "폐기물관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
    },
+   "related_laws": [
+    {
+     "slug": "폐기물관리법",
+     "name": "폐기물관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "001771"
@@ -1274,6 +1400,12 @@
     "name": "폐기물관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
    },
+   "related_laws": [
+    {
+     "slug": "폐기물관리법",
+     "name": "폐기물관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "001771"
@@ -1324,6 +1456,12 @@
     "name": "폐기물관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
    },
+   "related_laws": [
+    {
+     "slug": "폐기물관리법",
+     "name": "폐기물관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "001771"
@@ -1395,6 +1533,12 @@
     "name": "폐기물관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
    },
+   "related_laws": [
+    {
+     "slug": "폐기물관리법",
+     "name": "폐기물관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "001771"
@@ -1445,6 +1589,12 @@
     "name": "폐기물관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
    },
+   "related_laws": [
+    {
+     "slug": "폐기물관리법",
+     "name": "폐기물관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "001771"
@@ -1495,6 +1645,12 @@
     "name": "연안사고 예방에 관한 법률",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
    },
+   "related_laws": [
+    {
+     "slug": "연안사고예방에관한법률",
+     "name": "연안사고 예방에 관한 법률"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "012049"
@@ -1545,6 +1701,12 @@
     "name": "섬 발전 촉진법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/08_섬영토/섬발전촉진법"
    },
+   "related_laws": [
+    {
+     "slug": "섬발전촉진법",
+     "name": "섬 발전 촉진법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "000998"
@@ -1616,6 +1778,12 @@
     "name": "유선 및 도선 사업법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법"
    },
+   "related_laws": [
+    {
+     "slug": "유선및도선사업법",
+     "name": "유선 및 도선 사업법"
+    }
+   ],
    "layer": "시행규칙",
    "식별자": {
     "법령ID": "007831"
@@ -1787,6 +1955,12 @@
     "name": "선박의 입항 및 출항 등에 관한 법률",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
    },
+   "related_laws": [
+    {
+     "slug": "선박의입항및출항등에관한법률",
+     "name": "선박의 입항 및 출항 등에 관한 법률"
+    }
+   ],
    "layer": "행정규칙",
    "식별자": {
     "행정규칙ID": "2081506",
@@ -2095,6 +2269,12 @@
     "name": "물환경보전법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
    },
+   "related_laws": [
+    {
+     "slug": "물환경보전법",
+     "name": "물환경보전법"
+    }
+   ],
    "layer": "행정규칙",
    "식별자": {
     "행정규칙ID": "61768",
@@ -2218,6 +2398,12 @@
     "name": "해양경비법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/해양경비법"
    },
+   "related_laws": [
+    {
+     "slug": "해양경비법",
+     "name": "해양경비법"
+    }
+   ],
    "layer": "행정규칙",
    "식별자": {
     "행정규칙ID": "41346",
@@ -2354,6 +2540,12 @@
     "name": "연안사고 예방에 관한 법률",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
    },
+   "related_laws": [
+    {
+     "slug": "연안사고예방에관한법률",
+     "name": "연안사고 예방에 관한 법률"
+    }
+   ],
    "layer": "행정규칙",
    "식별자": {
     "행정규칙ID": "2090708",
@@ -2434,6 +2626,12 @@
     "name": "수상레저안전법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/09_레저관광/수상레저안전법"
    },
+   "related_laws": [
+    {
+     "slug": "수상레저안전법",
+     "name": "수상레저안전법"
+    }
+   ],
    "layer": "행정규칙",
    "식별자": {
     "행정규칙ID": "58464",
@@ -2785,6 +2983,12 @@
     "name": "신항만건설 촉진법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/신항만건설촉진법"
    },
+   "related_laws": [
+    {
+     "slug": "신항만건설촉진법",
+     "name": "신항만건설 촉진법"
+    }
+   ],
    "layer": "시행령",
    "식별자": {
     "법령ID": "004113"
@@ -2835,6 +3039,12 @@
     "name": "폐기물관리법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
    },
+   "related_laws": [
+    {
+     "slug": "폐기물관리법",
+     "name": "폐기물관리법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "001771"
@@ -2885,6 +3095,12 @@
     "name": "양식산업발전법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/양식산업발전법"
    },
+   "related_laws": [
+    {
+     "slug": "양식산업발전법",
+     "name": "양식산업발전법"
+    }
+   ],
    "layer": "법률",
    "식별자": {
     "법령ID": "013574"
@@ -2992,6 +3208,12 @@
     "name": "해운법",
     "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/04_선박해운/해운법"
    },
+   "related_laws": [
+    {
+     "slug": "해운법",
+     "name": "해운법"
+    }
+   ],
    "layer": "행정규칙",
    "식별자": {
     "행정규칙ID": "33167",
