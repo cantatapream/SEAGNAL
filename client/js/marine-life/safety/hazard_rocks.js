@@ -991,32 +991,45 @@
         if (!btn) return;
         var iconEl = btn.querySelector('i');
         var originalIconClass = iconEl ? iconEl.className : '';
-        var busy = false;
+        var loading = false;
 
         btn.addEventListener('click', function () {
-            if (busy) return;
+            // ★[버그 수정 2026-09-10] 켜짐/꺼짐은 자료 도착과 무관하게 이 자리에서 정한다.
+            //   예전에는 자료를 다 받은 뒤에야 정했다. 그래서 받는 동안(갯바위 4.7MB 등
+            //   휴대폰에서 몇 초) 들어온 "꺼라" 가 두 겹으로 버려졌다 —
+            //     ① 위쪽 위험지형 버튼은 "숨은 버튼이 아직 active 가 아니다" 를 보고
+            //        끄기 클릭 자체를 안 보냈고(bindTerrainToggle),
+            //     ② 보내더라도 여기 busy 빗장이 무시했다.
+            //   그러고는 자료가 도착하면 취소된 줄 모르고 레이어를 켜 버려,
+            //   버튼은 꺼진 것으로 보이는데 화면에는 바위가 그대로 남았다
+            //   (사용자 보고: 사고정보와 위험지형이 겹쳐 보임).
+            var want = !btn.classList.contains('active');
+            btn.classList.toggle('active', want);
 
             if (!exposedLayer || !rockLayer) {
-                busy = true;
+                // 이미 받는 중이면 위에서 바꿔 둔 표시가 도착 시점에 그대로 반영된다.
+                if (loading) return;
+                loading = true;
                 if (iconEl) iconEl.className = 'fa-solid fa-spinner fa-spin';
                 ensureLayersReady(map).then(function () {
                     if (iconEl) iconEl.className = originalIconClass;
-                    busy = false;
+                    loading = false;
                     applyToggle();
                 }).catch(function (e) {
                     console.warn('[HazardRocks] 데이터 로드 실패:', e.message);
                     if (iconEl) iconEl.className = originalIconClass;
-                    busy = false;
+                    loading = false;
+                    btn.classList.remove('active');   // 못 받았으면 켜진 척하지 않는다
                 });
                 return;
             }
             applyToggle();
 
+            /** 버튼 표시(active)를 지도에 그대로 반영한다 — 표시가 곧 사실이다. */
             function applyToggle() {
+                var visible = btn.classList.contains('active');
                 var layer = getLayer();
-                var visible = !layer.getVisible();
                 layer.setVisible(visible);
-                btn.classList.toggle('active', visible);
                 if (!visible && bubbleOverlay) bubbleOverlay.setPosition(undefined);
                 if (!visible) hideTideCurveOverlay();
                 // 갯바위 면은 노출암 마커와 한 몸 — 노출암 버튼을 따라간다.
