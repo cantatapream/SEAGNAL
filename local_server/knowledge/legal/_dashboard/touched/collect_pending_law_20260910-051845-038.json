@@ -1,0 +1,9 @@
+{
+ "script": "collect_pending_law",
+ "stamp": "20260910-051845-038",
+ "files": [
+  "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법/_대기/20260813/법률.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법/_대기/20260813/_meta.json",
+  "local_server/knowledge/legal/_dashboard/pending_index.json"
+ ]
+}

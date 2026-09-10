@@ -898,10 +898,28 @@
    * [연계] → GET /api/legal/drafts.
    * @param {HTMLElement} host - 카드를 담을 컨테이너
    */
-  function renderDraftCards(host) {
+  var draftPage = 1;              // 초안승인 방에서 보고 있는 쪽(방을 나갔다 와도 1쪽부터 다시)
+
+  /**
+   * 미승인 초안(draft) 목록을 서버에서 불러와 카드로 렌더한다.
+   *
+   * 2026-09-10 사용자 지적 두 가지를 함께 고쳤다:
+   *   ①**쪽 나누기가 없었다** — 224건이 한 화면에 통째로 쏟아졌다. 이제 한 쪽 20건 + « ‹ 1 2 3 4 5 › ».
+   *   ②**초안을 열어 볼 방법이 없었다** — 카드에 [📄 초안 보기]를 달았다.
+   *
+   * ★카드에 「미확인 N줄」을 함께 보여 준다. 이 방의 이름이 "초안승인"이라 페이지 전체가 막혀
+   *   있는 것처럼 읽히지만 **그렇지 않다** — draft 페이지도 챗봇이 그대로 쓰고, 그중 사람 검토가
+   *   안 끝난 **줄만** [미확인]으로 밀려난다(`_SCHEMA.md` §5). 그러니 승인해야 할 실체는
+   *   "페이지"가 아니라 **그 N줄**이다. 0줄이면 승격 후보다.
+   * [연계] → GET /api/legal/drafts?page=&per=20 · roomPagerHTML(지식 방과 같은 쪽 단추).
+   * @param {HTMLElement} host - 카드를 담을 컨테이너
+   * @param {number} [page] - 볼 쪽(없으면 마지막으로 보던 쪽)
+   */
+  function renderDraftCards(host, page) {
     if (!host) return;
+    draftPage = page || draftPage || 1;
     host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>초안 목록을 불러오는 중…</div>';
-    legalGet('/api/legal/drafts').then(function (res) {
+    legalGet('/api/legal/drafts?page=' + draftPage + '&per=20').then(function (res) {
       if (res.status === 401 || res.status === 403) {
         host.innerHTML = DRAFT_NOTE + adminLockHTML();
         return null;
@@ -918,14 +936,82 @@
         host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box"><span class="nrya-em">✅</span>대기 중인 초안이 없습니다.</div>';
         return;
       }
-      host.innerHTML = DRAFT_NOTE + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">총 ' + list.length + '건</div>' +
-        list.map(function (d) {
-          var st = d.penalty ? '<span class="nrya-rv-st nrya-warn">처벌 포함·사람승인</span>' : '<span class="nrya-rv-st nrya-wait">자동승격 대상</span>';
-          return '<div class="nrya-rv"><div class="nrya-rv-head"><span class="nrya-rv-id">draft</span><div class="nrya-rv-t">' + esc(d.topic || d.file) + '<small>' + esc(d.law || '') + '</small></div>' + st + '</div></div>';
-        }).join('');
+      host.innerHTML = DRAFT_NOTE +
+        '<div class="nrya-dual-note">이 방의 초안은 <b>챗봇이 이미 쓰고 있습니다.</b> 페이지가 통째로 막힌 것이 아니라, ' +
+          '사람 검토가 안 끝난 <b>줄만</b> 답변에서 「미확인」으로 표시돼 나갑니다(<code>_SCHEMA.md</code> §5). ' +
+          '그래서 승인해야 할 것은 페이지가 아니라 <b>아래 「미확인 N줄」</b>이고, <b>0줄이면 승격 후보</b>입니다.</div>' +
+        list.map(draftCardHTML).join('') +
+        roomPagerHTML({ page: data.page, pages: data.pages, total: data.total });
+      host.querySelectorAll('.nrya-rv').forEach(bindDraftCard);
+      host.querySelectorAll('.nrya-pager button[data-rpage]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (b.disabled) return;
+          renderDraftCards(host, parseInt(b.dataset.rpage, 10) || 1);
+        });
+      });
     }).catch(function (e) {
       host.innerHTML = DRAFT_NOTE + '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>';
     });
+  }
+
+  /**
+   * 초안 카드 한 장. 「미확인 N줄」이 이 초안이 대기 중인 **이유**이므로 상태 자리에 그것을 둔다.
+   * @param {object} d - {file,law,topic,penalty,unverified}
+   * @returns {string}
+   */
+  function draftCardHTML(d) {
+    var n = Number(d.unverified);
+    var st = n === 0 ? '<span class="nrya-rv-st nrya-done">미확인 0줄 · 승격 후보</span>'
+      : n > 0 ? '<span class="nrya-rv-st nrya-warn">미확인 ' + nfmt(n) + '줄</span>'
+      : '<span class="nrya-rv-st nrya-wait">본문을 읽지 못함</span>';
+    return '<div class="nrya-rv" data-file="' + esc(d.file) + '">' +
+      '<div class="nrya-rv-head"><span class="nrya-rv-id">draft</span>' +
+        '<div class="nrya-rv-t">' + esc(d.topic || d.file) + '<small>' + esc(d.law || '') +
+          (d.penalty ? ' · 처벌·수치 포함' : '') + '</small></div>' + st + '</div>' +
+      '<button class="nrya-btn-brief nrya-btn-draft" type="button">📄 초안 보기</button>' +
+      '<div class="nrya-draft-body nrya-hidden"></div>' +
+      '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
+      '</div>';
+  }
+
+  /**
+   * 카드의 [📄 초안 보기]를 묶는다 — 누르면 그 초안을 **챗봇이 쓰는 모습 그대로** 갈라서 펼친다:
+   * 위쪽에 「미확인」으로 밀려난 줄들(= 승인해야 할 것), 아래에 지금도 근거로 쓰이는 본문.
+   * 다시 누르면 접는다.
+   * @param {HTMLElement} card
+   * [연계] → GET /api/legal/drafts/detail?file=…
+   */
+  function bindDraftCard(card) {
+    var btn = card.querySelector('.nrya-btn-draft'); if (!btn) return;
+    var box = card.querySelector('.nrya-draft-body');
+    var LABEL = '📄 초안 보기';
+    btn.onclick = function () {
+      if (box.dataset.loaded === '1' && !box.classList.contains('nrya-hidden')) {
+        box.classList.add('nrya-hidden'); btn.textContent = LABEL; return;
+      }
+      if (box.dataset.loaded === '1') { box.classList.remove('nrya-hidden'); btn.textContent = '📄 접기'; return; }
+      btn.disabled = true; btn.textContent = '여는 중…';
+      legalGet('/api/legal/drafts/detail?file=' + encodeURIComponent(card.dataset.file)).then(function (res) {
+        return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+      }).then(function (d) {
+        btn.disabled = false;
+        if (!d || !d.ok) { btn.textContent = LABEL; showCardErr(card, (d && d.error) || '초안을 열지 못했습니다.'); return; }
+        btn.textContent = '📄 접기';
+        box.dataset.loaded = '1';
+        box.classList.remove('nrya-hidden');
+        var un = d.unverified || [];
+        box.innerHTML =
+          (un.length
+            ? '<div class="nrya-draft-sec nrya-draft-un"><div class="nrya-draft-lab">⚠ 사람 검토가 안 끝난 줄 ' + nfmt(un.length) + '줄 — <b>이것이 승인 대상입니다</b></div>' +
+                un.map(function (l) { return '<div class="nrya-draft-line">' + esc(l) + '</div>'; }).join('') + '</div>'
+            : '<div class="nrya-draft-sec nrya-draft-ok"><div class="nrya-draft-lab">✅ 사람 검토가 안 끝난 줄이 <b>없습니다</b> — 승격 후보입니다.</div></div>') +
+          '<div class="nrya-draft-sec"><div class="nrya-draft-lab">📖 지금도 그대로 근거로 쓰이는 본문</div>' +
+            '<pre class="nrya-draft-pre">' + esc(d.kept || '') + '</pre></div>';
+      }).catch(function (e) {
+        btn.disabled = false; btn.textContent = LABEL;
+        showCardErr(card, '네트워크 오류: ' + String(e && e.message || e));
+      });
+    };
   }
 
   // ============================================================================
@@ -1449,6 +1535,10 @@
           if (d && d._denied) { fail('관리자 로그인 필요'); return; }
           if (!d || !d.ok) { fail((d && d.error) || '전체 승인에 실패했습니다.'); return; }
           loadAmendList();                          // 목록을 새로 그린다(승인분은 대기 목록에서 빠진다)
+          // ★위쪽 서브탭 배지(개정검토 44)도 그 자리에서 다시 센다(2026-09-10 사용자 지적:
+          //   "승인을 했다면 위에 개정검토 44가 갱신되어야 하는데 갱신되지 않았어").
+          //   종전에는 배지를 방을 다시 열 때만 갱신해, 승인 뒤에도 옛 숫자가 남아 있었다.
+          refreshAdminStats();
           if (!d.decided) { fail('승인할 대기 건이 없습니다.'); return; }
           // 방금 승인한 건만 묶어 곧바로 펼친다 — 이게 다음 단계다.
           loadBulkBrief('?ids=' + encodeURIComponent((d.ids || []).join(',')),
@@ -1496,8 +1586,8 @@
     host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:8px"><button class="nrya-btn-ok" id="nryaAmendScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
       // ★일괄 처리 줄(2026-09-10 사용자 요청). 전체 승인은 **누르기 전에 무엇이 벌어지는지 먼저 보여준다**.
       '<div class="nrya-rv-actions" style="margin-bottom:10px">' +
-        '<button class="nrya-btn-ok" id="nryaAmendAllBtn" style="flex:1 1 auto;padding:8px 16px">✓ 전체 승인</button>' +
-        '<button class="nrya-btn-brief" id="nryaAmendAllBriefBtn" type="button" style="flex:1 1 auto;margin:0;padding:8px 16px">📋 승인분 전체 지시문</button>' +
+        '<button class="nrya-btn-ok" id="nryaAmendAllBtn" style="flex:1 1 auto;padding:8px 16px;white-space:nowrap">✓ 전체 승인</button>' +
+        '<button class="nrya-btn-brief" id="nryaAmendAllBriefBtn" type="button" style="flex:1 1 auto;margin:0;padding:8px 16px;white-space:nowrap">📋 승인분 전체 지시문</button>' +
       '</div>' +
       '<div class="nrya-inline-err nrya-hidden" id="nryaAmendScanErr" style="display:none"></div>' +
       '<div class="nrya-gauge nrya-hidden" id="nryaScanGauge"></div>' +
