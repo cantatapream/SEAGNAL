@@ -26,7 +26,8 @@
  * [출력]
  *   client/coastline_segments.json
  *     { generated_at, cell_deg, zones:["144-9",...], zone_centers:{"144-9":[lon,lat],...},
- *       segments:[ { z:"144-9", c:[lon,lat,...] } ] }
+ *       segments:[ { z:"144-9", c:[lon,lat,...], d:93 } ] }
+ *     d = 그 조각 둘레(약 227km²)에 있는 해안선 길이(km). 섬이 촘촘한 곳일수록 크다.
  *   - segments 의 c 는 [lon,lat,lon,lat,...] 평면 배열(용량 절약)
  *   - 한 조각은 같은 소해구에 속하는 연속된 해안선 점들이다. 소해구가 바뀌면 조각을 끊고,
  *     경계에서 색이 끊겨 보이지 않도록 다음 조각이 앞 조각의 끝점부터 시작한다.
@@ -81,6 +82,10 @@ const EXTRA_KEEP_BOXES = [
  */
 const MAX_GAP_DEG = 0.05;
 
+/** 위경도 1도가 몇 km 인지 — 우리 해역(위도 33~38도) 한가운데 기준. [연계] → measureDensity() */
+const KM_PER_LON = 91.0;
+const KM_PER_LAT = 111.0;
+
 // ────────────────────────────────────────────────────────────────────────────
 /**
  * 대해구 경계 파일을 읽어 "번호 → 사각형" 표와 "격자 원점 → 번호" 표를 만든다.
@@ -132,6 +137,46 @@ function zoneKeyOf(lon, lat, box, grid) {
     const c = Math.max(0, Math.min(2, Math.floor((lon - b.lonMin) / dlon)));
     const r = Math.max(0, Math.min(2, Math.floor((b.latMax - lat) / dlat)));
     return `${no}-${r * 3 + c + 1}`;
+}
+
+/**
+ * 조각마다 "그 둘레에 해안선이 얼마나 몰려 있는지"를 재어 넣는다(km).
+ * 예: 다도해의 한 조각 → d=141 (둘레 227km² 안에 해안선이 141km 있다)
+ * @param {Array<Object>} segs 조각 목록. 각 조각에 d 를 넣어 준다.
+ * @returns {void}
+ * [연계] → client/js/marine-life/swell/swell.js 가 이 값으로 그라데이션 띠를
+ *          얇게 줄인다. 섬이 촘촘한 곳(다도해·서해안 갯벌)은 띠가 서로 겹쳐
+ *          한 덩어리로 뭉쳐 보이기 때문이다(사용자 지적 2026-09-10).
+ *
+ * [재는 방법] 0.05° 격자(약 4.6×5.6km)에 해안선 길이를 넣어 두고,
+ *   조각 한가운데 칸과 그 둘레 8칸(3×3 = 약 13.7×16.7km = 227km²)의 길이를 더한다.
+ */
+function measureDensity(segs) {
+    const G = 0.05;
+    const cell = new Map();
+    const addLen = (lon, lat, km) => {
+        const k = Math.floor(lon / G) + '_' + Math.floor(lat / G);
+        cell.set(k, (cell.get(k) || 0) + km);
+    };
+    const segLen = (lon1, lat1, lon2, lat2) =>
+        Math.hypot((lon2 - lon1) * KM_PER_LON, (lat2 - lat1) * KM_PER_LAT);
+
+    for (const s of segs) {
+        const c = s.c;
+        for (let i = 0; i + 3 < c.length; i += 2) {
+            addLen(c[i], c[i + 1], segLen(c[i], c[i + 1], c[i + 2], c[i + 3]));
+        }
+    }
+    for (const s of segs) {
+        const c = s.c;
+        const mid = Math.floor(c.length / 4) * 2;   // 조각 한가운데 점
+        const gx = Math.floor(c[mid] / G), gy = Math.floor(c[mid + 1] / G);
+        let km = 0;
+        for (let ax = gx - 1; ax <= gx + 1; ax++) {
+            for (let ay = gy - 1; ay <= gy + 1; ay++) km += cell.get(ax + '_' + ay) || 0;
+        }
+        s.d = Math.round(km);
+    }
 }
 
 /**
@@ -285,6 +330,9 @@ function build() {
     const finalZones = new Set(kept.map(s => s.z));
     const zoneKeys = Array.from(finalZones).sort();
 
+    // 조각마다 둘레의 해안선 밀도(km/227km²)를 재어 넣는다.
+    measureDensity(kept);
+
     // 소해구 한가운데 좌표 — 앱이 등급을 부드럽게 섞을 때 쓴다.
     const centers = {};
     for (const k of zoneKeys) {
@@ -309,8 +357,12 @@ function build() {
     console.log(`[coastline_segments] 해안선 점 ${ptsIn}개(격자 밖 ${ptsSkipped}개 제외)`);
     console.log(`[coastline_segments] 우리나라 해안이 아니라 걸러낸 조각 ${dropped}개`
         + ` (일본·중국·북한 — 전자해도 해안선에서 ${KEEP_KM}km 초과)`);
+    const dens = kept.map(s => s.d).sort((a, b) => a - b);
     console.log(`[coastline_segments] 조각 ${kept.length}개 · 소해구 ${out.zones.length}개`
         + ` (한가운데 좌표 ${Object.keys(centers).length}개)`);
+    console.log(`[coastline_segments] 둘레 227km² 안의 해안선 길이 — 중앙 ${dens[Math.floor(dens.length / 2)]}km`
+        + ` · 100km 이상 ${dens.filter(d => d >= 100).length}개`
+        + ` · 130km 이상 ${dens.filter(d => d >= 130).length}개`);
     console.log(`[coastline_segments] 저장 ${OUT_PATH} (${(bytes / 1024).toFixed(0)}KB, ${((Date.now() - t0) / 1000).toFixed(1)}s)`);
 }
 
