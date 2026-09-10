@@ -72,17 +72,42 @@
      * 띠는 흐리게 번지므로 실제로 보이는 폭은 이보다 넓다.
      */
     const BAND_BY_ZOOM = [
-        { maxZoom: 7, band: 10, core: 1.2 },
-        { maxZoom: 9, band: 13, core: 1.6 },
-        { maxZoom: 11, band: 15, core: 2.2 },
-        { maxZoom: 99, band: 18, core: 2.6 }
+        { maxZoom: 7, band: 6.5, core: 1.2 },
+        { maxZoom: 9, band: 9, core: 1.6 },
+        { maxZoom: 11, band: 13, core: 2.2 },
+        { maxZoom: 99, band: 17, core: 2.6 }
     ];
     /** 띠 굵기 대비 흐림 반경. 클수록 더 뭉개진다. */
     const BLUR_RATIO = 0.55;
-    /** 띠의 진하기(0~1). 겹치는 곳은 더 진해진다. */
+    /**
+     * 띠의 진하기(0~1). 캔버스에는 불투명하게 그리고 옮겨 담을 때 이 값을 한 번 먹인다 —
+     * 반투명한 선을 여러 번 겹쳐 그리면 겹치는 자리마다 더 진해져 얼룩이 진다.
+     * (실측 2026-09-10: 0.85 로 그렸는데 진하기 90~100% 인 점이 12,804개 나왔다.
+     *  섬이 많은 다도해·서해안이 특히 지저분했다.)
+     */
     const BAND_ALPHA = 0.85;
     /** 색을 이 간격으로 반올림해 같은 색끼리 묶어 그린다(그리는 횟수를 줄이려고). */
     const COLOR_STEP = 0.08;
+
+    /**
+     * 해안선이 몰린 곳은 띠를 의도적으로 얇게 그린다(사용자 확정 2026-09-10).
+     * 섬이 촘촘한 다도해·서해안 갯벌에서는 띠끼리 겹쳐 한 덩어리로 뭉쳐 보이기 때문이다.
+     *
+     * 기준은 조각마다 미리 재어 둔 값(coastline_segments.json 의 `d`) —
+     * **그 조각 둘레 약 227km²(14×17km) 안에 해안선이 몇 km 있는가**이다.
+     *
+     * 실측(2026-09-10, 조각 1,123개): 전체 중앙 66km · 75% 94km · 95% 129km.
+     * 지역별로는 다도해(신안·진도) 화면 안 258조각의 중앙이 92km,
+     * 동해안(강릉·삼척) 화면 안 15조각의 중앙이 25km 다 — 이 차이에 맞춰 나눴다.
+     * (처음엔 100/130km 로 잡았다가, 그러면 다도해 조각의 절반 이상이 "보통"으로
+     *  분류돼 아무것도 안 줄어드는 것을 실측으로 확인하고 낮췄다.)
+     */
+    const DENSE_STEPS = [
+        { km: 120, scale: 0.38 },   // 아주 몰림 — 다도해 안쪽·서해안 갯벌
+        { km: 90, scale: 0.55 },    // 많이 몰림
+        { km: 60, scale: 0.75 },    // 조금 몰림
+        { km: 0, scale: 1.00 }      // 보통 — 그대로
+    ];
 
     // ========================================================================
     // 상태
@@ -309,6 +334,25 @@
         if (bandLayer) bandLayer.getSource().changed();
     }
 
+    /** 양자화한 값 → 색 문자열. 선분마다 새로 만들면 1만 번 문자열이 생긴다. */
+    const _bandColorCache = new Map();
+
+    /**
+     * 띠에 쓸 색 문자열을 준다(같은 값이면 만들어 둔 것을 그대로 준다).
+     * 예: _bandColor(2.4) → "rgba(234,176,55,1)"
+     * @param {number} q - COLOR_STEP 간격으로 반올림한 값
+     * @returns {string} CSS 색
+     * [연계] ← _renderBand()
+     */
+    function _bandColor(q) {
+        let c = _bandColorCache.get(q);
+        if (!c) {
+            c = _rgba(_colorAt(q), 1);
+            _bandColorCache.set(q, c);
+        }
+        return c;
+    }
+
     /**
      * 연속값(1~4)을 색으로 바꾼다 — 등급 색 네 가지를 이어 붙인 색표.
      * 예: _colorAt(2.5) → 주의(연노랑)와 경계(주황)의 한가운데 색
@@ -352,6 +396,20 @@
             if (zoom <= step.maxZoom) return step;
         }
         return BAND_BY_ZOOM[BAND_BY_ZOOM.length - 1];
+    }
+
+    /**
+     * 조각이 어느 "몰린 정도" 단계에 드는지 그 번호를 준다.
+     * 예: _denseIndex(141) → 0 (DENSE_STEPS[0] = 아주 몰린 곳, 굵기 0.38배)
+     * @param {number} d - 그 조각 둘레 227km² 안의 해안선 길이(km)
+     * @returns {number} DENSE_STEPS 의 자리 번호
+     * [연계] ← _renderBand() / 값은 build_coastline_segments.js 의 measureDensity()
+     */
+    function _denseIndex(d) {
+        for (let i = 0; i < DENSE_STEPS.length; i++) {
+            if (d >= DENSE_STEPS[i].km) return i;
+        }
+        return DENSE_STEPS.length - 1;
     }
 
     /** 같은 모양을 매 프레임 새로 만들지 않도록 담아 둔다. 키는 "색@굵기". */
@@ -407,54 +465,81 @@
         if (!segments) return canvas;
 
         const w = _widthsAt(_zoomOf(resolution)).band * pixelRatio;
-        const blur = w * BLUR_RATIO;
-
-        const off = document.createElement('canvas');
-        off.width = size[0];
-        off.height = size[1];
-        const octx = off.getContext('2d');
-        octx.lineCap = 'round';
-        octx.lineJoin = 'round';
-        octx.lineWidth = w;
-
-        // 화면 밖 선분은 건너뛴다. 띠가 번지는 만큼 여유를 둔다.
-        const pad = (w + blur * 2) * resolution / pixelRatio;
-        const minX = extent[0] - pad, maxX = extent[2] + pad;
-        const minY = extent[1] - pad, maxY = extent[3] + pad;
         const k = pixelRatio / resolution;
 
-        // 같은 색끼리 몰아서 한 번에 그린다(색을 COLOR_STEP 간격으로 반올림).
-        let curColor = null;
-        let open = false;
+        // 화면 밖 선분은 건너뛴다. 가장 굵은 띠가 번지는 만큼 여유를 둔다.
+        const pad = (w + w * BLUR_RATIO * 2) * resolution / pixelRatio;
+        const minX = extent[0] - pad, maxX = extent[2] + pad;
+        const minY = extent[1] - pad, maxY = extent[3] + pad;
+
+        // 몰린 정도가 같은 것끼리 모아 한 장씩 그린다. 흐림은 캔버스 한 장에 한 번만
+        // 걸 수 있는데, 얇게 그린 띠에 굵은 띠와 같은 흐림을 걸면 다시 넓게 퍼져
+        // 얇게 그린 뜻이 없어지기 때문이다.
+        // 조각은 딱 한 번만 훑는다 — 단계마다 훑으면 전국 화면에서 선분 1만 개를
+        // 네 번 검사하게 돼 느려진다(실측: 4번 훑을 때 한 장 그리는 데 90ms).
+        const merged = document.createElement('canvas');
+        merged.width = size[0];
+        merged.height = size[1];
+        const mctx = merged.getContext('2d');
+
+        // 색마다 길을 따로 모아 두었다가 색당 딱 한 번씩 그린다.
+        // 조각 순서대로 그리면 색이 계속 바뀌어 그리기 명령이 잘게 쪼개진다
+        // (실측: 전국 화면에서 선분 10,504개가 2,279번으로 쪼개져 59ms 걸렸다).
+        const lanes = DENSE_STEPS.map(function (step) {
+            const off = document.createElement('canvas');
+            off.width = size[0];
+            off.height = size[1];
+            const octx = off.getContext('2d');
+            octx.lineCap = 'round';
+            octx.lineJoin = 'round';
+            octx.lineWidth = w * step.scale;
+            return { step: step, off: off, octx: octx, paths: new Map(), drew: false };
+        });
+
         for (const seg of segments) {
             const m = seg._m, v = seg._v;
             if (!v || m.length < 4) continue;
+            const lane = lanes[_denseIndex(seg.d || 0)];
             for (let i = 0; i + 3 < m.length; i += 2) {
                 const x0 = m[i], y0 = m[i + 1], x1 = m[i + 2], y1 = m[i + 3];
                 if ((x0 < minX && x1 < minX) || (x0 > maxX && x1 > maxX)) continue;
                 if ((y0 < minY && y1 < minY) || (y0 > maxY && y1 > maxY)) continue;
                 const vm = (v[i / 2] + v[i / 2 + 1]) / 2;
                 if (!(vm > 0)) continue;
-                const q = Math.round(vm / COLOR_STEP) * COLOR_STEP;
-                const color = _rgba(_colorAt(q), BAND_ALPHA);
-                if (color !== curColor) {
-                    if (open) octx.stroke();
-                    octx.strokeStyle = color;
-                    octx.beginPath();
-                    curColor = color;
-                    open = true;
+                const q = Math.round(vm / COLOR_STEP);
+                // 불투명하게 그린다 — 투명도는 맨 마지막에 한 번만 먹인다.
+                const color = _bandColor(q * COLOR_STEP);
+                let path = lane.paths.get(color);
+                if (!path) {
+                    path = new Path2D();
+                    lane.paths.set(color, path);
                 }
-                octx.moveTo((x0 - extent[0]) * k, (extent[3] - y0) * k);
-                octx.lineTo((x1 - extent[0]) * k, (extent[3] - y1) * k);
+                path.moveTo((x0 - extent[0]) * k, (extent[3] - y0) * k);
+                path.lineTo((x1 - extent[0]) * k, (extent[3] - y1) * k);
+                lane.drew = true;
             }
         }
-        if (open) octx.stroke();
 
-        // 흐림은 여기서 딱 한 번. 지원하지 않는 브라우저(구형 사파리)에서는
-        // filter 가 무시돼 흐리지 않은 굵은 띠가 그대로 보인다 — 색은 맞다.
-        ctx.filter = 'blur(' + blur.toFixed(1) + 'px)';
-        ctx.drawImage(off, 0, 0);
-        ctx.filter = 'none';
+        for (const lane of lanes) {
+            if (!lane.drew) continue;
+            lane.paths.forEach(function (path, color) {
+                lane.octx.strokeStyle = color;
+                lane.octx.stroke(path);
+            });
+            // 이 단계의 굵기에 맞춘 흐림으로 옮겨 담는다(투명도는 아직 먹이지 않는다 —
+            // 여기서 반투명하게 겹치면 단계가 만나는 자리가 진해져 얼룩이 진다).
+            mctx.filter = 'blur(' + (w * lane.step.scale * BLUR_RATIO).toFixed(1) + 'px)';
+            mctx.drawImage(lane.off, 0, 0);
+            mctx.filter = 'none';
+        }
+
+        // 투명도는 여기서 딱 한 번. 그림 한 장을 통째로 옮겨 담으므로 선이 몇 겹
+        // 겹쳤든 진하기가 고르다(겹칠 때마다 진해지던 얼룩이 없어진다).
+        // 흐림을 지원하지 않는 브라우저(구형 사파리)에서는 filter 가 무시돼
+        // 흐리지 않은 띠가 그대로 보인다 — 색과 진하기는 맞다.
+        ctx.globalAlpha = BAND_ALPHA;
+        ctx.drawImage(merged, 0, 0);
+        ctx.globalAlpha = 1;
         return canvas;
     }
 
