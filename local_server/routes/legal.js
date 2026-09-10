@@ -608,14 +608,66 @@ router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => 
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
-// GET /api/legal/drafts — 초안승인 탭 목록(index.json의 status=draft 개념 페이지, 법·주제·처벌포함여부)
+// 초안승인 방이 쓰는 표시([미확인] 머리표). legal_retriever 가 본문에 넣는 것과 **같은 글자**여야
+// 한다 — 이 글자로 "확정 서술"과 "사람 검토가 안 끝난 줄"을 가른다.
+const UNVERIFIED_MARK = '[미확인 — 아래는 사람 검토가 끝나지 않은 내용이다.';
+
+/**
+ * 초안 한 쪽을 **챗봇이 실제로 쓰는 모습 그대로** 갈라서 돌려준다.
+ * 운영 코드(`legal_retriever.markUnresolvedReview`)를 그대로 불러 쓴다 — 규칙을 여기서 다시
+ * 구현하면 화면과 실제 답변이 어긋나기 때문이다.
+ * @param {string} file - 개념 페이지 파일명(확장자 없음)
+ * @returns {{ok:boolean, body:string, kept:string, unverified:Array<string>, error?:string}}
+ *   kept: 지금도 그대로 근거로 쓰이는 부분 · unverified: [미확인]으로 밀려난 줄들
+ * [연계] ← GET /api/legal/drafts/detail.
+ */
+function splitDraftBody(file) {
+  const page = legalRetriever.readPage('concept', file);
+  if (!page) return { ok: false, body: '', kept: '', unverified: [], error: '페이지를 찾지 못했습니다: ' + file };
+  const body = page.body || '';
+  const out = legalRetriever.markUnresolvedReview(body);
+  const i = out.indexOf(UNVERIFIED_MARK);
+  const kept = i < 0 ? out : out.slice(0, i);
+  const unverified = i < 0 ? [] : out.slice(i).split('\n').slice(1).map((l) => l.trim()).filter(Boolean);
+  return { ok: true, body, kept, unverified };
+}
+
+// GET /api/legal/drafts?page=1&per=20 — 초안승인 탭 목록(index.json의 status=draft 개념 페이지).
+//   ★2026-09-10 사용자 요청으로 **쪽 나누기**를 넣었다(224건이 한 화면에 통째로 쏟아졌다).
+//   카드마다 **[미확인]으로 밀려난 줄이 몇 줄인지**(unverified)를 함께 준다 — "이 초안이 왜
+//   대기 중인가"가 그 숫자이기 때문이다. 0이면 승격 후보다.
 router.get('/api/legal/drafts', adminAuth.requireAdminToken, (req, res) => {
   try {
-    const drafts = (loadIndex().pages || [])
+    const all = (loadIndex().pages || [])
       .filter(p => p.kind === 'concept' && p.status === 'draft')
-      .map(p => ({ file: p.file, law: p.law, topic: p.topic, penalty: !!p.penalty }))
-      .sort((a, b) => (a.law || '').localeCompare(b.law || ''));
-    res.json({ ok: true, count: drafts.length, drafts });
+      .sort((a, b) => (a.law || '').localeCompare(b.law || '') || (a.topic || '').localeCompare(b.topic || ''));
+    const per = Math.max(1, Math.min(100, parseInt(req.query.per, 10) || 20));
+    const pages = Math.max(1, Math.ceil(all.length / per));
+    const page = Math.max(1, Math.min(pages, parseInt(req.query.page, 10) || 1));
+    const drafts = all.slice((page - 1) * per, page * per).map((p) => {
+      const r = splitDraftBody(p.file);
+      return { file: p.file, law: p.law, topic: p.topic, penalty: !!p.penalty,
+               unverified: r.ok ? r.unverified.length : -1 };
+    });
+    res.json({ ok: true, count: all.length, total: all.length, page, pages, per, drafts });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/drafts/detail?file=<파일명> — 초안 한 쪽의 내용을 본다(사용자 요청 2026-09-10:
+//   "해당 페이지에서 초안을 확인할 수 있는 방안이 현재 없어").
+//   ★그냥 본문을 주지 않고 **챗봇이 쓰는 모습 그대로 갈라서** 준다 — 지금도 근거로 쓰이는 부분과
+//   [미확인]으로 밀려난 줄을 나눠 줘야, 관리자가 "무엇을 승인해야 하는지"를 바로 본다.
+//   파일명에 `ㆍ`·괄호가 섞여 있어 경로가 아니라 쿼리로 받는다.
+router.get('/api/legal/drafts/detail', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ ok: false, error: 'file 이 필요합니다.' });
+    const meta = (loadIndex().pages || []).find(p => p.kind === 'concept' && p.file === file);
+    if (!meta) return res.status(404).json({ ok: false, error: '개념 페이지를 찾지 못했습니다: ' + file });
+    const r = splitDraftBody(file);
+    if (!r.ok) return res.status(404).json({ ok: false, error: r.error });
+    res.json({ ok: true, file, law: meta.law, topic: meta.topic, status: meta.status,
+               penalty: !!meta.penalty, kept: r.kept, unverified: r.unverified, body: r.body });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
