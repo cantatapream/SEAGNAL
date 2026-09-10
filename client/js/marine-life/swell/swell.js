@@ -30,15 +30,20 @@
     // 상수
     // ========================================================================
 
-    /** 등급(1~4) → 이름·색. MMIS 너울 범례와 같은 색 계열. */
+    /**
+     * 등급(1~4) → 이름 · 선 색(rgb) · 빛번짐 세기.
+     * 색은 MMIS 너울 범례와 같은 계열이다.
+     * glow 는 "위험할수록 더 밝게 번지게" 하려고 등급마다 다르게 준다 —
+     * 꾸미기가 아니라, 멀리서 봐도 위험한 해안이 먼저 눈에 띄게 하려는 것이다.
+     */
     const LEVELS = {
-        1: { name: '관심', color: '#1FA24A' },
-        2: { name: '주의', color: '#E4D64B' },
-        3: { name: '경계', color: '#F08A24' },
-        4: { name: '위험', color: '#E03131' }
+        1: { name: '관심', rgb: [31, 162, 74], glow: 0.30 },
+        2: { name: '주의', rgb: [228, 214, 75], glow: 0.40 },
+        3: { name: '경계', rgb: [240, 138, 36], glow: 0.55 },
+        4: { name: '위험', rgb: [224, 49, 49], glow: 0.75 }
     };
-    /** 등급을 못 받은 해안(자료 없음). */
-    const NO_DATA_COLOR = '#9aa3ad';
+    /** 등급을 못 받은 해안(자료 없음). 빛번짐 없이 흐리게만 둔다. */
+    const NO_DATA_RGB = [154, 163, 173];
 
     const SEGMENTS_URL = '/coastline_segments.json';
     const LEVELS_URL = '/api/swell-smallzone?coast=1';
@@ -46,8 +51,25 @@
     const KOREA_CENTER = ol.proj.fromLonLat([127.8, 35.9]);
     const DEFAULT_ZOOM = 7;
 
-    /** 해안선 굵기(px). 전국(줌7)에서도 색이 보이고, 확대해도 과하지 않은 값. */
-    const BASE_WIDTH = 3;
+    /**
+     * 확대 정도(줌)별 해안선 심지 굵기(px).
+     * 전국을 볼 때(줌 7 이하)는 선이 얇으면 점점이 흩어져 보이고,
+     * 확대했을 때(줌 12 이상)는 너무 굵으면 해안 모양을 가린다.
+     */
+    const CORE_WIDTH_BY_ZOOM = [
+        { maxZoom: 7, width: 3.0 },
+        { maxZoom: 9, width: 4.0 },
+        { maxZoom: 11, width: 5.0 },
+        { maxZoom: 99, width: 6.5 }
+    ];
+
+    /**
+     * 겹쳐 그리는 네 겹의 굵기 배수(심지 대비).
+     * 바깥은 넓고 흐리게, 안쪽은 좁고 진하게, 맨 위 가는 줄은 광택 몫이다.
+     */
+    const GLOW_OUTER_SCALE = 3.2;
+    const GLOW_INNER_SCALE = 1.9;
+    const SHEEN_SCALE = 0.38;
 
     // ========================================================================
     // 상태
@@ -74,7 +96,14 @@
             return;
         }
 
-        coastLayer = new ol.layer.Vector({ source: new ol.source.Vector() });
+        // 스타일을 조각마다 박아두지 않고 레이어 함수로 준다 — 그래야 확대·축소할 때마다
+        // 다시 계산돼 줌에 맞는 굵기가 적용된다(조각에 박아두면 처음 굵기로 고정된다).
+        coastLayer = new ol.layer.Vector({
+            source: new ol.source.Vector(),
+            style: function (feature, resolution) {
+                return _styleFor(feature.get('level'), resolution);
+            }
+        });
 
         swellMap = new ol.Map({
             target: 'swell-map',
@@ -167,24 +196,101 @@
             const f = new ol.Feature({ geometry: new ol.geom.LineString(coords) });
             f.set('zoneKey', seg.z);
             f.set('level', lv || null);
-            f.setStyle(_styleFor(lv));
             features.push(f);
         }
         src.addFeatures(features);
     }
 
     /**
-     * 등급에 맞는 선 모양을 만든다.
-     * 예: _styleFor(4) → 빨간 굵은 선
-     * @param {number|undefined} lv - 등급 1~4. 없으면 회색(자료 없음).
-     * @returns {ol.style.Style}
-     * [연계] ← _draw()
+     * 색을 어둡게(-) 또는 밝게(+) 만든다.
+     * 예: _shade([224,49,49], -0.55) → [101,22,22] (위험색을 어둡게)
+     * @param {Array<number>} rgb - [r,g,b] 0~255
+     * @param {number} f - -1(검정)~+1(흰색) 사이 비율
+     * @returns {Array<number>} 바뀐 [r,g,b]
+     * [연계] ← _styleFor() 가 바깥 그림자·안쪽 심지 색을 만들 때 쓴다.
      */
-    function _styleFor(lv) {
-        const color = (LEVELS[lv] && LEVELS[lv].color) || NO_DATA_COLOR;
-        return new ol.style.Style({
-            stroke: new ol.style.Stroke({ color: color, width: BASE_WIDTH })
+    function _shade(rgb, f) {
+        const t = f < 0 ? 0 : 255;
+        const k = Math.abs(f);
+        return rgb.map(v => Math.round(v + (t - v) * k));
+    }
+
+    /** [r,g,b] + 투명도 → CSS 색 문자열. [연계] ← _styleFor() */
+    function _rgba(rgb, a) {
+        return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+    }
+
+    /**
+     * 지도 축척(resolution)을 줌 단계로 되돌린다.
+     * 예: _zoomOf(2445) → 약 6 (전국이 보이는 정도)
+     * @param {number} resolution - OpenLayers 가 스타일 함수에 넘겨주는 값(m/px)
+     * @returns {number} 줌 단계
+     * [연계] ← _styleFor()
+     *          스타일 함수에는 지도가 아니라 축척만 들어와서 줌을 직접 구해야 한다.
+     *          156543.034 는 웹 지도 줌 0 의 축척(적도 기준 m/px)이다.
+     */
+    function _zoomOf(resolution) {
+        return Math.log2(156543.03392804097 / resolution);
+    }
+
+    /** 줌 단계에 맞는 심지 굵기(px). [연계] ← _styleFor() */
+    function _coreWidth(zoom) {
+        for (const step of CORE_WIDTH_BY_ZOOM) {
+            if (zoom <= step.maxZoom) return step.width;
+        }
+        return CORE_WIDTH_BY_ZOOM[CORE_WIDTH_BY_ZOOM.length - 1].width;
+    }
+
+    /** 같은 모양을 매 프레임 새로 만들지 않도록 담아 둔다. 키는 "등급@굵기". */
+    const _styleCache = new Map();
+
+    /**
+     * 등급에 맞는 선 모양(빛번짐 2겹 + 심지 + 광택 1겹)을 만든다.
+     * 예: _styleFor(4, 2445) → 빨간 심지 3px + 그 둘레로 번지는 붉은 빛 + 가운데 광택
+     * @param {number|undefined} lv - 등급 1~4. 없으면 회색(자료 없음).
+     * @param {number} resolution - 지도 축척(m/px)
+     * @returns {Array<ol.style.Style>} 아래에서 위 순서 — 바깥번짐 · 안쪽번짐 · 심지 · 광택
+     * [연계] ← 지도 레이어의 스타일 함수(initSwellMap 에서 지정)
+     *
+     * [왜 네 겹인가]
+     *   OpenLayers 의 선에는 그림자·번짐 설정이 없다. 그래서 같은 선을
+     *   "넓고 아주 흐리게 → 좁고 조금 진하게 → 가늘고 선명하게" 겹쳐 그려
+     *   빛이 번지는 것처럼 보이게 한다. 맨 위 가는 줄 하나를 더 밝게 얹으면
+     *   선 가운데가 반짝이는 것처럼 보인다(심지 자체를 밝히면 색이 옅어져 등급을
+     *   알아보기 어려워지므로, 심지는 제 색 그대로 두고 광택만 따로 얹는다).
+     */
+    function _styleFor(lv, resolution) {
+        const zoom = _zoomOf(resolution);
+        const w = _coreWidth(zoom);
+        const key = (lv || 0) + '@' + w;
+        const hit = _styleCache.get(key);
+        if (hit) return hit;
+
+        const def = LEVELS[lv];
+        const rgb = (def && def.rgb) || NO_DATA_RGB;
+        const glow = def ? def.glow : 0;          // 자료 없음은 번지지 않는다
+        const round = { lineCap: 'round', lineJoin: 'round' };
+        const stroke = (color, width) => new ol.style.Style({
+            stroke: new ol.style.Stroke(Object.assign({ color, width }, round))
         });
+
+        const styles = [];
+        if (glow > 0) {
+            // 바깥: 제 색을 조금 어둡게 깐다. 밝은 기본지도 위에서도 선이 떠 보이게 하는
+            // 그림자 몫이다. 너무 어둡게 하면 주황·노랑이 탁해 보이므로 살짝만 낮춘다.
+            styles.push(stroke(_rgba(_shade(rgb, -0.35), 0.14 + glow * 0.16), w * GLOW_OUTER_SCALE));
+            // 가운데: 제 색 그대로 번진다.
+            styles.push(stroke(_rgba(rgb, 0.30 + glow * 0.40), w * GLOW_INNER_SCALE));
+        }
+        // 심지: 제 색 그대로. 등급 색을 알아보는 건 이 줄이다.
+        styles.push(stroke(_rgba(rgb, glow > 0 ? 1 : 0.85), w));
+        if (glow > 0) {
+            // 광택: 심지 위에 가는 밝은 줄. 선 가운데가 빛나는 것처럼 보이게 한다.
+            styles.push(stroke(_rgba(_shade(rgb, 0.62), 0.28 + glow * 0.45), Math.max(1, w * SHEEN_SCALE)));
+        }
+
+        _styleCache.set(key, styles);
+        return styles;
     }
 
     // ========================================================================
@@ -205,7 +311,8 @@
         legendEl.className = 'fishing-legend';
 
         [1, 2, 3, 4, null].forEach(function (lv) {
-            var color = (LEVELS[lv] && LEVELS[lv].color) || NO_DATA_COLOR;
+            var rgb = (LEVELS[lv] && LEVELS[lv].rgb) || NO_DATA_RGB;
+            var color = 'rgb(' + rgb.join(',') + ')';
             var name = (LEVELS[lv] && LEVELS[lv].name) || '정보없음';
             var item = document.createElement('span');
             item.className = 'fishing-legend-item';
