@@ -1,12 +1,13 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/safety/life_safety.js
- * 역할  : "해양안전생활" 화면 — 하단 해양생활 탭을 10번 연달아 누르면 열리는 시험용 화면.
- *         하위탭을 [해양안전 | 해양생활] 로 바꾸고, 해양생활 쪽은 6개 활동(바다낚시·서핑·
+ * 역할  : "해양안전생활" 화면 — 하단 메인 탭 4개 중 세 번째 정식 탭이다(2026-09-10 사용자 확정.
+ *         그 전까지는 하단 "해양생활" 탭을 10번 연달아 눌러야 열리는 숨은 화면이었다).
+ *         하위탭 [해양안전 | 해양생활] 중 해양생활 쪽은 6개 활동(바다낚시·서핑·
  *         해수욕·스킨스쿠버·갯벌체험·바다갈라짐)을 화면 오른쪽 세로 버튼으로 갈아끼우며,
  *         배경지도(기본맵·전자해도·해안도·세계지도)를 해양종합정보와 같은 방식으로 고른다.
  *         여기에 더해 위성지도(브이월드)는 시험 단계라 이 화면에서만 고를 수 있다.
- *         새로고침(앱 재시작)하면 원래 해양생활 화면으로 돌아온다 — 저장하지 않음.
+ *         탭이 새로 생긴 것을 알리는 빨간 N 배지도 여기서 붙인다(배포일 포함 3일간만).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 해아름 WMS 레이어,
@@ -16,8 +17,10 @@
  *                    forecast/alerts/marine.js(TAB_GROUP_SUBTABS·SECTION_TO_GROUP·switchSubTab)
  *  - 서버 API      : 없음 (활동별 데이터 호출은 각 활동 모듈이 기존대로 담당)
  *  - 마크업        : index2.html 의 #ocean-safety-section, #ocean-safety-sub-tabs,
- *                    #ls-topleft-controls, #ls-rail
- *  - 나를 쓰는 곳  : 없음 — 스스로 하단 해양생활 탭 클릭을 세어 진입한다
+ *                    #ls-topleft-controls, #ls-rail,
+ *                    .main-tabs .tab-btn[data-target="ocean-life-group"](N 배지를 붙이는 탭) ·
+ *                    style.css 의 .new-badge(공지사항 탭과 같은 배지 스타일)
+ *  - 나를 쓰는 곳  : 없음 — 앱이 뜨면 스스로 이 화면의 표시 규칙(body.ls-mode)을 켠다
  * [로드 순서] js/core/index2_patch.js 다음 — index2_patch 가 감싼 switchMainTab/
  *             switchSubTab 위에 한 겹 더 얹어야 하므로 반드시 그 뒤 · 순서 변경 금지
  * ============================================================================
@@ -91,6 +94,35 @@
      */
     function _enableSafetyChrome() {
         document.body.classList.add('ls-mode');
+    }
+
+    // ── 신규 표시(N) — 하단 "해양안전생활" 탭 [사용자 확정 2026-09-10] ──────────
+    //   탭이 새로 생긴 것을 알리려고, 공지사항 탭이 새 글에 붙이는 것과 똑같은
+    //   빨간 N 배지(.new-badge)를 배포일 포함 3일간만 붙인다.
+    //   공지사항(promo.js)은 "글이 올라온 지 하루가 지났나"를 매번 따져 붙였다 뗐다
+    //   하지만, 여기서 붙이는 이유는 "탭이 새로 생겼다" 하나뿐이라 끝나는 시각만
+    //   상수로 둔다 — 그 시각이 지나면 이 함수는 아무것도 하지 않는다(코드는 남지만
+    //   화면에는 안 나온다).
+    //   2026-09-12 24:00 KST = 2026-09-12 15:00 UTC.
+    var NEW_BADGE_UNTIL = Date.UTC(2026, 8, 12, 15, 0, 0);
+
+    /**
+     * 하단 "해양안전생활" 탭에 빨간 N 배지를 붙인다(3일 지나면 안 붙임).
+     * 예: 2026-09-11 에 앱을 켜면 "해양안전생활" 글자 옆에 N 이 붙고,
+     *     2026-09-13 에 켜면 아무것도 안 붙는다.
+     * [연계] → index2.html 의 .new-badge 스타일(공지사항 탭과 공용) ·
+     *          .main-tabs .tab-btn[data-target="ocean-life-group"]
+     */
+    function _markNewBadge() {
+        if (Date.now() >= NEW_BADGE_UNTIL) return;
+        var btn = document.querySelector('.main-tabs .tab-btn[data-target="ocean-life-group"]');
+        if (!btn || btn.querySelector('.new-badge')) return;
+        var badge = document.createElement('span');
+        badge.className = 'new-badge';
+        badge.textContent = 'N';
+        // 라벨 span 안에 넣어야 탭 높이가 안 늘어난다(promo.js 와 같은 이유 —
+        // 버튼 직접 자식으로 붙이면 아이콘·라벨 아래 3번째 줄로 쌓여 탭이 잘린다).
+        (btn.querySelector('.tab-btn-label') || btn).appendChild(badge);
     }
 
     // ========================================================================
@@ -887,6 +919,7 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         _enableSafetyChrome();
+        _markNewBadge();
         _bindControls();
         _wrapTabSwitchers();
         _watchMudflatToggle();
