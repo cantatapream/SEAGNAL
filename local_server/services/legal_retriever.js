@@ -1017,8 +1017,11 @@ function sliceRelevant(body, terms, maxChars) {
  * ⚠뒷말이 여러 가지다 — 실측(2026-09-10, `wiki/concepts` 전수): `draft — 미승인`(대다수) 말고도
  *   `draft로 환원(…)` 10 · `draft 유지(H-34 재트리아지)` 4 · `draft — 사람 승인 대기.` 2 가 있다.
  *   처음에 `미승인` 까지 붙여 잡았다가 이 변형들을 놓쳐, **`**draft` 로 시작하는 줄**을 기준으로 넓혔다.
+ * ⚠앞머리 기호도 한 가지가 아니다 — `⚠`(U+26A0) 만 허용했더니 **변이선택자가 붙은 `⚠️`(U+26A0 U+FE0F)**
+ *   와 `🟡` 를 놓쳐 275줄 중 7줄이 그대로 밀려났다(2026-09-10 담당 에이전트가 찾아냈다).
+ *   그래서 앞머리는 **글자·숫자가 아닌 문자 4개까지** 허용한다(기호가 무엇이든 상관없게).
  */
-const DRAFT_BANNER = /^\s*>?\s*⚠?\s*\*\*draft\b/i;
+const DRAFT_BANNER = /^\s*>?\s*[^\p{L}\p{N}*]{0,4}\s*\*\*draft\b/iu;
 
 function markUnresolvedReview(body) {
   if (!body) return body;
