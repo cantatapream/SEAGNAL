@@ -70,8 +70,21 @@ console.log('── 쓸모없는 REVIEW 언급은 계속 버린다 ──');
   ok('날짜로 시작하는 표 행의 REVIEW 도 버린다', !R.markUnresolvedReview(body).includes(HEAD));
 }
 {
+  // 2026-09-10 사용자 확정("고치자")으로 **동작이 바뀌었다.** 종전에는 "이미 해소됐다"로 읽히면
+  // 그 줄을 통째로 버렸는데, 실측 결과 379줄이 그렇게 사라지고 있었고 그중 100줄에는 ⚠REVIEW
+  // 표시가 붙어 있었다(경고만 없어지고 단정적인 문장은 남는 꼴). 이제는 버리지 않고 옮긴다.
   const body = '- REVIEW-03 은 2026-08-05 사람 승인으로 해소됐다.';
-  ok('"이미 해소됐다"는 언급은 버린다', !R.markUnresolvedReview(body).includes(HEAD));
+  const out = R.markUnresolvedReview(body);
+  ok('T-drop-1 "이미 해소됐다"는 언급도 버리지 않고 [미확인]으로 옮긴다', out.includes(HEAD) && out.includes('REVIEW-03'));
+
+  // 실제로 사라지던 유형 — 끝났다는 말이 붙어 있지만 **답 자체가 담긴 줄**
+  const real = '> ✅ **REVIEW-364 해제**: 서핑보드는 이 법상 선박이 아니다(선박법 제1조의2 3구분 전수 대조).';
+  const out2 = R.markUnresolvedReview(real);
+  ok('T-drop-2 확정 답변이 담긴 줄이 사라지지 않는다', out2.includes('서핑보드는 이 법상 선박이 아니다'));
+
+  // 수치가 담긴 줄도 마찬가지
+  const num = '- (REVIEW-02 정정 완료) 아라서해갑문 최대폭 28.5m · 통과허용 선박폭 26m.';
+  ok('T-drop-3 수치가 담긴 줄이 사라지지 않는다', R.markUnresolvedReview(num).includes('28.5m'));
 }
 {
   const body = '- REVIEW-04 는 아직 미해소 상태다(사람 승인 대기).';
