@@ -20,6 +20,16 @@
  *   너울은 먼바다보다 "해안에 부딪힐 때"가 위험하다. 그래서 바다 전체를 칠하지 않고
  *   해안선만 칠한다. 해안선 조각마다 어느 소해구에 속하는지는 미리 계산해 두었으므로
  *   앱은 등급표(우리 해안 소해구 233개)만 받아 색을 입히면 된다.
+ *
+ * [어떻게 그리나 — 선이 아니라 번지는 띠]
+ *   ① 등급을 섞는다 : 해안선 점마다 가까운 소해구 여러 곳의 등급을 거리로 가중평균해
+ *      1~4 사이 "연속값"을 만든다. 해구는 사람이 그은 네모라서 칸이 바뀌는 자리에서
+ *      색이 뚝 끊기는데, 값 자체를 섞으면 그 자리가 자연스럽게 이어진다.
+ *   ② 색을 잇는다   : 연속값을 등급 색 네 가지 사이에서 이어 붙인 색표로 바꾼다.
+ *      (2.5 = 주의와 경계의 중간색)
+ *   ③ 번지게 그린다 : 캔버스에 굵은 띠로 그린 뒤 통째로 한 번 흐리게 만든다.
+ *      가운데는 진하고 가장자리로 갈수록 연해져 그라데이션이 된다.
+ *   그 위에 가는 심지선을 얹어 해안선이 어디인지 알아볼 수 있게 한다.
  * ============================================================================
  */
 
@@ -31,18 +41,16 @@
     // ========================================================================
 
     /**
-     * 등급(1~4) → 이름 · 선 색(rgb) · 빛번짐 세기.
-     * 색은 MMIS 너울 범례와 같은 계열이다.
-     * glow 는 "위험할수록 더 밝게 번지게" 하려고 등급마다 다르게 준다 —
-     * 꾸미기가 아니라, 멀리서 봐도 위험한 해안이 먼저 눈에 띄게 하려는 것이다.
+     * 등급(1~4) → 이름 · 색(rgb). 색은 MMIS 너울 범례와 같은 계열이다.
+     * 등급 사이 값(예: 2.5)은 이웃한 두 색을 이어 붙여 쓴다(_colorAt).
      */
     const LEVELS = {
-        1: { name: '관심', rgb: [31, 162, 74], glow: 0.30 },
-        2: { name: '주의', rgb: [228, 214, 75], glow: 0.40 },
-        3: { name: '경계', rgb: [240, 138, 36], glow: 0.55 },
-        4: { name: '위험', rgb: [224, 49, 49], glow: 0.75 }
+        1: { name: '관심', rgb: [31, 162, 74] },
+        2: { name: '주의', rgb: [228, 214, 75] },
+        3: { name: '경계', rgb: [240, 138, 36] },
+        4: { name: '위험', rgb: [224, 49, 49] }
     };
-    /** 등급을 못 받은 해안(자료 없음). 빛번짐 없이 흐리게만 둔다. */
+    /** 등급을 못 받은 해안(자료 없음). */
     const NO_DATA_RGB = [154, 163, 173];
 
     const SEGMENTS_URL = '/coastline_segments.json';
@@ -52,31 +60,38 @@
     const DEFAULT_ZOOM = 7;
 
     /**
-     * 확대 정도(줌)별 해안선 심지 굵기(px).
-     * 전국을 볼 때(줌 7 이하)는 선이 얇으면 점점이 흩어져 보이고,
-     * 확대했을 때(줌 12 이상)는 너무 굵으면 해안 모양을 가린다.
+     * 등급을 섞는 반경(km)과 세기.
+     * 소해구가 약 15×18.5km 이므로 32km 면 이웃 한두 칸이 함께 섞인다.
+     * POWER 가 클수록 자기 칸 값을 더 지킨다(2 = 거리 제곱 반비례, 흔히 쓰는 값).
      */
-    const CORE_WIDTH_BY_ZOOM = [
-        { maxZoom: 7, width: 3.0 },
-        { maxZoom: 9, width: 4.0 },
-        { maxZoom: 11, width: 5.0 },
-        { maxZoom: 99, width: 6.5 }
-    ];
+    const BLEND_KM = 32;
+    const BLEND_POWER = 2;
 
     /**
-     * 겹쳐 그리는 네 겹의 굵기 배수(심지 대비).
-     * 바깥은 넓고 흐리게, 안쪽은 좁고 진하게, 맨 위 가는 줄은 광택 몫이다.
+     * 확대 정도(줌)별 그라데이션 띠의 굵기(px)와 가는 심지선 굵기(px).
+     * 띠는 흐리게 번지므로 실제로 보이는 폭은 이보다 넓다.
      */
-    const GLOW_OUTER_SCALE = 3.2;
-    const GLOW_INNER_SCALE = 1.9;
-    const SHEEN_SCALE = 0.38;
+    const BAND_BY_ZOOM = [
+        { maxZoom: 7, band: 10, core: 1.2 },
+        { maxZoom: 9, band: 13, core: 1.6 },
+        { maxZoom: 11, band: 15, core: 2.2 },
+        { maxZoom: 99, band: 18, core: 2.6 }
+    ];
+    /** 띠 굵기 대비 흐림 반경. 클수록 더 뭉개진다. */
+    const BLUR_RATIO = 0.55;
+    /** 띠의 진하기(0~1). 겹치는 곳은 더 진해진다. */
+    const BAND_ALPHA = 0.85;
+    /** 색을 이 간격으로 반올림해 같은 색끼리 묶어 그린다(그리는 횟수를 줄이려고). */
+    const COLOR_STEP = 0.08;
 
     // ========================================================================
     // 상태
     // ========================================================================
     let swellMap = null;
-    let coastLayer = null;
+    let coastLayer = null;    // 가는 심지선(벡터)
+    let bandLayer = null;     // 그라데이션 띠(캔버스)
     let segments = null;      // coastline_segments.json 의 segments (한 번만 받아 재사용)
+    let zoneCenters = null;   // { "144-9": [경도, 위도] } — 등급을 섞을 때 쓴다
 
     // ========================================================================
     // 1. 지도 초기화
@@ -96,12 +111,22 @@
             return;
         }
 
+        // 아래: 그라데이션 띠. OpenLayers 의 선 스타일로는 "번지는 면"을 만들 수 없어서
+        // 캔버스에 직접 그린다(_renderBand).
+        bandLayer = new ol.layer.Image({
+            source: new ol.source.ImageCanvas({
+                canvasFunction: _renderBand,
+                ratio: 1.2   // 화면보다 조금 넓게 그려 살짝 움직여도 가장자리가 안 비게 한다
+            })
+        });
+
+        // 위: 가는 심지선. 띠만 있으면 해안선이 어디인지 흐려지므로 한 줄 얹는다.
         // 스타일을 조각마다 박아두지 않고 레이어 함수로 준다 — 그래야 확대·축소할 때마다
         // 다시 계산돼 줌에 맞는 굵기가 적용된다(조각에 박아두면 처음 굵기로 고정된다).
         coastLayer = new ol.layer.Vector({
             source: new ol.source.Vector(),
             style: function (feature, resolution) {
-                return _styleFor(feature.get('level'), resolution);
+                return _coreStyle(feature.get('v'), resolution);
             }
         });
 
@@ -109,6 +134,7 @@
             target: 'swell-map',
             layers: [
                 new ol.layer.Tile({ source: new ol.source.OSM() }),
+                bandLayer,
                 coastLayer
             ],
             view: new ol.View({
@@ -158,6 +184,8 @@
                 if (!r.ok) throw new Error('해안선 파일 ' + r.status);
                 const j = await r.json();
                 segments = j.segments || [];
+                zoneCenters = j.zone_centers || {};
+                _prepareSegments();
             }
             const r2 = await fetch(LEVELS_URL);
             if (!r2.ok) throw new Error('등급 API ' + r2.status);
@@ -173,49 +201,135 @@
     }
 
     /**
-     * 조각마다 자기 소해구의 등급 색을 입혀 지도에 올린다.
-     * 예: 조각 z="92-7" 의 등급이 3이면 주황색 선으로 그린다.
-     * @param {Object} levels - { "92-7": 3, ... } 소해구별 등급(1~4)
+     * 해안선 좌표를 지도 좌표로 미리 바꿔 둔다(파일을 처음 받았을 때 한 번만).
+     * 예: seg.c = [128.32, 38.70, ...] → seg._m = [14284000, 4677000, ...]
      * @returns {void}
      * [연계] ← _loadAndDraw()
+     *          매번 그릴 때마다 11,833개 점을 변환하면 확대·축소가 버벅인다.
      */
-    function _draw(levels) {
-        const src = coastLayer.getSource();
-        src.clear();
-
-        const features = [];
+    function _prepareSegments() {
         for (const seg of segments) {
             const c = seg.c;
-            const coords = [];
+            const m = new Float64Array(c.length);
             for (let i = 0; i < c.length; i += 2) {
-                coords.push(ol.proj.fromLonLat([c[i], c[i + 1]]));
+                const xy = ol.proj.fromLonLat([c[i], c[i + 1]]);
+                m[i] = xy[0];
+                m[i + 1] = xy[1];
             }
-            if (coords.length < 2) continue;
-
-            const lv = levels[seg.z];
-            const f = new ol.Feature({ geometry: new ol.geom.LineString(coords) });
-            f.set('zoneKey', seg.z);
-            f.set('level', lv || null);
-            features.push(f);
+            seg._m = m;
         }
-        src.addFeatures(features);
     }
 
     /**
-     * 색을 어둡게(-) 또는 밝게(+) 만든다.
-     * 예: _shade([224,49,49], -0.55) → [101,22,22] (위험색을 어둡게)
-     * @param {Array<number>} rgb - [r,g,b] 0~255
-     * @param {number} f - -1(검정)~+1(흰색) 사이 비율
-     * @returns {Array<number>} 바뀐 [r,g,b]
-     * [연계] ← _styleFor() 가 바깥 그림자·안쪽 심지 색을 만들 때 쓴다.
+     * 해안선 점마다 "1~4 사이 연속값"을 만든다 — 가까운 소해구들의 등급을
+     * 거리로 가중평균한 값이다.
+     * 예: 주의(2)인 칸과 위험(4)인 칸 사이 해안 → 2.6, 3.1, 3.5 … 로 이어진다
+     * @param {Object} levels - { "92-7": 3, ... } 소해구별 등급(1~4)
+     * @returns {number} 값을 얻은 점의 개수(확인용)
+     * [연계] ← _draw()
+     *
+     * [왜 섞나] 해구는 사람이 그은 네모다. 칸 하나만 그대로 칠하면 칸이 바뀌는
+     *   자리에서 색이 뚝 끊겨 실제보다 급한 변화처럼 보인다. 바다의 너울은 그렇게
+     *   칸 경계에서 갑자기 변하지 않으므로, 이웃 칸 값을 함께 섞어 이어 준다.
      */
-    function _shade(rgb, f) {
-        const t = f < 0 ? 0 : 255;
-        const k = Math.abs(f);
-        return rgb.map(v => Math.round(v + (t - v) * k));
+    function _blendLevels(levels) {
+        // 등급을 가진 소해구의 한가운데 좌표만 모은다.
+        const cx = [], cy = [], cv = [];
+        for (const key in levels) {
+            const lv = levels[key];
+            const c = zoneCenters && zoneCenters[key];
+            if (!lv || !c) continue;
+            cx.push(c[0]);
+            cy.push(c[1]);
+            cv.push(lv);
+        }
+
+        // 위경도 1도가 몇 km 인지 — 우리 해역(위도 33~38도) 한가운데를 기준으로 잡는다.
+        const KM_PER_LAT = 111.0;
+        const KM_PER_LON = 91.0;
+        const R2 = BLEND_KM * BLEND_KM;
+        let got = 0;
+
+        for (const seg of segments) {
+            const c = seg.c;
+            const n = c.length / 2;
+            const v = new Float32Array(n);
+            for (let i = 0; i < n; i++) {
+                const lon = c[i * 2], lat = c[i * 2 + 1];
+                let sw = 0, sv = 0;
+                let bestD = Infinity, bestV = 0;
+                for (let k = 0; k < cx.length; k++) {
+                    const dx = (lon - cx[k]) * KM_PER_LON;
+                    const dy = (lat - cy[k]) * KM_PER_LAT;
+                    const d2 = dx * dx + dy * dy;
+                    if (d2 < bestD) { bestD = d2; bestV = cv[k]; }
+                    if (d2 > R2) continue;
+                    // 반경 끝에서 0 이 되도록 낮춰 준다 — 그래야 반경 밖 칸이 갑자기
+                    // 끼어들 때 값이 튀지 않는다.
+                    const fall = 1 - d2 / R2;
+                    const w = fall * fall / Math.pow(d2 + 0.5, BLEND_POWER / 2);
+                    sw += w;
+                    sv += w * cv[k];
+                }
+                // 반경 안에 아무 칸도 없으면(외딴 섬) 가장 가까운 칸 값을 그대로 쓴다.
+                v[i] = sw > 0 ? (sv / sw) : (bestD < Infinity ? bestV : 0);
+                if (v[i] > 0) got++;
+            }
+            seg._v = v;
+        }
+        return got;
     }
 
-    /** [r,g,b] + 투명도 → CSS 색 문자열. [연계] ← _styleFor() */
+    /**
+     * 섞은 값으로 띠와 심지선을 다시 그린다.
+     * @param {Object} levels - { "92-7": 3, ... } 소해구별 등급(1~4)
+     * @returns {void}
+     * [연계] ← _loadAndDraw() → _blendLevels() · _renderBand()
+     */
+    function _draw(levels) {
+        _blendLevels(levels);
+
+        const src = coastLayer.getSource();
+        src.clear();
+        const features = [];
+        for (const seg of segments) {
+            const m = seg._m;
+            if (m.length < 4) continue;
+            const coords = [];
+            for (let i = 0; i < m.length; i += 2) coords.push([m[i], m[i + 1]]);
+            const f = new ol.Feature({ geometry: new ol.geom.LineString(coords) });
+            f.set('zoneKey', seg.z);
+            // 심지선은 조각 하나를 한 색으로 그린다(가늘어서 안에서 색을 나눌 여지가 없다).
+            // 조각 가운데 점의 값을 대표로 쓴다.
+            f.set('v', seg._v ? seg._v[Math.floor(seg._v.length / 2)] : 0);
+            features.push(f);
+        }
+        src.addFeatures(features);
+
+        if (bandLayer) bandLayer.getSource().changed();
+    }
+
+    /**
+     * 연속값(1~4)을 색으로 바꾼다 — 등급 색 네 가지를 이어 붙인 색표.
+     * 예: _colorAt(2.5) → 주의(연노랑)와 경계(주황)의 한가운데 색
+     * @param {number} v - 1~4 사이 값. 0 이나 값 없음은 회색(자료 없음).
+     * @returns {Array<number>} [r,g,b]
+     * [연계] ← _renderBand() · _coreStyle()
+     */
+    function _colorAt(v) {
+        if (!(v > 0)) return NO_DATA_RGB;
+        const t = Math.max(1, Math.min(4, v));
+        const lo = Math.min(3, Math.floor(t));
+        const f = t - lo;
+        const a = LEVELS[lo].rgb, b = LEVELS[lo + 1].rgb;
+        return [
+            Math.round(a[0] + (b[0] - a[0]) * f),
+            Math.round(a[1] + (b[1] - a[1]) * f),
+            Math.round(a[2] + (b[2] - a[2]) * f)
+        ];
+    }
+
+    /** [r,g,b] + 투명도 → CSS 색 문자열. [연계] ← _renderBand() · _coreStyle() */
     function _rgba(rgb, a) {
         return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
     }
@@ -223,74 +337,125 @@
     /**
      * 지도 축척(resolution)을 줌 단계로 되돌린다.
      * 예: _zoomOf(2445) → 약 6 (전국이 보이는 정도)
-     * @param {number} resolution - OpenLayers 가 스타일 함수에 넘겨주는 값(m/px)
+     * @param {number} resolution - m/px
      * @returns {number} 줌 단계
-     * [연계] ← _styleFor()
-     *          스타일 함수에는 지도가 아니라 축척만 들어와서 줌을 직접 구해야 한다.
+     * [연계] ← _coreStyle() · _renderBand()
      *          156543.034 는 웹 지도 줌 0 의 축척(적도 기준 m/px)이다.
      */
     function _zoomOf(resolution) {
         return Math.log2(156543.03392804097 / resolution);
     }
 
-    /** 줌 단계에 맞는 심지 굵기(px). [연계] ← _styleFor() */
-    function _coreWidth(zoom) {
-        for (const step of CORE_WIDTH_BY_ZOOM) {
-            if (zoom <= step.maxZoom) return step.width;
+    /** 줌 단계에 맞는 굵기 { band, core }. [연계] ← _coreStyle() · _renderBand() */
+    function _widthsAt(zoom) {
+        for (const step of BAND_BY_ZOOM) {
+            if (zoom <= step.maxZoom) return step;
         }
-        return CORE_WIDTH_BY_ZOOM[CORE_WIDTH_BY_ZOOM.length - 1].width;
+        return BAND_BY_ZOOM[BAND_BY_ZOOM.length - 1];
     }
 
-    /** 같은 모양을 매 프레임 새로 만들지 않도록 담아 둔다. 키는 "등급@굵기". */
+    /** 같은 모양을 매 프레임 새로 만들지 않도록 담아 둔다. 키는 "색@굵기". */
     const _styleCache = new Map();
 
     /**
-     * 등급에 맞는 선 모양(빛번짐 2겹 + 심지 + 광택 1겹)을 만든다.
-     * 예: _styleFor(4, 2445) → 빨간 심지 3px + 그 둘레로 번지는 붉은 빛 + 가운데 광택
-     * @param {number|undefined} lv - 등급 1~4. 없으면 회색(자료 없음).
+     * 가는 심지선 하나를 만든다. 띠만 있으면 해안선이 어디인지 흐려지므로 얹는다.
+     * 예: _coreStyle(3.2, 2445) → 주황빛 1.2px 선
+     * @param {number} v - 섞은 연속값(1~4). 0 이면 자료 없음(회색).
      * @param {number} resolution - 지도 축척(m/px)
-     * @returns {Array<ol.style.Style>} 아래에서 위 순서 — 바깥번짐 · 안쪽번짐 · 심지 · 광택
-     * [연계] ← 지도 레이어의 스타일 함수(initSwellMap 에서 지정)
-     *
-     * [왜 네 겹인가]
-     *   OpenLayers 의 선에는 그림자·번짐 설정이 없다. 그래서 같은 선을
-     *   "넓고 아주 흐리게 → 좁고 조금 진하게 → 가늘고 선명하게" 겹쳐 그려
-     *   빛이 번지는 것처럼 보이게 한다. 맨 위 가는 줄 하나를 더 밝게 얹으면
-     *   선 가운데가 반짝이는 것처럼 보인다(심지 자체를 밝히면 색이 옅어져 등급을
-     *   알아보기 어려워지므로, 심지는 제 색 그대로 두고 광택만 따로 얹는다).
+     * @returns {ol.style.Style}
+     * [연계] ← 심지선 레이어의 스타일 함수(initSwellMap 에서 지정)
      */
-    function _styleFor(lv, resolution) {
-        const zoom = _zoomOf(resolution);
-        const w = _coreWidth(zoom);
-        const key = (lv || 0) + '@' + w;
+    function _coreStyle(v, resolution) {
+        const w = _widthsAt(_zoomOf(resolution)).core;
+        const rgb = _colorAt(v);
+        const key = rgb.join(',') + '@' + w;
         const hit = _styleCache.get(key);
         if (hit) return hit;
 
-        const def = LEVELS[lv];
-        const rgb = (def && def.rgb) || NO_DATA_RGB;
-        const glow = def ? def.glow : 0;          // 자료 없음은 번지지 않는다
-        const round = { lineCap: 'round', lineJoin: 'round' };
-        const stroke = (color, width) => new ol.style.Style({
-            stroke: new ol.style.Stroke(Object.assign({ color, width }, round))
+        const st = new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: _rgba(rgb, v > 0 ? 0.95 : 0.55),
+                width: w,
+                lineCap: 'round',
+                lineJoin: 'round'
+            })
         });
+        _styleCache.set(key, st);
+        return st;
+    }
 
-        const styles = [];
-        if (glow > 0) {
-            // 바깥: 제 색을 조금 어둡게 깐다. 밝은 기본지도 위에서도 선이 떠 보이게 하는
-            // 그림자 몫이다. 너무 어둡게 하면 주황·노랑이 탁해 보이므로 살짝만 낮춘다.
-            styles.push(stroke(_rgba(_shade(rgb, -0.35), 0.14 + glow * 0.16), w * GLOW_OUTER_SCALE));
-            // 가운데: 제 색 그대로 번진다.
-            styles.push(stroke(_rgba(rgb, 0.30 + glow * 0.40), w * GLOW_INNER_SCALE));
-        }
-        // 심지: 제 색 그대로. 등급 색을 알아보는 건 이 줄이다.
-        styles.push(stroke(_rgba(rgb, glow > 0 ? 1 : 0.85), w));
-        if (glow > 0) {
-            // 광택: 심지 위에 가는 밝은 줄. 선 가운데가 빛나는 것처럼 보이게 한다.
-            styles.push(stroke(_rgba(_shade(rgb, 0.62), 0.28 + glow * 0.45), Math.max(1, w * SHEEN_SCALE)));
-        }
+    /**
+     * 그라데이션 띠를 캔버스에 그린다. OpenLayers 가 화면이 바뀔 때마다 부른다.
+     * 예: 화면에 보이는 해안선을 굵은 띠로 그린 뒤 통째로 흐리게 → 번지는 색면
+     * @param {Array<number>} extent - 그릴 범위 [minX, minY, maxX, maxY] (지도 좌표)
+     * @param {number} resolution - 지도 축척(m/px)
+     * @param {number} pixelRatio - 화면 픽셀 배율(고화질 화면이면 2~3)
+     * @param {Array<number>} size - 캔버스 크기 [너비, 높이] (픽셀)
+     * @returns {HTMLCanvasElement}
+     * [연계] ← bandLayer 의 ol.source.ImageCanvas
+     *
+     * [왜 두 장인가]
+     *   흐림(ctx.filter)은 "그리는 동작 하나하나"에 걸린다. 선 1만 개를 흐림을 켠 채로
+     *   그리면 1만 번 흐려져 아주 느리다. 그래서 흐림 없는 캔버스에 먼저 다 그린 뒤,
+     *   그 그림 한 장을 흐림을 켜고 옮겨 담는다 — 흐리게 만드는 일이 딱 한 번이다.
+     */
+    function _renderBand(extent, resolution, pixelRatio, size) {
+        const canvas = document.createElement('canvas');
+        canvas.width = size[0];
+        canvas.height = size[1];
+        const ctx = canvas.getContext('2d');
+        if (!segments) return canvas;
 
-        _styleCache.set(key, styles);
-        return styles;
+        const w = _widthsAt(_zoomOf(resolution)).band * pixelRatio;
+        const blur = w * BLUR_RATIO;
+
+        const off = document.createElement('canvas');
+        off.width = size[0];
+        off.height = size[1];
+        const octx = off.getContext('2d');
+        octx.lineCap = 'round';
+        octx.lineJoin = 'round';
+        octx.lineWidth = w;
+
+        // 화면 밖 선분은 건너뛴다. 띠가 번지는 만큼 여유를 둔다.
+        const pad = (w + blur * 2) * resolution / pixelRatio;
+        const minX = extent[0] - pad, maxX = extent[2] + pad;
+        const minY = extent[1] - pad, maxY = extent[3] + pad;
+        const k = pixelRatio / resolution;
+
+        // 같은 색끼리 몰아서 한 번에 그린다(색을 COLOR_STEP 간격으로 반올림).
+        let curColor = null;
+        let open = false;
+        for (const seg of segments) {
+            const m = seg._m, v = seg._v;
+            if (!v || m.length < 4) continue;
+            for (let i = 0; i + 3 < m.length; i += 2) {
+                const x0 = m[i], y0 = m[i + 1], x1 = m[i + 2], y1 = m[i + 3];
+                if ((x0 < minX && x1 < minX) || (x0 > maxX && x1 > maxX)) continue;
+                if ((y0 < minY && y1 < minY) || (y0 > maxY && y1 > maxY)) continue;
+                const vm = (v[i / 2] + v[i / 2 + 1]) / 2;
+                if (!(vm > 0)) continue;
+                const q = Math.round(vm / COLOR_STEP) * COLOR_STEP;
+                const color = _rgba(_colorAt(q), BAND_ALPHA);
+                if (color !== curColor) {
+                    if (open) octx.stroke();
+                    octx.strokeStyle = color;
+                    octx.beginPath();
+                    curColor = color;
+                    open = true;
+                }
+                octx.moveTo((x0 - extent[0]) * k, (extent[3] - y0) * k);
+                octx.lineTo((x1 - extent[0]) * k, (extent[3] - y1) * k);
+            }
+        }
+        if (open) octx.stroke();
+
+        // 흐림은 여기서 딱 한 번. 지원하지 않는 브라우저(구형 사파리)에서는
+        // filter 가 무시돼 흐리지 않은 굵은 띠가 그대로 보인다 — 색은 맞다.
+        ctx.filter = 'blur(' + blur.toFixed(1) + 'px)';
+        ctx.drawImage(off, 0, 0);
+        ctx.filter = 'none';
+        return canvas;
     }
 
     // ========================================================================
@@ -309,6 +474,18 @@
     function _addLegendControl(map) {
         var legendEl = document.createElement('div');
         legendEl.className = 'fishing-legend';
+
+        // 화면은 네 색 사이를 이어 붙인 연속색이므로, 점 네 개만 보여주면 실제와 다르다.
+        // 색이 이어진다는 것을 띠 하나로 먼저 보여 준다.
+        var ramp = document.createElement('span');
+        ramp.style.display = 'block';
+        ramp.style.height = '6px';
+        ramp.style.borderRadius = '3px';
+        ramp.style.marginBottom = '4px';
+        ramp.style.background = 'linear-gradient(to right,'
+            + [1, 2, 3, 4].map(function (lv) { return 'rgb(' + LEVELS[lv].rgb.join(',') + ')'; }).join(',')
+            + ')';
+        legendEl.appendChild(ramp);
 
         [1, 2, 3, 4, null].forEach(function (lv) {
             var rgb = (LEVELS[lv] && LEVELS[lv].rgb) || NO_DATA_RGB;
