@@ -40,6 +40,8 @@
      *  - gpsBtn  : 그 활동이 이미 갖고 있는 "내 위치" 버튼 id (없으면 null)
      *  - getMap  : 그 활동의 OpenLayers 지도 인스턴스를 얻는 함수 (지도 없는 활동은 null)
      * [주의] 이안류(ripcurrent)는 현재 하위탭에서도 숨김 상태라 여기서도 뺀다.
+ * [2026-09-10] 너울(swell) 추가 — 마커가 아니라 해안선 자체를 색칠하는 지도라
+ *   바텀시트가 없지만, 레일에서 고르고 배경지도를 바꾸는 방식은 다른 활동과 같다.
      */
     var ACTIVITIES = [
         { id: 'fishing-section',     label: '바다낚시',   gpsBtn: 'fishing-my-location-btn', pub: 'fishing-publish-time', getMap: function () { return window.getFishingMap && window.getFishingMap(); } },
@@ -47,7 +49,8 @@
         { id: 'swimming-section',    label: '해수욕',     gpsBtn: 'swim-my-location-btn',    pub: 'swim-publish-time',    getMap: function () { return window.getSwimmingMap && window.getSwimmingMap(); } },
         { id: 'scuba-section',       label: '스킨스쿠버', gpsBtn: 'scuba-my-location-btn',   pub: 'scuba-publish-time',   getMap: function () { return window.getScubaMap && window.getScubaMap(); } },
         { id: 'mudflat-section',     label: '갯벌체험',   gpsBtn: 'mudflat-my-location-btn', pub: 'mudflat-publish-time', getMap: function () { return window.getMudflatMap && window.getMudflatMap(); } },
-        { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      pub: 'sp-publish-time',      getMap: null }
+        { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      pub: 'sp-publish-time',      getMap: null },
+        { id: 'swell-section',       label: '너울',       gpsBtn: 'swell-my-location-btn',   pub: 'swell-publish-time',   getMap: function () { return window.getSwellMap && window.getSwellMap(); } }
     ];
 
     /** 배경지도 종류 → 버튼에 표시할 이름 (해양종합정보 switchBaseLayer 와 동일 표기)
