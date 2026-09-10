@@ -25,7 +25,8 @@
  *
  * [출력]
  *   client/coastline_segments.json
- *     { generated_at, cell_deg, zones:["144-9",...], segments:[ { z:"144-9", c:[lon,lat,...] } ] }
+ *     { generated_at, cell_deg, zones:["144-9",...], zone_centers:{"144-9":[lon,lat],...},
+ *       segments:[ { z:"144-9", c:[lon,lat,...] } ] }
  *   - segments 의 c 는 [lon,lat,lon,lat,...] 평면 배열(용량 절약)
  *   - 한 조각은 같은 소해구에 속하는 연속된 해안선 점들이다. 소해구가 바뀌면 조각을 끊고,
  *     경계에서 색이 끊겨 보이지 않도록 다음 조각이 앞 조각의 끝점부터 시작한다.
@@ -131,6 +132,33 @@ function zoneKeyOf(lon, lat, box, grid) {
     const c = Math.max(0, Math.min(2, Math.floor((lon - b.lonMin) / dlon)));
     const r = Math.max(0, Math.min(2, Math.floor((b.latMax - lat) / dlat)));
     return `${no}-${r * 3 + c + 1}`;
+}
+
+/**
+ * 소해구 키에서 그 칸의 한가운데 좌표를 구한다.
+ * 예: zoneCenterOf("47-6", ...) → [128.42, 38.67]
+ * @param {string} key "대해구-서브(1~9)"
+ * @param {Object} box 번호별 대해구 사각형
+ * @returns {[number,number]|null} [경도, 위도]. 대해구를 모르면 null.
+ * [연계] ← build() 가 zone_centers 를 만들 때 부른다.
+ *          → client/js/marine-life/swell/swell.js 가 이 좌표들로 등급을 부드럽게
+ *            섞는다(가까운 소해구 여럿의 거리가중 평균). 그래서 칸 경계에서 색이
+ *            뚝 끊기지 않는다. 칸 배치(1~9)는 zoneKeyOf() 와 같은 규칙이다.
+ */
+function zoneCenterOf(key, box) {
+    const dash = key.lastIndexOf('-');
+    const no = key.slice(0, dash);
+    const sub = parseInt(key.slice(dash + 1), 10);
+    const b = box[no];
+    if (!b || !(sub >= 1 && sub <= 9)) return null;
+    const c = (sub - 1) % 3;
+    const r = Math.floor((sub - 1) / 3);
+    const dlon = (b.lonMax - b.lonMin) / 3;
+    const dlat = (b.latMax - b.latMin) / 3;
+    return [
+        +(b.lonMin + (c + 0.5) * dlon).toFixed(COORD_DIGITS),
+        +(b.latMax - (r + 0.5) * dlat).toFixed(COORD_DIGITS)
+    ];
 }
 
 /**
@@ -255,6 +283,14 @@ function build() {
     }
     // 살아남은 조각들의 소해구만 다시 모은다(등급 API 가 이 목록으로 걸러 받는다).
     const finalZones = new Set(kept.map(s => s.z));
+    const zoneKeys = Array.from(finalZones).sort();
+
+    // 소해구 한가운데 좌표 — 앱이 등급을 부드럽게 섞을 때 쓴다.
+    const centers = {};
+    for (const k of zoneKeys) {
+        const c = zoneCenterOf(k, box);
+        if (c) centers[k] = c;
+    }
 
     const out = {
         generated_at: new Date().toISOString(),
@@ -263,7 +299,8 @@ function build() {
         bbox: BBOX,
         keep_km: KEEP_KM,
         coord_digits: COORD_DIGITS,
-        zones: Array.from(finalZones).sort(),
+        zones: zoneKeys,
+        zone_centers: centers,
         segments: kept
     };
     fs.writeFileSync(OUT_PATH, JSON.stringify(out));
@@ -272,7 +309,8 @@ function build() {
     console.log(`[coastline_segments] 해안선 점 ${ptsIn}개(격자 밖 ${ptsSkipped}개 제외)`);
     console.log(`[coastline_segments] 우리나라 해안이 아니라 걸러낸 조각 ${dropped}개`
         + ` (일본·중국·북한 — 전자해도 해안선에서 ${KEEP_KM}km 초과)`);
-    console.log(`[coastline_segments] 조각 ${kept.length}개 · 소해구 ${out.zones.length}개`);
+    console.log(`[coastline_segments] 조각 ${kept.length}개 · 소해구 ${out.zones.length}개`
+        + ` (한가운데 좌표 ${Object.keys(centers).length}개)`);
     console.log(`[coastline_segments] 저장 ${OUT_PATH} (${(bytes / 1024).toFixed(0)}KB, ${((Date.now() - t0) / 1000).toFixed(1)}s)`);
 }
 
