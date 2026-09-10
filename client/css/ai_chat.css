@@ -41,6 +41,10 @@
 }
 .nrya-console *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 .nrya-console .nrya-app{max-width:640px; margin:0 auto; position:relative; padding-bottom:24px;}
+/* [전체화면] 관리자 센터가 화면을 가득 채울 때(admin.js 가 `admin-fullscreen` 을 붙인다)는 640px 칸을
+   푼다 — 근거 조문 표·원문 발췌·리뷰 카드가 좁아서 접히던 것을 넓게 본다(사용자 확정 2026-09-10).
+   1180px 로 두는 이유: 화면 폭을 그대로 쓰면 본문 한 줄이 너무 길어져 읽기 어렵다(표는 스크롤로 본다). */
+#unified-admin-modal.admin-fullscreen .nrya-console .nrya-app{max-width:1180px;}
 .nrya-console .nrya-hidden{display:none !important}
 
 /* 환경 리본 */

@@ -614,6 +614,10 @@ window.switchUnifiedAdminTab = function (tabId) {
     const body = document.getElementById('unified-admin-body');
     if (!body) return;
 
+    // [나리야 전체화면] 메인 탭을 옮기면 일단 해제한다 — AI 탭이면 switchAiSubTab 이 곧바로 다시 붙인다.
+    const _modal = document.getElementById('unified-admin-modal');
+    if (_modal) _modal.classList.remove('admin-fullscreen');
+
     // 기존 내용 비우기
     body.innerHTML = `
         <div style="text-align:center;padding:100px;color:#64748b;">
@@ -710,6 +714,10 @@ window.switchAiSubTab = function (which) {
     });
     var sub = document.getElementById('ai-subtab-body');
     if (!sub) return;
+    // [나리야 전체화면] 챗봇 콘솔만 화면 가득. 다른 하위탭으로 돌아가면 종전 크기로 되돌린다.
+    //   (모달 폭은 style.css 의 `#unified-admin-modal.admin-fullscreen` 이 정한다)
+    var _m = document.getElementById('unified-admin-modal');
+    if (_m) _m.classList.toggle('admin-fullscreen', which === 'chatbot');
     if (which === 'test') renderAiTestSubtab(sub);
     else if (which === 'chatbot') {
         // [AI 챗봇] 나리야 법령 챗봇 관리 콘솔 — 지식 방 브라우저 + 리뷰 검토센터(승인/교정) + 노출토글 (js/ai-chat/ai_chat.js)

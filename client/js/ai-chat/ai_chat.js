@@ -390,11 +390,10 @@
           '</div>' +
           '<div id="nryaViewAdmin" class="nrya-hidden">' +
             '<div class="nrya-panel">' +
-              // 리뷰 전용 페이지(폰·PC에서 크게 읽고 승인) 바로가기
-              '<button type="button" onclick="window.open(\'/legal_review.html\',\'_blank\',\'noopener\')" ' +
-                'style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid rgba(105,240,174,.45);' +
-                'background:rgba(105,240,174,.12);color:#8fe6bb;font-family:inherit;font-weight:800;font-size:14px;padding:13px;border-radius:11px;margin-bottom:12px;cursor:pointer;">' +
-                '🔗 리뷰 전용 페이지 크게 열기 (승인 시 위키 자동 반영)</button>' +
+              // [2026-09-10 사용자 확정] 리뷰 전용 페이지(client/legal_review.html)를 없앴다 —
+              //   그 페이지가 쓰던 API(`/api/legal/reviews`·`/reviews/stats`·`/reviews/:id/approve`)를
+              //   이 콘솔의 ⚠수치검증 방이 전부 쓰고 `submit-findings` 까지 더 갖고 있어, 화면이 둘로
+              //   갈려 있을 이유가 없었다. 좁아서 못 읽던 문제는 이 콘솔을 전체화면으로 키워 해결한다.
               '<div class="nrya-card">' +
                 '<div class="nrya-card-lab"><span class="nrya-pipe"></span>AI 챗봇 노출 설정 (서버 전역)</div>' +
                 '<div class="nrya-seg" id="nryaSeg">' +

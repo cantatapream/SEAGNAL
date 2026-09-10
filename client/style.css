@@ -4367,6 +4367,22 @@ line-height: 1.1;
     }
 }
 
+/* [나리야 전체화면] AI > 챗봇 하위탭은 읽을 것이 많아(근거 조문 표·원문 발췌·리뷰 카드) 800px 칸에
+   가두면 글씨가 작아지고 표가 접힌다. 그 탭일 때만 모달을 화면 가득 채운다(사용자 확정 2026-09-10).
+   `admin-fullscreen` 은 admin.js switchAiSubTab 이 붙였다 뗀다 — 다른 탭은 종전 크기 그대로다. */
+#unified-admin-modal.admin-fullscreen .unified-admin-wrapper {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+}
+
+#unified-admin-modal.admin-fullscreen .unified-admin-body {
+    padding: 1rem 1.25rem;
+}
+
 .unified-admin-wrapper {
     background: linear-gradient(145deg, #1e293b, #0f172a);
     width: 95%;
