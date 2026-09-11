@@ -127,6 +127,26 @@ console.log('── 페이지 상태 안내줄(draft — 미승인)은 밀려나
   }
 }
 
+console.log('── 용어 설명 배너는 본문에 남는다(ⓞ-2) ──');
+{
+  // 2026-09-11: `> ℹ️ **이 페이지에 "REVIEW"·"still_missing"이라고 적힌 자리는 무슨 뜻인가 …**` 배너는
+  // 판단이 아니라 독자에게 표시의 뜻을 알려주는 글인데, 그 뜻을 설명하느라 `REVIEW` 라는 낱말을
+  // 담고 있어서 **자기 설명 때문에 자기가 숨고** 있었다(실측: 이 배너를 둔 4쪽에서 전부 밀렸다).
+  // ⚠머리 기호를 문자 클래스로 거르면 안 된다 — `ℹ`(U+2139)는 유니코드상 문자(\p{L})로 분류된다.
+  const variants = [
+    '> \u2139\uFE0F **이 페이지에 "REVIEW"·"still_missing"이라고 적힌 자리는 무슨 뜻인가**: 지어내지 않고 그대로 드러낸 표시다.',
+    '> **이 페이지에 "REVIEW"·"still_missing"이라고 적힌 자리는 무슨 뜻인가**: 같은 뜻이다.',
+    '\u2139\uFE0F **이 페이지에 "REVIEW"라고 적힌 자리는 무슨 뜻인가**: 인용부호 없이도 남아야 한다.',
+  ];
+  for (const banner of variants) {
+    const body = banner + '\n\n제3조: 공단의 임직원은 비밀을 지켜야 한다.\n';
+    const o = R.markUnresolvedReview(body);
+    const h = o.indexOf('[미확인');
+    const kept = h < 0 ? o : o.slice(0, h);
+    ok('T-term-banner 용어 설명 배너가 본문에 남는다 — ' + banner.slice(0, 26), kept.indexOf(banner) >= 0);
+  }
+}
+
 console.log('── 답변 규칙에 "단정하지 마라"가 있다 ──');
 {
   const rules = R.ANSWER_RULES_BODY || '';
