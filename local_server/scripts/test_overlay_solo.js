@@ -133,6 +133,113 @@ async function run(browser, ids) {
     } finally { await ctx.close(); }
 }
 
+/**
+ * 사고 통계 시트를 열어 놓고 "화면에 보이는데 눌리지는 않는 버튼" 이 있는지 본다.
+ * 감춰진 버튼은 괜찮다 — 눌리지도 않으면서 보이는 것이 사용자를 헷갈리게 한다.
+ */
+async function checkNoDeadButtons(browser) {
+    const W = 375, H = 667;   // 시트가 가장 높이 올라오는 작은 화면
+    const ctx = await browser.newContext({ viewport: { width: W, height: H }, hasTouch: true, isMobile: true });
+    const p = await ctx.newPage();
+    try {
+        await p.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
+        await p.waitForTimeout(3500);
+        const clear = () => p.evaluate(() =>
+            document.querySelectorAll('.notice-modal-overlay, #server-maintenance-popup, .modal-overlay').forEach(e => e.remove()));
+        await clear();
+        await p.click('.main-tabs .tab-btn[data-target="ocean-life-group"]');
+        await p.waitForTimeout(2500); await clear();
+        await p.tap('#ocean-accident-toggle-btn');
+        await p.waitForTimeout(9000);
+        await p.touchscreen.tap(Math.round(W / 2), Math.round(H / 2));   // 격자 한 칸 → 통계 시트
+        await p.waitForTimeout(2500);
+        const r = await p.evaluate(`(() => {
+          const sheet = document.getElementById('accident-stats-sheet');
+          const dead = [];
+          ${JSON.stringify(BTNS)}.forEach((btn) => {
+            const e = document.getElementById(btn.id); if (!e) return;
+            const b = e.getBoundingClientRect();
+            if (b.width === 0 || b.height === 0) return;   // 감춰진 건 괜찮다
+            const t = document.elementFromPoint(Math.round(b.left + b.width / 2), Math.round(b.top + b.height / 2));
+            if (!(t && (t === e || e.contains(t)))) dead.push(btn.name);
+          });
+          const close = document.querySelector('#accident-stats-sheet .ocean-sheet-close');
+          let closeOk = false;
+          if (close) { const b = close.getBoundingClientRect();
+            const t = document.elementFromPoint(Math.round(b.left + b.width / 2), Math.round(b.top + b.height / 2));
+            closeOk = !!(t && (t === close || close.contains(t))); }
+          return { open: !!(sheet && sheet.classList.contains('open')), dead, closeOk };
+        })()`);
+        ok('통계 시트가 열렸다(시험 전제)', r.open, '        시트가 안 열려 이 검사는 의미가 없다');
+        ok('시트가 열려 있어도 "보이는데 눌리지 않는" 버튼이 없다', r.dead.length === 0,
+            '        눌리지 않는 버튼: ' + r.dead.join(', '));
+        ok('시트를 닫는 버튼은 눌린다(갇히지 않는다)', r.closeOk);
+    } finally { await ctx.close(); }
+}
+
+/**
+ * 자료를 받다가 통신이 끊긴 뒤, 신호가 돌아와 버튼을 다시 누르면 회복되는가.
+ *
+ * [왜 있나] 2026-09-11 사용자 보고 "버튼이 갑자기 안 눌린다".
+ *   사고정보(7.1MB)·위험지형(갯바위 4.7MB)은 받아 온 결과를 약속(promise)으로
+ *   기억해 두는데, **실패한 약속까지 그대로 기억**했다. 그래서 한 번이라도 받기가
+ *   끊기면(신호 약화·LTE↔WiFi 전환 등) 그 뒤로는 버튼을 눌러도 받으러 가지도 않고
+ *   즉시 실패해, 앱을 껐다 켜기 전까지 계속 먹통이었다.
+ *   A/B 로 확인했다 — 고치기 전에는 회복 후에도 0개, 고친 뒤에는 정상 표출.
+ * [왜 통신을 끊어 시험하나] 이 결함은 "성공했을 때"는 절대 드러나지 않는다.
+ *   실패를 한 번 만들어야만 보인다.
+ */
+async function checkRecoversAfterNetworkDrop(browser) {
+    const CASES = [
+        { id: 'ocean-accident-toggle-btn', name: '사고정보' },
+        { id: 'ocean-terrain-toggle-btn', name: '위험지형' }
+    ];
+    const COUNT = `(() => {
+      const map = window.getOceanMap && window.getOceanMap();
+      let n = 0;
+      if (map) map.getLayers().getArray().forEach(l => {
+        if (!l.getVisible || !l.getVisible()) return;
+        let s = null; try { s = l.getSource && l.getSource(); } catch(e){}
+        if (!s) return; let raw = null;
+        try { if (s.getSource && s.getSource() && s.getSource().getFeatures) raw = s.getSource().getFeatures().length;
+              else if (s.getFeatures) raw = s.getFeatures().length; } catch(e){}
+        if (raw) n += raw;
+      });
+      return n;
+    })()`;
+    for (const c of CASES) {
+        const ctx = await browser.newContext({ viewport: { width: 430, height: 900 } });
+        const p = await ctx.newPage();
+        try {
+            await p.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
+            await p.waitForTimeout(3500);
+            const clear = () => p.evaluate(() =>
+                document.querySelectorAll('.notice-modal-overlay, #server-maintenance-popup, .modal-overlay').forEach(e => e.remove()));
+            await clear();
+            await p.click('.main-tabs .tab-btn[data-target="ocean-life-group"]');
+            await p.waitForTimeout(2500); await clear();
+
+            await ctx.setOffline(true);          // 신호가 끊긴 상태에서 누른다
+            await p.click('#' + c.id);
+            await p.waitForTimeout(6000);
+            const failed = await p.evaluate(COUNT);
+            await ctx.setOffline(false);         // 신호 회복
+            await p.waitForTimeout(1000);
+            // 켜진 표시가 남아 있으면 먼저 꺼야 다음 클릭이 "켜기" 가 된다
+            if (await p.evaluate(`document.getElementById('${c.id}').classList.contains('active')`)) {
+                await p.click('#' + c.id); await p.waitForTimeout(1500);
+            }
+            await p.click('#' + c.id);
+            await p.waitForTimeout(10000);
+            const after = await p.evaluate(COUNT);
+            ok(`${c.name} — 통신이 끊긴 채 누르면 아무것도 안 그려진다(시험 전제)`, failed === 0,
+                `        그려진 도형 ${failed}개 — 끊기가 안 걸려 이 검사는 의미가 없다`);
+            ok(`${c.name} — 신호가 돌아온 뒤 다시 누르면 정상 표출된다`, after > 0,
+                `        그려진 도형 ${after}개 — 실패를 기억해 버려 계속 먹통이다`);
+        } finally { await ctx.close(); }
+    }
+}
+
 (async () => {
     if (!(await serverUp())) {
         console.log(`\n⏭️  건너뜀 — ${BASE} 에 서버가 없다. 먼저 \`node local_server/server.js &\` 로 띄우고 다시 돌릴 것.`);
@@ -170,6 +277,15 @@ async function run(browser, ids) {
     for (const name of [...new Set(pairs.map(x => x[1]))]) {
         base[name] = await run(browser, [byName[name].id]);
     }
+
+    // ── 보이는데 눌리지 않는 버튼이 있으면 안 된다 (2026-09-11 사용자 보고) ──
+    //   사고 통계 시트(#accident-stats-sheet, z-index 70)가 열리면 버튼 묶음
+    //   (#ocean-overlay-controls, z-index 50)이 그 아래 깔려 눌리지 않았다. 시트가
+    //   얼마나 높이 올라오는지가 화면 크기를 따라가서, 작은 화면(375×667)에서는
+    //   사고정보 버튼까지 덮였고 — 그러면 끌 수도 없어 7개 버튼이 계속 먹통이 됐다.
+    //   화면 크기에 따라 달라지므로 작은 화면으로 확인한다.
+    await checkNoDeadButtons(browser);
+    await checkRecoversAfterNetworkDrop(browser);
 
     for (const [an, bn] of pairs) {
         const got = await run(browser, [byName[an].id, byName[bn].id]);

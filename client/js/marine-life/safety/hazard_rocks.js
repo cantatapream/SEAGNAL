@@ -149,7 +149,16 @@
                 }).catch(function () { return null; })
             ]).then(function (arr) {
                 return { rocks: arr[0], shore: arr[1] };
-            });
+            })
+                // ★[버그 수정 2026-09-11] 실패는 기억하지 않는다 — accident_info.js 의
+                //   fetchSource 와 같은 함정이었다. 실패한 약속이 dataPromise 에 그대로
+                //   남아, 자료(hazard_rocks 0.7MB + 갯바위 4.7MB)를 받다가 한 번이라도
+                //   끊기면 그 뒤로는 버튼을 눌러도 받으러 가지 않고 즉시 실패했다.
+                //   앱을 껐다 켜기 전까지 계속이라 "갑자기 안 눌린다"로 보인다.
+                .catch(function (e) {
+                    dataPromise = null;   // 지워야 다음에 누를 때 다시 받는다
+                    throw e;
+                });
         }
         return dataPromise;
     }
@@ -1072,7 +1081,7 @@
      * [연계] ← bindTerrainToggle() — 레이어 가시성만 직접 바꾼다(원래 버튼을 누르지 않는다).
      *          원래 버튼을 눌렀다면 잠김경고 폴링이 멈추고 배경지도가 되돌아간다.
      */
-    function bindTerrainLegendRows() {
+    function bindTerrainLegendRows(map) {
         [['tgl-row-exposed', function () { return exposedLayer; }, function () { return shoreAreaLayer; }],
          ['tgl-row-rock', function () { return rockLayer; }, null]]
             .forEach(function (row3) {
@@ -1088,6 +1097,16 @@
                     if (extra) extra.setVisible(on);
                     if (!on && bubbleOverlay) bubbleOverlay.setPosition(undefined);
                     if (!on) hideTideCurveOverlay();
+                    // ★[버그 수정 2026-09-11] 잠김경고(빨간 링)를 여기서도 같이 끄고 켠다.
+                    //   링은 레이어가 아니라 지도 위 별도 오버레이(ol.Overlay)라 레이어를
+                    //   숨기는 것만으로는 안 사라진다. 지우는 일은 60초 폴링
+                    //   (refreshWarningOverlays 가 rockLayer.getVisible() 을 보고 정리)에만
+                    //   걸려 있어서, 범례에서 「간출암, 암암 등」을 꺼도 **최대 1분 동안**
+                    //   빨간 링이 화면에 남았다(사용자 보고: 필터를 껐는데 빨간 표시가 계속 남음).
+                    //   버튼(bindToggle)이 하던 것과 똑같이 이 자리에서 바로 정리한다.
+                    if (row3[0] === 'tgl-row-rock' && map) {
+                        if (on) startWarningPolling(map); else stopWarningPolling();
+                    }
                 });
             });
     }
@@ -1104,7 +1123,7 @@
         var exBtn = document.getElementById('ocean-exposed-toggle-btn');
         var rkBtn = document.getElementById('ocean-rock-toggle-btn');
         if (!btn || !exBtn || !rkBtn) return;
-        bindTerrainLegendRows();
+        bindTerrainLegendRows(map);
 
         var prevBasemap = null;  // ON 시점 배경지도를 기억해 OFF 때 되돌린다
         btn.addEventListener('click', function () {
