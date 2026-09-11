@@ -281,8 +281,13 @@
      * [연계] → index2.html 의 body.ls-sheet-open 규칙 (#ls-rail 숨김)
      */
     function _watchBottomSheets() {
+        // ★[2026-09-11] 사고 통계 시트를 이 목록에 넣었다. 이 시트는 버튼 묶음보다
+        //   위층(z-index 70 vs 50)이라 열려 있는 동안 버튼이 눌리지 않는데, 그 사실을
+        //   화면이 몰라 "버튼이 갑자기 안 눌린다"로 나타났다(사용자 보고).
+        //   ⚠이 시트만 열림 표시가 'active' 가 아니라 'open' 이다 — 아래 _sync 참고.
         var ids = ['fishing-bottomsheet', 'mudflat-bottomsheet', 'scuba-bottomsheet',
-                   'rip-bottomsheet', 'surfing-popup', 'swim-bottomsheet'];
+                   'rip-bottomsheet', 'surfing-popup', 'swim-bottomsheet',
+                   'accident-stats-sheet'];
         var els = [];
         for (var i = 0; i < ids.length; i++) {
             var el = document.getElementById(ids[i]);
@@ -293,7 +298,8 @@
         function _sync() {
             var open = false;
             for (var j = 0; j < els.length; j++) {
-                if (els[j].classList.contains('active')) { open = true; break; }
+                // 활동 시트는 'active', 사고 통계 시트는 'open' 으로 열림을 표시한다.
+                if (els[j].classList.contains('active') || els[j].classList.contains('open')) { open = true; break; }
             }
             document.body.classList.toggle('ls-sheet-open', open);
         }
