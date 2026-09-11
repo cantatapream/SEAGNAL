@@ -483,6 +483,7 @@
         #scuba-section.tab-content.active,
         #mudflat-section.tab-content.active,
         #ripcurrent-section.tab-content.active,
+        #swell-section.tab-content.active,
         #swimming-section.tab-content.active {
             position: fixed !important;
             top: env(safe-area-inset-top, 20px) !important;
@@ -504,6 +505,7 @@
         body.sub-tabs-open #scuba-section.tab-content.active,
         body.sub-tabs-open #mudflat-section.tab-content.active,
         body.sub-tabs-open #ripcurrent-section.tab-content.active,
+        body.sub-tabs-open #swell-section.tab-content.active,
         body.sub-tabs-open #swimming-section.tab-content.active {
             bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
         }
@@ -514,6 +516,7 @@
         #scuba-section.tab-content.active > .life-header-row,
         #mudflat-section.tab-content.active > .life-header-row,
         #ripcurrent-section.tab-content.active > .life-header-row,
+        #swell-section.tab-content.active > .life-header-row,
         #swimming-section.tab-content.active > .life-header-row {
             flex: 0 0 auto;
             padding: 10px 14px;
@@ -526,6 +529,7 @@
         #scuba-section.tab-content.active .life-map-container,
         #mudflat-section.tab-content.active .life-map-container,
         #ripcurrent-section.tab-content.active .life-map-container,
+        #swell-section.tab-content.active .life-map-container,
         #swimming-section.tab-content.active .life-map-container {
             flex: 1 1 auto;
             position: relative;   /* 내부 플로팅 컨트롤의 기준 */
@@ -542,6 +546,7 @@
         #scuba-section.tab-content.active #scuba-map,
         #mudflat-section.tab-content.active #mudflat-map,
         #ripcurrent-section.tab-content.active #rip-map,
+        #swell-section.tab-content.active #swell-map,
         #swimming-section.tab-content.active #swim-map {
             position: absolute !important;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -558,6 +563,7 @@
         #scuba-section.tab-content.active .fishing-disclaimer,
         #mudflat-section.tab-content.active .fishing-disclaimer,
         #ripcurrent-section.tab-content.active .fishing-disclaimer,
+        #swell-section.tab-content.active .fishing-disclaimer,
         #swimming-section.tab-content.active .fishing-disclaimer {
             display: none !important;
         }
@@ -2518,13 +2524,15 @@
         #surfing-section.tab-content.active .ol-attribution,
         #scuba-section.tab-content.active .ol-attribution,
         #mudflat-section.tab-content.active .ol-attribution,
-        #ripcurrent-section.tab-content.active .ol-attribution {
+        #ripcurrent-section.tab-content.active .ol-attribution,
+        #swell-section.tab-content.active .ol-attribution {
             bottom: 8px !important;
         }
         #fishing-section.tab-content.active .fishing-legend,
         #scuba-section.tab-content.active .fishing-legend,
         #mudflat-section.tab-content.active .fishing-legend,
         #ripcurrent-section.tab-content.active .fishing-legend,
+        #swell-section.tab-content.active .fishing-legend,
         #surfing-section.tab-content.active .surfing-legend {
             bottom: 34px !important;
         }
@@ -5231,6 +5239,49 @@
             </section>
 
             <!-- ================================================================
+                 섹션: 해양생활 - 너울 (해안선을 소해구별 너울 등급 색으로 칠하는 지도)
+                 [연계] js/marine-life/swell/swell.js → initSwellMap()
+                 [연계] routes/swell_smallzone.js → GET /api/swell-smallzone?coast=1
+                 [연계] client/coastline_segments.json → 해안선 조각 + 조각별 소해구 번호
+                 [참고] 마커가 아니라 해안선 자체를 칠하므로 바텀시트가 없다.
+                 ================================================================ -->
+            <section id="swell-section" class="tab-content">
+
+                <!-- 제목 라인: 좌측 아이콘+제목 / 우측 예보 기준시각 -->
+                <div class="section-header-with-info life-header-row">
+                    <h2 class="section-title"><i class="fa-solid fa-water"></i> 너울 위험도</h2>
+                    <span class="life-publish-time" id="swell-publish-time">기준: -</span>
+                </div>
+
+                <!-- 지도 영역 (풀스크린 플로팅 레이아웃) -->
+                <div class="fishing-map-container life-map-container">
+                    <div id="swell-map" class="fishing-map">
+                        <!-- OpenLayers 지도가 렌더링되는 영역 -->
+                    </div>
+
+                    <!-- 우측 상단: 내 위치 / 안내 아이콘 버튼 세로 스택 -->
+                    <div class="life-map-controls-topright">
+                        <button id="swell-my-location-btn" class="life-map-icon-btn" title="내 위치">
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                        </button>
+                        <button id="swell-notice-btn" class="life-map-icon-btn" title="너울 안내">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 안내 팝업 소스 (숨김) -->
+                <div class="fishing-disclaimer" id="swell-disclaimer" style="display:none;">
+                    <p><i class="fa-solid fa-circle-check"></i> 너울은 먼바다에서 만들어져 밀려오는 긴 물결로, 바람이 약하고 하늘이 맑아도 갑자기 해안을 덮칠 수 있습니다. 방파제·갯바위·해안도로에서 특히 위험합니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 해안선의 색은 기상청이 해구(바다를 나눈 칸)별로 예측한 너울 위험등급 4단계(관심·주의·경계·위험)입니다. 회색은 해당 구역의 예측값을 받지 못한 곳입니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 해구는 사람이 그은 네모라서 칸이 바뀌는 자리에서 색이 뚝 끊기면 실제보다 급한 변화처럼 보입니다. 그래서 <strong>가까운 해구들의 등급을 거리에 따라 섞어</strong> 색을 이어 그립니다 — 주의와 경계가 맞닿은 곳은 그 중간색으로 부드럽게 넘어갑니다. 색이 진한 가운데가 해안선이고, 바깥으로 갈수록 연해집니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 해구 단위 예측값을 그 구역에 닿는 해안선에 입힌 것이므로, 같은 색 구간 안에서도 지형에 따라 실제 위험은 다를 수 있습니다. 참고자료로만 이용하시고 현장 상황과 안전요원 안내를 반드시 확인하시기 바랍니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 너울 화면에서는 실제 해안 지형(만·곶·방파제)과 비교하기 쉽도록 <strong>배경지도가 위성지도로 자동 전환</strong>됩니다. 좌측 상단에서 다른 배경지도로 바꿀 수 있고, 다른 활동으로 옮기면 원래 배경지도로 돌아갑니다.</p>
+                </div>
+
+            </section>
+
+            <!-- ================================================================
                  섹션: 해양안전생활 - 해양안전 (하위탭 [해양안전 | 해양생활] 중 왼쪽)
                  ----------------------------------------------------------------
                  [역할] 하위탭 전환의 "자리표시" 섹션.
@@ -5312,6 +5363,7 @@
             <button class="ocean-overlay-btn ls-act-btn" data-act="scuba-section"><span>스킨</span><span>스쿠버</span></button>
             <button class="ocean-overlay-btn ls-act-btn" data-act="mudflat-section"><span>갯벌</span><span>체험</span></button>
             <button class="ocean-overlay-btn ls-act-btn" data-act="sea-parting-section"><span>바다</span><span>갈라짐</span></button>
+            <button class="ocean-overlay-btn ls-act-btn" data-act="swell-section"><span>너울</span></button>
 
             <!-- [GPS 버튼 비활성화 2026-09-09] 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나기 위해
                  '내 위치'(GPS) 버튼을 화면에서 뺐다. 코드는 지우지 않고 아래처럼 주석으로만 남긴다 —
@@ -5377,12 +5429,14 @@
         </nav>
         <!-- [제거됨] 종합기상 서브탭 (#ocean-sub-tabs) — 조석정보 탭 삭제 및
              해양종합정보 단일 탭으로 변경되어 서브탭 자체가 불필요해짐. -->
-        <!-- 해양생활 서브탭 (바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐 | 이안류)
+        <!-- 해양생활 서브탭 (바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐 | 이안류 | 너울)
              ⚠[2026-09-10] 이 바는 더 이상 화면에 뜨지 않는다 — 해양안전생활 개편으로
                'ocean-life-group' 이 #ocean-safety-sub-tabs 를 쓰게 됐고(marine.js TAB_GROUP_SUBTABS),
                활동 6개는 화면 오른쪽 세로 레일(#ls-rail)에서 고른다.
                지우지 않는 이유: 활동 섹션 id(fishing-section 등)를 참조하는 코드가 여럿이라
-               되돌릴 때 근거가 되고, body.ls-mode 규칙이 이 바를 숨기는 전제로 남아 있다. -->
+               되돌릴 때 근거가 되고, body.ls-mode 규칙이 이 바를 숨기는 전제로 남아 있다.
+               [2026-09-10 너울 추가] 그래서 '너울' 도 여기 말고 #ls-rail 에 버튼을 둔다.
+               이 바의 너울 버튼은 위 6개와 같은 이유로 목록만 유지하는 용도다. -->
         <nav class="sub-tabs bottom-sub-tabs" id="ocean-life-sub-tabs">
             <button class="sub-tab-btn active" data-target="fishing-section">바다낚시</button>
             <button class="sub-tab-btn" data-target="surfing-section">서핑</button>
@@ -5392,6 +5446,7 @@
             <button class="sub-tab-btn" data-target="sea-parting-section">바다갈라짐</button>
             <!-- [임시 숨김] 이안류 탭 — 테스트 중이라 사용자 미노출. 공개 시 style 제거. -->
             <button class="sub-tab-btn" data-target="ripcurrent-section" style="display:none;">이안류</button>
+            <button class="sub-tab-btn" data-target="swell-section">너울</button>
         </nav>
         <!-- 해양안전생활 서브탭 (해양안전 | 해양생활)
              ----------------------------------------------------------------
@@ -5401,7 +5456,7 @@
              예전에는 "해양생활 탭 10회 연타"로 들어갔을 때만 life_safety.js 가
              그 값을 이 id 로 바꿔치기했으나, 정식 기능이 되면서 기본값이 됐다.
              - "해양생활" 버튼의 data-target 은 현재 보고 있는 활동으로 계속 동기화됨
-             - 아래 .ls-hidden-sub 6개는 화면에 안 보이며, switchSubTab 이 같은 그룹
+             - 아래 .ls-hidden-sub 7개(활동 6 + 너울)는 화면에 안 보이며, switchSubTab 이 같은 그룹
                섹션을 정리(비활성)할 수 있도록 목록만 유지하는 용도
              [연계] js/marine-life/safety/life_safety.js -->
         <nav class="sub-tabs bottom-sub-tabs" id="ocean-safety-sub-tabs">
@@ -5413,6 +5468,7 @@
             <button class="sub-tab-btn ls-hidden-sub" data-target="scuba-section">스킨스쿠버</button>
             <button class="sub-tab-btn ls-hidden-sub" data-target="mudflat-section">갯벌체험</button>
             <button class="sub-tab-btn ls-hidden-sub" data-target="sea-parting-section">바다갈라짐</button>
+            <button class="sub-tab-btn ls-hidden-sub" data-target="swell-section">너울</button>
         </nav>
 
         <!-- 메인탭 바 (화면 하단 고정)
@@ -5544,6 +5600,7 @@
     <script src="js/marine-life/mudflat/mudflat.js?v=LifeSafety_20260731"></script>
     <script src="js/marine-life/scuba/scuba.js?v=LifeSafety_20260731"></script>
     <script src="js/marine-life/ripcurrent/ripcurrent.js"></script>
+    <script src="js/marine-life/swell/swell.js"></script>
     <script src="js/marine-life/swimming/swimming.js"></script>
 
     <!-- 해양종합정보 (히든 탭) -->

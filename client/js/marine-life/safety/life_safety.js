@@ -40,6 +40,8 @@
      *  - gpsBtn  : 그 활동이 이미 갖고 있는 "내 위치" 버튼 id (없으면 null)
      *  - getMap  : 그 활동의 OpenLayers 지도 인스턴스를 얻는 함수 (지도 없는 활동은 null)
      * [주의] 이안류(ripcurrent)는 현재 하위탭에서도 숨김 상태라 여기서도 뺀다.
+ * [2026-09-10] 너울(swell) 추가 — 마커가 아니라 해안선 자체를 색칠하는 지도라
+ *   바텀시트가 없지만, 레일에서 고르고 배경지도를 바꾸는 방식은 다른 활동과 같다.
      */
     var ACTIVITIES = [
         { id: 'fishing-section',     label: '바다낚시',   gpsBtn: 'fishing-my-location-btn', pub: 'fishing-publish-time', getMap: function () { return window.getFishingMap && window.getFishingMap(); } },
@@ -47,8 +49,12 @@
         { id: 'swimming-section',    label: '해수욕',     gpsBtn: 'swim-my-location-btn',    pub: 'swim-publish-time',    getMap: function () { return window.getSwimmingMap && window.getSwimmingMap(); } },
         { id: 'scuba-section',       label: '스킨스쿠버', gpsBtn: 'scuba-my-location-btn',   pub: 'scuba-publish-time',   getMap: function () { return window.getScubaMap && window.getScubaMap(); } },
         { id: 'mudflat-section',     label: '갯벌체험',   gpsBtn: 'mudflat-my-location-btn', pub: 'mudflat-publish-time', getMap: function () { return window.getMudflatMap && window.getMudflatMap(); } },
-        { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      pub: 'sp-publish-time',      getMap: null }
+        { id: 'sea-parting-section', label: '바다갈라짐', gpsBtn: null,                      pub: 'sp-publish-time',      getMap: null },
+        { id: 'swell-section',       label: '너울',       gpsBtn: 'swell-my-location-btn',   pub: 'swell-publish-time',   getMap: function () { return window.getSwellMap && window.getSwellMap(); }, basemap: 'vworld' }
     ];
+    // basemap 을 적은 활동은 그 활동을 보는 동안만 그 배경지도를 쓴다(사용자 확정 2026-09-10).
+    //   너울은 해안 지형(만·곶·방파제)과 견줘 봐야 뜻이 통하는데 기본맵에는 지형이 없다.
+    //   벗어나면 사용자가 고른 배경(_userBase)으로 돌아간다.
 
     /** 배경지도 종류 → 버튼에 표시할 이름 (해양종합정보 switchBaseLayer 와 동일 표기)
      *  [주의] vworld(위성지도)는 아직 시험 단계라 해양종합정보 메뉴에는 없고 이 화면에만 있다. */
@@ -71,7 +77,9 @@
     //   변경 범위를 좁히기 위해서다.
     var _unlocked = true;
     var _currentAct = 'fishing-section';  // 현재 보고 있는 활동 섹션 id
-    var _currentBase = 'rltm';  // 현재 배경지도 종류
+    var _currentBase = 'rltm';  // 지금 화면에 보이는 배경지도 종류
+    var _userBase = 'rltm';     // 사용자가 마지막으로 직접 고른 배경지도
+                                //   (활동 전용 배경을 쓰다 벗어날 때 여기로 돌아간다)
     var _lastView = null;       // 활동을 바꿔도 지도 위치가 이어지도록 기억 {center, zoom}
     var _decorated = [];        // 배경지도 레이어를 이미 끼워 넣은 지도 목록(중복 방지)
     var _suspended = [];        // 해양안전 진입 때 잠시 꺼둔 해양종합정보 오버레이 버튼들
@@ -469,7 +477,8 @@
     }
 
     /**
-     * 활동의 지도에 배경지도 4종을 준비하고, 직전 활동의 위치를 이어받는다.
+     * 활동의 지도에 배경지도 5종을 준비하고, 직전 활동의 위치를 이어받는다.
+     * 활동에 전용 배경지도(ACTIVITIES 의 basemap)가 있으면 그것을 켠다 — 너울이 그렇다.
      * 지도가 아직 안 만들어졌을 수 있으므로(활동 진입 시 200ms 뒤 초기화) 잠시 뒤 다시 시도한다.
      * @param {Object|null} act - ACTIVITIES 항목
      * [연계] ← _syncChrome() / → _decorateMap(), _applyBasemap()
@@ -484,7 +493,8 @@
                 return;
             }
             _decorateMap(map);
-            _applyBasemap(_currentBase);
+            // 활동에 전용 배경지도가 있으면 그것, 없으면 사용자가 고른 배경으로 돌린다.
+            _applyBasemap(act.basemap || _userBase);
             if (_lastView && _lastView.center) {
                 try {
                     map.getView().setCenter(_lastView.center);
@@ -541,7 +551,8 @@
      * 배경지도를 지정한 종류로 바꾼다 (지금까지 준비된 모든 활동 지도에 함께 적용).
      * 예: _applyBasemap('enc') → 전자해도만 보이고 나머지 배경은 숨김
      * @param {string} type - 'rltm' | 'enc' | 'coast' | 'osm' | 'vworld'
-     * [연계] ← 좌측 상단 배경지도 메뉴 클릭 / _prepareMap() 진입 시 현재 선택 재적용
+     * [연계] ← 좌측 상단 배경지도 메뉴 클릭(그때는 _userBase 도 함께 바뀐다)
+     *          / _prepareMap() 진입 시 — 활동 전용 배경 또는 _userBase 재적용
      */
     function _applyBasemap(type) {
         _currentBase = type;
@@ -790,7 +801,8 @@
             for (var b = 0; b < items.length; b++) {
                 items[b].addEventListener('click', function (e) {
                     e.stopPropagation();
-                    _applyBasemap(this.getAttribute('data-basemap'));
+                    _userBase = this.getAttribute('data-basemap');
+                    _applyBasemap(_userBase);
                     bmMenu.style.display = 'none';
                 });
             }
