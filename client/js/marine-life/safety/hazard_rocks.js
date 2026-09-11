@@ -149,7 +149,16 @@
                 }).catch(function () { return null; })
             ]).then(function (arr) {
                 return { rocks: arr[0], shore: arr[1] };
-            });
+            })
+                // ★[버그 수정 2026-09-11] 실패는 기억하지 않는다 — accident_info.js 의
+                //   fetchSource 와 같은 함정이었다. 실패한 약속이 dataPromise 에 그대로
+                //   남아, 자료(hazard_rocks 0.7MB + 갯바위 4.7MB)를 받다가 한 번이라도
+                //   끊기면 그 뒤로는 버튼을 눌러도 받으러 가지 않고 즉시 실패했다.
+                //   앱을 껐다 켜기 전까지 계속이라 "갑자기 안 눌린다"로 보인다.
+                .catch(function (e) {
+                    dataPromise = null;   // 지워야 다음에 누를 때 다시 받는다
+                    throw e;
+                });
         }
         return dataPromise;
     }

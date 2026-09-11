@@ -863,7 +863,18 @@
             dataPromises[key] = fetch(SOURCES[key].url).then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
-            }).then(function (data) { return data.rows || []; });
+            }).then(function (data) { return data.rows || []; })
+                // ★[버그 수정 2026-09-11] 실패는 기억하지 않는다.
+                //   예전에는 실패한 약속(rejected promise)이 그대로 dataPromises 에 남아,
+                //   자료를 받다가 **한 번이라도 실패하면**(신호가 약해지거나 LTE↔WiFi 가
+                //   바뀌거나 화면을 껐다 켜는 등) 그 뒤로는 버튼을 눌러도 **받으러 가지도
+                //   않고 즉시 실패**했다. 앱을 껐다 켜기 전까지 계속이라, 사용자에게는
+                //   "평소엔 되는데 갑자기 안 눌리고 그 뒤로 계속 안 된다"로 보였다
+                //   (사용자 보고 2026-09-11). 이 파일은 7.1MB 를 받으므로 실패 확률도 가장 높다.
+                .catch(function (e) {
+                    dataPromises[key] = null;   // 지워야 다음에 누를 때 다시 받는다
+                    throw e;
+                });
         }
         return dataPromises[key];
     }
@@ -1567,6 +1578,10 @@
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
             }).then(function (data) { return data.rows || []; });
+            jurisdictionMismatchPromise = jurisdictionMismatchPromise.catch(function (e) {
+                jurisdictionMismatchPromise = null;   // 실패는 기억하지 않는다(위 fetchSource 와 같은 이유)
+                throw e;
+            });
         }
         return jurisdictionMismatchPromise;
     }
@@ -1579,6 +1594,10 @@
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
             }).then(function (data) { return data.rows || []; });
+            jurisdiction2025Promise = jurisdiction2025Promise.catch(function (e) {
+                jurisdiction2025Promise = null;   // 실패는 기억하지 않는다(위 fetchSource 와 같은 이유)
+                throw e;
+            });
         }
         return jurisdiction2025Promise;
     }
@@ -1591,6 +1610,10 @@
             jurisdictionBoundaryPromise = fetch('/coastguard_jurisdiction_boundaries.json').then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
+            });
+            jurisdictionBoundaryPromise = jurisdictionBoundaryPromise.catch(function (e) {
+                jurisdictionBoundaryPromise = null;   // 실패는 기억하지 않는다(위 fetchSource 와 같은 이유)
+                throw e;
             });
         }
         return jurisdictionBoundaryPromise;

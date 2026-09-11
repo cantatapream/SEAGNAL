@@ -735,6 +735,21 @@
            [상태 클래스] body.ls-sheet-open — life_safety.js 가 시트의 active 를 보고 붙인다. */
         body.ls-mode.ls-sheet-open #ls-rail { display: none !important; }
 
+        /* ★[버그 수정 2026-09-11] 같은 이유로, 사고 통계 시트가 열려 있는 동안에는
+           해양안전의 우측 버튼 묶음도 감춘다.
+           [사용자 보고] "버튼을 누르다 보면 사고정보 버튼이 갑자기 안 눌린다."
+           [재어 본 것] 통계 시트(#accident-stats-sheet)는 z-index 70 이고 버튼
+             묶음(#ocean-overlay-controls)은 50 이라, 시트가 열리면 버튼이 그 아래
+             깔려 **눌리지 않는다.** 시트가 얼마나 높이 올라오는지는 화면 크기를 따라가서
+             390×844 에서는 윗변이 108px(금지구역 아래 6개가 막힘), 360×800 에서는 99px,
+             **375×667 에서는 72px 까지 올라와 사고정보 버튼(57~99px)까지 막혔다.**
+             그러면 사고정보를 끌 수도 없어 시트가 열린 채 7개 버튼이 계속 먹통이 된다.
+           [왜 감추나] 눌리지도 않는 버튼을 보여 주는 것이 혼란의 원인이다. 시트는
+             자체 닫기 버튼과 손잡이로 닫을 수 있으므로, 닫으면 버튼이 곧바로 돌아온다.
+             z-index 를 올려 버튼을 시트 위로 띄우는 방법도 있으나, 시트의 닫기 버튼이
+             바로 그 자리(오른쪽 위)라 서로 가려 더 나빠진다. */
+        body.ls-mode.ls-safety.ls-sheet-open #ocean-overlay-controls { display: none !important; }
+
         /* 활동 화면의 제목 줄(예: "바다낚시 지수 / 발표: …")은 숨긴다.
            발표 시각은 우측 레일에서 그 활동 버튼을 누를 때 토스트로 안내한다. */
         body.ls-mode.ls-life .tab-content.active > .life-header-row { display: none !important; }
