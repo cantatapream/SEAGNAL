@@ -70,8 +70,21 @@ console.log('── 쓸모없는 REVIEW 언급은 계속 버린다 ──');
   ok('날짜로 시작하는 표 행의 REVIEW 도 버린다', !R.markUnresolvedReview(body).includes(HEAD));
 }
 {
+  // 2026-09-10 사용자 확정("고치자")으로 **동작이 바뀌었다.** 종전에는 "이미 해소됐다"로 읽히면
+  // 그 줄을 통째로 버렸는데, 실측 결과 379줄이 그렇게 사라지고 있었고 그중 100줄에는 ⚠REVIEW
+  // 표시가 붙어 있었다(경고만 없어지고 단정적인 문장은 남는 꼴). 이제는 버리지 않고 옮긴다.
   const body = '- REVIEW-03 은 2026-08-05 사람 승인으로 해소됐다.';
-  ok('"이미 해소됐다"는 언급은 버린다', !R.markUnresolvedReview(body).includes(HEAD));
+  const out = R.markUnresolvedReview(body);
+  ok('T-drop-1 "이미 해소됐다"는 언급도 버리지 않고 [미확인]으로 옮긴다', out.includes(HEAD) && out.includes('REVIEW-03'));
+
+  // 실제로 사라지던 유형 — 끝났다는 말이 붙어 있지만 **답 자체가 담긴 줄**
+  const real = '> ✅ **REVIEW-364 해제**: 서핑보드는 이 법상 선박이 아니다(선박법 제1조의2 3구분 전수 대조).';
+  const out2 = R.markUnresolvedReview(real);
+  ok('T-drop-2 확정 답변이 담긴 줄이 사라지지 않는다', out2.includes('서핑보드는 이 법상 선박이 아니다'));
+
+  // 수치가 담긴 줄도 마찬가지
+  const num = '- (REVIEW-02 정정 완료) 아라서해갑문 최대폭 28.5m · 통과허용 선박폭 26m.';
+  ok('T-drop-3 수치가 담긴 줄이 사라지지 않는다', R.markUnresolvedReview(num).includes('28.5m'));
 }
 {
   const body = '- REVIEW-04 는 아직 미해소 상태다(사람 승인 대기).';
@@ -103,6 +116,35 @@ console.log('── 페이지 상태 안내줄(draft — 미승인)은 밀려나
   ok('T-banner-3 안내줄이 [미확인]으로 옮겨지지 않는다', !/draft — 미승인/.test(moved));
   ok('T-banner-4 진짜 판단 줄은 여전히 [미확인]으로 옮겨진다', /"소유"에 임차가 포함/.test(moved));
   ok('T-banner-5 REVIEW 없는 줄은 그대로 남는다', /제5조: 어선을 소유한 자/.test(kept));
+
+  // 배너 뒷말이 여러 가지다(전 위키 실측): `미승인` 말고 `draft로 환원`·`draft 유지`·`사람 승인 대기` 도 있다.
+  for (const head of ['> ⚠ **draft로 환원(2026-07-21, L-15 패턴)** — 본문에 AI 법리추론형 REVIEW 가 남아 있다.',
+    '> ⚠ **draft 유지(H-34 재트리아지, 2026-08-05)** — REVIEW 두 건 중 하나만 해소됐다.',
+    '> ⚠ **draft — 사람 승인 대기.** 이 페이지는 원래 다른 쪽에 있던 REVIEW 를 분리한 것이다.']) {
+    const o = R.markUnresolvedReview(head + '\n- 제5조: 어선을 소유한 자는 등록하여야 한다.');
+    const h = o.indexOf(HEAD);
+    ok('T-banner-6 배너 변형도 본문에 남는다 — ' + head.slice(0, 24), (h < 0 ? o : o.slice(0, h)).indexOf(head) >= 0);
+  }
+}
+
+console.log('── 용어 설명 배너는 본문에 남는다(ⓞ-2) ──');
+{
+  // 2026-09-11: `> ℹ️ **이 페이지에 "REVIEW"·"still_missing"이라고 적힌 자리는 무슨 뜻인가 …**` 배너는
+  // 판단이 아니라 독자에게 표시의 뜻을 알려주는 글인데, 그 뜻을 설명하느라 `REVIEW` 라는 낱말을
+  // 담고 있어서 **자기 설명 때문에 자기가 숨고** 있었다(실측: 이 배너를 둔 4쪽에서 전부 밀렸다).
+  // ⚠머리 기호를 문자 클래스로 거르면 안 된다 — `ℹ`(U+2139)는 유니코드상 문자(\p{L})로 분류된다.
+  const variants = [
+    '> \u2139\uFE0F **이 페이지에 "REVIEW"·"still_missing"이라고 적힌 자리는 무슨 뜻인가**: 지어내지 않고 그대로 드러낸 표시다.',
+    '> **이 페이지에 "REVIEW"·"still_missing"이라고 적힌 자리는 무슨 뜻인가**: 같은 뜻이다.',
+    '\u2139\uFE0F **이 페이지에 "REVIEW"라고 적힌 자리는 무슨 뜻인가**: 인용부호 없이도 남아야 한다.',
+  ];
+  for (const banner of variants) {
+    const body = banner + '\n\n제3조: 공단의 임직원은 비밀을 지켜야 한다.\n';
+    const o = R.markUnresolvedReview(body);
+    const h = o.indexOf('[미확인');
+    const kept = h < 0 ? o : o.slice(0, h);
+    ok('T-term-banner 용어 설명 배너가 본문에 남는다 — ' + banner.slice(0, 26), kept.indexOf(banner) >= 0);
+  }
 }
 
 console.log('── 답변 규칙에 "단정하지 마라"가 있다 ──');

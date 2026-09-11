@@ -60,10 +60,27 @@ JOSA = re.compile(r'^[를을이가는은와과로의에도만][\s가-힣]')
 TRIM = ' `)*,、·.:：'
 
 
+# ★2026-09-11 신설 — **"⚠REVIEW … 아님" 을 등록해 버린 것**(오케스트레이터 확인).
+#   `허가증표지번호판및표지깃발.md` 58행은 "조문 문언 그대로의 확정, ⚠REVIEW 아님" 이라고
+#   **아니라고 적어 둔 문장**이었는데, 이 도구가 "REVIEW" 라는 글자만 보고 대기열에 올렸다
+#   (REVIEW-…-910). 사람이 승인할 것이 없는 항목이 대기열에 한 건 늘어난 것이다.
+#   그래서 마커가 든 줄이 **그 자리에서 부정되고 있으면** 그 줄은 마커로 세지 않는다.
+NEGATED = re.compile(r'⚠\s*REVIEW[^.。\n|]{0,120}?(?:아님|아니다|아니라|해당하지\s*않|필요\s*없)')
+
+
+def is_negated(ln):
+    """'⚠REVIEW … 아님' 처럼 **그 자리에서 부정된** 표시인지.
+       예) '조문 문언 그대로의 확정, ⚠REVIEW 아님' → True (등록 대상이 아니다)
+       [연계] scan() 이 마커를 셀 때와 why_of() 가 사유를 뽑을 때 둘 다 이걸 먼저 본다."""
+    return bool(NEGATED.search(ln))
+
+
 def why_of(ln):
     """⚠REVIEW 표시 줄에서 **사유 문장**만 뽑는다.
        예) '⚠REVIEW(신규, 미등록): 제3조 정의가 …' → '제3조 정의가 …'
        [연계] scan() 이 대기열 제목·인용을 만들 때 쓴다. 표시가 없으면 None."""
+    if is_negated(ln):
+        return None
     m = MARK.search(ln)
     if not m:
         return None
@@ -152,7 +169,8 @@ def scan():
                 whole = cell_text(dict(live)[marker_line])
                 if len(whole) >= MIN_WHY:
                     best, line = whole, marker_line
-            has_live_mark = any(re.search(r'⚠\s*REVIEW', ln) for _, ln in live)
+            has_live_mark = any(re.search(r'⚠\s*REVIEW', ln) and not is_negated(ln)
+                                for _, ln in live)
             if rel_here in done:
                 continue                       # 같은 자리를 이미 올렸다
             if best and len(best) >= MIN_WHY and (has_live_mark or rid or fm):
@@ -264,7 +282,13 @@ def main():
         t = open(p, encoding='utf-8').read().split('\n')
         i = (mline or 0) - 1
         if 0 <= i < len(t) and rid not in t[i] and re.search(r'⚠\s*REVIEW', t[i]):
-            t[i] = re.sub(r'(⚠\s*REVIEW)', r'\1〔%s 대기열 등록됨〕' % rid, t[i], count=1)
+            # ★2026-09-11 정정 — 종전에는 `⚠REVIEW` **바로 뒤**에 태그를 끼워넣어,
+            #   페이지가 이미 쓰던 `⚠REVIEW-801` 의 **가운데를 갈랐다**
+            #   (`⚠REVIEW〔…-803 대기열 등록됨〕-801` — 실제로 위키 6장 8곳에서 나왔다).
+            #   두 식별자가 뒤섞여 어느 항목 얘기인지 사람이 읽어낼 수 없었다.
+            #   이제 MARK(마커 + 그 ID 꼬리까지) 를 통째로 건너뛴 **뒤**에 붙인다.
+            mm = MARK.search(t[i])
+            t[i] = t[i][:mm.end()].rstrip() + ('〔%s 대기열 등록됨〕 ' % rid) + t[i][mm.end():]
             open(p, 'w', encoding='utf-8').write('\n'.join(t))
     print('\n✅ review_queue.md 에 %d건 추가 · 위키 %d장에 등록 표시를 남겼다.' % (len(made), len(made)))
     print('   설명이 없어 못 만든 %d장은 --list-bare 로 따로 본다.' % len(bare))
