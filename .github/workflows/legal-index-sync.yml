@@ -1,0 +1,135 @@
+# ============================================================================
+# [용도] 법률 위키의 "색인"이 본문보다 낡지 않게 깃허브 서버가 직접 지킨다.
+#
+# 왜 있나 (2026-09-18 신설, 사용자 확정):
+#   `_dashboard/index.json` · `wiki/graph.json` 은 위키 마크다운에서 **만들어지는 파일**이다
+#   (`lint_index.py` → `lint_build.py`). 챗봇이 답을 찾을 때도, 관리자 화면이 숫자를 셀 때도
+#   본문이 아니라 이 색인을 본다. 그런데 색인을 다시 만드는 일이 **사람 기억에만 의존**하고
+#   있었다 — 안 돌리면 본문은 고쳐졌는데 색인은 옛 것이라 챗봇이 옛 내용으로 답한다.
+#
+#   `.githooks/pre-commit` 이 커밋 단계에서 같은 일을 막지만, 그건 **커밋하는 자리**에서만
+#   걸린다(Claude Code 세션이나 훅을 켠 로컬 클론). 어떤 경로로 들어온 변경이든 지키려면
+#   깃허브 서버 쪽에 두어야 한다 — 여기는 어떤 구독·도구와도 무관하게 돈다.
+#
+# 무엇을 하나:
+#   색인을 다시 만들어 보고, 저장소에 들어 있는 것과 다르면 **그 브랜치에 바로 커밋한다.**
+#   (사람이 아무것도 안 해도 색인이 항상 맞게 유지된다 — 같은 저장소의 `khoa-*` 수집
+#    워크플로가 결과를 스스로 커밋하는 것과 같은 방식이다.)
+#   main 에 실제로 커밋이 생긴 경우에만 배포를 이어서 깨운다 — 깃허브는 CI 가 만든 푸시로는
+#   다른 워크플로를 자동 실행하지 않아(GITHUB_TOKEN 재귀 방지), 그대로 두면 고쳐진 색인이
+#   다음 사람 푸시 때까지 배포되지 않는다. `workflow_dispatch` 는 그 예외라 깨울 수 있다.
+#
+# 언제 도나:
+#   ① 위키 본문(.md)이 바뀐 푸시마다 — 어긋남이 생긴 그 자리에서 잡는다
+#   ② 매일 KST 03:00 — 어떤 경로로 들어온 변경이든 하루 안에 반드시 한 번 걸린다
+#      (기존 phase0-gate 가 KST 02:00 이라 겹치지 않게 한 시간 뒤로 둔다)
+#   ③ 깃허브 화면에서 손으로 실행 — 의심스러울 때 즉시 확인용
+#
+# [연계] 재생성 도구 `local_server/knowledge/legal/_dashboard/loop/lint_index.py`·`lint_build.py` ·
+#        커밋 단계의 같은 검사 `.githooks/pre-commit` · 검증 쪽 판정 `scripts/refactor/verify_all.sh` V5-0 ·
+#        이 워크플로가 깨우는 배포 `.github/workflows/deploy.yml`
+# ============================================================================
+name: 법률 위키 색인 최신화
+
+on:
+  push:
+    paths:
+      - 'local_server/knowledge/legal/wiki/**.md'
+      # `_backbone.md` 는 이 워크플로가 만드는 산출물이다. 빼지 않으면 자기 커밋이
+      # 자기를 다시 부른다(한 번 더 돌고 멈추긴 하나 헛돈다).
+      - '!local_server/knowledge/legal/wiki/_backbone.md'
+      - 'local_server/knowledge/legal/_dashboard/loop/lint_index.py'
+      - 'local_server/knowledge/legal/_dashboard/loop/lint_build.py'
+      - '.github/workflows/legal-index-sync.yml'
+  schedule:
+    # UTC 18:00 = KST 03:00 (다음날)
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: '수동 실행 사유 (예: 색인이 의심스러워 즉시 확인)'
+        required: false
+
+permissions:
+  contents: write        # 색인을 다시 만들어 커밋하려면 쓰기 권한이 필요하다
+  actions: write         # main 에서 커밋이 생겼을 때 배포 워크플로를 깨우기 위해
+
+concurrency:
+  # 같은 브랜치에서 두 번이 겹치면 서로의 커밋을 밀어낸다. 한 번에 하나만 돈다.
+  group: legal-index-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: 색인·그래프 재생성 후 달라졌으면 커밋
+    runs-on: ubuntu-latest
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3 준비
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 색인·그래프 다시 만들기
+        run: |
+          python3 local_server/knowledge/legal/_dashboard/loop/lint_index.py
+          python3 local_server/knowledge/legal/_dashboard/loop/lint_build.py
+
+      - name: 달라진 것이 있는지 확인
+        id: diff
+        run: |
+          FILES="local_server/knowledge/legal/_dashboard/index.json \
+                 local_server/knowledge/legal/wiki/graph.json \
+                 local_server/knowledge/legal/wiki/_backbone.md \
+                 local_server/knowledge/legal/_dashboard/build_index.md"
+          if git diff --quiet -- $FILES; then
+            echo "changed=no" >> "$GITHUB_OUTPUT"
+            echo "✅ 색인이 위키와 맞다 — 고칠 것이 없다"
+          else
+            echo "changed=yes" >> "$GITHUB_OUTPUT"
+            echo "⚠ 색인이 위키보다 낡아 있었다. 바뀐 내용:"
+            git diff --stat -- $FILES
+          fi
+
+      - name: 다시 만든 색인을 같은 브랜치에 커밋
+        if: steps.diff.outputs.changed == 'yes'
+        run: |
+          git config user.name "legal-index-sync-bot"
+          git config user.email "actions@github.com"
+          # ⚠경로를 개별 지정한다 — `git add -A` 는 이 저장소에서 금지다(CLAUDE.md, L-171).
+          git add local_server/knowledge/legal/_dashboard/index.json \
+                  local_server/knowledge/legal/wiki/graph.json \
+                  local_server/knowledge/legal/wiki/_backbone.md \
+                  local_server/knowledge/legal/_dashboard/build_index.md
+          git commit -m "법률 위키 색인 자동 재생성 (run ${{ github.run_number }})
+
+          위키 본문이 바뀌었는데 색인이 함께 갱신되지 않아 깃허브 서버가 다시 만들었다.
+          색인이 낡으면 챗봇이 옛 내용으로 답하고 관리자 화면 숫자도 옛 값이 된다."
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: main 이면 배포를 이어서 깨운다
+        if: steps.diff.outputs.changed == 'yes' && github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 깃허브는 CI 가 만든 푸시로는 다른 워크플로를 자동 실행하지 않는다.
+          # `workflow_dispatch` 는 그 예외라, 여기서 배포를 직접 깨운다.
+          gh workflow run deploy.yml --ref main
+          echo "배포 워크플로를 깨웠다 — 고쳐진 색인이 실제 서버에 반영된다"
+
+      - name: 결과 요약
+        run: |
+          {
+            echo "## 법률 위키 색인 최신화"
+            echo ""
+            if [ "${{ steps.diff.outputs.changed }}" = "yes" ]; then
+              echo "⚠ **색인이 위키보다 낡아 있어 다시 만들어 커밋했다.**"
+              echo ""
+              echo "- 브랜치: \`${{ github.ref_name }}\`"
+              echo "- main 이면 배포도 이어서 깨웠다."
+            else
+              echo "✅ **색인이 위키와 맞다** — 고칠 것이 없었다."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

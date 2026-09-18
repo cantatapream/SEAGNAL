@@ -118,6 +118,11 @@ Claude Code 밖(터미널·다른 도구)에서 커밋한다면 그 클론에서
 git config core.hooksPath .githooks     # Claude Code 밖에서 쓸 때만, 클론당 한 번
 ```
 
+그리고 **어느 쪽으로도 안 걸린 변경을 위해 깃허브 서버에 한 겹이 더 있다** —
+`.github/workflows/legal-index-sync.yml` 이 ①위키 본문이 바뀐 푸시마다 ②매일 KST 03:00
+③손으로 누를 때 색인을 다시 만들어 보고, 저장소 것과 다르면 **그 브랜치에 바로 커밋한다.**
+main 에서 커밋이 생기면 배포까지 이어서 깨운다. 이 층은 어떤 구독·도구와도 무관하게 돈다.
+
 `.githooks/pre-commit` 은 **위키 마크다운이 스테이지에 있는데 색인이 그보다 낡았으면**
 `lint_index.py`·`lint_build.py` 를 대신 돌려 색인·그래프를 다시 만들고, 그 커밋을 한 번 막는다.
 찍어주는 경로(`_dashboard/index.json` · `wiki/graph.json` · `wiki/_backbone.md` ·

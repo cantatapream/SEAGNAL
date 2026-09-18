@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 """lint 2단계(알고리즘 산출): 백본 지도·대시보드 인덱스·개념 그래프 생성."""
 import os,re,json,glob,collections
-LEGAL='/home/user/SEAGNAL/local_server/knowledge/legal'
+# 경로를 박아두면 다른 컴퓨터에서 못 돈다 — 깃허브 CI 는 /home/runner/work/… 에서 돈다(2026-09-18).
+#   이 파일 위치(…/legal/_dashboard/loop/)에서 세 단계 올라가면 legal 폴더다.
+LEGAL=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 WIKI=f'{LEGAL}/wiki'; DASH=f'{LEGAL}/_dashboard'
 idx=json.load(open(f'{DASH}/index.json'))['pages']
 rep=json.load(open(f'{DASH}/lint_report.json'))

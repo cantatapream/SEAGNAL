@@ -3,7 +3,9 @@
 """lint 1단계: 완성된 위키 전체를 알고리즘으로 색인 → 교집합·링크갭·테마맵 산출."""
 import os,re,json,glob,collections
 
-LEGAL='/home/user/SEAGNAL/local_server/knowledge/legal'
+# 경로를 박아두면 다른 컴퓨터에서 못 돈다 — 깃허브 CI 는 /home/runner/work/… 에서 돈다(2026-09-18).
+#   이 파일 위치(…/legal/_dashboard/loop/)에서 세 단계 올라가면 legal 폴더다.
+LEGAL=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 WIKI=f'{LEGAL}/wiki'
 DASH=f'{LEGAL}/_dashboard'
 
