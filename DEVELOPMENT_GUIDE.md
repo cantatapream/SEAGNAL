@@ -108,6 +108,19 @@ bash scripts/refactor/verify_all.sh    # V2·V3·V4 + 스모크 일괄
 
 - 기능을 추가했으면 `scripts/refactor/simulate.js` 시나리오에 스모크 1개 추가
 
+### 7-1. 위키를 고쳤다면 — 색인 자동 재생성 훅 (클론마다 한 번 켠다)
+
+```
+git config core.hooksPath .githooks     # 이 저장소를 새로 클론했을 때 한 번만
+```
+
+`.githooks/pre-commit` 은 **위키 마크다운이 스테이지에 있는데 색인이 그보다 낡았으면**
+`lint_index.py`·`lint_build.py` 를 대신 돌려 색인·그래프를 다시 만들고, 그 커밋을 한 번 막는다.
+찍어주는 경로(`_dashboard/index.json` · `wiki/graph.json` · `wiki/_backbone.md` ·
+`_dashboard/build_index.md`)를 스테이지에 올리고 같은 커밋 명령을 다시 실행하면 된다 —
+재생성물을 **소스와 같은 커밋에 담기 위해서다**(L-209). 훅이 스스로 스테이지에 넣지는 않는다(L-171).
+끄려면 `SEAGNAL_INDEX_SYNC=off` 를 앞에 붙인다.
+
 ## 8. 최종 체크리스트 (커밋 전 전부 ☑)
 
 ```

@@ -38,7 +38,9 @@ for e in edges:
     k=(e['from'],e['to'])
     if k not in bykey: bykey[k]=set()
     bykey[k].add(e['kind'])
-ed2=[{'from':f,'to':t,'kind':'+'.join(sorted(ks))} for (f,t),ks in bykey.items()]
+# ⚠정렬 필수: 위 `set(...)` 순회 순서가 프로세스마다 달라(PYTHONHASHSEED) 엣지 차례가 매번 바뀐다.
+#   내용이 같은데도 graph.json 이 1,114줄씩 바뀐 것으로 보여 커밋 diff 를 못 믿게 된다(2026-09-18 실측).
+ed2=[{'from':f,'to':t,'kind':'+'.join(sorted(ks))} for (f,t),ks in sorted(bykey.items())]
 json.dump({'nodes':list(nodes.values()),'edges':ed2},open(f'{WIKI}/graph.json','w'),ensure_ascii=False,indent=1)
 
 # --- _backbone.md: 여러 법이 공통 의존하는 허브 법 지도 ---
