@@ -108,10 +108,14 @@ bash scripts/refactor/verify_all.sh    # V2·V3·V4 + 스모크 일괄
 
 - 기능을 추가했으면 `scripts/refactor/simulate.js` 시나리오에 스모크 1개 추가
 
-### 7-1. 위키를 고쳤다면 — 색인 자동 재생성 훅 (클론마다 한 번 켠다)
+### 7-1. 위키를 고쳤다면 — 색인 자동 재생성 훅
+
+Claude Code 세션이 시작될 때 `.claude/settings.json` 의 SessionStart 훅이
+`git config core.hooksPath .githooks` 를 자동으로 실행하므로 **따로 켤 것은 없다.**
+Claude Code 밖(터미널·다른 도구)에서 커밋한다면 그 클론에서 한 번만 직접 실행한다.
 
 ```
-git config core.hooksPath .githooks     # 이 저장소를 새로 클론했을 때 한 번만
+git config core.hooksPath .githooks     # Claude Code 밖에서 쓸 때만, 클론당 한 번
 ```
 
 `.githooks/pre-commit` 은 **위키 마크다운이 스테이지에 있는데 색인이 그보다 낡았으면**

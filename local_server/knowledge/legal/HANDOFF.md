@@ -910,6 +910,31 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-09-18 20:58 KST] ✅완료 — 색인 재생성 훅 자동 활성화
+직전 작업에서 만든 `.githooks/pre-commit`(위키를 고친 커밋에 색인·그래프 재생성물이 빠지지
+않게 막는 장치)이 켜져 있지 않은 상태였다. 사용자 지시로 자동 활성화를 붙였다.
+
+[한 것]
+· `.claude/settings.json` 에 SessionStart 훅 추가 —
+  `git -C "$CLAUDE_PROJECT_DIR" config core.hooksPath .githooks` (timeout 15초).
+  기존 PreToolUse 훅(guard-git-scope.py)은 그대로 보존했고 jq 로 두 훅이 다 살아 있음을 확인했다.
+· DEVELOPMENT_GUIDE.md §7-1 갱신 — 이제 Claude Code 세션에서는 따로 켤 것이 없고,
+  Claude Code 밖(터미널 등)에서 커밋할 때만 클론당 한 번 직접 실행하면 된다고 적었다.
+
+[확인한 것 — 실제로 끝까지 돌려봤다]
+1. `git config core.hooksPath` → `.githooks` 로 설정됨.
+2. 위키 파일 한 장에 한 줄 추가 → 스테이지 → `git commit` 실행
+   → 훅이 색인·그래프를 다시 만들고 커밋을 막았다(종료코드 1, 커밋 생성 안 됨).
+   최신 커밋이 여전히 a2132294 인 것으로 확인.
+3. 시험용 변경은 원상복구하고 색인을 다시 만들어 작업 트리를 깨끗하게 되돌렸다
+   (`git status` 에 settings.json 만 남음).
+
+[남은 제약]
+· 이 세션 컨테이너는 일회용이라 `core.hooksPath` 설정 자체는 세션마다 사라지지만,
+  SessionStart 훅이 매 세션 다시 걸어주므로 실사용에는 문제가 없다.
+· 사용자 본인 PC 클론에서 터미널로 커밋한다면 그 클론에서 위 한 줄을 한 번 실행해야 한다.
+
+
 ### [2026-09-18 20:37 KST] ✅완료 — 통합관리자 수치 점검 — 자동 최신화 3건 수정
 관리자 화면 수치가 최신인지 확인하고, 자동으로 최신화되는 장치가 있는지 조사한 뒤 발견한 문제를 고쳤다.
 
