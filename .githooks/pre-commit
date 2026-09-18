@@ -39,6 +39,7 @@ LOOP = os.path.join(LEGAL, '_dashboard', 'loop')
 WIKI_PREFIX = 'local_server/knowledge/legal/wiki/'
 OUTPUTS = [
     'local_server/knowledge/legal/_dashboard/index.json',
+    'local_server/knowledge/legal/_dashboard/lint_report.json',
     'local_server/knowledge/legal/wiki/graph.json',
     'local_server/knowledge/legal/wiki/_backbone.md',
     'local_server/knowledge/legal/_dashboard/build_index.md',

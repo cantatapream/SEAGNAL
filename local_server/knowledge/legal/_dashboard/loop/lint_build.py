@@ -50,7 +50,8 @@ cc=rep['common_cited_laws']
 lines=['# 위키 백본 — 공통 인용 타법 지도 (lint 자동생성)','',
  '> 여러 법이 **공통으로 인용**하는 법 = 정의·허브 노드. 이 법들을 고치면 인용하는 모든 법에 영향.','',
  '| 허브 법(피인용) | 이 법을 인용하는 법 수 | 인용하는 법(일부) |','|---|---|---|']
-for c,v in sorted(cc.items(),key=lambda x:-len(x[1]))[:40]:
+# 인용 수가 같을 때 차례가 흔들리지 않게 법 이름을 둘째 기준으로 둔다(같은 취지, 2026-09-18).
+for c,v in sorted(cc.items(),key=lambda x:(-len(x[1]),x[0]))[:40]:
     lines.append(f"| 「{c}」 | {len(v)} | {', '.join(v[:6])}{' 외' if len(v)>6 else ''} |")
 open(f'{WIKI}/_backbone.md','w',encoding='utf-8').write('\n'.join(lines)+'\n')
 

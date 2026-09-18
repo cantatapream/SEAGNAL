@@ -53,7 +53,13 @@ THEMES={
 }
 
 pages=[]
-for path in glob.glob(f'{WIKI}/statutes/*.md')+glob.glob(f'{WIKI}/concepts/*.md')+glob.glob(f'{WIKI}/comparisons/*.md')+glob.glob(f'{WIKI}/annexes/*.md')+glob.glob(f'{WIKI}/activities/*.md'):
+# ⚠`glob.glob()` 은 폴더를 읽은 순서를 그대로 준다 — 그 순서는 **컴퓨터마다 다르다.**
+#   정렬하지 않으면 같은 위키로 만든 index.json 이 여기서와 깃허브 러너에서 서로 다른 차례로
+#   나오고, 내용이 똑같은데도 77,122 줄이 바뀐 것으로 보인다(2026-09-18 CI 첫 실행에서 실측).
+#   그러면 자동 재생성과 사람 작업이 서로의 순서를 계속 되돌리며 싸운다. 갈래마다 정렬해 고정한다.
+for path in (sorted(glob.glob(f'{WIKI}/statutes/*.md'))+sorted(glob.glob(f'{WIKI}/concepts/*.md'))
+             +sorted(glob.glob(f'{WIKI}/comparisons/*.md'))+sorted(glob.glob(f'{WIKI}/annexes/*.md'))
+             +sorted(glob.glob(f'{WIKI}/activities/*.md'))):
     fn=os.path.basename(path)[:-3]
     kind=('statute' if '/statutes/' in path else 'comparison' if '/comparisons/' in path
           else 'annex' if '/annexes/' in path else 'activity' if '/activities/' in path else 'concept')
