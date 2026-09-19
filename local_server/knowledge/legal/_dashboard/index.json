@@ -798,7 +798,7 @@
    "slug": "물환경보전법",
    "law": "물환경보전법",
    "topic": "",
-   "status": "draft",
+   "status": "canonical",
    "cited": [
     "공익신고자 보호법",
     "과태료",
@@ -892,7 +892,7 @@
    "slug": "배타적경제수역및대륙붕에관한법률",
    "law": "배타적 경제수역 및 대륙붕에 관한 법률",
    "topic": "",
-   "status": "draft",
+   "status": "canonical",
    "cited": [
     "골재채취법",
     "낚시관리 및 육성에 관한 법률",
@@ -3446,7 +3446,7 @@
    "slug": "항로표지법",
    "law": "항로표지법",
    "topic": "",
-   "status": "draft",
+   "status": "canonical",
    "cited": [
     "건축법",
     "공익사업 토지보상법",
@@ -15142,7 +15142,7 @@
    "slug": "선박법",
    "law": "선박법",
    "topic": "적용제외선박",
-   "status": "draft",
+   "status": "canonical",
    "cited": [
     "건설기계관리법",
     "건축법",
@@ -19124,7 +19124,7 @@
    "slug": "선원법",
    "law": "선원법",
    "topic": "유급휴가",
-   "status": "draft",
+   "status": "canonical",
    "cited": [
     "근로기준법",
     "선박안전법",
@@ -40670,7 +40670,7 @@
    "slug": "해수욕장의이용및관리에관한법률",
    "law": "해수욕장의 이용 및 관리에 관한 법률",
    "topic": "해수욕장관리운영위탁",
-   "status": "draft",
+   "status": "canonical",
    "cited": [
     "고흥군 공유재산 관리 조례",
     "고흥군 사무의 민간위탁 조례",
@@ -40751,7 +40751,7 @@
    "slug": "해수욕장의이용및관리에관한법률",
    "law": "해수욕장의 이용 및 관리에 관한 법률",
    "topic": "해수욕장시설사업",
-   "status": "draft",
+   "status": "canonical",
    "cited": [
     "1.다.2)나)(2)",
     "2.다.2)나)(2)",
@@ -40936,7 +40936,7 @@
    "slug": "해수욕장의이용및관리에관한법률",
    "law": "해수욕장의 이용 및 관리에 관한 법률",
    "topic": "해수욕장지정해제기준",
-   "status": "draft",
+   "status": "canonical",
    "cited": [
     "공중화장실 등에 관한 법률",
     "공중화장실 등에 관한 법률 시행규칙",
@@ -46882,7 +46882,7 @@
    "slug": "해양폐기물및해양오염퇴적물관리법",
    "law": "해양폐기물 및 해양오염퇴적물 관리법",
    "topic": "전문기관지정및취소",
-   "status": "draft",
+   "status": "canonical",
    "cited": [
     "각 기준 합산 기간 내에서 1/2 범위 가중 가능",
     "관련 개념",
@@ -56658,7 +56658,7 @@
    "slug": "activity_해루질",
    "law": "activity_해루질",
    "topic": "",
-   "status": "draft",
+   "status": "canonical",
    "cited": [
     "—",
     "낚시 관리 및 육성법",
