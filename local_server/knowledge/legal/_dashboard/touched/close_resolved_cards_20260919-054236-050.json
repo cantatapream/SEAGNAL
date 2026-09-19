@@ -1,0 +1,7 @@
+{
+ "script": "close_resolved_cards",
+ "stamp": "20260919-054236-050",
+ "files": [
+  "local_server/knowledge/legal/_dashboard/review_queue.md"
+ ]
+}
