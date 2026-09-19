@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 """lint 2단계(알고리즘 산출): 백본 지도·대시보드 인덱스·개념 그래프 생성."""
 import os,re,json,glob,collections
-LEGAL='/home/user/SEAGNAL/local_server/knowledge/legal'
+# 경로를 박아두면 다른 컴퓨터에서 못 돈다 — 깃허브 CI 는 /home/runner/work/… 에서 돈다(2026-09-18).
+#   이 파일 위치(…/legal/_dashboard/loop/)에서 세 단계 올라가면 legal 폴더다.
+LEGAL=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 WIKI=f'{LEGAL}/wiki'; DASH=f'{LEGAL}/_dashboard'
 idx=json.load(open(f'{DASH}/index.json'))['pages']
 rep=json.load(open(f'{DASH}/lint_report.json'))
@@ -38,7 +40,9 @@ for e in edges:
     k=(e['from'],e['to'])
     if k not in bykey: bykey[k]=set()
     bykey[k].add(e['kind'])
-ed2=[{'from':f,'to':t,'kind':'+'.join(sorted(ks))} for (f,t),ks in bykey.items()]
+# ⚠정렬 필수: 위 `set(...)` 순회 순서가 프로세스마다 달라(PYTHONHASHSEED) 엣지 차례가 매번 바뀐다.
+#   내용이 같은데도 graph.json 이 1,114줄씩 바뀐 것으로 보여 커밋 diff 를 못 믿게 된다(2026-09-18 실측).
+ed2=[{'from':f,'to':t,'kind':'+'.join(sorted(ks))} for (f,t),ks in sorted(bykey.items())]
 json.dump({'nodes':list(nodes.values()),'edges':ed2},open(f'{WIKI}/graph.json','w'),ensure_ascii=False,indent=1)
 
 # --- _backbone.md: 여러 법이 공통 의존하는 허브 법 지도 ---
@@ -46,7 +50,8 @@ cc=rep['common_cited_laws']
 lines=['# 위키 백본 — 공통 인용 타법 지도 (lint 자동생성)','',
  '> 여러 법이 **공통으로 인용**하는 법 = 정의·허브 노드. 이 법들을 고치면 인용하는 모든 법에 영향.','',
  '| 허브 법(피인용) | 이 법을 인용하는 법 수 | 인용하는 법(일부) |','|---|---|---|']
-for c,v in sorted(cc.items(),key=lambda x:-len(x[1]))[:40]:
+# 인용 수가 같을 때 차례가 흔들리지 않게 법 이름을 둘째 기준으로 둔다(같은 취지, 2026-09-18).
+for c,v in sorted(cc.items(),key=lambda x:(-len(x[1]),x[0]))[:40]:
     lines.append(f"| 「{c}」 | {len(v)} | {', '.join(v[:6])}{' 외' if len(v)>6 else ''} |")
 open(f'{WIKI}/_backbone.md','w',encoding='utf-8').write('\n'.join(lines)+'\n')
 

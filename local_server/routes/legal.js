@@ -120,7 +120,8 @@ function parseReviewQueue() {
       if (cur) entries.push(cur);
       const id = m[1];
       const law = id.replace(/^REVIEW-/, '').replace(/-\d+$/, '');
-      cur = { id, law, title: m[2].trim(), targetPages: [], body: '', approved: false, approvedMeta: '' };
+      cur = { id, law, title: m[2].trim(), targetPages: [], body: '', approved: false, approvedMeta: '',
+              excluded: false, excludedReason: '' };
       continue;
     }
     if (!cur) continue;
@@ -129,6 +130,19 @@ function parseReviewQueue() {
     if (tp) cur.targetPages = tp[1].split(/[,·]/).map(s => s.trim()).filter(Boolean);
     const ap = line.match(/^-\s*승인:\s*\[([ xX])\]\s*(.*)$/);
     if (ap) { cur.approved = ap[1].toLowerCase() === 'x'; cur.approvedMeta = (ap[2] || '').trim(); }
+    // ── 세 번째 상태: **승인도 대기도 아닌 카드**(2026-09-18 사용자 확정) ──
+    // 종전에는 상태가 둘뿐이었다 — 승인란에 x 가 있으면 승인, 없으면 대기. 그래서 "사람이 할
+    // 일이 아닌 카드"를 표현할 방법이 없어 **대기 수가 실제보다 많게 나왔다.**
+    //   · `- 쪼갬:` — 논점이 여럿이라 하위 카드로 나눈 부모. 판단은 하위 카드에서 한다.
+    //     부모를 지우지 못하는 이유는 **위키 96곳이 이 카드 번호를 참조**하기 때문이다.
+    //   · `- 승인: 해당 없음` — 사람 승인 대상이 아닌 항목(재수집 대기 등).
+    //     `human_workload.py` 는 2026-08-23 적대검증 뒤 이미 이 카드를 빼고 세는데
+    //     **서버에는 같은 처리가 없어 두 숫자가 어긋난 채였다.** 여기서 맞춘다.
+    //     (`[ ]` 가 앞에 붙은 꼴도 받는다 — 2026-09-18 에 기계가 읽도록 그렇게 고쳤다.)
+    const sp = line.match(/^-\s*쪼갬:\s*(.*)$/);
+    if (sp) { cur.excluded = true; cur.excludedReason = '쪼갬 — ' + (sp[1] || '').trim(); }
+    const na = line.match(/^-\s*승인:\s*(?:\[[ xX]\]\s*)?해당\s*없음(.*)$/);
+    if (na) { cur.excluded = true; cur.excludedReason = '해당 없음 — ' + (na[1] || '').trim(); }
   }
   if (cur) entries.push(cur);
   return entries;
@@ -171,8 +185,11 @@ router.get('/api/legal/reviews', (req, res) => {
   try {
     const status = req.query.status || 'pending';
     let list = parseReviewQueue();
-    if (status === 'pending') list = list.filter(e => !e.approved);
-    else if (status === 'approved') list = list.filter(e => e.approved);
+    // 세 번째 상태(쪼갠 부모·해당 없음)는 대기 목록에 넣지 않는다 — 사람이 처리할 대상이 아니다.
+    // `?status=excluded` 로 따로 볼 수 있게 두어, 숨겨서 안 보이는 일이 없게 한다.
+    if (status === 'pending') list = list.filter(e => !e.approved && !e.excluded);
+    else if (status === 'approved') list = list.filter(e => e.approved && !e.excluded);
+    else if (status === 'excluded') list = list.filter(e => e.excluded);
     res.json({ ok: true, count: list.length, reviews: list.map(e => {
       const s = extractStructured(e.body);
       return {
@@ -180,6 +197,7 @@ router.get('/api/legal/reviews', (req, res) => {
         fields: s.fields,           // {근거, 확인 필요, AI 연결 내용, 문제, 필요 조치, ...} 가독성용
         urls: s.urls,               // 검증용 원문/이미지 링크(클라에서 클릭 가능하게)
         approved: e.approved, approvedMeta: e.approvedMeta,
+        excluded: e.excluded, excludedReason: e.excludedReason,
       };
     }) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
@@ -274,9 +292,12 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
 router.get('/api/legal/reviews/stats', (req, res) => {
   try {
     const list = parseReviewQueue();
+    // pending 은 **사람이 실제로 볼 일의 개수**다 — 쪼갠 부모·해당 없음은 빼고 센다.
+    // 이 수가 관리자 화면의 배지와 `human_workload.py` 의 집계와 같아야 한다(2026-09-18).
     res.json({ ok: true, total: list.length,
-      pending: list.filter(e => !e.approved).length,
-      approved: list.filter(e => e.approved).length });
+      pending: list.filter(e => !e.approved && !e.excluded).length,
+      approved: list.filter(e => e.approved && !e.excluded).length,
+      excluded: list.filter(e => e.excluded).length });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 

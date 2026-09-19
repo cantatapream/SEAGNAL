@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""위키를 고친 커밋에 색인·그래프 재생성물이 빠지지 않게 한다 (2026-09-18 신설).
+
+왜 있나:
+  `_dashboard/index.json` 과 `wiki/graph.json` 은 위키 마크다운에서 **만들어지는 파일**이다
+  (`lint_index.py` → `lint_build.py`). 그런데 이 둘을 자동으로 다시 만드는 장치가 어디에도
+  없었다 — CI 워크플로·npm 스크립트·훅 어디에도 호출이 없어 사람이 기억해서 돌려야 했다
+  (2026-09-18 전수 검색으로 확인). `verify_all.sh` V5-0 은 "색인이 위키보다 낡았다"고
+  **알려만 주고 고치지는 않는다**(검증이 트리를 바꾸면 안 되기 때문이며, 그 판단은 그대로 둔다).
+  색인이 낡으면 관리자 화면의 숫자와 게이트 V5-7·V5-8·V5-10 이 **낡은 자료를 재게 된다.**
+
+무엇을 하나:
+  스테이지에 `wiki/**.md` 가 있고 그 중 하나라도 색인보다 새로우면
+    1. `lint_index.py` · `lint_build.py` 를 실제로 돌려 재생성물을 만든다(자동 최신화).
+    2. 그리고 **커밋을 한 번 막는다** — 재생성물을 같은 커밋에 담으라고 경로를 찍어준다(L-209).
+  재생성물을 사람 확인 없이 몰래 스테이지에 넣지는 않는다
+  (L-171 — 커밋에 담을 대상은 언제나 사람이 경로로 지정한다).
+
+무엇은 건드리지 않나:
+  · 위키 마크다운이 스테이지에 없는 커밋 · 색인이 이미 최신인 커밋 → 그냥 통과
+  · 환경변수 `SEAGNAL_INDEX_SYNC=off` 를 준 경우 → 통과(의도적으로 끌 때만)
+
+어떻게 켜나 (클론마다 한 번):
+    git config core.hooksPath .githooks
+
+[연계] 재생성 도구 `local_server/knowledge/legal/_dashboard/loop/lint_index.py` · `lint_build.py` ·
+       같은 판정을 검증 쪽에서 하는 곳은 `scripts/refactor/verify_all.sh` V5-0
+"""
+import os
+import subprocess
+import sys
+
+REPO = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
+                      capture_output=True, text=True).stdout.strip()
+LEGAL = os.path.join(REPO, 'local_server', 'knowledge', 'legal')
+IDX = os.path.join(LEGAL, '_dashboard', 'index.json')
+LOOP = os.path.join(LEGAL, '_dashboard', 'loop')
+WIKI_PREFIX = 'local_server/knowledge/legal/wiki/'
+OUTPUTS = [
+    'local_server/knowledge/legal/_dashboard/index.json',
+    'local_server/knowledge/legal/_dashboard/lint_report.json',
+    'local_server/knowledge/legal/wiki/graph.json',
+    'local_server/knowledge/legal/wiki/_backbone.md',
+    'local_server/knowledge/legal/_dashboard/build_index.md',
+]
+
+
+def staged_wiki_md():
+    """스테이지에 올라간 위키 마크다운 경로들(생성물 `_backbone.md` 는 뺀다)."""
+    out = subprocess.run(['git', '-c', 'core.quotepath=false', 'diff', '--cached', '--name-only'],
+                         capture_output=True, text=True).stdout
+    return [p for p in out.split('\n')
+            if p.startswith(WIKI_PREFIX) and p.endswith('.md') and not p.endswith('/_backbone.md')]
+
+
+def stale_against_index(paths):
+    """색인보다 새로운 위키 파일들(= 색인이 낡았다는 증거)."""
+    try:
+        idx_mt = os.stat(IDX).st_mtime
+    except OSError:
+        return paths                       # 색인이 아예 없으면 전부 근거
+    newer = []
+    for p in paths:
+        try:
+            if os.stat(os.path.join(REPO, p)).st_mtime > idx_mt:
+                newer.append(p)
+        except OSError:
+            pass
+    return newer
+
+
+def regenerate():
+    """lint_index.py → lint_build.py 순서로 돌린다. 실패하면 그 사유를 돌려준다."""
+    for name in ('lint_index.py', 'lint_build.py'):
+        r = subprocess.run([sys.executable, os.path.join(LOOP, name)],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            return '%s 가 실패했다:\n%s' % (name, (r.stderr or r.stdout)[-800:])
+    return None
+
+
+def main():
+    if os.environ.get('SEAGNAL_INDEX_SYNC') == 'off':
+        return 0
+    staged = staged_wiki_md()
+    if not staged:
+        return 0
+    newer = stale_against_index(staged)
+    if not newer:
+        return 0
+
+    err = regenerate()
+    if err:
+        print('[색인 동기화] 색인이 위키보다 낡아 다시 만들려 했으나 실패했다.')
+        print('  %s' % err)
+        print('  직접 돌려서 원인을 보라:')
+        print('    python3 local_server/knowledge/legal/_dashboard/loop/lint_index.py')
+        print('    python3 local_server/knowledge/legal/_dashboard/loop/lint_build.py')
+        return 1
+
+    print('[색인 동기화] 위키 %d장이 색인보다 새로워서 색인·그래프를 다시 만들었다.'
+          % len(newer))
+    print('  예: %s' % newer[0][len(WIKI_PREFIX):])
+    print('  이 커밋은 한 번만 막는다 — 재생성물을 같은 커밋에 담아야 하기 때문이다(L-209).')
+    print('  아래를 스테이지에 올리고 같은 커밋 명령을 다시 실행하라(바뀐 것만 올라간다):')
+    print('    git add \\\n        %s' % ' \\\n        '.join(OUTPUTS))
+    print('  근거: verify_all.sh V5-0 — 색인이 낡으면 V5-7·V5-8·V5-10 이 낡은 자료를 잰다.')
+    print('  끄려면 SEAGNAL_INDEX_SYNC=off 를 앞에 붙여 실행한다.')
+    return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

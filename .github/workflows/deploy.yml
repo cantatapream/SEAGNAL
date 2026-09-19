@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+  # 색인 최신화 워크플로(legal-index-sync.yml)가 main 의 색인을 고쳐 커밋했을 때
+  # 배포를 이어서 깨우기 위한 입구다. 깃허브는 CI 가 만든 푸시로는 워크플로를 자동
+  # 실행하지 않아(GITHUB_TOKEN 재귀 방지), 그대로 두면 고쳐진 색인이 다음 사람 푸시
+  # 때까지 배포되지 않는다. `workflow_dispatch` 는 그 재귀 방지의 예외다. (2026-09-18)
+  # 사람이 깃허브 화면에서 손으로 재배포할 때도 쓸 수 있다.
+  workflow_dispatch:
 
 permissions:
   contents: read

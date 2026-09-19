@@ -1,0 +1,10 @@
+{
+ "script": "refresh_daesan_annex_keepold",
+ "stamp": "20260919-024120-041",
+ "files": [
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/별표/대산항항만시설운영세칙_별표2.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/별표/대산항항만시설운영세칙_별표4.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/별표/대산항항만시설운영세칙_별표5.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/별표/대산항항만시설운영세칙_별표6.txt"
+ ]
+}
