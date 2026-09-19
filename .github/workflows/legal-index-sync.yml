@@ -99,6 +99,11 @@ jobs:
         run: |
           git config user.name "legal-index-sync-bot"
           git config user.email "actions@github.com"
+          FILES="local_server/knowledge/legal/_dashboard/index.json \
+                 local_server/knowledge/legal/_dashboard/lint_report.json \
+                 local_server/knowledge/legal/wiki/graph.json \
+                 local_server/knowledge/legal/wiki/_backbone.md \
+                 local_server/knowledge/legal/_dashboard/build_index.md"
           # ⚠경로를 개별 지정한다 — `git add -A` 는 이 저장소에서 금지다(CLAUDE.md, L-171).
           git add local_server/knowledge/legal/_dashboard/index.json \
                   local_server/knowledge/legal/_dashboard/lint_report.json \
@@ -109,7 +114,33 @@ jobs:
 
           위키 본문이 바뀌었는데 색인이 함께 갱신되지 않아 깃허브 서버가 다시 만들었다.
           색인이 낡으면 챗봇이 옛 내용으로 답하고 관리자 화면 숫자도 옛 값이 된다."
-          git push origin HEAD:${{ github.ref_name }}
+          # ⚠사람(또는 에이전트)이 같은 브랜치에 먼저 푸시하면 이 푸시는 거절된다.
+          #   `concurrency` 는 이 워크플로끼리의 겹침만 막고 바깥 푸시와의 경합은 못 막는다.
+          #   실제로 2026-09-19 run 15 가 이 사유로 실패했다(앞뒤 실행은 성공 — 효과는 일시적이지만
+          #   빨간 표시가 남아 PR 을 읽는 사람이 진짜 실패와 구분하지 못한다).
+          #   그래서 세 번까지 **최신 원격 위로 다시 얹어** 밀어 본다. 색인은 생성물이라
+          #   리베이스로 잃을 것이 없다(충돌이 나면 재생성해서 덮는다).
+          for i in 1 2 3; do
+            if git push origin HEAD:${{ github.ref_name }}; then
+              echo "푸시 성공(시도 $i)"; exit 0
+            fi
+            echo "푸시 거절 — 그 사이 다른 푸시가 있었다. 최신본 위로 다시 얹는다(시도 $i)"
+            git fetch origin ${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
+            python3 local_server/knowledge/legal/_dashboard/loop/lint_index.py
+            python3 local_server/knowledge/legal/_dashboard/loop/lint_build.py
+            if git diff --quiet -- $FILES; then
+              echo "최신본에서는 색인이 이미 맞다 — 더 할 일이 없다"; exit 0
+            fi
+            git add local_server/knowledge/legal/_dashboard/index.json \
+                    local_server/knowledge/legal/_dashboard/lint_report.json \
+                    local_server/knowledge/legal/wiki/graph.json \
+                    local_server/knowledge/legal/wiki/_backbone.md \
+                    local_server/knowledge/legal/_dashboard/build_index.md
+            git commit -m "법률 위키 색인 자동 재생성 (run ${{ github.run_number }}, 재시도 $i)"
+          done
+          echo "::error::색인 커밋을 세 번 밀어 봤으나 매번 다른 푸시와 겹쳤다. 다음 실행이 다시 잡는다."
+          exit 1
 
       - name: main 이면 배포를 이어서 깨운다
         if: steps.diff.outputs.changed == 'yes' && github.ref_name == 'main'
