@@ -215,8 +215,28 @@ const LIST_ITEM_RANGE_RE = /^\s*제?\s*(\d+)\s*조?\s*[~～∼]\s*제?\s*(\d+)\s
  * [연계] ← parseArticleRef(mode:'list'). → loadArticle 이 range 와 같은 경로로 원문을 나열한다.
  */
 function parseJoEnum(s) {
-  if (!LIST_ONLY_RE.test(s) || !/[·ㆍ・,]/.test(s) || !/조/.test(s)) return null;
-  const toks = s.split(/[·ㆍ・,]/).map(t => t.trim()).filter(Boolean);
+  if (!/[·ㆍ・,]/.test(s) || !/조/.test(s)) return null;
+  // ★별표ㆍ별지 항목을 먼저 떼어낸다 (2026-09-21, E-3 후속).
+  //   [왜] `LIST_ONLY_RE` 의 글자표에 `별`ㆍ`표`ㆍ`지` 가 없어서, 칸에 `별표` 가 한 번이라도 들어가면
+  //   여기서 곧바로 null 이 됐다. 그러면 아래 범위 정규식이 받아 주는데 그건 **범위 하나**만 읽는다.
+  //   그래서 `제3~12조·별표1~5` 는 범위가 건져 읽히고 `제2·3조·별표1·2` 는 통째로 못 읽혔다
+  //   (실측: 못 읽는 칸 122건 중 가장 큰 덩어리). **별표는 조가 아니므로** 조 나열을 읽을 때는
+  //   빼고 보는 것이 맞다 — 별표 도달성은 `annex_ready.js`(V5-11)가 따로 본다.
+  //   ⚠**뒤따르는 맨숫자까지 함께 버린다.** `별표1·2` 의 `2` 는 별표 번호인데 그냥 두면
+  //     **제2조로 읽혀 인용된 적 없는 조를 지어낸다**(환각 0 위반). `조` 가 다시 나오면 거기서 푼다.
+  //   ⚠`별표6(법 제52조 위임에 따른 기준)` 처럼 **별표로 시작하는 한 덩어리**는 통째로 버려져
+  //     남는 항목이 없다 → 종전과 똑같이 null 이다. 괄호 안의 **남의 법 조**를 주워 읽지 않는다.
+  const rawToks = s.split(/[·ㆍ・,]/).map(t => t.trim()).filter(Boolean);
+  const toks = [];
+  let inAnnex = false;
+  for (const t of rawToks) {
+    if (/^별[표지]/.test(t)) { inAnnex = true; continue; }
+    if (inAnnex) { if (/조/.test(t)) inAnnex = false; else continue; }
+    toks.push(t);
+  }
+  if (!toks.length) return null;
+  // 글자표 검사는 **별표를 걷어낸 뒤** 남은 것에만 건다(원래 의도 그대로 — 조 나열인지 본다).
+  if (!LIST_ONLY_RE.test(toks.join('·'))) return null;
   const out = [];
   const spans = [];
   let prevBranchJo = 0;   // 바로 앞 항목이 `제N조의M`이었으면 그 본조 번호 N(아니면 0)
