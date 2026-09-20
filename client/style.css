@@ -10741,6 +10741,29 @@ body.ocean-map-active .main-header .header-content {
     line-height: 1.35;
 }
 
+/* 기압 카드 — 값 + 출처(OpenWeather) 세로 쌓기.
+   [왜 출처가 카드 안에 있나] OpenWeather 무료 플랜은 공개 라이선스라 "자료가 보이는 자리"에
+   출처를 밝히는 것이 의무다(정식 3종 표기는 안내(ⓘ) 「기압」 탭).
+   [높이] 카드 높이는 왼쪽 아이콘(44px)이 정하므로, 이 한 줄이 늘어나도 카드는 커지지 않는다
+   (412px 폭 실측: 출처 줄 유무와 무관하게 70px). */
+.ocean-card-value-stack {
+    flex: 1;
+    min-width: 0;
+}
+.ocean-card-value-stack .ocean-card-value {
+    flex: none;
+}
+.ocean-card-attrib {
+    margin-top: 2px;
+    font-size: 9px;
+    line-height: 12px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.45);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* 조류·바람 카드 2줄 레이아웃
    방향(동남동)과 수치(5.3 m/s)를 세로로 쌓아 표시합니다.
    ┌──────────────┐

@@ -12,6 +12,9 @@
  *   ② 화면 배선 — 카드 마크업(id)과 바텀시트 코드의 호출·초기화 목록이 서로 맞는가.
  *   ③ 게이트 등록 — 이 스위트가 verify_all.sh 에 올라가 있는가.
  *   ④ 응답 만들기 — fetch 를 가짜로 바꿔 끼워, 상류 값이 왔을 때 무엇을 돌려주는지.
+ *   ⑤ 출처 표기 — 카드와 안내(ⓘ)의 OpenWeather 표기. 이건 디자인이 아니라 **라이선스 의무**다:
+ *      무료 플랜은 공개 라이선스(ODbL/CC BY-SA)라 「문구 + 링크 + 로고」를 보이는 자리에 둬야 한다
+ *      (OpenWeather FAQ). 누가 지우면 위반이 되므로 여기서 고정한다.
  *
  * [실제 응답] 2026-09-20 에 실제로 받은 응답 1건을 붙박이로 넣어 필드 이름을 고정했다.
  *   다만 이 스위트는 네트워크를 쓰지 않으므로, 상류가 응답 형식을 바꾸면 여기서는 안 걸린다.
@@ -146,6 +149,37 @@ ok('server.js 가 기압 라우터를 등록한다',
 const ROUTE_SRC = fs.readFileSync(path.join(ROOT, 'local_server', 'routes', 'pressure.js'), 'utf8');
 ok('서버가 기준 시각을 자기 시계에서 잡는다(now + off)',
     /const ts = now \+ off;/.test(ROUTE_SRC) && !/req\.query\.ts/.test(ROUTE_SRC));
+
+// ── [5] 출처 표기 (라이선스 의무) ──────────────────────────────────────────
+console.log('\n[5] 출처 표기 — 지우면 라이선스 위반이 되는 자리들');
+
+const CSS_SRC = fs.readFileSync(path.join(ROOT, 'client', 'style.css'), 'utf8');
+const GUIDE_SRC = fs.readFileSync(
+    path.join(ROOT, 'client', 'js', 'ocean-map', 'cctv', 'ocean_cctv.js'), 'utf8');
+
+ok('기압 카드 안에 OpenWeather 표기가 있다',
+    /<div class="ocean-card-attrib">OpenWeather<\/div>/.test(HTML_SRC));
+
+ok('출처 줄이 값 바깥에 있다 — setCardValue 가 값을 갈아끼워도 지워지지 않는다',
+    /ocean-card-value-stack[\s\S]{0,400}id="ocean-val-pressure"[\s\S]{0,400}ocean-card-attrib/.test(HTML_SRC));
+
+ok('출처 줄 스타일이 style.css 에 있다',
+    /\.ocean-card-attrib\s*\{/.test(CSS_SRC));
+
+ok('안내(ⓘ)에 「기압」 탭이 있다',
+    /id: 'pressure', label: '기압'/.test(GUIDE_SRC));
+
+ok('안내에 정식 문구가 그대로 적혀 있다',
+    /Weather data provided by/.test(GUIDE_SRC));
+
+ok('안내에 OpenWeather 홈페이지 링크가 있다',
+    /href="https:\/\/openweathermap\.org\/"/.test(GUIDE_SRC));
+
+ok('안내에 OpenWeather 로고가 붙어 있다',
+    /\/images\/openweather_logo\.png/.test(GUIDE_SRC));
+
+ok('로고 파일이 실제로 있다',
+    fs.existsSync(path.join(ROOT, 'client', 'images', 'openweather_logo.png')));
 
 // ── [3] 게이트 등록 ────────────────────────────────────────────────────────
 console.log('\n[3] 게이트 등록 — 이 스위트가 verify_all.sh 에 올라가 있는가');

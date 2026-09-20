@@ -154,7 +154,23 @@
           + '<p><i class="fa-solid fa-circle-check"></i> 바깥 자료를 그때그때 받아오므로 처음 열 때 <strong>3~5초</strong>가 걸릴 수 있고, 같은 지점을 다시 누르면 저장해 둔 값으로 즉시 표시됩니다.</p>'
           + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <strong>하루 15회까지</strong> 조회할 수 있습니다(자정에 초기화).</p>'
           + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 예측값입니다. 실제 조위는 그날의 기상·기압에 따라 달라질 수 있습니다.</p>',
-          src: '국립해양조사원 조석예측자료(TideBED, 공공데이터포털)<br>동해 북부 · 연간 조석표(표준항 165곳)' }
+          src: '국립해양조사원 조석예측자료(TideBED, 공공데이터포털)<br>동해 북부 · 연간 조석표(표준항 165곳)' },
+        // 기압[2026-09-20 신설] — 우리 해양 자료(기상청·KHOA)에 없는 값이라 OpenWeather 에서 받는다.
+        //   ⚠출처 줄은 장식이 아니다: 무료 플랜은 공개 라이선스(ODbL/CC BY-SA)라
+        //   「문구 + 링크 + 로고」 세 가지를 보이는 자리에 두는 것이 의무다(OpenWeather FAQ).
+        //   카드에도 이름을 함께 적어 자료가 보이는 자리마다 출처가 따라가게 했다.
+        { id: 'pressure', label: '기압', bodyHtml:
+            '<p><i class="fa-solid fa-circle-check"></i> <strong>지도에서 해점을 누르면</strong> 아래 정보 시트에 그 지점의 기압이 표시됩니다. 단위는 <strong>헥토파스칼(hPa)</strong> 이며, 맑은 날 바다에서는 보통 <strong>1010~1020</strong> 사이입니다.</p>'
+          + '<p><i class="fa-solid fa-circle-check"></i> 바다 높이(해수면)를 기준으로 맞춘 <strong>해면기압</strong>이라, <strong>일기도의 등압선이나 태풍 중심기압과 그대로 비교</strong>하실 수 있습니다.</p>'
+          + '<p><i class="fa-solid fa-circle-check"></i> 시트 아래 <strong>시간 슬라이더를 옮기면 그 시각의 기압</strong>을 보여줍니다. <strong>3시간 간격으로 최대 5일 뒤까지</strong> 볼 수 있습니다.</p>'
+          + '<p><i class="fa-solid fa-circle-check"></i> 기압이 <strong>빠르게 내려가면</strong> 날씨가 나빠지는 쪽, <strong>올라가면</strong> 좋아지는 쪽 신호로 봅니다. 다만 기압만 보고 판단하지 마시고 바람·파도와 함께 보세요.</p>'
+          + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <strong>지나간 시각의 기압은 제공하지 않습니다.</strong> 날짜를 뒤로 넘기면 기압 카드가 나오지 않습니다.</p>'
+          + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <strong>5일 뒤까지만</strong> 제공됩니다. 그보다 먼 날짜에서도 기압 카드가 나오지 않습니다.</p>'
+          + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 지금 시각의 값은 관측을 바탕으로 한 것이고, 앞으로의 값은 <strong>예보</strong>입니다. 바깥 자료를 받아오는 기능이라 자료를 받지 못하면 카드가 잠시 나오지 않을 수 있습니다.</p>',
+          src: '<img src="/images/openweather_logo.png" alt="OpenWeather" '
+             + 'style="height:28px;width:auto;display:block;margin:0 0 4px;">'
+             + 'Weather data provided by <a href="https://openweathermap.org/" target="_blank" rel="noopener">OpenWeather</a><br>'
+             + '현재 날씨(관측 기반) · 3시간 간격 5일 예보' }
     ];
 
     /** 탭바 + 패널 HTML 문자열 생성 */

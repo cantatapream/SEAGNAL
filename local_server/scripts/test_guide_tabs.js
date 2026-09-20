@@ -71,10 +71,11 @@ const OCEAN_EXPECT = [
     ['basemap', '지도 종류'], ['search', '위치 검색'], ['northup', '진북 정렬'],
     ['wind', '풍향·풍속'], ['current', '유향·유속'], ['wave', '파고·파향'],
     ['buoy', '기상부이'], ['seagrid', '해구기상'], ['warnzone', '특보구역'],
-    ['typhoon', '태풍'], ['otherwx', '천기'], ['depth', '수심'], ['tide', '조석']
+    ['typhoon', '태풍'], ['otherwx', '천기'], ['depth', '수심'], ['tide', '조석'],
+    ['pressure', '기압']
 ];
 ok('탭을 읽어 낼 수 있다', Array.isArray(oceanTabs), String(oceanTabs));
-ok('탭이 13개다', (oceanTabs || []).length === 13, String((oceanTabs || []).length));
+ok('탭이 14개다', (oceanTabs || []).length === 14, String((oceanTabs || []).length));
 ok('탭 id·라벨·순서가 화면 버튼 순서와 같다',
     JSON.stringify((oceanTabs || []).map(t => [t.id, t.label])) === JSON.stringify(OCEAN_EXPECT),
     (oceanTabs || []).map(t => t.label).join(' | '));
