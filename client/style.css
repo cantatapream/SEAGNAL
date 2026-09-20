@@ -10754,15 +10754,42 @@ body.ocean-map-active .main-header .header-content {
     flex: none;
 }
 .ocean-card-attrib {
+    display: block;
     margin-top: 2px;
     font-size: 9px;
     line-height: 12px;
     font-weight: 400;
-    color: rgba(255,255,255,0.45);
+    color: rgba(255,255,255,0.55);
+    text-decoration: underline;          /* 누를 수 있는 글자임을 보이게 */
+    text-underline-offset: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    position: relative;                  /* 배경 로고(::before) 위로 올라오게 */
+    z-index: 1;
 }
+.ocean-card-attrib:hover { color: rgba(255,255,255,0.8); }
+
+/* 기압 카드 배경의 OpenWeather 로고.
+   [왜] 라이선스가 요구하는 표기 3종(문구·링크·로고) 중 로고를 카드에도 둔다. 로고에 글자가
+   들어 있어 9px 로 줄이면 못 읽으므로, 줄여 박지 않고 카드 배경에 크게 은은히 깐다.
+   [가독성] 숫자를 가리지 않도록 ::before 에만 투명도를 주고(카드 글자는 그대로), 값·출처 줄은
+   z-index 로 위에 올린다. */
+#ocean-card-pressure { position: relative; overflow: hidden; }
+#ocean-card-pressure::before {
+    content: '';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 96px;
+    height: 54px;
+    background: url('/images/openweather_logo.png') no-repeat center / contain;
+    opacity: 0.16;
+    pointer-events: none;
+}
+#ocean-card-pressure .ocean-card-value,
+#ocean-card-pressure .ocean-card-icon { position: relative; z-index: 1; }
 
 /* 조류·바람 카드 2줄 레이아웃
    방향(동남동)과 수치(5.3 m/s)를 세로로 쌓아 표시합니다.
