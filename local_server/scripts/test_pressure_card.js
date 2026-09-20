@@ -157,8 +157,17 @@ const CSS_SRC = fs.readFileSync(path.join(ROOT, 'client', 'style.css'), 'utf8');
 const GUIDE_SRC = fs.readFileSync(
     path.join(ROOT, 'client', 'js', 'ocean-map', 'cctv', 'ocean_cctv.js'), 'utf8');
 
-ok('기압 카드 안에 OpenWeather 표기가 있다',
-    /<div class="ocean-card-attrib">OpenWeather<\/div>/.test(HTML_SRC));
+ok('기압 카드 안에 OpenWeather 표기가 있고, 홈페이지로 가는 링크다',
+    /<a class="ocean-card-attrib" href="https:\/\/openweathermap\.org\/"[\s\S]{0,120}>OpenWeather<\/a>/.test(HTML_SRC));
+
+ok('카드 링크는 새 창으로 연다(앱의 기존 외부링크 방식과 같게)',
+    /class="ocean-card-attrib"[\s\S]{0,160}target="_blank"[\s\S]{0,40}rel="noopener/.test(HTML_SRC));
+
+ok('카드 배경에 OpenWeather 로고가 깔려 있다',
+    /#ocean-card-pressure::before[\s\S]{0,400}\/images\/openweather_logo\.png/.test(CSS_SRC));
+
+ok('배경 로고가 숫자를 가리지 않게 값·아이콘이 위로 올라와 있다',
+    /#ocean-card-pressure \.ocean-card-value[\s\S]{0,120}z-index: 1/.test(CSS_SRC));
 
 ok('출처 줄이 값 바깥에 있다 — setCardValue 가 값을 갈아끼워도 지워지지 않는다',
     /ocean-card-value-stack[\s\S]{0,400}id="ocean-val-pressure"[\s\S]{0,400}ocean-card-attrib/.test(HTML_SRC));
