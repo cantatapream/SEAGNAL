@@ -1,0 +1,23 @@
+{
+ "script": "fold_effective",
+ "stamp": "20260920-052913-062",
+ "files": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/_meta.json",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법/_meta.json",
+  "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법/_meta.json",
+  "local_server/knowledge/legal/raw/05_수산어업/양식산업발전법/_meta.json",
+  "local_server/knowledge/legal/raw/05_수산어업/어선안전조업및어선원의안전ㆍ보건증진등에관한법률/_meta.json",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/_meta.json",
+  "local_server/knowledge/legal/raw/08_섬영토/섬발전촉진법/_meta.json",
+  "local_server/knowledge/legal/raw/10_항만물류/신항만건설촉진법/_대기/20260918/시행령.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/신항만건설촉진법/_meta.json",
+  "local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법/_meta.json",
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법/_대기/20260830/시행규칙.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법/_meta.json",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/_meta.json",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_meta.json",
+  "local_server/knowledge/legal/_dashboard/pending_index.json",
+  "local_server/knowledge/legal/wiki/concepts/신항만건설촉진법__부대공사및부대사업.md"
+ ]
+}

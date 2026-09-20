@@ -1,0 +1,14 @@
+{
+ "script": "recollect_tier",
+ "stamp": "20260920-050346-058",
+ "files": [
+  "local_server/knowledge/legal/_legacy/어선원및어선재해보상보험법/20251002/시행령.txt",
+  "local_server/knowledge/legal/_legacy/어선원및어선재해보상보험법/20251002/별표/시행령_별표1.txt",
+  "local_server/knowledge/legal/_legacy/어선원및어선재해보상보험법/20251002/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/시행령.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/별표/시행령_별표1.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/별표/_links.json",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/_meta.json"
+ ]
+}

@@ -1,0 +1,95 @@
+[시행규칙] 서식105 — 보호에 대한 심사청구서
+
+■ 출입국관리법 시행규칙 [별지 제105호서식]                                                                   
+                                                                                                                                  
+  보호에 대한 심사청구서                                                                                                          
+  (APPLICATION FOR REVIEW OF DETENTION ORDER)                                                                                     
+                                                                                                                                  
+  ※ 색상이 어두운 칸은 심사청구인이 작성하지 않으며, [ ]에는 해당되는 곳에 √표를 합니다.                                        
+  The applicant shall not fill in the shaded areas. Please place a check mark (V) in the applicable boxes [  ].                   
+─────────┬─────────────────────────┬─────────────────────────────
+  접수번호        │접수일                                            │처리기간                                                  
+  Receipt No      │Receipt Date                                      │Processing Period                                         
+─────────┴─────────────────────────┴─────────────────────────────
+                                                                                                                                  
+────────┬──────────────────────────┬─────────────────────────────
+  심사청구인    │성 명                                               │생년월일                                                  
+  Applicant for │Full Name                                           │ Date of Birth                                            
+  Review        ├──────────────────────────┼─────────────────────────────
+                │성 별           [ ] 남      [ ] 여                  │ 국적                                                     
+                │Gender         [ ] Male   [ ] Female                │ Nationality                                              
+                ├──────────────────────────┴─────────────────────────────
+                │대한민국 내 주소                                                                                                
+                │Address in Korea                                                                                                
+                │ (전화번호:                            )                                                                        
+                │(Telephone:                         )                                                                           
+                ├────────────────────────────────────────────────────────
+                │전자우편                                                                                                        
+                │E-mail                                                                                                          
+                ├────────────────────────────────────────────────────────
+                │피보호자와의 관계                                                                                               
+                │Relationship with the detainee                                                                                  
+────────┼──────────────────────────┬─────────────────────────────
+  피보호자      │성 명                                               │생년월일                                                  
+  Detainee      │Full Name                                           │ Date of Birth                                            
+                ├──────────────────────────┼─────────────────────────────
+                │성 별           [ ] 남      [ ] 여                  │ 국적                                                     
+                │Gender         [ ] Male   [ ] Female                │ Nationality                                              
+                ├──────────────────────────┴─────────────────────────────
+                │대한민국 내 주소                                                                                                
+                │Address in Korea                                                                                                
+                │ (전화번호:                            )                                                                        
+                │(Telephone:                         )                                                                           
+────────┴────────────────────────────────────────────────────────
+  ?청구인과 피보호자가 동일인일 경우에는 심사청구인의 인적사항란만 작성합니다.                                                   
+    If the applicant and the detainee are the same person, please fill out only the applicant's personal information section.     
+────────┬────────────────────────────────────────────────────────
+  처분청        │                                                                                                                
+  Detention     │                                                                                                                
+  ordered by    │                                                                                                                
+────────┼────────────────────────────────────────────────────────
+  청구 취지 및  │별지로 작성                                                                                                     
+  청구 이유     │Written in separate document                                                                                    
+  Purpose and   │                                                                                                                
+  reason for    │                                                                                                                
+  review        │                                                                                                                
+────────┼────────────────────────────────────────────────────────
+  붙임 서류     │                                                                                                                
+  Attachments   │                                                                                                                
+────────┴────────────────────────────────────────────────────────
+                                                                                                                                  
+─────────────────────────────────────────────────────────────────
+    본인은      년   월   일자 ○○출입국ㆍ외국인청(사무소, 출장소, 보호소)장의 보호명령에 대해 이의                              
+  가 있으므로 「출입국관리법」 제55조에 따라 이의사유를 소명하는 서류를 덧붙여 심사를 청구합니다.                                 
+    I hereby file a review with the attached documents to state the reasons for my objection to                                   
+  the Detention Order issued by the Chief of Immigration Office dated on       (year)                                             
+          (month)      (day) pursuant to Article 55 of the Immigration Act.                                                       
+                                                                                                                                  
+  년         월         일                                                                                                        
+  (Year)       (Month)     (Day)                                                                                                  
+                                                                                                                                  
+  심사청구인                                                         (서명 또는 인)                                               
+  Applicant for Review                                              Signature/Seal                                                
+                                                                                                                                  
+  외국인보호위원회                                                    귀중                                                        
+  TO: The Immigration Detention Review Committee                                                                                  
+━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┯━━━━━
+  첨부서류    │1. 이의의 사유를 소명하는 자료                                                                        │수수료    
+  Attachments │  Supporting Materials explaining the grounds for review                                              │없음      
+              │2. 법정대리인등의 자격을 증명하는 자료(법정대리인등이 심사를 청구하는 경우에만 제출합니다)            │(No Fee)  
+              │  Materials proving the status of the legal representative or any other person concerned              │          
+              │(to be submitted only when the legal representative or any other person concerned applies for review) │          
+━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━
+                                                                                                                                  
+─────────────────────────────────────────────────────────────────
+  처리절차 Procedure                                                                                                              
+─────────────────────────────────────────────────────────────────
+                                                                                                                                  
+┌───────┐  ┌───────────────────┐    ┌───────────────────┐  ┌────────┐
+│청 구         │?│접 수                                 │?  │심 사ㆍ결 정                          │?│통 지           │
+│Application   │  │Receipt                               │    │Decision                              │  │Notice          │
+└───────┘  └───────────────────┘    └───────────────────┘  └────────┘
+  심사청구인          청장?사무소장?출장소장 또는 보호소장        외국인보호위원회                                              
+  Applicant           Chief of Immigration Office                   Immigration Detention Review Committee                        
+─────────────────────────────────────────────────────────────────
+  210mm×297mm[백상지 80g/㎡(재활용품)]

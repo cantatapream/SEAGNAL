@@ -1,0 +1,18 @@
+{
+ "script": "recollect_tier",
+ "stamp": "20260920-050346-061",
+ "files": [
+  "local_server/knowledge/legal/_legacy/출입국관리법/20250601/시행령.txt",
+  "local_server/knowledge/legal/_legacy/출입국관리법/20250601/별표/시행령_별표1.txt",
+  "local_server/knowledge/legal/_legacy/출입국관리법/20250601/별표/시행령_별표1의2.txt",
+  "local_server/knowledge/legal/_legacy/출입국관리법/20250601/별표/시행령_별표1의3.txt",
+  "local_server/knowledge/legal/_legacy/출입국관리법/20250601/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/시행령.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/별표/시행령_별표1.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/별표/시행령_별표1의2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/별표/시행령_별표1의3.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/별표/_links.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/_meta.json"
+ ]
+}

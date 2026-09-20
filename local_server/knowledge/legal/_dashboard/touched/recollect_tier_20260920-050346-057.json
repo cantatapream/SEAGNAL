@@ -1,0 +1,20 @@
+{
+ "script": "recollect_tier",
+ "stamp": "20260920-050346-057",
+ "files": [
+  "local_server/knowledge/legal/_legacy/어선원및어선재해보상보험법/20240724/시행규칙.txt",
+  "local_server/knowledge/legal/_legacy/어선원및어선재해보상보험법/20240724/별표/시행규칙_별표0.txt",
+  "local_server/knowledge/legal/_legacy/어선원및어선재해보상보험법/20240724/별표/시행규칙_서식1.txt",
+  "local_server/knowledge/legal/_legacy/어선원및어선재해보상보험법/20240724/별표/시행규칙_서식1의2.txt",
+  "local_server/knowledge/legal/_legacy/어선원및어선재해보상보험법/20240724/별표/시행규칙_서식2.txt",
+  "local_server/knowledge/legal/_legacy/어선원및어선재해보상보험법/20240724/별표/시행규칙_서식3.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/시행규칙.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/별표/시행규칙_별표0.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/별표/시행규칙_서식1.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/별표/시행규칙_서식1의2.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/별표/시행규칙_서식2.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/별표/시행규칙_서식3.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/별표/_links.json",
+  "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법/_meta.json"
+ ]
+}

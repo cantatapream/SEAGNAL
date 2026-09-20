@@ -30,6 +30,10 @@
  *  ③ **새로 발견된 것이 있을 때만** 관리자 푸시를 보낸다(같은 건은 다시 안 보낸다 —
  *     매주 같은 알림이 오면 사람이 알림을 무시하게 되고, 그러면 진짜 발견을 놓친다).
  *  ④ 위키·raw 는 **절대 자동 수정하지 않는다.** 목록만 남기고 사람이 정한다(환각0 승인게이트).
+ *  ⑤ **닫아 둔 카드라도 이번 점검에서 또 낡게 나오면 다시 대기로 돌린다**(2026-09-20 사용자 지시,
+ *     `reopenStillStale()`). 종전에는 큐에 이미 있는 id 를 통째로 걸러내서, 관리자가 "해당없음"이나
+ *     "처리완료"를 누르면 그 판에 대해서는 영영 다시 뜨지 않았다 — 원문이 낡은 채로 남아도 화면은 0 이었다.
+ *     점검이 다시 "구버전"이라고 말하면 그 판정이 이긴다(정말 다시 받았다면 구버전으로 나오지 않는다).
  *
  * [저장 위치 — 재배포해도 안 지워지는 곳에 쓴다]
  *  결과·큐를 `local_server/data/` 밑에 둔다. 이 디렉토리만 fly.io 볼륨으로 마운트돼 있어
@@ -201,6 +205,41 @@ function existingIds() {
   return ids;
 }
 
+/**
+ * 관리자가 이미 닫아 둔(처리완료·해당없음) 카드 중 **이번 점검에서도 낡게 나온 것**을 다시 대기로 되돌린다.
+ * 예: reopenStillStale([{id:'adf_1a2b3c4d', …}]) → ['adf_1a2b3c4d'](되돌린 id 목록)
+ * @param {object[]} entries 이번 점검이 구버전으로 판정한 행 중 **이미 큐에 있는 것들**
+ * @param {string} [file] 큐 파일 경로(기본은 볼륨의 원문신선도 큐 — 테스트가 임시 파일을 준다)
+ * @returns {string[]} 다시 대기로 돌린 카드 id 목록
+ * [왜 있나 — 2026-09-20 사용자 지시]
+ *   종전에는 큐에 이미 있는 id 를 통째로 걸러냈다. 그래서 관리자가 "해당없음"이나 "처리완료"를
+ *   누르면 **그 판에 대해서는 영영 다시 뜨지 않았고**, 원문은 낡은 채로 남아도 화면은 0 이었다.
+ *   실측(2026-09-20): 어선원 및 어선 재해보상보험법 시행령·시행규칙 등 6개 계층이 낡아 있는데
+ *   관리자 화면에는 대기 0 으로 보였다. 점검이 다시 낡다고 말하면 그 판정이 이긴다 —
+ *   "처리완료"는 실제로 다시 받았다면 이번 점검에서 구버전으로 나오지 않는다.
+ * [연계] ← runFreshnessScan · → adminQueues.updateJsonlById(QUEUE_FILE)
+ */
+function reopenStillStale(entries, file = QUEUE_FILE) {
+  if (!entries.length) return [];
+  const byId = new Map(adminQueues.readJsonl(file).map((e) => [e.id, e]));
+  const back = [];
+  for (const e of entries) {
+    const cur = byId.get(e.id);
+    if (!cur || (cur.status || 'pending') === 'pending') continue;
+    const was = cur.status === 'done' ? '처리완료' : '해당없음';
+    const n = (cur.reopen_count || 0) + 1;
+    adminQueues.updateJsonlById(file, e.id, {
+      status: 'pending',
+      reopened_at: new Date().toISOString(),
+      reopen_count: n,
+      reopen_reason: `${was}으로 닫았는데 이번 점검에서도 구버전으로 나왔습니다(${n}번째 재등장).`,
+    });
+    back.push(e.id);
+  }
+  if (back.length) console.log(`[AdmrulFresh] 닫혀 있었지만 아직 낡은 카드 ${back.length}건을 다시 대기로 돌렸습니다.`);
+  return back;
+}
+
 /** 마지막 점검 결과를 기록한다 — 화면 위에 "언제 검사했고 어떻게 끝났나"를 보여주기 위해. */
 function writeStatus(obj) {
   try {
@@ -269,27 +308,42 @@ async function runFreshnessScan() {
     // ★'이름바뀜의심' 도 큐에 올린다(2026-08-27). 종전에는 '구버전' 만 올렸고, 이름이 바뀐 것은
     //   화면 어디에도 안 떠서 **최대 9년 낡은 사본이 방치**돼 있었다(완도해양경찰서 공고 2017년판 등).
     const staleRows = allRows.filter((x) => x.verdict === '구버전' || x.verdict === '이름바뀜의심');
+    const entries = staleRows.map(toQueueEntry);
     const known = existingIds();
-    const fresh = staleRows.map(toQueueEntry).filter((e) => !known.has(e.id));
+    const fresh = entries.filter((e) => !known.has(e.id));
     for (const e of fresh) adminQueues.appendJsonl(QUEUE_FILE, e);
+    // ★이미 큐에 있는 카드라도 **지금도 낡아 있으면 다시 대기로 돌린다**(2026-09-20 사용자 지시).
+    const reopened = reopenStillStale(entries.filter((e) => known.has(e.id)));
 
     const st = { ok: true, startedAt, finishedAt: new Date().toISOString(),
       checked, fresh: freshCnt, stale: staleRows.length, unknown, mismatch, repealed, renamed,
-      added: fresh.length,
+      added: fresh.length, reopened: reopened.length,
       // 한쪽만 실패했으면 ok:true 로 두되 **무엇을 못 봤는지 반드시 남긴다.**
       partialError: errors.length ? errors.join(' / ') : null, error: null };
     writeStatus(st);
     if (errors.length) console.error('[AdmrulFresh] 일부 점검 실패:', st.partialError);
 
-    if (fresh.length) {
-      // 새로 나온 것만 알린다. 이미 알린 건은 다시 보내지 않는다.
-      const head = fresh.slice(0, 3).map((e) => e.title).join(', ');
+    // 새로 나온 것과 **닫혀 있었지만 아직 낡아 다시 띄운 것**을 함께 알린다.
+    //   ★2026-09-20: 종전에는 `fresh`(새 id)만 알렸다. 그래서 reopenStillStale() 로 카드가 목록에
+    //   돌아와도 **아무도 그 사실을 모르는** 구멍이 있었다 — 화면을 열어 봐야만 보였다.
+    //   다시 뜬 카드는 "닫았는데 아직 안 고쳐진 것"이라 오히려 더 알려야 한다.
+    if (fresh.length || reopened.length) {
+      const names = fresh.slice(0, 3).map((e) => e.title);
+      const head = names.join(', ');
       const more = fresh.length > 3 ? ` 외 ${fresh.length - 3}건` : '';
+      const title = fresh.length
+        ? `나리야 원문 신선도 — 구버전 ${fresh.length}건 발견`
+        + (reopened.length ? ` (+ 다시 뜬 ${reopened.length}건)` : '')
+        : `나리야 원문 신선도 — 닫은 카드 ${reopened.length}건이 아직 낡았습니다`;
+      const body = fresh.length
+        ? `${head}${more}.`
+          + (reopened.length ? ` 닫혀 있었지만 아직 낡아 ${reopened.length}건을 다시 띄웠습니다.` : '')
+          + ' 관리자 센터 → AI → 원문신선도 방에서 후속조치를 확인하세요.'
+        : `처리완료ㆍ해당없음으로 닫았던 ${reopened.length}건이 이번 점검에서도 구버전으로 나왔습니다.`
+          + ' 원문을 실제로 다시 받으면 다음 점검에서 사라집니다. 관리자 센터 → AI → 원문신선도 방을 확인하세요.';
       try {
-        await require('./admin_push').sendAdminPush(
-          `나리야 원문 신선도 — 구버전 ${fresh.length}건 발견`,
-          `${head}${more}. 관리자 센터 → AI → 원문신선도 방에서 후속조치를 확인하세요.`,
-          { type: 'admrul_fresh', count: String(fresh.length) });
+        await require('./admin_push').sendAdminPush(title, body,
+          { type: 'admrul_fresh', count: String(fresh.length), reopened: String(reopened.length) });
       } catch (e) { console.error('[AdmrulFresh] 관리자 푸시 실패:', e && e.message); }
     }
     return st;
@@ -309,4 +363,4 @@ function startFreshnessScan() {
   return { ok: true, started: true };
 }
 
-module.exports = { runFreshnessScan, startFreshnessScan, readStatus, QUEUE_FILE, REPORT_FILE };
+module.exports = { runFreshnessScan, startFreshnessScan, readStatus, QUEUE_FILE, REPORT_FILE, reopenStillStale };

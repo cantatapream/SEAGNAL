@@ -1,0 +1,23 @@
+[시행규칙] 서식77 — 외국인등록증 보관증
+
+■ 출입국관리법 시행규칙 [별지 제77호서식]                                                          
+┌────────────────────────────┐┌────────────────────────────┐
+│ 번호                     일자    .    .    .           ││   No.                   Date    .    .    .            │
+│                                                        ││                                                        │
+│외국인등록증 보관증                                     ││RECEIPT                                                 │
+│                                                        ││                                                        │
+│    ○○○ 귀하                                         ││   To :                                                 │
+│ 귀하의 외국인등록증을 정히 보관합니다.                 ││   It is hereby acknowledged that the Registration      │
+│ (체류기간 만료일 :     .    .    .)                    ││Certificate has been kept in the custody of the         │
+│                                                        ││office.                                                 │
+│○○출입국ㆍ외국인청(사무소ㆍ출장소)                    ││  (Stay permit valid until :                           )│
+│                                                        ││○○ Immigration office                                 │
+│ 직급 :               성명 :             (서명 또는 인) ││                                                        │
+│                                                        ││  officer in charge :               (signature or seal) │
+├────────────────────────────┤├────────────────────────────┤
+│ 유의사항 : 입국일부터 15일 이내에 외국인등록증을 돌려  ││  Notice : You shall get the Registration               │
+│받아야 합니다.                                          ││Certificate back from the immigration                   │
+│                                                        ││officer within 15 days from the date of                 │
+│                                                        ││your entry.                                             │
+└────────────────────────────┘└────────────────────────────┘
+  182㎜×257㎜[백상지(150ｇ/㎡)]
