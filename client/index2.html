@@ -4527,7 +4527,7 @@
                             </div>
                         </div>
 
-                        <!-- 카드 그리드: 파고 / 풍향·속 / 유향·속 / 수온 / 수심 / 시정 / 기압 / 천문 / 월상 -->
+                        <!-- 카드 그리드: 파고 / 풍향·속 / 유향·속 / 수온 / 수심 / 시정 / 천문 / 월상 / 기압 -->
                         <div class="ocean-cards-grid" id="ocean-cards-grid">
                             <div class="ocean-data-card" id="ocean-card-wave">
                                 <div class="ocean-card-icon">
@@ -4584,6 +4584,10 @@
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
+                            <!-- 천문(일출몰) 카드 -->
+                            <div class="ocean-data-card" id="ocean-card-astro"></div>
+                            <!-- 월상(월령/밝기) 카드 -->
+                            <div class="ocean-data-card" id="ocean-card-moon"></div>
                             <!-- 기압 카드 — js/ocean-map/bottom-sheet/ocean_bottom_sheet5.js 의 fetchPressure 가 채움.
                                  값 출처는 OpenWeather 해면기압(routes/pressure.js). 슬라이더로 옮긴 시각의
                                  값을 보여주며, 5일 밖(예보 없음)이나 과거 시각이면 카드 자체가 숨겨진다. -->
@@ -4596,10 +4600,6 @@
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
-                            <!-- 천문(일출몰) 카드 -->
-                            <div class="ocean-data-card" id="ocean-card-astro"></div>
-                            <!-- 월상(월령/밝기) 카드 -->
-                            <div class="ocean-data-card" id="ocean-card-moon"></div>
                         </div>
 
                     </div>

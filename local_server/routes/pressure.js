@@ -10,13 +10,23 @@
  * 우리 기존 해양 데이터(기상청·KHOA)에는 해면기압이 없다. 어민에게 기압은
  * 날씨 변화를 읽는 기본 지표라, 외부 소스(OpenWeather)로 이 값만 따로 받아온다.
  *
- * - GET /api/ocean/pressure?lat=&lon=&ts= → 그 좌표·그 시각의 기압 1개
+ * - GET /api/ocean/pressure?lat=&lon=&off= → 그 좌표·그 시각의 기압 1개
+ *
+ * [어느 시각인가 — 휴대폰 시계가 아니라 서버 시각(KST) 기준]
+ *   off 는 "지금으로부터 몇 밀리초 뒤"(바텀시트 슬라이더의 오프셋)다. 절대 시각을 받지
+ *   않는 이유: 휴대폰 시계가 틀어져 있으면 그 오차가 그대로 들어와, 지금을 물었는데
+ *   과거로 판정돼 카드가 사라진다. 오프셋으로 받으면 기준이 항상 서버 시각이라
+ *   단말 시계가 얼마나 틀어져 있든 같은 값이 나온다(사용자 확정 2026-09-20).
  *
  * [시각에 따라 소스가 갈린다]
- *   요청 시각 ts 가 지금부터 ±90분 안  → 현재날씨(2.5/weather)
- *   그보다 미래(최대 5일)             → 3시간 간격 예보(2.5/forecast) 중 가장 가까운 시각
- *   5일 밖 / 과거                      → success:false (클라이언트가 카드를 숨김)
+ *   off 가 ±90분 안        → 현재날씨(2.5/weather)
+ *   그보다 미래(최대 5일)  → 3시간 간격 예보(2.5/forecast) 중 가장 가까운 시각
+ *   5일 밖 / 과거          → success:false (클라이언트가 카드를 숨김)
  *   과거를 안 주는 이유: OpenWeather 무료 플랜에 과거 데이터 API 가 없다(가입 안내 메일 명시).
+ *
+ * [어떤 기압인가] 해면기압만 쓴다 — sea_level 우선, 없으면 pressure(해면 기준 기본값).
+ *   지면기압(grnd_level)은 고도 영향이 섞여 일기도·태풍 중심기압과 비교가 안 되므로
+ *   어떤 경우에도 쓰지 않는다(사용자 확정 2026-09-20).
  *
  * [인증키] process.env.OPENWEATHER_API_KEY (Fly secrets).
  *   미설정 시 success:false + reason:'no_key' 로 응답하고 카드가 숨겨진다.
@@ -97,11 +107,28 @@ function gridKey(lat, lon) {
     return lat.toFixed(1) + ',' + lon.toFixed(1);
 }
 
-/** 응답의 main 에서 해면기압(hPa)을 고른다. sea_level 이 있으면 그쪽이 더 정확하다. */
+/**
+ * 응답의 main 에서 해면기압(hPa)을 고른다.
+ * 예: { pressure: 1013, sea_level: 1013, grnd_level: 1010 } → 1013
+ * sea_level 이 해면기압, 없으면 pressure(해면 기준 기본값)로 넘어간다.
+ * grnd_level(지면기압)은 절대 쓰지 않는다 — 고도 영향이 섞여 일기도와 비교가 안 된다.
+ */
 function pickPressure(main) {
     if (!main) return null;
     const v = (main.sea_level != null) ? main.sea_level : main.pressure;
     return (typeof v === 'number' && isFinite(v)) ? Math.round(v) : null;
+}
+
+/**
+ * epoch ms → 한국 시각 표기. 예: 1789907230000 → "09-21 03시 KST"
+ * 화면에 시각을 쓸 일이 생길 때·로그를 사람이 읽을 때 쓴다(시각 표기는 항상 KST).
+ * @param {number} ms
+ * @returns {string}
+ */
+function kstLabel(ms) {
+    const d = new Date(ms + 9 * 3600 * 1000);
+    const p = n => String(n).padStart(2, '0');
+    return `${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}시 KST`;
 }
 
 /** 현재날씨 조회 — 지금 기압용. */
@@ -142,9 +169,12 @@ function nearestSlot(list, tsMs) {
 }
 
 /**
- * GET /api/ocean/pressure?lat=&lon=&ts=
- *   ts 는 epoch ms (바텀시트가 보고 있는 시각). 없으면 지금.
- * 성공: { success:true, pressure:1008, validAt:"2026-09-20T06:00:00.000Z", source:"current"|"forecast" }
+ * GET /api/ocean/pressure?lat=&lon=&off=
+ *   off 는 "지금으로부터 몇 ms 뒤"(바텀시트 슬라이더 오프셋). 없으면 0 = 지금.
+ *   절대 시각이 아니라 오프셋을 받아, 휴대폰 시계가 틀어져 있어도 서버 시각(KST)
+ *   기준으로 같은 값이 나온다.
+ * 성공: { success:true, pressure:1008, source:"current"|"forecast",
+ *         validAt:"2026-09-20T06:00:00.000Z", validAtKst:"09-20 15시 KST" }
  * 실패: { success:false, reason:"no_key"|"bad_param"|"out_of_range"|"upstream" }
  *   실패 시 클라이언트는 카드를 숨긴다(다른 카드들과 같은 정책).
  */
@@ -160,17 +190,19 @@ router.get('/api/ocean/pressure', async (req, res) => {
     }
 
     const now = Date.now();
-    const ts = req.query.ts ? parseInt(req.query.ts, 10) : now;
-    if (!isFinite(ts)) return res.json({ success: false, reason: 'bad_param' });
+    const off = req.query.off ? parseInt(req.query.off, 10) : 0;
+    if (!isFinite(off)) return res.json({ success: false, reason: 'bad_param' });
+    const ts = now + off;   // 기준은 항상 서버 시각 — 단말 시계 오차가 끼어들지 않는다
 
     // (1) 지금 근처 → 현재날씨
-    if (Math.abs(ts - now) <= NOW_WINDOW_MS) {
+    if (Math.abs(off) <= NOW_WINDOW_MS) {
         const data = await fetchCurrent(lat, lon);
         const p = data ? pickPressure(data.main) : null;
         if (p != null) {
+            const at = data.dt ? data.dt * 1000 : now;
             return res.json({
                 success: true, pressure: p, source: 'current',
-                validAt: new Date((data.dt ? data.dt * 1000 : now)).toISOString()
+                validAt: new Date(at).toISOString(), validAtKst: kstLabel(at)
             });
         }
         return res.json({ success: false, reason: 'upstream' });
@@ -187,7 +219,7 @@ router.get('/api/ocean/pressure', async (req, res) => {
 
     return res.json({
         success: true, pressure: slot.pressure, source: 'forecast',
-        validAt: new Date(slot.validAtMs).toISOString()
+        validAt: new Date(slot.validAtMs).toISOString(), validAtKst: kstLabel(slot.validAtMs)
     });
 });
 
@@ -195,5 +227,6 @@ router.get('/api/ocean/pressure', async (req, res) => {
 // [연계] → local_server/scripts/test_pressure_card.js (verify_all.sh SUITES 등록)
 router._pickPressure = pickPressure;
 router._nearestSlot = nearestSlot;
+router._kstLabel = kstLabel;
 
 module.exports = router;

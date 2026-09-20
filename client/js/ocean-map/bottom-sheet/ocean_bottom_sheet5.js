@@ -211,15 +211,18 @@
      *
      * @param {number} lat
      * @param {number} lon
-     * @param {Date=} dateObj - 슬라이더 시각 (없으면 지금)
+     * @param {Date=} dateObj - 슬라이더 시각 (없으면 지금). 서버에는 이 시각 자체가 아니라
+     *                            지금과의 차이(오프셋)를 보낸다 — 단말 시계 오차 차단.
      * @param {number} myEpoch - 오래된 응답 차단용 토큰
      * [연계] ← OS.loadAllForDate (같은 파일) — 시트를 열거나 시각을 옮길 때마다 부른다.
      *          → local_server/routes/pressure.js 의 GET /api/ocean/pressure — 우리 서버가
      *            OpenWeather 를 대신 호출하므로 인증키가 브라우저에 노출되지 않는다.
      */
     function fetchPressure(lat, lon, dateObj, myEpoch) {
-        var url = '/api/ocean/pressure?lat=' + lat + '&lon=' + lon;
-        if (dateObj) url += '&ts=' + dateObj.getTime();
+        // 절대 시각이 아니라 "지금으로부터 몇 ms 뒤"(오프셋)를 보낸다. 휴대폰 시계가
+        // 틀어져 있어도 서버가 자기 시각(KST)에 오프셋을 더해 판단하므로 값이 흔들리지 않는다.
+        var off = dateObj ? (dateObj.getTime() - Date.now()) : 0;
+        var url = '/api/ocean/pressure?lat=' + lat + '&lon=' + lon + '&off=' + Math.round(off);
         fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
