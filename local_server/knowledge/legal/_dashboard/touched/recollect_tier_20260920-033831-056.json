@@ -1,0 +1,17 @@
+{
+ "script": "recollect_tier",
+ "stamp": "20260920-033831-056",
+ "files": [
+  "local_server/knowledge/legal/_legacy/공유수면관리및매립에관한법률/20251001/시행령.txt",
+  "local_server/knowledge/legal/_legacy/공유수면관리및매립에관한법률/20251001/별표/시행령_별표1.txt",
+  "local_server/knowledge/legal/_legacy/공유수면관리및매립에관한법률/20251001/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/_legacy/공유수면관리및매립에관한법률/20251001/별표/시행령_별표3.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/시행령.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/별표/시행령_별표1.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/별표/시행령_별표3.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/별표/_links.json",
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/별표/시행령_별표4.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/_meta.json"
+ ]
+}

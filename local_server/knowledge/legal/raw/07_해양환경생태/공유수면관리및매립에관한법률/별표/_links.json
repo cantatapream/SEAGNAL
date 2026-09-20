@@ -1,26 +1,4 @@
 {
-  "시행령 별표 1": {
-    "제목": "점용료ㆍ사용료의 조정산식(제17조 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156938443",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156938447"
-    ]
-  },
-  "시행령 별표 2": {
-    "제목": "매립목적(제34조제2항 전단 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156938449",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156938453"
-    ]
-  },
-  "시행령 별표 3": {
-    "제목": "과태료의 부과기준(제75조 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=156938455",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156938459",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=156938461"
-    ]
-  },
   "시행규칙 별표 1": {
     "제목": "설계도서의 작성례(제4조제2항제2호 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=166912445",
@@ -311,6 +289,35 @@
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166912777",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=166912779"
+    ]
+  },
+  "시행령 별표 1": {
+    "제목": "점용료ㆍ사용료의 조정산식(제17조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=169080325",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=169080329"
+    ]
+  },
+  "시행령 별표 2": {
+    "제목": "매립목적(제34조제2항 전단 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=169080331",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=169080335"
+    ]
+  },
+  "시행령 별표 3": {
+    "제목": "이행강제금의 부과 기준(제68조의2제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=169080337",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=169080621"
+    ]
+  },
+  "시행령 별표 4": {
+    "제목": "과태료의 부과기준(제75조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=169080623",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=169080627",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=169080629"
     ]
   }
 }

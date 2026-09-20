@@ -223,6 +223,27 @@
      "status": "갱신"
     }
    ]
+  },
+  {
+   "ran_at": "2026-09-20 12:40 KST",
+   "results": [
+    {
+     "slug": "공유수면관리및매립에관한법률",
+     "tier": "시행령",
+     "old_mst": "278003",
+     "new_mst": "289719",
+     "old_eff": "20251001",
+     "new_eff": "20260917",
+     "old_chars": 53909,
+     "new_chars": 54832,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 3,
+     "legacy": "_legacy/공유수면관리및매립에관한법률/20251001",
+     "new_byl": 4,
+     "status": "갱신"
+    }
+   ]
   }
  ]
 }
