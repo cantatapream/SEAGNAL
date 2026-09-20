@@ -22,6 +22,8 @@
  *  ⑤ 두 번 연달아 낡게 나오면 재등장 횟수가 2 로 늘어난다
  *  ⑥ 「개정검토」 방이 "스캔 실패"와 "개정 없음"을 구별할 수 있게, 마지막 스캔 결과를
  *     읽는 통로(`readScanStatus`)와 API 응답의 `lastScan` 배선이 살아 있는지 본다
+ *  ⑦ **다시 뜬 카드도 관리자 푸시로 알리는지** — 화면을 열어 봐야만 보이면 "다시 뜨게" 한 뜻이
+ *     절반만 산다. 새로 나온 카드가 없어도 다시 뜬 것만으로 푸시가 나가야 한다(2026-09-20 보완).
  *
  * [연계]
  * - services/admrul_fresh_scanner.js → reopenStillStale()
@@ -94,6 +96,15 @@ const after2 = new Map(queues.readJsonl(file).map((e) => [e.id, e]));
 check('⑤ 연달아 돌려도 대기 중인 것은 횟수가 더 늘지 않는다',
   back2.length === 0 && (after2.get('adf_aaaa1111') || {}).reopen_count === 1,
   `back2=${JSON.stringify(back2)} count=${(after2.get('adf_aaaa1111') || {}).reopen_count}`);
+
+console.log('\n── 다시 뜬 카드도 관리자에게 알리는가 ──');
+// 화면을 열어 봐야만 보이면 "다시 뜨게" 한 뜻이 절반만 산다 — 푸시 조건에 reopened 가 들어가야 한다.
+const scannerSrc = fs.readFileSync(path.join(__dirname, '..', 'services', 'admrul_fresh_scanner.js'), 'utf8');
+check('⑦ 새 카드가 없어도 다시 뜬 카드만으로 푸시를 보낸다',
+  /if \(fresh\.length \|\| reopened\.length\)/.test(scannerSrc));
+check('⑦ 다시 뜬 건수를 푸시 본문·데이터에 싣는다',
+  /reopened: String\(reopened\.length\)/.test(scannerSrc)
+  && /닫은 카드 \$\{reopened\.length\}건이 아직 낡았습니다/.test(scannerSrc));
 
 console.log('\n── "스캔 실패"와 "개정 없음"을 가르는 배선 ──');
 check('⑥ 개정감지 스캐너가 마지막 스캔 결과를 내주는 통로를 갖는다', typeof amend.readScanStatus === 'function');

@@ -323,15 +323,27 @@ async function runFreshnessScan() {
     writeStatus(st);
     if (errors.length) console.error('[AdmrulFresh] 일부 점검 실패:', st.partialError);
 
-    if (fresh.length) {
-      // 새로 나온 것만 알린다. 이미 알린 건은 다시 보내지 않는다.
-      const head = fresh.slice(0, 3).map((e) => e.title).join(', ');
+    // 새로 나온 것과 **닫혀 있었지만 아직 낡아 다시 띄운 것**을 함께 알린다.
+    //   ★2026-09-20: 종전에는 `fresh`(새 id)만 알렸다. 그래서 reopenStillStale() 로 카드가 목록에
+    //   돌아와도 **아무도 그 사실을 모르는** 구멍이 있었다 — 화면을 열어 봐야만 보였다.
+    //   다시 뜬 카드는 "닫았는데 아직 안 고쳐진 것"이라 오히려 더 알려야 한다.
+    if (fresh.length || reopened.length) {
+      const names = fresh.slice(0, 3).map((e) => e.title);
+      const head = names.join(', ');
       const more = fresh.length > 3 ? ` 외 ${fresh.length - 3}건` : '';
+      const title = fresh.length
+        ? `나리야 원문 신선도 — 구버전 ${fresh.length}건 발견`
+        + (reopened.length ? ` (+ 다시 뜬 ${reopened.length}건)` : '')
+        : `나리야 원문 신선도 — 닫은 카드 ${reopened.length}건이 아직 낡았습니다`;
+      const body = fresh.length
+        ? `${head}${more}.`
+          + (reopened.length ? ` 닫혀 있었지만 아직 낡아 ${reopened.length}건을 다시 띄웠습니다.` : '')
+          + ' 관리자 센터 → AI → 원문신선도 방에서 후속조치를 확인하세요.'
+        : `처리완료ㆍ해당없음으로 닫았던 ${reopened.length}건이 이번 점검에서도 구버전으로 나왔습니다.`
+          + ' 원문을 실제로 다시 받으면 다음 점검에서 사라집니다. 관리자 센터 → AI → 원문신선도 방을 확인하세요.';
       try {
-        await require('./admin_push').sendAdminPush(
-          `나리야 원문 신선도 — 구버전 ${fresh.length}건 발견`,
-          `${head}${more}. 관리자 센터 → AI → 원문신선도 방에서 후속조치를 확인하세요.`,
-          { type: 'admrul_fresh', count: String(fresh.length) });
+        await require('./admin_push').sendAdminPush(title, body,
+          { type: 'admrul_fresh', count: String(fresh.length), reopened: String(reopened.length) });
       } catch (e) { console.error('[AdmrulFresh] 관리자 푸시 실패:', e && e.message); }
     }
     return st;
