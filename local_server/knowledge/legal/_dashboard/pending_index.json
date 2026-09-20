@@ -29,18 +29,6 @@
  ],
  "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법": [
   {
-   "date": "20260918",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "284375"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_7d4459"
-   }
-  },
-  {
    "date": "20270401",
    "files": [
     "법률.txt"
@@ -105,60 +93,6 @@
    }
   }
  ],
- "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법": [
-  {
-   "date": "20260918",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "284315"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_8f2794"
-   }
-  }
- ],
- "local_server/knowledge/legal/raw/06_선원노동/어선원및어선재해보상보험법": [
-  {
-   "date": "20260911",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "283875"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_5373b9"
-   }
-  }
- ],
- "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률": [
-  {
-   "date": "20260917",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "273681"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_d57609"
-   }
-  },
-  {
-   "date": "20260918",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "284343"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_a5f82d"
-   }
-  }
- ],
  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법": [
   {
    "date": "20261113",
@@ -170,23 +104,6 @@
    },
    "queue_id": {
     "법률.txt": "chg_20260810_568a83"
-   }
-  }
- ],
- "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법": [
-  {
-   "date": "20260828",
-   "files": [
-    "법률.txt",
-    "시행규칙.txt"
-   ],
-   "mst": {
-    "법률.txt": "283747",
-    "시행규칙.txt": "287955"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_cbc85e",
-    "시행규칙.txt": "chg_20260810_500a98"
    }
   }
  ],
@@ -260,20 +177,6 @@
    }
   }
  ],
- "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법": [
-  {
-   "date": "20260813",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "285943"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_18e609"
-   }
-  }
- ],
  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률": [
   {
    "date": "20261022",
@@ -288,45 +191,7 @@
    }
   }
  ],
- "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법": [
-  {
-   "date": "20260827",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "273431"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_f5ffc2"
-   }
-  }
- ],
  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법": [
-  {
-   "date": "20260820",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "283447"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_a4fb3d"
-   }
-  },
-  {
-   "date": "20260918",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "284397"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_9a074a"
-   }
-  },
   {
    "date": "20261112",
    "files": [
