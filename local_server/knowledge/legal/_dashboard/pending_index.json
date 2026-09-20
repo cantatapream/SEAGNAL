@@ -121,20 +121,6 @@
    }
   }
  ],
- "local_server/knowledge/legal/raw/10_항만물류/신항만건설촉진법": [
-  {
-   "date": "20260918",
-   "files": [
-    "시행령.txt"
-   ],
-   "mst": {
-    "시행령.txt": "288895"
-   },
-   "queue_id": {
-    "시행령.txt": "chg_20260824_97d70b"
-   }
-  }
- ],
  "local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법": [
   {
    "date": "20270422",
@@ -146,20 +132,6 @@
    },
    "queue_id": {
     "법률.txt": "chg_20260810_1652b0"
-   }
-  }
- ],
- "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법": [
-  {
-   "date": "20260830",
-   "files": [
-    "시행규칙.txt"
-   ],
-   "mst": {
-    "시행규칙.txt": "288487"
-   },
-   "queue_id": {
-    "시행규칙.txt": "chg_20260810_9ab9b3"
    }
   }
  ],
