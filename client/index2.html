@@ -4596,8 +4596,16 @@
                                     <i class="fa-solid fa-gauge-high"></i>
                                     <div class="ocean-card-icon-label">기압</div>
                                 </div>
-                                <div class="ocean-card-value" id="ocean-val-pressure">
-                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                <!-- 값 + 출처를 세로로 쌓는다. 출처 줄은 #ocean-val-pressure 바깥에 둬야
+                                     setCardValue(textContent 교체)가 지우지 않는다.
+                                     [출처 표기는 선택이 아니다] OpenWeather 무료 플랜은 공개 라이선스(ODbL/CC BY-SA)라
+                                     자료가 보이는 자리에 출처를 밝히는 것이 의무다. 정식 3종(문구·링크·로고)은
+                                     안내(ⓘ) 「기압」 탭에 있고, 여기에는 좁은 카드에 맞춰 이름만 적는다. -->
+                                <div class="ocean-card-value-stack">
+                                    <div class="ocean-card-value" id="ocean-val-pressure">
+                                        <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                    </div>
+                                    <div class="ocean-card-attrib">OpenWeather</div>
                                 </div>
                             </div>
                         </div>

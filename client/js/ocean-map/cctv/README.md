@@ -9,9 +9,9 @@
 |------|------|-----------|
 | `cctv1.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | — |
 | `cctv4.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `handleCctvMapClick`, `showCctvPopup`, `_initCctvHlsPlayer`, `_startCoastImageRefresh`, `_stopCoastImageRefresh`, `_initSeafogSlider` |
-| `ocean_cctv.js` | CCTV 레이어 + **해양종합정보 「안내」 팝업(13탭)** | `_buildInfoHtml`, `_buildSingleStyle`, `_buildFeatures`, `_ensureCctvLayer`, `_favLocStyle`, `_ensureFavLocLayer` |
+| `ocean_cctv.js` | CCTV 레이어 + **해양종합정보 「안내」 팝업(14탭)** | `_buildInfoHtml`, `_buildSingleStyle`, `_buildFeatures`, `_ensureCctvLayer`, `_favLocStyle`, `_ensureFavLocLayer` |
 
-### 해양종합정보 「안내」 팝업 (2026-09-09 개편, 13탭)
+### 해양종합정보 「안내」 팝업 (2026-09-09 개편 13탭 → 2026-09-20 기압 추가로 14탭)
 
 `INFO_TAB_ITEMS` 가 탭 목록이다. **원칙: 탭이 곧 그 화면의 버튼이다** — 화면에 버튼이 없는 기능은
 탭으로 두지 않는다(사용자 확정). 그래서 옛 18탭에서 7개를 뺐다:
