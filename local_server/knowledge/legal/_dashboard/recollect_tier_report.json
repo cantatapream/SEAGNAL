@@ -244,6 +244,131 @@
      "status": "갱신"
     }
    ]
+  },
+  {
+   "ran_at": "2026-09-20 14:17 KST",
+   "results": [
+    {
+     "slug": "어선원및어선재해보상보험법",
+     "tier": "시행규칙",
+     "old_mst": "264369",
+     "new_mst": "289829",
+     "old_eff": "20240724",
+     "new_eff": "20260911",
+     "old_chars": 10045,
+     "new_chars": 10529,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 5,
+     "legacy": "_legacy/어선원및어선재해보상보험법/20240724",
+     "new_byl": 5,
+     "status": "갱신"
+    }
+   ]
+  },
+  {
+   "ran_at": "2026-09-20 14:17 KST",
+   "results": [
+    {
+     "slug": "어선원및어선재해보상보험법",
+     "tier": "시행령",
+     "old_mst": "273825",
+     "new_mst": "289457",
+     "old_eff": "20251002",
+     "new_eff": "20260911",
+     "old_chars": 32097,
+     "new_chars": 32525,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 2,
+     "legacy": "_legacy/어선원및어선재해보상보험법/20251002",
+     "new_byl": 2,
+     "status": "갱신"
+    }
+   ]
+  },
+  {
+   "ran_at": "2026-09-20 14:17 KST",
+   "results": [
+    {
+     "slug": "신항만건설촉진법",
+     "tier": "시행령",
+     "old_mst": "281315",
+     "new_mst": "288895",
+     "old_eff": "20260102",
+     "new_eff": "20260918",
+     "old_chars": 24890,
+     "new_chars": 25180,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 0,
+     "legacy": "_legacy/신항만건설촉진법/20260102",
+     "status": "갱신"
+    }
+   ]
+  },
+  {
+   "ran_at": "2026-09-20 14:18 KST",
+   "results": [
+    {
+     "slug": "출입국관리법",
+     "tier": "시행규칙",
+     "old_mst": "283059",
+     "new_mst": "289833",
+     "old_eff": "20260123",
+     "new_eff": "20260915",
+     "old_chars": 103274,
+     "new_chars": 104075,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 299,
+     "legacy": "_legacy/출입국관리법/20260123",
+     "new_byl": 299,
+     "status": "갱신"
+    }
+   ]
+  },
+  {
+   "ran_at": "2026-09-20 14:18 KST",
+   "results": [
+    {
+     "slug": "출입국관리법",
+     "tier": "시행령",
+     "old_mst": "271319",
+     "new_mst": "289697",
+     "old_eff": "20250601",
+     "new_eff": "20260915",
+     "old_chars": 80093,
+     "new_chars": 105053,
+     "old_has_budchik": false,
+     "new_has_budchik": true,
+     "old_byl": 4,
+     "legacy": "_legacy/출입국관리법/20250601",
+     "new_byl": 4,
+     "status": "갱신"
+    }
+   ]
+  },
+  {
+   "ran_at": "2026-09-20 14:19 KST",
+   "results": [
+    {
+     "slug": "폐기물관리법",
+     "tier": "시행규칙",
+     "old_mst": "287445",
+     "new_mst": "289271",
+     "old_eff": "20260622",
+     "new_eff": "20260918",
+     "old_chars": 28150,
+     "new_chars": 145679,
+     "old_has_budchik": false,
+     "new_has_budchik": true,
+     "status": "보류(사람작업 소실)",
+     "lost_marks": [
+      "⚠REVIEW"
+     ]
+    }
+   ]
   }
  ]
 }

@@ -1,0 +1,9 @@
+{
+ "script": "recollect_tier",
+ "stamp": "20260920-050346-059",
+ "files": [
+  "local_server/knowledge/legal/_legacy/신항만건설촉진법/20260102/시행령.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/신항만건설촉진법/시행령.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/신항만건설촉진법/_meta.json"
+ ]
+}

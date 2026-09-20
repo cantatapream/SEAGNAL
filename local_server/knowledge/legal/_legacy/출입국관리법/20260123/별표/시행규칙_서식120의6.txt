@@ -1,0 +1,75 @@
+[시행규칙] 서식120의6 — 구술심리신청서
+
+■ 출입국관리법 시행규칙 [별지 제120호의6서식]                                                      
+                                                                                                                        
+  구술심리신청서                                                                                                        
+  (APPLICATION FOR ORAL HEARING)                                                                                        
+                                                                                                                        
+  ※ 색상이 어두운 칸은 신청인이 작성하지 않으며, [ ]에는 해당되는 곳에 √표를 합니다.                                  
+  The applicant shall not fill in the shaded areas. Please place a check mark (V) in the applicable boxes [  ].         
+──────────────┬───────────────────┬─────────────────────────
+  접수번호 (Receipt No)     │접수일시 (Receipt Date)               │처리기간 (Processing Period)                      
+                            │                                      │                                                  
+──────────────┴───────────────────┴─────────────────────────
+                                                                                                                        
+───────────┬─────────────┬────────────────┬─────────────────
+  사건 종류           │[  ] 보호에 대한 심사청구 │[  ] 보호기간 연장 승인신청     │[  ] 보호 일시해제 신청           
+  (Case Type)         │     (Application for     │    (Application for Extension  │    (Application for Temporary    
+                      │     Detention Review)    │     of Detention Period)       │     Release from Detention)      
+───────────┼─────────────┴────────────────┴─────────────────
+  사건 접수번호       │                                                                                                
+  (Receipt No.)       │                                                                                                
+───────────┼────────────────────┬───────────────────────────
+  신청인              │성명 (Full Name)                        │생년월일 (Date of Birth)                              
+  (Applicant)         ├────────────────────┼───────────────────────────
+                      │성 별 (Gender)                          │국적 (Nationality)                                    
+                      │  [  ] 남 Male  [  ] 여 Female          │                                                      
+                      ├────────────────────┴───────────────────────────
+                      │대한민국 내 주소 (Address in Korea)                                                             
+                      │                                                                                                
+                      │                                                                                                
+                      │ (전화번호:                            )                                                        
+                      │(Telephone:                             )                                                       
+                      ├────────────────────────────────────────────────
+                      │전자우편 (E-mail)                                                                               
+                      │                                                                                                
+───────────┼────────────────────────────────────────────────
+  처분청              │                                                                                                
+  (Disposition Office)│                                                                                                
+━━━━━━━━━━━┷━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  신청 취지               │                                                                                            
+  (Purpose of Application)│                                                                                            
+─────────────┼──────────────────────────────────────────────
+  신청 이유               │                                                                                            
+  (Reason for Application)│                                                                                            
+─────────────┴──────────────────────────────────────────────
+  「출입국관리법」 제66조의12제4항 단서 및 같은 법 시행령 제80조의9제1항에 따라 위와 같이 구술심                        
+  리를 신청합니다.                                                                                                      
+   I hereby apply for an oral hearing pursuant to Article 66-12(4) of the Immigration Act and                           
+  Article 80-9(1) of the Enforcement Decree of the Immigration Act.                                                     
+                                                                                                                        
+  년         월         일                                                                                              
+  (Year)       (Month)     (Day)                                                                                        
+                                                                                                                        
+  신청인                                                       (서명 또는 인)                                           
+  Applicant                                                   Signature/Seal                                            
+                                                                                                                        
+  외국인보호위원회                                                  귀중                                                
+  TO: The Immigration Detention Review Committee                                                                        
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                        
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  처리절차 (Procedure)                                                                                                  
+────────────────────────────────────────────────────────────
+                                                                                                                        
+┌───────┐    ┌────────────────┐    ┌───────────────┐  ┌─────────┐
+│신 청         │?  │접 수                           │?  │심 사ㆍ결 정                  │?│통 지             │
+│(Application) │    │(Receipt)                       │    │(Decision)                    │  │(Notice)          │
+└───────┘    └────────────────┘    └───────────────┘  └─────────┘
+  신청인                청장?사무소장?                        외국인보호위원회                                        
+  (Applicant)           출장소장?보호소장 또는                 (Immigration Detention Review                           
+                        외국인보호위원회                        Committee)                                              
+                        (Chief of Immigration Office or                                                                 
+                        Immigration Detention Review                                                                    
+                        Committee)                                                                                      
+────────────────────────────────────────────────────────────

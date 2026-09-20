@@ -65,6 +65,8 @@ const SEED_QUEUE_FILE = path.join(LEGAL_DIR, '_amendments', 'queue.jsonl');
 const H29_QUEUE_FILE = path.join(DATA, 'law_change_queue.json');
 const SEED_H29_QUEUE_FILE = path.join(LEGAL_DIR, '_dashboard', 'law_change_queue.json');
 const DETECT_SCRIPT = path.join(LEGAL_DIR, '_dashboard', 'loop', 'detect_law_changes.py');
+/** 마지막 스캔이 언제·어떻게 끝났는지(볼륨). **실패와 "개정 없음"을 화면에서 가르려고 남긴다**(2026-09-20 사용자 지시). */
+const SCAN_STATUS_FILE = path.join(DATA, 'amendment_last_scan.json');
 const DETECT_DAYS = 7;          // 큐 실행 주기와 맞춤(H-29 주간 Routine과 동일 창)
 // 실측: 2026-08-10 세션 3~4분. 2026-09-10 세션(law.go.kr 이 connection reset·응답 지연을 자주 내던 날)은
 // 8분 상한에 걸려 죽었고, 직접 돌리니 10분 3초가 걸렸다(법령 질의만 약 10분 — 응답 지연·재시도 누적). 스크립트는 끝에서 한 번에 쓰므로 상한에 걸리면 그날 결과가
@@ -228,6 +230,29 @@ function getScanProgress() {
   };
 }
 
+/**
+ * 마지막 스캔 결과를 볼륨에 적는다(재시작해도 남게 — 메모리 진행률은 재시작하면 사라진다).
+ * 예: writeScanStatus({ok:true, finishedAt:'…', scanned:12, changed:3})
+ * @param {object} st 상태 객체
+ * @returns {void} 기록 실패는 로그만 남긴다 — 상태 기록 때문에 스캔이 죽으면 안 된다
+ * [연계] → GET /api/legal/amendments 의 `lastScan` · 관리자 "개정검토" 방 상단 한 줄
+ */
+function writeScanStatus(st) {
+  try {
+    fs.mkdirSync(DATA, { recursive: true });
+    fs.writeFileSync(SCAN_STATUS_FILE, JSON.stringify(st, null, 1));
+  } catch (e) { console.error('[나리야 개정감지] 상태 기록 실패:', e && e.message); }
+}
+
+/**
+ * 마지막 스캔 결과를 읽는다. 한 번도 안 돌았으면 null.
+ * @returns {object|null} {ok,startedAt,finishedAt,error,days,scanned,changed,filtered}
+ * [연계] ← routes/legal.js GET /api/legal/amendments
+ */
+function readScanStatus() {
+  try { return JSON.parse(fs.readFileSync(SCAN_STATUS_FILE, 'utf8')); } catch (_) { return null; }
+}
+
 /** H-29 큐(`law_change_queue.json`)에서 status:pending 항목만 읽는다. 파일 없거나 파싱 실패면 []. */
 function loadH29PendingItems() {
   try {
@@ -329,6 +354,7 @@ async function runAmendmentScan() {
   try {
     queueFile();
     seedIfMissing(H29_QUEUE_FILE, SEED_H29_QUEUE_FILE);
+    const startedAt = new Date().toISOString();
     const r = await runDetectScript(DETECT_DAYS);
     if (!r.ok) console.error('나리야 개정감지 탐지 스크립트 실패:', r.error);
     const pending = loadH29PendingItems();
@@ -343,6 +369,13 @@ async function runAmendmentScan() {
     //   푸시가 실패해도 스캔 결과는 그대로 돌려준다 — 알림 때문에 감지를 잃으면 안 된다.
     if (cards.length) await notifyAdmins(cards);
     const out = { scanned: pending.length, changed: relevant.length, filtered, errors: r.ok ? 0 : 1 };
+    // ★탐지 스크립트가 죽으면 카드가 0건인데, 그것은 "개정이 없다"가 아니라 "확인을 못 했다"이다.
+    //   화면이 둘을 구별할 수 있도록 결과를 볼륨에 남긴다(2026-09-20 사용자 지시).
+    writeScanStatus({
+      ok: r.ok, startedAt, finishedAt: new Date().toISOString(), days: DETECT_DAYS,
+      error: r.ok ? null : (r.error || '탐지 스크립트 실패'),
+      scanned: pending.length, changed: relevant.length, filtered,
+    });
     _progress.result = out;
     return out;
   } finally {
@@ -395,5 +428,5 @@ function startAmendmentScan() {
 
 module.exports = { runAmendmentScan, startAmendmentScan, getScanProgress,
   // 진행률 한 줄 파서는 검사(test_wiki_brief_bulk.js)가 직접 먹여 보려고 함께 내보낸다.
-  applyProgressLine, queueFile, h29QueueFile, mirrorDecisionToH29,
+  applyProgressLine, queueFile, h29QueueFile, mirrorDecisionToH29, readScanStatus,
   notifyAdmins, toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE };

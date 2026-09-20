@@ -1,0 +1,62 @@
+[시행규칙] 서식117 — 보호해제 통보서
+
+■ 출입국관리법 시행규칙 [별지 제117호서식]                                                                   
+                                                                                                                                  
+                                                                        번호(No.) :                                               
+  보호해제 통보서                                                                                                                 
+  (NOTIFICATION FOR RELEASE)                                                                                                      
+  수신 :                                                                                                                          
+  To :                                                                                                                            
+──────────┬──────────────────────────────────────────────────────
+  대상자            │성명 (Full name)                                                                                            
+  (Person to whom   ├──────────────────────────────────────────────────────
+  the Notification  │성별 (Gender)  남 Male[  ]  여 Female[  ]                                                                   
+  relates)          ├──────────────────────────────────────────────────────
+                    │생년월일 (Date of Birth)                                                                                    
+                    ├──────────────────────────────────────────────────────
+                    │국적 (Nationality)                                                                                          
+                    ├──────────────────────────────────────────────────────
+                    │대한민국 내 주소 (Address in Korea)                                                                         
+                    │                                                                                                            
+                    │                                                                                                            
+                    │ (전화번호:                            )                                                                    
+                    │(Telephone:                               )                                                                 
+──────────┴──────────────────────────────────────────────────────
+                                                                                                                                  
+─────────────────────────────────────────────────────────────────
+    위 사람에 대해 아래의 조건으로 보호를 해제함을 통보합니다.                                                                    
+    It is hereby notified that the above mentioned person is released on the following conditions.                                
+─────────────────────────────────────────────────────────────────
+                                                                                                                                  
+──────────┬──────────────────────────────────────────────────────
+  보호해제 조건     │해제기간 중 거주지 (Place of Residence during Release)                                                      
+  (Conditions of    ├──────────────────────────────────────────────────────
+   Release)         │정기 보고, 신원보증인의 지정, 보증금의 납부 등 그 밖의 조건                                                 
+                    │(Other conditions including regular reporting, designation of a guarantor, and payment                      
+                    │of a security deposit)                                                                                      
+                    │                                                                                                            
+                    │별지로 작성                                                                                                 
+                    │Written in separate document                                                                                
+──────────┴──────────────────────────────────────────────────────
+                                                                                                                                  
+─────────────────────────────────────────────────────────────────
+           년        월       일                                                                                                  
+                                    Date      (year)    (month)    (day)                                                          
+                                          ┏━━┓                                                                                
+    ○○출입국ㆍ외국인청(사무소ㆍ출장소)장┃직인┃                                                                                
+                                          ┗━━┛                                                                                
+                     CHIEF, ○○IMMIGRATION OFFICE                                                                                
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  유의사항 (Notice)                                                                                                               
+─────────────────────────────────────────────────────────────────
+   1. 보호해제된 사람이 도주하거나 새로운 강제퇴거 사유에 해당함이 밝혀졌거나 새로운 강제퇴거 사유에 해당하게 되거나, 위          
+  조건을 위반한 경우에는 다시 보호될 수 있습니다.                                                                                 
+      If the person released from detention absconds, is found to be subject to new grounds for deportation, falls under          
+  new grounds for deportation, or violates the above conditions, the person may be detained again.                                
+   2. 출입국관리공무원 또는 권한 있는 공무원이 「출입국관리법」 제81조에 따라 적법하게 체류하고 있는지 등에 대한 질문을           
+  하는 경우에는 이 통보서를 제시해야 하므로, 이 통보서는 항상 휴대할 것을 권장합니다.                                             
+      It is recommended that this notification be carried at all times. In the event that you are questioned by an immigration    
+  officer or other authorized official regarding the legality of your stay pursuant to Article 81 of the Immigration Act,         
+  you must present this notification.                                                                                             
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

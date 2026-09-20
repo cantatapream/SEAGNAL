@@ -879,7 +879,9 @@ router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
     //   시행일이 이미 지났는데 승인이 안 됐으면(due:true) 지금 챗봇은 **옛 내용**을 내보내는 중이다.
     const byQueue = stageByQueueId();
     list = list.map((e) => (byQueue.has(e.id) ? Object.assign({}, e, { stage: byQueue.get(e.id) }) : e));
-    res.json({ ok: true, count: list.length, amendments: list });
+    // ★마지막 스캔이 언제·어떻게 끝났는지 함께 준다. 목록이 비었을 때 **"개정이 없다"와
+    //   "확인을 못 했다"를 화면이 구별**해야 한다(2026-09-20 사용자 지시).
+    res.json({ ok: true, count: list.length, amendments: list, lastScan: amendmentScanner.readScanStatus() });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 

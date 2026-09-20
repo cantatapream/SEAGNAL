@@ -1695,6 +1695,33 @@
       (finished ? '' : '<div class="nrya-gauge-note">막대는 <b>질의 진행도</b>입니다(남은 시간이 아닙니다). 부처마다 고시 수가 달라 한동안 안 움직일 수 있지만, 아래 숫자가 늘고 있으면 정상입니다. 이 방을 벗어나도 스캔은 계속 돕니다.</div>');
   }
 
+  /**
+   * 마지막 개정 스캔이 언제·어떻게 끝났는지 한 줄로. **"개정 없음"과 "확인 못 함"을 반드시 구분한다** —
+   * 스캔이 실패해도 목록은 똑같이 비어 보이기 때문이다(2026-09-20 사용자 지시로 추가).
+   * @param {object|null} last - {ok,finishedAt,error,days,scanned,changed,filtered}
+   * @returns {string} HTML
+   * [연계] ← GET /api/legal/amendments 의 lastScan · services/legal_amendment_scanner.js readScanStatus()
+   */
+  function amendLastHTML(last) {
+    if (!last) {
+      return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 이 서버에서 스캔 기록이 없습니다. 매일 새벽 1시(KST)에 자동으로 돌고, 위 버튼으로 지금 돌릴 수도 있습니다.</div>';
+    }
+    if (!last.ok) {
+      return '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span><b>마지막 스캔이 실패했습니다</b> (' + esc(shortTs(last.finishedAt)) + ')<br>' +
+        '<span style="font-size:11.5px">사유: ' + esc(last.error || '알 수 없음') + '</span><br>' +
+        '<span style="font-size:11.5px;color:var(--nrya-text-sub)">아래 목록이 비어 있어도 <b>"개정이 없다는 뜻이 아닙니다"</b> — 확인을 못 한 것입니다. 위 「지금 스캔」을 다시 눌러 보세요.</span></div>';
+    }
+    return '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
+      '마지막 스캔 ' + esc(shortTs(last.finishedAt)) +
+      (last.days ? ' · 최근 ' + last.days + '일 범위' : '') +
+      ' · 새로 올린 개정 ' + nfmt(last.changed || 0) + '건' +
+      (last.filtered ? ' · 우리 법과 무관해 거른 신규 고시 ' + nfmt(last.filtered) + '건' : '') + '</div>' +
+      '<div class="nrya-notice-box" style="margin:0 0 8px"><span class="nrya-em">ℹ️</span>' +
+      '<span style="font-size:11.5px;color:var(--nrya-text-sub)">이 방은 <b>최근 ' + (last.days || 7) + '일 안에 바뀐 것</b>만 봅니다. ' +
+      '그보다 오래전에 바뀌어 우리 원문이 낡은 것은 <b>「원문신선도」 방</b>이 판번호를 1:1로 맞춰 잡습니다 — ' +
+      '이 방이 비어 있어도 그쪽을 함께 보세요.</span></div>';
+  }
+
   /** renderAmendCards 의 목록 부분만 새로고침(스캔 버튼은 그대로 둔다). */
   function loadAmendList() {
     var listHost = document.getElementById('nryaAmendListHost'); if (!listHost) return;
@@ -1706,8 +1733,9 @@
       if (data === null) return;
       if (!data || !data.ok) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>' + esc((data && data.error) || '목록을 불러오지 못했습니다.') + '</div>'; return; }
       var list = data.amendments || [];
-      if (!list.length) { listHost.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">✅</span>감지된 개정이 없습니다.</div>'; return; }
-      listHost.innerHTML = '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">총 ' + list.length + '건</div>' + list.map(amendmentCardHTML).join('');
+      var scanLine = amendLastHTML(data.lastScan || null);
+      if (!list.length) { listHost.innerHTML = scanLine + '<div class="nrya-notice-box"><span class="nrya-em">✅</span>감지된 개정이 없습니다.</div>'; return; }
+      listHost.innerHTML = scanLine + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">총 ' + list.length + '건</div>' + list.map(amendmentCardHTML).join('');
       listHost.querySelectorAll('.nrya-rv').forEach(function (card) {
         bindDecideCard(card, '/api/legal/amendments', 'approved', 'dismissed', '승인(재수집 필요)', '무시');
         bindBriefButton(card);
@@ -1747,6 +1775,7 @@
       : '';
     return partial + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
       '마지막 점검 ' + esc(shortTs(last.finishedAt)) + ' · ' + (last.checked || 0) + '건 대조 · 낡은 원문 ' + (last.stale || 0) + '건' +
+      (last.reopened ? ' · 닫혀 있었지만 아직 낡아 다시 띄운 것 ' + last.reopened + '건' : '') +
       (last.renamed ? '(그중 이름 바뀜 의심 ' + last.renamed + '건)' : '') +
       (last.mismatch ? ' · 이름불일치 ' + last.mismatch + '건' : '') +
       (last.repealed ? ' · 폐지가능 ' + last.repealed + '건' : '') +
@@ -1805,8 +1834,16 @@
           // actions 문구는 서버가 만든 안내문이다(사용자 입력이 아니다). 그래도 esc 로 통일한다.
           return '<li style="margin:4px 0">' + esc(x) + '</li>'; }).join('') + '</ol>'
       : '<span style="color:var(--nrya-text-sub)">(안내 없음)</span>';
+    // ★닫았는데 아직도 낡아서 **다시 뜬 카드**임을 알린다(2026-09-20). 그냥 다시 뜨기만 하면
+    //   관리자는 "아까 처리했는데 왜 또?"로 읽고 같은 판단을 반복하게 된다.
+    var reopen = (it.reopen_count || 0) > 0
+      ? '<div class="nrya-notice-box nrya-err" style="margin:0 0 8px"><span class="nrya-em">🔁</span>' +
+          '<b>다시 뜬 카드입니다(' + it.reopen_count + '번째)</b><br>' +
+          '<span style="font-size:11.5px">' + esc(it.reopen_reason || '이번 점검에서도 구버전으로 나왔습니다.') +
+          '<br>원문을 실제로 다시 받으면 다음 점검에서 사라집니다.</span></div>'
+      : '';
     var body =
-      '<div class="nrya-rv-body">' +
+      '<div class="nrya-rv-body">' + reopen +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">📚 계열</div><div class="nrya-rv-fval">' + esc(tier) + '</div></div>' +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔢 어떻게 낡았나</div><div class="nrya-rv-fval">' +
           (cands.length
