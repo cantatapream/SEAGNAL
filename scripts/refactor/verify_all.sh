@@ -219,6 +219,17 @@ echo; echo "── V5-2 위키 링크 무결성 ──"
 #   그러면 옛·새 서술이 함께 나가므로, 커밋 전에 여기서 막는다(독립 검토 high, `H29_stage_review_2026-09-10.json`).
 python3 local_server/knowledge/legal/_dashboard/loop/lint_stage_markers.py || FAIL=1
 
+echo; echo "── V5-13 승급 요건(§5-D) — 이번에 canonical 로 올린 쪽만 본다 ──"
+# [왜 — C-3, 2026-09-20] `_SCHEMA.md` §5-D 는 승급 절차를 글로 정해 뒀지만 **지키는지 보는 장치가 없었다.**
+#   그래서 딱지만 떼면 틀린 수치가 "검토완료"로 둔갑한다. 실제로 났다 — 「항만운송사업법__부두운영회사」의
+#   배점표가 **어느 판과도 맞지 않는 수치**를 담은 채 ⓐ(=[미확인] 0줄)는 통과하는 상태였다(§5-D ⓑ-1).
+#   2026-09-20 실측으로 draft 152쪽 중 **136쪽이 [미확인] 0줄**이라, ⓐ 만 보고 일괄 승급하면 그런 쪽이 통째로 올라간다.
+# [범위] 이미 canonical 인 366쪽을 소급하지 않는다 — 첫날부터 수백 건이 뜨면 아무도 안 본다(게이트가 죽는 흔한 길).
+#   `origin/main` 과의 merge-base 대비 **이번 가지에서 올린 쪽만** 본다.
+# [한계] "두 번 봤다고 적었는가"를 볼 뿐 **정말 두 번 봤는지는 못 본다.** 그래도 두는 이유는 지금은
+#   적는 자리조차 없어 아무 기록 없이 딱지만 떼는 것이 가능하기 때문이다(§5-D ⓒ 와 같은 취지).
+node local_server/knowledge/legal/_dashboard/loop/promote_guard.js --gate || FAIL=1
+
 # 서버 API + 이동 JS 경로 스모크
 echo; echo "── 서버 스모크 (대표 엔드포인트) ──"
 SMOKE=("/api/health:200" "/api/app-version:200" "/:200" "/sw.js:200" "/style.css:200"
