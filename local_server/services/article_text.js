@@ -1134,16 +1134,27 @@ function parseBylFile(text) {
 function pickNoticeFile(entries, title) {
   const want = squash(title);
   if (!want) return null;
-  let best = null;
-  for (const e of entries || []) {
-    if (e.type !== 'file' || !/\.txt$/i.test(e.name)) continue;
-    const got = squash(e.name);
-    if (!got) continue;
-    if (want.includes(got) || got.includes(want)) {
-      if (!best || got.length > squash(best).length) best = e.name;
+  // ★`_별표` 가 붙은 파일은 **조문이 없는 별표 덩어리**다(2026-09-20 실측: 행정규칙 폴더의
+  //   `_별표` 파일 11개 전부 조문머리 0개). 그런데 이름이 본체를 통째로 품고 있어 **더 길어서**
+  //   아래 "가장 긴 이름이 이긴다" 규칙에 본체를 이겨 버린다.
+  //   실제 사고: 「농산물우수관리인증기관 지정 및 운영 요령」 제6조의2 는 본체(제1~18조)에
+  //   멀쩡히 있는데 `_별표.txt`(조 0개)를 열어 "그 파일에 그 조 없음" 으로 죽고 있었다(D-2 #4).
+  //   → **본체를 먼저 찾고, 못 찾을 때만** 별표 파일까지 본다(위키가 별표 문서를 직접 가리키는
+  //     칸은 2차 통과에서 그대로 잡힌다 — 찾는 범위를 줄이지 않는다).
+  const pick = (skipAnnex) => {
+    let best = null;
+    for (const e of entries || []) {
+      if (e.type !== 'file' || !/\.txt$/i.test(e.name)) continue;
+      if (skipAnnex && /_별표|_별지/.test(e.name)) continue;
+      const got = squash(e.name);
+      if (!got) continue;
+      if (want.includes(got) || got.includes(want)) {
+        if (!best || got.length > squash(best).length) best = e.name;
+      }
     }
-  }
-  return best;
+    return best;
+  };
+  return pick(true) || pick(false);
 }
 
 /**
