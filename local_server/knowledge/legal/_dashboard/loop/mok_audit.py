@@ -64,13 +64,29 @@ def L(x):
 
 
 def api(url, tries=3):
-    """DRF 원본을 받는다. 빈 응답이 간헐적으로 오므로 몇 번 다시 시도한다."""
+    """DRF 원본을 받는다. 빈 응답이 간헐적으로 오므로 몇 번 다시 시도한다.
+
+    ★**"권한이 없다"와 "네트워크가 흔들린다"를 갈라서 알려 준다** (2026-09-21 신설).
+    종전에는 JSON 이 아니면 전부 똑같이 조용히 재시도하고 None 을 줬다. 그래서 law.go.kr 이
+    HTTP **200** 과 함께 *"미신청된 목록/본문에 대한 접근입니다"* 라는 HTML 을 돌려줘도
+    **네트워크 탓처럼** 보였고, 573계열이 전부 `판정 불가` 로 나오는 동안 **원인이 어디에도
+    안 드러났다.** 권한 문제는 재시도로 절대 안 풀리므로 **그 자리에서 한 번 크게 알린다.**
+    """
+    warned = False
     for i in range(tries):
         try:
             with urllib.request.urlopen(url, timeout=40) as r:
                 body = r.read().decode('utf-8', 'replace')
             if body.strip().startswith('{'):
                 return json.loads(body)
+            # JSON 이 아니다 — 오류쪽인지 본다. `<h2>` 안에 사유가 들어온다.
+            if not warned:
+                warned = True
+                m = re.search(r'<h2>([^<]{3,80})</h2>', body)
+                if m:
+                    print('   ⛔law.go.kr 이 본문 대신 오류쪽을 줬다: "%s"' % m.group(1), flush=True)
+                    print('      → 재시도로 풀리는 문제가 아니다. OC 계정의 target 신청 상태를 확인할 것.', flush=True)
+                    return None      # 권한 문제는 더 두드려 봐야 소용없다
         except Exception:
             pass
         time.sleep(1 + i)
@@ -79,7 +95,18 @@ def api(url, tries=3):
 
 def api_mok_count(mst):
     """원본에서 목이 몇 개인지 센다. 못 받으면 None(=판정 불가, 0 이 아니다)."""
-    d = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=eflaw&type=JSON&MST=%s' % (OC, mst))
+    # ★target 을 `eflaw` → `law` 로 바꿨다 (2026-09-21).
+    #   [왜] 이 OC 계정은 **`eflaw` 를 신청하지 않았다.** 그 target 으로 부르면 law.go.kr 이
+    #   HTTP **200** 과 함께 HTML 오류쪽을 준다 — *"미신청된 목록/본문에 대한 접근입니다."*
+    #   `api()` 는 "JSON 이 아니면 실패"로 보고 세 번 재시도한 뒤 None 을 주므로, 겉으로는
+    #   **"원본 응답 없음(=모른다)"** 으로만 보였다. 한 건에 26초씩 쓰고 573계열 전부가
+    #   `판정 불가` 로 나오는데 **원인이 권한이라는 것이 어디에도 안 드러났다**(2026-09-21 실측).
+    #   ⚠교훈: **HTTP 200 이라고 성공이 아니다.** 아래 `api()` 가 그 구분을 하도록 함께 고쳤다.
+    #   [왜 `law` 로 바꿔도 되나] **MST 가 판(version)을 고정한다** — target 이 달라도 같은 MST 면
+    #   같은 문서다. 실측으로 확인했다: 폐기물관리법 시행규칙 `MST=289271` 을 `target=law` 로
+    #   부르니 `시행일자=20260918` 이 왔고, 우리 raw 머리말이 적어 둔
+    #   *"target=eflaw, MST=289271, 시행 20260918"* 과 **같다.** 응답 구조(조문→항→호→목)도 같다.
+    d = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=law&type=JSON&MST=%s' % (OC, mst))
     if not d:
         return None, None
     root = d.get('법령', d)
