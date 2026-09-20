@@ -47,6 +47,13 @@ KINDS = [('법률', '법률.txt'), ('시행령', '시행령.txt'), ('시행규�
 
 argv = sys.argv[1:]
 only = argv[argv.index('--law') + 1] if '--law' in argv else None
+# 결과 파일 위치를 밖에서 정할 수 있게 한다(2026-09-20, C-2).
+#   기본값은 종전과 같은 `_dashboard/mok_audit.json` 이라 손으로 돌릴 때 동작이 안 바뀐다.
+#   ⚠서버 정기작업은 반드시 `--out local_server/data/...` 로 **볼륨**에 써야 한다 —
+#     이미지 안(`_dashboard/`)에 쓰면 배포할 때마다 관리자가 처리하던 목록이 통째로 사라진다
+#     (`services/admrul_fresh_scanner.js` 머리말 「저장 위치」와 같은 이유다).
+OUT = (argv[argv.index('--out') + 1] if '--out' in argv
+       else os.path.join(LEGAL, '_dashboard', 'mok_audit.json'))
 
 # recollect_jomun.py 가 목을 6칸 들여쓰기로 적는다(63행). 옛 수집본도 같은 관례를 따랐다.
 MOK_LINE = re.compile(r'^\s{4,}[가-힣]\s*\.')
@@ -183,11 +190,27 @@ if rows:
     for r in rows[:20]:
         print('     %4d개  %s %s  (원본 %d / 우리 %d)'
               % (r['missing'], r['law'], r['kind'], r['api_mok'], r['raw_mok']))
-    out = os.path.join(LEGAL, '_dashboard', 'mok_audit.json')
-    json.dump({'missing': rows, 'no_answer': no_answer,
-               'excerpt_ok': excerpt, 'file_not_found': not_found}, open(out, 'w'),
-              ensure_ascii=False, indent=1)
-    print('\n   목록 저장: %s' % out)
+
+# ★누락이 **0건이어도 반드시 쓴다**(2026-09-20, C-2).
+#   종전에는 `if rows:` 안에서만 써서, 누락이 0이면 파일이 아예 안 생겼다. 그러면 읽는 쪽이
+#   **지난 번 파일을 지금 결과로 착각**한다 — 다 고쳐 놓고도 화면에는 옛 누락이 계속 뜨거나,
+#   반대로 한 번도 안 돌린 것과 "돌렸는데 깨끗한 것"을 구별할 수 없다.
+#   쓰는 도중에 죽어도 반쯤 쓰인 JSON 이 남지 않게 임시파일 → rename 으로 갈아끼운다.
+_payload = {'missing': rows, 'no_answer': no_answer,
+            'excerpt_ok': excerpt, 'file_not_found': not_found,
+            'checked': len(targets), 'missing_moks': sum(r['missing'] for r in rows),
+            # ⚠`time.strftime` 는 **컨테이너 지역시각**(여기서는 UTC)을 준다. 거기에 'KST' 를
+            #   붙이면 아홉 시간 틀린 시각에 맞다고 적는 꼴이다. 오프셋을 직접 더한다.
+            'ran_at': time.strftime('%Y-%m-%d %H:%M:%S KST', time.gmtime(time.time() + 9 * 3600))}
+_tmp = OUT + '.tmp'
+os.makedirs(os.path.dirname(OUT), exist_ok=True)
+with open(_tmp, 'w', encoding='utf-8') as _f:
+    json.dump(_payload, _f, ensure_ascii=False, indent=1)
+    _f.flush()
+    os.fsync(_f.fileno())
+os.replace(_tmp, OUT)
+print('\n   목록 저장: %s  (누락 %d계열 / 대조 %d계열)' % (OUT, len(rows), len(targets)))
+
 if no_answer:
     print('\n   ⚠판정 못 한 계열(원본 응답 없음 — "없다"가 아니라 "모른다"다):')
     for x in no_answer[:15]:
