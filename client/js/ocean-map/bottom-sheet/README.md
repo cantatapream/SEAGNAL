@@ -11,7 +11,7 @@
 | `ocean_bottom_sheet2.js` | 바텀시트 헤더 — 날짜 네비게이션 + 음력 표시 + 📍 토글 + ✕ 닫기 | — |
 | `ocean_bottom_sheet3.js` | 바텀시트 조석 카드 — TideBED 폴링 + 3모드 렌더링(loading/error/detail) | `gridPointKey`, `loadGridHashLS`, `persistGridHashIfFavorite`, `rememberGridHash`, `forgetGridHash`, `lookupGridHash` |
 | `ocean_bottom_sheet4.js` | 동해 북부(36°N+128°E+) IDW 보간 + 천문 카드 (SunCalc) | `runIdw`, `afterLoads`, `loadNext`, `pickMoonPhase`, `fmt` |
-| `ocean_bottom_sheet5.js` | 6개 일반 카드 + 전체 오케스트레이터 | `_isStaleEpoch`, `fetchDepth`, `fetchRoms`, `fetchWeather`, `fetchWave` |
+| `ocean_bottom_sheet5.js` | 7개 일반 카드 + 전체 오케스트레이터 | `_isStaleEpoch`, `fetchDepth`, `fetchRoms`, `fetchPressure`, `fetchWeather`, `fetchWave` |
 | `ocean_bottom_sheet_vsby.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `_keyOf`, `_fmtNum`, `_fmtVis`, `_setValue`, `_tKey`, `_dateKey` |
 | `ocean_bottom_sheet_weather.js` | 바텀시트 천기 카드 — 클릭한 해점의 KMA 단기예보 6 카테고리 종합 표시 | `_fmtNum`, `_buildRainText`, `_setCell`, `_ensureLoadingSkeleton`, `_show`, `_renderData` |
 | `ocean_sheet_timeline.js` | 해양종합정보 바텀시트 내부의 시간 이동 슬라이더 | `$`, `floor3h`, `displayTimeMs`, `computeMaxFromZone`, `sheetValueFromLayerHours`, `updateTooltip` |
