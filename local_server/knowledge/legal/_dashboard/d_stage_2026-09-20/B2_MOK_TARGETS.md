@@ -92,6 +92,70 @@ A-2 재실행 중에 찾았다. **조 수로는 100퍼센트 전문인데 목만
 - `소년법/법률.txt` 는 조 4개 · 1,546자인데 **발췌 고지가 없다.** 머리 형식도 다른
   파일과 다르다(`[법령명]`/`[법령ID]`/`[공포일자]`).
 
+### (나) 8개 발췌본 — 그대로 돌리면 되는 명령 (⚠`--apply` 는 일부러 뺐다)
+
+`--refresh` 는 **이미 있는 조문을 받아 온 것으로 갈아 끼운다**(2026-09-21 신설,
+시험 `local_server/scripts/test_add_other_law_refresh.js` 22 PASS). 우리가 적어 둔 `※`
+메모 줄은 그대로 남고, **글이 줄어드는 교체는 스스로 거부한다**. 먼저 `--apply` 없이
+돌려 눈으로 보고, 그다음에 `--apply` 를 붙인다.
+
+```bash
+# 15_관련타부처/은행법/법률.txt  (5자리)
+node _dashboard/loop/add_other_law_article.js \
+     --law "은행법" --tier 법률 \
+     --arts "제2조,제16조의2,제16조" --refresh \
+     --why "V5-16 목 보충(B2_MOK_TARGETS.md)"
+
+# 15_관련타부처/한국자산관리공사설립등에관한법률/법률_발췌.txt  (3자리)
+node _dashboard/loop/add_other_law_article.js \
+     --law "<정식명 확인 필요>" --tier 법률 \
+     --arts "제2조" --refresh \
+     --why "V5-16 목 보충(B2_MOK_TARGETS.md)"
+
+# 15_관련타부처/경비업법/법률.txt  (3자리)
+node _dashboard/loop/add_other_law_article.js \
+     --law "경비업법" --tier 법률 \
+     --arts "제4조,제10조" --refresh \
+     --why "V5-16 목 보충(B2_MOK_TARGETS.md)"
+
+# 15_관련타부처/순환경제사회전환촉진법/법률.txt  (2자리)
+node _dashboard/loop/add_other_law_article.js \
+     --law "순환경제사회 전환 촉진법" --tier 법률 \
+     --arts "제2조,제3조" --refresh \
+     --why "V5-16 목 보충(B2_MOK_TARGETS.md)"
+
+# 15_관련타부처/한국해양진흥공사법/법률_발췌.txt  (1자리)
+node _dashboard/loop/add_other_law_article.js \
+     --law "<정식명 확인 필요>" --tier 법률 \
+     --arts "제2조" --refresh \
+     --why "V5-16 목 보충(B2_MOK_TARGETS.md)"
+
+# 15_관련타부처/전기사업법/법률_연결조문만.txt  (1자리)
+node _dashboard/loop/add_other_law_article.js \
+     --law "전기사업법" --tier 법률 \
+     --arts "제2조" --refresh \
+     --file "raw/15_관련타부처/전기사업법/법률_연결조문만.txt" \
+     --why "V5-16 목 보충(B2_MOK_TARGETS.md)"
+
+# 15_관련타부처/전기사업법/법률_발췌.txt  (1자리)
+node _dashboard/loop/add_other_law_article.js \
+     --law "전기사업법" --tier 법률 \
+     --arts "제2조" --refresh \
+     --why "V5-16 목 보충(B2_MOK_TARGETS.md)"
+
+# 15_관련타부처/소년법/법률.txt  (1자리)
+node _dashboard/loop/add_other_law_article.js \
+     --law "소년법" --tier 법률 \
+     --arts "제4조" --refresh \
+     --why "V5-16 목 보충(B2_MOK_TARGETS.md)"
+```
+
+⚠두 곳은 `_meta.json` 에 법령명이 없다 — **정식명을 먼저 확인**해야 한다
+(한국자산관리공사 설립 등에 관한 법률 · 한국해양진흥공사법).
+⚠전기사업법 폴더에는 발췌본이 **둘**이다(`법률_발췌.txt`·`법률_연결조문만.txt`).
+기본 규칙은 `법률_발췌.txt` 만 집으므로 다른 하나는 `--file` 로 못 박는다.
+**둘 중 어느 것을 챗봇이 실제로 읽는지 확인하고, 하나로 합칠지 사람이 정해야 한다.**
+
 ## 3. 다른 사본이 메우는 3건 — 재수집하지 않는다
 
 | 자리 | 글이 있는 곳 |

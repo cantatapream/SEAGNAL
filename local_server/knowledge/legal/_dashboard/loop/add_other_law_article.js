@@ -28,6 +28,9 @@
  *   ... --apply            → 실제로 발췌본 끝에 붙인다
  *   ... --tier 시행령       → 계층 지정(기본 법률)
  *   ... --refresh          → ★**이미 있는 조문을 받아 온 것으로 갈아 끼운다**(아래)
+ *   ... --file <경로>       → 한 폴더에 발췌본이 둘 이상일 때 **어느 파일인지 못 박는다**
+ *                             (전기사업법 폴더의 `법률_연결조문만.txt` 처럼 기본 규칙이
+ *                              못 고르는 파일. ⚠그 법 폴더 안이어야 한다)
  *
  * [★--refresh 는 왜 생겼나 — 2026-09-21]
  *   이 도구는 `[제10조]` 가 파일에 있으면 **"이미 있음"으로 건너뛴다.** 그런데 있는 것이
@@ -261,9 +264,24 @@ function renderArticle(u) {
       console.error(`  ↳ 조문별 파일 ${singles.length}개를 ${path.basename(excerpt)} 로 합쳤다(원본은 지우지 않는다).`);
     }
   }
-  const file = fs.existsSync(plain) ? plain : excerpt;
+  // ★`--file` 로 **어느 파일인지 사람이 못 박을 수 있다**(2026-09-21 신설).
+  //   [왜] 한 폴더에 발췌본이 둘 이상인 경우가 실제로 있다 — 전기사업법 폴더에는
+  //   `법률_발췌.txt` 와 `법률_연결조문만.txt` 가 함께 있다. 위 규칙은 `법률.txt` → `법률_발췌.txt`
+  //   순으로만 고르므로 `_연결조문만.txt` 는 **이 도구로 영영 못 고친다.**
+  //   그런 자리를 손으로 고치게 두면 실수가 난다. ⚠폴더 밖은 거부한다.
+  const forced = arg('--file');
+  let file = fs.existsSync(plain) ? plain : excerpt;
+  if (forced) {
+    const abs = path.resolve(forced.startsWith('/') ? forced : path.join(LEGAL, forced));
+    if (!abs.startsWith(path.resolve(dir) + path.sep)) {
+      die(`--file 은 이 법의 폴더(${path.relative(LEGAL, dir)}) 안이어야 한다: ${forced}`);
+    }
+    if (!fs.existsSync(abs)) die(`--file 이 가리키는 파일이 없다: ${forced}`);
+    file = abs;
+    console.error(`  ↳ --file 로 ${path.relative(LEGAL, file)} 를 집었다.`);
+  }
   let had = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  if (file === plain) {
+  if (!forced && file === plain) {
     console.error(`  ↳ 이미 있는 ${path.basename(file)} 에 덧붙인다(발췌본을 따로 만들지 않는다).`);
   }
 

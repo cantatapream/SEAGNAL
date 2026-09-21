@@ -23,6 +23,8 @@
  *  ⑥ 파일에 없는 조를 부르면 **null** 을 준다(엉뚱한 자리를 고치지 않는다)
  *  ⑦ 목이 빠진 실제 꼴을 넣으면 목이 채워지고 글이 길어진다
  *  ⑧ CLI 쪽 배선 — 글이 줄어드는 교체를 스스로 거부하고, 갈아 끼운 것도 기록에 남긴다
+ *  ⑨ `--file` — 한 폴더에 발췌본이 둘 이상일 때(전기사업법) 어느 파일인지 못 박고,
+ *     그 법 폴더 밖은 거부한다
  *
  * [연계]
  * - _dashboard/loop/article_block.js → replaceBlock()
@@ -118,6 +120,9 @@ check('⑧ 교체분을 먼저 파일에 쓴 뒤 덧붙인다(순서가 바뀌�
     && cli.indexOf('fs.writeFileSync(file, refreshed)') < cli.indexOf('별표·부칙 앞에 끼워 넣었다'));
 check('⑧ 덩이 교체는 시험 있는 모듈에서 가져온다',
   /require\('\.\/article_block'\)/.test(cli));
+check('⑨ --file 로 어느 발췌본인지 못 박을 수 있다', /arg\('--file'\)/.test(cli));
+check('⑨ --file 은 그 법 폴더 밖을 거부한다',
+  /--file 은 이 법의 폴더/.test(cli) && /abs\.startsWith\(path\.resolve\(dir\) \+ path\.sep\)/.test(cli));
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
