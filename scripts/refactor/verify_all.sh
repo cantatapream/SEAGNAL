@@ -230,6 +230,17 @@ echo; echo "── V5-13 승급 요건(§5-D) — 이번에 canonical 로 올린
 #   적는 자리조차 없어 아무 기록 없이 딱지만 떼는 것이 가능하기 때문이다(§5-D ⓒ 와 같은 취지).
 node local_server/knowledge/legal/_dashboard/loop/promote_guard.js --gate || FAIL=1
 
+echo; echo "── V5-14 아직 오지 않은 시행일 ──"
+# [왜 — 2026-09-21, L-295 후속] `lawService.do?target=law&MST=` 는 한 MST 가 시행일 판을 둘 이상
+#   가지면 **어느 판이 올지 못 고르고**, 실측상 **시행예정 판**을 준다(형사소송법 281865 → 20271231,
+#   현행은 20260701 / 농수산물품질관리법 시행령 288973 → 20270101, 현행은 20260825).
+#   그 결함으로 raw 5개 파일 31개 조문이 **아직 오지 않은 시행일**을 달고 있었다. 법문은 마침 현행과
+#   같았지만 그건 운이었다 — 다음번에도 같으리라는 보장이 없다.
+# [막는 쪽] `law_api_guard.fetch_law_body` 가 현행 시행일을 조회해 `efYd` 로 못 박고, 못 정하면
+#   아무것도 주지 않는다. 이 게이트는 **그게 실제로 막혔는지 눈으로 다시 재는 장치**다.
+# [빼는 것] `_대기/<시행일>/`(일부러 받아 둔 시행예정 대기본)·`_구판/`(보존용 옛 사본).
+python3 local_server/knowledge/legal/_dashboard/loop/future_date_guard.py --gate --examples || FAIL=1
+
 # 서버 API + 이동 JS 경로 스모크
 echo; echo "── 서버 스모크 (대표 엔드포인트) ──"
 SMOKE=("/api/health:200" "/api/app-version:200" "/:200" "/sw.js:200" "/style.css:200"
