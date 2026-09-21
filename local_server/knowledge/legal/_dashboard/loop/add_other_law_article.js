@@ -27,6 +27,18 @@
  *       → 받아서 보여만 준다(파일은 안 건드림)
  *   ... --apply            → 실제로 발췌본 끝에 붙인다
  *   ... --tier 시행령       → 계층 지정(기본 법률)
+ *   ... --refresh          → ★**이미 있는 조문을 받아 온 것으로 갈아 끼운다**(아래)
+ *
+ * [★--refresh 는 왜 생겼나 — 2026-09-21]
+ *   이 도구는 `[제10조]` 가 파일에 있으면 **"이미 있음"으로 건너뛴다.** 그런데 있는 것이
+ *   **반쪽일 수 있다.** 옛 수집기는 목(가·나·다)과 호(1·2·3)를 안 적었다 — 그래서
+ *   `2. 다음 각 목의 시설을 갖출 것` 뒤에 아무것도 없는 발췌본이 8개 파일에 남아 있다
+ *   (V5-16 이 센다 · `d_stage_2026-09-20/B2_MOK_TARGETS.md`).
+ *   그 자리는 **계열째 다시 받으면 안 된다** — 발췌본에 없던 전문이 통째로 들어와
+ *   저장소 성격이 바뀌고 신선도 점검 대상이 몇 배로 는다. **그 조만 갈아 끼워야 한다.**
+ *   ⚠`--refresh` 는 **글이 줄어드는 교체를 스스로 거부한다**(`--shrink-ok` 로만 넘긴다).
+ *     원문이 개정돼 정말 짧아졌을 수도 있지만, **받다 만 것을 덮어쓰는 사고가 더 흔하다.**
+ *   ⚠우리가 적어 둔 `※` 메모 줄은 **그대로 남긴다**(왜 받았는지가 거기 있다).
  *
  * [연계] → raw/15_관련타부처/<법>/<계층>_발췌.txt · _meta.json (--apply 일 때만 씀)
  *        ← law.go.kr DRF API (lawSearch.do → lawService.do)
@@ -38,6 +50,8 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+
+const { replaceBlock } = require('./article_block');   // --refresh 가 쓰는 덩이 교체(시험 있음)
 
 const LEGAL = path.resolve(__dirname, '../..');
 const OTHER = path.join(LEGAL, 'raw', '15_관련타부처');
@@ -164,6 +178,8 @@ function renderArticle(u) {
   const why = arg('--why') || die('--why "왜 이 조문이 필요한가" 가 필요하다 — 다음 사람이 이 줄을 보고 판단한다.');
   const tier = arg('--tier') || '법률';
   const APPLY = argv.includes('--apply');
+  const REFRESH = argv.includes('--refresh');
+  const SHRINK_OK = argv.includes('--shrink-ok');
   if (!['법률', '시행령', '시행규칙'].includes(tier)) die('--tier 는 법률·시행령·시행규칙 중 하나다.');
 
   const hit = await findLaw(lawIn, tier);
@@ -246,12 +262,13 @@ function renderArticle(u) {
     }
   }
   const file = fs.existsSync(plain) ? plain : excerpt;
-  const had = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  let had = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   if (file === plain) {
     console.error(`  ↳ 이미 있는 ${path.basename(file)} 에 덧붙인다(발췌본을 따로 만들지 않는다).`);
   }
 
   const add = [];
+  const upd = [];          // --refresh 로 갈아 끼울 것
   const missing = [];
   for (const one of artsIn.split(/[,，]/).map(x => x.trim()).filter(Boolean)) {
     const m = /^제\s*(\d+)조(?:의\s*(\d+))?$/.exec(one.replace(/\s+/g, ''));
@@ -294,7 +311,13 @@ function renderArticle(u) {
     }
     const r = renderArticle(u);
     if (had.includes(`[${r.label}]`)) {
-      console.log(`  ⏭️  이미 있음: ${r.label} ${r.title}`);
+      if (!REFRESH) {
+        console.log(`  ⏭️  이미 있음: ${r.label} ${r.title}`);
+        console.log('       ⚠"있다"가 "다 있다"는 뜻은 아니다 — 목·호가 빠진 반쪽일 수 있다.'
+          + ' 갈아 끼우려면 `--refresh`.');
+        continue;
+      }
+      upd.push(r);
       continue;
     }
     add.push(r);
@@ -303,7 +326,31 @@ function renderArticle(u) {
     console.log(`\n⚠못 찾은 조문 ${missing.length}개: ${missing.join(', ')}`);
     console.log('  조문 번호를 확인하라 — 현행 법령에 없는 번호일 수 있다(삭제·재번호). "원문에 없다"가 아니라 "못 찾았다"이다.');
   }
-  if (!add.length) { console.log('덧붙일 조문이 없다(전부 이미 있음이거나 못 찾았다).'); return; }
+  // ── --refresh: 이미 있는 덩이를 갈아 끼운다 ──────────────────────────────
+  let refreshed = had;
+  const done = [];
+  for (const r of upd) {
+    const res = replaceBlock(refreshed, r.label, r);
+    if (!res) {
+      console.log(`  ⚠${r.label} 은 파일에 있다고 나왔는데 덩이를 못 집었다 — 손대지 않는다.`);
+      continue;
+    }
+    const grew = res.after - res.before;
+    if (grew < 0 && !SHRINK_OK) {
+      console.log(`  ⏭️  ${r.label}: 새로 받은 글이 ${-grew}자 **짧다** — 갈아 끼우지 않는다.`);
+      console.log('       원문이 개정돼 짧아졌을 수도 있지만, 받다 만 것을 덮어쓰는 사고가 더 흔하다.');
+      console.log('       정말 갈아 끼우려면 `--shrink-ok` 를 붙이고, 먼저 두 글을 눈으로 견줘라.');
+      continue;
+    }
+    refreshed = res.text;
+    done.push({ label: r.label, grew });
+    console.log(`  ♻ ${r.label} ${r.title} — ${res.before}자 → ${res.after}자 (${grew >= 0 ? '+' : ''}${grew})`);
+  }
+
+  if (!add.length && !done.length) {
+    console.log('덧붙이거나 갈아 끼울 조문이 없다(전부 이미 있음이거나 못 찾았다).');
+    return;
+  }
 
   const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
   // ★머리줄에는 **조 제목만** 둔다(2026-08-27, 시험 중 발견).
@@ -313,10 +360,42 @@ function renderArticle(u) {
     `[${r.label}] ${r.title}\n※ ${why} (${today} 조문단위 추가수집)\n${r.text}\n`);
 
   console.log(`\n파일: ${path.relative(LEGAL, file)}${had ? '' : '  ★새로 만든다'}`);
-  console.log(blocks.join('\n'));
-  if (!APPLY) { console.log('(--apply 를 붙이면 실제로 덧붙인다)'); return; }
+  if (blocks.length) console.log(blocks.join('\n'));
+  if (!APPLY) {
+    console.log(`(--apply 를 붙이면 실제로 ${done.length ? '갈아 끼우고 ' : ''}덧붙인다)`);
+    return;
+  }
 
   fs.mkdirSync(dir, { recursive: true });
+  // ★갈아 끼운 것이 있으면 **먼저 그것부터 파일에 반영한다.**
+  //   아래 덧붙이기는 `had`(옛 글)를 기준으로 자리를 잡으므로, 순서가 바뀌면 교체분이 날아간다.
+  if (done.length) {
+    fs.writeFileSync(file, refreshed);
+    had = refreshed;
+    console.error(`  ↳ ${done.length}개 조문을 갈아 끼웠다(※ 메모 줄은 그대로 뒀다).`);
+  }
+  if (!add.length) {
+    // ★갈아 끼운 것도 **기록으로 남긴다.** 종전에는 덧붙일 때만 `_meta.json` 을 썼는데,
+    //   그러면 "누가 언제 무엇을 갈아 끼웠나"가 어디에도 안 남는다 — 이 저장소가
+    //   같은 실수로 여러 번 당한 자리다(받아 놓고 기록이 없어 다음 사람이 또 받는다).
+    try {
+      const mp = path.join(dir, '_meta.json');
+      let m2 = {};
+      try { m2 = JSON.parse(fs.readFileSync(mp, 'utf8')); } catch (e) { /* 없으면 새로 만든다 */ }
+      const pv = m2['추가수집'];
+      m2['추가수집'] = Array.isArray(pv) ? pv : (pv ? [pv] : []);
+      m2['추가수집'].push({
+        일자: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10),
+        조문: done.map(d => d.label), 사유: why, 갈아끼움: true,
+      });
+      fs.writeFileSync(mp, JSON.stringify(m2, null, 1));
+    } catch (e) {
+      console.error(`   ⚠_meta.json 에 기록을 못 남겼다: ${e.message} (원문은 들어갔다)`);
+    }
+    console.log(`\n✅ ${path.relative(LEGAL, file)} 에서 ${done.length}개 조문을 갈아 끼웠다.`);
+    console.log('   `python3 _dashboard/loop/mok_promise_guard.py --examples` 로 줄었는지 확인하라.');
+    return;
+  }
   const head = had ? '' :
     `${hit['법령명한글']} — 타법연결용 발췌 (전체 아님)\n\n`;
   // ★새 조문은 **별표·부칙 앞에** 끼워 넣는다(2026-08-31 실측).
@@ -353,6 +432,9 @@ function renderArticle(u) {
   const prev = meta['추가수집'];
   meta['추가수집'] = Array.isArray(prev) ? prev : (prev ? [prev] : []);
   meta['추가수집'].push({ 일자: today, 조문: add.map(r => r.label), 사유: why });
+  if (done.length) {
+    meta['추가수집'].push({ 일자: today, 조문: done.map(d => d.label), 사유: why, 갈아끼움: true });
+  }
   fs.writeFileSync(metaPath, JSON.stringify(meta, null, 1));
   // ★폴더를 새로 만들었으면 **지도도 같이 채운다**(2026-08-30, L-212).
   //   챗봇은 `_dashboard/law_raw_paths.json`(법 이름 → raw 폴더)으로 원문 폴더를 찾는다.
