@@ -60,6 +60,8 @@ const results = await parallel(refs.map(r => () =>
 ## 수집 (law.go.kr DRF, OC=hyoo1431)
 1. \`curl 'https://www.law.go.kr/DRF/lawSearch.do?OC=hyoo1431&target=law&type=JSON&query=${encodeURIComponent(r.law)}'\` → 결과에서 정확히 「${r.law}」의 MST(현행). 동명이법 주의.
 2. \`curl 'https://www.law.go.kr/DRF/lawService.do?OC=hyoo1431&target=law&MST=<MST>&type=JSON'\` → 조문 전문. 위 지정 조문(${r.arts})만 골라 발췌.
+   ★**판(version)을 반드시 대조한다**(2026-09-21, L-295·L-296): \`target=law&MST=\` 는 한 MST 가 시행일 판을 둘 이상 가지면 **어느 판이 올지 못 고르고 시행예정 판을 주기도 한다.** 받은 본문의 \`기본정보.시행일자\` 가 1번 목록이 알려 준 현행 시행일자와 **다르면** \`target=eflaw&MST=<MST>&efYd=<현행시행일자>\` 로 다시 받는다. 그래도 안 맞으면 **저장하지 말고** result="failed"(사유: 판 확정 실패). ⚠아직 시행되지 않은 조문을 raw 에 적는 것이 못 받는 것보다 나쁘다.
+   (더 쉬운 길: \`node _dashboard/loop/add_other_law_article.js\` 가 이 대조를 이미 한다.)
 3. 저장: \`${TABU}/${r.folder}/법률_발췌.txt\`. **이미 파일이 있으면 그 안의 기존 발췌 조문은 절대 지우지 말고**, 없는 조문만 이어붙인다(중복 조문은 건너뜀). 파일 맨 위 \`⚠REVIEW / 출처: 국가법령정보센터 ${r.law}(현행) / 발췌수집\` 헤더가 없으면 추가. 원문 수치·문구 불변.
 4. **소관부처명**을 응답에서 확인해 발췌 파일 헤더에 \`소관부서: <부처>\`로 기록(연락처 있으면 병기).
 

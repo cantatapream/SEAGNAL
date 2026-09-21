@@ -58,6 +58,53 @@ function api(url) {
   });
 }
 
+const efyd = v => String(v || '').replace(/[^0-9]/g, '');
+
+/**
+ * ★**어느 시행일 판인지 못 박아서** 본문을 받는다 (2026-09-21 신설 · L-295·L-296).
+ *
+ * [왜] `lawService.do?target=law&MST=` 는 한 MST 가 시행일 판을 둘 이상 가지면
+ *   **어느 판이 올지 고를 수 없고**, 실측상 **시행예정 판**을 주기도 한다 —
+ *   288973 농수산물품질관리법 시행령 → 20270101(시행예정, 현행은 20260825) ·
+ *   287955 해양환경관리법 시행규칙 → 20260701(현행은 20260828).
+ *   이 도구는 받은 글을 **raw 에 그대로 적는다.** 그러니 판이 어긋나면
+ *   **아직 시행되지도 않은 조문이 우리 원문으로 남는다**(실제로 5개 파일 31개 조문이 그랬다).
+ *
+ * [어떻게] 목록(`lawSearch`)이 알려 준 **현행 시행일자**와 본문의 시행일자를 대조하고,
+ *   다르면 `target=eflaw` + `efYd` 로 그 판을 **콕 집어** 다시 받는다.
+ *   ★**못 정하면 아무것도 주지 않는다.** 틀린 판을 주느니 못 받았다고 하는 편이 낫다.
+ *   (파이썬 쪽 같은 장치: `_dashboard/loop/law_api_guard.py` — 그 머리말에 실측표가 있다.)
+ */
+async function fetchLawBody(mst, want) {
+  const url = n => `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&type=JSON&${n}`;
+  const d = await api(url(`target=law&MST=${mst}`));
+  if (!d) return null;                       // 못 받았다 — "없다"가 아니다
+  const got = efyd((((d['법령'] || {})['기본정보']) || {})['시행일자']);
+  want = efyd(want);
+  if (!want) {
+    // 목록이 시행일자를 안 줬다 — 본문이 밝힌 법령ID 로 현행 시행일을 직접 찾는다.
+    const lid = String((((d['법령'] || {})['기본정보']) || {})['법령ID'] || '');
+    if (lid) {
+      const s = await api(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&type=JSON&target=eflaw&display=100&LID=${lid}`);
+      let rows = ((s || {}).LawSearch || {}).law || [];
+      if (!Array.isArray(rows)) rows = [rows];
+      const cur = rows.find(x => String(x['현행연혁코드'] || '').includes('현행'));
+      if (cur) want = efyd(cur['시행일자']);
+    }
+  }
+  if (!want) {
+    console.error(`  ✗MST ${mst}: 현행이 어느 판인지 못 정했다 — 틀린 판을 주지 않고 비운다.`);
+    return null;
+  }
+  if (got === want) return d;
+  console.error(`  ↻MST ${mst}: target=law 는 ${got} 판을 줬는데 현행은 ${want} 다 — efYd 로 다시 받는다.`);
+  const fixed = await api(url(`target=eflaw&MST=${mst}&efYd=${want}`));
+  const got2 = efyd(((((fixed || {})['법령'] || {})['기본정보']) || {})['시행일자']);
+  if (fixed && got2 === want) return fixed;
+  console.error(`  ✗MST ${mst}: 현행은 ${want} 인데 그 판을 못 받았다 — 틀린 판(${got})을 주지 않고 비운다.`);
+  return null;                               // ★`|| d` 로 물러서지 않는다
+}
+
 /** 법 이름 → 현행 법령 한 건. 이름이 정확히 같은 것만 받는다(비슷한 것을 임의로 고르지 않는다). */
 async function findLaw(name, tier) {
   const full = name + (tier === '법률' ? '' : ' ' + tier);
@@ -123,8 +170,9 @@ function renderArticle(u) {
   const mst = String(hit['법령일련번호'] || '');
   console.error(`  ↳ law.go.kr: 「${hit['법령명한글']}」 MST=${mst} · 시행 ${hit['시행일자']} · 소관 ${hit['소관부처명'] || '?'}`);
 
-  const d = await api(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&type=JSON&target=law&MST=${mst}`);
-  if (!d) die('본문을 못 받았다(응답 없음). 잠시 뒤 다시 시도하라 — "없다"가 아니라 "못 받았다"이다.');
+  const d = await fetchLawBody(mst, hit['시행일자']);
+  if (!d) die('본문을 못 받았거나 **현행 판인지 확인하지 못했다**. 잠시 뒤 다시 시도하라 —\n' +
+    '   "없다"가 아니라 "못 받았다"이다. 판을 못 정하면 일부러 비운다(틀린 판을 raw 에 적지 않기 위해서다).');
   const body = d['법령'] || {};
   let units = ((body['조문'] || {})['조문단위']) || [];
   if (!Array.isArray(units)) units = [units];
@@ -226,7 +274,7 @@ function renderArticle(u) {
     //   "없다"가 아니라 "두 번 받아 봤지만 못 찾았다"로 쓴다.
     if (!u) {
       console.error(`  ↻ ${one} 을 못 찾았다 — 본문을 한 번 다시 받아 본다(받아 온 조문 ${units.length}개).`);
-      const again = await api(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&type=JSON&target=law&MST=${mst}`);
+      const again = await fetchLawBody(mst, hit['시행일자']);
       let u2 = (((again || {})['법령'] || {})['조문'] || {})['조문단위'] || [];
       if (!Array.isArray(u2)) u2 = [u2];
       if (u2.length) {
