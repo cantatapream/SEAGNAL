@@ -254,6 +254,18 @@ echo; echo "── V5-15 같은 고시 사본끼리 판이 맞나 ──"
 python3 local_server/knowledge/legal/_dashboard/loop/admrul_copy_sync.py \
   --base local_server/knowledge/legal/_dashboard/loop/pinned/admrul_copy_sync_base.json --gate || FAIL=1
 
+echo; echo "── V5-16 「다음 각 목」이라 해 놓고 목이 없는 자리 ──"
+# [왜 — 2026-09-21] A-2 를 고쳐 다시 돌리다 「문화유산의 보존 및 활용에 관한 법률 시행령」에서
+#   `2. 다음 각 목의 시설을 갖출 것` 뒤에 **아무것도 없는** 줄을 봤다. 조는 86개로 원본과 똑같은데
+#   (100%) 목만 0개였다 — 목 기능이 없던 옛 수집기로 받은 흔적이다. 챗봇은 요건을 **반쪽만** 보여 준다.
+# [A-2 와 따로 두는 까닭] A-2 는 law.go.kr 에 물어야 알 수 있어 무겁고(573계열) 터널이 흔들리면
+#   판정 불가가 쏟아진다. 이 검사는 **파일 하나만 보면 된다** — 원문이 스스로 "다음 각 목"이라 해 놓고
+#   목이 없으면 그 자체로 모순이라, 네트워크 없이 상시로 잴 수 있다.
+# [기준선] 22개 파일 · 83곳, 전부 `15_관련타부처`(기준법 0). 재수집이 있어야 줄어든다 —
+#   지금은 **늘어나는 것만 막는다.**
+python3 local_server/knowledge/legal/_dashboard/loop/mok_promise_guard.py \
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/mok_promise_base.json --gate || FAIL=1
+
 # 서버 API + 이동 JS 경로 스모크
 echo; echo "── 서버 스모크 (대표 엔드포인트) ──"
 SMOKE=("/api/health:200" "/api/app-version:200" "/:200" "/sw.js:200" "/style.css:200"

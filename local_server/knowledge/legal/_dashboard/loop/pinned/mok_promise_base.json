@@ -1,0 +1,116 @@
+{
+ "files": 22,
+ "spots": 83,
+ "examples": [
+  {
+   "file": "raw/15_관련타부처/국유재산법/시행령.txt",
+   "says": 16,
+   "missing": 16
+  },
+  {
+   "file": "raw/15_관련타부처/산업입지및개발에관한법률/법률.txt",
+   "says": 9,
+   "missing": 9
+  },
+  {
+   "file": "raw/15_관련타부처/순환경제사회전환촉진법/시행규칙.txt",
+   "says": 8,
+   "missing": 8
+  },
+  {
+   "file": "raw/15_관련타부처/문화유산의보존및활용에관한법률/시행령.txt",
+   "says": 7,
+   "missing": 7
+  },
+  {
+   "file": "raw/15_관련타부처/수산업협동조합법/시행규칙.txt",
+   "says": 5,
+   "missing": 5
+  },
+  {
+   "file": "raw/15_관련타부처/은행법/법률.txt",
+   "says": 5,
+   "missing": 5
+  },
+  {
+   "file": "raw/15_관련타부처/국가유산영향진단법/시행규칙.txt",
+   "says": 5,
+   "missing": 5
+  },
+  {
+   "file": "raw/15_관련타부처/유어장의지정및관리에관한규칙/법률.txt",
+   "says": 3,
+   "missing": 3
+  },
+  {
+   "file": "raw/15_관련타부처/국적법/시행령.txt",
+   "says": 3,
+   "missing": 3
+  },
+  {
+   "file": "raw/15_관련타부처/경비업법/법률.txt",
+   "says": 3,
+   "missing": 3
+  },
+  {
+   "file": "raw/15_관련타부처/매장유산보호및조사에관한법률/시행령.txt",
+   "says": 3,
+   "missing": 3
+  },
+  {
+   "file": "raw/15_관련타부처/한국자산관리공사설립등에관한법률/법률_발췌.txt",
+   "says": 3,
+   "missing": 3
+  },
+  {
+   "file": "raw/15_관련타부처/항만법/법률_발췌.txt",
+   "says": 2,
+   "missing": 2
+  },
+  {
+   "file": "raw/15_관련타부처/순환경제사회전환촉진법/법률.txt",
+   "says": 2,
+   "missing": 2
+  },
+  {
+   "file": "raw/15_관련타부처/국가유산영향진단법/시행령.txt",
+   "says": 2,
+   "missing": 2
+  },
+  {
+   "file": "raw/15_관련타부처/소년법/법률.txt",
+   "says": 1,
+   "missing": 1
+  },
+  {
+   "file": "raw/15_관련타부처/전기사업법/법률_발췌.txt",
+   "says": 1,
+   "missing": 1
+  },
+  {
+   "file": "raw/15_관련타부처/전기사업법/법률_연결조문만.txt",
+   "says": 1,
+   "missing": 1
+  },
+  {
+   "file": "raw/15_관련타부처/문화유산의보존및활용에관한법률/시행규칙.txt",
+   "says": 1,
+   "missing": 1
+  },
+  {
+   "file": "raw/15_관련타부처/국가유산영향진단법/법률.txt",
+   "says": 1,
+   "missing": 1
+  },
+  {
+   "file": "raw/15_관련타부처/특허법/법률_발췌_제147-153조.txt",
+   "says": 1,
+   "missing": 1
+  },
+  {
+   "file": "raw/15_관련타부처/한국해양진흥공사법/법률_발췌.txt",
+   "says": 1,
+   "missing": 1
+  }
+ ]
+}
