@@ -11,7 +11,7 @@ L-297 이 이렇게 끝난다 — *"도구를 고쳤으면 그 도구가 낸 **�
 | `mok_audit.json` · `A2_REPORT_2026-09-21.json` | `mok_audit.py` | **⛔무효 — 재실행** | 도선법 시행령이 2년 전 판과 견줘졌다(A2_RESULT.md 상단) |
 | `law_change_baseline.json` | `backfill_lawid.py` → `build_change_baseline.py` | **⛔오염 11건 — 재생성** | 아래 §2 |
 | `law_fresh_report.json` | `law_fresh.py` | **✅건전** | 아래 §1 |
-| `budchik_check.json` · `budchik_recollect_log.json` | `check_budchik.py` · `recollect_budchik.py` | **⚠판정 보류** | 아래 §3 |
+| `budchik_check.json` · `budchik_recollect_log.json` | `check_budchik.py` · `recollect_budchik.py` | **✅다시 세지 않고 raw 를 직접 쟀다** — 기준법 **7건**에 부칙 없음 | 아래 §3 |
 | `recollect_tier_report.json` | `recollect_tier.py` | **✅건전** | `eflaw`+`efYd` 로 판을 명시해 받는다 |
 | `law_change_queue.json` · `pending_index.json` | `detect_law_changes.py` · `collect_pending_law.py` | **⚠baseline 재생성 뒤 다시 본다** | 탐지는 `lawSearch`(정상)로 하지만 `before` 를 baseline 에서 가져온다 |
 
@@ -63,9 +63,27 @@ baseline 스냅샷은 **2026-09-10**, `law_fresh_report` 는 **2026-09-20** 이�
 20260828 판이 53개). 이 파일은 73법 중 **mismatch 144건**을 담고 있고 그것이
 `recollect_budchik.py` 의 작업 지시서가 됐다.
 
-⚠**아직 재지 않았다.** "144건이 틀렸다"고 말할 근거도, "맞다"고 말할 근거도 지금은 없다.
-2026-07 의 H-26 일회성 감사였고 그 결과는 이미 raw 에 반영됐으므로, 다시 세는 것보다
-**지금 raw 에 부칙이 제대로 있는지**를 직접 재는 편이 싸다. 그건 별건으로 남긴다.
+✅**2026-09-21 오후에 쟀다 — 다만 `budchik_check.json` 을 다시 돌린 것이 아니라
+**지금 raw 에 부칙이 있는지**를 직접 셌다(그게 싸고, 알고 싶은 것도 그것이다).
+
+| | 계층 파일 |
+|---|---:|
+| 전체 | 594 |
+| 부칙 절 있음 | 229 |
+| 없음 | 365 |
+| └ 그중 `15_관련타부처`(발췌본이라 없는 것이 정상) | 358 |
+| **★기준법 중 없음** | **7** |
+
+**기준법 7개** — 해양수산발전기본법 시행규칙 · 도선법 법률 · 어선법 법률 ·
+수산업협동조합법 법률·시행령 · 무인도서의보전및관리에관한법률 시행규칙 · 항만법 시행규칙.
+
+⚠**처음에는 12개로 셌다.** 우리 저장소에 부칙 표기가 **두 형식**인 것을 몰랐다 —
+표준(`부칙` 줄 + `부칙(…) <제N호,…>`) 말고 **`[부칙 <제3037호,1977.12.31>]` 대괄호 형식**이
+따로 있다(영해및접속수역법 등 5개가 그 형식이라 "없음"으로 잘못 잡혔다).
+오늘 같은 실수를 **다섯 번** 했고, 그래서 관례를 `_SCHEMA.md` **§0-E** 에 모아 적었다.
+
+**부칙은 장식이 아니다** — 오늘 D-2 에서 확인했듯 「항만법」 제34조①1호의 검사 면제 근거가
+「전기안전관리법」 **부칙 제6조<55>·제7조**였다. 7건은 재수집 대상으로 올린다(A-2 뒤, 단독).
 
 ## 4. 이 훑기에서 배운 것
 
@@ -80,3 +98,5 @@ baseline 스냅샷은 **2026-09-10**, `law_fresh_report` 는 **2026-09-20** 이�
 2. **A-2 재실행** — `python3 _dashboard/loop/mok_audit.py --out <새 산출물>`
 3. **baseline 재생성** — `backfill_lawid.py` → `build_change_baseline.py`
 4. 2의 결과로 **B-2 대상 목록**을 새로 만든다
+5. **부칙 없는 기준법 7건** 재수집(§3)
+6. **사본 판 어긋남 3종**(V5-15 기준선을 0 으로)
