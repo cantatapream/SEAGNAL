@@ -376,8 +376,15 @@ function renderArticle(u) {
   // ★머리줄에는 **조 제목만** 둔다(2026-08-27, 시험 중 발견).
   //   왜 받았는지를 머리줄에 같이 적으면 `cite_row.js` 가 그 문장을 통째로 조 제목으로 읽어
   //   근거 조문 표의 요지 칸에 메모가 그대로 들어간다(실측으로 확인). 메모는 다음 줄에 따로 적는다.
-  const blocks = add.map(r =>
-    `[${r.label}] ${r.title}\n※ ${why} (${today} 조문단위 추가수집)\n${r.text}\n`);
+  // ★덧붙일 때도 **그 파일이 쓰는 머리줄 꼴을 따른다**(2026-09-22).
+  //   [왜] `--refresh` 가 민짜 꼴(`제6조(제목)`) 파일을 다룰 수 있게 되면서, 같은 파일에
+  //   대괄호 머리를 덧붙이면 **두 꼴이 섞인다.** 그러면 다음번 `replaceBlock` 은 그 파일을
+  //   "대괄호 파일"로 보고 민짜로 적힌 조들을 경계로 삼지 않아 **덩이를 잘못 집는다.**
+  //   새로 만드는 파일은 종전대로 대괄호 꼴이다(이 저장소의 기본 관례).
+  const plainStyle = !!had && !/^\[제\d+조/m.test(had);
+  const blocks = add.map(r => (plainStyle
+    ? `${r.label}(${r.title})\n※ ${why} (${today} 조문단위 추가수집)\n${r.text}\n`
+    : `[${r.label}] ${r.title}\n※ ${why} (${today} 조문단위 추가수집)\n${r.text}\n`));
 
   console.log(`\n파일: ${path.relative(LEGAL, file)}${had ? '' : '  ★새로 만든다'}`);
   if (blocks.length) console.log(blocks.join('\n'));

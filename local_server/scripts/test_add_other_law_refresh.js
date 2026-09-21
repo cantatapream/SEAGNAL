@@ -161,6 +161,9 @@ check('⑧ 교체분을 먼저 파일에 쓴 뒤 덧붙인다(순서가 바뀌�
     && cli.indexOf('fs.writeFileSync(file, refreshed)') < cli.indexOf('별표·부칙 앞에 끼워 넣었다'));
 check('⑧ 덩이 교체는 시험 있는 모듈에서 가져온다',
   /require\('\.\/article_block'\)/.test(cli));
+check('⑫ 덧붙일 때도 그 파일의 머리줄 꼴을 따른다(꼴이 섞이면 다음 교체가 어긋난다)',
+  /const plainStyle = !!had && !\/\^\\\[제/.test(cli)
+    && /plainStyle[\s\S]{0,120}\$\{r\.label\}\(\$\{r\.title\}\)/.test(cli));
 check('⑪ CLI 가 "이미 있나"를 hasArticle 로 묻는다(문자열 includes 아님)',
   /hasArticle\(had, r\.label\)/.test(cli) && !/had\.includes\(`\[\$\{r\.label\}\]`\)/.test(cli));
 check('⑨ --file 로 어느 발췌본인지 못 박을 수 있다', /arg\('--file'\)/.test(cli));
