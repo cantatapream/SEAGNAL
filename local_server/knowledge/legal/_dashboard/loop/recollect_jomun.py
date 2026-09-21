@@ -98,8 +98,40 @@ def build_text(body):
         out.extend(lines[1:])
     return '\n'.join(out).strip()+'\n'
 
-def run():
+def pick_metas(argv):
+    """돌릴 계열을 고른다. 인자가 없으면 **전부**(종전 그대로).
+
+    ★`--only` 를 2026-09-22 에 붙였다. 목이 빠진 계열 11개만 다시 받고 싶은데 이 도구는
+      `raw/*/*/_meta.json` 을 **전부** 훑어 저장소의 모든 계층 파일을 덮어쓴다. 11개를 고치려고
+      600개 넘는 파일을 다시 받는 것은 위험(그 사이 한 건이라도 판이 흔들리면 조용히 섞인다)하고
+      느리다. 그래서 **고를 수 있게** 했다 — 기본값은 손대지 않았다.
+
+      python3 recollect_jomun.py --only 국유재산법 --only 국적법     이름에 그 말이 든 계열만
+      python3 recollect_jomun.py --only 15_관련타부처/국유재산법     경로 조각으로도 된다
+      python3 recollect_jomun.py --dry  --only 국유재산법            무엇이 걸리는지만 본다
+
+    @param {list[str]} argv  명령행 인자
+    @returns {list[str]}  `_meta.json` 경로 목록
+    """
     metas=sorted(glob.glob(os.path.join(ROOT,'*','*','_meta.json')))
+    keys=[argv[i+1] for i,a in enumerate(argv) if a=='--only' and i+1<len(argv)]
+    if not keys:
+        return metas
+    sel=[m for m in metas if any(k in os.path.dirname(m) for k in keys)]
+    print(f"--only {keys} → 계열 {len(sel)}개 (전체 {len(metas)}개 중)",flush=True)
+    for m in sel:
+        print("   "+os.path.relpath(os.path.dirname(m),ROOT),flush=True)
+    if not sel:
+        print("⚠하나도 안 걸렸다 — 이름을 확인하라. **아무것도 하지 않는다.**",flush=True)
+    return sel
+
+
+def run():
+    argv=_sys.argv[1:]
+    metas=pick_metas(argv)
+    if '--dry' in argv:
+        print(f"(--dry: 무엇이 걸리는지만 보였다. 실제로 받으려면 --dry 를 빼라)",flush=True)
+        return
     print(f"대상 {len(metas)}개 계열",flush=True)
     ok=err=files=0; errs=[]
     for mp in metas:
@@ -126,7 +158,8 @@ def run():
             if not txt: good=False; continue
             with open(os.path.join(base,fn),'w',encoding='utf-8') as f: f.write(txt)
             files+=1; time.sleep(0.25)
-        meta['조문재추출']='2026-07-14(chapeau복구)'
+        meta['조문재추출']='2026-07-14(chapeau복구)' if '조문재추출' not in meta else meta['조문재추출']
+        meta['조문재추출_최근']=time.strftime('%Y-%m-%d')
         json.dump(meta,open(mp,'w',encoding='utf-8'),ensure_ascii=False,indent=2)
         if good: ok+=1
         else: err+=1; errs.append(meta.get('법령명',base))
