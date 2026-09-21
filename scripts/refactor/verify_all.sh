@@ -49,7 +49,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_clarify_options test_unverified_review test_accident_sheet test_pending_law
   test_hazard_rocks_tide test_guide_tabs test_tab_structure test_usage_keys test_maintenance_tree
   test_overlay_solo test_wiki_brief_bulk test_review_marker_registered test_stale_reopen
-  test_mok_audit_scanner test_add_other_law_refresh)
+  test_mok_audit_scanner test_add_other_law_refresh test_pressure_card)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; FAIL=1; continue; fi

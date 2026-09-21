@@ -1,13 +1,13 @@
 /**
  * ============================================================================
  * 파일명: js/ocean_bottom_sheet5.js
- * 역할: 6개 일반 카드 + 전체 오케스트레이터
+ * 역할: 7개 일반 카드 + 전체 오케스트레이터
  * [연계]
  *  - 사용하는 파일 : ocean_bottom_sheet3.js(OS.fetchTideForSheet), ocean_bottom_sheet4.js(OS.renderAstroCard/renderMoonCard),
  *                    ocean_bottom_sheet_weather/vsby.js(OS.loadWeatherCard/loadVsbyCard), ocean_bottom_sheet1.js(OS 유틸)
- *  - 서버 API      : GET /api/ocean/depth
- *  - 마크업        : index2.html #ocean-card-{tide,astro,moon,depth,temp,current,wind,wave,vsby},
- *                    #ocean-val-{depth,temp,current,wind,wave,vsby}, #ocean-icon-{current,wind}
+ *  - 서버 API      : GET /api/ocean/depth · GET /api/ocean/pressure
+ *  - 마크업        : index2.html #ocean-card-{tide,astro,moon,depth,temp,current,wind,wave,vsby,pressure},
+ *                    #ocean-val-{depth,temp,current,wind,wave,vsby,pressure}, #ocean-icon-{current,wind}
  *  - 나를 쓰는 곳  : OS.loadAllForDate — ocean_bottom_sheet1.js(showOceanBottomSheet),
  *                    ocean_bottom_sheet2.js(goPrev/goNext/SheetTL.onRelease)
  * ============================================================================
@@ -16,7 +16,7 @@
  * 1. 모든 카드 reset (조석/천문은 1.js show, 6카드는 진행바 복원)
  * 2. 천문 카드 즉시 렌더 (SunCalc 동기) — 4.js
  * 3. 조석 카드 비동기 로딩 시작 — 3.js
- * 4. 6개 일반 카드: 오늘이면 호출, 아니면 즉시 숨김
+ * 4. 7개 일반 카드: 오늘이면 호출, 아니면 즉시 숨김
  *    (현재 단계에서 백엔드 오류 시에는 자동으로 카드 숨김)
  *
  * [카드 자동 숨김 정책]
@@ -64,13 +64,13 @@
         OS.showCard('ocean-card-astro');
         OS.showCard('ocean-card-moon');
 
-        // (2) 5개 일반카드 reset → 진행바 표시 + 카드 보이기
+        // (2) 7개 일반카드 reset → 진행바 표시 + 카드 보이기
         ['ocean-val-depth', 'ocean-val-temp', 'ocean-val-current',
-         'ocean-val-wind', 'ocean-val-wave', 'ocean-val-vsby'
+         'ocean-val-wind', 'ocean-val-wave', 'ocean-val-vsby', 'ocean-val-pressure'
         ].forEach(function (id) { OS.resetCardToProgress(id); });
 
         ['ocean-card-depth', 'ocean-card-temp', 'ocean-card-current',
-         'ocean-card-wind', 'ocean-card-wave', 'ocean-card-vsby'
+         'ocean-card-wind', 'ocean-card-wave', 'ocean-card-vsby', 'ocean-card-pressure'
         ].forEach(function (id) { OS.showCard(id); });
 
         // raw 값 초기화 (날짜/위치 변경 시 이전 값 잔류 방지)
@@ -110,6 +110,7 @@
         fetchRoms(lat, lon, d, myEpoch);
         fetchWeather(lat, lon, d, myEpoch);
         fetchWave(lat, lon, d, myEpoch);
+        fetchPressure(lat, lon, d, myEpoch);
 
     };
 
@@ -199,6 +200,43 @@
                 if (_isStaleEpoch(myEpoch)) return;
                 OS.setCardValue('ocean-val-temp', '데이터 없음');
                 OS.setCardValue('ocean-val-current', '데이터 없음');
+            });
+    }
+
+    /**
+     * 기압 카드를 /api/ocean/pressure 로부터 채움 — 슬라이더가 가리키는 시각의 해면기압.
+     * 예: 슬라이더가 모레 09시면 그 시각 예보 기압 '1008 hPa' 을 표시.
+     * 값이 없으면(키 미설정 · 예보 범위 5일 밖 · 과거 시각 · 상류 실패) 카드를 숨긴다 —
+     * 다른 일반 카드들과 같은 정책.
+     *
+     * @param {number} lat
+     * @param {number} lon
+     * @param {Date=} dateObj - 슬라이더 시각 (없으면 지금). 서버에는 이 시각 자체가 아니라
+     *                            지금과의 차이(오프셋)를 보낸다 — 단말 시계 오차 차단.
+     * @param {number} myEpoch - 오래된 응답 차단용 토큰
+     * [연계] ← OS.loadAllForDate (같은 파일) — 시트를 열거나 시각을 옮길 때마다 부른다.
+     *          → local_server/routes/pressure.js 의 GET /api/ocean/pressure — 우리 서버가
+     *            OpenWeather 를 대신 호출하므로 인증키가 브라우저에 노출되지 않는다.
+     */
+    function fetchPressure(lat, lon, dateObj, myEpoch) {
+        // 절대 시각이 아니라 "지금으로부터 몇 ms 뒤"(오프셋)를 보낸다. 휴대폰 시계가
+        // 틀어져 있어도 서버가 자기 시각(KST)에 오프셋을 더해 판단하므로 값이 흔들리지 않는다.
+        var off = dateObj ? (dateObj.getTime() - Date.now()) : 0;
+        var url = '/api/ocean/pressure?lat=' + lat + '&lon=' + lon + '&off=' + Math.round(off);
+        fetch(url)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (_isStaleEpoch(myEpoch)) return;
+                if (data && data.success && data.pressure != null) {
+                    OS.setCardValue('ocean-val-pressure', data.pressure + ' hPa');
+                    OS.showCard('ocean-card-pressure');
+                } else {
+                    OS.hideCard('ocean-card-pressure');
+                }
+            })
+            .catch(function () {
+                if (_isStaleEpoch(myEpoch)) return;
+                OS.hideCard('ocean-card-pressure');
             });
     }
 

@@ -287,6 +287,7 @@ app.use(require('./routes/ocean1'));        // 해양종합정보 API (수심/RO
 app.use(require('./routes/ocean2'));        // ROMS 격자/저질 API
 app.use(require('./routes/ocean3'));        // 해양현황 날씨/바람 API (zone_forecasts 기반)
 app.use(require('./routes/ocean4'));        // 해양현황 파고/zone-forecasts 오버레이 API
+app.use(require('./routes/pressure'));     // 바텀시트 기압 카드 API (OpenWeather 해면기압)
 app.use(require('./routes/vsby_smallzone')); // 해구별예측(소해구) 시정 캐시 API
 app.use(require('./routes/swell_smallzone'));// 소해구별 너울 위험등급 API (해양생활 '너울' 탭)
 app.use(require('./routes/tide_field'));    // 서해·남해 물빠짐(갯벌 노출) 예측 API (Phase 2)
