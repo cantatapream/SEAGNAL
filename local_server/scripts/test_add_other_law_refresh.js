@@ -25,6 +25,10 @@
  *  ⑧ CLI 쪽 배선 — 글이 줄어드는 교체를 스스로 거부하고, 갈아 끼운 것도 기록에 남긴다
  *  ⑨ `--file` — 한 폴더에 발췌본이 둘 이상일 때(전기사업법) 어느 파일인지 못 박고,
  *     그 법 폴더 밖은 거부한다
+ *  ⑪ `hasArticle` — "이미 있나"를 머리줄 꼴에 맞게 묻는다(민짜 파일에서 늘 false 가 나와
+ *     같은 조를 하나 더 덧붙이던 것을 막는다)
+ *  ⑩ **민짜 머리줄**(`제6조(제목)` — 대괄호가 하나도 없는 발췌본)도 집는다.
+ *     실측상 호가 빠진 발췌본 15개 중 7개가 이 꼴이라, 이것 없이는 손도 못 댔다.
  *
  * [연계]
  * - _dashboard/loop/article_block.js → replaceBlock()
@@ -39,7 +43,7 @@ const fs = require('fs');
 const path = require('path');
 
 const LOOP = path.join(__dirname, '..', 'knowledge', 'legal', '_dashboard', 'loop');
-const { replaceBlock } = require(path.join(LOOP, 'article_block.js'));
+const { replaceBlock, hasArticle } = require(path.join(LOOP, 'article_block.js'));
 
 let pass = 0, fail = 0;
 /** 한 가지를 확인하고 결과를 찍는다. @param {string} name @param {boolean} ok @param {string} [why] */
@@ -107,6 +111,43 @@ const r3 = replaceBlock(TAILLESS, '제3조', { text: '① 이 법은 모든 전�
 check('④ 마지막 조문도 잡힌다', !!r3 && r3.text.includes('모든 전기설비에 적용한다'));
 check('④ 앞 조문이 그대로다', !!r3 && r3.text.startsWith('[제2조] 정의\n① 가.'));
 
+console.log('\n── 민짜 머리줄 파일(대괄호가 하나도 없는 발췌본) ──');
+// 실측: 호가 빠진 발췌본 15개 중 7개가 이 꼴이다(간호법·관광진흥법 시행규칙 등).
+const PLAIN = [
+  '⚠REVIEW / 출처: 국가법령정보센터 간호법(현행, MST=265413) / 발췌수집',
+  '※ 이 파일은 전체 법률이 아니라 위 인용조문(제6조1항)만 발췌한 것이다.',
+  '',
+  '제6조(간호조무사 자격인정 등)',
+  '① 간호조무사가 되려는 사람은 다음 각 호의 어느 하나에 해당하는 사람으로서 …',
+  '② 제1항제1호부터 제4호까지에 따른 간호조무사 교육훈련기관은 …',
+  '',
+  '제8조(국가시험)',
+  '① 간호조무사 국가시험은 보건복지부장관이 실시한다.',
+  '',
+].join('\n');
+const rp = replaceBlock(PLAIN, '제6조', { text: [
+  '제6조(간호조무사 자격인정 등)',
+  '① 간호조무사가 되려는 사람은 다음 각 호의 어느 하나에 해당하는 사람으로서 …',
+  '   1. 초·중등교육법령에 따른 특성화고등학교의 간호 관련 학과를 졸업한 사람',
+  '   2. 「학점인정 등에 관한 법률」에 따라 학점을 인정받은 사람',
+  '② 제1항제1호부터 제4호까지에 따른 간호조무사 교육훈련기관은 …',
+].join('\n') });
+check('⑩ 민짜 머리줄 파일에서도 덩이를 집는다', !!rp);
+check('⑩ 옆 조문(제8조)이 그대로 있다', !!rp && rp.text.includes('제8조(국가시험)')
+  && rp.text.includes('① 간호조무사 국가시험은 보건복지부장관이 실시한다.'));
+check('⑩ 빠졌던 호가 채워진다', !!rp && rp.text.includes('   1. 초·중등교육법령'));
+check('⑩ 머리줄이 두 번 적히지 않는다',
+  !!rp && (rp.text.match(/제6조\(간호조무사 자격인정 등\)/g) || []).length === 1);
+check('⑩ 머리말(※ 줄)이 그대로 있다', !!rp && rp.text.includes('※ 이 파일은 전체 법률이 아니라'));
+check('⑩ 대괄호 파일에서는 민짜 줄을 경계로 쓰지 않는다(덩이가 첫 줄에서 안 끊긴다)',
+  !!r2 && r2.text.includes('      다. 배전사업'));
+
+check('⑪ 민짜 파일에서 "이미 있나"를 바로 본다', hasArticle(PLAIN, '제6조') === true
+  && hasArticle(PLAIN, '제7조') === false);
+check('⑪ 대괄호 파일에서도 바로 본다', hasArticle(FILE, '제10조') === true
+  && hasArticle(FILE, '제99조') === false);
+check('⑪ 가지조를 본조로 오인하지 않는다', hasArticle(FILE, '제10조의2') === true);
+
 console.log('\n── CLI 쪽 배선 ──');
 const cli = fs.readFileSync(path.join(LOOP, 'add_other_law_article.js'), 'utf8');
 check('⑧ --refresh 옵션이 있다', /argv\.includes\('--refresh'\)/.test(cli));
@@ -120,6 +161,8 @@ check('⑧ 교체분을 먼저 파일에 쓴 뒤 덧붙인다(순서가 바뀌�
     && cli.indexOf('fs.writeFileSync(file, refreshed)') < cli.indexOf('별표·부칙 앞에 끼워 넣었다'));
 check('⑧ 덩이 교체는 시험 있는 모듈에서 가져온다',
   /require\('\.\/article_block'\)/.test(cli));
+check('⑪ CLI 가 "이미 있나"를 hasArticle 로 묻는다(문자열 includes 아님)',
+  /hasArticle\(had, r\.label\)/.test(cli) && !/had\.includes\(`\[\$\{r\.label\}\]`\)/.test(cli));
 check('⑨ --file 로 어느 발췌본인지 못 박을 수 있다', /arg\('--file'\)/.test(cli));
 check('⑨ --file 은 그 법 폴더 밖을 거부한다',
   /--file 은 이 법의 폴더/.test(cli) && /abs\.startsWith\(path\.resolve\(dir\) \+ path\.sep\)/.test(cli));

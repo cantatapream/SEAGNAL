@@ -54,7 +54,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const { replaceBlock } = require('./article_block');   // --refresh 가 쓰는 덩이 교체(시험 있음)
+const { replaceBlock, hasArticle } = require('./article_block');  // --refresh 가 쓰는 덩이 교체·존재 확인(시험 있음)
 
 const LEGAL = path.resolve(__dirname, '../..');
 const OTHER = path.join(LEGAL, 'raw', '15_관련타부처');
@@ -328,7 +328,9 @@ function renderArticle(u) {
       continue;
     }
     const r = renderArticle(u);
-    if (had.includes(`[${r.label}]`)) {
+    // ⚠`had.includes('[제6조]')` 로 묻지 않는다 — 민짜 머리줄(`제6조(제목)`) 파일에서는
+    //   늘 false 가 나와 **이미 있는 조를 하나 더 덧붙인다**(2026-09-22 실측으로 발견).
+    if (hasArticle(had, r.label)) {
       if (!REFRESH) {
         console.log(`  ⏭️  이미 있음: ${r.label} ${r.title}`);
         console.log('       ⚠"있다"가 "다 있다"는 뜻은 아니다 — 목·호가 빠진 반쪽일 수 있다.'
