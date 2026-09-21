@@ -43,6 +43,10 @@
  *                                                               + last: 마지막 점검이 언제·어떻게 끝났나)
  *                    POST /api/legal/freshness/:id/decide       (처리완료/해당없음)
  *                    POST /api/legal/freshness/scan-now         (즉시 1회 점검, 백그라운드 20~30분)
+ *                    GET  /api/legal/mok-audit?status=pending  (원문결손 — 조문 목·고시 별표가
+ *                                                              빠진 목록 + 마지막 점검 상태)
+ *                    POST /api/legal/mok-audit/:id/decide       (처리완료/해당없음)
+ *                    POST /api/legal/mok-audit/scan-now         (즉시 1회 점검, 백그라운드 20~40분)
  *                    POST /api/legal/amendments/decide-all      (개정검토 전체 승인 — 2026-09-10 신설)
  *                    GET  /api/legal/amendments/decide-all/preview (전체 승인 전 미리보기: 대기 N건 중
  *                                                               몇 건이 승인 즉시 답변을 바꾸나)
@@ -361,11 +365,12 @@
     새지식후보: { n: '…', desc: '대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).', render: null /* 서버 연동: renderCandidateCards */ },
     개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 바뀐 조문마다 <b>개정 전 → 개정 후 본문</b>을 펼쳐 볼 수 있고, 우리 원문에 없는 조는 <b>신설</b>로 표시됩니다.<br><b>승인을 누르면</b> ①미리 받아 둔 새 원문이 있는 건은 <b>시행일부터 챗봇 답변이 새 내용으로 바뀝니다</b>(시행일이 이미 지났으면 즉시) ②재수집 대상으로 표시됩니다. <b>원문 재수집과 위키 수정은 자동으로 되지 않습니다</b> — 서버는 저장소에 글을 쓸 수 없어, 작업 세션이 받아서 반영해야 합니다.<br><b>[✓ 전체 승인]</b> 은 대기 중인 건을 한 번에 승인합니다. <b>두 번 눌러야</b> 실행되며, 첫 번째 클릭에서 <b>몇 건이 승인 즉시(또는 시행일부터) 답변이 바뀌는지</b>를 먼저 알려 줍니다. 승인이 끝나면 <b>방금 승인한 전 건을 한 덩어리로 묶은 위키 반영 지시문</b>이 바로 펼쳐집니다.<br><b>[📋 승인분 전체 지시문]</b> 은 그 글을 나중에 다시 뽑을 때 씁니다(개별 카드의 지시문과 별개).', render: null /* 서버 연동: renderAmendCards */ },
     원문신선도: { n: '…', desc: '우리가 받아 둔 <b>법령·고시 원문이 낡았는지</b> 매주 자동 대조해 모아두는 방. 대상은 <b>행정규칙(고시·훈령) 653건 + 법률·시행령·시행규칙 222건</b>. 원문 머리글의 수집 일련번호와 law.go.kr 현행 일련번호를 기계로 비교한다(2026-08-23에 「위험물 선박운송 기준」이 2016년판으로 남아 있어 <b>이미 삭제된 조문을 현행처럼</b> 설명하던 사고가 있었다). 카드마다 <b>어느 위키를 고쳐야 하는지·무엇을 해야 하는지</b>가 함께 적힌다.', render: null /* 서버 연동: renderFreshCards */ },
+    원문결손: { n: '…', desc: '받아 둔 원문이 <b>낡았는지</b>가 아니라 <b>안이 비었는지</b>를 보는 방. 옆의 「원문신선도」가 판번호를 맞춘다면 이쪽은 <b>내용이 다 딸려왔는지</b>를 센다 — ①조문 <b>목(가·나·다) 누락</b> ②고시 <b>별표·별지 누락</b>. 매주 <b>수요일 새벽 3시</b>에 자동으로 돈다(신선도는 일요일, 개정감지는 매일 — 셋 다 law.go.kr 을 두드려서 겹치지 않게 뒀다). ⚠<b>발췌본은 모자란 것이 정상</b>이라, 카드의 첫 할 일이 "정말 빠진 것인지 먼저 확인한다"이다. 여기서도 raw·위키를 자동으로 고치지 않는다.', render: null /* 서버 연동: renderMokCards */ },
     '⚠수치검증': { n: '…', desc: '별표 <b>이미지 판독값(OCR)·조번호 재편</b> 및 처벌·안전수치를 사람이 검증하는 방(가장 급함). 서버 review_queue.md 의 검증 대기 항목을 불러와 승인/반려한다.', render: null /* 서버 연동: renderReviewCards */ }
   };
   // ⚠수치검증을 맨 앞에 둔다 — 기본으로 열리는 방인데 맨 끝에 있어서 서브탭 줄이
   //   가로로 넘칠 때 화면 밖으로 밀려 보이지 않았다(사용자 화면 확인, 2026-08-28).
-  var ADMIN_ORDER = ['⚠수치검증', '초안승인', '피드백', '새지식후보', '개정검토', '원문신선도'];
+  var ADMIN_ORDER = ['⚠수치검증', '초안승인', '피드백', '새지식후보', '개정검토', '원문신선도', '원문결손'];
 
   // ============================================================================
   // 관리자 콘솔 렌더링 — 통합관리자 센터 컨테이너(#unified-admin-body)에 마운트
@@ -741,7 +746,7 @@
   }
 
   // 서브탭 배지가 참조할 adminStatsCache 필드명(⚠수치검증은 statsCache.pending을 따로 씀)
-  var ADMIN_STAT_KEY = { 초안승인: 'draft', 피드백: 'feedback', 새지식후보: 'candidates', 개정검토: 'amendments', 원문신선도: 'freshness' };
+  var ADMIN_STAT_KEY = { 초안승인: 'draft', 피드백: 'feedback', 새지식후보: 'candidates', 개정검토: 'amendments', 원문신선도: 'freshness', 원문결손: 'mokAudit' };
 
   /** 서브탭(관리자 검토 6개 방)을 그린다. @param {string} active */
   function renderSubtabs(active) {
@@ -782,6 +787,9 @@
     } else if (k === '원문신선도') {
       host.innerHTML = intro + '<div class="nrya-panel" id="nryaFreshHost" style="padding:6px 0 4px"></div>';
       renderFreshCards(document.getElementById('nryaFreshHost'));
+    } else if (k === '원문결손') {
+      host.innerHTML = intro + '<div class="nrya-panel" id="nryaMokHost" style="padding:6px 0 4px"></div>';
+      renderMokCards(document.getElementById('nryaMokHost'));
     }
   }
 
@@ -1917,6 +1925,136 @@
       }
       listHost.innerHTML = head + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">처리 대기 ' + list.length + '건</div>' + list.map(freshnessCardHTML).join('');
       listHost.querySelectorAll('.nrya-rv').forEach(function (card) { bindDecideCard(card, '/api/legal/freshness', 'done', 'dismissed', '처리완료', '해당없음'); });
+    }).catch(function (e) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
+  }
+
+  // ── 원문결손 — 서버 연동. 매주 수요일 점검 결과(조문 목 누락 · 고시 별표 누락)를 보여주고,
+  //    관리자가 "처리완료/해당없음"을 누른다. 여기서도 raw·위키를 자동으로 고치지 않는다.
+  //    ⚠닫아도 다음 점검에서 또 빠져 있으면 다시 대기로 돌아온다(reopenStillMissing) —
+  //      실제로 다시 받았다면 돌아오지 않는다.
+  //    [연계] ← GET /api/legal/mok-audit · POST /api/legal/mok-audit/:id/decide
+  //           · POST /api/legal/mok-audit/scan-now · services/mok_audit_scanner.js
+
+  /** 마지막 점검이 언제·어떻게 끝났는지. **"이상 없음"과 "확인 못 함"을 반드시 가른다.** */
+  function mokLastHTML(last) {
+    if (!last) {
+      return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 한 번도 점검하지 않았습니다. 매주 <b>수요일 새벽 3시</b>(KST)에 자동으로 돌고, 아래 버튼으로 지금 돌릴 수도 있습니다.</div>';
+    }
+    if (!last.ok) {
+      return '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span><b>마지막 점검이 실패했습니다</b> (' + esc(shortTs(last.finishedAt)) + ')<br>' +
+        '<span style="font-size:11.5px">사유: ' + esc(last.error || '알 수 없음') + '</span><br>' +
+        '<span style="font-size:11.5px;color:var(--nrya-text-sub)">아래 목록이 비어 있어도 <b>"빠진 것이 없다는 뜻이 아닙니다"</b> — 확인을 못 한 것입니다.</span></div>';
+    }
+    var partial = last.partialError
+      ? '<div class="nrya-notice-box nrya-err" style="margin-bottom:8px"><span class="nrya-em">⚠️</span><b>일부 점검이 실패했습니다</b><br><span style="font-size:11.5px">' + esc(last.partialError) + '<br>그 부분은 <b>확인하지 못한 것</b>이지 "이상 없음"이 아닙니다.</span></div>'
+      : '';
+    var unk = (last.no_answer || 0);
+    return partial + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
+      '마지막 점검 ' + esc(shortTs(last.finishedAt)) + ' · ' + (last.checked || 0) + '계열 대조 · 누락 ' + (last.missing || 0) + '건' +
+      (last.missing_moks ? ' (빠진 목 ' + last.missing_moks + '개)' : '') +
+      (last.annex_missing ? ' · 고시 별표 없음 ' + last.annex_missing + '건' : '') +
+      (last.annex_short ? ' · 별표 수 모자람 ' + last.annex_short + '건' : '') +
+      (last.reopened ? ' · 닫혀 있었지만 아직 빠져 다시 띄운 것 ' + last.reopened + '건' : '') +
+      (last.excerpt_ok ? ' · 발췌본이라 정상 ' + last.excerpt_ok + '건' : '') +
+      (unk ? ' · 판정불가 ' + unk + '건' : '') + '</div>' +
+      (unk
+        ? '<div class="nrya-notice-box" style="margin:0 0 8px"><span class="nrya-em">ℹ️</span>' +
+          '<b>확인하지 못한 것 ' + unk + '건</b> — "이상 없음"이 아닙니다. 원본을 못 받아 판정을 못 한 것이라, ' +
+          '다음 점검에서 대부분 갈립니다.</div>'
+        : '');
+  }
+
+  /**
+   * 결손 카드 1건.
+   * @param {object} it - {id,ts,title,tier,kind,verdict,mst,api_count,raw_count,missing,spots,files,actions,status}
+   * @returns {string} HTML
+   */
+  function mokCardHTML(it) {
+    var st = it.status === 'done' ? '<span class="nrya-rv-st nrya-done">✓ 처리완료</span>'
+      : it.status === 'dismissed' ? '<span class="nrya-rv-st nrya-rej">✗ 해당없음</span>'
+      : '<span class="nrya-rv-st nrya-warn">' + esc(it.kind || '누락') + '</span>';
+    var cnt = (it.api_count !== '' && it.api_count != null)
+      ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔢 원본 / 우리</div><div class="nrya-rv-fval">' +
+          esc(String(it.api_count)) + '개 / ' + esc(String(it.raw_count)) + '개' +
+          (it.missing ? ' <b>(' + esc(String(it.missing)) + '개 모자람)</b>' : '') + '</div></div>'
+      : '';
+    var mst = it.mst ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">🆔 MST</div><div class="nrya-rv-fval">' + esc(it.mst) + '</div></div>' : '';
+    var spots = (it.spots || []).length
+      ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📍 어디가 빈가</div><div class="nrya-rv-fval"><ul style="margin:4px 0 0;padding-left:18px">' +
+          it.spots.slice(0, 10).map(function (x) { return '<li style="margin:2px 0">' + esc(x) + '</li>'; }).join('') +
+          '</ul>' + (it.spots.length > 10 ? '<span style="font-size:11.5px;color:var(--nrya-text-sub)">… 외 ' + (it.spots.length - 10) + '곳</span>' : '') + '</div></div>'
+      : '';
+    var files = (it.files || []).length
+      ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📄 우리 원문</div><div class="nrya-rv-fval"><code style="font-size:11px">' +
+          it.files.map(esc).join('</code><br><code style="font-size:11px">') + '</code></div></div>'
+      : '';
+    var acts = (it.actions || []).length
+      ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">🛠 할 일</div><div class="nrya-rv-fval"><ol style="margin:4px 0 0;padding-left:18px">' +
+          it.actions.map(function (a) { return '<li style="margin:3px 0">' + a + '</li>'; }).join('') + '</ol></div></div>'
+      : '';
+    var re = it.reopen_reason
+      ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">↩</span>' + esc(it.reopen_reason) + '</div>'
+      : '';
+    return '<div class="nrya-rv" data-id="' + esc(it.id) + '">' +
+      '<div class="nrya-rv-head"><div class="nrya-rv-title">' + esc(it.title || '(제목 없음)') +
+        ' <span style="font-size:11.5px;color:var(--nrya-text-sub)">' + esc(it.tier || '') + '</span></div>' + st + '</div>' +
+      re + cnt + mst + spots + files + acts +
+      '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-act="ok">처리완료</button>' +
+      '<button class="nrya-btn-no" data-act="no">해당없음</button></div></div>';
+  }
+
+  /**
+   * 원문결손 방: 상단 "지금 점검" 버튼(정기 점검과 별개로 즉시 1회, 백그라운드 20~40분) + 목록.
+   * @param {HTMLElement} host
+   */
+  function renderMokCards(host) {
+    if (!host) return;
+    var SCAN_LABEL = '🔍 지금 점검 (백그라운드 · 완료까지 20~40분)';
+    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:10px"><button class="nrya-btn-ok" id="nryaMokScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
+      '<div class="nrya-inline-err nrya-hidden" id="nryaMokScanErr" style="display:none"></div>' +
+      '<div id="nryaMokListHost"></div>';
+    var scanBtn = document.getElementById('nryaMokScanBtn');
+    var scanErr = document.getElementById('nryaMokScanErr');
+    if (scanBtn) scanBtn.onclick = function () {
+      if (scanErr) { scanErr.style.display = 'none'; scanErr.textContent = ''; }
+      scanBtn.disabled = true; scanBtn.textContent = '점검 시작 중…';
+      legalPost('/api/legal/mok-audit/scan-now', {}).then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+      }).then(function (data) {
+        scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL;
+        if (data && data._denied) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '관리자 로그인 필요'; } return; }
+        if (!data || !data.ok) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '점검 시작 실패'; } return; }
+        var listHost = document.getElementById('nryaMokListHost');
+        if (listHost) {
+          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 점검이 시작됐습니다. 법령 573계열과 고시 824건을 하나씩 대조하느라 20~40분 걸립니다 — 나중에 이 방을 다시 열어 확인해 주세요.</div>');
+        }
+      }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
+    };
+    loadMokList();
+  }
+
+  /** renderMokCards 의 목록 부분만 새로고침(점검 버튼은 그대로 둔다). */
+  function loadMokList() {
+    var listHost = document.getElementById('nryaMokListHost'); if (!listHost) return;
+    listHost.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>목록을 불러오는 중…</div>';
+    legalGet('/api/legal/mok-audit?status=pending').then(function (res) {
+      if (res.status === 401 || res.status === 403) { listHost.innerHTML = adminLockHTML(); return null; }
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }).then(function (data) {
+      if (data === null) return;
+      if (!data || !data.ok) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>' + esc((data && data.error) || '목록을 불러오지 못했습니다.') + '</div>'; return; }
+      var head = mokLastHTML(data.last);
+      var list = data.items || [];
+      if (!list.length) {
+        // 점검이 실패했으면 "이상 없음"이라고 쓰지 않는다 — mokLastHTML 이 그 사정을 위에 적는다.
+        var okMsg = (data.last && data.last.ok)
+          ? '<div class="nrya-notice-box"><span class="nrya-em">✅</span>빠진 조문·별표가 없습니다.</div>'
+          : '';
+        listHost.innerHTML = head + okMsg; return;
+      }
+      listHost.innerHTML = head + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">처리 대기 ' + list.length + '건</div>' + list.map(mokCardHTML).join('');
+      listHost.querySelectorAll('.nrya-rv').forEach(function (card) { bindDecideCard(card, '/api/legal/mok-audit', 'done', 'dismissed', '처리완료', '해당없음'); });
     }).catch(function (e) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
   }
 
