@@ -247,6 +247,107 @@ node _dashboard/loop/add_other_law_article.js \
 처럼 머리줄이 "본문만 받았다"고 적어 둔 자리는 **결손이 아니라 신고된 범위**다
 (지방공기업법 1곳). 이 구분을 안 했으면 정직하게 표시해 둔 것까지 결함으로 셀 뻔했다.
 
+### (다) 호 결손 15개 — 전부 발췌본이다. 그대로 돌리면 되는 명령
+
+**15개 모두 발췌본이고 전문 계열은 하나도 없다**(조 수 0~12개). 그래서 계열째 받지 않고
+`--refresh` 로 그 조만 갈아 끼운다. ★그중 **7개는 대괄호 머리줄이 없는 민짜 꼴**이라
+2026-09-22 에 `article_block.js` 를 고쳐서야 손댈 수 있게 됐다.
+
+```bash
+# 장애인복지법/법률_발췌.txt  (6곳 · 머리줄 대괄호)
+node _dashboard/loop/add_other_law_article.js \
+     --law "장애인복지법" --tier 법률 \
+     --arts "제32조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 건설기술진흥법/법률_발췌.txt  (4곳 · 머리줄 대괄호)
+node _dashboard/loop/add_other_law_article.js \
+     --law "건설기술 진흥법" --tier 법률 \
+     --arts "제39조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 농수산물유통및가격안정에관한법률/법률_연결조문.txt  (3곳 · 머리줄 대괄호)
+node _dashboard/loop/add_other_law_article.js \
+     --law "농수산물 유통 및 가격안정에 관한 법률" --tier 법률 \
+     --arts "제4조,제8조,제43조" --refresh \
+     --file "raw/15_관련타부처/농수산물유통및가격안정에관한법률/법률_연결조문.txt" \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 고엽제후유의증등환자지원및단체설립에관한법률/법률_발췌.txt  (2곳 · 머리줄 민짜)
+node _dashboard/loop/add_other_law_article.js \
+     --law "고엽제후유의증 등 환자지원 및 단체설립에 관한 법률" --tier 법률 \
+     --arts "제4조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 지하수법/시행령_연결조문만.txt  (2곳 · 머리줄 대괄호)
+node _dashboard/loop/add_other_law_article.js \
+     --law "지하수법 시행규칙" --tier 시행령 \
+     --arts "제13조" --refresh \
+     --file "raw/15_관련타부처/지하수법/시행령_연결조문만.txt" \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 관광진흥법/시행규칙_발췌.txt  (2곳 · 머리줄 민짜)
+node _dashboard/loop/add_other_law_article.js \
+     --law "관광진흥법" --tier 시행규칙 \
+     --arts "제2조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 특수임무유공자예우및단체설립에관한법률/법률_발췌.txt  (2곳 · 머리줄 민짜)
+node _dashboard/loop/add_other_law_article.js \
+     --law "특수임무유공자 예우 및 단체설립에 관한 법률" --tier 법률 \
+     --arts "제4조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 간호법/법률_발췌.txt  (1곳 · 머리줄 민짜)
+node _dashboard/loop/add_other_law_article.js \
+     --law "간호법" --tier 법률 \
+     --arts "제6조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 장애인노인임산부등의편의증진보장에관한법률/법률_발췌.txt  (1곳 · 머리줄 대괄호)
+node _dashboard/loop/add_other_law_article.js \
+     --law "장애인ㆍ노인ㆍ임산부 등의 편의증진 보장에 관한 법률" --tier 법률 \
+     --arts "제7조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 부동산등기법/법률_발췌.txt  (1곳 · 머리줄 대괄호)
+node _dashboard/loop/add_other_law_article.js \
+     --law "부동산등기법" --tier 법률 \
+     --arts "제3조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 전기사업법/법률_연결조문만.txt  (1곳 · 머리줄 대괄호)
+node _dashboard/loop/add_other_law_article.js \
+     --law "전기사업법" --tier 법률 \
+     --arts "제7조" --refresh \
+     --file "raw/15_관련타부처/전기사업법/법률_연결조문만.txt" \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 교통약자의이동편의증진법/법률_발췌.txt  (1곳 · 머리줄 대괄호)
+node _dashboard/loop/add_other_law_article.js \
+     --law "교통약자의 이동편의 증진법" --tier 법률 \
+     --arts "제9조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 참전유공자예우및단체설립에관한법률/법률_발췌.txt  (1곳 · 머리줄 민짜)
+node _dashboard/loop/add_other_law_article.js \
+     --law "참전유공자 예우 및 단체설립에 관한 법률" --tier 법률 \
+     --arts "제5조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 제주특별자치도설치및국제자유도시조성을위한특별법/법률.txt  (1곳 · 머리줄 대괄호)
+node _dashboard/loop/add_other_law_article.js \
+     --law "제주특별자치도 설치 및 국제자유도시 조성을 위한 특별법" --tier 법률 \
+     --arts "제17조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+
+# 동ㆍ서ㆍ남해안및내륙권발전특별법/법률_발췌.txt  (1곳 · 머리줄 대괄호)
+node _dashboard/loop/add_other_law_article.js \
+     --law "동ㆍ서ㆍ남해안 및 내륙권 발전 특별법" --tier 법률 \
+     --arts "제7조" --refresh \
+     --why "V5-16 호 보충(B2_MOK_TARGETS.md §4-A)"
+```
+
 ## 5. 다음에 할 일
 
 1. **(가) 11개 파일**을 계열 단위로 다시 받는다 — **네트워크 단독 실행**(A-2·baseline 과 겹치면 안 된다).
