@@ -58,6 +58,8 @@ OUT = (argv[argv.index('--out') + 1] if '--out' in argv
 # recollect_jomun.py 가 목을 6칸 들여쓰기로 적는다(63행). 옛 수집본도 같은 관례를 따랐다.
 MOK_LINE = re.compile(r'^\s{4,}[가-힣]\s*\.')
 
+import law_api_guard                 # DRF 오류쪽 판별 + 현행 시행일 판 고정(L-294·L-295)
+
 
 def L(x):
     return x if isinstance(x, list) else ([x] if x else [])
@@ -96,7 +98,11 @@ def api(url, tries=3):
 def api_mok_count(mst):
     """원본에서 목이 몇 개인지 센다. 못 받으면 None(=판정 불가, 0 이 아니다)."""
     # ★target 을 `eflaw` → `law` 로 바꿨다 (2026-09-21).
-    #   [왜] 이 OC 계정은 **`eflaw` 를 신청하지 않았다.** 그 target 으로 부르면 law.go.kr 이
+    #   [왜] 이 OC 계정은 **「현행법령(시행일) 본문 조회」 API 를 신청하지 않았다.**
+    #   ⚠처음에 나는 이것을 "`eflaw` 를 신청하지 않았다"고 적었는데 **틀렸다**(2026-09-21 정정).
+    #     `lawSearch.do?target=eflaw`(목록)는 JSON 을 정상으로 준다 — 즉 `eflaw` 는 열려 있다.
+    #     법제처는 *법령종류* 체크와 *목록/본문 API* 신청을 **따로** 받고, 빠진 것은 뒤쪽 한 건이다.
+    #   그 target 으로 **본문**을 부르면 law.go.kr 이
     #   HTTP **200** 과 함께 HTML 오류쪽을 준다 — *"미신청된 목록/본문에 대한 접근입니다."*
     #   `api()` 는 "JSON 이 아니면 실패"로 보고 세 번 재시도한 뒤 None 을 주므로, 겉으로는
     #   **"원본 응답 없음(=모른다)"** 으로만 보였다. 한 건에 26초씩 쓰고 573계열 전부가
@@ -106,7 +112,11 @@ def api_mok_count(mst):
     #   같은 문서다. 실측으로 확인했다: 폐기물관리법 시행규칙 `MST=289271` 을 `target=law` 로
     #   부르니 `시행일자=20260918` 이 왔고, 우리 raw 머리말이 적어 둔
     #   *"target=eflaw, MST=289271, 시행 20260918"* 과 **같다.** 응답 구조(조문→항→호→목)도 같다.
-    d = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=law&type=JSON&MST=%s' % (OC, mst))
+    # ★2026-09-21 재수정: `target=law&MST=` 만으로는 **어느 시행일 판이 올지 못 고른다.**
+    #   287955→20260701(현행은 20260828) · 288973→20270101(**시행예정**, 현행은 20260825).
+    #   목 개수를 우리 raw(현행 판)와 견주는 점검이므로 **다른 판을 세면 그 자체가 오판이다.**
+    #   그래서 현행 시행일자를 조회해 efYd 로 못 박는 공용 함수를 쓴다.
+    d = law_api_guard.fetch_law_body(api, OC, mst)
     if not d:
         return None, None
     root = d.get('법령', d)

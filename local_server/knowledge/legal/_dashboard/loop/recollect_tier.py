@@ -11,7 +11,11 @@
 [무엇을 하나 — 층 하나마다]
   ① law.go.kr `lawService.do?target=eflaw&MST=<현행>&efYd=<시행일자>` 로 **그 시행일자 기준** 전문 JSON 을 받는다.
      ★efYd 를 꼭 붙인다(2026-09-10 실측 두 가지):
-       · efYd 없이 `target=eflaw` 를 부르면 이 OC 계정은 "미신청된 목록/본문" 오류 페이지를 준다.
+       · efYd 없이 `target=eflaw` 로 **본문**을 부르면 HTTP **200** 과 함께
+         "미신청된 목록/본문에 대한 접근입니다" HTML 이 온다. ⚠**권한 문제가 아니다** —
+         efYd 가 빠졌거나 그 MST 의 실제 시행일자가 아니라는 뜻인데 문구가 그렇게 나올 뿐이다
+         (2026-09-21 실측 확정. 맞는 efYd 를 주면 그 자리에서 JSON 이 온다). 이 문구를 보고
+         "신청이 안 됐다"고 판단하면 안 된다 — 내가 두 번 그렇게 오진했다(L-294·L-295).
        · `target=law&MST=` 는 응답은 하지만 **시행일자를 못 고른다.** 한 MST 가 시행일 둘을 가질 때
          (해양환경관리법 시행규칙 287955 = 20260701 판 + 20260828 판 / 농수산물품질관리법 시행령 288973 =
          20260825 판 + 20270101 판) 옛 판이나 **시행예정 판**이 온다. 287955 를 law 로 받으면 부칙이 52개
@@ -50,6 +54,7 @@ from _touched import Touched                      # noqa: E402
 from recollect_jomun import build_text            # noqa: E402
 from recollect_budchik import format_budchik      # noqa: E402
 from recollect_byl import extract_layer           # noqa: E402
+import law_api_guard                 # law.go.kr 이 본문 대신 오류쪽을 줬는지 가린다(L-294)
 
 LEGAL = os.path.abspath(os.path.join(HERE, '..', '..'))
 RAW = os.path.join(LEGAL, 'raw')
@@ -64,17 +69,35 @@ HUMAN_MARKS = ['【이미지판독', '⚠REVIEW', '첨부파일 전사', '판독
 def api(url, tries=6):
     """DRF 를 부른다. 못 받으면 None. (프록시가 가끔 연결을 끊어 재시도가 필요하다 — 2026-09-10 실측)"""
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    # ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속).
+    #   종전에는 오류쪽 HTML 도 네트워크 오류와 똑같이 삼켜서
+    #   **"권한 없음"이 "모르겠다"로 바뀌어** 나왔다.
     for i in range(tries):
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
-                return json.loads(r.read().decode('utf-8', 'replace'))
+                body = r.read().decode('utf-8', 'replace')
+            if body.lstrip()[:1] in '{[':
+                return json.loads(body)
+            reason = law_api_guard.block_reason(body)
+            if reason:
+                law_api_guard.announce(reason, url)
+                if law_api_guard.is_fatal(reason):
+                    return None          # 재시도로 안 풀린다
         except Exception:
-            time.sleep(2 * (i + 1))
+            pass
+        time.sleep(2 * (i + 1))
     return None
 
 
 def fetch_law(mst, efyd):
     """현행 MST 의 efYd(시행일자) 기준 전문. 예: fetch_law('287955', '20260828') → {'기본정보':…, '조문':…, '부칙':…, '별표':…}"""
+    # ★`efYd` 는 **선택이 아니라 필수**다 (2026-09-21 실측으로 확정).
+    #   `lawService.do?target=eflaw` 는 efYd 가 **없거나 그 MST 의 실제 시행일자가 아니면**
+    #   HTTP **200** 과 함께 *"미신청된 목록/본문에 대한 접근입니다."* HTML 을 준다.
+    #   ⚠**이 문구를 권한 문제로 읽으면 안 된다.** 같은 MST 에 맞는 efYd 를 주면 그 자리에서
+    #     JSON 이 온다 — 선박안전법 246611+20230628 → 177,917 B, 항만법 283707+20260227 → 198,849 B.
+    #     즉 **신청은 돼 있다.** law.go.kr 이 "인자가 틀렸다"를 "미신청"이라고 말할 뿐이다.
+    #   (내가 이 문구를 두 번 오진했다 — 처음엔 "호스트 불통", 다음엔 "eflaw 미신청". L-294·L-295)
     d = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=eflaw&type=JSON&MST=%s&efYd=%s' % (OC, mst, efyd))
     return (d or {}).get('법령')
 
