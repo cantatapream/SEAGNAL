@@ -241,6 +241,18 @@ echo; echo "── V5-14 아직 오지 않은 시행일 ──"
 # [빼는 것] `_대기/<시행일>/`(일부러 받아 둔 시행예정 대기본)·`_구판/`(보존용 옛 사본).
 python3 local_server/knowledge/legal/_dashboard/loop/future_date_guard.py --gate --examples || FAIL=1
 
+echo; echo "── V5-15 같은 고시 사본끼리 판이 맞나 ──"
+# [왜 — 2026-09-21] 한 고시가 여러 법 폴더에 사본으로 들어 있는 일이 흔한데(「울산항 항만시설
+#   운영세칙」은 세 곳), 재수집이 **한 벌만** 갱신하면 나머지는 낡은 채 남는다.
+# ★**A-1(admrul_fresh.py)은 이것을 못 잡는다** — 판정이 `cur['serial'] in held` 이고 `held` 는
+#   모든 사본의 ID 를 합친 집합이라, **한 벌만 현행이면 그 제목은 통째로 '현행'** 이 된다.
+#   실제로 2026-09-21 재검증은 6건 중 1건만 잡았고 나머지 5건은 소리 없이 통과했다.
+#   A-1 을 고치는 대신 다른 각도로 재는 장치를 하나 더 둔다(A-1 의 다른 판정은 실측으로 다듬어져 있다).
+# [기준선] 지금 3종이 갈려 있다(대산항 세칙 · 무역항등 사용료 규정 · 환경보전협회 교육수수료).
+#   어느 쪽이 현행인지는 API 로 확인해야 해서 아직 못 고쳤다 — **늘어나는 것만 막는다.**
+python3 local_server/knowledge/legal/_dashboard/loop/admrul_copy_sync.py \
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/admrul_copy_sync_base.json --gate || FAIL=1
+
 # 서버 API + 이동 JS 경로 스모크
 echo; echo "── 서버 스모크 (대표 엔드포인트) ──"
 SMOKE=("/api/health:200" "/api/app-version:200" "/:200" "/sw.js:200" "/style.css:200"
