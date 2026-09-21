@@ -155,6 +155,43 @@ def fetch_law_body(api, oc, mst, lid=None, warn=True):
          **다르면** `target=eflaw&MST=&efYd=<현행>` 으로 다시 받는다(호출 3번).
     ③의 '다르면' 이 바로 종전에 **조용히 틀린 판을 저장하던** 자리다.
     """
+    # ★`lid` 를 알면 **싼 것부터** 한다 (2026-09-21 보강).
+    #   종전에는 `target=law` 로 **큰 본문(최대 2.3 MB)** 을 먼저 받고 나서 시행일을 확인했고,
+    #   다르면 큰 본문을 **한 번 더** 받았다. 573계열을 그렇게 돌리니 3.7시간이 걸렸다.
+    #   `법령ID` 는 `_meta.json` 에 이미 있으므로, 그것이 있으면 **가벼운 목록 조회로 현행
+    #   시행일자를 먼저 정하고 곧바로 `eflaw`+`efYd` 로 한 번만 받는다.**
+    #   ⚠판을 못 정하면 여기서도 **아무것도 주지 않는다** — 빠르게 하려고 안전을 놓지 않는다.
+    if lid:
+        want = None
+        for _ in range(2):
+            want = current_efyd(api, oc, lid, mst)
+            if want:
+                break
+        # ⚠`lid` 가 **틀렸을 수 있다.** `_meta.json` 에 다른 법의 법령ID 가 적혀 있으면
+        #   엉뚱한 시행일자가 나오고, 그 efYd 로 부르면 law.go.kr 이 "미신청…" 을 준다
+        #   (2026-09-21 실측 — 형사소송법 ID 001671 에 선박안전법 MST 246611 을 물려 재현).
+        #   그럴 때 **바로 포기하면 메타 오기 하나로 그 계열이 영영 판정불가가 된다.**
+        #   → 아래 `lid` 없는 경로로 **물러선다.** 그쪽은 본문에서 법령ID 를 직접 읽으므로
+        #     메타가 틀려도 스스로 바로잡는다. 안전은 그대로다(못 정하면 거기서도 None).
+        ok1 = None
+        if want:
+            for _ in range(2):
+                got1 = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=eflaw&type=JSON'
+                           '&MST=%s&efYd=%s' % (oc, mst, want))
+                if not got1:
+                    continue
+                done = str(((got1.get('법령') or {}).get('기본정보') or {}).get('시행일자') or '')
+                if done == want:
+                    ok1 = got1
+                break
+        if ok1:
+            return ok1
+        if warn:
+            print('   ↩MST %s: 넘겨받은 법령ID(%s)로는 판을 못 정했다 — 본문에서 직접 읽어 다시 해 본다.'
+                  % (mst, lid), flush=True)
+        lid = None          # 아래 경로가 본문의 `기본정보.법령ID` 를 쓰게 한다
+
+    # `lid` 를 모르면 종전대로 — 본문을 받아 거기서 `법령ID` 를 얻는다.
     body = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=law&type=JSON&MST=%s'
                % (oc, mst))
     if not body:

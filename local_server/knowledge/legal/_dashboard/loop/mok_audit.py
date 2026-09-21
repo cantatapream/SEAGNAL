@@ -55,6 +55,49 @@ only = argv[argv.index('--law') + 1] if '--law' in argv else None
 OUT = (argv[argv.index('--out') + 1] if '--out' in argv
        else os.path.join(LEGAL, '_dashboard', 'mok_audit.json'))
 
+# ★한 건 판정할 때마다 곧바로 적고, 죽으면 이어받는다 (2026-09-21 신설).
+#   [왜] 573계열 x 2~4초 ≈ 30분인데, 개발 컨테이너는 한동안 조용하면 **회수됐다 다시 뜬다**
+#   (L-294: A-1 이 그렇게 389/824 에서 오류 한 줄 없이 사라졌다). 그때 배경 프로세스는
+#   종류를 가리지 않고 전부 없어지고, **버퍼에만 있던 판정은 함께 사라진다.**
+#   `admrul_fresh.py` 가 같은 사고를 겪고 이 장치를 붙여 재시작 8번을 유실 0 으로 견뎠다.
+#   ⚠서버 크론(mok_audit_scanner.js)은 이 인자를 안 준다 — 기본 동작은 바뀌지 않는다.
+PROGRESS = argv[argv.index('--progress') + 1] if '--progress' in argv else None
+RESUME = argv[argv.index('--resume') + 1] if '--resume' in argv else None
+
+
+def _note(rec):
+    """판정 한 건을 **그 자리에서** 적는다. flush + fsync 까지 해야 프로세스가 사라져도 남는다."""
+    if not PROGRESS:
+        return
+    try:
+        with open(PROGRESS, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+            f.flush()
+            os.fsync(f.fileno())
+    except Exception:
+        pass
+
+
+def _resume():
+    """이미 판정한 것을 읽어 온다. → (이미 본 키 집합, 되살린 기록들)"""
+    seen, recs = set(), []
+    if not RESUME or not os.path.exists(RESUME):
+        return seen, recs
+    for ln in open(RESUME, encoding='utf-8'):
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            r = json.loads(ln)
+        except Exception:
+            continue
+        k = r.get('_key')
+        if not k or k in seen:
+            continue
+        seen.add(k)
+        recs.append(r)
+    return seen, recs
+
 # recollect_jomun.py 가 목을 6칸 들여쓰기로 적는다(63행). 옛 수집본도 같은 관례를 따랐다.
 MOK_LINE = re.compile(r'^\s{4,}[가-힣]\s*\.')
 
@@ -95,7 +138,7 @@ def api(url, tries=3):
     return None
 
 
-def api_mok_count(mst):
+def api_mok_count(mst, lid=None):
     """원본에서 목이 몇 개인지 센다. 못 받으면 None(=판정 불가, 0 이 아니다)."""
     # ★target 을 `eflaw` → `law` 로 바꿨다 (2026-09-21).
     #   [왜] 이 OC 계정은 **「현행법령(시행일) 본문 조회」 API 를 신청하지 않았다.**
@@ -116,7 +159,7 @@ def api_mok_count(mst):
     #   287955→20260701(현행은 20260828) · 288973→20270101(**시행예정**, 현행은 20260825).
     #   목 개수를 우리 raw(현행 판)와 견주는 점검이므로 **다른 판을 세면 그 자체가 오판이다.**
     #   그래서 현행 시행일자를 조회해 efYd 로 못 박는 공용 함수를 쓴다.
-    d = law_api_guard.fetch_law_body(api, OC, mst)
+    d = law_api_guard.fetch_law_body(api, OC, mst, lid=lid)
     if not d:
         return None, None
     root = d.get('법령', d)
@@ -175,7 +218,7 @@ for mp in metas:
             continue
         p = os.path.join(base, fn)
         if os.path.exists(p):
-            targets.append((law, kind + ('(계열 여러 개 중 첫째)' if multi else ''), fam['MST'], p))
+            targets.append((law, kind + ('(계열 여러 개 중 첫째)' if multi else ''), fam['MST'], p, fam.get('법령ID')))
             continue
         # ★파일이 표준 이름이 아닐 때 조용히 사라지던 자리다(2026-08-23 적대검증에서 발견).
         #   `families` 에 계열이 있다고 적혀 있는데 `시행령.txt` 가 없으면, 종전에는 그 계열이
@@ -186,7 +229,7 @@ for mp in metas:
         alt = sorted(glob.glob(os.path.join(base, kind + '_*.txt')))
         if alt:
             for ap in alt:
-                targets.append((law, '%s(%s)' % (kind, os.path.basename(ap)[:-4]), fam['MST'], ap))
+                targets.append((law, '%s(%s)' % (kind, os.path.basename(ap)[:-4]), fam['MST'], ap, fam.get('법령ID')))
         else:
             not_found.append('%s %s — `%s` 없음(families 에는 있다고 적혀 있다, MST=%s)'
                              % (law, kind, fn, fam['MST']))
@@ -194,11 +237,29 @@ for mp in metas:
 print('■ 목 누락 대조 — 원본(law.go.kr)과 우리 raw 의 목 개수를 맞춰 본다')
 print('   대상 계열: %d개' % len(targets))
 
-for i, (law, kind, mst, p) in enumerate(targets, 1):
+_seen, _done = _resume()
+if _seen:
+    print('   이어받기: 이미 판정된 %d건은 다시 묻지 않는다 (남은 %d건)'
+          % (len(_seen), len(targets) - len(_seen)), flush=True)
+for _r in _done:                       # 되살린 판정을 원래 통에 도로 담는다
+    _v = _r.get('_verdict')
+    if _v == 'no_answer':
+        no_answer.append(_r['_label'])
+    elif _v == 'missing':
+        rows.append({k: v for k, v in _r.items() if not k.startswith('_')})
+    elif _v == 'excerpt':
+        excerpt.append({k: v for k, v in _r.items() if not k.startswith('_')})
+
+for i, (law, kind, mst, p, lid) in enumerate(targets, 1):
+    key = '%s|%s|%s' % (law, kind, mst)
+    if key in _seen:
+        continue
     ours = sum(1 for ln in open(p, encoding='utf-8') if MOK_LINE.match(ln))
-    theirs, spots = api_mok_count(mst)
+    theirs, spots = api_mok_count(mst, lid)
     if theirs is None:
-        no_answer.append('%s %s (MST=%s)' % (law, kind, mst))
+        label = '%s %s (MST=%s)' % (law, kind, mst)
+        no_answer.append(label)
+        _note({'_key': key, '_verdict': 'no_answer', '_label': label})
         continue
     if theirs > ours:
         rec = {'law': law, 'kind': kind, 'mst': mst,
@@ -206,7 +267,11 @@ for i, (law, kind, mst, p) in enumerate(targets, 1):
                'api_mok': theirs, 'raw_mok': ours, 'missing': theirs - ours,
                'spots': spots[:12]}
         # 스스로 발췌본이라 밝힌 파일은 "모자란 것"이 정상이다 — 결함 목록과 갈라 담는다.
-        (excerpt if is_excerpt(p) else rows).append(rec)
+        exc = is_excerpt(p)
+        (excerpt if exc else rows).append(rec)
+        _note(dict(rec, _key=key, _verdict='excerpt' if exc else 'missing'))
+    else:
+        _note({'_key': key, '_verdict': 'ok'})
     if i % 40 == 0:
         print('   ... %d/%d 대조' % (i, len(targets)), flush=True)
 
