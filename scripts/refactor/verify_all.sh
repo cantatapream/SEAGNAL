@@ -271,6 +271,17 @@ echo; echo "── V5-16 「다음 각 목/각 호」라 해 놓고 그 글이 �
 python3 local_server/knowledge/legal/_dashboard/loop/mok_promise_guard.py \
   --base local_server/knowledge/legal/_dashboard/loop/pinned/mok_promise_base.json --gate || FAIL=1
 
+echo; echo "── V5-17 파일에는 있는데 챗봇이 못 읽는 조문 ──"
+# [왜 — 2026-09-21] 챗봇은 계층 원문을 **정해진 이름으로만** 찾는다(`services/article_text.js`) —
+#   `법률.txt` → `법률_발췌.txt`(시행령·시행규칙도 같은 꼴, 대통령령은 `대통령령.txt`).
+#   그런데 사서들은 `법률_수입제한조문(연결조문).txt` 처럼 **뜻이 담긴 이름**으로 저장해 왔다(53개).
+#   그 파일은 아무리 잘 받아 놔도 **안 열린다.** 「대외무역법」 제5조·제11조·제40조가 그랬고,
+#   위키가 제5조·제11조를 네 군데서 인용하는데 `법률.txt` 에는 그 조가 없어 죽고 있었다.
+#   ★**받아 놓고도 못 쓰는 것이 안 받은 것보다 나쁘다** — 수집 기록만 보면 있다고 나온다.
+# [기준선 없음 — 0 이어야 한다] 고치는 데 네트워크가 필요 없다(이미 우리 손에 있는 글을
+#   읽히는 이름으로 옮겨 적으면 된다). 그래서 기준선을 두지 않고 **0 을 요구한다.**
+python3 local_server/knowledge/legal/_dashboard/loop/unreachable_article_guard.py --gate --examples || FAIL=1
+
 # 서버 API + 이동 JS 경로 스모크
 echo; echo "── 서버 스모크 (대표 엔드포인트) ──"
 SMOKE=("/api/health:200" "/api/app-version:200" "/:200" "/sw.js:200" "/style.css:200"
