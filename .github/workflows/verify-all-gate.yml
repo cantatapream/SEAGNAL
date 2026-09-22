@@ -210,6 +210,19 @@ jobs:
             echo "(verify_all.log 없음)"
           fi
           echo "════ 총정리 끝 ════"
+          # ★실패 이름을 **맨 끝에 다시** 찍는다 (2026-09-22, G-39).
+          #   깃허브 로그는 1,300줄이라 사람도 도구도 **뒤에서 조금 잘라** 읽는다. 그런데
+          #   총정리 뒤로 「결과 요약」 스텝과 Post job cleanup 이 40줄 넘게 붙어서,
+          #   20~60줄을 당겨 읽으면 **정작 실패 이름이 안 들어온다** — 이 세션에서 같은 로그를
+          #   대여섯 번 다시 받았다. 맨 끝 몇 줄만 봐도 답이 오게 둔다.
+          if [ -f _ci_logs/verify_all.log ]; then
+            echo "════ 한 줄 판정 ════"
+            sed -n '/실패를 세운 검사(이름)/,/⚠총정리/p' _ci_logs/verify_all.log \
+              | grep -E '^  · ' | grep -v '서버 스모크' | head -12
+            sed -n '/그 검사들이 찍은 것/,$p' _ci_logs/verify_all.log \
+              | grep -E '^  │ ' | tail -8
+            echo "════ 판정 끝 ════"
+          fi
           if [ "$code" = "0" ]; then
             echo "✅ verify_all 통과 (exit 0)"
             exit 0
