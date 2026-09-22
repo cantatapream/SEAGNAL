@@ -47,7 +47,11 @@
  */
 const fs = require('fs');
 const path = require('path');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
+// ★저장소 안 상대경로로 적는다 (2026-09-22, 2-21 · G-31).
+//   `/home/user/SEAGNAL/...` 로 박아 두면 **이 컨테이너 한 대에서만** 돈다.
+//   `verify_all.sh` 주석이 "실패하면 이걸로 고쳐라"라고 이 파일을 가리키므로,
+//   그 말을 따르는 **다음 사람의 컴퓨터에서 곧바로 깨진다**(G-31 의 지연된 형태).
+const R = require('../../../../services/legal_retriever.js');
 
 const LEGAL = path.resolve(__dirname, '../..');
 const RAW = path.join(LEGAL, 'raw');

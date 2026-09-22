@@ -1,6 +1,6 @@
 {
   "기준일": "2026-09-22",
-  "총계": 119,
+  "총계": 116,
   "파일": {
     ".claude/hooks/test_guard_git_scope.py": 1,
     "local_server/knowledge/legal/_dashboard/collect.py": 2,
@@ -16,7 +16,6 @@
     "local_server/knowledge/legal/_dashboard/loop/build_tree_wiki_crossref.py": 1,
     "local_server/knowledge/legal/_dashboard/loop/chatbot_proto.py": 1,
     "local_server/knowledge/legal/_dashboard/loop/check_budchik.py": 1,
-    "local_server/knowledge/legal/_dashboard/loop/cite_row.js": 1,
     "local_server/knowledge/legal/_dashboard/loop/collect.py": 2,
     "local_server/knowledge/legal/_dashboard/loop/collect_admrul.py": 1,
     "local_server/knowledge/legal/_dashboard/loop/collect_contacts.py": 1,
@@ -44,7 +43,6 @@
     "local_server/knowledge/legal/_dashboard/loop/extract_admrul_pdf.py": 1,
     "local_server/knowledge/legal/_dashboard/loop/fix_admrul_ids.py": 1,
     "local_server/knowledge/legal/_dashboard/loop/fix_cell.js": 1,
-    "local_server/knowledge/legal/_dashboard/loop/fix_deictic_law_cells.js": 2,
     "local_server/knowledge/legal/_dashboard/loop/fix_wiki.js": 1,
     "local_server/knowledge/legal/_dashboard/loop/full_build.js": 1,
     "local_server/knowledge/legal/_dashboard/loop/gap6e_fix.js": 3,
