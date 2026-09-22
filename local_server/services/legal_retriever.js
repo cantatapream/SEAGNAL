@@ -92,6 +92,46 @@ const TOP_FULL_RANK = 3;        // 1~3위 — 예산 그대로
 const MID_LAST_RANK = 6;        // 4~6위
 const MID_BODY_CHARS = 5000;
 const TAIL_BODY_CHARS = 3000;   // 7위 이하
+// ★**합계 상한**(2026-09-22, P-19). 위 셋은 **페이지마다의** 예산이라 합계는 페이지 수만큼 는다.
+//   PRIMARY_TOPK 20 + HOP_MAX 20 = 최대 40장이고, 골든 291문항 전수 실측으로
+//   **평균 123,839자 · 중앙값 141,183자 · 최대 161,092자**(≈7만 토큰)가 한 질문에 실려 나갔다.
+//   막아 주는 수가 없어 "관측치가 곧 상한"이었다 — 페이지가 늘면 그대로 늘어난다.
+//   ⚠상한을 두는 까닭은 돈·속도만이 아니다. 40장 가운데 묻힌 한 줄은 **모델이 못 찾는다**.
+//   ★값은 넘겨짚지 않고 **골라서 쟀다** — `context_eval`(정답 문장이 자료에 실리는가)을
+//     40k·60k·80k·100k·120k·무제한으로 돌려, **떨어지지 않는 가장 작은 값**에 안전마진을 얹었다.
+//     되재려면: `NRYA_CONTEXT_MAX=60000 node _dashboard/loop/context_eval.js`
+const CONTEXT_MAX_CHARS = Number(process.env.NRYA_CONTEXT_MAX) > 0 ? Number(process.env.NRYA_CONTEXT_MAX) : 80000;
+// 남은 예산이 이보다 작으면 **그 페이지는 싣지 않는다**. 몇백 자짜리 토막은 근거가 못 되고
+// 자리만 차지한다 — 어중간하게 남기느니 빼는 편이 모델에게 낫다.
+const MIN_BODY_CHARS = 800;
+
+/**
+ * 근거 페이지 **장수**에 맞춰 페이지별 본문 예산을 정한다(P-19 합계 상한).
+ * ⚠**페이지를 버리지 않는다 — 예산만 줄인다.** 앞 순위부터 채우고 남은 것만 주는 방식은
+ *   상한 80,000 에서 근거 페이지가 중앙값 39장 → 18장으로 반 토막 났다(실측). 이 파일이
+ *   위에서 스스로 금지한 것이라(*"배경설명용으로 뒤 페이지가 필요한 질문도 있어 통째로 빼는 것은
+ *   위험하다 — 누락 0"*) 비례 축소로 바꿨다.
+ *   ①1~3위는 제 예산 그대로 ②4위 이하는 남은 예산을 **비례로** 나눠 갖는다(바닥 MIN_BODY_CHARS).
+ * ⚠여기서 세는 것은 **본문 글자 수**다. 머리줄(`--- 근거N: …`)과 협약 문단은 따로 붙으므로
+ *   완성된 블록은 이 값보다 조금 크다(골든 전수 실측 상한 80,000 일 때 최대 92,449자).
+ * @param {number} count - 근거 페이지 장수
+ * @param {number} [cap=CONTEXT_MAX_CHARS] - 본문 합계 상한
+ * @returns {number[]} 순위별 예산(글자)
+ * [연계] ← search(). ← scripts/test_context_budget.js(같은 함수를 부른다 — L-136).
+ */
+function bodyBudgets(count, cap) {
+  const max = Number(cap) > 0 ? Number(cap) : CONTEXT_MAX_CHARS;
+  const wants = [];
+  for (let i = 0; i < count; i++) {
+    wants.push(i < TOP_FULL_RANK ? MAX_BODY_CHARS : i < MID_LAST_RANK ? MID_BODY_CHARS : TAIL_BODY_CHARS);
+  }
+  const headSum = wants.slice(0, TOP_FULL_RANK).reduce((a, b) => a + b, 0);
+  const tailWant = wants.slice(TOP_FULL_RANK).reduce((a, b) => a + b, 0);
+  const tailRoom = Math.max(0, max - headSum);
+  if (tailWant <= tailRoom || tailWant === 0) return wants;
+  const scale = tailRoom / tailWant;
+  return wants.map((w, i) => (i < TOP_FULL_RANK ? w : Math.max(MIN_BODY_CHARS, Math.floor(w * scale))));
+}
 // 실측 확정(2026-07-29): 7→10→30페이지로 늘려도 속도 저하 없음(병목은 Gemini 호출 자체,
 // 검색 자체는 0.1~0.3초). 다만 30개에서 순위 20위 이후는 관련성이 뚜렷이 떨어지는 노이즈성
 // 페이지가 섞이기 시작함(예: "선박안전법 형식승인및검정" 등) — 속도가 아니라 관련성 기준으로
@@ -1931,17 +1971,31 @@ async function search(query, opts) {
     .map(x => ({ x, body: citableBody(x.p, canonicalOnly) }))
     .filter(e => e.body);
 
+  // ★합계 상한(P-19, 2026-09-22) — **페이지를 버리지 않고 예산만 줄인다.**
+  //   ⚠앞 순위부터 채우고 남은 것만 주는 방식(먼저 만들어 봤다)은 상한 80,000 에서
+  //     근거 페이지가 **중앙값 39장 → 18장**으로 반 토막 났다. 그건 이 파일이 위에서 스스로
+  //     금지한 것이다 — *"뒤 순위를 버리지 않는다 — 예산만 줄인다 … 배경설명용으로 뒤 페이지가
+  //     필요한 질문도 있어 통째로 빼는 것은 위험하다(누락 0)"*. 그래서 방식을 바꿨다.
+  //   ①1~3위는 제 예산을 그대로 받는다(정답 문장은 실측상 거의 다 여기 있다).
+  //   ②4위 이하는 남은 예산을 **비례로 나눠 갖는다**(바닥 MIN_BODY_CHARS). 장수는 그대로다.
+  //   ③그래도 넘치면(페이지가 아주 많으면) 그때만 뒤에서부터 뺀다 — 바닥 밑으로는 못 준다.
+  //   `sliceRelevant` 가 질문과 가까운 절부터 담으므로, 예산이 줄면 **덜 관련된 절부터** 빠진다.
+  const budgets = bodyBudgets(finalList.length, CONTEXT_MAX_CHARS);
+  let spentChars = 0;
   const contextPages = finalList.map(({ x, body }, rank) => {
     const page = readPage(x.p.kind, x.p.file);
-    const budget = rank < TOP_FULL_RANK ? MAX_BODY_CHARS
-      : rank < MID_LAST_RANK ? MID_BODY_CHARS : TAIL_BODY_CHARS;
+    const budget = budgets[rank];
+    // ③ 바닥까지 줄여도 넘치면 그때는 싣지 않는다(장수가 아주 많을 때만 닿는 길).
+    if (rank >= TOP_FULL_RANK && spentChars + MIN_BODY_CHARS > CONTEXT_MAX_CHARS) return null;
+    const sliced = sliceRelevant(body, allTerms, budget);
+    spentChars += sliced.length;
     return {
       law: x.p.law, topic: x.p.topic, file: x.p.file, kind: x.p.kind, status: x.p.status || null,
       hop: !!x.hop,
       frontmatter: page ? page.frontmatter : {},
-      body: sliceRelevant(body, allTerms, budget),
+      body: sliced,
     };
-  }).filter(cp => cp.body);
+  }).filter(cp => cp && cp.body);
 
   // 인용사슬은 매칭된 모든 소스에서 뽑는다(상위 소수 건으로 자르면, 정작 답변과 정확히
   // 일치하는 표를 가진 페이지가 점수 커트라인 밖으로 밀려 화면에 아예 안 뜨는 사례가 실측됨
@@ -5280,6 +5334,9 @@ module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex,
   // readPage 는 시행일 마커 접기(effective_date)가 본문 입구에서 도는지 회귀 테스트(test_pending_law)가 보려고 내보낸다.
   readPage, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
+  // 2026-09-22 P-19: 합계 상한. 검사 도구가 **생산과 같은 값**을 보고 재려고 내보낸다(L-136).
+  CONTEXT_MAX_CHARS, MIN_BODY_CHARS, MAX_BODY_CHARS, MID_BODY_CHARS, TAIL_BODY_CHARS,
+  TOP_FULL_RANK, MID_LAST_RANK, bodyBudgets,
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
   normalizeAskCtx, ctxNextOf, normalizeProfile,

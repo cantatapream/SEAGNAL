@@ -68,7 +68,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_hazard_rocks_tide test_guide_tabs test_tab_structure test_usage_keys test_maintenance_tree
   test_overlay_solo test_wiki_brief_bulk test_review_marker_registered test_stale_reopen
   test_mok_audit_scanner test_add_other_law_refresh test_pressure_card test_typhoon_source
-  test_byl_decl test_treaty_caselaw_meta)
+  test_byl_decl test_treaty_caselaw_meta test_context_budget)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi
@@ -89,7 +89,17 @@ for suite in "${SUITES[@]}"; do
     SKIPPED_SUITES="${SKIPPED_SUITES}
   · $suite"
   elif echo "$line" | grep -qE "/ 0 FAIL$"; then echo "  ✅ $suite — $line"
-  else echo "  ❌ $suite — $line"; echo "$out" | grep "❌" | head -5; fail "스위트 $suite — $line"; fi
+  else
+    echo "  ❌ $suite — $line"
+    # ★실패한 **문항 이름만** 찍고 끝내지 않는다 — 그 밑에 붙는 「기대/실제」까지 함께 준다
+    #   (2026-09-22, G-43). 종전에는 `grep "❌"` 라 ❌ 줄만 나왔고, 스위트가 정성껏 찍어 둔
+    #   `기대(…) 켜짐=[…]` / `실제 켜짐=[…]` 두 줄이 **매번 버려졌다.**
+    #   그 탓에 `test_overlay_solo` 의 CI 전용 실패를 여러 라운드 동안 "이름은 아는데 이유는
+    #   모르는" 상태로 끌었다. G-32(본문)·G-40(근거)·G-42(까닭)와 같은 마디다 —
+    #   **판정하는 자리가 근거를 함께 줘야 한다.**
+    echo "$out" | grep -A 3 "❌" | head -24
+    fail "스위트 $suite — $line"
+  fi
 done
 
 # ============================================================================
