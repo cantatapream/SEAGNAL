@@ -357,6 +357,60 @@
     }
 
     /**
+     * 구역 카드의 자세한 내용을 펼치거나 접는다.
+     *
+     * 왜 카드를 클릭하나?
+     *   카드 클릭 핸들러가 "다른 카드는 모두 접고 이 카드만 펼치기" 까지 함께 한다
+     *   (render.js). 클래스만 직접 지우면 다른 카드가 열린 채 남는다.
+     *
+     * @param {boolean} open - true=펼침
+     */
+    function _setCardOpen(open) {
+        var card = _firstCard();
+        if (!card) return;
+        var det = card.querySelector('.alert-details');
+        if (!det) return;
+        var isOpen = !det.classList.contains('hidden');
+        if (isOpen !== open) card.click();
+    }
+
+    /**
+     * 관측부이 버튼 중 **맨 앞 것**을 눌러 실제 관측값을 띄우거나 도로 닫는다.
+     *
+     * @param {boolean} on - true=눌러서 값 표출
+     * [연계] render.js 의 부이 버튼은 같은 버튼을 다시 누르면 닫히는 토글이다.
+     */
+    function _setBuoy(on) {
+        var card = _firstCard();
+        var btn = card && card.querySelector('.buoy-btn');
+        if (!btn) return;
+        if (btn.classList.contains('active') !== on) btn.click();
+    }
+
+    /**
+     * 카드 안에서 발표시각·발효시각·해제예정 줄을 찾는다.
+     *
+     * 무엇을 하나?
+     *   이 줄들에는 따로 class 가 없어(실측 확인) 글자로 찾는다.
+     *
+     * @returns {Array<HTMLElement>} 찾은 줄들 (없으면 빈 배열)
+     */
+    function _timeRows() {
+        var card = _firstCard();
+        var det = card && card.querySelector('.alert-details');
+        if (!det) return [];
+        var out = [];
+        var divs = det.querySelectorAll('div');
+        for (var i = 0; i < divs.length; i++) {
+            var d = divs[i];
+            if (d.children.length <= 2 && /^(발표시각|발효시각|해제예정)/.test((d.textContent || '').trim())) {
+                out.push(d);
+            }
+        }
+        return out;
+    }
+
+    /**
      * 펼쳐져 있는 소분류를 모두 접는다.
      * [연계] _drill() 이 앞 단계로 되돌아갈 때 쓴다. 머리글 클릭으로 접어야 화살표까지 맞는다.
      */
@@ -394,14 +448,19 @@
      */
     function _drill(depth) {
         var list = _firstSeaWithAlerts();
-        if (depth === 'sub' || depth === 'card') {
+        var deep = (depth === 'sub' || depth === 'open' || depth === 'buoy');
+        if (deep) {
             _openSea(list);
             _openSub(_firstSub(list));   // 소분류가 없으면(제주) 아무 일도 안 한다
+        } else {
+            _setCardOpen(false);         // 카드부터 접고
+            _closeSubs();                // 소분류를 접고(보이는 동안 접어야 한다)
+            if (depth === 'sea') { _openSea(list); }
+            else { _closeSeas(); }
             return;
         }
-        _closeSubs();                    // 소분류부터 접고(보이는 동안 접어야 한다)
-        if (depth === 'sea') { _openSea(list); return; }
-        _closeSeas();
+        _setCardOpen(depth === 'open' || depth === 'buoy');
+        _setBuoy(depth === 'buoy');      // 카드를 펼친 뒤에 눌러야 한다
     }
 
     /**
@@ -428,10 +487,23 @@
         if (!list) return true;                 // 특보가 아예 없으면 기다릴 것도 없다
         if (list.offsetHeight === 0) return false;
         if (depth === 'sea') return subOpenCount === 0;
+
         var sub = _firstSub(list);
-        if (!sub) return true;                  // 제주처럼 소분류가 없는 해역
-        var subList = sub.querySelector('.sub-region-list');
-        return !!subList && subList.style.display !== 'none' && subList.offsetHeight > 0;
+        if (sub) {
+            var subList = sub.querySelector('.sub-region-list');
+            if (!subList || subList.style.display === 'none' || subList.offsetHeight === 0) return false;
+        }
+
+        // 카드·부이까지 요구하는 단계는 그것들이 실제로 보이는지도 확인한다
+        var card = _firstCard();
+        var det = card && card.querySelector('.alert-details');
+        var cardOpen = !!det && !det.classList.contains('hidden') && det.offsetHeight > 0;
+        if (depth === 'sub') return !det || !cardOpen;   // 아직 접혀 있어야 한다
+        if (!cardOpen) return false;
+        if (depth === 'open') return true;
+
+        var info = card.querySelector('.buoy-info-area');
+        return !!info && info.style.display !== 'none' && info.offsetHeight > 0;
     }
 
     // ========================================================================
@@ -515,6 +587,88 @@
             skip: function () { return !_firstCard(); },
             drill: 'sub',
             target: function () { var c = _firstCard(); return c ? [c] : null; },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '눌러서 펼치면 속이 보입니다',
+            body: '해역을 누르면 그 아래로 자세한 내용이 펼쳐집니다. '
+                + '파도 높이와 바람 세기, 특보가 언제 발표·발효되고 언제 풀리는지가 나옵니다.',
+            skip: function () { return !_firstCard(); },
+            drill: 'open',
+            target: function () { var c = _firstCard(); return c ? [c] : null; },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '파도 높이와 바람 세기',
+            body: '그 해역의 유의파고(파도 높이)와 풍속(바람 세기)입니다. '
+                + '배를 띄울지 말지 판단할 때 가장 먼저 보게 되는 숫자입니다.',
+            skip: function () {
+                var c = _firstCard();
+                return !c || !c.querySelector('.zone-avg-box');
+            },
+            drill: 'open',
+            target: function () {
+                var c = _firstCard();
+                var box = c && (c.querySelector('.zone-avg-row') || c.querySelector('.zone-avg-box'));
+                return box ? [box] : null;
+            },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '언제 발표되고 언제 풀리나',
+            body: '발표시각은 기상청이 알린 때, 발효시각은 실제로 효력이 시작되는 때, '
+                + '해제예정은 풀릴 것으로 보는 때입니다.',
+            skip: function () { return _timeRows().length === 0; },
+            drill: 'open',
+            target: function () { var r = _timeRows(); return r.length ? r : null; },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '연안바다 · 평수구역',
+            body: '같은 해역 안에서도 육지에 가까운 연안바다와 항내 같은 평수구역은 '
+                + '특보가 따로 내려집니다. 여기에 함께 보여줍니다.',
+            skip: function () {
+                var c = _firstCard();
+                return !c || !c.querySelector('.coastal-zones');
+            },
+            drill: 'open',
+            target: function () {
+                var c = _firstCard();
+                var el = c && c.querySelector('.coastal-zones');
+                return el ? [el] : null;
+            },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '관측부이 — 실제로 재고 있는 값',
+            body: '그 해역 근처 바다에 떠 있는 관측부이입니다. 예보가 아니라 '
+                + '지금 실제로 재고 있는 값이라, 예보와 견줘 보면 도움이 됩니다.',
+            skip: function () {
+                var c = _firstCard();
+                return !c || !c.querySelector('.buoy-section');
+            },
+            drill: 'open',
+            target: function () {
+                var c = _firstCard();
+                var el = c && c.querySelector('.buoy-section');
+                return el ? [el] : null;
+            },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '부이를 누르면 지금 값이 나옵니다',
+            body: '부이 이름을 누르면 그 자리에서 파고 · 풍속 · 수온 같은 지금 관측값이 '
+                + '펼쳐집니다. 한 번 더 누르면 닫힙니다.',
+            skip: function () {
+                var c = _firstCard();
+                return !c || !c.querySelector('.buoy-btn');
+            },
+            drill: 'buoy',
+            target: function () {
+                var c = _firstCard();
+                var el = c && c.querySelector('.buoy-section');
+                return el ? [el] : null;
+            },
             want: { forecast: false, alert: true, status: false }
         }
     ];
