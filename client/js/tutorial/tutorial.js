@@ -68,6 +68,8 @@
     var GAP      = 12;   // 구멍과 설명 카드 사이 간격(px)
     var EDGE     = 12;   // 화면 가장자리에서 띄울 여백(px)
     var CARD_MAX = 420;  // 설명 카드 최대 너비(px)
+    var CARD_MIN = 215;  // 설명 카드에 최소한 내주는 높이(px) — 이만큼도 없으면 구멍을 줄인다
+                         //   (버튼 줄 약 52px + 글 두어 줄 + 안쪽 여백)
 
     // 색·글꼴은 앱 기존 화면(index2.html · style.css)에서 그대로 가져온 값
     var C_CARD   = '#1c2338';
@@ -138,19 +140,18 @@
      *   생긴다(실제로 3단계에서 384px 어긋났다). 스크롤이 뒤늦게 멈추는 경우도 같다.
      *   "0.4초 기다리기"로 때우지 않는 이유는 L-306 과 같다 — 느린 기기에서 그대로 깨진다.
      *
-     * @param {Function} getEl - 대상 요소를 돌려주는 함수(중간에 다시 그려질 수 있어 함수로 받는다)
+     * @param {Function} getEls - 대상 요소 배열을 돌려주는 함수(중간에 다시 그려질 수 있어 함수로 받는다)
      * @param {Function} done  - 자리가 멈췄을 때 할 일
      * [연계] _go() 가 구멍·카드를 놓기 직전에 쓴다.
      */
-    function _whenStable(getEl, done) {
+    function _whenStable(getEls, done) {
         var started = Date.now();
         var last = null;
         var same = 0;
         (function tick() {
             if (!_root) return;
-            var el = getEl();
-            var r = el ? el.getBoundingClientRect() : null;
-            var key = r ? [Math.round(r.top), Math.round(r.left), Math.round(r.width), Math.round(r.height)].join(',') : 'none';
+            var r = _unionRect(getEls());
+            var key = r ? [Math.round(r.top), Math.round(r.left), Math.round(r.right), Math.round(r.bottom)].join(',') : 'none';
             same = (key === last) ? same + 1 : 0;
             last = key;
             if (same >= 3 || Date.now() - started > WAIT_CAP_MS) { done(); return; }
@@ -217,19 +218,70 @@
     }
 
     /**
-     * 설명할 대상을 화면 가운데로 끌어온다.
-     * @param {HTMLElement} el - 보이게 할 요소
+     * 단계가 가리키는 요소들을 배열로 돌려준다.
+     *
+     * 무엇을 하나?
+     *   target() 이 요소 하나를 주든 여러 개를 주든 배열로 맞춰 주고, 없는 것은 걸러낸다.
+     *
+     * 왜 여러 개인가?
+     *   아코디언은 "머리줄 + 펼쳐진 내용"을 **함께** 밝게 비춰야 무엇이 열렸는지 보인다
+     *   (사용자 확정 2026-09-22). 둘을 한 덩어리로 묶어 구멍 하나로 뚫는다.
+     *
+     * @param {Object} step - STEPS 의 한 항목
+     * @returns {Array<HTMLElement>} 화면에 있는 대상들 (없으면 빈 배열)
+     * [연계] _paint() · _whenStable() · _scrollIntoView() 가 쓴다.
+     */
+    function _targets(step) {
+        if (!step.target) return [];
+        var t = step.target();
+        if (!t) return [];
+        return (Array.isArray(t) ? t : [t]).filter(function (el) { return !!el; });
+    }
+
+    /**
+     * 여러 요소를 모두 감싸는 사각형을 구한다.
+     *
+     * 예시: [머리줄, 펼쳐진 내용] → 둘을 함께 덮는 하나의 사각형
+     *
+     * @param {Array<HTMLElement>} els - 대상들
+     * @returns {Object|null} {top,left,right,bottom} (화면 좌표) 또는 대상이 없으면 null
+     * [연계] _paint() 가 구멍 크기를 정할 때, _whenStable() 이 멈췄는지 볼 때 쓴다.
+     */
+    function _unionRect(els) {
+        if (!els.length) return null;
+        var top = Infinity, left = Infinity, right = -Infinity, bottom = -Infinity;
+        for (var i = 0; i < els.length; i++) {
+            var r = els[i].getBoundingClientRect();
+            if (r.width === 0 && r.height === 0) continue;   // 아직 안 펼쳐진 것은 뺀다
+            if (r.top < top) top = r.top;
+            if (r.left < left) left = r.left;
+            if (r.right > right) right = r.right;
+            if (r.bottom > bottom) bottom = r.bottom;
+        }
+        if (top === Infinity) return null;
+        return { top: top, left: left, right: right, bottom: bottom };
+    }
+
+    /**
+     * 설명할 대상을 화면 안으로 끌어온다.
+     * @param {Array<HTMLElement>} els - 보이게 할 요소들(첫 번째가 기준)
      * [연계] _go() 가 단계를 그리기 전에 호출. 부드러운 스크롤(smooth)은 위치가
      *        언제 멈출지 알 수 없어 쓰지 않는다(즉시 이동).
      */
-    function _scrollIntoView(el) {
-        if (!el || !el.scrollIntoView) return;
-        try { el.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (e) { el.scrollIntoView(); }
+    function _scrollIntoView(els) {
+        if (!els.length || !els[0].scrollIntoView) return;
+        // 머리줄 + 펼쳐진 내용처럼 덩어리가 화면 절반을 넘으면 가운데 정렬로는 머리줄이
+        // 위로 잘려 나간다. 그럴 때는 맨 앞(머리줄)을 화면 위쪽에 맞춘다.
+        var u = _unionRect(els);
+        var tall = u && (u.bottom - u.top) > window.innerHeight * 0.5;
+        var opt = { block: tall ? 'start' : 'center', behavior: 'auto' };
+        try { els[0].scrollIntoView(opt); } catch (e) { els[0].scrollIntoView(); }
     }
 
     // ========================================================================
     // [단계 목록] — 특보정보 탭 1~3
-    //   target : 밝게 남길 요소 (없으면 화면 전체가 어두워진다)
+    //   target : 밝게 남길 요소. 배열로 여러 개를 주면 전부 감싸는 구멍 하나로 뚫는다
+    //            (없으면 화면 전체가 어두워진다)
     //   want   : 이 단계에서 아코디언 셋이 각각 펼쳐져 있어야 하는지 (true=펼침)
     //            앞/뒤 어느 쪽에서 오든 이 모양으로 맞추므로 [이전] 이 저절로 동작한다
     // ========================================================================
@@ -243,9 +295,13 @@
         },
         {
             title: '기상청 해상 기상 전망',
-            body: '앞으로 바다 날씨가 어떻게 될지 기상청 예보를 정리해 보여줍니다. '
-                + '눌러서 펼치면 종합 예보 · 초단기 전망 · 단기 전망이 차례로 나옵니다.',
-            target: function () { return document.getElementById('marine-forecast-accordion-header'); },
+            body: '앞으로 바다 날씨가 어떻게 될지 기상청 예보를 모아 보여줍니다. '
+                + '펼치면 종합 · 초단기 · 단기 전망이 차례로 나옵니다.',
+            // 머리줄과 펼쳐진 내용을 함께 비춘다(사용자 확정 2026-09-22) — 무엇이 열렸는지 보여야 한다
+            target: function () {
+                return [document.getElementById('marine-forecast-accordion-header'),
+                        document.getElementById('marine-forecast-accordion-body')];
+            },
             want: { forecast: true, alert: false, status: false }
         },
         {
@@ -314,9 +370,15 @@
         // 설명 카드
         var card = document.createElement('div');
         card.id = 'tutorial-card';
+        // [버튼은 늘 보이게] 카드를 세로 flex 로 두고 글 부분만 스크롤시킨다.
+        //   구멍이 커서 카드가 눌려도 [종료]/[이전]/[다음] 이 잘려 나가면 안 된다.
         card.style.cssText = 'position:absolute;box-sizing:border-box;background:' + C_CARD
             + ';border:1px solid ' + C_BORDER + ';border-radius:14px;padding:16px 16px 12px;'
-            + 'box-shadow:0 18px 50px rgba(0,0,0,0.5);overflow:auto;';
+            + 'box-shadow:0 18px 50px rgba(0,0,0,0.5);overflow:hidden;'
+            + 'display:flex;flex-direction:column;';
+
+        var textWrap = document.createElement('div');
+        textWrap.style.cssText = 'flex:1 1 auto;overflow:auto;min-height:0;';
 
         var badge = document.createElement('div');
         badge.id = 'tutorial-step-badge';
@@ -331,13 +393,14 @@
         body.id = 'tutorial-step-body';
         body.style.cssText = 'margin:0;font-size:0.88rem;line-height:1.65;color:' + C_TEXT + ';';
 
-        card.appendChild(badge);
-        card.appendChild(title);
-        card.appendChild(body);
+        textWrap.appendChild(badge);
+        textWrap.appendChild(title);
+        textWrap.appendChild(body);
+        card.appendChild(textWrap);
 
         // 버튼 한 줄: [종료] ......... [이전] [다음]
         var row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:14px;';
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:14px;flex:0 0 auto;';
 
         var quitBtn = _mkBtn('튜토리얼 종료하기', 'quit');
         quitBtn.addEventListener('click', _close);
@@ -419,7 +482,7 @@
     function _paint() {
         if (!_root) return;
         var step = STEPS[_stepIdx];
-        var el = step.target ? step.target() : null;
+        var u = _unionRect(_targets(step));
         var vw = window.innerWidth;
         var vh = window.innerHeight;
 
@@ -432,7 +495,7 @@
         _card.style.width = cardW + 'px';
         _card.style.left = Math.round((vw - cardW) / 2) + 'px';
 
-        if (!el) {
+        if (!u) {
             // 가리킬 것이 없는 단계 — 화면 전체를 어둡게 하고 카드는 아래쪽에 둔다
             _hole.style.display = 'none';
             _root.style.background = C_DIM;
@@ -443,12 +506,21 @@
 
         _root.style.background = 'transparent';
         _hole.style.display = 'block';
-        var r = el.getBoundingClientRect();
         var pad = 6;   // 대상보다 살짝 넉넉하게 뚫어 준다
-        var hx = Math.max(0, r.left - pad);
-        var hy = Math.max(0, r.top - pad);
-        var hw = Math.min(vw - hx, r.width + pad * 2);
-        var hh = Math.min(vh - hy, r.height + pad * 2);
+        var hx = Math.max(0, u.left - pad);
+        var hy = Math.max(0, u.top - pad);
+        var hw = Math.min(vw - hx, (u.right - u.left) + pad * 2);
+        var hh = Math.min(vh - hy, (u.bottom - u.top) + pad * 2);
+
+        // [설명 카드 자리 확보] 머리줄 + 펼쳐진 내용을 함께 비추면 덩어리가 길어져
+        //   카드가 들어갈 자리가 없어질 수 있다. 위아래 어느 쪽에도 CARD_MIN 만큼
+        //   남지 않으면, 구멍의 아래쪽을 그만큼 잘라 카드 자리를 만든다
+        //   (내용의 윗부분은 그대로 밝게 보이므로 "무엇이 열렸는지"는 전달된다).
+        var above = (hy - GAP) - EDGE;
+        if (bottomLimit - (hy + hh + GAP) < CARD_MIN && above < CARD_MIN) {
+            hh = Math.max(40, bottomLimit - CARD_MIN - GAP - hy);
+        }
+
         _hole.style.left   = Math.round(hx) + 'px';
         _hole.style.top    = Math.round(hy) + 'px';
         _hole.style.width  = Math.round(hw) + 'px';
@@ -456,9 +528,8 @@
 
         // 카드 자리: 아래쪽 공간과 위쪽 공간을 재어 넓은 쪽에 붙인다
         var below = bottomLimit - (hy + hh + GAP);
-        var above = (hy - GAP) - EDGE;
         var useBelow = below >= above;
-        _card.style.maxHeight = Math.max(120, Math.round(useBelow ? below : above)) + 'px';
+        _card.style.maxHeight = Math.max(CARD_MIN, Math.round(useBelow ? below : above)) + 'px';
         var ch = _card.offsetHeight;
         _card.style.top = Math.round(useBelow ? (hy + hh + GAP)
                                               : Math.max(EDGE, hy - GAP - ch)) + 'px';
@@ -513,14 +584,12 @@
         _setAccordion(ACC_STATUS, step.want.status);
 
         var ready = function () {
-            var el = step.target ? step.target() : null;
-            return _settled(step.want)
-                && (!step.target || (!!el && el.getBoundingClientRect().height > 0));
+            return _settled(step.want) && (!step.target || !!_unionRect(_targets(step)));
         };
         _when(ready, function () {
-            if (step.target) _scrollIntoView(step.target());
+            _scrollIntoView(_targets(step));
             // 아코디언 여닫는 애니메이션(0.4초)과 스크롤이 멈춘 뒤에 자리를 잡는다
-            _whenStable(function () { return step.target ? step.target() : null; }, _paint);
+            _whenStable(function () { return _targets(step); }, _paint);
         });
     }
 
