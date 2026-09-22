@@ -68,5 +68,33 @@ ok('■ 꼴 삭제 별표', A.hasBylBody('삭제\n\n■ 도선법 시행규칙 [
 ok('★맨몸 괄호 꼴 삭제 서식', A.hasBylBody('삭제 &lt;2014.12.29.&gt;\n\n[별지 제11호서식] 삭제  \n') === false);
 ok('본문이 있으면 true', A.hasBylBody('제목\n\n■ 항만법 시행령 [별표 6]\n┏━━┓\n│표│\n') === true);
 
+console.log('── ⑥ 고시 안 별표 블록 머리줄 (extractAttachments · 2-7b) ──');
+// DOC_TAIL_RE 뒤부터 블록을 센다 — 고시 본문이 먼저 오고 그 뒤에 별표가 이어붙는 꼴을 흉내낸다.
+const NOTICE = [
+  '제1조(목적) 이 고시는 …',
+  '부칙',
+  '이 고시는 2026-01-01부터 시행한다.',
+  '',
+  '[별지 제8호서식]',
+  '정비점검 기록부',
+  '',
+  '[별지 제8호의2서식]',
+  '정비점검 기록부(2)',
+  '',
+  '<별표 3>',
+  '화살괄호로 적힌 별표',
+  '',
+  '【별지 제1호의 1 서식】',
+  '사이에 공백이 낀 꼴',
+].join('\n');
+const atts = A.extractAttachments(NOTICE);
+const keys = atts.map(a => a.key);
+ok('★`제8호의2서식` 을 서식8 과 따로 잡는다', keys.includes('서식8') && keys.includes('서식8의2'),
+  '잡힌 것: ' + keys.join(' · '));
+ok('★서식8 본문에 서식8의2 가 딸려 들어가지 않는다',
+  !(atts.find(a => a.key === '서식8') || {}).body.includes('정비점검 기록부(2)'));
+ok('★화살괄호 <별표 3> 도 머리줄로 본다 (L-299)', keys.includes('별표3'));
+ok('`제1호의 1 서식` 처럼 공백이 껴도 읽는다', keys.includes('서식1의1'), '잡힌 것: ' + keys.join(' · '));
+
 console.log(`\n  ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
