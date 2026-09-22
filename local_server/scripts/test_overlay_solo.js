@@ -44,7 +44,25 @@
 const BASE = process.env.SIM_URL || 'http://localhost:3001';
 const DELAY = Number(process.env.DELAY || 2500);   // 자료 응답을 늦추는 시간
 const GAP = Number(process.env.GAP || 400);        // A 누르고 B 누르기까지
-const SETTLE = Number(process.env.SETTLE || 14000); // 늦춘 응답까지 다 도착하기를 기다리는 시간
+// ★고정 대기가 아니라 **모양이 멎을 때까지**의 상한이다 (2026-09-22, 2-22).
+//   [무엇이 문제였나] 종전에는 이만큼 그냥 기다리고 찍었다. 러너가 바쁘면 그 안에 자료가
+//     못 와서 `레이어=[]` 로 찍혔다 — **버튼·화면은 맞는데 레이어만 빈** 실패다.
+//     ★**같은 코드**로 CI 실패가 1→2→5 건으로 흔들렸고(run #70·#72·#74·#76 — #76 은 문서만
+//     바뀐 커밋이다) 실패하는 쌍도 매번 달라졌다. 제품이 아니라 **재는 방식**이 문제였다.
+//   [★반대 방향 구멍이 더 심각했다] A 의 자료가 이 시간 **뒤에** 도착해 스스로 그려지면
+//     고정 대기는 **그걸 못 본다** — 이 스위트가 2026-09-10 사용자 보고를 받고 막으려던
+//     바로 그 버그다. 거짓 실패뿐 아니라 **거짓 통과**도 만들고 있었다.
+//   [고침] 모양이 `STABLE_FOR` 만큼 안 바뀌면 그때 찍는다. 늦게 도착한 것도 반드시 잡힌다.
+//     자료가 빨리 오는 로컬에서는 오히려 **더 빨리** 끝난다.
+//   ⚠★**바닥을 종전 값(14초)으로 둔다.** 처음엔 안 뒀다가 구멍을 만들 뻔했다 —
+//     자료가 빨리 오면 5초쯤에 "멎었다"고 보고 찍는데, **A 의 자료가 그 뒤 10초에 도착해
+//     스스로 그려지면 못 본다.** 그건 종전 14초가 잡던 것이라 **더 약해지는 것**이다.
+//     그래서 "종전만큼은 반드시 기다리고, 그 뒤로는 멎을 때까지 더 기다린다"로 한다.
+//     빨라지지는 않지만 **절대 약해지지 않는다** — 이 스위트는 실제 사용자 보고를 막는 자다.
+const SETTLE_MIN = Number(process.env.SETTLE || 14000);      // 종전 고정 대기 = 바닥
+const SETTLE_MAX = Number(process.env.SETTLE_MAX || 45000);  // 멎기를 기다리는 상한
+const STABLE_FOR = Number(process.env.STABLE_FOR || 2000);   // 이만큼 안 바뀌면 멎은 것으로 본다
+const STEP = 500;                                            // 다시 보는 간격
 const FULL = process.argv.indexOf('--full') >= 0;
 
 const BTNS = [
@@ -128,8 +146,20 @@ async function run(browser, ids) {
             await p.click('#' + ids[i]);
             if (i < ids.length - 1) await p.waitForTimeout(GAP);
         }
-        await p.waitForTimeout(SETTLE);
-        return await p.evaluate(SNAP);
+        // ★모양이 멎을 때까지 기다린다(위 SETTLE 주석 참고). 상한에 걸리면 그때 것을 쓴다 —
+        //   그 경우도 **감추지 않는다**: 안 멎은 채 찍혔다는 뜻이라 실패로 드러나는 편이 낫다.
+        //   최소 한 번은 늦춘 응답이 도착할 시간을 준 뒤에 재기 시작한다.
+        await p.waitForTimeout(SETTLE_MIN);          // ★바닥 — 종전과 똑같이 기다린 뒤에야 재기 시작
+        let last = JSON.stringify(await p.evaluate(SNAP));
+        let stable = 0;
+        const deadline = Date.now() + (SETTLE_MAX - SETTLE_MIN);
+        while (Date.now() < deadline) {
+            await p.waitForTimeout(STEP);
+            const cur = JSON.stringify(await p.evaluate(SNAP));
+            if (cur === last) { stable += STEP; if (stable >= STABLE_FOR) break; }
+            else { stable = 0; last = cur; }
+        }
+        return JSON.parse(last);
     } finally { await ctx.close(); }
 }
 

@@ -248,6 +248,16 @@ function resolveChromium() {
             const r = await fetch(URL_BASE + q);
             const b = await r.text();
             if (r.status === 404 && isDataAbsent(b)) { missingData.add(q); notAbsentWhy.delete(q); continue; }
+            // ★재요청이 **404 가 아니면 그 주소는 살아 있다**(2026-09-22, G-46).
+            //   「신규 404」가 잡으려는 것은 **주소가 사라진 것**이다. 다시 불러 200 이 오면
+            //   사라지지 않았고, 아까 404 였던 것은 **그때 아직 자료가 준비 안 됐던 것**이다.
+            //   CI run #76 이 실제로 그랬다 — `/api/buoys` 가 주행 초반엔 404, 곧이어 200.
+            //   ⚠그래도 **감추지 않는다**: ⏭️ 목록에 이유와 함께 남는다(G-34).
+            if (r.status >= 200 && r.status < 400) {
+                missingData.add(q);
+                notAbsentWhy.set(q, `주행 중엔 404 였는데 곧바로 다시 부르니 ${r.status} — 주소는 살아 있다(그때 자료가 아직 준비 안 됨)`);
+                continue;
+            }
             const head = String(b == null ? '' : b).replace(/\s+/g, ' ').slice(0, 120);
             notAbsentWhy.set(q, `브라우저에서 못 읽어 Node 가 다시 받았다 → ${r.status} · ${JSON.stringify(head)}`);
         } catch (e) {
@@ -314,7 +324,8 @@ function resolveChromium() {
     }
     if (envMiss.length) {
         console.log(`  ⏭️  자료 파일이 없어 나는 404 ${envMiss.length}건 — 회귀로 세지 않는다(이 환경에 그 JSON 이 없다)`);
-        envMiss.forEach((e) => console.log('    - ' + e));
+        // 봐준 것도 **왜 봐줬는지** 적는다 — 봐주는 쪽이야말로 근거가 있어야 한다(G-34·G-40).
+        envMiss.forEach((e) => console.log('    - ' + e + (notAbsentWhy.get(e) ? '\n        ↳ ' + notAbsentWhy.get(e) : '')));
     }
     if (real404.length) {
         fail = true; console.error('  ❌ 신규 404:');
