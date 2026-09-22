@@ -1309,7 +1309,11 @@
         //   스킵돼서 "처음 클릭은 줌/깜빡임 안 됨, 두번째부터 됨" 증상 발생.
         //   100ms × 최대 20회(=2초) 폴링으로 map 이 준비되면 즉시 animate.
         var attempt = 0;
-        var MAX_ATTEMPT = 50;   // 100ms × 50 = 최대 5초 (최초 로드 지도 빌드 커버)
+        // 100ms × 600 = 최대 60초. 예전엔 5초였는데 느린 회선에서 지도 빌드가
+        //   그 안에 안 끝나면 "탭은 넘어갔는데 그 해역으로 안 가는" 증상이 났다
+        //   (해구기상 격자 미표출과 같은 원인, 재현 확인 2026-09-22).
+        //   지도가 끝내 안 만들어지는 경우에만 멈추도록 한도를 넉넉히 둔다.
+        var MAX_ATTEMPT = 600;
         function tryAnimate() {
             var map = window.getOceanMap && window.getOceanMap();
             if (map && typeof map.getView === 'function') {
