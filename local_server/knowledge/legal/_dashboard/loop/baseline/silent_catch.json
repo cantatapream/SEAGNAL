@@ -1,0 +1,24 @@
+{
+  "잰날": "2026-09-22",
+  "설명": "2-6b — 「조용히 삼키는 catch」 기준선. bare 는 늘면 안 된다(test_silent_catch 가 막는다).",
+  "범위별": {
+    "server": {
+      "all": 668,
+      "silent": 389,
+      "empty": 106,
+      "bare": 16
+    },
+    "client": {
+      "all": 543,
+      "silent": 506,
+      "empty": 262,
+      "bare": 137
+    },
+    "product": {
+      "all": 1211,
+      "silent": 895,
+      "empty": 368,
+      "bare": 153
+    }
+  }
+}

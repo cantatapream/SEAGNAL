@@ -157,3 +157,137 @@ function countCitationRows(opt) {
 }
 
 module.exports = { SCOPES, WIKI, stripFrontmatter, wikiFiles, writtenRows, countCitationRows };
+
+// ============================================================================
+// 2-6b ── 「조용히 삼키는 catch」의 뜻과 범위 (2026-09-22)
+// ----------------------------------------------------------------------------
+// 독립 4벌이 같은 저장소를 보고 **61 / 55 / 133 / 39** 로 갈렸다(G-2). 「근거 조문 행」과
+// 똑같은 병이다 — **뜻과 범위를 안 정했다.** 그래서 여기서도 이름을 나눠 붙인다.
+//
+//   ┌ 뜻 ─────────────────────────────────────────────────────────────┐
+//   │ bare    몸통도 주석도 **아무것도 없는** catch — 왜 삼키는지 아무  │
+//   │         설명이 없다. **가장 나쁜 것.**                            │
+//   │ empty   몸통에 문장이 하나도 없는 catch(주석만 있는 것 포함).      │
+//   │         이 저장소는 `catch (_) { /* 까닭 */ }` 를 **일부러** 쓴다. │
+//   │ silent  로그도 안 남기고 다시 던지지도 않는 catch. `empty` 를 품는다.│
+//   │ all     catch 전부(분모).                                         │
+//   └──────────────────────────────────────────────────────────────────┘
+//   ┌ 범위 ───────────────────────────────────────────────────────────┐
+//   │ server   local_server/routes · services · server.js              │
+//   │ client   client/js                                               │
+//   │ product  server + client (사용자에게 닿는 코드) ← 기본값          │
+//   └──────────────────────────────────────────────────────────────────┘
+//
+// ⚠**검사 도구·시험은 안 센다.** 도구가 오류를 삼키는 것과 사용자 앞 코드가 삼키는 것은
+//   무게가 다르다. 세고 싶으면 범위를 새로 만들어 이름을 붙인다.
+// ⚠`acorn` 은 이 저장소의 **전이 의존**이다(package.json 에 없다). 없으면 **조용히 0 을
+//   돌려주지 않고** `available:false` 로 알린다 — 0 은 "없다"가 아니라 "못 셌다"이다(G-34).
+//
+// [연계] → scripts/test_silent_catch.js(정의 고정 + 기준선) · 00_WORKLIST G-14 · 2-6b.
+// ============================================================================
+
+const CATCH_SCOPES = {
+  server: ['local_server/routes', 'local_server/services', 'local_server/server.js'],
+  client: ['client/js'],
+  product: ['local_server/routes', 'local_server/services', 'local_server/server.js', 'client/js'],
+};
+const REPO = path.resolve(__dirname, '../../../../..');
+/** 로그·보고로 치는 호출. 넓게 잡는다 — 좁게 잡으면 "조용하다"가 부풀려진다. */
+const CATCH_LOG_RE = /console|logger|\blog\b|report|captureException|warn|error|stderr|notify|metric|track/i;
+
+/** acorn 을 쓸 수 있나. 전이 의존이라 없을 수 있다. */
+function catchParserAvailable() {
+  try { require('acorn'); require('acorn-walk'); return true; } catch (_) { return false; }
+}
+
+function _jsFiles(rels) {
+  const out = [];
+  for (const r of rels) {
+    const p = path.join(REPO, r);
+    if (!fs.existsSync(p)) continue;
+    if (fs.statSync(p).isFile()) { out.push(p); continue; }
+    (function w(d) {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const fp = path.join(d, e.name);
+        if (e.isDirectory()) { if (e.name !== 'node_modules') w(fp); }
+        else if (e.name.endsWith('.js')) out.push(fp);
+      }
+    })(p);
+  }
+  return out.sort();
+}
+
+/**
+ * 한 파일의 catch 를 뜻별로 센다.
+ * @param {string} src - 자바스크립트 원문
+ * @returns {{all:number, silent:number, empty:number, bare:number}|null} 못 읽으면 null
+ */
+function catchStats(src) {
+  let acorn, walk;
+  try { acorn = require('acorn'); walk = require('acorn-walk'); } catch (_) { return null; }
+  let ast = null;
+  for (const sourceType of ['script', 'module']) {
+    try { ast = acorn.parse(src, { ecmaVersion: 'latest', sourceType, allowReturnOutsideFunction: true }); break; }
+    catch (_) { /* 다음 꼴로 다시 */ }
+  }
+  if (!ast) return null;
+  const r = { all: 0, silent: 0, empty: 0, bare: 0 };
+  walk.simple(ast, {
+    CatchClause(node) {
+      r.all++;
+      const body = node.body.body;
+      const text = src.slice(node.body.start, node.body.end);
+      if (body.length === 0) {
+        r.empty++; r.silent++;
+        if (!/\/\/|\/\*/.test(text)) r.bare++;    // 주석조차 없다 = 왜 삼키는지 아무 설명이 없다
+        return;
+      }
+      let logs = false, rethrows = false;
+      walk.simple({ type: 'Program', body, start: node.start, end: node.end }, {
+        CallExpression(c) { if (CATCH_LOG_RE.test(src.slice(c.callee.start, c.callee.end))) logs = true; },
+        ThrowStatement() { rethrows = true; },
+      });
+      if (!logs && !rethrows) r.silent++;
+    },
+  });
+  return r;
+}
+
+/**
+ * 「조용히 삼키는 catch」를 **뜻과 범위를 밝혀** 센다.
+ * @param {Object} [opt]
+ * @param {'bare'|'empty'|'silent'|'all'} [opt.sense='bare']
+ * @param {'server'|'client'|'product'} [opt.scope='product']
+ * @returns {{available:boolean, sense:string, scope:string, files:number, unparsed:number,
+ *            counts:{all:number,silent:number,empty:number,bare:number}, rows:number, label:string}}
+ */
+function countSilentCatches(opt) {
+  const o = opt || {};
+  const sense = o.sense || 'bare';
+  const scope = o.scope || 'product';
+  if (!['bare', 'empty', 'silent', 'all'].includes(sense)) throw new Error(`알 수 없는 뜻: ${sense}`);
+  if (!Object.prototype.hasOwnProperty.call(CATCH_SCOPES, scope)) throw new Error(`알 수 없는 범위: ${scope}`);
+  if (!catchParserAvailable()) {
+    return { available: false, sense, scope, files: 0, unparsed: 0,
+      counts: { all: 0, silent: 0, empty: 0, bare: 0 }, rows: 0,
+      label: 'catch 를 못 셌다 — acorn 이 없다(전이 의존). **0 이 아니라 「못 셌다」이다.**' };
+  }
+  const files = _jsFiles(CATCH_SCOPES[scope]);
+  const counts = { all: 0, silent: 0, empty: 0, bare: 0 };
+  let unparsed = 0;
+  for (const f of files) {
+    const r = catchStats(fs.readFileSync(f, 'utf8'));
+    if (!r) { unparsed++; continue; }
+    for (const k of Object.keys(counts)) counts[k] += r[k];
+  }
+  const SENSE_LABEL = { bare: '몸통도 주석도 없는 catch', empty: '문장이 없는 catch(주석만 포함)',
+    silent: '로그도 없고 다시 던지지도 않는 catch', all: 'catch 전부' };
+  return { available: true, sense, scope, files: files.length, unparsed, counts, rows: counts[sense],
+    label: `catch ${counts[sense]} (뜻: ${SENSE_LABEL[sense]} · 범위: ${scope} · 파일 ${files.length}${unparsed ? ` · 못 읽은 파일 ${unparsed}` : ''})` };
+}
+
+module.exports.CATCH_SCOPES = CATCH_SCOPES;
+module.exports.CATCH_LOG_RE = CATCH_LOG_RE;
+module.exports.catchParserAvailable = catchParserAvailable;
+module.exports.catchStats = catchStats;
+module.exports.countSilentCatches = countSilentCatches;

@@ -270,6 +270,36 @@ updated: 2026-07-14
 [연계] → `_dashboard/loop/_counting.js`(정의의 유일한 자리) ·
 `local_server/scripts/test_counting_dict.js`(게이트) · `_LESSONS.md` L-315 · 00_WORKLIST 2-6.
 
+### 「조용히 삼키는 catch」도 같은 방식이다 (2026-09-22, 2-6b)
+
+독립 4벌이 **61 / 55 / 133 / 39** 로 갈렸다. 뜻 4 × 범위 3 을 재 보니 **열두 칸이 전부 다른 수**였다.
+
+| 뜻 | 무엇 |
+|---|---|
+| `bare` | 몸통도 **주석도** 없는 catch — 왜 삼키는지 설명이 없다. **가장 나쁜 것** |
+| `empty` | 문장이 없는 catch(주석만 있는 것 포함). 이 저장소는 `catch (_) { /* 까닭 */ }` 를 **일부러** 쓴다 |
+| `silent` | 로그도 없고 다시 던지지도 않는 catch. `empty` 를 품는다 |
+| `all` | catch 전부(분모) |
+
+| 범위 | 무엇 |
+|---|---|
+| `server` | `local_server/routes`·`services`·`server.js` |
+| `client` | `client/js` |
+| `product` | server + client (**사용자에게 닿는 코드**) — 기본값 |
+
+| 범위 | all | silent | empty | bare |
+|---|---:|---:|---:|---:|
+| server | 668 | 389 | 106 | **16** |
+| client | 543 | 506 | 262 | **137** |
+| product | 1,211 | 895 | 368 | **153** |
+
+⚠**검사 도구·시험(`scripts/`·`_dashboard/loop/`)은 안 센다** — 도구가 삼키는 것과 사용자 앞
+코드가 삼키는 것은 무게가 다르다. 세고 싶으면 **범위를 새로 만들어 이름을 붙인다.**
+⚠`acorn` 은 **전이 의존**이라 없을 수 있다. 그때는 **0 이 아니라 「못 셌다」**로 알린다(G-34).
+
+`bare` 는 `baseline/silent_catch.json` 에 잠겨 있고 `test_silent_catch` 가 **늘면 실패**시킨다.
+(줄이는 것은 막지 않는다 — 줄었으면 기준선을 다시 만들어 그 자리에서 다시 잠근다.)
+
 ## 1. 입력 — raw 문서의 frontmatter (API 응답을 그대로 옮김)
 
 ```yaml
