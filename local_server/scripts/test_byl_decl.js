@@ -96,5 +96,39 @@ ok('★서식8 본문에 서식8의2 가 딸려 들어가지 않는다',
 ok('★화살괄호 <별표 3> 도 머리줄로 본다 (L-299)', keys.includes('별표3'));
 ok('`제1호의 1 서식` 처럼 공백이 껴도 읽는다', keys.includes('서식1의1'), '잡힌 것: ' + keys.join(' · '));
 
+console.log('── ⑦ 별표 파일 번호 판독 (parseBylFile · 2-8 · P-6) ──');
+// ★첫 줄이 「번호」가 아니라 「안내 메모」인 파일이 있다. 첫 줄만 믿으면 두 방향으로 틀린다.
+const MOVED = [
+  '[별표 11의2]로 이동 <2014.11.20.>',
+  '',
+  '■ 국가기술자격법 시행규칙 [별표 3] [별표 11의2]로 이동',
+].join('\n');
+const mv = A.parseBylFile(MOVED);
+ok('★「[별표 11의2]로 이동」 을 번호로 읽지 않는다',
+  mv.entries.length === 1 && mv.entries[0].key === '별표3',
+  '읽은 것: ' + mv.entries.map(e => e.key).join('·'));
+ok('★그 파일은 **원문을 가진 척하지 않는다**(본문이 선언줄뿐이면 빈 본문)',
+  (mv.entries[0] || {}).body === '', '본문 길이: ' + ((mv.entries[0] || {}).body || '').length);
+
+const BRANCH = [
+  '[행정규칙] 중앙연안관리심의회 운영규정 — 별지 제1호의2서식',
+  '',
+  '■ 중앙연안관리심의회 운영규정 [별지 제1호의2서식]',
+  '┏━━┓',
+  '│표│',
+].join('\n');
+ok('★`제1호의2서식`(호 뒤 가지번호)을 `서식1` 로 뭉개지 않는다',
+  A.parseBylFile(BRANCH).entries.some(e => e.key === '서식1의2'),
+  '읽은 것: ' + A.parseBylFile(BRANCH).entries.map(e => e.key).join('·'));
+
+const MULTI = [
+  '[○○고시] 별표1·2·3 — 묶음',
+  '',
+  '표 내용이 길게 이어진다. 이 줄은 40자를 넘기기 위한 것이다. 계속 이어진다.',
+].join('\n');
+const mu = A.parseBylFile(MULTI).entries.map(e => e.key);
+ok('첫 줄이 여러 번호를 담으면 그대로 다 남긴다(선언줄이 없을 때)',
+  mu.includes('별표1') && mu.includes('별표2') && mu.includes('별표3'), '읽은 것: ' + mu.join('·'));
+
 console.log(`\n  ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

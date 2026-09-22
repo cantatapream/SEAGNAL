@@ -1219,23 +1219,49 @@ function parseBylFile(text) {
   if (entries.length) return { owner, entries };
 
   // 형식 ② — 첫 줄에서 번호를 읽는다. `별표1·2·3`처럼 한 파일이 여러 번호를 담기도 한다.
+  // ⚠번호부에 `호` **뒤**의 가지번호를 더했다(2026-09-22, 2-8) — 서식은 `제1호의2서식` 처럼
+  //   `의M` 이 호 뒤에 온다. 종전 `(\d+(?:의\d+)?)\s*호?` 는 호 **앞**만 알아서
+  //   `별지 제1호의2서식` 을 `서식1` 로 읽었다(실측 그 꼴의 어긋남 다수).
   const head = lines[0] || '';
-  const numRe = /(별표|별지|서식)\s*제?\s*(\d+(?:의\d+)?)((?:\s*[·ㆍ,]\s*\d+)*)/g;
+  const numRe = /(별표|별지|서식)\s*제?\s*(\d+(?:의\d+)?)\s*호?\s*(?:\s*의\s*(\d+))?((?:\s*[·ㆍ,]\s*\d+)*)/g;
   const keys = [];
   let hm;
   while ((hm = numRe.exec(head))) {
     const kind = hm[1] === '별표' ? '별표' : '서식';
-    keys.push(kind + hm[2]);
-    for (const extra of (hm[3] || '').split(/[·ㆍ,]/)) {
+    keys.push(kind + hm[2] + (hm[3] ? '의' + hm[3] : ''));
+    for (const extra of (hm[4] || '').split(/[·ㆍ,]/)) {
       if (/^\s*\d+\s*$/.test(extra)) keys.push(kind + extra.trim());
     }
+  }
+
+  // ── ★첫 줄보다 **파일 안 선언줄**을 믿는다 (2026-09-22 신설, 2-8 · P-6) ──────────
+  // [무엇이 문제였나] 종전에는 **첫 줄만** 보고 번호를 정했다. 그런데 첫 줄이 번호가 아니라
+  //   **안내 메모**인 파일이 있다:
+  //     `별표3.txt` 첫 줄 → `[별표 11의2]로 이동 <2014.11.20.>`
+  //     그 아래 선언줄   → `■ 국가기술자격법 시행규칙 [별표 3] [별표 11의2]로 이동`
+  //   그러면 이 파일이 **`별표11의2` 로 등록된다** — 두 방향 모두 사고다.
+  //     ① `별표3` 을 물으면 그 파일이 안 걸린다(있는데 못 연다)
+  //     ② `별표11의2` 를 물으면 **"옮겨 갔다"는 안내뿐인 파일이 그 번호의 원문인 척한다**
+  //        (환각 0 위반 — 우리가 가진 적 없는 표를 가진 것처럼 보여준다)
+  // [무엇을] 파일 안의 선언줄(`■ … [별표 3]` 또는 맨몸 `[별표 3]`)이 있으면 그것을 믿는다.
+  //   ⚠첫 줄이 여러 번호를 담는 파일(`별표1·2·3`)은 그대로 둔다 — 선언줄 번호가 그 목록에
+  //     들어 있으면 첫 줄 쪽이 더 많은 정보를 담고 있다는 뜻이므로 건드리지 않는다.
+  const decl = parseBylDecl(bylDeclLine(text));
+  if (decl) {
+    const declKey = decl.type + decl.num;
+    if (!keys.includes(declKey)) keys.length = 0, keys.push(declKey);
   }
   if (!keys.length) return { owner, entries };
   const hwp = absUrl((/별표서식파일링크\s*:\s*(\S+)/.exec(text) || [])[1]);
   const pdf = absUrl((/별표서식PDF파일링크\s*:\s*(\S+)/.exec(text) || [])[1]);
   // 메타 줄(출처·고시명·소관·비고·링크)을 걷어낸 나머지가 실제 표다.
+  // ⚠선언줄(`■ … [별표 3]`)도 걷어낸다(2026-09-22, 2-8). 안 그러면 **내용이 "옮겨 갔다"는
+  //   한 줄뿐인 파일**의 body 가 그 선언줄 길이만큼 차서, resolveRefs ⑤ 의 `body.length > 40`
+  //   문턱을 넘어 **원문을 가진 것처럼** 등록된다. 우리가 가진 적 없는 표를 가진 척하면 안 된다.
+  const declLine = bylDeclLine(text);
   const body = lines.slice(1)
     .filter(l => !/^\s*(출처|고시명|소관|비고|전화|별표서식(PDF)?파일링크)\s*:/.test(l))
+    .filter(l => l.trim() !== declLine)
     .join('\n').trim();
   const title = head.replace(/^\[[^\]]*\]\s*/, '').trim() || head.trim();
   for (const key of keys) entries.push({ key, title, body, hwp, pdf });
