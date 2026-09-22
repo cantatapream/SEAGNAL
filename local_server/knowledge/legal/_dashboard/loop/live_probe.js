@@ -53,15 +53,18 @@ const QFILE = path.join(HERE, 'pinned', 'golden_questions.json');
 const OUT = path.join(HERE, '..', 'live_probe_2026-09-22.json');
 
 // P-1·P-2 로 확정한 오기가 든 쪽 — 실제로 근거로 뽑히는지 본다(L-6).
+// ⚠쪽 식별자는 `p.file` 이고 **폴더 접두사가 없다**(`수산업협동조합법__합병_…`).
+//   처음에 `concepts/…`·`annexes/…` 를 붙여 두었다가 12개 겨냥 질문에서 전부 "없음"이라는
+//   허수를 냈다. 실제로는 수협법 쪽이 **1위**로 들어와 있었다. 접두사를 뺀다.
 const SUSPECT = [
-  'annexes/선박안전법__행정규칙_위험물선박운송기준_별표21_냉동컨테이너의냉동능력등',
-  'concepts/수산업협동조합법__합병_분할_해산_청산',
-  'concepts/선박안전법__형식승인및검정',
-  'concepts/선박안전법__특수선박구조기준',
-  'concepts/마리나항만의조성및관리등에관한법률__마리나업등록',
+  '선박안전법__행정규칙_위험물선박운송기준_별표21_냉동컨테이너의냉동능력등',
+  '수산업협동조합법__합병_분할_해산_청산',
+  '선박안전법__형식승인및검정',
+  '선박안전법__특수선박구조기준',
+  '마리나항만의조성및관리등에관한법률__마리나업등록',
 ];
 
-const slugOf = (p) => String(p.slug || p.id || p.file || '').replace(/\.md$/, '');
+const slugOf = (p) => String(p.file || p.slug || p.id || '').replace(/\.md$/, '');
 
 (async () => {
   const limit = Number(process.argv[2] || 0);
