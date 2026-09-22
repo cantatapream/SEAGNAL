@@ -290,7 +290,28 @@
     // 그래서 "무조건 소분류를 연다" 로 만들면 제주가 맨 위일 때 멈춘다.
     // → 있으면 열고, 없으면 건너뛴다.
 
-    var SEA_LISTS = ['east-sea-list', 'west-sea-list', 'south-sea-list', 'jeju-sea-list'];
+    // 특보현황과 기상현황은 뼈대가 똑같다(대분류 → 소분류 → 구역 카드). id 앞머리와
+    //   카드 class 만 다르다. 그래서 같은 함수에 갈래(kind)만 넘겨 쓴다.
+    var SCOPES = {
+        alert:  {
+            lists: ['east-sea-list', 'west-sea-list', 'south-sea-list', 'jeju-sea-list'],
+            body: 'main-accordion-body',
+            card: '.alert-card'
+        },
+        status: {
+            lists: ['status-east-sea-list', 'status-west-sea-list',
+                    'status-south-sea-list', 'status-jeju-sea-list'],
+            body: 'marine-status-accordion-body',
+            card: '.weather-status-card'
+        }
+    };
+
+    /**
+     * 갈래 이름으로 그 갈래의 id·class 묶음을 준다.
+     * @param {string} [kind] - 'alert'(특보현황) | 'status'(기상현황). 없으면 alert
+     * @returns {Object} SCOPES 의 한 묶음
+     */
+    function _scope(kind) { return SCOPES[kind] || SCOPES.alert; }
 
     /**
      * 특보가 실제로 들어 있는 첫 번째 대분류 해역(동해→서해→남해→제주 순)을 찾는다.
@@ -298,9 +319,10 @@
      * @returns {HTMLElement|null} 그 해역의 목록 요소(#east-sea-list 등). 아무 데도 없으면 null
      * [연계] 파고들기 단계들이 "어디로 들어갈지" 정할 때 쓴다.
      */
-    function _firstSeaWithAlerts() {
-        for (var i = 0; i < SEA_LISTS.length; i++) {
-            var list = document.getElementById(SEA_LISTS[i]);
+    function _firstSeaWithAlerts(kind) {
+        var lists = _scope(kind).lists;
+        for (var i = 0; i < lists.length; i++) {
+            var list = document.getElementById(lists[i]);
             if (list && list.children.length > 0) return list;
         }
         return null;
@@ -349,11 +371,11 @@
      * 지금 화면에서 안내할 구역 카드(첫 번째)를 찾는다.
      * @returns {HTMLElement|null} .alert-card — 해역을 아직 안 펼쳤으면 null
      */
-    function _firstCard() {
-        var list = _firstSeaWithAlerts();
+    function _firstCard(kind) {
+        var list = _firstSeaWithAlerts(kind);
         if (!list) return null;
         var sub = _firstSub(list);
-        return (sub || list).querySelector('.alert-card');
+        return (sub || list).querySelector(_scope(kind).card);
     }
 
     /**
@@ -463,8 +485,8 @@
      * 펼쳐져 있는 소분류를 모두 접는다.
      * [연계] _drill() 이 앞 단계로 되돌아갈 때 쓴다. 머리글 클릭으로 접어야 화살표까지 맞는다.
      */
-    function _closeSubs() {
-        var lists = document.querySelectorAll('#main-accordion-body .sub-region-list');
+    function _closeSubs(kind) {
+        var lists = document.querySelectorAll('#' + _scope(kind).body + ' .sub-region-list');
         for (var i = 0; i < lists.length; i++) {
             if (lists[i].style.display !== 'none') {
                 var header = lists[i].previousElementSibling;
@@ -477,8 +499,8 @@
      * 펼쳐져 있는 대분류 해역을 모두 접는다.
      * [연계] toggleSection 은 배타적이라 열린 것 하나에 대고 부르면 전부 닫힌다(render_coastal.js).
      */
-    function _closeSeas() {
-        var open = document.querySelector('#main-accordion-body .sea-section.open');
+    function _closeSeas(kind) {
+        var open = document.querySelector('#' + _scope(kind).body + ' .sea-section.open');
         if (!open) return;
         var list = open.querySelector('.alert-list');
         if (list && typeof window.toggleSection === 'function') window.toggleSection(list.id);
@@ -495,7 +517,16 @@
      * @param {string} [depth] - 'sea'(해역까지) | 'sub'·'card'(소분류까지) | 없으면 전부 접음
      * [연계] _go() 가 매 단계 부른다. 여러 번 불러도 결과가 같다(멱등).
      */
-    function _drill(depth) {
+    function _drill(spec) {
+        // 'status:sub' 처럼 갈래를 앞에 붙여 쓴다. 갈래를 안 쓰면 특보현황(alert).
+        var kind = 'alert';
+        var depth = spec;
+        if (spec && spec.indexOf(':') > 0) {
+            var parts = spec.split(':');
+            kind = parts[0];
+            depth = parts[1];
+        }
+
         // [탭 먼저] 해구기상 단계 말고는 특보정보 탭에 있어야 한다. 다른 탭에 있으면
         //   카드·아코디언의 높이가 0 이라 자리를 재는 것부터 어긋난다.
         if (depth !== 'zonemap') {
@@ -505,7 +536,7 @@
                 window.switchMainTab('weather-alert-section');
             }
         }
-        var list = _firstSeaWithAlerts();
+        var list = _firstSeaWithAlerts(kind);
         var deep = (depth === 'sub' || depth === 'open' || depth === 'buoy'
                     || depth === 'forecast' || depth === 'windy' || depth === 'zonemap');
         if (deep) {
@@ -515,11 +546,13 @@
             _setForecast(false);         // 떠 있는 팝업부터 닫고
             _setWindy(false);
             _setCardOpen(false);         // 카드를 접고
-            _closeSubs();                // 소분류를 접고(보이는 동안 접어야 한다)
+            _closeSubs(kind);            // 소분류를 접고(보이는 동안 접어야 한다)
             if (depth === 'sea') { _openSea(list); }
-            else { _closeSeas(); }
+            else { _closeSeas(kind); }
             return;
         }
+        // 기상현황 카드는 처음부터 펼쳐져 있어 접었다 펴는 동작이 없다(실측 확인).
+        if (kind !== 'alert') return;
         _setCardOpen(true);              // 이 아래 단계들은 모두 카드가 펼쳐져 있어야 한다
         _setBuoy(depth === 'buoy');      // 카드를 펼친 뒤에 눌러야 한다
         _setForecast(depth === 'forecast');
@@ -543,7 +576,15 @@
      * @param {string} depth - 'sea' | 'sub' | 'card'
      * @returns {boolean} 그 깊이까지 실제로 펼쳐졌으면 true
      */
-    function _drillSettled(depth) {
+    function _drillSettled(spec) {
+        var kind = 'alert';
+        var depth = spec;
+        if (spec && spec.indexOf(':') > 0) {
+            var pp = spec.split(':');
+            kind = pp[0];
+            depth = pp[1];
+        }
+
         // [해구기상 단계] 화면이 통째로 해양종합정보 탭으로 넘어가 있으므로, 특보정보 쪽
         //   (아코디언·카드) 높이는 0 이다. 그걸 같이 보면 영영 준비됐다고 못 한다
         //   (실측: [이전] 로 이 단계에 돌아오면 구멍이 앞 단계 자리에 그대로 남았다).
@@ -560,16 +601,17 @@
         var wSec = document.getElementById('weather-alert-section');
         if (!wSec || wSec.getBoundingClientRect().height === 0) return false;
 
-        var openSub = document.querySelectorAll('#main-accordion-body .sub-region-list');
+        var body = _scope(kind).body;
+        var openSub = document.querySelectorAll('#' + body + ' .sub-region-list');
         var subOpenCount = 0;
         for (var i = 0; i < openSub.length; i++) {
             if (openSub[i].style.display !== 'none' && openSub[i].offsetHeight > 0) subOpenCount++;
         }
-        var openSea = document.querySelector('#main-accordion-body .sea-section.open');
+        var openSea = document.querySelector('#' + body + ' .sea-section.open');
 
         if (!depth) return !openSea && subOpenCount === 0;   // 전부 접혀야 한다
 
-        var list = _firstSeaWithAlerts();
+        var list = _firstSeaWithAlerts(kind);
         if (!list) return true;                 // 특보가 아예 없으면 기다릴 것도 없다
         if (list.offsetHeight === 0) return false;
         if (depth === 'sea') return subOpenCount === 0;
@@ -579,6 +621,8 @@
             var subList = sub.querySelector('.sub-region-list');
             if (!subList || subList.style.display === 'none' || subList.offsetHeight === 0) return false;
         }
+
+        if (kind !== 'alert') return true;   // 기상현황은 카드가 늘 펼쳐져 있다
 
         // 카드·부이까지 요구하는 단계는 그것들이 실제로 보이는지도 확인한다
         var card = _firstCard();
@@ -798,6 +842,41 @@
                 return el ? [el] : null;
             },
             want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '특보가 없어도 볼 수 있습니다',
+            body: '특보가 내려지지 않은 해역도 지금 바다가 어떤지는 알아야 합니다. '
+                + '그래서 바로 아래에 「해역별 기상현황」을 따로 두었습니다.',
+            drill: 'status:',
+            target: function () {
+                return [document.getElementById('marine-status-accordion-header'),
+                        document.getElementById('marine-status-accordion-body')];
+            },
+            want: { forecast: false, alert: false, status: true }
+        },
+        {
+            title: '여기도 똑같이 나뉩니다',
+            body: '동해 · 서해 · 남해 · 제주, 그 안의 묶음까지 특보현황과 같은 차례로 들어갑니다. '
+                + '다른 점은 특보가 있든 없든 모든 해역이 다 들어 있다는 것입니다.',
+            skip: function () {
+                var l = _firstSeaWithAlerts('status');
+                return !l || !_firstSub(l);
+            },
+            drill: 'status:sub',
+            target: function () {
+                var l = _firstSeaWithAlerts('status');
+                return l ? [_firstSub(l)] : null;
+            },
+            want: { forecast: false, alert: false, status: true }
+        },
+        {
+            title: '해역마다 지금 바다 상태가 나옵니다',
+            body: '파도 높이와 바람 세기, 관측부이, 그리고 기상예보 · 해구기상 · 윈디 버튼까지 '
+                + '특보현황에서 본 것과 똑같이 쓸 수 있습니다.',
+            skip: function () { return !_firstCard('status'); },
+            drill: 'status:sub',
+            target: function () { var c = _firstCard('status'); return c ? [c] : null; },
+            want: { forecast: false, alert: false, status: true }
         }
     ];
 
@@ -1163,8 +1242,10 @@
         _setWindy(false);
         _setBuoy(false);
         _setCardOpen(false);
-        _closeSubs();
-        _closeSeas();
+        _closeSubs('alert');
+        _closeSeas('alert');
+        _closeSubs('status');
+        _closeSeas('status');
         // 해구기상 단계가 켠 지도 레이어도 원래대로
         if (typeof window.setMarineZoneGridVisible === 'function') {
             window.setMarineZoneGridVisible(_snapshot.grid);
