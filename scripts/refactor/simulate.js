@@ -87,6 +87,12 @@ function resolveChromium() {
     //   ★그래서 **본문을 읽어 갈래를 나눈다.** 다른 이유의 404 는 종전대로 회귀로 잡는다 —
     //     넓게 봐주면 진짜 404 회귀까지 같이 묻힌다.
     const missingData = new Set();
+    // ⚠본문 읽기는 **비동기**다. 판정 전에 반드시 기다려야 한다 (2026-09-22, G-38).
+    //   처음에는 `.then()` 으로 담아 두고 판정은 그냥 읽었다 — 그랬더니 CI 에서
+    //   404 네 건 중 **세 건만 갈리고 한 건이 남았다**(run #55). 코드가 틀린 게 아니라
+    //   **아직 안 끝난 것**을 다 끝난 셈 치고 읽은 것이다. 경쟁 상태는 "가끔 맞는" 버그라
+    //   더 고약하다 — 세 번은 맞고 한 번은 틀린다.
+    const bodyReads = [];
     /**
      * 그 404 가 **「길이 없다」인가 「자료가 없다」인가**.
      * ⚠말 목록으로 가르지 않는다 — 처음에는 `not found` 문구로 갈랐는데, 같은 뜻을 한국어로
@@ -110,9 +116,9 @@ function resolveChromium() {
         if (res.status() !== 404 || !res.url().startsWith(URL_BASE)) return;
         const p = res.url().replace(URL_BASE, '');
         failed404.push(p);
-        res.text()
+        bodyReads.push(res.text()
             .then((b) => { if (isDataAbsent(b)) missingData.add(p); })
-            .catch(() => { /* 본문을 못 읽으면 갈래를 못 나눈다 — 종전대로 회귀로 본다 */ });
+            .catch(() => { /* 본문을 못 읽으면 갈래를 못 나눈다 — 종전대로 회귀로 본다 */ }));
     });
 
     console.log(`[simulate] 접속: ${URL_BASE}/`);
@@ -182,6 +188,13 @@ function resolveChromium() {
     //   화면상의 이름은 2026-09-10 부터 "해양안전생활" 이다.
     await clickTab('ocean-life-group', '메인탭 재진입:해양생활');
     for (const t of LIFE_SUBTABS) await clickTab(t, `서브탭:${t}`);
+
+    // ★판정 전에 404 본문 읽기를 **다 기다린다**(G-38). 5초를 넘기면 그냥 간다 —
+    //   못 읽은 것은 갈래를 못 나눈 것이니 종전대로 회귀로 잡힌다(안전한 쪽).
+    await Promise.race([
+        Promise.all(bodyReads),
+        new Promise((r) => setTimeout(r, 5000)),
+    ]);
 
     await browser.close();
 
