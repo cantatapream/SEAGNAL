@@ -151,6 +151,25 @@ function loadIndex() {
 
 // ── glossary 캐시(mtime 감지): 구어 → [[개념링크]] 매핑표 파싱 ──
 let _glosCache = null, _glosMtime = 0;
+/**
+ * 괄호 **밖**의 쉼표로만 쪼갠다. glossary 구어 칸에 `(… , …)` 꼴 주석이 들어 있어
+ * 단순 split 으로는 낱말이 갈린다(2026-09-22 실측 4건).
+ * 예: `A, B (가, 나)` → ['A', 'B (가, 나)']
+ * @param {string} s
+ * @returns {string[]}
+ */
+function splitOutsideParens(s) {
+  const out = []; let buf = ''; let depth = 0;
+  for (const ch of String(s || '')) {
+    if (ch === '(' || ch === '（') depth++;
+    else if (ch === ')' || ch === '）') depth = Math.max(0, depth - 1);
+    if ((ch === ',' || ch === '，') && depth === 0) { out.push(buf); buf = ''; continue; }
+    buf += ch;
+  }
+  out.push(buf);
+  return out;
+}
+
 function loadGlossary() {
   try {
     const mt = fs.statSync(GLOSSARY_MD).mtimeMs;
@@ -169,10 +188,29 @@ function loadGlossary() {
       if (!t.startsWith('|')) continue;
       const c = tableCells(t);
       if (c.length < 2 || isSepRow(c) || c[0] === '구어·별칭') continue;
-      const terms = c[0].split(/[,，]/).map(s => s.trim()).filter(Boolean);
+      // ── 구어 칸 쪼개기 (2026-09-22, 3-18) ───────────────────────────────
+      // ⚠괄호 **안**의 쉼표로 쪼개면 안 된다. 실측: `이동식 해양구조물 (동의어 — 법
+      //   제3조①1호다목="해상", 같은 대상)` 이 두 조각으로 갈려 `같은 대상)` 이라는
+      //   **쓸모없는 구어**가 생기고 본래 낱말은 짝이 안 맞게 된다(4건).
+      const terms = splitOutsideParens(c[0]).map(s => s.trim()).filter(Boolean);
+      // ── 편집자 괄호 주석은 **입으로 말하지 않는다** ─────────────────────
+      // `해사안전법(기본법·교통안전법 구분)` 의 괄호는 사서가 단 메모지 사용자가
+      //   치는 말이 아니다. 그런데 `glossaryExpand` 는 질문에 그 괄호까지 똑같이
+      //   들어 있어야 걸린다 → 27개가 사실상 죽어 있었다(「뱃삯(도선)」·「방파제
+      //   낚시(항만)」·「갯바위낚시(연안)」…). **괄호를 뗀 꼴을 함께 등록**한다.
+      //   원래 꼴도 남겨 둔다 — 그렇게 쓰던 질의가 있으면 그대로 걸린다.
+      for (const t0 of [...terms]) {
+        const bare = t0.replace(/\s*[(（][^)）]*[)）]\s*$/, '').trim();
+        if (bare && bare !== t0 && bare.length >= 2 && !terms.includes(bare)) terms.push(bare);
+      }
       const slugs = [];
       const linkRe = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
-      let lm; while ((lm = linkRe.exec(c[1])) !== null) slugs.push(lm[1].trim());
+      // ⚠표 안에서는 링크의 파이프를 `\|` 로 **이스케이프**해 적는다(마크다운 표 규칙).
+      //   `[^\]|]+` 는 그 역슬래시를 슬러그의 일부로 가져가 `statutes/해사안전기본법\` 이
+      //   된다 → 어떤 쪽과도 안 맞는다. 실제로 「해사안전법」 행 하나가 통째로 죽어 있었다
+      //   (2024년에 기본법·해상교통안전법으로 쪼개진, 사용자가 옛 이름으로 가장 많이 물을 법).
+      //   꼬리 역슬래시를 떼어 낸다.
+      let lm; while ((lm = linkRe.exec(c[1])) !== null) slugs.push(lm[1].trim().replace(/\\+$/, ''));
       if (terms.length && slugs.length) rows.push({ terms, slugs });
     }
     _glosCache = rows; _glosMtime = mt;
@@ -182,11 +220,17 @@ function loadGlossary() {
 
 /** 질문에 포함된 glossary 구어를 찾아 추가 검색어 + 강제후보 slug를 반환(띄어쓰기 무시 비교). */
 function glossaryExpand(query) {
-  const qFlat = query.replace(/\s+/g, '');
+  // ── 비교 전 정규화 (2026-09-22, 3-18) ───────────────────────────────────
+  // 종전에는 **공백만** 씻었다. 그래서 `관심·주의보·경보` 는 사용자가 가운뎃점까지
+  //   똑같이 찍어야만 걸렸다 — "관심 주의보 경보" 라고 띄어 쓰면 안 걸린다.
+  //   `_SCHEMA §0-E 규칙 3` 이 정한 정규화(가운뎃점 이형 통일)를 여기에도 쓴다.
+  //   **양쪽에 똑같이** 적용하므로 비교가 느슨해지지 않는다.
+  const flat = s => String(s || '').replace(/\s+/g, '').replace(/[·ㆍ・･‧∙⋅•․]/g, '');
+  const qFlat = flat(query);
   const extraTerms = []; const forcedSlugs = [];
   for (const row of loadGlossary()) {
     for (const t of row.terms) {
-      if (t && qFlat.includes(t.replace(/\s+/g, ''))) {
+      if (t && qFlat.includes(flat(t))) {
         forcedSlugs.push(...row.slugs);
         for (const s of row.slugs) extraTerms.push(...s.split(/[_·]/).filter(w => w.length >= 2));
         break;
