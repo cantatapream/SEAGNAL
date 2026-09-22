@@ -148,6 +148,10 @@
     var _subFillLayer = null;   // 자식구역 색칠 layer (zIndex 41, 천기 아래)
     var _subSource = null;      // 자식구역 feature source (두 layer 공유)
     var _visible = false;
+    // [예약] 지도 빌드 전에 외부(해구기상·종합정보 버튼)에서 들어온 "켜라/꺼라"
+    //   요청을 담아 두는 자리. _bindToggle 이 묶이는 순간 그대로 적용한다.
+    var _pendingVisible = null;   // null = 예약 없음
+    var _toggleBound = false;     // _bindToggle 완료 여부
 
     var _loaded = false;
     var _loading = false;
@@ -532,6 +536,16 @@
             if (_visible) { _loadMain(); _loadSub(); }
             try { localStorage.setItem('seagnal_warn_zone_visible', String(_visible)); } catch (e) {}
         });
+
+        // [예약 반영] 지도 빌드 전에 들어온 외부 요청을 여기서 처리한다.
+        //   해구기상·종합정보 버튼은 탭을 옮기기 전에 먼저 켜라고 시키므로
+        //   이 함수보다 먼저 호출된다. 시간 제한 폴링으로는 느린 회선에서 유실됨.
+        _toggleBound = true;
+        if (_pendingVisible !== null) {
+            var want = _pendingVisible;
+            _pendingVisible = null;
+            if (_visible !== want) btn.click();
+        }
     }
 
     /** oceanMap 이 만들어질 때까지 시간 제한 없이 폴링 */
@@ -582,21 +596,20 @@
      * @param {boolean} visible - 원하는 가시 상태 (true=ON, false=OFF)
      * @returns {boolean} 토글 버튼이 존재해 처리 가능했으면 true
      */
-    window.setWarnZoneVisible = function (visible, _attempt) {
+    window.setWarnZoneVisible = function (visible) {
         var btn = document.getElementById('ocean-warn-zone-toggle-btn');
         if (!btn) return false;
-        var isActive = btn.classList.contains('active');
-        if (isActive !== !!visible) {
+        // [최초 로드 대응] 지도 빌드 전이면 토글 핸들러가 아직 안 묶여(=_bindToggle
+        //   은 지도 준비 후 실행) click 이 무시된다. 예전엔 0.15초 × 40회(=6초)
+        //   폴링으로 때웠는데 느린 회선에서 6초를 넘기면 요청이 버려졌다
+        //   (해구기상 격자와 같은 원인, 재현 확인 2026-09-22).
+        //   → 시간 제한을 없애고 예약해 뒀다가 토글이 묶이는 순간 반영한다.
+        if (!_toggleBound) {
+            _pendingVisible = !!visible;
+            return true;
+        }
+        if (btn.classList.contains('active') !== !!visible) {
             btn.click();
-            // [최초 로드 대응] 지도 빌드 전이면 토글 핸들러가 아직 안 묶여(=_bindToggle
-            //   은 지도 준비 후 실행) click 이 무시돼 .active 가 안 바뀐다. 그러면
-            //   특보구역 lazy fetch 도 안 돼 flashWarnZone 이 깜빡일 feature 를 못 찾는다.
-            //   → 실제 적용될 때까지 폴링 재시도(지도/핸들러 준비되면 즉시 반영).
-            if (btn.classList.contains('active') !== !!visible && (_attempt || 0) < 40) {
-                setTimeout(function () {
-                    window.setWarnZoneVisible(visible, (_attempt || 0) + 1);
-                }, 150);
-            }
         }
         return true;
     };

@@ -7,7 +7,8 @@
  *  - 사용하는 파일 : js/ocean-map/map/ocean_map.js(window.getOceanMap),
  *                    OpenLayers(ol) 벤더, PopupStack(js/core/backbutton.js)
  *  - 서버 API      : GET /api/typhoon, /api/typhoon/list, /api/typhoon/bulletins,
- *                    /api/typhoon/bulletin, /api/typhoon/image, /api/ocean/zone-forecasts
+ *                    /api/typhoon/bulletin, /api/typhoon/image, /api/ocean/zone-forecasts,
+ *                    /api/typhoon/foreign (해외 기관 — 출처 드롭다운에서 고를 때)
  *  - 마크업        : index2.html #ocean-typhoon-toggle-btn, #ocean-typhoon-panel,
  *                    #tphn-* (스크러버·통보문·이미지·가이드 모달 등)
  *  - 나를 쓰는 곳  : window.OceanTyphoon 소비 — ocean_map.js,
@@ -71,6 +72,19 @@
     var _demoActive = false;   // demoFocus(테스트/시연)로 표출 중인지 — OFF 시 기본 전도(전도 중앙) 복귀 게이트
 
     var _activeData = null;    // /api/typhoon 응답(현재연도 활성 태풍 + 통보문 인라인)
+
+    // ── 자료 출처 ────────────────────────────────────────────────────────────
+    // 기관마다 태풍을 다르게 본다. 기본은 한국(기상청)이고, 사용자가 드롭다운으로 바꾼다.
+    // 'kma'   : 기존 경로(/api/typhoon…) — 통보문 회차·중심기압·70%확률반경까지 다 있음
+    // 'jtwc'  : /api/typhoon/foreign?src=jtwc — 서버가 우리 프레임 형식으로 바꿔 준다.
+    //           중심기압·70%확률반경이 없고, 반경은 네 방향 값을 옮긴 근사다(라우트 주석 참조).
+    var SOURCES = {
+        kma:  { label: '한국(기상청)', note: '자료: 기상청 방재기상플랫폼 통보문 · 10분마다 수집' },
+        jtwc: { label: '미국(JTWC)',
+                note: '자료: JTWC(미국 합동태풍경보센터) · Xweather 제공 · 6시간마다 갱신 · 풍속은 1분 평균(기상청은 10분 평균)' }
+    };
+    var _src = 'kma';          // 지금 보고 있는 출처
+    var _foreignData = null;   // 해외 출처 응답 캐시
     var _year = null;          // 선택 연도
     var _typhoonList = [];     // 선택 연도의 태풍 목록 [{seq,name}]
     var _selSeq = null;        // 선택 태풍 seq
@@ -1109,6 +1123,105 @@
             if (code0) selectBulletin(year, code0); else clearTrack();
         }).catch(function (e) { console.warn('[OceanTyphoon] loadTyphoon 실패:', e.message); });
     }
+    // ── 해외 출처(JTWC 등) ────────────────────────────────────────────────────
+    /**
+     * 출처를 바꾼다 — 드롭다운에서 고르거나, 처음 켤 때 호출된다.
+     * 예: setSource('jtwc') → JTWC 자료로 지도·드롭다운을 새로 채운다.
+     * @param {string} src - 'kma' | 'jtwc'
+     * [연계] ← 출처 드롭다운(#tphn-source) change · installControls (같은 파일)
+     *          → loadForeign / loadYear (같은 파일)
+     */
+    function setSource(src) {
+        if (!SOURCES[src]) src = 'kma';
+        _src = src;
+        pause();
+        clearTrack();
+        // 기상청에만 있는 조작은 해외 출처에서 잠근다(연도 이동·70%확률반경).
+        var ySel = document.getElementById('tphn-year');
+        if (ySel) ySel.disabled = (src !== 'kma');
+        var probChk = document.getElementById('tphn-ly-prob');
+        if (probChk) {
+            probChk.disabled = (src !== 'kma');
+            var lab = probChk.parentNode;
+            if (lab) lab.style.opacity = (src !== 'kma') ? 0.45 : '';
+            if (lab) lab.title = (src !== 'kma') ? '이 기관은 70% 확률반경을 제공하지 않습니다' : '';
+        }
+        renderSourceNote();
+        if (src === 'kma') { loadYear(_year, null, null); return; }
+        loadForeign(src);
+    }
+
+    /**
+     * 해외 기관 자료를 받아 드롭다운·지도를 채운다.
+     * 서버(routes/typhoon_foreign.js)가 기상청과 같은 프레임 형식으로 바꿔 주므로
+     * 그리는 코드(renderBulletin)는 그대로 쓴다.
+     * @param {string} src - 'jtwc'
+     * [연계] ← setSource (같은 파일) → GET /api/typhoon/foreign
+     */
+    function loadForeign(src) {
+        return fetchJSON('/api/typhoon/foreign?src=' + encodeURIComponent(src)).then(function (j) {
+            if (!j || !j.success) {
+                var why = (j && j.reason === 'no_key') ? '아직 연결되지 않았습니다'
+                        : (j && j.reason === 'upstream') ? '자료를 받지 못했습니다'
+                        : '이 출처는 아직 준비 중입니다';
+                _foreignData = null;
+                _typhoonList = []; _bulletinList = [];
+                populateNames(); populateBulletins();
+                clearTrack();
+                renderSourceNote(why);
+                return;
+            }
+            _foreignData = j;
+            _typhoonList = (j.typhoons || []).map(function (t) {
+                return { seq: t.seq, name: t.name, ended: false };
+            });
+            populateNames();
+            if (!_typhoonList.length) {
+                _bulletinList = []; populateBulletins(); clearTrack();
+                renderSourceNote('지금 활동 중인 태풍이 없습니다');
+                return;
+            }
+            renderSourceNote();
+            selectForeignTyphoon(_typhoonList[0].seq);
+        }).catch(function (e) {
+            console.warn('[OceanTyphoon] loadForeign 실패:', e.message);
+            renderSourceNote('자료를 받지 못했습니다');
+        });
+    }
+
+    /** 해외 출처에서 태풍 하나를 골라 통보(자문) 드롭다운과 지도를 채운다. */
+    function selectForeignTyphoon(seq) {
+        var t = foreignTyphoon(seq);
+        if (!t) { clearTrack(); return; }
+        _selSeq = seq;
+        setSelValue('tphn-name', seq);
+        _bulletinList = (t.bulletins || []).map(function (b) {
+            return { code: b.code, label: b.label, isLatest: b.isLatest };
+        });
+        populateBulletins();
+        var b0 = (t.bulletins || [])[0];
+        if (!b0) { clearTrack(); return; }
+        _selCode = b0.code;
+        setSelValue('tphn-bulletin', b0.code);
+        renderBulletin(b0);
+    }
+
+    /** 해외 응답 캐시에서 태풍 하나 찾기. 없으면 null. */
+    function foreignTyphoon(seq) {
+        if (!_foreignData) return null;
+        return (_foreignData.typhoons || []).find(function (t) { return t.seq === seq; }) || null;
+    }
+
+    /** 해외 출처에서 통보(자문) 하나를 골라 그린다. */
+    function selectForeignBulletin(code) {
+        var t = foreignTyphoon(_selSeq);
+        if (!t) return;
+        var b = (t.bulletins || []).find(function (x) { return x.code === code; });
+        if (!b) return;
+        _selCode = code;
+        renderBulletin(b);
+    }
+
     function pickCode(preferCode) {
         if (preferCode && _bulletinList.some(function (b) { return b.code === preferCode; })) return preferCode;
         return _bulletinList[0] && _bulletinList[0].code;
@@ -1171,6 +1284,27 @@
             html += '<span class="tphn-leg-item"><i style="background:' + rgba(gradeColor(g), 1) + '">' + (g >= 1 ? g : '') + '</i>' + GRADE_NAMES[g] + '</span>';
         });
         el.innerHTML = html;
+        renderSourceNote();
+    }
+
+    /**
+     * 범례 아래에 "이 화면이 어느 기관 자료인가"를 한 줄로 적는다.
+     * 예: 미국(JTWC) 선택 → "자료: JTWC … 풍속은 1분 평균(기상청은 10분 평균)"
+     * [왜] 기관마다 풍속 기준·제공 항목이 달라, 출처를 안 적으면 숫자가 서로 틀린 것처럼 보인다.
+     * [연계] ← renderLegend / setSource (같은 파일)
+     */
+    function renderSourceNote(extra) {
+        var el = document.getElementById('tphn-source-note');
+        if (!el) {
+            var leg = document.getElementById('tphn-legend');
+            if (!leg || !leg.parentNode) return;
+            el = document.createElement('div');
+            el.id = 'tphn-source-note';
+            el.className = 'tphn-source-note';
+            leg.parentNode.insertBefore(el, leg.nextSibling);
+        }
+        var base = (SOURCES[_src] || SOURCES.kma).note;
+        el.textContent = extra ? (base + ' — ' + extra) : base;
     }
 
     // ── 표시/숨김 ────────────────────────────────────────────────────────────
@@ -1222,7 +1356,8 @@
             //   확장해서 두 번째 표출부터 일부 목록만 남았다. 매 표출마다 확장한다
             //   (서버 5분 캐시로 가볍고, 현재 선택은 preferSeq/preferCode 로 유지).
             //   demoFocus 경로는 직접 loadYear 를 부르므로 1회 억제(_suppressAutoYear).
-            if (_suppressAutoYear) { _suppressAutoYear = false; }
+            if (_src !== 'kma') { loadForeign(_src); }
+            else if (_suppressAutoYear) { _suppressAutoYear = false; }
             else { loadYear(_year, _selSeq, _selCode); }
         } else {
             pause();
@@ -1386,11 +1521,30 @@
             });
         }
         var ySel = document.getElementById('tphn-year');
-        if (ySel) ySel.addEventListener('change', function () { loadYear(parseInt(this.value, 10)); });
+        if (ySel) ySel.addEventListener('change', function () {
+            if (_src !== 'kma') return;              // 해외 출처는 연도 이동이 없다(활성 태풍만 제공)
+            loadYear(parseInt(this.value, 10));
+        });
+        // 관리자 모드 기기인가 — 아래 출처 드롭다운과 디버그 줄이 함께 쓴다.
+        var isAdmin = false;
+        try { isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { }
+
+        // [출처 전환] 관리자 모드 기기에서만 노출. 일반 사용자에게는 기상청 자료만 보인다.
+        //   숨겨도 _src 는 'kma' 그대로라 화면 동작은 지금까지와 똑같다.
+        //   [연계] 위 디버그 줄(tphn-dbg-row)과 같은 방식 — localStorage seagnal_admin_mode
+        var srcSel = document.getElementById('tphn-source');
+        if (srcSel && !isAdmin) srcSel.style.display = 'none';
+        if (srcSel) srcSel.addEventListener('change', function () { setSource(this.value); });
         var nSel = document.getElementById('tphn-name');
-        if (nSel) nSel.addEventListener('change', function () { loadTyphoon(_year, this.value); });
+        if (nSel) nSel.addEventListener('change', function () {
+            if (_src !== 'kma') { selectForeignTyphoon(this.value); return; }
+            loadTyphoon(_year, this.value);
+        });
         var bSel = document.getElementById('tphn-bulletin');
-        if (bSel) bSel.addEventListener('change', function () { selectBulletin(_year, this.value); });
+        if (bSel) bSel.addEventListener('change', function () {
+            if (_src !== 'kma') { selectForeignBulletin(this.value); return; }
+            selectBulletin(_year, this.value);
+        });
         var playBtn = document.getElementById('tphn-play');
         if (playBtn) playBtn.addEventListener('click', function () {
             if (!_playing && window.trackUsage) window.trackUsage('ocean.typhoon');  // [사용량] 태풍 기능 내 동작은 모두 '태풍' 하나로 집계
@@ -1446,8 +1600,6 @@
 
         // [디버그] 해역표출 강제 토글 — 관리자 모드 기기에서만 노출(시그널 통합관리자 센터에서 체크).
         var dbgRow = document.getElementById('tphn-dbg-row');
-        var isAdmin = false;
-        try { isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { }
         if (dbgRow && !isAdmin) dbgRow.style.display = 'none';
         var dbgChk = document.getElementById('tphn-dbg-korea');
         if (dbgChk) dbgChk.addEventListener('change', function () {

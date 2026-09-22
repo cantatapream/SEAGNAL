@@ -40,6 +40,11 @@
     let marineZoneGridLayer    = null;  // 대해구 outline (항상 표시)
     let marineZoneSubGridLayer = null;  // 소해구 (대해구 3×3 분할, 확대 시만)
     let marineZoneLabelLayer   = null;  // 대해구 번호 라벨
+    // [예약] 지도 빌드 전에 외부(해구기상 버튼 등)에서 들어온 "켜라/꺼라" 요청을
+    //   담아 두는 자리. bindMarineZoneGridToggle 이 묶이는 순간 그대로 적용한다.
+    //   null = 예약 없음.
+    let pendingMarineZoneVisible = null;
+    let marineZoneToggleBound    = false;  // bindMarineZoneGridToggle 완료 여부
 
     // 2-step 클릭으로 선택된 feature 추적 (메인/서브 별도). seaZones.js 의
     //   selectedZoneKey / selectedSmallZoneKey 와 동일 역할.
@@ -552,6 +557,17 @@
                 try { window._tideFieldDeactivate(); } catch (e) {}
             }
         });
+
+        // ── ⑤ 지도 빌드 전에 들어온 예약 요청 반영 ──────────────────
+        // 해구기상 버튼처럼 "탭 이동 전에 먼저 켜라고 시키는" 경로는 이 함수가
+        // 묶이기 전에 호출된다. 그 요청을 여기서 처리해야 지도 빌드가 아무리
+        // 오래 걸려도 반드시 반영된다. (시간 제한 폴링으로는 느린 회선에서 유실)
+        marineZoneToggleBound = true;
+        if (pendingMarineZoneVisible !== null) {
+            const want = pendingMarineZoneVisible;
+            pendingMarineZoneVisible = null;
+            if (visible !== want) btn.click();   // 토스트/스토리지까지 같이 동기화
+        }
     }
 
     /**
@@ -580,19 +596,20 @@
      * @param {boolean} visible - 원하는 가시 상태 (true=ON, false=OFF)
      * @returns {boolean} 토글 버튼이 존재해 처리 가능했으면 true
      */
-    window.setMarineZoneGridVisible = function (visible, _attempt) {
+    window.setMarineZoneGridVisible = function (visible) {
         const btn = document.getElementById('ocean-marine-zone-toggle-btn');
         if (!btn) return false;
-        const isActive = btn.classList.contains('active');
-        if (isActive !== !!visible) {
+        // [최초 로드 대응] 지도 빌드 전이면 토글 핸들러가 아직 안 묶여 click 이
+        //   무시된다(.active 가 안 바뀐다). 예전엔 0.15초 × 40회(=6초) 폴링으로
+        //   때웠는데, 느린 회선에서 지도 빌드가 6초를 넘기면 요청이 통째로 버려져
+        //   "해구기상 버튼을 눌렀는데 격자가 안 켜짐" 이 됐다(재현 확인 2026-09-22).
+        //   → 시간 제한을 없애고, 예약해 뒀다가 토글이 묶이는 순간 반영한다.
+        if (!marineZoneToggleBound) {
+            pendingMarineZoneVisible = !!visible;
+            return true;
+        }
+        if (btn.classList.contains('active') !== !!visible) {
             btn.click();   // 토글 핸들러 + 토스트가 같이 발화 → 상태 일관성 보장
-            // [최초 로드 대응] 지도 빌드 전이면 토글 핸들러가 아직 안 묶여 click 이
-            //   무시될 수 있다(.active 가 안 바뀜). 실제 적용될 때까지 폴링 재시도.
-            if (btn.classList.contains('active') !== !!visible && (_attempt || 0) < 40) {
-                setTimeout(function () {
-                    window.setMarineZoneGridVisible(visible, (_attempt || 0) + 1);
-                }, 150);
-            }
         }
         return true;
     };
