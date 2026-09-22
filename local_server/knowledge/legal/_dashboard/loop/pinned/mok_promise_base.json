@@ -1,8 +1,8 @@
 {
  "files": 8,
  "spots": 14,
- "ho_files": 4,
- "ho_spots": 12,
+ "ho_files": 3,
+ "ho_spots": 6,
  "examples": [
   {
    "file": "raw/15_관련타부처/수산업협동조합법/시행규칙.txt",
@@ -46,10 +46,6 @@
   }
  ],
  "ho_examples": [
-  {
-   "file": "raw/15_관련타부처/장애인복지법/법률_발췌.txt",
-   "missing": 6
-  },
   {
    "file": "raw/15_관련타부처/농수산물유통및가격안정에관한법률/법률_연결조문.txt",
    "missing": 3
