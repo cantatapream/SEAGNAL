@@ -93,6 +93,14 @@ function resolveChromium() {
     //   **아직 안 끝난 것**을 다 끝난 셈 치고 읽은 것이다. 경쟁 상태는 "가끔 맞는" 버그라
     //   더 고약하다 — 세 번은 맞고 한 번은 틀린다.
     const bodyReads = [];
+    // ★갈래를 **못** 나눴으면 그 까닭을 남긴다 (2026-09-22, G-40).
+    //   run #64 에서 404 다섯 건 중 셋만 「자료 부재」로 갈리고 `/api/buoys`·
+    //   `/api/marine-zone-forecasts` 둘은 ❌ 로 남았다. 두 라우트 모두 코드상으로는
+    //   `{"error":"데이터 준비 중"}` 을 돌려주는데도 그랬다 — 즉 **본문을 못 읽었거나
+    //   다른 것이 왔다**. 그런데 그때 게이트가 찍은 것은 주소뿐이라 **어느 쪽인지 알 길이
+    //   없었다.** 판정을 내리는 자리가 그 판정의 근거를 함께 적지 않으면, 읽는 사람은
+    //   넘겨짚는 수밖에 없다(G-28·G-32·G-39 와 같은 마디).
+    const notAbsentWhy = new Map();
     /**
      * 그 404 가 **「길이 없다」인가 「자료가 없다」인가**.
      * ⚠말 목록으로 가르지 않는다 — 처음에는 `not found` 문구로 갈랐는데, 같은 뜻을 한국어로
@@ -117,8 +125,13 @@ function resolveChromium() {
         const p = res.url().replace(URL_BASE, '');
         failed404.push(p);
         bodyReads.push(res.text()
-            .then((b) => { if (isDataAbsent(b)) missingData.add(p); })
-            .catch(() => { /* 본문을 못 읽으면 갈래를 못 나눈다 — 종전대로 회귀로 본다 */ }));
+            .then((b) => {
+                if (isDataAbsent(b)) { missingData.add(p); return; }
+                const head = String(b == null ? '' : b).replace(/\s+/g, ' ').slice(0, 120);
+                notAbsentWhy.set(p, `본문이 {error|message} 꼴이 아니다 (${String(b || '').length}바이트): ${JSON.stringify(head)}`);
+            })
+            // 본문을 못 읽으면 갈래를 못 나눈다 — 종전대로 회귀로 본다. 다만 **왜 못 읽었는지는 남긴다.**
+            .catch((e) => { notAbsentWhy.set(p, '본문을 못 읽었다: ' + ((e && e.message) || String(e))); }));
     });
 
     console.log(`[simulate] 접속: ${URL_BASE}/`);
@@ -259,7 +272,12 @@ function resolveChromium() {
         console.log(`  ⏭️  자료 파일이 없어 나는 404 ${envMiss.length}건 — 회귀로 세지 않는다(이 환경에 그 JSON 이 없다)`);
         envMiss.forEach((e) => console.log('    - ' + e));
     }
-    if (real404.length) { fail = true; console.error('  ❌ 신규 404:'); real404.slice(0, 20).forEach((e) => console.error('    - ' + e)); }
+    if (real404.length) {
+        fail = true; console.error('  ❌ 신규 404:');
+        // ⚠주소만 찍지 않는다 — **왜 「자료 부재」로 안 갈렸는지**를 나란히 적는다(G-40).
+        real404.slice(0, 20).forEach((e) => console.error(
+            '    - ' + e + '\n        ↳ ' + (notAbsentWhy.get(e) || '본문 읽기가 제한시간(5초) 안에 안 끝났다')));
+    }
     if (lostGlobals.length) { fail = true; console.error('  ❌ 사라진 전역 함수:'); lostGlobals.slice(0, 20).forEach((e) => console.error('    - ' + e)); }
     if (brokenScenarios.length) { fail = true; console.error('  ❌ 깨진 시나리오:'); brokenScenarios.forEach((s) => console.error('    - ' + s.label)); }
 
