@@ -279,11 +279,169 @@
     }
 
     // ========================================================================
+    // [파고들기] 해역별 특보현황 안으로 한 겹씩 들어간다
+    // ========================================================================
+    //
+    // [구조가 해역마다 다르다 — 실측 2026-09-22 운영 화면]
+    //   동해 : 소분류 1개 → 그 안에 구역 카드
+    //   서해 : 비어 있음(특보 없음)
+    //   남해 : 소분류 2개 → 그 안에 구역 카드
+    //   제주 : 소분류 없이 구역 카드가 바로 4개
+    // 그래서 "무조건 소분류를 연다" 로 만들면 제주가 맨 위일 때 멈춘다.
+    // → 있으면 열고, 없으면 건너뛴다.
+
+    var SEA_LISTS = ['east-sea-list', 'west-sea-list', 'south-sea-list', 'jeju-sea-list'];
+
+    /**
+     * 특보가 실제로 들어 있는 첫 번째 대분류 해역(동해→서해→남해→제주 순)을 찾는다.
+     *
+     * @returns {HTMLElement|null} 그 해역의 목록 요소(#east-sea-list 등). 아무 데도 없으면 null
+     * [연계] 파고들기 단계들이 "어디로 들어갈지" 정할 때 쓴다.
+     */
+    function _firstSeaWithAlerts() {
+        for (var i = 0; i < SEA_LISTS.length; i++) {
+            var list = document.getElementById(SEA_LISTS[i]);
+            if (list && list.children.length > 0) return list;
+        }
+        return null;
+    }
+
+    /**
+     * 대분류 해역을 펼친다(이미 펼쳐져 있으면 그대로 둔다).
+     * @param {HTMLElement} list - 해역 목록 요소
+     * [연계] window.toggleSection (render_coastal.js) — 배타적 토글이라 다른 해역은 저절로 닫힌다.
+     */
+    function _openSea(list) {
+        if (!list) return;
+        var section = list.parentElement;   // .sea-section
+        if (section && !section.classList.contains('open')
+            && typeof window.toggleSection === 'function') {
+            window.toggleSection(list.id);
+        }
+    }
+
+    /**
+     * 펼쳐진 해역 안의 첫 번째 소분류(중분류) 덩어리를 찾는다.
+     * @param {HTMLElement} list - 해역 목록 요소
+     * @returns {HTMLElement|null} .sub-region-section (제주처럼 소분류가 없으면 null)
+     */
+    function _firstSub(list) {
+        return list ? list.querySelector('.sub-region-section') : null;
+    }
+
+    /**
+     * 소분류를 펼친다(이미 펼쳐져 있으면 그대로 둔다).
+     *
+     * 왜 머리글을 클릭하나?
+     *   소분류는 머리글의 onclick 안에서 슬라이드 애니메이션·사용량 집계까지 하므로,
+     *   목록의 display 만 바꾸면 화살표·집계가 어긋난다(render.js).
+     *
+     * @param {HTMLElement} sub - .sub-region-section
+     */
+    function _openSub(sub) {
+        if (!sub) return;
+        var list = sub.querySelector('.sub-region-list');
+        var header = sub.querySelector('.sub-region-header');
+        if (list && header && list.style.display === 'none') header.click();
+    }
+
+    /**
+     * 지금 화면에서 안내할 구역 카드(첫 번째)를 찾는다.
+     * @returns {HTMLElement|null} .alert-card — 해역을 아직 안 펼쳤으면 null
+     */
+    function _firstCard() {
+        var list = _firstSeaWithAlerts();
+        if (!list) return null;
+        var sub = _firstSub(list);
+        return (sub || list).querySelector('.alert-card');
+    }
+
+    /**
+     * 펼쳐져 있는 소분류를 모두 접는다.
+     * [연계] _drill() 이 앞 단계로 되돌아갈 때 쓴다. 머리글 클릭으로 접어야 화살표까지 맞는다.
+     */
+    function _closeSubs() {
+        var lists = document.querySelectorAll('#main-accordion-body .sub-region-list');
+        for (var i = 0; i < lists.length; i++) {
+            if (lists[i].style.display !== 'none') {
+                var header = lists[i].previousElementSibling;
+                if (header && header.classList.contains('sub-region-header')) header.click();
+            }
+        }
+    }
+
+    /**
+     * 펼쳐져 있는 대분류 해역을 모두 접는다.
+     * [연계] toggleSection 은 배타적이라 열린 것 하나에 대고 부르면 전부 닫힌다(render_coastal.js).
+     */
+    function _closeSeas() {
+        var open = document.querySelector('#main-accordion-body .sea-section.open');
+        if (!open) return;
+        var list = open.querySelector('.alert-list');
+        if (list && typeof window.toggleSection === 'function') window.toggleSection(list.id);
+    }
+
+    /**
+     * 특보현황 안쪽을 그 단계에 맞는 모양으로 **정확히** 맞춘다.
+     *
+     * 무엇을 하나?
+     *   depth 가 없으면 전부 접고, 'sea' 면 첫 해역만 펼치고, 'sub'·'card' 면 소분류까지 펼친다.
+     *   여는 것뿐 아니라 **닫는 것까지** 여기서 하므로, [이전] 으로 되돌아가도 화면이 제자리를
+     *   찾는다(안 그러면 앞 단계로 갔는데 뒤 단계에서 열어 둔 것이 그대로 남는다 — 실측 확인).
+     *
+     * @param {string} [depth] - 'sea'(해역까지) | 'sub'·'card'(소분류까지) | 없으면 전부 접음
+     * [연계] _go() 가 매 단계 부른다. 여러 번 불러도 결과가 같다(멱등).
+     */
+    function _drill(depth) {
+        var list = _firstSeaWithAlerts();
+        if (depth === 'sub' || depth === 'card') {
+            _openSea(list);
+            _openSub(_firstSub(list));   // 소분류가 없으면(제주) 아무 일도 안 한다
+            return;
+        }
+        _closeSubs();                    // 소분류부터 접고(보이는 동안 접어야 한다)
+        if (depth === 'sea') { _openSea(list); return; }
+        _closeSeas();
+    }
+
+    /**
+     * 파고들기가 화면에 **실제로** 반영됐는지 본다.
+     *
+     * 왜 필요한가?
+     *   해역·소분류도 슬라이드로 열린다. 클래스만 보고 그리면 움직이는 중간을 잡는다
+     *   (기상 전망 아코디언에서 실제로 겪은 것과 같은 문제 — L-306 취지).
+     *
+     * @param {string} depth - 'sea' | 'sub' | 'card'
+     * @returns {boolean} 그 깊이까지 실제로 펼쳐졌으면 true
+     */
+    function _drillSettled(depth) {
+        var openSub = document.querySelectorAll('#main-accordion-body .sub-region-list');
+        var subOpenCount = 0;
+        for (var i = 0; i < openSub.length; i++) {
+            if (openSub[i].style.display !== 'none' && openSub[i].offsetHeight > 0) subOpenCount++;
+        }
+        var openSea = document.querySelector('#main-accordion-body .sea-section.open');
+
+        if (!depth) return !openSea && subOpenCount === 0;   // 전부 접혀야 한다
+
+        var list = _firstSeaWithAlerts();
+        if (!list) return true;                 // 특보가 아예 없으면 기다릴 것도 없다
+        if (list.offsetHeight === 0) return false;
+        if (depth === 'sea') return subOpenCount === 0;
+        var sub = _firstSub(list);
+        if (!sub) return true;                  // 제주처럼 소분류가 없는 해역
+        var subList = sub.querySelector('.sub-region-list');
+        return !!subList && subList.style.display !== 'none' && subList.offsetHeight > 0;
+    }
+
+    // ========================================================================
     // [단계 목록] — 특보정보 탭 1~3
     //   target : 밝게 남길 요소. 배열로 여러 개를 주면 전부 감싸는 구멍 하나로 뚫는다
     //            (없으면 화면 전체가 어두워진다)
     //   want   : 이 단계에서 아코디언 셋이 각각 펼쳐져 있어야 하는지 (true=펼침)
     //            앞/뒤 어느 쪽에서 오든 이 모양으로 맞추므로 [이전] 이 저절로 동작한다
+    //   drill  : 특보현황 안쪽을 어디까지 펼쳐 둘지 ('sea' | 'sub')
+    //   skip   : 오늘 화면에 없는 단계인지 (특보가 없거나 소분류가 없는 바다) — 참이면 지나간다
     // ========================================================================
     var STEPS = [
         {
@@ -310,6 +468,54 @@
                 + '동해 · 서해 · 남해 · 제주로 나뉘고, 그 안에서 우리 해역까지 펼쳐 볼 수 있습니다.',
             target: function () { return document.getElementById('main-accordion-header'); },
             want: { forecast: false, alert: false, status: false }
+        },
+        {
+            title: '네 바다로 나뉘어 있습니다',
+            body: '동해 · 서해 · 남해 · 제주 순서로 묶여 있고, 오른쪽 숫자가 그 바다에서 '
+                + '특보가 내려진 해역 수입니다. 0개면 그 바다는 지금 특보가 없습니다.',
+            target: function () {
+                return [document.getElementById('main-accordion-header'),
+                        document.getElementById('main-accordion-body')];
+            },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '특보가 있는 바다를 펼칩니다',
+            body: '특보가 내려진 바다를 누르면 그 안의 해역이 나옵니다. '
+                + '지금은 맨 위에 있는 바다를 대신 펼쳐 보여드립니다.',
+            // 특보가 아무 데도 없는 날은 펼칠 것이 없으므로 이 단계를 건너뛴다
+            skip: function () { return !_firstSeaWithAlerts(); },
+            drill: 'sea',
+            target: function () {
+                var list = _firstSeaWithAlerts();
+                return list ? [list.parentElement] : null;   // .sea-section (머리글 + 목록)
+            },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '그 안에서 한 번 더 나뉩니다',
+            body: '동해·남해처럼 넓은 바다는 「동해중부해상」 같은 묶음으로 한 번 더 나뉩니다. '
+                + '제주처럼 나뉘지 않는 바다도 있습니다.',
+            // 소분류가 없는 바다(제주 등)이거나 특보가 없으면 이 단계는 건너뛴다
+            skip: function () {
+                var list = _firstSeaWithAlerts();
+                return !list || !_firstSub(list);
+            },
+            drill: 'sub',
+            target: function () {
+                var list = _firstSeaWithAlerts();
+                return list ? [_firstSub(list)] : null;
+            },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '해역 하나하나가 이렇게 보입니다',
+            body: '여기부터가 실제 특보 내용입니다. 해역 이름과 특보 종류, 그리고 그 아래에 '
+                + '자세한 내용이 이어집니다.',
+            skip: function () { return !_firstCard(); },
+            drill: 'sub',
+            target: function () { var c = _firstCard(); return c ? [c] : null; },
+            want: { forecast: false, alert: true, status: false }
         }
     ];
 
@@ -410,13 +616,17 @@
 
         var prevBtn = _mkBtn('이전', 'prev');
         prevBtn.id = 'tutorial-prev-btn';
-        prevBtn.addEventListener('click', function () { _go(_stepIdx - 1); });
+        prevBtn.addEventListener('click', function () {
+            var to = _nextIdx(_stepIdx, -1);
+            if (to !== -1) _go(to, -1);
+        });
 
         var nextBtn = _mkBtn('다음', 'next');
         nextBtn.id = 'tutorial-next-btn';
         nextBtn.addEventListener('click', function () {
-            if (_stepIdx >= STEPS.length - 1) { _close(); return; }
-            _go(_stepIdx + 1);
+            var to = _nextIdx(_stepIdx, 1);
+            if (to === -1) { _close(); return; }
+            _go(to, 1);
         });
 
         row.appendChild(quitBtn);
@@ -550,6 +760,31 @@
     // ========================================================================
 
     /**
+     * 지금 단계에서 그 방향으로 **실제로 갈 수 있는** 다음 단계 번호를 구한다.
+     *
+     * 무엇을 하나?
+     *   건너뛸 단계(오늘 화면에 없는 것)를 지나쳐 가장 가까운 단계를 찾는다.
+     *   그 방향에 아무것도 없으면 -1 을 준다.
+     *
+     * 왜 필요한가?
+     *   특보가 하나도 없는 날에는 파고드는 단계가 전부 건너뛰기 대상이라, 마지막 단계가
+     *   어디인지 미리 알아야 [다음] 을 '완료' 로 바꿀 수 있다. 이걸 안 하면 [다음] 을
+     *   눌러도 아무 일이 없어 **사용자가 갇힌다**(실측으로 확인 — 4단계에서 멈췄다).
+     *
+     * @param {number} from - 기준 단계 번호
+     * @param {number} dir  - 1(다음) 또는 -1(이전)
+     * @returns {number} 갈 수 있는 단계 번호, 없으면 -1
+     * [연계] _go() 와 [이전]/[다음] 버튼이 쓴다.
+     */
+    function _nextIdx(from, dir) {
+        for (var i = from + dir; i >= 0 && i < STEPS.length; i += dir) {
+            var st = STEPS[i];
+            if (typeof st.skip !== 'function' || !st.skip()) return i;
+        }
+        return -1;
+    }
+
+    /**
      * 주어진 번호의 단계로 간다.
      *
      * 무엇을 하나?
@@ -560,11 +795,20 @@
      * @param {number} idx - 0 부터 시작하는 단계 번호. 범위를 벗어나면 무시한다.
      * [연계] [이전]/[다음] 버튼과 _open() 이 호출한다.
      */
-    function _go(idx) {
+    function _go(idx, dir) {
         if (!_root) return;
         if (idx < 0 || idx >= STEPS.length) return;
-        _stepIdx = idx;
+
+        // [건너뛰기] 오늘 화면에 없는 단계(특보가 없거나 소분류가 없는 바다)는 지나간다.
         var step = STEPS[idx];
+        if (typeof step.skip === 'function' && step.skip()) {
+            var d = dir || (idx > _stepIdx ? 1 : -1);
+            var to = _nextIdx(idx - d, d);   // idx 부터 그 방향으로 갈 수 있는 곳
+            if (to === -1) { if (d > 0) _close(); return; }   // 앞쪽에 아무것도 없으면 마친다
+            return _go(to, d);
+        }
+
+        _stepIdx = idx;
 
         // 글자 먼저 채운다(카드 높이를 재려면 내용이 들어 있어야 한다)
         _root.querySelector('#tutorial-step-badge').textContent = (idx + 1) + ' / ' + STEPS.length;
@@ -573,18 +817,24 @@
 
         var prev = _root.querySelector('#tutorial-prev-btn');
         var next = _root.querySelector('#tutorial-next-btn');
-        prev.disabled = (idx === 0);          // 첫 단계에서는 뒤로 갈 곳이 없다
+        // 갈 수 있는 곳이 없으면 [이전] 을 끄고, [다음] 을 '완료' 로 바꾼다.
+        //   단순히 번호가 처음/끝인지로 판단하면, 건너뛰는 단계가 있는 날 갇힌다.
+        prev.disabled = (_nextIdx(idx, -1) === -1);
         prev.style.opacity = prev.disabled ? '0.35' : '1';
         prev.style.cursor  = prev.disabled ? 'default' : 'pointer';
-        next.textContent = (idx === STEPS.length - 1) ? '완료' : '다음';
+        next.textContent = (_nextIdx(idx, 1) === -1) ? '완료' : '다음';
 
         // 이 단계가 필요로 하는 화면 상태를 통째로 맞춘다(앞/뒤 어느 쪽에서 와도 같은 결과)
         _setAccordion(ACC_FORECAST, step.want.forecast);
         _setAccordion(ACC_ALERT, step.want.alert);
         _setAccordion(ACC_STATUS, step.want.status);
 
+        _drill(step.drill);
+
         var ready = function () {
-            return _settled(step.want) && (!step.target || !!_unionRect(_targets(step)));
+            return _settled(step.want)
+                && _drillSettled(step.drill)
+                && (!step.target || !!_unionRect(_targets(step)));
         };
         _when(ready, function () {
             _scrollIntoView(_targets(step));
@@ -654,7 +904,7 @@
         _when(function () {
             var sec = document.getElementById('weather-alert-section');
             return !!sec && sec.getBoundingClientRect().height > 0;
-        }, function () { _go(0); });
+        }, function () { _go(0, 1); });
     }
 
     /**
