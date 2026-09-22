@@ -1525,7 +1525,15 @@
             if (_src !== 'kma') return;              // 해외 출처는 연도 이동이 없다(활성 태풍만 제공)
             loadYear(parseInt(this.value, 10));
         });
+        // 관리자 모드 기기인가 — 아래 출처 드롭다운과 디버그 줄이 함께 쓴다.
+        var isAdmin = false;
+        try { isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { }
+
+        // [출처 전환] 관리자 모드 기기에서만 노출. 일반 사용자에게는 기상청 자료만 보인다.
+        //   숨겨도 _src 는 'kma' 그대로라 화면 동작은 지금까지와 똑같다.
+        //   [연계] 위 디버그 줄(tphn-dbg-row)과 같은 방식 — localStorage seagnal_admin_mode
         var srcSel = document.getElementById('tphn-source');
+        if (srcSel && !isAdmin) srcSel.style.display = 'none';
         if (srcSel) srcSel.addEventListener('change', function () { setSource(this.value); });
         var nSel = document.getElementById('tphn-name');
         if (nSel) nSel.addEventListener('change', function () {
@@ -1592,8 +1600,6 @@
 
         // [디버그] 해역표출 강제 토글 — 관리자 모드 기기에서만 노출(시그널 통합관리자 센터에서 체크).
         var dbgRow = document.getElementById('tphn-dbg-row');
-        var isAdmin = false;
-        try { isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { }
         if (dbgRow && !isAdmin) dbgRow.style.display = 'none';
         var dbgChk = document.getElementById('tphn-dbg-korea');
         if (dbgChk) dbgChk.addEventListener('change', function () {

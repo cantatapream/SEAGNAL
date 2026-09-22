@@ -94,6 +94,10 @@ ok('폭풍 종류 → 강도: TD=0 · TS=1 · STS=2 · TY=3 · STY=5',
     route._gradeOfStormType('STS') === 2 && route._gradeOfStormType('TY') === 3 &&
     route._gradeOfStormType('STY') === 5);
 
+// 'H' 는 운영 응답에서 실제로 확인한 코드다(Odalys·Polo, 2026-09-22).
+ok('허리케인 코드 H 를 안다 — Polo 사고 때 표에 없던 바로 그 코드',
+    route._gradeOfStormType('H') === 3 && route._gradeOfStormType('HU') === 3);
+
 ok('★모르는 종류는 null — 0(열대저압부)으로 떨어뜨리지 않는다',
     route._gradeOfStormType('???') === null && route._gradeOfStormType(null) === null);
 
@@ -167,6 +171,21 @@ ok('아직 자료원이 없는 세 곳(일본·유럽·중국)은 잠겨 있다'
 
 ok('드롭다운이 ⓘ 버튼 왼쪽에 있다',
     /id="tphn-source"[\s\S]{0,700}id="tphn-info-btn"/.test(HTML_SRC));
+
+// 출처 전환은 아직 일반 사용자에게 열지 않는다 — 관리자 모드 기기에서만 보인다.
+ok('★일반 사용자에게는 출처 드롭다운을 숨긴다',
+    /getElementById\('tphn-source'\);\s*\n\s*if \(srcSel && !isAdmin\) srcSel\.style\.display = 'none';/.test(TYPHOON_SRC));
+
+// var 는 함수 꼭대기로 끌어올려지므로, 선언이 사용처보다 아래에 있으면 값이 undefined 라
+// 관리자에게도 숨겨진다. 그래서 읽는 자리가 쓰는 자리보다 앞인지 함께 고정한다.
+ok('★관리자 여부를 읽는 자리가 드롭다운을 숨기는 자리보다 앞이다',
+    TYPHOON_SRC.indexOf("isAdmin = localStorage.getItem('seagnal_admin_mode')")
+        < TYPHOON_SRC.indexOf("if (srcSel && !isAdmin)"),
+    '읽는 자리 ' + TYPHOON_SRC.indexOf("isAdmin = localStorage.getItem('seagnal_admin_mode')")
+        + ' / 쓰는 자리 ' + TYPHOON_SRC.indexOf("if (srcSel && !isAdmin)"));
+
+ok('디버그 줄도 같은 isAdmin 을 쓴다(선언이 하나만 남아 있다)',
+    (TYPHOON_SRC.match(/var isAdmin = false;/g) || []).length === 1);
 
 ok('출처를 바꾸면 setSource 가 돈다',
     /getElementById\('tphn-source'\)[\s\S]{0,200}setSource\(this\.value\)/.test(TYPHOON_SRC));
