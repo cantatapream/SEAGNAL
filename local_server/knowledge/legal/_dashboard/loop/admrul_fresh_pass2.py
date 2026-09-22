@@ -192,6 +192,28 @@ def rename_candidates(title, limit=3):
     return sorted(seen.values(), key=lambda c: -c['overlap'])[:limit]
 
 
+def save(rep, report):
+    """한 건 판정할 때마다 보고서를 **통째로 다시 쓴다**(임시파일 -> rename 으로 원자적).
+
+    [왜 - 2026-09-20] 종전에는 172건을 **다 돌고 마지막에 한 번만** 썼다.
+    그런데 이 컨테이너는 놀면 회수됐다가 다시 뜨고, 그때 백그라운드 프로세스가 전부 죽는다
+    (A-1 에서 8번 겪었다). 그러면 **한 시간 반을 돌고도 남는 것이 0** 이다.
+
+    [이어받기는 공짜다] 다시 돌리면 `RETRY` 필터가 **아직 판정 안 된 행만** 다시 고른다 -
+    이미 `현행`ㆍ`구버전`ㆍ`ID불일치` 등으로 바뀐 행은 애초에 대상에서 빠진다.
+    그래서 `--resume` 같은 옵션을 따로 두지 않았다. **그냥 같은 명령을 다시 치면 된다.**
+
+    [원자적으로 쓰는 이유] 쓰는 도중에 죽으면 반쯤 쓰인 JSON 이 남아 다음 실행이 아예 못 읽는다.
+    임시파일에 다 쓰고 `flush`+`fsync` 한 뒤 `os.replace` 로 갈아끼운다.
+    """
+    tmp = report + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(rep, f, ensure_ascii=False, indent=1)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, report)
+
+
 def main():
     # 서버 정기작업은 결과를 `local_server/data/` 에 둔다(재배포해도 안 지워지는 곳).
     # 그래서 보고서 위치를 밖에서 지정할 수 있어야 한다.
@@ -202,7 +224,9 @@ def main():
     # 옛 이름('조회실패')도 그대로 받아 준다(옛 보고서를 다시 돌릴 수 있게).
     RETRY = {'조회실패', '이름불일치', '응답없음', '현행표시없음'}
     todo = [r for r in rep['rows'] if r['verdict'] in RETRY]
-    print('2차 대조 대상 %d건' % len(todo), flush=True)
+    done = len(rep['rows']) - len(todo)
+    print('2차 대조 대상 %d건 (이미 판정된 %d건은 건너뛴다 - 같은 명령을 다시 쳐도 이어진다)'
+          % (len(todo), done), flush=True)
     for i, r in enumerate(todo, 1):
         names = [strip_org(r['title'])]
         off = None
@@ -228,6 +252,7 @@ def main():
                 r['rename_candidates'] = cands
                 r['pass2'] += ' 이름이 비슷한 현행 %d건을 후보로 붙였다(사람이 확인).' % len(cands)
             print('[%d/%d] ID불일치 %s' % (i, len(todo), r['title'][:40]), flush=True)
+            save(rep, report)
             continue
         if off and norm(off) not in {norm(n) for n in names}:
             names.append(off)
@@ -293,6 +318,7 @@ def main():
                 r['pass2'] = ('본문은 열리나 현행 검색에 없고 비슷한 이름도 못 찾았다(폐지 가능)' if off
                               else '본문 조회 불가(폐지·DB 미수록 추정)')
         print('[%d/%d] %s %s' % (i, len(todo), r['verdict'], r['title'][:40]), flush=True)
+        save(rep, report)
         time.sleep(0.3)
 
     v = {}
@@ -312,7 +338,7 @@ def main():
     #   있으면 **없어진 규정을 살아 있는 것처럼 안내하게 된다.** 따로 세어 올린다.
     rep['maybe_repealed'] = sum(1 for r in rep['rows']
                                 if str(r.get('pass2') or '').startswith('본문은 열리나'))
-    json.dump(rep, open(report, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    save(rep, report)
     print('\n최종: 현행 %d / 구버전 %d / 이름바뀜의심 %d / ID불일치 %d / 이름불일치 %d / 응답없음 %d'
           % (rep['fresh'], rep['stale'], rep['renamed'], rep['id_mismatch'],
              rep['mismatch'], rep['unknown']))

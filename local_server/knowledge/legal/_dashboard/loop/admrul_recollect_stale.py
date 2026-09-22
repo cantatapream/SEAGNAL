@@ -122,6 +122,17 @@ def main():
             print('[%d/%d] 본문없음 %s' % (i, len(stale), title[:38]), flush=True)
             continue
         for rel in r['files']:
+            # ★`_구판/` 은 **옛 판을 일부러 보존해 둔 폴더**다 — 현행판으로 덮으면 안 된다
+            #   (2026-09-21, --dry 로 잡았다).
+            #   실측: `_구판/여수항·광양항항만시설운영세칙_구판_ID2100000185240.txt` 가 `갱신` 대상으로
+            #   올라왔다. 덮으면 **파일 이름에 박힌 판 ID 와 내용이 어긋난다** —
+            #   "ID2100000185240 의 구판"이라는 이름 아래 2100000285128 의 본문이 들어앉는다.
+            #   보존본이 보존이 아니게 되고, 나중에 "그때 무엇이 적혀 있었나"를 물을 길이 사라진다.
+            #   ⚠이 폴더는 **A-1 이 구버전 판정의 근거로도 읽는다**(held_ids 에 그 ID 가 들어 있다).
+            if os.sep + '_구판' + os.sep in os.sep + rel.replace('/', os.sep):
+                results.append({'title': title, 'file': rel, 'status': '건너뜀(_구판 보존본)'})
+                print('[%d/%d] 건너뜀(_구판 보존본) %s' % (i, len(stale), title[:34]), flush=True)
+                continue
             path = os.path.join(ROOT, rel)
             try:
                 old = open(path, encoding='utf-8').read()

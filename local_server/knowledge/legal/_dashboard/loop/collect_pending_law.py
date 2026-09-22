@@ -36,6 +36,7 @@ sys.path.insert(0, HERE)
 from _touched import Touched                      # noqa: E402
 from recollect_jomun import build_text            # noqa: E402  (조문 → 현행과 같은 .txt 꼴)
 from recollect_budchik import format_budchik      # noqa: E402  (부칙 블록)
+import law_api_guard                 # law.go.kr 이 본문 대신 오류쪽을 줬는지 가린다(L-294)
 
 # 테스트는 임시 트리를 가리키게 한다(시각·네트워크 의존 없는 회귀 테스트 규칙).
 LEGAL = os.environ.get('NRYA_LEGAL_DIR') or os.path.normpath(os.path.join(HERE, '..', '..'))
@@ -77,15 +78,32 @@ def fetch_eflaw(mst, ef, from_json=None):
     """예고본 전문. `efYd` 를 같이 줘야 응답이 온다(H29_design §4 실측). 실패면 None."""
     if from_json:
         return json.load(open(from_json, encoding='utf-8'))
+    # ★`efYd` 는 **선택이 아니라 필수**다 (2026-09-21 실측으로 확정).
+    #   `lawService.do?target=eflaw` 는 efYd 가 **없거나 그 MST 의 실제 시행일자가 아니면**
+    #   HTTP **200** 과 함께 *"미신청된 목록/본문에 대한 접근입니다."* HTML 을 준다.
+    #   ⚠**이 문구를 권한 문제로 읽으면 안 된다.** 같은 MST 에 맞는 efYd 를 주면 그 자리에서
+    #     JSON 이 온다 — 선박안전법 246611+20230628 → 177,917 B, 항만법 283707+20260227 → 198,849 B.
+    #     즉 **신청은 돼 있다.** law.go.kr 이 "인자가 틀렸다"를 "미신청"이라고 말할 뿐이다.
+    #   (내가 이 문구를 두 번 오진했다 — 처음엔 "호스트 불통", 다음엔 "eflaw 미신청". L-294·L-295)
     url = f'https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=eflaw&type=JSON&MST={mst}&efYd={ef}'
     for i in range(5):
+    # ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속).
+    #   종전에는 오류쪽 HTML 도 네트워크 오류와 똑같이 삼켜서
+    #   **"권한 없음"이 "모르겠다"로 바뀌어** 나왔다.
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=60) as r:
-                return json.loads(r.read().decode('utf-8'))
-        except Exception as e:                      # 프록시가 중간에 끊는 일이 실제로 있다 — 재시도
-            print(f'   재시도 {i + 1}/5: {str(e)[:80]}', flush=True)
-            time.sleep(3)
+                body = r.read().decode('utf-8', 'replace')
+            if body.lstrip()[:1] in '{[':
+                return json.loads(body)
+            reason = law_api_guard.block_reason(body)
+            if reason:
+                law_api_guard.announce(reason, url)
+                if law_api_guard.is_fatal(reason):
+                    return None          # 재시도로 안 풀린다
+        except Exception:
+            pass
+        time.sleep(3)
     return None
 
 

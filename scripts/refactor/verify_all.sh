@@ -49,7 +49,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_clarify_options test_unverified_review test_accident_sheet test_pending_law
   test_hazard_rocks_tide test_guide_tabs test_tab_structure test_usage_keys test_maintenance_tree
   test_overlay_solo test_wiki_brief_bulk test_review_marker_registered test_stale_reopen
-  test_pressure_card)
+  test_mok_audit_scanner test_add_other_law_refresh test_pressure_card)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; FAIL=1; continue; fi
@@ -219,6 +219,76 @@ echo; echo "── V5-2 위키 링크 무결성 ──"
 #   시행 전에는 아무 증상이 없어 사람 눈으로는 못 잡는다. 런타임은 이제 깨진 페이지를 접지 않고 넘기지만
 #   그러면 옛·새 서술이 함께 나가므로, 커밋 전에 여기서 막는다(독립 검토 high, `H29_stage_review_2026-09-10.json`).
 python3 local_server/knowledge/legal/_dashboard/loop/lint_stage_markers.py || FAIL=1
+
+echo; echo "── V5-13 승급 요건(§5-D) — 이번에 canonical 로 올린 쪽만 본다 ──"
+# [왜 — C-3, 2026-09-20] `_SCHEMA.md` §5-D 는 승급 절차를 글로 정해 뒀지만 **지키는지 보는 장치가 없었다.**
+#   그래서 딱지만 떼면 틀린 수치가 "검토완료"로 둔갑한다. 실제로 났다 — 「항만운송사업법__부두운영회사」의
+#   배점표가 **어느 판과도 맞지 않는 수치**를 담은 채 ⓐ(=[미확인] 0줄)는 통과하는 상태였다(§5-D ⓑ-1).
+#   2026-09-20 실측으로 draft 152쪽 중 **136쪽이 [미확인] 0줄**이라, ⓐ 만 보고 일괄 승급하면 그런 쪽이 통째로 올라간다.
+# [범위] 이미 canonical 인 366쪽을 소급하지 않는다 — 첫날부터 수백 건이 뜨면 아무도 안 본다(게이트가 죽는 흔한 길).
+#   `origin/main` 과의 merge-base 대비 **이번 가지에서 올린 쪽만** 본다.
+# [한계] "두 번 봤다고 적었는가"를 볼 뿐 **정말 두 번 봤는지는 못 본다.** 그래도 두는 이유는 지금은
+#   적는 자리조차 없어 아무 기록 없이 딱지만 떼는 것이 가능하기 때문이다(§5-D ⓒ 와 같은 취지).
+node local_server/knowledge/legal/_dashboard/loop/promote_guard.js --gate || FAIL=1
+
+echo; echo "── V5-14 아직 오지 않은 시행일 ──"
+# [왜 — 2026-09-21, L-295 후속] `lawService.do?target=law&MST=` 는 한 MST 가 시행일 판을 둘 이상
+#   가지면 **어느 판이 올지 못 고르고**, 실측상 **시행예정 판**을 준다(형사소송법 281865 → 20271231,
+#   현행은 20260701 / 농수산물품질관리법 시행령 288973 → 20270101, 현행은 20260825).
+#   그 결함으로 raw 5개 파일 31개 조문이 **아직 오지 않은 시행일**을 달고 있었다. 법문은 마침 현행과
+#   같았지만 그건 운이었다 — 다음번에도 같으리라는 보장이 없다.
+# [막는 쪽] `law_api_guard.fetch_law_body` 가 현행 시행일을 조회해 `efYd` 로 못 박고, 못 정하면
+#   아무것도 주지 않는다. 이 게이트는 **그게 실제로 막혔는지 눈으로 다시 재는 장치**다.
+# [빼는 것] `_대기/<시행일>/`(일부러 받아 둔 시행예정 대기본)·`_구판/`(보존용 옛 사본).
+python3 local_server/knowledge/legal/_dashboard/loop/future_date_guard.py --gate --examples || FAIL=1
+
+echo; echo "── V5-15 같은 고시 사본끼리 판이 맞나 ──"
+# [왜 — 2026-09-21] 한 고시가 여러 법 폴더에 사본으로 들어 있는 일이 흔한데(「울산항 항만시설
+#   운영세칙」은 세 곳), 재수집이 **한 벌만** 갱신하면 나머지는 낡은 채 남는다.
+# ★**A-1(admrul_fresh.py)은 이것을 못 잡는다** — 판정이 `cur['serial'] in held` 이고 `held` 는
+#   모든 사본의 ID 를 합친 집합이라, **한 벌만 현행이면 그 제목은 통째로 '현행'** 이 된다.
+#   실제로 2026-09-21 재검증은 6건 중 1건만 잡았고 나머지 5건은 소리 없이 통과했다.
+#   A-1 을 고치는 대신 다른 각도로 재는 장치를 하나 더 둔다(A-1 의 다른 판정은 실측으로 다듬어져 있다).
+# [기준선] 지금 3종이 갈려 있다(대산항 세칙 · 무역항등 사용료 규정 · 환경보전협회 교육수수료).
+#   어느 쪽이 현행인지는 API 로 확인해야 해서 아직 못 고쳤다 — **늘어나는 것만 막는다.**
+python3 local_server/knowledge/legal/_dashboard/loop/admrul_copy_sync.py \
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/admrul_copy_sync_base.json --gate || FAIL=1
+
+echo; echo "── V5-16 「다음 각 목/각 호」라 해 놓고 그 글이 없는 자리 ──"
+# [왜 — 2026-09-21] A-2 를 고쳐 다시 돌리다 「문화유산의 보존 및 활용에 관한 법률 시행령」에서
+#   `2. 다음 각 목의 시설을 갖출 것` 뒤에 **아무것도 없는** 줄을 봤다. 조는 86개로 원본과 똑같은데
+#   (100%) 목만 0개였다 — 목 기능이 없던 옛 수집기로 받은 흔적이다. 챗봇은 요건을 **반쪽만** 보여 준다.
+# [A-2 와 따로 두는 까닭] A-2 는 law.go.kr 에 물어야 알 수 있어 무겁고(573계열) 터널이 흔들리면
+#   판정 불가가 쏟아진다. 이 검사는 **파일 하나만 보면 된다** — 원문이 스스로 "다음 각 목"이라 해 놓고
+#   목이 없으면 그 자체로 모순이라, 네트워크 없이 상시로 잴 수 있다.
+# [호도 같이 잰다] 목을 찾다가 "그럼 호는?" 하고 재 봤더니 같은 꼴이 나왔다 —
+#   「다음 각 호」라 해 놓고 호가 한 줄도 없는 자리가 15개 파일 · 29곳이다. 장애인복지법
+#   제32조의2 는 `① … 다음 각 호의 어느 하나에 해당하는 사람은 …할 수 있다.` 바로 뒤가
+#   `②` 다 — **누가 등록할 수 있는지가 통째로 없다.** ⚠머리줄이 `①본문만 발췌` 라고
+#   스스로 밝힌 자리는 뺀다(신고된 범위이지 결손이 아니다).
+# [기준선 — 2026-09-22 고치고 다시 박았다] 목 **8개 파일·14곳** · 호 **3개 파일·6곳**,
+#   전부 `15_관련타부처`(기준법 0). 처음 박은 값은 목 22파일·83곳 · 호 15파일·29곳이었다.
+#   ⚠그 83 은 **파일 단위**로 센 값이라 같은 파일 안의 다른 결손을 가렸다. 조 단위로 고쳐
+#   같은 자로 다시 재니 수리 전이 **25파일·89곳**이었고, `--refresh` 로 받아 끼운 뒤가
+#   지금 값이다(_LESSONS L-304).
+#   ★남은 14곳 중 **8곳은 고칠 것이 없다** — 수협 시행규칙 5 · 항만법 발췌 2 · 특허법 1 은
+#     같은 법의 본딧말 파일이나 형제 파일이 그 목을 이미 품고 있다.
+#   ★몇 자리는 DRF 가 다시 줘도 **글자 수가 그대로(+0)** 다 — 원문 제공처가 그 목·호를
+#     따로 나눠 주지 않는다. 재수집으로 더는 못 줄이는 자리다.
+#   지금은 **늘어나는 것만 막는다.**
+python3 local_server/knowledge/legal/_dashboard/loop/mok_promise_guard.py \
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/mok_promise_base.json --gate || FAIL=1
+
+echo; echo "── V5-17 파일에는 있는데 챗봇이 못 읽는 조문 ──"
+# [왜 — 2026-09-21] 챗봇은 계층 원문을 **정해진 이름으로만** 찾는다(`services/article_text.js`) —
+#   `법률.txt` → `법률_발췌.txt`(시행령·시행규칙도 같은 꼴, 대통령령은 `대통령령.txt`).
+#   그런데 사서들은 `법률_수입제한조문(연결조문).txt` 처럼 **뜻이 담긴 이름**으로 저장해 왔다(53개).
+#   그 파일은 아무리 잘 받아 놔도 **안 열린다.** 「대외무역법」 제5조·제11조·제40조가 그랬고,
+#   위키가 제5조·제11조를 네 군데서 인용하는데 `법률.txt` 에는 그 조가 없어 죽고 있었다.
+#   ★**받아 놓고도 못 쓰는 것이 안 받은 것보다 나쁘다** — 수집 기록만 보면 있다고 나온다.
+# [기준선 없음 — 0 이어야 한다] 고치는 데 네트워크가 필요 없다(이미 우리 손에 있는 글을
+#   읽히는 이름으로 옮겨 적으면 된다). 그래서 기준선을 두지 않고 **0 을 요구한다.**
+python3 local_server/knowledge/legal/_dashboard/loop/unreachable_article_guard.py --gate --examples || FAIL=1
 
 # 서버 API + 이동 JS 경로 스모크
 echo; echo "── 서버 스모크 (대표 엔드포인트) ──"

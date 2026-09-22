@@ -1,0 +1,8 @@
+{
+ "script": "admrul_recollect_stale",
+ "stamp": "20260921-003017-063",
+ "files": [
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/여수항·광양항항만시설운영세칙.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/_admrul.json"
+ ]
+}

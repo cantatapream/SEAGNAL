@@ -215,8 +215,28 @@ const LIST_ITEM_RANGE_RE = /^\s*제?\s*(\d+)\s*조?\s*[~～∼]\s*제?\s*(\d+)\s
  * [연계] ← parseArticleRef(mode:'list'). → loadArticle 이 range 와 같은 경로로 원문을 나열한다.
  */
 function parseJoEnum(s) {
-  if (!LIST_ONLY_RE.test(s) || !/[·ㆍ・,]/.test(s) || !/조/.test(s)) return null;
-  const toks = s.split(/[·ㆍ・,]/).map(t => t.trim()).filter(Boolean);
+  if (!/[·ㆍ・,]/.test(s) || !/조/.test(s)) return null;
+  // ★별표ㆍ별지 항목을 먼저 떼어낸다 (2026-09-21, E-3 후속).
+  //   [왜] `LIST_ONLY_RE` 의 글자표에 `별`ㆍ`표`ㆍ`지` 가 없어서, 칸에 `별표` 가 한 번이라도 들어가면
+  //   여기서 곧바로 null 이 됐다. 그러면 아래 범위 정규식이 받아 주는데 그건 **범위 하나**만 읽는다.
+  //   그래서 `제3~12조·별표1~5` 는 범위가 건져 읽히고 `제2·3조·별표1·2` 는 통째로 못 읽혔다
+  //   (실측: 못 읽는 칸 122건 중 가장 큰 덩어리). **별표는 조가 아니므로** 조 나열을 읽을 때는
+  //   빼고 보는 것이 맞다 — 별표 도달성은 `annex_ready.js`(V5-11)가 따로 본다.
+  //   ⚠**뒤따르는 맨숫자까지 함께 버린다.** `별표1·2` 의 `2` 는 별표 번호인데 그냥 두면
+  //     **제2조로 읽혀 인용된 적 없는 조를 지어낸다**(환각 0 위반). `조` 가 다시 나오면 거기서 푼다.
+  //   ⚠`별표6(법 제52조 위임에 따른 기준)` 처럼 **별표로 시작하는 한 덩어리**는 통째로 버려져
+  //     남는 항목이 없다 → 종전과 똑같이 null 이다. 괄호 안의 **남의 법 조**를 주워 읽지 않는다.
+  const rawToks = s.split(/[·ㆍ・,]/).map(t => t.trim()).filter(Boolean);
+  const toks = [];
+  let inAnnex = false;
+  for (const t of rawToks) {
+    if (/^별[표지]/.test(t)) { inAnnex = true; continue; }
+    if (inAnnex) { if (/조/.test(t)) inAnnex = false; else continue; }
+    toks.push(t);
+  }
+  if (!toks.length) return null;
+  // 글자표 검사는 **별표를 걷어낸 뒤** 남은 것에만 건다(원래 의도 그대로 — 조 나열인지 본다).
+  if (!LIST_ONLY_RE.test(toks.join('·'))) return null;
   const out = [];
   const spans = [];
   let prevBranchJo = 0;   // 바로 앞 항목이 `제N조의M`이었으면 그 본조 번호 N(아니면 0)
@@ -757,9 +777,46 @@ function extractArticleBlock(text, jo, tier) {
   // ⚠ 그 부칙 경계는 예전에 `\n부칙`(맨 글자)뿐이라 **`[부칙 <제…호,…>]`(대괄호 표기, 41개 파일)를
   //   못 끊었다** — 어선안전조업법 제58조 팝업에서 ⑦항 뒤에 부칙 전문이 조문인 척 붙어 나온
   //   실제 사고의 원인이다. 이제 세 표기를 다 받는 ADDENDA_HEAD_SRC 하나로 끊는다.
-  const re = new RegExp(`(?:^|\\n)\\[${reEsc(jo)}\\]([^\\n]*)\\n([\\s\\S]*?)(?=\\n\\[제\\d+조|\\n${ADDENDA_HEAD_SRC}|$)`);
-  const m = re.exec(src);
-  if (!m) return null;
+  // ★꼴이 셋이라 **순서를 지켜 차례로** 본다 (2026-09-20).
+  //   ①`[제10조] 제목`  ②`[제63조(벌칙)]`(제목이 대괄호 안, 실측 18곳)  ③`제10조(제목) 본문`
+  //   ⚠**①을 반드시 먼저 본다.** 같은 조가 한 파일에 **두 판** 들어 있는 raw 가 있다 —
+  //     옛 원판(②·③ 꼴)이 앞쪽에 있고, 뒤에 `추가수집` 으로 붙인 최신판이 ① 꼴로 들어간다.
+  //     (예: 마약류관리법 제61조 — 17행대의 옛 판은 `<개정 …2025.4.1>`, 150행대의 추가수집판은
+  //      `<개정 …2026.5.26>`. 순서를 안 지키면 **개정일이 뒤로 후퇴한 옛 조문이 화면에 나간다.**)
+  //     그래서 ①이 맞으면 그걸 쓰고, 없을 때만 ②→③ 으로 내려간다.
+  const reA = new RegExp(`(?:^|\\n)\\[${reEsc(jo)}\\]([^\\n]*)\\n([\\s\\S]*?)(?=\\n\\[제\\d+조|\\n${ADDENDA_HEAD_SRC}|$)`);
+  const reB = new RegExp(`(?:^|\\n)\\[${reEsc(jo)}(\\([^)\\n]*\\))\\]([^\\n]*)\\n([\\s\\S]*?)(?=\\n\\[제\\d+조|\\n${ADDENDA_HEAD_SRC}|$)`);
+  let m = reA.exec(src);
+  let bracketTitle = '';
+  if (!m) {
+    const mb = reB.exec(src);
+    if (mb) { bracketTitle = mb[1].slice(1, -1).trim(); m = [mb[0], mb[2], mb[3]]; m.index = mb.index; }
+  }
+  // ★대괄호 꼴이 없으면 **고시 꼴(`제10조(제목) 본문`)로 한 번 더** 본다 (2026-09-20 사용자 확정).
+  //   법률 계열인데 조문머리가 고시 꼴로 적힌 raw 가 76개 파일 있고(조 589개), 두 꼴이 섞인
+  //   파일도 28개 있다(조 86개). listArticleNumbers 만 고치면 **목록에는 뜨는데 눌러도 안 열린다**
+  //   — 본문을 꺼내는 곳이 여기라서 같이 고친다.
+  //   ⚠끊는 자리를 **네 가지 다** 받는다: 다음 대괄호 조 · 다음 고시꼴 조 · 편장절 · 부칙.
+  //     고시 분기의 경계(DOC_TAIL_SRC)만 쓰면 **섞인 파일에서 다음 `[제N조]` 를 못 끊어**
+  //     그 조 본문에 다음 조가 통째로 딸려 들어간다(개인정보보호법처럼 두 꼴이 번갈아 나오는 파일).
+  //   ⚠제목·본문이 놓인 자리가 다르다 — 대괄호 꼴은 `머리줄\n본문`, 고시 꼴은 `제N조(제목) 본문`.
+  if (!m) {
+    const re2 = new RegExp(
+      `(?:^|\\n)${reEsc(jo)}[ \\t]*\\(([^)]*)\\)([\\s\\S]*?)`
+      + `(?=\\n\\[제\\d+조|\\n제\\d+조(?:의\\d+)?[ \\t]*\\(|\\n제\\d+[편장절]\\s|\\n${ADDENDA_HEAD_SRC}|$)`);
+    const m2 = re2.exec(src);
+    if (!m2) return null;
+    const lines2 = m2[2].split('\n');
+    while (lines2.length && /^$|^(제\d+[편장절]\s|부칙)/.test(lines2[lines2.length - 1].trim())) lines2.pop();
+    const eff2 = /시행일자\s*:?\s*(\d{8})/.exec(src) || /\(시행\s*(\d{8})/.exec(src);
+    return {
+      title: m2[1].trim(),
+      effectiveDate: eff2 ? fmtDate(eff2[1]) : '',
+      body: lines2.join('\n').trim(),
+      addenda: addendaAfter(src, m2.index + m2[0].length),
+    };
+  }
+  const inBracketTitle = bracketTitle;             // `[제63조(벌칙)]` 의 괄호 안 제목
   const head = m[1].trim();
   const eff = /\(시행\s*(\d{8})/.exec(head);
   // 블록 끝에 다음 조 앞의 편장절 제목(`제3장 …`·`제1절 …`)이 딸려 올 수 있어 걷어낸다.
@@ -767,7 +824,7 @@ function extractArticleBlock(text, jo, tier) {
   const lines = m[2].split('\n');
   while (lines.length && /^$|^(제\d+[편장절]\s|부칙)/.test(lines[lines.length - 1].trim())) lines.pop();
   return {
-    title: head.replace(/\s*\(시행[^)]*\)\s*$/, '').trim(),
+    title: inBracketTitle || head.replace(/\s*\(시행[^)]*\)\s*$/, '').trim(),
     effectiveDate: eff ? fmtDate(eff[1]) : '',
     body: lines.join('\n').trim(),
     addenda: addendaAfter(src, m.index + m[0].length),
@@ -1097,16 +1154,27 @@ function parseBylFile(text) {
 function pickNoticeFile(entries, title) {
   const want = squash(title);
   if (!want) return null;
-  let best = null;
-  for (const e of entries || []) {
-    if (e.type !== 'file' || !/\.txt$/i.test(e.name)) continue;
-    const got = squash(e.name);
-    if (!got) continue;
-    if (want.includes(got) || got.includes(want)) {
-      if (!best || got.length > squash(best).length) best = e.name;
+  // ★`_별표` 가 붙은 파일은 **조문이 없는 별표 덩어리**다(2026-09-20 실측: 행정규칙 폴더의
+  //   `_별표` 파일 11개 전부 조문머리 0개). 그런데 이름이 본체를 통째로 품고 있어 **더 길어서**
+  //   아래 "가장 긴 이름이 이긴다" 규칙에 본체를 이겨 버린다.
+  //   실제 사고: 「농산물우수관리인증기관 지정 및 운영 요령」 제6조의2 는 본체(제1~18조)에
+  //   멀쩡히 있는데 `_별표.txt`(조 0개)를 열어 "그 파일에 그 조 없음" 으로 죽고 있었다(D-2 #4).
+  //   → **본체를 먼저 찾고, 못 찾을 때만** 별표 파일까지 본다(위키가 별표 문서를 직접 가리키는
+  //     칸은 2차 통과에서 그대로 잡힌다 — 찾는 범위를 줄이지 않는다).
+  const pick = (skipAnnex) => {
+    let best = null;
+    for (const e of entries || []) {
+      if (e.type !== 'file' || !/\.txt$/i.test(e.name)) continue;
+      if (skipAnnex && /_별표|_별지/.test(e.name)) continue;
+      const got = squash(e.name);
+      if (!got) continue;
+      if (want.includes(got) || got.includes(want)) {
+        if (!best || got.length > squash(best).length) best = e.name;
+      }
     }
-  }
-  return best;
+    return best;
+  };
+  return pick(true) || pick(false);
 }
 
 /**
@@ -1308,14 +1376,43 @@ function articleRegion(text) {
  */
 function listArticleNumbers(text, tier) {
   const src = articleRegion(text);
-  const re = tier === 'notice'
-    ? /(?:^|\n)제(\d+)조(?:의(\d+))?[ \t]*\(/g
-    : /(?:^|\n)\[제(\d+)조(?:의(\d+))?\]/g;
   const out = [];
+  const push = (a, b) => {
+    // ⚠자치법규 raw 2개 파일이 `[제000100조]` 처럼 **0으로 채운 6자리**로 적는다(실측 23곳).
+    //   그대로 숫자로 읽으면 제100조·제200조 같은 **없는 조**가 목록에 실린다 — 0으로 시작하는
+    //   번호는 조번호일 수 없으므로 버린다. 그 파일들의 진짜 조번호는 아래 ② 꼴로 따로 적혀 있어
+    //   합집합으로 제대로 들어온다(2026-09-20 실측: 옹진군 조례 제1~20조).
+    if (/^0/.test(String(a))) return;
+    const jo = b ? `제${parseInt(a, 10)}조의${parseInt(b, 10)}` : `제${parseInt(a, 10)}조`;
+    if (!out.includes(jo)) out.push(jo);
+  };
+  if (tier === 'notice') {
+    const re = /(?:^|\n)제(\d+)조(?:의(\d+))?[ \t]*\(/g;
+    let m;
+    while ((m = re.exec(src))) push(m[1], m[2]);
+    return out;
+  }
+  // ★법률 계열은 **두 꼴을 합쳐서** 본다 (2026-09-20 사용자 확정).
+  //   ①`[제10조] 제목`  ②`제10조(제목) 본문` — 수집 스크립트가 달라 파일마다 꼴이 갈린다.
+  //   ②만 있는 파일이 **76개**이고 그 안에 **589개 조**가 통째로 안 보이고 있었다. 두 꼴이 섞인
+  //   파일 28개에서 ②로만 적힌 조도 **86개** 더 있었다(둘 다 전수 확인, 오탐 0건 —
+  //   `_dashboard/d_stage_2026-09-20/HEAD_FORMAT.md`). 예: `상법/법률.txt` 는 231개 조가 보이는데
+  //   제170조 하나만 ② 꼴이라 안 보였다.
+  //   ⚠**찾는 방식을 늘리기만 하고 줄이지 않는다**(합집합). `link_ready.js`(V5-8)가 2026-08-23부터
+  //     계측용으로 같은 보정을 쓰고 있었고, 그때 주석이 "챗봇 쪽은 별도 판단 사항"이라 미뤄 둔 것이
+  //     이 변경이다 — 그래서 **게이트는 초록인데 사용자는 못 여는** 자리가 있었다.
+  //   ⚠부칙은 `articleRegion()` 이 이미 잘라 냈다(DOC_TAIL_SRC). 안 자르면 부칙의
+  //     `제1조(시행일)` 이 본문 조로 섞인다.
+  //   ⚠한 정규식으로 둘을 받아 **문서에 나온 순서**를 지킨다 — 따로 두 번 돌리면 순서가 뒤섞여
+  //     `loadArticle`(whole)·`buildArticles` 가 조를 엉뚱한 차례로 늘어놓는다.
+  //   ③`[제63조(벌칙)]` — 제목을 **대괄호 안**에 넣은 꼴도 있다(실측 18곳, 5개 파일).
+  //     마약류관리법 raw 는 다른 조가 전부 `[제58조]` 인데 제63조 한 줄만 이 꼴이라
+  //     그 조만 통째로 안 보였다(D-2 "그 조 없음" 10건 중 하나).
+  const re = /(?:^|\n)(?:\[제(\d+)조(?:의(\d+))?(?:\([^)\n]*\))?\]|제(\d+)조(?:의(\d+))?[ \t]*\()/g;
   let m;
   while ((m = re.exec(src))) {
-    const jo = m[2] ? `제${m[1]}조의${m[2]}` : `제${m[1]}조`;
-    if (!out.includes(jo)) out.push(jo);
+    if (m[1] !== undefined) push(m[1], m[2]);
+    else push(m[3], m[4]);
   }
   return out;
 }

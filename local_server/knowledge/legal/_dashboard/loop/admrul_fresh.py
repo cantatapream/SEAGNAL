@@ -17,8 +17,24 @@
   - 호출: https://www.law.go.kr/DRF/lawSearch.do (OC=hyoo1431, target=admrul)
   - 씀:   _dashboard/admrul_fresh_report.json
 사용법: python3 admrul_fresh.py [--limit N] [--out PATH] [--gate]
+                                [--progress PATH] [--resume PATH]
   --gate : 구버전이 1건이라도 있으면 종료코드 1. 주간 점검 Routine 이 이 코드로 판단한다.
            verify_all.sh 상시 게이트로는 넣지 않는다 — 매 실행이 653회 API 호출이라 무겁다.
+
+  --progress PATH : 한 건을 판정할 때마다 그 줄을 PATH 에 **곧바로 덧붙여 적는다**(JSONL).
+  --resume PATH   : PATH 에 이미 판정된 제목은 **다시 묻지 않고 그 결과를 그대로 쓴다.**
+
+★왜 있나 (2026-09-20).
+  이 점검은 824건 x 3회 재시도라 두 시간 가까이 걸리는데, 결과를 **맨 끝에 한 번에** 썼다.
+  그래서 중간에 프로세스가 사라지면 그때까지 물어본 것이 **통째로 없어졌다.**
+  실제로 2026-09-20 에 389/824 에서 죽어 한 시간 어치가 날아갔다(로그에 오류 한 줄 없었다).
+  law.go.kr 은 터널이 교환 도중 끊기는 일이 잦아(`ws_closed_mid_exchange`) 이 사고는 또 난다.
+  두 플래그를 같이 쓰면 죽은 자리에서 이어받는다:
+      python3 admrul_fresh.py --out R.json --progress P.jsonl --resume P.jsonl
+  ⚠**기본값은 종전 그대로다.** 두 인자를 안 주면 파일을 하나도 더 만들지 않는다 —
+    서버 정기작업(`services/admrul_fresh_scanner.js`)은 `--out` 만 주므로 동작이 안 바뀐다.
+  ⚠이어받기는 **판정을 다시 하지 않는다.** 이어받은 줄은 그때 물어본 답이다. 날짜가 지나면
+    그만큼 낡는다 — 죽은 실행을 잇는 용도이지, 어제 결과를 오늘 재활용하라는 뜻이 아니다.
 """
 import json, os, re, sys, time
 import urllib.request
@@ -257,12 +273,18 @@ def api_current(title):
 def main():
     limit = None
     out_path = os.path.join(ROOT, '_dashboard', 'admrul_fresh_report.json')
+    progress_path = None
+    resume_path = None
     args = sys.argv[1:]
     for i, a in enumerate(args):
         if a == '--limit':
             limit = int(args[i + 1])
         elif a == '--out':
             out_path = args[i + 1]
+        elif a == '--progress':
+            progress_path = args[i + 1]
+        elif a == '--resume':
+            resume_path = args[i + 1]
 
     files = scan_files()
     by_title = {}
@@ -291,7 +313,60 @@ def main():
         titles = titles[:limit]
 
     rows, stale, fresh, unknown, mismatch, future_held = [], 0, 0, 0, 0, 0
-    for i, t in enumerate(titles, 1):
+    total = len(titles)
+
+    def tally(verdict):
+        """판정 낱말 하나로 집계 칸을 정한다 — 이어받은 줄과 새로 물은 줄이 **같은 규칙**을 타게.
+
+        [연계] 이어받기(--resume)가 쓴다. 줄마다 verdict 만 보고 세므로, 이어받은 줄과
+          지금 물어본 줄의 집계 방식이 어긋날 수가 없다.
+        """
+        return {'현행': 'fresh', '구버전': 'stale', '미래판보유': 'future_held',
+                '이름불일치': 'mismatch', '현행표시없음': 'mismatch'}.get(verdict, 'unknown')
+
+    # ★이어받기 — 죽은 실행이 남긴 줄을 그대로 쓰고, 그 제목은 다시 묻지 않는다.
+    #   ⚠깨진 줄(쓰다 만 마지막 줄)은 버린다. 프로세스가 쓰는 도중 사라지면 그럴 수 있다.
+    if resume_path and os.path.exists(resume_path):
+        done, broken = {}, 0
+        with open(resume_path, encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    broken += 1
+                    continue
+                if r.get('title'):
+                    done[r['title']] = r          # 같은 제목이 둘이면 나중 것이 이긴다
+        keep = [t for t in titles if t in done]
+        for t in keep:
+            r = done[t]
+            rows.append(r)
+            k = tally(r.get('verdict'))
+            if k == 'fresh':
+                fresh += 1
+            elif k == 'stale':
+                stale += 1
+            elif k == 'future_held':
+                future_held += 1
+            elif k == 'mismatch':
+                mismatch += 1
+            else:
+                unknown += 1
+        titles = [t for t in titles if t not in done]
+        print('이어받기: 이미 판정된 %d건은 다시 묻지 않는다 (남은 %d건)%s'
+              % (len(keep), len(titles), (' · 깨진 줄 %d개 버림' % broken) if broken else ''))
+        skipped_extra = len(done) - len(keep)
+        if skipped_extra:
+            print('   ⚠이어받기 파일에 있으나 이번 대상이 아닌 제목 %d건은 안 쓴다'
+                  ' (대상 목록이 그새 바뀌었다는 뜻이다).' % skipped_extra)
+        print()
+
+    prog = open(progress_path, 'a', encoding='utf-8') if progress_path else None
+    base = len(rows)
+    for i, t in enumerate(titles, base + 1):
         same_name_note = None
         cur, why, cands = api_current(t)
         held = sorted({f['id'] for f in by_title[t]})
@@ -342,16 +417,25 @@ def main():
         if verdict == '구버전':
             row['wiki_pages'] = wiki_pages_citing(t)
         rows.append(row)
-        print('[%d/%d] %s %s' % (i, len(titles), verdict, t), flush=True)
+        # ★한 건마다 곧바로 적는다 — flush + fsync 까지 해야 프로세스가 사라져도 남는다.
+        #   버퍼에만 있으면 죽는 순간 함께 사라져 이어받기가 무의미해진다.
+        if prog:
+            prog.write(json.dumps(row, ensure_ascii=False) + '\n')
+            prog.flush()
+            os.fsync(prog.fileno())
+        print('[%d/%d] %s %s' % (i, total, verdict, t), flush=True)
         time.sleep(0.15)
 
-    rep = {'checked': len(titles), 'fresh': fresh, 'stale': stale, 'unknown': unknown,
+    if prog:
+        prog.close()
+
+    rep = {'checked': total, 'fresh': fresh, 'stale': stale, 'unknown': unknown,
            'mismatch': mismatch, 'future_held': future_held, 'rows': rows}
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(rep, f, ensure_ascii=False, indent=1)
     print('\n현행 %d / 구버전 %d / ★미래판보유 %d / 이름불일치 %d / 응답없음 %d (총 %d) -> %s'
-          % (fresh, stale, future_held, mismatch, unknown, len(titles), out_path))
+          % (fresh, stale, future_held, mismatch, unknown, total, out_path))
     if future_held:
         print('   ★미래판보유 = 우리가 **아직 시행 전인 판**을 갖고 있다는 뜻이다. 즉 지금 시행 중인')
         print('     내용과 다른 것을 현행처럼 싣고 있다. 구버전보다 더 나쁠 수 있다 — 먼저 볼 것.')

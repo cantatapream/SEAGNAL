@@ -17,6 +17,10 @@ import json, os, time, urllib.request
 from datetime import datetime, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))   # 컨테이너는 UTC로 도니 KST는 명시 변환(CLAUDE.md 시간 표기 규칙)
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import law_api_guard                 # DRF 오류쪽 판별 + 현행 시행일 판 고정(L-294·L-295)
+
 OC = "hyoo1431"
 LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
 GROUPS = f"{LEGAL}/_dashboard/loop/audit12_groups.json"
@@ -48,6 +52,26 @@ def load_target_laws():
     return [laws[s] for s in sorted(laws)]
 
 
+def api(url):
+    """DRF 한 번 호출(JSON). 오류쪽이면 사유를 찍는다(law_api_guard, L-294·L-295)."""
+    for _ in range(3):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                body = r.read().decode("utf-8", "replace")
+            if body.lstrip()[:1] in "{[":
+                return json.loads(body)
+            reason = law_api_guard.block_reason(body)
+            if reason:
+                law_api_guard.announce(reason, url)
+                if law_api_guard.is_fatal(reason):
+                    return None
+        except Exception:
+            pass
+        time.sleep(1.5)
+    return None
+
+
 def fetch_law_meta(mst):
     """MST 1건의 기본정보를 조회해 baseline·백필에 필요한 필드만 뽑는다.
     예: fetch_law_meta('283707') → {'법령ID':'001737','법령명':'항만법','소관부처코드':'1192000',…}
@@ -55,13 +79,16 @@ def fetch_law_meta(mst):
     @returns {dict|None} 실패 시 None(호출측이 실패 목록에 기록)
     [연계] law.go.kr DRF lawService.do — 필드명은 2026-08-10 실측(H29_design.md §4) 기준.
     """
-    url = f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=law&type=JSON&MST={mst}"
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    # ★2026-09-21 수정. 종전에는 `target=law&MST=` 를 직접 불렀는데, 한 MST 가 시행일 판을
+    #   둘 이상 가지면 **어느 판이 올지 못 고른다** — 288973 은 `target=law` 로 **20270101
+    #   시행예정** 판이 오고 현행은 20260825 다. 여기서 뽑는 `시행일자`·`공포번호` 가 그대로
+    #   baseline 이 되고, `detect_law_changes.py` 는 그것을 `lawSearch`(eflaw)의 **현행 행**과
+    #   견준다. 즉 **미시행 판이 baseline 에 박히면 없는 개정을 보고하거나 있는 개정을 놓친다.**
+    #   이제 현행 시행일자를 조회해 `efYd` 로 못 박고, 못 정하면 None 을 준다(law_api_guard).
     for _ in range(3):
         try:
-            with urllib.request.urlopen(req, timeout=30) as r:
-                d = json.loads(r.read().decode("utf-8"))
-            info = (d.get("법령") or {}).get("기본정보") or {}
+            d = law_api_guard.fetch_law_body(api, OC, mst)
+            info = ((d or {}).get("법령") or {}).get("기본정보") or {}
             if not info.get("법령ID"):
                 return None
             소관 = info.get("소관부처") or {}

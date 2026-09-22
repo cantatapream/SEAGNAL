@@ -153,19 +153,59 @@ def h28_index():
     return idx
 
 
+def prev_families():
+    """직전 baseline 을 (법slug::층) → 항목 으로 편다. 없으면 빈 dict.
+
+    ★왜 필요한가 (2026-09-22) — `lawid_backfill.py` 가 어느 층의 본문을 **못 받으면**
+      스냅샷에 그 층이 없고, 종전 코드는 그런 층을 `missing_lawid` 로 **빼 버렸다.**
+      그러면 "baseline 을 새로 만들었다"고 해 놓고 **그 층이 개정탐지에서 조용히 사라진다.**
+      실측: 2026-09-22 실행에서 성공 160층 / 실패 55층이었다(옛 baseline 은 215층).
+      55층이 감시에서 빠지는 것은 **틀린 날짜보다 나쁘다** — 틀린 날짜는 없는 개정을
+      보고하지만(시끄럽다), 빠진 층은 **있는 개정을 놓친다**(조용하다).
+    @returns {dict}
+    """
+    try:
+        old = json.load(open(OUT, encoding="utf-8"))
+    except Exception:
+        return {}
+    out = {}
+    for law in old.get("laws", []):
+        for tier, fam in (law.get("families") or {}).items():
+            if isinstance(fam, dict):
+                out["%s::%s" % (law.get("slug"), tier)] = fam
+    return out
+
+
 def run():
     src = json.load(open(SRC, encoding="utf-8"))["families"]
+    prev = prev_families()
+    today = datetime.now(KST).strftime("%Y%m%d")
     h28 = h28_index()
     laws, ministries = [], {}
     missing_lawid = []
+    carried = []
     for law in load_target_laws():
         meta = json.load(open(os.path.join(law["raw"], "_meta.json"), encoding="utf-8"))
         fams = {}
         for label, sub in family_items(meta.get("families")):
-            info = src.get(f"{law['slug']}::{label}")
+            key = f"{law['slug']}::{label}"
+            info = src.get(key)
             if not info:
-                missing_lawid.append(f"{law['slug']}::{label}")
-                continue
+                # ★못 받은 층은 **빼지 않고 직전 값을 승계한다**(위 prev_families 머리말).
+                #   ⚠단 **시행일이 미래인 값은 승계하지 않는다** — 그것이 이번에 고치려던
+                #     바로 그 버그(`target=law` 가 시행예정 판을 준 것)이므로 되살리면 안 된다.
+                old_info = prev.get(key)
+                ef = str((old_info or {}).get("시행일자", ""))
+                if old_info and not (ef.isdigit() and len(ef) == 8 and ef > today):
+                    info = dict(old_info)
+                    info["_승계"] = True
+                    info["_승계사유"] = "이번 실행에서 law.go.kr 이 본문을 안 줬다(못 받은 것으로 둠)"
+                    info["_승계_최근"] = today
+                    info.setdefault("_승계_최초", today)
+                    carried.append(key)
+                else:
+                    missing_lawid.append(key + ("(미래 시행일이라 승계 안 함)" if old_info else ""))
+                    continue
             fams[label] = info
             if info.get("소관부처코드"):
                 ministries[info["소관부처코드"]] = info.get("소관부처명", "")
@@ -181,6 +221,10 @@ def run():
         "law_count": len(laws),
         "ministries": dict(sorted(ministries.items())),
         "missing_lawid": missing_lawid,
+        # 이번 실행에서 본문을 못 받아 **직전 baseline 값을 그대로 이어받은** 층.
+        # 비어 있는 것이 정상이고, 늘어나면 law.go.kr 이 그만큼 안 준 것이다.
+        # ⚠여기 오래 남아 있는 층은 **날짜가 낡았을 수 있다** — 다음 실행에서 꼭 다시 받아라.
+        "carried_from_previous": carried,
         # ★이 두 줄은 종전에 **생성된 파일을 손으로 고쳐** 넣어 두던 것이라 재생성 한 번이면 사라졌다(L-177).
         #   이제 생성기가 매번 만든다 — 내용도 "그때 한 번 맞췄다"가 아니라 "언제나 이렇게 만든다"로 바뀐다.
         "admrul_id_source": "raw 원문 머리글의 `ID:`(우리가 실제로 가진 판). 없으면 _admrul.json 의 ID.",
@@ -191,6 +235,10 @@ def run():
         "laws": laws,
     }
     json.dump(out, open(OUT, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    if carried:
+        print(f"⚠직전 값을 이어받은 층 {len(carried)}개 (이번에 본문을 못 받았다):", flush=True)
+        for k in carried:
+            print("   " + k, flush=True)
     print(f"baseline 생성: {len(laws)}법 · 층 {sum(len(l['families']) for l in laws)}개 · "
           f"행정규칙 {sum(len(l['admruls']) for l in laws)}건 · 부처 {len(ministries)}곳 "
           f"· 법령ID 누락 {len(missing_lawid)}건 → {OUT}", flush=True)

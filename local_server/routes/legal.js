@@ -67,6 +67,9 @@ const adminQueues = require('../services/legal_admin_queues');
 const amendmentScanner = require('../services/legal_amendment_scanner');
 const wikiBrief = require('../services/legal_wiki_brief');
 const freshScanner = require('../services/admrul_fresh_scanner');
+// 원문 **결손** 점검(조문 목 누락 + 고시 별표 누락). 위 신선도가 "사본이 낡았나"를 본다면
+// 이쪽은 "판은 맞는데 안이 비었나"를 본다. 2026-09-21 신설(C-2 이행).
+const mokScanner = require('../services/mok_audit_scanner');
 const { DATA_DIR, FILES } = require('../config/server_config');
 
 // [Lazy] Firebase Admin(답변완료 개인 푸시용). routes/report.js 와 같은 이유로 첫 발송 시 로딩.
@@ -625,7 +628,8 @@ router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => 
       feedback: adminQueues.countPending(FEEDBACK_FILE),
       candidates: adminQueues.countPending(CANDIDATES_FILE),
       amendments: adminQueues.countPending(amendmentScanner.queueFile()),
-      freshness: adminQueues.countPending(freshScanner.QUEUE_FILE) });
+      freshness: adminQueues.countPending(freshScanner.QUEUE_FILE),
+      mokAudit: adminQueues.countPending(mokScanner.QUEUE_FILE) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -1037,6 +1041,46 @@ router.post('/api/legal/freshness/:id/decide', adminAuth.requireAdminToken, (req
 //   653건 전수 대조라 실측 20~30분 걸린다. 완료를 기다리지 않고 즉시 응답(started:true).
 router.post('/api/legal/freshness/scan-now', adminAuth.requireAdminToken, (req, res) => {
   const r = freshScanner.startFreshnessScan();
+  res.status(r.ok ? 200 : 409).json(r);
+});
+
+// ============================================================================
+// 원문 **결손** 점검 큐 (2026-09-21 신설, C-2 이행) — 위 신선도 방과 같은 모양이다
+// ============================================================================
+// [무엇이 다른가] 신선도 = "우리 사본이 낡았나"(판번호). 결손 = "판은 맞는데 안이 비었나"
+//   (조문 목 가·나·다 누락 · 고시 별표·별지 누락).
+// [왜 따로 두나] 할 일이 정반대다 — 낡은 것은 **새 판을 받으면** 되고, 빈 것은
+//   **같은 판을 다시 받아야** 한다. 한 방에 섞으면 관리자가 무엇을 눌러야 할지 모른다.
+
+// GET /api/legal/mok-audit?status=pending|done|dismissed|all (관리자)
+//   last: 마지막 점검이 언제·어떻게 끝났는지. **"이상 없음"과 "점검 실패"를 반드시 구분해서**
+//   보여준다 — 실패를 이상 없음으로 읽으면 빠진 조문을 놓친다.
+router.get('/api/legal/mok-audit', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    let list = adminQueues.readJsonl(mokScanner.QUEUE_FILE).reverse();
+    if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
+    res.json({ ok: true, count: list.length, items: list, last: mokScanner.readStatus() });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/mok-audit/:id/decide (관리자) — body: { decision: 'done'|'dismissed', by? }
+//   ⚠닫아도 **이번 주 점검에서 또 빠져 있으면 다시 대기로 돌아온다**
+//   (mok_audit_scanner.reopenStillMissing). 실제로 다시 받았다면 돌아오지 않는다.
+router.post('/api/legal/mok-audit/:id/decide', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const { decision = 'done', by = '관리자' } = req.body || {};
+    const updated = adminQueues.updateJsonlById(mokScanner.QUEUE_FILE, req.params.id,
+      { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
+    if (!updated) return res.status(404).json({ ok: false, error: 'mok-audit item not found: ' + req.params.id });
+    res.json({ ok: true, item: updated });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/mok-audit/scan-now (관리자) — 정기 점검(수요일 03:00)과 별개로 즉시 1회.
+//   573계열 + 고시 824건 대조라 실측 20~40분. 완료를 기다리지 않고 즉시 응답(started:true).
+router.post('/api/legal/mok-audit/scan-now', adminAuth.requireAdminToken, (req, res) => {
+  const r = mokScanner.startMokAuditScan();
   res.status(r.ok ? 200 : 409).json(r);
 });
 

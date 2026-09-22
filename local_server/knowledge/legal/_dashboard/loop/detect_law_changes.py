@@ -43,6 +43,7 @@ PENDING_YEARS = 5       # 시행예정 전수질의(W3)가 훑을 미래 범위
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from build_change_baseline import norm_title  # noqa: E402  (baseline과 같은 정규화 규칙을 공유)
 from recollect_jomun import article_lines     # noqa: E402  (raw 파일과 같은 꼴로 조문 본문을 만든다)
+import law_api_guard                 # law.go.kr 이 본문 대신 오류쪽을 줬는지 가린다(L-294)
 
 # 층 이름 → raw 폴더 안 파일 이름. 옛 조문 본문을 우리 원문에서 찾을 때 쓴다.
 LAYER_FILE = {"법률": "법률.txt", "시행령": "시행령.txt", "시행규칙": "시행규칙.txt"}
@@ -56,12 +57,23 @@ def api(url):
     [연계] collect_contacts.py·recollect_jomun.py와 같은 호출 관례(OC=hyoo1431, User-Agent 지정).
     """
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    # ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속).
+    #   종전에는 오류쪽 HTML 도 네트워크 오류와 똑같이 삼켜서
+    #   **"권한 없음"이 "모르겠다"로 바뀌어** 나왔다.
     for _ in range(3):
         try:
             with urllib.request.urlopen(req, timeout=40) as r:
-                return json.loads(r.read().decode("utf-8"))
+                body = r.read().decode('utf-8', 'replace')
+            if body.lstrip()[:1] in '{[':
+                return json.loads(body)
+            reason = law_api_guard.block_reason(body)
+            if reason:
+                law_api_guard.announce(reason, url)
+                if law_api_guard.is_fatal(reason):
+                    return None          # 재시도로 안 풀린다
         except Exception:
-            time.sleep(1.5)
+            pass
+        time.sleep(1.5)
     return None
 
 
@@ -118,6 +130,13 @@ def changed_articles(mst, efyd):
     [연계] recollect_jomun.py가 이미 쓰는 필드(조문번호/조문제목/조문시행일자/조문제개정유형)를
            그대로 읽는다. ★시행예정본은 efYd를 함께 줘야 응답이 온다(안 주면 {} — 2026-08-10 실측).
     """
+    # ★`efYd` 는 **선택이 아니라 필수**다 (2026-09-21 실측으로 확정).
+    #   `lawService.do?target=eflaw` 는 efYd 가 **없거나 그 MST 의 실제 시행일자가 아니면**
+    #   HTTP **200** 과 함께 *"미신청된 목록/본문에 대한 접근입니다."* HTML 을 준다.
+    #   ⚠**이 문구를 권한 문제로 읽으면 안 된다.** 같은 MST 에 맞는 efYd 를 주면 그 자리에서
+    #     JSON 이 온다 — 선박안전법 246611+20230628 → 177,917 B, 항만법 283707+20260227 → 198,849 B.
+    #     즉 **신청은 돼 있다.** law.go.kr 이 "인자가 틀렸다"를 "미신청"이라고 말할 뿐이다.
+    #   (내가 이 문구를 두 번 오진했다 — 처음엔 "호스트 불통", 다음엔 "eflaw 미신청". L-294·L-295)
     d = api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=eflaw&type=JSON"
             f"&MST={mst}&efYd={efyd}")
     body = (d or {}).get("법령") or {}

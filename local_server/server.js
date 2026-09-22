@@ -389,6 +389,27 @@ cron.schedule('0 3 * * 0', () => {
     } catch (e) { console.error('나리야 원문신선도 점검 오류:', e.message); }
 }, { timezone: 'Asia/Seoul' });
 
+// ── 나리야 원문 **결손** 점검 — 매주 수요일 03:00 KST (2026-09-21 신설, C-2 이행) ──
+// [무엇이 다른가] 위 일요일 점검이 *"우리 사본이 낡았나"*(판번호)를 본다면, 이쪽은
+//   *"판은 맞는데 안이 비었나"* 를 본다 — 조문 목(가·나·다) 누락 + 고시 별표·별지 누락.
+// [왜 수요일인가] 같은 law.go.kr 을 두드리는 작업이 이미 둘 있다 — 개정감지 매일 01:00,
+//   원문신선도 일요일 03:00. 2026-09-20 에 둘을 겹쳐 돌렸다가 서로 느려져 전수 점검이
+//   45/200 에서 멈춘 것을 실측했다. 그래서 **양쪽에서 가장 먼 요일**로 뒀다.
+// [무엇도 멈추지 않는다] 실패해도 배포를 막지 않는다. 남의 서버 사정으로 우리 배포가
+//   멈추면 안 된다. 결과는 관리자 큐에 카드로만 쌓인다(raw·위키 자동수정 금지).
+// [연계] services/mok_audit_scanner.js · _dashboard/loop/mok_audit.py
+//        · _dashboard/loop/admrul_annex_survey.py
+cron.schedule('0 3 * * 3', () => {
+    console.log('⏰ [Weekly Schedule] 나리야 원문 결손 점검을 시작합니다.');
+    try {
+        require('./services/mok_audit_scanner').runMokAuditScan()
+            .then((r) => console.log(r.ok
+                ? `✅ [나리야 원문결손] 점검 완료: ${r.checked}계열 대조, 누락 ${r.missing}건(새로 발견 ${r.added}건), 판정불가 ${r.no_answer}건`
+                : `❌ [나리야 원문결손] 점검 실패: ${r.error}`))
+            .catch((e) => console.error('나리야 원문결손 점검 오류:', e.message));
+    } catch (e) { console.error('나리야 원문결손 점검 오류:', e.message); }
+}, { timezone: 'Asia/Seoul' });
+
 // ============================================================================
 // 4.5 Graceful shutdown — Fly.io SIGTERM 대응
 // ----------------------------------------------------------------------------
