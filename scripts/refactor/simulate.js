@@ -101,6 +101,7 @@ function resolveChromium() {
     //   없었다.** 판정을 내리는 자리가 그 판정의 근거를 함께 적지 않으면, 읽는 사람은
     //   넘겨짚는 수밖에 없다(G-28·G-32·G-39 와 같은 마디).
     const notAbsentWhy = new Map();
+    const method404 = new Map(); // 주소 → HTTP 메서드 (G-41 의 재요청 판단용)
     /**
      * 그 404 가 **「길이 없다」인가 「자료가 없다」인가**.
      * ⚠말 목록으로 가르지 않는다 — 처음에는 `not found` 문구로 갈랐는데, 같은 뜻을 한국어로
@@ -124,6 +125,8 @@ function resolveChromium() {
         if (res.status() !== 404 || !res.url().startsWith(URL_BASE)) return;
         const p = res.url().replace(URL_BASE, '');
         failed404.push(p);
+        // 재요청은 **GET 만** 한다(G-41 아래). 메서드를 여기서 적어 둔다.
+        try { method404.set(p, res.request().method()); } catch (_) { /* 못 읽으면 재요청 안 한다 */ }
         bodyReads.push(res.text()
             .then((b) => {
                 if (isDataAbsent(b)) { missingData.add(p); return; }
@@ -202,14 +205,45 @@ function resolveChromium() {
     await clickTab('ocean-life-group', '메인탭 재진입:해양생활');
     for (const t of LIFE_SUBTABS) await clickTab(t, `서브탭:${t}`);
 
-    // ★판정 전에 404 본문 읽기를 **다 기다린다**(G-38). 5초를 넘기면 그냥 간다 —
-    //   못 읽은 것은 갈래를 못 나눈 것이니 종전대로 회귀로 잡힌다(안전한 쪽).
-    await Promise.race([
-        Promise.all(bodyReads),
-        new Promise((r) => setTimeout(r, 5000)),
-    ]);
+    // ★판정 전에 404 본문 읽기를 **다 기다린다**(G-38).
+    //   ⚠그런데 `Promise.all(bodyReads)` 는 **그 순간의 배열**만 본다. 기다리는 동안 새 404 가
+    //     들어오면 그 읽기는 아무도 안 기다리고, 곧바로 `browser.close()` 가 돌아
+    //     `response.text: Target page, context or browser has been closed` 로 깨진다.
+    //     CI run #68 이 바로 그 문구를 찍었다 — G-40 이 까닭을 적게 해 둔 덕에 알았다.
+    //   그래서 **배열이 안 늘 때까지** 되풀이한다(G-41).
+    {
+        const deadline = Date.now() + 15000;
+        let prev = -1;
+        while (bodyReads.length !== prev && Date.now() < deadline) {
+            prev = bodyReads.length;
+            await Promise.race([
+                Promise.all(bodyReads.slice()),
+                new Promise((r) => setTimeout(r, 3000)),
+            ]);
+        }
+    }
 
     await browser.close();
+
+    // ★그래도 못 읽은 404 는 **Node 가 직접 한 번 더 받아 본다**(G-41).
+    //   브라우저 버퍼는 페이지가 닫히면 사라지지만, 우리 서버는 여기 그대로 있다.
+    //   이러면 타이밍에 기대지 않고 **본문 모양으로** 갈릴 수 있다(G-36 의 잣대를 그대로 쓴다).
+    //   ⚠GET 만 다시 부른다 — 다른 메서드는 다시 부르면 서버 상태를 바꿀 수 있다.
+    //   ⚠재요청 결과가 404 가 아니면(그 사이 자료가 준비됐거나 주소가 살아 있으면) 봐주지 않는다.
+    for (const q of [...new Set(failed404)]) {
+        if (missingData.has(q)) continue;
+        if (!/본문을 못 읽었다/.test(notAbsentWhy.get(q) || '')) continue;
+        if ((method404.get(q) || 'GET') !== 'GET') { notAbsentWhy.set(q, (notAbsentWhy.get(q) || '') + ' (GET 이 아니라 다시 부르지 않았다)'); continue; }
+        try {
+            const r = await fetch(URL_BASE + q);
+            const b = await r.text();
+            if (r.status === 404 && isDataAbsent(b)) { missingData.add(q); notAbsentWhy.delete(q); continue; }
+            const head = String(b == null ? '' : b).replace(/\s+/g, ' ').slice(0, 120);
+            notAbsentWhy.set(q, `브라우저에서 못 읽어 Node 가 다시 받았다 → ${r.status} · ${JSON.stringify(head)}`);
+        } catch (e) {
+            notAbsentWhy.set(q, '본문을 못 읽었고 Node 재요청도 실패했다: ' + ((e && e.message) || String(e)));
+        }
+    }
 
     const result = {
         url: URL_BASE,
