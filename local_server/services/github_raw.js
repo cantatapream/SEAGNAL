@@ -54,6 +54,7 @@ const fs = require('fs');
 const path = require('path');
 // 이 파일은 `<repo>/local_server/services/` 에 있다 → 두 단계 올라가면 저장소 루트.
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const RAW_DIR = 'local_server/knowledge/legal/raw';
 let _warnedNoSource = false;
 
 /**
@@ -77,8 +78,17 @@ function localPathOf(repoPath) {
 function warnNoSource(repoPath) {
   if (_warnedNoSource) return;
   _warnedNoSource = true;
-  console.error('[github_raw] 원문을 읽을 길이 없다 — 로컬 raw/ 도 없고 GITHUB_RAW_TOKEN 도 없다. '
-    + '조문 원문·서식(§5-5)·별표 이미지(§5-9)가 전부 빈 결과가 된다. 첫 경로: ' + repoPath);
+  // ⚠문구를 정확히 쓴다. 이 경고는 두 가지 아주 다른 상황에서 같이 나온다:
+  //   ⓐ 이 환경에 raw/ 자체가 없다(Fly.io 배포본) → 토큰이 없으면 정말 아무것도 못 읽는다
+  //   ⓑ raw/ 는 있는데 **그 파일 하나가 없다**(수집 공백·이름 불일치)
+  // 종전 문구는 ⓑ 인데도 "로컬 raw/ 도 없다"고 말해 오진을 부른다 — 실제로 첫 실행에서
+  // 「수상레저기구법 시행규칙_별표16」이 그랬다(파일은 `동력수상레저기구안전검사기준_별표16.txt`
+  // 라는 고시 이름으로 있었다 — P-3 접두사 불일치). 그래서 둘을 갈라 적는다.
+  const hasRoot = (() => { try { return fs.statSync(path.join(REPO_ROOT, RAW_DIR)).isDirectory(); } catch (_) { return false; } })();
+  console.error('[github_raw] 원문을 못 읽었다 — '
+    + (hasRoot ? '로컬 raw/ 는 있으나 이 경로가 없고' : '이 환경에 로컬 raw/ 가 없고')
+    + ' GITHUB_RAW_TOKEN 도 없다. 조문 원문·서식(§5-5)·별표 이미지(§5-9)가 빈 결과가 된다.'
+    + ' 첫 경로: ' + repoPath);
 }
 
 /**

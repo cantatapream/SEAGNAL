@@ -31,6 +31,10 @@
 #   그것이 지금까지 게이트가 죽어 있던 것과 같은 결말이다.
 #   그래서 1~2회 관찰해 CI 에서의 실제 기준선을 확정한 뒤 차단으로 전환한다.
 #   (같은 이유로 `phase0-gate.yml` 도 비차단으로 운영 중이다.)
+#   ⚠단 **잡 레벨 `continue-on-error` 로는 하지 않는다** — 그러면 잡이 언제나 초록이라
+#     빨간 것이 아무에게도 안 보인다(run #9 에서 실제로 그랬다). 비차단은 verify 스텝에만
+#     걸고, 잡의 성패는 「★판정」 스텝이 실제 종료 코드로 정한다. 차단으로 바꿀 때는
+#     그 스텝의 `BLOCKING: 'false'` 를 `'true'` 로 고치면 된다.
 #
 # ── 2026-09-22 로컬 실측 (이 커밋 기준, 서버 켠 상태) ───────────────────────
 #   ✅ 78 · ❌ 23 · EXIT=1
@@ -92,8 +96,13 @@ jobs:
     name: verify_all.sh 전체 실행
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # ★1단계(관찰) — 위 머리말 참조. 기준선을 확정하면 이 줄을 지워 차단으로 바꾼다.
-    continue-on-error: true
+    # ⚠★잡 레벨 `continue-on-error` 는 쓰지 않는다 (2026-09-22 run #9 에서 배웠다).
+    #   처음에 여기에 걸었더니 **잡이 언제나 초록**이 돼서, verify_all 이 exit 1 인데도
+    #   PR 화면은 통과로 보이고 check_run 실패 알림도 오지 않았다. 관찰 단계의 목적은
+    #   "지금 무엇이 빨간지 보는 것"인데 그 신호 자체를 가려 버린 것이다 —
+    #   게이트를 만들어 놓고 결과가 아무에게도 안 가는 G-1 의 사촌이다.
+    #   비차단은 **아래 verify 스텝에만** 걸고(그래야 뒷정리·아티팩트·요약이 끝까지 돈다),
+    #   잡의 성패는 마지막 판정 스텝이 실제 종료 코드로 정한다.
 
     env:
       BASE_URL: 'http://127.0.0.1:3001'
@@ -182,6 +191,32 @@ jobs:
           name: verify-all-logs-${{ github.run_number }}
           path: _ci_logs/
           retention-days: 14
+
+      - name: ★판정 — verify_all 의 실제 종료 코드로 잡의 성패를 정한다
+        if: always()
+        # 1단계(관찰)에서는 경고만 남기고 넘어간다. 기준선을 확정하면
+        # `BLOCKING` 을 true 로 바꾸는 것만으로 차단 게이트가 된다.
+        env:
+          BLOCKING: 'false'
+        run: |
+          code="${{ steps.verify.outputs.verify_exit }}"
+          # ★총정리를 **여기서 한 번 더** 찍는다. verify 스텝 뒤로 뒷정리·아티팩트 스텝이
+          #   따라붙어서, 로그를 뒤에서 조금만 잘라 읽으면 총정리가 이미 밀려나 있다.
+          #   판정 바로 앞에 두면 어디서 잘라 읽어도 실패 내용이 함께 온다(L-196 과 같은 취지).
+          echo "════ verify_all 실패·악화 항목 총정리 (재출력) ════"
+          if [ -f _ci_logs/verify_all.log ]; then
+            sed -n '/실패·악화 항목 총정리/,$p' _ci_logs/verify_all.log
+          else
+            echo "(verify_all.log 없음)"
+          fi
+          echo "════ 총정리 끝 ════"
+          if [ "$code" = "0" ]; then
+            echo "✅ verify_all 통과 (exit 0)"
+            exit 0
+          fi
+          echo "::warning title=verify_all 실패::종료 코드 $code — 아래 요약의 「실패·악화 항목 총정리」를 한 줄도 빠짐없이 읽어라(L-196)."
+          if [ "$BLOCKING" = "true" ]; then exit 1; fi
+          echo "1단계(관찰)이라 여기서 막지 않는다. BLOCKING=true 로 바꾸면 차단된다."
 
       - name: 결과 요약
         if: always()
