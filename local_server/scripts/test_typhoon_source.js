@@ -94,6 +94,10 @@ ok('폭풍 종류 → 강도: TD=0 · TS=1 · STS=2 · TY=3 · STY=5',
     route._gradeOfStormType('STS') === 2 && route._gradeOfStormType('TY') === 3 &&
     route._gradeOfStormType('STY') === 5);
 
+// 'H' 는 운영 응답에서 실제로 확인한 코드다(Odalys·Polo, 2026-09-22).
+ok('허리케인 코드 H 를 안다 — Polo 사고 때 표에 없던 바로 그 코드',
+    route._gradeOfStormType('H') === 3 && route._gradeOfStormType('HU') === 3);
+
 ok('★모르는 종류는 null — 0(열대저압부)으로 떨어뜨리지 않는다',
     route._gradeOfStormType('???') === null && route._gradeOfStormType(null) === null);
 

@@ -98,6 +98,7 @@ function gradeOfStormType(t) {
         case 'STS': return 2;   // 강한 열대폭풍
         case 'TY': return 3;    // 태풍
         case 'STY': return 5;   // 슈퍼 태풍
+        case 'H': return 3;     // 허리케인 — 실제로 오는 코드(2026-09-22 운영 응답에서 확인)
         case 'HU': return 3;    // 허리케인(다른 해역 표기)
         default: return null;
     }
