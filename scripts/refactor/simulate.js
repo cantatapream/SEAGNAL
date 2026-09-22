@@ -120,7 +120,17 @@ function resolveChromium() {
     }
     page.on('response', (res) => {
         if (res.status() >= 500 && res.url().startsWith(URL_BASE)) {
+            const at = server5xx.length;
             server5xx.push(res.status() + ' ' + res.url().replace(URL_BASE, ''));
+            // ★5xx 도 **왜인지**를 함께 남긴다(G-42) — 404 에 한 것과 같은 마디(G-40).
+            //   주소만 찍혀 있어서 khoa-wms 500 의 원인을 세 번 넘겨짚었고 세 번 다 재현에 실패했다.
+            //   우리 라우트는 `proxy error: <까닭>` 을 본문에 담는다(routes/ocean1.js).
+            bodyReads.push(res.text()
+                .then((b) => {
+                    const head = String(b == null ? '' : b).replace(/\s+/g, ' ').slice(0, 160);
+                    if (head) server5xx[at] += '\n          ↳ ' + head;
+                })
+                .catch(() => { server5xx[at] += '\n          ↳ (본문을 못 읽었다)'; }));
         }
         if (res.status() !== 404 || !res.url().startsWith(URL_BASE)) return;
         const p = res.url().replace(URL_BASE, '');

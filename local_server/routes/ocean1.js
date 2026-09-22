@@ -250,8 +250,18 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
         res.set('Cache-Control', 'public, max-age=86400');
         res.send(buf);
     } catch (e) {
-        console.error('[KHOA-WMS proxy] error:', e.message);
-        res.status(500).send('proxy error');
+        // ★왜 실패했는지를 **로그와 응답 본문 둘 다**에 남긴다(2026-09-22, G-42).
+        //   종전에는 `e.message`(대개 `terminated` 한 낱말)만 로그에 적고 본문은 `proxy error`
+        //   고정이었다. 그 탓에 V4 게이트가 잡은 500 을 두고 원인을 **세 번 넘겨짚었다** —
+        //   ①이 컨테이너의 아웃바운드 ②에이전트 프록시 ③동시 요청 과부하. 셋 다 재현 실패였다
+        //   (단건 3/3 · 동시 10건 2회차 모두 200, 2026-09-22 실측). 넘겨짚지 않으려면
+        //   **실패한 자리가 까닭을 말해야 한다**(G-40 과 같은 마디).
+        //   `e.cause.code` 가 진짜 이름이다(UND_ERR_SOCKET·ECONNRESET·ETIMEDOUT …).
+        const cause = e && e.cause ? (e.cause.code || e.cause.message || '') : '';
+        const why = String(e && e.message || e) + (cause ? ' (' + cause + ')' : '');
+        console.error('[KHOA-WMS proxy] error:', why, '· layer=' + String(req.query.layer || ''));
+        // 본문은 브라우저의 <img> 가 받아 화면에 안 보인다 — 진단용으로만 쓰인다.
+        res.status(500).send('proxy error: ' + why);
     }
 });
 
