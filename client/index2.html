@@ -4083,6 +4083,13 @@
                         .ocean-typhoon-panel .tphn-select{flex:1;min-width:0;background:rgba(255,255,255,0.95);
                             color:#111;border-radius:6px;border:none;padding:4px 6px;font-size:12px;}
                         .ocean-typhoon-panel .tphn-year{flex:none;width:84px;}
+                        /* 자료 출처 선택 — 태풍 이름 옆, ⓘ 버튼 왼쪽. 이름 칸보다 좁게 고정해
+                           긴 태풍 이름이 밀려나지 않게 한다. */
+                        .ocean-typhoon-panel .tphn-source{flex:none;width:112px;}
+                        .ocean-typhoon-panel .tphn-select:disabled{opacity:0.5;}
+                        /* 어느 기관 자료인지 한 줄 — 기관마다 풍속 기준·제공 항목이 달라 꼭 밝힌다. */
+                        .ocean-typhoon-panel .tphn-source-note{margin-top:5px;font-size:10px;line-height:1.5;
+                            color:#9fb6d8;}
                         .ocean-typhoon-panel .tphn-close{background:transparent;border:none;color:#cdd9f0;
                             font-size:15px;cursor:pointer;padding:0 2px;}
                         .ocean-typhoon-panel .tphn-row-play{margin-top:8px;margin-bottom:6px;position:relative;}
@@ -4176,6 +4183,16 @@
                         <div class="tphn-row tphn-row-top">
                             <select id="tphn-year" class="tphn-select tphn-year" title="연도 선택"></select>
                             <select id="tphn-name" class="tphn-select" title="태풍 선택"></select>
+                            <!-- 자료 출처 선택 — 기관마다 예보가 다르다. 한국(기상청)이 기본.
+                                 미국(JTWC)은 Xweather 를 거쳐 받는다(routes/typhoon_foreign.js).
+                                 일본·유럽·중국은 아직 자료원을 붙이지 않아 "준비 중"으로 잠가 둔다. -->
+                            <select id="tphn-source" class="tphn-select tphn-source" title="자료 출처 선택">
+                                <option value="kma">한국(기상청)</option>
+                                <option value="jtwc">미국(JTWC)</option>
+                                <option value="jma" disabled>일본(JMA/RSMC) — 준비 중</option>
+                                <option value="ecmwf" disabled>유럽(ECMWF) — 준비 중</option>
+                                <option value="cma" disabled>중국(CMA) — 준비 중</option>
+                            </select>
                             <button id="tphn-info-btn" class="tphn-info-btn" type="button" title="통보문 안내"><i class="fa-solid fa-circle-info"></i></button>
                             <button id="tphn-close" class="tphn-close" type="button" title="닫기"><i class="fa-solid fa-xmark"></i></button>
                         </div>
