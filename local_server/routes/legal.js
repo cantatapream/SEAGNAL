@@ -1761,6 +1761,21 @@ router.post('/api/legal/ask', async (req, res) => {
       } catch (e) { streamError = e; }
     }
 
+    // ★규약 5-7 — `해석주의` 플래그가 붙은 근거를 썼으면 **참고 한 줄을 자동으로 붙인다**
+    //   (`_CHATBOT.md` 5-7, 사용자 확정 2026-07-18). 모델에게 맡기지 않는다 — 규약이
+    //   "플래그가 있으면 붙인다"고 정한 것이라 확률에 맡길 일이 아니다.
+    //   ASSUMED_NOTICE 와 **같은 방식**으로 델타로도 내보낸다(위 1748행 참고) — 그래야
+    //   스트리밍 중 화면과 최종 렌더(`ai_chat.js` 가 done 의 `answer` 로 다시 그린다)가 같다.
+    //   답이 한 글자도 안 나온 경우(스트림 실패)에는 붙일 답 자체가 없어 건너뛴다.
+    if (synth.trim().length > 0) {
+      const caselawTail = legalRetriever.caselawNoticeFor(contextPages, full);
+      if (caselawTail) {
+        full += caselawTail;
+        res.write(JSON.stringify({ type: 'delta', text: caselawTail }) + '\n');
+        if (res.flush) res.flush();
+      }
+    }
+
     const usedGemini = synth.trim().length > 0;
     // L-57 조치③: 답변이 실제로 나온 경우에만 sourcesOut을 답변 인용 여부로 교차확인해 좁힌다
     // (스트림 실패로 답변이 없으면 교차확인할 대상이 없어 후보를 그대로 반환).

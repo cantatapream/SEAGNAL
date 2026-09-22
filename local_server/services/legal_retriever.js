@@ -3019,6 +3019,71 @@ function pageLawNames(body, pageLaw) {
 }
 
 /** contextPages를 프롬프트용 [근거자료] 블록 문자열로 직렬화. */
+// ============================================================================
+// §5-6 국제협약 · §5-7 판례변동 — 위키 frontmatter 메타를 **읽는 곳** (2026-09-22, P-15)
+// ----------------------------------------------------------------------------
+// 규약(`_CHATBOT.md` 5-6·5-7, 사용자 확정 2026-07-18)은 두 가지를 정해 두었다 —
+//   5-6 국제협약: 답은 **우리 법 기준**으로 하되, 협약이 기반이라는 **유래를 알려주고 링크를 준다**.
+//                근거 데이터는 위키 frontmatter 의 `국제협약근거`·`협약링크`.
+//   5-7 판례변동: `해석주의` 플래그가 있으면 **챗봇이 참고 한 줄을 자동 첨부**한다.
+// ★그런데 2026-09-22 실측에서 **그 메타를 읽는 코드가 한 줄도 없었다**(`local_server`·`client`·
+//   `scripts` 전수 grep — 유일한 언급은 `_dashboard/loop/wiki_rebuild.js` 의 **생성 프롬프트
+//   설명문**이라 읽는 자리가 아니다). 위키 11장이 메타를 달고 있는데 **아무 데도 닿지 않았다.**
+//   뿌리 사슬 ②「코드가 안 읽는 규칙은 죽는다」의 실례다. 여기가 그 메타의 **첫 소비처**다.
+// ============================================================================
+
+/** 규약 5-7 이 글자 그대로 정해 둔 참고 문구. 바꾸려면 `_CHATBOT.md` 5-7 도 같이 바꾼다. */
+const CASELAW_NOTICE = '※ 참고: 이 부분은 **판례·유권해석에 따라 달라질 수 있으니**, 다툼이 있는 사안은 관할 소관부서·전문가 확인을 권합니다.';
+
+/** frontmatter 값에 따옴표가 씌워진 페이지가 있다(`국제협약근거: "CITES(…)"`). 그것만 벗긴다. */
+function unquoteMeta(v) {
+  const s = String(v == null ? '' : v).trim();
+  const q = s.length >= 2 && ((s[0] === '"' && s[s.length - 1] === '"') || (s[0] === "'" && s[s.length - 1] === "'"));
+  return q ? s.slice(1, -1).trim() : s;
+}
+
+/**
+ * 규약 5-6 — 이 근거 페이지에 협약 메타가 있으면 [근거자료] 머리에 붙일 한 문단을 만든다.
+ * ⚠협약 본문은 우리가 **수집하지 않는다**. 그래서 "지어내지 마라"를 함께 적는다 —
+ *   유래를 알려주라고만 하면 모델이 협약 조문 내용까지 쓸 위험이 있다(환각 0 원칙).
+ * @param {Object} frontmatter - readPage() 가 만든 frontmatter 객체
+ * @returns {string} 붙일 것이 없으면 빈 문자열
+ */
+function treatyNote(frontmatter) {
+  const fm = frontmatter || {};
+  const basis = unquoteMeta(fm['국제협약근거']);
+  const link = unquoteMeta(fm['협약링크']);
+  if (!basis && !link) return '';
+  let s = '\n※ 이 자료의 규정은 국제협약을 국내법화한 것이다';
+  if (basis) s += ' — 근거 협약: ' + basis;
+  s += '. ';
+  if (link) s += '협약 원문 링크: ' + link + ' ';
+  s += '답은 **우리 법 기준**으로 내되, ①그 협약이 기반이라는 유래를 한 줄로 알려 주고 '
+    + '②위 링크가 있으면 그대로 제시하라. ③우리 법과 협약의 차이가 [근거자료]에 적혀 있으면 짚어 주되 결론은 우리 법 기준이다. '
+    + '⚠협약 본문은 우리가 수집하지 않는다 — **협약 조문의 내용을 지어내지 마라**(_CHATBOT.md 5-6).';
+  return s;
+}
+
+/**
+ * 규약 5-7 — `해석주의` 플래그가 붙은 근거를 썼으면 답변 끝에 이어 붙일 꼬리를 만든다.
+ * ⚠모델에게 맡기지 않는다. 규약이 "플래그가 있으면 붙인다"고 정한 것이라 확률에 맡길 일이 아니다.
+ * @param {Array} contextPages - 이 답변이 실제로 쓴 근거 페이지들
+ * @param {string} answerSoFar - 지금까지의 답변(이미 같은 뜻이 적혀 있으면 겹쳐 붙이지 않는다)
+ * @returns {string} 붙일 것이 없으면 빈 문자열
+ */
+function caselawNoticeFor(contextPages, answerSoFar) {
+  const flagged = (contextPages || []).some((cp) => unquoteMeta((cp && cp.frontmatter) ? cp.frontmatter['해석주의'] : ''));
+  if (!flagged) return '';
+  if (String(answerSoFar || '').includes('판례·유권해석에 따라 달라질 수 있')) return '';
+  return '\n\n' + CASELAW_NOTICE;
+}
+
+/** 스트리밍이 아닌 자리에서 쓰는 형태 — `withAssumedNotice` 와 짝이다. */
+function withCaselawNotice(answer, contextPages) {
+  if (!answer) return answer;
+  return answer + caselawNoticeFor(contextPages, answer);
+}
+
 function buildContextBlock(contextPages) {
   return contextPages.map((cp, i) => {
     // ★2026-08-18(사용자 지적): 예전 머리는 `[수산업법 — 허가어업]` 이었고, 모델이 그걸 통째로
@@ -3040,7 +3105,9 @@ function buildContextBlock(contextPages) {
       ? `\n※ 이 자료에는 다음 법령의 조문이 함께 실려 있다 — ${laws.join(' / ')}. `
         + `조문번호만 적힌 자리를 대표 법령(${cp.law}) 것으로 단정하지 마라.`
       : '';
-    return `--- 근거${i + 1}: 「${cp.law}」 관련 자료 (${about}${meta}) ---${also}\n${cp.body}`;
+    // ★규약 5-6 — 협약 메타가 있는 페이지만 붙는다(위키 11장). 없는 페이지는 빈 문자열이라 종전과 똑같다.
+    const treaty = treatyNote(cp.frontmatter);
+    return `--- 근거${i + 1}: 「${cp.law}」 관련 자료 (${about}${meta}) ---${also}${treaty}\n${cp.body}`;
   }).join('\n\n');
 }
 
@@ -5225,4 +5292,7 @@ module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex,
   // 2026-08-17: 답변 인용 기반 근거 카드 폴백(B11 — 위키 `## 근거 조문` 표가 없는 페이지의 구멍 메우기)
   extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX,
   // 2026-08-17: 4천자 컨텍스트 발췌(회귀 테스트 대상 — 이 로직에서 회귀가 두 번 재발했다)
-  sliceRelevant, isMustSection, MUST_SECTIONS };
+  sliceRelevant, isMustSection, MUST_SECTIONS,
+  // 2026-09-22 P-15: 위키 frontmatter 의 「국제협약근거·협약링크·해석주의」를 읽는 첫 소비처(_CHATBOT.md 5-6·5-7).
+  //   검사 도구가 생산과 똑같은 것을 보려고 함께 내보낸다(L-136).
+  CASELAW_NOTICE, unquoteMeta, treatyNote, caselawNoticeFor, withCaselawNotice };
