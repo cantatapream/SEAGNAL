@@ -129,6 +129,22 @@ const LAWGO_ORIGIN = 'https://www.law.go.kr';
 // raw 폴더 경로(law_raw_paths.json 값) → GET /api/legal/src 의 p 파라미터로 바꿀 때 떼는 앞부분.
 const RAW_PREFIX = 'local_server/knowledge/legal/raw/';
 
+/**
+ * 이 환경에 raw/ 원문이 디스크로 존재하는가. 있으면 토큰 없이도 조문을 읽을 수 있다.
+ * (Fly.io 배포 이미지에는 raw/ 가 없어 false → 종전대로 GitHub API 경로를 탄다.)
+ * 한 번 재고 캐시한다 — loadArticle 마다 statSync 를 부를 이유가 없다.
+ * @returns {boolean}
+ * [연계] → loadArticle() 의 첫 게이트 · services/github_raw.js 의 로컬 폴백과 짝이다.
+ */
+let _localRaw = null;
+function hasLocalRaw() {
+  if (_localRaw === null) {
+    const p = githubRaw.localPathOf(RAW_PREFIX);
+    try { _localRaw = !!p && require('fs').statSync(p).isDirectory(); } catch (_) { _localRaw = false; }
+  }
+  return _localRaw;
+}
+
 /** 정규식에 그대로 끼워 넣기 위해 특수문자를 이스케이프한다. */
 function reEsc(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1679,7 +1695,11 @@ async function loadArticle(q) {
   let tier = Object.prototype.hasOwnProperty.call(TIER_FILE, qTier) ? qTier : (qTier === 'notice' ? 'notice' : 'law');
   const ref = parseArticleRef((q && q.article) || '', tier, law);
   if (!law || !ref) return { ok: false, reason: 'bad_request' };
-  if (!githubRaw.hasToken()) return { ok: false, reason: 'no_token' };
+  // ★2026-09-22 (P-11 · 2-11): 종전에는 여기서 토큰만 보고 바로 끊었다. 그래서 raw/ 가
+  //   바로 옆에 있는 체크아웃 환경에서도 조문 원문·서식(§5-5)·별표 이미지(§5-9)가 전부
+  //   `no_token` 으로 죽었다. 이제 `github_raw` 가 **로컬 디스크를 먼저 보므로**, 읽을 길이
+  //   하나도 없을 때(로컬 raw/ 도 없고 토큰도 없을 때)만 끊는다.
+  if (!githubRaw.hasToken() && !hasLocalRaw()) return { ok: false, reason: 'no_source' };
 
   let base = resolveBase(law, (q && q.baseLaw) || '', tier);
   // ★이름이 우리가 가진 고시면 **그 고시가 있는 법 폴더**를 쓴다(2026-09-01 실측 32줄).

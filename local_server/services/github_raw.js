@@ -14,7 +14,19 @@
  * 이 저장소(`cantatapream/SEAGNAL`)는 비공개라 raw.githubusercontent.com 공개 URL로는
  * 못 읽는다 → GitHub Contents API를 읽기전용 토큰(`GITHUB_RAW_TOKEN`, Fly.io 시크릿)으로 호출한다.
  *
+ * [★2026-09-22 — 로컬 폴백 추가 (P-11 · 일감 2-11)]
+ * 종전에는 토큰이 없으면 **바로 빈 결과**였다. 그런데 이 저장소를 체크아웃해 돌리는 환경에는
+ * `local_server/knowledge/legal/raw/` 가 **바로 옆에 있다**. 그래서 조문 원문·서식 버튼(§5-5)·
+ * 별표 이미지(§5-9)가 **로컬에서 통째로 죽어 있었고, 소리도 안 났다** — `renderFormDownloadsHTML`
+ * 은 0건이면 아무것도 안 그리므로 사용자는 "서식이 없다"와 "확인 못 했다"를 구분할 수 없었다.
+ * 이제 **로컬 디스크를 먼저 보고, 없을 때만 GitHub 로 간다.**
+ *   · Fly.io 배포본 — 이미지에 raw/ 가 없다 → 로컬 미스 → 종전과 똑같이 GitHub API
+ *   · 체크아웃 환경 — raw/ 가 있다 → 디스크에서 읽는다(토큰·네트워크 불필요, 더 빠르다)
+ * 이 폴백이 L-7(조문·서식·별표 라이브 검증)을 여는 열쇠다.
+ *
  * [안전장치 — 이 파일의 핵심 계약]
+ *  - 경로는 저장소 루트 기준 상대경로만 받는다. `..` 로 루트 밖을 가리키면 로컬 읽기를 거부한다.
+ *  - 로컬에도 없고 토큰도 없으면 **한 번은 큰 소리로 알린다**(G-14 — 조용한 실패 금지).
  *  - 토큰이 없으면(로컬 개발환경 등) API를 아예 호출하지 않고 즉시 빈 결과(null/[])를 준다.
  *  - 네트워크 오류·404·401·타임아웃 등 어떤 실패에도 **예외를 던지지 않고** 빈 결과로 폴백한다.
  *    (legal_retriever.js의 expandQueryTerms()와 같은 "이 단계가 죽어도 챗봇 본체는 산다" 패턴)
@@ -36,6 +48,38 @@ const API_BASE = `https://api.github.com/repos/${REPO}/contents/`;
 // 2차(미검증 참고) 조회는 사용자가 화면에서 기다리는 중에 돈다 — GitHub가 느려지면
 // 무한정 기다리지 말고 끊고 폴백한다(그 경우 챗봇은 기존대로 "확인되지 않습니다"로 끝난다).
 const REQUEST_TIMEOUT_MS = 8000;
+
+// ── 로컬 폴백 (2026-09-22, P-11) ───────────────────────────────────────────
+const fs = require('fs');
+const path = require('path');
+// 이 파일은 `<repo>/local_server/services/` 에 있다 → 두 단계 올라가면 저장소 루트.
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
+let _warnedNoSource = false;
+
+/**
+ * 저장소 루트 기준 상대경로를 로컬 절대경로로 바꾼다. 루트 밖을 가리키면 null.
+ * 경로 문자열이 데이터(`law_raw_paths.json`·위키 칸)에서 오므로 탈출을 막는다.
+ * @param {string} repoPath
+ * @returns {string|null}
+ */
+function localPathOf(repoPath) {
+  if (typeof repoPath !== 'string' || !repoPath) return null;
+  const abs = path.resolve(REPO_ROOT, repoPath);
+  if (abs !== REPO_ROOT && !abs.startsWith(REPO_ROOT + path.sep)) return null;
+  return abs;
+}
+
+/**
+ * 로컬에도 없고 토큰도 없어 읽을 길이 아예 없는 상황을 **한 번은 알린다.**
+ * 종전에는 이 경우가 조용히 빈 결과로 끝나 서식·별표가 소리 없이 사라졌다(G-14).
+ * @param {string} repoPath
+ */
+function warnNoSource(repoPath) {
+  if (_warnedNoSource) return;
+  _warnedNoSource = true;
+  console.error('[github_raw] 원문을 읽을 길이 없다 — 로컬 raw/ 도 없고 GITHUB_RAW_TOKEN 도 없다. '
+    + '조문 원문·서식(§5-5)·별표 이미지(§5-9)가 전부 빈 결과가 된다. 첫 경로: ' + repoPath);
+}
 
 /**
  * GitHub 읽기전용 토큰이 설정돼 있는지. 없으면 2차 조회 자체를 건너뛰어야 한다.
@@ -88,6 +132,15 @@ async function ghFetch(repoPath, accept) {
  * [연계] ← legal_retriever.searchRawFallback()의 ①단계(법 폴더 목차 파악).
  */
 async function listDir(dirPath) {
+  const lp = localPathOf(dirPath);
+  if (lp) {
+    try {
+      // GitHub Contents API 와 **같은 모양**으로 돌려준다 — 호출부는 e.name·e.type·e.path 를 쓴다.
+      const ents = fs.readdirSync(lp, { withFileTypes: true });
+      return ents.map(e => ({ name: e.name, path: dirPath + '/' + e.name, type: e.isDirectory() ? 'dir' : 'file' }));
+    } catch (_) { /* 로컬에 없다 → 아래 GitHub 로 */ }
+  }
+  if (!hasToken()) { warnNoSource(dirPath); return []; }
   const res = await ghFetch(dirPath, 'application/vnd.github+json');
   if (!res) return [];
   try {
@@ -108,6 +161,13 @@ async function listDir(dirPath) {
  * [연계] ← legal_retriever.searchRawFallback()의 ①·③단계(법률.txt·AI가 지목한 파일들).
  */
 async function fetchText(filePath) {
+  const lp = localPathOf(filePath);
+  if (lp) {
+    try {
+      if (fs.statSync(lp).isFile()) return fs.readFileSync(lp, 'utf8');
+    } catch (_) { /* 로컬에 없다 → 아래 GitHub 로 */ }
+  }
+  if (!hasToken()) { warnNoSource(filePath); return null; }
   const res = await ghFetch(filePath, 'application/vnd.github.raw');
   if (!res) return null;
   try {
@@ -117,4 +177,4 @@ async function fetchText(filePath) {
   }
 }
 
-module.exports = { hasToken, listDir, fetchText };
+module.exports = { hasToken, listDir, fetchText, localPathOf };
