@@ -94,8 +94,23 @@ ok('폭풍 종류 → 강도: TD=0 · TS=1 · STS=2 · TY=3 · STY=5',
     route._gradeOfStormType('STS') === 2 && route._gradeOfStormType('TY') === 3 &&
     route._gradeOfStormType('STY') === 5);
 
-ok('모르는 종류는 0(열대저압부)으로 둔다 — 지어내지 않는다',
-    route._gradeOfStormType('???') === 0 && route._gradeOfStormType(null) === 0);
+ok('★모르는 종류는 null — 0(열대저압부)으로 떨어뜨리지 않는다',
+    route._gradeOfStormType('???') === null && route._gradeOfStormType(null) === null);
+
+// 기상청 임계값 17/25/33/44/54 m/s 는 10분 평균 기준 — JTWC 1분 평균에 0.88 을 곱해 넣는다.
+ok('★풍속으로 강도를 낸다 — 1분 평균을 10분 평균으로 환산(×0.88)',
+    route._gradeOfWind(74) === 5 &&     // 65.1 → 초강력
+    route._gradeOfWind(31) === 2 &&     // 27.3 → 중
+    route._gradeOfWind(20) === 1 &&     // 17.6 → 약
+    route._gradeOfWind(18) === 0,       // 15.8 → 열대저압부
+    [74,31,20,18].map(route._gradeOfWind).join(','));
+
+ok('환산 경계가 기상청 기준과 맞는다 (10분평균 17/25/33/44/54 m/s)',
+    route._gradeOfWind(17 / 0.88) === 1 && route._gradeOfWind(25 / 0.88) === 2 &&
+    route._gradeOfWind(33 / 0.88) === 3 && route._gradeOfWind(44 / 0.88) === 4 &&
+    route._gradeOfWind(54 / 0.88) === 5);
+
+ok('풍속이 없으면 null', route._gradeOfWind(null) === null && route._gradeOfWind('빠름') === null);
 
 // UTC+10 로 오는 시각을 한국시각으로 옮긴다 (2026-09-23T04:00+10:00 = 9/23 03:00 KST)
 ok('시각을 한국시각 문자열로 바꾼다 (UTC+10 04시 → KST 03시)',
@@ -114,6 +129,21 @@ ok('강풍반경(34노트)이 장·단반경으로 들어간다',
     frame.radStrong === 370 && frame.radStrongS === 167 && frame.radStrongD === 'NE');
 ok('원본 네 방향 값도 함께 실려 온다(나중에 정확히 그릴 때 쓴다)',
     frame.radQuad34 && frame.radQuad34.sw === 370 && frame.radQuad50 && frame.radQuad50.nw === 0);
+
+ok('강도는 풍속 26m/s 를 환산해서 낸다 (26x0.88=22.9 → 약=1)',
+    frame.grade === 1, String(frame.grade));
+ok('원본 폭풍 종류 코드도 함께 실어 보낸다 — 등급이 이상할 때 보이게',
+    frame.stormType === 'TS', frame.stormType);
+
+// 실제로 이 사고가 났다: 허리케인 Polo(920hPa · 1분평균 74m/s)가 등급 0(열대저압부)으로 나왔다.
+// 폭풍 종류 코드를 우리가 모르면 0으로 떨어뜨렸기 때문이다. 이제는 풍속이 이긴다.
+const strong = route._toFrame({
+    timestamp: Math.floor(Date.parse('2026-09-23T04:00:00+10:00') / 1000),
+    loc: { lat: 15, long: -101.5 },
+    details: { windSpeedMPS: 74, stormType: 'MH' }   // 'MH' 는 우리가 모르는 코드
+}, true);
+ok('★모르는 폭풍 종류라도 센 태풍이 열대저압부로 떨어지지 않는다 (74m/s → 초강력=5)',
+    strong && strong.grade === 5, strong && String(strong.grade));
 
 ok('★중심기압은 없으므로 null — 다른 값으로 채우지 않는다', frame.pressure === null);
 ok('★70% 확률반경은 없으므로 null', frame.radProb === null);

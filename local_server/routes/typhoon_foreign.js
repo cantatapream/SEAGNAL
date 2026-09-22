@@ -22,7 +22,9 @@
  *        네 값 중 최대·최소는 그대로 살아나고 그 사이는 화면의 기존 S-커브로 이어진다.
  *        원본 네 값은 radQuad34 / radQuad50 로 함께 실어 보낸다(나중에 정확히 그릴 때 쓴다).
  *   4. 풍속 평균 시간: JTWC 1분 · 기상청 10분. 같은 태풍도 숫자가 다르다.
- *      → 강도(grade)는 풍속으로 계산하지 않고 **JTWC 의 폭풍 종류(stormType)** 로 옮긴다.
+ *      → 강도(grade)는 풍속을 **10분 평균으로 환산(×0.88)한 뒤** 기상청 임계값에 넣는다.
+ *        폭풍 종류(stormType)는 풍속이 아예 없을 때만 쓴다 — 종류 코드만으로는
+ *        기상청 6단계로 못 나눈다(JTWC 의 TS 한 칸이 기상청 '약'과 '중'에 걸쳐 있다).
  *
  * [시각] Xweather 는 UTC+10 기준 문자열로 준다. 여기서 한국시각(KST) 문자열로 바꿔 보낸다.
  *
@@ -80,12 +82,14 @@ function pickMs(o) {
 }
 
 /**
- * JTWC 폭풍 종류 → 우리 강도(0~5).
+ * JTWC 폭풍 종류 → 우리 강도(0~5). 풍속이 없을 때만 쓰는 보조 수단.
  * 예: 'TY' → 3
- * [왜 풍속으로 계산하지 않나] JTWC 풍속은 1분 평균이라 기상청(10분 평균)용 임계값
- *   (17/25/33/44/54 m/s)에 그대로 넣으면 등급이 한 단계 높게 나온다.
- * @param {string} t - stormType (TD/TS/STS/TY/STY 등)
- * @returns {number} 0(열대저압부) ~ 5(초강력)
+ * [한계] 종류 코드는 기상청 6단계보다 칸이 굵다 — JTWC 의 'TS'(34~63노트) 하나가
+ *   기상청 '약'과 '중'에 걸쳐 있다. 그래서 풍속이 있으면 gradeOfWind 를 먼저 쓴다.
+ * [모르는 코드] null 을 돌려준다. 0(열대저압부)으로 떨어뜨리면 센 태풍이
+ *   가장 약한 등급으로 보인다 — 실제로 허리케인 Polo(920hPa)가 그렇게 나왔다.
+ * @param {string} t - stormType (TD/TS/STS/TY/STY/HU 등)
+ * @returns {number|null} 0(열대저압부) ~ 5(초강력), 모르는 코드면 null
  */
 function gradeOfStormType(t) {
     switch (String(t || '').toUpperCase()) {
@@ -95,8 +99,30 @@ function gradeOfStormType(t) {
         case 'TY': return 3;    // 태풍
         case 'STY': return 5;   // 슈퍼 태풍
         case 'HU': return 3;    // 허리케인(다른 해역 표기)
-        default: return 0;
+        default: return null;
     }
+}
+
+/** 1분 평균 → 10분 평균 환산계수(WMO 전통값). [출처] WMO 1993 · Harper et al. 2010 */
+const MIN1_TO_MIN10 = 0.88;
+
+/**
+ * JTWC 풍속(1분 평균 m/s) → 기상청 강도(0~5).
+ * 예: gradeOfWind(74) → 5 (74×0.88=65.1 m/s → 초강력)
+ * [왜 환산하나] 기상청 임계값 17/25/33/44/54 m/s 는 **10분 평균** 기준이다.
+ *   JTWC 의 1분 평균을 그대로 넣으면 한 단계 높게 나온다.
+ * @param {number} ms - 1분 평균 최대풍속(m/s)
+ * @returns {number|null} 0~5, 숫자가 아니면 null
+ */
+function gradeOfWind(ms) {
+    if (typeof ms !== 'number' || !isFinite(ms)) return null;
+    const w = ms * MIN1_TO_MIN10;
+    if (w >= 54) return 5;
+    if (w >= 44) return 4;
+    if (w >= 33) return 3;
+    if (w >= 25) return 2;
+    if (w >= 17) return 1;
+    return 0;
 }
 
 /** 네 방향 중심 방위(도) — 사분면 대표 방향. */
@@ -182,7 +208,9 @@ function toFrame(node, isCurrent) {
         radQuad34: q34,          // 원본 네 방향 값(정확히 그릴 때 쓰려고 함께 보낸다)
         radQuad50: q50,
         radProb: null,           // JTWC 는 70% 확률반경을 주지 않는다
-        grade: gradeOfStormType(d.stormType),
+        // 풍속이 있으면 풍속으로, 없으면 폭풍 종류로. 둘 다 없으면 null(화면이 0으로 그린다).
+        grade: (gradeOfWind(windMs) != null) ? gradeOfWind(windMs) : gradeOfStormType(d.stormType),
+        stormType: d.stormType || '',   // 원본 코드 — 등급이 이상할 때 무엇을 받았는지 보이게 둔다
         size: '',
         isCurrent: !!isCurrent
     };
@@ -265,6 +293,7 @@ router.get('/api/typhoon/foreign', async (req, res) => {
                 forecast: forecast,
                 // 화면 안내(i 버튼)가 그대로 쓰는 자리 — 기관 차이를 여기서 알린다.
                 rem: 'JTWC(미국 합동태풍경보센터) 자료입니다. 풍속은 1분 평균이라 기상청(10분 평균)보다 높게 나옵니다.'
+                   + '|강도(약~초강력)는 그 풍속을 10분 평균으로 환산해 기상청 기준에 맞춘 값입니다.'
                    + '|중심기압과 70% 확률반경은 제공되지 않습니다.'
                    + '|강풍·폭풍반경은 네 방향 값 중 가장 먼 쪽·가까운 쪽으로 옮겨 그린 근사입니다.',
                 other: 'Xweather 를 통해 받은 JTWC 자료 · 6시간마다 갱신'
@@ -290,6 +319,7 @@ router._clearCache = function () { cache = null; };   // 시험에서 30분 캐�
 router._quadToAsym = quadToAsym;
 router._pickQuad = pickQuad;
 router._gradeOfStormType = gradeOfStormType;
+router._gradeOfWind = gradeOfWind;
 router._toKstStamp = toKstStamp;
 
 module.exports = router;
