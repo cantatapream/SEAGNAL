@@ -128,7 +128,10 @@ const LABEL = {
   article_all: '④ 조문 칸이 전체·전문',
   paren: '⑤ 법령 칸에 괄호 주석(코드가 감당함 — 추이 관찰용)',
 };
-console.log(`개념 페이지 ${now.pages}개 · 근거 조문 행 ${now.rows}개`);
+// ⚠숫자만 말하지 않는다 — **뜻과 범위를 함께**(2-6 세는 법 사전). 이 도구는 개념 페이지만 본다.
+const _CNT = require('./_counting.js');
+console.log(`개념 페이지 ${now.pages}개 · 근거 조문 행 ${now.rows}개`
+  + ` (뜻: 챗봇이 꺼내는 사슬 항목 · 범위: ${_CNT.SCOPES.concepts})`);
 console.log(`(참고: 법령 칸이 '시행령'·'시행규칙'뿐인 행 ${now.tier_ok}개 — 원문 **찾아오기**는 된다`);
 console.log(`   (코드가 페이지의 법을 붙여 대조한다). 다만 **보여주기**는 화면 쪽에서 따로 막고 있다 —`);
 console.log(`   여러 법이 섞인 답변에서 근거 목록이 "시행규칙 제1조의2"처럼 어느 법인지 없이 나오던 것을`);

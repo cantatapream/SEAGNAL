@@ -144,7 +144,8 @@ let base = null;
 if (fs.existsSync(BASE_FILE)) { try { base = JSON.parse(fs.readFileSync(BASE_FILE, 'utf8')); } catch (_) {} }
 const delta = k => base && typeof base[k] === 'number' ? (now[k] - base[k] > 0 ? `  (+${now[k] - base[k]})` : now[k] - base[k] < 0 ? `  (${now[k] - base[k]})` : '') : '';
 
-console.log(`근거 조문 표 전체 행: ${now.rows.toLocaleString()}`);
+// ⚠뜻과 범위를 함께 말한다(2-6 세는 법 사전). 이 도구는 위키 전체를 본다.
+console.log(`근거 조문 표 전체 행: ${now.rows.toLocaleString()} (뜻: 챗봇이 꺼내는 사슬 항목 · 범위: ${require('./_counting.js').SCOPES.all})`);
 console.log(`어떤 답변으로도 근거로 못 뜨는 행: ${now.dead} (${(now.dead / now.rows * 100).toFixed(2)}%)${delta('dead')}`);
 console.log(`법령 칸이 답변에 나올 수 없는 꼴인 행: ${now.law_cell_unusable}${delta('law_cell_unusable')}\n`);
 if (argv.includes('--examples')) (ex.law_cell || []).slice(0, 10).forEach(x => console.log('        · ' + x));

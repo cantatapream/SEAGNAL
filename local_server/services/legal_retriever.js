@@ -5352,4 +5352,7 @@ module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex,
   sliceRelevant, isMustSection, MUST_SECTIONS,
   // 2026-09-22 P-15: 위키 frontmatter 의 「국제협약근거·협약링크·해석주의」를 읽는 첫 소비처(_CHATBOT.md 5-6·5-7).
   //   검사 도구가 생산과 똑같은 것을 보려고 함께 내보낸다(L-136).
-  CASELAW_NOTICE, unquoteMeta, treatyNote, caselawNoticeFor, withCaselawNotice };
+  CASELAW_NOTICE, unquoteMeta, treatyNote, caselawNoticeFor, withCaselawNotice,
+  // 2026-09-22 2-6(세는 법 사전): 절 찾기·칸 쪼개기를 **검사 도구도 같은 것을 쓰게** 내보낸다.
+  //   따로 만들면 같은 표를 세도 답이 달라진다 — 그게 뿌리 사슬 ⑥의 정체였다(L-136·G-10).
+  sectionTable, tableCells, isSepRow, plainCell };
