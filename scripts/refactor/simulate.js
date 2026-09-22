@@ -67,14 +67,36 @@ function resolveChromium() {
 
     const consoleErrors = [];
     const failed404 = [];
+    // ⚠5xx 는 **어느 주소가** 났는지 적어 둔다 (2026-09-22, G-35).
+    //   종전에는 브라우저 콘솔 문구(`… status of 500 (Internal Server Error)`)만 남아
+    //   **어느 엔드포인트인지 알 수 없었다.** 한 번 뜨면 그때마다 사람이 다시 재현해야 했다
+    //   (실제로 이번에 그랬고, 다시 돌리니 안 났다 — 그러면 원인을 영영 모른다).
+    //   회귀 판정에는 쓰지 않는다(콘솔 에러 쪽이 이미 잡는다). **진단을 위해 남길 뿐이다.**
+    const server5xx = [];
     page.on('console', (msg) => {
         if (msg.type() === 'error') consoleErrors.push(msg.text().slice(0, 300));
     });
     page.on('pageerror', (err) => consoleErrors.push('pageerror: ' + String(err).slice(0, 300)));
+    // ⚠404 는 **왜** 404 인지까지 봐야 한다 (2026-09-22, G-35).
+    //   깃허브 CI 에서 V4 가 처음으로 실제로 돌자 404 세 개가 나왔다 —
+    //   `/api/marine-zone-forecasts`·`/api/regional-forecast`·`/api/weather-alerts`.
+    //   코드가 깨진 것이 아니라 **그 응답을 만들 자료 파일이 그 환경에 없어서**다
+    //   (`routes/weather.js` 가 `fs.existsSync` 로 확인하고 `{"error":"… not found"}` 를 준다.
+    //    그 파일들은 API 키가 있어야 수집기가 만든다 — CI 에는 키가 비어 있다).
+    //   `verify_all.sh` 의 HTTP 스모크도 같은 이유로 `/api/weather-alerts` 를 건너뛴다.
+    //   ★그래서 **본문을 읽어 갈래를 나눈다.** 다른 이유의 404 는 종전대로 회귀로 잡는다 —
+    //     넓게 봐주면 진짜 404 회귀까지 같이 묻힌다.
+    const missingData = new Set();
     page.on('response', (res) => {
-        if (res.status() === 404 && res.url().startsWith(URL_BASE)) {
-            failed404.push(res.url().replace(URL_BASE, ''));
+        if (res.status() >= 500 && res.url().startsWith(URL_BASE)) {
+            server5xx.push(res.status() + ' ' + res.url().replace(URL_BASE, ''));
         }
+        if (res.status() !== 404 || !res.url().startsWith(URL_BASE)) return;
+        const p = res.url().replace(URL_BASE, '');
+        failed404.push(p);
+        res.text()
+            .then((b) => { if (/\bnot found\b/i.test(b) && /\.json/i.test(b)) missingData.add(p); })
+            .catch(() => { /* 본문을 못 읽으면 갈래를 못 나눈다 — 종전대로 회귀로 본다 */ });
     });
 
     console.log(`[simulate] 접속: ${URL_BASE}/`);
@@ -173,10 +195,42 @@ function resolveChromium() {
         return b && b.ok && !s.ok; // 기준선에서 되던 것이 안 되면 회귀
     });
 
-    console.log(`[simulate] 신규 콘솔에러 ${newErrors.length} · 신규 404 ${new404.length} · 사라진 전역함수 ${lostGlobals.length} · 깨진 시나리오 ${brokenScenarios.length}`);
+    // ★「자료 파일이 없어서 나는 404」는 회귀가 아니다 — 다만 **숨기지는 않는다**(G-34 의 교훈).
+    const envMiss = new404.filter((e) => missingData.has(e));
+    const real404 = new404.filter((e) => !missingData.has(e));
+
+    // 콘솔 에러 중에도 **환경 탓인 것**이 있다. 두 가지뿐이고, 둘 다 이유가 분명하다.
+    //   ⓐ `… status of 404 (Not Found)` — 위 envMiss 가 브라우저 콘솔에 되비친 것이다.
+    //      ⚠진짜 404 가 하나라도 있으면 이 줄이 그것 때문일 수도 있으므로 **빼지 않는다**.
+    //   ⓑ `ERR_CERT_AUTHORITY_INVALID` — 개발 컨테이너의 에이전트 프록시 CA 탓이다.
+    //      깃허브·운영에는 그 프록시가 없다(거기서 나면 그때는 진짜다 — 그래서 아래처럼
+    //      **프록시가 켜져 있을 때만** 뺀다).
+    const behindProxy = !!(process.env.HTTPS_PROXY || process.env.https_proxy);
+    const envErrRe = [];
+    if (envMiss.length && !real404.length) envErrRe.push(/status of 404 \(Not Found\)/i);
+    if (behindProxy) envErrRe.push(/ERR_CERT_AUTHORITY_INVALID/i);
+    const envErrors = newErrors.filter((e) => envErrRe.some((r) => r.test(e)));
+    const realErrors = newErrors.filter((e) => !envErrRe.some((r) => r.test(e)));
+
+    console.log(`[simulate] 신규 콘솔에러 ${realErrors.length}(+환경 ${envErrors.length}) · 신규 404 ${real404.length}(+자료부재 ${envMiss.length}) · 사라진 전역함수 ${lostGlobals.length} · 깨진 시나리오 ${brokenScenarios.length}`);
     let fail = false;
-    if (newErrors.length) { fail = true; console.error('  ❌ 신규 콘솔 에러:'); newErrors.slice(0, 10).forEach((e) => console.error('    - ' + e)); }
-    if (new404.length) { fail = true; console.error('  ❌ 신규 404:'); new404.slice(0, 20).forEach((e) => console.error('    - ' + e)); }
+    if (envErrors.length) {
+        console.log(`  ⏭️  환경 탓인 콘솔 에러 ${envErrors.length}건 — 회귀로 세지 않는다`);
+        envErrors.forEach((e) => console.log('    - ' + e));
+    }
+    if (realErrors.length) {
+        fail = true; console.error('  ❌ 신규 콘솔 에러:'); realErrors.slice(0, 10).forEach((e) => console.error('    - ' + e));
+        // 콘솔 문구만으로는 어느 주소인지 모른다 — 우리가 따로 적어 둔 5xx 목록을 함께 준다.
+        if (server5xx.length) {
+            console.error('  ↳ 이번 주행에서 5xx 를 낸 주소:');
+            [...new Set(server5xx)].forEach((e) => console.error('      ' + e));
+        }
+    }
+    if (envMiss.length) {
+        console.log(`  ⏭️  자료 파일이 없어 나는 404 ${envMiss.length}건 — 회귀로 세지 않는다(이 환경에 그 JSON 이 없다)`);
+        envMiss.forEach((e) => console.log('    - ' + e));
+    }
+    if (real404.length) { fail = true; console.error('  ❌ 신규 404:'); real404.slice(0, 20).forEach((e) => console.error('    - ' + e)); }
     if (lostGlobals.length) { fail = true; console.error('  ❌ 사라진 전역 함수:'); lostGlobals.slice(0, 20).forEach((e) => console.error('    - ' + e)); }
     if (brokenScenarios.length) { fail = true; console.error('  ❌ 깨진 시나리오:'); brokenScenarios.forEach((s) => console.error('    - ' + s.label)); }
 
