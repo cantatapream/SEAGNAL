@@ -65,7 +65,8 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_clarify_options test_unverified_review test_accident_sheet test_pending_law
   test_hazard_rocks_tide test_guide_tabs test_tab_structure test_usage_keys test_maintenance_tree
   test_overlay_solo test_wiki_brief_bulk test_review_marker_registered test_stale_reopen
-  test_mok_audit_scanner test_add_other_law_refresh test_pressure_card test_typhoon_source)
+  test_mok_audit_scanner test_add_other_law_refresh test_pressure_card test_typhoon_source
+  test_byl_decl)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi
@@ -201,6 +202,17 @@ echo; echo "── V5-8c 고시 지도 최신성(다른 부처 고시를 찾을 
 #   두고, 자기 폴더에서 못 찾았을 때만 그 지도를 본다. **고시를 새로 받아 놓고 지도를 안 돌리면
 #   그 고시는 남의 법 페이지에서 계속 안 열린다** — 그래서 어긋남을 여기서 막는다.
 python3 local_server/knowledge/legal/_dashboard/loop/sync_notice_index.py --check || fail "V5-8c 고시 지도 최신성(다른 부처 고시를 찾을 수 있나)"
+
+# ── V5-21a 계층 무접두 별표 파일이 열리나 (2026-09-22 신설, 2-7 · P-3) ─────────
+#   `article_text.js` ③경로는 `별표/별표1.txt` 처럼 계층 접두가 없는 파일을 **파일 안
+#   선언줄**로 검증한다(파일명 번호와 내용 번호가 어긋난 것이 실측 178개라 그냥 믿으면
+#   다른 별표를 그 번호인 것처럼 보여준다). 그런데 **그 판정을 재는 것이 하나도 없어서**,
+#   종전 규칙이 `시행규칙|시행령` 만 받는 바람에 「선박에서의 오염방지에 관한 규칙」
+#   (tier:1) 별표가 90개 중 0개 열리는데도 게이트는 전부 초록이었다.
+#   기준선(2026-09-22): 열린다 1657 · 번호어긋남 178 · 선언못읽음 29.
+#   ⚠이 검사는 **파일 단위**다. 위키 근거 줄 단위(1,367행)는 2-10(V5-21b)이 따로 잰다.
+echo; echo "── V5-21a 계층 무접두 별표 파일 도달성 ──"
+node local_server/knowledge/legal/_dashboard/loop/byl_bare_ready.js --gate || fail "V5-21a 계층 무접두 별표 파일 도달성"
 
 echo; echo "── V5-11 별표 도달성(고시 별표를 눌러 열 수 있나) ──"
 # V5-8(link_ready)은 **조문 칸에 조(條)가 있는 줄**만 본다. 조문 칸이 `별표1`·`별지 제3호서식`

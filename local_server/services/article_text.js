@@ -1052,9 +1052,70 @@ function extractAttachments(text) {
 }
 
 // 별표 파일 안의 선언줄(`■ 항만법 시행령 [별표 6]`·`■ 항만운송사업법 시행규칙 [별지 제16호의2서식]`).
-// 계층(시행령/시행규칙)과 **번호**를 함께 읽는다 — 실측 표기가 `[별표 5의2]`·`[별지 제2호의2 서식]`·
-// `[별지 23호서식]`·`[별지제41호서식]`·`[별표1]`처럼 갈려 있어 공백·`제`·`호`를 전부 선택적으로 둔다.
-const BYL_DECL_RE = /■[^\n[〔【]*?(시행규칙|시행령)\s*[[〔【]\s*(?:(별표)\s*제?\s*(\d+(?:의\d+)?)|(?:별지|서식)\s*제?\s*(\d+)\s*호(?:\s*의\s*(\d+))?)/;
+// ── 2026-09-22 (2-7 · P-3) 전면 교체 ────────────────────────────────────────
+// [무엇이 문제였나] 종전에는 정규식 **하나**로 선언줄 전체를 한 번에 훑었다.
+//   `/■[^\n[〔【]*?(시행규칙|시행령)\s*[[〔【]…/`
+//   이 한 줄이 세 가지를 동시에 요구한다 — ①`■` 로 시작할 것 ②계층 낱말이
+//   **시행규칙·시행령 둘 중 하나**일 것 ③그 낱말 바로 뒤가 여는 괄호일 것.
+//   실측(2026-09-22, 계층 접두 없는 별표 파일 2,032개)에서 **331개가 걸리지 않았다**:
+//     ⓑ 계층 낱말이 아예 없다 — **88개**. `■ 선박에서의 오염방지에 관한 규칙 [별표 1]`
+//        처럼 **그 문서 자신이 법률 자리**인 것들이다(기준법급 규칙·관세법 등).
+//        「선박에서의 오염방지에 관한 규칙」은 `tier:1` 인데 **90개 중 0개**가 열렸다.
+//     ⓔ `■` 표시가 아예 없다 — **194개**. 괄호줄이 머리 몇 줄 안에 맨몸으로 있다.
+//     ⓐ 계층이 낫표 안에 있다 — **21개**. `■ 「국가기술자격법 시행규칙」 [별지 …]`
+//        은 `시행규칙` 뒤가 `」` 라 ③을 어긴다.
+//     ⓒ 오타 — **4개**. `시행규칙칙`.
+//     ⓓ 괄호에 번호가 없다 — **23개**. `[별표]`·`[별지 서식]`. 이건 **그대로 둔다** —
+//        번호를 요구하는 참조와 맞출 방법이 없다.
+// [무엇을 바꿨나] 정규식 하나로 훑지 않고 **①선언줄을 고르고 ②그 한 줄을 판다.**
+//   계층은 「낱말이 있으면 그 계층, 없으면 법률(그 문서 자신)」로 읽는다.
+//   그러면 ⓐ·ⓑ·ⓒ 가 한꺼번에 풀린다(낫표든 오타든 낱말만 들어 있으면 된다).
+// [안전] 이 검사의 본래 목적은 **파일명 번호와 내용 번호가 어긋난 파일 41개**를 거르는
+//   것이다. 번호 대조는 그대로 남는다. 계층 낱말이 없는 선언줄은 **법률 자리에만**
+//   맞으므로, 시행령·시행규칙 요청이 엉뚱한 파일을 집는 일은 생기지 않는다.
+// [연계] resolveRefs() ③ · scripts 쪽 대조 없음(이 파일 안에서만 쓴다).
+
+/** 괄호 안(`별표 5의2`·`별지 제2호의2 서식`·`별지제41호서식`·`별표1`)에서 종류·번호를 읽는다. */
+const BYL_NUM_RE = /^\s*(?:(별표)\s*제?\s*(\d+(?:의\d+)?)|(?:별지|서식)\s*제?\s*(\d+)\s*호(?:\s*의\s*(\d+))?)/;
+/** 맨몸 선언줄(`[별지 제11호서식]`) — `■` 없이 괄호로 바로 시작하는 꼴. */
+const BYL_BARE_DECL_RE = /^\s*[[〔【]\s*(?:별표|별지|서식)/;
+/** 선언줄을 찾을 때 머리에서 훑어볼 줄 수. 본문 표 안의 `[별표 3]` 인용을 선언으로 오인하지 않게 짧게 둔다. */
+const BYL_DECL_HEAD_LINES = 6;
+
+/**
+ * 별표 파일에서 **선언줄 한 줄**을 고른다.
+ *  ① `■` 로 시작하는 줄이 있으면 그 줄(가장 흔한 꼴).
+ *  ② 없으면 머리 6줄 안에서 여는 괄호 + 별표/별지/서식 으로 시작하는 줄.
+ * @param {string} text - 별표 파일 전체
+ * @returns {string} 선언줄(없으면 빈 문자열)
+ */
+function bylDeclLine(text) {
+  const lines = String(text || '').split('\n');
+  const marked = lines.find(l => l.trimStart().startsWith('■'));
+  if (marked) return marked.trim();
+  const bare = lines.slice(0, BYL_DECL_HEAD_LINES).find(l => BYL_BARE_DECL_RE.test(l));
+  return bare ? bare.trim() : '';
+}
+
+/**
+ * 선언줄 한 줄을 계층·종류·번호로 판다.
+ * @param {string} line - bylDeclLine() 결과
+ * @returns {{tier:string, type:string, num:string}|null}
+ */
+function parseBylDecl(line) {
+  const s = String(line || '').replace(/^\s*■\s*/, '');
+  const at = s.search(/[[〔【]/);
+  if (at < 0) return null;
+  const head = s.slice(0, at);                       // 괄호 앞 — 법령명 + 계층 낱말
+  const inner = s.slice(at + 1);                     // 괄호 뒤 — 종류 + 번호
+  const m = BYL_NUM_RE.exec(inner);
+  if (!m) return null;
+  // ⚠계층 낱말이 없으면 **그 문서 자신(법률 자리)** 이다. 순서 주의 — `시행규칙` 을 먼저 본다.
+  const tier = /시행규칙/.test(head) ? '시행규칙' : /시행령/.test(head) ? '시행령' : '법률';
+  const type = m[1] ? '별표' : '서식';
+  const num = m[1] ? m[2] : (m[3] + (m[4] ? '의' + m[4] : ''));
+  return { tier, type, num };
+}
 
 /**
  * 계층 접두가 없는 별표 파일(`별표/별표1.txt`)이 **정말 그 계층의 그 번호**인지 선언줄로 확인한다.
@@ -1063,18 +1124,17 @@ const BYL_DECL_RE = /■[^\n[〔【]*?(시행규칙|시행령)\s*[[〔【]\s*(?:
  *   본문이 실제로 그 번호를 인용해 **다른 별표를 그 번호인 것처럼** 보여주게 된다(환각 0 위반).
  * 예: bylDeclMatches('■ 항만법 시행령 [별표 6]…', '시행령', {type:'별표', num:'6'}) → true
  *     bylDeclMatches('■ … 시행령 [별표 1의2]…',  '시행령', {type:'별표', num:'1'}) → false
+ *     bylDeclMatches('■ 선박에서의 오염방지에 관한 규칙 [별표 1]', '법률', {type:'별표', num:'1'}) → true
  * @param {string} text - 별표 파일 전체
- * @param {string} prefix - 지금 tier 의 계층 이름(시행령·시행규칙)
+ * @param {string} prefix - 지금 tier 의 계층 이름(법률·시행령·시행규칙)
  * @param {{type:string, num:string}} k - 요청한 참조(splitRefKey 결과)
  * @returns {boolean}
  * [연계] ← resolveRefs() ③.
  */
 function bylDeclMatches(text, prefix, k) {
-  const m = BYL_DECL_RE.exec(String(text || ''));
-  if (!m || m[1] !== prefix) return false;
-  const type = m[2] ? '별표' : '서식';
-  const num = m[2] ? m[3] : (m[4] + (m[5] ? '의' + m[5] : ''));
-  return type === k.type && num === k.num;
+  const d = parseBylDecl(bylDeclLine(text));
+  if (!d) return false;
+  return d.tier === prefix && d.type === k.type && d.num === k.num;
 }
 
 /** 별표 파일은 첫 줄이 제목, 그 아래가 본문(표)이다. */
@@ -1086,12 +1146,20 @@ function bylBody(text) {
  * 그 별표 파일이 **원문을 실제로 담고 있는지**. `■ 도선법 시행규칙 [별표 7] 삭제` 선언 한 줄뿐인
  * 폐지·이동 별표 파일이 실측 178개 있는데, 이걸 kind='text' 로 확정하면 눌러도 빈 팝업이 뜨고
  * 다음 단계(④ `_links.json` 다운로드 링크)까지 건너뛴다 — 원문이 있는 척하지 않는다.
+ * ⚠2026-09-22 — 선언줄이 `■` 없이 맨몸 괄호로 오는 파일 194개를 새로 받아들이게 되면서
+ *   **그 줄도 함께 걷어내야** 한다. 안 그러면 `[별지 제11호서식] 삭제` 한 줄뿐인 파일이
+ *   "본문이 있다"로 통과한다(실측 73개). 선언줄 자체를 지우고 나서 남는 것이 있는지 본다.
  * @param {string} text - 별표 파일 전체
  * @returns {boolean}
  * [연계] ← resolveRefs() ③.
  */
 function hasBylBody(text) {
-  return !!bylBody(text).replace(/^■[^\n]*/, '').trim();
+  const decl = bylDeclLine(text);
+  const rest = String(text || '').split('\n')
+    .slice(1)                                        // 첫 줄은 제목
+    .filter(l => l.trim() !== decl)                  // 선언줄(■ 꼴이든 맨몸 괄호든) 제거
+    .join('\n');
+  return !!rest.replace(/^■[^\n]*/gm, '').trim();
 }
 
 /** 별표 링크가 `/LSW/flDownload.do?flSeq=…` 상대경로로 적힌 파일이 있어 절대 URL로 만든다. http(s)만 통과. */
@@ -1975,4 +2043,8 @@ module.exports = {
   // isAddendaCell 도 같은 이유로 내보낸다(L-136) — `○○법 부칙 제2조` 인용을 게이트가
   // 생산과 똑같이 "부칙 구간에서 찾는다"고 판단해야 숫자가 어긋나지 않는다.
   isAddendaCell, addendaLawName,
+  // 2026-09-22(2-7) — 별표 선언줄 판독을 내보낸다. 「계층 접두 없는 별표 파일이 열리나」를
+  // 재는 자(게이트·조사 스크립트)가 **생산과 똑같이** 판단해야 숫자가 어긋나지 않는다(L-136).
+  // 이 셋이 없으면 재는 쪽이 정규식을 베껴 쓰게 되고, 그 사본이 곧 옛 규칙으로 굳는다.
+  bylDeclLine, parseBylDecl, bylDeclMatches, hasBylBody,
 };
