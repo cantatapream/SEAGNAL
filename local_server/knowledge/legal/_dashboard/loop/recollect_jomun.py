@@ -117,7 +117,15 @@ def pick_metas(argv):
     keys=[argv[i+1] for i,a in enumerate(argv) if a=='--only' and i+1<len(argv)]
     if not keys:
         return metas
-    sel=[m for m in metas if any(k in os.path.dirname(m) for k in keys)]
+    # ★`/` 가 없는 말은 **폴더 이름 정확일치**로 본다(2026-09-22).
+    #   [왜] 부분일치로 뒀더니 `--only 문화유산의보존및활용에관한법률` 이
+    #   `근현대문화유산의보존및활용에관한법률` 을, `--only 순환경제사회전환촉진법` 이
+    #   그림자 폴더 `순환경제사회전환촉진법시행령` 을 함께 잡았다. 받을 것만 받는다.
+    #   경로 조각(`15_관련타부처/국유재산법`)을 주면 종전대로 부분일치다.
+    def hit(mp):
+        d = os.path.dirname(mp)
+        return any((k in d) if '/' in k else (os.path.basename(d) == k) for k in keys)
+    sel=[m for m in metas if hit(m)]
     print(f"--only {keys} → 계열 {len(sel)}개 (전체 {len(metas)}개 중)",flush=True)
     for m in sel:
         print("   "+os.path.relpath(os.path.dirname(m),ROOT),flush=True)

@@ -108,6 +108,40 @@ def announce(reason, url=''):
 #: 한 실행 안에서 같은 법령ID 를 두 번 묻지 않는다. {(법령ID, MST): 시행일자}
 #  ⚠**성공한 답만** 담는다. 실패(None)를 담으면 터널이 한 번 흔들린 것이 그 실행 내내 굳는다.
 _EFYD_CACHE = {}
+_VER_CACHE = {}   # (lid, mst) → (현행 시행일자, 현행 판의 일련번호)
+
+
+def current_version(api, oc, lid, mst=None):
+    """그 **법령ID** 의 현행 판 (시행일자, 법령일련번호). 못 찾으면 (None, None).
+
+    ★왜 MST 까지 돌려주나 (2026-09-22) — 우리가 `_meta.json` 에 들고 있는 MST 가
+      **현행 판의 것이 아닐 수 있다.** 그때 `eflaw` + 우리 MST + 현행 efYd 로 부르면
+      law.go.kr 이 *"미신청된 목록/본문에 대한 접근입니다."* 를 준다 — 권한이 아니라
+      **"그 일련번호에는 그 시행일 판이 없다"** 는 뜻이다(실측: 국유재산법 시행령 287093 +
+      efYd 20260820, 산업입지법 277001 + efYd 20260918). 현행 판의 **제 일련번호**로 물으면 온다.
+    """
+    if not lid:
+        return (None, None)
+    key = (str(lid), str(mst or ''))
+    if key in _VER_CACHE:
+        return _VER_CACHE[key]
+    d = api('https://www.law.go.kr/DRF/lawSearch.do?OC=%s&target=eflaw&type=JSON'
+            '&LID=%s&display=100' % (oc, lid))
+    rows = ((d or {}).get('LawSearch') or {}).get('law') or []
+    if isinstance(rows, dict):
+        rows = [rows]
+    cur = [r for r in rows if r.get('현행연혁코드') == '현행']
+    if mst:
+        same = [r for r in cur if str(r.get('법령일련번호')) == str(mst)]
+        if same:
+            cur = same
+    if not cur:
+        return (None, None)
+    row = max(cur, key=lambda r: str(r.get('시행일자') or ''))
+    ans = (str(row.get('시행일자') or '') or None, str(row.get('법령일련번호') or '') or None)
+    if ans[0]:
+        _VER_CACHE[key] = ans
+    return ans
 
 
 def current_efyd(api, oc, lid, mst=None):
@@ -120,28 +154,7 @@ def current_efyd(api, oc, lid, mst=None):
     @param lid  법령ID — `_meta.json` families 또는 `기본정보.법령ID`
     @param mst  주면 그 일련번호 행을 우선한다(같은 법에 다른 MST 가 섞일 때)
     """
-    if not lid:
-        return None
-    key = (str(lid), str(mst or ''))
-    if key in _EFYD_CACHE:
-        return _EFYD_CACHE[key]
-    d = api('https://www.law.go.kr/DRF/lawSearch.do?OC=%s&target=eflaw&type=JSON'
-            '&LID=%s&display=100' % (oc, lid))
-    rows = ((d or {}).get('LawSearch') or {}).get('law') or []
-    if isinstance(rows, dict):
-        rows = [rows]
-    cur = [r for r in rows if r.get('현행연혁코드') == '현행']
-    if mst:
-        same = [r for r in cur if str(r.get('법령일련번호')) == str(mst)]
-        if same:
-            cur = same
-    if not cur:
-        return None
-    # 현행이 여럿일 리는 없지만, 있으면 가장 늦게 시행된 것을 고른다.
-    ans = max(str(r.get('시행일자') or '') for r in cur) or None
-    if ans:
-        _EFYD_CACHE[key] = ans
-    return ans
+    return current_version(api, oc, lid, mst)[0]
 
 
 def fetch_law_body(api, oc, mst, lid=None, warn=True):
@@ -162,9 +175,9 @@ def fetch_law_body(api, oc, mst, lid=None, warn=True):
     #   시행일자를 먼저 정하고 곧바로 `eflaw`+`efYd` 로 한 번만 받는다.**
     #   ⚠판을 못 정하면 여기서도 **아무것도 주지 않는다** — 빠르게 하려고 안전을 놓지 않는다.
     if lid:
-        want = None
+        want = cur_mst = None
         for _ in range(2):
-            want = current_efyd(api, oc, lid, mst)
+            want, cur_mst = current_version(api, oc, lid, mst)
             if want:
                 break
         # ⚠`lid` 가 **틀렸을 수 있다.** `_meta.json` 에 다른 법의 법령ID 가 적혀 있으면
@@ -175,15 +188,29 @@ def fetch_law_body(api, oc, mst, lid=None, warn=True):
         #     메타가 틀려도 스스로 바로잡는다. 안전은 그대로다(못 정하면 거기서도 None).
         ok1 = None
         if want:
-            for _ in range(2):
-                got1 = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=eflaw&type=JSON'
-                           '&MST=%s&efYd=%s' % (oc, mst, want))
-                if not got1:
-                    continue
-                done = str(((got1.get('법령') or {}).get('기본정보') or {}).get('시행일자') or '')
-                if done == want:
-                    ok1 = got1
-                break
+            # ★우리 MST 로 먼저, 안 되면 **현행 판의 제 일련번호**로 (2026-09-22 보강).
+            #   `_meta.json` 의 MST 가 옛 판의 것이면 `우리 MST + 현행 efYd` 조합은 없는 판이라
+            #   law.go.kr 이 "미신청된 목록/본문에 대한 접근입니다." 로 답한다(권한 아님).
+            #   실측: 국유재산법 시행령 287093+20260820 · 산업입지법 277001+20260918 —
+            #   둘 다 목록이 알려 준 현행 판의 일련번호로 물으니 그 자리에서 왔다.
+            #   ⚠다른 MST 로 받을 때는 **법령ID 가 같은지 반드시 확인한다** — 아니면 남의 법이다.
+            for try_mst in [str(mst)] + ([str(cur_mst)] if cur_mst and str(cur_mst) != str(mst) else []):
+                for _ in range(2):
+                    got1 = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=eflaw&type=JSON'
+                               '&MST=%s&efYd=%s' % (oc, try_mst, want))
+                    if not got1:
+                        continue
+                    info = (got1.get('법령') or {}).get('기본정보') or {}
+                    done = str(info.get('시행일자') or '')
+                    same_law = (try_mst == str(mst)) or (str(info.get('법령ID') or '') == str(lid))
+                    if done == want and same_law:
+                        ok1 = got1
+                        if try_mst != str(mst) and warn:
+                            print('   ↪MST %s: 우리 일련번호로는 현행(%s) 판이 없어 목록이 알려 준 '
+                                  '현행 일련번호 %s 로 받았다.' % (mst, want, try_mst), flush=True)
+                    break
+                if ok1:
+                    break
         if ok1:
             return ok1
         if warn:
@@ -206,9 +233,10 @@ def fetch_law_body(api, oc, mst, lid=None, warn=True):
     #   287955 가 터널 한 번 끊긴 것만으로 20260701(옛 판)을 받아들이는 것을 실측으로 봤다.
     #   목록에는 `MST=287955 시행일=20260828 연혁=현행` 이 멀쩡히 있었다. 조용히 옛 판을 주느니
     #   **아무것도 안 주는 쪽**이 옳다 — 호출한 도구는 이미 "못 받음"을 다룰 줄 안다(환각 0).
-    want = None
+    want = cur_mst = None
+    body_lid = lid or info.get('법령ID')
     for _ in range(2):            # api() 가 안에서 이미 3~4번 두드린다 — 바깥은 2번이면 족하다
-        want = current_efyd(api, oc, lid or info.get('법령ID'), mst)
+        want, cur_mst = current_version(api, oc, body_lid, mst)
         if want:
             break
     if not want:
@@ -225,17 +253,29 @@ def fetch_law_body(api, oc, mst, lid=None, warn=True):
     # ⚠`fixed or body` 라고 쓰면 안 된다. 재조회가 한 번 실패한 것만으로 **방금 틀렸다고 판정한
     #   그 판**을 도로 내주게 된다. 실제로 288973 이 그렇게 20270101(시행예정)을 통과했다.
     #   물러설 곳을 두지 않는다 — 못 받으면 못 받은 것이다.
-    for _ in range(2):
-        fixed = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=eflaw&type=JSON'
-                    '&MST=%s&efYd=%s' % (oc, mst, want))
-        if fixed:
-            done = str(((fixed.get('법령') or {}).get('기본정보') or {}).get('시행일자') or '')
-            if done == want:
+    # ★우리 MST 로 안 되면 **현행 판의 제 일련번호**로 한 번 더 (2026-09-22 보강).
+    #   우리 MST 가 옛 판의 것이면 `우리 MST + 현행 efYd` 는 없는 조합이라 law.go.kr 이
+    #   "미신청된 목록/본문에 대한 접근입니다." 로 답한다 — 권한이 아니라 **인자**다.
+    #   ⚠다른 일련번호로 받을 때는 **법령ID 가 같은지 확인한다** — 아니면 남의 법이다.
+    tries = [str(mst)] + ([str(cur_mst)] if cur_mst and str(cur_mst) != str(mst) else [])
+    for try_mst in tries:
+        for _ in range(2):
+            fixed = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=eflaw&type=JSON'
+                        '&MST=%s&efYd=%s' % (oc, try_mst, want))
+            if not fixed:
+                continue
+            fi = (fixed.get('법령') or {}).get('기본정보') or {}
+            done = str(fi.get('시행일자') or '')
+            same_law = (try_mst == str(mst)) or (str(fi.get('법령ID') or '') == str(body_lid))
+            if done == want and same_law:
+                if try_mst != str(mst) and warn:
+                    print('   ↪MST %s: 우리 일련번호로는 현행(%s) 판이 없어 목록이 알려 준 '
+                          '현행 일련번호 %s 로 받았다.' % (mst, want, try_mst), flush=True)
                 return fixed
             if warn:
                 print('   ✗MST %s: efYd=%s 로 불렀는데 %s 판이 왔다 — 받지 않는다.'
-                      % (mst, want, done or '?'), flush=True)
-            return None
+                      % (try_mst, want, done or '?'), flush=True)
+            break
     if warn:
         print('   ✗MST %s: 현행은 %s 인데 그 판을 못 받았다 — 틀린 판(%s)을 주지 않고 비운다.'
               % (mst, want, got or '?'), flush=True)
