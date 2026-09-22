@@ -76,6 +76,8 @@ def arg(k):
 
 TIER = re.compile(r'^(법률|시행령|시행규칙)(_.*)?\.txt$')
 MOK_LINE = re.compile(r'^\s{4,}[가-힣]\s*\.')
+HEAD_BR = re.compile(r'^\[(제\d+조(?:의\d+)?)\]')      # 대괄호 머리줄
+HEAD_PL = re.compile(r'^(제\d+조(?:의\d+)?)\(')         # 민짜 머리줄(대괄호가 없는 파일)
 SAYS = re.compile(r'다음 각 목')
 INLINE = re.compile(r'가\s*\.\s*\S')
 SKIP = (os.sep + '_구판' + os.sep, os.sep + '_대기' + os.sep)
@@ -107,14 +109,35 @@ for base, dirs, names in os.walk(RAW):
             t = open(p, encoding='utf-8').read()
         except Exception:
             continue
-        says = list(SAYS.finditer(t))
-        if not says:
+        if '다음 각 목' not in t:
             continue
-        if any(MOK_LINE.match(l) for l in t.split('\n')):
-            continue                       # 목 줄이 하나라도 있으면 이 검사 대상이 아니다
-        miss = sum(1 for m in says if not INLINE.search(t[m.end():m.end() + 400]))
+        # ★**조 단위로 센다**(2026-09-22 고침). 종전에는 *파일*에 목 줄이 하나라도 있으면
+        #   통째로 건너뛰었다 — 그래서 ①한 조만 고쳐도 파일이 목록에서 빠져 **고친 것보다
+        #   많이 줄어 보였고**(83 → 18 중 상당수가 그 착시였다) ②다른 조에 목이 있는 파일의
+        #   결손은 **처음부터 한 번도 안 보였다**(유전자변형농수산물 규칙·마약류관리법 등 3개).
+        #   조 단위로 세니 수리 전 25파일·89곳 → 수리 후 10파일·27곳이 진짜 값이다.
+        lines = t.split('\n')
+        H = HEAD_BR if any(HEAD_BR.match(l) for l in lines) else HEAD_PL
+        blocks, cur, buf = [], None, []
+        for l in lines:
+            if H.match(l):
+                if cur is not None:
+                    blocks.append('\n'.join(buf))
+                cur, buf = l, [l]
+            elif cur is not None:
+                buf.append(l)
+        if cur is not None:
+            blocks.append('\n'.join(buf))
+        says = miss = 0
+        for blk in blocks:
+            if any(MOK_LINE.match(x) for x in blk.split('\n')):
+                continue               # 이 **조**에는 목이 있다 — 이 조는 대상이 아니다
+            for m in SAYS.finditer(blk):
+                says += 1
+                if not INLINE.search(blk[m.end():m.end() + 400]):
+                    miss += 1
         if miss:
-            rows.append({'file': os.path.relpath(p, LEGAL), 'says': len(says), 'missing': miss})
+            rows.append({'file': os.path.relpath(p, LEGAL), 'says': says, 'missing': miss})
 
 
 def ho_gaps():
