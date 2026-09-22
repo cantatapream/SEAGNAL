@@ -119,7 +119,13 @@ for (const [f, n] of Object.entries(cur)) {
 const gone = Object.keys(base.파일).filter(f => !(f in cur));
 
 console.log(`  실행 코드(.js·.py·.sh)에 박힌 「그 컴퓨터에만 있는 자리」 — 파일 ${Object.keys(cur).length}개 · 자리 ${total}곳`);
+  // ★무늬만 적고 **잣대**를 안 적으면 다음 사람이 다른 수를 낸다 (2026-09-22, 2-6b).
+  //   실측: 같은 무늬로 재도 **주석까지 세면 110 파일, 주석을 빼면 89 파일**이다(차이 21).
+  //   독립 4벌이 이 항목을 **113 / 104 / 105** 로 적었던 것도 이 때문이다 — 그들은 "어디든"을
+  //   셌고 이 게이트는 "주석이 아닌 줄"을 센다. **아무도 안 틀렸고, 잣대를 안 밝혔을 뿐이다.**
   console.log(`    (찾는 것: ${NEEDLE})`);
+  console.log(`    (재는 법: **주석 줄은 안 센다**(설명까지 세면 고칠수록 숫자가 오른다) ·`
+    + ` git 이 아는 .js·.py·.sh 만 · 안 보는 곳 ${SKIP.join('·')} · 이 파일 자신 제외)`);
 console.log(`  기준선(${base.기준일 || '없음'}) — 파일 ${Object.keys(base.파일).length}개 · 자리 ${base.총계}곳`);
 if (gone.length) console.log(`  ↓ 없어진 파일 ${gone.length}개 (좋아진 것)`);
 

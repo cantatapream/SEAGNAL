@@ -52,8 +52,15 @@ const GAP = Number(process.env.GAP || 400);        // A 누르고 B 누르기까
 //   [★반대 방향 구멍이 더 심각했다] A 의 자료가 이 시간 **뒤에** 도착해 스스로 그려지면
 //     고정 대기는 **그걸 못 본다** — 이 스위트가 2026-09-10 사용자 보고를 받고 막으려던
 //     바로 그 버그다. 거짓 실패뿐 아니라 **거짓 통과**도 만들고 있었다.
-//   [고침] 모양이 `STABLE_FOR` 만큼 안 바뀌면 그때 찍는다. 늦게 도착한 것도 반드시 잡힌다.
-//     자료가 빨리 오는 로컬에서는 오히려 **더 빨리** 끝난다.
+//   [첫 고침안은 틀렸다 — CI run #80] "모양이 안 바뀌면 멎은 것"으로 봤는데, 응답을 일부러
+//     2,500ms 늦추는 **그 동안 화면은 아무것도 안 바뀐다.** 바닥 14초 + 2초 무변화를 채우고
+//     찍어도 자료는 그 뒤에 온다. 결과 8 PASS / 3 FAIL — 종전 변동 폭(1·1·2·5·4) 그대로였다.
+//     ★**「아무것도 안 바뀐다」는 「다 도착했다」가 아니다.** G-34(「실패가 없다」≠「통과했다」)와
+//     같은 모양의 착각이고, 오늘 그걸 일곱 번 고쳐 놓고 내가 또 했다.
+//   [고침] 화면이 아니라 **네트워크**를 본다 — **날아다니는 요청이 0** 이고 화면도 안 바뀐 채로
+//     `STABLE_FOR` 만큼 이어지면 그때 찍는다.
+//   ⚠그래도 틀릴 수 있으니 **찍은 순간의 미결 요청 수와 기다린 시간을 실패 문구에 남긴다** —
+//     또 틀리면 다음 run 이 말해 준다(G-40 의 마디).
 //   ⚠★**바닥을 종전 값(14초)으로 둔다.** 처음엔 안 뒀다가 구멍을 만들 뻔했다 —
 //     자료가 빨리 오면 5초쯤에 "멎었다"고 보고 찍는데, **A 의 자료가 그 뒤 10초에 도착해
 //     스스로 그려지면 못 본다.** 그건 종전 14초가 잡던 것이라 **더 약해지는 것**이다.
@@ -127,6 +134,12 @@ function serverUp() {
 async function run(browser, ids) {
     const ctx = await browser.newContext({ viewport: { width: 430, height: 900 } });
     const p = await ctx.newPage();
+    // ★날아다니는 요청 수를 센다 — 화면이 아니라 **네트워크**가 조용해야 다 온 것이다.
+    let inFlight = 0;
+    p.on('request', () => { inFlight++; });
+    p.on('requestfinished', () => { inFlight--; });
+    p.on('requestfailed', () => { inFlight--; });
+    const t0 = Date.now();
     try {
         await p.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
         await p.waitForTimeout(3500);
@@ -151,15 +164,21 @@ async function run(browser, ids) {
         //   최소 한 번은 늦춘 응답이 도착할 시간을 준 뒤에 재기 시작한다.
         await p.waitForTimeout(SETTLE_MIN);          // ★바닥 — 종전과 똑같이 기다린 뒤에야 재기 시작
         let last = JSON.stringify(await p.evaluate(SNAP));
-        let stable = 0;
+        let quiet = 0;
         const deadline = Date.now() + (SETTLE_MAX - SETTLE_MIN);
         while (Date.now() < deadline) {
             await p.waitForTimeout(STEP);
             const cur = JSON.stringify(await p.evaluate(SNAP));
-            if (cur === last) { stable += STEP; if (stable >= STABLE_FOR) break; }
-            else { stable = 0; last = cur; }
+            const changed = cur !== last;
+            last = cur;
+            // ★미결 요청이 0 이고 화면도 안 바뀌어야 "다 왔다"로 본다.
+            if (!changed && inFlight <= 0) { quiet += STEP; if (quiet >= STABLE_FOR) break; }
+            else quiet = 0;
         }
-        return JSON.parse(last);
+        const snap = JSON.parse(last);
+        snap.pending = inFlight;              // 찍은 순간 아직 날아다니던 요청 수
+        snap.waited = Date.now() - t0;        // 열고부터 찍기까지
+        return snap;
     } finally { await ctx.close(); }
 }
 
@@ -342,7 +361,10 @@ async function checkRecoversAfterNetworkDrop(browser) {
         const same = got.sig === want.sig && got.on === want.on && got.dom === want.dom;
         ok(`${an} 를 받는 중에 ${bn} 를 누르면 ${bn} 만 남는다`, same,
             `        기대(${bn}만) 켜짐=[${want.on}] 화면=[${want.dom}] 레이어=[${want.sig}]\n` +
-            `        실제        켜짐=[${got.on}] 화면=[${got.dom}] 레이어=[${got.sig}]`);
+            `        실제        켜짐=[${got.on}] 화면=[${got.dom}] 레이어=[${got.sig}]\n` +
+            // ★왜 그 순간에 찍었는지도 남긴다(G-40) — 미결 요청이 남아 있었으면 아직 안 온 것이다.
+            `        찍은 때     미결요청=${got.pending} 기다림=${got.waited}ms` +
+            ` (기준 쪽은 미결요청=${want.pending} 기다림=${want.waited}ms)`);
     }
 
     await browser.close();
