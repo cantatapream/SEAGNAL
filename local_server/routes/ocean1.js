@@ -234,13 +234,44 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
             '/wmsVectordata.do?' + params.toString();
 
         const fetchFn = global.fetch || require('node-fetch');
-        const r = await fetchFn(upstream, {
-            redirect: 'follow',
-            headers: {
-                'Referer': 'http://www.khoa.go.kr/oceanmap/main.do',
-                'User-Agent': 'Mozilla/5.0'
+        // ★한 번은 다시 받아 본다 (2026-09-22, G-44).
+        //   [무엇이 문제였나] 상류가 간헐적으로 연결을 끊는다(`terminated (ECONNRESET)`).
+        //     그러면 종전 코드는 곧바로 포기했고, **사용자 화면에서는 그 타일이 그냥 빈다.**
+        //     게이트에서 잡혔지만 게이트만의 문제가 아니다 — 지도에 구멍이 뚫린다.
+        //   [실측] CI run #70 은 12장 중 10장 실패, run #72 는 2장 실패 — **나머지는 통과**했다.
+        //     전면 차단이 아니라 **간헐**이므로 한 번 더 부르면 대개 받아진다.
+        //     (이 파일 아래 연안포털 주석이 같은 현상을 적어 두었다 — "해외/데이터센터 IP 는
+        //      ECONNRESET 으로 끊긴다". 같은 계열 국내 정부 호스트에서 이미 겪은 일이다.)
+        //   ⚠두 번까지만 부른다. 상류가 정말 죽었을 때 사용자를 오래 붙잡아 두지 않는다.
+        //   ⚠제한시간도 함께 둔다 — 종전에는 없어서, 상류가 응답을 안 주면 그 요청이
+        //     **무한정 매달려 있었다**(undici 기본값은 300초다).
+        const HEADERS = {
+            'Referer': 'http://www.khoa.go.kr/oceanmap/main.do',
+            'User-Agent': 'Mozilla/5.0'
+        };
+        /** 다시 불러 볼 만한 실패인가 — **네트워크가 끊긴 것**만 해당한다(우리 코드 오류는 아니다). */
+        //   ⚠`AbortSignal.timeout` 이 던지는 것은 `TimeoutError` 라 `cause.code` 가 없다 — 이름으로도 본다.
+        //   ⚠`ENOTFOUND`(이름을 못 찾음)는 **일부러 뺐다** — 다시 불러도 같다(실측: 이 컨테이너에서 5/5 실패).
+        const TRANSIENT = /ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|EPIPE|UND_ERR_SOCKET|UND_ERR_CONNECT_TIMEOUT|UND_ERR_HEADERS_TIMEOUT|TimeoutError/;
+        const causeOf = (err) => (err && err.cause ? (err.cause.code || err.cause.message || '') : '');
+        let r, lastErr;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                r = await fetchFn(upstream, {
+                    redirect: 'follow',
+                    headers: HEADERS,
+                    signal: AbortSignal.timeout(12000),
+                });
+                lastErr = null;
+                break;
+            } catch (err) {
+                lastErr = err;
+                // 다시 불러 볼 만한 실패가 아니면(우리 코드 오류 등) 그대로 바깥 catch 로 보낸다.
+                if (attempt === 1 || !TRANSIENT.test(causeOf(err) + ' ' + String(err && err.name || ''))) throw err;
+                await new Promise((ok) => setTimeout(ok, 300));
             }
-        });
+        }
+        if (lastErr) throw lastErr;
 
         if (!r.ok) {
             return res.status(r.status).send('upstream error');
