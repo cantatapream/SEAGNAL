@@ -87,6 +87,22 @@ function resolveChromium() {
     //   ★그래서 **본문을 읽어 갈래를 나눈다.** 다른 이유의 404 는 종전대로 회귀로 잡는다 —
     //     넓게 봐주면 진짜 404 회귀까지 같이 묻힌다.
     const missingData = new Set();
+    /**
+     * 그 404 가 **「길이 없다」인가 「자료가 없다」인가**.
+     * ⚠말 목록으로 가르지 않는다 — 처음에는 `not found` 문구로 갈랐는데, 같은 뜻을 한국어로
+     *   적은 엔드포인트(`{"error":"데이터 준비 중"}`)를 놓쳤다(CI run #46 에서 실측).
+     *   **모양으로 가른다**: 그 자리에 라우트가 있고 스스로 `{"error": …}` 를 돌려주면
+     *   그것은 서버가 "지금 줄 자료가 없다"고 말하는 것이다. 라우트·정적 파일이 **사라져서**
+     *   나는 404 는 JSON 이 아니라 HTML 이나 빈 본문이라 여기 안 걸리고, 종전대로 회귀로 잡힌다.
+     * @param {string} body - 404 응답 본문
+     * @returns {boolean} 자료 부재면 true
+     */
+    function isDataAbsent(body) {
+        try {
+            const j = JSON.parse(body);
+            return !!j && typeof j === 'object' && (typeof j.error === 'string' || typeof j.message === 'string');
+        } catch (_) { return false; }
+    }
     page.on('response', (res) => {
         if (res.status() >= 500 && res.url().startsWith(URL_BASE)) {
             server5xx.push(res.status() + ' ' + res.url().replace(URL_BASE, ''));
@@ -95,7 +111,7 @@ function resolveChromium() {
         const p = res.url().replace(URL_BASE, '');
         failed404.push(p);
         res.text()
-            .then((b) => { if (/\bnot found\b/i.test(b) && /\.json/i.test(b)) missingData.add(p); })
+            .then((b) => { if (isDataAbsent(b)) missingData.add(p); })
             .catch(() => { /* 본문을 못 읽으면 갈래를 못 나눈다 — 종전대로 회귀로 본다 */ });
     });
 
