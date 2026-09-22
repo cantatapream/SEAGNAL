@@ -29,8 +29,12 @@
  */
 const fs = require('fs');
 const path = require('path');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
-const A = require('/home/user/SEAGNAL/local_server/services/article_text.js');
+// ⚠2026-09-22(G-31) — 여기는 예전에 `/home/user/SEAGNAL/...` 절대경로였다. 그 탓에 이 게이트는
+//   **이 컨테이너 한 대에서만** 돌았고, 깃허브 CI 에서는 MODULE_NOT_FOUND 로 죽으면서
+//   진단 한 줄 없이 실패만 세웠다(CI run #27 에서 같은 이유로 7개 게이트가 동시에 죽어 있었다).
+//   저장소 안 상대경로로 바꾼다 — 어디에 체크아웃하든 따라온다.
+const R = require('../../../../services/legal_retriever.js');
+const A = require('../../../../services/article_text.js');
 
 // 생산(`article_text.js` squash)과 같은 정규화 — 이름 비교에만 쓴다.
 const squash = s0 => String(s0 || '').replace(/\.txt$/i, '').replace(/[^0-9A-Za-z가-힣]/g, '');

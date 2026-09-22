@@ -25,11 +25,15 @@
  */
 const fs = require('fs');
 const path = require('path');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
+// ⚠2026-09-22(G-31) — 여기는 예전에 `/home/user/SEAGNAL/...` 절대경로였다. 그 탓에 이 게이트는
+//   **이 컨테이너 한 대에서만** 돌았고, 깃허브 CI 에서는 MODULE_NOT_FOUND 로 죽으면서
+//   진단 한 줄 없이 실패만 세웠다(CI run #27 에서 같은 이유로 7개 게이트가 동시에 죽어 있었다).
+//   저장소 안 상대경로로 바꾼다 — 어디에 체크아웃하든 따라온다.
+const R = require('../../../../services/legal_retriever.js');
 
 // `--wiki <디렉터리>` 로 다른 시점의 위키를 가리킬 수 있다(git 으로 옛 커밋을 꺼내 기준선을 잡을 때).
 const _wi = process.argv.indexOf('--wiki');
-const WIKI = _wi >= 0 ? process.argv[_wi + 1] : '/home/user/SEAGNAL/local_server/knowledge/legal/wiki';
+const WIKI = _wi >= 0 ? process.argv[_wi + 1] : path.resolve(__dirname, '../../wiki');
 // ⚠**코드가 실제로 어떻게 대조하는지에 맞춰 두 갈래로 나눈다**(2026-08-19 정정).
 //   `시행령`·`시행규칙`만 적힌 칸은 lawMentionedInAnswer 의 ⓐ 갈래가 그 페이지의 법을 붙여
 //   (`<법이름> 시행령`) 대조하므로 **결함이 아니다**(services/legal_retriever.js BARE_TIER_CELL_RE).

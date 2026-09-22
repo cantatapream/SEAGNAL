@@ -91,7 +91,7 @@ def regenerate():
 
 
 def static_gate():
-    """서버·네트워크 없이 0.1초에 끝나는 게이트 둘(V2 경로 · V3 로드 순서)을 돌린다.
+    """서버·네트워크 없이 1초 안에 끝나는 게이트 셋(V2 경로 · V3 로드 순서 · V2-b 절대경로)을 돌린다.
 
     `verify_all.sh` 전체는 6분이라 커밋마다 못 돌린다. 그러나 이 둘은 즉시 끝나고,
     깨지면 **앱이 통째로 안 뜨는** 종류라 커밋 단계에서 막는 값어치가 있다.
@@ -100,7 +100,10 @@ def static_gate():
     if os.environ.get('SEAGNAL_STATIC_GATE') == 'off':
         return 0
     for name, script in (('V2 경로 무결성', 'scripts/refactor/check_paths.js'),
-                         ('V3 로드 순서', 'scripts/refactor/check_order.js')):
+                         ('V3 로드 순서', 'scripts/refactor/check_order.js'),
+                         # 2026-09-22(G-31) — 절대경로가 박히면 CI·프로덕션에서 조용히 죽는다.
+                         # grep 한 번이라 여기서도 값이 싸다.
+                         ('V2-b 절대경로', 'scripts/refactor/check_abs_paths.js')):
         if not os.path.exists(script):
             continue          # 스크립트가 없는 체크아웃에서는 조용히 넘어간다
         r = subprocess.run(['node', script], capture_output=True, text=True)

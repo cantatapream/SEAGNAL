@@ -31,8 +31,12 @@
  *        → services/legal_retriever.js search(). ⚠읽기 전용 — 위키를 고치지 않는다.
  */
 const fs = require('fs');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
-const DIR = '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/loop/pinned/';
+// ⚠2026-09-22(G-31) — 여기는 예전에 `/home/user/SEAGNAL/...` 절대경로였다. 그 탓에 이 게이트는
+//   **이 컨테이너 한 대에서만** 돌았고, 깃허브 CI 에서는 MODULE_NOT_FOUND 로 죽으면서
+//   진단 한 줄 없이 실패만 세웠다(CI run #27 에서 같은 이유로 7개 게이트가 동시에 죽어 있었다).
+//   저장소 안 상대경로로 바꾼다 — 어디에 체크아웃하든 따라온다.
+const R = require('../../../../services/legal_retriever.js');
+const DIR = require('path').join(__dirname, 'pinned') + '/';
 
 const arg = k => { const i = process.argv.indexOf(k); return i >= 0 ? process.argv[i + 1] : ''; };
 const norm = s => String(s || '').replace(/[\s·ㆍ()（）]/g, '');

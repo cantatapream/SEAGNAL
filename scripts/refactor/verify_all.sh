@@ -38,6 +38,11 @@ run() { echo; echo "── $1 ──"; local _n="$1"; shift; "$@" || fail "$_n";
 # V2 경로 · V3 로드순서 · V4 시뮬레이션
 run "V2 경로 무결성" node scripts/refactor/check_paths.js
 run "V3 로드 순서" node scripts/refactor/check_order.js
+# ── V2-b 절대경로 (2026-09-22 신설, G-31) ───────────────────────────────────
+#   게이트 7개가 `/home/user/SEAGNAL/…` 를 require 하고 있어 깃허브 CI 에서 진단 한 줄
+#   없이 전부 죽고 있었다(run #27). 같은 사고가 이번이 **세 번째**다(2026-09-10 프로덕션 ·
+#   2026-09-18 L-289 · 2026-09-22 이것). 교훈을 한 줄 더 적는 대신 재는 것을 둔다.
+run "V2-b 절대경로(그 컴퓨터에서만 도는 코드)" node scripts/refactor/check_abs_paths.js
 run "V4 시뮬레이션" node scripts/refactor/simulate.js
 
 # ============================================================================
