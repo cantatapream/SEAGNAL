@@ -127,16 +127,25 @@ jobs:
         working-directory: local_server
         run: npm ci
 
+      - name: 로그 폴더 먼저 만든다
+        run: mkdir -p _ci_logs
+
       - name: V4 시뮬레이션용 playwright 설치 (--no-save)
         run: |
-          # 저장소 package.json 을 바꾸지 않는다 — 여기서만 쓴다.
-          npm i --no-save playwright-core@latest playwright@latest
+          # `simulate.js` 는 `scripts/refactor/` 에서 `require('playwright-core')` 하므로
+          # Node 가 **저장소 루트 node_modules** 에서 찾는다 → 루트에 깔아야 한다.
+          #
+          # ⚠ run #1 이 여기서 죽었다: 루트 package.json 의 capacitor 묶음에 peer 충돌이 있어
+          #   (`@capacitor/core@8.5.2` vs `@capacitor/geolocation@8.1.0` 의 peer `>=8.0.0`)
+          #   `npm i` 가 ERESOLVE 로 멈춘다. 이 충돌은 이 게이트와 무관한 기존 상태이므로
+          #   여기서 고치지 않고 `--legacy-peer-deps` 로 피한다(npm 이 직접 안내하는 방법).
+          #   `--no-save` 라 저장소의 package.json·lock 은 건드리지 않는다.
+          npm i --no-save --legacy-peer-deps playwright-core playwright
           npx playwright install --with-deps chromium
 
       - name: 서버 기동 (백그라운드) 후 health 대기
         run: |
           set -eu
-          mkdir -p _ci_logs
           cd local_server
           nohup node server.js > ../_ci_logs/server.log 2>&1 &
           echo $! > ../_ci_logs/server.pid
@@ -186,10 +195,14 @@ jobs:
             echo ""
             echo '```'
             # ⚠L-196 — 이 블록은 **한 줄도 빠짐없이** 옮긴다. 잘라 읽으면 가운데 실패를 놓친다.
-            sed -n '/실패·악화 항목 총정리/,$p' _ci_logs/verify_all.log || echo '(로그 없음)'
+            if [ -f _ci_logs/verify_all.log ]; then
+              sed -n '/실패·악화 항목 총정리/,$p' _ci_logs/verify_all.log
+            else
+              echo '(verify_all.log 없음 — 그 앞 단계에서 멈췄다. 위 스텝 로그를 보라)'
+            fi
             echo '```'
             echo ""
-            echo "> ⚠ 이 잡은 **1단계(관찰)** 로 `continue-on-error: true` 다 — 빨간불이어도 머지를 막지 않는다."
+            echo "> ⚠ 이 잡은 **1단계(관찰)** — 빨간불이어도 머지를 막지 않는다(continue-on-error)."
             echo "> 깃허브에서의 실제 기준선을 1~2회 확인한 뒤 차단으로 전환한다."
             echo "> 로컬 실측(2026-09-22, 서버 켠 상태): ✅78 · ❌23 · exit 1 — 실패 판정은 V4 하나뿐."
           } >> "$GITHUB_STEP_SUMMARY"
