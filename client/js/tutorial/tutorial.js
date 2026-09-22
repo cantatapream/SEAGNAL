@@ -553,7 +553,11 @@
         }
         // 기상현황 카드는 처음부터 펼쳐져 있어 접었다 펴는 동작이 없다(실측 확인).
         if (kind !== 'alert') return;
-        _setCardOpen(true);              // 이 아래 단계들은 모두 카드가 펼쳐져 있어야 한다
+        // [주의] 'sub' 단계는 카드가 **접혀 있는** 모습을 보여주는 단계다(다음 단계에서
+        //   눌러 펼친다). 여기서 무조건 펼치면, 접혀 있기를 기다리는 _drillSettled('sub')
+        //   와 서로 어긋나 준비가 영영 안 되고 구멍이 앞 단계 자리에 그대로 남는다
+        //   (배포본에서 6·7단계가 실제로 그랬다 — 2026-09-22 실측).
+        _setCardOpen(depth !== 'sub');
         _setBuoy(depth === 'buoy');      // 카드를 펼친 뒤에 눌러야 한다
         _setForecast(depth === 'forecast');
         _setWindy(depth === 'windy');
