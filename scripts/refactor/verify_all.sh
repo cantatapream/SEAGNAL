@@ -443,11 +443,27 @@ if [ -n "$FAILED_NAMES" ]; then
   printf '%s\n' "$FAILED_NAMES" | sed -n 's/^  · //p' | while IFS= read -r _name; do
     case "$_name" in 서버\ 스모크*) continue;; esac
     echo "  ┌─ $_name"
-    awk -v want="── ${_name} ──" '
-      index($0, want) { on = 1; next }
-      on && /^── .* ──$/ { exit }
-      on { print }
-    ' "$_VA_LOG" | tail -20 | sed 's/^/  │ /'
+    # ⚠스위트는 머리줄이 `── 이름 ──` 꼴이 아니다 (2026-09-22 보강).
+    #   SUITES 고리는 `  ❌ <스위트> — N PASS / M FAIL` 과 그 아래 ❌ 줄들을 찍는다.
+    #   그걸 모르고 `── … ──` 만 찾다가, CI 에서 test_overlay_solo 가 1건 실패했는데
+    #   **본문이 빈 채로** 나왔다(run #51). 이름만 알고 이유를 모르면 G-32 이전과 같다.
+    case "$_name" in
+      스위트\ *)
+        _s="${_name#스위트 }"; _s="${_s%% *}"
+        awk -v s="$_s" '
+          index($0, "❌ " s " —") { on = 1; print; next }
+          on && /^  [✅❌⏭]/ { exit }
+          on { print }
+        ' "$_VA_LOG" | tail -20 | sed 's/^/  │ /'
+        ;;
+      *)
+        awk -v want="── ${_name} ──" '
+          index($0, want) { on = 1; next }
+          on && /^── .* ──$/ { exit }
+          on { print }
+        ' "$_VA_LOG" | tail -20 | sed 's/^/  │ /'
+        ;;
+    esac
     echo "  └─"
   done
 fi
