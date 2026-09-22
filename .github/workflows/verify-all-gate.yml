@@ -1,0 +1,195 @@
+# ============================================================================
+# [용도] `scripts/refactor/verify_all.sh` 를 **깃허브 서버가 자동으로 돌린다.**
+#
+# 왜 있나 (2026-09-22 신설, 사용자 확정 Q-9):
+#   이 저장소에는 게이트가 19개(V2·V3·V4·V5-0~V5-17·V6) + 테스트 스위트 31개 있는데,
+#   **그것을 자동으로 부르는 것이 하나도 없었다.** 2026-09-22 전수 검색 결과 —
+#   CI 워크플로 0건 · git 훅 0건 · npm 스크립트 0건. `CLAUDE.md` 에 "돌려라"는
+#   문장 하나와 다른 파일 주석에 이름만 있었다.
+#
+#   그래서 게이트는 **사람이 기억할 때만** 돌았다. 조사에서 나온 뿌리 사슬의
+#   네 번째 마디가 정확히 이것이다:
+#       ①규칙은 있었다 → 코드가 안 읽는다
+#       ②코드가 안 읽는 규칙은 죽는다 → 그래서 게이트를 만들었다
+#       ③게이트가 안 재는 자리도 죽는다 → 그런데 게이트를 부르는 것이 없다
+#       ④★게이트를 부르는 것이 없으면 게이트도 죽는다   ← 이 워크플로가 이걸 막는다
+#   (근거: `local_server/knowledge/legal/_dashboard/d_standard_2026-09-22/` G-1)
+#
+# ── 왜 서버를 띄우나 ────────────────────────────────────────────────────────
+#   `verify_all.sh` 는 머리말에 `node local_server/server.js &` 선기동을 요구한다.
+#   서버가 없으면 ①HTTP 스모크 21건이 전부 실패하고 ②V4 시뮬레이션이
+#   `ERR_CONNECTION_REFUSED` 로 죽는다 → **어떤 경우에도 exit 1.**
+#   스크립트 자신도 358행에서 *"HTTP 스모크 실패는 총정리에서 뺐다"* 고 적지만
+#   `FAIL=1` 은 그대로 두므로, 서버 없이 걸면 **영원히 빨간불**이 된다.
+#   서버 기동 방식은 이미 이 저장소에서 검증된 `phase0-gate.yml` 의 단계를 그대로 쓴다.
+#
+# ── 왜 처음에는 차단하지 않나 (continue-on-error: true) ─────────────────────
+#   `verify_all.sh` 40행이 스스로 경고한다 —
+#     *"실패가 일상이 되면 점검표를 무시하는 습관이 생겨 게이트 자체가 무력해진다."*
+#   게이트를 21라운드 만에 처음 자동으로 켜는 것이라, **진짜 기준선을 모르는 상태**다.
+#   처음부터 차단으로 걸면 PR 이 막히고, 그러면 사람이 게이트를 꺼 버린다 —
+#   그것이 지금까지 게이트가 죽어 있던 것과 같은 결말이다.
+#   그래서 1~2회 관찰해 CI 에서의 실제 기준선을 확정한 뒤 차단으로 전환한다.
+#   (같은 이유로 `phase0-gate.yml` 도 비차단으로 운영 중이다.)
+#
+# ── 2026-09-22 로컬 실측 (이 커밋 기준, 서버 켠 상태) ───────────────────────
+#   ✅ 78 · ❌ 23 · EXIT=1
+#   ❌ 23건 중 **게이트 판정을 실패로 만든 것은 V4 하나뿐**이고, 나머지는 전부
+#   분류 표시줄이다(각 게이트의 판정줄은 모두 `✅ 기준선 대비 나빠지지 않음`).
+#     · V5-4 `search 13 (4.7%)`      → 판정 `✅ 기준선 대비 나빠진 문항 없음`
+#     · V5-8 `칸을 못 읽음 81`        → 판정 `✅ 기준선 대비 나빠지지 않음`
+#     · V5-11 `그 별표가 없다 2`      → 판정 `✅ 열리는 줄 321건 — 기준선(321) 이상`
+#     · V5-9 `행정규칙이 비어 있다 2` → 판정 `✅ 수집 결손 2건 — 기준선(2) 이하`
+#     · V5-16 `목 8파일·14곳 / 호 3파일·6곳` → 판정 `✅ 기준선 대비 나빠지지 않음`
+#   V4 가 찍은 콘솔 에러 2건은 **로컬 컨테이너 환경 탓**으로 보인다 —
+#   `ERR_CERT_AUTHORITY_INVALID`(에이전트 프록시 CA) 와 API 키 부재로 인한 500.
+#   깃허브에서는 실제 시크릿이 있으므로 다를 수 있다. **그것을 확인하는 것이
+#   이 워크플로의 1단계 목적이다.**
+#
+# ── V4 가 쓰는 playwright ───────────────────────────────────────────────────
+#   `scripts/refactor/simulate.js` 는 `playwright-core` 를 require 하는데,
+#   이 저장소의 **어떤 package.json 에도 선언돼 있지 않다**(2026-09-22 확인).
+#   로컬 컨테이너에만 설치돼 있다. 저장소의 의존성 계약을 바꾸지 않으려고
+#   여기서 `--no-save` 로만 설치한다.
+#
+# [연계] 검증 본체 `scripts/refactor/verify_all.sh` ·
+#        서버 기동 방식의 원본 `.github/workflows/phase0-gate.yml` ·
+#        커밋 단계의 빠른 부분집합 `.githooks/pre-commit` ·
+#        배경과 기준선 `local_server/knowledge/legal/_dashboard/d_standard_2026-09-22/00_WORKLIST.md`
+# ============================================================================
+name: 전체 검증 게이트 (verify_all)
+
+on:
+  push:
+    paths:
+      - 'local_server/**'
+      - 'client/**'
+      - 'scripts/refactor/**'
+      - '.github/workflows/verify-all-gate.yml'
+  pull_request:
+    paths:
+      - 'local_server/**'
+      - 'client/**'
+      - 'scripts/refactor/**'
+  schedule:
+    # UTC 19:00 = KST 04:00 — 기존 야간 작업(phase0 KST 02:00, 색인 KST 03:00)과 겹치지 않게.
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: '수동 실행 사유'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-all-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify_all.sh 전체 실행
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # ★1단계(관찰) — 위 머리말 참조. 기준선을 확정하면 이 줄을 지워 차단으로 바꾼다.
+    continue-on-error: true
+
+    env:
+      BASE_URL: 'http://127.0.0.1:3001'
+      # 시크릿 → 서버 부팅이 참조. 로그 echo 금지(깃허브가 자동 마스킹하지만 규약상 금지).
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      KMA_DMDW_ID: ${{ secrets.KMA_DMDW_ID }}
+      KMA_DMDW_PW: ${{ secrets.KMA_DMDW_PW }}
+      MARINE_USER_ID: ${{ secrets.MARINE_USER_ID }}
+      MARINE_USER_PWD: ${{ secrets.MARINE_USER_PWD }}
+      ROMS_SERVICE_KEY: ${{ secrets.ROMS_SERVICE_KEY }}
+      KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: local_server/package-lock.json
+
+      - name: Python 3.11 준비
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 서버 의존성 설치
+        working-directory: local_server
+        run: npm ci
+
+      - name: V4 시뮬레이션용 playwright 설치 (--no-save)
+        run: |
+          # 저장소 package.json 을 바꾸지 않는다 — 여기서만 쓴다.
+          npm i --no-save playwright-core@latest playwright@latest
+          npx playwright install --with-deps chromium
+
+      - name: 서버 기동 (백그라운드) 후 health 대기
+        run: |
+          set -eu
+          mkdir -p _ci_logs
+          cd local_server
+          nohup node server.js > ../_ci_logs/server.log 2>&1 &
+          echo $! > ../_ci_logs/server.pid
+          cd ..
+          for i in $(seq 1 90); do
+            if curl -fsS -o /dev/null "${BASE_URL}/" 2>/dev/null; then
+              echo "[health] 서버가 ${i}초 만에 떴다"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "[health] 90초 안에 서버가 뜨지 않았다"
+          echo "--- server.log 끝 50줄 ---"
+          tail -50 _ci_logs/server.log || true
+          exit 1
+
+      - name: verify_all.sh 실행
+        id: verify
+        continue-on-error: true
+        run: |
+          set +e
+          bash scripts/refactor/verify_all.sh 2>&1 | tee _ci_logs/verify_all.log
+          echo "verify_exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: 서버 내리기
+        if: always()
+        run: |
+          if [ -f _ci_logs/server.pid ]; then kill "$(cat _ci_logs/server.pid)" 2>/dev/null || true; fi
+
+      - name: 로그를 아티팩트로 저장
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-all-logs-${{ github.run_number }}
+          path: _ci_logs/
+          retention-days: 14
+
+      - name: 결과 요약
+        if: always()
+        run: |
+          {
+            echo "## 전체 검증 게이트 (verify_all)"
+            echo ""
+            echo "- 종료 코드: \`${{ steps.verify.outputs.verify_exit }}\`"
+            echo ""
+            echo "### 실패·악화 항목 총정리"
+            echo ""
+            echo '```'
+            # ⚠L-196 — 이 블록은 **한 줄도 빠짐없이** 옮긴다. 잘라 읽으면 가운데 실패를 놓친다.
+            sed -n '/실패·악화 항목 총정리/,$p' _ci_logs/verify_all.log || echo '(로그 없음)'
+            echo '```'
+            echo ""
+            echo "> ⚠ 이 잡은 **1단계(관찰)** 로 `continue-on-error: true` 다 — 빨간불이어도 머지를 막지 않는다."
+            echo "> 깃허브에서의 실제 기준선을 1~2회 확인한 뒤 차단으로 전환한다."
+            echo "> 로컬 실측(2026-09-22, 서버 켠 상태): ✅78 · ❌23 · exit 1 — 실패 판정은 V4 하나뿐."
+          } >> "$GITHUB_STEP_SUMMARY"
