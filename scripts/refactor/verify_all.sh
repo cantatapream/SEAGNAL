@@ -22,7 +22,18 @@ FAIL=0
 #   **자르고 읽어도 마지막 블록에 실패가 전부 남는다.**
 _VA_LOG="$(mktemp)"
 exec > >(tee "$_VA_LOG") 2>&1
-run() { echo; echo "── $1 ──"; shift; "$@" || FAIL=1; }
+# ── 어느 검사가 실패를 세웠는지 **이름을 남긴다** (2026-09-22 신설) ─────────────
+# [왜] `FAIL=1` 을 세우는 자리가 26곳인데 **어디서 세웠는지 아무 데도 안 남았다.**
+#   그래서 "총정리는 표시줄뿐인데 exit 1" 인 상황이 생긴다 — 실제로 깃허브 run #17 이
+#   그랬다. 총정리의 ❌ 여섯 줄이 전부 분류 표시(0건·기준선 이하)인데 종료 코드는 1이었고,
+#   **무엇이 실패했는지 로그 어디에도 없었다.** L-196 이 "총정리만 보면 다 보인다"고
+#   보장하려 만든 것인데 그 보장이 깨진 것이다.
+# [무엇을] `fail <이름>` 으로 세우고, 마지막 총정리에 그 이름 목록을 함께 찍는다.
+#   ⚠새 검사를 넣을 때 `|| FAIL=1` 대신 `|| fail "<이름>"` 을 쓸 것.
+FAILED_NAMES=""
+fail() { FAIL=1; FAILED_NAMES="${FAILED_NAMES}
+  · $1"; }
+run() { echo; echo "── $1 ──"; local _n="$1"; shift; "$@" || fail "$_n"; }
 
 # V2 경로 · V3 로드순서 · V4 시뮬레이션
 run "V2 경로 무결성" node scripts/refactor/check_paths.js
@@ -52,12 +63,12 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_mok_audit_scanner test_add_other_law_refresh test_pressure_card)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
-  if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; FAIL=1; continue; fi
+  if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi
   out=$(node "$f" 2>&1)
   line=$(echo "$out" | grep -oE "[0-9]+ PASS / [0-9]+ FAIL" | tail -1)
-  if [ -z "$line" ]; then echo "  ❌ $suite — 실행 실패(결과줄 없음)"; echo "$out" | tail -3; FAIL=1; continue; fi
+  if [ -z "$line" ]; then echo "  ❌ $suite — 실행 실패(결과줄 없음)"; echo "$out" | tail -3; fail "스위트 $suite — 결과줄 없음"; continue; fi
   if echo "$line" | grep -qE "/ 0 FAIL$"; then echo "  ✅ $suite — $line"
-  else echo "  ❌ $suite — $line"; echo "$out" | grep "❌" | head -5; FAIL=1; fi
+  else echo "  ❌ $suite — $line"; echo "$out" | grep "❌" | head -5; fail "스위트 $suite — $line"; fi
 done
 
 # ============================================================================
@@ -110,7 +121,7 @@ if [ -n "${CI:-}" ]; then
   echo "     이 검사는 .github/workflows/legal-index-sync.yml 이 대신한다"
   echo "     (위키 .md 푸시마다 색인 재생성 후 다르면 커밋 · 매일 KST 03:00)."
 elif [ ! -f "$IDX" ]; then
-  echo "  ❌ 색인이 아예 없다: $IDX"; FAIL=1
+  echo "  ❌ 색인이 아예 없다: $IDX"; fail "V5-0 색인 없음"
 else
   # ⚠`wiki/_backbone.md` 는 **생성물**이다(lint_build.py 가 lint_index.py 뒤에 만든다).
   #   그래서 항상 색인보다 새롭다 — 위키 소스로 세면 늘 실패한다. 빼고 센다.
@@ -125,20 +136,20 @@ else
     echo "     고치려면: python3 local_server/knowledge/legal/_dashboard/loop/lint_index.py \\"
     echo "            && python3 local_server/knowledge/legal/_dashboard/loop/lint_build.py"
     echo "     그리고 다시 만든 생성물을 **소스와 같은 커밋에 담는다**(L-209)."
-    FAIL=1
+    fail "V5-0 색인 최신성 — 위키 ${N}장이 색인보다 새롭다"
   else
     echo "  ✅ 색인이 위키보다 최신이다 — 아래 게이트가 현재 상태를 잰다"
   fi
 fi
 
 echo; echo "── V5-3 근거 조문 표 무결성 ──"
-node local_server/knowledge/legal/_dashboard/loop/citation_table_scan.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/citation_table_scan.js --gate || fail "V5-3 근거 조문 표 무결성"
 
 echo; echo "── V5-4 정답 페이지 도달 ──"
 # 사람이 정답이라고 확인한 개념 페이지가 검색 후보에, 그리고 모델에게 넘어가는 자료에 들어오는가.
 # 순위엔 문턱을 두지 않는다(위키가 바뀌면 자연히 흔들린다) — "아예 못 닿는다"만 실패로 본다.
-node local_server/knowledge/legal/_dashboard/loop/page_eval.js --gate || FAIL=1
-node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/page_eval.js --gate || fail "V5-4 정답 페이지 도달"
+node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || fail "V5-4 정답 페이지 도달"
 
 # ============================================================================
 # V5-5 근거 조문 행 도달성 (2026-08-20 신설)
@@ -151,14 +162,14 @@ node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || FAIL
 #                  --save local_server/knowledge/legal/_dashboard/loop/pinned/reach_eval_base.json
 # ============================================================================
 echo; echo "── V5-5 근거 조문 행 도달성 ──"
-node local_server/knowledge/legal/_dashboard/loop/reach_eval.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/reach_eval.js --gate || fail "V5-5 근거 조문 행 도달성"
 
 echo; echo "── V5-6 근거 조문 인용 존재성 ──"
 # 근거 조문 표의 **법령 칸과 조문 칸이 짝이 맞는지** 원문으로 대조한다(2026-08-20 신설).
 #   왜: '조문 번호는 맞는데 주인이 틀린' 행은 지금까지 어떤 검사도 못 잡았다 — 링크는 걸리고
 #   표는 멀쩡해 보이지만 사용자가 눌러 보면 다른 내용이 나온다. 신설 당일 2건이 실재했다.
 #   ⚠이 검사를 만들고도 여기 안 걸어 뒀던 것을 독립 검토자가 지적해 등록한다(L-105 재발).
-node local_server/knowledge/legal/_dashboard/loop/cite_exists.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/cite_exists.js --gate || fail "V5-6 근거 조문 인용 존재성"
 
 echo; echo "── V5-7 골든 문항 근거 도달성 ──"
 # 문항마다 **기대 근거(법령+조문)가 인용 후보까지 닿는가**를 잰다(H-47 ①, 2026-08-20 신설).
@@ -168,7 +179,7 @@ echo; echo "── V5-7 골든 문항 근거 도달성 ──"
 #   지금까지는 유료 라이브 검증으로만 잡혔다. 이제 무료·자동으로 잡는다.
 #   ⚠AI 채점을 쓰지 않는다(L-133: 채점자가 AI면 라운드 간 42%가 뒤집힘). 문자열 대조만.
 node local_server/knowledge/legal/_dashboard/loop/golden_eval.js \
-  --base local_server/knowledge/legal/_dashboard/loop/pinned/golden_eval_base.json --gate || FAIL=1
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/golden_eval_base.json --gate || fail "V5-7 골든 문항 근거 도달성"
 
 echo; echo "── V5-8 조문 링크 도달성(눌러서 원문이 열리나) ──"
 # 사용자가 실제로 만나는 근거는 **답변 본문의 조문 하이퍼링크**다 — 2026-08-18 확정으로 근거 카드
@@ -177,14 +188,14 @@ echo; echo "── V5-8 조문 링크 도달성(눌러서 원문이 열리나) �
 #   그 파일에 그 조가 실제로 있는가. 판정은 생산 함수(article_text.resolveBase·pickNoticeFile·
 #   listArticleNumbers)를 그대로 태워서 한다(L-136). AI 안 쓴다.
 node local_server/knowledge/legal/_dashboard/loop/link_ready.js \
-  --base local_server/knowledge/legal/_dashboard/loop/pinned/link_ready_base.json --gate || FAIL=1
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/link_ready_base.json --gate || fail "V5-8 조문 링크 도달성(눌러서 원문이 열리나)"
 
 echo; echo "── V5-8c 고시 지도 최신성(다른 부처 고시를 찾을 수 있나) ──"
 # 고시는 그 위키가 속한 법 폴더에서만 찾는데, 위키는 남의 부처 고시도 짚는다(독도법 페이지가
 #   국가유산청 고시를 짚는 식). 그래서 `_dashboard/notice_index.json`(고시 이름 → 법 폴더)을
 #   두고, 자기 폴더에서 못 찾았을 때만 그 지도를 본다. **고시를 새로 받아 놓고 지도를 안 돌리면
 #   그 고시는 남의 법 페이지에서 계속 안 열린다** — 그래서 어긋남을 여기서 막는다.
-python3 local_server/knowledge/legal/_dashboard/loop/sync_notice_index.py --check || FAIL=1
+python3 local_server/knowledge/legal/_dashboard/loop/sync_notice_index.py --check || fail "V5-8c 고시 지도 최신성(다른 부처 고시를 찾을 수 있나)"
 
 echo; echo "── V5-11 별표 도달성(고시 별표를 눌러 열 수 있나) ──"
 # V5-8(link_ready)은 **조문 칸에 조(條)가 있는 줄**만 본다. 조문 칸이 `별표1`·`별지 제3호서식`
@@ -192,7 +203,7 @@ echo; echo "── V5-11 별표 도달성(고시 별표를 눌러 열 수 있나
 #   **몇 건이나 열리게 됐는지 잴 방법이 없었다**(품질 4축 ③ 도달의 구멍).
 #   판정은 생산 함수(extractAttachments·parseBylFile·pickNoticeFile·resolveBase)를 그대로 태운다(L-136).
 node local_server/knowledge/legal/_dashboard/loop/annex_ready.js \
-  --base local_server/knowledge/legal/_dashboard/loop/pinned/annex_ready_base.json --gate || FAIL=1
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/annex_ready_base.json --gate || fail "V5-11 별표 도달성(고시 별표를 눌러 열 수 있나)"
 
 echo; echo "── V5-8b 원문 덮어쓰기 신호 — 같은 폴더에 같은 ID 가 둘 ──"
 # 재수집이 이름 바뀐 고시를 갈아끼우며 **옛 판본을 통째로 덮어쓴** 사고가 있었다(2026-08-23, L-183).
@@ -221,24 +232,24 @@ echo; echo "── V5-9 수집(품질 4축 ①) — 가져야 할 원문이 손�
 #   계층**(_meta.json families)인데 파일이 없거나 비어 있는 것만 잡는다 — 애초에 시행규칙이 없는 법을
 #   결손으로 세지 않기 위해서다(사용자 요건: "구조적으로 못 얻는 것"과 "안 한 것"을 반드시 가른다).
 node local_server/knowledge/legal/_dashboard/loop/collect_eval.js \
-  --base pinned/collect_eval_base.json --gate || FAIL=1
+  --base pinned/collect_eval_base.json --gate || fail "V5-9 수집(품질 4축 ①) — 가져야 할 원문이 손에 있나"
 
 echo; echo "── V5-10 연결(품질 4축 ④) — 한쪽만 걸린 링크 ──"
 # V5-2 는 **깨진 링크**만 본다. A→B 는 있는데 B→A 가 없는 것은 아무도 안 세고 있었고, 계기판이
 #   읽던 200 이라는 수는 lint_index.py 가 목록을 200개에서 자른 값이었다(실제 2,666건).
 #   모든 링크가 대칭일 필요는 없으므로 0을 요구하지 않고 **기준선보다 늘지 않는 것**만 본다.
 node local_server/knowledge/legal/_dashboard/loop/link_sym.js \
-  --base pinned/link_sym_base.json --gate || FAIL=1
+  --base pinned/link_sym_base.json --gate || fail "V5-10 연결(품질 4축 ④) — 한쪽만 걸린 링크"
 
 echo; echo "── V5-2 위키 링크 무결성 ──"
-( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || FAIL=1
+( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || fail "V5-2 위키 링크 무결성"
 
 # V5-12 시행일 마커 짝·형식 (2026-09-10 신설)
 # [왜] 마커(`<!--시행 d-->`)의 닫는 짝이 없거나 종류가 어긋나면, 접기 코드가 그 블록 아래를 파일 끝까지
 #   버렸다 — **시행일이 되는 순간** 그 페이지의 뒷부분(근거 조문 표 포함)이 답변에서 사라졌다.
 #   시행 전에는 아무 증상이 없어 사람 눈으로는 못 잡는다. 런타임은 이제 깨진 페이지를 접지 않고 넘기지만
 #   그러면 옛·새 서술이 함께 나가므로, 커밋 전에 여기서 막는다(독립 검토 high, `H29_stage_review_2026-09-10.json`).
-python3 local_server/knowledge/legal/_dashboard/loop/lint_stage_markers.py || FAIL=1
+python3 local_server/knowledge/legal/_dashboard/loop/lint_stage_markers.py || fail "V5-2 위키 링크 무결성"
 
 echo; echo "── V5-13 승급 요건(§5-D) — 이번에 canonical 로 올린 쪽만 본다 ──"
 # [왜 — C-3, 2026-09-20] `_SCHEMA.md` §5-D 는 승급 절차를 글로 정해 뒀지만 **지키는지 보는 장치가 없었다.**
@@ -249,7 +260,7 @@ echo; echo "── V5-13 승급 요건(§5-D) — 이번에 canonical 로 올린
 #   `origin/main` 과의 merge-base 대비 **이번 가지에서 올린 쪽만** 본다.
 # [한계] "두 번 봤다고 적었는가"를 볼 뿐 **정말 두 번 봤는지는 못 본다.** 그래도 두는 이유는 지금은
 #   적는 자리조차 없어 아무 기록 없이 딱지만 떼는 것이 가능하기 때문이다(§5-D ⓒ 와 같은 취지).
-node local_server/knowledge/legal/_dashboard/loop/promote_guard.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/promote_guard.js --gate || fail "V5-13 승급 요건(§5-D) — 이번에 canonical 로 올린 쪽만 본다"
 
 echo; echo "── V5-14 아직 오지 않은 시행일 ──"
 # [왜 — 2026-09-21, L-295 후속] `lawService.do?target=law&MST=` 는 한 MST 가 시행일 판을 둘 이상
@@ -260,7 +271,7 @@ echo; echo "── V5-14 아직 오지 않은 시행일 ──"
 # [막는 쪽] `law_api_guard.fetch_law_body` 가 현행 시행일을 조회해 `efYd` 로 못 박고, 못 정하면
 #   아무것도 주지 않는다. 이 게이트는 **그게 실제로 막혔는지 눈으로 다시 재는 장치**다.
 # [빼는 것] `_대기/<시행일>/`(일부러 받아 둔 시행예정 대기본)·`_구판/`(보존용 옛 사본).
-python3 local_server/knowledge/legal/_dashboard/loop/future_date_guard.py --gate --examples || FAIL=1
+python3 local_server/knowledge/legal/_dashboard/loop/future_date_guard.py --gate --examples || fail "V5-14 아직 오지 않은 시행일"
 
 echo; echo "── V5-15 같은 고시 사본끼리 판이 맞나 ──"
 # [왜 — 2026-09-21] 한 고시가 여러 법 폴더에 사본으로 들어 있는 일이 흔한데(「울산항 항만시설
@@ -272,7 +283,7 @@ echo; echo "── V5-15 같은 고시 사본끼리 판이 맞나 ──"
 # [기준선] 지금 3종이 갈려 있다(대산항 세칙 · 무역항등 사용료 규정 · 환경보전협회 교육수수료).
 #   어느 쪽이 현행인지는 API 로 확인해야 해서 아직 못 고쳤다 — **늘어나는 것만 막는다.**
 python3 local_server/knowledge/legal/_dashboard/loop/admrul_copy_sync.py \
-  --base local_server/knowledge/legal/_dashboard/loop/pinned/admrul_copy_sync_base.json --gate || FAIL=1
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/admrul_copy_sync_base.json --gate || fail "V5-15 같은 고시 사본끼리 판이 맞나"
 
 echo; echo "── V5-16 「다음 각 목/각 호」라 해 놓고 그 글이 없는 자리 ──"
 # [왜 — 2026-09-21] A-2 를 고쳐 다시 돌리다 「문화유산의 보존 및 활용에 관한 법률 시행령」에서
@@ -297,7 +308,7 @@ echo; echo "── V5-16 「다음 각 목/각 호」라 해 놓고 그 글이 �
 #     따로 나눠 주지 않는다. 재수집으로 더는 못 줄이는 자리다.
 #   지금은 **늘어나는 것만 막는다.**
 python3 local_server/knowledge/legal/_dashboard/loop/mok_promise_guard.py \
-  --base local_server/knowledge/legal/_dashboard/loop/pinned/mok_promise_base.json --gate || FAIL=1
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/mok_promise_base.json --gate || fail "V5-16 「다음 각 목/각 호」라 해 놓고 그 글이 없는 자리"
 
 echo; echo "── V5-17 파일에는 있는데 챗봇이 못 읽는 조문 ──"
 # [왜 — 2026-09-21] 챗봇은 계층 원문을 **정해진 이름으로만** 찾는다(`services/article_text.js`) —
@@ -308,7 +319,7 @@ echo; echo "── V5-17 파일에는 있는데 챗봇이 못 읽는 조문 ─�
 #   ★**받아 놓고도 못 쓰는 것이 안 받은 것보다 나쁘다** — 수집 기록만 보면 있다고 나온다.
 # [기준선 없음 — 0 이어야 한다] 고치는 데 네트워크가 필요 없다(이미 우리 손에 있는 글을
 #   읽히는 이름으로 옮겨 적으면 된다). 그래서 기준선을 두지 않고 **0 을 요구한다.**
-python3 local_server/knowledge/legal/_dashboard/loop/unreachable_article_guard.py --gate --examples || FAIL=1
+python3 local_server/knowledge/legal/_dashboard/loop/unreachable_article_guard.py --gate --examples || fail "V5-17 파일에는 있는데 챗봇이 못 읽는 조문"
 
 # 서버 API + 이동 JS 경로 스모크
 echo; echo "── 서버 스모크 (대표 엔드포인트) ──"
@@ -323,7 +334,7 @@ SMOKE=("/api/health:200" "/api/app-version:200" "/:200" "/sw.js:200" "/style.css
 for pair in "${SMOKE[@]}"; do
   ep="${pair%:*}"; want="${pair##*:}"
   got=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3001$ep")
-  if [ "$got" = "$want" ]; then echo "  ✅ $got $ep"; else echo "  ❌ $got (기대 $want) $ep"; FAIL=1; fi
+  if [ "$got" = "$want" ]; then echo "  ✅ $got $ep"; else echo "  ❌ $got (기대 $want) $ep"; fail "서버 스모크 $ep (HTTP $got, 기대 $want)"; fi
 done
 
 # ============================================================================
@@ -356,7 +367,7 @@ else
     })(t.current||{});
     if(bad.length){console.log("  ❌ 폐기 소스(DMDW)가 자식에 머지됨: "+bad.slice(0,5).join(", "));process.exit(1);}
     console.log("  ✅ 자식 노드에 폐기 소스 머지 없음");
-  ' || FAIL=1
+  ' || fail "V6 API 자식 오염 가드"
 fi
 rm -f /tmp/_wa.json
 
@@ -372,6 +383,11 @@ else
   echo
   echo "  ⚠위 목록이 비어 있을 때만 \"전부 통과\"라고 말할 수 있다."
   echo "    한 줄이라도 있으면 그 줄을 **하나도 빠짐없이** 보고해야 한다(L-196)."
+fi
+if [ -n "$FAILED_NAMES" ]; then
+  echo
+  echo "  ── 실패를 세운 검사(이름) ──$FAILED_NAMES"
+  echo "     ⚠총정리 ❌ 줄이 전부 분류 표시여도 여기 이름이 있으면 그 검사가 실패한 것이다."
 fi
 _VA_HTTP="$(grep -cE '기대 200|기대 404' "$_VA_LOG" || true)"
 if [ "${_VA_HTTP:-0}" -gt 0 ]; then
