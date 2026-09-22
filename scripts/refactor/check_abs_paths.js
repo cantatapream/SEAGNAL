@@ -39,7 +39,21 @@ const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '../..');
 const BASE = path.join(__dirname, 'baseline/abs_path_baseline.json');
-const NEEDLE = '/home/user/';
+// 「그 컴퓨터에만 있는 자리」 목록. ⚠2026-09-22(G-33) — 처음에는 `/home/user/` 하나뿐이었는데,
+//   그 자로 재고 하루도 안 돼 **바로 옆에서 네 번째 사고**가 났다. `simulate.js` 가
+//   `executablePath: '/opt/pw-browsers/chromium'` 을 박고 있어 CI 의 V4 가 매번 죽었는데,
+//   `/home/user/` 만 보는 자는 그것을 못 봤다. **자를 좁게 만들면 바로 옆을 놓친다.**
+//   여기에 더할 때는 「그 기계에만 있는 자리인가」를 기준으로 본다 — `/usr/bin` 처럼
+//   어디에나 있는 것은 넣지 않는다(넣으면 온 저장소가 걸려 자가 무력해진다).
+const NEEDLES = [
+  '/home/user/',      // 이 개발 컨테이너의 홈
+  '/home/runner/',    // 깃허브 러너의 홈 (반대 방향 하드코딩)
+  '/opt/pw-browsers', // 이 컨테이너에만 깔린 playwright 브라우저
+  '/Users/',          // macOS 개발자 홈
+  '/mnt/c/',          // WSL
+];
+const NEEDLE = NEEDLES.join(' · ');   // 화면에 적을 때만 쓴다
+const hasNeedle = (s) => NEEDLES.some(n => s.includes(n));
 const SKIP = ['node_modules', '.git', 'archive', '_legacy', 'apk_build', 'android'];
 // ⚠자기 자신은 뺀다 — 이 파일에서 그 문자열은 **찾는 대상**이지 경로가 아니다.
 //   (2026-09-22: 이 검사를 만들자마자 첫 커밋에서 자기를 잡았다. L-210 과 같은 일이
@@ -68,11 +82,11 @@ function scan() {
     const abs = path.join(ROOT, rel);
     let text;
     try { text = fs.readFileSync(abs, 'utf8'); } catch { continue; }
-    if (!text.includes(NEEDLE)) continue;
+    if (!hasNeedle(text)) continue;
     const ext = path.extname(rel);
     let n = 0;
     for (const line of text.split('\n')) {
-      if (!line.includes(NEEDLE)) continue;
+      if (!hasNeedle(line)) continue;
       if (isComment(line, ext)) continue;
       n++;
     }
@@ -104,7 +118,8 @@ for (const [f, n] of Object.entries(cur)) {
 }
 const gone = Object.keys(base.파일).filter(f => !(f in cur));
 
-console.log(`  실행 코드(.js·.py·.sh)에 박힌 \`${NEEDLE}\` — 파일 ${Object.keys(cur).length}개 · 자리 ${total}곳`);
+console.log(`  실행 코드(.js·.py·.sh)에 박힌 「그 컴퓨터에만 있는 자리」 — 파일 ${Object.keys(cur).length}개 · 자리 ${total}곳`);
+  console.log(`    (찾는 것: ${NEEDLE})`);
 console.log(`  기준선(${base.기준일 || '없음'}) — 파일 ${Object.keys(base.파일).length}개 · 자리 ${base.총계}곳`);
 if (gone.length) console.log(`  ↓ 없어진 파일 ${gone.length}개 (좋아진 것)`);
 

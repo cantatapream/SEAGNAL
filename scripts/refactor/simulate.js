@@ -25,8 +25,44 @@ const MAIN_TABS = ['weather-group', 'ocean-map-section', 'ocean-life-group', 'pr
 const LIFE_SUBTABS = ['fishing-section', 'surfing-section', 'swimming-section',
     'scuba-section', 'mudflat-section', 'sea-parting-section'];
 
+/**
+ * 크로미움 실행 파일을 **환경에게 묻는다**. 여기에 경로를 박으면 그 컴퓨터 밖에서는 안 돈다.
+ *
+ * ⚠2026-09-22 (G-33) — 여기는 `executablePath: '/opt/pw-browsers/chromium'` 이 박혀 있었다.
+ *   그 경로는 **이 개발 컨테이너에만** 있어서, 깃허브 CI 에서는 `npx playwright install` 로
+ *   브라우저를 제대로 깔아 놓고도 V4 가 매번 죽었다 —
+ *     `Failed to launch chromium because executable doesn't exist at /opt/pw-browsers/chromium`
+ *   G-31(게이트 7개의 절대경로)과 **같은 병의 네 번째**다.
+ *
+ * 그런데 로컬은 기본 해석만으로는 안 된다 — `playwright-core` 가 가리키는 판(chromium-1243)과
+ * 실제로 깔린 판(chromium-1194)이 달라서, 기본 경로는 **있지도 않은 파일**을 가리킨다.
+ * 그래서 「묻고, 없으면 다음」 순서로 고른다. 어느 쪽도 못 찾으면 경로를 주지 않고
+ * playwright 자신의 안내 문구가 나오게 둔다(우리가 지어낸 말보다 그쪽이 정확하다).
+ *   ① SIM_CHROMIUM 환경변수 (사람이 직접 지정)
+ *   ② playwright 가 스스로 아는 경로 — **실제로 파일이 있을 때만**
+ *   ③ PLAYWRIGHT_BROWSERS_PATH/chromium — 브라우저 폴더를 환경이 알려 준 경우
+ *
+ * ⚠③도 **경로를 박지 않는다.** 환경변수가 가리키는 폴더에서 이름만 붙인다 —
+ *   경로 문자열을 코드에 적는 순간 그것이 다시 G-31·G-33 이 된다(V2-b 가 잡는다).
+ * @returns {string|undefined} 실행 파일 경로(없으면 undefined)
+ */
+function resolveChromium() {
+    const cand = [];
+    if (process.env.SIM_CHROMIUM) cand.push(process.env.SIM_CHROMIUM);
+    try { cand.push(chromium.executablePath()); } catch (_) { /* 판을 모르면 건너뛴다 */ }
+    if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
+        cand.push(path.join(process.env.PLAYWRIGHT_BROWSERS_PATH, 'chromium'));
+    }
+    for (const c of cand) {
+        try { if (c && fs.existsSync(c)) return c; } catch (_) { /* 접근 불가면 다음 */ }
+    }
+    return undefined;
+}
+
 (async () => {
-    const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', headless: true });
+    const exePath = resolveChromium();
+    console.log(`[simulate] 크로미움: ${exePath || '(playwright 기본 해석에 맡김)'}`);
+    const browser = await chromium.launch({ ...(exePath ? { executablePath: exePath } : {}), headless: true });
     const page = await browser.newPage({ viewport: { width: 412, height: 915 } }); // 모바일 비율
 
     const consoleErrors = [];

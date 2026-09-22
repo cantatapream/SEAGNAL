@@ -247,20 +247,39 @@ async function checkRecoversAfterNetworkDrop(browser) {
         return;
     }
 
-    let chromium;
-    try { ({ chromium } = require('playwright')); }
-    catch (e) {
-        console.log('\n⏭️  건너뜀 — playwright 가 없다(' + e.message + ').');
-        console.log('\n0 PASS / 0 FAIL');
+    // ⚠2026-09-22(G-34) — 여기는 `playwright` 만 찾았다. 그런데 이 저장소에 실제로 깔려 있는
+    //   것은 **`playwright-core`** 다(두 묶음은 브라우저 조작 API 가 같다). 그래서 이 스위트는
+    //   **한 번도 돌지 않고** `0 PASS / 0 FAIL` 만 찍어 왔고, verify_all 은 그것을 ✅ 로 셌다.
+    //   둘 다 받아들인다 — 먼저 `playwright`, 없으면 `playwright-core`.
+    let chromium = null, pwErr = null;
+    for (const mod of ['playwright', 'playwright-core']) {
+        try { ({ chromium } = require(mod)); break; } catch (e) { pwErr = e; }
+    }
+    if (!chromium) {
+        console.log('\n⏭️  건너뜀 — playwright 도 playwright-core 도 없다(' + pwErr.message.split('\n')[0] + ').');
+        console.log('\n0 PASS / 0 FAIL (SKIPPED: playwright 없음)');
         return;
     }
 
-    const exe = process.env.PW_CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+    // ⚠2026-09-22(G-33·G-34) — 여기는 `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` 이
+    //   **판번호까지 박혀** 있었다. 그 판이 없는 자리(깃허브 CI·다른 기계·브라우저를 올린 뒤)
+    //   에서는 못 띄우고 **`0 PASS / 0 FAIL` 을 찍고 조용히 돌아갔다** — 그러면 verify_all 이
+    //   그것을 ✅ 로 센다. 즉 **아무것도 안 돌린 스위트가 통과로 잡혀 왔다.**
+    //   경로를 박지 말고 환경에게 묻는다(순서는 simulate.js resolveChromium 과 같다).
+    const cand = [];
+    if (process.env.PW_CHROME) cand.push(process.env.PW_CHROME);
+    try { cand.push(chromium.executablePath()); } catch (_) { /* 판을 모르면 건너뛴다 */ }
+    if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
+        cand.push(require('path').join(process.env.PLAYWRIGHT_BROWSERS_PATH, 'chromium'));
+    }
+    const fsx = require('fs');
+    const exe = cand.find(c => { try { return c && fsx.existsSync(c); } catch (_) { return false; } });
     let browser;
-    try { browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] }); }
+    try { browser = await chromium.launch({ ...(exe ? { executablePath: exe } : {}), args: ['--no-sandbox'] }); }
     catch (e) {
+        // ⚠건너뛴다는 사실을 **결과줄에 남긴다** — `0 PASS / 0 FAIL` 만 찍으면 통과처럼 보인다.
         console.log('\n⏭️  건너뜀 — 브라우저를 못 띄웠다(' + e.message + ').');
-        console.log('\n0 PASS / 0 FAIL');
+        console.log('\n0 PASS / 0 FAIL (SKIPPED: 브라우저 없음)');
         return;
     }
 

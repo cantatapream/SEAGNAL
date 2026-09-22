@@ -31,6 +31,8 @@ exec > >(tee "$_VA_LOG") 2>&1
 # [무엇을] `fail <이름>` 으로 세우고, 마지막 총정리에 그 이름 목록을 함께 찍는다.
 #   ⚠새 검사를 넣을 때 `|| FAIL=1` 대신 `|| fail "<이름>"` 을 쓸 것.
 FAILED_NAMES=""
+# 문항이 0개라 「통과」로 셀 수 없는 스위트(G-34). 실패는 아니지만 초록으로 위장하면 안 된다.
+SKIPPED_SUITES=""
 fail() { FAIL=1; FAILED_NAMES="${FAILED_NAMES}
   · $1"; }
 run() { echo; echo "── $1 ──"; local _n="$1"; shift; "$@" || fail "$_n"; }
@@ -73,7 +75,20 @@ for suite in "${SUITES[@]}"; do
   out=$(node "$f" 2>&1)
   line=$(echo "$out" | grep -oE "[0-9]+ PASS / [0-9]+ FAIL" | tail -1)
   if [ -z "$line" ]; then echo "  ❌ $suite — 실행 실패(결과줄 없음)"; echo "$out" | tail -3; fail "스위트 $suite — 결과줄 없음"; continue; fi
-  if echo "$line" | grep -qE "/ 0 FAIL$"; then echo "  ✅ $suite — $line"
+  # ── ⚠`0 PASS / 0 FAIL` 을 통과로 세지 않는다 (2026-09-22 신설, G-34) ──────────
+  #   [무엇이 문제였나] `test_overlay_solo` 는 브라우저를 못 띄우면 `0 PASS / 0 FAIL` 을
+  #     찍고 조용히 돌아간다. 그런데 이 줄은 "FAIL 이 0 이면 ✅" 라고만 봐서
+  #     **아무것도 안 돌린 스위트를 통과로 세 왔다.** 실제로 그 스위트는 브라우저 경로가
+  #     판번호까지 박혀 있어(G-33) 이 컨테이너에서조차 최근 판에서는 안 돌았다.
+  #   [무엇을] 문항이 0개면 ⏭️ 로 따로 세고 총정리에 남긴다. **실패로는 만들지 않는다** —
+  #     환경에 따라 정당하게 건너뛰는 스위트가 있다. 다만 **초록으로 위장하지는 못하게** 한다.
+  pf=${line%% PASS*}
+  if [ "$pf" = "0" ] && echo "$line" | grep -qE "/ 0 FAIL"; then
+    echo "  ⏭️  $suite — $line  ← **문항이 0개다. 통과가 아니다.**"
+    echo "$out" | grep -E "건너뜀|SKIPPED" | head -2 | sed 's/^/       /'
+    SKIPPED_SUITES="${SKIPPED_SUITES}
+  · $suite"
+  elif echo "$line" | grep -qE "/ 0 FAIL$"; then echo "  ✅ $suite — $line"
   else echo "  ❌ $suite — $line"; echo "$out" | grep "❌" | head -5; fail "스위트 $suite — $line"; fi
 done
 
@@ -425,6 +440,11 @@ if [ -n "$FAILED_NAMES" ]; then
     ' "$_VA_LOG" | tail -20 | sed 's/^/  │ /'
     echo "  └─"
   done
+fi
+if [ -n "$SKIPPED_SUITES" ]; then
+  echo
+  echo "  ── ⏭️ 문항이 0개였던 스위트(통과 아님, G-34) ──$SKIPPED_SUITES"
+  echo "     ⚠이 스위트들은 **아무것도 재지 않았다.** 초록으로 읽지 말 것."
 fi
 _VA_HTTP="$(grep -cE '기대 200|기대 404' "$_VA_LOG" || true)"
 if [ "${_VA_HTTP:-0}" -gt 0 ]; then
