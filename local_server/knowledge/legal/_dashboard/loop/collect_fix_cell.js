@@ -72,6 +72,7 @@ const prompt = `너는 SEAGNAL 해양법률 위키 사서다. \`${LEGAL}/_SCHEMA
 ## 1단계 — 각 미수집 항목을 law.go.kr DRF로 실제 수집 (OC=hyoo1431)
 먼저 대상 경로에 **이미 파일이 있는지 확인**(다른 셀이 먼저 수집했을 수 있음 — 특히 \`raw/15_관련타부처/\` 공용 타법). 있으면 그 조문이 실제 들어있는지 grep으로 확인 후 result="already_present". 없으면 Bash \`curl\`로 국가법령정보센터 Open API 수집:
 - **법령 본문**(시행령·시행규칙·타법): \`lawSearch.do?OC=hyoo1431&target=law&type=JSON&query=<법령명>\` → MST → \`lawService.do?OC=hyoo1431&target=law&MST=<MST>&type=JSON\` (조문 전문). 타법은 **인용된 그 조문만 발췌** 저장(전체 개념화 금지).
+  ★**판(version) 대조 필수**(2026-09-21, L-295·L-296): \`target=law&MST=\` 는 한 MST 가 시행일 판을 둘 이상 가지면 **어느 판이 올지 못 고른다**(실측: 288973 → 20270101 **시행예정**, 현행은 20260825). 본문의 \`기본정보.시행일자\` 가 lawSearch 가 준 현행 시행일자와 다르면 \`target=eflaw&MST=<MST>&efYd=<현행시행일자>\` 로 다시 받고, 그래도 안 맞으면 **저장하지 말고** 실패로 보고한다.
 - **행정규칙(고시·훈령·예규)**: \`lawSearch.do?OC=hyoo1431&target=admrul&type=JSON&query=<고시명>\` → LID/일련번호 → \`admRulService.do?OC=hyoo1431&target=admrul&LID=<id>&type=JSON\`. **구 고시가 폐지·대체됐으면 현행본**을 받는다.
 - **별표(텍스트)**: 응답의 별표 텍스트 그대로. **이미지뿐이면**: \`admRulJoListTreeRInc.do?admRulSeq=<ID>&section=By\`로 bylSeq → \`admRulBylContentsInfoR.do?bylSeq=<bylSeq>\`의 \`flDownload.do?flSeq=<id>\` 이미지를 받아 **너의 비전으로 OCR** 전사(수치·표 정확히).
 - 받은 원문은 매니페스트가 지정한 경로(예 \`${l.raw}/행정규칙/<고시명>.txt\`, \`raw/15_관련타부처/<법명>/법률_발췌.txt\`)로 저장(⚠REVIEW 헤더, 원문 불변). 타법 발췌는 **기존 발췌 파일이 있으면 이어붙이고 기존 인용출처는 지우지 말 것**.

@@ -29,7 +29,12 @@ import glob, json, os, re, sys, time, urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.abspath(os.path.join(HERE, '..', '..'))
 OC = 'hyoo1431'
-OUT = os.path.join(LEGAL, '_dashboard', 'admrul_annex_survey.json')
+# ★`--out` 으로 산출 위치를 바꿀 수 있다 (2026-09-21 신설, C-2 이행).
+#   서버 정기작업은 **볼륨(`local_server/data/`)** 에 써야 한다 — 이미지 안
+#   (`_dashboard/`)에 쓰면 **재배포할 때마다 관리자가 처리하던 목록이 통째로 사라진다.**
+#   기본값은 그대로라 사람이 손으로 돌릴 때의 동작은 안 바뀐다.
+OUT = (sys.argv[sys.argv.index('--out') + 1] if '--out' in sys.argv
+       else os.path.join(LEGAL, '_dashboard', 'admrul_annex_survey.json'))
 
 
 def api(url, tries=4):
@@ -116,7 +121,16 @@ def main():
 
     for k in res:
         print(f"{k}: {len(res[k])}건")
-    json.dump(res, open(OUT, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    # 스캐너가 화면에 '언제 · 몇 건'을 쓰려면 숫자가 결과 안에 있어야 한다(2026-09-21).
+    res['checked'] = done
+    res['ran_at'] = time.strftime('%Y-%m-%d %H:%M:%S KST', time.gmtime(time.time() + 9 * 3600))
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    _tmp = OUT + '.tmp'
+    with open(_tmp, 'w', encoding='utf-8') as _f:
+        json.dump(res, _f, ensure_ascii=False, indent=1)
+        _f.flush()
+        os.fsync(_f.fileno())
+    os.replace(_tmp, OUT)   # 중간에 죽어도 옛 산출물이 반쯤 덮이지 않는다
     print('조사 결과:', OUT)
 
 

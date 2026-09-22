@@ -4,16 +4,32 @@
    기존 추출기는 조문내용을 버려서 '다음 각 호의 ...에 처한다' 형량 문장이 사라졌음.
    → 조문내용을 항상 기록하도록 전체 재생성(법률/시행령/시행규칙). 별표는 이미 수정됨(건드리지 않음)."""
 import json,urllib.request,time,os,re,glob
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+import law_api_guard                 # law.go.kr 이 본문 대신 오류쪽을 줬는지 가린다(L-294)
 
 OC='hyoo1431'
 ROOT='/home/user/SEAGNAL/local_server/knowledge/legal/raw'
 KINDS=[('법률','법률.txt'),('시행령','시행령.txt'),('시행규칙','시행규칙.txt')]
 
 def api(url):
+    # ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속).
+    #   종전에는 오류쪽 HTML 도 네트워크 오류와 똑같이 삼켜서
+    #   **"권한 없음"이 "모르겠다"로 바뀌어** 나왔다.
     for _ in range(4):
         try:
-            with urllib.request.urlopen(url,timeout=45) as r: return json.load(r)
-        except Exception: time.sleep(1.5)
+            with urllib.request.urlopen(url, timeout=45) as r:
+                body = r.read().decode('utf-8', 'replace')
+            if body.lstrip()[:1] in '{[':
+                return json.loads(body)
+            reason = law_api_guard.block_reason(body)
+            if reason:
+                law_api_guard.announce(reason, url)
+                if law_api_guard.is_fatal(reason):
+                    return None          # 재시도로 안 풀린다
+        except Exception:
+            pass
+        time.sleep(1.5)
     return None
 
 def L(x):  # 리스트 정규화
@@ -82,8 +98,48 @@ def build_text(body):
         out.extend(lines[1:])
     return '\n'.join(out).strip()+'\n'
 
-def run():
+def pick_metas(argv):
+    """돌릴 계열을 고른다. 인자가 없으면 **전부**(종전 그대로).
+
+    ★`--only` 를 2026-09-22 에 붙였다. 목이 빠진 계열 11개만 다시 받고 싶은데 이 도구는
+      `raw/*/*/_meta.json` 을 **전부** 훑어 저장소의 모든 계층 파일을 덮어쓴다. 11개를 고치려고
+      600개 넘는 파일을 다시 받는 것은 위험(그 사이 한 건이라도 판이 흔들리면 조용히 섞인다)하고
+      느리다. 그래서 **고를 수 있게** 했다 — 기본값은 손대지 않았다.
+
+      python3 recollect_jomun.py --only 국유재산법 --only 국적법     이름에 그 말이 든 계열만
+      python3 recollect_jomun.py --only 15_관련타부처/국유재산법     경로 조각으로도 된다
+      python3 recollect_jomun.py --dry  --only 국유재산법            무엇이 걸리는지만 본다
+
+    @param {list[str]} argv  명령행 인자
+    @returns {list[str]}  `_meta.json` 경로 목록
+    """
     metas=sorted(glob.glob(os.path.join(ROOT,'*','*','_meta.json')))
+    keys=[argv[i+1] for i,a in enumerate(argv) if a=='--only' and i+1<len(argv)]
+    if not keys:
+        return metas
+    # ★`/` 가 없는 말은 **폴더 이름 정확일치**로 본다(2026-09-22).
+    #   [왜] 부분일치로 뒀더니 `--only 문화유산의보존및활용에관한법률` 이
+    #   `근현대문화유산의보존및활용에관한법률` 을, `--only 순환경제사회전환촉진법` 이
+    #   그림자 폴더 `순환경제사회전환촉진법시행령` 을 함께 잡았다. 받을 것만 받는다.
+    #   경로 조각(`15_관련타부처/국유재산법`)을 주면 종전대로 부분일치다.
+    def hit(mp):
+        d = os.path.dirname(mp)
+        return any((k in d) if '/' in k else (os.path.basename(d) == k) for k in keys)
+    sel=[m for m in metas if hit(m)]
+    print(f"--only {keys} → 계열 {len(sel)}개 (전체 {len(metas)}개 중)",flush=True)
+    for m in sel:
+        print("   "+os.path.relpath(os.path.dirname(m),ROOT),flush=True)
+    if not sel:
+        print("⚠하나도 안 걸렸다 — 이름을 확인하라. **아무것도 하지 않는다.**",flush=True)
+    return sel
+
+
+def run():
+    argv=_sys.argv[1:]
+    metas=pick_metas(argv)
+    if '--dry' in argv:
+        print(f"(--dry: 무엇이 걸리는지만 보였다. 실제로 받으려면 --dry 를 빼라)",flush=True)
+        return
     print(f"대상 {len(metas)}개 계열",flush=True)
     ok=err=files=0; errs=[]
     for mp in metas:
@@ -93,13 +149,25 @@ def run():
             if kind not in fams: continue
             mst=fams[kind].get('MST')
             if not mst: continue
-            body=api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=eflaw&type=JSON&MST={mst}")
+            # ★`eflaw` 를 efYd 없이 부르던 자리다 (2026-09-21 수정).
+            #   [무엇이 잘못이었나] `lawService.do?target=eflaw` 는 **efYd 가 없으면** HTTP **200** 과 함께
+            #   *"미신청된 목록/본문에 대한 접근입니다."* HTML 을 준다. api() 가 그것을 네트워크 오류처럼
+            #   삼켰으므로 이 호출은 **조용히 아무것도 안 주고 있었다.**
+            #   ⚠**권한 문제가 아니다.** 신청은 처음부터 다 돼 있었고, 맞는 efYd 를 주면 JSON 이 온다.
+            #     나는 저 문구를 하루에 두 번 오진했다 — "호스트 불통"(L-294), "eflaw 미신청"(L-295).
+            #   [왜 그냥 target=law 로 안 바꿨나] 한 MST 가 시행일 판을 둘 이상 가지면 `target=law&MST=`
+            #   는 **옛 판이나 시행예정 판**을 준다 — 287955→20260701(현행은 20260828),
+            #   288973→**20270101 시행예정**(현행은 20260825). 아직 시행도 안 된 법문을 현행인 양 저장한다.
+            #   [그래서] 현행 시행일자를 조회해 `efYd` 로 못 박는 공용 함수를 쓴다.
+            #   근거와 실측표는 law_api_guard.py 머리말 · fetch_law_body() 참조.
+            body=law_api_guard.fetch_law_body(api, OC, mst, lid=fams[kind].get('법령ID'))
             if not body: good=False; continue
             txt=build_text(body)
             if not txt: good=False; continue
             with open(os.path.join(base,fn),'w',encoding='utf-8') as f: f.write(txt)
             files+=1; time.sleep(0.25)
-        meta['조문재추출']='2026-07-14(chapeau복구)'
+        meta['조문재추출']='2026-07-14(chapeau복구)' if '조문재추출' not in meta else meta['조문재추출']
+        meta['조문재추출_최근']=time.strftime('%Y-%m-%d')
         json.dump(meta,open(mp,'w',encoding='utf-8'),ensure_ascii=False,indent=2)
         if good: ok+=1
         else: err+=1; errs.append(meta.get('법령명',base))

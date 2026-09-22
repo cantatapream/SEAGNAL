@@ -8,6 +8,10 @@
 import json, time, threading, urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+import law_api_guard                 # DRF 오류쪽 판별 + 현행 시행일 판 고정(L-294·L-295)
+
 OC = "hyoo1431"
 LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
 CHECK_FILE = f"{LEGAL}/_dashboard/budchik_check.json"
@@ -15,11 +19,37 @@ TARGET_LAWS_FILE = f"{LEGAL}/_dashboard/loop/audit9_groups.json"
 LOG_FILE = f"{LEGAL}/_dashboard/budchik_recollect_log.json"
 FILE_MAP = {"법률": "법률.txt", "시행령": "시행령.txt", "시행규칙": "시행규칙.txt"}
 
+def api(url):
+    """DRF 한 번 호출(JSON). 프록시가 종종 끊으므로 재시도하고, 오류쪽이면 사유를 찍는다."""
+    for _ in range(4):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=40) as resp:
+                body = resp.read().decode("utf-8", "replace")
+            if body.lstrip()[:1] in "{[":
+                return json.loads(body)
+            reason = law_api_guard.block_reason(body)
+            if reason:
+                law_api_guard.announce(reason, url)
+                if law_api_guard.is_fatal(reason):
+                    return None
+        except Exception:
+            pass
+        time.sleep(1.5)
+    return None
+
+
 def api_get(mst):
-    url = f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=law&MST={mst}&type=JSON"
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    """그 MST 의 **현행 시행일 판** 본문. 못 받으면 None.
+
+    ★2026-09-21 수정. 종전에는 `target=law&MST=` 를 재시도 없이 한 번 불렀다. 두 가지가 틀렸다 —
+      ① 한 MST 가 시행일 판을 둘 이상 가지면 `target=law` 는 **어느 판이 올지 못 고른다.**
+         해양환경관리법 시행규칙 287955 는 `target=law` 로 20260701 판(부칙 **52**)이 오는데
+         현행은 20260828 판(부칙 **53**)이다. **부칙을 세는 도구가 다른 판의 부칙을 세고 있었다.**
+      ② 실패해도 그냥 예외로 터졌다(재시도 없음).
+    이제 law_api_guard 가 현행 시행일자를 조회해 `efYd` 로 못 박고, 못 정하면 None 을 준다.
+    """
+    return law_api_guard.fetch_law_body(api, OC, mst)
 
 def format_budchik(bu):
     unit = bu.get("부칙단위")

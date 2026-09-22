@@ -1,0 +1,12 @@
+{
+ "groups": 894,
+ "multi": 22,
+ "split_id": 0,
+ "no_id": 1,
+ "examples": {
+  "split_id": [],
+  "no_id": [
+   "선박전자증서발급에관한고시.txt"
+  ]
+ }
+}

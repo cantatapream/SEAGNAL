@@ -27,6 +27,21 @@
  *       → 받아서 보여만 준다(파일은 안 건드림)
  *   ... --apply            → 실제로 발췌본 끝에 붙인다
  *   ... --tier 시행령       → 계층 지정(기본 법률)
+ *   ... --refresh          → ★**이미 있는 조문을 받아 온 것으로 갈아 끼운다**(아래)
+ *   ... --file <경로>       → 한 폴더에 발췌본이 둘 이상일 때 **어느 파일인지 못 박는다**
+ *                             (전기사업법 폴더의 `법률_연결조문만.txt` 처럼 기본 규칙이
+ *                              못 고르는 파일. ⚠그 법 폴더 안이어야 한다)
+ *
+ * [★--refresh 는 왜 생겼나 — 2026-09-21]
+ *   이 도구는 `[제10조]` 가 파일에 있으면 **"이미 있음"으로 건너뛴다.** 그런데 있는 것이
+ *   **반쪽일 수 있다.** 옛 수집기는 목(가·나·다)과 호(1·2·3)를 안 적었다 — 그래서
+ *   `2. 다음 각 목의 시설을 갖출 것` 뒤에 아무것도 없는 발췌본이 8개 파일에 남아 있다
+ *   (V5-16 이 센다 · `d_stage_2026-09-20/B2_MOK_TARGETS.md`).
+ *   그 자리는 **계열째 다시 받으면 안 된다** — 발췌본에 없던 전문이 통째로 들어와
+ *   저장소 성격이 바뀌고 신선도 점검 대상이 몇 배로 는다. **그 조만 갈아 끼워야 한다.**
+ *   ⚠`--refresh` 는 **글이 줄어드는 교체를 스스로 거부한다**(`--shrink-ok` 로만 넘긴다).
+ *     원문이 개정돼 정말 짧아졌을 수도 있지만, **받다 만 것을 덮어쓰는 사고가 더 흔하다.**
+ *   ⚠우리가 적어 둔 `※` 메모 줄은 **그대로 남긴다**(왜 받았는지가 거기 있다).
  *
  * [연계] → raw/15_관련타부처/<법>/<계층>_발췌.txt · _meta.json (--apply 일 때만 씀)
  *        ← law.go.kr DRF API (lawSearch.do → lawService.do)
@@ -38,6 +53,8 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+
+const { replaceBlock, hasArticle } = require('./article_block');  // --refresh 가 쓰는 덩이 교체·존재 확인(시험 있음)
 
 const LEGAL = path.resolve(__dirname, '../..');
 const OTHER = path.join(LEGAL, 'raw', '15_관련타부처');
@@ -56,6 +73,53 @@ function api(url) {
       res.on('end', () => { try { resolve(JSON.parse(b)); } catch (e) { resolve(null); } });
     }).on('error', () => resolve(null));
   });
+}
+
+const efyd = v => String(v || '').replace(/[^0-9]/g, '');
+
+/**
+ * ★**어느 시행일 판인지 못 박아서** 본문을 받는다 (2026-09-21 신설 · L-295·L-296).
+ *
+ * [왜] `lawService.do?target=law&MST=` 는 한 MST 가 시행일 판을 둘 이상 가지면
+ *   **어느 판이 올지 고를 수 없고**, 실측상 **시행예정 판**을 주기도 한다 —
+ *   288973 농수산물품질관리법 시행령 → 20270101(시행예정, 현행은 20260825) ·
+ *   287955 해양환경관리법 시행규칙 → 20260701(현행은 20260828).
+ *   이 도구는 받은 글을 **raw 에 그대로 적는다.** 그러니 판이 어긋나면
+ *   **아직 시행되지도 않은 조문이 우리 원문으로 남는다**(실제로 5개 파일 31개 조문이 그랬다).
+ *
+ * [어떻게] 목록(`lawSearch`)이 알려 준 **현행 시행일자**와 본문의 시행일자를 대조하고,
+ *   다르면 `target=eflaw` + `efYd` 로 그 판을 **콕 집어** 다시 받는다.
+ *   ★**못 정하면 아무것도 주지 않는다.** 틀린 판을 주느니 못 받았다고 하는 편이 낫다.
+ *   (파이썬 쪽 같은 장치: `_dashboard/loop/law_api_guard.py` — 그 머리말에 실측표가 있다.)
+ */
+async function fetchLawBody(mst, want) {
+  const url = n => `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&type=JSON&${n}`;
+  const d = await api(url(`target=law&MST=${mst}`));
+  if (!d) return null;                       // 못 받았다 — "없다"가 아니다
+  const got = efyd((((d['법령'] || {})['기본정보']) || {})['시행일자']);
+  want = efyd(want);
+  if (!want) {
+    // 목록이 시행일자를 안 줬다 — 본문이 밝힌 법령ID 로 현행 시행일을 직접 찾는다.
+    const lid = String((((d['법령'] || {})['기본정보']) || {})['법령ID'] || '');
+    if (lid) {
+      const s = await api(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&type=JSON&target=eflaw&display=100&LID=${lid}`);
+      let rows = ((s || {}).LawSearch || {}).law || [];
+      if (!Array.isArray(rows)) rows = [rows];
+      const cur = rows.find(x => String(x['현행연혁코드'] || '').includes('현행'));
+      if (cur) want = efyd(cur['시행일자']);
+    }
+  }
+  if (!want) {
+    console.error(`  ✗MST ${mst}: 현행이 어느 판인지 못 정했다 — 틀린 판을 주지 않고 비운다.`);
+    return null;
+  }
+  if (got === want) return d;
+  console.error(`  ↻MST ${mst}: target=law 는 ${got} 판을 줬는데 현행은 ${want} 다 — efYd 로 다시 받는다.`);
+  const fixed = await api(url(`target=eflaw&MST=${mst}&efYd=${want}`));
+  const got2 = efyd(((((fixed || {})['법령'] || {})['기본정보']) || {})['시행일자']);
+  if (fixed && got2 === want) return fixed;
+  console.error(`  ✗MST ${mst}: 현행은 ${want} 인데 그 판을 못 받았다 — 틀린 판(${got})을 주지 않고 비운다.`);
+  return null;                               // ★`|| d` 로 물러서지 않는다
 }
 
 /** 법 이름 → 현행 법령 한 건. 이름이 정확히 같은 것만 받는다(비슷한 것을 임의로 고르지 않는다). */
@@ -117,14 +181,17 @@ function renderArticle(u) {
   const why = arg('--why') || die('--why "왜 이 조문이 필요한가" 가 필요하다 — 다음 사람이 이 줄을 보고 판단한다.');
   const tier = arg('--tier') || '법률';
   const APPLY = argv.includes('--apply');
+  const REFRESH = argv.includes('--refresh');
+  const SHRINK_OK = argv.includes('--shrink-ok');
   if (!['법률', '시행령', '시행규칙'].includes(tier)) die('--tier 는 법률·시행령·시행규칙 중 하나다.');
 
   const hit = await findLaw(lawIn, tier);
   const mst = String(hit['법령일련번호'] || '');
   console.error(`  ↳ law.go.kr: 「${hit['법령명한글']}」 MST=${mst} · 시행 ${hit['시행일자']} · 소관 ${hit['소관부처명'] || '?'}`);
 
-  const d = await api(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&type=JSON&target=law&MST=${mst}`);
-  if (!d) die('본문을 못 받았다(응답 없음). 잠시 뒤 다시 시도하라 — "없다"가 아니라 "못 받았다"이다.');
+  const d = await fetchLawBody(mst, hit['시행일자']);
+  if (!d) die('본문을 못 받았거나 **현행 판인지 확인하지 못했다**. 잠시 뒤 다시 시도하라 —\n' +
+    '   "없다"가 아니라 "못 받았다"이다. 판을 못 정하면 일부러 비운다(틀린 판을 raw 에 적지 않기 위해서다).');
   const body = d['법령'] || {};
   let units = ((body['조문'] || {})['조문단위']) || [];
   if (!Array.isArray(units)) units = [units];
@@ -197,13 +264,29 @@ function renderArticle(u) {
       console.error(`  ↳ 조문별 파일 ${singles.length}개를 ${path.basename(excerpt)} 로 합쳤다(원본은 지우지 않는다).`);
     }
   }
-  const file = fs.existsSync(plain) ? plain : excerpt;
-  const had = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  if (file === plain) {
+  // ★`--file` 로 **어느 파일인지 사람이 못 박을 수 있다**(2026-09-21 신설).
+  //   [왜] 한 폴더에 발췌본이 둘 이상인 경우가 실제로 있다 — 전기사업법 폴더에는
+  //   `법률_발췌.txt` 와 `법률_연결조문만.txt` 가 함께 있다. 위 규칙은 `법률.txt` → `법률_발췌.txt`
+  //   순으로만 고르므로 `_연결조문만.txt` 는 **이 도구로 영영 못 고친다.**
+  //   그런 자리를 손으로 고치게 두면 실수가 난다. ⚠폴더 밖은 거부한다.
+  const forced = arg('--file');
+  let file = fs.existsSync(plain) ? plain : excerpt;
+  if (forced) {
+    const abs = path.resolve(forced.startsWith('/') ? forced : path.join(LEGAL, forced));
+    if (!abs.startsWith(path.resolve(dir) + path.sep)) {
+      die(`--file 은 이 법의 폴더(${path.relative(LEGAL, dir)}) 안이어야 한다: ${forced}`);
+    }
+    if (!fs.existsSync(abs)) die(`--file 이 가리키는 파일이 없다: ${forced}`);
+    file = abs;
+    console.error(`  ↳ --file 로 ${path.relative(LEGAL, file)} 를 집었다.`);
+  }
+  let had = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  if (!forced && file === plain) {
     console.error(`  ↳ 이미 있는 ${path.basename(file)} 에 덧붙인다(발췌본을 따로 만들지 않는다).`);
   }
 
   const add = [];
+  const upd = [];          // --refresh 로 갈아 끼울 것
   const missing = [];
   for (const one of artsIn.split(/[,，]/).map(x => x.trim()).filter(Boolean)) {
     const m = /^제\s*(\d+)조(?:의\s*(\d+))?$/.exec(one.replace(/\s+/g, ''));
@@ -226,7 +309,7 @@ function renderArticle(u) {
     //   "없다"가 아니라 "두 번 받아 봤지만 못 찾았다"로 쓴다.
     if (!u) {
       console.error(`  ↻ ${one} 을 못 찾았다 — 본문을 한 번 다시 받아 본다(받아 온 조문 ${units.length}개).`);
-      const again = await api(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&type=JSON&target=law&MST=${mst}`);
+      const again = await fetchLawBody(mst, hit['시행일자']);
       let u2 = (((again || {})['법령'] || {})['조문'] || {})['조문단위'] || [];
       if (!Array.isArray(u2)) u2 = [u2];
       if (u2.length) {
@@ -245,8 +328,16 @@ function renderArticle(u) {
       continue;
     }
     const r = renderArticle(u);
-    if (had.includes(`[${r.label}]`)) {
-      console.log(`  ⏭️  이미 있음: ${r.label} ${r.title}`);
+    // ⚠`had.includes('[제6조]')` 로 묻지 않는다 — 민짜 머리줄(`제6조(제목)`) 파일에서는
+    //   늘 false 가 나와 **이미 있는 조를 하나 더 덧붙인다**(2026-09-22 실측으로 발견).
+    if (hasArticle(had, r.label)) {
+      if (!REFRESH) {
+        console.log(`  ⏭️  이미 있음: ${r.label} ${r.title}`);
+        console.log('       ⚠"있다"가 "다 있다"는 뜻은 아니다 — 목·호가 빠진 반쪽일 수 있다.'
+          + ' 갈아 끼우려면 `--refresh`.');
+        continue;
+      }
+      upd.push(r);
       continue;
     }
     add.push(r);
@@ -255,20 +346,83 @@ function renderArticle(u) {
     console.log(`\n⚠못 찾은 조문 ${missing.length}개: ${missing.join(', ')}`);
     console.log('  조문 번호를 확인하라 — 현행 법령에 없는 번호일 수 있다(삭제·재번호). "원문에 없다"가 아니라 "못 찾았다"이다.');
   }
-  if (!add.length) { console.log('덧붙일 조문이 없다(전부 이미 있음이거나 못 찾았다).'); return; }
+  // ── --refresh: 이미 있는 덩이를 갈아 끼운다 ──────────────────────────────
+  let refreshed = had;
+  const done = [];
+  for (const r of upd) {
+    const res = replaceBlock(refreshed, r.label, r);
+    if (!res) {
+      console.log(`  ⚠${r.label} 은 파일에 있다고 나왔는데 덩이를 못 집었다 — 손대지 않는다.`);
+      continue;
+    }
+    const grew = res.after - res.before;
+    if (grew < 0 && !SHRINK_OK) {
+      console.log(`  ⏭️  ${r.label}: 새로 받은 글이 ${-grew}자 **짧다** — 갈아 끼우지 않는다.`);
+      console.log('       원문이 개정돼 짧아졌을 수도 있지만, 받다 만 것을 덮어쓰는 사고가 더 흔하다.');
+      console.log('       정말 갈아 끼우려면 `--shrink-ok` 를 붙이고, 먼저 두 글을 눈으로 견줘라.');
+      continue;
+    }
+    refreshed = res.text;
+    done.push({ label: r.label, grew });
+    console.log(`  ♻ ${r.label} ${r.title} — ${res.before}자 → ${res.after}자 (${grew >= 0 ? '+' : ''}${grew})`);
+  }
+
+  if (!add.length && !done.length) {
+    console.log('덧붙이거나 갈아 끼울 조문이 없다(전부 이미 있음이거나 못 찾았다).');
+    return;
+  }
 
   const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
   // ★머리줄에는 **조 제목만** 둔다(2026-08-27, 시험 중 발견).
   //   왜 받았는지를 머리줄에 같이 적으면 `cite_row.js` 가 그 문장을 통째로 조 제목으로 읽어
   //   근거 조문 표의 요지 칸에 메모가 그대로 들어간다(실측으로 확인). 메모는 다음 줄에 따로 적는다.
-  const blocks = add.map(r =>
-    `[${r.label}] ${r.title}\n※ ${why} (${today} 조문단위 추가수집)\n${r.text}\n`);
+  // ★덧붙일 때도 **그 파일이 쓰는 머리줄 꼴을 따른다**(2026-09-22).
+  //   [왜] `--refresh` 가 민짜 꼴(`제6조(제목)`) 파일을 다룰 수 있게 되면서, 같은 파일에
+  //   대괄호 머리를 덧붙이면 **두 꼴이 섞인다.** 그러면 다음번 `replaceBlock` 은 그 파일을
+  //   "대괄호 파일"로 보고 민짜로 적힌 조들을 경계로 삼지 않아 **덩이를 잘못 집는다.**
+  //   새로 만드는 파일은 종전대로 대괄호 꼴이다(이 저장소의 기본 관례).
+  const plainStyle = !!had && !/^\[제\d+조/m.test(had);
+  const blocks = add.map(r => (plainStyle
+    ? `${r.label}(${r.title})\n※ ${why} (${today} 조문단위 추가수집)\n${r.text}\n`
+    : `[${r.label}] ${r.title}\n※ ${why} (${today} 조문단위 추가수집)\n${r.text}\n`));
 
   console.log(`\n파일: ${path.relative(LEGAL, file)}${had ? '' : '  ★새로 만든다'}`);
-  console.log(blocks.join('\n'));
-  if (!APPLY) { console.log('(--apply 를 붙이면 실제로 덧붙인다)'); return; }
+  if (blocks.length) console.log(blocks.join('\n'));
+  if (!APPLY) {
+    console.log(`(--apply 를 붙이면 실제로 ${done.length ? '갈아 끼우고 ' : ''}덧붙인다)`);
+    return;
+  }
 
   fs.mkdirSync(dir, { recursive: true });
+  // ★갈아 끼운 것이 있으면 **먼저 그것부터 파일에 반영한다.**
+  //   아래 덧붙이기는 `had`(옛 글)를 기준으로 자리를 잡으므로, 순서가 바뀌면 교체분이 날아간다.
+  if (done.length) {
+    fs.writeFileSync(file, refreshed);
+    had = refreshed;
+    console.error(`  ↳ ${done.length}개 조문을 갈아 끼웠다(※ 메모 줄은 그대로 뒀다).`);
+  }
+  if (!add.length) {
+    // ★갈아 끼운 것도 **기록으로 남긴다.** 종전에는 덧붙일 때만 `_meta.json` 을 썼는데,
+    //   그러면 "누가 언제 무엇을 갈아 끼웠나"가 어디에도 안 남는다 — 이 저장소가
+    //   같은 실수로 여러 번 당한 자리다(받아 놓고 기록이 없어 다음 사람이 또 받는다).
+    try {
+      const mp = path.join(dir, '_meta.json');
+      let m2 = {};
+      try { m2 = JSON.parse(fs.readFileSync(mp, 'utf8')); } catch (e) { /* 없으면 새로 만든다 */ }
+      const pv = m2['추가수집'];
+      m2['추가수집'] = Array.isArray(pv) ? pv : (pv ? [pv] : []);
+      m2['추가수집'].push({
+        일자: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10),
+        조문: done.map(d => d.label), 사유: why, 갈아끼움: true,
+      });
+      fs.writeFileSync(mp, JSON.stringify(m2, null, 1));
+    } catch (e) {
+      console.error(`   ⚠_meta.json 에 기록을 못 남겼다: ${e.message} (원문은 들어갔다)`);
+    }
+    console.log(`\n✅ ${path.relative(LEGAL, file)} 에서 ${done.length}개 조문을 갈아 끼웠다.`);
+    console.log('   `python3 _dashboard/loop/mok_promise_guard.py --examples` 로 줄었는지 확인하라.');
+    return;
+  }
   const head = had ? '' :
     `${hit['법령명한글']} — 타법연결용 발췌 (전체 아님)\n\n`;
   // ★새 조문은 **별표·부칙 앞에** 끼워 넣는다(2026-08-31 실측).
@@ -305,6 +459,9 @@ function renderArticle(u) {
   const prev = meta['추가수집'];
   meta['추가수집'] = Array.isArray(prev) ? prev : (prev ? [prev] : []);
   meta['추가수집'].push({ 일자: today, 조문: add.map(r => r.label), 사유: why });
+  if (done.length) {
+    meta['추가수집'].push({ 일자: today, 조문: done.map(d => d.label), 사유: why, 갈아끼움: true });
+  }
   fs.writeFileSync(metaPath, JSON.stringify(meta, null, 1));
   // ★폴더를 새로 만들었으면 **지도도 같이 채운다**(2026-08-30, L-212).
   //   챗봇은 `_dashboard/law_raw_paths.json`(법 이름 → raw 폴더)으로 원문 폴더를 찾는다.
