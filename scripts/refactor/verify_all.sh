@@ -300,6 +300,13 @@ node local_server/knowledge/legal/_dashboard/loop/index_links_gate.js || fail "V
 echo; echo "── V5-29 감사 교차오염 ──"
 node local_server/knowledge/legal/_dashboard/loop/audit_crosstalk_gate.js || fail "V5-29 감사 교차오염"
 
+# ── V5-30 검수 대기 수를 **두 곳이 같게 세나** (2026-09-23 신설, G-11) ──
+# 같은 물음을 서버 `parseReviewQueue()` 와 `loop/human_workload.py` 가 따로 센다.
+# `human_workload.py` 가 스스로 적어 둔 위험 — "한쪽만 고치면 두 숫자가 어긋난다".
+# ⚠이 검사는 파이썬을 돌리지만 `human_workload.json` 을 **되돌려 놓는다**(트리 무변경).
+echo; echo "── V5-30 검수 대기 수 일치 ──"
+node local_server/knowledge/legal/_dashboard/loop/review_count_agree_gate.js || fail "V5-30 검수 대기 수 일치"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
