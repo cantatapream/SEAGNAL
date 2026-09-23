@@ -268,6 +268,13 @@ node local_server/knowledge/legal/_dashboard/loop/lesson_no_gate.js || fail "V5-
 echo; echo "── V5-24 「사람이 봐야 한다」 표시 ──"
 node local_server/knowledge/legal/_dashboard/loop/admrul_review_gate.js || fail "V5-24 사람이 봐야 한다 표시"
 
+# ── V5-25 74법 목록 **밖**에 있는 기준법급(tier:1) 부령 (2026-09-23 신설, G-26) ──
+# ★결함이 아니라 설계다(§3.5). 다만 **그 설계를 아는 도구와 모르는 도구가 갈린다** —
+# 2026-08-10 에 빌더 하나가 74법 폴더만 훑어 중간검사 시기를 "raw 미수집"이라 잘못 적었다.
+# 늘면 실패시켜 **사람이 빌더마다 한 번 보고 지나가게** 한다(기계가 고르지 않는다, G-34).
+echo; echo "── V5-25 74법 목록 밖 기준법급 부령 ──"
+node local_server/knowledge/legal/_dashboard/loop/tier1_outside_gate.js || fail "V5-25 74법 목록 밖 기준법급 부령"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
