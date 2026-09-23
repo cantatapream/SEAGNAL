@@ -93,7 +93,12 @@
         times:  { x: 0.188, y: 0.398, w: 0.680, h: 0.082 },  // 발표·발효·해제
         coast:  { x: 0.160, y: 0.498, w: 0.708, h: 0.132 },  // 연안바다·평수구역
         buoy:   { x: 0.170, y: 0.646, w: 0.698, h: 0.090 },  // 관측부이
-        btns:   { x: 0.170, y: 0.743, w: 0.698, h: 0.052 }   // 기상예보·해구기상·윈디·종합정보
+        btns:   { x: 0.170, y: 0.743, w: 0.698, h: 0.052 },  // 기상예보·해구기상·윈디·종합정보
+    // 그 줄을 버튼 하나씩 — 넷이 같은 폭으로 나란히 있다(그림 위에 그려 눈으로 맞춤)
+    btn1:   { x: 0.170, y: 0.743, w: 0.167, h: 0.052 },  // 기상예보(노랑)
+    btn2:   { x: 0.347, y: 0.743, w: 0.167, h: 0.052 },  // 해구기상(빨강)
+    btn3:   { x: 0.524, y: 0.743, w: 0.167, h: 0.052 },  // 윈디(파랑)
+    btn4:   { x: 0.701, y: 0.743, w: 0.167, h: 0.052 }   // 종합정보(초록)
     };
 
     // 아코디언 = [본문 id, 여는/닫는 함수 이름]
@@ -869,13 +874,116 @@
             want: { forecast: false, alert: true, status: false }
         },
         {
+            title: '부이는 지금 바로 눌러 볼 수 있습니다',
+            body: '부이는 특보가 없어도 「해역별 기상현황」 카드에 그대로 있습니다. '
+                + '방금 그림에서 본 그 부이를 실제로 눌러 봤습니다 — 파고 · 수온 · 파주기 같은 '
+                + '지금 관측값이 그 자리에서 펼쳐집니다.',
+            skip: function () {
+                return !!_firstSeaWithAlerts() || !_buoyBtn('status');
+            },
+            drill: 'status:buoy',
+            target: function () { var el = _buoyBox('status'); return el ? [el] : null; },
+            want: { forecast: false, alert: false, status: true }
+        },
+        {
             title: '카드 아래 네 개의 버튼',
-            body: '기상예보는 앞으로의 예보, 해구기상은 바다를 칸으로 나눠 본 기상, '
-                + '윈디는 바람 흐름 그림, 종합정보는 해양종합정보 지도로 데려다 줍니다.',
+            body: '기상예보 · 해구기상 · 윈디 · 종합정보, 넷입니다. '
+                + '이 버튼들도 특보가 없어도 그대로 있으니, 하나씩 실제로 눌러 보겠습니다.',
             image: EXAMPLE_IMG,
             imageRect: IMG_RECT.btns,
             skip: function () { return !!_firstSeaWithAlerts(); },
             want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '① 기상예보 — 노란 버튼',
+            body: '맨 왼쪽 노란 버튼입니다. 누르면 그 해역의 예보표가 뜹니다 — '
+                + '지금 상황이 아니라 앞으로 어떻게 될지를 봅니다. [다음] 을 누르면 실제로 눌러 드립니다.',
+            image: EXAMPLE_IMG,
+            imageRect: IMG_RECT.btn1,
+            skip: function () { return !!_firstSeaWithAlerts(); },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '눌렀더니 이렇게 뜹니다 — 기상예보',
+            body: '실제로 누른 화면입니다. 날짜별 · 시간대별로 파고와 풍속, 풍향이 나옵니다. '
+                + '옆으로 밀면 더 먼 날까지 볼 수 있습니다.',
+            skip: function () {
+                return !!_firstSeaWithAlerts() || !_cardBtn('기상예보', 'status');
+            },
+            drill: 'status:forecast',
+            target: function () {
+                var el = document.querySelector('#sea-forecast-modal .forecast-modal-content');
+                return el ? [el] : null;
+            },
+            want: { forecast: false, alert: false, status: true }
+        },
+        {
+            title: '② 해구기상 — 빨간 버튼',
+            body: '두 번째 빨간 버튼입니다. 누르면 화면이 해양종합정보로 넘어가면서 '
+                + '바다가 격자로 나뉩니다. [다음] 을 누르면 실제로 넘어갔다가 돌아옵니다.',
+            image: EXAMPLE_IMG,
+            imageRect: IMG_RECT.btn2,
+            skip: function () { return !!_firstSeaWithAlerts(); },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '눌렀더니 이렇게 넘어갑니다 — 해구기상',
+            body: '바다가 칸(해구)으로 나뉘어 있습니다. 칸을 두 번 누르면 그 칸의 기상이 나옵니다. '
+                + '[다음] 을 누르면 다시 원래 화면으로 돌아갑니다.',
+            skip: function () {
+                return !!_firstSeaWithAlerts() || !_cardBtn('해구기상', 'status');
+            },
+            drill: 'status:zonemap',
+            target: function () {
+                var el = document.getElementById('ocean-map');
+                return el ? [el] : null;
+            },
+            want: { forecast: false, alert: false, status: true }
+        },
+        {
+            title: '③ 윈디 — 파란 버튼',
+            body: '세 번째 파란 버튼입니다. 바람과 물결의 흐름을 움직이는 그림으로 보여줍니다. '
+                + '숫자보다 한눈에 들어옵니다.',
+            image: EXAMPLE_IMG,
+            imageRect: IMG_RECT.btn3,
+            skip: function () { return !!_firstSeaWithAlerts(); },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '눌렀더니 이렇게 뜹니다 — 윈디',
+            body: '바람이 흐르는 모습이 그대로 보입니다. 화면을 끌어 옮기거나 키워서 볼 수 있습니다.',
+            skip: function () {
+                return !!_firstSeaWithAlerts() || !_cardBtn('윈디', 'status');
+            },
+            drill: 'status:windy',
+            target: function () {
+                var el = document.querySelector('#windy-modal .windy-modal-content');
+                return el ? [el] : null;
+            },
+            want: { forecast: false, alert: false, status: true }
+        },
+        {
+            title: '④ 종합정보 — 초록 버튼',
+            body: '맨 오른쪽 초록 버튼입니다. 해양종합정보 지도로 넘어가면서 그 해역과 '
+                + '기상부이가 함께 표시됩니다.',
+            image: EXAMPLE_IMG,
+            imageRect: IMG_RECT.btn4,
+            skip: function () { return !!_firstSeaWithAlerts(); },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '눌렀더니 이렇게 넘어갑니다 — 종합정보',
+            body: '지도에서 그 해역을 한눈에 봅니다. 여기까지가 카드 하나에서 할 수 있는 것들입니다. '
+                + '[다음] 을 누르면 다시 원래 화면으로 돌아갑니다.',
+            skip: function () {
+                return !!_firstSeaWithAlerts() || !_cardBtn('종합정보', 'status');
+            },
+            drill: 'status:allinfo',
+            target: function () {
+                var el = document.getElementById('ocean-map');
+                return el ? [el] : null;
+            },
+            want: { forecast: false, alert: false, status: true }
         },
         {
             title: '특보가 있는 바다를 펼칩니다',
@@ -1097,90 +1205,6 @@
             skip: function () { return !_firstCard('status'); },
             drill: 'status:sub',
             target: function () { var c = _firstCard('status'); return c ? [c] : null; },
-            want: { forecast: false, alert: false, status: true }
-        },
-        // ────────────────────────────────────────────────────────────────
-        // [특보가 하나도 없는 날에만] 여기서부터는 그림이 아니라 **진짜 버튼을 누른다.**
-        //   버튼들은 특보가 없어도 기상현황 카드에 그대로 있으므로(실측 2026-09-23),
-        //   그림으로만 설명하고 끝내지 않고 실제 화면을 띄워 보여준다(사용자 지시).
-        //   특보가 있는 날에는 앞(19~24단계)에서 이미 눌러 봤으므로 건너뛴다.
-        // ────────────────────────────────────────────────────────────────
-        {
-            title: '여기서는 지금 바로 눌러 볼 수 있습니다',
-            body: '오늘은 특보가 없어 앞에서는 그림으로만 보여드렸습니다. 이 버튼들은 특보가 '
-                + '없어도 그대로 있으니, 지금부터 하나씩 실제로 눌러 보겠습니다.',
-            skip: function () {
-                return !!_firstSeaWithAlerts() || !_btnRow('status');
-            },
-            drill: 'status:sub',
-            target: function () { var el = _btnRow('status'); return el ? [el] : null; },
-            want: { forecast: false, alert: false, status: true }
-        },
-        {
-            title: '관측부이 — 눌러서 지금 값을 봅니다',
-            body: '부이 이름을 누르면 그 자리에서 파고 · 수온 · 파주기 같은 지금 관측값이 '
-                + '펼쳐집니다. 예보가 아니라 바다에서 실제로 재고 있는 값입니다.',
-            skip: function () {
-                return !!_firstSeaWithAlerts() || !_buoyBtn('status');
-            },
-            drill: 'status:buoy',
-            target: function () { var el = _buoyBox('status'); return el ? [el] : null; },
-            want: { forecast: false, alert: false, status: true }
-        },
-        {
-            title: '기상예보 — 앞으로의 예보',
-            body: '[기상예보] 를 누르면 그 해역의 예보표가 뜹니다. 지금 상황이 아니라 '
-                + '앞으로 어떻게 될지를 봅니다.',
-            skip: function () {
-                return !!_firstSeaWithAlerts() || !_cardBtn('기상예보', 'status');
-            },
-            drill: 'status:forecast',
-            target: function () {
-                var el = document.querySelector('#sea-forecast-modal .forecast-modal-content');
-                return el ? [el] : null;
-            },
-            want: { forecast: false, alert: false, status: true }
-        },
-        {
-            title: '해구기상 — 바다를 칸으로 나눠 봅니다',
-            body: '[해구기상] 을 누르면 해양종합정보 화면으로 넘어가면서 바다가 격자로 나뉩니다. '
-                + '칸을 두 번 누르면 그 칸의 기상이 나옵니다.',
-            skip: function () {
-                return !!_firstSeaWithAlerts() || !_cardBtn('해구기상', 'status');
-            },
-            drill: 'status:zonemap',
-            target: function () {
-                var el = document.getElementById('ocean-map');
-                return el ? [el] : null;
-            },
-            want: { forecast: false, alert: false, status: true }
-        },
-        {
-            title: '윈디 — 바람의 흐름을 그림으로',
-            body: '[윈디] 는 바람과 물결의 흐름을 움직이는 그림으로 보여줍니다. '
-                + '숫자보다 한눈에 들어옵니다.',
-            skip: function () {
-                return !!_firstSeaWithAlerts() || !_cardBtn('윈디', 'status');
-            },
-            drill: 'status:windy',
-            target: function () {
-                var el = document.querySelector('#windy-modal .windy-modal-content');
-                return el ? [el] : null;
-            },
-            want: { forecast: false, alert: false, status: true }
-        },
-        {
-            title: '종합정보 — 지도에서 한눈에',
-            body: '[종합정보] 를 누르면 해양종합정보 지도로 넘어가면서 그 해역과 기상부이가 '
-                + '함께 표시됩니다. 여기까지가 화면 하나에서 할 수 있는 것들입니다.',
-            skip: function () {
-                return !!_firstSeaWithAlerts() || !_cardBtn('종합정보', 'status');
-            },
-            drill: 'status:allinfo',
-            target: function () {
-                var el = document.getElementById('ocean-map');
-                return el ? [el] : null;
-            },
             want: { forecast: false, alert: false, status: true }
         }
     ];
