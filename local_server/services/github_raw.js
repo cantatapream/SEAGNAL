@@ -157,7 +157,9 @@ async function listDir(dirPath) {
     const json = await res.json();
     if (!Array.isArray(json)) return [];   // 파일 경로를 넣은 경우 객체가 온다 — 목록이 아니므로 버린다
     return json.map(e => ({ name: e.name, path: e.path, type: e.type }));
-  } catch (_) {
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). 빈 목록이 되면 **그 폴더가 비어 있는 것과 똑같이** 보인다.
+    console.warn('[github_raw] 폴더 목록 파싱 실패 — 「빈 폴더」로 보인다:', e && e.message);
     return [];
   }
 }
@@ -182,7 +184,10 @@ async function fetchText(filePath) {
   if (!res) return null;
   try {
     return await res.text();
-  } catch (_) {
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). 본문을 못 읽으면 **그 파일이 없는 것과 똑같이** 보인다 —
+    //   수집 공백과 읽기 실패가 구분되지 않았다.
+    console.warn('[github_raw] 원문 읽기 실패 — 「파일 없음」으로 보인다:', filePath, e && e.message);
     return null;
   }
 }

@@ -1698,7 +1698,12 @@ async function resolveRefs(found, ctx) {
   const bylRefs = refs.filter(r => r.key.indexOf('이미지') !== 0);
   if (prefix && bylRefs.length) {
     let links = null;
-    try { links = JSON.parse(await githubRaw.fetchText(`${ctx.base}/별표/_links.json`) || 'null'); } catch (_) { links = null; }
+    try { links = JSON.parse(await githubRaw.fetchText(`${ctx.base}/별표/_links.json`) || 'null'); } catch (e) {
+      // ★조용히 넘어가지 않는다 (3-44). `_links.json` 을 못 읽으면 **별표 내려받기 단추가 안 뜬다** —
+      //   「받을 파일이 없다」와 겉으로 똑같다.
+      console.warn('[article_text] 별표 _links.json 읽기 실패 — 내려받기 단추 없이 낸다:', ctx.base, e && e.message);
+      links = null;
+    }
     if (links && typeof links === 'object') {
       for (const r of bylRefs) {
         const k = splitRefKey(r.key);

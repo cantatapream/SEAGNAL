@@ -760,7 +760,11 @@ async function triageFeedback(entry) {
       const m = result.text.match(/\{[\s\S]*\}/);
       if (m) adminQueues.updateJsonlById(FEEDBACK_FILE, entry.id, { triage: JSON.parse(m[0]) });
     }
-  } catch (_) { /* 트리아지 실패는 조용히 — triage:null로 남아 관리자가 직접 판단 */ }
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). `triage:null` 로 남아 **관리자가 직접 판단**하면 되지만,
+    //   「분류할 것이 없었다」와 「분류가 실패했다」가 겉으로 똑같았다.
+    console.warn('[Legal-FeedbackTriage] 분류 실패 — triage 없이 쌓인다(관리자가 직접 본다):', e && e.message);
+  }
 }
 
 // GET /api/legal/feedback?status=pending|reviewed|dismissed|all (관리자)

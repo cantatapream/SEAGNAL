@@ -201,7 +201,7 @@ const CATCH_LOG_RE = /console|logger|\blog\b|report|captureException|warn|error|
  *  부풀린 수가 나오고, 정작 **정말 아무 일도 안 일어나는 자리**가 그 안에 묻힌다.
  *  그래서 **세지는 않고, 자리를 낼 때 「겉으로 무엇이 보이나」를 같이 적는다.** */
 //  서버 쪽에서 「보인다」는 **부른 쪽이 안다**는 뜻이다 — 오류 응답을 돌려주면 안다.
-const CATCH_SHOW_RE = /alert|confirm|innerHTML|textContent|innerText|toast|Swal|showModal|setError|notice|\bres\.(status|json|send|end)\b|\bnext\(/i;
+const CATCH_SHOW_RE = /alert|confirm|innerHTML|textContent|innerText|toast|Swal|showModal|setError|notice|\bres\.(status|json|send|end|write)\b|\bnext\(|\bmessage\s*=\s*['"`]/i;
 
 /** ★세 번째 길 — 이 저장소는 로그도 화면도 아닌 **진단줄**에 남긴다.
  *  `if (diag) diag.push('expand')` 는 "조용히 넘어가지 않겠다"고 2026-08-20 에
@@ -209,11 +209,21 @@ const CATCH_SHOW_RE = /alert|confirm|innerHTML|textContent|innerText|toast|Swal|
  *  일감이 나온다. 삼킴의 반대말은 「로그」가 아니라 **「어딘가에 남는다」** 이다. */
 const CATCH_TRACE_RE = /\bdiag\b|\btrace\b|\bdebugInfo\b|\b_diag\b|진단/i;
 
-/** ★네 번째 길 — **오류를 값으로 돌려준다.** `return { error: e.message }` 는
- *  로그도 화면도 아니지만 **부른 쪽이 실패를 받는다.** 이것까지 「삼킨다」로 세면
- *  정작 아무 데도 안 남는 자리가 또 묻힌다. (assistant.js 세 곳이 이 꼴이었다.) */
-//  돌려주기만이 아니라 **실패를 값으로 적어 두는 것**도 같다 — `lastData = { success:false, aiError:… }`.
-const CATCH_RETURN_ERR_RE = /(return|=)\s*\{[^}]*\b(error|err|ok\s*:\s*false|success\s*:\s*false|aiError)\b/;
+/** ★네 번째 길 — **실패를 값으로 남긴다.** 로그도 화면도 아니지만 **부른 쪽이 실패를 받는다.**
+ *  실측하며 꼴이 계속 늘었다. 다섯 가지를 다 본다:
+ *    `return { error: e.message }`            (assistant.js)
+ *    `lastData = { success:false, aiError:… }` (admin_collect.js — 화면이 이 값을 읽는다)
+ *    `results.push({ …, error: itemErr.message })` (admin.js — 결과 줄에 실패가 실린다)
+ *    `streamError = e`                         (legal.js — 뒤에서 이 값을 보고 갈린다)
+ *    `failCount++`                             (push.js — 실패 **수**로 남는다)
+ *  ⚠이렇게 꼴이 늘어난다는 것 자체가 **「조용한가」는 기계가 못 판정한다**는 뜻이다(G-34).
+ *    이 자는 **후보를 좁혀 줄 뿐**, 「괜찮다」를 말하지 않는다. */
+const CATCH_RETURN_ERR_RE = new RegExp([
+  '(return|=)\\s*\\{[^}]*\\b(error|err|ok\\s*:\\s*false|success\\s*:\\s*false|aiError)\\b',
+  '\\.push\\(\\s*\\{[^}]*\\b(error|err|aiError)\\b',
+  '\\b\\w*(Error|Err)\\s*=\\s*(e|err|e2|_e)\\b',
+  '\\b(fail|error|err|bad|skip)\\w*(Count|s|ed)?\\s*(\\+\\+|\\+=)',
+].join('|'));
 
 /** acorn 을 쓸 수 있나. 전이 의존이라 없을 수 있다. */
 function catchParserAvailable() {
@@ -300,7 +310,7 @@ function catchStats(src) {
           겉으로: hb.length === 0 ? '없음'
             : (CATCH_SHOW_RE.test(handlerSrc) ? '보임'
               : (CATCH_TRACE_RE.test(handlerSrc) ? '진단줄'
-                : (CATCH_RETURN_ERR_RE.test(handlerSrc) ? '오류를 돌려준다' : '없음'))),
+                : (CATCH_RETURN_ERR_RE.test(handlerSrc) ? '값으로 남긴다' : '없음'))),
           손잡이: handlerSrc.replace(/\s+/g, ' ').slice(0, 70),
         });
       }

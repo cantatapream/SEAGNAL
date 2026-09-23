@@ -52,6 +52,9 @@ async function embed(text) {
             || (r && r.embedding && r.embedding.values) || null;
         return Array.isArray(v) ? v : null;
     } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 임베딩이 없으면 **의미로 가까운 것을 못 찾는다** —
+        //   「닮은 것이 없었다」와 구분이 안 됐다.
+        console.warn('[topic_embedding] 임베딩 실패 — 의미 검색 없이 진행한다:', e && e.message);
         return null;
     }
 }
