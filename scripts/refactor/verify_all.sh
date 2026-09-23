@@ -347,7 +347,10 @@ echo; echo "── V5-8c 도달(품질 4축 ③) — 본문에 있는데 표에 
 # ★`| head -8` 로 자르지 않는다(2026-08-28) — 파이프가 닫히면서 SIGPIPE 로 파이썬이
 # BrokenPipeError 역추적을 토해내 점검표가 지저분해졌고, 무엇보다 **가운데를 잘라 읽는 것**
 # 자체가 CLAUDE.md §7 이 금지한 것이다. 출력은 20줄 남짓이라 통째로 둔다.
-python3 local_server/knowledge/legal/_dashboard/loop/body_cite_gap.py || true
+# ★2026-09-23 (G-13) — 종전엔 `|| true` 로 **종료 코드를 통째로 버렸다.**
+#   그래서 확인 목록 376건이 3주 넘게 아무도 안 보는 채였고, **늘어도 아무도 몰랐다**(뿌리 사슬 ④).
+#   판정은 여전히 사람 몫이다 — 다만 `--gate` 로 **늘지 못하게** 한다(기준선 376).
+python3 local_server/knowledge/legal/_dashboard/loop/body_cite_gap.py --gate || fail "V5-8c 본문 인용 확인 목록이 늘었다"
 
 echo; echo "── V5-9 수집(품질 4축 ①) — 가져야 할 원문이 손에 있나 ──"
 # 사용자가 정한 품질 4축 중 **①수집만 게이트가 아예 없었다**(H-45). ②는 V5-3, ③은 V5-5·V5-7·V5-8,

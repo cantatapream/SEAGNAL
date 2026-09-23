@@ -391,5 +391,38 @@ def main():
                   open(out_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         print('\n   저장: %s' % out_path)
 
+    # ── ★--gate: 더미가 **늘지 못하게만** 한다 (2026-09-23 신설, G-13) ──────────
+    # [왜] 이 도구는 잘 만들어져 있다 — 판정을 기억하고, 본문 줄이 바뀌면 다시 올린다.
+    #   그런데 `verify_all.sh` 가 `|| true` 로 **종료 코드를 통째로 버리고** 있었고
+    #   기준선도 없었다. 그래서 **376건이 3주 넘게 아무도 안 보는 채로** 있었고,
+    #   늘어도 아무도 몰랐다. 뿌리 사슬 ④ — 아무도 안 듣는 게이트는 죽은 게이트다.
+    # [무엇을 하나] **판정은 여전히 안 한다**(이 도구의 원칙이다 — 사람이 본다).
+    #   다만 **기준선보다 늘면 실패**시킨다. 줄어드는 것은 막지 않는다.
+    #   ⚠기준선을 다시 굽는 것으로 넘기지 않는다(G-49).
+    if '--gate' in argv:
+        base_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 'baseline', 'body_cite_gap.json')
+        if '--update' in argv:
+            os.makedirs(os.path.dirname(base_path), exist_ok=True)
+            json.dump({'후보': total, '원문없음': nomatch},
+                      open(base_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+            print('   기준선을 다시 구웠다: 후보 %d · 원문없음 %d' % (total, nomatch))
+            return
+        try:
+            base = json.load(open(base_path, encoding='utf-8'))
+        except Exception:
+            print('   ⚠기준선이 없다 — `--gate --update` 로 한 번 구워야 한다')
+            sys.exit(1)
+        if total > base['후보']:
+            print('   ❌ 확인 목록이 늘었다: %d → %d' % (base['후보'], total))
+            print('      → 본문이 새로 인용한 조문이 근거 조문 표에 안 들어갔다.')
+            print('        사람이 보고 `cite_row.js` 로 넣을지 정한다. 자동으로 안 고친다.')
+            print('      ⚠기준선을 다시 굽는 것으로 넘기지 않는다(G-49).')
+            sys.exit(1)
+        if total < base['후보']:
+            print('   ✅ 줄었다: %d → %d — `--gate --update` 로 잠근다' % (base['후보'], total))
+        else:
+            print('   ✅ 기준선 그대로 — 늘지 않았다 (판정은 여전히 **0건**이다: 사람 몫)')
+
 
 main()
