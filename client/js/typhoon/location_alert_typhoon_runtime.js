@@ -190,7 +190,12 @@
             const BG = root.LocationAlertBackground;
             let pos = null;
             if (BG && typeof BG.getFreshPosition === 'function') {
-                try { pos = await BG.getFreshPosition(); } catch (_) { pos = null; }
+                try { pos = await BG.getFreshPosition(); } catch (e) {
+                    // ★조용히 넘어가지 않는다 (3-44). 위치가 없으면 **태풍 알림 판단을 건너뛴다** —
+                    //   「태풍이 안 가까웠다」와 겉으로 똑같다.
+                    console.warn('[Typhoon] 위치 획득 실패 — 태풍 알림 판단을 건너뛴다:', e && e.message);
+                    pos = null;
+                }
             } else if (BG && BG.getPosition) {
                 try { pos = BG.getPosition(); } catch (_) { pos = null; }
             }

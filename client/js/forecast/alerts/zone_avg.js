@@ -145,7 +145,11 @@
             try {
                 const r = await fetch('/zone_grid_map.json', { cache: 'no-store' });
                 if (r.ok) STATE.gridMap = await r.json();
-            } catch (e) { /* 매핑 없음 → graceful */ }
+            } catch (e) {
+                // ★조용히 넘어가지 않는다 (3-44). 격자 매핑이 없으면 **해구 평균이 덜 정확해진다** —
+                //   「매핑 파일이 원래 없다」와 「못 받았다」가 구분되지 않았다.
+                console.warn('[해구평균] 격자 매핑 조회 실패 — 매핑 없이 계산한다:', e && e.message);
+            }
 
             // forecasts
             try {
@@ -154,7 +158,11 @@
                     const raw = await r.json();
                     STATE.forecasts = raw.data || raw; // 호환
                 }
-            } catch (e) { /* 예보 로드 실패 */ }
+            } catch (e) {
+                // ★조용히 넘어가지 않는다 (3-44). 예보가 없으면 **해구 평균이 빈 채로** 그려진다 —
+                //   「예보가 없는 시각」과 겉으로 똑같다.
+                console.warn('[해구평균] 예보 조회 실패 — 평균 없이 그린다:', e && e.message);
+            }
 
             _buildNameIndex();
             STATE.loaded = true;

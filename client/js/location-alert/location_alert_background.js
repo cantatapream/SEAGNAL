@@ -161,7 +161,12 @@
             if (!G || !G.getCurrentPosition) return null;
             const p = await G.getCurrentPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
             return (p && p.coords) ? p.coords : null;
-        } catch (_) { return null; }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 지금 위치를 못 받으면 **마지막 저장 위치로 판단한다** —
+            //   배가 이미 다른 해역에 있어도 옛 해역 기준으로 알림이 가거나 안 간다.
+            console.warn('[LocationAlertBG] 현재 위치 획득 실패 — 마지막 저장 위치로 판단한다:', e && e.message);
+            return null;
+        }
     }
 
     /**
@@ -187,7 +192,11 @@
                     at: new Date().toISOString(), src: 'gps',
                 };
             }
-        } catch (_) { /* fresh-fix 실패 → 저장 위치 폴백 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 새 위치를 못 잡으면 **저장 위치로 내려간다** —
+            //   「위치가 안 변했다」와 「위치를 못 받았다」가 겉으로 똑같았다.
+            console.warn('[LocationAlertBG] 새 위치 획득 실패 — 저장 위치로 폴백한다:', e && e.message);
+        }
         // 폴백: 마지막 저장 위치(may be null).
         try { return getPosition(); } catch (_) { return null; }
     }
@@ -206,7 +215,12 @@
             await getFreshPosition();   // 즉시 1회 위치 갱신(상시 수집 없음)
             console.log('[LocationAlertBG] event-driven fresh-fix done');
             return true;
-        } catch (_) { return false; }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 여기서 죽으면 **배경 위치 알림이 통째로 안 켜진다** —
+            //   「알릴 것이 없었다」와 구분이 안 된다.
+            console.warn('[LocationAlertBG] 시작 실패 — 배경 위치 알림이 안 켜진다:', e && e.message);
+            return false;
+        }
     }
 
     /** 해제 시 단말 저장 위치 즉시 삭제(설계 §10-7). 상시 watcher 가 없어 제거할 대상 없음. */

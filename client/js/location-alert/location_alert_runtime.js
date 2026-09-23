@@ -202,7 +202,12 @@
                 //   getFreshPosition 은 전경 fix 실패 시 마지막 저장 위치로 폴백(없으면 null).
                 const BG = root.LocationAlertBackground;
                 if (BG && typeof BG.getFreshPosition === 'function') {
-                    try { pos = await BG.getFreshPosition(); } catch (_) { pos = null; }
+                    try { pos = await BG.getFreshPosition(); } catch (e) {
+                        // ★조용히 넘어가지 않는다 (3-44). 위치가 null 이면 **이번 깨움은 통째로 건너뛴다** —
+                        //   「알릴 일이 없었다」와 겉으로 똑같다.
+                        console.warn('[LocationAlert] 위치 획득 실패 — 이번 깨움은 건너뛴다:', e && e.message);
+                        pos = null;
+                    }
                 } else if (BG && BG.getPosition) {
                     pos = BG.getPosition();
                 } else {

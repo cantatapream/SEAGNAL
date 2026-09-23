@@ -514,11 +514,16 @@ async function fetchBuoyData() {
                 }
             }
         } catch (e) {
-            // marine 실패 — sea_obs baseline 만 사용 (graceful)
+            // ★조용히 넘어가지 않는다 (3-44). **해양 관측 보강분이 통째로 빠진 채** baseline 만 쓴다 —
+            //   「그 부이에 값이 없다」와 겉으로 똑같다.
+            console.warn('[부이] 해양 관측 보강 실패 — sea_obs 기준값만 쓴다:', e && e.message);
         }
 
         return parsed;
     } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 여기서 **가짜(mock) 부이 값**으로 내려간다 —
+        //   화면에는 실제 관측값처럼 보이므로 **반드시 남겨야 한다.**
+        console.warn('[부이] 관측 자료 조회 실패 — ★가짜(mock) 값으로 그린다:', e && e.message);
         return getMockBuoyData();
     }
 }
@@ -630,6 +635,8 @@ async function fetchKmaBuoyData() {
         const text = jsonData.raw || '';
         return parseKmaBuoyData(text);
     } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 빈 객체가 되면 **그 부이들이 「값 없음」으로** 보인다.
+        console.warn('[부이] 기상청 부이 자료 파싱 실패 — 「값 없음」으로 보인다:', e && e.message);
         return {};
     }
 }
