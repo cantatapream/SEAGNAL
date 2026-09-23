@@ -270,21 +270,38 @@ async function checkNoDeadButtons(browser) {
         }
         const drawnAt = Date.now() - t0;
         // ⓑ ★**진짜 격자 칸을 찾아서** 누른다 (고정 좌표 탭은 허공을 친다 — 위 GRID_SPOTS 주석)
+        // ★★칸이 **생기자마자** 누르면 안 된다 — 자료가 더 오면 격자가 **다시 그려지고**,
+        //   그때 `accident_info.js:2291` 이 열린 시트를 **설계대로 닫는다**:
+        //       // 격자가 다시 그려졌으니 "그 칸" 시트는 무효다.
+        //       if (!_statsNationwide) closeStatsSheet();
+        //   즉 「열렸다가 닫힌다」는 제품 결함이 아니라 **시험이 자료 적재와 경주한 것**이다.
+        //   CI 실측(2026-09-23): 도형 5,413개가 **11.3초** 걸렸고, 그 사이에 누른 탓에
+        //   시트가 열렸다가 곧 닫혔다. 로컬은 자료가 빨라 이 틈이 안 보였다(L-333).
+        //   → **칸 수가 두 번 연속 같을 때**(= 더 안 그려진다) 누른다.
         let grid = { total: 0, inView: [] };
-        const gUntil = Date.now() + 20000;
+        let prevTotal = -1, gridSettleMs = 0;
+        const gUntil = Date.now() + 30000;
+        const g0 = Date.now();
         while (Date.now() < gUntil) {
             grid = await p.evaluate(GRID_SPOTS);
-            if (grid.inView.length) break;
+            if (grid.inView.length && grid.total === prevTotal) break;   // 두 번 연속 같다 = 멎었다
+            prevTotal = grid.total;
             await p.waitForTimeout(500);
         }
+        gridSettleMs = Date.now() - g0;
         let opened = false, taps = 0;
+        // ★「한 번도 안 열렸다」와 「열렸다가 닫혔다」는 **서로 다른 일**이다(2026-09-23, L-333).
+        //   예전엔 이 둘을 구분 못 해서, CI 가 `탭 1번 · 화면 안 6개` 를 찍고도
+        //   "1번 눌렀는데 안 열렸다 = 제품 결함" 이라고 **틀린 결론**을 적었다.
+        //   탭 고리는 `opened` 가 참일 때만 일찍 끊긴다 — 즉 탭이 1번이면 **열렸던 것**이다.
+        let everOpened = false;
         for (const [gx, gy] of grid.inView) {
             taps++;
             await p.touchscreen.tap(gx, gy);
             const until = Date.now() + 3000;
             while (Date.now() < until) {
                 await p.waitForTimeout(250);
-                if (await p.evaluate(SHEET_OPEN)) { opened = true; break; }
+                if (await p.evaluate(SHEET_OPEN)) { opened = true; everOpened = true; break; }
             }
             if (opened) break;
         }
@@ -309,6 +326,7 @@ async function checkNoDeadButtons(browser) {
             await p.waitForTimeout(80);
         }
         settleMs = Date.now() - s0;
+        const openAfterSettle = await p.evaluate(SHEET_OPEN);
 
         const r = await p.evaluate(`(() => {
           const sheet = document.getElementById('accident-stats-sheet');
@@ -354,13 +372,18 @@ async function checkNoDeadButtons(browser) {
         ok('통계 시트가 열렸다(시험 전제)', r.open,
             '        시트가 안 열려 이 검사는 의미가 없다\n' +
             `        도형 ${feat}개(${drawnAt}ms) · 격자 칸 ${grid.total}개 · 화면 안 ${grid.inView.length}개 · 탭 ${taps}번\n` +
+            `        열린 적 있나 ${everOpened ? '있다' : '없다'} · 멈춤대기 뒤 ${openAfterSettle ? '열림' : '닫힘'} · 멈추는 데 ${settleMs}ms\n` +
+            `        격자가 멎기까지 ${gridSettleMs}ms (상한 30000ms — 상한까지 갔으면 아직 자료가 오는 중이다)\n` +
             '        ' + (feat === 0
                 ? `→ 도형이 0 이다: 자료가 상한 ${DRAW_MAX}ms 안에 안 왔거나 사고정보가 안 켜졌다`
                 : grid.total === 0
                 ? '→ 도형은 있는데 **격자 칸이 0** 이다: 격자 계산(recomputeGrid)이 안 돌았다'
                 : grid.inView.length === 0
                 ? '→ 칸은 있으나 **전부 화면 밖**이다: 지도 초기 위치가 달라졌다(환경)'
-                : '→ 칸을 ' + taps + '번 눌렀는데도 안 열렸다: **제품 결함**이다(tryHandleGridClick)'));
+                : everOpened
+                ? '→ ★**열렸다가 다시 닫혔다.** 「안 열린다」가 아니다 — 여는 것은 됐고 **열린 채로 못 있는다.**\n' +
+                  '          자료가 늦게 도착해 다시 그려지면서 시트를 닫는 쪽을 의심한다(도형 ' + feat + '개가 ' + drawnAt + 'ms 걸렸다).'
+                : '→ 칸을 ' + taps + '번 눌렀는데도 **한 번도 안 열렸다**: 제품 결함이다(tryHandleGridClick)'));
 
         ok('시트가 열려 있어도 "보이는데 눌리지 않는" 버튼이 없다', r.dead.length === 0,
             '        눌리지 않는 버튼: ' + r.dead.join(', '));
