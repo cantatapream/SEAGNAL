@@ -4,14 +4,16 @@
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162789271",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=162789275"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162936785"
   },
   "시행규칙 별표 1": {
     "제목": "법률 제6256호 수산업협동조합법중개정법률 부칙 제8조에 따른 지구별수협의 신용사업 취급범위(해양수산부령 제297호 부칙 제2조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=129561147",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=129561151"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=129608197"
   },
   "시행규칙 별표 1의2": {
     "제목": "선거운동방법에 관한 세부사항(제8조의3 관련)",
@@ -22,7 +24,8 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=129561161",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=129561163",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=129561165"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=129608203"
   },
   "시행규칙 별표 2": {
     "제목": "업무정지의 세부기준(제10조의4 관련)",
@@ -30,13 +33,23 @@
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=129561171",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=129561173"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=129608217"
   },
   "시행규칙 서식 1": {
     "제목": "어촌계설립인가 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=129561175",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=129561179"
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=129608225"
+  },
+  "시행령 별표 0": {
+    "제목": "실질적인 경쟁관계에 있는 사업의 범위(제16조의2제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162769493",
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162769495",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162769497"
     ]
   }
 }

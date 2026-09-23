@@ -4,7 +4,8 @@
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=139908881",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=139908885"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=140019919"
   },
   "시행령 별표 2": {
     "제목": "과태료의 부과기준(제30조 관련)",
@@ -12,7 +13,8 @@
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=139908891",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=139908893"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=140019925"
   },
   "시행규칙 별표 1": {
     "제목": "위반행위별 처분기준(제24조제2항 관련)",
@@ -22,7 +24,8 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718567",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718569",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718571"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160761769"
   },
   "시행규칙 별표 2": {
     "제목": "이력추적관리의 표시(제28조제1항 관련)",
@@ -31,7 +34,8 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718577",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718579",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718581"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160761781"
   },
   "시행규칙 별표 3": {
     "제목": "이력추적관리기준(제29조 관련)",
@@ -40,7 +44,8 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718587",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718589",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718591"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160761791"
   },
   "시행규칙 별표 4": {
     "제목": "이력추적관리의 등록취소 및 표시금지의 기준(제34조 관련)",
@@ -48,55 +53,63 @@
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718597",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718599"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160761801"
   },
   "시행규칙 서식 1": {
     "제목": "위판장 개설허가신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718601",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718605"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160761809"
   },
   "시행규칙 서식 2": {
     "제목": "매매참가인 신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718607",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718611"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160761815"
   },
   "시행규칙 서식 3": {
     "제목": "수산물이력추적관리 등록(신규ㆍ갱신)신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718613",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718617"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160761821"
   },
   "시행규칙 서식 4": {
     "제목": "수산물이력추적관리 등록증",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718619",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718623"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160761827"
   },
   "시행규칙 서식 5": {
     "제목": "수산물이력추적관리 등록증 재발급 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718625",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718629"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160761833"
   },
   "시행규칙 서식 6": {
     "제목": "수산물이력추적관리 등록사항 변경신고서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718631",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718635"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160761839"
   },
   "시행규칙 서식 7": {
     "제목": "수산물이력추적관리 등록 유효기간 연장 신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718637",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=160718641"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=160761845"
   }
 }
