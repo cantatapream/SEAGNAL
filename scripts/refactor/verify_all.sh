@@ -288,6 +288,13 @@ node local_server/knowledge/legal/_dashboard/loop/line_cite_gate.js || fail "V5-
 echo; echo "── V5-27 §5-D ⓕ 각 호 개수 ──"
 node local_server/knowledge/legal/_dashboard/loop/ho_count_gate.js || fail "V5-27 §5-D ⓕ 각 호 개수"
 
+# ── V5-28 목차(`index.md`) 링크가 눌러서 열리나 (2026-09-23 신설, G-25) ──
+# 읽는 **코드**는 없다. 읽는 것이 **사람**이다(§13 "누가 언제 봐도 목차로 찾아가야 한다").
+# 2026-09-23 실측: 1,037개 중 열리는 것이 **3개**였다. 고친 뒤 1,040개 전부 열린다.
+# **0 을 요구한다** — 목차가 안 열리는 것은 취향이 아니라 고장이다.
+echo; echo "── V5-28 목차 링크 도달성 ──"
+node local_server/knowledge/legal/_dashboard/loop/index_links_gate.js || fail "V5-28 목차 링크 도달성"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
