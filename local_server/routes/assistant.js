@@ -84,7 +84,12 @@ async function fetchTideTimes(lat, lon) {
             await _sleep(1200);
         }
         return null;
-    } catch (e) { return null; }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 조석 시각을 못 받으면 **만조·간조 줄이 통째로 빠진 채**
+        //   답이 나간다 — 「그 지점에 조석이 없다」와 겉으로 똑같아 보였다.
+        console.warn('[Assistant] 조석 시각 조회 실패 — 만조·간조 없이 답한다:', e && e.message);
+        return null;
+    }
 }
 
 // ============================================================================
@@ -987,6 +992,9 @@ JSON 형식으로만 답하세요: {"zone": "<구역명 또는 null>", "intent":
             ? parsed.intent : 'marine_weather';
         return { zone, intent };
     } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 해역·의도 판정이 죽으면 **규칙 기반 폴백**으로 내려가
+        //   사용자가 말한 해역이 아닌 기본 해역으로 답할 수 있다.
+        console.warn('[Assistant] AI 해역·의도 판정 실패 — 규칙 폴백으로 내려간다:', e && e.message);
         return null;
     }
 }
@@ -1607,7 +1615,11 @@ async function planQuery(query, profile, location, memory, focus, retrievedHints
                 const lines = top.map(t => `- ${t.label}${(t.tools && t.tools.length) ? ' → ' + [...new Set(t.tools)].join('/') : ''} (sim ${t.score.toFixed(2)})`);
                 simLine = `\n[유사 관심사(의미 임베딩, 상위 ${top.length}) — 룰베이스가 놓친 우회표현일 때 도구 후보로]:\n${lines.join('\n')}\n`;
             }
-        } catch (e) { /* 폴백 — simLine 비움 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 여기가 죽으면 **유사 관심사 줄이 빠진 채** 프롬프트가
+            //   만들어진다 — 「닮은 것이 없었다」와 「임베딩이 실패했다」가 구분되지 않았다.
+            console.warn('[Assistant] 주제 임베딩 실패 — 유사 관심사 줄 없이 답한다:', e && e.message);
+        }
     }
     // [v2] 도구 디스크립션 임베딩 — 질의와 의미적으로 가까운 도구 직접 매칭(상위 4).
     //   토픽 임베딩이 못 잡는 패턴(도구 자체에 핵심 키워드가 있음)을 보완.
@@ -1621,7 +1633,11 @@ async function planQuery(query, profile, location, memory, focus, retrievedHints
             if (Array.isArray(topTools) && topTools.length) {
                 toolSimLine = `\n[질의에 가까운 도구 후보(의미 임베딩, 상위 ${topTools.length})] ${topTools.map(t => `${t.name}(${t.score.toFixed(2)})`).join(', ')}\n`;
             }
-        } catch (e) { /* 폴백 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 도구 후보 줄이 빠지면 **두뇌가 쓸 도구를 덜 보고**
+            //   고른다 — 답에 나올 도구가 달라지는데 표시가 없었다.
+            console.warn('[Assistant] 도구 임베딩 실패 — 도구 후보 줄 없이 답한다:', e && e.message);
+        }
     }
     // [N1] 사용자 기억 v2 회수 결과 prompt 섹션 — silent fallback.
     //   retrievedHints 가 null/빈 → memoryLine = '' → prompt 길이·내용 무변동 (회귀 0).
@@ -1697,7 +1713,12 @@ async function webSearchAnswer(query) {
             .map(c => c.web ? { title: c.web.title || c.web.uri, uri: c.web.uri } : null)
             .filter(Boolean).slice(0, 3);
         return { answer: text.trim(), webLinks };
-    } catch (e) { return null; }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 웹 검색 답이 죽으면 **웹 근거 없이** 답한다 —
+        //   「웹에서 찾을 것이 없었다」와 구분이 안 됐다.
+        console.warn('[Assistant] 웹 검색 답 실패 — 웹 근거 없이 답한다:', e && e.message);
+        return null;
+    }
 }
 
 // [P_multitool §2.2 — EXPECT_TOOLS_MIN] 직군별 1차 도구 floor (multitool 분기 발동 조건).
@@ -2493,7 +2514,11 @@ router.post('/api/assistant/ask', async (req, res) => {
                 });
                 return _resp;
             }
-        } catch (e) { /* 두뇌 실패 → 결정론적 폴백으로 진행 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 두뇌가 죽으면 **결정론적 폴백**이 답한다 —
+            //   답의 성질이 통째로 달라지는데 밖에서는 구분이 안 됐다.
+            console.warn('[Assistant] 두뇌 실패 — 결정론적 폴백으로 답한다:', e && e.message);
+        }
     }
 
     // [위치기반 폴백] GPS 좌표 + "가까운 부이" 류 질문 → 가장 가까운 부이 + 관측값
@@ -2834,6 +2859,9 @@ JSON 으로만 답하세요: {"done": false, "message": "<다음에 할 말>", "
             profile: parsed.done ? (parsed.profile || {}) : undefined
         };
     } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 온보딩 대화가 죽으면 **다음 물음이 안 나온다** —
+        //   사용자 화면에서는 그냥 멈춘 것처럼 보인다. (⚠`e.message` 만 남긴다 — 프로필은 안 남긴다.)
+        console.warn('[Assistant] 온보딩 대화 실패 — 다음 물음을 못 낸다:', e && e.message);
         return null;
     }
 }

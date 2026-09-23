@@ -209,6 +209,12 @@ const CATCH_SHOW_RE = /alert|confirm|innerHTML|textContent|innerText|toast|Swal|
  *  일감이 나온다. 삼킴의 반대말은 「로그」가 아니라 **「어딘가에 남는다」** 이다. */
 const CATCH_TRACE_RE = /\bdiag\b|\btrace\b|\bdebugInfo\b|\b_diag\b|진단/i;
 
+/** ★네 번째 길 — **오류를 값으로 돌려준다.** `return { error: e.message }` 는
+ *  로그도 화면도 아니지만 **부른 쪽이 실패를 받는다.** 이것까지 「삼킨다」로 세면
+ *  정작 아무 데도 안 남는 자리가 또 묻힌다. (assistant.js 세 곳이 이 꼴이었다.) */
+//  돌려주기만이 아니라 **실패를 값으로 적어 두는 것**도 같다 — `lastData = { success:false, aiError:… }`.
+const CATCH_RETURN_ERR_RE = /(return|=)\s*\{[^}]*\b(error|err|ok\s*:\s*false|success\s*:\s*false|aiError)\b/;
+
 /** acorn 을 쓸 수 있나. 전이 의존이라 없을 수 있다. */
 function catchParserAvailable() {
   try { require('acorn'); require('acorn-walk'); return true; } catch (_) { return false; }
@@ -293,7 +299,8 @@ function catchStats(src) {
           //   `없음`이면 **아무 일도 안 일어난다** — 고치러 갈 곳은 여기부터다.
           겉으로: hb.length === 0 ? '없음'
             : (CATCH_SHOW_RE.test(handlerSrc) ? '보임'
-              : (CATCH_TRACE_RE.test(handlerSrc) ? '진단줄' : '없음')),
+              : (CATCH_TRACE_RE.test(handlerSrc) ? '진단줄'
+                : (CATCH_RETURN_ERR_RE.test(handlerSrc) ? '오류를 돌려준다' : '없음'))),
           손잡이: handlerSrc.replace(/\s+/g, ' ').slice(0, 70),
         });
       }

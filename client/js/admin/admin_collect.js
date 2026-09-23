@@ -375,7 +375,11 @@ window.atmFetchReports = async function () {
                 processedIds = new Set(processedData.processedIds || []);
                 failedIds = new Set(processedData.failedIds || []);
             }
-        } catch (e) { /* processed-reports 실패해도 통보문 목록은 정상 표시 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 목록은 뜨지만 **처리됨·실패 표시가 전부 빠진다** —
+            //   운영자에게는 「아직 아무것도 처리 안 한 상태」로 보인다.
+            console.warn('[관리자] 처리 기록 조회 실패 — 처리됨·실패 표시 없이 목록만 그린다:', e && e.message);
+        }
 
         if (data.count === 0) {
             listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">해당 날짜에 [특보]/[예비] 통보문이 없습니다.</div>';
@@ -543,7 +547,11 @@ window.atmCollectOne = async function (i, refTimeOverride) {
             await fetch('/api/admin/collect-failures', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reportId: report.id, title: report.title, error: lastData.aiError || 'AI 분석 결과 없음', retriesUsed: attempt })
             });
-        } catch (e) { /* 무시 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). **AI 실패 기록이 서버에 안 남는다** —
+            //   화면의 「AI실패」 배지는 새로고침하면 사라지고, 무엇이 실패했는지 아무 데도 안 남는다.
+            console.warn('[관리자] AI 실패 기록 저장 실패 — 이 실패는 새로고침하면 사라진다:', e && e.message);
+        }
         // [제거됨] 방문자 카운터 빨간색 표시는 관리자 배너 + FCM 푸시로 대체
     } else {
         btn.innerHTML = attempt > 1
@@ -563,7 +571,11 @@ window.atmRenderForecastReports = async function (forecastReports) {
     try {
         const cacheList = await fetch(CONFIG.API_BASE + '/api/forecast-cache/list').then(r => r.json());
         cachedIds = new Set((cacheList || []).map(c => c.reportId));
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 캐시 목록을 못 읽으면 **이미 만들어 둔 것도 「없음」으로**
+        //   보여 운영자가 같은 것을 다시 만들게 된다.
+        console.warn('[관리자] 예보 캐시 목록 조회 실패 — 이미 만든 것도 「없음」으로 보인다:', e && e.message);
+    }
 
     // 현재 표출 중인 전망 reportId
     let activeIds = new Set();
@@ -573,7 +585,11 @@ window.atmRenderForecastReports = async function (forecastReports) {
             if (marineFcst.ultraShort && marineFcst.ultraShort.reportId) activeIds.add(marineFcst.ultraShort.reportId);
             if (marineFcst.shortTerm && marineFcst.shortTerm.reportId) activeIds.add(marineFcst.shortTerm.reportId);
         }
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 현행 예보 번호를 못 읽으면 **어느 것이 지금 쓰이는 것인지**
+        //   표시가 빠진 채로 목록이 그려진다.
+        console.warn('[관리자] 현행 해상예보 조회 실패 — 「지금 쓰는 것」 표시 없이 그린다:', e && e.message);
+    }
 
     let html = `<div style="font-weight:700;color:#e2e8f0;font-size:0.9rem;margin-bottom:10px;"><i class="fa-solid fa-water" style="color:#94a3b8;"></i> 해상 기상 전망 (${forecastReports.length}건)</div>`;
     forecastReports.forEach((r, i) => {
@@ -2041,7 +2057,11 @@ window.editNoticeUnified = async function (id) {
                         const post = await pRes.json();
                         window.selectLinkedPromoUnified(post.id, post.title);
                     }
-                } catch (e) { /* 게시글 삭제됨 */ }
+                } catch (e) {
+                    // ★조용히 넘어가지 않는다 (3-44). 보통은 **연결된 게시글이 지워진 것**이라 정상이다.
+                    //   다만 망 오류일 때도 똑같이 조용해서, 연결 표시만 안 뜨고 까닭을 알 수 없었다.
+                    console.warn('[관리자] 연결 게시글 조회 실패(지워졌거나 망 오류) — 연결 표시 없이 그린다:', e && e.message);
+                }
             } else {
                 window.clearLinkedPromoUnified();
             }
@@ -4732,7 +4752,10 @@ window.showNoticeManagementModal = async function () {
                 const old = await res2.json();
                 if (old.isActive) notices.active = [old];
             }
-        } catch (e2) { }
+        } catch (e2) {
+            // ★조용히 넘어가지 않는다 (3-44). 옛 꼴 공지 폴백까지 실패하면 **띄워야 할 공지가 안 뜬다.**
+            console.warn('[관리자] 옛 꼴 공지 조회도 실패 — 진행 중 공지가 안 보일 수 있다:', e2 && e2.message);
+        }
     }
 
     const existingModal = document.getElementById('notice-management-modal');
@@ -4867,7 +4890,9 @@ window.editNotice = async function (id) {
             document.getElementById('notice-title').focus();
         }
     } catch (e) {
-        // console.error('수정 데이터 로드 실패:', e);
+        // ★조용히 넘어가지 않는다 (3-44). **[수정] 을 눌러도 칸이 안 채워진다** — 운영자에게는
+        //   「아무 일도 안 일어난 것」으로 보이고, 그대로 저장하면 옛 값이 덮인다.
+        console.warn('[관리자] 수정 데이터 로드 실패 — 칸이 안 채워진다(그대로 저장하지 말 것):', e && e.message);
     }
 };
 
@@ -5149,7 +5174,8 @@ function hexToRgb(hex) {
             updateNewBadges(posts);
         }
     } catch (e) {
-        // 공지사항 뱃지 초기화 실패 시 무시
+        // ★조용히 넘어가지 않는다 (3-44). **새 글 뱃지가 안 뜬다** — 새 글이 없는 것과 구분이 안 된다.
+        console.warn('[관리자] 공지 뱃지 초기화 실패 — 새 글 뱃지가 안 뜬다:', e && e.message);
     }
 })();
 
