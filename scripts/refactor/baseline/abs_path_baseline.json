@@ -1,20 +1,5 @@
 {
   "기준일": "2026-09-23",
-  "총계": 31,
-  "파일": {
-    ".claude/hooks/test_guard_git_scope.py": 1,
-    "local_server/knowledge/legal/_dashboard/live27/run_multiref.py": 1,
-    "local_server/knowledge/legal/_dashboard/loop/collect_missing_admrul.py": 1,
-    "local_server/knowledge/legal/_dashboard/loop/delegated_sweep.py": 1,
-    "local_server/knowledge/legal/_dashboard/loop/delegation_gap.py": 1,
-    "local_server/knowledge/legal/_dashboard/loop/detect_law_changes.py": 1,
-    "local_server/knowledge/legal/_dashboard/loop/dl_byl_images.sh": 1,
-    "local_server/knowledge/legal/_dashboard/loop/extract_11_remaining.py": 12,
-    "local_server/knowledge/legal/_dashboard/loop/gap6e_fix.js": 3,
-    "local_server/knowledge/legal/_dashboard/loop/recollect_stale_2.py": 2,
-    "local_server/knowledge/legal/_dashboard/loop/staleness_audit.py": 3,
-    "local_server/knowledge/legal/_dashboard/loop/verify_claims.py": 2,
-    "local_server/scripts/build_accident_warn_flags.js": 1,
-    "local_server/scripts/build_warn_zones_holed.js": 1
-  }
+  "총계": 0,
+  "파일": {}
 }

@@ -6,7 +6,8 @@
 # [연계] 입력 raw/**/행정규칙/*.txt(<img id>) · 출력 같은 폴더 _이미지/<id>.png · 다음단계 byl_ocr_cell(비전)
 # 사용법: bash dl_byl_images.sh "<파일glob 또는 파일목록파일>"  (인자 없으면 기술기준 전체)
 set -u
-ROOT="/home/user/SEAGNAL/local_server/knowledge/legal"
+# ★2026-09-23 (3-39) — 그 컴퓨터 이름을 박지 않는다(G-31). 이 스크립트 자리에서 센다.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT" || exit 1
 
 # 대상 파일: 인자로 파일 목록을 받거나, 기본=기술기준(설비·구조·기관·만재흘수·복원성·방화)

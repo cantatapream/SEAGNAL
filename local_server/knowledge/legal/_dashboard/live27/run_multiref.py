@@ -12,7 +12,8 @@ import json, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import importlib.util
 spec = importlib.util.spec_from_file_location(
-    'runmod', '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/live27/run.py')
+    # ★2026-09-23 (3-39) — `run.py` 는 **이 파일과 같은 폴더**에 있다. 그 컴퓨터 이름을 박지 않는다(G-31).
+    'runmod', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'run.py'))
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 
 TS = os.path.join(os.path.dirname(os.path.abspath(__file__)), './testset_multiref.json')

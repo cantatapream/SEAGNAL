@@ -1,3 +1,16 @@
+// ⚠★**이 파일은 `node` 로 돌리는 스크립트가 아니다.** (2026-09-23, 3-38)
+//   여러 에이전트를 짜서 돌리는 **워크플로 대본**이다 — `agent()` · `parallel()` · `phase()` 를
+//   부르고, 맨 위에 `export const meta = { name, description, phases }` 를 둔다.
+//   그 함수들은 **돌리는 쪽(오케스트레이터)이 넣어 준다.**
+//
+//   [내가 어떻게 오해했나 — 정직 기록] 2-21 에서 절대경로를 고치려고 `node audit_sim.js` 를
+//   돌려 봤더니 `258행 Illegal return statement` 가 났다. 그래서 등록부(3-38)에
+//   *"이미 깨져 있던 도구"* 라고 적었다. **아니다 — 돌리는 법이 틀렸다.**
+//   258행의 top-level `return` 은 대본 본문에서 **정상**이고, `node` 로 읽으면 ESM 이라 막힌다.
+//   ⇒ **「안 돌아간다」를 적기 전에 「어떻게 돌리는 물건인가」를 먼저 본다.**
+//
+//   돌리는 법: 오케스트레이터에 이 파일을 대본으로 넘긴다(`scriptPath`).
+//              `node` 로는 **문법 검사조차** 못 한다(ESM 로 읽혀 top-level return 이 막힌다).
 const path = require('path');
 export const meta = {
   name: 'wiki-qa-audit',

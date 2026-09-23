@@ -84,6 +84,16 @@ const pages = [];
 })(WIKI);
 
 (async () => {
+  // ★2026-09-23 (3-38) — 인자 없이 부르면 `fs` 가 **날 것 그대로** 터졌다:
+  //     TypeError: The "path" argument must be of type string … Received undefined
+  //   그 스택만 보고 나는 등록부에 *"인자 없이 fs 를 부른다 — 깨진 도구"* 라고 적었다.
+  //   **깨진 게 아니라 쓰는 법을 안 알려 준 것**이다. 이제 쓰는 법을 말하고 멈춘다.
+  if (!process.argv[2]) {
+    console.error('쓰는 법: node defect_triage.js <문항결과.json>');
+    console.error('  <문항결과.json> 은 [{question, expected, …}] 꼴의 배열이다.');
+    console.error('  같은 폴더의 `page_labels.json`(labels) 도 함께 읽는다.');
+    process.exit(1);
+  }
   const rows = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
   const labels = JSON.parse(fs.readFileSync(DIR + 'page_labels.json', 'utf8')).labels;
   const wantPages = new Map(labels.map(l => [l.question, l.pages]));

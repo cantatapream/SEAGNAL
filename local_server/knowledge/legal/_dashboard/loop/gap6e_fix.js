@@ -46,9 +46,9 @@ phase('보강');
 const out = await parallel(LAWS.map(L => () => agent(
   '당신은 나리야(해양수산 법률 챗봇) 위키의 사서다. 담당 법: **' + L.name + '**\n' +
   '\n# 배경 — 먼저 읽어라\n' +
-  '- /home/user/SEAGNAL/CLAUDE.md\n' +
-  '- /home/user/SEAGNAL/local_server/knowledge/legal/_SCHEMA.md 의 §6-E 와 §8-A (근거 조문 표 규격)\n' +
-  '- /home/user/SEAGNAL/local_server/knowledge/legal/_LESSONS.md (같은 실수 반복 금지)\n' +
+  '- <저장소뿌리>/CLAUDE.md\n' +
+  '- <저장소뿌리>/local_server/knowledge/legal/_SCHEMA.md 의 §6-E 와 §8-A (근거 조문 표 규격)\n' +
+  '- <저장소뿌리>/local_server/knowledge/legal/_LESSONS.md (같은 실수 반복 금지)\n' +
   '\n# 왜 이 일을 하나\n' +
   '고정 문제집(golden set)을 돌렸더니, 아래 문항의 **기대 근거 조문이 위키의 어느 "## 근거 조문" 표에도\n' +
   '행으로 없어서** 챗봇이 근거를 못 댄다. 이 표가 챗봇 답변의 "근거 법령" 목록을 만드는 재료다\n' +

@@ -204,7 +204,7 @@ def admrul_detail(admrul_id):
 
 def rel_raw(p):
     """baseline 의 raw 경로(세션 절대경로가 박혀 있음)를 legal 기준 상대경로로 바꾼다.
-    예: rel_raw('/home/user/SEAGNAL/local_server/knowledge/legal/raw/10_항만물류/항만법') → 'raw/10_항만물류/항만법'
+    예: rel_raw('<저장소뿌리>/local_server/knowledge/legal/raw/10_항만물류/항만법') → 'raw/10_항만물류/항만법'
     @param {str} p 절대 또는 상대 경로
     @returns {str} 'raw/…' 꼴(못 찾으면 원문 그대로)
     [연계] 큐 항목 law.raw 에만 쓴다 — baseline 파일 자체는 고치지 않는다(트랙 D 소유).

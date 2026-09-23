@@ -84,7 +84,7 @@ try {
 const { parseZonestr, resolveZone, resolveSeaZone } = require('./warn_zone_parser.js');
 const { ZONE_GROUP_MAP } = require('../config/zone_group_map.js');
 
-const ROOT = path.resolve(__dirname, '..', '..'); // /home/user/SEAGNAL
+const ROOT = path.resolve(__dirname, '..', '..'); // 저장소 뿌리
 const DATA_DIR = path.join(__dirname, 'data', 'warn_zone_flags');
 const CSV_PATH = path.join(DATA_DIR, 'fct_wrn_2016_2025.csv');
 const LAND_GEO_PATH = path.join(DATA_DIR, 'wrnArea_land.geojson');

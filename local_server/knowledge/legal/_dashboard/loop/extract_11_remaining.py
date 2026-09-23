@@ -8,18 +8,25 @@ import json, os, re, sys
 sys.path.insert(0, os.path.dirname(__file__))
 import extract_admrul_pdf as ex
 
+# ★2026-09-23 (3-39) — 아래 목록에 그 컴퓨터 이름(`/home/user/SEAGNAL/…`)이 박혀 있었다.
+#   **다른 데서는 그냥 안 돈다**(G-31). 뿌리를 이 파일 자리에서 세고 상대경로에 붙인다.
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', '..'))
+def R(rel):
+    """저장소 안의 상대경로를 이 컴퓨터의 절대경로로 바꾼다."""
+    return os.path.join(REPO, rel)
+
 ITEMS = [
-    {"slug": "해양공간계획및관리에관한법률", "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/01_해양주권정책/해양공간계획및관리에관한법률", "id": "2100000186935"},
-    {"slug": "해양조사와해양정보활용에관한법률", "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률", "id": "2100000268414"},
-    {"slug": "연안사고예방에관한법률", "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률", "id": "2100000268572"},
-    {"slug": "연안사고예방에관한법률", "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률", "id": "2100000264544"},
-    {"slug": "연안사고예방에관한법률", "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률", "id": "2100000264500"},
-    {"slug": "연안사고예방에관한법률", "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률", "id": "2100000273404"},
-    {"slug": "연안사고예방에관한법률", "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률", "id": "2100000248022"},
-    {"slug": "연안사고예방에관한법률", "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률", "id": "2100000264364"},
-    {"slug": "수산업협동조합법", "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법", "id": "2100000271272"},
-    {"slug": "수산업협동조합법", "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법", "id": "2100000271274"},
-    {"slug": "공유수면관리및매립에관한법률", "raw": "/home/user/SEAGNAL/local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률", "id": "2100000205689"},
+    {"slug": "해양공간계획및관리에관한법률", "raw": R("local_server/knowledge/legal/raw/01_해양주권정책/해양공간계획및관리에관한법률"), "id": "2100000186935"},
+    {"slug": "해양조사와해양정보활용에관한법률", "raw": R("local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률"), "id": "2100000268414"},
+    {"slug": "연안사고예방에관한법률", "raw": R("local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"), "id": "2100000268572"},
+    {"slug": "연안사고예방에관한법률", "raw": R("local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"), "id": "2100000264544"},
+    {"slug": "연안사고예방에관한법률", "raw": R("local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"), "id": "2100000264500"},
+    {"slug": "연안사고예방에관한법률", "raw": R("local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"), "id": "2100000273404"},
+    {"slug": "연안사고예방에관한법률", "raw": R("local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"), "id": "2100000248022"},
+    {"slug": "연안사고예방에관한법률", "raw": R("local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"), "id": "2100000264364"},
+    {"slug": "수산업협동조합법", "raw": R("local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법"), "id": "2100000271272"},
+    {"slug": "수산업협동조합법", "raw": R("local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법"), "id": "2100000271274"},
+    {"slug": "공유수면관리및매립에관한법률", "raw": R("local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률"), "id": "2100000205689"},
 ]
 
 TMP_DIR = ex.TMP_DIR
@@ -101,4 +108,4 @@ if __name__ == "__main__":
     results = [process(it) for it in ITEMS]
     for r in results:
         print(r)
-    json.dump(results, open("/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/pdf_extract_11_log.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    json.dump(results, open(R("local_server/knowledge/legal/_dashboard/pdf_extract_11_log.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
