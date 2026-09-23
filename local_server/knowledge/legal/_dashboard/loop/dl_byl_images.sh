@@ -21,7 +21,14 @@ fi
 dl_one() { # $1=id  $2=outdir
   local id="$1" out="$2/$1.png" gif="$2/$1.gif"
   [ -s "$out" ] && return 0            # 이미 있으면 skip
-  curl -s -o "$gif" --max-time 30 "https://www.law.go.kr/LSW/flDownload.do?flSeq=${id}" 2>/dev/null
+  # ★2026-09-24 (3-25 · L-322) — law.go.kr 은 **막힌 것이 아니라 느리다.** 단발 4/8 · 3회 재시도 9/10.
+  #   한 번 불러 보고 「불가」라고 적으면 안 된다. 5회까지 물러서며 다시 부른다.
+  local try=0
+  while [ $try -lt 5 ]; do
+    curl -s -o "$gif" --max-time 40 "https://www.law.go.kr/LSW/flDownload.do?flSeq=${id}" 2>/dev/null
+    [ -s "$gif" ] && break
+    try=$((try+1)); sleep $((try*2))
+  done
   [ -s "$gif" ] || { echo "FAIL_DL $id"; return 1; }
   python3 -c "from PIL import Image;Image.open('$gif').convert('RGB').save('$out')" 2>/dev/null \
     || { echo "FAIL_CONV $id"; rm -f "$gif"; return 1; }
