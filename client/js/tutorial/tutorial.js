@@ -212,9 +212,33 @@
      * [연계] _go() 가 구멍을 그리기 전에 기다리는 조건으로 쓴다.
      */
     function _settled(want) {
-        return (want.forecast ? _accHeight(ACC_FORECAST) > 0 : _accHeight(ACC_FORECAST) === 0)
-            && (want.alert    ? _accHeight(ACC_ALERT)    > 0 : _accHeight(ACC_ALERT)    === 0)
-            && (want.status   ? _accHeight(ACC_STATUS)   > 0 : _accHeight(ACC_STATUS)   === 0);
+        return _accSettled(ACC_FORECAST, want.forecast)
+            && _accSettled(ACC_ALERT,    want.alert)
+            && _accSettled(ACC_STATUS,   want.status);
+    }
+
+    /**
+     * 아코디언 하나가 원하는 모양(펼침/접힘)으로 **다 움직였는지** 본다.
+     *
+     * 왜 이렇게 보나?
+     *   접힘은 높이 0 으로 확인하면 된다. 펼침은 보통 높이 > 0 이지만, **속이 텅 빈 날**
+     *   에는 펼쳐도 높이가 0 이다(실측 2026-09-23: 특보가 하나도 없는 날
+     *   `#main-accordion-body` 는 offsetHeight·scrollHeight 가 둘 다 0). 높이만 보면
+     *   그런 날은 "아직 안 펼쳐졌다"로 읽혀 그 단계가 영영 준비되지 않는다
+     *   (특보 없는 날 4단계에서 [이전] 로 돌아오면 밝은 자리가 아예 안 생겼다).
+     *   그래서 **접힘 표시가 없고 속도 비어 있으면**(scrollHeight 0) 펼쳐진 것으로 본다.
+     *   펼치는 중간에는 속(scrollHeight)이 0 이 아니므로 중간을 잡지 않는다.
+     *
+     * @param {Array} acc - [본문 id, 토글 함수 이름]
+     * @param {boolean} want - true=펼쳐져 있어야 함
+     * @returns {boolean}
+     */
+    function _accSettled(acc, want) {
+        var h = _accHeight(acc);
+        if (!want) return h === 0;
+        if (h > 0) return true;
+        var body = document.getElementById(acc[0]);
+        return !!body && !body.classList.contains('collapsed') && body.scrollHeight === 0;
     }
 
     /**
@@ -546,7 +570,7 @@
 
         // [탭 먼저] 해구기상 단계 말고는 특보정보 탭에 있어야 한다. 다른 탭에 있으면
         //   카드·아코디언의 높이가 0 이라 자리를 재는 것부터 어긋난다.
-        if (depth !== 'zonemap') {
+        if (depth !== 'zonemap' && depth !== 'allinfo') {
             var mapSec = document.getElementById('ocean-map-section');
             if (mapSec && mapSec.classList.contains('active')
                 && typeof window.switchMainTab === 'function') {
@@ -555,7 +579,8 @@
         }
         var list = _firstSeaWithAlerts(kind);
         var deep = (depth === 'sub' || depth === 'open' || depth === 'buoy'
-                    || depth === 'forecast' || depth === 'windy' || depth === 'zonemap');
+                    || depth === 'forecast' || depth === 'windy' || depth === 'zonemap'
+                    || depth === 'allinfo');
         if (deep) {
             _openSea(list);
             _openSub(_firstSub(list));   // 소분류가 없으면(제주) 아무 일도 안 한다
@@ -585,6 +610,13 @@
             var onMap = sec && sec.classList.contains('active');
             if (!onMap) { var zb = _cardBtn('해구기상'); if (zb) zb.click(); }
         }
+        if (depth === 'allinfo') {
+            // 종합정보 버튼도 그 자체가 해양종합정보 탭으로 넘어가면서 특보구역·기상부이를
+            //   켠다. 해구기상과 같은 이유로, 이미 그 탭에 있으면 다시 누르지 않는다.
+            var sec2 = document.getElementById('ocean-map-section');
+            var onMap2 = sec2 && sec2.classList.contains('active');
+            if (!onMap2) { var ab = _cardBtn('종합정보'); if (ab) ab.click(); }
+        }
     }
 
     /**
@@ -610,7 +642,7 @@
         //   (아코디언·카드) 높이는 0 이다. 그걸 같이 보면 영영 준비됐다고 못 한다
         //   (실측: [이전] 로 이 단계에 돌아오면 구멍이 앞 단계 자리에 그대로 남았다).
         //   그래서 이 단계는 지도만 보고 판단하고 바로 끝낸다.
-        if (depth === 'zonemap') {
+        if (depth === 'zonemap' || depth === 'allinfo') {
             if (document.getElementById('sea-forecast-modal')
                 || document.getElementById('windy-modal')) return false;
             var mSec = document.getElementById('ocean-map-section');
@@ -817,7 +849,8 @@
         {
             title: '파도 높이와 바람 세기',
             body: '그 해역의 유의파고(파도 높이)와 풍속(바람 세기)입니다. '
-                + '배를 띄울지 말지 판단할 때 가장 먼저 보게 되는 숫자입니다.',
+                + '배를 띄울지 말지 판단할 때 가장 먼저 보게 되는 숫자입니다. '
+                + '연안 해역에서는 시정(얼마나 멀리 보이나)도 앞에 함께 나옵니다.',
             skip: function () {
                 var c = _firstCard();
                 return !c || !c.querySelector('.zone-avg-box');
@@ -888,6 +921,23 @@
             want: { forecast: false, alert: true, status: false }
         },
         {
+            title: '카드 아래 네 개의 버튼',
+            body: '카드 맨 아래에 버튼이 있습니다. 기상예보는 앞으로의 예보, '
+                + '해구기상은 바다를 칸으로 나눠 본 기상, 윈디는 바람 흐름 그림, '
+                + '종합정보는 해양종합정보 지도입니다. 하나씩 눌러 보겠습니다.',
+            skip: function () {
+                var c = _firstCard();
+                return !c || !c.querySelector('.card-action-btns');
+            },
+            drill: 'open',
+            target: function () {
+                var c = _firstCard();
+                var el = c && c.querySelector('.card-action-btns');
+                return el ? [el] : null;
+            },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
             title: '기상예보 — 앞으로의 예보',
             body: '카드 맨 아래 [기상예보] 를 누르면 그 해역의 예보표가 뜹니다. '
                 + '지금 상황이 아니라 앞으로 어떻게 될지를 봅니다.',
@@ -919,6 +969,19 @@
             drill: 'windy',
             target: function () {
                 var el = document.querySelector('#windy-modal .windy-modal-content');
+                return el ? [el] : null;
+            },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '종합정보 — 지도에서 한눈에',
+            body: '[종합정보] 를 누르면 해양종합정보 지도로 넘어가면서 그 해역의 '
+                + '특보구역이 표시되고 기상부이도 함께 켜집니다. 해구기상과 달리 '
+                + '격자는 끄고, 특보가 내려진 구역 자체를 보여줍니다.',
+            skip: function () { return !_cardBtn('종합정보'); },
+            drill: 'allinfo',
+            target: function () {
+                var el = document.getElementById('ocean-map');
                 return el ? [el] : null;
             },
             want: { forecast: false, alert: true, status: false }
@@ -1365,7 +1428,8 @@
             //   되고, 그것을 "아직 안 펼쳐졌다" 로 읽어 준비가 영영 안 됐다. 그래서 그림이
             //   끝내 안 나왔다(배포본에서 실측 — src 가 빈 채로 남아 있었다).
             //   그림 단계는 아코디언 상태를 볼 필요가 없으므로 그 확인을 건너뛴다.
-            return (step.image || step.drill === 'zonemap' || _settled(step.want))
+            return (step.image || step.drill === 'zonemap' || step.drill === 'allinfo'
+                    || _settled(step.want))
                 && _drillSettled(step.drill)
                 && (!step.target || !!_unionRect(_targets(step)));
         };
@@ -1389,6 +1453,7 @@
         var activeTab = document.querySelector('.tab-btn.active');
         var gridBtn = document.getElementById('ocean-marine-zone-toggle-btn');
         var warnBtn = document.getElementById('ocean-warn-zone-toggle-btn');
+        var buoyBtn = document.getElementById('ocean-buoy-toggle-btn');
         return {
             tab: activeTab ? activeTab.dataset.target : null,
             forecast: _isOpen(ACC_FORECAST),
@@ -1396,7 +1461,9 @@
             status: _isOpen(ACC_STATUS),
             // 해구기상 단계가 해양종합정보 지도의 해구도·특보구역을 켠다 → 원래대로 되돌린다
             grid: !!gridBtn && gridBtn.classList.contains('active'),
-            warn: !!warnBtn && warnBtn.classList.contains('active')
+            warn: !!warnBtn && warnBtn.classList.contains('active'),
+            // 종합정보 단계가 지도의 기상부이를 켠다 → 원래대로 되돌린다
+            buoy: !!buoyBtn && buoyBtn.classList.contains('active')
         };
     }
 
@@ -1422,6 +1489,8 @@
         if (typeof window.setWarnZoneVisible === 'function') {
             window.setWarnZoneVisible(_snapshot.warn);
         }
+        var oBuoy = document.getElementById('ocean-buoy-toggle-btn');
+        if (oBuoy && oBuoy.classList.contains('active') !== _snapshot.buoy) oBuoy.click();
         _setAccordion(ACC_FORECAST, _snapshot.forecast);
         _setAccordion(ACC_ALERT, _snapshot.alert);
         _setAccordion(ACC_STATUS, _snapshot.status);
