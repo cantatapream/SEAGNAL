@@ -307,6 +307,12 @@ node local_server/knowledge/legal/_dashboard/loop/audit_crosstalk_gate.js || fai
 echo; echo "── V5-30 검수 대기 수 일치 ──"
 node local_server/knowledge/legal/_dashboard/loop/review_count_agree_gate.js || fail "V5-30 검수 대기 수 일치"
 
+# ── V5-31 조문이 있는데 `[제N조]` 머리줄이 0인 원문 (2026-09-23 신설, G-27) ──
+# ★V5-17 은 머리줄을 **찾아서** 견주므로 머리줄이 **아예 없는** 파일을 원리적으로 못 본다(⑤).
+# 범위는 `raw/_자치법규` 본문만 — 넓히려면 「어떤 파일이 머리줄을 가져야 하나」를 먼저 정해야 한다(3-43).
+echo; echo "── V5-31 조문 머리줄 없는 원문 ──"
+node local_server/knowledge/legal/_dashboard/loop/article_head_missing_gate.js || fail "V5-31 조문 머리줄 없는 원문"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
