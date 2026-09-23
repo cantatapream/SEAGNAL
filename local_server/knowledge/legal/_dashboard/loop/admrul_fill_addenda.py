@@ -40,8 +40,14 @@ OC = 'hyoo1431'
 REPORT_DIR = os.path.join(LEGAL, '_dashboard', 'admrul_addenda')
 
 
-def api(url, tries=4):
-    """law.go.kr JSON 을 받아 온다. 프록시가 끊는 일이 잦아 네 번까지 다시 시도한다."""
+def api(url, tries=25):
+    """law.go.kr JSON 을 받아 온다. 프록시가 끊는 일이 잦아 여러 번 다시 시도한다.
+
+    ★2026-09-23 (3-20 · L-341) — **4회는 모자랐다.** L-322 가 잰 값이 있다 —
+      단발 4/8 · 재시도를 붙이면 9/10. 4회는 그 경계에 딱 걸린다.
+      4회에서 멈추면 그 고시는 보고서에 *"API 가 안 준다"* 로 남는다 —
+      **되는 것을 「안 된다」고 적는 것**이 제일 나쁘다. 25회로 올린다.
+    """
     last = None
     for i in range(tries):
         try:
@@ -49,7 +55,7 @@ def api(url, tries=4):
                 return json.load(r)
         except Exception as e:
             last = str(e)
-            time.sleep(1.5 * (i + 1))
+            time.sleep(min(1.5 + 0.4 * i, 6.0))
     return {'_err': last}
 
 
