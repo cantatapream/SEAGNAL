@@ -240,7 +240,10 @@ function catchStats(src) {
   //   즉 위험한 것은 **크기가 아니라 「기다리는 일을 삼키는 것」**이다. 그 fetch 가 실패하면
   //   `boards` 가 옛 값·빈 값인 채 화면이 그려지고, **아무도 모른다.**
   //   그래서 세는 뜻을 **크기가 아니라 `await` 유무**로 잡는다.
-  const r = { all: 0, silent: 0, empty: 0, bare: 0, io: 0 };
+  // ★2026-09-23 (3-44) — **자리를 같이 돌려준다.** 세기만 하면 고치러 갈 수가 없다.
+  //   숫자와 자리를 **같은 자**가 내게 해서, 「241」과 「고칠 목록」이 갈리지 않게 한다(⑥).
+  const lineOf = (pos) => src.slice(0, pos).split('\n').length;
+  const r = { all: 0, silent: 0, empty: 0, bare: 0, io: 0, ioSites: [] };
   walk.simple(ast, {
     // `io` 는 try 덩이를 봐야 하므로 TryStatement 에서 따로 센다.
     TryStatement(node) {
@@ -254,7 +257,27 @@ function catchStats(src) {
         });
       }
       const silent = hb.length === 0 || (!logs && !rethrows);
-      if (silent && /\bawait\b/.test(src.slice(node.block.start, node.block.end))) r.io++;
+      const blockSrc = src.slice(node.block.start, node.block.end);
+      if (silent && /\bawait\b/.test(blockSrc)) {
+        r.io++;
+        const handlerSrc = src.slice(node.handler.start, node.handler.end);
+        r.ioSites.push({
+          줄: lineOf(node.start),
+          손잡이줄: lineOf(node.handler.start),
+          빈손잡이: hb.length === 0,
+          주석있나: /\/\/|\/\*/.test(handlerSrc),
+          // ★까닭은 **손잡이 안에만** 적혀 있지 않다 — `try` 바로 위나 함수 머리말(JSDoc)에
+          //   적어 두는 것이 이 저장소의 버릇이다(실측: 12건 중 여러 개가 그랬다).
+          //   손잡이 안만 보면 **설명이 있는데 없다고 세게 된다**(L-347 과 같은 덫).
+          앞주석: /\/\/|\/\*|\*\s/.test(src.slice(Math.max(0, node.start - 300), node.start)),
+          try문장수: node.block.body.length,
+          await수: (blockSrc.match(/\bawait\b/g) || []).length,
+          // 무엇을 기다리는지 — 고치러 갈 때 제일 먼저 보는 것이다
+          부른것: [...new Set((blockSrc.match(/await\s+([A-Za-z_$][\w$.]*)/g) || [])
+            .map((x) => x.replace(/^await\s+/, '')))].slice(0, 4),
+          손잡이: handlerSrc.replace(/\s+/g, ' ').slice(0, 70),
+        });
+      }
     },
     CatchClause(node) {
       r.all++;
@@ -284,6 +307,24 @@ function catchStats(src) {
  * @returns {{available:boolean, sense:string, scope:string, files:number, unparsed:number,
  *            counts:{all:number,silent:number,empty:number,bare:number}, rows:number, label:string}}
  */
+/**
+ * 3-44 — `io` catch 가 **어디에 있는지**를 돌려준다. 세는 자는 `countSilentCatches` 와 **같다**.
+ * @param {{scope?: 'server'|'client'|'product'}} [opt]
+ */
+function listIoCatches(opt) {
+  const scope = (opt && opt.scope) || 'product';
+  if (!Object.prototype.hasOwnProperty.call(CATCH_SCOPES, scope)) throw new Error(`알 수 없는 범위: ${scope}`);
+  if (!catchParserAvailable()) return { available: false, scope, rows: [] };
+  const rows = [];
+  for (const f of _jsFiles(CATCH_SCOPES[scope])) {
+    let st;
+    try { st = catchStats(fs.readFileSync(f, 'utf8')); } catch (_) { continue; }
+    if (!st) continue;
+    for (const site of st.ioSites) rows.push({ 파일: path.relative(REPO, f), ...site });
+  }
+  return { available: true, scope, rows };
+}
+
 function countSilentCatches(opt) {
   const o = opt || {};
   const sense = o.sense || 'bare';
@@ -315,6 +356,7 @@ module.exports.CATCH_LOG_RE = CATCH_LOG_RE;
 module.exports.catchParserAvailable = catchParserAvailable;
 module.exports.catchStats = catchStats;
 module.exports.countSilentCatches = countSilentCatches;
+module.exports.listIoCatches = listIoCatches;
 
 // ════════════════════════════════════════════════════════════════════════════
 // 2-6b ③ ★**「§8-B 줄번호 인용」의 뜻과 범위** (2026-09-23)

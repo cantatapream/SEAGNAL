@@ -1892,6 +1892,8 @@ async function renderUnifiedNoticeContent(container) {
     for (let i = 0; i < 60; i += 10) mSelect.innerHTML += `<option value="${i}">${String(i).padStart(2, '0')}분</option>`;
 
     window.refreshUnifiedNoticeList = async function () {
+        // ⚠기다리는 일을 삼키면 **화면이 거짓말을 한다**(3-44 · G-14b) — 목록을 못 받으면
+        //   옛 목록이 그대로 남아 운영자가 「지금 상태」로 읽는다. 그래서 까닭을 남긴다.
         try {
             const res = await fetch(CONFIG.API_BASE + '/api/notices');
             const data = await res.json();
@@ -1918,7 +1920,9 @@ async function renderUnifiedNoticeContent(container) {
                     </div>
                 </div>
             `).join('') || '<div style="color:#64748b; font-size:0.8rem; padding:10px;">종료 이력 없음</div>';
-        } catch (e) { }
+        } catch (e) {
+            console.warn('[admin_collect] 공지 목록을 못 받았다 — 화면은 **옛 목록** 그대로다', e);
+        }
     };
 
     window.saveNoticeUnified = async function () {
@@ -2007,6 +2011,7 @@ async function renderUnifiedNoticeContent(container) {
 
 // 통합 모달 전용 공지사항 수정
 window.editNoticeUnified = async function (id) {
+    // ⚠실패하면 **눌러도 아무 일이 안 일어난다** — 운영자는 버튼이 죽은 줄 안다(3-44).
     try {
         const res = await fetch(CONFIG.API_BASE + '/api/notices');
         const data = await res.json();
@@ -2045,7 +2050,9 @@ window.editNoticeUnified = async function (id) {
             // 폼으로 스크롤
             document.getElementById('notice-form-container').scrollIntoView({ behavior: 'smooth' });
         }
-    } catch (e) { }
+    } catch (e) {
+        console.warn('[admin_collect] 공지 목록을 못 받아 수정 폼을 못 열었다 — 버튼이 죽은 것처럼 보인다', e);
+    }
 };
 
 // 통합 모달 전용 공지사항 삭제
@@ -2394,7 +2401,10 @@ async function renderUnifiedPromoContent(container) {
         try {
             const bRes = await fetch(CONFIG.API_BASE + '/api/boards');
             boards = await bRes.json();
-        } catch (e) {}
+        } catch (e) {
+            // ⚠못 받으면 필터 드롭다운이 **빈 채로** 그려진다 — 「게시판이 없다」로 읽힌다(3-44).
+            console.warn('[admin_collect] 게시판 목록을 못 받았다 — 필터가 빈 채로 그려진다', e);
+        }
 
         el.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
