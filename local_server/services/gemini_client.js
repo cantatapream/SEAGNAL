@@ -32,12 +32,31 @@ const AI_COOLDOWN_MS = COOLDOWN_DEFAULT_MS;      // (구버전 export 호환용 
 const NOTIFY_THROTTLE_MS = 10 * 60 * 1000; // 10분
 
 // [키 로딩] 환경변수에서 키 읽어 등록 (없는 키는 목록에 추가하지 않음)
+//
+// ★**챗봇이 쓰는 키는 `GEMINI_API_KEY_26_8` **하나뿐이다** (2026-09-23 사용자 확정, G-48)
+//   운영(Fly.io) 시크릿 목록을 직접 확인했다 — `GEMINI_API_KEY_26_8` 만 있고
+//   맷반 `GEMINI_API_KEY` 는 **없다**. 그래서 여기서도 그 하나만 받는다.
+//   ⚠한때 「둘 다 받게」 바꿨다가 되돌렸다 — 이름을 늘리면 **어느 키가 쓰이는지 흐려진다.**
+//     문제는 「이름이 하나인 것」이 아니었고, 「로그가 이름을 안 말한 것」이었다(아래 ★).
+//
+// [왜 이 주석이 있나] 2026-08-16 HANDOFF 가 이미 *"⚠함정 하나: 이 파일은 `GEMINI_API_KEY` 가
+//   아니라 `_26_8` 을 읽는다"* 고 적어 두었다. 그런데 **적기만 하고 끝냈기에**
+//   38일 뒤 CI 가 `GEMINI_API_KEY` 를 넣고 서버는 `키 0개` 로 부팅하는 일이 또 일어났다.
+//   → 그래서 고칠 것은 **이름이 아니라 로그**다. 아래 두 줄이 그것이다.
+const PLACEHOLDER = 'YOUR_GEMINI_API_KEY_HERE';
+const KEY_ENV = 'GEMINI_API_KEY_26_8';      // ← 챗봇이 쓰는 유일한 이름
 const keys = [];
-if (process.env.GEMINI_API_KEY_26_8 && process.env.GEMINI_API_KEY_26_8 !== 'YOUR_GEMINI_API_KEY_HERE') {
-    keys.push({ label: '기본', apiKey: process.env.GEMINI_API_KEY_26_8, cooldownUntil: 0 });
+if (process.env[KEY_ENV] && process.env[KEY_ENV] !== PLACEHOLDER) {
+    keys.push({ label: '기본', apiKey: process.env[KEY_ENV], cooldownUntil: 0 });
 }
 
-console.log(`[Gemini] 키 ${keys.length}개 등록됨: ${keys.map(k => k.label).join(', ') || '없음'}`);
+// ★「없다」고만 말하지 않는다 — **어떤 이름을 찾았는지**까지 적는다 (G-48 · G-40 과 같은 마디).
+//   종전의 `키 0개 등록됨: 없음` 은 **키가 없는 것**과 **이름이 틀린 것**을 같은 말로 했고,
+//   그 한 줄이 가르지 못해서 38일을 버렸다.
+console.log(keys.length
+    ? `[Gemini] 키 ${keys.length}개 등록됨: ${keys.map(k => k.label).join(', ')} (환경변수 ${KEY_ENV})`
+    : `[Gemini] 키 0개 등록됨: 없음 — 찾은 이름: ${KEY_ENV}` +
+      (process.env.GEMINI_API_KEY ? ' ⚠`GEMINI_API_KEY` 는 있지만 챗봇은 그걸 안 쓴다(의도적 — 운영 시크릿이 `_26_8`)' : ''));
 
 let nextIdx = 0;                // 라운드로빈 포인터
 let lastSwitchNotifyAt = 0;     // 전환 알림 스로틀

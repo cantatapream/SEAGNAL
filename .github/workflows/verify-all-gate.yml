@@ -108,6 +108,14 @@ jobs:
       BASE_URL: 'http://127.0.0.1:3001'
       # 시크릿 → 서버 부팅이 참조. 로그 echo 금지(깃허브가 자동 마스킹하지만 규약상 금지).
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      # ★챗봇이 쓰는 이름은 `_26_8` 하나다 (2026-09-23 사용자 확정, G-48).
+      #   운영(Fly.io) 시크릿에도 `GEMINI_API_KEY_26_8` 만 있다 — 화면으로 확인했다.
+      #   그래서 여기서도 그 이름을 넣는다. 윗줄 `GEMINI_API_KEY` 는 챗봇이 아닌 쪽
+      #   (`topic_embedding.js`·`ai_report_parser.js`)이 읽는 이름이라 남겨 둔다.
+      #   ⚠깃허브 시크릿에 `GEMINI_API_KEY_26_8` 이 없으면 빈 문자열로 들어오고,
+      #   서버는 그 사실을 부팅 로그에 적는다(「찾은 이름: …」). L-8 을 CI 에서 돌리려면
+      #   깃허브 시크릿에도 같은 이름으로 한 번 넣어야 한다.
+      GEMINI_API_KEY_26_8: ${{ secrets.GEMINI_API_KEY_26_8 }}
       KMA_DMDW_ID: ${{ secrets.KMA_DMDW_ID }}
       KMA_DMDW_PW: ${{ secrets.KMA_DMDW_PW }}
       MARINE_USER_ID: ${{ secrets.MARINE_USER_ID }}
