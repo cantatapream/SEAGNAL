@@ -231,8 +231,31 @@ function catchStats(src) {
     catch (_) { /* 다음 꼴로 다시 */ }
   }
   if (!ast) return null;
-  const r = { all: 0, silent: 0, empty: 0, bare: 0 };
+  // ★`io` — 「**기다리는 일**(await)을 조용히 삼키는 catch」 (2026-09-23 신설, G-14b)
+  //   등록부(G-14b)는 이것을 *"큰 덩이를 통째로 삼키는 catch 50곳"* 이라 적었는데, **두 군데가 틀렸다**:
+  //     ① **50 이 어느 뜻으로도 안 나온다** — 오늘 실측: 조용히 삼키는 try **896** 중
+  //        `10문장 이상` **69** · `try 안에 await` **241**.
+  //     ② ★**스스로 든 실례가 「큰 덩이」가 아니다** — `admin_collect.js:2394` 는 **2문장**이다:
+  //            try { const bRes = await fetch(…/api/boards); boards = await bRes.json(); } catch (e) {}
+  //   즉 위험한 것은 **크기가 아니라 「기다리는 일을 삼키는 것」**이다. 그 fetch 가 실패하면
+  //   `boards` 가 옛 값·빈 값인 채 화면이 그려지고, **아무도 모른다.**
+  //   그래서 세는 뜻을 **크기가 아니라 `await` 유무**로 잡는다.
+  const r = { all: 0, silent: 0, empty: 0, bare: 0, io: 0 };
   walk.simple(ast, {
+    // `io` 는 try 덩이를 봐야 하므로 TryStatement 에서 따로 센다.
+    TryStatement(node) {
+      if (!node.handler) return;
+      const hb = node.handler.body.body;
+      let logs = false, rethrows = false;
+      if (hb.length) {
+        walk.simple({ type: 'Program', body: hb, start: node.start, end: node.end }, {
+          CallExpression(c) { if (CATCH_LOG_RE.test(src.slice(c.callee.start, c.callee.end))) logs = true; },
+          ThrowStatement() { rethrows = true; },
+        });
+      }
+      const silent = hb.length === 0 || (!logs && !rethrows);
+      if (silent && /\bawait\b/.test(src.slice(node.block.start, node.block.end))) r.io++;
+    },
     CatchClause(node) {
       r.all++;
       const body = node.body.body;
@@ -265,15 +288,15 @@ function countSilentCatches(opt) {
   const o = opt || {};
   const sense = o.sense || 'bare';
   const scope = o.scope || 'product';
-  if (!['bare', 'empty', 'silent', 'all'].includes(sense)) throw new Error(`알 수 없는 뜻: ${sense}`);
+  if (!['bare', 'empty', 'silent', 'all', 'io'].includes(sense)) throw new Error(`알 수 없는 뜻: ${sense}`);
   if (!Object.prototype.hasOwnProperty.call(CATCH_SCOPES, scope)) throw new Error(`알 수 없는 범위: ${scope}`);
   if (!catchParserAvailable()) {
     return { available: false, sense, scope, files: 0, unparsed: 0,
-      counts: { all: 0, silent: 0, empty: 0, bare: 0 }, rows: 0,
+      counts: { all: 0, silent: 0, empty: 0, bare: 0, io: 0 }, rows: 0,
       label: 'catch 를 못 셌다 — acorn 이 없다(전이 의존). **0 이 아니라 「못 셌다」이다.**' };
   }
   const files = _jsFiles(CATCH_SCOPES[scope]);
-  const counts = { all: 0, silent: 0, empty: 0, bare: 0 };
+  const counts = { all: 0, silent: 0, empty: 0, bare: 0, io: 0 };
   let unparsed = 0;
   for (const f of files) {
     const r = catchStats(fs.readFileSync(f, 'utf8'));
@@ -281,7 +304,8 @@ function countSilentCatches(opt) {
     for (const k of Object.keys(counts)) counts[k] += r[k];
   }
   const SENSE_LABEL = { bare: '몸통도 주석도 없는 catch', empty: '문장이 없는 catch(주석만 포함)',
-    silent: '로그도 없고 다시 던지지도 않는 catch', all: 'catch 전부' };
+    silent: '로그도 없고 다시 던지지도 않는 catch', all: 'catch 전부',
+    io: '★**기다리는 일(await)을 조용히 삼키는** catch — 망·파일이 실패해도 화면은 옛 값으로 그려진다' };
   return { available: true, sense, scope, files: files.length, unparsed, counts, rows: counts[sense],
     label: `catch ${counts[sense]} (뜻: ${SENSE_LABEL[sense]} · 범위: ${scope} · 파일 ${files.length}${unparsed ? ` · 못 읽은 파일 ${unparsed}` : ''})` };
 }

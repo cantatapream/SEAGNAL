@@ -85,6 +85,19 @@ console.log('\n── ④ ★기준선보다 늘지 않는다 (가장 나쁜 `ba
       console.log(`  · ${scope.padEnd(8)} bare ${String(now.rows).padStart(4)} (기준선 ${b})`
         + ` · silent ${now.counts.silent} · all ${now.counts.all}`);
       ok(`${scope} — bare 가 기준선보다 안 늘었다`, now.rows <= b, `지금 ${now.rows} > 기준선 ${b}`);
+
+      // ★`io` — 기다리는 일(await)을 조용히 삼키는 catch (2026-09-23, G-14b)
+      //   등록부는 이것을 "큰 덩이를 통째로 삼키는 catch 50곳" 이라 적었지만 **둘 다 안 맞았다**:
+      //   50 은 어느 뜻으로도 안 나오고(10문장+ 69 · await 241), 스스로 든 실례
+      //   `admin_collect.js:2394` 는 **2문장**이다. 위험한 것은 크기가 아니라
+      //   **기다리는 일을 삼키는 것**이다 — fetch 가 실패해도 화면은 옛 값으로 그려진다.
+      const io = C.countSilentCatches({ sense: 'io', scope });
+      const bio = base[scope].io;
+      console.log(`  · ${scope.padEnd(8)} io   ${String(io.rows).padStart(4)} (기준선 ${bio})`
+        + '   ← 기다리는 일을 삼키는 catch');
+      ok(`${scope} — io 가 기준선보다 안 늘었다`, io.rows <= bio, `지금 ${io.rows} > 기준선 ${bio}`);
+      ok(`${scope} — 포함 관계 io ⊆ silent`, io.rows <= io.counts.silent,
+          `io ${io.rows} · silent ${io.counts.silent}`);
     }
   }
 }
