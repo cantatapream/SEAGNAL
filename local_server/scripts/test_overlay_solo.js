@@ -71,6 +71,56 @@ const SETTLE_MIN = Number(process.env.SETTLE || 14000);      // 종전 고정 �
 const SETTLE_MAX = Number(process.env.SETTLE_MAX || 45000);  // 멎기를 기다리는 상한
 const STABLE_FOR = Number(process.env.STABLE_FOR || 2000);   // 이만큼 안 바뀌면 멎은 것으로 본다
 const STEP = 500;                                            // 다시 보는 간격
+// ★**보이는 벡터 도형을 세는 자 — 이 파일에 단 하나** (2026-09-23, 2-24)
+//   두 가지 검사가 각자 세면 같은 화면을 다르게 읽게 된다(뿌리 사슬 ⑥ — 세는 법을 안 정하면
+//   같은 것을 재도 답이 다르다). 그래서 한 자만 둔다.
+// ★**통계 시트를 여는 「격자 칸」의 화면 위치를 찾는다** (2026-09-23, 2-24)
+//   종전은 화면 **한가운데를 고정으로 탭**하고 거기 칸이 있기를 바랐다. 지도 초기 위치가
+//   조금만 달라지면 **허공을 친다** — 실측했다: 칸 39개 · 화면 안 5개인데
+//   한가운데(188,334)엔 없고, 진짜 칸(198,289)을 누르면 열렸다.
+//   → 칸을 찾아 그것을 누른다. 사람이 하는 것과 같은 일이라 시험이 약해지지 않는다.
+//   ⚠화면 가장자리는 뺀다 — 위쪽은 탭바, 아래쪽은 하단 탭바가 덮어 탭이 안 닿는다(실측).
+//   격자 칸은 `members` 속성을 갖는다(accident_info.js `tryHandleGridClick` → `hit.get('members')`).
+const GRID_SPOTS = `(() => {
+  const m = window.getOceanMap && window.getOceanMap(); if (!m) return { total: 0, inView: [] };
+  const size = m.getSize() || [0, 0];
+  let total = 0; const inView = [];
+  m.getLayers().getArray().forEach(l => {
+    if (!l.getVisible || !l.getVisible()) return;
+    let s = null; try { s = l.getSource && l.getSource(); } catch (e) {}
+    if (!s) return; let fs = null;
+    try { fs = (s.getSource && s.getSource() && s.getSource().getFeatures) ? s.getSource().getFeatures()
+             : (s.getFeatures ? s.getFeatures() : null); } catch (e) {}
+    if (!fs) return;
+    fs.forEach(f => {
+      let mem = null; try { mem = f.get('members'); } catch (e) {}
+      if (!mem) return; total++;
+      try {
+        const ex = f.getGeometry().getExtent();
+        const px = m.getPixelFromCoordinate([(ex[0] + ex[2]) / 2, (ex[1] + ex[3]) / 2]);
+        if (px && px[0] > 40 && px[1] > 90 && px[0] < size[0] - 40 && px[1] < size[1] - 140) {
+          inView.push([Math.round(px[0]), Math.round(px[1])]);
+        }
+      } catch (e) {}
+    });
+  });
+  return { total, inView: inView.slice(0, 6) };
+})()`;
+
+const FEATURE_COUNT = `(() => {
+  const map = window.getOceanMap && window.getOceanMap();
+  let n = 0;
+  if (map) map.getLayers().getArray().forEach(l => {
+    if (!l.getVisible || !l.getVisible()) return;
+    let s = null; try { s = l.getSource && l.getSource(); } catch(e){}
+    if (!s) return; let raw = null;
+    try { if (s.getSource && s.getSource() && s.getSource().getFeatures) raw = s.getSource().getFeatures().length;
+          else if (s.getFeatures) raw = s.getFeatures().length; } catch(e){}
+    if (raw) n += raw;
+  });
+  return n;
+})()`;
+
 const FULL = process.argv.indexOf('--full') >= 0;
 
 const BTNS = [
@@ -199,10 +249,46 @@ async function checkNoDeadButtons(browser) {
         await clear();
         await p.click('.main-tabs .tab-btn[data-target="ocean-life-group"]');
         await p.waitForTimeout(2500); await clear();
+        // ★고정 대기를 없앤다 (2026-09-23, 2-24) — 이 파일에서 **세 번째** 같은 결함이다.
+        //   [무엇이 문제였나] 종전은 사고정보를 누르고 **고정 9초**를 기다렸다가 화면 한가운데를
+        //     탭했다. 그런데 사고정보는 **7.1MB** 다 — 바쁜 러너에서는 9초 안에 격자가 안 생긴다.
+        //     그러면 탭이 **허공을 치고**, 시트가 안 열리고, 전제와 닫기 버튼 검사가 함께 넘어졌다
+        //     (CI run #100/#101: `9 PASS / 2 FAIL`). 제품이 아니라 **재는 방식**이다.
+        //   [왜 시험이 약해지지 않나] 이 검사가 잡는 것은 **시트가 열렸을 때 버튼이 죽는가**이다.
+        //     시트를 여는 것은 그 앞의 **준비**다. 준비를 튼튼하게 하는 것은 판별력을 안 건드린다 —
+        //     시트가 끝내 안 열리면 전제는 그대로 실패한다(아래 상한까지 다 기다린 뒤).
+        const SHEET_OPEN = `!!(document.getElementById('accident-stats-sheet')
+                              && document.getElementById('accident-stats-sheet').classList.contains('open'))`;
         await p.tap('#ocean-accident-toggle-btn');
-        await p.waitForTimeout(9000);
-        await p.touchscreen.tap(Math.round(W / 2), Math.round(H / 2));   // 격자 한 칸 → 통계 시트
-        await p.waitForTimeout(2500);
+        // ⓐ 자료가 **실제로 그려질 때까지** 기다린다 (고정 9초 → 상한 45초)
+        const t0 = Date.now();
+        let feat = 0;
+        while (Date.now() - t0 < DRAW_MAX) {
+            await p.waitForTimeout(500);
+            feat = await p.evaluate(FEATURE_COUNT);
+            if (feat > 0) break;
+        }
+        const drawnAt = Date.now() - t0;
+        // ⓑ ★**진짜 격자 칸을 찾아서** 누른다 (고정 좌표 탭은 허공을 친다 — 위 GRID_SPOTS 주석)
+        let grid = { total: 0, inView: [] };
+        const gUntil = Date.now() + 20000;
+        while (Date.now() < gUntil) {
+            grid = await p.evaluate(GRID_SPOTS);
+            if (grid.inView.length) break;
+            await p.waitForTimeout(500);
+        }
+        let opened = false, taps = 0;
+        for (const [gx, gy] of grid.inView) {
+            taps++;
+            await p.touchscreen.tap(gx, gy);
+            const until = Date.now() + 3000;
+            while (Date.now() < until) {
+                await p.waitForTimeout(250);
+                if (await p.evaluate(SHEET_OPEN)) { opened = true; break; }
+            }
+            if (opened) break;
+        }
+
         const r = await p.evaluate(`(() => {
           const sheet = document.getElementById('accident-stats-sheet');
           const dead = [];
@@ -220,7 +306,19 @@ async function checkNoDeadButtons(browser) {
             closeOk = !!(t && (t === close || close.contains(t))); }
           return { open: !!(sheet && sheet.classList.contains('open')), dead, closeOk };
         })()`);
-        ok('통계 시트가 열렸다(시험 전제)', r.open, '        시트가 안 열려 이 검사는 의미가 없다');
+        // ★전제가 깨졌을 때 **왜**인지까지 적는다(G-40) — 자료가 안 온 것·칸이 화면 밖인 것·
+        //   칸을 눌렀는데도 안 열린 것은 **서로 다른 일**이다. 셋을 한 문장으로 묶으면 다음 사람이 또 헤맨다.
+        ok('통계 시트가 열렸다(시험 전제)', r.open,
+            '        시트가 안 열려 이 검사는 의미가 없다\n' +
+            `        도형 ${feat}개(${drawnAt}ms) · 격자 칸 ${grid.total}개 · 화면 안 ${grid.inView.length}개 · 탭 ${taps}번\n` +
+            '        ' + (feat === 0
+                ? `→ 도형이 0 이다: 자료가 상한 ${DRAW_MAX}ms 안에 안 왔거나 사고정보가 안 켜졌다`
+                : grid.total === 0
+                ? '→ 도형은 있는데 **격자 칸이 0** 이다: 격자 계산(recomputeGrid)이 안 돌았다'
+                : grid.inView.length === 0
+                ? '→ 칸은 있으나 **전부 화면 밖**이다: 지도 초기 위치가 달라졌다(환경)'
+                : '→ 칸을 ' + taps + '번 눌렀는데도 안 열렸다: **제품 결함**이다(tryHandleGridClick)'));
+
         ok('시트가 열려 있어도 "보이는데 눌리지 않는" 버튼이 없다', r.dead.length === 0,
             '        눌리지 않는 버튼: ' + r.dead.join(', '));
         ok('시트를 닫는 버튼은 눌린다(갇히지 않는다)', r.closeOk);
@@ -244,19 +342,7 @@ async function checkRecoversAfterNetworkDrop(browser) {
         { id: 'ocean-accident-toggle-btn', name: '사고정보' },
         { id: 'ocean-terrain-toggle-btn', name: '위험지형' }
     ];
-    const COUNT = `(() => {
-      const map = window.getOceanMap && window.getOceanMap();
-      let n = 0;
-      if (map) map.getLayers().getArray().forEach(l => {
-        if (!l.getVisible || !l.getVisible()) return;
-        let s = null; try { s = l.getSource && l.getSource(); } catch(e){}
-        if (!s) return; let raw = null;
-        try { if (s.getSource && s.getSource() && s.getSource().getFeatures) raw = s.getSource().getFeatures().length;
-              else if (s.getFeatures) raw = s.getFeatures().length; } catch(e){}
-        if (raw) n += raw;
-      });
-      return n;
-    })()`;
+    const COUNT = FEATURE_COUNT;
     for (const c of CASES) {
         const ctx = await browser.newContext({ viewport: { width: 430, height: 900 } });
         const p = await ctx.newPage();
