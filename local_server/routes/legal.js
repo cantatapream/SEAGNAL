@@ -77,6 +77,16 @@ const { getAdmin } = require('../services/firebase_admin_lazy');
 
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const REVIEW_QUEUE = path.join(LEGAL_DIR, '_dashboard', 'review_queue.md');
+// ★2026-09-23 (3-17 · G-11) — 검수 큐를 읽는 **규칙을 여기 적지 않는다.**
+//   종전에는 이 파일과 `_dashboard/loop/human_workload.py` 가 **따로** 규칙을 갖고 있었고,
+//   `해당 없음` 처리가 파이썬에만 있어 **두 숫자가 어긋난 채 방치**됐다(뿌리 사슬 ⑥).
+//   이제 셋(여기 · human_workload.py · V5-30 게이트)이 **한 파일**을 읽는다.
+const REVIEW_RULES = require(path.join(LEGAL_DIR, '_dashboard', 'review_queue_rules.json'));
+const RQ_HEAD = new RegExp(REVIEW_RULES.카드머리);
+const RQ_CLOSE = new RegExp(REVIEW_RULES.카드닫기);
+const RQ_OK = new RegExp(REVIEW_RULES.승인);
+const RQ_NA = new RegExp(REVIEW_RULES.해당없음);
+const RQ_SPLIT = new RegExp(REVIEW_RULES.쪼갬);
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
 // ★승인 이력은 **볼륨**(local_server/data)에 둔다. 종전 경로(knowledge/legal/_dashboard/)는
 //   컨테이너 이미지 안이라 **재배포할 때마다 관리자가 승인한 기록이 통째로 사라졌다.**
@@ -118,7 +128,7 @@ function parseReviewQueue() {
   let cur = null;
   for (const line of lines) {
     // 헤더 id는 콜론 앞 전체(끝이 -숫자가 아니어도 인식: 예 'REVIEW-야간운항-3법')
-    const m = line.match(/^###\s+(REVIEW-.+?):\s*(.*)$/);
+    const m = line.match(RQ_HEAD);
     if (m) {
       if (cur) entries.push(cur);
       const id = m[1];
@@ -135,12 +145,12 @@ function parseReviewQueue() {
     // (해양생태계법-907 · 선박법-907)이 「대기」로 뒤집혀 관리자 화면에 떴다.**
     // body 도 같은 경로로 오염돼 남의 기록이 카드에 붙어 보였다.
     // 여기서 cur 를 닫으면 두 증상이 함께 사라진다(대기 3장 → 1장).
-    if (line.startsWith('### ')) { if (cur) { entries.push(cur); cur = null; } continue; }
+    if (RQ_CLOSE.test(line)) { if (cur) { entries.push(cur); cur = null; } continue; }
     if (!cur) continue;
     cur.body += line + '\n';
     const tp = line.match(/^-\s*대상\s*페이지:\s*(.+)$/);
     if (tp) cur.targetPages = tp[1].split(/[,·]/).map(s => s.trim()).filter(Boolean);
-    const ap = line.match(/^-\s*승인:\s*\[([ xX])\]\s*(.*)$/);
+    const ap = line.match(RQ_OK);
     if (ap) { cur.approved = ap[1].toLowerCase() === 'x'; cur.approvedMeta = (ap[2] || '').trim(); }
     // ── 세 번째 상태: **승인도 대기도 아닌 카드**(2026-09-18 사용자 확정) ──
     // 종전에는 상태가 둘뿐이었다 — 승인란에 x 가 있으면 승인, 없으면 대기. 그래서 "사람이 할
@@ -151,9 +161,9 @@ function parseReviewQueue() {
     //     `human_workload.py` 는 2026-08-23 적대검증 뒤 이미 이 카드를 빼고 세는데
     //     **서버에는 같은 처리가 없어 두 숫자가 어긋난 채였다.** 여기서 맞춘다.
     //     (`[ ]` 가 앞에 붙은 꼴도 받는다 — 2026-09-18 에 기계가 읽도록 그렇게 고쳤다.)
-    const sp = line.match(/^-\s*쪼갬:\s*(.*)$/);
+    const sp = line.match(RQ_SPLIT);
     if (sp) { cur.excluded = true; cur.excludedReason = '쪼갬 — ' + (sp[1] || '').trim(); }
-    const na = line.match(/^-\s*승인:\s*(?:\[[ xX]\]\s*)?해당\s*없음(.*)$/);
+    const na = line.match(RQ_NA);
     if (na) { cur.excluded = true; cur.excludedReason = '해당 없음 — ' + (na[1] || '').trim(); }
   }
   if (cur) entries.push(cur);

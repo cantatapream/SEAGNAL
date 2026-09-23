@@ -29,9 +29,16 @@ const QUEUE = path.join(LEGAL, '_dashboard', 'review_queue.md');
 const PY = path.join(LEGAL, '_dashboard', 'loop', 'human_workload.py');
 const WL_JSON = path.join(LEGAL, '_dashboard', 'human_workload.json');
 
-const RE_APPROVED = /^-\s*승인:\s*\[[xX]\]/m;
-const RE_NA = /^-\s*승인:\s*(?:\[[ xX]\]\s*)?해당\s*없음/m;
-const RE_SPLIT = /^-\s*쪼갬:/m;
+// ★2026-09-23 (3-17) — **규칙을 여기 베끼지 않는다.** 위 [⚠못 한 것을 밝힌다] 가 적어 둔
+//   「서버 규칙을 옮겨 적었다」는 이제 사실이 아니다 — 서버·파이썬·이 게이트가 **한 파일**을 읽는다:
+//     `_dashboard/review_queue_rules.json`
+//   (서버 함수를 직접 못 부르는 것은 그대로다. 다만 **규칙 사본이 낡을 일은 없어졌다.**)
+const RULES = JSON.parse(fs.readFileSync(path.join(LEGAL, '_dashboard', 'review_queue_rules.json'), 'utf8'));
+const RE_HEAD = new RegExp(RULES.카드머리);
+const RE_CLOSE = new RegExp(RULES.카드닫기);
+const RE_APPROVED = new RegExp(RULES.승인, 'm');
+const RE_NA = new RegExp(RULES.해당없음, 'm');
+const RE_SPLIT = new RegExp(RULES.쪼갬, 'm');
 
 /** 서버 규칙 — 카드가 아닌 `### ` 제목은 **앞 카드를 닫는다**(P-10, 2026-09-22). */
 function countByServerRule() {
@@ -39,15 +46,18 @@ function countByServerRule() {
     const cards = [];
     let cur = null;
     for (const line of txt.split('\n')) {
-        const m = /^###\s+(REVIEW-.+?):/.exec(line);
+        const m = RE_HEAD.exec(line);
         if (m) { if (cur) cards.push(cur); cur = { id: m[1], body: '' }; continue; }
-        if (line.startsWith('### ')) { if (cur) { cards.push(cur); cur = null; } continue; }
+        if (RE_CLOSE.test(line)) { if (cur) { cards.push(cur); cur = null; } continue; }
         if (cur) cur.body += line + '\n';
     }
     if (cur) cards.push(cur);
     let x = 0, na = 0, sp = 0, pending = 0;
     for (const c of cards) {
-        if (RE_APPROVED.test(c.body)) { x++; continue; }
+        // ⚠공유 규칙의 `승인` 은 `[ ]`(대기)도 **같이** 잡는다 — 무리1 이 `x` 일 때만 승인이다.
+        //   (게이트가 베끼기를 그만두면서 여기서 한 번 틀릴 뻔했다 — 잡는 것과 판정은 다른 일이다.)
+        const ap = RE_APPROVED.exec(c.body);
+        if (ap && ap[1].toLowerCase() === 'x') { x++; continue; }
         if (RE_NA.test(c.body)) { na++; continue; }
         if (RE_SPLIT.test(c.body)) { sp++; continue; }
         pending++;
