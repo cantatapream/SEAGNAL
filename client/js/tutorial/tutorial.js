@@ -67,6 +67,9 @@
 
     var GAP      = 12;   // 구멍과 설명 카드 사이 간격(px)
     var EDGE     = 12;   // 화면 가장자리에서 띄울 여백(px)
+    var _insets  = { top: 0, bottom: 0 };   // 상태표시줄·제스처 바가 차지하는 만큼
+    var _trackId = 0;    // 대상 자리를 지켜보는 rAF 번호
+    var _trackKey = '';  // 마지막으로 그린 대상 자리
     var CARD_MAX = 420;  // 설명 카드 최대 너비(px)
     var CARD_MIN = 215;  // 설명 카드에 최소한 내주는 높이(px) — 이만큼도 없으면 구멍을 줄인다
                          //   (버튼 줄 약 52px + 글 두어 줄 + 안쪽 여백)
@@ -326,6 +329,30 @@
     }
 
     /**
+     * 휴대폰 상단 상태표시줄·하단 제스처 바가 차지하는 만큼을 잰다.
+     *
+     * 왜 필요한가?
+     *   이 앱은 `viewport-fit=cover` 라 화면이 상태표시줄 **아래까지** 늘어난다
+     *   (index2.html 이 곳곳에서 `env(safe-area-inset-top)` 으로 여백을 준다).
+     *   튜토리얼은 그 여백을 안 줘서 딱지와 설명 카드가 상태표시줄을 침범했다
+     *   (사용자 지적 2026-09-23).
+     *
+     * @returns {{top:number, bottom:number}} 위·아래 안전 여백(px)
+     * [연계] _open 에서 한 번 재고(_insets), 화면 회전(resize)에서 다시 잰다.
+     */
+    function _measureInsets() {
+        var d = document.createElement('div');
+        d.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;'
+            + 'pointer-events:none;padding-top:env(safe-area-inset-top,0px);'
+            + 'padding-bottom:env(safe-area-inset-bottom,0px);';
+        document.body.appendChild(d);
+        var cs = getComputedStyle(d);
+        var out = { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
+        d.parentNode.removeChild(d);
+        return out;
+    }
+
+    /**
      * 대상이 화면 아래로 넘쳤으면 넘친 만큼 더 내려 **잘리지 않게** 한다.
      *
      * 왜 필요한가?
@@ -344,8 +371,9 @@
         var u = _unionRect(els);
         if (!u) return;
         // 대상이 애초에 화면보다 크면 아래를 맞추려다 위쪽(머리줄)을 잘라 먹는다 — 그대로 둔다.
-        if ((u.bottom - u.top) > window.innerHeight - EDGE * 2) return;
-        var over = Math.round(u.bottom - (window.innerHeight - EDGE));
+        var limit = window.innerHeight - EDGE - _insets.bottom;
+        if ((u.bottom - u.top) > limit - (EDGE + _insets.top)) return;
+        var over = Math.round(u.bottom - limit);
         if (over <= 0) return;
         var de = document.scrollingElement || document.documentElement;
         var room = de.scrollHeight - de.clientHeight - de.scrollTop;
@@ -1368,7 +1396,8 @@
         var shotTag = document.createElement('div');
         shotTag.id = 'tutorial-shot-tag';
         shotTag.textContent = '예시 화면입니다';
-        shotTag.style.cssText = 'position:absolute;display:none;top:10px;right:12px;'
+        shotTag.style.cssText = 'position:absolute;display:none;right:12px;'
+            + 'top:calc(10px + env(safe-area-inset-top,0px));'
             + 'padding:5px 12px;border-radius:20px;background:rgba(250,204,21,0.95);color:#1a1f2e;'
             + 'font-size:0.72rem;font-weight:800;letter-spacing:0.3px;white-space:nowrap;'
             + 'box-shadow:0 4px 14px rgba(0,0,0,0.45);';
@@ -1380,7 +1409,8 @@
         var flag = document.createElement('div');
         flag.id = 'tutorial-test-flag';
         flag.textContent = '튜토리얼 시험 모드';
-        flag.style.cssText = 'position:absolute;top:10px;left:12px;padding:4px 10px;'
+        flag.style.cssText = 'position:absolute;left:12px;padding:4px 10px;'
+            + 'top:calc(10px + env(safe-area-inset-top,0px));'
             + 'border-radius:20px;background:rgba(68,138,255,0.18);border:1px solid ' + C_ACCENT
             + ';color:' + C_ACCENT + ';font-size:0.66rem;font-weight:700;letter-spacing:0.5px;';
 
@@ -1503,12 +1533,13 @@
      *
      * [연계] _go() · 화면 크기 변경 · 스크롤에서 호출.
      */
-    function _paint() {
+    function _paint(doFit) {
         if (!_root) return;
         var step = STEPS[_stepIdx];
-        // 그리기 **직전에** 화면 밖으로 넘쳤는지 보고 맞춘다. 더 일찍 맞추면 그 뒤에
-        //   내용이 더 펼쳐져(부이 관측값 등) 다시 어긋난다(실측 2026-09-23).
-        _fitIntoView(_targets(step));
+        // 단계를 새로 그릴 때만 화면 밖으로 넘쳤는지 보고 맞춘다. 더 일찍 맞추면 그 뒤에
+        //   내용이 더 펼쳐져(부이 관측값 등) 다시 어긋나고, 반대로 **매번** 맞추면
+        //   사람이 화면을 움직일 때마다 되돌려 버린다(실측 2026-09-23).
+        if (doFit) _fitIntoView(_targets(step));
         var u = _unionRect(_targets(step));
         var vw = window.innerWidth;
         var vh = window.innerHeight;
@@ -1516,7 +1547,9 @@
         // [아래 한계] 예전에는 하단 메인탭 바를 가리지 않게 그 위에서 멈췄는데, 그만큼
         //   설명 카드가 위로 올라와 팝업(기상예보표·윈디) 아래쪽을 가렸다(사용자 지적
         //   2026-09-23). 튜토리얼 중에는 어차피 화면을 못 누르므로 탭 바를 덮어도 된다.
-        var bottomLimit = vh - EDGE;
+        //   다만 휴대폰의 상태표시줄·제스처 바가 차지하는 만큼은 비워 둔다.
+        var topLimit    = EDGE + _insets.top;
+        var bottomLimit = vh - EDGE - _insets.bottom;
 
         var cardW = Math.min(CARD_MAX, vw - EDGE * 2);
         _card.style.width = cardW + 'px';
@@ -1534,7 +1567,7 @@
             var cardH = _card.offsetHeight;
             _card.style.top = Math.round(bottomLimit - cardH) + 'px';
 
-            var shotTop = EDGE + 26;                       // 위쪽 "시험 모드" 딱지를 피한다
+            var shotTop = topLimit + 26;                   // 위쪽 "시험 모드" 딱지를 피한다
             var shotH = (bottomLimit - cardH - GAP) - shotTop;
             _shot.style.display = shotH > 120 ? 'block' : 'none';
             _root.querySelector('#tutorial-shot-tag').style.display = _shot.style.display;
@@ -1590,7 +1623,7 @@
         //   카드가 들어갈 자리가 없어질 수 있다. 위아래 어느 쪽에도 CARD_MIN 만큼
         //   남지 않으면, 구멍의 아래쪽을 그만큼 잘라 카드 자리를 만든다
         //   (내용의 윗부분은 그대로 밝게 보이므로 "무엇이 열렸는지"는 전달된다).
-        var above = (hy - GAP) - EDGE;
+        var above = (hy - GAP) - topLimit;
         if (bottomLimit - (hy + hh + GAP) < CARD_MIN && above < CARD_MIN) {
             hh = Math.max(40, bottomLimit - CARD_MIN - GAP - hy);
         }
@@ -1606,17 +1639,44 @@
         _card.style.maxHeight = Math.max(CARD_MIN, Math.round(useBelow ? below : above)) + 'px';
         var ch = _card.offsetHeight;
         _card.style.top = Math.round(useBelow ? (hy + hh + GAP)
-                                              : Math.max(EDGE, hy - GAP - ch)) + 'px';
+                                              : Math.max(topLimit, hy - GAP - ch)) + 'px';
     }
 
     /**
      * 스크롤·화면 크기 변경 때 자리를 다시 잡는다(화면 갱신 한 번에 한 번만).
      * [연계] _open() 에서 window 에 붙이고 _close() 에서 뗀다.
      */
+    /**
+     * 밝게 비출 대상이 **움직였는지** 매 프레임 지켜보다가, 움직였으면 다시 그린다.
+     *
+     * 왜 필요한가?
+     *   구멍을 그린 뒤에도 화면이 움직이는 일이 있다 — 값이 늦게 도착해 칸이 커지거나,
+     *   사람이 화면을 밀거나, 앱이 스스로 스크롤을 되돌리는 경우다. 그러면 밝은 자리가
+     *   엉뚱한 곳에 남는다(사용자 지적 2026-09-23: 부이 관측값이 밝은 자리 밖으로 밀려남).
+     *   scroll 이벤트만으로는 놓치는 경우가 있어, 자리 자체를 지켜본다.
+     *
+     * [연계] _open 에서 시작하고 _close 에서 멈춘다.
+     */
+    function _track() {
+        if (!_root) { _trackId = 0; return; }
+        var step = STEPS[_stepIdx];
+        var u = _unionRect(_targets(step));
+        var key = u ? [Math.round(u.top), Math.round(u.left),
+                       Math.round(u.right), Math.round(u.bottom)].join(',') : 'none';
+        if (key !== _trackKey) { _trackKey = key; _paint(false); }
+        _trackId = requestAnimationFrame(_track);
+    }
+
+    function _onResize() {
+        // 화면을 돌리면 상태표시줄 쪽 여백이 달라진다
+        _insets = _measureInsets();
+        _queuePaint();
+    }
+
     function _queuePaint() {
         if (_repaintQueued || !_root) return;
         _repaintQueued = true;
-        requestAnimationFrame(function () { _repaintQueued = false; _paint(); });
+        requestAnimationFrame(function () { _repaintQueued = false; _paint(false); });
     }
 
     // ========================================================================
@@ -1714,7 +1774,7 @@
             // 아코디언 여닫는 애니메이션(0.4초)과 스크롤이 멈춘 뒤에 자리를 잡는다.
             //   멎은 뒤 한 번 더 "화면 밖으로 넘쳤는지"를 보고 맞춘다 — 그 전에 맞추면
             //   아직 펼쳐지는 중이라 계산이 어긋난다(실측).
-            _whenStable(function () { return _targets(step); }, _paint);
+            _whenStable(function () { return _targets(step); }, function () { _paint(true); });
         });
     }
 
@@ -1793,10 +1853,13 @@
             window.switchMainTab('weather-alert-section');
         }
 
+        _insets = _measureInsets();
         _root = _build();
         document.body.appendChild(_root);
-        window.addEventListener('resize', _queuePaint);
+        window.addEventListener('resize', _onResize);
         window.addEventListener('scroll', _queuePaint, true);
+        _trackKey = '';
+        _trackId = requestAnimationFrame(_track);
 
         // 특보정보 화면이 실제로 보이게 된 뒤에 1단계를 그린다(시간으로 기다리지 않는다)
         _when(function () {
@@ -1814,8 +1877,9 @@
      */
     function _close() {
         if (!_root) return;
-        window.removeEventListener('resize', _queuePaint);
+        window.removeEventListener('resize', _onResize);
         window.removeEventListener('scroll', _queuePaint, true);
+        if (_trackId) { cancelAnimationFrame(_trackId); _trackId = 0; }
         _root.remove();
         _root = null;
         _hole = null;
