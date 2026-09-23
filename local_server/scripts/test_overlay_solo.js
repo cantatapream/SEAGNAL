@@ -44,6 +44,7 @@
 const BASE = process.env.SIM_URL || 'http://localhost:3001';
 const DELAY = Number(process.env.DELAY || 2500);   // 자료 응답을 늦추는 시간
 const GAP = Number(process.env.GAP || 400);        // A 누르고 B 누르기까지
+const DRAW_MAX = Number(process.env.DRAW_MAX || 45000);  // 회복 뒤 다시 그려질 때까지의 **상한**(2-23)
 // ★고정 대기가 아니라 **모양이 멎을 때까지**의 상한이다 (2026-09-22, 2-22).
 //   [무엇이 문제였나] 종전에는 이만큼 그냥 기다리고 찍었다. 러너가 바쁘면 그 안에 자료가
 //     못 와서 `레이어=[]` 로 찍혔다 — **버튼·화면은 맞는데 레이어만 빈** 실패다.
@@ -278,13 +279,36 @@ async function checkRecoversAfterNetworkDrop(browser) {
             if (await p.evaluate(`document.getElementById('${c.id}').classList.contains('active')`)) {
                 await p.click('#' + c.id); await p.waitForTimeout(1500);
             }
+            // ★고정 10초가 아니라 **그려질 때까지** 기다린다 (2026-09-23, 2-23).
+            //   [무엇이 문제였나] CI run #90 에서 `위험지형` 만 `그려진 도형 0개` 로 떨어졌다.
+            //     같은 함수의 `사고정보`(7.1MB, 더 크다)는 통과했다. 위험지형은 갯바위
+            //     4.7MB 를 **회복 직후 다시** 받아 오는데, 바쁜 러너에서는 그게 10초를
+            //     넘긴다. 그러면 제품이 멀쩡해도 0 개로 찍힌다 — 2-22 와 **같은 모양**의
+            //     「고정 대기」 결함이다(같은 파일에서 그걸 고쳐 놓고 옆 함수를 놓쳤다).
+            //   [왜 시험이 약해지지 않나] 이 시험이 잡으려는 결함은 **실패한 약속을 기억해
+            //     버려 받으러 가지도 않는 것**이다. 그 상태에서는 아무리 기다려도 0 이라,
+            //     상한까지 다 기다린 뒤 여전히 0 이면 그대로 실패한다. A/B 판별력은 그대로다.
+            //   [왜 미결 요청도 같이 보나] 0 인 채 끝났을 때 「아직 받는 중이었나(= 더
+            //     기다렸어야 했나)」와 「받으러 가지도 않았나(= 진짜 결함)」를 가른다.
+            let inFlight = 0;
+            p.on('request', () => { inFlight++; });
+            p.on('requestfinished', () => { inFlight--; });
+            p.on('requestfailed', () => { inFlight--; });
             await p.click('#' + c.id);
-            await p.waitForTimeout(10000);
-            const after = await p.evaluate(COUNT);
+            const t0 = Date.now();
+            let after = 0;
+            while (Date.now() - t0 < DRAW_MAX) {
+                await p.waitForTimeout(500);
+                after = await p.evaluate(COUNT);
+                if (after > 0) break;
+            }
+            const waited = Date.now() - t0;
             ok(`${c.name} — 통신이 끊긴 채 누르면 아무것도 안 그려진다(시험 전제)`, failed === 0,
                 `        그려진 도형 ${failed}개 — 끊기가 안 걸려 이 검사는 의미가 없다`);
             ok(`${c.name} — 신호가 돌아온 뒤 다시 누르면 정상 표출된다`, after > 0,
-                `        그려진 도형 ${after}개 — 실패를 기억해 버려 계속 먹통이다`);
+                `        그려진 도형 ${after}개 — 실패를 기억해 버려 계속 먹통이다\n` +
+                `        ${waited}ms 기다렸고 그때 미결 요청 ${inFlight}개 ` +
+                `(미결>0 이면 아직 받는 중 = 상한 ${DRAW_MAX}ms 를 늘려야 한다, 0 이면 받으러 가지도 않은 것 = 제품 결함)`);
         } finally { await ctx.close(); }
     }
 }

@@ -14,7 +14,14 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { chromium } = require('playwright-core');
+// ★playwright 는 **돌릴 때만** 불러온다 (2026-09-23, G-47).
+//   이 파일은 이제 규칙(`classify5xx`)을 내보내고 시험이 그걸 `require` 한다(L-136).
+//   꼭대기에서 불러오면 **브라우저 묶음이 없는 곳에서 시험이 통째로 못 돌아간다.**
+let chromium = null;
+function loadChromium() {
+    if (!chromium) ({ chromium } = require('playwright-core'));
+    return chromium;
+}
 
 const URL_BASE = process.env.SIM_URL || 'http://localhost:3001';
 const SNAP = path.join(__dirname, 'baseline', 'simulate_baseline.json');
@@ -49,7 +56,7 @@ const LIFE_SUBTABS = ['fishing-section', 'surfing-section', 'swimming-section',
 function resolveChromium() {
     const cand = [];
     if (process.env.SIM_CHROMIUM) cand.push(process.env.SIM_CHROMIUM);
-    try { cand.push(chromium.executablePath()); } catch (_) { /* 판을 모르면 건너뛴다 */ }
+    try { cand.push(loadChromium().executablePath()); } catch (_) { /* 판을 모르면 건너뛴다 */ }
     if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
         cand.push(path.join(process.env.PLAYWRIGHT_BROWSERS_PATH, 'chromium'));
     }
@@ -59,10 +66,39 @@ function resolveChromium() {
     return undefined;
 }
 
-(async () => {
+// ★「바깥이 안 잡힐」을 **본문이 스스로 말한** 5xx 는 환경이다 (2026-09-23, G-47).
+//   [왜 이 규칙인가] 이 세션에서 khoa-wms 500 을 **세 번** 넘겨짚었고 세 번 다 틀렸다.
+//     그래서 프록시가 `proxy error: <까닭> (<errno>)` 를 본문에 담게 만들었고(G-42),
+//     그 다음 호출에서 바로 `ENOTFOUND` 를 말해 줬다. 이제 **추측 없이 가를 수 있다.**
+//   [무엇만 봐주나] 우리 라우트가 **바깥으로 나가다 막혔다**고 적은 것만 — 그리고
+//     `TypeError`·`undefined` 같은 **우리 코드의 터짐**은 본문에 errno 가 안 적힐니 그대로 실패다.
+//   ⚠그리고 **숨기지 않는다** — ⏭️ 목록에 주소와 본문을 그대로 옮긴다(G-34·G-46 과 같은 마디).
+const OUTWARD_ERRNO = /\b(ENOTFOUND|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|EPIPE|EHOSTUNREACH|ENETUNREACH|UND_ERR_[A-Z_]+|TimeoutError|AbortError)\b/;
+const isOutwardProxyFail = (entry) => /proxy error:/i.test(entry) && OUTWARD_ERRNO.test(entry);
+
+/**
+ * 그 주행에서 난 5xx 를 **환경 / 진짜** 로 가른다 (G-47).
+ *
+ * ⚠**하나라도 바깥길 끊김이 아닌 5xx 가 있으면 아무것도 봐주지 않는다.**
+ *   콘솔 문구(`status of 500 (…)`)는 주소를 안 담아서, 그 줄이 **진짜 쪽 때문일 수도** 있다.
+ *   404 쪽에 걸어 둔 잠금(`envMiss.length && !real404.length`)과 같은 마디다.
+ * @param {string[]} entries `<상태여드> <주소>\n          ↳ <본문 머리>` 꼴 (중복 제거된 것)
+ * @returns {{env5xx: string[], real5xx: string[], exemptRes: RegExp[]}}
+ */
+function classify5xx(entries) {
+    const uniq = [...new Set(entries || [])];
+    const env5xx = uniq.filter(isOutwardProxyFail);
+    const real5xx = uniq.filter((e) => !isOutwardProxyFail(e));
+    const exemptRes = (env5xx.length && !real5xx.length)
+        ? [...new Set(env5xx.map((e) => e.slice(0, 3)))].map((code) => new RegExp('status of ' + code + ' \\(', 'i'))
+        : [];
+    return { env5xx, real5xx, exemptRes };
+}
+
+if (require.main === module) (async () => {
     const exePath = resolveChromium();
     console.log(`[simulate] 크로미움: ${exePath || '(playwright 기본 해석에 맡김)'}`);
-    const browser = await chromium.launch({ ...(exePath ? { executablePath: exePath } : {}), headless: true });
+    const browser = await loadChromium().launch({ ...(exePath ? { executablePath: exePath } : {}), headless: true });
     const page = await browser.newPage({ viewport: { width: 412, height: 915 } }); // 모바일 비율
 
     const consoleErrors = [];
@@ -305,6 +341,11 @@ function resolveChromium() {
     const envErrRe = [];
     if (envMiss.length && !real404.length) envErrRe.push(/status of 404 \(Not Found\)/i);
     if (behindProxy) envErrRe.push(/ERR_CERT_AUTHORITY_INVALID/i);
+    //   ⓒ `status of 5xx` — 그 주행에서 난 5xx 가 **전부** 우리 프로시의 바깥길 끊김일 때만(G-47).
+    //      하나라도 그 꼴이 아니면 이 줄이 **그것 때문일 수도** 있으니 빼지 않는다(ⓐ 와 같은 잠금).
+    const uniq5xx = [...new Set(server5xx)];
+    const { env5xx, real5xx, exemptRes } = classify5xx(uniq5xx);
+    exemptRes.forEach((r) => envErrRe.push(r));
     const envErrors = newErrors.filter((e) => envErrRe.some((r) => r.test(e)));
     const realErrors = newErrors.filter((e) => !envErrRe.some((r) => r.test(e)));
 
@@ -313,13 +354,19 @@ function resolveChromium() {
     if (envErrors.length) {
         console.log(`  ⏭️  환경 탓인 콘솔 에러 ${envErrors.length}건 — 회귀로 세지 않는다`);
         envErrors.forEach((e) => console.log('    - ' + e));
+        // 봐준 쪽이야말로 근거가 있어야 한다(G-34) — 어느 주소가 뭐라고 말했는지 그대로 옮긴다.
+        if (env5xx.length && !real5xx.length) {
+            console.log(`      ↳ 그중 5xx ${env5xx.length}건은 **우리 프록시가 바깥으로 못 나간 것**이라고 적었다(G-47):`);
+            env5xx.forEach((e) => console.log('      ' + e));
+        }
     }
     if (realErrors.length) {
         fail = true; console.error('  ❌ 신규 콘솔 에러:'); realErrors.slice(0, 10).forEach((e) => console.error('    - ' + e));
         // 콘솔 문구만으로는 어느 주소인지 모른다 — 우리가 따로 적어 둔 5xx 목록을 함께 준다.
         if (server5xx.length) {
             console.error('  ↳ 이번 주행에서 5xx 를 낸 주소:');
-            [...new Set(server5xx)].forEach((e) => console.error('      ' + e));
+            uniq5xx.forEach((e) => console.error('      ' + e +
+                (isOutwardProxyFail(e) ? '\n          ↳ (바깥길 끊김 꼴이다 — 다만 같은 주행에 그렇지 않은 5xx 가 있어 봐주지 않는다)' : '')));
         }
     }
     if (envMiss.length) {
@@ -339,3 +386,7 @@ function resolveChromium() {
     if (fail) process.exit(1);
     console.log('[simulate] ✅ 통과 — 기준선 대비 회귀 없음');
 })().catch((e) => { console.error('[simulate] 실행 실패:', e); process.exit(2); });
+
+// ★불러서 쓰는 것과 돌리는 것을 가른다 — 시험이 **이 파일의 규칙 그자체**를 부를 수 있게(L-136).
+//   시험이 같은 규칙을 다시 적으면 둘이 갈라져도 아무도 모른다(⑥).
+module.exports = { OUTWARD_ERRNO, isOutwardProxyFail, classify5xx };
