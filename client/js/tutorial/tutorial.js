@@ -85,6 +85,17 @@
     //   날짜·수치가 그대로 들어 있어 지금 상황으로 오해하지 않도록 "예시 화면" 딱지를 겹쳐 붙인다.
     var EXAMPLE_IMG = 'assets/tutorial/alert_example.jpg';
 
+    // 그림 안에서 설명할 부분들 — 그림 크기에 대한 비율(0~1)이라 그림이 커지거나
+    //   작아져도 그대로 맞는다. 값은 그림 위에 실제로 그려 보고 맞췄다.
+    var IMG_RECT = {
+        card:   { x: 0.100, y: 0.262, w: 0.832, h: 0.558 },  // 구역 카드 전체
+        avg:    { x: 0.188, y: 0.350, w: 0.680, h: 0.042 },  // 시정·유의파고·풍속
+        times:  { x: 0.188, y: 0.398, w: 0.680, h: 0.082 },  // 발표·발효·해제
+        coast:  { x: 0.160, y: 0.498, w: 0.708, h: 0.132 },  // 연안바다·평수구역
+        buoy:   { x: 0.170, y: 0.646, w: 0.698, h: 0.090 },  // 관측부이
+        btns:   { x: 0.170, y: 0.743, w: 0.698, h: 0.052 }   // 기상예보·해구기상·윈디·종합정보
+    };
+
     // 아코디언 = [본문 id, 여는/닫는 함수 이름]
     var ACC_FORECAST = ['marine-forecast-accordion-body', 'toggleMarineForecastAccordion'];
     var ACC_ALERT    = ['main-accordion-body',            'toggleMainAccordion'];
@@ -660,6 +671,8 @@
     //            앞/뒤 어느 쪽에서 오든 이 모양으로 맞추므로 [이전] 이 저절로 동작한다
     //   drill  : 특보현황 안쪽을 어디까지 펼쳐 둘지 ('sea' | 'sub')
     //   image  : 가리킬 화면이 없을 때 대신 띄울 그림(특보가 하나도 없는 날)
+    //   imageRect : 그 그림 안에서 지금 설명하는 부분(비율 0~1). 그 자리로 밀어 보여주고
+    //               테두리를 둘러 준다. 없으면 그림 맨 위부터 보여준다
     //   skip   : 오늘 화면에 없는 단계인지 (특보가 없거나 소분류가 없는 바다) — 참이면 지나간다
     // ========================================================================
     var STEPS = [
@@ -701,10 +714,56 @@
         {
             title: '특보가 내려지면 이렇게 보입니다',
             body: '오늘은 특보가 내려진 해역이 없어 보여드릴 화면이 없습니다. '
-                + '특보가 있으면 아래 그림처럼 해역 이름과 특보 종류, 파도 높이와 바람 세기, '
-                + '발표·발효·해제 시각까지 한 장에 나옵니다.',
+                + '특보가 있으면 아래 그림처럼 해역마다 카드가 하나씩 생깁니다. '
+                + '맨 위에 해역 이름과 특보 종류가 나옵니다.',
             image: EXAMPLE_IMG,
+            imageRect: IMG_RECT.card,
             // 특보가 있는 날에는 진짜 화면을 보여주므로 이 단계는 건너뛴다
+            skip: function () { return !!_firstSeaWithAlerts(); },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '파도 높이와 바람 세기',
+            body: '그 해역의 시정(얼마나 멀리 보이나) · 유의파고(파도 높이) · 풍속(바람 세기)입니다. '
+                + '배를 띄울지 말지 판단할 때 가장 먼저 보게 되는 숫자입니다.',
+            image: EXAMPLE_IMG,
+            imageRect: IMG_RECT.avg,
+            skip: function () { return !!_firstSeaWithAlerts(); },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '언제 발표되고 언제 풀리나',
+            body: '발표시각은 기상청이 알린 때, 발효시각은 실제로 효력이 시작되는 때, '
+                + '해제예정은 풀릴 것으로 보는 때입니다.',
+            image: EXAMPLE_IMG,
+            imageRect: IMG_RECT.times,
+            skip: function () { return !!_firstSeaWithAlerts(); },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '연안바다 · 평수구역',
+            body: '같은 해역 안에서도 육지에 가까운 연안바다와 항내 같은 평수구역은 '
+                + '특보가 따로 내려집니다. 여기에 함께 보여줍니다.',
+            image: EXAMPLE_IMG,
+            imageRect: IMG_RECT.coast,
+            skip: function () { return !!_firstSeaWithAlerts(); },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '관측부이 — 실제로 재고 있는 값',
+            body: '그 해역 근처 바다에 떠 있는 관측부이입니다. 이름을 누르면 예보가 아니라 '
+                + '지금 실제로 재고 있는 파고·수온 같은 값이 그 자리에서 펼쳐집니다.',
+            image: EXAMPLE_IMG,
+            imageRect: IMG_RECT.buoy,
+            skip: function () { return !!_firstSeaWithAlerts(); },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '카드 아래 네 개의 버튼',
+            body: '기상예보는 앞으로의 예보, 해구기상은 바다를 칸으로 나눠 본 기상, '
+                + '윈디는 바람 흐름 그림, 종합정보는 해양종합정보 지도로 데려다 줍니다.',
+            image: EXAMPLE_IMG,
+            imageRect: IMG_RECT.btns,
             skip: function () { return !!_firstSeaWithAlerts(); },
             want: { forecast: false, alert: true, status: false }
         },
@@ -953,20 +1012,32 @@
         shot.style.cssText = 'position:absolute;display:none;border:1px solid ' + C_BORDER
             + ';border-radius:12px;overflow:hidden;background:#0b1020;';
 
+        // 이미지는 가로를 상자에 꽉 맞추고(실제 폰에서 보는 크기와 거의 같아진다),
+        //   세로로 밀어서 설명할 부분이 가운데 오게 한다. 상자 밖은 잘라 낸다.
         var shotImg = document.createElement('img');
         shotImg.id = 'tutorial-shot-img';
         shotImg.alt = '특보가 있을 때의 화면 예시';
-        shotImg.style.cssText = 'display:block;width:100%;height:100%;object-fit:contain;';
+        shotImg.style.cssText = 'position:absolute;left:0;display:block;width:100%;height:auto;';
 
+        // 그림 안에서 지금 설명하는 부분을 두르는 테두리(구멍과 같은 깜빡임)
+        var shotBox = document.createElement('div');
+        shotBox.id = 'tutorial-shot-box';
+        shotBox.style.cssText = 'position:absolute;display:none;border:2px solid ' + C_ACCENT
+            + ';border-radius:6px;box-shadow:0 0 0 9999px rgba(6,11,24,0.55);'
+            + 'animation:tutorialRingBlink 1.3s ease-in-out infinite;pointer-events:none;';
+
+        // [딱지는 그림 밖에] 그림 위에 얹으면 하필 설명 중인 값(유의파고 등)을 가린다.
+        //   화면 오른쪽 위, "튜토리얼 시험 모드" 와 같은 줄에 둔다(실측으로 확인 2026-09-23).
         var shotTag = document.createElement('div');
+        shotTag.id = 'tutorial-shot-tag';
         shotTag.textContent = '예시 화면입니다';
-        shotTag.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);'
-            + 'padding:6px 14px;border-radius:20px;background:rgba(250,204,21,0.92);color:#1a1f2e;'
-            + 'font-size:0.78rem;font-weight:800;letter-spacing:0.3px;white-space:nowrap;'
+        shotTag.style.cssText = 'position:absolute;display:none;top:10px;right:12px;'
+            + 'padding:5px 12px;border-radius:20px;background:rgba(250,204,21,0.95);color:#1a1f2e;'
+            + 'font-size:0.72rem;font-weight:800;letter-spacing:0.3px;white-space:nowrap;'
             + 'box-shadow:0 4px 14px rgba(0,0,0,0.45);';
 
         shot.appendChild(shotImg);
-        shot.appendChild(shotTag);
+        shot.appendChild(shotBox);
 
         // 시험 모드 표시 — 정식 공개 때 지운다
         var flag = document.createElement('div');
@@ -1040,6 +1111,7 @@
 
         root.appendChild(hole);
         root.appendChild(shot);
+        root.appendChild(shotTag);
         root.appendChild(flag);
         root.appendChild(card);
 
@@ -1125,13 +1197,37 @@
             var shotTop = EDGE + 26;                       // 위쪽 "시험 모드" 딱지를 피한다
             var shotH = (bottomLimit - cardH - GAP) - shotTop;
             _shot.style.display = shotH > 120 ? 'block' : 'none';
+            _root.querySelector('#tutorial-shot-tag').style.display = _shot.style.display;
             _shot.style.left = Math.round((vw - cardW) / 2) + 'px';
             _shot.style.width = cardW + 'px';
             _shot.style.top = shotTop + 'px';
             _shot.style.height = Math.round(shotH) + 'px';
+
+            // [세로 이동] 그림을 가로에 맞추면 세로로는 상자보다 길다. 설명할 부분이
+            //   상자 가운데 오도록 밀어 준다. 부분이 없으면 맨 위부터 보여준다.
+            var natW = img.naturalWidth || 720;
+            var natH = img.naturalHeight || 1470;
+            var drawH = cardW * (natH / natW);             // 가로를 맞췄을 때의 세로 길이
+            var r = step.imageRect;
+            var panY = 0;
+            if (r) panY = (r.y + r.h / 2) * drawH - shotH / 2;
+            panY = Math.max(0, Math.min(panY, Math.max(0, drawH - shotH)));
+            img.style.top = Math.round(-panY) + 'px';
+
+            var box = _root.querySelector('#tutorial-shot-box');
+            if (r) {
+                box.style.display = 'block';
+                box.style.left   = Math.round(r.x * cardW) + 'px';
+                box.style.width  = Math.round(r.w * cardW) + 'px';
+                box.style.top    = Math.round(r.y * drawH - panY) + 'px';
+                box.style.height = Math.round(r.h * drawH) + 'px';
+            } else {
+                box.style.display = 'none';
+            }
             return;
         }
         _shot.style.display = 'none';
+        _root.querySelector('#tutorial-shot-tag').style.display = 'none';
 
         if (!u) {
             // 가리킬 것이 없는 단계 — 화면 전체를 어둡게 하고 카드는 아래쪽에 둔다
