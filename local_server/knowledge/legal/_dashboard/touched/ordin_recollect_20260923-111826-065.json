@@ -1,0 +1,27 @@
+{
+ "script": "ordin_recollect",
+ "stamp": "20260923-111826-065",
+ "files": [
+  "local_server/knowledge/legal/raw/_자치법규/강원특별자치도/강원특별자치도각종위원회구성및운영등에관한조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/경기도/경기도각종위원회설치및운영조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/경상북도/경상북도각종위원회구성및운영조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/경상북도/경상북도문화유산의보존및활용에관한조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/경상북도/경상북도문화유산의보존및활용에관한조례.txt",
+  "local_server/knowledge/legal/raw/_자치법규/경상북도/경상북도자연유산의보존및활용에관한조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/경상북도/경상북도자연유산의보존및활용에관한조례.txt",
+  "local_server/knowledge/legal/raw/_자치법규/경상북도/울릉군제증명수수료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/울산광역시/울산광역시각종위원회구성및운영조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/인천광역시/인천광역시각종위원회의설치·운영에관한조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/전북특별자치도/전북특별자치도각종위원회구성및운영에관한조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/전북특별자치도/진안군유선및도선의안전검사수수료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/제주특별자치도/제주특별자치도각종위원회설치및운영조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/제주특별자치도/제주특별자치도사무전결처리규칙/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/충청남도/당진시유선및도선의안전검사수수료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/충청남도/충청남도각종위원회설치및운영조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/충청북도/괴산군유선및도선의안전검사수수료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/충청북도/보은군유선및도선의안전검사수수료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/충청북도/음성군유선및도선의안전검사수수료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/충청북도/진천군유선및도선의안전검사수수료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/충청북도/충주시유선및도선의안전검사수수료징수조례/법률.txt"
+ ]
+}

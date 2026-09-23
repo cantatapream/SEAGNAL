@@ -1,0 +1,7 @@
+{
+ "script": "ordin_recollect_paths",
+ "stamp": "20260923-111826-066",
+ "files": [
+  "local_server/knowledge/legal/_dashboard/law_raw_paths.json"
+ ]
+}
