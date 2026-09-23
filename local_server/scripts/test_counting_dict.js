@@ -152,5 +152,17 @@ console.log('\n── ⑧ 「위키가 안 꺼낸 별표」 — 자를 늘리지
     Object.values(C.ANNEX_RULERS).every((r) => r.물음 && r.도구));
 }
 
+// ── 라운드 번호 — 뜻이 넷인데 표기가 하나다 (2026-09-23, G-23) ──────────────
+ok('라운드 표기의 뜻 넷에 이름이 붙어 있다', Object.keys(C.ROUND_SENSES).length === 4,
+    `        ${JSON.stringify(Object.keys(C.ROUND_SENSES || {}))}`);
+ok('「항목번호」와 「산문」이 **라운드가 아님**을 사전이 밝힌다',
+    /라운드가 아니다/.test(C.ROUND_SENSES.항목번호.뜻) && /라운드가 아니다/.test(C.ROUND_SENSES.산문.뜻));
+// ★ANNEX_RULERS 와 같은 판단 — **자를 만들지 않는 것**이 답이다.
+//   2026-09-23 에 견주는 자를 만들어 봤더니 74법 중 50법이 "다르다"고 나왔는데,
+//   큰 차이는 전부 산문(566라운드)과 항목번호(#289R)였다. 그 자가 곧 허수를 낳는다.
+ok('★라운드를 견주는 함수를 두지 않는다 (만들면 허수가 나온다)',
+    typeof C.compareRounds === 'undefined' && typeof C.countRounds === 'undefined',
+    '        견주는 함수가 생겼다면, 그것이 무엇을 견주는지부터 사전에 적어야 한다.');
+
 console.log(`\n  ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
