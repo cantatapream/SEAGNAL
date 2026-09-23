@@ -201,7 +201,7 @@ const CATCH_LOG_RE = /console|logger|\blog\b|report|captureException|warn|error|
  *  부풀린 수가 나오고, 정작 **정말 아무 일도 안 일어나는 자리**가 그 안에 묻힌다.
  *  그래서 **세지는 않고, 자리를 낼 때 「겉으로 무엇이 보이나」를 같이 적는다.** */
 //  서버 쪽에서 「보인다」는 **부른 쪽이 안다**는 뜻이다 — 오류 응답을 돌려주면 안다.
-const CATCH_SHOW_RE = /alert|confirm|innerHTML|textContent|innerText|toast|Swal|showModal|setError|notice|\bres\.(status|json|send|end|write)\b|\bnext\(|\bmessage\s*=\s*['"`]/i;
+const CATCH_SHOW_RE = /alert|confirm|innerHTML|textContent|innerText|toast|Swal|showModal|setError|notice|\b_?show[A-Z]\w*|\bres\.(status|json|send|end|write)\b|\bnext\(|\bmessage\s*=\s*['"`]/i;
 
 /** ★세 번째 길 — 이 저장소는 로그도 화면도 아닌 **진단줄**에 남긴다.
  *  `if (diag) diag.push('expand')` 는 "조용히 넘어가지 않겠다"고 2026-08-20 에

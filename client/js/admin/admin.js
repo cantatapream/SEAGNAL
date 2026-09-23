@@ -342,6 +342,9 @@ window._checkAdminDeviceStatus = async function () {
             unregisterBtn.disabled = true;
         }
     } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 단추가 **직전 상태 그대로** 남는다 —
+        //   「등록됨/해제됨」 표시가 **실제와 다를 수 있다.**
+        console.warn('[관리자] 기기 등록 상태 조회 실패 — 단추 표시가 실제와 다를 수 있다:', e && e.message);
         // 네트워크 오류 시 기본 상태 유지
     }
 };
@@ -488,7 +491,11 @@ window.showCollectFailureAlert = async function () {
                 </div>
             </div>`;
         document.body.appendChild(popup);
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **수집 실패 목록 창이 아예 안 뜬다** —
+        //   「실패한 것이 없다」와 겉으로 똑같다.
+        console.warn('[관리자] 수집 실패 목록 창을 못 띄웠다 — 「실패 없음」과 구분이 안 된다:', e && e.message);
+    }
 };
 
 // 실패 기록 삭제 + 검토 항목 전체 확인완료 및 팝업 닫기
@@ -501,7 +508,11 @@ window.clearCollectFailures = async function () {
         ]);
         const popup = document.getElementById('collect-failure-popup');
         if (popup) popup.remove();
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **창은 닫히는데 서버에는 안 지워졌을 수 있다** —
+        //   운영자는 지운 줄 알고, 다음에 그대로 다시 뜬다.
+        console.warn('[관리자] 수집 실패 기록 비우기 실패 — 창만 닫히고 서버엔 남는다:', e && e.message);
+    }
 };
 
 // 2. 통합 관리자 모달 메인
@@ -2147,7 +2158,11 @@ window.acknowledgeReviewItem = async function (reportId) {
         // UI 새로고침
         const inner = document.getElementById('alert-top-content');
         if (inner) renderErrorListTab(inner);
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **목록만 다시 그려지고 처리는 안 됐다** —
+        //   운영자는 처리된 줄 알지만 다음에 그대로 다시 뜬다.
+        console.warn('[관리자] 처리 요청 실패 — 목록만 다시 그렸다(실제로는 안 지워졌다):', e && e.message);
+    }
 };
 
 // [검토 필요] 전체 확인완료 처리
@@ -2156,7 +2171,11 @@ window.acknowledgeAllReviews = async function () {
         await fetch('/api/admin/review-needed/acknowledge-all', { method: 'POST' });
         const inner = document.getElementById('alert-top-content');
         if (inner) renderErrorListTab(inner);
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **목록만 다시 그려지고 처리는 안 됐다** —
+        //   운영자는 처리된 줄 알지만 다음에 그대로 다시 뜬다.
+        console.warn('[관리자] 처리 요청 실패 — 목록만 다시 그렸다(실제로는 안 지워졌다):', e && e.message);
+    }
 };
 
 // 개별 실패 기록 삭제
@@ -2177,7 +2196,11 @@ window.deleteOneCollectFailure = async function (reportId) {
         }
         const inner = document.getElementById('alert-top-content');
         if (inner) renderErrorListTab(inner);
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **목록만 다시 그려지고 처리는 안 됐다** —
+        //   운영자는 처리된 줄 알지만 다음에 그대로 다시 뜬다.
+        console.warn('[관리자] 처리 요청 실패 — 목록만 다시 그렸다(실제로는 안 지워졌다):', e && e.message);
+    }
 };
 
 // 전체 실패 기록 삭제 및 새로고침
@@ -2186,7 +2209,11 @@ window.clearAllCollectFailuresAndRefresh = async function () {
         await fetch('/api/admin/collect-failures', { method: 'DELETE' });
         const inner = document.getElementById('alert-top-content');
         if (inner) renderErrorListTab(inner);
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **목록만 다시 그려지고 처리는 안 됐다** —
+        //   운영자는 처리된 줄 알지만 다음에 그대로 다시 뜬다.
+        console.warn('[관리자] 처리 요청 실패 — 목록만 다시 그렸다(실제로는 안 지워졌다):', e && e.message);
+    }
 };
 
 // --- 서브탭 2: 수동 입력 (아코디언 + CRUD + 푸시알림) ---
@@ -4560,7 +4587,11 @@ async function renderMaintenanceFullTab(container) {
     try {
         const res = await fetch('/api/admin/maintenance');
         if (res.ok) config = await res.json();
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 지금 상태를 못 읽었는데 **기본값(꺼짐)으로 그린다** —
+        //   실제로 켜져 있어도 화면엔 꺼진 것처럼 보이고, 그 상태로 누르면 **엉뚱한 쪽으로 바뀐다.**
+        console.warn('[관리자] 점검 모드 상태 조회 실패 — 기본값(꺼짐)으로 그린다. 누르기 전에 새로고침할 것:', e && e.message);
+    }
 
     const statusColor = config.active ? '#ef4444' : '#22c55e';
     const statusText = config.active ? '점검 중' : '정상 운영';
@@ -4908,7 +4939,11 @@ async function renderMaintenanceWorkTab(container) {
     try {
         const res = await fetch('/api/admin/work-mode');
         if (res.ok) config = await res.json();
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 지금 상태를 못 읽었는데 **기본값(꺼짐)으로 그린다** —
+        //   실제로 켜져 있어도 화면엔 꺼진 것처럼 보이고, 그 상태로 누르면 **엉뚱한 쪽으로 바뀐다.**
+        console.warn('[관리자] 작업 모드 상태 조회 실패 — 기본값(꺼짐)으로 그린다. 누르기 전에 새로고침할 것:', e && e.message);
+    }
 
     const statusColor = config.active ? '#f59e0b' : '#22c55e';
     const statusText = config.active ? '작업 중' : '미활성';
@@ -4995,7 +5030,11 @@ window.toggleWorkMode = async function () {
     try {
         const res = await fetch('/api/admin/work-mode');
         if (res.ok) config = await res.json();
-    } catch (e) { /* */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 지금 상태를 못 읽었는데 **기본값(꺼짐)으로 그린다** —
+        //   실제로 켜져 있어도 화면엔 꺼진 것처럼 보이고, 그 상태로 누르면 **엉뚱한 쪽으로 바뀐다.**
+        console.warn('[관리자] 작업 모드 상태 조회 실패 — 기본값(꺼짐)으로 그린다. 누르기 전에 새로고침할 것:', e && e.message);
+    }
 
     const newActive = !config.active;
     const content = document.getElementById('work-mode-content').value.trim();
@@ -5063,7 +5102,10 @@ async function renderUnifiedVersionContent(container) {
     try {
         const res = await fetch('/api/app-version');
         if (res.ok) versionData = await res.json();
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **앱 판번호가 빈 채로** 그려진다 — 「판번호가 없다」와 같아 보인다.
+        console.warn('[관리자] 앱 판번호 조회 실패 — 판번호 없이 그린다:', e && e.message);
+    }
 
     const fieldStyle = 'width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.95rem;box-sizing:border-box;';
     const currentStyle = 'padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#94a3b8;font-size:0.95rem;font-family:monospace;';
@@ -5175,7 +5217,11 @@ window.toggleMaintenanceMode = async function () {
     try {
         const res = await fetch('/api/admin/maintenance');
         if (res.ok) config = await res.json();
-    } catch (e) { /* */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 지금 상태를 못 읽었는데 **기본값(꺼짐)으로 그린다** —
+        //   실제로 켜져 있어도 화면엔 꺼진 것처럼 보이고, 그 상태로 누르면 **엉뚱한 쪽으로 바뀐다.**
+        console.warn('[관리자] 점검 모드 상태 조회 실패 — 기본값(꺼짐)으로 그린다. 누르기 전에 새로고침할 것:', e && e.message);
+    }
 
     const newActive = !config.active;
     const title = document.getElementById('maint-title').value.trim();

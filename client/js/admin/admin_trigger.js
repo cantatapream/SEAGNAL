@@ -217,7 +217,10 @@ async function showAdminNoticeModal() {
                 const old = await res2.json();
                 if (old.isActive) notices.active = [old];
             }
-        } catch (e2) { }
+        } catch (e2) {
+            // ★조용히 넘어가지 않는다 (3-44). 옛 꼴 공지 폴백까지 실패하면 **진행 중 공지가 안 보인다.**
+            console.warn('[관리자] 옛 꼴 공지 조회도 실패 — 진행 중 공지가 안 보일 수 있다:', e2 && e2.message);
+        }
     }
 
     // 시간 드롭다운 옵션 생성
@@ -506,7 +509,11 @@ window.editNotice = async function (id) {
                         const post = await pRes.json();
                         window.selectLinkedPromoLegacy(post.id, post.title);
                     }
-                } catch (pe) { /* 게시글 삭제됨 */ }
+                } catch (pe) {
+                    // ★조용히 넘어가지 않는다 (3-44). 보통은 **연결된 게시글이 지워진 것**이라 정상이다.
+                    //   다만 망 오류일 때도 똑같이 조용해서 까닭을 알 수 없었다.
+                    console.warn('[관리자] 연결 게시글 조회 실패(지워졌거나 망 오류):', pe && pe.message);
+                }
             } else {
                 window.clearLinkedPromoLegacy();
             }
