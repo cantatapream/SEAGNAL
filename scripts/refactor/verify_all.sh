@@ -313,6 +313,12 @@ node local_server/knowledge/legal/_dashboard/loop/review_count_agree_gate.js || 
 echo; echo "── V5-31 조문 머리줄 없는 원문 ──"
 node local_server/knowledge/legal/_dashboard/loop/article_head_missing_gate.js || fail "V5-31 조문 머리줄 없는 원문"
 
+# ── V5-32 **법령 계층 별표**를 짚은 근거 줄이 눌러서 열리나 (2026-09-23 신설, G-9 · 3-42) ──
+# V5-11 은 **고시** 별표만 본다. 법률·시행령·시행규칙 별표는 **아무도 안 보고 있었다**(⑤).
+# 생산과 같은 길로 찾는다(`hasBylBody`·`bylDeclMatches` 를 그대로 부른다, L-136).
+echo; echo "── V5-32 계층 별표 도달성 ──"
+node local_server/knowledge/legal/_dashboard/loop/byl_tier_ready.js || fail "V5-32 계층 별표 도달성"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
