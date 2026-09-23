@@ -52,12 +52,14 @@ def flat(x):
     if isinstance(x,list): return '\n'.join(flat(i) for i in x)
     return str(x)
 
-def extract_layer(body,kind,outdir,links,only=None,overwrite=True):
+def extract_layer(body,kind,outdir,links,only=None,overwrite=True,links_all=False):
     """kind = 법률|시행령|시행규칙. 층별 접두어로 별표 저장. links 딕셔너리에 병합.
 
     ★2026-09-23 (3-46) — **골라 채우기**를 위해 두 개를 더 받는다. 기본값은 예전 그대로다.
       only      : 쓸 파일이름 집합. 주면 **그 안에 있는 것만** 쓴다(빈자리만 메울 때).
       overwrite : False 면 **이미 있는 파일은 건드리지 않는다.**
+      links_all : True 면 **파일을 안 써도 링크는 다 적는다**(3-21 · PDF 링크만 채울 때).
+                  ⚠기본값은 False 라 종전 동작 그대로다 — 쓴 것만 링크에 남는다.
     이렇게 하는 까닭은 **별표를 적는 꼴을 한 곳에만 두기 위해서**다(L-136).
     골라 채우는 도구가 같은 글꼴을 따로 베끼면, 언젠가 둘이 달라진다.
     """
@@ -73,14 +75,24 @@ def extract_layer(body,kind,outdir,links,only=None,overwrite=True):
         title=b.get('별표제목','') or ''
         txt=flat(b.get('별표내용','')); txt=re.sub(r'<[^>]+>',' ',txt); txt=re.sub(r'&[a-z]+;',' ',txt)
         fname=f"{kind}_{typ}{numlabel}.txt"
-        if only is not None and fname not in only: continue
-        if not overwrite and os.path.exists(os.path.join(outdir,fname)): continue
-        with open(os.path.join(outdir,fname),'w',encoding='utf-8') as f:
-            f.write(f"[{kind}] {typ}{numlabel} — {title}\n\n{txt}")
+        skip = (only is not None and fname not in only) or \
+               (not overwrite and os.path.exists(os.path.join(outdir,fname)))
+        if skip and not links_all: continue
+        if not skip:
+            with open(os.path.join(outdir,fname),'w',encoding='utf-8') as f:
+                f.write(f"[{kind}] {typ}{numlabel} — {title}\n\n{txt}")
         hwp=b.get('별표서식파일링크',''); img=b.get('별표서식이미지파일링크','')
+        # ★2026-09-23 (3-21 · P-17) — **PDF 링크를 여태 안 읽고 있었다.**
+        #   등록부는 *"서식 다운로드가 HWP 일변도 — 2,754항목 중 PDF 24개"* 라고 적었는데,
+        #   원인은 **원문 제공처가 PDF 를 안 주는 것이 아니라 우리가 그 칸을 안 읽은 것**이었다.
+        #   응답에는 `별표서식PDF파일링크`·`별표PDF파일명` 이 나란히 들어 있다(실측: 골재채취법 시행령 별표1).
+        #   3-20 의 부칙과 **똑같은 꼴**이다 — "구조적으로 못 얻는 것이 아니라 얻을 수 있는데 안 받은 것".
+        pdf=b.get('별표서식PDF파일링크','')
         links[f"{kind} {typ} {numlabel}"]={"제목":title,
             "HWP":("https://www.law.go.kr"+hwp) if hwp else "",
+            "PDF":("https://www.law.go.kr"+pdf) if pdf else "",
             "이미지":(["https://www.law.go.kr"+x for x in (img if isinstance(img,list) else [img])] if img else [])}
+        if skip: continue          # 링크만 적고 파일은 안 썼다 — 쓴 개수에 안 센다
         n+=1
     return n
 
