@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """고시(행정규칙) 정밀 수집: lsDelegated(위임법령) API로 '그 법이 실제 위임한 고시만' 수집.
    키워드 추측 없음 — 위임 매핑(어느 조→어느 고시)까지 저장해 빌드에 활용."""
 import json,urllib.request,time,os,re,glob
 
 OC='hyoo1431'
-ROOT='/home/user/SEAGNAL/local_server/knowledge/legal/raw'
+ROOT=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../raw')
 
 def api(url):
     for _ in range(3):

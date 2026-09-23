@@ -1,9 +1,10 @@
+const path = require('path');
 export const meta = {
   name: 'wiki-stub-rules-fulltext',
   description: '본문이 첨부파일(HWP/PDF)에만 있어 raw에 "첨부파일을 이용하십시오" 3줄 스텁으로만 남은 안전 핵심 행정규칙(어선구조기준·선박구조기준 등 설비·구조 규칙)을 DRF 첨부 다운로드→전사로 전문 확보. 완료 시 마커.',
   phases: [{ title: '스텁전문화', detail: '규칙당 1에이전트: 첨부 다운로드 + PDF/이미지 전사 + 스텁 교체' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const MARK = `${LEGAL}/_dashboard/fix3`
 
 // 첨부파일 포인터 스텁(3줄) — 실제 내용은 다운로드 필요. 안전 핵심 설비·구조 기준 우선.

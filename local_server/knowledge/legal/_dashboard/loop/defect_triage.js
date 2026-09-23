@@ -30,9 +30,9 @@
  */
 const fs = require('fs');
 const path = require('path');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
-const WIKI = '/home/user/SEAGNAL/local_server/knowledge/legal/wiki';
-const DIR = '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/loop/pinned/';
+const R = require(require('path').resolve(__dirname, '../../../../services/legal_retriever.js'));
+const WIKI = path.resolve(__dirname, '../../wiki');
+const DIR = path.resolve(__dirname, './pinned');
 
 const C = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
 const norm = s => String(s || '').replace(new RegExp('[' + C + ']', 'g'), c => '제' + (C.indexOf(c) + 1) + '항').replace(/\s+/g, '');

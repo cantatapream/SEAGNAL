@@ -1,3 +1,4 @@
+const path = require('path');
 export const meta = {
   name: 'maritime-wiki-lint-hubs',
   description: '교차 연결 정합화(lint 3단계): 테마 허브 생성 + glossary 병합 + 완결성 비평',
@@ -6,7 +7,7 @@ export const meta = {
     { title: '병합·비평', detail: 'glossary 병합 + 완결성 비평' },
   ],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const SCHEMA = `${LEGAL}/_SCHEMA.md`
 
 const THEMES = [

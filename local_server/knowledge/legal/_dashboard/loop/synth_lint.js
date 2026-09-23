@@ -1,3 +1,4 @@
+const path = require('path');
 // synth_lint.js — 통합수정 후 공유허브(신경망)를 단독으로 재봉합한다(H-9 lint). ⚠경합위험이라 반드시 단독.
 // 역할(초보자용): 각 법 통합수정이 "필요하다"고 모아둔 hub_needs(비교허브·정의허브)를 실제로 만들고,
 //   회원 개념 페이지에서 그 허브로 역링크를 걸어 비대칭을 해소한다. graph.json은 별도 파이썬으로 재생성.
@@ -9,7 +10,7 @@ export const meta = {
   description: '통합수정 후 공유 비교허브 신설+역링크(신경망 재봉합, 단독)',
   phases: [{ title: '린트', detail: 'hub_needs로 comparisons 허브 신설·역링크·비대칭 해소' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object', required: ['hubs_created'],

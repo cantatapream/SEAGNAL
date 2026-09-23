@@ -7,6 +7,7 @@
 
 배포 전 기준: 전부 맞음 31/82 = 37.8%
 """
+import os
 import json, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import importlib.util
@@ -14,6 +15,6 @@ spec = importlib.util.spec_from_file_location(
     'runmod', '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/live27/run.py')
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 
-TS = '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/live27/testset_multiref.json'
+TS = os.path.join(os.path.dirname(os.path.abspath(__file__)), './testset_multiref.json')
 qs = json.load(open(TS, encoding='utf-8'))
 m.run(qs, sys.argv[1])

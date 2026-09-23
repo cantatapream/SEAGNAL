@@ -5,13 +5,14 @@
        출력: raw/<법>/행정규칙/<제목>.txt 전체 교체(PyMuPDF/HWPX-XML 직접 파싱, 원문 그대로) + _admrul.json ID 갱신
 [로드 순서] 단독 실행. AI 불필요(순수 추출, LLM 미사용). 재실행 안전(status=done이면 skip).
 """
+import os
 import json, os, re, threading, zipfile, urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import fitz
 
 OC = "hyoo1431"
-LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
+LEGAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 TRIAGE_FILE = f"{LEGAL}/_dashboard/admrul_pdf_triage.json"
 TARGET_LAWS_FILE = f"{LEGAL}/_dashboard/loop/audit9_groups.json"
 LOG_FILE = f"{LEGAL}/_dashboard/admrul_pdf_extract_log.json"

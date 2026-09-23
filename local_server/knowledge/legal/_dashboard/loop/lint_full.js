@@ -1,3 +1,4 @@
+const path = require('path');
 // lint_full.js — 전수 린트: 각 법의 페이지에서 비대칭 역링크·허브 링크·dangling을 자기 법 파일 안에서 완성한다.
 // 역할(초보자용): 신경망을 촘촘하게. 각 에이전트가 "내 법을 인용하는 다른 법"을 찾아 내 페이지에 역링크를 걸고,
 //   내 법이 속한 비교허브로 링크하고, 깨진 [[링크]]를 정리한다. **자기 법 파일만** 쓰므로 병렬 안전.
@@ -9,7 +10,7 @@ export const meta = {
   description: '전수 린트: 법별 비대칭 역링크·허브링크·dangling 정리(자기 법 파일만=병렬안전)',
   phases: [{ title: '전수린트', detail: '법별 1에이전트: 내 법 인용자 역링크+허브링크+dangling 정리' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object', required: ['law', 'status'],

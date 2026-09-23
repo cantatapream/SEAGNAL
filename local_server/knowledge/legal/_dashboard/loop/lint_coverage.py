@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """H-33 조문-위키 커버리지 전수조사: 각 법의 raw 원문 전체 조문 목록과, 위키(statutes+concepts)가
    실제로 인용한 조문 목록을 대조해 "위키에 한 번도 인용 안 된 조문"을 기계적으로 찾아낸다.
    감사(질문 시뮬레이션)가 우연히 못 물어봐서 놓친 thin/missing 사각지대를 없애는 보완 장치 —
@@ -10,7 +11,7 @@
               단계로 기존 lint 체인 끝에 편입(H-33)."""
 import json, os, re, glob
 
-LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+LEGAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 WIKI = f'{LEGAL}/wiki'
 DASH = f'{LEGAL}/_dashboard'
 COVDIR = f'{DASH}/coverage'

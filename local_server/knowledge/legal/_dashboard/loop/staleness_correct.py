@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """staleness_audit.py 1차 결과의 "위임고시 ID 불일치" 항목을 발령일자 직접 대조로 보정한다.
    1차는 lsDelegated 검색이 돌려준 ID를 무조건 "최신"으로 가정했는데, 실측 샘플 대조 결과
    그 API가 항상 최신 ID를 준다는 보장이 없음이 확인됨(2026-08-03) — 과거 ID를 "현재"라고
@@ -10,7 +11,7 @@ import json, os, sys, time
 sys.path.insert(0, os.path.dirname(__file__))
 from collect_admrul import fetch_body  # noqa: E402
 
-ROOT = '/home/user/SEAGNAL/local_server/knowledge/legal'
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 REPORT = os.path.join(ROOT, '_dashboard/staleness_audit_20260803.json')
 OUT = os.path.join(ROOT, '_dashboard/staleness_id_mismatch_corrected.json')
 

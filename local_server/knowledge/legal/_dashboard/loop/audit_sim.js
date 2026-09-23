@@ -1,9 +1,10 @@
+const path = require('path');
 export const meta = {
   name: 'wiki-qa-audit',
   description: '위키 커버리지 감사(3차+): 법별 600문항(해양경찰관·일반인·해양종사자 3페르소나, 직전 미흡분 재질문+신규)→위키만으로 답변 시도→구멍 분류',
   phases: [{ title: '감사', detail: '법마다 에이전트가 300문항 생성·답변·구멍 분류, 상세는 파일 저장' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object', required: ['law', 'total_questions', 'verdicts', 'method_compliance'],

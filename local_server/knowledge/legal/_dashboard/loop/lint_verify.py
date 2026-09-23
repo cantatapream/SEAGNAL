@@ -4,7 +4,7 @@
 [연계] 입력 wiki/statutes+concepts/**(md) · 출력 _dashboard/lint_verify.json (사람 보고용)
 지표: ①진짜 dangling(미해결·편입예정 아님) ②우리법↔우리법 비대칭 [[위키링크]] ③평문 「우리법」 인용인데 [[링크]] 0건(조문별 누락)."""
 import os,re,json,glob,collections
-LEGAL='/home/user/SEAGNAL/local_server/knowledge/legal'
+LEGAL=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 WIKI=f'{LEGAL}/wiki'
 
 # 1) 우리 위키의 모든 페이지 파일명(=링크 타깃 후보) 수집

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
+import os
 # 최신 감사 라운드 결과(저널)에서 법×유형 작업큐(fix_tasks.json) 재생성 + fix3 마커 초기화(새 수정라운드).
 # 사용: python3 build_fix_tasks.py <round>   (예: 4 → round:4 감사결과 기준으로 수정4 큐 생성)
 import json, os, glob, sys, time
 S='/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratchpad'
-LEGAL='/home/user/SEAGNAL/local_server/knowledge/legal'
+LEGAL=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 MARK=os.path.join(LEGAL,'_dashboard/fix3')
 D="/root/.claude/projects/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/subagents/workflows"
 rnd=int(sys.argv[1]) if len(sys.argv)>1 else 3

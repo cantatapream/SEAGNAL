@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """74법 `_meta.json`의 families 각 층(법률/시행령/시행규칙 등)에 `법령ID`를 채워 넣는다.
    법령ID는 법령명이 바뀌어도 절대 변하지 않는 고유식별자라(H-29 11항 실측), 이름 기반 추적이
    개명 시 깨지는 문제를 없애기 위한 백필이다. 부산물로 층별 API 스냅샷도 남겨 baseline 빌더가
@@ -22,7 +23,7 @@ _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import law_api_guard                 # DRF 오류쪽 판별 + 현행 시행일 판 고정(L-294·L-295)
 
 OC = "hyoo1431"
-LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
+LEGAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 GROUPS = f"{LEGAL}/_dashboard/loop/audit12_groups.json"
 GROUPS_RUN = f"{LEGAL}/_dashboard/loop/audit12_groups_run.json"
 OUT = f"{LEGAL}/_dashboard/lawid_backfill.json"

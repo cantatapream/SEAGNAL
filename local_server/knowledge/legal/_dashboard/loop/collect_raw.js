@@ -1,3 +1,4 @@
+const path = require('path');
 // collect_raw.js — H-12③ 재수집: collect_queue의 "수집 가능" 원문을 DRF로 가져와 raw/에만 저장(위키 편집 X).
 // 역할(초보자용): 감사·통합수정이 "raw엔 없지만 수집 가능"으로 표시한 고시·타법조문·별표를 law.go.kr DRF로 내려받아
 //   그 법의 raw 폴더에 저장한다. 위키는 건드리지 않는다(다음 통합수정 라운드가 raw→위키 반영). 그래서 린트와 병렬 안전.
@@ -9,7 +10,7 @@ export const meta = {
   description: 'collect_queue의 수집가능 원문을 DRF로 raw에만 수집(위키 미편집=린트와 병렬 안전)',
   phases: [{ title: '재수집', detail: '법별 1에이전트: DRF로 미수집 원문 raw 저장, 위키 미편집' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object', required: ['law', 'status'],

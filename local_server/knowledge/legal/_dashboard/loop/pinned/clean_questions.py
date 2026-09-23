@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """고정 문항에서 **감사 내부 표기만** 벗겨 `question_clean` 을 만든다(원문 `question` 은 그대로 둔다).
 
 왜: 라이브 검증은 이 문장을 실제 챗봇에 그대로 던진다. 그런데 65건 중 36건에
@@ -12,7 +13,7 @@
 """
 import json, re, io, sys
 
-P = '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/loop/pinned/r22_questions.json'
+P = os.path.join(os.path.dirname(os.path.abspath(__file__)), './r22_questions.json')
 
 # 앞머리 문항번호: `R22-L11(T7, full):` `Q22-12:` `B31 —` `#996 -`
 LEAD = re.compile(r'^\s*(?:[A-Z]{1,4}\d{0,2}[-–]?[A-Z]?\d*(?:\([^)]*\))?|#\d+)\s*[:：—–-]\s*')

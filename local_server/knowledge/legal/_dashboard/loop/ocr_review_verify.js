@@ -1,3 +1,4 @@
+const path = require('path');
 // ocr_review_verify.js — 별표 OCR값확정 대기 카드(review_gen/) Opus 비전 2차 재검증.
 // 역할(초보자용): review_gen/<법>.md에 쌓인 "별표 이미지 OCR값이 맞는지 확인 필요" 카드들을
 //   Opus(비전모델)가 원본 이미지/원문 텍스트를 직접 열어 대조한다. 일치/정정 확인되면
@@ -14,7 +15,7 @@ export const meta = {
   description: '별표OCR값확정 대기 카드(review_gen/)를 Opus 비전으로 원본 이미지/원문 재검증 → 일치 확인 시 canonical 승격',
   phases: [{ title: 'OCR재검증', detail: '법별 1에이전트: 카드마다 원본(이미지/txt) 직접 대조 → 일치/정정/미확인' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object', required: ['law', 'status'],

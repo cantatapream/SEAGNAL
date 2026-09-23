@@ -1,3 +1,4 @@
+const path = require('path');
 // promote_verify.js — 새로 만든 개념 페이지의 수치를 **raw 원문과 대조해** 승격 여부를 정한다(_SCHEMA §5).
 // 역할(초보자용): 페이지를 만든 사람이 자기 페이지를 검증하면, 만들 때의 가정을 그대로 갖고 보게 된다.
 //   그래서 **만들지 않은 다른 에이전트**가 원문과 한 줄씩 대조해 승격 여부를 정한다.
@@ -9,7 +10,7 @@ export const meta = {
   description: '새 개념 페이지 수치를 raw 와 대조해 canonical 승격 판정(_SCHEMA §5). 만든 에이전트가 아닌 제3자.',
   phases: [{ title: '승격검증', detail: '법별 1에이전트: 페이지의 수치·조문을 raw 로 전수 대조 후 승격/보류' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const MANIFEST = {
   type: 'object', required: ['law', 'checked', 'promoted', 'held'],

@@ -1,9 +1,10 @@
+const path = require('path');
 export const meta = {
   name: 'maritime-wiki-topicmap',
   description: '풀 깊이 사이징: 핵심법 65개 각각의 전체 개념 주제 목록을 추출(스로틀 제거)',
   phases: [{ title: '주제지도', detail: '법마다 필요한 전 주제를 열거(현재 있는 것/없는 것 표시)' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const SCHEMA = `${LEGAL}/_SCHEMA.md`
 
 const TMAP = {

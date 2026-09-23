@@ -5,11 +5,12 @@
        출력: raw/<법>/행정규칙/<제목>.txt 덮어쓰기(현행 ID로 재수집) + _admrul.json의 ID 갱신
 [로드 순서] 단독 실행. AI 불필요(순수 API 대조·재수집). 재실행 안전(status=fixed면 skip).
 """
+import os
 import json, os, re, time, threading, urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 OC = "hyoo1431"
-LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
+LEGAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 CHECK_FILE = f"{LEGAL}/_dashboard/admrul_id_check.json"
 TARGET_LAWS_FILE = f"{LEGAL}/_dashboard/loop/audit9_groups.json"
 LOG_FILE = f"{LEGAL}/_dashboard/admrul_fix_log.json"

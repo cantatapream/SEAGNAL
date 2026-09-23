@@ -9,7 +9,7 @@ _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 import law_api_guard                 # law.go.kr 이 본문 대신 오류쪽을 줬는지 가린다(L-294)
 
 OC='hyoo1431'
-ROOT='/home/user/SEAGNAL/local_server/knowledge/legal/raw'
+ROOT=_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '../../raw')
 
 def api(url):
     # ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속).

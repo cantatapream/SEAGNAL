@@ -1,3 +1,4 @@
+const path = require('path');
 // draft_reverify.js — 초안승인(draft) 재검증 v2: 자동승급이 과보수적으로 남긴 draft를 원문 grounding으로 재판정.
 // 역할(초보자용): draft 666건 중 대다수는 "처벌 단어가 있다"는 이유로만 draft로 남았는데, 실제론 raw 원문
 //   그대로 인용이라 grep으로 검증되면 AI가 승급해도 안전하다. 이 워크플로우는 각 draft를 raw 원문과 대조해:
@@ -10,7 +11,7 @@ export const meta = {
   description: 'draft를 raw 원문 grounding으로 재판정: 원문인용은 승급, 별표OCR값만 사람(수치검증 카드 자동생성)',
   phases: [{ title: '초안재검증', detail: '법별 1에이전트: draft마다 raw 대조 → 승급 or 수치카드 or 유지' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object', required: ['law', 'status'],

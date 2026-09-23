@@ -1,3 +1,4 @@
+const path = require('path');
 export const meta = {
   name: 'audit-live-verify',
   description: '감사관이 full로 채점한 논점을 실제 챗봇 API로 다시 물어 대조(법당 1~2문항) — _SCHEMA.md §6-E 자기판단 보정',
@@ -7,7 +8,7 @@ export const meta = {
 //   를 넣어 넘기면, 검증관은 **문항을 고르지 않고 그 질문을 글자 그대로 다시 묻는다**. 결과에
 //   transitions/recovered/regressed 가 함께 나와 "같은 질문이 고쳐졌나"를 바로 볼 수 있다.
 //   ⚠질문을 매번 새로 고르면 고치기 전후를 비교할 수 없다 — 돈만 쓰고 답을 못 얻는다(2026-08-18).
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const API = 'https://seagnal-server.fly.dev/api/legal/ask'
 
 const SCHEMA = {

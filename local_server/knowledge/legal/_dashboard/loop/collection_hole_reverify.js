@@ -1,3 +1,4 @@
+const path = require('path');
 // collection_hole_reverify.js — H-26 기준(_SCHEMA.md §6-B) collection_hole a/b/c 재분류·재검증
 // 역할(초보자용): 감사가 📛collection_hole로 찍은 항목이 (a)진짜원문공백 (b)구조적접근불가 (c)검색부실/미시도(재수집백로그)
 //   중 어디인지, 법별로 MST 위임조회 API(lsDelegated)와 raw/_admrul.json 대조로 재검증한다.
@@ -15,7 +16,7 @@ export const meta = {
   ],
 }
 
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const HOLE_SCHEMA = {
   type: 'object',

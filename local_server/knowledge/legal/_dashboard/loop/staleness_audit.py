@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """raw 최신성 전수 재검증(읽기 전용) — 74개 핵심법의 법률/시행령/시행규칙 MST와
    위임고시(행정규칙) 목록이 law.go.kr 최신 상태와 일치하는지 대조만 한다.
    기존 raw/ 파일은 절대 건드리지 않고, 결과만 새 리포트 파일에 기록한다(⚠경합위험 없음
@@ -9,7 +10,7 @@
 import json, urllib.request, urllib.parse, time, os, glob, sys
 
 OC = 'hyoo1431'
-ROOT = '/home/user/SEAGNAL/local_server/knowledge/legal'
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 RAW_PATHS = json.load(open(os.path.join(ROOT, '_dashboard/law_raw_paths.json'), encoding='utf-8'))
 STATUTES_DIR = os.path.join(ROOT, 'wiki/statutes')
 REPORT = os.path.join(ROOT, f'_dashboard/staleness_audit_{time.strftime("%Y%m%d")}.json')

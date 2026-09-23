@@ -14,7 +14,7 @@ _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 import law_api_guard                 # DRF 오류쪽 판별 + 현행 시행일 판 고정(L-294·L-295)
 
 OC = "hyoo1431"
-LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
+LEGAL = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '../..')
 TARGET_LAWS_FILE = f"{LEGAL}/_dashboard/loop/audit9_groups.json"
 OUT_FILE = f"{LEGAL}/_dashboard/budchik_check.json"
 
