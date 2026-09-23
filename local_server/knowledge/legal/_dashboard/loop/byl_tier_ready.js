@@ -28,6 +28,27 @@
  *
  * [무엇을 재나] 기준선보다 **늘면 실패**한다. 0 을 요구하지 않는다 — 수집 공백이 섞여 있고,
  *   그것을 채우는 일은 네트워크가 필요하다.
+ *
+ * ★★정정(2026-09-23, 3-46) — **104 중 35줄은 「없는 것」이 아니라 「내가 잘못 본 것」이었다.**
+ *   옛 서술은 지우지 않는다. 채우러 가 보니 **법이 그 별표를 아예 안 갖고 있다**는 답이
+ *   자꾸 나왔다(영해및접속수역법·원양산업발전법·수상레저안전법 …). 이상해서 위키를 열었다:
+ *
+ *       | ⑥ 행정처분 | 낚시 관리 및 육성법 | **제38조 → 시행규칙 별표2** | … |
+ *
+ *   **「시행규칙」이 별표2 바로 앞에 적혀 있는데** 나는 줄의 tier(법령 칸=법률)만 보고
+ *   `법률_별표2.txt` 를 찾아 놓고 "파일이 없다"고 셌다. **위키가 틀린 게 아니라 내 자가 틀렸다.**
+ *   → `bylKeys` 가 이제 **별표 앞에 적힌 계층**을 읽는다(아래 머리말).
+ *
+ *   ⚠**두 원인을 갈라서 쟀다**(안 그러면 무엇이 고친 것인지 모른다):
+ *       옛 자 + 옛 파일   없다 **104**
+ *       옛 자 + 새 파일   없다  **90**   ← 실제로 받아 채운 것: **파일 12개 = 줄 17개**
+ *       새 자 + 새 파일   없다  **52**   ← 자를 고쳐 준 것: **줄 35개**
+ *   ✅ 열린다 **1,242 → 1,294** (90.1% → 93.8%)
+ *
+ *   남은 52줄 / 파일 자리 43개 = **법령 21 · 조례 22**.
+ *     · 법령 21 중 16 은 **꼬리표(`families`)에 그 계층의 MST 가 없다** — 어느 판을 받을지 모른다(3-48)
+ *     · 5 는 **API 가 정말 안 준다**(번호 오기이거나 진짜 공백 — 사람이 본다)
+ *     · 조례 22 는 **API 가 다르다**(`target=ordin`) — 따로 한다(3-49)
  */
 const fs = require('fs');
 const path = require('path');
@@ -50,13 +71,42 @@ function buildBaseLawMap() {
     return m;
 }
 
-/** 조문 칸에서 별표·별지 열쇠를 뽑는다 — `annex_ready` 와 같은 꼴. */
+/** 조문 칸에서 별표·별지 열쇠를 뽑는다 — `annex_ready` 와 같은 꼴.
+ *
+ * ★정정(2026-09-23, 3-46) — **열쇠만 뽑고 계층을 안 봤다. 그래서 내가 틀렸다.**
+ *   옛 서술은 지우지 않는다. 종전에는 열쇠(`별표2`)만 돌려주고, 계층은 **줄의 tier**(법령 칸)를
+ *   썼다. 그런데 위키의 조문 칸은 이렇게 적혀 있다:
+ *
+ *     | ⑥ 행정처분 | 낚시 관리 및 육성법 | **제38조 → 시행규칙 별표2** | … |
+ *       → row.tier = law   ·  row.article = "제38조 → 시행규칙 별표2"
+ *
+ *   **「시행규칙」이 별표2 바로 앞에 적혀 있는데** 나는 `법률_별표2.txt` 를 찾아 놓고
+ *   "파일이 없다"고 셌다. 위키가 틀린 게 아니라 **내 자가 옆 글자를 안 읽은 것**이다.
+ *   실측: 그렇게 잘못 센 것이 **파일 25개 · 근거 줄 42개**였다(104 중 42).
+ *
+ *   그래서 이제 **별표 앞에 계층이 적혀 있으면 그것이 이긴다.** 없으면 줄의 tier 를 쓴다.
+ *   ⚠줄의 tier 를 **버리는 게 아니다** — 적혀 있을 때만 덮는다.
+ */
+const TIER_WORD = { 법률: 'law', 시행령: 'decree', 시행규칙: 'rule' };
+
 function bylKeys(article) {
-    const out = new Set();
+    const src = String(article || '');
+    // 조문 칸 안에 적힌 계층 낱말의 자리를 먼저 모은다.
+    const marks = [];
+    const tre = /(법률|시행령|시행규칙)/g;
+    let t;
+    while ((t = tre.exec(src)) !== null) marks.push({ at: t.index, tier: TIER_WORD[t[1]] });
+    const out = new Map();
     const re = /(별표|별지|서식)\s*제?\s*(\d+(?:의\d+)?)/g;
     let m;
-    while ((m = re.exec(String(article || ''))) !== null) out.add((m[1] === '별표' ? '별표' : '서식') + m[2]);
-    return [...out];
+    while ((m = re.exec(src)) !== null) {
+        const key = (m[1] === '별표' ? '별표' : '서식') + m[2];
+        // **그 별표 앞에 있는 마지막 계층 낱말**이 임자다. 없으면 null(=줄의 tier 를 쓴다).
+        let own = null;
+        for (const k of marks) if (k.at < m.index) own = k.tier;
+        if (!out.has(key)) out.set(key, own);
+    }
+    return [...out.entries()].map(([key, tier]) => ({ key, tier }));
 }
 
 function check() {
@@ -80,16 +130,18 @@ function check() {
                 if (!keys.length) continue;                  // 별표를 안 짚은 줄은 V5-8 소관
                 const law = String(row.law || '');
                 const baseRel = A.resolveBase(law, baseLaw, tier);
-                for (const key of keys) {
+                for (const { key, tier: own } of keys) {
+                    // ★조문 칸에 계층이 적혀 있으면 그것이 이긴다(위 bylKeys 머리말).
+                    const prefix2 = TIER_PREFIX[own || tier] || prefix;
                     r.rows++;
                     if (!baseRel) {
                         r.no_base++;
-                        if (ex.no_base.length < 60) ex.no_base.push(`${dir}/${f} | ${law.slice(0, 30)} | ${key}`);
+                        if (ex.no_base.length < 2000) ex.no_base.push(`${dir}/${f} | ${law.slice(0, 30)} | ${key}`);
                         continue;
                     }
                     const bd = path.join(REPO, baseRel, '별표');
                     // ① 계층 접두 파일 — 생산과 같은 순서
-                    const owned = path.join(bd, `${prefix}_${key}.txt`);
+                    const owned = path.join(bd, `${prefix2}_${key}.txt`);
                     if (fs.existsSync(owned)) {
                         const t = fs.readFileSync(owned, 'utf8');
                         if (A.hasBylBody(t)) { r.ok++; continue; }
@@ -101,16 +153,16 @@ function check() {
                     const bare = path.join(bd, `${key}.txt`);
                     if (fs.existsSync(bare)) {
                         const t = fs.readFileSync(bare, 'utf8');
-                        if (A.bylDeclMatches(t, prefix, { type, num })) {
+                        if (A.bylDeclMatches(t, prefix2, { type, num })) {
                             if (A.hasBylBody(t)) { r.ok++; continue; }
                             r.deleted++; continue;
                         }
                         r.decl_mismatch++;
-                        if (ex.decl_mismatch.length < 60) ex.decl_mismatch.push(`${baseRel}/별표/${key}.txt | ${prefix} ${key}`);
+                        if (ex.decl_mismatch.length < 2000) ex.decl_mismatch.push(`${baseRel}/별표/${key}.txt | ${prefix} ${key}`);
                         continue;
                     }
                     r.no_file++;
-                    if (ex.no_file.length < 60) ex.no_file.push(`${baseRel}/별표/${prefix}_${key}.txt | ${dir}/${f}`);
+                    if (ex.no_file.length < 2000) ex.no_file.push(`${baseRel}/별표/${prefix2}_${key}.txt | ${dir}/${f}`);
                 }
             }
         }

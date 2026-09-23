@@ -15,7 +15,10 @@ def api(url):
     # ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속).
     #   종전에는 오류쪽 HTML 도 네트워크 오류와 똑같이 삼켜서
     #   **"권한 없음"이 "모르겠다"로 바뀌어** 나왔다.
-    for _ in range(4):
+    # ★2026-09-23 (3-46) — 4회로는 모자랐다. 같은 MST 가 한 번은 실패하고 다음 실행에서 성공했다.
+    #   law.go.kr 은 **막힌 게 아니라 간헐적**이다(L-322 실측: 단발 4/8, 재시도를 붙이면 9/10).
+    #   4회에서 25회로 늘린다 — 되는 것을 "안 된다"고 적는 것이 제일 나쁘다.
+    for _i in range(25):
         try:
             with urllib.request.urlopen(url, timeout=40) as r:
                 body = r.read().decode('utf-8', 'replace')
@@ -28,7 +31,7 @@ def api(url):
                     return None          # 재시도로 안 풀린다
         except Exception:
             pass
-        time.sleep(1.5)
+        time.sleep(min(1.5 + 0.4 * _i, 6.0))
     return None
 
 def fetch_body(mst):
@@ -49,8 +52,15 @@ def flat(x):
     if isinstance(x,list): return '\n'.join(flat(i) for i in x)
     return str(x)
 
-def extract_layer(body,kind,outdir,links):
-    """kind = 법률|시행령|시행규칙. 층별 접두어로 별표 저장. links 딕셔너리에 병합."""
+def extract_layer(body,kind,outdir,links,only=None,overwrite=True):
+    """kind = 법률|시행령|시행규칙. 층별 접두어로 별표 저장. links 딕셔너리에 병합.
+
+    ★2026-09-23 (3-46) — **골라 채우기**를 위해 두 개를 더 받는다. 기본값은 예전 그대로다.
+      only      : 쓸 파일이름 집합. 주면 **그 안에 있는 것만** 쓴다(빈자리만 메울 때).
+      overwrite : False 면 **이미 있는 파일은 건드리지 않는다.**
+    이렇게 하는 까닭은 **별표를 적는 꼴을 한 곳에만 두기 위해서**다(L-136).
+    골라 채우는 도구가 같은 글꼴을 따로 베끼면, 언젠가 둘이 달라진다.
+    """
     try: byl=body['법령']['별표']['별표단위']
     except (KeyError,TypeError): return 0
     if isinstance(byl,dict): byl=[byl]
@@ -63,6 +73,8 @@ def extract_layer(body,kind,outdir,links):
         title=b.get('별표제목','') or ''
         txt=flat(b.get('별표내용','')); txt=re.sub(r'<[^>]+>',' ',txt); txt=re.sub(r'&[a-z]+;',' ',txt)
         fname=f"{kind}_{typ}{numlabel}.txt"
+        if only is not None and fname not in only: continue
+        if not overwrite and os.path.exists(os.path.join(outdir,fname)): continue
         with open(os.path.join(outdir,fname),'w',encoding='utf-8') as f:
             f.write(f"[{kind}] {typ}{numlabel} — {title}\n\n{txt}")
         hwp=b.get('별표서식파일링크',''); img=b.get('별표서식이미지파일링크','')
