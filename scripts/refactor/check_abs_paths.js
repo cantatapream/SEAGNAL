@@ -76,8 +76,15 @@ function listFiles() {
     !SKIP.some(s => f === s || f.startsWith(s + '/') || f.includes('/' + s + '/')));
 }
 
+// ★센 자리를 **어디인지까지** 들고 다닌다 (2026-09-23, 2-1).
+//   [왜] 종전에는 `파일 87개 · 자리 116곳` 이라는 **숫자만** 찍었다. 그 숫자가 맞는지
+//     보려면 사람이 따로 grep 을 쳐야 했고, 그동안 이 자의 수치가 보고서마다 인용됐다.
+//   **표본을 못 여는 숫자는 확인할 수 없는 숫자다** — §0-E 규칙 4 가 사람에게 요구하는 것을
+//   자 스스로도 지키게 한다.
+const PLACES = [];
 function scan() {
   const hits = {};
+  PLACES.length = 0;
   for (const rel of listFiles()) {
     const abs = path.join(ROOT, rel);
     let text;
@@ -85,10 +92,13 @@ function scan() {
     if (!hasNeedle(text)) continue;
     const ext = path.extname(rel);
     let n = 0;
-    for (const line of text.split('\n')) {
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       if (!hasNeedle(line)) continue;
       if (isComment(line, ext)) continue;
       n++;
+      PLACES.push({ rel, at: i + 1, text: line.trim().slice(0, 100) });
     }
     if (n > 0) hits[rel] = n;
   }
@@ -98,6 +108,13 @@ function scan() {
 const argv = process.argv.slice(2);
 const cur = scan();
 const total = Object.values(cur).reduce((a, b) => a + b, 0);
+
+// ★전부 보는 길 — 표본 5개로 모자랄 때 사람이 여는 문 (2-1)
+if (argv.includes('--list')) {
+  for (const x of PLACES) console.log(`${x.rel}:${x.at}  ${x.text}`);
+  console.log(`  — 자리 ${PLACES.length}곳 · 파일 ${new Set(PLACES.map((y) => y.rel)).size}개`);
+  process.exit(0);
+}
 
 if (argv.includes('--update')) {
   fs.mkdirSync(path.dirname(BASE), { recursive: true });
@@ -126,6 +143,18 @@ console.log(`  실행 코드(.js·.py·.sh)에 박힌 「그 컴퓨터에만 있
   console.log(`    (찾는 것: ${NEEDLE})`);
   console.log(`    (재는 법: **주석 줄은 안 센다**(설명까지 세면 고칠수록 숫자가 오른다) ·`
     + ` git 이 아는 .js·.py·.sh 만 · 안 보는 곳 ${SKIP.join('·')} · 이 파일 자신 제외)`);
+// ★숫자만 찍지 않는다 — **어디인지 표본을 함께** 찍는다 (2-1).
+{
+  const SHOW = 5;
+  const top = Object.entries(cur).sort((a, b) => b[1] - a[1]).slice(0, SHOW);
+  for (const [f, n] of top) {
+    const first = PLACES.find((x) => x.rel === f);
+    console.log(`    ${String(n).padStart(3)}곳  ${f}${first ? `:${first.at}` : ''}`
+      + (first ? `\n           ${first.text}` : ''));
+  }
+  const rest = Object.keys(cur).length - top.length;
+  if (rest > 0) console.log(`    … 그 밖 ${rest}개 파일 (전부 보려면 --list)`);
+}
 console.log(`  기준선(${base.기준일 || '없음'}) — 파일 ${Object.keys(base.파일).length}개 · 자리 ${base.총계}곳`);
 if (gone.length) console.log(`  ↓ 없어진 파일 ${gone.length}개 (좋아진 것)`);
 

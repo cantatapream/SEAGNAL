@@ -48,6 +48,19 @@ def main():
                 idx.setdefault(n, []).append(rel)
     dup = sum(1 for v in idx.values() if len(v) > 1)
     print(f'고시 파일 이름 {len(idx)}개 · 그중 여러 법 폴더에 있는 이름 {dup}개')
+    # ★숫자만 찍지 않는다 — **어느 이름인지 표본을 함께** 찍는다 (2026-09-23, 2-1).
+    #   종전에는 `22개` 라고만 했다. 그 22개가 무엇인지 보려면 사람이 따로 뒤져야 했고,
+    #   **표본을 못 여는 숫자는 확인할 수 없는 숫자다**(§0-E 규칙 4 를 자 스스로도 지킨다).
+    multi = sorted((k, v) for k, v in idx.items() if len(v) > 1)
+    for k, v in multi[:5]:
+        print(f'    {k}  ← {len(v)}곳: ' + ' · '.join(sorted(v)[:3]))
+    if len(multi) > 5:
+        print(f'    … 그 밖 {len(multi) - 5}개 (전부: --list)')
+    if '--list' in sys.argv:
+        for k, v in multi:
+            print(f'{k}\t' + ' · '.join(sorted(v)))
+        print(f'  — 겹치는 이름 {len(multi)}개')
+        return
     if '--check' in sys.argv:
         # 지도가 raw 와 어긋났으면 실패시킨다 — 고시를 새로 받아 놓고 지도를 안 돌리면
         # 챗봇이 그 고시를 남의 법 페이지에서 못 찾는다(그 지도가 있는 이유 자체다).
