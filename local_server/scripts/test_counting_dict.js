@@ -95,5 +95,62 @@ console.log('\n── ⑤ 모르는 뜻·범위는 조용히 넘어가지 않는
     Object.keys(C.SCOPES).join(',') === 'concepts,indexed,all', Object.keys(C.SCOPES).join(','));
 }
 
+console.log('\n── ⑥ §8-B 줄번호 인용 — 4벌이 갈린 값을 뜻·범위로 화해시킨다 (2-6b) ──');
+{
+  // ★2026-09-23 재측: 네 값 중 **둘은 정확히 재현**됐다. 이 두 줄이 그것을 고정한다.
+  const a = C.countLineCitations({ sense: 'any', scope: 'backlog' });
+  ok('12,996 = backlog/ 만 · 모든 자리', a.counts.any === 12996, String(a.counts.any));
+  const b = C.countLineCitations({ sense: 'any', scope: 'backlog_all' });
+  ok('14,622 = backlog + _p1 + _p3 · 모든 자리', b.counts.any === 14622, String(b.counts.any));
+
+  // ★가장 중요한 것 — **챗봇이 읽는 곳은 한 자릿수**다. 큰 값은 전부 작업 기록이다.
+  const w = C.countLineCitations({ sense: 'citation', scope: 'wiki' });
+  ok('★챗봇이 읽는 wiki/ 는 한 자릿수다', w.counts.citation < 10,
+    `wiki citation ${w.counts.citation} — 여기가 커지면 그때는 진짜 문제다`);
+  ok('wiki 가 backlog 보다 훨씬 작다', w.counts.citation * 100 < a.counts.any,
+    '§8-B 가 소급 교체를 안 하기로 한 근거가 이것이다');
+
+  ok('any 는 citation 보다 작지 않다', a.counts.any >= a.counts.citation);
+  ok('any = citation + 메모', a.counts.any === a.counts.citation + a.counts.memo,
+    `${a.counts.citation} + ${a.counts.memo} ≠ ${a.counts.any}`);
+  ok('보고 문구에 뜻과 범위가 들어 있다', /뜻: .+ · 범위: .+/.test(a.label), a.label);
+  ok('표본을 함께 준다(2-1)', Array.isArray(a.samples) && a.samples.length > 0,
+    '숫자만 주면 확인할 수 없다');
+
+  let threw = 0;
+  try { C.countLineCitations({ sense: '없는뜻' }); } catch (_) { threw++; }
+  try { C.countLineCitations({ scope: '없는범위' }); } catch (_) { threw++; }
+  ok('모르는 뜻·범위는 조용히 넘어가지 않고 던진다', threw === 2, '던진 횟수 ' + threw);
+}
+
+console.log('\n── ⑦ _LESSONS 재발률 — 판단이 아니라 기계로 센다 (2-6b · L-133) ──');
+{
+  const d = C.countLessonRecurrence({ sense: 'declared' });
+  const l = C.countLessonRecurrence({ sense: 'linked' });
+  const e = C.countLessonRecurrence({ sense: 'either' });
+  const b = C.countLessonRecurrence({ sense: 'both' });
+  ok('교훈을 실제로 읽어 센다', d.total > 300, '교훈 ' + d.total);
+  ok('either 는 declared·linked 보다 작지 않다', e.rows >= d.rows && e.rows >= l.rows);
+  ok('both 는 declared·linked 보다 크지 않다', b.rows <= d.rows && b.rows <= l.rows);
+  ok('결번을 숨기지 않고 함께 말한다', d.missing.length > 0 && /결번/.test(d.label), d.label);
+  ok('보고 문구에 뜻과 범위가 들어 있다', /뜻: .+ · 범위: .+/.test(d.label), d.label);
+  ok('모르는 뜻은 던진다', (() => { try { C.countLessonRecurrence({ sense: 'x' }); return false; } catch (_) { return true; } })());
+  console.log(`     ${d.label}`);
+  console.log(`     ${l.label}`);
+}
+
+console.log('\n── ⑧ 「위키가 안 꺼낸 별표」 — 자를 늘리지 않는다 (2-6b) ──');
+{
+  ok('★이 이름으로 세는 함수를 만들지 않았다', typeof C.countUnsurfacedAnnexes === 'undefined',
+    '여섯 번째 수를 만들면 그게 ⑥을 다시 저지르는 일이다');
+  ok('대신 이미 있는 자 둘을 이름으로 가리킨다',
+    C.ANNEX_RULERS && C.ANNEX_RULERS['V5-11'] && C.ANNEX_RULERS['V5-21a']);
+  ok('둘의 단위가 다르다는 것을 적어 둔다',
+    C.ANNEX_RULERS['V5-11'].단위 !== C.ANNEX_RULERS['V5-21a'].단위,
+    '하나는 줄, 하나는 파일 — 다른 물음이다');
+  ok('각 자가 무엇을 묻는지 한 줄로 적혀 있다',
+    Object.values(C.ANNEX_RULERS).every((r) => r.물음 && r.도구));
+}
+
 console.log(`\n  ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

@@ -291,3 +291,219 @@ module.exports.CATCH_LOG_RE = CATCH_LOG_RE;
 module.exports.catchParserAvailable = catchParserAvailable;
 module.exports.catchStats = catchStats;
 module.exports.countSilentCatches = countSilentCatches;
+
+// ════════════════════════════════════════════════════════════════════════════
+// 2-6b ③ ★**「§8-B 줄번호 인용」의 뜻과 범위** (2026-09-23)
+//
+// [왜] 독립 4벌이 같은 것을 **14,622 / 14,917 / 12,996** 으로 적었다(G-2).
+//   `_SCHEMA §8-B` 자신은 *"위키 안에 6건 · 백로그 안에 12,992건"* 이라 적고 있어 **넷째 값**이 있었다.
+//
+// [2026-09-23 전수 재측 — 둘은 **정확히** 재현됐다]
+//   12,996 = `_dashboard/backlog/` 만          · 건 수
+//   14,622 = `backlog/` + `backlog_p1` + `backlog_p3` · 건 수
+//   ⚠**14,917 은 재현하지 못했다.** 자 3종(좁은/넓은/아무파일) × 단위 2종(건/줄) ×
+//     범위 31조합을 전부 쓸어도 나오지 않는다. **그 벌의 정의가 저장소에 없다.**
+//     추측으로 맞추지 않는다 — 못 맞췄다고 적는다(G-34).
+//   ⚠`_SCHEMA` 의 12,992 도 지금은 12,996 이다(그 뒤 백로그가 조금 바뀌었다).
+//
+//   ┌ 뜻 ─────────────────────────────────────────────────────────────┐
+//   │ any       `파일.md:123` 꼴이 나오는 **모든 자리**                  │
+//   │ citation  그중 **변경이력·날짜 메모가 아닌 것** — 진짜 인용        │
+//   └──────────────────────────────────────────────────────────────────┘
+//   ┌ 범위 ───────────────────────────────────────────────────────────┐
+//   │ backlog      `_dashboard/backlog/` 만            (§8-B 가 센 것)  │
+//   │ backlog_all  + `backlog_p1` · `backlog_p3`                       │
+//   │ wiki         `wiki/` 전체  — ★여기가 **챗봇이 읽는 곳**이다       │
+//   │ dashboard    `_dashboard/` 에서 백로그를 뺀 것 (작업 문서)         │
+//   └──────────────────────────────────────────────────────────────────┘
+//
+// ★**왜 이 숫자가 커도 급하지 않은지**도 뜻이 말해 준다 — 큰 값은 전부 **작업 기록**이고,
+//   챗봇이 읽는 `wiki/` 는 한 자릿수다. §8-B 도 같은 이유로 소급 교체를 하지 않기로 했다.
+// `legal/` 뿌리 — 이 파일은 `_dashboard/loop/` 에 있다.
+const LEGAL = path.resolve(__dirname, '../..');
+const LINE_CITE_RE = /[\w가-힣()\[\]·ㆍ_\-]+\.md:\d+/g;
+/** 변경이력·날짜 메모 줄 — 진짜 인용이 아니다. */
+const LINE_CITE_MEMO_RE = /변경\s*이력|changelog|메모|주석|\(참고\)|^\s*[-*]\s*\d{4}-\d{2}-\d{2}/;
+const LINE_CITE_SCOPES = {
+  backlog:     ['_dashboard/backlog'],
+  backlog_all: ['_dashboard/backlog', '_dashboard/backlog_p1', '_dashboard/backlog_p3'],
+  wiki:        ['wiki'],
+  dashboard:   ['_dashboard'],           // 아래에서 백로그를 뺀다
+};
+const LINE_CITE_SENSES = {
+  any:      '`파일.md:123` 꼴이 나오는 모든 자리',
+  citation: '그중 변경이력·날짜 메모가 아닌 것(진짜 인용)',
+};
+
+function _mdFiles(rels, dropBacklog) {
+  const out = [];
+  for (const rel of rels) {
+    const root = path.join(LEGAL, rel);
+    (function walk(dir) {
+      let ents = [];
+      try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+      for (const e of ents) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { if (!(dropBacklog && /(^|\/)backlog(_p\d)?$/.test(p))) walk(p); }
+        else if (e.name.endsWith('.md')) out.push(p);
+      }
+    })(root);
+  }
+  return [...new Set(out)].sort();
+}
+
+/**
+ * §8-B 줄번호 인용을 센다. **뜻과 범위를 반드시 함께** 말한다.
+ * @param {{sense?: 'any'|'citation', scope?: keyof LINE_CITE_SCOPES}} opt
+ */
+function countLineCitations(opt) {
+  const sense = (opt && opt.sense) || 'citation';
+  const scope = (opt && opt.scope) || 'backlog_all';
+  if (!Object.prototype.hasOwnProperty.call(LINE_CITE_SENSES, sense)) throw new Error(`알 수 없는 뜻: ${sense}`);
+  if (!Object.prototype.hasOwnProperty.call(LINE_CITE_SCOPES, scope)) throw new Error(`알 수 없는 범위: ${scope}`);
+  const files = _mdFiles(LINE_CITE_SCOPES[scope], scope === 'dashboard');
+  let any = 0, memo = 0;
+  const samples = [];
+  for (const f of files) {
+    let lines;
+    try { lines = fs.readFileSync(f, 'utf8').split('\n'); } catch (_) { continue; }
+    for (let i = 0; i < lines.length; i++) {
+      const ms = lines[i].match(LINE_CITE_RE);
+      if (!ms) continue;
+      any += ms.length;
+      if (LINE_CITE_MEMO_RE.test(lines[i])) memo += ms.length;
+      else if (samples.length < 5) samples.push(`${path.relative(LEGAL, f)}:${i + 1}  ${lines[i].trim().slice(0, 90)}`);
+    }
+  }
+  const counts = { any, citation: any - memo, memo };
+  return {
+    sense, scope, files: files.length, counts, rows: counts[sense], samples,
+    label: `줄번호 인용 ${counts[sense].toLocaleString()} (뜻: ${LINE_CITE_SENSES[sense]} · 범위: ${scope} · 파일 ${files.length})`,
+  };
+}
+
+module.exports.LINE_CITE_RE = LINE_CITE_RE;
+module.exports.LINE_CITE_SCOPES = LINE_CITE_SCOPES;
+module.exports.LINE_CITE_SENSES = LINE_CITE_SENSES;
+module.exports.countLineCitations = countLineCitations;
+
+// ════════════════════════════════════════════════════════════════════════════
+// 2-6b ④ ★**「_LESSONS 재발률」의 뜻** (2026-09-23)
+//
+// [왜] 독립 4벌이 **42% / 38.4% / 23.5%** 로 갈렸다(G-2).
+//
+// [★결론 — 이 항목은 「뜻을 안 정해서」가 아니라 「사람이 판단해서」 갈렸다]
+//   재발률은 *"이 교훈이 앞의 것과 **같은 실수**인가"* 를 묻는다. 그건 **읽고 판단**해야 한다.
+//   저장소가 이미 같은 병을 진단해 뒀다 — **L-133**:
+//     *"채점자가 AI면 측정의 절반이 채점자 흔들림이다. 62문항 중 26건(42%)이 판정이 뒤집혔다."*
+//   그때 해법은 **판단을 기계 규칙으로 바꾸는 것**이었다(`regrade.js` → 흔들림 42%→29%).
+//   재발률도 똑같이 한다 — **기계가 셀 수 있는 뜻만 남기고, 판단으로 낸 수치는 숫자로 쓰지 않는다.**
+//   ⚠42 / 38.4 / 23.5 는 **재현하지 못했다.** 그 벌들의 판단 기준이 저장소에 없고,
+//     있었더라도 L-133 대로 흔들렸을 값이다. 추측으로 맞추지 않는다(G-34).
+//
+//   ┌ 뜻 ─────────────────────────────────────────────────────────────┐
+//   │ declared  교훈이 **스스로 재발이라 밝힌 것** — 「재발」「또 했다」  │
+//   │           「같은 실수/모양」「세 번째」 같은 말이 본문에 있다.       │
+//   │ linked    **앞 교훈 번호(L-N)를 짚은 것** (자기 번호는 뺀다)       │
+//   │ either    둘 중 하나라도                                          │
+//   │ both      둘 다                                                  │
+//   └──────────────────────────────────────────────────────────────────┘
+//   ⚠**이 넷은 「같은 실수인가」가 아니라 「그렇게 적혀 있나」를 센다.** 뜻이 다르므로
+//     4벌의 값과 견주면 안 된다 — 견주는 순간 ⑥이 다시 시작된다.
+const LESSONS_MD = path.join(LEGAL, '_LESSONS.md');
+const RECUR_DECLARED_RE = /재발|또 (했|걸|틀|같은)|다시 (걸|틀|했)|같은 (실수|모양|병|자리)|되풀이|세 번째|두 번째/;
+const RECUR_SENSES = {
+  declared: '교훈이 스스로 재발이라 밝힌 것',
+  linked:   '앞 교훈 번호(L-N)를 짚은 것',
+  either:   '둘 중 하나라도',
+  both:     '둘 다',
+};
+
+/** `_LESSONS.md` 를 교훈 단위로 자른다. @returns {{no:number, body:string}[]} */
+function lessonBlocks() {
+  let t;
+  try { t = fs.readFileSync(LESSONS_MD, 'utf8'); } catch (_) { return []; }
+  const out = [];
+  for (const b of t.split(/\n(?=## L-\d+)/)) {
+    const m = /^## L-(\d+)/.exec(b);
+    if (m) out.push({ no: Number(m[1]), body: b });
+  }
+  return out;
+}
+
+/**
+ * 재발률을 **기계로 셀 수 있는 뜻**으로만 센다.
+ * ⚠"같은 실수인가"를 판단하지 않는다 — 그건 사람이 읽을 일이고, 숫자로 쓰면 흔들린다(L-133).
+ */
+function countLessonRecurrence(opt) {
+  const sense = (opt && opt.sense) || 'declared';
+  if (!Object.prototype.hasOwnProperty.call(RECUR_SENSES, sense)) throw new Error(`알 수 없는 뜻: ${sense}`);
+  const blocks = lessonBlocks();
+  const nums = blocks.map((b) => b.no);
+  const hit = { declared: [], linked: [], either: [], both: [] };
+  for (const { no, body } of blocks) {
+    const d = RECUR_DECLARED_RE.test(body);
+    const l = (body.match(/L-(\d+)/g) || []).some((x) => Number(x.slice(2)) !== no);
+    if (d) hit.declared.push(no);
+    if (l) hit.linked.push(no);
+    if (d || l) hit.either.push(no);
+    if (d && l) hit.both.push(no);
+  }
+  const total = blocks.length;
+  const rows = hit[sense].length;
+  const missing = total ? [...Array(Math.max(...nums) - Math.min(...nums) + 1)]
+      .map((_, i) => Math.min(...nums) + i).filter((x) => !nums.includes(x)) : [];
+  return {
+    sense, total, rows, missing,
+    pct: total ? Math.round((rows / total) * 1000) / 10 : 0,
+    samples: hit[sense].slice(0, 5).map((n) => 'L-' + n),
+    label: `재발 ${rows} / 교훈 ${total} = ${total ? ((rows / total) * 100).toFixed(1) : '0.0'}% `
+         + `(뜻: ${RECUR_SENSES[sense]} · 범위: _LESSONS.md 전체`
+         + `${missing.length ? ` · 결번 ${missing.join('·')}` : ''})`,
+  };
+}
+
+module.exports.RECUR_SENSES = RECUR_SENSES;
+module.exports.lessonBlocks = lessonBlocks;
+module.exports.countLessonRecurrence = countLessonRecurrence;
+
+// ════════════════════════════════════════════════════════════════════════════
+// 2-6b ⑤ ★**「위키가 안 꺼낸 별표」— 자를 하나 더 만들지 않는다** (2026-09-23)
+//
+// [왜] 독립 3벌이 **57~316 / 1,953 / 5(기준법)·162(타부처)** 로 갈렸다(G-2).
+//
+// [★재현 시도와 결과 — 정직하게]
+//   범위를 다섯 가지로 갈라 전수를 다시 쟀다(2026-09-23):
+//     별표 폴더 아래 전부        7,471 중 안 꺼냄 3,729
+//     별표 폴더 · 「별표」만      2,703 중 안 꺼냄 1,440
+//     별표 폴더 · 서식/별지 제외  2,716 중 안 꺼냄 1,446
+//     기준법(15_·자치 제외)      4,684 중 안 꺼냄 2,659
+//     15_관련타부처              2,787 중 안 꺼냄 1,070
+//   **세 값 중 어느 것도 나오지 않았다.** 그 벌들의 정의가 저장소에 없다.
+//   ⚠추측으로 맞추지 않는다(G-34).
+//
+// [★그래서 자를 하나 더 만들지 않는다]
+//   여기서 여섯 번째 수를 만들면 **그게 바로 ⑥을 다시 저지르는 일**이다.
+//   이 저장소에는 이미 **뜻이 분명한 자가 둘** 있고, 게이트가 매번 돌린다:
+//
+//   ┌ 이미 있는 자 ───────────────────────────────────────────────────┐
+//   │ V5-11  `annex_ready.js`     **위키 근거 줄이 짚은 고시 별표를**    │
+//   │        (별표 도달성)         **눌러 열 수 있나** — 줄 단위.        │
+//   │        실측 328줄 중 열림 321 · 그 별표가 없다 2 · 고시 못 고름 5   │
+//   │ V5-21a `byl_bare_ready.js`  **계층 접두 없는 별표 파일이 열리나**  │
+//   │        (파일 도달성)         — 파일 단위.                          │
+//   │        실측 2,032개 중 열린다 1,657 · 번호어긋남 178 · 선언못읽음 29│
+//   └──────────────────────────────────────────────────────────────────┘
+//   **둘은 다른 물음이다** — 하나는 「위키가 짚은 것이 열리나」(줄), 하나는
+//   「파일이 열쇠를 갖췄나」(파일). 「안 꺼낸 별표」라는 한 이름이 이 둘과, 그리고
+//   위 다섯 범위와 뒤섞여 세 값이 나온 것이다.
+//
+// ⚠**「위키가 안 꺼낸 별표」라는 이름은 이제 쓰지 않는다.** 물음을 둘 중 하나로 부른다:
+//     "위키가 짚은 별표가 열리나"  → V5-11
+//     "별표 파일이 열쇠를 갖췄나"  → V5-21a
+//   ★이름 하나에 자가 여럿이면 **자를 늘리지 말고 이미 있는 자에 이름을 붙인다.**
+const ANNEX_RULERS = {
+  'V5-11': { 도구: 'annex_ready.js',     물음: '위키 근거 줄이 짚은 고시 별표를 눌러 열 수 있나', 단위: '줄' },
+  'V5-21a': { 도구: 'byl_bare_ready.js', 물음: '계층 접두 없는 별표 파일이 열쇠를 갖췄나',       단위: '파일' },
+};
+module.exports.ANNEX_RULERS = ANNEX_RULERS;
