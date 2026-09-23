@@ -275,6 +275,12 @@ node local_server/knowledge/legal/_dashboard/loop/admrul_review_gate.js || fail 
 echo; echo "── V5-25 74법 목록 밖 기준법급 부령 ──"
 node local_server/knowledge/legal/_dashboard/loop/tier1_outside_gate.js || fail "V5-25 74법 목록 밖 기준법급 부령"
 
+# ── V5-26 §8-B 「인용은 줄 번호가 아니라 항목 이름으로」 (2026-09-23 신설, G-6) ──
+# 규약은 2026-09-02 부터 있었는데 **읽는 코드가 없었다.** 세는 함수(2-6b)는 시험만 불렀다.
+# 규약이 "앞으로 쓰는 것에만 건다"고 못박았으므로 **위키가 늘지 않는 것**만 본다(0 을 안 요구한다).
+echo; echo "── V5-26 §8-B 줄번호 인용 ──"
+node local_server/knowledge/legal/_dashboard/loop/line_cite_gate.js || fail "V5-26 §8-B 줄번호 인용"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
