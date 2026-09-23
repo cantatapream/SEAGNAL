@@ -92,7 +92,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_overlay_solo test_wiki_brief_bulk test_review_marker_registered test_stale_reopen
   test_mok_audit_scanner test_add_other_law_refresh test_pressure_card test_typhoon_source
   test_byl_decl test_treaty_caselaw_meta test_context_budget test_counting_dict test_silent_catch
-  test_gate_5xx_class test_meta_schema test_admrul_review)
+  test_gate_5xx_class test_meta_schema test_admrul_review test_ho_count)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi
@@ -280,6 +280,13 @@ node local_server/knowledge/legal/_dashboard/loop/tier1_outside_gate.js || fail 
 # 규약이 "앞으로 쓰는 것에만 건다"고 못박았으므로 **위키가 늘지 않는 것**만 본다(0 을 안 요구한다).
 echo; echo "── V5-26 §8-B 줄번호 인용 ──"
 node local_server/knowledge/legal/_dashboard/loop/line_cite_gate.js || fail "V5-26 §8-B 줄번호 인용"
+
+# ── V5-27 §5-D ⓕ 「각 호 N개」가 원문과 맞나 (2026-09-23 신설, G-7) ──
+# 규약이 *"틀린 값 중 가장 많은 유형"* 이라고 적은 것이다. **어긋남 0 을 요구한다** —
+# 기준선을 두지 않는다. 취향이 아니라 **사실이 틀린 것**이기 때문이다.
+# ⚠`제N조 각 호 K개` 한 꼴만 본다(다른 표기는 §6-F 와 같은 병, Q-18).
+echo; echo "── V5-27 §5-D ⓕ 각 호 개수 ──"
+node local_server/knowledge/legal/_dashboard/loop/ho_count_gate.js || fail "V5-27 §5-D ⓕ 각 호 개수"
 
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로

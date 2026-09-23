@@ -609,3 +609,85 @@ module.exports.ADMRUL_SCOPE = ADMRUL_SCOPE;
 module.exports.REVIEW_SENSES = REVIEW_SENSES;
 module.exports.countAdmrulReview = countAdmrulReview;
 module.exports.admrulReviewReasons = admrulReviewReasons;
+
+// ════════════════════════════════════════════════════════════════════════════
+// §5-D ⓕ 「각 호 N개」를 세는 법 (2026-09-23 신설, G-7)
+//
+// [규약] `_SCHEMA §5-D ⓕ`(사용자 확정 2026-09-19) — *"2026-09-19 2차 재점검에서 나온
+//   **틀린 값 중 가장 많은 유형이 「각 호 N개」 오산**이었다."* 셋이 섞여서 그렇다:
+//     · 가지번호(`2의2`·`3의2`)   → **한 개로 센다** (원문에서 독립된 호다)
+//     · `삭제 <연월일>` 인 호      → **세지 않는다** (안내할 내용이 없다)
+//     · 마지막 호의 번호           → **개수와 같지 않을 수 있다**
+//
+// [왜 여기에] 이 규약을 읽는 코드가 **0** 이었다(G-7). 그런데 §6-F(G-5)와 달리
+//   이것은 **기계가 정확히 잴 수 있다** — 규칙이 글이 아니라 셈이기 때문이다.
+//   ★게다가 규약이 **맞춰 볼 실례 둘을 직접 적어 두었다**(아래 HO_FIXTURES).
+//   규약이 자기 시험을 들고 온 셈이라, 자를 만들자마자 맞는지 확인할 수 있었다.
+//
+// ⚠**목(가.·나.·다.)은 호가 아니다** — 들여쓰기가 더 깊고 한글이라 숫자 패턴에 안 걸린다.
+// ════════════════════════════════════════════════════════════════════════════
+const HANG_MARKS = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
+// 호 머리: 들여쓴 `N.` 또는 `N의M.` — 뒤에 공백이 와야 한다(`제2호의2` 같은 인용과 구별)
+const HO_HEAD_RE = /^[ \t]+(\d+(?:의\d+)?)\.[ \t]/;
+
+/** 규약이 직접 적어 둔 맞춤 실례. 자가 이 둘을 못 맞히면 그 자가 틀린 것이다. */
+const HO_FIXTURES = [
+    { 파일: '04_선박해운/선박직원법/법률.txt', 조: '제9조', 항: 1,
+      기대: { 살아있는: 7, 마지막번호: '8', 삭제: 1 },
+      근거: '§5-D ⓕ — "살아 있는 호는 7개, 마지막 번호는 8"' },
+    { 파일: '04_선박해운/선박직원법/시행령.txt', 조: '제2조', 항: null,
+      기대: { 가지번호: ['2의2', '2의3'] },
+      근거: '§5-D ⓕ — "원문 목록은 2의2·2의3 으로 찍힌다"' },
+];
+
+/**
+ * 조 본문 하나를 받아 항(①②③)마다 호를 센다.
+ * 항 표시가 없으면(=조 전체가 한 덩이) `항: 0` 하나로 돌려준다.
+ * @returns [{ 항, 번호들, 살아있는, 삭제, 마지막번호, 가지번호 }]
+ */
+function countHo(articleText) {
+    const lines = String(articleText || '').split('\n');
+    const groups = [];
+    let cur = { 항: 0, 번호들: [], 삭제: 0, 가지번호: [] };
+    for (const line of lines) {
+        const first = line.trimStart()[0];
+        if (first && HANG_MARKS.includes(first)) {
+            if (cur.번호들.length || groups.length === 0) groups.push(cur);
+            cur = { 항: HANG_MARKS.indexOf(first) + 1, 번호들: [], 삭제: 0, 가지번호: [] };
+            continue;
+        }
+        const m = HO_HEAD_RE.exec(line);
+        if (!m) continue;
+        const no = m[1];
+        const body = line.slice(m[0].length).trim();
+        if (/^삭제/.test(body)) { cur.삭제++; continue; }    // ⚠삭제는 세지 않는다
+        cur.번호들.push(no);
+        if (no.includes('의')) cur.가지번호.push(no);
+    }
+    groups.push(cur);
+    return groups
+        .filter((g) => g.번호들.length || g.삭제)
+        .map((g) => ({
+            항: g.항,
+            번호들: g.번호들,
+            살아있는: g.번호들.length,              // ★이것이 "각 호 N개" 의 N 이다
+            삭제: g.삭제,
+            // 마지막 번호는 삭제된 것을 포함해 **원문에 찍힌 마지막**이다
+            마지막번호: g.번호들.length ? g.번호들[g.번호들.length - 1] : null,
+            가지번호: g.가지번호,
+        }));
+}
+
+/** raw 파일에서 `[제N조]` 한 덩이를 떼어 온다. */
+function articleBlock(file, 조) {
+    let t;
+    try { t = fs.readFileSync(path.join(LEGAL, 'raw', file), 'utf8'); } catch (_) { return null; }
+    const i = t.indexOf('[' + 조 + ']');
+    if (i < 0) return null;
+    const j = t.indexOf('\n[제', i + 1);
+    return t.slice(i, j < 0 ? undefined : j);
+}
+
+module.exports.HO_FIXTURES = HO_FIXTURES;
+module.exports.countHo = countHo;
+module.exports.articleBlock = articleBlock;
