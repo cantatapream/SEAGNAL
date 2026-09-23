@@ -295,6 +295,11 @@ node local_server/knowledge/legal/_dashboard/loop/ho_count_gate.js || fail "V5-2
 echo; echo "── V5-28 목차 링크 도달성 ──"
 node local_server/knowledge/legal/_dashboard/loop/index_links_gate.js || fail "V5-28 목차 링크 도달성"
 
+# ── V5-29 감사파일에 다른 법의 감사 보고서가 섞였나 (2026-09-23 신설, G-22) ──
+# 기준선(3)보다 **늘면 실패**한다. 지우는 것은 따로 한다(3-40) — 수백 줄이라 사람이 볼 일이다.
+echo; echo "── V5-29 감사 교차오염 ──"
+node local_server/knowledge/legal/_dashboard/loop/audit_crosstalk_gate.js || fail "V5-29 감사 교차오염"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
