@@ -80,6 +80,11 @@
     var C_DIM    = 'rgba(6,11,24,0.78)';   // 설명 대상 바깥을 덮는 어두운 색
     var FONT     = "'Inter','Noto Sans KR',sans-serif";
 
+    // [대체 그림] 특보가 하나도 없는 날에는 보여줄 화면이 없어, 특보가 있을 때의
+    //   실제 화면을 찍어 둔 그림으로 대신 설명한다(사용자 제공 2026-09-22).
+    //   날짜·수치가 그대로 들어 있어 지금 상황으로 오해하지 않도록 "예시 화면" 딱지를 겹쳐 붙인다.
+    var EXAMPLE_IMG = 'assets/tutorial/alert_example.jpg';
+
     // 아코디언 = [본문 id, 여는/닫는 함수 이름]
     var ACC_FORECAST = ['marine-forecast-accordion-body', 'toggleMarineForecastAccordion'];
     var ACC_ALERT    = ['main-accordion-body',            'toggleMainAccordion'];
@@ -92,6 +97,7 @@
     var _tapTimer = null;
     var _root     = null;   // 덮개 (닫히면 null)
     var _hole     = null;
+    var _shot     = null;   // 대체 그림 상자
     var _card     = null;
     var _stepIdx  = 0;
     var _snapshot = null;   // 열기 전 화면 상태(닫을 때 되돌리려고 적어 둔다)
@@ -653,6 +659,7 @@
     //   want   : 이 단계에서 아코디언 셋이 각각 펼쳐져 있어야 하는지 (true=펼침)
     //            앞/뒤 어느 쪽에서 오든 이 모양으로 맞추므로 [이전] 이 저절로 동작한다
     //   drill  : 특보현황 안쪽을 어디까지 펼쳐 둘지 ('sea' | 'sub')
+    //   image  : 가리킬 화면이 없을 때 대신 띄울 그림(특보가 하나도 없는 날)
     //   skip   : 오늘 화면에 없는 단계인지 (특보가 없거나 소분류가 없는 바다) — 참이면 지나간다
     // ========================================================================
     var STEPS = [
@@ -689,6 +696,16 @@
                 return [document.getElementById('main-accordion-header'),
                         document.getElementById('main-accordion-body')];
             },
+            want: { forecast: false, alert: true, status: false }
+        },
+        {
+            title: '특보가 내려지면 이렇게 보입니다',
+            body: '오늘은 특보가 내려진 해역이 없어 보여드릴 화면이 없습니다. '
+                + '특보가 있으면 아래 그림처럼 해역 이름과 특보 종류, 파도 높이와 바람 세기, '
+                + '발표·발효·해제 시각까지 한 장에 나옵니다.',
+            image: EXAMPLE_IMG,
+            // 특보가 있는 날에는 진짜 화면을 보여주므로 이 단계는 건너뛴다
+            skip: function () { return !!_firstSeaWithAlerts(); },
             want: { forecast: false, alert: true, status: false }
         },
         {
@@ -930,6 +947,27 @@
             + ';border-radius:10px;box-shadow:0 0 0 9999px ' + C_DIM
             + ';animation:tutorialRingBlink 1.3s ease-in-out infinite;pointer-events:auto;';
 
+        // 대체 그림 자리 — 가리킬 화면이 없는 단계에서만 쓴다(평소엔 숨김)
+        var shot = document.createElement('div');
+        shot.id = 'tutorial-shot';
+        shot.style.cssText = 'position:absolute;display:none;border:1px solid ' + C_BORDER
+            + ';border-radius:12px;overflow:hidden;background:#0b1020;';
+
+        var shotImg = document.createElement('img');
+        shotImg.id = 'tutorial-shot-img';
+        shotImg.alt = '특보가 있을 때의 화면 예시';
+        shotImg.style.cssText = 'display:block;width:100%;height:100%;object-fit:contain;';
+
+        var shotTag = document.createElement('div');
+        shotTag.textContent = '예시 화면입니다';
+        shotTag.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);'
+            + 'padding:6px 14px;border-radius:20px;background:rgba(250,204,21,0.92);color:#1a1f2e;'
+            + 'font-size:0.78rem;font-weight:800;letter-spacing:0.3px;white-space:nowrap;'
+            + 'box-shadow:0 4px 14px rgba(0,0,0,0.45);';
+
+        shot.appendChild(shotImg);
+        shot.appendChild(shotTag);
+
         // 시험 모드 표시 — 정식 공개 때 지운다
         var flag = document.createElement('div');
         flag.id = 'tutorial-test-flag';
@@ -1001,10 +1039,12 @@
         card.appendChild(row);
 
         root.appendChild(hole);
+        root.appendChild(shot);
         root.appendChild(flag);
         root.appendChild(card);
 
         _hole = hole;
+        _shot = shot;
         _card = card;
         return root;
     }
@@ -1069,6 +1109,29 @@
         var cardW = Math.min(CARD_MAX, vw - EDGE * 2);
         _card.style.width = cardW + 'px';
         _card.style.left = Math.round((vw - cardW) / 2) + 'px';
+
+        if (step.image) {
+            // [대체 그림 단계] 화면에 가리킬 것이 없다. 화면 전체를 어둡게 하고,
+            //   설명 카드를 아래에 둔 뒤 남은 위쪽 공간에 그림을 채운다.
+            _hole.style.display = 'none';
+            _root.style.background = C_DIM;
+            var img = _root.querySelector('#tutorial-shot-img');
+            if (img.getAttribute('src') !== step.image) img.setAttribute('src', step.image);
+
+            _card.style.maxHeight = Math.round(vh * 0.42) + 'px';
+            var cardH = _card.offsetHeight;
+            _card.style.top = Math.round(bottomLimit - cardH) + 'px';
+
+            var shotTop = EDGE + 26;                       // 위쪽 "시험 모드" 딱지를 피한다
+            var shotH = (bottomLimit - cardH - GAP) - shotTop;
+            _shot.style.display = shotH > 120 ? 'block' : 'none';
+            _shot.style.left = Math.round((vw - cardW) / 2) + 'px';
+            _shot.style.width = cardW + 'px';
+            _shot.style.top = shotTop + 'px';
+            _shot.style.height = Math.round(shotH) + 'px';
+            return;
+        }
+        _shot.style.display = 'none';
 
         if (!u) {
             // 가리킬 것이 없는 단계 — 화면 전체를 어둡게 하고 카드는 아래쪽에 둔다
@@ -1310,6 +1373,7 @@
         _root.remove();
         _root = null;
         _hole = null;
+        _shot = null;
         _card = null;
         _stepIdx = 0;
         _restore();
