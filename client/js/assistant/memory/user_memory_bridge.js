@@ -112,7 +112,7 @@
     try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; }
   }
   function lsRemove(key) {
-    try { localStorage.removeItem(key); } catch (e) {}
+    try { localStorage.removeItem(key); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
   }
 
   // ── Plugin 이벤트 구독 — 음성 측 쓰기를 WebView 캐시에 반영 ─────────────────
@@ -337,7 +337,7 @@
     };
     var empty = !payload.profile && !payload.memory.length && !payload.style && !payload.focus && !payload.naturalVoice;
     if (empty) {
-      try { localStorage.setItem(LS.MIGRATED, '1'); } catch (e) {}
+      try { localStorage.setItem(LS.MIGRATED, '1'); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
       return Promise.resolve({ migrated: false, reason: 'empty' });
     }
     var P = nativePlugin();
@@ -365,7 +365,7 @@
         lsRemove(LS.STYLE);
         lsRemove(LS.FOCUS);
         lsRemove(LS.NATURAL);
-        try { localStorage.setItem(LS.MIGRATED, '1'); } catch (e) {}
+        try { localStorage.setItem(LS.MIGRATED, '1'); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
       }
       return r || { migrated: false };
     }).catch(function (e) {

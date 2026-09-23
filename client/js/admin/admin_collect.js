@@ -3275,11 +3275,11 @@ var USAGE_THEMES = {
 var USAGE_THEME_KEY = 'seagnal_usage_theme';   // localStorage 키
 function getUsageTheme() {
     var t = 'dark';
-    try { t = localStorage.getItem(USAGE_THEME_KEY) || 'dark'; } catch (e) {}
+    try { t = localStorage.getItem(USAGE_THEME_KEY) || 'dark'; } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
     return (t === 'light') ? 'light' : 'dark';
 }
 function setUsageTheme(t) {
-    try { localStorage.setItem(USAGE_THEME_KEY, t); } catch (e) {}
+    try { localStorage.setItem(USAGE_THEME_KEY, t); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
 }
 function usageThemeTokens() { return USAGE_THEMES[getUsageTheme()]; }
 
@@ -3765,7 +3765,7 @@ function _usageRenderAffChart() {
     if (sel.length) dist = dist.filter(function (d) { return sel.indexOf(d.name) !== -1; });
     var aLabels = dist.map(function (d) { return d.name; });
     var aValues = dist.map(function (d) { return d.total; });
-    if (usageAffChart) { try { usageAffChart.destroy(); } catch (e) {} usageAffChart = null; }
+    if (usageAffChart) { try { usageAffChart.destroy(); } catch (e) { /* 이미 없어졌거나 정리된 뒤일 수 있다 — 정리는 실패해도 그대로 둔다 */ } usageAffChart = null; }
     var el = document.getElementById('usage-aff-chart');
     var wrap = document.getElementById('usage-aff-canvas-wrap');
     if (!el || typeof Chart === 'undefined') return;
@@ -3808,7 +3808,7 @@ function _usageRenderFeatureChart() {
     var byFeature = data.byFeature || {};
     var featRows = Object.keys(byFeature).map(function (k) { return { key: k, count: byFeature[k] }; });
     featRows.sort(function (a, b) { return b.count - a.count; });
-    if (usageFeatureChart) { try { usageFeatureChart.destroy(); } catch (e) {} usageFeatureChart = null; }
+    if (usageFeatureChart) { try { usageFeatureChart.destroy(); } catch (e) { /* 이미 없어졌거나 정리된 뒤일 수 있다 — 정리는 실패해도 그대로 둔다 */ } usageFeatureChart = null; }
     var el = document.getElementById('usage-feature-chart');
     var wrap = document.getElementById('usage-feat-canvas-wrap');
     if (!el || typeof Chart === 'undefined') return;
@@ -4235,7 +4235,7 @@ window._usageRedrawTrend = function () {
             fill: true, tension: 0.3, pointRadius: 2, pointBackgroundColor: T.accent2
         });
     }
-    if (usageTrendChart) { try { usageTrendChart.destroy(); } catch (e) {} usageTrendChart = null; }
+    if (usageTrendChart) { try { usageTrendChart.destroy(); } catch (e) { /* 이미 없어졌거나 정리된 뒤일 수 있다 — 정리는 실패해도 그대로 둔다 */ } usageTrendChart = null; }
     var el = document.getElementById('usage-trend-chart');
     if (el && typeof Chart !== 'undefined') {
         usageTrendChart = new Chart(el, {

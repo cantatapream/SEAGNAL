@@ -2504,7 +2504,7 @@
    * [연계] ← doSend(닫힌 상태로 답변 도착), openChat(0으로 리셋). → paintBadge
    */
   function setUnread(n) {
-    try { localStorage.setItem(LS_UNREAD, String(n)); } catch (_) {}
+    try { localStorage.setItem(LS_UNREAD, String(n)); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
     paintBadge();
   }
 
@@ -3277,7 +3277,7 @@
         saveProfileField(s.getAttribute('data-k'), v); openProf(); return;
       }
       if (e.target.closest('.nrya-prof-reset')) {
-        try { localStorage.removeItem(LS_PROFILE); } catch (_) {}
+        try { localStorage.removeItem(LS_PROFILE); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
         openProf();
       }
     });

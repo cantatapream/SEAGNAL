@@ -1489,7 +1489,7 @@
         });
         _landPopup = new ol.Overlay({ element: _landEl, offset: [12, -12], positioning: 'bottom-left', stopEvent: false, insertFirst: false });
         map.addOverlay(_landPopup);
-        try { var s = JSON.parse(localStorage.getItem(LAYER_KEY)); if (s) _layerOn = Object.assign(_layerOn, s); } catch (e) {}
+        try { var s = JSON.parse(localStorage.getItem(LAYER_KEY)); if (s) _layerOn = Object.assign(_layerOn, s); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
         applyLayerVisibility();
     }
 
@@ -1527,7 +1527,7 @@
         });
         // 관리자 모드 기기인가 — 아래 출처 드롭다운과 디버그 줄이 함께 쓴다.
         var isAdmin = false;
-        try { isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { }
+        try { isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
 
         // [출처 전환] 관리자 모드 기기에서만 노출. 일반 사용자에게는 기상청 자료만 보인다.
         //   숨겨도 _src 는 'kma' 그대로라 화면 동작은 지금까지와 똑같다.
@@ -1616,7 +1616,7 @@
                 el.addEventListener('change', function () {
                     _layerOn[pair[1]] = this.checked;
                     applyLayerVisibility();
-                    try { localStorage.setItem(LAYER_KEY, JSON.stringify(_layerOn)); } catch (e) {}
+                    try { localStorage.setItem(LAYER_KEY, JSON.stringify(_layerOn)); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
                 });
             });
     }

@@ -96,7 +96,7 @@
   // ── TTS (음성) — 텍스트는 화면에, 음성은 여기서. 자연음성↔내장음성 둘 다 지원 ──────
   var NATURAL_KEY = 'seagnal_natural_voice';
   function getNaturalVoice() { try { return localStorage.getItem(NATURAL_KEY) === '1'; } catch (e) { return false; } }
-  function setNaturalVoice(on) { try { localStorage.setItem(NATURAL_KEY, on ? '1' : '0'); } catch (e) {} }
+  function setNaturalVoice(on) { try { localStorage.setItem(NATURAL_KEY, on ? '1' : '0'); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ } }
 
   function speakStartVisual() {
     mode = 'speaking'; safeStopRecognition();
@@ -180,11 +180,11 @@
   }
   // 직전 턴 focus 보관/조회 — 자유텍스트 memory로 유실되는 해구번호·좌표를 구조로 이어준다.
   function getFocus() { try { return JSON.parse(localStorage.getItem(FOCUS_KEY) || 'null'); } catch (e) { return null; } }
-  function setFocus(f) { try { if (f) localStorage.setItem(FOCUS_KEY, JSON.stringify(f)); } catch (e) {} }
+  function setFocus(f) { try { if (f) localStorage.setItem(FOCUS_KEY, JSON.stringify(f)); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ } }
   function setProfile(p) {
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p || {})); } catch (e) {}
   }
-  function clearProfile() { try { localStorage.removeItem(PROFILE_KEY); } catch (e) {} }
+  function clearProfile() { try { localStorage.removeItem(PROFILE_KEY); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ } }
   function getMemory() {
     try { var m = JSON.parse(localStorage.getItem(MEMORY_KEY) || '[]'); return Array.isArray(m) ? m : []; }
     catch (e) { return []; }
@@ -193,7 +193,7 @@
     if (!note) return;
     var m = getMemory(); m.push(note);
     if (m.length > MEMORY_MAX) m = m.slice(-MEMORY_MAX);
-    try { localStorage.setItem(MEMORY_KEY, JSON.stringify(m)); } catch (e) {}
+    try { localStorage.setItem(MEMORY_KEY, JSON.stringify(m)); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
   }
 
   // [성향 다이제스트] 통계는 결정론적으로 누적(질문수·자주 보는 해역/주제),
@@ -974,7 +974,7 @@
   if (editBtn) editBtn.addEventListener('click', startOnboarding);
   if (delBtn) delBtn.addEventListener('click', function () {
     clearProfile();
-    try { localStorage.removeItem(MEMORY_KEY); localStorage.removeItem(STYLE_KEY); } catch (e) {}
+    try { localStorage.removeItem(MEMORY_KEY); localStorage.removeItem(STYLE_KEY); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
     renderProfile();
     startOnboarding();
   });

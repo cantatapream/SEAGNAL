@@ -148,7 +148,7 @@
     function writeLastMatch(rec) {
         try {
             const json = JSON.stringify(rec);
-            try { root.localStorage.setItem('location_alert_last_match', json); } catch (_) { }
+            try { root.localStorage.setItem('location_alert_last_match', json); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
             try {
                 const M = root.LocationAlertBackground && root.LocationAlertBackground.Mirror;
                 if (M && M.set) M.set('location_alert_last_match', json);
@@ -165,7 +165,7 @@
     function writeLastWake(rec) {
         try {
             const json = JSON.stringify(rec);
-            try { root.localStorage.setItem('location_alert_last_wake', json); } catch (_) { }
+            try { root.localStorage.setItem('location_alert_last_wake', json); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
             try {
                 const M = root.LocationAlertBackground && root.LocationAlertBackground.Mirror;
                 if (M && M.set) M.set('location_alert_last_wake', json);

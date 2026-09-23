@@ -128,7 +128,7 @@
                 else if (Number.isFinite(tp) && !Number.isFinite(tl)) adopt = true; // Preferences 만 시각 보유
             }
             if (adopt) {
-                try { root.localStorage.setItem(POS_KEY, prefRaw); } catch (_) { }
+                try { root.localStorage.setItem(POS_KEY, prefRaw); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
                 return true;
             }
         } catch (_) { }
@@ -150,7 +150,7 @@
     }
 
     function clearPosition() {
-        try { root.localStorage.removeItem(POS_KEY); } catch (_) { }
+        try { root.localStorage.removeItem(POS_KEY); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
         prefsRemove(POS_KEY);          // 미러도 즉시 삭제(해제 시 단말 위치 제거)
     }
 
@@ -229,7 +229,7 @@
             const active = root.localStorage.getItem('location_alert_active');
             const consent = root.localStorage.getItem('location_alert_consent');
             return active === 'true' && consent === 'true';
-        } catch (_) { }
+        } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
         return false;
     }
 

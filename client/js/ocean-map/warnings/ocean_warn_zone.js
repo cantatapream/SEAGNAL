@@ -534,7 +534,7 @@
             if (_subLayer)     _subLayer.setVisible(_visible);
             if (_subFillLayer) _subFillLayer.setVisible(_visible);
             if (_visible) { _loadMain(); _loadSub(); }
-            try { localStorage.setItem('seagnal_warn_zone_visible', String(_visible)); } catch (e) {}
+            try { localStorage.setItem('seagnal_warn_zone_visible', String(_visible)); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
         });
 
         // [예약 반영] 지도 빌드 전에 들어온 외부 요청을 여기서 처리한다.

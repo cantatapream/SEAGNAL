@@ -205,13 +205,13 @@
         try { return localStorage.getItem(UNLOCK_KEY) === '1'; } catch (e) { return false; }
     }
     function setUnlocked() {
-        try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
+        try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
     }
     function getUnlockClicks() {
         try { return parseInt(localStorage.getItem(CLICK_KEY) || '0', 10) || 0; } catch (e) { return 0; }
     }
     function setUnlockClicks(n) {
-        try { localStorage.setItem(CLICK_KEY, String(n)); } catch (e) {}
+        try { localStorage.setItem(CLICK_KEY, String(n)); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
     }
 
     // 잠금(비활성) 외형 적용/해제 — 회색 처리하되 클릭은 계속 받는다.

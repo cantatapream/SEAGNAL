@@ -567,7 +567,7 @@ if (window.__SEAGNAL_PAGE === 'index2') {
             _buoysVisible = !_buoysVisible;
             btn.classList.toggle('active', _buoysVisible);
             window.OceanGridSampler.refresh();
-            try { localStorage.setItem('seagnal_buoys_visible', String(_buoysVisible)); } catch (e) {}
+            try { localStorage.setItem('seagnal_buoys_visible', String(_buoysVisible)); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
         });
     }
 

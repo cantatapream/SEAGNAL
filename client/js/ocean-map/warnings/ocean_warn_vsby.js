@@ -800,7 +800,7 @@
     }
 
     function _closePopup() {
-        try { if (window.PopupStack) window.PopupStack.remove('vsby-zone-popup'); } catch (e) {}
+        try { if (window.PopupStack) window.PopupStack.remove('vsby-zone-popup'); } catch (e) { /* 이미 없어졌거나 정리된 뒤일 수 있다 — 정리는 실패해도 그대로 둔다 */ }
         if (state.popupMap) { try { state.popupMap.setTarget(null); } catch (e) {} state.popupMap = null; }
         if (state.popupEl && state.popupEl.parentNode) state.popupEl.parentNode.removeChild(state.popupEl);
         state.popupEl = null;

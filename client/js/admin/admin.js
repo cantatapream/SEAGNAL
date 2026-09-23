@@ -3191,7 +3191,7 @@ async function renderAffiliationTab(container) {
             + '</div>';
 
         // 도넛 차트 렌더
-        if (affiliationChart) { try { affiliationChart.destroy(); } catch (e) {} affiliationChart = null; }
+        if (affiliationChart) { try { affiliationChart.destroy(); } catch (e) { /* 이미 없어졌거나 정리된 뒤일 수 있다 — 정리는 실패해도 그대로 둔다 */ } affiliationChart = null; }
         var el = document.getElementById('affiliation-chart');
         if (el && typeof Chart !== 'undefined') {
             affiliationChart = new Chart(el, {
