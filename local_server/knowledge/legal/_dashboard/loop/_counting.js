@@ -195,6 +195,20 @@ const REPO = path.resolve(__dirname, '../../../../..');
 /** 로그·보고로 치는 호출. 넓게 잡는다 — 좁게 잡으면 "조용하다"가 부풀려진다. */
 const CATCH_LOG_RE = /console|logger|\blog\b|report|captureException|warn|error|stderr|notify|metric|track/i;
 
+/** ★「로그를 안 남긴다」와 「아무 일도 안 일어난다」는 다른 말이다.
+ *  손잡이가 `alert('초기화 실패: '+e.message)` 라면 **사람에게는 분명히 보인다** —
+ *  운영자 기록이 없을 뿐이다. 둘을 한 통에 넣고 세면 「삼키는 곳 241」 같은
+ *  부풀린 수가 나오고, 정작 **정말 아무 일도 안 일어나는 자리**가 그 안에 묻힌다.
+ *  그래서 **세지는 않고, 자리를 낼 때 「겉으로 무엇이 보이나」를 같이 적는다.** */
+//  서버 쪽에서 「보인다」는 **부른 쪽이 안다**는 뜻이다 — 오류 응답을 돌려주면 안다.
+const CATCH_SHOW_RE = /alert|confirm|innerHTML|textContent|innerText|toast|Swal|showModal|setError|notice|\bres\.(status|json|send|end)\b|\bnext\(/i;
+
+/** ★세 번째 길 — 이 저장소는 로그도 화면도 아닌 **진단줄**에 남긴다.
+ *  `if (diag) diag.push('expand')` 는 "조용히 넘어가지 않겠다"고 2026-08-20 에
+ *  일부러 넣은 자리다. 로그가 아니라고 「삼킨다」로 세면 **이미 고쳐 둔 곳을 다시 고치라**고
+ *  일감이 나온다. 삼킴의 반대말은 「로그」가 아니라 **「어딘가에 남는다」** 이다. */
+const CATCH_TRACE_RE = /\bdiag\b|\btrace\b|\bdebugInfo\b|\b_diag\b|진단/i;
+
 /** acorn 을 쓸 수 있나. 전이 의존이라 없을 수 있다. */
 function catchParserAvailable() {
   try { require('acorn'); require('acorn-walk'); return true; } catch (_) { return false; }
@@ -275,6 +289,11 @@ function catchStats(src) {
           // 무엇을 기다리는지 — 고치러 갈 때 제일 먼저 보는 것이다
           부른것: [...new Set((blockSrc.match(/await\s+([A-Za-z_$][\w$.]*)/g) || [])
             .map((x) => x.replace(/^await\s+/, '')))].slice(0, 4),
+          // ★겉으로 무엇이 보이나 — `보임`이면 사람은 안다(기록이 없을 뿐).
+          //   `없음`이면 **아무 일도 안 일어난다** — 고치러 갈 곳은 여기부터다.
+          겉으로: hb.length === 0 ? '없음'
+            : (CATCH_SHOW_RE.test(handlerSrc) ? '보임'
+              : (CATCH_TRACE_RE.test(handlerSrc) ? '진단줄' : '없음')),
           손잡이: handlerSrc.replace(/\s+/g, ' ').slice(0, 70),
         });
       }

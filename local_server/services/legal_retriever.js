@@ -1850,7 +1850,10 @@ ${block}
     const answer = [terms, lines.map((v, i) => `- **${options[i].label}**: ${v}`).join('\n')]
       .filter(Boolean).join('\n\n');
     return Object.assign({}, fallback, { answer });
-  } catch (_) {
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). 되묻기 **설명문**을 못 만들면 사용자는 왜 되묻는지 모른 채
+    //   버튼만 보게 된다 — 종전에는 「설명이 필요 없었던 것」과 구분이 안 됐다.
+    console.warn('[Legal-ClarifyExplain] 설명 생성 실패 — 기본 문구로 되묻는다:', e && e.message);
     return fallback;
   }
 }
@@ -3399,7 +3402,10 @@ async function pickCandidateLaws(query, lawNames) {
     // 모델이 목록에 없는 법명을 지어낼 수 있어(환각) 실제 목록에 있는 것만 통과시킨다.
     const known = new Set(lawNames);
     return arr.filter(x => typeof x === 'string' && known.has(x.trim())).map(x => x.trim()).slice(0, RAW_LAW_MAX);
-  } catch (_) {
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). 여기서 빈 배열이 되면 **raw 원문을 한 글자도 안 읽고**
+    //   답을 쓴다 — 「읽을 법이 없었다」와 「고르다 실패했다」가 겉으로 똑같았다.
+    console.warn('[Legal-RawLawPick] 후보 법 고르기 실패 — raw 원문 없이 답한다:', e && e.message);
     return [];
   }
 }
@@ -3481,7 +3487,10 @@ async function pickRawFiles(query, bundles) {
       if (out.length >= RAW_FILE_MAX) break;
     }
     return out;
-  } catch (_) {
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). 여기서 빈 배열이 되면 **시행령·시행규칙·별표를 안 읽고**
+    //   법률 본문만으로 답한다 — 위임된 수치가 통째로 빠지는데 아무 표시가 없었다.
+    console.warn('[Legal-RawFilePick] 위임 파일 고르기 실패 — 법률 본문만으로 답한다:', e && e.message);
     return [];
   }
 }
@@ -3547,7 +3556,10 @@ async function searchRawFallback(query, hint) {
       laws: bundles.map(b => b.law),
       files: extras.map(x => `${x.law}/${x.file}`),
     };
-  } catch (_) {
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). raw 원문 보조검색이 통째로 죽으면 **위키에 있는 것만으로**
+    //   답한다 — 「보조검색이 필요 없었다」와 구분이 안 됐다.
+    console.warn('[Legal-RawFallback] raw 원문 보조검색 실패 — 위키 근거만으로 답한다:', e && e.message);
     return EMPTY;
   }
 }
@@ -4727,6 +4739,12 @@ async function understandConfirmStep(query, uc, enabled) {
       },
     };
   } catch (_) {
+    // ★3-44 에서 여기에도 `console.warn` 을 달았다가 **되돌렸다.**
+    //   이 절(H-37 §4·5·7)은 `test_ask_context` 의 자물쇠가 **"콘솔로도 안 흘린다"** 를 건 자리다.
+    //   R1(프로필·맥락이 서버 어디에도 남지 않는다)이 로그보다 앞선다 —
+    //   빨간불이 떴다고 기준선을 다시 굽지 않는다(G-49).
+    //   ⚠그래서 **이 단계가 죽으면 확인 없이 바로 답한다**는 사실은 여전히 밖에서 안 보인다.
+    //     남길 곳이 필요하면 로그가 아니라 **진단줄(diag)** 이어야 한다 — 아직 이 함수엔 없다.
     return null;
   }
 }
@@ -5312,6 +5330,9 @@ async function naverTermStep(query, nu, enabled) {
       },
     };
   } catch (_) {
+    // ★위 understandConfirmStep 과 같은 까닭으로 **로그를 달지 않는다**(H-37 §4·5·7 자물쇠).
+    //   ⚠「물어볼 것이 없었다」와 「되묻기 단계가 죽었다」는 여전히 겉으로 똑같다.
+    //     이 절에 남기려면 **진단줄(diag)** 을 먼저 들여야 한다.
     return null;
   }
 }
