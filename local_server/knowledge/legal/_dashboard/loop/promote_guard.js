@@ -15,6 +15,15 @@
  * [무엇을 보나 — 새로 canonical 이 된 쪽에 한정한다]
  * 이미 canonical 인 366쪽을 소급해서 보지 않는다. 그러면 첫날부터 수백 건이 떠서
  * 아무도 안 보게 된다(게이트가 죽는 흔한 길). **이번에 올린 것만** 본다.
+ *
+ * ⚠★**정정(2026-09-23, G-3) — 이 판단은 셋 중 하나에만 맞았다.**
+ *   "수백 건이 뜬다"가 정말인지 오늘 전수로 재 봤다(canonical **1,112쪽** — 위 366 은 낡았다):
+ *       ⓐ-1 가려지는 줄 0        →   **8쪽** (그것도 각 1줄)
+ *       ⓐ-2 OCR·판독 신호        →   341쪽
+ *       ⓑ  재점검 2회 기록       → **1,068쪽**   ← "수백 건"은 **여기** 이야기였다
+ *   ⓑ 는 2026-09-20 에 만든 형식이라 그 전 쪽에 있을 리가 없다 — 소급하면 게이트가 죽는 게 맞다.
+ *   그러나 **ⓐ-1 은 소급해도 8건뿐**이고, 지금은 **아무도 안 보고 있다.**
+ *   → 아래 §소급 ⓐ-1 을 켠다. **기준선 8, 늘면 실패.** ⓐ-2·ⓑ 는 그대로 소급하지 않는다.
  *   ⓐ-1  `markUnresolvedReview()` 가 그 쪽에서 가리는 줄이 0개인가 (운영 함수를 그대로 부른다)
  *   ⓐ-2  판독ㆍOCRㆍ출처미확인 신호가 없는가
  *   ⓑ    숫자로 된 법적 효과가 있으면, 「변경 이력」에 **두 번의 재점검 기록**이 있는가
@@ -144,6 +153,47 @@ if (!promoted.length) {
   }
   console.log('\n  고치는 법: 그 쪽을 draft 로 되돌리거나, §5-D ⓑ 의 두 번을 실제로 거친 뒤');
   console.log('            「변경 이력」에 기록줄을 남긴다(이 파일 머리말의 예시 참고).');
+}
+
+// ── ★소급 ⓐ-1 — 이미 canonical 인 쪽에서 **가려지는 줄이 생기지 않았나** (2026-09-23, G-3) ──
+//   ⓐ-1 만 소급한다(까닭은 머리말). 운영 함수 `markUnresolvedReview()` 를 그대로 부른다(L-136).
+//   ⚠기준선을 다시 굽는 것으로 넘기지 않는다(G-49).
+const BASE_A1 = path.join(__dirname, 'baseline', 'promote_a1.json');
+const allMd = [];
+(function w(d) {
+  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    const q = path.join(d, e.name);
+    if (e.isDirectory()) w(q);
+    else if (e.name.endsWith('.md')) allMd.push(q);
+  }
+})(WIKI);
+const a1bad = [];
+for (const f of allMd) {
+  const t = fs.readFileSync(f, 'utf8');
+  if (!/^status:\s*canonical/m.test(t)) continue;
+  const body = t.replace(/^---\n[\s\S]*?\n---\n/, '');
+  const n = R.markUnresolvedReview(body).split('\n').filter(l => l.includes(MARK)).length;
+  if (n > 0) a1bad.push({ f: f.replace(WIKI + '/', ''), n });
+}
+if (argv.includes('--update-a1')) {
+  fs.writeFileSync(BASE_A1, JSON.stringify({ '소급a1': a1bad.length }, null, 2) + '\n');
+  console.log(`  [소급 ⓐ-1] 기준선을 다시 구웠다: ${a1bad.length}`);
+} else {
+  let baseA1 = null;
+  try { baseA1 = JSON.parse(fs.readFileSync(BASE_A1, 'utf8')); } catch (_) {}
+  console.log(`\n  [소급 ⓐ-1] 이미 canonical 인 쪽 중 **[미확인]으로 가려지는 줄이 있는** 쪽 ${a1bad.length}` +
+              (baseA1 ? ` (기준선 ${baseA1['소급a1']})` : ' ⚠기준선 없음 — `--update-a1` 로 한 번 구워야 한다'));
+  for (const x of a1bad.slice(0, 8)) console.log(`      · ${x.f}  (${x.n}줄)`);
+  if (baseA1 && a1bad.length > baseA1['소급a1']) {
+    console.log(`  ❌ [소급 ⓐ-1] 늘었다: ${baseA1['소급a1']} → ${a1bad.length}`);
+    console.log('     → canonical 인 쪽에 [미확인] 줄이 새로 생겼다. 그 줄을 해소하거나 draft 로 되돌린다.');
+    console.log('     ⚠기준선을 다시 굽는 것으로 넘기지 않는다(G-49).');
+    if (argv.includes('--gate')) process.exit(1);
+  } else if (baseA1 && a1bad.length < baseA1['소급a1']) {
+    console.log(`  ✅ [소급 ⓐ-1] 줄었다: ${baseA1['소급a1']} → ${a1bad.length} — \`--update-a1\` 로 잠근다`);
+  } else if (baseA1) {
+    console.log('  ✅ [소급 ⓐ-1] 기준선 그대로 — 늘지 않았다');
+  }
 }
 
 if (argv.includes('--gate') && bad.length) process.exit(1);
