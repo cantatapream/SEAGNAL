@@ -288,6 +288,11 @@ node local_server/knowledge/legal/_dashboard/loop/law_cell_named.js --gate || fa
 echo; echo "── V5-18 꼬리표 판번호 제자리 ──"
 node local_server/knowledge/legal/_dashboard/loop/meta_schema_gate.js --gate || fail "V5-18 꼬리표 판번호 제자리"
 
+# ── V5-19 교훈 번호가 겹치지 않나 (2026-09-23 신설, L-329) ──────────────────────
+# 갈래 둘이 각자 L-306 다음을 L-307 부터 쓰면 합칠 때까지 아무도 모른다.
+echo; echo "── V5-19 교훈 번호 겹침 ──"
+node local_server/knowledge/legal/_dashboard/loop/lesson_no_gate.js || fail "V5-19 교훈 번호 겹침"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
