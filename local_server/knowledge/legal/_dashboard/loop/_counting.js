@@ -507,3 +507,105 @@ const ANNEX_RULERS = {
   'V5-21a': { 도구: 'byl_bare_ready.js', 물음: '계층 접두 없는 별표 파일이 열쇠를 갖췄나',       단위: '파일' },
 };
 module.exports.ANNEX_RULERS = ANNEX_RULERS;
+
+// ════════════════════════════════════════════════════════════════════════════
+// 「사람이 봐야 한다」 표시 — 행정규칙의 `⚠REVIEW` (2026-09-23 신설, G-24 · 2-19)
+//
+// [왜 여기에 적나] 등록부(G-24)는 *"「원문 대조 필요」 표시가 **147개** 행정규칙에
+//   남아 있고 그중 **131개**를 위키가 인용한다"* 고 적어 두었다. 오늘 재 보니
+//   **그 두 숫자를 어떤 자로도 재현할 수 없었다.** 「원문 대조 필요」라는 문구가
+//   든 파일은 928개 중 **6개**뿐이다.
+//
+//   ★재현된 것은 **범위 하나**였다 — `행정규칙` 폴더 **바로 아래** `.txt`,
+//   하위폴더 제외 = **928개**(정확히 일치). 범위를 안 적어 두면 같은 이름으로
+//   2,285(하위폴더 포함) 도, 739(도메인 01~14) 도 나온다.
+//
+// [★뜻에 따라 값이 갈린다 — 그래서 뜻마다 이름을 준다] 2026-09-23 실측:
+//     anywhere  파일 어디든 `⚠REVIEW`        234 / 928
+//     head5     머리 5줄 안에 `⚠REVIEW`      178
+//     first     첫 줄에 `⚠REVIEW`             36
+//     phrase    「원문 대조 필요」 문구          6
+//   **어느 하나가 옳은 것이 아니다.** 물음이 다르면 값이 다른 것이 정상이고,
+//   물음을 안 적는 것이 병이다(뿌리 사슬 ⑥).
+//
+// [★진짜 발견 — 표시가 까닭을 안 적는다] 괄호로 묶인 표시 덩어리 **875개** 중
+//   **812개(93%)가 맨 `(⚠REVIEW)`** 이고, 그 812개가 **파일 54개**에 몰려 있다.
+//   "사람이 봐야 한다"고만 적고 **무엇을 봐야 하는지는 안 적은** 것이다.
+//   까닭이 없으면 사람도 무엇을 대조해야 할지 모르고, 세어도 줄일 수가 없다.
+// ════════════════════════════════════════════════════════════════════════════
+const ADMRUL_SCOPE = {
+  뜻: '행정규칙 폴더 **바로 아래** .txt (하위폴더 제외)',
+  실측: 928,
+  잰날: '2026-09-23',
+};
+const REVIEW_MARK = '⚠REVIEW';
+// 괄호/대괄호로 묶인 표시 한 덩어리. 괄호 안에 또 괄호가 없는 것만 본다.
+const REVIEW_CHUNK_RE = /[([][^()[\]]{0,200}?⚠REVIEW[^()[\]]{0,200}?[)\]]/g;
+const REVIEW_SENSES = {
+  anywhere: '파일 어디든 ⚠REVIEW 가 있다',
+  head5:    '머리 5줄 안에 ⚠REVIEW 가 있다',
+  first:    '첫 줄에 ⚠REVIEW 가 있다',
+  phrase:   '「원문 대조 필요」 라는 문구가 있다',
+};
+
+/** 행정규칙 본문 파일 목록 — ADMRUL_SCOPE 의 뜻 그대로. */
+function admrulFiles() {
+  const out = [];
+  const walk = (dir) => {
+    let ents;
+    try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+    for (const e of ents) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (path.basename(dir) === '행정규칙' && e.name.endsWith('.txt')) out.push(p);
+    }
+  };
+  walk(path.join(LEGAL, 'raw'));
+  return out;
+}
+
+/**
+ * 뜻(sense)마다 「표시가 달린 행정규칙」을 센다.
+ * ⚠sense 를 안 주면 던진다 — 뜻을 안 정한 채 세는 것이 ⑥ 그 자체다.
+ */
+function countAdmrulReview(sense) {
+  if (!REVIEW_SENSES[sense]) {
+    throw new Error(`뜻을 정해야 센다(⑥). 쓸 수 있는 뜻: ${Object.keys(REVIEW_SENSES).join(' · ')}`);
+  }
+  const files = admrulFiles();
+  const hit = [];
+  for (const p of files) {
+    let t;
+    try { t = fs.readFileSync(p, 'utf8'); } catch (_) { continue; }
+    const lines = t.split('\n');
+    const ok = sense === 'anywhere' ? t.includes(REVIEW_MARK)
+             : sense === 'head5'    ? lines.slice(0, 5).join('\n').includes(REVIEW_MARK)
+             : sense === 'first'    ? (lines[0] || '').includes(REVIEW_MARK)
+             :                        t.includes('원문 대조 필요');
+    if (ok) hit.push(p);
+  }
+  return { sense, 뜻: REVIEW_SENSES[sense], 전체: files.length, 걸린파일: hit.length, files: hit };
+}
+
+/** 표시 덩어리를 까닭이 적힌 것과 **맨 `(⚠REVIEW)`** 로 가른다. */
+function admrulReviewReasons() {
+  let withWhy = 0, bare = 0;
+  const bareFiles = new Set();
+  for (const p of admrulFiles()) {
+    let t;
+    try { t = fs.readFileSync(p, 'utf8'); } catch (_) { continue; }
+    const ms = t.match(REVIEW_CHUNK_RE);
+    if (!ms) continue;
+    for (const m of ms) {
+      // 표시 말고 남는 글자가 있나 — 괄호·표시·공백·쉼표를 걷어 낸다
+      const rest = m.replace(/[()[\]]/g, '').replace(REVIEW_MARK, '').replace(/[\s:：,·]/g, '');
+      if (rest) withWhy++; else { bare++; bareFiles.add(p); }
+    }
+  }
+  return { 덩어리: withWhy + bare, 까닭있음: withWhy, 맨표시: bare, 맨표시파일: bareFiles.size };
+}
+
+module.exports.ADMRUL_SCOPE = ADMRUL_SCOPE;
+module.exports.REVIEW_SENSES = REVIEW_SENSES;
+module.exports.countAdmrulReview = countAdmrulReview;
+module.exports.admrulReviewReasons = admrulReviewReasons;

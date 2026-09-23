@@ -289,6 +289,27 @@ async function checkNoDeadButtons(browser) {
             if (opened) break;
         }
 
+        // ★재기 전에 **시트가 다 올라오기를 기다린다**(2026-09-23).
+        //   시트는 `transform: translateY(100%) → 0` 을 **0.28초** 동안 움직이는데
+        //   (style.css `.accident-stats-sheet` / `.open`), 시험은 `.open` 클래스를 보고
+        //   **곧바로** 잰다. 클래스는 애니메이션 **시작**에 붙는다 — 그 순간 ✕ 는 아직
+        //   화면 밖이다. 이 저장소가 이미 한 번 겪은 병이다(아코디언 0.4초 transition
+        //   중에 좌표를 재서 구멍이 384px 어긋난 일).
+        //   ⚠**판별력은 안 줄인다** — 정말로 무엇이 ✕ 를 덮고 있다면 다 올라온 뒤에도
+        //   덮고 있고, 그때 실패한다. 줄어드는 것은 **잘못 재는 경우**뿐이다.
+        const SETTLE_MAX = 2000;
+        const sheetTop = `(() => { const e = document.getElementById('accident-stats-sheet');
+                                   return e ? Math.round(e.getBoundingClientRect().top) : -1; })()`;
+        let prevTop = null, settleMs = 0;
+        const s0 = Date.now();
+        while (Date.now() - s0 < SETTLE_MAX) {
+            const top = await p.evaluate(sheetTop);
+            if (prevTop !== null && top === prevTop) break;   // 두 번 연속 같은 자리 = 멈췄다
+            prevTop = top;
+            await p.waitForTimeout(80);
+        }
+        settleMs = Date.now() - s0;
+
         const r = await p.evaluate(`(() => {
           const sheet = document.getElementById('accident-stats-sheet');
           const dead = [];
@@ -299,12 +320,34 @@ async function checkNoDeadButtons(browser) {
             const t = document.elementFromPoint(Math.round(b.left + b.width / 2), Math.round(b.top + b.height / 2));
             if (!(t && (t === e || e.contains(t)))) dead.push(btn.name);
           });
+          // ★왜 안 눌리는지까지 돌려준다(G-40). 예전엔 closeOk 하나만 돌려줘서
+          //   빨간불이 떠도 「없는 것 / 가려진 것 / 화면 밖인 것」을 구분할 수 없었다.
           const close = document.querySelector('#accident-stats-sheet .ocean-sheet-close');
-          let closeOk = false;
-          if (close) { const b = close.getBoundingClientRect();
-            const t = document.elementFromPoint(Math.round(b.left + b.width / 2), Math.round(b.top + b.height / 2));
-            closeOk = !!(t && (t === close || close.contains(t))); }
-          return { open: !!(sheet && sheet.classList.contains('open')), dead, closeOk };
+          let closeOk = false, closeWhy = '', rect = null;
+          const vw = window.innerWidth, vh = window.innerHeight;
+          if (!close) {
+            closeWhy = '#accident-stats-sheet 안에 .ocean-sheet-close 가 아예 없다';
+          } else {
+            const b = close.getBoundingClientRect();
+            rect = [Math.round(b.left), Math.round(b.top), Math.round(b.width), Math.round(b.height)];
+            const cx = Math.round(b.left + b.width / 2), cy = Math.round(b.top + b.height / 2);
+            if (b.width === 0 || b.height === 0) {
+              closeWhy = '크기가 0 이다(' + rect.join(',') + ') — 아직 안 그려졌거나 display:none';
+            } else if (cx < 0 || cy < 0 || cx > vw || cy > vh) {
+              closeWhy = '가운데(' + cx + ',' + cy + ')가 화면(' + vw + 'x' + vh + ') 밖이다 — 시트가 덜 올라왔다';
+            } else {
+              const t = document.elementFromPoint(cx, cy);
+              closeOk = !!(t && (t === close || close.contains(t)));
+              if (!closeOk) {
+                const hit = t ? (t.tagName.toLowerCase()
+                          + (t.id ? '#' + t.id : '')
+                          + (t.className && typeof t.className === 'string'
+                             ? '.' + t.className.trim().split(/\s+/).join('.') : '')) : 'null(그 자리에 아무것도 없다)';
+                closeWhy = '가운데(' + cx + ',' + cy + ')를 짚으니 ✕ 가 아니라 **' + hit + '** 가 잡힌다 — 그것이 덮고 있다';
+              }
+            }
+          }
+          return { open: !!(sheet && sheet.classList.contains('open')), dead, closeOk, closeWhy, rect, vw, vh };
         })()`);
         // ★전제가 깨졌을 때 **왜**인지까지 적는다(G-40) — 자료가 안 온 것·칸이 화면 밖인 것·
         //   칸을 눌렀는데도 안 열린 것은 **서로 다른 일**이다. 셋을 한 문장으로 묶으면 다음 사람이 또 헤맨다.
@@ -321,7 +364,16 @@ async function checkNoDeadButtons(browser) {
 
         ok('시트가 열려 있어도 "보이는데 눌리지 않는" 버튼이 없다', r.dead.length === 0,
             '        눌리지 않는 버튼: ' + r.dead.join(', '));
-        ok('시트를 닫는 버튼은 눌린다(갇히지 않는다)', r.closeOk);
+        // ★전제가 깨졌으면 이 문항은 **잴 수 없었던 것**이지 통과가 아니다.
+        //   예전엔 시트가 안 열려도 ✕ 가 눌리기만 하면 ✅ 가 떴다 — 아무것도 보장 못 하는 초록불이다.
+        //   (2026-09-23 실측: 로컬에서 전제 ❌ 인데 이 줄만 ✅ 였다. L-331)
+        ok('시트를 닫는 버튼은 눌린다(갇히지 않는다)', r.open && r.closeOk,
+            r.open
+                ? '        ' + (r.closeWhy || '까닭을 못 적었다 — 진단을 더 넣어야 한다') +
+                  '\n        ✕ 자리 [x,y,w,h]=' + JSON.stringify(r.rect) + ' · 화면 ' + r.vw + 'x' + r.vh +
+                  '\n        시트가 멈추기까지 ' + settleMs + 'ms 기다렸다(상한 ' + SETTLE_MAX + 'ms) — 상한까지 갔으면 아직 움직이는 중일 수 있다'
+                : '        시트가 안 열려 **잴 수 없었다** — 위 「시험 전제」 줄이 까닭을 적고 있다.\n' +
+                  '        (전제가 깨진 채 이 줄만 초록이면 그 초록은 아무것도 보장하지 않는다)');
     } finally { await ctx.close(); }
 }
 

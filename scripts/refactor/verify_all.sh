@@ -92,7 +92,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_overlay_solo test_wiki_brief_bulk test_review_marker_registered test_stale_reopen
   test_mok_audit_scanner test_add_other_law_refresh test_pressure_card test_typhoon_source
   test_byl_decl test_treaty_caselaw_meta test_context_budget test_counting_dict test_silent_catch
-  test_gate_5xx_class test_meta_schema)
+  test_gate_5xx_class test_meta_schema test_admrul_review)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi
@@ -261,6 +261,12 @@ node local_server/knowledge/legal/_dashboard/loop/meta_schema_gate.js --gate || 
 # 갈래 둘이 각자 L-306 다음을 L-307 부터 쓰면 합칠 때까지 아무도 모른다.
 echo; echo "── V5-19 교훈 번호 겹침 ──"
 node local_server/knowledge/legal/_dashboard/loop/lesson_no_gate.js || fail "V5-19 교훈 번호 겹침"
+
+# ── V5-24 「사람이 봐야 한다」 표시가 달린 채 남은 행정규칙 (2026-09-23 신설, G-24 · 2-19) ──
+# 수집기가 스스로 `⚠REVIEW` 를 적어 두었는데 **그 대조가 이뤄졌는지 세는 것이 없었다.**
+# ⚠표시를 지워서 초록을 만들지 않는다 — 그것은 대조를 한 것이 아니다(G-34).
+echo; echo "── V5-24 「사람이 봐야 한다」 표시 ──"
+node local_server/knowledge/legal/_dashboard/loop/admrul_review_gate.js || fail "V5-24 사람이 봐야 한다 표시"
 
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
