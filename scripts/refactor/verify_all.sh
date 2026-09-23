@@ -319,6 +319,15 @@ node local_server/knowledge/legal/_dashboard/loop/article_head_missing_gate.js |
 echo; echo "── V5-32 계층 별표 도달성 ──"
 node local_server/knowledge/legal/_dashboard/loop/byl_tier_ready.js || fail "V5-32 계층 별표 도달성"
 
+# ── V5-33 `raw/` 를 고쳤으면 되돌릴 수 있나 (2026-09-23 신설, N-5 · 3-10) ────────
+# [왜] `raw/` 는 규약상 불변이라 적혀 있었지만 실제로는 1,508파일·3,573회 고쳐졌다.
+#   사용자가 "규칙을 현실에 맞춘다"로 확정했다(N-5) — 그러면 현실의 규칙은
+#   **고쳐도 되지만 되돌릴 수 있어야 한다**이다. `_touched.py` 기록이 그 증거다.
+# ⚠갈림점(`origin/main`)을 못 보면 **재지 않고 건너뛴다** — CI 체크아웃이 얕으면 그렇다.
+#   그래서 워크플로에 `fetch-depth: 0` 을 걸어 뒀다(안 걸면 게이트가 죽는다 — ④).
+echo; echo "── V5-33 원문 수정의 되돌리기 기록 ──"
+node local_server/knowledge/legal/_dashboard/loop/raw_touch_guard.js || fail "V5-33 원문 되돌리기 기록"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
