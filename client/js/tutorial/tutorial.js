@@ -67,6 +67,7 @@
 
     var GAP      = 12;   // 구멍과 설명 카드 사이 간격(px)
     var EDGE     = 12;   // 화면 가장자리에서 띄울 여백(px)
+    var TAG_H    = 30;   // 위쪽 "시험 모드" 딱지 줄이 차지하는 높이(px)
     var _insets  = { top: 0, bottom: 0 };   // 상태표시줄·제스처 바가 차지하는 만큼
     var _trackId = 0;    // 대상 자리를 지켜보는 rAF 번호
     var _trackKey = '';  // 마지막으로 그린 대상 자리
@@ -370,14 +371,20 @@
     function _fitIntoView(els) {
         var u = _unionRect(els);
         if (!u) return;
-        // 대상이 애초에 화면보다 크면 아래를 맞추려다 위쪽(머리줄)을 잘라 먹는다 — 그대로 둔다.
-        var limit = window.innerHeight - EDGE - _insets.bottom;
-        if ((u.bottom - u.top) > limit - (EDGE + _insets.top)) return;
-        var over = Math.round(u.bottom - limit);
-        if (over <= 0) return;
+        var topLimit    = EDGE + _insets.top + TAG_H;   // 위쪽 딱지 줄 아래
+        var bottomLimit = window.innerHeight - EDGE - _insets.bottom;
+
+        // 설명 카드가 **아래쪽**에 들어갈 자리가 남아 있으면 그대로 둔다.
+        if (bottomLimit - u.bottom - GAP >= CARD_MIN) return;
+
+        // 자리가 모자라면 대상을 위로 끌어올려 아래를 비운다. 그러지 않으면 카드가 위로
+        //   올라가고 대상은 화면 아래에 눌려, 부이 관측값처럼 아래쪽 내용이 화면 밖으로
+        //   잘려 나간다(사용자 지적 2026-09-23: "부이 선택 화면이 아래쪽에 있어서 안 보인다").
+        var want = Math.round(u.top - topLimit);
+        if (want <= 0) return;   // 이미 위쪽에 붙어 있다 — 더 올릴 수 없다
         var de = document.scrollingElement || document.documentElement;
         var room = de.scrollHeight - de.clientHeight - de.scrollTop;
-        if (room > 0) de.scrollTop += Math.min(over, room);
+        if (room > 0) de.scrollTop += Math.min(want, room);
     }
 
     // ========================================================================
