@@ -164,5 +164,28 @@ ok('★라운드를 견주는 함수를 두지 않는다 (만들면 허수가 �
     typeof C.compareRounds === 'undefined' && typeof C.countRounds === 'undefined',
     '        견주는 함수가 생겼다면, 그것이 무엇을 견주는지부터 사전에 적어야 한다.');
 
+// ── 조 머리줄을 가져야 하는 파일 — 범위를 정했다 (2026-09-23, 3-47) ──────────
+console.log('\n── ⑨ 「조 머리줄을 가져야 하는 파일」 — 범위에 이름을 붙였다 (3-47) ──');
+{
+  ok('★범위를 안 주면 **던진다** (뜻이 둘인데 기본값을 두면 그게 허수다)',
+    (() => { try { C.countArticleHeadMissing({}); return false; } catch (_) { return true; } })());
+  ok('범위가 둘 등재돼 있다', Object.keys(C.ARTICLE_HEAD_SCOPES).length === 2,
+    `        ${JSON.stringify(Object.keys(C.ARTICLE_HEAD_SCOPES || {}))}`);
+  const 자 = C.countArticleHeadMissing({ scope: '자치법규' });
+  const 계 = C.countArticleHeadMissing({ scope: '계층본문' });
+  ok('자치법규 ⊆ 계층본문 (좁은 범위가 넓은 범위에 들어 있다)', 자.count <= 계.count,
+    `        자치법규 ${자.count} · 계층본문 ${계.count}`);
+  ok('★**계층 본문 파일만** 센다 — 별표·고시·OCR·부칙은 안 센다',
+    계.rows.every((r) => C.TIER_BODY_FILES.includes(r.파일.split('/').pop())),
+    '        하나라도 다른 이름이 섞이면 범위가 샌 것이다');
+  ok('안 본다고 정한 폴더가 이름으로 적혀 있다',
+    ['별표', '행정규칙', '_이미지', '_원본첨부', '_구판', '_대기'].every((d) => C.HEAD_SKIP_DIRS.has(d)));
+  ok('★**아직 안 정한 것**(발췌본·조약)은 결함으로 안 센다',
+    계.rows.every((r) => !/_발췌\.txt$/.test(r.파일) && !/^.*\/조약/.test(r.파일)),
+    '        안 정한 것을 결함으로 세면 게이트를 아무도 안 듣게 된다(④)');
+  ok('범위마다 뜻이 한 줄로 적혀 있다',
+    Object.values(C.ARTICLE_HEAD_SCOPES).every((v) => v.뜻));
+}
+
 console.log(`\n  ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

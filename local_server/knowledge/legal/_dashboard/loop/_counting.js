@@ -748,3 +748,86 @@ const ROUND_SENSES = {
 //   비교가 필요하면 **사람이 그 자리를 열어 어느 뜻인지 먼저 정한 뒤** 견준다.
 //   (`test_counting_dict.js` 가 이 함수가 **없다는 것**을 시험으로 못박는다 — ANNEX_RULERS 와 같다.)
 module.exports.ROUND_SENSES = ROUND_SENSES;
+
+// ════════════════════════════════════════════════════════════════════════════
+// 3-47 — ★**어떤 파일이 `[제N조]` 머리줄을 가져야 하는가** (2026-09-23)
+//
+// [왜 여기에 적나] V5-31(`article_head_missing_gate.js`)은 지금 `raw/_자치법규` 본문만 본다.
+//   넓히려다 **두 번 틀렸다** — `raw/` 전체를 쓸면 수천 개가 나오는데 그 대부분은
+//   **애초에 조 머리줄을 가질 자리가 아니다**. 범위를 안 정하고 넓히면 게이트가 수천 개를
+//   결함이라 외치고 **아무도 안 듣게 된다**(뿌리 사슬 ④).
+//   그래서 「세는 법」을 여기 **한 곳**에 적는다(⑥).
+//
+// [실측 — 2026-09-23, `raw/` 전수]
+//   머리줄이 없고 평문 `제N조` 가 2회 이상인 `.txt` **5,502개**를 이름·자리로 갈랐다:
+//     별표 폴더        4,434   별표·서식 본문이다. 조 머리줄을 **가지면 안 된다**
+//     행정규칙           902   고시는 `제N조(` **줄머리 꼴**이다(L-54). V5-11 소관
+//     그 밖(도메인 본문)   94   ← **여기만이 물음이다**
+//     _이미지(OCR)        43   OCR 글. 머리줄이 없는 게 당연하다
+//     부칙 파일            26   부칙은 `[제N조]` 로 안 적는다
+//     _자치법규 본문         3   전부 `…_별표N_…발췌.txt` — 별표 발췌다
+//   ⚠전에 적어 둔 **2,612** 는 이것과 다른 자다(그때는 제외 목록을 달리 썼다).
+//     **두 값을 견주지 않는다** — 같은 것을 잰 것이 아니다(⑥).
+//
+// [94 를 다시 갈랐다 — 파일 이름이 근거다]
+//     *_발췌.txt              51   **발췌본**. 조 머리줄을 가져야 하는지는 **3-3 과 함께 정한다**
+//     조약*.txt               ~15  조약은 조 구조가 다르다 → **3-45**
+//     계층 본문(법률/시행령/    12   ★**이것이 결함이다.** 아래 TIER_BODY_SCOPE
+//       시행규칙/대통령령).txt
+//     단편 파일                 ~16 `조문_제20조_…` 처럼 조 하나만 떼어 둔 것
+//
+// [그래서 규약]
+//   **가져야 한다**  : `raw/<도메인>/<법>/` 바로 아래의 **계층 본문 파일**
+//                     (`법률.txt` · `시행령.txt` · `시행규칙.txt` · `대통령령.txt`)
+//                     그리고 `raw/_자치법규/<시도>/<조례>/` 바로 아래의 같은 이름들
+//   **가지면 안 된다**: `별표/` · `행정규칙/` · `_이미지/` · `_원본첨부/` · `_구판/` · `_대기/` · `부칙*.txt`
+//   **아직 안 정했다**: `*_발췌.txt`(3-3) · `조약*.txt`(3-45) · 조 하나만 떼어 둔 단편
+//     ⚠**안 정한 것을 결함으로 세지 않는다.** 정하는 것은 사람 몫이다(G-34).
+// ════════════════════════════════════════════════════════════════════════════
+const TIER_BODY_FILES = ['법률.txt', '시행령.txt', '시행규칙.txt', '대통령령.txt'];
+const HEAD_SKIP_DIRS = new Set(['별표', '행정규칙', '_이미지', '_원본첨부', '_구판', '_대기']);
+
+const ARTICLE_HEAD_SCOPES = {
+  자치법규: { 뜻: '`raw/_자치법규/<시도>/<조례>/` 바로 아래 계층 본문', 실측_20260923: 0 },
+  계층본문: { 뜻: '`raw/**/<법>/` 바로 아래 계층 본문 전부(자치법규 포함)', 실측_20260923: 12 },
+};
+
+/**
+ * 조 머리줄을 **가져야 하는데 없는** 파일을 센다.
+ * @param {{scope?: keyof ARTICLE_HEAD_SCOPES}} opt
+ */
+function countArticleHeadMissing(opt) {
+  const scope = (opt && opt.scope) || null;
+  if (!scope) throw new Error(`범위를 정해야 한다 (쓸 수 있는 것: ${Object.keys(ARTICLE_HEAD_SCOPES).join('·')})`);
+  if (!Object.prototype.hasOwnProperty.call(ARTICLE_HEAD_SCOPES, scope)) {
+    throw new Error(`알 수 없는 범위: ${scope}`);
+  }
+  const RAWDIR = path.join(LEGAL, 'raw');
+  const root = scope === '자치법규' ? path.join(RAWDIR, '_자치법규') : RAWDIR;
+  const HEAD = /(?:^|\n)\[제\d+조/;
+  const PLAIN = /제\d+조/g;
+  const out = [];
+  const walk = (dir) => {
+    if (HEAD_SKIP_DIRS.has(path.basename(dir))) return;
+    let ents;
+    try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+    for (const e of ents) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(p); continue; }
+      if (!TIER_BODY_FILES.includes(e.name)) continue;          // ★계층 본문만 본다
+      let t;
+      try { t = fs.readFileSync(p, 'utf8'); } catch (_) { continue; }
+      if (HEAD.test(t)) continue;
+      const plain = (t.match(PLAIN) || []).length;
+      if (plain < 2) continue;
+      out.push({ 파일: path.relative(RAWDIR, p), 평문조: plain, 깨짐: /0{6,}/.test(t) });
+    }
+  };
+  walk(root);
+  return { scope, scopeLabel: ARTICLE_HEAD_SCOPES[scope].뜻, rows: out, count: out.length };
+}
+
+module.exports.TIER_BODY_FILES = TIER_BODY_FILES;
+module.exports.HEAD_SKIP_DIRS = HEAD_SKIP_DIRS;
+module.exports.ARTICLE_HEAD_SCOPES = ARTICLE_HEAD_SCOPES;
+module.exports.countArticleHeadMissing = countArticleHeadMissing;

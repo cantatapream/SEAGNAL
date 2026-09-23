@@ -32,6 +32,18 @@
  *   (울릉군 별표1 hwp→html 전사 16줄 · 제주 사무전결처리규칙 별표2 엑셀 대조 메모 6줄)을
  *   달고 있었다. **다시 받아도 안 나오는 것**이라, 받은 것으로 통째로 덮었으면 잃었다.
  *   → 다시 받는 도구는 **조문 뒤 손일을 글자 그대로 옮겨 붙인다.**
+ *
+ * ★★정정(2026-09-23, 3-47) — **범위를 정했다. 이제 `raw/` 전부를 본다.**
+ *   위 [왜 `_자치법규` 까지만 보나] 는 *"넓히려면 「어떤 파일이 조 머리줄을 가져야 하는가」를
+ *   먼저 정해야 한다"* 로 끝났다. **그 규약을 `_counting.js` 에 적었다**(3-47).
+ *     **가져야 한다**  : `<법>/` 바로 아래 계층 본문(`법률·시행령·시행규칙·대통령령.txt`)
+ *     **가지면 안 된다**: `별표/` · `행정규칙/` · `_이미지/` · `_원본첨부/` · `_구판/` · `_대기/` · `부칙*.txt`
+ *     **아직 안 정했다**: `*_발췌.txt`(→3-3) · `조약*.txt`(→3-45) · 조 하나만 떼어 둔 단편
+ *       ⚠**안 정한 것을 결함으로 세지 않는다**(G-34).
+ *   ⇒ 이 게이트는 이제 **세는 일을 스스로 하지 않는다.** `_counting.js` 의
+ *     `countArticleHeadMissing({scope})` 를 **부른다**(L-136 — 자를 둘로 만들지 않는다).
+ *   ⇒ 기준선도 **범위별로 둘**이다: 자치법규 **0** · 계층본문 **12**.
+ *     ⚠12 는 **늘어난 것이 아니라 처음 본 것**이다 — 범위가 넓어졌다. 둘 다 늘면 실패한다.
  */
 const fs = require('fs');
 const path = require('path');
@@ -44,71 +56,53 @@ const BASE = path.join(__dirname, 'baseline', 'article_head_missing.json');
 const HEAD = /^\[제\d+조/m;
 const PLAIN = /제\d+조/g;
 
+const C = require('./_counting.js');
+
+// ★세는 일은 `_counting.js` 가 한다. 여기서 또 세지 않는다(⑥).
+//   옛 `find()` 는 지우지 않고 **이름을 바꿔 남긴다** — 무엇이 달라졌는지 보이게.
 function find() {
-    const out = [];
-    // ⚠★**범위를 V5-17 과 같게 맞춘다.** 처음엔 raw 전체를 쓸어 **2,612개**가 나왔다 —
-    //   실측값 19 와 견줘 보고 바로 알았다. 쓸려 들어온 것들은 **결함이 아니다**:
-    //     · `행정규칙/`  고시는 조 마커 꼴이 다르다(L-54)
-    //     · `_이미지/`   OCR 글이라 머리줄이 없는 게 당연하다
-    //     · `부칙.txt`   부칙은 `[제N조]` 로 안 적는다
-    //     · `별표/`·`_원본첨부/`·`_구판/`·`_대기/`
-    //   **범위를 안 맞추면 게이트가 2,612개를 결함이라 외친다** — 그러면 아무도 안 듣는다.
-    const SKIP_DIR = new Set(['행정규칙', '별표', '_이미지', '_원본첨부']);
-    const SKIP_FILE = new Set(['부칙.txt']);
-    // ⚠**부칙은 조 머리줄을 안 쓴다** — 이름이 `부칙` 으로 시작하거나 `_부칙.txt` 로 끝나면 뺀다.
-    const walk = (dir) => {
-        const b = path.basename(dir);
-        if (SKIP_DIR.has(b) || b === '_구판' || b === '_대기') return;
-        let ents;
-        try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
-        for (const e of ents) {
-            const p = path.join(dir, e.name);
-            if (e.isDirectory()) { walk(p); continue; }
-            if (!e.name.endsWith('.txt') || SKIP_FILE.has(e.name)) continue;
-            if (e.name.startsWith('부칙') || e.name.endsWith('_부칙.txt')) continue;
-            let t;
-            try { t = fs.readFileSync(p, 'utf8'); } catch (_) { continue; }
-            if (HEAD.test(t)) continue;                       // 머리줄이 있으면 V5-17 소관
-            const head1 = t.split('\n', 1)[0] || '';
-            if (head1.includes('별표') || head1.includes('서식')) continue;  // 별표엔 조 머리줄이 없는 게 정상
-            const plain = (t.match(PLAIN) || []).length;
-            if (plain < 2) continue;                          // 조문이라 볼 만큼 안 나오면 대상 아님
-            out.push({ 파일: path.relative(RAW, p), 평문조: plain, 깨짐: /0{6,}/.test(t) });
-        }
-    };
-    walk(SCOPE);
-    return out;
+    return C.countArticleHeadMissing({ scope: '자치법규' }).rows;
+}
+
+function findAll() {
+    return C.countArticleHeadMissing({ scope: '계층본문' }).rows;
 }
 
 function main() {
-    const rows = find();
+    const ordin = find();
+    const all = findAll();
+    const watch = { 자치법규: ordin.length, 계층본문: all.length };
     if (process.argv.includes('--update')) {
-        fs.writeFileSync(BASE, JSON.stringify({ 머리줄없음: rows.length }, null, 2) + '\n');
-        console.log('  기준선을 다시 구웠다:', rows.length);
+        fs.writeFileSync(BASE, JSON.stringify(watch, null, 2) + '\n');
+        console.log('  기준선을 다시 구웠다:', JSON.stringify(watch));
         return 0;
     }
     let base;
     try { base = JSON.parse(fs.readFileSync(BASE, 'utf8')); } catch (_) {
         console.log('  ⚠기준선이 없다 — `--update` 로 한 번 구워야 한다'); return 1;
     }
-    const broken = rows.filter((r) => r.깨짐).length;
-    console.log(`  본문에 조문이 있는데 **[제N조] 머리줄이 0인 원문** ${rows.length}개 (기준선 ${base.머리줄없음})`);
-    console.log(`     · 그중 0 이 길게 이어져 **수집이 깨진 것** ${broken}개`);
+    // 옛 기준선(`머리줄없음` 한 칸)도 읽는다 — 옛 것을 지우지 않는다.
+    if (base.자치법규 === undefined && base.머리줄없음 !== undefined) {
+        base = { 자치법규: base.머리줄없음, 계층본문: base.머리줄없음 };
+    }
+    console.log(`  조 머리줄(**[제N조]**)을 **가져야 하는데 없는** 계층 본문 — 규약은 3-47(\`_counting.js\`)`);
+    console.log(`    · 자치법규 ${ordin.length}개 (기준선 ${base.자치법규})`);
+    console.log(`    · 계층본문 전체 ${all.length}개 (기준선 ${base.계층본문})  ← \`raw/\` 전부`);
     console.log('     ⚠V5-17 은 머리줄을 **찾아서** 견주므로 이 파일들을 **원리적으로 못 본다**(뿌리 사슬 ⑤).');
-    for (const r of rows.slice(0, 6)) console.log(`     · ${r.파일}  (평문 제N조 ${r.평문조}회${r.깨짐 ? ' · 0000 있음' : ''})`);
-    if (rows.length > 6) console.log(`     … 그 밖 ${rows.length - 6}개`);
-    if (rows.length > base.머리줄없음) {
-        console.log(`  ❌ 늘었다: ${base.머리줄없음} → ${rows.length}`);
+    for (const r of all.slice(0, 6)) console.log(`     · ${r.파일}  (평문 제N조 ${r.평문조}회${r.깨짐 ? ' · 0000 있음' : ''})`);
+    if (all.length > 6) console.log(`     … 그 밖 ${all.length - 6}개`);
+    const worse = Object.keys(watch).filter((k) => watch[k] > base[k]);
+    if (worse.length) {
+        console.log(`  ❌ 늘었다: ${worse.map((k) => `${k} ${base[k]}→${watch[k]}`).join(' · ')}`);
         console.log('     → 수집기가 원시 API 글을 그대로 담았다. **다시 받는다**(raw 는 불변 — 머리줄을 손으로 끼우지 않는다).');
         return 1;
     }
-    console.log(rows.length < base.머리줄없음
-        ? `  ✅ 줄었다: ${base.머리줄없음} → ${rows.length} — \`--update\` 로 잠근다`
-        : (base.머리줄없음 === 0
-            ? '  ✅ 하나도 없다 — 3-43 에서 19개를 다시 받아 0 으로 잠갔다'
-            : '  ✅ 기준선 그대로 — 늘지 않았다 (다시 받는 것은 3-43)'));
+    const better = Object.keys(watch).filter((k) => watch[k] < base[k]);
+    console.log(better.length
+        ? `  ✅ 줄었다: ${better.map((k) => `${k} ${base[k]}→${watch[k]}`).join(' · ')} — \`--update\` 로 잠근다`
+        : '  ✅ 기준선 그대로 — 늘지 않았다 (계층 본문 12개를 다시 받는 것은 3-51)');
     return 0;
 }
 
 if (require.main === module) process.exit(main());
-module.exports = { find };
+module.exports = { find, findAll };
