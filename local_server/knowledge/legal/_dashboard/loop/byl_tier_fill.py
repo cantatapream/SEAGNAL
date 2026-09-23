@@ -30,7 +30,7 @@
 [연계] → `raw/<도메인>/<법>/별표/<계층>_별표N.txt` · 같은 폴더의 `_links.json`
         ← `byl_tier_ready.js`(빈자리 목록) · `recollect_byl.py`(내려받기·적는 꼴) · `law_api_guard.py`
 """
-import json, os, re, subprocess, sys
+import json, os, re, subprocess, sys, urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -38,6 +38,7 @@ import recollect_byl as RB                                       # noqa: E402  �
 from _touched import Touched                                     # noqa: E402
 
 LEGAL = os.path.abspath(os.path.join(HERE, '..', '..'))
+OC = 'hyoo1431'
 REPO = os.path.abspath(os.path.join(LEGAL, '..', '..', '..'))
 GATE = os.path.join(HERE, 'byl_tier_ready.js')
 KIND_OF = {'법률': '법률', '시행령': '시행령', '시행규칙': '시행규칙'}
@@ -59,6 +60,158 @@ def gaps():
     return want
 
 
+# ★꼬리표의 `families` 키는 **한 가지가 아니다**(3-48 실측 16자리).
+#   `공무원 여비 규정` 은 `대통령령`, `시설물안전법` 은 `시행령_부분수집`,
+#   `유어장 규칙`·`가축분뇨법(시행규칙)` 은 규칙인데 `법률` 로 적혀 있다.
+#   **없는 게 아니라 다른 이름으로 있는 것**이다 — 안 씻고 찾으면 "판을 모른다"가 된다(⑥).
+ALIAS = {
+    '시행령': ['시행령', '대통령령'],
+    '시행규칙': ['시행규칙', '부령', '총리령', '해양수산부령', '환경부령', '국토교통부령', '농림축산식품부령'],
+    '법률': ['법률', '법'],
+}
+
+
+def fam_mst(fams, kind, meta_name=None):
+    """`families` 에서 그 계층의 MST 를 찾는다 → (MST, 어느 키에서 왔나)."""
+    for want in ALIAS.get(kind, [kind]):
+        v = fams.get(want)
+        if isinstance(v, dict) and v.get('MST'):
+            return str(v['MST']), want
+    # `시행령_부분수집` 처럼 **뒤에 말이 붙은 키**도 같은 계층이다.
+    for k, v in fams.items():
+        if not isinstance(v, dict) or not v.get('MST'):
+            continue
+        for want in ALIAS.get(kind, [kind]):
+            if k.startswith(want):
+                return str(v['MST']), k
+    # ★단일 계층 폴더 — **그 폴더가 곧 그 계층일 때만** 하나뿐인 판을 쓴다.
+    if meta_name and len(fams) == 1 and own_tier(meta_name) == kind:
+        k = next(iter(fams))
+        v = fams[k]
+        if isinstance(v, dict) and v.get('MST'):
+            return str(v['MST']), '%s(이 폴더가 곧 %s다)' % (k, kind)
+    return None, None
+
+
+def indent_of(text):
+    """그 파일이 쓰던 들여쓰기를 그대로 돌려준다. **통째로 다시 찍지 않기 위해서**다(L-331)."""
+    for ln in text.split('\n')[1:]:
+        if ln.strip():
+            return len(ln) - len(ln.lstrip(' '))
+    return 1
+
+
+def find_law_mst(name):
+    """법령명으로 MST 를 찾는다 — 3-43 에서 쓴 길과 같다(가운뎃점은 띄어쓰기로 바꿔 한 번 더 묻는다).
+
+    돌려주는 것: (MST, 시행일자, 공포일자). **이름이 정확히 같을 때만** 돌려준다 —
+    비슷한 것을 집으면 **엉뚱한 법의 별표**를 우리 법 폴더에 적게 된다.
+    """
+    flat = re.sub(r'[^0-9A-Za-z가-힣]', '', name)
+    for q in (name, re.sub(r'[·ㆍ・]', ' ', name)):
+        d = RB.api('https://www.law.go.kr/DRF/lawSearch.do?OC=%s&target=law&type=JSON&display=100&query=%s'
+                   % (OC, urllib.parse.quote(q)))
+        rows = ((d or {}).get('LawSearch', {}) or {}).get('law') or []
+        if isinstance(rows, dict):
+            rows = [rows]
+        for r in rows:
+            if re.sub(r'[^0-9A-Za-z가-힣]', '', str(r.get('법령명한글', ''))) == flat:
+                return (str(r.get('법령일련번호') or ''), str(r.get('시행일자') or ''),
+                        str(r.get('공포일자') or ''))
+        if q != name:
+            break
+    return None, None, None
+
+
+SUFFIX = {'시행령': ' 시행령', '시행규칙': ' 시행규칙', '법률': ''}
+
+
+def own_tier(meta_name):
+    """그 폴더가 **담고 있는 문서 자체**의 계층. 이름 꼬리로 가른다.
+
+    ⚠이것을 안 보면 두 가지를 반대로 한다:
+      · `가축분뇨…법률` 폴더(안은 **시행규칙**)에서 시행령 별표를 찾으면서
+        **하나뿐인 판(=시행규칙)을 시행령이라고 적을 뻔했다** — 그러면 틀린 원문이 들어간다.
+      · `유전자변형…규칙` 폴더(안이 **그 규칙 자체**)에 `시행규칙` 을 덧붙여
+        「…규칙 시행규칙」 이라는 **없는 법**을 찾고 있었다.
+    """
+    n = str(meta_name or '').strip()
+    if n.endswith('시행령'):
+        return '시행령'
+    if n.endswith('시행규칙') or n.endswith('규칙') or n.endswith('규정'):
+        return '시행규칙'
+    return '법률'
+
+
+def want_name(meta_name, kind):
+    """그 계층의 **법령명**을 짓는다. 이미 그 계층의 이름이면 그대로 쓴다.
+
+    예) 꼬리표 법령명이 `가축분뇨의 관리 및 이용에 관한 법률 시행규칙` 이고 원하는 계층이 `시행령` 이면
+        → 꼬리를 떼고(`… 법률`) `시행령` 을 붙여 `가축분뇨의 관리 및 이용에 관한 법률 시행령`.
+    """
+    n = str(meta_name or '').strip()
+    if not n:
+        return ''
+    if own_tier(n) == kind:
+        return n                                  # 그 폴더가 이미 그 계층이다 — 꼬리를 덧붙이지 않는다
+    base = re.sub(r'\s*(시행령|시행규칙)\s*$', '', n).strip()
+    return (base + SUFFIX.get(kind, '')).strip()
+
+
+def fill_mst(apply_):
+    """3-48 — 꼬리표에 그 계층의 MST 가 없는 자리를 **이름으로 찾아** 채운다(네트워크)."""
+    want = gaps()
+    todo = []
+    for base in sorted(want):
+        if '/_자치법규/' in base:
+            continue
+        absbase = base if os.path.isabs(base) else os.path.join(REPO, base)
+        mp = os.path.join(absbase, '_meta.json')
+        if not os.path.exists(mp):
+            print('· %s\n    ⚠`_meta.json` 이 **없다** — 꼬리표를 새로 만드는 일은 스키마 결정이라 여기서 안 한다'
+                  % os.path.relpath(absbase, REPO).replace('local_server/knowledge/legal/raw/', ''))
+            continue
+        raw = open(mp, encoding='utf-8').read()
+        meta = json.loads(raw)
+        fams = meta.get('families', {})
+        kinds = {kind_of(fn) for fn in want[base]} - {None}
+        for kind in sorted(kinds):
+            mst, _via = fam_mst(fams, kind, meta.get('법령명'))
+            if mst:
+                continue
+            todo.append((absbase, mp, raw, meta, fams, kind))
+    print('꼬리표에 판이 없는 자리 %d개' % len(todo))
+    added = 0
+    for absbase, mp, raw, meta, fams, kind in todo:
+        short = os.path.relpath(absbase, REPO).replace('local_server/knowledge/legal/raw/', '')
+        # ★단일 계층 폴더 — 그 폴더 자체가 규칙·규정이면 하나뿐인 판이 모든 계층을 맡는다.
+        # ⚠**그 폴더가 그 계층일 때만** 하나뿐인 판을 그 계층으로 본다.
+        #   아니면 엉뚱한 판(시행규칙)을 시행령이라고 적게 된다.
+        if len(fams) == 1 and own_tier(meta.get('법령명')) == kind:
+            only_key = next(iter(fams))
+            print('· %s\n    ↪이 폴더는 **그 자체가 `%s`** 다 — 꼬리표의 `%s` 판(%s)이 곧 그 판이다(새로 안 받는다)'
+                  % (short, meta.get('법령명'), only_key, (fams[only_key] or {}).get('MST')))
+            continue
+        name = want_name(meta.get('법령명'), kind)
+        mst, efyd, pub = find_law_mst(name)
+        print('· %s\n    %s 를 이름으로 찾는다 → 「%s」 → MST=%s (시행 %s)' % (short, kind, name, mst, efyd))
+        if not mst or not apply_:
+            continue
+        ind = indent_of(raw)
+        meta.setdefault('families', {})[kind] = {'MST': mst, '공포일자': pub, '시행일자': efyd,
+                                                 '찾은날': '2026-09-23(3-48 · 이름으로 조회)'}
+        open(mp, 'w', encoding='utf-8').write(
+            json.dumps(meta, ensure_ascii=False, indent=ind) + '\n')
+        t = Touched('byl_tier_fill_mst')
+        t.add(mp)
+        t.save()
+        added += 1
+    print('\n=== 꼬리표에 새로 적은 판 %d개 ===' % added)
+    if apply_ and added:
+        print('⚠다음으로 `byl_tier_fill.py --apply` 를 다시 돌려 별표를 받는다.')
+    return 0
+
+
 def kind_of(fn):
     m = re.match(r'^(법률|시행령|시행규칙)_', fn)
     return m.group(1) if m else None
@@ -66,6 +219,8 @@ def kind_of(fn):
 
 def run():
     apply_ = '--apply' in sys.argv
+    if '--mst' in sys.argv:
+        return fill_mst(apply_)
     want = gaps()
     lines = sum(len(v) for v in want.values())
     print('V5-32 가 짚은 **빈 별표 파일 자리** %d개 · 법 폴더 %d개' % (lines, len(want)))
@@ -98,7 +253,9 @@ def run():
             if k:
                 by_kind.setdefault(k, set()).add(fn)
         for kind, only in sorted(by_kind.items()):
-            mst = (fams.get(kind) or {}).get('MST')
+            mst, via = fam_mst(fams, kind, meta.get('법령명'))
+            if mst and via != kind:
+                print('    ↪%s 의 판은 꼬리표에 **`%s`** 라는 이름으로 있었다(없는 게 아니었다)' % (kind, via))
             if not mst:
                 print('    ⚠%s 의 MST 가 꼬리표에 없다 → %s' % (kind, ', '.join(sorted(only))))
                 nometa += len(only)

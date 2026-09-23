@@ -1,0 +1,15 @@
+{
+ "script": "byl_tier_fill",
+ "stamp": "20260923-134700-069",
+ "files": [
+  "local_server/knowledge/legal/raw/01_해양주권정책/배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률/별표/_links.json",
+  "local_server/knowledge/legal/raw/01_해양주권정책/영해및접속수역법/별표/_links.json",
+  "local_server/knowledge/legal/raw/04_선박해운/선박직원법/별표/_links.json",
+  "local_server/knowledge/legal/raw/05_수산어업/양식산업발전법/별표/_links.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/공무원여비규정/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/공무원여비규정/별표/_links.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/시설물의안전및유지관리에관한특별법/별표/시행령_별표11.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/시설물의안전및유지관리에관한특별법/별표/시행령_별표5.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/시설물의안전및유지관리에관한특별법/별표/_links.json"
+ ]
+}
