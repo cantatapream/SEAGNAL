@@ -328,6 +328,15 @@ node local_server/knowledge/legal/_dashboard/loop/byl_tier_ready.js || fail "V5-
 echo; echo "── V5-33 원문 수정의 되돌리기 기록 ──"
 node local_server/knowledge/legal/_dashboard/loop/raw_touch_guard.js || fail "V5-33 원문 되돌리기 기록"
 
+# ── V5-34 같은 법이 기준법 폴더와 타법 폴더에 이중으로 있나 (2026-09-23 신설, Q-2 · 3-11) ──
+# [왜] 전문(기준법 폴더)과 발췌(15_관련타부처)가 **둘 다** 있는 법이 25개다.
+#   챗봇은 안 속지만(`resolveBase` 가 전문을 고른다) **검사기가 속는다** — V5-16 의 가짜 결손.
+# ⚠**지우지 않고 세기만 한다.** 전수검색 결과 그 폴더를 적은 글이 182파일이고,
+#   무엇보다 **그 폴더를 만드는 도구가 따로 있다**(`add_other_law_article.js`).
+#   도구를 안 고치고 지우면 다음 인용 때 되살아난다 — 그래서 도구 쪽에 경고를 걸고 여기서는 센다.
+echo; echo "── V5-34 기준법·타법 이중 폴더 ──"
+node local_server/knowledge/legal/_dashboard/loop/dup_law_folder_gate.js || fail "V5-34 기준법·타법 이중 폴더"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
