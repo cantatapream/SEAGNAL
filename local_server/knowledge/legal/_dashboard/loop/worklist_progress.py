@@ -85,6 +85,29 @@ def tally(rows, rules):
     total['%'] = round(total['끝'] * 100 / total['일']) if total['일'] else 0
     return per, total
 
+LOCK_DEP_RE = re.compile(r'🔒\s*\*{0,2}(?:선행대기|선행)\s*[((]\s*([0-9A-Z]+-[0-9]+[a-z]?)\s*[))]')
+
+def stale_locks(rows, lines):
+    """★「앞 일이 끝났는데 문이 안 열린 것」을 찾는다 (2026-09-24 신설).
+
+    까닭: 진행판 숫자와 같은 병이다 — 앞 일을 끝내고 **뒤 칸의 🔒 를 안 풀었다.**
+      사람이 훑을 때도 기계가 셀 때도 **할 수 있는 일이 못 하는 일로 보인다.**
+    ⚠**기계가 풀지는 않는다**(G-34). 「적힌 조건이 이미 채워졌다」고 가리키기만 한다 —
+      풀든지, 다른 까닭을 새로 적든지는 사람이 정한다.
+    """
+    out = []
+    for l in lines:
+        m = ID_RE.match(l)
+        if not m or rows.get(m.group(1), {}).get('st') != '🔒':
+            continue
+        dep = LOCK_DEP_RE.search(l)
+        if not dep:
+            continue
+        d = dep.group(1)
+        if rows.get(d, {}).get('st') in DONE:
+            out.append((m.group(1), d, rows[d]['st']))
+    return out
+
 def bar(done, n, w=10):
     f = 0 if not n else round(done * w / n)
     return '▓' * f + '░' * (w - f)
@@ -163,6 +186,12 @@ def main():
             txt = head + BEG + '\n' + intro + '\n' + block + '\n' + END + txt[old.end():]
         WL.write_text(txt, encoding='utf-8')
         print('✅ 진행판을 실측으로 다시 썼다')
+
+    stale = stale_locks(rows, WL.read_text(encoding='utf-8').split('\n'))
+    if stale:
+        print('\n⚠앞 일이 끝났는데 아직 🔒 인 칸 %d개 — 풀든지 다른 까닭을 적든지 사람이 정한다:' % len(stale))
+        for a, b, st in stale:
+            print('   %-7s 는 「선행(%s)」인데 %s 는 이미 %s' % (a, b, b, st))
 
     if '--gate' in sys.argv:
         txt = WL.read_text(encoding='utf-8')
