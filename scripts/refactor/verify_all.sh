@@ -415,6 +415,17 @@ node local_server/knowledge/legal/_dashboard/loop/meta_measured_gate.js --gate |
 echo; echo "── V5-42 별표 줄의 임자 ──"
 node local_server/knowledge/legal/_dashboard/loop/annex_row_coverage.js --gate || fail "V5-42 별표 줄의 임자"
 
+# ── V5-43 「원문과 똑같다」면서 무엇과 똑같은지 안 적은 줄 (2026-09-24 신설, G-29) ──
+#   [왜] 위키 곳곳에 *"raw 원문과 EXACT 대조 확인"* 이 적혀 있다. 그 줄이 있다는 이유로
+#   **재대조를 건너뛰게 된다**(3-15 에서 실제로 그랬다). 그런데 그중 **인용을 안 적은 줄**은
+#   참·거짓 이전에 **확인이 구조적으로 불가능**하다 — 무엇과 맞췄는지 알 수 없으니까.
+#   [★왜 「못 찾음」은 안 잠그나] 3-33 이 이미 판단했다 — 그 자는 판정자가 못 된다
+#   (빨간불 가운데 참이 소수라 거짓 경보가 된다). **오탐이 있을 수 없는 것만** 잠근다.
+#   [고치는 법] 그 줄에 큰따옴표로 인용을 적는다. **주장을 지우지 않는다**(G-34).
+echo; echo "── V5-43 인용 없는 EXACT 주장 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/exact_claim_recheck.py --gate > /tmp/_v543.log 2>&1 \
+  && tail -6 /tmp/_v543.log || { tail -8 /tmp/_v543.log; fail "V5-43 인용 없는 EXACT 주장"; }
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서

@@ -206,5 +206,42 @@ def main():
               open(os.path.join(HERE, '..', 'exact_claim_misses.json'), 'w', encoding='utf-8'),
               ensure_ascii=False, indent=1)
 
+    # ── 게이트 모드 (2026-09-24 추가, G-29) ──────────────────────────────────
+    # ★3-33 은 *"이 자는 판정자가 못 된다"* 며 게이트로 만들지 않았다. **그 판단은 옳다** —
+    #   「못 찾음」은 빨간불 가운데 참이 소수라 게이트로 삼으면 거짓 경보가 된다.
+    #   그런데 **판정할 수 있는 숫자가 하나 있다**: **「잴 수 없음(인용 없음)」**.
+    #   *"원문과 똑같다"* 고 적어 놓고 **무엇과 똑같은지 인용을 안 적은 줄**은,
+    #   참·거짓 이전에 **확인이 구조적으로 불가능**하다. 오탐이 있을 수 없다.
+    #   ⇒ 그것만 잠근다. ★줄을 지워서 초록을 만들지 않는다(G-34) — **인용을 적어야** 줄어든다.
+    if '--gate' in sys.argv or '--update' in sys.argv:
+        base_f = os.path.join(HERE, 'baseline', 'exact_claim.json')
+        now = {'인용없음': tally['잴 수 없음(인용 없음)']}
+        잴수있다 = sum(v for k, v in tally.items() if k != '잴 수 없음(인용 없음)')
+        print()
+        print('  V5-43 「원문과 똑같다」면서 **무엇과 똑같은지 안 적은 줄** (G-29)')
+        print(f'    살아 있는 EXACT 주장 {sum(tally.values())}줄')
+        print(f'    ·  인용이 있어 잴 수 있다   {잴수있다:5}')
+        print(f"    {'❌' if now['인용없음'] else '✅'} ★인용이 없어 못 잰다     {now['인용없음']:5}"
+              '   확인이 **구조적으로 불가능**하다')
+        if '--update' in sys.argv:
+            os.makedirs(os.path.dirname(base_f), exist_ok=True)
+            json.dump(now, open(base_f, 'w', encoding='utf-8'), ensure_ascii=False)
+            print('    기준선을 다시 구웠다:', now)
+        if '--gate' in sys.argv:
+            try:
+                base = json.load(open(base_f, encoding='utf-8'))
+            except Exception:
+                print('    ⏭️  기준선이 없다 — `--update` 로 한 번 구워야 한다')
+                return 0
+            if now['인용없음'] > base['인용없음']:
+                print(f"    ❌ 늘었다 인용없음 {base['인용없음']}→{now['인용없음']}")
+                print('       고치는 법: 그 줄에 **무엇과 맞췄는지 큰따옴표로 인용**을 적는다.')
+                print('       ★주장을 지우지 않는다 — 지우면 확인한 사실까지 사라진다.')
+                return 1
+            print('    ✅ 기준선 그대로 — 늘지 않았다' if now['인용없음'] == base['인용없음']
+                  else f"    ✅ 줄었다 인용없음 {base['인용없음']}→{now['인용없음']} — `--update` 로 잠근다")
+    return 0
+
+
 if __name__ == '__main__':
-    main()
+    sys.exit(main() or 0)
