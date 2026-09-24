@@ -112,7 +112,11 @@ try {
 const promoted = [];
 for (const f of changed) {
   let before = '';
-  try { before = sh(`git show ${BASE}:${f}`); } catch (_) { before = ''; }   // 새 파일
+  // ★2026-09-24 — 경로를 **따옴표로 감싼다.** 종전엔 맨 경로를 셸에 넘겨서
+  //   `선박평형수(船舶平衡水)관리법__…md` 처럼 **괄호가 든 이름**이 셸 문법으로 깨졌고,
+  //   `catch` 가 그것을 **「새 파일」로 읽어** 이미 canonical 인 쪽을 「이번에 올린 쪽」으로 셌다
+  //   (실측 3쪽 — 전부 main 에 이미 있던 쪽이다). 「없다」가 아니라 **「못 읽었다」였다.**
+  try { before = sh(`git show ${BASE}:'${f.replace(/'/g, `'\\''`)}'`); } catch (_) { before = ''; }
   let now = '';
   try { now = fs.readFileSync(path.join(REPO, f), 'utf8'); } catch (_) { continue; }  // 지워진 파일
   const b = statusOf(before), n = statusOf(now);
