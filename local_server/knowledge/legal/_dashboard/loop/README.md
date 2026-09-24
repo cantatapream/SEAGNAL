@@ -26,7 +26,7 @@
 <!-- 자목록:자동 -->
 ### 자 목록 — 누가 부르나 (기계가 씀 · `loop_tool_census.js --index`)
 
-자 **255자루** · 게이트 **58** · 코드 **84** · 글만 **112** · 없음 **1**
+자 **255자루** · 게이트 **58** · 코드 **87** · 글만 **110** · 없음 **0**
 
 | 자 | 누가 부르나 | 무엇을 하는 자인가 |
 |---|---|---|
@@ -51,15 +51,15 @@
 | `ask_live.js` | 코드 | 프로덕션 나리야 챗봇에 **실제 앱과 똑같은 방식으로** 질문하는 감사용 도구. |
 | `assign_scan.py` | 코드 | 배정용 스캐너 — 백로그의 "실작업 N건"이 진짜 실작업인지 줄 단위로 세어 준다. |
 | `audit_backlog_gap.py` | 코드 | 감사 파일에는 **결함으로 적혀 있는데 백로그에 안 올라온 줄**을 전수로 찾는다. |
-| `audit_fix_cell.js` | 코드 | 6차(직전) 감사 gap을 입력으로 각 법의 위키를 content+lint 동시 수정한다(H-7 통합수정). |
-| `audit_sim.js` | 코드 | ⚠★**이 파일은 `node` 로 돌리는 스크립트가 아니다.** (2026-09-23, 3-38) |
-| `auto_promote.js` | 글만 | ① 비민감 draft 자동 승급: 각 법의 draft 개념 중 사람검증 불필요한 것만 canonical로. |
+| `audit_fix_cell.js` | 코드 | 직전 감사 gap으로 법별 위키 content+lint 동시수정(H-7). 자기 법 파일만=병렬안전. |
+| `audit_sim.js` | 코드 | 위키 커버리지 감사(3차+): 법별 600문항(해양경찰관·일반인·해양종사자 3페르소나, 직전 미흡분 재질문+신규)→위키만으로 답변 시도→구멍 분류 |
+| `auto_promote.js` | 글만 | 비민감 draft 개념을 canonical로 자동 승급(민감·⚠REVIEW·OCR판독은 draft 유지=B안) |
 | `backfill_lawid.py` | 코드 | 74법 `_meta.json`의 families 각 층(법률/시행령/시행규칙 등)에 `법령ID`를 채워 넣는다. |
 | `backfill_retry.py` | 글만 | backfill_lawid.py 가 **못 받은 층만** 다시 받아 스냅샷에 채워 넣는다. |
 | `backlog_by_article.py` | 글만 | 백로그 항목을 **그 항목이 가리키는 근거 조문**으로 묶어 준다. |
 | `backlog_denom.py` | 글만 | 백로그의 **진짜 분모**를 재려 한다 — 그리고 어디까지 잴 수 있는지 정직하게 밝힌다. |
 | `backlog_extract.js` | 코드 | 감사 파일에서 **아직 안 고쳐진 thin·missing 만** 뽑아 법별 백로그 파일로 분리한다. |
-| `backlog_fix.js` | 글만 | 법별 **미해소 백로그**(_dashboard/backlog/<법>.md)를 사서가 확인·처리한다(H-43). |
+| `backlog_fix.js` | 글만 | 법별 미해소 백로그를 확인·처리(H-43). 자기 법 파일만 = 병렬안전. |
 | `backlog_id.py` | 코드 | 백로그 항목에 **고정 ID**를 붙인다 — 지금은 같은 문제가 몇 번 중복됐는지도 못 센다. |
 | `backlog_refresh.py` | 글만 | 백로그 목록을 **현재 상태로 다시 고른다** — 낡은 목록으로 헛일하지 않도록. |
 | `backlog_rollup_close.py` | 글만 | 백로그의 **집계 줄**(질문이 아니라 라운드 요약)을 닫는다 — 단, 안전 조건을 만족할 때만. |
@@ -87,12 +87,12 @@
 | `build_vessel_doc_tree.py` | 코드 | 선박종류 × 비치서류 계층 트리 빌더 겸 검증기 (H-32 확장 파일럿). |
 | `build_weather_warning_tree.py` | 글만 | 기상특보 출항·운항통제 자산 빌더 겸 검증기 (H-36 14번째 계층자산). |
 | `build_zone_tree.py` | 코드 | 해역·항해구역 계층 트리 빌더 겸 검증기 (H-32 확장 · H-36 두 번째 주제). |
-| `byl_image_ocr_cell.js` | 글만 | 별표/조문 이미지(<img id="N">)를 비전 OCR해 이미지 옆에 <id>.txt(sidecar)로 남긴다. |
+| `byl_image_ocr_cell.js` | 글만 | 별표 이미지(<img>) 청크를 비전 OCR해 _이미지/<id>.txt sidecar로 저장 |
 | `byl_links_pdf.py` | 글만 | 3-21 · P-17 — 별표 `_links.json` 에 **PDF 링크**를 채운다. |
-| `byl_ref_fill.py` | 없음 | 3-62 — `byl_ref_gap.py` 가 짚은 **본문이 가리키는데 없는 별표**를 받아서 메운다. |
-| `byl_ref_gap.py` | 글만 | 본문이 「별표 N과 같다」고 가리키는데 그 별표 파일이 없는 자리**를 센다. (2026-09-24 신설) |
+| `byl_ref_fill.py` | 글만 | 3-62 — `byl_ref_gap.py` 가 짚은 **본문이 가리키는데 없는 별표**를 받아서 메운다. |
+| `byl_ref_gap.py` | 코드 | 본문이 「별표 N과 같다」고 가리키는데 그 별표 파일이 없는 자리**를 센다. (2026-09-24 신설) |
 | `byl_rename_to_decl.py` | 글만 | 별표 파일 **이름을 그 속이 말하는 번호에 맞춘다.** (3-34 = ⓒ 앞쪽) |
-| `byl_tier_fill.py` | 글만 | 3-46 — V5-32 가 「파일이 없다」고 짚은 **계층 별표 빈자리**를 골라서 메운다. |
+| `byl_tier_fill.py` | 코드 | 3-46 — V5-32 가 「파일이 없다」고 짚은 **계층 별표 빈자리**를 골라서 메운다. |
 | `chatbot_proto.py` | 글만 | 나리야 법률 챗봇 검색+답변 프로토타입 (순수 코드, 임베딩 키 불필요). |
 | `check_budchik.py` | 글만 | 73법 raw(법률/시행령/시행규칙)에 부칙 섹션이 빠져있는지 전수 점검한다(H-26 후속). |
 | `cite_number_check.py` | 코드 | 본문 인용 목록(3-41)에서 **숫자·금액 인용만 골라 원문과 기계로 맞대어 본다. |
@@ -100,27 +100,27 @@
 | `collect_admrul_by_name.py` | 글만 | 고시(행정규칙)를 **이름으로 찾아** 그 법 폴더에 받아 둔다. |
 | `collect_admrul.py` | 코드 | 고시(행정규칙) 정밀 수집: lsDelegated(위임법령) API로 '그 법이 실제 위임한 고시만' 수집. |
 | `collect_contacts.py` | 코드 | law.go.kr DRF API의 연락부서(법률/시행령/시행규칙)·담당부서기관(행정규칙) 필드를 수집한다. |
-| `collect_fix_cell.js` | 글만 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
+| `collect_fix_cell.js` | 글만 | 한 법의 scope 매니페스트(_dashboard/scope/<slug>.md)를 체크리스트로 삼아  |
 | `collect_gap.py` | 코드 | 추가 수집: (A) 기준법 시행령/시행규칙 미수집분 전수조사·수집  (B) 타법 원문 표적 수집. |
 | `collect_law_aliases.py` | 코드 | 법령 공식 약칭 수집 — 우리가 가진 모든 법(raw/*/*/_meta.json)의 **공식 약칭**을 |
 | `collect_missing_admrul.py` | 글만 | `delegated_sweep` 이 "확인 필요"로 찍은 위임 행정규칙을 실제로 받아 온다. |
 | `collect_ordin.py` | 글만 | 조례(자치법규) 수집: 해양·수산 키워드로 target=ordin 검색 → 지역별 저장. |
 | `collect_pending_law.py` | 코드 | 예고본(시행예정 개정 법령) 원문을 **시행일 전에 미리** 받아 `raw/<도메인>/<법>/_대기/<시행일>/<층>.txt` 로 둔다. |
-| `collect_raw.js` | 글만 | H-12③ 재수집: collect_queue의 "수집 가능" 원문을 DRF로 가져와 raw/에만 저장(위키 편집 X). |
+| `collect_raw.js` | 글만 | collect_queue의 수집가능 원문을 DRF로 raw에만 수집(위키 미편집=린트와 병렬 안전) |
 | `collect.py` | 코드 | ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속). |
-| `collection_hole_graceful.js` | 글만 | 재확인된 a_genuine/b_structural collection_hole에 H-30 3요건(위임체인+경계선언+소관부서 연락처)을 붙여 "정직한 답변"으로 완성 |
-| `collection_hole_recollect.js` | 코드 | collection_hole_reverify.js가 확정한 action=recollect 백로그를 실제로 수집·위키 반영 |
-| `collection_hole_reverify.js` | 코드 | H-26 기준(_SCHEMA.md §6-B) collection_hole a/b/c 재분류·재검증 |
-| `concept_new.js` | 글만 | statutes 허브에만 있어 챗봇이 못 꺼내는 내용을 **개념 페이지로 옮긴다**(결정 ④⑤). |
-| `content_gap_reverify.js` | 글만 | thin(content_gap) 판정이 정말 "원문 자체에 없는 것"인지 raw 재대조로 전수 재검증 |
+| `collection_hole_graceful.js` | 글만 | a_genuine/b_structural collection_hole에 H-30 3요건(위임체인·경계선언·소관부서) 보강(그룹별, 자기 법 파일만=병렬안전) |
+| `collection_hole_recollect.js` | 코드 | collection_hole 재검증이 확정한 action=recollect 백로그를 실제 수집·위키 반영(그룹별, 자기 법 파일만=병렬안전) |
+| `collection_hole_reverify.js` | 코드 | H-26 기준 collection_hole a/b/c 재분류·재검증 후 통합 리포트 |
+| `concept_new.js` | 글만 | statutes 에만 있는 내용을 개념 페이지로 신설(결정 ④⑤). 자기 법 파일만 = 병렬안전. |
+| `content_gap_reverify.js` | 글만 | thin(content_gap) 판정이 정말 원문에도 없는 것인지 raw 재대조로 전수 재검증 후 통합 리포트 |
 | `context_size.js` | 코드 | 한 질문에 **모델로 넘어가는 근거자료가 몇 자인가**를 골든 291문항 전수로 잰다. |
 | `crawl.py` | 코드 | ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속). |
 | `defect_triage.js` | 글만 | 남은 결손의 **원인을 자동으로 가른다**(AI 안 씀, 비용 0). |
 | `delegated_sweep.py` | 코드 | 위임 행정규칙 조회 기록을 만든다 — "규정이 없다"고 말하려면 이 기록이 있어야 한다(_SCHEMA.md §6-B-1 ⓑ). |
 | `delegation_gap.py` | 글만 | 법이 "대통령령·부령으로 정한다"고 위임했는데, **그 법의 시행령·시행규칙에 대응 조문이 없는 자리**를 찾는다. |
 | `detect_law_changes.py` | 코드 | 법령·위임고시 변동감지(H-29 1~4·8~12항) — 소관부처 단위 "광역질의" 몇 번으로 최근 변동을 |
-| `draft_reverify.js` | 코드 | 초안승인(draft) 재검증 v2: 자동승급이 과보수적으로 남긴 draft를 원문 grounding으로 재판정. |
-| `e6_fix.js` | 글만 | §6-E 빈틈 메우기. 본문은 인용하는데 `## 근거 조문` 표에 행이 없는 조문을 채운다. |
+| `draft_reverify.js` | 코드 | draft를 raw 원문 grounding으로 재판정: 원문인용은 승급, 별표OCR값만 사람(수치검증 카드 자동생성) |
+| `e6_fix.js` | 글만 | §6-E 빈틈(본문엔 있고 근거표엔 없는 조문)을 법별로 확인해 채운다. 자기 법 파일만 = 병렬안전. |
 | `empty_byl_stub.py` | 글만 | 3-55 — **까닭도 없이 빈 별표 6개**에 내려받기 주소를 달아 정직하게 만든다. |
 | `exact_claim_fix.py` | 글만 | 3-33 뒤쪽(결심 ①ⓐ) — **「원문 그대로」라던 인용 24건을 원문 글자에 맞춘다. |
 | `exact_claim_numbers.py` | 글만 | 인용 없이 「원문과 EXACT 일치」라고만 적은 주장을 **숫자로** 다시 맞춰 본다. (G-29 · 3-33) |
@@ -130,14 +130,14 @@
 | `extract_admrul_hwp.py` | 글만 | admrul_pdf_triage.json에서 kind=no_pdf_attachment이고 첨부가 구형 HWP(바이너리)인 |
 | `extract_admrul_pdf.py` | 코드 | admrul_pdf_triage.json에서 kind=text(PDF 텍스트밀도 충분) 또는 hwpx(PDF 없이 HWPX만)로 |
 | `fix_admrul_ids.py` | 글만 | admrul_id_check.json에서 mismatch(구버전 ID 의심)로 확인된 290건을, |
-| `fix_cell.js` | 코드 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
+| `fix_cell.js` | 코드 | 한 법의 한 문제유형만 수정하는 원자 작업(에이전트 1개=작업 1개). 유형: ①타법연결(raw대조후 연결조문만)·②일반법연결(걸리는조문만)·③별표전량이관·④닿지않음해소(unreachable)·th |
 | `fix_png_transparency.py` | 글만 | 그림이 화면에서 안 보이게 만드는 잘못된 "투명 색" 설정을 떼어낸다. |
-| `fix_wiki.js` | 글만 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
+| `fix_wiki.js` | 글만 | 감사 리포트 기반 위키 수정·보완: 없는 페이지 생성·얇은 페이지 심화·수집구멍 원문반영·답변방식 준수 |
 | `fold_effective.py` | 코드 | 시행일이 **지난** 예고본을 현행으로 승격하고 위키의 시행일 마커를 평문으로 접는다(H-29 트랙 C 정리 단계). |
-| `full_build.js` | 글만 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
-| `gap6e_fix.js` | 글만 | 고정 문제집이 "위키에 근거 행이 없다(§6-E)"고 찍은 문항을 법마다 한 명씩 고친다. |
+| `full_build.js` | 글만 | 풀 깊이 빌드(Sonnet 5): 법당 전 주제 concept 완비(스로틀 제거) |
+| `gap6e_fix.js` | 글만 | 고정 문제집이 §6-E(위키에 근거 행 없음)로 찍은 10건을 법마다 한 명씩 보강 |
 | `golden_merge.js` | 글만 | 사서(에이전트)들이 확인한 라벨을 고정 문제집에 합친다. |
-| `golden_verify.js` | 코드 | 골든 문항의 **라벨을 사서가 확인**한다(H-47 ①). 라벨이 틀리면 채점판이 틀린다. |
+| `golden_verify.js` | 코드 | 골든 문항 라벨을 사서가 원문·위키로 확인(H-47 ①). 자기 결과 파일만 = 병렬안전. |
 | `grep_table.py` | 코드 | 표(테두리) 안에서 낱말이 줄 경계로 쪼개져 grep 이 놓치는 것을 찾아 준다. |
 | `handoff.py` | 코드 | 인계인수 로그를 HANDOFF.md "작업 로그"에 일관된 형식으로 append(계정 간 연속성). |
 | `hwpx_table.py` | 글만 | HWPX 첨부파일에서 본문과 표를 구조 그대로 뽑아낸다. |
@@ -148,15 +148,15 @@
 | `link_live.js` | 코드 | 실제 배포 챗봇에 물어, **답변 본문의 조문 링크가 걸리는지·눌러서 원문이 열리는지**를 잰다. |
 | `lint_build.py` | 코드 | lint 2단계(알고리즘 산출): 백본 지도·대시보드 인덱스·개념 그래프 생성. |
 | `lint_coverage.py` | 코드 | H-33 조문-위키 커버리지 전수조사: 각 법의 raw 원문 전체 조문 목록과, 위키(statutes+concepts)가 |
-| `lint_full.js` | 글만 | 전수 린트: 각 법의 페이지에서 비대칭 역링크·허브 링크·dangling을 자기 법 파일 안에서 완성한다. |
-| `lint_hubs.js` | 글만 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
+| `lint_full.js` | 글만 | 전수 린트: 법별 비대칭 역링크·허브링크·dangling 정리(자기 법 파일만=병렬안전) |
+| `lint_hubs.js` | 글만 | 교차 연결 정합화(lint 3단계): 테마 허브 생성 + glossary 병합 + 완결성 비평 |
 | `lint_verify.py` | 글만 | lint 검증(사후 확인): 전수 린트가 실제로 촘촘한지 3개 실질 지표로 측정. |
-| `lint_xref.js` | 글만 | 보강 린트: 타법연결 표의 "평문 우리70법 인용"을 [[링크]]로 전환. |
-| `lint2.js` | 글만 | 피인용 최다 백본 법 — 정의 허브(개념 페이지) 신설/강화 |
+| `lint_xref.js` | 글만 | 보강 린트: 타법연결 표 평문인용을 [[링크]]로 전환(자기 법 파일만=병렬안전) |
+| `lint2.js` | 글만 | lint 2라운드: 백본 정의 허브 신설(영해법 등) + 역링크(비대칭) 보강 |
 | `live_article_probe.js` | 글만 | [왜] 2-11(github_raw 로컬 폴백)로 조문 원문·서식(§5-5)·별표 이미지(§5-9) 경로가 |
 | `live_probe.js` | 코드 | [왜 있나 — 2026-09-22, 일감 L-1·L-4·L-5·L-6] |
-| `live_verify.js` | 코드 | ★재검증(전후 대조) 쓰는 법: laws 각 항목에 `question`(지난번에 실제로 물은 문장)·`expected`·`prev` |
-| `map_scope_cell.js` | 글만 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
+| `live_verify.js` | 코드 | 감사관이 full로 채점한 논점을 실제 챗봇 API로 다시 물어 대조(법당 1~2문항) — _SCHEMA.md §6-E 자기판단 보정 |
+| `map_scope_cell.js` | 글만 | 한 기준법의 원문(법률·시행령·시행규칙)을 직접 훑어 수집해야 할  |
 | `master_laws.py` | 글만 | 해양·수산 법률 마스터 목록 (77개, 확정). 키=도메인 폴더명. |
 | `match_weather_warning_tree.py` | 코드 | 기상특보 출항·운항통제 자산의 **암시 하강(implicit descent) 매칭기** — 이번 라운드는 실서빙 미배선. |
 | `merge_byl_ocr.py` | 코드 | 이미지 OCR sidecar(_이미지/<id>.txt)를 원문 raw의 <img id="N"> 자리에 접어 넣는다. |
@@ -170,8 +170,8 @@
 | `nonum_byl_note.py` | 글만 | 3-54 뒤쪽 (결심 ⑥ⓑ) — **번호 없는 별표에 「원문에 번호가 없다」고 적는다. |
 | `notice_scope_prep.py` | 코드 | 고시 쪽의 **`## 적용범위·제외` · `## 타법 연결`** 에 넣을 **원문을 미리 뽑아 둔다**. (3-6 준비) |
 | `num_exact_check.py` | 글만 | 위키 쪽이 적은 **숫자로 된 법적 효과**가 raw 원문에 글자 그대로 있는지 기계로 센다. |
-| `ocr_review_verify.js` | 글만 | 별표 OCR값확정 대기 카드(review_gen/) Opus 비전 2차 재검증. |
-| `ocr_wiki.js` | 글만 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
+| `ocr_review_verify.js` | 글만 | 별표OCR값확정 대기 카드(review_gen/)를 Opus 비전으로 원본 이미지/원문 재검증 → 일치 확인 시 canonical 승격 |
+| `ocr_wiki.js` | 글만 | 이미지로만 존재하는 별표·고시(처벌표·요율표 등)를 비전 OCR로 텍스트화 — 처벌수치는 REVIEW 플래그 |
 | `ordin_byl_links.py` | 코드 | 3-49 — 조례 별표는 **본문이 안 온다.** 그러면 **원본으로 가는 길이라도 적어 둔다. |
 | `ordin_byl_stub.py` | 글만 | 조례 별표 빈자리에 **내려받기 주소만 담은 파일**을 만든다. (3-49 = ⓐ) |
 | `ordin_byl_stub7.py` | 글만 | 3-49 남은 7자리 (결심 ⑤ⓑ) — **조례 별표 7자리를 정직하게 채운다. |
@@ -179,9 +179,9 @@
 | `ordin_to_folder.py` | 코드 | 조례(자치법규) 원문을 **챗봇이 열 수 있는 꼴**로 바꿔 폴더에 넣는다. |
 | `pick_audit_wave.py` | 글만 | 감사 라운드 R의 다음 파도(≤N, 기본35) 선정+예약. 마커 audit_r<R>_<slug>.done 없는 법 중 서로 다른 법. |
 | `pick_wave.py` | 글만 | 다음 파도(≤N, 기본35) 선정 후 예약(.launched). 서로 다른 법(파일충돌 방지)·미완(.done 없음)·비-in-flight(.launched 25분내 없음). |
-| `probe.py` | 글만 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
-| `promote_verify.js` | 글만 | 새로 만든 개념 페이지의 수치를 **raw 원문과 대조해** 승격 여부를 정한다(_SCHEMA §5). |
-| `quote_fix.js` | 글만 | "원문 발췌"라고 인용부호를 달아 놓고 다듬어 쓴 문장을 **원문 복붙으로 되돌린다**(L-148). |
+| `probe.py` | 글만 | law.go.kr 에 **낱말별로 몇 건이나 있는지** 세어 보는 한 번짜리 탐침. (조사용) |
+| `promote_verify.js` | 글만 | 새 개념 페이지 수치를 raw 와 대조해 canonical 승격 판정(_SCHEMA §5). 만든 에이전트가 아닌 제3자. |
+| `quote_fix.js` | 글만 | 인용부호 안을 원문 복붙으로 되돌리고 조항 오기를 고친다(L-148). 자기 법 파일만. |
 | `recollect_budchik.py` | 글만 | budchik_check.json에서 mismatch(raw엔 없는데 API엔 있음)로 확인된 건들의 |
 | `recollect_byl.py` | 코드 | 별표 충돌 버그 수정: 법률/시행령/시행규칙 별표를 층별 접두어로 재수집. |
 | `recollect_jomun.py` | 코드 | 조문 텍스트 재추출: 벌칙/과태료 등 '호 직속' 조문의 chapeau(형량 도입문) 누락 버그 수정. |
@@ -193,28 +193,28 @@
 | `regrade.js` | 코드 | 저장해 둔 라이브 검증 결과를 **규칙으로 다시 채점**한다(AI 안 씀, 비용 0). |
 | `repeat_probe.js` | 코드 | **같은 질문을 여러 번** 던져 응답이 어디서 갈리는지 본다(비결정성 진단). |
 | `reverify_admrul_id.py` | 글만 | 73법의 _admrul.json에 저장된 ID(lsDelegated 출처)가 최신 버전인지, |
-| `review_gen.js` | 글만 | ①절충: 민감 draft의 "AI 제안값 + 출처"를 리뷰큐에 미리 채우는 앞단 생성기. |
+| `review_gen.js` | 글만 | 민감 draft의 AI 제안값+출처(원문/별표/이미지)를 법별 partial 리뷰카드로 생성(공유파일 미접촉) |
 | `review_mark_census.py` | 코드 | 3-28 / G-24 — **`(⚠REVIEW)` 표시 1,067개가 무엇을 가리키는지 갈라 센다. |
-| `review_resolve.js` | 글만 | ③ 리뷰큐 자동 트리아지: 미승인 엔트리를 재검증해 resolved/needs_collect/human 판정. |
+| `review_resolve.js` | 글만 | 미승인 리뷰를 원문 근거로 재검증해 resolved/needs_collect/human 판정(읽기전용, 자동확정 대상 선별) |
 | `scope_scan.py` | 글만 | `_CHATBOT.md` §5-2(판례·법리·다툼 = 스코프 밖) 처리 후보를 골라 센다. |
-| `scope.py` | 코드 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
-| `scope2.py` | 글만 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
+| `scope.py` | 코드 | 법 이름으로 law.go.kr 에 물어 **그 법의 계층·시행일·판번호를 훑어보는** 한 번짜리 탐침. (조사용) |
+| `scope2.py` | 글만 | `scope.py` 의 뒷판 — 같은 물음을 **여러 법에 이어서** 돌린다. (조사용) |
 | `search_eval.js` | 코드 | 검색이 **그 질문의 법을 후보로 올리는가**를 고정 질문 65개로 채점한다(AI 안 씀, 비용 0). |
 | `search_gap.js` | 코드 | 고정 문제집의 `search` 실패(행은 위키에 있는데 그 페이지가 후보에 안 옴)를 |
 | `search_live.js` | 글만 | 고정 문제집에서 `search` 로 찍힌 문항이 **실제 배포 챗봇에서도 실패하는지**를 잰다. |
 | `section_name_unify.py` | 글만 | 위키 표준 절 이름을 하나로 맞춘다 — `## 근거 조문`. (3-5) |
-| `shared_refs_cell.js` | 글만 | 마스터 워크리스트 A표(공용 타법 2개 법 이상). 각 항목: 필요한 "그 조문"만 발췌(전체 개념화 금지). |
-| `sonnet_pilot.js` | 글만 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
+| `shared_refs_cell.js` | 글만 | 여러 기준법이 공통으로 인용하는 타법 조문(전자정부법 제36조 등 최다 38개 법 공용)을 law.go.kr DRF로 1회 수집해 raw/15_관련타부처/에 공용 저장. 각 법 collect 셀이  |
+| `sonnet_pilot.js` | 글만 | Sonnet 5 파일럿: 3개 법 처벌·정의 정확도를 Opus 심판으로 검증 |
 | `staleness_audit.py` | 코드 | raw 최신성 전수 재검증(읽기 전용) — 74개 핵심법의 법률/시행령/시행규칙 MST와 |
 | `staleness_correct.py` | 글만 | staleness_audit.py 1차 결과의 "위임고시 ID 불일치" 항목을 발령일자 직접 대조로 보정한다. |
-| `stub_rules_cell.js` | 글만 | 첨부파일 포인터 스텁(3줄) — 실제 내용은 다운로드 필요. 안전 핵심 설비·구조 기준 우선. |
+| `stub_rules_cell.js` | 글만 | 본문이 첨부파일(HWP/PDF)에만 있어 raw에  |
 | `sync_law_paths.py` | 코드 | `law_raw_paths.json`(법 이름 → raw 폴더 지도)을 **실제 raw 폴더와 맞춘다. |
-| `synth_lint.js` | 글만 | 통합수정 후 공유허브(신경망)를 단독으로 재봉합한다(H-9 lint). ⚠경합위험이라 반드시 단독. |
-| `synth_scope.js` | 글만 | 6차 감사 리포트를 읽어 각 법의 '스코프-밖 질문 수'를 판정해 스코프-내 full률을 산출한다. |
+| `synth_lint.js` | 글만 | 통합수정 후 공유 비교허브 신설+역링크(신경망 재봉합, 단독) |
+| `synth_scope.js` | 글만 | 6차 감사 리포트로 스코프-내 full률 산출(스코프밖 질문 분모 제외) |
 | `table_split_scan.py` | 글만 | 표 안에서 **줄 경계로 쪼개진 낱말**을 낱말 목록 없이 전수로 찾아 준다. |
-| `tech_standard_wiki_cell.js` | 글만 | 기술기준(설비·구조 고시) 기준법-급 위키 구축 셀 |
+| `tech_standard_wiki_cell.js` | 글만 | 기술기준(설비·구조 고시)을 기준법-급 개념 위키로 구축 |
 | `tier_fill.py` | 코드 | `_meta.json` 의 `tier`(1군·2군·3군)를 규약대로 채운다. (3-1) |
-| `topicmap.js` | 글만 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
+| `topicmap.js` | 글만 | 풀 깊이 사이징: 핵심법 65개 각각의 전체 개념 주제 목록을 추출(스로틀 제거) |
 | `triage_admrul_pdf.py` | 글만 | admrul_fix_log.json에서 skipped(첨부파일형/축소감지)로 남은 150건을, |
 | `trty_to_excerpt.py` | 글만 | 조약 raw(`조약_*.txt`)를 챗봇이 읽을 수 있는 `법률_발췌.txt` 로 모은다. |
 | `verify_claims.py` | 글만 | 감사가 보고한 결함 주장을 **사람(에이전트)이 하나씩 실측 확인**하도록 배치를 짠다. |
@@ -223,9 +223,9 @@
 | `verify_vessel_subtypes.py` | 코드 | 선박종류 세분화(원양어선·산적화물선) 독립 재대조기 (H-32 설계 §13.7). |
 | `verify_weather_warning_tree.py` | 코드 | 기상특보 출항·운항통제 자산 **독립 재대조 검증기** (L-75 2단계). |
 | `verify_zone_tree.py` | 글만 | zone_tree.json 독립 재대조 검증기 (설계 §6). |
-| `wiki_build.js` | 글만 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |
-| `wiki_rebuild.js` | 코드 | 새로 수집된 raw(별표 이미지판독·별표·신규 고시/타법)를 반영해 법별 위키를 재빌드한다. |
-| `xref_fix.js` | 코드 | `## 타법 연결` 표에만 있는 근거를 `## 근거 조문` 표로 옮긴다(결정 ①ⓐ, 2026-08-20). |
+| `wiki_build.js` | 코드 | 해양법률 raw → 위키 페이지를 다수 에이전트로 병렬 구축(동일 _SCHEMA.md 지침) |
+| `wiki_rebuild.js` | 코드 | 현재 raw(별표 수치·신규 고시) 반영해 법별 위키 재빌드(감사정제 보존) |
+| `xref_fix.js` | 코드 | 타법 연결 표의 근거를 근거 조문 표로 이관(결정 ①ⓐ). 자기 법 파일만 = 병렬안전. |
 | `xref_todo.js` | 글만 | `## 타법 연결` 표에는 있는데 `## 근거 조문` 표에는 없는 행을 뽑아 |
 
 > 게이트가 부르는 자는 `verify_all.sh` 에서 바로 보이므로 이 표에 넣지 않는다.

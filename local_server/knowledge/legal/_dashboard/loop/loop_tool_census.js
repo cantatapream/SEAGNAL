@@ -55,7 +55,13 @@ function tools() {
  *   ★**머리말이 없으면 없다고 말해야** 그 자에 머리말을 달러 갈 수 있다(L-382 의 꼴).
  */
 function purpose(f) {
-  const head = fs.readFileSync(path.join(HERE, f), 'utf8').split('\n').slice(0, 16);
+  const src = fs.readFileSync(path.join(HERE, f), 'utf8');
+  // ★일곱 번째 고침 — **Workflow 스크립트는 머리말을 주석이 아니라 `meta.description` 에 적는다.**
+  //   주석만 읽던 첫 판은 `fix_cell.js`·`wiki_build.js` 처럼 **설명이 멀쩡히 있는 자**를
+  //   「머리말 없음」으로 세었다(13 중 여럿이 그랬다). 그 꼴도 머리말로 친다.
+  const meta = /export\s+const\s+meta\s*=\s*\{[\s\S]{0,400}?description\s*:\s*['"`]([^'"`]{8,})/.exec(src);
+  if (meta) return meta[1];
+  const head = src.split('\n').slice(0, 16);
   let inDoc = false;
   for (const raw of head) {
     const t = raw.trim();
