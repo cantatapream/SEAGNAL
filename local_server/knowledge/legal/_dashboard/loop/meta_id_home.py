@@ -21,7 +21,16 @@
   · 최상위 키는 **한 글자도 안 지운다**(3-37 과 같은 규약 — 옛 서술을 안 지운다).
     어긋나면 `meta_schema_gate` 의 `conflicts` 가 잡는다.
   · 이미 그 자리에 값이 있으면 **덮지 않는다.**
-  · 조약(`조약일련번호`·`조약번호`)·행정규칙(`행정규칙ID`)은 **건드리지 않는다** → 3-45.
+  · 행정규칙(`행정규칙ID`·`행정규칙일련번호`)은 **아직 건드리지 않는다** — 규칙이 안 정해졌다(2자리).
+
+★조약 (사용자 확정 2026-09-24, 3-45 = ⓐ `families.조약`)
+  조약에는 법률의 `법률·시행령·시행규칙` 계층이 없다. 그래서 **`조약` 을 계층으로 쓴다.**
+  · 제자리 이름: `families` 에 항목이 하나뿐이면 **그 이름 그대로**(실측: 8곳이 `"조약(발췌)"` 다.
+    새 이름을 만들면 같은 것이 두 이름으로 갈린다 — L-331 과 같은 꼴).
+    `families` 가 없거나 비었으면 `조약` 을 만든다.
+  · 옮기는 값: `조약일련번호`·`조약번호` 를 **이름 그대로** 옮긴다. `MST` 로 바꾸지 않는다 —
+    다른 번호를 같은 이름으로 부르면 나중에 못 가린다.
+  · `조약일련번호` 는 `_meta_schema.js` 의 `FAM_ID_KEYS` 에 들어 있다(그 판을 가리키는 번호 구실).
 
 [연계] ← `_dashboard/loop/_meta_schema.js`(세는 자) · → `raw/**/_meta.json` 의 `families`
 사용법: python3 meta_id_home.py [--apply]
@@ -37,7 +46,8 @@ from _touched import Touched                                      # noqa: E402
 TIER_FILE = re.compile(r'^(법률|시행령|시행규칙)(_발췌)?\.txt$')
 MST_KEYS = ['법령일련번호(MST)', '법령일련번호', 'MST', 'mst']
 LID_KEYS = ['법령ID']
-SKIP_KEYS = ('조약일련번호', '조약번호', '행정규칙ID', '행정규칙일련번호', '자치법규ID')
+TREATY_KEYS = ('조약일련번호', '조약번호')                     # 3-45 = ⓐ — 이 도구가 옮긴다
+SKIP_KEYS = ('행정규칙ID', '행정규칙일련번호', '자치법규ID')      # 규칙 미정 — 아직 안 옮긴다
 
 
 def tiers_of(d):
@@ -47,6 +57,16 @@ def tiers_of(d):
         if m:
             out.add(m.group(1))
     return sorted(out)
+
+
+def treaty_home_of(meta):
+    """조약의 제자리 이름. 있는 이름을 그대로 쓰고, 없으면 `조약` 을 만든다."""
+    fam = meta.get('families')
+    if isinstance(fam, dict) and len(fam) == 1:
+        return list(fam)[0], '`families` 항목이 하나뿐 — 그 이름 그대로'
+    if not isinstance(fam, dict) or not fam:
+        return '조약', '`families` 가 없어 `조약` 을 만든다 (3-45 = ⓐ)'
+    return None, ''                                    # 여럿이면 손대지 않는다
 
 
 def home_of(meta, d):
@@ -79,11 +99,38 @@ def main():
         fam = j.get('families') if isinstance(j.get('families'), dict) else {}
         if any(isinstance(v, dict) and v.get('MST') for v in fam.values()):
             continue                                   # 이미 제자리에 있다
-        tops = [k for k in j if k in MST_KEYS or k in LID_KEYS or k in SKIP_KEYS]
+        tops = [k for k in j if k in MST_KEYS or k in LID_KEYS
+                or k in SKIP_KEYS or k in TREATY_KEYS]
         if not tops:
             continue
+        # ★조약 — `families.조약` 으로 옮긴다 (3-45 = ⓐ)
+        if any(k in TREATY_KEYS for k in tops) and not any(k in MST_KEYS + LID_KEYS for k in tops):
+            key, why = treaty_home_of(j)
+            if not key:
+                tally['손 안 댐(조약인데 families 가 여럿)'] += 1
+                continue
+            slot = j.setdefault('families', {}).setdefault(key, {})
+            moved = []
+            for k in TREATY_KEYS:
+                if j.get(k) and not slot.get(k):
+                    slot[k] = str(j[k]); moved.append(k)
+            if not moved:
+                tally['옮길 것 없음'] += 1
+                continue
+            slot.setdefault('_제자리출처',
+                            f'meta_id_home (3-45 = ⓐ, 2026-09-24) — {why}. '
+                            f'최상위 키는 안 지웠다. `조약일련번호` 가 그 판을 가리키는 번호다 '
+                            f'(lawService target=trty ID=<조약일련번호>)')
+            tally['옮겼다(조약)'] += 1
+            print('· %-52s → families.%s  %s' % (
+                os.path.relpath(r, RAW)[:52], key, ' · '.join(moved)))
+            if apply_:
+                with open(p, 'w', encoding='utf-8') as f:
+                    json.dump(j, f, ensure_ascii=False, indent=2)
+                touched.add(p)
+            continue
         if any(k in SKIP_KEYS for k in tops) and not any(k in MST_KEYS + LID_KEYS for k in tops):
-            tally['건너뜀(조약·행정규칙 — 3-45)'] += 1
+            tally['건너뜀(행정규칙 — 규칙 미정)'] += 1
             continue
         key, why = home_of(j, r)
         if not key:
