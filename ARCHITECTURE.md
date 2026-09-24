@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 110개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 111개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -159,6 +159,8 @@ client/js/
 │       ├── ocean_warn_active5.js
 │       ├── ocean_warn_vsby.js
 │       └── ocean_warn_zone.js
+├── onboarding/
+│   └── zone_setup.js
 ├── push/  ← ⚡ 푸시 알림
 │   └── alert_push.js
 ├── settings/  ← ⚡ 설정
@@ -426,6 +428,12 @@ client/js/
 | `ocean_warn_active5.js` | 부모 zone 클릭 시 어두운 남색 정보 박스 표출, 외부 클릭 자동 close, |
 | `ocean_warn_vsby.js` | 해역별 특보 현황 아코디언의 각 특보구역 카드에 "시정(visibility) 뱃지" |
 | `ocean_warn_zone.js` | 해양종합정보 지도에 KMA 해상 예특보구역 폴리곤 outline 표출 |
+
+### `client/js/onboarding/`
+
+| 파일 | 역할 |
+|------|------|
+| `zone_setup.js` | 앱을 처음 켠 사람이 **관심 해역을 고르는 화면**입니다. |
 
 ### `client/js/push/`
 
