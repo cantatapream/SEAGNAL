@@ -123,6 +123,7 @@
     "accident_geocode_review.js",
     "accident_geocode_review_person.js",
     "life_safety.js",
+    "zone_setup.js",
     "tutorial.js"
   ]
 }

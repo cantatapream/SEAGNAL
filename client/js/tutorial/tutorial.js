@@ -1957,6 +1957,7 @@
         btn.addEventListener('click', function (e) {
             if (!(e.detail > 0 || e.isTrusted)) return;   // 사용자 클릭만
             if (_root) return;                            // 이미 열려 있으면 세지 않는다
+            if (document.getElementById('zone-setup-overlay')) return;   // 관심해역 설정 중
 
             _tapCount++;
             clearTimeout(_tapTimer);
@@ -1969,9 +1970,24 @@
                 //   그쪽이 우리보다 나중에 실행돼 공지사항 탭으로 돌려놓는다. 그래서 같은
                 //   클릭 처리가 모두 끝난 다음(setTimeout 0)에 연다 — 안 그러면 튜토리얼이
                 //   공지사항 화면 위에서 열려 가리킬 대상이 보이지 않는다.
-                setTimeout(_open, 0);
+                setTimeout(_startFlow, 0);
             }
         });
+    }
+
+    /**
+     * 숨은 진입로로 들어왔을 때 실제로 보여 줄 순서를 정한다.
+     *
+     * 무엇을 하나?
+     *   먼저 **관심해역 설정**(js/onboarding/zone_setup.js)을 열고, 다 고르거나
+     *   [건너뛰기]를 누르면 이어서 튜토리얼을 연다. 설계 시안이 「관심해역 설정 → 튜토리얼」
+     *   한 줄기였기 때문이다. 관심해역 설정 파일이 없으면 지금처럼 튜토리얼만 연다.
+     *
+     * [연계] zone_setup.js 의 window.openZoneSetup(끝났을때호출할함수)
+     */
+    function _startFlow() {
+        if (typeof window.openZoneSetup === 'function') window.openZoneSetup(function () { _open(); });
+        else _open();
     }
 
     if (document.readyState === 'loading') {
