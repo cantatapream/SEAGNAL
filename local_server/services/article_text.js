@@ -820,7 +820,26 @@ function extractArticleBlock(text, jo, tier) {
     const re2 = new RegExp(
       `(?:^|\\n)${reEsc(jo)}[ \\t]*\\(([^)]*)\\)([\\s\\S]*?)`
       + `(?=\\n\\[제\\d+조|\\n제\\d+조(?:의\\d+)?[ \\t]*\\(|\\n제\\d+[편장절]\\s|\\n${ADDENDA_HEAD_SRC}|$)`);
-    const m2 = re2.exec(src);
+    let m2 = re2.exec(src);
+    // ④조약 꼴 — `제1조 일반적 의무` (괄호 없음). **조약 파일에서만** 켠다.
+    //   제목이 그 줄의 나머지고, 다음 조 머리나 부칙에서 끊는다.
+    if (!m2 && isTreatyDoc(src)) {
+      // ㉢(제목이 다음 줄) 도 받는다 — 그때 제목 칸은 비고 본문만 돌려준다.
+      const re4 = new RegExp(
+        `(?:^|\\n)${reEsc(jo)}[ \\t:：]*([^\\n]*)\\n?([\\s\\S]*?)`
+        + `(?=\\n제\\d+조(?:의\\d+)?(?:[ \\t:：]|[ \\t]*\\n)|\\n\\[제\\d+조|\\n제\\d+[편장절]\\s|\\n${ADDENDA_HEAD_SRC}|$)`);
+      m2 = re4.exec(src);
+      // ★제목 칸이 길면 **본문으로 돌린다.** 원문이 제목과 본문을 **붙여** 놓은 파일이 있다
+      //   (실측: UNCLOS `제113조 해저전선·관선의 파괴 및 훼손모든 국가는 자국기를 게양한…`
+      //    — `훼손` 과 `모든` 사이에 아무 표시가 없다). 나눌 수 없으니 **통째로 본문**으로 둔다 —
+      //   제목을 모르는 것이 본문이 0자인 것보다 낫다. 짧으면(40자 이하) 제목으로 본다.
+      if (m2 && m2[1] && m2[1].trim().length > 40) {
+        m2 = [m2[0], '', (m2[1].trim() + '\n' + (m2[2] || '')).trim()].concat();
+        m2.index = re4.lastIndex - 0;                  // addendaAfter 용 — 아래에서 다시 계산한다
+        const again = new RegExp(`(?:^|\\n)${reEsc(jo)}`).exec(src);
+        m2.index = again ? again.index : 0;
+      }
+    }
     if (!m2) return null;
     const lines2 = m2[2].split('\n');
     while (lines2.length && /^$|^(제\d+[편장절]\s|부칙)/.test(lines2[lines2.length - 1].trim())) lines2.pop();
@@ -1491,6 +1510,41 @@ function resolveBase(law, baseLaw, tier) {
  * @returns {string}
  * [연계] ← listArticleNumbers()(whole 모드).
  */
+/**
+ * ★꼴 ④ — **조약 조문머리**는 괄호가 없다: `제1조 일반적 의무` (2026-09-24, 3-51).
+ *
+ * 무엇이 있었나
+ *   조약 본문 **13개 파일**에서 `listArticleNumbers` 가 조를 **하나도** 못 돌려주고 있었다.
+ *   국가법령정보센터 `target=trty` 가 주는 꼴이 법률(`[제10조]`)·고시(`제10조(제목)`)와
+ *   **둘 다 다르기** 때문이다. 다시 받아도 같은 꼴이라 **수집으로는 못 고친다.**
+ *
+ * 왜 raw 를 안 고치고 읽는 쪽을 고쳤나
+ *   raw 를 우리 꼴로 바꿔 적으면 **다음 재수집 때 원래 꼴로 되돌아가** 고친 것이 소리 없이
+ *   사라진다(죽은 수리). 읽는 쪽이 원본 꼴을 알아보는 것이 오래 간다.
+ *
+ * ⚠왜 「조약 파일에서만」 켜나 — **개정문과 구별이 안 되기 때문이다.**
+ *   고시에는 `제1조 중 "…"를 "…"로 한다` 같은 **개정문**이 있어서, 꼴④를 전부에 켜면
+ *   그것을 조문머리로 읽는다(실측: `(인천지방해양수산청)장안서부근해역항행안전에관한고시`).
+ *   ⇒ **조약 표시가 있는 파일에서만** 켠다. 실측으로 정밀도를 쟀다 —
+ *     raw 전체 `.txt` **11,033개 중 이 표시가 붙는 것은 22개**이고 **전부 조약 파일**이다.
+ */
+const TREATY_MARK_RE = /조약일련번호|조약번호|target=trty|조약\(trty\)|^\[조약\]/m;
+/** 조약 파일인가 — 머리 1,200자만 본다(본문에 「조약번호」가 인용될 수 있다). */
+function isTreatyDoc(text) {
+  return TREATY_MARK_RE.test(String(text || '').slice(0, 1200));
+}
+/**
+ * 조약 조문머리 한 줄. 실측으로 **세 가지 꼴**이 나왔다(2026-09-24):
+ *   ㉠`제1조 일반적 의무`          — 제목이 같은 줄
+ *   ㉡`제10조: 증명서 표본양식`     — 쌍점으로 잇는 꼴
+ *   ㉢`제1조` 만 있고 **제목이 다음 줄** (물새서식처협약)
+ * ⚠바로 뒤가 `중` 이면 조문머리가 아니라 **개정문**이다(`제1조 중 "…"를 "…"로 한다`) — 뺀다.
+ *   ★처음엔 조사(`을를이가은는…`)도 함께 뺐는데 **그것이 과했다** — STCW 의 제목이
+ *     `이 협약상의 일반적 의무` 라 `이` 에 걸려 **살릴 수 있는 조를 놓쳤다**.
+ *     조사는 붙여 쓴다(`제1조를`) 공백이 없으므로 `[ \t:：]+` 가 이미 걸러 준다. `중` 만 뺀다.
+ */
+const TREATY_JO_SRC = '제(\\d+)조(?:의(\\d+))?(?:[ \\t:：]+(?!중[\\s"“])[^\\s\\n]|[ \\t]*(?=\\n))';
+
 function articleRegion(text) {
   const src = String(text || '');
   const i = src.search(DOC_TAIL_RE);
@@ -1545,6 +1599,13 @@ function listArticleNumbers(text, tier) {
   while ((m = re.exec(src))) {
     if (m[1] !== undefined) push(m[1], m[2]);
     else push(m[3], m[4]);
+  }
+  // ④조약 꼴(`제1조 일반적 의무` — 괄호가 없다). **조약 파일에서만** 켠다(위 주석의 까닭).
+  //   ①②③ 으로 하나도 못 찾았을 때만 본다 — 섞인 파일에서 본문 인용을 조로 올리지 않기 위해서다.
+  if (!out.length && isTreatyDoc(text)) {
+    const re4 = new RegExp('(?:^|\\n)' + TREATY_JO_SRC, 'g');
+    let m4;
+    while ((m4 = re4.exec(src))) push(m4[1], m4[2]);
   }
   return out;
 }
