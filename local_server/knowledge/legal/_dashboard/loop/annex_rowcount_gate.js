@@ -35,12 +35,28 @@ const AT = require(path.resolve(LEGAL, '../../services/article_text.js'));
 const BASE = path.join(HERE, 'baseline', 'annex_rowcount.json');
 const argv = process.argv.slice(2);
 
-/** §6-F 가 정한 적는 꼴. 「원문 N행 / 위키 M행」. */
-const ROW_RE = /항목수\s*대조\s*\(?§?6-F\)?\s*[::]\s*원문\s*(\d+)\s*행\s*\/\s*위키\s*(\d+)\s*행/;
+/**
+ * §6-F 가 정한 적는 꼴. 두 가지를 받는다:
+ *   `원문 N행 / 위키 M행`                    ← **확정**된 것(사람이 세어 적었다)
+ *   `원문 N행 / 위키 미확인(기계 셈 M행)`    ← **사람 몫**. M 은 후보일 뿐 판정이 아니다.
+ * ★기계가 위키 쪽을 못 센다는 것이 요점이다 — 위키는 원문 표를 다시 짠다(`〃` 를 풀고 칸을 합친다).
+ *   실측: 낚시 시행령 별표1 은 **원문 5행인데 위키 표는 13줄**이다. 같은 내용을 다르게 그린 것이다.
+ *   3-28 에서도 박스 표 80쪽 중 자동 대조가 맞은 것은 **9쪽뿐**이었다.
+ *   그래서 「미확인」을 **초록으로 통과시키되 따로 세어** 사람이 얼마나 남았는지 늘 보이게 한다.
+ */
+const ROW_RE = /항목수\s*대조\s*\(?§?6-F\)?\s*[::]\s*원문\s*(\d+)\s*행\s*\/\s*위키\s*(?:(\d+)\s*행|미확인\s*\(\s*기계\s*셈\s*(\d+)\s*행\s*\))/;
 /** 수가 다를 때 바로 아래에 있어야 하는 까닭 줄. */
 const WHY_RE = /(까닭|이유|왜|일부러|뺐|생략|옮기지)/;
-/** 그 쪽이 어느 raw 별표를 가리키나 — 쪽 안에 적힌 raw 경로를 쓴다. */
-const RAWPATH_RE = /raw\/[^\s`"“”,)]+\.txt/g;
+/**
+ * 그 쪽이 어느 raw 별표를 가리키나 — ★**살아 있는 출처 선언만** 쓴다.
+ * ⚠2026-09-24 — 처음에는 쪽 안의 `raw/…txt` 를 **아무거나** 주웠다. 그랬더니
+ *   `| 2026-07-19 | … 별표9~16 raw에 있으나 …` 같은 **이력 표 줄**과 옛 검증 메모까지 주워
+ *   **「적힌 경로가 안 열린다」 5쪽**을 만들어 냈다. **그 5쪽은 결함이 아니었다** —
+ *   이력 줄은 과거 서술이지 지금의 출처 선언이 아니다(`exact_claim_recheck.py` 가 먼저 배운 것과 같은 병).
+ *   자를 좁히니 **살아 있는 선언 55쪽 · 안 열리는 것 0개**다.
+ * [세는 법] `> raw 원문: \`raw/…txt\`` 꼴 한 줄만 본다. 이력 표 줄·본문 속 언급은 세지 않는다.
+ */
+const RAWPATH_RE = /^\s*>?\s*(?:★)?\s*raw\s*원문\s*[::]\s*`?(raw\/[^`\s]+\.txt)`?/gm;
 
 function pages() {
     let out = [];
@@ -49,7 +65,7 @@ function pages() {
 }
 
 function check() {
-    const r = { 쪽: 0, 줄있음: 0, 줄없음: 0, 원문수어긋남: 0, 위키수어긋남: 0, raw못찾음: 0 };
+    const r = { 쪽: 0, 줄있음: 0, 줄없음: 0, 확정: 0, 사람몫: 0, 원문수어긋남: 0, 위키수어긋남: 0, raw못찾음: 0 };
     const bad = { 원문수어긋남: [], 위키수어긋남: [], raw못찾음: [] };
     const none = [];
     for (const f of pages()) {
@@ -60,9 +76,13 @@ function check() {
         if (i < 0) { r.줄없음++; none.push(f); continue; }
         r.줄있음++;
         const m = ROW_RE.exec(lines[i]);
-        const say원문 = Number(m[1]), say위키 = Number(m[2]);
+        const say원문 = Number(m[1]);
+        const 확정 = m[2] !== undefined;                 // 사람이 세어 적었나
+        const say위키 = Number(확정 ? m[2] : m[3]);
+        if (확정) r.확정++; else r.사람몫++;
         // ① 적힌 「원문 N행」이 raw 를 실제로 센 수와 같은가
-        const paths = [...new Set((txt.match(RAWPATH_RE) || []))]
+        RAWPATH_RE.lastIndex = 0;
+        const paths = [...new Set([...txt.matchAll(RAWPATH_RE)].map((m) => m[1]))]
             .filter((p) => p.includes('/별표/'));
         let real = null;
         for (const p of paths) {
@@ -81,7 +101,8 @@ function check() {
             bad.원문수어긋남.push(`${f}  적힌 원문 ${say원문}행 · 실제로 세니 ${real}행`);
         }
         // ② 원문 수와 위키 수가 다른데 까닭이 없다
-        if (say원문 !== say위키 && !WHY_RE.test(lines.slice(i + 1, i + 4).join(' '))) {
+        // ★「미확인」은 아직 판정이 아니다 — 수가 달라도 결함으로 세지 않는다.
+        if (확정 && say원문 !== say위키 && !WHY_RE.test(lines.slice(i + 1, i + 4).join(' '))) {
             r.위키수어긋남++;
             bad.위키수어긋남.push(`${f}  원문 ${say원문} ≠ 위키 ${say위키} 인데 **까닭이 안 적혀 있다**`);
         }
@@ -96,6 +117,8 @@ function main() {
     console.log(`    세는 법의 임자: article_text.countBoxRows (챗봇이 쓰는 그 함수 · L-136)\n`);
     console.log(`    별표 쪽 ${r.쪽}개`);
     console.log(`    ·  대조 줄이 있다        ${String(r.줄있음).padStart(4)}`);
+    console.log(`    ·  └ 사람이 확정했다     ${String(r.확정).padStart(4)}`);
+    console.log(`    ·  └ 위키 쪽은 사람 몫   ${String(r.사람몫).padStart(4)}   기계는 원문 쪽만 센다 — 위키는 표를 다시 짜서 못 센다`);
     console.log(`    ${r.원문수어긋남 ? '❌' : '✅'} 적힌 원문 수가 틀렸다  ${String(r.원문수어긋남).padStart(4)}   ★적어 놓고 틀린 것 — 한 건도 봐주지 않는다`);
     console.log(`    ${r.위키수어긋남 ? '❌' : '✅'} 수가 다른데 까닭 없다  ${String(r.위키수어긋남).padStart(4)}`);
     console.log(`    ${r.raw못찾음 ? '⚠' : '✅'} 무엇과 맞췄는지 모름  ${String(r.raw못찾음).padStart(4)}`);
@@ -107,7 +130,7 @@ function main() {
         console.log(`       ↳ 대조 줄이 없는 쪽 ${none.length}개 (앞 20개)`);
         for (const n of none.slice(0, 20)) console.log(`           · ${n}`);
     }
-    const now = { 원문수어긋남: r.원문수어긋남, 위키수어긋남: r.위키수어긋남, 줄없음: r.줄없음 };
+    const now = { 원문수어긋남: r.원문수어긋남, 위키수어긋남: r.위키수어긋남, 줄없음: r.줄없음, 사람몫: r.사람몫 };
     if (argv.includes('--update')) {
         fs.mkdirSync(path.dirname(BASE), { recursive: true });
         fs.writeFileSync(BASE, JSON.stringify(now, null, 1) + '\n', 'utf8');
@@ -124,6 +147,10 @@ function main() {
         let base = null;
         try { base = JSON.parse(fs.readFileSync(BASE, 'utf8')); } catch (_) { }
         if (!base) { console.log('    ⏭️  기준선이 없다 — `--update` 로 한 번 구워야 한다'); return 0; }
+        if (now.사람몫 > (base.사람몫 ?? now.사람몫)) {
+            console.log(`    ❌ 늘었다 사람몫 ${base.사람몫}→${now.사람몫} — 확정한 자리를 되돌렸다`);
+            return 1;
+        }
         if (now.줄없음 > base.줄없음) {
             console.log(`    ❌ 늘었다 대조줄없음 ${base.줄없음}→${now.줄없음} — 새 별표 쪽에 §6-F 줄을 안 적었다`);
             return 1;
