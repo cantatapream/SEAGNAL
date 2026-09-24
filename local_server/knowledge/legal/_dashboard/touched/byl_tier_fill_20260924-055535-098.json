@@ -1,0 +1,10 @@
+{
+ "script": "byl_tier_fill",
+ "stamp": "20260924-055535-098",
+ "files": [
+  "local_server/knowledge/legal/raw/15_관련타부처/골재채취법/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/골재채취법/별표/_links.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/위험물안전관리법/별표/시행령_별표7.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/위험물안전관리법/별표/_links.json"
+ ]
+}

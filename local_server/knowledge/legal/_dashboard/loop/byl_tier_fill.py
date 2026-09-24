@@ -57,6 +57,48 @@ def gaps():
         p = line.split(' | ')[0].strip()
         base, fn = p.rsplit('/별표/', 1)
         want.setdefault(base, set()).add(fn)
+    # ★`decl_mismatch` 도 **조건을 달아** 받는다 (2026-09-24, 3-54 ⓑ).
+    #   그 줄들은 「파일은 있는데 임자(계층)가 다르다」다. 갈래가 둘이라 **뭉치면 안 된다**:
+    #     ⓐ그 계층이 **꼬리표에 정말 있다** → 우리가 그 계층 별표를 **안 받은 것**이다(수집 공백).
+    #       실측 2건: 골재채취법 시행령 별표2(제36조 단지관리비 산정기준) ·
+    #                 위험물안전관리법 시행령 별표7(제22조 탱크시험자 기술능력·시설·장비).
+    #       둘 다 **시행령 원문이 자기 별표라고 말한다** — 확인하고 넣었다. 위키가 맞다.
+    #     ⓑ그 계층이 **꼬리표에 없다** → 법 이름 자체가 `…규칙` 인 문서다(선박톤수의 측정에
+    #       관한 규칙 등 15줄). 받을 판이 **아예 없으므로** 여기서 손대지 않는다 —
+    #       「위키 표기를 고칠지 / 읽는 쪽이 받아들일지」는 **사람이 정한다**(G-34, 3-54).
+    for line in ex.get('decl_mismatch', []):
+        # ⚠꼴이 `no_file` 과 다르다 — 경로는 **맨몸 이름**(`…/별표/별표2.txt`)이고
+        #   위키가 짚은 계층은 **둘째 칸**(`시행령 별표2`)에 있다. 받아야 할 파일 이름은
+        #   그 둘을 합쳐 우리가 만든다(`시행령_별표2.txt`).
+        parts = line.split(' | ')
+        if len(parts) < 2:
+            continue
+        base = parts[0].strip().rsplit('/별표/', 1)[0]
+        cited = parts[1].strip().split()
+        if len(cited) < 2 or cited[0] not in ('법률', '시행령', '시행규칙'):
+            continue
+        tier, key = cited[0], cited[1]
+        fn = f'{tier}_{key}.txt'
+        m = re.match(r'^(법률|시행령|시행규칙)_', fn)
+        meta = os.path.join(REPO, base, '_meta.json')
+        try:
+            j = json.load(open(meta, encoding='utf-8'))
+        except Exception:
+            continue
+        fams = j.get('families') if isinstance(j.get('families'), dict) else {}
+        mst, via = fam_mst(fams, m.group(1), j.get('법령명') or j.get('법명'))
+        if not mst:
+            continue                      # ⓑ — 받을 판이 없다. 사람이 정한다
+        # ★★`own_tier` 로 찾은 것은 **받지 않는다**(2026-09-24 실측으로 알았다).
+        #   `fam_mst` 는 「이 폴더가 곧 시행규칙이다」라며 MST 를 돌려주는데, 그러면
+        #   **이미 있는 맨몸 파일과 내용이 똑같은 사본**을 이름만 바꿔 하나 더 만든다
+        #   (선박톤수의측정에관한규칙 6 · 선박에서의오염방지에관한규칙 5 ·
+        #    위험물선박운송및저장규칙 1 = 12개). **3-11 에서 막 지운 그 중복**이다.
+        #   ⇒ 이 갈래는 「위키 표기를 고칠지 / 읽는 쪽이 받아들일지」로 **사람이 정한다**
+        #     (3-54 의 15건). 여기서 파일을 늘리지 않는다.
+        if '이 폴더가 곧' in via:
+            continue
+        want.setdefault(base, set()).add(fn)
     return want
 
 
