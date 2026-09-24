@@ -92,7 +92,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_overlay_solo test_wiki_brief_bulk test_review_marker_registered test_stale_reopen
   test_mok_audit_scanner test_add_other_law_refresh test_pressure_card test_typhoon_source
   test_byl_decl test_treaty_caselaw_meta test_context_budget test_counting_dict test_silent_catch
-  test_gate_5xx_class test_meta_schema test_admrul_review test_ho_count)
+  test_gate_5xx_class test_meta_schema test_admrul_review test_ho_count test_section_ready)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi
@@ -336,6 +336,15 @@ node local_server/knowledge/legal/_dashboard/loop/raw_touch_guard.js || fail "V5
 #   도구를 안 고치고 지우면 다음 인용 때 되살아난다 — 그래서 도구 쪽에 경고를 걸고 여기서는 센다.
 echo; echo "── V5-34 기준법·타법 이중 폴더 ──"
 node local_server/knowledge/legal/_dashboard/loop/dup_law_folder_gate.js || fail "V5-34 기준법·타법 이중 폴더"
+
+# ── V5-35 위키 표준 절이 있나 (2026-09-24 신설, 3-4) ──────────────────────────
+# [왜] 표준 절 목록은 `06_STANDARD_SECTIONS.md` 에 **글로** 정해져 있었다(Q-3, 8개 확정).
+#   그런데 **그것을 읽는 검사가 없었다** — 뿌리 사슬 ③·⑤ 그대로다. 3-5 가 이름을
+#   `## 근거 조문` 하나로 모았으니(447쪽) 이제 걸 수 있다.
+# [세는 법] 규칙은 `_dashboard/section_rules.json` 한 곳에 있고 게이트는 **읽기만** 한다(L-136).
+#   ★「없다」와 「꼬리표」를 **따로** 센다 — 한 통에 넣으면 89, 갈라 보면 없다 56 · 꼬리표 33 이다(⑥).
+echo; echo "── V5-35 위키 표준 절 ──"
+node local_server/knowledge/legal/_dashboard/loop/section_ready.js --gate || fail "V5-35 위키 표준 절"
 
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
