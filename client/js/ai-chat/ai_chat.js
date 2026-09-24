@@ -355,9 +355,15 @@
   }
 
   // ============================================================================
-  // 관리자 검토 데이터 모델 (5개 서브탭 전부 서버 연동 — 배지: refreshAdminStats/refreshStats,
-  //   목록: 초안승인=renderDraftCards·⚠수치검증=renderReviewCards·나머지 3방=renderFeedbackCards/
-  //   renderCandidateCards/renderAmendCards)
+  // 관리자 검토 데이터 모델 — **7개 방** 전부 서버 연동 (배지: refreshAdminStats/refreshStats)
+  //   ⚠2026-09-24 정정 — 종전 주석은 **「5개 서브탭 … 나머지 3방」** 이라 적고 있었다.
+  //     그 뒤 `원문신선도`·`원문결손` 둘이 늘었는데 주석이 안 따라왔다(D-12 · 4-4).
+  //     ★숫자를 주석에 박으면 이렇게 낡는다 — 방 목록의 주인은 **아래 `ADMIN` 과 `ADMIN_ORDER`** 다.
+  //       세고 싶으면 그것을 센다(지금 7개).
+  //   목록을 그리는 짝 (실측 2026-09-24):
+  //     ⚠수치검증=renderReviewCards · 초안승인=renderDraftCards · 피드백=renderFeedbackCards
+  //     새지식후보=renderCandidateCards · 개정검토=renderAmendCards
+  //     원문신선도=renderFreshCards · 원문결손=renderMokCards
   // ============================================================================
   var ADMIN = {
     초안승인: { n: '…', desc: '사서(AI)가 만든 <b>미승인 초안(draft)</b> 대기실. 순수 정의·절차는 재검증 파이프라인이 자동 승격, 처벌·안전값 포함분은 ⚠수치검증 방에서 사람이 승인해야 canonical이 됩니다.', render: null /* 서버 연동: renderDraftCards */ },
