@@ -320,9 +320,18 @@
     function openImgModal() {
         var m = document.getElementById('tphn-img-modal'), img = document.getElementById('tphn-img-el'), msg = document.getElementById('tphn-img-msg');
         if (!m || !img) return;
-        var fileName = bulletinImageName(_selCode || (_curBulletin && _curBulletin.code));
-        if (!fileName) return;
-        var url = '/api/typhoon/image?fileName=' + encodeURIComponent(fileName);
+        // 기상청은 통보문 파일명으로, 해외는 태풍 번호(seq)로 그림을 부른다.
+        var fileName, url;
+        if (_src === 'kma') {
+            fileName = bulletinImageName(_selCode || (_curBulletin && _curBulletin.code));
+            if (!fileName) return;
+            url = '/api/typhoon/image?fileName=' + encodeURIComponent(fileName);
+        } else {
+            if (!_selSeq) return;
+            fileName = _selSeq;
+            url = '/api/typhoon/foreign/image?src=' + encodeURIComponent(_src)
+                + '&seq=' + encodeURIComponent(_selSeq);
+        }
         img.style.display = 'none'; if (msg) { msg.style.display = ''; msg.textContent = '불러오는 중…'; }
         img.onload = function () { img.style.display = ''; if (msg) msg.style.display = 'none'; };
         img.onerror = function () { img.style.display = 'none'; if (msg) { msg.style.display = ''; msg.textContent = '이미지를 불러올 수 없습니다.'; } };
@@ -340,7 +349,10 @@
     function downloadImg() {
         var img = document.getElementById('tphn-img-el'), fileName = img && img.getAttribute('data-fn');
         if (!fileName) return;
-        var rel = '/api/typhoon/image?download=1&fileName=' + encodeURIComponent(fileName);
+        var rel = (_src === 'kma')
+            ? '/api/typhoon/image?download=1&fileName=' + encodeURIComponent(fileName)
+            : '/api/typhoon/foreign/image?download=1&src=' + encodeURIComponent(_src)
+              + '&seq=' + encodeURIComponent(fileName);
         function anchor() {
             var a = document.createElement('a');
             a.href = rel; a.download = fileName.replace(/[\]]/g, '_'); a.target = '_blank';
@@ -1218,6 +1230,27 @@
         }
     }
 
+    /**
+     * 통보문 이미지 버튼을 띄울지 정한다 — 그림이 실제로 있는 때만 띄운다.
+     * 예: 기상청 → 항상 / JTWC 수리개(북서태평양) → 띄움 / JTWC Polo(동태평양) → 감춤
+     * [왜 태풍마다 다른가] JTWC 는 북서태평양·인도양·남반구만 경보를 낸다.
+     *   대서양·동태평양은 미국 국립허리케인센터(NHC) 담당이라 JTWC 그래픽이 없다.
+     *   서버가 태풍마다 imageName 을 채워 주고(없으면 빈 값), 여기서는 그것만 본다.
+     * [연계] ← setSource / selectForeignTyphoon (같은 파일) · 서버 응답의 imageName
+     */
+    function applyImageBtn() {
+        var btn = document.getElementById('tphn-img-btn');
+        if (!btn) return;
+        var on;
+        if (_src === 'kma') {
+            on = true;
+        } else {
+            var t = foreignTyphoon(_selSeq);
+            on = !!(t && t.imageName);
+        }
+        btn.style.display = on ? '' : 'none';
+    }
+
     function setSource(src) {
         if (!SOURCES[src]) src = 'kma';
         _src = src;
@@ -1226,6 +1259,7 @@
         // 기상청에만 있는 조작은 해외 출처에서 잠근다(연도 이동·70%확률반경).
         var ySel = document.getElementById('tphn-year');
         if (ySel) ySel.disabled = (src !== 'kma');
+        applyImageBtn();
         applyProbControl();
         renderSourceNote();
         if (src === 'kma') { loadYear(_year, null, null); return; }
@@ -1288,6 +1322,7 @@
         if (!b0) { clearTrack(); return; }
         _selCode = b0.code;
         setSelValue('tphn-bulletin', b0.code);
+        applyImageBtn();   // 태풍마다 그림 유무가 다르다(해역이 다르면 JTWC 그래픽이 없다)
         renderBulletin(b0);
     }
 
