@@ -77,7 +77,7 @@ if (!ENABLED) {
  *   - 사용처: loadState, loadQueue, detectAndNotify(typhoon.json 읽기).
  */
 function readJson(file, fallback) {
-    try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) {}
+    try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { /* 파일이 깨졌으면 던진다 — 아래에서 fallback 을 돌려준다 */ }
     return fallback;
 }
 

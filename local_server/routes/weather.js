@@ -440,7 +440,7 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
     // 30초마다 하트비트 전송 — Fly.io 프록시 60초 idle timeout 방지
     // SSE 규격에서 ':'로 시작하는 줄은 코멘트로 클라이언트에서 무시됨
     const heartbeat = setInterval(() => {
-        try { res.write(': keepalive\n\n'); } catch (_) {}
+        try { res.write(': keepalive\n\n'); } catch (_) { /* SSE 연결이 이미 끊겼으면 던진다 — 아래 타이머 정리가 뒤따른다 */ }
     }, 30000);
 
     req.on('close', () => {
@@ -545,7 +545,7 @@ router.get('/api/regional-debug', (req, res) => {
             for (const f of result.files) {
                 try {
                     result.contents[f] = fs.readFileSync(require('path').join(debugDir, f), 'utf8');
-                } catch (_) {}
+                } catch (_) { /* 진단 파일 하나를 못 읽은 것이다 — 그 파일만 빼고 나머지를 담아 돌려준다 */ }
             }
         }
     } catch (e) {

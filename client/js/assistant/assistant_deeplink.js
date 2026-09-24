@@ -80,7 +80,7 @@
       if (window.history && window.history.replaceState) {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
-    } catch (e) {}
+    } catch (e) { /* history 를 못 쓰는 환경(파일 열기·오래된 웹뷰)이면 던진다 — 주소만 안 지워진다 */ }
   }
 
   // 준비될 때까지 폴링 (최대 ~12초). ready() 가 true 가 되면 done() 1회 호출.
@@ -89,7 +89,7 @@
     (function tick() {
       var ok = false;
       try { ok = !!ready(); } catch (e) { ok = false; }
-      if (ok) { try { done(); } catch (e) {} return; }
+      if (ok) { try { done(); } catch (e) { /* 기다리던 것이 준비됐을 때 부르는 콜백이다 — 저쪽에서 던져도 기다림 고리는 여기서 끝낸다 */ } return; }
       waited += step;
       if (waited >= limit) return; // 끝내 준비 안 되면 조용히 포기
       setTimeout(tick, step);
@@ -127,7 +127,7 @@
         // 지도/시트 초기화 여유를 두고 바텀시트 호출 (함수가 준비될 때까지 잠깐 폴링)
         waitFor(function () { return typeof window.showOceanBottomSheet === 'function'; }, function () {
           setTimeout(function () {
-            try { window.showOceanBottomSheet(lat, lon, label ? { name: label } : undefined); } catch (e) {}
+            try { window.showOceanBottomSheet(lat, lon, label ? { name: label } : undefined); } catch (e) { /* 바닥 시트가 그새 다른 화면으로 바뀌었으면 던진다 — 딥링크는 여기까지가 할 일이다 */ }
             cleanUrl();
           }, 600);
         }, 8000);
@@ -162,7 +162,7 @@
           } else if (TOGGLE_BTN_IDS[layer]) {
             activateToggle(TOGGLE_BTN_IDS[layer]);
           }
-        } catch (e) {}
+        } catch (e) { /* 딥링크가 가리킨 층·버튼이 이 빌드에 없으면 던진다 — 아래 cleanUrl 은 반드시 돈다 */ }
         cleanUrl();
       }, 450);
     } catch (e) { cleanUrl(); }

@@ -1298,7 +1298,7 @@
         //   초기화를 직접 한 번 더 호출(멱등 — 이미 있으면 updateSize만). 이렇게
         //   하면 getOceanMap() 이 빨리 준비돼 아래 animate 재시도가 곧 성공한다.
         if (typeof window.initOceanMap === 'function') {
-            try { window.initOceanMap(); } catch (e) {}
+            try { window.initOceanMap(); } catch (e) { /* 지도 초기화를 앞당기려는 시도다 — 실패해도 아래 재시도 고리가 준비될 때까지 기다린다 */ }
         }
 
         // 탭 전환 애니메이션/지도 초기화 완료 대기 후 center 이동(줌 유지)
@@ -1387,7 +1387,7 @@
         try { lonLat = ol.proj.toLonLat(coord3857); } catch (e) { return false; }
         var lon = lonLat[0], lat = lonLat[1];
         if (typeof window.showOceanBottomSheet === 'function') {
-            try { window.showOceanBottomSheet(lat, lon); } catch (e) {}
+            try { window.showOceanBottomSheet(lat, lon); } catch (e) { /* 바닥 시트가 그새 바뀌었으면 던진다 — CCTV 표시는 이미 끝났다 */ }
         }
         return true;
     }

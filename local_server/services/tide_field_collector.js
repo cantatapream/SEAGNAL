@@ -117,7 +117,7 @@ function clearCurves() {
     try {
         const files = fs.readdirSync(C.CURVES_DIR);
         for (const f of files) {
-            if (f.endsWith('.json')) { try { fs.unlinkSync(path.join(C.CURVES_DIR, f)); n++; } catch (e) {} }
+            if (f.endsWith('.json')) { try { fs.unlinkSync(path.join(C.CURVES_DIR, f)); n++; } catch (e) { /* 파일 하나가 이미 지워졌거나 잠겨 있으면 던진다 — 그 파일만 건너뛰고 나머지를 계속 지운다 */ } }
         }
     } catch (e) { /* 폴더 없음 */ }
     return n;
@@ -233,7 +233,7 @@ function saveProbeOverrides() {
 /** 재빌드(앵커 위치 변동) 시 보정 캐시·격자 캐시 폐기. */
 function clearProbeOverrides() {
     _probeOverrides = null; _gridCells = null;
-    try { if (fs.existsSync(C.PROBE_OVERRIDE_PATH)) fs.unlinkSync(C.PROBE_OVERRIDE_PATH); } catch (e) {}
+    try { if (fs.existsSync(C.PROBE_OVERRIDE_PATH)) fs.unlinkSync(C.PROBE_OVERRIDE_PATH); } catch (e) { /* 덮어쓰기 파일이 없으면 던진다 — 지우려던 것이 없으니 목적은 이뤄졌다 */ }
 }
 
 /**

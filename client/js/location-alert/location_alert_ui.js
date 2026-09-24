@@ -59,7 +59,7 @@
             if (M && M.set) { M.set(key, value); return; }
             const P = root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.Preferences;
             if (P && P.set) P.set({ key, value: String(value) }).catch(() => { });
-        } catch (_) { }
+        } catch (_) { /* 미러 대상(네이티브 Preferences)이 없는 환경이면 던진다 — 웹에서는 localStorage 하나로 충분하다 */ }
     }
     /** 활성+동의 플래그를 네이티브 미러에 반영. */
     function syncNativeFlags(enabled, consented) {
@@ -81,7 +81,7 @@
             try {
                 const raw = ls() && ls().getItem(STORAGE_KEY);
                 if (raw) Object.assign(this.data, JSON.parse(raw));
-            } catch (_) { }
+            } catch (_) { /* 저장된 설정이 깨졌으면 던진다 — 기본값(꺼짐)으로 시작하는 것이 안전하다 */ }
             // 기존 활성 단말이 앱 업데이트 후에도 네이티브 플래그를 갖도록 1회 동기화.
             syncNativeFlags(!!this.data.enabled, !!this.data.consent);
             // 하위 토글 미러도 1회 동기화(미설정 단말은 기본 ON 으로 들어감).
@@ -89,7 +89,7 @@
             return this;
         },
         save() {
-            try { ls() && ls().setItem(STORAGE_KEY, JSON.stringify(this.data)); } catch (_) { }
+            try { ls() && ls().setItem(STORAGE_KEY, JSON.stringify(this.data)); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 설정이 안 남아도 이번 화면 동작은 그대로다 */ }
             // 네이티브 게이팅 플래그 미러(활성 + 동의 여부). killed 상태 네이티브가 읽음.
             syncNativeFlags(!!this.data.enabled, !!this.data.consent);
             // 하위 토글(특보/태풍)도 미러 — 태풍 반경 알림은 네이티브가 직접 처리하므로 subTyphoon 필요.
@@ -143,7 +143,7 @@
         try {
             const App = root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.App;
             if (App && App.getInfo) { const info = await App.getInfo(); return info && info.version; }
-        } catch (_) { }
+        } catch (_) { /* 앱 정보 플러그인이 없는 환경(웹)이면 던진다 — 아래에서 null 을 돌려주고 「모름」으로 표시한다 */ }
         return null;
     }
     /** 네이티브 종료상태 기능 사용 가능 여부 = 네이티브 플랫폼 && 앱버전 ≥ NATIVE_MIN_VERSION. */
@@ -221,7 +221,7 @@
         try {
             const LP = root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.LocationPerm;
             if (LP && LP.requestBackground) { await LP.requestBackground(); return true; }
-        } catch (_) { }
+        } catch (_) { /* 네이티브 권한 플러그인이 없으면 던진다 — false 를 돌려주면 부르는 쪽이 설정 화면 안내로 떨어진다 */ }
         return false;
     }
 

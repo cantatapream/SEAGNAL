@@ -2537,7 +2537,7 @@
    */
   function updateFabVisibility() {
     var fab = document.getElementById('nryaFab'); if (!fab) return;
-    var t = null; try { t = document.body.getAttribute('data-active-tab'); } catch (_) {}
+    var t = null; try { t = document.body.getAttribute('data-active-tab'); } catch (_) { /* 아직 body 가 없는 시점이면 던진다 — t 는 null 로 두고 FAB 를 숨긴 채 다음 호출을 기다린다 */ }
     var tabIsMain = (t === null || t === undefined || t === '' || t === MAIN_TAB_GROUP);
     var exposureAllows = (serverExposure === 'user') || (serverExposure === 'admin' && isAdmin());
     fab.style.display = (tabIsMain && exposureAllows) ? 'grid' : 'none';
@@ -5489,7 +5489,7 @@
     if (params.get('popup') !== 'ai_chat') return;
     var rid = params.get('rid') || '';
     // 주소창에서 파라미터 제거 — 새로고침 때 이미 비워진 보관함을 또 조회하지 않게(fix_popup_logic.js 와 동일 처리)
-    try { if (window.history.replaceState) window.history.replaceState({}, document.title, window.location.pathname); } catch (_) {}
+    try { if (window.history.replaceState) window.history.replaceState({}, document.title, window.location.pathname); } catch (_) { /* history 를 못 쓰는 환경이면 던진다 — 주소창 파라미터만 안 지워진다 */ }
 
     // rid 없이는 채팅창을 열지 않는다 — ?popup=ai_chat 만으로 노출설정(exposure)을 우회해
     // 숨겨둔 챗봇을 여는 구멍이 되면 안 되므로(rid는 실제로 푸시를 받은 사람만 가진 값).
@@ -5577,7 +5577,7 @@
     try {
       var moBody = new MutationObserver(function () { updateFabVisibility(); });
       moBody.observe(document.body, { attributes: true, attributeFilter: ['data-active-tab'] });
-    } catch (_) {}
+    } catch (_) { /* MutationObserver 가 없는 오래된 웹뷰면 던진다 — FAB 는 탭을 옮길 때 다시 계산된다 */ }
 
     // 다른 탭/창에서 관리자 모드가 바뀌면(=admin 노출조건 변동) FAB 재평가
     window.addEventListener('storage', function (e) {

@@ -218,7 +218,7 @@
             }
             if (!typhoons || typhoons.length === 0) { console.log('[TyphoonRuntime] 활성 태풍 없음 → skip'); return; }
             // buildDemoUrl 연도 폴백용으로 전역에 잠깐 보관(없어도 동작).
-            if (year != null) try { root.__typhoonYear = year; } catch (_) { }
+            if (year != null) try { root.__typhoonYear = year; } catch (_) { /* 전역에 값을 얹는 일이다 — 막힌 환경이면 그 해(年) 표시만 빠지고 태풍 판정은 그대로 돈다 */ }
 
             // ④ 각 태풍 판정 — 진입한 태풍마다 1건.
             const results = decideTyphoonAlerts(loc, typhoons);

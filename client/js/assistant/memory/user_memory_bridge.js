@@ -386,7 +386,7 @@
   // ── 이벤트 구독 헬퍼 ────────────────────────────────────────────────────────
   function onEpisodesChanged(handler) {
     if (typeof handler !== 'function') return function () {};
-    var wrapper = function (e) { try { handler(e && e.detail); } catch (_) {} };
+    var wrapper = function (e) { try { handler(e && e.detail); } catch (_) { /* 남이 건넨 handler 가 던져도 이벤트 구독 고리를 끊지 않는다 — 다음 기억 갱신도 계속 받는다 */ } };
     global.addEventListener('episodesChanged', wrapper);
     return function unsubscribe() { global.removeEventListener('episodesChanged', wrapper); };
   }

@@ -238,17 +238,17 @@ const CONFIG_FILE = path.join(DATA_DIR, 'nariya_config.json');
 const CONFIG_FILE_LEGACY = path.join(LEGAL_DIR, '_dashboard', 'nariya_config.json');
 let configMigrated = false;      // 프로세스당 1회만 시도(볼륨 쓰기 실패해도 조회는 계속돼야 한다)
 function readConfig() {
-  try { if (fs.existsSync(CONFIG_FILE)) return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch (_) {}
+  try { if (fs.existsSync(CONFIG_FILE)) return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch (_) { /* 설정 파일이 깨졌으면 던진다 — 아래에서 옛 자리(legacy)를 보고, 그래도 없으면 기본값으로 간다 */ }
   try {
     if (fs.existsSync(CONFIG_FILE_LEGACY)) {
       const legacy = JSON.parse(fs.readFileSync(CONFIG_FILE_LEGACY, 'utf8'));
       if (!configMigrated) {
         configMigrated = true;
-        try { writeFileAtomic(CONFIG_FILE, JSON.stringify(legacy, null, 1)); } catch (_) {}
+        try { writeFileAtomic(CONFIG_FILE, JSON.stringify(legacy, null, 1)); } catch (_) { /* 볼륨이 읽기전용이면 던진다 — 옮겨 적기만 실패하고 **조회는 옛 자리 값으로 계속된다** */ }
       }
       return legacy;
     }
-  } catch (_) {}
+  } catch (_) { /* 옛 자리까지 못 읽으면 던진다 — 부르는 쪽이 기본 설정으로 뜬다(법령 조회는 멈추지 않는다) */ }
   return {};
 }
 // 정규화: exposure는 off|admin|user(기본 off) · answerCanonicalOnly는 검증완료 후 켜는 스위치(기본 false).

@@ -597,7 +597,7 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         window.PopupStack.push('unified-admin-modal', function () {
             var m = document.getElementById('unified-admin-modal');
             if (m) {
-                try { if (typeof clearErrorListAutoRefresh === 'function') clearErrorListAutoRefresh(); } catch (e) {}
+                try { if (typeof clearErrorListAutoRefresh === 'function') clearErrorListAutoRefresh(); } catch (e) { /* 다른 화면의 자동 새로고침을 끄는 일이다 — 그 화면이 안 떠 있으면 끌 것도 없다 */ }
                 m.remove();
             }
         });
@@ -691,7 +691,7 @@ window.switchUnifiedAdminTab = function (tabId) {
 window.SeagnalDebug = window.SeagnalDebug || (function () {
     var BUF = [], MAX = 300;
     return {
-        push:  function (tag, data) { try { BUF.push({ ts: Date.now(), tag: String(tag), data: data }); if (BUF.length > MAX) BUF.shift(); } catch (e) {} },
+        push:  function (tag, data) { try { BUF.push({ ts: Date.now(), tag: String(tag), data: data }); if (BUF.length > MAX) BUF.shift(); } catch (e) { /* 진단 버퍼 쌓기다 — 여기서 던져도 관리자 화면 동작을 멈추면 안 된다 */ } },
         all:   function () { return BUF.slice(); },
         clear: function () { BUF.length = 0; }
     };
@@ -938,7 +938,7 @@ async function renderAiAssistantSubtab(container) {
         };
         const doEnable = () => {
             btn.disabled = true;
-            let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) {}
+            let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) { /* 사생활 모드면 던진다 — 프로필 없이 기본값 {} 으로 보낸다 */ }
             Native.enable({ serverUrl: location.origin, profile })
                 .then(x => { running = x ? !!x.running : true; render(); refreshEngine(); setTimeout(refreshEngine, 600); })
                 .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : '권한/서비스 실패'); st.style.color = '#fbbf24'; })
@@ -949,7 +949,7 @@ async function renderAiAssistantSubtab(container) {
         const reEnableForVosk = () => {
             btn.disabled = true;
             Native.disable()
-                .then(() => { let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) {}
+                .then(() => { let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) { /* 같은 까닭 — 프로필을 못 읽어도 켜기 자체는 진행한다 */ }
                               return Native.enable({ serverUrl: location.origin, profile }); })
                 .then(x => { running = x ? !!x.running : true; render(); refreshEngine(); setTimeout(refreshEngine, 600); })
                 .catch(() => {})

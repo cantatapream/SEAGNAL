@@ -554,7 +554,7 @@
             if (!visible) _resetMarineZoneSelection();
             // [단독 표출] 해구도 ON 시 물빠짐이 켜져 있으면 끔.
             if (visible && typeof window._tideFieldDeactivate === 'function') {
-                try { window._tideFieldDeactivate(); } catch (e) {}
+                try { window._tideFieldDeactivate(); } catch (e) { /* 같은 까닭 — 물빠짐 층이 없는 빌드도 있다 */ }
             }
         });
 

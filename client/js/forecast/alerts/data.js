@@ -672,7 +672,7 @@ function parseKmaBuoyData(text) {
                 waveHeightSig: parseValue(parts[13]),
                 waveHeightAvg: parseValue(parts[14]),
             };
-        } catch (e) { }
+        } catch (e) { /* 줄 하나가 깨진 것이라 그 줄만 버린다 — 나머지 예보 줄은 계속 읽는다 */ }
     });
 
     return result;

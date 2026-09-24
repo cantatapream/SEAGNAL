@@ -4486,7 +4486,7 @@ function _usageCaptureReady() {
                 [usageTrendChart, usageAffChart, usageFeatureChart].forEach(function (c) {
                     if (c) { try { c.update('none'); } catch (e) { /* 차트가 이미 없어졌을 수 있다 — 다시 그리기는 부가 동작 */ } }
                 });
-            } catch (e) {}
+            } catch (e) { /* 차트가 이미 없어졌을 수 있다 — 다시 그릴 때 새로 만든다 */ }
             // 폰트/차트 반영 후 한 프레임 더 기다렸다 캡처.
             (window.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(function () {
                 (window.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(resolve);

@@ -152,8 +152,8 @@
             try {
                 const M = root.LocationAlertBackground && root.LocationAlertBackground.Mirror;
                 if (M && M.set) M.set('location_alert_last_match', json);
-            } catch (_) { }
-        } catch (_) { }
+            } catch (_) { /* 네이티브 미러(Preferences)가 없는 환경이면 던진다 — localStorage 기록은 위에서 이미 남겼다 */ }
+        } catch (_) { /* 진단 기록은 best-effort 다 — 기록이 실패해도 알림 판정 자체를 멈추지 않는다 */ }
     }
 
     /**
@@ -169,8 +169,8 @@
             try {
                 const M = root.LocationAlertBackground && root.LocationAlertBackground.Mirror;
                 if (M && M.set) M.set('location_alert_last_wake', json);
-            } catch (_) { }
-        } catch (_) { }
+            } catch (_) { /* 같은 까닭 — 미러는 네이티브에서 읽으려는 사본이라 없으면 없는 대로 둔다 */ }
+        } catch (_) { /* 같은 까닭 — wake 진단 기록이 실패해도 wake 처리는 그대로 이어간다 */ }
     }
 
     /** last_wake 기록 1건 구성 — { at, src, lat, lng, posAt, outcome, zone }. 위치 없으면 lat/lng null. */
@@ -256,7 +256,7 @@
             }
         } catch (e) {
             // 예기치 못한 예외도 best-effort 로 기록(관측 불가 wake 를 없앤다).
-            try { writeLastWake(wakeRec('suberror', pos, src, '')); } catch (_) { }
+            try { writeLastWake(wakeRec('suberror', pos, src, '')); } catch (_) { /* 이미 예외 처리 중이다 — 진단 기록마저 실패하면 더 할 일이 없다(바로 아래 console.error 가 남긴다) */ }
             console.error('[LocationAlertRuntime] handleWake 실패:', e && e.message);
         }
     }

@@ -182,7 +182,7 @@
   function getFocus() { try { return JSON.parse(localStorage.getItem(FOCUS_KEY) || 'null'); } catch (e) { return null; } }
   function setFocus(f) { try { if (f) localStorage.setItem(FOCUS_KEY, JSON.stringify(f)); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ } }
   function setProfile(p) {
-    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p || {})); } catch (e) {}
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p || {})); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 프로필이 안 남을 뿐 대화는 그대로 이어진다 */ }
   }
   function clearProfile() { try { localStorage.removeItem(PROFILE_KEY); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ } }
   function getMemory() {
@@ -202,7 +202,7 @@
     try { var s = JSON.parse(localStorage.getItem(STYLE_KEY) || 'null'); return s || { totalQuestions: 0, zoneCounts: {}, topicCounts: {} }; }
     catch (e) { return { totalQuestions: 0, zoneCounts: {}, topicCounts: {} }; }
   }
-  function setStyle(s) { try { localStorage.setItem(STYLE_KEY, JSON.stringify(s || {})); } catch (e) {} }
+  function setStyle(s) { try { localStorage.setItem(STYLE_KEY, JSON.stringify(s || {})); } catch (e) { /* 같은 까닭 — 말투 기록이 안 남아도 다음 질문은 기본값으로 시작한다 */ } }
 
   // 응답으로 통계 누적: 해역 카운트 + 주제(링크/intent) 카운트 + 총 질문수
   function updateStyleStats(d) {
@@ -392,7 +392,7 @@
   // ── 클라우드 정확 받아쓰기 (MediaRecorder → /api/assistant/transcribe → ask) ──────
   var _rec = null, _recChunks = [], _recTimer = null;
   function cloudRecordToggle() {
-    if (_rec && _rec.state === 'recording') { try { _rec.stop(); } catch (e) {} return; }
+    if (_rec && _rec.state === 'recording') { try { _rec.stop(); } catch (e) { /* 이미 멈춘 녹음이면 던진다 — 멈추려던 것이 이미 멈춰 있다 */ } return; }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
       setAnswer('이 환경에서는 녹음을 지원하지 않습니다. 기기 키보드 마이크로 입력해 주세요.', null); return;
     }
@@ -403,7 +403,7 @@
       _rec.ondataavailable = function (e) { if (e.data && e.data.size) _recChunks.push(e.data); };
       _rec.onstop = function () {
         clearTimeout(_recTimer);
-        try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+        try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { /* 마이크가 그새 뽑혔으면 던진다 — 트랙 정리만 못 하고 받아쓰기는 그대로 이어간다 */ }
         setStatus('받아쓰는 중…', 'think'); setBanner('💭 받아쓰는 중', 'cmd');
         var blob = new Blob(_recChunks, { type: (_rec && _rec.mimeType) || 'audio/webm' });
         var reader = new FileReader();
@@ -420,7 +420,7 @@
         reader.readAsDataURL(blob);
       };
       _rec.start();
-      _recTimer = setTimeout(function () { if (_rec && _rec.state === 'recording') try { _rec.stop(); } catch (e) {} }, 8000); // 최대 8초
+      _recTimer = setTimeout(function () { if (_rec && _rec.state === 'recording') try { _rec.stop(); } catch (e) { /* 8초 자동 정지 — 그 찰나에 사용자가 먼저 멈췄으면 던진다. 할 일이 이미 끝난 것이다 */ } }, 8000); // 최대 8초
     }).catch(function () {
       setAnswer('마이크 권한이 필요해요. 관리자 AI 탭에서 마이크를 허용해 주세요.', null); setBanner('');
     });
