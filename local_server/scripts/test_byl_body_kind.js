@@ -72,8 +72,62 @@ console.log('\n[⑤ 실제 raw 전수 — 갈래가 섞이지 않는다]');
   for (const p of walk(RAW, [])) c[AT.bylBodyKind(fs.readFileSync(p, 'utf8'))]++;
   ok('세 갈래가 다 나온다(하나로 쏠리면 자가 고장 난 것이다)',
     c.text > 1000 && c.linkOnly > 0 && c.none > 0, JSON.stringify(c));
-  ok('조례 별표 15개는 전부 linkOnly 다(3-49)',
-    walk(path.join(RAW, '_자치법규'), []).filter((p) => AT.bylBodyKind(fs.readFileSync(p, 'utf8')) === 'linkOnly').length === 15);
+  // ★숫자를 여기 박지 않는다 (2026-09-24 — `=== 15` 라 적어 뒀다가 7자리를 더 채우자 빨간불이 났다).
+  //   이 값의 **임자는 `byl_body_census.js`(V5-39)** 다. 시험이 지킬 것은 숫자가 아니라 **성질**이다:
+  //   *조례 별표는 하나도 `text` 가 아니다* — 제공처가 조례 별표를 본문 글로 주지 않기 때문이다(전수 실측).
+  {
+    const ord = walk(path.join(RAW, '_자치법규'), []);
+    const kinds = ord.map((p) => AT.bylBodyKind(fs.readFileSync(p, 'utf8')));
+    ok(`조례 별표는 하나도 글이 없다 — 전부 주소만이다 (지금 ${ord.length}개)`,
+      ord.length > 0 && kinds.every((k) => k === 'linkOnly'),
+      JSON.stringify(kinds.reduce((a, k) => (a[k] = (a[k] || 0) + 1, a), {})));
+  }
+}
+
+
+// ── 이름 자체가 「…규칙」인 문서 (2026-09-24, 결심 ⓐ) ────────────────────────
+//   폴더는 `법률.txt` 로 철해 두는데 위키는 「시행규칙 별표N」이라 부른다. 같은 자리다.
+//   ★번호·종류까지 느슨해지면 안 된다 — 아래 마지막 두 줄이 그것을 지킨다.
+{
+  const ok = (t, p, k, want, why) => {
+    const got = AT.bylDeclMatches(t, p, k);
+    if (got === want) { pass++; } else { fail++; console.log(`  FAIL ${why}: ${got} (바란 것 ${want})`); }
+  };
+  const 규칙 = '■ 선박톤수의 측정에 관한 규칙 [별표 1]\n선체주부의 분장점\n┃표┃\n';
+  const 저장규칙 = '■ 위험물 선박운송 및 저장규칙 [별표 2]\n내용\n';
+  const 보통법 = '■ 항만법 [별표 1]\n내용\n';
+  ok(규칙, '시행규칙', { type: '별표', num: '1' }, true,  '이름이 규칙 → 시행규칙으로 불러도 같다');
+  ok(규칙, '법률',     { type: '별표', num: '1' }, true,  '이름이 규칙 → 법률(제 자리)로도 같다');
+  ok(규칙, '시행령',   { type: '별표', num: '1' }, false, '시행령까지 받아 주면 안 된다');
+  ok(규칙, '시행규칙', { type: '별표', num: '2' }, false, '★번호가 다르면 여전히 아니다');
+  ok(규칙, '시행규칙', { type: '서식', num: '1' }, false, '★종류가 다르면 여전히 아니다');
+  ok(저장규칙, '시행규칙', { type: '별표', num: '2' }, true, '「…저장규칙」도 마찬가지');
+  ok(보통법, '시행규칙', { type: '별표', num: '1' }, false, '★보통 법률은 느슨해지지 않는다');
+}
+
+// ── ★접힌 메타 줄 (2026-09-24, 하루에 두 번 만든 병) ──────────────────────
+//   ①`주의:` 줄 아래에 들여쓴 이어짐 줄을 쓰면 그 줄이 **본문 글로 세어진다.**
+//     → 주소만 있는 파일이 「글이 있다」로 통과했다(6개 + 7개).
+//   ②그 고침이 곧바로 **새 병**을 만들었다. `bylDeclLine()` 이 빈 문자열을 주는 파일에서
+//     `l.trim() !== decl` 가 **빈 줄을 전부 지워** 머리 바로 뒤에 본문이 붙은 꼴이 되고,
+//     「접힌 메타」 규칙이 **30KB 진짜 본문을 삼켰다**(`부유식해상구조물…_별표4`).
+//   두 방향을 다 박아 둔다 — 한쪽만 재면 반대쪽으로 굴러떨어진다.
+{
+  const eq = (t, want, why) => {
+    const got = AT.bylBodyKind(t);
+    if (got === want) { pass++; console.log(`  ✅ ${why}`); }
+    else { fail++; console.log(`  FAIL ${why}: ${got} (바란 것 ${want})`); }
+  };
+  console.log('\n[⑥ 접힌 메타 줄]');
+  eq('제목\n출처: 어디\n주의: 첫 줄\n  이어지는 들여쓴 줄\n별표서식파일링크: https://x/y\n',
+     'linkOnly', '★들여쓴 이어짐 줄은 본문이 아니다');
+  eq('제목\n출처: 어디\n주의: 첫 줄\n\n  빈 줄 뒤의 들여쓴 줄은 본문이다\n별표서식파일링크: https://x/y\n',
+     'text', '★빈 줄이 이어짐을 끊는다');
+  // ②를 그대로 재현한다 — 선언줄이 없고(빈 문자열), 메타 바로 뒤에 들여쓴 본문이 온다.
+  eq('제목\n출처: 어디\n별표서식PDF파일링크: /LSW/flDownload.do?flSeq=1\n\n\n      (1 면)\n  [별표 4]\n  증서번호  제   호\n',
+     'text', '★선언줄이 빈 파일에서도 본문을 안 삼킨다(30KB 사고)');
+  eq('제목\n출처: 어디\n별표서식파일링크: https://x/y\n', 'linkOnly', '주소만 있으면 linkOnly 그대로');
+  eq('제목\n출처: 어디\n', 'none', '아무것도 없으면 none 그대로');
 }
 
 console.log(`\n  ${pass} PASS / ${fail} FAIL`);

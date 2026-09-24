@@ -1149,7 +1149,14 @@ function parseBylDecl(line) {
   const tier = /시행규칙/.test(head) ? '시행규칙' : /시행령/.test(head) ? '시행령' : '법률';
   const type = m[1] ? '별표' : '서식';
   const num = m[1] ? m[2] : (m[3] + (m[4] ? '의' + m[4] : ''));
-  return { tier, type, num };
+  // ★그 문서의 **이름 자체가 「…규칙」**인가 (2026-09-24, 결심 ⓐ).
+  //   `선박톤수의 측정에 관한 규칙`·`위험물 선박운송 및 저장규칙`·`선박에서의 오염방지에 관한 규칙`
+  //   같은 문서는 **계층이 하나뿐**이라 우리 폴더가 `법률.txt` 로 철해 둔다. 그런데 사람은
+  //   그것을 자연스럽게 **「시행규칙」**이라 부르고 위키도 그렇게 적었다 — 실측 15자리.
+  //   두 이름이 **같은 문서를 가리킨다**는 것을 여기서 밝혀 둔다. 이름을 바꾸지 않는 까닭:
+  //   폴더를 3층으로 만들면 **빈 파일 12개가 새로 생긴다**(3-11 이 방금 지운 그 중복이다).
+  const selfRule = tier === '법률' && /(규칙|규정|요령|기준)\s*$/.test(head.trim());
+  return { tier, type, num, selfRule };
 }
 
 /**
@@ -1175,7 +1182,55 @@ function parseBylDecl(line) {
 function bylDeclMatches(text, prefix, k) {
   const d = parseBylDecl(bylDeclLine(text));
   if (!d) return false;
-  return d.tier === prefix && d.type === k.type && d.num === k.num;
+  if (d.type !== k.type || d.num !== k.num) return false;
+  if (d.tier === prefix) return true;
+  // ★이름 자체가 「…규칙」인 문서는 **「법률」과 「시행규칙」이 같은 자리**다 (2026-09-24, 결심 ⓐ).
+  //   번호와 종류는 위에서 이미 같은지 보았으므로, 여기서 느슨해지는 것은 **계층 이름뿐**이다.
+  return d.selfRule && prefix === '시행규칙';
+}
+
+/**
+ * ★**표의 「행」을 세는 법** — Q-18 사장님 결심 ① (2026-09-24). §6-F 에 같은 말이 적혀 있다.
+ *
+ * [왜 못박나 — 뿌리 사슬 ⑥]
+ *   원문 별표의 표는 `┃ │ ┠──┼──┨` 같은 **박스 문자**로 그려져 있다. 「이 표는 몇 행인가」를
+ *   2026-09-24 하루에만 **세 가지 방법으로 세어 세 가지 답**이 나왔다:
+ *     ① `|` 로 시작하는 줄만 세기 → **0행** (박스 문자라 하나도 안 걸린다)
+ *     ② `┃` 가 있는 줄을 다 세기 → **과다** (한 행이 두세 줄에 걸쳐 그려지고, 테두리도 걸린다)
+ *     ③ **구분선으로 나뉜 덩어리**를 세기 → 이것을 규약으로 삼는다
+ *   세는 법을 안 정하면 **같은 표가 실행할 때마다 다른 숫자**가 된다.
+ *
+ * [세는 법 — 이 말이 규약이다]
+ *   · **구분선**: 공백을 뺀 글자 가운데 **가로선(─ ━)이 절반 이상**인 줄.
+ *     ★왜 「전부」가 아니라 「절반」인가 — 표 안에 작은 표가 들어가면 구분선 왼쪽에
+ *       `┃실`·`┃무` 처럼 **세로로 쓴 글자**가 얹힌다(감정평가 서식5 로 실측). 「전부」로 재면
+ *       그 줄이 본문으로 세어져 **행 7개가 1개로 뭉친다.**
+ *   · **논리 행**: 구분선 사이에 낀 **잇닿은 본문 줄 덩어리 하나**. 한 행이 두 줄에 걸쳐
+ *     그려져도(`사 진` + `(3.5cm × 4.5cm)`) **한 행**이다.
+ *   · 표 밖의 글(제목·머리말·꼬리말)은 세지 않는다 — 세로선(┃ │ |)이 없는 줄은 뺀다.
+ *
+ * [알려진 한계 — 숨기지 않는다]
+ *   이 자는 **원문 쪽만 센다.** 위키에 옮겨진 수를 기계가 채우지는 못한다
+ *   (3-28 실측 — 박스 표 80쪽 중 자동 대조가 맞은 것은 **9쪽뿐**). 그래서 §6-F 는
+ *   **사람이 적은 수**와 이 자가 센 수를 **견주는** 데 쓴다.
+ *
+ * @param {string} text - 별표 원문 전체
+ * @returns {number} 논리 행 수
+ * [연계] → `_dashboard/loop/annex_rowcount_gate.js`(V5-40) · `_SCHEMA.md` §6-F
+ */
+const BOX_H = /[─━]/g;
+const BOX_V = /[┃│|┣┫┠┨├┤]/;
+function countBoxRows(text) {
+  const lines = String(text || '').split('\n');
+  let rows = 0, inRow = false;
+  for (const l of lines) {
+    const bare = l.replace(/\s/g, '');
+    if (!bare || !BOX_V.test(l)) { inRow = false; continue; }   // 표 밖의 글
+    const h = (bare.match(BOX_H) || []).length;
+    if (h * 2 >= bare.length) { inRow = false; continue; }      // 구분선
+    if (!inRow) { rows++; inRow = true; }                       // 새 논리 행이 열린다
+  }
+  return rows;
 }
 
 /** 별표 파일은 첫 줄이 제목, 그 아래가 본문(표)이다. */
@@ -1216,15 +1271,43 @@ const BYL_LINK_RE = /flDownload\.do|https?:\/\//;
  * @param {string} text - 별표 파일 전체
  * @returns {'text'|'linkOnly'|'none'}
  */
+/**
+ * 머리의 메타 줄이 **접혀서 다음 줄로 이어진 것**인가.
+ * ★2026-09-24 — 내가 이 병을 **하루에 두 번** 만들었다. `주의:` 로 시작하는 줄을 쓰고
+ *   그 아래에 들여쓴 이어짐 줄을 붙였더니, 그 이어짐 줄이 **본문 글로 세어져**
+ *   「주소만 있는 파일」이 「글이 있다」로 통과했다(6개 → 그리고 또 7개).
+ *   적는 쪽을 조심하라고 주석에 적어 두는 것만으로는 **또 틀린다.** 읽는 쪽이 받아들인다.
+ * [세는 법] **빈 줄 없이 바로 뒤따르는** 들여쓴 줄만 이어짐으로 본다. 빈 줄이 하나라도
+ *   있으면 본문이다 — 별표 원문은 머리줄 뒤에 빈 줄을 두고 표를 시작하는 꼴이 많아서,
+ *   이 조건이 없으면 **진짜 본문을 삼킨다.**
+ */
+function bylMetaContinues(prevWasMeta, line) {
+  return prevWasMeta && /^[ \t]+\S/.test(line);
+}
+
 function bylBodyKind(text) {
   const decl = bylDeclLine(text);
-  const lines = String(text || '').split('\n')
-    .slice(1)                                        // 첫 줄은 제목
-    .filter((l) => l.trim() !== decl)                // 선언줄(■ 꼴이든 맨몸 괄호든) 제거
-    .filter((l) => !/^■/.test(l.trim()));            // ■ 로 시작하는 선언 잔재
-  const meat = lines.filter((l) => l.trim() && !BYL_META_RE.test(l));
+  // ★빈 줄을 **거르지 말고 그대로 훑는다** (2026-09-24, 두 번째 고침).
+  //   종전에는 `lines.filter(l => l.trim() !== decl)` 로 먼저 걸렀는데, `bylDeclLine()` 이
+  //   빈 문자열을 주는 파일에서는 **그 한 줄이 빈 줄 전부를 지워 버렸다.** 그러면 머리의 메타 줄
+  //   바로 뒤에 본문이 붙은 것처럼 보여, 「접힌 메타 줄」 규칙이 **30KB짜리 진짜 본문을 삼켰다**
+  //   (`부유식해상구조물…_별표4.txt` 로 실측해 잡았다 — 고치자마자 그 고침이 만든 새 병이었다).
+  const lines = String(text || '').split('\n').slice(1);   // 첫 줄은 제목
+  const meat = [];
+  let prevMeta = false;
+  let sawLink = false;
+  for (const l of lines) {
+    if (BYL_LINK_RE.test(l)) sawLink = true;
+    if (!l.trim()) { prevMeta = false; continue; }          // 빈 줄은 이어짐을 끊는다
+    if (decl && l.trim() === decl) { continue; }            // 선언줄(맨몸 괄호 꼴)
+    if (/^■/.test(l.trim())) { continue; }                  // ■ 로 시작하는 선언 잔재
+    if (BYL_META_RE.test(l)) { prevMeta = true; continue; }
+    if (bylMetaContinues(prevMeta, l)) continue;            // 접힌 메타 줄 — 본문이 아니다
+    prevMeta = false;
+    meat.push(l);
+  }
   if (meat.length) return 'text';
-  return lines.some((l) => BYL_LINK_RE.test(l)) ? 'linkOnly' : 'none';
+  return sawLink ? 'linkOnly' : 'none';
 }
 
 /**
@@ -2189,7 +2272,7 @@ module.exports = {
   loadArticle, parseArticleRef, splitHo, splitParagraphs, extractArticleBlock, pickNoticeFile,
   // pickNoticeGlobal 도 게이트가 같은 순서로 고시를 고르게 하려고 내보낸다(L-136).
   pickNoticeGlobal,
-  cleanBody, collectRefs, extractAttachments, parseBylFile, bylBodyKind, listArticleNumbers, buildArticles, resolveRefs,
+  cleanBody, collectRefs, extractAttachments, parseBylFile, bylBodyKind, countBoxRows, listArticleNumbers, buildArticles, resolveRefs,
   // resolveBase 는 순수 함수다(네트워크 없음). 위키 검사 도구(_dashboard/loop/link_ready.js)가
   // "이 근거 줄을 누르면 어느 원문 파일을 여는가"를 **생산과 똑같이** 계산하려고 쓴다 —
   // 따로 구현하면 검사와 코드가 어긋난다(L-136).

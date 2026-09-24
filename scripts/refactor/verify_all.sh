@@ -92,7 +92,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_overlay_solo test_wiki_brief_bulk test_review_marker_registered test_stale_reopen
   test_mok_audit_scanner test_add_other_law_refresh test_pressure_card test_typhoon_source
   test_byl_decl test_treaty_caselaw_meta test_context_budget test_counting_dict test_silent_catch
-  test_gate_5xx_class test_meta_schema test_admrul_review test_ho_count test_section_ready test_treaty_article test_byl_body_kind)
+  test_gate_5xx_class test_meta_schema test_admrul_review test_ho_count test_section_ready test_treaty_article test_byl_body_kind test_box_rows)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi
@@ -377,6 +377,25 @@ node local_server/knowledge/legal/_dashboard/loop/head_prose_gate.js --gate || f
 #   지킬 것은 둘: **빈칸 0**(소관부서·전화를 못 채운 자리) · **확정 문구가 줄지 않는다**(뒷걸음 막기).
 echo; echo "── V5-38 마무리 정직문구 ──"
 node local_server/knowledge/legal/_dashboard/loop/honest_phrase_gate.js --gate || fail "V5-38 마무리 정직문구"
+
+# ── V5-39 별표 파일의 속을 전수로 센다 (2026-09-24 신설, 3-55) ────────────────
+#   [왜] 별표 파일은 7,500개가 넘는데 지금까지 어느 게이트도 **파일 자체의 속**을 재지
+#   않았다. V5-32·V5-11 이 재던 것은 둘 다 **위키 줄**이라서, 아무 위키 줄도 안 짚는
+#   파일은 비어 있어도 아무도 몰랐다(뿌리 사슬 ③). 실제로 **제목·출처 두 줄뿐인 파일
+#   6개**가 「원문이 있다」로 세어지고 있었다.
+#   [무엇을 잠그나] `없다(까닭도 없다)` **하나만**. `주소만`은 우리가 고른 것이고
+#   `없다(삭제라 적힘)`는 법이 그런 것이라 잠그면 법 개정에 빨간불이 켜진다.
+echo; echo "── V5-39 별표 파일의 속 ──"
+node local_server/knowledge/legal/_dashboard/loop/byl_body_census.js --gate || fail "V5-39 별표 파일의 속"
+
+# ── V5-40 별표 쪽의 「항목수 대조」 (2026-09-24 신설, Q-18 결심 ①) ───────────
+#   [왜] §6-F 는 2026-08-17 부터 「원문의 호·목·행 수를 세어 적어라」라고 했지만
+#   **세는 법이 없었고, 그 줄이 있는지 아무도 안 봤다.** 규칙을 글로만 적으면 아무도
+#   안 지킨다(§6-H 가 21라운드를 그렇게 지나갔다 — 뿌리 사슬 ①·③).
+#   [세는 법의 임자] `article_text.countBoxRows()` — 챗봇이 쓰는 그 함수다(L-136).
+#   [잠그는 것] 「적어 놓고 틀린 것」은 처음부터 0. 「줄이 없는 쪽」만 기준선으로 잠근다(G-49).
+echo; echo "── V5-40 별표 항목수 대조 ──"
+node local_server/knowledge/legal/_dashboard/loop/annex_rowcount_gate.js --gate || fail "V5-40 별표 항목수 대조"
 
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
