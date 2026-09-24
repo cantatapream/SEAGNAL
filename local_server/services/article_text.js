@@ -921,7 +921,41 @@ const REF_RE = /별지\s*제\s*(\d+(?:의\d+)?)\s*호(?:\s*서식)?|별표\s*제
 //      `[별표 1-2]` 라 같은 것이 맞지만, `어선용품의형식승인시험…기준_별표1` 은 **그 파일
 //      고유의 1-N 하위 번호**라 `1의N` 으로 바꾸면 뜻이 달라진다. 파일마다 판단이 달라야
 //      하므로 넘겨짚지 않는다 → 2-7c.
-const ATT_HEAD_RE = /(?:^|\n)[ \t]*(?:■[^\n[〔【(「<]*)?[[〔【(「<]\s*(별표|별지|서식)\s*제?\s*(\d+(?:의\d+)?)\s*호?\s*(?:\s*의\s*(\d+))?\s*(?:서식)?\s*[\]〕】)」>]([^\n]*)/g;
+// ── 2026-09-24 (2-7c) 붙임표 번호(`1-2`)를 받되, **증거가 있을 때만** 별표로 친다 ──────
+//   실측: 붙임표 머리줄 **105곳 · 18파일**. 그런데 `1-2` 의 뜻이 파일마다 다르다.
+//     ⓐ 공식 번호            8곳  `[별지 제35-2호서식]` — 법이 그렇게 이름 붙였다
+//     ⓑ 본문이 「1의2」라 부름 4곳  `선원업무처리지침` 제16조의3 이 *"별표 1의2와 같다"*
+//     ⓒ 본문이 「2-1」이라 부름 1곳  `내항해운에관한업무지침`
+//     ⓓ **아무도 번호로 안 부름 92곳** — `..._별표1.txt` **안의 하위 표**(1-1~1-26)다.
+//   ★ⓓ 를 별표로 치면 **별표 하나가 26조각으로 쪼개진다.** 그래서 받지 않는다.
+//   ⇒ 규칙: 붙임표 번호는 **같은 글 안에 그 번호를 부르는 자리가 있을 때만** 별표로 친다.
+//     (기계가 고르지 않는다 — G-34. 고르는 것은 **원문에 적힌 증거**다.)
+const ATT_HEAD_RE = /(?:^|\n)[ \t]*(?:■[^\n[〔【(「<]*)?[[〔【(「<]\s*(별표|별지|서식)\s*제?\s*(\d+(?:의\d+)?(?:\s*[-‐‑–—]\s*\d+)?)\s*호?\s*(?:\s*의\s*(\d+))?\s*(?:서식)?\s*[\]〕】)」>]([^\n]*)/g;
+const ATT_HYPHEN_RE = /^(\d+)\s*[-‐‑–—]\s*(\d+)$/;
+/**
+ * 붙임표 번호를 별표로 칠 것인가, 그리고 **어떤 번호로 부를 것인가**.
+ * ★열쇠 모양이 중요하다 — 본문 인용은 `collectRefs` 가 만든다. 「별표 1의2」를 인용한 쪽은
+ *   `별표1의2` 를 찾으므로, 머리줄이 `[별표 1-2]` 라도 **열쇠는 `1의2` 여야 맞는다.**
+ *   (처음엔 `1-2` 를 그대로 열쇠로 썼는데, 그러면 인용과 영영 안 만난다 — 재 보고 잡았다)
+ * @returns {null|{쓴다:boolean, 번호:string, 까닭:'공식'|'의꼴'|'붙임꼴'}} 붙임표가 아니면 null
+ */
+function attHyphenKind(text, kind, num, headLine) {
+  const h = ATT_HYPHEN_RE.exec(String(num).replace(/\s+/g, ''));
+  if (!h) return null;                       // 붙임표가 아니면 종전대로
+  const [, a, b] = h;
+  if (/제\s*\d+\s*[-‐‑–—]\s*\d+\s*호/.test(headLine || '')) {
+    return { 쓴다: true, 번호: a + '-' + b, 까닭: '공식' };     // ⓐ 법이 그렇게 이름 붙였다
+  }
+  const word = kind === '별표' ? '별표' : '별지';
+  if (new RegExp(word + '\\s*' + a + '\\s*의\\s*' + b).test(text)) {
+    return { 쓴다: true, 번호: a + '의' + b, 까닭: '의꼴' };    // ⓑ 본문이 「N의M」이라 부른다
+  }
+  const bodyOnly = String(text).replace(/[[〔【(「<][^\n]*[\]〕】)」>]/g, '');
+  if (new RegExp(word + '\\s*' + a + '\\s*[-‐‑–—]\\s*' + b).test(bodyOnly)) {
+    return { 쓴다: true, 번호: a + '-' + b, 까닭: '붙임꼴' };   // ⓒ 본문이 「N-M」이라 부른다
+  }
+  return { 쓴다: false, 번호: a + '-' + b, 까닭: '의꼴' };      // ⓓ 아무도 안 부른다 → 본문으로 둔다
+}
 // 별표 구간이 시작되는 자리 — `[별표] 제목` 묶음머리, 또는 번호 붙은 별표 블록.
 const ANNEX_BLOCK_SRC = '\\n\\[별표\\]|\\n\\[별지\\]|\\n[ \\t]*(?:■[^\\n[〔【(「]*)?[[〔【(「]\\s*(?:별표|별지|서식)\\s*제?\\s*\\d';
 const ANNEX_BLOCK_RE = new RegExp(ANNEX_BLOCK_SRC);
@@ -1060,12 +1094,16 @@ function extractAttachments(text) {
   let m;
   ATT_HEAD_RE.lastIndex = 0;
   while ((m = ATT_HEAD_RE.exec(tail))) {
+    // 붙임표 번호는 원문이 그 번호를 부를 때만 별표로 친다(2-7c) — 아니면 **본문으로 둔다**.
+    const hy = attHyphenKind(src, m[1], m[2], m[0]);
+    if (hy && !hy.쓴다) continue;
+    const num = hy ? hy.번호 : String(m[2]).replace(/\s+/g, '');
     heads.push({
       start: m.index,
       bodyAt: ATT_HEAD_RE.lastIndex,
       // 번호는 두 조각으로 온다 — `별표 1의2`(호 앞) · `별지 제1호의2서식`(호 뒤).
       // 둘 중 어느 쪽으로 왔든 `1의2` 하나로 모은다.
-      key: (m[1] === '별표' ? '별표' : '서식') + m[2] + (m[3] ? '의' + m[3] : ''),
+      key: (m[1] === '별표' ? '별표' : '서식') + num + (m[3] ? '의' + m[3] : ''),
       sameLine: (m[4] || '').trim(),
     });
   }
@@ -2308,6 +2346,7 @@ async function loadArticle(q) {
 }
 
 module.exports = {
+  attHyphenKind,
   loadArticle, parseArticleRef, splitHo, splitParagraphs, extractArticleBlock, pickNoticeFile,
   // pickNoticeGlobal 도 게이트가 같은 순서로 고시를 고르게 하려고 내보낸다(L-136).
   pickNoticeGlobal,

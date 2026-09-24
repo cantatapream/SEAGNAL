@@ -130,5 +130,38 @@ const mu = A.parseBylFile(MULTI).entries.map(e => e.key);
 ok('첫 줄이 여러 번호를 담으면 그대로 다 남긴다(선언줄이 없을 때)',
   mu.includes('별표1') && mu.includes('별표2') && mu.includes('별표3'), '읽은 것: ' + mu.join('·'));
 
+
+// ── ⑧ 붙임표 번호(`1-2`)는 **원문이 그 번호를 부를 때만** 별표로 친다 (2026-09-24, 2-7c) ──
+//   실측 105곳 중 ⓐ공식 8 · ⓑ본문이 「N의M」 4 · ⓒ본문이 「N-M」 1 · ⓓ아무도 안 부름 **92**.
+//   ⓓ 를 별표로 치면 `..._별표1.txt` **하나가 26조각으로 쪼개진다.**
+console.log('\n── ⑧ 붙임표 번호는 증거가 있을 때만 별표다 (2-7c) ──');
+{
+  const 본문이의꼴 = '제16조의3 선상훈련의 내용과 시간은 별표 1의2와 같다.\n[부칙]\n[별표 1-2] 선상훈련 내용\n표\n';
+  const k1 = A.extractAttachments(본문이의꼴).map(x => x.key);
+  ok('★ⓑ 본문이 「별표 1의2」라 부르면 → 열쇠도 **별표1의2** (인용과 만나야 한다)',
+    k1.includes('별표1의2'),
+    `        ${JSON.stringify(k1)} · 인용쪽 ${JSON.stringify(A.collectRefs(본문이의꼴).map(x => x.key))}`);
+  ok('★그 열쇠가 본문 인용이 만드는 열쇠와 **같다**',
+    A.collectRefs(본문이의꼴).some((r) => k1.includes(r.key)),
+    '        모양이 다르면 별표는 있는데 영영 안 열린다');
+
+  // ⚠픽스처에 머리 `\n` 이 있어야 한다 — DOC_TAIL_RE 는 **줄머리**를 본다(내가 여기서 한 번 틀렸다).
+  const 하위표 = '조문\n[부칙]\n<별표1> 품목별 시험항목\n<별표 1-1> 응급의료구\n내용\n<별표 1-2> 역반사재\n내용\n';
+  const k2 = A.extractAttachments(하위표).map(x => x.key);
+  ok('★ⓓ 아무도 번호로 안 부르는 하위 표는 **별표로 안 친다**(한 별표가 조각나면 안 된다)',
+    !k2.includes('별표1-1') && !k2.includes('별표1-2'),
+    `        ${JSON.stringify(k2)}`);
+  ok('   그래도 **그 별표 자신(별표1)은 그대로 열린다**', k2.includes('별표1'),
+    `        ${JSON.stringify(k2)}`);
+
+  const 공식 = '[부칙]\n■ 위험물안전관리법 시행규칙 [별지 제35-2호서식]\n서식 내용\n';
+  ok('★ⓐ 공식 번호(`제35-2호서식`)는 본문이 안 불러도 받는다 — 법이 그렇게 이름 붙였다',
+    A.extractAttachments(공식).map(x => x.key).includes('서식35-2'),
+    `        ${JSON.stringify(A.extractAttachments(공식).map(x => x.key))}`);
+
+  ok('붙임표가 아닌 번호는 **종전 그대로**(규칙이 옛 동작을 건드리지 않는다)',
+    A.attHyphenKind('아무 글', '별표', '3', '[별표 3]') === null);
+}
+
 console.log(`\n  ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
