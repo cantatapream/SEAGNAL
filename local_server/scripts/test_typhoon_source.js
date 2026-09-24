@@ -34,6 +34,8 @@ const route = require(path.join(ROOT, 'local_server', 'routes', 'typhoon_foreign
 const TYPHOON_SRC = fs.readFileSync(
     path.join(ROOT, 'client', 'js', 'typhoon', 'ocean_typhoon.js'), 'utf8');
 const HTML_SRC = fs.readFileSync(path.join(ROOT, 'client', 'index2.html'), 'utf8');
+const ROUTE_SRC = fs.readFileSync(
+    path.join(ROOT, 'local_server', 'routes', 'typhoon_foreign.js'), 'utf8');
 const SERVER_SRC = fs.readFileSync(path.join(ROOT, 'local_server', 'server.js'), 'utf8');
 const VERIFY_SRC = fs.readFileSync(path.join(ROOT, 'scripts', 'refactor', 'verify_all.sh'), 'utf8');
 
@@ -213,12 +215,115 @@ ok('탭 간격이 벌어지면 0으로 되돌린다(기존 게이트와 같은 3
 ok('세션 한정 — 꺼낸 상태를 저장하지 않는다',
     !/seagnal_[a-z_]*src[a-z_]*/i.test(TYPHOON_SRC));
 
+// ── [1b] 세 가지 실제 결함 (2026-09-24 사용자 지적) ──────────────────────────
+console.log('\n[1b] 엉뚱한 태풍 · 갱신 누락 · 오차원뿔');
+
+// ① JTWC 는 전 세계 태풍을 한꺼번에 준다(대서양·동태평양·인도양까지).
+//    받은 순서의 첫 번째를 집으면 우리와 무관한 태풍(하와이 앞바다 Nolo)이 기본이 됐다.
+ok('★해외 기본 태풍도 기상청과 같은 규칙(제주 최근접)으로 고른다',
+    /pickDefaultTyphoon\(_foreignData\.typhoons\)/.test(TYPHOON_SRC));
+ok('목록 첫 번째를 그냥 집던 코드가 남아 있지 않다',
+    !/selectForeignTyphoon\(_typhoonList\[0\]\.seq\)/.test(TYPHOON_SRC));
+
+// ② 5분 주기 갱신이 기상청 쪽에만 돌고 있었다 — 해외는 출처를 바꿀 때만 받아왔다.
+ok('★해외 출처도 5분마다 갱신한다',
+    /if \(_src !== 'kma'\) refreshForeign\(\);/.test(TYPHOON_SRC));
+ok('갱신이 사용자가 고른 태풍을 건드리지 않는다(새 자문일 때만 다시 그린다)',
+    /if \(!b0 \|\| b0\.code === _selCode\) return;/.test(TYPHOON_SRC));
+ok('갱신에 실패하면 보던 화면을 유지한다',
+    /if \(!j \|\| !j\.success \|\| !\(j\.typhoons \|\| \[\]\)\.length\) return;/.test(TYPHOON_SRC));
+
+// ③ 오차 원뿔 — 서버가 싣고, 화면이 70%확률반경 자리에 그린다.
+const CONE = { type: 'Polygon', coordinates: [[[136.2, 17.2], [137, 18], [136, 18.5], [136.2, 17.2]]] };
+// filter=geo 가 없으면 상류가 errorCone 칸 자체를 안 준다(2026-09-24 실제 응답으로 확인).
+//   붙여도 position·forecast·track 은 그대로 다 온다 — 빠지는 것이 없다.
+ok('★상류를 부를 때 filter=geo 를 붙인다 — 없으면 오차 원뿔이 안 온다',
+    /&limit=10&filter=geo/.test(ROUTE_SRC));
+
+ok('★오차 원뿔을 태풍 객체 뿌리에서 찾는다',
+    route._pickErrorCone({ errorCone: CONE }) === CONE);
+ok('position 칸에 있어도 찾는다',
+    route._pickErrorCone({ position: { errorCone: CONE } }) === CONE);
+ok('profile 칸에 있어도 찾는다',
+    route._pickErrorCone({ profile: { errorCone: CONE } }) === CONE);
+ok('★없으면 null — 원을 지어내지 않는다',
+    route._pickErrorCone({ position: {} }) === null && route._pickErrorCone(null) === null);
+ok('도형이 아닌 값은 받지 않는다',
+    route._pickErrorCone({ errorCone: 'polygon' }) === null &&
+    route._pickErrorCone({ errorCone: {} }) === null);
+ok('통보문에 errorCone 칸을 실어 보낸다', /errorCone: pickErrorCone\(st\)/.test(ROUTE_SRC));
+
+// 2026-09-24 상류 응답(Nolo, 2026-EP-15)에서 그대로 떼어 온 원뿔의 앞뒤 점.
+//   실제 도형이 우리 코드를 통과하는지 붙박이로 고정한다.
+const REAL_CONE = {
+    type: 'Polygon',
+    coordinates: [[[-155.726, 14.28876], [-155.67561, 14.28392], [-155.61649, 14.28322],
+                   [-155.76904, 14.29964], [-155.726, 14.28876]]]
+};
+ok('★실제 상류 원뿔(Polygon)을 그대로 꺼낸다',
+    route._pickErrorCone({ id: '2026-EP-15', errorCone: REAL_CONE }) === REAL_CONE);
+
+// coneGeom 도 바깥 의존이 ol 뿐이라, 가짜 ol 을 끼워 실제로 돌려 본다(브라우저 없이).
+const CONE_SRC = (TYPHOON_SRC.match(/function coneGeom[\s\S]*?\n        return null;\n    \}/) || [''])[0];
+let coneMade = null;
+const fakeOl = {
+    proj: { fromLonLat: function (c) { return [c[0] * 100, c[1] * 100]; } },
+    geom: { MultiPolygon: function (p) { coneMade = p; } }
+};
+const coneGeom = new Function('ol', CONE_SRC + '; return coneGeom;')(fakeOl);
+
+coneGeom(REAL_CONE);
+ok('★실제 원뿔이 지도 도형으로 옮겨진다 (도형 1 · 링 1 · 점 5)',
+    coneMade.length === 1 && coneMade[0].length === 1 && coneMade[0][0].length === 5,
+    JSON.stringify([coneMade.length, coneMade[0].length, coneMade[0][0].length]));
+ok('경위도를 지도 좌표로 옮긴다(순서도 유지)',
+    JSON.stringify(coneMade[0][0][0]) === JSON.stringify([-15572.6, 1428.876]),
+    JSON.stringify(coneMade[0][0][0]));
+coneGeom({ type: 'MultiPolygon', coordinates: [REAL_CONE.coordinates, REAL_CONE.coordinates] });
+ok('여러 덩어리(MultiPolygon)도 받는다', coneMade.length === 2);
+ok('★도형이 아니면 null — 엉뚱한 그림을 그리지 않는다',
+    coneGeom(null) === null && coneGeom({ type: 'Point', coordinates: [1, 2] }) === null);
+
+ok('★화면은 원뿔이 있으면 원뿔을, 없으면 기존 70% 회랑을 그린다',
+    /_errorCone \? coneGeom\(_errorCone\) : swathCorridorGeom\(_frames, \{ long: 'radProb' \}\)/.test(TYPHOON_SRC));
+ok('통보문이 바뀔 때마다 원뿔을 새로 잡는다',
+    /_errorCone = b\.errorCone \|\| null;/.test(TYPHOON_SRC));
+ok('진로를 비울 때 원뿔도 함께 비운다', /_frames = \[\];\s*\n\s*_errorCone = null;/.test(TYPHOON_SRC));
+ok('원뿔을 받았으면 체크박스를 열어 주고 이름도 바꾼다',
+    /var on = kma \|\| !!_errorCone;/.test(TYPHOON_SRC) && /' 오차원뿔'/.test(TYPHOON_SRC));
+
+// ④ 사분면 반경 — 장·단 두 값으로 눌러 담던 것을 네 방향 그대로 그린다.
+ok('★강풍·폭풍반경이 네 방향 원본값을 쓴다',
+    /quad: 'radQuad34'/.test(TYPHOON_SRC) && /quad: 'radQuad50'/.test(TYPHOON_SRC));
+
+// quadRadAt 은 바깥 것을 안 쓰는 순수 계산이라 그대로 꺼내 돌려 본다(브라우저 없이 실제 동작 확인).
+const QRA_SRC = (TYPHOON_SRC.match(/var QUAD_CEN = [\s\S]*?\n    \}/) || [''])[0];
+const quadRadAt = new Function(QRA_SRC + '; return quadRadAt;')();
+ok('사분면 중심 방위에서는 그 값 그대로',
+    quadRadAt({ ne: 102, se: 0, sw: 0, nw: 93 }, 45) === 102 &&
+    quadRadAt({ ne: 102, se: 0, sw: 0, nw: 93 }, 135) === 0 &&
+    quadRadAt({ ne: 102, se: 0, sw: 0, nw: 93 }, 315) === 93);
+ok('★사분면 사이는 이웃한 두 값 사이로 잇는다 (북쪽 = 북서 93 과 북동 102 의 가운데)',
+    Math.abs(quadRadAt({ ne: 102, se: 0, sw: 0, nw: 93 }, 0) - 97.5) < 0.01,
+    String(quadRadAt({ ne: 102, se: 0, sw: 0, nw: 93 }, 0)));
+ok('한 바퀴 돌아도 끊기지 않는다(0도와 360도가 같다)',
+    Math.abs(quadRadAt({ ne: 100, se: 50, sw: 20, nw: 80 }, 0)
+           - quadRadAt({ ne: 100, se: 50, sw: 20, nw: 80 }, 360)) < 1e-9);
+ok('네 값이 같으면 어느 방위든 같다(=동그라미)',
+    [0, 37, 200, 299].every(function (d) { return quadRadAt({ ne: 60, se: 60, sw: 60, nw: 60 }, d) === 60; }));
+ok('네 방향 값이 없으면 기존 장·단반경 방식으로 돌아간다(기상청 프레임)',
+    /return quad \? quadRadAt\(quad, brngDeg\) : radAt\(rLong, rShort, edDeg, brngDeg\);/.test(TYPHOON_SRC));
+
 ok('출처를 바꾸면 setSource 가 돈다',
     /getElementById\('tphn-source'\)[\s\S]{0,200}setSource\(this\.value\)/.test(TYPHOON_SRC));
 ok('해외 출처는 /api/typhoon/foreign 을 부른다', /\/api\/typhoon\/foreign\?src=/.test(TYPHOON_SRC));
 ok('해외 출처에서는 연도 이동을 잠근다', /ySel\.disabled = \(src !== 'kma'\)/.test(TYPHOON_SRC));
-ok('해외 출처에서는 70% 확률반경 체크박스를 잠근다',
-    /probChk\.disabled = \(src !== 'kma'\)/.test(TYPHOON_SRC));
+// [변경 2026-09-24] 예전에는 해외면 무조건 잠갔다. 이제는 그 기관이 경로 오차 범위를
+//   실제로 주는지로 판단한다 — JTWC 는 원뿔을 주므로 잠그면 안 된다.
+ok('경로오차 체크박스는 자료가 있을 때만 열린다(기상청 항상 · 해외는 원뿔 있을 때)',
+    /chk\.disabled = !on;/.test(TYPHOON_SRC) && /var on = kma \|\| !!_errorCone;/.test(TYPHOON_SRC));
+ok('경로 오차 범위를 안 주는 기관에서는 왜 잠겼는지 알려 준다',
+    /이 기관은 경로 오차 범위를 제공하지 않습니다/.test(TYPHOON_SRC));
 ok('어느 기관 자료인지 화면에 적는다(renderSourceNote)',
     /function renderSourceNote/.test(TYPHOON_SRC) && /tphn-source-note/.test(HTML_SRC));
 ok('풍속 평균 시간 차이를 출처 표기에 적는다(1분 vs 10분)',

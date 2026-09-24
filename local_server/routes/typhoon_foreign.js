@@ -14,8 +14,9 @@
  * [기상청과 다른 점 — 그대로 옮길 수 없는 것들]
  *   1. 중심기압: JTWC 는 시점별 기압을 주지 않는다(태풍 전체의 생애 최저만).
  *      → pressure 는 null 로 둔다. 없는 값을 지어내지 않는다.
- *   2. 70% 확률반경: 없다(대신 오차 원뿔을 주는데 이번 단계에서는 쓰지 않는다).
- *      → radProb 는 null. 화면에서 그 체크박스는 꺼진다.
+ *   2. 70% 확률반경: 없다. 대신 **오차 원뿔(errorCone)** 을 GeoJSON 으로 주므로 그대로 실어 보낸다.
+ *      → radProb 는 null(원 하나로는 표현이 안 된다). 화면은 원뿔 도형을 그대로 그린다.
+ *        둘은 같은 것을 다르게 그린 것이다 — "경로가 빗나갈 수 있는 범위".
  *   3. 풍속반경: 기상청은 "장반경 + 단반경 + 단반경 방위" 세 값인데,
  *      JTWC 는 **북동·남동·남서·북서 네 방향 거리**를 준다.
  *      → 가장 먼 쪽을 장반경, 가장 가까운 쪽을 단반경과 그 방위로 옮긴다(근사).
@@ -126,6 +127,25 @@ function gradeOfWind(ms) {
     return 0;
 }
 
+/**
+ * 태풍 하나에서 오차 원뿔(GeoJSON)을 꺼낸다.
+ * 예: { type:'Polygon', coordinates:[[[136.2,17.2], …]] }
+ * [어느 칸인가] 태풍 객체 뿌리(response[].errorCone)다 — 2026-09-24 실제 응답으로 확인했다.
+ *   나머지 자리는 상류가 칸을 옮길 때를 대비한 보험이다. 찾지 못하면 null — 지어내지 않는다.
+ * @param {Object} st - 상류 태풍 객체
+ * @returns {Object|null} GeoJSON 도형, 없으면 null
+ */
+function pickErrorCone(st) {
+    if (!st) return null;
+    var spots = [st.errorCone, st.position && st.position.errorCone,
+                 st.profile && st.profile.errorCone, st.geoPoly, st.cone];
+    for (var i = 0; i < spots.length; i++) {
+        var c = spots[i];
+        if (c && typeof c === 'object' && (c.type || c.coordinates)) return c;
+    }
+    return null;
+}
+
 /** 네 방향 중심 방위(도) — 사분면 대표 방향. */
 const QUAD_DIR = { ne: 'NE', se: 'SE', sw: 'SW', nw: 'NW' };
 
@@ -220,8 +240,10 @@ function toFrame(node, isCurrent) {
 /** 상류 호출 + 30분 캐시. 실패하면 null. */
 async function fetchActive() {
     if (cache && (Date.now() - cache.at) < TTL_MS) return cache.data;
+    // filter=geo 가 있어야 오차 원뿔(errorCone)이 따라온다 — 없으면 그 칸 자체가 안 온다.
+    //   2026-09-24 실제 응답으로 확인: 붙여도 position·forecast·track 은 그대로 다 온다(빠지는 것 없음).
     const url = `${BASE}/?client_id=${encodeURIComponent(CLIENT_ID)}`
-              + `&client_secret=${encodeURIComponent(CLIENT_SECRET)}&limit=10`;
+              + `&client_secret=${encodeURIComponent(CLIENT_SECRET)}&limit=10&filter=geo`;
     let json = null;
     try {
         const res = await fetch(url, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
@@ -292,10 +314,11 @@ router.get('/api/typhoon/foreign', async (req, res) => {
                 isLatest: true,
                 current: cur,
                 forecast: forecast,
+                errorCone: pickErrorCone(st),   // 경로가 빗나갈 수 있는 범위(70% 확률반경에 해당)
                 // 화면 안내(i 버튼)가 그대로 쓰는 자리 — 기관 차이를 여기서 알린다.
                 rem: 'JTWC(미국 합동태풍경보센터) 자료입니다. 풍속은 1분 평균이라 기상청(10분 평균)보다 높게 나옵니다.'
                    + '|강도(약~초강력)는 그 풍속을 10분 평균으로 환산해 기상청 기준에 맞춘 값입니다.'
-                   + '|중심기압과 70% 확률반경은 제공되지 않습니다.'
+                   + '|중심기압은 제공되지 않습니다. 70% 확률반경 대신 오차 원뿔로 그립니다.'
                    + '|강풍·폭풍반경은 네 방향 값 중 가장 먼 쪽·가까운 쪽으로 옮겨 그린 근사입니다.',
                 other: 'Xweather 를 통해 받은 JTWC 자료 · 6시간마다 갱신'
             }]
@@ -322,5 +345,6 @@ router._pickQuad = pickQuad;
 router._gradeOfStormType = gradeOfStormType;
 router._gradeOfWind = gradeOfWind;
 router._toKstStamp = toKstStamp;
+router._pickErrorCone = pickErrorCone;
 
 module.exports = router;
